@@ -760,7 +760,7 @@ void SRigVMExecutionStackView::RefreshTreeView(URigVM* InVM, FRigVMExtendedExecu
 					}
 				}
 
-				Host->GetExtendedExecuteContext().ExecutionHalted().AddSP(this, &SRigVMExecutionStackView::HandleExecutionHalted);
+				Host->GetDebugInfo().ExecutionHalted().AddSP(this, &SRigVMExecutionStackView::HandleExecutionHalted);
 			}
 		}
 	}

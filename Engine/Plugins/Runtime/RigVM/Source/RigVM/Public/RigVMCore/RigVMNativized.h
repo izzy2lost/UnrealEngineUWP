@@ -64,8 +64,11 @@ public:
 	{
 		Super::SetInstructionIndex(Context, InInstructionIndex);
 #if WITH_EDITOR
-		Context.InstructionVisitedDuringLastRun[InInstructionIndex]++;
-		Context.InstructionVisitOrder.Add(InInstructionIndex);
+		if (FRigVMDebugInfo* RigVMDebugInfo = Context.GetRigVMDebugInfo())
+		{
+			RigVMDebugInfo->SetInstructionVisitedDuringLastRun(InInstructionIndex);
+			RigVMDebugInfo->AddInstructionIndexToVisitOrder(InInstructionIndex);
+		}
 #endif
 	}
 

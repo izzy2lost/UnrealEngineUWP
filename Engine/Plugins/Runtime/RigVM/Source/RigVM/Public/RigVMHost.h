@@ -10,6 +10,9 @@
 #include "Engine/AssetUserData.h"
 #include "Interfaces/Interface_AssetUserData.h"
 #include "SceneManagement.h"
+#if WITH_EDITOR
+#include "RigVMCore/RigVMDebugInfo.h"
+#endif
 #include "RigVMHost.generated.h"
 
 // set this to something larger than 0 to profile N runs
@@ -444,10 +447,18 @@ public:
 	 *  it is applied on the next VM execution */
 	bool ExecuteBreakpointAction(const ERigVMBreakpointAction BreakpointAction);
 
-	const FRigVMBreakpoint& GetHaltedAtBreakpoint() const { return ExtendedExecuteContext.HaltedAtBreakpoint; }
-	void SetBreakpointAction(const ERigVMBreakpointAction& Action) { ExtendedExecuteContext.CurrentBreakpointAction = Action; }
+	const FRigVMBreakpoint& GetHaltedAtBreakpoint() const
+	{
+		return GetDebugInfo().GetHaltedAtBreakpoint();
+	}
+
+	void SetBreakpointAction(const ERigVMBreakpointAction& Action)
+	{
+		GetDebugInfo().SetCurrentBreakpointAction(Action);
+	}
 	
 	FRigVMDebugInfo& GetDebugInfo() { return DebugInfo; }
+	const FRigVMDebugInfo& GetDebugInfo() const { return DebugInfo; }
 
 	/** Creates the snapshot VM if required and returns it */
 	URigVM* GetSnapshotVM(bool bCreateIfNeeded = true);

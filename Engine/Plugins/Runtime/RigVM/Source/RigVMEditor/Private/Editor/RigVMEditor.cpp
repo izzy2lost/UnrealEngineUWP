@@ -1029,7 +1029,7 @@ void FRigVMEditor::Compile()
 		{
 			RigVMHost->OnInitialized_AnyThread().Clear();
 			RigVMHost->OnExecuted_AnyThread().Clear();
-			RigVMHost->GetExtendedExecuteContext().ExecutionHalted().RemoveAll(this);
+			RigVMHost->GetDebugInfo().ExecutionHalted().RemoveAll(this);
 		}
 
 		SetHost(nullptr);
@@ -1827,7 +1827,7 @@ void FRigVMEditor::HandleVMExecutedEvent(URigVMHost* InHost, const FName& InEven
 		{
 			if(DebuggedHost)
 			{
-				RigVMBlueprint->RigGraphDisplaySettings.TotalMicroSeconds = DebuggedHost->GetExtendedExecuteContext().LastExecutionMicroSeconds;
+				RigVMBlueprint->RigGraphDisplaySettings.TotalMicroSeconds = DebuggedHost->GetDebugInfo().GetLastExecutionMicroSeconds();
 			}
 
 			if(RigVMBlueprint->RigGraphDisplaySettings.bAutoDetermineRange)
@@ -2411,7 +2411,7 @@ void FRigVMEditor::UpdateRigVMHost()
 		RigVMHost->OnInitialized_AnyThread().AddSP(this, &FRigVMEditor::HandleVMExecutedEvent);
 		RigVMHost->OnExecuted_AnyThread().AddSP(this, &FRigVMEditor::HandleVMExecutedEvent);
 		RigVMHost->RequestInit();
-		RigVMHost->GetExtendedExecuteContext().ExecutionHalted().AddSP(this, &FRigVMEditor::HandleVMExecutionHalted);
+		RigVMHost->GetDebugInfo().ExecutionHalted().AddSP(this, &FRigVMEditor::HandleVMExecutionHalted);
 	}
 }
 

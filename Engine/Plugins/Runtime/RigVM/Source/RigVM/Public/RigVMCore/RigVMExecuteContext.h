@@ -723,7 +723,6 @@ struct RIGVM_API FRigVMExtendedExecuteContext
 	URigVM* VM = nullptr;
 	TArray<FRigVMSlice> Slices;
 	TArray<uint16> SliceOffsets;
-	double LastExecutionMicroSeconds = 0.0;
 	const FRigVMDispatchFactory* Factory = nullptr;
 	FRigVMNameCache NameCache;
 
@@ -762,38 +761,15 @@ struct RIGVM_API FRigVMExtendedExecuteContext
 #if WITH_EDITOR
 
 	FRigVMDebugInfo* DebugInfo = nullptr;
-	FRigVMBreakpoint HaltedAtBreakpoint;
-	int32 HaltedAtBreakpointHit = INDEX_NONE;
-	ERigVMBreakpointAction CurrentBreakpointAction = ERigVMBreakpointAction::None;
-
-	// stores the number of times each instruction was visited
-	TArray<int32> InstructionVisitedDuringLastRun;
-	TArray<uint64> InstructionCyclesDuringLastRun;
-	TArray<int32> InstructionVisitOrder;
-
-	const void SetFirstEntryEventInEventQueue(const FName& InFirstEventName) { FirstEntryEventInQueue = InFirstEventName; }
-	const FName& GetFirstEntryEventInEventQueue() { return FirstEntryEventInQueue; }
-
-	// A RigVMHost can run multiple events per evaluation, such as the Backward&Forward Solve Mode,
-	// store the first event such that we know when to reset data for a new round of rig evaluation
-	FName FirstEntryEventInQueue = NAME_None;
-
-	uint64 StartCycles = 0;
-	uint64 OverallCycles = 0;
-
-	DECLARE_EVENT_ThreeParams(URigVM, FExecutionHaltedEvent, int32, UObject*, const FName&);
-	FExecutionHaltedEvent OnExecutionHalted;
-
-	FExecutionHaltedEvent& ExecutionHalted()
-	{
-		return OnExecutionHalted;
-	}
 
 	void SetDebugInfo(FRigVMDebugInfo* InDebugInfo)
 	{
 		DebugInfo = InDebugInfo;
 	}
 
+	FRigVMDebugInfo* GetRigVMDebugInfo() const
+	{
+		return DebugInfo;
+	}
 #endif // WITH_EDITOR
-
 };

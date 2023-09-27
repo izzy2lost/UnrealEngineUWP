@@ -909,30 +909,17 @@ bool URigVM::CanExecuteEntry(const FRigVMExtendedExecuteContext& Context, const 
 
 #if WITH_EDITOR
 
-bool URigVM::ResumeExecution(FRigVMExtendedExecuteContext& Context)
-{
-	Context.HaltedAtBreakpoint.Reset();
-	Context.HaltedAtBreakpointHit = INDEX_NONE;
-	if (Context.DebugInfo)
-	{
-		if (const FRigVMBreakpoint& CurrentBreakpoint = Context.DebugInfo->GetCurrentActiveBreakpoint())
-		{
-			Context.DebugInfo->IncrementBreakpointActivationOnHit(CurrentBreakpoint);
-			Context.DebugInfo->SetCurrentActiveBreakpoint(FRigVMBreakpoint());
-			return true;
-		}
-	}
-
-	return false;
-}
-
 bool URigVM::ResumeExecution(FRigVMExtendedExecuteContext& Context, TArrayView<TRigVMMemoryStorage*> Memory, const FName& InEntryName)
 {
-	ResumeExecution(Context);
+	if (FRigVMDebugInfo* RigVMDebugInfo = Context.GetRigVMDebugInfo())
+	{
+		RigVMDebugInfo->ResumeExecution();
+	}
+
 	return Execute(Context, Memory, InEntryName) != ERigVMExecuteResult::Failed;
 }
 
-#endif
+#endif 
 
 const TArray<FRigVMParameter>& URigVM::GetParameters() const
 {
@@ -1263,12 +1250,14 @@ void URigVM::RebuildByteCodeOnLoad()
 #if WITH_EDITOR
 bool URigVM::ShouldHaltAtInstruction(FRigVMExtendedExecuteContext& Context, const FName& InEventName, const uint16 InstructionIndex)
 {
-	if(Context.DebugInfo == nullptr)
+	FRigVMDebugInfo* RigVMDebugInfo = Context.GetRigVMDebugInfo();
+
+	if (RigVMDebugInfo == nullptr)
 	{
 		return false;
 	}
 
-	if(Context.DebugInfo->IsEmpty())
+	if(RigVMDebugInfo->IsEmpty())
 	{
 		return false;
 	}
@@ -1276,45 +1265,45 @@ bool URigVM::ShouldHaltAtInstruction(FRigVMExtendedExecuteContext& Context, cons
 	FRigVMByteCode& ByteCode = GetByteCode();
 	FRigVMExecuteContext& ContextPublicData = Context.GetPublicData<>();
 
-	TArray<FRigVMBreakpoint> BreakpointsAtInstruction = Context.DebugInfo->FindBreakpointsAtInstruction(InstructionIndex);
+	TArray<FRigVMBreakpoint> BreakpointsAtInstruction = RigVMDebugInfo->FindBreakpointsAtInstruction(InstructionIndex);
 	for (FRigVMBreakpoint Breakpoint : BreakpointsAtInstruction)
 	{
-		if (Context.DebugInfo->IsActive(Breakpoint))
+		if (RigVMDebugInfo->IsActive(Breakpoint))
 		{
-			switch (Context.CurrentBreakpointAction)
+			switch (RigVMDebugInfo->GetCurrentBreakpointAction())
 			{
 				case ERigVMBreakpointAction::None:
 				{
 					// Halted at breakpoint. Check if this is a new breakpoint different from the previous halt.
-					if (Context.HaltedAtBreakpoint != Breakpoint ||
-						Context.HaltedAtBreakpointHit != Context.DebugInfo->GetBreakpointHits(Breakpoint))
+					if (RigVMDebugInfo->GetHaltedAtBreakpoint() != Breakpoint ||
+						RigVMDebugInfo->GetHaltedAtBreakpointHit() != RigVMDebugInfo->GetBreakpointHits(Breakpoint))
 					{
-						Context.HaltedAtBreakpoint = Breakpoint;
-						Context.HaltedAtBreakpointHit = Context.DebugInfo->GetBreakpointHits(Breakpoint);
-						Context.DebugInfo->SetCurrentActiveBreakpoint(Breakpoint);
+						RigVMDebugInfo->SetHaltedAtBreakpoint(Breakpoint);
+						RigVMDebugInfo->SetHaltedAtBreakpointHit(RigVMDebugInfo->GetBreakpointHits(Breakpoint));
+						RigVMDebugInfo->SetCurrentActiveBreakpoint(Breakpoint);
 						
 						// We want to keep the callstack up to the node that produced the halt
 						const TArray<UObject*>* FullCallstack = ByteCode.GetCallstackForInstruction(ContextPublicData.InstructionIndex);
 						if (FullCallstack)
 						{
-							Context.DebugInfo->SetCurrentActiveBreakpointCallstack(TArray<UObject*>(FullCallstack->GetData(), FullCallstack->Find((UObject*)Breakpoint.Subject)+1));
+							RigVMDebugInfo->SetCurrentActiveBreakpointCallstack(TArray<UObject*>(FullCallstack->GetData(), FullCallstack->Find((UObject*)Breakpoint.Subject)+1));
 						}
-						Context.ExecutionHalted().Broadcast(ContextPublicData.InstructionIndex, Breakpoint.Subject, InEventName);
+						RigVMDebugInfo->ExecutionHalted().Broadcast(ContextPublicData.InstructionIndex, Breakpoint.Subject, InEventName);
 					}
 					return true;
 				}
 				case ERigVMBreakpointAction::Resume:
 				{
-					Context.CurrentBreakpointAction = ERigVMBreakpointAction::None;
+					RigVMDebugInfo->SetCurrentBreakpointAction(ERigVMBreakpointAction::None);
 
-					if (Context.DebugInfo->IsTemporaryBreakpoint(Breakpoint))
+					if (RigVMDebugInfo->IsTemporaryBreakpoint(Breakpoint))
 					{
-						Context.DebugInfo->RemoveBreakpoint(Breakpoint);
+						RigVMDebugInfo->RemoveBreakpoint(Breakpoint);
 					}
 					else
 					{
-						Context.DebugInfo->IncrementBreakpointActivationOnHit(Breakpoint);
-						Context.DebugInfo->HitBreakpoint(Breakpoint);
+						RigVMDebugInfo->IncrementBreakpointActivationOnHit(Breakpoint);
+						RigVMDebugInfo->HitBreakpoint(Breakpoint);
 					}
 					break;
 				}
@@ -1323,15 +1312,15 @@ bool URigVM::ShouldHaltAtInstruction(FRigVMExtendedExecuteContext& Context, cons
 				case ERigVMBreakpointAction::StepOut:
 				{
 					// If we are stepping, check if we were halted at the current instruction, and remember it 
-					if (!Context.DebugInfo->GetCurrentActiveBreakpoint())
+					if (!RigVMDebugInfo->GetCurrentActiveBreakpoint())
 					{
-						Context.DebugInfo->SetCurrentActiveBreakpoint(Breakpoint);
+						RigVMDebugInfo->SetCurrentActiveBreakpoint(Breakpoint);
 						const TArray<UObject*>* FullCallstack = ByteCode.GetCallstackForInstruction(ContextPublicData.InstructionIndex);
 						
 						// We want to keep the callstack up to the node that produced the halt
 						if (FullCallstack)
 						{
-							Context.DebugInfo->SetCurrentActiveBreakpointCallstack(TArray<UObject*>(FullCallstack->GetData(), FullCallstack->Find((UObject*)Context.DebugInfo->GetCurrentActiveBreakpoint().Subject)+1));
+							RigVMDebugInfo->SetCurrentActiveBreakpointCallstack(TArray<UObject*>(FullCallstack->GetData(), FullCallstack->Find((UObject*)RigVMDebugInfo->GetCurrentActiveBreakpoint().Subject)+1));
 						}
 					}							
 					
@@ -1346,12 +1335,12 @@ bool URigVM::ShouldHaltAtInstruction(FRigVMExtendedExecuteContext& Context, cons
 		}
 		else
 		{
-			Context.DebugInfo->HitBreakpoint(Breakpoint);
+			RigVMDebugInfo->HitBreakpoint(Breakpoint);
 		}
 	}
 
 	// If we are stepping, and the last active breakpoint was set, check if this is the new temporary breakpoint
-	if (Context.CurrentBreakpointAction != ERigVMBreakpointAction::None && Context.DebugInfo->GetCurrentActiveBreakpoint())
+	if (RigVMDebugInfo->GetCurrentBreakpointAction() != ERigVMBreakpointAction::None && RigVMDebugInfo->GetCurrentActiveBreakpoint())
 	{
 		const TArray<UObject*>* CurrentCallstack = ByteCode.GetCallstackForInstruction(ContextPublicData.InstructionIndex);
 		if (CurrentCallstack && !CurrentCallstack->IsEmpty())
@@ -1360,7 +1349,7 @@ bool URigVM::ShouldHaltAtInstruction(FRigVMExtendedExecuteContext& Context, cons
 
 			// Find the first difference in the callstack
 			int32 DifferenceIndex = INDEX_NONE;
-			TArray<UObject*>& PreviousCallstack = Context.DebugInfo->GetCurrentActiveBreakpointCallstack();
+			TArray<UObject*>& PreviousCallstack = RigVMDebugInfo->GetCurrentActiveBreakpointCallstack();
 			for (int32 i=0; i<PreviousCallstack.Num(); ++i)
 			{
 				if (CurrentCallstack->Num() == i)
@@ -1375,14 +1364,14 @@ bool URigVM::ShouldHaltAtInstruction(FRigVMExtendedExecuteContext& Context, cons
 				}
 			}
 
-			if (Context.CurrentBreakpointAction == ERigVMBreakpointAction::StepOver)
+			if (RigVMDebugInfo->GetCurrentBreakpointAction() == ERigVMBreakpointAction::StepOver)
 			{
 				if (DifferenceIndex != INDEX_NONE)
 				{
 					NewBreakpointNode = CurrentCallstack->operator[](DifferenceIndex);
 				}
 			}
-			else if (Context.CurrentBreakpointAction == ERigVMBreakpointAction::StepInto)
+			else if (RigVMDebugInfo->GetCurrentBreakpointAction() == ERigVMBreakpointAction::StepInto)
 			{
 				if (DifferenceIndex == INDEX_NONE)
 				{
@@ -1396,7 +1385,7 @@ bool URigVM::ShouldHaltAtInstruction(FRigVMExtendedExecuteContext& Context, cons
 					NewBreakpointNode = CurrentCallstack->operator[](DifferenceIndex);
 				}
 			}
-			else if (Context.CurrentBreakpointAction == ERigVMBreakpointAction::StepOut)
+			else if (RigVMDebugInfo->GetCurrentBreakpointAction() == ERigVMBreakpointAction::StepOut)
 			{
 				if (DifferenceIndex != INDEX_NONE && DifferenceIndex <= PreviousCallstack.Num() - 2)
                 {
@@ -1407,25 +1396,25 @@ bool URigVM::ShouldHaltAtInstruction(FRigVMExtendedExecuteContext& Context, cons
 			if (NewBreakpointNode)
 			{
 				// Remove or hit previous breakpoint
-				if (Context.DebugInfo->IsTemporaryBreakpoint(Context.DebugInfo->GetCurrentActiveBreakpoint()))
+				if (RigVMDebugInfo->IsTemporaryBreakpoint(RigVMDebugInfo->GetCurrentActiveBreakpoint()))
 				{
-					Context.DebugInfo->RemoveBreakpoint(Context.DebugInfo->GetCurrentActiveBreakpoint());
+					RigVMDebugInfo->RemoveBreakpoint(RigVMDebugInfo->GetCurrentActiveBreakpoint());
 				}
 				else
 				{
-					Context.DebugInfo->IncrementBreakpointActivationOnHit(Context.DebugInfo->GetCurrentActiveBreakpoint());
-					Context.DebugInfo->HitBreakpoint(Context.DebugInfo->GetCurrentActiveBreakpoint());
+					RigVMDebugInfo->IncrementBreakpointActivationOnHit(RigVMDebugInfo->GetCurrentActiveBreakpoint());
+					RigVMDebugInfo->HitBreakpoint(RigVMDebugInfo->GetCurrentActiveBreakpoint());
 				}
 
 				// Create new temporary breakpoint
-				const FRigVMBreakpoint& NewBreakpoint = Context.DebugInfo->AddBreakpoint(ContextPublicData.InstructionIndex, NewBreakpointNode, 0, true);
-				Context.DebugInfo->SetBreakpointHits(NewBreakpoint, GetInstructionVisitedCount(Context, ContextPublicData.InstructionIndex));
-				Context.DebugInfo->SetBreakpointActivationOnHit(NewBreakpoint, GetInstructionVisitedCount(Context, ContextPublicData.InstructionIndex));
-				Context.CurrentBreakpointAction = ERigVMBreakpointAction::None;					
+				const FRigVMBreakpoint& NewBreakpoint = RigVMDebugInfo->AddBreakpoint(ContextPublicData.InstructionIndex, NewBreakpointNode, 0, true);
+				RigVMDebugInfo->SetBreakpointHits(NewBreakpoint, GetInstructionVisitedCount(Context, ContextPublicData.InstructionIndex));
+				RigVMDebugInfo->SetBreakpointActivationOnHit(NewBreakpoint, GetInstructionVisitedCount(Context, ContextPublicData.InstructionIndex));
+				RigVMDebugInfo->SetCurrentBreakpointAction(ERigVMBreakpointAction::None);
 
-				Context.HaltedAtBreakpoint = NewBreakpoint;
-				Context.HaltedAtBreakpointHit = Context.DebugInfo->GetBreakpointHits(Context.HaltedAtBreakpoint);
-				Context.ExecutionHalted().Broadcast(ContextPublicData.InstructionIndex, NewBreakpointNode, InEventName);
+				RigVMDebugInfo->SetHaltedAtBreakpoint(NewBreakpoint);
+				RigVMDebugInfo->SetHaltedAtBreakpointHit(RigVMDebugInfo->GetBreakpointHits(RigVMDebugInfo->GetHaltedAtBreakpoint()));
+				RigVMDebugInfo->ExecutionHalted().Broadcast(ContextPublicData.InstructionIndex, NewBreakpointNode, InEventName);
 		
 				return true;
 			}
@@ -1565,9 +1554,12 @@ ERigVMExecuteResult URigVM::Execute(FRigVMExtendedExecuteContext& Context, TArra
 
 	if(bIsRootEntry)
 	{
-		if (Context.GetFirstEntryEventInEventQueue() == NAME_None || Context.GetFirstEntryEventInEventQueue() == InEntryName)
+		if (FRigVMDebugInfo* RigVMDebugInfo = Context.GetRigVMDebugInfo())
 		{
-			SetupInstructionTracking(Context, Instructions.Num());
+			if (RigVMDebugInfo->GetFirstEntryEventInEventQueue() == NAME_None || RigVMDebugInfo->GetFirstEntryEventInEventQueue() == InEntryName)
+			{
+				RigVMDebugInfo->SetupInstructionTracking(Instructions.Num(), Context.GetPublicData<>().RuntimeSettings.bEnableProfiling);
+			}
 		}
 	}
 #endif
@@ -1629,9 +1621,12 @@ ERigVMExecuteResult URigVM::Execute(FRigVMExtendedExecuteContext& Context, TArra
 	FEntryExecuteGuard EntryExecuteGuard(Context.EntriesBeingExecuted, EntryIndexToPush);
 
 #if WITH_EDITOR
-	if (Context.DebugInfo && bIsRootEntry)
+	if (bIsRootEntry)
 	{
-		Context.DebugInfo->StartExecution();
+		if (FRigVMDebugInfo* RigVMDebugInfo = Context.GetRigVMDebugInfo())
+		{
+			RigVMDebugInfo->StartExecution();
+		}
 	}
 #endif
 
@@ -1667,11 +1662,14 @@ ERigVMExecuteResult URigVM::Execute(FRigVMExtendedExecuteContext& Context, TArra
 	{
 		Context.CurrentVMMemory = TArrayView<TRigVMMemoryStorage*>();
 		
-		if (Context.HaltedAtBreakpoint.IsValid() && Context.CurrentExecuteResult != ERigVMExecuteResult::Halted)
+		if (FRigVMDebugInfo* RigVMDebugInfo = Context.GetRigVMDebugInfo())
 		{
-			Context.DebugInfo->SetCurrentActiveBreakpoint(FRigVMBreakpoint());
-			Context.HaltedAtBreakpoint.Reset();
-			Context.ExecutionHalted().Broadcast(INDEX_NONE, nullptr, InEntryName);
+			if (RigVMDebugInfo->GetHaltedAtBreakpoint().IsValid() && Context.CurrentExecuteResult != ERigVMExecuteResult::Halted)
+			{
+				RigVMDebugInfo->SetCurrentActiveBreakpoint(FRigVMBreakpoint());
+				RigVMDebugInfo->GetHaltedAtBreakpoint().Reset();
+				RigVMDebugInfo->ExecutionHalted().Broadcast(INDEX_NONE, nullptr, InEntryName);
+			}
 		}
 	}
 #endif
@@ -1693,6 +1691,7 @@ ERigVMExecuteResult URigVM::ExecuteInstructions(FRigVMExtendedExecuteContext& Co
 
 #if WITH_EDITOR
 	TArray<FName>& FunctionNames = GetFunctionNames();
+	FRigVMDebugInfo* RigVMDebugInfo = Context.GetRigVMDebugInfo();
 #endif
 	
 	while (Instructions.IsValidIndex(ContextPublicData.InstructionIndex))
@@ -1726,8 +1725,12 @@ ERigVMExecuteResult URigVM::ExecuteInstructions(FRigVMExtendedExecuteContext& Co
 #if WITH_EDITOR
 
 		const int32 CurrentInstructionIndex = ContextPublicData.InstructionIndex;
-		Context.InstructionVisitedDuringLastRun[ContextPublicData.InstructionIndex]++;
-		Context.InstructionVisitOrder.Add(ContextPublicData.InstructionIndex);
+
+		if (RigVMDebugInfo != nullptr)
+		{
+			RigVMDebugInfo->SetInstructionVisitedDuringLastRun(ContextPublicData.InstructionIndex);
+			RigVMDebugInfo->AddInstructionIndexToVisitOrder(ContextPublicData.InstructionIndex);
+		}
 	
 #endif
 
@@ -1967,11 +1970,14 @@ ERigVMExecuteResult URigVM::ExecuteInstructions(FRigVMExtendedExecuteContext& Co
 					StopProfiling(Context);
 					Context.ExecutionReachedExit().Broadcast(Context.CurrentEntryName);
 #if WITH_EDITOR					
-					if (Context.HaltedAtBreakpoint.IsValid())
+					if (RigVMDebugInfo != nullptr)
 					{
-						Context.HaltedAtBreakpoint.Reset();
-						Context.DebugInfo->SetCurrentActiveBreakpoint(FRigVMBreakpoint());
-						Context.ExecutionHalted().Broadcast(INDEX_NONE, nullptr, Context.CurrentEntryName);
+						if (RigVMDebugInfo->GetHaltedAtBreakpoint().IsValid())
+						{
+							RigVMDebugInfo->GetHaltedAtBreakpoint().Reset();
+							RigVMDebugInfo->SetCurrentActiveBreakpoint(FRigVMBreakpoint());
+							RigVMDebugInfo->ExecutionHalted().Broadcast(INDEX_NONE, nullptr, Context.CurrentEntryName);
+						}
 					}
 #if UE_RIGVM_DEBUG_EXECUTION
 					if (CVarControlRigDebugAllVMExecutions->GetBool() || ContextPublicData.bDebugExecution)
@@ -2088,21 +2094,24 @@ ERigVMExecuteResult URigVM::ExecuteInstructions(FRigVMExtendedExecuteContext& Co
 		}
 
 #if WITH_EDITOR
-		if(ContextPublicData.RuntimeSettings.bEnableProfiling && !Context.InstructionVisitOrder.IsEmpty())
+		if (RigVMDebugInfo != nullptr)
 		{
-			const uint64 EndCycles = FPlatformTime::Cycles64();
-			const uint64 Cycles = EndCycles - Context.StartCycles;
-			if(Context.InstructionCyclesDuringLastRun[CurrentInstructionIndex] == UINT64_MAX)
+			if (ContextPublicData.RuntimeSettings.bEnableProfiling && !RigVMDebugInfo->GetInstructionVisitOrder().IsEmpty())
 			{
-				Context.InstructionCyclesDuringLastRun[CurrentInstructionIndex] = Cycles;
-			}
-			else
-			{
-				Context.InstructionCyclesDuringLastRun[CurrentInstructionIndex] += Cycles;
-			}
+				const uint64 EndCycles = FPlatformTime::Cycles64();
+				const uint64 Cycles = EndCycles - RigVMDebugInfo->GetStartCycles();
+				if (RigVMDebugInfo->GetInstructionCyclesDuringLastRun(CurrentInstructionIndex) == UINT64_MAX)
+				{
+					RigVMDebugInfo->SetInstructionCyclesDuringLastRun(CurrentInstructionIndex, Cycles);
+				}
+				else
+				{
+					RigVMDebugInfo->AddInstructionCyclesDuringLastRun(CurrentInstructionIndex, Cycles);
+				}
 
-			Context.StartCycles = EndCycles;
-			Context.OverallCycles += Cycles;
+				RigVMDebugInfo->SetStartCycles(EndCycles);
+				RigVMDebugInfo->AddOverallCycles(Cycles);
+			}
 		}
 
 #if UE_RIGVM_DEBUG_EXECUTION
@@ -2163,9 +2172,19 @@ bool URigVM::Execute(FRigVMExtendedExecuteContext& Context, const FName& InEntry
 
 ERigVMExecuteResult URigVM::ExecuteBranch(FRigVMExtendedExecuteContext& Context, const FRigVMBranchInfo& InBranchToRun)
 {
+#if WITH_EDITOR
+	const double LastExecutionMicroSecondsGuard = Context.GetRigVMDebugInfo() ? Context.GetRigVMDebugInfo()->GetLastExecutionMicroSeconds() : 0.0;
+	ON_SCOPE_EXIT
+	{
+		if (Context.GetRigVMDebugInfo())
+		{
+			Context.GetRigVMDebugInfo()->SetLastExecutionMicroSeconds(LastExecutionMicroSecondsGuard);
+		}
+	};
+#endif
+
 	// Maintain all settings on the context - to be reset once the branch has executed. 
 	FRigVMExecuteContext& PublicContext = Context.GetPublicData<>();
-	TGuardValue<double> LastExecutionMicroSecondsGuard(Context.LastExecutionMicroSeconds, Context.LastExecutionMicroSeconds);
 	TGuardValue<uint32> NumExecutionsGuard(PublicContext.NumExecutions, PublicContext.NumExecutions);
 	TGuardValue<ERigVMExecuteResult> CurrentExecuteResultGuard(Context.CurrentExecuteResult, Context.CurrentExecuteResult);
 	TGuardValue<FName> CurrentEntryNameGuard(Context.CurrentEntryName, Context.CurrentEntryName);
@@ -2652,18 +2671,9 @@ void URigVM::RefreshExternalPropertyPaths()
 void URigVM::SetupInstructionTracking(FRigVMExtendedExecuteContext& Context, int32 InInstructionCount)
 {
 #if WITH_EDITOR
-	Context.InstructionVisitedDuringLastRun.Reset();
-	Context.InstructionVisitOrder.Reset();
-	Context.InstructionVisitedDuringLastRun.SetNumZeroed(InInstructionCount);
-	Context.InstructionCyclesDuringLastRun.Reset();
-
-	if(Context.GetPublicData<>().RuntimeSettings.bEnableProfiling)
+	if (FRigVMDebugInfo* RigVMDebugInfo = Context.GetRigVMDebugInfo())
 	{
-		Context.InstructionCyclesDuringLastRun.SetNumUninitialized(InInstructionCount);
-		for(int32 DurationIndex=0;DurationIndex<Context.InstructionCyclesDuringLastRun.Num();DurationIndex++)
-		{
-			Context.InstructionCyclesDuringLastRun[DurationIndex] = UINT64_MAX;
-		}
+		RigVMDebugInfo->SetupInstructionTracking(InInstructionCount, Context.GetPublicData<>().RuntimeSettings.bEnableProfiling);
 	}
 #endif
 }
@@ -2671,10 +2681,9 @@ void URigVM::SetupInstructionTracking(FRigVMExtendedExecuteContext& Context, int
 void URigVM::StartProfiling(FRigVMExtendedExecuteContext& Context)
 {
 #if WITH_EDITOR
-	Context.OverallCycles = Context.StartCycles = 0;
-	if(Context.GetPublicData<>().RuntimeSettings.bEnableProfiling)
+	if (FRigVMDebugInfo* RigVMDebugInfo = Context.GetRigVMDebugInfo())
 	{
-		Context.StartCycles = FPlatformTime::Cycles64();
+		RigVMDebugInfo->StartProfiling(Context.GetPublicData<>().RuntimeSettings.bEnableProfiling);
 	}
 #endif
 }
@@ -2682,7 +2691,9 @@ void URigVM::StartProfiling(FRigVMExtendedExecuteContext& Context)
 void URigVM::StopProfiling(FRigVMExtendedExecuteContext& Context)
 {
 #if WITH_EDITOR
-	const uint64 Cycles = Context.OverallCycles > 0 ? Context.OverallCycles : (FPlatformTime::Cycles64() - Context.StartCycles); 
-	Context.LastExecutionMicroSeconds = Cycles * FPlatformTime::GetSecondsPerCycle() * 1000.0 * 1000.0;
+	if (FRigVMDebugInfo* RigVMDebugInfo = Context.GetRigVMDebugInfo())
+	{
+		RigVMDebugInfo->StopProfiling();
+	}
 #endif
 }

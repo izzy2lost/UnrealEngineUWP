@@ -58,6 +58,7 @@ FRigVMExtendedExecuteContext::~FRigVMExtendedExecuteContext()
 }
 PRAGMA_ENABLE_DEPRECATION_WARNINGS
 
+// --- FRigVMExtendedExecuteContext ---
 
 void FRigVMExtendedExecuteContext::Reset()
 {
@@ -76,11 +77,6 @@ void FRigVMExtendedExecuteContext::Reset()
 
 	CachedMemoryHandles.Reset();
 
-#if WITH_EDITOR
-	DebugInfo = nullptr;
-	ExecutionHalted().Clear();
-#endif // WITH_EDITOR
-
 	LazyBranchInstanceData.Reset();
 	ExternalVariableRuntimeData.Reset();
 
@@ -98,17 +94,11 @@ void FRigVMExtendedExecuteContext::Reset()
 	bCurrentlyRunningRootEntry = false;
 
 #if WITH_EDITOR
-	HaltedAtBreakpoint = FRigVMBreakpoint();
-	HaltedAtBreakpointHit = INDEX_NONE;
-	CurrentBreakpointAction = ERigVMBreakpointAction::None;
-
-	InstructionVisitedDuringLastRun.Reset();
-	InstructionCyclesDuringLastRun.Reset();
-	InstructionVisitOrder.Reset();
-	FirstEntryEventInQueue = NAME_None;
-
-	StartCycles = 0;
-	OverallCycles = 0;
+	if (DebugInfo != nullptr)
+	{
+		DebugInfo->Reset();
+		DebugInfo = nullptr;
+	}
 #endif // WITH_EDITOR
 }
 

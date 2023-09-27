@@ -420,9 +420,9 @@ public:
 	// Returns the number of times an instruction has been hit
 	int32 GetInstructionVisitedCount(const FRigVMExtendedExecuteContext& Context, int32 InIndex) const
 	{
-		if (Context.InstructionVisitedDuringLastRun.IsValidIndex(InIndex))
+		if (const FRigVMDebugInfo* RigVMDebugInfo = Context.GetRigVMDebugInfo())
 		{
-			return Context.InstructionVisitedDuringLastRun[InIndex];
+			return RigVMDebugInfo->GetInstructionVisitedCountDuringLastRun(InIndex);
 		}
 		return 0;
 	}
@@ -435,9 +435,9 @@ public:
 	// If there is no information available this function returns UINT64_MAX.
 	uint64 GetInstructionCycles(const FRigVMExtendedExecuteContext& Context, int32 InIndex) const
 	{
-		if (Context.InstructionCyclesDuringLastRun.IsValidIndex(InIndex))
+		if (const FRigVMDebugInfo* RigVMDebugInfo = Context.GetRigVMDebugInfo())
 		{
-			return Context.InstructionCyclesDuringLastRun[InIndex];
+			return RigVMDebugInfo->GetInstructionCyclesDuringLastRun(InIndex);
 		}
 		return UINT64_MAX;
 	}
@@ -462,12 +462,26 @@ public:
 	const TArray<int32> GetInstructionVisitOrder() const { return TArray<int32>(); }
 
 	// Returns the order of all instructions during the last run
-	const TArray<int32> GetInstructionVisitOrder(const FRigVMExtendedExecuteContext& Context) const { return Context.InstructionVisitOrder; }
+	const TArray<int32> GetInstructionVisitOrder(const FRigVMExtendedExecuteContext& Context) const
+	{
+		if (const FRigVMDebugInfo* RigVMDebugInfo = Context.GetRigVMDebugInfo())
+		{
+			return RigVMDebugInfo->GetInstructionVisitOrder();
+		}
+
+		return TArray<int32>();
+	}
 
 	UE_DEPRECATED(5.3, "Please, use SetFirstEntryEventInEventQueue with Context param")
 	const void SetFirstEntryEventInEventQueue(const FName& InFirstEventName) {}
 
-	const void SetFirstEntryEventInEventQueue(FRigVMExtendedExecuteContext& Context, const FName& InFirstEventName) { Context.SetFirstEntryEventInEventQueue(InFirstEventName); }
+	const void SetFirstEntryEventInEventQueue(FRigVMExtendedExecuteContext& Context, const FName& InFirstEventName) 
+	{ 
+		if (FRigVMDebugInfo* RigVMDebugInfo = Context.GetRigVMDebugInfo())
+		{
+			RigVMDebugInfo->SetFirstEntryEventInEventQueue(InFirstEventName);
+		}
+	}
 
 	UE_DEPRECATED(5.3, "Please, use ResumeExecution with Context param")
 	bool ResumeExecution() { return false; }
@@ -476,9 +490,12 @@ public:
 	UE_DEPRECATED(5.4, "Please, use ResumeExecution with TRigVMMemoryStorage param")
 	bool ResumeExecution(FRigVMExtendedExecuteContext& Context, TArrayView<TRigVMMemoryStorageDeprecatedType*> Memory, const FName& InEntryName = NAME_None) { return false; }
 
-	bool ResumeExecution(FRigVMExtendedExecuteContext& Context);
+	UE_DEPRECATED(5.4, "Please, use ResumeExecution in the Context RigVMDebugInfo")
+	bool ResumeExecution(FRigVMExtendedExecuteContext& Context) { return false; }
+
 	bool ResumeExecution(FRigVMExtendedExecuteContext& Context, TArrayView<TRigVMMemoryStorage*> Memory, const FName& InEntryName = NAME_None);
-#endif
+
+#endif // WITH_EDITOR
 
 	// Returns the parameters of the VM
 	const TArray<FRigVMParameter>& GetParameters() const;
