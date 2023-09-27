@@ -191,10 +191,13 @@ void FCustomizableObjectEditorModule::StartupModule()
 	PropertyModule.NotifyCustomizationModuleChanged();
 
 	// Register factory
-	GEditor->ActorFactories.Add(NewObject<UCustomizableObjectInstanceFactory>());
-	if (UPlacementSubsystem* PlacementSubsystem = GEditor->GetEditorSubsystem<UPlacementSubsystem>())
+	if (GEditor)
 	{
-		PlacementSubsystem->RegisterAssetFactory(NewObject<UCustomizableObjectInstanceFactory>());
+		GEditor->ActorFactories.Add(NewObject<UCustomizableObjectInstanceFactory>());
+		if (UPlacementSubsystem* PlacementSubsystem = GEditor->GetEditorSubsystem<UPlacementSubsystem>())
+		{
+			PlacementSubsystem->RegisterAssetFactory(NewObject<UCustomizableObjectInstanceFactory>());
+		}
 	}
 	
 
