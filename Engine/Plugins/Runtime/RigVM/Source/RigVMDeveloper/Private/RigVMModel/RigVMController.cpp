@@ -14997,15 +14997,6 @@ bool URigVMController::GenerateNewPinInfos(const FRigVMRegistry& Registry, URigV
 	URigVMVariableNode* VariableNode = Cast<URigVMVariableNode>(InNode);
 	URigVMDispatchNode* DispatchNode = Cast<URigVMDispatchNode>(InNode);
 
-	// We need to at least fix the execute pins
-	for (URigVMPin* Pin : InNode->Pins)
-	{
-		if (Pin->IsExecuteContext())
-		{
-			MakeExecutePin(Pin);
-		}
-	}
-
 	// step 2/3: clear pins on the node and repopulate the node with new pins
 	if (UnitNode != nullptr)
 	{
@@ -17952,7 +17943,7 @@ URigVMPin* URigVMController::MakeExecutePin(URigVMNode* InNode, const FName& InN
 	return ExecutePin;
 }
 
-void URigVMController::MakeExecutePin(URigVMPin* InOutPin)
+bool URigVMController::MakeExecutePin(URigVMPin* InOutPin)
 {
 	if(InOutPin->CPPTypeObject != FRigVMExecuteContext::StaticStruct())
 	{
@@ -17971,7 +17962,22 @@ void URigVMController::MakeExecutePin(URigVMPin* InOutPin)
 			InOutPin->LastKnownTypeIndex = RigVMTypeUtils::TypeIndex::Execute;
 		}
 		InOutPin->LastKnownCPPType = InOutPin->CPPType;
+		return true;
 	}
+	return false;
+}
+
+bool URigVMController::CorrectExecutePinsOnNode(URigVMNode* InOutNode)
+{
+	bool bModified = false;
+	for (URigVMPin* Pin : InOutNode->Pins)
+	{
+		if (Pin->IsExecuteContext())
+		{
+			bModified |= MakeExecutePin(Pin);
+		}
+	}
+	return bModified;
 }
 
 bool URigVMController::AddGraphNode(URigVMNode* InNode, bool bNotify)
@@ -19909,6 +19915,19 @@ FRigVMClientPatchResult URigVMController::PatchFunctionsWithInvalidReturnPaths()
 		}
 	}
 	
+	return Result;
+}
+
+FRigVMClientPatchResult URigVMController::PatchExecutePins()
+{
+	FRigVMClientPatchResult Result;
+	if (const URigVMGraph* Graph = GetGraph())
+	{
+		for (URigVMNode* Node : Graph->GetNodes())
+		{
+			Result.bChangedContent |= CorrectExecutePinsOnNode(Node);
+		}
+	}
 	return Result;
 }
 
