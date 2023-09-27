@@ -10,6 +10,7 @@
 #include "Containers/Map.h"
 #include "Containers/Set.h"
 #include "ContentBrowserDelegates.h"
+#include "ContentBrowserMenuContexts.h"
 #include "ContentBrowserModule.h"
 #include "Delegates/Delegate.h"
 #include "EditorUtilityAssetPrototype.h"
@@ -27,21 +28,40 @@
 #include "Templates/SharedPointer.h"
 #include "Templates/SubclassOf.h"
 #include "Templates/UnrealTemplate.h"
+#include "ToolMenus.h"
 #include "UObject/Class.h"
 #include "UObject/NameTypes.h"
 #include "UObject/UObjectIterator.h"
 
 #define LOCTEXT_NAMESPACE "BlutilityContentBrowserExtensions"
 
-static FContentBrowserMenuExtender_SelectedAssets ContentBrowserExtenderDelegate;
-static FDelegateHandle ContentBrowserExtenderDelegateHandle;
-
-class FBlutilityContentBrowserExtensions_Impl
+void FBlutilityContentBrowserExtensions::InstallHooks()
 {
-public:
-	static TSharedRef<FExtender> OnExtendContentBrowserAssetSelectionMenu(const TArray<FAssetData>& SelectedAssets)
+	UToolMenus::RegisterStartupCallback(
+		FSimpleMulticastDelegate::FDelegate::CreateStatic(&FBlutilityContentBrowserExtensions::RegisterMenus));
+}
+
+void FBlutilityContentBrowserExtensions::RegisterMenus()
+{
+	// Mark us as the owner of everything we add.
+	FToolMenuOwnerScoped OwnerScoped("FBlutilityContentBrowserExtensions");
+
+	UToolMenu* const Menu = UToolMenus::Get()->ExtendMenu("ContentBrowser.AssetContextMenu");
+	if (!Menu)
 	{
-		TSharedRef<FExtender> Extender(new FExtender());
+		return;
+	}
+
+	FToolMenuSection& Section = Menu->FindOrAddSection("CommonAssetActions");
+	Section.AddDynamicEntry("BlutilityContentBrowserExtensions", FNewToolMenuSectionDelegate::CreateLambda([](FToolMenuSection& InSection)
+	{
+		UContentBrowserAssetContextMenuContext* const Context = InSection.FindContext<UContentBrowserAssetContextMenuContext>();
+		if (!Context)
+		{
+			return;
+		}
+
+		const TArray<FAssetData>& SelectedAssets = Context->SelectedAssets;
 
 		// Run thru the assets to determine if any meet our criteria
 		TMap<TSharedRef<FAssetActionUtilityPrototype>, TSet<int32>> UtilityAndSelectionIndices;
@@ -122,39 +142,16 @@ public:
 			EditorErrors.Notify(LOCTEXT("SomeProblemsWithAssetActionUtility", "There were some problems with some AssetActionUtility Blueprints."));
 		}
 
-		if (UtilityAndSelectionIndices.Num() > 0)
-		{
-			// Add asset actions extender
-			Extender->AddMenuExtension(
-				"CommonAssetActions",
-				EExtensionHook::After,
-				nullptr,
-				FMenuExtensionDelegate::CreateStatic(&FBlutilityMenuExtensions::CreateAssetBlutilityActionsMenu, MoveTemp(UtilityAndSelectionIndices), MoveTemp(SupportedAssets)));
-		}
-
-		return Extender;
-	}
-
-	static TArray<FContentBrowserMenuExtender_SelectedAssets>& GetExtenderDelegates()
-	{
-		FContentBrowserModule& ContentBrowserModule = FModuleManager::LoadModuleChecked<FContentBrowserModule>(TEXT("ContentBrowser"));
-		return ContentBrowserModule.GetAllAssetViewContextMenuExtenders();
-	}
-};
-
-void FBlutilityContentBrowserExtensions::InstallHooks()
-{
-	ContentBrowserExtenderDelegate = FContentBrowserMenuExtender_SelectedAssets::CreateStatic(&FBlutilityContentBrowserExtensions_Impl::OnExtendContentBrowserAssetSelectionMenu);
-
-	TArray<FContentBrowserMenuExtender_SelectedAssets>& CBMenuExtenderDelegates = FBlutilityContentBrowserExtensions_Impl::GetExtenderDelegates();
-	CBMenuExtenderDelegates.Add(ContentBrowserExtenderDelegate);
-	ContentBrowserExtenderDelegateHandle = CBMenuExtenderDelegates.Last().GetHandle();
+		FBlutilityMenuExtensions::CreateAssetBlutilityActionsMenu(InSection, MoveTemp(UtilityAndSelectionIndices), MoveTemp(SupportedAssets));
+	}));
 }
 
 void FBlutilityContentBrowserExtensions::RemoveHooks()
 {
-	TArray<FContentBrowserMenuExtender_SelectedAssets>& CBMenuExtenderDelegates = FBlutilityContentBrowserExtensions_Impl::GetExtenderDelegates();
-	CBMenuExtenderDelegates.RemoveAll([](const FContentBrowserMenuExtender_SelectedAssets& Delegate){ return Delegate.GetHandle() == ContentBrowserExtenderDelegateHandle; });
+	// Remove our startup delegate in case it's still around.
+	UToolMenus::UnRegisterStartupCallback("FBlutilityContentBrowserExtensions");
+	// Remove everything we added to UToolMenus.
+	UToolMenus::UnregisterOwner("FBlutilityContentBrowserExtensions");
 }
 
 #undef LOCTEXT_NAMESPACE
