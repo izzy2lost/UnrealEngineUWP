@@ -1981,6 +1981,9 @@ public:
 		/** Safety check to ensure valid times are set either from a valid world/scene pointer or via the SetWorldTimes function */
 		uint32 bTimesSet:1;
 
+		/** True if scene color and depth should be multiview-allocated */
+		uint32 bRequireMultiView:1;
+
 		/** Set the world time and real time independently to handle time dilation. */
 		ConstructionValues& SetTime(const FGameTime& InTime)
 		{
@@ -2006,6 +2009,9 @@ public:
 		
 		/** Setting to if true then results of scene rendering are copied/resolved to the RenderTarget. */
 		ConstructionValues& SetResolveScene(const bool Value) { bResolveScene = Value; return *this; }
+
+		/** Setting to true results in scene color and depth being multiview-allocated. */
+		ConstructionValues& SetRequireMobileMultiView(const bool Value) { bRequireMultiView = Value; return *this; }
 		
 		/** Set Gamma correction used when rendering this family. */
 		UE_DEPRECATED(5.4, "Unused gamma correction.")

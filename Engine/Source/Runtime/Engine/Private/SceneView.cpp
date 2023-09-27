@@ -2721,6 +2721,7 @@ PRAGMA_ENABLE_DEPRECATION_WARNINGS
 ,	bDeferClear(false)
 ,	bResolveScene(true)			
 ,	bTimesSet(false)
+,	bRequireMultiView(false)
 {
 	if( InScene != NULL )			
 	{
@@ -2753,7 +2754,7 @@ FSceneViewFamily::FSceneViewFamily(const ConstructionValues& CVS)
 	SceneCaptureCompositeMode(SCCM_Overwrite),
 	bWorldIsPaused(false),
 	bIsHDR(false),
-	bRequireMultiView(false),
+	bRequireMultiView(CVS.bRequireMultiView),
 PRAGMA_DISABLE_DEPRECATION_WARNINGS
 	GammaCorrection(CVS.GammaCorrection),
 PRAGMA_ENABLE_DEPRECATION_WARNINGS
@@ -2826,14 +2827,6 @@ PRAGMA_ENABLE_DEPRECATION_WARNINGS
 	if (bIsMobileLDR)
 	{
 		EngineShowFlags.ScreenPercentage = false;
-	}
-
-	if (GEngine && GEngine->IsStereoscopic3D())
-	{
-		static const auto MobileMultiViewCVar = IConsoleManager::Get().FindTConsoleVariableDataInt(TEXT("vr.MobileMultiView"));
-		const bool bSkipPostprocessing = !IsMobileHDR();
-		const bool bUsingMobileRenderer = FSceneInterface::GetShadingPath(GetFeatureLevel()) == EShadingPath::Mobile;
-		bRequireMultiView = (GSupportsMobileMultiView || GRHISupportsArrayIndexFromAnyShader) && bUsingMobileRenderer && bSkipPostprocessing && (MobileMultiViewCVar && MobileMultiViewCVar->GetValueOnAnyThread() != 0);
 	}
 
 	// Check if the translucency are allowed to be rendered after DOF, if not, translucency after DOF will be rendered in standard translucency.
