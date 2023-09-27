@@ -93,32 +93,20 @@ namespace Horde.Server.Jobs.Bisect
 		/// <inheritdoc cref="IBisectTask.Outcome"/>
 		public JobStepOutcome Outcome => _bisectTask.Outcome;
 
-		/// <inheritdoc cref="IBisectTask.InitialJobId"/>
-		public JobId InitialJobId => _bisectTask.InitialJobId;
-
-		/// <inheritdoc cref="IBisectTask.InitialBatchId"/>
-		public string InitialBatchId => _bisectTask.InitialBatchId.ToString();
-
-		/// <inheritdoc cref="IBisectTask.InitialStepId"/>
-		public string InitialStepId => _bisectTask.InitialStepId.ToString();
+		/// <inheritdoc cref="IBisectTask.InitialJobStep"/>
+		public JobStepRefId InitialJobStep => _bisectTask.InitialJobStep;
 
 		/// <inheritdoc cref="IBisectTask.InitialChange"/>
 		public int InitialChange => _bisectTask.InitialChange;
 
-		/// <inheritdoc cref="IBisectTask.MinJobId"/>
-		public string? MinJobId => _bisectTask.MinJobId?.ToString();
-
-		/// <inheritdoc cref="IBisectTask.MinStepId"/>
-		public string? MinStepId => _bisectTask.MinStepId?.ToString();
+		/// <inheritdoc cref="IBisectTask.MinJobStep"/>
+		public JobStepRefId? MinJobStep => _bisectTask.MinJobStep;
 
 		/// <inheritdoc cref="IBisectTask.MinChange"/>
 		public int? MinChange => _bisectTask.MinChange;
 
-		/// <inheritdoc cref="IBisectTask.Outcome"/>
-		public JobStepOutcome? MinOutcome => _bisectTask.MinOutcome;
-
-		/// <inheritdoc cref="IBisectTask.CurrentJobId"/>
-		public JobId CurrentJobId => _bisectTask.CurrentJobId;
+		/// <inheritdoc cref="IBisectTask.CurrentJobStep"/>
+		public JobStepRefId CurrentJobStep => _bisectTask.CurrentJobStep;
 
 		/// <inheritdoc cref="IBisectTask.CurrentChange"/>
 		public int CurrentChange => _bisectTask.CurrentChange;
@@ -385,9 +373,13 @@ namespace Horde.Server.Jobs.Bisect
 			IUser? user = await _userCollection.GetCachedUserAsync(task.OwnerId);
 
 			List<JobStepRefId> stepIds = new List<JobStepRefId>();
+			if (task.MinJobStep != null)
+			{
+				stepIds.Add(task.MinJobStep.Value);
+			}			
+			stepIds.Add(task.CurrentJobStep);
 			stepIds.AddRange(task.Steps);
-			stepIds.Add(new JobStepRefId(task.InitialJobId, task.InitialBatchId, task.InitialStepId));
-			
+			stepIds.Add(task.InitialJobStep);
 
 			List<IJobStepRef> steps = await _jobStepRefs.FindAsync(stepIds.ToArray(), cancellationToken);
 

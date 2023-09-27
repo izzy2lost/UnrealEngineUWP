@@ -49,36 +49,27 @@ namespace Horde.Server.Jobs.Bisect
 			[BsonElement("out")]
 			public JobStepOutcome Outcome { get; set; }
 
-			[BsonElement("job")]
+			[BsonElement("ijobid")]
 			public JobId InitialJobId { get; set; }
 
-			[BsonElement("batchid")]
-			public SubResourceId InitialBatchId { get; set; }
+			[BsonElement("ijob")]
+			public JobStepRefId InitialJobStep { get; set; }
 
-			[BsonElement("stepid")]
-			public SubResourceId InitialStepId { get; set; }
-
-			[BsonElement("chg")]
+			[BsonElement("ichg")]
 			public int InitialChange { get; set; }
 
-			[BsonElement("curJob")]
-			public JobId CurrentJobId { get; set; }
+			[BsonElement("curjob")]
+			public JobStepRefId CurrentJobStep { get; set; }
 
 			[BsonElement("curChg")]
 			public int CurrentChange { get; set; }
 
 			// Lower bounds of bisection
 			[BsonElement("minJob"), BsonIgnoreIfNull]
-			public JobId? MinJobId { get; set; }
-
-			[BsonElement("minStepId"), BsonIgnoreIfNull]
-			public SubResourceId? MinStepId { get; set; }
+			public JobStepRefId? MinJobStep { get; set; }
 
 			[BsonElement("minChg"), BsonIgnoreIfNull]
 			public int? MinChange { get; set; }
-
-			[BsonElement("minOut"), BsonIgnoreIfNull]
-			public JobStepOutcome? MinOutcome { get; set; }
 
 			[BsonElement("steps")]
 			public List<JobStepRefId> Steps { get; set; } = new List<JobStepRefId>();
@@ -106,7 +97,7 @@ namespace Horde.Server.Jobs.Bisect
 		public BisectTaskCollection(Tracer tracer, MongoService mongoService)
 		{
 			List<MongoIndex<BisectTaskDoc>> indexes = new List<MongoIndex<BisectTaskDoc>>();
-			indexes.Add(keys => keys.Ascending(x => x.Id).Ascending(x => x.Running).Ascending(x => x.InitialJobId), sparse: true);
+			indexes.Add(keys => keys.Ascending(x => x.Id).Ascending(x => x.Running).Ascending(x => x.InitialJobId));
 
 			_bisectTasks = mongoService.GetCollection<BisectTaskDoc>("BisectTasks", indexes);
 			_tracer = tracer;
@@ -124,10 +115,9 @@ namespace Horde.Server.Jobs.Bisect
 			bisectTaskDoc.NodeName = nodeName;
 			bisectTaskDoc.Outcome = outcome;
 			bisectTaskDoc.InitialJobId = job.Id;
-			bisectTaskDoc.InitialBatchId = batchId;
-			bisectTaskDoc.InitialStepId = stepId;
+			bisectTaskDoc.InitialJobStep = new JobStepRefId(job.Id, batchId, stepId);
 			bisectTaskDoc.InitialChange = job.Change;
-			bisectTaskDoc.CurrentJobId = job.Id;
+			bisectTaskDoc.CurrentJobStep = new JobStepRefId(job.Id, batchId, stepId);
 			bisectTaskDoc.CurrentChange = job.Change;
 
 			if (options != null)
@@ -191,6 +181,7 @@ namespace Horde.Server.Jobs.Bisect
 
 			if (jobId != null)
 			{
+
 				filter &= filterBuilder.Eq(x => x.InitialJobId, jobId);
 			}
 
@@ -221,14 +212,14 @@ namespace Horde.Server.Jobs.Bisect
 			BisectTaskDoc bisectTaskDoc = (BisectTaskDoc)bisectTask;
 
 			UpdateDefinition<BisectTaskDoc> update = Builders<BisectTaskDoc>.Update.Inc(x => x.UpdateIdx, 1);
-			if (options.CurrentJob != null)
+			if (options.CurrentJobStep != null)
 			{
-				update = update.Set(x => x.CurrentJobId, options.CurrentJob.Value.JobId).Set(x => x.CurrentChange, options.CurrentJob.Value.Change);
+				update = update.Set(x => x.CurrentJobStep, options.CurrentJobStep.Value.Step).Set(x => x.CurrentChange, options.CurrentJobStep.Value.Change);
 			}
 
-			if (options.MinJob != null)
+			if (options.MinJobStep != null)
 			{
-				update = update.Set(x => x.MinJobId, options.MinJob.Value.JobId).Set(x => x.MinStepId, options.MinJob.Value.StepId).Set(x => x.MinChange, options.MinJob.Value.Change).Set(x => x.MinOutcome, options.MinJob.Value.Outcome);
+				update = update.Set(x => x.MinJobStep, options.MinJobStep.Value.Step).Set(x => x.MinChange, options.MinJobStep.Value.Change);
 			}
 
 			if (options.State != null)
@@ -236,9 +227,9 @@ namespace Horde.Server.Jobs.Bisect
 				update = update.Set(x => x.State, options.State.Value);
 			}
 
-			if (options.JobStep != null)
+			if (options.NewJobStep != null)
 			{
-				update = update.AddToSet(x => x.Steps, options.JobStep.Value);
+				update = update.AddToSet(x => x.Steps, options.NewJobStep.Value);
 			}
 		
 			if (options.IncludeChanges != null && options.IncludeChanges.Count > 0)

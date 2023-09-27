@@ -92,17 +92,7 @@ namespace Horde.Server.Jobs.Bisect
 		/// <summary>
 		/// Starting job id for the bisection
 		/// </summary>
-		public JobId InitialJobId { get; }
-
-		/// <summary>
-		/// Starting batch id for the bisection
-		/// </summary>
-		public SubResourceId InitialBatchId { get; }
-
-		/// <summary>
-		/// Starting step id for the bisection
-		/// </summary>
-		public SubResourceId InitialStepId { get; }
+		public JobStepRefId InitialJobStep { get; }
 
 		/// <summary>
 		/// Starting change for the bisection
@@ -110,14 +100,19 @@ namespace Horde.Server.Jobs.Bisect
 		public int InitialChange { get; }
 
 		/// <summary>
-		/// Lower bound of bisection job Id
+		/// First known job id that is broken
 		/// </summary>
-		public JobId? MinJobId { get; }
+		public JobStepRefId CurrentJobStep { get; }
 
 		/// <summary>
-		/// Lower bound of bisection step id
+		/// Changelist number of the first broken job id
 		/// </summary>
-		public SubResourceId? MinStepId { get; }
+		public int CurrentChange { get; }
+
+		/// <summary>
+		/// Lower bound of bisection job Id
+		/// </summary>
+		public JobStepRefId? MinJobStep { get; }
 
 		/// <summary>
 		/// Lower bound of bisection changelist number
@@ -125,24 +120,9 @@ namespace Horde.Server.Jobs.Bisect
 		public int? MinChange { get; }
 
 		/// <summary>
-		/// Lower bound job step outcome
-		/// </summary>
-		public JobStepOutcome? MinOutcome { get; }
-
-		/// <summary>
 		/// The steps involved in the bisection
 		/// </summary>
 		public IReadOnlyList<JobStepRefId> Steps { get; }
-
-		/// <summary>
-		/// First known job id that is broken
-		/// </summary>
-		public JobId CurrentJobId { get; }
-
-		/// <summary>
-		/// Changelist number of the first broken job id
-		/// </summary>
-		public int CurrentChange { get; }
 
 		/// <summary>
 		/// Tags to filter changes to consider for this task

@@ -44,9 +44,9 @@ namespace Horde.Server.Tests
 			Assert.AreEqual(JobStepOutcome.Failure, response.Outcome);
 			Assert.AreEqual("TestUser", response.Owner?.Name ?? "");
 			Assert.AreEqual(failedJob.Change, response.InitialChange);
-			Assert.AreEqual(failedJob.Id, response.InitialJobId);
+			Assert.AreEqual(failedJob.Id, response.InitialJobStep.JobId);
 			Assert.AreEqual(failedJob.Change, response.CurrentChange);
-			Assert.AreEqual(failedJob.Id, response.CurrentJobId);
+			Assert.AreEqual(failedJob.Id, response.CurrentJobStep.JobId);
 
 			IUser user = await UserCollection.FindOrAddUserByLoginAsync("TestUser");
 			IUserSettings settings = await UserCollection.GetSettingsAsync(user.Id);
@@ -65,8 +65,7 @@ namespace Horde.Server.Tests
 
 			GetBisectTaskResponse bisectTask = Deref(await BisectTasksController!.GetAsync(task!.BisectTaskId));
 			Assert.AreEqual(BisectTaskState.Running, bisectTask.State);
-			Assert.AreEqual(10, bisectTask.MinChange);
-			Assert.AreEqual(JobStepOutcome.Success, bisectTask.MinOutcome);
+			Assert.AreEqual(10, bisectTask.MinChange);			
 			jobs = await JobCollection.FindBisectTaskJobsAsync(bisectTask.Id, running: true).ToListAsync();
 			Assert.AreEqual(1, jobs.Count);
 			Assert.AreEqual(14, jobs[0].Change);
@@ -107,8 +106,8 @@ namespace Horde.Server.Tests
 
 			List<GetBisectTaskResponse> jobTasks = Deref(await BisectTasksController!.GetJobBisectTasksAsync(failedJob.Id));
 			Assert.AreEqual(1, jobTasks.Count);
-			Assert.AreEqual(failedJob.Id, jobTasks[0].InitialJobId);
-			Assert.AreEqual(4, jobTasks[0].Steps.Count);
+			Assert.AreEqual(failedJob.Id, jobTasks[0].InitialJobStep.JobId);
+			Assert.AreEqual(5, jobTasks[0].Steps.Count);
 			Assert.AreEqual(BisectTaskState.Succeeded, jobTasks[0].State);
 
 		}

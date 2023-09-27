@@ -97,12 +97,12 @@ namespace Horde.Server.Jobs.Bisect
 		/// <summary>
 		/// First job to bisect from
 		/// </summary>
-		public (JobId JobId, int Change)? CurrentJob { get; set; }
+		public (JobStepRefId Step, int Change)? CurrentJobStep { get; set; }
 
 		/// <summary>
 		/// The lower bounds of the bisection task
 		/// </summary>
-		public (JobId JobId, SubResourceId StepId, int Change, JobStepOutcome Outcome)? MinJob { get; set; }
+		public (JobStepRefId Step, int Change)? MinJobStep { get; set; }
 
 		/// <summary>
 		/// New state for the task
@@ -112,7 +112,7 @@ namespace Horde.Server.Jobs.Bisect
 		/// <summary>
 		/// New job step to add to bisection
 		/// </summary>
-		public JobStepRefId? JobStep { get; set; }
+		public JobStepRefId? NewJobStep { get; set; }
 
 		/// <summary>
 		/// Changes to include in the bisection
@@ -162,7 +162,7 @@ namespace Horde.Server.Jobs.Bisect
 				logger.LogInformation("Updating bisection task {TaskId} with reference {StepId} for job {JobId}, batch {BatchId}, with outcome", job.StartedByBisectTaskId, step.Id, job.Id, batch.Id);
 			}
 
-			await bisectTasks.TryUpdateAsync(bisectTask, new UpdateBisectTaskOptions() { JobStep = new JobStepRefId(job.Id, batch.Id, step.Id) }, cancellationToken);			
+			await bisectTasks.TryUpdateAsync(bisectTask, new UpdateBisectTaskOptions() { NewJobStep = new JobStepRefId(job.Id, batch.Id, step.Id) }, cancellationToken);			
 		}
 	}
 }

@@ -96,10 +96,10 @@ namespace Horde.Server.Jobs.Bisect
 			_logger.LogDebug("Bisect task {BisectTaskId} ({StreamId}:{TemplateId}:{NodeName}): Current Job Id: {CurJobId}/{CurStepOutcome}, Previous Job Id: {PrevJobId}/{PrevStepOutcome}", bisectTask.Id, bisectTask.StreamId, bisectTask.TemplateId, bisectTask.NodeName, currentJobStepRef?.Id.JobId, currentJobStepRef?.Outcome, previousJobStepRef?.Id.JobId, previousJobStepRef?.Outcome);
 
 			// Check if the task needs to be updated with the current bisect state
-			if (currentJobStepRef != null && bisectTask.CurrentJobId != currentJobStepRef.Id.JobId)
+			if (currentJobStepRef != null && bisectTask.CurrentJobStep.JobId != currentJobStepRef.Id.JobId)
 			{
-				_logger.LogInformation("Bisect task {BisectTaskId} ({StreamId}:{TemplateId}:{NodeName}): Changing current job from {PrevJobId} ({PrevChange}) -> {NextJobId} ({NextChange}).", bisectTask.Id, bisectTask.StreamId, bisectTask.TemplateId, bisectTask.NodeName, bisectTask.CurrentJobId, bisectTask.CurrentChange, currentJobStepRef.Id.JobId, currentJobStepRef.Change);
-				await _bisectTaskCollection.TryUpdateAsync(bisectTask, new UpdateBisectTaskOptions { CurrentJob = (currentJobStepRef.Id.JobId, currentJobStepRef.Change) }, cancellationToken);
+				_logger.LogInformation("Bisect task {BisectTaskId} ({StreamId}:{TemplateId}:{NodeName}): Changing current job from {PrevJobId} ({PrevChange}) -> {NextJobId} ({NextChange}).", bisectTask.Id, bisectTask.StreamId, bisectTask.TemplateId, bisectTask.NodeName, bisectTask.CurrentJobStep.JobId, bisectTask.CurrentChange, currentJobStepRef.Id.JobId, currentJobStepRef.Change);
+				await _bisectTaskCollection.TryUpdateAsync(bisectTask, new UpdateBisectTaskOptions { CurrentJobStep = (currentJobStepRef.Id, currentJobStepRef.Change) }, cancellationToken);
 				return null;
 			}
 
@@ -118,9 +118,9 @@ namespace Horde.Server.Jobs.Bisect
 			}
 
 			// Update bisection lower bound
-			if (bisectTask.MinJobId == null)
+			if (bisectTask.MinJobStep == null)
 			{
-				await _bisectTaskCollection.TryUpdateAsync(bisectTask, new UpdateBisectTaskOptions { MinJob = (previousJobStepRef.Id.JobId, previousJobStepRef.Id.StepId, previousJobStepRef.Change, previousJobStepRef.Outcome.Value) }, cancellationToken);
+				await _bisectTaskCollection.TryUpdateAsync(bisectTask, new UpdateBisectTaskOptions { MinJobStep = (previousJobStepRef.Id, previousJobStepRef.Change) }, cancellationToken);
 			}
 
 			// Find the next commit to test
@@ -145,10 +145,10 @@ namespace Horde.Server.Jobs.Bisect
 			ICommit nextCodeCommit = await commitCollection.GetLastCodeChangeAsync(nextCommit.Number, cancellationToken) ?? nextCommit;
 
 			// Get the initial job
-			IJob? job = await _jobCollection.GetAsync(bisectTask.InitialJobId);
+			IJob? job = await _jobCollection.GetAsync(bisectTask.InitialJobStep.JobId);
 			if (job == null)
 			{
-				_logger.LogInformation("Bisect task {BisectTaskId} ({StreamId}:{TemplateId}:{NodeName}): Missing job {JobId}.", bisectTask.Id, bisectTask.StreamId, bisectTask.TemplateId, bisectTask.NodeName, bisectTask.InitialJobId);
+				_logger.LogInformation("Bisect task {BisectTaskId} ({StreamId}:{TemplateId}:{NodeName}): Missing job {JobId}.", bisectTask.Id, bisectTask.StreamId, bisectTask.TemplateId, bisectTask.NodeName, bisectTask.InitialJobStep.JobId);
 				return BisectTaskState.MissingJob;
 			}
 
