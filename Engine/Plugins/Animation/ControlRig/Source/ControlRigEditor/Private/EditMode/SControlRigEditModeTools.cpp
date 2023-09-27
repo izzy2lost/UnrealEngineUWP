@@ -1204,14 +1204,12 @@ void SControlRigEditModeTools::CustomizeToolBarPalette(FToolBarBuilder& ToolBarB
 		FUIAction(
 		FExecuteAction::CreateSP(this, &SControlRigEditModeTools::ToggleEditPivotMode),
 		FCanExecuteAction(),
-		FIsActionChecked::CreateLambda([] {
-				if (FLevelEditorModule* LevelEditorModule = FModuleManager::GetModulePtr<FLevelEditorModule>(TEXT("LevelEditor")))
+		FIsActionChecked::CreateLambda([this] {
+				if (TSharedPtr<IToolkit> Toolkit = OwningToolkit.Pin())
 				{
-					TSharedPtr<ILevelEditor> LevelEditorPtr = LevelEditorModule->GetLevelEditorInstance().Pin();
-
-					if (LevelEditorPtr.IsValid())
+					if (Toolkit.IsValid())
 					{
-						FString ActiveToolName = LevelEditorPtr->GetEditorModeManager().GetInteractiveToolsContext()->ToolManager->GetActiveToolName(EToolSide::Left);
+						const FString ActiveToolName = Toolkit->GetToolkitHost()->GetEditorModeManager().GetInteractiveToolsContext()->ToolManager->GetActiveToolName(EToolSide::Left);
 						if (ActiveToolName == TEXT("SequencerPivotTool"))
 						{
 							return true;
@@ -1233,25 +1231,20 @@ void SControlRigEditModeTools::CustomizeToolBarPalette(FToolBarBuilder& ToolBarB
 void SControlRigEditModeTools::ToggleEditPivotMode()
 {
 	FEditorModeID ModeID = TEXT("SequencerToolsEditMode");
-	if (GLevelEditorModeTools().IsModeActive(ModeID))
+	if (const TSharedPtr<IToolkit> Toolkit = OwningToolkit.Pin())
 	{
-		if (FLevelEditorModule* LevelEditorModule = FModuleManager::GetModulePtr<FLevelEditorModule>(TEXT("LevelEditor")))
+		if (Toolkit.IsValid())
 		{
-			TSharedPtr<ILevelEditor> LevelEditorPtr = LevelEditorModule->GetLevelEditorInstance().Pin();
-
-			if (LevelEditorPtr.IsValid())
+			const FEditorModeTools& Tools =Toolkit->GetToolkitHost()->GetEditorModeManager();
+			const FString ActiveToolName = Tools.GetInteractiveToolsContext()->ToolManager->GetActiveToolName(EToolSide::Left);
+			if (ActiveToolName == TEXT("SequencerPivotTool"))
 			{
-				FString ActiveToolName = LevelEditorPtr->GetEditorModeManager().GetInteractiveToolsContext()->ToolManager->GetActiveToolName(EToolSide::Left);
-				if (ActiveToolName == TEXT("SequencerPivotTool"))
-				{
-					LevelEditorPtr->GetEditorModeManager().GetInteractiveToolsContext()->ToolManager->DeactivateTool(EToolSide::Left, EToolShutdownType::Completed);
-				}
-				else
-				{
-					LevelEditorPtr->GetEditorModeManager().GetInteractiveToolsContext()->ToolManager->SelectActiveToolType(EToolSide::Left, TEXT("SequencerPivotTool"));
-					LevelEditorPtr->GetEditorModeManager().GetInteractiveToolsContext()->ToolManager->ActivateTool(EToolSide::Left);
-
-				}
+				Tools.GetInteractiveToolsContext()->ToolManager->DeactivateTool(EToolSide::Left, EToolShutdownType::Completed);
+			}
+			else
+			{
+				Tools.GetInteractiveToolsContext()->ToolManager->SelectActiveToolType(EToolSide::Left, TEXT("SequencerPivotTool"));
+				Tools.GetInteractiveToolsContext()->ToolManager->ActivateTool(EToolSide::Left);
 			}
 		}
 	}
@@ -1299,7 +1292,7 @@ void SControlRigEditModeTools::MakeSelectionSetDialog()
 */
 FText SControlRigEditModeTools::GetActiveToolName() const
 {
-	return  FText();
+	return FText::FromString(TEXT("Control Rig Editing"));
 }
 
 FText SControlRigEditModeTools::GetActiveToolMessage() const

@@ -48,6 +48,7 @@
 #include "Constraints/MovieSceneConstraintChannelHelper.h"
 #include "Sections/MovieSceneConstrainedSection.h"
 #include "BakingAnimationKeySettings.h"
+#include "EditMode/ControlRigEditMode.h"
 
 #include UE_INLINE_GENERATED_CPP_BY_NAME(ControlRigSequencerEditorLibrary)
 
@@ -413,30 +414,35 @@ bool UControlRigSequencerEditorLibrary::BlendValuesOnSelected(ULevelSequence* Le
 	if (WeakSequencer.IsValid() && WeakSequencer.Pin()->GetFocusedMovieSceneSequence() == LevelSequence
 		&& LevelSequence->GetMovieScene())
 	{
-		FControlsToTween ControlsToTween;
-		LevelSequence->GetMovieScene()->Modify();
-		switch(BlendOperation)
-		{ 
+		if (FControlRigEditMode* EditMode = static_cast<FControlRigEditMode*>(GLevelEditorModeTools().GetActiveMode(FControlRigEditMode::ModeName)))
+		{
+			TWeakPtr<FControlRigEditMode> WeakMode = StaticCastSharedRef<FControlRigEditMode, FEdMode>(EditMode->AsShared()).ToWeakPtr();
+			
+			FControlsToTween ControlsToTween;
+			LevelSequence->GetMovieScene()->Modify();
+			switch(BlendOperation)
+			{ 
 			case EAnimToolBlendOperation::Tween:
-			{
-				FControlsToTween BlendTool;
-				BlendTool.Setup(WeakSequencer);
-				BlendTool.Blend(WeakSequencer, BlendValue);
-				return true;
-			}
+				{
+					FControlsToTween BlendTool;
+					BlendTool.Setup(WeakSequencer, WeakMode);
+					BlendTool.Blend(WeakSequencer, BlendValue);
+					return true;
+				}
 			case EAnimToolBlendOperation::BlendToNeighbor:
-			{
-				FBlendNeighborSlider BlendTool;
-				BlendTool.Setup(WeakSequencer);
-				BlendTool.Blend(WeakSequencer, BlendValue);
-				return true;
-			}
+				{
+					FBlendNeighborSlider BlendTool;
+					BlendTool.Setup(WeakSequencer, WeakMode);
+					BlendTool.Blend(WeakSequencer, BlendValue);
+					return true;
+				}
 			case EAnimToolBlendOperation::PushPull:
-			{
-				FPushPullSlider BlendTool;
-				BlendTool.Setup(WeakSequencer);
-				BlendTool.Blend(WeakSequencer, BlendValue);
-				return true;
+				{
+					FPushPullSlider BlendTool;
+					BlendTool.Setup(WeakSequencer, WeakMode);
+					BlendTool.Blend(WeakSequencer, BlendValue);
+					return true;
+				}
 			}
 		}
 	}

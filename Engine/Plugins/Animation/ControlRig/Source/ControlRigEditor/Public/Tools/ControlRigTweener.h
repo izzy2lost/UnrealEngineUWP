@@ -42,7 +42,7 @@ struct FAnimSliderKeySelection
 		void Add(const TArray<int32>& ContiguousKeyIndices);
 	};
 
-	bool Setup(TWeakPtr<ISequencer>& InSequencer);
+	bool Setup(const TWeakPtr<ISequencer>& InSequencer);
 
 	TSharedPtr<FCurveEditor> CurveEditor;
 	TMap<FCurveModelID, FContiguousKeysArray> KeyMap;
@@ -84,7 +84,7 @@ struct FAnimSliderObjectSelection
 		UMovieSceneSection* Section;
 	};
 
-	bool Setup(TWeakPtr<ISequencer>& InSequencer);
+	bool Setup(TWeakPtr<ISequencer>& InSequencer, TWeakPtr<class FControlRigEditMode>& InEditMode);
 	bool Setup(const TArray<UControlRig*>& SelectedControlRigs, TWeakPtr<ISequencer>& InSequencer);
 
 	TArray<FObjectChannels>  ChannelsArray;
@@ -95,7 +95,7 @@ private:
 	void SetupChannel(FFrameNumber CurrentFrame, TArray<FFrameNumber>& KeyTimes, TArray<FKeyHandle>& Handles, FMovieSceneFloatChannel* FloatChannel,
 		FMovieSceneDoubleChannel* DoubleChannel, FChannelKeyBounds& KeyBounds);
 
-	TArray<UControlRig*> GetControlRigs();
+	TArray<UControlRig*> GetControlRigs(TWeakPtr<class FControlRigEditMode>& InEditMode);
 };
 
 /*
@@ -110,7 +110,7 @@ struct FBaseAnimSlider
 	* @param InSequencer Sequencer to get keys, controls, etc. from
 	* @param returns true if we have something that we can blend
 	*/
-	virtual bool Setup(TWeakPtr<ISequencer>& InSequencer);
+	virtual bool Setup(TWeakPtr<ISequencer>& InSequencer, TWeakPtr<FControlRigEditMode>& InEditMode);
 
 	/**
 	* @param InSequencer Sequencer to blend at current time
@@ -182,7 +182,7 @@ struct FControlsToTween :public FBasicBlendSlider
 	//BaseAnimSlider overrides
 	virtual FText GetText() override;
 	virtual FText GetTooltipText() override;
-	virtual bool Setup(TWeakPtr<ISequencer>& InSequencer) override;
+	virtual bool Setup(TWeakPtr<ISequencer>& InSequencer, TWeakPtr<FControlRigEditMode>& InEditMode) override;
 
 	//BasicBlendSlider overrides
 	virtual double DoBlend(const double PreviousTime, const double PreviousValue, const double CurrentTime, const double CurrentValue,

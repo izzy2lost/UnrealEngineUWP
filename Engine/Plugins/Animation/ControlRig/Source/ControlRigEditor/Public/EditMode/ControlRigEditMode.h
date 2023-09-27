@@ -102,8 +102,10 @@ public:
 	/*Replace old Control Rig with the New Control Rig, perhaps from a recompile in the level editor*/
 	void ReplaceControlRig(UControlRig* OldControlRig, UControlRig* NewControlRig);
 
-	/** This edit mode is re-used between the level editor and the control rig editor. Calling this indicates which context we are in */
-	bool IsInLevelEditor() const;
+	/** This edit mode is re-used between the level editor and the asset editors (control rig editor etc.). Calling this indicates which context we are in */
+	virtual bool IsInLevelEditor() const;
+	/** This is used to differentiate between the control rig editor and any other (asset/level) editors in which this edit mode is used */
+	virtual bool AreEditingControlRigDirectly() const { return false; }
 
 	// FEdMode interface
 	virtual bool UsesToolkits() const override;
@@ -122,14 +124,14 @@ public:
 	virtual bool InputDelta(FEditorViewportClient* InViewportClient, FViewport* InViewport, FVector& InDrag, FRotator& InRot, FVector& InScale) override;
 	virtual bool UsesTransformWidget() const override;
 	virtual bool GetPivotForOrbit(FVector& OutPivot) const override;
-	virtual bool UsesTransformWidget(UE::Widget::EWidgetMode CheckMode) const;
+	virtual bool UsesTransformWidget(UE::Widget::EWidgetMode CheckMode) const override;
 	virtual FVector GetWidgetLocation() const override;
 	virtual bool GetCustomDrawingCoordinateSystem(FMatrix& OutMatrix, void* InData) override;
 	virtual bool GetCustomInputCoordinateSystem(FMatrix& OutMatrix, void* InData) override;
 	virtual bool ShouldDrawWidget() const override;
 	virtual bool IsCompatibleWith(FEditorModeID OtherModeID) const override;
 	virtual bool MouseMove(FEditorViewportClient* ViewportClient, FViewport* Viewport, int32 x, int32 y) override;
-	virtual bool MouseLeave(FEditorViewportClient* ViewportClient, FViewport* Viewport);
+	virtual bool MouseLeave(FEditorViewportClient* ViewportClient, FViewport* Viewport) override;
 	virtual void PostUndo() override;
 
 	/* IPersonaEditMode interface */

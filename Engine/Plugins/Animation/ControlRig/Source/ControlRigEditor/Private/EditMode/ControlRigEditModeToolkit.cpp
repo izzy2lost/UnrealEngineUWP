@@ -156,11 +156,12 @@ FText FControlRigEditModeToolkit::GetActiveToolMessage() const
 	return ModeTools->GetActiveToolMessage();
 }
 
-TSharedRef<SDockTab> SpawnPoseTab(const FSpawnTabArgs& Args)
+TSharedRef<SDockTab> SpawnPoseTab(const FSpawnTabArgs& Args, TWeakPtr<FControlRigEditModeToolkit> SharedToolkit)
 {
 	return SNew(SDockTab)
 		[
 			SNew(SControlRigBaseListWidget)
+			.InSharedToolkit(SharedToolkit)
 		];
 }
 
@@ -213,9 +214,9 @@ void FControlRigEditModeToolkit::CreateAndShowTweenOverlay()
 	{
 		const FVector2D ActiveViewportSize = GetToolkitHost()->GetActiveViewportSize();
 		NewTweenWidgetLocation.X = ActiveViewportSize.X / 2.0f;
-		NewTweenWidgetLocation.Y = ActiveViewportSize.Y - 100.0f;
-		
+		NewTweenWidgetLocation.Y = FMath::Max(ActiveViewportSize.Y - 100.0f, 0);
 	}
+	
 	UpdateTweenWidgetLocation(NewTweenWidgetLocation);
 
 	SAssignNew(TweenWidgetParent, SHorizontalBox)
@@ -228,6 +229,7 @@ void FControlRigEditModeToolkit::CreateAndShowTweenOverlay()
 		[
 			SAssignNew(TweenWidget, SControlRigTweenWidget)
 			.InOwningToolkit(SharedThis(this))
+			.InOwningEditMode(SharedThis(&EditMode))
 		];
 
 	TryShowTweenOverlay();
@@ -323,7 +325,7 @@ void FControlRigEditModeToolkit::UpdateTweenWidgetLocation(const FVector2D InLoc
 	{
 		// reset the location if it was placed out of bounds
 		ScreenPos.X = ActiveViewportSize.X / 2.0f;
-		ScreenPos.Y = ActiveViewportSize.Y - 100.0f;
+		ScreenPos.Y = FMath::Max(ActiveViewportSize.Y - 100.0f, 0);
 	}
 	InViewportTweenWidgetLocation = ScreenPos;
 	UControlRigEditModeSettings* ControlRigEditModeSettings = GetMutableDefault<UControlRigEditModeSettings>();
@@ -372,7 +374,12 @@ void FControlRigEditModeToolkit::RequestModeUITabs()
 		ModeUILayerPtr->GetTabManager()->RegisterDefaultTabWindowSize(SnapperTabName, FVector2D(300, 325));
 
 		ModeUILayerPtr->GetTabManager()->UnregisterTabSpawner(PoseTabName);
-		ModeUILayerPtr->GetTabManager()->RegisterTabSpawner(PoseTabName, FOnSpawnTab::CreateStatic(&SpawnPoseTab))
+
+		TWeakPtr<FControlRigEditModeToolkit> WeakToolkit = SharedThis(this);
+		ModeUILayerPtr->GetTabManager()->RegisterTabSpawner(PoseTabName, FOnSpawnTab::CreateLambda([WeakToolkit](const FSpawnTabArgs& Args)
+		{
+			return SpawnPoseTab(Args, WeakToolkit);
+		}))
 			.SetDisplayName(LOCTEXT("ControlRigPoseTab", "Control Rig Pose"))
 			.SetTooltipText(LOCTEXT("ControlRigPoseTabTooltip", "Show Poses."))
 			.SetGroup(MenuGroup)

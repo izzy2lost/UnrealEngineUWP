@@ -10,6 +10,9 @@ class FControlRigEditorEditMode : public FControlRigEditMode
 {
 public:
 	static FName ModeName;
+	
+	virtual bool IsInLevelEditor() const override { return false; }
+	virtual bool AreEditingControlRigDirectly() const override { return true; }
 
 	// FEdMode interface
 	virtual void Render(const FSceneView* View, FViewport* Viewport, FPrimitiveDrawInterface* PDI) override;

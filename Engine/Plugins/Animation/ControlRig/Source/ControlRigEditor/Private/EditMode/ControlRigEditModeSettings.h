@@ -7,6 +7,8 @@
 #include "UObject/LazyObjectPtr.h"
 #include "ControlRigEditModeSettings.generated.h"
 
+DECLARE_MULTICAST_DELEGATE_OneParam(FGizmoScaleSet, float /* GizmoScale */);
+
 /** Settings object used to show useful information in the details panel */
 UCLASS(config=EditorPerProjectUserSettings, MinimalAPI)
 class UControlRigEditModeSettings : public UObject
@@ -88,4 +90,7 @@ public:
 
 	UPROPERTY(config)
 	FVector2D LastInViewportTweenWidgetLocation;
+
+	/** Delegate broadcasted whenever GizmoScale is modified */
+	FGizmoScaleSet GizmoScaleDelegate;
 };
