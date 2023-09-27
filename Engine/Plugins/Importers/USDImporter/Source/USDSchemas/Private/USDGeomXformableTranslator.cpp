@@ -27,6 +27,7 @@
 #include "Engine/World.h"
 #include "LiveLinkComponentController.h"
 #include "LiveLinkRole.h"
+#include "Misc/App.h"
 #include "Modules/ModuleManager.h"
 #include "Roles/LiveLinkTransformRole.h"
 #include "StaticMeshAttributes.h"
@@ -616,7 +617,7 @@ void FUsdGeomXformableTranslator::UpdateComponents( USceneComponent* SceneCompon
 			{
 				// Need to make sure the mesh's resources are initialized here as it may have just been built in another thread
 				// Only do this if required though, as this mesh could using these resources currently (e.g. PIE and editor world sharing the mesh)
-				if ( PrimStaticMesh && !PrimStaticMesh->AreRenderingResourcesInitialized() )
+				if ( PrimStaticMesh && !PrimStaticMesh->AreRenderingResourcesInitialized() && FApp::CanEverRender() )
 				{
 					PrimStaticMesh->InitResources();
 				}

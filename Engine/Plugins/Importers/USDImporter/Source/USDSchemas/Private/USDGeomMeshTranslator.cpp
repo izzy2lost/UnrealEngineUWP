@@ -33,6 +33,7 @@
 #include "Materials/MaterialInstanceConstant.h"
 #include "Materials/MaterialInstanceDynamic.h"
 #include "Materials/MaterialInterface.h"
+#include "Misc/App.h"
 #include "Misc/SecureHash.h"
 #include "Modules/ModuleManager.h"
 #include "PhysicsEngine/BodySetup.h"
@@ -722,6 +723,11 @@ namespace UsdGeomMeshTranslatorImpl
 	{
 		// For runtime builds, the analogue for this stuff is already done from within BuildFromMeshDescriptions
 		TRACE_CPUPROFILER_EVENT_SCOPE(UsdGeomMeshTranslatorImpl::PostBuildStaticMesh);
+
+		if (!FApp::CanEverRender())
+		{
+			return;
+		}
 
 		StaticMesh.InitResources();
 

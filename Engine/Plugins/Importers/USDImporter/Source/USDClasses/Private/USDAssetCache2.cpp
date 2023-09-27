@@ -14,6 +14,7 @@
 #include "Materials/MaterialInterface.h"
 #include "MaterialShared.h"
 #include "MeshDescription.h"
+#include "Misc/App.h"
 #include "Misc/ScopeRWLock.h"
 #include "PhysicsEngine/PhysicsAsset.h"
 #include "Serialization/ObjectAndNameAsStringProxyArchive.h"
@@ -518,12 +519,15 @@ namespace UE::AssetCache::Private
 			// We only need these in the editor: When we're cooking we'll just save the cooked mesh data into the
 			// asset itself, so at runtime there is no need for an additional "build" step that we have to handle here
 
-			StaticMesh->SetRenderData(MakeUnique< FStaticMeshRenderData >());
-			ITargetPlatformManagerModule& TargetPlatformManager = GetTargetPlatformManagerRef();
-			ITargetPlatform* RunningPlatform = TargetPlatformManager.GetRunningTargetPlatform();
-			const FStaticMeshLODSettings& LODSettings = RunningPlatform->GetStaticMeshLODSettings();
-			StaticMesh->GetRenderData()->Cache(RunningPlatform, StaticMesh, LODSettings);
-			StaticMesh->InitResources();
+			if (FApp::CanEverRender())
+			{
+				StaticMesh->SetRenderData(MakeUnique< FStaticMeshRenderData >());
+				ITargetPlatformManagerModule& TargetPlatformManager = GetTargetPlatformManagerRef();
+				ITargetPlatform* RunningPlatform = TargetPlatformManager.GetRunningTargetPlatform();
+				const FStaticMeshLODSettings& LODSettings = RunningPlatform->GetStaticMeshLODSettings();
+				StaticMesh->GetRenderData()->Cache(RunningPlatform, StaticMesh, LODSettings);
+				StaticMesh->InitResources();
+			}
 		}
 		else if (USkeletalMesh* SkeletalMesh = Cast<USkeletalMesh>(Object))
 		{
