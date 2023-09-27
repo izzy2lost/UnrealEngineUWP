@@ -261,17 +261,12 @@ bool FOnlineSubsystemEOS::Init()
 	GConfig->GetString(TEXT("OnlineSubsystem"), TEXT("NativePlatformService"), PlatformOSS, GEngineIni);
 	bIsDefaultOSS = DefaultOSS == TEXT("EOS");
 	bIsPlatformOSS = PlatformOSS == TEXT("EOS");
-
-	// Check for being launched by EGS
 	bWasLaunchedByEGS = FParse::Param(FCommandLine::Get(), TEXT("EpicPortal"));
-	FEOSSettings EOSSettings = UEOSSettings::GetSettings();
-	if (!IsRunningDedicatedServer() && IsRunningGame() && !bWasLaunchedByEGS && EOSSettings.bShouldEnforceBeingLaunchedByEGS)
+
+	bool bUnused;
+	if (GConfig->GetBool(TEXT("/Script/OnlineSubsystemEOS.EOSSettings"), TEXT("bShouldEnforceBeingLaunchedByEGS"), bUnused, GEngineIni))
 	{
-		FString ArtifactName;
-		FParse::Value(FCommandLine::Get(), TEXT("EpicApp="), ArtifactName);
-		UE_LOG_ONLINE(Warning, TEXT("FOnlineSubsystemEOS::Init() relaunching artifact (%s) via the store"), *ArtifactName);
-		FPlatformProcess::LaunchURL(*FString::Printf(TEXT("com.epicgames.launcher://store/product/%s?action=launch&silent=true"), *ArtifactName), nullptr, nullptr);
-		FPlatformMisc::RequestExit(false);
+		UE_LOG_ONLINE(Error, TEXT("%hs: Support for bShouldEnforceBeingLaunchedByEGS has been removed, please delete this config entry and instead set bUseLauncherChecks=true in your .Target.cs file(s)"));
 		return false;
 	}
 
