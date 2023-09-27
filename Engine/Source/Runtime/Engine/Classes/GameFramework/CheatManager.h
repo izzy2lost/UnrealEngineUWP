@@ -246,6 +246,9 @@ class UCheatManager : public UObject
 	UFUNCTION(exec)
 	ENGINE_API virtual void ToggleDebugCamera();
 
+	/** Returns true if the player currently has a debug camera */
+	ENGINE_API virtual bool IsDebugCameraActive() const;
+
 	/** toggles AI logging */
 	UFUNCTION(exec)
 	ENGINE_API virtual void ToggleAILogging();

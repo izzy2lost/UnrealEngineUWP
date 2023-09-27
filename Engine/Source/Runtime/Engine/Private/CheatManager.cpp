@@ -631,8 +631,7 @@ void UCheatManager::StreamLevelOut(FName PackageName)
 
 void UCheatManager::ToggleDebugCamera()
 {
-	ADebugCameraController* const DCC = Cast<ADebugCameraController>(GetOuter());
-	if (DCC)
+	if (IsDebugCameraActive())
 	{
 		DisableDebugCamera();
 	}
@@ -640,6 +639,11 @@ void UCheatManager::ToggleDebugCamera()
 	{
 		EnableDebugCamera();
 	}
+}
+
+bool UCheatManager::IsDebugCameraActive() const
+{
+	return GetOuter() ? GetOuter()->IsA<ADebugCameraController>() : false;
 }
 
 void UCheatManager::EnableDebugCamera()
