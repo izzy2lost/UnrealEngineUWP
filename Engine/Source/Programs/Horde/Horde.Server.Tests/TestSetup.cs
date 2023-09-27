@@ -317,7 +317,8 @@ namespace Horde.Server.Tests
 
 		private BisectTasksController GetBisectTasksController()
 		{
-			BisectTasksController bisectCtrl = new BisectTasksController(BisectTaskCollection, JobService, JobCollection, JobStepRefCollection, GraphCollection, UserCollection, Tracer, GlobalConfigSnapshot);
+			ILogger<BisectTasksController> logger = ServiceProvider.GetRequiredService<ILogger<BisectTasksController>>();
+			BisectTasksController bisectCtrl = new BisectTasksController(BisectTaskCollection, JobService, JobCollection, JobStepRefCollection, GraphCollection, UserCollection, Tracer, logger, GlobalConfigSnapshot);
 			bisectCtrl.ControllerContext = GetControllerContext();
 			return bisectCtrl;
 		}
