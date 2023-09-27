@@ -951,6 +951,44 @@ void FEOSSDKManager::LogUserInfo(const EOS_HPlatform Platform, const EOS_EpicAcc
 	{
 		UE_LOG_EOSSDK_INFO("UserInfo (EOS_UserInfo_CopyUserInfo failed: %s)", *LexToString(Result));
 	}
+
+	EOS_UserInfo_CopyBestDisplayNameOptions Options = {};
+	Options.ApiVersion = 1;
+	UE_EOS_CHECK_API_MISMATCH(EOS_USERINFO_COPYBESTDISPLAYNAME_API_LATEST, 1);
+	Options.LocalUserId = LoggedInAccount;
+	Options.TargetUserId = TargetAccount;
+
+	EOS_UserInfo_BestDisplayName* BestDisplayName;
+	Result = EOS_UserInfo_CopyBestDisplayName(UserInfoHandle, &Options, &BestDisplayName);
+
+	if (Result == EOS_EResult::EOS_UserInfo_BestDisplayNameIndeterminate)
+	{
+		EOS_UserInfo_CopyBestDisplayNameWithPlatformOptions WithPlatformOptions = {};
+		WithPlatformOptions.ApiVersion = 1;
+		UE_EOS_CHECK_API_MISMATCH(EOS_USERINFO_COPYBESTDISPLAYNAMEWITHPLATFORM_API_LATEST, 1);
+		WithPlatformOptions.LocalUserId = LoggedInAccount;
+		WithPlatformOptions.TargetUserId = TargetAccount;
+		WithPlatformOptions.TargetPlatformType = EOS_OPT_Epic;
+
+		Result = EOS_UserInfo_CopyBestDisplayNameWithPlatform(UserInfoHandle, &WithPlatformOptions, &BestDisplayName);
+	}
+
+	if (Result == EOS_EResult::EOS_Success)
+	{
+		Indent++;
+		UE_LOG_EOSSDK_INFO("BestDisplayName");
+		Indent++;
+		UE_LOG_EOSSDK_INFO("DisplayName=%hs", BestDisplayName->DisplayName);
+		UE_LOG_EOSSDK_INFO("DisplayNameSanitized=%hs", BestDisplayName->DisplayNameSanitized);
+		UE_LOG_EOSSDK_INFO("Nickname=%hs", BestDisplayName->Nickname);
+		Indent -= 2;
+
+		EOS_UserInfo_BestDisplayName_Release(BestDisplayName);
+	}
+	else
+	{
+		UE_LOG_EOSSDK_INFO("UserInfo (BestDisplayName retrieval failed: %s)", *LexToString(Result));
+	}
 }
 
 void FEOSSDKManager::LogPresenceInfo(const EOS_HPlatform Platform, const EOS_EpicAccountId LoggedInAccount, const EOS_EpicAccountId TargetAccount, int32 Indent) const

@@ -1075,10 +1075,41 @@ void FUserManagerEOS::UpdateUserInfo(IAttributeAccessInterfaceRef AttributeAcces
 	EOS_EResult CopyResult = EOS_UserInfo_CopyUserInfo(EOSSubsystem->UserInfoHandle, &Options, &UserInfo);
 	if (CopyResult == EOS_EResult::EOS_Success)
 	{
-		AttributeAccessRef->SetInternalAttribute(USER_ATTR_DISPLAY_NAME, UTF8_TO_TCHAR(UserInfo->DisplayName));
 		AttributeAccessRef->SetInternalAttribute(USER_ATTR_COUNTRY, UTF8_TO_TCHAR(UserInfo->Country));
 		AttributeAccessRef->SetInternalAttribute(USER_ATTR_LANG, UTF8_TO_TCHAR(UserInfo->PreferredLanguage));
 		EOS_UserInfo_Release(UserInfo);
+	}
+
+	EOS_UserInfo_CopyBestDisplayNameOptions BestDisplayNameOptions = { };
+	Options.ApiVersion = 1;
+	UE_EOS_CHECK_API_MISMATCH(EOS_USERINFO_COPYBESTDISPLAYNAME_API_LATEST, 1);
+	Options.LocalUserId = LocalId;
+	Options.TargetUserId = AccountId;
+
+	EOS_UserInfo_BestDisplayName* BestDisplayName;
+	EOS_EResult BestDisplayNameResult = EOS_UserInfo_CopyBestDisplayName(EOSSubsystem->UserInfoHandle, &BestDisplayNameOptions, &BestDisplayName);
+
+	if (BestDisplayNameResult == EOS_EResult::EOS_UserInfo_BestDisplayNameIndeterminate)
+	{
+		EOS_UserInfo_CopyBestDisplayNameWithPlatformOptions BestDisplayNameWithPlatformOptions = {};
+		BestDisplayNameWithPlatformOptions.ApiVersion = 1;
+		UE_EOS_CHECK_API_MISMATCH(EOS_USERINFO_COPYBESTDISPLAYNAMEWITHPLATFORM_API_LATEST, 1);
+		BestDisplayNameWithPlatformOptions.LocalUserId = LocalId;
+		BestDisplayNameWithPlatformOptions.TargetUserId = AccountId;
+		BestDisplayNameWithPlatformOptions.TargetPlatformType = EOS_OPT_Epic;
+
+		BestDisplayNameResult = EOS_UserInfo_CopyBestDisplayNameWithPlatform(EOSSubsystem->UserInfoHandle, &BestDisplayNameWithPlatformOptions, &BestDisplayName);
+	}
+
+	if (BestDisplayNameResult == EOS_EResult::EOS_Success)
+	{
+		AttributeAccessRef->SetInternalAttribute(USER_ATTR_DISPLAY_NAME, UTF8_TO_TCHAR(BestDisplayName->DisplayNameSanitized));
+
+		EOS_UserInfo_BestDisplayName_Release(BestDisplayName);
+	}
+	else
+	{
+		UE_LOG_ONLINE(Warning, TEXT("[FUserManagerEOS::UpdateUserInfo] Failed to retrieve BestDisplayName EOS_EResult: %s."), *LexToString(BestDisplayNameResult));
 	}
 }
 

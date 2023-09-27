@@ -195,24 +195,36 @@ TOnlineAsyncOpHandle<FAuthLogin> FAuthEOS::Login(FAuthLogin::Params&& Params)
 		const TSharedRef<FAccountInfoEOS>& AccountInfoEOS = GetOpDataChecked<TSharedRef<FAccountInfoEOS>>(InAsyncOp, UE_ONLINE_AUTH_EOS_ACCOUNT_INFO_KEY_NAME);
 
 		// Get display name
-		EOS_UserInfo_CopyUserInfoOptions Options = { };
-		Options.ApiVersion = 3;
-		UE_EOS_CHECK_API_MISMATCH(EOS_USERINFO_COPYUSERINFO_API_LATEST, 3);
+		EOS_UserInfo_CopyBestDisplayNameOptions Options = {};
+		Options.ApiVersion = 1;
+		UE_EOS_CHECK_API_MISMATCH(EOS_USERINFO_COPYBESTDISPLAYNAME_API_LATEST, 1);
 		Options.LocalUserId = AccountInfoEOS->EpicAccountId;
 		Options.TargetUserId = AccountInfoEOS->EpicAccountId;
 
-		EOS_UserInfo* UserInfo = nullptr;
+		EOS_UserInfo_BestDisplayName* BestDisplayName;
+		EOS_EResult CopyBestDisplayNameResult = EOS_UserInfo_CopyBestDisplayName(UserInfoHandle, &Options, &BestDisplayName);
 
-		EOS_EResult CopyUserInfoResult = EOS_UserInfo_CopyUserInfo(UserInfoHandle, &Options, &UserInfo);
-		if (CopyUserInfoResult == EOS_EResult::EOS_Success)
+		if (CopyBestDisplayNameResult == EOS_EResult::EOS_UserInfo_BestDisplayNameIndeterminate)
 		{
-			AccountInfoEOS->Attributes.Emplace(AccountAttributeData::DisplayName, UTF8_TO_TCHAR(UserInfo->DisplayName));
-			EOS_UserInfo_Release(UserInfo);
+			EOS_UserInfo_CopyBestDisplayNameWithPlatformOptions WithPlatformOptions = {};
+			WithPlatformOptions.ApiVersion = 1;
+			UE_EOS_CHECK_API_MISMATCH(EOS_USERINFO_COPYBESTDISPLAYNAMEWITHPLATFORM_API_LATEST, 1);
+			WithPlatformOptions.LocalUserId = AccountInfoEOS->EpicAccountId;
+			WithPlatformOptions.TargetUserId = AccountInfoEOS->EpicAccountId;
+			WithPlatformOptions.TargetPlatformType = EOS_OPT_Epic;
+
+			CopyBestDisplayNameResult = EOS_UserInfo_CopyBestDisplayNameWithPlatform(UserInfoHandle, &WithPlatformOptions, &BestDisplayName);
+		}
+
+		if (CopyBestDisplayNameResult == EOS_EResult::EOS_Success)
+		{
+			AccountInfoEOS->Attributes.Emplace(AccountAttributeData::DisplayName, UTF8_TO_TCHAR(BestDisplayName->DisplayNameSanitized));
+			EOS_UserInfo_BestDisplayName_Release(BestDisplayName);
 		}
 		else
 		{
-			FOnlineError CopyUserInfoError(Errors::FromEOSResult(CopyUserInfoResult));
-			UE_LOG(LogOnlineServices, Warning, TEXT("[FAuthEOS::Login] Failure: EOS_UserInfo_CopyUserInfo %s"), *CopyUserInfoError.GetLogString());
+			FOnlineError CopyUserInfoError(Errors::FromEOSResult(CopyBestDisplayNameResult));
+			UE_LOG(LogOnlineServices, Warning, TEXT("[FAuthEOS::Login] Failure: EOS_UserInfo_CopyBestDisplayName %s"), *CopyUserInfoError.GetLogString());
 			InAsyncOp.SetError(Errors::Unknown(MoveTemp(CopyUserInfoError)));
 
 			TPromise<void> Promise;

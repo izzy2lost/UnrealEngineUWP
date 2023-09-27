@@ -99,28 +99,41 @@ TOnlineResult<FGetUserInfo> FUserInfoEOS::GetUserInfo(FGetUserInfo::Params&& Par
 		return TOnlineResult<FGetUserInfo>(Errors::InvalidParams());
 	}
 
-	EOS_UserInfo_CopyUserInfoOptions Options;
-	Options.ApiVersion = 3;
-	UE_EOS_CHECK_API_MISMATCH(EOS_USERINFO_COPYUSERINFO_API_LATEST, 3);
+	EOS_UserInfo_CopyBestDisplayNameOptions Options = {};
+	Options.ApiVersion = 1;
+	UE_EOS_CHECK_API_MISMATCH(EOS_USERINFO_COPYBESTDISPLAYNAME_API_LATEST, 1);
 	Options.LocalUserId = GetEpicAccountIdChecked(Params.LocalAccountId);
 	Options.TargetUserId = TargetUserEasId;
 
-	EOS_UserInfo* EosUserInfo = nullptr;
+	EOS_UserInfo_BestDisplayName* EosBestDisplayName;
 	ON_SCOPE_EXIT
 	{
-		EOS_UserInfo_Release(EosUserInfo);
+		EOS_UserInfo_BestDisplayName_Release(EosBestDisplayName);
 	};
 
-	const EOS_EResult EosResult = EOS_UserInfo_CopyUserInfo(UserInfoHandle, &Options, &EosUserInfo);
+	EOS_EResult EosResult = EOS_UserInfo_CopyBestDisplayName(UserInfoHandle, &Options, &EosBestDisplayName);
+
+	if (EosResult == EOS_EResult::EOS_UserInfo_BestDisplayNameIndeterminate)
+	{
+		EOS_UserInfo_CopyBestDisplayNameWithPlatformOptions WithPlatformOptions = {};
+		WithPlatformOptions.ApiVersion = 1;
+		UE_EOS_CHECK_API_MISMATCH(EOS_USERINFO_COPYBESTDISPLAYNAMEWITHPLATFORM_API_LATEST, 1);
+		WithPlatformOptions.LocalUserId = GetEpicAccountIdChecked(Params.LocalAccountId);
+		WithPlatformOptions.TargetUserId = TargetUserEasId;
+		WithPlatformOptions.TargetPlatformType = EOS_OPT_Epic;
+
+		EosResult = EOS_UserInfo_CopyBestDisplayNameWithPlatform(UserInfoHandle, &WithPlatformOptions, &EosBestDisplayName);
+	}
+
 	if(EosResult != EOS_EResult::EOS_Success)
 	{
-		UE_LOG(LogOnlineServices, Warning, TEXT("EOS_UserInfo_CopyUserInfo failed with result=[%s]"), *LexToString(EosResult));
+		UE_LOG(LogOnlineServices, Warning, TEXT("EOS_UserInfo_CopyBestDisplayName failed with result=[%s]"), *LexToString(EosResult));
 		return TOnlineResult<FGetUserInfo>(Errors::FromEOSResult(EosResult));
 	}
 
 	TSharedRef<FUserInfo> UserInfo = MakeShared<FUserInfo>();
 	UserInfo->AccountId = Params.AccountId;
-	UserInfo->DisplayName = UTF8_TO_TCHAR(EosUserInfo->DisplayName);
+	UserInfo->DisplayName = UTF8_TO_TCHAR(EosBestDisplayName->DisplayNameSanitized);
 
 	return TOnlineResult<FGetUserInfo>({UserInfo});
 }
