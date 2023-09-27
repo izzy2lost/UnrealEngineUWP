@@ -805,12 +805,17 @@ namespace UnrealBuildTool
 							ReasonNotLoaded = "source file modified";
 							return false;
 						}
+						else if (!InputDirectory.Exists)
+						{
+							ReasonNotLoaded = "source directory removed";
+							return false;
+						}
 
 						foreach (DirectoryItem Directory in InputDirectory.EnumerateDirectories())
 						{
-							if (!Makefile.DirectoryToSourceFiles.ContainsKey(Directory) && ContainsSourceFiles(Directory, ExcludedFolderNames, Logger))
+							if (!Makefile.DirectoryToSourceFiles.ContainsKey(Directory) && ContainsSourceFilesOrHeaders(Directory, ExcludedFolderNames, Logger))
 							{
-								ReasonNotLoaded = "directory added";
+								ReasonNotLoaded = "source directory added";
 								return false;
 							}
 						}
@@ -927,19 +932,19 @@ namespace UnrealBuildTool
 		}
 
 		/// <summary>
-		/// Determines if a directory, or any subdirectory of it, contains new source files
+		/// Determines if a directory, or any subdirectory of it, contains new source files or headers
 		/// </summary>
 		/// <param name="Directory">Directory to search through</param>
 		/// <param name="ExcludedFolderNames">Set of directory names to exclude</param>
 		/// <param name="Logger">Logger for output diagnostics</param>
 		/// <returns>True if the directory contains any source files</returns>
-		static bool ContainsSourceFiles(DirectoryItem Directory, IReadOnlySet<string> ExcludedFolderNames, ILogger Logger)
+		static bool ContainsSourceFilesOrHeaders(DirectoryItem Directory, IReadOnlySet<string> ExcludedFolderNames, ILogger Logger)
 		{
 			// Check this directory isn't ignored
 			if (!ExcludedFolderNames.Contains(Directory.Name))
 			{
 				// Check for any source files in this actual directory
-				FileItem[] SourceFiles = UEBuildModuleCPP.GetSourceFiles(Directory, Logger);
+				FileItem[] SourceFiles = UEBuildModuleCPP.GetSourceFilesAndHeaders(Directory, Logger);
 				if (SourceFiles.Length > 0)
 				{
 					return true;
@@ -948,7 +953,7 @@ namespace UnrealBuildTool
 				// Check for any source files in a subdirectory
 				foreach (DirectoryItem SubDirectory in Directory.EnumerateDirectories())
 				{
-					if (ContainsSourceFiles(SubDirectory, ExcludedFolderNames, Logger))
+					if (ContainsSourceFilesOrHeaders(SubDirectory, ExcludedFolderNames, Logger))
 					{
 						return true;
 					}

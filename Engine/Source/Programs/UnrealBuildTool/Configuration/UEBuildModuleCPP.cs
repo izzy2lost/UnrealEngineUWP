@@ -2217,6 +2217,25 @@ namespace UnrealBuildTool
 		}
 
 		/// <summary>
+		/// Gets a set of source files and headers for the given directory. Used to detect when the makefile is out of date due to a new directory
+		/// </summary>
+		/// <param name="Directory"></param>
+		/// <param name="Logger">Logger for output</param>
+		/// <returns>Array of source files and headers</returns>
+		public static FileItem[] GetSourceFilesAndHeaders(DirectoryItem Directory, ILogger Logger)
+		{
+			bool bIgnoreFileFound;
+			InputFileCollection InputFiles = new InputFileCollection();
+			List<FileItem> Files = new List<FileItem>(FindInputFilesFromDirectory(Directory, InputFiles, out bIgnoreFileFound, Logger));
+			if (bIgnoreFileFound)
+			{
+				return Array.Empty<FileItem>();
+			}
+			Files.AddRange(InputFiles.HeaderFiles);
+			return Files.ToArray();
+		}
+
+		/// <summary>
 		/// Checks a given directory path whether it exists and if it contains any Verse source files
 		/// </summary>
 		public static bool IsValidVerseDirectory(DirectoryReference MaybeVerseDirectory)
