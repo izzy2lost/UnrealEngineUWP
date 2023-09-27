@@ -586,6 +586,17 @@ public:
 	}
 };
 
+template<>
+struct TStructOpsTypeTraits<FGeometryScriptSimplePolygon> : public TStructOpsTypeTraitsBase2<FGeometryScriptSimplePolygon>
+{
+	enum
+	{
+		WithIdenticalViaEquality = true,
+	};
+};
+
+
+
 // A list of general polygons, which may have holes.
 USTRUCT(BlueprintType, meta = (DisplayName = "PolygonList"))
 struct GEOMETRYSCRIPTINGCORE_API FGeometryScriptGeneralPolygonList
