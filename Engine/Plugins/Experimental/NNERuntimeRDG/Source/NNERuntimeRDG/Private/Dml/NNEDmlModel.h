@@ -38,9 +38,6 @@ private:
 class FDmlDeviceContext;
 class FOperatorDml;
 
-//
-//
-//
 class FModelInstance : public FModelInstanceRDG
 {
 	class FGraphBuilder;
@@ -48,9 +45,7 @@ class FModelInstance : public FModelInstanceRDG
 	
 	friend class FGraphBuilder;
 
-	//
-	//
-	//
+	// Utility class to hold debug names used by D3D
 	class FDebugName
 	{
 		static constexpr int32 Size = 128;
@@ -69,9 +64,7 @@ class FModelInstance : public FModelInstanceRDG
 		int32	Length;
 	};
 
-	//
-	//
-	//
+	// Utility class to help with deferred DML graph building
 	struct FGraphOpDesc
 	{
 		int32			OpIndex;
@@ -101,9 +94,7 @@ private:
 	bool InitCompiledOp();
 
 	FBufferRHIRef CreateRHIBuffer(FRHICommandListImmediate& RHICmdList, uint32 Size, EBufferUsageFlags Usage, ERHIAccess Access, const TCHAR* DbgName);
-	ID3D12Resource* CreateD3D12Buffer(uint32 Size, D3D12_RESOURCE_STATES ResourceState = D3D12_RESOURCE_STATE_COMMON, D3D12_HEAP_TYPE HeapType = D3D12_HEAP_TYPE_DEFAULT, const TCHAR* DebugName = nullptr);
 
-	//NOTE: This should go into RDG
 	static constexpr int32 MaxNumInputs = 512;
 	static constexpr int32 MaxNumOutputs = 4;
 
@@ -134,9 +125,6 @@ private:
 	uint64								MemSizePersist;
 };
 
-//
-//
-//
 class FModel : public NNE::IModelRDG
 {
 public:

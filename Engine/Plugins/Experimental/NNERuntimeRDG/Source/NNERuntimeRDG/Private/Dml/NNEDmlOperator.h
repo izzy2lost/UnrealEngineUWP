@@ -10,9 +10,6 @@
 #include "NNEAttributeMap.h"
 #include "NNERuntimeRDGBase.h"
 
-//
-//
-//
 #define NNE_DML_REGISTER_OP(OpName) \
 struct FDmlOperator##OpName##Registrator \
 { \
@@ -28,31 +25,22 @@ static FDmlOperator##OpName##Registrator RegisterDmlOperator##OpName;
 namespace UE::NNERuntimeRDG::Private::Dml
 {
 
-static constexpr uint32_t NcdhwDimensionCount = 5;
-static constexpr uint32_t NcdhwSpatialDimensionCount = 3;
-static constexpr uint32_t NonspatialDimensionCount = 2; // The batch and channel dimensions of NCW, NCHW, NCDHW....
+static constexpr uint32 NcdhwDimensionCount = 5;
+static constexpr uint32 NcdhwSpatialDimensionCount = 3;
+static constexpr uint32 NonspatialDimensionCount = 2;		//!< The batch and channel dimensions of NCW, NCHW, NCDHW....
 
-//
-//
-//
 template<typename T>
 inline TArrayView<T> MakeEmptyArrayView()
 {
 	return MakeArrayView(static_cast<T*>(nullptr), 0);
 }
 
-//
-//
-//
 template<typename T>
 inline TConstArrayView<T> MakeEmptyConstArrayView()
 {
 	return TConstArrayView<T>(static_cast<const T*>(nullptr), 0);
 }
 
-//
-//
-//
 class FDmlDeviceContext
 {
 public:
@@ -73,9 +61,6 @@ using FSmallArray = TArray<T, TInlineAllocator<NNE::FTensorShape::MaxRank>>;
 using FSmallIntArray = TArray<int32, TInlineAllocator<NNE::FTensorShape::MaxRank>>;
 using FSmallUIntArray = TArray<uint32, TInlineAllocator<NNE::FTensorShape::MaxRank>>;
 
-//
-//
-//
 template<typename InputType, typename OutputType>
 inline bool IsOverflowing(InputType Input)
 {
@@ -87,9 +72,6 @@ inline bool IsOverflowing(InputType Input)
 	return false;
 }
 
-//
-//
-//
 template<typename InputType, typename OutputType>
 inline bool ConvertArrayViewNoOverflow(TConstArrayView<InputType> InputView, TArrayView<OutputType>& OutputView)
 {
@@ -104,9 +86,6 @@ inline bool ConvertArrayViewNoOverflow(TConstArrayView<InputType> InputView, TAr
 	return true;
 }
 
-//
-//
-//
 template<typename OutputType, typename AllocatorType>
 inline bool GetArrayAttributeNoOverflow(
 	const FNNEAttributeValue* Attr, 
@@ -155,7 +134,6 @@ inline bool GetArrayAttributeNoOverflow(
 	return true;
 }
 
-extern bool IsSameShape(const NNE::Internal::FTensor& Left, const NNE::Internal::FTensor& Right);
 extern bool IsSameShape(const FTensorDescDml& Left, const FTensorDescDml& Right);
 extern DML_TENSOR_DATA_TYPE GetTensorDataType(ENNETensorDataType DataType);
 
@@ -307,9 +285,9 @@ private:
 	bool					bIsValidated;
 };
 
-//
-// DirectML operator base class
-//
+/**
+*  DirectML operator base class
+*/
 class FOperatorDml : public IPrepareOperator
 {
 public:

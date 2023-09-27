@@ -7,35 +7,23 @@
 
 namespace UE::NNERuntimeRDG::Private::Dml
 {
-//
-//
-//
+
 class FOperatorDmlUnsqueeze : public FOperatorDml
 {
 	TArray<int32> Axes;
 	
 public:
 
-	//
-	//
-	//
 	static FOperatorDml* Create()
 	{
 		return new FOperatorDmlUnsqueeze();
 	}
 
-	//
-	//
-	//
 	static bool Validate(const NNE::FAttributeMap& AttributeMap, TConstArrayView<ENNETensorDataType> InputTypes, TConstArrayView<NNE::FSymbolicTensorShape> InputShapes)
 	{
-		//TODO
 		return true;
 	}
 
-	//
-	//
-	//
 	virtual bool Initialize(TConstArrayView<NNE::FTensorDesc> Inputs, TConstArrayView<NNE::FTensorDesc> Outputs, const NNE::FAttributeMap& Attributes) override
 	{
 		check(Inputs.Num() == 1);
@@ -58,13 +46,10 @@ public:
 		return true;
 	}
 
-	//
-	//
-	//
 	virtual int PrepareOutputs(TConstArrayView<NNE::Internal::FTensorRef> InputTensors, TArrayView<NNE::Internal::FTensorRef> OutputTensors) const override
 	{
 		TConstArrayView<uint32>	InputShape = InputTensors[0]->GetShape().GetData();
-		const int32_t			OutShapeRank = InputShape.Num() + Axes.Num();
+		const int32				OutShapeRank = InputShape.Num() + Axes.Num();
 
 		Util::FSmallUIntArray	OutputShape;
 		OutputShape.Reserve(OutShapeRank);
@@ -86,9 +71,6 @@ public:
 		return 0;
 	}
 
-	//
-	//
-	//
 	virtual bool Create(IDMLDevice* Device, TConstArrayView<NNE::Internal::FTensorRef> InputTensors, TConstArrayView<NNE::Internal::FTensorRef> OutputTensors) override
 	{
 		const NNE::Internal::FTensor& InputTensor = *InputTensors[0];

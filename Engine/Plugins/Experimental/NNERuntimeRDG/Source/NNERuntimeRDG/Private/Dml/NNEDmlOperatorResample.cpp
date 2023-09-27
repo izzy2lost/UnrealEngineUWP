@@ -32,9 +32,6 @@ void RemoveValuesByIndex(TConstArrayView<uint32> Indices, TArray<TData, TAllocat
 template <bool IsResize>
 class FOperatorDmlResample : public FOperatorDml
 {
-	//
-	//
-	//
 	enum ECoordTransformMode : uint8
 	{
 		None,
@@ -48,9 +45,6 @@ class FOperatorDmlResample : public FOperatorDml
 	DML_INTERPOLATION_MODE	Mode;
 	ECoordTransformMode		CoordTransformMode;
 
-	//
-	//
-	//
 	static DML_INTERPOLATION_MODE ModeFromString(FStringView StringVal)
 	{
 		if (FCString::Stricmp(StringVal.GetData(), TEXT("NEAREST")) == 0)
@@ -70,26 +64,16 @@ class FOperatorDmlResample : public FOperatorDml
 
 public:
 
-	//
-	//
-	//
 	static FOperatorDml* Create()
 	{
 		return new FOperatorDmlResample<IsResize>();
 	}
 
-	//
-	//
-	//
 	static bool Validate(const NNE::FAttributeMap& AttributeMap, TConstArrayView<ENNETensorDataType> InputTypes, TConstArrayView<NNE::FSymbolicTensorShape> InputShapes)
 	{
-		//TODO
 		return true;
 	}
 
-	//
-	//
-	//
 	virtual bool Initialize(TConstArrayView<NNE::FTensorDesc> Inputs, TConstArrayView<NNE::FTensorDesc> Outputs, const NNE::FAttributeMap& Attributes) override
 	{
 		check(Inputs.Num() >= 1 && Inputs.Num() < 4);
@@ -144,7 +128,6 @@ public:
 			}
 		}
 
-		// Notify DML graph that we have constant CPU tensor inputs
 		for (int i = 1; i < Inputs.Num(); ++i)
 		{
 			ConstantCPUInputs.Add(i);
@@ -153,9 +136,6 @@ public:
 		return true;
 	}
 
-	//
-	//
-	//
 	virtual int PrepareOutputs(TConstArrayView<NNE::Internal::FTensorRef> InputTensors, TArrayView<NNE::Internal::FTensorRef> OutputTensors) const override
 	{
 		const NNE::Internal::FTensor& InputTensor = *InputTensors[0];
@@ -225,9 +205,6 @@ public:
 		return 0;
 	}
 
-	//
-	//
-	//
 	virtual bool Create(IDMLDevice* Device, TConstArrayView<NNE::Internal::FTensorRef> InputTensors, TConstArrayView<NNE::Internal::FTensorRef> OutputTensors) override
 	{
 		const NNE::Internal::FTensor& InputTensor = *InputTensors[0];
@@ -282,7 +259,6 @@ public:
 			}
 		}
 
-		// Initialize tensor descriptors
 		FTensorDescDml	DmlInputTensorDesc;
 		FTensorDescDml	DmlOutputTensorDesc;
 

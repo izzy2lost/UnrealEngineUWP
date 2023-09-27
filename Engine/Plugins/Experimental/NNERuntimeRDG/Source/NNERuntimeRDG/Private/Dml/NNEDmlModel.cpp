@@ -90,7 +90,7 @@ inline FModelInstance::FDebugName::FDebugName(const FString& InStr)
 {
 	FTCHARToUTF8 Conv(*InStr);
 
-	Length = Conv.Length() + 1 < Size ? Conv.Length() + 1 : Size - 1;
+	Length = FMath::Min(Conv.Length() + 1, Size - 1);
 	FCStringAnsi::Strncpy(Str, Conv.Get(), Length);
 	Str[Length] = '\0';
 }
@@ -99,7 +99,7 @@ inline FModelInstance::FDebugName::FDebugName(FStringView InStr)
 {
 	FTCHARToUTF8 Conv(InStr.GetData());
 
-	Length = Conv.Length() + 1 < Size ? Conv.Length() + 1 : Size - 1;
+	Length = FMath::Min(Conv.Length() + 1, Size - 1);
 	FCStringAnsi::Strncpy(Str, Conv.Get(), Length);
 	Str[Length] = '\0';
 }
@@ -292,6 +292,7 @@ private:
 
 /**
 * Helper class for building DML graph
+* Note: This is internal class and can only be called from FModelInstance, therefore FModelInstance is always valid
 */
 class FModelInstance::FGraphBuilder
 {
@@ -1233,8 +1234,6 @@ void FModelInstance::AddDispatchOps_RenderThread(FRDGBuilder& GraphBuilder)
 * Create an instance of FOperatorDml
 * Note: The IDMLOperator (member of FOperatorDml) is still not created
 */
-//
-//
 FOperatorDml* FModelInstance::OpCreate(const FString& OpName, TConstArrayView<NNE::FTensorDesc> Inputs, TConstArrayView<NNE::FTensorDesc> Outputs, const NNE::FAttributeMap& Attributes)
 {
 	FOperatorRegistryDml::OperatorCreateFunc CreateFn = FOperatorRegistryDml::Get()->OpFind(OpName);
@@ -1359,5 +1358,3 @@ FModel::FModel(const TSharedPtr<NNE::FSharedModelData>& InModelData, FDmlDeviceC
 #endif // NNE_USE_DIRECTML
 
 } // namespace UE::NNERuntimeRDG::Private::Dml
-
-

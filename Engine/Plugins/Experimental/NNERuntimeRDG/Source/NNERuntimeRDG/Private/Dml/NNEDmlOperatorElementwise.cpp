@@ -1,4 +1,5 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
+
 #ifdef NNE_USE_DIRECTML
 #include "NNEDmlOperator.h"
 #include "NNEDmlOperatorUtils.h"
@@ -18,17 +19,11 @@ class FOperatorDmlElementWiseUnary : public FOperatorDml
 {
 public:
 
-	//
-	//
-	//
 	static FOperatorDml* Create()
 	{
 		return new FOperatorDmlElementWiseUnary();
 	}
 
-	//
-	//
-	//
 	static bool Validate(const NNE::FAttributeMap& AttributeMap, TConstArrayView<ENNETensorDataType> InputTypes, TConstArrayView<NNE::FSymbolicTensorShape> InputShapes)
 	{
 		if (InputShapes.Num() != 1)
@@ -45,9 +40,6 @@ public:
 		return true;
 	}
 
-	//
-	//
-	//
 	virtual ~FOperatorDmlElementWiseUnary() = default;
 
 private:
@@ -55,9 +47,6 @@ private:
 	float Min;
 	float Max;
 
-	//
-	//
-	//
 	FOperatorDmlElementWiseUnary() 
 		: Min(TNumericLimits<float>::Min())
 		, Max(TNumericLimits<float>::Max()) 
@@ -66,9 +55,6 @@ private:
 	
 public:
 
-	//
-	//
-	//
 	virtual bool Initialize(TConstArrayView<NNE::FTensorDesc> Inputs, TConstArrayView<NNE::FTensorDesc> Outputs, const NNE::FAttributeMap& Attributes) override
 	{
 		if constexpr (std::is_same_v<DmlElementWiseOpDescType, DML_ELEMENT_WISE_CLIP_OPERATOR_DESC>)
@@ -100,9 +86,6 @@ public:
 		return true;
 	}
 
-	//
-	//
-	//
 	virtual int PrepareOutputs(TConstArrayView<NNE::Internal::FTensorRef> InputTensors, TArrayView<NNE::Internal::FTensorRef> OutputTensors) const override
 	{
 		check(InputTensors.Num() == 1);
@@ -112,9 +95,6 @@ public:
 		return 0;
 	}
 
-	//
-	//
-	//
 	virtual bool Create(IDMLDevice* Device, TConstArrayView<NNE::Internal::FTensorRef> InputTensors, TConstArrayView<NNE::Internal::FTensorRef> OutputTensors) override
 	{
 		const NNE::Internal::FTensor& InputTensor = *InputTensors[0];
@@ -145,9 +125,6 @@ public:
 
 private:
 
-	//
-	//
-	//
 	template<typename OpDesc>
 	void InitDmlOpDesc(OpDesc& Desc, const DML_TENSOR_DESC& TensorDesc)
 	{
@@ -155,9 +132,6 @@ private:
 		Desc.OutputTensor = &TensorDesc;
 	}
 
-	//
-	//
-	//
 	void InitDmlOpDesc(DML_ELEMENT_WISE_CLIP_OPERATOR_DESC& Desc, const DML_TENSOR_DESC& TensorDesc)
 	{
 		Desc.InputTensor = &TensorDesc;
@@ -181,17 +155,11 @@ class FOperatorDmlElementWiseBinary : public FOperatorDml
 
 public:
 
-	//
-	//
-	//
 	static FOperatorDml* Create()
 	{
 		return new FOperatorDmlElementWiseBinary();
 	}
 
-	//
-	//
-	//
 	static bool Validate(const NNE::FAttributeMap& AttributeMap, TConstArrayView<ENNETensorDataType> InputTypes, TConstArrayView<NNE::FSymbolicTensorShape> InputShapes)
 	{
 		if (InputShapes.Num() != 2)
@@ -215,24 +183,15 @@ public:
 
 private:
 
-	//
-	//
-	//
 	FOperatorDmlElementWiseBinary() = default;
 
 public:
 
-	//
-	//
-	//
 	virtual bool Initialize(TConstArrayView<NNE::FTensorDesc> Inputs, TConstArrayView<NNE::FTensorDesc> Outputs, const NNE::FAttributeMap& Attributes) override
 	{
 		return true;
 	}
 
-	//
-	//
-	//
 	virtual int PrepareOutputs(TConstArrayView<NNE::Internal::FTensorRef> InputTensors, TArrayView<NNE::Internal::FTensorRef> OutputTensors) const override
 	{
 		check(InputTensors.Num() == 2);
@@ -266,9 +225,6 @@ public:
 		return 0;
 	}
 
-	//
-	//
-	//
 	virtual bool Create(IDMLDevice* Device, TConstArrayView<NNE::Internal::FTensorRef> InputTensors, TConstArrayView<NNE::Internal::FTensorRef> OutputTensors) override
 	{
 		const NNE::Internal::FTensor& InputATensor = *InputTensors[0];
@@ -318,9 +274,6 @@ public:
 
 private:
 
-	//
-	//
-	//
 	template<typename OpDesc>
 	void InitDmlOpDesc(OpDesc& Desc, const DML_TENSOR_DESC& LHSTensorDesc, const DML_TENSOR_DESC& RHSTensorDesc, const DML_TENSOR_DESC& OutputTensorDesc)
 	{
@@ -329,9 +282,6 @@ private:
 		Desc.OutputTensor = &OutputTensorDesc;
 	}
 
-	//
-	//
-	//
 	void InitDmlOpDesc(DML_ELEMENT_WISE_POW_OPERATOR_DESC& Desc, const DML_TENSOR_DESC& LHSTensorDesc, const DML_TENSOR_DESC& RHSTensorDesc, const DML_TENSOR_DESC& OutputTensorDesc)
 	{
 		Desc.InputTensor = &LHSTensorDesc;
@@ -356,42 +306,38 @@ static FDmlOperator##OpName##Registrator RegisterDmlOperator##OpName;
 
 #define REGISTER_OP_ELEMENT_WISE_BINARY(OpName, DmlOpName) REGISTER_OP_ELEMENT_WISE(OpName, DmlOpName, FOperatorDmlElementWiseBinary)
 
-// 	REGISTER_OP_ELEMENT_WISE_UNARY(	OpName, 			DmlOpName )
-	REGISTER_OP_ELEMENT_WISE_UNARY( Abs,				ABS )
-	REGISTER_OP_ELEMENT_WISE_UNARY( Acos, 				ACOS )
-	REGISTER_OP_ELEMENT_WISE_UNARY( Acosh, 				ACOSH )
-	REGISTER_OP_ELEMENT_WISE_UNARY( Asin, 				ASIN )
-	REGISTER_OP_ELEMENT_WISE_UNARY( Asinh, 				ASINH )
-	REGISTER_OP_ELEMENT_WISE_UNARY( Atan,				ATAN )
-	REGISTER_OP_ELEMENT_WISE_UNARY( Atanh, 				ATANH )
-	REGISTER_OP_ELEMENT_WISE_UNARY( Ceil,				CEIL )
-	REGISTER_OP_ELEMENT_WISE_UNARY( Clip, 				CLIP )
-	REGISTER_OP_ELEMENT_WISE_UNARY( Cos,				COS )
-	REGISTER_OP_ELEMENT_WISE_UNARY( Cosh,				COSH )
-	REGISTER_OP_ELEMENT_WISE_UNARY( Erf,				ERF )
-	REGISTER_OP_ELEMENT_WISE_UNARY( Exp, 				EXP )
-	REGISTER_OP_ELEMENT_WISE_UNARY( Floor,				FLOOR )
-	REGISTER_OP_ELEMENT_WISE_UNARY( IsInf, 				IS_INFINITY )
-	REGISTER_OP_ELEMENT_WISE_UNARY( IsNan, 				IS_NAN )
-	REGISTER_OP_ELEMENT_WISE_UNARY( Log,				LOG )
-	REGISTER_OP_ELEMENT_WISE_UNARY( Neg,				NEGATE )
-	REGISTER_OP_ELEMENT_WISE_UNARY( Reciprocal, 		RECIP )
-	REGISTER_OP_ELEMENT_WISE_UNARY( Round,				ROUND )
-	REGISTER_OP_ELEMENT_WISE_UNARY( Sign,				SIGN )
-	REGISTER_OP_ELEMENT_WISE_UNARY( Sin,				SIN )
-	REGISTER_OP_ELEMENT_WISE_UNARY( Sinh,				SINH )
-	REGISTER_OP_ELEMENT_WISE_UNARY( Sqrt,				SQRT )
-	REGISTER_OP_ELEMENT_WISE_UNARY( Tan,				TAN )
-	REGISTER_OP_ELEMENT_WISE_UNARY( Tanh,				TANH )
+REGISTER_OP_ELEMENT_WISE_UNARY( Abs,				ABS )
+REGISTER_OP_ELEMENT_WISE_UNARY( Acos, 				ACOS )
+REGISTER_OP_ELEMENT_WISE_UNARY( Acosh, 				ACOSH )
+REGISTER_OP_ELEMENT_WISE_UNARY( Asin, 				ASIN )
+REGISTER_OP_ELEMENT_WISE_UNARY( Asinh, 				ASINH )
+REGISTER_OP_ELEMENT_WISE_UNARY( Atan,				ATAN )
+REGISTER_OP_ELEMENT_WISE_UNARY( Atanh, 				ATANH )
+REGISTER_OP_ELEMENT_WISE_UNARY( Ceil,				CEIL )
+REGISTER_OP_ELEMENT_WISE_UNARY( Clip, 				CLIP )
+REGISTER_OP_ELEMENT_WISE_UNARY( Cos,				COS )
+REGISTER_OP_ELEMENT_WISE_UNARY( Cosh,				COSH )
+REGISTER_OP_ELEMENT_WISE_UNARY( Erf,				ERF )
+REGISTER_OP_ELEMENT_WISE_UNARY( Exp, 				EXP )
+REGISTER_OP_ELEMENT_WISE_UNARY( Floor,				FLOOR )
+REGISTER_OP_ELEMENT_WISE_UNARY( IsInf, 				IS_INFINITY )
+REGISTER_OP_ELEMENT_WISE_UNARY( IsNan, 				IS_NAN )
+REGISTER_OP_ELEMENT_WISE_UNARY( Log,				LOG )
+REGISTER_OP_ELEMENT_WISE_UNARY( Neg,				NEGATE )
+REGISTER_OP_ELEMENT_WISE_UNARY( Reciprocal, 		RECIP )
+REGISTER_OP_ELEMENT_WISE_UNARY( Round,				ROUND )
+REGISTER_OP_ELEMENT_WISE_UNARY( Sign,				SIGN )
+REGISTER_OP_ELEMENT_WISE_UNARY( Sin,				SIN )
+REGISTER_OP_ELEMENT_WISE_UNARY( Sinh,				SINH )
+REGISTER_OP_ELEMENT_WISE_UNARY( Sqrt,				SQRT )
+REGISTER_OP_ELEMENT_WISE_UNARY( Tan,				TAN )
+REGISTER_OP_ELEMENT_WISE_UNARY( Tanh,				TANH )
 
-// 	REGISTER_OP_ELEMENT_WISE_BINARY( OpName, 			DmlOpName )
-	REGISTER_OP_ELEMENT_WISE_BINARY( Add,				ADD )
-	REGISTER_OP_ELEMENT_WISE_BINARY( Div,				DIVIDE )
-	REGISTER_OP_ELEMENT_WISE_BINARY( Mul,				MULTIPLY )
-	REGISTER_OP_ELEMENT_WISE_BINARY( Pow,				POW )
-	REGISTER_OP_ELEMENT_WISE_BINARY( Sub,				SUBTRACT )
-
-
+REGISTER_OP_ELEMENT_WISE_BINARY( Add,				ADD )
+REGISTER_OP_ELEMENT_WISE_BINARY( Div,				DIVIDE )
+REGISTER_OP_ELEMENT_WISE_BINARY( Mul,				MULTIPLY )
+REGISTER_OP_ELEMENT_WISE_BINARY( Pow,				POW )
+REGISTER_OP_ELEMENT_WISE_BINARY( Sub,				SUBTRACT )
 
 } // namespace UE::NNERuntimeRDG::Private::Dml
 

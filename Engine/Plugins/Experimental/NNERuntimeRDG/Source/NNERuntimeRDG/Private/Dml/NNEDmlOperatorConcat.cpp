@@ -10,26 +10,17 @@
 namespace UE::NNERuntimeRDG::Private::Dml
 {
 
-/**
- * Concat
- */
 class FOperatorDmlConcat : public FOperatorDml
 {
 	int32 Axis;
 
 public:
 
-	//
-	//
-	//
 	static FOperatorDml* Create()
 	{
 		return new FOperatorDmlConcat();
 	}
 
-	//
-	//
-	//
 	static bool Validate(const NNE::FAttributeMap& AttributeMap, TConstArrayView<ENNETensorDataType> InputTypes, TConstArrayView<NNE::FSymbolicTensorShape> InputShapes)
 	{
 		if (InputShapes.Num() == 0)
@@ -81,9 +72,6 @@ public:
 		return true;
 	}
 
-	//
-	//
-	//
 	virtual bool Initialize(TConstArrayView<NNE::FTensorDesc> Inputs, TConstArrayView<NNE::FTensorDesc> Outputs, const NNE::FAttributeMap& Attributes) override
 	{
 		check(Inputs.Num() >= 1);
@@ -105,9 +93,6 @@ public:
 		return true;
 	}
 
-	//
-	//
-	//
 	virtual int PrepareOutputs(TConstArrayView<NNE::Internal::FTensorRef> InputTensors, TArrayView<NNE::Internal::FTensorRef> OutputTensors) const override
 	{
 		TArray<uint32> OutputShape(InputTensors[0]->GetShape().GetData());
@@ -133,9 +118,6 @@ public:
 		return 0;
 	}
 
-	//
-	//
-	//
 	virtual bool Create(IDMLDevice* Device, TConstArrayView<NNE::Internal::FTensorRef> InputTensors, TConstArrayView<NNE::Internal::FTensorRef> OutputTensors) override
 	{
 		TArray<FTensorDescDml> InputDescs;

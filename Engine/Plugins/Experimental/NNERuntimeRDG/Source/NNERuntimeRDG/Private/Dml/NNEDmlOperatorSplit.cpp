@@ -6,9 +6,7 @@
 
 namespace UE::NNERuntimeRDG::Private::Dml
 {
-//
-//
-//
+
 class FOperatorDmlSplit : public FOperatorDml
 {
 	TArray<int32>	Split;
@@ -16,26 +14,16 @@ class FOperatorDmlSplit : public FOperatorDml
 
 public:
 
-	//
-	//
-	//
 	static FOperatorDml* Create()
 	{
 		return new FOperatorDmlSplit();
 	}
 
-	//
-	//
-	//
 	static bool Validate(const NNE::FAttributeMap& AttributeMap, TConstArrayView<ENNETensorDataType> InputTypes, TConstArrayView<NNE::FSymbolicTensorShape> InputShapes)
 	{
-		//TODO
 		return true;
 	}
 
-	//
-	//
-	//
 	virtual bool Initialize(TConstArrayView<NNE::FTensorDesc> Inputs, TConstArrayView<NNE::FTensorDesc> Outputs, const NNE::FAttributeMap& Attributes) override
 	{
 		check(Inputs.Num() == 1);
@@ -63,7 +51,6 @@ public:
 		}
 
 		// Check split size is correct
-		//TODO: code should be validated by a validator which should report to the user if the contract is broken. We do it here instead.
 		for (int Idx = 0; Idx < Outputs.Num(); ++Idx)
 		{
 			if (Outputs[Idx].GetShape().Rank() != Inputs[0].GetShape().Rank())
@@ -76,9 +63,6 @@ public:
 		return true;
 	}
 
-	//
-	//
-	//
 	virtual int PrepareOutputs(TConstArrayView<NNE::Internal::FTensorRef> InputTensors, TArrayView<NNE::Internal::FTensorRef> OutputTensors) const override
 	{
 		const NNE::Internal::FTensor&	InputTensor = *InputTensors[0];
@@ -127,9 +111,6 @@ public:
 		return 0;
 	}
 
-	//
-	//
-	//
 	virtual bool Create(IDMLDevice* Device, TConstArrayView<NNE::Internal::FTensorRef> InputTensors, TConstArrayView<NNE::Internal::FTensorRef> OutputTensors) override
 	{
 		FTensorDescDml InputTensorDesc;

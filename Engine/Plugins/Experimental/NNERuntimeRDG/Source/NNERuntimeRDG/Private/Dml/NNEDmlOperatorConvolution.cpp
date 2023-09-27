@@ -7,29 +7,21 @@
 
 namespace UE::NNERuntimeRDG::Private::Dml
 {
+
 /**
- * Convolution
- */
+* Implements both Conv and ConvTranspose operators 
+*/
 template <DML_CONVOLUTION_DIRECTION Direction>
 class FOperatorDmlConv : public FOperatorDml
 {
-	//
-	//
-	//
 	class FConvArgs : public FKernelArgs
 	{
 		int32			Group;
 
 	public:
 
-		//
-		//
-		//
 		FConvArgs() = default;
 
-		//
-		//
-		//
 		bool Init(const NNE::FTensorDesc& Input, const NNE::FTensorDesc& Filter, const NNE::FAttributeMap& Attributes)
 		{
 			if (!FKernelArgs::Init(Attributes, Input.GetShape().Rank(), /*bIsGlobalKernel*/ false, /*bIsTransposed*/ Direction != DML_CONVOLUTION_DIRECTION_FORWARD))
@@ -61,9 +53,6 @@ class FOperatorDmlConv : public FOperatorDml
 			return true;
 		}
 
-		//
-		//
-		//
 		void Evaluate(TConstArrayView<uint32> InputShape, TConstArrayView<uint32> FilterShape)
 		{
 			// NOTE: To compute paddings we need WindowSize
@@ -87,9 +76,6 @@ class FOperatorDmlConv : public FOperatorDml
 			}
 		}
 
-		//
-		//
-		//
 		TConstArrayView<uint32> GetOutPadding() const
 		{
 			return MakeArrayView((const uint32*) OutPadding.GetData(), OutPadding.Num());
@@ -102,9 +88,6 @@ class FOperatorDmlConv : public FOperatorDml
 
 	private:
 
-		//
-		//
-		//
 		Util::FSmallUIntArray ConvolutionPadding(TConstArrayView<uint32> InputShape)
 		{
 			const uint32 DimOffset = NonspatialDimensionCount;
@@ -135,26 +118,16 @@ class FOperatorDmlConv : public FOperatorDml
 
 public:
 
-	//
-	//
-	//
 	static FOperatorDml* Create()
 	{
 		return new FOperatorDmlConv();
 	}
 
-	//
-	//
-	//
 	static bool Validate(const NNE::FAttributeMap& AttributeMap, TConstArrayView<ENNETensorDataType> InputTypes, TConstArrayView<NNE::FSymbolicTensorShape> InputShapes)
 	{
-		//TODO
 		return true;
 	}
 
-	//
-	//
-	//
 	virtual bool Initialize(TConstArrayView<NNE::FTensorDesc> Inputs, TConstArrayView<NNE::FTensorDesc> Outputs, const NNE::FAttributeMap& Attributes) override
 	{
 		const NNE::FTensorDesc& InputTensor = Inputs[0];
@@ -168,9 +141,6 @@ public:
 		return true;
 	}
 
-	//
-	//
-	//
 	virtual int PrepareOutputs(TConstArrayView<NNE::Internal::FTensorRef> InputTensors, TArrayView<NNE::Internal::FTensorRef> OutputTensors) const override
 	{
 		NNE::Internal::FTensor& OutputTensor = *OutputTensors[0];
@@ -181,16 +151,12 @@ public:
 		return 0;
 	}
 
-	//
-	//
-	//
 	virtual bool Create(IDMLDevice* Device, TConstArrayView<NNE::Internal::FTensorRef> InputTensors, TConstArrayView<NNE::Internal::FTensorRef> OutputTensors) override
 	{
 		const NNE::Internal::FTensor& InputTensor = *InputTensors[0];
 		const NNE::Internal::FTensor& FilterTensor = *InputTensors[1];
 		const NNE::Internal::FTensor& OutputTensor = *OutputTensors[0];
 
-		// Initialize tensor descriptors
 		FTensorDescDml	DmlInputTensorDesc;
 		FTensorDescDml	DmlFilterTensorDesc;
 		FTensorDescDml	DmlBiasTensorDesc;
@@ -262,25 +228,16 @@ public:
 	}
 };
 
-//
-//
-//
 void RegisterConvOperator()
 {
 	FOperatorRegistryDml::Get()->OpAdd(TEXT("Conv"), FOperatorDmlConv<DML_CONVOLUTION_DIRECTION_FORWARD>::Create);
 }
 
-//
-//
-//
 void RegisterConvTransposeOperator()
 {
 	FOperatorRegistryDml::Get()->OpAdd(TEXT("ConvTranspose"), FOperatorDmlConv<DML_CONVOLUTION_DIRECTION_BACKWARD>::Create);
 }
 
-//
-//
-//
 struct FDmlOperatorConvRegistrator
 {
 	FDmlOperatorConvRegistrator()
@@ -290,9 +247,6 @@ struct FDmlOperatorConvRegistrator
 	}
 };
 
-//
-//
-//
 static FDmlOperatorConvRegistrator RegisterDmlOperatorConv;
 
 } // namespace UE::NNERuntimeRDG::Private::Dml

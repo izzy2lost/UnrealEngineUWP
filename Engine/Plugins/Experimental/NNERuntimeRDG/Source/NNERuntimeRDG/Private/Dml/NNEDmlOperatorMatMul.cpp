@@ -6,9 +6,6 @@
 namespace UE::NNERuntimeRDG::Private::Dml
 {
 
-/**
- * MatMul
- */
 class FOperatorDmlMatMul : public FOperatorDml
 {
 public:
@@ -20,13 +17,9 @@ public:
 
 	static bool Validate(const NNE::FAttributeMap& AttributeMap, TConstArrayView<ENNETensorDataType> InputTypes, TConstArrayView<NNE::FSymbolicTensorShape> InputShapes)
 	{
-		//TODO
 		return true;
 	}
 
-	//
-	//
-	//
 	virtual bool Initialize(TConstArrayView<NNE::FTensorDesc> Inputs, TConstArrayView<NNE::FTensorDesc> Outputs, const NNE::FAttributeMap& Attributes) override
 	{
 		check(Inputs.Num() == 2);
@@ -35,9 +28,6 @@ public:
 		return true;
 	}
 
-	//
-	//
-	//
 	virtual int PrepareOutputs(TConstArrayView<NNE::Internal::FTensorRef> InputTensors, TArrayView<NNE::Internal::FTensorRef> OutputTensors) const override
 	{
 		check(InputTensors.Num() >= 2 && InputTensors.Num() <= 3);
@@ -87,9 +77,6 @@ public:
 		return 0;
 	}
 
-	//
-	//
-	//
 	virtual bool Create(IDMLDevice* Device, TConstArrayView<NNE::Internal::FTensorRef> InputTensors, TConstArrayView<NNE::Internal::FTensorRef> OutputTensors) override
 	{
 		const NNE::Internal::FTensor& ATensor = *InputTensors[0];
@@ -255,10 +242,6 @@ public:
 			DmlShapeOut[1] /= BroadcastFactor;
 		}
 		
-		// Note: DmlShape* are the the 4D ones that InitFromTensor() would need to use, however can't set them in original tensor like below because of prepared data check.
-		//ATensor.SetShape(DmlShapeA);
-		//BTensor.SetShape(DmlShapeB);
-
 		FTensorDescDml	DmlInputATensorDesc;
 		FTensorDescDml	DmlInputBTensorDesc;
 		FTensorDescDml	DmlOutputTensorDesc;

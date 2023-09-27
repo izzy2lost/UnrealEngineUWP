@@ -13,9 +13,6 @@
 namespace UE::NNERuntimeRDG::Private::Dml
 {
 
-//
-//
-//
 enum EAutoPad
 {
 	NOTSET,
@@ -24,9 +21,6 @@ enum EAutoPad
 	VALID
 };
 
-//
-//
-//
 static EAutoPad AutoPadFromString(FStringView StringVal) 
 {
 	if (FCString::Stricmp(StringVal.GetData(), TEXT("NOTSET")) == 0) 
@@ -51,9 +45,6 @@ static EAutoPad AutoPadFromString(FStringView StringVal)
 	}
 }
 
-//
-//
-//
 template<typename T>
 static bool IsEqualOrBroadcastable(TConstArrayView<T> ShapeA, TConstArrayView<T> ShapeB)
 {
@@ -64,7 +55,7 @@ static bool IsEqualOrBroadcastable(TConstArrayView<T> ShapeA, TConstArrayView<T>
 
 	int32 BIdx = 0;
 
-	for(int32 Idx = 0; Idx < ShapeA.Num() && BIdx < ShapeB.Num(); ++Idx)
+	for (int32 Idx = 0; Idx < ShapeA.Num() && BIdx < ShapeB.Num(); ++Idx)
 	{
 		if (BIdx != 0)
 		{
@@ -77,6 +68,7 @@ static bool IsEqualOrBroadcastable(TConstArrayView<T> ShapeA, TConstArrayView<T>
 			}
 			++BIdx;
 		}
+
 		if (BIdx == 0 && ShapeA[Idx] == ShapeB[BIdx])
 		{
 			++BIdx;
@@ -91,9 +83,6 @@ static bool IsEqualOrBroadcastable(TConstArrayView<T> ShapeA, TConstArrayView<T>
 	return true;
 }
 
-//
-//
-//
 static bool CheckGenericTensor(ENNETensorDataType DataType, const NNE::FSymbolicTensorShape& TensorShape)
 {
 	const int32 MinTensorRank(0), MaxTensorRank(DML_TENSOR_DIMENSION_COUNT_MAX1);
@@ -107,9 +96,6 @@ static bool CheckGenericTensor(ENNETensorDataType DataType, const NNE::FSymbolic
 	return true;
 }
 
-//
-//
-//
 static bool CheckElementwiseTensor(ENNETensorDataType DataType, const NNE::FSymbolicTensorShape& TensorShape)
 {
 	if (DataType != ENNETensorDataType::Float)
@@ -126,9 +112,6 @@ static bool CheckElementwiseTensor(ENNETensorDataType DataType, const NNE::FSymb
 	return true;
 }
 
-//
-//
-//
 static Util::FSmallUIntArray KernelPadding(
 	TConstArrayView<uint32> InputShape, TConstArrayView<uint32> WindowSize, 
 	TConstArrayView<uint32> Dilations, TConstArrayView<uint32> Strides
@@ -153,9 +136,9 @@ static Util::FSmallUIntArray KernelPadding(
 	return Padding;
 }
 
-//
-// Used by FKernelArgs
-//
+/**
+* Utility class used by FKernelArgs 
+*/
 class FPaddingsHelper
 {
 	Util::FSmallUIntArray	Pads;
@@ -164,9 +147,6 @@ class FPaddingsHelper
 
 public:
 
-	//
-	//
-	//
 	bool Init(const NNE::FAttributeMap& Attributes, uint32 InputRank)
 	{
 		NumSpatialDimensions = InputRank - NonspatialDimensionCount;
@@ -196,9 +176,6 @@ public:
 		return true;
 	}
 
-	//
-	//
-	//
 	bool Evaluate(Util::FSmallUIntArray& OutStartPadding, Util::FSmallUIntArray& OutEndPadding, TConstArrayView<uint32> Padding)
 	{
 		if (AutoPad == EAutoPad::NOTSET)
@@ -238,57 +215,40 @@ public:
 	}
 };
 
-//
-// This is a base class that is used for Conv, ConvTranspose, Pool (both local and global) operators and MaxUnpool
-//
+/** 
+* This is a base class that is used for Conv, ConvTranspose, Pool(both local and global) operators and MaxUnpool 
+* NOTE: WindowSize needs to be set recomputed in the sub-class
+*/
 class FKernelArgs
 {
 
 public:
 
-	//
-	//
-	//
 	uint32 GetNumDimensions() const
 	{
 		return NumDimensions;
 	}
 
-	//
-	//
-	//
 	TConstArrayView<uint32> GetStrides() const
 	{
 		return Strides;
 	}
 
-	//
-	//
-	//
 	TConstArrayView<uint32> GetDilations() const
 	{
 		return Dilations;
 	}
 
-	//
-	//
-	//
 	TConstArrayView<uint32> GetStartPadding()
 	{
 		return StartPadding;
 	}
 
-	//
-	//
-	//
 	TConstArrayView<uint32> GetEndPadding()
 	{
 		return EndPadding;
 	}
 
-	//
-	//
-	//
 	TConstArrayView<uint32> GetOutputShape() const
 	{
 		return OutputShape;
@@ -315,9 +275,6 @@ protected:
 
 protected:
 
-	//
-	//
-	//
 	bool Init(const NNE::FAttributeMap& Attributes, int32 InputShapeRank, bool bInIsGlobalKernel, bool bInIsTransposed)
 	{
 		check(InputShapeRank > NonspatialDimensionCount);
@@ -333,8 +290,6 @@ protected:
 			StartPadding.Init(0, NumDimensions);
 			EndPadding.Init(0, NumDimensions);
 			OutPadding.Init(0, NumDimensions);
-
-			// NOTE: WindowSize needs to be set recomputed in the sub-class
 		}
 		else
 		{
@@ -410,9 +365,6 @@ protected:
 
 public:
 
-	//
-	//
-	//
 	void Evaluate(TConstArrayView<uint32> InputShape, TConstArrayView<uint32> PaddingsValue = MakeEmptyConstArrayView<uint32>())
 	{
 		if (bIsGlobalKernel && WindowSize.IsEmpty())
@@ -476,10 +428,6 @@ public:
 	}
 };
 
-
-//
-//
-//
 inline int32 HandleNegativeAxis(int32 Axis, int32 Rank)
 {
 	if (Axis < 0)
@@ -491,9 +439,6 @@ inline int32 HandleNegativeAxis(int32 Axis, int32 Rank)
 	return Axis;
 }
 
-//
-//
-//
 inline void HandleNegativeAxes(TArrayView<int32> Axes, int32 Rank)
 {
 	for (int32& Axis : Axes)
@@ -502,9 +447,6 @@ inline void HandleNegativeAxes(TArrayView<int32> Axes, int32 Rank)
 	}
 }
 
-//
-//
-//
 inline int32 GetDmlAxis(int32 OnnxAxis, int32 OnnxDim, int32 DmlDim)
 {
 	check(DmlDim >= OnnxDim);
@@ -514,9 +456,6 @@ inline int32 GetDmlAxis(int32 OnnxAxis, int32 OnnxDim, int32 DmlDim)
 	return DmlAxis;
 }
 
-//
-//
-//
 inline void SetDmlAxesFromOnnx(Util::FSmallUIntArray& DmlAxes, int32 Rank, TConstArrayView<int32> OnnxAxes)
 {
 	DmlAxes.Reset();

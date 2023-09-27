@@ -187,8 +187,6 @@ int32 FModelInstanceRDG::SetInputTensorShapes(TConstArrayView<NNE::FTensorShape>
 
 FRDGBufferDesc CreateRDGBufferDescForTensorRDG(const FTensorRDG& Tensor)
 {
-	// FIXME: CreateStructuredDesc() creates a crash on VulkanRHI
-	//FRDGBufferDesc Desc = FRDGBufferDesc::CreateStructuredDesc(Tensor.GetElementByteSize(), Tensor.GetVolume());
 	FRDGBufferDesc Desc = FRDGBufferDesc::CreateBufferDesc(Tensor.GetElementByteSize(), Tensor.GetVolume());
 
 	return Desc;
@@ -271,4 +269,4 @@ int32 FModelInstanceRDG::SetTensors(FRDGBuilder& GraphBuilder, FTensorRDGArray& 
 	return -1;
 }
 
-}
+} // namespace UE::NNERuntimeRDG::Private

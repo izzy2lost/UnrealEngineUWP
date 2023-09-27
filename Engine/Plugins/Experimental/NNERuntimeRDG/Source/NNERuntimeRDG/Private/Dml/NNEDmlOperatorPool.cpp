@@ -18,18 +18,12 @@ class FOperatorDmlPool : public FOperatorDml
 {
 	using FIntArray = TArray<int32>;
 
-	//
-	//
-	//
 	class FPoolingArgs : public FKernelArgs
 	{
 		Util::FSmallUIntArray	KernelShape;
 
 	public:
 
-		//
-		//
-		//
 		bool Init(const NNE::FAttributeMap& Attributes, const int32 InputShapeRank, bool bInIsGlobalKernel)
 		{
 			if (!FKernelArgs::Init(Attributes, InputShapeRank, UseGlobalPooling, /*bIsTransposed*/ false))
@@ -62,9 +56,6 @@ class FOperatorDmlPool : public FOperatorDml
 			return true;
 		}
 
-		//
-		//
-		//
 		bool Evaluate(TConstArrayView<uint32> InputShape)
 		{
 			if (!bIsGlobalKernel)
@@ -79,9 +70,6 @@ class FOperatorDmlPool : public FOperatorDml
 			return true;
 		}
 
-		//
-		//
-		//
 		TConstArrayView<uint32> GetWindowSize() const
 		{
 			return WindowSize;
@@ -94,26 +82,16 @@ class FOperatorDmlPool : public FOperatorDml
 
 public:
 
-	//
-	//
-	//
 	static FOperatorDml* Create()
 	{
 		return new FOperatorDmlPool<TDmlPoolOpDesc, DmlOpType, UseGlobalPooling>();
 	}
 
-	//
-	//
-	//
 	static bool Validate(const NNE::FAttributeMap& AttributeMap, TConstArrayView<ENNETensorDataType> InputTypes, TConstArrayView<NNE::FSymbolicTensorShape> InputShapes)
 	{
-		//TODO
 		return true;
 	}
 
-	//
-	//
-	//
 	virtual bool Initialize(TConstArrayView<NNE::FTensorDesc> Inputs, TConstArrayView<NNE::FTensorDesc> Outputs, const NNE::FAttributeMap& Attributes) override
 	{
 		// TODO: int64 attributes
@@ -149,9 +127,6 @@ public:
 		return true;
 	}
 
-	//
-	//
-	//
 	virtual int PrepareOutputs(TConstArrayView<NNE::Internal::FTensorRef> InputTensors, TArrayView<NNE::Internal::FTensorRef> OutputTensors) const override
 	{
 		TConstArrayView<uint32> InputShape = InputTensors[0]->GetShape().GetData();
@@ -191,9 +166,6 @@ public:
 		return 0;
 	}
 
-	//
-	//
-	//
 	virtual bool Create(IDMLDevice* Device, TConstArrayView<NNE::Internal::FTensorRef> InputTensors, TConstArrayView<NNE::Internal::FTensorRef> OutputTensors) override
 	{
 		TConstArrayView<uint32> InputShape = InputTensors[0]->GetShape().GetData();
@@ -289,9 +261,6 @@ public:
 	}
 };
 
-//
-//
-//
 #define NNE_DML_REGISTER_POOLING_OP(OpName, DmlPrefix, UseGlobalPooling) \
 struct FDmlOperator##OpName##Registrator \
 { \
@@ -303,9 +272,7 @@ struct FDmlOperator##OpName##Registrator \
 \
 static FDmlOperator##OpName##Registrator RegisterDmlOperator##OpName;
 
-//
 // Register pooling operator on Module startup
-//
 NNE_DML_REGISTER_POOLING_OP(MaxPool, MAX, false)
 NNE_DML_REGISTER_POOLING_OP(GlobalMaxPool, MAX, true)
 NNE_DML_REGISTER_POOLING_OP(AveragePool, AVERAGE, false)

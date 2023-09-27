@@ -6,9 +6,7 @@
 
 namespace UE::NNERuntimeRDG::Private::Dml
 {
-//
-//
-//
+
 class FOperatorDmlBatchNormalization : public FOperatorDml
 {
 	static constexpr float DefaultEpsilon = 1e-5f;
@@ -27,17 +25,11 @@ class FOperatorDmlBatchNormalization : public FOperatorDml
 
 public:
 
-	//
-	//
-	//
 	static FOperatorDml* Create()
 	{
 		return new FOperatorDmlBatchNormalization();
 	}
 
-	//
-	//
-	//
 	static bool Validate(const NNE::FAttributeMap& AttributeMap, TConstArrayView<ENNETensorDataType> InputTypes, TConstArrayView<NNE::FSymbolicTensorShape> InputShapes)
 	{
 		if (InputShapes.Num() != Count)
@@ -77,9 +69,6 @@ public:
 		return true;
 	}
 
-	//
-	//
-	//
 	virtual bool Initialize(TConstArrayView<NNE::FTensorDesc> Inputs, TConstArrayView<NNE::FTensorDesc> OutputTensors, const NNE::FAttributeMap& Attributes) override
 	{
 		check(Inputs.Num() == Count);
@@ -104,9 +93,6 @@ public:
 		return true;
 	}
 
-	//
-	//
-	//
 	virtual int PrepareOutputs(TConstArrayView<NNE::Internal::FTensorRef> InputTensors, TArrayView<NNE::Internal::FTensorRef> OutputTensors) const override
 	{
 		check(InputTensors.Num() == Count);
@@ -117,9 +103,6 @@ public:
 		return 0;
 	};
 
-	//
-	//
-	//
 	virtual bool Create(IDMLDevice* Device, TConstArrayView<NNE::Internal::FTensorRef> InputTensors, TConstArrayView<NNE::Internal::FTensorRef> OutputTensors) override
 	{
 		const NNE::Internal::FTensor& InputTensor = *InputTensors[0];
@@ -175,9 +158,6 @@ public:
 
 private:
 
-	//
-	//
-	//
 	inline bool SetDmlTensorDesc(FTensorDescDml& DmlTensorDesc, const NNE::Internal::FTensor& Tensor, int32 InputRank)
 	{
 		if (Tensor.GetShape().Rank() == 1)

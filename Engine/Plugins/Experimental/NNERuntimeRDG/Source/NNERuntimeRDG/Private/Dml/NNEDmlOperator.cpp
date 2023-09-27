@@ -13,33 +13,16 @@ namespace UE::NNERuntimeRDG::Private::Dml
 namespace Util
 {
 
-//
-//
-//
 inline bool IsSameShape(TConstArrayView<uint32> Left, TConstArrayView<uint32> Right)
 {
 	return Algo::Compare(Left, Right);
 }
 
-//
-//
-//
-inline bool IsSameShape(const NNE::Internal::FTensor& Left, const NNE::Internal::FTensor& Right)
-{
-	return IsSameShape(Left.GetShape().GetData(), Right.GetShape().GetData());
-}
-
-//
-//
-//
 inline bool IsSameShape(const FTensorDescDml& Left, const FTensorDescDml& Right)
 {
 	return IsSameShape(Left.GetSizes(), Right.GetSizes());
 }
 
-//
-//
-//
 DML_TENSOR_DATA_TYPE GetTensorDataType(ENNETensorDataType DataType)
 {
 	switch (DataType)
@@ -84,9 +67,6 @@ DML_TENSOR_DATA_TYPE GetTensorDataType(ENNETensorDataType DataType)
 
 } // namespace Util 
 
-//
-//
-//
 FTensorDescDml::FTensorDescDml()
 	: MinTensorRank(1)
 	, MaxTensorRank(DML_TENSOR_DIMENSION_COUNT_MAX1)
@@ -98,9 +78,6 @@ FTensorDescDml::FTensorDescDml()
 	Desc = DML_TENSOR_DESC{};
 }
 
-//
-//
-//
 FTensorDescDml& FTensorDescDml::SetTensorRank(int32 MinRank, int32 MaxRank)
 {
 	MinTensorRank = MinRank;
@@ -108,9 +85,6 @@ FTensorDescDml& FTensorDescDml::SetTensorRank(int32 MinRank, int32 MaxRank)
 	return *this;
 }
 
-//
-//
-//
 FTensorDescDml& FTensorDescDml::SetShape(TConstArrayView<uint32> Shape)
 {
 	check(!bIsValidated);
@@ -133,9 +107,6 @@ FTensorDescDml& FTensorDescDml::SetShape(TConstArrayView<uint32> Shape)
 	return *this;
 }
 
-//
-//
-//
 FTensorDescDml& FTensorDescDml::SetShape(TConstArrayView<uint32> Shape, int32 Rank)
 {
 	check(!bIsValidated);
@@ -168,9 +139,6 @@ FTensorDescDml& FTensorDescDml::SetShape(TConstArrayView<uint32> Shape, int32 Ra
 	return *this;
 }
 
-//
-//
-//
 FTensorDescDml& FTensorDescDml::SetShape(TConstArrayView<uint32> Shape, TConstArrayView<uint32> BroadcastShape)
 {
 	check(!bIsValidated);
@@ -206,9 +174,6 @@ FTensorDescDml& FTensorDescDml::SetShape(TConstArrayView<uint32> Shape, TConstAr
 	return *this;
 }
 
-//
-//
-//
 FTensorDescDml& FTensorDescDml::SetShape1D(uint32 Dimension, int32 Rank)
 {
 	check(!bIsValidated);
@@ -236,9 +201,6 @@ FTensorDescDml& FTensorDescDml::SetShape1D(uint32 Dimension, int32 Rank)
 	return *this;
 }
 
-//
-//
-//
 FTensorDescDml& FTensorDescDml::SetStridesFromShape(TConstArrayView<uint32> Shape)
 {
 	check(!bIsValidated);
@@ -258,9 +220,6 @@ FTensorDescDml& FTensorDescDml::SetStridesFromShape(TConstArrayView<uint32> Shap
 	return *this;
 }
 
-//
-//
-//
 FTensorDescDml& FTensorDescDml::SetStrides(TConstArrayView<uint32> InStrides)
 {
 	check(!bIsValidated);
@@ -273,9 +232,6 @@ FTensorDescDml& FTensorDescDml::SetStrides(TConstArrayView<uint32> InStrides)
 	return *this;
 }
 
-//
-//
-//
 FTensorDescDml& FTensorDescDml::SetDataType(ENNETensorDataType DataType)
 {
 	check(!bIsValidated);
@@ -295,9 +251,6 @@ FTensorDescDml& FTensorDescDml::SetDataType(ENNETensorDataType DataType)
 	return *this;
 }
 
-//
-//
-//
 FTensorDescDml& FTensorDescDml::SetDataOwnedByDml(bool bSetOwnedByDml)
 {
 	check(!bIsValidated);
@@ -310,9 +263,6 @@ FTensorDescDml& FTensorDescDml::SetDataOwnedByDml(bool bSetOwnedByDml)
 	return *this;
 }
 
-//
-//
-//
 bool FTensorDescDml::Validate()
 {
 	check(!bIsValidated);
@@ -366,9 +316,6 @@ bool FTensorDescDml::Validate()
 	return bIsValidated;
 }
 
-//
-//
-//
 uint64 FTensorDescDml::CalculateBufferSize(uint64 ElemSizeInBytes)
 {
 	if (ElemSizeInBytes == 0)
@@ -407,9 +354,6 @@ uint64 FTensorDescDml::CalculateBufferSize(uint64 ElemSizeInBytes)
 	return MinSizeInBytes;
 }
 
-//
-// DirectML operator base class
-//
 TConstArrayView<int32> FOperatorDml::GetConstantCPUInputs() const
 {
 	return ConstantCPUInputs;

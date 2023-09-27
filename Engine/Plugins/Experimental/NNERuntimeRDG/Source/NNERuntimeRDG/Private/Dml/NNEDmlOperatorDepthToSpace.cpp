@@ -8,14 +8,8 @@
 namespace UE::NNERuntimeRDG::Private::Dml
 {
 
-//
-//
-//
 class FOperatorDmlDepthToSpace : public FOperatorDml
 {
-	//
-	//
-	//
 	static DML_DEPTH_SPACE_ORDER SpaceOrderFromModeString(FStringView StringVal)
 	{
 		if (FCString::Stricmp(StringVal.GetData(), TEXT("CRD")) == 0)
@@ -39,26 +33,16 @@ class FOperatorDmlDepthToSpace : public FOperatorDml
 
 public:
 
-	//
-	//
-	//
 	static FOperatorDml* Create()
 	{
 		return new FOperatorDmlDepthToSpace();
 	}
 
-	//
-	//
-	//
 	static bool Validate(const NNE::FAttributeMap& AttributeMap, TConstArrayView<ENNETensorDataType> InputTypes, TConstArrayView<NNE::FSymbolicTensorShape> InputShapes)
 	{
-		//TODO
 		return true;
 	}
 
-	//
-	//
-	//
 	virtual bool Initialize(TConstArrayView<NNE::FTensorDesc> Inputs, TConstArrayView<NNE::FTensorDesc> Outputs, const NNE::FAttributeMap& Attributes) override
 	{
 		check(Inputs.Num() == 1);
@@ -80,9 +64,6 @@ public:
 		return true;
 	}
 
-	//
-	//
-	//
 	virtual int PrepareOutputs(TConstArrayView<NNE::Internal::FTensorRef> InputTensors, TArrayView<NNE::Internal::FTensorRef> OutputTensors) const override
 	{
 		TConstArrayView<uint32>		InputShape = InputTensors[0]->GetShape().GetData();
@@ -99,9 +80,6 @@ public:
 		return 0;
 	}
 	
-	//
-	//
-	//
 	virtual bool Create(IDMLDevice* Device, TConstArrayView<NNE::Internal::FTensorRef> InputTensors, TConstArrayView<NNE::Internal::FTensorRef> OutputTensors) override
 	{
 

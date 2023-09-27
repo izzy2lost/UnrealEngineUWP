@@ -33,9 +33,6 @@ void Iota(ArrayT& Array, ValueT Value)
 
 } // Util
 
-/**
- * Slice
- */
 class FOperatorDmlSlice : public FOperatorDml
 {	
 	template<typename DataType>
@@ -105,6 +102,7 @@ class FOperatorDmlSlice : public FOperatorDml
 			{
 				Start += (DataType) Dim;
 			}
+			
 			if (End < 0 && Start > TNumericLimits<DataType>::Min())
 			{
 				End += (DataType) Dim;
