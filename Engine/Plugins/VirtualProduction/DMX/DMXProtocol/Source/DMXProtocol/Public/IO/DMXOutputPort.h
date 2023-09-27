@@ -88,15 +88,11 @@ struct DMXPROTOCOL_API FDMXSignalFragment
 
 
 /**
- * Higher level abstraction of a DMX input hiding networking specific and protocol specific complexity.
+ * Higher level abstraction of a DMX input hiding networking specific and protocol specific complexity. Ment to be constructed by DMXPortManger only.
  *
- * Use SendDMXFragment method to send DMX.
+ * Use SendDMX method to send DMX.
  *
- * To loopback outputs refer to DMXRawListener and DMXTickedUniverseListener.
- *
- * Can only be constructed via DMXPortManger, see FDMXPortManager::CreateOutputPort and FDMXPortManager::CreateOutputPortFromConfig.
- * 
- * Note, internally locks have to be acquired in order as they're declared in the header.
+ * To loopback outputs, refer to DMXRawListener.
  */
 class DMXPROTOCOL_API FDMXOutputPort
 	: public FDMXPort

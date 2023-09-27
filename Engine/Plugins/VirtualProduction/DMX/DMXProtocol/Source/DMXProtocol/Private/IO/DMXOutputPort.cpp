@@ -536,6 +536,9 @@ FDMXOutputPortSharedRef FDMXOutputPort::CreateFromConfig(FDMXOutputPortConfig& O
 
 	FDMXOutputPortSharedRef NewOutputPort = MakeShared<FDMXOutputPort, ESPMode::ThreadSafe>();
 
+	NewOutputPort->SendDMXEvent = FPlatformProcess::GetSynchEventFromPool();
+	check(NewOutputPort->SendDMXEvent != nullptr);
+
 	NewOutputPort->PortGuid = OutputPortConfig.GetPortGuid();
 
 	UDMXProtocolSettings* Settings = GetMutableDefault<UDMXProtocolSettings>();
@@ -568,6 +571,9 @@ FDMXOutputPort::~FDMXOutputPort()
 		Thread->Kill(true);
 		delete Thread;
 	}
+
+	FPlatformProcess::ReturnSynchEventToPool(SendDMXEvent);
+	SendDMXEvent = nullptr;
 
 	UE_LOG(LogDMXProtocol, VeryVerbose, TEXT("Destroyed output port %s"), *PortName);
 }
@@ -942,9 +948,6 @@ bool FDMXOutputPort::Init()
 
 uint32 FDMXOutputPort::Run()
 {
-	SendDMXEvent = FPlatformProcess::GetSynchEventFromPool();
-	check(SendDMXEvent != nullptr);
-
 	while (!bStopping)
 	{
 		const double StartTime = FPlatformTime::Seconds();
@@ -956,17 +959,16 @@ uint32 FDMXOutputPort::Run()
 
 		ProcessSendDMX();
 
+		const double Interval = 1.0 / SendRate;
 		const double EndTime = FPlatformTime::Seconds();
-		const double WaitTimeMs = ((1.0 / SendRate) - (EndTime - StartTime)) * 1000.0;
-		
-		if (WaitTimeMs > 0.0 && WaitTimeMs < std::numeric_limits<uint32>::max())
+		const double Elapsed = EndTime - StartTime;
+
+		if (Interval > Elapsed)
 		{
-			SendDMXEvent->Wait(WaitTimeMs);
+			const FTimespan WaitTimespan = FTimespan::FromSeconds(Interval - Elapsed);
+			SendDMXEvent->Wait(WaitTimespan);
 		}
 	}
-
-	FPlatformProcess::ReturnSynchEventToPool(SendDMXEvent);
-	SendDMXEvent = nullptr;
 
 	return 0;
 }
