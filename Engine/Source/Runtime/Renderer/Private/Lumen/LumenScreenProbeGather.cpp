@@ -2024,8 +2024,8 @@ FSSDSignalTextures FDeferredShadingSceneRenderer::RenderLumenScreenProbeGather(
 				RadianceCacheInputs,
 				FRadianceCacheConfiguration(),
 				View,
-				&ScreenProbeParameters,
-				BRDFProbabilityDensityFunctionSH,
+				nullptr,
+				nullptr,
 				MoveTemp(GraphicsMarkUsedRadianceCacheProbesCallbacks),
 				MoveTemp(ComputeMarkUsedRadianceCacheProbesCallbacks)));
 
