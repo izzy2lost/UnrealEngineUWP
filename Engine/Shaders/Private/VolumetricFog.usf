@@ -170,9 +170,6 @@ void MaterialSetupCS(
 
 	uint LFVCount = LFVTileDataTex[uint3(TilePos, 0)];
 
-	//AdditionalEmissive += float3(TilePos.x * 0.00001, TilePos.y * 0.00001, 0.0);
-	//AdditionalEmissive += LFVCount * 0.00001;
-
 	for (int LFVIndex = 0; LFVIndex < LFVCount; ++LFVIndex)
 	{
 		uint InstanceIndex = LFVTileDataTex[uint3(TilePos, 1 + LFVIndex)];
@@ -191,12 +188,16 @@ void MaterialSetupCS(
 		float LFVExtinction = 0.0;
 		if (FogInstance.FogMode == 0)
 		{
-			LFVExtinction = SphereFade <= 0.0f ? 0.0f : FogInstance.Density * exp(-FogInstance.HeightFalloff * UnitSpacePos.z) / FogInstance.UniformScale;
+			LFVExtinction = SphereFade <= 0.0f ? 0.0f : FogInstance.Density * exp(-FogInstance.HeightFalloff * UnitSpacePos.z);
 		}
 		else // (FogInstance.FogMode == 1)
 		{
-			LFVExtinction = FogInstance.Density * SphereFade / FogInstance.UniformScale;
+			LFVExtinction = FogInstance.Density * SphereFade;
 		}
+
+		// Convert extinction from unit volume 1/m into extinction for volumetric fog as 1/cm
+		LFVExtinction *= (1.0f / METER_TO_CENTIMETER);
+
 		LFVExtinction = min(LFVMaxDensityIntoVolumetricFog, LFVExtinction);
 
 		float3 LFVScattering = LFVExtinction * FogInstance.Albedo;

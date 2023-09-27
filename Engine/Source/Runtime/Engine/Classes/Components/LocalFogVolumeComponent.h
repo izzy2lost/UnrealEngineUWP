@@ -25,11 +25,11 @@ class ULocalFogVolumeComponent : public USceneComponent
 
 	/** Controls the softness of the transition region when the volume is fading out. */
 	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Fog Mode")
-	ELocalFogMode FogMode = ELocalFogMode::LocalHeightFog;
+	ELocalFogMode FogMode = ELocalFogMode::LocalSphereFog;
 
 	/** Global density factor for this fog. */
 	UPROPERTY(EditAnywhere, BlueprintReadOnly, interp, Category = "Fog Distribution", meta = (UIMin = "0", UIMax = "10.0", SliderExponent = 2.0, ClampMin = 0.0))
-	float FogDensity = 5.0f;
+	float FogDensity = 1.0f;
 
 	/** Controls how the density decreases as height increases. Smaller values make the visible transition larger. */
 	UPROPERTY(EditAnywhere, BlueprintReadOnly, interp, Category = "Fog Distribution", meta = (UIMin = "0.001", UIMax = "5000", SliderExponent = 2.0, ClampMin = 0.001))

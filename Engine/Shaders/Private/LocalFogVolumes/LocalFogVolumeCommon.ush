@@ -159,8 +159,8 @@ FFogData LocalFogVolumeEvaluateHeightIntegral(FLocalFogVolumeGPUInstanceData Fog
 	OpticalDepth = (FogInstance.Density / (FogInstance.HeightFalloff * RayDirU.z)) * (exp(-Factor0) - exp(-(Factor0 + Factor1)));
 #endif
 
-	// Transmittance is the 
-	float Transmittance = exp(-OpticalDepth);
+	// Evaluate transmittance, accounting for the volume scale converted to local unit space meter.
+	float Transmittance = exp(-OpticalDepth * FogInstance.UniformScale * CENTIMETER_TO_METER);
 	// Assuming extinction is grey scale, we can compute a single coverage value from transmittance
 	FogData.Coverage = (1.0 - Transmittance);
 	// Assuming extinction==scattering, i.e. albedo=1, we can compute the integrale for each point on a ray while accouting for transmittance back to the view.
@@ -206,8 +206,8 @@ FFogData LocalFogVolumeEvaluateRadialIntegral(FLocalFogVolumeGPUInstanceData Fog
 		OpticalDepth = max(0.0, FogInstance.Density * (Integral1 - Integral0) * (3.0f / 4.0f));
 	}
 
-	// Transmittance is the 
-	float Transmittance = exp(-OpticalDepth);
+	// Evaluate transmittance, accounting for the volume scale converted to local unit space meter.
+	float Transmittance = exp(-OpticalDepth * FogInstance.UniformScale * CENTIMETER_TO_METER);
 	// Assuming extinction is grey scale, we can compute a single coverage value from transmittance
 	FogData.Coverage = (1.0 - Transmittance);
 	// Assuming extinction==scattering, i.e. albedo=1, we can compute the integrale for each point on a ray while accouting for transmittance back to the view.
