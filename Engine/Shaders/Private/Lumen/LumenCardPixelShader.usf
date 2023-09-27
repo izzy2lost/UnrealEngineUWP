@@ -97,7 +97,11 @@ void Main(
 	
 	if (SubstratePixelHeader.SubstrateTree.BSDFCount > 0)
 	{
-		const FSubstrateIntegrationSettings Settings = InitSubstrateIntegrationSettings(true /*bForceFullyRough*/, true /*bRoughDiffuseEnabled*/, 0 /*PeelLayersAboveDepth*/, false/*bRoughnessTracking*/);
+		// To have better 'specular as diffuse' response, we use bForceFullyRoughAccurate which computes specular & diffuse separately. 
+		// They are both merge them manually at the end, as Lumen card stores only diffuse albedo.
+		FSubstrateIntegrationSettings Settings = InitSubstrateIntegrationSettings(true /*bForceFullyRough*/, true /*bRoughDiffuseEnabled*/, 0 /*PeelLayersAboveDepth*/, false/*bRoughnessTracking*/);
+		Settings.bForceFullyRoughAccurate = true;
+
 		float3 TotalTransmittancePreCoverage = 0;
 		SubstratePixelHeader.SubstrateUpdateTree(SubstrateData, V, Settings, TotalCoverage, TotalTransmittancePreCoverage);
 
@@ -120,6 +124,10 @@ void Main(
 				SpecularColor += Weight * SubstrateEnvLight.SpecularWeight;
 				WorldNormal   += Weight * SubstrateBSDFContext.N;
 				Emissive      += Weight * CurrentBSDF.Emissive;
+
+				// Lumen card stores only diffuse albedo, so merge specular & diffuse color, 
+				// which are propertly weighted respectively to each other
+				DiffuseColor = SpecularColor + DiffuseColor;
 			}
 			#undef CurrentBSDF
 		}

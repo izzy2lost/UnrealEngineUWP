@@ -1446,26 +1446,32 @@ FSubstrateEnvLightResult SubstrateEvaluateForEnvLight(FSubstrateBSDFContext BSDF
 			// Specular occlusion is only used here once to affect the F90 source parameters. F0 will decrease naturally to 0.
 			F90 *= F0RGBToMicroOcclusion(F0);
 
-			if (Settings.bForceFullyRough)
-			{
-				// When rendering reflection captures, the BSDF roughness has already been forced to 1 using View.RoughnessOverrideParameter (see SubstrateSanitizeBSDF).
-				EnvBRDFApproxFullyRough(DiffuseColor, F0, F90);
-			}
-
 			SubstrateEnvLightResult.DiffuseNormal = BSDFContext.N;
 			SubstrateEnvLightResult.bSubsurface = BSDF_GETSSSTYPE(BSDFContext.BSDF) != SSS_TYPE_INVALID;
 
 			float SafeRoughness = MakeRoughnessSafe(SLAB_ROUGHNESS(BSDFContext.BSDF));
+
+			// When rendering reflection captures, the BSDF roughness has already been forced to 1 using View.RoughnessOverrideParameter (see SubstrateSanitizeBSDF).
+			if (Settings.bForceFullyRoughAccurate)
+			{
+				SafeRoughness = 1.f;
+			}
+			else if (Settings.bForceFullyRough)
+			{
+				// The version with EnvBRDFApproxFullyRough is faster, but leads to less accurate result in particular 
+				// when dealing with specular response over diffuse response.
+				EnvBRDFApproxFullyRough(DiffuseColor, F0, F90);
+			}
 
 			float3 EvalEnvBRDF = 0;
 			float DirectionalAlbedo_SpecularTransmission = 0;
 			{
 				FBxDFEnergyTermsRGB SpecularEnergyTerms = ComputeGGXSpecEnergyTermsRGB(SafeRoughness, BSDFContext.Context.NoV, F0, F90);
 				FBxDFEnergyTermsRGB DiffuseEnergyTerms  = ComputeDiffuseEnergyTermsRGB(SafeRoughness, BSDFContext.Context.NoV);
-				EvalEnvBRDF									= SpecularEnergyTerms.E;
-				DirectionalAlbedo_SpecularTransmission		= ComputeEnergyPreservation(SpecularEnergyTerms);
-				SubstrateEnvLightResult.DiffuseWeight			= DiffuseColor * DiffuseEnergyTerms.E * DirectionalAlbedo_SpecularTransmission;
-				SubstrateEnvLightResult.DiffuseColor			= DiffuseColor;
+				EvalEnvBRDF								= SpecularEnergyTerms.E;
+				DirectionalAlbedo_SpecularTransmission	= ComputeEnergyPreservation(SpecularEnergyTerms);
+				SubstrateEnvLightResult.DiffuseWeight	= DiffuseColor * DiffuseEnergyTerms.E * DirectionalAlbedo_SpecularTransmission;
+				SubstrateEnvLightResult.DiffuseColor	= DiffuseColor;
 			}
 
 			#if SUBSTRATE_FASTPATH==0

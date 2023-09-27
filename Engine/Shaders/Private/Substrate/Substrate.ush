@@ -1939,6 +1939,7 @@ SUBSTRATE_TOP_LAYER_TYPE SubstrateLoadTopLayerData(FSubstrateTopLayerDataContain
 struct FSubstrateIntegrationSettings
 {
 	bool bForceFullyRough;
+	bool bForceFullyRoughAccurate;
 	bool bRoughDiffuseEnabled;
 	bool bRoughnessTracking;
 
@@ -1951,6 +1952,7 @@ FSubstrateIntegrationSettings InitSubstrateIntegrationSettings(bool bForceFullyR
 {
 	FSubstrateIntegrationSettings Out;
 	Out.bForceFullyRough = bForceFullyRough;
+	Out.bForceFullyRoughAccurate = false;
 	Out.bRoughDiffuseEnabled = bRoughDiffuseEnabled;
 	Out.bRoughnessTracking = bRoughnessTracking;
 
