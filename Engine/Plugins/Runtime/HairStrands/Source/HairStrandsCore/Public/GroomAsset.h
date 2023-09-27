@@ -699,10 +699,6 @@ public:
 	FOnGroomAsyncLoadFinished OnGroomAsyncLoadFinished;
 
 	void MarkMaterialsHasChanged();
-
-	// Save out a static mesh based on generated cards
-	void SaveProceduralCards(uint32 CardsGroupIndex);
-	
 #endif
 
 	/** Array of user data stored with the asset */

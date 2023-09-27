@@ -20,11 +20,8 @@
 struct FHairCardsBulkData;
 struct FHairCardsDatas;
 struct FHairCardsInterpolationBulkData;
-struct FHairCardsProceduralDatas;
-struct FHairCardsProceduralResource;
 struct FHairCardsRestResource;
 struct FHairGroupCardsTextures;
-struct FHairGroupsProceduralCards;
 struct FHairMeshesBulkData;
 struct FHairStrandsDatas;
 struct FHairStrandsVoxelData;
@@ -47,27 +44,6 @@ namespace FHairCardsBuilder
 		const UStaticMesh* StaticMesh, 
 		const FHairStrandsDatas& InStrandsData,
 		FHairCardsDatas& Out);
-
-	void ExportGeometry(
-		const FHairCardsDatas& InCardsData, 
-		UStaticMesh* OutStaticMesh);
-
-	void BuildGeometry(
-		const FString& LODName,
-		const FHairStrandsDatas& InRen,
-		const FHairStrandsDatas& InSim,
-		const FHairGroupsProceduralCards& Settings,
-		FHairCardsProceduralDatas& Out,
-		FHairCardsBulkData& OutBulk,
-		FHairStrandsDatas& OutGuides,
-		FHairCardsInterpolationBulkData& OutInterpolationBulk,
-		FHairGroupCardsTextures& OutTextures);
-
-	void BuildTextureAtlas(
-		FHairCardsProceduralDatas* ProceduralData,
-		FHairCardsRestResource* RestResource,
-		FHairCardsProceduralResource* AtlasResource,
-		FHairGroupCardsTextures* Textures);
 
 	FString GetVersion();
 }

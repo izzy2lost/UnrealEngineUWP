@@ -667,46 +667,6 @@ struct FHairCardsRestResource : public FHairCommonResource
 	const FHairCardsBulkData& BulkData;
 };
 
-/* Render buffers that will be used for rendering */
-struct FHairCardsProceduralResource : public FHairCommonResource
-{
-	/** Build the hair strands resource */
-	FHairCardsProceduralResource(const FHairCardsProceduralDatas::FRenderData& HairCardsRenderData, const FIntPoint& AtlasResolution, const FHairCardsVoxel& InVoxel, const FName& OwnerName);
-
-	/* Init/release buffers */
-	virtual void InternalAllocate(FRDGBuilder& GraphBuilder) override;
-	virtual void InternalRelease() override;
-
-	/* Get the resource name */
-	virtual FString GetFriendlyName() const override { return TEXT("FHairCardsResource"); }
-
-	/* Return the memory size for GPU resources */
-	uint32 GetResourcesSize() const
-	{
-		return 0;
-	}
-
-	/* Strand hair rest position buffer */		
-	uint32 CardBoundCount;
-	FIntPoint AtlasResolution;
-
-	FRDGExternalBuffer AtlasRectBuffer;
-	FRDGExternalBuffer LengthBuffer;
-	FRDGExternalBuffer CardItToClusterBuffer;
-	FRDGExternalBuffer ClusterIdToVerticesBuffer;
-	FRDGExternalBuffer ClusterBoundBuffer;
-	FRDGExternalBuffer CardsStrandsPositions;
-	FRDGExternalBuffer CardsStrandsAttributes;
-
-	FHairCardsVoxel CardVoxel;
-
-	/* Position offset as the rest positions are expressed in relative coordinate (16bits) */
-	//FVector PositionOffset = FVector::ZeroVector;
-
-	/* Reference to the hair strands render data */
-	const FHairCardsProceduralDatas::FRenderData& RenderData;
-};
-
 struct FHairCardsDeformedResource : public FHairCommonResource
 {
 	/** Build the hair strands resource */

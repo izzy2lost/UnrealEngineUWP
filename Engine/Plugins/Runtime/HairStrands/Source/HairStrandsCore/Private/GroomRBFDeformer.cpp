@@ -772,28 +772,17 @@ void FGroomRBFDeformer::GetRBFDeformedGroomAsset(const UGroomAsset* InGroomAsset
 		// Apply changes onto cards and meshes (OutGroomASset already contain duplicated mesh asset
 		for (FHairGroupsCardsSourceDescription& Desc : OutGroomAsset->GetHairGroupsCards())
 		{
-			UStaticMesh* Mesh = nullptr;
-			if (Desc.SourceType == EHairCardsSourceType::Procedural)
+			if (UStaticMesh* Mesh = Desc.ImportedMesh)
 			{
-				Mesh = Desc.ProceduralMesh;
-			}
-			else if (Desc.SourceType == EHairCardsSourceType::Imported)
-			{
-				Mesh = Desc.ImportedMesh;
-			}
-			if (!Mesh)
-			{
-				continue;
-			}
-
-			if (Desc.GroupIndex >= 0)
-			{
-				Mesh->ConditionalPostLoad();
-
-				FHairStrandsRootData RenRootData;
-				FGroomBindingBuilder::GetRootData(RenRootData, BindingAsset->GetHairGroupsPlatformData()[Desc.GroupIndex].RenRootBulkData);
-
-				DeformStaticMeshPositions(Mesh, MeshVertexPositionsBuffer_Target, RenRootData.MeshProjectionLODs[MeshLODIndex]);
+				if (Desc.GroupIndex >= 0)
+				{
+					Mesh->ConditionalPostLoad();
+	
+					FHairStrandsRootData RenRootData;
+					FGroomBindingBuilder::GetRootData(RenRootData, BindingAsset->GetHairGroupsPlatformData()[Desc.GroupIndex].RenRootBulkData);
+	
+					DeformStaticMeshPositions(Mesh, MeshVertexPositionsBuffer_Target, RenRootData.MeshProjectionLODs[MeshLODIndex]);
+				}
 			}
 		} 
 
