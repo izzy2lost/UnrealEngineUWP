@@ -13,6 +13,7 @@
 #include "Engine/World.h"
 #include "Materials/Material.h"
 #include "UnrealEngine.h"
+#include "Behaviors/MultiButtonClickDragBehavior.h"
 #include "Intersection/IntersectionUtil.h"
 
 #define LOCTEXT_NAMESPACE "UTransformGizmo"
@@ -34,6 +35,7 @@ void UTransformGizmo::Setup()
 	UInteractiveGizmo::Setup();
 
 	SetupBehaviors();
+	SetupIndirectBehaviors();
 	SetupMaterials();
 	SetupOnClickFunctions();
 
@@ -67,22 +69,30 @@ void UTransformGizmo::SetupBehaviors()
 	MouseBehavior->Initialize(this);
 	MouseBehavior->SetDefaultPriority(FInputCapturePriority(FInputCapturePriority::DEFAULT_GIZMO_PRIORITY));
 	AddInputBehavior(MouseBehavior);
+}
 
+void UTransformGizmo::SetupIndirectBehaviors()
+{
 	// Add middle mouse input behavior for indirect manipulation
 	ULocalClickDragInputBehavior* MiddleClickDragBehavior = NewObject<ULocalClickDragInputBehavior>();
 	MiddleClickDragBehavior->Initialize();
 	MiddleClickDragBehavior->SetUseMiddleMouseButton();
-	MiddleClickDragBehavior->CanBeginClickDragFunc = [this](const FInputDeviceRay& InPressPos)
+	MiddleClickDragBehavior->CanBeginClickDragFunc = [](const FInputDeviceRay&)
 	{
-		bIndirectManipulation = true;
-		return CanBeginClickDragSequence(InPressPos);
+		return FInputRayHit(TNumericLimits<double>::Max());
 	};
 	MiddleClickDragBehavior->OnClickPressFunc = [this](const FInputDeviceRay& InPressPos)
 	{
+		bIndirectManipulation = true;
+		if (LastHitPart == ETransformGizmoPartIdentifier::Default)
+		{
+			LastHitPart = GetCurrentModeLastHitPart();
+		}
 		return OnClickPress(InPressPos);
 	};
 	MiddleClickDragBehavior->OnClickDragFunc = [this](const FInputDeviceRay& InDragPos)
 	{
+		bIndirectManipulation = true;
 		return OnClickDrag(InDragPos);
 	};
 	MiddleClickDragBehavior->OnClickReleaseFunc = [this](const FInputDeviceRay& InReleasePos)
@@ -92,11 +102,116 @@ void UTransformGizmo::SetupBehaviors()
 	};
 	MiddleClickDragBehavior->OnTerminateFunc = [this]()
 	{
+		bIndirectManipulation = false;
 		return OnTerminateDragSequence();
 	};
 	// add this to enable indirect manipulation using CTRL + MMB
 	// MiddleClickDragBehavior->ModifierCheckFunc = FInputDeviceState::IsCtrlKeyDown;
 	AddInputBehavior(MiddleClickDragBehavior);
+
+	
+	// Add left/right mouse input behavior for indirect manipulation
+	UMultiButtonClickDragBehavior* LeftRightClickDragBehavior = NewObject<UMultiButtonClickDragBehavior>();
+	LeftRightClickDragBehavior->Initialize();
+	LeftRightClickDragBehavior->EnableButton(EKeys::LeftMouseButton);
+	LeftRightClickDragBehavior->EnableButton(EKeys::RightMouseButton);
+	LeftRightClickDragBehavior->ModifierCheckFunc = FInputDeviceState::IsCtrlKeyDown;
+	LeftRightClickDragBehavior->CanBeginClickDragFunc = [](const FInputDeviceRay&)
+	{
+		return FInputRayHit(TNumericLimits<double>::Max());
+	};
+	LeftRightClickDragBehavior->OnClickPressFunc = [this](const FInputDeviceRay& InPressPos)
+	{
+		bIndirectManipulation = true;
+		if (LastHitPart == ETransformGizmoPartIdentifier::Default)
+		{
+			LastHitPart = GetCurrentModeLastHitPart();
+		}
+		return OnClickPress(InPressPos);
+	};
+	LeftRightClickDragBehavior->OnClickDragFunc = [this](const FInputDeviceRay& InDragPos)
+	{
+		bIndirectManipulation = true;
+		return OnClickDrag(InDragPos);
+	};
+	LeftRightClickDragBehavior->OnClickReleaseFunc = [this](const FInputDeviceRay& InReleasePos)
+	{
+		bIndirectManipulation = false;
+		return OnClickRelease(InReleasePos);
+	};
+	LeftRightClickDragBehavior->OnTerminateFunc = [this]()
+	{
+		bIndirectManipulation = false;
+		return OnTerminateDragSequence();
+	};
+	
+	auto GetAxis = [](const FInputDeviceState& InInput)
+	{
+		const bool bAddX = InInput.Mouse.Left.bDown;
+		const bool bAddY = InInput.Mouse.Right.bDown;
+		return bAddX && bAddY ? EAxis::Z : bAddX ? EAxis::X : bAddY ? EAxis::Y : EAxis::None;
+	};
+
+	auto GetHitPart = [this](const EAxis::Type InAxis)
+	{
+		static constexpr ETransformGizmoPartIdentifier TranslateIds [4] = {
+			ETransformGizmoPartIdentifier::Default,
+			ETransformGizmoPartIdentifier::TranslateXAxis,
+			ETransformGizmoPartIdentifier::TranslateYAxis,
+			ETransformGizmoPartIdentifier::TranslateZAxis};
+			
+		static constexpr ETransformGizmoPartIdentifier RotateIds [4] = {
+			ETransformGizmoPartIdentifier::Default,
+			ETransformGizmoPartIdentifier::RotateXAxis,
+			ETransformGizmoPartIdentifier::RotateYAxis,
+			ETransformGizmoPartIdentifier::RotateZAxis};
+
+		static constexpr ETransformGizmoPartIdentifier ScaleIds [4] = {
+			ETransformGizmoPartIdentifier::Default,
+			ETransformGizmoPartIdentifier::ScaleXAxis,
+			ETransformGizmoPartIdentifier::ScaleYAxis,
+			ETransformGizmoPartIdentifier::ScaleZAxis};
+
+		switch (CurrentMode)
+		{
+		case EGizmoTransformMode::Translate: return TranslateIds[InAxis];
+		case EGizmoTransformMode::Rotate: return RotateIds[InAxis];
+		case EGizmoTransformMode::Scale: return ScaleIds[InAxis];
+		default: break;
+		}
+		return ETransformGizmoPartIdentifier::Default;
+	};
+	
+	LeftRightClickDragBehavior->OnStateUpdated = [this, GetAxis, GetHitPart, LeftRightClickDragBehavior](const FInputDeviceState& Input)
+	{
+		// disable indirect if the current axis is none 
+		const EAxis::Type Axis = GetAxis(Input);
+		if (Axis == EAxis::None)
+		{
+			bIndirectManipulation = false;
+			return;
+		}
+
+		bIndirectManipulation = true;
+		
+		const ETransformGizmoPartIdentifier HitPart = GetHitPart(Axis);
+		if (HitPart != GetCurrentModeLastHitPart())
+		{
+			// update interaction state
+			UpdateInteractingState(false, GetCurrentModeLastHitPart(), true);
+			SetModeLastHitPart(CurrentMode, HitPart);
+			UpdateInteractingState(true, HitPart, true);
+
+			// reinitialize OnClickPress data
+			LastHitPart = HitPart;
+			const uint8 HitPartIndex = static_cast<uint8>(LastHitPart);
+			if (OnClickPressFunctions.IsValidIndex(HitPartIndex) && OnClickPressFunctions[HitPartIndex])
+			{
+				OnClickPressFunctions[HitPartIndex](this, LeftRightClickDragBehavior->GetDeviceRay(Input));
+			}
+		}
+	};
+	AddInputBehavior(LeftRightClickDragBehavior);
 }
 
 void UTransformGizmo::SetupMaterials()
@@ -337,15 +452,6 @@ ETransformGizmoPartIdentifier UTransformGizmo::GetCurrentModeLastHitPart() const
 
 FInputRayHit UTransformGizmo::CanBeginClickDragSequence(const FInputDeviceRay& PressPos)
 {
-	if (bIndirectManipulation)
-	{
-		if (LastHitPart == ETransformGizmoPartIdentifier::Default)
-		{
-			LastHitPart = GetCurrentModeLastHitPart();
-		}
-		return FInputRayHit(0.0);
-	}
-	
 	FInputRayHit RayHit;
 
 	if (HitTarget)
@@ -1405,19 +1511,94 @@ void UTransformGizmo::OnClickPressTranslateZAxis(const FInputDeviceRay& PressPos
 
 void UTransformGizmo::OnClickPressAxis(const FInputDeviceRay& PressPos)
 {
+	InteractionPlanarOrigin = CurrentTransform.GetLocation();
 	InteractionAxisStartParam = GetNearestRayParamToInteractionAxis(PressPos);
 	InteractionAxisCurrParam = InteractionAxisStartParam;
-	bInInteraction = true;
 
+	// indirect manipulation uses a 2D approach instead as there's no guaranty to intersect a plane 
+	if (bIndirectManipulation)
+	{
+		InteractionScreenCurrPos = PressPos.ScreenPosition;
+		StartRotation = CurrentRotation = ActiveTarget->GetTransform().GetRotation();
+		bInInteraction = true;
+		SetModeLastHitPart(EGizmoTransformMode::Translate, LastHitPart);
+		return;
+	}
+
+	// compute plane and axis to mute
+	const FVector XAxis = GetWorldAxis(FVector::XAxisVector);
+	const FVector YAxis = GetWorldAxis(FVector::YAxisVector);
+	const FVector ZAxis = GetWorldAxis(FVector::ZAxisVector);
+
+	const FVector ViewDirection = GizmoViewContext->GetViewDirection();
+	const double XDot = FMath::Abs(FVector::DotProduct(ViewDirection, XAxis));
+	const double YDot = FMath::Abs(FVector::DotProduct(ViewDirection, YAxis));
+	const double ZDot = FMath::Abs(FVector::DotProduct(ViewDirection, ZAxis));
+
+	if (FVector::DotProduct(InteractionAxisDirection, XAxis) > 0.1)
+	{
+		InteractionPlanarNormal = (YDot > ZDot) ? YAxis : ZAxis;
+		NormalToRemove = (YDot > ZDot) ? ZAxis : YAxis;
+	}
+	else if (FVector::DotProduct(InteractionAxisDirection, YAxis) > 0.1)
+	{
+		InteractionPlanarNormal = (XDot > ZDot) ? XAxis : ZAxis;
+		NormalToRemove = (XDot > ZDot) ? ZAxis : XAxis;
+	}
+	else
+	{
+		InteractionPlanarNormal = (XDot > YDot) ? XAxis : YAxis;
+		NormalToRemove = (XDot > YDot) ? YAxis : XAxis;
+	}
+	
+	float HitDepth;
+	if (GetRayParamIntersectionWithInteractionPlane(PressPos, HitDepth))
+	{
+		InteractionPlanarStartPoint = PressPos.WorldRay.Origin + PressPos.WorldRay.Direction * HitDepth;
+		InteractionPlanarCurrPoint = InteractionPlanarStartPoint;
+	}
+
+	bInInteraction = true;
 	SetModeLastHitPart(EGizmoTransformMode::Translate, LastHitPart);
 }
 
 void UTransformGizmo::OnClickDragTranslateAxis(const FInputDeviceRay& DragPos)
 {
-	float AxisNearestParam = GetNearestRayParamToInteractionAxis(DragPos);
-	FVector Delta = ComputeAxisTranslateDelta(InteractionAxisCurrParam, AxisNearestParam);
-	ApplyTranslateDelta(Delta);
-	InteractionAxisCurrParam = AxisNearestParam;
+	// indirect manipulation uses a 2D projection approach instead of plane intersection
+	if (bIndirectManipulation)
+	{
+		const FVector2D DragDir = DragPos.ScreenPosition - InteractionScreenCurrPos;
+
+		const FVector2D XAxisDir = GetScreenProjectedAxis(GizmoViewContext, GetWorldAxis(FVector::XAxisVector));
+		const FVector2D YAxisDir = GetScreenProjectedAxis(GizmoViewContext, GetWorldAxis(FVector::YAxisVector));
+		const FVector2D ZAxisDir = GetScreenProjectedAxis(GizmoViewContext, GetWorldAxis(FVector::ZAxisVector));
+		
+		FVector Delta((InteractionAxisList == EAxisList::X) ? FVector2D::DotProduct(XAxisDir, DragDir) : 0.0,
+					  (InteractionAxisList == EAxisList::Y) ? FVector2D::DotProduct(YAxisDir, DragDir) : 0.0,
+					  (InteractionAxisList == EAxisList::Z) ? FVector2D::DotProduct(ZAxisDir, DragDir) : 0.0);
+		Delta = CurrentRotation * Delta;
+		
+		ApplyTranslateDelta(Delta);
+
+		InteractionScreenCurrPos = DragPos.ScreenPosition;
+		return;
+	}
+
+	float HitDepth;
+	if (GetRayParamIntersectionWithInteractionPlane(DragPos, HitDepth))
+	{
+		FVector HitPoint = DragPos.WorldRay.Origin + DragPos.WorldRay.Direction * HitDepth;
+
+		const FVector DeltaToStart = HitPoint-InteractionPlanarStartPoint;
+		const FVector AxisToRemove = NormalToRemove * FVector::DotProduct(DeltaToStart, NormalToRemove); 
+		
+		HitPoint -= AxisToRemove;
+	
+		const FVector Delta = ComputePlanarTranslateDelta(InteractionPlanarCurrPoint, HitPoint);
+
+		ApplyTranslateDelta(Delta);
+		InteractionPlanarCurrPoint = HitPoint;
+	}
 }
 
 void UTransformGizmo::OnClickReleaseTranslateAxis(const FInputDeviceRay& InReleasePos)
@@ -1473,8 +1654,8 @@ void UTransformGizmo::OnClickDragTranslatePlanar(const FInputDeviceRay& DragPos)
 	float HitDepth;
 	if (GetRayParamIntersectionWithInteractionPlane(DragPos, HitDepth))
 	{
-		FVector HitPoint = DragPos.WorldRay.Origin + DragPos.WorldRay.Direction * HitDepth;
-		FVector Delta = ComputePlanarTranslateDelta(InteractionPlanarCurrPoint, HitPoint);
+		const FVector HitPoint = DragPos.WorldRay.Origin + DragPos.WorldRay.Direction * HitDepth;
+		const FVector Delta = ComputePlanarTranslateDelta(InteractionPlanarCurrPoint, HitPoint);
 		ApplyTranslateDelta(Delta);
 		InteractionPlanarCurrPoint = HitPoint;
 	}

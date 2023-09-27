@@ -5,7 +5,6 @@
 #include "BaseBehaviors/BehaviorTargetInterfaces.h"
 #include "BaseGizmos/GizmoElementHitTargets.h"
 #include "BaseGizmos/GizmoViewContext.h"
-#include "BaseGizmos/StateTargets.h"
 #include "BaseGizmos/TransformProxy.h"
 #include "Containers/EnumAsByte.h"
 #include "CoreMinimal.h"
@@ -13,7 +12,6 @@
 #include "InputState.h"
 #include "InteractiveGizmo.h"
 #include "InteractiveToolChange.h"
-#include "InteractiveToolObjects.h"
 #include "Materials/MaterialInstanceDynamic.h"
 #include "Math/Axis.h"
 #include "Math/Color.h"
@@ -392,6 +390,9 @@ protected:
 	/** Setup behaviors */
 	virtual void SetupBehaviors();
 
+	/** Setup indirect behaviors */
+	void SetupIndirectBehaviors();
+
 	/** Setup materials */
 	virtual void SetupMaterials();
 
@@ -702,12 +703,6 @@ protected:
 	/** Array of function pointers, indexed by gizmo part id, to handle click release behavior */
 	TArray<TFunction<void(UTransformGizmo* TransformGizmo, const FInputDeviceRay& ReleasePos)> > OnClickReleaseFunctions;
 
-	/** Array of function pointers, indexed by gizmo part id, to handle update hovering state */
-	TArray<TFunction<void(UTransformGizmo* TransformGizmo, bool bInHover, uint32 InHitParts)> > OnUpdateHoverFunctions;
-
-	/** Array of function pointers, indexed by gizmo part id, to handle update interacting state */
-	TArray<TFunction<void(UTransformGizmo* TransformGizmo, bool bInInteracting, uint32 InHitPart)> > OnUpdateInteractingFunctions;
-
 	/** Customization function (to override default material or increment gizmo size for example) */
 	TFunction<const FGizmoCustomization()> CustomizationFunction;
 
@@ -769,6 +764,10 @@ protected:
 	/** Active world space normal used for planar (only valid between state target BeginModify/EndModify) */
 	UPROPERTY()
 	FVector InteractionPlanarNormal;
+
+	/** Active normal to remove from axis translation (only valid between state target BeginModify/EndModify) */
+	UPROPERTY()
+	FVector NormalToRemove;
 
 	/** Active world space axis X used for planar (only valid between state target BeginModify/EndModify) */
 	UPROPERTY()
