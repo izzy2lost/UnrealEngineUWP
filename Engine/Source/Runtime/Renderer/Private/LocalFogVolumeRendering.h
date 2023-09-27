@@ -45,15 +45,15 @@ public:
 	FMatrix44f Transform;
 	FMatrix44f InvTransform;
 
-	float Density;
-	float HeightFalloff;
-	float HeightOffset;
-	float UniformScale;
+	float RadialFogExtinction;
+	float HeightFogExtinction;
+	float HeightFogFalloff;
+	float HeightFogOffset;
 
 	FVector3f Albedo;
 	float PhaseG;
 	FVector3f Emissive;
-	float FogMode;
+	float UniformScale;
 };
 
 class RENDERER_API FLocalFogVolumeSortKey

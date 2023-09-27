@@ -9,13 +9,6 @@
 
 class FLocalFogVolumeSceneProxy;
 
-UENUM()
-enum class ELocalFogMode : uint8
-{
-	LocalHeightFog = 0,
-	LocalSphereFog = 1,
-};
-
 UCLASS(ClassGroup = Rendering, collapsecategories, hidecategories = (Object, Mobility, Activation, "Components|Activation"), editinlinenew, meta = (BlueprintSpawnableComponent), MinimalAPI)
 class ULocalFogVolumeComponent : public USceneComponent
 {
@@ -23,32 +16,32 @@ class ULocalFogVolumeComponent : public USceneComponent
 
 	~ULocalFogVolumeComponent();
 
-	/** Controls the softness of the transition region when the volume is fading out. */
-	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Fog Mode")
-	ELocalFogMode FogMode = ELocalFogMode::LocalSphereFog;
+	/** The density of the radial fog representing its extinction coefficient at the center of the sphere. */
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, interp, Category = "Radial Fog Distribution", meta = (DisplayName = "Radial Fog Density", UIMin = "0", UIMax = "2.0", SliderExponent = 2.0, ClampMin = 0.0))
+	float RadialFogExtinction = 1.0f;
 
-	/** Global density factor for this fog. */
-	UPROPERTY(EditAnywhere, BlueprintReadOnly, interp, Category = "Fog Distribution", meta = (UIMin = "0", UIMax = "10.0", SliderExponent = 2.0, ClampMin = 0.0))
-	float FogDensity = 1.0f;
+	/** The density of the radial fog representing its extinction coefficient at height 0 in the unit sphere. */
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, interp, Category = "Height Fog Distribution", meta = (DisplayName = "Height Fog Density", UIMin = "0", UIMax = "2.0", SliderExponent = 2.0, ClampMin = 0.0))
+	float HeightFogExtinction = 0.0f;
 
 	/** Controls how the density decreases as height increases. Smaller values make the visible transition larger. */
-	UPROPERTY(EditAnywhere, BlueprintReadOnly, interp, Category = "Fog Distribution", meta = (UIMin = "0.001", UIMax = "5000", SliderExponent = 2.0, ClampMin = 0.001))
-	float FogHeightFalloff = 1000.0f;
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, interp, Category = "Height Fog Distribution", meta = (UIMin = "0.001", UIMax = "5000", SliderExponent = 2.0, ClampMin = 0.001))
+	float HeightFogFalloff = 1000.0f;
 
 	/** Height offset, relative to the actor Z position. */
-	UPROPERTY(EditAnywhere, BlueprintReadOnly, interp, Category = "Fog Distribution", meta = (UIMin = "-2.0", UIMax = "2.0"))
-	float FogHeightOffset = 0.0f;
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, interp, Category = "Height Fog Distribution", meta = (UIMin = "-2.0", UIMax = "2.0"))
+	float HeightFogOffset = 0.0f;
 
 	/** Controls the phase `G` parameter, describing the directionality of the scattering within this fog volume. */
-	UPROPERTY(EditAnywhere, BlueprintReadOnly, interp, Category = "Fog Shading", meta = (DisplayName = "Scattering Distribution", UIMin = "0.0", UIMax = "0.999", ClampMin = 0.0, ClampMax = 0.999))
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, interp, Category = "Shading", meta = (DisplayName = "Scattering Distribution", UIMin = "0.0", UIMax = "0.999", ClampMin = 0.0, ClampMax = 0.999))
 	float FogPhaseG = 0.2f;
 
 	/** Controls the albedo of this fog volume. */
-	UPROPERTY(EditAnywhere, BlueprintReadOnly, interp, Category = "Fog Shading", meta = (ClampMin = 0.0, ClampMax = 1.0))
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, interp, Category = "Shading", meta = (ClampMin = 0.0, ClampMax = 1.0))
 	FLinearColor FogAlbedo = FLinearColor::White;
 
 	/** Controls the emissive color of this fog volume. */
-	UPROPERTY(EditAnywhere, BlueprintReadOnly, interp, Category = "Fog Shading", meta = (ClampMin = 0.0, ClampMax = 1.0))
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, interp, Category = "Shading", meta = (ClampMin = 0.0, ClampMax = 1.0))
 	FLinearColor FogEmissive = FLinearColor::Black;
 
 	/** The priority can be used as a way to override the sorting by distance. A lower value means the volume will be considered further away, i.e. it will draw behind the one with a higher priority value. */

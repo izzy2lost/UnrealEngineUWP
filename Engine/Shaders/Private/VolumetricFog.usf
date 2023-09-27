@@ -186,13 +186,13 @@ void MaterialSetupCS(
 		float SphereFade = saturate(1.0 - length(UnitSpacePos - float3(0, 0, 0)));
 
 		float LFVExtinction = 0.0;
-		if (FogInstance.FogMode == 0)
+		if (FogInstance.HeightFogExtinction > 0.0f)
 		{
-			LFVExtinction = SphereFade <= 0.0f ? 0.0f : FogInstance.Density * exp(-FogInstance.HeightFalloff * UnitSpacePos.z);
+			LFVExtinction += SphereFade <= 0.0f ? 0.0f : FogInstance.HeightFogExtinction * exp(-FogInstance.HeightFogFalloff * UnitSpacePos.z);
 		}
-		else // (FogInstance.FogMode == 1)
+		if(FogInstance.RadialFogExtinction > 0.0f)
 		{
-			LFVExtinction = FogInstance.Density * SphereFade;
+			LFVExtinction += FogInstance.RadialFogExtinction * SphereFade;
 		}
 
 		// Convert extinction from unit volume 1/m into extinction for volumetric fog as 1/cm

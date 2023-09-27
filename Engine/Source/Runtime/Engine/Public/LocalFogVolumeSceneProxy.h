@@ -20,12 +20,12 @@ public:
 
 	FTransform FogTransform;
 
-	float FogDensity;
-	float FogHeightFalloff;
-	float FogHeightOffset;
+	float RadialFogExtinction;
+	float HeightFogExtinction;
+	float HeightFogFalloff;
+	float HeightFogOffset;
 	float FogUniformScale;
 
-	uint8 FogMode;
 	uint8 FogSortPriority;
 
 	float FogPhaseG;

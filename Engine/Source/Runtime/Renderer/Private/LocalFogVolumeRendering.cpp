@@ -292,7 +292,7 @@ void GetLocalFogVolumeSortingData(const FScene* Scene, FRDGBuilder& GraphBuilder
 	Out.LocalFogVolumeSortKeys.SetNumUninitialized(Out.LocalFogVolumeInstanceCount);
 	for (FLocalFogVolumeSceneProxy* LHF : Scene->LocalFogVolumes)
 	{
-		if (LHF->FogDensity <= 0.0f)
+		if (LHF->RadialFogExtinction <= 0.0f && LHF->HeightFogExtinction <= 0.0f)
 		{
 			continue; // this volume will never be visible
 		}
@@ -301,12 +301,12 @@ void GetLocalFogVolumeSortingData(const FScene* Scene, FRDGBuilder& GraphBuilder
 		LocalFogVolumeGPUInstanceDataIt->Transform = FMatrix44f(LHF->FogTransform.ToMatrixWithScale());
 		LocalFogVolumeGPUInstanceDataIt->InvTransform = LocalFogVolumeGPUInstanceDataIt->Transform.Inverse();
 
-		LocalFogVolumeGPUInstanceDataIt->Density = LHF->FogDensity;
-		LocalFogVolumeGPUInstanceDataIt->HeightFalloff = LHF->FogHeightFalloff * 0.01f;	// This scale is used to have artist author reasonable range.
-		LocalFogVolumeGPUInstanceDataIt->HeightOffset = LHF->FogHeightOffset;
-		LocalFogVolumeGPUInstanceDataIt->UniformScale = LHF->FogUniformScale;
+		LocalFogVolumeGPUInstanceDataIt->RadialFogExtinction = LHF->RadialFogExtinction;
+		LocalFogVolumeGPUInstanceDataIt->HeightFogExtinction = LHF->HeightFogExtinction;
+		LocalFogVolumeGPUInstanceDataIt->HeightFogFalloff = LHF->HeightFogFalloff * 0.01f;	// This scale is used to have artist author reasonable range.
+		LocalFogVolumeGPUInstanceDataIt->HeightFogOffset = LHF->HeightFogOffset;
 
-		LocalFogVolumeGPUInstanceDataIt->FogMode = float(LHF->FogMode);
+		LocalFogVolumeGPUInstanceDataIt->UniformScale = LHF->FogUniformScale;
 
 		LocalFogVolumeGPUInstanceDataIt->Albedo = FVector3f(LHF->FogAlbedo);
 		LocalFogVolumeGPUInstanceDataIt->PhaseG = LHF->FogPhaseG;

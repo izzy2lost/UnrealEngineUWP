@@ -35,10 +35,9 @@ void ULocalFogVolumeComponent::SendRenderTransformCommand()
 	if (LocalFogVolumeSceneProxy)
 	{
 		FTransform ComponentTransform = GetComponentTransform();
-		float HeightOffset = FogHeightOffset;
 		FLocalFogVolumeSceneProxy* SceneProxy = LocalFogVolumeSceneProxy;
 		ENQUEUE_RENDER_COMMAND(FUpdateLocalFogVolumeSceneProxyTransformCommand)(
-			[SceneProxy, ComponentTransform, HeightOffset](FRHICommandList& RHICmdList)
+			[SceneProxy, ComponentTransform](FRHICommandList& RHICmdList)
 			{
 				// Nothing else is needed so that command could actually go.
 				SceneProxy->UpdateComponentTransform(ComponentTransform);
@@ -99,10 +98,10 @@ bool ULocalFogVolumeComponent::CanEditChange(const FProperty* InProperty) const
 	{
 		FString PropertyName = InProperty->GetName();
 
-		if (FogMode != ELocalFogMode::LocalHeightFog)
+		if (HeightFogExtinction <= 0.0f)
 		{
-			if (PropertyName == GET_MEMBER_NAME_STRING_CHECKED(ULocalFogVolumeComponent, FogHeightFalloff)
-				|| PropertyName == GET_MEMBER_NAME_STRING_CHECKED(ULocalFogVolumeComponent, FogHeightOffset))
+			if (PropertyName == GET_MEMBER_NAME_STRING_CHECKED(ULocalFogVolumeComponent, HeightFogFalloff)
+				|| PropertyName == GET_MEMBER_NAME_STRING_CHECKED(ULocalFogVolumeComponent, HeightFogOffset))
 			{
 				return false;
 			}
