@@ -155,7 +155,7 @@ namespace Jupiter.Implementation
 		/// <param name="cancellationToken">Cancellation token</param>
 		/// <param name="batchSize">Number of files to scan for clean up. A higher number is recommended since blob store can contain many small blobs</param>
 		/// <returns></returns>
-		public async Task<ulong> CleanupInternalAsync(CancellationToken cancellationToken, int batchSize = 100000)
+		public async Task<ulong> CleanupInternalAsync(CancellationToken cancellationToken, int batchSize = 1_000_000)
 		{
 			using TelemetrySpan scope = _tracer.StartActiveSpan("gc.filesystem")
 				.SetAttribute("operation.name", "gc.filesystem");
