@@ -692,6 +692,7 @@ namespace Chaos
 			//SavedManifoldPoints.SetNum(ManifoldPoints.Num());
 			SavedManifoldPoints.Reset(ManifoldPoints.Num());
 			ManifoldPointResults.SetNum(ManifoldPoints.Num());
+			MinInitialPhi = 0;
 		}
 
 		/**
@@ -704,7 +705,7 @@ namespace Chaos
 			const FRealSingle StaticFrictionRatio,
 			const FRealSingle Dt)
 		{
-			FManifoldPoint& ManifoldPoint = ManifoldPoints[ManifoldPointIndex];
+			const FManifoldPoint& ManifoldPoint = ManifoldPoints[ManifoldPointIndex];
 			FManifoldPointResult& ManifoldPointResult = ManifoldPointResults[ManifoldPointIndex];
 			FSavedManifoldPoint* SavedManifoldPoint = nullptr;
 
@@ -755,6 +756,8 @@ namespace Chaos
 				SavedManifoldPoint->ShapeContactPoints[1] = Anchor1;
 				SavedManifoldPoint->InitialPhi = ManifoldPoint.InitialPhi;
 			}
+
+			MinInitialPhi = FMath::Min(MinInitialPhi, ManifoldPoint.InitialPhi);
 		}
 
 		/**
@@ -821,7 +824,6 @@ namespace Chaos
 
 		CHAOS_API int32 FindSavedManifoldPoint(const int32 ManifoldPointIndex, int32* InOutAllowedSavedPointIndices, int32& InOutNumAllowedSavedPoints) const;
 		CHAOS_API void AssignSavedManifoldPoints();
-		CHAOS_API void CalculateMinInitialPhi();
 
 		inline void InitManifoldPoint(const int32 ManifoldPointIndex, const FContactPoint& ContactPoint)
 		{

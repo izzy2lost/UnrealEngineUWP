@@ -436,9 +436,6 @@ namespace Chaos
 		Flags.bIsCurrent = true;
 		Flags.bDisabled = false;
 
-		// If we have data from the previous tick, update the maximum allowed initial penetration
-		CalculateMinInitialPhi();
-
 		// Match new manifold points with data from previous tick
 		AssignSavedManifoldPoints();
 
@@ -1132,16 +1129,6 @@ namespace Chaos
 				// Nothing to do if no saved friction point because we already set the achor to the most recently detected contact point
 				// (See InitManifoldPoint, And TryRestoreManifold)
 			}
-		}
-	}
-
-	void FPBDCollisionConstraint::CalculateMinInitialPhi()
-	{
-		MinInitialPhi = 0;
-
-		for (const FSavedManifoldPoint& SavedManifoldPoint : SavedManifoldPoints)
-		{
-			MinInitialPhi = FMath::Min(MinInitialPhi, SavedManifoldPoint.InitialPhi);
 		}
 	}
 
