@@ -3101,41 +3101,44 @@ void UObject::ProcessContextOpcode( FFrame& Stack, RESULT_DECL, bool bCanFailSil
 
 		if (!bCanFailSilently)
 		{
-			if (NewContext && !IsValid(NewContext))
+			UE_AUTORTFM_OPEN(
 			{
-				FBlueprintExceptionInfo ExceptionInfo(
-					EBlueprintExceptionType::AccessViolation, 
-					FText::Format(
-						LOCTEXT("AccessPendingKill", "Attempted to access {0} via property {1}, but {0} is not valid (pending kill or garbage)"),
-						FText::FromString( GetNameSafe(NewContext) ), 
-						FText::FromString( GetNameSafe(Stack.MostRecentProperty) )
-					)
-				);
-				FBlueprintCoreDelegates::ThrowScriptException(this, Stack, ExceptionInfo);
-			}
-			else if (Stack.MostRecentProperty != NULL)
-			{
-				FBlueprintExceptionInfo ExceptionInfo(
-					EBlueprintExceptionType::AccessViolation, 
-					FText::Format( 
-						LOCTEXT("AccessNoneContext", "Accessed None trying to read property {0}"), 
-						FText::FromString( Stack.MostRecentProperty->GetName() )
-					)
-				);
-				FBlueprintCoreDelegates::ThrowScriptException(this, Stack, ExceptionInfo);
-			}
-			else
-			{
-				// Stack.MostRecentProperty will be NULL under the following conditions:
-				//   1. the context expression was a function call which returned an object
-				//   2. the context expression was a literal object reference
-				//   3. the context expression was an instance variable that no longer exists (it was editor-only, etc.)
-				FBlueprintExceptionInfo ExceptionInfo(
-					EBlueprintExceptionType::AccessViolation, 
-					LOCTEXT("AccessNoneNoContext", "Accessed None")
-				);
-				FBlueprintCoreDelegates::ThrowScriptException(this, Stack, ExceptionInfo);
-			}
+				if (NewContext && !IsValid(NewContext))
+				{
+					FBlueprintExceptionInfo ExceptionInfo(
+						EBlueprintExceptionType::AccessViolation,
+						FText::Format(
+							LOCTEXT("AccessPendingKill", "Attempted to access {0} via property {1}, but {0} is not valid (pending kill or garbage)"),
+							FText::FromString(GetNameSafe(NewContext)),
+							FText::FromString(GetNameSafe(Stack.MostRecentProperty))
+						)
+					);
+					FBlueprintCoreDelegates::ThrowScriptException(this, Stack, ExceptionInfo);
+				}
+				else if (Stack.MostRecentProperty != NULL)
+				{
+					FBlueprintExceptionInfo ExceptionInfo(
+						EBlueprintExceptionType::AccessViolation,
+						FText::Format(
+							LOCTEXT("AccessNoneContext", "Accessed None trying to read property {0}"),
+							FText::FromString(Stack.MostRecentProperty->GetName())
+						)
+					);
+					FBlueprintCoreDelegates::ThrowScriptException(this, Stack, ExceptionInfo);
+				}
+				else
+				{
+					// Stack.MostRecentProperty will be NULL under the following conditions:
+					//   1. the context expression was a function call which returned an object
+					//   2. the context expression was a literal object reference
+					//   3. the context expression was an instance variable that no longer exists (it was editor-only, etc.)
+					FBlueprintExceptionInfo ExceptionInfo(
+						EBlueprintExceptionType::AccessViolation,
+						LOCTEXT("AccessNoneNoContext", "Accessed None")
+					);
+					FBlueprintCoreDelegates::ThrowScriptException(this, Stack, ExceptionInfo);
+				}
+			});
 		}
 
 		const CodeSkipSizeType wSkip = Stack.ReadCodeSkipCount(); // Code offset for NULL expressions. Code += sizeof(CodeSkipSizeType)
