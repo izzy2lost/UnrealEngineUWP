@@ -249,8 +249,8 @@
 							<Property Name="TestRequirements" Value="$(TestRequirements);Catch2 Build Library $(Platform)"/>
 						</Do>
 						<Node Name="$($(TestName)Short) Tests $(Platform)" Requires="$(TestRequirements)">
+							<Expand Name="BuildAndStageTest" TestName="$(TestName)" Platform="$(Platform)"/>
 							<Do If="'$($(Platform)$(TestName)RunSupported)' == 'True'">
-								<Expand Name="BuildAndStageTest" TestName="$(TestName)" Platform="$(Platform)"/>
 								<Expand Name="DeployAndTest" TestName="$(TestName)" Platform="$(Platform)"/>
 							</Do>
 						</Node>
