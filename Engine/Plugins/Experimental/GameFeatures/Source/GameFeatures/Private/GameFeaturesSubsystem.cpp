@@ -1462,7 +1462,9 @@ void UGameFeaturesSubsystem::LoadBuiltInGameFeaturePlugin(const TSharedRef<IPlug
 			const bool bShouldProcess = AdditionalFilter(Plugin->GetDescriptorFileName(), PluginDetails, BehaviorOptions);
 			if (bShouldProcess)
 			{
-				UGameFeaturePluginStateMachine* StateMachine = FindOrCreateGameFeaturePluginStateMachine(PluginURL, FGameFeatureProtocolOptions());
+				FGameFeatureProtocolOptions ProtocolOptions;
+				ProtocolOptions.bForceSyncLoading = BehaviorOptions.bForceSyncLoading;
+				UGameFeaturePluginStateMachine* StateMachine = FindOrCreateGameFeaturePluginStateMachine(PluginURL, ProtocolOptions);
 
 				EBuiltInAutoState InitialAutoState = (BehaviorOptions.AutoStateOverride != EBuiltInAutoState::Invalid) ? 
 					BehaviorOptions.AutoStateOverride : PluginDetails.BuiltInAutoState;
@@ -1475,7 +1477,7 @@ void UGameFeaturesSubsystem::LoadBuiltInGameFeaturePlugin(const TSharedRef<IPlug
 
 				// If we're already at the destination or beyond, don't transition back
 				FGameFeaturePluginStateRange Destination(DestinationState, EGameFeaturePluginState::Active);
-				ChangeGameFeatureDestination(StateMachine, Destination, 
+				ChangeGameFeatureDestination(StateMachine, ProtocolOptions, Destination,
 					FGameFeaturePluginChangeStateComplete::CreateWeakLambda(this, [this, StateMachine, Destination, CompleteDelegate](const UE::GameFeatures::FResult& Result)
 					{
 						LoadBuiltInGameFeaturePluginComplete(Result, StateMachine, Destination);
@@ -2129,6 +2131,11 @@ bool UGameFeaturesSubsystem::FindOrCreatePluginDependencyStateMachines(const FSt
 			if (DepProtocol == EGameFeaturePluginProtocol::InstallBundle && InDepProtocolOptions.HasSubtype<FInstallBundlePluginProtocolOptions>())
 			{
 				DepProtocolOptions = InDepProtocolOptions;
+			}
+			else
+			{
+				// Always propogate non-protocol specific flags
+				DepProtocolOptions.bForceSyncLoading = InDepProtocolOptions.bForceSyncLoading;
 			}
 
 			UGameFeaturePluginStateMachine* ResolvedDependency = FindOrCreateGameFeaturePluginStateMachine(DependencyURL, DepProtocolOptions);

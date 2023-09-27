@@ -590,15 +590,12 @@ bool FGameFeaturePluginState::AllowIniLoading() const
 
 bool FGameFeaturePluginState::AllowAsyncLoading() const
 {
-	// Ticking is required for async loading
-	return !IsRunningCommandlet();
+	return StateProperties.AllowAsyncLoading();
 }
 
 bool FGameFeaturePluginState::UseAsyncLoading() const
 {
-	return
-		(AllowAsyncLoading() && UE::GameFeatures::CVarAsyncLoad.GetValueOnGameThread()) ||
-		UE::GameFeatures::CVarForceAsyncLoad.GetValueOnGameThread();
+	return AllowAsyncLoading() && UE::GameFeatures::CVarAsyncLoad.GetValueOnGameThread();
 }
 
 /*
@@ -662,9 +659,15 @@ struct FTransitionDependenciesGameFeaturePluginState : public FGameFeaturePlugin
 
 			UE_CLOG(Dependencies.Num() > 0, LogGameFeatures, Verbose, TEXT("Found %i dependencies for %s"), Dependencies.Num(), *StateProperties.PluginName);
 
+			const bool bAllowAsyncLoading = AllowAsyncLoading();
+
 			RemainingDependencies.Reserve(Dependencies.Num());
 			for (UGameFeaturePluginStateMachine* Dependency : Dependencies)
 			{
+				ensureMsgf(bAllowAsyncLoading || !Dependency->AllowAsyncLoading(), 
+					TEXT("FGameFeaturePluginState::AllowAsyncLoading is false for %s but true for dependency being waited on %s"), 
+					*StateProperties.PluginName, *Dependency->GetPluginURL());
+
 				RemainingDependencies.Emplace(Dependency, MakeValue());
 				TransitionDependency(Dependency);
 			}
@@ -1516,7 +1519,7 @@ struct FGameFeaturePluginState_Downloading : public FGameFeaturePluginState
 		Cleanup();
 
 		check(StateProperties.GetPluginProtocol() == EGameFeaturePluginProtocol::InstallBundle);
-		ensureMsgf(AllowAsyncLoading(), TEXT("FGameFeaturePluginState::AllowAsyncLoading is while attempting to download GFP data."));
+		ensureMsgf(AllowAsyncLoading(), TEXT("FGameFeaturePluginState::AllowAsyncLoading is false while attempting to download GFP data."));
 
 		TSharedPtr<IInstallBundleManager> BundleManager = IInstallBundleManager::GetPlatformInstallBundleManager();
 		const TArray<FName>& InstallBundles = StateProperties.ProtocolMetadata.GetSubtype<FInstallBundlePluginProtocolMetaData>().InstallBundles;
@@ -3284,6 +3287,11 @@ bool UGameFeaturePluginStateMachine::IsAvailable() const
 	return GetCurrentState() >= EGameFeaturePluginState::StatusKnown;
 }
 
+bool UGameFeaturePluginStateMachine::AllowAsyncLoading() const
+{
+	return StateProperties.AllowAsyncLoading();
+}
+
 UGameFeatureData* UGameFeaturePluginStateMachine::GetGameFeatureDataForActivePlugin()
 {
 	if (GetCurrentState() == EGameFeaturePluginState::Active)
@@ -3689,5 +3697,14 @@ FGameFeatureProtocolOptions FGameFeaturePluginStateMachineProperties::RecyclePro
 		Result.GetSubtype<FInstallBundlePluginProtocolOptions>().bUninstallBeforeTerminate = false;
 	}
 	return Result;
+}
+
+bool FGameFeaturePluginStateMachineProperties::AllowAsyncLoading() const
+{
+	// Ticking is required for async loading
+	// The local bForceSyncLoading should take precedence over UE::GameFeatures::CVarForceAsyncLoad
+	return
+		!ProtocolOptions.bForceSyncLoading &&
+		(!IsRunningCommandlet() || UE::GameFeatures::CVarForceAsyncLoad.GetValueOnGameThread());
 }
 

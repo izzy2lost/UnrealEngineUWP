@@ -256,6 +256,7 @@ struct FGameFeaturePluginDetails
 struct FBuiltInGameFeaturePluginBehaviorOptions
 {
 	EBuiltInAutoState AutoStateOverride = EBuiltInAutoState::Invalid;
+	bool bForceSyncLoading = false;
 };
 
 /** Struct used to transform a GameFeaturePlugin URL into something that can uniquely identify the GameFeaturePlugin
@@ -351,8 +352,11 @@ struct GAMEFEATURES_API FInstallBundlePluginProtocolOptions
 struct FGameFeatureProtocolOptions : public TUnion<FInstallBundlePluginProtocolOptions, FNull>
 {
 	FGameFeatureProtocolOptions() { SetSubtype<FNull>(); }
-	FGameFeatureProtocolOptions(const FInstallBundlePluginProtocolOptions& InOptions) : TUnion(InOptions) {}
-	FGameFeatureProtocolOptions(FNull InOptions) { SetSubtype<FNull>(InOptions); }
+	explicit FGameFeatureProtocolOptions(const FInstallBundlePluginProtocolOptions& InOptions) : TUnion(InOptions) {}
+	explicit FGameFeatureProtocolOptions(FNull InOptions) { SetSubtype<FNull>(InOptions); }
+
+	/** Force this GFP to load synchronously even if async loading is allowed */
+	bool bForceSyncLoading = false;
 };
 
 /** The manager subsystem for game features */

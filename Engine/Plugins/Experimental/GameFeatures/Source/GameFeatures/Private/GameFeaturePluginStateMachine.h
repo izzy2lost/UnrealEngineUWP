@@ -319,6 +319,9 @@ struct FGameFeaturePluginStateMachineProperties
 
 	/** Returns protocol options suitable for reuse by another state machine */
 	FGameFeatureProtocolOptions RecycleProtocolOptions() const;
+
+	/** Whether this machine is allowed to be asynchronous */
+	bool AllowAsyncLoading() const;
 };
 
 /** Input and output information for a state's UpdateState */
@@ -516,6 +519,9 @@ public:
 
 	/** Returns true if the plugin is available to download/load. Only call if IsStatusKnown is true */
 	bool IsAvailable() const;
+
+	/** Whether this machine is allowed to be asynchronous */
+	bool AllowAsyncLoading() const;
 
 	/** If the plugin is activated already, we will retrieve its game feature data */
 	UGameFeatureData* GetGameFeatureDataForActivePlugin();
