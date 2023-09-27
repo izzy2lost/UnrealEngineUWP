@@ -684,8 +684,6 @@ void FMaterialRenderProxy::UpdateDeferredCachedUniformExpressions(FRHICommandLis
 	{
 		RHICmdListTask = new FRHICommandList(FRHIGPUMask::All());
 		RHICmdListTask->SwitchPipeline(ERHIPipeline::Graphics);
-
-		FRHICommandListImmediate::Get(RHICmdList).QueueAsyncCommandListSubmit(RHICmdListTask);
 	}
 	else
 	{
@@ -742,6 +740,11 @@ void FMaterialRenderProxy::UpdateDeferredCachedUniformExpressions(FRHICommandLis
 	else
 	{
 		EvaluateUniformExpressionsLambda();
+	}
+
+	if (bAllowAsyncUpdate)
+	{
+		FRHICommandListImmediate::Get(RHICmdList).QueueAsyncCommandListSubmit(RHICmdListTask);
 	}
 }
 
