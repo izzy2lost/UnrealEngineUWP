@@ -65,6 +65,8 @@ struct FGeneratedImageProperties
 
 	TEnumAsByte<TextureAddress> AddressX = TA_Clamp;
 	TEnumAsByte<TextureAddress> AddressY = TA_Clamp;
+
+	bool bIsPassThrough = false;
 };
 
 

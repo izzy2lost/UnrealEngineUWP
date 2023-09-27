@@ -303,6 +303,7 @@ struct FMutableModelImageProperties
 		: Filter(TF_Default)
 		, SRGB(0)
 		, FlipGreenChannel(0)
+		, IsPassThrough(0)
 		, LODBias(0)
 		, LODGroup(TEXTUREGROUP_World)
 		, AddressX(TA_Clamp)
@@ -310,12 +311,13 @@ struct FMutableModelImageProperties
 	{}
 
 	FMutableModelImageProperties(const FString& InTextureParameterName, TextureFilter InFilter, uint32 InSRGB, 
-		uint32 InFlipGreenChannel, int32 InLODBias, TEnumAsByte<enum TextureGroup> InLODGroup,
+		uint32 InFlipGreenChannel, uint32 bInIsPassThrough, int32 InLODBias, TEnumAsByte<enum TextureGroup> InLODGroup,
 		TEnumAsByte<enum TextureAddress> InAddressX, TEnumAsByte<enum TextureAddress> InAddressY)
 		: TextureParameterName(InTextureParameterName)
 		, Filter(InFilter)
 		, SRGB(InSRGB)
 		, FlipGreenChannel(InFlipGreenChannel)
+		, IsPassThrough(bInIsPassThrough)
 		, LODBias(InLODBias)
 		, LODGroup(InLODGroup)
 		, AddressX(InAddressX)
@@ -336,6 +338,9 @@ struct FMutableModelImageProperties
 	uint32 FlipGreenChannel : 1;
 
 	UPROPERTY()
+	uint32 IsPassThrough : 1;
+
+	UPROPERTY()
 	int32 LODBias;
 
 	UPROPERTY()
@@ -354,6 +359,7 @@ struct FMutableModelImageProperties
 			Filter != rhs.Filter ||
 			SRGB != rhs.SRGB ||
 			FlipGreenChannel != rhs.FlipGreenChannel ||
+			IsPassThrough != rhs.IsPassThrough ||
 			LODBias != rhs.LODBias ||
 			LODGroup != rhs.LODGroup ||
 			AddressX != rhs.AddressX ||
@@ -375,6 +381,10 @@ struct FMutableModelImageProperties
 			Aux = 0;
 			Ar << Aux;
 			ImageProps.FlipGreenChannel = Aux;
+
+			Aux = 0;
+			Ar << Aux;
+			ImageProps.IsPassThrough = Aux;
 		}
 		else
 		{
@@ -382,6 +392,9 @@ struct FMutableModelImageProperties
 			Ar << Aux;
 
 			Aux = ImageProps.FlipGreenChannel;
+			Ar << Aux;
+
+			Aux = ImageProps.IsPassThrough;
 			Ar << Aux;
 		}
 
@@ -1459,7 +1472,7 @@ private:
 	// This is a manual version number for the binary blobs in this asset.
 	// Increasing it invalidates all the previously compiled models.
 	// Warning: If while merging code both versions have changed, take the highest+1.
-	static const int32 CurrentSupportedVersion = 405;
+	static const int32 CurrentSupportedVersion = 406;
 
 public:
 

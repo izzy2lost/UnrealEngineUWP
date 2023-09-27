@@ -1158,6 +1158,7 @@ void FCustomizableObjectCompiler::CompileInternal(UCustomizableObject* Object, c
 										ImageProp.Filter,
 										ImageProp.SRGB,
 										ImageProp.bFlipGreenChannel,
+										ImageProp.bIsPassThrough,
 										ImageProp.LODBias,
 										ImageProp.LODGroup,
 										ImageProp.AddressX, ImageProp.AddressY });

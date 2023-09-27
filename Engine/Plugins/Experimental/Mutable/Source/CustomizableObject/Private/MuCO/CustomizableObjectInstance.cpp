@@ -5225,6 +5225,11 @@ FGraphEventRef UCustomizableInstancePrivateData::LoadAdditionalAssetsAsync(const
 		}
 	}
 
+	for (TSoftObjectPtr<UTexture>& TextureRef : PassThroughTexturesToLoad)
+	{
+		AssetsToStream.Add(TextureRef.ToSoftObjectPath());
+	}
+
 	if (AssetsToStream.Num() > 0)
 	{
 		check(!StreamingHandle);
@@ -5399,6 +5404,16 @@ void UCustomizableInstancePrivateData::AdditionalAssetsAsyncLoaded(UCustomizable
 		}
 		ComponentData.PhysicsAssets.AdditionalPhysicsAssetsToLoad.Empty();
 	}
+
+	LoadedPassThroughTexturesPendingSetMaterial.Empty(PassThroughTexturesToLoad.Num());
+
+	for (TSoftObjectPtr<UTexture>& TextureRef : PassThroughTexturesToLoad)
+	{
+		ensure(TextureRef.IsValid());
+		LoadedPassThroughTexturesPendingSetMaterial.Add(TextureRef.Get());
+	}
+
+	PassThroughTexturesToLoad.Empty();
 }
 
 
@@ -5723,20 +5738,32 @@ void UCustomizableInstancePrivateData::BuildMaterials(const TSharedPtr<FMutableO
 						}
 
 						// Check if the image is a reference to an engine texture
-						if (MutableImage && MutableImage->IsReference())
+						if (MutableImage && Image.bIsPassThrough)
 						{
+							check(MutableImage->IsReference());
+
 							uint32 ReferenceID = MutableImage->GetReferencedTexture();
 							if (CustomizableObject->ReferencedPassThroughTextures.IsValidIndex(ReferenceID))
 							{
 								TSoftObjectPtr<UTexture> Ref = CustomizableObject->ReferencedPassThroughTextures[ReferenceID];
 
-								// \TODO: This will force the load of the reference texture, potentially causing a hich. 
-								PassThroughTexture = Ref.LoadSynchronous();
+								// The texture should have been loaded by now by LoadAdditionalAssetsAsync()
+								PassThroughTexture = Ref.Get();
+
+								if (!PassThroughTexture)
+								{
+									// The texture should be loaded, something went wrong, possibly a bug in LoadAdditionalAssetsAsync()
+									UE_LOG(LogMutable, Error,
+										TEXT("Pass-through texture with name %s hasn't been loaded yet in BuildMaterials(). Forcing sync load."),
+										*Ref.ToSoftObjectPath().ToString());
+									ensure(false);
+									PassThroughTexture = Ref.LoadSynchronous();
+								}
 							}
 							else
 							{
 								// internal error.
-								UE_LOG(LogMutable, Error, TEXT("Referenced image [%d] was not dtored in the resource array."), ReferenceID);
+								UE_LOG(LogMutable, Error, TEXT("Referenced image [%d] was not stored in the resource array."), ReferenceID);
 							}
 						}
 
@@ -6122,6 +6149,9 @@ void UCustomizableInstancePrivateData::BuildMaterials(const TSharedPtr<FMutableO
 		}
 
 		Exchange(GeneratedTextures, NewGeneratedTextures);
+
+		// All pass-through textures have been set, no need to keep referencing them from the instance
+		LoadedPassThroughTexturesPendingSetMaterial.Empty();
 	}
 }
 

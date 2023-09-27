@@ -1457,6 +1457,11 @@ namespace impl
 		mu::System* System = UCustomizableObjectSystem::GetInstance()->GetPrivate()->MutableSystem.get();
 		check(System != nullptr);
 
+		const UCustomizableObject* CustomizableObject = OperationData->Instance->GetCustomizableObject();
+		UCustomizableInstancePrivateData* CustomizableObjectInstancePrivateData = OperationData->Instance->GetPrivate();
+
+		CustomizableObjectInstancePrivateData->PassThroughTexturesToLoad.Empty();
+
 		if (OperationData->bLiveUpdateMode)
 		{
 			if (OperationData->InstanceID == 0)
@@ -1654,6 +1659,40 @@ namespace impl
 							Image.FullImageSizeY = 0;
 							Image.BaseLOD = BaseLODIndex;
 							Image.BaseMip = 0;
+
+							FString KeyName = Image.Name.ToString();
+							int32 ImageKey = FCString::Atoi(*KeyName);
+
+							if (ImageKey >= 0 && ImageKey < CustomizableObject->ImageProperties.Num())
+							{
+								const FMutableModelImageProperties& Props = CustomizableObject->ImageProperties[ImageKey];
+
+								if (Props.IsPassThrough)
+								{
+									// Since it's known it's a pass-through texture, the GetImage will be inexpensive enough to be run in the game thread
+									Image.Image = System->GetImage(OperationData->InstanceID, Image.ImageID, 0, 0);
+									check(Image.Image->IsReference());
+
+									uint32 ReferenceID = Image.Image->GetReferencedTexture();
+
+									if (CustomizableObject->ReferencedPassThroughTextures.IsValidIndex(ReferenceID))
+									{
+										TSoftObjectPtr<UTexture> Ref = CustomizableObject->ReferencedPassThroughTextures[ReferenceID];
+										CustomizableObjectInstancePrivateData->PassThroughTexturesToLoad.Add(Ref);
+										Image.bIsPassThrough = true;
+									}
+									else
+									{
+										// internal error.
+										UE_LOG(LogMutable, Error, TEXT("Referenced image [%d] was not stored in the resource array."), ReferenceID);
+									}
+								}
+							}
+							else
+							{
+								// This means the compiled model (maybe coming from derived data) has images that the asset doesn't know about.
+								UE_LOG(LogMutable, Error, TEXT("CustomizableObject derived data out of sync with asset for [%s]. Try recompiling it."), *CustomizableObject->GetName());
+							}
 						}
 
 						// Vectors
@@ -1732,6 +1771,12 @@ namespace impl
 		{
 			MUTABLE_CPUPROFILER_SCOPE(GetImage);
 
+			// If the image is a reference to an engine texture, we are done.
+			if (Image.bIsPassThrough)
+			{
+				continue;
+			}
+
 			mu::FImageDesc ImageDesc;
 
 			// This should only be done when using progressive images, since GetImageDesc does some actual processing.
@@ -1788,13 +1833,6 @@ namespace impl
 				}
 
 				check(Image.Image);
-
-				// If the image is a reference to an engine texture, we are done.
-				if (Image.Image->IsReference())
-				{
-					continue;
-				}
-
 
 				// We should have generated exactly this size.
 				const bool bSizeMissmatch = Image.Image->GetSizeX() != MipSizeX || Image.Image->GetSizeY() != MipSizeY;

@@ -406,6 +406,8 @@ struct FInstanceUpdateData
 		uint16 FullImageSizeX, FullImageSizeY;
 		mu::Ptr<const mu::Image> Image;
 		TWeakObjectPtr<UTexture2D> Cached;
+
+		bool bIsPassThrough = false;
 	};
 
 	struct FVector

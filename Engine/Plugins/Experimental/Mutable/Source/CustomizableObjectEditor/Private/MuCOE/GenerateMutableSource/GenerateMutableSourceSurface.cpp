@@ -491,6 +491,7 @@ mu::NodeSurfacePtr GenerateMutableSourceSurface(const UEdGraphPin * Pin, FMutabl
 					// We don't need a reference texture or props here, but we do need the parameter name.
 					FGeneratedImageProperties Props;
 					Props.TextureParameterName = ImageName;
+					Props.bIsPassThrough = true;
 					GenerationContext.ImageProperties.Add(Props);
 					SurfaceData.ImageProperties = Props;
 				}
