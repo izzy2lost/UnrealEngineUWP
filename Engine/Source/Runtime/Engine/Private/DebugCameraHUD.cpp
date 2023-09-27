@@ -12,6 +12,7 @@
 #include "Engine/World.h"
 #include "GameFramework/PawnMovementComponent.h"
 #include "GameFramework/SpectatorPawn.h"
+#include "GameFramework/LightWeightInstanceSubsystem.h"
 #include "Engine/Canvas.h"
 #include "Engine/DebugCameraController.h"
 #include "Materials/MaterialInterface.h"
@@ -154,7 +155,7 @@ void ADebugCameraHUD::PostRender()
 				yl += Y;
 				Canvas->DrawText(RenderFont, FString::Printf(TEXT("HitDist: %f"), Hit.Distance), X, yl, 1.f, 1.f, FontRenderInfo);
 				yl += Y;
-				Canvas->DrawText(RenderFont, FString::Printf(TEXT("HitObject: '%s'"), *HitHandle.GetName()), X, yl, 1.f, 1.f, FontRenderInfo);
+				Canvas->DrawText(RenderFont, FString::Printf(TEXT("HitObject: '%s'"), *FLightWeightInstanceSubsystem::Get().GetName(HitHandle)), X, yl, 1.f, 1.f, FontRenderInfo);
 				yl += Y;
 				Canvas->DrawText(RenderFont, FString::Printf(TEXT("HitComponent: '%s'"), Hit.Component.Get() ? *Hit.Component.Get()->GetFName().ToString() : TEXT("<NULL>")), X, yl, 1.f, 1.f, FontRenderInfo);
 				yl += Y;

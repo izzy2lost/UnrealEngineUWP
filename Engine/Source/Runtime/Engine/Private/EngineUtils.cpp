@@ -13,6 +13,7 @@
 #include "Misc/PackageName.h"
 #include "Misc/EngineVersion.h"
 #include "GameFramework/PlayerController.h"
+#include "GameFramework/LightWeightInstanceSubsystem.h"
 #include "GenericPlatform/ICursor.h"
 #include "Elements/Framework/EngineElementsLibrary.h"
 #include "Components/PrimitiveComponent.h"
@@ -519,7 +520,7 @@ TArray<FSubLevelStatus> GetSubLevelsStatus( UWorld* World, bool SortByActorCount
 
 				if (Hit.HitObjectHandle.IsValid())
 				{
-					LevelPlayerIsIn = Hit.HitObjectHandle.GetLevel();
+					LevelPlayerIsIn = FLightWeightInstanceSubsystem::Get().GetLevel(Hit.HitObjectHandle);
 				}
 				else if (UPrimitiveComponent* HitComponent = Hit.Component.Get())
 				{

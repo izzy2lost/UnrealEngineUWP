@@ -20,6 +20,12 @@ static FAutoConsoleVariableRef CVarLWIGridSize
 );
 
 
+UActorInstanceHandleInterface::UActorInstanceHandleInterface(const FObjectInitializer& ObjectInitializer)
+	:Super(ObjectInitializer)
+{
+	// do nothing
+}
+
 ALightWeightInstanceManager::ALightWeightInstanceManager(const FObjectInitializer& ObjectInitializer)
 	:Super(ObjectInitializer)
 {
@@ -41,22 +47,20 @@ void ALightWeightInstanceManager::SetRepresentedClass(UClass* ActorClass)
 	RepresentedClass = ActorClass;
 }
 
+UClass* ALightWeightInstanceManager::GetInterfaceClass() const
+{
+	return UActorInstanceHandleInterface::StaticClass();
+}
+
 void ALightWeightInstanceManager::Tick(float DeltaSeconds)
 {
 	// do nothing
 }
 
-AActor* ALightWeightInstanceManager::FindActor(const FActorInstanceHandle& Handle)
-{
-	TObjectPtr<AActor>* FoundActor = Actors.Find(Handle.GetInstanceIndex());
-
-	return FoundActor ? *FoundActor : nullptr;
-}
-
-AActor* ALightWeightInstanceManager::FindOrCreateActor(const FActorInstanceHandle& Handle)
+AActor* ALightWeightInstanceManager::FetchActorFromHandle(const FActorInstanceHandle& Handle)
 {
 	// make sure the handle doesn't have an actor already
-	if (ensure(!Handle.GetCachedActor()))
+	if (ensure(!Handle.Actor.IsValid()))
 	{
 		// check if we already have an actor for this handle
 		TObjectPtr<AActor>* FoundActor = nullptr;
@@ -78,14 +82,14 @@ AActor* ALightWeightInstanceManager::FindOrCreateActor(const FActorInstanceHandl
 			}
 #endif //!UE_BUILD_SHIPPING
 
-			Handle.SetCachedActor(*FoundActor);
+			Handle.Actor = *FoundActor;
 		}
 	}
 
 	// Unless we are on the server or the actor has been spawned, this ensure will fail.
 	// Commented out until there is more robust replication.
 	// ensure(Handle.Actor.IsValid());
-	return Handle.GetCachedActor();
+	return Handle.Actor.Get();
 }
 
 AActor* ALightWeightInstanceManager::ConvertInstanceToActor(const FActorInstanceHandle& Handle)
@@ -136,7 +140,7 @@ AActor* ALightWeightInstanceManager::ConvertInstanceToActor(const FActorInstance
 		check(NewActor);
 
 		//should have been assigned in CustomPreSpawnInitialization
-		check(Handle.GetCachedActor() == NewActor);
+		check(Handle.Actor == NewActor);
 		check(NewActor == Actors.FindRef(Handle.GetInstanceIndex()));
 
 		NewActor->OnDestroyed.AddUniqueDynamic(this, &ALightWeightInstanceManager::OnSpawnedActorDestroyed);
@@ -194,9 +198,10 @@ int32 ALightWeightInstanceManager::FindIndexForActor(const AActor* InActor) cons
 
 FActorInstanceHandle ALightWeightInstanceManager::ConvertActorToLightWeightInstance(AActor* InActor)
 {
+	FActorInstanceHandle ReturnHandle;
 	if (!InActor)
 	{
-		return FActorInstanceHandle();
+		return ReturnHandle;
 	}
 
 	if (FLWIData* Data = AllocateInitData())
@@ -223,18 +228,23 @@ FActorInstanceHandle ALightWeightInstanceManager::ConvertActorToLightWeightInsta
 			UpdateDataAtIndex(Data, Idx);
 		}
 
+		// Update our handle
+		ReturnHandle.Manager = this;
+		ReturnHandle.InstanceIndex = Idx;
+		ReturnHandle.InstanceUID = InActor->GetWorld()->LWILastAssignedUID++;
+
 		// cleanup
 		InActor->Destroy();
 		delete Data;
-
-		return FActorInstanceHandle::MakeDehydratedActorHandle(*this, Idx);
 	}
 	else
 	{
 		// something went wrong and we can't manage this actor
 		// just return a handle to the actor
-		return FActorInstanceHandle(InActor);
+		ReturnHandle.Actor = InActor;
 	}
+
+	return ReturnHandle;
 }
 
 FLWIData* ALightWeightInstanceManager::AllocateInitData() const
@@ -255,7 +265,12 @@ bool ALightWeightInstanceManager::SetDataFromActor(FLWIData* InData, AActor* InA
 	return true;
 }
 
-int32 ALightWeightInstanceManager::ConvertCollisionIndexToInstanceIndex(int32 InIndex, const UPrimitiveComponent* RelevantComponent) const
+int32 ALightWeightInstanceManager::ConvertCollisionIndexToLightWeightIndex(int32 InIndex) const
+{
+	return InIndex;
+}
+
+int32 ALightWeightInstanceManager::ConvertLightWeightIndexToCollisionIndex(int32 InIndex) const
 {
 	return InIndex;
 }
@@ -310,7 +325,7 @@ UClass* ALightWeightInstanceManager::GetActorClassToSpawn(const FActorInstanceHa
 
 void ALightWeightInstanceManager::PreSpawnInitalization(const FActorInstanceHandle& Handle, AActor* SpawnedActor)
 {
-	Handle.SetCachedActor(SpawnedActor);
+	Handle.Actor = SpawnedActor;
 	Actors.Add(Handle.GetInstanceIndex(), SpawnedActor);
 }
 
@@ -331,15 +346,19 @@ bool ALightWeightInstanceManager::IsIndexValid(int32 Index) const
 
 bool ALightWeightInstanceManager::FindActorForHandle(const FActorInstanceHandle& Handle) const
 {
-	if (Handle.GetCachedActor())
+	if (Handle.Actor.IsValid())
 	{
 		return true;
 	}
 
 	const TObjectPtr<AActor>* FoundActor = Actors.Find(Handle.GetInstanceIndex());
-	AActor* ResolvedActor = FoundActor ? *FoundActor : nullptr;
-	Handle.SetCachedActor(ResolvedActor);
-	return ResolvedActor != nullptr;
+	Handle.Actor = FoundActor ? *FoundActor : nullptr;
+	return Handle.Actor != nullptr;
+}
+
+AActor* ALightWeightInstanceManager::FindActorForInstanceIndex(const int32 InstanceIndex)
+{
+	return Actors.FindRef(InstanceIndex);
 }
 
 FVector ALightWeightInstanceManager::GetLocation(const FActorInstanceHandle& Handle) const
@@ -356,8 +375,7 @@ FTransform ALightWeightInstanceManager::GetTransform(const FActorInstanceHandle&
 {
 	if (FindActorForHandle(Handle))
 	{
-		check(Handle.GetCachedActor());
-		return Handle.GetCachedActor()->GetActorTransform();
+		return Handle.Actor->GetActorTransform();
 	}
 
 	if (ensure(IsIndexValid(Handle.GetInstanceIndex())))
@@ -373,8 +391,7 @@ FString ALightWeightInstanceManager::GetName(const FActorInstanceHandle& Handle)
 {
 	if (FindActorForHandle(Handle))
 	{
-		check(Handle.GetCachedActor());
-		return Handle.GetCachedActor()->GetName();
+		return Handle.Actor->GetName();
 	}
 
 	return FString::Printf(TEXT("%s_%u"), *BaseInstanceName, Handle.GetInstanceIndex());
@@ -382,7 +399,7 @@ FString ALightWeightInstanceManager::GetName(const FActorInstanceHandle& Handle)
 
 bool ALightWeightInstanceManager::DoesRepresentClass(const UClass* OtherClass) const
 {
-	return OtherClass ? OtherClass->IsChildOf(GetRepresentedClassInternal()) : false;
+	return OtherClass ? OtherClass->IsChildOf(GetRepresentedClass()) : false;
 }
 
 bool ALightWeightInstanceManager::DoesAcceptClass(const UClass* OtherClass) const
@@ -390,7 +407,7 @@ bool ALightWeightInstanceManager::DoesAcceptClass(const UClass* OtherClass) cons
 	return OtherClass ? OtherClass->IsChildOf(GetAcceptedClass()) : false;
 }
 
-UClass* ALightWeightInstanceManager::GetRepresentedClassInternal() const
+UClass* ALightWeightInstanceManager::GetRepresentedClass() const
 {
 	return IsValid(RepresentedClass) ? RepresentedClass : nullptr;
 }

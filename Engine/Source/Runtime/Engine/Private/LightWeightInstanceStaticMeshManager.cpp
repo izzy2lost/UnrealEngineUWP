@@ -116,11 +116,21 @@ PRAGMA_ENABLE_DEPRECATION_WARNINGS
 	}
 }
 
-int32 ALightWeightInstanceStaticMeshManager::ConvertCollisionIndexToInstanceIndex(int32 InIndex, const UPrimitiveComponent* RelevantComponent) const
+int32 ALightWeightInstanceStaticMeshManager::ConvertCollisionIndexToLightWeightIndex(int32 InIndex) const
 {
 	if (ensureMsgf(RenderingIndicesToDataIndices.IsValidIndex(InIndex), TEXT("Invalid index [ %d ]"), InIndex))
 	{
 		return RenderingIndicesToDataIndices[InIndex];
+	}
+
+	return InIndex;
+}
+
+int32 ALightWeightInstanceStaticMeshManager::ConvertLightWeightIndexToCollisionIndex(int32 InIndex) const
+{
+	if (ensureMsgf(DataIndicesToRenderingIndices.IsValidIndex(InIndex), TEXT("Invalid index [ %d ]"), InIndex))
+	{
+		return DataIndicesToRenderingIndices[InIndex];
 	}
 
 	return InIndex;

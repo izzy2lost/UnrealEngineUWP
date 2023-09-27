@@ -1,19 +1,15 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 
 #include "Engine/ActorInstanceHandle.h"
+#include "GameFramework/LightWeightInstanceSubsystem.h"
 #include "Engine/World.h"
-#include "Engine/ActorInstanceManagerInterface.h"
-#include "GameFramework/Actor.h"
 
 #include UE_INLINE_GENERATED_CPP_BY_NAME(ActorInstanceHandle)
 
-
-//-----------------------------------------------------------------------------
-// FActorInstanceHandle
-//-----------------------------------------------------------------------------
 FActorInstanceHandle::FActorInstanceHandle()
 	: Actor(nullptr)
 	, InstanceIndex(INDEX_NONE)
+	, InstanceUID(0)
 {
 	// do nothing
 }
@@ -21,28 +17,26 @@ FActorInstanceHandle::FActorInstanceHandle()
 FActorInstanceHandle::FActorInstanceHandle(AActor* InActor)
 	: Actor(InActor)
 	, InstanceIndex(INDEX_NONE)
+	, InstanceUID(0)
 {
 }
 
-FActorInstanceHandle::FActorInstanceHandle(UObject* InManager, const UPrimitiveComponent* RelevantComponent, int32 CollisionInstanceIndex)
+FActorInstanceHandle::FActorInstanceHandle(ALightWeightInstanceManager* InManager, int32 InInstanceIndex)
 	: Actor(nullptr)
-	, ManagerInterface(InManager)
-	, InstanceIndex(CollisionInstanceIndex)
+	, InstanceIndex(InInstanceIndex)
+	, InstanceUID(0)
 {
-	if (IActorInstanceManagerInterface* ManagerInterfacePtr = ManagerInterface.Get())
+	Manager = InManager;
+	if (Manager.IsValid())
 	{
-		SetInternal(*ManagerInterfacePtr, RelevantComponent, CollisionInstanceIndex);
-	}
-}
+		InstanceIndex = Manager->ConvertCollisionIndexToLightWeightIndex(InInstanceIndex);
+		Actor = Manager->FindActorForInstanceIndex(InstanceIndex);
 
-FActorInstanceHandle::FActorInstanceHandle(FActorInstanceManagerInterface InManagerInterface, int32 CollisionInstanceIndex)
-	: Actor(nullptr)
-	, ManagerInterface(InManagerInterface)
-	, InstanceIndex(CollisionInstanceIndex)
-{
-	if (IActorInstanceManagerInterface* ManagerInterfacePtr = ManagerInterface.Get())
-	{
-		SetInternal(*ManagerInterfacePtr, /*RelevantComponent=*/nullptr, CollisionInstanceIndex);
+		UWorld* World = Manager->GetWorld();
+		if (ensure(World))
+		{
+			InstanceUID = World->LWILastAssignedUID++;
+		}
 	}
 }
 
@@ -50,30 +44,14 @@ FActorInstanceHandle::FActorInstanceHandle(const FActorInstanceHandle& Other)
 {
 	Actor = Other.Actor;
 
-	ManagerInterface = Other.ManagerInterface;
+	Manager = Other.Manager;
 	InstanceIndex = Other.InstanceIndex;
-}
-
-FActorInstanceHandle FActorInstanceHandle::MakeDehydratedActorHandle(UObject& Manager, int32 InInstanceIndex)
-{
-	FActorInstanceHandle ReturnHandle;
-	ReturnHandle.ManagerInterface = FActorInstanceManagerInterface(&Manager);
-	ReturnHandle.InstanceIndex = InInstanceIndex;
-
-	return ReturnHandle;
-}
-
-void FActorInstanceHandle::SetInternal(IActorInstanceManagerInterface& InManagerInterface, const UPrimitiveComponent* RelevantComponent, int32 CollisionInstanceIndex)
-{
-	check(ManagerInterface.Get() == &InManagerInterface);
-
-	InstanceIndex = InManagerInterface.ConvertCollisionIndexToInstanceIndex(CollisionInstanceIndex, RelevantComponent);
-	Actor = InManagerInterface.FindActor(*this);
+	InstanceUID = Other.InstanceUID;
 }
 
 bool FActorInstanceHandle::IsValid() const
 {
-	return (ManagerInterface.IsValid() && InstanceIndex != INDEX_NONE) || IsActorValid();
+	return (Manager.IsValid() && InstanceIndex != INDEX_NONE) || IsActorValid();
 }
 
 bool FActorInstanceHandle::DoesRepresentClass(const UClass* OtherClass) const
@@ -87,28 +65,22 @@ bool FActorInstanceHandle::DoesRepresentClass(const UClass* OtherClass) const
 
 UClass* FActorInstanceHandle::GetRepresentedClass() const
 {
+	if (!IsValid())
+	{
+		return nullptr;
+	}
+
 	if (IsActorValid())
 	{
 		return Actor->GetClass();
 	}
 
-	IActorInstanceManagerInterface* ManagerInterfacePtr = ManagerInterface.Get();
-	return ManagerInterfacePtr && (InstanceIndex != INDEX_NONE)
-		? ManagerInterfacePtr->GetRepresentedClass(InstanceIndex)
-		: nullptr;
-}
-
-ULevel* FActorInstanceHandle::GetLevel() const
-{
-	if (IsActorValid())
+	if (Manager.IsValid())
 	{
-		return Actor->GetLevel();
+		return Manager->GetRepresentedClass();
 	}
 
-	IActorInstanceManagerInterface* ManagerInterfacePtr = ManagerInterface.Get();
-	return ManagerInterfacePtr && (InstanceIndex != INDEX_NONE)
-		? ManagerInterfacePtr->GetLevelForInstance(InstanceIndex)
-		: nullptr;
+	return nullptr;
 }
 
 FVector FActorInstanceHandle::GetLocation() const
@@ -118,10 +90,12 @@ FVector FActorInstanceHandle::GetLocation() const
 		return Actor->GetActorLocation();
 	}
 
-	IActorInstanceManagerInterface* ManagerInterfacePtr = ManagerInterface.Get();
-	return ManagerInterfacePtr && (InstanceIndex != INDEX_NONE)
-		? ManagerInterfacePtr->GetTransform(*this).GetLocation()
-		: FVector();
+	if (Manager.IsValid())
+	{
+		return Manager->GetLocation(*this);
+	}
+
+	return FVector();
 }
 
 FRotator FActorInstanceHandle::GetRotation() const
@@ -131,10 +105,12 @@ FRotator FActorInstanceHandle::GetRotation() const
 		return Actor->GetActorRotation();
 	}
 
-	IActorInstanceManagerInterface* ManagerInterfacePtr = ManagerInterface.Get();
-	return ManagerInterfacePtr && (InstanceIndex != INDEX_NONE)
-		? ManagerInterfacePtr->GetTransform(*this).GetRotation().Rotator()
-		: FRotator();
+	if (Manager.IsValid())
+	{
+		return Manager->GetRotation(*this);
+	}
+
+	return FRotator();
 }
 
 FTransform FActorInstanceHandle::GetTransform() const
@@ -144,10 +120,12 @@ FTransform FActorInstanceHandle::GetTransform() const
 		return Actor->GetActorTransform();
 	}
 
-	IActorInstanceManagerInterface* ManagerInterfacePtr = ManagerInterface.Get();
-	return ManagerInterfacePtr && (InstanceIndex != INDEX_NONE)
-		? ManagerInterfacePtr->GetTransform(*this)
-		: FTransform();
+	if (Manager.IsValid())
+	{
+		return Manager->GetTransform(*this);
+	}
+
+	return FTransform();
 }
 
 FName FActorInstanceHandle::GetFName() const
@@ -167,12 +145,12 @@ FString FActorInstanceHandle::GetName() const
 		return Actor->GetName();
 	}
 
-	if (ManagerInterface.IsValid())
+	if (Manager.IsValid())
 	{
-		return FString::Printf(TEXT("%s:d"), *GetNameSafe(ManagerInterface.GetObject()), InstanceIndex);
+		return Manager->GetName(*this);
 	}
 
-	return TEXT("Invalid");
+	return FString();
 }
 
 AActor* FActorInstanceHandle::GetManagingActor() const
@@ -182,7 +160,7 @@ AActor* FActorInstanceHandle::GetManagingActor() const
 		return Actor.Get();
 	}
 
-	return Cast<AActor>(ManagerInterface.GetObject());
+	return Manager.Get();
 }
 
 USceneComponent* FActorInstanceHandle::GetRootComponent() const
@@ -192,8 +170,7 @@ USceneComponent* FActorInstanceHandle::GetRootComponent() const
 		return Actor->GetRootComponent();
 	}
 
-	AActor* AsActor = Cast<AActor>(ManagerInterface.GetObject());
-	return AsActor ? AsActor->GetRootComponent() : nullptr;
+	return Manager.IsValid() ? Manager->GetRootComponent() : nullptr;
 }
 
 AActor* FActorInstanceHandle::FetchActor() const
@@ -203,13 +180,22 @@ AActor* FActorInstanceHandle::FetchActor() const
 		return Actor.Get();
 	}
 
-	return ManagerInterface.IsValid() ? ManagerInterface->FindOrCreateActor(*this) : nullptr;
+	return FLightWeightInstanceSubsystem::Get().FetchActor(*this);
+}
+
+int32 FActorInstanceHandle::GetRenderingInstanceIndex() const
+{
+	return Manager.IsValid() ? Manager->ConvertLightWeightIndexToCollisionIndex(InstanceIndex) : INDEX_NONE;
 }
 
 UObject* FActorInstanceHandle::GetActorAsUObject()
 {
-	// 
-	return Cast<UObject>(Actor.Get());
+	if (IsActorValid())
+	{
+		return Cast<UObject>(Actor.Get());
+	}
+
+	return nullptr;
 }
 
 const UObject* FActorInstanceHandle::GetActorAsUObject() const
@@ -227,16 +213,10 @@ bool FActorInstanceHandle::IsActorValid() const
 	return Actor.IsValid();
 }
 
-void FActorInstanceHandle::SetCachedActor(AActor* InActor) const
-{
-	check(Actor.IsValid() == false);
-	Actor = InActor;
-}
-
 FActorInstanceHandle& FActorInstanceHandle::operator=(AActor* OtherActor)
 {
 	Actor = OtherActor;
-	ManagerInterface.Reset();
+	Manager.Reset();
 	InstanceIndex = INDEX_NONE;
 
 	return *this;
@@ -245,9 +225,9 @@ FActorInstanceHandle& FActorInstanceHandle::operator=(AActor* OtherActor)
 bool FActorInstanceHandle::operator==(const FActorInstanceHandle& Other) const
 {
 	// try to compare managers and indices first if we have them
-	if (ManagerInterface.IsValid() && Other.ManagerInterface.IsValid() && InstanceIndex != INDEX_NONE && Other.InstanceIndex != INDEX_NONE)
+	if (Manager.IsValid() && Other.Manager.IsValid() && InstanceIndex != INDEX_NONE && Other.InstanceIndex != INDEX_NONE)
 	{
-		return ManagerInterface == Other.ManagerInterface && InstanceIndex == Other.InstanceIndex;
+		return Manager == Other.Manager && InstanceIndex == Other.InstanceIndex;
 	}
 
 	// try to compare the actors
@@ -265,19 +245,38 @@ bool FActorInstanceHandle::operator!=(const FActorInstanceHandle& Other) const
 bool FActorInstanceHandle::operator==(const AActor* OtherActor) const
 {
 	// if we have an actor, compare the two actors
-	if (AActor* AsActor = Actor.Get())
+	if (Actor.IsValid())
 	{
-		return AsActor == OtherActor;
+		return Actor.Get() == OtherActor;
 	}
 
 	// if OtherActor is null then we're only equal if this doesn't refer to a valid instance
 	if (OtherActor == nullptr)
 	{
-		return !ManagerInterface.IsValid() && InstanceIndex == INDEX_NONE;
+		return !Manager.IsValid() && InstanceIndex == INDEX_NONE;
 	}
 
-	IActorInstanceManagerInterface* ManagerInterfacePtr = ManagerInterface.Get();
-	return ManagerInterfacePtr && (ManagerInterfacePtr->FindActor(*this) == OtherActor);
+	// we don't have an actor so see if we can look up an instance associated with OtherActor and see if we refer to the same instance
+
+#if WITH_EDITOR
+	// use the first layer the actor is in if it's in multiple layers
+	TArray<const UDataLayerInstance*> DataLayerInstances = OtherActor->GetDataLayerInstances();
+	const UDataLayerInstance* DataLayerInstance = DataLayerInstances.Num() > 0 ? DataLayerInstances[0] : nullptr;
+#else
+	const UDataLayerInstance* DataLayerInstance = nullptr;
+#endif // WITH_EDITOR
+
+	if (ALightWeightInstanceManager* LWIManager = FLightWeightInstanceSubsystem::Get().FindLightWeightInstanceManager(*OtherActor->GetClass(), *OtherActor->GetWorld(), OtherActor->GetActorLocation(), DataLayerInstance))
+	{
+		if (Manager.Get() != LWIManager)
+		{
+			return false;
+		}
+
+		return Manager->FindIndexForActor(OtherActor) == InstanceIndex;
+	}
+
+	return false;
 }
 
 bool FActorInstanceHandle::operator!=(const AActor* OtherActor) const
@@ -288,13 +287,13 @@ bool FActorInstanceHandle::operator!=(const AActor* OtherActor) const
 uint32 GetTypeHash(const FActorInstanceHandle& Handle)
 {
 	uint32 Hash = 0;
-	if (AActor* Actor = Handle.Actor.Get())
+	if (Handle.Actor.IsValid())
 	{
-		FCrc::StrCrc32(*(Actor->GetPathName()), Hash);
+		FCrc::StrCrc32(*(Handle.Actor->GetPathName()), Hash);
 	}
-	if (UObject* ManagerInterfaceObject = Handle.ManagerInterface.GetObject())
+	if (Handle.Manager.IsValid())
 	{
-		Hash = HashCombine(Hash, GetTypeHash(ManagerInterfaceObject));
+		Hash = HashCombine(Hash, GetTypeHash(Handle.Manager.Get()));
 	}
 	Hash = HashCombine(Hash, Handle.InstanceIndex);
 
@@ -304,15 +303,9 @@ uint32 GetTypeHash(const FActorInstanceHandle& Handle)
 FArchive& operator<<(FArchive& Ar, FActorInstanceHandle& Handle)
 {
 	Ar << Handle.Actor;
+	Ar << Handle.Manager;
 	Ar << Handle.InstanceIndex;
-
-	TSoftObjectPtr<UObject> SoftObject(Handle.ManagerInterface.GetObject());
-	Ar << SoftObject;
-
-	if (Ar.IsLoading())
-	{
-		Handle.ManagerInterface = FActorInstanceManagerInterface(SoftObject.Get());
-	}
 
 	return Ar;
 }
+

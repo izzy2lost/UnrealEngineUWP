@@ -14,7 +14,7 @@
 #include "Physics/Experimental/ChaosInterfaceWrapper.h"
 
 #include "PhysicsEngine/CollisionQueryFilterCallback.h"
-#include "Engine/ActorInstanceManagerInterface.h"
+#include "GameFramework/LightWeightInstanceManager.h"
 #include "PhysicsProxy/SingleParticlePhysicsProxy.h"
 #include "PhysicsProxy/GeometryCollectionPhysicsProxy.h"
 
@@ -186,7 +186,14 @@ static void SetHitResultFromShapeAndFaceIndex(const FPhysicsShape& Shape,  const
 	{
 		OutResult.Component = OwningComponent;
 		AActor* Owner = OwningComponent->GetOwner();
-		OutResult.HitObjectHandle = FActorInstanceHandle(Owner);
+		if (ALightWeightInstanceManager* LWIManager = Cast<ALightWeightInstanceManager>(Owner))
+		{
+			OutResult.HitObjectHandle = FActorInstanceHandle(LWIManager, OutResult.Item);
+		}
+		else
+		{
+			OutResult.HitObjectHandle = FActorInstanceHandle(OwningComponent->GetOwner());
+		}
 
 		if (bReturnPhysMat)
 		{
@@ -603,10 +610,9 @@ void ConvertQueryOverlap(const FPhysicsShape& Shape, const FPhysicsActor& Actor,
         BodyInst = FPhysicsInterface::ShapeToOriginalBodyInstance(BodyInst, &Shape);
 		if (const UPrimitiveComponent* OwnerComponent = BodyInst->OwnerComponent.Get())
 		{
-			UObject* Outer = OwnerComponent->GetOuter();
-			if (Outer && Outer->Implements<UActorInstanceManagerInterface>())
+			if (ALightWeightInstanceManager* LWIManager = Cast<ALightWeightInstanceManager>(OwnerComponent->GetOwner()))
 			{
-				OutOverlap.OverlapObjectHandle = FActorInstanceHandle(Outer, OwnerComponent, BodyInst->InstanceBodyIndex);
+				OutOverlap.OverlapObjectHandle = FActorInstanceHandle(LWIManager, BodyInst->InstanceBodyIndex);
 			}
 			else
 			{
