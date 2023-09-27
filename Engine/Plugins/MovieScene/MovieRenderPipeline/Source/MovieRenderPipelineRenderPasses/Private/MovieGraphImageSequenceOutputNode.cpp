@@ -209,9 +209,10 @@ void UMovieGraphImageSequenceOutputNode::OnReceiveImageDataImpl(UMovieGraphPipel
 		Params.RootFrameNumberRel = Payload->TraversalContext.Time.OutputFrameNumber;
 		//Params.ShotFrameNumberRel = Payload->TraversalCOntext.Time.ShotFrameNumberRel
 		//Params.FileMetadata = ToDo: Track File Metadata
-		Params.Version = 1; // ToDo: Track versions
 		Params.ZeroPadFrameNumberCount = OutputSettingNode->ZeroPadFrameNumbers;
 		Params.FrameNumberOffset = OutputSettingNode->FrameNumberOffset;
+		Params.EvaluatedConfig = InRawFrameData->EvaluatedConfig.Get();
+		Params.Version = Shot->ShotInfo.VersionNumber;
 
 		// If time dilation is in effect, RootFrameNumber and ShotFrameNumber will contain duplicates and the files will overwrite each other, 
 		// so we force them into relative mode and then warn users we did that (as their numbers will jump from say 1001 -> 0000).
@@ -544,6 +545,7 @@ FString UMovieGraphImageSequenceOutputNode_EXR::ResolveOutputFilename(
 	Params.Job = InPipeline->GetCurrentJob();
 	Params.Shot = InPipeline->GetActiveShotList()[InRawFrameData->TraversalContext.ShotIndex];
 	Params.EvaluatedConfig = InRawFrameData->EvaluatedConfig.Get();
+	Params.Version = Params.Shot->ShotInfo.VersionNumber;
 	
 	FString FinalFilePath = UMovieGraphBlueprintLibrary::ResolveFilenameFormatArguments(FilePathFormatString, Params, OutResolveArgs);
 

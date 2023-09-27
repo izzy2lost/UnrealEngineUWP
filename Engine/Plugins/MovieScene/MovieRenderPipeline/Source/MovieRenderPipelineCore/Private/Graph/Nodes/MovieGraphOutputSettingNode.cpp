@@ -9,8 +9,9 @@ UMovieGraphOutputSettingNode::UMovieGraphOutputSettingNode()
 	, bOverwriteExistingOutput(true)
 	, ZeroPadFrameNumbers(4)
 	, FrameNumberOffset(0)
+	, bAutoVersion(true)
+	, VersionNumber(1)
 {
-
 	FileNameFormat = TEXT("{sequence_name}.{frame_number}");
 	OutputDirectory.Path = TEXT("{project_dir}/Saved/MovieRenders/");
 }

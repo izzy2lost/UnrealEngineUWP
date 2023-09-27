@@ -110,6 +110,10 @@ struct FMovieGraphFilenameResolveParams
 	UPROPERTY(BlueprintReadWrite, EditAnywhere, Category = "Movie Graph")
 	bool bForceRelativeFrameNumbers;
 
+	/** If specified, this is the filename that will be used instead of building it from the Output Setting node. */
+	UPROPERTY(BlueprintReadWrite, EditAnywhere, Category = "Movie Graph")
+	FString FileNameOverride;
+
 	/** 
 	* If true, If the format string is a relative path, then the resulting resolved path will be converted to an absolute path.
 	* Assumes that the relative path should be resolved relative to the engine/editor executable.

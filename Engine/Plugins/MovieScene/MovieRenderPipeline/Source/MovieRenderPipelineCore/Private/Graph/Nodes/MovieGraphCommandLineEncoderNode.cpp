@@ -357,12 +357,11 @@ FString UMovieGraphCommandLineEncoderNode::GetResolvedOutputFilename(const FMovi
 	FMovieGraphFilenameResolveParams ResolveParams;
 	ResolveParams.InitializationTime = CachedPipeline->GetInitializationTime();
 	ResolveParams.Job = CachedPipeline->GetCurrentJob();
-	ResolveParams.Shot = Shot.IsValid() ? Shot.Get() : nullptr;
+	ResolveParams.Shot = Shot.Get();
 	ResolveParams.FileNameFormatOverrides = FormatOverrides;
 	ResolveParams.EvaluatedConfig = CachedPipeline->GetTimeStepInstance()->GetCalculatedTimeData().EvaluatedConfig;
 	ResolveParams.RenderDataIdentifier = RenderIdentifier;
-	// int32 VersionNumber = 0; // TODO: Track versions
-	// FileNameFormatString.ReplaceInline(TEXT("{version}"), *FString::Printf(TEXT("v%0*d"), 3, VersionNumber));
+	ResolveParams.Version = Shot.IsValid() ? Shot->ShotInfo.VersionNumber : UMovieGraphBlueprintLibrary::ResolveVersionNumber(ResolveParams);
 
 	FMovieGraphResolveArgs FinalFormatArgs;
 	FString FinalFilePath = UMovieGraphBlueprintLibrary::ResolveFilenameFormatArguments(FileNameFormatString, ResolveParams, FinalFormatArgs);

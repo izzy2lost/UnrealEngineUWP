@@ -146,8 +146,7 @@ FString UMovieGraphAudioOutputNode::GenerateOutputPath(const FMovieGraphRenderDa
 	};
 	ResolveParams.EvaluatedConfig = EvaluatedConfig;
 	ResolveParams.RenderDataIdentifier = InRenderIdentifier;
-	// int32 VersionNumber = 0; // TODO: Track versions
-	// FileNameFormatString.ReplaceInline(TEXT("{version}"), *FString::Printf(TEXT("v%0*d"), 3, VersionNumber));
+	ResolveParams.Version = InShot->ShotInfo.VersionNumber;
 
 	// Generate a filename for this output file
 	FMovieGraphResolveArgs FinalFormatArgs;

@@ -315,7 +315,6 @@ void UMovieGraphPipeline::BuildShotListFromDataSource()
 		const FFrameRate FinalFrameRate = UMovieGraphBlueprintLibrary::GetEffectiveFrameRate(OutputNode, SourceFrameRate);
 		const FFrameRate TickResolution = GetDataSourceInstance()->GetTickResolution();
 
-
 		UMovieGraphWarmUpSettingNode* WarmUpNode = EvaluatedConfig->GetSettingForBranch<UMovieGraphWarmUpSettingNode>(UMovieGraphSettingNode::GlobalsPinName);
 		
 		const bool bPrePass = true;
@@ -326,6 +325,7 @@ void UMovieGraphPipeline::BuildShotListFromDataSource()
 		Shot->ShotInfo.NumEngineWarmUpFramesRemaining = WarmUpNode->NumWarmUpFrames;
 		Shot->ShotInfo.bEmulateFirstFrameMotionBlur = WarmUpNode->bEmulateMotionBlur;
 		Shot->ShotInfo.CalculateWorkMetrics(GetDataSourceInstance());
+		Shot->ShotInfo.VersionNumber = ResolveVersionForShot(Shot, EvaluatedConfig);
 	}
 
 	// Initialize the time step instance to be the first one. This is usually set up by the shot, but some logic may attempt
@@ -744,6 +744,54 @@ void UMovieGraphPipeline::RenderFrame()
 	const FMovieGraphTimeStepData& TimeStepData = GetTimeStepInstance()->GetCalculatedTimeData();
 
 	GraphRendererInstance->Render(TimeStepData);
+}
+
+int32 UMovieGraphPipeline::ResolveVersionForShot(const TObjectPtr<UMoviePipelineExecutorShot>& Shot, const TObjectPtr<UMovieGraphEvaluatedConfig>& EvaluatedConfig)
+{	
+	int32 HighestVersionFound = 1;
+	
+	FMovieGraphFilenameResolveParams ResolveParams;
+	ResolveParams.EvaluatedConfig = EvaluatedConfig;
+	ResolveParams.Shot = Shot;
+	ResolveParams.Job = GetCurrentJob();
+
+	const FMovieGraphTimeStepData& ShotTimeStepInstance = GraphTimeStepInstances.Last()->GetCalculatedTimeData();
+
+	for (const FName& BranchName : EvaluatedConfig->GetBranchNames())
+	{
+		constexpr bool bIncludeCDOs = true;
+		constexpr bool bExactMatch = true;
+		const UMovieGraphOutputSettingNode* BranchOutputSettingNode = EvaluatedConfig->GetSettingForBranch<UMovieGraphOutputSettingNode>(BranchName, bIncludeCDOs, bExactMatch);
+
+		// TODO: The RenderDataIdentifier needs to be fully populated in order to resolve the version reliably. For
+		// example, {renderer_name} may be used as a directory, and discovering files correctly depends on that token
+		// being resolved. We can loop over all renderer and file output nodes here since the branches are already being
+		// iterated, and resolve a version for each (still using the highest version found as the final resolved
+		// version). Note that to do this correctly, we need a way of asking these nodes for their renderer name and all
+		// possible sub-resource names.
+		ResolveParams.InitializationTime = GetInitializationTime();
+		ResolveParams.DefaultFrameRate = ShotTimeStepInstance.FrameRate;
+		ResolveParams.FrameNumberOffset = BranchOutputSettingNode->FrameNumberOffset;
+		ResolveParams.RenderDataIdentifier.RootBranchName = BranchName;
+		ResolveParams.RenderDataIdentifier.CameraName = Shot->InnerName;
+		// ResolveParams.RenderDataIdentifier.RendererName = ?
+		// ResolveParams.RenderDataIdentifier.SubResourceName = ?
+		ResolveParams.RootFrameNumber = ShotTimeStepInstance.RootFrameNumber.Value;
+		ResolveParams.ShotFrameNumber = ShotTimeStepInstance.ShotFrameNumber.Value;
+		ResolveParams.bForceRelativeFrameNumbers = false;	// TODO: This should not be hardcoded
+		// ResolveParams.FileNameFormatOverrides = ?
+		ResolveParams.RootFrameNumberRel = ShotTimeStepInstance.OutputFrameNumber;
+		// ResolveParams.ShotFrameNumberRel = ?
+		ResolveParams.ZeroPadFrameNumberCount = BranchOutputSettingNode->ZeroPadFrameNumbers;
+
+		const int32 BranchVersion = UMovieGraphBlueprintLibrary::ResolveVersionNumber(ResolveParams);
+		if (BranchVersion > HighestVersionFound)
+		{
+			HighestVersionFound = BranchVersion;
+		}
+	}
+	
+	return HighestVersionFound;
 }
 
 void UMovieGraphPipeline::RequestShutdownImpl(bool bIsError)

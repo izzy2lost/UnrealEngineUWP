@@ -525,7 +525,7 @@ public:
 	
 	/** Cached Tick Resolution the movie scene this range was generated for is in. Can be different than the root due to mixed tick resolutions. */
 	FFrameRate CachedShotTickResolution;
-public:
+
 	/** The current state of processing this Shot is in. Not all states will be passed through. */
 	EMovieRenderShotState State;
 
@@ -547,14 +547,13 @@ public:
 	/** Metrics - How much work has been done for this particular shot and how much do we estimate we have to do? */
 	FMoviePipelineSegmentWorkMetrics WorkMetrics;
 
-public:
 	/** Have we evaluated the motion blur frame? Only used if bEvaluateMotionBlurOnFirstFrame is set */
 	bool bHasEvaluatedMotionBlurFrame;
 
 	/** How many engine warm up frames are left to process for this shot. May be zero. */
 	int32 NumEngineWarmUpFramesRemaining;
 
-	/** What version number should this shot use when resolving format arguments. */
+	/** What version number should this shot use when resolving format arguments. This is the highest version number found across all branches. */
 	int32 VersionNumber;
 };
 

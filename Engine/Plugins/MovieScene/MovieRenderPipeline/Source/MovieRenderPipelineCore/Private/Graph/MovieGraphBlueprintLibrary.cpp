@@ -5,6 +5,8 @@
 #include "Graph/MovieGraphPipeline.h"
 #include "Graph/Nodes/MovieGraphOutputSettingNode.h"
 #include "Graph/Nodes/MovieGraphRenderLayerNode.h"
+#include "HAL/FileManager.h"
+#include "Internationalization/Regex.h"
 #include "MoviePipelineBlueprintLibrary.h"
 #include "MoviePipelineUtils.h"
 
@@ -144,6 +146,9 @@ FString UMovieGraphBlueprintLibrary::ResolveFilenameFormatArguments(const FStrin
 	// but we don't actually want a value there (unless there's a collision). So we override it with an empty string by default.
 	OutMergedFormatArgs.FilenameArguments.Add(TEXT("file_dup"), FString());
 
+	// Format the {version} token so it's of the form "v###"
+	OutMergedFormatArgs.FilenameArguments.Add(TEXT("version"), FString::Printf(TEXT("v%0*d"), 3, InParams.Version));
+
 	// Overwrite any {tokens} with the user-supplied overrides if needed. This allows different requesters to share the same variables (ie: filename extension)
 	for (const TPair<FString, FString>& KVP : InParams.FileNameFormatOverrides)
 	{
@@ -202,6 +207,89 @@ FString UMovieGraphBlueprintLibrary::ResolveFilenameFormatArguments(const FStrin
 
 		++DuplicateIndex;
 	}
+}
+
+int32 UMovieGraphBlueprintLibrary::ResolveVersionNumber(FMovieGraphFilenameResolveParams InParams, const bool bGetNextVersion)
+{
+	// Note: InParams is passed by copy rather than const& because it is modified within this method.
+	
+	if (!InParams.EvaluatedConfig)
+	{
+		FFrame::KismetExecutionMessage(TEXT("Cannot resolve version number without a valid evaluated graph to pull settings from."), ELogVerbosity::Error);
+		return -1;
+	}
+
+	constexpr bool bIncludeCDOs = true;
+	constexpr bool bExactMatch = true;
+	const UMovieGraphOutputSettingNode* OutputSettingNode = InParams.EvaluatedConfig->GetSettingForBranch<UMovieGraphOutputSettingNode>(UMovieGraphNode::GlobalsPinName, bIncludeCDOs, bExactMatch);
+	if (!OutputSettingNode->bAutoVersion)
+	{
+		return OutputSettingNode->VersionNumber;
+	}
+
+	// Calculate a version number by looking at the output path and then scanning for a version token.
+	const FString FileNameFormatString = InParams.FileNameOverride.Len() > 0
+		? InParams.FileNameOverride
+		: OutputSettingNode->OutputDirectory.Path / OutputSettingNode->FileNameFormat;
+
+	// Force the Version string to stay as {version} so we can substring based on it later.
+	InParams.FileNameFormatOverrides.Add(TEXT("version"), TEXT("{version}"));
+
+	FMovieGraphResolveArgs FinalFormatArgs;
+	FString FinalPath = ResolveFilenameFormatArguments(FileNameFormatString, InParams, FinalFormatArgs);
+	FinalPath = FPaths::ConvertRelativePathToFull(FinalPath);
+	FPaths::NormalizeFilename(FinalPath);
+
+	// Can't resolve a version if it's not clear from the path where the version number will be used.
+	if (!FinalPath.Contains(TEXT("{version}")))
+	{
+		return -1;
+	}
+	
+	int32 HighestVersion = 0;
+
+	// FinalPath can have {version} either in a folder name or in a file name. We need to find the 'parent' of either the
+	// file or folder that contains it. We can do this by looking for {version} and then finding the last "/" character,
+	// which will be the containing folder.
+	const int32 VersionStringIndex = FinalPath.Find(TEXT("{version}"), ESearchCase::Type::IgnoreCase, ESearchDir::Type::FromStart);
+	if (VersionStringIndex >= 0)
+	{
+		const int32 LastParentFolder = FinalPath.Find(TEXT("/"), ESearchCase::Type::IgnoreCase, ESearchDir::Type::FromEnd, VersionStringIndex);
+		FinalPath.LeftInline(LastParentFolder + 1);
+
+		// Now that we have the parent folder of either the folder with the version token, or the file with the version
+		// token, we will look through all immediate children and scan for version tokens so we can find the highest one.
+		const FRegexPattern VersionSearchPattern(TEXT("v([0-9]{3})"));
+		constexpr bool bFindFiles = true;
+		constexpr bool bFindDirectories = true;
+		const FString SearchString = FinalPath / TEXT("*.*");
+		TArray<FString> FoundFilesAndFoldersInDirectory;
+		IFileManager& FileManager = IFileManager::Get();
+		FileManager.FindFiles(FoundFilesAndFoldersInDirectory, *SearchString, bFindFiles, bFindDirectories);
+
+		for (const FString& Path : FoundFilesAndFoldersInDirectory)
+		{
+			FRegexMatcher Regex(VersionSearchPattern, *Path);
+			if (Regex.FindNext())
+			{
+				FString Result = Regex.GetCaptureGroup(0);
+				if (Result.Len() > 0)
+				{
+					// Strip the "v" token off, expected pattern is vXXX
+					Result.RightChopInline(1);
+				}
+
+				int32 VersionNumber = 0;
+				LexFromString(VersionNumber, *Result);
+				if (VersionNumber > HighestVersion)
+				{
+					HighestVersion = VersionNumber;
+				}
+			}
+		}
+	}
+
+	return HighestVersion + (bGetNextVersion ? 1 : 0);
 }
 
 FIntPoint UMovieGraphBlueprintLibrary::GetEffectiveOutputResolution(UMovieGraphEvaluatedConfig* InEvaluatedGraph, const FName& InBranchName)

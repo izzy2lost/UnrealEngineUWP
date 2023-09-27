@@ -150,6 +150,9 @@ protected:
 	template<typename T>
 	TArray<TPair<FName, T*>> GetSettingForActiveRenderLayers(const bool bIncludeCDOs, const bool bExactMatch);
 
+	/** Resolve the version number that should be used for the specified shot (in {version} tokens). */
+	int32 ResolveVersionForShot(const TObjectPtr<UMoviePipelineExecutorShot>& Shot, const TObjectPtr<UMovieGraphEvaluatedConfig>& EvaluatedConfig);
+
 	// UMoviePipelineBase Interface
 	virtual void RequestShutdownImpl(bool bIsError) override;
 	virtual void ShutdownImpl(bool bIsError) override;

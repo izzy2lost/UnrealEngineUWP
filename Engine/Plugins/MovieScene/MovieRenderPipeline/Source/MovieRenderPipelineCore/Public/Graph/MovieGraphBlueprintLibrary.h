@@ -44,6 +44,14 @@ public:
 	static FString ResolveFilenameFormatArguments(const FString& InFormatString, const FMovieGraphFilenameResolveParams& InParams, FMovieGraphResolveArgs& OutMergedFormatArgs);
 
 	/**
+	 * If the version number is explicitly specified on the Output Setting node, returns that. Otherwise searches the
+	 * output directory for the highest version that already exists (and increments it by one if bGetNextVersion is
+	 * true). Returns -1 if the version could not be resolved.
+	 */
+	UFUNCTION(BlueprintCallable, Category = "Movie Graph")
+	static int32 ResolveVersionNumber(FMovieGraphFilenameResolveParams InParams, const bool bGetNextVersion = true);
+
+	/**
 	* In case of overscan percentage being higher than 0, additional pixels are rendered. This function returns the resolution with overscan taken into account.
 	* @param	InEvaluatedGraph	- The evaluated graph that will provide context for resolving the resolution
 	* @param	InBranchName		- The graph branch that the output resolution should be resolved on
