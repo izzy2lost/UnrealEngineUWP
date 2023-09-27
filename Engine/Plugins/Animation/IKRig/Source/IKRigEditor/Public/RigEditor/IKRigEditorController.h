@@ -174,11 +174,13 @@ public:
 	// show single SOLVER settings in details view 
 	void ShowDetailsForSolver(const int32 SolverIndex) const;
 	// show nothing in details view 
-	void ShowEmptyDetails() const;
+	void ShowAssetDetails() const;
 	// show selected items in details view 
 	void ShowDetailsForElements(const TArray<TSharedPtr<FIKRigTreeElement>>& InItems) const;
 	// callback when detail is edited 
 	void OnFinishedChangingDetails(const FPropertyChangedEvent& PropertyChangedEvent) const;
+	// returns true if the supplied UObject is being shown in the details panel
+	bool IsObjectInDetailsView(const UObject* Object) const;
 	
 	// set details tab view 
 	void SetDetailsView(const TSharedPtr<class IDetailsView>& InDetailsView);

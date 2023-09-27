@@ -112,6 +112,19 @@ void FIKRigEditorToolkit::BindCommands()
         Commands.Reset,
         FExecuteAction::CreateSP(EditorController, &FIKRigEditorController::Reset),
 		EUIActionRepeatMode::RepeatDisabled);
+
+	ToolkitCommands->MapAction(
+		Commands.ShowAssetSettings,
+		FExecuteAction::CreateLambda([this]()
+		{
+			return EditorController->ShowAssetDetails();
+		}),
+		FCanExecuteAction(),
+		FIsActionChecked::CreateLambda([this]() ->bool
+		{
+			const UIKRigDefinition* Asset = EditorController->AssetController->GetAsset();
+			return EditorController->IsObjectInDetailsView(Asset);	
+		}));
 }
 
 void FIKRigEditorToolkit::ExtendToolbar()
@@ -138,6 +151,20 @@ void FIKRigEditorToolkit::FillToolbar(FToolBarBuilder& ToolbarBuilder)
 			TAttribute<FText>(),
 			TAttribute<FText>(),
 			FSlateIcon(FAppStyle::Get().GetStyleSetName(),"Icons.Refresh"));
+	}
+	ToolbarBuilder.EndSection();
+
+	ToolbarBuilder.AddSeparator();
+	ToolbarBuilder.AddWidget(SNew(SSpacer), NAME_None, true, HAlign_Right);
+
+	ToolbarBuilder.BeginSection("Show Settings");
+	{
+		ToolbarBuilder.AddToolBarButton(
+		FIKRigCommands::Get().ShowAssetSettings,
+		NAME_None,
+		TAttribute<FText>(),
+		TAttribute<FText>(),
+		FSlateIcon(FIKRigEditorStyle::Get().GetStyleSetName(),"IKRig.AssetSettings"));
 	}
 	ToolbarBuilder.EndSection();
 }

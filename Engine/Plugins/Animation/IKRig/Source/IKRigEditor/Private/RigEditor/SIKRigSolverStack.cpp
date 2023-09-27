@@ -475,7 +475,7 @@ void SIKRigSolverStack::ShowDetailsForItem(TSharedPtr<FSolverStackElement> InIte
 			return;
 		}
 		
-		Controller->ShowEmptyDetails();
+		Controller->ShowAssetDetails();
 	}
 	else
 	{

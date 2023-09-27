@@ -18,9 +18,12 @@ public:
 	)
 	{}
 	
-	/** reset whole system to initial state */
+	// reset whole system to initial state
 	TSharedPtr< FUICommandInfo > Reset;
 
-	/** initialize commands */
+	// show settings of the asset in the details panel
+	TSharedPtr< FUICommandInfo > ShowAssetSettings;
+
+	// initialize commands
 	virtual void RegisterCommands() override;
 };

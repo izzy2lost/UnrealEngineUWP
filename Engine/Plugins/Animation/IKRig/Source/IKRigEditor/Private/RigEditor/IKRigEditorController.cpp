@@ -503,7 +503,7 @@ void FIKRigEditorController::ClearSelection()
 		SkeletonView->TreeView->ClearSelection();	
 	}
 	
-	ShowEmptyDetails();
+	ShowAssetDetails();
 }
 
 void FIKRigEditorController::HandleGoalSelectedInViewport(const FName& GoalName, bool bReplace) const
@@ -790,7 +790,7 @@ void FIKRigEditorController::ShowDetailsForSolver(const int32 SolverIndex) const
 	DetailsView->SetObject(AssetController->GetSolverAtIndex(SolverIndex));
 }
 
-void FIKRigEditorController::ShowEmptyDetails() const
+void FIKRigEditorController::ShowAssetDetails() const
 {
 	DetailsView->SetObject(AssetController->GetAsset());
 }
@@ -799,7 +799,7 @@ void FIKRigEditorController::ShowDetailsForElements(const TArray<TSharedPtr<FIKR
 {
 	if (!InItems.Num())
 	{
-		ShowEmptyDetails();
+		ShowAssetDetails();
 		return;
 	}
 
@@ -862,11 +862,35 @@ void FIKRigEditorController::OnFinishedChangingDetails(const FPropertyChangedEve
 	}
 }
 
+bool FIKRigEditorController::IsObjectInDetailsView(const UObject* Object) const
+{
+	if (!DetailsView.IsValid())
+	{
+		return false;
+	}
+
+	if (!Object)
+	{
+		return false;
+	}
+	
+	TArray<TWeakObjectPtr<UObject>> SelectedObjects = DetailsView->GetSelectedObjects();
+	for (TWeakObjectPtr<UObject> SelectedObject : SelectedObjects)
+	{
+		if (SelectedObject.Get() == Object)
+		{
+			return true;
+		}
+	}
+
+	return false;
+}
+
 void FIKRigEditorController::SetDetailsView(const TSharedPtr<IDetailsView>& InDetailsView)
 {
 	DetailsView = InDetailsView;
 	DetailsView->OnFinishedChangingProperties().AddSP(this, &FIKRigEditorController::OnFinishedChangingDetails);
-	ShowEmptyDetails();
+	ShowAssetDetails();
 }
 
 void FIKRigEditorController::PromptToAssignGoalToChain(const FName NewGoalName) const
