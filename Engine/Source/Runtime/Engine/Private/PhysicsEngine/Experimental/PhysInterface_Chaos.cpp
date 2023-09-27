@@ -764,6 +764,7 @@ void FPhysInterface_Chaos::SetMaterials(const FPhysicsShapeHandle& InShape, cons
 		TArray<Chaos::FMaterialHandle> NewMaterialMaskMaterialHandles;
 
 		NewMaterialMaskHandles.Reserve(InMaterialMasks.Num());
+		NewMaterialMaskMaps.Reserve(InMaterialMasks.Num() * EPhysicalMaterialMaskColor::MAX);
 
 		int MaskMapMatIdx = 0;
 
