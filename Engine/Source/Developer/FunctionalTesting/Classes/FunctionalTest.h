@@ -318,6 +318,12 @@ protected:
 	TObjectPtr<AActor> ObservationPoint;
 
 	/**
+	 * Allows for garbage collection to be delayed. If delayed, garbage collection will be triggered at the end of a test run
+	 */
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category="Functional Testing", AdvancedDisplay)
+	uint32 bShouldDelayGarbageCollection:1;
+
+	/**
 	 * A random number stream that you can use during testing.  This number stream will be consistent
 	 * every time the test is run.
 	 */

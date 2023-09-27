@@ -122,6 +122,7 @@ AFunctionalTest::AFunctionalTest( const FObjectInitializer& ObjectInitializer )
 	, bIsEnabled(true)
 	, LogErrorHandling(EFunctionalTestLogHandling::ProjectDefault)
 	, LogWarningHandling(EFunctionalTestLogHandling::ProjectDefault)
+	, bShouldDelayGarbageCollection(true)
 	, Result(EFunctionalTestResult::Invalid)
 	, PreparationTimeLimit(15.0f)
 	, TimeLimit(60.0f)
@@ -332,8 +333,12 @@ void AFunctionalTest::Tick(float DeltaSeconds)
 	}
 	SCOPE_CYCLE_COUNTER(STAT_FunctionalTest_TickTest);
 	
-	//Do not collect garbage during the test. We force GC at the end.
-	GEngine->DelayGarbageCollection();
+	//Allow Functional Tests to configure if GC is delayed until the end. 
+	if (bShouldDelayGarbageCollection)
+	{
+		//Do not collect garbage during the test. We force GC at the end.
+		GEngine->DelayGarbageCollection();
+	}
 
 	TotalTime += DeltaSeconds;
 
