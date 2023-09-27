@@ -1,5 +1,7 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 
+#pragma once
+
 #include "Internationalization/Text.h"
 
 enum class EAppMsgCategory : uint8;
