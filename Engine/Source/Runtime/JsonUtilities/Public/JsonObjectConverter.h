@@ -22,7 +22,6 @@
 #include "Templates/SharedPointer.h"
 #include "Trace/Detail/Channel.h"
 #include "UObject/Class.h"
-#include "UObject/Field.h"
 
 enum class EJsonObjectConversionFlags
 {
