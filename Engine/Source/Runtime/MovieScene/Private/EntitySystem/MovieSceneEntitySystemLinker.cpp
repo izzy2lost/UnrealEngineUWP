@@ -458,6 +458,17 @@ void UMovieSceneEntitySystemLinker::ResetActiveRunners()
 	}
 }
 
+void UMovieSceneEntitySystemLinker::DestroyInstanceImmediately(UE::MovieScene::FRootInstanceHandle Instance)
+{
+	// Ensure that any changes are under a new serial
+	EntityManager.IncrementSystemSerial();
+
+	// Destroy the instance and any sub sequences. Any pre-existing NeedsLink entities will be forcibly made NeedsUnlink and cleaned as garbage
+	GetInstanceRegistry()->DestroyInstance(Instance);
+	CleanGarbage();
+	ResetActiveRunners();
+}
+
 void UMovieSceneEntitySystemLinker::OnObjectsReplaced(const TMap<UObject*, UObject*>& ReplacementMap)
 {
 #if WITH_EDITOR

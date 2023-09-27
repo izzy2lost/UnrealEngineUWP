@@ -344,6 +344,8 @@ public:
 
 	MOVIESCENE_API void ResetActiveRunners();
 
+	MOVIESCENE_API void DestroyInstanceImmediately(UE::MovieScene::FRootInstanceHandle Instance);
+
 private:
 
 	MOVIESCENE_API UMovieSceneEntitySystem* LinkSystemImpl(TSubclassOf<UMovieSceneEntitySystem> InClassType);

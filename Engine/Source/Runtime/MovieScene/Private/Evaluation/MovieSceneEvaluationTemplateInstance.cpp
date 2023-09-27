@@ -8,6 +8,7 @@
 #include "Compilation/MovieSceneCompiledDataManager.h"
 #include "EntitySystem/MovieSceneEntitySystemLinker.h"
 #include "EntitySystem/MovieSceneEntitySystemRunner.h"
+#include "EntitySystem/BuiltInComponentTypes.h"
 #include "Evaluation/Instances/MovieSceneTrackEvaluator.h"
 
 #include "Sections/MovieSceneSubSection.h"
@@ -35,18 +36,9 @@ void FMovieSceneRootEvaluationTemplateInstance::TearDown()
 	using namespace UE::MovieScene;
 
 	// Avoid redundant work if the linker is being destroyed anyway
-	if (EntitySystemLinker && IsValidChecked(EntitySystemLinker) && !EntitySystemLinker->IsUnreachable() && !EntitySystemLinker->HasAnyFlags(RF_BeginDestroyed))
+	if (RootInstanceHandle.IsValid() && EntitySystemLinker && IsValidChecked(EntitySystemLinker) && !EntitySystemLinker->IsUnreachable() && !EntitySystemLinker->HasAnyFlags(RF_BeginDestroyed))
 	{
-		if (TSharedPtr<FMovieSceneEntitySystemRunner> Runner = WeakRunner.Pin())
-		{
-			Runner->AbandonAndDestroyInstance(RootInstanceHandle);
-			RootInstanceHandle = FRootInstanceHandle();
-		}
-		else
-		{
-			EntitySystemLinker->GetInstanceRegistry()->DestroyInstance(RootInstanceHandle);
-			EntitySystemLinker->ResetActiveRunners();
-		}
+		EntitySystemLinker->DestroyInstanceImmediately(RootInstanceHandle);
 	}
 
 	RootInstanceHandle = UE::MovieScene::FRootInstanceHandle();

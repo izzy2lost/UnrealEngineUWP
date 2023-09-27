@@ -646,7 +646,7 @@ UE::MovieScene::ERunnerFlushResult FMovieSceneEntitySystemRunner::GameThread_Con
 	else for (int32 UpdateIndex = 0; UpdateIndex < UpdateQueue.Num(); ++UpdateIndex)
 	{
 		const FUpdateParamsAndContext& Request = UpdateQueue[UpdateIndex];
-		if (InstanceRegistry->IsHandleValid(Request.Params.InstanceHandle))
+		if (InstanceRegistry->IsHandleValid(Request.Params.InstanceHandle) && !EnumHasAnyFlags(Request.Params.UpdateFlags, ERunnerUpdateFlags::Finish | ERunnerUpdateFlags::Destroy))
 		{
 			FSequenceInstance& Instance = InstanceRegistry->MutateInstance(Request.Params.InstanceHandle);
 			if (Instance.IsRootSequence() && Instance.ConditionalRecompile(Linker))
