@@ -319,8 +319,10 @@ bool FInterchangeImportTest::RunTest(const FString& Path)
 		{
 			if (AActor* Actor = Cast<AActor>(ResultObject))
 			{
-				constexpr bool bShouldModifyLevel = false;
-				Actor->GetWorld()->RemoveActor(Actor, bShouldModifyLevel);
+				constexpr bool bShouldModifyLevel = true;
+				Actor->GetWorld()->EditorDestroyActor(Actor, bShouldModifyLevel);
+				// Call UObject::Rename directly on actor to avoid AActor::Rename which unnecessarily unregister and re-register components
+				Actor->UObject::Rename(nullptr, GetTransientPackage(), REN_DontCreateRedirectors | REN_ForceNoResetLoaders);
 			}
 			else
 			{
