@@ -350,6 +350,12 @@ void FAnimNode_RetargetPoseFromMesh::CopyBoneTransformsFromSource(USkeletalMeshC
 	{
 		SourceMeshComponentSpaceBoneTransforms.Append(ComponentToCopyFrom->GetComponentSpaceTransforms()); // copy directly
 	}
+
+	// strip all scale out of the pose values, the translation of a component-space pose has incorporated scale values
+	for (FTransform& Transform : SourceMeshComponentSpaceBoneTransforms)
+	{
+		Transform.SetScale3D(FVector::OneVector);
+	}
 }
 
 TObjectPtr<USkeletalMeshComponent> FAnimNode_RetargetPoseFromMesh::GetComponentToCopyPoseFrom() const
