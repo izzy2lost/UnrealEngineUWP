@@ -2,6 +2,8 @@
 
 
 #include "Dialogs/Dialogs.h"
+
+#include "Dialog/DialogUtils.h"
 #include "Dialogs/DialogsPrivate.h"
 #include "Misc/App.h"
 #include "Misc/AssertionMacros.h"
@@ -59,21 +61,7 @@ public:
 
 		TSharedPtr<SUniformGridPanel> ButtonBox;
 
-		const FSlateBrush* IconBrush = FAppStyle::Get().GetBrush("Icons.WarningWithColor.Large");
-		switch (InArgs._MessageCategory)
-		{
-		case EAppMsgCategory::Error:
-			IconBrush = FAppStyle::Get().GetBrush("Icons.ErrorWithColor.Large");
-			break;
-		case EAppMsgCategory::Success:
-			IconBrush = FAppStyle::Get().GetBrush("Icons.SuccessWithColor.Large");
-			break;
-		case EAppMsgCategory::Info:
-			IconBrush = FAppStyle::Get().GetBrush("Icons.InfoWithColor.Large");
-			break;
-		default:
-			break;
-		}
+		const FSlateBrush* IconBrush = FDialogUtils::GetMessageCategoryIcon(InArgs._MessageCategory);
 
 		this->ChildSlot
 		[	
@@ -279,21 +267,21 @@ public:
 		switch(ReturnType)
 		{
 		case EAppReturnType::No:
-			return LOCTEXT("EAppReturnTypeNo", "No");
+			return FDialogButtonTexts::Get().No;
 		case EAppReturnType::Yes:
-			return LOCTEXT("EAppReturnTypeYes", "Yes");
+			return FDialogButtonTexts::Get().Yes;
 		case EAppReturnType::YesAll:
-			return LOCTEXT("EAppReturnTypeYesAll", "Yes All");
+			return FDialogButtonTexts::Get().YesAll;
 		case EAppReturnType::NoAll:
-			return LOCTEXT("EAppReturnTypeNoAll", "No All");
+			return FDialogButtonTexts::Get().NoAll;
 		case EAppReturnType::Cancel:
-			return LOCTEXT("EAppReturnTypeCancel", "Cancel");
+			return FDialogButtonTexts::Get().Cancel;
 		case EAppReturnType::Ok:
-			return LOCTEXT("EAppReturnTypeOk", "OK");
+			return FDialogButtonTexts::Get().Ok;
 		case EAppReturnType::Retry:
-			return LOCTEXT("EAppReturnTypeRetry", "Retry");
+			return FDialogButtonTexts::Get().Retry;
 		case EAppReturnType::Continue:
-			return LOCTEXT("EAppReturnTypeContinue", "Continue");
+			return FDialogButtonTexts::Get().Continue;
 		default:
 			return LOCTEXT("MissingType", "MISSING RETURN TYPE");
 		}

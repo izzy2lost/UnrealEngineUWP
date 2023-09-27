@@ -6,7 +6,7 @@
 
 #include "Styling/AppStyle.h"
 #include "Styling/SlateBrush.h"
-#include "Widgets/Text/STextBlock.h"
+#include "Widgets/Text/SRichTextBlock.h"
 #include "Widgets/Input/SButton.h"
 #include "Widgets/Images/SImage.h"
 
@@ -14,14 +14,16 @@ void SMessageDialog::Construct(const FArguments& InArgs)
 {
 	Message = InArgs._Message;
 	
+	TSharedPtr<SRichTextBlock> RichTextBlock;
+
 	SCustomDialog::Construct(SCustomDialog::FArguments()
 		.Title(InArgs._Title)
 		.Content()
 		[
-			SNew(STextBlock)
-			.Text(InArgs._Message)
-			.Font(FAppStyle::Get().GetFontStyle("StandardDialog.LargeFont"))
+			SAssignNew(RichTextBlock, SRichTextBlock)
+			.Text(Message)
 			.WrapTextAt(InArgs._WrapMessageAt)
+			.Decorators(InArgs._Decorators)
 		]
 		.WindowArguments(InArgs._WindowArguments)
 		.RootPadding(16.f)
@@ -52,7 +54,12 @@ void SMessageDialog::Construct(const FArguments& InArgs)
 				.ColorAndOpacity(FSlateColor::UseForeground())
 			]
 		]
-		);
+	);
+
+	if (InArgs._DecoratorStyleSet)
+	{
+		RichTextBlock->SetDecoratorStyleSet(InArgs._DecoratorStyleSet);
+	}
 }
 
 FReply SMessageDialog::OnKeyDown(const FGeometry& MyGeometry, const FKeyEvent& InKeyEvent)
