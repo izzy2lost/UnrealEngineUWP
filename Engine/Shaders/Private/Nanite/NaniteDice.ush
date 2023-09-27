@@ -140,9 +140,9 @@ void FDiceTask::RunChild( uint LocalItemIndex )
 		UVW = TransformBarycentrics( UVW );
 
 		FBarycentrics Barycentrics;
-		Barycentrics.UVW 	= UVW;
-		Barycentrics.UVW_dx	= 0;
-		Barycentrics.UVW_dy	= 0;
+		Barycentrics.Value	 	= UVW;
+		Barycentrics.Value_dx	= 0;
+		Barycentrics.Value_dy	= 0;
 
 		VertCache( FirstVert + MaxVertIndex ) = CalculateSubpixelCoordinates( Raster, Shader.EvaluateDomain( Barycentrics ) );
 	}
@@ -164,15 +164,19 @@ void FDiceTask::RunChild( uint LocalItemIndex )
 	for( uint i = 0; i < 3; i++ )
 	{
 		FBarycentrics Barycentrics;
-		Barycentrics.UVW	= TessellatedPatch.GetVert( VertIndexes[i] );
-		Barycentrics.UVW_dx	= 0;	// float3( -1, 1, 0 ) / TessFactors.x;
-		Barycentrics.UVW_dy	= 0;	// float3( 0, -1, 1 ) / TessFactors.y;
+		Barycentrics.Value		= TessellatedPatch.GetVert( VertIndexes[i] );
+		Barycentrics.Value_dx	= 0;	// float3( -1, 1, 0 ) / TessFactors.x;
+		Barycentrics.Value_dy	= 0;	// float3( 0, -1, 1 ) / TessFactors.y;
 
 		Verts[i] = CalculateSubpixelCoordinates( Raster, Shader.EvaluateDomain( Barycentrics ) );
 	}
 #endif
 
 	FRasterTri Tri = SetupTriangle< NANITE_SUBPIXEL_SAMPLES, !NANITE_TWO_SIDED >( Raster.ScissorRect, Verts );
+
+	// Immediate dicing doesn't doesn't do near plane culling
+	if( min3( Verts[0].w, Verts[1].w, Verts[2].w ) < 0 )
+		Tri.bIsValid = false;
 
 	if( Tri.bIsValid )
 	{

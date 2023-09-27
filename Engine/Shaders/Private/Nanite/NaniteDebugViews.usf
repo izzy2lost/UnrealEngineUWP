@@ -233,7 +233,7 @@ void ExportDebugViewPS(
 					// Calculate perspective correct barycentric coordinates with screen derivatives
 					const FBarycentrics Barycentrics = CalculateTriangleBarycentrics(PixelClip, PointClip0, PointClip1, PointClip2, View.ViewSizeAndInvSize.zw);
 					
-					float3 Deltas = abs(Barycentrics.UVW_dx) + abs(Barycentrics.UVW_dy);
+					float3 Deltas = abs(Barycentrics.Value_dx) + abs(Barycentrics.Value_dy);
 
 					float SmoothingVal = 1.0f; // 0-10
 					float ThicknessVal = 0.05f; // 0-10
@@ -241,7 +241,7 @@ void ExportDebugViewPS(
 					float3 Smoothing = Deltas * SmoothingVal;
 					float3 Thickness = Deltas * ThicknessVal;
 
-					const float3 SmoothBarycentrics = smoothstep(Thickness, Thickness + Smoothing, Barycentrics.UVW);
+					const float3 SmoothBarycentrics = smoothstep(Thickness, Thickness + Smoothing, Barycentrics.Value);
 
 					const float MinBarycentrics = min3(SmoothBarycentrics.x, SmoothBarycentrics.y, SmoothBarycentrics.z);
 					if (MinBarycentrics == 1.0f)

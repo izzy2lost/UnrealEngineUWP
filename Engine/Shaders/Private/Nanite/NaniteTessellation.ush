@@ -15,7 +15,7 @@ uint EncodeBarycentrics( float3 Barycentrics )
 
 	// Normalize after rounding
 	FLATTEN
-	if( Barycentrics.x > Barycentrics.y && Barycentrics.x > Barycentrics.z )
+	if( Barycentrics.x > max( Barycentrics.y, Barycentrics.z ) )
 		Barycentrics.x = BarycentricMax - Barycentrics.y - Barycentrics.z;
 	else if( Barycentrics.y > Barycentrics.z )
 		Barycentrics.y = BarycentricMax - Barycentrics.x - Barycentrics.z;
@@ -261,10 +261,20 @@ struct FSplitPatch
 
 	float3 TransformBarycentrics( float3 Local )
 	{
-		return
+		precise float3 Global =
 			Barycentrics[0] * Local.x +
 			Barycentrics[1] * Local.y +
 			Barycentrics[2] * Local.z;
+		return Global;
+	}
+
+	FBarycentrics TransformBarycentrics( FBarycentrics Local )
+	{
+		FBarycentrics Global;
+		Global.Value	= TransformBarycentrics( Local.Value );
+		Global.Value_dx	= TransformBarycentrics( Local.Value_dx );
+		Global.Value_dy	= TransformBarycentrics( Local.Value_dy );
+		return Global;
 	}
 };
 

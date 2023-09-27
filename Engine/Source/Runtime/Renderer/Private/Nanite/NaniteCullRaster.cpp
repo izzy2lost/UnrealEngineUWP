@@ -1210,8 +1210,6 @@ class FMicropolyRasterizeCS : public FNaniteMaterialShader
 		}
 
 		FVirtualShadowMapArray::SetShaderDefines(OutEnvironment);
-
-		OutEnvironment.CompilerFlags.Add(CFLAG_HLSL2021);
 	}
 
 	void SetParameters(FRHIBatchedShaderParameters& BatchedParameters, const FViewInfo& View, const FMaterialRenderProxy* MaterialProxy, const FMaterial& Material)

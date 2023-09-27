@@ -2,19 +2,15 @@
 
 #pragma once
 
-#include "../Derivatives.ush"
+#include "../Barycentrics.ush"
 
 struct FRaytracingDerivatives
 {
-	float3 WorldPosition_DDX;
-	float3 WorldPosition_DDY;
-
-	float4 ScreenPosition_DDX;
-	float4 ScreenPosition_DDY;
+	TDual< float3 > WorldPosition;
+	TDual< float4 > ScreenPosition;
 	
 #if NUM_TEX_COORD_INTERPOLATORS
-	float2 TexCoords_DDX[NUM_TEX_COORD_INTERPOLATORS];
-	float2 TexCoords_DDY[NUM_TEX_COORD_INTERPOLATORS];
+	TDual< float2 > TexCoords[NUM_TEX_COORD_INTERPOLATORS];
 #endif
 };
 
@@ -35,12 +31,8 @@ void CalcInterpolants(
 	float2 TexCoords_Custom[NUM_TEX_COORD_INTERPOLATORS][3];
 #endif
 
-	const float2 Barycentrics = Attributes.GetBarycentrics();
-
-	float3 Weights = float3(
-		1 - Barycentrics.x - Barycentrics.y,
-		Barycentrics.x,
-		Barycentrics.y);
+	const float2 VW = Attributes.GetBarycentrics();
+	const float3 UVW = float3(1 - VW.x - VW.y, VW.x, VW.y);
 
 	for (int i = 0; i < 3; i++)
 	{
@@ -52,16 +44,20 @@ void CalcInterpolants(
 		FMaterialVertexParameters VertexParameters = GetMaterialVertexParameters(Input, VFIntermediates, WorldPositionExcludingWPO.xyz, TangentToLocal);
 
 		FVertexFactoryRayTracingInterpolants PerVertexInterpolants = VertexFactoryGetRayTracingInterpolants(Input, VFIntermediates, VertexParameters);
-		Interpolated = VertexFactoryInterpolate(PerVertexInterpolants, Weights[i], Interpolated, 1.0);
+		Interpolated = VertexFactoryInterpolate(PerVertexInterpolants, UVW[i], Interpolated, 1.0);
 
 		WorldPositions[i] = WorldPositionExcludingWPO.xyz;
 		TexCoords[i] = VertexFactoryGetRayTracingTextureCoordinate(PerVertexInterpolants);
 
-		#if (NUM_TEX_COORD_INTERPOLATORS) && !VERTEX_FACTORY_MODIFIES_INTERPOLATION && !VF_SUPPORTS_RAYTRACING_PREPARE_MATERIAL_PIXEL_PARAMETERS
+		#if (NUM_TEX_COORD_INTERPOLATORS)
 		UNROLL
 		for (uint TexCoordIndex=0;TexCoordIndex<NUM_TEX_COORD_INTERPOLATORS; ++TexCoordIndex)
 		{
+		#if !VERTEX_FACTORY_MODIFIES_INTERPOLATION && !VF_SUPPORTS_RAYTRACING_PREPARE_MATERIAL_PIXEL_PARAMETERS
 			TexCoords_Custom[TexCoordIndex][i] = GetUV(PerVertexInterpolants.InterpolantsVSToPS, TexCoordIndex);
+		#else
+			TexCoords_Custom[TexCoordIndex][i] = TexCoords[i];
+		#endif
 		}
 		#endif
 
@@ -92,14 +88,15 @@ void CalcInterpolants(
 
 	// Compute derivatives
 	const float2 PixelClip = (SvPosition.xy - View.ViewRectMin.xy) * View.ViewSizeAndInvSize.zw * float2(2, -2) + float2(-1, 1);
-	FBarycentrics BarycentricDerivatives = CalculateTriangleBarycentrics(PixelClip, ClipPositions[0], ClipPositions[1], ClipPositions[2], View.ViewSizeAndInvSize.zw);
-	ComputeDerivatives(BarycentricDerivatives, WorldPositions[0], WorldPositions[1], WorldPositions[2], OutDerivateData.WorldPosition_DDX, OutDerivateData.WorldPosition_DDY);
-	ComputeDerivatives(BarycentricDerivatives, ClipPositions[0], ClipPositions[1], ClipPositions[2], OutDerivateData.ScreenPosition_DDX, OutDerivateData.ScreenPosition_DDY);
+	FBarycentrics Barycentrics = CalculateTriangleBarycentrics(PixelClip, ClipPositions[0], ClipPositions[1], ClipPositions[2], View.ViewSizeAndInvSize.zw);
+	OutDerivateData.WorldPosition = Lerp( WorldPositions[0], WorldPositions[1], WorldPositions[2], Barycentrics );
+	OutDerivateData.ScreenPosition = Lerp( ClipPositions[0], ClipPositions[1], ClipPositions[2], Barycentrics );
+
 #if NUM_TEX_COORD_INTERPOLATORS > 0
 	UNROLL
 	for (uint TexCoordIndex = 0; TexCoordIndex < NUM_TEX_COORD_INTERPOLATORS; TexCoordIndex++)
 	{
-		ComputeDerivatives(BarycentricDerivatives, TexCoords_Custom[TexCoordIndex][0], TexCoords_Custom[TexCoordIndex][1], TexCoords_Custom[TexCoordIndex][2], OutDerivateData.TexCoords_DDX[TexCoordIndex], OutDerivateData.TexCoords_DDY[TexCoordIndex]);
+		OutDerivateData.TexCoords[TexCoordIndex] = Lerp( TexCoords_Custom[TexCoordIndex][0], TexCoords_Custom[TexCoordIndex][1], TexCoords_Custom[TexCoordIndex][2], Barycentrics );
 	}
 #endif
 }
@@ -120,18 +117,18 @@ void CalcInterpolants(in FRayCone RayCone, in FRayTracingIntersectionAttributes 
 
 void ApplyRaytracingDerivatives(inout FMaterialPixelParameters Out, in FRaytracingDerivatives In)
 {
-	Out.WorldPosition_DDX = In.WorldPosition_DDX;
-	Out.WorldPosition_DDY = In.WorldPosition_DDY;
+	Out.WorldPosition_DDX = In.WorldPosition.Value_dx;
+	Out.WorldPosition_DDY = In.WorldPosition.Value_dy;
 
-	Out.ScreenPosition_DDX = In.ScreenPosition_DDX;
-	Out.ScreenPosition_DDY = In.ScreenPosition_DDY;
+	Out.ScreenPosition_DDX = In.ScreenPosition.Value_dx;
+	Out.ScreenPosition_DDY = In.ScreenPosition.Value_dy;
 
 #if NUM_TEX_COORD_INTERPOLATORS
 	UNROLL
 	for (uint TexCoordIndex = 0; TexCoordIndex < NUM_TEX_COORD_INTERPOLATORS; TexCoordIndex++)
 	{
-		Out.TexCoords_DDX[TexCoordIndex] = In.TexCoords_DDX[TexCoordIndex];
-		Out.TexCoords_DDY[TexCoordIndex] = In.TexCoords_DDY[TexCoordIndex];
+		Out.TexCoords_DDX[TexCoordIndex] = In.TexCoords[TexCoordIndex].Value_dx;
+		Out.TexCoords_DDY[TexCoordIndex] = In.TexCoords[TexCoordIndex].Value_dy;
 	}
 #endif
 }

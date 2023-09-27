@@ -483,6 +483,9 @@ void FVertexFactory::ModifyCompilationEnvironment(const FVertexFactoryShaderPerm
 			OutEnvironment.SetDefine(TEXT("USE_SPLINE_MESH_SCENE_RESOURCES"), UseSplineMeshSceneResources(Parameters.Platform));
 		}
 	}
+
+	OutEnvironment.CompilerFlags.Add(CFLAG_ForceDXC);
+	OutEnvironment.CompilerFlags.Add(CFLAG_HLSL2021);
 }
 
 void FVertexFactory::GetPSOPrecacheVertexFetchElements(EVertexInputStreamType VertexInputStreamType, FVertexDeclarationElementList& Elements)
@@ -2485,6 +2488,8 @@ void FNaniteVertexFactory::ModifyCompilationEnvironment(const FVertexFactoryShad
 		}
 	}
 
+	OutEnvironment.CompilerFlags.Add(CFLAG_ForceDXC);
+	OutEnvironment.CompilerFlags.Add(CFLAG_HLSL2021);
 	OutEnvironment.CompilerFlags.Add(CFLAG_Wave32);
 	OutEnvironment.CompilerFlags.Add(CFLAG_RootConstants);
 	OutEnvironment.CompilerFlags.Add(CFLAG_CheckForDerivativeOps);

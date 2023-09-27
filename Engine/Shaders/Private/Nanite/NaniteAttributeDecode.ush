@@ -3,20 +3,16 @@
 #pragma once
 
 #include "NaniteDataDecode.ush"
+#include "../Barycentrics.ush"
 
 struct FNaniteAttributeData
 {
 	/** Interpolated vertex color, in linear color space. */
-	half4 VertexColor;
-	half4 VertexColor_DDX;
-	half4 VertexColor_DDY;
+	TDual< half4 >	VertexColor;
+	TDual< float2 >	TexCoords[NANITE_MAX_UVS];
 
 	/** Orthonormal rotation-only transform from tangent space to world space. */
 	half3x3 TangentToWorld;
-
-	float2 TexCoords[NANITE_MAX_UVS];
-	float2 TexCoords_DDX[NANITE_MAX_UVS];
-	float2 TexCoords_DDY[NANITE_MAX_UVS];
 
 	half UnMirrored;
 };
@@ -97,78 +93,6 @@ float3 UnpackNormal(uint Packed, uint Bits)
 	float T = saturate(-N.z);
 	N.xy += select(N.xy >= 0.0, -T, T);
 	return normalize(N);
-}
-
-float3 ClosestPointBarycentrics( float3 p, float3 v0, float3 v1, float3 v2 )
-{
-	// Muller-Trumbore ray triangle intersect
-	float3 Edge01 = v1 - v0;
-	float3 Edge02 = v2 - v0;
-	float3 Origin0 = p - v0;
-
-	float3 TriNormal = cross( Edge02, Edge01 );
-	float3 Dirx02 = cross( TriNormal, Edge02 );
-	float InvDet = 1.0 / dot( Edge01, Dirx02 );
- 
-	float3 UVW;
-	UVW.y = InvDet * dot( Origin0, Dirx02 );
-	UVW.z = InvDet * dot( TriNormal, cross( Origin0, Edge01 ) );
-	UVW.x = 1.0 - UVW.y - UVW.z;
-	return UVW;
-}
-
-FBarycentrics CalculateTriangleBarycentrics(
-	float3 PositionPixel,
-	float3 PositionPixelX,
-	float3 PositionPixelY,
-	float3 Position0,
-	float3 Position1,
-	float3 Position2,
-	float3 Normal0,
-	float3 Normal1,
-	float3 Normal2 )
-{
-	/*
-		Displacement mapping
-
-		PositionPixel =
-			U * ( Position0 + Normal0 * Height ) +
-			V * ( Position1 + Normal1 * Height ) +
-			W * ( Position2 + Normal2 * Height );
-
-		Solve for Height
-	*/
-
-	// 4 looks perfect but 2 seems good enough
-	uint NumIterations = 2;
-	for( uint j = 0; j < NumIterations; j++ )
-	{
-		float3 UVW = ClosestPointBarycentrics( PositionPixel, Position0, Position1, Position2 );
-		UVW = max( 0, UVW );
-		UVW /= dot( UVW, 1 );
-
-		float3 ClosestPoint;
-		ClosestPoint  = Position0 * UVW.x;
-		ClosestPoint += Position1 * UVW.y;
-		ClosestPoint += Position2 * UVW.z;
-
-		float3 ClosestNormal;
-		ClosestNormal  = Normal0 * UVW.x;
-		ClosestNormal += Normal1 * UVW.y;
-		ClosestNormal += Normal2 * UVW.z;
-
-		float Displace = dot( PositionPixel - ClosestPoint, ClosestNormal ) / dot( ClosestNormal, ClosestNormal );
-
-		Position0 += Normal0 * Displace;
-		Position1 += Normal1 * Displace;
-		Position2 += Normal2 * Displace;
-	}
-
-	FBarycentrics Barycentrics;
-	Barycentrics.UVW	= ClosestPointBarycentrics( PositionPixel,  Position0, Position1, Position2 );
-	Barycentrics.UVW_dx = ClosestPointBarycentrics( PositionPixelX, Position0, Position1, Position2 ) - Barycentrics.UVW;
-	Barycentrics.UVW_dy = ClosestPointBarycentrics( PositionPixelY, Position0, Position1, Position2 ) - Barycentrics.UVW;
-	return Barycentrics;
 }
 
 uint CalculateMaxAttributeBits(uint NumTexCoordInterpolators)
@@ -426,21 +350,6 @@ uint GetMaterialBucketIdFromDepth(float Depth)
 	return (uint)(Depth * NANITE_MAX_STATE_BUCKET_ID);
 }
 
-// TODO: We should really expose the derivative types from the material compiler and use them instead.
-struct FTexCoord
-{
-	float2 Value;
-	float2 DDX;
-	float2 DDY;
-};
-
-FTexCoord InterpolateTexCoord(float2 TexCoord0, float2 TexCoord1, float2 TexCoord2, FBarycentrics Barycentrics)
-{
-	FTexCoord Out;
-	ComputeDerivatives(Barycentrics, TexCoord0, TexCoord1, TexCoord2, Out.Value, Out.DDX, Out.DDY);
-	return Out;
-}
-
 float3 UnpackTangentX(float3 TangentZ, uint TangentAngleBits, uint NumTangentBits)
 {
 	const bool bSwapXZ = (abs(TangentZ.z) > abs(TangentZ.x));
@@ -631,7 +540,7 @@ FNaniteAttributeData GetAttributeData(
 	// Always process first UV set. Even if it isn't used, we might still need TangentToWorld.
 	CompileTimeMaxTexCoords = max(1, min(NANITE_MAX_UVS, CompileTimeMaxTexCoords));
 
-	const float3 UnnormalizedTangentZ = Barycentrics.UVW.x * RawAttributeData0.TangentZ + Barycentrics.UVW.y * RawAttributeData1.TangentZ + Barycentrics.UVW.z * RawAttributeData2.TangentZ;
+	const float3 UnnormalizedTangentZ = Lerp( RawAttributeData0.TangentZ, RawAttributeData1.TangentZ, RawAttributeData2.TangentZ, Barycentrics ).Value;
 	const float3 TangentZ = normalize(UnnormalizedTangentZ);
 
 	// Decode vertex color
@@ -640,26 +549,24 @@ FNaniteAttributeData GetAttributeData(
 	AttributeData.UnMirrored = 1.0f;
 
 #if NANITE_USE_UNCOMPRESSED_VERTEX_DATA
-	AttributeData.VertexColor = Barycentrics.UVW.x * RawAttributeData0.Color + Barycentrics.UVW.y * RawAttributeData1.Color + Barycentrics.UVW.z * RawAttributeData2.Color;
+	AttributeData.VertexColor.Value = Lerp( RawAttributeData0.Color, RawAttributeData1.Color, RawAttributeData2.Color, Barycentrics ).Value;
 #else
-	AttributeData.VertexColor = RawAttributeData0.Color;
+	AttributeData.VertexColor.Value = RawAttributeData0.Color;
 	
 	if (Cluster.ColorMode == NANITE_VERTEX_COLOR_MODE_VARIABLE)
 	{
-		AttributeData.VertexColor = Barycentrics.UVW.x * RawAttributeData0.Color + Barycentrics.UVW.y * RawAttributeData1.Color + Barycentrics.UVW.z * RawAttributeData2.Color;
-		AttributeData.VertexColor_DDX = Barycentrics.UVW_dx.x * RawAttributeData0.Color + Barycentrics.UVW_dx.y * RawAttributeData1.Color + Barycentrics.UVW_dx.z * RawAttributeData2.Color;
-		AttributeData.VertexColor_DDY = Barycentrics.UVW_dy.x * RawAttributeData0.Color + Barycentrics.UVW_dy.y * RawAttributeData1.Color + Barycentrics.UVW_dy.z * RawAttributeData2.Color;
+		AttributeData.VertexColor = Lerp( RawAttributeData0.Color, RawAttributeData1.Color, RawAttributeData2.Color, Barycentrics );
 	}
 #endif
 
-	FTexCoord TexCoord = (FTexCoord)0;
+	TDual< float2 > TexCoord = (TDual< float2 >)0;
 
 	UNROLL
 	for (uint TexCoordIndex = 0; TexCoordIndex < CompileTimeMaxTexCoords; ++TexCoordIndex)
 	{
 		if (TexCoordIndex < Cluster.NumUVs)
 		{
-			TexCoord = InterpolateTexCoord(RawAttributeData0.TexCoords[TexCoordIndex], RawAttributeData1.TexCoords[TexCoordIndex], RawAttributeData2.TexCoords[TexCoordIndex], Barycentrics);
+			TexCoord = Lerp( RawAttributeData0.TexCoords[TexCoordIndex], RawAttributeData1.TexCoords[TexCoordIndex], RawAttributeData2.TexCoords[TexCoordIndex], Barycentrics );
 			
 			// Generate tangent frame for UV0
 			if (TexCoordIndex == 0)
@@ -669,7 +576,7 @@ FNaniteAttributeData GetAttributeData(
 				BRANCH
 				if (Cluster.bHasTangents)
 				{
-					const float4 TangentX_AndSign = Barycentrics.UVW.x * RawAttributeData0.TangentX_AndSign + Barycentrics.UVW.y * RawAttributeData1.TangentX_AndSign + Barycentrics.UVW.z * RawAttributeData2.TangentX_AndSign;
+					const float4 TangentX_AndSign = Lerp( RawAttributeData0.TangentX_AndSign, RawAttributeData1.TangentX_AndSign, RawAttributeData2.TangentX_AndSign, Barycentrics ).Value;
 					TangentToLocal = NaniteTangentToLocal(TangentX_AndSign, UnnormalizedTangentZ);
 					AttributeData.UnMirrored = TangentX_AndSign.w;
 				}
@@ -737,9 +644,7 @@ FNaniteAttributeData GetAttributeData(
 			}
 		}
 
-		AttributeData.TexCoords[TexCoordIndex] = TexCoord.Value;
-		AttributeData.TexCoords_DDX[TexCoordIndex] = TexCoord.DDX;
-		AttributeData.TexCoords_DDY[TexCoordIndex] = TexCoord.DDY;
+		AttributeData.TexCoords[TexCoordIndex] = TexCoord;
 	}
 
 	return AttributeData;
@@ -779,7 +684,7 @@ FNaniteAttributeData GetAttributeData(
 	);
 }
 
-FTexCoord GetTexCoord(
+TDual< float2 > GetTexCoord(
 	FCluster Cluster,
 	uint3 TriIndices,
 	FBarycentrics Barycentrics,
@@ -787,7 +692,7 @@ FTexCoord GetTexCoord(
 )
 {
 	if (Cluster.NumUVs == 0)
-		return (FTexCoord)0;
+		return (TDual< float2 >)0;
 
 	TexCoordIndex = min(TexCoordIndex, Cluster.NumUVs - 1);
 
@@ -829,7 +734,7 @@ FTexCoord GetTexCoord(
 	float2 TexCoord2 = UnpackTexCoord(Bits2_UV, UVRange);
 #endif
 
-	return InterpolateTexCoord(TexCoord0, TexCoord1, TexCoord2, Barycentrics);	
+	return Lerp( TexCoord0, TexCoord1, TexCoord2, Barycentrics );	
 }
 
 // TODO: Move to an appropriate common location outside of Nanite

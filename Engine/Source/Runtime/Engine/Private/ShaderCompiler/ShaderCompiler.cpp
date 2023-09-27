@@ -7469,20 +7469,12 @@ void GlobalBeginCompileShader(
 	}
 
 	// Enables HLSL 2021
-	const bool bRayGenShader = Target.Frequency == SF_RayGen;
-
 	uint32 EnablesHLSL2021ByDefault = FDataDrivenShaderPlatformInfo::GetEnablesHLSL2021ByDefault(EShaderPlatform(Target.Platform));
-	if (EnablesHLSL2021ByDefault == uint32(1) && DebugGroupName == TEXT("Global"))
+	if((EnablesHLSL2021ByDefault == uint32(1) && DebugGroupName == TEXT("Global")) ||
+		EnablesHLSL2021ByDefault == uint32(2) ||
+		Target.Frequency == SF_RayGen ||			// We want to make sure that function overloads follow c++ rules for FRayDesc.
+		Target.Frequency == SF_RayHitGroup)
 	{
-		Input.Environment.CompilerFlags.Add(CFLAG_HLSL2021);
-	}
-	else if (EnablesHLSL2021ByDefault == uint32(2))
-	{
-		Input.Environment.CompilerFlags.Add(CFLAG_HLSL2021);
-	}
-	else if (bRayGenShader)
-	{
-		// We want to make sure that function overloads follow c++ rules for FRayDesc.
 		Input.Environment.CompilerFlags.Add(CFLAG_HLSL2021);
 	}
 

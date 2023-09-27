@@ -65,9 +65,9 @@ FBarycentrics CalculateBarycentrics( FRasterTri Tri, float3 C )
 	const float3 UVW_X		= GetPerspectiveCorrectBarycentrics( C + OffsetX,	Tri.InvW );
 	const float3 UVW_Y		= GetPerspectiveCorrectBarycentrics( C + OffsetY,	Tri.InvW );
 
-	Barycentrics.UVW 	= UVW;
-	Barycentrics.UVW_dx	= UVW_X - UVW;
-	Barycentrics.UVW_dy	= UVW_Y - UVW;
+	Barycentrics.Value 		= UVW;
+	Barycentrics.Value_dx	= UVW_X - UVW;
+	Barycentrics.Value_dy	= UVW_Y - UVW;
 
 	return Barycentrics;
 }
@@ -377,23 +377,26 @@ struct FMaterialShader
 #if NANITE_VERTEX_PROGRAMMABLE || NANITE_PIXEL_PROGRAMMABLE
 	float4 EvaluateDomain( FBarycentrics Barycentrics )
 	{
-		float3 PointLocal;
-		PointLocal  = TransformedTri.Verts[0].PointLocal * Barycentrics.UVW[0];
-		PointLocal += TransformedTri.Verts[1].PointLocal * Barycentrics.UVW[1];
-		PointLocal += TransformedTri.Verts[2].PointLocal * Barycentrics.UVW[2];
+		float3 PointLocal = Lerp( 
+			TransformedTri.Verts[0].PointLocal,
+			TransformedTri.Verts[1].PointLocal,
+			TransformedTri.Verts[2].PointLocal,
+			Barycentrics ).Value;
 
 	#if NANITE_TESSELLATION && USES_DISPLACEMENT
-		float3 Normal;
-		Normal  = TransformedTri.Verts[0].RawAttributeData.TangentZ * Barycentrics.UVW[0];
-		Normal += TransformedTri.Verts[1].RawAttributeData.TangentZ * Barycentrics.UVW[1];
-		Normal += TransformedTri.Verts[2].RawAttributeData.TangentZ * Barycentrics.UVW[2];
+		float3 Normal = Lerp(
+			TransformedTri.Verts[0].RawAttributeData.TangentZ,
+			TransformedTri.Verts[1].RawAttributeData.TangentZ,
+			TransformedTri.Verts[2].RawAttributeData.TangentZ,
+			Barycentrics ).Value;
 		Normal = normalize( Normal );
 
 		// Hopefully never used and will be dead code eliminated. TODO VT feedback needs this right now :(
-		float4 SvPosition;
-		SvPosition  = TransformedTri.Verts[0].PointClip * Barycentrics.UVW[0];
-		SvPosition += TransformedTri.Verts[1].PointClip * Barycentrics.UVW[1];
-		SvPosition += TransformedTri.Verts[2].PointClip * Barycentrics.UVW[2];
+		float4 SvPosition = Lerp( 
+			TransformedTri.Verts[0].PointClip,
+			TransformedTri.Verts[1].PointClip,
+			TransformedTri.Verts[2].PointClip,
+			Barycentrics ).Value;
 		SvPosition.xyz /= SvPosition.w;
 		SvPosition.xy = ( float2(0.5, -0.5) * SvPosition.xy + 0.5 ) * NaniteView.ViewSizeAndInvSize.xy + NaniteView.ViewRect.xy;
 		SvPosition.w = 1;
@@ -436,7 +439,8 @@ struct FMaterialShader
 		CalcMaterialParameters(MaterialParameters, PixelMaterialInputs, SvPosition, true /*bIsFrontFace*/);
 
 		// NOTE: Disable PDO in shadow passes (it does undesirable things and has always been disabled in these passes in Unreal)
-		#if WANT_PIXEL_DEPTH_OFFSET && DEPTH_ONLY == 0
+		// PDO with tessellation would screw up barycentrics.
+		#if WANT_PIXEL_DEPTH_OFFSET && DEPTH_ONLY == 0 && !NANITE_TESSELLATION
 		ApplyPixelDepthOffsetToMaterialParameters(MaterialParameters, PixelMaterialInputs, Pixel.Depth);
 		#endif
 

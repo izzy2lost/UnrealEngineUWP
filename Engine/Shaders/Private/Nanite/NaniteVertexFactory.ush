@@ -138,11 +138,11 @@ void SetLightMapCoordinate(inout FVertexFactoryInterpolantsVSToPS Interpolants, 
 	Interpolants.LightMapCoordinateDDY = 0;
 }
 
-void SetLightMapCoordinate(inout FVertexFactoryInterpolantsVSToPS Interpolants, FloatDeriv2 InLightMapCoordinate, FloatDeriv2 InShadowMapCoordinate)
+void SetLightMapCoordinate(inout FVertexFactoryInterpolantsVSToPS Interpolants, TDual< float2 > InLightMapCoordinate, TDual< float2 > InShadowMapCoordinate)
 {
-	Interpolants.LightMapCoordinate		= float4(InLightMapCoordinate.Value, InShadowMapCoordinate.Value);
-	Interpolants.LightMapCoordinateDDX	= float4(InLightMapCoordinate.Ddx, InShadowMapCoordinate.Ddy);
-	Interpolants.LightMapCoordinateDDY	= float4(InLightMapCoordinate.Ddy, InShadowMapCoordinate.Ddy);
+	Interpolants.LightMapCoordinate		= float4(InLightMapCoordinate.Value,	InShadowMapCoordinate.Value);
+	Interpolants.LightMapCoordinateDDX	= float4(InLightMapCoordinate.Value_dx,	InShadowMapCoordinate.Value_dy);
+	Interpolants.LightMapCoordinateDDY	= float4(InLightMapCoordinate.Value_dy,	InShadowMapCoordinate.Value_dy);
 }
 
 void SetLightMapDataIndex(inout FVertexFactoryInterpolantsVSToPS Interpolants, uint LightmapDataIndex)
@@ -597,9 +597,7 @@ FMaterialPixelParameters FetchNaniteMaterialPixelParameters(FPrimitiveSceneData 
 	{
 		FSplineMeshShaderParams SplineMeshParams = SplineMeshLoadParamsFromInstancePayload(InstanceData);
 		// We have to provide a transform to be applied to the decoded/solved TangentToLocal before rotating it into world space
-		const float SplineDist = Barycentrics.UVW.x * Tri.Verts[0].SplineDist
-							   + Barycentrics.UVW.y * Tri.Verts[1].SplineDist
-							   + Barycentrics.UVW.z * Tri.Verts[2].SplineDist;
+		const float SplineDist = Lerp( Tri.Verts[0].SplineDist, Tri.Verts[1].SplineDist, Tri.Verts[2].SplineDist, Barycentrics ).Value;
 		TangentRot = SplineMeshCalcSliceRot(SplineMeshParams, SplineDist);
 	}
 #endif
@@ -622,9 +620,9 @@ FMaterialPixelParameters FetchNaniteMaterialPixelParameters(FPrimitiveSceneData 
 	);
 
 #if INTERPOLATE_VERTEX_COLOR
-	Result.VertexColor = AttributeData.VertexColor;
-	Result.VertexColor_DDX = AttributeData.VertexColor_DDX;
-	Result.VertexColor_DDY = AttributeData.VertexColor_DDY;
+	Result.VertexColor		= AttributeData.VertexColor.Value;
+	Result.VertexColor_DDX	= AttributeData.VertexColor.Value_dx;
+	Result.VertexColor_DDY	= AttributeData.VertexColor.Value_dy;
 #else
 	// Coerce compiler into DCE as much code as possible.
 	Result.VertexColor = float4(1, 1, 1, 1);
@@ -639,40 +637,36 @@ FMaterialPixelParameters FetchNaniteMaterialPixelParameters(FPrimitiveSceneData 
 	UNROLL
 	for (uint TexCoordIndex = 0; TexCoordIndex < NUM_TEX_COORD_INTERPOLATORS; TexCoordIndex++)
 	{
-		FTexCoord TexCoord = InterpolateTexCoord(Tri.Verts[0].CustomizedUVs[TexCoordIndex], Tri.Verts[1].CustomizedUVs[TexCoordIndex], Tri.Verts[2].CustomizedUVs[TexCoordIndex], Barycentrics);
-		Result.TexCoords[TexCoordIndex] = TexCoord.Value;
-		Result.TexCoords_DDX[TexCoordIndex] = TexCoord.DDX;
-		Result.TexCoords_DDY[TexCoordIndex] = TexCoord.DDY;
+		TDual< float2 > TexCoord = Lerp( Tri.Verts[0].CustomizedUVs[TexCoordIndex], Tri.Verts[1].CustomizedUVs[TexCoordIndex], Tri.Verts[2].CustomizedUVs[TexCoordIndex], Barycentrics );
+		Result.TexCoords[TexCoordIndex]		= TexCoord.Value;
+		Result.TexCoords_DDX[TexCoordIndex]	= TexCoord.Value_dx;
+		Result.TexCoords_DDY[TexCoordIndex]	= TexCoord.Value_dy;
 	}
 #endif
 
-	const float3 PrevPointLocal = Barycentrics.UVW.x * Tri.Verts[0].PrevPointLocal + Barycentrics.UVW.y * Tri.Verts[1].PrevPointLocal + Barycentrics.UVW.z * Tri.Verts[2].PrevPointLocal;
+	const float3 PrevPointLocal = Lerp( Tri.Verts[0].PrevPointLocal, Tri.Verts[1].PrevPointLocal, Tri.Verts[2].PrevPointLocal, Barycentrics ).Value;
 	const float3 PrevPointWorld = mul(float4(PrevPointLocal.xyz, 1), InstanceDynamicData.PrevLocalToTranslatedWorld).xyz;
 	Result.PrevScreenPosition = mul(float4(PrevPointWorld, 1), NaniteView.PrevTranslatedWorldToClip);
 	//Result.PrevScreenPosition = float4( Result.PrevScreenPosition.xyz / Result.PrevScreenPosition.w, 1 );
 
-	const float3 PointWorld = Barycentrics.UVW.x * Tri.Verts[0].PointWorld + Barycentrics.UVW.y * Tri.Verts[1].PointWorld + Barycentrics.UVW.z * Tri.Verts[2].PointWorld;
-	
-	Result.WorldPosition_CamRelative = PointWorld;
-	Result.WorldPosition_DDX = Barycentrics.UVW_dx.x * Tri.Verts[0].PointWorld + Barycentrics.UVW_dx.y * Tri.Verts[1].PointWorld + Barycentrics.UVW_dx.z * Tri.Verts[2].PointWorld;
-	Result.WorldPosition_DDY = Barycentrics.UVW_dy.x * Tri.Verts[0].PointWorld + Barycentrics.UVW_dy.y * Tri.Verts[1].PointWorld + Barycentrics.UVW_dy.z * Tri.Verts[2].PointWorld;
+	const TDual< float3 > PointWorld = Lerp( Tri.Verts[0].PointWorld, Tri.Verts[1].PointWorld, Tri.Verts[2].PointWorld, Barycentrics );
+	Result.WorldPosition_CamRelative	= PointWorld.Value;
+	Result.WorldPosition_DDX			= PointWorld.Value_dx;
+	Result.WorldPosition_DDY			= PointWorld.Value_dy;
 
-	const float3 PointWorld_NoOffset = Barycentrics.UVW.x * Tri.Verts[0].PointWorld_NoOffset + Barycentrics.UVW.y * Tri.Verts[1].PointWorld_NoOffset + Barycentrics.UVW.z * Tri.Verts[2].PointWorld_NoOffset;
-	Result.WorldPosition_NoOffsets_CamRelative = PointWorld_NoOffset;
+	Result.WorldPosition_NoOffsets_CamRelative = Lerp( Tri.Verts[0].PointWorld_NoOffset, Tri.Verts[1].PointWorld_NoOffset, Tri.Verts[2].PointWorld_NoOffset, Barycentrics ).Value;
 
 	// Update screen W and all screen derivatives. This is rarely used and will be dead code eliminated most of the time.
 	{
-		const float2 PointClipZW = Barycentrics.UVW.x * Tri.Verts[0].PointClip.zw + Barycentrics.UVW.y * Tri.Verts[1].PointClip.zw + Barycentrics.UVW.z * Tri.Verts[2].PointClip.zw;
-		SvPosition.w = PointClipZW.y;
+		const TDual< float4 > PointClip = Lerp( Tri.Verts[0].PointClip, Tri.Verts[1].PointClip, Tri.Verts[2].PointClip, Barycentrics );
+		SvPosition.w = PointClip.Value.w;
 
-		float2 Z_DDX_DDY = float2(	Barycentrics.UVW_dx.x * Tri.Verts[0].PointClip.z + Barycentrics.UVW_dx.y * Tri.Verts[1].PointClip.z + Barycentrics.UVW_dx.z * Tri.Verts[2].PointClip.z,
-									Barycentrics.UVW_dy.x * Tri.Verts[0].PointClip.z + Barycentrics.UVW_dy.y * Tri.Verts[1].PointClip.z + Barycentrics.UVW_dy.z * Tri.Verts[2].PointClip.z);
-		float2 W_DDX_DDY = float2(	Barycentrics.UVW_dx.x * Tri.Verts[0].PointClip.w + Barycentrics.UVW_dx.y * Tri.Verts[1].PointClip.w + Barycentrics.UVW_dx.z * Tri.Verts[2].PointClip.w,
-									Barycentrics.UVW_dy.x * Tri.Verts[0].PointClip.w + Barycentrics.UVW_dy.y * Tri.Verts[1].PointClip.w + Barycentrics.UVW_dy.z * Tri.Verts[2].PointClip.w);
+		float2 Z_DDX_DDY = float2( PointClip.Value_dx.z, PointClip.Value_dy.z );
+		float2 W_DDX_DDY = float2( PointClip.Value_dx.w, PointClip.Value_dy.w );
 
 		// PPZ = Z / W
 		// PPZ' = (Z'W - ZW')/W^2
-		float2 PPZ_DDX_DDY = (Z_DDX_DDY * PointClipZW.y - PointClipZW.x * W_DDX_DDY) / (PointClipZW.y * PointClipZW.y);
+		float2 PPZ_DDX_DDY = (Z_DDX_DDY * PointClip.Value.w - PointClip.Value.z * W_DDX_DDY) / (PointClip.Value.w * PointClip.Value.w);
 		SvPositionToResolvedScreenPositionDeriv(SvPosition, PPZ_DDX_DDY, W_DDX_DDY, Result.ScreenPosition, Result.ScreenPosition_DDX, Result.ScreenPosition_DDY);
 	}
 	
@@ -693,46 +687,34 @@ FMaterialPixelParameters FetchNaniteMaterialPixelParameters(FPrimitiveSceneData 
 	const uint LightMapDataIndex = PrimitiveData.LightmapDataIndex;
 	const uint LightMapUVIndex   = PrimitiveData.LightmapUVIndex;
 
-	float2 LightMapCoordinateInput;
-	float2 LightMapCoordinateInput_DDX;
-	float2 LightMapCoordinateInput_DDY;
+	TDual< float2 > LightMapCoordinateInput;
 	if (LightMapUVIndex < NumAttributeDataCoords)
 	{
 		LightMapCoordinateInput = AttributeData.TexCoords[LightMapUVIndex];
-		LightMapCoordinateInput_DDX = AttributeData.TexCoords_DDX[LightMapUVIndex];
-		LightMapCoordinateInput_DDY = AttributeData.TexCoords_DDY[LightMapUVIndex];
 	}
 	else
 	{
 		// We don't already have the UV in the attribute data, so retrieve it
-		FTexCoord TexCoord = GetTexCoord(Cluster, uint3(Tri.Verts[0].VertIndex, Tri.Verts[1].VertIndex, Tri.Verts[2].VertIndex), Barycentrics, LightMapUVIndex);
-		LightMapCoordinateInput = TexCoord.Value;
-		LightMapCoordinateInput_DDX = TexCoord.DDX;
-		LightMapCoordinateInput_DDY = TexCoord.DDY;
+		LightMapCoordinateInput	 = GetTexCoord(Cluster, uint3(Tri.Verts[0].VertIndex, Tri.Verts[1].VertIndex, Tri.Verts[2].VertIndex), Barycentrics, LightMapUVIndex);
 	}
 
 	const bool bHasPerInstanceCoordinateScaleBias = (InstanceData.Flags & INSTANCE_SCENE_DATA_FLAG_HAS_LIGHTSHADOW_UV_BIAS);
 
 	const float4 LightMapCoordinateScaleBias = GetLightmapData(LightMapDataIndex).LightMapCoordinateScaleBias;
 	const float2 InstanceLightMapScaleBias = CondMask(bHasPerInstanceCoordinateScaleBias, InstanceData.LightMapAndShadowMapUVBias.xy, LightMapCoordinateScaleBias.zw);
-	FloatDeriv2 LightMapCoordinate = ConstructFloatDeriv2(	LightMapCoordinateInput * LightMapCoordinateScaleBias.xy + InstanceLightMapScaleBias,
-															LightMapCoordinateInput_DDX * LightMapCoordinateScaleBias.xy,
-															LightMapCoordinateInput_DDY * LightMapCoordinateScaleBias.xy);
-
-	FloatDeriv2 ShadowMapCoordinate = (FloatDeriv2)0;
+	TDual< float2 > LightMapCoordinate = LightMapCoordinateInput * LightMapCoordinateScaleBias.xy + InstanceLightMapScaleBias;
+	TDual< float2 > ShadowMapCoordinate = (TDual< float2 >)0;
 #if STATICLIGHTING_TEXTUREMASK
 	const float4 ShadowMapCoordinateScaleBias = GetLightmapData(LightMapDataIndex).ShadowMapCoordinateScaleBias;
 	const float2 InstanceShadowMapScaleBias = CondMask(bHasPerInstanceCoordinateScaleBias, InstanceData.LightMapAndShadowMapUVBias.zw, ShadowMapCoordinateScaleBias.zw);
-	ShadowMapCoordinate = ConstructFloatDeriv2(	LightMapCoordinateInput * ShadowMapCoordinateScaleBias.xy + InstanceShadowMapScaleBias,
-												LightMapCoordinateInput_DDX * ShadowMapCoordinateScaleBias.xy,
-												LightMapCoordinateInput_DDY * ShadowMapCoordinateScaleBias.xy);
+	ShadowMapCoordinate = LightMapCoordinateInput * ShadowMapCoordinateScaleBias.xy + InstanceShadowMapScaleBias;
 #endif
 
 #if LIGHTMAP_UV_ACCESS
 	// Store unscaled/unbiased lightmap UVs
-	Result.LightmapUVs = LightMapCoordinateInput;
-	Result.LightmapUVs_DDX = LightMapCoordinateInput_DDX;
-	Result.LightmapUVs_DDY = LightMapCoordinateInput_DDY;
+	Result.LightmapUVs		= LightMapCoordinateInput.Value;
+	Result.LightmapUVs_DDX	= LightMapCoordinateInput.Value_dx;
+	Result.LightmapUVs_DDY	= LightMapCoordinateInput.Value_dy;
 #endif
 
 	SetLightMapCoordinate(Interpolants, LightMapCoordinate, ShadowMapCoordinate);
@@ -912,7 +894,7 @@ FMaterialPixelParameters GetMaterialPixelParameters(float3 RayOrigin, float3 Ray
 	const float2 HitBarycentrics = HitAttributes.GetBarycentrics();
 
 	FBarycentrics Barycentrics = (FBarycentrics)0; // TODO: UVW_dx, UVW_dy
-	Barycentrics.UVW = float3(1 - HitBarycentrics.x - HitBarycentrics.y, HitBarycentrics.x, HitBarycentrics.y);
+	Barycentrics.Value = float3(1 - HitBarycentrics.x - HitBarycentrics.y, HitBarycentrics.x, HitBarycentrics.y);
 
 	FVertexFactoryInterpolantsVSToPS Interpolants;
 	float4 SvPosition;
