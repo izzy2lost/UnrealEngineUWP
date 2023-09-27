@@ -116,7 +116,7 @@ namespace UnrealGameSync
 			Font = new System.Drawing.Font("Segoe UI", 8.25F, System.Drawing.FontStyle.Regular, System.Drawing.GraphicsUnit.Point, ((byte)(0)));
 		}
 
-		public static void DoClean(IWin32Window owner, IPerforceSettings perforceSettings, DirectoryReference localRootPath, string clientRootPath, IReadOnlyList<string> syncPaths, string[] extraSafeToDeleteFolders, string[] extraSafeToDeleteExtensions, ILogger<CleanWorkspaceWindow> logger)
+		public static bool DoClean(IWin32Window owner, IPerforceSettings perforceSettings, DirectoryReference localRootPath, string clientRootPath, IReadOnlyList<string> syncPaths, string[] extraSafeToDeleteFolders, string[] extraSafeToDeleteExtensions, ILogger<CleanWorkspaceWindow> logger)
 		{
 			// Figure out which folders to clean
 			FolderToClean rootFolderToClean = new FolderToClean(localRootPath.ToDirectoryInfo());
@@ -125,20 +125,22 @@ namespace UnrealGameSync
 				ModalTask? result = ModalTask.Execute(owner, "Clean Workspace", "Querying files in Perforce, please wait...", x => queryWorkspace.RunAsync(x), ModalTaskFlags.None);
 				if (result == null || !result.Succeeded)
 				{
-					return;
+					return false;
 				}
 			}
 
 			// If there's nothing to delete, don't bother displaying the dialog at all
 			if(rootFolderToClean._filesToDelete.Count == 0 && rootFolderToClean._nameToSubFolder.Count == 0)
 			{
-				MessageBox.Show("You have no local files which are not in Perforce.", "Workspace Clean", MessageBoxButtons.OK);
-				return;
+				MessageBox.Show("You have no local files which are not in Perforce.", "Clean Workspace", MessageBoxButtons.OK);
+				return false;
 			}
 
 			// Populate the tree
 			using CleanWorkspaceWindow cleanWorkspace = new CleanWorkspaceWindow(perforceSettings, rootFolderToClean, extraSafeToDeleteFolders, extraSafeToDeleteExtensions, logger);
-			cleanWorkspace.ShowDialog();
+			DialogResult dialogResult = cleanWorkspace.ShowDialog();
+
+			return (dialogResult == DialogResult.OK);
 		}
 
 		private void CleanWorkspaceWindow_Load(object sender, EventArgs e)
