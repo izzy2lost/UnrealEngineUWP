@@ -6,6 +6,7 @@
 #include "MuR/Ptr.h"
 #include "MuR/RefCounted.h"
 #include "MuT/Node.h"
+#include "Containers/UnrealString.h"
 
 
 namespace mu
