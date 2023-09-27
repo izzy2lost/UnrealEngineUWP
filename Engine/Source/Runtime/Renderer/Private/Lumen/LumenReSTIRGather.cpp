@@ -629,6 +629,7 @@ class FTemporalAccumulationCS : public FGlobalShader
 		SHADER_PARAMETER_STRUCT_REF(FViewUniformShaderParameters, View)
 		SHADER_PARAMETER_STRUCT_INCLUDE(FSceneTextureParameters, SceneTextures)
 		SHADER_PARAMETER_RDG_UNIFORM_BUFFER(FSceneTextureUniformParameters, SceneTexturesStruct)
+		SHADER_PARAMETER_RDG_UNIFORM_BUFFER(FSubstrateGlobalUniformParameters, Substrate)
 		SHADER_PARAMETER_RDG_TEXTURE(Texture2D, DiffuseIndirect)
 		SHADER_PARAMETER_RDG_TEXTURE(Texture2D, RoughSpecularIndirect)
 		SHADER_PARAMETER_RDG_TEXTURE(Texture2D, ResolveVariance)
@@ -799,6 +800,7 @@ void DispatchTemporalAccumulation(
 						PassParameters->View = View.ViewUniformBuffer;
 						PassParameters->SceneTextures = GetSceneTextureParameters(GraphBuilder, SceneTextures.UniformBuffer);
 						PassParameters->SceneTexturesStruct = SceneTextures.UniformBuffer;
+						PassParameters->Substrate = Substrate::BindSubstrateGlobalUniformParameters(View);
 
 						PassParameters->DiffuseIndirectHistory = OldDiffuseIndirectHistory;
 						PassParameters->RoughSpecularIndirectHistory = OldRoughSpecularIndirectHistory;
