@@ -12,14 +12,32 @@
 namespace UE::NNERuntimeRDG::Private::Dml
 {
 
+namespace Util
+{
+
+/**
+* Implement std::iota() replacement for TArray
+*/
+template<typename ArrayT, class ValueT>
+void Iota(ArrayT& Array, ValueT Value)
+{
+	auto First = Array.begin();
+	auto Last = Array.end();
+
+	for (auto It = First; It != Last; ++It)
+	{
+		(*It) = Value;
+		++Value;
+	}
+}
+
+} // Util
+
 /**
  * Slice
  */
 class FOperatorDmlSlice : public FOperatorDml
 {	
-	//
-	//
-	//
 	template<typename DataType>
 	static void ComputeOffsetsSizesStrides(
 		TArrayView<const NNE::Internal::FTensorRef> InputTensors,
@@ -51,7 +69,7 @@ class FOperatorDmlSlice : public FOperatorDml
 		else
 		{
 			Axes.SetNumUninitialized(Starts.Num());
-			std::iota(Axes.begin(), Axes.end(), 0);
+			Util::Iota(Axes, 0);
 		}
 
 		if (InputTensors.Num() >= 5)
@@ -94,7 +112,7 @@ class FOperatorDmlSlice : public FOperatorDml
 
 			if (Stride < 0)
             {
-                std::swap(Start, End);
+                Swap(Start, End);
                 Start += (Start < TNumericLimits<DataType>::Max()) ? 1 : 0;
                 End += (End < TNumericLimits<DataType>::Max()) ? 1 : 0;
             }
@@ -119,26 +137,16 @@ class FOperatorDmlSlice : public FOperatorDml
 
 public:
 
-	//
-	//
-	//
 	static FOperatorDml* Create()
 	{
 		return new FOperatorDmlSlice();
 	}
 
-	//
-	//
-	//
 	static bool Validate(const NNE::FAttributeMap& AttributeMap, TConstArrayView<ENNETensorDataType> InputTypes, TConstArrayView<NNE::FSymbolicTensorShape> InputShapes)
 	{
-		//TODO
 		return true;
 	}
 
-	//
-	//
-	//
 	virtual bool Initialize(TConstArrayView<NNE::FTensorDesc> Inputs, TConstArrayView<NNE::FTensorDesc> Outputs, const NNE::FAttributeMap& Attributes) override
 	{
 		check(Inputs.Num() >= 3);
@@ -175,9 +183,6 @@ public:
 		return true;
 	}
 
-	//
-	//
-	//
 	virtual int PrepareOutputs(TConstArrayView<NNE::Internal::FTensorRef> InputTensors, TArrayView<NNE::Internal::FTensorRef> OutputTensors) const override
 	{
 		switch (InputIndexDataType)
@@ -196,12 +201,8 @@ public:
 		return 0;
 	}
 
-	//
-	//
-	//
 	virtual bool Create(IDMLDevice* Device, TConstArrayView<NNE::Internal::FTensorRef> InputTensors, TConstArrayView<NNE::Internal::FTensorRef> OutputTensors) override
 	{
-		// Initialize Input tensor desc
         FTensorDescDml DmlInputTensorDesc;
         
 		if (!DmlInputTensorDesc
@@ -212,7 +213,6 @@ public:
             return false;
         }
 
-		// Initialize Output tensor desc
         FTensorDescDml DmlOutputTensorDesc;
         
 		if (!DmlOutputTensorDesc
