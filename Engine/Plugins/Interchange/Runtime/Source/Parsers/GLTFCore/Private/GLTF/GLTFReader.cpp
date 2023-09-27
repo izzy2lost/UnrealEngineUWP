@@ -1155,6 +1155,22 @@ namespace GLTF
 			}
 		}
 	}
+
+	void GenerateGlobalTransform(const TArray<FNode>& Nodes, int32 CurrentIndex, FTransform& GlobalTransform, const int32& SkeletonCommonRootIndex/*PivotPoint*/)
+	{
+		if (Nodes.IsValidIndex(CurrentIndex))
+		{
+			const FNode& CurrentNode = Nodes[CurrentIndex];
+
+			if (CurrentIndex != SkeletonCommonRootIndex)
+			{
+				GenerateGlobalTransform(Nodes, CurrentNode.ParentIndex, GlobalTransform, SkeletonCommonRootIndex);
+			}
+
+			GlobalTransform = CurrentNode.Transform * GlobalTransform;
+		}
+	}
+
 	void FFileReader::GenerateLocalBindPosesPerSkinIndices() const
 	{
 		for (size_t SkinIndex = 0; SkinIndex < Asset->Skins.Num(); SkinIndex++)
@@ -1165,17 +1181,46 @@ namespace GLTF
 				for (size_t JointCounter = 0; JointCounter < Skin.Joints.Num(); JointCounter++)
 				{
 					FNode& CurrentNode = Asset->Nodes[Skin.Joints[JointCounter]];
-					if (CurrentNode.ParentIndex != INDEX_NONE)
-					{
-						if (Asset->Nodes[CurrentNode.ParentIndex].Type == FNode::EType::Joint
-							&& Asset->Nodes[CurrentNode.ParentIndex].SkinIndexToGlobalInverseBindTransform.Contains(SkinIndex))
-						{
-							//LocalBindPose; //bind pose would be CurrentNode.GlobalInverseBindTransform.Inverse() * ParentNode.GlobalInverseBindTransform
-							FTransform ParentGlobalInverseBindTransform = Asset->Nodes[CurrentNode.ParentIndex].SkinIndexToGlobalInverseBindTransform[SkinIndex];
-							FTransform LocalBindPose = CurrentNode.SkinIndexToGlobalInverseBindTransform[SkinIndex].Inverse() * ParentGlobalInverseBindTransform;
 
-							CurrentNode.SkinIndexToLocalBindPose.Add(SkinIndex, LocalBindPose);
+					if (CurrentNode.ParentIndex != INDEX_NONE &&
+						Asset->Nodes.IsValidIndex(CurrentNode.ParentIndex) &&
+						Asset->Nodes[CurrentNode.ParentIndex].Type == FNode::EType::Joint &&
+						(Asset->Nodes[CurrentNode.ParentIndex].SkinIndexToGlobalInverseBindTransform.Contains(SkinIndex) || Asset->Nodes[CurrentNode.ParentIndex].SkinIndexToGlobalInverseBindTransform.Num() > 0)
+						)
+					{
+						FNode& ParentNode = Asset->Nodes[CurrentNode.ParentIndex];
+
+						//LocalBindPose; //bind pose would be CurrentNode.GlobalInverseBindTransform.Inverse() * ParentNode.GlobalInverseBindTransform
+						FTransform ParentGlobalInverseBindTransform;
+						if (ParentNode.SkinIndexToGlobalInverseBindTransform.Contains(SkinIndex))
+						{
+							ParentGlobalInverseBindTransform = ParentNode.SkinIndexToGlobalInverseBindTransform[SkinIndex];
 						}
+						else
+						{
+							//Scenario is that the a Skin is instantiated at the end of another skin
+							//(Prime example is the RecursiveSkeleton gltf sample file.)
+							ParentGlobalInverseBindTransform = ParentNode.SkinIndexToGlobalInverseBindTransform.begin().Value();
+
+							if (ParentNode.SkinIndexToGlobalInverseBindTransform.Num() > 1)
+							{
+								Messages.Emplace(EMessageSeverity::Error, FString::Printf(TEXT("The same Joint [%s] is used in multiple Skins, which is currently not supported."), *ParentNode.Name));
+							}
+						}
+						
+						FTransform LocalBindPose = CurrentNode.SkinIndexToGlobalInverseBindTransform[SkinIndex].Inverse() * ParentGlobalInverseBindTransform;
+
+						CurrentNode.SkinIndexToLocalBindPose.Add(SkinIndex, LocalBindPose);
+					}
+					else
+					{
+						FTransform ParentGlobalTransform;
+						if (Skin.Skeleton != INDEX_NONE && Skin.Skeleton != CurrentNode.Index)
+						{
+							GenerateGlobalTransform(Asset->Nodes, CurrentNode.ParentIndex, ParentGlobalTransform, Skin.Skeleton);
+						}
+						FTransform LocalBindPose = CurrentNode.SkinIndexToGlobalInverseBindTransform[SkinIndex].Inverse() * ParentGlobalTransform.Inverse();
+						CurrentNode.SkinIndexToLocalBindPose.Add(SkinIndex, LocalBindPose);
 					}
 				}
 			}
