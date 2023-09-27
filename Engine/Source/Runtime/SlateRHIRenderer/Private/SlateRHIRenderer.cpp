@@ -119,6 +119,7 @@ struct FSlateDrawWindowCommandParams
 	FSlateRHIRenderer* Renderer;
 	FSlateWindowElementList* WindowElementList;
 	SWindow* Window;
+	FIntRect ViewRect;
 #if WANTS_DRAW_MESH_EVENTS
 	FString WindowTitle;
 #endif
@@ -973,6 +974,7 @@ void RenderSlateBatch(FTexture2DRHIRef SlateRenderTarget, bool bClear, bool bIsH
 				RenderParams.bWireFrame = !!SlateWireFrame;
 				RenderParams.bIsHDR = bIsHDR;
 				RenderParams.HDRDisplayColorGamut = ViewportInfo.HDRDisplayColorGamut;
+				RenderParams.ViewRect = DrawCommandParams.ViewRect;
 				if (ViewportInfo.bSceneHDREnabled && !bIsHDR)
 				{
 					RenderParams.UITarget = ViewportInfo.UITargetRT;
@@ -1717,11 +1719,35 @@ void FSlateRHIRenderer::DrawWindows_Private(FSlateDrawBuffer& WindowDrawBuffer)
 
 				// Tell the rendering thread to draw the windows
 				{
+					auto GetViewRect = [Window]()
+					{
+#if WITH_EDITOR
+						if (GIsEditor)
+						{
+							if (TSharedPtr<ISlateViewport> Viewport = Window->GetViewport())
+							{
+								if (TSharedPtr<SWidget> ViewportWidget = Viewport->GetWidget().Pin())
+								{
+									// The actual backbuffer has a padding that extends beyond the draw area, account for this in our offsets
+									int32 OffsetX = FMath::RoundToInt32(ViewportWidget->GetTickSpaceGeometry().GetAbsolutePosition().X - Window->GetPositionInScreen().X);
+									int32 OffsetY = FMath::RoundToInt32(ViewportWidget->GetTickSpaceGeometry().GetAbsolutePosition().Y - Window->GetPositionInScreen().Y);
+
+									FIntPoint ViewportSize = Viewport->GetSize();
+									return FIntRect(FIntPoint(OffsetX, OffsetY), FIntPoint(ViewportSize.X + OffsetX, ViewportSize.Y + OffsetY));
+								}
+							}
+						}
+#endif // WITH_EDITOR
+
+						return FIntRect();
+					};
+
 					FSlateDrawWindowCommandParams Params;
 
 					Params.Renderer = this;
 					Params.WindowElementList = &ElementList;
 					Params.Window = Window;
+					Params.ViewRect = GetViewRect();
 #if WANTS_DRAW_MESH_EVENTS
 					Params.WindowTitle = Window->GetTitle().ToString();
 #endif

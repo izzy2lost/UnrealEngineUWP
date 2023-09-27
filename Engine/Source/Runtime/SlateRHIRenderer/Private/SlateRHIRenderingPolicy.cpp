@@ -194,7 +194,7 @@ void FSlateRHIRenderingPolicy::BuildRenderingBuffers(FRHICommandListImmediate& R
 	SET_DWORD_STAT(STAT_SlateVertexCount, InBatchData.GetFinalVertexData().Num());
 }
 
-static FSceneView* CreateSceneView( FSceneViewFamilyContext* ViewFamilyContext, FSlateBackBuffer& BackBuffer, const FMatrix& ViewProjectionMatrix )
+static FSceneView* CreateSceneView( FSceneViewFamilyContext* ViewFamilyContext, FSlateBackBuffer& BackBuffer, const FMatrix& ViewProjectionMatrix, const FIntRect InViewRect)
 {
 	QUICK_SCOPE_CYCLE_COUNTER(STAT_Slate_CreateSceneView);
 	// In loading screens, the engine is NULL, so we skip out.
@@ -202,8 +202,12 @@ static FSceneView* CreateSceneView( FSceneViewFamilyContext* ViewFamilyContext, 
 	{
 		return nullptr;
 	}
-
-	FIntRect ViewRect(FIntPoint(0, 0), BackBuffer.GetSizeXY());
+	
+	FIntRect ViewRect = InViewRect;
+	if (ViewRect.IsEmpty())
+	{
+		ViewRect = FIntRect(FIntPoint(0, 0), BackBuffer.GetSizeXY());
+	}
 
 	// make a temporary view
 	FSceneViewInitOptions ViewInitOptions;
@@ -749,7 +753,7 @@ void FSlateRHIRenderingPolicy::DrawElements(
 				.SetTime(Params.Time)
 				.SetRealtimeUpdate(true)
 			);
-			SceneViews[i] = CreateSceneView(SceneViewFamilyContexts[i], BackBuffer, FMatrix(Params.ViewProjectionMatrix));
+			SceneViews[i] = CreateSceneView(SceneViewFamilyContexts[i], BackBuffer, FMatrix(Params.ViewProjectionMatrix), Params.ViewRect);
 		}
 
 		SceneViewFamilyContexts[NumScenes - 1] = new FSceneViewFamilyContext
@@ -763,7 +767,7 @@ void FSlateRHIRenderingPolicy::DrawElements(
 			.SetTime(Params.Time)
 			.SetRealtimeUpdate(true)
 		);
-		SceneViews[NumScenes - 1] = CreateSceneView(SceneViewFamilyContexts[NumScenes - 1], BackBuffer, FMatrix(Params.ViewProjectionMatrix));
+		SceneViews[NumScenes - 1] = CreateSceneView(SceneViewFamilyContexts[NumScenes - 1], BackBuffer, FMatrix(Params.ViewProjectionMatrix), Params.ViewRect);
 	}
 
 	TShaderMapRef<FSlateElementVS> GlobalVertexShader(GetGlobalShaderMap(GMaxRHIShaderPlatform));
