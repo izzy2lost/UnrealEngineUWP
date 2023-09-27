@@ -1235,7 +1235,6 @@ private:
 		 std::atomic<FAutomationTestBase*> CurTest;
 		 std::atomic<FFeedbackContext*> DestinationContext;
 		 FCriticalSection ActionCS;
-		 TQueue<TSharedPtr<UE::FLogRecord>> Backlog;
 	 };
 
 	friend class FAutomationTestOutputDevice;
