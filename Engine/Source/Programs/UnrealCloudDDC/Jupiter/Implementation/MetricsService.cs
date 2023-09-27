@@ -166,27 +166,41 @@ namespace Jupiter.Implementation
 				{
 					countOfRefsInBucket += 1;
 
-					BlobContents blobContents = await _blobService.GetObjectAsync(ns, blobId);
-					byte[] rawBlob = await blobContents.Stream.ToByteArrayAsync();
-					CbObject cbObject = new CbObject(rawBlob);
-					// enumerate all referenced blobs from the ref
-					await foreach (BlobId blob in _referenceResolver.GetReferencedBlobs(ns, cbObject))
+					try
 					{
-						// check to see if we have counted this blob before
-						bool added = alreadyCountedBlobs.Add(blob.HashData);
-						if (added)
+						BlobContents blobContents = await _blobService.GetObjectAsync(ns, blobId);
+						byte[] rawBlob = await blobContents.Stream.ToByteArrayAsync();
+						CbObject cbObject = new CbObject(rawBlob);
+						// enumerate all referenced blobs from the ref
+						await foreach (BlobId blob in _referenceResolver.GetReferencedBlobs(ns, cbObject))
 						{
-							// new blob, lets count it
-							BlobContents referencedBlob = await _blobService.GetObjectAsync(ns, blob);
-							sizeOfBlobsInBucket += referencedBlob.Length;
+							// check to see if we have counted this blob before
+							bool added = alreadyCountedBlobs.Add(blob.HashData);
+							if (added)
+							{
+								// new blob, lets count it
+								try
+								{
+									BlobContents referencedBlob = await _blobService.GetObjectAsync(ns, blob);
+									sizeOfBlobsInBucket += referencedBlob.Length;
 
-							smallestBlobFound = Math.Min(referencedBlob.Length, smallestBlobFound);
-							largestBlobFound = Math.Max(referencedBlob.Length, largestBlobFound);
+									smallestBlobFound = Math.Min(referencedBlob.Length, smallestBlobFound);
+									largestBlobFound = Math.Max(referencedBlob.Length, largestBlobFound);
 
-							countOfBlobsInBucket += 1;
+									countOfBlobsInBucket += 1;
 
-							_blobSizeHistogram.Record(referencedBlob.Length, tags);
+									_blobSizeHistogram.Record(referencedBlob.Length, tags);
+								}
+								catch (BlobNotFoundException)
+								{
+									// if one of the referenced blobs is missing we just ignore this particular blob
+								}
+							}
 						}
+					}
+					catch (Exception e)
+					{
+						_logger.LogWarning("Unknown exception {Message} when attempting to calculate metrics for {Namespace} {Bucket}. Ignoring.", e.Message, ns, bucket);
 					}
 				}
 
