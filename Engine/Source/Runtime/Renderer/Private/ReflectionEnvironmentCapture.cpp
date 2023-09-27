@@ -1440,7 +1440,7 @@ void FScene::CaptureOrUploadReflectionCapture(UReflectionCaptureComponent* Captu
 			UE::RenderCommandPipe::FSyncScope SyncScope;
 
 			// Prefetch all virtual textures so that we have content available
-			if (UseVirtualTexturing(GetFeatureLevel()))
+			if (UseVirtualTexturing(GetShaderPlatform()))
 			{
 				const ERHIFeatureLevel::Type InFeatureLevel = FeatureLevel;
 				const FVector2D ScreenSpaceSize(ReflectionCaptureSize, ReflectionCaptureSize);

@@ -74,7 +74,7 @@ class UMaterialExpressionTextureBase : public UMaterialExpression
 	 * @param OutErrorMessage - If 'false' is returned, will contain a message describing the error
 	 */
 	static ENGINE_API bool VerifySamplerType(
-		ERHIFeatureLevel::Type FeatureLevel,
+		EShaderPlatform ShaderPlatform,
 		const ITargetPlatform* TargetPlatform,
 		const UTexture* Texture,
 		EMaterialSamplerType SamplerType,

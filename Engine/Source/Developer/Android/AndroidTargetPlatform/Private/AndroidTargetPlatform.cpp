@@ -265,6 +265,7 @@ FAndroidTargetPlatform::FAndroidTargetPlatform(bool bInIsClient, const TCHAR* Fl
 	, MobileShadingPath(0)
 	, bDistanceField(false)
 	, bMobileForwardEnableClusteredReflections(false)
+	, bMobileVirtualTextures(false)
 
 {
 #if WITH_ENGINE
@@ -273,6 +274,7 @@ FAndroidTargetPlatform::FAndroidTargetPlatform(bool bInIsClient, const TCHAR* Fl
 	GetConfigSystem()->GetBool(TEXT("/Script/Engine.RendererSettings"), TEXT("r.DistanceFields"), bDistanceField, GEngineIni);
 	GetConfigSystem()->GetInt(TEXT("/Script/Engine.RendererSettings"), TEXT("r.Mobile.ShadingPath"), MobileShadingPath, GEngineIni);
 	GetConfigSystem()->GetBool(TEXT("/Script/Engine.RendererSettings"), TEXT("r.Mobile.Forward.EnableClusteredReflections"), bMobileForwardEnableClusteredReflections, GEngineIni);
+	GetConfigSystem()->GetBool(TEXT("/Script/Engine.RendererSettings"), TEXT("r.Mobile.VirtualTextures"), bMobileVirtualTextures, GEngineIni);
 #endif
 
 	TickDelegate = FTickerDelegate::CreateRaw(this, &FAndroidTargetPlatform::HandleTicker);
@@ -288,12 +290,6 @@ FAndroidTargetPlatform::~FAndroidTargetPlatform()
 FAndroidTargetDevicePtr FAndroidTargetPlatform::CreateTargetDevice(const ITargetPlatform& InTargetPlatform, const FString& InSerialNumber, const FString& InAndroidVariant) const
 {
 	return MakeShareable(new FAndroidTargetDevice(InTargetPlatform, InSerialNumber, InAndroidVariant));
-}
-
-static bool UsesVirtualTextures()
-{
-	static auto* CVarMobileVirtualTextures = IConsoleManager::Get().FindTConsoleVariableDataInt(TEXT("r.Mobile.VirtualTextures"));
-	return CVarMobileVirtualTextures->GetValueOnAnyThread() != 0;
 }
 
 bool FAndroidTargetPlatform::SupportsES31() const
@@ -409,7 +405,8 @@ bool FAndroidTargetPlatform::SupportsFeature( ETargetPlatformFeatures Feature ) 
 			return SupportsVulkanSM5();
 
 		case ETargetPlatformFeatures::VirtualTextureStreaming:
-			return UsesVirtualTextures();
+			// TODO: should it check r.VirtualTextures for SM5 renderer ?
+			return bMobileVirtualTextures;
 
 		case ETargetPlatformFeatures::DistanceFieldAO:
 			return UsesDistanceFields();

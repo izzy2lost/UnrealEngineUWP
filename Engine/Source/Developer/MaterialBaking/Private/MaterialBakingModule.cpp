@@ -728,7 +728,7 @@ private:
 
 				// Virtual textures may require repeated rendering to warm up.
 				int32 WarmupIterationCount = 1;
-				if (UseVirtualTexturing(ViewFamily.GetFeatureLevel()))
+				if (UseVirtualTexturing(ViewFamily.GetShaderPlatform()))
 				{
 					const FMaterial& MeshMaterial = ExportMaterialProxy->GetIncompleteMaterialWithFallback(ViewFamily.GetFeatureLevel());
 					if (!MeshMaterial.GetUniformVirtualTextureExpressions().IsEmpty())

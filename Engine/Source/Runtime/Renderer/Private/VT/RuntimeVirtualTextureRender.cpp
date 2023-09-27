@@ -131,7 +131,7 @@ namespace RuntimeVirtualTexture
 
 		static bool ShouldCompilePermutation(const FMeshMaterialShaderPermutationParameters& Parameters)
 		{
-			return UseVirtualTexturing(GetMaxSupportedFeatureLevel(Parameters.Platform)) &&
+			return UseVirtualTexturing(Parameters.Platform) &&
 				(Parameters.MaterialParameters.bHasRuntimeVirtualTextureOutput || Parameters.MaterialParameters.bIsDefaultMaterial);
 		}
 

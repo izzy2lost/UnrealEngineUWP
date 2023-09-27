@@ -1292,7 +1292,7 @@ void UMaterialInstance::ValidateTextureOverrides(ERHIFeatureLevel::Type InFeatur
 
 	const UMaterial* Material = GetMaterial();
 	const FMaterialResource* CurrentResource = Material->GetMaterialResource(InFeatureLevel);
-	const bool bShouldValidateVTUsage = UseVirtualTexturing(GMaxRHIFeatureLevel);
+	const bool bShouldValidateVTUsage = UseVirtualTexturing(GMaxRHIShaderPlatform);
 
 	if (!CurrentResource)
 	{

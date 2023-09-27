@@ -219,6 +219,9 @@ protected:
 
 	// r.Mobile.Forward.EnableClusteredReflections value
 	bool bMobileForwardEnableClusteredReflections;
+
+	// r.Mobile.VirtualTextures value
+	bool bMobileVirtualTextures;
 	
 #if WITH_ENGINE
 	// Holds a cache of the target LOD settings.

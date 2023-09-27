@@ -1435,7 +1435,7 @@ void FLandscapeComponentSceneProxy::CreateRenderThreadResources(FRHICommandListB
 		}
 
 		// We need the fixed grid vertex factory for virtual texturing, grass and for rendering the water info texture and for rendering Landscape into Lumen Surface Cache: 
-		bool bNeedsFixedGridVertexFactory = UseVirtualTexturing(FeatureLevel) || DoesPlatformSupportLumenGI(GMaxRHIShaderPlatform);
+		bool bNeedsFixedGridVertexFactory = UseVirtualTexturing(GetScene().GetShaderPlatform()) || DoesPlatformSupportLumenGI(GMaxRHIShaderPlatform);
 
 		// This cvar is defined in the water plugin and searching for it should return nullptr if the plugin is not loaded
 		const bool bWaterPluginLoaded = IConsoleManager::Get().FindConsoleVariable(TEXT("r.Water.WaterInfo.RenderMethod")) != nullptr;

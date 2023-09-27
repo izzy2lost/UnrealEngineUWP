@@ -1219,7 +1219,7 @@ bool FExpressionVirtualTextureFeatureSwitch::IsInputActive(const FEmitContext& C
 		return true;
 	}
 
-	if (UseVirtualTexturing(Context.TargetParameters.FeatureLevel, Context.TargetParameters.TargetPlatform))
+	if (UseVirtualTexturing(Context.TargetParameters.ShaderPlatform))
 	{
 		return Index == 0;
 	}

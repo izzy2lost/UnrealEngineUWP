@@ -973,7 +973,7 @@ bool UMapBuildDataRegistry::IsLightingValid(ERHIFeatureLevel::Type InFeatureLeve
 	}
 	else
 	{
-		const bool bUsingVTLightmaps = UseVirtualTextureLightmap(InFeatureLevel);
+		const bool bUsingVTLightmaps = UseVirtualTextureLightmap(GetFeatureLevelShaderPlatform(InFeatureLevel));
 
 		// this code checks if AT LEAST 1 virtual textures is valid. 
 		for (auto MeshBuildDataPair : MeshBuildData)

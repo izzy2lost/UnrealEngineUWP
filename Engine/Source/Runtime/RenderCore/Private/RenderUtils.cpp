@@ -1144,7 +1144,7 @@ RENDERCORE_API void QuantizeSceneBufferSize(const FIntPoint& InBufferSize, FIntP
 	OutBufferSize.Y = (InBufferSize.Y + DividableBy - 1) & Mask;
 }
 
-bool UseVirtualTexturing(bool bIsMobilePlatform, const ITargetPlatform* TargetPlatform)
+RENDERCORE_API bool UseVirtualTexturing(const FStaticShaderPlatform ShaderPlatform, const ITargetPlatform* TargetPlatform)
 {
 #if PLATFORM_SUPPORTS_VIRTUAL_TEXTURE_STREAMING
 	if (!FPlatformProperties::SupportsVirtualTextureStreaming())
@@ -1160,38 +1160,48 @@ bool UseVirtualTexturing(bool bIsMobilePlatform, const ITargetPlatform* TargetPl
 		return false;
 	}
 
+	bool bIsMobilePlatform = IsMobilePlatform(ShaderPlatform);
 #if WITH_EDITOR
 	// in case we are cooking for a platform that supports only mobile rendering
 	bIsMobilePlatform |= (TargetPlatform && !TargetPlatform->SupportsFeature(ETargetPlatformFeatures::DeferredRendering));
 #endif
 	// mobile needs an additional switch to enable VT		
-	static const auto CVarMobileVirtualTexture = IConsoleManager::Get().FindTConsoleVariableDataInt(TEXT("r.Mobile.VirtualTextures"));
-	if (bIsMobilePlatform && CVarMobileVirtualTexture->GetValueOnAnyThread() == 0)
+	if (bIsMobilePlatform)
 	{
-		return false;
+	#if WITH_EDITOR		
+		if (TargetPlatform)
+		{
+			// VT can be toggled on and off for specific platform
+			return TargetPlatform->SupportsFeature(ETargetPlatformFeatures::VirtualTextureStreaming);
+		}
+		else
+	#endif
+		{ 
+			static FShaderPlatformCachedIniValue<bool> MobileVirtualTexturesIniValue(TEXT("r.Mobile.VirtualTextures"));
+			return (MobileVirtualTexturesIniValue.Get(ShaderPlatform) != false);
+		}
 	}
-
 	return true;
 #else
 	return false;
 #endif
 }
 
-RENDERCORE_API bool UseVirtualTexturing(const EShaderPlatform InShaderPlatform, const ITargetPlatform* TargetPlatform)
-{
-	return UseVirtualTexturing(IsMobilePlatform(InShaderPlatform), TargetPlatform);
-}
-
 RENDERCORE_API bool UseVirtualTexturing(const FStaticFeatureLevel InFeatureLevel, const ITargetPlatform* TargetPlatform)
 {
-	return UseVirtualTexturing(InFeatureLevel == ERHIFeatureLevel::ES3_1, TargetPlatform);
+	return UseVirtualTexturing(GetFeatureLevelShaderPlatform(InFeatureLevel), TargetPlatform);
+}
+
+RENDERCORE_API bool UseVirtualTextureLightmap(const FStaticShaderPlatform InShaderPlatform, const ITargetPlatform* TargetPlatform)
+{
+	static const auto CVar = IConsoleManager::Get().FindTConsoleVariableDataInt(TEXT("r.VirtualTexturedLightmaps"));
+	const bool bUseVirtualTextureLightmap = (CVar->GetValueOnAnyThread() != 0) && UseVirtualTexturing(InShaderPlatform, TargetPlatform);
+	return bUseVirtualTextureLightmap;
 }
 
 RENDERCORE_API bool UseVirtualTextureLightmap(const FStaticFeatureLevel InFeatureLevel, const ITargetPlatform* TargetPlatform)
 {
-	static const auto CVar = IConsoleManager::Get().FindTConsoleVariableDataInt(TEXT("r.VirtualTexturedLightmaps"));
-	const bool bUseVirtualTextureLightmap = (CVar->GetValueOnAnyThread() != 0) && UseVirtualTexturing(InFeatureLevel, TargetPlatform);
-	return bUseVirtualTextureLightmap;
+	return UseVirtualTextureLightmap(GetFeatureLevelShaderPlatform(InFeatureLevel), TargetPlatform);
 }
 
 RENDERCORE_API bool UseNaniteLandscapeMesh(EShaderPlatform ShaderPlatform)

@@ -182,7 +182,7 @@ void InitHitProxyRender(FRDGBuilder& GraphBuilder, FSceneRenderer* SceneRenderer
 	auto FeatureLevel = ViewFamily.Scene->GetFeatureLevel();
 
 	// Ensure VirtualTexture resources are allocated
-	if (UseVirtualTexturing(FeatureLevel))
+	if (UseVirtualTexturing(ViewFamily.Scene->GetShaderPlatform()))
 	{
 		FVirtualTextureUpdateSettings Settings;
 		Settings.EnablePageRequests(false);

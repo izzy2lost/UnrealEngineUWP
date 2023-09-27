@@ -5910,7 +5910,9 @@ bool UMaterial::GetAllReferencedExpressions(TArray<UMaterialExpression*>& OutExp
 			}
 		}
 
-		bool bMobileUseVirtualTexturing = UseVirtualTexturing(ERHIFeatureLevel::ES3_1);
+		// TODO: Need an actual ShaderPlatform for a more precise result
+		EShaderPlatform ShaderPlatform = GetFeatureLevelShaderPlatform(ERHIFeatureLevel::ES3_1);
+		bool bMobileUseVirtualTexturing = UseVirtualTexturing(ShaderPlatform);
 		if (bMobileUseVirtualTexturing)
 		{
 			TArray<class UMaterialExpressionCustomOutput*> CustomOutputExpressions;

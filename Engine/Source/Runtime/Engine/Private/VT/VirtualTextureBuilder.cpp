@@ -31,7 +31,7 @@ void UVirtualTextureBuilder::Serialize(FArchive& Ar)
 		UVirtualTexture2D* TextureMobileBackup = TextureMobile;
 		
 		// Clear Texture during cook for platforms that don't support virtual texturing
-		if (!UseVirtualTexturing(GMaxRHIFeatureLevel, Ar.CookingTarget()))
+		if (!UseVirtualTexturing(GMaxRHIShaderPlatform, Ar.CookingTarget()))
 		{
 			Texture = nullptr;
 			TextureMobile = nullptr;

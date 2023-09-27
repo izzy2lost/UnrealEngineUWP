@@ -1529,7 +1529,7 @@ void UNiagaraDataInterfaceLandscape::ApplyLandscape(const FNiagaraSystemInstance
 	InstanceData.NormalVirtualTextureIndex = INDEX_NONE;
 
 	// only worry about virtual textures if our current platform supports them
-	if (bVirtualTexturesSupported && UseVirtualTexturing(SystemInstance.GetFeatureLevel()))
+	if (bVirtualTexturesSupported && UseVirtualTexturing(GetFeatureLevelShaderPlatform(SystemInstance.GetFeatureLevel())))
 	{
 		const int32 RuntimeVirtualTextureCount = InstanceData.Landscape->RuntimeVirtualTextures.Num();
 		for (int32 TextureIt = 0; TextureIt < RuntimeVirtualTextureCount; ++TextureIt)

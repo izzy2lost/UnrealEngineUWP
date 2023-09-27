@@ -2793,7 +2793,7 @@ void UsdUtils::NotifyIfVirtualTexturesNeeded( UTexture* Texture )
 		}
 	}
 
-	if ( !UseVirtualTexturing( GMaxRHIFeatureLevel ) )
+	if ( !UseVirtualTexturing( GMaxRHIShaderPlatform ) )
 	{
 		FUsdLogManager::LogMessage(
 			EMessageSeverity::Warning,

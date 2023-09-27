@@ -1038,7 +1038,7 @@ bool FHLSLMaterialTranslator::Translate()
 		// Validate some things on the VT system. Since generated code for expressions shared between multiple properties
 		// (e.g. a texture sample connected to both diffuse and opacity mask) is reused we can't check based on the MaterialProperty
 		// variable inside the actual code generation pass. So we do a pre-pass over it here.
-		if (UseVirtualTexturing(FeatureLevel, TargetPlatform))
+		if (UseVirtualTexturing(Platform))
 		{
 			ValidateVtPropertyLimits();
 		}
@@ -7640,7 +7640,7 @@ int32 FHLSLMaterialTranslator::Texture(UTexture* InTexture, int32& TextureRefere
 #endif
 	checkf(TextureReferenceIndex != INDEX_NONE, TEXT("Material expression called Compiler->Texture() without implementing UMaterialExpression::GetReferencedTexture properly"));
 
-	const bool bVirtualTexturesEnabeled = UseVirtualTexturing(FeatureLevel, TargetPlatform);
+	const bool bVirtualTexturesEnabeled = UseVirtualTexturing(Platform);
 	bool bVirtual = ShaderType == MCT_TextureVirtual;
 	if (bVirtualTexturesEnabeled == false && ShaderType == MCT_TextureVirtual)
 	{
@@ -7674,7 +7674,7 @@ int32 FHLSLMaterialTranslator::TextureParameter(FName ParameterName, UTexture* I
 	FMaterialParameterInfo ParameterInfo = GetParameterAssociationInfo();
 	ParameterInfo.Name = ParameterName;
 
-	const bool bVirtualTexturesEnabled = UseVirtualTexturing(FeatureLevel, TargetPlatform);
+	const bool bVirtualTexturesEnabled = UseVirtualTexturing(Platform);
 	bool bVirtual = ShaderType == MCT_TextureVirtual;
 	if (bVirtualTexturesEnabled == false && ShaderType == MCT_TextureVirtual)
 	{
@@ -7686,7 +7686,7 @@ int32 FHLSLMaterialTranslator::TextureParameter(FName ParameterName, UTexture* I
 
 int32 FHLSLMaterialTranslator::VirtualTexture(URuntimeVirtualTexture* InTexture, int32 TextureLayerIndex, int32 PageTableLayerIndex, int32& TextureReferenceIndex, EMaterialSamplerType SamplerType) 
 {
-	if (!UseVirtualTexturing(FeatureLevel, TargetPlatform))
+	if (!UseVirtualTexturing(Platform))
 	{
 		return INDEX_NONE;
 	}
@@ -7699,7 +7699,7 @@ int32 FHLSLMaterialTranslator::VirtualTexture(URuntimeVirtualTexture* InTexture,
 
 int32 FHLSLMaterialTranslator::VirtualTextureParameter(FName ParameterName, URuntimeVirtualTexture* InDefaultValue, int32 TextureLayerIndex, int32 PageTableLayerIndex, int32& TextureReferenceIndex, EMaterialSamplerType SamplerType)
 {
-	if (!UseVirtualTexturing(FeatureLevel, TargetPlatform))
+	if (!UseVirtualTexturing(Platform))
 	{
 		return INDEX_NONE;
 	}
@@ -7737,7 +7737,7 @@ int32 FHLSLMaterialTranslator::VirtualTextureUniform(FName ParameterName, int32 
 
 int32 FHLSLMaterialTranslator::VirtualTextureWorldToUV(int32 WorldPositionIndex, int32 P0, int32 P1, int32 P2)
 {
-	if (!UseVirtualTexturing(FeatureLevel, TargetPlatform) || WorldPositionIndex == INDEX_NONE || P0 == INDEX_NONE || P1 == INDEX_NONE || P2 == INDEX_NONE)
+	if (!UseVirtualTexturing(Platform) || WorldPositionIndex == INDEX_NONE || P0 == INDEX_NONE || P1 == INDEX_NONE || P2 == INDEX_NONE)
 	{
 		return INDEX_NONE;
 	}

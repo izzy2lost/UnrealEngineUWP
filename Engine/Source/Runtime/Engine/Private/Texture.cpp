@@ -977,7 +977,7 @@ void UTexture::Serialize(FArchive& Ar)
 
 	if (Ar.IsCooking() && VirtualTextureStreaming)
 	{
-		if (UseVirtualTexturing(GMaxRHIFeatureLevel, Ar.CookingTarget()) == false)
+		if (UseVirtualTexturing(GMaxRHIShaderPlatform, Ar.CookingTarget()) == false)
 		{
 			UE_LOG(LogTexture, Display, TEXT("%s is marked for virtual streaming but virtual texture streaming is not available."), *GetPathName());
 		}

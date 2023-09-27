@@ -596,7 +596,7 @@ FPrimitiveSceneProxy::FPrimitiveSceneProxy(const FPrimitiveSceneProxyDesc& InPro
 	}	
 
 	// Setup the runtime virtual texture information
-	if (UseVirtualTexturing(GetScene().GetFeatureLevel()))
+	if (UseVirtualTexturing(GetScene().GetShaderPlatform()))
 	{
 		for (URuntimeVirtualTexture* VirtualTexture : InProxyDesc.GetRuntimeVirtualTextures())
 		{

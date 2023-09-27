@@ -2711,7 +2711,7 @@ void FDeferredShadingSceneRenderer::Render(FRDGBuilder& GraphBuilder)
 
 	FGPUSceneScopeBeginEndHelper GPUSceneScopeBeginEndHelper(Scene->GPUScene, GPUSceneDynamicContext, Scene);
 
-	const bool bUseVirtualTexturing = UseVirtualTexturing(FeatureLevel);
+	const bool bUseVirtualTexturing = UseVirtualTexturing(ShaderPlatform);
 
 	if (bUseVirtualTexturing && RendererOutput == ERendererOutput::FinalSceneColor)
 	{

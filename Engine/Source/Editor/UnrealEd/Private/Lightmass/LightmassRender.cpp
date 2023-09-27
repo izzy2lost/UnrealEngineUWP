@@ -1311,7 +1311,7 @@ bool FLightmassMaterialRenderer::GenerateMaterialPropertyData(
 
 				// Prefetch all virtual textures so that we have content available
 				//todo[vt]: Move this to calling function to avoid multiple prefetches
-				if (UseVirtualTexturing(GMaxRHIFeatureLevel))
+				if (UseVirtualTexturing(GMaxRHIShaderPlatform))
 				{					
 					const ERHIFeatureLevel::Type FeatureLevel = GMaxRHIFeatureLevel;
 					const FVector2D ScreenSpaceSize(InOutSizeX, InOutSizeY);
