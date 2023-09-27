@@ -370,7 +370,7 @@ void SReferenceSkeletonTree::BindCommands()
 		FExecuteAction::CreateSP(this, &SReferenceSkeletonTree::HandlePasteBones),
 		FCanExecuteAction::CreateSP(this, &SReferenceSkeletonTree::CanPasteBones));
 	
-	CommandList->MapAction(Commands.UnParentBone,
+	CommandList->MapAction(Commands.DuplicateBones,
 		FExecuteAction::CreateSP(this, &SReferenceSkeletonTree::HandleDuplicateBones),
 		FCanExecuteAction::CreateSP(this, &SReferenceSkeletonTree::CanDuplicateBones));
 }
