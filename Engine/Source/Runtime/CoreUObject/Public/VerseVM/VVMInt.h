@@ -14,6 +14,7 @@
 #include "VVMContext.h"
 #include "VVMHeapInt.h"
 #include "VVMValue.h"
+#include "VerseVM/VVMFloat.h"
 #include <cstdint>
 
 namespace Verse
@@ -53,21 +54,24 @@ struct VInt
 		return HeapInt.IsZero();
 	}
 
+	bool IsInt64() const;
+	int64 AsInt64() const;
+
+	VFloat ConvertToFloat() const;
+
 	static VInt Add(FRunningContext Context, VInt Lhs, VInt Rhs);
 	static VInt Sub(FRunningContext Context, VInt Lhs, VInt Rhs);
 	static VInt Mul(FRunningContext Context, VInt Lhs, VInt Rhs);
 	static VInt Div(FRunningContext Context, VInt Lhs, VInt Rhs);
 	static VInt Mod(FRunningContext Context, VInt Lhs, VInt Rhs);
 	static VInt Neg(FRunningContext Context, VInt N);
+	static VInt Abs(FRunningContext Context, VInt N);
 	template <typename ContextType>
 	static bool Eq(ContextType Context, VInt Lhs, VInt Rhs);
 	static bool Gt(FRunningContext Context, VInt Lhs, VInt Rhs);
 	static bool Lt(FRunningContext Context, VInt Lhs, VInt Rhs);
 	static bool Gte(FRunningContext Context, VInt Lhs, VInt Rhs);
 	static bool Lte(FRunningContext Context, VInt Lhs, VInt Rhs);
-
-	bool IsInt64() const;
-	int64 AsInt64() const;
 
 	friend uint32 GetTypeHash(VInt Int);
 
@@ -76,12 +80,15 @@ private:
 
 	VValue Value;
 
+	VFloat ConvertToFloatSlowPath() const;
+
 	static VInt AddSlowPath(FRunningContext Context, VInt Lhs, VInt Rhs);
 	static VInt SubSlowPath(FRunningContext Context, VInt Lhs, VInt Rhs);
 	static VInt MulSlowPath(FRunningContext Context, VInt Lhs, VInt Rhs);
 	static VInt DivSlowPath(FRunningContext Context, VInt Lhs, VInt Rhs);
 	static VInt ModSlowPath(FRunningContext Context, VInt Lhs, VInt Rhs);
 	static VInt NegSlowPath(FRunningContext Context, VInt N);
+	static VInt AbsSlowPath(FRunningContext Context, VInt N);
 	template <typename ContextType>
 	static bool EqSlowPath(ContextType Context, VInt Lhs, VInt Rhs);
 	static bool LtSlowPath(FRunningContext, VInt Lhs, VInt Rhs);

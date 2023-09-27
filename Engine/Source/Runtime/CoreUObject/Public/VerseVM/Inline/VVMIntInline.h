@@ -24,6 +24,16 @@ inline VInt::VInt(VHeapInt& N)
 	}
 }
 
+inline VFloat VInt::ConvertToFloat() const
+{
+	if (Value.IsInt32())
+	{
+		return VFloat(Value.AsInt32());
+	}
+
+	return Value.StaticCast<VHeapInt>().ConvertToFloat();
+}
+
 inline VInt VInt::Add(FRunningContext Context, VInt Lhs, VInt Rhs)
 {
 	if (Lhs.Value.IsInt32() && Rhs.Value.IsInt32())
@@ -102,6 +112,15 @@ inline VInt VInt::Neg(FRunningContext Context, VInt x)
 		return VInt(Context, -r64);
 	}
 	return VInt::NegSlowPath(Context, x);
+}
+inline VInt VInt::Abs(FRunningContext Context, VInt x)
+{
+	if (x.Value.IsInt32())
+	{
+		const int64 r64 = static_cast<int64>(x.Value.AsInt32());
+		return VInt(Context, r64 < 0 ? -r64 : r64);
+	}
+	return VInt::AbsSlowPath(Context, x);
 }
 
 template <typename ContextType>
@@ -255,8 +274,14 @@ inline bool VInt::EqSlowPath(ContextType Context, VInt Lhs, VInt Rhs)
 
 inline VInt VInt::NegSlowPath(FRunningContext Context, VInt N)
 {
-	VHeapInt& NHeap = N.Value.AsCell().StaticCast<VHeapInt>();
+	VHeapInt& NHeap = N.Value.StaticCast<VHeapInt>();
 	return VInt(*VHeapInt::UnaryMinus(Context, NHeap));
+}
+
+inline VInt VInt::AbsSlowPath(FRunningContext Context, VInt N)
+{
+	VHeapInt& NHeap = N.Value.StaticCast<VHeapInt>();
+	return VInt(NHeap.GetSign() ? *VHeapInt::UnaryMinus(Context, NHeap) : NHeap);
 }
 
 inline bool VInt::LtSlowPath(FRunningContext Context, VInt Lhs, VInt Rhs)
@@ -293,7 +318,7 @@ inline VHeapInt& VInt::AsHeapInt(FRunningContext Context, VInt N)
 {
 	return N.Value.IsInt32()
 			 ? VHeapInt::FromInt64(Context, N.Value.AsInt32())
-			 : N.Value.AsCell().StaticCast<VHeapInt>();
+			 : N.Value.StaticCast<VHeapInt>();
 }
 
 inline bool VInt::IsInt64() const
@@ -318,7 +343,7 @@ inline int64 VInt::AsInt64() const
 	else
 	{
 		checkSlow(IsInt64());
-		return Value.AsCell().StaticCast<VHeapInt>().AsInt64();
+		return Value.StaticCast<VHeapInt>().AsInt64();
 	}
 }
 
@@ -332,6 +357,6 @@ inline uint32 GetTypeHash(VInt Int)
 	{
 		return ::GetTypeHash(Int.AsInt64());
 	}
-	return GetTypeHash(Int.Value.AsCell().StaticCast<VHeapInt>());
+	return GetTypeHash(Int.Value.StaticCast<VHeapInt>());
 }
 } // namespace Verse

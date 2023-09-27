@@ -37,6 +37,7 @@
 #include "Misc/AssertionMacros.h"
 #include "VVMGlobalTrivialEmergentTypePtr.h"
 #include "VVMType.h"
+#include "VerseVM/VVMFloat.h"
 #include <cstdint>
 
 namespace Verse
@@ -64,6 +65,8 @@ public:
 
 	bool IsInt64() const;
 	int64 AsInt64() const;
+
+	VFloat ConvertToFloat() const;
 
 	static bool Equals(VHeapInt*, VHeapInt*);
 
@@ -144,11 +147,7 @@ private:
 
 	static VHeapInt* Copy(FRunningContext, VHeapInt& X);
 
-	static VHeapInt* AbsoluteAdd(FRunningContext,
-		VHeapInt& X,
-		VHeapInt& Y,
-		bool ResultSign);
-
+	static VHeapInt* AbsoluteAdd(FRunningContext, VHeapInt& X, VHeapInt& Y, bool ResultSign);
 	static VHeapInt* AbsoluteSub(FRunningContext, VHeapInt& X, VHeapInt& Y, bool ResultSign);
 
 	Digit AbsoluteInplaceAdd(VHeapInt* Summand, uint32 StartIndex);
@@ -181,7 +180,7 @@ private:
 	}
 
 	const uint32 Length;
-	uint8 Sign{false};
+	uint8 Sign{false}; // false means positive, true means negative
 	Digit Digits[];
 };
 

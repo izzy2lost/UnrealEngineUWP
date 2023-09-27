@@ -101,7 +101,7 @@ bool VHeapInt::IsInt64() const
 int64 VHeapInt::AsInt64() const
 {
 	static_assert(sizeof(Digit) == 4);
-	check(IsInt64());
+	checkSlow(IsInt64());
 
 	if (GetLength() == 0)
 	{
@@ -122,6 +122,120 @@ int64 VHeapInt::AsInt64() const
 	}
 
 	return int64(GetDigit(0)) | (int64(GetDigit(1)) << 32);
+}
+
+// This function implements the IEEE round-ties-to-even rounding mode
+VFloat VHeapInt::ConvertToFloat() const
+{
+	static_assert(sizeof(Digit) == 4, "We assume a digit size of 32 bit in the code below or else it will malfunction.");
+
+	constexpr uint32 IEEEMantissaBits = 53;  // Including the implicit bit, only 52 are stored
+	constexpr uint32 IEEEMaxValidExp = 2046; // 2047 is reserved for inf & NaN
+	constexpr uint32 IEEEExpBias = 1023;     // 1023 means 0
+
+	// Statistically it is very likely that we fit into an int64 so handle this special case upfront
+	if (IsInt64())
+	{
+		return VFloat(double(AsInt64()));
+	}
+
+	checkSlow(Length >= 2); // Since we handled the int64 case above
+
+	const Digit* TopDigit = &Digits[Length];
+
+	// Get highest digit
+	uint64 Top1 = *--TopDigit;
+
+	// Compute shift required to bring Top1 into mantissa position _plus 1_ (so we can examine the bit below the LSB)
+	constexpr int32 ShiftOffset = IEEEMantissaBits - 32;
+	int32 Shift = int32(FMath::CountLeadingZeros(int32(Top1))) + (ShiftOffset + 1);
+
+	// Compute exponent
+	uint64 Exponent = uint64(Length) * 32 + (IEEEExpBias + ShiftOffset) - Shift;
+	if (Exponent > IEEEMaxValidExp)
+	{
+		// This number exceeds the maximum that a double can represent
+		return VFloat(Sign ? -std::numeric_limits<double>::infinity() : std::numeric_limits<double>::infinity());
+	}
+
+	// Fetch additional digits
+	uint64 Top2 = *--TopDigit;
+	uint64 Top3 = 0;
+	if (Length > 2 && Shift > 32)
+	{
+		Top3 = *--TopDigit;
+	}
+
+	// Compute (shifted) mantissa
+	uint64 Mantissa = Top1 << Shift;
+	if (Shift <= 32)
+	{
+		Mantissa |= Top2 >> (32 - Shift);
+	}
+	else
+	{
+		Mantissa |= (Top2 << (Shift - 32)) | (Top3 >> (64 - Shift));
+	}
+
+	// Shall we round up or down?
+	// (Mantissa here contains the actual mantissa shifted up by one bit so we can examine the bit below its LSB)
+	bool bRoundUp = ((Mantissa & 1) != 0);
+	// Do we need to check for a tie?
+	// (we only need to check if the mantissa is even and the bit below its LSB is 1)
+	if ((Mantissa & 3) == 1)
+	{
+		// Test the lower bits that we already fetched from the Digit array
+		bool bHasBitsFollowingTheBitBelowLSB;
+		if (Shift <= 32)
+		{
+			bHasBitsFollowingTheBitBelowLSB = (Top2 & ((1ull << (32 - Shift)) - 1)) != 0;
+		}
+		else
+		{
+			bHasBitsFollowingTheBitBelowLSB = (Top3 & ((1ull << (64 - Shift)) - 1)) != 0;
+		}
+		// If any of those bits are non-zero we round up, otherwise we have to check further
+		if (!bHasBitsFollowingTheBitBelowLSB)
+		{
+			// Look at all remaining digits we didn't check yet
+			while (TopDigit > Digits)
+			{
+				if (*--TopDigit != 0)
+				{
+					bHasBitsFollowingTheBitBelowLSB = true;
+					break;
+				}
+			}
+			// If we found any more bits, we round up, otherwise down
+			bRoundUp = bHasBitsFollowingTheBitBelowLSB;
+		}
+	}
+
+	// Now that we know which way we want to round, get rid of that extra bit to yield the actual mantissa
+	Mantissa >>= 1;
+
+	if (bRoundUp)
+	{
+		// Round up by incrementing the mantissa
+		++Mantissa;
+		// In case the mantissa was all 1s, it might have overflown, check for that:
+		if (Mantissa == (1ull << IEEEMantissaBits))
+		{
+			// It overflowed, correct for that
+			Mantissa >>= 1;
+			++Exponent;
+			if (Exponent > IEEEMaxValidExp)
+			{
+				// This number exceeds the maximum that a double can represent
+				return VFloat(Sign ? -std::numeric_limits<double>::infinity() : std::numeric_limits<double>::infinity());
+			}
+		}
+	}
+
+	// Combine into result
+	uint64 BitResult = (Mantissa - (uint64(1) << 52)) | (Exponent << 52) | (uint64(Sign) << 63);
+	double Result = BitCast<double>(BitResult);
+	return VFloat(Result);
 }
 
 void VHeapInt::Initialize(InitializationType InitType)
@@ -241,7 +355,9 @@ VHeapInt* VHeapInt::Divide(FRunningContext Context, VHeapInt& X, VHeapInt& Y)
 	}
 
 	if (VHeapInt::AbsoluteCompare(X, Y) == ComparisonResult::LessThan)
+	{
 		return CreateZero(Context);
+	}
 
 	VHeapInt* Result = nullptr;
 	bool ResultSign = X.GetSign() != Y.GetSign();
