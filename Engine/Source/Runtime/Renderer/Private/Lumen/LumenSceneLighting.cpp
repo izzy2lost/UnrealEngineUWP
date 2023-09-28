@@ -12,12 +12,11 @@
 #include "LumenTracingUtils.h"
 #include "ShaderPrintParameters.h"
 
-int32 GLumenSceneLightingForceFullUpdate = 0;
-FAutoConsoleVariableRef CVarLumenSceneLightingForceFullUpdate(
+static TAutoConsoleVariable<int32> CVarLumenSceneLightingForceFullUpdate(
 	TEXT("r.LumenScene.Lighting.ForceLightingUpdate"),
-	GLumenSceneLightingForceFullUpdate,
-	TEXT(""),
-	ECVF_Scalability | ECVF_RenderThreadSafe
+	0,
+	TEXT("Force full Lumen Scene Lighting update every frame. Useful for debugging"),
+	ECVF_RenderThreadSafe
 );
 
 int32 GLumenSceneLightingFeedback = 1;
@@ -89,7 +88,7 @@ void SetLightingUpdateAtlasSize(FIntPoint PhysicalAtlasSize, int32 UpdateFactor,
 
 	if (!Lumen::IsSurfaceCacheFrozen())
 	{
-		if (GLumenSceneLightingForceFullUpdate != 0)
+		if (CVarLumenSceneLightingForceFullUpdate.GetValueOnRenderThread() != 0)
 		{
 			Context.UpdateFactor = 1;
 		}
