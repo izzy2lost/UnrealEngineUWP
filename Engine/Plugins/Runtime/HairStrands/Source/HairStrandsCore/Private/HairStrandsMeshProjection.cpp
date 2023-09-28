@@ -84,6 +84,7 @@ class FSkinUpdateCS : public FGlobalShader
 	using FPermutationDomain = TShaderPermutationDomain<FUnlimitedBoneInfluence, FUseExtraInfluence, FIndexUint16, FPrevious>;
 
 	BEGIN_SHADER_PARAMETER_STRUCT(FParameters, )
+		SHADER_PARAMETER(uint32, NumVertexToProcess)
 		SHADER_PARAMETER(uint32, NumTotalVertices)
 		SHADER_PARAMETER(uint32, SectionVertexBaseIndex)
 		SHADER_PARAMETER(uint32, IndexSize)
@@ -127,6 +128,7 @@ void AddSkinUpdatePass(
 	
 	FSkinUpdateCS::FParameters* Parameters = GraphBuilder.AllocParameters<FSkinUpdateCS::FParameters>();
 	Parameters->IndexSize = SkinWeight->GetBoneIndexByteSize();
+	Parameters->NumVertexToProcess = NumVertexToProcess;
 	Parameters->NumTotalVertices = NumTotalVertices;
 	Parameters->SectionVertexBaseIndex = SectionVertexBaseIndex;
 	Parameters->WeightStride = SkinWeight->GetConstantInfluencesVertexStride();
