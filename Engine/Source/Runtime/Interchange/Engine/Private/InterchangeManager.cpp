@@ -1132,7 +1132,7 @@ bool UInterchangeManager::CanReimport(const UObject* Object, TArray<FString>& Ou
 
 void UInterchangeManager::StartQueuedTasks(bool bCancelAllTasks /*= false*/)
 {
-	TRACE_CPUPROFILER_EVENT_SCOPE_STR("UInterchangeManager::StartQueuedTasks")
+	TRACE_CPUPROFILER_EVENT_SCOPE(UInterchangeManager::StartQueuedTasks)
 	ensure(IsInterchangeImportEnabled());
 	if (!ensure(IsInGameThread()))
 	{
@@ -1312,7 +1312,7 @@ UInterchangeManager::ImportSceneAsync(const FString& ContentPath, const UInterch
 TTuple<UE::Interchange::FAssetImportResultRef, UE::Interchange::FSceneImportResultRef>
 UInterchangeManager::ImportInternal(const FString& ContentPath, const UInterchangeSourceData* SourceData, const FImportAssetParameters& ImportAssetParameters, const UE::Interchange::EImportType ImportType)
 {
-	TRACE_CPUPROFILER_EVENT_SCOPE("UInterchangeManager::ImportInternal")
+	TRACE_CPUPROFILER_EVENT_SCOPE(UInterchangeManager::ImportInternal)
 	ensure(IsInterchangeImportEnabled());
 	check(IsInGameThread());
 	static int32 GeneratedUniqueID = 0;
