@@ -194,6 +194,12 @@ namespace Chaos
 			Property->AddValue(TEXT("UseSelfIntersections"), ClothConfig->bUseSelfIntersections, NonAnimatablePropertyFlags);
 			Property->AddValue(TEXT("SelfCollisionFriction"), ClothConfig->SelfCollisionFriction, NonAnimatablePropertyFlags);
 
+			if (ClothConfig->bUseSelfCollisionSpheres)
+			{
+				Property->AddValue("SelfCollisionSphereRadius", ClothConfig->SelfCollisionSphereRadius, NonAnimatablePropertyFlags);
+				Property->AddValue("SelfCollisionSphereStiffness", ClothConfig->SelfCollisionSphereStiffness, AnimatablePropertyFlags);
+			}
+
 			// Max distance
 			{
 				const int32 MaxDistanceIndex = Property->AddProperty(TEXT("MaxDistance"), AnimatablePropertyFlags);

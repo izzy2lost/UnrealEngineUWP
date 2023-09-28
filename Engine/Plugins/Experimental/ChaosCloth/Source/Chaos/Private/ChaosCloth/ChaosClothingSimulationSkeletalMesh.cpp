@@ -161,8 +161,16 @@ PRAGMA_ENABLE_DEPRECATION_WARNINGS
 
 	TMap<FString, const TSet<int32>*> FClothingSimulationSkeletalMesh::GetVertexSets(int32 LODIndex) const
 	{
-		// Not supported
-		return TMap<FString, const TSet<int32>*>();
+		TMap<FString, const TSet<int32>*> VertexSets;
+		if (IsValidLODIndex(LODIndex))
+		{
+			const FClothLODDataCommon& ClothLODData = Asset->LodData[LODIndex];
+			const FClothPhysicalMeshData& ClothPhysicalMeshData = ClothLODData.PhysicalMeshData;
+			static const FString SelfCollisionSetName("_SelfCollisionSpheres");
+			VertexSets.Add(SelfCollisionSetName, &ClothPhysicalMeshData.SelfCollisionVertexSet);
+		}
+
+		return VertexSets;
 	}
 
 	TArray<TConstArrayView<TTuple<int32, int32, float>>> FClothingSimulationSkeletalMesh::GetTethers(int32 LODIndex, bool bUseGeodesicTethers) const

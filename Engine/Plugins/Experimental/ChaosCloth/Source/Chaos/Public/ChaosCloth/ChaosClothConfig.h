@@ -70,11 +70,16 @@ public:
 	/** PostLoad override used to deal with updates/changes in properties. */
 	CHAOSCLOTH_API virtual void PostLoad() override;
 
+	virtual bool NeedsSelfCollisionData() const override { return bUseSelfCollisionSpheres && SelfCollisionSphereRadius * SelfCollisionSphereRadiusCullMultiplier > 0.f; }
+
 	/** Return wherether to pre-compute Inverse Masses. */
 	virtual bool NeedsInverseMasses() const override { return false; }  // TODO: Chaos Cloth uses the mass mode enum, and this will require a little refactor to work
 
 	/** Return wherether to pre-compute the Long Range Attachment tethers. */
 	virtual bool NeedsTethers() const override { return TetherStiffness.Low > 0.f || TetherStiffness.High > 0.f; }
+
+	/** Return the self collision radius to precomute self collision data. */
+	virtual float GetSelfCollisionRadius() const override { return SelfCollisionSphereRadius * SelfCollisionSphereRadiusCullMultiplier; }
 
 	/** Return whether tethers need to be calculated using geodesic distances instead of eclidean. */
 	virtual bool TethersUseGeodesicDistance() const override { return bUseGeodesicDistance; }
@@ -234,6 +239,25 @@ public:
 	/** Enable self intersection resolution. This will try to fix any cloth intersections that are not handled by collision repulsions. */
 	UPROPERTY(EditAnywhere, Category = "Collision Properties", meta = (EditCondition = "bUseSelfCollisions"))
 	bool bUseSelfIntersections = false;
+
+	/** Enable sphere-based self collision repulsion forces. */
+	UPROPERTY(EditAnywhere, Category = "Collision Properties",meta = (EditCondition = "!bUseSelfCollisions"))
+	bool bUseSelfCollisionSpheres = false;
+
+	/** The radius of the spheres used in self collision centered at each vertex. */
+	UPROPERTY(EditAnywhere, Category = "Collision Properties", meta = (EditCondition = "!bUseSelfCollisions && bUseSelfCollisionSpheres", UIMin = "0", UIMax = "100", ClampMin = "0", ClampMax = "1000"))
+	float SelfCollisionSphereRadius = 0.5f;
+
+	/** The stiffness of the springs used to control self collision. */
+	UPROPERTY(EditAnywhere, Category = "Collision Properties", meta = (EditCondition = "!bUseSelfCollisions && bUseSelfCollisionSpheres", UIMin = "0", UIMax = "100", ClampMin = "0", ClampMax = "1000"))
+	float SelfCollisionSphereStiffness = 1.f;
+
+	/** 
+	 * Multiplier for culling the self collision spheres. Spheres are seeded on every vertex,
+	 * and culled based on SelfCollisionSphereRadius * SelfCollisionSphereRadiusCullMultiplier.
+	 */
+	UPROPERTY(EditAnywhere, Category = "Collision Properties", meta = (EditCondition = "!bUseSelfCollisions && bUseSelfCollisionSpheres", ClampMin = "1"))
+	float SelfCollisionSphereRadiusCullMultiplier = 1.f;
 
 	/**
 	 * This parameter is automatically set by the migration code. It can be overridden here to use the old way of authoring the backstop distances.

@@ -4329,38 +4329,29 @@ void UCustomizableInstancePrivateData::BuildOrCopyClothingData(const TSharedPtr<
 			NewPhysicalMeshIndices.SetNum(SrcPhysicalMeshIndices.Num());
 			NewPhysicalMeshIndices.SetNum(TrimAndRemapTriangles(NewPhysicalMeshIndices, SrcPhysicalMeshIndices), false);
 		
-			const auto TrimAndRemapIndices = [&IndexMap](TArray<uint32>& Dst, const TArray<uint32>& Src) -> int32
+			const auto TrimAndRemapVertexSet = [&IndexMap](TSet<int32>& Dst, const TSet<int32>& Src)
 			{	
-				const int32 SrcNumElems = Src.Num();
 				if (!IndexMap.Num())
 				{
-					//for (int32 Idx = 0; Idx < SrcNumElems; ++Idx)
-					//{
-					//	Dst[Idx] = Src[Idx];
-					//}
-
-					FMemory::Memcpy( Dst.GetData(), Src.GetData(), SrcNumElems*sizeof(uint32) );
-					return SrcNumElems;
+					Dst = Src;
+					return;
 				}
 
-				int32 DstNumElems = 0;
-				for (int32 Idx = 0; Idx < SrcNumElems; ++Idx)
+				Dst.Reserve(Src.Num());
+				for(const int32 SrcIdx : Src)
 				{
-					const int32 MappedIdx = IndexMap[Src[Idx]];
+					const int32 MappedIdx = IndexMap[SrcIdx];
 
 					if (MappedIdx >= 0)
 					{
-						Dst[DstNumElems++] = MappedIdx;
+						Dst.Add(MappedIdx);
 					}
 				}
-
-				return DstNumElems;
 			};
 
-			const TArray<uint32>& SrcSelfCollisionIndices = SrcLodData.PhysicalMeshData.SelfCollisionIndices;
-			TArray<uint32>& NewSelfCollisionIndices = NewLodData.PhysicalMeshData.SelfCollisionIndices;
-			NewSelfCollisionIndices.SetNum(SrcSelfCollisionIndices.Num());
-			NewSelfCollisionIndices.SetNum(TrimAndRemapIndices(NewSelfCollisionIndices, SrcSelfCollisionIndices), false);
+			const TSet<int32>& SrcSelfCollisionVertexSet = SrcLodData.PhysicalMeshData.SelfCollisionVertexSet;
+			TSet<int32>& NewSelfCollisionVertexSet = NewLodData.PhysicalMeshData.SelfCollisionVertexSet;
+			TrimAndRemapVertexSet(NewSelfCollisionVertexSet, SrcSelfCollisionVertexSet);;
 						
 			{
 				MUTABLE_CPUPROFILER_SCOPE(BuildClothTetherData)
