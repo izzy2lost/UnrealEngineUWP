@@ -226,11 +226,11 @@ FName FMemAllocGroupingByCallstack::GetGroupName(const TraceServices::FStackFram
 	}
 	else if (Result == TraceServices::ESymbolQueryResult::Pending)
 	{
-		return FName(FString::Printf(TEXT("%s!0x%X [...]"), Frame->Symbol->Module, Frame->Addr), 0);
+		return FName(FString::Printf(TEXT("%s!0x%llX [...]"), Frame->Symbol->Module, Frame->Addr), 0);
 	}
 	else
 	{
-		return FName(FString::Printf(TEXT("%s!0x%X"), Frame->Symbol->Module, Frame->Addr), 0);
+		return FName(FString::Printf(TEXT("%s!0x%llX"), Frame->Symbol->Module, Frame->Addr), 0);
 	}
 }
 

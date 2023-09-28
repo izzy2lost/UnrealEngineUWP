@@ -1726,7 +1726,7 @@ void SMemAllocTableTreeView::BuildOpenSourceSubMenu(FMenuBuilder& MenuBuilder)
 						{
 							ItemLabel = FText::Format(LOCTEXT("ContextMenu_OpenSource_Fmt2", "{0} ({1}) \u2192 {2}"),
 								FText::FromString(Frame->Symbol->Module),
-								FText::FromString(FString::Printf(TEXT("0x%X"), Frame->Addr)),
+								FText::FromString(FString::Printf(TEXT("0x%llX"), Frame->Addr)),
 								FText::FromString(TraceServices::QueryResultToString(Frame->Symbol->GetResult())));
 
 							ItemToolTip = FText::Format(LOCTEXT("ContextMenu_OpenSource_Desc_Fmt2", "Open source file of selected callstack frame in {0}."),
