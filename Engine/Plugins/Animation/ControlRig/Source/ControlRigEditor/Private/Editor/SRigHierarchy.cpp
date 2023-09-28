@@ -2429,7 +2429,14 @@ TOptional<EItemDropZone> SRigHierarchy::OnCanAcceptDrop(const FDragDropEvent& Dr
 					return InvalidDropZone;
 				}
 
-				if(DropZone == EItemDropZone::OntoItem && !RigDragDropOp->IsDraggingSingleConnector())
+				if(RigDragDropOp->IsDraggingSingleConnector())
+				{
+					if(DropZone != EItemDropZone::OntoItem)
+					{
+						return InvalidDropZone;
+					}
+				}
+				else if(DropZone == EItemDropZone::OntoItem)
 				{
 					if(Hierarchy->IsParentedTo(TargetKey, DraggedKey))
 					{

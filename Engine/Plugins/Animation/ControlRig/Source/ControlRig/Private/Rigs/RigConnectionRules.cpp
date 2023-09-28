@@ -303,7 +303,7 @@ bool FRigTagConnectionRule::CanConnect(const FRigConnectionInfo* InConnectionInf
 
 TArray<FRigElementKey> FRigChainConnectionRule::GetAdditionalConnectors() const
 {
-	return {EndConnector};
+	return {RootConnector};
 }
 
 bool FRigChainConnectionRule::CanConnect(const FRigConnectionInfo* InConnectionInfo, FString* OutFailureReason) const
@@ -324,8 +324,8 @@ bool FRigChainConnectionRule::CanConnect(const FRigConnectionInfo* InConnectionI
 		return false;
 	}
 
-	const FRigElementKey StartKey = Targets[0];
-	const FRigElementKey EndKey = Targets.Last();
+	const FRigElementKey EndKey = Targets[0];
+	const FRigElementKey StartKey = Targets.Last();
 
 	FRigElementKey NextKey = EndKey;
 	TArray<FRigElementKey> ReversedChain;

@@ -739,7 +739,19 @@ bool UControlRigBlueprint::ResolveConnector(const FRigElementKey& DraggedKey, co
 	}
 
 	PropagateHierarchyFromBPToInstances();
-	RequestAutoVMRecompilation();
+
+	if(UControlRig* ControlRig = Cast<UControlRig>(GetObjectBeingDebugged()))
+	{
+		for (UEdGraph* Graph : UbergraphPages)
+		{
+			UControlRigGraph* RigGraph = Cast<UControlRigGraph>(Graph);
+			if (RigGraph == nullptr)
+			{
+				continue;
+			}
+			RigGraph->CacheNameLists(ControlRig->GetHierarchy(), &DrawContainer, ShapeLibraries);
+		}
+	}
 
 	return true;
 }

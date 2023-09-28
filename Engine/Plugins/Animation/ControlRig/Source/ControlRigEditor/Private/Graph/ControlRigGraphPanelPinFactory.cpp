@@ -209,7 +209,7 @@ TSharedPtr<SGraphPin> FControlRigGraphPanelPinFactory::CreatePin_Internal(UEdGra
 					struct FCachedAnimationChannelNames
 					{
 						int32 TopologyVersion;
-						TSharedPtr<TArray<TSharedPtr<FString>>> Names;
+						TSharedPtr<TArray<TSharedPtr<FRigVMStringWithTag>>> Names;
 						
 						FCachedAnimationChannelNames()
 						: TopologyVersion(INDEX_NONE)
@@ -280,10 +280,10 @@ TSharedPtr<SGraphPin> FControlRigGraphPanelPinFactory::CreatePin_Internal(UEdGra
 								{
 									if(!ChannelNames.Names.IsValid())
 									{
-										ChannelNames.Names = MakeShareable(new TArray<TSharedPtr<FString>>());
+										ChannelNames.Names = MakeShareable(new TArray<TSharedPtr<FRigVMStringWithTag>>());
 									}
 									ChannelNames.Names->Reset();
-									ChannelNames.Names->Add(MakeShareable(new FString(FName(NAME_None).ToString())));
+									ChannelNames.Names->Add(MakeShareable(new FRigVMStringWithTag(FName(NAME_None).ToString())));
 
 									if(const FRigControlElement* ControlElement = Hierarchy->Find<FRigControlElement>(ControlKey))
 									{
@@ -294,7 +294,7 @@ TSharedPtr<SGraphPin> FControlRigGraphPanelPinFactory::CreatePin_Internal(UEdGra
 											{
 												if(ChildControl->IsAnimationChannel())
 												{
-													ChannelNames.Names->Add(MakeShareable(new FString(ChildControl->GetDisplayName().ToString())));
+													ChannelNames.Names->Add(MakeShareable(new FRigVMStringWithTag(ChildControl->GetDisplayName().ToString())));
 												}
 											}
 										}
@@ -303,7 +303,7 @@ TSharedPtr<SGraphPin> FControlRigGraphPanelPinFactory::CreatePin_Internal(UEdGra
 								return ChannelNames.Names.Get();
 							}
 
-							static TArray<TSharedPtr<FString>> EmptyNameList;
+							static TArray<TSharedPtr<FRigVMStringWithTag>> EmptyNameList;
 							return &EmptyNameList;
 						})
 						.OnGetSelectedClicked_UObject(RigGraph, &UControlRigGraph::HandleGetSelectedClicked)
@@ -314,7 +314,7 @@ TSharedPtr<SGraphPin> FControlRigGraphPanelPinFactory::CreatePin_Internal(UEdGra
 					struct FCachedMetadataNames
 					{
 						int32 MetadataVersion;
-						TSharedPtr<TArray<TSharedPtr<FString>>> Names;
+						TSharedPtr<TArray<TSharedPtr<FRigVMStringWithTag>>> Names;
 						
 						FCachedMetadataNames()
 						: MetadataVersion(INDEX_NONE)
@@ -352,20 +352,20 @@ TSharedPtr<SGraphPin> FControlRigGraphPanelPinFactory::CreatePin_Internal(UEdGra
 
 										if(!MetadataNames.Names.IsValid())
 										{
-											MetadataNames.Names = MakeShareable(new TArray<TSharedPtr<FString>>());
+											MetadataNames.Names = MakeShareable(new TArray<TSharedPtr<FRigVMStringWithTag>>());
 										}
 										MetadataNames.Names->Reset();
 
 										for(const FName& Name : Names)
 										{
-											MetadataNames.Names->Add(MakeShareable(new FString(Name.ToString())));
+											MetadataNames.Names->Add(MakeShareable(new FRigVMStringWithTag(Name.ToString())));
 										}
 
-										MetadataNames.Names->Sort([](const TSharedPtr<FString>& A, const TSharedPtr<FString>& B)
+										MetadataNames.Names->Sort([](const TSharedPtr<FRigVMStringWithTag>& A, const TSharedPtr<FRigVMStringWithTag>& B)
 										{
 											return A.Get() > B.Get();
 										});
-										MetadataNames.Names->Insert(MakeShareable(new FString(FName(NAME_None).ToString())), 0);
+										MetadataNames.Names->Insert(MakeShareable(new FRigVMStringWithTag(FName(NAME_None).ToString())), 0);
 
 										MetadataNames.MetadataVersion = MetadataVersion;
 									}
@@ -373,7 +373,7 @@ TSharedPtr<SGraphPin> FControlRigGraphPanelPinFactory::CreatePin_Internal(UEdGra
 								}
 							}
 
-							static TArray<TSharedPtr<FString>> EmptyNameList;
+							static TArray<TSharedPtr<FRigVMStringWithTag>> EmptyNameList;
 							return &EmptyNameList;
 						});
 				}
@@ -382,7 +382,7 @@ TSharedPtr<SGraphPin> FControlRigGraphPanelPinFactory::CreatePin_Internal(UEdGra
 					struct FCachedMetadataTagNames
 					{
 						int32 MetadataTagVersion;
-						TSharedPtr<TArray<TSharedPtr<FString>>> Names;
+						TSharedPtr<TArray<TSharedPtr<FRigVMStringWithTag>>> Names;
 						FCachedMetadataTagNames()
 						: MetadataTagVersion(INDEX_NONE)
 						{}
@@ -422,19 +422,19 @@ TSharedPtr<SGraphPin> FControlRigGraphPanelPinFactory::CreatePin_Internal(UEdGra
 
 										if(!MetadataTagNames.Names.IsValid())
 										{
-											MetadataTagNames.Names = MakeShareable(new TArray<TSharedPtr<FString>>());
+											MetadataTagNames.Names = MakeShareable(new TArray<TSharedPtr<FRigVMStringWithTag>>());
 										}
 										MetadataTagNames.Names->Reset();
 
 										for(const FName& Tag : Tags)
 										{
-											MetadataTagNames.Names->Add(MakeShareable(new FString(Tag.ToString())));
+											MetadataTagNames.Names->Add(MakeShareable(new FRigVMStringWithTag(Tag.ToString())));
 										}
-										MetadataTagNames.Names->Sort([](const TSharedPtr<FString>& A, const TSharedPtr<FString>& B)
+										MetadataTagNames.Names->Sort([](const TSharedPtr<FRigVMStringWithTag>& A, const TSharedPtr<FRigVMStringWithTag>& B)
 										{
 											return A.Get() > B.Get();
 										});
-										MetadataTagNames.Names->Insert(MakeShareable(new FString(FName(NAME_None).ToString())), 0);
+										MetadataTagNames.Names->Insert(MakeShareable(new FRigVMStringWithTag(FName(NAME_None).ToString())), 0);
 
 										MetadataTagNames.MetadataTagVersion = MetadataTagVersion;
 									}
@@ -443,7 +443,7 @@ TSharedPtr<SGraphPin> FControlRigGraphPanelPinFactory::CreatePin_Internal(UEdGra
 								}
 							}
 
-							static TArray<TSharedPtr<FString>> EmptyNameList;
+							static TArray<TSharedPtr<FRigVMStringWithTag>> EmptyNameList;
 							return &EmptyNameList;
 						});
 				}

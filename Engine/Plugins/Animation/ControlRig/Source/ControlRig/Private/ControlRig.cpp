@@ -1641,7 +1641,7 @@ const FRigModuleSettings& UControlRig::GetRigModuleSettings() const
 
 bool UControlRig::IsRigModule() const
 {
-	return GetRigModuleSettings().IsValidModule();
+	return GetRigModuleSettings().IsValidModule(false);
 }
 
 bool UControlRig::IsRigModuleInstance() const

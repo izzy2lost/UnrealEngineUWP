@@ -245,9 +245,10 @@ private:
 		ERigElementGetterSetterType_Name
 	};
 
-	 void HandleMakeElementGetterSetter(ERigElementGetterSetterType Type, bool bIsGetter, TArray<FRigElementKey> Keys, UEdGraph* Graph, FVector2D NodePosition);
+	void FilterDraggedKeys(TArray<FRigElementKey>& Keys, bool bRemoveNameSpace);
+	void HandleMakeElementGetterSetter(ERigElementGetterSetterType Type, bool bIsGetter, TArray<FRigElementKey> Keys, UEdGraph* Graph, FVector2D NodePosition);
 
-	 void HandleOnControlModified(UControlRig* Subject, FRigControlElement* ControlElement, const FRigControlModifiedContext& Context);
+	void HandleOnControlModified(UControlRig* Subject, FRigControlElement* ControlElement, const FRigControlModifiedContext& Context);
 
 	virtual void HandleRefreshEditorFromBlueprint(URigVMBlueprint* InBlueprint) override;
 

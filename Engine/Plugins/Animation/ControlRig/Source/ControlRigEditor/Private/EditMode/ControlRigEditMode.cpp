@@ -3313,37 +3313,66 @@ void FControlRigEditMode::RecreateControlShapeActors(const TArray<FRigElementKey
 			if (auto* ShapeActors = ControlRigShapeActors.Find(ControlRig))
 			{
 				TArray<FRigControlElement*> Controls = ControlRig->AvailableControls();
-				for (int32 Index = Controls.Num() - 1; Index >= 0; --Index)
+				TArray<FRigControlElement*> ControlPerShapeActor;
+				ControlPerShapeActor.SetNumZeroed(ShapeActors->Num());
+				
+				if(Controls.Num() == ShapeActors->Num())
 				{
-					FRigControlElement* ControlElement = Controls[Index];
-					if (!ControlElement->Settings.SupportsShape() || !IsSupportedControlType(ControlElement->Settings.ControlType))
+					for (int32 ControlIndex = Controls.Num() - 1; ControlIndex >= 0; --ControlIndex)
 					{
-						Controls.RemoveAtSwap(Index);
-					}
-				}
-				//unfortunately n*n-ish but this should be very rare and much faster than recreating them
-				for (AControlRigShapeActor* Actor : *ShapeActors)
-				{
-					if (Actor)
-					{
-						for (int32 Index = 0; Index < Controls.Num(); ++Index)
+						FRigControlElement* ControlElement = Controls[ControlIndex];
+						if (!ControlElement->Settings.SupportsShape() || !IsSupportedControlType(ControlElement->Settings.ControlType))
 						{
-							FRigControlElement* Element = Controls[Index];
-							if (Element && Element->GetFName() == Actor->ControlName)
-							{
-								Controls.RemoveAtSwap(Index);
-								break;
-							}
+							Controls.RemoveAtSwap(ControlIndex);
 						}
 					}
-					else //no actor just recreate
+					//unfortunately n*n-ish but this should be very rare and much faster than recreating them
+					for (int32 ShapeActorIndex = 0; ShapeActorIndex < ShapeActors->Num(); ShapeActorIndex++)
 					{
-						break;
+						const AControlRigShapeActor* Actor = ShapeActors->operator[](ShapeActorIndex).Get();
+						if (Actor)
+						{
+							for (int32 ControlIndex = 0; ControlIndex < Controls.Num(); ++ControlIndex)
+							{
+								FRigControlElement* Element = Controls[ControlIndex];
+								if (Element && Element->GetFName() == Actor->ControlName)
+								{
+									Controls.RemoveAtSwap(ControlIndex);
+									ControlPerShapeActor[ShapeActorIndex] = Element;
+									break;
+								}
+							}
+						}
+						else //no actor just recreate
+						{
+							break;
+						}
 					}
 				}
 				if (Controls.Num() == 0)
 				{
 					bRecreateThem = false;
+
+					// we have matching controls - we should at least sync their settings.
+					// PostPoseUpdate / TickControlShape is going to take care of color, visibility etc.
+					// MeshTransform has to be handled here.
+					for (int32 ShapeActorIndex = 0; ShapeActorIndex < ShapeActors->Num(); ShapeActorIndex++)
+					{
+						const AControlRigShapeActor* ShapeActor = ShapeActors->operator[](ShapeActorIndex).Get();
+						FRigControlElement* ControlElement = ControlPerShapeActor[ShapeActorIndex];
+						if (ShapeActor && ControlElement)
+						{
+							const FTransform ShapeTransform = ControlRig->GetHierarchy()->GetControlShapeTransform(ControlElement, ERigTransformType::CurrentLocal);
+							FTransform MeshTransform = FTransform::Identity;
+							if (const FControlRigShapeDefinition* Gizmo = UControlRigShapeLibrary::GetShapeByName(ControlElement->Settings.ShapeName, ControlRig->GetShapeLibraries(), ControlRig->ShapeLibraryNameMap))
+							{
+								MeshTransform = Gizmo->Transform;
+							}
+							ShapeActor->StaticMeshComponent->SetRelativeTransform(MeshTransform * ShapeTransform);
+						}
+					}
+					
+					PostPoseUpdate();
 				}
 			}
 			if (bRecreateThem)

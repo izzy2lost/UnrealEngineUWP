@@ -921,8 +921,8 @@ void FRigVMGraphDetailCustomization::CustomizeDetails(IDetailLayoutBuilder& Deta
 
 		if(AccessSpecifierStrings.IsEmpty())
 		{
-			AccessSpecifierStrings.Add(TSharedPtr<FString>(new FString(TEXT("Public"))));
-			AccessSpecifierStrings.Add(TSharedPtr<FString>(new FString(TEXT("Private"))));
+			AccessSpecifierStrings.Add(TSharedPtr<FRigVMStringWithTag>(new FRigVMStringWithTag(TEXT("Public"))));
+			AccessSpecifierStrings.Add(TSharedPtr<FRigVMStringWithTag>(new FRigVMStringWithTag(TEXT("Private"))));
 		}
 
 		// access specifier
@@ -945,7 +945,7 @@ void FRigVMGraphDetailCustomization::CustomizeDetails(IDetailLayoutBuilder& Deta
             ]
             .MenuContent()
             [
-                SNew(SListView<TSharedPtr<FString> >)
+                SNew(SListView<TSharedPtr<FRigVMStringWithTag> >)
                     .ListItemsSource( &AccessSpecifierStrings )
                     .OnGenerateRow(this, &FRigVMGraphDetailCustomization::HandleGenerateRowAccessSpecifier)
                     .OnSelectionChanged(this, &FRigVMGraphDetailCustomization::OnAccessSpecifierSelected)
@@ -1248,7 +1248,7 @@ FReply FRigVMGraphDetailCustomization::OnNodeColorClicked()
 	return FReply::Handled();
 }
 
-TArray<TSharedPtr<FString>> FRigVMGraphDetailCustomization::AccessSpecifierStrings;
+TArray<TSharedPtr<FRigVMStringWithTag>> FRigVMGraphDetailCustomization::AccessSpecifierStrings;
 
 FText FRigVMGraphDetailCustomization::GetCurrentAccessSpecifierName() const
 {
@@ -1263,16 +1263,16 @@ FText FRigVMGraphDetailCustomization::GetCurrentAccessSpecifierName() const
 			{
 				if(RigVMBlueprint->IsFunctionPublic(LibraryNode->GetFName()))
 				{
-					return FText::FromString(*AccessSpecifierStrings[0].Get()); // public
+					return FText::FromString(AccessSpecifierStrings[0]->GetString()); // public
 				}
 			}
 		}
 	}
 
-	return FText::FromString(*AccessSpecifierStrings[1].Get()); // private
+	return FText::FromString(AccessSpecifierStrings[1]->GetString()); // private
 }
 
-void FRigVMGraphDetailCustomization::OnAccessSpecifierSelected( TSharedPtr<FString> SpecifierName, ESelectInfo::Type SelectInfo )
+void FRigVMGraphDetailCustomization::OnAccessSpecifierSelected( TSharedPtr<FRigVMStringWithTag> SpecifierName, ESelectInfo::Type SelectInfo )
 {
 	if(RigVMBlueprintPtr.IsValid() && GraphPtr.IsValid())
 	{
@@ -1296,13 +1296,13 @@ void FRigVMGraphDetailCustomization::OnAccessSpecifierSelected( TSharedPtr<FStri
 	}
 }
 
-TSharedRef<ITableRow> FRigVMGraphDetailCustomization::HandleGenerateRowAccessSpecifier( TSharedPtr<FString> SpecifierName, const TSharedRef<STableViewBase>& OwnerTable )
+TSharedRef<ITableRow> FRigVMGraphDetailCustomization::HandleGenerateRowAccessSpecifier( TSharedPtr<FRigVMStringWithTag> SpecifierName, const TSharedRef<STableViewBase>& OwnerTable )
 {
-	return SNew(STableRow< TSharedPtr<FString> >, OwnerTable)
+	return SNew(STableRow< TSharedPtr<FRigVMStringWithTag> >, OwnerTable)
         .Content()
         [
             SNew( STextBlock ) 
-                .Text(FText::FromString(*SpecifierName.Get()) )
+                .Text(FText::FromString(SpecifierName->GetString()) )
         ];
 }
 
@@ -1411,7 +1411,7 @@ void FRigVMWrappedNodeDetailCustomization::CustomizeDetails(IDetailLayoutBuilder
         			BlueprintBeingCustomized->GetEdGraph(NodesBeingCustomized[0]->GetGraph()));
         		ensure(GraphBeingCustomized);
         		
-        		const TArray<TSharedPtr<FString>>* NameList = GraphBeingCustomized->GetNameListForWidget(CustomWidgetName);
+        		const TArray<TSharedPtr<FRigVMStringWithTag>>* NameList = GraphBeingCustomized->GetNameListForWidget(CustomWidgetName);
         		if (NameList)
         		{
         			TSharedPtr<SRigVMGraphPinNameListValueWidget> NameListWidget;
@@ -1518,9 +1518,10 @@ void FRigVMWrappedNodeDetailCustomization::CustomizeDetails(IDetailLayoutBuilder
 	CustomizeLiveValues(DetailLayout);
 }
 
-TSharedRef<SWidget> FRigVMWrappedNodeDetailCustomization::MakeNameListItemWidget(TSharedPtr<FString> InItem)
+TSharedRef<SWidget> FRigVMWrappedNodeDetailCustomization::MakeNameListItemWidget(TSharedPtr<FRigVMStringWithTag> InItem)
 {
-	return 	SNew(STextBlock).Text(FText::FromString(*InItem));// .Font(FAppStyle::GetFontStyle(TEXT("PropertyWindow.NormalFont")));
+	//TODO: make this prettier
+	return 	SNew(STextBlock).Text(FText::FromString(InItem->GetStringWithTag()));// .Font(FAppStyle::GetFontStyle(TEXT("PropertyWindow.NormalFont")));
 }
 
 FText FRigVMWrappedNodeDetailCustomization::GetNameListText(FNameProperty* InProperty) const
@@ -1544,17 +1545,17 @@ FText FRigVMWrappedNodeDetailCustomization::GetNameListText(FNameProperty* InPro
 	return FirstText;
 }
 
-TSharedPtr<FString> FRigVMWrappedNodeDetailCustomization::GetCurrentlySelectedItem(FNameProperty* InProperty, const TArray<TSharedPtr<FString>>* InNameList) const
+TSharedPtr<FRigVMStringWithTag> FRigVMWrappedNodeDetailCustomization::GetCurrentlySelectedItem(FNameProperty* InProperty, const TArray<TSharedPtr<FRigVMStringWithTag>>* InNameList) const
 {
 	FString CurrentItem = GetNameListText(InProperty).ToString();
-	for (const TSharedPtr<FString>& Item : *InNameList)
+	for (const TSharedPtr<FRigVMStringWithTag>& Item : *InNameList)
 	{
 		if (Item->Equals(CurrentItem))
 		{
 			return Item;
 		}
 	}
-	return TSharedPtr<FString>();
+	return TSharedPtr<FRigVMStringWithTag>();
 }
 
 
@@ -1576,19 +1577,19 @@ void FRigVMWrappedNodeDetailCustomization::SetNameListText(const FText& NewTypeI
 	Controller->CloseUndoBracket();
 }
 
-void FRigVMWrappedNodeDetailCustomization::OnNameListChanged(TSharedPtr<FString> NewSelection, ESelectInfo::Type SelectInfo, FNameProperty* InProperty, TSharedRef<IPropertyUtilities> PropertyUtilities)
+void FRigVMWrappedNodeDetailCustomization::OnNameListChanged(TSharedPtr<FRigVMStringWithTag> NewSelection, ESelectInfo::Type SelectInfo, FNameProperty* InProperty, TSharedRef<IPropertyUtilities> PropertyUtilities)
 {
 	if (SelectInfo != ESelectInfo::Direct)
 	{
-		FString NewValue = *NewSelection.Get();
+		const FString& NewValue = NewSelection->GetString();
 		SetNameListText(FText::FromString(NewValue), ETextCommit::OnEnter, InProperty, PropertyUtilities);
 	}
 }
 
-void FRigVMWrappedNodeDetailCustomization::OnNameListComboBox(FNameProperty* InProperty, const TArray<TSharedPtr<FString>>* InNameList)
+void FRigVMWrappedNodeDetailCustomization::OnNameListComboBox(FNameProperty* InProperty, const TArray<TSharedPtr<FRigVMStringWithTag>>* InNameList)
 {
 	TSharedPtr<SRigVMGraphPinNameListValueWidget> Widget = NameListWidgets.FindChecked(InProperty->GetFName());
-	const TSharedPtr<FString> CurrentlySelected = GetCurrentlySelectedItem(InProperty, InNameList);
+	const TSharedPtr<FRigVMStringWithTag> CurrentlySelected = GetCurrentlySelectedItem(InProperty, InNameList);
 	Widget->SetSelectedItem(CurrentlySelected);
 }
 

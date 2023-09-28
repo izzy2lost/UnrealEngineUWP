@@ -357,7 +357,7 @@ public:
 
 	bool IsShapeEnabled() const;
 
-	const TArray<TSharedPtr<FString>>& GetShapeNameList() const;
+	const TArray<TSharedPtr<FRigVMStringWithTag>>& GetShapeNameList() const;
 
 	FText GetDisplayName() const;
 	void SetDisplayName(const FText& InNewText, ETextCommit::Type InCommitType);
@@ -684,7 +684,7 @@ private:
 	void HandleControlTypeChanged(TSharedPtr<ERigControlType> ControlType, ESelectInfo::Type SelectInfo, FRigElementKey ControlKey, const TSharedRef<IPropertyUtilities> PropertyUtilities);
 	void HandleControlTypeChanged(ERigControlType ControlType, TArray<FRigElementKey> ControlKeys, const TSharedRef<IPropertyUtilities> PropertyUtilities);
 
-	TArray<TSharedPtr<FString>> ShapeNameList;
+	TArray<TSharedPtr<FRigVMStringWithTag>> ShapeNameList;
 	TSharedPtr<FRigInfluenceEntryModifier> InfluenceModifier;
 	TSharedPtr<FStructOnScope> InfluenceModifierStruct;
 

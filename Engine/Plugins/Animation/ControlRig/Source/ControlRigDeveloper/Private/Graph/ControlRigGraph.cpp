@@ -40,9 +40,9 @@ void UControlRigGraph::InitializeFromBlueprint(URigVMBlueprint* InBlueprint)
 
 #if WITH_EDITOR
 
-TArray<TSharedPtr<FString>> UControlRigGraph::EmptyElementNameList;
+TArray<TSharedPtr<FRigVMStringWithTag>> UControlRigGraph::EmptyElementNameList;
 
-const TArray<TSharedPtr<FString>>* UControlRigGraph::GetNameListForWidget(const FString& InWidgetName) const
+const TArray<TSharedPtr<FRigVMStringWithTag>>* UControlRigGraph::GetNameListForWidget(const FString& InWidgetName) const
 {
 	if (InWidgetName == TEXT("BoneName"))
 	{
@@ -73,10 +73,10 @@ void UControlRigGraph::CacheNameLists(URigHierarchy* InHierarchy, const FRigVMDr
 	check(InHierarchy);
 	check(DrawContainer);
 
+	UControlRig* ControlRig = InHierarchy->GetTypedOuter<UControlRig>();
+
 	if(LastHierarchyTopologyVersion != InHierarchy->GetTopologyVersion())
 	{
-		UControlRig* ControlRig = InHierarchy->GetTypedOuter<UControlRig>();
-
 		ElementNameLists.FindOrAdd(ERigElementType::All);
 		ElementNameLists.FindOrAdd(ERigElementType::Bone);
 		ElementNameLists.FindOrAdd(ERigElementType::Null);
@@ -86,14 +86,13 @@ void UControlRigGraph::CacheNameLists(URigHierarchy* InHierarchy, const FRigVMDr
 		ElementNameLists.FindOrAdd(ERigElementType::Reference);
 		ElementNameLists.FindOrAdd(ERigElementType::Connector);
 
-		TArray<TSharedPtr<FString>>& AllNameList = ElementNameLists.FindChecked(ERigElementType::All);
-		TArray<TSharedPtr<FString>>& BoneNameList = ElementNameLists.FindChecked(ERigElementType::Bone);
-		TArray<TSharedPtr<FString>>& NullNameList = ElementNameLists.FindChecked(ERigElementType::Null);
-		TArray<TSharedPtr<FString>>& ControlNameList = ElementNameLists.FindChecked(ERigElementType::Control);
-		TArray<TSharedPtr<FString>>& CurveNameList = ElementNameLists.FindChecked(ERigElementType::Curve);
-		TArray<TSharedPtr<FString>>& RigidBodyNameList = ElementNameLists.FindChecked(ERigElementType::RigidBody);
-		TArray<TSharedPtr<FString>>& ReferenceNameList = ElementNameLists.FindChecked(ERigElementType::Reference);
-		TArray<TSharedPtr<FString>>& ConnectorNameList = ElementNameLists.FindChecked(ERigElementType::Connector);
+		TArray<TSharedPtr<FRigVMStringWithTag>>& AllNameList = ElementNameLists.FindChecked(ERigElementType::All);
+		TArray<TSharedPtr<FRigVMStringWithTag>>& BoneNameList = ElementNameLists.FindChecked(ERigElementType::Bone);
+		TArray<TSharedPtr<FRigVMStringWithTag>>& NullNameList = ElementNameLists.FindChecked(ERigElementType::Null);
+		TArray<TSharedPtr<FRigVMStringWithTag>>& ControlNameList = ElementNameLists.FindChecked(ERigElementType::Control);
+		TArray<TSharedPtr<FRigVMStringWithTag>>& CurveNameList = ElementNameLists.FindChecked(ERigElementType::Curve);
+		TArray<TSharedPtr<FRigVMStringWithTag>>& RigidBodyNameList = ElementNameLists.FindChecked(ERigElementType::RigidBody);
+		TArray<TSharedPtr<FRigVMStringWithTag>>& ReferenceNameList = ElementNameLists.FindChecked(ERigElementType::Reference);
 		
 		CacheNameListForHierarchy<FRigBaseElement>(ControlRig, InHierarchy, AllNameList, false);
 		CacheNameListForHierarchy<FRigBoneElement>(ControlRig, InHierarchy, BoneNameList, false);
@@ -103,17 +102,20 @@ void UControlRigGraph::CacheNameLists(URigHierarchy* InHierarchy, const FRigVMDr
 		CacheNameListForHierarchy<FRigCurveElement>(ControlRig, InHierarchy, CurveNameList, false);
 		CacheNameListForHierarchy<FRigRigidBodyElement>(ControlRig, InHierarchy, RigidBodyNameList, false);
 		CacheNameListForHierarchy<FRigReferenceElement>(ControlRig, InHierarchy, ReferenceNameList, false);
-		CacheNameListForHierarchy<FRigConnectorElement>(ControlRig, InHierarchy, ConnectorNameList, false);
 
 		LastHierarchyTopologyVersion = InHierarchy->GetTopologyVersion();
 	}
 	CacheNameList<FRigVMDrawContainer>(*DrawContainer, DrawingNameList);
 
+	// always update the connector name list since the connector may have been re-resolved
+	TArray<TSharedPtr<FRigVMStringWithTag>>& ConnectorNameList = ElementNameLists.FindChecked(ERigElementType::Connector);
+	CacheNameListForHierarchy<FRigConnectorElement>(ControlRig, InHierarchy, ConnectorNameList, false);
+
 	ShapeNameList.Reset();
-	ShapeNameList.Add(MakeShared<FString>(FName(NAME_None).ToString()));
+	ShapeNameList.Add(MakeShared<FRigVMStringWithTag>(FName(NAME_None).ToString()));
 
 	TMap<FString, FString> LibraryNameMap;
-	if(UControlRig* ControlRig = InHierarchy->GetTypedOuter<UControlRig>())
+	if(ControlRig)
 	{
 		LibraryNameMap = ControlRig->ShapeLibraryNameMap;
 	}
@@ -138,15 +140,15 @@ void UControlRigGraph::CacheNameLists(URigHierarchy* InHierarchy, const FRigVMDr
 		}
 		
 		const FString NameSpace = bUseNameSpace ? LibraryName + TEXT(".") : FString();
-		ShapeNameList.Add(MakeShared<FString>(UControlRigShapeLibrary::GetShapeName(ShapeLibrary.Get(), bUseNameSpace, LibraryNameMap, ShapeLibrary->DefaultShape)));
+		ShapeNameList.Add(MakeShared<FRigVMStringWithTag>(UControlRigShapeLibrary::GetShapeName(ShapeLibrary.Get(), bUseNameSpace, LibraryNameMap, ShapeLibrary->DefaultShape)));
 		for (const FControlRigShapeDefinition& Shape : ShapeLibrary->Shapes)
 		{
-			ShapeNameList.Add(MakeShared<FString>(UControlRigShapeLibrary::GetShapeName(ShapeLibrary.Get(), bUseNameSpace, LibraryNameMap, Shape)));
+			ShapeNameList.Add(MakeShared<FRigVMStringWithTag>(UControlRigShapeLibrary::GetShapeName(ShapeLibrary.Get(), bUseNameSpace, LibraryNameMap, Shape)));
 		}
 	}
 }
 
-const TArray<TSharedPtr<FString>>* UControlRigGraph::GetElementNameList(ERigElementType InElementType) const
+const TArray<TSharedPtr<FRigVMStringWithTag>>* UControlRigGraph::GetElementNameList(ERigElementType InElementType) const
 {
 	if (UControlRigGraph* OuterGraph = Cast<UControlRigGraph>(GetOuter()))
 	{
@@ -178,7 +180,7 @@ const TArray<TSharedPtr<FString>>* UControlRigGraph::GetElementNameList(ERigElem
 	return &ElementNameLists.FindChecked(InElementType);
 }
 
-const TArray<TSharedPtr<FString>>* UControlRigGraph::GetElementNameList(URigVMPin* InPin) const
+const TArray<TSharedPtr<FRigVMStringWithTag>>* UControlRigGraph::GetElementNameList(URigVMPin* InPin) const
 {
 	if (InPin)
 	{
@@ -202,9 +204,9 @@ const TArray<TSharedPtr<FString>>* UControlRigGraph::GetElementNameList(URigVMPi
 	return GetBoneNameList(nullptr);
 }
 
-const TArray<TSharedPtr<FString>> UControlRigGraph::GetSelectedElementsNameList() const
+const TArray<TSharedPtr<FRigVMStringWithTag>> UControlRigGraph::GetSelectedElementsNameList() const
 {
-	TArray<TSharedPtr<FString>> Result;
+	TArray<TSharedPtr<FRigVMStringWithTag>> Result;
 	if (UControlRigGraph* OuterGraph = Cast<UControlRigGraph>(GetOuter()))
 	{
 		return OuterGraph->GetSelectedElementsNameList();
@@ -221,13 +223,13 @@ const TArray<TSharedPtr<FString>> UControlRigGraph::GetSelectedElementsNameList(
 	{
 		FString ValueStr;
 		FRigElementKey::StaticStruct()->ExportText(ValueStr, &Key, nullptr, nullptr, PPF_None, nullptr);
-		Result.Add(MakeShared<FString>(ValueStr));
+		Result.Add(MakeShared<FRigVMStringWithTag>(ValueStr));
 	}
 	
 	return Result;
 }
 
-const TArray<TSharedPtr<FString>>* UControlRigGraph::GetDrawingNameList(URigVMPin* InPin) const
+const TArray<TSharedPtr<FRigVMStringWithTag>>* UControlRigGraph::GetDrawingNameList(URigVMPin* InPin) const
 {
 	if (UControlRigGraph* OuterGraph = Cast<UControlRigGraph>(GetOuter()))
 	{
@@ -236,7 +238,7 @@ const TArray<TSharedPtr<FString>>* UControlRigGraph::GetDrawingNameList(URigVMPi
 	return &DrawingNameList;
 }
 
-const TArray<TSharedPtr<FString>>* UControlRigGraph::GetShapeNameList(URigVMPin* InPin) const
+const TArray<TSharedPtr<FRigVMStringWithTag>>* UControlRigGraph::GetShapeNameList(URigVMPin* InPin) const
 {
 	if (UControlRigGraph* OuterGraph = Cast<UControlRigGraph>(GetOuter()))
 	{

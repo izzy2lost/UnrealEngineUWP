@@ -828,19 +828,19 @@ int32 URigVMEdGraph::GetInstructionIndex(const URigVMEdGraphNode* InNode, bool b
 void URigVMEdGraph::CacheEntryNameList()
 {
 	EntryNameList.Reset();
-	EntryNameList.Add(MakeShared<FString>(FName(NAME_None).ToString()));
+	EntryNameList.Add(MakeShared<FRigVMStringWithTag>(FName(NAME_None).ToString()));
 
 	if(const URigVMBlueprint* Blueprint = CastChecked<URigVMBlueprint>(GetBlueprint()))
 	{
 		const TArray<FName> EntryNames = Blueprint->GetRigVMClient()->GetEntryNames();
 		for (const FName& EntryName : EntryNames)
 		{
-			EntryNameList.Add(MakeShared<FString>(EntryName.ToString()));
+			EntryNameList.Add(MakeShared<FRigVMStringWithTag>(EntryName.ToString()));
 		}
 	}
 }
 
-const TArray<TSharedPtr<FString>>* URigVMEdGraph::GetEntryNameList(URigVMPin* InPin) const
+const TArray<TSharedPtr<FRigVMStringWithTag>>* URigVMEdGraph::GetEntryNameList(URigVMPin* InPin) const
 {
 	if (const URigVMEdGraph* OuterGraph = Cast<URigVMEdGraph>(GetOuter()))
 	{

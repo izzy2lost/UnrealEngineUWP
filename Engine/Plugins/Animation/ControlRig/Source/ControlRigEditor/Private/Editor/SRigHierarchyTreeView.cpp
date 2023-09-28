@@ -595,6 +595,11 @@ bool SRigHierarchyTreeView::ReparentElement(FRigElementKey InKey, FRigElementKey
 		return false;
 	}
 
+	if(InKey.Type == ERigElementType::Connector)
+	{
+		return false;
+	}
+
 	const FRigTreeDisplaySettings& Settings = Delegates.GetDisplaySettings();
 
 	TSharedPtr<FRigTreeElement>* FoundItem = ElementMap.Find(InKey);

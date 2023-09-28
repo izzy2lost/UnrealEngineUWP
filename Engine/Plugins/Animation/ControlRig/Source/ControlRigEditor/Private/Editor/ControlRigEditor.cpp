@@ -2348,6 +2348,54 @@ void FControlRigEditor::GenerateEventQueueMenuContent(FMenuBuilder& MenuBuilder)
     }
 }
 
+void FControlRigEditor::FilterDraggedKeys(TArray<FRigElementKey>& Keys, bool bRemoveNameSpace)
+{
+	// if the keys being dragged contain something mapped to a connector - use that instead
+	if(UControlRigBlueprint* ControlRigBlueprint = GetControlRigBlueprint())
+	{
+		TArray<FRigElementKey> FilteredKeys;
+		FilteredKeys.Reserve(Keys.Num());
+		for (FRigElementKey Key : Keys)
+		{
+			for(const TPair<FRigElementKey,FRigElementKey>& Pair : ControlRigBlueprint->ConnectionMap)
+			{
+				if(Pair.Value == Key)
+				{
+					Key = Pair.Key;
+					break;
+				}
+			}
+
+			if(bRemoveNameSpace)
+			{
+				const FString Name = Key.Name.ToString();
+				int32 LastCharIndex = INDEX_NONE;
+				if(Name.FindLastChar(TEXT(':'), LastCharIndex))
+				{
+					Key.Name = *Name.Mid(LastCharIndex+1);
+				}
+			}
+			else
+			{
+				if(const UControlRig* DebuggedControlRig = Cast<UControlRig>(ControlRigBlueprint->GetObjectBeingDebugged()))
+				{
+					if(!DebuggedControlRig->GetHierarchy()->Contains(Key))
+					{
+						const FString NameSpace = DebuggedControlRig->GetRigModuleNameSpace();
+						if(!NameSpace.IsEmpty())
+						{
+							static constexpr TCHAR Format[] = TEXT("%s%s");
+							Key.Name = *FString::Printf(Format, *NameSpace, *Key.Name.ToString());
+						}
+					}
+				}
+			}
+			FilteredKeys.Add(Key);
+		}
+		Keys = FilteredKeys;
+	}
+}
+
 FTransform FControlRigEditor::GetRigElementTransform(const FRigElementKey& InElement, bool bLocal, bool bOnDebugInstance) const
 {
 	DECLARE_SCOPE_HIERARCHICAL_COUNTER_FUNC()
@@ -3459,7 +3507,9 @@ void FControlRigEditor::CreateRigHierarchyToGraphDragAndDropMenu() const
 					const FControlRigRigHierarchyToGraphDragAndDropContext& DragDropContext = MainContext->GetRigHierarchyToGraphDragAndDropContext();
 
 					URigHierarchy* Hierarchy = ControlRigEditor->GetHierarchyBeingDebugged();
-					const TArray<FRigElementKey>& DraggedKeys = DragDropContext.DraggedElementKeys;
+					TArray<FRigElementKey> DraggedKeys = DragDropContext.DraggedElementKeys;
+					ControlRigEditor->FilterDraggedKeys(DraggedKeys, true);
+					
 					UEdGraph* Graph = DragDropContext.Graph.Get();
 					const FVector2D& NodePosition = DragDropContext.NodePosition;
 					
@@ -3806,8 +3856,14 @@ void FControlRigEditor::HandleMakeElementGetterSetter(ERigElementGetterSetterTyp
 	};
 	TArray<FNewNodeData> NewNodes;
 
-	for (const FRigElementKey& Key : Keys)
+	TArray<FRigElementKey> KeysIncludingNameSpace = Keys;
+	FilterDraggedKeys(KeysIncludingNameSpace, false);
+
+	for (int32 Index = 0; Index < Keys.Num(); Index++)
 	{
+		const FRigElementKey& Key = Keys[Index];
+		const FRigElementKey& KeyIncludingNameSpace = KeysIncludingNameSpace[Index];
+		
 		UScriptStruct* StructTemplate = nullptr;
 
 		FNewNodeData NewNode;
@@ -3823,7 +3879,7 @@ void FControlRigEditor::HandleMakeElementGetterSetter(ERigElementGetterSetterTyp
 		TArray<FName> ChannelPins;
 		TMap<FName, int32> PinsToResolve; 
 
-		if(FRigControlElement* ControlElement = Hierarchy->Find<FRigControlElement>(Key))
+		if(FRigControlElement* ControlElement = Hierarchy->Find<FRigControlElement>(KeyIncludingNameSpace))
 		{
 			if(ControlElement->IsAnimationChannel())
 			{
@@ -3969,8 +4025,11 @@ void FControlRigEditor::HandleMakeElementGetterSetter(ERigElementGetterSetterTyp
 				{
 					if (Key.Type == ERigElementType::Control)
 					{
-						FRigControlElement* ControlElement = Hierarchy->Find<FRigControlElement>(Key);
-						check(ControlElement);
+						FRigControlElement* ControlElement = Hierarchy->Find<FRigControlElement>(KeyIncludingNameSpace);
+						if(ControlElement == nullptr)
+						{
+							return;
+						}
 						
 						switch (ControlElement->Settings.ControlType)
 						{
@@ -4058,8 +4117,11 @@ void FControlRigEditor::HandleMakeElementGetterSetter(ERigElementGetterSetterTyp
 				{
 					if (Key.Type == ERigElementType::Control)
 					{
-						FRigControlElement* ControlElement = Hierarchy->Find<FRigControlElement>(Key);
-						check(ControlElement);
+						FRigControlElement* ControlElement = Hierarchy->Find<FRigControlElement>(KeyIncludingNameSpace);
+						if(ControlElement == nullptr)
+						{
+							return;
+						}
 
 						switch (ControlElement->Settings.ControlType)
 						{

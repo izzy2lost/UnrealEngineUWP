@@ -188,8 +188,8 @@ public:
 	, bAllowBranches(false)
 	{}
 
-	FRigChainConnectionRule(const FRigElementKey& InEndConnector, int32 InMinNumBones = 2, int32 InMaxNumBones = 0, bool InAllowBranches = false)
-	: EndConnector(InEndConnector)
+	FRigChainConnectionRule(const FRigElementKey& InRootConnector, int32 InMinNumBones = 2, int32 InMaxNumBones = 0, bool InAllowBranches = false)
+	: RootConnector(InRootConnector)
 	, MinNumBones(InMinNumBones)
 	, MaxNumBones(InMaxNumBones)
 	, bAllowBranches(InAllowBranches)
@@ -202,7 +202,7 @@ public:
 	virtual bool CanConnect(const FRigConnectionInfo* InConnectionInfo, FString* OutFailureReason) const override;
 
 	UPROPERTY(BlueprintReadWrite, EditAnywhere, Category=Settings)
-	FRigElementKey EndConnector;
+	FRigElementKey RootConnector;
 
 	UPROPERTY(BlueprintReadWrite, EditAnywhere, Category=Settings)
 	int32 MinNumBones;

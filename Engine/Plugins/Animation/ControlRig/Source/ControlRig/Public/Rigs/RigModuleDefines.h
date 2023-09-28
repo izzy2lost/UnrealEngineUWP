@@ -54,11 +54,11 @@ struct CONTROLRIG_API FRigModuleSettings
 	FRigModuleSettings()
 	{}
 
-	bool IsValidModule() const
+	bool IsValidModule(bool bRequireExposedConnectors = true) const
 	{
 		return
 			Identifier.IsValid() &&
-			!ExposedConnectors.IsEmpty();
+			(!bRequireExposedConnectors || !ExposedConnectors.IsEmpty());
 	}
 
 	// The identifier used to retrieve the module in the module library

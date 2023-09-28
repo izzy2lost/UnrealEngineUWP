@@ -338,6 +338,45 @@ void FRigElementKeyDetails::SetElementName(FString InName)
 	if (NameHandle.IsValid())
 	{
 		NameHandle->SetValue(InName);
+
+		// if this is nested below a connection rule
+		const TSharedPtr<IPropertyHandle> KeyHandle = NameHandle->GetParentHandle();
+		if(KeyHandle.IsValid())
+		{
+			const TSharedPtr<IPropertyHandle> ParentHandle = KeyHandle->GetParentHandle();
+			if(ParentHandle.IsValid())
+			{
+				if (const TSharedPtr<IPropertyHandleStruct> StructPropertyHandle = ParentHandle->AsStruct())
+				{
+					if(const UScriptStruct* RuleStruct = Cast<UScriptStruct>(StructPropertyHandle->GetStructData()->GetStruct()))
+					{
+						if (RuleStruct->IsChildOf(FRigConnectionRule::StaticStruct()))
+						{
+							const void* RuleMemory = StructPropertyHandle->GetStructData()->GetStructMemory();
+							FString RuleContent;
+							RuleStruct->ExportText(RuleContent, RuleMemory, RuleMemory, nullptr, PPF_None, nullptr);
+
+							const TSharedPtr<IPropertyHandle> RuleStashHandle = ParentHandle->GetParentHandle();
+							
+							FRigConnectionRuleStash Stash;
+							Stash.ScriptStructPath = RuleStruct->GetPathName();
+							Stash.ExportedText = RuleContent;
+							
+							FString StashContent;
+							FRigConnectionRuleStash::StaticStruct()->ExportText(StashContent, &Stash, &Stash, nullptr, PPF_None, nullptr);
+
+							TArray<UObject*> Objects;
+							RuleStashHandle->GetOuterObjects(Objects);
+							FString FirstObjectValue;
+							for (int32 Index = 0; Index < Objects.Num(); Index++)
+							{
+								(void)RuleStashHandle->SetPerObjectValue(Index, StashContent, EPropertyValueSetFlags::DefaultFlags);
+							}
+						}
+					}
+				}
+			}
+		}
 	}
 }
 
@@ -356,7 +395,16 @@ void FRigElementKeyDetails::UpdateElementNameList()
 		{
 			if (UControlRigGraph* RigGraph = Cast<UControlRigGraph>(Graph))
 			{
-				ElementNameList = *RigGraph->GetElementNameList(GetElementType());
+				const TArray<TSharedPtr<FRigVMStringWithTag>>* NameList =
+					RigGraph->GetElementNameList(GetElementType());
+
+				ElementNameList.Reset();
+				ElementNameList.Reserve(NameList->Num());
+				for(const TSharedPtr<FRigVMStringWithTag>& Name : *NameList)
+				{
+					ElementNameList.Add(MakeShared<FString>(Name->GetString()));
+				}
+				
 				if(SearchableComboBox.IsValid())
 				{
 					SearchableComboBox->RefreshOptions();
@@ -3763,10 +3811,10 @@ void FRigControlElementDetails::CustomizeShape(IDetailLayoutBuilder& DetailBuild
 			if (ShapeLibrary.IsValid())
 			{
 				const FString NameSpace = bUseNameSpace ? ShapeLibrary->GetName() + TEXT(".") : FString();
-				ShapeNameList.Add(MakeShared<FString>(NameSpace + ShapeLibrary->DefaultShape.ShapeName.ToString()));
+				ShapeNameList.Add(MakeShared<FRigVMStringWithTag>(NameSpace + ShapeLibrary->DefaultShape.ShapeName.ToString()));
 				for (const FControlRigShapeDefinition& Shape : ShapeLibrary->Shapes)
 				{
-					ShapeNameList.Add(MakeShared<FString>(NameSpace + Shape.ShapeName.ToString()));
+					ShapeNameList.Add(MakeShared<FRigVMStringWithTag>(NameSpace + Shape.ShapeName.ToString()));
 				}
 			}
 		}
@@ -4239,7 +4287,7 @@ bool FRigControlElementDetails::IsShapeEnabled() const
 	});
 }
 
-const TArray<TSharedPtr<FString>>& FRigControlElementDetails::GetShapeNameList() const
+const TArray<TSharedPtr<FRigVMStringWithTag>>& FRigControlElementDetails::GetShapeNameList() const
 {
 	return ShapeNameList;
 }
