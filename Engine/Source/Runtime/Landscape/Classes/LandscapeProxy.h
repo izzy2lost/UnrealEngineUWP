@@ -1495,21 +1495,6 @@ private:
 
 #if WITH_EDITOR
 /**
- * Helper class used to Build or monitor outdated Grass maps of a world
- */
-class FLandscapeGrassMapsBuilder
-{
-public:
-	LANDSCAPE_API FLandscapeGrassMapsBuilder(UWorld* InWorld);
-	LANDSCAPE_API void Build();
-	LANDSCAPE_API int32 GetOutdatedGrassMapCount(bool bInForceUpdate = true) const;
-private:
-	UWorld* World;
-	mutable int32 OutdatedGrassMapCount;
-	mutable double GrassMapsLastCheckTime;
-};
-
-/**
  * Helper class used to Build or monitor Landscape GI Textures
  */
 class LANDSCAPE_API UE_DEPRECATED(5.3, "FLandscapeGIBakedTextureBuilder is officially deprecated now and nothing updates it anymore") FLandscapeGIBakedTextureBuilder

@@ -18,6 +18,7 @@
 #include "LandscapeRender.h"
 #include "LandscapePrivate.h"
 #include "LandscapeSettings.h"
+#include "LandscapeGrassMapsBuilder.h"
 #include "ProfilingDebugging/CsvProfiler.h"
 #include "WorldPartition/WorldPartitionSubsystem.h"
 #include "ActorPartition/ActorPartitionSubsystem.h"
