@@ -39,9 +39,11 @@ namespace UnrealBuildTool.Rules
 				new string[]{
 					"AppFramework",
 					"ApplicationCore",
+					"AssetDefinition",
 					"AssetTools",
 					"AssetRegistry",
 					"BlueprintGraph",
+					"ContentBrowser",
 					"DesktopWidgets",
 					"DetailCustomizations",
 					"EditorScriptingUtilities",

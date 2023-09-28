@@ -39,7 +39,14 @@ UPCGGraphInstanceFactory::UPCGGraphInstanceFactory(const FObjectInitializer& Obj
 
 UObject* UPCGGraphInstanceFactory::FactoryCreateNew(UClass* InClass, UObject* InParent, FName InName, EObjectFlags Flags, UObject* Context, FFeedbackContext* Warn)
 {
-	return NewObject<UPCGGraphInstance>(InParent, InClass, InName, Flags);
+	UPCGGraphInstance* PCGGraphInstance = NewObject<UPCGGraphInstance>(InParent, InClass, InName, Flags);
+
+	if (ParentGraph)
+	{
+		PCGGraphInstance->SetGraph(ParentGraph);
+	}
+	
+	return PCGGraphInstance;
 }
 
 bool UPCGGraphInstanceFactory::ShouldShowInNewMenu() const

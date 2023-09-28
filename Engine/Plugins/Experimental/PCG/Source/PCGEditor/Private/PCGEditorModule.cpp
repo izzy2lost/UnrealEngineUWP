@@ -9,12 +9,8 @@
 #include "PCGEditorUtils.h"
 #include "PCGSubsystem.h"
 #include "PCGVolumeFactory.h"
-#include "AssetTypeActions/PCGCommonAssetTypeActions.h"
-#include "AssetTypeActions/PCGGraphAssetTypeActions.h"
-#include "AssetTypeActions/PCGSettingsAssetTypeActions.h"
 
 #include "ISettingsModule.h"
-#include "LevelEditor.h"
 #include "PropertyEditorModule.h"
 #include "ToolMenus.h"
 #include "Details/PCGAttributePropertySelectorDetails.h"
@@ -27,12 +23,9 @@
 
 #define LOCTEXT_NAMESPACE "FPCGEditorModule"
 
-EAssetTypeCategories::Type FPCGEditorModule::PCGAssetCategory;
-
 void FPCGEditorModule::StartupModule()
 {
 	RegisterDetailsCustomizations();
-	RegisterAssetTypeActions();
 	RegisterMenuExtensions();
 	RegisterSettings();
 
@@ -51,7 +44,6 @@ void FPCGEditorModule::StartupModule()
 void FPCGEditorModule::ShutdownModule()
 {
 	UnregisterSettings();
-	UnregisterAssetTypeActions();
 	UnregisterDetailsCustomizations();
 	UnregisterMenuExtensions();
 
@@ -106,35 +98,6 @@ void FPCGEditorModule::UnregisterDetailsCustomizations()
 		PropertyModule->UnregisterCustomPropertyTypeLayout("PCGOverrideInstancedPropertyBag");
 
 		PropertyModule->NotifyCustomizationModuleChanged();
-	}
-}
-
-void FPCGEditorModule::RegisterAssetTypeActions()
-{
-	IAssetTools& AssetTools = FModuleManager::LoadModuleChecked<FAssetToolsModule>("AssetTools").Get();
-	PCGAssetCategory = AssetTools.RegisterAdvancedAssetCategory(FName(TEXT("PCG")), LOCTEXT("PCGAssetCategory", "PCG"));
-
-	RegisteredAssetTypeActions.Emplace(MakeShareable(new FPCGGraphAssetTypeActions()));
-	RegisteredAssetTypeActions.Emplace(MakeShareable(new FPCGGraphInstanceAssetTypeActions()));
-	RegisteredAssetTypeActions.Emplace(MakeShareable(new FPCGGraphInterfaceAssetTypeActions()));
-	RegisteredAssetTypeActions.Emplace(MakeShareable(new FPCGSettingsAssetTypeActions()));
-
-	for (auto Action : RegisteredAssetTypeActions)
-	{
-		AssetTools.RegisterAssetTypeActions(Action);
-	}
-}
-
-void FPCGEditorModule::UnregisterAssetTypeActions()
-{
-	if (FAssetToolsModule* AssetToolsModule = FModuleManager::GetModulePtr<FAssetToolsModule>("AssetTools"))
-	{
-		IAssetTools& AssetTools = AssetToolsModule->Get();
-
-		for (auto Action : RegisteredAssetTypeActions)
-		{
-			AssetTools.UnregisterAssetTypeActions(Action);
-		}
 	}
 }
 

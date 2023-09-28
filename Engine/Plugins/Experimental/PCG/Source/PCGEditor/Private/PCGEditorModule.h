@@ -23,13 +23,9 @@ public:
 	virtual bool SupportsDynamicReloading() override;
 	// ~End IModuleInterface implementation
 
-	static EAssetTypeCategories::Type GetAssetCategory() { return PCGAssetCategory; }
-
 protected:
 	void RegisterDetailsCustomizations();
 	void UnregisterDetailsCustomizations();
-	void RegisterAssetTypeActions();
-	void UnregisterAssetTypeActions();
 	void RegisterMenuExtensions();
 	void UnregisterMenuExtensions();
 	void PopulateMenuActions(FMenuBuilder& MenuBuilder);
