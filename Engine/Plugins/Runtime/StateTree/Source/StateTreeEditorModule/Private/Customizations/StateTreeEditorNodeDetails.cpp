@@ -1509,8 +1509,8 @@ void FStateTreeEditorNodeDetails::GetNodeTypeChildren(TSharedPtr<FStateTreeNodeT
 
 void FStateTreeEditorNodeDetails::OnNodeTypeSelected(TSharedPtr<FStateTreeNodeTypeItem> SelectedItem, ESelectInfo::Type Type)
 {
-	// Skip selection set via code.
-	if (Type == ESelectInfo::Direct)
+	// Skip selection set via code, or if Selected Item is invalid
+	if (Type == ESelectInfo::Direct || !SelectedItem.IsValid())
 	{
 		return;
 	}
