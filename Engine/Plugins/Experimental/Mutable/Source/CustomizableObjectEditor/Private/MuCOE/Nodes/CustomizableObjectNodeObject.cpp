@@ -58,6 +58,13 @@ void UCustomizableObjectNodeObject::BackwardsCompatibleFixup()
 			}
 		}
 	}
+	
+	if (CustomizableObjectCustomVersion < FCustomizableObjectCustomVersion::RegenerateNodeObjectsIds)
+	{
+		// This will regenerate all the Node Objets Guids to finally remove the duplicated Guids warning.
+		// It is safe to do this here as Node Object do not use its node guid to link themeselves to other nodes.
+		CreateNewGuid();
+	}
 }
 
 
