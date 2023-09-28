@@ -7,6 +7,8 @@
 #include "HAL/PlatformAtomics.h"
 #include "HAL/PlatformMisc.h"
 
+// WARNING: This queue is planned for deprecation in favor of TSpscQueue or TMpscQueue
+
 /**
  * Enumerates concurrent queue modes.
  */
