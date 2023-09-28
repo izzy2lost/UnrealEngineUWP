@@ -143,6 +143,10 @@ void Main(float4 SvPosition : SV_POSITION
 		}
 
 		float WeightLight = 1 - DistLight;
+		if (LightData.bSpotLight)
+		{
+			WeightLight *= SpotAttenuation(L, -LightData.Direction, LightData.SpotAngles);
+		}
 		
 		if( LightMask > 0)
 		{
