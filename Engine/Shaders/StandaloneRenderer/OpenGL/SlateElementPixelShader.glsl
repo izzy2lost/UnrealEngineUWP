@@ -19,8 +19,6 @@ precision highp float;
 #define ST_ColorFont		3
 #define ST_Line				4
 #define ST_RoundedBox       7
-#define ST_SdfFont          8
-#define ST_MsdfFont         9
 
 #define USE_LEGACY_DISABLED_EFFECT 0
 
@@ -161,35 +159,6 @@ vec4 GetColorFontElementColor()
 	vec4 OutColor = Color;
 
 	OutColor *= texture2D(ElementTexture, TexCoords.xy);
-
-	return OutColor;
-}
-
-float GetOpacityFromSignedDistance(float SampledDistance)
-{
-	vec2 ScreenSpaceTextureSize = vec2(1.0, 1.0) / fwidth(TexCoords.xy);
-	float ScreenSpaceSpread = max(dot(ShaderParams.xy, ScreenSpaceTextureSize), 1.0);
-	float ScreenSpaceDistance = (SampledDistance - ShaderParams.z) * ScreenSpaceSpread;
-	return clamp(ScreenSpaceDistance + 0.5, 0.0, 1.0);
-}
-
-vec4 GetSdfFontElementColor()
-{
-	vec4 OutColor = Color;
-
-	float SampledDistance = texture2D(ElementTexture, TexCoords.xy).a;
-	OutColor.a *= GetOpacityFromSignedDistance(SampledDistance);
-
-	return OutColor;
-}
-
-vec4 GetMsdfFontElementColor()
-{
-	vec4 OutColor = Color;
-
-	vec4 MultiDistance = texture2D(ElementTexture, TexCoords.xy);
-	float SampledDistance = max(min(MultiDistance.r, MultiDistance.g), min(max(MultiDistance.r, MultiDistance.g), MultiDistance.b));
-	OutColor.a *= GetOpacityFromSignedDistance(SampledDistance);
 
 	return OutColor;
 }
@@ -353,14 +322,6 @@ void main()
 	else if( ShaderType == ST_ColorFont )
 	{
 		OutColor = GetColorFontElementColor();
-	}
-	else if( ShaderType == ST_SdfFont )
-	{
-		OutColor = GetSdfFontElementColor();
-	}
-	else if( ShaderType == ST_MsdfFont )
-	{
-		OutColor = GetMsdfFontElementColor();
 	}
 	else
 	{
