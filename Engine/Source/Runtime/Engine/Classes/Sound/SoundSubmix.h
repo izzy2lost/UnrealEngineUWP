@@ -3,17 +3,18 @@
 
 #include "CoreMinimal.h"
 
-#include "ISoundfieldFormat.h"
+#include "AudioDeviceHandle.h"
+#include "AudioLinkSettingsAbstract.h"
+#include "DSP/SpectrumAnalyzer.h"
 #include "IAudioEndpoint.h"
 #include "ISoundfieldEndpoint.h"
+#include "ISoundfieldFormat.h"
 #include "SampleBufferIO.h"
 #include "SoundEffectSubmix.h"
 #include "SoundModulationDestination.h"
 #include "SoundSubmixSend.h"
 #include "UObject/Object.h"
 #include "UObject/ObjectMacros.h"
-#include "DSP/SpectrumAnalyzer.h"
-#include "AudioLinkSettingsAbstract.h"
 
 #include "SoundSubmix.generated.h"
 
@@ -256,11 +257,13 @@ public:
 	TMap<uint32, TObjectPtr<USoundSubmixBase>> DynamicParentSubmix;
 
 	UFUNCTION(BlueprintCallable, Category = "Audio", meta = (WorldContext = "WorldContextObject", DisplayName = "Connect"))
-	ENGINE_API bool DynamicConnect(const UObject* WorldContextObject, USoundSubmixBase* Parent);
-	
+	ENGINE_API bool DynamicConnect(const UObject* WorldContextObject, USoundSubmixBase* InParent);
+	ENGINE_API bool DynamicConnect(const FAudioDeviceHandle& Handle, USoundSubmixBase* InParent);
+
 	UFUNCTION(BlueprintCallable, Category = "Audio", meta = (WorldContext = "WorldContextObject", DisplayName = "Disconnect"))
 	ENGINE_API bool DynamicDisconnect(const UObject* WorldContextObject);
-	
+	ENGINE_API bool DynamicDisconnect(const FAudioDeviceHandle& Handle);
+
 	/**
 	* Set the parent submix of this SoundSubmix, removing it as a child from its previous owner
 	*
