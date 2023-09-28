@@ -131,6 +131,10 @@ public:
 	UPROPERTY()
 	TArray<FInstancedStruct> ChooserContextDefinition;
 
+	// Use pose matching to choose the start position. Requires experimental PoseSearch plugin.
+	UPROPERTY(EditAnywhere, Category = PoseMatching, meta = (PinHiddenByDefault))
+	bool bStartFromMatchingPose = false;
+
 	// FAnimNode_Base interface
 	CHOOSER_API virtual void Initialize_AnyThread(const FAnimationInitializeContext& Context) override;
 	CHOOSER_API virtual void Evaluate_AnyThread(FPoseContext& Output) override;

@@ -2,12 +2,13 @@
 
 #include "AnimNode_ChooserPlayer.h"
 
-#include "IObjectChooser.h"
-#include "BlendStack/AnimNode_BlendStack.h"
 #include "Animation/AnimInstanceProxy.h"
-#include "Animation/AnimTrace.h"
+#include "Animation/AnimPoseSearchProvider.h"
 #include "Animation/AnimStats.h"
+#include "Animation/AnimTrace.h"
 #include "Animation/BlendSpace.h"
+#include "BlendStack/AnimNode_BlendStack.h"
+#include "IObjectChooser.h"
 #include "StructUtilsTypes.h"
 
 #include UE_INLINE_GENERATED_CPP_BY_NAME(AnimNode_ChooserPlayer)
@@ -27,10 +28,34 @@ UAnimationAsset* FAnimNode_ChooserPlayer::ChooseAsset(const FAnimationUpdateCont
 	{
 		// reset settings to default
 		FChooserPlayerSettings& Settings = ChooserContext.Params[1].GetMutable<FChooserPlayerSettings>();
+		
 		Settings = DefaultSettings;
-		UAnimationAsset* Result = Cast<UAnimationAsset>(Chooser.Get<FObjectChooserBase>().ChooseObject(ChooserContext));
-	
-		return Result;
+		
+		const FObjectChooserBase& ChooserBase = Chooser.Get<FObjectChooserBase>();
+		if (bStartFromMatchingPose)
+		{
+			if (UE::Anim::IPoseSearchProvider* PoseSearchProvider = UE::Anim::IPoseSearchProvider::Get())
+			{
+				TArray<UAnimationAsset*, TInlineAllocator<128>> AnimationAssets;
+				ChooserBase.ChooseMulti(ChooserContext, FObjectChooserBase::FObjectChooserIteratorCallback::CreateLambda([&AnimationAssets](UObject* InResult)
+					{
+						if (UAnimationAsset* AnimationAsset = Cast<UAnimationAsset>(InResult))
+						{
+							AnimationAssets.Add(AnimationAsset);
+						}
+						return FObjectChooserBase::EIteratorStatus::Continue;
+					}));
+
+				const UE::Anim::IPoseSearchProvider::FSearchResult SearchResult = PoseSearchProvider->Search(Context, AnimationAssets);
+				if (SearchResult.AnimationAsset)
+				{
+					Settings.StartTime = SearchResult.TimeOffsetSeconds;
+					return SearchResult.AnimationAsset;
+				}
+			}
+		}
+		
+		return Cast<UAnimationAsset>(ChooserBase.ChooseObject(ChooserContext));
 	}
 	return nullptr;
 }

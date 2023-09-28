@@ -5,7 +5,9 @@
 #include <chrono>
 
 #include "EditorCategoryUtils.h"
+#include "DetailLayoutBuilder.h"
 #include "Animation/AnimAttributes.h"
+#include "Animation/AnimPoseSearchProvider.h"
 #include "Animation/AnimRootMotionProvider.h"
 #include "ChooserPropertyAccess.h"
 #include "Elements/Interfaces/TypedElementDataStorageCompatibilityInterface.h"
@@ -52,6 +54,16 @@ FText UAnimGraphNode_ChooserPlayer::GetNodeTitle(ENodeTitleType::Type TitleType)
 FText UAnimGraphNode_ChooserPlayer::GetMenuCategory() const
 {
 	return LOCTEXT("NodeCategory", "Animation|Sequences");
+}
+
+void UAnimGraphNode_ChooserPlayer::CustomizeDetails(IDetailLayoutBuilder& DetailBuilder)
+{
+	Super::CustomizeDetails(DetailBuilder);
+
+	if (!UE::Anim::IPoseSearchProvider::IsAvailable())
+	{
+		DetailBuilder.HideCategory(TEXT("PoseMatching"));
+	}
 }
 
 void UAnimGraphNode_ChooserPlayer::GetOutputLinkAttributes(FNodeAttributeArray& OutAttributes) const
