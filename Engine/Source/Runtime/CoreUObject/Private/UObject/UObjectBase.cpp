@@ -241,12 +241,12 @@ void UObjectBase::LowLevelRename(FName NewName,UObject *NewOuter)
 	if (NewOuter)
 	{
 		OuterPrivate = NewOuter;
+		if (UE::GC::Private::GIsIncrementalReachabilityPending)
+		{
+			OuterPrivate->MarkAsReachable();
+		}
 	}
 	HashObject(this);
-	if (UE::GC::Private::GIsIncrementalReachabilityPending)
-	{
-		static_cast<UObject*>(this)->MarkAsReachable();
-	}
 }
 
 UPackage* UObjectBase::GetExternalPackage() const
