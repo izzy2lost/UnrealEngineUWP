@@ -273,6 +273,7 @@ private:
 
 #if WITH_EDITOR
 	virtual void HandlePackageDone() override;
+	virtual void HandleConfigureRigVMController(const FRigVMClient* InClient, URigVMController* InControllerToConfigure) override;
 #endif
 
 	// Class used to temporarily cache all 

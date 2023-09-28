@@ -627,27 +627,6 @@ void URigVMBlueprint::HandleConfigureRigVMController(const FRigVMClient* InClien
 		}
 	});
 
-	/*
-	 * todooooo
-	InControllerToConfigure->ConfigureWorkflowOptionsDelegate.BindLambda([WeakThis](URigVMUserWorkflowOptions* Options)
-	{
-		if(UControlRigWorkflowOptions* ControlRigNodeWorkflowOptions = Cast<UControlRigWorkflowOptions>(Options))
-		{
-			ControlRigNodeWorkflowOptions->Hierarchy = nullptr;
-			ControlRigNodeWorkflowOptions->Selection.Reset();
-			
-			if(const URigVMBlueprint* StrongThis = WeakThis.Get())
-			{
-				if(UControlRig* ControlRig = Cast<UControlRig>(StrongThis->GetObjectBeingDebugged()))
-				{
-					ControlRigNodeWorkflowOptions->Hierarchy = ControlRig->GetHierarchy();
-				}
-				ControlRigNodeWorkflowOptions->Selection = StrongThis->Hierarchy->GetSelectedKeys();
-			}
-		}
-	});
-	*/
-
 #endif
 }
 

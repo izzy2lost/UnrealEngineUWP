@@ -24,6 +24,7 @@
 #include "RigVMModel/Nodes/RigVMAggregateNode.h"
 #include "Rigs/RigControlHierarchy.h"
 #include "Settings/ControlRigSettings.h"
+#include "Units/ControlRigNodeWorkflow.h"
 #include "Units/Execution/RigUnit_PrepareForExecution.h"
 #include "Units/Execution/RigUnit_DynamicHierarchy.h"
 
@@ -891,6 +892,30 @@ void UControlRigBlueprint::HandlePackageDone()
 	PropagateHierarchyFromBPToInstances();
 
 	Super::HandlePackageDone();
+}
+
+void UControlRigBlueprint::HandleConfigureRigVMController(const FRigVMClient* InClient, URigVMController* InControllerToConfigure)
+{
+	Super::HandleConfigureRigVMController(InClient, InControllerToConfigure);
+
+	TWeakObjectPtr<URigVMBlueprint> WeakThis(this);
+	InControllerToConfigure->ConfigureWorkflowOptionsDelegate.BindLambda([WeakThis](URigVMUserWorkflowOptions* Options)
+	{
+		if(UControlRigWorkflowOptions* ControlRigNodeWorkflowOptions = Cast<UControlRigWorkflowOptions>(Options))
+		{
+			ControlRigNodeWorkflowOptions->Hierarchy = nullptr;
+			ControlRigNodeWorkflowOptions->Selection.Reset();
+			
+			if(const URigVMBlueprint* StrongThis = WeakThis.Get())
+			{
+				if(UControlRig* ControlRig = Cast<UControlRig>(StrongThis->GetObjectBeingDebugged()))
+				{
+					ControlRigNodeWorkflowOptions->Hierarchy = ControlRig->GetHierarchy();
+					ControlRigNodeWorkflowOptions->Selection = ControlRig->GetHierarchy()->GetSelectedKeys();
+				}
+			}
+		}
+	});
 }
 
 #endif
