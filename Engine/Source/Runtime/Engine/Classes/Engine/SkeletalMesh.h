@@ -2222,9 +2222,17 @@ protected:
 	UPROPERTY(EditAnywhere, AdvancedDisplay, Instanced, Category=SkeletalMesh)
 	TArray<TObjectPtr<UAssetUserData>> AssetUserData;
 
+#if WITH_EDITORONLY_DATA
+	/** Array of user data stored with the asset */
+	UPROPERTY(EditAnywhere, AdvancedDisplay, Instanced, Category=SkeletalMesh)
+	TArray<TObjectPtr<UAssetUserData>> AssetUserDataEditorOnly;
+#endif
 #if WITH_EDITOR
 	FOnMeshChanged OnMeshChanged;
 #endif
+
+	void RecomputeCombinedAssetUserData();
+	mutable TArray<TObjectPtr<UAssetUserData>> CombinedAssetUserData;
 
 	friend struct FSkeletalMeshUpdateContext;
 	friend class FSkeletalMeshUpdate;

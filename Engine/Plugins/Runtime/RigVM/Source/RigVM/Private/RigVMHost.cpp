@@ -161,6 +161,8 @@ void URigVMHost::PostLoad()
 		VMSnapshotBeforeExecution->SetFlags(VMSnapshotBeforeExecution->GetFlags() | RF_Transient);
 	}
 #endif
+
+	RecomputeCombinedAssetUserData();
 }
 
 void URigVMHost::PreSave(FObjectPreSaveContext SaveContext)
@@ -617,6 +619,13 @@ bool URigVMHost::DisableExecution()
 {
 	return CVarRigVMDisableExecutionAll->GetInt() == 1;
 }
+
+#if WITH_EDITOR
+void URigVMHost::PostEditChangeProperty(FPropertyChangedEvent& PropertyChangedEvent)
+{
+	RecomputeCombinedAssetUserData();
+}
+#endif
 
 bool URigVMHost::InitializeCDOVM()
 {
@@ -1394,13 +1403,24 @@ void URigVMHost::AddAssetUserData(UAssetUserData* InUserData)
 {
 	if (InUserData != NULL)
 	{
-		UAssetUserData* ExistingData = GetAssetUserDataOfClass(InUserData->GetClass());
-		if (ExistingData != NULL)
-		{
-			AssetUserData.Remove(ExistingData);
-		}
+		RemoveUserDataOfClass(InUserData->GetClass());
 		AssetUserData.Add(InUserData);
+		RecomputeCombinedAssetUserData();
 	}
+}
+
+UAssetUserData* URigVMHost::GetAssetUserDataOfClass(TSubclassOf<UAssetUserData> InUserDataClass)
+{
+	const TArray<UAssetUserData*>* ArrayPtr = GetAssetUserDataArray();
+	for (int32 DataIdx = 0; DataIdx < ArrayPtr->Num(); DataIdx++)
+	{
+		UAssetUserData* Datum = (*ArrayPtr)[DataIdx];
+		if (Datum != NULL && Datum->IsA(InUserDataClass))
+		{
+			return Datum;
+		}
+	}
+	return NULL;
 }
 
 void URigVMHost::RemoveUserDataOfClass(TSubclassOf<UAssetUserData> InUserDataClass)
@@ -1411,27 +1431,40 @@ void URigVMHost::RemoveUserDataOfClass(TSubclassOf<UAssetUserData> InUserDataCla
 		if (Datum != NULL && Datum->IsA(InUserDataClass))
 		{
 			AssetUserData.RemoveAt(DataIdx);
+			RecomputeCombinedAssetUserData();
 			return;
 		}
 	}
-}
-
-UAssetUserData* URigVMHost::GetAssetUserDataOfClass(TSubclassOf<UAssetUserData> InUserDataClass)
-{
-	for (int32 DataIdx = 0; DataIdx < AssetUserData.Num(); DataIdx++)
+#if WITH_EDITOR
+	for (int32 DataIdx = 0; DataIdx < AssetUserDataEditorOnly.Num(); DataIdx++)
 	{
-		UAssetUserData* Datum = AssetUserData[DataIdx];
+		UAssetUserData* Datum = AssetUserDataEditorOnly[DataIdx];
 		if (Datum != NULL && Datum->IsA(InUserDataClass))
 		{
-			return Datum;
+			AssetUserDataEditorOnly.RemoveAt(DataIdx);
+			RecomputeCombinedAssetUserData();
+			return;
 		}
 	}
-	return NULL;
+#endif
 }
 
 const TArray<UAssetUserData*>* URigVMHost::GetAssetUserDataArray() const
 {
+#if WITH_EDITOR
+	return &ToRawPtrTArrayUnsafe(CombinedAssetUserData);
+#else
 	return &ToRawPtrTArrayUnsafe(AssetUserData);
+#endif
+}
+
+void URigVMHost::RecomputeCombinedAssetUserData()
+{
+	CombinedAssetUserData.Reset();
+	CombinedAssetUserData.Append(AssetUserData);
+#if WITH_EDITOR
+	CombinedAssetUserData.Append(AssetUserDataEditorOnly);
+#endif
 }
 
 #if WITH_EDITOR	

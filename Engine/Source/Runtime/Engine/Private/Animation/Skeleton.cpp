@@ -396,6 +396,8 @@ void USkeleton::PostLoad()
 
 	// refresh linked bone indices
 	RefreshSkeletonMetaData();
+
+	RecomputeCombinedAssetUserData();
 }
 
 void USkeleton::PostDuplicate(bool bDuplicateForPIE)
@@ -1482,6 +1484,11 @@ void USkeleton::HandleSkeletonHierarchyChange(bool bShowProgress /*= true*/)
 	OnSkeletonHierarchyChanged.Broadcast();
 }
 
+void USkeleton::PostEditChangeProperty(FPropertyChangedEvent& PropertyChangedEvent)
+{
+	RecomputeCombinedAssetUserData();
+}
+
 void USkeleton::RegisterOnSkeletonHierarchyChanged(const FOnSkeletonHierarchyChanged& Delegate)
 {
 	OnSkeletonHierarchyChanged.Add(Delegate);
@@ -2010,7 +2017,7 @@ void USkeleton::GetAssetRegistryTags(TArray<FAssetRegistryTag>& OutTags) const
 	OutTags.Add(FAssetRegistryTag(USkeleton::AnimSyncMarkerTag, SyncMarkersBuilder.ToString(), FAssetRegistryTag::TT_Hidden));
 	
 	// Allow asset user data to output tags
-	for(UAssetUserData* AssetUserDataItem : AssetUserData)
+	for(UAssetUserData* AssetUserDataItem : *GetAssetUserDataArray())
 	{
 		AssetUserDataItem->GetAssetRegistryTags(OutTags);
 	}
@@ -2069,24 +2076,22 @@ USkeletalMeshSocket* USkeleton::FindSocketAndIndex(FName InSocketName, int32& Ou
 }
 
 
-void USkeleton::AddAssetUserData(UAssetUserData* InUserData)
+void USkeleton::AddAssetUserData( UAssetUserData* InUserData)
 {
 	if (InUserData != NULL)
 	{
-		UAssetUserData* ExistingData = GetAssetUserDataOfClass(InUserData->GetClass());
-		if (ExistingData != NULL)
-		{
-			AssetUserData.Remove(ExistingData);
-		}
+		RemoveUserDataOfClass(InUserData->GetClass());
 		AssetUserData.Add(InUserData);
+		RecomputeCombinedAssetUserData();
 	}
 }
 
 UAssetUserData* USkeleton::GetAssetUserDataOfClass(TSubclassOf<UAssetUserData> InUserDataClass)
 {
-	for (int32 DataIdx = 0; DataIdx < AssetUserData.Num(); DataIdx++)
+	const TArray<UAssetUserData*>* ArrayPtr = GetAssetUserDataArray();
+	for (int32 DataIdx = 0; DataIdx < ArrayPtr->Num(); DataIdx++)
 	{
-		UAssetUserData* Datum = AssetUserData[DataIdx];
+		UAssetUserData* Datum = (*ArrayPtr)[DataIdx];
 		if (Datum != NULL && Datum->IsA(InUserDataClass))
 		{
 			return Datum;
@@ -2103,14 +2108,41 @@ void USkeleton::RemoveUserDataOfClass(TSubclassOf<UAssetUserData> InUserDataClas
 		if (Datum != NULL && Datum->IsA(InUserDataClass))
 		{
 			AssetUserData.RemoveAt(DataIdx);
+			RecomputeCombinedAssetUserData();
 			return;
 		}
 	}
+
+#if WITH_EDITOR
+	for (int32 DataIdx = 0; DataIdx < AssetUserDataEditorOnly.Num(); DataIdx++)
+	{
+		UAssetUserData* Datum = AssetUserDataEditorOnly[DataIdx];
+		if (Datum != NULL && Datum->IsA(InUserDataClass))
+		{
+			AssetUserDataEditorOnly.RemoveAt(DataIdx);
+			RecomputeCombinedAssetUserData();
+			return;
+		}
+	}
+#endif
 }
 
 const TArray<UAssetUserData*>* USkeleton::GetAssetUserDataArray() const
 {
+#if WITH_EDITOR
+	return &ToRawPtrTArrayUnsafe(CombinedAssetUserData);
+#else
 	return &ToRawPtrTArrayUnsafe(AssetUserData);
+#endif
+}
+
+void USkeleton::RecomputeCombinedAssetUserData()
+{
+	CombinedAssetUserData.Reset();
+	CombinedAssetUserData.Append(AssetUserData);
+#if WITH_EDITOR
+	CombinedAssetUserData.Append(AssetUserDataEditorOnly);
+#endif
 }
 
 void USkeleton::HandlePackageReloaded(const EPackageReloadPhase InPackageReloadPhase, FPackageReloadedEvent* InPackageReloadedEvent)

@@ -2779,18 +2779,26 @@ const TArray<UAssetUserData*>* UControlRig::GetAssetUserDataArray() const
 {
 	if(HasAnyFlags(RF_ClassDefaultObject))
 	{
+#if WITH_EDITOR
+		return &ToRawPtrTArrayUnsafe(CombinedAssetUserData);
+#else
 		return &ToRawPtrTArrayUnsafe(AssetUserData);
+#endif
 	}
 
 	CombinedAssetUserData.Reset();
 
 	if (UControlRig* CDO = Cast<UControlRig>(GetClass()->GetDefaultObject(false)))
 	{
-		CombinedAssetUserData.Append(CDO->AssetUserData);
+		CombinedAssetUserData.Append(*CDO->GetAssetUserDataArray());
 	}
 	else
 	{
+#if WITH_EDITOR
+		CombinedAssetUserData.Append(CombinedAssetUserData);
+#else
 		CombinedAssetUserData.Append(AssetUserData);
+#endif
 	}
 	
 	if(GetExternalAssetUserDataDelegate.IsBound())

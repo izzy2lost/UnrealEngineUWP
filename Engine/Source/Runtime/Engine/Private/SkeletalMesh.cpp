@@ -818,6 +818,15 @@ bool USkeletalMesh::NeedCPUData(int32 LODIndex) const
 	return GetSamplingInfo().IsSamplingEnabled(this, LODIndex);
 }
 
+void USkeletalMesh::RecomputeCombinedAssetUserData()
+{
+	CombinedAssetUserData.Reset();
+	CombinedAssetUserData.Append(AssetUserData);
+#if WITH_EDITOR
+	CombinedAssetUserData.Append(AssetUserDataEditorOnly);
+#endif
+}
+
 void USkeletalMesh::InitResources()
 {
 	LLM_SCOPE_BYNAME(TEXT("SkeletalMesh/InitResources")); // This is an important test case for SCOPE_BYNAME without a matching LLM_DEFINE_TAG
@@ -1299,6 +1308,14 @@ void USkeletalMesh::PostEditChangeProperty(FPropertyChangedEvent& PropertyChange
 			Datum->PostEditChangeOwner();
 		}
 	}
+	for (UAssetUserData* Datum : AssetUserDataEditorOnly)
+	{
+		if (Datum != nullptr)
+		{
+			Datum->PostEditChangeOwner();
+		}
+	}
+	RecomputeCombinedAssetUserData();
 
 	Super::PostEditChangeProperty(PropertyChangedEvent);
 
@@ -3145,6 +3162,8 @@ void USkeletalMesh::PostLoad()
 {
 	LLM_SCOPE(ELLMTag::SkeletalMesh);
 	Super::PostLoad();
+
+	RecomputeCombinedAssetUserData();
 }
 
 void USkeletalMesh::ExecutePostLoadInternal(FSkinnedAssetPostLoadContext& Context)
@@ -3508,7 +3527,7 @@ void USkeletalMesh::GetAssetRegistryTags(TArray<FAssetRegistryTag>& OutTags) con
 	OutTags.Add(FAssetRegistryTag("MaxBoneInfluences", MaxBoneInfluencesString, FAssetRegistryTag::TT_Numerical));
 
 	// Allow asset user data to output tags
-	for(UAssetUserData* AssetUserDataItem : AssetUserData)
+	for(UAssetUserData* AssetUserDataItem : *GetAssetUserDataArray())
 	{
 		if(AssetUserDataItem)
 		{
@@ -4710,24 +4729,22 @@ bool USkeletalMesh::GetPhysicsTriMeshData(FTriMeshCollisionData* CollisionData, 
 #endif // #if WITH_EDITORONLY_DATA
 }
 
-void USkeletalMesh::AddAssetUserData(UAssetUserData* InUserData)
+void USkeletalMesh::AddAssetUserData( UAssetUserData* InUserData)
 {
 	if (InUserData != NULL)
 	{
-		UAssetUserData* ExistingData = GetAssetUserDataOfClass(InUserData->GetClass());
-		if (ExistingData != NULL)
-		{
-			AssetUserData.Remove(ExistingData);
-		}
+		RemoveUserDataOfClass(InUserData->GetClass());
 		AssetUserData.Add(InUserData);
+		RecomputeCombinedAssetUserData();
 	}
 }
 
 UAssetUserData* USkeletalMesh::GetAssetUserDataOfClass(TSubclassOf<UAssetUserData> InUserDataClass)
 {
-	for (int32 DataIdx = 0; DataIdx < AssetUserData.Num(); DataIdx++)
+	const TArray<UAssetUserData*>* ArrayPtr = GetAssetUserDataArray();
+	for (int32 DataIdx = 0; DataIdx < ArrayPtr->Num(); DataIdx++)
 	{
-		UAssetUserData* Datum = AssetUserData[DataIdx];
+		UAssetUserData* Datum = (*ArrayPtr)[DataIdx];
 		if (Datum != NULL && Datum->IsA(InUserDataClass))
 		{
 			return Datum;
@@ -4744,14 +4761,31 @@ void USkeletalMesh::RemoveUserDataOfClass(TSubclassOf<UAssetUserData> InUserData
 		if (Datum != NULL && Datum->IsA(InUserDataClass))
 		{
 			AssetUserData.RemoveAt(DataIdx);
+			RecomputeCombinedAssetUserData();
 			return;
 		}
 	}
+#if WITH_EDITOR
+	for (int32 DataIdx = 0; DataIdx < AssetUserDataEditorOnly.Num(); DataIdx++)
+	{
+		UAssetUserData* Datum = AssetUserDataEditorOnly[DataIdx];
+		if (Datum != NULL && Datum->IsA(InUserDataClass))
+		{
+			AssetUserDataEditorOnly.RemoveAt(DataIdx);
+			RecomputeCombinedAssetUserData();
+			return;
+		}
+	}
+#endif
 }
 
 const TArray<UAssetUserData*>* USkeletalMesh::GetAssetUserDataArray() const
 {
+#if WITH_EDITOR
+	return &ToRawPtrTArrayUnsafe(CombinedAssetUserData);
+#else
 	return &ToRawPtrTArrayUnsafe(AssetUserData);
+#endif
 }
 
 ////// SKELETAL MESH THUMBNAIL SUPPORT ////////

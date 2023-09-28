@@ -391,6 +391,15 @@ UActorComponent::UActorComponent(const FObjectInitializer& ObjectInitializer /*=
 	bReplicateUsingRegisteredSubObjectList = GDefaultUseSubObjectReplicationList;
 }
 
+void UActorComponent::RecomputeCombinedAssetUserData()
+{
+	CombinedAssetUserData.Reset();
+	CombinedAssetUserData.Append(AssetUserData);
+#if WITH_EDITOR
+	CombinedAssetUserData.Append(AssetUserDataEditorOnly);
+#endif
+}
+
 void UActorComponent::PostInitProperties()
 {
 	Super::PostInitProperties();
@@ -489,6 +498,8 @@ void UActorComponent::PostLoad()
 		bMarkPendingKillOnPostLoad = false;
 	}
 #endif // WITH_EDITOR
+
+	RecomputeCombinedAssetUserData();
 }
 
 bool UActorComponent::Rename( const TCHAR* InName, UObject* NewOuter, ERenameFlags Flags )
@@ -1015,6 +1026,14 @@ void UActorComponent::ConsolidatedPostEditChange(const FPropertyChangedEvent& Pr
 			Datum->PostEditChangeOwner();
 		}
 	}
+	for (UAssetUserData* Datum : AssetUserDataEditorOnly)
+	{
+		if (Datum != nullptr)
+		{
+			Datum->PostEditChangeOwner();
+		}
+	}
+	RecomputeCombinedAssetUserData();
 }
 
 void UActorComponent::PostEditChangeProperty(FPropertyChangedEvent& PropertyChangedEvent)
@@ -2055,24 +2074,22 @@ bool UActorComponent::IsOwnerRunningUserConstructionScript() const
 	return (MyOwner && MyOwner->IsRunningUserConstructionScript());
 }
 
-void UActorComponent::AddAssetUserData(UAssetUserData* InUserData)
+void UActorComponent::AddAssetUserData( UAssetUserData* InUserData)
 {
 	if (InUserData != NULL)
 	{
-		UAssetUserData* ExistingData = GetAssetUserDataOfClass(InUserData->GetClass());
-		if (ExistingData != NULL)
-		{
-			AssetUserData.Remove(ExistingData);
-		}
+		RemoveUserDataOfClass(InUserData->GetClass());
 		AssetUserData.Add(InUserData);
+		RecomputeCombinedAssetUserData();
 	}
 }
 
 UAssetUserData* UActorComponent::GetAssetUserDataOfClass(TSubclassOf<UAssetUserData> InUserDataClass)
 {
-	for (int32 DataIdx = 0; DataIdx < AssetUserData.Num(); DataIdx++)
+	const TArray<UAssetUserData*>* ArrayPtr = GetAssetUserDataArray();
+	for (int32 DataIdx = 0; DataIdx < ArrayPtr->Num(); DataIdx++)
 	{
-		UAssetUserData* Datum = AssetUserData[DataIdx];
+		UAssetUserData* Datum = (*ArrayPtr)[DataIdx];
 		if (Datum != NULL && Datum->IsA(InUserDataClass))
 		{
 			return Datum;
@@ -2083,7 +2100,11 @@ UAssetUserData* UActorComponent::GetAssetUserDataOfClass(TSubclassOf<UAssetUserD
 
 const TArray<UAssetUserData*>* UActorComponent::GetAssetUserDataArray() const
 {
+#if WITH_EDITOR
+	return &ToRawPtrTArrayUnsafe(CombinedAssetUserData);
+#else
 	return &ToRawPtrTArrayUnsafe(AssetUserData);
+#endif
 }
 
 void UActorComponent::RemoveUserDataOfClass(TSubclassOf<UAssetUserData> InUserDataClass)
@@ -2097,6 +2118,17 @@ void UActorComponent::RemoveUserDataOfClass(TSubclassOf<UAssetUserData> InUserDa
 			return;
 		}
 	}
+#if WITH_EDITOR
+	for (int32 DataIdx = 0; DataIdx < AssetUserDataEditorOnly.Num(); DataIdx++)
+	{
+		UAssetUserData* Datum = AssetUserDataEditorOnly[DataIdx];
+		if (Datum != NULL && Datum->IsA(InUserDataClass))
+		{
+			AssetUserDataEditorOnly.RemoveAt(DataIdx);
+			return;
+		}
+	}
+#endif
 }
 
 void UActorComponent::OnCreatedFromReplication()

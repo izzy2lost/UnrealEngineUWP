@@ -159,6 +159,8 @@ public:
 	void BroadCastEndLoadPackage() { EndLoadPackageEvent.Broadcast(this); }
 	FOnEndLoadPackage& OnEndLoadPackage() { return EndLoadPackageEvent; }
 
+	virtual void PostEditChangeProperty(FPropertyChangedEvent& PropertyChangedEvent) override;
+
 private:
 	FOnEndLoadPackage EndLoadPackageEvent;
 
@@ -396,6 +398,16 @@ protected:
 	/** Array of user data stored with the asset */
 	UPROPERTY(EditAnywhere, AdvancedDisplay, Instanced, Category = "Default")
 	TArray<TObjectPtr<UAssetUserData>> AssetUserData;
+
+#if WITH_EDITORONLY_DATA
+	/** Array of user data stored with the asset */
+	UPROPERTY(EditAnywhere, AdvancedDisplay, Instanced, Category = Skeleton)
+	TArray<TObjectPtr<UAssetUserData>> AssetUserDataEditorOnly;
+#endif
+
+	void RecomputeCombinedAssetUserData();
+	mutable TArray<TObjectPtr<UAssetUserData>> CombinedAssetUserData;
+
 
 protected:
 	bool bRequiresInitExecution;
