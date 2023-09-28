@@ -107,7 +107,36 @@ USkeleton* UAnimationSequencerDataModel::GetSkeleton() const
 	return Skeleton;
 }
 
-void UAnimationSequencerDataModel::InitializeFKControlRig(UFKControlRig* FKControlRig, USkeleton* Skeleton) const
+void UAnimationSequencerDataModel::InitializeRigHierarchy(UFKControlRig* FKControlRig, USkeleton* Skeleton) const
+{
+	FScopeLock Lock(&EvaluationLock);
+	
+	UFKControlRig::FRigElementInitializationOptions InitOptions;
+	InitOptions.bImportCurves = false;	
+	if(UMovieSceneControlRigParameterSection* Section = GetFKControlRigSection())
+	{
+		for (const FScalarParameterNameAndCurve& AnimCurve : Section->GetScalarParameterNamesAndCurves())
+		{
+			InitOptions.CurveNames.Add(UFKControlRig::GetControlTargetName(AnimCurve.ParameterName, ERigElementType::Curve));
+		}
+
+		for (const FTransformParameterNameAndCurves& BoneCurve : Section->GetTransformParameterNamesAndCurves())
+		{
+			InitOptions.BoneNames.Add(UFKControlRig::GetControlTargetName(BoneCurve.ParameterName, ERigElementType::Bone));
+		}
+	}
+	InitOptions.bGenerateBoneControls = InitOptions.BoneNames.Num() > 0;
+	FKControlRig->SetInitializationOptions(InitOptions);
+
+	FKControlRig->Initialize();
+
+	FKControlRig->SetApplyMode(UseDirectFKControlRigMode == 1 ? EControlRigFKRigExecuteMode::Direct : EControlRigFKRigExecuteMode::Replace);
+	FKControlRig->SetBoneInitialTransformsFromRefSkeleton(Skeleton->GetReferenceSkeleton());
+	FKControlRig->Evaluate_AnyThread();
+	bRigHierarchyInitialized = true;
+}
+
+void UAnimationSequencerDataModel::InitializeFKControlRig(UFKControlRig* FKControlRig, USkeleton* Skeleton, bool bForceHierarchyInitialization /*=false*/) const
 {
 	checkf(FKControlRig, TEXT("Invalid FKControlRig provided"));
 	if (Skeleton)
@@ -117,35 +146,17 @@ void UAnimationSequencerDataModel::InitializeFKControlRig(UFKControlRig* FKContr
 		FKControlRig->SetObjectBinding(MakeShared<FControlRigObjectBinding>());
 		FKControlRig->GetObjectBinding()->BindToObject(Skeleton);
 
-		UFKControlRig::FRigElementInitializationOptions InitOptions;
-		InitOptions.bImportCurves = false;	
-		if(UMovieSceneControlRigParameterSection* Section = GetFKControlRigSection())
+		if (!IsRunningCookCommandlet() || bForceHierarchyInitialization)
 		{
-			for (const FScalarParameterNameAndCurve& AnimCurve : Section->GetScalarParameterNamesAndCurves())
-			{
-				InitOptions.CurveNames.Add(UFKControlRig::GetControlTargetName(AnimCurve.ParameterName, ERigElementType::Curve));
-			}
-
-			for (const FTransformParameterNameAndCurves& BoneCurve : Section->GetTransformParameterNamesAndCurves())
-			{
-				InitOptions.BoneNames.Add(UFKControlRig::GetControlTargetName(BoneCurve.ParameterName, ERigElementType::Bone));
-			}
+			InitializeRigHierarchy(FKControlRig, Skeleton);
 		}
-		InitOptions.bGenerateBoneControls = InitOptions.BoneNames.Num() > 0;
-		FKControlRig->SetInitializationOptions(InitOptions);
-
-		FKControlRig->Initialize();
-
-		FKControlRig->SetApplyMode(UseDirectFKControlRigMode == 1 ? EControlRigFKRigExecuteMode::Direct : EControlRigFKRigExecuteMode::Replace);
-		FKControlRig->SetBoneInitialTransformsFromRefSkeleton(Skeleton->GetReferenceSkeleton());
-		FKControlRig->Evaluate_AnyThread();
 		
 		UnlockEvaluationAndModification();
 	}
 }
 
 UControlRig* UAnimationSequencerDataModel::GetControlRig() const
-{
+{	
 	if(const UMovieSceneControlRigParameterTrack* Track = GetControlRigTrack())
 	{
 		return Track->GetControlRig();
@@ -179,7 +190,7 @@ void UAnimationSequencerDataModel::PostLoad()
 		if (const UMovieSceneControlRigParameterSection* Section = GetFKControlRigSection())
 		{
 			if (UFKControlRig* ControlRig = Cast<UFKControlRig>(Section->GetControlRig()))
-			{
+			{				
 				InitializeFKControlRig(ControlRig, GetSkeleton());
 			}
 		}
@@ -223,6 +234,7 @@ void UAnimationSequencerDataModel::PreSave(FObjectPreSaveContext ObjectSaveConte
 void UAnimationSequencerDataModel::WillNeverCacheCookedPlatformDataAgain()
 {
 	Super::WillNeverCacheCookedPlatformDataAgain();
+	ClearControlRigData();
 }
 
 void UAnimationSequencerDataModel::PreEditUndo()
@@ -747,6 +759,15 @@ void UAnimationSequencerDataModel::Evaluate(FAnimationPoseData& InOutPoseData, c
 	if (UMovieSceneControlRigParameterTrack* Track = GetControlRigTrack())
 	{
 		FScopeLock Lock(&EvaluationLock);
+
+		if(!bRigHierarchyInitialized)
+		{
+			if (UFKControlRig* FKControlRig = Cast<UFKControlRig>(GetControlRig()))
+			{
+				InitializeRigHierarchy(FKControlRig, GetSkeleton());
+			}
+		}
+		
 		// Evaluates and applies control curves from track to ControlRig
 		EvaluateTrack(Track, EvaluationContext);
 
@@ -858,6 +879,27 @@ UMovieSceneControlRigParameterSection* UAnimationSequencerDataModel::GetFKContro
 				}
 			}
 		}
+	}
+
+	return nullptr;
+}
+
+URigHierarchy* UAnimationSequencerDataModel::GetControlRigHierarchy() const
+{	
+	if (const UMovieSceneControlRigParameterSection* Section = GetFKControlRigSection())
+	{
+		UControlRig* ControlRig = Section->GetControlRig();
+		if (UFKControlRig* FKRig = Cast<UFKControlRig>(ControlRig))
+		{
+			if (!bRigHierarchyInitialized)
+			{
+				InitializeRigHierarchy(FKRig, GetSkeleton());
+			}
+
+			return FKRig->GetHierarchy();
+		}
+
+		IAnimationDataController::ReportObjectErrorf(this, LOCTEXT("UnableToFindRigHierarchy", "Unable to retrieve RigHierarchy for ControlRig ({0})"), FText::FromString(ControlRig->GetPathName()));
 	}
 
 	return nullptr;
@@ -1152,6 +1194,19 @@ void UAnimationSequencerDataModel::GenerateTransformKeysForControl(const FName& 
 	{
 		InOutTransforms.Add(Transform);
 	}, &FrameNumbers);
+}
+
+void UAnimationSequencerDataModel::ClearControlRigData()
+{
+	if (bRigHierarchyInitialized)
+	{
+		FScopeLock Lock(&EvaluationLock);
+		if (UFKControlRig* FKControlRig = Cast<UFKControlRig>(GetControlRig()))
+		{
+			FKControlRig->GetHierarchy()->Reset();
+			bRigHierarchyInitialized = false;
+		}
+	}	
 }
 
 UMovieScene* UAnimationSequencerDataModel::GetMovieScene() const
