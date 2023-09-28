@@ -988,6 +988,8 @@ class FVolumetricFogLightScatteringCS : public FGlobalShader
 		SHADER_PARAMETER(uint32, SampleSkyLightDiffuseEnvMap)
 		SHADER_PARAMETER(FMatrix44f, DirectionalLightFunctionTranslatedWorldToShadow)
 		SHADER_PARAMETER(FMatrix44f, CloudShadowmapTranslatedWorldToLightClipMatrix)
+		SHADER_PARAMETER(FVector3f, MobileDirectionalLightColor)
+		SHADER_PARAMETER(FVector3f, MobileDirectionalLightDirection)
 		SHADER_PARAMETER(FVector2f, PrevConservativeDepthTextureSize)
 		SHADER_PARAMETER(FVector2f, UseHeightFogColors)
 		SHADER_PARAMETER(FVector2f, LightScatteringHistoryPreExposureAndInv)
@@ -1001,6 +1003,7 @@ class FVolumetricFogLightScatteringCS : public FGlobalShader
 		SHADER_PARAMETER(float, UseDirectionalLightShadowing)
 		SHADER_PARAMETER(uint32, UseConservativeDepthTexture)
 		SHADER_PARAMETER(uint32, UseEmissive)
+		SHADER_PARAMETER(uint32, MobileHasDirectionalLight)
 	END_SHADER_PARAMETER_STRUCT()
 
 	static FIntVector GetGroupSize()
@@ -1569,6 +1572,23 @@ void FSceneRenderer::ComputeVolumetricFog(FRDGBuilder& GraphBuilder,
 			{
 				PassParameters->SkyLightUseStaticShadowing = 0.0f;
 				PassParameters->SampleSkyLightDiffuseEnvMap = 0;
+			}
+
+			// Mobile handles directional differently as of today to handle light masking (does not use and fill up the FForwardLightData). 
+			// Volumetric fog does not work with light mask so we simply pick up the first one available. In the long run we might want something more common.
+			PassParameters->MobileDirectionalLightColor		= FVector3f::Zero();
+			PassParameters->MobileDirectionalLightDirection = FVector3f::Zero();
+			PassParameters->MobileHasDirectionalLight		= 0;
+			for (uint32 ChannelIdx = 0; ChannelIdx < UE_ARRAY_COUNT(Scene->MobileDirectionalLights); ChannelIdx++)
+			{
+				FLightSceneInfo* Light = Scene->MobileDirectionalLights[ChannelIdx];
+				if (Light != nullptr)
+				{
+					PassParameters->MobileDirectionalLightColor		= FVector3f(Light->Proxy->GetSunIlluminanceAccountingForSkyAtmospherePerPixelTransmittance() * Light->Proxy->GetVolumetricScatteringIntensity());
+					PassParameters->MobileDirectionalLightDirection = FVector3f(-Light->Proxy->GetDirection());
+					PassParameters->MobileHasDirectionalLight		= 1;
+					break;
+				}
 			}
 
 			float StaticLightingScatteringIntensityValue = 0;
