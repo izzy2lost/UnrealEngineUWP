@@ -1648,18 +1648,20 @@ void FRDGBuilder::Compile()
 
 ///////////////////////////////////////////////////////////////////////////////////////////////////
 
+void FRDGBuilder::FPassQueue::Push(FRDGPass* Pass)
+{
+	UE::TScopeLock Lock(Mutex);
+	Queue.Emplace(Pass);
+}
+
 template <typename LambdaType>
 void FRDGBuilder::FPassQueue::Flush(UE::Tasks::FPipe& Pipe, const TCHAR* Name, LambdaType&& Lambda)
 {
 	if (LastTask.IsCompleted())
 	{
-		LastTask = Pipe.Launch(Name, [this, Lambda, Name]
+		LastTask = Pipe.Launch(Name, [this, Lambda = MoveTemp(Lambda), Name] () mutable
 		{
-			SCOPED_NAMED_EVENT_TCHAR(Name, FColor::Magenta);
-			while (FRDGPass* Pass = Queue.Pop())
-			{
-				Lambda(Pass);
-			}
+			Flush(Name, MoveTemp(Lambda));
 		});
 	}
 }
@@ -1668,8 +1670,12 @@ template <typename LambdaType>
 void FRDGBuilder::FPassQueue::Flush(const TCHAR* Name, LambdaType&& Lambda)
 {
 	SCOPED_NAMED_EVENT_TCHAR(Name, FColor::Magenta);
-	LastTask.Wait();
-	while (FRDGPass* Pass = Queue.Pop())
+
+	Mutex.Lock();
+	TArray<FRDGPass*, FRDGArrayAllocator> PoppedQueue = MoveTemp(Queue);
+	Mutex.Unlock();
+
+	for (FRDGPass* Pass : PoppedQueue)
 	{
 		Lambda(Pass);
 	}

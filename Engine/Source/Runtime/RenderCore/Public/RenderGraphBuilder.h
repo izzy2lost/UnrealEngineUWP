@@ -548,10 +548,7 @@ private:
 	class FPassQueue
 	{
 	public:
-		void Push(FRDGPass* Pass)
-		{
-			Queue.Push(Pass);
-		}
+		void Push(FRDGPass* Pass);
 
 		template <typename LambdaType>
 		void Flush(UE::Tasks::FPipe& Pipe, const TCHAR* Name, LambdaType&& Lambda);
@@ -560,7 +557,8 @@ private:
 		void Flush(const TCHAR* Name, LambdaType&& Lambda);
 
 	private:
-		TLockFreePointerListFIFO<FRDGPass, PLATFORM_CACHE_LINE_SIZE> Queue;
+		UE::FMutex Mutex;
+		TArray<FRDGPass*, FRDGArrayAllocator> Queue;
 		UE::Tasks::FTask LastTask;
 	};
 
