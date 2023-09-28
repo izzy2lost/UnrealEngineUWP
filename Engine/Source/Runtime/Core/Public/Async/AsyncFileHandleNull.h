@@ -24,6 +24,11 @@ protected:
 	{
 	}
 
+	virtual void EnsureCompletion() override
+	{
+		WaitCompletionImpl(0.0f);
+	}
+
 	virtual void CancelImpl() override
 	{
 	}
