@@ -77,10 +77,10 @@ bool FInsightsTestUtils::AnalyzeTrace(const TCHAR* Path) const
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////
 
-bool FInsightsTestUtils::FileContainsString(const FString& PathToFile, const FString& ExpectedString, const float& Timeout) const
+bool FInsightsTestUtils::FileContainsString(const FString& PathToFile, const FString& ExpectedString, double Timeout) const
 {
-	float StartTime = FPlatformTime::Seconds();
-	while ((FPlatformTime::Seconds() - StartTime) < Timeout)
+	double StartTime = FPlatformTime::Seconds();
+	while (FPlatformTime::Seconds() - StartTime < Timeout)
 	{
 		if (!FPaths::FileExists(PathToFile))
 		{
@@ -94,7 +94,7 @@ bool FInsightsTestUtils::FileContainsString(const FString& PathToFile, const FSt
 			if (FileHandle)
 			{
 				TArray<uint8> FileData;
-				FileData.SetNumUninitialized(FileHandle->Size());
+				FileData.SetNumUninitialized(static_cast<int32>(FileHandle->Size()));
 				FileHandle->Read(FileData.GetData(), FileData.Num());
 				FFileHelper::BufferToString(LogFileContents, FileData.GetData(), FileData.Num());
 
@@ -112,7 +112,7 @@ bool FInsightsTestUtils::FileContainsString(const FString& PathToFile, const FSt
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////
 
-bool FInsightsTestUtils::StartTracing(FTraceAuxiliary::EConnectionType ConnectionType, const float& Timeout) const
+bool FInsightsTestUtils::StartTracing(FTraceAuxiliary::EConnectionType ConnectionType, double Timeout) const
 {
 	bool bStarted = false;
 	if (ConnectionType == FTraceAuxiliary::EConnectionType::Network)
@@ -139,7 +139,7 @@ bool FInsightsTestUtils::StartTracing(FTraceAuxiliary::EConnectionType Connectio
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////
 
-bool FInsightsTestUtils::SetupUTS(const float& Timeout) const
+bool FInsightsTestUtils::SetupUTS(double Timeout) const
 {
 	const FString UnrealTraceServerName = TEXT("UnrealTraceServer");
 
@@ -175,7 +175,7 @@ bool FInsightsTestUtils::SetupUTS(const float& Timeout) const
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////
 
-bool FInsightsTestUtils::KillUTS(const float& Timeout) const
+bool FInsightsTestUtils::KillUTS(double Timeout) const
 {
 	const FString UnrealTraceServerName = TEXT("UnrealTraceServer");
 

@@ -322,7 +322,8 @@ static void AddTimingEventToBuilder(ITimingEventsTrackDrawStateBuilder& Builder,
 		{
 			FString EventName = Timer->Name;
 
-			if (Width > EventName.Len() * 4.0f + 32.0f)
+			const float MinWidth = static_cast<float>(EventName.Len()) * 4.0f + 32.0f;
+			if (Width > MinWidth)
 			{
 				//EventName = TEXT("*") + EventName; // for debugging
 

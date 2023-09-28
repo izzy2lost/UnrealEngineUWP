@@ -2,19 +2,19 @@
 
 #include "HAL/FileManager.h"
 #include "HAL/PlatformFileManager.h"
-#include "Misc/FileHelper.h"
 #include "Insights/InsightsManager.h"
 #include "Insights/IUnrealInsightsModule.h"
 #include "Insights/Tests/InsightsTestUtils.h"
 #include "Misc/AutomationTest.h"
+#include "Misc/FileHelper.h"
 
 void VerifyExportedLines(const FString& ExportReportPath, const FString& CmdLogPath, const FString& Elements, FInsightsTestUtils Utils, FAutomationTestBase* Test, double Timeout)
 {
-	double StartTime = FPlatformTime::Seconds();
 	bool bLineFound = false;
 	FString ExpectedResult;
 
-	while ((FPlatformTime::Seconds() - StartTime) < Timeout)
+	double StartTime = FPlatformTime::Seconds();
+	while (FPlatformTime::Seconds() - StartTime < Timeout)
 	{
 		FString FileContent;
 
@@ -90,8 +90,8 @@ bool FСommandsExportWindowsTest::RunTest(const FString& Parameters)
 	{
 		AddWarning(TEXT("The TestResults directory already exists. Deleting to avoid undefined behavior"));
 		IFileManager::Get().DeleteDirectory(*TestResultsDirPath, false, true);
-		float StartTime = FPlatformTime::Seconds();
-		while ((FPlatformTime::Seconds() - StartTime) < Timeout)
+		double StartTime = FPlatformTime::Seconds();
+		while (FPlatformTime::Seconds() - StartTime < Timeout)
 		{
 			if (!PlatformFile.DirectoryExists(*TestResultsDirPath))
 			{
@@ -115,7 +115,7 @@ bool FСommandsExportWindowsTest::RunTest(const FString& Parameters)
 
 	VerifyExportedLines(ExportTimersReportPath, CmdTimersLogPath, TEXT("timers"), Utils, this, Timeout);
 
-	// UI verification cannot be executed in that case. 
+	// UI verification cannot be executed in that case.
 
 	// ExportTimingEvents
 	InsightsParameters = FString::Printf(TEXT("-OpenTraceFile=\"%s\" -ABSLOG=\"%s\" -AutoQuit -NoUI  -ExecOnAnalysisCompleteCmd=\"%s\" -log"), *StoreTracePath, *CmdTimingEventsLogPath, *ExportTimingEventsTask);
@@ -127,7 +127,16 @@ bool FСommandsExportWindowsTest::RunTest(const FString& Parameters)
 	InsightsParameters = FString::Printf(TEXT("-OpenTraceFile=\"%s\" -ABSLOG=\"%s\" -AutoQuit -NoUI  -ExecOnAnalysisCompleteCmd=\"%s\" -log"), *StoreTracePath, *CmdTimingEventsNonDefaultLogPath, *ExportTimingEventsBorderedTask);
 	InsightsManager->OpenUnrealInsights(*InsightsParameters);
 
-	const TArray<FString> ExpectedTimingEventsBorderedElements = { TEXT("ThreadId"), TEXT("ThreadName"), TEXT("TimerId"), TEXT("TimerName"), TEXT("StartTime"), TEXT("EndTime"), TEXT("Duration"), TEXT("Depth"),
+	const TArray<FString> ExpectedTimingEventsBorderedElements =
+	{
+		TEXT("ThreadId"),
+		TEXT("ThreadName"),
+		TEXT("TimerId"),
+		TEXT("TimerName"),
+		TEXT("StartTime"),
+		TEXT("EndTime"),
+		TEXT("Duration"),
+		TEXT("Depth"),
 		TEXT("2,GameThread,1,FEngineLoop::PreInitPreStartupScreen")
 	};
 
@@ -158,7 +167,9 @@ bool FСommandsExportWindowsTest::RunTest(const FString& Parameters)
 	InsightsParameters = FString::Printf(TEXT("-OpenTraceFile=\"%s\" -ABSLOG=\"%s\" -AutoQuit -NoUI  -ExecOnAnalysisCompleteCmd=\"@=/TestResults/export.rsp\" -log"), *StoreTracePath, *CmdExportLogPath);
 	InsightsManager->OpenUnrealInsights(*InsightsParameters);
 
-	const TArray<FString> ExpectedThreadsElementsRsp = { TEXT("/TestResults/RSPtest/CSV/Threads_rsp.csv"),
+	const TArray<FString> ExpectedThreadsElementsRsp =
+	{
+		TEXT("/TestResults/RSPtest/CSV/Threads_rsp.csv"),
 		TEXT("/TestResults/RSPtest/TSV/Threads_rsp.tsv"),
 		TEXT("/TestResults/RSPtest/TXT/Threads_rsp.txt"),
 	};
@@ -171,7 +182,9 @@ bool FСommandsExportWindowsTest::RunTest(const FString& Parameters)
 		VerifyExportedLines(ExpectedThreadsElementsRsp[i], CmdExportLogPath, TEXT("threads"), Utils, this, Timeout);
 	}
 
-	const TArray<FString> ExpectedTimersElementsRsp = { TEXT("/TestResults/RSPtest/CSV/Timers_rsp.csv"),
+	const TArray<FString> ExpectedTimersElementsRsp =
+	{
+		TEXT("/TestResults/RSPtest/CSV/Timers_rsp.csv"),
 		TEXT("/TestResults/RSPtest/TSV/Timers_rsp.tsv"),
 		TEXT("/TestResults/RSPtest/TXT/Timers_rsp.txt"),
 	};
@@ -184,7 +197,9 @@ bool FСommandsExportWindowsTest::RunTest(const FString& Parameters)
 		VerifyExportedLines(ExpectedTimersElementsRsp[i], CmdExportLogPath, TEXT("timers"), Utils, this, Timeout);
 	}
 
-	const TArray<FString> ExpectedTimingEventsRsp = { TEXT("/TestResults/RSPtest/CSV/TimingEvents_rsp.csv"),
+	const TArray<FString> ExpectedTimingEventsRsp =
+	{
+		TEXT("/TestResults/RSPtest/CSV/TimingEvents_rsp.csv"),
 		TEXT("/TestResults/RSPtest/TSV/TimingEvents_rsp.tsv"),
 		TEXT("/TestResults/RSPtest/TXT/TimingEvents_rsp.txt"),
 	};

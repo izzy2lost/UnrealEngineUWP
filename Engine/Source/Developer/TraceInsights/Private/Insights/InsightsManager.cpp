@@ -632,7 +632,7 @@ void FInsightsManager::CheckMemoryUsage()
 		constexpr double MemUsageLimitHysteresisPercent = 50.0;
 
 		const uint64 Time = FPlatformTime::Cycles64();
-		const double DurationSeconds = (Time - MemUsageLimitLastTimestamp) * FPlatformTime::GetSecondsPerCycle64();
+		const double DurationSeconds = static_cast<double>(Time - MemUsageLimitLastTimestamp) * FPlatformTime::GetSecondsPerCycle64();
 		if (DurationSeconds > 1.0) // only check once per second
 		{
 			MemUsageLimitLastTimestamp = Time;

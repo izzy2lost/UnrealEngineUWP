@@ -815,7 +815,7 @@ void FTimingGraphTrack::DrawVerticalAxisGrid(const ITimingTrackDrawContext& Cont
 		if (Index < NumThresholds - 1)
 		{
 			const double NextTickUnit = Thresholds[Index + 1];
-			if (NextTickUnit <= (DeltaTicks + 1) * TickUnit)
+			if (NextTickUnit <= static_cast<double>(DeltaTicks + 1) * TickUnit)
 			{
 				TickUnit = NextTickUnit;
 				DeltaTicks = 1;
@@ -825,7 +825,7 @@ void FTimingGraphTrack::DrawVerticalAxisGrid(const ITimingTrackDrawContext& Cont
 				DeltaTicks++;
 			}
 		}
-		const double Grid = DeltaTicks * TickUnit;
+		const double Grid = static_cast<double>(DeltaTicks) * TickUnit;
 		const double StartValue = FMath::GridSnap(BottomValue, Grid);
 
 		const FLinearColor GridColor(0.0f, 0.0f, 0.0f, 0.1f);

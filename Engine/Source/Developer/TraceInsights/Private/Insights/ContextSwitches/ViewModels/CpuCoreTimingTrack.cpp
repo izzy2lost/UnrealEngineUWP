@@ -211,7 +211,8 @@ void FCpuCoreTimingTrack::AddCoreTimingEvent(ITimingEventsTrackDrawStateBuilder&
 		{
 			FString EventName = GetThreadName(SystemThreadId);
 
-			if (Width > EventName.Len() * 4.0f + 32.0f)
+			const float MinWidth = static_cast<float>(EventName.Len()) * 4.0f + 32.0f;
+			if (Width > MinWidth)
 			{
 				const double Duration = CpuCoreEvent.End - CpuCoreEvent.Start;
 				FTimingEventsTrackDrawStateBuilder::AppendDurationToEventName(EventName, Duration);

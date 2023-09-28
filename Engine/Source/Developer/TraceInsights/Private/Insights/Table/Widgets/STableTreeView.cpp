@@ -1982,7 +1982,7 @@ void STableTreeView::PostChangeGroupings()
 	float HierarchyColumnWidth = DefaultHierarchyColumnWidth;
 	FString GroupingStr;
 
-	int32 GroupingDepth = 0;
+	float GroupingDepth = 0;
 	for (TSharedPtr<FTreeNodeGrouping>& GroupingPtr : CurrentGroupings)
 	{
 		const FName& ColumnId = GroupingPtr->GetColumnId();
@@ -1998,7 +1998,7 @@ void STableTreeView::PostChangeGroupings()
 					const SHeaderRow::FColumn& CurrentColumn = TreeViewHeaderRow->GetColumns()[ColumnIndex];
 					if (CurrentColumn.ColumnId == ColumnId)
 					{
-						const float Width = HierarchyMinWidth + GroupingDepth * HierarchyIndentation + CurrentColumn.GetWidth();
+						const float Width = HierarchyMinWidth + GroupingDepth + CurrentColumn.GetWidth();
 						if (Width > HierarchyColumnWidth)
 						{
 							HierarchyColumnWidth = Width;
@@ -2022,7 +2022,7 @@ void STableTreeView::PostChangeGroupings()
 			GroupingStr.Append(GroupingPtr->GetShortName().ToString());
 		}
 
-		++GroupingDepth;
+		GroupingDepth += HierarchyIndentation;
 	}
 
 	//////////////////////////////////////////////////

@@ -1498,7 +1498,7 @@ int32 STimingView::OnPaint(const FPaintArgs& Args, const FGeometry& AllottedGeom
 		for (int32 LineIndex = 0; LineIndex < OverscrollLineCount; ++LineIndex)
 		{
 			const float Opacity = OverscrollLeft * static_cast<float>(OverscrollLineCount - LineIndex) / static_cast<float>(OverscrollLineCount);
-			DrawContext.DrawBox(LineIndex * OverscrollLineSize, OverscrollLineY, OverscrollLineSize, OverscrollLineH, WhiteBrush, FLinearColor(1.0f, 0.1f, 0.1f, Opacity));
+			DrawContext.DrawBox(static_cast<float>(LineIndex) * OverscrollLineSize, OverscrollLineY, OverscrollLineSize, OverscrollLineH, WhiteBrush, FLinearColor(1.0f, 0.1f, 0.1f, Opacity));
 		}
 	}
 	if (OverscrollRight > 0.0f)
@@ -1508,7 +1508,7 @@ int32 STimingView::OnPaint(const FPaintArgs& Args, const FGeometry& AllottedGeom
 		for (int32 LineIndex = 0; LineIndex < OverscrollLineCount; ++LineIndex)
 		{
 			const float Opacity = OverscrollRight * static_cast<float>(OverscrollLineCount - LineIndex) / static_cast<float>(OverscrollLineCount);
-			DrawContext.DrawBox(ViewWidth - (1 + LineIndex) * OverscrollLineSize, OverscrollLineY, OverscrollLineSize, OverscrollLineH, WhiteBrush, FLinearColor(1.0f, 0.1f, 0.1f, Opacity));
+			DrawContext.DrawBox(ViewWidth - static_cast<float>(1 + LineIndex) * OverscrollLineSize, OverscrollLineY, OverscrollLineSize, OverscrollLineH, WhiteBrush, FLinearColor(1.0f, 0.1f, 0.1f, Opacity));
 		}
 	}
 	if (OverscrollTop > 0.0f)
@@ -1517,7 +1517,7 @@ int32 STimingView::OnPaint(const FPaintArgs& Args, const FGeometry& AllottedGeom
 		for (int32 LineIndex = 0; LineIndex < OverscrollLineCount; ++LineIndex)
 		{
 			const float Opacity = OverscrollTop * static_cast<float>(OverscrollLineCount - LineIndex) / static_cast<float>(OverscrollLineCount);
-			DrawContext.DrawBox(0.0f, OverscrollLineY + LineIndex * OverscrollLineSize, ViewWidth, OverscrollLineSize, WhiteBrush, FLinearColor(1.0f, 0.1f, 0.1f, Opacity));
+			DrawContext.DrawBox(0.0f, OverscrollLineY + static_cast<float>(LineIndex) * OverscrollLineSize, ViewWidth, OverscrollLineSize, WhiteBrush, FLinearColor(1.0f, 0.1f, 0.1f, Opacity));
 		}
 	}
 	if (OverscrollBottom > 0.0f)
@@ -1526,7 +1526,7 @@ int32 STimingView::OnPaint(const FPaintArgs& Args, const FGeometry& AllottedGeom
 		for (int32 LineIndex = 0; LineIndex < OverscrollLineCount; ++LineIndex)
 		{
 			const float Opacity = OverscrollBottom * static_cast<float>(OverscrollLineCount - LineIndex) / static_cast<float>(OverscrollLineCount);
-			DrawContext.DrawBox(0.0f, OverscrollLineY - (1 + LineIndex) * OverscrollLineSize, ViewWidth, OverscrollLineSize, WhiteBrush, FLinearColor(1.0f, 0.1f, 0.1f, Opacity));
+			DrawContext.DrawBox(0.0f, OverscrollLineY - static_cast<float>(1 + LineIndex) * OverscrollLineSize, ViewWidth, OverscrollLineSize, WhiteBrush, FLinearColor(1.0f, 0.1f, 0.1f, Opacity));
 		}
 	}
 
@@ -1541,7 +1541,7 @@ int32 STimingView::OnPaint(const FPaintArgs& Args, const FGeometry& AllottedGeom
 		const float DbgDY = MaxFontCharHeight;
 
 		const float DbgW = 320.0f;
-		const float DbgH = DbgDY * 9 + 3.0f;
+		const float DbgH = DbgDY * 9.0f + 3.0f;
 		const float DbgX = ViewWidth - DbgW - 20.0f;
 		float DbgY = Viewport.GetPosY() + Viewport.GetTopOffset() + 10.0f;
 

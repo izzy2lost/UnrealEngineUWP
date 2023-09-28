@@ -6,8 +6,9 @@ public class TraceInsights : ModuleRules
 {
 	public TraceInsights(ReadOnlyTargetRules Target) : base(Target)
 	{
-		PublicDependencyModuleNames.AddRange
-		(
+		UnsafeTypeCastWarningLevel = WarningLevel.Error;
+
+		PublicDependencyModuleNames.AddRange(
 			new string[] {
 				"AppFramework", // for SColorPicker
 				"ApplicationCore",
@@ -27,7 +28,7 @@ public class TraceInsights : ModuleRules
 				"TraceServices",
 				"WorkspaceMenuStructure",
 				"XmlParser",
-		}
+			}
 		);
 
 		//Modules required for running automation in stand alone Insights
