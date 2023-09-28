@@ -88,8 +88,11 @@ namespace Chaos
 	bool bChaos_Collision_EnableLargeMeshManifolds = 1;
 	FAutoConsoleVariableRef CVarChaos_Collision_EnableLargeMeshManifolds(TEXT("p.Chaos.Collision.EnableLargeMeshManifolds"), bChaos_Collision_EnableLargeMeshManifolds, TEXT("Whether to allow large mesh manifolds for collisions against meshes (required for good behaviour)"));
 
-	FRealSingle Chaos_Collision_MeshContactNormalThreshold = 0.996f;	// ~5deg
+	FRealSingle Chaos_Collision_MeshContactNormalThreshold = 0.998f;	// ~3deg
 	FAutoConsoleVariableRef CVarChaos_Collision_MeshContactNormalThreshold(TEXT("p.Chaos.Collision.MeshContactNormalThreshold"), Chaos_Collision_MeshContactNormalThreshold, TEXT("Treat contact with a dot product between the normal and the triangle face greater than this as face collisions"));
+
+	FRealSingle Chaos_Collision_MeshContactNormalRejectionThreshold = 0.7f;	// ~45deg
+	FAutoConsoleVariableRef CVarChaos_Collision_MeshContactNormalRejectionThreshold(TEXT("p.Chaos.Collision.MeshContactNormalRejectionThreshold"), Chaos_Collision_MeshContactNormalRejectionThreshold, TEXT("Don't correct edge and vertex normals if they are beyond the valid range by more than this"));
 
 	bool bChaos_Collision_MeshManifoldSortByDistance = false;
 	FAutoConsoleVariableRef CVarChaos_Collision_LargeMeshManifoldSortByDistance(TEXT("p.Chaos.Collision.SortMeshManifoldByDistance"), bChaos_Collision_MeshManifoldSortByDistance, TEXT("Sort large mesh manifold points by |RxN| for improved solver stability (less rotation in first iteration)"));

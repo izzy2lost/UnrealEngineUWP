@@ -22,18 +22,48 @@ namespace Chaos::Private
 		}
 	};
 
+	class FMeshContactGeneratorSettings
+	{
+	public:
+		FMeshContactGeneratorSettings();
+
+		// Contacts with a dot product against the face normal above this value will not be processed in FixContactNormal
+		FReal FaceNormalDotThreshold;
+
+		// Triangle edge/vertex contacts that are more than this far from a valid normal (dot product) will be rejected rather than corrected
+		FReal EdgeNormalDotRejectTolerance;
+
+		// Used to determine whether a contact is on an edge or vertex
+		FReal BarycentricTolerance;
+
+		// We don't allow more (pre-filtered) contacts than this. Any extras will be lost.
+		int32 MaxContactsBufferSize;
+
+		// Size of the hash table used to store/lookup triangle data
+		int32 HashSize;
+
+		// Whether to ignore inside normals
+		// @todo(chaos): the non-culled option is not well tested and probably broken
+		uint32 bCullBackFaces : 1;
+
+		// Whether to use the optimized two-pass loop over triangles in GenerateMeshContacts which skips triangles
+		// that have contacts on all vertices in the second pass. This is only useful when this case occurs a lot
+		// which is does for large convexes against many triangles, but rarely for capsules and spheres.
+		uint32 bUseTwoPassLoop : 1;
+	};
+
 	/**
 	* Generate contacts between a collision shape and the triangles from a mesh.
 	*/
 	class FMeshContactGenerator
 	{
 	public:
-		FMeshContactGenerator(const int32 InHashSize);
+		FMeshContactGenerator(const FMeshContactGeneratorSettings& InSettings);
 
 		// Clear and initialize buffers
 		void BeginCollect(const int32 InNumTriangles)
 		{
-			const int32 ExpectedNumContacts = FMath::Min(InNumTriangles * 4, 1000);
+			const int32 ExpectedNumContacts = FMath::Min(InNumTriangles * 4, Settings.MaxContactsBufferSize);
 			Reset(InNumTriangles, ExpectedNumContacts);
 		}
 
@@ -43,6 +73,7 @@ namespace Chaos::Private
 			Triangles.Emplace(MeshTriangle, MeshTriangleIndex, VertexIndex0, VertexIndex1, VertexIndex2);
 		}
 
+		// Process all the added triangles to generate connectivity metadata etc
 		void EndCollect()
 		{
 			for (int32 LocalTriangleIndex = 0; LocalTriangleIndex < GetNumTriangles(); ++LocalTriangleIndex)
@@ -59,37 +90,13 @@ namespace Chaos::Private
 		template<typename TriangleContactGeneratorType>
 		void GenerateMeshContacts(const TriangleContactGeneratorType& TriangleContactGenerator)
 		{
-			FContactPointManifold TriangleContactPoints;
-
-			// First loop: Visit triangles that do not have any collisions on any of their vertices or edges.
-			// This will skip all triangles whose neighbours have already been processed and generated a contact
-			// on a shared edge/vertex.
-			for (int32 LocalTriangleIndex = 0; LocalTriangleIndex < GetNumTriangles(); ++LocalTriangleIndex)
+			if (!!Settings.bUseTwoPassLoop)
 			{
-				if (GetNumTriangleFaceCollisions(LocalTriangleIndex) == 0)
-				{
-					TriangleContactPoints.Reset();
-					TriangleContactGenerator(Triangles[LocalTriangleIndex].GetTriangle(), TriangleContactPoints);
-
-					AddTriangleContacts(TriangleContactPoints, LocalTriangleIndex);
-
-					SetTriangleVisited(LocalTriangleIndex, 0);
-				}
+				GenerateMeshContactsTwoPass<TriangleContactGeneratorType>(TriangleContactGenerator);
 			}
-
-			// Second loop: Visit remaining triangles that have less than 3 contacts on them. This will skip all triangles
-			// that have a full manifold as a result of collisions on shared edges/vertices from adjacent triangles.
-			for (int32 LocalTriangleIndex = 0; LocalTriangleIndex < GetNumTriangles(); ++LocalTriangleIndex)
+			else
 			{
-				if (!IsTriangleVisited(LocalTriangleIndex) && (GetNumTriangleFaceCollisions(LocalTriangleIndex) < 3))
-				{
-					TriangleContactPoints.Reset();
-					TriangleContactGenerator(Triangles[LocalTriangleIndex].GetTriangle(), TriangleContactPoints);
-
-					AddTriangleContacts(TriangleContactPoints, LocalTriangleIndex);
-
-					SetTriangleVisited(LocalTriangleIndex, 1);
-				}
+				GenerateMeshContactsOnePass<TriangleContactGeneratorType>(TriangleContactGenerator);
 			}
 		}
 
@@ -277,6 +284,59 @@ namespace Chaos::Private
 			int32 LocalTriangleIndices[2];
 		};
 
+		template<typename TriangleContactGeneratorType>
+		void GenerateMeshContactsOnePass(const TriangleContactGeneratorType& TriangleContactGenerator)
+		{
+			FContactPointManifold TriangleContactPoints;
+
+			for (int32 LocalTriangleIndex = 0; LocalTriangleIndex < GetNumTriangles(); ++LocalTriangleIndex)
+			{
+				TriangleContactPoints.Reset();
+				TriangleContactGenerator(Triangles[LocalTriangleIndex].GetTriangle(), TriangleContactPoints);
+
+				AddTriangleContacts(TriangleContactPoints, LocalTriangleIndex);
+
+				SetTriangleVisited(LocalTriangleIndex, 0);
+			}
+		}
+
+		template<typename TriangleContactGeneratorType>
+		void GenerateMeshContactsTwoPass(const TriangleContactGeneratorType& TriangleContactGenerator)
+		{
+			FContactPointManifold TriangleContactPoints;
+
+			// First loop: Visit triangles that do not have any collisions on any of their vertices or edges.
+			// This will skip all triangles whose neighbours have already been processed and generated a contact
+			// on a shared edge/vertex.
+			for (int32 LocalTriangleIndex = 0; LocalTriangleIndex < GetNumTriangles(); ++LocalTriangleIndex)
+			{
+				if (GetNumTriangleFaceCollisions(LocalTriangleIndex) == 0)
+				{
+					TriangleContactPoints.Reset();
+					TriangleContactGenerator(Triangles[LocalTriangleIndex].GetTriangle(), TriangleContactPoints);
+
+					AddTriangleContacts(TriangleContactPoints, LocalTriangleIndex);
+
+					SetTriangleVisited(LocalTriangleIndex, 0);
+				}
+			}
+
+			// Second loop: Visit remaining triangles that have less than 3 contacts on them. This will skip all triangles
+			// that have a full manifold as a result of collisions on shared edges/vertices from adjacent triangles.
+			for (int32 LocalTriangleIndex = 0; LocalTriangleIndex < GetNumTriangles(); ++LocalTriangleIndex)
+			{
+				if (!IsTriangleVisited(LocalTriangleIndex) && (GetNumTriangleFaceCollisions(LocalTriangleIndex) < 3))
+				{
+					TriangleContactPoints.Reset();
+					TriangleContactGenerator(Triangles[LocalTriangleIndex].GetTriangle(), TriangleContactPoints);
+
+					AddTriangleContacts(TriangleContactPoints, LocalTriangleIndex);
+
+					SetTriangleVisited(LocalTriangleIndex, 1);
+				}
+			}
+		}
+
 		void Reset(const int32 InMaxTriangles, const int32 InMaxContacts);
 
 		void AddTriangleEdge(const int32 LocalTriangleIndex, const int32 VertexIndex0, const int32 VertexIndex1)
@@ -350,6 +410,8 @@ namespace Chaos::Private
 		void DebugDrawTriangle(const FRigidTransform3& ConvexTransform, const FTriangleExt& TriangleData, const FColor& Color);
 
 	private:
+		FMeshContactGeneratorSettings Settings;
+
 		// All the triangles we might collide with
 		TArray<FTriangleExt> Triangles;
 

@@ -125,7 +125,7 @@ namespace Chaos
 			const auto& GenerateConvexTriangleContacts =
 				[&Convex, &MeshToConvexTransform, CullDistance](const FTriangle& Triangle, FContactPointManifold& OutContactPoints)
 				{
-					ConstructConvexTriangleOneShotManifold2(Convex, Triangle, CullDistance, OutContactPoints);
+					GenerateConvexTriangleOneShotManifold(Convex, Triangle, CullDistance, OutContactPoints);
 				};
 
 			// Collect all the triangles that overlap our convex, transformed into Convex space
@@ -229,25 +229,53 @@ namespace Chaos
 			ensure(QuadraticTransform.GetScale3D() == FVec3(1));
 			ensure(MeshTransform.GetScale3D() == FVec3(1));
 
+			const FVec3 MeshScale = FVec3(1);	// Scale is built into heightfield
 			const FReal CullDistance = Constraint.GetCullDistance();
 			const FReal PhiTolerance = CalculateTriMeshPhiTolerance(CullDistance);
 			const FReal DistanceTolerance = Chaos_Collision_TriMeshDistanceTolerance;
-			FContactTriangleCollector MeshContacts(bChaos_Collision_OneSidedHeightField, PhiTolerance, DistanceTolerance, QuadraticTransform);
+			
+			if (bChaos_Collision_EnableMeshManifoldOptimizedLoop)
+			{
+				// New version uses a two-pass loop over triangles to avoid visiting triangles whose vertices are all colliding as a result of checking adjacent triangles
+				Private::FMeshContactGeneratorSettings ContactGeneratorSettings;
+				ContactGeneratorSettings.FaceNormalDotThreshold = 0.9999;	// ~0.8deg Normals must be accurate or rolling will not work correctly
+				ContactGeneratorSettings.bUseTwoPassLoop = false;			// two-pass loop is not helpful for capsules and spheres
+				Private::FMeshContactGenerator ContactGenerator(ContactGeneratorSettings);
 
-			if (const FImplicitSphere3* Sphere = Quadratic.template GetObject<FImplicitSphere3>())
-			{
-				ConstructConvexMeshOneShotManifold(*Sphere, QuadraticTransform, Mesh, MeshTransform, FVec3(1), CullDistance, MeshContacts);
-			}
-			else if (const FImplicitCapsule3* Capsule = Quadratic.template GetObject<FImplicitCapsule3>())
-			{
-				ConstructConvexMeshOneShotManifold(*Capsule, QuadraticTransform, Mesh, MeshTransform, FVec3(1), CullDistance, MeshContacts);
+				if (const FImplicitSphere3* Sphere = Quadratic.template GetObject<FImplicitSphere3>())
+				{
+					ConstructConvexMeshOneShotManifold2(*Sphere, QuadraticTransform, Mesh, MeshTransform, MeshScale, CullDistance, ContactGenerator);
+				}
+				else if (const FImplicitCapsule3* Capsule = Quadratic.template GetObject<FImplicitCapsule3>())
+				{
+					ConstructConvexMeshOneShotManifold2(*Capsule, QuadraticTransform, Mesh, MeshTransform, MeshScale, CullDistance, ContactGenerator);
+				}
+				else
+				{
+					check(false);
+				}
+
+				Constraint.SetOneShotManifoldContacts(ContactGenerator.GetContactPoints());
 			}
 			else
 			{
-				check(false);
-			}
+				FContactTriangleCollector MeshContacts(bChaos_Collision_OneSidedHeightField, PhiTolerance, DistanceTolerance, QuadraticTransform);
 
-			Constraint.SetOneShotManifoldContacts(MeshContacts.GetContactPoints());
+				if (const FImplicitSphere3* Sphere = Quadratic.template GetObject<FImplicitSphere3>())
+				{
+					ConstructConvexMeshOneShotManifold(*Sphere, QuadraticTransform, Mesh, MeshTransform, MeshScale, CullDistance, MeshContacts);
+				}
+				else if (const FImplicitCapsule3* Capsule = Quadratic.template GetObject<FImplicitCapsule3>())
+				{
+					ConstructConvexMeshOneShotManifold(*Capsule, QuadraticTransform, Mesh, MeshTransform, MeshScale, CullDistance, MeshContacts);
+				}
+				else
+				{
+					check(false);
+				}
+
+				Constraint.SetOneShotManifoldContacts(MeshContacts.GetContactPoints());
+			}
 		}
 
 		/**
@@ -314,8 +342,8 @@ namespace Chaos
 			if (bChaos_Collision_EnableMeshManifoldOptimizedLoop)
 			{
 				// New version uses a two-pass loop over triangles to avoid visiting triangles whose vertices are all colliding as a result of checking adjacent triangles
-				const int32 HashSize = FMath::RoundUpToPowerOfTwo(Chaos_Collision_MeshManifoldHashSize);
-				Private::FMeshContactGenerator ContactGenerator(HashSize);
+				Private::FMeshContactGeneratorSettings ContactGeneratorSettings;
+				Private::FMeshContactGenerator ContactGenerator(ContactGeneratorSettings);
 
 				if (const FImplicitBox3* RawBox = Convex.template GetObject<FImplicitBox3>())
 				{

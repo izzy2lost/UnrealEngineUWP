@@ -5,6 +5,8 @@
 namespace Chaos
 {
 	extern FRealSingle Chaos_Collision_MeshContactNormalThreshold;
+	extern FRealSingle Chaos_Collision_MeshContactNormalRejectionThreshold;
+	extern int32 Chaos_Collision_MeshManifoldHashSize;
 }
 
 namespace Chaos::CVars
@@ -14,9 +16,21 @@ namespace Chaos::CVars
 
 namespace Chaos::Private
 {
-	FMeshContactGenerator::FMeshContactGenerator(const int32 InHashSize)
-		: EdgeTriangleIndicesMap(InHashSize)
-		, VertexContactIndicesMap(InHashSize)
+	FMeshContactGeneratorSettings::FMeshContactGeneratorSettings()
+	{
+		HashSize = FMath::RoundUpToPowerOfTwo(Chaos_Collision_MeshManifoldHashSize);
+		FaceNormalDotThreshold = Chaos_Collision_MeshContactNormalThreshold;
+		EdgeNormalDotRejectTolerance = Chaos_Collision_MeshContactNormalRejectionThreshold;
+		BarycentricTolerance = FReal(1.e-3);
+		MaxContactsBufferSize = 1000;
+		bCullBackFaces = true;
+		bUseTwoPassLoop = true;
+	}
+
+	FMeshContactGenerator::FMeshContactGenerator(const FMeshContactGeneratorSettings& InSettings)
+		: Settings(InSettings)
+		, EdgeTriangleIndicesMap(InSettings.HashSize)
+		, VertexContactIndicesMap(InSettings.HashSize)
 	{
 	}
 
@@ -48,7 +62,6 @@ namespace Chaos::Private
 		// We need to know how many vertex and edge collisions a triangle has on it (from collision with other triangle 
 		// that share edges and vertices) so we avoid visiting triangles if we already know the contacts. Check all
 		// contacts and assigne edge/vertex status as required. See GenerateMeshContacts()
-		const FReal BarycentricTolerance = 1.e-3;
 		for (const FContactPoint& ContactPoint : TriangleContactPoints)
 		{
 			// See if we have a vertex or edge contact
@@ -58,7 +71,7 @@ namespace Chaos::Private
 				ContactPoint.ShapeContactPoints[1],
 				Triangle.GetVertex(0), Triangle.GetVertex(1), Triangle.GetVertex(2),
 				LocalVertexID0, LocalVertexID1,
-				BarycentricTolerance);
+				Settings.BarycentricTolerance);
 
 			const int32 VertexID0 = (LocalVertexID0 != INDEX_NONE) ? Triangle.GetVertexIndex(LocalVertexID0) : INDEX_NONE;
 			const int32 VertexID1 = (LocalVertexID1 != INDEX_NONE) ? Triangle.GetVertexIndex(LocalVertexID1) : INDEX_NONE;
@@ -67,8 +80,7 @@ namespace Chaos::Private
 
 			const FRealSingle ContactNormalDotTriangleNormal = FRealSingle(FVec3::DotProduct(ContactPoint.ShapeContactNormal, Triangle.GetNormal()));
 
-			const FReal FaceNormalThreshold = FReal(0.998);	// 3deg
-			const bool bIsFaceContact = (ContactNormalDotTriangleNormal > FaceNormalThreshold);
+			const bool bIsFaceContact = (ContactNormalDotTriangleNormal > Settings.FaceNormalDotThreshold);
 
 			// Register vertex and edge collisions
 			if ((VertexID0 != INDEX_NONE) && (VertexID1 != INDEX_NONE))
@@ -148,21 +160,19 @@ namespace Chaos::Private
 
 	void FMeshContactGenerator::PruneAndCorrectContacts()
 	{
-		const FRealSingle NormalThreshold = FRealSingle(0.998);
-
 		for (int32 ContactIndex = 0; ContactIndex < Contacts.Num(); ++ContactIndex)
 		{
 			FTriangleContactPointData& ContactPointData = ContactDatas[ContactIndex];
 
 			// Reject back-faces
-			if (ContactPointData.GetContactNormalDotTriangleNormal() < 0)
+			if (!!Settings.bCullBackFaces && (ContactPointData.GetContactNormalDotTriangleNormal() < 0))
 			{
 				ContactPointData.SetDisabled();
 				continue;
 			}
 
-			// Fix edge normals
-			if (ContactPointData.GetContactNormalDotTriangleNormal() < Chaos_Collision_MeshContactNormalThreshold)
+			// Fix edge normals that aren't already close to a face normal
+			if (ContactPointData.GetContactNormalDotTriangleNormal() < Settings.FaceNormalDotThreshold)
 			{
 				FixContactNormal(ContactIndex);
 			}
@@ -181,6 +191,8 @@ namespace Chaos::Private
 		const FTriangleExt& Triangle = Triangles[LocalTriangleIndex];
 		const FVec3& TriangleNormal = Triangle.GetNormal();
 
+		const FReal ContactDotNormal = ContactPointData.GetContactNormalDotTriangleNormal();
+
 		// If we have an edge or vertex contact, make sure that the normal is in a valiid range, based
 		// on the triangles that share that edge or vertex.
 		if (ContactPointData.IsEdge())
@@ -192,11 +204,17 @@ namespace Chaos::Private
 				const FTriangleExt& OtherTriangle = Triangles[OtherLocalTriangleIndex];
 				const FVec3& OtherTriangleNormal = OtherTriangle.GetNormal();
 
-				const FReal ContactDotNormal = ContactPointData.GetContactNormalDotTriangleNormal();
 				const FReal MinContactDotNormal = FRealSingle(FVec3::DotProduct(OtherTriangleNormal, TriangleNormal));
 				if (ContactDotNormal < MinContactDotNormal)
 				{
 					// We are outside the valid normal range for this edge
+					// If our normal was very far away from a valid normal, drop the contact
+					if (MinContactDotNormal - ContactDotNormal > Settings.EdgeNormalDotRejectTolerance)
+					{
+						ContactPointData.SetDisabled();
+						return;
+					}
+
 					// Convert the edge collision to a face collision on one of the faces, selected to get the smallest depth
 					FVec3 CorrectedContactNormal;
 					int32 CorrectedTriangleIndex;
@@ -228,7 +246,7 @@ namespace Chaos::Private
 			for (int32 TriangleIndex = 0; TriangleIndex < Triangles.Num(); ++TriangleIndex)
 			{
 				const FTriangleExt& OtherTriangle = Triangles[TriangleIndex];
-				if (OtherTriangle.HasVertexIndex(ContactPointData.GetVertexID()))
+				if ((TriangleIndex != LocalTriangleIndex) && OtherTriangle.HasVertexIndex(ContactPointData.GetVertexID()))
 				{
 					FVec3 VertexA, VertexB, VertexC;
 					if (OtherTriangle.GetVertexPosition(ContactPointData.GetVertexID(), VertexA) && OtherTriangle.GetOtherVertexPositions(ContactPointData.GetVertexID(), VertexB, VertexC))
@@ -238,6 +256,7 @@ namespace Chaos::Private
 						const FVec3 EdgeDelta0 = VertexB - VertexA;
 						const FVec3 EdgeDelta1 = VertexC - VertexA;
 						const FVec3& OtherTriangleNormal = OtherTriangle.GetNormal();
+
 						const FReal EdgeSign0 = FVec3::DotProduct(FVec3::CrossProduct(ContactPoint.ShapeContactNormal, VertexB - VertexA), OtherTriangleNormal);
 						const FReal EdgeSign1 = FVec3::DotProduct(FVec3::CrossProduct(ContactPoint.ShapeContactNormal, VertexC - VertexA), OtherTriangleNormal);
 						if (FMath::Sign(EdgeSign0) == FMath::Sign(EdgeSign1))
@@ -246,6 +265,14 @@ namespace Chaos::Private
 							const FReal NormalDotCentroid = FVec3::DotProduct(ContactPoint.ShapeContactNormal, Centroid - ContactPoint.ShapeContactPoints[1]);
 							if (NormalDotCentroid > 0)
 							{
+								// If our normal was very far away from a valid normal, drop the contact
+								const FReal MinContactDotNormal = FRealSingle(FVec3::DotProduct(OtherTriangleNormal, TriangleNormal));
+								if (MinContactDotNormal - ContactDotNormal > Settings.EdgeNormalDotRejectTolerance)
+								{
+									ContactPointData.SetDisabled();
+									return;
+								}
+
 								const FReal OtherContactDotNormal = FVec3::DotProduct(ContactPoint.ShapeContactNormal, OtherTriangleNormal);
 								const FVec3 CorrectedContactNormal = OtherTriangleNormal;
 
@@ -316,6 +343,7 @@ namespace Chaos::Private
 #if CHAOS_DEBUG_DRAW
 		if (CVars::ChaosSolverDebugDrawMeshContacts && FDebugDrawQueue::GetInstance().IsDebugDrawingEnabled())
 		{
+			check(LineScale > 0);
 			const FReal Duration = 0;
 			const int32 DrawPriority = 10;
 			for (int32 ContactIndex = 0; ContactIndex < Contacts.Num(); ++ContactIndex)
@@ -328,7 +356,7 @@ namespace Chaos::Private
 					const FVec3 N = ConvexTransform.TransformVectorNoScale(ContactPoint.ShapeContactNormal);
 
 					// Draw the normal from the triangle face
-					FDebugDrawQueue::GetInstance().DrawDebugLine(P1, P1 + LineScale * FReal(50) * N, Color, false, FRealSingle(Duration), DrawPriority, FRealSingle(LineScale * 2));
+					FDebugDrawQueue::GetInstance().DrawDebugLine(P1, P1 + LineScale * FReal(50) * N, Color, false, FRealSingle(Duration), DrawPriority, FRealSingle(1.0 / LineScale));
 				}
 			}
 		}
@@ -365,7 +393,7 @@ namespace Chaos::Private
 	{
 #if CHAOS_DEBUG_DRAW
 		const FReal Duration = 0;
-		const FReal LineScale = 1;
+		const FReal LineScale = 0.5;
 		const int8 DrawPriority = 10;
 
 		const FVec3 V0 = ConvexTransform.TransformPosition(Triangle.GetVertex(0));

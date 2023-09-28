@@ -264,12 +264,12 @@ namespace Chaos
 		const bool bPreferFaceContact = (FMath::Abs(SinAxisFaceAngle) < FaceContactSinAngleThreshold);
 
 		// Generate contacts for the cylinder ends near the face. Only consider the ends where we did not generate an end-cap contact, 
-		// and only when we are at a low angle to the face, or the cylinder end is close to the face. 
+		// and only when we are at a low angle to the face. 
 		// The cylinder points can only be inside the edge planes if the segment points are within Radius of the edge planes
 		const bool bNearAll0 = ((EdgeD0s[0] <= R + DistanceTolerance) & (EdgeD0s[1] <= R + DistanceTolerance) & (EdgeD0s[2] <= R + DistanceTolerance)) != 0;
 		const bool bNearAll1 = ((EdgeD1s[0] <= R + DistanceTolerance) & (EdgeD1s[1] <= R + DistanceTolerance) & (EdgeD1s[2] <= R + DistanceTolerance)) != 0;
-		const bool bCheckCylinder0 = ((!bCollided0) & (bPreferFaceContact | (FaceD0 < RejectDistance)) & bNearAll0) != 0;
-		const bool bCheckCylinder1 = ((!bCollided1) & (bPreferFaceContact | (FaceD1 < RejectDistance)) & bNearAll1) != 0;
+		const bool bCheckCylinder0 = ((!bCollided0) & bPreferFaceContact & bNearAll0) != 0;
+		const bool bCheckCylinder1 = ((!bCollided1) & bPreferFaceContact & bNearAll1) != 0;
 		if ((bCheckCylinder0 | bCheckCylinder1) != 0)
 		{
 			FVec3 RadialAxis = FVec3::CrossProduct(FVec3::CrossProduct(Axis, FaceN), Axis);
