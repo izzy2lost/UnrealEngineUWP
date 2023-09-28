@@ -360,4 +360,13 @@ uint32 FCpuProfilerTrace::OutputEventType(const ANSICHAR* Name, const ANSICHAR* 
 	return SpecId;
 }
 
+void FCpuProfilerTrace::FlushThreadBuffer()
+{
+	FCpuProfilerTraceInternal::FThreadBuffer* ThreadBuffer = FCpuProfilerTraceInternal::ThreadBuffer;
+	if (ThreadBuffer && ThreadBuffer->BufferSize > 0)
+	{
+		FCpuProfilerTraceInternal::FlushThreadBuffer(ThreadBuffer);
+	}
+}
+
 #endif

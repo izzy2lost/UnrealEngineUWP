@@ -109,6 +109,11 @@ struct FCpuProfilerTrace
 	*/
 	CORE_API static void OutputSuspendEvent();
 
+	/*
+	* Make sure all thread data has reached the destination. Can be useful to call this before entering a wait condition that might take a while.
+	*/
+	CORE_API static void FlushThreadBuffer();
+
 	class FEventScope
 	{
 	public:
@@ -320,6 +325,11 @@ struct FCpuProfilerTrace
 #define TRACE_CPUPROFILER_EVENT_SCOPE_TEXT_CONDITIONAL(Name, Condition) \
 	FCpuProfilerTrace::FDynamicEventScope PREPROCESSOR_JOIN(__CpuProfilerEventScope, __LINE__)(Name, (Condition), __FILE__, __LINE__);
 
+// Make sure all thread data has reached the destination.
+// Note: Can be useful to call this before entering a wait condition that might take a while.
+#define TRACE_CPUPROFILER_EVENT_FLUSH() \
+	FCpuProfilerTrace::FlushThreadBuffer(); 
+
 #else
 
 #define TRACE_CPUPROFILER_EVENT_DECLARE(DeclName)
@@ -334,5 +344,6 @@ struct FCpuProfilerTrace
 #define TRACE_CPUPROFILER_EVENT_SCOPE_TEXT_ON_CHANNEL(Name, Channel)
 #define TRACE_CPUPROFILER_EVENT_SCOPE_TEXT(Name)
 #define TRACE_CPUPROFILER_EVENT_SCOPE_TEXT_CONDITIONAL(Name, Condition)
+#define TRACE_CPUPROFILER_EVENT_FLUSH()
 
 #endif
