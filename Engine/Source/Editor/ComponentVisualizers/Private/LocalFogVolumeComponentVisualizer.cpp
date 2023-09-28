@@ -16,7 +16,7 @@ void FLocalFogVolumeComponentVisualizer::DrawVisualization( const UActorComponen
 		{
 			FTransform LocalFogVolumeTransform = LocalFogVolume->GetComponentTransform();
 
-			const float MaximumAxisScale = LocalFogVolumeTransform.GetMaximumAxisScale();
+			const float MaximumAxisScale = LocalFogVolumeTransform.GetMaximumAxisScale() * ULocalFogVolumeComponent::GetBaseVolumeSize();
 			LocalFogVolumeTransform.SetScale3D(FVector(MaximumAxisScale, MaximumAxisScale, MaximumAxisScale));
 
 			// Draw local fog volume spherical shape radius

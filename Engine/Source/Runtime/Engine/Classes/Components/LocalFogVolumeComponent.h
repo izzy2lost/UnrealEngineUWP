@@ -50,6 +50,11 @@ class ULocalFogVolumeComponent : public USceneComponent
 
 public:
 
+	static float GetBaseVolumeSize()
+	{
+		return 500.0f; // This is immutable and cannot be changed without transform data conversion of the component.
+	}
+
 	//~ Begin UObject Interface
 #if WITH_EDITOR
 	virtual bool CanEditChange(const FProperty* InProperty) const override;

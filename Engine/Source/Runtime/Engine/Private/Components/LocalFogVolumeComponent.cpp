@@ -20,10 +20,6 @@ ULocalFogVolumeComponent::ULocalFogVolumeComponent(const FObjectInitializer& Obj
 	, LocalFogVolumeSceneProxy(nullptr)
 {
 	Mobility = EComponentMobility::Movable;
-
-	// Set a size by default to be visible when droped in the scene
-	const float Size = 500.0f;
-	SetRelativeScale3D(FVector(Size, Size, Size));
 }
 
 ULocalFogVolumeComponent::~ULocalFogVolumeComponent()
@@ -169,7 +165,7 @@ ALocalFogVolume::ALocalFogVolume(const FObjectInitializer& ObjectInitializer)
 		if (GetSpriteComponent())
 		{
 			GetSpriteComponent()->Sprite = ConstructorStatics.LocalFogVolumeTextureObject.Get();
-			GetSpriteComponent()->SetRelativeScale3D(FVector(0.5f, 0.5f, 0.5f));
+			GetSpriteComponent()->SetRelativeScale3D(FVector(1.0f, 1.0f, 1.0f));
 			GetSpriteComponent()->SpriteInfo.Category = ConstructorStatics.ID_LocalFogVolume;
 			GetSpriteComponent()->SpriteInfo.DisplayName = ConstructorStatics.NAME_LocalFogVolume;
 			GetSpriteComponent()->SetupAttachment(LocalFogVolumeVolume);

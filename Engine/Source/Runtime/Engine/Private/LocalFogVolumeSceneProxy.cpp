@@ -30,7 +30,7 @@ FLocalFogVolumeSceneProxy::~FLocalFogVolumeSceneProxy()
 void FLocalFogVolumeSceneProxy::UpdateComponentTransform(const FTransform& Transform)
 {
 	FogTransform = Transform;
-	const float MaximumAxisScale = FogTransform.GetMaximumAxisScale();
+	const float MaximumAxisScale = FogTransform.GetMaximumAxisScale() * ULocalFogVolumeComponent::GetBaseVolumeSize();
 	FogTransform.SetScale3D(FVector(MaximumAxisScale, MaximumAxisScale, MaximumAxisScale));
 
 	FogUniformScale = MaximumAxisScale;
