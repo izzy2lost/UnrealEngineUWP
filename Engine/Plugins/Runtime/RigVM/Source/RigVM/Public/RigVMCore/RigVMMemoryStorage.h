@@ -799,7 +799,6 @@ private:
 			const FArrayProperty* ArrayProperty = CastFieldChecked<FArrayProperty>(Property);
 			FScriptArrayHelper ArrayHelper(ArrayProperty, Ptr);
 
-#if UE_RIGVM_PROPERTY_BAG_STORAGE_ENABLED
 			if (InSliceIndex >= ArrayHelper.Num() - 1)
 			{
 				// For each slice we copy the default value to the next slice index
@@ -838,48 +837,6 @@ private:
 					}
 				}
 			}
-#else // !UE_RIGVM_PROPERTY_BAG_STORAGE_ENABLED
-			if (ArrayHelper.Num() <= InSliceIndex)
-			{
-				const int32 NumValuesToAdd = 1 + InSliceIndex - ArrayHelper.Num();
-				const int32 FirstAddedIndex = ArrayHelper.AddValues(NumValuesToAdd);
-
-				if (FirstAddedIndex > 0)
-				{
-					// Adding slices, we need to initialize the new values.
-					// Otherwise, if we are adding the first slice, we don't need to worry about initializing.
-					UObject* CDO = ArrayProperty->GetOwnerClass()->GetDefaultObject();
-					const uint8* DefaultArrayMemory = ArrayProperty->ContainerPtrToValuePtr<uint8>(CDO);		
-					FScriptArrayHelper DefaultArrayHelper(ArrayProperty, DefaultArrayMemory);
-					if (const uint8* DefaultElementMemory = DefaultArrayHelper.GetRawPtr(0))
-					{
-						const FProperty* ElementProperty = ArrayProperty->Inner;
-						for (int32 i=FirstAddedIndex; i<ArrayHelper.Num(); ++i)
-						{
-#if UE_RIGVM_DEBUG_EXECUTION
-							 FString DefaultValue;
-							 ElementProperty->ExportText_Direct(
-							 	DefaultValue,
-							 	DefaultElementMemory,
-							 	DefaultElementMemory,
-							 	nullptr,
-							 	PPF_None,
-							 	nullptr);
-							
-							 UE_LOG(LogRigVM, Display, TEXT("Adding slice %d for Property '%s', defaulting to '%s'."),
-							 	InSliceIndex,
-							 	*ArrayProperty->GetName(),
-							 	*DefaultValue
-							 );
-#endif
-
-							uint8* DestMemory = ArrayHelper.GetRawPtr(i);
-							ElementProperty->CopyCompleteValue(DestMemory, DefaultElementMemory);
-						}
-					}
-				}
-			}
-#endif // UE_RIGVM_PROPERTY_BAG_STORAGE_ENABLED
 
 #if UE_RIGVM_DEBUG_EXECUTION
 			// const FProperty* ElementProperty = ArrayProperty->Inner;

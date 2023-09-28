@@ -9,7 +9,7 @@
 #include "HAL/IConsoleManager.h"
 #include "RigVMObjectVersion.h"
 #include "UObject/DevObjectVersion.h"
-#if WITH_EDITOR && UE_RIGVM_PROPERTY_BAG_STORAGE_ENABLED
+#if WITH_EDITOR
 #include "PropertyBagDetails.h"
 #include "PropertyEditorModule.h"
 #endif
@@ -34,7 +34,7 @@ TAutoConsoleVariable<bool> CVarRigVMEnableUInterfaces(TEXT("RigVM.UInterfaceSupp
 
 void FRigVMModule::StartupModule()
 {
-#if WITH_EDITOR && UE_RIGVM_PROPERTY_BAG_STORAGE_ENABLED
+#if WITH_EDITOR
 	// Register the details customizer
 	FPropertyEditorModule& PropertyModule = FModuleManager::LoadModuleChecked<FPropertyEditorModule>("PropertyEditor");
 	PropertyModule.RegisterCustomPropertyTypeLayout("RigVMMemoryStorageStruct", FOnGetPropertyTypeCustomizationInstance::CreateStatic(&FPropertyBagDetails::MakeInstance));
@@ -44,7 +44,7 @@ void FRigVMModule::StartupModule()
 
 void FRigVMModule::ShutdownModule()
 {
-#if WITH_EDITOR && UE_RIGVM_PROPERTY_BAG_STORAGE_ENABLED
+#if WITH_EDITOR
 	// Unregister the details customization
 	if (FPropertyEditorModule* PropertyModule = FModuleManager::Get().GetModulePtr<FPropertyEditorModule>("PropertyEditor"))
 	{

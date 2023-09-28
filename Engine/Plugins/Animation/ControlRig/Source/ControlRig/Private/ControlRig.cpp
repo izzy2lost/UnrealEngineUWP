@@ -1338,12 +1338,6 @@ bool UControlRig::Execute_Internal(const FName& InEventName)
 			if(!VM->IsContextValidForExecution(Context)
 				|| !IsValidLowLevel()
 				|| !VM->IsValidLowLevel()
-#if !UE_RIGVM_PROPERTY_BAG_STORAGE_ENABLED
-				|| !GetLiteralMemory()
-				|| !GetLiteralMemory()->IsValidLowLevel()
-				|| !GetWorkMemory()
-				||!GetWorkMemory()->IsValidLowLevel()
-#endif // !UE_RIGVM_PROPERTY_BAG_STORAGE_ENABLED
 			)
 			{
 				UE_LOG(LogControlRig, Warning, InvalidatedVMFormat, *GetClass()->GetName());
@@ -1413,7 +1407,7 @@ bool UControlRig::Execute_Internal(const FName& InEventName)
 		TGuardValue<FString> ModuleInstanceNameSpaceGuard(PublicContext.ModuleInstanceNameSpace, GetRigModuleNameSpace());
 		FRigHierarchyRedirectorGuard ElementRedirectorGuard(this);
 
-		TArray<TRigVMMemoryStorage*> LocalMemory = VM->GetLocalMemoryArray(Context);
+		TArray<FRigVMMemoryStorageStruct*> LocalMemory = VM->GetLocalMemoryArray(Context);
 		const bool bSuccess = VM->Execute(Context, LocalMemory, InEventName) != ERigVMExecuteResult::Failed;
 
 #if UE_RIGVM_PROFILE_EXECUTE_UNITS_NUM

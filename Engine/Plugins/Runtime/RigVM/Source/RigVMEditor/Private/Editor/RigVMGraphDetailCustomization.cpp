@@ -1729,7 +1729,7 @@ void FRigVMWrappedNodeDetailCustomization::CustomizeLiveValues(IDetailLayoutBuil
 
 				const FProperty* Property = nullptr;
 
-				TArray<TRigVMMemoryStorage*> ExternalStructs;
+				TArray<FRigVMMemoryStorageStruct*> ExternalStructs;
 				TArray<UObject*> ExternalObjects;
 
 				if(Operand->GetMemoryType() == ERigVMMemoryType::External)
@@ -1743,30 +1743,11 @@ void FRigVMWrappedNodeDetailCustomization::CustomizeLiveValues(IDetailLayoutBuil
 				}
 				else
 				{
-					TRigVMMemoryStorage* Memory = DebuggedHost->GetMemoryByType(Operand->GetMemoryType());
+					FRigVMMemoryStorageStruct* Memory = DebuggedHost->GetMemoryByType(Operand->GetMemoryType());
 					if(Memory == nullptr)
 					{
 						continue;
 					}
-#if !UE_RIGVM_PROPERTY_BAG_STORAGE_ENABLED
-					if(Memory->GetOuter() == GetTransientPackage())
-					{
-						continue;
-					}
-
-					// the UClass must be alive for the details view to access it
-					// this ensure can fail if VM memory is not updated immediately after compile
-					// because of deferred copy
-					if(!ensure(IsValidChecked(Memory->GetClass())))
-					{
-						continue;
-					}
-
-					if(Memory->GetClass()->GetOuter() == GetTransientPackage())
-					{
-						continue;
-					}
-#endif // UE_RIGVM_PROPERTY_BAG_STORAGE_ENABLED
 
 					if(!Memory->IsValidIndex(Operand->GetRegisterIndex()))
 					{
@@ -1779,11 +1760,7 @@ void FRigVMWrappedNodeDetailCustomization::CustomizeLiveValues(IDetailLayoutBuil
 						continue;
 					}
 
-#if UE_RIGVM_PROPERTY_BAG_STORAGE_ENABLED
 					ExternalStructs.Add(Memory);
-#else
-					ExternalObjects.Add(Memory);
-#endif // UE_RIGVM_PROPERTY_BAG_STORAGE_ENABLED
 				}
 
 				check(ExternalObjects.Num() > 0 || ExternalStructs.Num() > 0);
@@ -1799,8 +1776,7 @@ void FRigVMWrappedNodeDetailCustomization::CustomizeLiveValues(IDetailLayoutBuil
 					NameSuffix = FString::Printf(TEXT("_%d"), SuffixIndex);
 				}
 
-#if UE_RIGVM_PROPERTY_BAG_STORAGE_ENABLED
-				for (TRigVMMemoryStorage* Memory : ExternalStructs)
+				for (FRigVMMemoryStorageStruct* Memory : ExternalStructs)
 				{
 					TSharedPtr<FStructOnScope> StructOnScope = MakeShareable(new FStructOnScope(Memory->GetPropertyBagStruct(), (uint8*)Memory->GetContainerPtr()));
 					if (IDetailPropertyRow* PropertyRow = DebugCategory.AddExternalStructureProperty(StructOnScope, Property->GetFName(), EPropertyLocation::Default, FAddPropertyParams().ForceShowProperty()))
@@ -1813,7 +1789,6 @@ void FRigVMWrappedNodeDetailCustomization::CustomizeLiveValues(IDetailLayoutBuil
 						NameSuffix = FString::Printf(TEXT("_%d"), SuffixIndex);
 					}
 				}
-#endif // UE_RIGVM_PROPERTY_BAG_STORAGE_ENABLED
 
 				KnownOperands.Add(*Operand);
 			}

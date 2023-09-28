@@ -195,7 +195,7 @@ const FProperty* FRigVMCompilerWorkData::GetPropertyForOperand(const FRigVMOpera
 	
 	check(!bSetupMemory);
 
-	auto GetPropertyFromMemory = [this](TRigVMMemoryStorage* InMemory, const FRigVMOperand& InOperand)
+	auto GetPropertyFromMemory = [this](FRigVMMemoryStorageStruct* InMemory, const FRigVMOperand& InOperand)
 	{
 		if(InOperand.GetRegisterOffset() == INDEX_NONE)
 		{
@@ -203,16 +203,8 @@ const FProperty* FRigVMCompilerWorkData::GetPropertyForOperand(const FRigVMOpera
 		}
 		if(!InMemory->GetPropertyPaths().IsValidIndex(InOperand.GetRegisterOffset()))
 		{
-#if UE_RIGVM_PROPERTY_BAG_STORAGE_ENABLED
 			InMemory->SetPropertyPathDescriptions(PropertyPathDescriptions.FindChecked(InOperand.GetMemoryType()));
 			InMemory->RefreshPropertyPaths();
-#else
-			if(URigVMMemoryStorageGeneratorClass* MemoryClass = Cast<URigVMMemoryStorageGeneratorClass>(InMemory->GetClass()))
-			{
-				MemoryClass->PropertyPathDescriptions = PropertyPathDescriptions.FindChecked(InOperand.GetMemoryType());;
-				MemoryClass->RefreshPropertyPaths();
-			}
-#endif
 		}
 		return InMemory->GetPropertyPaths()[InOperand.GetRegisterOffset()].GetTailProperty();
 	};
@@ -1215,32 +1207,11 @@ bool URigVMCompiler::Compile(const FRigVMCompileSettings& InSettings, TArray<URi
 
 	const TArray<ERigVMMemoryType> MemoryTypes = { ERigVMMemoryType::Literal, ERigVMMemoryType::Work, ERigVMMemoryType::Debug };
 
-#if UE_RIGVM_PROPERTY_BAG_STORAGE_ENABLED
 	for (ERigVMMemoryType MemoryType : MemoryTypes)
 	{
 		const TArray<FRigVMPropertyDescription>* Properties = WorkData.PropertyDescriptions.Find(MemoryType);
 		WorkData.VM->GenerateMemoryType(*WorkData.Context, MemoryType, Properties);
 	}
-#else
-	for(ERigVMMemoryType MemoryType : MemoryTypes)
-	{
-		UPackage* Package = WorkData.VM->GetOutermost();
-
-		const TArray<FRigVMPropertyDescription>* Properties = WorkData.PropertyDescriptions.Find(MemoryType);
-		if(Properties == nullptr)
-		{
-			URigVMMemoryStorageGeneratorClass::RemoveStorageClass(Package, MemoryType);
-			continue;
-		}
-
-		URigVMMemoryStorageGeneratorClass::CreateStorageClass(Package, MemoryType, *Properties);
-	}
-
-	for (ERigVMMemoryType MemoryType : MemoryTypes)
-	{
-		WorkData.VM->CreateMemoryByType(*WorkData.Context, MemoryType);
-	}
-#endif
 
 	WorkData.bSetupMemory = false;
 	WorkData.ExprComplete.Reset();
@@ -1277,9 +1248,8 @@ bool URigVMCompiler::Compile(const FRigVMCompileSettings& InSettings, TArray<URi
 	for(ERigVMMemoryType MemoryType : MemoryTypes)
 	{
 		const TArray<FRigVMPropertyPathDescription>* Descriptions = WorkData.PropertyPathDescriptions.Find(MemoryType);
-		if(TRigVMMemoryStorage* MemoryStorageObject = WorkData.VM->GetMemoryByType(*WorkData.Context, MemoryType))
+		if(FRigVMMemoryStorageStruct* MemoryStorageObject = WorkData.VM->GetMemoryByType(*WorkData.Context, MemoryType))
 		{
-#if UE_RIGVM_PROPERTY_BAG_STORAGE_ENABLED
 			if (Descriptions)
 			{
 				MemoryStorageObject->SetPropertyPathDescriptions(*Descriptions);
@@ -1289,20 +1259,6 @@ bool URigVMCompiler::Compile(const FRigVMCompileSettings& InSettings, TArray<URi
 				MemoryStorageObject->ResetPropertyPathDescriptions();
 			}
 			MemoryStorageObject->RefreshPropertyPaths();
-#else
-			if(URigVMMemoryStorageGeneratorClass* Class = Cast<URigVMMemoryStorageGeneratorClass>(MemoryStorageObject->GetClass()))
-			{
-				if(Descriptions)
-				{
-					Class->PropertyPathDescriptions = *Descriptions;
-				}
-				else
-				{
-					Class->PropertyPathDescriptions.Reset();
-				}
-				Class->RefreshPropertyPaths();
-			}
-#endif
 		}
 	}
 

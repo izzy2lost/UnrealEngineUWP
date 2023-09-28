@@ -269,7 +269,6 @@ bool URigVMHost::InitializeVM(const FName& InEventName)
 		return false;	// The rig did compile with errors
 	}
 
-#if UE_RIGVM_PROPERTY_BAG_STORAGE_ENABLED
 	if (bTEMP_CopyDefaultsFromCDO && !HasAnyFlags(RF_ClassDefaultObject))
 	{
 		if (URigVMHost* CDO = GetClass()->GetDefaultObject<URigVMHost>())
@@ -277,12 +276,11 @@ bool URigVMHost::InitializeVM(const FName& InEventName)
 			ExtendedExecuteContext.WorkMemoryStorage = CDO->GetExtendedExecuteContext().WorkMemoryStorage; // initialize the memory to CDO default state
 		}
 	}
-#endif // UE_RIGVM_PROPERTY_BAG_STORAGE_ENABLED
 
 	// update the VM's external variables
 	VM->SetExternalVariablesInstanceData(GetExtendedExecuteContext(), ExternalVariables);
 
-	TArray<TRigVMMemoryStorage*> LocalMemory = VM->GetLocalMemoryArray(ExtendedExecuteContext);
+	TArray<FRigVMMemoryStorageStruct*> LocalMemory = VM->GetLocalMemoryArray(ExtendedExecuteContext);
 	const bool bResult = VM->InitializeInstance(GetExtendedExecuteContext(), LocalMemory);
 	if(bResult)
 	{
@@ -625,29 +623,6 @@ bool URigVMHost::InitializeCDOVM()
 	check(VM != nullptr);
 	check(VM->HasAnyFlags(RF_ClassDefaultObject | RF_DefaultSubObject));
 
-#if !UE_RIGVM_PROPERTY_BAG_STORAGE_ENABLED
-	// Create the memory
-	const TArray<ERigVMMemoryType> MemoryTypes = { ERigVMMemoryType::Literal, ERigVMMemoryType::Work, ERigVMMemoryType::Debug };
-	for (ERigVMMemoryType MemoryType : MemoryTypes)
-	{
-		// Refresh if storage class exists
-		if (URigVMMemoryStorageGeneratorClass* Class = URigVMMemoryStorageGeneratorClass::GetStorageClass(VM->GetOuter(), MemoryType))
-		{
-			if (Class->LinkedProperties.Num() == 0)
-			{
-				Class->RefreshLinkedProperties();
-			}
-			if (Class->PropertyPathDescriptions.Num() != Class->PropertyPaths.Num())
-			{
-				Class->RefreshPropertyPaths();
-			}
-		}
-
-		// But create a memory object in any case (required by sequencer rigs)
-		VM->CreateMemoryByType(ExtendedExecuteContext, MemoryType);
-	}
-#endif // !UE_RIGVM_PROPERTY_BAG_STORAGE_ENABLED
-
 	// update the VM's external variables
 	VM->ClearExternalVariables(GetExtendedExecuteContext());
 	VM->SetExternalVariableDefs(GetExternalVariablesImpl(false));
@@ -679,12 +654,6 @@ bool URigVMHost::Execute_Internal(const FName& InEventName)
 		if(!VM->IsContextValidForExecution(Context)
 			|| !IsValidLowLevel()
 			|| !VM->IsValidLowLevel()
-#if !UE_RIGVM_PROPERTY_BAG_STORAGE_ENABLED
-			|| !GetLiteralMemory()
-			|| !GetLiteralMemory()->IsValidLowLevel()
-			|| !GetWorkMemory()
-			|| !GetWorkMemory()->IsValidLowLevel()
-#endif // !UE_RIGVM_PROPERTY_BAG_STORAGE_ENABLED
 		)
 		{
 			UE_LOG(LogRigVM, Warning, InvalidatedVMFormat, *GetClass()->GetName());
@@ -703,7 +672,7 @@ bool URigVMHost::Execute_Internal(const FName& InEventName)
 	
 	const bool bUseDebuggingSnapshots = !VM->IsNativized();
 	
-	TArray<TRigVMMemoryStorage*> LocalMemory = VM->GetLocalMemoryArray(ExtendedExecuteContext);
+	TArray<FRigVMMemoryStorageStruct*> LocalMemory = VM->GetLocalMemoryArray(ExtendedExecuteContext);
 
 #if WITH_EDITOR
 	if(bUseDebuggingSnapshots)
@@ -836,13 +805,13 @@ URigVM* URigVMHost::GetVM()
 	return VM;
 }
 
-TRigVMMemoryStorage* URigVMHost::GetMemoryByType(ERigVMMemoryType InMemoryType)
+FRigVMMemoryStorageStruct* URigVMHost::GetMemoryByType(ERigVMMemoryType InMemoryType)
 {
 	check(VM);
 	return VM->GetMemoryByType(ExtendedExecuteContext, InMemoryType);
 }
 
-const TRigVMMemoryStorage* URigVMHost::GetMemoryByType(ERigVMMemoryType InMemoryType) const
+const FRigVMMemoryStorageStruct* URigVMHost::GetMemoryByType(ERigVMMemoryType InMemoryType) const
 {
 	check(VM);
 	return VM->GetMemoryByType(ExtendedExecuteContext, InMemoryType);
@@ -1148,10 +1117,10 @@ void URigVMHost::GenerateUserDefinedDependenciesData(FRigVMExtendedExecuteContex
 	}
 }
 
-TArray<const UObject*> URigVMHost::GetUserDefinedDependencies(const TArray<const TRigVMMemoryStorage*> InMemory)
+TArray<const UObject*> URigVMHost::GetUserDefinedDependencies(const TArray<const FRigVMMemoryStorageStruct*> InMemory)
 {
 	TArray<const UObject*> Dependencies;
-	auto ProcessMemory = [&Dependencies](const TRigVMMemoryStorage* Memory)
+	auto ProcessMemory = [&Dependencies](const FRigVMMemoryStorageStruct* Memory)
 	{
 		if (Memory == nullptr)
 		{
@@ -1191,7 +1160,7 @@ TArray<const UObject*> URigVMHost::GetUserDefinedDependencies(const TArray<const
 		}
 	};
 
-	for (const TRigVMMemoryStorage* MemoryStorage : InMemory)
+	for (const FRigVMMemoryStorageStruct* MemoryStorage : InMemory)
 	{
 		ProcessMemory(MemoryStorage);
 	}

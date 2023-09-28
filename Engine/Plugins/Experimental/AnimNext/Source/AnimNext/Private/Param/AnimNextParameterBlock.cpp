@@ -43,7 +43,7 @@ void UAnimNextParameterBlock::Run(const UE::AnimNext::FContext& Context) const
 		FRigVMExtendedExecuteContext RigVMExtendedExecuteContext;
 		FAnimNextExecuteContext& AnimNextContext = RigVMExtendedExecuteContext.GetPublicDataSafe<FAnimNextExecuteContext>();
 		AnimNextContext.SetContextData(Context);
-		RigVM->Execute(RigVMExtendedExecuteContext, TArray<TRigVMMemoryStorage*>(), FRigUnit_AnimNextBeginExecution::EventName);
+		RigVM->Execute(RigVMExtendedExecuteContext, TArray<FRigVMMemoryStorageStruct*>(), FRigUnit_AnimNextBeginExecution::EventName);
 	}
 }
 

@@ -96,7 +96,7 @@ void FRigVMLocalVariableDetailCustomization::CustomizeDetails(IDetailLayoutBuild
 		if (CDO->GetVM() != nullptr)
 		{
 			FString SourcePath = FString::Printf(TEXT("LocalVariableDefault::%s|%s::Const"), *GraphBeingCustomized->GetGraphName(), *VariableDescription.Name.ToString());
-			TRigVMMemoryStorage* LiteralMemory = CDO->GetVM()->GetLiteralMemory();
+			FRigVMMemoryStorageStruct* LiteralMemory = CDO->GetVM()->GetLiteralMemory();
 			FProperty* Property = LiteralMemory->FindPropertyByName(*SourcePath);
 			if (Property)
 			{
@@ -104,13 +104,9 @@ void FRigVMLocalVariableDetailCustomization::CustomizeDetails(IDetailLayoutBuild
 				Property->ClearPropertyFlags(CPF_EditConst);
 			
 				const FName SanitizedName = FRigVMPropertyDescription::SanitizeName(*SourcePath);
-#if UE_RIGVM_PROPERTY_BAG_STORAGE_ENABLED
 				TSharedPtr<FStructOnScope> StructOnScope = MakeShareable(new FStructOnScope(LiteralMemory->GetPropertyBagStruct(), (uint8*)LiteralMemory->GetContainerPtr()));
 				IDetailPropertyRow* Row = DefaultValueCategory.AddExternalStructureProperty(StructOnScope, SanitizedName);
-#else
-				TArray<UObject*> Objects = { LiteralMemory };
-				IDetailPropertyRow* Row = DefaultValueCategory.AddExternalObjectProperty(Objects, SanitizedName);
-#endif
+
 				Row->DisplayName(FText::FromName(VariableDescription.Name));
 
 				const FSimpleDelegate OnDefaultValueChanged = FSimpleDelegate::CreateLambda([this, Property, LiteralMemory]()

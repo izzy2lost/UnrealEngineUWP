@@ -229,20 +229,20 @@ public:
 #endif
 
 	// Returns a VM memory storage by type
-	virtual TRigVMMemoryStorage* GetMemoryByType(ERigVMMemoryType InMemoryType);
-	virtual const TRigVMMemoryStorage* GetMemoryByType(ERigVMMemoryType InMemoryType) const;
+	virtual FRigVMMemoryStorageStruct* GetMemoryByType(ERigVMMemoryType InMemoryType);
+	virtual const FRigVMMemoryStorageStruct* GetMemoryByType(ERigVMMemoryType InMemoryType) const;
 
 	// The default mutable work memory
-	TRigVMMemoryStorage* GetWorkMemory() { return GetMemoryByType(ERigVMMemoryType::Work); }
-	const TRigVMMemoryStorage* GetWorkMemory() const { return GetMemoryByType(ERigVMMemoryType::Work); }
+	FRigVMMemoryStorageStruct* GetWorkMemory() { return GetMemoryByType(ERigVMMemoryType::Work); }
+	const FRigVMMemoryStorageStruct* GetWorkMemory() const { return GetMemoryByType(ERigVMMemoryType::Work); }
 
 	// The default const literal memory
-	TRigVMMemoryStorage* GetLiteralMemory() { return GetMemoryByType(ERigVMMemoryType::Literal); }
-	const TRigVMMemoryStorage* GetLiteralMemory() const { return GetMemoryByType(ERigVMMemoryType::Literal); }
+	FRigVMMemoryStorageStruct* GetLiteralMemory() { return GetMemoryByType(ERigVMMemoryType::Literal); }
+	const FRigVMMemoryStorageStruct* GetLiteralMemory() const { return GetMemoryByType(ERigVMMemoryType::Literal); }
 
 	// The default debug watch memory
-	TRigVMMemoryStorage* GetDebugMemory() { return GetMemoryByType(ERigVMMemoryType::Debug); }
-	const TRigVMMemoryStorage* GetDebugMemory() const { return GetMemoryByType(ERigVMMemoryType::Debug); }
+	FRigVMMemoryStorageStruct* GetDebugMemory() { return GetMemoryByType(ERigVMMemoryType::Debug); }
+	const FRigVMMemoryStorageStruct* GetDebugMemory() const { return GetMemoryByType(ERigVMMemoryType::Debug); }
 
 	DECLARE_EVENT_TwoParams(URigVM, FRigVMExecutedEvent, class URigVMHost*, const FName&);
 	FRigVMExecutedEvent& OnInitialized_AnyThread() { return InitializedEvent; }
@@ -311,7 +311,7 @@ protected:
 #endif
 
 	void GenerateUserDefinedDependenciesData(FRigVMExtendedExecuteContext& Context);
-	TArray<const UObject*> GetUserDefinedDependencies(const TArray<const TRigVMMemoryStorage*> InMemory);
+	TArray<const UObject*> GetUserDefinedDependencies(const TArray<const FRigVMMemoryStorageStruct*> InMemory);
 
 	UPROPERTY()
 	TMap<FString, FSoftObjectPath> UserDefinedStructGuidToPathName;
@@ -389,10 +389,8 @@ public:
 	virtual const TArray<UAssetUserData*>* GetAssetUserDataArray() const override;
 	//~ End IInterface_AssetUserData Interface
 
-#if UE_RIGVM_PROPERTY_BAG_STORAGE_ENABLED
 	// Temporary flag while we get TLS-based work memory working, controls copying from the CDO in InitializeVM
 	bool bTEMP_CopyDefaultsFromCDO = true;
-#endif
 
 protected:
 	/** Array of user data stored with the asset */

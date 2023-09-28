@@ -192,15 +192,10 @@ FReply FRigVMCompileSettingsDetails::OnInspectMemory(ERigVMMemoryType InMemoryTy
 	{
 		if(UControlRig* DebuggedRig = Cast<UControlRig>(BlueprintBeingCustomized->GetObjectBeingDebugged()))
 		{
-			if(TRigVMMemoryStorage* MemoryStorage = DebuggedRig->GetMemoryByType(InMemoryType))
+			if(FRigVMMemoryStorageStruct* MemoryStorage = DebuggedRig->GetMemoryByType(InMemoryType))
 			{
-#if UE_RIGVM_PROPERTY_BAG_STORAGE_ENABLED
-				TArray<TRigVMMemoryStorage*> InStructs = { MemoryStorage };
+				TArray<FRigVMMemoryStorageStruct*> InStructs = { MemoryStorage };
 				BlueprintBeingCustomized->RequestInspectMemoryStorage(InStructs);
-#else
-				TArray<UObject*> ObjectsToSelect = {MemoryStorage};
-				BlueprintBeingCustomized->RequestInspectObject(ObjectsToSelect);
-#endif // !UE_RIGVM_PROPERTY_BAG_STORAGE_ENABLED
 			}
 		}
 	}

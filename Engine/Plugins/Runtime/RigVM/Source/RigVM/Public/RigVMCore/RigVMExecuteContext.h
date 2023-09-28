@@ -736,14 +736,14 @@ struct RIGVM_API FRigVMExtendedExecuteContext
 	FName CurrentEntryName = NAME_None;
 	bool bCurrentlyRunningRootEntry = false;
 
-	TArrayView<TRigVMMemoryStorage*> CurrentVMMemory;
+	TArrayView<FRigVMMemoryStorageStruct*> CurrentVMMemory;
 
 #if WITH_EDITORONLY_DATA
 	// changes to the layout of cached memory array should be reflected in GetContainerIndex()
 	UE_DEPRECATED(5.4, "CachedMemory has been deprecated.")
 	TArray<URigVMMemoryStorage*> CachedMemory;
-	UE_DEPRECATED(5.4, "CurrentMemory has been deprecated, please use CurrentVMMemory with TRigVMMemoryStorage.")
-	TArrayView<TRigVMMemoryStorageDeprecatedType*> CurrentMemory;
+	UE_DEPRECATED(5.4, "CurrentMemory has been deprecated, please use CurrentVMMemory with FRigVMMemoryStorageStruct.")
+	TArrayView<URigVMMemoryStorage*> CurrentMemory;
 	UE_DEPRECATED(5.4, "DeferredVMToCopy has been deprecated.")
 	TObjectPtr<URigVM> DeferredVMToCopy = nullptr;
 	UE_DEPRECATED(5.4, "DeferredVMContextToCopy has been deprecated.")

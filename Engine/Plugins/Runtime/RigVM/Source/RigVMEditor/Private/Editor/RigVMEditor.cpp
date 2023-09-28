@@ -1719,9 +1719,7 @@ void FRigVMEditor::HandleVMCompiledEvent(UObject* InCompiledObject, URigVM* InVM
 			{
 				ERigVMMemoryType MemoryType = ActiveTab->GetMetaData<FMemoryTypeMetaData>()->MemoryType;
 				// TODO zzz : UE-195014 - Fix memory tab losing values on VM recompile
-				TRigVMMemoryStorage* Memory = InVM->GetMemoryByType(InContext, MemoryType);
-
-#if UE_RIGVM_PROPERTY_BAG_STORAGE_ENABLED
+				FRigVMMemoryStorageStruct* Memory = InVM->GetMemoryByType(InContext, MemoryType);
 
 			#if 1
 				ActiveTab->RequestCloseTab();
@@ -1733,10 +1731,6 @@ void FRigVMEditor::HandleVMCompiledEvent(UObject* InCompiledObject, URigVM* InVM
 				TSharedPtr<FStructOnScope> StructOnScope = MakeShareable(new FStructOnScope(Memory->GetPropertyBagStruct(), (uint8*)Memory->GetContainerPtr()));
 				StructDetailsView->SetStructureData(StructOnScope);
 			#endif
-#else
-				TSharedRef<IDetailsView> DetailsView = StaticCastSharedRef<IDetailsView>(ActiveTab->GetContent());
-				DetailsView->SetObject(Memory);
-#endif // UE_RIGVM_PROPERTY_BAG_STORAGE_ENABLED
 			}
 		}
 	}
