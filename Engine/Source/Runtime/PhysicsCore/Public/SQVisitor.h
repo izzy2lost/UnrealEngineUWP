@@ -397,7 +397,7 @@ private:
 		}
 		else if (SQ == ESQType::Overlap)
 		{
-			Chaos::DebugDraw::DrawShape(StartTM, QueryGeom, Chaos::FShapeOrShapesArray(), bHit ? FColor::Red : FColor::Green);
+			Chaos::DebugDraw::DrawShape(StartTM, QueryGeom, nullptr, bHit ? FColor::Red : FColor::Green, 0.0f);
 		}
 
 		if (Instance.bHasBounds)
