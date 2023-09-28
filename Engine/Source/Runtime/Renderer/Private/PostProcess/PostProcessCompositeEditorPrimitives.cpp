@@ -8,6 +8,7 @@
 #include "BasePassRendering.h"
 #include "MobileBasePassRendering.h"
 #include "PixelShaderUtils.h"
+#include "Substrate/Substrate.h"
 
 namespace
 {
@@ -249,6 +250,14 @@ FScreenPassTexture AddEditorPrimitivePass(
 
 		EditorPrimitiveColor = GraphBuilder.CreateTexture(ColorDesc, TEXT("Editor.PrimitivesColor"));
 		EditorPrimitiveDepth = CreateCompositeDepthTexture(GraphBuilder, Extent, NumMSAASamples);
+	}
+	
+	// Subtrate data might not be produced in certain case (e.g., path-tracer). In such a case we force generate 
+	// them with a simple clear to please validation.
+	if (Substrate::IsSubstrateEnabled() && !HasBeenProduced(View.SubstrateViewData.SceneData->TopLayerTexture))
+	{
+		FRDGTextureClearInfo ClearInfo;
+		AddClearRenderTargetPass(GraphBuilder, View.SubstrateViewData.SceneData->TopLayerTexture, ClearInfo);
 	}
 
 	// Load the color target if it already exists.
