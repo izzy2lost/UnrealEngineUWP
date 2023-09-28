@@ -42,8 +42,9 @@ END_SHADER_PARAMETER_STRUCT()
 class FLocalFogVolumeGPUInstanceData
 {
 public:
-	FMatrix44f Transform;
-	FMatrix44f InvTransform;
+
+	float Transform[4 * 3];
+	float InvTransform[4 * 3];
 
 	float RadialFogExtinction;
 	float HeightFogExtinction;

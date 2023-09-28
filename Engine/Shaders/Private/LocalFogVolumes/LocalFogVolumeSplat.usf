@@ -58,11 +58,9 @@ void LocalFogVolumeSplatVS(
 
 	FLocalFogVolumeGPUInstanceData FogInstance = GetLocalFogVolumeGPUInstanceData(InstanceIndex);
 
-	float4x4 FogTransform = FogInstance.Transform;
+	float3 WorldPosition = mul(float4(LocalPosition.xyz, 1.0f), FogInstance.Transform).xyz;
 
-	float4 WorldPosition = mul(float4(LocalPosition.xyz, 1.0f), FogTransform);
-
-	float4 TranslatedWorldPosition = float4(WorldPosition.xyz + LWCHackToFloat(PrimaryView.PreViewTranslation), 1);
+	float4 TranslatedWorldPosition = float4(WorldPosition + LWCHackToFloat(PrimaryView.PreViewTranslation), 1);
 
 	OutPosition = mul(TranslatedWorldPosition, PrimaryView.TranslatedWorldToClip);
 	OtherVertexOutput.InstanceId = InstanceIndex;

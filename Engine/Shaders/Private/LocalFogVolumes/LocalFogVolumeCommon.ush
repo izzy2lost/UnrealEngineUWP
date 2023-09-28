@@ -12,8 +12,8 @@
 
 struct FLocalFogVolumeGPUInstanceData
 {
-	float4x4 Transform;
-	float4x4 InvTransform;
+	float4x3 Transform;
+	float4x3 InvTransform;
 
 	float RadialFogExtinction;
 	float HeightFogExtinction;
@@ -76,22 +76,22 @@ Texture2DArray<uint>					LFV_LocalFogVolumeTileDataTexture;
 FLocalFogVolumeGPUInstanceData GetLocalFogVolumeGPUInstanceData(uint Index)
 {
 	FLocalFogVolumeGPUInstanceData Data;
-	uint Offset = Index * 11;
+	uint Offset = Index * 9;
 
-	Data.Transform			= float4x4(LFVInsts[Offset + 0 ], LFVInsts[Offset + 1 ], LFVInsts[Offset + 2 ], LFVInsts[Offset + 3 ]);
-	Data.InvTransform		= float4x4(LFVInsts[Offset + 4 ], LFVInsts[Offset + 5 ], LFVInsts[Offset + 6 ], LFVInsts[Offset + 7 ]);
+	Data.Transform			= float4x3(LFVInsts[Offset + 0 ], LFVInsts[Offset + 1 ], LFVInsts[Offset + 2 ]); // reads 4x3 row major pack as 3 float4
+	Data.InvTransform		= float4x3(LFVInsts[Offset + 3 ], LFVInsts[Offset + 4 ], LFVInsts[Offset + 5 ]);
 
-	float4 Temp0			= LFVInsts[Offset + 8];
+	float4 Temp0			= LFVInsts[Offset + 6];
 	Data.RadialFogExtinction= Temp0.x;
 	Data.HeightFogExtinction= Temp0.y;
 	Data.HeightFogFalloff	= Temp0.z;
 	Data.HeightFogOffset	= Temp0.w;
 
-	float4 Temp1			= LFVInsts[Offset + 9];
+	float4 Temp1			= LFVInsts[Offset + 7];
 	Data.Albedo				= Temp1.xyz;
 	Data.PhaseG				= Temp1.w;
 
-	float4 Temp2			= LFVInsts[Offset + 10];
+	float4 Temp2			= LFVInsts[Offset + 8];
 	Data.Emissive			= Temp2.xyz;
 	Data.UniformScale		= Temp2.w;
 

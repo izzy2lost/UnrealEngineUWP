@@ -298,8 +298,28 @@ void GetLocalFogVolumeSortingData(const FScene* Scene, FRDGBuilder& GraphBuilder
 		}
 
 		FLocalFogVolumeGPUInstanceData* LocalFogVolumeGPUInstanceDataIt = &Out.LocalFogVolumeGPUInstanceData[Out.LocalFogVolumeInstanceCountFinal];
-		LocalFogVolumeGPUInstanceDataIt->Transform = FMatrix44f(LHF->FogTransform.ToMatrixWithScale());
-		LocalFogVolumeGPUInstanceDataIt->InvTransform = LocalFogVolumeGPUInstanceDataIt->Transform.Inverse();
+
+		auto ConvertFromMatrix44fTo4x3Array = [](FMatrix44f& InMat, float* OutArr)
+			{
+				// Row major order
+				OutArr[0 ] = InMat.M[0][0];
+				OutArr[1 ] = InMat.M[0][1];
+				OutArr[2 ] = InMat.M[0][2];
+				OutArr[3 ] = InMat.M[1][0];
+				OutArr[4 ] = InMat.M[1][1];
+				OutArr[5 ] = InMat.M[1][2];
+				OutArr[6 ] = InMat.M[2][0];
+				OutArr[7 ] = InMat.M[2][1];
+				OutArr[8 ] = InMat.M[2][2];
+				OutArr[9 ] = InMat.M[3][0];
+				OutArr[10] = InMat.M[3][1];
+				OutArr[11] = InMat.M[3][2];
+			};
+
+		FMatrix44f Transform    = FMatrix44f(LHF->FogTransform.ToMatrixWithScale());
+		FMatrix44f InvTransform = Transform.Inverse();
+		ConvertFromMatrix44fTo4x3Array(Transform, LocalFogVolumeGPUInstanceDataIt->Transform);
+		ConvertFromMatrix44fTo4x3Array(InvTransform, LocalFogVolumeGPUInstanceDataIt->InvTransform);
 
 		LocalFogVolumeGPUInstanceDataIt->RadialFogExtinction = LHF->RadialFogExtinction;
 		LocalFogVolumeGPUInstanceDataIt->HeightFogExtinction = LHF->HeightFogExtinction;
