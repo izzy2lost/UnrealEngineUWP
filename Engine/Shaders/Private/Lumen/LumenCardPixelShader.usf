@@ -99,6 +99,7 @@ void Main(
 	{
 		// To have better 'specular as diffuse' response, we use bForceFullyRoughAccurate which computes specular & diffuse separately. 
 		// They are both merge them manually at the end, as Lumen card stores only diffuse albedo.
+		// Match behavior in LumenHardwareRayTracingCommon.ush
 		FSubstrateIntegrationSettings Settings = InitSubstrateIntegrationSettings(true /*bForceFullyRough*/, true /*bRoughDiffuseEnabled*/, 0 /*PeelLayersAboveDepth*/, false/*bRoughnessTracking*/);
 		Settings.bForceFullyRoughAccurate = true;
 

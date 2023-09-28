@@ -666,7 +666,11 @@ FLumenHitLightingMaterial GetLumenHitLightingMaterial(FPackedMaterialClosestHitP
 	#endif // SUBSTRATE_ENABLED
 
 	LumenMaterial.DiffuseColor = DiffuseAndSubsurfaceColor;
+#if SUBSTRATE_ENABLED
+	LumenMaterial.ApproxFullyRoughSpecularColor = SpecularColor; // Match behavior in LumenCardPixelShader.usf
+#else
 	EnvBRDFApproxFullyRough(LumenMaterial.ApproxFullyRoughSpecularColor, SpecularColor);
+#endif // SUBSTRATE_ENABLED
 	LumenMaterial.ApproxFullyRoughDiffuseColor = LumenMaterial.DiffuseColor + LumenMaterial.ApproxFullyRoughSpecularColor;
 
 	return LumenMaterial;

@@ -12,6 +12,8 @@
 // Ensure that SSS material don't override their albedo to compute only the incident irradiance
 #define SUBSTRATE_SSS_MATERIAL_OVERRIDE 0
 #define MATERIAL_FULLY_ROUGH 0
+#define SUBSTRATE_COMPLEXSPECIALPATH 1
+#define SUBSTRATE_GLINTS_ALLOWED 0
 
 #ifndef SUPPORT_LIGHT_FUNCTION
 #define SUPPORT_LIGHT_FUNCTION 0
