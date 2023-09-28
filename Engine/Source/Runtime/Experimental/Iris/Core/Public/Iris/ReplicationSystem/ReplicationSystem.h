@@ -81,6 +81,22 @@ public:
 	/** @return Is this system configured to replicate object properties. */
 	bool AllowObjectReplication() { return bAllowObjectReplication; }
 
+	struct FSendUpdateParams
+	{
+		// Type of SendPass we want to do @see EReplicationSystemSendPass
+		UE::Net::EReplicationSystemSendPass SendPass = UE::Net::EReplicationSystemSendPass::TickFlush;
+
+		// DeltaTime, only relevant for EReplicationSystemSendPass::TickFlush
+		float DeltaSeconds = 0.f;		
+	};
+
+	/**
+	 * PreSendUpdate performs all the necessary work, such as filtering and prioritization of objects,
+	 * so that each connection will be properly updated with all the information needed in order to replicate.
+	 * @param Params, Parameters for the update pass, to @see FSendUpateParams 
+	 */
+	IRISCORE_API void PreSendUpdate(const FSendUpdateParams& Params);	
+
 	/**
 	 * PreSendUpdate performs all the necessary work, such as filtering and prioritization of objects,
 	 * so that each connection will be properly updated with all the information needed in order to replicate.
@@ -89,10 +105,11 @@ public:
 
 	/**
 	 * SendUpdate is currently more of a placeholder for a future where the ReplicationSystem itself is responsible for
-	 * the low level protocol and sending, rather than having the DataStreamChannel.
+	 * the low level protocol and sending, rather than having the DataStreamChannel write data when ticked
 	 * @see UDataStreamChannel.
+	 * @param SendFunction, Function taking an array of ConnectionId`s that has data to send
 	 */
-	IRISCORE_API void SendUpdate();
+	IRISCORE_API void SendUpdate(TFunctionRef<void(TArrayView<uint32>)> SendFunction);
 
 	/**
 	 * Cleanup temporaries and prepare for the next send update.

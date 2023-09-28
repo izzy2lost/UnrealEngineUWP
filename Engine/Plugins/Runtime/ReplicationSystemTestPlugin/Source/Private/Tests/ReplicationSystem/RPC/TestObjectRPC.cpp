@@ -82,4 +82,58 @@ namespace UE::Net::Private
 		// Verify RPC reception
 		UE_NET_ASSERT_TRUE(ServerObject->ServerRPCWithParamCalled == IntParam);
 	}
+
+	UE_NET_TEST_FIXTURE(FRPCTestFixture, TestMultiCastSendImmediateRPC)
+	{
+		// Add a client
+		FReplicationSystemTestClient* Client = CreateClient();
+
+		// Spawn object on server
+		UTestReplicatedObjectWithRPC* ServerObject = Server->CreateObject<UTestReplicatedObjectWithRPC>();
+
+		ServerObject->bIsServerObject = true;
+		ServerObject->ReplicationSystem = Server->GetReplicationSystem();
+		Server->ReplicationSystem->SetOwningNetConnection(ServerObject->NetRefHandle, 0x01);
+
+		// Setup NetMulticast_MultiCastRPCSendImmediateCallOrder to be sent immediately
+		ServerObject->ReplicationSystem->SetRPCSendPolicyFlags(UTestReplicatedObjectWithRPC::StaticClass()->FindFunctionByName(GET_FUNCTION_NAME_CHECKED(UTestReplicatedObjectWithRPC, NetMulticast_MultiCastRPCSendImmediate)), ENetObjectAttachmentSendPolicyFlags::SendImmediate);
+
+		// Send and deliver packet
+		Server->PreSendUpdate();
+		Server->SendAndDeliverTo(Client, true);
+		Server->PostSendUpdate();
+
+		UTestReplicatedObjectWithRPC* ClientObject = Cast<UTestReplicatedObjectWithRPC>(Client->GetReplicationBridge()->GetReplicatedObject(ServerObject->NetRefHandle));
+		
+		// Verify that created server handle now also exists on client
+		UE_NET_ASSERT_TRUE(ClientObject != nullptr);
+
+		ClientObject->ReplicationSystem = Client->GetReplicationSystem();
+
+		// Send multicast RPCs Server->Client
+		// This is a normal multicast rpc, it will be scheduled with replication of object
+		ServerObject->NetMulticast_MultiCastRPC();
+
+		// This is a send immediate multicast rpc, it should be scheduled using the OOB replication channel so it should be received before the normally flagged rpc.
+		ServerObject->NetMulticast_MultiCastRPCSendImmediate();
+
+		// Send and deliver packet, simulating a send from PostTickDispatch
+		Server->PreSendUpdate(UReplicationSystem::FSendUpdateParams {.SendPass = UE::Net::EReplicationSystemSendPass::PostTickDispatch});
+		Server->SendAndDeliverTo(Client, true);
+		Server->PostSendUpdate();
+
+		// Verify RPC reception, at this point we expect only the RPC flagged as ENetObjectAttachmentSendPolicyFlags::SendImmediate to have been received
+		UE_NET_ASSERT_EQ(ClientObject->NetMulticast_MultiCastRPCCallOrder, 0);
+		UE_NET_ASSERT_EQ(ClientObject->NetMulticast_MultiCastRPCSendImmediateCallOrder, 1);
+
+		// Send and deliver packet
+		Server->PreSendUpdate();
+		Server->SendAndDeliverTo(Client, true);
+		Server->PostSendUpdate();
+		
+		// Verify RPC reception, at this point we expect the other RPC to have been received as well.
+		UE_NET_ASSERT_EQ(ClientObject->NetMulticast_MultiCastRPCSendImmediateCallOrder, 1);
+		UE_NET_ASSERT_EQ(ClientObject->NetMulticast_MultiCastRPCCallOrder, 2);
+	}
+
 }

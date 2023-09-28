@@ -184,7 +184,8 @@ public:
 	void SetNetExports(FNetExports& InNetExports);
 
 	// Attachments
-	void QueueNetObjectAttachments(FInternalNetRefIndex OwnerInternalIndex, FInternalNetRefIndex SubObjectInternalIndex, TArrayView<const TRefCountPtr<FNetBlob>> Attachments, ENetObjectAttachmentSendPolicyFlags SendFlags);
+	// Queue NetObjectAttachments, returns whether the attachments was enqueued or not.
+	bool QueueNetObjectAttachments(FInternalNetRefIndex OwnerInternalIndex, FInternalNetRefIndex SubObjectInternalIndex, TArrayView<const TRefCountPtr<FNetBlob>> Attachments, ENetObjectAttachmentSendPolicyFlags SendFlags);
 
 private:
 	// Various types
@@ -230,7 +231,9 @@ private:
 		// How many packets have we written to?
 		uint32 NumWrittenPacketsInThisBatch = 0U;
 		bool bCanWriteMoreData = false;
-
+		
+		EDataStreamWriteMode WriteMode = EDataStreamWriteMode::Full;	
+	
 		uint32 bHasDestroyedObjectsToSend : 1;
 		uint32 bHasUpdatedObjectsToSend : 1;
 		uint32 bHasHugeObjectToSend : 1;

@@ -107,4 +107,12 @@ void UTestReplicatedObjectWithRPC::ServerRPCWithParam_Implementation(int32 IntPa
 	ServerRPCWithParamCalled = IntParam;
 }
 
+void UTestReplicatedObjectWithRPC::NetMulticast_MultiCastRPCSendImmediate_Implementation()
+{
+	NetMulticast_MultiCastRPCSendImmediateCallOrder = ++CallOrder;
+}
 
+void UTestReplicatedObjectWithRPC::NetMulticast_MultiCastRPC_Implementation()
+{
+	NetMulticast_MultiCastRPCCallOrder = ++CallOrder;
+}

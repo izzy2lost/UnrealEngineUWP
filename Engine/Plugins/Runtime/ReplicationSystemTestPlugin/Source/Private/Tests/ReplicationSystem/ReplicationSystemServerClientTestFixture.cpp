@@ -231,9 +231,15 @@ uint32 FReplicationSystemTestNode::AddConnection()
 	return Connection.ConnectionId;
 }
 
+void FReplicationSystemTestNode::PreSendUpdate(const UReplicationSystem::FSendUpdateParams& Params)
+{
+	ReplicationSystem->PreSendUpdate(Params);
+	CurrentSendPass = Params.SendPass;
+}
+
 void FReplicationSystemTestNode::PreSendUpdate()
 {
-	ReplicationSystem->PreSendUpdate(1.f);
+	PreSendUpdate(UReplicationSystem::FSendUpdateParams {.SendPass = EReplicationSystemSendPass::TickFlush, .DeltaSeconds = 1.f});
 }
 
 bool FReplicationSystemTestNode::SendUpdate(uint32 ConnectionId, const TCHAR* Desc)
@@ -251,6 +257,11 @@ bool FReplicationSystemTestNode::SendUpdate(uint32 ConnectionId, const TCHAR* De
 
 	const FDataStreamRecord* Record = nullptr;
 	UDataStream::FBeginWriteParameters BeginWriteParameters;
+
+	if (CurrentSendPass == EReplicationSystemSendPass::PostTickDispatch)
+	{
+		BeginWriteParameters.WriteMode = EDataStreamWriteMode::PostTickDispatch;
+	}
 
 	const bool bResult = (Connection.DataStreamManager->BeginWrite(BeginWriteParameters) != UDataStream::EWriteResult::NoData) && (Connection.DataStreamManager->WriteData(Context, Record)  != UDataStream::EWriteResult::NoData);
 	if (bResult)
@@ -284,6 +295,7 @@ bool FReplicationSystemTestNode::SendUpdate(uint32 ConnectionId, const TCHAR* De
 void FReplicationSystemTestNode::PostSendUpdate()
 {
 	ReplicationSystem->PostSendUpdate();
+	CurrentSendPass =	EReplicationSystemSendPass::Invalid;
 }
 
 void FReplicationSystemTestNode::DeliverTo(FReplicationSystemTestNode& Dest, uint32 LocalConnectionId, uint32 RemoteConnectionId, bool bDeliver)

@@ -12,12 +12,21 @@
 
 class UDataStreamManager;
 
+namespace UE::Net
+{
+	enum class EDataStreamWriteMode : unsigned;
+};
+
 UCLASS(transient, customConstructor, MinimalAPI)
 class UDataStreamChannel final : public UChannel
 {
 	GENERATED_BODY()
 
 	UDataStreamChannel(const FObjectInitializer& ObjectInitializer = FObjectInitializer::Get());
+
+public:
+	/** Invoked from NetDriver::PostTickDispatch if we have any data that should be written from PostTickDispatch */
+	ENGINE_API void PostTickDispatch();
 
 private:
 	static void AddReferencedObjects(UObject* Object, FReferenceCollector& Collector);
@@ -61,6 +70,8 @@ private:
 	void DiscardAllRecords();
 
 	void SendOpenBunch();
+
+	void WriteData(UE::Net::EDataStreamWriteMode WriteMode);
 
 	TObjectPtr<UDataStreamManager> DataStreamManager = nullptr;
 

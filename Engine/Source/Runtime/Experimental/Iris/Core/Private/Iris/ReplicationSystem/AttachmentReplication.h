@@ -75,6 +75,8 @@ public:
 
 	bool HasUnsent() const;
 
+	bool HasUnsentUnreliable() const;
+
 	bool IsSafeToDestroy() const;
 
 	bool IsAllSentAndAcked() const;
@@ -112,6 +114,9 @@ public:
 	bool Enqueue(ENetObjectAttachmentType Type, uint32 ObjectIndex, TArrayView<const TRefCountPtr<FNetBlob>> Attachments);
 
 	bool HasUnsentAttachments(ENetObjectAttachmentType Type, uint32 ObjectIndex) const;
+
+	bool HasUnsentUnreliableAttachments(ENetObjectAttachmentType Type, uint32 ObjectIndex) const;
+
 	// Whether all queued attachments have been sent and that all reliable ones have been acked.
 	bool IsAllSentAndAcked(ENetObjectAttachmentType Type, uint32 ObjectIndex) const;
 

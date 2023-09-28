@@ -2127,6 +2127,7 @@ private:
 	void CreateReplicationSystem(bool bInitAsClient);
 	void UpdateIrisReplicationViews() const;
 	void SendClientMoveAdjustments();
+	void PostDispatchSendUpdate();
 #endif
 
 	void InitNetTraceId();

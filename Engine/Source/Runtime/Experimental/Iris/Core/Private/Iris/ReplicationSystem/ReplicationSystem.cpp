@@ -45,14 +45,15 @@ namespace UE::Net::Private
 class FReplicationSystemImpl
 {
 public:
+	TMap<FObjectKey, ENetObjectAttachmentSendPolicyFlags> AttachmentSendPolicyFlags;
 	UReplicationSystem* ReplicationSystem;
 	FReplicationSystemInternal ReplicationSystemInternal;
 	uint64 IrisDebugHelperDummy = 0U;
 	FNetObjectGroupHandle NotReplicatedNetObjectGroupHandle;
 	FNetObjectGroupHandle NetGroupOwnerNetObjectGroupHandle;
 	FNetObjectGroupHandle NetGroupReplayNetObjectGroupHandle;
-
-	TMap<FObjectKey, ENetObjectAttachmentSendPolicyFlags> AttachmentSendPolicyFlags;
+	FNetBitArray ConnectionsPendingPostTickDispatchSend;
+	EReplicationSystemSendPass CurrentSendPass = EReplicationSystemSendPass::Invalid;
 
 	explicit FReplicationSystemImpl(UReplicationSystem* InReplicationSystem, const UReplicationSystem::FReplicationSystemParams& Params)
 	: ReplicationSystem(InReplicationSystem)
@@ -231,6 +232,8 @@ public:
 		{
 			ReplicationSystemInternal.GetForwardNetRPCCallMulticastDelegate().Add(Params.ForwardNetRPCCallDelegate);
 		}
+
+		ConnectionsPendingPostTickDispatchSend.Init(ReplicationSystemInternal.GetConnections().GetMaxConnectionCount());
 	}
 
 	void Deinit()
@@ -443,15 +446,18 @@ public:
 		NetBlobManager.ProcessNetObjectAttachmentSendQueue(ProcessMode);
 	}
 
+	void ProcessOOBNetObjectAttachmentSendQueue()
+	{
+		IRIS_PROFILER_SCOPE(FReplicationSystem_ProcessOOBNetObjectAttachmentSendQueue);
+
+		FNetBlobManager& NetBlobManager = ReplicationSystemInternal.GetNetBlobManager();
+		NetBlobManager.ProcessOOBNetObjectAttachmentSendQueue(ConnectionsPendingPostTickDispatchSend);
+	}
+
 	void ResetNetObjectAttachmentSendQueue()
 	{
 		FNetBlobManager& NetBlobManager = ReplicationSystemInternal.GetNetBlobManager();
 		NetBlobManager.ResetNetObjectAttachmentSendQueue();
-	}
-
-	// send data
-	void SendUpdate()
-	{
 	}
 
 	void AddConnection(uint32 ConnectionId)
@@ -604,125 +610,183 @@ const UE::Net::Private::FReplicationSystemInternal* UReplicationSystem::GetRepli
 	return &Impl->ReplicationSystemInternal;
 }
 
-void UReplicationSystem::PreSendUpdate(float DeltaSeconds)
+void UReplicationSystem::PreSendUpdate(const FSendUpdateParams& Params)
 {
 	using namespace UE::Net;
 	using namespace UE::Net::Private;
 
 	IRIS_PROFILER_SCOPE(FReplicationSystem_PreSendUpdate);
 
-	ElapsedTime += DeltaSeconds;
-
-#if !UE_BUILD_SHIPPING
-	// Force a integrity check of all replicated instances
-	if (bDoCollectGarbage || ReplicationSystemCVars::bForcePruneBeforeUpdate)
-	{
-		CollectGarbage();
-	}
-#endif
+	ensureAlways(Impl->CurrentSendPass == EReplicationSystemSendPass::Invalid);
+	Impl->CurrentSendPass = Params.SendPass;
 
 	FReplicationSystemInternal& InternalSys = Impl->ReplicationSystemInternal;
 
-	// $IRIS TODO. There may be some throttling of connections to tick that we should take into account.
-	const FNetBitArrayView& ReplicatingConnections = MakeNetBitArrayView(Impl->ReplicationSystemInternal.GetConnections().GetValidConnections());
+	// Most systems are only updated during the normal TickFlush
+	if (Impl->CurrentSendPass ==  EReplicationSystemSendPass::TickFlush)
+	{
+		ElapsedTime += Params.DeltaSeconds;
+
+		// $IRIS TODO. There may be some throttling of connections to tick that we should take into account.
+		const FNetBitArrayView& ReplicatingConnections = MakeNetBitArrayView(Impl->ReplicationSystemInternal.GetConnections().GetValidConnections());
 
 #if UE_NET_IRIS_CSV_STATS && CSV_PROFILER
-	{
-		FNetSendStats& SendStats = InternalSys.GetSendStats();
-		SendStats.Reset();
-		SendStats.SetNumberOfReplicatingConnections(ReplicatingConnections.CountSetBits());
-	}
+		{
+			FNetSendStats& SendStats = InternalSys.GetSendStats();
+			SendStats.Reset();
+			SendStats.SetNumberOfReplicatingConnections(ReplicatingConnections.CountSetBits());
+		}
+#endif
+	
+#if !UE_BUILD_SHIPPING
+		// Force a integrity check of all replicated instances
+		if (bDoCollectGarbage || ReplicationSystemCVars::bForcePruneBeforeUpdate)
+		{
+			CollectGarbage();
+		}
 #endif
 
-	if (bAllowObjectReplication)
-	{
-		UE_NET_TRACE_FRAME_STATSCOUNTER(GetId(), ReplicationSystem.ReplicatedObjectCount, InternalSys.GetNetRefHandleManager().GetActiveObjectCount(), ENetTraceVerbosity::Verbose);
-
-		// Tell systems we are starting PreSendUpdate
-		Impl->StartPreSendUpdate();
-
-		// Refresh the dirty objects we were told about.
-		Impl->UpdateDirtyObjectList();
-
-		// Update world locations. We need this to happen before both filtering and prioritization.
-		Impl->UpdateWorldLocations();
-
-		// Update filters, reduce the top-level scoped object list and set each connection's scope.
-		Impl->UpdateFilterPrePoll();
-
-		// Invoke any operations we need to do before copying state data
-		Impl->CallPreSendUpdate(DeltaSeconds);
-
-		// Finalize the dirty list with objects set dirty during the poll phase
-		Impl->UpdateDirtyListPostPoll();
-
-		// Update conditionals
-		Impl->UpdateConditionals();
-
-		// Copy dirty state data. We need this to happen before both filtering and prioritization
-		Impl->CopyDirtyStateData();
-
-		// We must process all attachments to objects going out of scope before we update the scope
-		Impl->ProcessNetObjectAttachmentSendQueue(FNetBlobManager::EProcessMode::ProcessObjectsGoingOutOfScope);
-
-		// Update filtering and scope for all connections
-		Impl->UpdateFilterPostPoll();
-
-		// Propagate dirty changes to all connections
-		Impl->PropagateDirtyChanges();
-	}
-
-	// Forward attachments to the connections after scope update
-	Impl->ProcessNetObjectAttachmentSendQueue(FNetBlobManager::EProcessMode::ProcessObjectsInScope);
-	Impl->ResetNetObjectAttachmentSendQueue();
-
-	if (bAllowObjectReplication)
-	{
-		// Update object priorities
-		Impl->UpdatePrioritization(ReplicatingConnections);
-
-		// Delta compression preparations before send
+		if (bAllowObjectReplication)
 		{
-			FDeltaCompressionBaselineManagerPreSendUpdateParams UpdateParams;
-			UpdateParams.ChangeMaskCache = &InternalSys.GetChangeMaskCache();
-			InternalSys.GetDeltaCompressionBaselineManager().PreSendUpdate(UpdateParams);
+			UE_NET_TRACE_FRAME_STATSCOUNTER(GetId(), ReplicationSystem.ReplicatedObjectCount, InternalSys.GetNetRefHandleManager().GetActiveObjectCount(), ENetTraceVerbosity::Verbose);
+
+			// Tell systems we are starting PreSendUpdate
+			Impl->StartPreSendUpdate();
+
+			// Refresh the dirty objects we were told about.
+			Impl->UpdateDirtyObjectList();
+
+			// Update world locations. We need this to happen before both filtering and prioritization.
+			Impl->UpdateWorldLocations();
+
+			// Update filters, reduce the top-level scoped object list and set each connection's scope.
+			Impl->UpdateFilterPrePoll();
+
+			// Invoke any operations we need to do before copying state data
+			Impl->CallPreSendUpdate(Params.DeltaSeconds);
+
+			// Finalize the dirty list with objects set dirty during the poll phase
+			Impl->UpdateDirtyListPostPoll();
+
+			// Update conditionals
+			Impl->UpdateConditionals();
+
+			// Copy dirty state data. We need this to happen before both filtering and prioritization
+			Impl->CopyDirtyStateData();
+
+			// We must process all attachments to objects going out of scope before we update the scope
+			Impl->ProcessNetObjectAttachmentSendQueue(FNetBlobManager::EProcessMode::ProcessObjectsGoingOutOfScope);
+
+			// Update filtering and scope for all connections
+			Impl->UpdateFilterPostPoll();
+
+			// Propagate dirty changes to all connections
+			Impl->PropagateDirtyChanges();
+		}
+
+		// Forward attachments to the connections after scope update
+		Impl->ProcessNetObjectAttachmentSendQueue(FNetBlobManager::EProcessMode::ProcessObjectsInScope);
+		Impl->ResetNetObjectAttachmentSendQueue();
+
+		if (bAllowObjectReplication)
+		{
+			// Update object priorities
+			Impl->UpdatePrioritization(ReplicatingConnections);
+
+			// Delta compression preparations before send
+			{
+				FDeltaCompressionBaselineManagerPreSendUpdateParams UpdateParams;
+				UpdateParams.ChangeMaskCache = &InternalSys.GetChangeMaskCache();
+				InternalSys.GetDeltaCompressionBaselineManager().PreSendUpdate(UpdateParams);
+			}
+		}
+
+		// Destroy objects pending destroy
+		{
+			Impl->UpdateUnresolvableReferenceTracking();
+			InternalSys.GetNetRefHandleManager().DestroyObjectsPendingDestroy();
 		}
 	}
-
-	// Destroy objects pending destroy
+	else if (Impl->CurrentSendPass == EReplicationSystemSendPass::PostTickDispatch)
 	{
-		Impl->UpdateUnresolvableReferenceTracking();
-		InternalSys.GetNetRefHandleManager().DestroyObjectsPendingDestroy();
+		// Forward attachments scheduled to use the OOBChannel and mark connetions needing immediate send
+		Impl->ProcessOOBNetObjectAttachmentSendQueue();
 	}
 }
 
-void UReplicationSystem::SendUpdate()
+void UReplicationSystem::PreSendUpdate(float DeltaSeconds)
 {
-	Impl->SendUpdate();
+	PreSendUpdate(FSendUpdateParams {.SendPass = UE::Net::EReplicationSystemSendPass::TickFlush, .DeltaSeconds = DeltaSeconds });
+}
+
+IRISCORE_API void UReplicationSystem::SendUpdate(TFunctionRef<void(TArrayView<uint32>)> SendFunction)
+{
+	using namespace UE::Net;
+	using namespace UE::Net::Private;
+
+	if (!ensure(Impl->CurrentSendPass != EReplicationSystemSendPass::Invalid))
+	{
+		return;
+	}
+
+	UE::Net::Private::FReplicationConnections& Connections = Impl->ReplicationSystemInternal.GetConnections();
+	const FNetBitArray& ReplicatingConnections = Connections.GetValidConnections();
+
+	TArray<uint32, TInlineAllocator<128>> ConnectionToUpdate;
+	
+	if (Impl->CurrentSendPass == EReplicationSystemSendPass::TickFlush)
+	{
+		// This is currently handled when ticking NetDriver->NetConnection->Channels.
+
+		ConnectionToUpdate.SetNum(ReplicatingConnections.CountSetBits());
+		Connections.GetValidConnections().GetSetBitIndices(0U, ~0U, ConnectionToUpdate.GetData(), ConnectionToUpdate.Num());
+	}
+	else if (Impl->CurrentSendPass == EReplicationSystemSendPass::PostTickDispatch)
+	{
+		// We only need to send data to connections that has data to send in PostTickDispatch
+
+		FNetBitArray::ForAllSetBits(Impl->ConnectionsPendingPostTickDispatchSend, ReplicatingConnections, FNetBitArray::AndOp, [&ConnectionToUpdate](uint32 ConnId) { ConnectionToUpdate.Add(ConnId);});
+		Impl->ConnectionsPendingPostTickDispatchSend.Reset();
+	}
+
+	SendFunction(MakeArrayView(ConnectionToUpdate));
 }
 
 void UReplicationSystem::PostSendUpdate()
 {
+	using namespace UE::Net;
 	using namespace UE::Net::Private;
 
 	IRIS_PROFILER_SCOPE(FReplicationSystem_PostSendUpdate);
-	
-	Impl->ResetObjectStateDirtiness();
 
-	Impl->EndPostSendUpdate();
-
-	if (bAllowObjectReplication)
+	if (!ensure(Impl->CurrentSendPass != EReplicationSystemSendPass::Invalid))
 	{
-		FDeltaCompressionBaselineManagerPostSendUpdateParams UpdateParams;
-		Impl->ReplicationSystemInternal.GetDeltaCompressionBaselineManager().PostSendUpdate(UpdateParams);
+		return;
 	}
+
+	// Most systems are only updated during the normal TickFlush
+	if (Impl->CurrentSendPass == EReplicationSystemSendPass::TickFlush)
+	{
+		Impl->ResetObjectStateDirtiness();
+
+		Impl->EndPostSendUpdate();
+
+		if (bAllowObjectReplication)
+		{
+			FDeltaCompressionBaselineManagerPostSendUpdateParams UpdateParams;
+			Impl->ReplicationSystemInternal.GetDeltaCompressionBaselineManager().PostSendUpdate(UpdateParams);
+		}
 
 #if UE_NET_IRIS_CSV_STATS && CSV_PROFILER
-	{
-		UE::Net::FNetSendStats& SendStats = Impl->ReplicationSystemInternal.GetSendStats();
-		SendStats.ReportCsvStats();
-	}
+		{
+			UE::Net::FNetSendStats& SendStats = Impl->ReplicationSystemInternal.GetSendStats();
+			SendStats.ReportCsvStats();
+		}
 #endif
+
+	}
+
+	Impl->CurrentSendPass = EReplicationSystemSendPass::Invalid;
 }
 
 void UReplicationSystem::PostGarbageCollection()

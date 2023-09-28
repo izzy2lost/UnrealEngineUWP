@@ -225,6 +225,11 @@ bool FNetObjectAttachmentSendQueue::HasUnsent() const
 	return !UnreliableQueue.IsEmpty() || (ReliableQueue != nullptr && ReliableQueue->HasUnsentBlobs());
 }
 
+bool FNetObjectAttachmentSendQueue::HasUnsentUnreliable() const
+{
+	return !UnreliableQueue.IsEmpty();
+}
+
 bool FNetObjectAttachmentSendQueue::IsAllSentAndAcked() const
 {
 	return UnreliableQueue.IsEmpty() && (ReliableQueue == nullptr || ReliableQueue->IsAllSentAndAcked());
@@ -462,6 +467,17 @@ bool FNetObjectAttachmentsWriter::HasUnsentAttachments(ENetObjectAttachmentType 
 	}
 
 	return Queue->HasUnsent();
+}
+
+bool FNetObjectAttachmentsWriter::HasUnsentUnreliableAttachments(ENetObjectAttachmentType Type, uint32 ObjectIndex) const
+{
+	const FNetObjectAttachmentSendQueue* Queue = GetQueue(Type, ObjectIndex);
+	if (Queue == nullptr)
+	{
+		return false;
+	}
+
+	return Queue->HasUnsentUnreliable();
 }
 
 bool FNetObjectAttachmentsWriter::IsAllSentAndAcked(ENetObjectAttachmentType Type, uint32 ObjectIndex) const

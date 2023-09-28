@@ -46,5 +46,16 @@ public:
 	UFUNCTION(Reliable, Server)
 	void ServerRPCWithParam(int32 IntParam);
 	int32 ServerRPCWithParamCalled = 0;
+
+	UFUNCTION(NetMulticast, unreliable)
+	void NetMulticast_MultiCastRPCSendImmediate();
+	int32 NetMulticast_MultiCastRPCSendImmediateCallOrder = 0;
+
+	UFUNCTION(NetMulticast, unreliable)
+	void NetMulticast_MultiCastRPC();
+	int32 NetMulticast_MultiCastRPCCallOrder = 0;
+
+	int32 CallOrder = 0;
+
 };
 

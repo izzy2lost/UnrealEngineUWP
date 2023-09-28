@@ -13,6 +13,7 @@
 #include "Iris/DataStream/DataStreamManager.h"
 #include "Iris/ReplicationSystem/NetTokenDataStream.h"
 #include "Iris/ReplicationSystem/ReplicationDataStream.h"
+#include "Iris/ReplicationSystem/ReplicationSystem.h"
 
 #include "Net/Core/Misc/ResizableCircularQueue.h"
 
@@ -128,6 +129,7 @@ public:
 	uint32 AddConnection();
 
 	// System Update
+	void PreSendUpdate(const UReplicationSystem::FSendUpdateParams& Params);
 	void PreSendUpdate();
 	void PostSendUpdate();
 
@@ -155,6 +157,7 @@ public:
 	UReplicationSystem* ReplicationSystem;
 	UReplicatedTestObjectBridge* ReplicationBridge;
 	TArray<TStrongObjectPtr<UObject>> CreatedObjects;
+	EReplicationSystemSendPass CurrentSendPass = EReplicationSystemSendPass::Invalid;
 
 private:
 	TArray<FConnectionInfo> Connections;

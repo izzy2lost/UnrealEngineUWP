@@ -9,6 +9,16 @@ namespace UE::Net
 {
 	class FNetSerializationContext;
 	enum class EPacketDeliveryStatus : uint8;
+
+enum class EDataStreamWriteMode : unsigned
+{
+	// Allowed to write all data, this is the default WriteMode
+	Full,
+
+	// Only write data that should be sent after PostTickDispatch
+	PostTickDispatch,
+};
+
 }
 
 /**
@@ -55,6 +65,7 @@ public:
 
 	struct FBeginWriteParameters
 	{
+		UE::Net::EDataStreamWriteMode WriteMode = UE::Net::EDataStreamWriteMode::Full;
 		bool bCanWriteMoreData = false;
 	};
 

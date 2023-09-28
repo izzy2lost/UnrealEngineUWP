@@ -49,6 +49,7 @@
 #include "Iris/Core/IrisDebugging.h"
 #include "Iris/Core/IrisProfiler.h"
 #include "Iris/Core/IrisMemoryTracker.h"
+#include "Net/Experimental/Iris/DataStreamChannel.h"
 #include "Iris/ReplicationSystem/ReplicationSystem.h"
 #include "Iris/ReplicationSystem/ReplicationView.h"
 #include "Iris/ReplicationSystem/Filtering/NetObjectFilter.h"
@@ -949,7 +950,7 @@ void UNetDriver::TickFlush(float DeltaSeconds)
 		{
 			UpdateIrisReplicationViews();
 			SendClientMoveAdjustments();
-			ReplicationSystem->PreSendUpdate(DeltaSeconds);
+			ReplicationSystem->PreSendUpdate(UReplicationSystem::FSendUpdateParams { .SendPass = UE::Net::EReplicationSystemSendPass::TickFlush, .DeltaSeconds = DeltaSeconds });
 		}
 		else
 #endif // UE_WITH_IRIS
@@ -972,7 +973,7 @@ void UNetDriver::TickFlush(float DeltaSeconds)
 		if (ReplicationSystem)
 		{
 			UpdateIrisReplicationViews();
-			ReplicationSystem->PreSendUpdate(DeltaSeconds);
+			ReplicationSystem->PreSendUpdate(UReplicationSystem::FSendUpdateParams { .SendPass = UE::Net::EReplicationSystemSendPass::TickFlush, .DeltaSeconds = DeltaSeconds });
 		}
 	}
 #endif // UE_WITH_IRIS
@@ -1932,6 +1933,10 @@ void UNetDriver::PostTickDispatch()
 			CurConn->PostTickDispatch();
 		}
 	}
+
+#if UE_WITH_IRIS
+	PostDispatchSendUpdate();
+#endif
 
 	if (ReplicationDriver)
 	{
@@ -6567,6 +6572,39 @@ void UNetDriver::SendClientMoveAdjustments()
 		}
 	}
 }
+
+void UNetDriver::PostDispatchSendUpdate()
+{
+	if (ReplicationSystem)
+	{
+		if (!IsKnownChannelName(NAME_DataStream))
+		{
+			return;
+		}
+
+		ReplicationSystem->PreSendUpdate(UReplicationSystem::FSendUpdateParams { .SendPass = UE::Net::EReplicationSystemSendPass::PostTickDispatch });
+
+		ReplicationSystem->SendUpdate([this](TArrayView<uint32> ConnectionsToSend)
+		{
+			const int32 DataStreamChannelIndex = ChannelDefinitionMap[NAME_DataStream].StaticChannelIndex;
+
+			for (uint32 ConnId : ConnectionsToSend)
+			{
+				UNetConnection* NetConnection = GetConnectionById(ConnId);
+				if (NetConnection && NetConnection->Channels.IsValidIndex(DataStreamChannelIndex))
+				{
+					if (UDataStreamChannel* DataStreamChannel = Cast<UDataStreamChannel>(NetConnection->Channels[DataStreamChannelIndex]))
+					{
+						DataStreamChannel->PostTickDispatch();
+					}
+				}
+			}
+		});
+
+		ReplicationSystem->PostSendUpdate();
+	}
+}
+
 #endif // UE_WITH_IRIS
 
 void UNetDriver::InitNetTraceId()

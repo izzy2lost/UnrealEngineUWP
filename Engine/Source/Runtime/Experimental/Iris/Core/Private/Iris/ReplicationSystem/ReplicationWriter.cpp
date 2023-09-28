@@ -308,19 +308,19 @@ bool FReplicationWriter::IsReplicationEnabled() const
 
 // $IRIS TODO : May need to introduce queue and send behaviors. For example one may want to send only with object.
 // One may not want to send unless the object is replicated very soon etc.
-void FReplicationWriter::QueueNetObjectAttachments(FInternalNetRefIndex OwnerInternalIndex, FInternalNetRefIndex SubObjectInternalIndex, TArrayView<const TRefCountPtr<FNetBlob>> InAttachments, ENetObjectAttachmentSendPolicyFlags SendFlags)
+bool FReplicationWriter::QueueNetObjectAttachments(FInternalNetRefIndex OwnerInternalIndex, FInternalNetRefIndex SubObjectInternalIndex, TArrayView<const TRefCountPtr<FNetBlob>> InAttachments, ENetObjectAttachmentSendPolicyFlags SendFlags)
 {
 	if (InAttachments.Num() <= 0)
 	{
 		ensureMsgf(false, TEXT("%s"), TEXT("QueueNetObjectAttachments expects at least one attachment."));
-		return;
+		return false;
 	}
 
 	const bool bObjectInScope = ObjectsInScope.GetBit(OwnerInternalIndex);
 	if (!bObjectInScope && !Parameters.bAllowSendingAttachmentsToObjectsNotInScope)
 	{
 		UE_CLOG_REPLICATIONWRITER_WARNING(bWarnAboutDroppedAttachmentsToObjectsNotInScope, TEXT("Dropping %s attachment due to object ( InternalIndex: %u ) not in scope."), (EnumHasAnyFlags(InAttachments[0]->GetCreationInfo().Flags, ENetBlobFlags::Reliable) ? TEXT("reliable") : TEXT("unreliable")), OwnerInternalIndex);
-		return;
+		return false;
 	}
 	
 	// Route attachments flagged with ScheduleAsOOB through OOB channel if we have started replicating the owner.
@@ -328,20 +328,20 @@ void FReplicationWriter::QueueNetObjectAttachments(FInternalNetRefIndex OwnerInt
 	if (bScheduleUsingOOBChannel && (GetReplicationInfo(OwnerInternalIndex).GetState() < EReplicatedObjectState::WaitOnCreateConfirmation || GetReplicationInfo(OwnerInternalIndex).GetState() >= EReplicatedObjectState::PendingDestroy))
 	{
 		UE_CLOG_REPLICATIONWRITER_WARNING(bWarnAboutDroppedAttachmentsToObjectsNotInScope, TEXT("Dropping attachment scheduled as ScheduleAsOOB due to object ( InternalIndex: %u ) not in replicated state."),  OwnerInternalIndex);
-		return;
+		return false;
 	}
 
 	const uint32 TargetIndex = (bObjectInScope && !bScheduleUsingOOBChannel) ? (SubObjectInternalIndex != FNetRefHandleManager::InvalidInternalIndex ? SubObjectInternalIndex : OwnerInternalIndex) : ObjectIndexForOOBAttachment;
 	ENetObjectAttachmentType AttachmentType = ((bObjectInScope && !bScheduleUsingOOBChannel) ? ENetObjectAttachmentType::Normal : ENetObjectAttachmentType::OutOfBand);
 	if (!Attachments.Enqueue(AttachmentType, TargetIndex, InAttachments))
 	{
-		return;
+		return false;
 	}
 
 	// There's a special case for out of band attachments, we don't need to mark anything dirty.
 	if (IsObjectIndexForOOBAttachment(TargetIndex))
 	{
-		return;
+		return true;
 	}
 
 	FReplicationInfo& TargetInfo = GetReplicationInfo(TargetIndex);
@@ -355,6 +355,8 @@ void FReplicationWriter::QueueNetObjectAttachments(FInternalNetRefIndex OwnerInt
 		FReplicationInfo& OwnerInfo = GetReplicationInfo(OwnerInternalIndex);
 		OwnerInfo.HasDirtySubObjects = 1;
 	}
+
+	return true;
 }
 
 void FReplicationWriter::SetState(uint32 InternalIndex, EReplicatedObjectState NewState)
@@ -2681,37 +2683,56 @@ int FReplicationWriter::WriteDestructionInfo(FNetSerializationContext& Context, 
 
 uint32 FReplicationWriter::WriteOOBAttachments(FNetSerializationContext& Context)
 {
-	uint32 WrittenObjectCount = 0U;	
-	if (WriteContext.bHasHugeObjectToSend)
+	uint32 WrittenObjectCount = 0U;
+
+	if (WriteContext.WriteMode == EDataStreamWriteMode::PostTickDispatch)
 	{
-		IRIS_PROFILER_SCOPE(FReplicationWriter_WriteHugeObjectAttachments);
-		const int32 Result = WriteObjectBatch(Context, ObjectIndexForOOBAttachment, WriteObjectFlag_Attachments | WriteObjectFlag_HugeObject);
-		if (Result == -1)
+		if (WriteContext.bHasOOBAttachmentsToSend && CanSendObject(ObjectIndexForOOBAttachment))
 		{
-			return WrittenObjectCount;
-		}
+			IRIS_PROFILER_SCOPE(FReplicationWriter_WriteOOBAttachments);
+			const int32 Result = WriteObjectBatch(Context, ObjectIndexForOOBAttachment, WriteObjectFlag_Attachments);
+			if (Result == -1)
+			{
+				return WrittenObjectCount;
+			}
 
-		const bool bHasHugeObjectToSend = Attachments.HasUnsentAttachments(ENetObjectAttachmentType::HugeObject, ObjectIndexForOOBAttachment);
-		WriteContext.bHasHugeObjectToSend = bHasHugeObjectToSend;
-		if (!bHasHugeObjectToSend)
-		{
-			HugeObjectSendQueue.Stats.EndSendingTime = FPlatformTime::Cycles64();
+			WriteContext.bHasOOBAttachmentsToSend = Attachments.HasUnsentUnreliableAttachments(ENetObjectAttachmentType::OutOfBand, ObjectIndexForOOBAttachment);
+			WrittenObjectCount += Result;
 		}
-
-		WrittenObjectCount += Result;
 	}
-
-	if (WriteContext.bHasOOBAttachmentsToSend && CanSendObject(ObjectIndexForOOBAttachment))
+	else
 	{
-		IRIS_PROFILER_SCOPE(FReplicationWriter_WriteOOBAttachments);
-		const int32 Result = WriteObjectBatch(Context, ObjectIndexForOOBAttachment, WriteObjectFlag_Attachments);
-		if (Result == -1)
+		if (WriteContext.bHasHugeObjectToSend)
 		{
-			return WrittenObjectCount;
+			IRIS_PROFILER_SCOPE(FReplicationWriter_WriteHugeObjectAttachments);
+			const int32 Result = WriteObjectBatch(Context, ObjectIndexForOOBAttachment, WriteObjectFlag_Attachments | WriteObjectFlag_HugeObject);
+			if (Result == -1)
+			{
+				return WrittenObjectCount;
+			}
+
+			const bool bHasHugeObjectToSend = Attachments.HasUnsentAttachments(ENetObjectAttachmentType::HugeObject, ObjectIndexForOOBAttachment);
+			WriteContext.bHasHugeObjectToSend = bHasHugeObjectToSend;
+			if (!bHasHugeObjectToSend)
+			{
+				HugeObjectSendQueue.Stats.EndSendingTime = FPlatformTime::Cycles64();
+			}
+
+			WrittenObjectCount += Result;
 		}
 
-		WriteContext.bHasOOBAttachmentsToSend = Attachments.HasUnsentAttachments(ENetObjectAttachmentType::OutOfBand, ObjectIndexForOOBAttachment);
-		WrittenObjectCount += Result;
+		if (WriteContext.bHasOOBAttachmentsToSend && CanSendObject(ObjectIndexForOOBAttachment))
+		{
+			IRIS_PROFILER_SCOPE(FReplicationWriter_WriteOOBAttachments);
+			const int32 Result = WriteObjectBatch(Context, ObjectIndexForOOBAttachment, WriteObjectFlag_Attachments);
+			if (Result == -1)
+			{
+				return WrittenObjectCount;
+			}
+
+			WriteContext.bHasOOBAttachmentsToSend = Attachments.HasUnsentAttachments(ENetObjectAttachmentType::OutOfBand, ObjectIndexForOOBAttachment);
+			WrittenObjectCount += Result;
+		}
 	}
 
 	return WrittenObjectCount;
@@ -3018,38 +3039,62 @@ UDataStream::EWriteResult FReplicationWriter::BeginWrite(const UDataStream::FBeg
 		return UDataStream::EWriteResult::NoData;
 	}
 
-	// See if we have any work to do
-	const bool bHasUpdatedObjectsToSend = ObjectsWithDirtyChanges.IsAnyBitSet();
-	const bool bHasDestroyedObjectsToSend = ObjectsPendingDestroy.IsAnyBitSet();
-	const bool bHasUnsentOOBAttachments = Attachments.HasUnsentAttachments(ENetObjectAttachmentType::OutOfBand, ObjectIndexForOOBAttachment);
-	const bool bHasUnsentHugeObject = Attachments.HasUnsentAttachments(ENetObjectAttachmentType::HugeObject, ObjectIndexForOOBAttachment);
+	// Initialize context which can be used over multiple calls to WriteData
+	WriteContext.bHasUpdatedObjectsToSend  = 0U;
+	WriteContext.bHasDestroyedObjectsToSend = 0U;
+	WriteContext.bHasHugeObjectToSend = 0U;
+	WriteContext.bHasOOBAttachmentsToSend = 0U;
+	WriteContext.ScheduledObjectCount = 0u;
 
-	// Nothing to send
-	if (!(bHasUpdatedObjectsToSend | bHasDestroyedObjectsToSend | bHasUnsentOOBAttachments | bHasUnsentHugeObject))
+	WriteContext.WriteMode = Params.WriteMode;
+
+	// Setup for writing PostTickDispatch data, currently this is only writing unreliable OOBAttachments.
+	if (WriteContext.WriteMode == EDataStreamWriteMode::PostTickDispatch)
 	{
-		return UDataStream::EWriteResult::NoData;
+		const bool bHasUnsentOOBAttachments = Attachments.HasUnsentUnreliableAttachments(ENetObjectAttachmentType::OutOfBand, ObjectIndexForOOBAttachment);
+		if (!bHasUnsentOOBAttachments)
+		{
+			return UDataStream::EWriteResult::NoData;
+		}
+		WriteContext.bHasOOBAttachmentsToSend = bHasUnsentOOBAttachments;
+		WriteContext.bCanWriteMoreData = Params.bCanWriteMoreData;
+	}
+	else
+	{
+		// See if we have any work to do
+		const bool bHasUpdatedObjectsToSend = ObjectsWithDirtyChanges.IsAnyBitSet();
+		const bool bHasDestroyedObjectsToSend = ObjectsPendingDestroy.IsAnyBitSet();
+		const bool bHasUnsentOOBAttachments = Attachments.HasUnsentAttachments(ENetObjectAttachmentType::OutOfBand, ObjectIndexForOOBAttachment);
+		const bool bHasUnsentHugeObject = Attachments.HasUnsentAttachments(ENetObjectAttachmentType::HugeObject, ObjectIndexForOOBAttachment);
+
+		// Nothing to send
+		if (!(bHasUpdatedObjectsToSend | bHasDestroyedObjectsToSend | bHasUnsentOOBAttachments | bHasUnsentHugeObject))
+		{
+			return UDataStream::EWriteResult::NoData;
+		}
+
+		// Initialize context which can be used over multiple calls to WriteData
+		WriteContext.bHasUpdatedObjectsToSend  = bHasUpdatedObjectsToSend | bHasUnsentOOBAttachments | bHasUnsentHugeObject;
+		WriteContext.bHasDestroyedObjectsToSend = bHasDestroyedObjectsToSend;
+		WriteContext.bHasHugeObjectToSend = bHasUnsentHugeObject;
+		WriteContext.bHasOOBAttachmentsToSend = bHasUnsentOOBAttachments;
+
+		// $IRIS TODO: LinearAllocator/ScratchPad?
+		// Allocate space for indices to send
+		// This should be allocated from frame temp allocator and be cleaned up end of frame, we might want this data to persist over multiple write calls but not over multiple frames 
+		// https://jira.it.epicgames.com/browse/UE-127374	
+		WriteContext.ScheduledObjectInfos = reinterpret_cast<FScheduleObjectInfo*>(FMemory::Malloc(sizeof(FScheduleObjectInfo) * Parameters.MaxActiveReplicatedObjectCount));
+		WriteContext.ScheduledObjectCount = ScheduleObjects(WriteContext.ScheduledObjectInfos);
 	}
 
-	// Initialize context which can be used over multiple calls to WriteData
-	WriteContext.bHasUpdatedObjectsToSend  = bHasUpdatedObjectsToSend | bHasUnsentOOBAttachments | bHasUnsentHugeObject;
-	WriteContext.bHasDestroyedObjectsToSend = bHasDestroyedObjectsToSend;
-	WriteContext.bHasHugeObjectToSend = bHasUnsentHugeObject;
-	WriteContext.bHasOOBAttachmentsToSend = bHasUnsentOOBAttachments;
+	// Reset dependent object array
+	WriteContext.DependentObjectsPendingSend.Reset();
+
 	WriteContext.CurrentIndex = 0U;
 	WriteContext.FailedToWriteSmallObjectCount = 0U;
 	WriteContext.SortedObjectCount = 0U;
 	WriteContext.NumWrittenPacketsInThisBatch = 0U;
 	WriteContext.bCanWriteMoreData = Params.bCanWriteMoreData;
-
-	// Reset dependent object array
-	WriteContext.DependentObjectsPendingSend.Reset();
-
-	// $IRIS TODO: LinearAllocator/ScratchPad?
-	// Allocate space for indices to send
-	// This should be allocated from frame temp allocator and be cleaned up end of frame, we might want this data to persist over multiple write calls but not over multiple frames 
-	// https://jira.it.epicgames.com/browse/UE-127374	
-	WriteContext.ScheduledObjectInfos = reinterpret_cast<FScheduleObjectInfo*>(FMemory::Malloc(sizeof(FScheduleObjectInfo) * Parameters.MaxActiveReplicatedObjectCount));
-	WriteContext.ScheduledObjectCount = ScheduleObjects(WriteContext.ScheduledObjectInfos);
 
 	// Clear net stats. Used for CVS and Network Insights stats.
 	WriteContext.Stats.Reset();

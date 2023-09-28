@@ -55,6 +55,9 @@ public:
 		ProcessObjectsInScope,
 	};
 
+	FNetBitArrayView GetConnectionsPendingImmediateSend() const;
+
+	void ProcessOOBNetObjectAttachmentSendQueue(FNetBitArray& OutConnectionsPendingImmediateSend);
 	void ProcessNetObjectAttachmentSendQueue(EProcessMode ProcessMode);
 	void ResetNetObjectAttachmentSendQueue();
 
@@ -89,6 +92,7 @@ private:
 		void PrepareProcessQueue(FReplicationConnections* InConnections, const FNetRefHandleManager* InNetRefHandleManager);
 		void ProcessQueue(EProcessMode ProcessMode);
 		void ResetProcessQueue();
+		void PrepareAndProcessOOBAttachmentQueue(FReplicationConnections* InConnections, const FNetRefHandleManager* InNetRefHandleManager, FNetBitArray& OutConnetionsPendingImmediateSend);
 	
 	private:
 		struct FNetObjectAttachmentQueueEntry
@@ -105,21 +109,26 @@ private:
 
 		FNetBlobManager* Manager;
 		FQueue AttachmentQueue;
+		FQueue ScheduleAsOOBAttachmentQueue;		
 		bool bHasMulticastAttachments;
 
 		struct FProcessQueueContext
 		{
 			FNetBitArray AttachmentsToObjectsGoingOutOfScope;
 			FNetBitArray AttachmentsToObjectsInScope;
+			FNetBitArray ConnectionsPendingSendInPostDispatch;
 
 			TArray<uint32> ConnectionIds;
 			FReplicationConnections* Connections = nullptr;
 			const FNetRefHandleManager* NetRefHandleManager = nullptr;
+			FQueue* QueueToProcess = nullptr;
 
 			void Reset()
 			{
 				Connections = nullptr;
 				NetRefHandleManager = nullptr;
+				QueueToProcess = nullptr;
+				ConnectionsPendingSendInPostDispatch.Reset();
 			}
 
 			bool IsValid() const { return NetRefHandleManager != nullptr; }

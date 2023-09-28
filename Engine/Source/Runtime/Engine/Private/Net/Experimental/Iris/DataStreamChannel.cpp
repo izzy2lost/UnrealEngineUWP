@@ -155,6 +155,39 @@ void UDataStreamChannel::SendOpenBunch()
 #endif // UE_WITH_IRIS
 }
 
+void UDataStreamChannel::PostTickDispatch()
+{
+#if UE_WITH_IRIS
+	using namespace UE::Net;
+
+	if (!Connection->Driver->IsUsingIrisReplication() || !bHandshakeComplete)
+	{
+		return;
+	}
+
+	if (IsPacketWindowFull() || !Connection->HasReceivedClientPacket() || (Connection->Handler != nullptr && !Connection->Handler->IsFullyInitialized()))
+	{
+		return;
+	}
+
+	// We probably want separate bandwidth management for iris as we are not pre-filling sendbuffer before call to NetReady.
+	if (!IsNetReady(UE::Net::Private::bIrisSaturateBandwidth))
+	{
+		return;
+	}
+
+#if UE_NET_IRIS_CSV_STATS
+	CSV_SCOPED_TIMING_STAT_EXCLUSIVE(UDataStreamChannel_Tick);
+#endif
+
+	IRIS_PROFILER_SCOPE(UDataStreamChannel_Tick);
+	LLM_SCOPE_BYTAG(Iris);
+
+	WriteData(EDataStreamWriteMode::PostTickDispatch);
+
+#endif
+}
+
 void UDataStreamChannel::Tick()
 {
 #if UE_WITH_IRIS
@@ -191,6 +224,16 @@ void UDataStreamChannel::Tick()
 	IRIS_PROFILER_SCOPE(UDataStreamChannel_Tick);
 	LLM_SCOPE_BYTAG(Iris);
 
+	WriteData(EDataStreamWriteMode::Full);
+
+#endif
+}
+
+void UDataStreamChannel::WriteData(UE::Net::EDataStreamWriteMode WriteMode)
+{
+#if UE_WITH_IRIS
+	using namespace UE::Net;
+
 	// Limit the amount of bits to minimum of a bunch and our buffer. NetBitStreamWriter requires the number of bytes to be a multiple of 4.
 	const uint32 MaxBitCount = uint32(Connection->GetMaxSingleBunchSizeBits());
 	const uint32 MaxBytes = FPlatformMath::Min((MaxBitCount/32U)*4U, (uint32)sizeof(BitStreamBuffer));
@@ -198,6 +241,9 @@ void UDataStreamChannel::Tick()
 
 	// Try to determine if we have headroom to write more than a single packet if needed.
 	UDataStream::FBeginWriteParameters BeginWriteParams;
+	BeginWriteParams.WriteMode = WriteMode;
+
+	if (WriteMode == EDataStreamWriteMode::Full)
 	{
 		int32 CurrentQueuedBits = Connection->QueuedBits + Connection->SendBuffer.GetNumBits();
 		if (CurrentQueuedBits < 0)
@@ -309,6 +355,13 @@ void UDataStreamChannel::Tick()
 
 	// call end write to cleanup data initialized in BeginWrite	
 	DataStreamManager->EndWrite();
+
+	// If we did write data and the current WriteMode is PostTickDispatch we flush the packet here.
+	if (WriteMode == EDataStreamWriteMode::PostTickDispatch && bNeedsPreSendFlush)
+	{
+		IRIS_PROFILER_SCOPE(UDataStreamChannel_FlushNet);
+		Connection->FlushNet();	
+	}
 
 #endif // UE_WITH_IRIS
 }

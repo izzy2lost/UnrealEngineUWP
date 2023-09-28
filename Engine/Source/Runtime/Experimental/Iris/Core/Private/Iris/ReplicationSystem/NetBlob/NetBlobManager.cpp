@@ -236,6 +236,11 @@ bool FNetBlobManager::GetOwnerAndSubObjectIndicesFromHandle(FNetRefHandle RefHan
 	return true;
 }
 
+void FNetBlobManager::ProcessOOBNetObjectAttachmentSendQueue(FNetBitArray& OutConnetionsPendingImmediateSend)
+{
+	AttachmentSendQueue.PrepareAndProcessOOBAttachmentQueue(Connections, NetRefHandleManager, OutConnetionsPendingImmediateSend);
+}
+
 void FNetBlobManager::ProcessNetObjectAttachmentSendQueue(EProcessMode ProcessMode)
 {
 	AttachmentSendQueue.PrepareProcessQueue(Connections, NetRefHandleManager);
@@ -316,7 +321,10 @@ void FNetBlobManager::FNetObjectAttachmentSendQueue::Init(FNetBlobManager* InMan
 
 void FNetBlobManager::FNetObjectAttachmentSendQueue::Enqueue(uint32 ConnectionId, FInternalNetRefIndex OwnerIndex, FInternalNetRefIndex SubObjectIndex, const TRefCountPtr<FNetObjectAttachment>& Attachment, ENetObjectAttachmentSendPolicyFlags SendFlags)
 {
-	FNetObjectAttachmentQueueEntry& QueueEntry = AttachmentQueue.AddDefaulted_GetRef();
+	const bool bScheduleUsingOOBAttachmentQueue = EnumHasAnyFlags(SendFlags, ENetObjectAttachmentSendPolicyFlags::ScheduleAsOOB);
+	FQueue& TargetQueue = bScheduleUsingOOBAttachmentQueue ? ScheduleAsOOBAttachmentQueue : AttachmentQueue;
+
+	FNetObjectAttachmentQueueEntry& QueueEntry = TargetQueue.AddDefaulted_GetRef();
 	QueueEntry.ConnectionId = ConnectionId;
 	QueueEntry.OwnerIndex = OwnerIndex;
 	QueueEntry.SubObjectIndex = SubObjectIndex;
@@ -326,7 +334,10 @@ void FNetBlobManager::FNetObjectAttachmentSendQueue::Enqueue(uint32 ConnectionId
 
 void FNetBlobManager::FNetObjectAttachmentSendQueue::Enqueue(FInternalNetRefIndex OwnerIndex, FInternalNetRefIndex SubObjectIndex, const TRefCountPtr<FNetObjectAttachment>& Attachment, ENetObjectAttachmentSendPolicyFlags SendFlags)
 {
-	FNetObjectAttachmentQueueEntry& QueueEntry = AttachmentQueue.AddDefaulted_GetRef();
+	const bool bScheduleUsingOOBAttachmentQueue = EnumHasAnyFlags(SendFlags, ENetObjectAttachmentSendPolicyFlags::ScheduleAsOOB);
+	FQueue& TargetQueue = bScheduleUsingOOBAttachmentQueue ? ScheduleAsOOBAttachmentQueue : AttachmentQueue;
+
+	FNetObjectAttachmentQueueEntry& QueueEntry = TargetQueue.AddDefaulted_GetRef();
 	QueueEntry.ConnectionId = 0;
 	QueueEntry.OwnerIndex = OwnerIndex;
 	QueueEntry.SubObjectIndex = SubObjectIndex;
@@ -336,6 +347,53 @@ void FNetBlobManager::FNetObjectAttachmentSendQueue::Enqueue(FInternalNetRefInde
 	bHasMulticastAttachments = true;
 }
 
+void FNetBlobManager::FNetObjectAttachmentSendQueue::PrepareAndProcessOOBAttachmentQueue(FReplicationConnections* InConnections, const FNetRefHandleManager* InNetRefHandleManager, FNetBitArray& OutConnectionsPendingImmediateSend)
+{
+	check(!ProcessContext.IsValid());
+
+	if (ProcessContext.IsValid())
+	{
+		return;
+	}
+
+	if (ScheduleAsOOBAttachmentQueue.Num() <= 0)
+	{
+		OutConnectionsPendingImmediateSend.Reset();
+		return;
+	}
+
+	// Init context to process OOBAttachmentQueue
+	ProcessContext.QueueToProcess = &ScheduleAsOOBAttachmentQueue;
+	ProcessContext.Connections = InConnections;
+	ProcessContext.NetRefHandleManager = InNetRefHandleManager;	
+	ProcessContext.AttachmentsToObjectsInScope.Init(ScheduleAsOOBAttachmentQueue.Num());
+	ProcessContext.ConnectionsPendingSendInPostDispatch.Init(InConnections->GetValidConnections().GetNumBits());
+
+	if (bHasMulticastAttachments)
+	{
+		const FNetBitArray& ValidConnections = InConnections->GetValidConnections();
+		const FNetBitArrayView ReplicatingConnections = MakeNetBitArrayView(ValidConnections);
+
+		ProcessContext.ConnectionIds.SetNum(ReplicatingConnections.CountSetBits());
+		ReplicatingConnections.GetSetBitIndices(0, ~0, ProcessContext.ConnectionIds.GetData(), ProcessContext.ConnectionIds.Num());
+	}
+
+	uint32 CurrentEntryIndex = 0U;
+	for (const FNetObjectAttachmentQueueEntry& Entry : MakeArrayView(ScheduleAsOOBAttachmentQueue))
+	{
+		ProcessContext.AttachmentsToObjectsInScope.SetBit(CurrentEntryIndex);
+		++CurrentEntryIndex;
+	}
+
+	ProcessQueue(EProcessMode::ProcessObjectsInScope);
+
+	OutConnectionsPendingImmediateSend.InitAndCopy(ProcessContext.ConnectionsPendingSendInPostDispatch);
+
+	// Reset Context
+	ProcessContext.Reset();
+	ScheduleAsOOBAttachmentQueue.Reset();	
+}
+
 void FNetBlobManager::FNetObjectAttachmentSendQueue::PrepareProcessQueue(FReplicationConnections* InConnections, const FNetRefHandleManager* InNetRefHandleManager)
 {
 	if (ProcessContext.IsValid())
@@ -343,16 +401,22 @@ void FNetBlobManager::FNetObjectAttachmentSendQueue::PrepareProcessQueue(FReplic
 		return;
 	}
 
-	ProcessContext.Connections = InConnections;
-	ProcessContext.NetRefHandleManager = InNetRefHandleManager;
-
-	ProcessContext.AttachmentsToObjectsGoingOutOfScope.Init(AttachmentQueue.Num());
-	ProcessContext.AttachmentsToObjectsInScope.Init(AttachmentQueue.Num());
+	// If we have entries in the ScheduleAsOOBAttachmentQueue that was not processed during PostTickDispatch (might have been posted after PostTickDispatch) we make sure to process them now.
+	AttachmentQueue.Append(ScheduleAsOOBAttachmentQueue);
+	ScheduleAsOOBAttachmentQueue.Reset();
 
 	if (AttachmentQueue.Num() <= 0)
 	{
 		return;
 	}
+
+	// Init context
+	ProcessContext.QueueToProcess = &AttachmentQueue;
+	ProcessContext.Connections = InConnections;
+	ProcessContext.NetRefHandleManager = InNetRefHandleManager;	
+	ProcessContext.AttachmentsToObjectsGoingOutOfScope.Init(AttachmentQueue.Num());
+	ProcessContext.AttachmentsToObjectsInScope.Init(AttachmentQueue.Num());
+	ProcessContext.ConnectionsPendingSendInPostDispatch.Init(InConnections->GetValidConnections().GetNumBits());
 
 	if (bHasMulticastAttachments)
 	{
@@ -407,13 +471,19 @@ void FNetBlobManager::FNetObjectAttachmentSendQueue::ResetProcessQueue()
 
 void FNetBlobManager::FNetObjectAttachmentSendQueue::ProcessQueue(EProcessMode ProcessMode)
 {
+	if (!ProcessContext.IsValid())
+	{
+		return;
+	}
+
 	const FNetBitArray& IndicesToProcess = (ProcessMode == EProcessMode::ProcessObjectsGoingOutOfScope) ? ProcessContext.AttachmentsToObjectsGoingOutOfScope : ProcessContext.AttachmentsToObjectsInScope;
 
 	TArray<TRefCountPtr<FNetBlob>> PartialNetBlobs;
-	const FNetObjectAttachmentQueueEntry* Entries = AttachmentQueue.GetData();
+	const FNetObjectAttachmentQueueEntry* Entries = ProcessContext.QueueToProcess->GetData();
+	const uint32 NumEntries = ProcessContext.QueueToProcess->Num();
 
 	// Verify that we have not missed to prepare the process context
-	check(ProcessContext.IsValid() && IndicesToProcess.GetNumBits() == AttachmentQueue.Num());
+	check(ProcessContext.IsValid() && IndicesToProcess.GetNumBits() == NumEntries);
 
 	IndicesToProcess.ForAllSetBits([this, Entries, &PartialNetBlobs](uint32 Index)
 	{
@@ -426,6 +496,7 @@ void FNetBlobManager::FNetObjectAttachmentSendQueue::ProcessQueue(EProcessMode P
 
 		const bool bMulticast = Entry.ConnectionId == 0;
 		const bool bHasConnectionSpecificSerialization = ReplicationStateDescriptor && EnumHasAnyFlags(ReplicationStateDescriptor->Traits, EReplicationStateTraits::HasConnectionSpecificSerialization);
+		const bool bSendInPostTickDispatch = EnumHasAnyFlags(Entry.SendFlags, ENetObjectAttachmentSendPolicyFlags::SendInPostTickDispatch);
 
 		const bool bShouldSendAttachmentsWithObject = EnumHasAnyFlags(Entry.SendFlags, ENetObjectAttachmentSendPolicyFlags::ScheduleAsOOB) ? false : Manager->bSendAttachmentsWithObject;
 
@@ -468,14 +539,22 @@ void FNetBlobManager::FNetObjectAttachmentSendQueue::ProcessQueue(EProcessMode P
 
 				FReplicationConnection* Connection = ProcessContext.Connections->GetConnection(ConnectionId);
 				// We're only iterating over valid connections so the Connection pointer must be valid.
-				Connection->ReplicationWriter->QueueNetObjectAttachments(Entry.OwnerIndex, Entry.SubObjectIndex, AttachmentsView, Entry.SendFlags);
+				const bool bWasEnqueued = Connection->ReplicationWriter->QueueNetObjectAttachments(Entry.OwnerIndex, Entry.SubObjectIndex, AttachmentsView, Entry.SendFlags);
+				if (bWasEnqueued && bSendInPostTickDispatch)
+				{
+					ProcessContext.ConnectionsPendingSendInPostDispatch.SetBit(ConnectionId);
+				}
 			}
 		}
 		else
 		{
 			if (FReplicationConnection* Connection = ProcessContext.Connections->GetConnection(Entry.ConnectionId))
 			{
-				Connection->ReplicationWriter->QueueNetObjectAttachments(Entry.OwnerIndex, Entry.SubObjectIndex, AttachmentsView, Entry.SendFlags);
+				const bool bWasEnqueued = Connection->ReplicationWriter->QueueNetObjectAttachments(Entry.OwnerIndex, Entry.SubObjectIndex, AttachmentsView, Entry.SendFlags);
+				if (bWasEnqueued && bSendInPostTickDispatch)
+				{
+					ProcessContext.ConnectionsPendingSendInPostDispatch.SetBit(Entry.ConnectionId);
+				}	
 			}
 		}
 	});
