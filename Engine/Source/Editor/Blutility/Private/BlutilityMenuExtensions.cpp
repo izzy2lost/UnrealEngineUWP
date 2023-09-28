@@ -647,9 +647,10 @@ void FBlutilityMenuExtensions::GetBlutilityClasses(TArray<FAssetData>& OutAssets
 	}
 }
 
-void FBlutilityMenuExtensions::CreateActorBlutilityActionsMenu(FMenuBuilder& MenuBuilder, TMap<TSharedRef<FAssetActionUtilityPrototype>, TSet<int32>> Utils, const TArray<AActor*> SelectedSupportedActors)
+void FBlutilityMenuExtensions::CreateActorBlutilityActionsMenu(FToolMenuSection& InSection, TMap<TSharedRef<FAssetActionUtilityPrototype>, TSet<int32>> Utils, const TArray<AActor*> SelectedSupportedActors)
 {
-	CreateBlutilityActionsMenu<AActor*>(MenuBuilder, Utils,
+	CreateBlutilityActionsMenu<AActor*>(InSection, Utils,
+		"ScriptedActorActions",
 		LOCTEXT("ScriptedActorActions", "Scripted Actor Actions"),
 		LOCTEXT("ScriptedActorActionsTooltip", "Scripted actions available for the selected actors"),
 		[](const FProperty* Property) -> bool
