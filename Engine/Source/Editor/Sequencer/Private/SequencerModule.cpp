@@ -53,6 +53,16 @@
 	UE::MovieScene::FEntityManager*& GEntityManagerForDebugging = UE::MovieScene::GEntityManagerForDebuggingVisualizers;
 #endif
 
+namespace UE::Sequencer::Private
+{
+	static const TMap<EPropertyKeyedStatus, FName> KeyedStatusStyleNames =
+		{
+			{ EPropertyKeyedStatus::NotKeyed, "Sequencer.KeyedStatus.NotKeyed" },
+			{ EPropertyKeyedStatus::KeyedInOtherFrame, "Sequencer.KeyedStatus.Animated" },
+			{ EPropertyKeyedStatus::KeyedInFrame, "Sequencer.KeyedStatus.Keyed" },
+			{ EPropertyKeyedStatus::PartiallyKeyed, "Sequencer.KeyedStatus.PartialKey" },
+		};
+}
 
 
 #define LOCTEXT_NAMESPACE "SequencerEditor"
@@ -83,6 +93,23 @@ static TSharedPtr<IDetailKeyframeHandler> GetKeyframeHandler(TWeakPtr<IDetailTre
 	}
 
 	return DetailsView->GetKeyframeHandler();
+}
+
+static FSlateIcon GetKeyframeIcon(TWeakPtr<IDetailTreeNode> OwnerTreeNode, TSharedPtr<IPropertyHandle> PropertyHandle)
+{
+	if (!PropertyHandle.IsValid())
+	{
+		return FSlateIcon();
+	}
+
+	EPropertyKeyedStatus KeyedStatus = EPropertyKeyedStatus::NotKeyed;
+
+	if (TSharedPtr<IDetailKeyframeHandler> KeyframeHandler = GetKeyframeHandler(OwnerTreeNode))
+	{
+		KeyedStatus = KeyframeHandler->GetPropertyKeyedStatus(*PropertyHandle);
+	}
+
+	return FSlateIcon(FAppStyle::GetAppStyleSetName(), UE::Sequencer::Private::KeyedStatusStyleNames[KeyedStatus]);
 }
 
 static bool IsKeyframeButtonVisible(TWeakPtr<IDetailTreeNode> OwnerTreeNode, TSharedPtr<IPropertyHandle> PropertyHandle)
@@ -133,12 +160,11 @@ static void RegisterKeyframeExtensionHandler(const FOnGenerateGlobalRowExtension
 		return;
 	}
 
-	static FSlateIcon CreateKeyIcon(FAppStyle::Get().GetStyleSetName(), "Sequencer.AddKey.Details");
-
 	TWeakPtr<IDetailTreeNode> OwnerTreeNode = Args.OwnerTreeNode;
 
 	FPropertyRowExtensionButton& CreateKey = OutExtensionButtons.AddDefaulted_GetRef();
-	CreateKey.Icon = CreateKeyIcon;
+
+	CreateKey.Icon = TAttribute<FSlateIcon>::Create(TAttribute<FSlateIcon>::FGetter::CreateStatic(&GetKeyframeIcon, OwnerTreeNode, PropertyHandle));
 	CreateKey.Label = NSLOCTEXT("PropertyEditor", "CreateKey", "Create Key");
 	CreateKey.ToolTip = NSLOCTEXT("PropertyEditor", "CreateKeyToolTip", "Add a keyframe for this property.");
 	CreateKey.UIAction = FUIAction(

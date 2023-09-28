@@ -43,7 +43,10 @@
 #include "Constraints/TransformConstraintChannelInterface.h"
 #include "Misc/TransactionObjectEvent.h"
 #include "Engine/Selection.h"
+#include "PropertyHandle.h"
+#include "IDetailKeyframeHandler.h"
 #include "ISequencerObjectChangeListener.h"
+#include "ISequencerPropertyKeyedStatus.h"
 
 #define LOCTEXT_NAMESPACE "MovieScene_TransformTrack"
 
@@ -86,13 +89,18 @@ F3DTransformTrackEditor::F3DTransformTrackEditor( TSharedRef<ISequencer> InSeque
 		const FProperty* Scale3DProperty = FindFProperty<FProperty>(USceneComponent::StaticClass(), USceneComponent::GetRelativeScale3DPropertyName());
 
 		ISequencerObjectChangeListener& ObjectChangeListener = SequencerPtr->GetObjectChangeListener();
-		auto AddTransformProperty = [this, &ObjectChangeListener](const FProperty* Property, EMovieSceneTransformChannel TransformChannel)
+		ISequencerPropertyKeyedStatusHandler& PropertyKeyedStatusHandler = SequencerPtr->GetPropertyKeyedStatusHandler();
+
+		auto AddTransformProperty = [this, &ObjectChangeListener, &PropertyKeyedStatusHandler](const FProperty* Property, EMovieSceneTransformChannel TransformChannel)
 		{
 			if (Property)
 			{
 				TransformProperties.Add({ Property, TransformChannel });
 				ObjectChangeListener.GetOnAnimatablePropertyChanged(Property)
 					.AddRaw(this, &F3DTransformTrackEditor::OnTransformPropertyChanged, TransformChannel);
+
+				PropertyKeyedStatusHandler.GetExternalHandler(Property)
+					.BindRaw(this, &F3DTransformTrackEditor::GetPropertyKeyedStatus, TransformChannel);
 			}
 		};
 
@@ -112,9 +120,11 @@ F3DTransformTrackEditor::~F3DTransformTrackEditor()
 	if (TSharedPtr<ISequencer> SequencerPtr = FMovieSceneTrackEditor::GetSequencer())
 	{
 		ISequencerObjectChangeListener& ObjectChangeListener = SequencerPtr->GetObjectChangeListener();
+		ISequencerPropertyKeyedStatusHandler& PropertyKeyedStatusHandler = SequencerPtr->GetPropertyKeyedStatusHandler();
 		for (const FTransformPropertyInfo& TransformProperty : TransformProperties)
 		{
 			ObjectChangeListener.GetOnAnimatablePropertyChanged(TransformProperty.Property).RemoveAll(this);
+			PropertyKeyedStatusHandler.GetExternalHandler(TransformProperty.Property).Unbind();
 		}
 	}
 }
@@ -1114,6 +1124,206 @@ int32 GetPreviousKey(FMovieSceneDoubleChannel& Channel, FFrameNumber Time)
 
 	int32 Index = Channel.GetData().GetIndex(KeyHandles[KeyHandles.Num() - 1]);
 	return Index;
+}
+
+EPropertyKeyedStatus F3DTransformTrackEditor::GetKeyedStatusInSection(const UMovieScene3DTransformSection& Section, const TRange<FFrameNumber>& Range, EMovieSceneTransformChannel TransformChannel, TConstArrayView<int32> ChannelIndices) const
+{
+	EPropertyKeyedStatus SectionKeyedStatus = EPropertyKeyedStatus::NotKeyed;
+
+	// Skip Section if the Transform Channel is completely masked out
+	if (!EnumHasAnyFlags(Section.GetMask().GetChannels(), TransformChannel))
+	{
+		return SectionKeyedStatus;
+	}
+
+	int32 EmptyChannelCount = 0;
+
+	FMovieSceneChannelProxy& ChannelProxy = Section.GetChannelProxy();
+	for (int32 ChannelIndex : ChannelIndices)
+	{
+		FMovieSceneDoubleChannel* Channel = ChannelProxy.GetChannel<FMovieSceneDoubleChannel>(ChannelIndex);
+		if (!Channel)
+		{
+			continue;
+		}
+
+		if (Channel->GetNumKeys() == 0)
+		{
+			++EmptyChannelCount;
+			continue;
+		}
+
+		SectionKeyedStatus = FMath::Max(SectionKeyedStatus, EPropertyKeyedStatus::KeyedInOtherFrame);
+
+		TArray<FFrameNumber> KeyTimes;
+		Channel->GetKeys(Range, &KeyTimes, nullptr);
+		if (KeyTimes.IsEmpty())
+		{
+			++EmptyChannelCount;
+		}
+		else
+		{
+			SectionKeyedStatus = FMath::Max(SectionKeyedStatus, EPropertyKeyedStatus::PartiallyKeyed);
+		}
+	}
+
+	if (EmptyChannelCount == 0 && SectionKeyedStatus == EPropertyKeyedStatus::PartiallyKeyed)
+	{
+		SectionKeyedStatus = EPropertyKeyedStatus::KeyedInFrame;
+	}
+	return SectionKeyedStatus;
+}
+
+EPropertyKeyedStatus F3DTransformTrackEditor::GetPropertyKeyedStatus(const IPropertyHandle& PropertyHandle, EMovieSceneTransformChannel TransformChannel) const
+{
+	TRACE_CPUPROFILER_EVENT_SCOPE(F3DTransformTrackEditor::GetPropertyKeyedStatus);
+
+	TSharedPtr<ISequencer> SequencerPtr = FMovieSceneTrackEditor::GetSequencer();
+	if (!SequencerPtr.IsValid())
+	{
+		return EPropertyKeyedStatus::NotKeyed;
+	}
+
+	UMovieSceneSequence* Sequence = SequencerPtr->GetFocusedMovieSceneSequence();
+
+	UMovieScene* MovieScene = Sequence ? Sequence->GetMovieScene() : nullptr;
+	if (!MovieScene)
+	{
+		return EPropertyKeyedStatus::NotKeyed;
+	}
+
+	TArray<UObject*> OuterObjects;
+	PropertyHandle.GetOuterObjects(OuterObjects);
+	if (OuterObjects.IsEmpty())
+	{
+		return EPropertyKeyedStatus::NotKeyed;
+	}
+
+	TSet<const UMovieScene3DTransformSection*> ProcessedSections;
+	ProcessedSections.Reserve(OuterObjects.Num());
+
+	TArray<int32, TFixedAllocator<3>> ChannelIndices;
+	switch (TransformChannel)
+	{
+	case EMovieSceneTransformChannel::Translation:
+		ChannelIndices = { 0, 1, 2 };
+		break;
+
+	case EMovieSceneTransformChannel::Rotation:
+		ChannelIndices = { 3, 4, 5 };
+		break;
+
+	case EMovieSceneTransformChannel::Scale:
+		ChannelIndices = { 6, 7, 8 };
+		break;
+	}
+
+	const TRange<FFrameNumber> FrameRange = TRange<FFrameNumber>(SequencerPtr->GetLocalTime().Time.FrameNumber);
+
+	EPropertyKeyedStatus KeyedStatus = EPropertyKeyedStatus::NotKeyed;
+
+	// List of Tracks that had no sections at the current frame that require an additional check by going through all its sections and whether there's a key in any of them.
+	// Used only to determine whether to return "Not Keyed" or "Keyed In Other Frame".
+	TArray<const UMovieScene3DTransformTrack*> TransformTracksToCheck;
+	TransformTracksToCheck.Reserve(OuterObjects.Num());
+
+	for (UObject* Object : OuterObjects)
+	{
+		USceneComponent* SceneComponent = Cast<USceneComponent>(Object);
+		if (!SceneComponent)
+		{
+			continue;
+		}
+
+		TArray<UMovieScene3DTransformTrack*> TransformTracks;
+		{
+			constexpr bool bCreateHandleIfMissing = false;
+
+			// Include Owner Actor Transform Track if Scene Component is Root
+			AActor* OwningActor = SceneComponent->GetOwner();
+			if (OwningActor && OwningActor->GetRootComponent() == SceneComponent)
+			{
+				FGuid OwningActorHandle = SequencerPtr->GetHandleToObject(OwningActor, bCreateHandleIfMissing);
+				if (OwningActorHandle.IsValid())
+				{
+					TransformTracks.Add(MovieScene->FindTrack<UMovieScene3DTransformTrack>(OwningActorHandle, TransformPropertyName));
+				}
+			}
+
+			FGuid SceneComponentHandle = SequencerPtr->GetHandleToObject(SceneComponent, bCreateHandleIfMissing);
+			if (SceneComponentHandle.IsValid())
+			{
+				TransformTracks.Add(MovieScene->FindTrack<UMovieScene3DTransformTrack>(SceneComponentHandle, TransformPropertyName));
+			}
+		}
+
+		for (UMovieScene3DTransformTrack* TransformTrack : TransformTracks)
+		{
+			if (!TransformTrack || TransformTrack->IsEmpty())
+			{
+				continue;
+			}
+
+			TArray<UMovieSceneSection*, TInlineAllocator<4>> Sections = TransformTrack->FindAllSections(FrameRange.GetLowerBoundValue());
+			for (const UMovieSceneSection* Section : Sections)
+			{
+				const UMovieScene3DTransformSection* TransformSection = Cast<UMovieScene3DTransformSection>(Section);
+				if (!TransformSection)
+				{
+					continue;
+				}
+
+				ProcessedSections.Add(TransformSection);
+
+				EPropertyKeyedStatus NewKeyedStatus = GetKeyedStatusInSection(*TransformSection, FrameRange, TransformChannel, ChannelIndices);
+				KeyedStatus = FMath::Max(KeyedStatus, NewKeyedStatus);
+
+				// Maximum Status Reached no need to iterate further
+				if (KeyedStatus == EPropertyKeyedStatus::KeyedInFrame)
+				{
+					return KeyedStatus;
+				}
+			}
+
+			if (KeyedStatus == EPropertyKeyedStatus::NotKeyed)
+			{
+				TransformTracksToCheck.Add(TransformTrack);
+			}
+		}		
+	}
+
+	// If there's no key in the provided sections look through all sections of the tracks
+	// And return "KeyedInOtherFrame" as soon as there's a keyed section
+	if (KeyedStatus == EPropertyKeyedStatus::NotKeyed)
+	{
+		for (const UMovieScene3DTransformTrack* TransformTrack : TransformTracksToCheck)
+		{
+			if (!TransformTrack)
+			{
+				continue;
+			}
+
+			for (const UMovieSceneSection* Section : TransformTrack->GetAllSections())
+			{
+				const UMovieScene3DTransformSection* TransformSection = Cast<UMovieScene3DTransformSection>(Section);
+
+				// Skip sections that were already processed
+				if (TransformSection && !ProcessedSections.Contains(TransformSection))
+				{
+					EPropertyKeyedStatus NewKeyedStatus = GetKeyedStatusInSection(*TransformSection, FrameRange, TransformChannel, ChannelIndices);
+					KeyedStatus = FMath::Max(KeyedStatus, NewKeyedStatus);
+
+					// Maximum Status Reached no need to iterate further
+					if (KeyedStatus >= EPropertyKeyedStatus::KeyedInOtherFrame)
+					{
+						return KeyedStatus;
+					}
+				}
+			}
+		}
+	}
+
+	return KeyedStatus;
 }
 
 void F3DTransformTrackEditor::OnTransformPropertyChanged(const FPropertyChangedParams& PropertyChangedParams, EMovieSceneTransformChannel TransformChannel)

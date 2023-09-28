@@ -65,6 +65,17 @@ struct FMovieSceneChannelMetaData
 	uint32 SortOrder;
 	/** This channel's unique name */
 	FName Name;
+	/**
+	 * Path representation of a sub property relative to the class property (i.e. topmost property) but NOT including the topmost property itself.
+	 * E.g. for FWidgetTransform, a sub-property path for the first channel would be "Translation.X"
+	 */
+	FName SubPropertyPath;
+	/**
+	 * Path representation of a sub-property relative to a class property (i.e. topmost property) but NOT including the topmost property itself.
+	 * This should be used when a Channel can be used by multiple struct sources and happen to have different property names for these.
+	 * The prime example of this is FTransform vs FEulerTransform. FTransform uses "Translation" vs FEulerTransform uses "Location"
+	 */
+	TMap<FName, FName> SubPropertyPathMap;
 	/** Text to display on this channel's key area node */
 	FText DisplayText;
 	/** Delegate to get a dynamic tooltip for the key area node */

@@ -73,6 +73,7 @@
 #include "SSequencerSection.h"
 #include "SequencerKeyCollection.h"
 #include "SequencerAddKeyOperation.h"
+#include "SequencerPropertyKeyedStatus.h"
 #include "SequencerSettings.h"
 #include "SequencerLog.h"
 #include "SequencerEdMode.h"
@@ -448,6 +449,7 @@ void FSequencer::InitSequencer(const FSequencerInitParams& InitParams, const TSh
 	PlaybackSpeedBeforePlay = PlaybackSpeed;
 	ShuttleMultiplier = 0;
 	ObjectChangeListener = InObjectChangeListener;
+	PropertyKeyedStatusHandler = MakeShared<FSequencerPropertyKeyedStatusHandler>(SharedThis(this));
 
 	check( ObjectChangeListener.IsValid() );
 	
@@ -3849,6 +3851,11 @@ ISequencerObjectChangeListener& FSequencer::GetObjectChangeListener()
 	return *ObjectChangeListener;
 }
 
+ISequencerPropertyKeyedStatusHandler& FSequencer::GetPropertyKeyedStatusHandler()
+{
+	return *PropertyKeyedStatusHandler;
+}
+
 TSharedPtr<class ITimeSlider> FSequencer::GetTopTimeSliderWidget() const
 {
 	return SequencerWidget->GetTopTimeSliderWidget();
@@ -6502,7 +6509,8 @@ void FSequencer::ZoomToFit()
 
 bool FSequencer::CanKeyProperty(FCanKeyPropertyParams CanKeyPropertyParams) const
 {
-	return ObjectChangeListener->CanKeyProperty(CanKeyPropertyParams);
+	FPropertyPath PropertyPath;
+	return ObjectChangeListener->CanKeyProperty(CanKeyPropertyParams, PropertyPath);
 } 
 
 
@@ -6511,6 +6519,10 @@ void FSequencer::KeyProperty(FKeyPropertyParams KeyPropertyParams)
 	ObjectChangeListener->KeyProperty(KeyPropertyParams);
 }
 
+EPropertyKeyedStatus FSequencer::GetPropertyKeyedStatus(const IPropertyHandle& PropertyHandle) const
+{
+	return PropertyKeyedStatusHandler->GetPropertyKeyedStatus(PropertyHandle);
+}
 
 FSequencerSelectionPreview& FSequencer::GetSelectionPreview()
 {

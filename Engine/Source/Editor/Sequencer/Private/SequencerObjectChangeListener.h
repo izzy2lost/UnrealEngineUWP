@@ -30,7 +30,9 @@ public:
 	virtual FOnPropagateObjectChanges& GetOnPropagateObjectChanges() override;
 	virtual FOnObjectPropertyChanged& GetOnAnyPropertyChanged(UObject& Object) override;
 	virtual void ReportObjectDestroyed(UObject& Object) override;
+	UE_DEPRECATED(5.4, "CanKeyProperty taking in only FCanKeyPropertyParams is deprecated. Please use the alternative CanKeyProperty that takes in FCanKeyPropertyParams and an out FPropertyPath.")
 	virtual bool CanKeyProperty(FCanKeyPropertyParams KeyPropertyParams) const override;
+	virtual bool CanKeyProperty(FCanKeyPropertyParams KeyPropertyParams, FPropertyPath& OutPropertyPath) const override;
 	virtual void KeyProperty(FKeyPropertyParams KeyPropertyParams) const override;
 	virtual void TriggerAllPropertiesChanged(UObject* Object) override;
 

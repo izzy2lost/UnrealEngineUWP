@@ -156,6 +156,20 @@ public:
 		}
 	}
 
+	virtual EPropertyKeyedStatus GetPropertyKeyedStatus(const IPropertyHandle& PropertyHandle) const override
+	{
+		EPropertyKeyedStatus KeyedStatus = EPropertyKeyedStatus::NotKeyed;
+		for (const TWeakPtr<ISequencer>& WeakSequencer : Sequencers)
+		{
+			if (TSharedPtr<ISequencer> Sequencer = WeakSequencer.Pin())
+			{
+				EPropertyKeyedStatus NewKeyedStatus = Sequencer->GetPropertyKeyedStatus(PropertyHandle);
+				KeyedStatus = FMath::Max(KeyedStatus, NewKeyedStatus);
+			}
+		}
+		return KeyedStatus;
+	}
+
 private:
 	TArray<TWeakPtr<ISequencer>> Sequencers;
 };

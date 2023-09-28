@@ -67,6 +67,7 @@ struct FQualifiedFrameTime;
 template <typename NumericType> struct INumericTypeInterface;
 
 enum class EMapChangeType : uint8;
+enum class EPropertyKeyedStatus : uint8;
 class FCurveEditor;
 class FCurveModel;
 class IToolkitHost;
@@ -578,9 +579,16 @@ public:
 	 */
 	virtual class ISequencerObjectChangeListener& GetObjectChangeListener() = 0;
 
+	/**
+	 * @return Returns the property keyed status handler for this sequencer instance
+	 */
+	virtual class ISequencerPropertyKeyedStatusHandler& GetPropertyKeyedStatusHandler() = 0;
+
 	virtual bool CanKeyProperty(FCanKeyPropertyParams CanKeyPropertyParams) const = 0;
 
 	virtual void KeyProperty(FKeyPropertyParams KeyPropertyParams) = 0;
+
+	virtual EPropertyKeyedStatus GetPropertyKeyedStatus(const IPropertyHandle& PropertyHandle) const = 0;
 
 	/** Refresh the sequencer tree view */
 	virtual void RefreshTree() = 0;

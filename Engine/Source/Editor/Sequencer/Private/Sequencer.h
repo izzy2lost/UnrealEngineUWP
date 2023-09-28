@@ -47,6 +47,7 @@ class APlayerController;
 class FLevelEditorViewportClient;
 class FMenuBuilder;
 class FMovieSceneClipboard;
+class FSequencerPropertyKeyedStatusHandler;
 class FViewportClient;
 class IDetailKeyframeHandler;
 class IAssetViewport;
@@ -736,6 +737,8 @@ public:
 	virtual bool IsInSilentMode() const override { return SilentModeCount != 0; }
 	virtual FGuid GetHandleToObject(UObject* Object, bool bCreateHandleIfMissing = true, const FName& CreatedFolderName = NAME_None) override;
 	virtual ISequencerObjectChangeListener& GetObjectChangeListener() override;
+	virtual ISequencerPropertyKeyedStatusHandler& GetPropertyKeyedStatusHandler() override;
+
 protected:
 	virtual void NotifyMovieSceneDataChangedInternal() override;
 public:
@@ -749,6 +752,7 @@ public:
 	virtual void AddSubSequence(UMovieSceneSequence* Sequence) override;
 	virtual bool CanKeyProperty(FCanKeyPropertyParams CanKeyPropertyParams) const override;
 	virtual void KeyProperty(FKeyPropertyParams KeyPropertyParams) override;
+	EPropertyKeyedStatus GetPropertyKeyedStatus(const IPropertyHandle& PropertyHandle) const override;
 	virtual void GetSelectedTracks(TArray<UMovieSceneTrack*>& OutSelectedTracks) override;
 	virtual void GetSelectedSections(TArray<UMovieSceneSection*>& OutSelectedSections) override;
 	virtual void GetSelectedFolders(TArray<UMovieSceneFolder*>& OutSelectedFolders) override;
@@ -1173,6 +1177,9 @@ private:
 
 	/** Listener for object changes being made while this sequencer is open*/
 	TSharedPtr<ISequencerObjectChangeListener> ObjectChangeListener;
+
+	/** Responsible for getting the keyed status of a property (whether it's keyed in current frame, other frame, etc)  */
+	TSharedPtr<FSequencerPropertyKeyedStatusHandler> PropertyKeyedStatusHandler;
 
 	/** Main sequencer widget */
 	TSharedPtr<SSequencer> SequencerWidget;

@@ -274,6 +274,13 @@ bool FSequencerObjectChangeListener::CanKeyProperty(FCanKeyPropertyParams CanKey
 	return CanKeyProperty_Internal(CanKeyPropertyParams, Delegate, Property, PropertyPath);
 }
 
+bool FSequencerObjectChangeListener::CanKeyProperty(FCanKeyPropertyParams KeyPropertyParams, FPropertyPath& OutPropertyPath) const
+{
+	FProperty* Property = nullptr;
+	FOnAnimatablePropertyChanged Delegate;
+	return CanKeyProperty_Internal(KeyPropertyParams, Delegate, Property, OutPropertyPath);
+}
+
 bool FSequencerObjectChangeListener::CanKeyProperty_Internal(FCanKeyPropertyParams CanKeyPropertyParams, FOnAnimatablePropertyChanged& InOutDelegate, FProperty*& InOutProperty, FPropertyPath& InOutPropertyPath) const
 {
 	if (CanKeyPropertyParams.PropertyPath.GetNumProperties() == 0)
