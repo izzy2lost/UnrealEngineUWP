@@ -80,7 +80,7 @@ public:
 	TSet<FGuid> PropertiesIDsOverridden;
 };
 
-UCLASS(Abstract)
+UCLASS(BlueprintType, Abstract, ClassGroup = (Procedural))
 class PCG_API UPCGGraphInterface : public UObject
 {
 	GENERATED_BODY()
