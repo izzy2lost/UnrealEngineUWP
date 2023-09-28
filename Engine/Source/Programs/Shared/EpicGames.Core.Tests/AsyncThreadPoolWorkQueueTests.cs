@@ -23,13 +23,13 @@ public sealed class AsyncThreadPoolWorkQueueTests : IDisposable
 	{
 		int c = 0;
 		await _queue.EnqueueAsync((_) => 
-		{ 
-			c++; 
+		{
+			Interlocked.Increment(ref c);
 			return Task.CompletedTask; 
 		});
 		await _queue.EnqueueAsync((_) => 
-		{ 
-			c++; 
+		{
+			Interlocked.Increment(ref c);
 			return Task.CompletedTask; 
 		});
 		await _queue.ExecuteAsync();
