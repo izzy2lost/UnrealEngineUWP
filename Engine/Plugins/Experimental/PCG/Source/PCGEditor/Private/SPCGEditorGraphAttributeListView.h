@@ -131,7 +131,7 @@ public:
 	SLATE_BEGIN_ARGS(SPCGEditorGraphAttributeListView) {}
 	SLATE_END_ARGS()
 
-	virtual ~SPCGEditorGraphAttributeListView() override;
+	virtual ~SPCGEditorGraphAttributeListView();
 
 	void Construct(const FArguments& InArgs, TSharedPtr<FPCGEditor> InPCGEditor);
 
@@ -148,7 +148,7 @@ private:
 
 	void OnGenerateUpdated(UPCGComponent* InPCGComponent);
 
-	const FPCGDataCollection* GetInspectionData();
+	const FPCGDataCollection* GetInspectionData() const;
 
 	void RefreshAttributeList();
 	void RefreshPinComboBox();
@@ -159,14 +159,18 @@ private:
 	/** Only connected input pins are added to combo box, so keep track of the node pin index for each item. */
 	struct FPinComboBoxItem
 	{
-		explicit FPinComboBoxItem(FName InName, int32 InPinIndex) : Name(InName), PinIndex(InPinIndex) {}
+		explicit FPinComboBoxItem(FName InName, int32 InPinIndex, bool bInIsOutputPin)
+			: Name(InName)
+			, PinIndex(InPinIndex)
+			, bIsOutputPin(bInIsOutputPin)
+		{}
 
 		FName Name;
 		int32 PinIndex = INDEX_NONE;
+		bool bIsOutputPin = true;
 	};
 
 	FText OnGenerateSelectedPinText() const;
-	int32 GetSelectedPinIndex() const;
 	void OnSelectionChangedPin(TSharedPtr<FPinComboBoxItem> InItem, ESelectInfo::Type InSelectInfo);
 	TSharedRef<SWidget> OnGeneratePinWidget(TSharedPtr<FPinComboBoxItem> InItem) const;
 
