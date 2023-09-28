@@ -1309,7 +1309,7 @@ bool UAnimSequencerController::SetCurveAttributes(const FAnimationCurveIdentifie
 
 			if (UFKControlRig* FKRig = Cast<UFKControlRig>(ControlRig))
 			{
-				const URigHierarchy* Hierarchy = Model->GetControlRigHierarchy();
+				const URigHierarchy* Hierarchy = FKRig->GetHierarchy();
 				if (Hierarchy ||  IgnoreSkeletonValidation())
 				{
 					const FRigElementKey CurveKey(URigHierarchy::GetSanitizedName(CurveId.CurveName), ERigElementType::Curve);
@@ -1545,7 +1545,7 @@ bool UAnimSequencerController::SetBoneTrackKeys(FName BoneName, const TArray<FVe
 			{
 				if (UControlRig* ControlRig = Model->GetControlRig())
 				{
-					if (URigHierarchy* Hierarchy = Model->GetControlRigHierarchy())
+					if (URigHierarchy* Hierarchy = ControlRig->GetHierarchy())
 					{
 						const FRigElementKey BoneKey(URigHierarchy::GetSanitizedName(BoneName), ERigElementType::Bone);
 						const FRigElementKey BoneNameControlKey(UFKControlRig::GetControlName(BoneKey.Name, ERigElementType::Bone), ERigElementType::Control);
@@ -2152,7 +2152,7 @@ void UAnimSequencerController::RemoveUnusedControlsAndCurves() const
 	{
 		if (UControlRig* ControlRig = Model->GetControlRig())
 		{
-			if (URigHierarchy* Hierarchy = Model->GetControlRigHierarchy())
+			if (URigHierarchy* Hierarchy = ControlRig->GetHierarchy())
 			{
 				TArray<FRigElementKey> ElementsToRemove;
 				
@@ -2207,7 +2207,7 @@ void UAnimSequencerController::UpdateWithSkeleton(USkeleton* TargetSkeleton, boo
 		OpenBracket(LOCTEXT("SettingNewskeleton", "Updating Skeleton for Animation Data Model"), bShouldTransact);
 		{
 			// (re-)generate the rig hierarchy
-			Model->InitializeFKControlRig(CastChecked<UFKControlRig>(Model->GetControlRig()), TargetSkeleton, true);
+			Model->InitializeFKControlRig(CastChecked<UFKControlRig>(Model->GetControlRig()), TargetSkeleton);
 
 			// Remove any bone tracks that do not exist in the new hierarchy
 			RemoveBoneTracksMissingFromSkeleton(TargetSkeleton, bShouldTransact);
@@ -2382,8 +2382,8 @@ void UAnimSequencerController::InitializeModel()
 				{
 					if(UFKControlRig* ControlRig = NewObject<UFKControlRig>(Track, UFKControlRig::StaticClass(), NAME_None, RF_Transactional))
 					{
-						Model->InitializeFKControlRig(ControlRig, Model->GetSkeleton(), true);
-						
+						Model->InitializeFKControlRig(ControlRig, Model->GetSkeleton());
+
 						// Remove all control elements (start fresh)
 						if (URigHierarchy* Hierarchy = ControlRig->GetHierarchy())
 						{
@@ -2417,7 +2417,7 @@ void UAnimSequencerController::InitializeModel()
 						else
 						{
 							ReportError(LOCTEXT("InvalidRigHierarchy", "Unable to retrieve valid URigHierarchy"));
-						}					
+						}
 
 						UMovieSceneControlRigParameterSection* Section = Cast<UMovieSceneControlRigParameterSection>(Track->CreateControlRigSection(0, ControlRig, true));				
 						Section->SetRange(DataRange);
@@ -2450,7 +2450,7 @@ bool UAnimSequencerController::AddBoneControl(const FName& BoneName) const
 	{
 		if (UFKControlRig* FKRig = Cast<UFKControlRig>(Section->GetControlRig()))
 		{
-			if(URigHierarchy* Hierarchy = Model->GetControlRigHierarchy())
+			if(URigHierarchy* Hierarchy = FKRig->GetHierarchy())
 			{
 				const FRigElementKey BoneKey(URigHierarchy::GetSanitizedName(BoneName), ERigElementType::Bone);
 				const FRigElementKey BoneNameControlKey(UFKControlRig::GetControlName(BoneKey.Name, ERigElementType::Bone), ERigElementType::Control);
@@ -2555,7 +2555,7 @@ bool UAnimSequencerController::RemoveBoneControl(const FName& BoneName) const
 	{
 		if (UFKControlRig* FKRig = Cast<UFKControlRig>(Section->GetControlRig()))
 		{
-			if(URigHierarchy* Hierarchy = Model->GetControlRigHierarchy())
+			if(URigHierarchy* Hierarchy = FKRig->GetHierarchy())
 			{
 				const FRigElementKey BoneNameControlKey(UFKControlRig::GetControlName(URigHierarchy::GetSanitizedName(BoneName), ERigElementType::Bone), ERigElementType::Control);
 				
@@ -2612,7 +2612,7 @@ bool UAnimSequencerController::SetBoneCurveKeys(const FName& BoneName, const TAr
 		UControlRig* ControlRig = Section->GetControlRig();
 		if (UFKControlRig* FKRig = Cast<UFKControlRig>(ControlRig))
 		{
-			const URigHierarchy* Hierarchy = Model->GetControlRigHierarchy();
+			const URigHierarchy* Hierarchy = FKRig->GetHierarchy();
 			if(Hierarchy || IgnoreSkeletonValidation())
 			{
 				const FRigElementKey BoneKey(URigHierarchy::GetSanitizedName(BoneName), ERigElementType::Bone);
@@ -2804,7 +2804,7 @@ bool UAnimSequencerController::UpdateBoneCurveKeys(const FName& BoneName, const 
 		UControlRig* ControlRig = Section->GetControlRig();
 		if (UFKControlRig* FKRig = Cast<UFKControlRig>(ControlRig))
 		{
-			if(URigHierarchy* Hierarchy = Model->GetControlRigHierarchy())
+			if(URigHierarchy* Hierarchy = FKRig->GetHierarchy())
 			{
 				const FRigElementKey BoneKey(URigHierarchy::GetSanitizedName(BoneName), ERigElementType::Bone);
 				const FRigElementKey BoneNameControlKey(UFKControlRig::GetControlName(BoneKey.Name, ERigElementType::Bone), ERigElementType::Control);
@@ -2900,7 +2900,7 @@ bool UAnimSequencerController::RemoveBoneCurveKey(const FName& BoneName, float T
 	
 			if (UFKControlRig* FKRig = Cast<UFKControlRig>(ControlRig))
 			{
-				if(const URigHierarchy* Hierarchy = Model->GetControlRigHierarchy())
+				if(const URigHierarchy* Hierarchy = FKRig->GetHierarchy())
 				{
 					const FRigElementKey BoneKey(URigHierarchy::GetSanitizedName(BoneName), ERigElementType::Bone);
 					const FRigElementKey BoneNameControlKey(UFKControlRig::GetControlName(BoneKey.Name, ERigElementType::Bone), ERigElementType::Control);
@@ -2973,7 +2973,7 @@ bool UAnimSequencerController::AddCurveControl(const FName& CurveName) const
 		UControlRig* ControlRig = Section->GetControlRig();
 		if (UFKControlRig* FKRig = Cast<UFKControlRig>(ControlRig))
 		{
-			if(URigHierarchy* Hierarchy = Model->GetControlRigHierarchy())
+			if(URigHierarchy* Hierarchy = FKRig->GetHierarchy())
 			{				
 				const FRigElementKey CurveKey(URigHierarchy::GetSanitizedName(CurveName), ERigElementType::Curve);
 				const FRigElementKey CurveControlKey(UFKControlRig::GetControlName(CurveKey.Name, ERigElementType::Curve), ERigElementType::Control);
@@ -3055,7 +3055,7 @@ bool UAnimSequencerController::RenameCurveControl(const FName& CurveName, const 
 	{
 		if (UControlRig* ControlRig = Section->GetControlRig())
 		{
-			if (URigHierarchy* RigHierarchy = Model->GetControlRigHierarchy())
+			if (URigHierarchy* RigHierarchy = ControlRig->GetHierarchy())
 			{
 				if (URigHierarchyController* Controller = RigHierarchy->GetController())
 				{
@@ -3144,7 +3144,7 @@ bool UAnimSequencerController::RemoveCurveControl(const FName& CurveName) const
 
 		if (UFKControlRig* FKRig = Cast<UFKControlRig>(ControlRig))
 		{
-			if(URigHierarchy* Hierarchy = Model->GetControlRigHierarchy())
+			if(URigHierarchy* Hierarchy = FKRig->GetHierarchy())
 			{									
 				const FRigElementKey CurveKey(URigHierarchy::GetSanitizedName(CurveName), ERigElementType::Curve);
 				const FRigElementKey CurveControlKey(UFKControlRig::GetControlName(CurveKey.Name, ERigElementType::Curve), ERigElementType::Control);
@@ -3208,7 +3208,7 @@ bool UAnimSequencerController::SetCurveControlKeys(const FName& CurveName, const
 
 		if (UFKControlRig* FKRig = Cast<UFKControlRig>(ControlRig))
 		{
-			const URigHierarchy* Hierarchy = Model->GetControlRigHierarchy();
+			const URigHierarchy* Hierarchy = FKRig->GetHierarchy();
 
 			if (Hierarchy ||  IgnoreSkeletonValidation())
 			{
@@ -3296,7 +3296,7 @@ bool UAnimSequencerController::SetCurveControlKey(const FName& CurveName, const 
 
 		if (UFKControlRig* FKRig = Cast<UFKControlRig>(ControlRig))
 		{
-			if(const URigHierarchy* Hierarchy = Model->GetControlRigHierarchy())
+			if(const URigHierarchy* Hierarchy = FKRig->GetHierarchy())
 			{
 				const FRigElementKey CurveKey(URigHierarchy::GetSanitizedName(CurveName), ERigElementType::Curve);
 				const FRigElementKey CurveControlKey(UFKControlRig::GetControlName(CurveKey.Name, ERigElementType::Curve), ERigElementType::Control);
@@ -3385,7 +3385,7 @@ bool UAnimSequencerController::RemoveCurveControlKey(const FName& CurveName, flo
 
 		if (UFKControlRig* FKRig = Cast<UFKControlRig>(ControlRig))
 		{
-			if(const URigHierarchy* Hierarchy = Model->GetControlRigHierarchy())
+			if(const URigHierarchy* Hierarchy = FKRig->GetHierarchy())
 			{
 				const FFrameNumber FrameNumber = Model->MovieScene->GetTickResolution().AsFrameNumber(Time);
 				const FRigElementKey CurveKey(URigHierarchy::GetSanitizedName(CurveName), ERigElementType::Curve);
@@ -3449,7 +3449,7 @@ bool UAnimSequencerController::DuplicateCurveControl(const FName& CurveName, con
 	{
 		if (UFKControlRig* FKRig = Cast<UFKControlRig>(Section->GetControlRig()))
 		{
-			if (URigHierarchy* Hierarchy = Model->GetControlRigHierarchy())
+			if (URigHierarchy* Hierarchy = FKRig->GetHierarchy())
 			{
 				if (URigHierarchyController* HierarchyController = Hierarchy->GetController())
 				{
