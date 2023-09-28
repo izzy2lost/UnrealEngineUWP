@@ -10,6 +10,7 @@
 #include "InterchangeManager.h"
 #include "InterchangePipelineBase.h"
 #include "Interfaces/Interface_AsyncCompilation.h"
+#include "Materials/MaterialInterface.h"
 #include "Nodes/InterchangeBaseNodeContainer.h"
 #include "Nodes/InterchangeFactoryBaseNode.h"
 #include "Stats/Stats.h"
@@ -105,6 +106,14 @@ void UE::Interchange::FTaskWaitAssetCompilation::DoTask(ENamedThreads::Type Curr
 					for (int32 ObjectIndex = 0; ObjectIndex < ImportedObjects.Num(); ++ObjectIndex)
 					{
 						UObject* ImportObject = ImportedObjects[ObjectIndex];
+						if (UMaterialInterface* MaterialInterface = Cast<UMaterialInterface>(ImportObject))
+						{
+							if (MaterialInterface->IsCompiling())
+							{
+								bCompilationFinish = false;
+								break;
+							}
+						}
 						if (IInterface_AsyncCompilation* AssetCompilationInterface = Cast<IInterface_AsyncCompilation>(ImportObject))
 						{
 							if (AssetCompilationInterface->IsCompiling())

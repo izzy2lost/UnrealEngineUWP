@@ -252,7 +252,7 @@ public:
 };
 
 UCLASS(abstract, BlueprintType, MinimalAPI, HideCategories = (Thumbnail))
-class UMaterialInterface : public UObject, public IBlendableInterface, public IInterface_AssetUserData, public IInterface_AsyncCompilation
+class UMaterialInterface : public UObject, public IBlendableInterface, public IInterface_AssetUserData
 {
 	GENERATED_UCLASS_BODY()
 
@@ -998,13 +998,11 @@ public:
 	*/
 	virtual bool IsComplete() const { return true; }
 
-	/** IInterface_AsyncCompilation begin*/
 #if WITH_EDITOR
-	ENGINE_API virtual bool IsCompiling() const override { return false; };
+	ENGINE_API virtual bool IsCompiling() const { return false; };
 #else
 	FORCEINLINE bool IsCompiling() const { return false; }
 #endif
-	/** IInterface_AsyncCompilation end*/
 
 	/** @brief Checks to see if this material has all its shaders cached and if not, will perform a synchronous compilation of those.
 	*
