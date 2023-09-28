@@ -49,8 +49,6 @@ namespace LegacyMotionSources
 	}
 }
 
-PRAGMA_DISABLE_DEPRECATION_WARNINGS
-
 //=============================================================================
 UMotionControllerComponent::UMotionControllerComponent(const FObjectInitializer& ObjectInitializer)
 	: Super(ObjectInitializer)
