@@ -4,9 +4,10 @@
 #include "Animation/CurveHandle.h"
 #include "Animation/CurveSequence.h"
 #include "Application/ThrottleManager.h"
+#include "Framework/Application/SlateApplication.h"
+#include "HAL/PlatformApplicationMisc.h"
 #include "Widgets/SBoxPanel.h"
 #include "Widgets/SOverlay.h"
-#include "Framework/Application/SlateApplication.h"
 #include "Widgets/Layout/SBorder.h"
 #include "Widgets/Images/SImage.h"
 #include "Widgets/Text/STextBlock.h"
@@ -18,6 +19,8 @@
 #include "Framework/Notifications/NotificationManager.h"
 #include "Styling/StyleColors.h"
 #include "Widgets/Notifications/SNotificationBackground.h"
+
+#define LOCTEXT_NAMESPACE "SNotificationList"
 
 /////////////////////////////////////////////////
 // SNotificationExtendable
@@ -739,8 +742,36 @@ private:
 	TSharedPtr<INotificationWidget> NotificationWidget;
 };
 
+/////////////////////////////////////////////////
+// FNotificationInfo
+
+void FNotificationInfo::ShowCopyToClipboadHyperlink()
+{
+	HyperlinkText = LOCTEXT("CopyToClipboard", "Copy to Clipboard");
+	Hyperlink = FSimpleDelegate::CreateLambda(
+		[Text = Text, SubText = SubText]()
+		{
+			TStringBuilder<1024> StrBuilder;
+			if (Text.IsSet())
+			{
+				StrBuilder << Text.Get().ToString();
+			}
+			if (SubText.IsSet())
+			{
+				if (StrBuilder.Len() > 0)
+				{
+					StrBuilder << TEXT("\n");
+				}
+				StrBuilder << SubText.Get().ToString();
+			}
+
+			FPlatformApplicationMisc::ClipboardCopy(StrBuilder.ToString());
+		});
+}
+
 ///////////////////////////////////////////////////
 //// SNotificationList
+
 TSharedRef<SNotificationItem> SNotificationList::AddNotification(const FNotificationInfo& Info)
 {
 	TSharedPtr<SNotificationExtendable> NewItem;
@@ -834,3 +865,5 @@ void SNotificationList::Construct(const FArguments& InArgs)
 		SAssignNew(MessageItemBoxPtr, SVerticalBox)
 	];
 }
+
+#undef LOCTEXT_NAMESPACE 
