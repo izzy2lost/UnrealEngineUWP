@@ -15,6 +15,8 @@
 #include "RenderGraphUtils.h"
 #include "PixelShaderUtils.h"
 
+extern void GetLightContactShadowParameters(const FLightSceneProxy* Proxy, float& OutLength, bool& bOutLengthInWS, float& OutCastingIntensity, float& OutNonCastingIntensity);
+
 const int32 GScreenSpaceShadowsTileSizeX = 8;
 const int32 GScreenSpaceShadowsTileSizeY = 8;
 
@@ -128,9 +130,16 @@ void RenderScreenSpaceShadows(
 		LightProxy->GetLightShaderParameters(LightParameters);
 
 		PassParameters->LightDirection = LightParameters.Direction;
-		PassParameters->ContactShadowLength = LightProxy->GetContactShadowLength();
-		PassParameters->bContactShadowLengthInWS = LightProxy->IsContactShadowLengthInWS();
-		PassParameters->ContactShadowCastingIntensity = LightProxy->GetContactShadowCastingIntensity();
+
+		float ContactShadowLength;
+		bool bContactShadowLengthInWS;
+		float ContactShadowCastingIntensity;
+		float ContactShadowNonCastingIntensity;
+		GetLightContactShadowParameters(LightProxy, ContactShadowLength, bContactShadowLengthInWS, ContactShadowCastingIntensity, ContactShadowNonCastingIntensity);
+
+		PassParameters->ContactShadowLength = ContactShadowLength;
+		PassParameters->bContactShadowLengthInWS = bContactShadowLengthInWS;
+		PassParameters->ContactShadowCastingIntensity = ContactShadowCastingIntensity;
 
 		auto ComputeShader = View.ShaderMap->GetShader<FScreenSpaceShadowsCS>();
 
