@@ -631,7 +631,7 @@ void FGeometryCollectionPhysicsProxy::Initialize(Chaos::FPBDRigidsEvolutionBase 
 #endif
 			}
 			// this step is necessary for Phase 2 where we need to walk back the hierarchy from children to parent 
-			if (bGeometryCollectionAlwaysGenerateGTCollisionForClusters && GameThreadCollection.Children[Index].Num() == 0)
+			if (bGeometryCollectionAlwaysGenerateGTCollisionForClusters && !GameThreadCollection.HasChildren(Index))
 			{
 				ChildrenToCheckForParentFix.Add(Index);
 			}
@@ -663,21 +663,23 @@ void FGeometryCollectionPhysicsProxy::Initialize(Chaos::FPBDRigidsEvolutionBase 
 				
 						// let's make sure all our children have an implicit defined, other wise, postpone to next iteration 
 						bool bAllChildrenHaveCollision = true;
-						for (const int32& ChildIndex : GameThreadCollection.Children[ParentToFixIndex])
+						
+						GameThreadCollection.IterateThroughChildren(ParentToFixIndex, [&](int32 ChildIndex)
 						{
 							// defer if any of the children is a cluster with no collision yet generated 
-							if (GameThreadCollection.Implicits[ChildIndex] == nullptr && GameThreadCollection.Children[ChildIndex].Num() > 0)
+							if (GameThreadCollection.Implicits[ChildIndex] == nullptr && GameThreadCollection.HasChildren(ChildIndex))
 							{
 								bAllChildrenHaveCollision = false;
-								break;
+								return false;
 							}
-						}
+							return true;
+						});
 
 						if (bAllChildrenHaveCollision)
 						{
 							// Make a union of the children geometry
 							TArray<Chaos::FImplicitObjectPtr> ChildImplicits;
-							for (const int32& ChildIndex : GameThreadCollection.Children[ParentToFixIndex])
+							GameThreadCollection.IterateThroughChildren(ParentToFixIndex, [&](int32 ChildIndex)
 							{
 								const Chaos::FImplicitObjectPtr& ChildImplicit = GameThreadCollection.Implicits[ChildIndex];
 								if (ChildImplicit)
@@ -690,7 +692,7 @@ void FGeometryCollectionPhysicsProxy::Initialize(Chaos::FPBDRigidsEvolutionBase 
 									// if this remains a union we need to unpack it 
 									if (TransformedChildImplicit->IsUnderlyingUnion())
 									{
-										// we just move the array fo children in the new array 
+										// we just move the array for children in the new array 
 										Chaos::FImplicitObjectUnion& Union = static_cast<Chaos::FImplicitObjectUnion&>(*TransformedChildImplicit);
 										ChildImplicits.Append(MoveTemp(Union.GetObjects()));
 									}
@@ -699,7 +701,8 @@ void FGeometryCollectionPhysicsProxy::Initialize(Chaos::FPBDRigidsEvolutionBase 
 										ChildImplicits.Add(MoveTemp(TransformedChildImplicit));
 									}
 								}
-							}
+								return true;
+							});
 							if (ChildImplicits.Num() > 0)
 							{
 								Chaos::FImplicitObject* UnionImplicit = new Chaos::FImplicitObjectUnion(MoveTemp(ChildImplicits));
@@ -864,7 +867,7 @@ void FGeometryCollectionPhysicsProxy::InitializeDynamicCollection(FGeometryDynam
 			// If no simulation data is available then default to the simulation of just the rigid geometry.
 			for (int32 TransformIdx = 0; TransformIdx < NumTransforms; TransformIdx++)
 			{
-				if (DynamicCollection.Children[TransformIdx].Num())
+				if (DynamicCollection.HasChildren(TransformIdx))
 				{
 					DynamicCollection.SimulatableParticles[TransformIdx] = false;
 				}
@@ -1064,7 +1067,6 @@ void FGeometryCollectionPhysicsProxy::InitializeBodiesPT(Chaos::FPBDRigidsSolver
 		const TManagedArray<FTransform>& MassToLocal = RestCollection->GetAttribute<FTransform>(MassToLocalAttributeName, FTransformCollection::TransformGroup);
 		const TManagedArray<Chaos::FImplicitObjectPtr>& Implicits = DynamicCollection.Implicits;
 		const TManagedArray<TUniquePtr<FCollisionStructureManager::FSimplicial>>& Simplicials = DynamicCollection.Simplicials;
-		const TManagedArray<TSet<int32>>& Children = DynamicCollection.Children;
 
 		// In PushToPhysicsState, we're going to compute a relative transform from Parameters.PrevWorldTransform
 		// to a particle's current world transform to get its relative transform. Then, that relative transform is
@@ -1244,15 +1246,15 @@ void FGeometryCollectionPhysicsProxy::InitializeBodiesPT(Chaos::FPBDRigidsSolver
 				else
 				{
 					// Cluster parent
-					const TSet<int32>& ChildIndices = Children[TransformGroupIndex];
-					for (const int32 ChildIndex : ChildIndices)
+					GameThreadCollection.IterateThroughChildren(TransformGroupIndex, [&](int32 ChildIndex)
 					{
-						if(SubTreeContainsSimulatableParticle[ChildIndex])
+						if (SubTreeContainsSimulatableParticle[ChildIndex])
 						{
 							SubTreeContainsSimulatableParticle[TransformGroupIndex] = true;
-							break;
+							return false;
 						}
-					}
+						return true;
+					});
 				}
 			}
 
@@ -1275,35 +1277,36 @@ void FGeometryCollectionPhysicsProxy::InitializeBodiesPT(Chaos::FPBDRigidsSolver
 					continue;
 				}
 
-				RigidChildren.Reset(Children.Num());
-				RigidChildrenTransformGroupIndex.Reset(Children.Num());
+				RigidChildren.Reset(NumTransforms);
+				RigidChildrenTransformGroupIndex.Reset(NumTransforms);
 
 				float ParentMass = 0.0f;
 				Chaos::FMatrix33 ParentInertia = Chaos::FMatrix33(0);
 
-				if (!Children[TransformGroupIndex].IsEmpty())
+				if (DynamicCollection.HasChildren(TransformGroupIndex))
 				{
 					Masses[TransformGroupIndex] = 0;
 					Inertias[TransformGroupIndex] = Chaos::FVec3(0.0);
 				}
 
 				Chaos::FMatrix33 FullInertia = Chaos::FMatrix33(0);
-				for (const int32 ChildIndex : Children[TransformGroupIndex])
-				{
-					Masses[TransformGroupIndex] += Masses[ChildIndex];
-					const Chaos::FMatrix33 ChildWorldSpaceI = Chaos::Utilities::ComputeWorldSpaceInertia(Transforms[ChildIndex].GetRotation(), Inertias[ChildIndex]);
-					FullInertia += ChildWorldSpaceI;
-					Inertias[TransformGroupIndex] = FullInertia.GetDiagonal();
-
-					if (EffectiveParticles[ChildIndex])
+				GameThreadCollection.IterateThroughChildren(TransformGroupIndex, [&](int32 ChildIndex)
 					{
-						if (Chaos::TPBDRigidClusteredParticleHandle<Chaos::FReal, 3>*Handle = SolverParticleHandles[ChildIndex])
+						Masses[TransformGroupIndex] += Masses[ChildIndex];
+						const Chaos::FMatrix33 ChildWorldSpaceI = Chaos::Utilities::ComputeWorldSpaceInertia(Transforms[ChildIndex].GetRotation(), Inertias[ChildIndex]);
+						FullInertia += ChildWorldSpaceI;
+						Inertias[TransformGroupIndex] = FullInertia.GetDiagonal();
+
+						if (EffectiveParticles[ChildIndex])
 						{
-							RigidChildren.Add(Handle);
-							RigidChildrenTransformGroupIndex.Add(ChildIndex);
+							if (Chaos::TPBDRigidClusteredParticleHandle<Chaos::FReal, 3>*Handle = SolverParticleHandles[ChildIndex])
+							{
+								RigidChildren.Add(Handle);
+								RigidChildrenTransformGroupIndex.Add(ChildIndex);
+							}
 						}
-					}
-				}
+						return true;
+					});
 
 				if (SolverParticleHandles[TransformGroupIndex] == nullptr)
 				{
@@ -2642,7 +2645,7 @@ TBitArray<> FGeometryCollectionPhysicsProxy::CalculateClustersToCreateFromChildr
 		TArray<int32> ChildrenToCheckForParentFix;
 		for (int32 Index = 0; Index < NumTransforms; ++Index)
 		{
-			if (DynamicCollection.Children[Index].Num() == 0)
+			if (!DynamicCollection.HasChildren(Index))
 			{
 				ChildrenToCheckForParentFix.Add(Index);
 			}
@@ -2668,16 +2671,17 @@ TBitArray<> FGeometryCollectionPhysicsProxy::CalculateClustersToCreateFromChildr
 				{
 					// let's make sure all our children have an implicit defined, otherwise, postpone to next iteration 
 					bool bAllChildrenHaveCollision = true;
-					for (int32 ChildIndex : DynamicCollection.Children[ParentToFixIndex])
+					DynamicCollection.IterateThroughChildren(ParentToFixIndex, [&](int32 ChildIndex)
 					{
 						// defer if any of the children is a cluster with no collision yet generated 
 						const bool bChildHasCollision = (DynamicCollection.Implicits[ChildIndex] != nullptr) || ClustersToGenerate[ChildIndex];
-						if (!bChildHasCollision && (DynamicCollection.Children[ChildIndex].Num() > 0))
+						if (!bChildHasCollision && DynamicCollection.HasChildren(ChildIndex))
 						{
 							bAllChildrenHaveCollision = false;
-							break;
+							return false;
 						}
-					}
+						return true;
+					});
 
 					ClustersToGenerate[ParentToFixIndex] = bAllChildrenHaveCollision;
 				}
@@ -3338,7 +3342,6 @@ inline static bool RemoveFromParentInCollection_Internal(FGeometryDynamicCollect
 	// CONTEXT : PHYSICS THREAD
 	if (int32 ParentIndex = PhysicsThreadCollection.GetParent(TransformGroupIndex); ParentIndex != INDEX_NONE)
 	{
-		PhysicsThreadCollection.Children[ParentIndex].Remove(TransformGroupIndex);
 		PhysicsThreadCollection.SetHasParent(TransformGroupIndex, false);
 		return true;
 	}

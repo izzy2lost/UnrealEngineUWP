@@ -173,7 +173,7 @@ namespace Chaos
 			case EPhysicsProxyType::GeometryCollectionType:
 			{
 				FGeometryDynamicCollection& Collection = GetGeometryCollectionDynamicCollection<Id>(*static_cast<FGeometryCollectionPhysicsProxy*>(Proxy));
-				return !Collection.Children[BodyIndex].IsEmpty();
+				return Collection.HasChildren(BodyIndex);
 			}
 			case EPhysicsProxyType::ClusterUnionProxy:
 			{

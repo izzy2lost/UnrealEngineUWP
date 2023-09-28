@@ -37,19 +37,36 @@ public:
 	CHAOS_API void SetHasParent(int32 Index, bool Value);
 	CHAOS_API int32 GetParent(int32 Index) const;
 
-	// Transform Group
-	TManagedArray<TSet<int32>>  Children;
+	CHAOS_API bool HasChildren(int32 Index) const;
+
+	template<typename Lambda>
+	void IterateThroughChildren(int32 Index, Lambda&& LambdaIt) const
+	{
+		const TSet<int32>& Children = RestCollection->Children[Index];
+		for (const int32 Child : Children)
+		{
+			if (GetHasParent(Child))
+			{
+				bool bContinue = LambdaIt(Child);
+				if (!bContinue)
+				{
+					break;
+				}
+			}
+		}
+	}
+
 
 private:
 	TManagedArray<bool>         HasParent;
 	TManagedArray<FTransform3f> Transform;
+	const FGeometryCollection* RestCollection;
+
 	/** Construct */
 	CHAOS_API void Construct();
 
 	friend class FGeometryCollectionPhysicsProxy;
 	friend class UGeometryCollectionComponent;
-
-	const FGeometryCollection* RestCollection;
 };
 
 
@@ -131,7 +148,7 @@ public:
 class FGeometryCollectionDynamicStateFacade
 {
 public:
-	CHAOS_API FGeometryCollectionDynamicStateFacade(FManagedArrayCollection& InCollection);
+	CHAOS_API FGeometryCollectionDynamicStateFacade(FGeometryDynamicCollection& InCollection);
 
 	/** returns true if all the necessary attributes are present */
 	CHAOS_API bool IsValid() const;
@@ -145,7 +162,7 @@ public:
 	/** return true if the transform is in a sleeping state */
 	CHAOS_API bool IsSleeping(int32 TransformIndex) const;
 
-	/** whether there's children attached to this transfom (Cluster) */
+	/** whether there's children attached to this transform (Cluster) */
 	CHAOS_API bool HasChildren(int32 TransformIndex) const;
 	
 	/** return true if the transform has broken off its parent */
@@ -167,14 +184,10 @@ private:
 	/** physics state of the transform (Dynamic, kinematic, static, sleeping) */
 	TManagedArrayAccessor<int32> DynamicStateAttribute;
 
-	/** currently attached children (potentially different from the initial children setup) */
-	TManagedArrayAccessor<TSet<int32>> ChildrenAttribute;
-	
-	/** Current parent (potentially different from the initial parent) */
-	TManagedArrayAccessor<bool> HasParentAttribute;
-
 	/** type of internal state parent */
 	TManagedArrayAccessor<uint8> InternalClusterParentTypeAttribute;
+
+	FGeometryDynamicCollection& DynamicCollection;
 };
 
 class FGeometryCollectioPerFrameData

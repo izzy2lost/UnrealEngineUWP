@@ -2016,7 +2016,6 @@ void UGeometryCollectionComponent::UpdateRepData()
 		const FRigidClustering& RigidClustering = Solver->GetEvolution()->GetRigidClustering();
 
 		const TManagedArray<int32>* InitialLevels = PhysicsProxy->GetPhysicsCollection().FindAttribute<int32>("InitialLevel", FGeometryCollection::TransformGroup);
-		const TManagedArray<TSet<int32>>& InitialChildren = PhysicsProxy->GetPhysicsCollection().Children;
 		const TArray<FPBDRigidClusteredParticleHandle*>& ParticleHandles = PhysicsProxy->GetParticles();
 
 		// Replicate the anchored state of the root particle
@@ -2944,7 +2943,6 @@ void UGeometryCollectionComponent::SetInitialClusterBreaks(const TArray<int32>& 
 {
 	if (DynamicCollection)
 	{
-		TManagedArray <TSet<int32>>& Children = DynamicCollection->Children;
 		const int32 NumTransforms = DynamicCollection->GetTransforms().Num();
 
 		for (int32 ReleaseIndex : ReleaseIndices)
@@ -2953,7 +2951,6 @@ void UGeometryCollectionComponent::SetInitialClusterBreaks(const TArray<int32>& 
 			{
 				if (int32 ParentIndex = DynamicCollection->GetParent(ReleaseIndex); ParentIndex > INDEX_NONE)
 				{
-					Children[ParentIndex].Remove(ReleaseIndex);
 					DynamicCollection->SetHasParent(ReleaseIndex, false);
 				}
 			}
@@ -3504,7 +3501,6 @@ void UGeometryCollectionComponent::ResetDynamicCollection()
 
 		GetTransformArrayCopyOnWrite();
 		GetParentArrayCopyOnWrite();
-		GetChildrenArrayCopyOnWrite();
 
 		if (bStoreVelocities || bNotifyTrailing)
 		{

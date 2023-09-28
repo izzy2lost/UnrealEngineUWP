@@ -27,7 +27,6 @@ void FTransformDynamicCollection::Construct()
 	// Transform Group
 	AddExternalAttribute<FTransform3f>(FTransformCollection::TransformAttribute, FTransformCollection::TransformGroup, Transform);
 	AddExternalAttribute<bool>(FTransformCollection::ParentAttribute, FTransformCollection::TransformGroup, HasParent);
-	AddExternalAttribute<TSet<int32>>(FTransformCollection::ChildrenAttribute, FTransformCollection::TransformGroup, Children);
 }
 
 const FTransform3f& FTransformDynamicCollection::GetTransform(int32 Index) const
@@ -64,6 +63,19 @@ int32 FTransformDynamicCollection::GetParent(int32 Index) const
 {
 	check(RestCollection != nullptr);
 	return HasParent[Index] ? RestCollection->Parent[Index] : INDEX_NONE;
+}
+
+bool FTransformDynamicCollection::HasChildren(int32 Index) const
+{
+	const TSet<int32>& Children(RestCollection->Children[Index]);
+	for (int32 Child : Children)
+	{
+		if (HasParent[Child])
+		{
+			return true;
+		}
+	}
+	return false;
 }
 
 
@@ -143,12 +155,11 @@ void FGeometryDynamicCollection::FInitialVelocityFacade::CopyFrom(const FGeometr
 
 ///////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 
-FGeometryCollectionDynamicStateFacade::FGeometryCollectionDynamicStateFacade(FManagedArrayCollection& InCollection)
+FGeometryCollectionDynamicStateFacade::FGeometryCollectionDynamicStateFacade(FGeometryDynamicCollection& InCollection)
 	: ActiveAttribute(InCollection, FGeometryDynamicCollection::ActiveAttribute,  FTransformCollection::TransformGroup)
 	, DynamicStateAttribute(InCollection, FGeometryDynamicCollection::DynamicStateAttribute,  FTransformCollection::TransformGroup)
-	, ChildrenAttribute(InCollection, FTransformCollection::ChildrenAttribute,  FTransformCollection::TransformGroup)
-	, HasParentAttribute(InCollection, FTransformCollection::ParentAttribute, FTransformCollection::TransformGroup)
 	, InternalClusterParentTypeAttribute(InCollection, "InternalClusterParentTypeArray", FGeometryCollection::TransformGroup)
+	, DynamicCollection(InCollection)
 {
 }
 
@@ -156,8 +167,6 @@ bool FGeometryCollectionDynamicStateFacade::IsValid() const
 {
 	return ActiveAttribute.IsValid()
 		&& DynamicStateAttribute.IsValid()
-		&& ChildrenAttribute.IsValid()
-		&& HasParentAttribute.IsValid()
 		&& InternalClusterParentTypeAttribute.IsValid();
 }
 
@@ -180,13 +189,13 @@ bool FGeometryCollectionDynamicStateFacade::IsSleeping(int32 TransformIndex) con
 
 bool FGeometryCollectionDynamicStateFacade::HasChildren(int32 TransformIndex) const
 {
-	return (ChildrenAttribute.Get()[TransformIndex].Num() > 0);
+	return DynamicCollection.HasChildren(TransformIndex);
 }
 
 bool FGeometryCollectionDynamicStateFacade::HasBrokenOff(int32 TransformIndex) const
 {
 	const bool bIsActive = IsActive(TransformIndex);
-	const bool bHasParent = HasParentAttribute.Get()[TransformIndex];
+	const bool bHasParent = DynamicCollection.GetHasParent(TransformIndex);
 	return bIsActive && (!bHasParent) && IsDynamicOrSleeping(TransformIndex);
 }
 

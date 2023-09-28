@@ -128,8 +128,63 @@ namespace GeometryCollectionTest
 
 	}
 
+	GTEST_TEST(AllTraits, GeometryCollection_DynamicCollection_ChildrenAccess)
+	{
+		FFramework UnitTest;
 
-	
+		RigidBodyWrapper* Floor = TNewSimulationObject<GeometryType::RigidFloor>::Init()->template As<RigidBodyWrapper>();
+		UnitTest.AddSimulationObject(Floor);
+
+		TSharedPtr<FGeometryCollection> RestCollection = GeometryCollection::MakeCubeElement(FTransform(FQuat::MakeFromEuler(FVector(0, 0, 0.)), FVector(0, -10, 10)), FVector(1.0));
+		RestCollection->AppendGeometry(*GeometryCollection::MakeCubeElement(FTransform(FQuat::MakeFromEuler(FVector(0, 0, 0.)), FVector(0, 10, 10)), FVector(1.0)));
+		EXPECT_EQ(RestCollection->Transform.Num(), 2);
+
+		FGeometryCollectionClusteringUtility::ClusterAllBonesUnderNewRoot(RestCollection.Get());
+		EXPECT_EQ(RestCollection->Transform.Num(), 3);
+		RestCollection->Transform[2] = FTransform(FQuat::MakeFromEuler(FVector(90.0, 0, 0.)), FVector(0, 0, 40));
+
+		//GeometryCollectionAlgo::PrintParentHierarchy(RestCollection.Get());
+
+		CreationParameters Params;
+		Params.RestCollection = RestCollection;
+		Params.DynamicState = EObjectStateTypeEnum::Chaos_Object_Dynamic;
+		Params.CollisionType = ECollisionTypeEnum::Chaos_Surface_Volumetric;
+		Params.Simulating = true;
+		Params.EnableClustering = true;
+		Params.DamageThreshold = { 1000.f };
+		FGeometryCollectionWrapper* Collection = TNewSimulationObject<GeometryType::GeometryCollectionWithSuppliedRestCollection>::Init(Params)->template As<FGeometryCollectionWrapper>();
+
+		UnitTest.AddSimulationObject(Collection);
+		UnitTest.Initialize();
+
+		FReal StartingRigidDistance = (Collection->DynamicCollection->GetTransform(1).GetTranslation() - Collection->DynamicCollection->GetTransform(0).GetTranslation()).Size(), CurrentRigidDistance = 0.f;
+
+		TManagedArray<bool>& Active = Collection->DynamicCollection->Active;
+
+		EXPECT_FALSE(Active[0]);
+		EXPECT_FALSE(Active[1]);
+		EXPECT_TRUE(Active[2]); // only the root cluster should be active when using clustering 
+		UnitTest.Advance();
+		EXPECT_FALSE(Active[0]);
+		EXPECT_FALSE(Active[1]);
+		EXPECT_TRUE(Active[2]);
+
+
+		int32 ChildCount[3] = {0, 0, 0};
+		for (int32 Index = 0; Index < 3; ++Index)
+		{
+			Collection->DynamicCollection->IterateThroughChildren(Index, [&](int32 ChildIndex)
+			{
+				ChildCount[Index]++;
+				return true;
+			});
+		}
+		EXPECT_EQ(ChildCount[0], 0);
+		EXPECT_EQ(ChildCount[1], 0);
+		EXPECT_EQ(ChildCount[2], 2);
+	}
+
+
 	GTEST_TEST(AllTraits, GeometryCollection_RigidBodies_ClusterTest_DeactivateClusterParticle)
 	{
 		FFramework UnitTest;
