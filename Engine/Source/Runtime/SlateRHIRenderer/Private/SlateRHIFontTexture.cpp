@@ -103,9 +103,8 @@ EPixelFormat FSlateFontTextureRHIResource::GetRHIPixelFormat() const
 		case ESlateFontAtlasContentType::Alpha:
 			return PF_A8;
 		case ESlateFontAtlasContentType::Color:
-			return PF_B8G8R8A8;
 		case ESlateFontAtlasContentType::Msdf:
-			return PF_R8G8B8A8;
+			return PF_B8G8R8A8;
 		default:
 			checkNoEntry();
 			// Default to Color

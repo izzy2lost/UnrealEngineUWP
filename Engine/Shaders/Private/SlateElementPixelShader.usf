@@ -278,11 +278,11 @@ half4 GetSdfTextElementColor( VertexToPixelInterpolants InVertex )
 	half4 OutColor = InVertex.Color;
 #endif
 
-#if SHADER_TYPE == ST_MsdfFont
 	const float4 MultiDistance = float4(Texture2DSample( ElementTexture, ElementTextureSampler, AtlasTextureCoordinates ));
+#if SHADER_TYPE == ST_MsdfFont
 	const float SampledDistance = max(min(MultiDistance.r, MultiDistance.g), min(max(MultiDistance.r, MultiDistance.g), MultiDistance.b));
 #else
-	const float SampledDistance = float(Texture2DSample_A8( ElementTexture, ElementTextureSampler, AtlasTextureCoordinates ));
+	const float SampledDistance = lerp(MultiDistance A8_SAMPLE_MASK, MultiDistance.a, ShaderParams.w);
 #endif
 	const float2 ScreenSpaceTextureSize = float2(1.0, 1.0) / fwidth(AtlasTextureCoordinates);
 	const float ScreenSpaceSpread = max(dot(ShaderParams.xy, ScreenSpaceTextureSize), 1.0);
