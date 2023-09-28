@@ -23,32 +23,27 @@ namespace UnrealBuildTool
 		/// <summary>
 		/// Keeps track if low level tests executable must build with the Editor.
 		/// </summary>
-		internal bool bTestsRequireEditor = false;
+		public static bool bTestsRequireEditor = false;
 
 		/// <summary>
 		/// Keeps track if low level tests executable must build with the Engine.
 		/// </summary>
-		internal bool bTestsRequireEngine = false;
+		public static bool bTestsRequireEngine = false;
 
 		/// <summary>
 		/// Keeps track if low level tests executable must build with the ApplicationCore.
 		/// </summary>
-		internal bool bTestsRequireApplicationCore = false;
+		public static bool bTestsRequireApplicationCore = false;
 
 		/// <summary>
 		/// Keeps track if low level tests executable must build with the CoreUObject.
 		/// </summary>
-		internal bool bTestsRequireCoreUObject = false;
-
-		/// <summary>
-		/// Keep track of low level test runner module instance.
-		/// </summary>
-		internal ModuleRules? LowLevelTestsRunnerModule;
+		public static bool bTestsRequireCoreUObject = false;
 
 		/// <summary>
 		/// Associated tested target of this test target, if defined.
 		/// </summary>
-		protected TargetRules? TestedTarget { get; private set; }
+		public TargetRules? TestedTarget { get; private set; }
 
 		/// <summary>
 		/// Test target override for bCompileAgainstApplicationCore.
@@ -238,7 +233,7 @@ namespace UnrealBuildTool
 		}
 
 		/// <summary>
-		/// Constructor for TestTargetRules based on existing target.
+		/// Constructor for TestTargetRules based on existing target a.k.a Implicit test target.
 		/// TestTargetRules is setup as a program and is linked monolithically.
 		/// It removes a lot of default compilation behavior in order to produce a minimal test environment.
 		/// </summary>
@@ -265,6 +260,7 @@ namespace UnrealBuildTool
 			WindowsPlatform = TestedTarget.WindowsPlatform;
 
 			SetupCommonProperties(Target);
+			SetupImplicitTestProperties(TestedTarget);
 		}
 
 		private void SetupCommonProperties(TargetInfo Target)
@@ -297,10 +293,10 @@ namespace UnrealBuildTool
 			bForceBuildShaderFormats = false;
 
 			// Do not compile against the engine, editor etc
-			bCompileAgainstEngine = false;
-			bCompileAgainstEditor = false;
-			bCompileAgainstCoreUObject = false;
-			bCompileAgainstApplicationCore = false;
+			bCompileAgainstEngine = bTestsRequireEngine;
+			bCompileAgainstEditor = bTestsRequireEditor;
+			bCompileAgainstCoreUObject = bTestsRequireCoreUObject;
+			bCompileAgainstApplicationCore = bTestsRequireApplicationCore;
 			bCompileCEF3 = false;
 
 			// No mixing with Functional Test framework
@@ -350,6 +346,13 @@ namespace UnrealBuildTool
 			{
 				bIsBuildingConsoleApplication = false;
 			}
+		}
+
+		private void SetupImplicitTestProperties(TargetRules TestedTarget)
+		{
+			bool IsEditorTestedTarget = (TestedTarget.Type == TargetType.Editor);
+			bBuildWithEditorOnlyData = bCompileAgainstEditor = IsEditorTestedTarget;
+			bBuildDeveloperTools = bCompileAgainstEngine && IsEditorTestedTarget;
 		}
 	}
 }

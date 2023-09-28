@@ -1750,47 +1750,6 @@ namespace UnrealBuildTool
 						PrivateIncludePathModuleNames.Add("LowLevelTestsRunner");
 					}
 				}
-				else if (Name == "LowLevelTestsRunner")
-				{
-					TestTargetRules.LowLevelTestsRunnerModule = this;
-				}
-
-				if (Name == "Engine" && !TestTargetRules.bNeverCompileAgainstEngine)
-				{
-					TestTargetRules.bTestsRequireEngine = true;
-				}
-				if (Name == "UnrealEd" && !TestTargetRules.bNeverCompileAgainstEditor)
-				{
-					TestTargetRules.bTestsRequireEditor = true;
-				}
-				if (Name == "ApplicationCore" && !TestTargetRules.bNeverCompileAgainstApplicationCore)
-				{
-					TestTargetRules.bTestsRequireApplicationCore = true;
-				}
-				if (Name == "CoreUObject" && !TestTargetRules.bNeverCompileAgainstCoreUObject)
-				{
-					TestTargetRules.bTestsRequireCoreUObject = true;
-				}
-
-				if (TestTargetRules.LowLevelTestsRunnerModule != null)
-				{
-					if (TestTargetRules.bTestsRequireEditor && !TestTargetRules.LowLevelTestsRunnerModule.PrivateDependencyModuleNames.Contains("UnrealEd"))
-					{
-						TestTargetRules.LowLevelTestsRunnerModule.PrivateDependencyModuleNames.Add("UnrealEd");
-					}
-					if (TestTargetRules.bTestsRequireEngine && !TestTargetRules.LowLevelTestsRunnerModule.PrivateDependencyModuleNames.Contains("Engine"))
-					{
-						TestTargetRules.LowLevelTestsRunnerModule.PrivateDependencyModuleNames.Add("Engine");
-					}
-					if (TestTargetRules.bTestsRequireApplicationCore && !TestTargetRules.LowLevelTestsRunnerModule.PrivateDependencyModuleNames.Contains("ApplicationCore"))
-					{
-						TestTargetRules.LowLevelTestsRunnerModule.PrivateDependencyModuleNames.Add("ApplicationCore");
-					}
-					if (TestTargetRules.bTestsRequireCoreUObject && !TestTargetRules.LowLevelTestsRunnerModule.PrivateDependencyModuleNames.Contains("CoreUObject"))
-					{
-						TestTargetRules.LowLevelTestsRunnerModule.PrivateDependencyModuleNames.Add("CoreUObject");
-					}
-				}
 			}
 		}
 

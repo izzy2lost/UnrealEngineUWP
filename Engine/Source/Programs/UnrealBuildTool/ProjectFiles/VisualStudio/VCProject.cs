@@ -2200,9 +2200,18 @@ namespace UnrealBuildTool
 					string BuildArguments = Builder.GetBuildArguments();
 
 					// NMake Build command line
-					VCProjectFileContent.AppendLine("    <NMakeBuildCommandLine>$(BuildBatchScript) {0}</NMakeBuildCommandLine>", BuildArguments);
-					VCProjectFileContent.AppendLine("    <NMakeReBuildCommandLine>$(RebuildBatchScript) {0}</NMakeReBuildCommandLine>", BuildArguments);
-					VCProjectFileContent.AppendLine("    <NMakeCleanCommandLine>$(CleanBatchScript) {0}</NMakeCleanCommandLine>", BuildArguments);
+					if (TargetRulesObject.IsTestTarget)
+					{
+						VCProjectFileContent.AppendLine("    <NMakeBuildCommandLine>$(BuildBatchScript) {0} -Mode=Test</NMakeBuildCommandLine>", BuildArguments);
+						VCProjectFileContent.AppendLine("    <NMakeReBuildCommandLine>$(BuildBatchScript) {0} -Mode=Test -RebuildTests</NMakeReBuildCommandLine>", BuildArguments);
+						VCProjectFileContent.AppendLine("    <NMakeCleanCommandLine>$(BuildBatchScript) {0} -Mode=Test -CleanTests</NMakeCleanCommandLine>", BuildArguments);
+					}
+					else
+					{
+						VCProjectFileContent.AppendLine("    <NMakeBuildCommandLine>$(BuildBatchScript) {0}</NMakeBuildCommandLine>", BuildArguments);
+						VCProjectFileContent.AppendLine("    <NMakeReBuildCommandLine>$(RebuildBatchScript) {0}</NMakeReBuildCommandLine>", BuildArguments);
+						VCProjectFileContent.AppendLine("    <NMakeCleanCommandLine>$(CleanBatchScript) {0}</NMakeCleanCommandLine>", BuildArguments);
+					}
 					VCProjectFileContent.AppendLine("    <NMakeOutput>{0}</NMakeOutput>", NormalizeProjectPath(NMakePath.FullName));
 
 					if (TargetRulesObject.Type == TargetType.Game || TargetRulesObject.Type == TargetType.Client || TargetRulesObject.Type == TargetType.Server)

@@ -24,7 +24,24 @@ namespace UnrealBuildTool.Rules
 				new string[] {
 					"Core"
 				}
-			);		
+			);
+
+			if (TestTargetRules.bTestsRequireEditor)
+			{
+				PrivateDependencyModuleNames.Add("UnrealEd");
+			}
+			if (TestTargetRules.bTestsRequireEngine)
+			{
+				PrivateDependencyModuleNames.Add("Engine");
+			}
+			if (TestTargetRules.bTestsRequireApplicationCore)
+			{
+				PrivateDependencyModuleNames.Add("ApplicationCore");
+			}
+			if (TestTargetRules.bTestsRequireCoreUObject)
+			{
+				PrivateDependencyModuleNames.Add("CoreUObject");
+			}
 		}
 	}
 }
