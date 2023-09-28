@@ -42,6 +42,10 @@ struct FMVVMViewSource
 	UPROPERTY(VisibleAnywhere, Category = "Viewmodel")
 	bool bCreatedSource = false;
 
+	// The source bindings are initialized
+	UPROPERTY(VisibleAnywhere, Category = "Viewmodel")
+	bool bBindingsInitialized = false;
+
 	// The source was set manually via SetViewModel.
 	UPROPERTY(VisibleAnywhere, Category = "Viewmodel")
 	bool bSetManually = false;
@@ -148,7 +152,7 @@ private:
 
 	void ExecuteLibraryBinding(const FMVVMViewClass_CompiledBinding& Binding, int32 BindingIndex) const;
 
-	void EnableLibraryBinding(const FMVVMViewClass_CompiledBinding& Item, int32 BindingIndex);
+	void EnableLibraryBinding(const FMVVMViewClass_CompiledBinding& Item, int32 BindingIndex, bool bSourceChanges, bool bForceDelayed);
 	void DisableLibraryBinding(const FMVVMViewClass_CompiledBinding& Item, int32 BindingIndex);
 	bool IsLibraryBindingEnabled(int32 InBindindIndex) const;
 

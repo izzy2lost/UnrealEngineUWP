@@ -358,7 +358,7 @@ void FMVVMViewBlueprintCompiler::CreateVariables(const FWidgetBlueprintCompilerC
 			}
 
 			const FProperty* Property = SourceContext.Field.IsProperty() ? SourceContext.Field.GetProperty() : BindingHelper::GetReturnProperty(SourceContext.Field.GetFunction());
-			const FObjectPropertyBase* ObjectProperty = CastField<const FObjectPropertyBase>(Property);
+			const FObjectProperty* ObjectProperty = CastField<const FObjectProperty>(Property);
 			const bool bIsCompatible = ObjectProperty && SourceContext.Class->IsChildOf(ObjectProperty->PropertyClass);
 			if (!bIsCompatible)
 			{
@@ -1335,6 +1335,7 @@ bool FMVVMViewBlueprintCompiler::CompileSourceCreators(const FCompiledBindingLib
 		return false;
 	}
 
+	TArray<FMVVMViewClass_SourceCreator> UnsortedSourceCreators;
 	for (const FCompilerSourceCreatorContext& SourceCreatorContext : CompilerSourceCreatorContexts)
 	{
 		const FMVVMBlueprintViewModelContext& ViewModelContext = SourceCreatorContext.ViewModelContext;
@@ -1441,7 +1442,70 @@ bool FMVVMViewBlueprintCompiler::CompileSourceCreators(const FCompiledBindingLib
 		CompiledSourceCreator.Flags |= bCanBeSet ? (uint8)FMVVMViewClass_SourceCreator::ESourceFlags::CanBeSet : 0;
 		CompiledSourceCreator.Flags |= CanBeEvaluated ? (uint8)FMVVMViewClass_SourceCreator::ESourceFlags::CanBeEvaluated : 0;
 
-		ViewExtension->SourceCreators.Add(MoveTemp(CompiledSourceCreator));
+		UnsortedSourceCreators.Add(MoveTemp(CompiledSourceCreator));
+	}
+
+	// sort the source creators by priority and then by name
+	if (UnsortedSourceCreators.Num() > 1)
+	{
+		struct FSortData
+		{
+			FSortData() = default;
+			FName SourceName;
+			FName ParentSourceName;
+			int32 SortIndex = -1;
+
+			void CalculateSortIndex(TMap<FName, FSortData>& Map)
+			{
+				if (SortIndex < 0)
+				{
+					if (ParentSourceName.IsNone())
+					{
+						SortIndex = 0;
+					}
+					else
+					{
+						Map[ParentSourceName].CalculateSortIndex(Map);
+						// calculate the Depth recursively
+						SortIndex = Map[ParentSourceName].SortIndex + 1;
+					}
+				}
+			}
+		};
+		TMap<FName, FSortData> SortDatas;
+		SortDatas.Reserve(UnsortedSourceCreators.Num());
+		for (int32 Index = 0; Index < UnsortedSourceCreators.Num(); ++Index)
+		{
+			FSortData SortData;
+			SortData.SourceName = UnsortedSourceCreators[Index].GetSourceName();
+			SortData.ParentSourceName =UnsortedSourceCreators[Index].GetParentSourceName();
+			SortDatas.Emplace(SortData.SourceName, SortData);
+		}
+		for (auto& SortDataPair : SortDatas)
+		{
+			SortDataPair.Value.CalculateSortIndex(SortDatas);
+		}
+
+		UnsortedSourceCreators.Sort([&SortDatas](const FMVVMViewClass_SourceCreator& A, const FMVVMViewClass_SourceCreator& B)
+			{
+				int32 ASortIndex = SortDatas[A.GetSourceName()].SortIndex;
+				int32 BSortIndex = SortDatas[B.GetSourceName()].SortIndex;
+				if (ASortIndex == BSortIndex)
+				{
+					return A.GetSourceName().LexicalLess(B.GetSourceName());
+				}
+				return ASortIndex < BSortIndex;
+			});
+	}
+
+	// Add sorted array to the ViewExtension
+	{
+		ViewExtension->SourceCreators.Reset(UnsortedSourceCreators.Num());
+		for (FMVVMViewClass_SourceCreator& SourceCreator : UnsortedSourceCreators)
+		{
+			ViewExtension->SourceCreators.Add(MoveTemp(SourceCreator));
+		}
+		UnsortedSourceCreators.Reset();
 	}
 
 	return bAreSourcesCreatorValid;
@@ -1747,6 +1811,11 @@ bool FMVVMViewBlueprintCompiler::CompileBindings(const FCompiledBindingLibraryCo
 		return false;
 	}
 
+	// Store bindings with corresponding ComplexConversionFunctionContextIndex to be sorted and mark the last binding 
+	// in the complex conversion as bExecuteAtInitialization == true
+	TArray<TPair<int32, FMVVMViewClass_CompiledBinding>> TempBindingPairs;
+	TempBindingPairs.Reserve(CompilerBindings.Num());
+
 	for (const FCompilerBinding& CompileBinding : CompilerBindings)
 	{
 		// PropertyBinding needs a valid CompileBinding.BindingIndex.
@@ -1855,6 +1924,9 @@ bool FMVVMViewBlueprintCompiler::CompileBindings(const FCompiledBindingLibraryCo
 		NewBinding.FieldId = CompiledFieldId ? *CompiledFieldId : FMVVMVCompiledFieldId();
 		NewBinding.Binding = CompiledBinding ? *CompiledBinding : FMVVMVCompiledBinding();
 		NewBinding.Flags = 0;
+
+		int32 ComplexConversionFunctionContextIndex = INDEX_NONE;
+
 		if (ViewBinding)
 		{
 			if (CompileBinding.Type != ECompilerBindingType::PropertyBinding)
@@ -1864,11 +1936,14 @@ bool FMVVMViewBlueprintCompiler::CompileBindings(const FCompiledBindingLibraryCo
 				continue;
 			}
 
-			bool bExecuteAtInitialization = CompileBinding.bIsForwardBinding;
-			if (bExecuteAtInitialization && CompileBinding.ComplexConversionFunctionContextIndex != INDEX_NONE)
+			// If it is forward binding and simple conversion, mark it as bExecuteAtInitialization == true
+			bool bExecuteAtInitialization = CompileBinding.bIsForwardBinding && CompileBinding.ComplexConversionFunctionContextIndex == INDEX_NONE;
+
+			// If it is forward binding and complex conversion, store ComplexConversionFunctionContextIndex to be handled later in this function.
+			if (CompileBinding.bIsForwardBinding && CompileBinding.ComplexConversionFunctionContextIndex != INDEX_NONE)
 			{
-				bExecuteAtInitialization = !ComplexConversionFunctionContexts[CompileBinding.ComplexConversionFunctionContextIndex].bExecAtInitGenerated;
-				ComplexConversionFunctionContexts[CompileBinding.ComplexConversionFunctionContextIndex].bExecAtInitGenerated = true;
+				// Only forward binding with complex conversion will have a valid ComplexConversionFunctionContextIndex
+				ComplexConversionFunctionContextIndex = CompileBinding.ComplexConversionFunctionContextIndex;
 			}
 
 			NewBinding.ExecutionMode = ViewBinding->bOverrideExecutionMode ? ViewBinding->OverrideExecutionMode : (EMVVMExecutionMode)CVarDefaultExecutionMode->GetInt();;
@@ -1898,12 +1973,70 @@ bool FMVVMViewBlueprintCompiler::CompileBindings(const FCompiledBindingLibraryCo
 			NewBinding.Flags |= (bIsSourceSelf) ? FMVVMViewClass_CompiledBinding::EBindingFlags::SourceObjectIsSelf : 0;
 		}
 
-		ViewExtension->CompiledBindings.Emplace(MoveTemp(NewBinding));
+		TempBindingPairs.Emplace(ComplexConversionFunctionContextIndex, MoveTemp(NewBinding));
+	}
+
+	if (ViewExtension->SourceCreators.Num() > 1)
+	{
+		TMap<FName, int32> SourceCreatorSortOrder;
+		SourceCreatorSortOrder.Reserve(ViewExtension->SourceCreators.Num());
+		for (int32 Index = 0; Index < ViewExtension->SourceCreators.Num(); ++Index)
+		{
+			SourceCreatorSortOrder.Add(ViewExtension->SourceCreators[Index].GetSourceName(), Index);
+		}
+
+		TempBindingPairs.StableSort([&SourceCreatorSortOrder](const TPair<int32, FMVVMViewClass_CompiledBinding>& PairA, const TPair<int32, FMVVMViewClass_CompiledBinding>& PairB)
+			{
+				const FMVVMViewClass_CompiledBinding& A = PairA.Value;
+				const FMVVMViewClass_CompiledBinding& B = PairB.Value;
+
+				int32* FoundA = SourceCreatorSortOrder.Find(A.GetSourceName());
+				int32* FoundB = SourceCreatorSortOrder.Find(B.GetSourceName());
+				int32 AIndex = FoundA ? *FoundA : -1;
+				int32 BIndex = FoundB ? *FoundB : -1;
+
+				if (AIndex == BIndex)
+				{
+					if (A.GetEvaluateSourceCreatorBindingIndex() == B.GetEvaluateSourceCreatorBindingIndex())
+					{
+						return A.GetSourceName().LexicalLess(B.GetSourceName());
+					}
+
+					return A.GetEvaluateSourceCreatorBindingIndex() < B.GetEvaluateSourceCreatorBindingIndex();
+				}
+
+				return AIndex < BIndex;
+			});
+	}
+
+	// Go backward to be able to mark only the last binding in the complex conversion.
+	for (int32 Index = TempBindingPairs.Num() - 1; Index >= 0; --Index)
+	{
+		FMVVMViewClass_CompiledBinding& Binding = TempBindingPairs[Index].Value;
+		const int32 ComplexConversionFunctionContextIndex = TempBindingPairs[Index].Key;
+
+		// Only handle bindings with complex conversions.
+		if (ComplexConversionFunctionContextIndex != INDEX_NONE)
+		{
+			// Mark the complex conversion as bExecAtInitGenerated.
+			if (!ComplexConversionFunctionContexts[ComplexConversionFunctionContextIndex].bExecAtInitGenerated)
+			{
+				ComplexConversionFunctionContexts[ComplexConversionFunctionContextIndex].bExecAtInitGenerated = true;
+
+				// Mark the last binding with the complex conversion.
+				Binding.Flags |= FMVVMViewClass_CompiledBinding::EBindingFlags::ExecuteAtInitialization;
+			}
+		}
+	}
+
+	ViewExtension->CompiledBindings.Reserve(TempBindingPairs.Num());
+	for (TPair<int32, FMVVMViewClass_CompiledBinding>& BindingPair : TempBindingPairs)
+	{
+		ViewExtension->CompiledBindings.Emplace(MoveTemp(BindingPair.Value));
 	}
 
 	return bAreBindingsValid;
 }
-
 
 bool FMVVMViewBlueprintCompiler::PreCompileEvents(UWidgetBlueprintGeneratedClass* Class, UMVVMBlueprintView* BlueprintView)
 {

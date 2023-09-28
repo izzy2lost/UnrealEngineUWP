@@ -167,13 +167,35 @@ void UMVVMView::InitializeBindings()
 	ensure(RegisteredLibraryBindings.IsEmpty());
 	RegisteredLibraryBindings.Reset(CompiledBindings.Num());
 	RegisteredLibraryBindings.AddDefaulted(CompiledBindings.Num());
-	for (int32 Index = 0; Index < CompiledBindings.Num(); ++Index)
+
+	if (CompiledBindings.Num())
 	{
-		const FMVVMViewClass_CompiledBinding& Binding = CompiledBindings[Index];
-		if (Binding.IsEnabledByDefault())
+		FName PreviousSourceName = CompiledBindings[0].GetSourceName();
+		for (int32 Index = 0; Index < CompiledBindings.Num(); ++Index)
 		{
-			EnableLibraryBinding(Binding, Index);
+			const FMVVMViewClass_CompiledBinding& Binding = CompiledBindings[Index];
+
+			// A binding execution might call SetViewModel.
+			//The bBindingsInitialized for that source needs to be true to re execute all the bindings.
+			if (PreviousSourceName != Binding.GetSourceName())
+			{
+				if (FMVVMViewSource* FoundSource = FindViewSource(PreviousSourceName))
+				{
+					FoundSource->bBindingsInitialized = true;
+				}
+				PreviousSourceName = Binding.GetSourceName();
+			}
+
+			if (Binding.IsEnabledByDefault())
+			{
+				EnableLibraryBinding(Binding, Index, false, false);
+			}
 		}
+	}
+
+	for (FMVVMViewSource& Source : Sources)
+	{
+		Source.bBindingsInitialized = true;
 	}
 
 	bBindingsInitialized = true;
@@ -215,6 +237,7 @@ void UMVVMView::UninitializeInternal(bool bUninitializeSources)
 	{
 		const FMVVMViewClass_SourceCreator& Item = AllViewModelCreators[Index];
 		FMVVMViewSource& ViewSource = Sources[Index];
+		ViewSource.bBindingsInitialized = false;
 
 		if (ViewSource.RegisteredCount > 0 && ViewSource.Source && bUninitializeBindings)
 		{
@@ -403,7 +426,7 @@ bool UMVVMView::SetSourceInternal(FName ViewModelName, TScriptInterface<INotifyF
 		const TArrayView<const FMVVMViewClass_CompiledEvent> CompiledEvents = ClassExtension->GetCompiledEvents();
 
 		// Unregister any bindings from that source
-		if (bBindingsInitialized)
+		if (Sources[AllCreatedSourcesIndex].bBindingsInitialized)
 		{
 			for (int32 Index = 0; Index < CompiledBindings.Num(); ++Index)
 			{
@@ -415,7 +438,7 @@ bool UMVVMView::SetSourceInternal(FName ViewModelName, TScriptInterface<INotifyF
 			}
 		}
 
-		// Unregisterer any events from that source
+		// Unregister any events from that source
 		if (bConstructed)
 		{
 			for (int32 Index = 0; Index < CompiledEvents.Num(); ++Index)
@@ -449,7 +472,7 @@ bool UMVVMView::SetSourceInternal(FName ViewModelName, TScriptInterface<INotifyF
 		bHasEveryTickBinding = false;
 
 		// Register back any bindings that was previously enabled
-		if (bBindingsInitialized && NewValue.GetObject())
+		if (Sources[AllCreatedSourcesIndex].bBindingsInitialized && NewValue.GetObject())
 		{
 			// Enabled the default bindings
 			for (int32 Index = 0; Index < CompiledBindings.Num(); ++Index)
@@ -460,7 +483,12 @@ bool UMVVMView::SetSourceInternal(FName ViewModelName, TScriptInterface<INotifyF
 					// Binding on this viewmodel
 					if (Binding.GetSourceName() == ViewModelName)
 					{
-						EnableLibraryBinding(Binding, Index);
+						// The binding needs execution, but maybe it's a complex binding and not all the sources from that binding are initialized.
+						//This occurs only at initialization when all the bindings from source A exectuted and a binding from source B call SetViewModel on A.
+						// A should reexecute its bindings but only if all the sources from the complex conversion initialized. We do not know that. Wait for the next frame and executed it. 
+						const bool bForceDelayed = Binding.IsConversionFunctionComplex() && !bBindingsInitialized;
+						EnableLibraryBinding(Binding, Index, true, bForceDelayed);
+
 						// Bindings that depends on this binding
 						if (Binding.IsEvaluateSourceCreatorBinding())
 						{
@@ -741,7 +769,7 @@ bool UMVVMView::IsLibraryBindingEnabled(int32 InBindindIndex) const
 }
 
 
-void UMVVMView::EnableLibraryBinding(const FMVVMViewClass_CompiledBinding& Binding, int32 BindingIndex)
+void UMVVMView::EnableLibraryBinding(const FMVVMViewClass_CompiledBinding& Binding, int32 BindingIndex, bool bSourceChanges, bool bForceDelayed)
 {
 	check(!RegisteredLibraryBindings[BindingIndex].IsValid());
 
@@ -767,9 +795,20 @@ void UMVVMView::EnableLibraryBinding(const FMVVMViewClass_CompiledBinding& Bindi
 		));
 	}
 
-	if (bCanExecute && Binding.NeedsExecutionAtInitialization())
+	if (bCanExecute)
 	{
-		ExecuteLibraryBinding(Binding, BindingIndex);
+		// @TODO: Asil.Karatas - Check if bSourceChanges should be guarded with Binding.NeedsExecuteAtInitializationWhenSourceChanges()
+		if (Binding.NeedsExecutionAtInitialization() || bSourceChanges) 
+		{
+			if (!bForceDelayed)
+			{
+				ExecuteLibraryBinding(Binding, BindingIndex);
+			}
+			else
+			{
+				GEngine->GetEngineSubsystem<UMVVMBindingSubsystem>()->AddDelayedBinding(this, BindingIndex);
+			}
+		}
 	}
 
 	bHasEveryTickBinding = bHasEveryTickBinding || ExecutionMode == EMVVMExecutionMode::Tick;
