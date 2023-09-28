@@ -2630,6 +2630,7 @@ public:
 	FTicket					Send(FActivity* Activity);
 
 private:
+	void					ReceiveWork();
 	FCriticalSection		Lock;
 	std::atomic<uint64>		FreeSlots		= ~0ull;
 	std::atomic<uint64>		Cancels			= 0;
@@ -2732,27 +2733,30 @@ void FEventLoop::FImpl::Cancel(FTicket Ticket)
 }
 
 ////////////////////////////////////////////////////////////////////////////////
+void FEventLoop::FImpl::ReceiveWork()
+{
+	uint64 FreeSlotsLoad = FreeSlots.load(std::memory_order_relaxed);
+	if (FreeSlots == PrevFreeSlots)
+	{
+		return;
+	}
+	PrevFreeSlots = FreeSlotsLoad;
+
+	TArray<FActivity*> NewActive;
+	{
+		FScopeLock _(&Lock);
+		NewActive = MoveTemp(Pending);
+	}
+
+	Active.Append(NewActive);
+}
+
+////////////////////////////////////////////////////////////////////////////////
 uint32 FEventLoop::FImpl::Tick(uint32 PollTimeoutMs)
 {
 	TRACE_CPUPROFILER_EVENT_SCOPE(IasHttp::Tick);
 
-	// Collect activity changes
-	uint64 FreeSlotsLoad = FreeSlots.load(std::memory_order_relaxed);
-	if (FreeSlots != PrevFreeSlots)
-	{
-		TArray<FActivity*> NewActive;
-		{
-			FScopeLock _(&Lock);
-			NewActive = MoveTemp(Pending);
-		}
-
-		for (FActivity* Activity : NewActive)
-		{
-			Active.Add(Activity);
-		}
-
-		PrevFreeSlots = FreeSlotsLoad;
-	}
+	ReceiveWork();
 
 	uint32 BusyCount = Active.Num();
 
