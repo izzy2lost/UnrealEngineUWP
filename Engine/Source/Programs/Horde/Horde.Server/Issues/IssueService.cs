@@ -1416,7 +1416,7 @@ namespace Horde.Server.Issues
 			if (name.StartsWith("Meta:", StringComparison.OrdinalIgnoreCase))
 			{
 				string[] values = fingerprint.GetMetadataValues(name.Slice(MetaPrefix.Length).ToString()).ToArray();
-				summary.Append(StringUtils.FormatList(values));
+				summary.Append(StringUtils.FormatList(values, 3));
 				return true;
 			}
 
