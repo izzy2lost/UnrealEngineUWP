@@ -229,9 +229,6 @@ namespace Chaos
 		UpdateKinematicProperties(NewParticle, MChildren, MEvolution);
 		UpdateGeometry(NewParticle, ChildrenSet, MChildren, ProxyGeometry, Parameters);
 		
-		// Build the convex optimizer if required
-		BuildConvexOptimizer(NewParticle);
-		
 		GenerateConnectionGraph(NewParticle, Parameters);
 
 		NewParticle->SetSleeping(bClusterIsAsleep);
@@ -317,7 +314,10 @@ namespace Chaos
 
 	void FRigidClustering::BuildConvexOptimizer(FPBDRigidClusteredParticleHandle* Particle)
 	{
-		Particle->ConvexOptimizer() = MakePimpl<Private::FConvexOptimizer>();
+		if(!Particle->ConvexOptimizer())
+		{
+			Particle->ConvexOptimizer() = MakePimpl<Private::FConvexOptimizer>();
+		}
 		Particle->ConvexOptimizer()->SimplifyRootConvexes( Particle->GetGeometry()->template AsA<FImplicitObjectUnion>(),
 					Particle->ShapesArray());
 	}
@@ -509,9 +509,6 @@ namespace Chaos
 		UpdateKinematicProperties(NewParticle, MChildren, MEvolution);
 
 		UpdateGeometry(NewParticle, ChildrenSet, MChildren, FImplicitObjectPtr(nullptr), NoCleanParams);
-		
-		// Build the convex optimizer if required
-		BuildConvexOptimizer(NewParticle);
 
 		return NewParticle;
 	}

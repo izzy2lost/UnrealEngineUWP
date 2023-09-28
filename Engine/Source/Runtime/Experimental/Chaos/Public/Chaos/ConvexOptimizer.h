@@ -4,6 +4,7 @@
 
 #include "Chaos/Core.h"
 #include "Chaos/ImplicitObject.h"
+#include "Chaos/Tribox.h"
 
 namespace Chaos
 {
@@ -23,6 +24,18 @@ namespace Private
 	class FConvexOptimizer
 	{
 		public :
+		
+		struct FCachedTribox
+		{
+			// Cached tribox
+			Private::FTribox Tribox;
+
+			// Cached convex
+			FImplicitObjectPtr Convex;
+		};
+
+		using FCachedTriboxes = TMap<FImplicitObject*,FCachedTribox>;
+		
 		CHAOS_API FConvexOptimizer();
 
 		// Default destructor
@@ -48,8 +61,8 @@ namespace Private
 		// Build a single convex
 		void BuildSingleConvex(const Chaos::FImplicitObjectUnionPtr& UnionGeometry, const FShapesArray& UnionShapes);
 
-		// Build several convexes for a given LOD
-		void BuildConvexLODs(const Chaos::FImplicitObjectUnionPtr& UnionGeometry, const FShapesArray& UnionShapes);
+		// Build several convexes 
+		void BuildMultipleConvex(const Chaos::FImplicitObjectUnionPtr& UnionGeometry, const FShapesArray& UnionShapes);
 
 		// Build the simplified shapes
 		void BuildConvexShapes(const FShapesArray& UnionShapes);
@@ -62,6 +75,12 @@ namespace Private
 
 		// Additional shapes array that could be used during collision midphase
 		FShapeInstanceArray ShapesArray;
+
+		// Intermediate root triboxes to reuse the intermediate computation
+		FCachedTriboxes RootTriboxes;
+
+		// BVH used to accelerate the collisions queries
+		TUniquePtr<Private::FImplicitBVH> BVH;
 	};
 
 	// Visit all the collision objects if they exist / otherwise forward it to the RootHierarchy

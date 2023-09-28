@@ -26,6 +26,7 @@ public :
 	using FVec3Type = TVec3<FRealType>;
 	using FRigidTransform3Type = TRigidTransform<FRealType, 3>;
 	using FMatrix33Type = PMatrix<FRealType, 3, 3>;
+	using FPlaneType = TPlaneConcrete<FRealType, 3>;
 
 	// Number of planes that will be used to define the Tribox 
 	static constexpr int32 NumPlanes = 18;
@@ -40,13 +41,30 @@ public :
 	static constexpr FRealType InflateDistance = 0.5;
 
 	// Base Constructor
-	FORCEINLINE FTribox() : MaxDists()
+	FORCEINLINE FTribox() : MaxDists(), bIsValid(false), bHasDatas(false)
 	{
 		for(int32 DistsIndex = 0; DistsIndex< NumPlanes; ++DistsIndex)
 		{
 			MaxDists[DistsIndex] = TNumericLimits<FRealType>::Lowest();
 		}
 	};
+
+	// Base Constructor
+	FORCEINLINE FTribox(const FTribox& OtherTribox) : MaxDists(), bIsValid(false), bHasDatas(false)
+	{
+		for(int32 DistsIndex = 0; DistsIndex < NumPlanes; ++DistsIndex)
+		{
+			MaxDists[DistsIndex] = OtherTribox.MaxDists[DistsIndex];
+		}
+		bIsValid = OtherTribox.bIsValid;
+		bHasDatas = OtherTribox.bHasDatas;
+	};
+	
+	// Get the tribox center
+	FVec3Type GetCenter() const;
+	
+	// Get the closest plane along the +X,-X,+Y,-Y,+Z,-Z directions
+	FRealType GetClosestPlane(const FVec3Type& PointPosition, int32& PlaneAxis, FRealType& PlaneProjection) const;
 
 	// Add a point position to the Tribox
 	void AddPoint(const FVec3Type& PointPosition);
@@ -60,6 +78,16 @@ public :
 	// Find the overlapping tribox 
 	bool OverlapTribox(const FTribox& OtherTribox, FTribox& OverlapTribox) const;
 
+	// Split the tribox in 2 along a defined cuttng plane
+	bool SplitTriboxSlab(const int32 PlaneAxis, const FRealType& PlaneDistance,
+					FTribox& LeftTribox, FTribox& RightTribox) const;
+
+	// Get the thickest tribox slab
+	int32 GetThickestSlab() const;
+
+	// Sample a point along the plane direction in betwen min and max
+	FRealType SampleSlabPoint(const int32 PlaneAxis, const FRealType& LocalDistance) const;
+
 	// Compute the tribox volume
 	FRealType ComputeVolume() const;
 
@@ -71,6 +99,24 @@ public :
 
 	// Add a tribox to this and return a new one
 	FTribox operator+( const FTribox& OtherTribox) const;
+
+	// Check ihe tribox is valid
+	bool IsValid() const {return bIsValid;}
+
+	// Set the valid flag
+	void SetValid(const bool bValid) {bIsValid = bValid;}
+
+	// Check ihe tribox have been built with datas
+	bool HasDatas() const {return bHasDatas;}
+
+	// Reset the tribox max distances
+	void ResetDists()
+	{
+		for(int32 DistsIndex = 0; DistsIndex< NumPlanes; ++DistsIndex)
+		{
+			MaxDists[DistsIndex] = TNumericLimits<FRealType>::Lowest();
+		}
+	}
 
 private : 
 	// Solve the intersection point position
@@ -96,8 +142,11 @@ private :
 									 TNumericLimits<FRealType>::Lowest(), TNumericLimits<FRealType>::Lowest(),
 									 TNumericLimits<FRealType>::Lowest()};
 
-	// Number of points used to build the simplified convexes
-	int32 NumPoints = 0;
+	// Boolean to specify if the tribox is valid or not 
+	bool bIsValid = false;
+
+	// Boolean to specify if the tribox has been built with datas or not
+	bool bHasDatas = false;
 };
 
 }

@@ -100,6 +100,11 @@ namespace Chaos
 		TUniquePtr<FImplicitBVH> FImplicitBVH::TryMake(const TArrayView<const Chaos::FImplicitObjectPtr>& InRootObjects, const int32 InMinObjects, const int32 InMaxBVHDepth)
 		{
 			TArray<FImplicitBVHObject> LeafObjects = CollectLeafObjects(InRootObjects);
+			return TryMakeFromLeaves(MoveTemp(LeafObjects), InMinObjects, InMaxBVHDepth);
+		}
+		
+		TUniquePtr<FImplicitBVH> FImplicitBVH::TryMakeFromLeaves(TArray<FImplicitBVHObject>&& LeafObjects, const int32 InMinObjects, const int32 InMaxBVHDepth)
+		{
 			if (LeafObjects.Num() > InMinObjects)
 			{
 				return TUniquePtr<FImplicitBVH>(new FImplicitBVH(MoveTemp(LeafObjects), InMaxBVHDepth));

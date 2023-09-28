@@ -112,3 +112,4 @@ DEFINE_STAT(STAT_Collisions_Gather);
 DEFINE_STAT(STAT_Collisions_Scatter);
 DEFINE_STAT(STAT_Collisions_Apply);
 DEFINE_STAT(STAT_Collisions_ApplyPushOut);
+DEFINE_STAT(STAT_Collisions_SimplifyConvexes);

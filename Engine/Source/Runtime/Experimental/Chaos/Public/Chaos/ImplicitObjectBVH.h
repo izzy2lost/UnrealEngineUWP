@@ -117,13 +117,18 @@ namespace Chaos
 
 			// Create a BVH around a set of ImplicitObjects. Usually these are the immediate child elements of an FImplcitObjectUnion
 			// TryMake will then recurse into the geometry hierachy and add all descendents to the BVH. Will return null if the 
-			// number of descendents is less that MinObjscts.
+			// number of descendents is less that MinObjects.
 			static TUniquePtr<FImplicitBVH> TryMake(const TArrayView<const Chaos::FImplicitObjectPtr>& InRootObjects, const int32 MinObjects, const int32 InMaxBVHDepth);
+			
+			// Create a BVH around given a list of leaves.  Will return null if the  number of descendents is less that MinObjects.
+			static TUniquePtr<FImplicitBVH> TryMakeFromLeaves(TArray<FImplicitBVHObject>&& LeafObjects, const int32 InMinObjects, const int32 InMaxBVHDepth);
 
 			~FImplicitBVH();
 
 			int32 GetNumObjects() const { return Objects.Num(); }
 			int32 GetDepth() const { return TreeDepth; }
+			
+			const TArray<FImplicitBVHObject>& GetObjects() const { return Objects; }
 			
 			const FImplicitBVHObject& GetObject(const int32 ObjectIndex) const { return Objects[ObjectIndex]; }
 

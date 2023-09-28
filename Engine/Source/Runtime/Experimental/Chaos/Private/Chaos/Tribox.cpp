@@ -196,81 +196,81 @@ static const int32 PrincipalOrder[8][9][3] =
 		{3, 0, 0}
 	},
 	{
-	{2, 0, 7},
-	{2, 2, 6},
-	{1, 1, 3},
-	{7, 1, 5},
-	{3, 6, 4},
-	{2, 2, 6},
-	{0, 2, 6},
-	{1, 1, 5},
-	{0, 3, 0}
+		{2, 0, 7},
+		{2, 2, 6},
+		{1, 1, 3},
+		{7, 1, 5},
+		{3, 6, 4},
+		{2, 2, 6},
+		{0, 2, 6},
+		{1, 1, 5},
+		{0, 3, 0}
 	},
 	{
-	{6, 4, 3},
-	{2, 6, 2},
-	{1, 5, 7},
-	{1, 5, 1},
-	{3, 0, 0},
-	{2, 6, 0},
-	{2, 6, 2},
-	{1, 3, 1},
-	{0, 7, 2}
+		{6, 4, 3},
+		{2, 6, 2},
+		{1, 5, 7},
+		{1, 5, 1},
+		{3, 0, 0},
+		{2, 6, 0},
+		{2, 6, 2},
+		{1, 3, 1},
+		{0, 7, 2}
 	},
 	{
-	{0, 0, 3},
-	{6, 0, 2},
-	{5, 1, 1},
-	{3, 1, 1},
-	{7, 2, 0},
-	{6, 2, 2},
-	{6, 2, 2},
-	{5, 7, 1},
-	{4, 3, 6}
+		{0, 0, 3},
+		{6, 0, 2},
+		{5, 1, 1},
+		{3, 1, 1},
+		{7, 2, 0},
+		{6, 2, 2},
+		{6, 2, 2},
+		{5, 7, 1},
+		{4, 3, 6}
 	},
 	{
-	{2, 7, 0},
-	{5, 3, 1},
-	{6, 6, 2},
-	{6, 6, 2},
-	{4, 6, 3},
-	{5, 5, 7},
-	{5, 5, 1},
-	{6, 4, 2},
-	{7, 4, 4}
+		{2, 7, 0},
+		{5, 3, 1},
+		{6, 6, 2},
+		{6, 6, 2},
+		{4, 6, 3},
+		{5, 5, 7},
+		{5, 5, 1},
+		{6, 4, 2},
+		{7, 4, 4}
 	},
 	{
-	{6, 3, 4},
-	{5, 7, 5},
-	{6, 2, 6},
-	{4, 2, 6},
-	{4, 4, 7},
-	{5, 1, 5},
-	{3, 1, 5},
-	{6, 2, 6},
-	{7, 0, 2}
+		{6, 3, 4},
+		{5, 7, 5},
+		{6, 2, 6},
+		{4, 2, 6},
+		{4, 4, 7},
+		{5, 1, 5},
+		{3, 1, 5},
+		{6, 2, 6},
+		{7, 0, 2}
 	},
 	{
-	{4, 7, 4},
-	{1, 5, 5},
-	{2, 6, 4},
-	{2, 6, 6},
-	{0, 2, 7},
-	{1, 5, 3},
-	{7, 5, 5},
-	{2, 6, 6},
-	{3, 4, 6}
+		{4, 7, 4},
+		{1, 5, 5},
+		{2, 6, 4},
+		{2, 6, 6},
+		{0, 2, 7},
+		{1, 5, 3},
+		{7, 5, 5},
+		{2, 6, 6},
+		{3, 4, 6}
 	},
 	{
-	{4, 4, 7},
-	{6, 4, 6},
-	{5, 5, 5},
-	{5, 5, 5},
-	{7, 4, 4},
-	{6, 6, 4},
-	{4, 6, 6},
-	{5, 5, 5},
-	{4, 7, 4}
+		{4, 4, 7},
+		{6, 4, 6},
+		{5, 5, 5},
+		{5, 5, 5},
+		{7, 4, 4},
+		{6, 6, 4},
+		{4, 6, 6},
+		{5, 5, 5},
+		{4, 7, 4}
 	}
 };
 
@@ -303,11 +303,13 @@ void FTribox::AddPoint(const FVec3Type& PointPosition)
 	BuildChamferDist(P, 0, 2, 10, 11, 12, 13);
 	BuildChamferDist(P, 0, 1, 14, 15, 16, 17);
 
-	++NumPoints;
+	bHasDatas = true;
 }
 
+DECLARE_CYCLE_STAT(TEXT("Collisions::AddConvex"), STAT_AddConvexToTribox, STATGROUP_ChaosCollision);
 void FTribox::AddConvex(const FConvex* Convex, const FRigidTransform3Type& RelativeTransform)
 {
+	SCOPE_CYCLE_COUNTER(STAT_AddConvexToTribox);
 	if(Convex)
 	{
 		for(int32 VertexIndex = 0; VertexIndex < Convex->NumVertices(); ++VertexIndex)
@@ -322,7 +324,7 @@ void FTribox::AddConvex(const FConvex* Convex, const FRigidTransform3Type& Relat
 
 bool FTribox::BuildTribox()
 {
-	if(NumPoints > 0)
+	if(bHasDatas)
 	{
 		// Inflate the principal planes max distance by a given distance
 		for(int32 PlaneIndex = 0; PlaneIndex < NumPrincipalPlanes; ++PlaneIndex)
@@ -393,58 +395,62 @@ FORCEINLINE void CompressFaces(TArray<TArray<int32>>& FaceIndices)
 	}
 }
 
+DECLARE_CYCLE_STAT(TEXT("Collisions::MakeConvex"), STAT_MakeTriboxConvex, STATGROUP_ChaosCollision);
 FImplicitObjectPtr FTribox::MakeConvex() const
 {
 	TArray<TArray<int32>> FaceIndices;
 	TArray<FConvex::FVec3Type> ConvexVertices;
 	TArray<FConvex::FPlaneType> ConvexPlanes;
-
-	FaceIndices.SetNum(NumPlanes);
-	ConvexVertices.Reserve(32);
-	ConvexPlanes.SetNum(NumPlanes);
-
-	for(int32 PlaneIndex = 0; PlaneIndex < NumPlanes; ++PlaneIndex)
 	{
-		ConvexPlanes[PlaneIndex] = FConvex::FPlaneType(
-			PlanesDirs[PlaneIndex] * MaxDists[PlaneIndex], PlanesDirs[PlaneIndex]);
-		FaceIndices[PlaneIndex].Init(INDEX_NONE, 8);
-	}
-	for(int32 CornerIndex = 0; CornerIndex < 8; ++CornerIndex)
-	{
-		// Compute the intersection in between 3 corner chamfer planes
-		const FVec3Type P = SolveIntersection(ChamferIndices[CornerIndex], ChamferMatrices[CornerIndex]);
+		SCOPE_CYCLE_COUNTER(STAT_MakeTriboxConvex);
 
-		if(P.Dot(PlanesDirs[PrincipalIndices[CornerIndex][0]]) > MaxDists[PrincipalIndices[CornerIndex][0]])
-		{
-			ComputeIntersection(CornerIndex, 0,1, FaceIndices, ConvexVertices);
-			ComputeIntersection(CornerIndex, 0,2, FaceIndices, ConvexVertices);
-			ComputeIntersection(CornerIndex, 1,1, FaceIndices, ConvexVertices);
-			ComputeIntersection(CornerIndex, 2,2, FaceIndices, ConvexVertices);
-		}
-		else if(P.Dot(PlanesDirs[PrincipalIndices[CornerIndex][1]]) > MaxDists[PrincipalIndices[CornerIndex][1]])
-		{
-			ComputeIntersection(CornerIndex, 1,0, FaceIndices, ConvexVertices);
-			ComputeIntersection(CornerIndex, 1,2, FaceIndices, ConvexVertices);
-			ComputeIntersection(CornerIndex, 0,0, FaceIndices, ConvexVertices);
-			ComputeIntersection(CornerIndex, 2,2, FaceIndices, ConvexVertices);
-		}
-		else if(P.Dot(PlanesDirs[PrincipalIndices[CornerIndex][2]]) > MaxDists[PrincipalIndices[CornerIndex][2]])
-		{
-			ComputeIntersection(CornerIndex, 2,0, FaceIndices, ConvexVertices);
-			ComputeIntersection(CornerIndex, 2,1, FaceIndices, ConvexVertices);
-			ComputeIntersection(CornerIndex, 0,0, FaceIndices, ConvexVertices);
-			ComputeIntersection(CornerIndex, 1,1, FaceIndices, ConvexVertices);
-		}
-		else
-		{
-			ComputeIntersection(CornerIndex, 0,0, FaceIndices, ConvexVertices);
-			ComputeIntersection(CornerIndex, 1,1, FaceIndices, ConvexVertices);
-			ComputeIntersection(CornerIndex, 2,2, FaceIndices, ConvexVertices);
+		FaceIndices.SetNum(NumPlanes);
+		ConvexVertices.Reserve(32);
+		ConvexPlanes.SetNum(NumPlanes);
 
-			AddIntersection(ChamferIndices[CornerIndex], ChamferOrder[CornerIndex], P, FaceIndices, ConvexVertices);
+		for(int32 PlaneIndex = 0; PlaneIndex < NumPlanes; ++PlaneIndex)
+		{
+			ConvexPlanes[PlaneIndex] = FConvex::FPlaneType(
+				PlanesDirs[PlaneIndex] * MaxDists[PlaneIndex], PlanesDirs[PlaneIndex]);
+			FaceIndices[PlaneIndex].Init(INDEX_NONE, 8);
 		}
+		for(int32 CornerIndex = 0; CornerIndex < 8; ++CornerIndex)
+		{
+			// Compute the intersection in between 3 corner chamfer planes
+			const FVec3Type P = SolveIntersection(ChamferIndices[CornerIndex], ChamferMatrices[CornerIndex]);
+
+			if(P.Dot(PlanesDirs[PrincipalIndices[CornerIndex][0]]) > MaxDists[PrincipalIndices[CornerIndex][0]])
+			{
+				ComputeIntersection(CornerIndex, 0,1, FaceIndices, ConvexVertices);
+				ComputeIntersection(CornerIndex, 0,2, FaceIndices, ConvexVertices);
+				ComputeIntersection(CornerIndex, 1,1, FaceIndices, ConvexVertices);
+				ComputeIntersection(CornerIndex, 2,2, FaceIndices, ConvexVertices);
+			}
+			else if(P.Dot(PlanesDirs[PrincipalIndices[CornerIndex][1]]) > MaxDists[PrincipalIndices[CornerIndex][1]])
+			{
+				ComputeIntersection(CornerIndex, 1,0, FaceIndices, ConvexVertices);
+				ComputeIntersection(CornerIndex, 1,2, FaceIndices, ConvexVertices);
+				ComputeIntersection(CornerIndex, 0,0, FaceIndices, ConvexVertices);
+				ComputeIntersection(CornerIndex, 2,2, FaceIndices, ConvexVertices);
+			}
+			else if(P.Dot(PlanesDirs[PrincipalIndices[CornerIndex][2]]) > MaxDists[PrincipalIndices[CornerIndex][2]])
+			{
+				ComputeIntersection(CornerIndex, 2,0, FaceIndices, ConvexVertices);
+				ComputeIntersection(CornerIndex, 2,1, FaceIndices, ConvexVertices);
+				ComputeIntersection(CornerIndex, 0,0, FaceIndices, ConvexVertices);
+				ComputeIntersection(CornerIndex, 1,1, FaceIndices, ConvexVertices);
+			}
+			else
+			{
+				ComputeIntersection(CornerIndex, 0,0, FaceIndices, ConvexVertices);
+				ComputeIntersection(CornerIndex, 1,1, FaceIndices, ConvexVertices);
+				ComputeIntersection(CornerIndex, 2,2, FaceIndices, ConvexVertices);
+
+				AddIntersection(ChamferIndices[CornerIndex], ChamferOrder[CornerIndex], P, FaceIndices, ConvexVertices);
+			}
+		}
+		CompressFaces(FaceIndices);
 	}
-	CompressFaces(FaceIndices);
 	return MakeImplicitObjectPtr<Chaos::FConvex>(MoveTemp(ConvexPlanes), MoveTemp(FaceIndices), MoveTemp(ConvexVertices));
 }
 	
@@ -471,17 +477,157 @@ bool FTribox::OverlapTribox(const FTribox& OtherTribox, FTribox& OverlapTribox) 
 	return bOverlapTriboxes;
 }
 
+bool FTribox::SplitTriboxSlab(const int32 PlaneAxis, const FRealType& PlaneDistance,
+	FTribox& LeftTribox, FTribox& RightTribox) const
+{
+	if(PlaneDistance < MaxDists[PlaneAxis])
+	{
+		if(PlaneDistance > -MaxDists[PlaneAxis+1])
+		{
+			LeftTribox = *this;
+			RightTribox = *this;
+
+			auto CutTribox = [](const int32 PX, const int32 MX, const int32 PY, const int32 MY,
+						const int32 PZPX, const int32 PZMX, const int32 PZPY, const int32 PZMY,
+						const int32 MZPX, const int32 MZMX, const int32 MZPY, const int32 MZMY,
+						const int32 PXPY, const int32 PXMY, const int32 MXPY, const int32 MXMY,
+						const int32 PZ, const FRealType MaxDistance, FTribox& SideTribox)
+			{
+				SideTribox.MaxDists[PZ] = MaxDistance;
+				
+				SideTribox.MaxDists[PX] = FMath::Min(SideTribox.MaxDists[PX], SideTribox.MaxDists[MZPX] * Sqrt2 + MaxDistance);
+				SideTribox.MaxDists[MX] = FMath::Min(SideTribox.MaxDists[MX], SideTribox.MaxDists[MZMX] * Sqrt2 + MaxDistance);
+				SideTribox.MaxDists[PY] = FMath::Min(SideTribox.MaxDists[PY], SideTribox.MaxDists[MZPY] * Sqrt2 + MaxDistance);
+				SideTribox.MaxDists[MY] = FMath::Min(SideTribox.MaxDists[MY], SideTribox.MaxDists[MZMY] * Sqrt2 + MaxDistance);
+
+				SideTribox.MaxDists[PZPX] = FMath::Min(SideTribox.MaxDists[PZPX], (SideTribox.MaxDists[PX] + MaxDistance) * InvSqrt2);
+				SideTribox.MaxDists[PZMX] = FMath::Min(SideTribox.MaxDists[PZMX], (SideTribox.MaxDists[MX] + MaxDistance) * InvSqrt2);
+				SideTribox.MaxDists[PZPY] = FMath::Min(SideTribox.MaxDists[PZPY], (SideTribox.MaxDists[PY] + MaxDistance) * InvSqrt2);
+				SideTribox.MaxDists[PZMY] = FMath::Min(SideTribox.MaxDists[PZMY], (SideTribox.MaxDists[MY] + MaxDistance) * InvSqrt2);
+				
+				SideTribox.MaxDists[PXPY] = FMath::Min(SideTribox.MaxDists[PXPY], (SideTribox.MaxDists[PX] + SideTribox.MaxDists[PY]) * InvSqrt2);
+				SideTribox.MaxDists[PXMY] = FMath::Min(SideTribox.MaxDists[PXMY], (SideTribox.MaxDists[PX] + SideTribox.MaxDists[MY]) * InvSqrt2);
+				SideTribox.MaxDists[MXPY] = FMath::Min(SideTribox.MaxDists[MXPY], (SideTribox.MaxDists[MX] + SideTribox.MaxDists[PY]) * InvSqrt2);
+				SideTribox.MaxDists[MXMY] = FMath::Min(SideTribox.MaxDists[MXMY], (SideTribox.MaxDists[MX] + SideTribox.MaxDists[MY]) * InvSqrt2);
+			};
+			
+			if(PlaneAxis == 0)
+			{
+				CutTribox(4,5,2,3,10,12,14,16,13,11,17,15,6,9,8,7,0, PlaneDistance, LeftTribox);
+				CutTribox(4,5,2,3,13,11,17,15,10,12,14,16,6,9,8,7,1,-PlaneDistance, RightTribox);
+			}
+			else if(PlaneAxis == 2)
+			{
+				CutTribox(4,5,0,1,6,8,14,17,9,7,16,15,10,13,12,11,2, PlaneDistance, LeftTribox);
+				CutTribox(4,5,0,1,9,7,16,15,6,8,14,17,10,13,12,11,3,-PlaneDistance, RightTribox);
+			}
+			else if(PlaneAxis == 4)
+			{
+				CutTribox(2,3,0,1,6,9,10,13,8,7,12,11,14,17,16,15,4, PlaneDistance, LeftTribox);
+				CutTribox(2,3,0,1,8,7,12,11,6,9,10,13,14,17,16,15,5,-PlaneDistance, RightTribox);
+			}
+			
+			return true;
+		}
+		else  
+		{
+			RightTribox = *this;
+		}
+	}
+	else
+	{
+		LeftTribox = *this;
+	}
+	return false;
+}
+
+int32 FTribox::GetThickestSlab() const
+{
+	int32 ThickestSlab = INDEX_NONE;
+	FRealType MaxThickness = 0.0;
+	for(int32 AxisIndex = 0; AxisIndex < NumPrincipalPlanes; AxisIndex += 2)
+	{
+		const FRealType SlabThickness = (MaxDists[AxisIndex]+MaxDists[AxisIndex+1]);
+		if(SlabThickness > MaxThickness)
+		{
+			ThickestSlab = AxisIndex;
+			MaxThickness = SlabThickness;
+		}
+	}
+	return ThickestSlab;
+}
+
+FTribox::FRealType FTribox::SampleSlabPoint(const int32 PlaneAxis, const FRealType& LocalDistance) const
+{
+	return -MaxDists[PlaneAxis+1] + FMath::Max(0.0f, FMath::Min(1.0f, LocalDistance)) * (MaxDists[PlaneAxis]+MaxDists[PlaneAxis+1]);
+}
+	
+FTribox::FRealType FTribox::GetClosestPlane(const FVec3Type& PointPosition, int32& PlaneAxis, FRealType& PlaneProjection) const
+{
+	FRealType ClosestDistance = -FLT_MAX;
+	for(int32 AxisIndex = 0; AxisIndex < 3; ++AxisIndex)
+	{
+		const int32 PlaneIndex = 2 * AxisIndex;
+		FRealType PlaneDistance = PointPosition[AxisIndex]-MaxDists[PlaneIndex];
+		if(PlaneDistance > ClosestDistance)
+		{
+			ClosestDistance = PlaneDistance;
+			PlaneAxis = PlaneIndex;
+			PlaneProjection = MaxDists[PlaneIndex];
+		}
+		PlaneDistance = -PointPosition[AxisIndex]-MaxDists[PlaneIndex+1];
+		if(PlaneDistance > ClosestDistance)
+		{
+			ClosestDistance = PlaneDistance;
+			PlaneAxis = PlaneIndex;
+			PlaneProjection = -MaxDists[PlaneIndex+1];
+		}
+	}
+	return ClosestDistance;
+}
+
 FTribox::FRealType FTribox::ComputeVolume() const
 {
-	return (MaxDists[0]+MaxDists[1]) * (MaxDists[2]+MaxDists[3]) * (MaxDists[4]+MaxDists[5]);
+	const FVec3Type BoxSize(MaxDists[0]+MaxDists[1], MaxDists[2]+MaxDists[3], MaxDists[4]+MaxDists[5]);
+	FRealType Volume = BoxSize[0] * BoxSize[1] * BoxSize[2];
+
+	auto RemovePrism = [&Volume, &BoxSize, this](const int32 AxisX, const int32 AxisY, const int32 AxisZ,
+		const int32 ChamferA, const int32 ChamferB, const int32 ChamferC, const int32 ChamferD)
+	{
+		FRealType CornerDistance = (MaxDists[AxisX] + MaxDists[AxisY]) * InvSqrt2 - MaxDists[ChamferA];
+		Volume -= CornerDistance * CornerDistance * BoxSize[AxisZ];
+		CornerDistance = (MaxDists[AxisX] + MaxDists[AxisY+1]) * InvSqrt2 - MaxDists[ChamferB];
+		Volume -= CornerDistance * CornerDistance * BoxSize[AxisZ];
+		CornerDistance = (MaxDists[AxisX+1] + MaxDists[AxisY]) * InvSqrt2 - MaxDists[ChamferC];
+		Volume -= CornerDistance * CornerDistance * BoxSize[AxisZ];
+		CornerDistance = (MaxDists[AxisX+1] + MaxDists[AxisY+1]) * InvSqrt2 - MaxDists[ChamferD];
+		Volume -= CornerDistance * CornerDistance * BoxSize[AxisZ];
+	};
+
+	// Remove all th prisms along the z directions
+	RemovePrism(0,2,2,14,16,17,15);
+	
+	// Remove all th prisms along the y directions
+	RemovePrism(0,4,1,10,12,13,11);
+	
+	// Remove all th prisms along the x directions
+	RemovePrism(2,4,0,6,8,9,7);
+	
+	return Volume;
+}
+	
+FTribox::FVec3Type FTribox::GetCenter() const
+{
+	return 0.5f * FVec3Type(MaxDists[0]-MaxDists[1], MaxDists[2]-MaxDists[3], MaxDists[4]-MaxDists[5]);
 }
 	
 FTribox& FTribox::operator+=(const FTribox& OtherTribox)
 {
 	for(int32 PlaneIndex = 0; PlaneIndex < NumPlanes; ++PlaneIndex)
 	{
-		MaxDists[PlaneIndex]  = FMath::Max(OtherTribox.MaxDists[PlaneIndex], MaxDists[PlaneIndex]);
+		MaxDists[PlaneIndex] = FMath::Max(OtherTribox.MaxDists[PlaneIndex], MaxDists[PlaneIndex]);
 	}
+	bHasDatas |= OtherTribox.bHasDatas;
 	return *this;
 }
 
