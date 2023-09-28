@@ -22,12 +22,15 @@
 #include "EngineUtils.h"
 #include "ToolMenus.h"
 #include "RewindDebuggerSettings.h"
+#include "RewindDebuggerCommands.h"
 #include "LevelEditor.h"
 #include "RewindDebuggerModule.h"
 #include "Engine/PoseWatch.h"
 #include "ProfilingDebugging/TraceAuxiliary.h"
 #include "UObject/UObjectIterator.h"
 #include "Engine/World.h"
+
+#define LOCTEXT_NAMESPACE "RewindDebugger"
 
 static void IterateExtensions(TFunction<void(IRewindDebuggerExtension* Extension)> IteratorFunction)
 {
@@ -1247,6 +1250,72 @@ void FRewindDebugger::RegisterComponentContextMenu()
 	}));
 }
 
+void FRewindDebugger::RegisterToolBar()
+{
+	UToolMenu* Menu = UToolMenus::Get()->RegisterMenu("RewindDebugger.ToolBar", NAME_None, EMultiBoxType::ToolBar);
+	
+	FToolMenuSection& Section = Menu->FindOrAddSection("VCRControls");
+	const FRewindDebuggerCommands& Commands = FRewindDebuggerCommands::Get();
+	Section.AddEntry(FToolMenuEntry::InitToolBarButton(
+			Commands.FirstFrame,
+			LOCTEXT("Blank",""),
+			TAttribute<FText>(),
+			FSlateIcon("RewindDebuggerStyle", "RewindDebugger.FirstFrame.small")));
+	
+	Section.AddEntry(FToolMenuEntry::InitToolBarButton(
+			Commands.PreviousFrame,
+			LOCTEXT("Blank",""),
+			TAttribute<FText>(),
+			FSlateIcon("RewindDebuggerStyle", "RewindDebugger.PreviousFrame.small")));
+			
+	Section.AddEntry(FToolMenuEntry::InitToolBarButton(
+				Commands.ReversePlay,
+				LOCTEXT("Blank",""),
+				TAttribute<FText>(),
+				FSlateIcon("RewindDebuggerStyle", "RewindDebugger.ReversePlay.small")));
+	
+	Section.AddEntry(FToolMenuEntry::InitToolBarButton(
+				Commands.Pause,
+				LOCTEXT("Blank",""),
+				FText::Format(LOCTEXT("PauseButtonTooltip", "{0} ({1})"), Commands.Pause->GetDescription(), Commands.PauseOrPlay->GetInputText()),
+				FSlateIcon("RewindDebuggerStyle", "RewindDebugger.Pause.small")));
+	
+	Section.AddEntry(FToolMenuEntry::InitToolBarButton(
+				Commands.Play,
+				LOCTEXT("Blank",""),
+				FText::Format(LOCTEXT("PlayButtonTooltip", "{0} ({1})"), Commands.Play->GetDescription(), Commands.PauseOrPlay->GetInputText()),
+				FSlateIcon("RewindDebuggerStyle", "RewindDebugger.Play.small")));
+
+	Section.AddEntry(FToolMenuEntry::InitToolBarButton(
+				Commands.NextFrame,
+				LOCTEXT("Blank",""),
+				TAttribute<FText>(),
+				FSlateIcon("RewindDebuggerStyle", "RewindDebugger.NextFrame.small")));
+	
+	Section.AddEntry(FToolMenuEntry::InitToolBarButton(
+				Commands.LastFrame,
+				LOCTEXT("Blank",""),
+				TAttribute<FText>(),
+				FSlateIcon("RewindDebuggerStyle", "RewindDebugger.LastFrame.small")));
+
+	Section.AddEntry(FToolMenuEntry::InitToolBarButton(
+				Commands.StartRecording,
+				LOCTEXT("Blank",""),
+				TAttribute<FText>(),
+				FSlateIcon("RewindDebuggerStyle", "RewindDebugger.StartRecording.small")));
+				
+
+	Section.AddEntry(FToolMenuEntry::InitToolBarButton(
+				Commands.StopRecording,
+				LOCTEXT("Blank",""),
+				TAttribute<FText>(),
+				FSlateIcon("RewindDebuggerStyle", "RewindDebugger.StopRecording.small")));
+	
+	Menu->SetStyleSet(&FAppStyle::Get());
+	Menu->StyleName = "PaletteToolBar";
+}
+
+
 void FRewindDebugger::ComponentDoubleClicked(TSharedPtr<RewindDebugger::FRewindDebuggerTrack> SelectedObject)
 {
 	if (!SelectedObject.IsValid())
@@ -1330,3 +1399,5 @@ TArray<TSharedPtr<FDebugObjectInfo>>& FRewindDebugger::GetDebugComponents()
 	RefreshDebugComponents(DebugTracks, DebugComponents);
 	return DebugComponents;
 }
+
+#undef LOCTEXT_NAMESPACE

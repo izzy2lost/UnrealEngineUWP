@@ -13,6 +13,8 @@
 #include "Algo/ForEach.h"
 #include "SceneManagement.h"
 #include "Engine/SkeletalMesh.h"
+#include "Logging/LogVerbosity.h"
+#include "VisualLogger/VisualLogger.h"
 
 #include UE_INLINE_GENERATED_CPP_BY_NAME(AnimNode_IKRig)
 
@@ -199,13 +201,13 @@ void FAnimNode_IKRig::Update_AnyThread(const FAnimationUpdateContext& Context)
 	// alpha handlers
 	switch (AlphaInputType)
 	{
-	case EAnimAlphaInputType::Float : 
+	case EAnimAlphaInputType::Float:
 		ActualAlpha = AlphaScaleBias.ApplyTo(AlphaScaleBiasClamp.ApplyTo(Alpha, Context.GetDeltaTime()));
 		break;
-	case EAnimAlphaInputType::Bool :
+	case EAnimAlphaInputType::Bool:
 		ActualAlpha = AlphaBoolBlend.ApplyTo(bAlphaBoolEnabled, Context.GetDeltaTime());
 		break;
-	case EAnimAlphaInputType::Curve :
+	case EAnimAlphaInputType::Curve:
 		if (UAnimInstance* AnimInstance = Cast<UAnimInstance>(Context.AnimInstanceProxy->GetAnimInstanceObject()))
 		{
 			ActualAlpha = AlphaScaleBiasClamp.ApplyTo(AnimInstance->GetCurveValue(AlphaCurveName), Context.GetDeltaTime());
@@ -217,9 +219,30 @@ void FAnimNode_IKRig::Update_AnyThread(const FAnimationUpdateContext& Context)
 	ActualAlpha = FMath::Clamp<float>(ActualAlpha, 0.f, 1.f);
 
 	PropagateInputProperties(Context.AnimInstanceProxy->GetAnimInstanceObject());
-	
+
 	FAnimNode_Base::Update_AnyThread(Context);
 	Source.Update(Context);
+
+#if ENABLE_VISUAL_LOG
+#if WITH_EDITORONLY_DATA
+	if( FVisualLogger::IsRecording() )
+	{
+		static const FBox UnitBox(FVector(-1, -1, -1), FVector(1, 1, 1));
+
+		const TArray<FIKRigGoal>& ProcessorGoals = IKRigProcessor->GetGoalContainer().GetGoalArray();
+		for (const FIKRigGoal& Goal : ProcessorGoals)
+		{
+			FTransform GoalTransform(Goal.FinalBlendedRotation, Goal.FinalBlendedPosition, FVector(DebugScale, DebugScale, DebugScale));
+			GoalTransform = GoalTransform * Context.AnimInstanceProxy->GetComponentTransform();
+			UE_VLOG_OBOX(Context.AnimInstanceProxy->GetAnimInstanceObject(), "IKRig", Display, UnitBox, GoalTransform.ToMatrixWithScale(), FColor::Yellow, TEXT(""));
+			UE_VLOG_LOCATION(Context.AnimInstanceProxy->GetAnimInstanceObject(), "IKRig", Verbose, GoalTransform.GetTranslation(), 0.f, FColor::White, TEXT("%ls"), ToCStr(Goal.Name.ToString()));
+		}
+	}
+#endif
+#endif
+
+	TRACE_ANIM_NODE_VALUE(Context, TEXT("Name"), RigDefinitionAsset ? ToCStr(RigDefinitionAsset->GetName()) : TEXT(""));
+	TRACE_ANIM_NODE_VALUE(Context, TEXT("Asset"), RigDefinitionAsset);
 }
 
 void FAnimNode_IKRig::PreUpdate(const UAnimInstance* InAnimInstance)

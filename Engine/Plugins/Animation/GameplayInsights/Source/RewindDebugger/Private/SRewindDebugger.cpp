@@ -240,24 +240,8 @@ void SRewindDebugger::Construct(const FArguments& InArgs, TSharedRef<FUICommandL
 		RefreshDebugComponents();
 	});
 	
-	FSlimHorizontalToolBarBuilder ToolBarBuilder(CommandList, FMultiBoxCustomization::None, nullptr, true);
-	
-	ToolBarBuilder.SetStyle(&FAppStyle::Get(), "PaletteToolBar");
-	ToolBarBuilder.BeginSection("Debugger");
-	{
-		ToolBarBuilder.AddToolBarButton(Commands.FirstFrame);
-		ToolBarBuilder.AddToolBarButton(Commands.PreviousFrame);
-		ToolBarBuilder.AddToolBarButton(Commands.ReversePlay);
-		ToolBarBuilder.AddToolBarButton(Commands.Pause, NAME_None, {}, FText::Format(LOCTEXT("PauseButtonTooltip", "{0} ({1})"), Commands.Pause->GetDescription(), Commands.PauseOrPlay->GetInputText()));
-		ToolBarBuilder.AddToolBarButton(Commands.Play, NAME_None, {}, FText::Format(LOCTEXT("PlayButtonTooltip", "{0} ({1}) or"), Commands.Play->GetDescription(), Commands.PauseOrPlay->GetInputText(), Commands.Play->GetInputText()));
-		ToolBarBuilder.AddToolBarButton(Commands.NextFrame);
-		ToolBarBuilder.AddToolBarButton(Commands.LastFrame);
-		ToolBarBuilder.AddToolBarButton(Commands.StartRecording);
-		ToolBarBuilder.AddToolBarButton(Commands.StopRecording);
-	}
-	ToolBarBuilder.EndSection();
-
-	TSharedPtr<SScrollBar> ScrollBar = SNew(SScrollBar); 
+	TSharedPtr<SScrollBar> ScrollBar = SNew(SScrollBar);
+	FToolMenuContext ToolMenuContext(CommandList);
 
 	ComponentTreeView =	SNew(SRewindDebuggerComponentTree)
 		.ExternalScrollBar(ScrollBar)
@@ -311,7 +295,8 @@ void SRewindDebugger::Construct(const FArguments& InArgs, TSharedRef<FUICommandL
 				}
 			});
 
-	UToolMenu* Menu = UToolMenus::Get()->FindMenu("RewindDebugger.MainMenu");
+	
+	TSharedRef<SWidget> ToolBar = UToolMenus::Get()->GenerateWidget("RewindDebugger.ToolBar", ToolMenuContext);
 
 	ChildSlot
 	[
@@ -319,7 +304,7 @@ void SRewindDebugger::Construct(const FArguments& InArgs, TSharedRef<FUICommandL
 		 + SVerticalBox::Slot().AutoHeight()
 		[
 			SNew(SVerticalBox)
-			+SVerticalBox::Slot().AutoHeight()
+			+SVerticalBox::Slot().MaxHeight(48)
 			[
 				SNew(SHorizontalBox)
 				+SHorizontalBox::Slot().AutoWidth()
@@ -335,7 +320,7 @@ void SRewindDebugger::Construct(const FArguments& InArgs, TSharedRef<FUICommandL
 				]
 				+SHorizontalBox::Slot().FillWidth(1.0)
 				[
-					ToolBarBuilder.MakeWidget()
+					ToolBar
 				]
 			]
 		]

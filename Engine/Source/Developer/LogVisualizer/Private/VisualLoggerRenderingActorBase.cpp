@@ -193,11 +193,10 @@ void AVisualLoggerRenderingActorBase::GetDebugShapes(const FVisualLogEntry& InEn
 
 	for (int32 ElementIndex = 0; ElementIndex < ElementsCount; ++ElementIndex, ++ElementToDraw)
 	{
-		if (!FVisualLoggerFilters::Get().MatchCategoryFilters(ElementToDraw->Category.ToString(), ElementToDraw->Verbosity))
+		if (!MatchCategoryFilters(ElementToDraw->Category, ElementToDraw->Verbosity))
 		{
 			continue;
 		}
-
 
 		const FVector3f CorridorOffset = (FVector3f)FDebugDrawing::NavOffset * 1.25f;
 		const FColor Color = ElementToDraw->GetFColor();

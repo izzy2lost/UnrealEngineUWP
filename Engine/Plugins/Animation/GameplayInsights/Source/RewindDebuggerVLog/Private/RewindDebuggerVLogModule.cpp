@@ -7,7 +7,7 @@
 #define LOCTEXT_NAMESPACE "RewindDebuggerVLogModule"
 
 #ifndef ENABLE_REWINDDEBUGGER_VLOG_INTEGRATION
-#define ENABLE_REWINDDEBUGGER_VLOG_INTEGRATION 0
+#define ENABLE_REWINDDEBUGGER_VLOG_INTEGRATION 1
 #endif
 
 void FRewindDebuggerVLogModule::StartupModule()
@@ -15,6 +15,7 @@ void FRewindDebuggerVLogModule::StartupModule()
 #if ENABLE_REWINDDEBUGGER_VLOG_INTEGRATION
 	IModularFeatures::Get().RegisterModularFeature(IRewindDebuggerExtension::ModularFeatureName, &RewindDebuggerVLogExtension);
 	IModularFeatures::Get().RegisterModularFeature(TraceServices::ModuleFeatureName, &VLogTraceModule);
+	RewindDebuggerVLogExtension.Initialize();
 #endif
 }
 

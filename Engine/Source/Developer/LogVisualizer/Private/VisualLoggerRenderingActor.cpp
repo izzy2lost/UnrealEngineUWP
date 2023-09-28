@@ -4,6 +4,7 @@
 #include "AI/NavigationSystemBase.h"
 #include "VisualLogger/VisualLogger.h"
 #include "VisualLoggerDatabase.h"
+#include "LogVisualizerSettings.h"
 #include "LogVisualizerPublic.h"
 
 #include UE_INLINE_GENERATED_CPP_BY_NAME(VisualLoggerRenderingActor)
@@ -214,4 +215,9 @@ void AVisualLoggerRenderingActor::IterateDebugShapes(const TFunction<void(const 
 #if VLOG_TEST_DEBUG_RENDERING
 	Callback(TestDebugShapes);
 #endif
+}
+
+bool AVisualLoggerRenderingActor::MatchCategoryFilters(const FName& CategoryName, ELogVerbosity::Type Verbosity) const
+{
+	return FVisualLoggerFilters::Get().MatchCategoryFilters(CategoryName.ToString(), Verbosity);
 }
