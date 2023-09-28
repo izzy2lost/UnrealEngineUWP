@@ -1508,6 +1508,11 @@ UAnimationDataSourceRegistry* UControlRig::GetDataSourceRegistry()
 	if (DataSourceRegistry == nullptr)
 	{
 		DataSourceRegistry = NewObject<UAnimationDataSourceRegistry>(this, NAME_None, RF_Transient);
+
+		if (HasAnyFlags(RF_ClassDefaultObject) && GetClass()->IsNative())
+		{
+			DataSourceRegistry->AddToRoot();
+		}
 	}
 
 	return DataSourceRegistry;
