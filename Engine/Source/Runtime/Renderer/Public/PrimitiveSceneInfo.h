@@ -733,11 +733,11 @@ private:
 	/** Removes cached mesh draw commands for all meshes. */
 	void RemoveCachedMeshDrawCommands();
 
-	/** Creates or add ref's cached draw commands for each unique material instance found within the scene. */
-	static void CacheNaniteDrawCommands(FScene* Scene, const TArrayView<FPrimitiveSceneInfo*>& SceneInfos);
+	/** Constructs Nanite raster and shading bin information for unique material instances found within the scene. */
+	static void CacheNaniteMaterialBins(FScene* Scene, const TArrayView<FPrimitiveSceneInfo*>& SceneInfos);
 
-	/** Removes or remove ref's cached draw commands */
-	void RemoveCachedNaniteDrawCommands();
+	/** Removes Nanite raster and shading bin information from the scene. */
+	void RemoveCachedNaniteMaterialBins();
 
 #if RHI_RAYTRACING
 	TArray<FRayTracingGeometry*> RayTracingGeometries;

@@ -764,17 +764,6 @@ TRDGUniformBufferRef<FNaniteUniformParameters> CreateDebugNaniteUniformBuffer(FR
 	return GraphBuilder.CreateUniformBuffer(UniformParameters);
 }
 
-// TODO: Heavily work in progress / experimental - do not use!
-struct FNaniteShadingCommand
-{
-	const FMaterialRenderProxy* MaterialProxy = nullptr;
-	const FMaterial* Material = nullptr;
-	TShaderRef<TBasePassComputeShaderPolicyParamType<FUniformLightMapPolicy>> ComputeShader;
-	FMeshDrawShaderBindings ShaderBindings;
-	uint32 BoundTargetMask = 0u;
-	uint16 ShadingBin = 0xFFFFu;
-};
-
 namespace Nanite
 {
 
@@ -806,140 +795,54 @@ void BuildShadingCommands(
 	FNaniteShadingCommands& ShadingCommands
 )
 {
-	const ERHIFeatureLevel::Type FeatureLevel = Scene.GetFeatureLevel();
-
-	FNaniteVertexFactory* NaniteVertexFactory = GVertexFactoryResource.GetVertexFactory2();
-	FVertexFactoryType* NaniteVertexFactoryType = NaniteVertexFactory->GetType();
-	check(NaniteVertexFactory && NaniteVertexFactory->IsInitialized() && !NaniteVertexFactory->NeedsDeclaration());
-
 	const auto& Pipelines = ShadingPipelines.GetShadingPipelineMap();
-
-	FMeshPassProcessorRenderState DrawRenderState;
-	{
-		SetupBasePassState(FExclusiveDepthStencil::DepthWrite_StencilNop, false, DrawRenderState);
-		DrawRenderState.SetDepthStencilState(TStaticDepthStencilState<false, CF_Equal>::GetRHI());
-		DrawRenderState.SetDepthStencilAccess(FExclusiveDepthStencil::DepthWrite_StencilNop);
-		check(DrawRenderState.GetDepthStencilState());
-		check(DrawRenderState.GetBlendState());
-	}
 
 	ShadingCommands.Commands.Reset();
 	ShadingCommands.Commands.Reserve(Pipelines.Num());
 
 	ShadingCommands.MaxShadingBin = 0u;
 
-	for (const auto& ShadingBin : Pipelines)
+	for (const auto& Iter : Pipelines)
 	{
-		const FNaniteShadingEntry& ShadingEntry = ShadingBin.Value;
+		FNaniteShadingCommand& ShadingCommand = ShadingCommands.Commands.AddDefaulted_GetRef();
+		ShadingCommand.Pipeline   = &Iter.Value.ShadingPipeline;
+		ShadingCommand.ShadingBin = Iter.Value.BinIndex;
 
-		const FMaterialRenderProxy* ShadingMaterialRenderProxyPtr = ShadingEntry.ShadingPipeline.ShadingMaterial;
-		while (ShadingMaterialRenderProxyPtr)
-		{
-			const FMaterial* Material = ShadingMaterialRenderProxyPtr->GetMaterialNoFallback(FeatureLevel);
-			if (Material)
-			{
-				break;
-			}
-			ShadingMaterialRenderProxyPtr = ShadingMaterialRenderProxyPtr->GetFallback(FeatureLevel);
-		}
-
-		check(ShadingMaterialRenderProxyPtr);
-
-		const FMaterial& ShadingMaterial = ShadingEntry.ShadingPipeline.ShadingMaterial->GetIncompleteMaterialWithFallback(FeatureLevel);
-		check(Nanite::IsSupportedMaterialDomain(ShadingMaterial.GetMaterialDomain()));
-		check(Nanite::IsSupportedBlendMode(ShadingMaterial));
-
-		const FMaterialShadingModelField ShadingModels = ShadingMaterial.GetShadingModels();
-		const bool bRenderSkylight = Scene.ShouldRenderSkylightInBasePass(IsTranslucentBlendMode(ShadingMaterial.GetBlendMode())) && ShadingModels != MSM_Unlit;
-
-		const FLightCacheInterface* LCI = ShadingEntry.ShadingPipeline.LightCacheInterface;
-		FUniformLightMapPolicy LightMapPolicy = FUniformLightMapPolicy(ShadingEntry.ShadingPipeline.LightMapPolicyType);
-
-		TShaderRef<TBasePassComputeShaderPolicyParamType<FUniformLightMapPolicy>> BasePassComputeShader;
-		bool bShadersValid = GetBasePassShader<FUniformLightMapPolicy>(
-			ShadingMaterial,
-			NaniteVertexFactoryType,
-			LightMapPolicy,
-			FeatureLevel,
-			bRenderSkylight,
-			&BasePassComputeShader
-		);
-
-		if (!bShadersValid)
-		{
-			continue;
-		}
-
-		TPimplPtr<FNaniteShadingCommand>& ShadingCommand = ShadingCommands.Commands.AddDefaulted_GetRef();
-		ShadingCommand = MakePimpl<FNaniteShadingCommand>();
-		ShadingCommand->ComputeShader = BasePassComputeShader;
-		ShadingCommand->MaterialProxy = ShadingMaterialRenderProxyPtr;
-		ShadingCommand->Material = ShadingCommand->MaterialProxy->GetMaterialNoFallback(FeatureLevel);
-		ShadingCommand->ShadingBin = ShadingEntry.BinIndex;
-		check(ShadingCommand->Material);
-
-		ShadingCommands.MaxShadingBin = FMath::Max<uint32>(ShadingCommands.MaxShadingBin, uint32(ShadingCommand->ShadingBin));
-
-		TMeshProcessorShaders
-		<
-			FMeshMaterialShader, // Vertex
-			FMeshMaterialShader, // Pixel
-			FMeshMaterialShader, // Geometry
-			FMeshMaterialShader, // RayTracing
-			TBasePassComputeShaderPolicyParamType<FUniformLightMapPolicy>
-		>
-		PassShaders;
-		PassShaders.ComputeShader = BasePassComputeShader;
-
-		ShadingCommand->BoundTargetMask = PassShaders.ComputeShader->GetBoundTargetMask();
-
-		const FShaderParameterBindings& Bindings = BasePassComputeShader->Bindings;
-
-		TBasePassShaderElementData<FUniformLightMapPolicy> ShaderElementData(LCI);
-		ShaderElementData.InitializeMeshMaterialData(
-			/* SceneView = */ nullptr,
-			/* PrimitiveSceneProxy = */ nullptr,
-			/* StaticMeshId = */ INDEX_NONE,
-			/* bDitheredLODTransition = */ false,
-			/* bAllowStencilDither = */ false
-		);
-
-		ShadingCommand->ShaderBindings.Initialize(PassShaders.GetUntypedShaders());
-
-		{
-			int32 DataOffset = 0;
-			if (PassShaders.ComputeShader.IsValid())
-			{
-				FMeshDrawSingleShaderBindings ShaderBindings = ShadingCommand->ShaderBindings.GetSingleShaderBindings(SF_Compute, DataOffset);
-				PassShaders.ComputeShader->GetShaderBindings(&Scene, FeatureLevel, /* PrimitiveSceneProxy = */ nullptr, *ShadingCommand->MaterialProxy, ShadingMaterial, DrawRenderState, ShaderElementData, ShaderBindings);
-			}
-		}
-
-		FMeshProcessorShaders ShadersForDebugging = PassShaders.GetUntypedShaders();
-		ShadingCommand->ShaderBindings.Finalize(&ShadersForDebugging);
+		ShadingCommands.MaxShadingBin = FMath::Max<uint32>(ShadingCommands.MaxShadingBin, uint32(ShadingCommand.ShadingBin));
 	}
 
 	if (GNaniteComputeMaterialsSort != 0)
 	{
 		ShadingCommands.Commands.Sort([&ShadingCommands](auto& A, auto& B)
 		{
-			if (A->ComputeShader.GetComputeShader() != B->ComputeShader.GetComputeShader())
+			const FNaniteShadingPipeline& PipelineA = *A.Pipeline;
+			const FNaniteShadingPipeline& PipelineB = *B.Pipeline;
+
+			if (PipelineA.ComputeShader != PipelineB.ComputeShader)
 			{
-				return A->ComputeShader.GetComputeShader() < B->ComputeShader.GetComputeShader();
+				return PipelineA.ComputeShader < PipelineB.ComputeShader;
 			}
 
-			if (A->BoundTargetMask != B->BoundTargetMask)
+			if (PipelineA.BoundTargetMask != PipelineB.BoundTargetMask)
 			{
-				return A->BoundTargetMask < B->BoundTargetMask;
+				return PipelineA.BoundTargetMask < PipelineB.BoundTargetMask;
 			}
 
-			if (A->Material != B->Material)
+			if (PipelineA.Material != PipelineB.Material)
 			{
-				return A->Material < B->Material;
+				return PipelineA.Material < PipelineB.Material;
 			}
 
-			return A.Get() < B.Get();
+			return A.Pipeline < B.Pipeline;
 		});
+	}
+
+	ShadingCommands.MetaBufferData.SetNumZeroed(ShadingCommands.MaxShadingBin + 1u);
+	for (const FNaniteShadingCommand& ShadingCommand : ShadingCommands.Commands)
+	{
+		FUintVector4& MetaEntry = ShadingCommands.MetaBufferData[ShadingCommand.ShadingBin];
+		// Note: .XYZ are populated by the GPU during shade binning
+		MetaEntry.W = ShadingCommand.Pipeline->MaterialBitFlags;
 	}
 
 	// Create Shader Bundle
@@ -955,6 +858,155 @@ void BuildShadingCommands(
 	}
 }
 
+static bool TessellationEnabled()
+{
+	static const auto TessellationVar = IConsoleManager::Get().FindTConsoleVariableDataInt(TEXT("r.Nanite.Tessellation"));
+	const bool bTessellation = (TessellationVar && TessellationVar->GetValueOnRenderThread() != 0);
+	return bTessellation != 0 && NaniteTessellationSupported();
+}
+
+inline uint32 PackMaterialBitFlags(const FMaterial& Material, uint32 BoundTargetMask, bool bNoDerivativeOps)
+{
+	FNaniteMaterialFlags Flags = { 0 };
+	Flags.bPixelDiscard = Material.IsMasked();
+	Flags.bPixelDepthOffset = Material.MaterialUsesPixelDepthOffset_RenderThread();
+	Flags.bWorldPositionOffset = Material.MaterialUsesWorldPositionOffset_RenderThread();
+	Flags.bDisplacement = TessellationEnabled() && Material.MaterialUsesDisplacement_RenderThread();
+	Flags.bNoDerivativeOps = bNoDerivativeOps;
+	const uint32 PackedFlags = PackNaniteMaterialBitFlags(Flags);
+	return ((BoundTargetMask & 0xFFu) << 24u) | (PackedFlags & 0x00FFFFFFu);
+}
+
+bool LoadShadingPipeline(
+	const FScene& Scene,
+	FSceneProxyBase* SceneProxy,
+	FSceneProxyBase::FMaterialSection& Section,
+	FNaniteShadingPipeline& ShadingPipeline
+)
+{
+	static const bool bAllowStaticLighting = FReadOnlyCVARCache::Get().bAllowStaticLighting;
+
+	const ERHIFeatureLevel::Type FeatureLevel = Scene.GetFeatureLevel();
+
+	const FMaterialRenderProxy* MaterialProxy = Section.ShadingMaterialProxy;
+	while (MaterialProxy)
+	{
+		const FMaterial* Material = MaterialProxy->GetMaterialNoFallback(FeatureLevel);
+		if (Material)
+		{
+			break;
+		}
+		MaterialProxy = MaterialProxy->GetFallback(FeatureLevel);
+	}
+
+	check(MaterialProxy);
+
+	const FMaterial& ShadingMaterial = MaterialProxy->GetIncompleteMaterialWithFallback(FeatureLevel);
+	check(Nanite::IsSupportedMaterialDomain(ShadingMaterial.GetMaterialDomain()));
+	check(Nanite::IsSupportedBlendMode(ShadingMaterial));
+
+	const FMaterialShadingModelField ShadingModels = ShadingMaterial.GetShadingModels();
+	const bool bRenderSkylight = Scene.ShouldRenderSkylightInBasePass(IsTranslucentBlendMode(ShadingMaterial.GetBlendMode())) && ShadingModels != MSM_Unlit;
+
+	ELightMapPolicyType LightMapPolicyType = ELightMapPolicyType::LMP_NO_LIGHTMAP;
+	FLightCacheInterface* LightCacheInterface = nullptr;
+
+	if (bAllowStaticLighting)
+	{
+		if (SceneProxy->HasStaticLighting())
+		{
+			FPrimitiveSceneProxy::FLCIArray LCIs;
+			SceneProxy->GetLCIs(LCIs);
+
+			// We expect a Nanite scene proxy can only ever have a single LCI
+			check(LCIs.Num() == 1u);
+			LightCacheInterface = LCIs[0];
+		}
+
+		LightMapPolicyType = FBasePassMeshProcessor::GetUniformLightMapPolicyType(FeatureLevel, &Scene, LightCacheInterface, SceneProxy, ShadingMaterial);
+	}
+
+	FUniformLightMapPolicy LightMapPolicy = FUniformLightMapPolicy(LightMapPolicyType);
+
+	FNaniteVertexFactory* NaniteVertexFactory = Nanite::GVertexFactoryResource.GetVertexFactory2();
+	FVertexFactoryType* NaniteVertexFactoryType = NaniteVertexFactory->GetType();
+
+	TShaderRef<TBasePassComputeShaderPolicyParamType<FUniformLightMapPolicy>> BasePassComputeShader;
+	bool bShadersValid = GetBasePassShader<FUniformLightMapPolicy>(
+		ShadingMaterial,
+		NaniteVertexFactoryType,
+		LightMapPolicy,
+		FeatureLevel,
+		bRenderSkylight,
+		&BasePassComputeShader
+	);
+
+	if (bShadersValid)
+	{
+		ShadingPipeline.MaterialProxy		= MaterialProxy;
+		ShadingPipeline.Material			= MaterialProxy->GetMaterialNoFallback(FeatureLevel);
+		ShadingPipeline.BoundTargetMask		= BasePassComputeShader->GetBoundTargetMask();
+		ShadingPipeline.ComputeShader		= BasePassComputeShader.GetComputeShader();
+		ShadingPipeline.bIsTwoSided			= !!Section.MaterialRelevance.bTwoSided;
+		ShadingPipeline.bIsMasked			= !!Section.MaterialRelevance.bMasked;
+		ShadingPipeline.bNoDerivativeOps	= HasNoDerivativeOps(ShadingPipeline.ComputeShader);
+		ShadingPipeline.MaterialBitFlags	= PackMaterialBitFlags(*ShadingPipeline.Material, ShadingPipeline.BoundTargetMask, ShadingPipeline.bNoDerivativeOps);
+
+		ShadingPipeline.BasePassData = MakePimpl<FNaniteBasePassData, EPimplPtrMode::DeepCopy>();
+		ShadingPipeline.BasePassData->TypedShader = BasePassComputeShader;
+
+		check(ShadingPipeline.ComputeShader);
+
+		TMeshProcessorShaders
+		<
+			FMeshMaterialShader, // Vertex
+			FMeshMaterialShader, // Pixel
+			FMeshMaterialShader, // Geometry
+			FMeshMaterialShader, // RayTracing
+			TBasePassComputeShaderPolicyParamType<FUniformLightMapPolicy>
+		>
+		PassShaders;
+		PassShaders.ComputeShader = BasePassComputeShader;
+
+		TBasePassShaderElementData<FUniformLightMapPolicy> ShaderElementData(LightCacheInterface);
+		ShaderElementData.InitializeMeshMaterialData(
+			/* SceneView = */ nullptr,
+			/* PrimitiveSceneProxy = */ nullptr,
+			/* StaticMeshId = */ INDEX_NONE,
+			/* bDitheredLODTransition = */ false,
+			/* bAllowStencilDither = */ false
+		);
+
+		ShadingPipeline.ShaderBindings = MakePimpl<FMeshDrawShaderBindings, EPimplPtrMode::DeepCopy>();
+		ShadingPipeline.ShaderBindings->Initialize(PassShaders.GetUntypedShaders());
+
+		{
+			int32 DataOffset = 0;
+			if (PassShaders.ComputeShader.IsValid())
+			{
+				// Dummy render state to satisfy GetShaderBindings
+				FMeshPassProcessorRenderState DrawRenderState;
+				{
+					SetupBasePassState(FExclusiveDepthStencil::DepthWrite_StencilNop, false, DrawRenderState);
+					DrawRenderState.SetDepthStencilState(TStaticDepthStencilState<false, CF_Equal>::GetRHI());
+					DrawRenderState.SetDepthStencilAccess(FExclusiveDepthStencil::DepthWrite_StencilNop);
+					check(DrawRenderState.GetDepthStencilState());
+					check(DrawRenderState.GetBlendState());
+				}
+
+				FMeshDrawSingleShaderBindings ShaderBindings = ShadingPipeline.ShaderBindings->GetSingleShaderBindings(SF_Compute, DataOffset);
+				PassShaders.ComputeShader->GetShaderBindings(&Scene, FeatureLevel, SceneProxy, *MaterialProxy, ShadingMaterial, DrawRenderState, ShaderElementData, ShaderBindings);
+			}
+		}
+
+		FMeshProcessorShaders ShadersForDebugging = PassShaders.GetUntypedShaders();
+		ShadingPipeline.ShaderBindings->Finalize(&ShadersForDebugging);
+		ShadingPipeline.ShaderBindingsHash = ShadingPipeline.ShaderBindings->GetDynamicInstancingHash();
+	}
+
+	return bShadersValid;
+}
+
 void RecordShadingParameters(
 	FUint32Vector4& PassData,
 	FRHIBatchedShaderParameters& BatchedParameters,
@@ -964,17 +1016,17 @@ void RecordShadingParameters(
 	FRHIUnorderedAccessView* OutputTargetsArray
 )
 {
-	FRHIComputeShader* ComputeShaderRHI = ShadingCommand.ComputeShader.GetComputeShader();
+	FRHIComputeShader* ComputeShaderRHI = ShadingCommand.Pipeline->ComputeShader;
 	const bool bNoDerivativeOps = HasNoDerivativeOps(ComputeShaderRHI);
 
 	PassData.X = ShadingCommand.ShadingBin;
 	PassData.Z = bNoDerivativeOps ? 0 : 1;
 
-	ShadingCommand.ShaderBindings.SetParameters(BatchedParameters, ComputeShaderRHI);
+	ShadingCommand.Pipeline->ShaderBindings->SetParameters(BatchedParameters, ComputeShaderRHI);
 
 	if (ComputeShaderRHI)
 	{
-		ShadingCommand.ComputeShader->SetPassParameters(
+		ShadingCommand.Pipeline->BasePassData->TypedShader->SetPassParameters(
 			BatchedParameters,
 			ViewRect,
 			PassData,
@@ -1003,12 +1055,12 @@ void RecordShadingCommand(
 )
 {
 #if WANTS_DRAW_MESH_EVENTS
-	SCOPED_CONDITIONAL_DRAW_EVENTF(RHICmdList, SWShading, CVarNaniteShowDrawEvents.GetValueOnRenderThread() != 0, TEXT("%s"), GetShadingMaterialName(ShadingCommand.MaterialProxy));
+	SCOPED_CONDITIONAL_DRAW_EVENTF(RHICmdList, SWShading, CVarNaniteShowDrawEvents.GetValueOnRenderThread() != 0, TEXT("%s"), GetShadingMaterialName(ShadingCommand.Pipeline->MaterialProxy));
 #endif
 
 	const uint32 IndirectOffset = (ShadingCommand.ShadingBin * IndirectArgStride);
 
-	FRHIComputeShader* ComputeShaderRHI = ShadingCommand.ComputeShader.GetComputeShader();
+	FRHIComputeShader* ComputeShaderRHI = ShadingCommand.Pipeline->ComputeShader;
 	SetComputePipelineState(RHICmdList, ComputeShaderRHI);
 
 	FRHIBatchedShaderParameters& BatchedParameters = RHICmdList.GetScratchShaderParameters();
@@ -1036,7 +1088,7 @@ class FRecordShadingCommandsAnyThreadTask : public FRenderTask
 	FRHICommandList& RHICmdList;
 	FRHIBuffer* IndirectArgs = nullptr;
 	const TBitArray<SceneRenderingBitArrayAllocator>* VisibilityData = nullptr;
-	const TConstArrayView<TPimplPtr<FNaniteShadingCommand>> ShadingCommands;
+	const TConstArrayView<FNaniteShadingCommand> ShadingCommands;
 	TArray<FRHIUnorderedAccessView*, TInlineAllocator<8>> OutputTargets;
 	FRHIUnorderedAccessView* OutputTargetsArray = nullptr;
 	FUint32Vector4 ViewRect;
@@ -1052,7 +1104,7 @@ public:
 		FRHIBuffer* InIndirectArgs,
 		uint32 InIndirectArgsStride,
 		const TBitArray<SceneRenderingBitArrayAllocator>* InVisibilityData,
-		const TConstArrayView<TPimplPtr<FNaniteShadingCommand>> InShadingCommands,
+		const TConstArrayView<FNaniteShadingCommand> InShadingCommands,
 		const TConstArrayView<FRHIUnorderedAccessView*> InOutputTargets,
 		FRHIUnorderedAccessView* InOutputTargetsArray,
 		const FUint32Vector4& InViewRect,
@@ -1093,7 +1145,7 @@ public:
 
 		for (int32 CommandIndex = 0; CommandIndex < NumCommands; ++CommandIndex)
 		{
-			const FNaniteShadingCommand& ShadingCommand = *ShadingCommands[StartIndex + CommandIndex];
+			const FNaniteShadingCommand& ShadingCommand = ShadingCommands[StartIndex + CommandIndex];
 			if (VisibilityData == nullptr || VisibilityData->AccessCorrespondingBit(FRelativeBitReference(ShadingCommand.ShadingBin)))
 			{
 				RecordShadingCommand(
@@ -1287,7 +1339,7 @@ void DispatchBasePass(
 	RDG_EVENT_SCOPE(GraphBuilder, "Nanite::BasePass");
 	SCOPED_NAMED_EVENT(DispatchBasePass, FColor::Emerald);
 
-	const TArray<TPimplPtr<FNaniteShadingCommand>>& ShadingCommands = Scene.NaniteShadingCommands[ENaniteMeshPass::BasePass].Commands;
+	const TArray<FNaniteShadingCommand>& ShadingCommands = Scene.NaniteShadingCommands[ENaniteMeshPass::BasePass].Commands;
 	const uint32 ShadingBinCount = uint32(ShadingCommands.Num());
 
 	if (ShadingBinCount == 0u)
@@ -1416,7 +1468,7 @@ void DispatchBasePass(
 		FRDGParallelCommandListSet* ParallelCommandListSet,
 		const FUint32Vector4& ViewRect,
 		const TBitArray<SceneRenderingBitArrayAllocator>* VisibilityData,
-		const TConstArrayView<const TPimplPtr<FNaniteShadingCommand>> ShadingCommands,
+		const TConstArrayView<const FNaniteShadingCommand> ShadingCommands,
 		FShaderBundleRHIRef ShaderBundle,
 		FNaniteShadingPassParameters* ShadingPassParameters,
 		FRHIComputeCommandList& RHICmdList,
@@ -1539,18 +1591,18 @@ void DispatchBasePass(
 
 						ParallelFor(ShadingCommands.Num(), [&](int32 CommandIndex)
 						{
-							const TPimplPtr<FNaniteShadingCommand>& ShadingCommand = ShadingCommands[CommandIndex];
-							FRHIShaderBundleDispatch& Dispatch = Command.Dispatches[ShadingCommand->ShadingBin];
+							const FNaniteShadingCommand& ShadingCommand = ShadingCommands[CommandIndex];
+							FRHIShaderBundleDispatch& Dispatch = Command.Dispatches[ShadingCommand.ShadingBin];
 
 							// TODO: Allow for sending partial dispatch lists, but for now we'll leave the record index invalid so bundle dispatch skips it
-							if (VisibilityData == nullptr || VisibilityData->AccessCorrespondingBit(FRelativeBitReference(ShadingCommand->ShadingBin)))
+							if (VisibilityData == nullptr || VisibilityData->AccessCorrespondingBit(FRelativeBitReference(ShadingCommand.ShadingBin)))
 							{
 								// Need to take a thread local copy of this as it is mutated during recording.
 								FUint32Vector4 CommandData = PassData;
 
-								Dispatch.RecordIndex = ShadingCommand->ShadingBin;
-								RecordShadingParameters(CommandData, Dispatch.Parameters, *ShadingCommand, ViewRect, OutputTargets, OutputTargetsArray);
-								Dispatch.Shader = ShadingCommand->ComputeShader.GetComputeShader();
+								Dispatch.RecordIndex = ShadingCommand.ShadingBin;
+								RecordShadingParameters(CommandData, Dispatch.Parameters, ShadingCommand, ViewRect, OutputTargets, OutputTargetsArray);
+								Dispatch.Shader = ShadingCommand.Pipeline->ComputeShader;
 								Dispatch.Constants = CommandData;
 								Dispatch.PipelineState = FindComputePipelineState(Dispatch.Shader);
 								if (Dispatch.PipelineState != nullptr)
@@ -1594,17 +1646,16 @@ void DispatchBasePass(
 					{
 						for (int32 CommandIndex = 0; CommandIndex < ShadingCommands.Num(); ++CommandIndex)
 						{
-							const TPimplPtr<FNaniteShadingCommand>& ShadingCommand = ShadingCommands[CommandIndex];
-							FRHIShaderBundleDispatch& Dispatch = Command.Dispatches[ShadingCommand->ShadingBin];
+							const FNaniteShadingCommand& ShadingCommand = ShadingCommands[CommandIndex];
+							FRHIShaderBundleDispatch& Dispatch = Command.Dispatches[ShadingCommand.ShadingBin];
 
 							// TODO: Allow for sending partial dispatch lists, but for now we'll leave the record index invalid so bundle dispatch skips it
-							if (VisibilityData == nullptr || VisibilityData->AccessCorrespondingBit(FRelativeBitReference(ShadingCommand->ShadingBin)))
+							if (VisibilityData == nullptr || VisibilityData->AccessCorrespondingBit(FRelativeBitReference(ShadingCommand.ShadingBin)))
 							{
-								Dispatch.RecordIndex = ShadingCommand->ShadingBin;
-								RecordShadingParameters(PassData, Dispatch.Parameters, *ShadingCommand, ViewRect, OutputTargets, OutputTargetsArray);
+								Dispatch.RecordIndex = ShadingCommand.ShadingBin;
+								RecordShadingParameters(PassData, Dispatch.Parameters, ShadingCommand, ViewRect, OutputTargets, OutputTargetsArray);
 
-								check(ShadingCommand->ComputeShader.IsValid());
-								Dispatch.Shader = ShadingCommand->ComputeShader.GetComputeShader();
+								Dispatch.Shader = ShadingCommand.Pipeline->ComputeShader;
 								check(Dispatch.Shader);
 
 								Dispatch.PipelineState = GetComputePipelineState(RHICmdList, Dispatch.Shader);
@@ -1638,11 +1689,11 @@ void DispatchBasePass(
 			}
 			else // !bDispatchBundle
 			{
-				for (const TPimplPtr<FNaniteShadingCommand>& ShadingCommand : ShadingCommands)
+				for (const FNaniteShadingCommand& ShadingCommand : ShadingCommands)
 				{
-					if (VisibilityData == nullptr || VisibilityData->AccessCorrespondingBit(FRelativeBitReference(ShadingCommand->ShadingBin)))
+					if (VisibilityData == nullptr || VisibilityData->AccessCorrespondingBit(FRelativeBitReference(ShadingCommand.ShadingBin)))
 					{
-						RecordShadingCommand(RHICmdList, PassData, IndirectArgsBuffer, IndirectArgStride, ViewRect, OutputTargets, OutputTargetsArray, *ShadingCommand);
+						RecordShadingCommand(RHICmdList, PassData, IndirectArgsBuffer, IndirectArgStride, ViewRect, OutputTargets, OutputTargetsArray, ShadingCommand);
 					}
 				}
 			}
@@ -3425,27 +3476,6 @@ void FNaniteShadingPipelines::Unregister(const FNaniteShadingBin& InShadingBin)
 namespace Nanite
 {
 
-using FMetaBufferArray = TArray<FUintVector4, SceneRenderingAllocator>;
-
-static bool TessellationEnabled()
-{
-	static const auto TessellationVar = IConsoleManager::Get().FindTConsoleVariableDataInt(TEXT("r.Nanite.Tessellation"));
-	const bool bTessellation = (TessellationVar && TessellationVar->GetValueOnRenderThread() != 0);
-	return bTessellation != 0 && NaniteTessellationSupported();
-}
-
-inline uint32 PackMaterialBitFlags(const FMaterial& Material, uint32 BoundTargetMask, bool bNoDerivativeOps)
-{
-	FNaniteMaterialFlags Flags = {0};
-	Flags.bPixelDiscard = Material.IsMasked();
-	Flags.bPixelDepthOffset = Material.MaterialUsesPixelDepthOffset_RenderThread();
-	Flags.bWorldPositionOffset = Material.MaterialUsesWorldPositionOffset_RenderThread();
-	Flags.bDisplacement = TessellationEnabled() && Material.MaterialUsesDisplacement_RenderThread();
-	Flags.bNoDerivativeOps = bNoDerivativeOps;
-	const uint32 PackedFlags = PackNaniteMaterialBitFlags(Flags);
-	return ((BoundTargetMask & 0xFFu) << 24u) | (PackedFlags & 0x00FFFFFFu);
-}
-
 FShadeBinning ShadeBinning(
 	FRDGBuilder& GraphBuilder,
 	const FScene& Scene,
@@ -3467,13 +3497,15 @@ FShadeBinning ShadeBinning(
 	const FSceneTexturesConfig& Config = View.GetSceneTexturesConfig();
 	const EShaderPlatform ShaderPlatform = View.GetShaderPlatform();
 
-	const TArray<TPimplPtr<FNaniteShadingCommand>>& ShadingCommands = Scene.NaniteShadingCommands[ENaniteMeshPass::BasePass].Commands;
+	const TArray<FNaniteShadingCommand>& ShadingCommands = Scene.NaniteShadingCommands[ENaniteMeshPass::BasePass].Commands;
 	const uint32 ShadingCommandCount = uint32(ShadingCommands.Num());
 
 	if (ShadingCommandCount == 0u)
 	{
 		return Binning;
 	}
+
+	const FNaniteShadingCommands::FMetaBufferArray& MetaBufferData = Scene.NaniteShadingCommands[ENaniteMeshPass::BasePass].MetaBufferData;
 
 	TArray<FRDGTextureRef, TInlineAllocator<MaxSimultaneousRenderTargets>> ValidClearTargets;
 
@@ -3508,22 +3540,6 @@ FShadeBinning ShadeBinning(
 	const FIntVector   BinDispatchDim = FComputeShaderUtils::GetGroupCount(ShadingBinCount, 64u);
 
 	const FUint32Vector2 DispatchOffsetTL = FUint32Vector2(InViewRect.Min.X, InViewRect.Min.Y);
-
-	FMetaBufferArray MetaBufferData;
-	MetaBufferData.SetNumZeroed(ShadingBinCount);
-
-	for (const TPimplPtr<FNaniteShadingCommand>& ShadingCommand : ShadingCommands)
-	{
-		if (const FMaterial* Material = ShadingCommand->Material)
-		{
-			FUintVector4& MetaEntry = MetaBufferData[ShadingCommand->ShadingBin];
-
-			FRHIComputeShader* ComputeShaderRHI = ShadingCommand->ComputeShader.GetComputeShader();
-			bool bNoDerivativeOps = HasNoDerivativeOps(ComputeShaderRHI);
-
-			MetaEntry.W = PackMaterialBitFlags(*Material, ShadingCommand->BoundTargetMask, bNoDerivativeOps);
-		}
-	}
 
 	Binning.ShadingBinMeta = CreateStructuredBuffer(
 		GraphBuilder,
@@ -3981,13 +3997,13 @@ FNaniteVisibilityQuery* FNaniteVisibility::BeginVisibilityQuery(
 			VisibilityQuery->Init(RasterPipelines, ShadingPipelines, MaterialCommands);
 			PerformNaniteVisibility(PrimitiveReferences, VisibilityQuery);
 
-		}, Scene.GetCacheNaniteDrawCommandsTask(), UE::Tasks::ETaskPriority::High);
+		}, Scene.GetCacheNaniteMaterialBinsTask(), UE::Tasks::ETaskPriority::High);
 
 		ActiveEvents.Emplace(VisibilityQuery->CompletedEvent);
 	}
 	else
 	{
-		Scene.WaitForCacheNaniteDrawCommandsTask();
+		Scene.WaitForCacheNaniteMaterialBinsTask();
 		VisibilityQuery->Init(RasterPipelines, ShadingPipelines, MaterialCommands);
 	}
 	return VisibilityQuery;

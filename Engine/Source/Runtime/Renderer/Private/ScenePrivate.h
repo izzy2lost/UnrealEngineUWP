@@ -2777,9 +2777,12 @@ private:
 
 struct FNaniteShadingCommands
 {
+	using FMetaBufferArray = TArray<FUintVector4, SceneRenderingAllocator>;
+
 	uint32 MaxShadingBin = 0u;
 	FShaderBundleRHIRef ShaderBundle;
-	TArray<TPimplPtr<FNaniteShadingCommand>> Commands;
+	TArray<FNaniteShadingCommand> Commands;
+	FMetaBufferArray MetaBufferData;
 };
 
 /** 
@@ -3621,14 +3624,14 @@ public:
 		return CacheMeshDrawCommandsTask;
 	}
 
-	void WaitForCacheNaniteDrawCommandsTask()
+	void WaitForCacheNaniteMaterialBinsTask()
 	{
-		CacheNaniteDrawCommandsTask.Wait();
+		CacheNaniteMaterialBinsTask.Wait();
 	}
 
-	UE::Tasks::FTask GetCacheNaniteDrawCommandsTask() const
+	UE::Tasks::FTask GetCacheNaniteMaterialBinsTask() const
 	{
-		return CacheNaniteDrawCommandsTask;
+		return CacheNaniteMaterialBinsTask;
 	}
 
 #if RHI_RAYTRACING
@@ -3847,7 +3850,7 @@ private:
 
 	UE::Tasks::FTask CreateLightPrimitiveInteractionsTask;
 	UE::Tasks::FTask CacheMeshDrawCommandsTask;
-	UE::Tasks::FTask CacheNaniteDrawCommandsTask;
+	UE::Tasks::FTask CacheNaniteMaterialBinsTask;
 #if RHI_RAYTRACING
 	UE::Tasks::FTask CacheRayTracingPrimitivesTask;
 #endif

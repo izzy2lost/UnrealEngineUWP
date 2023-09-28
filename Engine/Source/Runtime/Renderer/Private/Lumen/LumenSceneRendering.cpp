@@ -1564,7 +1564,7 @@ void FDeferredShadingSceneRenderer::BeginUpdateLumenSceneTasks(FRDGBuilder& Grap
 			}
 		}
 
-	}, MakeArrayView({ Scene->GetCacheMeshDrawCommandsTask(), Scene->GetCacheNaniteDrawCommandsTask() }), UE::Tasks::ETaskPriority::High);
+	}, MakeArrayView({ Scene->GetCacheMeshDrawCommandsTask(), Scene->GetCacheNaniteMaterialBinsTask() }), UE::Tasks::ETaskPriority::High);
 }
 
 IMPLEMENT_GLOBAL_SHADER_PARAMETER_STRUCT(FLumenCardScene, "LumenCardScene");

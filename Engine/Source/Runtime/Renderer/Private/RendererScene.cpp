@@ -6463,7 +6463,7 @@ void FScene::UpdateAllPrimitiveSceneInfos(FRDGBuilder& GraphBuilder, EUpdateAllP
 			FPrimitiveSceneInfo* Primitive = Primitives[Index];
 
 			Primitive->RemoveCachedMeshDrawCommands();
-			Primitive->RemoveCachedNaniteDrawCommands();
+			Primitive->RemoveCachedNaniteMaterialBins();
 #if RHI_RAYTRACING
 			Primitive->RemoveCachedRayTracingPrimitives();
 #endif
@@ -6532,9 +6532,9 @@ void FScene::UpdateAllPrimitiveSceneInfos(FRDGBuilder& GraphBuilder, EUpdateAllP
 
 		}, IsMobilePlatform(GetShaderPlatform()) ? CreateLightPrimitiveInteractionsTask : UE::Tasks::FTask(), UE::Tasks::ETaskPriority::High, bLaunchAsyncTask);
 
-		CacheNaniteDrawCommandsTask = GraphBuilder.AddSetupTask([this, &SceneInfosWithStaticDrawListUpdate, bLaunchAsyncTask]()
+		CacheNaniteMaterialBinsTask = GraphBuilder.AddSetupTask([this, &SceneInfosWithStaticDrawListUpdate, bLaunchAsyncTask]()
 		{
-			FPrimitiveSceneInfo::CacheNaniteDrawCommands(this, SceneInfosWithStaticDrawListUpdate);
+			FPrimitiveSceneInfo::CacheNaniteMaterialBins(this, SceneInfosWithStaticDrawListUpdate);
 		}, bLaunchAsyncTask);
 
 #if RHI_RAYTRACING

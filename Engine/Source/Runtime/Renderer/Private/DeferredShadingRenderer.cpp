@@ -3323,7 +3323,7 @@ void FDeferredShadingSceneRenderer::Render(FRDGBuilder& GraphBuilder)
 		}
 
 		{
-			Scene->WaitForCacheNaniteDrawCommandsTask();
+			Scene->WaitForCacheNaniteMaterialBinsTask();
 
 			if (bNaniteEnabled && InViews.Num() > 0)
 			{

@@ -658,13 +658,13 @@ void FPrimitiveSceneInfo::RemoveCachedMeshDrawCommands()
 	StaticMeshCommandInfos.Empty();
 }
 
-static void BuildNaniteDrawCommands(FScene* Scene, FPrimitiveSceneInfo* PrimitiveSceneInfo, FNaniteDrawListContext& DrawListContext);
+static void BuildNaniteMaterialBins(FScene* Scene, FPrimitiveSceneInfo* PrimitiveSceneInfo, FNaniteDrawListContext& DrawListContext);
 
-void FPrimitiveSceneInfo::CacheNaniteDrawCommands(FScene* Scene, const TArrayView<FPrimitiveSceneInfo*>& SceneInfos)
+void FPrimitiveSceneInfo::CacheNaniteMaterialBins(FScene* Scene, const TArrayView<FPrimitiveSceneInfo*>& SceneInfos)
 {
-	SCOPED_NAMED_EVENT(FPrimitiveSceneInfo_CacheNaniteDrawCommands, FColor::Emerald);
-	CSV_SCOPED_TIMING_STAT_EXCLUSIVE(FPrimitiveSceneInfo_CacheNaniteDrawCommands);
-	QUICK_SCOPE_CYCLE_COUNTER(STAT_CacheNaniteDrawCommands);
+	SCOPED_NAMED_EVENT(FPrimitiveSceneInfo_CacheNaniteMaterialBins, FColor::Emerald);
+	CSV_SCOPED_TIMING_STAT_EXCLUSIVE(FPrimitiveSceneInfo_CacheNaniteMaterialBins);
+	QUICK_SCOPE_CYCLE_COUNTER(STAT_CacheNaniteMaterialBins);
 
 	const bool bNaniteEnabled = DoesPlatformSupportNanite(GMaxRHIShaderPlatform);
 	if (bNaniteEnabled)
@@ -679,7 +679,7 @@ void FPrimitiveSceneInfo::CacheNaniteDrawCommands(FScene* Scene, const TArrayVie
 				[Scene, &SceneInfos](FNaniteDrawListContext& Context, int32 Index)
 				{
 					FOptionalTaskTagScope Scope(ETaskTag::EParallelRenderingThread);
-					BuildNaniteDrawCommands(Scene, SceneInfos[Index], Context);
+					BuildNaniteMaterialBins(Scene, SceneInfos[Index], Context);
 				}
 			);
 		}
@@ -688,7 +688,7 @@ void FPrimitiveSceneInfo::CacheNaniteDrawCommands(FScene* Scene, const TArrayVie
 			FNaniteDrawListContext& DrawListContext = DrawListContexts.AddDefaulted_GetRef();
 			for (FPrimitiveSceneInfo* PrimitiveSceneInfo : SceneInfos)
 			{
-				BuildNaniteDrawCommands(Scene, PrimitiveSceneInfo, DrawListContext);
+				BuildNaniteMaterialBins(Scene, PrimitiveSceneInfo, DrawListContext);
 			}
 		}
 
@@ -718,9 +718,8 @@ void FPrimitiveSceneInfo::CacheNaniteDrawCommands(FScene* Scene, const TArrayVie
 	}
 }
 
-void BuildNaniteDrawCommands(FScene* Scene, FPrimitiveSceneInfo* PrimitiveSceneInfo, FNaniteDrawListContext& DrawListContext)
+void BuildNaniteMaterialBins(FScene* Scene, FPrimitiveSceneInfo* PrimitiveSceneInfo, FNaniteDrawListContext& DrawListContext)
 {
-	static const bool bAllowStaticLighting = FReadOnlyCVARCache::Get().bAllowStaticLighting;
 	const bool bUseComputeMaterials = UseNaniteComputeMaterials();
 
 	FPrimitiveSceneProxy* Proxy = PrimitiveSceneInfo->Proxy;
@@ -730,7 +729,7 @@ void BuildNaniteDrawCommands(FScene* Scene, FPrimitiveSceneInfo* PrimitiveSceneI
 		{
 			FNaniteDrawListContext::FPrimitiveSceneInfoScope PrimInfoScope(DrawListContext, *PrimitiveSceneInfo);
 	
-			auto PassBody = [PrimitiveSceneInfo, NaniteProxy, &DrawListContext, bUseComputeMaterials](ENaniteMeshPass::Type MeshPass, FMeshPassProcessor* const NaniteMeshProcessor)
+			auto PassBody = [Scene, PrimitiveSceneInfo, NaniteProxy, &DrawListContext, bUseComputeMaterials](ENaniteMeshPass::Type MeshPass, FMeshPassProcessor* const NaniteMeshProcessor)
 			{
 				FNaniteDrawListContext::FMeshPassScope MeshPassScope(DrawListContext, MeshPass);
 
@@ -750,17 +749,6 @@ void BuildNaniteDrawCommands(FScene* Scene, FPrimitiveSceneInfo* PrimitiveSceneI
 				TArray<Nanite::FSceneProxyBase::FMaterialSection>& NaniteMaterialSections = NaniteProxy->GetMaterialSections();
 				if (NaniteMaterialSections.Num() > 0)
 				{
-					FLightCacheInterface* LightCacheInterface = nullptr;
-					if (bUseComputeMaterials && bAllowStaticLighting && NaniteProxy->HasStaticLighting())
-					{
-						FPrimitiveSceneProxy::FLCIArray LCIs;
-						NaniteProxy->GetLCIs(LCIs);
-
-						// We expect a Nanite scene proxy can only ever have a single LCI
-						check(LCIs.Num() == 1u);
-						LightCacheInterface = LCIs[0];
-					}
-
 					FNaniteDrawListContext::FDeferredPipelines& PipelinesCommand = DrawListContext.DeferredPipelines[MeshPass].Emplace_GetRef();
 					PipelinesCommand.PrimitiveSceneInfo = PrimitiveSceneInfo;
 					for (int32 MaterialSectionIndex = 0; MaterialSectionIndex < NaniteMaterialSections.Num(); ++MaterialSectionIndex)
@@ -785,14 +773,11 @@ void BuildNaniteDrawCommands(FScene* Scene, FPrimitiveSceneInfo* PrimitiveSceneI
 						if (bUseComputeMaterials)
 						{
 							FNaniteShadingPipeline& ShadingPipeline = PipelinesCommand.ShadingPipelines.Emplace_GetRef();
-							ShadingPipeline.ShadingMaterial = MaterialSection.ShadingMaterialProxy;
-							ShadingPipeline.bIsTwoSided = !!MaterialSection.MaterialRelevance.bTwoSided;
-							ShadingPipeline.bIsMasked = MaterialSection.MaterialRelevance.bMasked;
-							ShadingPipeline.LightCacheInterface = LightCacheInterface;
-							if (bAllowStaticLighting)
+							if (!LoadShadingPipeline(*Scene, NaniteProxy, MaterialSection, ShadingPipeline))
 							{
-								const FMaterial& LMMaterial = ShadingPipeline.ShadingMaterial->GetIncompleteMaterialWithFallback(NaniteMeshProcessor->Scene->GetFeatureLevel());
-								ShadingPipeline.LightMapPolicyType = FBasePassMeshProcessor::GetUniformLightMapPolicyType(NaniteMeshProcessor->Scene->GetFeatureLevel(), NaniteMeshProcessor->Scene, LightCacheInterface, NaniteProxy, LMMaterial);
+								// Should be very rare that a load fails, so we put the erase cost here instead of using
+								// a temp and moving it into the pipelines array on success.
+								PipelinesCommand.ShadingPipelines.RemoveAt(PipelinesCommand.ShadingPipelines.Num() - 1);
 							}
 						}
 					}
@@ -814,12 +799,12 @@ void BuildNaniteDrawCommands(FScene* Scene, FPrimitiveSceneInfo* PrimitiveSceneI
 				delete NaniteMeshProcessor;
 			}
 
-			static_assert(ENaniteMeshPass::Num == 2, "Change BuildNaniteDrawCommands() to account for more Nanite mesh passes");
+			static_assert(ENaniteMeshPass::Num == 2, "Change BuildNaniteMaterialBins() to account for more Nanite mesh passes");
 		}
 	}
 }
 
-void FPrimitiveSceneInfo::RemoveCachedNaniteDrawCommands()
+void FPrimitiveSceneInfo::RemoveCachedNaniteMaterialBins()
 {
 	checkSlow(IsInRenderingThread());
 
@@ -828,7 +813,7 @@ void FPrimitiveSceneInfo::RemoveCachedNaniteDrawCommands()
 		return;
 	}
 
-	QUICK_SCOPE_CYCLE_COUNTER(STAT_RemoveCachedNaniteDrawCommands);
+	QUICK_SCOPE_CYCLE_COUNTER(STAT_RemoveCachedNaniteMaterialBins);
 
 	for (int32 NaniteMeshPassIndex = 0; NaniteMeshPassIndex < ENaniteMeshPass::Num; ++NaniteMeshPassIndex)
 	{
@@ -1293,7 +1278,7 @@ void FPrimitiveSceneInfo::AddStaticMeshes(FScene* Scene, TArrayView<FPrimitiveSc
 	if (bCacheMeshDrawCommands)
 	{
 		CacheMeshDrawCommands(Scene, SceneInfos);
-		CacheNaniteDrawCommands(Scene, SceneInfos);
+		CacheNaniteMaterialBins(Scene, SceneInfos);
 	#if RHI_RAYTRACING
 		CacheRayTracingPrimitives(Scene, SceneInfos);
 	#endif
@@ -1717,7 +1702,7 @@ void FPrimitiveSceneInfo::RemoveStaticMeshes()
 	StaticMeshes.Empty();
 	StaticMeshRelevances.Empty();
 	RemoveCachedMeshDrawCommands();
-	RemoveCachedNaniteDrawCommands();
+	RemoveCachedNaniteMaterialBins();
 #if RHI_RAYTRACING
 	RemoveCachedRayTracingPrimitives();
 #endif
@@ -1848,7 +1833,7 @@ void FPrimitiveSceneInfo::UpdateStaticMeshes(FScene* Scene, TArrayView<FPrimitiv
 		if (EnumHasAnyFlags(UpdateFlags, EUpdateStaticMeshFlags::RasterCommands))
 		{
 			SceneInfo->RemoveCachedMeshDrawCommands();
-			SceneInfo->RemoveCachedNaniteDrawCommands();
+			SceneInfo->RemoveCachedNaniteMaterialBins();
 		}
 
 	#if RHI_RAYTRACING
@@ -1870,7 +1855,7 @@ void FPrimitiveSceneInfo::UpdateStaticMeshes(FScene* Scene, TArrayView<FPrimitiv
 		if (EnumHasAnyFlags(UpdateFlags, EUpdateStaticMeshFlags::RasterCommands))
 		{
 			CacheMeshDrawCommands(Scene, SceneInfos);
-			CacheNaniteDrawCommands(Scene, SceneInfos);
+			CacheNaniteMaterialBins(Scene, SceneInfos);
 		}
 
 	#if RHI_RAYTRACING

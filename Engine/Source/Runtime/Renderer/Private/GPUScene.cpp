@@ -825,7 +825,7 @@ void FGPUScene::UpdateBufferState(FRDGBuilder& GraphBuilder, FSceneUniformBuffer
 	if (UploadDataSourceAdapter.bUpdateNaniteMaterialTables && bNaniteEnabled)
 	{
 		// Nanite draw commands build raster material tables.
-		Scene.WaitForCacheNaniteDrawCommandsTask();
+		Scene.WaitForCacheNaniteMaterialBinsTask();
 
 		for (int32 NaniteMeshPassIndex = 0; NaniteMeshPassIndex < ENaniteMeshPass::Num; ++NaniteMeshPassIndex)
 		{

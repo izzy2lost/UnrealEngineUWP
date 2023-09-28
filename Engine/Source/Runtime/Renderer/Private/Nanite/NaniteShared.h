@@ -534,7 +534,9 @@ struct FNaniteRasterPipeline
 		HashKey.MaterialFlags |= bForceDisableWPO ? 0x2u : 0x0u;
 		HashKey.MaterialFlags |= bSplineMesh ? 0x4u : 0x0u;
 		HashKey.MaterialHash   = FHashKey::PointerHash(RasterMaterial);
-		return uint32(CityHash64((char*)&HashKey, sizeof(FHashKey)));
+
+		const uint64 PipelineHash = CityHash64((char*)&HashKey, sizeof(FHashKey));
+		return HashCombineFast(uint32(PipelineHash & 0xFFFFFFFF), uint32((PipelineHash >> 32) & 0xFFFFFFFF));
 	}
 
 	inline bool GetSecondaryPipeline(FNaniteRasterPipeline& OutSecondary) const
@@ -769,46 +771,52 @@ struct FNaniteShadingBin
 	}
 };
 
+struct FNaniteBasePassData;
+class FMeshDrawShaderBindings;
+
 struct FNaniteShadingPipeline
 {
-	const FMaterialRenderProxy* ShadingMaterial = nullptr;
-	const FLightCacheInterface* LightCacheInterface = nullptr;
-	ELightMapPolicyType LightMapPolicyType = ELightMapPolicyType::LMP_NO_LIGHTMAP;
-	bool bIsTwoSided = false;
-	bool bIsMasked = false;
+	TPimplPtr<FNaniteBasePassData, EPimplPtrMode::DeepCopy> BasePassData;
+	TPimplPtr<FMeshDrawShaderBindings, EPimplPtrMode::DeepCopy> ShaderBindings;
+
+	const FMaterialRenderProxy* MaterialProxy = nullptr;
+	const FMaterial* Material = nullptr;
+	FRHIComputeShader* ComputeShader = nullptr;
+
+	uint32 BoundTargetMask = 0u;
+	uint32 ShaderBindingsHash = 0u;
+	uint32 MaterialBitFlags = 0x0u;
+
+	// Shading flags
+	union
+	{
+		struct
+		{
+			uint16 bIsTwoSided : 1;
+			uint16 bIsMasked : 1;
+			uint16 bNoDerivativeOps : 1;
+			uint16 bPadding : 13;
+		};
+
+		uint16 ShadingFlagsHash = 0;
+	};
 
 	inline uint32 GetPipelineHash() const
 	{
-		struct FHashKey
-		{
-			uint32 LightMapPolicy : 16;
-			uint32 MaterialFlags  : 16;
-			uint32 MaterialHash;
+		// Ignoring the lower 4 bits since they are likely zero anyway.
+		// Higher bits are more significant in 64 bit builds.
+		uint64 PipelineHash = uint64(reinterpret_cast<UPTRINT>(MaterialProxy) >> 4);
 
-			static inline uint32 PointerHash(const void* Key)
-			{
-			#if PLATFORM_64BITS
-				// Ignoring the lower 4 bits since they are likely zero anyway.
-				// Higher bits are more significant in 64 bit builds.
-				return reinterpret_cast<UPTRINT>(Key) >> 4;
-			#else
-				return reinterpret_cast<UPTRINT>(Key);
-			#endif
-			};
+		// Combine shader flags hash and material hash
+		PipelineHash = CityHash128to64({ PipelineHash, ShadingFlagsHash });
 
-		} HashKey;
+		// Combine with bound target mask
+		PipelineHash = CityHash128to64({ PipelineHash, BoundTargetMask });
 
-		HashKey.LightMapPolicy = uint16(LightMapPolicyType);
-		HashKey.MaterialFlags  = 0;
-		HashKey.MaterialFlags |= bIsTwoSided ? 0x1u : 0x0u;
-		HashKey.MaterialHash   = FHashKey::PointerHash(ShadingMaterial);
-		
-		if (LightCacheInterface != nullptr)
-		{
-			HashKey.MaterialHash = HashCombine(HashKey.MaterialHash, FHashKey::PointerHash(LightCacheInterface));
-		}
+		// Combine with shader bindings hash
+		PipelineHash = CityHash128to64({ PipelineHash, ShaderBindingsHash });
 
-		return uint32(CityHash64((char*)&HashKey, sizeof(FHashKey)));
+		return HashCombineFast(uint32(PipelineHash & 0xFFFFFFFF), uint32((PipelineHash >> 32) & 0xFFFFFFFF));
 	}
 
 	FORCENOINLINE friend uint32 GetTypeHash(const FNaniteShadingPipeline& Other)
@@ -867,6 +875,12 @@ public:
 private:
 	TBitArray<> PipelineBins;
 	FNaniteShadingPipelineMap PipelineMap;
+};
+
+struct FNaniteShadingCommand
+{
+	const FNaniteShadingPipeline* Pipeline = nullptr;
+	uint16 ShadingBin = 0xFFFFu;
 };
 
 /// END-TODO: Work in progress / experimental

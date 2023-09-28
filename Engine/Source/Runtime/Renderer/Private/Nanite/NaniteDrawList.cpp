@@ -379,7 +379,7 @@ void FNaniteMeshProcessor::AddMeshBatch(
 	LLM_SCOPE_BYTAG(Nanite);
 
 	// this is now checking before we even attempt to add mesh batch
-	checkf(MeshBatch.bUseForMaterial, TEXT("Logic in BuildNaniteDrawCommands() should not have allowed a mesh batch without bUseForMaterial to be added"));
+	checkf(MeshBatch.bUseForMaterial, TEXT("Logic in BuildNaniteMaterialBins() should not have allowed a mesh batch without bUseForMaterial to be added"));
 
 	const FMaterialRenderProxy* FallbackMaterialRenderProxyPtr = MeshBatch.MaterialRenderProxy;
 	while (FallbackMaterialRenderProxyPtr)

@@ -564,6 +564,13 @@ void BuildShadingCommands(
 	FNaniteShadingCommands& ShadingCommands
 );
 
+bool LoadShadingPipeline(
+	const FScene& Scene,
+	FSceneProxyBase* SceneProxy,
+	FSceneProxyBase::FMaterialSection& Section,
+	FNaniteShadingPipeline& ShadingPipeline
+);
+
 EGBufferLayout GetGBufferLayoutForMaterial(bool bMaterialUsesWorldPositionOffset);
 
 } // namespace Nanite
