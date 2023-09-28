@@ -1,15 +1,12 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 
-using System;
 using System.Collections.Generic;
-using System.Linq;
 using EpicGames.Core;
 using Horde.Server.Jobs;
 using Horde.Server.Jobs.Graphs;
 using Horde.Server.Logs;
 using Horde.Server.Utilities;
 using Microsoft.Extensions.Logging;
-using MongoDB.Driver;
 
 namespace Horde.Server.Issues.Handlers
 {
@@ -24,6 +21,9 @@ namespace Horde.Server.Issues.Handlers
 
 		/// <inheritdoc/>
 		public override string SummaryTemplate => "{Severity} in {Files}";
+
+		/// <inheritdoc/>
+		public override IReadOnlyList<string> SuspectFilter => IssueSuspectFilter.Content;
 
 		/// <summary>
 		/// Determines if the given event id matches
@@ -85,22 +85,6 @@ namespace Horde.Server.Issues.Handlers
 					{
 						stepEvent.Ignored = true;
 					}
-				}
-			}
-		}
-
-		/// <inheritdoc/>
-		public override void RankSuspects(IIssueFingerprint fingerprint, List<SuspectChange> suspects)
-		{
-			foreach (SuspectChange suspect in suspects)
-			{
-				if (suspect.Files.Any(x => fingerprint.Keys.Any(y => x.Contains(y.Name, StringComparison.OrdinalIgnoreCase))))
-				{
-					suspect.Rank += 20;
-				}
-				else if (suspect.ContainsContent)
-				{
-					suspect.Rank += 10;
 				}
 			}
 		}

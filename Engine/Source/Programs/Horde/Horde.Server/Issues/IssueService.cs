@@ -1175,7 +1175,7 @@ namespace Horde.Server.Issues
 		async Task<List<NewIssueSpanSuspectData>> FindSuspectsForSpanAsync(StreamConfig streamConfig, IIssueFingerprint fingerprint, int minChange, int maxChange)
 		{
 			List<NewIssueSpanSuspectData> suspects = new List<NewIssueSpanSuspectData>();
-			if (TryGetHandler(fingerprint, out IssueHandler? handler))
+			if (TryGetHandler(fingerprint, out IssueHandler? handler) && handler.SuspectFilter.Count > 0)
 			{
 				_logger.LogDebug("Querying for changes in {StreamName} between {MinChange} and {MaxChange}", streamConfig.Name, minChange, maxChange);
 
@@ -1183,32 +1183,97 @@ namespace Horde.Server.Issues
 				List<ICommit> changes = await _commitService.GetCollection(streamConfig).FindAsync(minChange, maxChange, MaxChanges).ToListAsync();
 				_logger.LogDebug("Found {NumResults} changes", changes.Count);
 
-				// Get the handler to rank them
-				List<SuspectChange> suspectChanges = new List<SuspectChange>(changes.Count);
+				// Get all the parameters used to rank suspects
+				FileFilter filter = new FileFilter(handler.SuspectFilter);
+
+				// Build a set of all the files to include as suspects
+				HashSet<string> suspectFiles = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+				foreach (IssueKey key in fingerprint.Keys)
+				{
+					if (key.Type == IssueKeyType.File)
+					{
+						suspectFiles.Add(key.Name);
+					}
+				}
+
+				// Build a set of 'notes' to include as suspects
+				HashSet<string> suspectNotes = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+				foreach (IssueKey key in fingerprint.Keys)
+				{
+					if (key.Type == IssueKeyType.Note)
+					{
+						suspectNotes.Add(key.Name);
+					}
+				}
+
+				// Build a set of symbols to include as suspects
+				HashSet<string> suspectSymbols = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+				foreach (IssueKey key in fingerprint.Keys)
+				{
+					if (key.Type == IssueKeyType.Symbol)
+					{
+						suspectSymbols.UnionWith(key.Name.Split("::", StringSplitOptions.RemoveEmptyEntries));
+					}
+				}
+
+				// Get the filter for changes to include in the suspect list
+				int maxRank = -1;
 				foreach (ICommit commit in changes)
 				{
-					IReadOnlyList<string> files = await commit.GetFilesAsync(MaxFilesForSuspects, CancellationToken.None);
-					suspectChanges.Add(new SuspectChange(commit, files));
-				}
-				handler.RankSuspects(fingerprint, suspectChanges);
-
-				// Output the rankings
-				if (suspectChanges.Count > 0)
-				{
-					int maxRank = suspectChanges.Max(x => x.Rank);
-					foreach (SuspectChange suspectChange in suspectChanges)
+					int rank = await GetChangeScoreAsync(commit, filter, suspectFiles, suspectNotes, suspectSymbols);
+					if (rank > maxRank)
 					{
-						_logger.LogDebug("Suspect CL: {Change}, Author: {UserId}, Rank: {Rank}, MaxRank: {MaxRank}", suspectChange.Details.Number, suspectChange.Details.AuthorId, suspectChange.Rank, maxRank);
-						if (suspectChange.Rank == maxRank)
-						{
-							NewIssueSpanSuspectData suspect = new NewIssueSpanSuspectData(suspectChange.Details.Number, suspectChange.Details.OwnerId);
-							suspect.OriginatingChange = suspectChange.Details.OriginalChange;
-							suspects.Add(suspect);
-						}
+						suspects.Clear();
+						maxRank = rank;
+					}
+
+					if (rank == maxRank)
+					{
+						NewIssueSpanSuspectData suspect = new NewIssueSpanSuspectData(commit.Number, commit.OwnerId);
+						suspect.OriginatingChange = commit.OriginalChange;
+						suspects.Add(suspect);
 					}
 				}
 			}
 			return suspects;
+		}
+
+		static async ValueTask<int> GetChangeScoreAsync(ICommit commit, FileFilter filter, HashSet<string> suspectFiles, HashSet<string> suspectNotes, HashSet<string> suspectSymbols)
+		{
+			int rank = -1;
+
+			IReadOnlyList<string> commitFiles = await commit.GetFilesAsync(MaxFilesForSuspects, CancellationToken.None);
+			foreach (string commitFile in commitFiles)
+			{
+				if (filter.Matches(commitFile))
+				{
+					int fileRank = 0;
+
+					string fileName = commitFile.Substring(commitFile.LastIndexOf('/') + 1);
+					if (suspectFiles.Contains(fileName))
+					{
+						fileRank += 20;
+					}
+					else if (suspectNotes.Contains(fileName))
+					{
+						fileRank += 10;
+					}
+
+					if (suspectSymbols.Count > 0)
+					{
+						int matches = suspectSymbols.Count(x => commitFile.Contains(x, StringComparison.OrdinalIgnoreCase));
+						if (matches > 0)
+						{
+							fileRank = Math.Max(fileRank, 10 + (10 * matches));
+							fileRank += 10 + (10 * matches);
+						}
+					}
+
+					rank = Math.Max(rank, fileRank);
+				}
+			}
+
+			return rank;
 		}
 
 		/// <summary>

@@ -25,6 +25,9 @@ namespace Horde.Server.Issues.Handlers
 		/// <inheritdoc/>
 		public override string SummaryTemplate => "{Severity} in {Meta:Node}";
 
+		/// <inheritdoc/>
+		public override IReadOnlyList<string> SuspectFilter => IssueSuspectFilter.All;
+
 		/// <summary>
 		///  Known general events
 		/// </summary>
@@ -95,11 +98,6 @@ namespace Horde.Server.Issues.Handlers
 				hash = Md5Hash.Zero;
 				return false;
 			}
-		}
-
-		/// <inheritdoc/>
-		public override void RankSuspects(IIssueFingerprint fingerprint, List<SuspectChange> suspects)
-		{
 		}
 	}
 }

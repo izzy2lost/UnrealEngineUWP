@@ -24,6 +24,9 @@ namespace Horde.Server.Issues.Handlers
 		public override string SummaryTemplate => "{Severity} in {Nodes}";
 
 		/// <inheritdoc/>
+		public override IReadOnlyList<string> SuspectFilter => IssueSuspectFilter.All;
+
+		/// <inheritdoc/>
 		public override void TagEvents(IJob job, INode node, IReadOnlyNodeAnnotations annotations, IReadOnlyList<IssueEvent> stepEvents)
 		{
 			NewIssueFingerprint fingerprint = new NewIssueFingerprint(TypeConst, new[] { IssueKey.FromStep(job.StreamId, job.TemplateId, node.Name) }, null, null);
@@ -31,11 +34,6 @@ namespace Horde.Server.Issues.Handlers
 			{
 				stepEvent.Fingerprint = fingerprint;
 			}
-		}
-
-		/// <inheritdoc/>
-		public override void RankSuspects(IIssueFingerprint fingerprint, List<SuspectChange> suspects)
-		{
 		}
 	}
 }

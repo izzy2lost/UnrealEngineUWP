@@ -20,6 +20,9 @@ namespace Horde.Server.Issues.Handlers
 		/// <inheritdoc/>
 		public override string SummaryTemplate => "BuildGraph {Severity} in {Files}";
 
+		/// <inheritdoc/>
+		public override IReadOnlyList<string> SuspectFilter => IssueSuspectFilter.All;
+
 		/// <summary>
 		/// Determines if the given event id matches
 		/// </summary>
@@ -54,12 +57,6 @@ namespace Horde.Server.Issues.Handlers
 					}
 				}
 			}
-		}
-
-		/// <inheritdoc/>
-		public override void RankSuspects(IIssueFingerprint fingerprint, List<SuspectChange> suspects)
-		{
-			RankSuspects(fingerprint, suspects, preferCodeChanges: false);
 		}
 	}
 }

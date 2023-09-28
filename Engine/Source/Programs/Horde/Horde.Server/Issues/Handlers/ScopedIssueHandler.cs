@@ -31,6 +31,9 @@ namespace Horde.Server.Issues.Handlers
 		public override string SummaryTemplate => "{Severity} in {Meta:Node} - {Meta:Scope}";
 
 		/// <inheritdoc/>
+		public override IReadOnlyList<string> SuspectFilter => IssueSuspectFilter.All;
+
+		/// <inheritdoc/>
 		public override void TagEvents(IJob job, INode node, IReadOnlyNodeAnnotations annotations, IReadOnlyList<IssueEvent> stepEvents)
 		{			
 			foreach (IssueEvent stepEvent in stepEvents)
@@ -86,11 +89,6 @@ namespace Horde.Server.Issues.Handlers
 
 			hash = Md5Hash.Compute(Encoding.UTF8.GetBytes(sanitized));
 			return true;
-		}
-
-		/// <inheritdoc/>
-		public override void RankSuspects(IIssueFingerprint fingerprint, List<SuspectChange> suspects)
-		{
 		}
 	}
 }

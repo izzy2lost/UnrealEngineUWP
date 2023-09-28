@@ -1,6 +1,5 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 
-using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Text;
@@ -29,6 +28,9 @@ namespace Horde.Server.Issues.Handlers
 
 		/// <inheritdoc/>
 		public override string SummaryTemplate => "{LegacySymbolIssueHandler}";
+
+		/// <inheritdoc/>
+		public override IReadOnlyList<string> SuspectFilter => IssueSuspectFilter.Code;
 
 		/// <summary>
 		/// Determines if the given event id matches
@@ -64,29 +66,6 @@ namespace Horde.Server.Issues.Handlers
 				{
 					IssueKey key = new IssueKey(identifier, IssueKeyType.Symbol);
 					symbolNames.Add(key);
-				}
-			}
-		}
-
-		/// <inheritdoc/>
-		public override void RankSuspects(IIssueFingerprint fingerprint, List<SuspectChange> changes)
-		{
-			HashSet<string> names = new HashSet<string>();
-			foreach (IssueKey key in fingerprint.Keys)
-			{
-				if (key.Type == IssueKeyType.Symbol)
-				{
-					string name = key.Name;
-					names.UnionWith(name.Split("::", StringSplitOptions.RemoveEmptyEntries));
-				}
-			}
-
-			foreach (SuspectChange change in changes)
-			{
-				if (change.ContainsCode)
-				{
-					int matches = names.Count(x => change.Files.Any(y => y.Contains(x, StringComparison.OrdinalIgnoreCase)));
-					change.Rank += 10 + (10 * matches);
 				}
 			}
 		}

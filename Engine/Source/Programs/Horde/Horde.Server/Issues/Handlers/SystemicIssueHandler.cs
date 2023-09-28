@@ -23,6 +23,9 @@ namespace Horde.Server.Issues.Handlers
 		/// <inheritdoc/>
 		public override string SummaryTemplate =>"Systemic {Severity} in {Nodes}";
 
+		/// <inheritdoc/>
+		public override IReadOnlyList<string> SuspectFilter => IssueSuspectFilter.None;
+	
 		/// <summary>
 		///  Known systemic errors
 		/// </summary>
@@ -36,12 +39,6 @@ namespace Horde.Server.Issues.Handlers
 		public static bool IsMatchingEventId(EventId eventId)
 		{
 			return s_knownSystemic.Contains(eventId) || (eventId.Id >= KnownLogEvents.Systemic.Id && eventId.Id <= KnownLogEvents.Systemic_Max.Id);
-		}
-
-		/// <inheritdoc/>
-		public override void RankSuspects(IIssueFingerprint fingerprint, List<SuspectChange> suspects)
-		{
-			suspects.Clear();
 		}
 
 		/// <inheritdoc/>

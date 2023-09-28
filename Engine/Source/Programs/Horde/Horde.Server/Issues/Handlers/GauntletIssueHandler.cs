@@ -55,6 +55,9 @@ namespace Horde.Server.Issues.Handlers
 		/// <inheritdoc/>
 		public override string SummaryTemplate => "Gauntlet {Meta:Type} {Severity} {Meta:Context}";
 
+		/// <inheritdoc/>
+		public override IReadOnlyList<string> SuspectFilter => IssueSuspectFilter.Code;
+
 		/// <summary>
 		///  Known Gauntlet events
 		/// </summary>
@@ -209,18 +212,6 @@ namespace Horde.Server.Issues.Handlers
 					metadata.Add($"type={GetEventPrefix(stepEvent.EventId.Value)}");
 
 					stepEvent.Fingerprint = new NewIssueFingerprint(Type, keys.Select(x => new IssueKey(x, IssueKeyType.Unknown)), null, metadata);
-				}
-			}
-		}
-
-		/// <inheritdoc/>
-		public override void RankSuspects(IIssueFingerprint fingerprint, List<SuspectChange> changes)
-		{
-			foreach (SuspectChange change in changes)
-			{
-				if (change.ContainsCode)
-				{
-					change.Rank += 10;
 				}
 			}
 		}

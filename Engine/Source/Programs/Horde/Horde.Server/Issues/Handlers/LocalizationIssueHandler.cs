@@ -2,14 +2,12 @@
 
 using System;
 using System.Collections.Generic;
-using System.Linq;
 using EpicGames.Core;
 using Horde.Server.Jobs;
 using Horde.Server.Jobs.Graphs;
 using Horde.Server.Logs;
 using Horde.Server.Utilities;
 using Microsoft.Extensions.Logging;
-using MongoDB.Driver;
 
 namespace Horde.Server.Issues.Handlers
 {
@@ -24,6 +22,9 @@ namespace Horde.Server.Issues.Handlers
 
 		/// <inheritdoc/>
 		public override string SummaryTemplate => "Localization {Severity} in {Files}";
+
+		/// <inheritdoc/>
+		public override IReadOnlyList<string> SuspectFilter => IssueSuspectFilter.Code;
 
 		/// <summary>
 		/// Determines if the given event id matches
@@ -94,26 +95,6 @@ namespace Horde.Server.Issues.Handlers
 					else if (hasMatches && IsMaskedEventId(stepEvent.EventId.Value))
 					{
 						stepEvent.Ignored = true;
-					}
-				}
-			}
-		}
-
-		/// <inheritdoc/>
-		public override void RankSuspects(IIssueFingerprint fingerprint, List<SuspectChange> suspects)
-		{
-			string[] files = fingerprint.Keys.Where(x => x.Type == IssueKeyType.File).Select(x => x.Name).ToArray();
-			foreach (SuspectChange suspect in suspects)
-			{
-				if (suspect.ContainsCode)
-				{
-					if (files.Any(x => suspect.ModifiesFile(x)))
-					{
-						suspect.Rank += 20;
-					}
-					else
-					{
-						suspect.Rank += 10;
 					}
 				}
 			}

@@ -23,6 +23,9 @@ namespace Horde.Server.Issues.Handlers
 		/// <inheritdoc/>
 		public override string SummaryTemplate => "Inconsistent case for {Files}";
 
+		/// <inheritdoc/>
+		public override IReadOnlyList<string> SuspectFilter => IssueSuspectFilter.All;
+
 		/// <summary>
 		/// Determines if the given event id matches
 		/// </summary>
@@ -31,22 +34,6 @@ namespace Horde.Server.Issues.Handlers
 		public static bool IsMatchingEventId(EventId eventId)
 		{
 			return eventId == KnownLogEvents.AutomationTool_PerforceCase;
-		}
-
-		/// <inheritdoc/>
-		public override void RankSuspects(IIssueFingerprint fingerprint, List<SuspectChange> changes)
-		{
-			foreach (SuspectChange change in changes)
-			{
-				foreach(string file in change.Files)
-				{
-					string fileName = GetFileName(file);
-					if(fingerprint.Keys.Contains(new IssueKey(fileName, IssueKeyType.File)))
-					{
-						change.Rank += 30;
-					}
-				}
-			}
 		}
 
 		/// <summary>

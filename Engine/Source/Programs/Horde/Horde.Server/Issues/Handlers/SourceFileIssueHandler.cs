@@ -1,11 +1,9 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 
 using System.Collections.Generic;
-using System.Linq;
 using System.Text.Json;
 using Horde.Server.Logs;
 using Horde.Server.Utilities;
-using MongoDB.Driver;
 
 namespace Horde.Server.Issues.Handlers
 {
@@ -14,6 +12,9 @@ namespace Horde.Server.Issues.Handlers
 	/// </summary>
 	abstract class SourceFileIssueHandler : IssueHandler
 	{
+		/// <inheritdoc/>
+		public override IReadOnlyList<string> SuspectFilter => IssueSuspectFilter.Code;
+
 		/// <summary>
 		/// Extracts a list of source files from an event
 		/// </summary>
@@ -61,37 +62,6 @@ namespace Horde.Server.Issues.Handlers
 			IssueKey key = new IssueKey(fileName, type);
 
 			sourceFiles.Add(key);
-		}
-
-		/// <inheritdoc/>
-		public override void RankSuspects(IIssueFingerprint fingerprint, List<SuspectChange> suspects)
-		{
-			RankSuspects(fingerprint, suspects, preferCodeChanges: true);
-		}
-
-		/// <inheritdoc cref="RankSuspects(IIssueFingerprint, List{SuspectChange})"/>
-		protected static void RankSuspects(IIssueFingerprint fingerprint, List<SuspectChange> suspects, bool preferCodeChanges)
-		{
-			List<string> fileNames = new List<string>();
-			foreach (IssueKey key in fingerprint.Keys)
-			{
-				if (key.Type == IssueKeyType.File || key.Type == IssueKeyType.Note)
-				{
-					fileNames.Add(key.Name);
-				}
-			}
-
-			foreach (SuspectChange change in suspects)
-			{
-				if (fileNames.Any(x => change.ModifiesFile(x)))
-				{
-					change.Rank += 20;
-				}
-				else if(preferCodeChanges && change.ContainsCode)
-				{
-					change.Rank += 10;
-				}
-			}
 		}
 	}
 }
