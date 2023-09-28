@@ -2306,8 +2306,8 @@ protected:
 	ERendererOutput GetRendererOutput() const;
 
 	FDynamicShadowsTaskData* BeginInitDynamicShadows( bool bRunningEarly, IVisibilityTaskData* VisibilityTaskData);
-	void FinishInitDynamicShadows(FRDGBuilder& GraphBuilder, FDynamicShadowsTaskData* TaskData, FInstanceCullingManager& InstanceCullingManager, FRDGExternalAccessQueue& ExternalAccessQueue);
-	FDynamicShadowsTaskData* InitDynamicShadows(FRDGBuilder& GraphBuilder, FInstanceCullingManager& InstanceCullingManager, FRDGExternalAccessQueue& ExternalAccessQueue);
+	void FinishInitDynamicShadows(FRDGBuilder& GraphBuilder, FDynamicShadowsTaskData* TaskData, FInstanceCullingManager& InstanceCullingManager);
+	FDynamicShadowsTaskData* InitDynamicShadows(FRDGBuilder& GraphBuilder, FInstanceCullingManager& InstanceCullingManager);
 
 	void CreateDynamicShadows(FDynamicShadowsTaskData& TaskData);
 	void FilterDynamicShadows(FDynamicShadowsTaskData& TaskData);
@@ -2624,7 +2624,7 @@ public:
 
 protected:
 	/** Finds the visible dynamic shadows for each view. */
-	FDynamicShadowsTaskData* InitDynamicShadows(FRDGBuilder& GraphBuilder, FInstanceCullingManager& FInstanceCullingManager, FRDGExternalAccessQueue& ExternalAccessQueue);
+	FDynamicShadowsTaskData* InitDynamicShadows(FRDGBuilder& GraphBuilder, FInstanceCullingManager& FInstanceCullingManager);
 
 	void PrepareViewVisibilityLists();
 
@@ -2822,12 +2822,6 @@ private:
 };
 
 extern FFastVramConfig GFastVRamConfig;
-
-/**
- * Returns whether any shadows in the scene have ray traced shadows enabled. This can be called any time
- * after launching the shadow initialization tasks. It will sync the shadow creation task.
- */
-extern bool HasRayTracedDistanceFieldShadows(const FDynamicShadowsTaskData* TaskData);
 
 /** Returns the array of shadows with distance fields. Call only after finishing shadow initialization. */
 extern TConstArrayView<FProjectedShadowInfo*> GetProjectedDistanceFieldShadows(const FDynamicShadowsTaskData* TaskData);

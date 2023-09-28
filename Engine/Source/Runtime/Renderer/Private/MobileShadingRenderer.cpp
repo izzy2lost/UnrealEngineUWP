@@ -646,7 +646,7 @@ void FMobileSceneRenderer::InitViews(
 		Scene->GPUScene.Update(GraphBuilder, GetSceneUniforms(), *Scene, ExternalAccessQueue);
 		for (int32 ViewIndex = 0; ViewIndex < AllViews.Num(); ViewIndex++)
 		{
-			Scene->GPUScene.UploadDynamicPrimitiveShaderDataForView(GraphBuilder, *Scene, *AllViews[ViewIndex], ExternalAccessQueue);
+			Scene->GPUScene.UploadDynamicPrimitiveShaderDataForView(GraphBuilder, *Scene, *AllViews[ViewIndex]);
 		}
 	}
 
@@ -656,7 +656,7 @@ void FMobileSceneRenderer::InitViews(
 		if (bDynamicShadows)
 		{
 			// Setup dynamic shadows.
-			TaskDatas.DynamicShadows = InitDynamicShadows(GraphBuilder, InstanceCullingManager, ExternalAccessQueue);
+			TaskDatas.DynamicShadows = InitDynamicShadows(GraphBuilder, InstanceCullingManager);
 		}
 		else
 		{
