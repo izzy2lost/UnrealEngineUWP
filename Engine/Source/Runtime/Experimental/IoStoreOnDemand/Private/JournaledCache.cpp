@@ -1864,8 +1864,9 @@ namespace UE::IO::IAS {
 // {{{1 journaled-cache ........................................................
 
 ////////////////////////////////////////////////////////////////////////////////
-class FJournaledCache
+class FJournaledCache final
 	: public IIasCache
+	, public JournaledCache::FServiceThread::FReadSink
 {
 public:
 								FJournaledCache() = default;
@@ -1873,15 +1874,25 @@ public:
 	bool						Initialize(const TCHAR* RootDir, const FIasCacheConfig& Config);
 	virtual void				Abandon() override;
 	virtual bool				ContainsChunk(const FIoHash& Key) const override;
-	virtual FGetToken			Get(const FIoHash& Key, FIoBuffer& OutData) override;
-	virtual FGetWork			Materialize(FGetToken Token, const FIoReadOptions& Options, const FIoCancellationToken* CancelToken) override;
+	virtual EIoErrorCode		Get(const FIoHash& Key, FIoBuffer& OutData) override;
+	virtual void				Materialize(const FIoHash& Key, FIoBuffer& Dest, EIoErrorCode& Status, UE::Tasks::FTaskEvent DoneEvent) override;
+	virtual void				Cancel(FIoBuffer& GivenDest) override;
 	virtual FIoStatus			Put(const FIoHash& Key, FIoBuffer& Data) override;
 
 private:
+	struct FMaterialOp
+	{
+		UE::Tasks::FTaskEvent	DoneEvent;
+		EIoErrorCode*			Status;
+	};
+
 	void						Update();
+	virtual void				OnRead(const FReadResult* Results, int32 Num) override;
 	static uint64				ReduceKey(const FIoHash& Key);
 	JournaledCache::FCache*		Cache = nullptr;
 	UE::Tasks::FPipe			GetPipe = UE::Tasks::FPipe(TEXT("IasCacheGetPipe"));
+	FCriticalSection			Lock;
+	TMap<int32, FMaterialOp>	PendingMaterializes;
 };
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -1958,57 +1969,66 @@ bool FJournaledCache::ContainsChunk(const FIoHash& Key) const
 }
 
 ////////////////////////////////////////////////////////////////////////////////
-FJournaledCache::FGetToken FJournaledCache::Get(const FIoHash& Key, FIoBuffer& OutData)
+EIoErrorCode FJournaledCache::Get(const FIoHash& Key, FIoBuffer& OutData)
 {
+	using namespace JournaledCache;
+
+	check(OutData.GetData() == nullptr);
+
 	uint64 InnerKey = ReduceKey(Key);
 
 	auto Entry = Cache->Get(InnerKey, OutData);
 	if (Entry == 0)
 	{
-		return 0;
+		return EIoErrorCode::NotFound;
 	}
-
-	static_assert(sizeof(InnerKey) == sizeof(FGetToken));
-	return FGetToken(InnerKey);
+	
+	return (OutData.GetData() != nullptr) ? EIoErrorCode::Ok : EIoErrorCode::FileNotOpen;
 }
 
 ////////////////////////////////////////////////////////////////////////////////
-FJournaledCache::FGetWork FJournaledCache::Materialize(
-	FGetToken Token,
-	const FIoReadOptions& Options,
-	const FIoCancellationToken* CancelToken)
+void FJournaledCache::Materialize(
+	const FIoHash& Key,
+	FIoBuffer& Dest,
+	EIoErrorCode& Status,
+	UE::Tasks::FTaskEvent DoneEvent)
 {
-	return GetPipe.Launch(TEXT("IasCacheGet"), [this, Token, Options, CancelToken] ()
+	using namespace JournaledCache;
+
+	FServiceThread::FReadRequest Request = {
+		.Key = ReduceKey(Key),
+		.Dest = &Dest,
+		.Sink = this,
+	};
+	uint32 ReadId = FServiceThread::Get().BeginRead(Cache, Request);
+
+	FScopeLock _(&Lock);
+	PendingMaterializes.Add(ReadId, { MoveTemp(DoneEvent), &Status });
+}
+
+////////////////////////////////////////////////////////////////////////////////
+void FJournaledCache::Cancel(FIoBuffer& GivenDest)
+{
+	JournaledCache::FServiceThread::Get().CancelRead(&GivenDest);
+}
+
+////////////////////////////////////////////////////////////////////////////////
+void FJournaledCache::OnRead(const FReadResult* Results, int32 Num)
+{
+	FScopeLock _(&Lock);
+
+	for (; Num-- > 0; ++Results)
 	{
-		LLM_SCOPE_BYTAG(Ias);
+		const FReadResult& Result = Results[0];
 
-		if (CancelToken != nullptr && CancelToken->IsCancelled())
-		{
-			return TIoStatusOr<FIoBuffer>(FIoStatus(EIoErrorCode::Cancelled));
-		}
+		FMaterialOp* Pend = PendingMaterializes.Find(Result.ReadId);
+		check(Pend != nullptr);
 
-		FIoBuffer Buffer;
+		Pend->Status[0] = EIoErrorCode(Result.Status);
+		Pend->DoneEvent.Trigger();
 
-		int64 Size = Options.GetSize();
-		if (void* DestAddr = Options.GetTargetVa(); DestAddr != nullptr)
-		{
-			check(Size > 0);
-			Buffer = FIoBuffer(FIoBuffer::Wrap, DestAddr, Size);
-		}
-		else if (Size >= 0)
-		{
-			Buffer = FIoBuffer(Size);
-		}
-
-		uint32 Offset = uint32(Options.GetOffset());
-		EIoErrorCode Ret = Cache->Materialize(Token, Buffer, Offset);
-		if (Ret != EIoErrorCode::Ok)
-		{
-			return TIoStatusOr<FIoBuffer>(FIoStatus(Ret));
-		}
-
-		return TIoStatusOr<FIoBuffer>(Buffer);
-	});
+		PendingMaterializes.Remove(Result.ReadId);
+	}
 }
 
 ////////////////////////////////////////////////////////////////////////////////

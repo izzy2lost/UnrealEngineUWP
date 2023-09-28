@@ -19,9 +19,6 @@ namespace UE::IO::IAS {
 class IIasCache
 {
 public:
-	using FGetToken = UPTRINT;
-	using FGetWork = UE::Tasks::TTask<TIoStatusOr<FIoBuffer>>;
-
 	virtual ~IIasCache() = default;
 
 	/** Deletes the IAS object, dropping all data persisted to disk and releasing
@@ -34,15 +31,20 @@ public:
 	virtual bool ContainsChunk(const FIoHash& Key) const = 0;
 
 	/** Get the chunk associated with the specified cache key. If the data is
-	 already in memory it is return in OutData. Otherwise a FGetToken value is
-	 returned; zero if Key is not found, or non-zero for use with Materialize. */
-	virtual FGetToken Get(const FIoHash& Key, FIoBuffer& OutData) = 0;
+	 already in memory it is return in OutData. Otherwise the returned status
+	 indicates if the key can be materialized or if it does not exist */
+	virtual EIoErrorCode Get(const FIoHash& Key, FIoBuffer& OutData) = 0;
 
-	/** Materialize the data for a Get() if it was not immediately available */
-	virtual FGetWork Materialize(
-		FGetToken Token,
-		const FIoReadOptions& Options,
-		const FIoCancellationToken* CancellationToken) = 0;
+	/** Materializes a cached items data from disk. The data is read into Dest
+	 so Dest must remain valid throughout. The result of the disk read is returned
+	 in Status (same lifetime needs as Dest). DoneEvent is triggered when the read
+	 succeeds, is not found, or if an IO error occurred. */
+	virtual void Materialize(const FIoHash& Key, FIoBuffer& Dest, EIoErrorCode& Status, UE::Tasks::FTaskEvent DoneEvent) = 0;
+
+	/** Cancels a previously request to Materialize(). Note that the materialize
+	 already can still complete as the read operation may already be in flight. If
+	 the cancel succeeds, the materialize's DoneEvent is not triggered. */
+	virtual void Cancel(FIoBuffer& GivenDest) = 0;
 
 	/** Insert a new chunk into the cache. */
 	virtual FIoStatus Put(const FIoHash& Key, FIoBuffer& Data) = 0;

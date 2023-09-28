@@ -762,14 +762,14 @@ struct FChunkRequest
 	FIoRequestImpl* RequestHead;
 	FIoRequestImpl* RequestTail;
 	FIoBuffer Chunk;
-	UE::Tasks::TTask<TIoStatusOr<FIoBuffer>> CacheTask;
 	UE::Tasks::FTask DecodeTask;
-	FIoCancellationToken CancellationToken;
 	uint64 StartTime;
 	int32 Priority;
 	uint16 RequestCount;
 	uint16 HttpRetryCount;
 	bool bCached;
+	bool bCancelled = false;
+	EIoErrorCode CacheGetStatus;
 };
 
 ///////////////////////////////////////////////////////////////////////////////
@@ -1227,7 +1227,7 @@ class FOnDemandIoBackend final
 			if (FChunkRequest** InflightRequest = Inflight.Find(Params.ChunkKey))
 			{
 				FChunkRequest* ChunkRequest = *InflightRequest;
-				check(!ChunkRequest->CancellationToken.IsCancelled());
+				check(!ChunkRequest->bCancelled);
 				bOutPending = true;
 				bOutUpdatePriority = ChunkRequest->AddDispatcherRequest(Request);
 
@@ -1241,7 +1241,7 @@ class FOnDemandIoBackend final
 			return ChunkRequest;
 		}
 
-		bool Cancel(FIoRequestImpl* Request)
+		bool Cancel(FIoRequestImpl* Request, IIasCache* TheCache)
 		{
 			FScopeLock _(&Mutex);
 
@@ -1257,7 +1257,11 @@ class FOnDemandIoBackend final
 
 				if (RemainingCount == 0)
 				{
-					ChunkRequest.CancellationToken.Cancel();
+					ChunkRequest.bCancelled = true;
+					if (TheCache != nullptr)
+					{
+						TheCache->Cancel(ChunkRequest.Chunk);
+					}
 					Inflight.Remove(BackendData.ChunkKey);
 				}
 
@@ -1342,6 +1346,7 @@ private:
 	FString GetEndpointTestPath() const;
 	void ConditionallyStartBackendThread();
 	void CompleteRequest(FChunkRequest* ChunkRequest);
+	void CompleteMaterialize(FChunkRequest* ChunkRequest);
 
 	FIoStatus ApplyGeneratedOnDemandToc(const FString& CdnUrl, const FString& TocPath);
 	FIoStatus DownloadoadOnDemandToc(const FString& CdnUrl, const FString& TocPath);
@@ -1358,6 +1363,7 @@ private:
 	FChunkRequests ChunkRequests;
 	FIoRequestQueue CompletedRequests;
 	FChunkRequestQueue HttpRequests;
+	TArray<FChunkRequest*> PendingCacheGets;
 	FOnDemandIoBackendStats Stats;
 	FBackendStatus BackendStatus;
 	FAvailableEps AvailableEps;
@@ -1498,9 +1504,8 @@ void FOnDemandIoBackend::CompleteRequest(FChunkRequest* ChunkRequest)
 	LLM_SCOPE_BYTAG(Ias);
 	TRACE_CPUPROFILER_EVENT_SCOPE(IasBackend::CompleteRequest);
 	check(ChunkRequest != nullptr);
-	const bool bCancelled = ChunkRequest->CancellationToken.IsCancelled();
 
-	if (bCancelled)
+	if (ChunkRequest->bCancelled)
 	{
 		check(ChunkRequest->RequestHead == nullptr);
 		check(ChunkRequest->RequestTail == nullptr);
@@ -1570,6 +1575,43 @@ void FOnDemandIoBackend::CompleteRequest(FChunkRequest* ChunkRequest)
 	}
 }
 
+void FOnDemandIoBackend::CompleteMaterialize(FChunkRequest* ChunkRequest)
+{
+	TRACE_CPUPROFILER_EVENT_SCOPE(IasBackend::CompleteMaterialize);
+
+	bool bWasCancelled = false;
+	switch (ChunkRequest->CacheGetStatus)
+	{
+		case EIoErrorCode::Ok:
+		check(ChunkRequest->Chunk.GetData() != nullptr);
+		ChunkRequest->bCached = true;
+		CompleteRequest(ChunkRequest);
+		return;
+
+	case EIoErrorCode::ReadError:
+		FOnDemandIoBackendStats::Get()->OnCacheError();
+		break;
+
+	case EIoErrorCode::Cancelled:
+		bWasCancelled = true;
+		break;
+
+	case EIoErrorCode::NotFound:
+		break;
+	}
+
+	if (bWasCancelled || BackendStatus.IsHttpEnabled() == false)
+	{
+		UE_CLOG(BackendStatus.IsHttpEnabled() == false, LogIas, Log, TEXT("Chunk was not found in the cache and HTTP is disabled"));
+		CompleteRequest(ChunkRequest);
+		return;
+	}
+
+	Stats.OnHttpEnqueue();
+	HttpRequests.EnqueueByPriority(ChunkRequest);
+	TickBackendEvent->Trigger();
+}
+
 bool FOnDemandIoBackend::Resolve(FIoRequestImpl* Request)
 {
 	using namespace UE::Tasks;
@@ -1611,65 +1653,48 @@ bool FOnDemandIoBackend::Resolve(FIoRequestImpl* Request)
 	{
 		const FIoHash& Key = ChunkRequest->Params.ChunkKey;
 		FIoBuffer& Buffer = ChunkRequest->Chunk;
-		IIasCache::FGetToken GetToken = Cache->Get(Key, Buffer);
-
-		if (Buffer.GetData() != nullptr)
-		{
-			ChunkRequest->bCached = true;
-			Launch(UE_SOURCE_LOCATION, [this, ChunkRequest] { CompleteRequest(ChunkRequest); });
-			return true;
-		}
-
-		if (GetToken == 0)
-		{
-			Stats.OnHttpEnqueue();
-			HttpRequests.EnqueueByPriority(ChunkRequest);
-			TickBackendEvent->Trigger();
-			return true;
-		}
 
 		//TODO: Pass priority to cache
-		InflightCacheRequestCount.fetch_add(1, std::memory_order_relaxed);
-		ChunkRequest->CacheTask = Cache->Materialize(GetToken, FIoReadOptions(), &ChunkRequest->CancellationToken);
+		EIoErrorCode GetStatus = Cache->Get(Key, Buffer);
+
+		if (GetStatus == EIoErrorCode::Ok)
+		{
+			check(Buffer.GetData() != nullptr);
+			ChunkRequest->bCached = true;
+			Launch(UE_SOURCE_LOCATION, [this, ChunkRequest] {
+				CompleteRequest(ChunkRequest);
+			});
+			return true;
+		}
+
+		if (GetStatus == EIoErrorCode::FileNotOpen)
+		{
+			InflightCacheRequestCount.fetch_add(1, std::memory_order_relaxed);
+
+			FTaskEvent OnReadyEvent(TEXT("IasCacheMaterializeDone"));
+
+			Launch(UE_SOURCE_LOCATION, [this, ChunkRequest] {
+				InflightCacheRequestCount.fetch_sub(1, std::memory_order_relaxed);
+				CompleteMaterialize(ChunkRequest);
+			}, OnReadyEvent);
+
+			EIoErrorCode& OutStatus = ChunkRequest->CacheGetStatus;
+			Cache->Materialize(Key, Buffer, OutStatus, MoveTemp(OnReadyEvent));
+			return true;
+		}
+
+		check(GetStatus == EIoErrorCode::NotFound);
 	}
 
-	const ETaskPriority TaskPriority = ChunkRequest->Priority > IoDispatcherPriority_Medium ? ETaskPriority::High : ETaskPriority::Normal;
-	Launch(UE_SOURCE_LOCATION, [this, ChunkRequest]()
-	{
-		LLM_SCOPE_BYTAG(Ias);
-		TRACE_CPUPROFILER_EVENT_SCOPE(FOnDemandIoBackend::CompleteOrEnqueueHttpRequest);
-		if (ChunkRequest->CacheTask.IsValid())
-		{
-			InflightCacheRequestCount.fetch_sub(1, std::memory_order_relaxed);
-			if (TIoStatusOr<FIoBuffer> Status = ChunkRequest->CacheTask.GetResult(); Status.IsOk())
-			{
-				ChunkRequest->Chunk = Status.ConsumeValueOrDie();
-				ChunkRequest->bCached = true;
-				return CompleteRequest(ChunkRequest);
-			}
-			else if (Status.Status().GetErrorCode() == EIoErrorCode::ReadError)
-			{
-				FOnDemandIoBackendStats::Get()->OnCacheError();
-			}
-		}
-
-		if (ChunkRequest->CancellationToken.IsCancelled() || BackendStatus.IsHttpEnabled() == false)
-		{
-			UE_CLOG(BackendStatus.IsHttpEnabled() == false, LogIas, Log, TEXT("Chunk was not found in the cache and HTTP is disabled"));
-			return CompleteRequest(ChunkRequest);
-		}
-
-		Stats.OnHttpEnqueue();
-		HttpRequests.EnqueueByPriority(ChunkRequest);
-		TickBackendEvent->Trigger();
-	}, ChunkRequest->CacheTask, TaskPriority);
-
+	Stats.OnHttpEnqueue();
+	HttpRequests.EnqueueByPriority(ChunkRequest);
+	TickBackendEvent->Trigger();
 	return true;
 }
 
 void FOnDemandIoBackend::CancelIoRequest(FIoRequestImpl* Request)
 {
-	if (ChunkRequests.Cancel(Request))
+	if (ChunkRequests.Cancel(Request, Cache.Get()))
 	{
 		CompletedRequests.Enqueue(Request);
 		BackendContext->WakeUpDispatcherThreadDelegate.Execute();
