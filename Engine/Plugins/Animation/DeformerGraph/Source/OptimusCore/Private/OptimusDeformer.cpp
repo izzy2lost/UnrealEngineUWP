@@ -1309,6 +1309,19 @@ void UOptimusDeformer::SetStatusFromDiagnostic(EOptimusDiagnosticLevel InDiagnos
 }
 
 
+UOptimusComponentSourceBinding* UOptimusDeformer::GetPrimaryComponentBinding() const
+{
+	for (UOptimusComponentSourceBinding* Binding : GetComponentBindings())
+	{
+		if (Binding->bIsPrimaryBinding)
+		{
+			return Binding;
+		}
+	}
+	return nullptr;
+}
+
+
 UOptimusComponentSourceBinding* UOptimusDeformer::ResolveComponentBinding(
 	FName InBindingName
 	) const

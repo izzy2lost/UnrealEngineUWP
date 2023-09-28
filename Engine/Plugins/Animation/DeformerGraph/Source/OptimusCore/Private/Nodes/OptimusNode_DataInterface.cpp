@@ -5,6 +5,7 @@
 #include "OptimusCoreModule.h"
 #include "OptimusNodePin.h"
 #include "OptimusDataTypeRegistry.h"
+#include "OptimusDeformer.h"
 #include "OptimusNodeGraph.h"
 #include "OptimusNode_ComponentSource.h"
 #include "OptimusObjectVersion.h"
@@ -100,7 +101,7 @@ bool UOptimusNode_DataInterface::IsComponentSourceCompatible(const UOptimusCompo
 
 void UOptimusNode_DataInterface::Serialize(FArchive& Ar)
 {
-	Super::Serialize(Ar);
+ 	Super::Serialize(Ar);
 	Ar.UsingCustomVersion(FOptimusObjectVersion::GUID);
 }
 
@@ -185,6 +186,12 @@ UOptimusComponentSourceBinding* UOptimusNode_DataInterface::GetComponentBinding(
 	if (!Bindings.IsEmpty() && ensure(Bindings.Num() == 1))
 	{
 		return Bindings.Array()[0];
+	}
+
+	// Default to the primary binding, but only if we're at the top-most level of the graph.
+	if (const UOptimusDeformer* Deformer = Cast<UOptimusDeformer>(Graph->GetCollectionOwner()))
+	{
+		return Deformer->GetPrimaryComponentBinding();
 	}
 	
 	return nullptr;

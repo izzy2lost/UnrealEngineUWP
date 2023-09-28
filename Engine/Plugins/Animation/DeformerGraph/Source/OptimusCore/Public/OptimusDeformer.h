@@ -259,6 +259,9 @@ public:
 	UFUNCTION(BlueprintGetter)
 	const TArray<UOptimusComponentSourceBinding*>& GetComponentBindings() const { return Bindings->Bindings; }
 
+	UFUNCTION(BlueprintGetter)
+	UOptimusComponentSourceBinding* GetPrimaryComponentBinding() const;
+
 	UOptimusComponentSourceBinding* ResolveComponentBinding(
 		FName InBindingName
 		) const override;

@@ -2,6 +2,7 @@
 
 #pragma once
 
+#include "IOptimusComponentBindingProvider.h"
 #include "IOptimusDataInterfaceProvider.h"
 #include "IOptimusPinMutabilityDefiner.h"
 #include "OptimusComputeDataInterface.h"
@@ -19,6 +20,7 @@ UCLASS(Hidden)
 class UOptimusNode_DataInterface :
 	public UOptimusNode,
 	public IOptimusDataInterfaceProvider,
+	public IOptimusComponentBindingProvider,
 	public IOptimusPinMutabilityDefiner
 {
 	GENERATED_BODY()
@@ -41,6 +43,8 @@ public:
 	// -- IOptimusDataInterfaceProvider implementations
 	UOptimusComputeDataInterface *GetDataInterface(UObject *InOuter) const override;
 	int32 GetDataFunctionIndexFromPin(const UOptimusNodePin* InPin) const override;
+	
+	// -- IOptimusDataInterfaceProvider & IOptimusComponentBindingProvider
 	UOptimusComponentSourceBinding* GetComponentBinding() const override;
 
 	// -- IOptimusPinMutabilityDefiner
