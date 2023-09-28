@@ -135,7 +135,7 @@ void UTargetTagRequirementsGameplayEffectComponent::OnTagChanged(const FGameplay
 			// See if we should be inhibiting the execution
 			constexpr bool bInvokeCuesIfStateChanged = true;
 			const bool bOngoingRequirementsMet = OngoingTagRequirements.IsEmpty() || OngoingTagRequirements.RequirementsMet(OwnedTags);
-			Owner->InhibitActiveGameplayEffect(ActiveGEHandle, !bOngoingRequirementsMet, bInvokeCuesIfStateChanged);
+			Owner->SetActiveGameplayEffectInhibit(MoveTemp(ActiveGEHandle), !bOngoingRequirementsMet, bInvokeCuesIfStateChanged);
 		}
 	}
 }

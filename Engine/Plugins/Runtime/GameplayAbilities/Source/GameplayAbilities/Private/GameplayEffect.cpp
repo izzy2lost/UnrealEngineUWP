@@ -3911,10 +3911,11 @@ void FActiveGameplayEffectsContainer::InternalOnActiveGameplayEffectAdded(FActiv
 	AddCustomMagnitudeExternalDependencies(Effect);
 
 	const bool bActive = EffectDef->OnAddedToActiveContainer(*this, Effect);
+	Effect.bIsInhibited = true; // Effect has to start inhibited, so our call to Inhibit will trigger if we should be active
 
 	constexpr bool bInvokeCuesIfEnabled = false;
-	Effect.bIsInhibited = true; // Effect has to start inhibited, so our call to Inhibit will trigger if we should be active
-	Owner->InhibitActiveGameplayEffect(Effect.Handle, !bActive, bInvokeCuesIfEnabled);
+	FActiveGameplayEffectHandle EffectHandle = Effect.Handle;
+	Owner->SetActiveGameplayEffectInhibit(MoveTemp(EffectHandle), !bActive, bInvokeCuesIfEnabled);
 }
 
 void FActiveGameplayEffectsContainer::AddActiveGameplayEffectGrantedTagsAndModifiers(FActiveGameplayEffect& Effect, bool bInvokeGameplayCueEvents)
