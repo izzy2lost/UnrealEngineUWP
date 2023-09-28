@@ -45,7 +45,6 @@
 #include "UObject/UObjectIterator.h"
 #include "GenericPlatform/ICursor.h"
 #include "Rendering/RenderCommandPipes.h"
-#include "SceneManagement.h"
 
 #include "InstancedStaticMeshSceneProxyDesc.h"
 
@@ -1090,16 +1089,13 @@ void FInstancedStaticMeshVertexFactory::GetVertexElements(
 			Elements.Add(AccessStreamComponent(NullComponent, 14, Streams));
 		}
 
-		if (FReadOnlyCVARCache::Get().bAllowStaticLighting)
+		if (Data.LightMapCoordinateComponent.VertexBuffer)
 		{
-			if (Data.LightMapCoordinateComponent.VertexBuffer)
-			{
-				Elements.Add(AccessStreamComponent(Data.LightMapCoordinateComponent, 15, Streams));
-			}
-			else if (Data.TextureCoordinates.Num())
-			{
-				Elements.Add(AccessStreamComponent(Data.TextureCoordinates[0], 15, Streams));
-			}
+			Elements.Add(AccessStreamComponent(Data.LightMapCoordinateComponent, 15, Streams));
+		}
+		else if (Data.TextureCoordinates.Num())
+		{
+			Elements.Add(AccessStreamComponent(Data.TextureCoordinates[0], 15, Streams));
 		}
 	}
 

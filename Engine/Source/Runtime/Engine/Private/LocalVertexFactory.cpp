@@ -20,7 +20,6 @@
 #include "GPUSkinVertexFactory.h"
 #include "RenderUtils.h"
 #include "SceneInterface.h"
-#include "SceneManagement.h"
 
 IMPLEMENT_TYPE_LAYOUT(FLocalVertexFactoryShaderParametersBase);
 IMPLEMENT_TYPE_LAYOUT(FLocalVertexFactoryShaderParameters);
@@ -549,16 +548,13 @@ void FLocalVertexFactory::GetVertexElements(
 			Elements.Add(AccessStreamComponent(Data.PreSkinPositionComponent.VertexBuffer ? Data.PreSkinPositionComponent : NullComponent, 14, InOutStreams));
 		}
 
-		if (FReadOnlyCVARCache::Get().bAllowStaticLighting)
+		if (Data.LightMapCoordinateComponent.VertexBuffer)
 		{
-			if (Data.LightMapCoordinateComponent.VertexBuffer)
-			{
-				Elements.Add(AccessStreamComponent(Data.LightMapCoordinateComponent, 15, InOutStreams));
-			}
-			else if (Data.TextureCoordinates.Num())
-			{
-				Elements.Add(AccessStreamComponent(Data.TextureCoordinates[0], 15, InOutStreams));
-			}
+			Elements.Add(AccessStreamComponent(Data.LightMapCoordinateComponent, 15, InOutStreams));
+		}
+		else if (Data.TextureCoordinates.Num())
+		{
+			Elements.Add(AccessStreamComponent(Data.TextureCoordinates[0], 15, InOutStreams));
 		}
 	}
 }
