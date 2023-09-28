@@ -285,19 +285,19 @@ UClass* FControlRigEditorModule::GetRigVMBlueprintClass() const
 	return UControlRigBlueprint::StaticClass();
 }
 
-void FControlRigEditorModule::GetNodeContextMenuActions(URigVMBlueprint* RigVMBlueprint,
+void FControlRigEditorModule::GetNodeContextMenuActions(IRigVMClientHost* RigVMClientHost,
 	const URigVMEdGraphNode* EdGraphNode, URigVMNode* ModelNode, UToolMenu* Menu) const
 {
-	FRigVMEditorModule::GetNodeContextMenuActions(RigVMBlueprint, EdGraphNode, ModelNode, Menu);
+	FRigVMEditorModule::GetNodeContextMenuActions(RigVMClientHost, EdGraphNode, ModelNode, Menu);
 
-	UControlRigBlueprint* ControlRigBlueprint = Cast<UControlRigBlueprint>(RigVMBlueprint);
+	UControlRigBlueprint* ControlRigBlueprint = Cast<UControlRigBlueprint>(RigVMClientHost);
 	if(ControlRigBlueprint == nullptr)
 	{
 		return;
 	}
 
-	URigVMGraph* Model = RigVMBlueprint->GetModel(EdGraphNode->GetGraph());
-	URigVMController* Controller = RigVMBlueprint->GetController(Model);
+	URigVMGraph* Model = RigVMClientHost->GetRigVMClient()->GetModel(EdGraphNode->GetGraph());
+	URigVMController* Controller = RigVMClientHost->GetRigVMClient()->GetController(Model);
 
 	TArray<FName> SelectedNodeNames = Model->GetSelectNodes();
 	SelectedNodeNames.AddUnique(ModelNode->GetFName());
@@ -476,7 +476,7 @@ void FControlRigEditorModule::GetNodeContextMenuActions(URigVMBlueprint* RigVMBl
 		}
 	}
 
-	GetDirectManipulationMenuActions(RigVMBlueprint, ModelNode, nullptr, Menu);
+	GetDirectManipulationMenuActions(RigVMClientHost, ModelNode, nullptr, Menu);
 
 	if (RigElementsToSelect.Num() > 0)
 	{
@@ -621,18 +621,18 @@ void FControlRigEditorModule::GetNodeContextMenuActions(URigVMBlueprint* RigVMBl
 	}
 }
 
-void FControlRigEditorModule::GetPinContextMenuActions(URigVMBlueprint* RigVMBlueprint, const UEdGraphPin* EdGraphPin, URigVMPin* ModelPin, UToolMenu* Menu) const
+void FControlRigEditorModule::GetPinContextMenuActions(IRigVMClientHost* RigVMClientHost, const UEdGraphPin* EdGraphPin, URigVMPin* ModelPin, UToolMenu* Menu) const
 {
-	FRigVMEditorModule::GetPinContextMenuActions(RigVMBlueprint, EdGraphPin, ModelPin, Menu);
-	GetDirectManipulationMenuActions(RigVMBlueprint, ModelPin->GetNode(), ModelPin, Menu);
+	FRigVMEditorModule::GetPinContextMenuActions(RigVMClientHost, EdGraphPin, ModelPin, Menu);
+	GetDirectManipulationMenuActions(RigVMClientHost, ModelPin->GetNode(), ModelPin, Menu);
 }
 
-void FControlRigEditorModule::GetDirectManipulationMenuActions(URigVMBlueprint* RigVMBlueprint, URigVMNode* InNode, URigVMPin* ModelPin, UToolMenu* Menu) const
+void FControlRigEditorModule::GetDirectManipulationMenuActions(IRigVMClientHost* RigVMClientHost, URigVMNode* InNode, URigVMPin* ModelPin, UToolMenu* Menu) const
 {
     // Add direct manipulation context menu entries
-	if(UControlRigBlueprint* ControlRigBlueprint = Cast<UControlRigBlueprint>(RigVMBlueprint))
+	if(UControlRigBlueprint* ControlRigBlueprint = Cast<UControlRigBlueprint>(RigVMClientHost))
 	{
-		UControlRig* DebuggedRig = Cast<UControlRig>(RigVMBlueprint->GetObjectBeingDebugged());
+		UControlRig* DebuggedRig = Cast<UControlRig>(ControlRigBlueprint->GetObjectBeingDebugged());
 		if(DebuggedRig == nullptr)
 		{
 			return;

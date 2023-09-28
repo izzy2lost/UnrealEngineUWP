@@ -270,7 +270,7 @@ bool URigVMHost::InitializeVM(const FName& InEventName)
 	}
 
 #if UE_RIGVM_PROPERTY_BAG_STORAGE_ENABLED
-	if (!HasAnyFlags(RF_ClassDefaultObject))
+	if (bTEMP_CopyDefaultsFromCDO && !HasAnyFlags(RF_ClassDefaultObject))
 	{
 		if (URigVMHost* CDO = GetClass()->GetDefaultObject<URigVMHost>())
 		{

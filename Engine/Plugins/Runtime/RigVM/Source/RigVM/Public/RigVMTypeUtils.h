@@ -12,7 +12,7 @@
 #include "UObject/Package.h"
 #include "UObject/SoftObjectPath.h"
 
-
+struct FRigVMTemplateArgumentType;
 
 struct RIGVM_API FRigVMUserDefinedTypeResolver
 {
@@ -48,9 +48,11 @@ namespace RigVMTypeUtils
 {
 	const TCHAR TArrayPrefix[] = TEXT("TArray<");
 	const TCHAR TObjectPtrPrefix[] = TEXT("TObjectPtr<");
+	const TCHAR TSubclassOfPrefix[] = TEXT("TSubclassOf<");
 	const TCHAR TScriptInterfacePrefix[] = TEXT("TScriptInterface<");
 	const TCHAR TArrayTemplate[] = TEXT("TArray<%s>");
 	const TCHAR TObjectPtrTemplate[] = TEXT("TObjectPtr<%s%s>");
+	const TCHAR TSubclassOfTemplate[] = TEXT("TSubclassOf<%s%s>");
 	const TCHAR TScriptInterfaceTemplate[] = TEXT("TScriptInterface<%s%s>");
 
 	const FString BoolType = TEXT("bool");
@@ -156,6 +158,11 @@ namespace RigVMTypeUtils
 		return CPPType;
 	}
 
+	inline bool IsUClassType(const FString& InCPPType)
+	{
+		return InCPPType.StartsWith(TSubclassOfPrefix);
+	}
+
 	inline bool IsUObjectType(const FString& InCPPType)
 	{
 		return InCPPType.StartsWith(TObjectPtrPrefix);
@@ -212,6 +219,7 @@ namespace RigVMTypeUtils
 			TEXT("TArray<TObjectPtr<"),
 			TEXT("TArray<TArray<TObjectPtr<"),
 			TEXT("TScriptInterface<")
+			TEXT("TSubclassOf<")
 		};
 		static const TArray<FString> PrefixesNotRequiringCPPTypeObject = {
 			TEXT("UInt"), 
@@ -314,11 +322,26 @@ namespace RigVMTypeUtils
 		return Object;
 	}
 
-	static FString CPPTypeFromObject(const UObject* InCPPTypeObject)
+	// A UClass argument is used to signify both the object type and its class type.
+	// This argument differentiates between the two
+	enum class EClassArgType
+	{
+		// This type signifies a class
+		AsClass,
+
+		// This type signifies an object 
+		AsObject
+	};
+
+	static FString CPPTypeFromObject(const UObject* InCPPTypeObject, EClassArgType InClassArgType = EClassArgType::AsObject)
 	{
 		if (const UClass* Class = Cast<UClass>(InCPPTypeObject))
 		{
-			if (Class->IsChildOf(UInterface::StaticClass()))
+			if (InClassArgType == EClassArgType::AsClass)
+			{
+				return FString::Printf(RigVMTypeUtils::TSubclassOfPrefix, Class->GetPrefixCPP(), *Class->GetName());
+			}
+			else if (Class->IsChildOf(UInterface::StaticClass()))
 			{
 				return FString::Printf(RigVMTypeUtils::TScriptInterfaceTemplate, TEXT("I"), *Class->GetName());
 			}
@@ -357,9 +380,23 @@ namespace RigVMTypeUtils
 			BaseCPPType = BaseTypeFromArrayType(BaseCPPType);
 		}
 		FString CPPType = BaseCPPType;
+		const bool bIsClass = CPPType.StartsWith(TSubclassOfPrefix);
 
+		static const FString PrefixObjectPtr = TObjectPtrPrefix;
+		static const FString PrefixSubclassOf = TSubclassOfPrefix;
 		static const FString PrefixScriptInterface = TScriptInterfacePrefix;
-		if (CPPType.StartsWith(TScriptInterfacePrefix))
+
+		if (CPPType.StartsWith(PrefixObjectPtr))
+		{
+			// Chop the prefix + the U indicating object class
+			CPPType = CPPType.RightChop(PrefixObjectPtr.Len() + 1).LeftChop(1);
+		}
+		else if (CPPType.StartsWith(PrefixSubclassOf))
+		{
+			// Chop the prefix + the U indicating object class
+			CPPType = CPPType.RightChop(PrefixSubclassOf.Len() + 1).LeftChop(1);
+		}
+		else if (CPPType.StartsWith(TScriptInterfacePrefix))
 		{
 			// Chop the prefix + the I indicating interface class
 			CPPType = CPPType.RightChop(PrefixScriptInterface.Len() + 1).LeftChop(1);
@@ -389,7 +426,7 @@ namespace RigVMTypeUtils
 			return nullptr;
 		}
 
-		CPPType = CPPTypeFromObject(CPPTypeObject);
+		CPPType = CPPTypeFromObject(CPPTypeObject, bIsClass ? EClassArgType::AsClass : EClassArgType::AsObject);
 		InOutCPPType.ReplaceInline(*BaseCPPType, *CPPType);
 		return CPPTypeObject;
 	}
@@ -399,7 +436,8 @@ namespace RigVMTypeUtils
 		FString CPPType = InCPPType;
 		if (InCPPTypeObject)
 		{
-			CPPType = CPPTypeFromObject(InCPPTypeObject);	
+			const bool bIsClass = CPPType.StartsWith(TSubclassOfPrefix);
+			CPPType = CPPTypeFromObject(InCPPTypeObject, bIsClass ? EClassArgType::AsClass : EClassArgType::AsObject);
 			if(CPPType != InCPPType)
 			{
 				FString TemplateType = InCPPType;

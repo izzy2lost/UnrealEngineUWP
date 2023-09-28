@@ -415,11 +415,8 @@ TSharedRef<SWidget> SPropertyBinding::OnGenerateDelegateMenu()
 		// Get the current skeleton class, think header for the blueprint.
 		UBlueprintGeneratedClass* SkeletonClass = Blueprint ? Cast<UBlueprintGeneratedClass>(Blueprint->SkeletonGeneratedClass) : nullptr;
 
-		if (SkeletonClass)
-		{
-			TArray<TSharedPtr<FBindingChainElement>> BindingChain;
-			FillPropertyMenu(MenuBuilder, SkeletonClass, BindingChain);
-		}
+		TArray<TSharedPtr<FBindingChainElement>> BindingChain;
+		FillPropertyMenu(MenuBuilder, SkeletonClass, BindingChain);
 	}
 
 	if (BindingContextStructs.Num() > 0)

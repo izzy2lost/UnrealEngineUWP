@@ -357,7 +357,9 @@ void FRigVMRegistry::RefreshEngineTypes()
 		UClass* Class = *ClassIt;
 		if (IsAllowedType(Class))
 		{
-			FindOrAddType(FRigVMTemplateArgumentType(Class));
+			// Register both the class and the object type for use
+			FindOrAddType(FRigVMTemplateArgumentType(Class, RigVMTypeUtils::EClassArgType::AsClass));
+			FindOrAddType(FRigVMTemplateArgumentType(Class, RigVMTypeUtils::EClassArgType::AsObject));
 		}
 	}
 
@@ -1139,7 +1141,7 @@ bool FRigVMRegistry::IsAllowedType(const UStruct* InStruct) const
 
 bool FRigVMRegistry::IsAllowedType(const UClass* InClass) const
 {
-	if(!InClass || InClass->HasAnyClassFlags(CLASS_Hidden | CLASS_Abstract))
+	if(!InClass || InClass->HasAnyClassFlags(CLASS_Hidden))
 	{
 		return false;
 	}
@@ -1291,20 +1293,44 @@ void FRigVMRegistry::RegisterPredicate(UScriptStruct* InStruct, const TCHAR* InN
 	Predicates.Add(Function);
 }
 
-void FRigVMRegistry::RegisterObjectTypes(TConstArrayView<UClass*> InClasses)
+void FRigVMRegistry::RegisterObjectTypes(TConstArrayView<TPair<UClass*, ERegisterObjectOperation>> InClasses)
 {
-	for (UClass* Class : InClasses)
+	for (TPair<UClass*, ERegisterObjectOperation> ClassOpPair : InClasses)
 	{
+		UClass* Class = ClassOpPair.Key;
+		ERegisterObjectOperation Operation = ClassOpPair.Value;
+
 		// Only allow native object types
 		if (Class->HasAnyClassFlags(CLASS_Native))
 		{
-			// Add all child classes
-			TArray<UClass*> DerivedClasses({ Class });
-			GetDerivedClasses(Class, DerivedClasses, /*bRecursive=*/true);
-			for(UClass* DerivedClass : DerivedClasses)
+			switch (Operation)
 			{
-				AllowedClasses.Add(DerivedClass);
+			case ERegisterObjectOperation::Class:
+				AllowedClasses.Add(Class);
+				break;
+			case ERegisterObjectOperation::ClassAndParents:
+				{
+					// Add all parent classes
+					do
+					{
+						AllowedClasses.Add(Class);
+						Class = Class->GetSuperClass();
+					} while (Class);
+					break;
+				}
+			case ERegisterObjectOperation::ClassAndChildren:
+				{
+					// Add all child classes
+					TArray<UClass*> DerivedClasses({ Class });
+					GetDerivedClasses(Class, DerivedClasses, /*bRecursive=*/true);
+					for (UClass* DerivedClass : DerivedClasses)
+					{
+						AllowedClasses.Add(DerivedClass);
+					}
+					break;
+				}
 			}
+
 		}
 	}
 }

@@ -1473,7 +1473,7 @@ bool URigVM::InitializeInstance(FRigVMExtendedExecuteContext& Context, TArrayVie
 	// re-initialize work memory from CDO
 	if (TRigVMMemoryStorage* WorkMemory = Memory[(int32)ERigVMMemoryType::Work])
 	{
-		if (ensure(!WorkMemory->HasAnyFlags(RF_ClassDefaultObject)))
+		if (!WorkMemory->HasAnyFlags(RF_ClassDefaultObject))
 		{
 			if (const URigVMMemoryStorageGeneratorClass* MemoryClass = Cast<URigVMMemoryStorageGeneratorClass>(WorkMemory->GetClass()))
 			{

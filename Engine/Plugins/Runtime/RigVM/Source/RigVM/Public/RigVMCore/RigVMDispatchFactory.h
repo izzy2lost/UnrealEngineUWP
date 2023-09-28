@@ -22,6 +22,7 @@
 #include "RigVMDispatchFactory.generated.h"
 
 struct FRigVMDispatchFactory;
+class URigVMPin;
 
 /**
  * A context used for inquiring from dispatch factories

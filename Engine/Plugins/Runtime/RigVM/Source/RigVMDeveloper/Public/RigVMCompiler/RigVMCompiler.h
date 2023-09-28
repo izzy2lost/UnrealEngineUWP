@@ -310,7 +310,7 @@ public:
 
 private:
 
-	const URigVMLibraryNode* CurrentCompilationFunction;
+	const URigVMLibraryNode* CurrentCompilationFunction = nullptr;
 
 	TArray<URigVMPin*> GetLinkedPins(URigVMPin* InPin, bool bInputs = true, bool bOutputs = true, bool bRecursive = true);
 	uint16 GetElementSizeFromCPPType(const FString& InCPPType, UScriptStruct* InScriptStruct);

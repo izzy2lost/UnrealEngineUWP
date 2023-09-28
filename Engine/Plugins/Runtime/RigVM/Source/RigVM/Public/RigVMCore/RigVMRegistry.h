@@ -62,8 +62,18 @@ public:
 	// Register a predicate contained in the input struct
 	void RegisterPredicate(UScriptStruct* InStruct, const TCHAR* InName, const TArray<FRigVMFunctionArgument>& InArguments);
 
+	// How to register an object's class when passed to RegisterObjectTypes
+	enum class ERegisterObjectOperation
+	{
+		Class,
+
+		ClassAndParents,
+
+		ClassAndChildren,
+	};
+
 	// Register a set of allowed object types
-	void RegisterObjectTypes(TConstArrayView<UClass*> InClasses);
+	void RegisterObjectTypes(TConstArrayView<TPair<UClass*, ERegisterObjectOperation>> InClasses);
 
 	// Initializes the registry by storing the defaults
 	void InitializeIfNeeded();
@@ -157,7 +167,7 @@ public:
 	>
 	TRigVMTypeIndex GetTypeIndex(bool bAsArray = false) const
 	{
-		FRigVMTemplateArgumentType Type(T::StaticClass());
+		FRigVMTemplateArgumentType Type(T::StaticClass(), RigVMTypeUtils::EClassArgType::AsObject);
 		if(bAsArray)
 		{
 			Type.ConvertToArray();

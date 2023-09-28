@@ -9866,7 +9866,14 @@ bool URigVMController::AddLink(URigVMPin* OutputPin, URigVMPin* InputPin, bool b
 
 				if(CastNode == nullptr)
 				{
-					CastNode = AddUnitNode(CastFunction->Struct, CastFunction->GetMethodName(), CastPosition, FString(), bSetupUndoRedo, false);
+					if(CastFunction->Factory)
+					{
+						CastNode = AddTemplateNode(CastFunction->Factory->GetTemplateNotation(), CastPosition, FString(), bSetupUndoRedo, false);
+					}
+					else
+					{
+						CastNode = AddUnitNode(CastFunction->Struct, CastFunction->GetMethodName(), CastPosition, FString(), bSetupUndoRedo, false);
+					}
 				}
 				
 				if(CastNode == nullptr)

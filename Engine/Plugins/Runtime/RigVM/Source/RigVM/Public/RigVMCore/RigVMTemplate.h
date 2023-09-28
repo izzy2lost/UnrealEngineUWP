@@ -70,9 +70,9 @@ struct RIGVM_API FRigVMTemplateArgumentType
 	}
 
 	FRigVMTemplateArgumentType(const FName& InCPPType, UObject* InCPPTypeObject = nullptr);
-
-	FRigVMTemplateArgumentType(UClass* InClass)
-	: CPPType(*RigVMTypeUtils::CPPTypeFromObject(InClass))
+	
+	FRigVMTemplateArgumentType(UClass* InClass, RigVMTypeUtils::EClassArgType InClassArgType = RigVMTypeUtils::EClassArgType::AsObject)
+	: CPPType(*RigVMTypeUtils::CPPTypeFromObject(InClass, InClassArgType))
 	, CPPTypeObject(InClass)
 	{
 	}
@@ -239,6 +239,9 @@ struct RIGVM_API FRigVMTemplateArgument
 	EArrayType GetArrayType() const;
 
 	RIGVM_API friend uint32 GetTypeHash(const FRigVMTemplateArgument& InArgument);
+
+	// Get the map of types to permutation indices
+	const TMap<TRigVMTypeIndex, TArray<int32>>& GetTypeToPermutations() const { return TypeToPermutations; }
 
 protected:
 

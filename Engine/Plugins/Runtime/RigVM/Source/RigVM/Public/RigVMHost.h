@@ -389,6 +389,11 @@ public:
 	virtual const TArray<UAssetUserData*>* GetAssetUserDataArray() const override;
 	//~ End IInterface_AssetUserData Interface
 
+#if UE_RIGVM_PROPERTY_BAG_STORAGE_ENABLED
+	// Temporary flag while we get TLS-based work memory working, controls copying from the CDO in InitializeVM
+	bool bTEMP_CopyDefaultsFromCDO = true;
+#endif
+
 protected:
 	/** Array of user data stored with the asset */
 	UPROPERTY(EditAnywhere, AdvancedDisplay, Instanced, Category = "Default")

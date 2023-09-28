@@ -18,13 +18,13 @@ class FModule : public IModuleInterface
 public:
 	virtual void StartupModule() override
 	{
-		static UClass* const AllowedAssetTypes[] =
+		static TPair<UClass*, FRigVMRegistry::ERegisterObjectOperation> const AllowedObjectTypes[] =
 		{
-			UAnimSequence::StaticClass(),
-			UScriptStruct::StaticClass(),
+			{ UAnimSequence::StaticClass(), FRigVMRegistry::ERegisterObjectOperation::Class },
+			{ UScriptStruct::StaticClass(), FRigVMRegistry::ERegisterObjectOperation::Class }
 		};
 
-		FRigVMRegistry::Get().RegisterObjectTypes(AllowedAssetTypes);
+		FRigVMRegistry::Get().RegisterObjectTypes(AllowedObjectTypes);
 
 		FDataRegistry::Init();
 		FDecoratorRegistry::Init();
