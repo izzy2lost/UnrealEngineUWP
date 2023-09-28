@@ -2369,21 +2369,22 @@ protected:
 		TArray<FProjectedShadowInfo*, SceneRenderingAllocator>& ShadowInfosThatNeedCulling, 
 		FVisibleLightInfo& VisibleLightInfo, 
 		FLightSceneInfo& LightSceneInfo,
+		int64 CachedShadowMapsSize,
 		uint32& NumCSMCachesUpdatedThisFrame);
 
 	void AllocateShadowDepthTargets(FRHICommandListImmediate& RHICmdList, const FDynamicShadowsTaskData& TaskData);
 	
-	void AllocateAtlasedShadowDepthTargets(FRHICommandListImmediate& RHICmdList, TConstArrayView<FProjectedShadowInfo*> Shadows, TArray<FSortedShadowMapAtlas,SceneRenderingAllocator>& OutAtlases);
+	void AllocateAtlasedShadowDepthTargets(FRHICommandListBase& RHICmdList, TConstArrayView<FProjectedShadowInfo*> Shadows, TArray<FSortedShadowMapAtlas,SceneRenderingAllocator>& OutAtlases);
 
-	void AllocateCachedShadowDepthTargets(FRHICommandListImmediate& RHICmdList, TConstArrayView<FProjectedShadowInfo*> CachedShadows);
+	void AllocateCachedShadowDepthTargets(FRHICommandListBase& RHICmdList, TConstArrayView<FProjectedShadowInfo*> CachedShadows);
 
-	void AllocateCSMDepthTargets(FRHICommandListImmediate& RHICmdList, TConstArrayView<FProjectedShadowInfo*> WholeSceneDirectionalShadows, TArray<FSortedShadowMapAtlas, SceneRenderingAllocator>& OutAtlases);
+	void AllocateCSMDepthTargets(FRHICommandListBase& RHICmdList, TConstArrayView<FProjectedShadowInfo*> WholeSceneDirectionalShadows, TArray<FSortedShadowMapAtlas, SceneRenderingAllocator>& OutAtlases);
 
-	void AllocateOnePassPointLightDepthTargets(FRHICommandListImmediate& RHICmdList, TConstArrayView<FProjectedShadowInfo*> WholeScenePointShadows);
+	void AllocateOnePassPointLightDepthTargets(FRHICommandListBase& RHICmdList, TConstArrayView<FProjectedShadowInfo*> WholeScenePointShadows);
 
-	void AllocateTranslucentShadowDepthTargets(FRHICommandListImmediate& RHICmdList, TConstArrayView<FProjectedShadowInfo*> TranslucentShadows);
+	void AllocateTranslucentShadowDepthTargets(FRHICommandListBase& RHICmdList, TConstArrayView<FProjectedShadowInfo*> TranslucentShadows);
 
-	void AllocateMobileCSMAndSpotLightShadowDepthTargets(FRHICommandListImmediate& RHICmdList, TConstArrayView<FProjectedShadowInfo*> MobileCSMAndSpotLightShadows);
+	void AllocateMobileCSMAndSpotLightShadowDepthTargets(FRHICommandListBase& RHICmdList, TConstArrayView<FProjectedShadowInfo*> MobileCSMAndSpotLightShadows);
 	/**
 	* Used by RenderLights to figure out if projected shadows need to be rendered to the attenuation buffer.
 	* Or to render a given shadowdepth map for forward rendering.
@@ -2406,7 +2407,7 @@ protected:
 	* Creates a projected shadow for all primitives affected by a light.
 	* @param LightSceneInfo - The light to create a shadow for.
 	*/
-	void CreateWholeSceneProjectedShadow(FDynamicShadowsTaskData& TaskData, FLightSceneInfo* LightSceneInfo, uint32& NumPointShadowCachesUpdatedThisFrame, uint32& NumSpotShadowCachesUpdatedThisFrame);
+	void CreateWholeSceneProjectedShadow(FDynamicShadowsTaskData& TaskData, FLightSceneInfo* LightSceneInfo, int64 CachedShadowMapsSize, uint32& NumPointShadowCachesUpdatedThisFrame, uint32& NumSpotShadowCachesUpdatedThisFrame);
 
 	/** Updates the preshadow cache, allocating new preshadows that can fit and evicting old ones. */
 	void UpdatePreshadowCache();
