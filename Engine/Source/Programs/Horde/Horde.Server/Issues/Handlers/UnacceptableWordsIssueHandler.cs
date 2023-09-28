@@ -1,7 +1,6 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 
 using System.Collections.Generic;
-using System.Linq;
 using EpicGames.Core;
 using Horde.Server.Jobs;
 using Horde.Server.Jobs.Graphs;
@@ -18,6 +17,9 @@ namespace Horde.Server.Issues.Handlers
 		/// <inheritdoc/>
 		public override string Type => "UnacceptableWords";
 
+		/// <inheritdoc/>
+		public override string SummaryTemplate => "Unacceptable words in {Files}";
+
 		/// <summary>
 		/// Determines if the given event id matches
 		/// </summary>
@@ -26,12 +28,6 @@ namespace Horde.Server.Issues.Handlers
 		public static bool IsMatchingEventId(EventId eventId)
 		{
 			return eventId == KnownLogEvents.AutomationTool_UnacceptableWords;
-		}
-
-		/// <inheritdoc/>
-		public override string GetSummary(IIssueFingerprint fingerprint, IssueSeverity severity)
-		{
-			return $"Unacceptable words in {StringUtils.FormatList(fingerprint.Keys.Select(x => x.Name.Substring(x.Name.LastIndexOf('/') + 1)).ToArray(), 3)}";
 		}
 
 		/// <inheritdoc/>

@@ -22,6 +22,9 @@ namespace Horde.Server.Issues.Handlers
 		/// <inheritdoc/>
 		public override string Type => "Content";
 
+		/// <inheritdoc/>
+		public override string SummaryTemplate => "{Severity} in {Files}";
+
 		/// <summary>
 		/// Determines if the given event id matches
 		/// </summary>
@@ -84,14 +87,6 @@ namespace Horde.Server.Issues.Handlers
 					}
 				}
 			}
-		}
-
-		/// <inheritdoc/>
-		public override string GetSummary(IIssueFingerprint fingerprint, IssueSeverity severity)
-		{
-			string type = (severity == IssueSeverity.Warning) ? "Warnings" : "Errors";
-			string list = StringUtils.FormatList(fingerprint.Keys.Where(x => x.Type == IssueKeyType.File).Select(x => x.Name).ToArray(), 2);
-			return $"{type} in {list}";
 		}
 
 		/// <inheritdoc/>

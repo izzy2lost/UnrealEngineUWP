@@ -1,14 +1,12 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 
 using System.Collections.Generic;
-using System.Linq;
 using EpicGames.Core;
 using Horde.Server.Jobs;
 using Horde.Server.Jobs.Graphs;
 using Horde.Server.Logs;
 using HordeCommon;
 using Microsoft.Extensions.Logging;
-using MongoDB.Driver;
 
 namespace Horde.Server.Issues.Handlers
 {
@@ -20,8 +18,10 @@ namespace Horde.Server.Issues.Handlers
 	{
 		const string NodeNameKey = "Node";
 
-		/// <inheritdoc/>
 		public override string Type => "Systemic";
+
+		/// <inheritdoc/>
+		public override string SummaryTemplate =>"Systemic {Severity} in {Nodes}";
 
 		/// <summary>
 		///  Known systemic errors
@@ -82,14 +82,6 @@ namespace Horde.Server.Issues.Handlers
 		static bool MatchEvent(ILogEventData eventData)
 		{
 			return eventData.EventId != null && IsMatchingEventId(eventData.EventId.Value);
-		}
-
-		/// <inheritdoc/>
-		public override string GetSummary(IIssueFingerprint fingerprint, IssueSeverity severity)
-		{
-			string type = (severity == IssueSeverity.Warning) ? "Systemic warnings" : "Systemic errors";
-			string nodeName = fingerprint.GetMetadataValues(NodeNameKey).FirstOrDefault() ?? "(unknown)";
-			return $"{type} in {nodeName}";
 		}
 	}
 }

@@ -1,7 +1,6 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 
 using System.Collections.Generic;
-using System.Linq;
 using EpicGames.Core;
 using Horde.Server.Jobs;
 using Horde.Server.Jobs.Graphs;
@@ -17,6 +16,9 @@ namespace Horde.Server.Issues.Handlers
 	{
 		/// <inheritdoc/>
 		public override string Type => "Shader";
+
+		/// <inheritdoc/>
+		public override string SummaryTemplate => "Shader compile {Severity} in {Files}";
 
 		/// <summary>
 		/// Determines if the given event id matches
@@ -53,14 +55,6 @@ namespace Horde.Server.Issues.Handlers
 					}
 				}
 			}
-		}
-
-		/// <inheritdoc/>
-		public override string GetSummary(IIssueFingerprint fingerprint, IssueSeverity severity)
-		{
-			string level = (severity == IssueSeverity.Warning) ? "warnings" : "errors";
-			string list = StringUtils.FormatList(fingerprint.Keys.Where(x => x.Type == IssueKeyType.File).Select(x => x.Name).ToArray(), 2);
-			return $"Shader compile {level} in {list}";
 		}
 	}
 }

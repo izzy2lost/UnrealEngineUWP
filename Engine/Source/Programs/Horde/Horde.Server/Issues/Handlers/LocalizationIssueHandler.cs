@@ -22,6 +22,9 @@ namespace Horde.Server.Issues.Handlers
 		/// <inheritdoc/>
 		public override string Type => "Localization";
 
+		/// <inheritdoc/>
+		public override string SummaryTemplate => "Localization {Severity} in {Files}";
+
 		/// <summary>
 		/// Determines if the given event id matches
 		/// </summary>
@@ -114,13 +117,6 @@ namespace Horde.Server.Issues.Handlers
 					}
 				}
 			}
-		}
-
-		/// <inheritdoc/>
-		public override string GetSummary(IIssueFingerprint fingerprint, IssueSeverity severity)
-		{
-			string type = (severity == IssueSeverity.Warning)? "warnings" : "errors";
-			return $"Localization {type} in {StringUtils.FormatList(fingerprint.Keys.Select(x => x.Name).ToArray(), 2)}";
 		}
 	}
 }

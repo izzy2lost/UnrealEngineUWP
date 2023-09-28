@@ -27,6 +27,9 @@ namespace Horde.Server.Issues.Handlers
 		/// <inheritdoc/>
 		public override string Type => "Symbol";
 
+		/// <inheritdoc/>
+		public override string SummaryTemplate => "{LegacySymbolIssueHandler}";
+
 		/// <summary>
 		/// Determines if the given event id matches
 		/// </summary>
@@ -88,8 +91,7 @@ namespace Horde.Server.Issues.Handlers
 			}
 		}
 
-		/// <inheritdoc/>
-		public override string GetSummary(IIssueFingerprint fingerprint, IssueSeverity severity)
+		public static string GetSummaryStatic(IIssueFingerprint fingerprint, IssueSeverity severity)
 		{
 			HashSet<string> symbols = new HashSet<string>(fingerprint.Keys.Where(x => x.Type == IssueKeyType.Symbol).Select(x => x.Name));
 			if (symbols.Count == 0)

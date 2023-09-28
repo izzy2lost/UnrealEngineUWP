@@ -2,7 +2,6 @@
 
 using System;
 using System.Collections.Generic;
-using System.Linq;
 using System.Text.Json;
 using EpicGames.Core;
 using Horde.Server.Jobs;
@@ -20,6 +19,9 @@ namespace Horde.Server.Issues.Handlers
 	{
 		/// <inheritdoc/>
 		public override string Type => "PerforceCase";
+
+		/// <inheritdoc/>
+		public override string SummaryTemplate => "Inconsistent case for {Files}";
 
 		/// <summary>
 		/// Determines if the given event id matches
@@ -45,12 +47,6 @@ namespace Horde.Server.Issues.Handlers
 					}
 				}
 			}
-		}
-
-		/// <inheritdoc/>
-		public override string GetSummary(IIssueFingerprint fingerprint, IssueSeverity severity)
-		{
-			return $"Inconsistent case for {StringUtils.FormatList(fingerprint.Keys.Select(x => x.Name.Substring(x.Name.LastIndexOf('/') + 1)).ToArray(), 3)}";
 		}
 
 		/// <summary>

@@ -52,6 +52,9 @@ namespace Horde.Server.Issues.Handlers
 		/// <inheritdoc/>
 		public override string Type => "Gauntlet";
 
+		/// <inheritdoc/>
+		public override string SummaryTemplate => "Gauntlet {Meta:Type} {Severity} {Meta:Context}";
+
 		/// <summary>
 		///  Known Gauntlet events
 		/// </summary>
@@ -220,15 +223,6 @@ namespace Horde.Server.Issues.Handlers
 					change.Rank += 10;
 				}
 			}
-		}
-
-		/// <inheritdoc/>
-		public override string GetSummary(IIssueFingerprint fingerprint, IssueSeverity severity)
-		{
-			string title = fingerprint.GetMetadataValues("type").FirstOrDefault() ?? "unknown";
-			string severityText = (severity == IssueSeverity.Warning) ? "warnings" : "errors";
-			string[] errors = fingerprint.GetMetadataValues("context").ToArray();
-			return $"{Type} {title} {severityText} {StringUtils.FormatList(errors, 2)}";
 		}
 	}
 }

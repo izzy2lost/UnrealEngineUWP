@@ -2,7 +2,6 @@
 
 using System;
 using System.Collections.Generic;
-using System.Linq;
 using System.Text;
 using System.Text.RegularExpressions;
 using EpicGames.Core;
@@ -27,6 +26,9 @@ namespace Horde.Server.Issues.Handlers
 
 		/// <inheritdoc/>
 		public override string Type => "Scoped";
+
+		/// <inheritdoc/>
+		public override string SummaryTemplate => "{Severity} in {Meta:Node} - {Meta:Scope}";
 
 		/// <inheritdoc/>
 		public override void TagEvents(IJob job, INode node, IReadOnlyNodeAnnotations annotations, IReadOnlyList<IssueEvent> stepEvents)
@@ -89,15 +91,6 @@ namespace Horde.Server.Issues.Handlers
 		/// <inheritdoc/>
 		public override void RankSuspects(IIssueFingerprint fingerprint, List<SuspectChange> suspects)
 		{
-		}
-
-		/// <inheritdoc/>
-		public override string GetSummary(IIssueFingerprint fingerprint, IssueSeverity severity)
-		{
-			string severityText = (severity == IssueSeverity.Warning) ? "Warnings" : "Errors";
-			string[] names = fingerprint.GetMetadataValues(NodeName).ToArray();
-			string[] scopes = fingerprint.GetMetadataValues(ScopeName).ToArray();
-			return $"{severityText} in {StringUtils.FormatList(names, 2)} - {StringUtils.FormatList(scopes, 2)}";
 		}
 	}
 }

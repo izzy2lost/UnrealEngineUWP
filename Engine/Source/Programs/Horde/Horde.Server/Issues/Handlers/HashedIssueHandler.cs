@@ -22,6 +22,9 @@ namespace Horde.Server.Issues.Handlers
 		/// <inheritdoc/>
 		public override string Type => "Hashed";
 
+		/// <inheritdoc/>
+		public override string SummaryTemplate => "{Severity} in {Meta:Node}";
+
 		/// <summary>
 		///  Known general events
 		/// </summary>
@@ -97,14 +100,6 @@ namespace Horde.Server.Issues.Handlers
 		/// <inheritdoc/>
 		public override void RankSuspects(IIssueFingerprint fingerprint, List<SuspectChange> suspects)
 		{
-		}
-
-		/// <inheritdoc/>
-		public override string GetSummary(IIssueFingerprint fingerprint, IssueSeverity severity)
-		{
-			string severityText = (severity == IssueSeverity.Warning) ? "Warnings" : "Errors";
-			string[] nodeNames = fingerprint.GetMetadataValues(NodeName).ToArray();
-			return $"{severityText} in {StringUtils.FormatList(nodeNames, 2)}";
 		}
 	}
 }

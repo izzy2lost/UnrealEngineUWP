@@ -21,6 +21,9 @@ namespace Horde.Server.Issues.Handlers
 		public override string Type => TypeConst;
 
 		/// <inheritdoc/>
+		public override string SummaryTemplate => "{Severity} in {Nodes}";
+
+		/// <inheritdoc/>
 		public override void TagEvents(IJob job, INode node, IReadOnlyNodeAnnotations annotations, IReadOnlyList<IssueEvent> stepEvents)
 		{
 			NewIssueFingerprint fingerprint = new NewIssueFingerprint(TypeConst, new[] { IssueKey.FromStep(job.StreamId, job.TemplateId, node.Name) }, null, null);
@@ -33,29 +36,6 @@ namespace Horde.Server.Issues.Handlers
 		/// <inheritdoc/>
 		public override void RankSuspects(IIssueFingerprint fingerprint, List<SuspectChange> suspects)
 		{
-		}
-
-		/// <inheritdoc/>
-		public override string GetSummary(IIssueFingerprint fingerprint, IssueSeverity severity)
-		{
-			string nodeName = "(unknown)";
-			foreach (IssueKey key in fingerprint.Keys)
-			{
-				if(key.Type == IssueKeyType.Step)
-				{
-					nodeName = key.Name.Substring(key.Name.LastIndexOf(':') + 1);
-					break;
-				}
-			}
-
-			if(severity == IssueSeverity.Warning)
-			{
-				return $"Warnings in {nodeName}";
-			}
-			else
-			{
-				return $"Errors in {nodeName}";
-			}
 		}
 	}
 }

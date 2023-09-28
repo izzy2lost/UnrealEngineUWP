@@ -1,7 +1,6 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 
 using System.Collections.Generic;
-using System.Linq;
 using EpicGames.Core;
 using Horde.Server.Jobs;
 using Horde.Server.Jobs.Graphs;
@@ -17,6 +16,9 @@ namespace Horde.Server.Issues.Handlers
 	{
 		/// <inheritdoc/>
 		public override string Type => "BuildGraph";
+
+		/// <inheritdoc/>
+		public override string SummaryTemplate => "BuildGraph {Severity} in {Files}";
 
 		/// <summary>
 		/// Determines if the given event id matches
@@ -58,14 +60,6 @@ namespace Horde.Server.Issues.Handlers
 		public override void RankSuspects(IIssueFingerprint fingerprint, List<SuspectChange> suspects)
 		{
 			RankSuspects(fingerprint, suspects, preferCodeChanges: false);
-		}
-
-		/// <inheritdoc/>
-		public override string GetSummary(IIssueFingerprint fingerprint, IssueSeverity severity)
-		{
-			string level = (severity == IssueSeverity.Warning) ? "warnings" : "errors";
-			string list = StringUtils.FormatList(fingerprint.Keys.Where(x => x.Type != IssueKeyType.Note).Select(x => x.Name).ToArray(), 2);
-			return $"BuildGraph {level} in {list}";
 		}
 	}
 }

@@ -1,7 +1,6 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 
 using System.Collections.Generic;
-using System.Linq;
 using EpicGames.Core;
 using Horde.Server.Jobs;
 using Horde.Server.Jobs.Graphs;
@@ -17,6 +16,9 @@ namespace Horde.Server.Issues.Handlers
 	{
 		/// <inheritdoc/>
 		public override string Type => "Copyright";
+
+		/// <inheritdoc/>
+		public override string SummaryTemplate => "Missing copyright notice in {Files}";
 
 		/// <summary>
 		/// Determines if the given event id matches
@@ -40,12 +42,6 @@ namespace Horde.Server.Issues.Handlers
 					stepEvent.Fingerprint = new NewIssueFingerprint(Type, newFileNames, null, null);
 				}
 			}
-		}
-
-		/// <inheritdoc/>
-		public override string GetSummary(IIssueFingerprint fingerprint, IssueSeverity severity)
-		{
-			return $"Missing copyright notice in {StringUtils.FormatList(fingerprint.Keys.Select(x => x.Name).ToArray(), 2)}";
 		}
 	}
 }

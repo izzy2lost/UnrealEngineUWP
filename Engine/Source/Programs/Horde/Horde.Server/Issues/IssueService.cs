@@ -6,6 +6,7 @@ using System.Diagnostics.CodeAnalysis;
 using System.Globalization;
 using System.Linq;
 using System.Reflection;
+using System.Text;
 using System.Text.RegularExpressions;
 using System.Threading;
 using System.Threading.Tasks;
@@ -1277,14 +1278,84 @@ namespace Horde.Server.Issues
 		/// <returns>The summary text</returns>
 		string GetSummary(IIssueFingerprint fingerprint, IssueSeverity severity)
 		{
-			if (TryGetHandler(fingerprint, out IssueHandler? handler))
-			{
-				return handler.GetSummary(fingerprint, severity);
-			}
-			else
+			if (!TryGetHandler(fingerprint, out IssueHandler? handler))
 			{
 				return $"Unknown issue type '{fingerprint.Type}";
 			}
+
+			string template = handler.SummaryTemplate;
+
+			StringBuilder summary = new StringBuilder();
+			for (int pos = 0; ;)
+			{
+				int bracePos = template.IndexOf('{', pos);
+				if (bracePos == -1)
+				{
+					summary.Append(template.AsSpan(pos));
+					break;
+				}
+
+				int endBracePos = template.IndexOf('}', bracePos + 1);
+				if (endBracePos == -1)
+				{
+					summary.Append(template.AsSpan(pos));
+					break;
+				}
+
+				summary.Append(template.AsSpan(pos, bracePos - pos));
+
+				ReadOnlySpan<char> placeholderName = template.AsSpan(bracePos + 1, endBracePos - (bracePos + 1));
+				if (!TryAppendSummaryVar(placeholderName, fingerprint, severity, summary))
+				{
+					summary.Append(template.AsSpan(bracePos, endBracePos - bracePos));
+				}
+
+				pos = endBracePos + 1;
+			}
+			return summary.ToString();
+		}
+
+		static bool TryAppendSummaryVar(ReadOnlySpan<char> name, IIssueFingerprint fingerprint, IssueSeverity severity, StringBuilder summary)
+		{
+			if (name.Equals("Severity", StringComparison.OrdinalIgnoreCase))
+			{
+				if (summary.Length == 0)
+				{
+					summary.Append((severity == IssueSeverity.Error) ? "Errors" : "Warnings");
+				}
+				else
+				{
+					summary.Append((severity == IssueSeverity.Error) ? "errors" : "warnings");
+				}
+				return true;
+			}
+			if (name.Equals("Files", StringComparison.OrdinalIgnoreCase))
+			{
+				string[] files = fingerprint.Keys.Where(x => x.Type == IssueKeyType.File).Select(x => x.Name).ToArray();
+				summary.Append(StringUtils.FormatList(files, 3));
+				return true;
+			}
+			if (name.Equals("Nodes", StringComparison.OrdinalIgnoreCase))
+			{
+				string[] nodes = fingerprint.Keys.Where(x => x.Type == IssueKeyType.File).Select(x => x.Name.Substring(x.Name.LastIndexOf(':') + 1)).ToArray();
+				summary.Append(StringUtils.FormatList(nodes, 3));
+				return true;
+			}
+			if (name.Equals("LegacySymbolIssueHandler", StringComparison.OrdinalIgnoreCase))
+			{
+				summary.Append(SymbolIssueHandler.GetSummaryStatic(fingerprint, severity));
+				return true;
+			}
+
+			const string MetaPrefix = "Meta:";
+			if (name.StartsWith("Meta:", StringComparison.OrdinalIgnoreCase))
+			{
+				string[] values = fingerprint.GetMetadataValues(name.Slice(MetaPrefix.Length).ToString()).ToArray();
+				summary.Append(StringUtils.FormatList(values));
+				return true;
+			}
+
+			return false;
 		}
 
 		/// <summary>

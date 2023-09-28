@@ -13,7 +13,7 @@ namespace Horde.Server.Issues
 	[AttributeUsage(AttributeTargets.Class)]
 	sealed class IssueHandlerAttribute : Attribute
 	{
-		/// <summary>
+		/// <summary> 
 		/// Priority of this handler
 		/// </summary>
 		public int Priority { get; set; }
@@ -28,6 +28,11 @@ namespace Horde.Server.Issues
 		/// Identifier for the type of issue
 		/// </summary>
 		public abstract string Type { get; }
+
+		/// <summary>
+		/// Template for the issue summary
+		/// </summary>
+		public abstract string SummaryTemplate { get; }
 
 		/// <summary>
 		/// Whether this handler requires being enabled by a workflow
@@ -49,13 +54,5 @@ namespace Horde.Server.Issues
 		/// <param name="fingerprint">The issue fingerprint</param>
 		/// <param name="suspects">Potential suspects</param>
 		public abstract void RankSuspects(IIssueFingerprint fingerprint, List<SuspectChange> suspects);
-
-		/// <summary>
-		/// Gets the summary text for an issue
-		/// </summary>
-		/// <param name="fingerprint">The fingerprint</param>
-		/// <param name="severity">Severity of the issue</param>
-		/// <returns>The summary text</returns>
-		public abstract string GetSummary(IIssueFingerprint fingerprint, IssueSeverity severity);
 	}
 }
