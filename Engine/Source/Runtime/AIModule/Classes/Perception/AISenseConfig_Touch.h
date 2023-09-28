@@ -13,10 +13,6 @@ UCLASS(meta = (DisplayName = "AI Touch config"), MinimalAPI)
 class UAISenseConfig_Touch : public UAISenseConfig
 {
 	GENERATED_UCLASS_BODY()
-public:
-
-	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "Sense", config)
-	FAISenseAffiliationFilter DetectionByAffiliation = {true, true, true};
-	
+public:	
 	AIMODULE_API virtual TSubclassOf<UAISense> GetSenseImplementation() const override;
 };

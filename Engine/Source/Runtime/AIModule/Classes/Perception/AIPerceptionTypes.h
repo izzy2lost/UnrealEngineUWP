@@ -207,21 +207,19 @@ struct FAISenseAffiliationFilter
 {
 	GENERATED_USTRUCT_BODY()
 
-	FAISenseAffiliationFilter() = default;
-	
-	FAISenseAffiliationFilter(bool bInDetectEnemies, bool bInDetectNeutrals, bool bInDetectFriendlies)
-		: bDetectEnemies(bInDetectEnemies)
-		, bDetectNeutrals(bInDetectNeutrals)
-		, bDetectFriendlies(bInDetectFriendlies) {}
+	FAISenseAffiliationFilter()
+		: bDetectEnemies(false)
+		, bDetectNeutrals(false)
+		, bDetectFriendlies(false) {}
 
 	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Sense")
-	uint32 bDetectEnemies : 1 = false;
+	uint32 bDetectEnemies : 1;
 
 	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Sense")
-	uint32 bDetectNeutrals : 1 = false;
+	uint32 bDetectNeutrals : 1;
 
 	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Sense")
-	uint32 bDetectFriendlies : 1 = false;
+	uint32 bDetectFriendlies : 1;
 	
 	uint8 GetAsFlags() const { return IntCastChecked<uint8>((bDetectEnemies << ETeamAttitude::Hostile) | (bDetectNeutrals << ETeamAttitude::Neutral) | (bDetectFriendlies << ETeamAttitude::Friendly)); }
 	FORCEINLINE bool ShouldDetectAll() const { return (bDetectEnemies && bDetectNeutrals && bDetectFriendlies); }
