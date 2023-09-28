@@ -37,6 +37,10 @@ namespace Chaos
 		EFieldObjectType& PrevObjectType,
 		EFieldPositionType& PrevPositionType)
 	{
+		if(!LocalProxy || !RigidSolver)
+		{
+			return false;
+		}
 		const EFieldResolutionType ResolutionType =
 			FieldCommand.HasMetaData(FFieldSystemMetaData::EMetaType::ECommandData_ProcessingResolution) ?
 			FieldCommand.GetMetaDataAs<FFieldSystemMetaDataProcessingResolution>( 
@@ -114,8 +118,7 @@ namespace Chaos
 			{
 				for (int32 Idx = 0; Idx < FilteredHandles.Num(); ++Idx)
 				{
-					Chaos::FPBDRigidParticleHandle* RigidHandle = FilteredHandles[Idx]->CastToRigidParticle();
-					if (RigidHandle)
+					if (Chaos::FPBDRigidParticleHandle* RigidHandle = FilteredHandles[Idx]->CastToRigidParticle())
 					{
 						const FVec3 SamplePosition = FParticleUtilities::GetCoMWorldPosition(RigidHandle);
 						FillExecutionDatas(SamplePosition, RigidHandle, HandleIndex);
@@ -126,8 +129,7 @@ namespace Chaos
 			{
 				for (int32 Idx = 0; Idx < FilteredHandles.Num(); ++Idx)
 				{
-					Chaos::FGeometryParticleHandle* FilteredHandle = FilteredHandles[Idx];
-					if (FilteredHandle)
+					if (Chaos::FGeometryParticleHandle* FilteredHandle = FilteredHandles[Idx])
 					{
 						const FVec3& SamplePosition = FilteredHandle->X();
 						FillExecutionDatas(SamplePosition, FilteredHandle, HandleIndex);
