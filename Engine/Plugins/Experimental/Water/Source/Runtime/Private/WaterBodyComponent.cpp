@@ -426,6 +426,22 @@ AWaterZone* UWaterBodyComponent::GetWaterZone() const
 	return OwningWaterZone.Get();
 }
 
+void UWaterBodyComponent::MarkOwningWaterZoneForRebuild(EWaterZoneRebuildFlags InRebuildFlags, bool bInOnlyWithinWaterBodyBounds) const
+{
+	if (AWaterZone* WaterZone = GetWaterZone())
+	{
+		if (bInOnlyWithinWaterBodyBounds)
+		{
+			const FBox WaterBodyBounds = Bounds.GetBox();
+			WaterZone->MarkForRebuild(InRebuildFlags, FBox2D(FVector2D(WaterBodyBounds.Min), FVector2D(WaterBodyBounds.Max)));
+		}
+		else
+		{
+			WaterZone->MarkForRebuild(InRebuildFlags);
+		}
+	}
+}
+
 void UWaterBodyComponent::SetWaterZoneOverride(const TSoftObjectPtr<AWaterZone>& InWaterZoneOverride)
 {
 	WaterZoneOverride = InWaterZoneOverride;
@@ -864,6 +880,9 @@ void UWaterBodyComponent::UpdateMaterialInstances()
 	CreateOrUpdateWaterInfoMID();
 	CreateOrUpdateWaterStaticMeshMID();
 	CreateOrUpdateUnderwaterPostProcessMID();
+
+	// Update the water mesh since it will not contain the up-to-date MIDs:
+	MarkOwningWaterZoneForRebuild(EWaterZoneRebuildFlags::UpdateWaterMesh);
 }
 
 bool UWaterBodyComponent::UpdateWaterHeight()
@@ -1033,8 +1052,7 @@ void UWaterBodyComponent::UpdateComponentVisibility(bool bAllowWaterZoneRebuild)
 					RebuildFlags |= EWaterZoneRebuildFlags::UpdateWaterInfoTexture;
 				}
 
-				const FBox WaterBodyBounds = Bounds.GetBox();
-				WaterZone->MarkForRebuild(RebuildFlags, FBox2D(FVector2D(WaterBodyBounds.Min), FVector2D(WaterBodyBounds.Max)));
+				MarkOwningWaterZoneForRebuild(RebuildFlags);
 			}
 		}
 	}
@@ -1924,7 +1942,7 @@ void UWaterBodyComponent::OnWaterBodyRenderDataUpdated()
 	{
 		if (AWaterZone* WaterZone = GetWaterZone())
 		{
-			WaterZone->MarkForRebuild(EWaterZoneRebuildFlags::UpdateWaterInfoTexture);
+			MarkOwningWaterZoneForRebuild(EWaterZoneRebuildFlags::UpdateWaterInfoTexture, /* bOnlyWithinWaterBodyBounds = */ false);
 		}
 	}
 

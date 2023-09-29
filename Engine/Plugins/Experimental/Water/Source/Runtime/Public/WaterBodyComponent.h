@@ -9,6 +9,7 @@
 #include "WaterCurveSettings.h"
 #include "WaterBodyStaticMeshSettings.h"
 #include "WaterSplineMetadata.h"
+#include "WaterZoneActor.h"
 #include "WaterBodyTypes.h"
 
 class AWaterBody;
@@ -221,9 +222,11 @@ public:
 	UMaterialInterface* GetWaterStaticMeshMaterial() const { return WaterStaticMeshMaterial; }
 
 	/** Sets water material */
+	UFUNCTION(BlueprintCallable, Category = Rendering)
 	void SetWaterMaterial(UMaterialInterface* InMaterial);
 
 	/** Sets water static mesh material */
+	UFUNCTION(BlueprintCallable, Category = Rendering)
 	void SetWaterStaticMeshMaterial(UMaterialInterface* InMaterial);
 
 	/** Returns water MID */
@@ -248,6 +251,7 @@ public:
 	UMaterialInstanceDynamic* GetWaterInfoMaterialInstance();
 
 	/** Sets under water post process material */
+	UFUNCTION(BlueprintCallable, Category = Rendering)
 	void SetUnderwaterPostProcessMaterial(UMaterialInterface* InMaterial);
 
 	UFUNCTION(BlueprintCallable, Category = Rendering)
@@ -452,6 +456,12 @@ protected:
 	virtual void UpdateWaterBody(bool bWithExclusionVolumes);
 
 	virtual void OnUpdateBody(bool bWithExclusionVolumes) {}
+
+	/** 
+	 * Marks the owning water zone for rebuild. 
+	 * If bOnlyWithinWaterBodyBounds is set, updates to the water zone that aren't relevant within the bounds of the water body are suppressed.
+	 */
+	void MarkOwningWaterZoneForRebuild(EWaterZoneRebuildFlags InRebuildFlags, bool bInOnlyWithinWaterBodyBounds = true) const;
 
 	/** Called when the WaterBodyActor has had all its components registered. */
 	virtual void OnPostRegisterAllComponents();

@@ -27,8 +27,14 @@ public:
 	virtual TArray<UPrimitiveComponent*> GetBrushRenderableComponents() const override;
 #endif //WITH_EDITOR
 
+	UFUNCTION(BlueprintCallable, Category = Rendering)
 	void SetLakeTransitionMaterial(UMaterialInterface* InMat);
+
+	UFUNCTION(BlueprintCallable, Category = Rendering)
 	void SetOceanTransitionMaterial(UMaterialInterface* InMat);
+
+	UFUNCTION(BlueprintCallable, Category = Rendering)
+	void SetLakeAndOceanTransitionMaterials(UMaterialInterface* InLakeTransition, UMaterialInterface* InOceanTransition);
 
 protected:
 	/** UWaterBodyComponent Interface */

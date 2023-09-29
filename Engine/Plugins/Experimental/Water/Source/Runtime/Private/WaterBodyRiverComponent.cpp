@@ -344,10 +344,11 @@ FBoxSphereBounds UWaterBodyRiverComponent::CalcBounds(const FTransform& LocalToW
 
 void UWaterBodyRiverComponent::UpdateMaterialInstances()
 {
-	Super::UpdateMaterialInstances();
-
 	CreateOrUpdateLakeTransitionMID();
 	CreateOrUpdateOceanTransitionMID();
+
+	// Must be called after the transition MIDs are created. Super::UpdateMaterialInstances will rebuild the water mesh if necessary to push new MIDs.
+	Super::UpdateMaterialInstances();
 }
 
 void UWaterBodyRiverComponent::SetLakeTransitionMaterial(UMaterialInterface* InMaterial)
@@ -360,6 +361,19 @@ void UWaterBodyRiverComponent::SetOceanTransitionMaterial(UMaterialInterface* In
 {
 	OceanTransitionMaterial = InMaterial;
 	UpdateMaterialInstances();
+}
+
+void UWaterBodyRiverComponent::SetLakeAndOceanTransitionMaterials(UMaterialInterface* InLakeTransition, UMaterialInterface* InOceanTransition)
+{
+	const bool bUpdateInstances = LakeTransitionMaterial != InLakeTransition || OceanTransitionMaterial != InOceanTransition;
+
+	LakeTransitionMaterial = InLakeTransition;
+	OceanTransitionMaterial = InOceanTransition;
+
+	if (bUpdateInstances)
+	{
+		UpdateMaterialInstances();
+	}
 }
 
 void UWaterBodyRiverComponent::Reset()
