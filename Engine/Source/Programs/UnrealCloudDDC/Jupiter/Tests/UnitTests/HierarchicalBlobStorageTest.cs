@@ -56,6 +56,7 @@ namespace Jupiter.UnitTests
 			MemoryBlobStore blobStore =  new MemoryBlobStore();
 			serviceProviderMock.Setup(x => x.GetService(typeof(MemoryBlobStore))).Returns(blobStore);
 			IOptionsMonitor<UnrealCloudDDCSettings> settingsMonitor = Mock.Of<IOptionsMonitor<UnrealCloudDDCSettings>>(_ => _.CurrentValue == new UnrealCloudDDCSettings());
+			IOptionsMonitor<JupiterSettings> jupiterSettingsMonitor = Mock.Of<IOptionsMonitor<JupiterSettings>>(_ => _.CurrentValue == new JupiterSettings());
 			Mock<INamespacePolicyResolver> mockPolicyResolver = new Mock<INamespacePolicyResolver>();
 			mockPolicyResolver.Setup(x => x.GetPoliciesForNs(It.IsAny<NamespaceId>())).Returns(new NamespacePolicy());
 
@@ -63,7 +64,7 @@ namespace Jupiter.UnitTests
 			IOptionsMonitor<BufferedPayloadOptions> bufferedPayloadOptions = Mock.Of<IOptionsMonitor<BufferedPayloadOptions>>(_ => _.CurrentValue == new BufferedPayloadOptions());
 			BufferedPayloadFactory bufferedPayloadFactory = new BufferedPayloadFactory(bufferedPayloadOptions, tracer);
 
-			_chained = new BlobService(serviceProviderMock.Object, settingsMonitor, Mock.Of<IBlobIndex>(), Mock.Of<IPeerStatusService>(), Mock.Of<IHttpClientFactory>(), Mock.Of<IServiceCredentials>(), mockPolicyResolver.Object, Mock.Of<IHttpContextAccessor>(), null, tracer, bufferedPayloadFactory, NullLogger<BlobService>.Instance, null);
+			_chained = new BlobService(serviceProviderMock.Object, settingsMonitor, jupiterSettingsMonitor, Mock.Of<IBlobIndex>(), Mock.Of<IPeerStatusService>(), Mock.Of<IHttpClientFactory>(), Mock.Of<IServiceCredentials>(), mockPolicyResolver.Object, Mock.Of<IHttpContextAccessor>(), null, tracer, bufferedPayloadFactory, NullLogger<BlobService>.Instance, null);
 			_chained.BlobStore = new List<IBlobStore> { _first, _second, _third };
 
 			await _first.PutObjectAsync(Ns, Encoding.ASCII.GetBytes("onlyFirstContent"), _onlyFirstId);
