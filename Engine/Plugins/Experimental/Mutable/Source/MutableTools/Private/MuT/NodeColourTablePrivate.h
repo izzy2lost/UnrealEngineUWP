@@ -23,21 +23,19 @@ namespace mu
 
 		static NODE_TYPE s_type;
 
-		FString ParameterName;
-		TablePtr Table;
-		FString ColumnName;
-		bool bNoneOption = false;
+		FString m_parameterName;
+		TablePtr m_pTable;
+		FString m_columnName;
 
 		//!
 		void Serialise( OutputArchive& arch ) const
 		{
-            uint32_t ver = 2;
+            uint32 ver = 1;
 			arch << ver;
 
-			arch << ParameterName;
-			arch << Table;
-			arch << ColumnName;
-			arch << bNoneOption;
+			arch << m_parameterName;
+			arch << m_pTable;
+			arch << m_columnName;
 		}
 
 		//!
@@ -45,35 +43,30 @@ namespace mu
 		{
             uint32 ver;
 			arch >> ver;
-			check(ver <= 2);
+			check(ver <= 1);
 
 			if (ver == 0)
 			{
 				std::string Temp;
 				arch >> Temp;
-				ParameterName = Temp.c_str();
+				m_parameterName = Temp.c_str();
 			}
 			else
 			{
-				arch >> ParameterName;
+				arch >> m_parameterName;
 			}
 
-			arch >> Table;
+			arch >> m_pTable;
 
 			if (ver == 0)
 			{
 				std::string Temp;
 				arch >> Temp;
-				ColumnName = Temp.c_str();
+				m_columnName = Temp.c_str();
 			}
 			else
 			{
-				arch >> ColumnName;
-			}
-
-			if (ver >= 2)
-			{
-				arch >> bNoneOption;
+				arch >> m_columnName;
 			}
 		}
 

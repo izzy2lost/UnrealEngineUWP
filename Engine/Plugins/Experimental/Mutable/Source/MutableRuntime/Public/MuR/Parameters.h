@@ -7,7 +7,6 @@
 #include "MuR/RefCounted.h"
 #include "MuR/Types.h"
 #include "Templates/SharedPointer.h"
-#include "VectorTypes.h"
 
 
 namespace mu
@@ -27,9 +26,6 @@ namespace mu
 	using RangeIndexPtrConst = Ptr<const RangeIndex>;
 
 	class Model;
-
-	//! Default parameter values definition
-	static const FVector4f DefaultMutableColorValue(-UE_BIG_NUMBER);
 
 
     //! \brief Model parameter types.

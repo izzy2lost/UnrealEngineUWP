@@ -45,6 +45,8 @@ namespace mu
 		// Node Interface
 		//-----------------------------------------------------------------------------------------
 
+        
+
         const NODE_TYPE* GetType() const override;
 		static const NODE_TYPE* GetStaticType();
 
@@ -65,9 +67,6 @@ namespace mu
 
 		//!
 		void SetColumn( const FString& strName );
-
-		//! Adds the "None" option to the parameter that represents this table column
-		void SetNoneOption(bool bAddOption);
 
 		//-----------------------------------------------------------------------------------------
 		// Interface pattern

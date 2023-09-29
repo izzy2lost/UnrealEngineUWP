@@ -23,24 +23,22 @@ namespace mu
 
 		static NODE_TYPE s_type;
 
-		FString ParameterName;
-		TablePtr Table;
-		FString ColumnName;
-		bool bNoneOption = false;
+		FString m_parameterName;
+		TablePtr m_pTable;
+		FString m_columnName;
 
-		TArray<NodeLayoutPtr> Layouts;
+		TArray<NodeLayoutPtr> m_layouts;
 
 		//!
 		void Serialise( OutputArchive& arch ) const
 		{
-            uint32 ver = 3;
+            uint32 ver = 2;
 			arch << ver;
 
-			arch << ParameterName;
-			arch << Table;
-			arch << ColumnName;
-			arch << Layouts;
-			arch << bNoneOption;
+			arch << m_parameterName;
+			arch << m_pTable;
+			arch << m_columnName;
+			arch << m_layouts;
 		}
 
 		//!
@@ -48,38 +46,32 @@ namespace mu
 		{
             uint32 ver;
 			arch >> ver;
-            check(ver>=1 && ver<=3);
+            check(ver>=1 && ver<=2);
 
 			if (ver == 1)
 			{
 				std::string Temp;
 				arch >> Temp;
-				ParameterName = Temp.c_str();
+				m_parameterName = Temp.c_str();
 			}
 			else
 			{
-				arch >> ParameterName;
+				arch >> m_parameterName;
 			}
 
-			arch >> Table;
+			arch >> m_pTable;
 
 			if (ver == 1)
 			{
 				std::string Temp;
 				arch >> Temp;
-				ColumnName = Temp.c_str();
+				m_columnName = Temp.c_str();
 			}
 			else
 			{
-				arch >> ColumnName;
+				arch >> m_columnName;
 			}
-			
-			arch >> Layouts;
-
-			if(ver >= 3)
-			{
-				arch >> bNoneOption;
-			}
+			arch >> m_layouts;
 		}
 
 		// NodeMesh::Private interface

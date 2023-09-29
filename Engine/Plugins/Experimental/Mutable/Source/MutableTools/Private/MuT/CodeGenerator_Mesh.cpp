@@ -1120,7 +1120,7 @@ class Node;
 		Ptr<ASTOp> Op = GenerateTableSwitch<NodeMeshTable::Private, ETableColumnType::Mesh, OP_TYPE::ME_SWITCH>(*TableNode->GetPrivate(),
 			[this, &NewResult, &t, &InOptions] (const NodeMeshTable::Private& node, int colIndex, int row, ErrorLog* pErrorLog)
 			{
-				mu::Ptr<mu::Mesh> pMesh = node.Table->GetPrivate()->Rows[row].Values[colIndex].Mesh;
+				mu::Ptr<mu::Mesh> pMesh = node.m_pTable->GetPrivate()->Rows[row].Values[colIndex].Mesh;
 				FMeshGenerationResult BranchResults;
 
 				if (pMesh)
@@ -1129,11 +1129,11 @@ class Node;
 					pCell->SetValue(pMesh);
 
 					// TODO Take into account layout strategy
-					int numLayouts = node.Layouts.Num();
+					int numLayouts = node.m_layouts.Num();
 					pCell->SetLayoutCount(numLayouts);
 					for (int i = 0; i < numLayouts; ++i)
 					{
-						pCell->SetLayout(i, node.Layouts[i]);
+						pCell->SetLayout(i, node.m_layouts[i]);
 					}
 
 					FMeshGenerationOptions TargetOptions = InOptions;
@@ -1154,7 +1154,7 @@ class Node;
 				}
 
 				return BranchResults.meshOp;
-			}, nullptr /* TODO(max): MTBL-1660 */ );
+			});
 
 		NewResult.meshOp = Op;
 

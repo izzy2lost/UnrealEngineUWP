@@ -418,10 +418,10 @@ namespace mu
 			[this](const NodeScalarTable::Private& node, int colIndex, int row, ErrorLog* pErrorLog)
 			{
 				NodeScalarConstantPtr pCell = new NodeScalarConstant();
-				float scalar = node.Table->GetPrivate()->Rows[row].Values[colIndex].Scalar;
+				float scalar = node.m_pTable->GetPrivate()->Rows[row].Values[colIndex].Scalar;
 				pCell->SetValue(scalar);
 				return Generate(pCell);
-			}, nullptr /* TODO(max): MTBL-1660 */ );
+			});
 
 		result.op = Op;
 	}
