@@ -9,6 +9,7 @@
 #include "Graph/MoviePipelineRenderLayerSubsystem.h"
 #include "Graph/Nodes/MovieGraphCollectionNode.h"
 #include "Graph/Nodes/MovieGraphFileOutputNode.h"
+#include "Graph/Nodes/MovieGraphGlobalGameOverrides.h"
 #include "Graph/Nodes/MovieGraphModifierNode.h"
 #include "Graph/Nodes/MovieGraphRenderLayerNode.h"
 #include "Graph/Nodes/MovieGraphSamplingMethodNode.h"
@@ -556,6 +557,16 @@ void UMovieGraphPipeline::SetupShot(const TObjectPtr<UMoviePipelineExecutorShot>
 	const FMovieGraphTimeStepData& TimeStepData = GetTimeStepInstance()->GetCalculatedTimeData();
 	const UMovieGraphEvaluatedConfig* EvaluatedConfig = TimeStepData.EvaluatedConfig;
 
+	// Apply any global game overrides, which includes cvars. This needs to be done before the CVarManager sets cvars
+	// so any user-specified cvars can override cvars set via the global game overrides.
+	constexpr bool bIncludeCDOs = true;
+	constexpr bool bExactMatch = true;
+	if (UMovieGraphGlobalGameOverridesNode* GlobalGameOverridesNode = EvaluatedConfig->GetSettingForBranch<UMovieGraphGlobalGameOverridesNode>(UMovieGraphNode::GlobalsPinName, bIncludeCDOs, bExactMatch))
+	{
+		constexpr bool bOverrideValues = true;
+		GlobalGameOverridesNode->ApplySettings(bOverrideValues, GetWorld());
+	}
+
 	// Apply cvars for the shot
 	CVarManager->AddEvaluatedGraph(EvaluatedConfig);
 	CVarManager->ApplyAllCVars();
@@ -581,8 +592,21 @@ void UMovieGraphPipeline::TeardownShot(const TObjectPtr<UMoviePipelineExecutorSh
 
 	// some other stuff
 
+	const FMovieGraphTimeStepData& TimeStepData = GetTimeStepInstance()->GetCalculatedTimeData();
+	const UMovieGraphEvaluatedConfig* EvaluatedConfig = TimeStepData.EvaluatedConfig;
+
 	// Revert the cvar values that were initially applied for the shot
 	CVarManager->RevertAllCVars();
+
+	// Revert cvars set by the global game overrides. Needs to be done after the CVarManager reverts (since the global
+	// game overrides are applied first in SetupShot).
+	constexpr bool bIncludeCDOs = true;
+	constexpr bool bExactMatch = true;
+	if (UMovieGraphGlobalGameOverridesNode* GlobalGameOverridesNode = EvaluatedConfig->GetSettingForBranch<UMovieGraphGlobalGameOverridesNode>(UMovieGraphNode::GlobalsPinName, bIncludeCDOs, bExactMatch))
+	{
+		constexpr bool bOverrideValues = false;
+		GlobalGameOverridesNode->ApplySettings(bOverrideValues, GetWorld());
+	}
 
 	// Check to see if this was the last shot in the Pipeline, otherwise on the next
 	// tick the new shot will be initialized and processed.

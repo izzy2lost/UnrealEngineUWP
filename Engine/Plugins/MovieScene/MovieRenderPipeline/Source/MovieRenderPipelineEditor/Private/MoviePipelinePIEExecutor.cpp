@@ -1,4 +1,5 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
+
 #include "MoviePipelinePIEExecutor.h"
 #include "MoviePipelinePrimaryConfig.h"
 #include "MoviePipelineShotConfig.h"
@@ -21,6 +22,7 @@
 #include "MessageLogModule.h"
 #include "Logging/MessageLog.h"
 #include "Graph/MovieGraphPipeline.h"
+#include "Graph/Nodes/MovieGraphGlobalGameOverrides.h"
 
 #include UE_INLINE_GENERATED_CPP_BY_NAME(MoviePipelinePIEExecutor)
 
@@ -161,15 +163,9 @@ void UMoviePipelinePIEExecutor::Start(const UMoviePipelineExecutorJob* InJob)
 	// Initialize the transient settings so that they will exist in time for the GameOverrides check.
 	InJob->GetConfiguration()->InitializeTransientSettings();
 
-	TArray<UMoviePipelineSetting*> AllSettings = InJob->GetConfiguration()->GetAllSettings();
-	UMoviePipelineSetting** GameOverridesPtr = AllSettings.FindByPredicate([](UMoviePipelineSetting* InSetting) { return InSetting->GetClass() == UMoviePipelineGameOverrideSetting::StaticClass(); });
-	if (GameOverridesPtr)
-	{	
-		UMoviePipelineSetting* Setting = *GameOverridesPtr;
-		if (Setting)
-		{
-			Params.GameModeOverride = CastChecked<UMoviePipelineGameOverrideSetting>(Setting)->GameModeOverride;
-		}
+	if (TSubclassOf<AGameModeBase> GameModeOverride = UMovieGraphGlobalGameOverridesNode::GetGameModeOverride(InJob))
+	{
+		Params.GameModeOverride = GameModeOverride;
 	}
 
 	bPreviousUseFixedTimeStep = FApp::UseFixedTimeStep();

@@ -184,6 +184,8 @@ public:
 protected:
 	TObjectPtr<UTextureRenderTarget2D> CreateViewRenderTarget(const UE::MovieGraph::DefaultRenderer::FRenderTargetInitParams& InInitParams) const;
 	FMoviePipelineSurfaceQueuePtr CreateSurfaceQueue(const UE::MovieGraph::DefaultRenderer::FRenderTargetInitParams& InInitParams) const;
+	void GetCameraLocationsForFrame(TArray<FVector>& OutLocations) const;
+	void FlushAsyncEngineSystems(const TObjectPtr<UMovieGraphEvaluatedConfig>& InConfig) const;
 
 protected:
 	/** A pointer to the CDOs of the Render Pass nodes that are valid for the current shot render. */

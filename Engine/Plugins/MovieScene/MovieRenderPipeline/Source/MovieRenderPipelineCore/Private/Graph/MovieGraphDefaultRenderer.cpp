@@ -3,6 +3,7 @@
 #include "Graph/MovieGraphDefaultRenderer.h"
 #include "Graph/MovieGraphPipeline.h"
 #include "Graph/MovieGraphConfig.h"
+#include "Graph/Nodes/MovieGraphGlobalGameOverrides.h"
 #include "Graph/Nodes/MovieGraphRenderLayerNode.h"
 #include "Graph/Nodes/MovieGraphRenderPassNode.h"
 #include "MovieRenderPipelineCoreModule.h"
@@ -10,6 +11,14 @@
 #include "Engine/TextureRenderTarget2D.h"
 #include "UObject/Package.h"
 #include "MoviePipelineSurfaceReader.h"
+
+// For flushing async systems
+#include "AssetCompilingManager.h"
+#include "ContentStreaming.h"
+#include "EngineModule.h"
+#include "LandscapeSubsystem.h"
+#include "Materials/MaterialInterface.h"
+#include "RendererInterface.h"
 
 void UMovieGraphDefaultRenderer::SetupRenderingPipelineForShot(UMoviePipelineExecutorShot* InShot)
 {
@@ -165,6 +174,10 @@ void UMovieGraphDefaultRenderer::AddReferencedObjects(UObject* InThis, FReferenc
 
 void UMovieGraphDefaultRenderer::Render(const FMovieGraphTimeStepData& InTimeStepData)
 {
+	// Flush built-in systems before we render anything. This maximizes the likelihood that the data is prepared for when
+	// the render thread uses it.
+	FlushAsyncEngineSystems(InTimeStepData.EvaluatedConfig);
+
 	// Housekeeping: Clean up any tasks that were completed since the last frame. This lets us have a 
 	// better idea of how much work we're concurrently doing. 
 	{
@@ -224,6 +237,90 @@ void UMovieGraphDefaultRenderer::Render(const FMovieGraphTimeStepData& InTimeSte
 
 	// Re-enable the progress widget so when the player viewport is drawn to the preview window, it shows.
 	GetOwningGraph()->SetPreviewWidgetVisible(true);
+}
+
+void UMovieGraphDefaultRenderer::FlushAsyncEngineSystems(const TObjectPtr<UMovieGraphEvaluatedConfig>& InConfig) const
+{
+	const UMovieGraphGlobalGameOverridesNode* GameOverrides = InConfig->GetSettingForBranch<UMovieGraphGlobalGameOverridesNode>(UMovieGraphNode::GlobalsPinName);
+	if (!GameOverrides)
+	{
+		return;
+	}
+
+	// Block until level streaming is completed, we do this at the end of the frame
+	// so that level streaming requests made by Sequencer level visibility tracks are
+	// accounted for.
+	if (GameOverrides->bFlushLevelStreaming && GetOwningGraph()->GetWorld())
+	{
+		GetOwningGraph()->GetWorld()->BlockTillLevelStreamingCompleted();
+	}
+
+	// Flush all assets still being compiled asynchronously.
+	// A progress bar is already in place so the user can get feedback while waiting for everything to settle.
+	if (GameOverrides->bFlushAssetCompiler)
+	{
+		FAssetCompilingManager::Get().FinishAllCompilation();
+	}
+
+	// Ensure we have complete shader maps for all materials used by primitives in the world.
+	// This way we will never render with the default material.
+	if (GameOverrides->bFlushShaderCompiler)
+	{
+		UMaterialInterface::SubmitRemainingJobsForWorld(GetOwningGraph()->GetWorld());
+	}
+
+	// Flush virtual texture tile calculations.
+	// In its own scope just to minimize the duration FSyncScope has a lock.
+	{
+		UE::RenderCommandPipe::FSyncScope SyncScope;
+		
+		ERHIFeatureLevel::Type FeatureLevel = GetWorld()->GetFeatureLevel();
+		ENQUEUE_RENDER_COMMAND(VirtualTextureSystemFlushCommand)(
+			[FeatureLevel](FRHICommandListImmediate& RHICmdList)
+			{
+				GetRendererModule().LoadPendingVirtualTextureTiles(RHICmdList, FeatureLevel);
+			});
+	}
+
+	// Flush any outstanding work waiting in Streaming Manager implementations (texture streaming, nanite, etc.)
+	// Note: This isn't a magic fix for gpu-based feedback systems, if the work hasn't made it to the streaming
+	// manager, it can't flush it. This just ensures that work that has been requested is done before we render.
+	if (GameOverrides->bFlushStreamingManagers)
+	{
+		FStreamingManagerCollection& StreamingManagers = IStreamingManager::Get();
+		constexpr bool bProcessEverything = true;
+		StreamingManagers.UpdateResourceStreaming(GetOwningGraph()->GetWorld()->GetDeltaSeconds(), bProcessEverything);
+		StreamingManagers.BlockTillAllRequestsFinished();
+	}
+
+	// If there are async tasks to build more grass, wait for them to finish so there aren't missing patches
+	// of grass. If you have way too dense grass this option can cause you to OOM.
+	if (GameOverrides->bFlushGrassStreaming)
+	{
+		if (ULandscapeSubsystem* LandscapeSubsystem = GetWorld()->GetSubsystem<ULandscapeSubsystem>())
+		{
+			constexpr bool bFlushGrass = false; // Flush means a different thing to grass system
+			constexpr bool bInForceSync = true;
+
+			TArray<FVector> CameraLocations;
+			GetCameraLocationsForFrame(CameraLocations);
+
+			LandscapeSubsystem->RegenerateGrass(bFlushGrass, bInForceSync, MakeArrayView(CameraLocations));
+		}
+	}
+}
+
+void UMovieGraphDefaultRenderer::GetCameraLocationsForFrame(TArray<FVector>& OutLocations) const
+{
+	// ToDo: Multi-camera support
+	if (const APlayerController* LocalPlayerController = GetOwningGraph()->GetWorld()->GetFirstPlayerController())
+	{
+		FVector PrimaryCameraLoc;
+		FRotator PrimaryCameraRot;
+
+		LocalPlayerController->GetPlayerViewPoint(PrimaryCameraLoc, PrimaryCameraRot);
+		OutLocations.Add(PrimaryCameraLoc);
+	}
 }
 
 void UMovieGraphDefaultRenderer::AddOutstandingRenderTask_AnyThread(UE::Tasks::FTask InTask)

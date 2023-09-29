@@ -2,11 +2,12 @@
 
 #include "Graph/Nodes/MovieGraphCoreRenderPassNode.h"
 
-#include "Graph/Nodes/MovieGraphOutputSettingNode.h"
 #include "Graph/MovieGraphDataTypes.h"
 #include "Graph/MovieGraphDefaultRenderer.h"
 #include "Graph/MovieGraphPipeline.h"
 #include "Graph/MoviePipelineRenderLayerSubsystem.h"
+#include "Graph/Nodes/MovieGraphGlobalGameOverrides.h"
+#include "Graph/Nodes/MovieGraphOutputSettingNode.h"
 #include "MovieRenderOverlappedImage.h"
 #include "MoviePipelineSurfaceReader.h"
 #include "EngineModule.h"
@@ -479,6 +480,16 @@ TSharedRef<FSceneViewFamilyContext> UMovieGraphCoreRenderPassNode::FMovieGraphRe
 		NewShowFlags)
 		.SetTime(FGameTime::CreateUndilated(InInitData.TimeData.WorldSeconds, InInitData.TimeData.FrameDeltaTime))
 		.SetRealtimeUpdate(true));
+
+	// Set the virtual texture feedback factor if explicitly overridden
+	constexpr bool bIncludeCDOs = true;
+	constexpr bool bExactMatch = true;
+	const UMovieGraphGlobalGameOverridesNode* GameOverridesNode =
+		InInitData.TimeData.EvaluatedConfig->GetSettingForBranch<UMovieGraphGlobalGameOverridesNode>(GlobalsPinName, bIncludeCDOs, bExactMatch);
+	if (GameOverridesNode->bOverride_VirtualTextureFeedbackFactor)
+	{
+		OutViewFamily->VirtualTextureFeedbackFactor = GameOverridesNode->VirtualTextureFeedbackFactor;
+	}
 
 	// Used to specify if the Tone Curve is being applied or not to our Linear Output data
 	OutViewFamily->SceneCaptureSource = InInitData.SceneCaptureSource;
