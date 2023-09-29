@@ -2,7 +2,6 @@
 
 #pragma once
 
-#include "CancellationToken.h"
 #include "Containers/StringView.h"
 #include "IO/IoStatus.h"
 #include "Memory/MemoryFwd.h"

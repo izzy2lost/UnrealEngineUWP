@@ -4,7 +4,6 @@
 #include "IO/IoStoreOnDemand.h"
 #include "Statistics.h"
 
-#include "CancellationToken.h"
 #include "Containers/Array.h"
 #include "Containers/Map.h"
 #include "Containers/UnrealString.h"
