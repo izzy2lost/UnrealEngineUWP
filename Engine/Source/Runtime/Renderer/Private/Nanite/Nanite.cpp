@@ -9,6 +9,7 @@
 #include "ShadowRendering.h"
 #include "Rendering/NaniteStreamingManager.h"
 #include "NaniteVisualizationData.h"
+#include "NaniteShading.h"
 #include "VirtualShadowMaps/VirtualShadowMapCacheManager.h"
 
 #define NUM_PRINT_STATS_PASSES 4

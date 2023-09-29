@@ -25,6 +25,7 @@
 #include "ProfilingDebugging/ExternalProfiler.h"
 #include "Nanite/Nanite.h"
 #include "Nanite/NaniteRayTracing.h"
+#include "Nanite/NaniteShading.h"
 #include "Rendering/NaniteResources.h"
 #include "NaniteSceneProxy.h"
 #include "Lumen/LumenSceneData.h"

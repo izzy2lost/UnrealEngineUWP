@@ -467,14 +467,6 @@ inline void UnlockIfValid(FRHICommandListBase& RHICmdList, FNaniteMaterialComman
 namespace Nanite
 {
 
-struct FShadeBinning
-{
-	FRDGBufferRef ShadingBinMeta  = nullptr;
-	FRDGBufferRef ShadingBinArgs  = nullptr;
-	FRDGBufferRef ShadingBinData = nullptr;
-	FRDGBufferRef ShadingBinStats = nullptr;
-};
-
 void DrawBasePass(
 	FRDGBuilder& GraphBuilder,
 	TArray<FNaniteMaterialPassCommand, SceneRenderingAllocator>& NaniteMaterialPassCommands,
@@ -502,28 +494,6 @@ void DrawLumenMeshCapturePass(
 	FRDGTextureRef NormalAtlasTexture,
 	FRDGTextureRef EmissiveAtlasTexture,
 	FRDGTextureRef DepthAtlasTexture
-);
-
-FShadeBinning ShadeBinning(
-	FRDGBuilder& GraphBuilder,
-	const FScene& Scene,
-	const FViewInfo& View,
-	const FIntRect InViewRect,
-	const FRasterResults& RasterResults,
-	const TConstArrayView<FRDGTextureRef> ClearTargets
-);
-
-void BuildShadingCommands(
-	const FScene& Scene,
-	const FNaniteShadingPipelines& ShadingPipelines,
-	FNaniteShadingCommands& ShadingCommands
-);
-
-bool LoadShadingPipeline(
-	const FScene& Scene,
-	FSceneProxyBase* SceneProxy,
-	FSceneProxyBase::FMaterialSection& Section,
-	FNaniteShadingPipeline& ShadingPipeline
 );
 
 EGBufferLayout GetGBufferLayoutForMaterial(bool bMaterialUsesWorldPositionOffset);

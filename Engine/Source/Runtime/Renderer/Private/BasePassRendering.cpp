@@ -22,6 +22,8 @@
 #include "DebugProbeRendering.h"
 #include "AnisotropyRendering.h"
 #include "Nanite/NaniteVisualize.h"
+#include "Nanite/NaniteMaterials.h"
+#include "Nanite/NaniteShading.h"
 #include "RenderCore.h"
 #include "DataDrivenShaderPlatformInfo.h"
 #include "VolumetricFog.h"
@@ -1358,17 +1360,33 @@ void FDeferredShadingSceneRenderer::RenderBasePassInternal(
 		{
 			RDG_GPU_STAT_SCOPE(GraphBuilder, NaniteBasePass);
 
-			Nanite::DrawBasePass(
-				GraphBuilder,
-				View.NaniteMaterialPassCommands,
-				*this,
-				SceneTextures,
-				BasePassRenderTargets,
-				DBufferTextures,
-				*Scene,
-				View,
-				RasterResults
-			);
+			if (UseNaniteComputeMaterials())
+			{
+				Nanite::DispatchBasePass(
+					GraphBuilder,
+					*this,
+					SceneTextures,
+					BasePassRenderTargets,
+					DBufferTextures,
+					*Scene,
+					View,
+					RasterResults
+				);
+			}
+			else
+			{
+				Nanite::DrawBasePass(
+					GraphBuilder,
+					View.NaniteMaterialPassCommands,
+					*this,
+					SceneTextures,
+					BasePassRenderTargets,
+					DBufferTextures,
+					*Scene,
+					View,
+					RasterResults
+				);
+			}
 		}
 	};
 
