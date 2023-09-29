@@ -436,6 +436,13 @@ FTextureResource* UTextureCubeArray::CreateResource()
 	{
 		return new FTextureCubeArrayResource(this);
 	}
+#if WITH_EDITORONLY_DATA
+	else if (!SourceTextures.Num())
+	{
+		// empty arrays don't have built mips
+		return nullptr;
+	}
+#endif
 	else if (GetNumMips() == 0)
 	{
 		UE_LOG(LogTexture, Warning, TEXT("%s contains no miplevels! Please delete."), *GetFullName());
