@@ -1432,8 +1432,8 @@ bool IsDxcEnabledForPlatform(EShaderPlatform Platform, bool bHlslVersion2021)
 	// Check the generic console variable first (if DXC is supported)
 	if (FDataDrivenShaderPlatformInfo::GetSupportsDxc(Platform))
 	{
-		static const IConsoleVariable* CVar = IConsoleManager::Get().FindConsoleVariable(TEXT("r.Shaders.ForceDXC"));
-		if (bHlslVersion2021 || (CVar && CVar->GetInt() != 0))
+		static FShaderPlatformCachedIniValue<bool> ShaderForceDXC(TEXT("r.Shaders.ForceDXC"));
+		if (bHlslVersion2021 || (ShaderForceDXC.Get(Platform) != 0))
 		{
 			return true;
 		}
