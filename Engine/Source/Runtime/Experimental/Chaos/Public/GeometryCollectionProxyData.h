@@ -56,11 +56,12 @@ public:
 		}
 	}
 
+protected:
+	const FGeometryCollection* RestCollection;
 
 private:
 	TManagedArray<bool>         HasParent;
 	TManagedArray<FTransform3f> Transform;
-	const FGeometryCollection* RestCollection;
 
 	/** Construct */
 	CHAOS_API void Construct();
@@ -120,6 +121,9 @@ public:
 	TManagedArray<int32> CollisionGroup;
 
 public:
+
+	CHAOS_API const TManagedArrayAccessor<int32> GetInitialLevels() const;
+
 	struct FInitialVelocityFacade
 	{
 		FInitialVelocityFacade(FGeometryDynamicCollection& DynamicCollection);

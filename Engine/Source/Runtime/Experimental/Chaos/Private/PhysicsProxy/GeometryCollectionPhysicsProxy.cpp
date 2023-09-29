@@ -776,9 +776,6 @@ void FGeometryCollectionPhysicsProxy::Initialize(Chaos::FPBDRigidsEvolutionBase 
 		}
 	}
 
-	// Add levels to physics thread collection, rename to make it clear these are initial levels from rest collection and not updated during sim.
-	PhysicsThreadCollection.CopyAttribute(*Parameters.RestCollection, /*SrcName=*/"Level", /*DestName=*/"InitialLevel", FTransformCollection::TransformGroup);
-	GameThreadCollection.CopyAttribute(*Parameters.RestCollection, /*SrcName=*/"Level", /*DestName=*/"InitialLevel", FTransformCollection::TransformGroup);
 
 	if (Parameters.EnableClustering)
 	{
@@ -2270,9 +2267,7 @@ void FGeometryCollectionPhysicsProxy::SetAnchoredByTransformedBox_External(const
 				using namespace Chaos;
 				TSet<FPBDRigidClusteredParticleHandle*> TopParentHandles;
 
-				static const FName InitialLevelAttributeName = "InitialLevel";
-
-				const TManagedArrayAccessor<int32> InitialLevelAttribute(PhysicsThreadCollection, InitialLevelAttributeName, FGeometryCollection::TransformGroup);
+				const TManagedArrayAccessor<int32> InitialLevelAttribute = PhysicsThreadCollection.GetInitialLevels();
 				const int32 MaxLevelToCheck = (InitialLevelAttribute.IsValid()) ? MaxLevel : INDEX_NONE;
 
 				FPBDRigidsEvolution* Evolution = RBDSolver->GetEvolution();

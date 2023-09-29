@@ -108,6 +108,12 @@ FGeometryDynamicCollection::FGeometryDynamicCollection(const FGeometryCollection
 
 }
 
+const TManagedArrayAccessor<int32> FGeometryDynamicCollection::GetInitialLevels() const
+{
+	static const FName LevelAttributeName = "Level";
+	return TManagedArrayAccessor<int32>(*RestCollection, LevelAttributeName, FGeometryCollection::TransformGroup);
+}
+
 void FGeometryDynamicCollection::CopyInitialVelocityAttributesFrom(const FGeometryDynamicCollection& SourceCollection)
 {
 	FInitialVelocityFacade InitialVelocityFacade(*this);
