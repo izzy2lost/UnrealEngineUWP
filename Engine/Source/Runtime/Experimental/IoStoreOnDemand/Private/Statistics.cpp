@@ -13,14 +13,16 @@ LLM_DEFINE_TAG(Ias);
 namespace UE::IO::IAS
 {
 
-static TAutoConsoleVariable<bool> CVar_ReportHttpAnalytics(
+bool GIasReportHttpAnalyticsEnabled = true;
+static FAutoConsoleVariableRef CVar_ReportHttpAnalytics(
 	TEXT("ias.ReportHttpAnalytics"),
-	true,
+	GIasReportHttpAnalyticsEnabled,
 	TEXT("Enables reporting statics on our http traffic to the analytics system"));
 
-static TAutoConsoleVariable<bool> CVar_ReportCacheAnalytics(
+bool GIasReportCacheAnalyticsEnabled = true;
+static FAutoConsoleVariableRef CVar_ReportCacheAnalytics(
 	TEXT("ias.ReportCacheAnalytics"),
-	true,
+	GIasReportCacheAnalyticsEnabled,
 	TEXT("Enables reporting statics on our file cache usage to the analytics system"));
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -308,7 +310,7 @@ FOnDemandIoBackendStats* FOnDemandIoBackendStats::Get()
 
 void FOnDemandIoBackendStats::ReportAnalytics(TArray<FAnalyticsEventAttribute>& OutAnalyticsArray) const
 {
-	if (CVar_ReportHttpAnalytics.GetValueOnAnyThread())
+	if (GIasReportHttpAnalyticsEnabled)
 	{
 		AppendAnalyticsEventAttributeArray(OutAnalyticsArray
 			,TEXT("IasHttpErrorCount"), GHttpErrorCount.Get()
@@ -326,7 +328,7 @@ void FOnDemandIoBackendStats::ReportAnalytics(TArray<FAnalyticsEventAttribute>& 
 		);
 	}
 
-	if (CVar_ReportCacheAnalytics.GetValueOnAnyThread())
+	if (GIasReportCacheAnalyticsEnabled)
 	{
 		AppendAnalyticsEventAttributeArray(OutAnalyticsArray
 
