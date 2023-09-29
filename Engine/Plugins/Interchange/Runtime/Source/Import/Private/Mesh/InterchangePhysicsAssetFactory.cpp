@@ -18,7 +18,7 @@ UClass* UInterchangePhysicsAssetFactory::GetFactoryClass() const
 
 UInterchangeFactoryBase::FImportAssetResult UInterchangePhysicsAssetFactory::BeginImportAsset_GameThread(const FImportAssetObjectParams& Arguments)
 {
-	TRACE_CPUPROFILER_EVENT_SCOPE("UInterchangePhysicsAssetFactory::BeginImportAsset_GameThread");
+	TRACE_CPUPROFILER_EVENT_SCOPE(UInterchangePhysicsAssetFactory::BeginImportAsset_GameThread);
 	FImportAssetResult ImportAssetResult;
 	UObject* PhysicsAsset = nullptr;
 
@@ -71,7 +71,7 @@ UInterchangeFactoryBase::FImportAssetResult UInterchangePhysicsAssetFactory::Beg
 
 UInterchangeFactoryBase::FImportAssetResult UInterchangePhysicsAssetFactory::ImportAsset_Async(const FImportAssetObjectParams& Arguments)
 {
-	TRACE_CPUPROFILER_EVENT_SCOPE("UInterchangePhysicsAssetFactory::ImportAsset_Async");
+	TRACE_CPUPROFILER_EVENT_SCOPE(UInterchangePhysicsAssetFactory::ImportAsset_Async);
 	FImportAssetResult ImportAssetResult;
 #if !WITH_EDITORONLY_DATA
 

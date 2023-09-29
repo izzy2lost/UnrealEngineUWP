@@ -19,7 +19,7 @@ UClass* UInterchangeSkeletonFactory::GetFactoryClass() const
 
 UInterchangeFactoryBase::FImportAssetResult UInterchangeSkeletonFactory::BeginImportAsset_GameThread(const FImportAssetObjectParams& Arguments)
 {
-	TRACE_CPUPROFILER_EVENT_SCOPE("UInterchangeSkeletonFactory::BeginImportAsset_GameThread");
+	TRACE_CPUPROFILER_EVENT_SCOPE(UInterchangeSkeletonFactory::BeginImportAsset_GameThread);
 
 	FImportAssetResult ImportAssetResult;
 

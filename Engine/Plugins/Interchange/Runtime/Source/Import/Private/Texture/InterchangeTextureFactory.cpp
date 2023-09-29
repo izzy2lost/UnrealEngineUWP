@@ -1531,7 +1531,7 @@ UClass* UInterchangeTextureFactory::GetFactoryClass() const
 
 UInterchangeFactoryBase::FImportAssetResult UInterchangeTextureFactory::BeginImportAsset_GameThread(const FImportAssetObjectParams& Arguments)
 {
-	TRACE_CPUPROFILER_EVENT_SCOPE("UInterchangeTextureFactory::BeginImportAsset_GameThread");
+	TRACE_CPUPROFILER_EVENT_SCOPE(UInterchangeTextureFactory::BeginImportAsset_GameThread);
 	using namespace  UE::Interchange::Private::InterchangeTextureFactory;
 	FImportAssetResult ImportAssetResult;
 	UTexture* Texture = nullptr;

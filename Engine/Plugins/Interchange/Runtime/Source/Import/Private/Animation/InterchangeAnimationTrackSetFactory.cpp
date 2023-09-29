@@ -662,7 +662,7 @@ UClass* UInterchangeAnimationTrackSetFactory::GetFactoryClass() const
 
 UInterchangeFactoryBase::FImportAssetResult UInterchangeAnimationTrackSetFactory::BeginImportAsset_GameThread(const FImportAssetObjectParams& Arguments)
 {
-	TRACE_CPUPROFILER_EVENT_SCOPE("UInterchangeAnimationTrackSetFactory::BeginImportAsset_GameThread");
+	TRACE_CPUPROFILER_EVENT_SCOPE(UInterchangeAnimationTrackSetFactory::BeginImportAsset_GameThread);
 
 	FImportAssetResult ImportAssetResult;
 #if !WITH_EDITOR || !WITH_EDITORONLY_DATA
@@ -747,7 +747,7 @@ UInterchangeFactoryBase::FImportAssetResult UInterchangeAnimationTrackSetFactory
 
 UObject* UInterchangeAnimationTrackSetFactory::ImportObjectSourceData(const FImportAssetObjectParams& Arguments)
 {
-	TRACE_CPUPROFILER_EVENT_SCOPE("UInterchangeAnimationTrackSetFactory::ImportObjectSourceData");
+	TRACE_CPUPROFILER_EVENT_SCOPE(UInterchangeAnimationTrackSetFactory::ImportObjectSourceData);
 
 #if !WITH_EDITOR || !WITH_EDITORONLY_DATA
 	// TODO: Can we import ULevelSequence at runtime
@@ -828,7 +828,7 @@ UObject* UInterchangeAnimationTrackSetFactory::ImportObjectSourceData(const FImp
 /* This function is call in the completion task on the main thread, use it to call main thread post creation step for your assets*/
 void UInterchangeAnimationTrackSetFactory::SetupObject_GameThread(const FSetupObjectParams& Arguments)
 {
-	TRACE_CPUPROFILER_EVENT_SCOPE("UInterchangeAnimationTrackSetFactory::SetupObject_GameThread");
+	TRACE_CPUPROFILER_EVENT_SCOPE(UInterchangeAnimationTrackSetFactory::SetupObject_GameThread);
 
 	check(IsInGameThread());
 	Super::SetupObject_GameThread(Arguments);
