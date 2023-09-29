@@ -202,6 +202,7 @@ struct FBuoyancySubmersion
 	float Vol;
 	FVector CoM;
 	FVector Vel;
+	FVector Norm;
 };
 
 struct FBuoyancySubsystemSimCallbackInput : public Chaos::FSimCallbackInput

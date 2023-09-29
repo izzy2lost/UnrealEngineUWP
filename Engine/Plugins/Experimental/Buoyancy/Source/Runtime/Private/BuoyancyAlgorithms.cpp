@@ -722,7 +722,7 @@ namespace BuoyancyAlgorithms
 		return false;
 	}
 
-	bool ComputeBuoyantForce(const FPBDRigidParticleHandle* RigidParticle, const float DeltaSeconds, const float WaterDensity, const float WaterDrag, const FVec3& GravityAccelVec, const FVec3& SubmergedCoM, const float SubmergedVol, const FVec3& WaterVel, FVec3& OutDeltaV, FVec3& OutDeltaW)
+	bool ComputeBuoyantForce(const FPBDRigidParticleHandle* RigidParticle, const float DeltaSeconds, const float WaterDensity, const float WaterDrag, const FVec3& GravityAccelVec, const FVec3& SubmergedCoM, const float SubmergedVol, const FVec3& WaterVel, const FVec3& WaterN, FVec3& OutDeltaV, FVec3& OutDeltaW)
 	{
 		SCOPE_CYCLE_COUNTER(STAT_BuoyancyAlgorithms_ComputeBuoyantForces)
 
@@ -756,7 +756,7 @@ namespace BuoyancyAlgorithms
 		const FMatrix33 WorldInvI = Chaos::Utilities::ComputeWorldSpaceInertia(RigidGeneric->RCom(), RigidGeneric->ConditionedInvI());
 
 		// Compute world buoyant force and torque
-		const FVec3 WorldForce = -GravityDir * BuoyantForce;
+		const FVec3 WorldForce = WaterN * BuoyantForce;
 		const FVec3 WorldTorque = Chaos::FVec3::CrossProduct(CoMDiff, WorldForce);
 
 		// Use inertia to convert forces to accelerations

@@ -704,19 +704,25 @@ void FBuoyancySubsystemSimCallback::ProcessMidPhase(
 				FBuoyancySubmersion& Submersion = Submersions[RigidParticleIndex];
 				ensureMsgf(Submersion.Particle == RigidParticle, TEXT("Something went wrong - there's a particle index mismatch in the Submersions sparse array"));
 
-				// Sum the volumes
-				Submersion.Vol = Submersion.Vol + SubmergedVol;
-
 				// Get the weighted-average CoM
 				// NOTE: The unchecked division should be safe since we already
 				// know SubmergedVol > SMALL_NUMBER
-				Submersion.CoM = ((Submersion.CoM * Submersion.Vol) + (SubmergedCoM * SubmergedVol)) / Submersion.Vol;
+				const float TotalSubmergedVol = Submersion.Vol + SubmergedVol;
+				Submersion.CoM = ((Submersion.CoM * Submersion.Vol) + (SubmergedCoM * SubmergedVol)) / TotalSubmergedVol;
+
+				// Sum the volumes
+				Submersion.Vol = TotalSubmergedVol;
+
+				// Get the weighted-average slerped water surface norm
+				const float VolRatio = SubmergedVol / TotalSubmergedVol;
+				const FQuat NormRot = FQuat::FindBetweenNormals(Submersion.Norm, WaterN);
+				Submersion.Norm = NormRot.Slerp(FQuat::Identity, NormRot, VolRatio).GetUpVector();
 			}
 
 			// If this particle was not yet submerged, make a new submersion for it
 			else
 			{
-				Submersions.Insert(RigidParticleIndex, { RigidParticle, SubmergedVol, SubmergedCoM, WaterVel });
+				Submersions.Insert(RigidParticleIndex, { RigidParticle, SubmergedVol, SubmergedCoM, WaterVel, WaterN });
 			}
 
 			// If this is a surface touch record it for callback, if 
@@ -776,7 +782,7 @@ void FBuoyancySubsystemSimCallback::ApplyBuoyantForces(Chaos::FPBDRigidsEvolutio
 		// Compute delta linear and angular velocities due to buoyancy. If they're big enough to
 		// matter, apply them
 		Chaos::FVec3 DeltaV, DeltaW;
-		if (BuoyancyAlgorithms::ComputeBuoyantForce(Submersion.Particle, DeltaSeconds, BuoyancySettings->WaterDensity, BuoyancySettings->WaterDrag, GravityAccel, Submersion.CoM, Submersion.Vol, Submersion.Vel, DeltaV, DeltaW))
+		if (BuoyancyAlgorithms::ComputeBuoyantForce(Submersion.Particle, DeltaSeconds, BuoyancySettings->WaterDensity, BuoyancySettings->WaterDrag, GravityAccel, Submersion.CoM, Submersion.Vol, Submersion.Vel, Submersion.Norm, DeltaV, DeltaW))
 		{
 			// Clamp delta velocities
 			DeltaV = DeltaV.GetClampedToSize(0.f, BuoyancySettings->MaxDeltaV);
