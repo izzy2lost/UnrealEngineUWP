@@ -69,6 +69,12 @@ void FWorldPartitionHLODEditorData::UpdateLoadedActorsState()
 
 	struct FBoundsWithVolume
 	{
+		FBoundsWithVolume(const FBox& InBox, const FBox::FReal InVolume)
+			: Box(InBox)
+			, Volume(InVolume)
+		{
+		}
+
 		FBox Box;
 		FBox::FReal Volume;
 	};
