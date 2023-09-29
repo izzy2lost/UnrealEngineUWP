@@ -610,7 +610,7 @@ bool USkeleton::RenameMarkerName(FName InOldName, FName InNewName)
 
 bool USkeleton::DoesParentChainMatch(int32 StartBoneIndex, const USkinnedAsset* InSkinnedAsset) const
 {
-	TRACE_CPUPROFILER_EVENT_SCOPE("USkeleton::DoesParentChainMatch");
+	TRACE_CPUPROFILER_EVENT_SCOPE(USkeleton::DoesParentChainMatch);
 	const FReferenceSkeleton& SkeletonRefSkel = ReferenceSkeleton;
 	const FReferenceSkeleton& MeshRefSkel = InSkinnedAsset->GetRefSkeleton();
 
@@ -656,7 +656,7 @@ bool USkeleton::DoesParentChainMatch(int32 StartBoneIndex, const USkinnedAsset* 
 
 bool USkeleton::IsCompatibleMesh(const USkinnedAsset* InSkinnedAsset, bool bDoParentChainCheck) const
 {
-	TRACE_CPUPROFILER_EVENT_SCOPE("USkeleton::IsCompatibleMesh");
+	TRACE_CPUPROFILER_EVENT_SCOPE(USkeleton::IsCompatibleMesh);
 	// at least % of bone should match 
 	int32 NumOfBoneMatches = 0;
 
@@ -905,7 +905,7 @@ bool USkeleton::RecreateBoneTree(USkinnedAsset* InSkinnedAsset)
 
 bool USkeleton::MergeAllBonesToBoneTree(const USkinnedAsset* InSkinnedAsset, bool bShowProgress /*= true*/)
 {
-	TRACE_CPUPROFILER_EVENT_SCOPE("USkeleton::MergeAllBonesToBoneTree");
+	TRACE_CPUPROFILER_EVENT_SCOPE(USkeleton::MergeAllBonesToBoneTree);
 	if( InSkinnedAsset )
 	{
 		TArray<int32> RequiredBoneIndices;
@@ -930,7 +930,7 @@ bool USkeleton::MergeAllBonesToBoneTree(const USkinnedAsset* InSkinnedAsset, boo
 
 bool USkeleton::CreateReferenceSkeletonFromMesh(const USkinnedAsset* InSkinnedAsset, const TArray<int32> & RequiredRefBones)
 {
-	TRACE_CPUPROFILER_EVENT_SCOPE("USkeleton::CreateReferenceSkeletonFromMesh");
+	TRACE_CPUPROFILER_EVENT_SCOPE(USkeleton::CreateReferenceSkeletonFromMesh);
 	// Filter list, we only want bones that have their parents present in this array.
 	TArray<int32> FilteredRequiredBones; 
 	FAnimationRuntime::ExcludeBonesWithNoParents(RequiredRefBones, InSkinnedAsset->GetRefSkeleton(), FilteredRequiredBones);
@@ -989,7 +989,7 @@ bool USkeleton::MergeBonesToBoneTree(const USkinnedAsset* InSkinnedAsset, const 
 		// can we play? - hierarchy matches
 		if( IsCompatibleMesh(InSkinnedAsset) )
 		{
-			TRACE_CPUPROFILER_EVENT_SCOPE("USkeleton::MergeBonesToBoneTree::CompatibleBranch");
+			TRACE_CPUPROFILER_EVENT_SCOPE(USkeleton::MergeBonesToBoneTree::CompatibleBranch);
 			// Exclude bones who do not have a parent.
 			TArray<int32> FilteredRequiredBones;
 			FAnimationRuntime::ExcludeBonesWithNoParents(RequiredRefBones, InSkinnedAsset->GetRefSkeleton(), FilteredRequiredBones);
@@ -1413,7 +1413,7 @@ void USkeleton::RemoveBonesFromSkeleton( const TArray<FName>& BonesToRemove, boo
 
 void USkeleton::HandleSkeletonHierarchyChange(bool bShowProgress /*= true*/)
 {
-	TRACE_CPUPROFILER_EVENT_SCOPE("USkeleton::HandleSkeletonHierarchyChange");
+	TRACE_CPUPROFILER_EVENT_SCOPE(USkeleton::HandleSkeletonHierarchyChange);
 	MarkPackageDirty();
 
 	RegenerateGuid();

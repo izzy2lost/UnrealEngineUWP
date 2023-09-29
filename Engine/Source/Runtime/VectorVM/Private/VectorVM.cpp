@@ -2648,7 +2648,7 @@ struct FVectorKernelIntAsFloat : TUnaryKernel<FVectorKernelIntAsFloat, FRegister
 
 void VectorVM::Exec(FVectorVMExecArgs& Args, FVectorVMSerializeState *SerializeState)
 {
-	//TRACE_CPUPROFILER_EVENT_SCOPE("VMExec");
+	//TRACE_CPUPROFILER_EVENT_SCOPE(VMExec);
 	SCOPE_CYCLE_COUNTER(STAT_VVMExec);
 
 #if UE_BUILD_TEST

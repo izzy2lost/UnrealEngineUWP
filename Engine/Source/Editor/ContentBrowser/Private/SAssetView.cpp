@@ -1947,7 +1947,7 @@ FContentBrowserDataFilter SAssetView::CreateBackendDataFilter(bool bInvalidateCa
 
 void SAssetView::RefreshSourceItems()
 {
-	TRACE_CPUPROFILER_EVENT_SCOPE("SAssetView::RefreshSourceItems");
+	TRACE_CPUPROFILER_EVENT_SCOPE(SAssetView::RefreshSourceItems);
 	const double RefreshSourceItemsStartTime = FPlatformTime::Seconds();
 	
 	OnInterruptFiltering();

@@ -688,7 +688,7 @@ void ULevelStreamingProfilingSubsystem::OnLevelFinishedAddToWorld(UWorld* World,
 		return;
 	}
 
-	TRACE_CPUPROFILER_EVENT_SCOPE("FortStreamingProfiling.OnLevelFinishedAddToWorld");
+	TRACE_CPUPROFILER_EVENT_SCOPE(FortStreamingProfiling.OnLevelFinishedAddToWorld);
 
 	TUniquePtr<FActiveLevel>& Level = ActiveLevels.FindOrAdd(StreamingLevel);
 	if (!Level.IsValid())
