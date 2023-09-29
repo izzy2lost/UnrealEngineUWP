@@ -32,8 +32,10 @@ public:
 	void Initialize();
 	void Deinitialize();
 
-	/** Triggered just before underlying Mass processing gets ticked */
+	/** Triggered at the start of the underlying Mass' tick cycle. */
 	void OnPreMassTick(float DeltaTime);
+	/** Triggered just before underlying Mass processing completes it's tick cycle. */
+	void OnPostMassTick(float DeltaTime);
 
 	TSharedPtr<FMassEntityManager> GetActiveMutableEditorEntityManager();
 	TSharedPtr<const FMassEntityManager> GetActiveEditorEntityManager() const;
@@ -147,6 +149,8 @@ private:
 	FTypedElementExtendedQueryStore Queries;
 	
 	FTypedElementOnDataStorageUpdate OnUpdateDelegate;
+	FDelegateHandle OnPreMassTickHandle;
+	FDelegateHandle OnPostMassTickHandle;
 
 	TSharedPtr<FMassEntityManager> ActiveEditorEntityManager;
 	TSharedPtr<FMassProcessingPhaseManager> ActiveEditorPhaseManager;

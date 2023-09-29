@@ -69,7 +69,8 @@ void UTypedElementDatabase::Initialize()
 	check(GEditor);
 	UMassEntityEditorSubsystem* Mass = GEditor->GetEditorSubsystem<UMassEntityEditorSubsystem>();
 	check(Mass);
-	Mass->GetOnPreTickDelegate().AddUObject(this, &UTypedElementDatabase::OnPreMassTick);
+	OnPreMassTickHandle = Mass->GetOnPreTickDelegate().AddUObject(this, &UTypedElementDatabase::OnPreMassTick);
+	OnPostMassTickHandle = Mass->GetOnPostTickDelegate().AddUObject(this, &UTypedElementDatabase::OnPostMassTick);
 
 	ActiveEditorEntityManager = Mass->GetMutableEntityManager();
 	ActiveEditorPhaseManager = Mass->GetMutablePhaseManager();
@@ -113,10 +114,19 @@ void UTypedElementDatabase::Deinitialize()
 void UTypedElementDatabase::OnPreMassTick(float DeltaTime)
 {
 	checkf(IsAvailable(), TEXT("Typed Element Database was ticked while it's not ready."));
+	
 	OnUpdateDelegate.Broadcast();
 	// Process pending commands after other systems have had a chance to update. Other systems may have executed work needed
 	// to complete pending work.
 	ProcessPendingCommands();
+
+	Environment->GetScratchBuffer().NextFrame();
+}
+
+void UTypedElementDatabase::OnPostMassTick(float DeltaTime)
+{
+	checkf(IsAvailable(), TEXT("Typed Element Database was ticked while it's not ready."));
+	
 	// Recycle any full scratch memory blocks from the previous frame.
 	Environment->GetScratchBuffer().RecycleBlocks();
 }
@@ -867,6 +877,14 @@ void UTypedElementDatabase::FinalizePhase(EQueryTickPhase Phase, float DeltaTime
 
 void UTypedElementDatabase::Reset()
 {
+	if (UMassEntityEditorSubsystem* Mass = GEditor->GetEditorSubsystem<UMassEntityEditorSubsystem>())
+	{
+		Mass->GetOnPostTickDelegate().Remove(OnPostMassTickHandle);
+		Mass->GetOnPreTickDelegate().Remove(OnPreMassTickHandle);
+	}
+	OnPostMassTickHandle.Reset();
+	OnPreMassTickHandle.Reset();
+
 	if (ActiveEditorPhaseManager)
 	{
 		Queries.Clear(*ActiveEditorPhaseManager.Get());

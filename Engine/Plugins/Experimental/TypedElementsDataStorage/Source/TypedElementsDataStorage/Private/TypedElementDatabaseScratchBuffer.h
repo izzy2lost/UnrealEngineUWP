@@ -27,9 +27,12 @@ public:
 	template<typename T, typename... ArgTypes>
 	T* EmplaceArray(int32 Count, const ArgTypes&... Args);
 
+	// Increments the frame id by one. The frame id is used to track which blocks were used in the current frame and
+	// can't therefore be safely removed. Call this at the start of a frame.
+	void NextFrame();
 	// Makes previously filled up blocks available again. This can only safely be called when Allocate(...) can not
 	// be called. As allocations should only be called when Mass is running processors, it means this function
-	// can be safely called when the processors are not running, i.e. at the end of a tick.
+	// can be safely called when the processors are not running.
 	void RecycleBlocks();
 
 	constexpr static int32 MaxAllocationSize();
@@ -54,6 +57,8 @@ private:
 		constexpr static size_t BlockSize = 64 * 1024; // 64kb blocks
 		
 		char Buffer[BlockSize]; // Keep at top for alignment.
+		// Indicates the last frame this block was used in
+		uint64 LastTouchedByFrame = 0;
 		FDestructorTail* DestructionTail = nullptr;
 		std::atomic<FBlock*> NextBlock = nullptr;
 		std::atomic<uint32> Owner = 0;
@@ -67,7 +72,7 @@ private:
 		explicit FBlockController(FTypedElementDatabaseScratchBuffer& InOwner);
 		~FBlockController();
 
-		void* Allocate(size_t Size, size_t Alignment);
+		void* Allocate(size_t Size, size_t Alignment, uint64 FrameId);
 		FBlock* GetEmptyBlock();
 		void RecycleBlock();
 		void ConfigureDestructorTail(FDestructorTail& Destructor, DestructorFunction Callback, void* Object, int32 Count = 1);
@@ -89,6 +94,9 @@ private:
 	// Running counter so each FBlockController gets a unique id to identify the blocks assigned to them. Zero is reserved 
 	// to indicate it's not in use by a block controller.
 	std::atomic<uint32> BlockControllerId = 1;
+
+	// The number that identifies the current frame. Used to keep track of the blocks that were used in this frame or earlier.
+	uint64 FrameId = 0;
 };
 
 

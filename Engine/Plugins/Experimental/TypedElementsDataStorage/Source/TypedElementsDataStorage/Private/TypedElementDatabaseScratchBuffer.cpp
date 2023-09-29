@@ -31,7 +31,12 @@ void* FTypedElementDatabaseScratchBuffer::Allocate(size_t Size, size_t Alignment
 {
 	// ReaderAccessDetector to assert that this scope has shared access to any thread also making an Allocate call
 	UE_MT_SCOPED_READ_ACCESS(AccessDetector);
-	return GetThreadLocalBlockController().Allocate(Size, Alignment);
+	return GetThreadLocalBlockController().Allocate(Size, Alignment, FrameId);
+}
+
+void FTypedElementDatabaseScratchBuffer::NextFrame()
+{
+	FrameId++;
 }
 
 void FTypedElementDatabaseScratchBuffer::RecycleBlocks()
@@ -47,26 +52,44 @@ void FTypedElementDatabaseScratchBuffer::RecycleBlocks()
 		// relatively simple to destroy. The dirty blocks are added in front of the available blocks instead of the end to avoid having
 		// to iterate over the entire list of available blocks.
 
+		FBlock* RemainingBlocks = nullptr;
 		FBlock* DirtyBlock = FullBlocks;
-		FBlock* LastDirtyBlock = FullBlocks;
 		do
 		{
-			FDestructorTail* Destructor = DirtyBlock->DestructionTail;
-			while (Destructor)
+			// If the block hasn't been touched for at least one frame it can be deleted.
+			if (DirtyBlock->LastTouchedByFrame < FrameId)
 			{
-				Destructor->Destructor(reinterpret_cast<char*>(Destructor) - Destructor->StructOffset, Destructor->InstanceCount);
-				Destructor = Destructor->PreviousTail;
-			}
-			DirtyBlock->DestructionTail = nullptr;
+				// Call destructors on any memory that needs it.
+				FDestructorTail* Destructor = DirtyBlock->DestructionTail;
+				while (Destructor)
+				{
+					Destructor->Destructor(reinterpret_cast<char*>(Destructor) - Destructor->StructOffset, Destructor->InstanceCount);
+					Destructor = Destructor->PreviousTail;
+				}
+				DirtyBlock->DestructionTail = nullptr;
 
-			LastDirtyBlock = DirtyBlock;
-			DirtyBlock = DirtyBlock->NextBlock;
+				// The block is now clean so set the next block to process.
+				FBlock* CleanBlock = DirtyBlock;
+				DirtyBlock = DirtyBlock->NextBlock;
+
+				// Reinsert the clean block into the chain of available blocks.
+				CleanBlock->NextBlock.store(AvailableBlocks);
+				AvailableBlocks = CleanBlock;
+			}
+			else
+			{
+				// The block can't be processed yet so move onto the next block.
+				FBlock* DelayedBlock = DirtyBlock;
+				DirtyBlock = DirtyBlock->NextBlock;
+
+				// Store the delayed blocks for future processing.
+				DelayedBlock->NextBlock = RemainingBlocks;
+				RemainingBlocks = DelayedBlock;
+			}
 		} while (DirtyBlock);
 		
-		// Attach the full blocks in front of the available blocks.
-		LastDirtyBlock->NextBlock.store(AvailableBlocks);
-		AvailableBlocks.store(FullBlocks);
-		FullBlocks = nullptr;
+		// Set the full blocks to the first block that couldn't be removed or null if all filled up blocks have been recycled.
+		FullBlocks = RemainingBlocks;
 	}
 }
 
@@ -99,7 +122,7 @@ FTypedElementDatabaseScratchBuffer::FBlockController::~FBlockController()
 	RecycleBlock();
 }
 
-void* FTypedElementDatabaseScratchBuffer::FBlockController::Allocate(size_t Size, size_t Alignment)
+void* FTypedElementDatabaseScratchBuffer::FBlockController::Allocate(size_t Size, size_t Alignment, uint64 FrameId)
 {
 	checkf(Alignment <= alignof(FBlock), TEXT("Alignment of %i for allocation in database scratch buffer exceeds maximal alignment of %i."),
 		static_cast<int>(Alignment), static_cast<int>(alignof(FBlock)));
@@ -118,6 +141,7 @@ void* FTypedElementDatabaseScratchBuffer::FBlockController::Allocate(size_t Size
 			NewFront = Size;
 		}
 
+		Block->LastTouchedByFrame = FrameId;
 		Block->Front = NewFront;
 		return Block->Buffer + Index;
 	}
@@ -133,7 +157,7 @@ void* FTypedElementDatabaseScratchBuffer::FBlockController::Allocate(size_t Size
 		void* ExtendedBuffer = FMemory::Malloc(Size, Alignment);
 		
 		// Add an entry to the block with the sole purpose of deleting the extended buffer.
-		void* BufferStoreAddress = Allocate(sizeof(FExtendedBufferStore), alignof(FExtendedBufferStore));
+		void* BufferStoreAddress = Allocate(sizeof(FExtendedBufferStore), alignof(FExtendedBufferStore), FrameId);
 		FExtendedBufferStore* BufferStore = reinterpret_cast<FExtendedBufferStore*>(BufferStoreAddress);
 		BufferStore->ExtendedBuffer = ExtendedBuffer;
 

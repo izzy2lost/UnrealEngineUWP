@@ -141,6 +141,8 @@ void UMassEntityEditorSubsystem::Tick(float DeltaTime)
 		CompletionEvent->Wait();
 	}
 
+	OnPostTickDelegate.Broadcast(DeltaTime);
+
 	IsProcessing = false;
 }
 
