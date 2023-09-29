@@ -636,7 +636,7 @@ public:
 	ENGINE_API const FExpression* NewSwizzle(const FSwizzleParameters& Params, const FExpression* Input);
 	ENGINE_API const FExpression* NewUnaryOp(EOperation Op, const FExpression* Input);
 	ENGINE_API const FExpression* NewBinaryOp(EOperation Op, const FExpression* Lhs, const FExpression* Rhs);
-	const FExpression* NewTernaryOp(EOperation Op, const FExpression* Input0, const FExpression* Input1, const FExpression* Input2);
+	ENGINE_API const FExpression* NewTernaryOp(EOperation Op, const FExpression* Input0, const FExpression* Input1, const FExpression* Input2);
 
 	const FExpression* NewAbs(const FExpression* Input) { return NewUnaryOp(EOperation::Abs, Input); }
 	const FExpression* NewNeg(const FExpression* Input) { return NewUnaryOp(EOperation::Neg, Input); }

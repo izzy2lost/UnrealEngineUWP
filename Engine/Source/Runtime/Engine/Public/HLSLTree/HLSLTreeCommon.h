@@ -162,7 +162,7 @@ public:
 	virtual bool EmitValueObject(FEmitContext& Context, FEmitScope& Scope, const FName& ObjectTypeName, void* OutObjectBase) const override;
 };
 
-class FExpressionDerivative : public FExpression
+class ENGINE_API FExpressionDerivative : public FExpression
 {
 public:
 	FExpressionDerivative(EDerivativeCoordinate InCoord, const FExpression* InInput) : Input(InInput), Coord(InCoord) {}
