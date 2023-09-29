@@ -482,6 +482,7 @@ void FControlRigParameterTrackEditor::UnbindControlRig(UControlRig* ControlRig)
 		{
 			Binding->OnControlRigBind().RemoveAll(this);
 		}
+		ControlRig->ControlUndoBracket().RemoveAll(this);
 		ControlRig->ControlRigBound().RemoveAll(this);
 		
 		BoundControlRigs.Remove(ControlRig);
