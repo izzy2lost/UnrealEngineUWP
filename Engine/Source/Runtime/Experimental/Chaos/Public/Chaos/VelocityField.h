@@ -152,6 +152,41 @@ private:
 			(Cl - Cd) * VDotN * V - Cl * VSquare * N) - DoubleArea * (FSolverReal)0.5 * Cp * N; // N points in the opposite direction of the actual mesh normals
 	}
 
+	void UpdateField(const FSolverParticles& InParticles, int32 ElementIndex, const FSolverVec3& InVelocity, const FSolverReal Cd, const FSolverReal Cl, const FSolverReal Cp, const FSolverReal MaxVelocitySquared)
+	{
+		checkSlow(MaxVelocitySquared > (FSolverReal)0);
+
+		const TVec3<int32>& Element = Elements[ElementIndex];
+
+		// Calculate the normal and the area of the surface exposed to the flow
+		FSolverVec3 N = FSolverVec3::CrossProduct(
+			InParticles.X(Element[1]) - InParticles.X(Element[0]),
+			InParticles.X(Element[2]) - InParticles.X(Element[0]));
+		const FSolverReal DoubleArea = N.SafeNormalize();
+
+		// Calculate the direction and the relative velocity of the triangle to the flow
+		const FSolverVec3& SurfaceVelocity = (FSolverReal)(1. / 3.) * (
+			InParticles.V(Element[0]) +
+			InParticles.V(Element[1]) +
+			InParticles.V(Element[2]));
+		FSolverVec3 V = InVelocity - SurfaceVelocity;
+
+		// Clamp the velocity
+		const FSolverReal RelVelocitySquared = V.SquaredLength();
+		if (RelVelocitySquared > MaxVelocitySquared)
+		{
+			V *= FMath::Sqrt(MaxVelocitySquared / RelVelocitySquared);
+		}
+
+		// Set the aerodynamic forces
+		const FSolverReal VDotN = FSolverVec3::DotProduct(V, N);
+		const FSolverReal VSquare = FSolverVec3::DotProduct(V, V);
+
+		Forces[ElementIndex] = QuarterRho * DoubleArea * (VDotN >= (FSolverReal)0. ?  // The flow can hit either side of the triangle, so the normal might need to be reversed
+			(Cd - Cl) * VDotN * V + Cl * VSquare * N :
+			(Cl - Cd) * VDotN * V - Cl * VSquare * N) - DoubleArea * (FSolverReal)0.5 * Cp * N; // N points in the opposite direction of the actual mesh normals
+	}
+
 private:
 	TConstArrayView<TArray<int32>> PointToTriangleMap;
 	TConstArrayView<TVec3<int32>> Elements;

@@ -53,6 +53,7 @@ static bool bClothSolverParallelClothUpdate = true;
 static bool bClothSolverParallelClothPostUpdate = true;
 static bool bClothSolverDisableTimeDependentNumIterations = false;
 static bool bClothSolverUseVelocityScale = true;
+static float ClothSolverMaxVelocity = 0.f;
 
 #if !UE_BUILD_SHIPPING
 static int32 ClothSolverDebugHitchLength = 0;
@@ -70,6 +71,7 @@ FAutoConsoleVariableRef CVarClothSolverDisableCollision(TEXT("p.ChaosCloth.Solve
 
 FAutoConsoleVariableRef CVarClothSolverDisableTimeDependentNumIterations(TEXT("p.ChaosCloth.Solver.DisableTimeDependentNumIterations"), bClothSolverDisableTimeDependentNumIterations, TEXT("Make the number of iterations independent from the time step."));
 FAutoConsoleVariableRef CVarClothSolverUseVelocityScale(TEXT("p.ChaosCloth.Solver.UseVelocityScale"), bClothSolverUseVelocityScale, TEXT("Use the velocity scale to compensate for clamping to MaxPhysicsDelta, in order to avoid miscalculating velocities during hitches."));
+FAutoConsoleVariableRef CVarClothSolverMaxVelocity(TEXT("p.ChaosCloth.Solver.MaxVelocity"), ClothSolverMaxVelocity, TEXT("Maximum relative velocity of the cloth particles relatively to their animated positions equivalent. 0 to disable."));
 
 namespace ClothingSimulationSolverDefault
 {
@@ -944,8 +946,10 @@ void FClothingSimulationSolver::ApplyPreSimulationTransforms()
 	const TPBDActiveView<Softs::FSolverParticles>& ParticlesActiveView = Evolution->ParticlesActiveView();
 	const TArray<uint32>& ParticleGroupIds = Evolution->ParticleGroupIds();
 
+	const FSolverReal MaxVelocitySquared = (ClothSolverMaxVelocity > 0.f) ? FMath::Square((FSolverReal)ClothSolverMaxVelocity) : TNumericLimits<FSolverReal>::Max();
+
 	ParticlesActiveView.RangeFor(
-		[this, &ParticleGroupIds, &DeltaLocalSpaceLocation](Softs::FSolverParticles& Particles, int32 Offset, int32 Range)
+		[this, &ParticleGroupIds, &DeltaLocalSpaceLocation, MaxVelocitySquared](Softs::FSolverParticles& Particles, int32 Offset, int32 Range)
 		{
 			TRACE_CPUPROFILER_EVENT_SCOPE(FClothingSimulationSolver_ParticlePreSimulationTransforms);
 			SCOPE_CYCLE_COUNTER(STAT_ChaosClothParticlePreSimulationTransforms);
@@ -955,26 +959,47 @@ void FClothingSimulationSolver::ApplyPreSimulationTransforms()
 #if INTEL_ISPC
 			if (bRealTypeCompatibleWithISPC && bChaos_PreSimulationTransforms_ISPC_Enabled)  // TODO: Make the ISPC works with both Single and Double depending on the FSolverReal type
 			{
-				ispc::ApplyPreSimulationTransforms(
-					(ispc::FVector4f*)Particles.GetPAndInvM().GetData(),
-					(ispc::FVector3f*)Particles.GetV().GetData(),
-					(ispc::FVector3f*)Particles.XArray().GetData(),
-					(ispc::FVector3f*)OldAnimationPositions.GetData(),
-					(ispc::FVector3f*)AnimationVelocities.GetData(),
-					Particles.GetInvM().GetData(),
-					(const ispc::FVector3f*)AnimationPositions.GetData(),
-					ParticleGroupIds.GetData(),
-					(ispc::FTransform3f*)PreSimulationTransforms.GetData(),
-					(ispc::FVector3f&)DeltaLocalSpaceLocation,
-					DeltaTime,
-					Offset,
-					Range);
+				if (MaxVelocitySquared == TNumericLimits<FSolverReal>::Max())
+				{
+					ispc::ApplyPreSimulationTransforms(
+						(ispc::FVector4f*)Particles.GetPAndInvM().GetData(),
+						(ispc::FVector3f*)Particles.GetV().GetData(),
+						(ispc::FVector3f*)Particles.XArray().GetData(),
+						(ispc::FVector3f*)OldAnimationPositions.GetData(),
+						(ispc::FVector3f*)AnimationVelocities.GetData(),
+						Particles.GetInvM().GetData(),
+						(const ispc::FVector3f*)AnimationPositions.GetData(),
+						ParticleGroupIds.GetData(),
+						(ispc::FTransform3f*)PreSimulationTransforms.GetData(),
+						(ispc::FVector3f&)DeltaLocalSpaceLocation,
+						DeltaTime,
+						Offset,
+						Range);
+				}
+				else
+				{
+					ispc::ApplyPreSimulationTransformsAndClampVelocity(
+						(ispc::FVector4f*)Particles.GetPAndInvM().GetData(),
+						(ispc::FVector3f*)Particles.GetV().GetData(),
+						(ispc::FVector3f*)Particles.XArray().GetData(),
+						(ispc::FVector3f*)OldAnimationPositions.GetData(),
+						(ispc::FVector3f*)AnimationVelocities.GetData(),
+						Particles.GetInvM().GetData(),
+						(const ispc::FVector3f*)AnimationPositions.GetData(),
+						ParticleGroupIds.GetData(),
+						(ispc::FTransform3f*)PreSimulationTransforms.GetData(),
+						(ispc::FVector3f&)DeltaLocalSpaceLocation,
+						DeltaTime,
+						Offset,
+						Range,
+						MaxVelocitySquared);
+				}
 			}
 			else
 #endif
 			{
 				PhysicsParallelFor(RangeSize,
-					[this, &ParticleGroupIds, &DeltaLocalSpaceLocation, &Particles, Offset](int32 i)
+					[this, &ParticleGroupIds, &DeltaLocalSpaceLocation, &Particles, Offset, MaxVelocitySquared](int32 i)
 					{
 						const int32 Index = Offset + i;
 						const Softs::FSolverRigidTransform3& GroupSpaceTransform = PreSimulationTransforms[ParticleGroupIds[Index]];
@@ -991,6 +1016,14 @@ void FClothingSimulationSolver::ApplyPreSimulationTransforms()
 
 						// Update Animation velocities
 						AnimationVelocities[Index] = (AnimationPositions[Index] - OldAnimationPositions[Index]) / DeltaTime;
+
+						// Clamp relative velocity
+						const FSolverVec3 RelVelocity = Particles.V(Index) - AnimationVelocities[Index];
+						const FSolverReal RelVelocitySquaredLength = RelVelocity.SquaredLength();
+						if (RelVelocitySquaredLength > MaxVelocitySquared)
+						{
+							Particles.V(Index) = AnimationVelocities[Index] + RelVelocity * FMath::Sqrt(MaxVelocitySquared / RelVelocitySquaredLength);
+						}
 					}, RangeSize < ClothSolverMinParallelBatchSize);
 			}
 		}, /*bForceSingleThreaded =*/ !bClothSolverParallelClothPreUpdate);

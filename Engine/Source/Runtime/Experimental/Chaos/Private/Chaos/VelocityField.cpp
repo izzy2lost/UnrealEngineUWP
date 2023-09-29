@@ -16,6 +16,12 @@ FAutoConsoleVariableRef CVarChaosVelocityFieldISPCEnabled(TEXT("p.Chaos.Velocity
 
 namespace Chaos::Softs {
 
+namespace Private
+{
+	static float VelocityFieldMaxVelocity = 0.f;
+	static FAutoConsoleVariableRef CVarChaosVelocityFieldMaxVelocity(TEXT("p.Chaos.VelocityField.MaxVelocity"), VelocityFieldMaxVelocity, TEXT("The maximum relative velocity to process the aerodynamics forces with."));
+}
+
 void FVelocityAndPressureField::SetProperties(
 	const FCollectionPropertyConstFacade& PropertyCollection,
 	const TMap<FString, TConstArrayView<FRealSingle>>& Weightmaps,
@@ -199,29 +205,59 @@ void FVelocityAndPressureField::SetMultipliers(
 
 void FVelocityAndPressureField::UpdateForces(const FSolverParticles& InParticles, const FSolverReal /*Dt*/)
 {
+	const FSolverReal MaxVelocitySquared = (Private::VelocityFieldMaxVelocity > 0.f) ? FMath::Square((FSolverReal)Private::VelocityFieldMaxVelocity) : TNumericLimits<FSolverReal>::Max();
+
 	if (!Multipliers.Num())
 	{
 #if INTEL_ISPC
 		if (bRealTypeCompatibleWithISPC && bChaos_VelocityField_ISPC_Enabled)
 		{
-			ispc::UpdateField(
-				(ispc::FVector3f*)Forces.GetData(),
-				(const ispc::FIntVector*)Elements.GetData(),
-				(const ispc::FVector3f*)InParticles.GetV().GetData(),
-				(const ispc::FVector3f*)InParticles.XArray().GetData(),
-				(const ispc::FVector3f&)Velocity,
-				QuarterRho,
-				DragBase,
-				LiftBase,
-				PressureBase,
-				Elements.Num());
+			if (MaxVelocitySquared == TNumericLimits<FSolverReal>::Max())
+			{
+				ispc::UpdateField(
+					(ispc::FVector3f*)Forces.GetData(),
+					(const ispc::FIntVector*)Elements.GetData(),
+					(const ispc::FVector3f*)InParticles.GetV().GetData(),
+					(const ispc::FVector3f*)InParticles.XArray().GetData(),
+					(const ispc::FVector3f&)Velocity,
+					QuarterRho,
+					DragBase,
+					LiftBase,
+					PressureBase,
+					Elements.Num());
+			}
+			else
+			{
+				ispc::UpdateFieldAndClampVelocity(
+					(ispc::FVector3f*)Forces.GetData(),
+					(const ispc::FIntVector*)Elements.GetData(),
+					(const ispc::FVector3f*)InParticles.GetV().GetData(),
+					(const ispc::FVector3f*)InParticles.XArray().GetData(),
+					(const ispc::FVector3f&)Velocity,
+					QuarterRho,
+					DragBase,
+					LiftBase,
+					PressureBase,
+					Elements.Num(),
+					MaxVelocitySquared);
+			}
 		}
 		else
 #endif
 		{
-			for (int32 ElementIndex = 0; ElementIndex < Elements.Num(); ++ElementIndex)
+			if (MaxVelocitySquared == TNumericLimits<FSolverReal>::Max())
 			{
-				UpdateField(InParticles, ElementIndex, Velocity, DragBase, LiftBase, PressureBase);
+				for (int32 ElementIndex = 0; ElementIndex < Elements.Num(); ++ElementIndex)
+				{
+					UpdateField(InParticles, ElementIndex, Velocity, DragBase, LiftBase, PressureBase);
+				}
+			}
+			else
+			{
+				for (int32 ElementIndex = 0; ElementIndex < Elements.Num(); ++ElementIndex)
+				{
+					UpdateField(InParticles, ElementIndex, Velocity, DragBase, LiftBase, PressureBase, MaxVelocitySquared);
+				}
 			}
 		}
 	}
@@ -230,33 +266,70 @@ void FVelocityAndPressureField::UpdateForces(const FSolverParticles& InParticles
 #if INTEL_ISPC
 		if (bRealTypeCompatibleWithISPC && bChaos_VelocityField_ISPC_Enabled)
 		{
-			ispc::UpdateFieldWithWeightMaps(
-				(ispc::FVector3f*)Forces.GetData(),
-				(const ispc::FIntVector*)Elements.GetData(),
-				(const ispc::FVector3f*)InParticles.GetV().GetData(),
-				(const ispc::FVector3f*)InParticles.XArray().GetData(),
-				(const ispc::FVector3f*)Multipliers.GetData(),
-				(const ispc::FVector3f&)Velocity,
-				QuarterRho,
-				DragBase,
-				DragRange,
-				LiftBase,
-				LiftRange,
-				PressureBase,
-				PressureRange,
-				Elements.Num());
+			if (MaxVelocitySquared == TNumericLimits<FSolverReal>::Max())
+			{
+				ispc::UpdateFieldWithWeightMaps(
+					(ispc::FVector3f*)Forces.GetData(),
+					(const ispc::FIntVector*)Elements.GetData(),
+					(const ispc::FVector3f*)InParticles.GetV().GetData(),
+					(const ispc::FVector3f*)InParticles.XArray().GetData(),
+					(const ispc::FVector3f*)Multipliers.GetData(),
+					(const ispc::FVector3f&)Velocity,
+					QuarterRho,
+					DragBase,
+					DragRange,
+					LiftBase,
+					LiftRange,
+					PressureBase,
+					PressureRange,
+					Elements.Num());
+			}
+			else
+			{
+				ispc::UpdateFieldWithWeightMapsAndClampVelocity(
+					(ispc::FVector3f*)Forces.GetData(),
+					(const ispc::FIntVector*)Elements.GetData(),
+					(const ispc::FVector3f*)InParticles.GetV().GetData(),
+					(const ispc::FVector3f*)InParticles.XArray().GetData(),
+					(const ispc::FVector3f*)Multipliers.GetData(),
+					(const ispc::FVector3f&)Velocity,
+					QuarterRho,
+					DragBase,
+					DragRange,
+					LiftBase,
+					LiftRange,
+					PressureBase,
+					PressureRange,
+					Elements.Num(),
+					MaxVelocitySquared);
+			}
 		}
 		else
 #endif
 		{
-			for (int32 ElementIndex = 0; ElementIndex < Elements.Num(); ++ElementIndex)
+			if (MaxVelocitySquared == TNumericLimits<FSolverReal>::Max())
 			{
-				const FSolverVec3& Multiplier = Multipliers[ElementIndex];
-				const FSolverReal Cd = DragBase + DragRange * Multiplier[0];
-				const FSolverReal Cl = LiftBase + LiftRange * Multiplier[1];
-				const FSolverReal Cp = PressureBase + PressureRange * Multiplier[2];
+				for (int32 ElementIndex = 0; ElementIndex < Elements.Num(); ++ElementIndex)
+				{
+					const FSolverVec3& Multiplier = Multipliers[ElementIndex];
+					const FSolverReal Cd = DragBase + DragRange * Multiplier[0];
+					const FSolverReal Cl = LiftBase + LiftRange * Multiplier[1];
+					const FSolverReal Cp = PressureBase + PressureRange * Multiplier[2];
 
-				UpdateField(InParticles, ElementIndex, Velocity, Cd, Cl, Cp);
+					UpdateField(InParticles, ElementIndex, Velocity, Cd, Cl, Cp);
+				}
+			}
+			else
+			{
+				for (int32 ElementIndex = 0; ElementIndex < Elements.Num(); ++ElementIndex)
+				{
+					const FSolverVec3& Multiplier = Multipliers[ElementIndex];
+					const FSolverReal Cd = DragBase + DragRange * Multiplier[0];
+					const FSolverReal Cl = LiftBase + LiftRange * Multiplier[1];
+					const FSolverReal Cp = PressureBase + PressureRange * Multiplier[2];
+
+					UpdateField(InParticles, ElementIndex, Velocity, Cd, Cl, Cp, MaxVelocitySquared);
+				}
 			}
 		}
 	}
