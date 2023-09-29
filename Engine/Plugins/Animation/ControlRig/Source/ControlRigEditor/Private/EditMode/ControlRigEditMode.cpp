@@ -4651,6 +4651,10 @@ void FControlRigEditMode::DestroyShapesActors(UControlRig* ControlRig)
 				UWorld* World = ShapeActor->GetWorld();
 				if (World)
 				{
+					if (ShapeActor->GetAttachParentActor())
+					{
+						ShapeActor->DetachFromActor(FDetachmentTransformRules::KeepRelativeTransform);
+					}
 					World->EditorDestroyActor(ShapeActor, true);
 				}
 			}
@@ -4673,6 +4677,10 @@ void FControlRigEditMode::DestroyShapesActors(UControlRig* ControlRig)
 				UWorld* World = ShapeActor->GetWorld();
 				if (World)
 				{
+					if (ShapeActor->GetAttachParentActor())
+					{
+						ShapeActor->DetachFromActor(FDetachmentTransformRules::KeepRelativeTransform);
+					}
 					World->EditorDestroyActor(ShapeActor,true);
 				}
 			}
