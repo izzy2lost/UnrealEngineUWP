@@ -262,11 +262,9 @@ float FMeshSimplifier::EvaluateMerge( const FVector3f& Position0, const FVector3
 	GatherAdjTris( Position1, 1, FlagsUnion1 );
 
 	if( VertDegree == 0 )
+	{
 		return 0.0f;
-
-	// This would mean this collapse will remove all remaining triangles.
-	if( VertDegree == RemainingNumTris * 2 )
-		return 0.0f;
+	}
 
 	bool bLocked0 = FlagsUnion0 & LockedVertMask;
 	bool bLocked1 = FlagsUnion1 & LockedVertMask;
