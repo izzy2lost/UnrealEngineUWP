@@ -861,7 +861,6 @@ bool LoadShadingPipeline(
 	check(MaterialProxy);
 
 	ELightMapPolicyType LightMapPolicyType = ELightMapPolicyType::LMP_NO_LIGHTMAP;
-	FUniformLightMapPolicy LightMapPolicy = FUniformLightMapPolicy(LightMapPolicyType);
 
 	FLightCacheInterface* LightCacheInterface = nullptr;
 	if (bAllowStaticLighting && SceneProxy->HasStaticLighting())
@@ -890,13 +889,12 @@ bool LoadShadingPipeline(
 		if (LightCacheInterface)
 		{
 			LightMapPolicyType = FBasePassMeshProcessor::GetUniformLightMapPolicyType(FeatureLevel, &Scene, LightCacheInterface, SceneProxy, ShadingMaterial);
-			LightMapPolicy = FUniformLightMapPolicy(LightMapPolicyType);
 		}
 
 		bool bShadersValid = GetBasePassShader<FUniformLightMapPolicy>(
 			ShadingMaterial,
 			NaniteVertexFactoryType,
-			LightMapPolicy,
+			FUniformLightMapPolicy(LightMapPolicyType),
 			FeatureLevel,
 			bRenderSkylight,
 			&BasePassComputeShader
