@@ -48,7 +48,7 @@ public:
 		return FString(TEXT("OpenXRViveTracker"));
 	}
 	virtual bool GetRequiredExtensions(TArray<const ANSICHAR*>& OutExtensions) override;
-	virtual const void* OnGetSystem(XrInstance InInstance, const void* InNext) override;
+	virtual void PostCreateInstance(XrInstance InInstance) override;
 	virtual const void* OnCreateSession(XrInstance InInstance, XrSystemId InSystem, const void* InNext) override;
 	virtual void OnDestroySession(XrSession InSession) override;
 	virtual void AttachActionSets(TSet<XrActionSet>& OutActionSets) override;
@@ -97,6 +97,7 @@ private:
 
 	XrActionSet TrackerActionSet;
 	TMap<EControllerHand, FViveTracker> Trackers;
+	TArray<FViveTracker> UnassignedTrackers;
 
 	TMap<FName, EControllerHand> MotionSourceToEControllerHandMap;
 };
