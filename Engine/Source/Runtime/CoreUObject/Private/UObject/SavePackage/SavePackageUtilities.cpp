@@ -1468,7 +1468,8 @@ FEDLCookChecker FEDLCookChecker::AccumulateAndClear()
 	return Accumulator;
 }
 
-void FEDLCookChecker::Verify(bool bFullReferencesExpected)
+void FEDLCookChecker::Verify(const UE::SavePackageUtilities::FEDLMessageCallback& MessageCallback,
+	bool bFullReferencesExpected)
 {
 	check(!GIsSavingPackage);
 	FEDLCookChecker Accumulator = AccumulateAndClear();
@@ -1496,9 +1497,39 @@ void FEDLCookChecker::Verify(bool bFullReferencesExpected)
 				}
 
 				// Any imports of this non-exported node are an error; log them all if they exist
+				if (NodeData.ImportingPackagesSorted.IsEmpty())
+				{
+					continue;
+				}
+
+				const FEDLNodeData* NodeDataOfExportPackage = &NodeData;
+				while (NodeDataOfExportPackage->ParentID != NodeIDInvalid)
+				{
+					int32 ParentNodeIndex = static_cast<int32>(NodeDataOfExportPackage->ParentID);
+					check(Accumulator.Nodes.IsValidIndex(ParentNodeIndex));
+					NodeDataOfExportPackage = &Accumulator.Nodes[ParentNodeIndex];
+				}
+
+				const TCHAR* ReasonExportIsMissing = TEXT("");
+				if (NodeDataOfExportPackage->bIsExport)
+				{
+					ReasonExportIsMissing = TEXT("the object was stripped out of the target package when saved");
+				}
+				else
+				{
+					ReasonExportIsMissing = TEXT("the target package was not cooked");
+				}
+
 				for (FName PackageName : NodeData.ImportingPackagesSorted)
 				{
-					UE_LOG(LogSavePackage, Warning, TEXT("%s imported %s, but it was never saved as an export."), *PackageName.ToString(), *NodeData.ToString(Accumulator));
+					TStringBuilder<512> Message;
+					Message << TEXTVIEW("Content is missing from cook. Source package referenced an object in target package but ");
+					Message << ReasonExportIsMissing << TEXT(".\n");
+					Message << TEXT("\tSource package: ") << PackageName << TEXT("\n");
+					Message << TEXT("\tTarget package: ") << NodeDataOfExportPackage->Name << TEXT("\n");
+					Message << TEXT("\tReferenced object: ");
+					NodeData.AppendPathName(Accumulator, Message);
+					MessageCallback(ELogVerbosity::Warning, Message);
 				}
 			}
 		}
@@ -1702,8 +1733,20 @@ void StartSavingEDLCookInfoForVerification()
 
 void VerifyEDLCookInfo(bool bFullReferencesExpected)
 {
+	VerifyEDLCookInfo([](ELogVerbosity::Type Verbosity, FStringView Message)
+		{
+#if !NO_LOGGING
+			FMsg::Logf(__FILE__, __LINE__, LogSavePackage.GetCategoryName(), Verbosity, TEXT("%.*s"),
+				Message.Len(), Message.GetData());
+#endif
+		}, bFullReferencesExpected);
+}
+
+void VerifyEDLCookInfo(const UE::SavePackageUtilities::FEDLMessageCallback& MessageCallback,
+	bool bFullReferencesExpected)
+{
 	LLM_SCOPE_BYTAG(EDLCookChecker);
-	FEDLCookChecker::Verify(bFullReferencesExpected);
+	FEDLCookChecker::Verify(MessageCallback, bFullReferencesExpected);
 }
 
 void EDLCookInfoAddIterativelySkippedPackage(FName LongPackageName)
