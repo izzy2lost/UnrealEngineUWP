@@ -136,7 +136,6 @@ bool STrackLane::IsPinned() const
 void STrackLane::OnHierarchyUpdated()
 {
 	bWidgetsDirty = true;
-	RecreateWidgets();
 }
 
 TSharedPtr<ITrackLaneWidget> STrackLane::FindWidgetForModel(const FWeakViewModelPtr& InModel) const
