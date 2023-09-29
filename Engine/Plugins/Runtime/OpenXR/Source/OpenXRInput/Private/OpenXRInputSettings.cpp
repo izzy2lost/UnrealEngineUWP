@@ -3,6 +3,7 @@
 #include "OpenXRInputSettings.h"
 #include "XRMotionControllerBase.h"
 #include "PlayerMappableInputConfig.h"
+#include "InputMappingContext.h"
 
 #if WITH_EDITOR
 #include "Editor.h"
@@ -15,26 +16,26 @@ UOpenXRInputSettings::UOpenXRInputSettings(const FObjectInitializer& ObjectIniti
 }
 
 #if WITH_EDITOR
-void UOpenXRInputSettings::PostEditChangeChainProperty(FPropertyChangedChainEvent& PropertyChangedEvent)
+PRAGMA_DISABLE_DEPRECATION_WARNINGS
+void UOpenXRInputSettings::PostInitProperties()
 {
-	Super::PostEditChangeChainProperty(PropertyChangedEvent);
+	Super::PostInitProperties();
 
-	const FName MemberPropertyName = PropertyChangedEvent.PropertyChain.GetActiveMemberNode()->GetValue()->GetFName();
-
-	PRAGMA_DISABLE_DEPRECATION_WARNINGS
-	if (MemberPropertyName == GET_MEMBER_NAME_CHECKED(UOpenXRInputSettings, MappableInputConfig))
+	if (MappableInputConfig.IsValid())
 	{
-		TArray<IMotionController*> MotionControllers = IModularFeatures::Get().GetModularFeatureImplementations<IMotionController>(IMotionController::GetModularFeatureName());
-		for (auto MotionController : MotionControllers)
+		UPlayerMappableInputConfig* InputConfig = Cast<UPlayerMappableInputConfig>(MappableInputConfig.TryLoad());
+		if (InputConfig)
 		{
-			if (MotionController == nullptr)
+			for (const auto& Context : InputConfig->GetMappingContexts())
 			{
-				continue;
+				TSoftObjectPtr<UInputMappingContext> Obj = Context.Key;
+				InputMappingContexts.Add(Obj);
 			}
+			MappableInputConfig.Reset();
 
-			MotionController->SetPlayerMappableInputConfig((UPlayerMappableInputConfig*)MappableInputConfig.TryLoad());
+			TryUpdateDefaultConfigFile();
 		}
 	}
-	PRAGMA_ENABLE_DEPRECATION_WARNINGS
 }
+PRAGMA_ENABLE_DEPRECATION_WARNINGS
 #endif

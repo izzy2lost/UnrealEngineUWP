@@ -236,7 +236,7 @@ FOpenXRInputPlugin::FOpenXRInput::FOpenXRInput(FOpenXRHMD* HMD)
 	, EnhancedActions()
 	, Controllers()
 	, MotionSourceToControllerHandMap()
-	, MappableInputConfig(nullptr)
+	, InputMappingContexts()
 	, bActionsAttached(false)
 	, bDirectionalBindingSupported(false)
 	, bPalmPoseSupported(false)
@@ -375,17 +375,18 @@ bool FOpenXRInputPlugin::FOpenXRInput::BuildActions(XrSession Session)
 	}
 
 	PRAGMA_DISABLE_DEPRECATION_WARNINGS
-	if (!MappableInputConfig)
+	// Attempt to load the default input config from the OpenXR input settings.
+	UOpenXRInputSettings* InputSettings = GetMutableDefault<UOpenXRInputSettings>();
+	if (InputSettings)
 	{
-		// Attempt to load the default input config from the OpenXR input settings.
-		UOpenXRInputSettings* InputSettings = GetMutableDefault<UOpenXRInputSettings>();
-		if (InputSettings && InputSettings->MappableInputConfig.IsValid())
+		for (const auto& Context : InputSettings->InputMappingContexts)
 		{
-			SetPlayerMappableInputConfig((UPlayerMappableInputConfig*)InputSettings->MappableInputConfig.TryLoad());
+			TStrongObjectPtr<UInputMappingContext> Obj(Context.LoadSynchronous());
+			InputMappingContexts.Add(Obj);
 		}
 	}
 
-	if (MappableInputConfig)
+	if (!InputMappingContexts.IsEmpty())
 	{
 		BuildEnhancedActions(Profiles);
 	}
@@ -555,12 +556,12 @@ void FOpenXRInputPlugin::FOpenXRInput::BuildEnhancedActions(TMap<FString, FInter
 	}
 
 	PRAGMA_DISABLE_DEPRECATION_WARNINGS
-	for (const TPair<TObjectPtr<UInputMappingContext>, int32>& MappingContext : MappableInputConfig->GetMappingContexts())
+	for (const auto& MappingContext : InputMappingContexts)
 	{
-		FOpenXRActionSet ActionSet(Instance, MappingContext.Key->GetFName(), MappingContext.Key->ContextDescription.ToString(), ToXrPriority(MappingContext.Value), MappingContext.Key);
+		FOpenXRActionSet ActionSet(Instance, MappingContext->GetFName(), MappingContext->ContextDescription.ToString(), 0, MappingContext.Get());
 		TMap<FName, int32> ActionMap;
 
-		for (const FEnhancedActionKeyMapping& Mapping : MappingContext.Key->GetMappings())
+		for (const FEnhancedActionKeyMapping& Mapping : MappingContext->GetMappings())
 		{
 			if (!Mapping.Action)
 			{
@@ -744,7 +745,7 @@ void FOpenXRInputPlugin::FOpenXRInput::OnDestroySession()
 	{
 		// If the session shut down, clean up.
 		bActionsAttached = false;
-		MappableInputConfig = nullptr;
+		InputMappingContexts.Reset();
 	}
 }
 
@@ -1412,9 +1413,26 @@ bool FOpenXRInputPlugin::FOpenXRInput::SetPlayerMappableInputConfig(TObjectPtr<c
 		return false;
 	}
 
-	MappableInputConfig = TStrongObjectPtr<class UPlayerMappableInputConfig>(InputConfig);
-	return true;
+	TSet<TObjectPtr<UInputMappingContext>> MappingContexts;
+	InputConfig->GetMappingContexts().GetKeys(MappingContexts);
+	return AttachInputMappingContexts(MappingContexts);
 }
 PRAGMA_ENABLE_DEPRECATION_WARNINGS
+
+bool FOpenXRInputPlugin::FOpenXRInput::AttachInputMappingContexts(const TSet<TObjectPtr<UInputMappingContext>>& MappingContexts)
+{
+	if (bActionsAttached)
+	{
+		UE_LOG(LogHMD, Error, TEXT("Attempted to attach input mapping contexts when action sets are already attached for the current session."));
+
+		return false;
+	}
+
+	for (const auto& Context : MappingContexts)
+	{
+		InputMappingContexts.Add(TStrongObjectPtr<UInputMappingContext>(Context));
+	}
+	return true;
+}
 
 #undef LOCTEXT_NAMESPACE // "OpenXRInputPlugin"

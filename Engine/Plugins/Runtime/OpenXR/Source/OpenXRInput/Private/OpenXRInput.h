@@ -130,6 +130,7 @@ public:
 		PRAGMA_DISABLE_DEPRECATION_WARNINGS
 		virtual bool SetPlayerMappableInputConfig(TObjectPtr<class UPlayerMappableInputConfig> InputConfig) override;
 		PRAGMA_ENABLE_DEPRECATION_WARNINGS
+		virtual bool AttachInputMappingContexts(const TSet<TObjectPtr<UInputMappingContext>>& MappingContexts) override;
 
 		// IHapticDevice overrides
 		IHapticDevice* GetHapticDevice() override { return (IHapticDevice*)this; }
@@ -149,9 +150,7 @@ public:
 		TMap<EControllerHand, FOpenXRController> Controllers;
 		TMap<FName, EControllerHand> MotionSourceToControllerHandMap;
 
-		PRAGMA_DISABLE_DEPRECATION_WARNINGS
-		TStrongObjectPtr<class UPlayerMappableInputConfig> MappableInputConfig;
-		PRAGMA_ENABLE_DEPRECATION_WARNINGS
+		TSet<TStrongObjectPtr<UInputMappingContext>> InputMappingContexts;
 
 		XrAction GetActionForMotionSource(FName MotionSource) const;
 		int32 GetDeviceIDForMotionSource(FName MotionSource) const;

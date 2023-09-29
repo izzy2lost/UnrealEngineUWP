@@ -218,9 +218,15 @@ void UXRCreativeVREditorMode::EnableStereo()
 		Viewport->SetRenderDirectlyToWindow(true);
 	}
 
-	PRAGMA_DISABLE_DEPRECATION_WARNINGS
-	UOpenXRInputFunctionLibrary::BeginXRSession(Cast<UPlayerMappableInputConfig>(MappableInputConfig.TryLoad()));
-	PRAGMA_ENABLE_DEPRECATION_WARNINGS
+	PRAGMA_DISABLE_DEPRECATION_WARNINGS;
+	TObjectPtr<UPlayerMappableInputConfig> InputConfig = Cast<UPlayerMappableInputConfig>(MappableInputConfig.TryLoad());
+	TSet<UInputMappingContext*> Contexts;
+	for (const auto& Context : InputConfig->GetMappingContexts())
+	{
+		Contexts.Add(Context.Key);
+	}
+	PRAGMA_ENABLE_DEPRECATION_WARNINGS;
+	UOpenXRInputFunctionLibrary::BeginXRSession(Contexts);
 }
 
 
