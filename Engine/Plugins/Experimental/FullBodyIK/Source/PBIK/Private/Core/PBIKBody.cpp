@@ -41,9 +41,9 @@ void FBone::UpdateFromInputs()
 		return;
 	}
 
-	LocalPositionOrig = Parent->Rotation.Inverse() * (Position - Parent->Position);
-	LocalRotationOrig = Parent->Rotation.Inverse() * Rotation;
-	Length = LocalPositionOrig.Size();
+	LocalPositionFromInput = Parent->Rotation.Inverse() * (Position - Parent->Position);
+	LocalRotationFromInput = Parent->Rotation.Inverse() * Rotation;
+	Length = LocalPositionFromInput.Size();
 }
 
 FRigidBody::FRigidBody(FBone* InBone)

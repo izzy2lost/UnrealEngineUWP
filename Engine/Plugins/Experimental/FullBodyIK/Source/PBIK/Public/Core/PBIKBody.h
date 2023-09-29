@@ -20,8 +20,9 @@ struct FBone
 	FVector Position;
 	FQuat Rotation;
 	FVector Scale; // just passed through, not modified
-	FVector LocalPositionOrig;
-	FQuat LocalRotationOrig;
+	FVector LocalPositionFromInput;
+	FQuat LocalRotationFromInput;
+	FRotator LocalRotationInitial;
 
 	// initialized - these fields are null/empty until after Solver::Initialize()
 	FRigidBody* Body = nullptr;

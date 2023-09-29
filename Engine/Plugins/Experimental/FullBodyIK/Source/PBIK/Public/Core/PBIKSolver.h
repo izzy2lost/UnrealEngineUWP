@@ -75,9 +75,8 @@ struct FEffector
 	FBone* Bone;
 	TWeakPtr<FPinConstraint> Pin;
 	FRigidBody* ParentSubRoot = nullptr;
-	float DistanceToSubRootInInputPose;
-	float DistToRootAlongBones;
-	float DistToRootStraightLine;
+	float DistToSubRootInInputPose;
+	float DistToSubRootInRefPose;
 	
 	TArray<float> DistancesFromEffector;
 	float DistToSubRootAlongBones;
@@ -90,7 +89,8 @@ struct FEffector
 		const FEffectorSettings& InSettings);
 
 	void UpdateFromInputs(const FBone& SolverRoot);
-	void ApplyPreferredAngles();
+	float CalculateDistanceToSubRoot() const;
+	void ApplyPreferredAngles() const;
 };
 	
 } // namespace
@@ -247,6 +247,8 @@ private:
 	bool InitBones();
 
 	bool InitBodies();
+
+	bool InitEffectors();
 
 	bool InitConstraints();
 
