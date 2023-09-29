@@ -18,6 +18,9 @@
 
 #include "stdint.h"
 
+#pragma warning(push)
+#pragma warning(disable: 4201)
+
 #ifdef __cplusplus
 extern "C" {
 #endif
@@ -59,8 +62,8 @@ extern "C" {
         INTCExtensionVersion    RequestedExtensionVersion;  ///< [in] Intel Extension Framework interface version requested
 
         INTCDeviceInfo          IntelDeviceInfo;            ///< [out] Intel Graphics Device detailed information
-        const wchar_t* pDeviceDriverDesc;          ///< [out] Intel Graphics Driver description
-        const wchar_t* pDeviceDriverVersion;       ///< [out] Intel Graphics Driver version string
+        const wchar_t*          pDeviceDriverDesc;          ///< [out] Intel Graphics Driver description
+        const wchar_t*          pDeviceDriverVersion;       ///< [out] Intel Graphics Driver version string
         uint32_t                DeviceDriverBuildNumber;    ///< [out] Intel Graphics Driver build number
     };
 
@@ -68,10 +71,31 @@ extern "C" {
     // @brief INTCExtensionAppInfo is an optional input structure; can be used for specific apps and engine code paths
     struct INTCExtensionAppInfo
     {
-        const wchar_t* pApplicationName;                   ///< [in] Application name
+        const wchar_t*  pApplicationName;                   ///< [in] Application name
         uint32_t        ApplicationVersion;                 ///< [in] Application version
-        const wchar_t* pEngineName;                        ///< [in] Engine name
+        const wchar_t*  pEngineName;                        ///< [in] Engine name
         uint32_t        EngineVersion;                      ///< [in] Engine version
+    };
+
+    struct INTCAppInfoVersion
+    {
+        union {
+            struct {
+                uint32_t major;
+                uint32_t minor;
+                uint32_t patch;
+                uint32_t reserved;
+            };
+            uint8_t  raw[16];
+        };
+    };
+
+    struct INTCExtensionAppInfo1
+    {
+        const wchar_t*      pApplicationName;                   ///< [in] Application name
+        INTCAppInfoVersion  ApplicationVersion;                 ///< [in] Application version
+        const wchar_t*      pEngineName;                        ///< [in] Engine name
+        INTCAppInfoVersion  EngineVersion;                      ///< [in] Engine version
     };
 
     //////////////////////////////////////////////////////////////////////////
@@ -794,6 +818,24 @@ extern "C" {
         INTCExtensionInfo*                          pExtensionInfo,
         INTCExtensionAppInfo*                       pExtensionAppInfo );
 
+    /////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+    /// @brief Creates D3D12 Intel Extensions Device Context and returns ppfnExtensionContext Extension Context object and
+    ///        ppfnExtensionFuncs extension function pointers table. This function must be called prior to using extensions.
+    /// @param pDevice A pointer to the current Device.
+    /// @param ppExtensionContext A pointer to a pointer to the extension context associated with the current Device.
+    /// @param pExtensionInfo A pointer to the ExtensionInfo structure. The requestedExtensionVersion member must be set prior to 
+    ///        calling this function. The remaining members are filled in with device info about the Intel GPU and info about the graphics driver version.
+    /// @param pExtensionAppInfo A pointer to the ExtensionAppInfo1 structure that can optionally be used in the driver to identify workload.
+	/// @returns HRESULT Returns S_OK - successful.
+	///                  Returns E_ABORT - Device Extension Context was already created in the current process.
+	///                  Returns E_INVALIDARG - invalid arguments passed.
+	///                  Returns E_OUTOFMEMORY - no driver support.
+    HRESULT INTC_D3D12_CreateDeviceExtensionContext1(
+        ID3D12Device*                               pDevice,
+        INTCExtensionContext**                      ppExtensionContext,
+        INTCExtensionInfo*                          pExtensionInfo,
+        INTCExtensionAppInfo1*                      pExtensionAppInfo );
+
 #endif //INTC_IGDEXT_D3D12
 
 #if defined(INTC_IGDEXT_D3D11) && defined(INTC_IGDEXT_D3D12)
@@ -836,5 +878,7 @@ extern "C" {
 #ifdef __cplusplus
 } // extern "C"
 #endif
+
+#pragma warning(pop)
 
 #endif //_IGDEXTAPI_H_

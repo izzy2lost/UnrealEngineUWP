@@ -24,6 +24,7 @@
 #include "RHIUtilities.h"
 
 #include "ShaderCompiler.h"
+#include "Misc/EngineVersion.h"
 
 #pragma comment(lib, "d3d12.lib")
 
@@ -301,11 +302,13 @@ INTCExtensionContext* CreateIntelExtensionsContext(ID3D12Device* Device, INTCExt
 	}
 
 	INTCExtensionContext* IntelExtensionContext = nullptr;
-	INTCExtensionAppInfo AppInfo{};
+	INTCExtensionAppInfo1 AppInfo{};
 	AppInfo.pEngineName = TEXT("Unreal Engine");
-	AppInfo.EngineVersion = 5;
+	AppInfo.EngineVersion.major = FEngineVersion::Current().GetMajor();
+	AppInfo.EngineVersion.minor = FEngineVersion::Current().GetMinor();
+	AppInfo.EngineVersion.patch = FEngineVersion::Current().GetPatch();
 
-	const HRESULT hr = INTC_D3D12_CreateDeviceExtensionContext(Device, &IntelExtensionContext, &INTCExtensionInfo, &AppInfo);
+	const HRESULT hr = INTC_D3D12_CreateDeviceExtensionContext1(Device, &IntelExtensionContext, &INTCExtensionInfo, &AppInfo);
 
 	if (SUCCEEDED(hr))
 	{
