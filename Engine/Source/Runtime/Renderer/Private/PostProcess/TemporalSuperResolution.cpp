@@ -125,7 +125,7 @@ TAutoConsoleVariable<int32> CVarTSRFlickeringAdjustToFrameRate(
 	ECVF_Scalability | ECVF_RenderThreadSafe);
 
 TAutoConsoleVariable<float> CVarTSRFlickeringPeriod(
-	TEXT("r.TSR.ShadingRejection.Flickering.Period"), 3.0f,
+	TEXT("r.TSR.ShadingRejection.Flickering.Period"), 2.0f,
 	TEXT("Periode in frames in which luma oscilations at equal or greater frequency is considered flickering and should ghost to stabilize the image ")
 	TEXT("Please read r.TSR.ShadingRejection.Flickering's help for further details. (Default to 3 frames)."),
 	ECVF_RenderThreadSafe);

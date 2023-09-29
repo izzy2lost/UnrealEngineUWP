@@ -617,7 +617,7 @@ TLaneVector2D<ScalarType, VectorSize, LaneStrideX, LaneStrideY> MaxMinusMin3x3(
 }
 
 
-//------------------------------------------------------- CLAMP CONVOLUTIONS
+//------------------------------------------------------- CLAMP 3x3 CONVOLUTIONS
 
 CALL_SITE_DEBUGLOC
 template<typename ScalarType, uint VectorSize, uint LaneStrideX, uint LaneStrideY>
@@ -651,6 +651,40 @@ void AnnihilateMutually3x3(
 {
 	AnnihilatedInput   = AnnihilateToGuide3x3(Input  , /* Guide = */ History);
 	AnnihilatedHistory = AnnihilateToGuide3x3(History, /* Guide = */ Input);
+}
+
+
+//------------------------------------------------------- MIN & MAX & CLAMP 3x3 PLUS CONVOLUTION
+
+CALL_SITE_DEBUGLOC
+template<typename ScalarType, uint VectorSize, uint LaneStrideX, uint LaneStrideY>
+void MinMaxPlus3x3(
+	TLaneVector2D<ScalarType, VectorSize, LaneStrideX, LaneStrideY> Center,
+	out TLaneVector2D<ScalarType, VectorSize, LaneStrideX, LaneStrideY> OutMin,
+	out TLaneVector2D<ScalarType, VectorSize, LaneStrideX, LaneStrideY> OutMax)
+{
+	TLaneVector2D<ScalarType, VectorSize, LaneStrideX, LaneStrideY> CVP, CVN;
+	AccessNeighborTexels1x3(Center, /* out */ CVP, /* out */ CVN);
+	OutMin = min3(CVP, CVN, Center);
+	OutMax = max3(CVP, CVN, Center);
+	
+	TLaneVector2D<ScalarType, VectorSize, LaneStrideX, LaneStrideY> CHP, CHN;
+	AccessNeighborTexels3x1(Center, /* out */ CHP, /* out */ CHN);
+	OutMin = min3(CHN, CHP, OutMin);
+	OutMax = max3(CHN, CHP, OutMax);
+}
+
+CALL_SITE_DEBUGLOC
+template<typename ScalarType, uint VectorSize, uint LaneStrideX, uint LaneStrideY>
+TLaneVector2D<ScalarType, VectorSize, LaneStrideX, LaneStrideY> ClampPlus3x3(
+	TLaneVector2D<ScalarType, VectorSize, LaneStrideX, LaneStrideY> ToClamp,
+	TLaneVector2D<ScalarType, VectorSize, LaneStrideX, LaneStrideY> BoundaryCenter)
+{
+	TLaneVector2D<ScalarType, VectorSize, LaneStrideX, LaneStrideY> BoundaryMin;
+	TLaneVector2D<ScalarType, VectorSize, LaneStrideX, LaneStrideY> BoundaryMax;
+	MinMaxPlus3x3(BoundaryCenter, /* out */ BoundaryMin, /* out */ BoundaryMax);
+
+	return fastClamp(ToClamp, BoundaryMin, BoundaryMax);
 }
 
 

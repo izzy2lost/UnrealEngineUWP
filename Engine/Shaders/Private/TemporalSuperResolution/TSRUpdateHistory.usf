@@ -962,14 +962,12 @@ void MainCS(
 	tsr_half2 FinalHistoryValidity;
 
 	{
-		tsr_halfCx2 ClampedPrevHighFrequencyColor = fastClamp(PrevHighFrequencyColor, InputMinColor, InputMaxColor);
 		tsr_halfCx2 BlendedPrevHighFrequencyColor;
-		BlendedPrevHighFrequencyColor[0] = lerp(ClampedPrevHighFrequencyColor[0], PrevHighFrequencyColor[0], DisableHistoryClamp);
-		BlendedPrevHighFrequencyColor[1] = lerp(ClampedPrevHighFrequencyColor[1], PrevHighFrequencyColor[1], DisableHistoryClamp);
-		BlendedPrevHighFrequencyColor[2] = lerp(ClampedPrevHighFrequencyColor[2], PrevHighFrequencyColor[2], DisableHistoryClamp);
-		#if CONFIG_SCENE_COLOR_ALPHA
-			BlendedPrevHighFrequencyColor[3] = lerp(ClampedPrevHighFrequencyColor[3], PrevHighFrequencyColor[3], DisableHistoryClamp);
-		#endif
+		{
+			tsr_halfCx2 ClampedPrevHighFrequencyColor = fastClamp(PrevHighFrequencyColor, InputMinColor, InputMaxColor);
+			tsr_half2x2 Weight = WeightedLerpFactors(HdrWeight4(ClampedPrevHighFrequencyColor), HdrWeight4(PrevHighFrequencyColor), DisableHistoryClamp);
+			BlendedPrevHighFrequencyColor = dpv_scale(ClampedPrevHighFrequencyColor, Weight[0]) + dpv_scale(PrevHighFrequencyColor, Weight[1]);
+		}
 		
 		// Clamp the validity due to motion to maintain better sharpness in history reprojection under motion.
 		#if 1

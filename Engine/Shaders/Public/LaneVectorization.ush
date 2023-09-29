@@ -1378,11 +1378,11 @@ struct TLaneVector2D
 
 CALL_SITE_DEBUGLOC
 template<typename ScalarType, uint VectorSizeA, uint VectorSizeB, uint SimdSizeX, uint SimdSizeY>
-void Concatenate(
+TLaneVector2D<ScalarType, VectorSizeA + VectorSizeB, SimdSizeX, SimdSizeY> Concatenate(
 	TLaneVector2D<ScalarType, VectorSizeA, SimdSizeX, SimdSizeY> A,
-	TLaneVector2D<ScalarType, VectorSizeB, SimdSizeX, SimdSizeY> B,
-	out TLaneVector2D<ScalarType, VectorSizeA + VectorSizeB, SimdSizeX, SimdSizeY> R)
+	TLaneVector2D<ScalarType, VectorSizeB, SimdSizeX, SimdSizeY> B)
 {
+	TLaneVector2D<ScalarType, VectorSizeA + VectorSizeB, SimdSizeX, SimdSizeY> R;
 	UNROLL
 	for (uint ElementIndex = 0; ElementIndex < SimdSizeX * SimdSizeY; ElementIndex++)
 	{
@@ -1398,16 +1398,38 @@ void Concatenate(
 			R.Registers.SetElementComponent(ElementIndex, VectorSizeA + ComponentIndex, B.Registers.GetElementComponent(ElementIndex, ComponentIndex));
 		}
 	}
+	return R;
 }
 
 CALL_SITE_DEBUGLOC
-template<typename ScalarType, uint VectorSizeA, uint VectorSizeB, uint SimdSizeX, uint SimdSizeY>
-TLaneVector2D<ScalarType, VectorSizeA + VectorSizeB, SimdSizeX, SimdSizeY> Concatenate(
+template<typename ScalarType, uint VectorSizeA, uint VectorSizeB, uint VectorSizeC, uint SimdSizeX, uint SimdSizeY>
+TLaneVector2D<ScalarType, VectorSizeA + VectorSizeB + VectorSizeC, SimdSizeX, SimdSizeY> Concatenate(
 	TLaneVector2D<ScalarType, VectorSizeA, SimdSizeX, SimdSizeY> A,
-	TLaneVector2D<ScalarType, VectorSizeB, SimdSizeX, SimdSizeY> B)
+	TLaneVector2D<ScalarType, VectorSizeB, SimdSizeX, SimdSizeY> B,
+	TLaneVector2D<ScalarType, VectorSizeC, SimdSizeX, SimdSizeY> C)
 {
-	TLaneVector2D<ScalarType, VectorSizeA + VectorSizeB, SimdSizeX, SimdSizeY> R;
-	Concatenate(A, B, /* out */ R);
+	TLaneVector2D<ScalarType, VectorSizeA + VectorSizeB + VectorSizeC, SimdSizeX, SimdSizeY> R;
+	UNROLL
+	for (uint ElementIndex = 0; ElementIndex < SimdSizeX * SimdSizeY; ElementIndex++)
+	{
+		UNROLL
+		for (uint ComponentIndex = 0; ComponentIndex < VectorSizeA; ComponentIndex++)
+		{
+			R.Registers.SetElementComponent(ElementIndex, ComponentIndex, A.Registers.GetElementComponent(ElementIndex, ComponentIndex));
+		}
+
+		UNROLL
+		for (uint ComponentIndex = 0; ComponentIndex < VectorSizeB; ComponentIndex++)
+		{
+			R.Registers.SetElementComponent(ElementIndex, VectorSizeA + ComponentIndex, B.Registers.GetElementComponent(ElementIndex, ComponentIndex));
+		}
+		
+		UNROLL
+		for (uint ComponentIndex = 0; ComponentIndex < VectorSizeC; ComponentIndex++)
+		{
+			R.Registers.SetElementComponent(ElementIndex, VectorSizeA + VectorSizeB + ComponentIndex, C.Registers.GetElementComponent(ElementIndex, ComponentIndex));
+		}
+	}
 	return R;
 }
 
@@ -1431,6 +1453,37 @@ void Deconcatenate(
 		for (uint ComponentIndex = 0; ComponentIndex < VectorSizeB; ComponentIndex++)
 		{
 			B.Registers.SetElementComponent(ElementIndex, ComponentIndex, M.Registers.GetElementComponent(ElementIndex, VectorSizeA + ComponentIndex));
+		}
+	}
+}
+
+CALL_SITE_DEBUGLOC
+template<typename ScalarType, uint VectorSizeA, uint VectorSizeB, uint VectorSizeC, uint SimdSizeX, uint SimdSizeY>
+void Deconcatenate(
+	TLaneVector2D<ScalarType, VectorSizeA + VectorSizeB + VectorSizeC, SimdSizeX, SimdSizeY> M,
+	out TLaneVector2D<ScalarType, VectorSizeA, SimdSizeX, SimdSizeY> A,
+	out TLaneVector2D<ScalarType, VectorSizeB, SimdSizeX, SimdSizeY> B,
+	out TLaneVector2D<ScalarType, VectorSizeC, SimdSizeX, SimdSizeY> C)
+{
+	UNROLL
+	for (uint ElementIndex = 0; ElementIndex < SimdSizeX * SimdSizeY; ElementIndex++)
+	{
+		UNROLL
+		for (uint ComponentIndex = 0; ComponentIndex < VectorSizeA; ComponentIndex++)
+		{
+			A.Registers.SetElementComponent(ElementIndex, ComponentIndex, M.Registers.GetElementComponent(ElementIndex, ComponentIndex));
+		}
+
+		UNROLL
+		for (uint ComponentIndex = 0; ComponentIndex < VectorSizeB; ComponentIndex++)
+		{
+			B.Registers.SetElementComponent(ElementIndex, ComponentIndex, M.Registers.GetElementComponent(ElementIndex, VectorSizeA + ComponentIndex));
+		}
+
+		UNROLL
+		for (uint ComponentIndex = 0; ComponentIndex < VectorSizeC; ComponentIndex++)
+		{
+			C.Registers.SetElementComponent(ElementIndex, ComponentIndex, M.Registers.GetElementComponent(ElementIndex, VectorSizeA + VectorSizeB + ComponentIndex));
 		}
 	}
 }
