@@ -122,7 +122,7 @@ void FOpenXRViveTracker::FViveTracker::AddTrackedDevices(FOpenXRHMD* HMD)
 void FOpenXRViveTracker::FViveTracker::GetSuggestedBindings(TArray<XrActionSuggestedBinding>& OutSuggestedBindings)
 {
 	OutSuggestedBindings.Add(XrActionSuggestedBinding{ GripAction, RolePath / FString("input/grip/pose") });
-	OutSuggestedBindings.Add(XrActionSuggestedBinding{ GripAction, RolePath / FString("output/haptic") });
+	OutSuggestedBindings.Add(XrActionSuggestedBinding{ VibrationAction, RolePath / FString("output/haptic") });
 }
 
 FOpenXRViveTracker::FOpenXRViveTracker(const TSharedRef<FGenericApplicationMessageHandler>& InMessageHandler)
