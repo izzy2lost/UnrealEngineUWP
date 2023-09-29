@@ -134,7 +134,7 @@ static TAutoConsoleVariable<bool> CVar_IoReportAnalytics(
 
 static FAutoConsoleVariable CVar_IasGenerateOnDemandToc(
 	TEXT("s.IasGenerateOnDemandToc"),
-	false,
+	true,
 	TEXT("Enables generating the FOnDemandToc from utoc files on disk rather than downloading them"),
 	ECVF_ReadOnly
 );
@@ -859,6 +859,8 @@ static TArray<FString> FindOnDemandUtocFilesOnDisk()
 TIoStatusOr<FOnDemandToc> GenerateOnDemandTocFromDisk()
 {
 	TRACE_CPUPROFILER_EVENT_SCOPE(IasBackend::GenerateOnDemandTocFromDisk);
+
+	UE_LOG(LogIas, Log, TEXT("Generating OnDemandToc via utoc files from disk"));
 
 	FOnDemandToc OutToc;
 
