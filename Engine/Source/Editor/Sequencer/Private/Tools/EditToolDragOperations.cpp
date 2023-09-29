@@ -1107,10 +1107,6 @@ bool FMoveKeysAndSections::HandleSectionMovement(FFrameTime MouseTime, FVector2D
 		{
 			HighestRowIndex = Section->GetRowIndex();
 		}
-		if (LowestRowIndex.IsSet() && LowestRowIndex.GetValue() != Section->GetRowIndex())
-		{
-			bSectionsAreOnDifferentRows = true;
-		}
 		if (FirstTrack)
 		{
 			if (FirstTrack != Track)
@@ -1122,6 +1118,11 @@ bool FMoveKeysAndSections::HandleSectionMovement(FFrameTime MouseTime, FVector2D
 		{
 			FirstTrack = Track;
 		}
+	}
+
+	if (LowestRowIndex.IsSet() && HighestRowIndex.IsSet() && LowestRowIndex.GetValue() != HighestRowIndex.GetValue())
+	{
+		bSectionsAreOnDifferentRows = true;
 	}
 
 	TArray<TSharedPtr<FViewModel>> Tracks;
