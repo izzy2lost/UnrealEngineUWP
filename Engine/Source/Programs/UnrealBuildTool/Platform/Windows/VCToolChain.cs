@@ -2635,6 +2635,12 @@ namespace UnrealBuildTool
 		{
 			if (LinkEnvironment.bPGOOptimize && LinkEnvironment.OutputFilePath.FullName.EndsWith(".exe"))
 			{
+				if (!Directory.Exists(LinkEnvironment.PGODirectory))
+				{
+					Logger.LogWarning("\"{PGODir}\" does not exist", LinkEnvironment.PGODirectory);
+					return false;
+				}
+
 				// The linker expects the .pgd and any .pgc files to be in the output directory.
 				// Copy the files there and make them writable...
 				Logger.LogInformation("...copying the profile guided optimization files to output directory...");
