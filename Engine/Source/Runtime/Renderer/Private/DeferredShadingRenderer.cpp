@@ -75,6 +75,7 @@
 #include "SceneCaptureRendering.h"
 #include "NaniteSceneProxy.h"
 #include "Nanite/NaniteRayTracing.h"
+#include "Nanite/NaniteComposition.h"
 #include "Nanite/Voxel.h"
 #include "RayTracing/RayTracingInstanceCulling.h"
 #include "GPUMessaging.h"

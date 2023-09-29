@@ -10,6 +10,7 @@
 #include "Materials/Material.h"
 #include "MeshPassProcessor.inl"
 #include "UnrealEngine.h"
+#include "Nanite/NaniteComposition.h"
 
 static TAutoConsoleVariable<int32> CVarCustomDepthOrder(
 	TEXT("r.CustomDepth.Order"),

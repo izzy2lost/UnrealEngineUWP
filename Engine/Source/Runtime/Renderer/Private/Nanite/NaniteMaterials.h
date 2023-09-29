@@ -15,7 +15,6 @@ struct FLumenMeshCaptureMaterialPass;
 class  FLumenCardPassUniformParameters;
 class  FCardPageRenderData;
 class  FSceneRenderer;
-struct FCustomDepthTextures;
 
 // VertexCountPerInstance
 // InstanceCount
@@ -465,19 +464,8 @@ inline void UnlockIfValid(FRHICommandListBase& RHICmdList, FNaniteMaterialComman
 	}
 }
 
-extern bool UseComputeDepthExport();
-
 namespace Nanite
 {
-
-struct FCustomDepthContext
-{
-	FRDGTextureRef InputDepth = nullptr;
-	FRDGTextureSRVRef InputStencilSRV = nullptr;
-	FRDGTextureRef DepthTarget = nullptr;
-	FRDGTextureRef StencilTarget = nullptr;
-	bool bComputeExport = true;
-};
 
 struct FShadeBinning
 {
@@ -486,39 +474,6 @@ struct FShadeBinning
 	FRDGBufferRef ShadingBinData = nullptr;
 	FRDGBufferRef ShadingBinStats = nullptr;
 };
-
-void EmitDepthTargets(
-	FRDGBuilder& GraphBuilder,
-	const FScene& Scene,
-	const FViewInfo& View,
-	bool bDrawSceneViewsInOneNanitePass,
-	FRasterResults& RasterResults,
-	FRDGTextureRef SceneDepth,
-	FRDGTextureRef VelocityBuffer
-);
-
-FCustomDepthContext InitCustomDepthStencilContext(
-	FRDGBuilder& GraphBuilder,
-	const FCustomDepthTextures& CustomDepthTextures,
-	bool bWriteCustomStencil
-);
-
-void EmitCustomDepthStencilTargets(
-	FRDGBuilder& GraphBuilder,
-	const FScene& Scene,
-	const FViewInfo& View,
-	const FIntVector4& PageConstants,
-	FRDGBufferRef VisibleClustersSWHW,
-	FRDGBufferRef ViewsBuffer,
-	FRDGTextureRef VisBuffer64,
-	const FCustomDepthContext& CustomDepthContext
-);
-
-void FinalizeCustomDepthStencil(
-	FRDGBuilder& GraphBuilder,
-	const FCustomDepthContext& CustomDepthContext,
-	FCustomDepthTextures& OutTextures
-);
 
 void DrawBasePass(
 	FRDGBuilder& GraphBuilder,
