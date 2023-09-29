@@ -1075,7 +1075,7 @@ static bool LoadCache(FDiskCache& DiskCache)
 		return false;
 	}
 
-	DiskCache.Spam();
+	// DiskCache.Spam();
 	return true;
 }
 
