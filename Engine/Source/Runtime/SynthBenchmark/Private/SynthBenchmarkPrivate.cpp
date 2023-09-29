@@ -63,7 +63,7 @@ static FTimeSample RunBenchmark(float WorkScale, float (*Function)())
 		FPlatformMisc::MemoryBarrier();
 	}
 	
-	return FTimeSample(Sum, Sum / RunCount);
+	return FTimeSample(Sum, Sum / (float)RunCount);
 }
 
 template<int NumMethods>
