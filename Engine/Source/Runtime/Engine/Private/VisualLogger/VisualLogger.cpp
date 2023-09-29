@@ -25,7 +25,7 @@ DEFINE_LOG_CATEGORY(LogVisual);
 
 DEFINE_STAT(STAT_VisualLog);
 
-// Unfortunately needs to be a #define since it uses GET_VARARGS_RESULT which uses the va_list stuff which operates on the
+// Unfortunately needs to be a #define since it uses GET_TYPED_VARARGS_RESULT which uses the va_list stuff which operates on the
 // current function, so we can't easily call a function
 #define COLLAPSED_LOGF(SerializeFunc) \
 	SCOPE_CYCLE_COUNTER(STAT_VisualLog); \
@@ -44,7 +44,7 @@ DEFINE_STAT(STAT_VisualLog);
 	\
 	/* first, try using the stack buffer */ \
 	Buffer = StackBuffer; \
-	GET_VARARGS_RESULT( Buffer, UE_ARRAY_COUNT(StackBuffer), UE_ARRAY_COUNT(StackBuffer) - 1, Fmt, Fmt, Result ); \
+	GET_TYPED_VARARGS_RESULT( TCHAR, Buffer, UE_ARRAY_COUNT(StackBuffer), UE_ARRAY_COUNT(StackBuffer) - 1, Fmt, Fmt, Result ); \
 	\
 	/* if that fails, then use heap allocation to make enough space */ \
 			while(Result == -1) \
@@ -52,7 +52,7 @@ DEFINE_STAT(STAT_VisualLog);
 		FMemory::SystemFree(AllocatedBuffer); \
 		/* We need to use malloc here directly as GMalloc might not be safe. */ \
 		Buffer = AllocatedBuffer = (TCHAR*) FMemory::SystemMalloc( BufferSize * sizeof(TCHAR) ); \
-		GET_VARARGS_RESULT( Buffer, BufferSize, BufferSize-1, Fmt, Fmt, Result ); \
+		GET_TYPED_VARARGS_RESULT( TCHAR, Buffer, BufferSize, BufferSize-1, Fmt, Fmt, Result ); \
 		BufferSize *= 2; \
 						}; \
 	Buffer[Result] = 0; \

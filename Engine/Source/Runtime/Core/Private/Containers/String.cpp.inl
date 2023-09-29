@@ -1646,7 +1646,7 @@ UE_STRING_CLASS UE_STRING_CLASS::PrintfImpl(const ElementType* Fmt, ...)
 	int32		Result		= -1;
 
 	// First try to print to a stack allocated location 
-	GET_VARARGS_RESULT( Buffer, BufferSize, BufferSize-1, Fmt, Fmt, Result );
+	GET_TYPED_VARARGS_RESULT( ElementType, Buffer, BufferSize, BufferSize-1, Fmt, Fmt, Result );
 
 	// If that fails, start allocating regular memory
 	if( Result == -1 )
@@ -1656,7 +1656,7 @@ UE_STRING_CLASS UE_STRING_CLASS::PrintfImpl(const ElementType* Fmt, ...)
 		{
 			BufferSize *= 2;
 			Buffer = (ElementType*) FMemory::Realloc( Buffer, BufferSize * sizeof(ElementType) );
-			GET_VARARGS_RESULT( Buffer, BufferSize, BufferSize-1, Fmt, Fmt, Result );
+			GET_TYPED_VARARGS_RESULT( ElementType, Buffer, BufferSize, BufferSize-1, Fmt, Fmt, Result );
 		};
 	}
 
@@ -1680,7 +1680,7 @@ void UE_STRING_CLASS::AppendfImpl(UE_STRING_CLASS& AppendToMe, const ElementType
 	int32		Result = -1;
 
 	// First try to print to a stack allocated location 
-	GET_VARARGS_RESULT(Buffer, BufferSize, BufferSize - 1, Fmt, Fmt, Result);
+	GET_TYPED_VARARGS_RESULT(ElementType, Buffer, BufferSize, BufferSize - 1, Fmt, Fmt, Result);
 
 	// If that fails, start allocating regular memory
 	if (Result == -1)
@@ -1690,7 +1690,7 @@ void UE_STRING_CLASS::AppendfImpl(UE_STRING_CLASS& AppendToMe, const ElementType
 		{
 			BufferSize *= 2;
 			Buffer = (ElementType*)FMemory::Realloc(Buffer, BufferSize * sizeof(ElementType));
-			GET_VARARGS_RESULT(Buffer, BufferSize, BufferSize - 1, Fmt, Fmt, Result);
+			GET_TYPED_VARARGS_RESULT(ElementType, Buffer, BufferSize, BufferSize - 1, Fmt, Fmt, Result);
 		};
 	}
 

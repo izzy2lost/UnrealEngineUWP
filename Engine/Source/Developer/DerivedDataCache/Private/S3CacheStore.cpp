@@ -106,7 +106,7 @@ public:
 	static FStringAnsi Printf(const ANSICHAR* Format, ...)
 	{
 		ANSICHAR Buffer[1024];
-		GET_VARARGS_ANSI(Buffer, UE_ARRAY_COUNT(Buffer), UE_ARRAY_COUNT(Buffer) - 1, Format, Format);
+		GET_TYPED_VARARGS(ANSICHAR, Buffer, UE_ARRAY_COUNT(Buffer), UE_ARRAY_COUNT(Buffer) - 1, Format, Format);
 		return Buffer;
 	}
 

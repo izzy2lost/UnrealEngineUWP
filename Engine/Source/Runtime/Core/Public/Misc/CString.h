@@ -1085,53 +1085,19 @@ int32 TCString<T>::GetVarArgs( CharType* Dest, SIZE_T DestSize, const CharType*&
 template <typename T>
 int32 TCString<T>::SprintfImpl(CharType* Dest, const CharType* Fmt, ...)
 {
-	if constexpr (std::is_same_v<CharType, ANSICHAR>)
-	{
-		int32	Result = -1;
-		GET_VARARGS_RESULT_ANSI(Dest, MAX_SPRINTF, MAX_SPRINTF - 1, Fmt, Fmt, Result);
-		return Result;
-	}
-	else if constexpr (std::is_same_v<CharType, WIDECHAR>)
-	{
-		int32	Result = -1;
-		GET_VARARGS_RESULT_WIDE(Dest, MAX_SPRINTF, MAX_SPRINTF - 1, Fmt, Fmt, Result);
-		return Result;
-	}
-	else if constexpr (std::is_same_v<CharType, UTF8CHAR>)
-	{
-		int32	Result = -1;
-		GET_VARARGS_RESULT_UTF8(Dest, MAX_SPRINTF, MAX_SPRINTF - 1, Fmt, Fmt, Result);
-		return Result;
-	}
-	else
-	{
-		static_assert(sizeof(CharType) == 0, "Not supported");
-	}
+	static_assert(std::is_same_v<CharType, ANSICHAR> || std::is_same_v<CharType, WIDECHAR> || std::is_same_v<CharType, UTF8CHAR>, "Not supported");
+
+	int32	Result = -1;
+	GET_TYPED_VARARGS_RESULT(CharType, Dest, MAX_SPRINTF, MAX_SPRINTF - 1, Fmt, Fmt, Result);
+	return Result;
 }
 
 template <typename T>
 int32 TCString<T>::SnprintfImpl(CharType* Dest, int32 DestSize, const CharType* Fmt, ...)
 {
-	if constexpr (std::is_same_v<CharType, ANSICHAR>)
-	{
-		int32	Result = -1;
-		GET_VARARGS_RESULT_ANSI(Dest, DestSize, DestSize - 1, Fmt, Fmt, Result);
-		return Result;
-	}
-	else if constexpr (std::is_same_v<CharType, WIDECHAR>)
-	{
-		int32	Result = -1;
-		GET_VARARGS_RESULT_WIDE(Dest, DestSize, DestSize - 1, Fmt, Fmt, Result);
-		return Result;
-	}
-	else if constexpr (std::is_same_v<CharType, UTF8CHAR>)
-	{
-		int32	Result = -1;
-		GET_VARARGS_RESULT_UTF8(Dest, DestSize, DestSize - 1, Fmt, Fmt, Result);
-		return Result;
-	}
-	else
-	{
-		static_assert(sizeof(CharType) == 0, "Not supported");
-	}
+	static_assert(std::is_same_v<CharType, ANSICHAR> || std::is_same_v<CharType, WIDECHAR> || std::is_same_v<CharType, UTF8CHAR>, "Not supported");
+
+	int32	Result = -1;
+	GET_TYPED_VARARGS_RESULT(CharType, Dest, DestSize, DestSize - 1, Fmt, Fmt, Result);
+	return Result;
 }

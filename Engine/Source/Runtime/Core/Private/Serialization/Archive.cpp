@@ -1379,7 +1379,7 @@ void FArchive::LogfImpl(const TCHAR* Fmt, ...)
 	{
 		FMemory::SystemFree(Buffer);
 		Buffer = (TCHAR*) FMemory::SystemMalloc( BufferSize * sizeof(TCHAR) );
-		GET_VARARGS_RESULT( Buffer, BufferSize, BufferSize-1, Fmt, Fmt, Result );
+		GET_TYPED_VARARGS_RESULT( TCHAR, Buffer, BufferSize, BufferSize-1, Fmt, Fmt, Result );
 		BufferSize *= 2;
 	};
 	Buffer[Result] = TEXT('\0');

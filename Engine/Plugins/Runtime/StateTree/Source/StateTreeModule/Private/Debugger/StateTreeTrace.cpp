@@ -465,7 +465,7 @@ void OutputLogEventTrace(
 	)
 {
 	static TCHAR TraceStaticBuffer[8192];
-	GET_VARARGS(TraceStaticBuffer, UE_ARRAY_COUNT(TraceStaticBuffer), UE_ARRAY_COUNT(TraceStaticBuffer) - 1, Fmt, Fmt);
+	GET_TYPED_VARARGS(TCHAR, TraceStaticBuffer, UE_ARRAY_COUNT(TraceStaticBuffer), UE_ARRAY_COUNT(TraceStaticBuffer) - 1, Fmt, Fmt);
 
 	TraceBufferedEvents(InstanceId);
 

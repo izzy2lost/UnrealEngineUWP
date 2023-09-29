@@ -3529,7 +3529,7 @@ void FCsvProfiler::RecordEventfInternal(int32 CategoryIndex, const TCHAR* Fmt, .
 	{
 		LLM_SCOPE(ELLMTag::CsvProfiler);
 		TCHAR Buffer[256];
-		GET_VARARGS(Buffer, UE_ARRAY_COUNT(Buffer), UE_ARRAY_COUNT(Buffer) - 1, Fmt, Fmt);
+		GET_TYPED_VARARGS(TCHAR, Buffer, UE_ARRAY_COUNT(Buffer), UE_ARRAY_COUNT(Buffer) - 1, Fmt, Fmt);
 		Buffer[255] = '\0';
 		FString Str = Buffer;
 

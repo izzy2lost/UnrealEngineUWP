@@ -301,7 +301,7 @@ bool ReloadMaterialResource(
 int32 FMaterialCompiler::Errorf(const TCHAR* Format,...)
 {
 	TCHAR	ErrorText[2048];
-	GET_VARARGS( ErrorText, UE_ARRAY_COUNT(ErrorText), UE_ARRAY_COUNT(ErrorText)-1, Format, Format );
+	GET_TYPED_VARARGS( TCHAR, ErrorText, UE_ARRAY_COUNT(ErrorText), UE_ARRAY_COUNT(ErrorText)-1, Format, Format );
 	return Error(ErrorText);
 }
 

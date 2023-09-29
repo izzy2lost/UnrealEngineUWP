@@ -2872,7 +2872,7 @@ bool HandleAssert(bool bLog, const TCHAR* Format, ...)
 	if (bLog)
 	{
 		TCHAR DescriptionString[4096];
-		GET_VARARGS(DescriptionString, UE_ARRAY_COUNT(DescriptionString), UE_ARRAY_COUNT(DescriptionString) - 1,
+		GET_TYPED_VARARGS(TCHAR, DescriptionString, UE_ARRAY_COUNT(DescriptionString), UE_ARRAY_COUNT(DescriptionString) - 1,
 			Format, Format);
 
 		FPlatformMisc::LowLevelOutputDebugString(DescriptionString);

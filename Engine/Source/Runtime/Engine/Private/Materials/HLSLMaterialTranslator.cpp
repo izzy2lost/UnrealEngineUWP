@@ -3564,7 +3564,7 @@ int32 FHLSLMaterialTranslator::AddCodeChunkInner(EMaterialValueType Type, EDeriv
 	while(Result == -1)
 	{
 		FormattedCode = (TCHAR*) FMemory::Realloc( FormattedCode, BufferSize * sizeof(TCHAR) );
-		GET_VARARGS_RESULT( FormattedCode, BufferSize, BufferSize-1, Format, Format, Result );
+		GET_TYPED_VARARGS_RESULT( TCHAR, FormattedCode, BufferSize, BufferSize-1, Format, Format, Result );
 		BufferSize *= 2;
 	};
 	FormattedCode[Result] = 0;
@@ -3585,7 +3585,7 @@ int32 FHLSLMaterialTranslator::AddCodeChunkWithHash(uint64 BaseHash, EMaterialVa
 	while (Result == -1)
 	{
 		FormattedCode = (TCHAR*)FMemory::Realloc(FormattedCode, BufferSize * sizeof(TCHAR));
-		GET_VARARGS_RESULT(FormattedCode, BufferSize, BufferSize - 1, Format, Format, Result);
+		GET_TYPED_VARARGS_RESULT(TCHAR, FormattedCode, BufferSize, BufferSize - 1, Format, Format, Result);
 		BufferSize *= 2;
 	};
 	FormattedCode[Result] = 0;
@@ -3722,7 +3722,7 @@ int32 FHLSLMaterialTranslator::AddUniformExpression(FMaterialUniformExpression* 
 	while (Result == -1)
 	{
 		FormattedCode = (TCHAR*)FMemory::Realloc(FormattedCode, BufferSize * sizeof(TCHAR));
-		GET_VARARGS_RESULT(FormattedCode, BufferSize, BufferSize - 1, Format, Format, Result);
+		GET_TYPED_VARARGS_RESULT(TCHAR, FormattedCode, BufferSize, BufferSize - 1, Format, Format, Result);
 		BufferSize *= 2;
 	};
 	FormattedCode[Result] = 0;

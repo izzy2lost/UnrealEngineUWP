@@ -76,7 +76,7 @@ static TCHAR LogTraceStaticBuffer[8192];
 void FLogTrace::OutputLogMessageSimple(const void* LogPoint, const TCHAR* Fmt, ...)
 {
 	FScopeLock MsgLock(GetLogTraceStaticBufferGuard());
-	GET_VARARGS(LogTraceStaticBuffer, UE_ARRAY_COUNT(LogTraceStaticBuffer), UE_ARRAY_COUNT(LogTraceStaticBuffer) - 1, Fmt, Fmt);
+	GET_TYPED_VARARGS(TCHAR, LogTraceStaticBuffer, UE_ARRAY_COUNT(LogTraceStaticBuffer), UE_ARRAY_COUNT(LogTraceStaticBuffer) - 1, Fmt, Fmt);
 	FLogTrace::OutputLogMessage(LogPoint, LogTraceStaticBuffer);
 }
 #endif // LOGTRACE_RUNTIME_FORMATTING_ENABLED
