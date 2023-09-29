@@ -275,8 +275,8 @@ void SDataGraph::UpdateState()
 		GraphOffset = FMath::Clamp( GraphOffset, 0, FMath::Max(NumDataPoints-NumVisiblePoints,0) );
 		
 		DataTotalTimeMS = FirstTrackedStat->GraphDataSource->GetTotalTimeMS();
-		VisibleTimeMS = NumVisiblePoints * FTimeAccuracy::AsFrameTime( TimeBasedAccuracy );
-		GraphOffsetMS = GraphOffset * FTimeAccuracy::AsFrameTime( TimeBasedAccuracy );
+		VisibleTimeMS = (float)NumVisiblePoints * FTimeAccuracy::AsFrameTime( TimeBasedAccuracy );
+		GraphOffsetMS = (float)GraphOffset * FTimeAccuracy::AsFrameTime( TimeBasedAccuracy );
 	}
 	else
 	{
@@ -457,7 +457,7 @@ int32 SDataGraph::OnPaint( const FPaintArgs& Args, const FGeometry& AllottedGeom
 				for( uint32 GraphStartIndex = (uint32)GraphOffset; GraphStartIndex < (uint32)GraphRangeEndIndex; GraphStartIndex++ )
 				{
 					const float Value = GraphDataSource->GetValueFromIndex( GraphStartIndex );
-					const float XPos = DistanceBetweenPoints*(float)GraphPoints.Num();
+					const float XPos = (float)DistanceBetweenPoints * (float)GraphPoints.Num();
 					const float YPos = FMath::Clamp( static_cast<float>(AllottedGeometry.Size.Y) - GraphYScale*Value*UnitTypeScale, 0.0f, static_cast<float>(AllottedGeometry.Size.Y) );
 					GraphPoints.Add( FVector2D(XPos,YPos) );
 				}
