@@ -1393,6 +1393,12 @@ bool URigVMCompiler::CompileFunction(const URigVMLibraryNode* InLibraryNode, URi
 
 bool URigVMCompiler::CompileFunction(const FRigVMCompileSettings& InSettings, const URigVMLibraryNode* InLibraryNode, URigVMController* InController, const TArray<FRigVMExternalVariable>& InExternalVariables, FRigVMFunctionCompilationData* OutFunctionCompilationData, FRigVMExtendedExecuteContext& OutVMContext)
 {
+	if (FunctionCompilationStack.Contains(InLibraryNode))
+	{
+		return false;
+	}
+
+	FFunctionCompilationScope FunctionCompilationScope(this, InLibraryNode);
 	TGuardValue<const URigVMLibraryNode*> CompilationGuard(CurrentCompilationFunction, InLibraryNode);
 
 	URigVMController* LibraryController = InController->GetControllerForGraph(InLibraryNode->GetContainedGraph());
