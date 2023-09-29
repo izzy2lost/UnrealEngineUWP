@@ -1427,6 +1427,7 @@ public:
 		uint64				Key;
 		FIoBuffer*			Dest;
 		FReadSink*			Sink;
+		uint32				ReadId;
 		uint32				Offset = 0;
 	};
 
@@ -1436,7 +1437,8 @@ public:
 	void					UnregisterCache(FCache* Cache);
 	void					SetGovernorRate(uint32 Allowance, uint32 Ops, uint32 Seconds);
 	void					SetGovernorDemand(uint32 Threshold, uint32 Boost, uint32 SuperBoost);
-	uint32					BeginRead(const FCache* Cache, const FReadRequest& Request);
+	uint32					ClaimReadId();
+	void					BeginRead(const FCache* Cache, const FReadRequest& Request);
 	void					CancelRead(const void* GivenDest);
 
 private:
@@ -1596,21 +1598,28 @@ void FServiceThread::SetGovernorDemand(uint32 Threshold, uint32 Boost, uint32 Su
 }
 
 ////////////////////////////////////////////////////////////////////////////////
-uint32 FServiceThread::BeginRead(const FCache* Cache, const FReadRequest& Request)
+uint32 FServiceThread::ClaimReadId()
+{
+	++ReadIdCounter;
+	FWork BitfieldNarrowing;
+	BitfieldNarrowing.ReadId = ReadIdCounter;
+	return BitfieldNarrowing.ReadId;
+}
+
+////////////////////////////////////////////////////////////////////////////////
+void FServiceThread::BeginRead(const FCache* Cache, const FReadRequest& Request)
 {
 	FWork Works[2] = {};
 
 	Works[0].SetPtr(Cache);
 	Works[0].What = FWork::Work_Read;
 	Works[0].Key = Request.Key;
-	Works[0].ReadId = ReadIdCounter++;
+	Works[0].ReadId = Request.ReadId;
 
 	Works[1].Sink = Request.Sink;
 	Works[1].Dest = Request.Dest;
 
 	SubmitWork(Works, 2);
-
-	return Works[0].ReadId;
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -2003,15 +2012,21 @@ void FJournaledCache::Materialize(
 {
 	using namespace JournaledCache;
 
+	FServiceThread& ServiceThread = FServiceThread::Get();
+
+	uint32 ReadId = ServiceThread.ClaimReadId();
+	{
+		FScopeLock _(&Lock);
+		PendingMaterializes.Add(ReadId, { MoveTemp(DoneEvent), &Status });
+	}
+
 	FServiceThread::FReadRequest Request = {
 		.Key = ReduceKey(Key),
 		.Dest = &Dest,
 		.Sink = this,
+		.ReadId = ReadId,
 	};
-	uint32 ReadId = FServiceThread::Get().BeginRead(Cache, Request);
-
-	FScopeLock _(&Lock);
-	PendingMaterializes.Add(ReadId, { MoveTemp(DoneEvent), &Status });
+	ServiceThread.BeginRead(Cache, Request);
 }
 
 ////////////////////////////////////////////////////////////////////////////////
