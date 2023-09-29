@@ -1,0 +1,58 @@
+// Copyright Epic Games, Inc. All Rights Reserved.
+
+#include "WorldPartition/HLOD/HLODLoaderAdapter.h"
+
+#include "Engine/World.h"
+
+#include "WorldPartition/HLOD/HLODActor.h"
+#include "WorldPartition/HLOD/HLODActorDesc.h"
+#include "WorldPartition/HLOD/HLODLayer.h"
+
+#include "WorldPartition/ActorDescContainerCollection.h"
+#include "WorldPartition/WorldPartition.h"
+#include "WorldPartition/WorldPartitionHandle.h"
+
+
+
+FLoaderAdapterHLOD::FLoaderAdapterHLOD(UWorld* InWorld)
+	: FLoaderAdapterActorList(InWorld)
+{
+	UWorldPartition* WorldPartition = InWorld->GetWorldPartition();
+
+	for (FActorDescContainerCollection::TIterator<AWorldPartitionHLOD> HLODIterator(WorldPartition); HLODIterator; ++HLODIterator)
+	{
+		const FHLODActorDesc& HLODActorDesc = **HLODIterator;
+		if (ShouldLoadHLOD(HLODActorDesc))
+		{
+			Actors.Add(FWorldPartitionHandle(WorldPartition, HLODActorDesc.GetGuid()));
+		}
+	}
+
+	RefreshLoadedState();
+}
+
+// TODO - How to choose which HLODs are loaded ?
+// * Always loaded should be loaded...
+// * Should be a user setting/bookmark setting maybe?
+// * World settings? 
+// * HLOD Layer setting?
+//
+// Current solution is to load always loaded HLOD + any HLOD not built from instancing
+bool FLoaderAdapterHLOD::ShouldLoadHLOD(const FHLODActorDesc& HLODActorDesc)
+{
+	FSoftObjectPath HLODLayerPath(HLODActorDesc.GetSourceHLODLayer());
+	if (UHLODLayer* HLODLayer = Cast<UHLODLayer>(HLODLayerPath.TryLoad()))
+	{
+		if (!HLODActorDesc.GetIsSpatiallyLoaded() || HLODLayer->GetLayerType() != EHLODLayerType::Instancing)
+		{
+			return true;
+		}
+	}
+
+	return false;
+}
+
+bool FLoaderAdapterHLOD::PassActorDescFilter(const FWorldPartitionHandle& ActorHandle) const
+{
+	return ActorHandle.IsValid() && !ActorsToRemove.Contains(ActorHandle);
+}
