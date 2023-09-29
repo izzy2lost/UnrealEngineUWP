@@ -855,6 +855,7 @@ public:
 	void IsValidTriCoord(FVectorVMExternalFunctionContext& Context);
 
 	NIAGARA_API void GetTriangleData(FVectorVMExternalFunctionContext& Context);
+	void GetTriangleIndices(FVectorVMExternalFunctionContext& Context);
 
 	template<typename SkinningHandlerType, typename TransformHandlerType, typename VertexAccessorType, typename bInterpolated>
 	void GetTriCoordSkinnedData(FVectorVMExternalFunctionContext& Context);
@@ -868,9 +869,6 @@ public:
 
 	template<typename VertexAccessorType>
 	void GetTriCoordUV(FVectorVMExternalFunctionContext& Context);
-
-	template<typename SkinningHandlerType>
-	void GetTriCoordVertices(FVectorVMExternalFunctionContext& Context);
 
 	template<typename VertexAccessorType>
 	void GetTriangleCoordAtUV(FVectorVMExternalFunctionContext& Context);
@@ -917,7 +915,7 @@ public:
 	template<typename VertexAccessorType>
 	void GetVertexData(FVectorVMExternalFunctionContext& Context);
 
-	template<typename SkinningHandlerType, typename TransformHandlerType, typename VertexAccessorType>
+	template<typename SkinningHandlerType, typename TransformHandlerType, typename Interpolated, typename VertexAccessorType>
 	void GetVertexSkinnedData(FVectorVMExternalFunctionContext& Context);
 
 	NIAGARA_API void GetVertexColor(FVectorVMExternalFunctionContext& Context);
@@ -989,6 +987,7 @@ public:
 	static const FName RandomTriCoordName;
 	static const FName IsValidTriCoordName;
 	static const FName GetTriangleDataName;
+	static const FName GetTriangleIndicesName;
 	static const FName GetSkinnedTriangleDataName;
 	static const FName GetSkinnedTriangleDataWSName;
 	static const FName GetSkinnedTriangleDataInterpName;
@@ -1033,6 +1032,8 @@ public:
 	static const FName GetVertexDataName;
 	static const FName GetSkinnedVertexDataName;
 	static const FName GetSkinnedVertexDataWSName;
+	static const FName GetSkinnedVertexDataInterpolatedName;
+	static const FName GetSkinnedVertexDataInterpolatedWSName;
 	static const FName GetVertexColorName;
 	static const FName GetVertexUVName;
 

@@ -2824,6 +2824,8 @@ bool UNiagaraDataInterfaceSkeletalMesh::GetFunctionHLSL(const FNiagaraDataInterf
 	{
 		NDISkelMeshLocal::NAME_GetPreSkinnedLocalBounds,
 		//////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+		// Triangle Sampling
+		FSkeletalMeshInterfaceHelper::GetTriangleIndicesName,
 		FSkeletalMeshInterfaceHelper::GetTriCoordVerticesName,
 		FSkeletalMeshInterfaceHelper::GetTriangleCountName,
 		FSkeletalMeshInterfaceHelper::GetFilteredTriangleCountName,
@@ -2838,6 +2840,8 @@ bool UNiagaraDataInterfaceSkeletalMesh::GetFunctionHLSL(const FNiagaraDataInterf
 		FSkeletalMeshInterfaceHelper::GetVertexDataName,
 		FSkeletalMeshInterfaceHelper::GetSkinnedVertexDataName,
 		FSkeletalMeshInterfaceHelper::GetSkinnedVertexDataWSName,
+		FSkeletalMeshInterfaceHelper::GetSkinnedVertexDataInterpolatedName,
+		FSkeletalMeshInterfaceHelper::GetSkinnedVertexDataInterpolatedWSName,
 		FSkeletalMeshInterfaceHelper::GetVertexColorName,
 		FSkeletalMeshInterfaceHelper::GetVertexUVName,
 		FSkeletalMeshInterfaceHelper::IsValidVertexName,
