@@ -2198,6 +2198,11 @@ FReplicationWriter::EWriteObjectStatus FReplicationWriter::WriteObjectAndSubObje
 		FinalBatchEntry.bSentTearOff = bSentTearOff;
 		FinalBatchEntry.bSentDestroySubObject = Info.SubObjectPendingDestroy;
 		FinalBatchEntry.NewBaselineIndex = CreatedBaselineIndex;
+		if (InternalIndex != ObjectIndexForOOBAttachment)
+		{
+			// Mark this object as written this tick to avoid sending it multiple times
+			WriteContext.ObjectsWrittenThisPacket.SetBit(InternalIndex);
+		}
 	}
 
 	// Reset CreatedBaselineIndex to avoid it being released on scope exit
@@ -2305,7 +2310,7 @@ FReplicationWriter::EWriteObjectStatus FReplicationWriter::WriteObjectInBatch(FN
 		return WriteObjectStatus;
 	}
 
-	// Include dependent objects as separate batch
+	// Include dependent objects as separate batch, (for hugeobjects they will be included as they are written to a separate bitstream)
 	{
 		const uint32 OldBatchInfoParentInternalIndex = OutBatchInfo.ParentInternalIndex;
 		for (const FDependentObjectInfo DependentObjectInfo : NetRefHandleManager->GetDependentObjectInfos(InternalIndex))
@@ -2942,13 +2947,6 @@ int FReplicationWriter::HandleObjectBatchSuccess(const FBatchInfo& BatchInfo, FR
 		{
 			SchedulingPriorities[BatchObjectInfo.InternalIndex] = 0.0f;
 		}
-
-		if (BatchObjectInfo.InternalIndex != ObjectIndexForOOBAttachment)
-		{
-			// Mark this object as written this tick to avoid sending it multiple times
-			WriteContext.ObjectsWrittenThisPacket.SetBit(BatchObjectInfo.InternalIndex);
-		}
-
 	}
 
 #if UE_NET_IRIS_CSV_STATS && CSV_PROFILER
@@ -2974,7 +2972,7 @@ int FReplicationWriter::HandleObjectBatchSuccess(const FBatchInfo& BatchInfo, FR
 	return WrittenObjectCount;
 }
 
-FReplicationWriter::EWriteObjectRetryMode FReplicationWriter::HandleObjectBatchFailure(FReplicationWriter::EWriteObjectStatus WriteObjectStatus, const FBatchInfo& BatchInfo, const FReplicationWriter::FBitStreamInfo& BatchBitStreamInfo) const
+FReplicationWriter::EWriteObjectRetryMode FReplicationWriter::HandleObjectBatchFailure(FReplicationWriter::EWriteObjectStatus WriteObjectStatus, const FBatchInfo& BatchInfo, const FReplicationWriter::FBitStreamInfo& BatchBitStreamInfo)
 {
 	IRIS_PROFILER_SCOPE(FReplicationWriter_HandleObjectBatchFailure);
 	
@@ -2985,6 +2983,12 @@ FReplicationWriter::EWriteObjectRetryMode FReplicationWriter::HandleObjectBatchF
 		if (BatchObjectInfo.bSentState && BatchObjectInfo.NewBaselineIndex != FDeltaCompressionBaselineManager::InvalidBaselineIndex)
 		{
 			BaselineManager->LostBaseline(Parameters.ConnectionId, BatchObjectInfo.InternalIndex, BatchObjectInfo.NewBaselineIndex);
+		}
+		
+		if (BatchObjectInfo.InternalIndex != ObjectIndexForOOBAttachment)
+		{
+			// If we failed to write the batch and we wrote data for an object we need to mark it as not written, if we want to try again
+			WriteContext.ObjectsWrittenThisPacket.ClearBit(BatchObjectInfo.InternalIndex);
 		}
 	}
 
