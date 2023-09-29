@@ -8,6 +8,7 @@
 
 #include "VerseVM/Inline/VVMCellInline.h"
 #include "VerseVM/Inline/VVMIntInline.h"
+#include "VerseVM/VVMEnumerator.h"
 #include "VerseVM/VVMFalse.h"
 #include "VerseVM/VVMFloat.h"
 #include "VerseVM/VVMInt.h"
@@ -90,6 +91,11 @@ inline bool VValue::AsBool() const
 {
 	check(IsLogic());
 	return Cell == GlobalTruePtr.Get();
+}
+
+inline bool VValue::IsEnumerator() const
+{
+	return IsCellOfType<VEnumerator>();
 }
 
 template <typename ObjectType>

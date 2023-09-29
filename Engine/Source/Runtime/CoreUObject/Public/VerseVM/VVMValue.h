@@ -173,6 +173,8 @@ struct VValue
 		return VFloat(BitCast<double>(EncodedBits - FloatOffset));
 	}
 
+	bool IsEnumerator() const;
+
 	bool IsUninitialized() const { return EncodedBits == UninitializedValue; }
 
 	uint64 GetEncodedBits() const { return EncodedBits; }
