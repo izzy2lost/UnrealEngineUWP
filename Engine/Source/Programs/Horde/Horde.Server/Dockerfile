@@ -7,13 +7,19 @@
 #       Running directly from the source tree will cause a lot of unnecessary
 #       files to be uploaded to Docker before building.
 
+ARG code_coverage="false"
+
 FROM redis:6.2.7 AS redis
 
 # Build image
 FROM mcr.microsoft.com/dotnet/sdk:6.0 AS build-env
 WORKDIR /app
 COPY Source/Programs/Horde/nuget.config ./Source/Programs/Horde/nuget.config
-RUN DEBIAN_FRONTEND=noninteractive apt-get -qq update && apt-get -qq install curl
+RUN DEBIAN_FRONTEND=noninteractive \
+	apt-get -qq update && \
+	apt-get -qq install curl zip && \
+	dotnet tool install --global JetBrains.dotCover.GlobalTool && \
+	ln -s /root/.dotnet/tools/dotnet-dotcover /usr/local/bin/dotnet-dotcover
 
 COPY --from=redis /usr/local/bin/redis-server /usr/local/bin/redis-server
 
@@ -49,21 +55,23 @@ RUN dotnet publish Source/Programs/Horde/Horde.Server/Horde.Server.csproj -c Rel
 COPY Source/Programs/Horde/Horde.Agent/ Source/Programs/Horde/Horde.Agent/
 COPY Source/Programs/Horde/Horde.Server.Tests/ Source/Programs/Horde/Horde.Server.Tests/
 COPY Source/Programs/Shared/EpicGames.Serialization.Tests/ Source/Programs/Shared/EpicGames.Serialization.Tests/
-RUN redis-server --save "" --appendonly no --daemonize yes && \
-	mongod --noauth --quiet --fork --dbpath /tmp/mongodb --logpath /tmp/mongod.log && \
-	dotnet test Source/Programs/Shared/EpicGames.BuildGraph.Tests/EpicGames.BuildGraph.Tests.csproj --blame-hang-timeout 2m --logger 'console;verbosity=normal' && \
-	dotnet test Source/Programs/Shared/EpicGames.Core.Tests/EpicGames.Core.Tests.csproj --blame-hang-timeout 2m --logger 'console;verbosity=normal' && \
-	dotnet test Source/Programs/Shared/EpicGames.Horde.Tests/EpicGames.Horde.Tests.csproj --blame-hang-timeout 2m --logger 'console;verbosity=normal' && \
-	dotnet test Source/Programs/Shared/EpicGames.IoHash.Tests/EpicGames.IoHash.Tests.csproj --blame-hang-timeout 2m --logger 'console;verbosity=normal' && \
-	dotnet test Source/Programs/Shared/EpicGames.Redis.Tests/EpicGames.Redis.Tests.csproj --blame-hang-timeout 2m --logger 'console;verbosity=normal' && \
-	dotnet test Source/Programs/Shared/EpicGames.Serialization.Tests/EpicGames.Serialization.Tests.csproj --blame-hang-timeout 2m --logger 'console;verbosity=normal' && \
-	dotnet test Source/Programs/Horde/Horde.Server.Tests/Horde.Server.Tests.csproj --blame-hang-timeout 2m --logger 'console;verbosity=normal'
+
+ARG code_coverage
+COPY Source/Programs/Horde/Scripts/test.sh Source/Programs/Horde/Scripts/test.sh
+RUN bash Source/Programs/Horde/Scripts/test.sh
 
 # Remove native libs not used on Linux x86_64
 RUN rm -rf /app/out/runtimes/osx* && \
     rm -rf /app/out/runtimes/win* && \
     rm -rf /app/out/runtimes/linux-arm* && \
     rm -rf /app/out/runtimes/linux/native/libgrpc_csharp_ext.x86.so
+
+
+# Placeholder stage that's used to produce smaller output (only specific files from build-env stage is copied)
+# To retrieve code coverage reports, docker buildx can be run with `--target build-env-output --output type=local,dest=docker-output`
+FROM scratch AS build-env-output
+# Provide at least one file that exists (/tmp/empty), so COPY operation won't fail
+COPY --from=build-env /tmp/empty /tmp/dotcover-report/*.zip /
 
 # Create the runtime image
 FROM mcr.microsoft.com/dotnet/aspnet:6.0 AS runtime
