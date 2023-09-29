@@ -1090,7 +1090,7 @@ const FTypeRegistry::FTypeInfo* FTypeRegistry::AddVersion4(const void* TraceData
 	{
 		const auto& Field = NewEvent.Fields[i];
 
-		int8 TypeSize = 1 << (Field.TypeInfo & Protocol0::Field_Pow2SizeMask);
+		int8 TypeSize = (int8)(1 << (Field.TypeInfo & Protocol0::Field_Pow2SizeMask));
 		if (Field.TypeInfo & Protocol0::Field_Float)
 		{
 			TypeSize = -TypeSize;
@@ -1150,7 +1150,7 @@ const FTypeRegistry::FTypeInfo* FTypeRegistry::AddVersion6(const void* TraceData
 		const auto& Field = NewEvent.Fields[i];
 		if (Field.FieldType == EFieldFamily::Regular)
 		{
-			int8 TypeSize = 1 << (Field.Regular.TypeInfo & Protocol0::Field_Pow2SizeMask);
+			int8 TypeSize = (int8)(1 << (Field.Regular.TypeInfo & Protocol0::Field_Pow2SizeMask));
 			if (Field.Regular.TypeInfo & Protocol0::Field_Float)
 			{
 				TypeSize = -TypeSize;
@@ -1168,7 +1168,7 @@ const FTypeRegistry::FTypeInfo* FTypeRegistry::AddVersion6(const void* TraceData
 		else if (Field.FieldType == EFieldFamily::Reference)
 		{
 			check((Field.Reference.TypeInfo & Protocol0::Field_CategoryMask) == Protocol0::Field_Integer);
-			const int8 TypeSize = 1 << (Field.Reference.TypeInfo & Protocol0::Field_Pow2SizeMask);
+			const int8 TypeSize = (int8)(1 << (Field.Reference.TypeInfo & Protocol0::Field_Pow2SizeMask));
 
 			auto& OutField = Builder.AddField(NameCursor, Field.Reference.NameSize, TypeSize);
 			OutField.Offset = Field.Reference.Offset;
@@ -1182,7 +1182,7 @@ const FTypeRegistry::FTypeInfo* FTypeRegistry::AddVersion6(const void* TraceData
 		else if (Field.FieldType == EFieldFamily::DefinitionId)
 		{
 			check((Field.DefinitionId.TypeInfo & Protocol0::Field_CategoryMask) == Protocol0::Field_Integer);
-			const int8 TypeSize = 1 << (Field.DefinitionId.TypeInfo & Protocol0::Field_Pow2SizeMask);
+			const int8 TypeSize = (int8)(1 << (Field.DefinitionId.TypeInfo & Protocol0::Field_Pow2SizeMask));
 
 			auto DefinitionIdFieldName = ANSITEXTVIEW("DefinitionId");
 			auto& OutField = Builder.AddField(DefinitionIdFieldName.GetData(), DefinitionIdFieldName.Len(), TypeSize);
@@ -3115,7 +3115,7 @@ int32 FProtocol5Stage::ParseImportantEvents(FStreamReader& Reader, EventDescArra
 
 		FEventDesc EventDesc;
 		EventDesc.Serial = ESerial::Ignored;
-		EventDesc.Uid = Uid;
+		EventDesc.Uid = (uint16)Uid;
 		EventDesc.Data = Header->Data;
 
 		// Special case for new events. It would work to add a 0 type to the
@@ -3642,7 +3642,7 @@ int32 FProtocol5Stage::ParseEvent(FStreamReader& Reader, FEventDesc& EventDesc, 
 	}
 
 	EventDesc.Serial = Serial;
-	EventDesc.Uid = Uid;
+	EventDesc.Uid = (uint16)Uid;
 	EventDesc.Data = Cursor;
 
 	uint32 HeaderSize = uint32(UPTRINT(Cursor - Reader.GetPointer<uint8>()));

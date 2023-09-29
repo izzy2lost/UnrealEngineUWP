@@ -91,12 +91,11 @@ namespace
 		}
 
 		// If the search path is an absolute path to a file use this. Filenames does
-		// not need to to match (e.g. eboot.bin <-> gamename.self)
+		// not need to match (e.g. eboot.bin <-> gamename.self)
 		if (PlatformFile->FileExists(*SearchPath))
 		{
 			return SearchPath;
 		}
-
 
 		// Extract only filename part in case Path is absolute path
 		FString FileName = FPaths::GetCleanFilename(File);
@@ -725,8 +724,8 @@ void FSymslibResolver::OnAnalysisComplete()
 			}
 		}
 
-		UE_LOG(LogSymslib, Display, TEXT("Allocated %.02f Mb of strings, %.02f Mb wasted."),
-		       SymbolBytesAllocated / float(1024*1024), SymbolBytesWasted / float(1024*1024));
+		UE_LOG(LogSymslib, Display, TEXT("Allocated %.02f MiB of strings (%.02f MiB wasted)."),
+			(double)SymbolBytesAllocated / (1024.0 * 1024.0), (double)SymbolBytesWasted / (1024.0 * 1024.0));
 	});
 }
 
@@ -805,9 +804,9 @@ void FSymslibResolver::ResolveSymbols(TArrayView<FQueuedAddress>& QueuedWork)
 		}
 		ResolveSymbolTracked(ToResolve.Address, *ToResolve.Target, StringAllocator);
 	}
-	UE_LOG(LogSymslib, VeryVerbose, TEXT("String allocator used: %.02f kb, wasted: %.02f kb using %d blocks"),
-		((StringAllocator.BlockUsed * StringAllocator.BlockSize - StringAllocator.BlockRemaining) * sizeof(TCHAR)) / 1024.0f,
-		(StringAllocator.BlockRemaining * sizeof(TCHAR)) / 1024.0f,
+	UE_LOG(LogSymslib, VeryVerbose, TEXT("String allocator: %.02f KiB used (%.02f KiB wasted) in %d blocks"),
+		(double)((StringAllocator.BlockUsed * StringAllocator.BlockSize - StringAllocator.BlockRemaining) * sizeof(TCHAR)) / 1024.0,
+		(double)(StringAllocator.BlockRemaining * sizeof(TCHAR)) / 1024.0,
 		StringAllocator.BlockUsed);
 	SymbolBytesAllocated.fetch_add(StringAllocator.BlockUsed * StringAllocator.BlockSize * sizeof(TCHAR));
 	SymbolBytesWasted.fetch_add(StringAllocator.BlockRemaining * sizeof(TCHAR));

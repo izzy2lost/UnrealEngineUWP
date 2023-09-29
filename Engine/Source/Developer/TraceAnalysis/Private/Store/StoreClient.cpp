@@ -468,14 +468,14 @@ void FStoreClient::FStatus::GetWatchDirectories(TArray<FString>& OutDirs) const
 uint32 FStoreClient::FVersion::GetMajorVersion() const
 {
 	const auto* Response = (const FResponse*)this;
-	return Response->GetInteger("major", 0);
+	return Response->GetUint32Checked("major", 0);
 }
 
 ////////////////////////////////////////////////////////////////////////////////
 uint32 FStoreClient::FVersion::GetMinorVersion() const
 {
 	const auto* Response = (const FResponse*)this;
-	return Response->GetInteger("minor", 0);
+	return Response->GetUint32Checked("minor", 0);
 }
 
 ////////////////////////////////////////////////////////////////////////////////

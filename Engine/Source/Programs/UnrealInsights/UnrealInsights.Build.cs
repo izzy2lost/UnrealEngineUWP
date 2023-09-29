@@ -6,14 +6,15 @@ public class UnrealInsights : ModuleRules
 {
 	public UnrealInsights(ReadOnlyTargetRules Target) : base(Target)
 	{
+		UnsafeTypeCastWarningLevel = WarningLevel.Error;
+
 		PublicIncludePathModuleNames.Add("Launch");
 
 		PrivateDependencyModuleNames.AddRange(
 			new string[] {
 				"AppFramework",
-				//"AutomationController",
-				"Core",
 				"ApplicationCore",
+				"Core",
 				"CoreUObject",
 				"Projects",
 				"Slate",
