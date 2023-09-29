@@ -167,7 +167,7 @@ namespace UE::Core::Private
 		}
 
 		// (Re-)establish the null terminator
-		*NewEnd = '\0';
+		*NewEnd = CHARTEXT(DestCharType, '\0');
 	}
 
 	template <typename DestCharType, typename SrcCharType>
@@ -1276,8 +1276,8 @@ int32 UE_STRING_CLASS::ParseIntoArray( TArray<UE_STRING_CLASS>& OutArray, const 
 	{
 		UE::String::EParseTokensOptions ParseOptions = UE::String::EParseTokensOptions::IgnoreCase |
 			(InCullEmpty ? UE::String::EParseTokensOptions::SkipEmpty : UE::String::EParseTokensOptions::None);
-		UE::String::ParseTokens(FStringView(*this), FStringView(pchDelim),
-			[&OutArray](FStringView Token) { OutArray.Emplace(Token); },
+		UE::String::ParseTokens(TStringView<ElementType>(*this), TStringView<ElementType>(pchDelim),
+			[&OutArray](TStringView<ElementType> Token) { OutArray.Emplace(Token); },
 			ParseOptions);
 	}
 	return OutArray.Num();
@@ -1907,7 +1907,7 @@ UE_STRING_CLASS SlugStringForValidName(const UE_STRING_CLASS& DisplayString, con
 	{
 		for ( int32 BadCharacterIndex = 0; BadCharacterIndex < UE_ARRAY_COUNT(INVALID_OBJECTNAME_CHARACTERS) - 1; ++BadCharacterIndex )
 		{
-			const ElementType TestChar[2] = { INVALID_OBJECTNAME_CHARACTERS[BadCharacterIndex], CHARTEXT(ElementType, '\0') };
+			const ElementType TestChar[2] = { (ElementType)INVALID_OBJECTNAME_CHARACTERS[BadCharacterIndex], CHARTEXT(ElementType, '\0') };
 			const int32 NumReplacedChars = GeneratedName.ReplaceInline(TestChar, ReplaceWith);
 		}
 	}
