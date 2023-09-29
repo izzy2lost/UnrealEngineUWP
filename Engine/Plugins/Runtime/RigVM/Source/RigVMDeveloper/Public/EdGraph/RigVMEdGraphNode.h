@@ -118,6 +118,7 @@ public:
 	virtual void BeginDestroy() override;
 
 	virtual bool IsDeprecated() const override;
+	bool IsOutDated() const;
 	virtual FEdGraphNodeDeprecationResponse GetDeprecationResponse(EEdGraphNodeDeprecationType DeprecationType) const override;
 
 	/** Set the cached dimensions of this node */

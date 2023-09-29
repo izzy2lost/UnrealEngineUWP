@@ -312,6 +312,16 @@ public:
 
 	TSharedPtr<FStructOnScope> GetDecoratorInstance(const URigVMPin* InDecoratorPin, bool bUseDefaultValueFromPin = true) const;
 
+	virtual bool IsOutDated() const
+	{
+		return false;
+	}
+	
+	virtual FString GetDeprecatedMetadata() const
+	{
+		return FString();
+	}
+
 private:
 
 	static const FString NodeColorName;

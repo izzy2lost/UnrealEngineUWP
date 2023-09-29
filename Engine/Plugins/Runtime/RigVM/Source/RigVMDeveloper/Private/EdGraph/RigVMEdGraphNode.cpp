@@ -169,6 +169,11 @@ FText URigVMEdGraphNode::GetNodeTitle(ENodeTitleType::Type TitleType) const
 			NodeTitle = FText::FromString(FString::Printf(TEXT("%s (Deprecated)"), *NodeTitle.ToString()));
 		}
 
+		if(IsOutDated())
+		{
+			NodeTitle = FText::FromString(FString::Printf(TEXT("%s (OutDated)"), *NodeTitle.ToString()));
+		}
+
 		FullNodeTitle = NodeTitle;
 
 		if(!SubTitle.IsEmpty())
@@ -277,14 +282,18 @@ void URigVMEdGraphNode::ReconstructNode_Internal(bool bForce)
 
 bool URigVMEdGraphNode::IsDeprecated() const
 {
+	// we longer consider nodes to be deprecated ever,
+	// instead we refer to them as outdated
+	return false;
+}
+
+bool URigVMEdGraphNode::IsOutDated() const
+{
 	if(URigVMNode* ModelNode = GetModelNode())
 	{
-		if(URigVMUnitNode* StructModelNode = Cast<URigVMUnitNode>(ModelNode))
-		{
-			return StructModelNode->IsDeprecated();
-		}
+		return ModelNode->IsOutDated();
 	}
-	return Super::IsDeprecated();
+	return false;
 }
 
 FEdGraphNodeDeprecationResponse URigVMEdGraphNode::GetDeprecationResponse(EEdGraphNodeDeprecationType DeprecationType) const
@@ -293,15 +302,12 @@ FEdGraphNodeDeprecationResponse URigVMEdGraphNode::GetDeprecationResponse(EEdGra
 
 	if(URigVMNode* ModelNode = GetModelNode())
 	{
-		if(URigVMUnitNode* StructModelNode = Cast<URigVMUnitNode>(ModelNode))
+		const FString DeprecatedMetadata = ModelNode->GetDeprecatedMetadata();
+		if (!DeprecatedMetadata.IsEmpty())
 		{
-			FString DeprecatedMetadata = StructModelNode->GetDeprecatedMetadata();
-			if (!DeprecatedMetadata.IsEmpty())
-			{
-				FFormatNamedArguments Args;
-				Args.Add(TEXT("DeprecatedMetadata"), FText::FromString(DeprecatedMetadata));
-				Response.MessageText = FText::Format(LOCTEXT("RigVMEdGraphNodeDeprecationMessage", "Warning: This node is deprecated from: {DeprecatedMetadata}"), Args);
-			}
+			FFormatNamedArguments Args;
+			Args.Add(TEXT("DeprecatedMetadata"), FText::FromString(DeprecatedMetadata));
+			Response.MessageText = FText::Format(LOCTEXT("RigVMEdGraphNodeDeprecationMessage", "Warning: This node is deprecated from: {DeprecatedMetadata}"), Args);
 		}
 	}
 
@@ -375,7 +381,12 @@ void URigVMEdGraphNode::PostReconstructNode()
 
 	bCanRenameNode = false;
 
-	if(URigVMNode* ModelNode = GetModelNode())
+	if(IsOutDated())
+	{
+		static const FLinearColor WarningColor = FAppStyle::GetColor("ErrorReporting.WarningBackgroundColor");
+		SetColorFromModel(WarningColor);
+	}
+	else if(URigVMNode* ModelNode = GetModelNode())
 	{
 		SetColorFromModel(ModelNode->GetNodeColor());
 	}
@@ -1666,7 +1677,14 @@ FText URigVMEdGraphNode::GetTooltipText() const
 {
 	if(URigVMNode* ModelNode = GetModelNode())
 	{
-		return ModelNode->GetToolTipText();
+		FText Tooltip = ModelNode->GetToolTipText();
+		if(IsOutDated())
+		{
+			return FText::Format(
+				LOCTEXT("OutDatedTooltipFormat", "This node is outdated and can potentially be upgraded.\nFor this right click and choose 'Upgrade Nodes'.\n\n{0}"),
+					Tooltip);
+		}
+		return Tooltip;;
 	}
 	return FText::FromString(ModelNodePath);
 }

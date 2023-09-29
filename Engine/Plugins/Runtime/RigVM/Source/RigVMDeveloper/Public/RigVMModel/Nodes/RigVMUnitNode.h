@@ -38,9 +38,8 @@ public:
 	virtual TArray<URigVMPin*> GetAggregateOutputs() const override;
 	virtual FName GetNextAggregateName(const FName& InLastAggregatePinName) const override;
 
-	bool IsDeprecated() const;
-	FString GetDeprecatedMetadata() const;
-
+	virtual bool IsOutDated() const override;
+	virtual FString GetDeprecatedMetadata() const override;
 
 	// URigVMTemplateNode interface
 	virtual UScriptStruct* GetScriptStruct() const override;

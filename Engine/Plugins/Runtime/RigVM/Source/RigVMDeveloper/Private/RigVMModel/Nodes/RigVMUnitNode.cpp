@@ -17,7 +17,7 @@ void URigVMUnitNode::PostLoad()
 	// if we have a script struct but no notation let's figure out the template
 	if(GetScriptStruct() != nullptr)
 	{
-		if (IsDeprecated())
+		if (IsOutDated())
 		{
 			TemplateNotation = NAME_None;
 			if(const FRigVMFunction* Function = FRigVMRegistry::Get().FindFunction(GetScriptStruct(), *GetMethodName().ToString()))
@@ -175,7 +175,7 @@ bool URigVMUnitNode::ShouldInputPinComputeLazily(const URigVMPin* InPin) const
 	return Super::ShouldInputPinComputeLazily(InPin);
 }
 
-bool URigVMUnitNode::IsDeprecated() const
+bool URigVMUnitNode::IsOutDated() const
 {
 	return !GetDeprecatedMetadata().IsEmpty();
 }
