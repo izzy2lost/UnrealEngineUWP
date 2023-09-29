@@ -56,14 +56,14 @@ void UMassCrowdVisualizationLODProcessor::Execute(FMassEntityManager& EntityMana
 
 	ForceOffLOD((bool)UE::MassCrowd::GCrowdTurnOffVisualization);
 
-	TRACE_CPUPROFILER_EVENT_SCOPE(TEXT("CrowdVisualizationLOD"))
+	TRACE_CPUPROFILER_EVENT_SCOPE(CrowdVisualizationLOD)
 
 	Super::Execute(EntityManager, Context);
 
 #if WITH_MASSGAMEPLAY_DEBUG
 	if (UE::MassCrowd::bDebugCrowdVisualizationLOD)
 	{
-		TRACE_CPUPROFILER_EVENT_SCOPE(TEXT("DebugDisplayLOD"))
+		TRACE_CPUPROFILER_EVENT_SCOPE(DebugDisplayLOD)
 
 		DebugEntityQuery.ForEachEntityChunk(EntityManager, Context, [World](FMassExecutionContext& Context)
 		{
@@ -77,7 +77,7 @@ void UMassCrowdVisualizationLODProcessor::Execute(FMassEntityManager& EntityMana
 
 	if (UE::MassCrowd::bDebugShowISMUnderSpecifiedRange > 0)
 	{
-		TRACE_CPUPROFILER_EVENT_SCOPE(TEXT("ShowISMUnderSpecifiedRange"))
+		TRACE_CPUPROFILER_EVENT_SCOPE(ShowISMUnderSpecifiedRange)
 
 		DebugEntityQuery.ForEachEntityChunk(EntityManager, Context, [World](const FMassExecutionContext& Context)
 		{

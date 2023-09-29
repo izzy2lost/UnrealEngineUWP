@@ -67,14 +67,14 @@ template <bool bLocalViewersOnly>
 void UMassLODCollectorProcessor::ExecuteInternal(FMassEntityManager& EntityManager, FMassExecutionContext& Context)
 {
 	{
-		TRACE_CPUPROFILER_EVENT_SCOPE(TEXT("Close"));
+		TRACE_CPUPROFILER_EVENT_SCOPE(Close);
 		EntityQuery_VisibleRangeAndOnLOD.ForEachEntityChunk(EntityManager, Context, [this](FMassExecutionContext& Context) { CollectLODForChunk<bLocalViewersOnly>(Context); });
 		EntityQuery_VisibleRangeOnly.ForEachEntityChunk(EntityManager, Context, [this](FMassExecutionContext& Context) { CollectLODForChunk<bLocalViewersOnly>(Context); });
 		EntityQuery_OnLODOnly.ForEachEntityChunk(EntityManager, Context, [this](FMassExecutionContext& Context) { CollectLODForChunk<bLocalViewersOnly>(Context); });
 	}
 
 	{
-		TRACE_CPUPROFILER_EVENT_SCOPE(TEXT("Far"));
+		TRACE_CPUPROFILER_EVENT_SCOPE(Far);
 		EntityQuery_NotVisibleRangeAndOffLOD.ForEachEntityChunk(EntityManager, Context, [this](FMassExecutionContext& Context) { CollectLODForChunk<bLocalViewersOnly>(Context); });
 	}
 }

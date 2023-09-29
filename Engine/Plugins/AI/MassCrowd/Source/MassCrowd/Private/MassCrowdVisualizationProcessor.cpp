@@ -78,7 +78,7 @@ void UMassDebugCrowdVisualizationProcessor::Execute(FMassEntityManager& EntityMa
 	{
 		check(World);
 
-		TRACE_CPUPROFILER_EVENT_SCOPE(TEXT("DebugDisplayVisualType"))
+		TRACE_CPUPROFILER_EVENT_SCOPE(DebugDisplayVisualType)
 
 		EntityQuery.ForEachEntityChunk(EntityManager, Context, [this](const FMassExecutionContext& Context)
 		{

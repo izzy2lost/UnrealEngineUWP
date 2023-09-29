@@ -261,7 +261,7 @@ void FRCWebSocketServer::ReceivedRawPacket(void* Data, int32 Size, FGuid ClientI
 		{
 			case ERCWebSocketCompressionMode::ZLIB:
 			{
-				TRACE_CPUPROFILER_EVENT_SCOPE(TEXT("DecompressWebSocketData"));
+				TRACE_CPUPROFILER_EVENT_SCOPE(DecompressWebSocketData);
 				
 				// Read the header containing the message's uncompressed size
 				const TArrayView<uint8> CompressedData = MakeArrayView(static_cast<uint8*>(Data), Size);
@@ -347,7 +347,7 @@ void FRCWebSocketServer::SendOnConnection(FWebSocketConnection& Connection, cons
 	{
 	case ERCWebSocketCompressionMode::ZLIB:
 		{
-			TRACE_CPUPROFILER_EVENT_SCOPE(TEXT("CompressWebSocketData"));
+			TRACE_CPUPROFILER_EVENT_SCOPE(CompressWebSocketData);
 
 			int32 CompressedSize = InUTF8Payload.Num();
 

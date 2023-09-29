@@ -1050,7 +1050,7 @@ void UText3DComponent::BuildTextMesh(const bool& bCleanCache)
 
 void UText3DComponent::BuildTextMeshInternal(const bool& bCleanCache)
 {
-	TRACE_CPUPROFILER_EVENT_SCOPE(TEXT("UText3DComponent::Rebuild"));
+	TRACE_CPUPROFILER_EVENT_SCOPE(UText3DComponent::Rebuild);
 
 	ON_SCOPE_EXIT { bIsBuilding = false; };
 

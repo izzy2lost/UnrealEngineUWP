@@ -52,14 +52,14 @@ void UMassCrowdServerRepresentationLODProcessor::Initialize(UObject& InOwner)
 
 void UMassCrowdServerRepresentationLODProcessor::Execute(FMassEntityManager& EntityManager, FMassExecutionContext& Context)
 {
-	TRACE_CPUPROFILER_EVENT_SCOPE(TEXT("CrowdServerRepresentationLOD"))
+	TRACE_CPUPROFILER_EVENT_SCOPE(CrowdServerRepresentationLOD)
 
 	const UMassLODSubsystem& LODSubsystem = Context.GetSubsystemChecked<UMassLODSubsystem>();
 	const TArray<FViewerInfo>& Viewers = LODSubsystem.GetViewers();
 	LODCalculator.PrepareExecution(Viewers);
 	
 	{
-		TRACE_CPUPROFILER_EVENT_SCOPE(TEXT("CalculateLOD"))
+		TRACE_CPUPROFILER_EVENT_SCOPE(CalculateLOD)
 		
 		EntityQuery.ForEachEntityChunk(EntityManager, Context, [this](FMassExecutionContext& Context)
 		{
@@ -70,7 +70,7 @@ void UMassCrowdServerRepresentationLODProcessor::Execute(FMassEntityManager& Ent
 	}
 
 	{
-		TRACE_CPUPROFILER_EVENT_SCOPE(TEXT("AdjustDistancesAndLODFromCount"))
+		TRACE_CPUPROFILER_EVENT_SCOPE(AdjustDistancesAndLODFromCount)
 		
 		if (LODCalculator.AdjustDistancesFromCount())
 		{
@@ -87,7 +87,7 @@ void UMassCrowdServerRepresentationLODProcessor::Execute(FMassEntityManager& Ent
 	// Optional debug display
 	if (UE::MassCrowd::bDebugCrowdServerRepresentationLOD)
 	{
-		TRACE_CPUPROFILER_EVENT_SCOPE(TEXT("DebugDisplayLOD"))
+		TRACE_CPUPROFILER_EVENT_SCOPE(DebugDisplayLOD)
 		UWorld* World = EntityManager.GetWorld();
 		EntityQuery.ForEachEntityChunk(EntityManager, Context, [this, World](FMassExecutionContext& Context)
 		{
