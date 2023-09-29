@@ -37,6 +37,7 @@
 #include "IXRTrackingSystem.h"
 #include "SceneViewExtension.h"
 #include "ScreenRendering.h"
+#include "ShaderPrint.h"
 #include "PipelineStateCache.h"
 #include "ClearQuad.h"
 #include "MobileSeparateTranslucencyPass.h"
@@ -646,7 +647,9 @@ void FMobileSceneRenderer::InitViews(
 		Scene->GPUScene.Update(GraphBuilder, GetSceneUniforms(), *Scene, ExternalAccessQueue);
 		for (int32 ViewIndex = 0; ViewIndex < AllViews.Num(); ViewIndex++)
 		{
-			Scene->GPUScene.UploadDynamicPrimitiveShaderDataForView(GraphBuilder, *Scene, *AllViews[ViewIndex]);
+			FViewInfo& View = *AllViews[ViewIndex];
+			Scene->GPUScene.UploadDynamicPrimitiveShaderDataForView(GraphBuilder, *Scene, View);
+			Scene->GPUScene.DebugRender(GraphBuilder, *Scene, GetSceneUniforms(), View);
 		}
 	}
 
@@ -870,6 +873,13 @@ void FMobileSceneRenderer::Render(FRDGBuilder& GraphBuilder)
 	GSystemTextures.InitializeTextures(GraphBuilder.RHICmdList, FeatureLevel);
 
 	FRDGSystemTextures::Create(GraphBuilder);
+
+	ShaderPrint::BeginViews(GraphBuilder, Views);
+
+	ON_SCOPE_EXIT
+	{
+		ShaderPrint::EndViews(Views);
+	};
 
 	TUniquePtr<FVirtualTextureUpdater> VirtualTextureUpdater;
 

@@ -178,6 +178,39 @@ namespace ShaderPrint
 	FBufferWithRDG* GEmptyBuffer = new TGlobalResource<FEmptyBuffer>();
 
 	//////////////////////////////////////////////////////////////////////////////////////////////////
+	// Global fixed index buffers
+
+	class FLineIndexBuffer : public FIndexBuffer
+	{
+	public:
+		void InitRHI(FRHICommandListBase& RHICmdList) override
+		{
+			FRHIResourceCreateInfo CreateInfo(TEXT("FLineIndexBuffer"));
+			IndexBufferRHI = RHICmdList.CreateIndexBuffer(sizeof(uint16), sizeof(uint16) * 2, BUF_Static, CreateInfo);
+			void* VoidPtr = RHICmdList.LockBuffer(IndexBufferRHI, 0, sizeof(uint16) * 2, RLM_WriteOnly);
+			static const uint16 Indices[] = { 0, 1 };
+			FMemory::Memcpy(VoidPtr, Indices, 2 * sizeof(uint16));
+			RHICmdList.UnlockBuffer(IndexBufferRHI);
+		}
+	};
+	TGlobalResource<FLineIndexBuffer, FRenderResource::EInitPhase::Pre> GLineIndexBuffer;
+
+	class FTriangleIndexBuffer : public FIndexBuffer
+	{
+	public:
+		void InitRHI(FRHICommandListBase& RHICmdList) override
+		{
+			FRHIResourceCreateInfo CreateInfo(TEXT("FTriangleIndexBuffer"));
+			IndexBufferRHI = RHICmdList.CreateIndexBuffer(sizeof(uint16), sizeof(uint16) * 3, BUF_Static, CreateInfo);
+			void* VoidPtr = RHICmdList.LockBuffer(IndexBufferRHI, 0, sizeof(uint16) * 3, RLM_WriteOnly);
+			static const uint16 Indices[] = { 0, 1, 2 };
+			FMemory::Memcpy(VoidPtr, Indices, 3 * sizeof(uint16));
+			RHICmdList.UnlockBuffer(IndexBufferRHI);
+		}
+	};
+	TGlobalResource<FTriangleIndexBuffer, FRenderResource::EInitPhase::Pre> GTriangleIndexBuffer;
+
+		//////////////////////////////////////////////////////////////////////////////////////////////////
 	// Uniform buffer
 	
 	// ShaderPrint uniform buffer
@@ -240,7 +273,9 @@ namespace ShaderPrint
 
 	bool IsSupported(EShaderPlatform InShaderPlatform)
 	{
-		return !IsMobilePlatform(InShaderPlatform) && !IsHlslccShaderPlatform(InShaderPlatform);
+		// Should be supported everywhere?
+		// If we want to restrict platforms then we can use existing logic here or add a DataDrivenPlatformInfo.
+		return true;
 	}
 
 	bool IsEnabled()
@@ -1107,7 +1142,7 @@ namespace ShaderPrint
 				// Marks the indirect draw parameter as used by the pass, given it's not used directly by any of the shaders.
 				FRHIBuffer* IndirectBufferRHI = PassParameters->VS.IndirectBuffer->GetIndirectRHICallBuffer();
 				check(IndirectBufferRHI != nullptr);
-				RHICmdList.DrawPrimitiveIndirect(IndirectBufferRHI, 0);
+				RHICmdList.DrawIndexedPrimitiveIndirect(bLines ? GLineIndexBuffer.IndexBufferRHI : GTriangleIndexBuffer.IndexBufferRHI, IndirectBufferRHI, 0);
 			});
 	}
 

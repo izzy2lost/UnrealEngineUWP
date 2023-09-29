@@ -2779,6 +2779,11 @@ void AddMobilePostProcessingPasses(FRDGBuilder& GraphBuilder, FScene* Scene, con
 		}
 	}
 
+	if (ShaderPrint::IsEnabled(View.ShaderPrintData))
+	{
+		ShaderPrint::DrawView(GraphBuilder, View, SceneColor, SceneDepth);
+	}
+
 	if (PassSequence.IsEnabled(EPass::HMDDistortion))
 	{
 		FHMDDistortionInputs PassInputs;
