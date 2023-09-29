@@ -594,7 +594,7 @@ void UWaterMeshComponent::RebuildWaterMesh(float InTileSize, const FIntPoint& In
 
 void UWaterMeshComponent::Update()
 {
-	bIsEnabled = FWaterUtils::IsWaterMeshEnabled(/*bIsRenderThread = */false);
+	bIsEnabled = FWaterUtils::IsWaterMeshEnabled(/*bIsRenderThread = */false) && FApp::CanEverRender();
 
 	// Early out
 	if (!bIsEnabled)
