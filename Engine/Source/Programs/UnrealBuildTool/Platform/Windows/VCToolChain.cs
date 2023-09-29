@@ -58,6 +58,11 @@ namespace UnrealBuildTool
 			return EnvVars.CompilerPath;
 		}
 
+		public IEnumerable<DirectoryReference> GetVCIncludePaths()
+		{
+			return EnvVars.IncludePaths;
+		}
+
 		/// <summary>
 		/// Prepares the environment for building
 		/// </summary>
@@ -2194,6 +2199,13 @@ namespace UnrealBuildTool
 			CompileAction.CommandVersion = EnvVars.ToolChainVersion.ToString();
 			CompileAction.bShouldOutputStatusDescription = false;
 			CompileAction.bCanExecuteRemotely = false; // Incompatible with remote distribution
+		}
+
+		public override IEnumerable<string> GetGlobalCommandLineArgs(CppCompileEnvironment CompileEnvironment)
+		{
+			List<string> Arguments = new();
+			AppendCLArguments_Global(new(CompileEnvironment), Arguments);
+			return Arguments;
 		}
 
 		public override CppCompileEnvironment CreateSharedResponseFile(CppCompileEnvironment CompileEnvironment, FileReference OutResponseFile, IActionGraphBuilder Graph)

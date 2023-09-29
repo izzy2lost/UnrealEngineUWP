@@ -1008,6 +1008,13 @@ namespace UnrealBuildTool
 			return NewList;
 		}
 
+		public override IEnumerable<string> GetGlobalCommandLineArgs(CppCompileEnvironment CompileEnvironment)
+		{
+			List<string> Arguments = new();
+			GetCompileArguments_Global(new CppCompileEnvironment(CompileEnvironment), Arguments);
+			return Arguments;
+		}
+
 		public override CppCompileEnvironment CreateSharedResponseFile(CppCompileEnvironment CompileEnvironment, FileReference OutResponseFile, IActionGraphBuilder Graph)
 		{
 			CppCompileEnvironment NewCompileEnvironment = new CppCompileEnvironment(CompileEnvironment);

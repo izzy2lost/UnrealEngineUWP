@@ -162,6 +162,11 @@ namespace UnrealBuildTool
 			return Result.ToArray();
 		}
 
+		public virtual IEnumerable<string> GetGlobalCommandLineArgs(CppCompileEnvironment CompileEnvironment)
+		{
+			return Array.Empty<string>();
+		}
+
 		public virtual CppCompileEnvironment CreateSharedResponseFile(CppCompileEnvironment CompileEnvironment, FileReference OutResponseFile, IActionGraphBuilder Graph)
 		{
 			return CompileEnvironment;
