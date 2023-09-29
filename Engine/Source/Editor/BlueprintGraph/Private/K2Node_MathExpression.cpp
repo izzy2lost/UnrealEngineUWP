@@ -18,6 +18,7 @@
 #include "EdGraphUtilities.h"
 #include "Engine/Blueprint.h"
 #include "Engine/MemberReference.h"
+#include "Framework/Application/SlateApplication.h"
 #include "HAL/PlatformCrt.h"
 #include "Internationalization/Internationalization.h"
 #include "K2Node_CallFunction.h"
@@ -2731,6 +2732,10 @@ void UK2Node_MathExpression::RebuildExpression(FString InExpression)
 //------------------------------------------------------------------------------
 void UK2Node_MathExpression::ClearExpression()
 {
+	// close the tooltip preview (if open) - since this is a composite node,
+	// its content will become invalid because we are mutating the bound graph
+	FSlateApplication::Get().CloseToolTip();
+
 	// clear any errors 
 	SetNodeError(this, FText::GetEmpty());
 

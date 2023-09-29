@@ -475,6 +475,11 @@ void FConnectionDrawingPolicy::DrawPinGeometries(TMap<TSharedRef<SWidget>, FArra
 		SGraphPin& PinWidget = static_cast<SGraphPin&>(SomePinWidget.Get());
 		UEdGraphPin* ThePin = PinWidget.GetPinObj();
 
+		if (!ensureMsgf(ThePin, TEXT("Encountered a NULL graph pin object while attempting to draw connections. It may be necessary to refresh the outer node widget.")))
+		{
+			continue;
+		}
+
 		if (ThePin->Direction == EGPD_Output)
 		{
 			for (int32 LinkIndex=0; LinkIndex < ThePin->LinkedTo.Num(); ++LinkIndex)
