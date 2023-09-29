@@ -406,6 +406,8 @@ bool UPoseSearchFeatureChannel_Phase::IndexAsset(UE::PoseSearch::FAssetIndexer& 
 
 FString UPoseSearchFeatureChannel_Phase::GetLabel() const
 {
+	using namespace UE::PoseSearch;
+
 	TStringBuilder<256> Label;
 	if (const UPoseSearchFeatureChannel* OuterChannel = Cast<UPoseSearchFeatureChannel>(GetOuter()))
 	{

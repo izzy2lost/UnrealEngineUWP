@@ -20,10 +20,11 @@
 #define LOCTEXT_NAMESPACE "AnimNode_MotionMatching"
 
 #if ENABLE_ANIM_DEBUG
-static TAutoConsoleVariable<int32> CVarAnimNodeMotionMatchingDrawQuery(TEXT("a.AnimNode.MotionMatching.DebugDrawQuery"), 0, TEXT("Draw input query"));
-static TAutoConsoleVariable<int32> CVarAnimNodeMotionMatchingDrawCurResult(TEXT("a.AnimNode.MotionMatching.DebugDrawCurResult"), 0, TEXT("Draw current result"));
-static TAutoConsoleVariable<int32> CVarAnimNodeMotionMatchingDrawInfo(TEXT("a.AnimNode.MotionMatching.DebugDrawInfo"), 0, TEXT("Draw info like current databases and asset"));
-static TAutoConsoleVariable<int32> CVarAnimNodeMotionMatchingDrawInfoVerbose(TEXT("a.AnimNode.MotionMatching.DebugDrawInfoVerbose"), 1, TEXT("Draw additional info like blend stack"));
+static TAutoConsoleVariable<bool> CVarAnimNodeMotionMatchingDrawQuery(TEXT("a.AnimNode.MotionMatching.DebugDrawQuery"), false, TEXT("Draw input query"));
+static TAutoConsoleVariable<bool> CVarAnimNodeMotionMatchingDrawCurResult(TEXT("a.AnimNode.MotionMatching.DebugDrawCurResult"), false, TEXT("Draw current result"));
+static TAutoConsoleVariable<bool> CVarAnimNodeMotionMatchingDrawPoseHistory(TEXT("a.AnimNode.MotionMatching.DebugDrawPoseHistory"), false, TEXT("Draw Pose History"));
+static TAutoConsoleVariable<bool> CVarAnimNodeMotionMatchingDrawInfo(TEXT("a.AnimNode.MotionMatching.DebugDrawInfo"), false, TEXT("Draw info like current databases and asset"));
+static TAutoConsoleVariable<bool> CVarAnimNodeMotionMatchingDrawInfoVerbose(TEXT("a.AnimNode.MotionMatching.DebugDrawInfoVerbose"), true, TEXT("Draw additional info like blend stack"));
 static TAutoConsoleVariable<float> CVarAnimNodeMotionMatchingDrawInfoHeight(TEXT("a.AnimNode.MotionMatching.DebugDrawInfoHeight"), 50.f, TEXT("Vertical offset for DebugDrawInfo"));
 #endif
 
@@ -44,6 +45,8 @@ void FAnimNode_MotionMatching::Evaluate_AnyThread(FPoseContext& Output)
 {
 	DECLARE_SCOPE_HIERARCHICAL_COUNTER_ANIMNODE(Evaluate_AnyThread);
 	ANIM_MT_SCOPE_CYCLE_COUNTER_VERBOSE(MotionMatching, !IsInGameThread());
+
+	using namespace UE::PoseSearch;
 
 	FAnimNode_BlendStack_Standalone::Evaluate_AnyThread(Output);
 
@@ -132,7 +135,7 @@ void FAnimNode_MotionMatching::UpdateAssetPlayer(const FAnimationUpdateContext& 
 	}
 
 #if ENABLE_ANIM_DEBUG
-	if (CVarAnimNodeMotionMatchingDrawInfo.GetValueOnAnyThread() > 0)
+	if (CVarAnimNodeMotionMatchingDrawInfo.GetValueOnAnyThread())
 	{
 		const UPoseSearchDatabase* CurrentDatabase = MotionMatchingState.CurrentSearchResult.Database;
 		const UAnimationAsset* CurrentAnimationAsset = AnimPlayers.IsEmpty() ? nullptr : AnimPlayers.First().GetAnimationAsset();
@@ -140,7 +143,7 @@ void FAnimNode_MotionMatching::UpdateAssetPlayer(const FAnimationUpdateContext& 
 		FString DebugInfo = FString::Printf(TEXT("bForceInterruptNextUpdate(%d)\n"), bForceInterruptNextUpdate);
 		DebugInfo += FString::Printf(TEXT("Current Database(%s)\n"), *GetNameSafe(CurrentDatabase));
 		DebugInfo += FString::Printf(TEXT("Current Asset(%s)\n"), *GetNameSafe(CurrentAnimationAsset));
-		if (CVarAnimNodeMotionMatchingDrawInfoVerbose.GetValueOnAnyThread() > 0)
+		if (CVarAnimNodeMotionMatchingDrawInfoVerbose.GetValueOnAnyThread())
 		{
 			DebugInfo += FString::Printf(TEXT("Databases to search:\n"));
 			for (const UPoseSearchDatabase* DatabaseToSearch : DatabasesToSearch)
@@ -175,8 +178,9 @@ void FAnimNode_MotionMatching::UpdateAssetPlayer(const FAnimationUpdateContext& 
 		bForceInterruptNextUpdate,
 		bShouldSearch
 		#if ENABLE_ANIM_DEBUG
-		, CVarAnimNodeMotionMatchingDrawQuery.GetValueOnAnyThread() > 0
-		, CVarAnimNodeMotionMatchingDrawCurResult.GetValueOnAnyThread() > 0
+		, CVarAnimNodeMotionMatchingDrawQuery.GetValueOnAnyThread()
+		, CVarAnimNodeMotionMatchingDrawCurResult.GetValueOnAnyThread()
+		, CVarAnimNodeMotionMatchingDrawPoseHistory.GetValueOnAnyThread()
 		#endif // ENABLE_ANIM_DEBUG
 	);
 

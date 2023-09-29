@@ -80,7 +80,7 @@ void FAnimNode_PoseSearchHistoryCollector_Base::CacheBones_AnyThread(const FAnim
 		Pose.SetBoneContainer(&Context.AnimInstanceProxy->GetRequiredBones());
 		FCSPose<FCompactPose> ComponentSpacePose;
 		ComponentSpacePose.InitPose(Pose);
-		PoseHistory.Update(0.f, ComponentSpacePose, Context.AnimInstanceProxy->GetComponentTransform());
+		PoseHistory.Update(0.f, ComponentSpacePose);
 	}
 }
 
@@ -128,12 +128,12 @@ void FAnimNode_PoseSearchHistoryCollector::Evaluate_AnyThread(FPoseContext& Outp
 
 	FCSPose<FCompactPose> ComponentSpacePose;
 	ComponentSpacePose.InitPose(Output.Pose);
-	PoseHistory.Update(Output.AnimInstanceProxy->GetDeltaSeconds(), ComponentSpacePose, Output.AnimInstanceProxy->GetComponentTransform());
+	PoseHistory.Update(Output.AnimInstanceProxy->GetDeltaSeconds(), ComponentSpacePose);
 
 #if ENABLE_DRAW_DEBUG && ENABLE_ANIM_DEBUG
 	if (CVarAnimPoseHistoryDebugDraw.GetValueOnAnyThread())
 	{
-		PoseHistory.DebugDraw(*Output.AnimInstanceProxy, DebugColor.ToFColor(true));
+		PoseHistory.DebugDraw(*Output.AnimInstanceProxy, DebugColor.ToFColor(true), &DebugDrawTrajectory);
 	}
 #endif // ENABLE_DRAW_DEBUG && ENABLE_ANIM_DEBUG
 }
@@ -180,12 +180,12 @@ void FAnimNode_PoseSearchComponentSpaceHistoryCollector::EvaluateComponentSpace_
 	Super::EvaluateComponentSpace_AnyThread(Output);
 	Source.EvaluateComponentSpace(Output);
 
-	PoseHistory.Update(Output.AnimInstanceProxy->GetDeltaSeconds(), Output.Pose, Output.AnimInstanceProxy->GetComponentTransform());
+	PoseHistory.Update(Output.AnimInstanceProxy->GetDeltaSeconds(), Output.Pose);
 
 #if ENABLE_DRAW_DEBUG && ENABLE_ANIM_DEBUG
 	if (CVarAnimPoseHistoryDebugDraw.GetValueOnAnyThread())
 	{
-		PoseHistory.DebugDraw(*Output.AnimInstanceProxy, DebugColor.ToFColor(true));
+		PoseHistory.DebugDraw(*Output.AnimInstanceProxy, DebugColor.ToFColor(true), &DebugDrawTrajectory);
 	}
 #endif // ENABLE_DRAW_DEBUG && ENABLE_ANIM_DEBUG
 }

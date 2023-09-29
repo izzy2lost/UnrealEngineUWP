@@ -251,11 +251,14 @@ void UPoseSearchLibrary::UpdateMotionMatchingState(
 	bool bForceInterrupt,
 	bool bShouldSearch,
 	bool bDebugDrawQuery,
-	bool bDebugDrawCurResult)
+	bool bDebugDrawCurResult,
+	bool bDebugDrawPoseHistory)
 {
 	QUICK_SCOPE_CYCLE_COUNTER(STAT_PoseSearch_Update);
 
 	using namespace UE::PoseSearch;
+
+	check(Context.AnimInstanceProxy);
 
 	if (Databases.IsEmpty())
 	{
@@ -275,8 +278,15 @@ void UPoseSearchLibrary::UpdateMotionMatchingState(
 	if (IPoseHistoryProvider* PoseHistoryProvider = Context.GetMessage<IPoseHistoryProvider>())
 	{
 		History = &PoseHistoryProvider->GetPoseHistory();
+
+#if ENABLE_DRAW_DEBUG && ENABLE_ANIM_DEBUG
+		if (bDebugDrawPoseHistory)
+		{
+			History->DebugDraw(*Context.AnimInstanceProxy, FColor::Orange, &Trajectory);
+		}
+#endif // ENABLE_DRAW_DEBUG && ENABLE_ANIM_DEBUG
 	}
-	
+
 	const FPoseSearchQueryTrajectory TrajectoryRootSpace = ProcessTrajectory(Trajectory, InOutMotionMatchingState.ComponentDeltaYaw, YawFromAnimationTrajectoryBlendTime, TrajectorySpeedMultiplier);
 
 	FMemMark Mark(FMemStack::Get());
@@ -442,8 +452,6 @@ void UPoseSearchLibrary::MotionMatch(
 	using namespace UE::Anim;
 	using namespace UE::PoseSearch;
 
-	static constexpr float FiniteDelta = 1 / 60.0f;
-
 	Result.SelectedAnimation = nullptr;
 	Result.SelectedTime = 0.f;
 	Result.bLoop = false;
@@ -532,7 +540,7 @@ void UPoseSearchLibrary::MotionMatch(
 			{
 				if (FAnimInstanceProxy* AnimInstanceProxy = UAnimInstanceProxyProvider::GetAnimInstanceProxy(AnimInstance))
 				{
-					ExtendedPoseHistory.DebugDraw(*AnimInstanceProxy, HistoryCollectorColor, FColor::Green);
+					ExtendedPoseHistory.DebugDraw(*AnimInstanceProxy, HistoryCollectorColor, &TrajectoryRootSpace);
 				}
 			}
 #endif // ENABLE_DRAW_DEBUG && ENABLE_ANIM_DEBUG

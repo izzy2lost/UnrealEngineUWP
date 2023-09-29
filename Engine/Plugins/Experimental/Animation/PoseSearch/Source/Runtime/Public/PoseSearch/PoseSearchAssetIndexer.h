@@ -21,9 +21,6 @@ struct FPoseMetadata;
 
 struct FAssetSamplingContext
 {
-	// Time delta used for computing pose derivatives
-	static constexpr float FiniteDelta = 1 / 60.0f;
-
 	float BaseCostBias = 0.f;
 	float LoopingCostBias = 0.f;
 

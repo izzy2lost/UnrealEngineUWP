@@ -4,6 +4,7 @@
 
 #include "Animation/AnimNodeBase.h"
 #include "PoseSearch/PoseSearchHistory.h"
+#include "PoseSearch/PoseSearchTrajectoryTypes.h"
 #include "AnimNode_PoseSearchHistoryCollector.generated.h"
 
 USTRUCT(BlueprintInternalUseOnly)
@@ -32,11 +33,15 @@ public:
 	UPROPERTY(EditAnywhere, Category = Settings)
 	bool bResetOnBecomingRelevant = true;
 
-	UPROPERTY(EditAnywhere, Category = Settings)
-	FLinearColor DebugColor = FLinearColor::Red;
-
 	// Update Counter for detecting being relevant
 	FGraphTraversalCounter UpdateCounter;
+
+	UPROPERTY(EditAnywhere, Category = Debug)
+	FLinearColor DebugColor = FLinearColor::Red;
+
+	// Optional Trajectory for debug drawing purposes only: if not provided, all the collected pose transforms will be drawn using the Graph context
+	UPROPERTY(EditAnywhere, Category = Debug, meta = (PinHiddenByDefault))
+	FPoseSearchQueryTrajectory DebugDrawTrajectory;
 
 	// FAnimNode_Base interface
 	virtual void CacheBones_AnyThread(const FAnimationCacheBonesContext& Context) override;

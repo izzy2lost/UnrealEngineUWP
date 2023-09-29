@@ -187,26 +187,24 @@ void FAssetIndexer::ComputeStats()
 {
 	Stats = FStats();
 
-	check(SamplingContext.FiniteDelta > UE_KINDA_SMALL_NUMBER);
-
 	for (int32 SampleIdx = GetBeginSampleIdx(); SampleIdx != GetEndSampleIdx(); ++SampleIdx)
 	{
 		const float SampleTime = FMath::Min(CalculateSampleTime(SampleIdx), AssetSampler.GetPlayLength());
 
 		bool AnyClamped = false;
-		const FTransform TrajTransformsPast = GetTransform(SampleTime - SamplingContext.FiniteDelta, AnyClamped);
+		const FTransform TrajTransformsPast = GetTransform(SampleTime - FiniteDelta, AnyClamped);
 		if (!AnyClamped)
 		{
 			const FTransform TrajTransformsPresent = GetTransform(SampleTime, AnyClamped);
 			if (!AnyClamped)
 			{
-				const FTransform TrajTransformsFuture = GetTransform(SampleTime + SamplingContext.FiniteDelta, AnyClamped);
+				const FTransform TrajTransformsFuture = GetTransform(SampleTime + FiniteDelta, AnyClamped);
 				if (!AnyClamped)
 				{
 					// if any transform is clamped we just skip the sample entirely
-					const FVector LinearVelocityPresent = (TrajTransformsPresent.GetTranslation() - TrajTransformsPast.GetTranslation()) / SamplingContext.FiniteDelta;
-					const FVector LinearVelocityFuture = (TrajTransformsFuture.GetTranslation() - TrajTransformsPresent.GetTranslation()) / SamplingContext.FiniteDelta;
-					const FVector LinearAcceleration = (LinearVelocityFuture - LinearVelocityPresent) / SamplingContext.FiniteDelta;
+					const FVector LinearVelocityPresent = (TrajTransformsPresent.GetTranslation() - TrajTransformsPast.GetTranslation()) / FiniteDelta;
+					const FVector LinearVelocityFuture = (TrajTransformsFuture.GetTranslation() - TrajTransformsPresent.GetTranslation()) / FiniteDelta;
+					const FVector LinearAcceleration = (LinearVelocityFuture - LinearVelocityPresent) / FiniteDelta;
 
 					const float Speed = LinearVelocityPresent.Length();
 					const float Acceleration = LinearAcceleration.Length();
@@ -391,6 +389,8 @@ FAssetIndexer::CachedEntry& FAssetIndexer::GetEntry(float SampleTime)
 // returns the transform in component space for the bone indexed by Schema->BoneReferences[SchemaBoneIdx] at SampleTime seconds
 FTransform FAssetIndexer::GetComponentSpaceTransform(float SampleTime, bool& bClamped, int8 SchemaBoneIdx)
 {
+	using namespace UE::PoseSearch;
+
 	CachedEntry& Entry = GetEntry(SampleTime);
 	bClamped = Entry.bClamped;
 
@@ -407,6 +407,8 @@ FTransform FAssetIndexer::GetComponentSpaceTransform(float SampleTime, bool& bCl
 // returns the transform in animation space for the bone indexed by Schema->BoneReferences[SchemaBoneIdx] at SampleTime seconds
 FTransform FAssetIndexer::GetTransform(float SampleTime, bool& bClamped, int8 SchemaBoneIdx)
 {
+	using namespace UE::PoseSearch;
+
 	CachedEntry& Entry = GetEntry(SampleTime);
 	bClamped = Entry.bClamped;
 
@@ -447,6 +449,8 @@ float FAssetIndexer::CalculateSampleTime(int32 SampleIdx) const
 
 bool FAssetIndexer::GetSampleRotation(FQuat& OutSampleRotation, float SampleTimeOffset, float OriginTimeOffset, int32 SampleIdx, int8 SchemaSampleBoneIdx, int8 SchemaOriginBoneIdx, EPermutationTimeType PermutationTimeType, int32 SamplingAttributeId)
 {
+	using namespace UE::PoseSearch;
+
 	float PermutationSampleTimeOffset = 0.f;
 	float PermutationOriginTimeOffset = 0.f;
 	UPoseSearchFeatureChannel::GetPermutationTimeOffsets(PermutationTimeType, CalculatePermutationTimeOffset(), PermutationSampleTimeOffset, PermutationOriginTimeOffset);
@@ -537,6 +541,8 @@ bool FAssetIndexer::GetSamplePosition(FVector& OutSamplePosition, float SampleTi
 
 bool FAssetIndexer::GetSamplePositionInternal(FVector& OutSamplePosition, float SampleTime, float OriginTime, bool& bClamped, int8 SchemaSampleBoneIdx, int8 SchemaOriginBoneIdx, int32 SamplingAttributeId)
 {
+	using namespace UE::PoseSearch;
+
 	bool bUnused;
 	if (SamplingAttributeId >= 0)
 	{
@@ -633,7 +639,6 @@ bool FAssetIndexer::GetSampleVelocity(FVector& OutSampleVelocity, float SampleTi
 	const float Time = CalculateSampleTime(SampleIdx);
 	const float SampleTime = Time + SampleTimeOffset + PermutationSampleTimeOffset;
 	const float OriginTime = Time + OriginTimeOffset + PermutationOriginTimeOffset;
-	const float FiniteDelta = SamplingContext.FiniteDelta;
 
 	bool bUnused, bClampedPast;
 	FVector BonePositionPast, BonePositionPresent;

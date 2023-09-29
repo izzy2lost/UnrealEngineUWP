@@ -129,7 +129,8 @@ public:
 		bool bForceInterrupt = false,
 		bool bShouldSearch = true,
 		bool bDebugDrawQuery = false,
-		bool bDebugDrawCurResult = false);
+		bool bDebugDrawCurResult = false,
+		bool bDebugDrawPoseHistory = false);
 
 	/**
 	* Implementation of the core motion matching algorithm

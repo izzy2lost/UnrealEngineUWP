@@ -51,6 +51,8 @@ void UPoseSearchMeshComponent::ResetToStart()
 
 void UPoseSearchMeshComponent::UpdatePose(const FUpdateContext& UpdateContext)
 {
+	using namespace UE::PoseSearch;
+
 	FMemMark Mark(FMemStack::Get());
 
 	FCompactPose CompactPose;

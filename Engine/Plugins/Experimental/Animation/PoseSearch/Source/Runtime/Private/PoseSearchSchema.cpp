@@ -54,6 +54,8 @@ void UPoseSearchSchema::AddDefaultChannels()
 
 int8 UPoseSearchSchema::AddBoneReference(const FBoneReference& BoneReference)
 {
+	using namespace UE::PoseSearch;
+
 	int32 SchemaBoneIdx = 0;
 	check(Skeleton);
 	
@@ -87,6 +89,8 @@ int8 UPoseSearchSchema::AddBoneReference(const FBoneReference& BoneReference)
 
 void UPoseSearchSchema::Finalize()
 {
+	using namespace UE::PoseSearch;
+
 	BoneReferences.Reset();
 	BoneIndicesWithParents.Reset();
 	FinalizedChannels.Reset();

@@ -21,15 +21,16 @@ constexpr EParallelForFlags ParallelForFlags = EParallelForFlags::None;
 
 DECLARE_LOG_CATEGORY_EXTERN(LogPoseSearch, Log, All);
 
+namespace UE::PoseSearch
+{
 static constexpr int8 RootSchemaBoneIdx = 0;
 static constexpr FBoneIndexType RootBoneIndexType = 0;
 static constexpr FBoneIndexType ComponentSpaceIndexType = FBoneIndexType(-1);
-static constexpr FBoneIndexType WorldSpaceIndexType = FBoneIndexType(-2);
 
 static constexpr int32 PreallocatedCachedQueriesNum = 8;
 
-namespace UE::PoseSearch
-{
+static constexpr float FiniteDelta = 1 / 60.0f; // Time delta used for computing pose derivatives
+
 constexpr int32 TMax(int32 A, int32 B) { return (A > B ? A : B); }
 template<typename ElementType> constexpr int32 TAlignOf() { return TMax(alignof(ElementType), 16); }
 template<typename ElementType> using TAlignedArray = TArray<ElementType, TAlignedHeapAllocator<TAlignOf<ElementType>()>>;
