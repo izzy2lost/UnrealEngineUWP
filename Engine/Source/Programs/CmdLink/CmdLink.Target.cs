@@ -23,7 +23,7 @@ public class CmdLinkTarget : TargetRules
 		bCompileICU = false;
 
 		// Currently this app is not linking against the engine, so we'll compile out references from Core to the rest of the engine
-		bCompileAgainstEngine = false;
+		bCompileAgainstEngine = true;
 		bCompileAgainstCoreUObject = false;
 		bCompileAgainstApplicationCore = false;
 		bBuildWithEditorOnlyData = false;
