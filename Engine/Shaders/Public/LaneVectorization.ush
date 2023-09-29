@@ -341,9 +341,9 @@ uint ReadDwordFromLDS(const uint SharedIndex)
 	return SharedData[SharedIndex];
 }
 
-void AtomicIncrementLDSDword(const uint SharedIndex, uint Value)
+void AtomicIncrementLDSDword(const uint SharedIndex, uint V)
 {
-	return InterlockedAdd(/* inout */ SharedData[SharedIndex], Value);
+	InterlockedAdd(/* inout */ SharedData[SharedIndex], V);
 }
 
 // uint
