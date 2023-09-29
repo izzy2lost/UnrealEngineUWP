@@ -4,6 +4,7 @@
 
 #include "NaniteShared.h"
 #include "NaniteSceneProxy.h"
+#include "NaniteVisibility.h"
 
 class FVirtualShadowMapArray;
 class FViewFamilyInfo;
