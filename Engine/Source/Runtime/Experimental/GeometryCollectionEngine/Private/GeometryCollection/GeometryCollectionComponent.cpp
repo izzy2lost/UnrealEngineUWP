@@ -1170,7 +1170,7 @@ void UGeometryCollectionComponent::SetNotifyRigidBodyCollision(bool bNewNotifyRi
 
 bool UGeometryCollectionComponent::CanEditSimulatePhysics()
 {
-	return true;
+	return (RestCollection != nullptr);
 }
 
 void UGeometryCollectionComponent::SetSimulatePhysics(bool bEnabled)
