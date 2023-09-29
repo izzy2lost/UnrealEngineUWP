@@ -72,7 +72,7 @@ private:
 		explicit FBlockController(FTypedElementDatabaseScratchBuffer& InOwner);
 		~FBlockController();
 
-		void* Allocate(size_t Size, size_t Alignment, uint64 FrameId);
+		void* Allocate(size_t Size, size_t Alignment, uint64 LocalFrameId);
 		FBlock* GetEmptyBlock();
 		void RecycleBlock();
 		void ConfigureDestructorTail(FDestructorTail& Destructor, DestructorFunction Callback, void* Object, int32 Count = 1);
