@@ -166,7 +166,7 @@ struct FDataDrivenPlatformInfo
 
 	const FName& GetCookPlatformName() const
 	{
-		if (!OverrideCookPlatformName.IsValid())
+		if (OverrideCookPlatformName.IsValid())
 		{
 			return OverrideCookPlatformName;
 		}
