@@ -580,6 +580,7 @@ void FBuoyancySubsystemSimCallback::ProcessMidPhase(
 
 	// Evaluate spline at the object CoM to approximate the water depth
 	float WaterZ;
+	FVector WaterN;
 	Chaos::FVec3 WaterVel;
 	{
 		SCOPE_CYCLE_COUNTER(STAT_Buoyancy_Subsystem_SplineEvaluation)
@@ -600,14 +601,23 @@ void FBuoyancySubsystemSimCallback::ProcessMidPhase(
 		{
 			case EWaterBodyType::River:
 			{
-				// If distance to spline is greater than the width of the spline,
-				// then this is a river and we're outside of it.
 				if (WaterSpline.Width.IsSet())
 				{
+					// If distance to spline is greater than the width of the spline,
+					// then this is a river and we're outside of it.
 					const float Width = WaterSpline.Width->Eval(ClosestSplineKey);
 					const float DistSq = FVector::DotProduct(HorizontalDiff, HorizontalDiff);
 					const float WidthSq = Width * Width * .25f;
 					if (DistSq > WidthSq) { return; }
+
+					// River water normal can be determined by the relationship of the 
+					// derivative of the spline position to the up vector.
+					//
+					// NOTE: This calculation breaks down in the limit of purely
+					// vertical water
+					const FVector SplineRight = FVector::CrossProduct(FVector::UpVector, ClosestPosDerivative);
+					const FVector SplineUp = FVector::CrossProduct(ClosestPosDerivative, SplineRight);
+					WaterN = SplineUp.GetSafeNormal();
 				}
 				break;
 			}
@@ -620,6 +630,10 @@ void FBuoyancySubsystemSimCallback::ProcessMidPhase(
 				const FVector RightVector = FVector::CrossProduct(ClosestPosDerivative, FVector::UpVector);
 				const float DiffProj = FVector::DotProduct(RightVector, HorizontalDiff);
 				if (DiffProj < SMALL_NUMBER) { return; }
+
+				// Lake water normal is always up
+				WaterN = FVector::UpVector;
+
 				break;
 			}
 		}
@@ -653,15 +667,19 @@ void FBuoyancySubsystemSimCallback::ProcessMidPhase(
 				if (bFirst)
 				{
 					bFirst = false;
-					PrevPoint = SplinePoint;
 				}
 				else
 				{
 					Chaos::FDebugDrawQueue::GetInstance().DrawDebugDirectionalArrow(PrevPoint, SplinePoint, 15.f, SplineColor, false, -1.f, -1, 3.f);
 				}
+				PrevPoint = SplinePoint;
 			}
 
+			// Draw water velocity at the surface point
 			Chaos::FDebugDrawQueue::GetInstance().DrawDebugDirectionalArrow(SurfacePoint, SurfacePoint + WaterVel, 20.f, FColor::Yellow, false, -1.f, -1, 3.f);
+
+			// Draw water surface normal at the surface point
+			Chaos::FDebugDrawQueue::GetInstance().DrawDebugDirectionalArrow(SurfacePoint, SurfacePoint + (WaterN * 100.f), 20.f, FColor::Green, false, -1.f, -1, 3.f);
 		}
 #endif
 	}
@@ -670,7 +688,7 @@ void FBuoyancySubsystemSimCallback::ProcessMidPhase(
 	float SubmergedVol;
 	Chaos::FVec3 SubmergedCoM;
 	float TotalVol;
-	if (BuoyancyAlgorithms::ComputeSubmergedVolume(Evolution, RigidParticle, WaterParticle, WaterZ, BuoyancySettings->MaxNumBoundsSubdivisions, BuoyancySettings->MinBoundsSubdivisionVol, SubmergedShapes, SubmergedVol, SubmergedCoM, TotalVol))
+	if (BuoyancyAlgorithms::ComputeSubmergedVolume(Evolution, RigidParticle, WaterParticle, WaterZ, WaterN, BuoyancySettings->MaxNumBoundsSubdivisions, BuoyancySettings->MinBoundsSubdivisionVol, SubmergedShapes, SubmergedVol, SubmergedCoM, TotalVol))
 	{
 		SCOPE_CYCLE_COUNTER(STAT_BuoyancySubsystem_BuildSubmersions)
 

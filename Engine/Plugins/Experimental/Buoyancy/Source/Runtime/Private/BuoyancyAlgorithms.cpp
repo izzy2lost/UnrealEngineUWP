@@ -373,7 +373,7 @@ namespace BuoyancyAlgorithms
 					// Compute approximate submerged bounds & update submersion
 					const float WaterZ = ShapeWorldBoundsA.Max().Z;
 					FAABB3 SubmergedBoundsInB;
-					if (ComputeSubmergedBounds(WaterZ, BoxInB, ShapeWorldTransformB, SubmergedBoundsInB))
+					if (ComputeSubmergedBounds(FVector::UpVector * WaterZ, FVector::UpVector, BoxInB, ShapeWorldTransformB, SubmergedBoundsInB))
 					{
 						// At this point we know that the shape is submerged
 						bSubmerged = true;
@@ -453,9 +453,12 @@ namespace BuoyancyAlgorithms
 		}
 	}
 
-	bool ComputeSubmergedVolume(const FPBDRigidsEvolutionGBF& Evolution, const FGeometryParticleHandle* SubmergedParticle, const FGeometryParticleHandle* WaterParticle, const float WaterZ, int32 NumSubdivisions, float MinVolume, TSparseArray<TBitArray<>>& SubmergedShapes, float& SubmergedVol, FVec3& SubmergedCoM, float& TotalVol)
+	// This variant of ComputesSubmergedVolume scales the submerged volume
+	// so as not to violate the actual volume of the object, and returns the
+	// total volume calculated.
+	bool ComputeSubmergedVolume(const FPBDRigidsEvolutionGBF& Evolution, const FGeometryParticleHandle* SubmergedParticle, const FGeometryParticleHandle* WaterParticle, const float WaterZ, const FVector& WaterN, int32 NumSubdivisions, float MinVolume, TSparseArray<TBitArray<>>& SubmergedShapes, float& SubmergedVol, FVec3& SubmergedCoM, float& TotalVol)
 	{
-		if (ComputeSubmergedVolume(SubmergedParticle, WaterParticle, WaterZ, NumSubdivisions, MinVolume, SubmergedShapes, SubmergedVol, SubmergedCoM))
+		if (ComputeSubmergedVolume(SubmergedParticle, WaterParticle, WaterZ, WaterN, NumSubdivisions, MinVolume, SubmergedShapes, SubmergedVol, SubmergedCoM))
 		{
 			ScaleSubmergedVolume(Evolution, SubmergedParticle, SubmergedVol, TotalVol);
 
@@ -474,7 +477,7 @@ namespace BuoyancyAlgorithms
 		return false;
 	}
 
-	bool ComputeSubmergedVolume(const FGeometryParticleHandle* SubmergedParticle, const FGeometryParticleHandle* WaterParticle, const float WaterZ, int32 NumSubdivisions, float MinVolume, TSparseArray<TBitArray<>>& SubmergedShapes, float& SubmergedVol, FVec3& SubmergedCoM)
+	bool ComputeSubmergedVolume(const FGeometryParticleHandle* SubmergedParticle, const FGeometryParticleHandle* WaterParticle, const float WaterZ, const FVector& WaterN, int32 NumSubdivisions, float MinVolume, TSparseArray<TBitArray<>>& SubmergedShapes, float& SubmergedVol, FVec3& SubmergedCoM)
 	{
 		// Get some initial data about the submerged particle
 		const FImplicitObject* RootImplicit = SubmergedParticle->GetGeometry();
@@ -495,7 +498,7 @@ namespace BuoyancyAlgorithms
 
 		// Traverse the submerged particle's leaves
 		RootImplicit->VisitLeafObjects(
-			[SubmergedParticle, ParticleIndex, &ShapeInstances, WaterShapeType, WaterShapeInstance, &ParticleWorldTransform, WaterZ, &NumSubdivisions, &MinVolume, &SubmergedShapes, &SubmergedVol, &SubmergedCoM]
+			[SubmergedParticle, ParticleIndex, &ShapeInstances, WaterShapeType, WaterShapeInstance, &ParticleWorldTransform, WaterZ, &WaterN, &NumSubdivisions, &MinVolume, &SubmergedShapes, &SubmergedVol, &SubmergedCoM]
 			(const FImplicitObject* Implicit, const FRigidTransform3& RelativeTransform, const int32 RootObjectIndex, const int32 ObjectIndex, const int32 LeafObjectIndex)
 		{
 			const FAABB3 RelativeBounds = Implicit->CalculateTransformedBounds(RelativeTransform);
@@ -542,8 +545,10 @@ namespace BuoyancyAlgorithms
 			for (const FAABB3& Box : SubmergedBoxes)
 			{
 				// Compute the portion of the object bounds that are submerged
+				const FVec3 ShapePos = ShapeWorldTransform.GetTranslation();
+				const FVec3 WaterPos = FVec3(ShapePos.X, ShapePos.Y, WaterZ);
 				FAABB3 SubmergedBox;
-				if (ComputeSubmergedBounds(WaterZ, Box, ShapeWorldTransform, SubmergedBox))
+				if (ComputeSubmergedBounds(WaterPos, WaterN, Box, ShapeWorldTransform, SubmergedBox))
 				{
 					// At this point we know that the shape is submerged
 					bSubmerged = true;
@@ -590,14 +595,14 @@ namespace BuoyancyAlgorithms
 		return false;
 	}
 
-	bool ComputeSubmergedBounds(float WaterZ, const FAABB3& RigidBox, const FRigidTransform3& RigidTransform, FAABB3& OutSubmergedBounds)
+	bool ComputeSubmergedBounds(const FVector& WaterX, const FVector& WaterN, const FAABB3& RigidBox, const FRigidTransform3& RigidTransform, FAABB3& OutSubmergedBounds)
 	{
 		SCOPE_CYCLE_COUNTER(STAT_BuoyancyAlgorithms_ComputeSubmergedBounds)
 
 		// Get a point and a normal direction on the water representing the surface
 		// of the water in the space of the rigid object.
-		const FVec3 SurfaceNormal = RigidTransform.InverseTransformVector(FVec3::UpVector);
-		const FVec3 SurfacePoint = RigidTransform.InverseTransformPosition(FVec3::UpVector * WaterZ);
+		const FVec3 SurfaceNormal = RigidTransform.InverseTransformVector(WaterN);
+		const FVec3 SurfacePoint = RigidTransform.InverseTransformPosition(WaterX);
 
 		// Partly submerged object can have at most 10 points intersecting
 		// with the water surface
