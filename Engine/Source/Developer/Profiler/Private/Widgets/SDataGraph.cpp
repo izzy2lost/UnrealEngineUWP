@@ -575,7 +575,7 @@ int32 SDataGraph::OnPaint( const FPaintArgs& Args, const FGeometry& AllottedGeom
 			for( int32 FrameIndex = FrameStartIndex; FrameIndex < FrameEndIndex; FrameIndex += AvgFrameRate )
 			{
 				const float MarkerPosX = static_cast<float>((FrameIndex - GraphOffset) * DistanceBetweenPoints);
-				const float ElapsedFrameTimeMS = FrameIndex * FTimeAccuracy::AsFrameTime( TimeBasedAccuracy );
+				const float ElapsedFrameTimeMS = (float)FrameIndex * FTimeAccuracy::AsFrameTime( TimeBasedAccuracy );
 				const int32 ElapsedFrameTime = FMath::Max( FMath::RoundToInt( ElapsedFrameTimeMS * 0.001f ) - 1, 0 );
 				const int32 AccumulatedFrameCounter = bCanBeDisplayedAsMulti ? FrameIndex : DataProvider->GetAccumulatedFrameCounter(ElapsedFrameTime);
 
@@ -657,7 +657,7 @@ int32 SDataGraph::OnPaint( const FPaintArgs& Args, const FGeometry& AllottedGeom
 
 	const float MinTimeValue = 0.0f;
 	const float MaxTimeValue = ScaleY;
-	const float TimeValueGraphScale = MaxTimeValue / SecondaryIndicators;
+	const float TimeValueGraphScale = MaxTimeValue / (float)SecondaryIndicators;
 	const float TimeValueToGraph = static_cast<float>(AllottedGeometry.GetLocalSize().Y) / MaxTimeValue;
 
 	for( int32 SecondaryIndex = 1; SecondaryIndex <= SecondaryIndicators; SecondaryIndex++ )
@@ -824,8 +824,8 @@ int32 SDataGraph::OnPaint( const FPaintArgs& Args, const FGeometry& AllottedGeom
 	{
 		LayerId++;
 		const float LocalGraphOffset = static_cast<float>(GraphOffset * DistanceBetweenPoints);
-		const float LocalGraphSelectionX0 = FrameIndices[0]*DistanceBetweenPoints - LocalGraphOffset;
-		const float LocalGraphSelectionX1 = FrameIndices[1]*DistanceBetweenPoints - LocalGraphOffset;
+		const float LocalGraphSelectionX0 = static_cast<float>(FrameIndices[0] * DistanceBetweenPoints) - LocalGraphOffset;
+		const float LocalGraphSelectionX1 = static_cast<float>(FrameIndices[1] * DistanceBetweenPoints) - LocalGraphOffset;
 		const float LocalGraphSelectionX[2] = { LocalGraphSelectionX0, LocalGraphSelectionX1 };
 
 		const uint32 NumVisibleFrameMarkers = ( FrameIndices[0]==FrameIndices[1] ) ? 1 : 2;
@@ -1076,7 +1076,7 @@ FReply SDataGraph::OnMouseMove( const FGeometry& MyGeometry, const FPointerEvent
 	FReply Reply = FReply::Unhandled();
 	MousePosition = MyGeometry.AbsoluteToLocal( MouseEvent.GetScreenSpacePosition() );
 	HoveredFrameIndex = CalculateFrameIndex( MousePosition );
-	HoveredFrameStartTimeMS = HoveredFrameIndex * FTimeAccuracy::AsFrameTime( TimeBasedAccuracy );
+	HoveredFrameStartTimeMS = (float)HoveredFrameIndex * FTimeAccuracy::AsFrameTime( TimeBasedAccuracy );
 
 	if( MouseEvent.IsMouseButtonDown(EKeys::LeftMouseButton) )
 	{
@@ -1095,7 +1095,7 @@ FReply SDataGraph::OnMouseMove( const FGeometry& MyGeometry, const FPointerEvent
 		if( HasMouseCapture() && !MouseEvent.GetCursorDelta().IsZero() )
 		{
 			bIsRMB_Scrolling = true;
-			const float ScrollByAmount = -static_cast<float>(MouseEvent.GetCursorDelta().X) * (1.0f/DistanceBetweenPoints);
+			const float ScrollByAmount = -static_cast<float>(MouseEvent.GetCursorDelta().X) * (1.0f/(float)DistanceBetweenPoints);
 			RealGraphOffset += ScrollByAmount;
 
 			GraphOffset = FMath::Clamp( FMath::TruncToInt( RealGraphOffset ), 0, FMath::Max(NumDataPoints-NumVisiblePoints,0) );
@@ -1110,7 +1110,7 @@ FReply SDataGraph::OnMouseMove( const FGeometry& MyGeometry, const FPointerEvent
 
 const int32 SDataGraph::CalculateFrameIndex( const FVector2D InMousePosition ) const
 {
-	const float ScaleX = 1.0f/DistanceBetweenPoints;
+	const float ScaleX = 1.0f/(float)DistanceBetweenPoints;
 	const int32 MousePositionOffset = FMath::TruncToInt( (static_cast<float>(InMousePosition.X) + HalfGraphMarkerWidth) * ScaleX );
 	return FMath::Clamp( GraphOffset+MousePositionOffset, 0, NumDataPoints-1 );
 }
