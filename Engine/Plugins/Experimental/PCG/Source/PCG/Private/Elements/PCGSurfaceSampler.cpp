@@ -96,23 +96,18 @@ namespace PCGSurfaceSampler
 		check(CellCount > 0);
 
 		const FVector::FReal InvSquaredMeterUnits = 1.0 / (100.0 * 100.0);
-		TargetPointCount = (InputBounds.Max.X - InputBounds.Min.X) * (InputBounds.Max.Y - InputBounds.Min.Y) * PointsPerSquaredMeter * InvSquaredMeterUnits;
+		const FVector::FReal TargetPointCount = (InputBounds.Max.X - InputBounds.Min.X) * (InputBounds.Max.Y - InputBounds.Min.Y) * PointsPerSquaredMeter * InvSquaredMeterUnits;
+		Ratio = static_cast<float>(FMath::Clamp(TargetPointCount / (FVector::FReal)CellCount, 0.0, 1.0));
 
-		if (TargetPointCount == 0)
+		if (Ratio < UE_SMALL_NUMBER)
 		{
 			if (Context)
 			{
 				PCGE_LOG_C(Verbose, LogOnly, Context, LOCTEXT("NoPointsFromDensity", "Skipped - density yields no points"));
 			}
-			
+
 			return false;
 		}
-		else if (TargetPointCount > CellCount)
-		{
-			TargetPointCount = CellCount;
-		}
-
-		Ratio = TargetPointCount / (FVector::FReal)CellCount;
 
 		InputBoundsMinZ = InputBounds.Min.Z;
 		InputBoundsMaxZ = InputBounds.Max.Z;

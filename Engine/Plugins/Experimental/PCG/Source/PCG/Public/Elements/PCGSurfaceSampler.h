@@ -40,7 +40,6 @@ namespace PCGSurfaceSampler
 		int32 CellMinY;
 		int32 CellMaxY;
 		int32 CellCount;
-		int64 TargetPointCount;
 		float Ratio;
 		int Seed;
 
