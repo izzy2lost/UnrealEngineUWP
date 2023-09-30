@@ -982,8 +982,17 @@ void CacheRayTracingMeshBatch(
 	if (bMustEmitCommand || CommandContext.CommandIndex >= 0)
 	{
 		uint64& Hash = SceneInfo->CachedRayTracingMeshCommandsHashPerLOD[MeshBatch.LODIndex];
-		Hash <<= 1;
-		Hash ^= Commands[CommandContext.CommandIndex].ShaderBindings.GetDynamicInstancingHash();
+
+		// We want the hash to change if either the shader or the binding contents change. This is used by the autoinstance feature.
+		const FRHIShader* Shader = Commands[CommandContext.CommandIndex].MaterialShader;
+
+		// TODO: It would be better to use 64 bits for both of these to reduce the chance of hash collisions
+		//       but GetDynamicInstancingHash is currently a public function, so changing the return type would be an API change
+		uint32 ShaderHash = Shader != nullptr ? GetTypeHash(Shader->GetHash()) : 0;
+		uint32 ShaderBindingsHash = Commands[CommandContext.CommandIndex].ShaderBindings.GetDynamicInstancingHash();
+
+		Hash <<= 1; // TODO: It would probably be better to use some kind of proper 64 bit mix here?
+		Hash ^= (uint64(ShaderBindingsHash) << 32) | uint64(ShaderHash);
 
 		if (bDeferLODCommandIndices)
 		{
