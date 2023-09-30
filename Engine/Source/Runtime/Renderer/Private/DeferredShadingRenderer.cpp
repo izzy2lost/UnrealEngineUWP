@@ -3443,7 +3443,7 @@ void FDeferredShadingSceneRenderer::Render(FRDGBuilder& GraphBuilder)
 		CSV_CUSTOM_STAT(LightCount, Batched, float(SortedLightSet.UnbatchedLightStart), ECsvCustomStatOp::Set);
 		CSV_CUSTOM_STAT(LightCount, Unbatched, float(SortedLightSet.SortedLights.Num()) - float(SortedLightSet.UnbatchedLightStart), ECsvCustomStatOp::Set);
 
-		// Run local fog volume initialization before base pass for when data is needed in forward
+		// Run local fog volume initialization before base pass for when data is needed in forward  and volumetric cloud view initialization which can bind LFV data.
 		InitLocalFogVolumesForViews(Scene, Views, ViewFamily, GraphBuilder, bShouldRenderVolumetricFog);
 
 		// Run before RenderSkyAtmosphereLookUpTables for cloud shadows to be valid.
