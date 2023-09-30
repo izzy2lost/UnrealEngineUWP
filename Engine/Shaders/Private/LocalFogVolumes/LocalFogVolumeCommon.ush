@@ -15,15 +15,19 @@ struct FLocalFogVolumeGPUInstanceData
 	float4x3 Transform;
 	float4x3 InvTransform;
 
-	float RadialFogExtinction;
-	float HeightFogExtinction;
-	float HeightFogFalloff;
-	float HeightFogOffset;
+	// float4
+	float RadialFogExtinction;		// half1
+	float HeightFogExtinction;		// half1
+	float HeightFogFalloff;			// half1
+	float HeightFogOffset;			// half1
+	float3 Emissive;				// half3
+	//FREE							// half1
 
-	float3 Albedo;
-	float  PhaseG;
-	float3 Emissive;
-	float  UniformScale;
+	// float4 (note: albedo could be using half representation or even 3x8bits if needed later to gain space)
+	float  UniformScale;			// float
+	float3 Albedo;					// half3
+	float  PhaseG;					// half1
+	// FREE							// float2
 };
 
 
@@ -76,24 +80,32 @@ Texture2DArray<uint>					LFV_LocalFogVolumeTileDataTexture;
 FLocalFogVolumeGPUInstanceData GetLocalFogVolumeGPUInstanceData(uint Index)
 {
 	FLocalFogVolumeGPUInstanceData Data;
-	uint Offset = Index * 9;
+	uint Offset = Index * 8;
 
 	Data.Transform			= float4x3(LFVInsts[Offset + 0 ], LFVInsts[Offset + 1 ], LFVInsts[Offset + 2 ]); // reads 4x3 row major pack as 3 float4
 	Data.InvTransform		= float4x3(LFVInsts[Offset + 3 ], LFVInsts[Offset + 4 ], LFVInsts[Offset + 5 ]);
 
-	float4 Temp0			= LFVInsts[Offset + 6];
-	Data.RadialFogExtinction= Temp0.x;
-	Data.HeightFogExtinction= Temp0.y;
-	Data.HeightFogFalloff	= Temp0.z;
-	Data.HeightFogOffset	= Temp0.w;
+	float4 Data0			= LFVInsts[Offset + 6];
 
-	float4 Temp1			= LFVInsts[Offset + 7];
-	Data.Albedo				= Temp1.xyz;
-	Data.PhaseG				= Temp1.w;
+	float2 Data0X			= UnpackFloat2FromUInt(asuint(Data0.x));
+	float2 Data0Y			= UnpackFloat2FromUInt(asuint(Data0.y));
+	float2 Data0Z			= UnpackFloat2FromUInt(asuint(Data0.z));
+	float2 Data0W			= UnpackFloat2FromUInt(asuint(Data0.w));
 
-	float4 Temp2			= LFVInsts[Offset + 8];
-	Data.Emissive			= Temp2.xyz;
-	Data.UniformScale		= Temp2.w;
+	Data.RadialFogExtinction= Data0X.x;
+	Data.HeightFogExtinction= Data0X.y;
+	Data.HeightFogFalloff	= Data0Y.x;
+	Data.HeightFogOffset	= Data0Y.y;
+	Data.Emissive			= float3(Data0Z.x, Data0Z.y, Data0W.x);
+
+	float4 Data1			= LFVInsts[Offset + 7];
+
+	float2 Data1X			= UnpackFloat2FromUInt(asuint(Data1.y));
+	float2 Data1Y			= UnpackFloat2FromUInt(asuint(Data1.z));
+
+	Data.UniformScale		= Data1.x;
+	Data.Albedo				= float3(Data1X.x, Data1X.y, Data1Y.x);
+	Data.PhaseG				= Data1Y.y;
 
 	return Data;
 }

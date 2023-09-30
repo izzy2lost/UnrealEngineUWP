@@ -321,23 +321,31 @@ void GetLocalFogVolumeSortingData(const FScene* Scene, FRDGBuilder& GraphBuilder
 		ConvertFromMatrix44fTo4x3Array(Transform, LocalFogVolumeGPUInstanceDataIt->Transform);
 		ConvertFromMatrix44fTo4x3Array(InvTransform, LocalFogVolumeGPUInstanceDataIt->InvTransform);
 
-		LocalFogVolumeGPUInstanceDataIt->RadialFogExtinction = LHF->RadialFogExtinction;
-		LocalFogVolumeGPUInstanceDataIt->HeightFogExtinction = LHF->HeightFogExtinction;
-		LocalFogVolumeGPUInstanceDataIt->HeightFogFalloff = LHF->HeightFogFalloff * 0.01f;	// This scale is used to have artist author reasonable range.
-		LocalFogVolumeGPUInstanceDataIt->HeightFogOffset = LHF->HeightFogOffset;
+		FVector2DHalf Data0X = FVector2DHalf(LHF->RadialFogExtinction,			LHF->HeightFogExtinction);
+		FVector2DHalf Data0Y = FVector2DHalf(LHF->HeightFogFalloff * 0.01f,		LHF->HeightFogOffset);
+		FVector2DHalf Data0Z = FVector2DHalf(LHF->FogEmissive.R,				LHF->FogEmissive.G);
+		FVector2DHalf Data0W = FVector2DHalf(LHF->FogEmissive.B,				0.0f);
+
+		LocalFogVolumeGPUInstanceDataIt->Data0[0] = Data0X.AsUInt32();
+		LocalFogVolumeGPUInstanceDataIt->Data0[1] = Data0Y.AsUInt32();
+		LocalFogVolumeGPUInstanceDataIt->Data0[2] = Data0Z.AsUInt32();
+		LocalFogVolumeGPUInstanceDataIt->Data0[3] = Data0W.AsUInt32();
+
+		FVector2DHalf Data1X = FVector2DHalf(LHF->FogAlbedo.R, LHF->FogAlbedo.G);
+		FVector2DHalf Data1Y = FVector2DHalf(LHF->FogAlbedo.B, LHF->FogPhaseG);
 
 		LocalFogVolumeGPUInstanceDataIt->UniformScale = LHF->FogUniformScale;
+		LocalFogVolumeGPUInstanceDataIt->Data1[0] = Data1X.AsUInt32();
+		LocalFogVolumeGPUInstanceDataIt->Data1[1] = Data1Y.AsUInt32();
+		LocalFogVolumeGPUInstanceDataIt->Data1[2] = 0;
 
-		LocalFogVolumeGPUInstanceDataIt->Albedo = FVector3f(LHF->FogAlbedo);
-		LocalFogVolumeGPUInstanceDataIt->PhaseG = LHF->FogPhaseG;
-		LocalFogVolumeGPUInstanceDataIt->Emissive = FVector3f(LHF->FogEmissive);
-
+		// Register the sorting data
 		Out.LocalFogVolumeCenterPos[Out.LocalFogVolumeInstanceCountFinal] = LHF->FogTransform.GetTranslation();
 
-		FLocalFogVolumeSortKey* LocalFogVolumeSortKeysIt = &Out.LocalFogVolumeSortKeys[Out.LocalFogVolumeInstanceCountFinal];
-		LocalFogVolumeSortKeysIt->FogVolume.Index = Out.LocalFogVolumeInstanceCountFinal;
-		LocalFogVolumeSortKeysIt->FogVolume.Distance = 0;	// Filled up right before sorting according to a view
-		LocalFogVolumeSortKeysIt->FogVolume.Priority = LHF->FogSortPriority;
+		FLocalFogVolumeSortKey* LocalFogVolumeSortKeysIt= &Out.LocalFogVolumeSortKeys[Out.LocalFogVolumeInstanceCountFinal];
+		LocalFogVolumeSortKeysIt->FogVolume.Index		= Out.LocalFogVolumeInstanceCountFinal;
+		LocalFogVolumeSortKeysIt->FogVolume.Distance	= 0;	// Filled up right before sorting according to a view
+		LocalFogVolumeSortKeysIt->FogVolume.Priority	= LHF->FogSortPriority;
 
 		Out.LocalFogVolumeInstanceCountFinal++;
 	}

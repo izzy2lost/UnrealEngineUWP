@@ -46,15 +46,10 @@ public:
 	float Transform[4 * 3];
 	float InvTransform[4 * 3];
 
-	float RadialFogExtinction;
-	float HeightFogExtinction;
-	float HeightFogFalloff;
-	float HeightFogOffset;
-
-	FVector3f Albedo;
-	float PhaseG;
-	FVector3f Emissive;
-	float UniformScale;
+	// See LocalFogVolumeCommon for the encoded representation
+	uint32 Data0[4];
+	float  UniformScale;
+	uint32 Data1[3];
 };
 
 class RENDERER_API FLocalFogVolumeSortKey
