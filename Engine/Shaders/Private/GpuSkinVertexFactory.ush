@@ -28,10 +28,6 @@
 #define GPUSKIN_UNLIMITED_BONE_INFLUENCE 0
 #endif
 
-#ifndef GPUSKIN_USE_BONES_SRV_BUFFER
-#define GPUSKIN_USE_BONES_SRV_BUFFER	0	// Use a Buffer<float4> if 1, otherwise a uniform buffer   
-#endif
-
 #define MAX_INFLUENCES_PER_STREAM	4
 
 #define FIXED_VERTEX_INDEX 0xFFFF
@@ -281,14 +277,10 @@ FMaterialPixelParameters GetMaterialPixelParameters(FVertexFactoryInterpolantsVS
 
 #define FBoneMatrix float3x4
 
-#if GPUSKIN_USE_BONES_SRV_BUFFER
-
 // The bone matrix buffer stored as 4x3 (3 float4 behind each other), all chunks of a skeletal mesh in one, each skeletal mesh has it's own buffer
 STRONG_TYPE Buffer<float4> BoneMatrices;
 // The previous bone matrix buffer stored as 4x3 (3 float4 behind each other), all chunks of a skeletal mesh in one, each skeletal mesh has it's own buffer
 STRONG_TYPE Buffer<float4> PreviousBoneMatrices;
-
-#endif
 
 // Cache data to avoid multiple calculation 
 struct FVertexFactoryIntermediates
@@ -529,14 +521,10 @@ float3 MorphPreviousPosition( FVertexFactoryInput Input, FVertexFactoryIntermedi
 
 FBoneMatrix GetBoneMatrix(int Index)
 {
-#if GPUSKIN_USE_BONES_SRV_BUFFER
 	float4 A = BoneMatrices[Index * 3];
 	float4 B = BoneMatrices[Index * 3 + 1];
 	float4 C = BoneMatrices[Index * 3 + 2];
 	return FBoneMatrix(A,B,C);
-#else
-	return Bones.BoneMatrices[Index];
-#endif
 }
 
 FBoneMatrix CalcBoneMatrix( FVertexFactoryInput Input )
@@ -606,14 +594,10 @@ FBoneMatrix CalcBoneMatrix( FVertexFactoryInput Input )
 
 FBoneMatrix GetPreviousBoneMatrix(int Index)
 {
-#if GPUSKIN_USE_BONES_SRV_BUFFER
 	float4 A = PreviousBoneMatrices[Index * 3 + 0];
 	float4 B = PreviousBoneMatrices[Index * 3 + 1];
 	float4 C = PreviousBoneMatrices[Index * 3 + 2];
 	return FBoneMatrix(A,B,C);
-#else
-	return Bones.BoneMatrices[Index];
-#endif
 }
 
 FBoneMatrix CalcPreviousBoneMatrix( FVertexFactoryInput Input )

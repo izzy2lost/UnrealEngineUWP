@@ -25,16 +25,6 @@ template <class T> class TConsoleVariableData;
 BEGIN_GLOBAL_SHADER_PARAMETER_STRUCT(FAPEXClothUniformShaderParameters,)
 END_GLOBAL_SHADER_PARAMETER_STRUCT()
 
-enum
-{
-	// 256 works for real uniform buffers, emulated UB can support up to 75 
-	MAX_GPU_BONE_MATRICES_UNIFORMBUFFER = 256,
-};
-
-BEGIN_GLOBAL_SHADER_PARAMETER_STRUCT(FBoneMatricesUniformShaderParameters,)
-	SHADER_PARAMETER_ARRAY(FMatrix3x4, BoneMatrices, [MAX_GPU_BONE_MATRICES_UNIFORMBUFFER])
-END_GLOBAL_SHADER_PARAMETER_STRUCT()
-
 #define SET_BONE_DATA(B, X) B.SetMatrixTranspose(X)
 
 /** Shared data & implementation for the different types of pool */

@@ -69,10 +69,6 @@ static TAutoConsoleVariable<bool> CVarMobileEnableCloth(
 
 IMPLEMENT_GLOBAL_SHADER_PARAMETER_STRUCT(FAPEXClothUniformShaderParameters,"APEXClothParam");
 
-IMPLEMENT_GLOBAL_SHADER_PARAMETER_STRUCT(FBoneMatricesUniformShaderParameters,"Bones");
-
-static FBoneMatricesUniformShaderParameters GBoneUniformStruct;
-
 #define IMPLEMENT_GPUSKINNING_VERTEX_FACTORY_TYPE_INTERNAL(FactoryClass, ShaderFilename, Flags) \
 	template <GPUSkinBoneInfluenceType BoneInfluenceType> FVertexFactoryType FactoryClass<BoneInfluenceType>::StaticType( \
 	BoneInfluenceType == DefaultBoneInfluence ? TEXT(#FactoryClass) TEXT("Default") : TEXT(#FactoryClass) TEXT("Unlimited"), \
@@ -118,22 +114,6 @@ static FAutoConsoleVariableRef CVarGPUSkinCopyBonesISPCEnabled(TEXT("r.GPUSkin.C
 static_assert(sizeof(ispc::FMatrix44f) == sizeof(FMatrix44f), "sizeof(ispc::FMatrix44f) != sizeof(FMatrix44f)");
 static_assert(sizeof(ispc::FMatrix3x4) == sizeof(FMatrix3x4), "sizeof(ispc::FMatrix3x4) != sizeof(FMatrix3x4)");
 #endif
-
-// ---
-// These should match USE_BONES_SRV_BUFFER
-static inline bool SupportsBonesBufferSRV(EShaderPlatform Platform)
-{
-	// at some point we might switch GL to uniform buffers
-	return true;
-}
-
-static inline bool SupportsBonesBufferSRV(ERHIFeatureLevel::Type InFeatureLevel)
-{
-	// at some point we might switch GL to uniform buffers
-	return true;
-}
-// ---
-
 
 /*-----------------------------------------------------------------------------
  FSharedPoolPolicyData
@@ -247,8 +227,6 @@ void FGPUBaseSkinVertexFactory::FShaderDataType::UpdateBoneData(FRHICommandList&
 	FMatrix3x4* ChunkMatrices = nullptr;
 
 	FVertexBufferAndSRV* CurrentBoneBuffer = 0;
-
-	if (SupportsBonesBufferSRV(InFeatureLevel))
 	{
 		check(IsInParallelRenderingThread());
 
@@ -276,14 +254,6 @@ void FGPUBaseSkinVertexFactory::FShaderDataType::UpdateBoneData(FRHICommandList&
 		if(NumBones)
 		{
 			ChunkMatrices = (FMatrix3x4*)RHICmdList.LockBuffer(CurrentBoneBuffer->VertexBufferRHI, 0, VectorArraySize, RLM_WriteOnly);
-		}
-	}
-	else
-	{
-		if(NumBones)
-		{
-			check(NumBones * sizeof(FMatrix3x4) <= sizeof(GBoneUniformStruct));
-			ChunkMatrices = (FMatrix3x4*)&GBoneUniformStruct;
 		}
 	}
 
@@ -319,17 +289,12 @@ void FGPUBaseSkinVertexFactory::FShaderDataType::UpdateBoneData(FRHICommandList&
 			}
 		}
 	}
-	if (SupportsBonesBufferSRV(InFeatureLevel))
 	{
 		if (NumBones)
 		{
 			check(CurrentBoneBuffer);
 			RHICmdList.UnlockBuffer(CurrentBoneBuffer->VertexBufferRHI);
 		}
-	}
-	else
-	{
-		UniformBuffer = RHICreateUniformBuffer(&GBoneUniformStruct, FBoneMatricesUniformShaderParameters::FTypeInfo::GetStructMetadata()->GetLayoutPtr(), UniformBuffer_MultiFrame);
 	}
 }
 
@@ -550,7 +515,6 @@ void TGPUSkinVertexFactory<BoneInfluenceType>::ModifyCompilationEnvironment(cons
 		OutEnvironment.SetDefine(TEXT("GPUSKIN_LIMIT_2BONE_INFLUENCES"), (bLimit2BoneInfluences ? 1 : 0));
 	}
 
-	OutEnvironment.SetDefine(TEXT("GPUSKIN_USE_BONES_SRV_BUFFER"), SupportsBonesBufferSRV(Parameters.Platform) ? 1 : 0);
 	OutEnvironment.SetDefine(TEXT("GPUSKIN_UNLIMITED_BONE_INFLUENCE"), BoneInfluenceType == UnlimitedBoneInfluence ? 1 : 0);
 
 	OutEnvironment.SetDefine(TEXT("GPU_SKINNED_MESH_FACTORY"), 1);
@@ -830,8 +794,6 @@ public:
 		const FGPUBaseSkinVertexFactory::FShaderDataType& ShaderData = ((const FGPUBaseSkinVertexFactory*)VertexFactory)->GetShaderData();
 
 		bool bLocalPerBoneMotionBlur = false;
-
-		if (SupportsBonesBufferSRV(FeatureLevel))
 		{
 			if (BoneMatrices.IsBound())
 			{
@@ -852,10 +814,6 @@ public:
 				FRHIShaderResourceView* PreviousData = ShaderData.GetBoneBufferForReading(bPrevious).VertexBufferSRV;
 				ShaderBindings.Add(PreviousBoneMatrices, PreviousData);
 			}
-		}
-		else
-		{
-			ShaderBindings.Add(Shader->GetUniformBufferParameter<FBoneMatricesUniformShaderParameters>(), ShaderData.GetUniformBuffer());
 		}
 
 		ShaderBindings.Add(PerBoneMotionBlur, (uint32)(bLocalPerBoneMotionBlur ? 1 : 0));
