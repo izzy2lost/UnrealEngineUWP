@@ -22,6 +22,7 @@ struct VCell;
 struct VContext;
 struct VFrame;
 struct VInt;
+struct FAllocationContext;
 struct FRunningContext;
 struct VPlaceholder;
 struct VSuspension;
@@ -170,6 +171,7 @@ struct VValue
 	}
 	VFloat AsFloat() const
 	{
+		checkSlow(IsFloat());
 		return VFloat(BitCast<double>(EncodedBits - FloatOffset));
 	}
 
@@ -181,7 +183,7 @@ struct VValue
 
 	void EnqueueSuspension(FRunningContext Context, VSuspension& Suspension);
 
-	FString ToString(FRunningContext, const FCellFormatter& Formatter) const;
+	FString ToString(FAllocationContext, const FCellFormatter& Formatter) const;
 
 	void Mark(FMarkStack& MarkStack)
 	{

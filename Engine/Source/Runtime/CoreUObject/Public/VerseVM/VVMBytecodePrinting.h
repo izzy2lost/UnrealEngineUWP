@@ -13,9 +13,9 @@ class FString;
 namespace Verse
 {
 struct FOp;
-struct FRunningContext;
+struct FAllocationContext;
 struct VProcedure;
 
-COREUOBJECT_API FString PrintProcedure(FRunningContext, VProcedure& Function);
+COREUOBJECT_API FString PrintProcedure(FAllocationContext, VProcedure& Function);
 
 } // namespace Verse

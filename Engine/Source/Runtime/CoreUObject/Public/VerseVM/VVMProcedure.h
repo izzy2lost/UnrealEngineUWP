@@ -44,7 +44,7 @@ struct VProcedure : VHeapValue
 		return GetConstantsBegin() + NumConstants;
 	}
 
-	void SetConstant(FRunningContext Context, FConstantIndex ConstantIndex, VValue Value)
+	void SetConstant(FAllocationContext Context, FConstantIndex ConstantIndex, VValue Value)
 	{
 		checkSlow(ConstantIndex.Index < NumConstants);
 		Constants[ConstantIndex.Index].Set(Context, Value);

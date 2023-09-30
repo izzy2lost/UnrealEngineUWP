@@ -16,21 +16,21 @@ struct VInt;
 struct VCell;
 struct VValue;
 struct VRestValue;
-struct FRunningContext;
+struct FAllocationContext;
 
 struct FCellFormatter
 {
 	virtual ~FCellFormatter() {}
-	virtual FString ToString(FRunningContext, VCell& Cell) const = 0;
+	virtual FString ToString(FAllocationContext, VCell& Cell) const = 0;
 };
 
 struct FDefaultCellFormatter : FCellFormatter
 {
-	COREUOBJECT_API virtual FString ToString(FRunningContext, VCell& Cell) const;
+	COREUOBJECT_API virtual FString ToString(FAllocationContext, VCell& Cell) const;
 };
 
 COREUOBJECT_API FString ToString(const VInt& Int);
 COREUOBJECT_API FString ToString(double Double);
-COREUOBJECT_API FString ToString(FRunningContext, const VValue& Value, const FCellFormatter& CellFormatter = FDefaultCellFormatter{});
-FString ToString(FRunningContext, const VRestValue& Value, const FCellFormatter& CellFormatter = FDefaultCellFormatter{});
+COREUOBJECT_API FString ToString(FAllocationContext, const VValue& Value, const FCellFormatter& CellFormatter = FDefaultCellFormatter{});
+FString ToString(FAllocationContext, const VRestValue& Value, const FCellFormatter& CellFormatter = FDefaultCellFormatter{});
 } // namespace Verse

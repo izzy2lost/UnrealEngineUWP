@@ -49,7 +49,7 @@ struct VRestValue
 
 	VValue Get(FAllocationContext Context);
 
-	FString ToString(FRunningContext, const FCellFormatter& Formatter) const;
+	FString ToString(FAllocationContext, const FCellFormatter& Formatter) const;
 
 	void MarkReferencedCell(FMarkStack&);
 

@@ -21,7 +21,7 @@ struct FBytecodeCellFormatter : public FDefaultCellFormatter
 	TMap<VCell*, FString> CellSymbolMap;
 
 	// FCellFormatter interface.
-	virtual FString ToString(FRunningContext Context, VCell& Cell) const override
+	virtual FString ToString(FAllocationContext Context, VCell& Cell) const override
 	{
 		if (const FString* Symbol = CellSymbolMap.Find(&Cell))
 		{
@@ -53,7 +53,7 @@ struct FJumpTargetHandler
 
 struct FBytecodePrinter
 {
-	FBytecodePrinter(FRunningContext Context, VProcedure& Procedure)
+	FBytecodePrinter(FAllocationContext Context, VProcedure& Procedure)
 		: Context(Context)
 		, Procedure(Procedure)
 	{
@@ -120,7 +120,7 @@ struct FBytecodePrinter
 	}
 
 private:
-	FRunningContext Context;
+	FAllocationContext Context;
 	VProcedure& Procedure;
 	FString String;
 
@@ -204,7 +204,7 @@ private:
 } // namespace
 } // namespace Verse
 
-FString Verse::PrintProcedure(FRunningContext Context, VProcedure& Procedure)
+FString Verse::PrintProcedure(FAllocationContext Context, VProcedure& Procedure)
 {
 	FBytecodePrinter Printer{Context, Procedure};
 	return Printer.Print();

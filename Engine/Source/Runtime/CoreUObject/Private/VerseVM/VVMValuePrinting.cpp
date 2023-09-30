@@ -21,7 +21,7 @@
 
 namespace Verse
 {
-FString FDefaultCellFormatter::ToString(FRunningContext Context, VCell& Cell) const
+FString FDefaultCellFormatter::ToString(FAllocationContext Context, VCell& Cell) const
 {
 	if (Cell.IsA<VTuple>())
 	{
@@ -105,12 +105,12 @@ FString ToString(double Double)
 	return LexToString(Double);
 }
 
-FString ToString(FRunningContext Context, const VValue& Value, const FCellFormatter& Formatter)
+FString ToString(FAllocationContext Context, const VValue& Value, const FCellFormatter& Formatter)
 {
 	return Value.ToString(Context, Formatter);
 }
 
-FString VValue::ToString(FRunningContext Context, const FCellFormatter& Formatter) const
+FString VValue::ToString(FAllocationContext Context, const FCellFormatter& Formatter) const
 {
 	if (*this == VValue::EffectDoneMarker())
 	{
@@ -166,12 +166,12 @@ FString VValue::ToString(FRunningContext Context, const FCellFormatter& Formatte
 	}
 }
 
-FString ToString(FRunningContext Context, const VRestValue& Value, const FCellFormatter& CellFormatter)
+FString ToString(FAllocationContext Context, const VRestValue& Value, const FCellFormatter& CellFormatter)
 {
 	return Value.ToString(Context, CellFormatter);
 }
 
-FString VRestValue::ToString(FRunningContext Context, const FCellFormatter& CellFormatter) const
+FString VRestValue::ToString(FAllocationContext Context, const FCellFormatter& CellFormatter) const
 {
 	return ::Verse::ToString(Context, Value.Get(), CellFormatter);
 }
