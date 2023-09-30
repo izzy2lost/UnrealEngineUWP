@@ -91,14 +91,13 @@ void LocalFogVolumeSplatPS(
 #endif
 
 	float3 DepthBufferTranslatedWorldPos = SvPositionToTranslatedWorld(float4(SVPos.xy, DeviceZ, 1.0));
+	float3 DepthBufferWorldPos = DepthBufferTranslatedWorldPos - LWCHackToFloat(ResolvedView.PreViewTranslation);
 
 	float4 LuminanceColorTransmittance = GetLFVInstanceContribution(
 		InstanceIndex,
 		CamRayWorldOrigin,
 		CamRayWorldDir,
-		CamRayTranslatedWorldOrigin,
-		CamRayTranslatedWorldDir,
-		DepthBufferTranslatedWorldPos);
+		DepthBufferWorldPos);
 
 	OutColor = float4(
 		LuminanceColorTransmittance.rgb * PrimaryView.PreExposure,
@@ -167,14 +166,10 @@ void LocalFogVolumeTiledPS(
 
 	uint LFVCount = 0;
 	float4 LFVContribution = GetLFVContribution(ResolvedView, TilePos, DepthBufferTranslatedWorldPos, LFVCount);
-	
-	OutColor = float4(
-		LFVContribution.rgb * PrimaryView.PreExposure,
-		LFVContribution.a);
 
 	bool bDoClip = true;
 #if USE_DEVELOPMENT_SHADERS
-	bDoClip = LocalFogVolumeTileDebug == 2;
+	bDoClip = LocalFogVolumeTileDebug != 1;
 #endif
 
 	const float4 IdentityLuminanceTransmittance = float4(0.0, 0.0, 0.0, 1.0);
@@ -182,6 +177,10 @@ void LocalFogVolumeTiledPS(
 	{
 		clip(-1.0f);
 	}
+
+	OutColor = float4(
+		LFVContribution.rgb * PrimaryView.PreExposure,
+		LFVContribution.a);
 
 #if USE_DEVELOPMENT_SHADERS
 	if (LocalFogVolumeTileDebug > 0)
