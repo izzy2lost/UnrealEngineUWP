@@ -7,14 +7,8 @@
 
 #include "../SceneTexturesCommon.ush"
 
+#include "LocalFogVolumeCommon.ush"
 
-
-#ifndef LFV_SPLAT_VS
-#define LFV_SPLAT_VS 0
-#endif
-#ifndef LFV_SPLAT_PS
-#define LFV_SPLAT_PS 0
-#endif
 #ifndef LFV_TILED_VS
 #define LFV_TILED_VS 0
 #endif
@@ -24,88 +18,12 @@
 
 
 
-#if LFV_SPLAT_PS
-#define LFV_CAN_CLIP 1
-#else
-#define LFV_CAN_CLIP 0
-#endif
-#include "LocalFogVolumeCommon.ush"
-
-
-
 struct FLocalFogVolumeVertexOutput
 {
-#if LFV_SPLAT_VS || LFV_SPLAT_PS
-	nointerpolation uint InstanceId : TEXCOORD0;
-#endif
-
-#if LFV_TILED_VS || LFV_TILED_PS
+//#if LFV_TILED_VS || LFV_TILED_PS
 	nointerpolation uint TileData : TEXCOORD0;
-#endif
+//#endif
 };
-
-#if LFV_SPLAT_VS
-void LocalFogVolumeSplatVS(
-	in float4 InPosition : ATTRIBUTE0,
-	uint InstanceIndex : SV_InstanceID,
-	out float4 OutPosition : SV_POSITION,
-	out FLocalFogVolumeVertexOutput OtherVertexOutput
-)
-{
-	ResolvedView = ResolveView();
-
-	float4 LocalPosition = InPosition;
-
-	FLocalFogVolumeGPUInstanceData FogInstance = GetLocalFogVolumeGPUInstanceData(InstanceIndex);
-
-	float3 WorldPosition = mul(float4(LocalPosition.xyz, 1.0f), FogInstance.Transform).xyz;
-
-	float4 TranslatedWorldPosition = float4(WorldPosition + LWCHackToFloat(PrimaryView.PreViewTranslation), 1);
-
-	OutPosition = mul(TranslatedWorldPosition, PrimaryView.TranslatedWorldToClip);
-	OtherVertexOutput.InstanceId = InstanceIndex;
-}
-#endif // LFV_SPLAT_VS
-
-
-#if LFV_SPLAT_PS
-void LocalFogVolumeSplatPS(
-	in float4 SVPos : SV_POSITION,
-	in FLocalFogVolumeVertexOutput OtherVertexOutput,
-	out float4 OutColor : SV_Target0)
-{
-	ResolvedView = ResolveView();
-	uint InstanceIndex = OtherVertexOutput.InstanceId;
-
-	float3 CamRayTranslatedWorldOrigin	= PrimaryView.TranslatedWorldCameraOrigin;
-	float3 CamRayTranslatedWorldDir = normalize(SvPositionToTranslatedWorld(float4(SVPos.xy, 0.5, 1.0)));
-	float3 CamRayWorldDir = CamRayTranslatedWorldDir;
-	float3 CamRayWorldOrigin = CamRayTranslatedWorldOrigin - LWCHackToFloat(PrimaryView.PreViewTranslation);
-
-#if SHADING_PATH_MOBILE
-	// LookupDeviceZ with uint2 SVPos.xy as input does not work on mobile.
-	float2 UV = SVPos * View.BufferSizeAndInvSize.zw;
-	const float DeviceZ = LookupDeviceZ(UV);
-#else
-	const float DeviceZ = LookupDeviceZ(uint2(SVPos.xy));
-#endif
-
-	float3 DepthBufferTranslatedWorldPos = SvPositionToTranslatedWorld(float4(SVPos.xy, DeviceZ, 1.0));
-	float3 DepthBufferWorldPos = DepthBufferTranslatedWorldPos - LWCHackToFloat(ResolvedView.PreViewTranslation);
-
-	float4 LuminanceColorTransmittance = GetLFVInstanceContribution(
-		InstanceIndex,
-		CamRayWorldOrigin,
-		CamRayWorldDir,
-		DepthBufferWorldPos);
-
-	OutColor = float4(
-		LuminanceColorTransmittance.rgb * PrimaryView.PreExposure,
-		LuminanceColorTransmittance.a);
-}
-#endif // LFV_SPLAT_PS
-
-
 
 
 

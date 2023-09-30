@@ -29,11 +29,6 @@ static TAutoConsoleVariable<int32> CVarLocalFogVolumeApplyOnTranslucent(
 	TEXT("Project settings enabling the sampling of local fog volumes on translucent elements.\n"),
 	ECVF_ReadOnly | ECVF_RenderThreadSafe);
 
-static TAutoConsoleVariable<int32> CVarLocalFogVolumeTiledRendering(
-	TEXT("r.LocalFogVolume.TiledRendering"), 1,
-	TEXT("Use a tiled approach to render the local fog volume on screen.\n"),
-	ECVF_RenderThreadSafe);
-
 static TAutoConsoleVariable<int32> CVarLocalFogVolumeTilePixelSize(
 	TEXT("r.LocalFogVolume.TilePixelSize"), 128,
 	TEXT("Tile size on screen in pixel at which we cull the local fog volumes.\n"),
@@ -52,11 +47,6 @@ static TAutoConsoleVariable<int32> CVarLocalFogVolumeTileDebug(
 // Example of tile setup
 //  - 1920x1080 => 15x9 tiles
 //  - Allowing max 32 volumes at once => culling list buffer = 15 * 9 * 32 * 1 byte = 4320 bytes = 4.3KB
-
-static bool GetLocalFogVolumeTiledRenderingEnable()
-{
-	return CVarLocalFogVolumeTiledRendering.GetValueOnRenderThread() > 0;
-}
 
 static uint32 GetLocalFogVolumeTilePixelSize()
 {
@@ -318,7 +308,6 @@ void GetLocalFogVolumeSortingData(const FScene* Scene, FRDGBuilder& GraphBuilder
 
 		FMatrix44f Transform    = FMatrix44f(LHF->FogTransform.ToMatrixWithScale());
 		FMatrix44f InvTransform = Transform.Inverse();
-		ConvertFromMatrix44fTo4x3Array(Transform, LocalFogVolumeGPUInstanceDataIt->Transform);
 		ConvertFromMatrix44fTo4x3Array(InvTransform, LocalFogVolumeGPUInstanceDataIt->InvTransform);
 
 		FVector2DHalf Data0X = FVector2DHalf(LHF->RadialFogExtinction,			LHF->HeightFogExtinction);
@@ -507,67 +496,6 @@ void InitLocalFogVolumesForViews(
 	Local height fog rendering - non mobile
 =============================================================================*/
 
-class FLocalFogVolumeSplatVS : public FGlobalShader
-{
-	DECLARE_GLOBAL_SHADER(FLocalFogVolumeSplatVS);
-	SHADER_USE_PARAMETER_STRUCT(FLocalFogVolumeSplatVS, FGlobalShader);
-
-	BEGIN_SHADER_PARAMETER_STRUCT(FParameters, )
-		SHADER_PARAMETER_STRUCT_REF(FViewUniformShaderParameters, View)
-		SHADER_PARAMETER_STRUCT(FLocalFogVolumeUniformParameters, LFV)
-	END_SHADER_PARAMETER_STRUCT()
-
-	using FPermutationDomain = TShaderPermutationDomain<>;
-
-	static bool ShouldCompilePermutation(const FGlobalShaderPermutationParameters& Parameters)
-	{
-		if (IsMobilePlatform(Parameters.Platform))
-		{
-			return false;
-		}
-		return true;
-	}
-
-	static void ModifyCompilationEnvironment(const FGlobalShaderPermutationParameters& Parameters, FShaderCompilerEnvironment& OutEnvironment)
-	{
-		FGlobalShader::ModifyCompilationEnvironment(Parameters, OutEnvironment);
-		OutEnvironment.SetDefine(TEXT("LFV_SPLAT_VS"), 1);
-	}
-};
-
-IMPLEMENT_GLOBAL_SHADER(FLocalFogVolumeSplatVS, "/Engine/Private/LocalFogVolumes/LocalFogVolumeSplat.usf", "LocalFogVolumeSplatVS", SF_Vertex);
-
-class FLocalFogVolumeSplatPS : public FGlobalShader
-{
-	DECLARE_GLOBAL_SHADER(FLocalFogVolumeSplatPS);
-	SHADER_USE_PARAMETER_STRUCT(FLocalFogVolumeSplatPS, FGlobalShader);
-
-	BEGIN_SHADER_PARAMETER_STRUCT(FParameters, )
-		SHADER_PARAMETER_STRUCT_REF(FViewUniformShaderParameters, View)
-		SHADER_PARAMETER_STRUCT(FLocalFogVolumeUniformParameters, LFV)
-	END_SHADER_PARAMETER_STRUCT()
-
-	using FPermutationDomain = TShaderPermutationDomain<>;
-
-	static bool ShouldCompilePermutation(const FGlobalShaderPermutationParameters& Parameters)
-	{
-		if (IsMobilePlatform(Parameters.Platform))
-		{
-			return false;
-		}
-		return true;
-	}
-
-	static void ModifyCompilationEnvironment(const FGlobalShaderPermutationParameters& Parameters, FShaderCompilerEnvironment& OutEnvironment)
-	{
-		FGlobalShader::ModifyCompilationEnvironment(Parameters, OutEnvironment);
-		OutEnvironment.SetDefine(TEXT("LFV_SPLAT_PS"), 1);
-	}
-};
-
-IMPLEMENT_GLOBAL_SHADER(FLocalFogVolumeSplatPS, "/Engine/Private/LocalFogVolumes/LocalFogVolumeSplat.usf", "LocalFogVolumeSplatPS", SF_Pixel);
-
-
 class FLocalFogVolumeTiledRenderVS : public FGlobalShader
 {
 	DECLARE_GLOBAL_SHADER(FLocalFogVolumeTiledRenderVS);
@@ -630,13 +558,6 @@ class FLocalFogVolumeTiledRenderPS : public FGlobalShader
 
 IMPLEMENT_GLOBAL_SHADER(FLocalFogVolumeTiledRenderPS, "/Engine/Private/LocalFogVolumes/LocalFogVolumeSplat.usf", "LocalFogVolumeTiledPS", SF_Pixel);
 
-BEGIN_SHADER_PARAMETER_STRUCT(FLocalFogVolumePassParameters, )
-	SHADER_PARAMETER_STRUCT_INCLUDE(FLocalFogVolumeSplatVS::FParameters, VS)
-	SHADER_PARAMETER_STRUCT_INCLUDE(FLocalFogVolumeSplatPS::FParameters, PS)
-	SHADER_PARAMETER_RDG_UNIFORM_BUFFER(FSceneTextureUniformParameters, SceneTextures)
-	RENDER_TARGET_BINDING_SLOTS()
-END_SHADER_PARAMETER_STRUCT()
-
 BEGIN_SHADER_PARAMETER_STRUCT(FLocalFogVolumeTiledPassParameters, )
 	SHADER_PARAMETER_STRUCT_INCLUDE(FLocalFogVolumeTiledRenderVS::FParameters, VS)
 	SHADER_PARAMETER_STRUCT_INCLUDE(FLocalFogVolumeTiledRenderPS::FParameters, PS)
@@ -667,128 +588,62 @@ void RenderLocalFogVolume(
 				continue;
 			}
 
-			if (GetLocalFogVolumeTiledRenderingEnable())
+			FLocalFogVolumeTiledPassParameters* PassParameters = GraphBuilder.AllocParameters<FLocalFogVolumeTiledPassParameters>();
+
+			PassParameters->VS.View = GetShaderBinding(View.ViewUniformBuffer);
+			PassParameters->VS.LFV = View.LocalFogVolumeViewData.UniformParametersStruct;
+			PassParameters->VS.TileDataBuffer = View.LocalFogVolumeViewData.GPUTileDataBufferSRV;
+
+			PassParameters->PS.View = GetShaderBinding(View.ViewUniformBuffer);
+			PassParameters->PS.LFV = View.LocalFogVolumeViewData.UniformParametersStruct;
+			PassParameters->PS.LocalFogVolumeTileDebug = FMath::Clamp(CVarLocalFogVolumeTileDebug.GetValueOnRenderThread(), 0, 2);
+
+			PassParameters->SceneTextures = SceneTextures.UniformBuffer;
+			PassParameters->TileDrawIndirectBuffer = View.LocalFogVolumeViewData.GPUTileDrawIndirectBuffer;
+			PassParameters->RenderTargets[0] = FRenderTargetBinding(SceneColorTexture, ERenderTargetLoadAction::ENoAction);
+
+			FLocalFogVolumeTiledRenderVS::FPermutationDomain VSPermutationVector;
+			auto VertexShader = View.ShaderMap->GetShader< FLocalFogVolumeTiledRenderVS >(VSPermutationVector);
+
+			FLocalFogVolumeTiledRenderPS::FPermutationDomain PsPermutationVector;
+			auto PixelShader = View.ShaderMap->GetShader< FLocalFogVolumeTiledRenderPS >(PsPermutationVector);
+
+			const FIntRect ViewRect = View.ViewRect;
+
+			ClearUnusedGraphResources(VertexShader, &PassParameters->VS);
+			ClearUnusedGraphResources(PixelShader, &PassParameters->PS);
+
+			FUintVector2& LocalFogVolumeTileDataTextureResolution = View.LocalFogVolumeViewData.UniformParametersStruct.LocalFogVolumeCommon.LocalFogVolumeTileDataTextureResolution;
+
+			GraphBuilder.AddPass(
+				RDG_EVENT_NAME("LocalFogVolume.Tiled (%u X %u)", LocalFogVolumeTileDataTextureResolution.X, LocalFogVolumeTileDataTextureResolution.Y),
+				PassParameters,
+				ERDGPassFlags::Raster,
+				[VertexShader, PixelShader, PassParameters, ViewRect](FRHICommandList& RHICmdList)
 			{
-				FLocalFogVolumeTiledPassParameters* PassParameters = GraphBuilder.AllocParameters<FLocalFogVolumeTiledPassParameters>();
+				FGraphicsPipelineStateInitializer GraphicsPSOInit;
+				RHICmdList.ApplyCachedRenderTargets(GraphicsPSOInit);
 
-				PassParameters->VS.View = GetShaderBinding(View.ViewUniformBuffer);
-				PassParameters->VS.LFV = View.LocalFogVolumeViewData.UniformParametersStruct;
-				PassParameters->VS.TileDataBuffer = View.LocalFogVolumeViewData.GPUTileDataBufferSRV;
+				RHICmdList.SetViewport(ViewRect.Min.X, ViewRect.Min.Y, 0.0f, ViewRect.Max.X, ViewRect.Max.Y, 1.0f);
 
-				PassParameters->PS.View = GetShaderBinding(View.ViewUniformBuffer);
-				PassParameters->PS.LFV = View.LocalFogVolumeViewData.UniformParametersStruct;
-				PassParameters->PS.LocalFogVolumeTileDebug = FMath::Clamp(CVarLocalFogVolumeTileDebug.GetValueOnRenderThread(), 0, 2);
+				// Render back faces only since camera may intersect
+				GraphicsPSOInit.RasterizerState = TStaticRasterizerState<>::GetRHI();
+				GraphicsPSOInit.DepthStencilState = TStaticDepthStencilState<false, CF_Always>::GetRHI();
+				GraphicsPSOInit.BlendState = TStaticBlendState<CW_RGBA, BO_Add, BF_One, BF_SourceAlpha, BO_Add, BF_Zero, BF_SourceAlpha>::GetRHI();
+				GraphicsPSOInit.PrimitiveType = PT_TriangleList; // LFV_TODO check if rects are supported and use them if so
 
-				PassParameters->SceneTextures = SceneTextures.UniformBuffer;
-				PassParameters->TileDrawIndirectBuffer = View.LocalFogVolumeViewData.GPUTileDrawIndirectBuffer;
-				PassParameters->RenderTargets[0] = FRenderTargetBinding(SceneColorTexture, ERenderTargetLoadAction::ENoAction);
+				GraphicsPSOInit.BoundShaderState.VertexDeclarationRHI = GFilterVertexDeclaration.VertexDeclarationRHI;
+				GraphicsPSOInit.BoundShaderState.VertexShaderRHI = VertexShader.GetVertexShader();
+				GraphicsPSOInit.BoundShaderState.PixelShaderRHI = PixelShader.GetPixelShader();
 
-				FLocalFogVolumeTiledRenderVS::FPermutationDomain VSPermutationVector;
-				auto VertexShader = View.ShaderMap->GetShader< FLocalFogVolumeTiledRenderVS >(VSPermutationVector);
+				SetGraphicsPipelineState(RHICmdList, GraphicsPSOInit, 0);
 
-				FLocalFogVolumeTiledRenderPS::FPermutationDomain PsPermutationVector;
-				auto PixelShader = View.ShaderMap->GetShader< FLocalFogVolumeTiledRenderPS >(PsPermutationVector);
+				SetShaderParameters(RHICmdList, VertexShader, VertexShader.GetVertexShader(), PassParameters->VS);
+				SetShaderParameters(RHICmdList, PixelShader, PixelShader.GetPixelShader(), PassParameters->PS);
 
-				const FIntRect ViewRect = View.ViewRect;
-
-				ClearUnusedGraphResources(VertexShader, &PassParameters->VS);
-				ClearUnusedGraphResources(PixelShader, &PassParameters->PS);
-
-				FUintVector2& LocalFogVolumeTileDataTextureResolution = View.LocalFogVolumeViewData.UniformParametersStruct.LocalFogVolumeCommon.LocalFogVolumeTileDataTextureResolution;
-
-				GraphBuilder.AddPass(
-					RDG_EVENT_NAME("LocalFogVolume.Tiled (%u X %u)", LocalFogVolumeTileDataTextureResolution.X, LocalFogVolumeTileDataTextureResolution.Y),
-					PassParameters,
-					ERDGPassFlags::Raster,
-					[VertexShader, PixelShader, PassParameters, ViewRect](FRHICommandList& RHICmdList)
-				{
-					FGraphicsPipelineStateInitializer GraphicsPSOInit;
-					RHICmdList.ApplyCachedRenderTargets(GraphicsPSOInit);
-
-					RHICmdList.SetViewport(ViewRect.Min.X, ViewRect.Min.Y, 0.0f, ViewRect.Max.X, ViewRect.Max.Y, 1.0f);
-
-					// Render back faces only since camera may intersect
-					GraphicsPSOInit.RasterizerState = TStaticRasterizerState<>::GetRHI();
-					GraphicsPSOInit.DepthStencilState = TStaticDepthStencilState<false, CF_Always>::GetRHI();
-					GraphicsPSOInit.BlendState = TStaticBlendState<CW_RGBA, BO_Add, BF_One, BF_SourceAlpha, BO_Add, BF_Zero, BF_SourceAlpha>::GetRHI();
-					GraphicsPSOInit.PrimitiveType = PT_TriangleList; // LFV_TODO check if rects are supported and use them if so
-
-					GraphicsPSOInit.BoundShaderState.VertexDeclarationRHI = GFilterVertexDeclaration.VertexDeclarationRHI;
-					GraphicsPSOInit.BoundShaderState.VertexShaderRHI = VertexShader.GetVertexShader();
-					GraphicsPSOInit.BoundShaderState.PixelShaderRHI = PixelShader.GetPixelShader();
-
-					SetGraphicsPipelineState(RHICmdList, GraphicsPSOInit, 0);
-
-					SetShaderParameters(RHICmdList, VertexShader, VertexShader.GetVertexShader(), PassParameters->VS);
-					SetShaderParameters(RHICmdList, PixelShader, PixelShader.GetPixelShader(), PassParameters->PS);
-
-					RHICmdList.SetStreamSource(0, nullptr, 0);
-					RHICmdList.DrawPrimitiveIndirect(PassParameters->TileDrawIndirectBuffer->GetIndirectRHICallBuffer(), 0);
-				});
-			}
-			else
-			{
-				FLocalFogVolumePassParameters* PassParameters = GraphBuilder.AllocParameters<FLocalFogVolumePassParameters>();
-
-				PassParameters->VS.View = GetShaderBinding(View.ViewUniformBuffer);
-				PassParameters->VS.LFV = View.LocalFogVolumeViewData.UniformParametersStruct;
-
-				PassParameters->PS.View = GetShaderBinding(View.ViewUniformBuffer);
-				PassParameters->PS.LFV = View.LocalFogVolumeViewData.UniformParametersStruct;
-
-				PassParameters->SceneTextures = SceneTextures.UniformBuffer;
-				PassParameters->RenderTargets[0] = FRenderTargetBinding(SceneColorTexture, ERenderTargetLoadAction::ENoAction);
-
-				FLocalFogVolumeSplatVS::FPermutationDomain VSPermutationVector;
-				auto VertexShader = View.ShaderMap->GetShader< FLocalFogVolumeSplatVS >(VSPermutationVector);
-
-				FLocalFogVolumeSplatPS::FPermutationDomain PsPermutationVector;
-				auto PixelShader = View.ShaderMap->GetShader< FLocalFogVolumeSplatPS >(PsPermutationVector);
-
-				const FIntRect ViewRect = View.ViewRect;
-
-				ClearUnusedGraphResources(VertexShader, &PassParameters->VS);
-				ClearUnusedGraphResources(PixelShader, &PassParameters->PS);
-
-				uint32 LocalFogVolumeGPUInstanceCount = View.LocalFogVolumeViewData.GPUInstanceCount;
-				GraphBuilder.AddPass(
-					RDG_EVENT_NAME("LocalFogVolume.Splat (%u inst.)", LocalFogVolumeGPUInstanceCount),
-					PassParameters,
-					ERDGPassFlags::Raster,
-					[VertexShader, PixelShader, PassParameters, LocalFogVolumeGPUInstanceCount, ViewRect](FRHICommandList& RHICmdList)
-				{
-					FGraphicsPipelineStateInitializer GraphicsPSOInit;
-					RHICmdList.ApplyCachedRenderTargets(GraphicsPSOInit);
-
-					RHICmdList.SetViewport(ViewRect.Min.X, ViewRect.Min.Y, 0.0f, ViewRect.Max.X, ViewRect.Max.Y, 1.0f);
-
-					// Render back faces only since camera may intersect
-					GraphicsPSOInit.RasterizerState = TStaticRasterizerState<FM_Solid, CM_CW>::GetRHI();
-					GraphicsPSOInit.DepthStencilState = TStaticDepthStencilState<false, CF_Always>::GetRHI();
-					GraphicsPSOInit.BlendState = TStaticBlendState<CW_RGBA, BO_Add, BF_One, BF_SourceAlpha, BO_Add, BF_Zero, BF_SourceAlpha>::GetRHI();
-					GraphicsPSOInit.PrimitiveType = PT_TriangleList;
-
-					GraphicsPSOInit.BoundShaderState.VertexDeclarationRHI = GetVertexDeclarationFVector4();
-					GraphicsPSOInit.BoundShaderState.VertexShaderRHI = VertexShader.GetVertexShader();
-					GraphicsPSOInit.BoundShaderState.PixelShaderRHI = PixelShader.GetPixelShader();
-
-					SetGraphicsPipelineState(RHICmdList, GraphicsPSOInit, 0);
-
-					SetShaderParameters(RHICmdList, VertexShader, VertexShader.GetVertexShader(), PassParameters->VS);
-					SetShaderParameters(RHICmdList, PixelShader, PixelShader.GetPixelShader(), PassParameters->PS);
-
-					RHICmdList.SetStreamSource(0, GetUnitCubeVertexBuffer(), 0);
-
-					RHICmdList.DrawIndexedPrimitive(GetUnitCubeIndexBuffer()
-						, 0									//BaseVertexIndex
-						, 0									//FirstInstance
-						, 8									//uint32 NumVertices
-						, 0									//uint32 StartIndex
-						, UE_ARRAY_COUNT(GCubeIndices) / 3	//uint32 NumPrimitives
-						, LocalFogVolumeGPUInstanceCount	//uint32 NumInstances
-					);
-				});
-			}
+				RHICmdList.SetStreamSource(0, nullptr, 0);
+				RHICmdList.DrawPrimitiveIndirect(PassParameters->TileDrawIndirectBuffer->GetIndirectRHICallBuffer(), 0);
+			});
 		}
 	}
 }
@@ -796,73 +651,6 @@ void RenderLocalFogVolume(
 /*=============================================================================
 	Local height fog rendering - mobile
 =============================================================================*/
-	
-
-class FMobileLocalFogVolumeSplatVS : public FGlobalShader
-{
-	DECLARE_GLOBAL_SHADER(FMobileLocalFogVolumeSplatVS);
-	SHADER_USE_PARAMETER_STRUCT(FMobileLocalFogVolumeSplatVS, FGlobalShader);
-
-	BEGIN_SHADER_PARAMETER_STRUCT(FParameters, )
-		SHADER_PARAMETER_STRUCT_INCLUDE(FViewShaderParameters, View)
-		SHADER_PARAMETER_STRUCT(FLocalFogVolumeUniformParameters, LFV)
-	END_SHADER_PARAMETER_STRUCT()
-
-	using FPermutationDomain = TShaderPermutationDomain<>;
-
-	static bool ShouldCompilePermutation(const FGlobalShaderPermutationParameters& Parameters)
-	{
-		if (!IsMobilePlatform(Parameters.Platform))
-		{
-			return false;
-		}
-		return true;
-	}
-
-	static void ModifyCompilationEnvironment(const FGlobalShaderPermutationParameters& Parameters, FShaderCompilerEnvironment& OutEnvironment)
-	{
-		FGlobalShader::ModifyCompilationEnvironment(Parameters, OutEnvironment);
-		const bool bMobileForceDepthRead = MobileUsesFullDepthPrepass(Parameters.Platform);
-		OutEnvironment.SetDefine(TEXT("LFV_SPLAT_VS"), 1);
-		OutEnvironment.SetDefine(TEXT("IS_MOBILE_DEPTHREAD_SUBPASS"), bMobileForceDepthRead ? 0u : 1u);
-	}
-};
-
-IMPLEMENT_GLOBAL_SHADER(FMobileLocalFogVolumeSplatVS, "/Engine/Private/LocalFogVolumes/LocalFogVolumeSplat.usf", "LocalFogVolumeSplatVS", SF_Vertex);
-
-class FMobileLocalFogVolumeSplatPS : public FGlobalShader
-{
-	DECLARE_GLOBAL_SHADER(FMobileLocalFogVolumeSplatPS);
-	SHADER_USE_PARAMETER_STRUCT(FMobileLocalFogVolumeSplatPS, FGlobalShader);
-
-	BEGIN_SHADER_PARAMETER_STRUCT(FParameters, )
-		SHADER_PARAMETER_STRUCT_INCLUDE(FViewShaderParameters, View)
-		SHADER_PARAMETER_RDG_UNIFORM_BUFFER(FMobileBasePassUniformParameters, MobileBasePass)
-		SHADER_PARAMETER_STRUCT(FLocalFogVolumeUniformParameters, LFV)
-	END_SHADER_PARAMETER_STRUCT()
-
-	using FPermutationDomain = TShaderPermutationDomain<>;
-
-	static bool ShouldCompilePermutation(const FGlobalShaderPermutationParameters& Parameters)
-	{
-		if (!IsMobilePlatform(Parameters.Platform))
-		{
-			return false;
-		}
-		return true;
-	}
-
-	static void ModifyCompilationEnvironment(const FGlobalShaderPermutationParameters& Parameters, FShaderCompilerEnvironment& OutEnvironment)
-	{
-		FGlobalShader::ModifyCompilationEnvironment(Parameters, OutEnvironment);
-		const bool bMobileForceDepthRead = MobileUsesFullDepthPrepass(Parameters.Platform);
-		OutEnvironment.SetDefine(TEXT("LFV_SPLAT_PS"), 1);
-		OutEnvironment.SetDefine(TEXT("IS_MOBILE_DEPTHREAD_SUBPASS"), bMobileForceDepthRead ? 0u : 1u);
-	}
-};
-
-IMPLEMENT_GLOBAL_SHADER(FMobileLocalFogVolumeSplatPS, "/Engine/Private/LocalFogVolumes/LocalFogVolumeSplat.usf", "LocalFogVolumeSplatPS", SF_Pixel);
-
 
 class FMobileLocalFogVolumeTiledRenderVS : public FGlobalShader
 {
@@ -943,99 +731,45 @@ void RenderLocalFogVolumeMobile(
 
 	SCOPED_DRAW_EVENT(RHICmdList, LocalFogVolumeVolumes);
 
+	FMobileLocalFogVolumeTiledRenderVS::FPermutationDomain VSPermutationVector;
+	auto VertexShader = View.ShaderMap->GetShader< FMobileLocalFogVolumeTiledRenderVS >(VSPermutationVector);
 
-	if (GetLocalFogVolumeTiledRenderingEnable())
-	{
-		FMobileLocalFogVolumeTiledRenderVS::FPermutationDomain VSPermutationVector;
-		auto VertexShader = View.ShaderMap->GetShader< FMobileLocalFogVolumeTiledRenderVS >(VSPermutationVector);
+	FMobileLocalFogVolumeTiledRenderPS::FPermutationDomain PsPermutationVector;
+	auto PixelShader = View.ShaderMap->GetShader< FMobileLocalFogVolumeTiledRenderPS >(PsPermutationVector);
 
-		FMobileLocalFogVolumeTiledRenderPS::FPermutationDomain PsPermutationVector;
-		auto PixelShader = View.ShaderMap->GetShader< FMobileLocalFogVolumeTiledRenderPS >(PsPermutationVector);
+	FGraphicsPipelineStateInitializer GraphicsPSOInit;
+	RHICmdList.ApplyCachedRenderTargets(GraphicsPSOInit);
 
-		FGraphicsPipelineStateInitializer GraphicsPSOInit;
-		RHICmdList.ApplyCachedRenderTargets(GraphicsPSOInit);
+	const FIntRect ViewRect = View.ViewRect;
+	RHICmdList.SetViewport(ViewRect.Min.X, ViewRect.Min.Y, 0.0f, ViewRect.Max.X, ViewRect.Max.Y, 1.0f);
 
-		const FIntRect ViewRect = View.ViewRect;
-		RHICmdList.SetViewport(ViewRect.Min.X, ViewRect.Min.Y, 0.0f, ViewRect.Max.X, ViewRect.Max.Y, 1.0f);
+	// Render back faces only since camera may intersect
+	GraphicsPSOInit.RasterizerState = TStaticRasterizerState<>::GetRHI();
+	GraphicsPSOInit.DepthStencilState = TStaticDepthStencilState<false, CF_Always>::GetRHI();
+	GraphicsPSOInit.BlendState = TStaticBlendState<CW_RGBA, BO_Add, BF_One, BF_SourceAlpha, BO_Add, BF_Zero, BF_SourceAlpha>::GetRHI();
+	GraphicsPSOInit.PrimitiveType = PT_TriangleList; // LFV_TODO check if rects are supported and use them if so
 
-		// Render back faces only since camera may intersect
-		GraphicsPSOInit.RasterizerState = TStaticRasterizerState<>::GetRHI();
-		GraphicsPSOInit.DepthStencilState = TStaticDepthStencilState<false, CF_Always>::GetRHI();
-		GraphicsPSOInit.BlendState = TStaticBlendState<CW_RGBA, BO_Add, BF_One, BF_SourceAlpha, BO_Add, BF_Zero, BF_SourceAlpha>::GetRHI();
-		GraphicsPSOInit.PrimitiveType = PT_TriangleList; // LFV_TODO check if rects are supported and use them if so
+	GraphicsPSOInit.BoundShaderState.VertexDeclarationRHI = GFilterVertexDeclaration.VertexDeclarationRHI;
+	GraphicsPSOInit.BoundShaderState.VertexShaderRHI = VertexShader.GetVertexShader();
+	GraphicsPSOInit.BoundShaderState.PixelShaderRHI = PixelShader.GetPixelShader();
 
-		GraphicsPSOInit.BoundShaderState.VertexDeclarationRHI = GFilterVertexDeclaration.VertexDeclarationRHI;
-		GraphicsPSOInit.BoundShaderState.VertexShaderRHI = VertexShader.GetVertexShader();
-		GraphicsPSOInit.BoundShaderState.PixelShaderRHI = PixelShader.GetPixelShader();
-
-		SetGraphicsPipelineState(RHICmdList, GraphicsPSOInit, 0);
+	SetGraphicsPipelineState(RHICmdList, GraphicsPSOInit, 0);
 
 
-		FMobileLocalFogVolumeTiledRenderVS::FParameters VSParameters;
-		VSParameters.View = View.GetShaderParameters();
-		VSParameters.LFV = View.LocalFogVolumeViewData.UniformParametersStruct;
-		VSParameters.TileDataBuffer = View.LocalFogVolumeViewData.GPUTileDataBufferSRV;
-		VSParameters.TileDrawIndirectBuffer = View.LocalFogVolumeViewData.GPUTileDrawIndirectBuffer;
-		SetShaderParameters(RHICmdList, VertexShader, VertexShader.GetVertexShader(), VSParameters);
+	FMobileLocalFogVolumeTiledRenderVS::FParameters VSParameters;
+	VSParameters.View = View.GetShaderParameters();
+	VSParameters.LFV = View.LocalFogVolumeViewData.UniformParametersStruct;
+	VSParameters.TileDataBuffer = View.LocalFogVolumeViewData.GPUTileDataBufferSRV;
+	VSParameters.TileDrawIndirectBuffer = View.LocalFogVolumeViewData.GPUTileDrawIndirectBuffer;
+	SetShaderParameters(RHICmdList, VertexShader, VertexShader.GetVertexShader(), VSParameters);
 
-		FMobileLocalFogVolumeTiledRenderPS::FParameters PSParameters;
-		PSParameters.View = View.GetShaderParameters();
-		PSParameters.LFV = View.LocalFogVolumeViewData.UniformParametersStruct;
-		PSParameters.LocalFogVolumeTileDebug = FMath::Clamp(CVarLocalFogVolumeTileDebug.GetValueOnRenderThread(), 0, 2);
-		// PSParameters.MobileBasePass filled up by the RDG pass parameters.
-		SetShaderParameters(RHICmdList, PixelShader, PixelShader.GetPixelShader(), PSParameters);
+	FMobileLocalFogVolumeTiledRenderPS::FParameters PSParameters;
+	PSParameters.View = View.GetShaderParameters();
+	PSParameters.LFV = View.LocalFogVolumeViewData.UniformParametersStruct;
+	PSParameters.LocalFogVolumeTileDebug = FMath::Clamp(CVarLocalFogVolumeTileDebug.GetValueOnRenderThread(), 0, 2);
+	// PSParameters.MobileBasePass filled up by the RDG pass parameters.
+	SetShaderParameters(RHICmdList, PixelShader, PixelShader.GetPixelShader(), PSParameters);
 
-		RHICmdList.SetStreamSource(0, nullptr, 0);
-		RHICmdList.DrawPrimitiveIndirect(View.LocalFogVolumeViewData.GPUTileDrawIndirectBuffer->GetIndirectRHICallBuffer(), 0);
-	}
-	else
-	{
-		FMobileLocalFogVolumeSplatVS::FPermutationDomain VSPermutationVector;
-		auto VertexShader = View.ShaderMap->GetShader< FMobileLocalFogVolumeSplatVS >(VSPermutationVector);
-
-		FMobileLocalFogVolumeSplatPS::FPermutationDomain PsPermutationVector;
-		auto PixelShader = View.ShaderMap->GetShader< FMobileLocalFogVolumeSplatPS >(PsPermutationVector);
-
-		const FIntRect ViewRect = View.ViewRect;
-
-		FGraphicsPipelineStateInitializer GraphicsPSOInit;
-		RHICmdList.ApplyCachedRenderTargets(GraphicsPSOInit);
-
-		RHICmdList.SetViewport(ViewRect.Min.X, ViewRect.Min.Y, 0.0f, ViewRect.Max.X, ViewRect.Max.Y, 1.0f);
-
-		// Render back faces only since camera may intersect
-		GraphicsPSOInit.RasterizerState = TStaticRasterizerState<FM_Solid, CM_CW>::GetRHI();
-		GraphicsPSOInit.DepthStencilState = TStaticDepthStencilState<false, CF_Always>::GetRHI();
-		GraphicsPSOInit.BlendState = TStaticBlendState<CW_RGBA, BO_Add, BF_One, BF_SourceAlpha, BO_Add, BF_Zero, BF_SourceAlpha>::GetRHI();
-		GraphicsPSOInit.PrimitiveType = PT_TriangleList;
-
-		GraphicsPSOInit.BoundShaderState.VertexDeclarationRHI = GetVertexDeclarationFVector4();
-		GraphicsPSOInit.BoundShaderState.VertexShaderRHI = VertexShader.GetVertexShader();
-		GraphicsPSOInit.BoundShaderState.PixelShaderRHI = PixelShader.GetPixelShader();
-
-		SetGraphicsPipelineState(RHICmdList, GraphicsPSOInit, 0);
-
-		FMobileLocalFogVolumeSplatVS::FParameters VSParameters;
-		VSParameters.View = View.GetShaderParameters();
-		VSParameters.LFV = View.LocalFogVolumeViewData.UniformParametersStruct;
-		SetShaderParameters(RHICmdList, VertexShader, VertexShader.GetVertexShader(), VSParameters);
-
-		FMobileLocalFogVolumeSplatPS::FParameters PSParameters;
-		PSParameters.View = View.GetShaderParameters();
-		PSParameters.LFV = View.LocalFogVolumeViewData.UniformParametersStruct;
-		// PSParameters.MobileBasePass filled up by the RDG pass parameters.
-		SetShaderParameters(RHICmdList, PixelShader, PixelShader.GetPixelShader(), PSParameters);
-
-		RHICmdList.SetStreamSource(0, GetUnitCubeVertexBuffer(), 0);
-
-		RHICmdList.DrawIndexedPrimitive(
-			GetUnitCubeIndexBuffer()
-			, 0												//BaseVertexIndex
-			, 0												//FirstInstance
-			, 8												//uint32 NumVertices
-			, 0												//uint32 StartIndex
-			, UE_ARRAY_COUNT(GCubeIndices) / 3				//uint32 NumPrimitives
-			, View.LocalFogVolumeViewData.GPUInstanceCount	//uint32 NumInstances
-		);
-	}
+	RHICmdList.SetStreamSource(0, nullptr, 0);
+	RHICmdList.DrawPrimitiveIndirect(View.LocalFogVolumeViewData.GPUTileDrawIndirectBuffer->GetIndirectRHICallBuffer(), 0);
 }

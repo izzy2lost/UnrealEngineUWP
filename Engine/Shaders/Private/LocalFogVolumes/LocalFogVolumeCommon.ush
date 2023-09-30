@@ -12,7 +12,6 @@
 
 struct FLocalFogVolumeGPUInstanceData
 {
-	float4x3 Transform;
 	float4x3 InvTransform;
 
 	// float4
@@ -80,12 +79,11 @@ Texture2DArray<uint>					LFV_LocalFogVolumeTileDataTexture;
 FLocalFogVolumeGPUInstanceData GetLocalFogVolumeGPUInstanceData(uint Index)
 {
 	FLocalFogVolumeGPUInstanceData Data;
-	uint Offset = Index * 8;
+	uint Offset = Index * 5;
 
-	Data.Transform			= float4x3(LFVInsts[Offset + 0 ], LFVInsts[Offset + 1 ], LFVInsts[Offset + 2 ]); // reads 4x3 row major pack as 3 float4
-	Data.InvTransform		= float4x3(LFVInsts[Offset + 3 ], LFVInsts[Offset + 4 ], LFVInsts[Offset + 5 ]);
+	Data.InvTransform		= float4x3(LFVInsts[Offset + 0 ], LFVInsts[Offset + 1 ], LFVInsts[Offset + 2 ]); // reads 4x3 row major pack as 3 float4
 
-	float4 Data0			= LFVInsts[Offset + 6];
+	float4 Data0			= LFVInsts[Offset + 3];
 
 	float2 Data0X			= UnpackFloat2FromUInt(asuint(Data0.x));
 	float2 Data0Y			= UnpackFloat2FromUInt(asuint(Data0.y));
@@ -98,7 +96,7 @@ FLocalFogVolumeGPUInstanceData GetLocalFogVolumeGPUInstanceData(uint Index)
 	Data.HeightFogOffset	= Data0Y.y;
 	Data.Emissive			= float3(Data0Z.x, Data0Z.y, Data0W.x);
 
-	float4 Data1			= LFVInsts[Offset + 7];
+	float4 Data1			= LFVInsts[Offset + 4];
 
 	float2 Data1X			= UnpackFloat2FromUInt(asuint(Data1.y));
 	float2 Data1Y			= UnpackFloat2FromUInt(asuint(Data1.z));
@@ -243,10 +241,6 @@ float3 LocalFogVolumeEvaluateInScattering(in FLocalFogVolumeGPUInstanceData FogI
 ///////////////////////////////////////////////////////////////////////////////
 // Local Fog Volume Instance Evaluation
 
-#ifndef LFV_CAN_CLIP
-#define LFV_CAN_CLIP 0
-#endif
-
 // Returns color transmittance
 float4 GetLFVInstanceContribution(
 	uint InstanceIndex,
@@ -295,18 +289,6 @@ float4 GetLFVInstanceContribution(
 			LuminanceColor = LocalFogVolumeEvaluateInScattering(FogInstance, FogData, CamRayWorldDir);
 			Transmittance = 1.0 - FogData.Coverage;
 		}
-		else
-		{
-#if LFV_CAN_CLIP
-			clip(-1.0);
-#endif
-		}
-	}
-	else
-	{
-#if LFV_CAN_CLIP
-		clip(-1.0);
-#endif
 	}
 
 	return float4(LuminanceColor, Transmittance);

@@ -43,7 +43,6 @@ class FLocalFogVolumeGPUInstanceData
 {
 public:
 
-	float Transform[4 * 3];
 	float InvTransform[4 * 3];
 
 	// See LocalFogVolumeCommon for the encoded representation
