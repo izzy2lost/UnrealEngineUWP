@@ -818,15 +818,6 @@ bool USkeletalMesh::NeedCPUData(int32 LODIndex) const
 	return GetSamplingInfo().IsSamplingEnabled(this, LODIndex);
 }
 
-void USkeletalMesh::RecomputeCombinedAssetUserData()
-{
-	CombinedAssetUserData.Reset();
-	CombinedAssetUserData.Append(AssetUserData);
-#if WITH_EDITOR
-	CombinedAssetUserData.Append(AssetUserDataEditorOnly);
-#endif
-}
-
 void USkeletalMesh::InitResources()
 {
 	LLM_SCOPE_BYNAME(TEXT("SkeletalMesh/InitResources")); // This is an important test case for SCOPE_BYNAME without a matching LLM_DEFINE_TAG
@@ -1315,7 +1306,6 @@ void USkeletalMesh::PostEditChangeProperty(FPropertyChangedEvent& PropertyChange
 			Datum->PostEditChangeOwner();
 		}
 	}
-	RecomputeCombinedAssetUserData();
 
 	Super::PostEditChangeProperty(PropertyChangedEvent);
 
@@ -3163,7 +3153,6 @@ void USkeletalMesh::PostLoad()
 	LLM_SCOPE(ELLMTag::SkeletalMesh);
 	Super::PostLoad();
 
-	RecomputeCombinedAssetUserData();
 }
 
 void USkeletalMesh::ExecutePostLoadInternal(FSkinnedAssetPostLoadContext& Context)
@@ -4735,7 +4724,6 @@ void USkeletalMesh::AddAssetUserData( UAssetUserData* InUserData)
 	{
 		RemoveUserDataOfClass(InUserData->GetClass());
 		AssetUserData.Add(InUserData);
-		RecomputeCombinedAssetUserData();
 	}
 }
 
@@ -4761,7 +4749,6 @@ void USkeletalMesh::RemoveUserDataOfClass(TSubclassOf<UAssetUserData> InUserData
 		if (Datum != NULL && Datum->IsA(InUserDataClass))
 		{
 			AssetUserData.RemoveAt(DataIdx);
-			RecomputeCombinedAssetUserData();
 			return;
 		}
 	}
@@ -4772,7 +4759,6 @@ void USkeletalMesh::RemoveUserDataOfClass(TSubclassOf<UAssetUserData> InUserData
 		if (Datum != NULL && Datum->IsA(InUserDataClass))
 		{
 			AssetUserDataEditorOnly.RemoveAt(DataIdx);
-			RecomputeCombinedAssetUserData();
 			return;
 		}
 	}
@@ -4782,7 +4768,10 @@ void USkeletalMesh::RemoveUserDataOfClass(TSubclassOf<UAssetUserData> InUserData
 const TArray<UAssetUserData*>* USkeletalMesh::GetAssetUserDataArray() const
 {
 #if WITH_EDITOR
-	return &ToRawPtrTArrayUnsafe(CombinedAssetUserData);
+	CachedAssetUserData.Reset();
+	CachedAssetUserData.Append(AssetUserData);
+	CachedAssetUserData.Append(AssetUserDataEditorOnly);
+	return &ToRawPtrTArrayUnsafe(CachedAssetUserData);
 #else
 	return &ToRawPtrTArrayUnsafe(AssetUserData);
 #endif

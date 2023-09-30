@@ -2231,8 +2231,7 @@ protected:
 	FOnMeshChanged OnMeshChanged;
 #endif
 
-	void RecomputeCombinedAssetUserData();
-	mutable TArray<TObjectPtr<UAssetUserData>> CombinedAssetUserData;
+	mutable TArray<TObjectPtr<UAssetUserData>> CachedAssetUserData;
 
 	friend struct FSkeletalMeshUpdateContext;
 	friend class FSkeletalMeshUpdate;

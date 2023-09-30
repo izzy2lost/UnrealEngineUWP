@@ -391,15 +391,6 @@ UActorComponent::UActorComponent(const FObjectInitializer& ObjectInitializer /*=
 	bReplicateUsingRegisteredSubObjectList = GDefaultUseSubObjectReplicationList;
 }
 
-void UActorComponent::RecomputeCombinedAssetUserData()
-{
-	CombinedAssetUserData.Reset();
-	CombinedAssetUserData.Append(AssetUserData);
-#if WITH_EDITOR
-	CombinedAssetUserData.Append(AssetUserDataEditorOnly);
-#endif
-}
-
 void UActorComponent::PostInitProperties()
 {
 	Super::PostInitProperties();
@@ -498,8 +489,6 @@ void UActorComponent::PostLoad()
 		bMarkPendingKillOnPostLoad = false;
 	}
 #endif // WITH_EDITOR
-
-	RecomputeCombinedAssetUserData();
 }
 
 bool UActorComponent::Rename( const TCHAR* InName, UObject* NewOuter, ERenameFlags Flags )
@@ -1033,7 +1022,6 @@ void UActorComponent::ConsolidatedPostEditChange(const FPropertyChangedEvent& Pr
 			Datum->PostEditChangeOwner();
 		}
 	}
-	RecomputeCombinedAssetUserData();
 }
 
 void UActorComponent::PostEditChangeProperty(FPropertyChangedEvent& PropertyChangedEvent)
@@ -2080,7 +2068,6 @@ void UActorComponent::AddAssetUserData( UAssetUserData* InUserData)
 	{
 		RemoveUserDataOfClass(InUserData->GetClass());
 		AssetUserData.Add(InUserData);
-		RecomputeCombinedAssetUserData();
 	}
 }
 
@@ -2101,7 +2088,10 @@ UAssetUserData* UActorComponent::GetAssetUserDataOfClass(TSubclassOf<UAssetUserD
 const TArray<UAssetUserData*>* UActorComponent::GetAssetUserDataArray() const
 {
 #if WITH_EDITOR
-	return &ToRawPtrTArrayUnsafe(CombinedAssetUserData);
+	CachedAssetUserData.Reset();
+	CachedAssetUserData.Append(AssetUserData);
+	CachedAssetUserData.Append(AssetUserDataEditorOnly);
+	return &ToRawPtrTArrayUnsafe(CachedAssetUserData);
 #else
 	return &ToRawPtrTArrayUnsafe(AssetUserData);
 #endif

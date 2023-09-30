@@ -397,7 +397,6 @@ void USkeleton::PostLoad()
 	// refresh linked bone indices
 	RefreshSkeletonMetaData();
 
-	RecomputeCombinedAssetUserData();
 }
 
 void USkeleton::PostDuplicate(bool bDuplicateForPIE)
@@ -1484,11 +1483,6 @@ void USkeleton::HandleSkeletonHierarchyChange(bool bShowProgress /*= true*/)
 	OnSkeletonHierarchyChanged.Broadcast();
 }
 
-void USkeleton::PostEditChangeProperty(FPropertyChangedEvent& PropertyChangedEvent)
-{
-	RecomputeCombinedAssetUserData();
-}
-
 void USkeleton::RegisterOnSkeletonHierarchyChanged(const FOnSkeletonHierarchyChanged& Delegate)
 {
 	OnSkeletonHierarchyChanged.Add(Delegate);
@@ -2082,7 +2076,6 @@ void USkeleton::AddAssetUserData( UAssetUserData* InUserData)
 	{
 		RemoveUserDataOfClass(InUserData->GetClass());
 		AssetUserData.Add(InUserData);
-		RecomputeCombinedAssetUserData();
 	}
 }
 
@@ -2108,7 +2101,6 @@ void USkeleton::RemoveUserDataOfClass(TSubclassOf<UAssetUserData> InUserDataClas
 		if (Datum != NULL && Datum->IsA(InUserDataClass))
 		{
 			AssetUserData.RemoveAt(DataIdx);
-			RecomputeCombinedAssetUserData();
 			return;
 		}
 	}
@@ -2120,7 +2112,6 @@ void USkeleton::RemoveUserDataOfClass(TSubclassOf<UAssetUserData> InUserDataClas
 		if (Datum != NULL && Datum->IsA(InUserDataClass))
 		{
 			AssetUserDataEditorOnly.RemoveAt(DataIdx);
-			RecomputeCombinedAssetUserData();
 			return;
 		}
 	}
@@ -2130,18 +2121,12 @@ void USkeleton::RemoveUserDataOfClass(TSubclassOf<UAssetUserData> InUserDataClas
 const TArray<UAssetUserData*>* USkeleton::GetAssetUserDataArray() const
 {
 #if WITH_EDITOR
-	return &ToRawPtrTArrayUnsafe(CombinedAssetUserData);
+	CachedAssetUserData.Reset();
+	CachedAssetUserData.Append(AssetUserData);
+	CachedAssetUserData.Append(AssetUserDataEditorOnly);
+	return &ToRawPtrTArrayUnsafe(CachedAssetUserData);
 #else
 	return &ToRawPtrTArrayUnsafe(AssetUserData);
-#endif
-}
-
-void USkeleton::RecomputeCombinedAssetUserData()
-{
-	CombinedAssetUserData.Reset();
-	CombinedAssetUserData.Append(AssetUserData);
-#if WITH_EDITOR
-	CombinedAssetUserData.Append(AssetUserDataEditorOnly);
 #endif
 }
 

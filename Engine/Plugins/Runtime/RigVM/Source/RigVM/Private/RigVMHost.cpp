@@ -162,7 +162,6 @@ void URigVMHost::PostLoad()
 	}
 #endif
 
-	RecomputeCombinedAssetUserData();
 }
 
 void URigVMHost::PreSave(FObjectPreSaveContext SaveContext)
@@ -619,13 +618,6 @@ bool URigVMHost::DisableExecution()
 {
 	return CVarRigVMDisableExecutionAll->GetInt() == 1;
 }
-
-#if WITH_EDITOR
-void URigVMHost::PostEditChangeProperty(FPropertyChangedEvent& PropertyChangedEvent)
-{
-	RecomputeCombinedAssetUserData();
-}
-#endif
 
 bool URigVMHost::InitializeCDOVM()
 {
@@ -1405,7 +1397,6 @@ void URigVMHost::AddAssetUserData(UAssetUserData* InUserData)
 	{
 		RemoveUserDataOfClass(InUserData->GetClass());
 		AssetUserData.Add(InUserData);
-		RecomputeCombinedAssetUserData();
 	}
 }
 
@@ -1431,7 +1422,6 @@ void URigVMHost::RemoveUserDataOfClass(TSubclassOf<UAssetUserData> InUserDataCla
 		if (Datum != NULL && Datum->IsA(InUserDataClass))
 		{
 			AssetUserData.RemoveAt(DataIdx);
-			RecomputeCombinedAssetUserData();
 			return;
 		}
 	}
@@ -1442,7 +1432,6 @@ void URigVMHost::RemoveUserDataOfClass(TSubclassOf<UAssetUserData> InUserDataCla
 		if (Datum != NULL && Datum->IsA(InUserDataClass))
 		{
 			AssetUserDataEditorOnly.RemoveAt(DataIdx);
-			RecomputeCombinedAssetUserData();
 			return;
 		}
 	}
@@ -1452,18 +1441,12 @@ void URigVMHost::RemoveUserDataOfClass(TSubclassOf<UAssetUserData> InUserDataCla
 const TArray<UAssetUserData*>* URigVMHost::GetAssetUserDataArray() const
 {
 #if WITH_EDITOR
-	return &ToRawPtrTArrayUnsafe(CombinedAssetUserData);
+	CachedAssetUserData.Reset();
+	CachedAssetUserData.Append(AssetUserData);
+	CachedAssetUserData.Append(AssetUserDataEditorOnly);
+	return &ToRawPtrTArrayUnsafe(CachedAssetUserData);
 #else
 	return &ToRawPtrTArrayUnsafe(AssetUserData);
-#endif
-}
-
-void URigVMHost::RecomputeCombinedAssetUserData()
-{
-	CombinedAssetUserData.Reset();
-	CombinedAssetUserData.Append(AssetUserData);
-#if WITH_EDITOR
-	CombinedAssetUserData.Append(AssetUserDataEditorOnly);
 #endif
 }
 

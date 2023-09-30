@@ -976,8 +976,6 @@ protected:
 	/** Call this when the skeleton has changed to fix dependent assets */
 	ENGINE_API void HandleSkeletonHierarchyChange(bool bShowProgress = true);
 
-	ENGINE_API virtual void PostEditChangeProperty(FPropertyChangedEvent& PropertyChangedEvent) override;
-
 public:
 	typedef FOnSkeletonHierarchyChangedMulticaster::FDelegate FOnSkeletonHierarchyChanged;
 
@@ -1036,8 +1034,7 @@ protected:
 	TArray<TObjectPtr<UAssetUserData>> AssetUserDataEditorOnly;
 #endif
 
-	void RecomputeCombinedAssetUserData();
-	mutable TArray<TObjectPtr<UAssetUserData>> CombinedAssetUserData;
+	mutable TArray<TObjectPtr<UAssetUserData>> CachedAssetUserData;
 
 	friend struct FReferenceSkeletonModifier;
 	friend class FEditableSkeleton;

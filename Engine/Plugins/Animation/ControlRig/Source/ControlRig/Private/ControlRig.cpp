@@ -2780,7 +2780,10 @@ const TArray<UAssetUserData*>* UControlRig::GetAssetUserDataArray() const
 	if(HasAnyFlags(RF_ClassDefaultObject))
 	{
 #if WITH_EDITOR
-		return &ToRawPtrTArrayUnsafe(CombinedAssetUserData);
+		CachedAssetUserData.Reset();
+		CachedAssetUserData.Append(AssetUserData);
+		CachedAssetUserData.Append(AssetUserDataEditorOnly);
+		return &ToRawPtrTArrayUnsafe(CachedAssetUserData);
 #else
 		return &ToRawPtrTArrayUnsafe(AssetUserData);
 #endif
@@ -2794,10 +2797,9 @@ const TArray<UAssetUserData*>* UControlRig::GetAssetUserDataArray() const
 	}
 	else
 	{
-#if WITH_EDITOR
-		CombinedAssetUserData.Append(CombinedAssetUserData);
-#else
 		CombinedAssetUserData.Append(AssetUserData);
+#if WITH_EDITOR
+		CombinedAssetUserData.Append(AssetUserDataEditorOnly);
 #endif
 	}
 	
