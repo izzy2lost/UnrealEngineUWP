@@ -1317,7 +1317,7 @@ bool NaniteComputeMaterialsSupported()
 bool UseNaniteComputeMaterials()
 {
 	static const auto UseComputeMaterials = IConsoleManager::Get().FindTConsoleVariableDataInt(TEXT("r.Nanite.ComputeMaterials"));
-	return NaniteComputeMaterialsSupported() && (UseComputeMaterials && UseComputeMaterials->GetValueOnRenderThread() != 0);
+	return NaniteComputeMaterialsSupported() && !IsVulkanPlatform(GMaxRHIShaderPlatform) /* TODO: Support CS derivatives */ && (UseComputeMaterials && UseComputeMaterials->GetValueOnRenderThread() != 0);
 }
 
 bool NaniteTessellationSupported()
