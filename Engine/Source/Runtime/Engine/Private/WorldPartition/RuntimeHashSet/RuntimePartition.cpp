@@ -1,6 +1,7 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 
 #include "WorldPartition/RuntimeHashSet/RuntimePartition.h"
+#include "WorldPartition/RuntimeHashSet/WorldPartitionRuntimeHashSet.h"
 
 #if WITH_EDITOR
 void URuntimePartition::SetDefaultValues()
@@ -25,13 +26,7 @@ void URuntimePartition::PostEditChangeProperty(FPropertyChangedEvent& InProperty
 	Super::PostEditChangeProperty(InPropertyChangedEvent);
 }
 
-bool URuntimePartition::PopulateCellActorInstances(const TArray<const IStreamingGenerationContext::FActorSetInstance*>& InActorSetInstances, bool bInIsMainWorldPartition, bool bInIsCellAlwaysLoaded, TArray<IStreamingGenerationContext::FActorInstance>& OutCellActorInstances)
-{
-	UWorldPartitionRuntimeHash* RuntimeHash = GetTypedOuter<UWorldPartitionRuntimeHash>();
-	return RuntimeHash->PopulateCellActorInstances(InActorSetInstances, bInIsMainWorldPartition, bInIsCellAlwaysLoaded, OutCellActorInstances);
-}
-
-URuntimePartition::FCellDesc URuntimePartition::CreateCellDesc(const FString& InName, bool bInIsSpatiallyLoaded, const FGuid& InContentBundleID, int32 InLevel, const TArray<IStreamingGenerationContext::FActorInstance>& InActorInstances)
+URuntimePartition::FCellDesc URuntimePartition::CreateCellDesc(const FString& InName, bool bInIsSpatiallyLoaded, int32 InLevel, const TArray<const IStreamingGenerationContext::FActorSetInstance*>& InActorSetInstances)
 {
 	FCellDesc CellDesc;
 
@@ -49,20 +44,15 @@ URuntimePartition::FCellDesc URuntimePartition::CreateCellDesc(const FString& In
 
 	// Set provided input values
 	CellDesc.bIsSpatiallyLoaded = bInIsSpatiallyLoaded;
-	CellDesc.ContentBundleID = InContentBundleID;
 	CellDesc.Level = InLevel;
 
-	// Add actor instances and update bounds
-	CellDesc.ActorInstances = InActorInstances;
-	for (const IStreamingGenerationContext::FActorInstance& ActorInstance : CellDesc.ActorInstances)
-	{
-		const FWorldPartitionActorDescView& ActorDescView = ActorInstance.GetActorDescView();
-		const FBox RuntimeBounds = ActorDescView.GetRuntimeBounds();
+	// Add actor set instances
+	CellDesc.ActorSetInstances = InActorSetInstances;
 
-		if (RuntimeBounds.IsValid)
-		{
-			CellDesc.Bounds += RuntimeBounds.TransformBy(ActorInstance.GetTransform());
-		}
+	// Update cell bounds
+	for (const IStreamingGenerationContext::FActorSetInstance* ActorSetInstance : InActorSetInstances)
+	{
+		CellDesc.Bounds += ActorSetInstance->Bounds;
 	}
 
 	return CellDesc;

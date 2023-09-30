@@ -228,7 +228,8 @@ void UWorldPartitionRuntimeHash::PopulateRuntimeCell(UWorldPartitionRuntimeCell*
 	for (const IStreamingGenerationContext::FActorInstance& ActorInstance : ActorInstances)
 	{
 		const FWorldPartitionActorDescView& ActorDescView = ActorInstance.GetActorDescView();
-		RuntimeCell->AddActorToCell(ActorDescView, ActorInstance.GetContainerID(), ActorInstance.GetTransform(), ActorInstance.GetActorDescContainer());
+		const UActorDescContainer* ActorDescContainer = ActorDescView.GetActorDesc()->GetContainer();
+		RuntimeCell->AddActorToCell(ActorDescView, ActorInstance.GetContainerID(), ActorInstance.GetTransform(), ActorDescContainer);
 		const FBox RuntimeBounds = ActorDescView.GetRuntimeBounds();
 		if (RuntimeBounds.IsValid)
 		{

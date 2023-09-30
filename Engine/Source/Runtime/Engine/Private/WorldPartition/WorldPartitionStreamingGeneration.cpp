@@ -79,6 +79,11 @@ FWorldPartitionActorDescView* FActorDescViewMap::Emplace(const FGuid& InGuid, co
 	return NewActorDescView;
 }
 
+FWorldPartitionActorDescView* FActorDescViewMap::Emplace(const FWorldPartitionActorDesc* InActorDesc)
+{
+	return Emplace(InActorDesc->GetGuid(), FWorldPartitionActorDescView(InActorDesc));
+}
+
 UWorldPartition::FCheckForErrorsParams::FCheckForErrorsParams()
 	: ErrorHandler(nullptr)
 	, ActorDescContainer(nullptr)

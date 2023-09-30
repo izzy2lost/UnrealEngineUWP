@@ -50,6 +50,7 @@ public:
 	FActorDescViewMap& operator=(FActorDescViewMap&&) = default;
 
 	ENGINE_API FWorldPartitionActorDescView* Emplace(const FGuid& InActorGuid, const FWorldPartitionActorDescView& InActorDescView);
+	ENGINE_API FWorldPartitionActorDescView* Emplace(const FWorldPartitionActorDesc* InActorDesc);
 
 	FORCEINLINE int32 Num() const
 	{

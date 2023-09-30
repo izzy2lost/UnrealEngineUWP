@@ -1,6 +1,7 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 
 #include "WorldPartition/RuntimeHashSet/RuntimePartitionLHGrid.h"
+#include "WorldPartition/RuntimeHashSet/WorldPartitionRuntimeHashSet.h"
 #include "Misc/HashBuilder.h"
 
 #if WITH_EDITOR
@@ -73,15 +74,9 @@ void URuntimePartitionLHGrid::SetDefaultValues()
 	CellSize = LoadingRange / 2;
 }
 
-bool URuntimePartitionLHGrid::SupportsHLODs() const
+bool URuntimePartitionLHGrid::IsValidPartitionTokens(const TArray<FName> InPartitionTokens) const
 {
-	return true;
-}
-
-bool URuntimePartitionLHGrid::IsValidGrid(FName GridName) const
-{
-	const TArray<FName> GridNameList = UWorldPartitionRuntimeHashSet::ParseGridName(GridName);
-	return GridNameList.Num() == 1;
+	return InPartitionTokens.Num() == 1;
 }
 
 bool URuntimePartitionLHGrid::GenerateStreaming(const FGenerateStreamingParams& InParams, FGenerateStreamingResult& OutResult)
@@ -91,21 +86,17 @@ bool URuntimePartitionLHGrid::GenerateStreaming(const FGenerateStreamingParams& 
 	UWorld* OuterWorld = GetTypedOuter<UWorld>();
 	const bool bIsMainWorldPartition = (World == OuterWorld);
 
-	TArray<IStreamingGenerationContext::FActorInstance> CellActorInstances;
-	if (PopulateCellActorInstances(*InParams.ActorSetInstances, bIsMainWorldPartition, false, CellActorInstances))
+	TMap<FCellCoord, TArray<const IStreamingGenerationContext::FActorSetInstance*>> CellsActorSetInstances;
+	for (const IStreamingGenerationContext::FActorSetInstance* ActorSetInstance : *InParams.ActorSetInstances)
 	{
-		TMap<FCellCoord, TArray<IStreamingGenerationContext::FActorInstance>> SubLevelsActorInstances;
-		for (const IStreamingGenerationContext::FActorInstance& ActorInstance : CellActorInstances)
-		{
-			const int32 GridLevel = FCellCoord::GetLevelForBox(ActorInstance.GetBounds(), CellSize);
-			const FCellCoord CellCoord = FCellCoord::GetCellCoords(ActorInstance.GetBounds().GetCenter(), CellSize, GridLevel);
-			SubLevelsActorInstances.FindOrAdd(CellCoord).Add(ActorInstance);
-		}
+		const int32 GridLevel = FCellCoord::GetLevelForBox(ActorSetInstance->Bounds, CellSize);
+		const FCellCoord CellCoord = FCellCoord::GetCellCoords(ActorSetInstance->Bounds.GetCenter(), CellSize, GridLevel);
+		CellsActorSetInstances.FindOrAdd(CellCoord).Add(ActorSetInstance);
+	}
 
-		for (auto& [CellCoord, SubLevelActorSetInstances] : SubLevelsActorInstances)
-		{
-			OutResult.RuntimeCellDescs.Emplace(CreateCellDesc(CellCoord.ToString(), true, SubLevelActorSetInstances[0].ActorSetInstance->ContentBundleID, CellCoord.Level, SubLevelActorSetInstances));
-		}
+	for (auto& [CellCoord, CellActorSetInstances] : CellsActorSetInstances)
+	{
+		OutResult.RuntimeCellDescs.Emplace(CreateCellDesc(CellCoord.ToString(), true, CellCoord.Level, CellActorSetInstances));
 	}
 
 	return true;

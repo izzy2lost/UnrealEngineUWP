@@ -189,6 +189,7 @@ private:
 	friend class FWorldPartitionStreamingGenerator;
 	friend class FWorldPartitionActorDesc;
 	friend class UWorldPartitionRuntimeSpatialHash;
+	friend class UWorldPartitionRuntimeHashSet;
 	friend class UWorldPartitionConvertCommandlet;
 	friend class FDataLayersBroadcast;
 	friend class FDataLayerUtils;

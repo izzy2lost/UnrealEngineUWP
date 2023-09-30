@@ -19,11 +19,6 @@ const FTransform& IStreamingGenerationContext::FActorInstance::GetTransform() co
 	return ActorSetInstance->Transform;
 }
 
-const UActorDescContainer* IStreamingGenerationContext::FActorInstance::GetActorDescContainer() const
-{
-	return GetActorDescView().GetActorDesc()->GetContainer();
-}
-
 const FBox IStreamingGenerationContext::FActorInstance::GetBounds() const
 {
 	return ActorSetInstance->Bounds;

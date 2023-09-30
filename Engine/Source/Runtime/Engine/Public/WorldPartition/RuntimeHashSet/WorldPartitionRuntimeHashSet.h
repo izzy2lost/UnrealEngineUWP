@@ -3,11 +3,11 @@
 
 #include "CoreMinimal.h"
 #include "WorldPartition/WorldPartitionRuntimeHash.h"
+#include "WorldPartition/RuntimeHashSet/RuntimePartition.h"
 #include "WorldPartition/RuntimeHashSet/StaticSpatialIndex.h"
 #include "WorldPartitionRuntimeHashSet.generated.h"
 
 class UHLODLayer;
-class URuntimePartition;
 class URuntimePartitionPersistent;
 struct FPropertyChangedChainEvent;
 
@@ -162,7 +162,7 @@ public:
 	ENGINE_API virtual void DumpStateLog(FHierarchicalLogArchive& Ar) const override;
 
 	// Helpers
-	static ENGINE_API TArray<FName> ParseGridName(FName GridName);
+	static ENGINE_API bool ParseGridName(FName GridName, TArray<FName>& MainPartitionTokens, TArray<FName>& HLODPartitionTokens);
 #endif
 
 	// External streaming object interface
@@ -179,8 +179,19 @@ public:
 
 private:
 #if WITH_EDITOR
+	/** Generate the runtime partitions streaming descs. */
+	bool GenerateRuntimePartitionsStreamingDescs(const IStreamingGenerationContext* StreamingGenerationContext, TMap<URuntimePartition*, TArray<URuntimePartition::FCellDescInstance>>& OutRuntimeCellDescs) const;
+
 	/** Update the partition layers to reflect the curent HLOD setups. */
 	void UpdateHLODPartitionLayers();
+
+	struct FCellUniqueId
+	{
+		FString Name;
+		FGuid Guid;
+	};
+
+	FCellUniqueId GetCellUniqueId(const URuntimePartition::FCellDescInstance& InCellDescInstance) const;
 #endif
 
 	ENGINE_API void ForEachStreamingData(TFunctionRef<void(const FRuntimePartitionStreamingData&)> Func) const;

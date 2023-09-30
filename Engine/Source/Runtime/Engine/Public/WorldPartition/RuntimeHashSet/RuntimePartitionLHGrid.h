@@ -17,9 +17,9 @@ public:
 	//~ End UObject Interface.
 
 	//~ Begin URuntimePartition interface
+	virtual bool SupportsHLODs() const override { return true; }
 	virtual void SetDefaultValues() override;
-	virtual bool SupportsHLODs() const override;
-	virtual bool IsValidGrid(FName GridName) const override;
+	virtual bool IsValidPartitionTokens(const TArray<FName> InPartitionTokens) const override;
 	virtual bool GenerateStreaming(const FGenerateStreamingParams& InParams, FGenerateStreamingResult& OutResult) override;
 	//~ End URuntimePartition interface
 #endif

@@ -1,18 +1,13 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 
 #include "WorldPartition/RuntimeHashSet/RuntimePartitionLevelStreaming.h"
+#include "WorldPartition/RuntimeHashSet/WorldPartitionRuntimeHashSet.h"
 #include "WorldPartition/WorldPartitionStreamingGenerationContext.h"
 
 #if WITH_EDITOR
-bool URuntimePartitionLevelStreaming::SupportsHLODs() const
+bool URuntimePartitionLevelStreaming::IsValidPartitionTokens(const TArray<FName> InPartitionTokens) const
 {
-	return false;
-}
-
-bool URuntimePartitionLevelStreaming::IsValidGrid(FName GridName) const
-{
-	const TArray<FName> GridNameList = UWorldPartitionRuntimeHashSet::ParseGridName(GridName);
-	return GridNameList.Num() && (GridNameList.Num() <= 2);
+	return InPartitionTokens.Num() && (InPartitionTokens.Num() <= 2);
 }
 
 bool URuntimePartitionLevelStreaming::GenerateStreaming(const FGenerateStreamingParams& InParams, FGenerateStreamingResult& OutResult)
@@ -22,45 +17,38 @@ bool URuntimePartitionLevelStreaming::GenerateStreaming(const FGenerateStreaming
 	UWorld* OuterWorld = GetTypedOuter<UWorld>();
 	const bool bIsMainWorldPartition = (World == OuterWorld);
 
-	TArray<IStreamingGenerationContext::FActorInstance> CellActorInstances;
-	if (PopulateCellActorInstances(*InParams.ActorSetInstances, bIsMainWorldPartition, false, CellActorInstances))
+	TMap<FName, TArray<const IStreamingGenerationContext::FActorSetInstance*>> CellsActorSetInstances;
+	for (const IStreamingGenerationContext::FActorSetInstance* ActorSetInstance : *InParams.ActorSetInstances)
 	{
-		TMap<FName, TArray<IStreamingGenerationContext::FActorInstance>> SubLevelsActorInstances;
-		for (const IStreamingGenerationContext::FActorInstance& ActorInstance : CellActorInstances)
+		TArray<FName> ActorSetGridNameList;
+
+		FName LevelName = NAME_Default;
+		if (!ActorSetInstance->RuntimeGrid.IsNone())
 		{
-			TArray<FName> ActorSetGridNameList;
-					
-			if (!ActorInstance.ActorSetInstance->RuntimeGrid.IsNone())
+			TArray<FName> MainPartitionTokens;
+			TArray<FName> HLODPartitionTokens;
+			if (UWorldPartitionRuntimeHashSet::ParseGridName(ActorSetInstance->RuntimeGrid, MainPartitionTokens, HLODPartitionTokens))
 			{
-				ActorSetGridNameList = UWorldPartitionRuntimeHashSet::ParseGridName(ActorInstance.ActorSetInstance->RuntimeGrid);
+				if (MainPartitionTokens.Num() == 2)
+				{
+					LevelName = MainPartitionTokens[1];
+				}
 			}
-			else
-			{
-				ActorSetGridNameList.Add(NAME_Default);
-			}
-
-			if (bOneLevelPerActorContainer && !ActorInstance.GetContainerID().IsMainContainer())
-			{
-				ActorSetGridNameList.Add(*ActorInstance.GetContainerID().ToString());
-			}
-
-			TStringBuilder<512> StringBuilder;
-			for (FName GridName : ActorSetGridNameList)
-			{
-				StringBuilder += GridName.ToString();
-				StringBuilder += TEXT("_");
-			}
-			StringBuilder.RemoveSuffix(1);
-
-			FName SubLevelName = *StringBuilder;
-
-			SubLevelsActorInstances.FindOrAdd(SubLevelName).Add(ActorInstance);
 		}
+		ActorSetGridNameList.Add(LevelName);
 
-		for (auto& [SubLevelName, SubLevelActorSetInstances] : SubLevelsActorInstances)
-		{
-			OutResult.RuntimeCellDescs.Emplace(CreateCellDesc(SubLevelName.ToString(), true, SubLevelActorSetInstances[0].ActorSetInstance->ContentBundleID, 0, SubLevelActorSetInstances));
-		}
+		TStringBuilder<512> StringBuilder;
+		StringBuilder += Name.ToString();
+		StringBuilder += TEXT("_");
+		StringBuilder += LevelName.ToString();
+		FName CellName = *StringBuilder;
+
+		CellsActorSetInstances.FindOrAdd(CellName).Add(ActorSetInstance);
+	}
+
+	for (auto& [CellName, CellActorSetInstances] : CellsActorSetInstances)
+	{
+		OutResult.RuntimeCellDescs.Emplace(CreateCellDesc(CellName.ToString(), true, 0, CellActorSetInstances));
 	}
 
 	return true;

@@ -84,7 +84,8 @@ void AddSubActor(const FWorldPartitionActorDescView& ActorDescView, const IStrea
 
 	// Add the actor
 	bool bIsAlreadyInSet = false;
-	FHLODSubActor SubActor(ActorDescView.GetGuid(), ActorDescView.GetActorPackage(), ActorPath, ActorInstance.GetContainerID(), ActorInstance.GetActorDescContainer()->GetContainerPackage(), ActorInstance.GetTransform());
+	const UActorDescContainer* ActorDescContainer = ActorDescView.GetActorDesc()->GetContainer();
+	FHLODSubActor SubActor(ActorDescView.GetGuid(), ActorDescView.GetActorPackage(), ActorPath, ActorInstance.GetContainerID(), ActorDescContainer->GetContainerPackage(), ActorInstance.GetTransform());
 	SubActors.Add(SubActor, &bIsAlreadyInSet);
 
 	if (!bIsAlreadyInSet)

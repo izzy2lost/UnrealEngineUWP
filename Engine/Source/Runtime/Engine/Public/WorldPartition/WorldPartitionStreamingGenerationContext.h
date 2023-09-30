@@ -6,6 +6,7 @@
 #include "WorldPartition/WorldPartitionActorContainerID.h"
 
 class FActorDescViewMap;
+class FWorldPartitionStreamingGenerator;
 class FStreamingGenerationActorDescCollection;
 class FWorldPartitionActorDescView;
 class UActorDescContainer;
@@ -16,11 +17,20 @@ struct FWorldPartitionRuntimeContainerResolver;
 class IStreamingGenerationContext
 {
 public:
+	virtual ~IStreamingGenerationContext()
+	{}
+
+	/**
+	 * An actor set represents a group of actors that needs to be part of the same streaming cell, because they have hard references between them.
+	 */
 	struct FActorSet
 	{
 		TArray<FGuid> Actors;
 	};
 
+	/**
+	 * An actor set container represents the list of actor sets in an actor container, e.g. a level instance.
+	 */
 	struct FActorSetContainer
 	{
 		FActorSetContainer()
@@ -33,10 +43,13 @@ public:
 		FActorSetContainer& operator=(const FActorSetContainer&) = delete;
 
 		const FActorDescViewMap* ActorDescViewMap;
-		const FStreamingGenerationActorDescCollection* ActorDescCollection;
+		const FStreamingGenerationActorDescCollection* ActorDescCollection; // Only used by UWorldPartitionRuntimeSpatialHash::SetupHLODActors
 		TArray<TUniquePtr<FActorSet>> ActorSets;
 	};
 
+	/**
+	 * An actor set instance is an actual intance of an actor set in the world.
+	 */
 	struct FActorSetInstance
 	{
 		FBox Bounds;
@@ -68,6 +81,9 @@ public:
 		}
 	};
 
+	/**
+	 * An actor instance represents a single instanced actor in the world.
+	 */
 	struct FActorInstance
 	{
 		FActorInstance(const FGuid& InActorGuid, const FActorSetInstance* InActorSetInstance)
@@ -81,7 +97,6 @@ public:
 		ENGINE_API const FWorldPartitionActorDescView& GetActorDescView() const;
 		ENGINE_API const FActorContainerID& GetContainerID() const;
 		ENGINE_API const FTransform& GetTransform() const;
-		ENGINE_API const UActorDescContainer* GetActorDescContainer() const;
 		ENGINE_API const FBox GetBounds() const;
 	};
 
@@ -89,5 +104,36 @@ public:
 	virtual const FActorSetContainer* GetMainWorldContainer() const = 0;
 	virtual void ForEachActorSetInstance(TFunctionRef<void(const FActorSetInstance&)> Func) const = 0;
 	virtual void ForEachActorSetContainer(TFunctionRef<void(const FActorSetContainer&)> Func) const = 0;
+};
+
+class FStreamingGenerationContextProxy : public IStreamingGenerationContext
+{
+public:
+	FStreamingGenerationContextProxy(const IStreamingGenerationContext* InSourceContext)
+		: SourceContext(InSourceContext)
+	{}
+
+	virtual FBox GetWorldBounds() const override
+	{
+		return SourceContext->GetWorldBounds();
+	}
+
+	virtual const FActorSetContainer* GetMainWorldContainer() const override
+	{
+		return SourceContext->GetMainWorldContainer();
+	}
+
+	virtual void ForEachActorSetInstance(TFunctionRef<void(const FActorSetInstance&)> Func) const override
+	{
+		SourceContext->ForEachActorSetInstance(Func);
+	}
+
+	virtual void ForEachActorSetContainer(TFunctionRef<void(const FActorSetContainer&)> Func) const override
+	{
+		SourceContext->ForEachActorSetContainer(Func);
+	}
+
+private:
+	const IStreamingGenerationContext* SourceContext;
 };
 #endif
