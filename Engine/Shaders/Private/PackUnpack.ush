@@ -143,6 +143,27 @@ float4 UnpackRGBA8(uint In)
 #endif
 }
 
+uint PackUint4ToUint(uint4 In)
+{
+	// TODO use BitAlignU32
+	uint r = (In.r & 0xFFu);
+	uint g = (In.g & 0xFFu) << 8u;
+	uint b = (In.b & 0xFFu) << 16u;
+	uint a = (In.a & 0xFFu) << 24u;
+	return r | g | b | a;
+}
+
+uint4 UnpackUintToUint4(uint In)
+{
+	// TODO use BitAlignU32
+	uint4 Out;
+	Out.r = (In >> 0u)  & 0xFFu;
+	Out.g = (In >> 8u)  & 0xFFu;
+	Out.b = (In >> 16u) & 0xFFu;
+	Out.a = (In >> 24u) & 0xFFu;
+	return Out;
+}
+
 //
 //	float <-> f10
 //
