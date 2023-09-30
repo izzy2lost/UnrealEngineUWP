@@ -480,7 +480,7 @@ RAY_TRACING_ENTRY_CLOSEST_HIT(MaterialCHS,
 
 	FVertexFactoryInterpolantsVSToPS Interpolants;
 	const float3 TranslatedWorldPosition = TranslatedWorldRayOrigin() + RayTCurrent() * WorldRayDirection();
-	float4 SvPosition = mul(float4(TranslatedWorldPosition, 1.0f), ResolvedView.TranslatedWorldToClip);
+	const float4 SvPosition = TranslatedWorldPositionToSvPosition(TranslatedWorldPosition);
 	
 	FRayCone PropagatedCone = PropagateRayCone(PackedPayload.GetRayCone(), 0 /* surface curvature */, RayTCurrent());
 	CalcInterpolants(PropagatedCone, Attributes, Interpolants);
@@ -625,7 +625,7 @@ RAY_TRACING_ENTRY_ANY_HIT(MaterialAHS,
 
 	FVertexFactoryInterpolantsVSToPS Interpolants;
 	const float3 TranslatedWorldPosition = TranslatedWorldRayOrigin() + RayTCurrent() * WorldRayDirection();
-	float4 SvPosition = mul(float4(TranslatedWorldPosition, 1.0f), ResolvedView.TranslatedWorldToClip);
+	const float4 SvPosition = TranslatedWorldPositionToSvPosition(TranslatedWorldPosition);
 
 	CalcInterpolants(PackedPayload.GetRayCone(), Attributes, Interpolants);
 

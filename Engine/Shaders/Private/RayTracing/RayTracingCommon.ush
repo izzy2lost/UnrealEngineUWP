@@ -428,6 +428,13 @@ float3 TLASWorldToTranslatedWorld(float3 TLASWorldPosition)
 	return TranslatedWorldPosition;
 }
 
+float4 TranslatedWorldPositionToSvPosition(float3 TranslatedWorldPosition)
+{
+	const float4 ClipSpacePosition = mul(float4(TranslatedWorldPosition, 1.0f), ResolvedView.TranslatedWorldToClip);
+	const float4 SvPosition = float4((ClipSpacePosition.xy / ClipSpacePosition.w * float2(.5f, - .5f) + .5f) * ResolvedView.ViewSizeAndInvSize.xy, ClipSpacePosition.zw);
+	return SvPosition;
+}
+
 // Pack normal vector into an uint32 using Octahedron encoding
 uint PackNormalToUInt32(float3 Normal)
 {
