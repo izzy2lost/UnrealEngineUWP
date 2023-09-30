@@ -2620,7 +2620,7 @@ namespace UnrealBuildTool
 				LinkAction.bCanExecuteRemotely = true;
 			}
 
-			if (LinkEnvironment.bPGOOptimize)
+			if (LinkEnvironment.bPGOOptimize || LinkEnvironment.bPGOProfile)
 			{
 				LinkAction.bCanExecuteInBox = false; // Disabled for now. Should revisit to see why it is not working
 			}
