@@ -577,7 +577,8 @@ void FSubTrackEditor::CreateNewTake(UMovieSceneSubSection* Section)
 			UMovieSceneCinematicShotSection* ShotSection = Cast<UMovieSceneCinematicShotSection>(Section);
 			UMovieSceneCinematicShotSection* NewShotSection = Cast<UMovieSceneCinematicShotSection>(NewSection);
 
-			if (ShotSection && NewShotSection)
+			// If the old shot's name is not the same as the sequence's name, assume the user had customized the shot name, so carry it over
+			if (ShotSection && NewShotSection && ShotSection->GetSequence() && ShotSection->GetShotDisplayName() != ShotSection->GetSequence()->GetName())
 			{
 				NewShotSection->SetShotDisplayName(ShotSection->GetShotDisplayName());
 			}
@@ -642,7 +643,8 @@ void FSubTrackEditor::ChangeTake(UMovieSceneSequence* Sequence)
 			UMovieSceneCinematicShotSection* ShotSection = Cast<UMovieSceneCinematicShotSection>(Section);
 			UMovieSceneCinematicShotSection* NewShotSection = Cast<UMovieSceneCinematicShotSection>(NewSection);
 
-			if (ShotSection && NewShotSection)
+			// If the old shot's name is not the same as the sequence's name, assume the user had customized the shot name, so carry it over
+			if (ShotSection && NewShotSection && ShotSection->GetSequence() && ShotSection->GetShotDisplayName() != ShotSection->GetSequence()->GetName())
 			{
 				NewShotSection->SetShotDisplayName(ShotSection->GetShotDisplayName());
 			}
