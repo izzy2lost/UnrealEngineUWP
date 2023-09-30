@@ -946,7 +946,7 @@ TIoStatusOr<FOnDemandToc> GenerateOnDemandTocFromDisk()
 
 	if (!OutToc.Containers.IsEmpty())
 	{
-		OutToc.Header.ChunksDirectory = FString::Printf(TEXT("IoChunksV%u"), EOnDemandChunkVersion::Latest).ToLower();
+		OutToc.Header.ChunksDirectory = TEXT("chunks");
 	}
 
 	return OutToc;

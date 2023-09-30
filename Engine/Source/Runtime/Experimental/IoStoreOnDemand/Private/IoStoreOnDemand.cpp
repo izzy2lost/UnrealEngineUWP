@@ -897,17 +897,14 @@ TIoStatusOr<FIoStoreUploadResult> UploadContainerFiles(
 		}
 	}
 
-	FString ChunksRelativePath = UploadParams.BucketPrefix.IsEmpty()
-		? FString::Printf(TEXT("IoChunksV%u"), EOnDemandChunkVersion::Latest)
-		: FString::Printf(TEXT("%s/IoChunksV%u"), *UploadParams.BucketPrefix, EOnDemandChunkVersion::Latest);
-
+	FString ChunksRelativePath = UploadParams.BucketPrefix.IsEmpty() ? TEXT("Chunks") : FString::Printf(TEXT("%s/Chunks"), *UploadParams.BucketPrefix);
 	ChunksRelativePath.ToLowerInline();
 
 	uint64 TotalUploadedChunks = 0;
 	uint64 TotalUploadedBytes = 0;
 
 	FOnDemandToc OnDemandToc;
-	OnDemandToc.Header.ChunksDirectory = FString::Printf(TEXT("IoChunksV%u"), EOnDemandChunkVersion::Latest).ToLower();
+	OnDemandToc.Header.ChunksDirectory = TEXT("Chunks");
 
 	TArray<FString> FilesToDelete;
 	for (const FString& Path : ContainerFiles)
