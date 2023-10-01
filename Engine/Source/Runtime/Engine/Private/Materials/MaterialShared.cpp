@@ -424,6 +424,21 @@ const UE::HLSLTree::FExpression* FExpressionInput::AcquireHLSLExpressionOrExtern
 	return AcquireHLSLExpressionOrExternalInput(Generator, Scope, Input, Generator.FindInputIndex(this));
 }
 
+const UE::HLSLTree::FExpression* FExpressionInput::AcquireHLSLExpressionOrDefaultExpression(FMaterialHLSLGenerator& Generator, UE::HLSLTree::FScope& Scope, const UE::HLSLTree::FExpression* DefaultExpression, int32 InputIndex) const
+{
+	const FExpressionInput TracedInput = GetTracedInput();
+	if (!TracedInput.Expression)
+	{
+		return Generator.NewDefaultInputExpression(InputIndex, DefaultExpression);
+	}
+	return TryAcquireHLSLExpression(Generator, Scope, InputIndex);
+}
+
+const UE::HLSLTree::FExpression* FExpressionInput::AcquireHLSLExpressionOrDefaultExpression(FMaterialHLSLGenerator& Generator, UE::HLSLTree::FScope& Scope, const UE::HLSLTree::FExpression* DefaultExpression) const
+{
+	return AcquireHLSLExpressionOrDefaultExpression(Generator, Scope, DefaultExpression, Generator.FindInputIndex(this));
+}
+
 void FExpressionInput::Connect( int32 InOutputIndex, class UMaterialExpression* InExpression )
 {
 	InExpression->ConnectExpression(this, InOutputIndex);

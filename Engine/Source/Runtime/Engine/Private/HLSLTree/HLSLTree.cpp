@@ -253,7 +253,6 @@ bool FExpressionLocalPHI::PrepareValue(FEmitContext& Context, FEmitScope& Scope,
 							ValueType.GetName());
 					}
 					CurrentType = MergedType;
-					CurrentType.MergeEvaluation(EmitValueScopes[i]->Evaluation);
 					check(NumValidTypes < NumLiveScopes);
 					NumValidTypes++;
 				}
@@ -311,6 +310,51 @@ bool FExpressionLocalPHI::PrepareValue(FEmitContext& Context, FEmitScope& Scope,
 		}
 	}
 
+	// Only incorporate scope evaluations if we are not sure whether all paths produce the same value
+	bool bMergeScopeEvaluations = false;
+
+	for (int32 Index = 1; Index < NumLiveScopes; ++Index)
+	{
+		if (LiveValues[Index] != LiveValues[Index - 1])
+		{
+			bMergeScopeEvaluations = true;
+			break;
+		}
+	}
+
+	if (bMergeScopeEvaluations && IsConstantEvaluation(CurrentType.GetEvaluation(Scope, RequestedType)))
+	{
+		bool bFirst = true;
+		bool bAllValuesSame = true;
+		Shader::FValue TestValue;
+
+		for (int32 Index = 0; Index < NumLiveScopes; ++Index)
+		{
+			const Shader::FValue ValueConst = LiveValues[Index]->GetValueConstant(Context, *EmitValueScopes[Index], RequestedType, TypePerValue[Index]);
+			if (bFirst)
+			{
+				TestValue = ValueConst;
+				bFirst = false;
+			}
+			else if (ValueConst != TestValue)
+			{
+				bAllValuesSame = false;
+				break;
+			}
+		}
+
+		bMergeScopeEvaluations = !bAllValuesSame;
+	}
+
+	if (bMergeScopeEvaluations)
+	{
+		for (int32 Index = 0; Index < NumLiveScopes; ++Index)
+		{
+			CurrentType.MergeEvaluation(EmitValueScopes[Index]->Evaluation);
+		}
+		verify(OutResult.SetType(Context, RequestedType, CurrentType));
+	}
+
 	return true;
 }
 
@@ -325,7 +369,7 @@ struct FLocalPHILiveScopes
 	bool bCanForwardValue = true;
 };
 
-bool GetLiveScopes(FEmitContext& Context, const FExpressionLocalPHI& Expression, FLocalPHILiveScopes& OutLiveScopes)
+bool GetLiveScopes(FEmitContext& Context, const FExpressionLocalPHI& Expression, FLocalPHILiveScopes& OutLiveScopes, bool bPreparedTypeConstant)
 {
 	for (int32 ScopeIndex = 0; ScopeIndex < Expression.NumValues; ++ScopeIndex)
 	{
@@ -354,19 +398,32 @@ bool GetLiveScopes(FEmitContext& Context, const FExpressionLocalPHI& Expression,
 			}
 		}
 	}
+
+	// If this LocalPHI is constant, then either only one value scope is live and it is constant or all live scopes produce the same constant value
+	OutLiveScopes.bCanForwardValue |= bPreparedTypeConstant;
+
 	return OutLiveScopes.NumScopes > 0;
 }
 }
 
 void FExpressionLocalPHI::EmitValueShader(FEmitContext& Context, FEmitScope& Scope, const FRequestedType& RequestedType, FEmitValueShaderResult& OutResult) const
 {
-	FEmitShaderExpression* const* PrevEmitExpression = Context.EmitLocalPHIMap.Find(this);
+	FXxHash64 Hash;
+	{
+		FHasher Hasher;
+		AppendHash(Hasher, this);
+		AppendHash(Hasher, &Scope);
+		AppendHash(Hasher, RequestedType);
+		Hash = Hasher.Finalize();
+	}
+
+	FEmitShaderExpression* const* PrevEmitExpression = Context.EmitLocalPHIMap.Find(Hash);
 	FEmitShaderExpression* EmitExpression = PrevEmitExpression ? *PrevEmitExpression : nullptr;
 	if (!EmitExpression)
 	{
 		// Find the outermost scope to declare our local variable
 		Private::FLocalPHILiveScopes LiveScopes;
-		if (!Private::GetLiveScopes(Context, *this, LiveScopes))
+		if (!Private::GetLiveScopes(Context, *this, LiveScopes, false))
 		{
 			return;
 		}
@@ -374,7 +431,7 @@ void FExpressionLocalPHI::EmitValueShader(FEmitContext& Context, FEmitScope& Sco
 		if (LiveScopes.bCanForwardValue)
 		{
 			EmitExpression = LiveScopes.LiveValues[0]->GetValueShader(Context, Scope, RequestedType);
-			Context.EmitLocalPHIMap.Add(this, EmitExpression);
+			Context.EmitLocalPHIMap.Add(Hash, EmitExpression);
 		}
 		else
 		{
@@ -386,7 +443,7 @@ void FExpressionLocalPHI::EmitValueShader(FEmitContext& Context, FEmitScope& Sco
 			EmitExpression = OutResult.Code = Context.EmitInlineExpression(Scope,
 				LocalType,
 				TEXT("LocalPHI%"), LocalPHIIndex);
-			Context.EmitLocalPHIMap.Add(this, EmitExpression);
+			Context.EmitLocalPHIMap.Add(Hash, EmitExpression);
 
 			FEmitShaderStatement* EmitDeclaration = nullptr;
 			for (int32 i = 0; i < LiveScopes.NumScopes; ++i)
@@ -445,11 +502,13 @@ void FExpressionLocalPHI::EmitValuePreshader(FEmitContext& Context, FEmitScope& 
 		}
 	}
 
-	OutResult.Type = Context.GetResultType(this, RequestedType);
+	const FPreparedType& PreparedType = Context.GetPreparedType(this, RequestedType);
+	OutResult.Type = PreparedType.GetResultType();
+
 	if (ValueStackPosition == INDEX_NONE)
 	{
 		Private::FLocalPHILiveScopes LiveScopes;
-		if (!Private::GetLiveScopes(Context, *this, LiveScopes))
+		if (!Private::GetLiveScopes(Context, *this, LiveScopes, IsConstantEvaluation(PreparedType.GetEvaluation(Scope, RequestedType))))
 		{
 			return;
 		}
@@ -494,7 +553,7 @@ void FExpressionLocalPHI::EmitValuePreshader(FEmitContext& Context, FEmitScope& 
 bool FExpressionLocalPHI::EmitValueObject(FEmitContext& Context, FEmitScope& Scope, const FName& ObjectTypeName, void* OutObjectBase) const
 {
 	Private::FLocalPHILiveScopes LiveScopes;
-	if (!Private::GetLiveScopes(Context, *this, LiveScopes) || !LiveScopes.bCanForwardValue)
+	if (!Private::GetLiveScopes(Context, *this, LiveScopes, false) || !LiveScopes.bCanForwardValue)
 	{
 		// Cannot get if no live scope. Don't know which scope to use if there is more than one live
 		return false;

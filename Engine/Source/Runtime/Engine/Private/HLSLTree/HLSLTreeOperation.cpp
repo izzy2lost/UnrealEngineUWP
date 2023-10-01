@@ -239,6 +239,7 @@ FOperationTypes GetOperationTypes(EOperation Op, TConstArrayView<FPreparedType> 
 				Types.InputType[0] = Shader::EValueType::Float3;
 				Types.InputType[1] = Shader::EValueType::Double4x4;
 				Types.ResultType = FPreparedType(Shader::EValueType::Double3, IntermediateComponent);
+				Types.bIsLWC = true;
 				break;
 			case Shader::EValueType::DoubleInverse4x4:
 				// FLWCVector3 * FLWCInverseMatrix -> float3
@@ -326,6 +327,14 @@ FOperationTypes GetOperationTypes(EOperation Op, TConstArrayView<FPreparedType> 
 		case EOperation::Frac:
 		case EOperation::Step:
 		case EOperation::SmoothStep:
+			if (Types.bIsLWC)
+			{
+				// LWCSmoothStep requires all inputs have the same type
+				for (int32 InputIndex = 0; InputIndex < InputPreparedType.Num(); ++InputIndex)
+				{
+					Types.InputType[InputIndex] = IntermediateType.Type.ValueType;
+				}
+			}
 			for (int32 Index = 0; Index < Types.ResultType.PreparedComponents.Num(); ++Index)
 			{
 				Types.ResultType.SetComponentBounds(Index, Shader::FComponentBounds(Shader::EComponentBound::Zero, Shader::EComponentBound::One));
@@ -838,7 +847,8 @@ void FExpressionOperation::EmitValueShader(FEmitContext& Context, FEmitScope& Sc
 		}
 		else
 		{
-			OutResult.Code = Context.EmitExpression(Scope, ResultType, TEXT("mul(%, %)"), InputValue[0], InputValue[1]);
+			// Append 1.f because VecMulMatrix4 implies position but we request float3 for the vector
+			OutResult.Code = Context.EmitExpression(Scope, ResultType, TEXT("mul(float4(%, 1.f), %).xyz"), InputValue[0], InputValue[1]);
 		}
 		break;
 	case EOperation::Matrix3MulVec:

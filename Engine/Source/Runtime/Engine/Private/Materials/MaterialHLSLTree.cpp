@@ -223,19 +223,68 @@ const FExpression* FExpressionExternalInput::ComputePreviousFrame(FTree& Tree, c
 	return nullptr;
 }
 
+EExternalInput FExpressionExternalInput::GetResolvedInputType(EShaderFrequency ShaderFrequency) const
+{
+	EExternalInput Result = InputType;
+
+	if (ShaderFrequency != SF_Vertex)
+	{
+		switch (Result)
+		{
+		case EExternalInput::PrevWorldPosition:
+			Result = EExternalInput::WorldPosition;
+			break;
+		case EExternalInput::PrevTranslatedWorldPosition:
+			Result = EExternalInput::TranslatedWorldPosition;
+			break;
+		case EExternalInput::PrevWorldPosition_NoOffsets:
+			Result = EExternalInput::WorldPosition_NoOffsets;
+			break;
+		case EExternalInput::PrevTranslatedWorldPosition_NoOffsets:
+			Result = EExternalInput::TranslatedWorldPosition_NoOffsets;
+		default:
+			break;
+		}
+	}
+
+	if (ShaderFrequency != SF_Pixel)
+	{
+		switch (Result)
+		{
+		case EExternalInput::WorldPosition_NoOffsets:
+			Result = EExternalInput::WorldPosition;
+			break;
+		case EExternalInput::TranslatedWorldPosition_NoOffsets:
+			Result = EExternalInput::TranslatedWorldPosition;
+			break;
+		case EExternalInput::PrevWorldPosition_NoOffsets:
+			Result = EExternalInput::PrevWorldPosition;
+			break;
+		case EExternalInput::PrevTranslatedWorldPosition_NoOffsets:
+			Result = EExternalInput::PrevTranslatedWorldPosition;
+			break;
+		default:
+			break;
+		}
+	}
+
+	return Result;
+}
+
 bool FExpressionExternalInput::PrepareValue(FEmitContext& Context, FEmitScope& Scope, const FRequestedType& RequestedType, FPrepareValueResult& OutResult) const
 {
-	const FExternalInputDescription InputDesc = GetExternalInputDescription(InputType);
+	const EExternalInput ResolvedInputType = GetResolvedInputType(Context.ShaderFrequency);
+	const FExternalInputDescription InputDesc = GetExternalInputDescription(ResolvedInputType);
 
 	if (Context.bMarkLiveValues)
 	{
 		FEmitData& EmitMaterialData = Context.FindData<FEmitData>();
-		const int32 TypeIndex = (int32)InputType;
+		const int32 TypeIndex = (int32)ResolvedInputType;
 		EmitMaterialData.ExternalInputMask[Context.ShaderFrequency][TypeIndex] = true;
 
 		if (Context.MaterialCompilationOutput)
 		{
-			switch (InputType)
+			switch (ResolvedInputType)
 			{
 			case EExternalInput::PerInstanceRandom:
 				Context.MaterialCompilationOutput->bUsesPerInstanceRandom = true;
@@ -258,30 +307,31 @@ bool FExpressionExternalInput::PrepareValue(FEmitContext& Context, FEmitScope& S
 
 void FExpressionExternalInput::EmitValueShader(FEmitContext& Context, FEmitScope& Scope, const FRequestedType& RequestedType, FEmitValueShaderResult& OutResult) const
 {
+	const EExternalInput ResolvedInputType = GetResolvedInputType(Context.ShaderFrequency);
 	FEmitData& EmitMaterialData = Context.FindData<FEmitData>();
 
-	const int32 TypeIndex = (int32)InputType;
+	const int32 TypeIndex = (int32)ResolvedInputType;
 	EmitMaterialData.ExternalInputMask[Context.ShaderFrequency][TypeIndex] = true;
-	if (IsTexCoord(InputType))
+	if (IsTexCoord(ResolvedInputType))
 	{
 		const int32 TexCoordIndex = TypeIndex - (int32)EExternalInput::TexCoord0;
 		OutResult.Code = Context.EmitInlineExpression(Scope, Shader::EValueType::Float2, TEXT("Parameters.TexCoords[%].xy"), TexCoordIndex);
 	}
-	else if (IsTexCoord_Ddx(InputType))
+	else if (IsTexCoord_Ddx(ResolvedInputType))
 	{
 		const int32 TexCoordIndex = TypeIndex - (int32)EExternalInput::TexCoord0_Ddx;
 		OutResult.Code = Context.EmitInlineExpression(Scope, Shader::EValueType::Float2, TEXT("Parameters.TexCoords_DDX[%].xy"), TexCoordIndex);
 	}
-	else if (IsTexCoord_Ddy(InputType))
+	else if (IsTexCoord_Ddy(ResolvedInputType))
 	{
 		const int32 TexCoordIndex = TypeIndex - (int32)EExternalInput::TexCoord0_Ddy;
 		OutResult.Code = Context.EmitInlineExpression(Scope, Shader::EValueType::Float2, TEXT("Parameters.TexCoords_DDY[%].xy"), TexCoordIndex);
 	}
 	else
 	{
-		const FExternalInputDescription InputDesc = GetExternalInputDescription(InputType);
+		const FExternalInputDescription InputDesc = GetExternalInputDescription(ResolvedInputType);
 		const TCHAR* Code = nullptr;
-		switch (InputType)
+		switch (ResolvedInputType)
 		{
 		case EExternalInput::LightmapTexCoord: Code = TEXT("GetLightmapUVs(Parameters)"); break;
 		case EExternalInput::LightmapTexCoord_Ddx: Code = TEXT("GetLightmapUVs_DDX(Parameters)"); break;
@@ -1344,18 +1394,10 @@ void FExpressionTextureSample::EmitValueShader(FEmitContext& Context, FEmitScope
 
 bool FExpressionStaticTerrainLayerWeight::PrepareValue(FEmitContext& Context, FEmitScope& Scope, const FRequestedType& RequestedType, FPrepareValueResult& OutResult) const
 {
-	const EMaterialValueType TextureMaterialType = GEngine->WeightMapPlaceholderTexture->GetMaterialType();
-	const FRequestedType TexCoordRequestedType = Private::GetTexCoordType(TextureMaterialType);
-	const FPreparedType& TexCoordPreparedType = Context.PrepareExpression(TexCoordExpression, Scope, TexCoordRequestedType);
-	if (TexCoordPreparedType.IsVoid())
-	{
-		return false;
-	}
-	
 	bool bFoundMatchingParameter = false;
 	FEmitData& EmitData = Context.FindData<FEmitData>();
 
-	if (Context.bMarkLiveValues && EmitData.CachedExpressionData && EmitData.StaticParameters)
+	if (EmitData.StaticParameters)
 	{
 		for (int32 ParameterIndex = 0; ParameterIndex < EmitData.StaticParameters->EditorOnly.TerrainLayerWeightParameters.Num(); ++ParameterIndex)
 		{
@@ -1379,6 +1421,11 @@ bool FExpressionStaticTerrainLayerWeight::PrepareValue(FEmitContext& Context, FE
 
 			bFoundMatchingParameter = true;
 
+			if (!Context.bMarkLiveValues || !EmitData.CachedExpressionData)
+			{
+				break;
+			}
+
 			FMaterialParameterInfo WeightmapParameterInfo = BaseParameterInfo;
 			WeightmapParameterInfo.Name = *FString::Printf(TEXT("Weightmap%d"), WeightmapIndex);
 
@@ -1397,13 +1444,43 @@ bool FExpressionStaticTerrainLayerWeight::PrepareValue(FEmitContext& Context, FE
 			EmitData.CachedExpressionData->AddParameter(LayerMaskParameterInfo, LayerMaskParameterMeta, UnusedReferencedTexture);
 		}
 
-		if (bFoundMatchingParameter)
+		if (bFoundMatchingParameter && EmitData.CachedExpressionData)
 		{
 			EmitData.CachedExpressionData->ReferencedTextures.AddUnique(GEngine->WeightMapPlaceholderTexture);
 		}
 	}
 
+	if (!bFoundMatchingParameter)
+	{
+		return OutResult.SetType(Context, RequestedType, UE::HLSLTree::Private::PrepareConstant(Context.Material && Context.Material->IsPreview() ? DefaultWeight : 0.f));
+	}
+
+	const EMaterialValueType TextureMaterialType = GEngine->WeightMapPlaceholderTexture->GetMaterialType();
+	const FRequestedType TexCoordRequestedType = Private::GetTexCoordType(TextureMaterialType);
+	const FPreparedType& TexCoordPreparedType = Context.PrepareExpression(TexCoordExpression, Scope, TexCoordRequestedType);
+	if (TexCoordPreparedType.IsVoid())
+	{
+		return false;
+	}
+
 	return OutResult.SetType(Context, RequestedType, EExpressionEvaluation::Shader, Shader::EValueType::Float4);
+}
+
+void FExpressionStaticTerrainLayerWeight::EmitValuePreshader(FEmitContext& Context, FEmitScope& Scope, const FRequestedType& RequestedType, FEmitValuePreshaderResult& OutResult) const
+{
+	Context.PreshaderStackPosition++;
+	if (Context.Material && Context.Material->IsPreview())
+	{
+		const Shader::FValue Value = DefaultWeight;
+		OutResult.Type = Value.Type;
+		OutResult.Preshader.WriteOpcode(Shader::EPreshaderOpcode::Constant).Write(Value);
+	}
+	else
+	{
+		const Shader::FValue Value = 0.f;
+		OutResult.Type = Value.Type;
+		OutResult.Preshader.WriteOpcode(Shader::EPreshaderOpcode::ConstantZero).Write(OutResult.Type);
+	}
 }
 
 void FExpressionStaticTerrainLayerWeight::EmitValueShader(FEmitContext& Context, FEmitScope& Scope, const FRequestedType& RequestedType, FEmitValueShaderResult& OutResult) const
@@ -1501,14 +1578,8 @@ void FExpressionStaticTerrainLayerWeight::EmitValueShader(FEmitContext& Context,
 		++NumWeightmapParameters;
 	}
 
-	if (NumWeightmapParameters > 0)
-	{
-		OutResult.Code = NumWeightmapParameters > 1 ? Context.EmitExpression(Scope, Shader::EValueType::Float1, TEXT("saturate(%)"), EmitResult) : EmitResult;
-	}
-	else
-	{
-		OutResult.Code = Context.EmitInlineExpression(Scope, Shader::EValueType::Float1, TEXT("((float)%)"), Context.Material && Context.Material->IsPreview() ? DefaultWeight : 0.f);
-	}
+	check(NumWeightmapParameters > 0);
+	OutResult.Code = NumWeightmapParameters > 1 ? Context.EmitExpression(Scope, Shader::EValueType::Float1, TEXT("saturate(%)"), EmitResult) : EmitResult;
 }
 
 bool FExpressionTextureProperty::PrepareValue(FEmitContext& Context, FEmitScope& Scope, const FRequestedType& RequestedType, FPrepareValueResult& OutResult) const
@@ -1584,10 +1655,19 @@ void FExpressionRuntimeVirtualTextureUniform::EmitValuePreshader(FEmitContext& C
 
 bool FExpressionRuntimeVirtualTextureOutput::PrepareValue(FEmitContext& Context, FEmitScope& Scope, const FRequestedType& RequestedType, FPrepareValueResult& OutResult) const
 {
-	if (Context.bMarkLiveValues && Context.MaterialCompilationOutput)
+	if (Context.bMarkLiveValues)
 	{
-		Context.MaterialCompilationOutput->bHasRuntimeVirtualTextureOutputNode |= OutputAttributeMask != 0;
-		Context.MaterialCompilationOutput->RuntimeVirtualTextureOutputAttributeMask |= OutputAttributeMask;
+		if (Context.MaterialCompilationOutput)
+		{
+			Context.MaterialCompilationOutput->bHasRuntimeVirtualTextureOutputNode |= OutputAttributeMask != 0;
+			Context.MaterialCompilationOutput->RuntimeVirtualTextureOutputAttributeMask |= OutputAttributeMask;
+		}
+
+		FEmitData& EmitData = Context.FindData<FEmitData>();
+		if (EmitData.CachedExpressionData)
+		{
+			EmitData.CachedExpressionData->bHasRuntimeVirtualTextureOutput = true;
+		}
 	}
 
 	return FExpressionForward::PrepareValue(Context, Scope, RequestedType, OutResult);

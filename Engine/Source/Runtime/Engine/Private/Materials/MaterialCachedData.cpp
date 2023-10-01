@@ -938,7 +938,7 @@ void PrepareHLSLTree(UE::HLSLTree::FEmitContext& EmitContext,
 	FEmitScope* EmitResultScope = EmitContext.PrepareScope(CachedTree.GetResultScope());
 
 	FRequestedType RequestedAttributesType(CachedTree.GetMaterialAttributesType(), false);
-	CachedTree.SetRequestedFields(ShaderFrequency, RequestedAttributesType);
+	CachedTree.SetRequestedFields(EmitContext, RequestedAttributesType);
 
 	const FPreparedType& ResultType = EmitContext.PrepareExpression(CachedTree.GetResultExpression(), *EmitResultScope, RequestedAttributesType);
 	if (!ResultType.IsVoid())

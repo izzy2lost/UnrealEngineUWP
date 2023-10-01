@@ -515,10 +515,12 @@ void FExpressionSelect::EmitValueShader(FEmitContext& Context, FEmitScope& Scope
 	else
 	{
 		const Shader::FType LocalType = Context.GetResultType(this, RequestedType);
+		const bool bIsLWC = LocalType.IsNumericLWC();
+
 		FEmitShaderExpression* TrueValue = TrueExpression->GetValueShader(Context, Scope, RequestedType, LocalType);
 		FEmitShaderExpression* FalseValue = FalseExpression->GetValueShader(Context, Scope, RequestedType, LocalType);
 
-		OutResult.Code = Context.EmitExpression(Scope, LocalType, TEXT("(% ? % : %)"),
+		OutResult.Code = Context.EmitExpression(Scope, LocalType, bIsLWC ? TEXT("LWCSelect(%, %, %)") : TEXT("(% ? % : %)"),
 			ConditionExpression->GetValueShader(Context, Scope, Shader::EValueType::Bool1),
 			TrueValue,
 			FalseValue);

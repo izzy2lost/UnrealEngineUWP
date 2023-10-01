@@ -1743,10 +1743,11 @@ UE::Shader::EValueType UMaterialExpressionRuntimeVirtualTextureOutput::GetCustom
 		return EValueType::Float3;
 	case 1:
 	case 2:
-	case 4:
 	case 5:
 	case 6:
 		return EValueType::Float1;
+	case 4:
+		return EValueType::Double1;
 	default:
 		checkNoEntry();
 		return EValueType::Void;
@@ -1794,7 +1795,7 @@ bool UMaterialExpressionRuntimeVirtualTextureOutput::GenerateHLSLExpression(FMat
 	}
 	else if (OutputIndex == 4)
 	{
-		OutExpression = MakeOutputExpression(WorldHeight, 0.f, ERuntimeVirtualTextureAttributeType::WorldHeight);
+		OutExpression = MakeOutputExpression(WorldHeight, 0., ERuntimeVirtualTextureAttributeType::WorldHeight);
 	}
 	else if (OutputIndex == 5)
 	{
@@ -2683,8 +2684,7 @@ bool UMaterialExpressionComponentMask::GenerateHLSLExpression(FMaterialHLSLGener
 
 bool UMaterialExpressionGetMaterialAttributes::GenerateHLSLExpression(FMaterialHLSLGenerator& Generator, UE::HLSLTree::FScope& Scope, int32 OutputIndex, UE::HLSLTree::FExpression const*& OutExpression) const
 {
-	const UE::HLSLTree::FExpression* AttributesExpression = MaterialAttributes.AcquireHLSLExpressionOrConstant(Generator, Scope, Generator.GetMaterialAttributesDefaultValue());
-	check(AttributesExpression);
+	const UE::HLSLTree::FExpression* AttributesExpression = MaterialAttributes.AcquireHLSLExpressionOrDefaultExpression(Generator, Scope, Generator.GetMaterialAttributesDefaultExpression());
 
 	if (OutputIndex == 0)
 	{
@@ -2708,7 +2708,7 @@ bool UMaterialExpressionGetMaterialAttributes::GenerateHLSLExpression(FMaterialH
 
 bool UMaterialExpressionSetMaterialAttributes::GenerateHLSLExpression(FMaterialHLSLGenerator& Generator, UE::HLSLTree::FScope& Scope, int32 OutputIndex, UE::HLSLTree::FExpression const*& OutExpression) const
 {
-	const UE::HLSLTree::FExpression* AttributesExpression = Inputs[0].AcquireHLSLExpressionOrConstant(Generator, Scope, Generator.GetMaterialAttributesDefaultValue());
+	const UE::HLSLTree::FExpression* AttributesExpression = Inputs[0].AcquireHLSLExpressionOrDefaultExpression(Generator, Scope, Generator.GetMaterialAttributesDefaultExpression());
 	
 	for (int32 PinIndex = 0; PinIndex < AttributeSetTypes.Num(); ++PinIndex)
 	{
@@ -2760,7 +2760,7 @@ static const UE::HLSLTree::FExpression* SetAttribute(FMaterialHLSLGenerator& Gen
 bool UMaterialExpressionMakeMaterialAttributes::GenerateHLSLExpression(FMaterialHLSLGenerator& Generator, UE::HLSLTree::FScope& Scope, int32 OutputIndex, UE::HLSLTree::FExpression const*& OutExpression) const
 {
 	using namespace UE::HLSLTree;
-	const FExpression* AttributesExpression = Generator.NewConstant(Generator.GetMaterialAttributesDefaultValue());
+	const FExpression* AttributesExpression = Generator.GetMaterialAttributesDefaultExpression();
 	AttributesExpression = SetAttribute(Generator, Scope, MP_BaseColor, BaseColor, AttributesExpression);
 	AttributesExpression = SetAttribute(Generator, Scope, MP_Metallic, Metallic, AttributesExpression);
 
@@ -2878,7 +2878,7 @@ bool UMaterialExpressionMaterialAttributeLayers::GenerateHLSLExpression(FMateria
 
 	TArray<FFunctionExpressionInput> FunctionInputs;
 	TArray<FFunctionExpressionOutput> FunctionOutputs;
-	const FExpression* ExpressionLayerInput = Input.AcquireHLSLExpressionOrConstant(Generator, Scope, Generator.GetMaterialAttributesDefaultValue());
+	const FExpression* ExpressionLayerInput = Input.AcquireHLSLExpressionOrDefaultExpression(Generator, Scope, Generator.GetMaterialAttributesDefaultExpression());
 
 	TArray<FMaterialHLSLGenerator::FConnectedInput, TInlineAllocator<1>> LayerInputExpressions;
 	TArray<const FExpression*, TInlineAllocator<16>> LayerExpressions;
@@ -2981,17 +2981,23 @@ bool UMaterialExpressionBlendMaterialAttributes::GenerateHLSLExpression(FMateria
 	using namespace UE::HLSLTree;
 	using namespace UE::Shader;
 
-	const FExpression* ExpressionA = A.AcquireHLSLExpressionOrConstant(Generator, Scope, Generator.GetMaterialAttributesDefaultValue());
-	const FExpression* ExpressionB = B.AcquireHLSLExpressionOrConstant(Generator, Scope, Generator.GetMaterialAttributesDefaultValue());
+	const FExpression* ExpressionA = A.AcquireHLSLExpressionOrDefaultExpression(Generator, Scope, Generator.GetMaterialAttributesDefaultExpression());
+	const FExpression* ExpressionB = B.AcquireHLSLExpressionOrDefaultExpression(Generator, Scope, Generator.GetMaterialAttributesDefaultExpression());
 	const FExpression* ExpressionAlpha = Alpha.AcquireHLSLExpression(Generator, Scope);
 	if (!ExpressionA || !ExpressionB || !ExpressionAlpha)
 	{
 		return false;
 	}
 
+	if (ExpressionA == ExpressionB)
+	{
+		OutExpression = ExpressionA;
+		return true;
+	}
+
 	const UE::Shader::FStructType* MaterialAttributesType = Generator.GetMaterialAttributesType();
 
-	const FExpression* ExpressionResult = Generator.GetTree().NewConstant(Generator.GetMaterialAttributesDefaultValue());
+	const FExpression* ExpressionResult = Generator.GetMaterialAttributesDefaultExpression();
 	const TArray<FGuid>& OrderedVisibleAttributes = FMaterialAttributeDefinitionMap::GetOrderedVisibleAttributeList();
 	for (const FGuid& AttributeID : OrderedVisibleAttributes)
 	{
@@ -3636,10 +3642,17 @@ bool UMaterialExpressionVolumetricAdvancedMaterialOutput::GenerateHLSLExpression
 	case 3: OutExpression = MultiScatteringContribution.AcquireHLSLExpressionOrConstant(Generator, Scope, ConstMultiScatteringContribution); break;
 	case 4: OutExpression = MultiScatteringOcclusion.AcquireHLSLExpressionOrConstant(Generator, Scope, ConstMultiScatteringOcclusion); break;
 	case 5: OutExpression = MultiScatteringEccentricity.AcquireHLSLExpressionOrConstant(Generator, Scope, ConstMultiScatteringEccentricity); break;
-	case 6: OutExpression = ConservativeDensity.AcquireHLSLExpressionOrConstant(Generator, Scope, FVector4f(1.0f, 1.0f, 1.0f, 1.0f)); break;
+	case 6: OutExpression = ConservativeDensity.AcquireHLSLExpressionOrConstant(Generator, Scope, FVector4f(1.0f, 1.0f, 1.0f, 0.0f)); break;
 	default: return Generator.Error(TEXT("Invalid output"));
 	}
 	return OutExpression != nullptr;
+}
+
+UE::Shader::EValueType UMaterialExpressionVolumetricAdvancedMaterialOutput::GetCustomOutputType(int32 OutputIndex) const
+{
+	if (OutputIndex >= 0 && OutputIndex < 6) return UE::Shader::EValueType::Float1;
+	else if (OutputIndex == 6) return UE::Shader::EValueType::Float4;
+	else return UE::Shader::EValueType::Void;
 }
 
 bool UMaterialExpressionThinTranslucentMaterialOutput::GenerateHLSLExpression(FMaterialHLSLGenerator& Generator, UE::HLSLTree::FScope& Scope, int32 OutputIndex, UE::HLSLTree::FExpression const*& OutExpression) const
@@ -3662,13 +3675,6 @@ UE::Shader::EValueType UMaterialExpressionThinTranslucentMaterialOutput::GetCust
 	}
 
 	return EValueType::Void;
-}
-
-UE::Shader::EValueType UMaterialExpressionVolumetricAdvancedMaterialOutput::GetCustomOutputType(int32 OutputIndex) const
-{
-	if (OutputIndex >= 0 && OutputIndex < 6) return UE::Shader::EValueType::Float1;
-	else if (OutputIndex == 6) return UE::Shader::EValueType::Float3;
-	else return UE::Shader::EValueType::Void;
 }
 
 bool UMaterialExpressionVolumetricCloudEmptySpaceSkippingInput::GenerateHLSLExpression(FMaterialHLSLGenerator& Generator, UE::HLSLTree::FScope& Scope, int32 OutputIndex, UE::HLSLTree::FExpression const*& OutExpression) const

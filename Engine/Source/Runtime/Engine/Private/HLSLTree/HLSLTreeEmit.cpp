@@ -872,11 +872,6 @@ FEmitShaderExpression* FEmitContext::InternalEmitExpression(FEmitScope& Scope, T
 {
 	FEmitShaderExpression* ShaderValue = nullptr;
 
-	if (Code.Contains(TEXT("((float2)Local21).xyz")))
-	{
-		int a = 0;
-	}
-
 	FXxHash64Builder Hasher;
 	Hasher.Update(Code.GetData(), Code.Len() * sizeof(TCHAR));
 	if (bInline)
@@ -1334,7 +1329,12 @@ FEmitShaderExpression* FEmitContext::EmitCast(FEmitScope& Scope, FEmitShaderExpr
 			}
 			else
 			{
-				if ((SourceTypeDesc.NumComponents == 1 && bReplicateScalar) || SourceTypeDesc.NumComponents == DestTypeDesc.NumComponents)
+				if (SourceTypeDesc.NumComponents == DestTypeDesc.NumComponents)
+				{
+					NumComponents = DestTypeDesc.NumComponents;
+					FormattedCode.Append(ShaderValue->Reference);
+				}
+				else if (bReplicateScalar)
 				{
 					NumComponents = DestTypeDesc.NumComponents;
 					// Cast the scalar to the correct type, HLSL language will replicate the scalar if needed when performing this cast
@@ -1348,16 +1348,16 @@ FEmitShaderExpression* FEmitContext::EmitCast(FEmitScope& Scope, FEmitShaderExpr
 						FormattedCode.Appendf(TEXT("%s("), DestTypeDesc.Name);
 						bNeedClosingParen = true;
 					}
-					if (NumComponents == SourceTypeDesc.NumComponents && SourceTypeDesc.ComponentType == DestTypeDesc.ComponentType)
+					if (NumComponents == SourceTypeDesc.NumComponents)
 					{
 						// If we're taking all the components from the source, can avoid adding a swizzle
 						FormattedCode.Append(ShaderValue->Reference);
 					}
 					else
 					{
-						// Use a cast to truncate the source to the correct number of types
-						const Shader::EValueType LocalType = Shader::MakeValueType(DestTypeDesc.ComponentType, NumComponents);
-						FormattedCode.Appendf(TEXT("((%s)%s)"), Shader::GetValueTypeDescription(LocalType).Name, ShaderValue->Reference);
+						// Truncate using a swizzle
+						static const TCHAR* Mask[] = { nullptr, TEXT("x"), TEXT("xy"), TEXT("xyz"), TEXT("xyzw") };
+						FormattedCode.Appendf(TEXT("%s.%s"), ShaderValue->Reference, Mask[NumComponents]);
 					}
 				}
 			}
@@ -1510,6 +1510,7 @@ void FEmitContext::Finalize()
 	EmitScopeMap.Reset();
 	EmitFunctionMap.Reset();
 	EmitLocalPHIMap.Reset();
+	EmitValueMap.Reset();
 
 	MaterialCompilationOutput->UniformExpressionSet.UniformPreshaderBufferSize = (UniformPreshaderOffset + 3u) / 4u;
 }

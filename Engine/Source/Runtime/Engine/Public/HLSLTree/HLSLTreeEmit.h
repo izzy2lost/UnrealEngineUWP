@@ -593,8 +593,7 @@ public:
 	TMap<FXxHash64, FPrepareValueResult*> PrepareValueMap;
 	TMap<FXxHash64, FRequestedType*> RequestedTypeTracker;
 	TMap<const FExpression*, FEmitScope*> PrepareLocalPHIMap;
-	TMap<const FExpression*, FEmitShaderExpression*> EmitLocalPHIMap;
-	// TODO: investigate EmitExpressionMap and EmitPreshaderMap can be removed and only keep EmitValueMap
+	TMap<FXxHash64, FEmitShaderExpression*> EmitLocalPHIMap;
 	TMap<FXxHash64, FEmitShaderExpression*> EmitExpressionMap;
 	TMap<FXxHash64, FEmitShaderExpression*> EmitPreshaderMap;
 	TMap<FXxHash64, FEmitShaderExpression*> EmitValueMap;

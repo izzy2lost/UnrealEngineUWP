@@ -78,7 +78,7 @@ public:
 	ENGINE_API UE::HLSLTree::FTree& GetTree() const;
 	UE::Shader::FStructTypeRegistry& GetTypeRegistry() const;
 	const UE::Shader::FStructType* GetMaterialAttributesType() const;
-	const UE::Shader::FValue& GetMaterialAttributesDefaultValue() const;
+	const UE::HLSLTree::FExpression* GetMaterialAttributesDefaultExpression() const;
 
 	UMaterialExpression* GetCurrentExpression() const;
 
@@ -128,6 +128,7 @@ public:
 
 	const UE::HLSLTree::FExpression* NewDefaultInputConstant(int32 InputIndex, const UE::Shader::FValue& Value);
 	const UE::HLSLTree::FExpression* NewDefaultInputExternal(int32 InputIndex, UE::HLSLTree::Material::EExternalInput Input);
+	const UE::HLSLTree::FExpression* NewDefaultInputExpression(int32 InputIndex, const UE::HLSLTree::FExpression* Expression);
 
 	/**
 	 * Returns the appropriate HLSLNode representing the given UMaterialExpression.

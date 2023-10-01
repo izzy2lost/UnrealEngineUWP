@@ -15,6 +15,14 @@ class UMaterialExpressionCustomOutput;
 class UMaterialParameterCollection;
 struct FMaterialLayersFunctions;
 
+namespace UE
+{
+namespace HLSLTree
+{
+class FEmitContext;
+}
+}
+
 struct FMaterialConnectionKey
 {
 	const UObject* InputObject = nullptr;
@@ -61,11 +69,10 @@ public:
 
 	const UE::Shader::FStructType* GetMaterialAttributesType() const { return MaterialAttributesType; }
 	const UE::Shader::FStructType* GetVTPageTableResultType() const { return VTPageTableResultType; }
-	const UE::Shader::FValue& GetMaterialAttributesDefaultValue() const { return MaterialAttributesDefaultValue; }
 
 	const TMap<FMaterialConnectionKey, const UE::HLSLTree::FExpression*>& GetConnections() const { return ConnectionMap; }
 
-	ENGINE_API void SetRequestedFields(EShaderFrequency ShaderFrequency, UE::HLSLTree::FRequestedType& OutRequestedType) const;
+	ENGINE_API void SetRequestedFields(const UE::HLSLTree::FEmitContext& Context, UE::HLSLTree::FRequestedType& OutRequestedType) const;
 	void EmitSharedCode(FStringBuilderBase& OutCode) const;
 
 	ENGINE_API bool IsAttributeUsed(UE::HLSLTree::FEmitContext& Context,
@@ -74,6 +81,8 @@ public:
 		EMaterialProperty Property) const;
 
 private:
+	const UE::Shader::FValue& GetMaterialAttributesDefaultValue() const { return MaterialAttributesDefaultValue; }
+
 	FMemStackBase Allocator;
 	UE::Shader::FStructTypeRegistry TypeRegistry;
 	UE::HLSLTree::FTree* HLSLTree = nullptr;

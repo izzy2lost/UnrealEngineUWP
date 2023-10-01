@@ -58,6 +58,11 @@ public:
 	virtual const FExpression* ComputePreviousFrame(FTree& Tree, const FRequestedType& RequestedType) const override;
 };
 
+namespace Private
+{
+	FPreparedType PrepareConstant(const Shader::FValue& Value);
+}
+
 class FExpressionConstant : public FExpression
 {
 public:

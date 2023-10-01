@@ -409,7 +409,13 @@ static void GetMaterialEnvironment(EShaderPlatform InPlatform,
 		OutEnvironment.SetDefine(TEXT("USES_SPEEDTREE"), TEXT("1"));
 	}
 
-	if (false)//bNeedsWorldPositionExcludingShaderOffsets)
+	const bool bNeedsWorldPositionExcludingShaderOffsets =
+		EmitMaterialData.IsExternalInputUsed(Material::EExternalInput::WorldPosition_NoOffsets) ||
+		EmitMaterialData.IsExternalInputUsed(Material::EExternalInput::TranslatedWorldPosition_NoOffsets) ||
+		EmitMaterialData.IsExternalInputUsed(Material::EExternalInput::PrevWorldPosition_NoOffsets) ||
+		EmitMaterialData.IsExternalInputUsed(Material::EExternalInput::PrevTranslatedWorldPosition_NoOffsets);
+
+	if (bNeedsWorldPositionExcludingShaderOffsets)
 	{
 		OutEnvironment.SetDefine(TEXT("NEEDS_WORLD_POSITION_EXCLUDING_SHADER_OFFSETS"), TEXT("1"));
 	}
@@ -452,9 +458,9 @@ static void GetMaterialEnvironment(EShaderPlatform InPlatform,
 	OutEnvironment.SetDefine(TEXT("USES_PER_INSTANCE_FADE_AMOUNT"), bUsesPerInstanceFadeAmount&& InMaterial.IsUsedWithInstancedStaticMeshes());
 	OutEnvironment.SetDefine(TEXT("USES_VERTEX_INTERPOLATOR"), MaterialCompilationOutput.bUsesVertexInterpolator);
 
-	const bool bUsesVertexColor = EmitMaterialData.IsExternalInputUsed(SF_Vertex, Material::EExternalInput::VertexColor) ||
-		EmitMaterialData.IsExternalInputUsed(SF_Vertex, Material::EExternalInput::VertexColor_Ddx) ||
-		EmitMaterialData.IsExternalInputUsed(SF_Vertex, Material::EExternalInput::VertexColor_Ddy);
+	const bool bUsesVertexColor = EmitMaterialData.IsExternalInputUsed(SF_Pixel, Material::EExternalInput::VertexColor) ||
+		EmitMaterialData.IsExternalInputUsed(SF_Pixel, Material::EExternalInput::VertexColor_Ddx) ||
+		EmitMaterialData.IsExternalInputUsed(SF_Pixel, Material::EExternalInput::VertexColor_Ddy);
 
 	const bool bUsesParticleColor = EmitMaterialData.IsExternalInputUsed(SF_Pixel, Material::EExternalInput::ParticleColor);
 
@@ -815,7 +821,7 @@ bool MaterialEmitHLSL(const FMaterialCompileTargetParameters& InCompilerTarget,
 
 		// Prepare all fields *except* normal
 		FRequestedType RequestedPixelAttributesType(CachedTree->GetMaterialAttributesType(), false);
-		CachedTree->SetRequestedFields(SF_Pixel, RequestedPixelAttributesType);
+		CachedTree->SetRequestedFields(EmitContext, RequestedPixelAttributesType);
 		RequestedPixelAttributesType.SetFieldRequested(NormalField, false);
 
 		const FPreparedType PixelResultType0 = EmitContext.PrepareExpression(CachedTree->GetResultExpression(), *EmitResultScope, RequestedPixelAttributesType);
@@ -934,11 +940,12 @@ bool MaterialEmitHLSL(const FMaterialCompileTargetParameters& InCompilerTarget,
 	// Prepare vertex shader code
 	FStringBuilderMemstack VertexCode(Allocator, 128 * 1024);
 	{
+		EmitContext.ShaderFrequency = SF_Vertex;
+
 		FRequestedType RequestedVertexAttributesType(CachedTree->GetMaterialAttributesType(), false);
-		CachedTree->SetRequestedFields(SF_Vertex, RequestedVertexAttributesType);
+		CachedTree->SetRequestedFields(EmitContext, RequestedVertexAttributesType);
 		RequestedVertexAttributesType.SetFieldRequested(CachedTree->GetMaterialAttributesType()->FindFieldByName(TEXT("PrevWorldPositionOffset")));
 
-		EmitContext.ShaderFrequency = SF_Vertex;
 		EmitContext.bUseAnalyticDerivatives = false;
 		EmitContext.bMarkLiveValues = false;
 		FEmitScope* EmitResultScope = EmitContext.PrepareScope(CachedTree->GetResultScope());
