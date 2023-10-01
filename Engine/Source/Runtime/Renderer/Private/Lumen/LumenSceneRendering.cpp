@@ -352,7 +352,6 @@ public:
 	// Output
 	TArray<FMeshCardsAdd> MeshCardsAdds;
 	TArray<FMeshCardsRemove> MeshCardsRemoves;
-	TArray<FPrimitiveSceneInfo*> LandscapePrimitivesInRange;
 
 	void AnyThreadTask()
 	{

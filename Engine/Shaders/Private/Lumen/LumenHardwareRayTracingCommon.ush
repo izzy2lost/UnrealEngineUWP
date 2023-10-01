@@ -747,31 +747,44 @@ FRayTracedLightingResult TraceAndCalculateRayTracedLighting(
 	
 			if (LightingMode == EVALUATE_MATERIAL_AND_DIRECT_LIGHTING_AND_SKY_LIGHTING)
 			{
-				bool bTreatAsFullyRough = !bUseReflectionCaptures;
+				// Blend between rough reflections approximation and a single reflection ray
+				if (ReflectionBounceIndex + 1 < Context.MaxReflectionBounces)
+				{
+					NextReflectionRayAlpha = LumenCombineReflectionsAlpha(PathRoughness, /*bHasBackfaceDiffuse*/ false);
+				}
 
-				// SUBSTRATE_TODO: this path is not supported yet, as PackedPayload does not have space for indirect irradiance
-				Radiance += (bTreatAsFullyRough ? LumenMaterial.ApproxFullyRoughDiffuseColor : LumenMaterial.DiffuseColor) * Payload.GetIndirectIrradiance();
+				// Add diffuse part
+				Radiance += LumenMaterial.DiffuseColor * Payload.GetIndirectIrradiance();
 
+				// Add specular part
 				if (bUseReflectionCaptures)
 				{
-					const bool bSkyLightAffectReflection = ShouldSkyLightAffectReflection();
-					float3 R = reflect(Ray.Direction, Payload.GetWorldNormal());
-					const float NoV = saturate(dot(-Ray.Direction, Payload.GetWorldNormal()));
-					const float RoughnessSq = LumenMaterial.TopLayerRoughness * LumenMaterial.TopLayerRoughness;
-					const float SpecularOcclusion = GetSpecularOcclusion(NoV, RoughnessSq, 1.0);
-					Radiance += EnvBRDF(LumenMaterial.TopLayerSpecularColor, LumenMaterial.TopLayerRoughness, NoV) * SpecularOcclusion *
-						CompositeReflectionCapturesAndSkylight(
-							1.0, // CompositeAlpha
-							RayHitTranslatedWorldPosition,
-							R,
-							LumenMaterial.TopLayerRoughness,
-							0.0, // IndirectIrradiance,
-							1.0, // IndirectSpecularOcclusion
-							0.0, // ExtraIndirectSpecular
-							ForwardLightData.NumReflectionCaptures,
-							0, // ReflectionCapturesStartIndex
-							0,
-							bSkyLightAffectReflection);
+					if (1.0f - NextReflectionRayAlpha > 0.0f)
+					{
+						const bool bSkyLightAffectReflection = ShouldSkyLightAffectReflection();
+						float3 R = reflect(Ray.Direction, Payload.GetWorldNormal());
+						const float NoV = saturate(dot(-Ray.Direction, Payload.GetWorldNormal()));
+						const float RoughnessSq = LumenMaterial.TopLayerRoughness * LumenMaterial.TopLayerRoughness;
+						const float SpecularOcclusion = GetSpecularOcclusion(NoV, RoughnessSq, 1.0);
+						Radiance += EnvBRDF(LumenMaterial.TopLayerSpecularColor, LumenMaterial.TopLayerRoughness, NoV) * SpecularOcclusion * (1.0f - NextReflectionRayAlpha) *
+							CompositeReflectionCapturesAndSkylight(
+								1.0, // CompositeAlpha
+								RayHitTranslatedWorldPosition,
+								R,
+								LumenMaterial.TopLayerRoughness,
+								0.0, // IndirectIrradiance,
+								1.0, // IndirectSpecularOcclusion
+								0.0, // ExtraIndirectSpecular
+								ForwardLightData.NumReflectionCaptures,
+								0, // ReflectionCapturesStartIndex
+								0,
+								bSkyLightAffectReflection);
+					}
+				}
+				else
+				{
+					// SUBSTRATE_TODO: this path is not supported yet, as PackedPayload does not have space for indirect irradiance
+					Radiance += LumenMaterial.ApproxFullyRoughSpecularColor * (1.0f - NextReflectionRayAlpha) * Payload.GetIndirectIrradiance();
 				}
 			}
 			else
