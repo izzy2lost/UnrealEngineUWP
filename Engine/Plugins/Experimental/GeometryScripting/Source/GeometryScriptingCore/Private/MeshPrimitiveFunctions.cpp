@@ -1459,8 +1459,9 @@ UDynamicMesh* UGeometryScriptLibrary_MeshPrimitiveFunctions::AppendSimpleCollisi
 		CapsuleGenerator.NumCircleSteps = FMath::Max(3, TriangulationOptions.CapsuleCircleSteps);
 		CapsuleGenerator.bPolygroupPerQuad = (PrimitiveOptions.PolygroupMode == EGeometryScriptPrimitivePolygroupMode::PerQuad);
 		CapsuleGenerator.Generate();
-
-		AppendPrimitive(TargetMesh, &CapsuleGenerator, Transform, PrimitiveOptions, Capsule.Center, FQuaterniond(Capsule.Rotation));
+		
+		FQuaterniond Rotation(Capsule.Rotation);
+		AppendPrimitive(TargetMesh, &CapsuleGenerator, Transform, PrimitiveOptions, Capsule.Center + Rotation * FVector(0, 0, -Capsule.Length*.5), Rotation);
 	}
 	for (const FKConvexElem& Convex : SimpleCollision.AggGeom.ConvexElems)
 	{

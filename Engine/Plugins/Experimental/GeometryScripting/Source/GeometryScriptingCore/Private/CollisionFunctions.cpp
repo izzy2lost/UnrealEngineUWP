@@ -709,7 +709,7 @@ FGeometryScriptSimpleCollision UGeometryScriptLibrary_CollisionFunctions::MergeS
 		CapsuleGenerator.NumHemisphereArcSteps = FMath::Max(2, MergeOptions.ShapeToHullTriangulation.CapsuleHemisphereSteps);
 		CapsuleGenerator.NumCircleSteps = FMath::Max(3, MergeOptions.ShapeToHullTriangulation.CapsuleCircleSteps);
 		CapsuleGenerator.Generate();
-		FTransform CapsuleTransform(Capsule.Rotation, Capsule.Center);
+		FTransform CapsuleTransform(Capsule.Rotation, Capsule.Center + Capsule.Rotation.RotateVector(FVector(0, 0, -Capsule.Length * .5)));
 		TransformVertices(CapsuleGenerator.Vertices, CapsuleTransform);
 		double Volume = GeneratorVolume(&CapsuleGenerator);
 		AppendHullVertices(CapsuleGenerator.Vertices, Volume, &Capsule);
