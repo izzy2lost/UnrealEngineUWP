@@ -7,6 +7,7 @@
 #include "UObject/GCObject.h"
 #include "UObject/ObjectSaveContext.h"
 
+class UAnimSequenceBase;
 class UPoseSearchDatabase;
 
 namespace UE::PoseSearch
@@ -57,11 +58,19 @@ namespace UE::PoseSearch
 		virtual FString GetReferencerName() const override { return TEXT("FAsyncPoseSearchDatabaseManagement"); }
 		// End FGCObject
 		
+		void CollectDatabasesToSynchronize(UObject* Object);
+		void SynchronizeDatabases();
+		
+		// map of all those databases UAnimSequenceBase(s) that were containing or are containing UAnimNotifyState_PoseSearchBranchIn that requires synchronization
+		typedef TMap<TWeakObjectPtr<UPoseSearchDatabase>, TArray<TWeakObjectPtr<UAnimSequenceBase>>> TDatabasesToSynchronize;
+		typedef TPair<TWeakObjectPtr<UPoseSearchDatabase>, TArray<TWeakObjectPtr<UAnimSequenceBase>>> TDatabasesToSynchronizePair;
+		TDatabasesToSynchronize DatabasesToSynchronize;
+
 		FPoseSearchDatabaseAsyncCacheTasks& Tasks;
 		FDelegateHandle OnObjectModifiedHandle;
 		FDelegateHandle OnObjectTransactedHandle;
 		FDelegateHandle OnPackageReloadedHandle;
-		
+
 		static FCriticalSection Mutex;
 	};
 } // namespace UE::PoseSearch

@@ -34,7 +34,7 @@
 
 namespace UE::PoseSearch
 {
-	static constexpr FLinearColor DisabledColor = FLinearColor(1.0f, 1.0f, 1.0f, 0.25f);
+	static constexpr FLinearColor DisabledColor = FLinearColor(1.f, 1.f, 1.f, 0.25f);
 	
 	void SDatabaseAssetListItem::Construct(
 		const FArguments& InArgs,
@@ -459,8 +459,6 @@ namespace UE::PoseSearch
 		const TSharedPtr<FDatabaseViewModel> ViewModelPtr = EditorViewModel.Pin();
 		const TSharedPtr<FDatabaseAssetTreeNode> TreeNodePtr = WeakAssetTreeNode.Pin();
 
-		ViewModelPtr->GetPoseSearchDatabase()->Modify();
-		
 		ViewModelPtr->SetIsEnabled(TreeNodePtr->SourceAssetIdx, NewCheckboxState == ECheckBoxState::Checked ? true : false);
 
 		SkeletonView.Pin()->RefreshTreeView(false, true);
@@ -469,7 +467,24 @@ namespace UE::PoseSearch
 
 	FSlateColor SDatabaseAssetListItem::GetNameTextColorAndOpacity() const
 	{
-		return GetAssetEnabledChecked() == ECheckBoxState::Checked ? FLinearColor::White : DisabledColor;
+		TSharedPtr<FDatabaseViewModel> ViewModelPtr = EditorViewModel.Pin();
+		TSharedPtr<FDatabaseAssetTreeNode> TreeNodePtr = WeakAssetTreeNode.Pin();
+		const UPoseSearchDatabase* Database = ViewModelPtr->GetPoseSearchDatabase();
+
+		if (const FPoseSearchDatabaseAnimationAssetBase* DatabaseAnimationAssetBase = Database->GetAnimationAssetBase(TreeNodePtr->SourceAssetIdx))
+		{
+			if (DatabaseAnimationAssetBase->IsEnabled())
+			{
+				if (DatabaseAnimationAssetBase->bSynchronizeWithExternalDependency)
+				{
+					return FColor::Turquoise;
+				}
+
+				return FLinearColor::White;
+			}
+		}
+
+		return DisabledColor;
 	}
 
 	FSlateColor SDatabaseAssetListItem::GetLoopingColorAndOpacity() const

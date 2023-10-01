@@ -106,7 +106,7 @@ namespace UE::PoseSearch
 		void AddBlendSpaceToDatabase(UBlendSpace* BlendSpace);
 		void AddAnimCompositeToDatabase(UAnimComposite* AnimComposite);
 		void AddAnimMontageToDatabase(UAnimMontage* AnimMontage);
-		void DeleteFromDatabase(int32 AnimationAssetIndex);
+		bool DeleteFromDatabase(int32 AnimationAssetIndex);
 
 		void SetDisableReselection(int32 AnimationAssetIndex, bool bEnabled);
 		bool IsDisableReselection(int32 AnimationAssetIndex) const;

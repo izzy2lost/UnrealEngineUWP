@@ -616,10 +616,7 @@ namespace UE::PoseSearch
 		FScopedTransaction Transaction(LOCTEXT("DeleteAsset", "Delete Asset"));
 		const TSharedPtr<FDatabaseViewModel> ViewModel = EditorViewModel.Pin();
 		
-		ViewModel->GetPoseSearchDatabase()->Modify();
-		ViewModel->DeleteFromDatabase(Node->SourceAssetIdx);
-
-		if (bFinalizeChanges)
+		if (ViewModel->DeleteFromDatabase(Node->SourceAssetIdx) && bFinalizeChanges)
 		{
 			FinalizeTreeChanges();
 		}
@@ -685,8 +682,6 @@ namespace UE::PoseSearch
 			const FScopedTransaction Transaction(LOCTEXT("DeletePoseSearchDatabaseNodes", "Delete selected items from Pose Search Database"));
 			const TSharedPtr<FDatabaseViewModel> ViewModel = EditorViewModel.Pin();
 
-			ViewModel->GetPoseSearchDatabase()->Modify();
-			
 			SelectedNodes.Sort([](const TSharedPtr<FDatabaseAssetTreeNode>& A, const TSharedPtr<FDatabaseAssetTreeNode>& B)
 				{
 					return B->SourceAssetIdx < A->SourceAssetIdx;

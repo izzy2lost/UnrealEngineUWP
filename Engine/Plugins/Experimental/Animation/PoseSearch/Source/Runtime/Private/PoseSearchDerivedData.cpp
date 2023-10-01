@@ -1755,6 +1755,62 @@ FAsyncPoseSearchDatabasesManagement::~FAsyncPoseSearchDatabasesManagement()
 	delete &Tasks;
 }
 
+// given Object it figures out a map of databases to UAnimSequenceBase(s) containing UAnimNotifyState_PoseSearchBranchIn
+void FAsyncPoseSearchDatabasesManagement::CollectDatabasesToSynchronize(UObject* Object)
+{
+	FScopeLock Lock(&Mutex);
+
+	if (UAnimSequenceBase* SequenceBase = Cast<UAnimSequenceBase>(Object))
+	{
+		for (const FAnimNotifyEvent& NotifyEvent : SequenceBase->Notifies)
+		{
+			if (const UAnimNotifyState_PoseSearchBranchIn* BranchIn = Cast<UAnimNotifyState_PoseSearchBranchIn>(NotifyEvent.NotifyStateClass))
+			{
+				if (BranchIn->Database)
+				{
+					DatabasesToSynchronize.FindOrAdd(BranchIn->Database).AddUnique(SequenceBase);
+				}
+			}
+		}
+	}
+	else if (UAnimNotifyState_PoseSearchBranchIn* BranchIn = Cast<UAnimNotifyState_PoseSearchBranchIn>(Object))
+	{
+		if (BranchIn->Database)
+		{
+			if (UAnimSequenceBase* OuterSequenceBase = Cast<UAnimSequenceBase>(BranchIn->GetOuter()))
+			{
+				DatabasesToSynchronize.FindOrAdd(BranchIn->Database).AddUnique(OuterSequenceBase);
+			}
+		}
+	}
+}
+
+void FAsyncPoseSearchDatabasesManagement::SynchronizeDatabases()
+{
+	FScopeLock Lock(&Mutex);
+
+	// copying DatabasesToSynchronize because modifying the database will call OnObjectModified that could populate DatabasesToSynchronize again
+	const TDatabasesToSynchronize DatabasesToSynchronizeCopy = DatabasesToSynchronize;
+	DatabasesToSynchronize.Reset();
+
+	for (const TDatabasesToSynchronizePair& Pair : DatabasesToSynchronizeCopy)
+	{
+		if (Pair.Key.IsValid())
+		{
+			TArray<UAnimSequenceBase*> SequencesBase;
+			for (const TWeakObjectPtr<UAnimSequenceBase>& SequenceBase : Pair.Value)
+			{
+				if (SequenceBase.IsValid())
+				{
+					SequencesBase.Add(SequenceBase.Get());
+				}
+			}
+
+			Pair.Key->SynchronizeWithExternalDependencies(SequencesBase);
+		}
+	}
+}
+
 // we're listening to OnObjectModified to cancel any pending Task indexing databases depending from Object to avoid multi threading issues
 void FAsyncPoseSearchDatabasesManagement::OnObjectModified(UObject* Object)
 {
@@ -1770,6 +1826,9 @@ void FAsyncPoseSearchDatabasesManagement::OnObjectModified(UObject* Object)
 			Tasks.RemoveAtSwap(TaskIndex, 1, false);
 		}
 	}
+
+	// collecting databases to synchronize prior modifying the Object
+	CollectDatabasesToSynchronize(Object);
 }
 
 void FAsyncPoseSearchDatabasesManagement::OnObjectTransacted(UObject* Object, const FTransactionObjectEvent& TransactionObjectEvent)
@@ -1778,37 +1837,10 @@ void FAsyncPoseSearchDatabasesManagement::OnObjectTransacted(UObject* Object, co
 
 	FScopeLock Lock(&Mutex);
 
-	// synchronize the UPoseSearchDatabase with eventual UAnimSequenceBase containing UAnimNotifyState_PoseSearchBranchIn(s)
-	UAnimSequenceBase* SequenceBaseToSynchronizeWith = nullptr;
-	UPoseSearchDatabase* Database = nullptr;
-	if (UAnimNotifyState_PoseSearchBranchIn* BranchIn = Cast<UAnimNotifyState_PoseSearchBranchIn>(Object))
-	{
-		if (BranchIn->Database)
-		{
-			SequenceBaseToSynchronizeWith = Cast<UAnimSequenceBase>(BranchIn->GetOuter());
-			Database = BranchIn->Database;
-		}
-	}
-	else if (UAnimSequenceBase* SequenceBase = Cast<UAnimSequenceBase>(Object))
-	{
-		for (const FAnimNotifyEvent& NotifyEvent : SequenceBase->Notifies)
-		{
-			if (const UAnimNotifyState_PoseSearchBranchIn* NotifyEventBranchIn = Cast<UAnimNotifyState_PoseSearchBranchIn>(NotifyEvent.NotifyStateClass))
-			{
-				if (NotifyEventBranchIn->Database)
-				{
-					SequenceBaseToSynchronizeWith = SequenceBase;
-					Database = NotifyEventBranchIn->Database;
-					break;
-				}
-			}
-		}
-	}
+	// collecting databases to synchronize on Object transacted, and merging the results with the OnObjectModified collection
+	CollectDatabasesToSynchronize(Object);
 
-	if (SequenceBaseToSynchronizeWith)
-	{
-		Database->SynchronizeWithExternalDependencies(SequenceBaseToSynchronizeWith);
-	}
+	SynchronizeDatabases();
 }
 
 void FAsyncPoseSearchDatabasesManagement::OnPackageReloaded(const EPackageReloadPhase InPackageReloadPhase, FPackageReloadedEvent* InPackageReloadedEvent)
@@ -1842,6 +1874,9 @@ void FAsyncPoseSearchDatabasesManagement::Shutdown()
 
 	FCoreUObjectDelegates::OnObjectModified.Remove(OnObjectModifiedHandle);
 	OnObjectModifiedHandle.Reset();
+
+	FCoreUObjectDelegates::OnObjectTransacted.Remove(OnObjectTransactedHandle);
+	OnObjectTransactedHandle.Reset();
 
 	FCoreUObjectDelegates::OnPackageReloaded.Remove(OnPackageReloadedHandle);
 	OnPackageReloadedHandle.Reset();

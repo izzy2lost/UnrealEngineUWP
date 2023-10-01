@@ -14,6 +14,7 @@
 #include "GameFramework/PlayerController.h"
 #include "InstancedStruct.h"
 #include "Modules/ModuleManager.h"
+#include "PoseSearch/PoseSearchAnimNotifies.h"
 #include "PoseSearch/PoseSearchDatabase.h"
 #include "PoseSearch/PoseSearchDefines.h"
 #include "PoseSearch/PoseSearchDerivedData.h"
@@ -356,9 +357,20 @@ namespace UE::PoseSearch
 		PoseSearchDatabase->AnimationAssets.Add(FInstancedStruct::Make(NewAsset));
 	}
 
-	void FDatabaseViewModel::DeleteFromDatabase(int32 AnimationAssetIndex)
+	bool FDatabaseViewModel::DeleteFromDatabase(int32 AnimationAssetIndex)
 	{
-		PoseSearchDatabase->AnimationAssets.RemoveAt(AnimationAssetIndex);
+		if (const FPoseSearchDatabaseAnimationAssetBase* DatabaseAnimationAssetBase = PoseSearchDatabase->GetAnimationAssetBase(AnimationAssetIndex))
+		{
+			if (!DatabaseAnimationAssetBase->bSynchronizeWithExternalDependency)
+			{
+				PoseSearchDatabase->AnimationAssets.RemoveAt(AnimationAssetIndex);
+				PoseSearchDatabase->Modify();
+		
+				return true;
+			}
+		}
+
+		return false;
 	}
 
 	void FDatabaseViewModel::SetDisableReselection(int32 AnimationAssetIndex, bool bEnabled)
@@ -383,6 +395,8 @@ namespace UE::PoseSearch
 	{
 		if (FPoseSearchDatabaseAnimationAssetBase* DatabaseAnimationAsset = PoseSearchDatabase->GetMutableAnimationAssetBase(AnimationAssetIndex))
 		{
+			GetPoseSearchDatabase()->Modify();
+
 			DatabaseAnimationAsset->SetIsEnabled(bEnabled);
 		}
 	}

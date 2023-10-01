@@ -658,73 +658,101 @@ void UPoseSearchDatabase::SynchronizeWithExternalDependencies()
 		TArray<FAssetData> Assets;
 		AssetRegistry.GetAssetsByPackageName(Referencer.PackageName, Assets);
 
+		TArray<UAnimSequenceBase*> SequencesBase;
 		for (const FAssetData& Asset : Assets)
 		{
 			if (Asset.IsInstanceOf(UAnimSequenceBase::StaticClass()))
 			{
-				SynchronizeWithExternalDependencies(CastChecked<UAnimSequence>(Asset.FastGetAsset(true)));
-			}
-		}
-	}
-}
-
-void UPoseSearchDatabase::SynchronizeWithExternalDependencies(UAnimSequenceBase* SequenceBase)
-{
-	if (SequenceBase)
-	{
-		bool bModified = false;
-		for (const FAnimNotifyEvent& NotifyEvent : SequenceBase->Notifies)
-		{
-			if (const UAnimNotifyState_PoseSearchBranchIn* PoseSearchBranchIn = Cast<UAnimNotifyState_PoseSearchBranchIn>(NotifyEvent.NotifyStateClass))
-			{
-				if (PoseSearchBranchIn->Database == this)
+				if (UAnimSequenceBase* SequenceBase = CastChecked<UAnimSequenceBase>(Asset.FastGetAsset(true)))
 				{
-					if (!bModified)
+					for (const FAnimNotifyEvent& NotifyEvent : SequenceBase->Notifies)
 					{
-						for (int32 AnimationAssetIndex = AnimationAssets.Num() - 1; AnimationAssetIndex >= 0; --AnimationAssetIndex)
+						if (const UAnimNotifyState_PoseSearchBranchIn* BranchIn = Cast<UAnimNotifyState_PoseSearchBranchIn>(NotifyEvent.NotifyStateClass))
 						{
-							if (const FPoseSearchDatabaseAnimationAssetBase* AnimationAssetBase = AnimationAssets[AnimationAssetIndex].GetPtr<FPoseSearchDatabaseAnimationAssetBase>())
+							if (BranchIn->Database == this)
 							{
-								if (AnimationAssetBase->GetAnimationAsset() == SequenceBase)
-								{
-									AnimationAssets.RemoveAt(AnimationAssetIndex);
-								}
+								SequencesBase.Add(SequenceBase);
+								break;
 							}
 						}
-
-						bModified = true;
-					}
-
-					if (UAnimSequence* Sequence = Cast<UAnimSequence>(SequenceBase))
-					{
-						FPoseSearchDatabaseSequence DatabaseSequence;
-						DatabaseSequence.Sequence = Sequence;
-						DatabaseSequence.SamplingRange = FFloatInterval(NotifyEvent.GetTriggerTime(), NotifyEvent.GetEndTriggerTime());
-						AnimationAssets.Add(FInstancedStruct::Make(DatabaseSequence));
-					}
-					else if (UAnimComposite* AnimComposite = Cast<UAnimComposite>(SequenceBase))
-					{
-						FPoseSearchDatabaseAnimComposite DatabaseAnimComposite;
-						DatabaseAnimComposite.AnimComposite = AnimComposite;
-						DatabaseAnimComposite.SamplingRange = FFloatInterval(NotifyEvent.GetTriggerTime(), NotifyEvent.GetEndTriggerTime());
-						AnimationAssets.Add(FInstancedStruct::Make(DatabaseAnimComposite));
-					}
-					else if (UAnimMontage* AnimMontage = Cast<UAnimMontage>(SequenceBase))
-					{
-						FPoseSearchDatabaseAnimMontage DatabaseAnimMontage;
-						DatabaseAnimMontage.AnimMontage = AnimMontage;
-						DatabaseAnimMontage.SamplingRange = FFloatInterval(NotifyEvent.GetTriggerTime(), NotifyEvent.GetEndTriggerTime());
-						AnimationAssets.Add(FInstancedStruct::Make(DatabaseAnimMontage));
 					}
 				}
 			}
 		}
-
-		if (bModified)
+		
+		if (!SequencesBase.IsEmpty())
 		{
-			Modify();
-			NotifySynchronizeWithExternalDependencies();
+			SynchronizeWithExternalDependencies(SequencesBase);
 		}
+	}
+}
+
+void UPoseSearchDatabase::SynchronizeWithExternalDependencies(TConstArrayView<UAnimSequenceBase*> SequencesBase)
+{
+	// @todo: improve the logic to identify if the asset is actually modified (this method could potentially remove and readd exatly the same AnimationAssets)
+	bool bModified = false;
+
+	// removing all the SequencesBase references from the database
+	for (int32 AnimationAssetIndex = AnimationAssets.Num() - 1; AnimationAssetIndex >= 0; --AnimationAssetIndex)
+	{
+		if (const FPoseSearchDatabaseAnimationAssetBase* AnimationAssetBase = AnimationAssets[AnimationAssetIndex].GetPtr<FPoseSearchDatabaseAnimationAssetBase>())
+		{
+			if (AnimationAssetBase->bSynchronizeWithExternalDependency && SequencesBase.Contains(AnimationAssetBase->GetAnimationAsset()))
+			{
+				AnimationAssets.RemoveAt(AnimationAssetIndex);
+				bModified = true;
+			}
+		}
+	}
+
+	// readding the required / updated references
+	for (UAnimSequenceBase* SequenceBase : SequencesBase)
+	{
+		if (SequenceBase)
+		{
+			for (const FAnimNotifyEvent& NotifyEvent : SequenceBase->Notifies)
+			{
+				if (const UAnimNotifyState_PoseSearchBranchIn* PoseSearchBranchIn = Cast<UAnimNotifyState_PoseSearchBranchIn>(NotifyEvent.NotifyStateClass))
+				{
+					if (PoseSearchBranchIn->Database == this)
+					{
+						if (UAnimSequence* Sequence = Cast<UAnimSequence>(SequenceBase))
+						{
+							FPoseSearchDatabaseSequence DatabaseSequence;
+							DatabaseSequence.Sequence = Sequence;
+							DatabaseSequence.SamplingRange = FFloatInterval(NotifyEvent.GetTriggerTime(), NotifyEvent.GetEndTriggerTime());
+							DatabaseSequence.bSynchronizeWithExternalDependency = true;
+							AnimationAssets.Add(FInstancedStruct::Make(DatabaseSequence));
+							bModified = true;
+						}
+						else if (UAnimComposite* AnimComposite = Cast<UAnimComposite>(SequenceBase))
+						{
+							FPoseSearchDatabaseAnimComposite DatabaseAnimComposite;
+							DatabaseAnimComposite.AnimComposite = AnimComposite;
+							DatabaseAnimComposite.SamplingRange = FFloatInterval(NotifyEvent.GetTriggerTime(), NotifyEvent.GetEndTriggerTime());
+							DatabaseAnimComposite.bSynchronizeWithExternalDependency = true;
+							AnimationAssets.Add(FInstancedStruct::Make(DatabaseAnimComposite));
+							bModified = true;
+						}
+						else if (UAnimMontage* AnimMontage = Cast<UAnimMontage>(SequenceBase))
+						{
+							FPoseSearchDatabaseAnimMontage DatabaseAnimMontage;
+							DatabaseAnimMontage.AnimMontage = AnimMontage;
+							DatabaseAnimMontage.SamplingRange = FFloatInterval(NotifyEvent.GetTriggerTime(), NotifyEvent.GetEndTriggerTime());
+							DatabaseAnimMontage.bSynchronizeWithExternalDependency = true;
+							AnimationAssets.Add(FInstancedStruct::Make(DatabaseAnimMontage));
+							bModified = true;
+						}
+					}
+				}
+			}
+		}
+	}
+
+	if (bModified)
+	{
+		Modify();
+		NotifySynchronizeWithExternalDependencies();
 	}
 }
 
@@ -746,8 +774,11 @@ bool UPoseSearchDatabase::IsCachedCookedPlatformDataLoaded(const ITargetPlatform
 void UPoseSearchDatabase::PreSaveRoot(FObjectPreSaveRootContext ObjectSaveContext)
 {
 #if WITH_EDITOR
+	// in case the database desynchronized with the UAnimNotifyState_PoseSearchBranchIn referencing it, we need to resyncrhonize
 	SynchronizeWithExternalDependencies();
 #endif
+
+	Super::PreSaveRoot(ObjectSaveContext);
 }
 
 void UPoseSearchDatabase::PostSaveRoot(FObjectPostSaveRootContext ObjectSaveContext)

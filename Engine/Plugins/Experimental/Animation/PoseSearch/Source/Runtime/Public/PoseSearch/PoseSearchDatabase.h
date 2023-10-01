@@ -99,6 +99,13 @@ struct POSESEARCH_API FPoseSearchDatabaseAnimationAssetBase
 	// It requires the mirror table to be set up in the config file.
 	UPROPERTY(EditAnywhere, Category = "Settings", meta = (DisplayPriority = 3))
 	EPoseSearchMirrorOption MirrorOption = EPoseSearchMirrorOption::UnmirroredOnly;
+
+#if WITH_EDITORONLY_DATA
+	// SynchronizeWithExternalDependency is true when this asset has been added via SynchronizeWithExternalDependencies.
+	// To delete it, remove the PoseSearchBranchIn notify state
+	UPROPERTY(VisibleAnywhere, Category = "Settings", meta = (DisplayPriority = 20))
+	bool bSynchronizeWithExternalDependency = false;
+#endif // WITH_EDITORONLY_DATA
 };
 
 /** A sequence entry in a UPoseSearchDatabase. */
@@ -364,7 +371,7 @@ public:
 	void NotifySynchronizeWithExternalDependencies() const { OnSynchronizeWithExternalDependencies.Broadcast(); }
 
 	void SynchronizeWithExternalDependencies();
-	void SynchronizeWithExternalDependencies(UAnimSequenceBase* SequenceBase);
+	void SynchronizeWithExternalDependencies(TConstArrayView<UAnimSequenceBase*> SequencesBase);
 #endif // WITH_EDITOR
 
 private:
