@@ -272,11 +272,11 @@ void FlushAsyncLoading(TConstArrayView<int32> RequestIds)
 	CheckImageIntegrityAtRuntime();
 #endif
 	LLM_SCOPE(ELLMTag::AsyncLoading);
-	checkf(IsInGameThread(), TEXT("Unable to FlushAsyncLoading from any thread other than the game thread."));
+
 	if (GPackageLoader)
 	{
 #if NO_LOGGING == 0
-		if (IsAsyncLoading())
+		if (IsAsyncLoading() && IsInGameThread())
 		{
 			// Log the flush, but only display once per frame to avoid log spam.
 			static uint64 LastFrameNumber = -1;

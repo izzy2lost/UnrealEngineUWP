@@ -7500,6 +7500,8 @@ void FAsyncLoadingThread::FlushLoading(TConstArrayView<int32> RequestIDs)
 {
  	if (IsAsyncLoadingPackages())
 	{
+		checkf(IsInGameThread(), TEXT("The current loader %s is unable to FlushAsyncLoading from any thread other than the game thread."), *GetLoaderName().ToString());
+
 		// Flushing async loading while loading is suspend will result in infinite stall
 		UE_CLOG(IsAsyncLoadingSuspendedInternal(), LogStreaming, Fatal, TEXT("Cannot Flush Async Loading while async loading is suspended (%d)"), GetAsyncLoadingSuspendedCount());
 

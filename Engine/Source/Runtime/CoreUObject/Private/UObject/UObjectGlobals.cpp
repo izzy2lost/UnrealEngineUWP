@@ -1638,7 +1638,6 @@ UPackage* LoadPackageInternal(UPackage* InOuter, const FPackagePath& PackagePath
 		UE_LOG(LogUObjectGlobals, Warning, TEXT("Attempted to LoadPackage from empty PackagePath."));
 		return nullptr;
 	}
-	checkf(IsInGameThread(), TEXT("Unable to load %s. Objects and Packages can only be loaded from the game thread."), *PackagePath.GetDebugName());
 
 	FUObjectThreadContext& ThreadContext = FUObjectThreadContext::Get();
 	if (ShouldAlwaysLoadPackageAsync(PackagePath))
@@ -1653,7 +1652,10 @@ UPackage* LoadPackageInternal(UPackage* InOuter, const FPackagePath& PackagePath
 
 		UE_TRACK_REFERENCING_PACKAGE_SCOPED(PackageName, PackageAccessTrackingOps::NAME_Load);
 
-		if (FCoreDelegates::OnSyncLoadPackage.IsBound())
+		// This delegate is not thread-safe and the subscribers are mostly interested by sync loads
+		// that might stall the game thread anyway. So for now, do not broadcast when sync loading
+		// from the loading thread.
+		if (IsInGameThread() && FCoreDelegates::OnSyncLoadPackage.IsBound())
 		{
 			FCoreDelegates::OnSyncLoadPackage.Broadcast(PackageName.ToString());
 		}
@@ -1702,6 +1704,7 @@ UPackage* LoadPackageInternal(UPackage* InOuter, const FPackagePath& PackagePath
 		}
 	}
 
+	checkf(IsInGameThread(), TEXT("Unable to load %s. Objects and Packages can only be loaded from the game thread with the currently active loader '%s'."), *PackagePath.GetDebugName(), *GetLoaderName().ToString());
 	UPackage* Result = nullptr;
 
 #if WITH_EDITOR

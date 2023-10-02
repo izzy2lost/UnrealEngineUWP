@@ -96,6 +96,9 @@ protected:
 		check(FindObject<UPackage>(nullptr, PackagePath1) == nullptr);
 		check(FindObject<UAsyncLoadingTests_RecursiveLoads>(nullptr, ObjectPath2) == nullptr);
 		check(FindObject<UPackage>(nullptr, PackagePath2) == nullptr);
+
+		UAsyncLoadingTests_RecursiveLoads::OnPostLoadEvent.Clear();
+		UAsyncLoadingTests_RecursiveLoads::OnSerializeEvent.Clear();
 	}
 
 	bool CanRunInEnvironment(const FString& TestParams, FString* OutReason, bool* OutWarn) const override
@@ -141,7 +144,7 @@ IMPLEMENT_CUSTOM_SIMPLE_AUTOMATION_TEST(
 )
 bool FLoadingTests_RecursiveLoads_FromSerialize::RunTest(const FString& Parameters)
 {
-	FDelegateHandle DelegateHandle = UAsyncLoadingTests_RecursiveLoads::OnSerializeEvent.AddLambda(
+	UAsyncLoadingTests_RecursiveLoads::OnSerializeEvent.AddLambda(
 		[this](FArchive& Ar, UAsyncLoadingTests_RecursiveLoads* Object)
 		{
 			if (Ar.IsLoading())
@@ -154,11 +157,6 @@ bool FLoadingTests_RecursiveLoads_FromSerialize::RunTest(const FString& Paramete
 			}
 		}
 	);
-
-	ON_SCOPE_EXIT
-	{
-		UAsyncLoadingTests_RecursiveLoads::OnSerializeEvent.Remove(DelegateHandle);
-	};
 
 	return DoTest();
 }
@@ -175,7 +173,7 @@ IMPLEMENT_CUSTOM_SIMPLE_AUTOMATION_TEST(
 
 bool FLoadingTests_RecursiveLoads_FromPostLoad::RunTest(const FString& Parameters)
 {
-	FDelegateHandle DelegateHandle = UAsyncLoadingTests_RecursiveLoads::OnPostLoadEvent.AddLambda(
+	UAsyncLoadingTests_RecursiveLoads::OnPostLoadEvent.AddLambda(
 		[this](UAsyncLoadingTests_RecursiveLoads* Object)
 		{
 			if (UObject* Obj = Object->SoftReference.LoadSynchronous())
@@ -185,18 +183,13 @@ bool FLoadingTests_RecursiveLoads_FromPostLoad::RunTest(const FString& Parameter
 		}
 	);
 
-	ON_SCOPE_EXIT
-	{
-		UAsyncLoadingTests_RecursiveLoads::OnPostLoadEvent.Remove(DelegateHandle);
-	};
-
 	return DoTest();
 }
 
 /**
  * This test validates an error is emitted when flushing a requestid that is not a partial load from inside a recursive function.
  */
-class FLoadingTests_RecursiveLoads_FullFlushFromSerialize_Base : public FLoadingTests_RecursiveLoads
+class FLoadingTests_RecursiveLoads_FullFlushFrom_Base : public FLoadingTests_RecursiveLoads
 {
 public:
 	using FLoadingTests_RecursiveLoads::FLoadingTests_RecursiveLoads;
@@ -213,16 +206,16 @@ protected:
 };
 
 IMPLEMENT_CUSTOM_SIMPLE_AUTOMATION_TEST(
-	FLoadingTests_RecursiveLoads_FullFlushFromSerialize,
-	FLoadingTests_RecursiveLoads_FullFlushFromSerialize_Base,
-	TEXT("System.Engine.Loading.RecursiveLoads.FullFlushFromSerialize"),
+	FLoadingTests_RecursiveLoads_FullFlushFrom_Serialize,
+	FLoadingTests_RecursiveLoads_FullFlushFrom_Base,
+	TEXT("System.Engine.Loading.RecursiveLoads.FullFlushFrom.Serialize"),
 	EAutomationTestFlags::ApplicationContextMask | EAutomationTestFlags::EngineFilter
 )
-bool FLoadingTests_RecursiveLoads_FullFlushFromSerialize::RunTest(const FString& Parameters)
+bool FLoadingTests_RecursiveLoads_FullFlushFrom_Serialize::RunTest(const FString& Parameters)
 {
-	AddExpectedError(TEXT("can lead to undefined behavior and is strongly discouraged"), EAutomationExpectedErrorFlags::Contains);
+	AddExpectedError(TEXT("would lead into a deadlock. Demoting requestID"), EAutomationExpectedErrorFlags::Contains);
 
-	FDelegateHandle DelegateHandle = UAsyncLoadingTests_RecursiveLoads::OnSerializeEvent.AddLambda(
+	UAsyncLoadingTests_RecursiveLoads::OnSerializeEvent.AddLambda(
 		[this](FArchive& Ar, UAsyncLoadingTests_RecursiveLoads* Object)
 		{
 			// Do not try to flush ourself as this would lead to a fatal error :)
@@ -232,14 +225,41 @@ bool FLoadingTests_RecursiveLoads_FullFlushFromSerialize::RunTest(const FString&
 				// Flush the requestId that has been created outside of the recursive load. This request
 				// should be a full request and flushing it should result in an error being reported.
 				FlushAsyncLoading(RequestId);
+
+				UAsyncLoadingTests_RecursiveLoads* Object2 = FindObject<UAsyncLoadingTests_RecursiveLoads>(nullptr, ObjectPath2);
+				TestFalse(TEXT("The object should be serialized"), Object2->HasAnyFlags(RF_NeedLoad));
+				TestTrue(TEXT("The object should not have been postloaded"), Object2->HasAnyFlags(RF_NeedPostLoad));
 			}
 		}
 	);
 
-	ON_SCOPE_EXIT
-	{
-		UAsyncLoadingTests_RecursiveLoads::OnSerializeEvent.Remove(DelegateHandle);
-	};
+	return DoTest();
+}
+
+IMPLEMENT_CUSTOM_SIMPLE_AUTOMATION_TEST(
+	FLoadingTests_RecursiveLoads_FullFlushFrom_PostLoad,
+	FLoadingTests_RecursiveLoads_FullFlushFrom_Base,
+	TEXT("System.Engine.Loading.RecursiveLoads.FullFlushFrom.Postload"),
+	EAutomationTestFlags::ApplicationContextMask | EAutomationTestFlags::EngineFilter
+)
+bool FLoadingTests_RecursiveLoads_FullFlushFrom_PostLoad::RunTest(const FString& Parameters)
+{
+	UAsyncLoadingTests_RecursiveLoads::OnPostLoadEvent.AddLambda(
+		[this](UAsyncLoadingTests_RecursiveLoads* Object)
+		{
+			// Do not try to flush ourself as this would lead to a fatal error :)
+			// Just flush Package2 when we're in Package1
+			if (Object->GetPathName() == ObjectPath1)
+			{
+				// Flush the requestId that has been created outside of the recursive load. This request
+				// should be a full request and flushing it should result in an error being reported.
+				FlushAsyncLoading(RequestId);
+
+				UAsyncLoadingTests_RecursiveLoads* Object2 = FindObject<UAsyncLoadingTests_RecursiveLoads>(nullptr, ObjectPath2);
+				TestFalse(TEXT("The object should be serialized and postloaded"), Object2->HasAnyFlags(RF_NeedLoad | RF_NeedPostLoad));
+			}
+		}
+	);
 
 	return DoTest();
 }
