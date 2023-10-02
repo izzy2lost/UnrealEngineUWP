@@ -4,6 +4,7 @@
 
 #include "UObject/Object.h"
 #include "UObject/UObjectGlobals.h"
+#include "Templates/SubclassOf.h"
 #include "CookedMetaData.generated.h"
 
 /**
