@@ -266,6 +266,21 @@ float FMeshSimplifier::EvaluateMerge( const FVector3f& Position0, const FVector3
 		return 0.0f;
 	}
 
+	// This would mean this collapse will remove all remaining triangles.
+	if( VertDegree == RemainingNumTris * 2 )
+	{
+		// Clean up corner flags
+		check( AdjTris.Num() > 0 );
+		for( uint32 TriIndex : AdjTris )
+		{
+			for( uint32 CornerIndex = 0; CornerIndex < 3; CornerIndex++ )
+			{
+				CornerFlags[ TriIndex * 3 + CornerIndex ] &= ~( MergeMask | AdjTriMask );
+			}
+		}
+		return 0.0f;
+	}
+
 	bool bLocked0 = FlagsUnion0 & LockedVertMask;
 	bool bLocked1 = FlagsUnion1 & LockedVertMask;
 
