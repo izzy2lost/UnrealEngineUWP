@@ -2089,11 +2089,6 @@ TSharedPtr<SDockTab> FTabManager::SpawnTab(const FTabId& TabId, const TSharedPtr
 			bSpawningAllowedBySpawner = false;
 		}
 	}
-	else
-	{
-	
-		bSpawningAllowedBySpawner = false;
-	}
 
 	// The tab was allowed to be spawned but failed for some reason
 	if (bSpawningAllowedBySpawner && !NewTabWidget.IsValid())
