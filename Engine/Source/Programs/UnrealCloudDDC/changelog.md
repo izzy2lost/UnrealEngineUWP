@@ -1,5 +1,6 @@
 # Unreleased
 
+# 0.4.0
 * *Breaking* The scylla connection string now needs to include the default keyspace, a example connection string is  `Contact Points=your-scylla-dns.your-domain.com;;Default Keyspace=jupiter;`. The keyspace is `jupiter` is you are migrating from older releases. This allows you to also set the keyspace to something different if you want to run multiple instances of Unreal Cloud DDC against the same scylla cluster.)
 * Migration options from `0.3.0` have been updated to assume you have migrated by default.
 * Added `prepareNvmeFilesystem` section in Helm chart that creates a initContainer which will format a attached nvme drive.
