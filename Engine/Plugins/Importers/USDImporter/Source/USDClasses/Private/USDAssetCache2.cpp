@@ -630,6 +630,8 @@ void UUsdAssetCache2::PostEditChangeProperty(FPropertyChangedEvent& PropertyChan
 	{
 		RefreshStorage();
 	}
+
+	Super::PostEditChangeProperty(PropertyChangedEvent);
 }
 #endif // #if WITH_EDITOR
 
