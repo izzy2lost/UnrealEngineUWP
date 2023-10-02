@@ -69,6 +69,12 @@ void FRigVMEditorModule::StartupModule()
 		// Register Blueprint editor variable customization
 		FBlueprintEditorModule& BlueprintEditorModule = FModuleManager::LoadModuleChecked<FBlueprintEditorModule>("Kismet");
 		BlueprintVariableCustomizationHandle = BlueprintEditorModule.RegisterVariableCustomization(FProperty::StaticClass(), FOnGetVariableCustomizationInstance::CreateStatic(&FRigVMVariableDetailCustomization::MakeInstance));
+
+		IAssetRegistry* AssetRegistry = IAssetRegistry::Get();
+		if (ensure(AssetRegistry))
+		{
+			AssetRegistry->OnAssetRemoved().AddStatic(&FRigVMBlueprintUtils::HandleAssetDeleted);
+		}
 	}
 
 	StartupModuleCommon();

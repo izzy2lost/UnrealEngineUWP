@@ -1,6 +1,8 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 
 #include "RigVMBlueprintUtils.h"
+
+#include "BlueprintActionDatabase.h"
 #include "Kismet2/BlueprintEditorUtils.h"
 #include "RigVMCore/RigVMStruct.h"
 #include "UObject/UObjectIterator.h"
@@ -135,6 +137,17 @@ void FRigVMBlueprintUtils::HandleRefreshAllNodes(UBlueprint* InBlueprint)
 		}
 	}
 #endif
+}
+
+void FRigVMBlueprintUtils::HandleAssetDeleted(const FAssetData& InAssetData)
+{
+	if (InAssetData.GetClass()->IsChildOf(URigVMBlueprint::StaticClass()))
+	{
+		// Make sure any RigVMBlueprint removes any TypeActions related to this asset (e.g. public functions)
+		FBlueprintActionDatabase& ActionDatabase = FBlueprintActionDatabase::Get();
+		ActionDatabase.ClearAssetActions(InAssetData.GetClass());
+		ActionDatabase.RefreshClassActions(InAssetData.GetClass());
+	}
 }
 
 void FRigVMBlueprintUtils::RemoveMemberVariableIfNotUsed(UBlueprint* Blueprint, const FName VarName)

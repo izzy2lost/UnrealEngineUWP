@@ -1125,20 +1125,12 @@ void FRigVMEditor::SaveAsset_Execute()
 {
 	LastDebuggedHost = GetCustomDebugObjectLabel(GetBlueprintObj()->GetObjectBeingDebugged());
 	FBlueprintEditor::SaveAsset_Execute();
-
-	FBlueprintActionDatabase& ActionDatabase = FBlueprintActionDatabase::Get();
-	ActionDatabase.ClearAssetActions(URigVMBlueprint::StaticClass());
-	ActionDatabase.RefreshClassActions(URigVMBlueprint::StaticClass());
 }
 
 void FRigVMEditor::SaveAssetAs_Execute()
 {
 	LastDebuggedHost = GetCustomDebugObjectLabel(GetBlueprintObj()->GetObjectBeingDebugged());
 	FBlueprintEditor::SaveAssetAs_Execute();
-
-	FBlueprintActionDatabase& ActionDatabase = FBlueprintActionDatabase::Get();
-	ActionDatabase.ClearAssetActions(URigVMBlueprint::StaticClass());
-	ActionDatabase.RefreshClassActions(URigVMBlueprint::StaticClass());
 }
 
 bool FRigVMEditor::IsEditable(UEdGraph* InGraph) const
