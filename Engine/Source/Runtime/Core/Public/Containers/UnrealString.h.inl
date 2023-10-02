@@ -2119,6 +2119,18 @@ inline void LexFromString(double& OutValue, 			const TCHAR* Buffer)	{	OutValue =
 inline void LexFromString(bool& OutValue, 				const TCHAR* Buffer)	{	OutValue = FCString::ToBool(Buffer);	}
 inline void LexFromString(UE_STRING_CLASS& OutValue, 	const TCHAR* Buffer)	{	OutValue = Buffer;						}
 
+template <typename StringType = FString>
+UE_NODISCARD FORCEINLINE StringType LexToString(UE_STRING_CLASS&& Str)
+{
+	return MoveTemp(Str);
+}
+
+template <typename StringType = FString>
+UE_NODISCARD FORCEINLINE StringType LexToString(const UE_STRING_CLASS& Str)
+{
+	return Str;
+}
+
 /**
  * Gets a non-owning TCHAR pointer from a string type.
  *

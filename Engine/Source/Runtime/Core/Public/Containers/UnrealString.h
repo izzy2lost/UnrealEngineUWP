@@ -149,16 +149,6 @@ UE_NODISCARD inline FString LexToString(bool Value)
 	return Value ? TEXT("true") : TEXT("false");
 }
 
-UE_NODISCARD FORCEINLINE FString LexToString(FString&& Str)
-{
-	return MoveTemp(Str);
-}
-
-UE_NODISCARD FORCEINLINE FString LexToString(const FString& Str)
-{
-	return Str;
-}
-
 /** Helper template to convert to sanitized strings */
 template<typename T>
 UE_NODISCARD FString LexToSanitizedString(const T& Value)
