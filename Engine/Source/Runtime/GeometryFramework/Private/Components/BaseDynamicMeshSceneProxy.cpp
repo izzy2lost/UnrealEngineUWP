@@ -335,7 +335,7 @@ void FBaseDynamicMeshSceneProxy::GetCollisionDynamicMeshElements(TArray<FMeshRen
 		return;
 	}
 
-	// Note: This is closely following StaticMeshRendering.cpp's collision rendering code, from its GetDynamicMeshElements() implementation
+	// Note: This is closely following StaticMeshRender.cpp's collision rendering code, from its GetDynamicMeshElements() implementation
 	FColor SimpleCollisionColor = FColor(157, 149, 223, 255);
 	FColor ComplexCollisionColor = FColor(0, 255, 255, 255);
 
@@ -408,8 +408,7 @@ void FBaseDynamicMeshSceneProxy::GetCollisionDynamicMeshElements(TArray<FMeshRen
 
 			if((bDrawSimpleCollision || bDrawSimpleWireframeCollision))
 			{
-				// Note: The static mesh rendering code caches the BodySetup as a class member; if fetching it here is a performance issue, could consider doing the same
-				if (UBodySetup* BodySetup = ParentBaseComponent->GetBodySetup())
+				if (ParentBaseComponent->GetBodySetup())
 				{
 					// Avoid zero scaling, otherwise GeomTransform below will assert
 					if (FMath::Abs(GetLocalToWorld().Determinant()) > UE_SMALL_NUMBER)
@@ -427,13 +426,13 @@ void FBaseDynamicMeshSceneProxy::GetCollisionDynamicMeshElements(TArray<FMeshRen
 							Collector.RegisterOneFrameMaterialProxy(SolidMaterialInstance);
 
 							FTransform GeomTransform(GetLocalToWorld());
-							BodySetup->AggGeom.GetAggGeom(GeomTransform, GetWireframeColor().ToFColor(true), SolidMaterialInstance, false, true, AlwaysHasVelocity(), ViewIndex, Collector);
+							CachedAggGeom.GetAggGeom(GeomTransform, GetWireframeColor().ToFColor(true), SolidMaterialInstance, false, true, AlwaysHasVelocity(), ViewIndex, Collector);
 						}
 						// wireframe
 						else
 						{
 							FTransform GeomTransform(GetLocalToWorld());
-							BodySetup->AggGeom.GetAggGeom(GeomTransform, GetSelectionColor(SimpleCollisionColor, bProxyIsSelected, IsHovered()).ToFColor(true), NULL, bOwnerIsNull, false, AlwaysHasVelocity(), ViewIndex, Collector);
+							CachedAggGeom.GetAggGeom(GeomTransform, GetSelectionColor(SimpleCollisionColor, bProxyIsSelected, IsHovered()).ToFColor(true), NULL, bOwnerIsNull, false, AlwaysHasVelocity(), ViewIndex, Collector);
 						}
 
 						// Note: if dynamic mesh component could have nav collision data, we'd also draw that here (see the similar code in StaticMeshRenderer.cpp)
@@ -478,6 +477,11 @@ void FBaseDynamicMeshSceneProxy::SetCollisionData()
 	if (UBodySetup* BodySetup = ParentBaseComponent->GetBodySetup())
 	{
 		CollisionTraceFlag = BodySetup->GetCollisionTraceFlag();
+		CachedAggGeom = BodySetup->AggGeom;
+	}
+	else
+	{
+		CachedAggGeom = FKAggregateGeom();
 	}
 	CollisionResponse = ParentBaseComponent->GetCollisionResponseToChannels();
 #endif

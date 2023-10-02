@@ -14,6 +14,8 @@
 #include "Components/BaseDynamicMeshComponent.h"
 #include "RayTracingGeometry.h"
 
+#include "PhysicsEngine/AggregateGeom.h"
+
 using UE::Geometry::FDynamicMesh3;
 using UE::Geometry::FDynamicMeshAttributeSet;
 using UE::Geometry::FDynamicMeshUVOverlay;
@@ -1017,6 +1019,9 @@ private:
 	ECollisionTraceFlag		CollisionTraceFlag;
 	/** Collision Response of this component */
 	FCollisionResponseContainer CollisionResponse;
+	/** Cached AggGeom holding the collision shapes to render */
+	FKAggregateGeom CachedAggGeom;
+
 #endif
 
 	GEOMETRYFRAMEWORK_API bool IsCollisionView(const FEngineShowFlags& EngineShowFlags, bool& bDrawSimpleCollision, bool& bDrawComplexCollision) const;
