@@ -1259,7 +1259,15 @@ private:
 
 	UNREALED_API FString GetMountedAssetPathForDLC() const;
 
+	static FString GetMountedAssetPathForPlugin(const FString& InPluginName);
+
 	FString GetMetadataDirectory() const;
+
+	/**
+	 * In a recook build, gets the list of plugins that need to be recooked, which includes DLCName if cooking a DLC
+	 * and all the plugins specified by the -CookPlugins command line parameter.
+	 */
+	void GetPluginsToRecook(TSet<FString>& OutPlugins) const;
 
 	/**
 	 * Is the local CookOnTheFlyServer cooking a Project+Engine+EmbeddedPlugin Release that can be used as a
