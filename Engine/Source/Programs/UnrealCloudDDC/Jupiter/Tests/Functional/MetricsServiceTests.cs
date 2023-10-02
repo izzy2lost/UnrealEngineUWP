@@ -154,7 +154,6 @@ namespace Jupiter.FunctionalTests.Metrics
 			Assert.AreEqual(44, stats0.LargestBlob);
 			Assert.AreEqual(19.0, stats0.AvgSize);
 
-
 			Assert.AreEqual(10, stats1.TotalSize);
 			Assert.AreEqual(4, stats1.SmallestBlobFound);
 			Assert.AreEqual(6, stats1.LargestBlob);
