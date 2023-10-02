@@ -186,6 +186,18 @@ namespace UnrealBuildTool
 
 					// Create all the binaries and modules
 					CppCompileEnvironment GlobalCompileEnvironment = Target.CreateCompileEnvironmentForProjectFiles(Logger);
+					// Some of our platform-specific wrappers check against this preprocessor macro, which `clang`/`clang-cl` will not set by default.
+					if (!GlobalCompileEnvironment.Architectures.bIsMultiArch)  // For now, this will only handle single-architecture builds since setting both macros at once doesn't really make sense.
+					{
+						if (GlobalCompileEnvironment.Architecture.bIsX64)
+						{
+							GlobalCompileEnvironment.AdditionalArguments = "-DPLATFORM_CPU_X86_FAMILY";
+						}
+						else  // Currently, this assumes that non-x64 arch means we're running on ARM.
+						{
+							GlobalCompileEnvironment.AdditionalArguments = "-DPLATFORM_CPU_ARM_FAMILY";
+						}
+					}
 					foreach (UEBuildBinary Binary in Target.Binaries)
 					{
 						CppCompileEnvironment BinaryCompileEnvironment = Binary.CreateBinaryCompileEnvironment(GlobalCompileEnvironment);

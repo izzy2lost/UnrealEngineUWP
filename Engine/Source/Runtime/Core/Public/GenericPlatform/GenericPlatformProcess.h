@@ -819,7 +819,7 @@ struct FGenericPlatformProcess
 		if (FPlatformMisc::HasTimedPauseCPUFeature())
 		{
 			uint64 PauseCycles = ReadCycleCounter() + Cycles;
-#if defined(_MSC_VER) && !defined(__clang__)
+#if defined(_MSC_VER)
 			_tpause(0, PauseCycles);
 #elif __has_builtin(__builtin_ia32_tpause)
 			__builtin_ia32_tpause(0, (uint32)(PauseCycles >> 32), (uint32)PauseCycles);
