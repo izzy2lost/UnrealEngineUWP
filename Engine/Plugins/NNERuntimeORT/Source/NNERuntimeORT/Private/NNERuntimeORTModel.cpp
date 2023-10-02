@@ -15,10 +15,10 @@ NNE_THIRD_PARTY_INCLUDES_START
 
 #undef check
 #undef TEXT
-#include "core/providers/cpu/cpu_provider_factory.h"
+#include "cpu_provider_factory.h"
 
 #if PLATFORM_WINDOWS
-#include "core/providers/dml/dml_provider_factory.h"
+#include "dml_provider_factory.h"
 #endif //PLATFORM_WINDOWS
 
 NNE_THIRD_PARTY_INCLUDES_END
@@ -112,7 +112,7 @@ namespace UE::NNERuntimeORT::Private
 
 			// Get node type
 			const Ort::TypeInfo CurrentTypeInfo = bAreTensorInputs ? Session->GetInputTypeInfo(TensorIndex) : Session->GetOutputTypeInfo(TensorIndex);
-			const Ort::Unowned<Ort::TensorTypeAndShapeInfo> CurrentTensorInfo = CurrentTypeInfo.GetTensorTypeAndShapeInfo();
+			const Ort::ConstTensorTypeAndShapeInfo CurrentTensorInfo = CurrentTypeInfo.GetTensorTypeAndShapeInfo();
 			const ONNXTensorElementDataType ONNXTensorElementDataTypeEnum = CurrentTensorInfo.GetElementType();
 			const TypeInfoORT TypeInfo = TranslateTensorTypeORTToNNE(ONNXTensorElementDataTypeEnum);
 

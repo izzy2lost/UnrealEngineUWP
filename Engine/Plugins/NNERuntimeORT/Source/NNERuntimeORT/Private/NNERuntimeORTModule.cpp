@@ -33,21 +33,17 @@ namespace UE::NNERuntimeORT::Private::DllHelper
 		DllHandles.Add(DllHandle);
 		return true;
 	}
-}
+	}
 
 void FNNERuntimeORTModule::StartupModule()
 {
 #if PLATFORM_WINDOWS
 	const FString PluginDir = IPluginManager::Get().FindPlugin("NNERuntimeORT")->GetBaseDir();
 	const FString OrtBinPath = FPaths::Combine(PluginDir, TEXT(PREPROCESSOR_TO_STRING(ONNXRUNTIME_PLATFORM_PATH)));
-	bool bAreDllsLoaded = true;
 
-	bAreDllsLoaded &= UE::NNERuntimeORT::Private::DllHelper::GetDllHandle(FPaths::Combine(OrtBinPath, TEXT("onnxruntime.dll")), DllHandles);
-	bAreDllsLoaded &= UE::NNERuntimeORT::Private::DllHelper::GetDllHandle(FPaths::Combine(OrtBinPath, TEXT("onnxruntime_providers_shared.dll")), DllHandles);
-
-	if (!bAreDllsLoaded)
+	if (!UE::NNERuntimeORT::Private::DllHelper::GetDllHandle(FPaths::Combine(OrtBinPath, TEXT("onnxruntime.dll")), DllHandles))
 	{
-		UE_LOG(LogNNE, Error, TEXT("Failed to load OnnxRuntime Dlls. ORT Runtimes won't be available."));
+		UE_LOG(LogNNE, Error, TEXT("Failed to load OnnxRuntime shared library. ORT Runtimes won't be available."));
 		return;
 	}
 
