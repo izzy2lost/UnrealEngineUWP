@@ -13,6 +13,9 @@
 #ifdef UE_STRING_CHARTYPE
 	#error "UnrealStringIncludes.h.inl should not be included after defining UE_STRING_CHARTYPE"
 #endif
+#ifdef UE_STRING_CHARTYPE_IS_TCHAR
+	#error "UnrealStringIncludes.h.inl should not be included after defining UE_STRING_CHARTYPE_IS_TCHAR"
+#endif
 
 #include "CoreTypes.h"
 #include "Misc/VarArgs.h"

@@ -13,6 +13,9 @@
 #ifdef UE_STRING_CHARTYPE
 	#error "StringIncludes.cpp.inl should not be included after defining UE_STRING_CHARTYPE"
 #endif
+#ifdef UE_STRING_CHARTYPE_IS_TCHAR
+	#error "StringIncludes.cpp.inl should not be included after defining UE_STRING_CHARTYPE_IS_TCHAR"
+#endif
 
 #include "Containers/Array.h"
 #include "Containers/StringConv.h"

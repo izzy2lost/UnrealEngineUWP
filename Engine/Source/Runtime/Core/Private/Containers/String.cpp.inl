@@ -16,6 +16,9 @@
 #ifndef UE_STRING_CHARTYPE
 	#error "String.cpp.inl should only be included after defining UE_STRING_CHARTYPE"
 #endif
+#ifndef UE_STRING_CHARTYPE_IS_TCHAR
+	#error "String.cpp.inl should only be included after defining UE_STRING_CHARTYPE_IS_TCHAR"
+#endif
 
  /* String implementation
  *****************************************************************************/
@@ -1713,138 +1716,135 @@ FArchive& operator<<( FArchive& Ar, UE_STRING_CLASS& A )
 {
 	using ElementType = UE_STRING_CLASS::ElementType;
 
-	if constexpr (std::is_same_v<ElementType, TCHAR>)
+#if UE_STRING_CHARTYPE_IS_TCHAR
+	// > 0 for ANSICHAR, < 0 for UTF16CHAR serialization
+	static_assert(sizeof(UTF16CHAR) == sizeof(UCS2CHAR), "UTF16CHAR and UCS2CHAR are assumed to be the same size!");
+
+	if (Ar.IsLoading())
 	{
-		// > 0 for ANSICHAR, < 0 for UTF16CHAR serialization
-		static_assert(sizeof(UTF16CHAR) == sizeof(UCS2CHAR), "UTF16CHAR and UCS2CHAR are assumed to be the same size!");
+		int32 SaveNum = 0;
+		Ar << SaveNum;
 
-		if (Ar.IsLoading())
+		bool bLoadUnicodeChar = SaveNum < 0;
+		if (bLoadUnicodeChar)
 		{
-			int32 SaveNum = 0;
-			Ar << SaveNum;
-
-			bool bLoadUnicodeChar = SaveNum < 0;
-			if (bLoadUnicodeChar)
-			{
-				// If SaveNum cannot be negated due to integer overflow, Ar is corrupted.
-				if (SaveNum == MIN_int32)
-				{
-					Ar.SetCriticalError();
-					UE_LOG(LogCore, Error, CHARTEXT(ElementType, "Archive is corrupted"));
-					return Ar;
-				}
-
-				SaveNum = -SaveNum;
-			}
-
-			int64 MaxSerializeSize = Ar.GetMaxSerializeSize();
-			// Protect against network packets allocating too much memory
-			if ((MaxSerializeSize > 0) && (SaveNum > MaxSerializeSize))
+			// If SaveNum cannot be negated due to integer overflow, Ar is corrupted.
+			if (SaveNum == MIN_int32)
 			{
 				Ar.SetCriticalError();
-				UE_LOG(LogCore, Error, CHARTEXT(ElementType, "String is too large (Size: %i, Max: %i)"), SaveNum, MaxSerializeSize);
+				UE_LOG(LogCore, Error, TEXT("Archive is corrupted"));
 				return Ar;
 			}
 
-			// Resize the array only if it passes the above tests to prevent rogue packets from crashing
-			A.Data.Empty(SaveNum);
-			A.Data.AddUninitialized(SaveNum);
-
-			if (SaveNum)
-			{
-				if (bLoadUnicodeChar)
-				{
-					// read in the unicode string
-					auto Passthru = StringMemoryPassthru<UCS2CHAR>(A.Data.GetData(), SaveNum, SaveNum);
-					Ar.Serialize(Passthru.Get(), SaveNum * sizeof(UCS2CHAR));
-					if (Ar.IsByteSwapping())
-					{
-						for (int32 CharIndex = 0; CharIndex < SaveNum; ++CharIndex)
-						{
-							Passthru.Get()[CharIndex] = ByteSwap(Passthru.Get()[CharIndex]);
-						}
-					}
-					// Ensure the string has a null terminator
-					Passthru.Get()[SaveNum - 1] = '\0';
-					Passthru.Apply();
-
-					// Inline combine any surrogate pairs in the data when loading into a UTF-32 string
-					StringConv::InlineCombineSurrogates(A);
-
-					// Since Microsoft's vsnwprintf implementation raises an invalid parameter warning
-					// with a character of 0xffff, scan for it and terminate the string there.
-					// 0xffff isn't an actual Unicode character anyway.
-					int Index = 0;
-					if (A.FindChar(0xffff, Index))
-					{
-						A[Index] = CHARTEXT(ElementType, '\0');
-						A.TrimToNullTerminator();
-					}
-				}
-				else
-				{
-					auto Passthru = StringMemoryPassthru<ANSICHAR>(A.Data.GetData(), SaveNum, SaveNum);
-					Ar.Serialize(Passthru.Get(), SaveNum * sizeof(ANSICHAR));
-					// Ensure the string has a null terminator
-					Passthru.Get()[SaveNum - 1] = '\0';
-					Passthru.Apply();
-				}
-
-				// Throw away empty string.
-				if (SaveNum == 1)
-				{
-					A.Data.Empty();
-				}
-			}
+			SaveNum = -SaveNum;
 		}
-		else
+
+		int64 MaxSerializeSize = Ar.GetMaxSerializeSize();
+		// Protect against network packets allocating too much memory
+		if ((MaxSerializeSize > 0) && (SaveNum > MaxSerializeSize))
 		{
-			A.Data.CountBytes(Ar);
+			Ar.SetCriticalError();
+			UE_LOG(LogCore, Error, TEXT("String is too large (Size: %i, Max: %i)"), SaveNum, MaxSerializeSize);
+			return Ar;
+		}
 
-			const bool bSaveUnicodeChar = Ar.IsForcingUnicode() || !TCString<ElementType>::IsPureAnsi(*A);
-			if (bSaveUnicodeChar)
+		// Resize the array only if it passes the above tests to prevent rogue packets from crashing
+		A.Data.Empty(SaveNum);
+		A.Data.AddUninitialized(SaveNum);
+
+		if (SaveNum)
+		{
+			if (bLoadUnicodeChar)
 			{
-				// This preprocessor block should not be necessary when the StringCast above understands UTF16CHAR.
-				FTCHARToUTF16 UTF16String(*A, A.Len() + 1); // include the null terminator
-				int32 Num = UTF16String.Length() + 1; // include the null terminator
-
-				int32 SaveNum = -Num;
-				Ar << SaveNum;
-
-				if (Num)
+				// read in the unicode string
+				auto Passthru = StringMemoryPassthru<UCS2CHAR>(A.Data.GetData(), SaveNum, SaveNum);
+				Ar.Serialize(Passthru.Get(), SaveNum * sizeof(UCS2CHAR));
+				if (Ar.IsByteSwapping())
 				{
-					if (!Ar.IsByteSwapping())
+					for (int32 CharIndex = 0; CharIndex < SaveNum; ++CharIndex)
 					{
-						Ar.Serialize((void*)UTF16String.Get(), sizeof(UTF16CHAR) * Num);
+						Passthru.Get()[CharIndex] = ByteSwap(Passthru.Get()[CharIndex]);
 					}
-					else
-					{
-						TArray<UTF16CHAR> Swapped(UTF16String.Get(), Num);
-						for (int32 CharIndex = 0; CharIndex < Num; ++CharIndex)
-						{
-							Swapped[CharIndex] = ByteSwap(Swapped[CharIndex]);
-						}
-						Ar.Serialize((void*)Swapped.GetData(), sizeof(UTF16CHAR) * Num);
-					}
+				}
+				// Ensure the string has a null terminator
+				Passthru.Get()[SaveNum - 1] = '\0';
+				Passthru.Apply();
+
+				// Inline combine any surrogate pairs in the data when loading into a UTF-32 string
+				StringConv::InlineCombineSurrogates(A);
+
+				// Since Microsoft's vsnwprintf implementation raises an invalid parameter warning
+				// with a character of 0xffff, scan for it and terminate the string there.
+				// 0xffff isn't an actual Unicode character anyway.
+				int Index = 0;
+				if (A.FindChar(0xffff, Index))
+				{
+					A[Index] = CHARTEXT(ElementType, '\0');
+					A.TrimToNullTerminator();
 				}
 			}
 			else
 			{
-				int32 Num = A.Data.Num();
-				Ar << Num;
+				auto Passthru = StringMemoryPassthru<ANSICHAR>(A.Data.GetData(), SaveNum, SaveNum);
+				Ar.Serialize(Passthru.Get(), SaveNum * sizeof(ANSICHAR));
+				// Ensure the string has a null terminator
+				Passthru.Get()[SaveNum - 1] = '\0';
+				Passthru.Apply();
+			}
 
-				if (Num)
-				{
-					Ar.Serialize((void*)StringCast<ANSICHAR>(A.Data.GetData(), Num).Get(), sizeof(ANSICHAR) * Num);
-				}
+			// Throw away empty string.
+			if (SaveNum == 1)
+			{
+				A.Data.Empty();
 			}
 		}
 	}
 	else
 	{
-		// Can just serialize as UTF-8 always
-		check(false); // TODO
+		A.Data.CountBytes(Ar);
+
+		const bool bSaveUnicodeChar = Ar.IsForcingUnicode() || !TCString<ElementType>::IsPureAnsi(*A);
+		if (bSaveUnicodeChar)
+		{
+			// This preprocessor block should not be necessary when the StringCast above understands UTF16CHAR.
+			FTCHARToUTF16 UTF16String(*A, A.Len() + 1); // include the null terminator
+			int32 Num = UTF16String.Length() + 1; // include the null terminator
+
+			int32 SaveNum = -Num;
+			Ar << SaveNum;
+
+			if (Num)
+			{
+				if (!Ar.IsByteSwapping())
+				{
+					Ar.Serialize((void*)UTF16String.Get(), sizeof(UTF16CHAR) * Num);
+				}
+				else
+				{
+					TArray<UTF16CHAR> Swapped(UTF16String.Get(), Num);
+					for (int32 CharIndex = 0; CharIndex < Num; ++CharIndex)
+					{
+						Swapped[CharIndex] = ByteSwap(Swapped[CharIndex]);
+					}
+					Ar.Serialize((void*)Swapped.GetData(), sizeof(UTF16CHAR) * Num);
+				}
+			}
+		}
+		else
+		{
+			int32 Num = A.Data.Num();
+			Ar << Num;
+
+			if (Num)
+			{
+				Ar.Serialize((void*)StringCast<ANSICHAR>(A.Data.GetData(), Num).Get(), sizeof(ANSICHAR) * Num);
+			}
+		}
 	}
+#else
+	// Can just serialize as UTF-8 always
+	check(false); // TODO
+#endif
 
 	return Ar;
 }

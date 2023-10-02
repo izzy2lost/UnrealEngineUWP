@@ -16,6 +16,9 @@
 #ifndef UE_STRING_CHARTYPE
 	#error "UnrealString.h.inl should only be included after defining UE_STRING_CHARTYPE"
 #endif
+#ifndef UE_STRING_CHARTYPE_IS_TCHAR
+	#error "UnrealString.h.inl should only be included after defining UE_STRING_CHARTYPE_IS_TCHAR"
+#endif
 
 struct PREPROCESSOR_JOIN(UE_STRING_CLASS, FormatArg);
 template<typename InKeyType,typename InValueType,typename SetAllocator ,typename KeyFuncs > class TMap;
