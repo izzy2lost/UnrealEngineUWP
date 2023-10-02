@@ -1075,7 +1075,15 @@ void FRigVMClient::HandleGraphModifiedEvent(ERigVMGraphNotifType InNotifType, UR
 
 								for (int32 i=0; i<NewFunctionReferences.Num(); ++i)
 								{
-									NewFunctionReferences[i]->ReferencedFunctionHeader = Data->Header;
+									if (!NewFunctionReferences[i].IsValid())
+									{
+										NewFunctionReferences[i].LoadSynchronous();
+									}
+									if (NewFunctionReferences[i].IsValid())
+									{
+										NewFunctionReferences[i]->ReferencedFunctionHeader = Data->Header;
+										NewFunctionReferences[i]->MarkPackageDirty();
+									}
 								}
 							}
 
