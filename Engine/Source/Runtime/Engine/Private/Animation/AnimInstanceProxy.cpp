@@ -3486,8 +3486,9 @@ void FAnimInstanceProxy::UpdateCurvesToEvaluationContext(const FAnimationEvaluat
 
 			if(EnumHasAnyFlags(InCurveFlagsElement.Flags | InCurveElement.Flags, UE::Anim::ECurveElementFlags::Material))
 			{
-				MaterialParametersToClear.Remove(InCurveElement.Name);
-				AnimationCurves[(uint8)EAnimCurveType::MaterialCurve].Add(InCurveElement.Name, InCurveElement.Value);
+				const uint32 HashedName = GetTypeHash(InCurveElement.Name);
+				MaterialParametersToClear.RemoveByHash(HashedName, InCurveElement.Name);
+				AnimationCurves[(uint8)EAnimCurveType::MaterialCurve].AddByHash(HashedName, InCurveElement.Name, InCurveElement.Value);
 			}
 		});
 }
@@ -3561,7 +3562,7 @@ void FAnimInstanceProxy::AddCurveValue(const FName& CurveName, float Value, bool
 	}
 	if (bMaterial)
 	{
-		MaterialParametersToClear.RemoveSwap(CurveName);
+		MaterialParametersToClear.Remove(CurveName);
 		CurveValPtr = AnimationCurves[(uint8)EAnimCurveType::MaterialCurve].Find(CurveName);
 		if (CurveValPtr)
 		{

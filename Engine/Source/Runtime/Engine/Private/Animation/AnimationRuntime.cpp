@@ -70,6 +70,10 @@ static_assert(sizeof(ispc::FPerBoneBlendWeight) == sizeof(FPerBoneBlendWeight), 
 #define ANIM_BLEND_POSES_PER_BONE_FILTER_ISPC_ENABLED_DEFAULT 1
 #endif
 
+#if !defined(ANIM_CONVERT_POSE_TO_ADDITIVE_ISPC_ENABLED_DEFAULT)
+#define ANIM_CONVERT_POSE_TO_ADDITIVE_ISPC_ENABLED_DEFAULT 1
+#endif
+
 #if UE_BUILD_SHIPPING
 static constexpr bool bAnim_BlendPoseOverwrite_ISPC_Enabled = ANIM_BLEND_POSE_OVERWRITE_ISPC_ENABLED_DEFAULT;
 static constexpr bool bAnim_BlendPoseAccumulate_ISPC_Enabled = ANIM_BLEND_POSE_ACCUMULATE_ISPC_ENABLED_DEFAULT;
@@ -79,6 +83,7 @@ static constexpr bool bAnim_ConvertPoseToMeshRotation_ISPC_Enabled = ANIM_CONVER
 static constexpr bool bAnim_ConvertMeshRotationPoseToLocalSpace_ISPC_Enabled = ANIM_CONVERT_MESH_ROTATION_TO_LOCAL_SPACE_ISPC_ENABLED_DEFAULT;
 static constexpr bool bAnim_AccumulateLocalSpaceAdditivePose_ISPC_Enabled = ANIM_ACCUMULATE_LOCAL_SPACE_ADDITIVE_POSE_ISPC_ENABLED_DEFAULT;
 static constexpr bool bAnim_BlendPosesPerBoneFilter_ISPC_Enabled = ANIM_BLEND_POSES_PER_BONE_FILTER_ISPC_ENABLED_DEFAULT;
+static constexpr bool bAnim_ConvertPoseToAdditive_ISPC_Enabled = ANIM_CONVERT_POSE_TO_ADDITIVE_ISPC_ENABLED_DEFAULT;
 #else
 static bool bAnim_BlendPoseOverwrite_ISPC_Enabled = ANIM_BLEND_POSE_OVERWRITE_ISPC_ENABLED_DEFAULT;
 static FAutoConsoleVariableRef CVarBlendPoseOverwriteISPCEnabled(TEXT("a.BlendPoseOverwrite.ISPC"), bAnim_BlendPoseOverwrite_ISPC_Enabled, TEXT("Whether to use ISPC optimizations for over-write pose blending"));
@@ -96,6 +101,8 @@ static bool bAnim_AccumulateLocalSpaceAdditivePose_ISPC_Enabled = ANIM_ACCUMULAT
 static FAutoConsoleVariableRef CVarAccumulateLocalSpaceAdditivePose(TEXT("a.AccumulateLocalSpaceAdditivePose.ISPC"), bAnim_AccumulateLocalSpaceAdditivePose_ISPC_Enabled, TEXT("Whether to use ISPC optimizations for accumulating local space additive pose"));
 static bool bAnim_BlendPosesPerBoneFilter_ISPC_Enabled = ANIM_BLEND_POSES_PER_BONE_FILTER_ISPC_ENABLED_DEFAULT;
 static FAutoConsoleVariableRef CVarBlendPosesPerBoneFilter(TEXT("a.BlendPosesPerBoneFilter.ISPC"), bAnim_BlendPosesPerBoneFilter_ISPC_Enabled, TEXT("Whether to use ISPC optimizations for blending poses with a per-bone filter"));
+static bool bAnim_ConvertPoseToAdditive_ISPC_Enabled = ANIM_CONVERT_POSE_TO_ADDITIVE_ISPC_ENABLED_DEFAULT;
+static FAutoConsoleVariableRef CVarConvertPoseToAdditiveISPCEnabled(TEXT("a.ConvertPoseToAdditive.ISPC"), bAnim_ConvertPoseToAdditive_ISPC_Enabled, TEXT("Whether to use ISPC optimizations for converting poses to additive poses"));
 #endif // UE_BUILD_SHIPPING
 
 #endif // INTEL_ISPC
@@ -1052,12 +1059,24 @@ void FAnimationRuntime::ConvertTransformToAdditive(FTransform& TargetTransform, 
 
 void FAnimationRuntime::ConvertPoseToAdditive(FCompactPose& TargetPose, const FCompactPose& BasePose)
 {
-	for (FCompactPoseBoneIndex BoneIndex : BasePose.ForEachBoneIndex())
+#if INTEL_ISPC
+	if (bAnim_ConvertPoseToAdditive_ISPC_Enabled)
 	{
-		FTransform& TargetTransform = TargetPose[BoneIndex];
-		const FTransform& BaseTransform = BasePose[BoneIndex];
+		ispc::ConvertPoseToAdditive(
+			(ispc::FTransform*)TargetPose.GetBones().GetData(),
+			(ispc::FTransform*)BasePose.GetBones().GetData(),
+			BasePose.GetNumBones());
+	}
+	else
+#endif
+	{
+		for (FCompactPoseBoneIndex BoneIndex : BasePose.ForEachBoneIndex())
+		{
+			FTransform& TargetTransform = TargetPose[BoneIndex];
+			const FTransform& BaseTransform = BasePose[BoneIndex];
 
-		ConvertTransformToAdditive(TargetTransform, BaseTransform);
+			ConvertTransformToAdditive(TargetTransform, BaseTransform);
+		}
 	}
 }
 
@@ -1918,8 +1937,8 @@ FAnimationPoseData& OutAnimationPoseData, TArray<FPerBoneBlendWeight>& BoneBlend
 					AccumulateMeshSpaceScale(PoseIndex, BoneIndex, FVector(1.0f), FVector(1.0f));
 				}
 
-				FTransform BaseAtom = BasePose[BoneIndex];
-				FTransform TargetAtom = BlendPoses[PoseIndex][BoneIndex];
+				const FTransform& BaseAtom = BasePose[BoneIndex];
+				const FTransform& TargetAtom = BlendPoses[PoseIndex][BoneIndex];
 				FTransform BlendAtom;
 
 				const float BlendWeight = FMath::Clamp(BoneBlendWeights[BoneIndex.GetInt()].BlendWeight, 0.f, 1.f);
@@ -1959,133 +1978,186 @@ FAnimationPoseData& OutAnimationPoseData, TArray<FPerBoneBlendWeight>& BoneBlend
 	// blend poses with mesh space rotation and local scale
 	else if (bMeshSpaceRotationBlend)
 	{
-		for (const FCompactPoseBoneIndex BoneIndex : BasePose.ForEachBoneIndex())
+#if INTEL_ISPC
+		if (bAnim_BlendPosesPerBoneFilter_ISPC_Enabled)
 		{
-			const int32 PoseIndex = BoneBlendWeights[BoneIndex.GetInt()].SourceIndex;
-			const FCompactPoseBoneIndex ParentIndex = BoneContainer.GetParentBoneIndex(BoneIndex);
-
-			if (ParentIndex != INDEX_NONE)
+			ispc::BlendPosesPerBoneFilterRotation(
+				(ispc::FTransform*)OutPose.GetBones().GetData(),
+				(ispc::FTransform*)BasePose.GetBones().GetData(),
+				(const uint8*)&BlendPoses,
+				(ispc::FVector4*)SourceRotations.GetData(),
+				(ispc::FVector4*)TargetRotations.GetData(),
+				(ispc::FVector4*)BlendRotations.GetData(),
+				MaxPoseWeights.GetData(),
+				(ispc::FPerBoneBlendWeight*)BoneBlendWeights.GetData(),
+				(int32*)BoneContainer.GetCompactPoseParentBoneArray().GetData(),
+				BasePose.GetNumBones());
+		}
+		else
+#endif
+		{
+			for (const FCompactPoseBoneIndex BoneIndex : BasePose.ForEachBoneIndex())
 			{
-				AccumulateMeshSpaceRotation(PoseIndex, BoneIndex, SourceRotations[ParentIndex], TargetRotations[ParentIndex]);
-			}
-			else
-			{
-				AccumulateMeshSpaceRotation(PoseIndex, BoneIndex, FQuat::Identity, FQuat::Identity);
-			}
+				const int32 PoseIndex = BoneBlendWeights[BoneIndex.GetInt()].SourceIndex;
+				const FCompactPoseBoneIndex ParentIndex = BoneContainer.GetParentBoneIndex(BoneIndex);
 
-			FTransform BaseAtom = BasePose[BoneIndex];
-			FTransform TargetAtom = BlendPoses[PoseIndex][BoneIndex];
-			FTransform BlendAtom;
+				if (ParentIndex != INDEX_NONE)
+				{
+					AccumulateMeshSpaceRotation(PoseIndex, BoneIndex, SourceRotations[ParentIndex], TargetRotations[ParentIndex]);
+				}
+				else
+				{
+					AccumulateMeshSpaceRotation(PoseIndex, BoneIndex, FQuat::Identity, FQuat::Identity);
+				}
 
-			const float BlendWeight = FMath::Clamp(BoneBlendWeights[BoneIndex.GetInt()].BlendWeight, 0.f, 1.f);
-			MaxPoseWeights[PoseIndex] = FMath::Max(MaxPoseWeights[PoseIndex], BlendWeight);
+				const FTransform& BaseAtom = BasePose[BoneIndex];
+				const FTransform& TargetAtom = BlendPoses[PoseIndex][BoneIndex];
+				FTransform BlendAtom;
 
-			if (!FAnimWeight::IsRelevant(BlendWeight))
-			{
-				BlendAtom = BaseAtom;
-				BlendRotations[BoneIndex] = SourceRotations[BoneIndex];
-			}
-			else if (FAnimWeight::IsFullWeight(BlendWeight))
-			{
-				BlendAtom = TargetAtom;
-				BlendRotations[BoneIndex] = TargetRotations[BoneIndex];
-			}
-			else
-			{
-				BlendAtom = BaseAtom;
-				BlendAtom.BlendWith(TargetAtom, BlendWeight);
-				LerpMeshSpaceRotation(BoneIndex, BlendWeight);
-			}
+				const float BlendWeight = FMath::Clamp(BoneBlendWeights[BoneIndex.GetInt()].BlendWeight, 0.f, 1.f);
+				MaxPoseWeights[PoseIndex] = FMath::Max(MaxPoseWeights[PoseIndex], BlendWeight);
 
-			if (ParentIndex != INDEX_NONE)
-			{
-				ConvertMeshToLocalSpaceRotation(BlendAtom, ParentIndex, BoneIndex);
-			}
+				if (!FAnimWeight::IsRelevant(BlendWeight))
+				{
+					BlendAtom = BaseAtom;
+					BlendRotations[BoneIndex] = SourceRotations[BoneIndex];
+				}
+				else if (FAnimWeight::IsFullWeight(BlendWeight))
+				{
+					BlendAtom = TargetAtom;
+					BlendRotations[BoneIndex] = TargetRotations[BoneIndex];
+				}
+				else
+				{
+					BlendAtom = BaseAtom;
+					BlendAtom.BlendWith(TargetAtom, BlendWeight);
+					LerpMeshSpaceRotation(BoneIndex, BlendWeight);
+				}
 
-			OutPose[BoneIndex] = BlendAtom;
+				if (ParentIndex != INDEX_NONE)
+				{
+					ConvertMeshToLocalSpaceRotation(BlendAtom, ParentIndex, BoneIndex);
+				}
+
+				OutPose[BoneIndex] = BlendAtom;
+			}
 		}
 	}
 
 	// blend poses with mesh space scaling (we assume uniform scale) and local rotation
 	else if (bMeshSpaceScaleBlend)
 	{
-		for (const FCompactPoseBoneIndex BoneIndex : BasePose.ForEachBoneIndex())
+#if INTEL_ISPC
+		if (bAnim_BlendPosesPerBoneFilter_ISPC_Enabled)
 		{
-			const int32 PoseIndex = BoneBlendWeights[BoneIndex.GetInt()].SourceIndex;
-			const FCompactPoseBoneIndex ParentIndex = BoneContainer.GetParentBoneIndex(BoneIndex);
-
-			if (ParentIndex != INDEX_NONE)
+			ispc::BlendPosesPerBoneFilterScale(
+				(ispc::FTransform*)OutPose.GetBones().GetData(),
+				(ispc::FTransform*)BasePose.GetBones().GetData(),
+				(const uint8*)&BlendPoses,
+				(ispc::FVector*)SourceScales.GetData(),
+				(ispc::FVector*)TargetScales.GetData(),
+				(ispc::FVector*)BlendScales.GetData(),
+				MaxPoseWeights.GetData(),
+				(ispc::FPerBoneBlendWeight*)BoneBlendWeights.GetData(),
+				(int32*)BoneContainer.GetCompactPoseParentBoneArray().GetData(),
+				BasePose.GetNumBones());
+		}
+		else
+#endif
+		{
+			for (const FCompactPoseBoneIndex BoneIndex : BasePose.ForEachBoneIndex())
 			{
-				AccumulateMeshSpaceScale(PoseIndex, BoneIndex, SourceScales[ParentIndex], TargetScales[ParentIndex]);
-			}
-			else
-			{
-				AccumulateMeshSpaceScale(PoseIndex, BoneIndex, FVector(1.0f), FVector(1.0f));
-			}
+				const int32 PoseIndex = BoneBlendWeights[BoneIndex.GetInt()].SourceIndex;
+				const FCompactPoseBoneIndex ParentIndex = BoneContainer.GetParentBoneIndex(BoneIndex);
 
-			FTransform BaseAtom = BasePose[BoneIndex];
-			FTransform TargetAtom = BlendPoses[PoseIndex][BoneIndex];
-			FTransform BlendAtom;
+				if (ParentIndex != INDEX_NONE)
+				{
+					AccumulateMeshSpaceScale(PoseIndex, BoneIndex, SourceScales[ParentIndex], TargetScales[ParentIndex]);
+				}
+				else
+				{
+					AccumulateMeshSpaceScale(PoseIndex, BoneIndex, FVector(1.0f), FVector(1.0f));
+				}
 
-			const float BlendWeight = FMath::Clamp(BoneBlendWeights[BoneIndex.GetInt()].BlendWeight, 0.f, 1.f);
-			MaxPoseWeights[PoseIndex] = FMath::Max(MaxPoseWeights[PoseIndex], BlendWeight);
+				FTransform BaseAtom = BasePose[BoneIndex];
+				FTransform TargetAtom = BlendPoses[PoseIndex][BoneIndex];
+				FTransform BlendAtom;
 
-			if (!FAnimWeight::IsRelevant(BlendWeight))
-			{
-				BlendAtom = BaseAtom;
-				BlendScales[BoneIndex] = SourceScales[BoneIndex];
-			}
-			else if (FAnimWeight::IsFullWeight(BlendWeight))
-			{
-				BlendAtom = TargetAtom;
-				BlendScales[BoneIndex] = TargetScales[BoneIndex];
-			}
-			else
-			{
-				BlendAtom = BaseAtom;
-				BlendAtom.BlendWith(TargetAtom, BlendWeight);
-				LerpMeshSpaceScale(BoneIndex, BlendWeight);
-			}
+				const float BlendWeight = FMath::Clamp(BoneBlendWeights[BoneIndex.GetInt()].BlendWeight, 0.f, 1.f);
+				MaxPoseWeights[PoseIndex] = FMath::Max(MaxPoseWeights[PoseIndex], BlendWeight);
 
-			if (ParentIndex != INDEX_NONE)
-			{
-				ConvertMeshToLocalSpaceScale(BlendAtom, ParentIndex, BoneIndex);
-			}
+				if (!FAnimWeight::IsRelevant(BlendWeight))
+				{
+					BlendAtom = BaseAtom;
+					BlendScales[BoneIndex] = SourceScales[BoneIndex];
+				}
+				else if (FAnimWeight::IsFullWeight(BlendWeight))
+				{
+					BlendAtom = TargetAtom;
+					BlendScales[BoneIndex] = TargetScales[BoneIndex];
+				}
+				else
+				{
+					BlendAtom = BaseAtom;
+					BlendAtom.BlendWith(TargetAtom, BlendWeight);
+					LerpMeshSpaceScale(BoneIndex, BlendWeight);
+				}
 
-			OutPose[BoneIndex] = BlendAtom;
+				if (ParentIndex != INDEX_NONE)
+				{
+					ConvertMeshToLocalSpaceScale(BlendAtom, ParentIndex, BoneIndex);
+				}
+
+				OutPose[BoneIndex] = BlendAtom;
+			}
 		}
 	}
 
 	// blend poses with local rotation and scaling
 	else
 	{
-		for (const FCompactPoseBoneIndex BoneIndex : BasePose.ForEachBoneIndex())
+#if INTEL_ISPC
+		if (bAnim_BlendPosesPerBoneFilter_ISPC_Enabled)
 		{
-			const int32 PoseIndex = BoneBlendWeights[BoneIndex.GetInt()].SourceIndex;
-			const FCompactPoseBoneIndex ParentIndex = BoneContainer.GetParentBoneIndex(BoneIndex);
-
-			FTransform BaseAtom = BasePose[BoneIndex];
-			FTransform TargetAtom = BlendPoses[PoseIndex][BoneIndex];
-			FTransform BlendAtom;
-
-			const float BlendWeight = FMath::Clamp(BoneBlendWeights[BoneIndex.GetInt()].BlendWeight, 0.f, 1.f);
-			MaxPoseWeights[PoseIndex] = FMath::Max(MaxPoseWeights[PoseIndex], BlendWeight);
-
-			if (!FAnimWeight::IsRelevant(BlendWeight))
+			ispc::BlendPosesPerBoneFilter(
+				(ispc::FTransform*)OutPose.GetBones().GetData(),
+				(ispc::FTransform*)BasePose.GetBones().GetData(),
+				(const uint8*)&BlendPoses,
+				MaxPoseWeights.GetData(),
+				(ispc::FPerBoneBlendWeight*)BoneBlendWeights.GetData(),
+				(int32*)BoneContainer.GetCompactPoseParentBoneArray().GetData(),
+				BasePose.GetNumBones());
+		}
+		else
+#endif
+		{
+			for (const FCompactPoseBoneIndex BoneIndex : BasePose.ForEachBoneIndex())
 			{
-				BlendAtom = BaseAtom;
-			}
-			else if (FAnimWeight::IsFullWeight(BlendWeight))
-			{
-				BlendAtom = TargetAtom;
-			}
-			else
-			{
-				BlendAtom = BaseAtom;
-				BlendAtom.BlendWith(TargetAtom, BlendWeight);
-			}
+				const int32 PoseIndex = BoneBlendWeights[BoneIndex.GetInt()].SourceIndex;
 
-			OutPose[BoneIndex] = BlendAtom;
+				const FTransform& BaseAtom = BasePose[BoneIndex];
+				const FTransform& TargetAtom = BlendPoses[PoseIndex][BoneIndex];
+				FTransform BlendAtom;
+
+				const float BlendWeight = FMath::Clamp(BoneBlendWeights[BoneIndex.GetInt()].BlendWeight, 0.f, 1.f);
+				MaxPoseWeights[PoseIndex] = FMath::Max(MaxPoseWeights[PoseIndex], BlendWeight);
+
+				if (!FAnimWeight::IsRelevant(BlendWeight))
+				{
+					BlendAtom = BaseAtom;
+				}
+				else if (FAnimWeight::IsFullWeight(BlendWeight))
+				{
+					BlendAtom = TargetAtom;
+				}
+				else
+				{
+					BlendAtom = BaseAtom;
+					BlendAtom.BlendWith(TargetAtom, BlendWeight);
+				}
+
+				OutPose[BoneIndex] = BlendAtom;
+			}
 		}
 	}
 

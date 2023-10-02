@@ -294,10 +294,10 @@ public:
 	TArray<FRigBaseElement*>::RangedForIteratorType      end() { return Elements.end(); }
 
 	/**
-	 * Iterator function to invoke a lambda / TFunction for each element
+	 * Iterator function to invoke a lambda / TFunctionRef for each element
 	 * @param PerElementFunction The function to invoke for each element
 	 */
-	void ForEach(TFunction<bool(FRigBaseElement*)> PerElementFunction) const
+	void ForEach(TFunctionRef<bool(FRigBaseElement*)> PerElementFunction) const
 	{
 		for (int32 ElementIndex = 0; ElementIndex < Elements.Num(); ElementIndex++)
 		{
@@ -309,11 +309,11 @@ public:
 	}
 
 	/**
-	 * Filtered template Iterator function to invoke a lambda / TFunction for each element of a given type.
+	 * Filtered template Iterator function to invoke a lambda / TFunctionRef for each element of a given type.
 	 * @param PerElementFunction The function to invoke for each element of a given type
 	 */
 	template<typename T>
-	void ForEach(TFunction<bool(T*)> PerElementFunction) const
+	void ForEach(TFunctionRef<bool(T*)> PerElementFunction) const
 	{
 		for (int32 ElementIndex = 0; ElementIndex < Elements.Num(); ElementIndex++)
 		{

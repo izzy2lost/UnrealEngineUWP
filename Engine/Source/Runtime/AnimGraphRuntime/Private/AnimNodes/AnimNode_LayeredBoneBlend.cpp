@@ -182,6 +182,13 @@ void FAnimNode_LayeredBoneBlend::Update_AnyThread(const FAnimationUpdateContext&
 	TRACE_ANIM_NODE_VALUE(Context, TEXT("Num Poses"), BlendPoses.Num());
 }
 
+struct FLayeredBoneBlendScratchArea : TThreadSingleton<FLayeredBoneBlendScratchArea>
+{
+	TArray<FCompactPose> TargetBlendPoses;
+	TArray<FBlendedCurve> TargetBlendCurves;
+	TArray<UE::Anim::FStackAttributeContainer> TargetBlendAttributes;
+};
+
 void FAnimNode_LayeredBoneBlend::Evaluate_AnyThread(FPoseContext& Output)
 {
 	DECLARE_SCOPE_HIERARCHICAL_COUNTER_ANIMNODE(Evaluate_AnyThread)
@@ -199,13 +206,18 @@ void FAnimNode_LayeredBoneBlend::Evaluate_AnyThread(FPoseContext& Output)
 		// evaluate children
 		BasePose.Evaluate(BasePoseContext);
 
-		TArray<FCompactPose> TargetBlendPoses;
+		FLayeredBoneBlendScratchArea& ScratchArea = FLayeredBoneBlendScratchArea::Get();
+		
+		TArray<FCompactPose>& TargetBlendPoses = ScratchArea.TargetBlendPoses;
+		TargetBlendPoses.Reset();
 		TargetBlendPoses.SetNum(NumPoses);
 
-		TArray<FBlendedCurve> TargetBlendCurves;
+		TArray<FBlendedCurve>& TargetBlendCurves = ScratchArea.TargetBlendCurves;
+		TargetBlendCurves.Reset();
 		TargetBlendCurves.SetNum(NumPoses);
 
-		TArray<UE::Anim::FStackAttributeContainer> TargetBlendAttributes;
+		TArray<UE::Anim::FStackAttributeContainer>& TargetBlendAttributes = ScratchArea.TargetBlendAttributes;
+		TargetBlendAttributes.Reset();
 		TargetBlendAttributes.SetNum(NumPoses);
 
 		for (int32 ChildIndex = 0; ChildIndex < NumPoses; ++ChildIndex)

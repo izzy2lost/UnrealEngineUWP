@@ -171,22 +171,22 @@ void FAnimNode_LinkedAnimGraph::Evaluate_AnyThread(FPoseContext& Output)
 	UAnimInstance* InstanceToRun = GetTargetInstance<UAnimInstance>();
 	if(InstanceToRun && LinkedRoot)
 	{
+		// Stash current proxy for restoration after recursion
+		FAnimInstanceProxy& OldProxy = *Output.AnimInstanceProxy;
+
 		FAnimInstanceProxy& Proxy = InstanceToRun->GetProxyOnAnyThread<FAnimInstanceProxy>();
 		Proxy.EvaluationCounter.SynchronizeWith(Output.AnimInstanceProxy->EvaluationCounter);
 		Output.Pose.SetBoneContainer(&Proxy.GetRequiredBones());
-
-		// Create an evaluation context
-		FPoseContext EvaluationContext(&Proxy, Output.ExpectsAdditivePose());
-		EvaluationContext.ResetToRefPose();
-		EvaluationContext.SetNodeId(CachedLinkedNodeIndex);
+		Output.AnimInstanceProxy = &Proxy;
+		Output.SetNodeId(INDEX_NONE);
+		Output.SetNodeId(CachedLinkedNodeIndex);
 
 		// Run the anim blueprint
-		Proxy.EvaluateAnimation_WithRoot(EvaluationContext, LinkedRoot);
+		Proxy.EvaluateAnimation_WithRoot(Output, LinkedRoot);
 
-		// Move the curves
-		Output.Curve.MoveFrom(EvaluationContext.Curve);
-		Output.Pose.MoveBonesFrom(EvaluationContext.Pose);
-		Output.CustomAttributes.MoveFrom(EvaluationContext.CustomAttributes);
+		// Restore proxy & required bones after evaluation
+		Output.AnimInstanceProxy = &OldProxy;
+		Output.Pose.SetBoneContainer(&OldProxy.GetRequiredBones());
 	}
 	else if(InputPoses.Num() > 0)
 	{

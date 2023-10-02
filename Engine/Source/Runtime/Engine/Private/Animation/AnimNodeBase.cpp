@@ -332,9 +332,12 @@ void FPoseLinkBase::Update(const FAnimationUpdateContext& InContext)
 	{
 		FAnimationUpdateContext LinkContext(InContext.WithNodeId(LinkID));
 		TRACE_SCOPED_ANIM_NODE(LinkContext);
-		UE::Anim::FNodeFunctionCaller::InitialUpdate(LinkContext, *LinkedNode);
-		UE::Anim::FNodeFunctionCaller::BecomeRelevant(LinkContext, *LinkedNode);
-		UE::Anim::FNodeFunctionCaller::Update(LinkContext, *LinkedNode);
+		if(LinkedNode->NodeData && LinkedNode->NodeData->HasNodeAnyFlags(EAnimNodeDataFlags::AllFunctions))
+		{
+			UE::Anim::FNodeFunctionCaller::InitialUpdate(LinkContext, *LinkedNode);
+			UE::Anim::FNodeFunctionCaller::BecomeRelevant(LinkContext, *LinkedNode);
+			UE::Anim::FNodeFunctionCaller::Update(LinkContext, *LinkedNode);
+		}
 		LinkedNode->Update_AnyThread(LinkContext);
 	}
 }

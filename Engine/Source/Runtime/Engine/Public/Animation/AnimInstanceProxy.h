@@ -1060,7 +1060,7 @@ private:
 	TMap<FName, float> AnimationCurves[(uint8)EAnimCurveType::MaxAnimCurveType];
 
 	/** Material parameters that we had been changing and now need to clear */
-	TArray<FName> MaterialParametersToClear;
+	TSet<FName> MaterialParametersToClear;
 
 protected:
 	// Animation Notifies that has been triggered since the last tick. These can be safely consumed at any point.

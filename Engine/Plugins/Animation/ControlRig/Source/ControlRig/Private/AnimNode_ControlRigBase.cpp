@@ -182,7 +182,7 @@ void FAnimNode_ControlRigBase::UpdateInput(UControlRig* ControlRig, const FPoseC
 					const uint16 SkeletonIndex = Pair.Value;
 					
 					FCompactPoseBoneIndex CompactPoseIndex(SkeletonIndex);
-					FTransform ComponentTransform = MeshPoses.GetComponentSpaceTransform(CompactPoseIndex);
+					const FTransform& ComponentTransform = MeshPoses.GetComponentSpaceTransform(CompactPoseIndex);
 					Hierarchy->SetGlobalTransformByIndex(ControlRigIndex, ComponentTransform, false);
 				}
 			}
@@ -195,12 +195,18 @@ void FAnimNode_ControlRigBase::UpdateInput(UControlRig* ControlRig, const FPoseC
 					const FRigElementKey Key(Name, ERigElementType::Bone);
 
 					FCompactPoseBoneIndex CompactPoseIndex(Index);
-					FTransform ComponentTransform = MeshPoses.GetComponentSpaceTransform(CompactPoseIndex);
+
+					const FTransform& ComponentTransform = MeshPoses.GetComponentSpaceTransform(CompactPoseIndex);
 					if (NodeMappingContainer.IsValid())
 					{
-						ComponentTransform = NodeMappingContainer->GetSourceToTargetTransform(Name).GetRelativeTransformReverse(ComponentTransform);
+						const FTransform& RelativeTransformReverse = NodeMappingContainer->GetSourceToTargetTransform(Name).GetRelativeTransformReverse(ComponentTransform);
+						Hierarchy->SetGlobalTransform(Key, RelativeTransformReverse, false);
 					}
-					Hierarchy->SetGlobalTransform(Key, ComponentTransform, false);
+					else
+					{
+						Hierarchy->SetGlobalTransform(Key, ComponentTransform, false);
+					}
+					
 				}
 			}
 		}
@@ -214,7 +220,7 @@ void FAnimNode_ControlRigBase::UpdateInput(UControlRig* ControlRig, const FPoseC
 					const uint16 SkeletonIndex = Pair.Value;
 					
 					FCompactPoseBoneIndex CompactPoseIndex(SkeletonIndex);
-					FTransform LocalTransform = InOutput.Pose[CompactPoseIndex];
+					const FTransform& LocalTransform = InOutput.Pose[CompactPoseIndex];
 					Hierarchy->SetLocalTransformByIndex(ControlRigIndex, LocalTransform, false);
 				}
 			}
@@ -227,7 +233,7 @@ void FAnimNode_ControlRigBase::UpdateInput(UControlRig* ControlRig, const FPoseC
 					const FRigElementKey Key(Name, ERigElementType::Bone);
 
 					FCompactPoseBoneIndex CompactPoseIndex(SkeletonIndex);
-					FTransform LocalTransform = InOutput.Pose[CompactPoseIndex];
+					const FTransform& LocalTransform = InOutput.Pose[CompactPoseIndex];
 					Hierarchy->SetLocalTransform(Key, LocalTransform, false);
 				}
 			}
@@ -357,24 +363,17 @@ void FAnimNode_ControlRigBase::UpdateOutput(UControlRig* ControlRig, FPoseContex
 
 	if (OutputSettings.bUpdateCurves)
 	{
-		const TArray<FRigCurveElement*> Curves = Hierarchy->GetCurves();
-		auto GetNameFromIndex = [&Curves](int32 InCurveIndex)
-		{
-			return Curves[InCurveIndex]->GetFName();
-		};
-
-		auto GetValueFromIndex = [&Curves](int32 InCurveIndex)
-		{
-			 return Curves[InCurveIndex]->Value;
-		};
-		
-		auto GetIsValidCurveFromIndex = [&Curves](int32 InCurveIndex)
-        {
-            return Curves[InCurveIndex]->bIsValueSet;
-        };
-
 		FBlendedCurve ControlRigCurves;
-		UE::Anim::FCurveUtils::BuildUnsortedValidated(ControlRigCurves, Curves.Num(), GetNameFromIndex, GetValueFromIndex, GetIsValidCurveFromIndex);
+		ControlRigCurves.Reserve(Hierarchy->Num(ERigElementType::Curve));
+		Hierarchy->ForEach<FRigCurveElement>([&ControlRigCurves](const FRigCurveElement* InElement)
+		{
+			if(InElement->bIsValueSet)
+			{
+				ControlRigCurves.Add(InElement->GetFName(), InElement->Value);
+			}
+			return true;
+		});
+
 		InOutput.Curve.Combine(ControlRigCurves);
 	}
 

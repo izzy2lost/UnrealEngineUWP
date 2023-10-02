@@ -1027,6 +1027,7 @@ private:
 	friend struct UE::Anim::FNodeDataId;
 	friend struct UE::Anim::FNodeFunctionCaller;
 	friend class UAnimGraphNode_Base;
+	friend struct FPoseLinkBase;
 
 	// Set the cached ptr to the constant/folded data for this node
 	void SetNodeData(const FAnimNodeData& InNodeData) { NodeData = &InNodeData; }
