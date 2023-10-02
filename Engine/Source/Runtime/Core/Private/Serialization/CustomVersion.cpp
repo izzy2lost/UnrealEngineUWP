@@ -18,6 +18,7 @@
 #include "Serialization/StructuredArchiveNameHelpers.h"
 #include "Serialization/StructuredArchiveSlots.h"
 #include "UObject/UnrealNames.h"
+#include "AutoRTFM/AutoRTFM.h"
 
 namespace
 {
