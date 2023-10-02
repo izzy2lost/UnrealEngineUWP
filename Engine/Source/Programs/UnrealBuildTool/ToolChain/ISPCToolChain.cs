@@ -565,6 +565,12 @@ namespace UnrealBuildTool
 			GlobalArguments.Add($"--target={TargetString}");
 			GlobalArguments.Add($"--emit-{PlatformObjectFileFormat}");
 
+			string? CpuTarget = GetISPCCpuTarget(CompileEnvironment.Platform);
+			if (!String.IsNullOrEmpty(CpuTarget))
+			{
+				GlobalArguments.Add($"--cpu={CpuTarget}");
+			}
+
 			bool bByteCodeOutput = (PlatformObjectFileFormat == "llvm");
 
 			List<string> CommonArgs = new List<string>();
