@@ -192,6 +192,8 @@ struct FColorMaterialInput : FMaterialInput<FColor>
 #endif  // WITH_EDITOR
 	/** ICPPStructOps interface */
 	ENGINE_API bool Serialize(FArchive& Ar);
+	ENGINE_API void DefaultValueChanged(const FString& DefaultValue);
+	ENGINE_API FString GetDefaultValue() const;
 };
 
 template<>
@@ -213,6 +215,8 @@ struct FScalarMaterialInput : FMaterialInput<float>
 #endif  // WITH_EDITOR
 	/** ICPPStructOps interface */
 	ENGINE_API bool Serialize(FArchive& Ar);
+	ENGINE_API void DefaultValueChanged(const FString& DefaultValue);
+	ENGINE_API FString GetDefaultValue() const;
 };
 
 template<>
@@ -233,6 +237,8 @@ struct FShadingModelMaterialInput : FMaterialInput<uint32>
 #endif  // WITH_EDITOR
 	/** ICPPStructOps interface */
 	ENGINE_API bool Serialize(FArchive& Ar);
+	ENGINE_API void DefaultValueChanged(const FString& DefaultValue);
+	ENGINE_API FString GetDefaultValue() const;
 };
 
 template<>
@@ -252,6 +258,8 @@ struct FSubstrateMaterialInput : FMaterialInput<uint32> // Still giving it a def
 #endif  // WITH_EDITOR
 	/** ICPPStructOps interface */
 	ENGINE_API bool Serialize(FArchive& Ar);
+	ENGINE_API void DefaultValueChanged(const FString& DefaultValue);
+    ENGINE_API FString GetDefaultValue() const;
 };
 
 template<>
@@ -271,6 +279,8 @@ struct FVectorMaterialInput : FMaterialInput<FVector3f>
 #endif  // WITH_EDITOR
 	/** ICPPStructOps interface */
 	ENGINE_API bool Serialize(FArchive& Ar);
+	ENGINE_API void DefaultValueChanged(const FString& DefaultValue);
+	ENGINE_API FString GetDefaultValue() const;
 };
 
 template<>
@@ -291,6 +301,8 @@ struct FVector2MaterialInput : FMaterialInput<FVector2f>
 #endif  // WITH_EDITOR
 	/** ICPPStructOps interface */
 	ENGINE_API bool Serialize(FArchive& Ar);
+	ENGINE_API void DefaultValueChanged(const FString& DefaultValue);
+	ENGINE_API FString GetDefaultValue() const;
 };
 
 template<>

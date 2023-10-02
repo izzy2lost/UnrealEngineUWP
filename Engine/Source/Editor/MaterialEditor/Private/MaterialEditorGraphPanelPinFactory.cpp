@@ -9,11 +9,6 @@
 #include "KismetPins/SGraphPinBool.h"
 #include "KismetPins/SGraphPinColor.h"
 #include "KismetPins/SGraphPinExec.h"
-#include "KismetPins/SGraphPinInteger.h"
-#include "KismetPins/SGraphPinNum.h"
-#include "KismetPins/SGraphPinVector.h"
-#include "KismetPins/SGraphPinVector2D.h"
-#include "KismetPins/SGraphPinVector4.h"
 #include "MaterialGraph/MaterialGraphSchema.h"
 #include "MaterialPins/SGraphPinMaterialInput.h"
 #include "Misc/Optional.h"
@@ -25,6 +20,14 @@
 #include "UObject/WeakObjectPtr.h"
 #include "UObject/WeakObjectPtrTemplates.h"
 #include "Widgets/DeclarativeSyntaxSupport.h"
+#include "MaterialGraph/MaterialGraphNode.h"
+#include "Materials/MaterialExpression.h"
+#include "Materials/MaterialExpressionScalarParameter.h"
+#include "KismetPins/SGraphPinNumSlider.h"
+#include "KismetPins/SGraphPinVector2DSlider.h"
+#include "KismetPins/SGraphPinVectorSlider.h"
+#include "KismetPins/SGraphPinVector4Slider.h"
+#include "KismetPins/SGraphPinIntegerSlider.h"
 
 TSharedPtr<class SGraphPin> FMaterialEditorGraphPanelPinFactory::CreatePin(class UEdGraphPin* InPin) const
 {
@@ -34,23 +37,29 @@ TSharedPtr<class SGraphPin> FMaterialEditorGraphPanelPinFactory::CreatePin(class
 		{
 			return SNew(SGraphPinExec, InPin);
 		}
-		else if (InPin->PinType.PinCategory == MaterialGraphSchema->PC_MaterialInput)
-		{
-			return SNew(SGraphPinMaterialInput, InPin);
-		}
 		else
 		{
+			// get metadata and pass it along
+			UObject* NodeOwner = CastChecked<UMaterialGraphNode_Base>(InPin->GetOuter())->GetMaterialNodeOwner();
+
+			TArray<FProperty*> InputProperties;
+			if (NodeOwner->IsA<UMaterialExpression>())
+			{
+				InputProperties = CastChecked<UMaterialExpression>(NodeOwner)->GetInputPinProperty(InPin->SourceIndex);
+			}
+			FProperty* InProperty = InputProperties.Num() > 0 ? InputProperties[0] : nullptr;
+
 			if (InPin->PinType.PinSubCategory == MaterialGraphSchema->PSC_Red || InPin->PinType.PinSubCategory == MaterialGraphSchema->PSC_Float)
 			{
-				return SNew(SGraphPinNum<double>, InPin);
+				return SNew(SGraphPinNumSlider<double>, InPin, InProperty);	
 			}
 			else if (InPin->PinType.PinSubCategory == MaterialGraphSchema->PSC_RG)
 			{
-				return SNew(SGraphPinVector2D<float>, InPin);
+				return SNew(SGraphPinVector2DSlider<float>, InPin, InProperty);
 			}
 			else if (InPin->PinType.PinSubCategory == MaterialGraphSchema->PSC_RGB)
 			{
-				return SNew(SGraphPinVector<float>, InPin);
+				return SNew(SGraphPinVectorSlider<float>, InPin, InProperty);
 			}
 			else if (InPin->PinType.PinSubCategory == MaterialGraphSchema->PSC_RGBA)
 			{
@@ -58,11 +67,11 @@ TSharedPtr<class SGraphPin> FMaterialEditorGraphPanelPinFactory::CreatePin(class
 			}
 			else if (InPin->PinType.PinSubCategory == MaterialGraphSchema->PSC_Vector4)
 			{
-				return SNew(SGraphPinVector4<float>, InPin);
+				return SNew(SGraphPinVector4Slider<float>, InPin, InProperty);
 			}
 			else if (InPin->PinType.PinSubCategory == MaterialGraphSchema->PSC_Int)
 			{
-				return SNew(SGraphPinInteger, InPin);
+				return SNew(SGraphPinIntegerSlider, InPin, InProperty);
 			}
 			else if (InPin->PinType.PinSubCategory == MaterialGraphSchema->PSC_Byte)
 			{
@@ -73,12 +82,16 @@ TSharedPtr<class SGraphPin> FMaterialEditorGraphPanelPinFactory::CreatePin(class
 				}
 				else
 				{
-					return SNew(SGraphPinInteger, InPin);
+					return SNew(SGraphPinIntegerSlider, InPin, InProperty);
 				}
 			}
 			else if (InPin->PinType.PinSubCategory == MaterialGraphSchema->PSC_Bool)
 			{
 				return SNew(SGraphPinBool, InPin);
+			}
+			else if (InPin->PinType.PinCategory == MaterialGraphSchema->PC_MaterialInput)
+			{
+				return SNew(SGraphPinMaterialInput, InPin);
 			}
 		}
 

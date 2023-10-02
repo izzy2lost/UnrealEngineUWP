@@ -619,6 +619,8 @@ void UMaterialGraph::LinkMaterialExpressionsFromGraph()
 					{
 						MaterialInput.Expression = NULL;
 					}
+
+					RootNode->UpdateInputUseConstant(Pin, MaterialInput.Expression == nullptr);
 				}
 			}
 		}

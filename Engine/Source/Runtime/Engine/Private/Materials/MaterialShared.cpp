@@ -598,6 +598,7 @@ bool FSubstrateMaterialInput::Serialize(FArchive& Ar)
 	return SerializeMaterialInput<uint32>(Ar, *this);
 }
 
+
 bool FVectorMaterialInput::Serialize(FArchive& Ar)
 {
 	return SerializeMaterialInput<FVector3f>(Ar, *this);
@@ -611,6 +612,97 @@ bool FVector2MaterialInput::Serialize(FArchive& Ar)
 bool FMaterialAttributesInput::Serialize(FArchive& Ar)
 {
 	return SerializeExpressionInput(Ar, *this);
+}
+
+void FColorMaterialInput::DefaultValueChanged(const FString& DefaultValue)
+{
+#if WITH_EDITOR
+	FLinearColor Value;
+	Value.InitFromString(DefaultValue);
+	Constant = Value.QuantizeRound();
+	UseConstant = true;
+#endif
+}
+
+FString FColorMaterialInput::GetDefaultValue() const
+{
+	FString DefaultValue;
+#if WITH_EDITOR
+	if (UseConstant)
+	{
+		FLinearColor Color = Constant.ReinterpretAsLinear();
+		DefaultValue = Color.ToString();
+	}
+#endif
+	return DefaultValue;
+}
+
+void FScalarMaterialInput::DefaultValueChanged(const FString& DefaultValue)
+{
+#if WITH_EDITOR
+	Constant = FCString::Atof(*DefaultValue);
+	UseConstant = true;
+#endif
+}
+
+FString FScalarMaterialInput::GetDefaultValue() const
+{
+	FString DefaultValue;
+#if WITH_EDITOR
+	if (UseConstant)
+	{
+		DefaultValue = FString::SanitizeFloat(Constant);
+	}
+#endif
+	return DefaultValue;
+}
+
+void FVector2MaterialInput::DefaultValueChanged(const FString& DefaultValue)
+{
+#if WITH_EDITOR
+	FVector2f Value;
+	Value.InitFromString(DefaultValue);
+	Constant = Value;
+	UseConstant = true;
+#endif
+}
+
+FString FVector2MaterialInput::GetDefaultValue() const
+{
+	FString DefaultValue;
+#if WITH_EDITOR
+	if (UseConstant)
+	{
+		DefaultValue = FString(TEXT("(X=")) + FString::SanitizeFloat(Constant.X) + FString(TEXT(",Y=")) + FString::SanitizeFloat(Constant.Y) + FString(TEXT(")"));
+	}
+#endif
+	return DefaultValue;
+}
+
+void FVectorMaterialInput::DefaultValueChanged(const FString& DefaultValue)
+{
+#if WITH_EDITOR
+	//Parse string to split its contents separated by ','
+	TArray<FString> Elements;
+	DefaultValue.ParseIntoArray(Elements, TEXT(","), true);
+	check(Elements.Num() == 3);
+	Constant.X = FCString::Atof(*Elements[0]);
+	Constant.Y = FCString::Atof(*Elements[1]);
+	Constant.Z = FCString::Atof(*Elements[2]);
+	UseConstant = true;
+#endif
+}
+
+FString FVectorMaterialInput::GetDefaultValue() const
+{
+	FString DefaultValue;
+#if WITH_EDITOR
+	if (UseConstant)
+	{
+		DefaultValue = FString::SanitizeFloat(Constant.X) + FString(TEXT(",")) + FString::SanitizeFloat(Constant.Y) + FString(TEXT(",")) + FString::SanitizeFloat(Constant.Z);
+	}
+#endif
+	return DefaultValue;
 }
 
 #if WITH_EDITOR
