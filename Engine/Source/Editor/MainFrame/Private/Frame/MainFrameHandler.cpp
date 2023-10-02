@@ -78,8 +78,11 @@ void FMainFrameHandler::ShutDownEditor()
 {
 	FEditorDelegates::OnShutdownPostPackagesSaved.Broadcast();
 
+	// By this point we've opted to discard anything we didn't want to save, so disable the auto-save restore.
+	GUnrealEd->GetPackageAutoSaver().UpdateRestoreFile(false);
 	// Any pending autosaves should not happen.  A tick will go by before the editor shuts down and we want to avoid auto-saving during this time.
 	GUnrealEd->GetPackageAutoSaver().ResetAutoSaveTimer();
+
 	GEditor->RequestEndPlayMap();
 
 	// End any play on console/PC games still happening
