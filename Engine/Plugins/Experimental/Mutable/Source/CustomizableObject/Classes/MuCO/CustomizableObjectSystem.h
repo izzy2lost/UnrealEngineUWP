@@ -385,9 +385,14 @@ private:
 	void DiscardInstances();
 	void ReleaseInstanceIDs();
 
+public:
+	/** Return true if the instance is being updated. */
+	UFUNCTION(BlueprintCallable, BlueprintPure, Category = CustomizableObjectSystem)
+	bool IsUpdating(const UCustomizableObjectInstance* Instance) const;
+
+private:
 	// TODO: Can we move this to the editor module?
 #if WITH_EDITOR
-
 	// Used to ask the user if they want to recompile uncompiled PIE COs
 	void OnPreBeginPIE(const bool bIsSimulatingInEditor);
 

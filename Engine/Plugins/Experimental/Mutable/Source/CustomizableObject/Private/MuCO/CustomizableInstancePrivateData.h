@@ -31,7 +31,6 @@ enum ECOInstanceFlags
 	ECONone							= 0,  // Should not use the name None here.. it collides with other enum in global namespace
 
 	// Update process
-	Updating						= 1 << 0,	//
 	CreatingSkeletalMesh			= 1 << 1,	//
 	Generated						= 1 << 2,	//
 	ReuseTextures					= 1 << 3, 	// 
@@ -315,7 +314,10 @@ private:
 	void SetLastMeshId(int32 ComponentIndex, int32 LODIndex, mu::FResourceID MeshId);
 
 public:
+	CUSTOMIZABLEOBJECT_API ESkeletalMeshStatus GetSkeletalMeshStatus() const;
 
+	void SetSkeletalMeshStatus(ESkeletalMeshStatus Status);
+	
 	// If any components are using this instance, they will store the min of their distances to the player here every frame for LOD purposes
 	float MinSquareDistFromComponentToPlayer;
 	float LastMinSquareDistFromComponentToPlayer; // The same as the previous dist for last frame
@@ -378,6 +380,9 @@ public:
 	FDescriptorRuntimeHash DescriptorRuntimeHash;
 
 private:
+	/** Status of the generated Skeletal Mesh. Not to be confused with the Update Result. */
+	ESkeletalMeshStatus SkeletalMeshStatus = ESkeletalMeshStatus::NotGenerated;
+	
 	// Struct used by BuildMaterials() to identify common materials between LODs
 	struct FMutableMaterialPlaceholder
 	{

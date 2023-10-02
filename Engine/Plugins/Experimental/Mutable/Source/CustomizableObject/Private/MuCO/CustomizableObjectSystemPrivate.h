@@ -146,19 +146,19 @@ inline uint32 GetTypeHash(const FMutablePendingInstanceUpdate& Update)
 }
 
 
-struct FPendingInstanceUpdateKeyFuncs : BaseKeyFuncs<FMutablePendingInstanceUpdate, TWeakObjectPtr<UCustomizableObjectInstance>>
+struct FPendingInstanceUpdateKeyFuncs : BaseKeyFuncs<FMutablePendingInstanceUpdate, TWeakObjectPtr<const UCustomizableObjectInstance>>
 {
-	FORCEINLINE static const TWeakObjectPtr<UCustomizableObjectInstance>& GetSetKey(const FMutablePendingInstanceUpdate& PendingUpdate)
+	FORCEINLINE static TWeakObjectPtr<const UCustomizableObjectInstance> GetSetKey(const FMutablePendingInstanceUpdate& PendingUpdate)
 	{
 		return PendingUpdate.CustomizableObjectInstance;
 	}
 
-	FORCEINLINE static bool Matches(const TWeakObjectPtr<UCustomizableObjectInstance>& A, const TWeakObjectPtr<UCustomizableObjectInstance>& B)
+	FORCEINLINE static bool Matches(const TWeakObjectPtr<const UCustomizableObjectInstance>& A, const TWeakObjectPtr<const UCustomizableObjectInstance>& B)
 	{
 		return A.HasSameIndexAndSerialNumber(B);
 	}
 
-	FORCEINLINE static uint32 GetKeyHash(const TWeakObjectPtr<UCustomizableObjectInstance>& Identifier)
+	FORCEINLINE static uint32 GetKeyHash(const TWeakObjectPtr<const UCustomizableObjectInstance>& Identifier)
 	{
 		return GetTypeHash(Identifier.GetWeakPtrTypeHash());
 	}
@@ -235,7 +235,7 @@ public:
 	// Removes an instance update
 	void RemoveUpdate(const TWeakObjectPtr<UCustomizableObjectInstance>& Instance);
 
-	const FMutablePendingInstanceUpdate* GetUpdate(const TWeakObjectPtr<UCustomizableObjectInstance>& Instance) const;
+	const FMutablePendingInstanceUpdate* GetUpdate(const TWeakObjectPtr<const UCustomizableObjectInstance>& Instance) const;
 
 	TSet<FMutablePendingInstanceUpdate, FPendingInstanceUpdateKeyFuncs>::TIterator GetUpdateIterator()
 	{
@@ -752,6 +752,12 @@ public:
 	bool IsMutableAnimInfoDebuggingEnabled() const;
 
 	FUnrealMutableImageProvider* GetImageProviderChecked() const;
+
+	/** Start the actual work of Update Skeletal Mesh process (Update Skeletal Mesh without the queue). */
+	void StartUpdateSkeletalMesh(const TSharedPtr<FMutableOperation>& Operation);
+
+	/** See UCustomizableObjectInstance::IsUpdating. */
+	bool IsUpdating(const UCustomizableObjectInstance& Instance) const;
 	
 	/** Mutable TaskGraph system (Mutable Thread). */
 	FMutableTaskGraph MutableTaskGraph;

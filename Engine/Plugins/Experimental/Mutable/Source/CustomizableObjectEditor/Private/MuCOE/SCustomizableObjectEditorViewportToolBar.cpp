@@ -21,6 +21,8 @@
 #include "SViewportToolBarComboMenu.h"
 #include "Settings/LevelEditorViewportSettings.h"
 #include "UnrealEdGlobals.h"
+#include "MuCO/CustomizableInstancePrivateData.h"
+#include "MuCO/CustomizableObjectSystem.h"
 #include "Widgets/Input/SButton.h"
 #include "Widgets/Input/SMenuAnchor.h"
 #include "Widgets/Input/SSpinBox.h"
@@ -34,12 +36,14 @@ struct FSlateBrush;
 #define LOCTEXT_NAMESPACE "CustomizableObjectEditorViewportToolBar"
 
 
-void SCustomizableObjectEditorViewportToolBar::Construct(const FArguments& InArgs, TSharedPtr<class SCustomizableObjectEditorViewportTabBody> InViewport, TSharedPtr<class SEditorViewport> InRealViewport)
+void SCustomizableObjectEditorViewportToolBar::Construct(const FArguments& InArgs, TSharedPtr<SCustomizableObjectEditorViewportTabBody> InViewport, TSharedPtr<SEditorViewport> InRealViewport)
 {
 	Viewport = InViewport;
 
 	TSharedRef<SCustomizableObjectEditorViewportTabBody> ViewportRef = Viewport.Pin().ToSharedRef();
 
+	WeakEditor = ViewportRef->CustomizableObjectEditorPtr;
+	
 	TSharedRef<SHorizontalBox> LeftToolbar = SNew(SHorizontalBox)
 
 	//// Camera Type (Perspective/Top/etc...)
@@ -171,6 +175,7 @@ void SCustomizableObjectEditorViewportToolBar::Construct(const FArguments& InArg
 	SViewportToolBar::Construct(SViewportToolBar::FArguments());
 }
 
+
 EVisibility SCustomizableObjectEditorViewportToolBar::GetShowCompileErrorOverlay() const
 {
 	return GetCompileErrorOverlayText().IsEmpty() ? EVisibility::Hidden : EVisibility::Visible;
@@ -179,45 +184,47 @@ EVisibility SCustomizableObjectEditorViewportToolBar::GetShowCompileErrorOverlay
 
 FText SCustomizableObjectEditorViewportToolBar::GetCompileErrorOverlayText() const
 {
-	if ((Viewport.IsValid()) && (Viewport.Pin().Get() != nullptr) &&
-		(Viewport.Pin()->CustomizableObjectEditorPtr.IsValid()))
+	const TSharedPtr<ICustomizableObjectInstanceEditor> Editor = WeakEditor.Pin();
+	if (!Editor)
 	{
-		if (Viewport.Pin()->CustomizableObjectEditorPtr.Pin()->GetAssetRegistryLoaded())
-		{
-			UCustomizableObjectInstance* Instance = Viewport.Pin()->CustomizableObjectEditorPtr.Pin()->GetPreviewInstance();
-
-			if (Instance != nullptr)
-			{
-				if (Instance->SkeletalMeshStatus == ESkeletalMeshState::UpdateError)
-				{
-					return FText::FromString("Error updating skeletal mesh");
-				}
-				else if (Instance->SkeletalMeshStatus == ESkeletalMeshState::PostUpdateError)
-				{
-					return FText::FromString("Post Update Error: check the output log for more information.");
-				}
-				else if (Instance->SkeletalMeshStatus == ESkeletalMeshState::AsyncUpdatePending)
-				{
-					return FText::FromString("Updating skeletal mesh");
-				}
-			}
-			else
-			{
-				return FText::FromString("No Skeletal Mesh generated");
-			}
-		}
-		else
-		{
-			return FText::FromString("Loading assets");
-		}
+		return {};
 	}
-	return {};
-}
 
+	if (!Editor->GetAssetRegistryLoaded())
+	{
+		return LOCTEXT("LoadingAssets", "Loading Assets");
+	}
 
-EVisibility SCustomizableObjectEditorViewportToolBar::GetTransformToolbarVisibility() const
-{
-	return EVisibility::Hidden;
+	const UCustomizableObjectInstance* Instance = Editor->GetPreviewInstance();
+	if (!Instance)
+	{
+		return LOCTEXT("NoPreviewInstance", "No Preview Instance");
+	}
+
+	UCustomizableObjectSystem* System = UCustomizableObjectSystem::GetInstanceChecked();
+	
+	if (System->IsUpdating(Instance))
+	{
+		return LOCTEXT("UpdatingSkeletalMesh", "Updating Skeletal Mesh");
+	}
+
+	const UCustomizableInstancePrivateData* PrivateInstance = Instance->GetPrivate();
+	
+	switch (PrivateInstance->GetSkeletalMeshStatus())
+	{
+	case ESkeletalMeshStatus::NotGenerated:
+		return LOCTEXT("NoSkeletalMeshGenerated", "No Skeletal Mesh Generated");
+				
+	case ESkeletalMeshStatus::Error:
+		return LOCTEXT("ErrorUpdatingSkeletalMesh", "Error Updating Skeletal Mesh");
+
+	case ESkeletalMeshStatus::Success:
+		return {};
+
+	default:
+		unimplemented();
+		return {};
+	}
 }
 
 

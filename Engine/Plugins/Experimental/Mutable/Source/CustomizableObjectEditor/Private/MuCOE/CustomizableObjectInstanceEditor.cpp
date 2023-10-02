@@ -34,6 +34,7 @@
 #include "Widgets/Notifications/SNotificationList.h"
 #include "WorkspaceMenuStructure.h"
 #include "WorkspaceMenuStructureModule.h"
+#include "MuCO/CustomizableInstancePrivateData.h"
 
 class FAdvancedPreviewScene;
 class FProperty;
@@ -436,7 +437,7 @@ void FCustomizableObjectInstanceEditor::OnAssetRegistryLoadComplete()
 
 void FCustomizableObjectInstanceEditor::UpdatePreviewVisibility()
 {
-	const bool bEnableVisibility = CustomizableObjectInstance->SkeletalMeshStatus == ESkeletalMeshState::Correct;
+	const bool bEnableVisibility = CustomizableObjectInstance->GetPrivate()->GetSkeletalMeshStatus() == ESkeletalMeshStatus::Success;
 	for (UDebugSkelMeshComponent* PreviewSkeletalMeshComponent : PreviewSkeletalMeshComponents)
 	{
 		PreviewSkeletalMeshComponent->SetVisibility(bEnableVisibility, true);

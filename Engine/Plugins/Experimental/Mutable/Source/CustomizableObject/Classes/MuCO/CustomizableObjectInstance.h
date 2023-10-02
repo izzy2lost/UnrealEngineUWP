@@ -27,16 +27,6 @@ struct FPropertyChangedEvent;
 #define MUTABLE_VERTEXBUFFER_TEXCOORDS	2
 
 
-/** FString with the possible errors from skeletal mesh update */
-namespace ESkeletalMeshState
-{
-	const FString Correct = "Correct";
-	const FString UpdateError = "Update error";
-	const FString PostUpdateError = "Post Update Error";
-	const FString AsyncUpdatePending = "Async update pending";
-};
-
-
 // Priority for the mutable update queue, Low is the normal distance-based priority, High is normally used for discards and Mid for LOD downgrades
 enum class EQueuePriorityType : uint8 { High, Med, Med_Low, Low };
 
@@ -58,7 +48,17 @@ enum class EUpdateResult : uint8
 	Error, // Generic error.
 	ErrorOptimized, // The update was skipped since its result would have been the same as the current customization.
 	ErrorReplaced, // The update was replaced by a newer update request.
-	ErrorDiscarded // The update was not finished since due to the LOD management discarding the data.
+	ErrorDiscarded, // The update was not finished since due to the LOD management discarding the data.
+	Error16BitBoneIndex // The update finish unsuccessfully due to Instance not supporting 16 Bit Bone Indexing required by the Engine.
+};
+
+
+/** Indicates the status of the generated Skeletal Mesh. */
+enum class ESkeletalMeshStatus : uint8
+{
+	NotGenerated,
+	Success,
+	Error
 };
 
 
@@ -137,15 +137,7 @@ public:
 	UPROPERTY(Transient, VisibleAnywhere, Category = CustomizableSkeletalMesh)
 	TArray< TObjectPtr<USkeletalMesh> > SkeletalMeshes;
 
-
-	// Will store status description of current skeletal mesh generation (for instance, "EmptyLOD0" or "EmptyMesh"
-	UPROPERTY()
-	FString SkeletalMeshStatus;
-
 #if WITH_EDITOR
-	// Will store the previous status description to avoid losing notifications with partial updates.
-	FString PreUpdateSkeletalMeshStatus;
-
 	/** During editor, always remember the duration of the last update in the mutable runtime, for profiling. */
 	int32 LastUpdateMutableRuntimeCycles = 0;
 #endif
@@ -637,9 +629,6 @@ public:
 
 	const TArray<uint16>& GetRequestedLODsPerComponent() const;
 
-	/** Common end point of all updates. Even those which failed. */
-	void FinishUpdate(EUpdateResult UpdateResult, const FDescriptorRuntimeHash& UpdatedHash);
-	
 	/** Return the UCustomizableObjectInstance::Descriptor hash on the last update request. */
 	FDescriptorRuntimeHash GetDescriptorRuntimeHash() const;
 

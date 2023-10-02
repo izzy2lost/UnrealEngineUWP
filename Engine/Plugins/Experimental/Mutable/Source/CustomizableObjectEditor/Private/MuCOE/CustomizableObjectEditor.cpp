@@ -52,6 +52,7 @@
 #include "PropertyEditorModule.h"
 #include "ScopedTransaction.h"
 #include "MuCOE/SCustomizableInstanceProperties.h"
+#include "MuCO/CustomizableInstancePrivateData.h"
 #include "UObject/EnumProperty.h"
 #include "Widgets/Docking/SDockTab.h"
 #include "Widgets/Input/SSearchBox.h"
@@ -2489,7 +2490,7 @@ void FCustomizableObjectEditor::UpdatePreviewVisibility()
 	{
 		if (PreviewSkeletalMeshComponent)
 		{
-			if (PreviewInstance->SkeletalMeshStatus != ESkeletalMeshState::UpdateError)
+			if (PreviewInstance->GetPrivate()->GetSkeletalMeshStatus() == ESkeletalMeshStatus::Success)
 			{
 				PreviewSkeletalMeshComponent->SetVisibility(true, true);
 			}

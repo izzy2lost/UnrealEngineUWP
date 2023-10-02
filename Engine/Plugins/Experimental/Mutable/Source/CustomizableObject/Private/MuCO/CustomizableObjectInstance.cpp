@@ -91,6 +91,18 @@ void UCustomizableInstancePrivateData::SetLastMeshId(int32 ComponentIndex, int32
 }
 
 
+ESkeletalMeshStatus UCustomizableInstancePrivateData::GetSkeletalMeshStatus() const
+{
+	return SkeletalMeshStatus;
+}
+
+
+void UCustomizableInstancePrivateData::SetSkeletalMeshStatus(ESkeletalMeshStatus Status)
+{
+	SkeletalMeshStatus = Status;
+}
+
+
 void UCustomizableInstancePrivateData::InitLastUpdateData(const TSharedPtr<FMutableOperationData>& OperationData)
 {
 	LastUpdateData.LODs.Init(FInstanceGeneratedData::FLOD(), OperationData->NumLODsAvailable);
@@ -1774,7 +1786,6 @@ bool UCustomizableInstancePrivateData::UpdateSkeletalMesh_PostBeginUpdate0(UCust
 	{
 		UE_LOG(LogMutable, Warning, TEXT("Failed to generate SkeletalMesh for CO Instance %s. CO [%s]"), *Public->GetName(), *GetNameSafe(Public->GetCustomizableObject()));
 
-		Public->SkeletalMeshStatus = ESkeletalMeshState::UpdateError;
 		Public->SkeletalMeshes.Reset(); // What about all the references
 
 		SetCOInstanceFlags(Generated);
@@ -1783,8 +1794,6 @@ bool UCustomizableInstancePrivateData::UpdateSkeletalMesh_PostBeginUpdate0(UCust
 
 		return false;
 	}
-
-	Public->SkeletalMeshStatus = ESkeletalMeshState::Correct;
 
 	// None of the current meshes requires a mesh update. Continue to BuildMaterials
 	if (!bUpdateMeshes)
@@ -2090,10 +2099,6 @@ bool UCustomizableInstancePrivateData::UpdateSkeletalMesh_PostBeginUpdate0(UCust
 
 	if (!bSuccess)
 	{
-#if WITH_EDITOR
-		Public->SkeletalMeshStatus = Public->PreUpdateSkeletalMeshStatus; // The mesh won't be updated, set the previous SkeletalMeshStatus to avoid losing error notifications
-#endif
-
 		Public->SkeletalMeshes.Reset();
 
 		InvalidateGeneratedData();
@@ -2150,7 +2155,6 @@ UCustomizableObjectInstance* UCustomizableObjectInstance::CloneStatic(UObject* O
 void UCustomizableObjectInstance::CopyParametersFromInstance(UCustomizableObjectInstance* Instance)
 {
 	SetDescriptor(Instance->GetDescriptor());
-	SkeletalMeshStatus = Instance->SkeletalMeshStatus;
 }
 
 
@@ -2761,6 +2765,7 @@ void UCustomizableInstancePrivateData::DiscardResourcesAndSetReferenceSkeletalMe
 	}
 
 	ClearCOInstanceFlags(Generated);
+	SkeletalMeshStatus = ESkeletalMeshStatus::NotGenerated;
 	
 	InvalidateGeneratedData();
 	
@@ -2832,22 +2837,6 @@ void SetTexturePropertiesFromMutableImageProps(UTexture2D* Texture, const FMutab
 	Texture->LODGroup = Props.LODGroup;
 	Texture->AddressX = Props.AddressX;
 	Texture->AddressY = Props.AddressY;
-}
-
-
-void UCustomizableObjectInstance::FinishUpdate(EUpdateResult UpdateResult, const FDescriptorRuntimeHash& InUpdatedHash)
-{
-	if (UpdateResult == EUpdateResult::Success)
-	{
-		GetPrivate()->DescriptorRuntimeHash = InUpdatedHash;
-	}
-
-	if (UpdateResult == EUpdateResult::Success)
-	{
-		// Call Instance updated (this) callbacks.
-		UpdatedDelegate.Broadcast(this);
-		UpdatedNativeDelegate.Broadcast(this);
-	}
 }
 
 
@@ -4860,7 +4849,7 @@ bool UCustomizableInstancePrivateData::BuildOrCopyRenderData(const TSharedPtr<FM
 
 		if (LODModel.DoesVertexBufferUse16BitBoneIndex() && !UCustomizableObjectSystem::GetInstance()->IsSupport16BitBoneIndexEnabled())
 		{
-			Public->SkeletalMeshStatus = ESkeletalMeshState::PostUpdateError;
+			OperationData->UpdateResult = EUpdateResult::Error16BitBoneIndex;
 
 			const FString Msg = FString::Printf(TEXT("Customizable Object [%s] requires of Skinning - 'Support 16 Bit Bone Index' to be enabled. Please, update the Project Settings."),
 				*CustomizableObject->GetName());

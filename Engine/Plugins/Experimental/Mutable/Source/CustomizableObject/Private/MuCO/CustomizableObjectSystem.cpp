@@ -150,7 +150,7 @@ void FMutablePendingInstanceWork::RemoveUpdate(const TWeakObjectPtr<UCustomizabl
 }
 
 
-const FMutablePendingInstanceUpdate* FMutablePendingInstanceWork::GetUpdate(const TWeakObjectPtr<UCustomizableObjectInstance>& Instance) const
+const FMutablePendingInstanceUpdate* FMutablePendingInstanceWork::GetUpdate(const TWeakObjectPtr<const UCustomizableObjectInstance>& Instance) const
 {
 	return PendingInstanceUpdates.Find(Instance);
 }
@@ -165,8 +165,6 @@ void FMutablePendingInstanceWork::AddDiscard(const FMutablePendingInstanceDiscar
 	}
 
 	PendingInstanceDiscards.Add(TaskToEnqueue);
-
-	TaskToEnqueue.CustomizableObjectInstance->GetPrivate()->SetCOInstanceFlags(Updating);
 }
 
 
@@ -687,11 +685,40 @@ static FAutoConsoleVariableRef CVarApplyFixPrepareSkeletons(
 void FinishUpdateGlobal(UCustomizableObjectInstance* Instance, EUpdateResult UpdateResult, const FInstanceUpdateDelegate* UpdateCallback, const FDescriptorRuntimeHash InUpdatedHash)
 {
 	check(IsInGameThread())
-	
-	// Callbacks. Must be done at the end.
+
 	if (Instance)
 	{
-		Instance->FinishUpdate(UpdateResult, InUpdatedHash);			
+		UCustomizableInstancePrivateData* PrivateInstance = Instance->GetPrivate();
+		
+		switch (UpdateResult)
+		{
+		case EUpdateResult::Success:
+			PrivateInstance->SetSkeletalMeshStatus(ESkeletalMeshStatus::Success);
+
+			PrivateInstance->DescriptorRuntimeHash = InUpdatedHash;
+
+			// Delegates must be called only after updating the Instance flags.
+			Instance->UpdatedDelegate.Broadcast(Instance);
+			Instance->UpdatedNativeDelegate.Broadcast(Instance);
+			break;
+
+		case EUpdateResult::ErrorOptimized:
+			break; // Skeletal Mesh not changed.
+			
+		case EUpdateResult::ErrorDiscarded:
+			break; // Status will be updated once the discard is performed.
+
+		case EUpdateResult::Error: 
+		case EUpdateResult::Error16BitBoneIndex:
+			PrivateInstance->SetSkeletalMeshStatus(ESkeletalMeshStatus::Error);
+			break;
+			
+		case EUpdateResult::ErrorReplaced:
+			break; // Skeletal Mesh not changed.
+			
+		default:
+			unimplemented();
+		}
 	}
 
 	if (UpdateResult == EUpdateResult::Success)
@@ -913,7 +940,7 @@ EUpdateRequired FCustomizableObjectSystemPrivate::IsUpdateRequired(const UCustom
 	if (Private->HasCOInstanceFlags(DiscardedByNumInstancesLimit) ||
 		bLODManagementDiscard)
 	{
-		if (bIsGenerated && !Private->HasCOInstanceFlags(Updating))
+		if (bIsGenerated)
 		{
 			return EUpdateRequired::Discard;		
 		}
@@ -978,22 +1005,23 @@ void FCustomizableObjectSystemPrivate::EnqueueUpdateSkeletalMesh(UCustomizableOb
 	MUTABLE_CPUPROFILER_SCOPE(FCustomizableObjectSystemPrivate::EnqueueUpdateSkeletalMesh);
 	check(IsInGameThread());
 
+	UCustomizableInstancePrivateData* InstancePrivate = Instance.GetPrivate();
+	
 	if (!Instance.CanUpdateInstance())
 	{
-		FinishUpdateGlobal(&Instance, EUpdateResult::ErrorDiscarded, UpdateCallback);
+		FinishUpdateGlobal(&Instance, EUpdateResult::Error, UpdateCallback);
 		return;
 	}
 
 	UCustomizableObjectSystem* System = UCustomizableObjectSystem::GetInstance();
 
-	UCustomizableInstancePrivateData* InstancePrivate = Instance.GetPrivate();
 	
 	const EUpdateRequired UpdateRequired = IsUpdateRequired(Instance, bOnlyUpdateIfNotGenerated, bIgnoreCloseDist);
 	switch (UpdateRequired)
 	{
 	case EUpdateRequired::NoUpdate:
 	{	
-		FinishUpdateGlobal(&Instance, EUpdateResult::ErrorDiscarded, UpdateCallback);
+		FinishUpdateGlobal(&Instance, EUpdateResult::Error, UpdateCallback);
 		break;
 	}		
 	case EUpdateRequired::Update:
@@ -1004,16 +1032,6 @@ void FCustomizableObjectSystemPrivate::EnqueueUpdateSkeletalMesh(UCustomizableOb
 		const float Distance = FMath::Sqrt(InstancePrivate->LastMinSquareDistFromComponentToPlayer);
 		const bool bIsPlayerOrNearIt = InstancePrivate->HasCOInstanceFlags(UsedByPlayerOrNearIt);
 		UE_LOG(LogMutable, Log, TEXT("Enqueued UpdateSkeletalMesh Async. of Instance %d with priority %d at dist %f bIsPlayerOrNearIt=%d, frame=%d"), InstanceId, static_cast<int32>(Priority), Distance, bIsPlayerOrNearIt, GFrameNumber);				
-
-#if WITH_EDITOR
-		if (!UCustomizableObjectSystem::GetInstance()->IsCompilationDisabled())
-		{
-			if (Instance.SkeletalMeshStatus != ESkeletalMeshState::AsyncUpdatePending)
-			{
-				Instance.PreUpdateSkeletalMeshStatus = Instance.SkeletalMeshStatus;
-			}
-		}
-#endif
 
 		if (InstancePrivate->HasCOInstanceFlags(PendingLODsUpdate))
 		{
@@ -1043,7 +1061,6 @@ void FCustomizableObjectSystemPrivate::EnqueueUpdateSkeletalMesh(UCustomizableOb
 			!(CurrentMutableOperation &&
 			&Instance == CurrentMutableOperation->CustomizableObjectInstance)) // This condition is necessary because even if the descriptor is a subset, it will be replaced by the CurrentMutableOperation
 		{
-			Instance.SkeletalMeshStatus = ESkeletalMeshState::Correct; // TODO FutureGMT MTBL-1033 should not be here. Move to UCustomizableObjectInstance::Updated
 			UpdateSkeletalMesh(Instance, Instance.GetDescriptorRuntimeHash(), EUpdateResult::Success, UpdateCallback);
 		}
 		else
@@ -1079,8 +1096,6 @@ void FCustomizableObjectSystemPrivate::EnqueueUpdateSkeletalMesh(UCustomizableOb
 					InstancePrivate->UpdateTextureParameters.Add(TextureParameter);
 				}
 			}
-
-			Instance.SkeletalMeshStatus = ESkeletalMeshState::AsyncUpdatePending;
 
 			const FMutablePendingInstanceUpdate InstanceUpdate(&Instance, Priority, UpdateCallback);
 			MutablePendingInstanceWork.AddUpdate(InstanceUpdate);
@@ -2584,9 +2599,6 @@ namespace impl
 		// Skip update, the requested update is equal to the running update.
 		if (Operation->InstanceDescriptorRuntimeHash.IsSubset(CandidateInstance->GetDescriptorRuntimeHash()))
 		{
-			CandidateInstance->SkeletalMeshStatus = ESkeletalMeshState::Correct;
-
-			CandidateInstancePrivateData->ClearCOInstanceFlags(Updating);
 			System->ClearCurrentMutableOperation();
 			UpdateSkeletalMesh(*CandidateInstance, CandidateInstance->GetDescriptorRuntimeHash(), EUpdateResult::ErrorOptimized, &Operation->UpdateCallback);
 			return;
@@ -2627,8 +2639,6 @@ namespace impl
 
 		if (bCancel)
 		{
-			CandidateInstancePrivateData->ClearCOInstanceFlags(Updating);
-
 			System->ClearCurrentMutableOperation();
 
 			FinishUpdateGlobal(CandidateInstance, EUpdateResult::Error, &Operation->UpdateCallback);
@@ -3014,8 +3024,9 @@ bool UCustomizableObjectSystem::Tick(float DeltaTime)
 					LODUpdateWithSameInstance->ApplyLODUpdateParamsToInstance();
 				}
 
-				Private->CurrentMutableOperation = MakeShared<FMutableOperation>(FMutableOperation::CreateInstanceUpdate(*PendingInstance, PendingInstanceUpdateFound->Callback));
-
+				const TSharedPtr<FMutableOperation> Operation = MakeShared<FMutableOperation>(FMutableOperation::CreateInstanceUpdate(*PendingInstance, PendingInstanceUpdateFound->Callback));
+				Private->StartUpdateSkeletalMesh(Operation);
+				
 				Private->MutablePendingInstanceWork.RemoveUpdate(PendingInstanceUpdateFound->CustomizableObjectInstance);
 			}
 			else if (LODUpdateCandidateFound)
@@ -3023,7 +3034,8 @@ bool UCustomizableObjectSystem::Tick(float DeltaTime)
 				// Commit the LOD changes
 				LODUpdateCandidateFound->ApplyLODUpdateParamsToInstance();
 
-				Private->CurrentMutableOperation = MakeShared<FMutableOperation>(FMutableOperation::CreateInstanceUpdate(*LODUpdateCandidateFound->CustomizableObjectInstance, nullptr));
+				const TSharedRef<FMutableOperation> Operation = MakeShared<FMutableOperation>(FMutableOperation::CreateInstanceUpdate(*LODUpdateCandidateFound->CustomizableObjectInstance, nullptr));
+				Private->StartUpdateSkeletalMesh(Operation);
 			}
 		}
 
@@ -3086,7 +3098,8 @@ void UCustomizableObjectSystem::DiscardInstances()
 
 		UCustomizableObjectInstance* COI = Iterator->CustomizableObjectInstance.Get();
 
-		if (COI)
+		const bool bUpdating = Private->CurrentMutableOperation && Private->CurrentMutableOperation->CustomizableObjectInstance != Iterator->CustomizableObjectInstance;
+		if (COI && !bUpdating)
 		{
 			UCustomizableInstancePrivateData* COIPrivateData = COI ? COI->GetPrivate() : nullptr;
 
@@ -3102,21 +3115,7 @@ void UCustomizableObjectSystem::DiscardInstances()
 				{
 					check(COIPrivateData != nullptr);
 					COIPrivateData->DiscardResourcesAndSetReferenceSkeletalMesh(COI);
-					COIPrivateData->ClearCOInstanceFlags(Updating);
-					COI->SkeletalMeshStatus = ESkeletalMeshState::Correct;
 				}
-			}
-			else
-			{
-				check(COIPrivateData != nullptr);
-				COIPrivateData->ClearCOInstanceFlags(Updating);
-			}
-
-			if (COI && !COI->HasAnySkeletalMesh())
-			{
-				// To solve the problem in the Mutable demo where PIE just after editor start made all instances appear as reference mesh until editor restart
-				check(COIPrivateData != nullptr);
-				COIPrivateData->ClearCOInstanceFlags(Generated);
 			}
 		}
 
@@ -3147,6 +3146,17 @@ void UCustomizableObjectSystem::ReleaseInstanceIDs()
 		Iterator.RemoveCurrent();
 		NumIDsReleased++;
 	}
+}
+
+
+bool UCustomizableObjectSystem::IsUpdating(const UCustomizableObjectInstance* Instance) const
+{
+	if (!Instance)
+	{
+		return false;
+	}
+	
+	return GetPrivateChecked()->IsUpdating(*Instance);
 }
 
 
@@ -3663,6 +3673,31 @@ FUnrealMutableImageProvider* FCustomizableObjectSystemPrivate::GetImageProviderC
 {
 	check(ImageProvider)
 	return ImageProvider.Get();
+}
+
+
+void FCustomizableObjectSystemPrivate::StartUpdateSkeletalMesh(const TSharedPtr<FMutableOperation>& Operation)
+{
+	check(!CurrentMutableOperation); // Can not start an update if there is already another in progress
+	check(Operation->CustomizableObjectInstance.IsValid()) // The instance has to be alive to start the update
+		
+	CurrentMutableOperation = Operation;
+}
+
+
+bool FCustomizableObjectSystemPrivate::IsUpdating(const UCustomizableObjectInstance& Instance) const
+{
+	if (CurrentMutableOperation && CurrentMutableOperation->CustomizableObjectInstance.Get() == &Instance)
+	{
+		return true;
+	}
+
+	if (MutablePendingInstanceWork.GetUpdate(TWeakObjectPtr<const UCustomizableObjectInstance>(&Instance)))
+	{
+		return true;
+	}
+	
+	return false;
 }
 
 

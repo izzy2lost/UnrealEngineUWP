@@ -4,6 +4,7 @@
 
 #include "SViewportToolBar.h"
 
+class ICustomizableObjectInstanceEditor;
 enum ERotationGridMode : int;
 enum class ECheckBoxState : uint8;
 namespace ETextCommit { enum Type : int; }
@@ -103,9 +104,6 @@ private:
 	/** Called when the floor offset slider is adjusted in the perspective viewport */
 	void OnFloorOffsetChanged(float NewValue);
 
-	// Called to determine if the gizmos can be used in the current preview
-	EVisibility GetTransformToolbarVisibility() const;
-
 	// Called to show / hide Customizable Object compile error
 	EVisibility GetShowCompileErrorOverlay() const;
 
@@ -129,6 +127,8 @@ private:
 
 	/** The viewport that we are in */
 	TWeakPtr<SCustomizableObjectEditorViewportTabBody> Viewport;
+
+	TWeakPtr<ICustomizableObjectInstanceEditor> WeakEditor;
 
 	// Layout to show information about instance skeletal mesh update / CO asset data
 	TSharedPtr<SButton> CompileErrorLayout;
