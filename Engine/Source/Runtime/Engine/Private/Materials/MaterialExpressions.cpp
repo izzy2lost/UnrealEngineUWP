@@ -22485,6 +22485,11 @@ int32 UMaterialExpressionShadingModel::Compile(class FMaterialCompiler* Compiler
 	return Compiler->ShadingModel(ShadingModel);
 }
 
+int32 UMaterialExpressionShadingModel::CompilePreview(class FMaterialCompiler* Compiler, int32 OutputIndex)
+{
+	return Compiler->Constant(0.f);
+}
+
 void UMaterialExpressionShadingModel::GetCaption(TArray<FString>& OutCaptions) const
 {
 	const UEnum* ShadingModelEnum = FindObject<UEnum>(nullptr, TEXT("Engine.EMaterialShadingModel"));
