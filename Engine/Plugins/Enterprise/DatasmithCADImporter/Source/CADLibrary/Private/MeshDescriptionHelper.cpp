@@ -318,7 +318,7 @@ bool FillMesh(const FMeshConversionContext& MeshConversionContext, FBodyMesh& Bo
 		if (PolyGroupIndex < FImportParameters::GMaxMaterialCountPerMesh)
 		{
 			uint32 MaterialHash = Material.Key;
-			FName ImportedSlotName = *LexToString<uint32>(MaterialHash);
+			FName ImportedSlotName = *LexToString(MaterialHash);
 			PolyGroupID = MeshDescription.CreatePolygonGroup();
 			PolygonGroupImportedMaterialSlotNames[PolyGroupID] = ImportedSlotName;
 		}
