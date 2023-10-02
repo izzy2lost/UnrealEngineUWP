@@ -3,6 +3,7 @@
 #include "NearestNeighborOptimizedNetwork.h"
 
 #include "Misc/FileHelper.h"
+#include "Modules/ModuleManager.h"
 
 #include "NNE.h"
 #include "NNERuntime.h"
@@ -67,6 +68,7 @@ namespace UE::NearestNeighborModel::Private
 PRAGMA_DISABLE_DEPRECATION_WARNINGS
 
 const TCHAR* UNearestNeighborOptimizedNetwork::RuntimeName = TEXT("NNERuntimeBasicCpu");
+const TCHAR* UNearestNeighborOptimizedNetwork::RuntimeModuleName = TEXT("NNERuntimeBasicCpu");
 
 
 void UNearestNeighborOptimizedNetwork::PostLoad()
@@ -95,6 +97,8 @@ void UNearestNeighborOptimizedNetwork::PostLoad()
 	}
 
 	// Create in-memory representation of network
+
+	ensureMsgf(FModuleManager::Get().LoadModule(RuntimeModuleName), TEXT("Unable to load runtime module."));
 
 	TWeakInterfacePtr<INNERuntimeCPU> RuntimeCPU = UE::NNE::GetRuntime<INNERuntimeCPU>(RuntimeName);
 
@@ -147,6 +151,8 @@ bool UNearestNeighborOptimizedNetwork::Load(const FString& Filename)
 
 		// Clear FileData to avoid multiple copies in memory at once
 		FileData.Empty();
+
+		ensureMsgf(FModuleManager::Get().LoadModule(RuntimeModuleName), TEXT("Unable to load runtime module."));
 
 		TWeakInterfacePtr<INNERuntimeCPU> RuntimeCPU = UE::NNE::GetRuntime<INNERuntimeCPU>(RuntimeName);
 

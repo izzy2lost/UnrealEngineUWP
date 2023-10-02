@@ -362,6 +362,8 @@ void UNeuralMorphNetwork::PostLoad()
 
 	// Create models
 
+	ensureMsgf(FModuleManager::Get().LoadModule(TEXT("NNERuntimeBasicCpu")), TEXT("Unable to load module for NNE runtime NNERuntimeBasicCpu."));
+	
 	TWeakInterfacePtr<INNERuntimeCPU> RuntimeCPU = UE::NNE::GetRuntime<INNERuntimeCPU>(TEXT("NNERuntimeBasicCpu"));
 
 	if (ensureMsgf(RuntimeCPU.IsValid(), TEXT("Could not find requested NNE Runtime")))
@@ -489,6 +491,8 @@ bool UNeuralMorphNetwork::Load(const FString& Filename)
 		FString RuntimeName;
 		UE::NeuralMorphModel::Private::Serialization::Load(Offset, RuntimeName, FileData);
 
+		ensureMsgf(RuntimeName == TEXT("NNERuntimeBasicCpu"), TEXT("Currently only NNERuntimeBasicCpu runtime is supported"));
+
 		// Load Main Network
 
 		if (!MainModelData)
@@ -522,7 +526,9 @@ bool UNeuralMorphNetwork::Load(const FString& Filename)
 
 		// Create models
 
-		TWeakInterfacePtr<INNERuntimeCPU> RuntimeCPU = UE::NNE::GetRuntime<INNERuntimeCPU>(RuntimeName);
+		ensureMsgf(FModuleManager::Get().LoadModule(TEXT("NNERuntimeBasicCpu")), TEXT("Unable to load module for NNE runtime NNERuntimeBasicCpu."));
+
+		TWeakInterfacePtr<INNERuntimeCPU> RuntimeCPU = UE::NNE::GetRuntime<INNERuntimeCPU>(TEXT("NNERuntimeBasicCpu"));
 
 		if (ensureMsgf(RuntimeCPU.IsValid(), TEXT("Could not find requested NNE Runtime")))
 		{

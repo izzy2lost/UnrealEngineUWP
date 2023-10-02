@@ -160,7 +160,7 @@ protected:
 private:
 
 	static const TCHAR* RuntimeName;
-
+	static const TCHAR* RuntimeModuleName;
 };
 
 /** 

@@ -4,7 +4,9 @@
 
 #include "LearningAgentsNeuralNetwork.h"
 #include "LearningNeuralNetwork.h"
+
 #include "Async/ParallelFor.h"
+#include "Modules/ModuleManager.h"
 
 #include "NNE.h"
 #include "NNEModelData.h"
@@ -134,6 +136,8 @@ namespace UE::Learning::Agents
 		}
 
 		Parent.ModelData->Init(TEXT("ubnne"), Parent.FileData);
+
+		ensureMsgf(FModuleManager::Get().LoadModule(TEXT("NNERuntimeBasicCpu")), TEXT("Unable to load module for NNE runtime NNERuntimeBasicCpu."));
 
 		TWeakInterfacePtr<INNERuntimeCPU> RuntimeCPU = NNE::GetRuntime<INNERuntimeCPU>(TEXT("NNERuntimeBasicCpu"));
 
