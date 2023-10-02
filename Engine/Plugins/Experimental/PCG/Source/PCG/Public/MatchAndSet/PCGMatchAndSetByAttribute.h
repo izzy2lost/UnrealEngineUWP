@@ -62,7 +62,7 @@ public:
 	FName MatchSourceAttribute;
 
 	/** Type of the attribute to match against. */
-	UPROPERTY(BlueprintReadWrite, EditAnywhere, Category = Settings, meta = (ValidEnumValues = "Float, Double, Integer32, Integer64, Vector2, Vector, Vector4, Quaternion, Transform, String, Boolean, Rotator, Name"))
+	UPROPERTY(BlueprintReadWrite, EditAnywhere, Category = Settings)
 	EPCGMetadataTypes MatchSourceType = EPCGMetadataTypes::Double;
 
 	/** String type of the attribute to match against (if required). */

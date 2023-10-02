@@ -29,7 +29,7 @@ enum class EPCGMetadataTypes : uint8
 
 	Count UMETA(Hidden),
 
-	Unknown = 255
+	Unknown = 255 UMETA(Hidden),
 };
 
 // Convenient macro to avoid duplicating a lot of code with all our supported types.

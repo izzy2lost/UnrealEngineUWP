@@ -1130,7 +1130,6 @@ void UPCGGraph::FixInvalidEdges()
 					UE_LOG(LogPCG, Error, TEXT("Removed edge to a node '%s' that is not registered in the graph."),
 						ConnectedNode ? *ConnectedNode->GetFName().ToString() : TEXT("NULL"),
 						*GetFName().ToString());
-					ensure(false);
 
 					Pin->Edges.RemoveAt(i);
 				}

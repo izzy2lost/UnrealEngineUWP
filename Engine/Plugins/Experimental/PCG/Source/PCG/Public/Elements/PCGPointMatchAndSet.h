@@ -67,7 +67,7 @@ public:
 	FPCGAttributePropertyOutputSelector SetTarget;
 
 	/** If the "Set" part is an attribute, then the type must be provided */
-	UPROPERTY(BlueprintReadWrite, EditAnywhere, Category = Settings, meta = (EditCondition = "bSetTargetIsAttribute", HideEditConditionToggle, EditConditionHides, ValidEnumValues = "Float, Double, Integer32, Integer64, Vector2, Vector, Vector4, Quaternion, Transform, String, Boolean, Rotator, Name"))
+	UPROPERTY(BlueprintReadWrite, EditAnywhere, Category = Settings, meta = (EditCondition = "bSetTargetIsAttribute", HideEditConditionToggle, EditConditionHides))
 	EPCGMetadataTypes SetTargetType = EPCGMetadataTypes::Double;
 
 	/** For string types, the subtype is used to cleanup the UI. */
