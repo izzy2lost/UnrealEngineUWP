@@ -284,6 +284,10 @@ struct STRUCTUTILS_API FPropertyBagPropertyDesc
 	/** Editor-only meta data for CachedProperty */
 	UPROPERTY(EditAnywhere, Category="Default")
 	TArray<FPropertyBagPropertyDescMetaData> MetaData;
+
+	/** Editor-only meta class for IClassViewer */
+	UPROPERTY(EditAnywhere, Category = "Default")
+	TObjectPtr<class UClass> MetaClass;
 #endif
 
 	/** Cached property pointer, set in UPropertyBag::GetOrCreateFromDescs. */
