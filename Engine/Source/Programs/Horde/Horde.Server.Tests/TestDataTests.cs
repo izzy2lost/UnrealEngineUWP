@@ -4,6 +4,7 @@ using System;
 using System.Collections.Generic;
 using System.Threading.Tasks;
 using Horde.Server.Jobs.Graphs;
+using Horde.Server.Jobs.Templates;
 using Horde.Server.Projects;
 using Horde.Server.Jobs;
 using Horde.Server.Users;

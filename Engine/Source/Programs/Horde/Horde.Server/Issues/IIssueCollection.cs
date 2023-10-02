@@ -7,6 +7,7 @@ using System.Threading.Tasks;
 using Horde.Server.Auditing;
 using Horde.Server.Jobs;
 using Horde.Server.Jobs.Graphs;
+using Horde.Server.Jobs.Templates;
 using Horde.Server.Logs;
 using Horde.Server.Streams;
 using MongoDB.Bson;

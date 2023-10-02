@@ -14,6 +14,7 @@ using EpicGames.Horde.Api;
 using Horde.Server.Issues.Handlers;
 using Horde.Server.Jobs;
 using Horde.Server.Jobs.Graphs;
+using Horde.Server.Jobs.Templates;
 using Horde.Server.Logs;
 using Horde.Server.Perforce;
 using Horde.Server.Server;

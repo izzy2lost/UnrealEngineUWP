@@ -5,7 +5,7 @@ using EpicGames.Core;
 using EpicGames.Horde;
 using EpicGames.Serialization;
 
-namespace Horde.Server.Streams
+namespace Horde.Server.Jobs.Templates
 {
 	/// <summary>
 	/// Identifier for a job template

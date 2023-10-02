@@ -7,6 +7,7 @@ using EpicGames.Horde.Storage;
 using Horde.Server.Acls;
 using Horde.Server.Jobs;
 using Horde.Server.Jobs.Bisect;
+using Horde.Server.Jobs.Templates;
 using Horde.Server.Streams;
 using Horde.Server.Tools;
 using Microsoft.AspNetCore.Http;

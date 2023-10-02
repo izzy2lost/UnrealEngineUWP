@@ -4,6 +4,7 @@ using System;
 using System.Collections.Generic;
 using System.Diagnostics.CodeAnalysis;
 using Horde.Server.Agents.Pools;
+using Horde.Server.Jobs.Templates;
 using Horde.Server.Logs;
 using Horde.Server.Streams;
 using HordeCommon;

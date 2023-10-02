@@ -9,6 +9,7 @@ using System.Net.Http;
 using System.Runtime.CompilerServices;
 using EpicGames.Core;
 using Horde.Server.Jobs;
+using Horde.Server.Jobs.Templates;
 using Horde.Server.Streams;
 using Microsoft.AspNetCore.Http;
 using Microsoft.Extensions.DependencyInjection;

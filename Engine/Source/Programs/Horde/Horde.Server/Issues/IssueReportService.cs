@@ -8,6 +8,7 @@ using System.Threading.Tasks;
 using EpicGames.Core;
 using Horde.Server.Jobs;
 using Horde.Server.Jobs.Graphs;
+using Horde.Server.Jobs.Templates;
 using Horde.Server.Notifications;
 using Horde.Server.Server;
 using Horde.Server.Streams;

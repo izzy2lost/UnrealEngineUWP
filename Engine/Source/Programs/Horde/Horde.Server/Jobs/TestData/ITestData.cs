@@ -2,6 +2,7 @@
 
 using System.Collections.Generic;
 using System;
+using Horde.Server.Jobs.Templates;
 using Horde.Server.Streams;
 using MongoDB.Bson;
 

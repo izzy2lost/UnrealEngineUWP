@@ -8,6 +8,7 @@ using System.Threading.Tasks;
 using EpicGames.Core;
 using EpicGames.Horde.Api;
 using Horde.Server.Jobs;
+using Horde.Server.Jobs.Templates;
 using Horde.Server.Server;
 using Horde.Server.Utilities;
 using HordeCommon;

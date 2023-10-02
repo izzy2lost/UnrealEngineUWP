@@ -4,6 +4,7 @@ using System;
 using System.ComponentModel.DataAnnotations;
 using EpicGames.Core;
 using Horde.Server.Jobs;
+using Horde.Server.Jobs.Templates;
 using Horde.Server.Streams;
 using HordeCommon;
 

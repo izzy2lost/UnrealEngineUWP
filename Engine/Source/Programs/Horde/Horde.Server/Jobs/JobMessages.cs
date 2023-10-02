@@ -9,6 +9,7 @@ using EpicGames.Core;
 using EpicGames.Horde.Api;
 using Horde.Server.Jobs.Bisect;
 using Horde.Server.Jobs.Graphs;
+using Horde.Server.Jobs.Templates;
 using Horde.Server.Streams;
 using HordeCommon;
 using HordeCommon.Rpc.Tasks;

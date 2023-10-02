@@ -6,6 +6,7 @@ using System.Threading;
 using System.Threading.Tasks;
 using Horde.Server.Agents.Pools;
 using Horde.Server.Jobs.Graphs;
+using Horde.Server.Jobs.Templates;
 using Horde.Server.Logs;
 using Horde.Server.Streams;
 using HordeCommon;

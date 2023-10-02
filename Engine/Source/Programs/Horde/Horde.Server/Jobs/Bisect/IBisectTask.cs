@@ -1,6 +1,7 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 
 using System.Collections.Generic;
+using Horde.Server.Jobs.Templates;
 using Horde.Server.Perforce;
 using Horde.Server.Streams;
 using HordeCommon;

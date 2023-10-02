@@ -5,6 +5,7 @@ using System.Collections.Generic;
 using System.Linq;
 using System.Threading.Tasks;
 using Horde.Server.Jobs;
+using Horde.Server.Jobs.Templates;
 
 namespace Horde.Server.Streams
 {

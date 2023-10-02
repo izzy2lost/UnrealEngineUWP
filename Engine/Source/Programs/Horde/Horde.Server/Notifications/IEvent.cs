@@ -1,5 +1,6 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 
+using Horde.Server.Jobs.Templates;
 using Horde.Server.Streams;
 
 namespace Horde.Server.Notifications

@@ -6,6 +6,7 @@ using System.Linq;
 using EpicGames.Core;
 using EpicGames.Horde.Api;
 using Horde.Server.Issues.External;
+using Horde.Server.Jobs.Templates;
 using Horde.Server.Streams;
 using Horde.Server.Users;
 using MongoDB.Bson;

@@ -2,6 +2,7 @@
 
 using System;
 using System.Collections.Generic;
+using Horde.Server.Jobs.Templates;
 using Horde.Server.Streams;
 
 namespace Horde.Server.Issues

@@ -10,6 +10,7 @@ using Horde.Server.Projects;
 using Horde.Server.Streams;
 using Horde.Server.Jobs;
 using Horde.Server.Jobs.Graphs;
+using Horde.Server.Jobs.Templates;
 using Horde.Server.Server;
 using Microsoft.VisualStudio.TestTools.UnitTesting;
 using Horde.Server.Agents;
