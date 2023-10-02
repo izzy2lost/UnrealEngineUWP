@@ -11,9 +11,9 @@
 
 
 static TAutoConsoleVariable<bool> CVarForceShowComponentEditor(
-	TEXT("CoreEntity.UI.ForceShowComponentEditor"),
-	true,
-	TEXT("Force the component editor to show in the main details tab."));
+	TEXT("DetailsPanel.UI.ForceShowComponentEditor"),
+	false,
+	TEXT("If true, forces the component editor to show in the main viewport and blueprint details panel for UObjects which normally have it hidden."));
 
 
 FDetailsDisplayManager::FDetailsDisplayManager(): bIsOuterCategory(false)
