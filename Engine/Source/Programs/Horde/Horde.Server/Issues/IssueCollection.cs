@@ -241,9 +241,6 @@ namespace Horde.Server.Issues
 			[BsonIgnore]
 			public string SummaryTemplate => SummaryTemplateValue ?? GetLegacyHandlerInfo(Type).SummaryTemplate;
 
-			[BsonElement("scp"), BsonIgnoreIfNull]
-			public string? Scope { get; set; }
-
 			[BsonElement("inc")]
 			public HashSet<IssueKey> Keys { get; set; } = new HashSet<IssueKey>();
 
@@ -274,7 +271,6 @@ namespace Horde.Server.Issues
 			{
 				Type = fingerprint.Type;
 				SummaryTemplateValue = fingerprint.SummaryTemplate;
-				Scope = fingerprint.Scope;
 
 				Keys = new HashSet<IssueKey>(fingerprint.Keys);
 				if (fingerprint.RejectKeys != null && fingerprint.RejectKeys.Count > 0)

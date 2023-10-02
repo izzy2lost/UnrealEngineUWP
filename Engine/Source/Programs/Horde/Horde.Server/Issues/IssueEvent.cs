@@ -89,12 +89,6 @@ namespace Horde.Server.Issues
 		/// </summary>
 		public NewIssueFingerprint Fingerprint { get; }
 
-		public string? Scope
-		{
-			get => Fingerprint.Scope;
-			set => Fingerprint.Scope = value;
-		}
-
 		public HashSet<IssueKey> Keys => Fingerprint.Keys;
 		public HashSet<IssueMetadata> Metadata => Fingerprint.Metadata;
 

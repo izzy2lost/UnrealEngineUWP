@@ -22,11 +22,6 @@ namespace Horde.Server.Issues
 		public string SummaryTemplate { get; }
 
 		/// <summary>
-		/// Scope of this issue. Used to limit the issues that this fingerprint can be merged with.
-		/// </summary>
-		public string? Scope { get; }
-
-		/// <summary>
 		/// List of keys which identify this issue.
 		/// </summary>
 		public IReadOnlySet<IssueKey> Keys { get; }
@@ -65,10 +60,6 @@ namespace Horde.Server.Issues
 				return false;
 			}
 			if (!fingerprint.SummaryTemplate.Equals(other.SummaryTemplate, StringComparison.Ordinal))
-			{
-				return false;
-			}
-			if (!String.Equals(fingerprint.Scope, other.Scope, StringComparison.Ordinal))
 			{
 				return false;
 			}

@@ -26,9 +26,6 @@ namespace Horde.Server.Issues
 		/// <inheritdoc/>
 		public string SummaryTemplate { get; set; }
 
-		/// <inheritdoc/>
-		public string? Scope { get; set; }
-
 		/// <inheritdoc cref="IIssueFingerprint.Keys"/>
 		public HashSet<IssueKey> Keys { get; set; } = new HashSet<IssueKey>();
 
