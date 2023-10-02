@@ -115,6 +115,7 @@ void Main(float4 SvPosition : SV_POSITION
 	float3 Color = uint3(0.f, 0.f , 0.f);
 	float3 SavedL = float3(0,0,0);
 	float TotalWeight = 0;
+	float SpecularScale = 0.f;
 
 	LOOP
 	for (uint LocalLightListIndex = 0; LocalLightListIndex < NumLocalLights; LocalLightListIndex++)
@@ -130,7 +131,9 @@ void Main(float4 SvPosition : SV_POSITION
 		{
 			continue;
 		}
+
 		FDeferredLightData LightData = ConvertToDeferredLight_Mobile(LocalLight);
+		LightData.SpecularScale	= UnpackLightSpecularScale(LocalLight);
 
 		float3 L = LightData.Direction;	// Already normalized
 		float3 ToLight = L;
@@ -150,6 +153,8 @@ void Main(float4 SvPosition : SV_POSITION
 		
 		if( LightMask > 0)
 		{
+			SpecularScale += LightData.SpecularScale * WeightLight;
+
 			TotalWeight += WeightLight;
 			// For lights with light functions we only only use the compute the direction (OutColorB)
 			// The Color is added in additional draws using MainLightFunction()
@@ -167,12 +172,13 @@ void Main(float4 SvPosition : SV_POSITION
 	{
 		SavedL = (SavedL / TotalWeight);
 		OutColorA = float3(Color.x, Color.y, Color.z);
-		OutColorB = 0.5f * float4(SavedL.x, SavedL.y, SavedL.z, 0)  + float4(0.5f, 0.5f, 0.5f, 0.5f);
+		OutColorB.rgb = Pack1212To888(UnitVectorToOctahedron(SavedL) * 0.5 + 0.5);
+		OutColorB.a = SpecularScale / TotalWeight;
 	}
 	else
 	{
 		OutColorA = float3(0, 0, 0);
-		OutColorB = float4(0.5,0.5,0.5, 0.5);
+		OutColorB = float4(0.5f, 0.5f, 0.5f, 0.f);
 		#if GENERATE_LIGHT_FUNCTION_DEPTH_STENCIL
 			// Clip to avoid writing to stencil
 			clip(-1);

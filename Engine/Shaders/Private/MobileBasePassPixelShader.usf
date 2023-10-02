@@ -826,7 +826,7 @@ void Main(
 		MergedLightData.SourceLength	= 0;
 		MergedLightData.Tangent			= 0;
 		MergedLightData.SoftSourceRadius= 0;
-		MergedLightData.SpecularScale	= 1.0f;
+		MergedLightData.SpecularScale	= LocalLightB.a;
 		MergedLightData.bSpotLight		= false;
 		MergedLightData.bRectLight		= false;
 		MergedLightData.Color = LocalLightA.rgb;
@@ -835,7 +835,7 @@ void Main(
 		half4 LightAttenuation = half4(1, 1, 1, 1); 
 		float SurfaceShadow = 0;
 
-		MergedLightData.Direction = LocalLightB.rgb * 2 - 1;
+		MergedLightData.Direction = OctahedronToUnitVector(Pack888To1212(LocalLightB.rgb) * 2 - 1);
 
 		FLightAccumulator NewLighting = AccumulateDynamicLighting(MaterialParameters.WorldPosition_CamRelative, CameraVector, GBuffer, 1, GBuffer.ShadingModelID, MergedLightData, LightAttenuation, 0, uint2(0, 0), SurfaceShadow);
 		DirectLighting = LightAccumulator_Add(DirectLighting, NewLighting);
