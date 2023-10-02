@@ -612,9 +612,11 @@ void AddPostProcessingPasses(
 			View.FinalPostProcessSettings.AutoExposureMinBrightness < View.FinalPostProcessSettings.AutoExposureMaxBrightness);
 
 		const bool bLocalExposureEnabled =
-			EngineShowFlags.VisualizeLocalExposure || 
+			EngineShowFlags.VisualizeLocalExposure ||
 			!FMath::IsNearlyEqual(View.FinalPostProcessSettings.LocalExposureHighlightContrast, 1.0f) ||
 			!FMath::IsNearlyEqual(View.FinalPostProcessSettings.LocalExposureShadowContrast, 1.0f) ||
+			View.FinalPostProcessSettings.LocalExposureHighlightContrastCurve ||
+			View.FinalPostProcessSettings.LocalExposureShadowContrastCurve ||
 			!FMath::IsNearlyEqual(View.FinalPostProcessSettings.LocalExposureDetailStrength, 1.0f);
 
 		const bool bBloomEnabled = View.FinalPostProcessSettings.BloomIntensity > 0.0f && !bVisualizeTSR;

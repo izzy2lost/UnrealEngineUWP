@@ -914,6 +914,12 @@ struct FPostProcessSettings
 	uint8 bOverride_LocalExposureShadowContrast:1;
 
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category=Overrides, meta=(PinHiddenByDefault, InlineEditConditionToggle))
+	uint8 bOverride_LocalExposureHighlightContrastCurve:1;
+
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category=Overrides, meta=(PinHiddenByDefault, InlineEditConditionToggle))
+	uint8 bOverride_LocalExposureShadowContrastCurve:1;
+
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category=Overrides, meta=(PinHiddenByDefault, InlineEditConditionToggle))
 	uint8 bOverride_LocalExposureDetailStrength:1;
 
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category=Overrides, meta=(PinHiddenByDefault, InlineEditConditionToggle))
@@ -1855,6 +1861,20 @@ struct FPostProcessSettings
 	*/
 	UPROPERTY(interp, BlueprintReadWrite, Category="Lens|Local Exposure", meta=(UIMin = "0.0", UIMax = "1.0", editcondition = "bOverride_LocalExposureShadowContrast", DisplayName = "Shadow Contrast"))
 	float LocalExposureShadowContrast;
+
+	/**
+	 * Local Exposure Highlight Contrast based on the scene EV100.
+	 * Used to calibrate Local Exposure differently depending on the average scene luminance.
+	 */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Lens|Local Exposure", meta = (editcondition = "bOverride_LocalExposureHighlightContrastCurve", DisplayName = "Highlight Contrast Curve"))
+	TObjectPtr<class UCurveFloat> LocalExposureHighlightContrastCurve = nullptr;
+
+	/**
+	 * Local Exposure Shadow Contrast based on the scene EV100.
+	 * Used to calibrate Local Exposure differently depending on the average scene luminance.
+	 */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Lens|Local Exposure", meta = (editcondition = "bOverride_LocalExposureShadowContrastCurve", DisplayName = "Shadow Contrast Curve"))
+	TObjectPtr<class UCurveFloat> LocalExposureShadowContrastCurve = nullptr;
 
 	/**
 	 * Local Exposure decomposes luminance of the frame into a base layer and a detail layer.

@@ -7,6 +7,7 @@
 #include "PostProcess/PostProcessLocalExposure.h"
 #include "PostProcess/PostProcessEyeAdaptation.h"
 #include "PostProcess/PostProcessWeightedSampleSum.h"
+#include "Curves/CurveFloat.h"
 #include "SceneRendering.h"
 #include "ShaderCompilerCore.h"
 #include "DataDrivenShaderPlatformInfo.h"
@@ -110,9 +111,30 @@ FLocalExposureParameters GetLocalExposureParameters(const FViewInfo& View, FIntP
 
 	const FVector2f LocalExposureBilateralGridUVScale = GetLocalExposureBilateralGridUVScale(ViewRectSize);
 
+	float HighlightContrast = Settings.LocalExposureHighlightContrast;
+	float ShadowContrast = Settings.LocalExposureShadowContrast;
+
+	const float AverageSceneLuminance = View.GetLastAverageSceneLuminance();
+	if (AverageSceneLuminance > 0)
+	{
+		const float LuminanceMax = LuminanceMaxFromLensAttenuation();
+		// We need the Log2(0.18) to convert from average luminance to saturation luminance
+		const float LuminanceEV100 = LuminanceToEV100(LuminanceMax, AverageSceneLuminance) + FMath::Log2(1.0f / 0.18f);
+
+		if (Settings.LocalExposureHighlightContrastCurve)
+		{
+			HighlightContrast *= Settings.LocalExposureHighlightContrastCurve->GetFloatValue(LuminanceEV100);
+		}
+
+		if (Settings.LocalExposureShadowContrastCurve)
+		{
+			ShadowContrast *= Settings.LocalExposureShadowContrastCurve->GetFloatValue(LuminanceEV100);
+		}
+	}
+
 	FLocalExposureParameters Parameters;
-	Parameters.HighlightContrastScale = Settings.LocalExposureHighlightContrast;
-	Parameters.ShadowContrastScale = Settings.LocalExposureShadowContrast;
+	Parameters.HighlightContrastScale = HighlightContrast;
+	Parameters.ShadowContrastScale = ShadowContrast;
 	Parameters.DetailStrength = Settings.LocalExposureDetailStrength;
 	Parameters.BlurredLuminanceBlend = Settings.LocalExposureBlurredLuminanceBlend;
 	Parameters.MiddleGreyExposureCompensation = LocalExposureMiddleGreyExposureCompensation;

@@ -1735,6 +1735,18 @@ void FSceneView::OverridePostProcessSettings(const FPostProcessSettings& Src, fl
 			Dest.AutoExposureMeterMask = Src.AutoExposureMeterMask;
 		}
 
+		// Curve assets cannot be blended.
+		IF_PP(LocalExposureHighlightContrastCurve)
+		{
+			Dest.LocalExposureHighlightContrastCurve = Src.LocalExposureHighlightContrastCurve;
+		}
+
+		// Curve assets cannot be blended.
+		IF_PP(LocalExposureShadowContrastCurve)
+		{
+			Dest.LocalExposureShadowContrastCurve = Src.LocalExposureShadowContrastCurve;
+		}
+
 		// actual texture cannot be blended but the intensity can be blended
 		IF_PP(LensFlareBokehShape)
 		{
@@ -1932,6 +1944,8 @@ void FSceneView::EndFinalPostprocessSettings(const FSceneViewInitOptions& ViewIn
 		{
 			FinalPostProcessSettings.LocalExposureHighlightContrast = 1.0f;
 			FinalPostProcessSettings.LocalExposureShadowContrast = 1.0f;
+			FinalPostProcessSettings.LocalExposureHighlightContrastCurve = nullptr;
+			FinalPostProcessSettings.LocalExposureShadowContrastCurve = nullptr;
 			FinalPostProcessSettings.LocalExposureDetailStrength = 1.0f;
 		}
 	}
