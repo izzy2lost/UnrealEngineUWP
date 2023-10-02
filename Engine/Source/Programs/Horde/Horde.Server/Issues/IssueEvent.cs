@@ -25,6 +25,11 @@ namespace Horde.Server.Issues
 		public ILogEventData EventData { get; }
 
 		/// <summary>
+		/// Index of the line within this log
+		/// </summary>
+		public int LineIndex => Event.LineIndex;
+
+		/// <summary>
 		/// Severity of the event
 		/// </summary>
 		public EventSeverity Severity => EventData.Severity;

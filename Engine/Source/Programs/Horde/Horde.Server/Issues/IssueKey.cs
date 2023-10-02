@@ -2,6 +2,7 @@
 
 using System;
 using System.Collections.Generic;
+using System.Linq;
 using System.Text.Json;
 using EpicGames.Core;
 using Horde.Server.Logs;
@@ -154,7 +155,7 @@ namespace Horde.Server.Issues
 		/// <param name="issueEvent">The event data</param>
 		public static void AddDepotPaths(this HashSet<IssueKey> keys, IssueEvent issueEvent)
 		{
-			foreach (JsonProperty property in issueEvent.EventData.FindPropertiesOfType(LogValueType.DepotPath))
+			foreach (JsonProperty property in issueEvent.Lines.SelectMany(x => x.FindPropertiesOfType(LogValueType.DepotPath)))
 			{
 				JsonElement value;
 				if (property.Value.TryGetProperty(LogEventPropertyName.Text.Span, out value) && value.ValueKind == JsonValueKind.String)

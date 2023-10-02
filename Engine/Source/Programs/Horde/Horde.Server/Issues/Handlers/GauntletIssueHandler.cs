@@ -150,13 +150,12 @@ namespace Horde.Server.Issues.Handlers
 		/// <summary>
 		/// Produce a hash from error message
 		/// </summary>
-		/// <param name="eventData">The log event data</param>
+		/// <param name="message">The log event message</param>
 		/// <param name="keys">Receives a set of the keys</param>
 		/// <param name="metadata">Receives a set of metadata</param>
-		private void GetHash(ILogEventData eventData, HashSet<IssueKey> keys, HashSet<IssueMetadata> metadata)
+		private void GetHash(string message, HashSet<IssueKey> keys, HashSet<IssueMetadata> metadata)
 		{
-
-			string error = eventData.Message.Length > MaxMessageLength? eventData.Message.Substring(0, MaxMessageLength): eventData.Message;
+			string error = message.Length > MaxMessageLength? message.Substring(0, MaxMessageLength) : message;
 
 			if (TryGetHash(error, out Md5Hash hash))
 			{
@@ -200,7 +199,7 @@ namespace Horde.Server.Issues.Handlers
 				GetPaths(issueEvent, issue.Keys, issue.Metadata);
 				if (issue.Keys.Count == 0)
 				{
-					GetHash(issueEvent.EventData, issue.Keys, issue.Metadata);
+					GetHash(issueEvent.Message, issue.Keys, issue.Metadata);
 				}
 
 				issue.Metadata.Add(new IssueMetadata("type", GetEventPrefix(issueEvent.EventId.Value)));

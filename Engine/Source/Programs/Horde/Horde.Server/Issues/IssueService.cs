@@ -694,7 +694,7 @@ namespace Horde.Server.Issues
 				_logger.LogInformation("Group {Digest}: Type '{FingerprintType}', keys '{FingerprintKeys}', {NumEvents} events", eventGroup.TraceId.ToString(), eventGroup.Fingerprint.Type, String.Join(", ", eventGroup.Keys), eventGroup.Events.Count);
 				foreach (IssueEvent eventItem in eventGroup.Events)
 				{
-					_logger.LogDebug("Group {Digest}: [{Line}] {Message}", eventGroup.TraceId.ToString(), eventItem.Event.LineIndex, eventItem.EventData.Message);
+					_logger.LogDebug("Group {Digest}: [{Line}] {Message}", eventGroup.TraceId.ToString(), eventItem.LineIndex, eventItem.Message);
 				}
 			}
 

@@ -40,7 +40,7 @@ namespace Horde.Server.Issues.Handlers
 		{
 			if (logEvent.EventId != null)
 			{
-				if (MatchEvent(logEvent.EventData))
+				if (logEvent.EventId != null && IsMatchingEventId(logEvent.EventId.Value))
 				{
 					if (_nonSystemicError)
 					{
@@ -67,10 +67,5 @@ namespace Horde.Server.Issues.Handlers
 
 		/// <inheritdoc/>
 		public override IEnumerable<IssueEventGroup> GetIssues() => _issues;
-
-		static bool MatchEvent(ILogEventData eventData)
-		{
-			return eventData.EventId != null && IsMatchingEventId(eventData.EventId.Value);
-		}
 	}
 }
