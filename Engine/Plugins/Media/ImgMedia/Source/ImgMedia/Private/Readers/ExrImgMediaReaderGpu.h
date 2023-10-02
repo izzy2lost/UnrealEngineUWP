@@ -6,6 +6,7 @@
 
 #if defined(PLATFORM_WINDOWS) && PLATFORM_WINDOWS
 
+#include "Containers/SortedMap.h"
 #include "IImgMediaReader.h"
 #include "IMediaTextureSampleConverter.h"
 
@@ -34,11 +35,6 @@ struct FStructuredBufferPoolItem
 	* Resource View used by swizzling shader.
 	*/
 	FShaderResourceViewRHIRef ShaderResourceView;
-
-	/**
-	* Keep track of our reader in case it gets destroyed.
-	*/
-	TWeakPtr<FExrImgMediaReaderGpu, ESPMode::ThreadSafe> Reader;
 
 	/**
 	* Destructure to clean up render resources
@@ -102,9 +98,9 @@ protected:
 		( const int32 CurrentMipLevel
 		, const FImgMediaTileSelection& CurrentTileSelection
 		, TSharedPtr<FImgMediaFrame, ESPMode::ThreadSafe> OutFrame
+		, FSampleConverterParameters& ConverterParams
 		, TSharedPtr<FExrMediaTextureSampleConverter, ESPMode::ThreadSafe> SampleConverter
-		, const FString& ImagePath
-		, bool bHasTiles);
+		, const FString& ImagePath);
 
 public:
 
@@ -119,7 +115,7 @@ public:
 private:
 
 	/** A critical section used for memory allocation and pool management. */
-	FCriticalSection AllocatorCriticalSecion;
+	FCriticalSection MemoryPoolCriticalSection;
 
 	/** Memory pool from where we are allowed to take buffers. */
 	TMultiMap<uint32, FStructuredBufferPoolItem*> MemoryPool;
@@ -153,7 +149,7 @@ struct FSampleConverterParameters
 	FIntPoint TileDimWithBorders;
 
 	/** Used for rendering tiles in bulk regions per mip level. */
-	TMap<int32, TArray<FIntRect>> Viewports;
+	TSortedMap<int32, TArray<FIntRect>> Viewports;
 
 #if defined(PLATFORM_WINDOWS) && PLATFORM_WINDOWS
 	/** Contain information about individual tiles. Used to convert buffer data into a 2D Texture.
@@ -179,7 +175,7 @@ struct FSampleConverterParameters
 };
 
 
-FUNC_DECLARE_DELEGATE(FExrConvertBufferCallback, bool, FRHICommandListImmediate& /*RHICmdList*/, FTexture2DRHIRef /*RenderTargetTextureRHI*/, TMap<int32, FStructuredBufferPoolItemSharedPtr>& /*MipBuffers*/, const FSampleConverterParameters & /*ConverterParams*/)
+FUNC_DECLARE_DELEGATE(FExrConvertBufferCallback, bool, FRHICommandListImmediate& /*RHICmdList*/, FTexture2DRHIRef /*RenderTargetTextureRHI*/, TMap<int32, FStructuredBufferPoolItemSharedPtr>& /*MipBuffers*/, const FSampleConverterParameters /*ConverterParams*/)
 
 class FExrMediaTextureSampleConverter: public IMediaTextureSampleConverter
 {
@@ -194,44 +190,49 @@ public:
 		ConvertExrBufferCallback = Callback;
 
 		// Copy mip buffers to be used for rendering. 
+		FScopeLock Lock(&MipBufferCriticalSection);
 		MipBuffersRenderThread = MipBuffers;
 	};
 
-	void LockMipBuffers()
+	bool HasMipLevelBuffer(int32 RequestedMipLevel) const
 	{
-		MipBufferCriticalSection.Lock();
+		FScopeLock Lock(&MipBufferCriticalSection);
+		return MipBuffers.Contains(RequestedMipLevel);
 	}
 
-	void UnlockMipBuffers()
+	FStructuredBufferPoolItemSharedPtr GetOrCreateMipLevelBuffer(int32 RequestedMipLevel, TFunction<FStructuredBufferPoolItemSharedPtr()> AllocatorFunc)
 	{
-		MipBufferCriticalSection.Unlock();
-	}
-
-	FStructuredBufferPoolItemSharedPtr GetMipLevelBuffer(int32 RequestedMipLevel)
-	{
-		if (MipBuffers.Contains(RequestedMipLevel))
+		FScopeLock Lock(&MipBufferCriticalSection);
+		if (FStructuredBufferPoolItemSharedPtr* BufferDataPtr = MipBuffers.Find(RequestedMipLevel))
 		{
-			return *MipBuffers.Find(RequestedMipLevel);
+			return *BufferDataPtr;
 		}
 
-		return nullptr;
+		return MipBuffers.Add(RequestedMipLevel, AllocatorFunc());
+	}
+	
+	FSampleConverterParameters GetParams()
+	{
+		FScopeLock ScopeLock(&ParamsCriticalSection);
+		return ConverterParams;
 	}
 
-	void SetMipLevelBuffer(int32 RequestedMipLevel, FStructuredBufferPoolItemSharedPtr Buffer)
+	void SetParams(const FSampleConverterParameters& InParams)
 	{
-		check(!MipBuffers.Contains(RequestedMipLevel));
-		MipBuffers.Add(RequestedMipLevel, Buffer);
+		FScopeLock ScopeLock(&ParamsCriticalSection);
+		ConverterParams = InParams;
 	}
-public:
-	/** These are all required parameters to convert the buffer into texture successfully. */
-	TSharedPtr<FSampleConverterParameters> ConverterParams = MakeShared<FSampleConverterParameters>();
 
 private:
+	/** These are all required parameters to convert the buffer into texture successfully. */
+	mutable FCriticalSection ParamsCriticalSection;
+	FSampleConverterParameters ConverterParams;
+
 	FCriticalSection ConverterCallbacksCriticalSection;
 	FExrConvertBufferCallback ConvertExrBufferCallback;
 
 	/** Lock to be used exclusively on reader threads.*/
-	FCriticalSection MipBufferCriticalSection;
+	mutable FCriticalSection MipBufferCriticalSection;
 
 	/** An array of structured buffers that are big enough to fully contain corresponding mip levels used by reader threads and transferred into MipBuffersRenderThread. */
 	TMap<int32,FStructuredBufferPoolItemSharedPtr> MipBuffers;

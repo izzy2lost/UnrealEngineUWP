@@ -96,7 +96,7 @@ FExrImgMediaReaderGpu::FExrImgMediaReaderGpu(const TSharedRef<FImgMediaLoader, E
 
 FExrImgMediaReaderGpu::~FExrImgMediaReaderGpu()
 {
-	FScopeLock ScopeLock(&AllocatorCriticalSecion);
+	FScopeLock ScopeLock(&MemoryPoolCriticalSection);
 
 	// Copy memory pool array to be released on render thread.
 	ENQUEUE_RENDER_COMMAND(DeletePooledBuffers)([InMemoryPool = MemoryPool](FRHICommandListImmediate& RHICmdList)
@@ -120,28 +120,26 @@ FExrImgMediaReader::EReadResult FExrImgMediaReaderGpu::ReadMip
 	( const int32 CurrentMipLevel
 	, const FImgMediaTileSelection& CurrentTileSelection
 	, TSharedPtr<FImgMediaFrame, ESPMode::ThreadSafe> OutFrame
+	, FSampleConverterParameters& ConverterParams
 	, TSharedPtr<FExrMediaTextureSampleConverter, ESPMode::ThreadSafe> SampleConverter
-	, const FString& ImagePath
-	, bool bHasTiles)
+	, const FString& ImagePath)
 {
 
 	TRACE_CPUPROFILER_EVENT_SCOPE_TEXT(*FString::Printf(TEXT("ExrReaderGpu.ReadMip %d"), CurrentMipLevel));
 
 	// Next mip level.
 	int MipLevelDiv = 1 << CurrentMipLevel;
-	FIntPoint CurrentMipDim = SampleConverter->ConverterParams->FullResolution / MipLevelDiv;
-
-	const SIZE_T BufferSize = GetBufferSize(CurrentMipDim, SampleConverter->ConverterParams->FrameInfo.NumChannels, bHasTiles, OutFrame->Info.NumTiles / MipLevelDiv, SampleConverter->ConverterParams->bCustomExr);
+	FIntPoint CurrentMipDim = ConverterParams.FullResolution / MipLevelDiv;
+	const FImgMediaFrameInfo& FrameInfo = ConverterParams.FrameInfo;
+	const SIZE_T BufferSize = GetBufferSize(CurrentMipDim, FrameInfo.NumChannels, FrameInfo.bHasTiles, FrameInfo.NumTiles / MipLevelDiv, ConverterParams.bCustomExr);
 	
-	SampleConverter->LockMipBuffers();
-	FStructuredBufferPoolItemSharedPtr BufferData = SampleConverter->GetMipLevelBuffer(CurrentMipLevel);
-
-	if (!BufferData.IsValid())
-	{
-		BufferData = AllocateGpuBufferFromPool(BufferSize);
-		SampleConverter->SetMipLevelBuffer(CurrentMipLevel, BufferData);
-	}
-	SampleConverter->UnlockMipBuffers();
+	FStructuredBufferPoolItemSharedPtr BufferData = SampleConverter->GetOrCreateMipLevelBuffer(
+		CurrentMipLevel,
+		[this, BufferSize]() -> FStructuredBufferPoolItemSharedPtr
+		{
+			return AllocateGpuBufferFromPool(BufferSize);
+		}
+	);
 
 	uint16* MipDataPtr = static_cast<uint16*>(BufferData->UploadBufferMapped);
 
@@ -151,17 +149,13 @@ FExrImgMediaReader::EReadResult FExrImgMediaReaderGpu::ReadMip
 	{
 		TArray<UE::Math::TIntPoint<int64>> BufferRegionsToCopy;
 		// read frame data
-		if (bHasTiles || SampleConverter->ConverterParams->bCustomExr)
+		if (FrameInfo.bHasTiles || ConverterParams.bCustomExr)
 		{
 			TArray<FIntRect> TileRegionsToRead;
 			{
 				TRACE_CPUPROFILER_EVENT_SCOPE_TEXT(*FString::Printf(TEXT("ExrReaderGpu.CalculateRegions %d"), CurrentMipLevel));
 
-				if (const FImgMediaTileSelection* CachedSelection = OutFrame->MipTilesPresent.Find(CurrentMipLevel))
-				{
-					TileRegionsToRead = CachedSelection->GetVisibleRegions(&CurrentTileSelection);
-				}
-				else
+				if (!OutFrame->MipTilesPresent.GetVisibleRegions(CurrentMipLevel, CurrentTileSelection, TileRegionsToRead))
 				{
 					TileRegionsToRead = CurrentTileSelection.GetVisibleRegions();
 				}
@@ -174,7 +168,7 @@ FExrImgMediaReader::EReadResult FExrImgMediaReaderGpu::ReadMip
 			}
 			else
 			{
-				ReadResult = ReadTiles(MipDataPtr, BufferSize, ImagePath, TileRegionsToRead, SampleConverter->ConverterParams, CurrentMipLevel, BufferRegionsToCopy);
+				ReadResult = ReadTiles(MipDataPtr, BufferSize, ImagePath, TileRegionsToRead, ConverterParams, CurrentMipLevel, BufferRegionsToCopy);
 				
 				for (const FIntRect& Region : TileRegionsToRead)
 				{
@@ -184,16 +178,16 @@ FExrImgMediaReader::EReadResult FExrImgMediaReaderGpu::ReadMip
 		}
 		else
 		{
-			ReadResult = ReadInChunks(MipDataPtr, ImagePath, SampleConverter->ConverterParams->FrameId, CurrentMipDim, BufferSize);
+			ReadResult = ReadInChunks(MipDataPtr, ImagePath, ConverterParams.FrameId, CurrentMipDim, BufferSize);
 			OutFrame->NumTilesRead++;
 		}
 
 		if (ReadResult == Success && bUseUploadHeap)
 		{
-			ENQUEUE_RENDER_COMMAND(CopyFromUploadBuffer)([SampleConverter, BufferData, BufferRegionsToCopy](FRHICommandListImmediate& RHICmdList)
+			ENQUEUE_RENDER_COMMAND(CopyFromUploadBuffer)([SampleConverter, BufferData, BufferRegionsToCopy, FrameId = ConverterParams.FrameId](FRHICommandListImmediate& RHICmdList)
 				{
 					SCOPED_DRAW_EVENT(RHICmdList, FExrImgMediaReaderGpu_CopyBuffers);
-					TRACE_CPUPROFILER_EVENT_SCOPE_TEXT(*FString::Printf(TEXT("ExrReaderGpu.StartCopy %d"), SampleConverter->ConverterParams->FrameId));
+					TRACE_CPUPROFILER_EVENT_SCOPE_TEXT(*FString::Printf(TEXT("ExrReaderGpu.StartCopy %d"), FrameId));
 					SCOPED_GPU_STAT(RHICmdList, ExrImgMediaReaderGpu_CopyUploadBuffer);
 
 					if (BufferRegionsToCopy.IsEmpty())
@@ -235,11 +229,10 @@ bool FExrImgMediaReaderGpu::ReadFrame(int32 FrameId, const TMap<int32, FImgMedia
 	{
 		return false;
 	}
-
-
+	
 	const FString& LargestImagePath = Loader->GetImagePath(FrameId, 0);
-
-	if (!GetInfo(LargestImagePath, OutFrame->Info))
+	FImgMediaFrameInfo FrameInfo;
+	if (!GetInfo(LargestImagePath, FrameInfo, OutFrame))
 	{
 		return false;
 	}
@@ -247,35 +240,31 @@ bool FExrImgMediaReaderGpu::ReadFrame(int32 FrameId, const TMap<int32, FImgMedia
 	TSharedPtr<FExrMediaTextureSampleConverter, ESPMode::ThreadSafe> SampleConverterPtr = OutFrame->GetOrCreateSampleConverter<FExrMediaTextureSampleConverter>();
 
 	// Get tile info.
-	bool bHasTiles = OutFrame->Info.bHasTiles;
-	TSharedPtr<FSampleConverterParameters> ConverterParams = SampleConverterPtr->ConverterParams;
-	ConverterParams->FullResolution = OutFrame->Info.Dim;
-	ConverterParams->FrameId = FrameId;
-
-	const FIntPoint TileDim = OutFrame->Info.TileDimensions;
-
-	if (ConverterParams->FullResolution.GetMin() <= 0)
+	FSampleConverterParameters ConverterParams = SampleConverterPtr->GetParams();
+	ConverterParams.FullResolution = FrameInfo.Dim;
+	ConverterParams.FrameId = FrameId;
+	if (ConverterParams.FullResolution.GetMin() <= 0)
 	{
 		return false;
 	}
 
-	ConverterParams->FrameInfo = OutFrame->Info;
-	ConverterParams->PixelSize = sizeof(uint16) * ConverterParams->FrameInfo.NumChannels;
-	ConverterParams->TileDimWithBorders = TileDim + OutFrame->Info.TileBorder * 2;
-	ConverterParams->NumMipLevels = Loader->GetNumMipLevels();
-	ConverterParams->bCustomExr = OutFrame->Info.FormatName == TEXT("EXR CUSTOM");
-	ConverterParams->bMipsInSeparateFiles = Loader->MipsInSeparateFiles();
+	ConverterParams.FrameInfo = FrameInfo;
+	ConverterParams.PixelSize = sizeof(uint16) * ConverterParams.FrameInfo.NumChannels;
+	ConverterParams.TileDimWithBorders = FrameInfo.TileDimensions + FrameInfo.TileBorder * 2;
+	ConverterParams.NumMipLevels = Loader->GetNumMipLevels();
+	ConverterParams.bCustomExr = FrameInfo.FormatName == TEXT("EXR CUSTOM");
+	ConverterParams.bMipsInSeparateFiles = Loader->MipsInSeparateFiles();
 
 	{
 		// Force mip level to be upscaled to all higher quality mips.
 		TMap<int32, FImgMediaTileSelection> InMipTilesCopy = InMipTiles;
-		const int32 MipToUpscale = FMath::Clamp(Loader->GetMinimumLevelToUpscale(), -1, ConverterParams->NumMipLevels - 1);
+		const int32 MipToUpscale = FMath::Clamp(Loader->GetMinimumLevelToUpscale(), -1, ConverterParams.NumMipLevels - 1);
 
-		if (ConverterParams->NumMipLevels > 1 && MipToUpscale >= 0)
+		if (ConverterParams.NumMipLevels > 1 && MipToUpscale >= 0)
 		{
-			ConverterParams->UpscaleMip = MipToUpscale;
+			ConverterParams.UpscaleMip = MipToUpscale;
 
-			FImgMediaTileSelection FullSelection = FImgMediaTileSelection::CreateForTargetMipLevel(ConverterParams->FullResolution, TileDim, MipToUpscale, true);
+			FImgMediaTileSelection FullSelection = FImgMediaTileSelection::CreateForTargetMipLevel(ConverterParams.FullResolution, FrameInfo.TileDimensions, MipToUpscale, true);
 			if (InMipTilesCopy.Contains(MipToUpscale))
 			{
 				InMipTilesCopy[MipToUpscale] = FullSelection;
@@ -298,20 +287,13 @@ bool FExrImgMediaReaderGpu::ReadFrame(int32 FrameId, const TMap<int32, FImgMedia
 			}
 
 			// Get highest resolution mip level path.
-			FString ImagePath = Loader->GetImagePath(ConverterParams->FrameId, ConverterParams->bMipsInSeparateFiles ? CurrentMipLevel : 0);
+			FString ImagePath = Loader->GetImagePath(ConverterParams.FrameId, ConverterParams.bMipsInSeparateFiles ? CurrentMipLevel : 0);
 
-			EReadResult ReadResult = ReadMip(CurrentMipLevel, CurrentTileSelection, OutFrame, SampleConverterPtr, ImagePath, bHasTiles);
+			EReadResult ReadResult = ReadMip(CurrentMipLevel, CurrentTileSelection, OutFrame, ConverterParams, SampleConverterPtr, ImagePath);
 			switch (ReadResult)
 			{
 			case FExrImgMediaReader::Success:
-				if (OutFrame->MipTilesPresent.Find(CurrentMipLevel))
-				{
-					OutFrame->MipTilesPresent[CurrentMipLevel].Include(CurrentTileSelection);
-				}
-				else
-				{
-					OutFrame->MipTilesPresent.Emplace(CurrentMipLevel, CurrentTileSelection);
-				}
+				OutFrame->MipTilesPresent.Include(CurrentMipLevel, CurrentTileSelection);
 				break;
 			case FExrImgMediaReader::Fail:
 				{
@@ -329,7 +311,7 @@ bool FExrImgMediaReaderGpu::ReadFrame(int32 FrameId, const TMap<int32, FImgMedia
 					// Fall back to CPU.
 					bFallBackToCPU = true;
 
-					return FExrImgMediaReader::ReadFrame(ConverterParams->FrameId, InMipTiles, OutFrame);
+					return FExrImgMediaReader::ReadFrame(ConverterParams.FrameId, InMipTiles, OutFrame);
 				}
 				break;
 			case FExrImgMediaReader::Cancelled:
@@ -346,28 +328,29 @@ bool FExrImgMediaReaderGpu::ReadFrame(int32 FrameId, const TMap<int32, FImgMedia
 		}
 		
 		// Create viewport(s) with all mip/tiles present
-		for (const TPair<int32, FImgMediaTileSelection>& TilesPerMip : OutFrame->MipTilesPresent)
+		FScopeLock Lock(&OutFrame->MipTilesPresent.CriticalSection);
+		for (const TPair<int32, FImgMediaTileSelection>& TilesPerMip : OutFrame->MipTilesPresent.GetDataUnsafe())
 		{
 			const FImgMediaTileSelection& CurrentTileSelection = TilesPerMip.Value;
 			const int32 CurrentMipLevel = TilesPerMip.Key;
 
 			// Skip this viewport since we don't have anything to render.
-			if (!SampleConverterPtr->GetMipLevelBuffer(CurrentMipLevel))
+			if (!SampleConverterPtr->HasMipLevelBuffer(CurrentMipLevel))
 			{
 				continue;
 			}
 
 			const int32 MipLevelDiv = 1 << CurrentMipLevel;
-			FIntPoint CurrentMipDim = ConverterParams->FullResolution / MipLevelDiv;
+			FIntPoint CurrentMipDim = ConverterParams.FullResolution / MipLevelDiv;
 
-			TArray<FIntRect>& Viewports = ConverterParams->Viewports.Add(CurrentMipLevel);
+			TArray<FIntRect>& Viewports = ConverterParams.Viewports.Add(CurrentMipLevel);
 			for (const FIntRect& TileRegion : CurrentTileSelection.GetVisibleRegions())
 			{
 				FIntRect Viewport;
-				if (bHasTiles || ConverterParams->bCustomExr)
+				if (ConverterParams.FrameInfo.bHasTiles || ConverterParams.bCustomExr)
 				{
-					Viewport.Min = FIntPoint(ConverterParams->TileDimWithBorders.X * TileRegion.Min.X, ConverterParams->TileDimWithBorders.Y * TileRegion.Min.Y);
-					Viewport.Max = FIntPoint(ConverterParams->TileDimWithBorders.X * TileRegion.Max.X, ConverterParams->TileDimWithBorders.Y * TileRegion.Max.Y);
+					Viewport.Min = FIntPoint(ConverterParams.TileDimWithBorders.X * TileRegion.Min.X, ConverterParams.TileDimWithBorders.Y * TileRegion.Min.Y);
+					Viewport.Max = FIntPoint(ConverterParams.TileDimWithBorders.X * TileRegion.Max.X, ConverterParams.TileDimWithBorders.Y * TileRegion.Max.Y);
 					Viewport.Clip(FIntRect(FIntPoint::ZeroValue, CurrentMipDim));
 				}
 				else
@@ -380,10 +363,11 @@ bool FExrImgMediaReaderGpu::ReadFrame(int32 FrameId, const TMap<int32, FImgMedia
 		}
 	}
 
-	OutFrame->Format = ConverterParams->FrameInfo.NumChannels <= 3 ? EMediaTextureSampleFormat::FloatRGB : EMediaTextureSampleFormat::FloatRGBA;
-	OutFrame->Stride = ConverterParams->FullResolution.X * ConverterParams->PixelSize;
+	OutFrame->Format = ConverterParams.FrameInfo.NumChannels <= 3 ? EMediaTextureSampleFormat::FloatRGB : EMediaTextureSampleFormat::FloatRGBA;
+	OutFrame->Stride = ConverterParams.FullResolution.X * ConverterParams.PixelSize;
 	
-	ConverterParams->Viewports.KeySort(TLess<int32>());
+	SampleConverterPtr->SetParams(ConverterParams);
+	
 	CreateSampleConverterCallback(SampleConverterPtr);
 
 	UE_LOG(LogImgMedia, Verbose, TEXT("Reader %p: Read Pixels Complete. %i"), this, FrameId);
@@ -489,7 +473,7 @@ SIZE_T FExrImgMediaReaderGpu::GetBufferSize(const FIntPoint& Dim, int32 NumChann
 
 void FExrImgMediaReaderGpu::CreateSampleConverterCallback(TSharedPtr<FExrMediaTextureSampleConverter, ESPMode::ThreadSafe> SampleConverter)
 {
-	auto RenderThreadSwizzler = [] (FRHICommandListImmediate& RHICmdList, FTexture2DRHIRef RenderTargetTextureRHI, TMap<int32, FStructuredBufferPoolItemSharedPtr>& MipBuffers, const FSampleConverterParameters& ConverterParams)->bool
+	auto RenderThreadSwizzler = [] (FRHICommandListImmediate& RHICmdList, FTexture2DRHIRef RenderTargetTextureRHI, TMap<int32, FStructuredBufferPoolItemSharedPtr>& MipBuffers, const FSampleConverterParameters ConverterParams)->bool
 	{
 		TRACE_CPUPROFILER_EVENT_SCOPE_TEXT(*FString::Printf(TEXT("ExrReaderGpu.Convert %d"), ConverterParams.FrameId));
 		SCOPED_DRAW_EVENT(RHICmdList, FExrImgMediaReaderGpu_Convert);
@@ -633,7 +617,7 @@ FStructuredBufferPoolItemSharedPtr FExrImgMediaReaderGpu::AllocateGpuBufferFromP
 {
 	TRACE_CPUPROFILER_EVENT_SCOPE_TEXT(*FString::Printf(TEXT("ExrReaderGpu.AllocBuffer")));
 	TRACE_CPUPROFILER_EVENT_SCOPE_TEXT(*FString::Printf(TEXT("ExrReaderGpu.AllocBuffer %d"), AllocSize));
-	TWeakPtr<FExrImgMediaReaderGpu, ESPMode::ThreadSafe> WeakReaderPtr = AsShared();
+	TWeakPtr<FExrImgMediaReaderGpu, ESPMode::ThreadSafe> WeakReaderPtr = AsWeak();
 
 	// This function is attached to the shared pointer and is used to return any allocated memory to staging pool.
 	auto BufferDeleter = [WeakReaderPtr, AllocSize](FStructuredBufferPoolItem* ObjectToDelete) {
@@ -655,7 +639,7 @@ FStructuredBufferPoolItemSharedPtr FExrImgMediaReaderGpu::AllocateGpuBufferFromP
 	FStructuredBufferPoolItemSharedPtr AllocatedBuffer;
 
 	{
-		FScopeLock ScopeLock(&AllocatorCriticalSecion);
+		FScopeLock ScopeLock(&MemoryPoolCriticalSection);
 		FStructuredBufferPoolItem** FoundBuffer = MemoryPool.Find(AllocSize);
 		if (FoundBuffer)
 		{
@@ -674,14 +658,13 @@ FStructuredBufferPoolItemSharedPtr FExrImgMediaReaderGpu::AllocateGpuBufferFromP
 
 		{
 			AllocatedBuffer = MakeShareable(new FStructuredBufferPoolItem(), MoveTemp(BufferDeleter));
-			AllocatedBuffer->Reader = AsShared();
 
 			// Allocate and unlock the structured buffer on render thread.
-			ENQUEUE_RENDER_COMMAND(CreatePooledBuffer)([AllocatedBuffer, AllocSize, InitDoneEvent, this](FRHICommandListImmediate& RHICmdList)
+			ENQUEUE_RENDER_COMMAND(CreatePooledBuffer)([AllocatedBuffer, AllocSize, InitDoneEvent](FRHICommandListImmediate& RHICmdList)
 			{
 				TRACE_CPUPROFILER_EVENT_SCOPE_TEXT(*FString::Printf(TEXT("ExrReaderGpu.AllocBuffer_RenderThread")));
 				TRACE_CPUPROFILER_EVENT_SCOPE_TEXT(*FString::Printf(TEXT("ExrReaderGpu.AllocBuffer_RenderThread %d"), AllocSize));
-				FScopeLock ScopeLock(&AllocatorCriticalSecion);
+				
 				SCOPED_GPU_STAT(RHICmdList, ExrImgMediaReaderGpu_AllocateBuffer);
 				SCOPED_DRAW_EVENT(RHICmdList, FExrImgMediaReaderGpu_AllocateBuffer);
 
@@ -722,7 +705,7 @@ FStructuredBufferPoolItemSharedPtr FExrImgMediaReaderGpu::AllocateGpuBufferFromP
 
 void FExrImgMediaReaderGpu::ReturnGpuBufferToPool(uint32 AllocSize, FStructuredBufferPoolItem* Buffer)
 {
-	FScopeLock ScopeLock(&AllocatorCriticalSecion);
+	FScopeLock ScopeLock(&MemoryPoolCriticalSection);
 	TRACE_CPUPROFILER_EVENT_SCOPE_TEXT(*FString::Printf(TEXT("ExrReaderGpu.ReturnPoolItem")));
 	MemoryPool.Add(AllocSize, Buffer);
 }
@@ -737,7 +720,7 @@ bool FExrMediaTextureSampleConverter::Convert(FTexture2DRHIRef& InDstTexture, co
 	bool bExecutionSuccessful = false;
 	if (ConvertExrBufferCallback.IsBound())
 	{
-		bExecutionSuccessful = ConvertExrBufferCallback.Execute(FRHICommandListExecutor::GetImmediateCommandList(), InDstTexture, MipBuffers, *ConverterParams.Get());
+		bExecutionSuccessful = ConvertExrBufferCallback.Execute(FRHICommandListExecutor::GetImmediateCommandList(), InDstTexture, MipBuffers, GetParams());
 	}
 	return bExecutionSuccessful;
 }

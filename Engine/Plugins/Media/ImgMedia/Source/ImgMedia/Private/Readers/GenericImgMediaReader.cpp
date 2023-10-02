@@ -167,11 +167,11 @@ bool FGenericImgMediaReader::ReadFrame(int32 FrameId, const TMap<int32, FImgMedi
 					}
 
 					void* Buffer = FMemory::Malloc(AllocSize, PLATFORM_CACHE_LINE_SIZE);
-					OutFrame->Info = Info;
+					OutFrame->SetInfo(Info);
 					OutFrame->Data = MakeShareable(Buffer, [](void* ObjectToDelete) { FMemory::Free(ObjectToDelete); });
 					OutFrame->MipTilesPresent.Reset();
 					OutFrame->Format = EMediaTextureSampleFormat::CharBGRA;
-					OutFrame->Stride = OutFrame->Info.Dim.X * 4;
+					OutFrame->Stride = Info.Dim.X * 4;
 				}
 
 				// Copy data to our buffer with the right mip level offset

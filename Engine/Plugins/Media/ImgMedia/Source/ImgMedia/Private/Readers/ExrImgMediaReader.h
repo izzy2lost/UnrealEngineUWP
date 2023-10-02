@@ -57,9 +57,10 @@ protected:
 	 *
 	 * @param FilePath The location of the exr file.
 	 * @param OutInfo Will contain the frame information.
+	 * @param OutFrame Optional frame to update.
 	 * @return true on success, false otherwise.
 	 */
-	static bool GetInfo(const FString& FilePath, FImgMediaFrameInfo& OutInfo);
+	static bool GetInfo(const FString& FilePath, FImgMediaFrameInfo& OutInfo, const TSharedPtr<FImgMediaFrame, ESPMode::ThreadSafe>& OutFrame = nullptr);
 
 	/**
 	 * Reads tiles from exr files in tile rows based on Tile region. If frame is pending for cancelation
@@ -78,7 +79,7 @@ protected:
 		, int64 BufferSize
 		, const FString& ImagePath
 		, const TArray<FIntRect>& TileRegions
-		, TSharedPtr<FSampleConverterParameters> ConverterParams
+		, FSampleConverterParameters& ConverterParams
 		, const int32 CurrentMipLevel
 		, TArray<UE::Math::TIntPoint<int64>>& OutBufferRegionsToCopy);
 

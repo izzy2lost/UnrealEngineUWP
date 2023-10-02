@@ -54,33 +54,6 @@ namespace ImgMediaLoader
 			InOutSequenceDim = InNewDim;
 		}
 	}
-	
-	// Check if the existing tiles contain all of the requested ones. (Is existing a superset of requested?)
-	bool ContainsMipTiles(const TMap<int32, FImgMediaTileSelection>& ExistingTiles, const TMap<int32, FImgMediaTileSelection>& RequestedTiles)
-	{
-		for (auto Iter = RequestedTiles.CreateConstIterator(); Iter; ++Iter)
-		{
-			const int32 RequestedMipLevel = Iter.Key();
-			const FImgMediaTileSelection& RequestedSelection = Iter.Value();
-
-			if (const FImgMediaTileSelection* ExistingSelection = ExistingTiles.Find(RequestedMipLevel))
-			{
-				if (!ExistingSelection->Contains(RequestedSelection))
-				{
-					// Requested tile selection is not present.
-					return false;
-				}
-			}
-			else
-			{
-				// Requested mip level is not present.
-				return false;
-			}
-		}
-		
-		// Requested tiles already exist, or the request was empty.
-		return true;
-	}
 
 	// Check if [CurrentFrame] is contained in the [OffsetCount] number of frames after [OriginFrame], also taking into account looping and play direction.
 	bool IsCachedFrameInRange(int32 CurrentFrame, int32 OriginFrame, int32 OffsetCount, int32 TotalNumFrames, float PlayRate)
@@ -123,19 +96,20 @@ void FImgMediaLoaderBandwidth::Update(const TSharedPtr<FImgMediaFrame, ESPMode::
 {
 	static constexpr int32 READ_TIME_CACHE_MAX = 64;
 
+	const FImgMediaFrameInfo FrameInfo = Frame->GetInfo();
 	// Calculate the current uncompressed bandwidth
-	SIZE_T BytesLoaded = Frame->Info.UncompressedSize;
+	SIZE_T BytesLoaded = FrameInfo.UncompressedSize;
 	Current = (float)BytesLoaded / WorkTime;
 
-	if (Frame->Info.bHasTiles)
+	if (FrameInfo.bHasTiles)
 	{
 		int32 TotalNumTiles = 0;
 
-		for (int32 MipLevel = 0; MipLevel < Frame->Info.NumMipLevels; ++MipLevel)
+		for (int32 MipLevel = 0; MipLevel < FrameInfo.NumMipLevels; ++MipLevel)
 		{
 			const int32 MipLevelDiv = 1 << MipLevel;
-			int32 NumTilesX = FMath::Max(1, FMath::CeilToInt(float(Frame->Info.NumTiles.X) / MipLevelDiv));
-			int32 NumTilesY = FMath::Max(1, FMath::CeilToInt(float(Frame->Info.NumTiles.Y) / MipLevelDiv));
+			int32 NumTilesX = FMath::Max(1, FMath::CeilToInt(float(FrameInfo.NumTiles.X) / MipLevelDiv));
+			int32 NumTilesY = FMath::Max(1, FMath::CeilToInt(float(FrameInfo.NumTiles.Y) / MipLevelDiv));
 			TotalNumTiles += NumTilesX * NumTilesY;
 		}
 
@@ -296,7 +270,7 @@ TSharedPtr<FImgMediaTextureSample, ESPMode::ThreadSafe> FImgMediaLoader::GetFram
 
 	auto Sample = MakeShared<FImgMediaTextureSample, ESPMode::ThreadSafe>();
 
-	ImgMediaLoader::CheckAndUpdateImgDimensions(SequenceDim, Frame->Get()->Info.Dim);
+	ImgMediaLoader::CheckAndUpdateImgDimensions(SequenceDim, Frame->Get()->GetDim());
 
 	if (!Sample->Initialize(*Frame->Get(), SequenceDim, FMediaTimeStamp(FrameStartTime, 0), NextStartTime - FrameStartTime, GetNumMipLevels(), TilingDescription))
 	{
@@ -618,13 +592,13 @@ IMediaSamples::EFetchBestSampleResult FImgMediaLoader::FetchBestVideoSampleForTi
 				// Track state & setup sample for caller...
 				QueuedSampleFetch.LastFrameIndex = MaxIdx;
 				QueuedSampleFetch.LastTimeStamp = FMediaTimeStamp(SampleTime, FMediaTimeStamp::MakeSequenceIndex(FMediaTimeStamp::GetPrimaryIndex(TimeRange.GetLowerBoundValue().SequenceIndex), QueuedSampleFetch.LoopIndex));
-				QueuedSampleFetch.LastDuration = FTimespan::FromSeconds(Frame->Get()->Info.FrameRate.AsInterval());
+				QueuedSampleFetch.LastDuration = FTimespan::FromSeconds(Frame->Get()->GetFrameRate().AsInterval());
 
 				// We are clear to return it as new result... Make a sample & initialize it...
 				auto Sample = MakeShared<FImgMediaTextureSample, ESPMode::ThreadSafe>();
 
 
-				ImgMediaLoader::CheckAndUpdateImgDimensions(SequenceDim, Frame->Get()->Info.Dim);
+				ImgMediaLoader::CheckAndUpdateImgDimensions(SequenceDim, Frame->Get()->GetDim());
 
 				if (Sample->Initialize(*Frame->Get(), SequenceDim, QueuedSampleFetch.LastTimeStamp, QueuedSampleFetch.LastDuration, GetNumMipLevels(), TilingDescription))
 				{
@@ -975,7 +949,7 @@ bool FImgMediaLoader::LoadSequence(const FString& SequencePath, const FFrameRate
 		// Read info if the first frame is cached and not empty
 		if (CachedFrame && !(*CachedFrame)->MipTilesPresent.IsEmpty())
 		{
-			FirstFrameInfo = CachedFrame->Get()->Info;
+			FirstFrameInfo = CachedFrame->Get()->GetInfo();
 		}
 		else if (!Reader->GetFrameInfo(ImagePaths[0][0], FirstFrameInfo))
 		{
@@ -1439,7 +1413,7 @@ void FImgMediaLoader::Update(int32 PlayHeadFrame, float PlayRate, bool Loop)
 			TMap<int32, FImgMediaTileSelection> DesiredMipsAndTiles;
 			GetDesiredMipTiles(FrameNumber, DesiredMipsAndTiles);
 
-			NeedFrame = !ImgMediaLoader::ContainsMipTiles((*FramePtr)->MipTilesPresent, DesiredMipsAndTiles);
+			NeedFrame = !(*FramePtr)->MipTilesPresent.ContainsMipTiles(DesiredMipsAndTiles);
 
 			if (NeedFrame)
 			{
@@ -1498,12 +1472,16 @@ bool FImgMediaLoader::TryAddEmptyFrame(int32 FrameNumber)
 		const int32 NumChannels = 3;
 		const int32 PixelSize = sizeof(uint16) * NumChannels;
 		TSharedPtr<FImgMediaFrame, ESPMode::ThreadSafe> Frame = MakeShared<FImgMediaFrame>();
-		Frame->Info.Dim = SequenceDim;
-		Frame->Info.FrameRate = SequenceFrameRate;
-		Frame->Info.NumChannels = NumChannels;
-		Frame->Info.bHasTiles = false;
+		
+		FImgMediaFrameInfo FrameInfo = {};
+		FrameInfo.Dim = SequenceDim;
+		FrameInfo.FrameRate = SequenceFrameRate;
+		FrameInfo.NumChannels = NumChannels;
+		FrameInfo.bHasTiles = false;
+		Frame->SetInfo(FrameInfo);
+
 		Frame->Format = EMediaTextureSampleFormat::FloatRGB;
-		Frame->Stride = Frame->Info.Dim.X * PixelSize;
+		Frame->Stride = SequenceDim.X * PixelSize;
 
 		AddFrameToCache(FrameNumber, Frame);
 	}
