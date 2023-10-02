@@ -42,7 +42,11 @@ FText FLocalizableMessageProcessor::Localize(const FLocalizableMessage& Message,
 	}
 
 	// an unfortunate number of allocations and copies here
-	FText DefaultFText = FInternationalization::ForUseOnlyByLocMacroAndGraphNodeTextLiterals_CreateText(*Message.DefaultText, TEXT(""), *Message.Key);
+	FText DefaultFText;
+	UE_AUTORTFM_OPEN({
+		DefaultFText = FInternationalization::ForUseOnlyByLocMacroAndGraphNodeTextLiterals_CreateText(*Message.DefaultText, TEXT(""), *Message.Key);
+	});
+
 	FText RetFText = FormatArguments.Num() > 0
 		? FText::Format(DefaultFText, FormatArguments)
 		: DefaultFText;
