@@ -46,7 +46,6 @@
 #include "VolumetricRenderTargetViewStateData.h"
 #include "GPUScene.h"
 #include "DynamicBVH.h"
-#include "PrimitiveInstanceUpdateCommand.h"
 #include "OIT/OIT.h"
 #include "ShadingEnergyConservation.h"
 #include "Substrate/Glint/GlintShadingLUTs.h"
@@ -3816,7 +3815,6 @@ private:
 	struct FUpdateInstanceCommand
 	{
 		FPrimitiveSceneProxy* PrimitiveSceneProxy{ nullptr };
-		FInstanceUpdateCmdBuffer CmdBuffer;
 		FBoxSphereBounds WorldBounds;
 		FBoxSphereBounds LocalBounds;
 		FBoxSphereBounds StaticMeshBounds;

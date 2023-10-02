@@ -11,7 +11,9 @@
 #include "Engine/TextureStreamingTypes.h"
 #include "Components/StaticMeshComponent.h"
 #include "Elements/SMInstance/SMInstanceManager.h"
-#include "PrimitiveInstanceUpdateCommand.h"
+#include "InstanceDataSceneProxy.h"
+#include "InstancedStaticMesh/ISMInstanceDataManager.h"
+#include "StaticMeshResources.h"
 #include "InstancedStaticMeshComponent.generated.h"
 
 class FLightingBuildOptions;
@@ -29,6 +31,8 @@ class FStaticLightingTextureMapping_InstancedStaticMesh;
 class FInstancedLightMap2D;
 class FInstancedShadowMap2D;
 class FStaticMeshInstanceData;
+class FISMInstanceUpdateChangeSet;
+struct FInstanceUpdateComponentDesc;
 
 USTRUCT()
 struct FInstancedStaticMeshInstanceData
@@ -170,6 +174,37 @@ class UInstancedStaticMeshComponent : public UStaticMeshComponent, public ISMIns
 	{
 		return AddInstance(WorldTransform, /*bWorldSpace*/true);
 	}
+
+	int32 GetNumInstances() const { return PerInstanceSMData.Num(); }
+
+	/**
+	 * Preliminary ID-based interface. May only be used if no other manipulations are performed that cause invalidation of IDs. For example, cannot be used on HISM.
+	 * ISMs edited in the editor can also not reliably be used, as some editor changes cause ID tracking to be lost.
+	 */
+
+	/**
+	 */
+	ENGINE_API TArray<FPrimitiveInstanceId> AddInstancesById(const TArrayView<const FTransform>& InstanceTransforms, bool bWorldSpace = false);
+	ENGINE_API FPrimitiveInstanceId AddInstanceById(const FTransform& InstanceTransforms, bool bWorldSpace = false);
+	/**
+	 */
+	ENGINE_API void SetCustomDataById(const TArrayView<const FPrimitiveInstanceId> &InstanceIds, TArrayView<const float> CustomDataFloats); 
+	inline void SetCustomDataById(FPrimitiveInstanceId InstanceId, TArrayView<const float> CustomDataFloats) { SetCustomDataById(MakeArrayView(&InstanceId, 1), CustomDataFloats); }
+	/**
+	 */
+	ENGINE_API virtual void RemoveInstancesById(const TArrayView<const FPrimitiveInstanceId> &InstanceIds);
+	inline void RemoveInstanceById(FPrimitiveInstanceId InstanceId) { RemoveInstancesById(MakeArrayView(&InstanceId, 1)); }
+	/**
+	 */
+	ENGINE_API void UpdateInstanceTransformById(FPrimitiveInstanceId InstanceId, const FTransform& NewInstanceTransform, bool bWorldSpace=false, bool bTeleport=false);
+	/**
+	 */
+	ENGINE_API void SetPreviousTransformById(FPrimitiveInstanceId InstanceId, const FTransform& NewPrevInstanceTransform, bool bWorldSpace=false);
+	/**
+	 */
+	ENGINE_API bool IsValidId(FPrimitiveInstanceId InstanceId);
+
+	ENGINE_API void SetHasPerInstancePrevTransforms(bool bInHasPreviousTransforms);
 
 	/** Update custom data for specific instance */
 	UFUNCTION(BlueprintCallable, Category = "Components|InstancedStaticMesh")
@@ -340,16 +375,18 @@ class UInstancedStaticMeshComponent : public UStaticMeshComponent, public ISMIns
 	ENGINE_API virtual bool IsInstanceTouchingSelectionFrustum(int32 InstanceIndex, const FConvexVolume& InFrustum, const bool bMustEncompassEntireInstance) const;
 #endif
 
-public:
-	/** Render data will be initialized on PostLoad or on demand. Released on the rendering thread. */
-	TSharedPtr<FPerInstanceRenderData, ESPMode::ThreadSafe> PerInstanceRenderData;
+	// Helper function to construct a base-set of instance data flags that in
+	ENGINE_API FInstanceDataFlags MakeInstanceDataFlags(bool bAnyMaterialHasPerInstanceRandom, bool bAnyMaterialHasPerInstanceCustomData) const;
 
+private:
+	bool bHasPreviousTransforms = false;
 	/** 
 	 *  Buffers with per-instance data laid out for rendering. 
 	 *  Serialized for cooked content. Used to create PerInstanceRenderData. 
 	 *  Alive between Serialize and PostLoad calls 
 	 */
-	TUniquePtr<FStaticMeshInstanceData> InstanceDataBuffers;
+	TUniquePtr<FStaticMeshInstanceData> InstanceDataBufferSerializationTmp;
+public:
 
 #if WITH_EDITOR
 	/** One bit per instance if the instance is selected. */
@@ -457,9 +494,11 @@ public:
 	ENGINE_API void ClearInstanceSelection();
 
 	/** Initialize the Per Instance Render Data */
+	UE_DEPRECATED(5.4, "This does not do anything as this has been refactored.")
 	ENGINE_API void InitPerInstanceRenderData(bool InitializeFromCurrentData, FStaticMeshInstanceData* InSharedInstanceBufferData = nullptr, bool InRequireCPUAccess = false);
 
 	/** Transfers ownership of instance render data to a render thread. Instance render data will be released in scene proxy destructor or on render thread task. */
+	UE_DEPRECATED(5.4, "This does not do anything as this has been refactored.")
 	ENGINE_API void ReleasePerInstanceRenderData();
 
 	/** Precache all PSOs which can be used by the component */
@@ -472,6 +511,7 @@ public:
 
 	ENGINE_API void GetInstancesMinMaxScale(FVector& MinScale, FVector& MaxScale) const;
 
+	UE_DEPRECATED(5.4, "This does not do anything as this is controlled by the deferred update system.")
 	ENGINE_API void FlushInstanceUpdateCommands(bool bFlushInstanceUpdateCmdBuffer);
 
 	UE_DEPRECATED(5.4, "This function has been added only for the purposes of moving LWI code outside of the engine. Don't use it, it will be removed soon.")
@@ -485,13 +525,6 @@ public:
 	*/
 	TMap<int32, int32> InstanceIdToInstanceIndexMap;
 
-	// This is here because in void FScene::UpdatePrimitiveInstance(UPrimitiveComponent* Primitive) we want access
-	// to the instances updates through the primitive component in a generic way.
-	/** Recorded modifications to per-instance data */
-	FInstanceUpdateCmdBuffer InstanceUpdateCmdBuffer;
-
-	FInstanceUpdateCmdBuffer& GetInstanceUpdateCmdBuffer() { return InstanceUpdateCmdBuffer; }
-
 	/** Request to navigation system to update only part of navmesh occupied by specified instance. */
 	ENGINE_API virtual void PartialNavigationUpdate(int32 InstanceIdx);
 
@@ -500,6 +533,20 @@ public:
 	 * The implementation is free to ignore this flag, but should honor whatever behavior is being returned by SupportsRemoveSwap().
 	 */
 	bool bSupportRemoveAtSwap = false;
+
+	ENGINE_API TSharedPtr<FISMCInstanceDataSceneProxy, ESPMode::ThreadSafe> GetOrCreateInstanceDataSceneProxy();
+
+	/**
+	 * Mark the "shadowmap" or lightmap uv as modified for the instance since this is stored in external data.
+	 */
+	ENGINE_API void SetBakedLightingDataChanged(int32 InInstanceIndex);
+
+	/** 
+	 * Clears all the updated instance tracking data AND instance ID association, also forcing a full update of the instance data the next time it is flushed.	 
+	 * NOTE: Destroying the instance updated tracking means the renderer has to treat the instances as completely new, preventing e.g., velocity tracking and caching from working reliably.
+	 * This function is only intended to be used when some outside entity has modified the instance data, this is not recomended and access to the public data will be removed in a future release.
+	 */
+	ENGINE_API void InvalidateInstanceDataTracking();
 
 private:
 
@@ -513,6 +560,9 @@ private:
 	ENGINE_API bool BatchUpdateInstancesTransformsInternal(int32 StartInstanceIndex, TArrayView<const FTransform> NewInstancesTransforms, bool bWorldSpace, bool bMarkRenderStateDirty, bool bTeleport);
 
 protected:
+
+	FPrimitiveInstanceDataManager PrimitiveInstanceDataManager;
+
 	/** Creates body instances for all instances owned by this component. */
 	ENGINE_API void CreateAllInstanceBodies();
 
@@ -538,7 +588,7 @@ protected:
 	ENGINE_API TArray<int32> AddInstancesInternal(TConstArrayView<FTransform> InstanceTransforms, bool bShouldReturnIndices, bool bWorldSpace, bool bUpdateNavigation = true);
 
 	/** Internal version of RemoveInstance */	
-	ENGINE_API bool RemoveInstanceInternal(int32 InstanceIndex, bool InstanceAlreadyRemoved);
+	ENGINE_API bool RemoveInstanceInternal(int32 InstanceIndex, bool InstanceAlreadyRemoved, bool bForceRemoveAtSwap = false);
 
 	/**
 	 * Returns the bounds of a single instance in local space. It uses the NavCollision if available,
@@ -565,14 +615,17 @@ protected:
 	
 	ENGINE_API void CreateHitProxyData(TArray<TRefCountPtr<HHitProxy>>& HitProxies);
 
-    /** Build instance buffer for rendering from current component data. */
-	ENGINE_API void BuildRenderData(FStaticMeshInstanceData& OutData, TArray<TRefCountPtr<HHitProxy>>& OutHitProxies);
-	
+    /** Build instance buffer for rendering from current component data. Only used for cook */
+	ENGINE_API void BuildLegacyRenderData(FStaticMeshInstanceData& OutData);
     /** Serialize instance buffer that is used for rendering. Only for cooked content */
 	ENGINE_API void SerializeRenderData(FArchive& Ar);
 	
 	/** Creates rendering buffer from serialized data, if any */
 	ENGINE_API virtual void OnPostLoadPerInstanceData();
+
+	// Helper to collect the base delta data from the ISM *notably not transforms*
+	ENGINE_API void BuildInstanceDataDeltaChangeSetCommon(FISMInstanceUpdateChangeSet &ChangeSet);
+	ENGINE_API virtual void BuildComponentInstanceData(FInstanceUpdateComponentDesc& OutData, FPrimitiveSceneProxy* PrimitiveSceneProxy);
 
 	//~ ISMInstanceManager interface
 	ENGINE_API virtual bool CanEditSMInstance(const FSMInstanceId& InstanceId) const override;

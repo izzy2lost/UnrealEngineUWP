@@ -18,13 +18,13 @@
 #include "MaterialShared.h"
 #include "RenderUtils.h"
 #include "VT/RuntimeVirtualTexture.h"
-#include "PrimitiveInstanceUpdateCommand.h"
 #include "NaniteSceneProxy.h" // TODO: PROG_RASTER
 #include "ComponentRecreateRenderStateContext.h"
 #include "DataDrivenShaderPlatformInfo.h"
 #include "SceneInterface.h"
 #include "PrimitiveUniformShaderParametersBuilder.h"
 #include "Components/InstancedStaticMeshComponent.h"
+#include "InstanceDataSceneProxy.h"
 
 #if WITH_EDITOR
 #include "FoliageHelper.h"
@@ -470,8 +470,6 @@ FPrimitiveSceneProxy::FPrimitiveSceneProxy(const FPrimitiveSceneProxyDesc& InPro
 ,	bIsLandscapeGrass(false)
 ,	bSupportsGPUScene(false)
 ,	bHasDeformableMesh(true)
-,	bSupportsInstanceDataBuffer(false)
-,	bShouldUpdateGPUSceneTransforms(true)
 ,	bEvaluateWorldPositionOffset(true)
 ,	bHasWorldPositionOffsetVelocity(false)
 ,	bAnyMaterialHasWorldPositionOffset(false)
@@ -483,16 +481,6 @@ FPrimitiveSceneProxy::FPrimitiveSceneProxy(const FPrimitiveSceneProxyDesc& InPro
 ,	bShouldNotifyOnWorldAddRemove(false)
 ,	bWantsSelectionOutline(true)
 ,	bVerifyUsedMaterials(true)
-,	bHasPerInstanceRandom(false)
-,	bHasPerInstanceCustomData(false)
-,	bHasPerInstanceDynamicData(false)
-,	bHasPerInstanceLMSMUVBias(false)
-,	bHasPerInstanceLocalBounds(false)
-,	bHasPerInstanceHierarchyOffset(false)
-,	bHasPerInstancePayloadExtension(false)
-#if WITH_EDITOR
-,	bHasPerInstanceEditorData(false)
-#endif
 ,	bAllowApproximateOcclusion(InProxyDesc.Mobility != EComponentMobility::Movable)
 ,   bHoldout(InProxyDesc.bHoldout)
 ,	bSplineMesh(false)
@@ -868,7 +856,6 @@ void FPrimitiveSceneProxy::BuildUniformShaderParameters(FPrimitiveUniformShaderP
 			.ReverseCulling(bReverseCulling);
 	}
 
-
 	FVector2f InstanceDrawDistanceMinMax;
 	if (GetInstanceDrawDistanceMinMax(InstanceDrawDistanceMinMax))
 	{
@@ -881,69 +868,16 @@ void FPrimitiveSceneProxy::BuildUniformShaderParameters(FPrimitiveUniformShaderP
 		Builder.InstanceWorldPositionOffsetDisableDistance(WPODisableDistance);
 	}
 
-	const TConstArrayView<FRenderBounds> InstanceBounds = GetInstanceLocalBounds();
-	if (InstanceBounds.Num() > 0)
+	if (HasInstanceDataBuffers())
 	{
-		Builder.InstanceLocalBounds(InstanceBounds[0]);
+		const FInstanceSceneDataBuffers* InstanceSceneDataBuffers = GetInstanceSceneDataBuffers();
+		Builder.InstanceLocalBounds(InstanceSceneDataBuffers->GetInstanceLocalBounds(0));
 	}
 
 	if (ShouldRenderCustomDepth())
 	{
 		Builder.CustomDepthStencil(GetCustomDepthStencilValue(), GetStencilWriteMask());
 	}
-}
-
-uint32 FPrimitiveSceneProxy::GetPayloadDataStride() const
-{
-	static_assert(sizeof(FRenderTransform) == sizeof(float) * 3 * 4); // Sanity check
-	static_assert(sizeof(FRenderBounds) == sizeof(float) * 3 * 2); // Sanity check
-
-	// This count is per instance.
-	uint32 PayloadDataCount = 0;
-
-	// Random ID is packed into scene data currently
-	if (FDataDrivenShaderPlatformInfo::GetSupportSceneDataCompressedTransforms(GMaxRHIShaderPlatform))
-	{
-		PayloadDataCount += HasPerInstanceDynamicData() ? 2 : 0;	// Compressed transform
-	}
-	else
-	{
-		PayloadDataCount += HasPerInstanceDynamicData() ? 3 : 0;	// FRenderTransform
-	}
-		
-	// Hierarchy is packed in with local bounds if they are both present (almost always the case)
-	if (HasPerInstanceLocalBounds())
-	{
-		PayloadDataCount += 2; // FRenderBounds and possibly uint32 for hierarchy offset & another uint32 for EditorData
-	}
-	else if (HasPerInstanceHierarchyOffset() || HasPerInstanceEditorData())
-	{
-		PayloadDataCount += 1; // uint32 for hierarchy offset (float4 packed) & instance editor data is packed in the same float4
-	}
-
-	PayloadDataCount += HasPerInstanceLMSMUVBias() ? 1 : 0; // FVector4
-
-	if (HasPerInstancePayloadExtension())
-	{
-		const uint32 InstanceCount   = InstanceSceneData.Num();
-		const uint32 ExtensionCount = InstancePayloadExtension.Num();
-		if (InstanceCount > 0)
-		{
-			PayloadDataCount += ExtensionCount / InstanceCount;
-		}
-	}
-
-	if (HasPerInstanceCustomData())
-	{
-		const uint32 InstanceCount   = InstanceSceneData.Num();
-		const uint32 CustomDataCount = InstanceCustomData.Num();
-		if (InstanceCount > 0)
-		{
-			PayloadDataCount += FMath::DivideAndRoundUp(CustomDataCount / InstanceCount, 4u);
-		}
-	}
-
-	return PayloadDataCount;
 }
 
 void FPrimitiveSceneProxy::SetTransform(FRHICommandListBase& RHICmdList, const FMatrix& InLocalToWorld, const FBoxSphereBounds& InBounds, const FBoxSphereBounds& InLocalBounds, FVector InActorPosition)
@@ -970,7 +904,7 @@ void FPrimitiveSceneProxy::SetTransform(FRHICommandListBase& RHICmdList, const F
 	OnTransformChanged(RHICmdList);
 }
 
-void FPrimitiveSceneProxy::UpdateInstances_RenderThread(FRHICommandListBase& RHICmdList, const FInstanceUpdateCmdBuffer& CmdBuffer, const FBoxSphereBounds& InBounds, const FBoxSphereBounds& InLocalBounds, const FBoxSphereBounds& InStaticMeshBounds)
+void FPrimitiveSceneProxy::UpdateInstances_RenderThread(FRHICommandListBase& RHICmdList, const FBoxSphereBounds& InBounds, const FBoxSphereBounds& InLocalBounds, const FBoxSphereBounds& InStaticMeshBounds)
 {
 	TRACE_CPUPROFILER_EVENT_SCOPE_STR("FPrimitiveSceneProxy::UpdateInstances_RenderThread");
 
@@ -978,173 +912,7 @@ void FPrimitiveSceneProxy::UpdateInstances_RenderThread(FRHICommandListBase& RHI
 	Bounds = InBounds;
 	LocalBounds = InLocalBounds;
 
-	if (PrimitiveSceneInfo)
-	{
-		Scene->RequestUniformBufferUpdate(*PrimitiveSceneInfo);
-	}
-
-#if !(UE_BUILD_SHIPPING || UE_BUILD_TEST)
-	// JIT initialize only when we go through UpdateInstances.
-	// This will also clear the bits so we can reset the state for this frame.
-	InstanceXFormUpdatedThisFrame.Init(false, InstanceSceneData.Num());
-	InstanceCustomDataUpdatedThisFrame.Init(false, InstanceSceneData.Num());
-#endif
-
-	if (UseGPUScene(GetScene().GetShaderPlatform(), GetScene().GetFeatureLevel()))
-	{
-		const int32 PrevNumCustomDataFloats = InstanceSceneData.Num() ? InstanceCustomData.Num() / InstanceSceneData.Num() : 0;
-		const int32 NumCustomDataFloats = CmdBuffer.NumCustomDataFloats;
-
-		const bool bPreviouslyHadCustomFloatData = PrevNumCustomDataFloats > 0;
-		const bool bHasCustomFloatData = CmdBuffer.NumCustomDataFloats > 0;
-
-		// Apply all updates.
-		for (const auto& Cmd : CmdBuffer.Cmds)
-		{
-			switch (Cmd.Type)
-			{
-				case FInstanceUpdateCmdBuffer::Update:
-				{
-					// update transform data.
-					InstanceSceneData[Cmd.InstanceIndex].LocalToPrimitive = Cmd.XForm;
-					InstanceDynamicData[Cmd.InstanceIndex].PrevLocalToPrimitive = Cmd.PreviousXForm;
-
-#if !(UE_BUILD_SHIPPING || UE_BUILD_TEST)
-					InstanceXFormUpdatedThisFrame[Cmd.InstanceIndex] = true;
-#endif
-				}
-				break;
-				case FInstanceUpdateCmdBuffer::CustomData:
-				{
-					check(bHasCustomFloatData);
-
-					// update custom data because it changed.
-					check(PrevNumCustomDataFloats == NumCustomDataFloats);
-					const int32 DstCustomDataOffset = Cmd.InstanceIndex * NumCustomDataFloats;
-					FMemory::Memcpy(&InstanceCustomData[DstCustomDataOffset], &Cmd.CustomDataFloats[0], NumCustomDataFloats * sizeof(float));
-
-#if !(UE_BUILD_SHIPPING || UE_BUILD_TEST)
-					InstanceCustomDataUpdatedThisFrame[Cmd.InstanceIndex] = true;
-#endif
-				}
-				break;
-#if WITH_EDITOR
-				case FInstanceUpdateCmdBuffer::EditorData:
-				{
-					check(bHasPerInstanceEditorData);
-					InstanceEditorData[Cmd.InstanceIndex] = FInstanceUpdateCmdBuffer::PackEditorData(Cmd.HitProxyColor, Cmd.bSelected);
-				}
-				break;
-#endif //WITH_EDITOR
-				default:
-				break;
-			};
-		}
-
-		// Build bit array of commands to remove.
-		TBitArray<> RemoveBits;
-		RemoveBits.Init(false, InstanceSceneData.Num());
-		for (const auto& Cmd : CmdBuffer.Cmds)
-		{
-			if (Cmd.Type == FInstanceUpdateCmdBuffer::Hide)
-			{
-				RemoveBits[Cmd.InstanceIndex] = true;
-			}
-		}
-
-		// Do removes.
-		for (int32 i = 0; i < RemoveBits.Num(); ++i)
-		{
-			if (RemoveBits[i])
-			{
-				InstanceSceneData.RemoveAtSwap(i, 1, false);
-				InstanceDynamicData.RemoveAtSwap(i, 1, false);
-
-				if (bHasPerInstanceRandom)
-				{
-					InstanceRandomID.RemoveAtSwap(i, 1, false);
-				}
-				if (bHasPerInstanceLMSMUVBias)
-				{
-					InstanceLightShadowUVBias.RemoveAtSwap(i, 1, false);
-				}
-
-#if WITH_EDITOR
-				if (bHasPerInstanceEditorData)
-				{
-					InstanceEditorData.RemoveAtSwap(i, 1, false);
-				}
-#endif
-
-				// Only remove the custom float data from this instance if it previously had it.
-				if (bPreviouslyHadCustomFloatData)
-				{
-					InstanceCustomData.RemoveAtSwap((i * PrevNumCustomDataFloats), PrevNumCustomDataFloats, false);
-					check(InstanceCustomData.Num() == (PrevNumCustomDataFloats * InstanceSceneData.Num()));
-				}
-
-				RemoveBits.RemoveAtSwap(i);
-
-#if !(UE_BUILD_SHIPPING || UE_BUILD_TEST)
-				InstanceXFormUpdatedThisFrame.RemoveAtSwap(i);
-				InstanceCustomDataUpdatedThisFrame.RemoveAtSwap(i);
-#endif
-				i--;
-			}
-		}
-
-		// Apply all adds.
-		for (const auto& Cmd : CmdBuffer.Cmds)
-		{
-			if (Cmd.Type == FInstanceUpdateCmdBuffer::Add)
-			{
-				InstanceSceneData.AddDefaulted_GetRef().LocalToPrimitive = Cmd.XForm;
-				InstanceDynamicData.AddDefaulted_GetRef().PrevLocalToPrimitive = Cmd.PreviousXForm;
-
-				if (bHasPerInstanceRandom)
-				{
-					InstanceRandomID.AddZeroed();
-				}
-
-				if (bHasPerInstanceLMSMUVBias)
-				{
-					InstanceLightShadowUVBias.AddZeroed();
-				}
-
-#if WITH_EDITOR
-				if (bHasPerInstanceEditorData)
-				{
-					InstanceEditorData.AddZeroed();
-				}
-#endif
-				if (bHasCustomFloatData)
-				{
-					const int32 DstCustomDataOffset = InstanceCustomData.AddUninitialized(NumCustomDataFloats);
-					FMemory::Memcpy(&InstanceCustomData[DstCustomDataOffset], &Cmd.CustomDataFloats[0], NumCustomDataFloats * sizeof(float));
-				}
-
-#if !(UE_BUILD_SHIPPING || UE_BUILD_TEST)
-				InstanceXFormUpdatedThisFrame.Add(true);
-				InstanceCustomDataUpdatedThisFrame.Add(true);
-#endif
-			}
-		}
-
-		// #todo (jnadro) Do I still need to update this?
-		InstanceLocalBounds.SetNumUninitialized(1);
-		SetInstanceLocalBounds(0, InStaticMeshBounds);
-		bHasPerInstanceRandom = InstanceRandomID.Num() > 0;
-		bHasPerInstanceCustomData = InstanceCustomData.Num() > 0;
-		bHasPerInstanceDynamicData = InstanceDynamicData.Num() > 0;
-		bHasPerInstanceLMSMUVBias = InstanceLightShadowUVBias.Num() > 0;
-#if WITH_EDITOR
-		bHasPerInstanceEditorData = InstanceEditorData.Num() > 0;
-#endif
-
-		// Ensure our data is in sync.
-		check(InstanceSceneData.Num() == InstanceDynamicData.Num());
-		check(InstanceCustomData.Num() == (NumCustomDataFloats * InstanceSceneData.Num()));
-	}
+	bAlwaysHasVelocity = CVarVelocityForceOutput.GetValueOnAnyThread() ||  GetInstanceDataHeader().Flags.bHasPerInstanceDynamicData;
 }
 
 bool FPrimitiveSceneProxy::WouldSetTransformBeRedundant_AnyThread(const FMatrix& InLocalToWorld, const FBoxSphereBounds& InBounds, const FBoxSphereBounds& InLocalBounds, const FVector& InActorPosition) const
@@ -1408,11 +1176,10 @@ void FPrimitiveSceneProxy::SetLightingChannels_GameThread(FLightingChannels Ligh
 	});
 }
 
-void FPrimitiveSceneProxy::SetInstanceLocalBounds(uint32 InstanceIndex, const FRenderBounds& InBounds, bool bPadForWPO)
+FRenderBounds FPrimitiveSceneProxy::PadInstanceLocalBounds(const FRenderBounds& InBounds)
 {
 	// TODO: DISP - Fix me
-	InstanceLocalBounds[InstanceIndex] = bPadForWPO ? 
-		PadLocalRenderBounds(InBounds, GetLocalToWorld(), GetAbsMaxDisplacement()) : InBounds;
+	return PadLocalRenderBounds(InBounds, GetLocalToWorld(), GetAbsMaxDisplacement());
 }
 
 #if ENABLE_DRAW_DEBUG
@@ -1445,12 +1212,36 @@ void FPrimitiveSceneProxy::FDebugMassData::DrawDebugMass(class FPrimitiveDrawInt
 }
 #endif
 
-void FPrimitiveSceneProxy::UpdateDefaultInstanceSceneData()
+const FInstanceSceneDataBuffers *FPrimitiveSceneProxy::GetInstanceSceneDataBuffers(EInstanceBufferAccessFlags AccessFlags) const
+{ 
+	if (AccessFlags == EInstanceBufferAccessFlags::SynchronizeUpdateTask)
+	{
+		if (FInstanceDataUpdateTaskInfo *UpdateTaskInfo = GetInstanceDataUpdateTaskInfo())
+		{
+			UpdateTaskInfo->WaitForUpdateCompletion();
+		}
+	}
+	return InstanceSceneDataBuffersInternal; 
+}
+
+FInstanceDataBufferHeader FPrimitiveSceneProxy::GetInstanceDataHeader() const
 {
-	check(InstanceSceneData.Num() <= 1);
-	InstanceSceneData.SetNumUninitialized(1);
-	FInstanceSceneData& DefaultInstance = InstanceSceneData[0];
-	DefaultInstance.LocalToPrimitive.SetIdentity();
+	if (FInstanceDataUpdateTaskInfo *UpdateTaskInfo = GetInstanceDataUpdateTaskInfo())
+	{
+		return UpdateTaskInfo->GetHeader();
+	}
+
+	if (InstanceSceneDataBuffersInternal)
+	{
+		InstanceSceneDataBuffersInternal->GetHeader();
+	}
+	return FInstanceDataBufferHeader::SinglePrimitiveHeader;
+}
+
+void FPrimitiveSceneProxy::SetupInstanceSceneDataBuffers(const FInstanceSceneDataBuffers* InInstanceSceneDataBuffers)
+{
+	check(InstanceSceneDataBuffersInternal == nullptr);
+	InstanceSceneDataBuffersInternal = InInstanceSceneDataBuffers;
 }
 
 bool FPrimitiveSceneProxy::DrawInVirtualTextureOnly(bool bEditor) const

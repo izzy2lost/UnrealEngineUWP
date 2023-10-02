@@ -18,6 +18,7 @@
 #include "LumenVisualizationData.h"
 #include "MeshCardBuild.h"
 #include "LumenReflections.h"
+#include "InstanceDataSceneProxy.h"
 
 // Must be in sync with VISUALIZE_MODE_* in LumenVisualize.h
 int32 GLumenVisualize = 0;
@@ -944,24 +945,21 @@ void DrawPrimitiveBounds(const FLumenPrimitiveGroup& PrimitiveGroup, FLinearColo
 {
 	const uint8 DepthPriority = SDPG_World;
 
-	for (const FPrimitiveSceneInfo* ScenePrimitiveInfo : PrimitiveGroup.Primitives)
+	for (const FPrimitiveSceneInfo* PrimitiveSceneInfo : PrimitiveGroup.Primitives)
 	{
-		const FMatrix& PrimitiveToWorld = ScenePrimitiveInfo->Proxy->GetLocalToWorld();
-		const TConstArrayView<FInstanceSceneData> InstanceSceneData = ScenePrimitiveInfo->Proxy->GetInstanceSceneData();
-
-		if (InstanceSceneData.Num() > 0)
+		const FMatrix& PrimitiveToWorld = PrimitiveSceneInfo->Proxy->GetLocalToWorld();
+		if (const FInstanceSceneDataBuffers *InstanceData = PrimitiveSceneInfo->GetInstanceSceneDataBuffers())
 		{
-			for (int32 InstanceIndex = 0; InstanceIndex < InstanceSceneData.Num(); ++InstanceIndex)
+			for (int32 InstanceIndex = 0; InstanceIndex < InstanceData->GetNumInstances(); ++InstanceIndex)
 			{
-				const FInstanceSceneData& PrimitiveInstance = InstanceSceneData[InstanceIndex];
-				const FBox LocalBoundingBox = ScenePrimitiveInfo->Proxy->GetInstanceLocalBounds(InstanceIndex).ToBox();
-				FMatrix LocalToWorld = PrimitiveInstance.LocalToPrimitive.ToMatrix() * PrimitiveToWorld;
+				const FBox LocalBoundingBox = InstanceData->GetInstanceLocalBounds(InstanceIndex).ToBox();
+				FMatrix LocalToWorld = InstanceData->GetInstanceToWorld(InstanceIndex);
 				DrawWireBox(&ViewPDI, LocalToWorld, LocalBoundingBox, BoundsColor, DepthPriority);
 			}
 		}
 		else
 		{
-			const FBox LocalBoundingBox = ScenePrimitiveInfo->Proxy->GetLocalBounds().GetBox();
+			const FBox LocalBoundingBox = PrimitiveSceneInfo->Proxy->GetLocalBounds().GetBox();
 			DrawWireBox(&ViewPDI, PrimitiveToWorld, LocalBoundingBox, BoundsColor, DepthPriority);
 		}
 	}

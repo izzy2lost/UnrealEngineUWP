@@ -67,13 +67,12 @@ extern const int32 InstancedStaticMeshMaxTexCoord;
 	FStaticMeshInstanceBuffer
 -----------------------------------------------------------------------------*/
 
-/** A vertex buffer of positions. */
 class FStaticMeshInstanceBuffer : public FRenderResource
 {
 public:
 
 	/** Default constructor. */
-	FStaticMeshInstanceBuffer(ERHIFeatureLevel::Type InFeatureLevel, bool InRequireCPUAccess, bool bDeferGPUUploadIn);
+	FStaticMeshInstanceBuffer(ERHIFeatureLevel::Type InFeatureLevel, bool InRequireCPUAccess);
 
 	/** Destructor. */
 	~FStaticMeshInstanceBuffer();
@@ -83,7 +82,6 @@ public:
 	 * @param Other - instance data, this call assumes the memory, so this will be empty after the call
 	 */
 	ENGINE_API void InitFromPreallocatedData(FStaticMeshInstanceData& Other);
-	ENGINE_API void UpdateFromCommandBuffer_Concurrent(FInstanceUpdateCmdBuffer& CmdBuffer);
 
 	/**
 	 * Specialized assignment operator, only used when importing LOD's. 
@@ -171,22 +169,13 @@ public:
 	}
 
 	/**
-	 * Set flush to GPU as pending if the bDeferGPUUpload flag is true.
-	 * Returns bDeferGPUUpload (so if it returns false, the update should be done at once).
+	 * Set flush to GPU as pending.
 	 */
-	bool CondSetFlushToGPUPending()
+	void SetFlushToGPUPending()
 	{
-		if (bDeferGPUUpload)
-		{
 			bFlushToGPUPending = true;
-			return true;
 		}
-		return bDeferGPUUpload;
-	}
 private:
-
-	/** Defer GPU Upload until we can know if it is needed (that is on the render thread) */
-	bool bDeferGPUUpload;
 
 	/** If true, then we have updates to the host data not yet committed to the GPU. This in turn means
 	 * that bDeferGPUUpload is true, and the Proxy is expected to either call FlushGPUUpload() OR never 
@@ -222,9 +211,6 @@ private:
 	void CleanUp();
 
 	void CreateVertexBuffer(FRHICommandListBase& RHICmdList, FResourceArrayInterface* InResourceArray, EBufferUsageFlags InUsage, uint32 InStride, uint8 InFormat, FBufferRHIRef& OutVertexBufferRHI, FShaderResourceViewRHIRef& OutInstanceSRV);
-	
-	/**  */
-	void UpdateFromCommandBuffer_RenderThread(FRHICommandListBase& RHICmdList, FInstanceUpdateCmdBuffer& CmdBuffer);
 };
 
 /*-----------------------------------------------------------------------------
@@ -393,66 +379,13 @@ private:
 	LAYOUT_FIELD(FShaderParameter, InstanceOffset)
 };
 
-struct FInstanceUpdateCmdBuffer;
-/*-----------------------------------------------------------------------------
-	FPerInstanceRenderData
-	Holds render data that can persist between scene proxy reconstruction
------------------------------------------------------------------------------*/
-struct FPerInstanceRenderData
-{
-	// Should be always constructed on main thread
-	ENGINE_API FPerInstanceRenderData(FStaticMeshInstanceData& Other, ERHIFeatureLevel::Type InFeaureLevel, bool InRequireCPUAccess, FBox InBounds, bool bTrack, bool bDeferGPUUploadIn);
-	ENGINE_API ~FPerInstanceRenderData();
-
-	/**
-	 * Call to update the Instance buffer with pre allocated data without recreating the FPerInstanceRenderData
-	 * @param InComponent - The owning component
-	 * @param InOther - The Instance data to copy into our instance buffer
-	 */
-	ENGINE_API void UpdateFromPreallocatedData(FStaticMeshInstanceData& InOther);
-		
-	/**
-	*/
-	ENGINE_API void UpdateFromCommandBuffer(FInstanceUpdateCmdBuffer& CmdBuffer);
-
-	/** Hit proxies for the instances */
-	TArray<TRefCountPtr<HHitProxy>>		HitProxies;
-
-	/** cached per-instance resource size*/
-	SIZE_T								ResourceSize;
-
-	/** Instance buffer */
-	FStaticMeshInstanceBuffer			InstanceBuffer;
-	TSharedPtr<FStaticMeshInstanceData, ESPMode::ThreadSafe> InstanceBuffer_GameThread;
-
-	/** Get data for culling ray tracing instances */
-	const TArray<FVector4f>& GetPerInstanceBounds(FBox CurrentBounds);
-
-	/** Get cached CPU-friendly instance transforms */
-	const TArray<FRenderTransform>& GetPerInstanceTransforms();
-
-private:
-	/**
-	 * Called to update the PerInstanceBounds/PerInstanceTransforms arrays whenever the instance array is modified
-	 */
-	void UpdateBoundsTransforms_RenderThread();
-	void UpdateBoundsTransforms_Concurrent();
-	void UpdateBoundsTransforms();
-	void EnsureInstanceDataUpdated(bool bForceUpdate = false);
-
-	TArray<FVector4f> PerInstanceBounds;
-	TArray<FRenderTransform> PerInstanceTransforms;
-	FGraphEventRef UpdateBoundsTask;
-	FBox InstanceLocalBounds;
-	bool bTrackBounds;
-	bool bBoundsTransformsDirty;
-};
-
-
 /*-----------------------------------------------------------------------------
 	FInstancedStaticMeshRenderData
 -----------------------------------------------------------------------------*/
 
+	/**
+ * Container for vertex factories used in the proxy to link MDC to the attribute buffers and similar data.
+	 */
 class FInstancedStaticMeshRenderData
 {
 public:
@@ -468,9 +401,6 @@ public:
 	/** Cache off some component data. */
 	int32 LightMapCoordinateIndex;
 
-	/** Per instance render data, could be shared with component */
-	TSharedPtr<FPerInstanceRenderData, ESPMode::ThreadSafe> PerInstanceRenderData;
-
 	/** Vertex factory */
 	TIndirectArray<FInstancedStaticMeshVertexFactory> VertexFactories;
 
@@ -480,7 +410,7 @@ public:
 	/** Feature level used when creating instance data */
 	ERHIFeatureLevel::Type FeatureLevel;
 
-	ENGINE_API void BindBuffersToVertexFactories(FRHICommandListBase& RHICmdList);
+	ENGINE_API void BindBuffersToVertexFactories(FRHICommandListBase& RHICmdList, FStaticMeshInstanceBuffer* InstanceBuffer);
 
 private:
 	void InitVertexFactories();
@@ -512,9 +442,7 @@ public:
 
 	ENGINE_API virtual void DestroyRenderThreadResources() override;
 
-	ENGINE_API virtual void OnTransformChanged(FRHICommandListBase& RHICmdList) override;
-
-	ENGINE_API virtual void UpdateInstances_RenderThread(FRHICommandListBase& RHICmdList, const FInstanceUpdateCmdBuffer& CmdBuffer, const FBoxSphereBounds& InBounds, const FBoxSphereBounds& InLocalBounds, const FBoxSphereBounds& InStaticMeshBounds) override;
+	ENGINE_API virtual void UpdateInstances_RenderThread(FRHICommandListBase& RHICmdList, const FBoxSphereBounds& InBounds, const FBoxSphereBounds& InLocalBounds, const FBoxSphereBounds& InStaticMeshBounds) override;
 
 	virtual FPrimitiveViewRelevance GetViewRelevance(const FSceneView* View) const override
 	{
@@ -584,6 +512,7 @@ public:
 
 	ENGINE_API virtual float GetLodScreenSizeScale() const override;
 	ENGINE_API virtual float GetGpuLodInstanceRadius() const override;
+	virtual FInstanceDataUpdateTaskInfo *GetInstanceDataUpdateTaskInfo() const override;
 
 	virtual bool IsDetailMesh() const override { return true; }
 
@@ -634,6 +563,8 @@ private:
 
 	/** Stores a loose uniform buffer per LOD, used for static view relevance. */
 	TMap<uint32, FInstancedStaticMeshVFLooseUniformShaderParametersRef> LODLooseUniformBuffers;
+
+	TSharedPtr<FISMCInstanceDataSceneProxy, ESPMode::ThreadSafe> InstanceDataSceneProxy; 
 };
 
 #if WITH_EDITOR

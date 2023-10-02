@@ -16,6 +16,7 @@
 #include "GeometryCollection/GeometryCollectionObject.h"
 #include "GeometryCollection/GeometryCollectionRenderData.h"
 #include "GeometryCollection/GeometryCollectionHitProxy.h"
+#include "InstanceDataSceneProxy.h"
 
 class UGeometryCollection;
 class UGeometryCollectionComponent;
@@ -332,7 +333,7 @@ public:
 	virtual Nanite::FResourceMeshInfo GetResourceMeshInfo() const override;
 
 	/** Called on render thread to setup dynamic geometry for rendering */
-	void SetDynamicData_RenderThread(FGeometryCollectionDynamicData* NewDynamicData);
+	void SetDynamicData_RenderThread(FGeometryCollectionDynamicData* NewDynamicData, const FMatrix &PrimitiveLocalToWorld);
 
 	void ResetPreviousTransforms_RenderThread();
 
@@ -374,4 +375,6 @@ protected:
 	uint32 bHasMaterialErrors : 1;
 	uint32 bCurrentlyInMotion : 1;
 	uint32 bRequiresGPUSceneUpdate : 1;
+
+	FInstanceSceneDataBuffers InstanceSceneDataBuffersImpl;
 };

@@ -4,6 +4,7 @@
 
 #include "PrimitiveComponentId.h"
 #include "PrimitiveSceneInfoData.h"
+#include "Engine/EngineTypes.h"
 
 class FPrimitiveSceneProxy;
 struct FPrimitiveSceneProxyDesc;
@@ -98,9 +99,7 @@ struct FInstancedStaticMeshSceneDesc
 	// Using composition to refer to the PrimitiveSceneDesc instead of inheritance for easier 
 	// usage of a class member instead of an heap allocated struct in implementers
 	FPrimitiveSceneDesc& PrimitiveSceneDesc;
-	struct FInstanceUpdateCmdBuffer* InstanceUpdateCmdBuffer = nullptr;
 	UStaticMesh* StaticMesh = nullptr;
 
 	UStaticMesh* GetStaticMesh() { check(StaticMesh); return StaticMesh; }
-	FInstanceUpdateCmdBuffer& GetInstanceUpdateCommandBuffer() { check(InstanceUpdateCmdBuffer); return *InstanceUpdateCmdBuffer; }
 };

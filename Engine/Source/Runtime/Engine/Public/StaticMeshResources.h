@@ -1040,9 +1040,9 @@ public:
 		GetInstanceLightMapDataInternal(InstanceIndex, InstanceLightmapAndShadowMapUVBias);
 	}
 
-	FORCEINLINE_DEBUGGABLE void GetInstanceCustomDataValues(int32 InstanceIndex, TArray<float>& CustomData) const
+	FORCEINLINE_DEBUGGABLE void GetInstanceCustomDataValues(int32 InstanceIndex, TArrayView<float> OutCustomData) const
 	{
-		GetInstanceCustomDataInternal(InstanceIndex, CustomData);
+		GetInstanceCustomDataInternal(InstanceIndex, OutCustomData);
 	}
 	
 	FORCEINLINE_DEBUGGABLE void SetInstance(int32 InstanceIndex, const FMatrix44f& Transform, float RandomInstanceID, const FVector2D& LightmapUVBias, const FVector2D& ShadowmapUVBias)
@@ -1401,9 +1401,9 @@ private:
 		}
 	}
 
-	FORCEINLINE_DEBUGGABLE void GetInstanceCustomDataInternal(int32 InstanceIndex, TArray<float>& CustomData) const
+	FORCEINLINE_DEBUGGABLE void GetInstanceCustomDataInternal(int32 InstanceIndex, TArrayView<float> OutCustomData) const
 	{
-		check(CustomData.Num() == NumCustomDataFloats);
+		check(OutCustomData.Num() == NumCustomDataFloats);
 
 		float* ElementData = reinterpret_cast<float*>(InstanceCustomDataPtr);
 		const uint32 CurrentSize = InstanceCustomData->Num() * InstanceCustomData->GetStride();
@@ -1415,7 +1415,7 @@ private:
 			if (ensure((void*)((&ElementData[CustomDataIndex]) + 1) <= (void*)(InstanceCustomDataPtr + CurrentSize))
 				&& ensure((void*)((&ElementData[CustomDataIndex]) + 0) >= (void*)(InstanceCustomDataPtr)))
 			{
-				CustomData[i] = ElementData[CustomDataIndex];
+				OutCustomData[i] = ElementData[CustomDataIndex];
 			}
 		}
 	}

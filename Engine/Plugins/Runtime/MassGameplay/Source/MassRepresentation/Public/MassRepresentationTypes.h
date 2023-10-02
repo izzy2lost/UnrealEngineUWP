@@ -5,6 +5,8 @@
 #include "MassLODTypes.h"
 #include "Engine/DataTable.h"
 #include "Misc/MTAccessDetector.h"
+#include "InstanceDataTypes.h"
+#include "Experimental/Containers/RobinHoodHashTable.h"
 
 #include "MassRepresentationTypes.generated.h"
 
@@ -206,6 +208,10 @@ struct MASSREPRESENTATION_API FMassISMCSharedData
 		*this = FMassISMCSharedData();
 	}
 
+	using FIdMap = Experimental::TRobinHoodHashMap<int32, FPrimitiveInstanceId>;
+
+	FIdMap &GetIdMap() { return MassInstanceIdToComponentInstanceIdMap; }
+
 protected:
 	friend FMassLODSignificanceRange;
 	friend UMassVisualizationComponent;
@@ -231,6 +237,8 @@ protected:
 	 *	instance ID logic. WIP as of Jun 17th 2023 
 	 */
 	uint8 bRequiresExternalInstanceIDTracking : 1;
+
+	FIdMap MassInstanceIdToComponentInstanceIdMap;
 };
 
 

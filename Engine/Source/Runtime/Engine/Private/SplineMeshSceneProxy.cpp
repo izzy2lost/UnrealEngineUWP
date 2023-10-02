@@ -106,15 +106,8 @@ FSplineMeshSceneProxy::FSplineMeshSceneProxy(USplineMeshComponent* InComponent) 
 	const ERHIFeatureLevel::Type FeatureLevel = GetScene().GetFeatureLevel();
 	if (FeatureLevel > ERHIFeatureLevel::ES3_1 && UseGPUScene(GetScene().GetShaderPlatform(), FeatureLevel))
 	{
-		InstancePayloadExtension.SetNumUninitialized(SPLINE_MESH_PARAMS_FLOAT4_SIZE);
-		PackSplineMeshParams(SplineParams, InstancePayloadExtension);
-		bHasPerInstancePayloadExtension = true;
-
-		// We don't actually move the InstanceSceneData, but we have to add at least one to provide the spline
-		// mesh params to the payload
-		InstanceSceneData.SetNum(1);
-		InstanceSceneData[0].LocalToPrimitive.SetIdentity();
-		bSupportsInstanceDataBuffer = true;
+		SplineMeshInstanceData.Setup(SplineParams);
+		SetupInstanceSceneDataBuffers(&SplineMeshInstanceData);
 	}
 
 	for (int32 LODIndex = 0; LODIndex < LODs.Num(); LODIndex++)
@@ -274,6 +267,33 @@ void FSplineMeshSceneProxy::GetDynamicRayTracingInstances(struct FRayTracingMate
 }
 #endif // RHI_RAYTRACING
 
+
+void FSplineMeshSceneProxy::OnTransformChanged(FRHICommandListBase& RHICmdList)
+{
+	// Call parent implementation
+	FStaticMeshSceneProxy::OnTransformChanged(RHICmdList);
+
+	// NOTE: The proxy's local bounds have already been padded for WPO/Displacement
+	SplineMeshInstanceData.UpdateDefaultInstance(GetLocalToWorld(), GetLocalBounds());
+}
+
+void FSplineMeshSceneInstanceDataBuffers::Setup(const FSplineMeshShaderParams& InSplineMeshShaderParams)
+{
+	InstancePayloadExtension.SetNumUninitialized(SPLINE_MESH_PARAMS_FLOAT4_SIZE);
+	Flags.bHasPerInstancePayloadExtension = true;
+	Update(InSplineMeshShaderParams);
+}
+
+bool FSplineMeshSceneInstanceDataBuffers::Update(const FSplineMeshShaderParams& InSplineMeshShaderParams)
+{
+	if (!InstancePayloadExtension.IsEmpty())
+	{
+		PackSplineMeshParams(InSplineMeshShaderParams, InstancePayloadExtension);
+		return true;
+	}
+	return false;
+}
+
 FNaniteSplineMeshSceneProxy::FNaniteSplineMeshSceneProxy(const Nanite::FMaterialAudit& NaniteMaterials, USplineMeshComponent* InComponent) :
 	Nanite::FSceneProxy(NaniteMaterials, InComponent)
 {
@@ -305,11 +325,8 @@ FNaniteSplineMeshSceneProxy::FNaniteSplineMeshSceneProxy(const Nanite::FMaterial
 
 	// Copy spline params from component
 	SplineParams = InComponent->CalculateShaderParams();
-
-	// Place the spline mesh parameters in the payload extension
-	InstancePayloadExtension.SetNumUninitialized(SPLINE_MESH_PARAMS_FLOAT4_SIZE);
-	PackSplineMeshParams(SplineParams, InstancePayloadExtension);
-	bHasPerInstancePayloadExtension = true;
+	SplineMeshInstanceData.Setup(SplineParams);
+	SetupInstanceSceneDataBuffers(&SplineMeshInstanceData);
 }
 
 SIZE_T FNaniteSplineMeshSceneProxy::GetTypeHash() const
@@ -323,10 +340,8 @@ void FNaniteSplineMeshSceneProxy::OnTransformChanged(FRHICommandListBase& RHICmd
 	// Call Nanite parent implementation
 	Nanite::FSceneProxy::OnTransformChanged(RHICmdList);
 
-	// Override the instance local bounds with the bounds that were calculated (as opposed to using the mesh bounds)
 	// NOTE: The proxy's local bounds have already been padded for WPO/Displacement
-	check(InstanceLocalBounds.Num() == 1);
-	SetInstanceLocalBounds(0, GetLocalBounds(), false);
+	SplineMeshInstanceData.UpdateDefaultInstance(GetLocalToWorld(), GetLocalBounds());
 }
 
 void UpdateSplineMeshParams_RenderThread(FPrimitiveSceneProxy* SceneProxy, const FSplineMeshShaderParams& Params)

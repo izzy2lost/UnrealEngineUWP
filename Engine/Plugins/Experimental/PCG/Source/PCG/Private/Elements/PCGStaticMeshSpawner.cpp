@@ -372,7 +372,7 @@ void FPCGStaticMeshSpawnerElement::SpawnStaticMeshInstances(FPCGContext* Context
 	const int32 NumCustomDataFloats = PackedCustomData.NumCustomDataFloats;
 
 	check((ISMC->NumCustomDataFloats == 0 && PreExistingInstanceCount == 0) || ISMC->NumCustomDataFloats == NumCustomDataFloats);
-	ISMC->NumCustomDataFloats = NumCustomDataFloats;
+	ISMC->SetNumCustomDataFloats(NumCustomDataFloats);
 
 	// The index in ISMC PerInstanceSMCustomData where we should pick up to begin inserting new floats
 	const int32 PreviousCustomDataOffset = PreExistingInstanceCount * NumCustomDataFloats;
@@ -384,10 +384,10 @@ void FPCGStaticMeshSpawnerElement::SpawnStaticMeshInstances(FPCGContext* Context
 	if (NumCustomDataFloats > 0)
 	{
 		check(PreviousCustomDataOffset + PackedCustomData.CustomData.Num() == ISMC->PerInstanceSMCustomData.Num());
-		FMemory::Memcpy(&ISMC->PerInstanceSMCustomData[PreviousCustomDataOffset], &PackedCustomData.CustomData[0], PackedCustomData.CustomData.Num() * sizeof(float));
-
-		// Force recreation of the render data when proxy is created
-		ISMC->InstanceUpdateCmdBuffer.NumEdits++;
+		for (int32 NewIndex = 0; NewIndex < NewInstanceCount; ++NewIndex)
+		{
+			ISMC->SetCustomData(PreExistingInstanceCount + NewIndex, MakeArrayView(&PackedCustomData.CustomData[NewIndex * NumCustomDataFloats], NumCustomDataFloats));
+		}
 	}
 
 	ISMC->UpdateBounds();

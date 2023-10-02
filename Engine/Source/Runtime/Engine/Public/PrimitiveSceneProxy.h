@@ -20,6 +20,7 @@
 #include "Math/CapsuleShape.h"
 #include "SceneDefinitions.h"
 #include "MeshDrawCommandStatsDefines.h"
+#include "InstanceDataTypes.h"
 
 class FLightSceneInfo;
 class FLightSceneProxy;
@@ -33,7 +34,6 @@ class UTexture2D;
 enum class ERuntimeVirtualTextureMaterialType : uint8;
 struct FMeshBatch;
 class FColorVertexBuffer;
-struct FInstanceUpdateCmdBuffer;
 class FRayTracingGeometry;
 class FVertexFactory;
 class IHeterogeneousVolumeInterface;
@@ -429,7 +429,7 @@ public:
 		OutDistanceFieldData = nullptr;
 		SelfShadowBias = 0;
 	}
-
+	UE_DEPRECATED(5.4, "Use generic instance data through GetInstanceSceneDataBuffers().")
 	virtual void GetDistanceFieldInstanceData(TArray<FRenderTransform>& InstanceLocalToPrimitiveTransforms) const
 	{
 	}
@@ -474,19 +474,7 @@ public:
 	 * Called to notify the proxy when its transform has been updated.
 	 * Called in the thread that owns the proxy; game or rendering.
 	 */
-	virtual void OnTransformChanged(FRHICommandListBase& RHICmdList)
-	{
-		// For most primitives, mesh bounds are the same as local bounds.
-		// Generally only primitives with instances override this behavior.
-		if (!bHasPerInstanceLocalBounds)
-		{
-			check(InstanceLocalBounds.Num() <= 1);
-			InstanceLocalBounds.SetNumUninitialized(1);
-
-			// NOTE: The proxy's local bounds have already been padded for WPO
-			SetInstanceLocalBounds(0, GetLocalBounds(), false);
-		}
-	}
+	virtual void OnTransformChanged(FRHICommandListBase& RHICmdList) { }
 
 	UE_DEPRECATED(5.4, "OnTransformChanged now takes a command list.")
 	void OnTransformChanged() { OnTransformChanged(FRHICommandListImmediate::Get()); }
@@ -731,55 +719,14 @@ public:
 		return UniformBuffer.GetReference(); 
 	}
 
-	inline bool HasPerInstanceHitProxies () const { return bHasPerInstanceHitProxies; }
+	inline bool HasPerInstanceHitProxies() const { return bHasPerInstanceHitProxies; }
 
-	inline bool HasPerInstanceRandom() const { return bHasPerInstanceRandom; }
-	inline bool HasPerInstanceCustomData() const { return bHasPerInstanceCustomData; }
-	inline bool HasPerInstanceDynamicData() const { return bHasPerInstanceDynamicData; }
-	inline bool HasPerInstanceLMSMUVBias() const { return bHasPerInstanceLMSMUVBias; }
-	inline bool HasPerInstanceLocalBounds() const { return bHasPerInstanceLocalBounds; }
-	inline bool HasPerInstanceHierarchyOffset() const { return bHasPerInstanceHierarchyOffset; }
-	inline bool HasPerInstancePayloadExtension() const { return bHasPerInstancePayloadExtension; }
+	inline bool AnyMaterialHasPerInstanceRandom() const { return bAnyMaterialHasPerInstanceRandom; }
+	inline bool AnyMaterialHasPerInstanceCustomData() const { return bAnyMaterialHasPerInstanceCustomData; }
 #if WITH_EDITOR
-	inline bool HasPerInstanceEditorData() const { return bHasPerInstanceEditorData; }
 	inline uint8 GetSelectionOutlineColorIndex() const { return SelectionOutlineColorIndex; }
-#else
-	FORCEINLINE bool HasPerInstanceEditorData() const { return false; }
 #endif // WITH_EDITOR
-
-	inline bool HasAnyPerInstancePayloadData() const
-	{
-		return
-			bHasPerInstanceRandom		|
-			bHasPerInstanceCustomData	|
-			bHasPerInstanceDynamicData	|
-			bHasPerInstanceLMSMUVBias	|
-			bHasPerInstanceLocalBounds	|
-#if WITH_EDITOR
-			bHasPerInstanceEditorData	|
-#endif
-			bHasPerInstanceHierarchyOffset |
-			bHasPerInstancePayloadExtension;
-	}
-
-	inline uint32 GetInstanceSceneDataFlags()
-	{
-		uint32 Flags = 0x0;
-		Flags |= HasPerInstanceRandom()          ? INSTANCE_SCENE_DATA_FLAG_HAS_RANDOM              : 0u;
-		Flags |= HasPerInstanceCustomData()      ? INSTANCE_SCENE_DATA_FLAG_HAS_CUSTOM_DATA         : 0u;
-		Flags |= HasPerInstanceDynamicData()     ? INSTANCE_SCENE_DATA_FLAG_HAS_DYNAMIC_DATA        : 0u;
-		Flags |= HasPerInstanceLMSMUVBias()      ? INSTANCE_SCENE_DATA_FLAG_HAS_LIGHTSHADOW_UV_BIAS : 0u;
-		Flags |= HasPerInstanceHierarchyOffset() ? INSTANCE_SCENE_DATA_FLAG_HAS_HIERARCHY_OFFSET    : 0u;
-		Flags |= HasPerInstanceLocalBounds()     ? INSTANCE_SCENE_DATA_FLAG_HAS_LOCAL_BOUNDS        : 0u;
-		Flags |= HasPerInstancePayloadExtension()? INSTANCE_SCENE_DATA_FLAG_HAS_PAYLOAD_EXTENSION   : 0u;
-#if WITH_EDITOR
-		Flags |= HasPerInstanceEditorData()      ? INSTANCE_SCENE_DATA_FLAG_HAS_EDITOR_DATA         : 0u;
-#endif
-		Flags |= IsRayTracingFarField()          ? INSTANCE_SCENE_DATA_FLAG_IS_RAYTRACING_FAR_FIELD : 0u;
-
-		return Flags;
-	}
-
+	
 	inline bool UseEditorCompositing(const FSceneView* View) const { return GIsEditor && bUseEditorCompositing && !View->bIsGameView; }
 	inline const FVector& GetActorPosition() const { return ActorPosition; }
 	inline const bool ReceivesDecals() const { return bReceivesDecals; }
@@ -787,22 +734,15 @@ public:
 	inline bool HasValidSettingsForStaticLighting() const { return bHasValidSettingsForStaticLighting; }
 	inline bool SupportsDistanceFieldRepresentation() const { return bSupportsDistanceFieldRepresentation; }
 	inline bool SupportsHeightfieldRepresentation() const { return bSupportsHeightfieldRepresentation; }
-	inline bool SupportsInstanceDataBuffer() const { return bSupportsInstanceDataBuffer; }
+	inline bool SupportsInstanceDataBuffer() const { return InstanceSceneDataBuffersInternal != nullptr; }
 	inline bool SupportsSortedTriangles() const { return bSupportsSortedTriangles; }
 	inline bool TreatAsBackgroundForOcclusion() const { return bTreatAsBackgroundForOcclusion; }
 	inline bool ShouldNotifyOnWorldAddRemove() const { return bShouldNotifyOnWorldAddRemove; }
 	inline bool IsForceHidden() const {return bForceHidden;}
 	inline bool ShouldReceiveMobileCSMShadows() const { return bReceiveMobileCSMShadows; }
-	inline bool ShouldUpdateGPUSceneTransforms() const { return bShouldUpdateGPUSceneTransforms; }
 	inline bool IsRayTracingFarField() const { return bRayTracingFarField; }
 	inline int32 GetRayTracingGroupId() const { return RayTracingGroupId; }
 	inline uint8 GetRayTracingGroupCullingPriority() const { return RayTracingGroupCullingPriority; }
-
-#if !(UE_BUILD_SHIPPING || UE_BUILD_TEST)
-	inline bool HasInstanceDebugData() const { return InstanceXFormUpdatedThisFrame.Num() && InstanceCustomDataUpdatedThisFrame.Num(); }
-	inline bool WasInstanceXFormUpdatedThisFrame(int i) const { return InstanceXFormUpdatedThisFrame.IsValidIndex(i) && InstanceXFormUpdatedThisFrame[i]; }
-	inline bool WasInstanceCustomDataUpdatedThisFrame(int i) const{ return InstanceCustomDataUpdatedThisFrame.IsValidIndex(i) && InstanceCustomDataUpdatedThisFrame[i]; }
-#endif
 
 	static constexpr int32 InvalidRayTracingGroupId = -1;
 
@@ -835,9 +775,9 @@ public:
 	/** Returns true if this proxy can change transform so that we should cache previous transform for calculating velocity. */
 	inline bool HasDynamicTransform() const { return IsMovable() || bIsBeingMovedByEditor; }
 	/** Returns true if this proxy can write velocity. This is used for setting velocity relevance. */
-	inline bool DrawsVelocity() const { return HasDynamicTransform() || bAlwaysHasVelocity || AnyMaterialHasPixelAnimation() || bHasWorldPositionOffsetVelocity || HasPerInstanceDynamicData(); }
+	inline bool DrawsVelocity() const { return HasDynamicTransform() || bAlwaysHasVelocity || AnyMaterialHasPixelAnimation() || bHasWorldPositionOffsetVelocity; }
 	/** Returns true if this proxy should write velocity even when the transform isn't changing. Usually this is combined with a check for the transform changing. */
-	inline bool AlwaysHasVelocity() const {	return bAlwaysHasVelocity || AnyMaterialHasPixelAnimation() || (bHasWorldPositionOffsetVelocity && EvaluateWorldPositionOffset()) || HasPerInstanceDynamicData(); }
+	inline bool AlwaysHasVelocity() const {	return bAlwaysHasVelocity || AnyMaterialHasPixelAnimation() || (bHasWorldPositionOffsetVelocity && EvaluateWorldPositionOffset()); }
 
 #if WITH_EDITOR
 	inline int32 GetNumUncachedStaticLightingInteractions() { return NumUncachedStaticLightingInteractions; }
@@ -959,79 +899,6 @@ public:
 		return false;
 	}
 
-	FORCEINLINE TConstArrayView<FInstanceSceneData> GetInstanceSceneData() const
-	{
-		return InstanceSceneData;
-	}
-
-	FORCEINLINE TConstArrayView<FInstanceDynamicData> GetInstanceDynamicData() const
-	{
-		return InstanceDynamicData;
-	}
-
-	FORCEINLINE TConstArrayView<float> GetInstanceCustomData() const
-	{
-		return InstanceCustomData;
-	}
-
-	FORCEINLINE TConstArrayView<float> GetInstanceRandomID() const
-	{
-		return InstanceRandomID;
-	}
-
-	FORCEINLINE TConstArrayView<FVector4f> GetInstanceLightShadowUVBias() const
-	{
-		return InstanceLightShadowUVBias;
-	}
-
-	FORCEINLINE TConstArrayView<FRenderBounds> GetInstanceLocalBounds() const
-	{
-		return InstanceLocalBounds;
-	}
-
-#if WITH_EDITOR
-	FORCEINLINE TConstArrayView<uint32> GetInstanceEditorData() const
-	{
-		return InstanceEditorData;
-	}
-#endif // 
-
-	// Helper function to avoid multiple code paths requesting bounds
-	FORCEINLINE const FRenderBounds& GetInstanceLocalBounds(uint32 Instance) 
-	{
-		const uint32 BoundsCount = uint32(InstanceLocalBounds.Num());
-		if (BoundsCount == 0)
-		{
-			// Messy, but allows for avoiding a lot of copies and marshaling to FRenderBounds
-			// TODO: Should change local bounds to the optimized type and clean this up.
-			checkSlow(!bHasPerInstanceLocalBounds);
-			InstanceLocalBounds.SetNumUninitialized(1);
-
-			// NOTE: The proxy's local bounds have already been padded for WPO
-			SetInstanceLocalBounds(0, GetLocalBounds(), false);
-			
-			return InstanceLocalBounds[0];
-		}
-
-		if (Instance >= BoundsCount)
-		{
-			// OnTransformChanged populates a default 0th bounds element
-			Instance = 0;
-		}
-
-		return InstanceLocalBounds[Instance];
-	}
-
-	FORCEINLINE TConstArrayView<uint32> GetInstanceHierarchyOffset() const
-	{
-		return InstanceHierarchyOffset;
-	}
-
-	FORCEINLINE TConstArrayView<FVector4f> GetInstancePayloadExtension() const
-	{
-		return InstancePayloadExtension;
-	}
-
 	virtual void GetNaniteResourceInfo(uint32& ResourceID, uint32& HierarchyOffset, uint32& ImposterIndex) const
 	{
 		ResourceID = INDEX_NONE;
@@ -1043,9 +910,6 @@ public:
 	{
 		OutMaterialMask = FUint32Vector2(~uint32(0), ~uint32(0));
 	}
-
-	// Number of packed float4 values per instance
-	ENGINE_API uint32 GetPayloadDataStride() const;
 
 	/** 
 	 * Drawing helper. Draws nice bouncy line.
@@ -1184,8 +1048,33 @@ public:
 
 	EShadowCacheInvalidationBehavior GetShadowCacheInvalidationBehavior() const { return ShadowCacheInvalidationBehavior; }
 
+	enum class EInstanceBufferAccessFlags
+	{
+		SynchronizeUpdateTask,
+		UnsynchronizedAndUnsafe,
+	};
+
+	inline bool HasInstanceDataBuffers() const { return InstanceSceneDataBuffersInternal != nullptr; }
+
+
+	/**
+	 * Get the instance data view, which may be null for uninstanced primitives. The pointer must be kept valid for as long as the proxy lives, as a copy is cached in FPrimitiveSceneInfo.
+	 */
+	ENGINE_API const FInstanceSceneDataBuffers *GetInstanceSceneDataBuffers(EInstanceBufferAccessFlags AccessFlags = EInstanceBufferAccessFlags::SynchronizeUpdateTask) const;
+
+	/**
+	 * Return a pointer to a class that can be used to guard access to instance data that is being updated by a task.
+	 * The proxy must guarantee the lifetime of this object, and, since it is being used on the render thread be careful about how it is updated.
+	 * In general, it must always be updated on the RT if it is visible to the RT.
+	 */
+	virtual FInstanceDataUpdateTaskInfo *GetInstanceDataUpdateTaskInfo() const { return nullptr; }
+
+	/**
+	 */
+	FInstanceDataBufferHeader GetInstanceDataHeader() const;
+
 protected:
-	ENGINE_API void UpdateDefaultInstanceSceneData();
+	ENGINE_API void SetupInstanceSceneDataBuffers(const FInstanceSceneDataBuffers* InInstanceSceneDataBuffers);
 
 	/** Updates bVisibleInLumen, which indicated whether a primitive should be tracked by Lumen scene. Checks if primitive can be ray traced and if it can by captured by surface cache. */
 	ENGINE_API void UpdateVisibleInLumenScene();
@@ -1426,12 +1315,6 @@ protected:
 	/** True if the mesh representation is deformable (see HasDeformableMesh() above for more details). Defaults to true to be conservative. */
 	uint8 bHasDeformableMesh : 1;
 
-	/** Whether the primitive supports the GPUScene instance data buffer. */
-	uint8 bSupportsInstanceDataBuffer : 1;
-
-	/** Whether the instances on the primitive need to update transforms during GPU Scene update. */
-	uint8 bShouldUpdateGPUSceneTransforms : 1;
-
 	/** Whether the primitive should evaluate any World Position Offset. */
 	uint8 bEvaluateWorldPositionOffset : 1;
 
@@ -1467,17 +1350,6 @@ protected:
 
 	uint8 bVerifyUsedMaterials : 1;
 
-	uint8 bHasPerInstanceRandom : 1;
-	uint8 bHasPerInstanceCustomData : 1;
-	uint8 bHasPerInstanceDynamicData : 1;
-	uint8 bHasPerInstanceLMSMUVBias : 1;
-	uint8 bHasPerInstanceLocalBounds : 1;
-	uint8 bHasPerInstanceHierarchyOffset : 1;
-	uint8 bHasPerInstancePayloadExtension : 1;
-#if WITH_EDITOR
-	uint8 bHasPerInstanceEditorData : 1;
-#endif
-
 	/** If this is True, this primitive doesn't need exact occlusion info. */
 	uint8 bAllowApproximateOcclusion : 1;
 
@@ -1489,6 +1361,12 @@ protected:
 
 	uint8 bSplineMesh : 1;
 
+	/** Set to true in the proxy initialization if any of the materials use per instance random. */
+	uint8 bAnyMaterialHasPerInstanceRandom : 1;
+
+	/** Set to true in the proxy initialization if any of the materials use per instance custom data. */
+	uint8 bAnyMaterialHasPerInstanceCustomData : 1;
+	
 private:
 
 	/** If this is True, this primitive will be used to occlusion cull other primitives. */
@@ -1533,25 +1411,11 @@ private:
 	int32 RayTracingGroupId;
 	uint8 RayTracingGroupCullingPriority;
 
+private:
+	// Never use directly in descendant or implementation except for very good reason.
+	const FInstanceSceneDataBuffers *InstanceSceneDataBuffersInternal = nullptr;
+
 protected:
-	TArray<FInstanceSceneData, TInlineAllocator<1>> InstanceSceneData;
-	TArray<FRenderBounds, TInlineAllocator<1>> InstanceLocalBounds;
-	TArray<FInstanceDynamicData> InstanceDynamicData;
-	TArray<float> InstanceCustomData;
-	TArray<float> InstanceRandomID;
-	TArray<FVector4f> InstanceLightShadowUVBias;
-	TArray<uint32> InstanceHierarchyOffset;
-	TArray<FVector4f> InstancePayloadExtension;
-#if WITH_EDITOR
-	TArray<uint32> InstanceEditorData;
-#endif
-
-#if !(UE_BUILD_SHIPPING || UE_BUILD_TEST)
-	/** Whether instance data has changed this frame on the proxy. Currently used for non-shipping debug drawing. */
-	TBitArray<> InstanceXFormUpdatedThisFrame;
-	TBitArray<> InstanceCustomDataUpdatedThisFrame;
-#endif
-
 	/** Quality of interpolated indirect lighting for Movable components. */
 	TEnumAsByte<EIndirectLightingCacheQuality> IndirectLightingCacheQuality;
 
@@ -1681,13 +1545,12 @@ protected:
 	float MinDrawDistance;
 
 	/**
-	 * Updates the primitive proxy's cached transforms for all instances given a buffer of instance updates.
-	 * @param CmdBuffer - A record of all the add, update and remove instances for the proxy to apply to its internal data.
+	 * Called on the render thread for a proxy that has an instance data update, the buffers are updated asynchronously so it is unclear what this should do, except update legacy data if needed.
 	 * @param InBounds - Primitive world space bounds.
 	 * @param InLocalBounds - Primitive local space bounds.
 	 * @param InStaticMeshBounds - Bounds of the primitive mesh instance.
 	 */
-	ENGINE_API virtual void UpdateInstances_RenderThread(FRHICommandListBase& RHICmdList, const FInstanceUpdateCmdBuffer& CmdBuffer, const FBoxSphereBounds& InBounds, const FBoxSphereBounds& InLocalBounds, const FBoxSphereBounds& InStaticMeshBounds);
+	ENGINE_API virtual void UpdateInstances_RenderThread(FRHICommandListBase& RHICmdList, const FBoxSphereBounds& InBounds, const FBoxSphereBounds& InLocalBounds, const FBoxSphereBounds& InStaticMeshBounds);
 
 	/** Updates selection for the primitive proxy. This is called in the rendering thread by SetSelection_GameThread. */
 	void SetSelection_RenderThread(const bool bInParentSelected, const bool bInIndividuallySelected);
@@ -1705,7 +1568,10 @@ protected:
 	 * Sets the instance local bounds for the specified instance index, and optionally will pad the bounds extents to
 	 * accomodate Max World Position Offset Distance.
 	 */
-	ENGINE_API void SetInstanceLocalBounds(uint32 InstanceIndex, const FRenderBounds& Bounds, bool bPadForWPO = true);
+	UE_DEPRECATED(5.4, "This does not do anything as this has been refactored.")
+	inline void SetInstanceLocalBounds(uint32 InstanceIndex, const FRenderBounds& InBounds, bool bPadForWPO = true) { }
+
+	ENGINE_API FRenderBounds PadInstanceLocalBounds(const FRenderBounds& InBounds);
 };
 
 /**

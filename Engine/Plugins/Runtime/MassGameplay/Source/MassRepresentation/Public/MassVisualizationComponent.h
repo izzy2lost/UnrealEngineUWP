@@ -77,6 +77,11 @@ public:
 	void EndVisualChanges();
 
 protected:
+	/**
+	 * Process all removed IDs in FMassISMCSharedData and apply to the ISM component.
+	 */
+	void ProcessRemoves(UInstancedStaticMeshComponent& ISMComponent, FMassISMCSharedData& SharedData);
+	
 	/** 
 	 * Applies changes accumulated in SharedData while manually updating the Instance ID mapping. This approach is done in preparation 
 	 * to upcoming ISM changes to keep the mapping management more secure (by making mapping private and fully component-owned).

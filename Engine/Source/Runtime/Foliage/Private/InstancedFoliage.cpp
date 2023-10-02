@@ -1199,7 +1199,6 @@ void FFoliageStaticMesh::PreAddInstances(const UFoliageType* FoliageType, int32 
 	}
 	else
 	{
-		Component->InitPerInstanceRenderData(false);
 		Component->InvalidateLightingCache();
 	}
 
@@ -1829,7 +1828,6 @@ void FFoliageStaticMesh::Reapply(const UFoliageType* FoliageType)
 
 		const bool bWasRegistered = Component->IsRegistered();
 		Component->UnregisterComponent();
-		Component->InitPerInstanceRenderData(false);
 
 		Component->bAutoRebuildTreeOnInstanceChanges = false;
 

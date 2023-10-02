@@ -6,6 +6,7 @@
 #include "ComponentRecreateRenderStateContext.h"
 #include "HAL/LowLevelMemTracker.h"
 #include "HAL/LowLevelMemStats.h"
+#include "InstanceDataSceneProxy.h"
 
 #if !(UE_BUILD_SHIPPING || UE_BUILD_TEST)
 #include "DynamicPrimitiveDrawing.h"
@@ -601,53 +602,28 @@ void FSceneCulling::Empty()
 /**
  * Produce a world-space bounding sphere for an instance given local bounds and transforms.
  */
-FORCEINLINE_DEBUGGABLE FVector4d TransformBounds(VectorRegister4f VecOrigin, VectorRegister4f VecExtent, const FRenderTransform& LocalToPrimitive, const FMatrix44f& PrimitiveToWorldRotation, VectorRegister4Double PrimitiveToWorldTranslationVec)
+FORCEINLINE_DEBUGGABLE FVector4d TransformBounds(VectorRegister4f VecOrigin, VectorRegister4f VecExtent, const FRenderTransform& LocalToPrimitiveRelative, VectorRegister4Double PrimitiveToWorldTranslationVec)
 {
 	// 1. Matrix Concat and bounds all in one
-	const VectorRegister4f B0 = VectorLoadAligned(PrimitiveToWorldRotation.M[0]);
-	const VectorRegister4f B1 = VectorLoadAligned(PrimitiveToWorldRotation.M[1]);
-	const VectorRegister4f B2 = VectorLoadAligned(PrimitiveToWorldRotation.M[2]);
-
 	VectorRegister4f NewOrigin;
 	VectorRegister4f NewExtent;
 
-	// First row of result (Matrix1[0] * Matrix2).
 	{
-		const VectorRegister4Float ARow = VectorLoadFloat3(&LocalToPrimitive.TransformRows[0]);
-		VectorRegister4Float R0 = VectorMultiply(VectorReplicate(ARow, 0), B0);
-		R0 = VectorMultiplyAdd(VectorReplicate(ARow, 1), B1, R0);
-		R0 = VectorMultiplyAdd(VectorReplicate(ARow, 2), B2, R0);
-		NewOrigin = VectorMultiply(VectorReplicate(VecOrigin, 0), R0);
-		NewExtent = VectorAbs(VectorMultiply(VectorReplicate(VecExtent, 0), R0));
+		const VectorRegister4Float ARow = VectorLoadFloat3(&LocalToPrimitiveRelative.TransformRows[0]);
+		NewOrigin = VectorMultiplyAdd(VectorReplicate(VecOrigin, 0), ARow, VectorLoadFloat3(&LocalToPrimitiveRelative.Origin));
+		NewExtent = VectorAbs(VectorMultiply(VectorReplicate(VecExtent, 0), ARow));
 	}
 
-	// Second row of result (Matrix1[1] * Matrix2).
 	{
-		const VectorRegister4Float ARow = VectorLoadFloat3(&LocalToPrimitive.TransformRows[1]);
-		VectorRegister4Float R1 = VectorMultiply(VectorReplicate(ARow, 0), B0);
-		R1 = VectorMultiplyAdd(VectorReplicate(ARow, 1), B1, R1);
-		R1 = VectorMultiplyAdd(VectorReplicate(ARow, 2), B2, R1);
-		NewOrigin = VectorMultiplyAdd(VectorReplicate(VecOrigin, 1), R1, NewOrigin);
-		NewExtent = VectorAdd(NewExtent, VectorAbs(VectorMultiply(VectorReplicate(VecExtent, 1), R1)));
+		const VectorRegister4Float ARow = VectorLoadFloat3(&LocalToPrimitiveRelative.TransformRows[1]);
+		NewOrigin = VectorMultiplyAdd(VectorReplicate(VecOrigin, 1), ARow, NewOrigin);
+		NewExtent = VectorAdd(NewExtent, VectorAbs(VectorMultiply(VectorReplicate(VecExtent, 1), ARow)));
 	}
 
-	// Third row of result (Matrix1[2] * Matrix2).
 	{
-		const VectorRegister4Float ARow = VectorLoadFloat3(&LocalToPrimitive.TransformRows[2]);
-		VectorRegister4Float R2 = VectorMultiply(VectorReplicate(ARow, 0), B0);
-		R2 = VectorMultiplyAdd(VectorReplicate(ARow, 1), B1, R2);
-		R2 = VectorMultiplyAdd(VectorReplicate(ARow, 2), B2, R2);
-		NewOrigin = VectorMultiplyAdd(VectorReplicate(VecOrigin, 2), R2, NewOrigin);
-		NewExtent = VectorAdd(NewExtent, VectorAbs(VectorMultiply(VectorReplicate(VecExtent, 2), R2)));
-	}
-
-	// Fourth row of result (Matrix1[3] * Matrix2).
-	{
-		const VectorRegister4Float ARow = VectorLoadFloat3(&LocalToPrimitive.Origin);
-		VectorRegister4Float R3 = VectorMultiply(VectorReplicate(ARow, 0), B0);
-		R3 = VectorMultiplyAdd(VectorReplicate(ARow, 1), B1, R3);
-		R3 = VectorMultiplyAdd(VectorReplicate(ARow, 2), B2, R3);
-		NewOrigin = VectorAdd(NewOrigin, R3);
+		const VectorRegister4Float ARow = VectorLoadFloat3(&LocalToPrimitiveRelative.TransformRows[2]);
+		NewOrigin = VectorMultiplyAdd(VectorReplicate(VecOrigin, 2), ARow, NewOrigin);
+		NewExtent = VectorAdd(NewExtent, VectorAbs(VectorMultiply(VectorReplicate(VecExtent, 2), ARow)));
 	}
 
 	// Offset sphere and return
@@ -662,38 +638,40 @@ FORCEINLINE_DEBUGGABLE FVector4d TransformBounds(VectorRegister4f VecOrigin, Vec
 
 struct FBoundsTransformerUniqueBounds
 {
-	FORCEINLINE_DEBUGGABLE FBoundsTransformerUniqueBounds(const FMatrix44d& PrimitiveToWorld, FPrimitiveSceneProxy* InSceneProxy)
-		: SceneProxy(InSceneProxy)
+	FORCEINLINE_DEBUGGABLE FBoundsTransformerUniqueBounds(const FInstanceSceneDataBuffers& InInstanceSceneDataBuffers)
+		: InstanceSceneDataBuffers(InInstanceSceneDataBuffers)
 	{
-		PrimitiveToWorldRotation = FMatrix44f(PrimitiveToWorld.RemoveTranslation());
-		PrimitiveToWorldTranslationVec = VectorLoadAligned(PrimitiveToWorld.M[3]);
+		// Note: for reasons unknown VectorLoadFloat3 also does doubles...
+		PrimitiveToWorldTranslationVec = VectorLoadFloat3(&InstanceSceneDataBuffers.GetPrimitiveWorldSpaceOffset());
 	}
 
-	FORCEINLINE_DEBUGGABLE FVector4d TransformBounds(int32 InstanceIndex, const FInstanceSceneData& PrimitiveInstance)
+	FORCEINLINE_DEBUGGABLE FVector4d TransformBounds(int32 InstanceIndex)
 	{
-		const FRenderBounds InstanceBounds = SceneProxy->GetInstanceLocalBounds(InstanceIndex);
+		const FRenderBounds InstanceBounds = InstanceSceneDataBuffers.GetInstanceLocalBounds(InstanceIndex);
+
+		FRenderTransform InstanceToPrimitiveRelative = InstanceSceneDataBuffers.GetInstanceToPrimitiveRelative(InstanceIndex);
 		const VectorRegister4f VecMin = VectorLoadFloat3(&InstanceBounds.Min);
 		const VectorRegister4f VecMax = VectorLoadFloat3(&InstanceBounds.Max);
 		const VectorRegister4f Half = VectorSetFloat1(0.5f); // VectorSetFloat1() can be faster than SetFloat3(0.5, 0.5, 0.5, 0.0). Okay if 4th element is 0.5, it's multiplied by 0.0 below and we discard W anyway.
 		const VectorRegister4f VecOrigin = VectorMultiply(VectorAdd(VecMax, VecMin), Half);
 		const VectorRegister4f VecExtent = VectorMultiply(VectorSubtract(VecMax, VecMin), Half);
 
-		return ::TransformBounds(VecOrigin, VecExtent, PrimitiveInstance.LocalToPrimitive, PrimitiveToWorldRotation, PrimitiveToWorldTranslationVec);
+		return ::TransformBounds(VecOrigin, VecExtent, InstanceToPrimitiveRelative, PrimitiveToWorldTranslationVec);
 	}
 
-	FMatrix44f PrimitiveToWorldRotation;
 	VectorRegister4Double PrimitiveToWorldTranslationVec;
-	FPrimitiveSceneProxy* SceneProxy;
+	const FInstanceSceneDataBuffers &InstanceSceneDataBuffers;
 };
 
 struct FBoundsTransformerSharedBounds
 {
-	FORCEINLINE_DEBUGGABLE FBoundsTransformerSharedBounds(const FMatrix44d& PrimitiveToWorld, FPrimitiveSceneProxy* SceneProxy)
+	FORCEINLINE_DEBUGGABLE FBoundsTransformerSharedBounds(const FInstanceSceneDataBuffers& InInstanceSceneDataBuffers)
+		: InstanceSceneDataBuffers(InInstanceSceneDataBuffers)
 	{
-		PrimitiveToWorldRotation = FMatrix44f(PrimitiveToWorld.RemoveTranslation());
-		PrimitiveToWorldTranslationVec = VectorLoadAligned(PrimitiveToWorld.M[3]);
+		// Note: for reasons unknown VectorLoadFloat3 also does doubles...
+		PrimitiveToWorldTranslationVec = VectorLoadFloat3(&InstanceSceneDataBuffers.GetPrimitiveWorldSpaceOffset());
 
-		const FRenderBounds InstanceBounds = SceneProxy->GetInstanceLocalBounds(0);
+		const FRenderBounds InstanceBounds = InstanceSceneDataBuffers.GetInstanceLocalBounds(0);
 		const VectorRegister4f VecMin = VectorLoadFloat3(&InstanceBounds.Min);
 		const VectorRegister4f VecMax = VectorLoadFloat3(&InstanceBounds.Max);
 		const VectorRegister4f Half = VectorSetFloat1(0.5f); // VectorSetFloat1() can be faster than SetFloat3(0.5, 0.5, 0.5, 0.0). Okay if 4th element is 0.5, it's multiplied by 0.0 below and we discard W anyway.
@@ -701,12 +679,13 @@ struct FBoundsTransformerSharedBounds
 		VecExtent = VectorMultiply(VectorSubtract(VecMax, VecMin), Half);
 	}
 
-	FORCEINLINE_DEBUGGABLE FVector4d TransformBounds(int32 InstanceIndex, const FInstanceSceneData& PrimitiveInstance)
+	FORCEINLINE_DEBUGGABLE FVector4d TransformBounds(int32 InstanceIndex)
 	{
-		return ::TransformBounds(VecOrigin, VecExtent, PrimitiveInstance.LocalToPrimitive, PrimitiveToWorldRotation, PrimitiveToWorldTranslationVec);
+		FRenderTransform InstanceToPrimitiveRelative = InstanceSceneDataBuffers.GetInstanceToPrimitiveRelative(InstanceIndex);
+		return ::TransformBounds(VecOrigin, VecExtent, InstanceToPrimitiveRelative, PrimitiveToWorldTranslationVec);
 	}
 
-	FMatrix44f PrimitiveToWorldRotation;
+	const FInstanceSceneDataBuffers &InstanceSceneDataBuffers;
 	VectorRegister4Double PrimitiveToWorldTranslationVec;
 	VectorRegister4f VecOrigin;
 	VectorRegister4f VecExtent;
@@ -715,22 +694,19 @@ struct FBoundsTransformerSharedBounds
 template <typename BoundsTransformerType>
 struct FHashLocationComputerFromBounds
 {
-	FORCEINLINE_DEBUGGABLE FHashLocationComputerFromBounds(const TConstArrayView<FInstanceSceneData> InInstanceSceneData, FSceneCulling::FSpatialHash& InSpatialHash, const FMatrix44d& PrimitiveToWorld, FPrimitiveSceneProxy* SceneProxy)
-		: BoundsTransformer(PrimitiveToWorld, SceneProxy)
-		, InstanceSceneData(InInstanceSceneData)
+	FORCEINLINE_DEBUGGABLE FHashLocationComputerFromBounds(	const FInstanceSceneDataBuffers &InInstanceSceneDataBuffers, FSceneCulling::FSpatialHash& InSpatialHash)
+		: BoundsTransformer(InInstanceSceneDataBuffers)
 		, SpatialHash(InSpatialHash)
 	{
 	}
 
 	FORCEINLINE_DEBUGGABLE FSceneCulling::FLocation64 CalcLoc(int32 InstanceIndex)
 	{
-		const FInstanceSceneData& PrimitiveInstance = InstanceSceneData[InstanceIndex];
-		FVector4d InstanceWorldBound = BoundsTransformer.TransformBounds(InstanceIndex, PrimitiveInstance);
+		FVector4d InstanceWorldBound = BoundsTransformer.TransformBounds(InstanceIndex);
 		return SpatialHash.CalcLevelAndLocation(InstanceWorldBound);
 	}
 
 	BoundsTransformerType BoundsTransformer;
-	const TConstArrayView<FInstanceSceneData> InstanceSceneData;
 	FSceneCulling::FSpatialHash& SpatialHash;
 };
 
@@ -1196,7 +1172,7 @@ public:
 	}
 
 	template <typename HashLocationComputerType>
-	FORCEINLINE_DEBUGGABLE void BuildInstanceRange(int32 InstanceDataOffset, int32 NumInstances, const TConstArrayView<FInstanceSceneData> InstanceSceneData, HashLocationComputerType HashLocationComputer, FSceneCulling::FCellIndexCacheEntry &CellIndexCacheEntry, bool bCompressRLE)
+	FORCEINLINE_DEBUGGABLE void BuildInstanceRange(int32 InstanceDataOffset, int32 NumInstances, HashLocationComputerType HashLocationComputer, FSceneCulling::FCellIndexCacheEntry &CellIndexCacheEntry, bool bCompressRLE)
 	{
 		FSceneCulling::FLocation64 PrevInstanceCellLoc;
 		int32 SameInstanceLocRunCount = 0;
@@ -1454,9 +1430,10 @@ public:
 		}
 		check(InstanceDataOffset >= 0);
 		FPrimitiveSceneProxy* SceneProxy = PrimitiveSceneInfo->Proxy;
-		const TConstArrayView<FInstanceSceneData> InstanceSceneData = SceneProxy->GetInstanceSceneData();
-		const int32 NumInstanceData = InstanceSceneData.Num();
-		check(NumInstanceData == NumInstances || (NumInstances == 1 && NumInstanceData == 0));
+		const FInstanceSceneDataBuffers *InstanceSceneDataBuffers = PrimitiveSceneInfo->GetInstanceSceneDataBuffers();
+		check((NumInstances == 1 && InstanceSceneDataBuffers == nullptr) || (InstanceSceneDataBuffers != nullptr && InstanceSceneDataBuffers->GetNumInstances() == NumInstances));
+		const bool bHasPerInstanceLocalBounds = InstanceSceneDataBuffers ? InstanceSceneDataBuffers->GetFlags().bHasPerInstanceLocalBounds : false;
+
 		const FPrimitiveBounds& Bounds = Scene.PrimitiveBounds[PrimitiveIndex];
 		FPrimitiveState NewPrimitiveState = ComputePrimitiveState(Bounds, PrimitiveSceneInfo, NumInstances, InstanceDataOffset, SceneProxy, PrevPrimitiveState);
 
@@ -1495,23 +1472,23 @@ public:
 			default:
 			{
 				check(NewPrimitiveState.State == FPrimitiveState::Dynamic || NewPrimitiveState.State == FPrimitiveState::Cached);
+				check(InstanceSceneDataBuffers != nullptr);
 				const bool bIsDynamic = NewPrimitiveState.State == FPrimitiveState::Dynamic;
 					
 				int32 CacheIndex = AllocateCacheEntry();
 				NewPrimitiveState.Payload = CacheIndex;
 				FCellIndexCacheEntry &CellIndexCacheEntry = GetCacheEntry(CacheIndex);
 				const FMatrix& PrimitiveToWorld = SceneCulling.Scene.PrimitiveTransforms[PrimitiveIndex];
-				const bool bHasPerInstanceLocalBounds = SceneProxy->HasPerInstanceLocalBounds();
 
 				if (bHasPerInstanceLocalBounds)
 				{
-					FHashLocationComputerFromBounds<FBoundsTransformerUniqueBounds> HashLocationComputer(InstanceSceneData, SpatialHash, PrimitiveToWorld, SceneProxy);
-					BuildInstanceRange(InstanceDataOffset, NumInstances, InstanceSceneData, HashLocationComputer, CellIndexCacheEntry, !bIsDynamic);
+					FHashLocationComputerFromBounds<FBoundsTransformerUniqueBounds> HashLocationComputer(*InstanceSceneDataBuffers, SpatialHash);
+					BuildInstanceRange(InstanceDataOffset, NumInstances, HashLocationComputer, CellIndexCacheEntry, !bIsDynamic);
 				}
 				else
 				{
-					FHashLocationComputerFromBounds<FBoundsTransformerSharedBounds> HashLocationComputer(InstanceSceneData, SpatialHash, PrimitiveToWorld, SceneProxy);
-					BuildInstanceRange(InstanceDataOffset, NumInstances, InstanceSceneData, HashLocationComputer, CellIndexCacheEntry, !bIsDynamic);
+					FHashLocationComputerFromBounds<FBoundsTransformerSharedBounds> HashLocationComputer(*InstanceSceneDataBuffers, SpatialHash);
+					BuildInstanceRange(InstanceDataOffset, NumInstances, HashLocationComputer, CellIndexCacheEntry, !bIsDynamic);
 				}
 
 				SceneCulling.TotalCellIndexCacheItems += CellIndexCacheEntry.Items.Num();
@@ -1665,14 +1642,13 @@ public:
 		int32 PrimitiveIndex = PrimitiveSceneInfo->GetIndex();
 		const FPrimitiveBounds& Bounds = SceneCulling.Scene.PrimitiveBounds[PrimitiveIndex];
 		FPrimitiveSceneProxy* SceneProxy = PrimitiveSceneInfo->Proxy;
-		const TConstArrayView<FInstanceSceneData> InstanceSceneData = SceneProxy->GetInstanceSceneData();
-		const int32 NumInstanceData = InstanceSceneData.Num();
-		check(NumInstanceData == NumInstances || (NumInstances == 1 && NumInstanceData == 0));
+		const FInstanceSceneDataBuffers *InstanceSceneDataBuffers = PrimitiveSceneInfo->GetInstanceSceneDataBuffers();
+		check((NumInstances == 1 && InstanceSceneDataBuffers == nullptr) || (InstanceSceneDataBuffers != nullptr && InstanceSceneDataBuffers->GetNumInstances() == NumInstances));
+		const bool bHasPerInstanceLocalBounds = InstanceSceneDataBuffers ? InstanceSceneDataBuffers->GetFlags().bHasPerInstanceLocalBounds : false;
 		FPrimitiveState NewPrimitiveState = ComputePrimitiveState(Bounds, PrimitiveSceneInfo, NumInstances, InstanceDataOffset, SceneProxy, PrevPrimitiveState);
 		const bool bStateChanged = NewPrimitiveState.State != PrevPrimitiveState.State;
 		const bool bInstanceDataOffsetChanged = PrevPrimitiveState.InstanceDataOffset != NewPrimitiveState.InstanceDataOffset;
 		const FMatrix& PrimitiveToWorld = SceneCulling.Scene.PrimitiveTransforms[PrimitiveIndex];
-		const bool bHasPerInstanceLocalBounds = SceneProxy->HasPerInstanceLocalBounds();
 
 #if SCENE_CULLING_USE_PRECOMPUTED
 		const bool bHasPerInstanceSpatialHash = SceneProxy->HasPerInstanceSpatialHash();
@@ -1717,6 +1693,8 @@ public:
 		}
 		else if (NewPrimitiveState.State == FPrimitiveState::Dynamic && !bStateChanged && !bInstanceDataOffsetChanged)
 		{
+			check(InstanceSceneDataBuffers != nullptr);
+
 			// For dynamic instance batches we process individual instances since they can then more often be retained
 			// Stored in the same data structure, just guaranteed to be singular instances
 			FCellIndexCacheEntry &CellIndexCacheEntry = GetCacheEntry(PrevPrimitiveState.Payload);
@@ -1735,15 +1713,14 @@ public:
 			// Resize the cache entry to fit new IDs or trim excess ones.
 			CellIndexCacheEntry.Items.SetNumZeroed(NumInstances, false);
 			SceneCulling.TotalCellIndexCacheItems += CellIndexCacheEntry.Items.Num();
-
 			if (bHasPerInstanceLocalBounds)
 			{
-				FHashLocationComputerFromBounds<FBoundsTransformerUniqueBounds> HashLocationComputer(InstanceSceneData, SpatialHash, PrimitiveToWorld, SceneProxy);
+				FHashLocationComputerFromBounds<FBoundsTransformerUniqueBounds> HashLocationComputer(*InstanceSceneDataBuffers, SpatialHash);
 				UpdateProcessDynamicInstances(HashLocationComputer, InstanceDataOffset, NumInstances, PrevPrimitiveState.NumInstances, CellIndexCacheEntry);
 			}
 			else
 			{
-				FHashLocationComputerFromBounds<FBoundsTransformerSharedBounds> HashLocationComputer(InstanceSceneData, SpatialHash, PrimitiveToWorld, SceneProxy);
+				FHashLocationComputerFromBounds<FBoundsTransformerSharedBounds> HashLocationComputer(*InstanceSceneDataBuffers, SpatialHash);
 				UpdateProcessDynamicInstances(HashLocationComputer, InstanceDataOffset, NumInstances, PrevPrimitiveState.NumInstances, CellIndexCacheEntry);
 			}
 		}
@@ -1828,6 +1805,8 @@ public:
 				case FPrimitiveState::Cached:
 				{
 					check(NewPrimitiveState.IsCachedState());
+					check(InstanceSceneDataBuffers != nullptr);
+
 					const bool bIsDynamic = NewPrimitiveState.State == FPrimitiveState::Dynamic;
 					// re-use from previous state if it was also cachable
 					int32 CacheIndex = PrevPrimitiveState.IsCachedState() ? PrevPrimitiveState.Payload : AllocateCacheEntry();
@@ -1837,13 +1816,13 @@ public:
 
 					if (bHasPerInstanceLocalBounds)
 					{
-						FHashLocationComputerFromBounds<FBoundsTransformerUniqueBounds> HashLocationComputer(InstanceSceneData, SpatialHash, PrimitiveToWorld, SceneProxy);
-						BuildInstanceRange(InstanceDataOffset, NumInstances, InstanceSceneData, HashLocationComputer, CellIndexCacheEntry, !bIsDynamic);
+						FHashLocationComputerFromBounds<FBoundsTransformerUniqueBounds> HashLocationComputer(*InstanceSceneDataBuffers, SpatialHash);
+						BuildInstanceRange(InstanceDataOffset, NumInstances, HashLocationComputer, CellIndexCacheEntry, !bIsDynamic);
 					}
 					else
 					{
-						FHashLocationComputerFromBounds<FBoundsTransformerSharedBounds> HashLocationComputer(InstanceSceneData, SpatialHash, PrimitiveToWorld, SceneProxy);
-						BuildInstanceRange(InstanceDataOffset, NumInstances, InstanceSceneData, HashLocationComputer, CellIndexCacheEntry, !bIsDynamic);
+						FHashLocationComputerFromBounds<FBoundsTransformerSharedBounds> HashLocationComputer(*InstanceSceneDataBuffers, SpatialHash);
+						BuildInstanceRange(InstanceDataOffset, NumInstances, HashLocationComputer, CellIndexCacheEntry, !bIsDynamic);
 					}
 
 					SceneCulling.TotalCellIndexCacheItems += CellIndexCacheEntry.Items.Num();

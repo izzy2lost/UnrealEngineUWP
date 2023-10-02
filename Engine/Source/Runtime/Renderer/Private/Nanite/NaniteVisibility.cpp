@@ -4,6 +4,7 @@
 #include "NaniteMaterials.h"
 #include "NaniteSceneProxy.h"
 #include "ScenePrivate.h"
+#include "InstanceDataSceneProxy.h"
 
 static int32 GNaniteMaterialVisibility = 0;
 static FAutoConsoleVariableRef CVarNaniteMaterialVisibility(
@@ -199,30 +200,26 @@ static FORCEINLINE bool IsNanitePrimitiveVisible(const FNaniteVisibilityQuery* Q
 
 	if (bPrimitiveVisible && GNaniteMaterialVisibilityInstances != 0)
 	{
-		bPrimitiveVisible = false;
-
-		const FMatrix& PrimitiveToWorld = SceneInfo->Scene->PrimitiveTransforms[SceneInfo->GetIndex()];
-		const TConstArrayView<FInstanceSceneData> InstanceSceneData = SceneProxy->GetInstanceSceneData();
-
-		for (int32 InstanceIndex = 0; InstanceIndex < InstanceSceneData.Num(); ++InstanceIndex)
+		if (const FInstanceSceneDataBuffers *InstanceData = SceneInfo->GetInstanceSceneDataBuffers())
 		{
-			const FInstanceSceneData& PrimitiveInstance = InstanceSceneData[InstanceIndex];
-			const FMatrix InstanceToWorld = PrimitiveInstance.LocalToPrimitive.ToMatrix() * PrimitiveToWorld;
-			const FBox InstanceBounds = SceneProxy->GetInstanceLocalBounds(InstanceIndex).ToBox();
-			const FBoxSphereBounds InstanceWorldBounds = FBoxSphereBounds(InstanceBounds.TransformBy(InstanceToWorld));
-
-			for (const FConvexVolume& View : Query->Views)
+			bPrimitiveVisible = false;
+			for (int32 InstanceIndex = 0; InstanceIndex < InstanceData->GetNumInstances(); ++InstanceIndex)
 			{
-				bPrimitiveVisible = View.IntersectBox(InstanceWorldBounds.Origin, InstanceWorldBounds.BoxExtent);
+				const FBoxSphereBounds InstanceWorldBounds = InstanceData->GetInstanceWorldBounds(InstanceIndex);
+
+				for (const FConvexVolume& View : Query->Views)
+				{
+					bPrimitiveVisible = View.IntersectBox(InstanceWorldBounds.Origin, InstanceWorldBounds.BoxExtent);
+					if (bPrimitiveVisible)
+					{
+						break;
+					}
+				}
+
 				if (bPrimitiveVisible)
 				{
 					break;
 				}
-			}
-
-			if (bPrimitiveVisible)
-			{
-				break;
 			}
 		}
 	}

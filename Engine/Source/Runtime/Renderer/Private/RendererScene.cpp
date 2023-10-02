@@ -2251,7 +2251,6 @@ void FScene::UpdatePrimitiveInstances(UInstancedStaticMeshComponent* Primitive)
 
 	// #todo (jnadro) This code should not be dependent on static mesh bounds.		
 	UpdateParams.StaticMeshBounds = Primitive->GetStaticMesh()->GetBounds();
-	UpdateParams.CmdBuffer = Primitive->InstanceUpdateCmdBuffer;	// Copy
 
 	return UpdatePrimitiveInstances(UpdateParams);
 }
@@ -2275,7 +2274,6 @@ void FScene::UpdatePrimitiveInstances(FInstancedStaticMeshSceneDesc* Primitive)
 
 	// #todo (jnadro) This code should not be dependent on static mesh bounds.		
 	UpdateParams.StaticMeshBounds = Primitive->GetStaticMesh()->GetBounds();
-	UpdateParams.CmdBuffer = Primitive->GetInstanceUpdateCommandBuffer();	// Copy
 
 	return UpdatePrimitiveInstances(UpdateParams);
 }
@@ -5924,13 +5922,11 @@ void FScene::UpdateAllPrimitiveSceneInfos(FRDGBuilder& GraphBuilder, EUpdateAllP
 				continue;
 			}
 
-			// If we recorded no adds or removes the instance count has stayed the same.  Therefore the cached mesh draw commands do not
-			// need to be updated.  In situations where the instance count changes the mesh draw command stores the instance count which
-			// would need to be updated.
-			const bool bInstanceCountChanged = (UpdateInstance.Value.CmdBuffer.NumAdds > 0) || (UpdateInstance.Value.CmdBuffer.NumRemoves > 0);
-
+			const FInstanceDataBufferHeader &InstanceDataBufferHeader = PrimitiveSceneInfo->GetInstanceDataHeader();
+			const bool bInstanceCountChanged = PrimitiveSceneInfo->GetNumInstanceSceneDataEntries() != InstanceDataBufferHeader.NumInstances;
+			const bool bInstancePayloadDataStrideChanged = PrimitiveSceneInfo->GetInstancePayloadDataStride() != InstanceDataBufferHeader.PayloadDataStride;
 			// Append to queue if not added (if it is also added it will already be queued up)
-			if (bInstanceCountChanged && PrimitiveSceneInfo->GetIndex() != INDEX_NONE)
+			if ((bInstanceCountChanged || bInstancePayloadDataStrideChanged) && PrimitiveSceneInfo->GetIndex() != INDEX_NONE)
 			{
 				PrimitiveSceneInfo->FreeGPUSceneInstances();
 				PendingAllocateInstanceIds.Add(PrimitiveSceneInfo);
@@ -6237,7 +6233,11 @@ void FScene::UpdateAllPrimitiveSceneInfos(FRDGBuilder& GraphBuilder, EUpdateAllP
 			DistanceFieldSceneData.UpdatePrimitive(PrimitiveSceneInfo);
 			LumenUpdatePrimitive(PrimitiveSceneInfo);
 		#if RHI_RAYTRACING
-			PrimitiveSceneInfo->UpdateCachedRayTracingInstanceWorldBounds(LocalToWorld);
+			// Don't do this for things with an instance update coming!
+			if (!UpdatedInstances.Find(PrimitiveSceneInfo->Proxy))
+			{
+				PrimitiveSceneInfo->UpdateCachedRayTracingInstanceWorldBounds(LocalToWorld);
+			}
 		#endif
 
 			// If the primitive has static mesh elements, it should have returned true from ShouldRecreateProxyOnUpdateTransform!
@@ -6286,32 +6286,36 @@ void FScene::UpdateAllPrimitiveSceneInfos(FRDGBuilder& GraphBuilder, EUpdateAllP
 			
 			QueueFlushVirtualTexture(PrimitiveSceneInfo);
 
-			// If we recorded no adds or removes the instance count has stayed the same.  Therefore the cached mesh draw commands do not
-			// need to be updated.  In situations where the instance count changes the mesh draw command stores the instance count which
-			// would need to be updated.
-			const bool bInstanceCountChanged = (UpdateInstance.Value.CmdBuffer.NumAdds > 0) || (UpdateInstance.Value.CmdBuffer.NumRemoves > 0);
-
-			const bool bUpdateStaticDrawLists = !PrimitiveSceneProxy->StaticElementsAlwaysUseProxyPrimitiveUniformBuffer() || bInstanceCountChanged;
+			// TODO: no need to do this if only the payload size changed, we only need it because the MDC stores the instance count!
+			//       Better yet: don't update MDCs on instance data change as we can pull it from elsewhere.
+			const bool bInstanceDataAllocationChanged = PrimitiveSceneInfo->GetInstanceSceneDataOffset() == INDEX_NONE;
+			const bool bUpdateStaticDrawLists = !PrimitiveSceneProxy->StaticElementsAlwaysUseProxyPrimitiveUniformBuffer() 
+				|| bInstanceDataAllocationChanged
+				// In the mobile path, the call to UpdateInstances_RenderThread may/will update the vertex buffers, which leads to stale buffer references in the MDCs (TODO, make this not the case)
+				|| !GPUScene.IsEnabled();
 
 			if (QueueAddToScene(PrimitiveSceneInfo))
 			{
 				PrimitiveSceneInfo->RemoveFromScene(bUpdateStaticDrawLists);
-
-				if (bUpdateStaticDrawLists)
-				{
-					QueueAddStaticMeshes(PrimitiveSceneInfo);
-				}
-				else
-				{
-#if RHI_RAYTRACING
-					RayTracingPrimitivesToUpdate.Add(PrimitiveSceneInfo);
-					bUpdateCachedRayTracingInstances = true;
-#endif
-				}
 			}
 
+			// If it was not queued to add the static meshes, do so now and remove them (this may happen if e.g., a transform update happened in the same frame)
+			if (bUpdateStaticDrawLists && !PrimitiveSceneInfo->bPendingAddStaticMeshes)
+			{
+				PrimitiveSceneInfo->RemoveStaticMeshes();
+				QueueAddStaticMeshes(PrimitiveSceneInfo);
+			}
+
+#if RHI_RAYTRACING
+			if (!PrimitiveSceneInfo->bPendingAddStaticMeshes)
+			{
+				RayTracingPrimitivesToUpdate.Add(PrimitiveSceneInfo);
+				bUpdateCachedRayTracingInstances = true;
+			}
+#endif
+
 			// Update the Proxy's data.
-			PrimitiveSceneProxy->UpdateInstances_RenderThread(GraphBuilder.RHICmdList, UpdateInstance.Value.CmdBuffer, UpdateInstance.Value.WorldBounds, UpdateInstance.Value.LocalBounds, UpdateInstance.Value.StaticMeshBounds);
+			PrimitiveSceneProxy->UpdateInstances_RenderThread(GraphBuilder.RHICmdList, UpdateInstance.Value.WorldBounds, UpdateInstance.Value.LocalBounds, UpdateInstance.Value.StaticMeshBounds);
 
 			if (!RHISupportsVolumeTextures(GetFeatureLevel())
 				&& (PrimitiveSceneProxy->IsMovable() || PrimitiveSceneProxy->NeedsUnbuiltPreviewLighting() || PrimitiveSceneProxy->GetLightmapType() == ELightmapType::ForceVolumetric))
@@ -6319,7 +6323,7 @@ void FScene::UpdateAllPrimitiveSceneInfos(FRDGBuilder& GraphBuilder, EUpdateAllP
 				PrimitiveSceneInfo->MarkIndirectLightingCacheBufferDirty();
 			}
 
-			if (bInstanceCountChanged)
+			if (bInstanceDataAllocationChanged)
 			{
 				DistanceFieldSceneData.RemovePrimitive(PrimitiveSceneInfo);
 				DistanceFieldSceneData.AddPrimitive(PrimitiveSceneInfo);

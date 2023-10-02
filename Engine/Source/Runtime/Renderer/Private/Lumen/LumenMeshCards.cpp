@@ -6,6 +6,7 @@
 #include "ComponentRecreateRenderStateContext.h"
 #include "LumenHeightfields.h"
 #include "MeshCardBuild.h"
+#include "InstanceDataSceneProxy.h"
 
 TAutoConsoleVariable<float> CVarLumenMeshCardsMinSize(
 	TEXT("r.LumenScene.SurfaceCache.MeshCardsMinSize"),
@@ -647,19 +648,18 @@ void BuildMeshCardsDataForMergedInstances(const FLumenPrimitiveGroup& PrimitiveG
 	for (const FPrimitiveSceneInfo* PrimitiveSceneInfo : PrimitiveGroup.Primitives)
 	{
 		const FMatrix& PrimitiveToWorld = PrimitiveSceneInfo->Proxy->GetLocalToWorld();
-		const TConstArrayView<FInstanceSceneData> InstanceSceneData = PrimitiveSceneInfo->Proxy->GetInstanceSceneData();
-
 		const FBoxSphereBounds& PrimitiveBounds = PrimitiveSceneInfo->Proxy->GetBounds();
 		float InstanceArea = BoxSurfaceArea(PrimitiveBounds.BoxExtent);
 		FMatrix InstanceMeshCardsLocalToWorld = PrimitiveToWorld;
 
-		for (int32 InstanceIndex = 0; InstanceIndex < InstanceSceneData.Num(); ++InstanceIndex)
+		if (const FInstanceSceneDataBuffers *InstanceSceneData = PrimitiveSceneInfo->GetInstanceSceneDataBuffers())
 		{
-			const FInstanceSceneData& Instance = InstanceSceneData[InstanceIndex];
-			InstanceArea = BoxSurfaceArea((FVector)PrimitiveSceneInfo->Proxy->GetInstanceLocalBounds(InstanceIndex).GetExtent());
-			InstanceMeshCardsLocalToWorld = Instance.LocalToPrimitive.ToMatrix() * PrimitiveToWorld;
+			for (int32 InstanceIndex = 0; InstanceIndex < InstanceSceneData->GetNumInstances(); ++InstanceIndex)
+			{
+				InstanceArea = BoxSurfaceArea((FVector)InstanceSceneData->GetInstanceLocalBounds(InstanceIndex).GetExtent());
+				InstanceMeshCardsLocalToWorld = InstanceSceneData->GetInstanceToWorld(InstanceIndex);
+			}
 		}
-
 		if (InstanceArea > LargestInstanceArea)
 		{
 			MeshCardsLocalToWorld = InstanceMeshCardsLocalToWorld;
@@ -680,18 +680,17 @@ void BuildMeshCardsDataForMergedInstances(const FLumenPrimitiveGroup& PrimitiveG
 		if (CardRepresentationData)
 		{
 			const FMatrix& PrimitiveToWorld = PrimitiveSceneInfo->Proxy->GetLocalToWorld();
-			const TConstArrayView<FInstanceSceneData> InstanceSceneData = PrimitiveSceneInfo->Proxy->GetInstanceSceneData();
 			const FMeshCardsBuildData& PrimitiveMeshCardsBuildData = CardRepresentationData->MeshCardsBuildData;
 			const FMatrix PrimitiveLocalToMeshCardsLocal = PrimitiveToWorld * WorldToMeshCardsLocal;
 
-			if (InstanceSceneData.Num() > 0)
+			if (const FInstanceSceneDataBuffers *InstanceSceneData = PrimitiveSceneInfo->GetInstanceSceneDataBuffers())
 			{
-				for (int32 InstanceIndex = 0; InstanceIndex < InstanceSceneData.Num(); ++InstanceIndex)
+				for (int32 InstanceIndex = 0; InstanceIndex < InstanceSceneData->GetNumInstances(); ++InstanceIndex)
 				{
-					const FInstanceSceneData& Instance = InstanceSceneData[InstanceIndex];
+					FMatrix InstanceToWorld = InstanceSceneData->GetInstanceToWorld(InstanceIndex);
 					MergedMeshCards.AddInstance(
-						PrimitiveSceneInfo->Proxy->GetInstanceLocalBounds(InstanceIndex).ToBox(),
-						Instance.LocalToPrimitive.ToMatrix() * PrimitiveLocalToMeshCardsLocal,
+						InstanceSceneData->GetInstanceLocalBounds(InstanceIndex).ToBox(),
+						InstanceToWorld * WorldToMeshCardsLocal,
 						PrimitiveMeshCardsBuildData);
 				}
 			}
@@ -781,12 +780,10 @@ void FLumenSceneData::AddMeshCards(int32 PrimitiveGroupIndex)
 			const FPrimitiveSceneInfo* PrimitiveSceneInfo = PrimitiveGroup.Primitives[0];
 
 			FMatrix LocalToWorld = PrimitiveSceneInfo->Proxy->GetLocalToWorld();
-			const TConstArrayView<FInstanceSceneData> InstanceSceneData = PrimitiveSceneInfo->Proxy->GetInstanceSceneData();
-
-			if (InstanceSceneData.Num() > 0)
+			if (const FInstanceSceneDataBuffers *InstanceData = PrimitiveSceneInfo->GetInstanceSceneDataBuffers())
 			{
-				const int32 PrimitiveInstanceIndex = FMath::Clamp(PrimitiveGroup.PrimitiveInstanceIndex, 0, InstanceSceneData.Num() - 1);
-				LocalToWorld = InstanceSceneData[PrimitiveInstanceIndex].LocalToPrimitive.ToMatrix() * LocalToWorld;
+				const int32 PrimitiveInstanceIndex = FMath::Clamp(PrimitiveGroup.PrimitiveInstanceIndex, 0, InstanceData->GetNumInstances() - 1);
+				LocalToWorld = InstanceData->GetInstanceToWorld(PrimitiveInstanceIndex);
 			}
 
 			const FCardRepresentationData* CardRepresentationData = PrimitiveSceneInfo->Proxy->GetMeshCardRepresentation();

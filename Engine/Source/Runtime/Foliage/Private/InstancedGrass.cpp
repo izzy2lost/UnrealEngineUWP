@@ -1,12 +1,16 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 
 #include "GrassInstancedStaticMeshComponent.h"
+#include "PrimitiveSceneProxy.h"
 #include "Engine/StaticMesh.h"
+#include "InstancedStaticMesh/ISMInstanceUpdateChangeSet.h"
 
 UGrassInstancedStaticMeshComponent::UGrassInstancedStaticMeshComponent(const FObjectInitializer& ObjectInitializer) :
 	Super(ObjectInitializer)
 {
 	ViewRelevanceType = EHISMViewRelevanceType::Grass;
+	// Tell the manager to not perform any tracking, and, indeed assert that none of the delta functions are ever called.
+	PrimitiveInstanceDataManager.SetMode(FPrimitiveInstanceDataManager::EMode::ExternalLegacyData);
 }
 
 void UGrassInstancedStaticMeshComponent::BuildTreeAnyThread(
@@ -39,6 +43,11 @@ void UGrassInstancedStaticMeshComponent::BuildTreeAnyThread(
 
 void UGrassInstancedStaticMeshComponent::AcceptPrebuiltTree(TArray<FInstancedStaticMeshInstanceData>& InInstanceData, TArray<FClusterNode>& InClusterTree, int32 InOcclusionLayerNumNodes, int32 InNumBuiltRenderInstances)
 {
+	check(false);
+}
+
+void UGrassInstancedStaticMeshComponent::AcceptPrebuiltTree(TArray<FClusterNode>& InClusterTree, int32 InOcclusionLayerNumNodes, int32 InNumBuiltRenderInstances, FStaticMeshInstanceData* InSharedInstanceBufferData)
+{
 	checkSlow(IsInGameThread());
 
 	QUICK_SCOPE_CYCLE_COUNTER(STAT_UGrassInstancedStaticMeshComponent_AcceptPrebuiltTree);
@@ -48,7 +57,6 @@ void UGrassInstancedStaticMeshComponent::AcceptPrebuiltTree(TArray<FInstancedSta
 
 	NumBuiltInstances = 0;
 	TranslatedInstanceSpaceOrigin = FVector::Zero();
-	check(PerInstanceRenderData.IsValid());
 	NumBuiltRenderInstances = InNumBuiltRenderInstances;
 	check(NumBuiltRenderInstances);
 	UnbuiltInstanceBounds.Init();
@@ -72,16 +80,59 @@ void UGrassInstancedStaticMeshComponent::AcceptPrebuiltTree(TArray<FInstancedSta
 	{
 		*ClusterTreePtr = MoveTemp(InClusterTree);
 
-		if (RequiresInstanceDataForTree())
-		{
-			PerInstanceSMData = MoveTemp(InInstanceData);
-		}
-
 		PostBuildStats();
 
 	}
 	QUICK_SCOPE_CYCLE_COUNTER(STAT_UGrassInstancedStaticMeshComponent_AcceptPrebuiltTree_Mark);
 
+	check(PerInstanceSMData.Num() == 0 || InSharedInstanceBufferData->GetNumInstances() == PerInstanceSMData.Num());
+
+	TUniquePtr<FStaticMeshInstanceData> BuiltInstanceData = MakeUnique<FStaticMeshInstanceData>();
+	// TODO: Implement move semantics for FStaticMeshInstanceData!
+	Swap(*BuiltInstanceData, *InSharedInstanceBufferData);
+
+	PrimitiveInstanceDataManager.MarkForRebuildFromExternal(NumBuiltRenderInstances, [LegacyInstanceData = MoveTemp(BuiltInstanceData)] (TArray<TRefCountPtr<HHitProxy>> &OutHitProxies) mutable
+	{
+		OutHitProxies.Reset(); 
+		FPrimitiveInstanceDataManager::FExternalUpdateData ExternalUpdateData;
+		ExternalUpdateData.NumInstances = LegacyInstanceData ? LegacyInstanceData->GetNumInstances() : 0;
+		ExternalUpdateData.UpdateProxy = [LegacyInstanceDataInner = MoveTemp(LegacyInstanceData)](FISMCInstanceDataSceneProxy &InstanceDataSceneProxy, const FRenderBounds &InstanceLocalBounds) mutable
+		{
+			// No reorder table needed since we never perform delta updates.
+			InstanceDataSceneProxy.BuildFromLegacyData(MoveTemp(LegacyInstanceDataInner), InstanceLocalBounds, TArray<int32>());
+		};
+		return ExternalUpdateData;
+	});
 	MarkRenderStateDirty();
 }
 
+void UGrassInstancedStaticMeshComponent::BuildComponentInstanceData(FInstanceUpdateComponentDesc& OutData, FPrimitiveSceneProxy* PrimitiveSceneProxy)
+{
+	OutData.PrimitiveLocalToWorld = GetRenderMatrix();
+	OutData.PrimitiveSceneProxy = PrimitiveSceneProxy;
+	OutData.Flags = MakeInstanceDataFlags(PrimitiveSceneProxy->AnyMaterialHasPerInstanceRandom(), PrimitiveSceneProxy->AnyMaterialHasPerInstanceCustomData());
+	OutData.Flags.bHasPerInstanceDynamicData = false;
+	OutData.StaticMeshBounds = GetStaticMesh()->GetBounds();
+	OutData.NumProxyInstances = InstanceCountToRender;
+	OutData.NumSourceInstances = 0;
+#if WITH_EDITOR
+	// TODO: Do we want these for this path?
+	OutData.Flags.bHasPerInstanceEditorData = false;
+#endif
+	OutData.BuildChangeSet = [&](FISMInstanceUpdateChangeSet &ChangeSet)
+	{
+		// Cancel any update that is not transforms, because that is the only data this primitive stores for this very special use-case
+		ChangeSet.InstanceLightShadowUVBiasDelta = FArrayIndexDelta();
+		ChangeSet.CustomDataDelta = FArrayIndexDelta();
+#if WITH_EDITOR
+		ChangeSet.InstanceEditorDataDelta = FArrayIndexDelta();
+#endif
+		BuildInstanceDataDeltaChangeSetCommon(ChangeSet);
+		check(GetTranslatedInstanceSpaceOrigin().IsNearlyZero());
+		ChangeSet.SetInstanceTransforms(MakeStridedView(PerInstanceSMData, &FInstancedStaticMeshInstanceData::Transform));
+		ChangeSet.SetInstancePrevTransforms(MakeArrayView(PerInstancePrevTransform));
+		// The reorder table is always empty in this path because the HISM is populated in AcceptPrebuiltTree using instances in the already sorted order.
+		check(InstanceReorderTable.IsEmpty());
+		check(ChangeSet.LegacyInstanceReorderTable.IsEmpty());
+	};
+}

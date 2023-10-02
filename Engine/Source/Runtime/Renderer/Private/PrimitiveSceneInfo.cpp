@@ -36,6 +36,7 @@
 #include "StaticMeshBatch.h"
 #include "PrimitiveSceneDesc.h"
 #include "BasePassRendering.h" // TODO: Remove with later refactor (moving Nanite shading into its own files)
+#include "InstanceDataSceneProxy.h"
 
 
 extern int32 GGPUSceneInstanceClearList;
@@ -313,6 +314,9 @@ FPrimitiveSceneInfo::FPrimitiveSceneInfo(const FPrimitiveSceneInfoAdapter& InAda
 	bCachedRaytracingDataDirty(false),
 	CoarseMeshStreamingHandle(INDEX_NONE),
 #endif
+	// We want the unsynchronized access here, as the responsibility passes to the primitive scene info.
+	InstanceSceneDataBuffersInternal(InAdapter.SceneProxy->GetInstanceSceneDataBuffers(FPrimitiveSceneProxy::EInstanceBufferAccessFlags::UnsynchronizedAndUnsafe)),
+	InstanceDataUpdateTaskInfo(InAdapter.SceneProxy->GetInstanceDataUpdateTaskInfo()),
 	LevelUpdateNotificationIndex(INDEX_NONE),
 	InstanceSceneDataOffset(INDEX_NONE),
 	NumInstanceSceneDataEntries(0),
@@ -1224,18 +1228,28 @@ void FPrimitiveSceneInfo::UpdateCachedRayTracingInstanceWorldBounds(const FMatri
 	QUICK_SCOPE_CYCLE_COUNTER(STAT_UpdateCachedRayTracingInstanceWorldBounds);
 	TRACE_CPUPROFILER_EVENT_SCOPE(UpdateCachedRayTracingInstanceWorldBounds);
 
-	TConstArrayView<FInstanceSceneData> InstanceSceneData = Proxy->GetInstanceSceneData();
+	if (CachedRayTracingInstanceWorldBounds.IsEmpty())
+	{
+		return;
+	}
 	
 	SmallestRayTracingInstanceWorldBoundsIndex = 0;
 
-	for (int32 Index = 0; Index < CachedRayTracingInstanceWorldBounds.Num(); Index++)
+	const FInstanceSceneDataBuffers *InstanceSceneDataBuffers = GetInstanceSceneDataBuffers();
+	if (InstanceSceneDataBuffers && InstanceSceneDataBuffers->GetNumInstances() > 0)
 	{
-		const FRenderBounds& LocalBoundingBox = Proxy->GetInstanceLocalBounds(Index);
-
-		FMatrix LocalTransform = InstanceSceneData[Index].LocalToPrimitive.ToMatrix();
-
-		CachedRayTracingInstanceWorldBounds[Index] = LocalBoundingBox.TransformBy(LocalTransform * NewPrimitiveLocalToWorld).ToBoxSphereBounds();
-		SmallestRayTracingInstanceWorldBoundsIndex = CachedRayTracingInstanceWorldBounds[Index].SphereRadius < CachedRayTracingInstanceWorldBounds[SmallestRayTracingInstanceWorldBoundsIndex].SphereRadius ? Index : SmallestRayTracingInstanceWorldBoundsIndex;
+		for (int32 Index = 0; Index < CachedRayTracingInstanceWorldBounds.Num(); Index++)
+		{
+			FBoxSphereBounds WorldSpaceBounds = InstanceSceneDataBuffers->GetInstanceWorldBounds(Index);
+			CachedRayTracingInstanceWorldBounds[Index] = WorldSpaceBounds;
+			SmallestRayTracingInstanceWorldBoundsIndex = WorldSpaceBounds.SphereRadius < CachedRayTracingInstanceWorldBounds[SmallestRayTracingInstanceWorldBoundsIndex].SphereRadius ? Index : SmallestRayTracingInstanceWorldBoundsIndex;
+		}
+	}
+	else
+	{
+		check(CachedRayTracingInstanceWorldBounds.Num() == 1);
+		CachedRayTracingInstanceWorldBounds[0] = Proxy->GetBounds();
+		SmallestRayTracingInstanceWorldBoundsIndex = 0;
 	}
 }
 #endif
@@ -1381,34 +1395,20 @@ void FPrimitiveSceneInfo::AllocateGPUSceneInstances(FScene* Scene, const TArrayV
 				SceneInfo->InstancePayloadDataStride == 0
 			);
 
-			if (SceneInfo->Proxy->SupportsInstanceDataBuffer())
-			{
-				const TConstArrayView<FInstanceSceneData> InstanceSceneData = SceneInfo->Proxy->GetInstanceSceneData();
-
-				SceneInfo->NumInstanceSceneDataEntries = InstanceSceneData.Num();
+			// Note: this will return 1 instance for primitives without the instance data buffer.
+			FInstanceDataBufferHeader InstanceDataHeader = SceneInfo->GetInstanceDataHeader();
+			SceneInfo->NumInstanceSceneDataEntries = InstanceDataHeader.NumInstances;
 				if (SceneInfo->NumInstanceSceneDataEntries > 0)
 				{
 					SceneInfo->InstanceSceneDataOffset = Scene->GPUScene.AllocateInstanceSceneDataSlots(SceneInfo->NumInstanceSceneDataEntries);
-
-					SceneInfo->InstancePayloadDataStride = SceneInfo->Proxy->GetPayloadDataStride(); // Returns number of float4 optional data values
+					SceneInfo->InstancePayloadDataStride = InstanceDataHeader.PayloadDataStride;
 					if (SceneInfo->InstancePayloadDataStride > 0)
 					{
 						const uint32 TotalFloat4Count = SceneInfo->NumInstanceSceneDataEntries * SceneInfo->InstancePayloadDataStride;
 						SceneInfo->InstancePayloadDataOffset = Scene->GPUScene.AllocateInstancePayloadDataSlots(TotalFloat4Count);
 					}
 				}
-			}
-			else
-			{
-				// Allocate a single 'dummy/fallback' instance for the primitive that gets automatically populated with the data from the primitive
-				SceneInfo->InstanceSceneDataOffset = Scene->GPUScene.AllocateInstanceSceneDataSlots(1);
-				SceneInfo->NumInstanceSceneDataEntries = 1;
 				
-				// TODO: Hook up for dummy instances?
-				SceneInfo->InstancePayloadDataOffset = INDEX_NONE;
-				SceneInfo->InstancePayloadDataStride = 0;
-			}
-
 			// Force a primitive update in the GPU scene, 
 			// NOTE: does not set Added as this is handled elsewhere.
 			Scene->GPUScene.AddPrimitiveToUpdate(SceneInfo->PackedIndex, EPrimitiveDirtyState::ChangedAll);
@@ -1921,6 +1921,30 @@ bool FPrimitiveSceneInfo::RequestUniformBufferUpdate()
 		return true;
 	}
 	return false;
+}
+
+const FInstanceSceneDataBuffers *FPrimitiveSceneInfo::GetInstanceSceneDataBuffers() const
+{ 
+	if (InstanceDataUpdateTaskInfo)
+	{
+		InstanceDataUpdateTaskInfo->WaitForUpdateCompletion();
+	}
+	return InstanceSceneDataBuffersInternal; 
+}
+
+FInstanceDataBufferHeader FPrimitiveSceneInfo::GetInstanceDataHeader() const
+{
+	if (!HasInstanceDataBuffers())
+	{
+		return FInstanceDataBufferHeader::SinglePrimitiveHeader;
+	}
+
+	if (InstanceDataUpdateTaskInfo)
+	{
+		return InstanceDataUpdateTaskInfo->GetHeader();
+	}
+
+	return InstanceSceneDataBuffersInternal->GetHeader();
 }
 
 void FPrimitiveSceneInfo::FlushRuntimeVirtualTexture()

@@ -1833,12 +1833,10 @@ struct FAsyncGrassBuilder : public FGrassBuilderBase
 	FVector2D LightMapComponentBias;
 	FVector2D LightMapComponentScale;
 	bool bRequiresCPUAccess;
-	bool bRequiresInstanceDataForTree;
 
 	TArray<FBox> ExcludedBoxes;
 
 	// output
-	TArray<FInstancedStaticMeshInstanceData> InstanceData;
 	FStaticMeshInstanceData InstanceBuffer;
 	TArray<FClusterNode> ClusterTree;
 	int32 OutOcclusionLayerNum;
@@ -1873,7 +1871,6 @@ struct FAsyncGrassBuilder : public FGrassBuilderBase
 		, LightMapComponentBias(FVector2D::ZeroVector)
 		, LightMapComponentScale(FVector2D::UnitVector)
 		, bRequiresCPUAccess(GrassVariety.bKeepInstanceBufferCPUCopy)
-		, bRequiresInstanceDataForTree(GrassInstancedStaticMeshComponent->RequiresInstanceDataForTree())
 		// output
 		, InstanceBuffer(/*bSupportsVertexHalfFloat*/ true)
 		, ClusterTree()
@@ -2223,15 +2220,6 @@ struct FAsyncGrassBuilder : public FGrassBuilderBase
 			TArray<float> InstanceCustomDataDummy;
 			UGrassInstancedStaticMeshComponent::BuildTreeAnyThread(InstanceTransforms, InstanceCustomDataDummy, 0, MeshBox, ClusterTree, SortedInstances, InstanceReorderTable, OutOcclusionLayerNum, DesiredInstancesPerLeaf, false);
 
-			if (bRequiresInstanceDataForTree)
-			{
-				InstanceData.Reset(NumInstances);
-				for (const FMatrix& Transform : InstanceTransforms)
-				{
-					InstanceData.Emplace(Transform);
-				}
-			}
-			
 			// in-place sort the instances and generate the sorted instance data
 			for (int32 FirstUnfixedIndex = 0; FirstUnfixedIndex < NumInstances; FirstUnfixedIndex++)
 			{
@@ -2241,10 +2229,6 @@ struct FAsyncGrassBuilder : public FGrassBuilderBase
 				{
 					check(LoadFrom > FirstUnfixedIndex);
 					InstanceBuffer.SwapInstance(FirstUnfixedIndex, LoadFrom);
-					if (bRequiresInstanceDataForTree)
-					{
-						InstanceData.Swap(FirstUnfixedIndex, LoadFrom);
-					}
 
 					int32 SwapGoesTo = InstanceReorderTable[FirstUnfixedIndex];
 					check(SwapGoesTo > FirstUnfixedIndex);
@@ -3324,17 +3308,7 @@ void ALandscapeProxy::UpdateGrass(const TArray<FVector>& Cameras, int32& InOutNu
 					if (NumBuiltRenderInstances > 0)
 					{
 						QUICK_SCOPE_CYCLE_COUNTER(STAT_FoliageGrassEndComp_AcceptPrebuiltTree);
-
-						if (!GrassISMComponent->PerInstanceRenderData.IsValid())
-						{
-							GrassISMComponent->InitPerInstanceRenderData(true, &Inner.Builder->InstanceBuffer, Inner.Builder->bRequiresCPUAccess);
-						}
-						else
-						{
-							GrassISMComponent->PerInstanceRenderData->UpdateFromPreallocatedData(Inner.Builder->InstanceBuffer);
-						}
-
-						GrassISMComponent->AcceptPrebuiltTree(Inner.Builder->InstanceData, Inner.Builder->ClusterTree, Inner.Builder->OutOcclusionLayerNum, NumBuiltRenderInstances);
+						GrassISMComponent->AcceptPrebuiltTree(Inner.Builder->ClusterTree, Inner.Builder->OutOcclusionLayerNum, NumBuiltRenderInstances, &Inner.Builder->InstanceBuffer);
 						if (bForceSync && GetWorld())
 						{
 							QUICK_SCOPE_CYCLE_COUNTER(STAT_FoliageGrassEndComp_SyncUpdate);

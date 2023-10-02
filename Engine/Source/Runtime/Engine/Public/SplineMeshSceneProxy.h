@@ -13,6 +13,7 @@
 #include "StaticMeshSceneProxy.h"
 #include "SplineMeshShaderParams.h"
 #include "NaniteSceneProxy.h"
+#include "InstanceDataSceneProxy.h"
 
 //////////////////////////////////////////////////////////////////////////
 // SplineMeshVertexFactory
@@ -76,6 +77,12 @@ private:
 	LAYOUT_FIELD(FShaderParameter, SplineMeshParams);
 };
 
+struct FSplineMeshSceneInstanceDataBuffers : public FSingleInstanceDataBuffers
+{
+	ENGINE_API void Setup(const FSplineMeshShaderParams& InSplineMeshShaderParams);
+	ENGINE_API bool Update(const FSplineMeshShaderParams& InSplineMeshShaderParams);
+};
+
 //////////////////////////////////////////////////////////////////////////
 // SplineMeshSceneProxy
 
@@ -92,6 +99,7 @@ public:
 		FMemory::Memzero(&SplineParams, sizeof(SplineParams));
 		SplineParams.TextureCoord = FUintVector2(INDEX_NONE, INDEX_NONE);
 	}
+	virtual ~TSplineMeshSceneProxyCommon() {}
 
 	const FSplineMeshShaderParams& GetSplineMeshParams() const { return SplineParams; }
 
@@ -117,9 +125,8 @@ protected:
 		auto& SceneProxy = Downcast();
 		
 		// NOTE: If the payload extension was not initialized, we're probably not using GPU Scene
-		if (SceneProxy.InstancePayloadExtension.Num() == SPLINE_MESH_PARAMS_FLOAT4_SIZE)
+		if (SplineMeshInstanceData.Update(SplineParams))
 		{
-			PackSplineMeshParams(SplineParams, SceneProxy.InstancePayloadExtension);
 			if (bUpdateGPUScene)
 			{
 				// Request a GPU Scene update for this primitive so it updates its instance data
@@ -135,6 +142,7 @@ protected:
 	/** Parameters that define the spline, used to deform mesh */
 	FSplineMeshShaderParams SplineParams;
 
+	FSplineMeshSceneInstanceDataBuffers SplineMeshInstanceData;
 private:
 	/** implemented by derived to provide access by parent */
 	virtual TDerived& Downcast() = 0;
@@ -165,6 +173,7 @@ public:
 	virtual bool IsRayTracingRelevant() const override { return true; }
 	virtual void GetDynamicRayTracingInstances(struct FRayTracingMaterialGatheringContext& Context, TArray<FRayTracingInstance>& OutRayTracingInstances) override;
 #endif // RHI_RAYTRACING
+	virtual void OnTransformChanged(FRHICommandListBase& RHICmdList) override;
 
 private:
 	struct FLODResources

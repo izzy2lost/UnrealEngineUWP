@@ -17,6 +17,7 @@
 #include "Materials/MaterialRenderProxy.h"
 #include "NaniteSceneProxy.h"
 #include "ShaderPrint.h"
+#include "InstanceDataSceneProxy.h"
 
 // Specifies if visualization only shows Nanite information that passes full scene depth test
 // -1: Use default composition specified the each mode
@@ -453,7 +454,9 @@ void DisplayPicking(const FScene* Scene, const FNanitePickingFeedback& PickingFe
 	Writer.DrawLine(FText::FromString(FString::Printf(TEXT("Persistent Index: %d"), PickingFeedback.PersistentIndex)), 10, FColor::Yellow);
 	Writer.DrawLine(FText::FromString(FString::Printf(TEXT("Primitive Id: %d"),     PickingFeedback.PrimitiveId)),     10, FColor::Yellow);
 	Writer.DrawLine(FText::FromString(FString::Printf(TEXT("Instance Id: %d"),      PickingFeedback.InstanceId)),      10, FColor::Yellow);
-	Writer.DrawLine(FText::FromString(FString::Printf(TEXT("Instance Count: %d"),   PickedNaniteProxy->GetInstanceSceneData().Num())), 10, FColor::Yellow);
+	const FInstanceSceneDataBuffers *InstanceSceneDataBuffers = PickedNaniteProxy->GetInstanceSceneDataBuffers();
+	int32 NumInstances = InstanceSceneDataBuffers ? InstanceSceneDataBuffers->GetNumInstances() : 0;
+	Writer.DrawLine(FText::FromString(FString::Printf(TEXT("Instance Count: %d"),   NumInstances)), 10, FColor::Yellow);
 
 	Writer.EmptyLine();
 

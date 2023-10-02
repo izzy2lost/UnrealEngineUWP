@@ -122,7 +122,6 @@ public:
 	ENGINE_API virtual bool IsUsingDistanceCullFade() const override;
 	ENGINE_API virtual void GetLightRelevance(const FLightSceneProxy* LightSceneProxy, bool& bDynamic, bool& bRelevant, bool& bLightMapped, bool& bShadowMapped) const override;
 	ENGINE_API virtual void GetDistanceFieldAtlasData(const FDistanceFieldVolumeData*& OutDistanceFieldData, float& SelfShadowBias) const override;
-	ENGINE_API virtual void GetDistanceFieldInstanceData(TArray<FRenderTransform>& InstanceLocalToPrimitiveTransforms) const override;
 	ENGINE_API virtual bool HasDistanceFieldRepresentation() const override;
 	ENGINE_API virtual bool StaticMeshHasPendingStreaming() const override;
 	ENGINE_API virtual bool HasDynamicIndirectShadowCasterRepresentation() const override;

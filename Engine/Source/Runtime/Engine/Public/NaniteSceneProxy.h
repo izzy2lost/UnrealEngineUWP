@@ -288,23 +288,7 @@ public:
 	}
 #endif
 
-	void UpdateMaterialDynamicDataUsage()
-	{
-		bHasPerInstanceCustomData	= false;
-		bHasPerInstanceRandom		= false;
-
-		// Checks if any assigned material uses special features
-		for (const FMaterialSection& MaterialSection : MaterialSections)
-		{
-			bHasPerInstanceCustomData	|= MaterialSection.bHasPerInstanceCustomData;
-			bHasPerInstanceRandom		|= MaterialSection.bHasPerInstanceRandomID;
-
-			if (bHasPerInstanceCustomData && bHasPerInstanceRandom)
-			{
-				break;
-			}
-		}
-	}
+	void UpdateMaterialDynamicDataUsage();
 
 	// Nanite always uses LOD 0, and performs custom LOD streaming.
 	virtual uint8 GetCurrentFirstLODIdx_RenderThread() const override { return 0; }
@@ -396,7 +380,6 @@ public:
 	}
 
 	ENGINE_API virtual void GetDistanceFieldAtlasData(const FDistanceFieldVolumeData*& OutDistanceFieldData, float& SelfShadowBias) const override;
-	ENGINE_API virtual void GetDistanceFieldInstanceData(TArray<FRenderTransform>& InstanceLocalToPrimitiveTransforms) const override;
 	ENGINE_API virtual bool HasDistanceFieldRepresentation() const override;
 
 	ENGINE_API virtual const FCardRepresentationData* GetMeshCardRepresentation() const override;
@@ -423,6 +406,8 @@ public:
 	ENGINE_API virtual bool GetInstanceWorldPositionOffsetDisableDistance(float& OutWPODisableDistance) const override;
 
 	ENGINE_API virtual void SetWorldPositionOffsetDisableDistance_GameThread(int32 NewValue) override;
+
+	ENGINE_API virtual FInstanceDataUpdateTaskInfo *GetInstanceDataUpdateTaskInfo() const override;
 
 	const UStaticMesh* GetStaticMesh() const
 	{
@@ -481,9 +466,6 @@ protected:
 
 	const UStaticMesh* StaticMesh = nullptr;
 
-	/** Per instance render data, could be shared with component */
-	TSharedPtr<FPerInstanceRenderData, ESPMode::ThreadSafe> PerInstanceRenderData;
-
 	uint32 EndCullDistance = 0;
 
 	/** Minimum LOD index to use.  Clamped to valid range [0, NumLODs - 1]. */
@@ -498,6 +480,8 @@ protected:
 	TArray<FMeshBatch> CachedRayTracingMaterials;	
 	FRayTracingMaskAndFlags CachedRayTracingInstanceMaskAndFlags;
 #endif
+
+	TSharedPtr<FInstanceDataSceneProxy, ESPMode::ThreadSafe> InstanceDataSceneProxy; 
 
 #if NANITE_ENABLE_DEBUG_RENDERING
 	UObject* Owner;

@@ -14,14 +14,14 @@ class UGrassInstancedStaticMeshComponent : public UHierarchicalInstancedStaticMe
 public:
 	static FOLIAGE_API void BuildTreeAnyThread(TArray<FMatrix>& InstanceTransforms, TArray<float>& InstanceCustomDataFloats, int32 NumCustomDataFloats, const FBox& MeshBox, TArray<FClusterNode>& OutClusterTree, TArray<int32>& OutSortedInstances, TArray<int32>& OutInstanceReorderTable, int32& OutOcclusionLayerNum, int32 MaxInstancesPerLeaf, bool InGenerateInstanceScalingRange);
 	
+	UE_DEPRECATED(5.4, "Use the new version of AcceptPrebuiltTree below.")
 	FOLIAGE_API void AcceptPrebuiltTree(TArray<FInstancedStaticMeshInstanceData>& InInstanceData, TArray<FClusterNode>& InClusterTree, int32 InOcclusionLayerNumNodes, int32 InNumBuiltRenderInstances);
+
+	FOLIAGE_API void AcceptPrebuiltTree(TArray<FClusterNode>& InClusterTree, int32 InOcclusionLayerNumNodes, int32 InNumBuiltRenderInstances, FStaticMeshInstanceData* InSharedInstanceBufferData);
 
 	FOLIAGE_API bool SupportsWorldPositionOffsetVelocity() const override;
 
-	inline bool RequiresInstanceDataForTree() const
-	{
-		// We only need to copy off the instances if it is a Nanite mesh, since the Nanite scene proxy uses them instead
-		return ShouldCreateNaniteProxy();
-	}
+private:
+	virtual void BuildComponentInstanceData(FInstanceUpdateComponentDesc& OutData, FPrimitiveSceneProxy* PrimitiveSceneProxy) override final;
 };
 

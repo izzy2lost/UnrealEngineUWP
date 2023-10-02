@@ -21,6 +21,7 @@
 #include "HAL/LowLevelMemStats.h"
 #include "ProfilingDebugging/CpuProfilerTrace.h"
 #include "UnrealEngine.h"
+#include "InstanceDataSceneProxy.h"
 
 DECLARE_GPU_STAT(DistanceFields);
 
@@ -310,7 +311,7 @@ void ProcessPrimitiveUpdate(
 	bool bIsAddOperation,
 	FScene* Scene,
 	FPrimitiveSceneInfo* PrimitiveSceneInfo,
-	TArray<FRenderTransform>& InstanceLocalToPrimitiveTransforms,
+	TArray<FMatrix>& InstanceLocalToWorldTmpStorage,
 	TArray<int32>& IndicesToUpdateInObjectBuffers, 
 	TArray<FDistanceFieldAssetMipId>& DistanceFieldAssetAdds,
 	TArray<FSetElementId>& DistanceFieldAssetRemoves)
@@ -319,25 +320,38 @@ void ProcessPrimitiveUpdate(
 
 	FDistanceFieldSceneData& DistanceFieldSceneData = Scene->DistanceFieldSceneData;
 
-	InstanceLocalToPrimitiveTransforms.Reset();
+	InstanceLocalToWorldTmpStorage.Reset();
 
 	const FDistanceFieldVolumeData* DistanceFieldData = nullptr;
 	float SelfShadowBias;
 	Proxy->GetDistanceFieldAtlasData(DistanceFieldData, SelfShadowBias);
-	Proxy->GetDistanceFieldInstanceData(InstanceLocalToPrimitiveTransforms);
 
-	if (DistanceFieldData && DistanceFieldData->IsValid() && InstanceLocalToPrimitiveTransforms.Num() > 0)
+	TConstArrayView<FMatrix> InstanceLocalToWorldTransforms;
+	if (const FInstanceSceneDataBuffers *InstanceData = PrimitiveSceneInfo->GetInstanceSceneDataBuffers())
+	{
+		for (int32 InstanceIndex = 0; InstanceIndex < InstanceData->GetNumInstances(); ++InstanceIndex)
+		{
+			InstanceLocalToWorldTmpStorage.Add(InstanceData->GetInstanceToWorld(InstanceIndex));
+		}
+		InstanceLocalToWorldTransforms = InstanceLocalToWorldTmpStorage;
+	}
+	else
+	{
+		InstanceLocalToWorldTransforms = MakeArrayView(&Proxy->GetLocalToWorld(), 1);
+	}
+
+	if (DistanceFieldData && DistanceFieldData->IsValid() && InstanceLocalToWorldTransforms.Num() > 0)
 	{
 		const float BoundingRadius = Proxy->GetBounds().SphereRadius;
 		const FGlobalDFCacheType CacheType = Proxy->IsOftenMoving() ? GDF_Full : GDF_MostlyStatic;
 
 		// Proxy bounds are only useful if single instance
-		if (InstanceLocalToPrimitiveTransforms.Num() > 1 || BoundingRadius < GMeshDistanceFieldsMaxObjectBoundingRadius)
+		if (InstanceLocalToWorldTransforms.Num() > 1 || BoundingRadius < GMeshDistanceFieldsMaxObjectBoundingRadius)
 		{
 			if (bIsAddOperation)
 			{
-				PrimitiveSceneInfo->DistanceFieldInstanceIndices.Empty(InstanceLocalToPrimitiveTransforms.Num());
-				PrimitiveSceneInfo->DistanceFieldInstanceIndices.AddZeroed(InstanceLocalToPrimitiveTransforms.Num());
+				PrimitiveSceneInfo->DistanceFieldInstanceIndices.Empty(InstanceLocalToWorldTransforms.Num());
+				PrimitiveSceneInfo->DistanceFieldInstanceIndices.AddZeroed(InstanceLocalToWorldTransforms.Num());
 
 				FSetElementId AddSetId = DistanceFieldSceneData.AssetStateArray.FindId(DistanceFieldData);
 
@@ -361,7 +375,7 @@ void ProcessPrimitiveUpdate(
 				}
 			}
 
-			for (int32 TransformIndex = 0; TransformIndex < InstanceLocalToPrimitiveTransforms.Num(); TransformIndex++)
+			for (int32 TransformIndex = 0; TransformIndex < InstanceLocalToWorldTransforms.Num(); TransformIndex++)
 			{
 				const bool bInstanceCountOverflow = bIsAddOperation && (DistanceFieldSceneData.NumObjectsInBuffer + 1 > MAX_INSTANCE_ID);
 
@@ -372,7 +386,7 @@ void ProcessPrimitiveUpdate(
 					UE_LOG(LogDistanceField, Warning, TEXT("Max instance count in Distance Field Scene reached. New instances might not be represented."));
 				}
 
-				const FMatrix LocalToWorld = InstanceLocalToPrimitiveTransforms[TransformIndex].ToMatrix() * Proxy->GetLocalToWorld();
+				const FMatrix LocalToWorld = InstanceLocalToWorldTransforms[TransformIndex];
 
 				const FMatrix::FReal MaxScale = LocalToWorld.GetMaximumAxisScale();
 
@@ -478,8 +492,7 @@ void FDistanceFieldSceneData::UpdateDistanceFieldObjectBuffers(
 
 		if ((PendingAddOperations.Num() > 0 || PendingUpdateOperations.Num() > 0) && GDFReverseAtlasAllocationOrder == GDFPreviousReverseAtlasAllocationOrder)
 		{
-			TArray<FRenderTransform> InstanceLocalToPrimitiveTransforms;
-
+			TArray<FMatrix> InstanceLocalToPrimitiveTransforms;
 			int32 OriginalNumObjects = NumObjectsInBuffer;
 			for (FPrimitiveSceneInfo* PrimitiveSceneInfo : PendingAddOperations)
 			{

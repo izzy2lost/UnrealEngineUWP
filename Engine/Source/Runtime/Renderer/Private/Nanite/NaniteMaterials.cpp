@@ -29,6 +29,7 @@
 #include "VariableRateShadingImageManager.h"
 #include "Lumen/Lumen.h"
 #include "ComponentRecreateRenderStateContext.h"
+#include "InstanceDataSceneProxy.h"
 
 extern TAutoConsoleVariable<int32> CVarParallelBasePassBuild;
 

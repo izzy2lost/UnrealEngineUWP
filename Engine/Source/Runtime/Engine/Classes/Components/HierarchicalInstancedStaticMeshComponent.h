@@ -351,6 +351,9 @@ public:
 	EHISMViewRelevanceType GetViewRelevanceType() const { return ViewRelevanceType; }
 
 protected:
+	ENGINE_API virtual void BuildComponentInstanceData(FInstanceUpdateComponentDesc& OutData, FPrimitiveSceneProxy* PrimitiveSceneProxy);
+
+
 	ENGINE_API void BuildTree();
 	ENGINE_API void BuildTreeAsync();
 	ENGINE_API void ApplyBuildTree(FClusterBuilder& Builder, const bool bWasAsyncBuild);
@@ -362,7 +365,7 @@ protected:
 	ENGINE_API void InitializeInstancingRandomSeed();
 
 	/** Removes specified instances */ 
-	ENGINE_API void RemoveInstancesInternal(const int32* InstanceIndices, int32 Num);
+	ENGINE_API void RemoveInstancesInternal(TConstArrayView<int32> InstanceIndices);
 	
 	/** Gets and approximate number of verts for each LOD to generate heuristics **/
 	ENGINE_API int32 GetVertsForLOD(int32 LODIndex);

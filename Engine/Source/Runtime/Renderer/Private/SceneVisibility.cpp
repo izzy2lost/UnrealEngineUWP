@@ -1674,28 +1674,30 @@ void FRelevancePacket::ComputeRelevance(FDynamicPrimitiveIndexList& DynamicPrimi
 			}
 
 			auto* NaniteProxy = static_cast<const Nanite::FSceneProxyBase*>(PrimitiveSceneProxy);
+
+			//
+			if (bSelectedInstancesOnly && !NaniteProxy->IsSelected())
+			{
+				return;
+			}
+
 			const int32 MaxInstances = PrimitiveSceneInfo.GetNumInstanceSceneDataEntries();
 			OutInstanceDraws.Reserve(OutInstanceDraws.Num() + MaxInstances);
-
+			const FInstanceSceneDataBuffers *InstanceSceneDataBuffers = PrimitiveSceneInfo.GetInstanceSceneDataBuffers();
 			for (int32 Idx = 0; Idx < MaxInstances; ++Idx)
 			{
 				if (bSelectedInstancesOnly)
 				{
-					if (!NaniteProxy->IsSelected())
+					if (InstanceSceneDataBuffers && NaniteProxy->HasSelectedInstances())
 					{
-						// Nothing in this proxy is selected
-						continue;
-					}
-					else if (NaniteProxy->HasSelectedInstances() && NaniteProxy->HasPerInstanceEditorData())
-					{
+						FInstanceSceneDataBuffers::FReadView ProxyData = InstanceSceneDataBuffers->GetReadView();
 						// If we have per-instance editor data, exclude instance draws of unselected instances
 						// draws of unselected instances
-						TConstArrayView<uint32> InstanceEditorData = NaniteProxy->GetInstanceEditorData();
-						if (InstanceEditorData.IsValidIndex(Idx))
+						if (ProxyData.InstanceEditorData.IsValidIndex(Idx))
 						{
 							FColor HitProxyColor;
 							bool bSelected;
-							FInstanceUpdateCmdBuffer::UnpackEditorData(InstanceEditorData[Idx], HitProxyColor, bSelected);
+							FInstanceEditorData::Unpack(ProxyData.InstanceEditorData[Idx], HitProxyColor, bSelected);
 							if (!bSelected)
 							{
 								continue;

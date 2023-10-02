@@ -2188,16 +2188,6 @@ void FStaticMeshSceneProxy::GetDistanceFieldAtlasData(const FDistanceFieldVolume
 	SelfShadowBias = DistanceFieldSelfShadowBias;
 }
 
-void FStaticMeshSceneProxy::GetDistanceFieldInstanceData(TArray<FRenderTransform>& InstanceLocalToPrimitiveTransforms) const
-{
-	check(InstanceLocalToPrimitiveTransforms.IsEmpty());
-
-	if (DistanceFieldData)
-	{
-		InstanceLocalToPrimitiveTransforms.Add(FRenderTransform::Identity);
-	}
-}
-
 bool FStaticMeshSceneProxy::HasDistanceFieldRepresentation() const
 {
 	return CastsDynamicShadow() && AffectsDistanceFieldLighting() && DistanceFieldData;

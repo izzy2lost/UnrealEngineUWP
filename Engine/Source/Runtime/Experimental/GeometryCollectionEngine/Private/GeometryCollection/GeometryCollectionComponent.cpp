@@ -1654,7 +1654,7 @@ void UGeometryCollectionComponent::SetRestState(TArray<FTransform>&& InRestTrans
 			ENQUEUE_RENDER_COMMAND(SendRenderDynamicData)(UE::RenderCommandPipe::Scene,
 				[GeometryCollectionSceneProxy, DynamicData]
 				{
-					GeometryCollectionSceneProxy->SetDynamicData_RenderThread(DynamicData);
+					GeometryCollectionSceneProxy->SetDynamicData_RenderThread(DynamicData, GeometryCollectionSceneProxy->GetLocalToWorld());
 				}
 			);
 		}
@@ -4329,7 +4329,7 @@ void UGeometryCollectionComponent::SendRenderDynamicData_Concurrent()
 					{
 						if (DynamicData)
 						{
-							GeometryCollectionSceneProxy->SetDynamicData_RenderThread(DynamicData);
+							GeometryCollectionSceneProxy->SetDynamicData_RenderThread(DynamicData, GeometryCollectionSceneProxy->GetLocalToWorld());
 						}
 						else
 						{

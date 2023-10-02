@@ -1013,13 +1013,12 @@ void FScene::AddGeometryInstanceFromComponent(UInstancedStaticMeshComponent* InC
 		}
 	}
 
-	InComponent->FlushInstanceUpdateCommands(true);
-
 	FInstanceGroupRenderState InstanceRenderState;
 	InstanceRenderState.ComponentUObject = Instance->ComponentUObject;
 	InstanceRenderState.RenderData = Instance->ComponentUObject->GetStaticMesh()->GetRenderData();
 	FInstancedStaticMeshSceneProxyDesc ProxyDesc(Instance->ComponentUObject);
 	InstanceRenderState.InstancedRenderData = MakeUnique<FInstancedStaticMeshRenderData>(&ProxyDesc, FeatureLevel);
+	InstanceRenderState.InstanceDataSceneProxy = ProxyDesc.InstanceDataSceneProxy;
 	InstanceRenderState.LocalToWorld = InComponent->GetRenderMatrix();
 	InstanceRenderState.WorldBounds = InComponent->Bounds;
 	InstanceRenderState.ActorPosition = InComponent->GetActorPositionForRenderer();
@@ -1046,7 +1045,13 @@ void FScene::AddGeometryInstanceFromComponent(UInstancedStaticMeshComponent* InC
 			RelevantRectLightsToAddOnRenderThread
 		](FRHICommandListImmediate& RHICmdList) mutable
 	{
-		InstanceRenderState.InstancedRenderData->BindBuffersToVertexFactories(RHICmdList);
+		InstanceRenderState.InstancedRenderData->BindBuffersToVertexFactories(RHICmdList, nullptr);
+		if (FInstanceDataUpdateTaskInfo *TaskInfo = InstanceRenderState.InstanceDataSceneProxy->GetUpdateTaskInfo())
+		{
+			TaskInfo->WaitForUpdateCompletion();
+		}
+		InstanceRenderState.InstanceSceneDataBuffers = &InstanceRenderState.InstanceDataSceneProxy->GetData();
+		InstanceRenderState.NumInstances = InstanceRenderState.InstanceSceneDataBuffers->GetNumInstances();
 
 		FInstanceGroupRenderStateRef InstanceRenderStateRef = RenderState.InstanceGroupRenderStates.Emplace(MoveTemp(InstanceRenderState));
 
@@ -1114,8 +1119,6 @@ void FScene::RemoveGeometryInstanceFromComponent(UInstancedStaticMeshComponent* 
 	{
 		HISMC->BuildTreeIfOutdated(false, true);
 	}
-
-	InComponent->FlushInstanceUpdateCommands(true);
 
 	ENQUEUE_RENDER_COMMAND(RenderThreadRemove)(
 		[ElementId, &RenderState = RenderState](FRHICommandListImmediate&) mutable

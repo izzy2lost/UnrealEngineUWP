@@ -418,7 +418,7 @@ void FCachedRayTracingSceneData::SetupViewAndSceneUniformBufferFromSceneRenderSt
 		{
 			FInstanceGroupRenderState& InstanceGroup = Scene.InstanceGroupRenderStates.Elements[InstanceGroupIndex];
 
-			int32 NumInstancesThisGroup = (int32)InstanceGroup.InstancedRenderData->PerInstanceRenderData->InstanceBuffer.GetNumInstances();
+			int32 NumInstancesThisGroup = (int32)InstanceGroup.NumInstances;
 
 			FPrimitiveUniformShaderParameters PrimitiveUniformShaderParameters =
 				FPrimitiveUniformShaderParametersBuilder{}
@@ -456,26 +456,21 @@ void FCachedRayTracingSceneData::SetupViewAndSceneUniformBufferFromSceneRenderSt
 				LightmapSceneData[LightmapSceneDataStartOffsets[PrimitiveId] + LODIndex] = FLightmapSceneShaderData(LightmapParams);
 			}
 
+			FInstanceSceneDataBuffers::FReadView InstanceData = InstanceGroup.InstanceSceneDataBuffers->GetReadView();
 			for (int32 InstanceIdx = 0; InstanceIdx < NumInstancesThisGroup; InstanceIdx++)
 			{
-				FInstanceSceneData Instance;
-				InstanceGroup.InstancedRenderData->PerInstanceRenderData->InstanceBuffer.GetInstanceTransform(InstanceIdx, Instance.LocalToPrimitive);
-
 				FInstanceSceneShaderData& SceneData = InstanceSceneData.Emplace_GetRef();
-				SceneData.Build
-				(
+				SceneData.BuildInternal(
 					PrimitiveId,
 					InstanceIdx, /* Relative Instance Id */
 					INSTANCE_SCENE_DATA_FLAG_HAS_LIGHTSHADOW_UV_BIAS, /* Payload Data Flags */
 					INVALID_LAST_UPDATE_FRAME,
 					0, /* Custom Data Count */
 					0.0f, /* Random ID */
-					Instance.LocalToPrimitive,
-					InstanceGroup.LocalToWorld
+					InstanceGroup.InstanceSceneDataBuffers->GetInstanceToPrimitiveRelative(InstanceIdx)
 				);
 
-				FVector4f& InstanceLightShadowUVBias = InstancePayloadData.Emplace_GetRef();
-				InstanceGroup.InstancedRenderData->PerInstanceRenderData->InstanceBuffer.GetInstanceLightMapData(InstanceIdx, InstanceLightShadowUVBias);
+				InstancePayloadData.Emplace(InstanceData.InstanceLightShadowUVBias[InstanceIdx]);
 			}
 
 			PrimitiveSceneData.Add(FPrimitiveSceneShaderData(PrimitiveUniformShaderParameters));
@@ -739,18 +734,14 @@ void FCachedRayTracingSceneData::SetupFromSceneRenderState(FSceneRenderState& Sc
 				FRayTracingGeometryInstance& RayTracingInstance = RayTracingGeometryInstancesPerLOD[LODIndex][InstanceIndex];
 				RayTracingInstance.GeometryRHI = InstanceGroup.ComponentUObject->GetStaticMesh()->GetRenderData()->LODResources[LODIndexToUse].RayTracingGeometry.RayTracingGeometryRHI;
 
-				const int32 NumInstances = (int32)InstanceGroup.InstancedRenderData->PerInstanceRenderData->InstanceBuffer.GetNumInstances();
+				const int32 NumInstances = (int32)InstanceGroup.NumInstances;
 				TArrayView<FMatrix> NewTransforms = MakeArrayView(
 					OwnedRayTracingInstanceTransforms.Add_GetRef(TUniquePtr<FMatrix>(new FMatrix[NumInstances])).Get(),
 					NumInstances);
 
 				for (int32 InstanceIdx = 0; InstanceIdx < NumInstances; InstanceIdx++)
 				{
-					FRenderTransform Transform;
-					InstanceGroup.InstancedRenderData->PerInstanceRenderData->InstanceBuffer.GetInstanceTransform(InstanceIdx, Transform);
-
-					FMatrix InstanceTransform = Transform.ToMatrix() * InstanceGroup.LocalToWorld;
-					NewTransforms[InstanceIdx] = InstanceTransform;
+					NewTransforms[InstanceIdx] = InstanceGroup.InstanceSceneDataBuffers->GetInstanceToWorld(InstanceIdx);
 				}
 
 				RayTracingInstance.Transforms = NewTransforms;

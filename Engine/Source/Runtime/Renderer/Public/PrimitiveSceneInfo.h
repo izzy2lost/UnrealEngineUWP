@@ -40,6 +40,10 @@ class IPrimitiveComponent;
 struct FPrimitiveSceneInfoAdapter;
 struct FPrimitiveSceneDesc;
 struct FPrimitiveSceneInfoData;
+struct FInstanceDataBufferHeader;
+class FInstanceSceneDataBuffers;
+class FInstanceDataUpdateTaskInfo;
+
 struct FNaniteMaterialSlot;
 struct FNaniteRasterBin;
 struct FNaniteShadingBin;
@@ -601,6 +605,19 @@ public:
 	UE_DEPRECATED(5.3, "SetNeedsUniformBufferUpdate is deprecated. Use RequestUniformBufferUpdate instead.")
 	void SetNeedsUniformBufferUpdate(bool bInNeedsUniformBufferUpdate) { RequestUniformBufferUpdate(); }
 
+	bool HasInstanceDataBuffers() const { return InstanceSceneDataBuffersInternal != nullptr; }
+	
+	/**
+	 * Waits for (potential) instance update to produce the data, to avoid a sync, use GetInstanceDataHeader().
+	 */
+	const FInstanceSceneDataBuffers *GetInstanceSceneDataBuffers() const;
+
+	/**
+	 * Returns the updated header data in the InstanceDataUpdateTaskInfo without blocking. 
+	 * For a primitive without instances, it returns a header with an instance count of one.
+	 */
+	FInstanceDataBufferHeader GetInstanceDataHeader() const;
+
 private:
 	
 	FPrimitiveSceneInfo(const FPrimitiveSceneInfoAdapter& InAdapter, FScene* InScene);
@@ -695,6 +712,10 @@ public:
 #endif
 
 private:
+	// Don't access this directly, even internally unless you are sure what you're up to. Use GetInstanceSceneDataBuffers() which handles thread safety.
+	const FInstanceSceneDataBuffers *InstanceSceneDataBuffersInternal = nullptr;
+	FInstanceDataUpdateTaskInfo *InstanceDataUpdateTaskInfo = nullptr;
+
 	/** Index into the scene's PrimitivesNeedingLevelUpdateNotification array for this primitive scene info level. */
 	int32 LevelUpdateNotificationIndex;
 

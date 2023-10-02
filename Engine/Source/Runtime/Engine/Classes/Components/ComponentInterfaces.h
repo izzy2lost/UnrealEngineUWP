@@ -11,7 +11,6 @@ class UStaticMesh;
 class FPrimitiveSceneProxy;
 class UMaterialInterface;
 class HHitProxy;
-struct FInstanceUpdateCmdBuffer;
 
 /** 
 * Structure used to report some primitive stats in debugging tools

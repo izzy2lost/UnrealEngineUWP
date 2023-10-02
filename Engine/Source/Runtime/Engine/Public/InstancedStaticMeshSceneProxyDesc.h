@@ -10,18 +10,17 @@ class UInstancedStaticMeshComponent;
 struct FInstancedStaticMeshSceneProxyDesc : public FStaticMeshSceneProxyDesc
 {		
 	FInstancedStaticMeshSceneProxyDesc() = default;
-	ENGINE_API FInstancedStaticMeshSceneProxyDesc(const UInstancedStaticMeshComponent*);
-	void InitializeFrom(const UInstancedStaticMeshComponent*);
+	ENGINE_API FInstancedStaticMeshSceneProxyDesc(UInstancedStaticMeshComponent*);
+	void InitializeFrom(UInstancedStaticMeshComponent*);
 
 	TArrayView<const FInstancedStaticMeshInstanceData> PerInstanceSMData;	
-	TSharedPtr<FPerInstanceRenderData, ESPMode::ThreadSafe> PerInstanceRenderData;
+	TSharedPtr<FISMCInstanceDataSceneProxy, ESPMode::ThreadSafe> InstanceDataSceneProxy;
 	TArrayView<const float> PerInstanceSMCustomData;
 #if WITH_EDITOR
 	TBitArray<>	SelectedInstances;
 #endif
 	TArrayView<const int32> InstanceReorderTable; 
 	TArrayView<const FMatrix> PerInstancePrevTransform;
-	FInstanceUpdateCmdBuffer const* InstanceUpdateCmdBuffer;
 
 	int32 InstanceStartCullDistance = 0;
 	int32 InstanceEndCullDistance = 0;
@@ -33,8 +32,6 @@ struct FInstancedStaticMeshSceneProxyDesc : public FStaticMeshSceneProxyDesc
 
 	bool bUseGpuLodSelection = false;
 
-	const FInstanceUpdateCmdBuffer& GetInstanceUpdateCmdBuffer() const { check(InstanceUpdateCmdBuffer); return *InstanceUpdateCmdBuffer; } 
-	
 	void GetInstancesMinMaxScale(FVector& InMinScale, FVector& InMaxScale) const
 	{
 		InMinScale = MinScale;

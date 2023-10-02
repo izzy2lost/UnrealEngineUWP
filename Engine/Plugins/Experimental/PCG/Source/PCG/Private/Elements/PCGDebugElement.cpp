@@ -207,17 +207,12 @@ namespace PCGDebugElement
 					InstanceCustomData.Add(Point.Color[2]);
 					InstanceCustomData.Add(Point.Color[3]);
 
-					// Doing the same thing than in PCGStaticMeshSpawnerElement
-					FMemory::Memcpy(&ISMC->PerInstanceSMCustomData[(PreExistingInstanceCount + PointCounter) * NumCustomData], InstanceCustomData.GetData(), NumCustomData * sizeof(float));
+					ISMC->SetCustomData(PreExistingInstanceCount + PointCounter, InstanceCustomData);
 
 					InstanceCustomData.Reset();
 
 					++PointCounter;
 				}
-
-				// Force recreation of the render data when proxy is created. In PCGStaticMeshSpawnerElement, this is incremented only once,
-				// because it copies the custom data in one go. Here we also increment this value only once, when the whole copy is done.
-				ISMC->InstanceUpdateCmdBuffer.NumEdits++;
 
 				ISMC->UpdateBounds();
 			}
