@@ -5,12 +5,12 @@ using System.Diagnostics.CodeAnalysis;
 using System.Text;
 using System.Text.Json;
 
-namespace Horde.Server.Utilities
+namespace EpicGames.Core
 {
 	/// <summary>
 	/// Extensions for parsing values out of generic dictionary objects
 	/// </summary>
-	static class JsonElementExtensions
+	public static class JsonElementExtensions
 	{
 		/// <summary>
 		/// Checks if the element has a property with the given value

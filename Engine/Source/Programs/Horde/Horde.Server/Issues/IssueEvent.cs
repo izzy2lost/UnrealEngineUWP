@@ -47,7 +47,7 @@ namespace Horde.Server.Issues
 		/// <summary>
 		/// Gets this event data as a BSON document
 		/// </summary>
-		public IReadOnlyList<ILogEventLine> Lines => EventData.Lines;
+		public IReadOnlyList<JsonLogEvent> Lines => EventData.Lines;
 
 		/// <summary>
 		/// Constructor

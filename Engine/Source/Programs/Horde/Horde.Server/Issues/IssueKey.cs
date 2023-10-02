@@ -5,9 +5,7 @@ using System.Collections.Generic;
 using System.Linq;
 using System.Text.Json;
 using EpicGames.Core;
-using Horde.Server.Logs;
 using Horde.Server.Streams;
-using Horde.Server.Utilities;
 
 namespace Horde.Server.Issues
 {
@@ -135,10 +133,12 @@ namespace Horde.Server.Issues
 		/// <param name="issueEvent">The log event to parse</param>
 		public static void AddAssets(this HashSet<IssueKey> keys, IssueEvent issueEvent)
 		{
-			foreach (ILogEventLine line in issueEvent.Lines)
+			foreach (JsonLogEvent line in issueEvent.Lines)
 			{
+				JsonDocument document = JsonDocument.Parse(line.Data);
+
 				string? relativePath;
-				if (line.Data.TryGetNestedProperty("properties.asset.relativePath", out relativePath) || line.Data.TryGetNestedProperty("properties.asset.$text", out relativePath))
+				if (document.RootElement.TryGetNestedProperty("properties.asset.relativePath", out relativePath) || document.RootElement.TryGetNestedProperty("properties.asset.$text", out relativePath))
 				{
 					int endIdx = relativePath.LastIndexOfAny(new char[] { '/', '\\' }) + 1;
 					string fileName = relativePath.Substring(endIdx);
@@ -185,10 +185,12 @@ namespace Horde.Server.Issues
 		/// <param name="issueEvent">The event data</param>
 		public static void AddSourceFiles(this HashSet<IssueKey> keys, IssueEvent issueEvent)
 		{
-			foreach (ILogEventLine line in issueEvent.Lines)
+			foreach (JsonLogEvent line in issueEvent.Lines)
 			{
+				JsonDocument document = JsonDocument.Parse(line.Data);
+
 				JsonElement properties;
-				if (line.Data.TryGetProperty("properties", out properties) && properties.ValueKind == JsonValueKind.Object)
+				if (document.RootElement.TryGetProperty("properties", out properties) && properties.ValueKind == JsonValueKind.Object)
 				{
 					IssueKeyType type = IssueKeyType.File;
 					if (properties.TryGetProperty("note", out JsonElement noteElement) && noteElement.GetBoolean())
@@ -234,10 +236,12 @@ namespace Horde.Server.Issues
 		/// <param name="eventData">The log event data</param>
 		public static void AddSymbols(this HashSet<IssueKey> keys, IssueEvent eventData)
 		{
-			foreach (ILogEventLine line in eventData.Lines)
+			foreach (JsonLogEvent line in eventData.Lines)
 			{
+				JsonDocument document = JsonDocument.Parse(line.Data);
+
 				string? identifier;
-				if (line.Data.TryGetNestedProperty("properties.symbol.identifier", out identifier))
+				if (document.RootElement.TryGetNestedProperty("properties.symbol.identifier", out identifier))
 				{
 					IssueKey key = new IssueKey(identifier, IssueKeyType.Symbol);
 					keys.Add(key);

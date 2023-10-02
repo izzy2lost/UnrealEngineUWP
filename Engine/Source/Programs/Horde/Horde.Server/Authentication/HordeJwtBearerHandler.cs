@@ -10,6 +10,7 @@ using System.Security.Claims;
 using System.Text.Json;
 using System.Threading;
 using System.Threading.Tasks;
+using EpicGames.Core;
 using Horde.Server.Users;
 using Horde.Server.Utilities;
 using Microsoft.AspNetCore.Authentication;

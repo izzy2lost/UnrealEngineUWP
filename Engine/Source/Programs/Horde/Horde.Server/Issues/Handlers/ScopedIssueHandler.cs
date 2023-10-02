@@ -3,10 +3,9 @@
 using System;
 using System.Collections.Generic;
 using System.Text;
+using System.Text.Json;
 using System.Text.RegularExpressions;
 using EpicGames.Core;
-using Horde.Server.Logs;
-using Horde.Server.Utilities;
 
 namespace Horde.Server.Issues.Handlers
 {
@@ -29,11 +28,13 @@ namespace Horde.Server.Issues.Handlers
 		{
 			string? scope = null;
 
-			foreach (ILogEventLine line in logEvent.Lines)
+			foreach (JsonLogEvent line in logEvent.Lines)
 			{
+				JsonDocument document = JsonDocument.Parse(line.Data);
+
 				string? channelType;
 				string? channelText;
-				if (line.Data.TryGetNestedProperty("properties.channel.$type", out channelType) && line.Data.TryGetNestedProperty("properties.channel.$text", out channelText))
+				if (document.RootElement.TryGetNestedProperty("properties.channel.$type", out channelType) && document.RootElement.TryGetNestedProperty("properties.channel.$text", out channelText))
 				{
 					if (channelType != "Channel" || !channelText.StartsWith("Log", StringComparison.Ordinal))
 					{

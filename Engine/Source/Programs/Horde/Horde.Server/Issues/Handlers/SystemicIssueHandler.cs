@@ -2,7 +2,6 @@
 
 using System.Collections.Generic;
 using EpicGames.Core;
-using Horde.Server.Logs;
 using HordeCommon;
 using Microsoft.Extensions.Logging;
 
@@ -40,7 +39,7 @@ namespace Horde.Server.Issues.Handlers
 		{
 			if (logEvent.EventId != null)
 			{
-				if (logEvent.EventId != null && IsMatchingEventId(logEvent.EventId.Value))
+				if (IsMatchingEventId(logEvent.EventId.Value))
 				{
 					if (_nonSystemicError)
 					{

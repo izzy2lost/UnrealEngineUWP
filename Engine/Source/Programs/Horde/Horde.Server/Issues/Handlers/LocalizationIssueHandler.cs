@@ -2,9 +2,8 @@
 
 using System;
 using System.Collections.Generic;
+using System.Text.Json;
 using EpicGames.Core;
-using Horde.Server.Logs;
-using Horde.Server.Utilities;
 using Microsoft.Extensions.Logging;
 
 namespace Horde.Server.Issues.Handlers
@@ -44,10 +43,12 @@ namespace Horde.Server.Issues.Handlers
 		/// <param name="sourceFiles">List of source files</param>
 		public static void GetSourceFiles(IssueEvent issueEvent, HashSet<IssueKey> sourceFiles)
 		{
-			foreach (ILogEventLine line in issueEvent.Lines)
+			foreach (JsonLogEvent line in issueEvent.Lines)
 			{
+				JsonDocument document = JsonDocument.Parse(line.Data);
+
 				string? relativePath;
-				if (line.Data.TryGetNestedProperty("properties.file.relativePath", out relativePath) || line.Data.TryGetNestedProperty("properties.file", out relativePath))
+				if (document.RootElement.TryGetNestedProperty("properties.file.relativePath", out relativePath) || document.RootElement.TryGetNestedProperty("properties.file", out relativePath))
 				{
 					if (!relativePath.EndsWith(".manifest", StringComparison.OrdinalIgnoreCase))
 					{

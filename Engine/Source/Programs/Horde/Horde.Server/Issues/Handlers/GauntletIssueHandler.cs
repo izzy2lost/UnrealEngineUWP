@@ -2,10 +2,9 @@
 
 using System.Collections.Generic;
 using System.Text;
+using System.Text.Json;
 using System.Text.RegularExpressions;
 using EpicGames.Core;
-using Horde.Server.Logs;
-using Horde.Server.Utilities;
 using Microsoft.Extensions.Logging;
 
 namespace Horde.Server.Issues.Handlers
@@ -95,12 +94,14 @@ namespace Horde.Server.Issues.Handlers
 		/// <param name="metadata"></param>
 		private static void GetNames(IssueEvent issueEvent, HashSet<IssueKey> testNames, HashSet<IssueMetadata> metadata)
 		{
-			foreach (ILogEventLine line in issueEvent.Lines)
+			foreach (JsonLogEvent line in issueEvent.Lines)
 			{
+				JsonDocument document = JsonDocument.Parse(line.Data);
+
 				string? name = null;
 
 				string? value;
-				if (line.Data.TryGetNestedProperty("properties.Name", out value))
+				if (document.RootElement.TryGetNestedProperty("properties.Name", out value))
 				{
 					name = value;
 				}
@@ -124,16 +125,18 @@ namespace Horde.Server.Issues.Handlers
 		{
 			if(issueEvent.EventId == KnownLogEvents.Gauntlet_BuildDropEvent)
 			{
-				foreach (ILogEventLine line in issueEvent.Lines)
+				foreach (JsonLogEvent line in issueEvent.Lines)
 				{
+					JsonDocument document = JsonDocument.Parse(line.Data);
+
 					string? path = null;
 
 					string? value;
-					if (line.Data.TryGetNestedProperty("properties.File", out value))
+					if (document.RootElement.TryGetNestedProperty("properties.File", out value))
 					{
 						path = value;
 					}
-					else if (line.Data.TryGetNestedProperty("properties.Directory", out value))
+					else if (document.RootElement.TryGetNestedProperty("properties.Directory", out value))
 					{
 						path = value;
 					}

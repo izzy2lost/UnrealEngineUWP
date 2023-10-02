@@ -12,7 +12,6 @@ using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
 using Polly;
 using Polly.Extensions.Http;
-using Horde.Server.Utilities;
 using Microsoft.Extensions.Hosting;
 using HordeCommon;
 using System.Threading;
@@ -20,6 +19,7 @@ using System.Linq;
 using Horde.Server.Streams;
 using Horde.Server.Users;
 using Horde.Server.Server;
+using EpicGames.Core;
 
 namespace Horde.Server.Issues.External
 {

@@ -969,63 +969,26 @@ namespace Horde.Server.Logs
 			return _logEvents.FindAsync(logFile.Id, spanId, index, count);
 		}
 
-		class LogEventLine : ILogEventLine
-		{
-			readonly LogLevel _level;
-			public EventId? EventId { get; }
-			public string Message { get; }
-			public JsonElement Data { get; }
-
-			LogLevel ILogEventLine.Level => _level;
-
-			public LogEventLine(ReadOnlySpan<byte> data)
-				: this(JsonSerializer.Deserialize<JsonElement>(data))
-			{
-			}
-
-			public LogEventLine(JsonElement data)
-			{
-				Data = data;
-
-				JsonElement levelElement;
-				if (!data.TryGetProperty("level", out levelElement) || !Enum.TryParse(levelElement.GetString(), out _level))
-				{
-					_level = LogLevel.Information;
-				}
-
-				JsonElement idElement;
-				if (data.TryGetProperty("id", out idElement))
-				{
-					int idValue;
-					if (idElement.TryGetInt32(out idValue))
-					{
-						EventId = idValue;
-					}
-				}
-
-				JsonElement messageElement;
-				if (data.TryGetProperty("renderedMessage", out messageElement) || data.TryGetProperty("message", out messageElement))
-				{
-					Message = messageElement.GetString() ?? "(Invalid)";
-				}
-				else
-				{
-					Message = "(Missing message or renderedMessage field)";
-				}
-			}
-		}
-
 		class LogEventData : ILogEventData
 		{
-			public IReadOnlyList<ILogEventLine> Lines { get; }
+			public string? _message;
+			public IReadOnlyList<JsonLogEvent> Lines { get; }
 
 			EventId? ILogEventData.EventId => (Lines.Count > 0) ? Lines[0].EventId : null;
 			EventSeverity ILogEventData.Severity => (Lines.Count == 0) ? EventSeverity.Information : (Lines[0].Level == LogLevel.Warning) ? EventSeverity.Warning : EventSeverity.Error;
-			string ILogEventData.Message => String.Join("\n", Lines.Select(x => x.Message));
 
-			public LogEventData(IReadOnlyList<ILogEventLine> lines)
+			public LogEventData(IReadOnlyList<JsonLogEvent> lines)
 			{
 				Lines = lines;
+			}
+
+			string ILogEventData.Message
+			{
+				get
+				{
+					_message ??= String.Join("\n", Lines.Select(x => x.GetRenderedMessage().ToString()));
+					return _message;
+				}
 			}
 		}
 
@@ -1050,13 +1013,13 @@ namespace Horde.Server.Logs
 			span.SetAttribute("lineCount", lineCount);
 
 			List<Utf8String> lines = await ReadLinesAsync(logFile, lineIndex, lineCount, cancellationToken);
-			List<LogEventLine> eventLines = new List<LogEventLine>(lines.Count);
+			List<JsonLogEvent> jsonLines = new List<JsonLogEvent>(lines.Count);
 
 			foreach (Utf8String line in lines)
 			{
 				try
 				{
-					eventLines.Add(new LogEventLine(line.Span));
+					jsonLines.Add(JsonLogEvent.Parse(line.Memory));
 				}
 				catch (JsonException ex)
 				{
@@ -1064,7 +1027,7 @@ namespace Horde.Server.Logs
 				}
 			}
 
-			return new LogEventData(eventLines);
+			return new LogEventData(jsonLines);
 		}
 
 		/// <inheritdoc/>

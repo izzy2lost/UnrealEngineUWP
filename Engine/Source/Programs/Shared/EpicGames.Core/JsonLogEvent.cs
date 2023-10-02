@@ -187,6 +187,30 @@ namespace EpicGames.Core
 		static readonly Utf8String s_newlineEscaped = "\\n";
 
 		/// <summary>
+		/// Gets the rendered message from the event data
+		/// </summary>
+		public Utf8String GetRenderedMessage()
+		{
+			Utf8JsonReader reader = new Utf8JsonReader(Data.Span);
+			if (reader.Read() && reader.TokenType == JsonTokenType.StartObject)
+			{
+				while (reader.Read() && reader.TokenType == JsonTokenType.PropertyName)
+				{
+					ReadOnlySpan<byte> propertyName = reader.ValueSpan;
+					if (!reader.Read())
+					{
+						break;
+					}
+					else if (propertyName.SequenceEqual(LogEventPropertyName.Message) && reader.TokenType == JsonTokenType.String)
+					{
+						return new Utf8String(reader.GetUtf8String().ToArray());
+					}
+				}
+			}
+			return Utf8String.Empty;
+		}
+
+		/// <summary>
 		/// Count the number of lines in the message field of a log event
 		/// </summary>
 		/// <returns>Number of lines in the message</returns>
@@ -246,6 +270,51 @@ namespace EpicGames.Core
 		{
 			_ = ex;
 			return LogEvent.Read(state.Data.Span).ToString();
+		}
+
+		/// <summary>
+		/// Find all properties of the given type in a particular log line
+		/// </summary>
+		/// <param name="type">Type of property to return</param>
+		/// <returns></returns>
+		public IEnumerable<JsonProperty> FindPropertiesOfType(Utf8String type)
+		{
+			JsonDocument document = JsonDocument.Parse(Data);
+			return FindPropertiesOfType(document.RootElement, type);
+		}
+
+		/// <summary>
+		/// Find all properties of the given type in a particular log line
+		/// </summary>
+		/// <param name="line">Line data</param>
+		/// <param name="type">Type of property to return</param>
+		/// <returns></returns>
+		public static IEnumerable<JsonProperty> FindPropertiesOfType(JsonElement line, Utf8String type)
+		{
+			JsonElement properties;
+			if (line.TryGetProperty("properties", out properties) && properties.ValueKind == JsonValueKind.Object)
+			{
+				foreach (JsonProperty property in properties.EnumerateObject())
+				{
+					if (property.Value.ValueKind == JsonValueKind.Object)
+					{
+						foreach (JsonProperty subProperty in property.Value.EnumerateObject())
+						{
+							if (subProperty.NameEquals(LogEventPropertyName.Type.Span))
+							{
+								if (subProperty.Value.ValueKind == JsonValueKind.String && subProperty.Value.ValueEquals(type.Span))
+								{
+									yield return property;
+								}
+								else
+								{
+									break;
+								}
+							}
+						}
+					}
+				}
+			}
 		}
 
 		/// <inheritdoc/>
