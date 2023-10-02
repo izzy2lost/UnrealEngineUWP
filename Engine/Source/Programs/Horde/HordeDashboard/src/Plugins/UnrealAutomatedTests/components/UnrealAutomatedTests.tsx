@@ -1,17 +1,15 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 
 import { Checkbox, Icon, Image, Spinner, SpinnerSize, Stack, Text } from '@fluentui/react';
-import { getTheme, mergeStyles, mergeStyleSets } from '@fluentui/react/lib/Styling';
-import React, { useState, useEffect, useRef } from 'react';
+import { getTheme, mergeStyleSets, mergeStyles } from '@fluentui/react/lib/Styling';
+import React, { useEffect, useRef, useState } from 'react';
 import { useNavigate } from 'react-router';
 import { Link } from 'react-router-dom';
-import backend from '../../../backend';
 import dashboard from "../../../backend/Dashboard";
 import { projectStore } from "../../../backend/ProjectStore";
-import { ArtifactData } from '../../../backend/Api';
+import { TestDataWrapper } from '../../../backend/TestDataHandler';
 import { msecToElapsed } from '../../../base/utilities/timeUtils';
 import { testDataHandler } from '../../../components/TestReportView';
-import { TestDataWrapper } from '../../../backend/TestDataHandler';
 import { hordeClasses } from '../../../styles/Styles';
 import { EventType, Metadata, TestDetails, TestEntry, TestEntryArtifact, TestPassSummary, TestResult, TestState, TestStateHistoryItem } from '../models/UnrealAutomatedTests';
 
@@ -181,7 +179,7 @@ const copyToClipboard = (value: string | undefined) => {
 const missingImage = "/images/missing-image.png";
 const MissingImageLabel = (): JSX.Element => { return <span style={{ fontWeight: 'bold' }}> [missing image]</span> }
 type ImageLinks = { approved?: string, unapproved?: string, difference?: string }
-const buildImageLink = (artifact?: ArtifactData) => artifact !== undefined ? `${backend.serverUrl}/api/v1/artifacts/${artifact.id}/download?Code=${artifact.code}` : undefined;
+
 
 const EntryPane: React.FC<{ entry: TestEntry, testArtifacts: TestEntryArtifact[] }> = (props) => {
    const { entry, testArtifacts } = props;
@@ -201,15 +199,12 @@ const EntryPane: React.FC<{ entry: TestEntry, testArtifacts: TestEntryArtifact[]
       if (artifact !== undefined) {
          const findLinks = async () => {
             const imageLinks: ImageLinks = {};
-            // Approved
-            let foundJobArtifact = await testDataHandler.cursor?.findArtifactData(artifact.Files.Approved);
-            imageLinks.approved = buildImageLink(foundJobArtifact);
-            // Unapproved
-            foundJobArtifact = await testDataHandler.cursor?.findArtifactData(artifact.Files.Unapproved);
-            imageLinks.unapproved = buildImageLink(foundJobArtifact);
+            // Approved            
+            imageLinks.approved = await testDataHandler.cursor?.getArtifactImageLink(artifact.Files.Approved);
+            // Unapproved            
+            imageLinks.unapproved = await testDataHandler.cursor?.getArtifactImageLink(artifact.Files.Unapproved);
             // Difference
-            foundJobArtifact = await testDataHandler.cursor?.findArtifactData(artifact.Files.Difference);
-            imageLinks.difference = buildImageLink(foundJobArtifact);
+            imageLinks.difference = await testDataHandler.cursor?.getArtifactImageLink(artifact.Files.Difference);            
 
             setImageLinks(imageLinks);
          }
@@ -326,19 +321,11 @@ const TestResultPane: React.FC<{ test: TestResult, selected: boolean }> = (props
       if (loading) {
          return;
       }
-      const testArtifact: ArtifactData | undefined = await testDataHandler.cursor?.findArtifactData(test.ArtifactName);
-      if (!testArtifact) {
-         console.error("Could not find Job Artifacts Data with name '" + test.ArtifactName + "'!");
-         return;
-      }
-
-      backend.getArtifactDataById(testArtifact.id).then(
-         (value) => { setTestDetails(value as TestDetails) }
-      ).catch(
-         (reason) => { console.error(reason) }
-      ).finally(
-         () => { setLoading(false) }
-      );
+      testDataHandler.cursor?.findArtifactData(test.ArtifactName).then((value) => {
+         setTestDetails(value as TestDetails);
+      }).catch((reason) => {
+         console.error(reason);
+      }).finally(() => { setLoading(false) });
 
       setLoading(true);
    }

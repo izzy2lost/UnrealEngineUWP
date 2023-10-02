@@ -174,21 +174,29 @@ const LogItem: React.FC<{line: string, level: string}> = (props) => {
 
 const LogLink: React.FC<{to: string}> = (props) => {
     const { to } = props;
-    const [link, setLink] = useState<string | undefined>(undefined)
+    //const [link, setLink] = useState<string | undefined>(undefined)
 
+   // this view is deprecated and these links were nonfunctional in tests I checked,  would also need to be updated to artifacts v2
+   /*
     useEffect(() => {
-        const getLink = async () => {
+       const getLink = async () => {
+          
+           
             const artifact = await testDataHandler.cursor?.findArtifactData(to);
             if (artifact !== undefined) {
                 return `${backend.serverUrl}/api/v1/artifacts/${artifact.id}/download?Code=${artifact.code}`
             }
+           
             return undefined;
         }
         getLink().then((item) => setLink(item));
     });
+    */
+
+   // <a href={link}>{to}</a>
 
     return (
-        <Stack disableShrink={true} styles={{ root: { paddingLeft: 8 } }}><Text className={styles.itemHover}><a href={link}>{to}</a></Text></Stack>
+       <Stack disableShrink={true} styles={{ root: { paddingLeft: 8 } }}><Text className={styles.itemHover}>{to}</Text></Stack>
     );
 }
 

@@ -592,6 +592,22 @@ export class Backend {
         });
     }
 
+    getArtifactV2(artifactId: string, path: string):Promise<object> {
+        const url = `/api/v2/artifacts/${artifactId}/file?path=${encodeURIComponent(path)}`;
+        return new Promise<object>((resolve, reject) => {
+            this.backend.get(url).then((value) => {
+                resolve(value.data as object);
+            }).catch(reason => {
+                resolve([]);
+                if (reason !== "Not Found") {
+                    console.error(reason);
+                }
+            });
+        });
+        
+    }
+
+
     downloadArtifactV2(artifactId: string, path: string) {
         const url = `/api/v2/artifacts/${artifactId}/file?path=${encodeURIComponent(path)}`;
         window.location.assign(url);

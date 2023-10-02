@@ -1,22 +1,19 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 
-import { Checkbox, ActionButton, DefaultButton, Dropdown, IDropdownOption, IContextualMenuProps, ITextFieldProps, TextField, Image, Spinner, ProgressIndicator, SpinnerSize, Stack, Text, HoverCard, HoverCardType, IPlainCardProps, Modal, IconButton, Pivot, PivotItem, DirectionalHint } from '@fluentui/react';
+import { ActionButton, Checkbox, DefaultButton, DirectionalHint, Dropdown, HoverCard, HoverCardType, IContextualMenuProps, IDropdownOption, IPlainCardProps, ITextFieldProps, IconButton, Image, Modal, Pivot, PivotItem, ProgressIndicator, Spinner, SpinnerSize, Stack, Text, TextField } from '@fluentui/react';
 import { FontIcon } from '@fluentui/react/lib/Icon';
-import { getTheme, mergeStyles, mergeStyleSets } from '@fluentui/react/lib/Styling';
-import React, { useState, useEffect, useRef, useMemo, useReducer } from 'react';
-import { useNavigate, useParams, generatePath } from 'react-router';
+import { getTheme, mergeStyleSets, mergeStyles } from '@fluentui/react/lib/Styling';
+import React, { useEffect, useMemo, useReducer, useRef, useState } from 'react';
+import { generatePath, useNavigate, useParams } from 'react-router';
 import { Link } from 'react-router-dom';
-import backend from '../../../backend';
 import dashboard, { StatusColor } from "../../../backend/Dashboard";
-import { modeColors } from '../../../styles/Styles';
-import { ArtifactData } from '../../../backend/Api';
 import { msecToElapsed } from '../../../base/utilities/timeUtils';
-import { testDataHandler, getStreamData, getProjectName } from '../../../components/TestReportView';
-import { hordeClasses } from '../../../styles/Styles';
-import { EventType, ArtifactType, TestSessionWrapper, Metadata, MetaWrapper, SectionCollection, TestEvent, TestResult, TestDevice, TestState, TestStats, TestCase, Section, FilterType, SectionFilter, MetadataFilter, MetaFilterTools, TestSessionCollection, Loader } from '../models/AutomatedTestSession';
-import { TopNav } from '../../../components/TopNav';
-import { Breadcrumbs, BreadcrumbItem } from '../../../components/Breadcrumbs'
+import { BreadcrumbItem, Breadcrumbs } from '../../../components/Breadcrumbs';
 import { useQuery } from '../../../components/JobDetailCommon';
+import { getProjectName, getStreamData, testDataHandler } from '../../../components/TestReportView';
+import { TopNav } from '../../../components/TopNav';
+import { hordeClasses, modeColors } from '../../../styles/Styles';
+import { ArtifactType, EventType, FilterType, Loader, MetaFilterTools, MetaWrapper, Metadata, MetadataFilter, Section, SectionCollection, SectionFilter, TestCase, TestDevice, TestEvent, TestResult, TestSessionCollection, TestSessionWrapper, TestState, TestStats } from '../models/AutomatedTestSession';
 
 const theme = getTheme();
 const colors = dashboard.getStatusColors();
@@ -245,7 +242,6 @@ const missingImage = "/images/missing-image.png";
 const MissingImageLabel = (): JSX.Element => { return <span style={{ fontWeight: 'bold' }}> [missing image]</span> }
 type imageData = { link?: string, ref?: string }
 type ImageLinks = { [key: string]: imageData; }
-const buildImageLink = (artifact?: ArtifactData) => artifact ? `${backend.serverUrl}/api/v1/artifacts/${artifact.id}/download?Code=${artifact.code}` : undefined;
 
 const Stats = (stats: TestStats): JSX.Element => {
    return (
@@ -763,6 +759,7 @@ const EventPane: React.FC<{ entry: TestEvent, test: TestResult }> = (props) => {
    const [imageInfo, setImageInfo] = useState<ImageLinks>({});
    const need_image_comparison = entry.Artifacts && entry.Artifacts.length > 0 && entry.Tag === ArtifactType.ImageCompare;
    const need_image_comparisonRef = useRef(need_image_comparison);
+   
 
    useEffect(() => {
       const cancel = { current: false };
@@ -770,9 +767,10 @@ const EventPane: React.FC<{ entry: TestEvent, test: TestResult }> = (props) => {
          const findLinks = async () => {
             const imageInfo: ImageLinks = {};
             for (const key in entry.Artifacts) {
+            
                const item = entry.Artifacts[key];
-               const foundJobArtifact = await test.Session.Testdata?.findArtifactData(item.ReferencePath);
-               imageInfo[item.Tag] = { link: buildImageLink(foundJobArtifact), ref: item.ReferencePath };
+               const url = await test.Session.Testdata?.getArtifactImageLink(item.ReferencePath);               
+               imageInfo[item.Tag] = { link: url, ref: item.ReferencePath };
             }
             !cancel.current && setImageInfo(imageInfo);
          }
