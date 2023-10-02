@@ -420,6 +420,9 @@ bool UMovieScene::ReplacePossessable( const FGuid& OldGuid, const FMovieScenePos
 			*OldPossessable = InNewPosessable;
 		}
 
+		// Replace directly changes the guid, so force a sort here
+		Possessables.Sort();
+
 		ReplaceBinding( OldGuid, InNewPosessable.GetGuid(), InNewPosessable.GetName() );
 		bAnythingReplaced = true;
 	}
@@ -1515,6 +1518,9 @@ void UMovieScene::ReplaceBinding(const FGuid& OldGuid, const FGuid& NewGuid, con
 	{
 		Binding->SetObjectGuid(NewGuid);
 		Binding->SetName(Name);
+
+		// Replace directly changes the guid, so force a sort here
+		ObjectBindings.Sort();
 
 		// Changing a binding guid invalidates any tracks contained within the binding
 		// Make sure they are written into the transaction buffer by calling modify

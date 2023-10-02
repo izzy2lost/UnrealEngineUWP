@@ -166,7 +166,7 @@ public:
 	/* For sorts so we can search quickly by Guid */
 	FORCEINLINE bool operator<(const FMovieScenePossessable& RHS) const { return Guid < RHS.Guid; }
 	FORCEINLINE friend bool operator<(const FGuid& InGuid, const FMovieScenePossessable& RHS) { return InGuid < RHS.GetGuid(); }
-	bool operator<(const FGuid& InGuid) const { return Guid < InGuid; }
+	FORCEINLINE bool operator<(const FGuid& InGuid) const { return Guid < InGuid; }
 
 private:
 
