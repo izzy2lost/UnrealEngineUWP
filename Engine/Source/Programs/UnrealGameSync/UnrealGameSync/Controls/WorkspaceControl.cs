@@ -4108,6 +4108,13 @@ namespace UnrealGameSync
 						{
 							StatusPanel.SuspendLayout();
 							StreamChanged();
+
+							// Reset the last code change we found when switching streams
+							_workspace.ModifyState(x =>
+							{
+								x.CurrentCodeChangeNumber = -1;
+							});
+
 							StatusPanel.ResumeLayout();
 							break;
 						}
