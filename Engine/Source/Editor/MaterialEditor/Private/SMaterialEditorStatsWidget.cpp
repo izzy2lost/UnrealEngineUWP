@@ -53,6 +53,8 @@ public:
 	virtual TSharedRef<SWidget> GenerateWidgetForColumn(const FName& ColumnName) override;
 
 	FText GetTextForCell(const FName Name, const bool bToolTip) const;
+	static const FSlateBrush* GetIconForCell(const FGridCell::EIcon Icon);
+	const FSlateBrush* GetIconForCell(const FName Name) const;
 	FSlateColor GetColorForCell(const FName Name) const;
 	EHorizontalAlignment GetHAlignForCell(const FName Name) const;
 	EVerticalAlignment GetVAlignForCell(const FName Name) const;
@@ -64,22 +66,10 @@ private:
 	TWeakPtr<FMaterialStats> MaterialStatsWPtr;
 };
 
-FName GetGridCellIconBrushName(FGridCell::EIcon Icon)
-{
-	switch(Icon)
-	{
-	case FGridCell::EIcon::Error:
-		return "MessageLog.Error";
-	default:
-		return "";
-	}
-}
-
 TSharedRef<SWidget> SMaterialStatsViewRow::GenerateWidgetForColumn(const FName& ColumnName)
 {
 	EHorizontalAlignment HAlign = EHorizontalAlignment::HAlign_Fill;
 	EVerticalAlignment VALign = EVerticalAlignment::VAlign_Top;
-	FGridCell::EIcon Icon = FGridCell::EIcon::None;
 
 	FName UsedFontStyle = SMaterialEditorStatsWidget::GetRegularFontStyleName();
 
@@ -93,50 +83,32 @@ TSharedRef<SWidget> SMaterialStatsViewRow::GenerateWidgetForColumn(const FName& 
 		UsedFontStyle = Cell->IsContentBold() ? SMaterialEditorStatsWidget::GetBoldFontStyleName() : SMaterialEditorStatsWidget::GetRegularFontStyleName();
 		HAlign = Cell->GetHorizontalAlignment();
 		VALign = Cell->GetVerticalAlignment();
-		Icon = Cell->GetIcon();
 	}
 
-	if (Icon != FGridCell::EIcon::None)
-	{
-		return SNew(SBox)
-			.Padding(FMargin(4, 2, 4, 2))
-			.HAlign(HAlign)
-			.VAlign(VALign)
+	return SNew(SBox)
+		.Padding(FMargin(4, 2, 4, 2))
+		.HAlign(HAlign)
+		.VAlign(VALign)
+		[
+			SNew(SHorizontalBox)
+			+ SHorizontalBox::Slot()
+			.AutoWidth()
+			.VAlign(VAlign_Center)
 			[
-				SNew(SHorizontalBox)
-				+ SHorizontalBox::Slot()
-				.AutoWidth()
-				.VAlign(VAlign_Center)
-				[
-					SNew(SImage)
-					.Image(FAppStyle::GetBrush(GetGridCellIconBrushName(Icon)))
-				]
-				+ SHorizontalBox::Slot()
-				.AutoWidth()
-				.VAlign(VAlign_Center)
-				[
-					SNew(STextBlock)
-					.TextStyle(FAppStyle::Get(), UsedFontStyle)
-					.Text(this, &SMaterialStatsViewRow::GetTextForCell, ColumnName, false)
-					.ToolTipText(this, &SMaterialStatsViewRow::GetTextForCell, ColumnName, true)
-					.AutoWrapText(true)
-				]
-			];
-	}
-	else
-	{
-		return SNew(SBox)
-			.Padding(FMargin(4, 2, 4, 2))
-			.HAlign(HAlign)
-			.VAlign(VALign)
+				SNew(SImage)
+				.Image(this, &SMaterialStatsViewRow::GetIconForCell, ColumnName)
+			]
+			+ SHorizontalBox::Slot()
+			.AutoWidth()
+			.VAlign(VAlign_Center)
 			[
 				SNew(STextBlock)
 				.TextStyle(FAppStyle::Get(), UsedFontStyle)
 				.Text(this, &SMaterialStatsViewRow::GetTextForCell, ColumnName, false)
 				.ToolTipText(this, &SMaterialStatsViewRow::GetTextForCell, ColumnName, true)
 				.AutoWrapText(true)
-			];
-	}
+			]
+		];
 }
 
 FText SMaterialStatsViewRow::GetTextForCell(const FName Name, const bool bToolTip) const
@@ -157,6 +129,36 @@ FText SMaterialStatsViewRow::GetTextForCell(const FName Name, const bool bToolTi
 
 	FText FinalText = CellContent.Len() > 0 ? FText::FromString(CellContent) : FText::FromString(TEXT(""));
 	return FinalText;
+}
+
+const FSlateBrush* SMaterialStatsViewRow::GetIconForCell(const FGridCell::EIcon Icon)
+{
+	switch(Icon)
+	{
+	case FGridCell::EIcon::Error:
+		return FAppStyle::GetBrush(TEXT("MessageLog.Error"));
+	default:
+		return nullptr;
+	}
+}
+
+const FSlateBrush* SMaterialStatsViewRow::GetIconForCell(const FName Name) const
+{
+	FGridCell::EIcon CellContent = FGridCell::EIcon::None;
+
+	const auto StatsPtr = MaterialStatsWPtr.Pin();
+	if (StatsPtr.IsValid() && PtrRowID.IsValid())
+	{
+		const int32 RowID = *PtrRowID;
+
+		const auto Cell = StatsPtr->GetStatsGrid()->GetCell(RowID, Name);
+		if (Cell.IsValid())
+		{
+			CellContent = Cell->GetIcon();
+		}
+	}
+
+	return GetIconForCell(CellContent);
 }
 
 FSlateColor SMaterialStatsViewRow::GetColorForCell(const FName Name) const
@@ -227,10 +229,10 @@ float SMaterialEditorStatsWidget::GetColumnSize(const FName ColumnName) const
 					const auto Cell = StatsPtr->GetStatsGrid()->GetCell(*ArrRowIds[i], ColumnName);
 
 					const FString Content = Cell->GetCellContent();
-					const FGridCell::EIcon Icon = Cell->GetIcon();
+					const FSlateBrush* Icon = SMaterialStatsViewRow::GetIconForCell(Cell->GetIcon());
 
 					FVector2D FontMeasure = FontMeasureService->Measure(Content, FontInfo);
-					const float IconSize = Icon != FGridCell::EIcon::None ? FAppStyle::GetBrush(GetGridCellIconBrushName(Icon))->GetImageSize().X : 0.0f;
+					const float IconSize = Icon != nullptr ? Icon->GetImageSize().X : 0.0f;
 
 					ColumnSize = FMath::Clamp(FontMeasure.X + IconSize, ColumnSize, ColumnSizeExtraLarge);
 				}

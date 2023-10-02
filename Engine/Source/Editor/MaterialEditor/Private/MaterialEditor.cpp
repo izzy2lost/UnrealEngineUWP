@@ -2605,6 +2605,9 @@ bool FMaterialEditor::UpdateOriginalMaterial()
 		MaterialStatsManager->CacheAndCompilePendingShaders();
 	}
 
+	TArray<FText> Errors;
+	bool bBaseMaterialFailsToCompile = false;
+
 	// If the Material has compilation errors, warn the user
 	for (int32 i = ERHIFeatureLevel::Num - 1; i >= 0; --i)
 	{
@@ -2614,34 +2617,8 @@ bool FMaterialEditor::UpdateOriginalMaterial()
 		{
 			FString FeatureLevelName;
 			GetFeatureLevelName(FeatureLevel, FeatureLevelName);
-
-			if (Material->bUsedAsSpecialEngineMaterial)
-			{
-				FSuppressableWarningDialog::FSetupInfo Info(
-					FText::Format(NSLOCTEXT("UnrealEd", "Error_CompileErrorsInDefaultMaterial", "The current material has compilation errors for feature level {0}.\nThis material is a Default Material which must be available as a code fallback at all times, compilation errors are not allowed."), FText::FromString(*FeatureLevelName)),
-					NSLOCTEXT("UnrealEd", "Warning_CompileErrorsInDefaultMaterial_Title", "Error: Compilation errors in Default Material"), "Error_CompileErrorsInDefaultMaterial");
-				Info.ConfirmText = NSLOCTEXT("ModalDialogs", "CompileErrorsInDefaultMaterialOk", "Ok");
-				Info.bDontPersistSuppressionAcrossSessions = true;
-
-				FSuppressableWarningDialog CompileErrors(Info);
-				CompileErrors.ShowModal();
-				return false;
-			}
-			else
-			{
-				FSuppressableWarningDialog::FSetupInfo Info(
-					FText::Format(NSLOCTEXT("UnrealEd", "Warning_CompileErrorsInMaterial", "The current material has compilation errors, so it will not render correctly in feature level {0}.\nAre you sure you wish to continue?"),FText::FromString(*FeatureLevelName)),
-					NSLOCTEXT("UnrealEd", "Warning_CompileErrorsInMaterial_Title", "Warning: Compilation errors in this Material" ), "Warning_CompileErrorsInMaterial");
-				Info.ConfirmText = NSLOCTEXT("ModalDialogs", "CompileErrorsInMaterialConfirm", "Continue");
-				Info.CancelText = NSLOCTEXT("ModalDialogs", "CompileErrorsInMaterialCancel", "Abort");
-				Info.bDontPersistSuppressionAcrossSessions = true;
-
-				FSuppressableWarningDialog CompileErrorsWarning( Info );
-				if( CompileErrorsWarning.ShowModal() == FSuppressableWarningDialog::Cancel )
-				{
-					return false;
-				}
-			}
+			Errors.Push(FText::Format(NSLOCTEXT("UnrealEd", "Warning_CompileErrorsInMaterial_ListEntryFeatureLevel", "- At feature level {0}."), FText::FromString(*FeatureLevelName)));
+			bBaseMaterialFailsToCompile = true;
 		}
 	}
 
@@ -2665,20 +2642,44 @@ bool FMaterialEditor::UpdateOriginalMaterial()
 						const auto& AssetName = MaterialStatsManager->GetMaterialName(InstanceIndex);
 						const FString QualityName = FMaterialStatsUtils::MaterialQualityToShortString((EMaterialQualityLevel::Type)QualityLevel);
 
-						FSuppressableWarningDialog::FSetupInfo Info(
-						FText::Format(NSLOCTEXT("UnrealEd", "Warning_CompileErrorsInMaterialInstance", "The current material has compilation errors in derived material instance {0} for platform {1} at quality level {2}, so it will not render correctly.\nAre you sure you wish to continue?"),FText::FromString(*AssetName),FText::FromName(PlatformName),FText::FromString(QualityName)),
-						NSLOCTEXT("UnrealEd", "Warning_CompileErrorsInMaterial_Title", "Warning: Compilation errors in this Material" ), "Warning_CompileErrorsInMaterialInstance");
-						Info.ConfirmText = NSLOCTEXT("ModalDialogs", "CompileErrorsInMaterialConfirm", "Continue");
-						Info.CancelText = NSLOCTEXT("ModalDialogs", "CompileErrorsInMaterialCancel", "Abort");
-						Info.bDontPersistSuppressionAcrossSessions = true;
-
-						FSuppressableWarningDialog CompileErrorsWarning( Info );
-						if( CompileErrorsWarning.ShowModal() == FSuppressableWarningDialog::Cancel )
-						{
-							return false;
-						}
+						Errors.Push(FText::Format(NSLOCTEXT("UnrealEd", "Warning_CompileErrorsInMaterial_ListEntryDerivedMaterial", "- Material instance {0} for platform {1} at quality level {2}."), FText::FromString(*AssetName), FText::FromName(PlatformName), FText::FromString(QualityName)));
 					}
 				}
+			}
+		}
+	}
+
+
+	if (Errors.Num() > 0)
+	{
+		const FText JoinedErrors = FText::Join(FText::FromString(TEXT("\n")), Errors);
+		if (Material->bUsedAsSpecialEngineMaterial && bBaseMaterialFailsToCompile)
+		{
+			FSuppressableWarningDialog::FSetupInfo Info(
+				FText::Format(NSLOCTEXT("UnrealEd", "Error_CompileErrorsInDefaultMaterial", "The current material has the following compilation errors:\n{0}\nThis material is a Default Material which must be available as a code fallback at all times, compilation errors are not allowed."), JoinedErrors),
+				NSLOCTEXT("UnrealEd", "Warning_CompileErrorsInDefaultMaterial_Title", "Error: Compilation errors in Default Material"), "Error_CompileErrorsInDefaultMaterial");
+			Info.ConfirmText = NSLOCTEXT("ModalDialogs", "CompileErrorsInDefaultMaterialOk", "Ok");
+			Info.bDontPersistSuppressionAcrossSessions = true;
+			Info.WrapMessageAt = 0.0f;
+
+			FSuppressableWarningDialog CompileErrors(Info);
+			CompileErrors.ShowModal();
+			return false;
+		}
+		else
+		{
+			FSuppressableWarningDialog::FSetupInfo Info(
+				FText::Format(NSLOCTEXT("UnrealEd", "Warning_CompileErrorsInMaterial", "The current material has the following compilation errors:\n{0}\nAre you sure you wish to continue?"), JoinedErrors),
+				NSLOCTEXT("UnrealEd", "Warning_CompileErrorsInMaterial_Title", "Warning: Compilation errors in this Material" ), "Warning_CompileErrorsInMaterial");
+			Info.ConfirmText = NSLOCTEXT("ModalDialogs", "CompileErrorsInMaterialConfirm", "Continue");
+			Info.CancelText = NSLOCTEXT("ModalDialogs", "CompileErrorsInMaterialCancel", "Abort");
+			Info.bDontPersistSuppressionAcrossSessions = true;
+			Info.WrapMessageAt = 0.0f;
+
+			FSuppressableWarningDialog CompileErrorsWarning( Info );
+			if(CompileErrorsWarning.ShowModal() == FSuppressableWarningDialog::Cancel)
+			{
+				return false;
 			}
 		}
 	}

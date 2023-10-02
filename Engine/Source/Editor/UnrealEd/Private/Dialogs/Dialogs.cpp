@@ -576,7 +576,8 @@ class SModalDialogWithCheckbox : public SCompoundWidget
 {
 public:
 	SLATE_BEGIN_ARGS( SModalDialogWithCheckbox )
-	:_bHasCancelButton(false) 
+	: _bHasCancelButton(false)
+	, _WrapMessageAt(512.0f)
 	{}
 		/** Warning message displayed on the dialog */
 		SLATE_ATTRIBUTE(FText, Message)
@@ -595,6 +596,9 @@ public:
 
 		/** Default value of the checkbox */
 		SLATE_ARGUMENT(bool, bDefaultCheckValue)
+
+		/** Wrap message at specified length, zero or negative number will disable the wrapping */
+		SLATE_ARGUMENT(float, WrapMessageAt)
 
 		/** Typically an icon to help the user more easily identify the nature of the issue */
 		SLATE_ATTRIBUTE( const FSlateBrush*, Image )
@@ -651,8 +655,8 @@ public:
 						.Padding(FMargin(16.f, 0.f, 0.f, 0.f))
 						[
 							SNew( STextBlock )
-							.WrapTextAt(512.0f)
-							.Text( MyMessage )
+							.WrapTextAt(InArgs._WrapMessageAt)
+							.Text(MyMessage)
 							.Font(MessageFont)
 						]
 					]
@@ -853,7 +857,8 @@ FSuppressableWarningDialog::FSuppressableWarningDialog(const FSetupInfo& Info)
 			.bDefaultCheckValue(Info.bDefaultToSuppressInTheFuture)
 			.CheckboxMessage(Info.CheckBoxText)
 			.ParentWindow(ModalWindow)
-			.Image((Info.Image != NULL) ? Info.Image : DefaultImage);
+			.Image((Info.Image != NULL) ? Info.Image : DefaultImage)
+			.WrapMessageAt(Info.WrapMessageAt);
 
 		ModalWindow->SetContent( MessageBox.ToSharedRef() );
 	}

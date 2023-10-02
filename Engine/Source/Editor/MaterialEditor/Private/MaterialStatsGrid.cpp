@@ -567,8 +567,6 @@ void FMaterialStatsGrid::BuildRowIds()
 
 void FMaterialStatsGrid::OnShaderChanged()
 {
-	SCOPED_NAMED_EVENT_TEXT("FMaterialStatsGrid::OnShaderChanged", FColor::Red);
-
 	CollectShaderInfo();
 
 	BuildShaderRows();
@@ -580,8 +578,6 @@ void FMaterialStatsGrid::OnShaderChanged()
 
 void FMaterialStatsGrid::OnColumnNumChanged()
 {
-	SCOPED_NAMED_EVENT_TEXT("FMaterialStatsGrid::OnColumnNumChanged", FColor::Red);
-
 	// nuke all rows to rebuild columns
 	BuildStaticRows();
 	OnShaderChanged();

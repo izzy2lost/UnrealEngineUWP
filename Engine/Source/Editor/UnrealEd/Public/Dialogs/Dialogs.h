@@ -102,6 +102,9 @@ public:
 		/** If true suppression will not persist for future editor sessions */
 		bool bDontPersistSuppressionAcrossSessions;
 
+		/** Wrap message at specified length, zero or negative number will disable the wrapping */
+		float WrapMessageAt;
+
 		/** Text used on the button which will return FSuppressableWarningDialog::Confirm */
 		FText ConfirmText;
 
@@ -129,6 +132,7 @@ public:
 			, IniSettingFileName(InIniSettingFileName)
 			, bDefaultToSuppressInTheFuture(false)
 			, bDontPersistSuppressionAcrossSessions(false)
+			, WrapMessageAt(512.0f)
 			, ConfirmText()
 			, CancelText()
 			, CheckBoxText(NSLOCTEXT("ModalDialogs", "DefaultCheckBoxMessage", "Don't show this again"))
