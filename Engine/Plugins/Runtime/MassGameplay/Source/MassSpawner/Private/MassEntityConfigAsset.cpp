@@ -214,10 +214,27 @@ void FMassEntityConfig::GetCombinedTraits(TArray<UMassEntityTraitBase*>& OutTrai
 	return GetCombinedTraitsInternal(OutTraits, Visited);
 }
 
+#if WITH_EDITOR
+void FMassEntityConfig::PostDuplicate(const bool bDuplicateForPIE)
+{
+	if (bDuplicateForPIE == false)
+	{
+		ConfigGuid = FGuid::NewGuid();
+	}
+}
+#endif // WITH_EDITOR
+
 //-----------------------------------------------------------------------------
 // UMassEntityConfigAsset
 //-----------------------------------------------------------------------------
 #if WITH_EDITOR
+void UMassEntityConfigAsset::PostDuplicate(const bool bDuplicateForPIE)
+{
+	Super::PostDuplicate(bDuplicateForPIE);
+	
+	Config.PostDuplicate(bDuplicateForPIE);
+}
+
 void UMassEntityConfigAsset::ValidateEntityConfig()
 {
 	if (UWorld* EditorWorld = GEditor->GetEditorWorldContext().World())
