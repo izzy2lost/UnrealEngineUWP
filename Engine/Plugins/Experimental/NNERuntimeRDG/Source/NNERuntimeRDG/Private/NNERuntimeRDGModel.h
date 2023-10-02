@@ -28,8 +28,10 @@ namespace UE::NNERuntimeRDG::Private
 		virtual bool PrepareModelRDG(FRDGBuilder& RDGBuilder) { return false; }
 		virtual void AddDispatchOps_RenderThread(FRDGBuilder& GraphBuilder) = 0;
 
+		int32 TensorIdxSpan;
+
 		//Tensor descriptor
-		TArray<NNE::FTensorDesc>	AllSymbolicTensorDescs;
+		TMap<int32, NNE::FTensorDesc>	AllSymbolicTensorDescs;
 
 		//Tensor indices for models
 		TArray<int32>				IntermediateTensorIndices;
@@ -42,7 +44,7 @@ namespace UE::NNERuntimeRDG::Private
 		TArray<TArray<uint32>>		OperatorOutputTensorIndices;
 
 		//RDG Tensors
-		FTensorRDGRefArray			AllTensorRDGRefs;
+		FTensorRDGRefMap			AllTensorRDGRefs;
 		FTensorRDGArray				InputTensorRDGs;
 		FTensorRDGArray				OutputTensorRDGs;
 		FTensorRDGArray				IntermediateTensorRDGs;

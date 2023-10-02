@@ -71,7 +71,7 @@ public:
 
 using FTensorRDGRef = FTensorRDG*;
 using FTensorRDGArray = TArray<FTensorRDG, TInlineAllocator<16>>;
-using FTensorRDGRefArray = TArray<FTensorRDGRef, TInlineAllocator<64>>;
+using FTensorRDGRefMap = TMap<int32, FTensorRDGRef>;
 using FIntArray = TArray<int32, TInlineAllocator<16>>;
 
 bool AlwaysValidValidationFunction(const NNE::FAttributeMap& AttributeMap, TConstArrayView<ENNETensorDataType> InputTypes, TConstArrayView<NNE::FSymbolicTensorShape> InputShapes);

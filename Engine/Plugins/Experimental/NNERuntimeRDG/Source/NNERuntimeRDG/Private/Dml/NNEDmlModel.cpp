@@ -35,6 +35,9 @@ DECLARE_GPU_STAT_NAMED(GPU_STAT_DispatchTime, TEXT("NNEDmlModelDispatchTime"));
 DECLARE_GPU_STAT_NAMED(GPU_STAT_DispatchD3DTime, TEXT("NNEDmlModelDispatchD3DTime"));
 #endif
 
+// Empty tensor is marked by -1
+static constexpr int32 GEmptyTensorIdx = -1;
+
 FModelInfo* FModelInfo::Get()
 {
 	static FModelInfo Inst;
@@ -48,25 +51,30 @@ FModelInfo::FModelInfo()
 {
 }
 
+
 FGuid FModelInfo::GetGuid()
 {
 	return Guid;
 }
+
 
 int32 FModelInfo::GetVersion()
 {
 	return Version;
 }
 
+
 int32 FModelInfo::GetGuidSize()
 {
 	return sizeof(Guid);
 }
 
+
 int32 FModelInfo::GetVersionSize()
 {
 	return sizeof(Version);
 }
+
 
 bool FModelInfo::ValidateGuidAndVersion(const uint8* InGuid, const uint8* InVersion)
 {
@@ -500,13 +508,16 @@ private:
 		NumInputs = 0;
 		NumOutputs = 0;
 
-		TensorInConnCounts.SetNumZeroed(InModel->AllSymbolicTensorDescs.Num());
-		TensorOutConnCounts.SetNumZeroed(InModel->AllSymbolicTensorDescs.Num());
+		TensorInConnCounts.SetNumZeroed(InModel->TensorIdxSpan);
+		TensorOutConnCounts.SetNumZeroed(InModel->TensorIdxSpan);
 		Operators.Reset(InModel->GraphOperators.Num());
 
 		for (int32 Idx : InModel->GraphOpInputIndices)
 		{
-			TensorInConnCounts[Idx] += 1;
+			if (Idx != GEmptyTensorIdx)
+			{
+				TensorInConnCounts[Idx] += 1;
+			}
 		}
 
 		for (int32 Idx : InModel->GraphOpOutputIndices)
@@ -670,6 +681,11 @@ private:
 			for (int32 Idx = 0; Idx < CurrOp.InputCount; ++Idx)
 			{
 				const int32 TensorIdx = InModel->GraphOpInputIndices[Idx + CurrOp.InputStart];
+
+				if (TensorIdx == GEmptyTensorIdx)
+				{
+					continue;
+				}
 
 				// Filter out the constant CPU inputs from the graph node inputs
 				if (InModel->ConstantCPUTensorIndices.Find(TensorIdx) != INDEX_NONE)
@@ -868,8 +884,16 @@ bool FModelInstance::Init(TConstArrayView<uint8> ModelData, FDmlDeviceContext* I
 				MemSizeWeights += Align(TensorData.Num(), DML_MINIMUM_BUFFER_TENSOR_ALIGNMENT);
 			}
 
-			OpInputTensors.Emplace(AllSymbolicTensorDescs[InputTensorIndex]);
-			GraphOpInputIndices.Emplace(InputTensorIndex);
+			if (Format.Tensors[InputTensorIndex].Type != ENNEFormatTensorType::Empty)
+			{
+				OpInputTensors.Emplace(AllSymbolicTensorDescs[InputTensorIndex]);
+				GraphOpInputIndices.Emplace(InputTensorIndex);
+			}
+			else
+			{
+				OpInputTensors.Emplace(NNE::FTensorDesc::Make(TEXT(""), {}, ENNETensorDataType::None));
+				GraphOpInputIndices.Emplace(GEmptyTensorIdx);
+			}
 		}
 
 		for (int32 OutputTensorIndex : Format.Operators[Idx].OutTensors)
@@ -916,7 +940,10 @@ bool FModelInstance::Init(TConstArrayView<uint8> ModelData, FDmlDeviceContext* I
 			const int32 ConstIdx = OpConstantCPUInputs[InputIdx];
 			const int32 TensorIdx = GraphOpInputIndices[OpDesc.InputStart + ConstIdx];
 
-			ConstantCPUTensorIndices.AddUnique(TensorIdx);
+			if (TensorIdx != GEmptyTensorIdx)
+			{
+				ConstantCPUTensorIndices.AddUnique(TensorIdx);
+			}
 		}
 	}
 
@@ -1298,7 +1325,11 @@ int FModelInstance::PrepareTensorShapesAndData()
 		for (int32 Idx = 0; Idx < OpDesc.InputCount; ++Idx)
 		{
 			const int32 InputIdx = GraphOpInputIndices[OpDesc.InputStart + Idx];
-			OpInputs.Emplace(AllTensorRDGRefs[InputIdx]);
+
+			if (InputIdx != GEmptyTensorIdx)
+			{
+				OpInputs.Emplace(AllTensorRDGRefs[InputIdx]);
+			}
 		}
 
 		for (int32 Idx = 0; Idx < OpDesc.OutputCount; ++Idx)

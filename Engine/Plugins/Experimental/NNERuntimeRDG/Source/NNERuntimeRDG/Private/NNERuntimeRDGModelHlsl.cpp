@@ -268,7 +268,7 @@ int FModelInstance::PrepareTensorShapesAndData()
 			//Operator could not prepare the output tensors, meaning we can't allocate
 			//output buffer before running the model. This runtime does not support this.
 			UE_LOG(LogNNE, Warning, TEXT("Could not deduce tensor shapes for this model during shape inference, HLSL runtime wont support the model as it need to precompute all shapes for performance reasons."));
-			AllTensorRDGRefs.Reset(AllSymbolicTensorDescs.Num());
+			AllTensorRDGRefs.Reset();
 			return -1;
 		}
 	}
