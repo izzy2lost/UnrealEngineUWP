@@ -7,6 +7,11 @@
 #include "DynamicMesh/MeshTransforms.h"
 #include "DynamicMeshEditor.h"
 #include "Selections/MeshConnectedComponents.h"
+#include "Selections/GeometrySelectionUtil.h"
+#include "Selection/GeometrySelectionVisualization.h"
+#include "Selection/StoredMeshSelectionUtil.h"
+#include "PropertySets/GeometrySelectionVisualizationProperties.h"
+#include "GroupTopology.h"
 #include "DynamicSubmesh3.h"
 #include "Polygroups/PolygroupUtil.h"
 #include "Util/ColorConstants.h"
@@ -192,6 +197,26 @@ bool USetCollisionGeometryToolBuilder::CanBuildTool(const FToolBuilderState& Sce
 }
 
 
+void USetCollisionGeometryToolBuilder::InitializeNewTool(UMultiSelectionMeshEditingTool* Tool, const FToolBuilderState& SceneState) const
+{
+	const TArray<TObjectPtr<UToolTarget>> Targets = SceneState.TargetManager->BuildAllSelectedTargetable(SceneState, GetTargetRequirements());
+	Tool->SetTargets(Targets);
+	Tool->SetWorld(SceneState.World);
+
+	if (USetCollisionGeometryTool* CollisionTool = Cast<USetCollisionGeometryTool>(Tool))
+	{
+		if (Targets.Num() == 1) // Can only have a selection when there is one target
+		{
+			FGeometrySelection Selection;
+			if (GetCurrentGeometrySelectionForTarget(SceneState, Targets[0], Selection))
+			{
+				CollisionTool->SetGeometrySelection(MoveTemp(Selection));
+			}
+		}
+	}
+}
+
+
 UMultiSelectionMeshEditingTool* USetCollisionGeometryToolBuilder::CreateNewTool(const FToolBuilderState& SceneState) const
 {
 	return NewObject<USetCollisionGeometryTool>(SceneState.ToolManager);
@@ -310,6 +335,30 @@ void USetCollisionGeometryTool::Setup()
 	CollisionProps = NewObject<UPhysicsObjectToolPropertySet>(this);
 	AddToolPropertySource(CollisionProps);
 
+	if (InputGeometrySelection.IsEmpty() == false)
+	{
+		GeometrySelectionVizProperties = NewObject<UGeometrySelectionVisualizationProperties>(this);
+		GeometrySelectionVizProperties->RestoreProperties(this);
+		AddToolPropertySource(GeometrySelectionVizProperties);
+		GeometrySelectionVizProperties->Initialize(this);
+		GeometrySelectionVizProperties->SelectionElementType = static_cast<EGeometrySelectionElementType>(InputGeometrySelection.ElementType);
+		GeometrySelectionVizProperties->SelectionTopologyType = static_cast<EGeometrySelectionTopologyType>(InputGeometrySelection.TopologyType);
+
+		// Compute group topology if the selection has Polygroup topology, and do nothing otherwise
+		FGroupTopology GroupTopology(&InitialSourceMeshes[0], InputGeometrySelection.TopologyType == EGeometryTopologyType::Polygroup);
+
+		FTransformSRT3d ApplyTransform(UE::ToolTarget::GetLocalToWorldTransform(CollisionTarget));
+
+		GeometrySelectionViz = NewObject<UPreviewGeometry>(this);
+		GeometrySelectionViz->CreateInWorld(GetTargetWorld(), ApplyTransform);
+		InitializeGeometrySelectionVisualization(
+			GeometrySelectionViz,
+			GeometrySelectionVizProperties,
+			InitialSourceMeshes[0],
+			InputGeometrySelection,
+			&GroupTopology);
+	}
+
 	SetToolDisplayName(LOCTEXT("ToolName", "Mesh To Collision"));
 	GetToolManager()->DisplayMessage(
 		LOCTEXT("OnStartTool", "Initialize Simple Collision geometry for a Mesh from one or more input Meshes (including itself)."),
@@ -317,6 +366,11 @@ void USetCollisionGeometryTool::Setup()
 
 	// Make sure we are set to precompute input meshes on first tick
 	bInputMeshesValid = false;
+}
+
+void USetCollisionGeometryTool::SetGeometrySelection(FGeometrySelection&& SelectionIn)
+{
+	InputGeometrySelection = MoveTemp(SelectionIn);
 }
 
 
@@ -403,6 +457,16 @@ void USetCollisionGeometryTool::OnShutdown(EToolShutdownType ShutdownType)
 	}
 
 	PreviewGeom->Disconnect();
+
+	if (GeometrySelectionViz)
+	{
+		GeometrySelectionViz->Disconnect();
+	}
+
+	if (GeometrySelectionVizProperties)
+	{
+		GeometrySelectionVizProperties->SaveProperties(this);
+	}
 
 	// show hidden sources
 	if (bSourcesHidden)
@@ -508,6 +572,13 @@ void USetCollisionGeometryTool::OnTick(float DeltaTime)
 		InvalidateCompute();
 	}
 
+	FText DisplayMessage;
+	if (!Settings->bAppendToExisting && !InputGeometrySelection.IsEmpty())
+	{
+		DisplayMessage = LOCTEXT("GeometrySelectionWithoutAppendToExisting", "The tool was invoked with a selection so you may want to enable 'Append to Existing'");
+	}
+	GetToolManager()->DisplayMessage(DisplayMessage, EToolMessageLevel::UserWarning);
+
 	if (Compute)
 	{
 		Compute->Tick(DeltaTime);
@@ -534,6 +605,11 @@ void USetCollisionGeometryTool::OnTick(float DeltaTime)
 	}
 
 	UE::PhysicsTools::UpdateCollisionGeometryVisualization(PreviewGeom, VizSettings);
+
+	if (GeometrySelectionViz)
+	{
+		UpdateGeometrySelectionVisualization(GeometrySelectionViz, GeometrySelectionVizProperties);
+	}
 }
 
 
@@ -576,15 +652,8 @@ void USetCollisionGeometryTool::OnSelectedGroupLayerChanged()
 }
 
 
-void USetCollisionGeometryTool::UpdateActiveGroupLayer()
+void USetCollisionGeometryTool::UpdateActiveGroupLayer(FDynamicMesh3* GroupLayersMesh)
 {
-	if (InitialSourceMeshes.Num() != 1)
-	{
-		ensure(false);		// should not get here
-		return;
-	}
-	FDynamicMesh3* GroupLayersMesh = &InitialSourceMeshes[0];
-
 	if (PolygroupLayerProperties->HasSelectedPolygroup() == false)
 	{
 		ActiveGroupSet = MakeUnique<UE::Geometry::FPolygroupSet>(GroupLayersMesh);
@@ -674,28 +743,41 @@ TArray<const T*> MakeRawPointerList(const TArray<TSharedPtr<T, ESPMode::ThreadSa
 
 void USetCollisionGeometryTool::PrecomputeInputMeshes()
 {
-	if (InitialSourceMeshes.Num() == 1)
-	{
-		UpdateActiveGroupLayer();
-	}
-
 	UToolTarget* CollisionTarget = Targets[Targets.Num() - 1];
 	FTransformSRT3d TargetTransform(UE::ToolTarget::GetLocalToWorldTransform(CollisionTarget));
 
+	// build input meshes.
 	InputMeshes.Reset();
 	InputMeshes.SetNum(SourceObjectIndices.Num());
-	ParallelFor(SourceObjectIndices.Num(), [&](int32 k)
+	if (!InputGeometrySelection.IsEmpty())
 	{
-		FDynamicMesh3 SourceMesh = InitialSourceMeshes[k];
-		if (Settings->bUseWorldSpace)
+		TSet<int> TriangleROI;
+		UE::Geometry::EnumerateSelectionTriangles(
+			InputGeometrySelection,
+			InitialSourceMeshes[0],
+			[&TriangleROI](int32 TriangleID) { TriangleROI.Add(TriangleID); });
+
+		// We dont discard attributes in the Submesh, we need them when building per-group input meshes
+		FDynamicSubmesh3 Submesh(&InitialSourceMeshes[0], TriangleROI.Array());
+
+		InputMeshes[0] = MakeShared<FDynamicMesh3, ESPMode::ThreadSafe>(MoveTemp(Submesh.GetSubmesh()));
+	}
+	else
+	{
+		ParallelFor(SourceObjectIndices.Num(), [&](int32 k)
 		{
-			FTransformSRT3d ToWorld(UE::ToolTarget::GetLocalToWorldTransform(Targets[k]));
-			MeshTransforms::ApplyTransform(SourceMesh, ToWorld, true);
-			MeshTransforms::ApplyTransformInverse(SourceMesh, TargetTransform, true);
-		}
-		SourceMesh.DiscardAttributes();
-		InputMeshes[k] = MakeShared<FDynamicMesh3, ESPMode::ThreadSafe>(MoveTemp(SourceMesh));
-	});
+			FDynamicMesh3 SourceMesh = InitialSourceMeshes[k];
+			if (Settings->bUseWorldSpace)
+			{
+				FTransformSRT3d ToWorld(UE::ToolTarget::GetLocalToWorldTransform(Targets[k]));
+				MeshTransforms::ApplyTransform(SourceMesh, ToWorld, true);
+				MeshTransforms::ApplyTransformInverse(SourceMesh, TargetTransform, true);
+			}
+			SourceMesh.DiscardAttributes();
+
+			InputMeshes[k] = MakeShared<FDynamicMesh3, ESPMode::ThreadSafe>(MoveTemp(SourceMesh));
+		});
+	}
 	InputMeshesApproximator = MakeShared<FMeshSimpleShapeApproximation, ESPMode::ThreadSafe>();
 	InputMeshesApproximator->InitializeSourceMeshes(MakeRawPointerList<FDynamicMesh3>(InputMeshes));
 
@@ -718,22 +800,39 @@ void USetCollisionGeometryTool::PrecomputeInputMeshes()
 	// build separated input meshes
 	SeparatedInputMeshes.Reset();
 	InitializeDerivedMeshSet(InputMeshes, SeparatedInputMeshes, 
-		[&](const FDynamicMesh3* Mesh, int32 Tri0, int32 Tri1) { return true; });
+		[](const FDynamicMesh3* Mesh, int32 Tri0, int32 Tri1)
+		{
+			return true;
+		});
 	SeparatedMeshesApproximator = MakeShared<FMeshSimpleShapeApproximation, ESPMode::ThreadSafe>();
 	SeparatedMeshesApproximator->InitializeSourceMeshes(MakeRawPointerList<FDynamicMesh3>(SeparatedInputMeshes));
 
 	// build per-group input meshes
 	PerGroupInputMeshes.Reset();
-	if (ActiveGroupSet.IsValid())
+	if (InputMeshes.Num() == 1)
 	{
-		check(InputMeshes.Num() == 1);
+		FDynamicMesh3* UseGroupLayerMesh = &InitialSourceMeshes[0];
+		if (!InputGeometrySelection.IsEmpty())
+		{
+			UseGroupLayerMesh = InputMeshes[0].Get();
+		}
+		UpdateActiveGroupLayer(UseGroupLayerMesh);
+
+		// Use the active polygroup layer when there is only one input
 		InitializeDerivedMeshSet(InputMeshes, PerGroupInputMeshes,
-			[&](const FDynamicMesh3* Mesh, int32 Tri0, int32 Tri1) { return ActiveGroupSet->GetTriangleGroup(Tri0) == ActiveGroupSet->GetTriangleGroup(Tri1); });
+			[this](const FDynamicMesh3* Mesh, int32 Tri0, int32 Tri1)
+			{
+				return ActiveGroupSet->GetTriangleGroup(Tri0) == ActiveGroupSet->GetTriangleGroup(Tri1);
+			});
 	}
 	else
 	{
+		// Use the default polygroup layer when there is more than one input
 		InitializeDerivedMeshSet(InputMeshes, PerGroupInputMeshes,
-			[&](const FDynamicMesh3* Mesh, int32 Tri0, int32 Tri1) { return Mesh->GetTriangleGroup(Tri0) == Mesh->GetTriangleGroup(Tri1); });
+			[](const FDynamicMesh3* Mesh, int32 Tri0, int32 Tri1)
+			{
+				return Mesh->GetTriangleGroup(Tri0) == Mesh->GetTriangleGroup(Tri1);
+			});
 	}
 	PerGroupMeshesApproximator = MakeShared<FMeshSimpleShapeApproximation, ESPMode::ThreadSafe>();
 	PerGroupMeshesApproximator->InitializeSourceMeshes(MakeRawPointerList<FDynamicMesh3>(PerGroupInputMeshes));

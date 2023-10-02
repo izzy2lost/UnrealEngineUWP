@@ -13,12 +13,14 @@
 #include "Physics/PhysicsDataCollection.h"
 #include "PropertySets/PolygroupLayersProperties.h"
 #include "Polygroups/PolygroupSet.h"
+#include "Selections/GeometrySelection.h"
 #include "TransformSequence.h"
 #include "ModelingOperators.h"
 #include "MeshOpPreviewHelpers.h"
 #include "SetCollisionGeometryTool.generated.h"
 
 class UPreviewGeometry;
+class UGeometrySelectionVisualizationProperties;
 PREDECLARE_GEOMETRY(class FMeshSimpleShapeApproximation)
 PREDECLARE_USE_GEOMETRY_CLASS(FDynamicMesh3);
 
@@ -29,6 +31,7 @@ class MESHMODELINGTOOLSEXP_API USetCollisionGeometryToolBuilder : public UMultiS
 
 public:
 	virtual bool CanBuildTool(const FToolBuilderState& SceneState) const override;
+	virtual void InitializeNewTool(UMultiSelectionMeshEditingTool* Tool, const FToolBuilderState& SceneState) const;
 	virtual UMultiSelectionMeshEditingTool* CreateNewTool(const FToolBuilderState& SceneState) const override;
 
 protected:
@@ -41,9 +44,17 @@ protected:
 UENUM()
 enum class ESetCollisionGeometryInputMode
 {
+	// Compute collision geometry using a combined mesh of all input objects
 	CombineAll = 0,
+
+	// Compute collision geometry for each input object
+	// Note: A Geometry Selection always counts as one input object
 	PerInputObject = 1,
+
+	// Compute collision geometry for each connected component of each input object
 	PerMeshComponent = 2,
+
+	// Compute collision geometry for each PolyGroup of each input object
 	PerMeshGroup = 3
 };
 
@@ -93,6 +104,7 @@ public:
 	UPROPERTY(EditAnywhere, Category = Options)
 	ECollisionGeometryType GeometryType = ECollisionGeometryType::AlignedBoxes;
 
+	// If true/false, Accept will append to/overwrite any existing collision geometry
 	UPROPERTY(EditAnywhere, Category = Options)
 	bool bAppendToExisting = false;
 
@@ -106,6 +118,7 @@ public:
 	UPROPERTY(EditAnywhere, Category = Options)
 	bool bRemoveContained = true;
 
+	// If true, discard all but MaxCount collision geometries with the largest volume
 	UPROPERTY(EditAnywhere, Category = Options)
 	bool bEnableMaxCount = true;
 
@@ -206,6 +219,8 @@ public:
 	virtual TUniquePtr<UE::Geometry::TGenericDataOperator<FPhysicsDataCollection>> MakeNewOperator() override;
 	// End IGenericDataOperatorFactory interface
 
+	void SetGeometrySelection(UE::Geometry::FGeometrySelection&& SelectionIn);
+
 protected:
 
 	UPROPERTY()
@@ -280,7 +295,7 @@ protected:
 
 	TUniquePtr<UE::Geometry::FPolygroupSet> ActiveGroupSet;
 	void OnSelectedGroupLayerChanged();
-	void UpdateActiveGroupLayer();
+	void UpdateActiveGroupLayer(FDynamicMesh3* GroupLayersMesh);
 
 	FTransform OrigTargetTransform;
 	UE::Geometry::FTransformSequence3d TargetInverseTransform;
@@ -290,4 +305,16 @@ protected:
 	TSharedPtr<FPhysicsDataCollection, ESPMode::ThreadSafe> GeneratedCollision;
 	TSharedPtr<TArray<FPhysicsDataCollection>, ESPMode::ThreadSafe> OtherInputsCollision;
 	TSharedPtr<TArray<FTransform3d>, ESPMode::ThreadSafe> OtherInputsTransforms;
+
+	//
+	// Geometry Selection
+	//
+
+	UE::Geometry::FGeometrySelection InputGeometrySelection;
+
+	UPROPERTY()
+	TObjectPtr<UGeometrySelectionVisualizationProperties> GeometrySelectionVizProperties = nullptr;
+
+	UPROPERTY()
+	TObjectPtr<UPreviewGeometry> GeometrySelectionViz = nullptr;
 };
