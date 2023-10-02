@@ -44,13 +44,19 @@ namespace Horde.Server.Issues
 		public string NodeName { get; }
 
 		/// <summary>
+		/// Annotations for this node
+		/// </summary>
+		public IReadOnlyDictionary<string, string> NodeAnnotations { get; }
+
+		/// <summary>
 		/// Constructor
 		/// </summary>
-		public IssueHandlerContext(StreamId streamId, TemplateId templateId, string nodeName)
+		public IssueHandlerContext(StreamId streamId, TemplateId templateId, string nodeName, IReadOnlyDictionary<string, string> nodeAnnotations)
 		{
 			StreamId = streamId;
 			TemplateId = templateId;
 			NodeName = nodeName;
+			NodeAnnotations = nodeAnnotations;
 		}
 	}
 

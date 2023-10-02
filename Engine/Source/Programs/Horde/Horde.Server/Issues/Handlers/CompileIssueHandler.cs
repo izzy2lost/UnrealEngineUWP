@@ -23,12 +23,12 @@ namespace Horde.Server.Issues.Handlers
 		/// </summary>
 		const string CompileGroupAnnotation = "CompileGroup";
 
-		readonly IReadOnlyNodeAnnotations _annotations;
+		readonly IssueHandlerContext _context;
 		readonly List<IssueEventGroup> _issues = new List<IssueEventGroup>();
 
-		public CompileIssueHandler(IReadOnlyNodeAnnotations annotations)
+		public CompileIssueHandler(IssueHandlerContext context)
 		{
-			_annotations = annotations;
+			_context = context;
 		}
 
 		/// <summary>
@@ -52,13 +52,13 @@ namespace Horde.Server.Issues.Handlers
 				if (IsMatchingEventId(eventId))
 				{
 					string compileType = "Compile";
-					if (_annotations.TryGetValue(CompileTypeAnnotation, out string? type))
+					if (_context.NodeAnnotations.TryGetValue(CompileTypeAnnotation, out string? type))
 					{
 						compileType = type;
 					}
 
 					string fingerprintType = "Compile";
-					if (_annotations.TryGetValue(CompileGroupAnnotation, out string? group))
+					if (_context.NodeAnnotations.TryGetValue(CompileGroupAnnotation, out string? group))
 					{
 						fingerprintType = $"{fingerprintType}:{group}";
 					}

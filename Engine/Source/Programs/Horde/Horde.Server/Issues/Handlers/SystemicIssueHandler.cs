@@ -55,7 +55,7 @@ namespace Horde.Server.Issues.Handlers
 						return true;
 					}
 				}
-				else if (logEvent.Severity == EventSeverity.Error)
+				else if (logEvent.Severity >= LogLevel.Error)
 				{
 					// We've seen a non-systemic error event, so ignore this systemic event to prevent superfluous issues from being created
 					_nonSystemicError = true;

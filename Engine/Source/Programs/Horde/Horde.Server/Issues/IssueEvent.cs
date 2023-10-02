@@ -20,7 +20,7 @@ namespace Horde.Server.Issues
 		/// <summary>
 		/// Severity of the event
 		/// </summary>
-		public EventSeverity Severity { get; }
+		public LogLevel Severity { get; }
 
 		/// <summary>
 		/// The type of event
@@ -40,7 +40,7 @@ namespace Horde.Server.Issues
 		/// <summary>
 		/// Constructor
 		/// </summary>
-		public IssueEvent(int lineIndex, EventSeverity severity, EventId? eventId, string message, IReadOnlyList<JsonLogEvent> lines)
+		public IssueEvent(int lineIndex, LogLevel severity, EventId? eventId, string message, IReadOnlyList<JsonLogEvent> lines)
 		{
 			LineIndex = lineIndex;
 			Severity = severity;

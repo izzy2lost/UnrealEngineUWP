@@ -149,11 +149,18 @@ namespace Horde.Server.Issues
 			public ILogEventData EventData { get; }
 
 			public IssueEventInternal(ILogEvent logEvent, ILogEventData logEventData)
-				: base(logEvent.LineIndex, logEventData.Severity, logEventData.EventId, logEventData.Message, logEventData.Lines)
+				: base(logEvent.LineIndex, GetLogLevelFromSeverity(logEventData.Severity), logEventData.EventId, logEventData.Message, logEventData.Lines)
 			{
 				Event = logEvent;
 				EventData = logEventData;
 			}
+
+			static LogLevel GetLogLevelFromSeverity(EventSeverity severity) => severity switch
+			{
+				EventSeverity.Error => LogLevel.Error,
+				EventSeverity.Warning => LogLevel.Warning,
+				_ => LogLevel.Information
+			};
 		}
 
 		class IssueEventGroupInternal
@@ -672,8 +679,7 @@ namespace Horde.Server.Issues
 
 			// Create the DI container for issue handlers
 			ServiceCollection services = new ServiceCollection();
-			services.AddSingleton<IssueHandlerContext>(new IssueHandlerContext(job.StreamId, job.TemplateId, node.Name));
-			services.AddSingleton<IReadOnlyNodeAnnotations>(node.Annotations);
+			services.AddSingleton(new IssueHandlerContext(job.StreamId, job.TemplateId, node.Name, node.Annotations));
 
 			using ServiceProvider serviceProvider = services.BuildServiceProvider();
 
@@ -819,11 +825,11 @@ namespace Horde.Server.Issues
 		static IssueSeverity GetIssueSeverity(IEnumerable<IssueEvent> events)
 		{
 			IssueSeverity severity;
-			if (events.Any(x => x.Severity == EventSeverity.Error))
+			if (events.Any(x => x.Severity >= LogLevel.Error))
 			{
 				severity = IssueSeverity.Error;
 			}
-			else if (events.Any(x => x.Severity == EventSeverity.Warning))
+			else if (events.Any(x => x.Severity >= LogLevel.Warning))
 			{
 				severity = IssueSeverity.Warning;
 			}
