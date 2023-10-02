@@ -238,7 +238,7 @@ namespace Electra
 			if (!AllDoneSignal)
 			{
 				FMediaEvent* NewSignal = new FMediaEvent();
-				if (TMediaInterlockedExchangePointer(AllDoneSignal, NewSignal) != nullptr)
+				if (FMediaInterlockedCompareExchangePointer((void* volatile&)AllDoneSignal, (void*)NewSignal, (void*)nullptr) != nullptr)
 				{
 					delete NewSignal;
 				}
