@@ -282,9 +282,9 @@ public:
 	/** Set whether or not the cursor should be reset when navigating in and out of subsequences */
 	void SetResetPlayheadWhenNavigating(bool bInResetPlayheadWhenNavigating);
 
-	/** @return true if the cursor should be kept within the playback range while scrubbing in sequencer, false otherwise */
+	/** @return true if the cursor should be kept within the playback (or subsequence/shot) range while scrubbing in sequencer, false otherwise */
 	bool ShouldKeepCursorInPlayRangeWhileScrubbing() const;
-	/** Set whether or not the cursor should be kept within the playback range while scrubbing in sequencer */
+	/** Set whether or not the cursor should be kept within the playback (or subsequence/shot) range while scrubbing in sequencer */
 	void SetKeepCursorInPlayRangeWhileScrubbing(bool bInKeepCursorInPlayRangeWhileScrubbing);
 
 	/** @return true if the playback range should be synced to the section bounds, false otherwise */

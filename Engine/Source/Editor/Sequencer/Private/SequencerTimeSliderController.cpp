@@ -113,7 +113,17 @@ FFrameTime FSequencerTimeSliderController::ComputeScrubTimeFromMouse(const FGeom
 	// Clamp first, snap to frame last
 	if (Sequencer->GetSequencerSettings()->ShouldKeepCursorInPlayRangeWhileScrubbing())
 	{
-		ScrubTime = UE::MovieScene::ClampToDiscreteRange(ScrubTime, TimeSliderArgs.PlaybackRange.Get());
+		TOptional<TRange<FFrameNumber>> RangeValue;
+		RangeValue = TimeSliderArgs.SubSequenceRange.Get(RangeValue);
+
+		if (RangeValue.IsSet())
+		{
+			ScrubTime = UE::MovieScene::ClampToDiscreteRange(ScrubTime, RangeValue.GetValue());
+		}
+		else
+		{
+			ScrubTime = UE::MovieScene::ClampToDiscreteRange(ScrubTime, TimeSliderArgs.PlaybackRange.Get());
+		}
 	}
 
 	if ( Sequencer->GetSequencerSettings()->GetIsSnapEnabled() || MouseEvent.IsShiftDown() )
