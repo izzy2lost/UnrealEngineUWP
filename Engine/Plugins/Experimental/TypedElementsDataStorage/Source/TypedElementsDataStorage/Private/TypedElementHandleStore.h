@@ -17,15 +17,37 @@ public:
 		uint32 bIsAlive : 1;
 	};
 	
-	struct FHandleData
+	class Handle
 	{
-		uint32 Generation;
-		uint32 Index;
-	};
-	union Handle
-	{
-		FHandleData Data;
-		uint64 Handle;
+	public:
+		Handle() = default;
+		explicit Handle(uint64 InPackedData)
+			: PackedData(InPackedData)
+		{};
+		
+		Handle(uint32 Index, uint32 Generation)
+		{
+			PackedData = (static_cast<uint64_t>(Index) << 32) | Generation;
+		}
+
+		uint64 Packed() const
+		{
+			return PackedData;
+		}
+		
+		uint32_t Generation() const
+		{
+			return static_cast<uint32_t>(PackedData); // Unpack
+		}
+
+		uint32_t Index() const
+		{
+			return static_cast<uint32_t>(PackedData >> 32);  // Unpack
+		}
+
+		friend auto operator<=>(const Handle&, const Handle&) = default;
+	private:
+		uint64 PackedData = TNumericLimits<uint64>::Max();
 	};
 
 	using ListAliveEntriesConstCallback = TFunctionRef<void(Handle, const DataType&)>;
@@ -45,13 +67,6 @@ public:
 	void ListAliveEntries(const ListAliveEntriesConstCallback& Callback) const;
 	void ListAliveEntries(const ListAliveEntriesConstCallback& Callback);
 	void ListAliveEntries(const ListAliveEntriesCallback& Callback);
-
-	friend bool operator==(Handle Lhs, Handle Rhs) { return Lhs.Handle == Rhs.Handle; }
-	friend bool operator!=(Handle Lhs, Handle Rhs) { return Lhs.Handle != Rhs.Handle; }
-	friend bool operator<=(Handle Lhs, Handle Rhs) { return Lhs.Handle <= Rhs.Handle; }
-	friend bool operator>=(Handle Lhs, Handle Rhs) { return Lhs.Handle >= Rhs.Handle; }
-	friend bool operator< (Handle Lhs, Handle Rhs) { return Lhs.Handle <  Rhs.Handle; }
-	friend bool operator> (Handle Lhs, Handle Rhs) { return Lhs.Handle >  Rhs.Handle; }
 
 private:
 	TArray<DataType> Data;
@@ -87,9 +102,7 @@ auto TTypedElementHandleStore<DataType, ReservationSize>::Emplace(Args... Argume
 	DataType& Entry = Data[Index];
 	new(&Entry) DataType( Forward<Args>(Arguments)... );
 
-	Handle Result;
-	Result.Data.Index = Index;
-	Result.Data.Generation = Generations[Index].Generation;
+	Handle Result(Index, Generations[Index].Generation);
 	Generations[Index].bIsAlive = 1;
 	return Result;
 }
@@ -98,21 +111,21 @@ template<typename DataType, uint32 ReservationSize>
 DataType& TTypedElementHandleStore<DataType, ReservationSize>::Get(Handle Entry)
 {
 	checkf(IsAlive(Entry), TEXT("Attempting to retrieve a dead entry from a Typed Element Handle Store."));
-	return Data[Entry.Data.Index];
+	return Data[Entry.Index()];
 }
 
 template<typename DataType, uint32 ReservationSize>
 DataType& TTypedElementHandleStore<DataType, ReservationSize>::GetMutable(Handle Entry)
 {
 	checkf(IsAlive(Entry), TEXT("Attempting to retrieve a dead entry from a Typed Element Handle Store."));
-	return Data[Entry.Data.Index];
+	return Data[Entry.Index()];
 }
 
 template<typename DataType, uint32 ReservationSize>
 const DataType& TTypedElementHandleStore<DataType, ReservationSize>::Get(Handle Entry) const
 {
 	checkf(IsAlive(Entry), TEXT("Attempting to retrieve a dead entry from a Typed Element Handle Store."));
-	return Data[Entry.Data.Index];
+	return Data[Entry.Index()];
 }
 
 template<typename DataType, uint32 ReservationSize>
@@ -120,14 +133,14 @@ void TTypedElementHandleStore<DataType, ReservationSize>::Remove(Handle Entry)
 {
 	if (IsAlive(Entry))
 	{
-		FGeneration& Generation = Generations[Entry.Data.Index];
+		FGeneration& Generation = Generations[Entry.Index()];
 		++Generation.Generation;
 		Generation.bIsAlive = 0;
 		if constexpr (std::is_destructible_v<DataType> && !std::is_trivially_destructible_v<DataType>)
 		{
-			Data[Entry.Data.Index].~DataType();
+			Data[Entry.Index()].~DataType();
 		}
-		RecycleBin.EmplaceLast(Entry.Data.Index);
+		RecycleBin.EmplaceLast(Entry.Index());
 	}
 }
 
@@ -135,8 +148,8 @@ template<typename DataType, uint32 ReservationSize>
 bool TTypedElementHandleStore<DataType, ReservationSize>::IsAlive(Handle Entry) const
 {
 	return
-		Entry.Data.Index < static_cast<uint32>(Generations.Num()) &&
-		Generations[Entry.Data.Index].Generation == Entry.Data.Generation;
+		Entry.Index() < static_cast<uint32>(Generations.Num()) &&
+		Generations[Entry.Index()].Generation == Entry.Generation();
 }
 
 template<typename DataType, uint32 ReservationSize>
@@ -150,9 +163,7 @@ void TTypedElementHandleStore<DataType, ReservationSize>::ListAliveEntries(const
 	{
 		if (GenerationIt->bIsAlive)
 		{
-			Handle DataHandle;
-			DataHandle.Data.Index = Index;
-			DataHandle.Data.Generation = GenerationIt->Generation;
+			Handle DataHandle(Index, GenerationIt->Generation);
 			Callback(DataHandle, *EntryIt);
 		}
 
@@ -178,9 +189,7 @@ void TTypedElementHandleStore<DataType, ReservationSize>::ListAliveEntries(const
 	{
 		if (GenerationIt->bIsAlive)
 		{
-			Handle DataHandle;
-			DataHandle.Data.Index = Index;
-			DataHandle.Data.Generation = GenerationIt->Generation;
+			Handle DataHandle(Index, GenerationIt->Generation);
 			Callback(DataHandle, *EntryIt);
 		}
 

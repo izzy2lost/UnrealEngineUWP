@@ -637,7 +637,7 @@ void UTypedElementDatabase::UnregisterTickGroup(FName GroupName, EQueryTickPhase
 TypedElementQueryHandle UTypedElementDatabase::RegisterQuery(FQueryDescription&& Query)
 {
 	return (ActiveEditorEntityManager && ActiveEditorPhaseManager)
-		? Queries.RegisterQuery(MoveTemp(Query), *Environment, *ActiveEditorEntityManager, *ActiveEditorPhaseManager).Handle
+		? Queries.RegisterQuery(MoveTemp(Query), *Environment, *ActiveEditorEntityManager, *ActiveEditorPhaseManager).Packed()
 		: TypedElementInvalidQueryHandle;
 }
 
@@ -645,17 +645,15 @@ void UTypedElementDatabase::UnregisterQuery(TypedElementQueryHandle Query)
 {
 	if (ActiveEditorPhaseManager)
 	{
-		FTypedElementExtendedQueryStore::Handle Handle;
-		Handle.Handle = Query;
-		Queries.UnregisterQuery(Handle, *ActiveEditorPhaseManager);
+		const FTypedElementExtendedQueryStore::Handle StorageHandle(Query);
+		Queries.UnregisterQuery(StorageHandle, *ActiveEditorPhaseManager);
 	}
 }
 
 const ITypedElementDataStorageInterface::FQueryDescription& UTypedElementDatabase::GetQueryDescription(TypedElementQueryHandle Query) const
 {
-	FTypedElementExtendedQueryStore::Handle Handle;
-	Handle.Handle = Query;
-	return Queries.GetQueryDescription(Handle);
+	const FTypedElementExtendedQueryStore::Handle StorageHandle(Query);
+	return Queries.GetQueryDescription(StorageHandle);
 }
 
 FName UTypedElementDatabase::GetQueryTickGroupName(EQueryTickGroups Group) const
@@ -682,9 +680,8 @@ ITypedElementDataStorageInterface::FQueryResult UTypedElementDatabase::RunQuery(
 
 	if (ActiveEditorEntityManager)
 	{
-		FTypedElementExtendedQueryStore::Handle Handle;
-		Handle.Handle = Query;
-		return Queries.RunQuery(*ActiveEditorEntityManager, Handle);
+		const FTypedElementExtendedQueryStore::Handle StorageHandle(Query);
+		return Queries.RunQuery(*ActiveEditorEntityManager, StorageHandle);
 	}
 	else
 	{
@@ -699,9 +696,8 @@ ITypedElementDataStorageInterface::FQueryResult UTypedElementDatabase::RunQuery(
 
 	if (ActiveEditorEntityManager)
 	{
-		FTypedElementExtendedQueryStore::Handle Handle;
-		Handle.Handle = Query;
-		return Queries.RunQuery(*ActiveEditorEntityManager, Handle, Callback);
+		const FTypedElementExtendedQueryStore::Handle StorageHandle(Query);
+		return Queries.RunQuery(*ActiveEditorEntityManager, StorageHandle, Callback);
 	}
 	else
 	{

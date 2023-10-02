@@ -569,7 +569,7 @@ bool FTypedElementExtendedQueryStore::SetupTickGroupDefaults(ITypedElementDataSt
 	return true;
 }
 
-bool FTypedElementExtendedQueryStore::SetupProcessors(Handle Query, FTypedElementExtendedQuery& StoredQuery, 
+bool FTypedElementExtendedQueryStore::SetupProcessors(Handle QueryHandle, FTypedElementExtendedQuery& StoredQuery, 
 	FTypedElementDatabaseEnvironment& Environment, FMassEntityManager& EntityManager, FMassProcessingPhaseManager& PhaseManager)
 {
 	using DSI = ITypedElementDataStorageInterface;
@@ -578,10 +578,10 @@ bool FTypedElementExtendedQueryStore::SetupProcessors(Handle Query, FTypedElemen
 	switch (StoredQuery.Description.Callback.Type)
 	{
 	case DSI::EQueryCallbackType::PhasePreparation:
-		RegisterPreambleQuery(StoredQuery.Description.Callback.Phase, Query);
+		RegisterPreambleQuery(StoredQuery.Description.Callback.Phase, QueryHandle);
 		break;
 	case DSI::EQueryCallbackType::PhaseFinalization:
-		RegisterPostambleQuery(StoredQuery.Description.Callback.Phase, Query);
+		RegisterPostambleQuery(StoredQuery.Description.Callback.Phase, QueryHandle);
 		break;
 	}
 
@@ -591,7 +591,7 @@ bool FTypedElementExtendedQueryStore::SetupProcessors(Handle Query, FTypedElemen
 		if (StoredQuery.Processor->IsA<UTypedElementQueryProcessorCallbackAdapterProcessorBase>())
 		{
 			if (static_cast<UTypedElementQueryProcessorCallbackAdapterProcessorBase*>(StoredQuery.Processor.Get())->
-				ConfigureQueryCallback(StoredQuery, *this, Environment))
+				ConfigureQueryCallback(StoredQuery, QueryHandle, *this, Environment))
 			{
 				PhaseManager.RegisterDynamicProcessor(*StoredQuery.Processor);
 			}
@@ -605,7 +605,7 @@ bool FTypedElementExtendedQueryStore::SetupProcessors(Handle Query, FTypedElemen
 			if (UTypedElementQueryObserverCallbackAdapterProcessorBase* Observer =
 				static_cast<UTypedElementQueryObserverCallbackAdapterProcessorBase*>(StoredQuery.Processor.Get()))
 			{
-				Observer->ConfigureQueryCallback(StoredQuery, *this, Environment);
+				Observer->ConfigureQueryCallback(StoredQuery, QueryHandle, *this, Environment);
 				EntityManager.GetObserverManager().AddObserverInstance(*Observer->GetObservedType(), Observer->GetObservedOperation(), *Observer);
 			}
 			else
