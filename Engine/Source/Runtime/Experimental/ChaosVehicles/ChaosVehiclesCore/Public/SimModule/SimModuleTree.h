@@ -5,6 +5,9 @@
 #include "SimModule/DeferredForcesModular.h"
 #include "SimModule/SimulationModuleBase.h"
 
+
+DECLARE_STATS_GROUP(TEXT("ModularVehicle.SimTree"), STATGROUP_ModularVehicleSimTree, STATGROUP_Advanced);
+
 class FGeometryCollectionPhysicsProxy;
 namespace Chaos
 {
@@ -183,7 +186,7 @@ namespace Chaos
 		int GetNextIndex();
 
 		void UpdateModuleVelocites(FGeometryCollectionPhysicsProxy* PhysicsProxy);
-		void UpdateModuleVelocites(FClusterUnionPhysicsProxy* PhysicsProxy);
+		void UpdateModuleVelocites(FClusterUnionPhysicsProxy* PhysicsProxy, bool bWake);
 
 		TArray<FSimModuleNode> SimulationModuleTree;
 		TArray<int> FreeList;

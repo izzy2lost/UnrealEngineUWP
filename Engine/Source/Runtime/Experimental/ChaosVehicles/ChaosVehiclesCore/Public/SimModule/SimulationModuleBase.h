@@ -46,6 +46,17 @@ namespace Chaos
 		{
 		}
 
+		bool InputNonZero()
+		{
+			return FMath::Abs(Throttle) > SMALL_NUMBER
+				|| FMath::Abs(Brake) > SMALL_NUMBER
+				|| FMath::Abs(Steering) > SMALL_NUMBER
+				|| FMath::Abs(Roll) > SMALL_NUMBER
+				|| FMath::Abs(Pitch) > SMALL_NUMBER
+				|| FMath::Abs(Yaw) > SMALL_NUMBER
+				|| FMath::Abs(Boost) > SMALL_NUMBER;
+		}
+
 		bool IsValid;
 		float Throttle;
 		float Brake;
