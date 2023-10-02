@@ -1333,6 +1333,7 @@ void UGameViewportClient::Draw(FViewport* InViewport, FCanvas* SceneCanvas)
 {
 	//Valid SceneCanvas is required.  Make this explicit.
 	check(SceneCanvas);
+	check(GEngine);
 
 	BeginDrawDelegate.Broadcast();
 
