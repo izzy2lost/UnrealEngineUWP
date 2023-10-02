@@ -4232,6 +4232,12 @@ void UCookOnTheFlyServer::ProcessUnsolicitedPackages(TArray<FName>* OutDiscovere
 			Instigator.Category = EInstigator::ForceExplorableSaveTimeSoftDependency;
 			QueueDiscoveredPackage(*PackageData, FInstigator(Instigator), EDiscoveredPlatformSet::CopyFromInstigator);
 		}
+		else if (Instigator.Category != EInstigator::Unsolicited)
+		{
+			// A load undeclared in AssetRegistry dependencies, but one that has been marked up as a known issue and needed at runtime.
+			// Queue it for discovery and do not log a warning about it.
+			QueueDiscoveredPackage(*PackageData, FInstigator(Instigator), EDiscoveredPlatformSet::CopyFromInstigator);
+		}
 		else if (PackageData->FindOrAddPlatformData(CookerLoadingPlatformKey).IsReachable())
 		{
 			// This load was expected so we do not need to add a hidden dependency for it.
@@ -4240,12 +4246,6 @@ void UCookOnTheFlyServer::ProcessUnsolicitedPackages(TArray<FName>* OutDiscovere
 			{
 				QueueDiscoveredPackage(*PackageData, FInstigator(Instigator), EDiscoveredPlatformSet::CopyFromInstigator);
 			}
-		}
-		else if (Instigator.Category == EInstigator::SaveTimeHardDependency || Instigator.Category == EInstigator::SaveTimeSoftDependency)
-		{
-			// A load undeclared in AssetRegistry dependencies, but one that has been marked up as a known issue and needed at runtime.
-			// Queue it for discovery and do not log a warning about it.
-			QueueDiscoveredPackage(*PackageData, FInstigator(Instigator), EDiscoveredPlatformSet::CopyFromInstigator);
 		}
 		else
 		{

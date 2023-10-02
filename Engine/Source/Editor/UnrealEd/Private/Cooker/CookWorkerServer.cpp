@@ -901,7 +901,23 @@ void FCookWorkerServer::QueueDiscoveredPackage(FDiscoveredPackageReplication&& D
 	if (Instigator.Category != EInstigator::ForceExplorableSaveTimeSoftDependency &&
 		PackageData.HasReachablePlatforms(DiscoveredPlatforms))
 	{
-		// The CookWorker thought this was a new package, but the Director already knows about it; ignore the report
+		// The CookWorker thought there were some new reachable platforms, but the Director already knows about
+		// all of them; ignore the report
+		return;
+	}
+	if (COTFS.bSkipOnlyEditorOnly &&
+		Instigator.Category == EInstigator::Unsolicited &&
+		Platforms.GetSource() == EDiscoveredPlatformSet::CopyFromInstigator &&
+		PackageData.FindOrAddPlatformData(CookerLoadingPlatformKey).IsReachable())
+	{
+		// The CookWorker thought this package was new (previously unreachable even by editoronly references),
+		// and it is not marked as a known used-in-game or editor-only issue, so it fell back to reporting it
+		// as used-in-game-because-its-not-a-known-issue (see UCookOnTheFlyServer::ProcessUnsolicitedPackages's
+		// use of PackageData->FindOrAddPlatformData(CookerLoadingPlatformKey).IsReachable()).
+		// But we only do that fall back for unexpected packages not found by the search of editor-only AssetRegistry
+		// dependencies. And this package was found by that search; the director has already marked it as reachable by
+		// editoronly references. Correct the heuristic: ignore the unmarked load because the load is expected as an
+		// editor-only reference.
 		return;
 	}
 
