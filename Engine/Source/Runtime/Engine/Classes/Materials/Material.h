@@ -411,7 +411,7 @@ public:
  *
  * Warning: Creating new materials directly increases shader compile times!  Consider creating a Material Instance off of an existing material instead.
  */
-UCLASS(hidecategories=Object, MinimalAPI, BlueprintType)
+UCLASS(hidecategories=Object, MinimalAPI, BlueprintType, PrioritizeCategories = ("Material", "Nanite", "Translucency", "TranslucencySelfShadowing", "Refraction", "WorldPositionOffset", "PostProcessMaterial",  "Mobile", "ForwardShading", "PhysicalMaterial", "PhysicalMaterialMask", "Usage", "Lightmass", "Previewing", "ImportSettings"))
 class UMaterial : public UMaterialInterface
 {
 	GENERATED_UCLASS_BODY()
