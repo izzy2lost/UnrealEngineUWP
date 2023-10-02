@@ -537,6 +537,6 @@ void FSimModuleTree::InterpolateState(const float LerpFactor, Chaos::FModuleNetD
 
 
 #if VEHICLE_DEBUGGING_ENABLED
-UE_ENABLE_OPTIMIZATION
+UE_ENABLE_OPTIMIZATION_SHIP
 #endif
 
