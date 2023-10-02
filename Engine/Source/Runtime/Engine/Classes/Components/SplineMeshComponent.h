@@ -227,6 +227,10 @@ public:
 	ENGINE_API virtual bool GetTriMeshSizeEstimates(struct FTriMeshCollisionDataEstimates& OutTriMeshEstimates, bool bInUseAllTriData) const override;
 	//~ End Interface_CollisionDataProvider Interface
 
+	//~ Begin INavRelevantInterface
+	ENGINE_API virtual FBox GetNavigationBounds() const override;
+	//~ End  INavRelevantInterface
+
 	/** Generates FSplineMeshShaderParams for the current state of the component */
 	ENGINE_API FSplineMeshShaderParams CalculateShaderParams() const;
 

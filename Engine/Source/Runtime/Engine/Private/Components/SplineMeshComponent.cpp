@@ -1121,6 +1121,14 @@ bool USplineMeshComponent::GetTriMeshSizeEstimates(struct FTriMeshCollisionDataE
 	return false;
 }
 
+FBox USplineMeshComponent::GetNavigationBounds() const
+{
+	// @todo Revisit how to collect navigation bounds, but for now behave like UPrimitiveComponent::GetNavigationBounds(), same as before the recent addition of UStaticMeshComponent::GetNavigationBounds().
+	
+	// Return invalid box when retrieving NavigationBounds before they are being computed at component registration
+	return bRegistered ? Bounds.GetBox() : FBox(ForceInit);
+}
+
 void USplineMeshComponent::GetMeshId(FString& OutMeshId)
 {
 	// First get the base mesh id from the static mesh
@@ -1200,7 +1208,7 @@ bool USplineMeshComponent::DoCustomNavigableGeometryExport(FNavigableGeometryExp
 
 	if (GetStaticMesh() != nullptr && GetStaticMesh()->GetNavCollision() != nullptr)
 	{
-		UNavCollisionBase* NavCollision = GetStaticMesh()->GetNavCollision();
+		const UNavCollisionBase* NavCollision = GetStaticMesh()->GetNavCollision();
 
 		if (ensure(!NavCollision->IsDynamicObstacle()))
 		{
