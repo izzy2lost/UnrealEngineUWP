@@ -47,7 +47,7 @@ void FNNERuntimeORTGpuModule::StartupModule()
 #if PLATFORM_WINDOWS
 	if (FModuleManager::Get().IsModuleLoaded("NNERuntimeORT"))
 	{
-		UE_LOG(LogNNE, Warning, TEXT("NNERuntimeORTGpu startup aborted, NNERuntimeORT plugin is active and provide the Dml runtime, please deactivate NNERuntimeORTGpu plugin and make sure it has been removed from the .uplugin."));
+		UE_LOG(LogNNE, Display, TEXT("NNERuntimeORTGpu startup aborted, NNERuntimeORT plugin is active and provide the Dml runtime, please deactivate NNERuntimeORTGpu plugin and make sure it has been removed from the .uplugin."));
 		return;
 	}
 
