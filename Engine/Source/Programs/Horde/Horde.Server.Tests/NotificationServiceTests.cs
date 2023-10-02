@@ -69,7 +69,7 @@ namespace Horde.Server.Tests
 				List<IJobStep> steps = new List<IJobStep>();
 				for (int nodeIdx = 0; nodeIdx < @group.Nodes.Count; nodeIdx++)
 				{
-					SubResourceId stepId = new SubResourceId((ushort)((groupIdx * 100) + nodeIdx));
+					JobStepId stepId = new JobStepId((ushort)((groupIdx * 100) + nodeIdx));
 
 					Mock<IJobStep> step = new Mock<IJobStep>(MockBehavior.Strict);
 					step.SetupGet(x => x.Id).Returns(stepId);
@@ -78,7 +78,7 @@ namespace Horde.Server.Tests
 					steps.Add(step.Object);
 				}
 
-				SubResourceId batchId = new SubResourceId((ushort)(groupIdx * 100));
+				JobStepBatchId batchId = new JobStepBatchId((ushort)(groupIdx * 100));
 
 				Mock<IJobStepBatch> batch = new Mock<IJobStepBatch>(MockBehavior.Strict);
 				batch.SetupGet(x => x.Id).Returns(batchId);
@@ -108,8 +108,8 @@ namespace Horde.Server.Tests
 			IPool pool = await PoolService.CreatePoolAsync("BogusPool", new AddPoolOptions { Properties = new Dictionary<string, string>() });
 
 			Assert.AreEqual(0, fakeSink.JobScheduledNotifications.Count);
-			service.NotifyJobScheduled(pool, false, fixture.Job1, fixture.Graph, SubResourceId.Random());
-			service.NotifyJobScheduled(pool, false, fixture.Job2, fixture.Graph, SubResourceId.Random());
+			service.NotifyJobScheduled(pool, false, fixture.Job1, fixture.Graph, JobStepBatchId.GenerateNewId());
+			service.NotifyJobScheduled(pool, false, fixture.Job2, fixture.Graph, JobStepBatchId.GenerateNewId());
 			
 			// Currently no good way to wait for NotifyJobScheduled() to complete as the execution is completely async in background task (see ExecuteAsync)
 			await Task.Delay(1000);
@@ -127,9 +127,9 @@ namespace Horde.Server.Tests
 			Fixture fixture = await CreateFixtureAsync();
 			IPool pool = await PoolService.CreatePoolAsync("BogusPool", new AddPoolOptions { Properties = new Dictionary<string, string>()});
 
-			service.NotifyJobScheduled(pool, false, fixture.Job1, fixture.Graph, SubResourceId.Random());
-			service.NotifyJobScheduled(pool, false, fixture.Job1, fixture.Graph, SubResourceId.Random());
-			service.NotifyJobScheduled(pool, false, fixture.Job1, fixture.Graph, SubResourceId.Random());
+			service.NotifyJobScheduled(pool, false, fixture.Job1, fixture.Graph, JobStepBatchId.GenerateNewId());
+			service.NotifyJobScheduled(pool, false, fixture.Job1, fixture.Graph, JobStepBatchId.GenerateNewId());
+			service.NotifyJobScheduled(pool, false, fixture.Job1, fixture.Graph, JobStepBatchId.GenerateNewId());
 			
 			// Currently no good way to wait for NotifyJobScheduled() to complete as the execution is completely async in background task (see ExecuteAsync)
 			await Task.Delay(1000);
@@ -143,7 +143,7 @@ namespace Horde.Server.Tests
 			cache.Compact(1.0);
 			
 			// Notify of exactly the same job again
-			service.NotifyJobScheduled(pool, false, fixture.Job1, fixture.Graph, SubResourceId.Random());
+			service.NotifyJobScheduled(pool, false, fixture.Job1, fixture.Graph, JobStepBatchId.GenerateNewId());
 			
 			await Task.Delay(1000);
 			await Clock.AdvanceAsync(service._notificationBatchInterval + TimeSpan.FromMinutes(5));

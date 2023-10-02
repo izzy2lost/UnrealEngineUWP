@@ -890,6 +890,7 @@ namespace Horde.Server
 			options.Converters.Add(new JsonObjectIdConverter());
 			options.Converters.Add(new JsonKnownTypesConverterFactory());
 			options.Converters.Add(new ObjectIdJsonConverterFactory());
+			options.Converters.Add(new SubResourceIdJsonConverterFactory());
 			options.Converters.Add(new JsonDateTimeConverter());
 			options.Converters.Add(new JsonTimeSpanConverter());
 		}
@@ -1063,6 +1064,31 @@ namespace Horde.Server
 			public override void Serialize(BsonSerializationContext context, BsonSerializationArgs args, AclScopeName value) => context.Writer.WriteString(value.Text);
 		}
 
+		sealed class SubResourceIdBsonSerializer<TValue, TConverter> : SerializerBase<TValue> where TValue : struct where TConverter : SubResourceIdConverter<TValue>, new()
+		{
+			readonly TConverter _converter = new TConverter();
+
+			/// <inheritdoc/>
+			public override TValue Deserialize(BsonDeserializationContext context, BsonDeserializationArgs args) => _converter.FromSubResourceId(new SubResourceId((ushort)context.Reader.ReadInt32()));
+
+			/// <inheritdoc/>
+			public override void Serialize(BsonSerializationContext context, BsonSerializationArgs args, TValue value) => context.Writer.WriteInt32(_converter.ToSubResourceId(value).Value);
+		}
+
+		sealed class SubResourceIdBsonSerializationProvider : BsonSerializationProviderBase
+		{
+			/// <inheritdoc/>
+			public override IBsonSerializer? GetSerializer(Type type, IBsonSerializerRegistry serializerRegistry)
+			{
+				SubResourceIdConverterAttribute? attribute = type.GetCustomAttribute<SubResourceIdConverterAttribute>();
+				if (attribute == null)
+				{
+					return null;
+				}
+				return (IBsonSerializer?)Activator.CreateInstance(typeof(SubResourceIdBsonSerializer<,>).MakeGenericType(type, attribute.ConverterType));
+			}
+		}
+
 		static int s_haveConfiguredMongoDb = 0;
 
 		public static void ConfigureMongoDbClient()
@@ -1088,6 +1114,7 @@ namespace Horde.Server
 				BsonSerializer.RegisterSerializationProvider(new StringIdBsonSerializationProvider());
 				BsonSerializer.RegisterSerializationProvider(new BinaryIdBsonSerializationProvider());
 				BsonSerializer.RegisterSerializationProvider(new ObjectIdBsonSerializationProvider());
+				BsonSerializer.RegisterSerializationProvider(new SubResourceIdBsonSerializationProvider());
 			}
 		}
 

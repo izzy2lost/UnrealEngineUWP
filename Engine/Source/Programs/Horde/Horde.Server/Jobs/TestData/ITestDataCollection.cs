@@ -83,7 +83,7 @@ namespace Horde.Server.Jobs.TestData
 		/// <param name="index">Offset within the results to return</param>
 		/// <param name="count">Number of results to return</param>
 		/// <returns>The stream document</returns>
-		Task<List<ITestData>> FindAsync(StreamId? streamId, int? minChange, int? maxChange, JobId? jobId, SubResourceId? stepId, string? key = null, int index = 0, int count = 10);
+		Task<List<ITestData>> FindAsync(StreamId? streamId, int? minChange, int? maxChange, JobId? jobId, JobStepId? stepId, string? key = null, int index = 0, int count = 10);
 
 		/// <summary>
 		/// Find test meta data

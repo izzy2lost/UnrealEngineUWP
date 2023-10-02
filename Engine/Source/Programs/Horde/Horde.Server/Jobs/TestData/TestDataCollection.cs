@@ -278,7 +278,7 @@ namespace Horde.Server.Jobs.TestData
 			public JobId? JobId { get; set; }
 
 			[BsonIgnoreIfNull, BsonElement("stepid")]
-			public SubResourceId? StepId { get; set; }
+			public JobStepId? StepId { get; set; }
 
 			private TestDataRefDocument()
 			{
@@ -336,7 +336,7 @@ namespace Horde.Server.Jobs.TestData
 			public StreamId StreamId { get; set; }
 			public TemplateId TemplateRefId { get; set; }
 			public JobId JobId { get; set; }
-			public SubResourceId StepId { get; set; }
+			public JobStepId StepId { get; set; }
 			public int Change { get; set; }
 			public string Key { get; set; }
 			public BsonDocument Data { get; set; }
@@ -541,7 +541,7 @@ namespace Horde.Server.Jobs.TestData
 		}
 
 		/// <inheritdoc/>
-		public async Task<List<ITestData>> FindAsync(StreamId? streamId, int? minChange, int? maxChange, JobId? jobId, SubResourceId? stepId, string? key = null, int index = 0, int count = 10)
+		public async Task<List<ITestData>> FindAsync(StreamId? streamId, int? minChange, int? maxChange, JobId? jobId, JobStepId? stepId, string? key = null, int index = 0, int count = 10)
 		{
 			FilterDefinition<TestDataDocument> filter = FilterDefinition<TestDataDocument>.Empty;
 			if (streamId != null)

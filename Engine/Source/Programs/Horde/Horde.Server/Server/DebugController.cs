@@ -593,7 +593,7 @@ namespace Horde.Server.Server
 				return NotFound();
 			}
 
-			await _jobService.TryUpdateBatchAsync(job, SubResourceId.Parse(batchId), newError: JobStepBatchError.None);
+			await _jobService.TryUpdateBatchAsync(job, JobStepBatchId.Parse(batchId), newError: JobStepBatchError.None);
 
 			return Ok();
 

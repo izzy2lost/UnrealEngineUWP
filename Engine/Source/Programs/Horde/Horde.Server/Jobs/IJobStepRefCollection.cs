@@ -51,7 +51,7 @@ namespace Horde.Server.Jobs
 		/// <param name="stepId"></param>
 		/// <param name="issueIds"></param>
 		/// <returns></returns>
-		Task<IJobStepRef?> UpdateAsync(JobId jobId, SubResourceId batchId, SubResourceId stepId, List<int>? issueIds);
+		Task<IJobStepRef?> UpdateAsync(JobId jobId, JobStepBatchId batchId, JobStepId stepId, List<int>? issueIds);
 
 		/// <summary>
 		/// Gets a specific job step ref
@@ -60,7 +60,7 @@ namespace Horde.Server.Jobs
 		/// <param name="batchId"></param>
 		/// <param name="stepId"></param>
 		/// <returns></returns>
-		Task<IJobStepRef?> FindAsync(JobId jobId, SubResourceId batchId, SubResourceId stepId);
+		Task<IJobStepRef?> FindAsync(JobId jobId, JobStepBatchId batchId, JobStepId stepId);
 
 		/// <summary>
 		/// Gets job step references given an array of ids

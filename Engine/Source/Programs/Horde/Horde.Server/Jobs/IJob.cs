@@ -71,7 +71,7 @@ namespace Horde.Server.Jobs
 		/// <summary>
 		/// Unique ID assigned to this jobstep. A new id is generated whenever a jobstep's order is changed.
 		/// </summary>
-		public SubResourceId Id { get; }
+		public JobStepId Id { get; }
 
 		/// <summary>
 		/// Index of the node which this jobstep is to execute
@@ -226,7 +226,7 @@ namespace Horde.Server.Jobs
 		/// <summary>
 		/// Unique id for this group
 		/// </summary>
-		public SubResourceId Id { get; }
+		public JobStepBatchId Id { get; }
 
 		/// <summary>
 		/// The log file id for this batch
@@ -306,7 +306,7 @@ namespace Horde.Server.Jobs
 		/// <param name="stepId">The step id</param>
 		/// <param name="step">On success, receives the step object</param>
 		/// <returns>True if the step was found</returns>
-		public static bool TryGetStep(this IJobStepBatch batch, SubResourceId stepId, [NotNullWhen(true)] out IJobStep? step)
+		public static bool TryGetStep(this IJobStepBatch batch, JobStepId stepId, [NotNullWhen(true)] out IJobStep? step)
 		{
 			step = batch.Steps.FirstOrDefault(x => x.Id == stepId);
 			return step != null;
@@ -778,7 +778,7 @@ namespace Horde.Server.Jobs
 		/// <param name="stepId">The step id</param>
 		/// <param name="step">On success, receives the step object</param>
 		/// <returns>True if the step was found</returns>
-		public static bool TryGetStep(this IJob job, SubResourceId stepId, [NotNullWhen(true)] out IJobStep? step)
+		public static bool TryGetStep(this IJob job, JobStepId stepId, [NotNullWhen(true)] out IJobStep? step)
 		{
 			foreach (IJobStepBatch batch in job.Batches)
 			{
@@ -800,7 +800,7 @@ namespace Horde.Server.Jobs
 		/// <param name="batch">On success returns the batch containing the step</param>
 		/// <param name="step">On success, receives the step object</param>
 		/// <returns>True if the step was found</returns>
-		public static bool TryGetStep(this IJob job, SubResourceId stepId, [NotNullWhen(true)] out IJobStepBatch? batch, [NotNullWhen(true)] out IJobStep? step)
+		public static bool TryGetStep(this IJob job, JobStepId stepId, [NotNullWhen(true)] out IJobStepBatch? batch, [NotNullWhen(true)] out IJobStep? step)
 		{
 			foreach (IJobStepBatch currentBatch in job.Batches)
 			{
@@ -1229,7 +1229,7 @@ namespace Horde.Server.Jobs
 		/// <param name="batchId">The batch id</param>
 		/// <param name="batch">On success, receives the batch object</param>
 		/// <returns>True if the batch was found</returns>
-		public static bool TryGetBatch(this IJob job, SubResourceId batchId, [NotNullWhen(true)] out IJobStepBatch? batch)
+		public static bool TryGetBatch(this IJob job, JobStepBatchId batchId, [NotNullWhen(true)] out IJobStepBatch? batch)
 		{
 			batch = job.Batches.FirstOrDefault(x => x.Id == batchId);
 			return batch != null;
@@ -1243,7 +1243,7 @@ namespace Horde.Server.Jobs
 		/// <param name="stepId">The step id</param>
 		/// <param name="step">On success, receives the step object</param>
 		/// <returns>True if the batch was found</returns>
-		public static bool TryGetStep(this IJob job, SubResourceId batchId, SubResourceId stepId, [NotNullWhen(true)] out IJobStep? step)
+		public static bool TryGetStep(this IJob job, JobStepBatchId batchId, JobStepId stepId, [NotNullWhen(true)] out IJobStep? step)
 		{
 			IJobStepBatch? batch;
 			if (!TryGetBatch(job, batchId, out batch))

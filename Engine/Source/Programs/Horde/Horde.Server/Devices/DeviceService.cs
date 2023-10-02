@@ -425,7 +425,7 @@ namespace Horde.Server.Devices
 
 					if (stepId != null)
 					{
-						SubResourceId id = SubResourceId.Parse(stepId);
+						JobStepId id = JobStepId.Parse(stepId);
 						IGraph graph = await _jobService.GetGraphAsync(job);
 						foreach (IJobStepBatch batch in job.Batches)
 						{
@@ -526,7 +526,7 @@ namespace Horde.Server.Devices
 						{
 							IGraph graph = await _jobService.GetGraphAsync(job)!;
 
-							SubResourceId stepIdValue = SubResourceId.Parse(stepId);
+							JobStepId stepIdValue = JobStepId.Parse(stepId);
 							IJobStepBatch? batch = job.Batches.FirstOrDefault(b => b.Steps.FirstOrDefault(s => s.Id == stepIdValue) != null);
 							if (batch != null)
 							{

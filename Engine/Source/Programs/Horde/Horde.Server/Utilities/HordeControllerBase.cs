@@ -228,7 +228,7 @@ namespace Horde.Server.Utilities
 		/// Returns a 404 response for the given object
 		/// </summary>
 		[NonAction]
-		protected ActionResult NotFound(JobId jobId, SubResourceId batchId)
+		protected ActionResult NotFound(JobId jobId, JobStepBatchId batchId)
 		{
 			return NotFound("Batch {BatchId} not found on job {JobId}", batchId, jobId);
 		}
@@ -237,7 +237,7 @@ namespace Horde.Server.Utilities
 		/// Returns a 404 response for the given object
 		/// </summary>
 		[NonAction]
-		protected ActionResult NotFound(JobId jobId, SubResourceId batchId, SubResourceId stepId)
+		protected ActionResult NotFound(JobId jobId, JobStepBatchId batchId, JobStepId stepId)
 		{
 			return NotFound("Step {StepId} not found on job {JobId} batch {BatchId}", stepId, jobId, batchId);
 		}

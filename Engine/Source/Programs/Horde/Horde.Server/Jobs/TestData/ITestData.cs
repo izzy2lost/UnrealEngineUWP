@@ -185,7 +185,7 @@ namespace Horde.Server.Jobs.TestData
 		/// <summary>
 		/// The associated job step
 		/// </summary>
-		SubResourceId? StepId { get; }
+		JobStepId? StepId { get; }
 
 		/// <summary>
 		/// How long the test ran
@@ -306,7 +306,7 @@ namespace Horde.Server.Jobs.TestData
 		/// <summary>
 		/// The step that ran
 		/// </summary>
-		SubResourceId StepId { get; }
+		JobStepId StepId { get; }
 
 		/// <summary>
 		/// The changelist number that contained the data

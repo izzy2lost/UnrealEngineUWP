@@ -118,7 +118,7 @@ namespace Horde.Server.Tests
 				List<IJobStep> steps = new List<IJobStep>();
 				for (int nodeIdx = 0; nodeIdx < @group.Nodes.Count; nodeIdx++)
 				{
-					SubResourceId stepId = new SubResourceId((ushort)((groupIdx * 100) + nodeIdx));
+					JobStepId stepId = new JobStepId((ushort)((groupIdx * 100) + nodeIdx));
 
 					ILogFile logFile = LogFileService.CreateLogFileAsync(jobId, null, null, LogType.Json, useNewStorageBackend: false).Result;
 
@@ -131,7 +131,7 @@ namespace Horde.Server.Tests
 					steps.Add(step.Object);
 				}
 
-				SubResourceId batchId = new SubResourceId((ushort)(groupIdx * 100));
+				JobStepBatchId batchId = new JobStepBatchId((ushort)(groupIdx * 100));
 
 				Mock<IJobStepBatch> batch = new Mock<IJobStepBatch>(MockBehavior.Strict);
 				batch.SetupGet(x => x.Id).Returns(batchId);

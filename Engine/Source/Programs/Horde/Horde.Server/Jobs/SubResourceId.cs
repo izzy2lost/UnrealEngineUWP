@@ -37,7 +37,7 @@ namespace Horde.Server.Jobs
 		/// Creates a new random subresource id. We use random numbers for this to increase distinctiveness.
 		/// </summary>
 		/// <returns>New subresource id</returns>
-		public static SubResourceId Random()
+		public static SubResourceId GenerateNewId()
 		{
 			return new SubResourceId((ushort)Stopwatch.GetTimestamp());
 		}

@@ -41,8 +41,8 @@ namespace Horde.Server.Tests
 			Fixture fixture = await CreateFixtureAsync();
 
 	        IJob job = fixture.Job1;
-	        SubResourceId batchId = job.Batches[0].Id;
-	        SubResourceId stepId = job.Batches[0].Steps[0].Id;
+	        JobStepBatchId batchId = job.Batches[0].Id;
+	        JobStepId stepId = job.Batches[0].Steps[0].Id;
 
 	        object obj = (await JobsController.GetStepAsync(job.Id, batchId, stepId)).Value!;
 	        GetStepResponse stepRes = (obj as GetStepResponse)!;

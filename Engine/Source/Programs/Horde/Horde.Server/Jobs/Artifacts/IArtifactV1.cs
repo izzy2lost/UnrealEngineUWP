@@ -27,7 +27,7 @@ namespace Horde.Server.Jobs.Artifacts
 		/// <summary>
 		/// Unique id of the step containing this artifact
 		/// </summary>
-		public SubResourceId? StepId { get; }
+		public JobStepId? StepId { get; }
 
 		/// <summary>
 		/// Total size of the file

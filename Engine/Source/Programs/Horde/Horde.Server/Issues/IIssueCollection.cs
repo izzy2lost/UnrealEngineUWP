@@ -270,10 +270,10 @@ namespace Horde.Server.Issues
 		public JobId JobId { get; set; }
 
 		/// <inheritdoc cref="IIssueStep.BatchId"/>
-		public SubResourceId BatchId { get; set; }
+		public JobStepBatchId BatchId { get; set; }
 
 		/// <inheritdoc cref="IIssueStep.StepId"/>
-		public SubResourceId StepId { get; set; }
+		public JobStepId StepId { get; set; }
 
 		/// <inheritdoc cref="IIssueStep.StepTime"/>
 		public DateTime StepTime { get; set; }
@@ -300,7 +300,7 @@ namespace Horde.Server.Issues
 		/// <param name="logId">Unique id of the log file for this step</param>
 		/// <param name="annotations">Annotations for this step</param>
 		/// <param name="promoted">Whether this step is promoted</param>
-		public NewIssueStepData(int change, IssueSeverity severity, string jobName, JobId jobId, SubResourceId batchId, SubResourceId stepId, DateTime stepTime, LogId? logId, IReadOnlyNodeAnnotations? annotations, bool promoted)
+		public NewIssueStepData(int change, IssueSeverity severity, string jobName, JobId jobId, JobStepBatchId batchId, JobStepId stepId, DateTime stepTime, LogId? logId, IReadOnlyNodeAnnotations? annotations, bool promoted)
 		{
 			Change = change;
 			Severity = severity;
@@ -608,7 +608,7 @@ namespace Horde.Server.Issues
 		/// <param name="batchId">The batch id</param>
 		/// <param name="stepId">The step id</param>
 		/// <returns>List of steps</returns>
-		Task<List<IIssueStep>> FindStepsAsync(JobId jobId, SubResourceId? batchId, SubResourceId? stepId);
+		Task<List<IIssueStep>> FindStepsAsync(JobId jobId, JobStepBatchId? batchId, JobStepId? stepId);
 
 		#endregion
 
@@ -662,7 +662,7 @@ namespace Horde.Server.Issues
 		/// <param name="index">Index within the results to return</param>
 		/// <param name="count">Number of results</param>
 		/// <returns></returns>
-		public static async Task<List<IIssue>> FindIssuesForJobAsync(this IIssueCollection issueCollection, IJob job, IGraph graph, SubResourceId? stepId = null, SubResourceId? batchId = null, int? labelIdx = null, UserId? ownerId = null, bool? resolved = null, bool? promoted = null, int? index = null, int? count = null)
+		public static async Task<List<IIssue>> FindIssuesForJobAsync(this IIssueCollection issueCollection, IJob job, IGraph graph, JobStepId? stepId = null, JobStepBatchId? batchId = null, int? labelIdx = null, UserId? ownerId = null, bool? resolved = null, bool? promoted = null, int? index = null, int? count = null)
 		{
 			List<IIssueStep> steps = await issueCollection.FindStepsAsync(job.Id, batchId, stepId);
 			List<IIssueSpan> spans = await issueCollection.FindSpansAsync(steps.Select(x => x.SpanId));

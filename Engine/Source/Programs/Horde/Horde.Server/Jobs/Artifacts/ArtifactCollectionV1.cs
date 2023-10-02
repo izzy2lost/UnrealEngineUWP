@@ -30,7 +30,7 @@ namespace Horde.Server.Jobs.Artifacts
 			[BsonRequired]
 			public string Name { get; set; }
 
-			public SubResourceId? StepId { get; set; }
+			public JobStepId? StepId { get; set; }
 
 			[BsonRequired]
 			public long Length { get; set; }
@@ -47,7 +47,7 @@ namespace Horde.Server.Jobs.Artifacts
 				MimeType = null!;
 			}
 
-			public Artifact(JobId jobId, SubResourceId? stepId, string name, long length, string mimeType)
+			public Artifact(JobId jobId, JobStepId? stepId, string name, long length, string mimeType)
 			{
 				Id = ObjectId.GenerateNewId();
 				JobId = jobId;
@@ -83,7 +83,7 @@ namespace Horde.Server.Jobs.Artifacts
 		/// <param name="mimeType">Type of artifact</param>
 		/// <param name="data">The data to write</param>
 		/// <returns>The new log file document</returns>
-		public async Task<IArtifactV1> CreateArtifactAsync(JobId jobId, SubResourceId? stepId, string name, string mimeType, System.IO.Stream data)
+		public async Task<IArtifactV1> CreateArtifactAsync(JobId jobId, JobStepId? stepId, string name, string mimeType, System.IO.Stream data)
 		{
 			// upload first
 			string artifactName = ValidateName(name);
@@ -104,7 +104,7 @@ namespace Horde.Server.Jobs.Artifacts
 		/// <param name="stepId">Unique id of the Step to query</param>
 		/// <param name="name">Name of the artifact</param>
 		/// <returns>List of artifact documents</returns>
-		public async Task<List<IArtifactV1>> GetArtifactsAsync(JobId? jobId, SubResourceId? stepId, string? name)
+		public async Task<List<IArtifactV1>> GetArtifactsAsync(JobId? jobId, JobStepId? stepId, string? name)
 		{
 			FilterDefinitionBuilder<Artifact> builder = Builders<Artifact>.Filter;
 
@@ -213,7 +213,7 @@ namespace Horde.Server.Jobs.Artifacts
 		/// <param name="stepId"></param>
 		/// <param name="name"></param>
 		/// <returns></returns>
-		private static string GetPath(JobId jobId, SubResourceId? stepId, string name)
+		private static string GetPath(JobId jobId, JobStepId? stepId, string name)
 		{
 			if (stepId == null)
 			{

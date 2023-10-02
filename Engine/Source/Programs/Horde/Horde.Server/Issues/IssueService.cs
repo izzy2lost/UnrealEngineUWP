@@ -545,7 +545,7 @@ namespace Horde.Server.Issues
 		/// <param name="batchId">Unique id of the batch</param>
 		/// <param name="stepId">Unique id of the step</param>
 		/// <returns>Async task</returns>
-		public async Task UpdateCompleteStepAsync(IJob job, IGraph graph, SubResourceId batchId, SubResourceId stepId)
+		public async Task UpdateCompleteStepAsync(IJob job, IGraph graph, JobStepBatchId batchId, JobStepId stepId)
 		{
 			using TelemetrySpan span = _tracer.StartActiveSpan($"{nameof(IssueService)}.{nameof(UpdateCompleteStepAsync)}");
 			span.SetAttribute("jobId", job.Id.ToString());

@@ -120,7 +120,7 @@ namespace Horde.Server.Notifications
 		/// <param name="batchId">The batch id</param>
 		/// <param name="stepId">The step id</param>
 		/// <returns>Async task</returns>
-		void NotifyJobStepComplete(IJob job, IGraph graph, SubResourceId batchId, SubResourceId stepId);
+		void NotifyJobStepComplete(IJob job, IGraph graph, JobStepBatchId batchId, JobStepId stepId);
 		
 		/// <summary>
 		/// Notify all subscribers that a job step's outcome has changed

@@ -91,7 +91,7 @@ namespace Horde.Server.Jobs
 			/// <summary>
 			/// Returns an identifier describing this unique batch
 			/// </summary>
-			public (JobId, SubResourceId) Id => (_job.Id, Batch.Id);
+			public (JobId, JobStepBatchId) Id => (_job.Id, Batch.Id);
 
 			/// <summary>
 			/// Constructor
@@ -139,7 +139,7 @@ namespace Horde.Server.Jobs
 					delta = x._job.Id.Id.CompareTo(y._job.Id.Id);
 					if (delta == 0)
 					{
-						delta = (int)x.Batch.Id.Value - (int)y.Batch.Id.Value;
+						delta = (int)x.Batch.Id.SubResourceId.Value - (int)y.Batch.Id.SubResourceId.Value;
 					}
 				}
 				return delta;
@@ -201,7 +201,7 @@ namespace Horde.Server.Jobs
 		SortedSet<QueueItem> _queue = new SortedSet<QueueItem>(new QueueItemComparer());
 
 		// Map from batch id to the corresponding queue item
-		Dictionary<(JobId, SubResourceId), QueueItem> _batchIdToQueueItem = new Dictionary<(JobId, SubResourceId), QueueItem>();
+		Dictionary<(JobId, JobStepBatchId), QueueItem> _batchIdToQueueItem = new Dictionary<(JobId, JobStepBatchId), QueueItem>();
 
 		// Set of long-poll tasks waiting to be satisfied 
 		readonly HashSet<QueueWaiter> _waiters = new HashSet<QueueWaiter>();
@@ -212,7 +212,7 @@ namespace Horde.Server.Jobs
 		/// <summary>
 		/// Delegate for job schedule events
 		/// </summary>
-		public delegate void JobScheduleEvent(IPool pool, bool hasAgentsOnline, IJob job, IGraph graph, SubResourceId batchId);
+		public delegate void JobScheduleEvent(IPool pool, bool hasAgentsOnline, IJob job, IGraph graph, JobStepBatchId batchId);
 		
 		/// <summary>
 		/// Event triggered when a job is scheduled
@@ -245,7 +245,7 @@ namespace Horde.Server.Jobs
 			_settings = settings;
 			_logger = logger;
 
-			OnLeaseStartedProperties.Add(nameof(ExecuteJobTask.JobId), x => JobId.Parse(x.JobId)).Add(nameof(ExecuteJobTask.BatchId), x => SubResourceId.Parse(x.BatchId)).Add(nameof(ExecuteJobTask.LogId), x => LogId.Parse(x.LogId));
+			OnLeaseStartedProperties.Add(nameof(ExecuteJobTask.JobId), x => JobId.Parse(x.JobId)).Add(nameof(ExecuteJobTask.BatchId), x => JobStepBatchId.Parse(x.BatchId)).Add(nameof(ExecuteJobTask.LogId), x => LogId.Parse(x.LogId));
 		}
 
 		/// <inheritdoc/>
@@ -366,7 +366,7 @@ namespace Horde.Server.Jobs
 
 			// New list of queue items
 			SortedSet<QueueItem> newQueue = new SortedSet<QueueItem>(_queue.Comparer);
-			Dictionary<(JobId, SubResourceId), QueueItem> newBatchIdToQueueItem = new Dictionary<(JobId, SubResourceId), QueueItem>();
+			Dictionary<(JobId, JobStepBatchId), QueueItem> newBatchIdToQueueItem = new Dictionary<(JobId, JobStepBatchId), QueueItem>();
 
 			// Query for a new list of jobs for the queue
 			List<IJob> newJobs = await _jobs.GetDispatchQueueAsync();
@@ -399,7 +399,7 @@ namespace Horde.Server.Jobs
 				}
 
 				// Update all the batches
-				HashSet<SubResourceId> checkedBatchIds = new HashSet<SubResourceId>();
+				HashSet<JobStepBatchId> checkedBatchIds = new HashSet<JobStepBatchId>();
 				while (newJob != null)
 				{
 					// Find the next batch within this job that is ready
@@ -512,7 +512,7 @@ namespace Horde.Server.Jobs
 			}
 		}
 
-		private async Task<IJob?> SkipBatchAsync(IJob job, SubResourceId batchId, IGraph graph, JobStepBatchError reason)
+		private async Task<IJob?> SkipBatchAsync(IJob job, JobStepBatchId batchId, IGraph graph, JobStepBatchError reason)
 		{
 			_logger.LogInformation("Skipping batch {BatchId} for job {JobId} (reason: {Reason})", batchId, job.Id, reason);
 
@@ -715,7 +715,7 @@ namespace Horde.Server.Jobs
 		/// <inheritdoc/>
 		public override Task CancelLeaseAsync(IAgent agent, LeaseId leaseId, ExecuteJobTask task)
 		{
-			return CancelLeaseAsync(agent, JobId.Parse(task.JobId), task.BatchId.ToSubResourceId());
+			return CancelLeaseAsync(agent, JobId.Parse(task.JobId), JobStepBatchId.Parse(task.BatchId));
 		}
 
 		/// <summary>
@@ -1015,7 +1015,7 @@ namespace Horde.Server.Jobs
 			{
 				AgentId agentId = agent.Id;
 				JobId jobId = JobId.Parse(task.JobId);
-				SubResourceId batchId = task.BatchId.ToSubResourceId();
+				JobStepBatchId batchId = JobStepBatchId.Parse(task.BatchId);
 
 				// Update the batch
 				for (; ; )
@@ -1087,7 +1087,7 @@ namespace Horde.Server.Jobs
 		/// <param name="jobId"></param>
 		/// <param name="batchId"></param>
 		/// <returns></returns>
-		async Task CancelLeaseAsync(IAgent agent, JobId jobId, SubResourceId batchId)
+		async Task CancelLeaseAsync(IAgent agent, JobId jobId, JobStepBatchId batchId)
 		{
 			_logger.LogDebug("Cancelling lease for job {JobId}, batch {BatchId}", jobId, batchId);
 

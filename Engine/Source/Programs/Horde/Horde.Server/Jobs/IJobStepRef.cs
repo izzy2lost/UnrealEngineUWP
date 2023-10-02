@@ -28,12 +28,12 @@ namespace Horde.Server.Jobs
 		/// <summary>
 		/// The batch id within the job
 		/// </summary>
-		public SubResourceId BatchId { get; set; }
+		public JobStepBatchId BatchId { get; set; }
 
 		/// <summary>
 		/// The step id
 		/// </summary>
-		public SubResourceId StepId { get; set; }
+		public JobStepId StepId { get; set; }
 
 		/// <summary>
 		/// Constructor
@@ -41,7 +41,7 @@ namespace Horde.Server.Jobs
 		/// <param name="jobId">The job id</param>
 		/// <param name="batchId">The batch id within the job</param>
 		/// <param name="stepId">The step id</param>
-		public JobStepRefId(JobId jobId, SubResourceId batchId, SubResourceId stepId)
+		public JobStepRefId(JobId jobId, JobStepBatchId batchId, JobStepId stepId)
 		{
 			JobId = jobId;
 			BatchId = batchId;
@@ -56,7 +56,7 @@ namespace Horde.Server.Jobs
 		public static JobStepRefId Parse(string text)
 		{
 			string[] components = text.Split(':');
-			return new JobStepRefId(JobId.Parse(components[0]), SubResourceId.Parse(components[1]), SubResourceId.Parse(components[2]));
+			return new JobStepRefId(JobId.Parse(components[0]), JobStepBatchId.Parse(components[1]), JobStepId.Parse(components[2]));
 		}
 
 		/// <summary>
@@ -89,13 +89,13 @@ namespace Horde.Server.Jobs
 				return result;
 			}
 
-			result = BatchId.Value.CompareTo(other.BatchId.Value);
+			result = BatchId.SubResourceId.Value.CompareTo(other.BatchId.SubResourceId.Value);
 			if (result != 0)
 			{
 				return result;
 			}
 
-			return StepId.Value.CompareTo(other.StepId.Value);
+			return StepId.Id.Value.CompareTo(other.StepId.Id.Value);
 		}
 
 		/// <inheritdoc/>

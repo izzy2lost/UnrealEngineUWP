@@ -41,12 +41,12 @@ namespace Horde.Server.Issues
 		/// <summary>
 		/// Unique id of the batch within the job
 		/// </summary>
-		public SubResourceId BatchId { get; }
+		public JobStepBatchId BatchId { get; }
 
 		/// <summary>
 		/// Unique id of the step within the job
 		/// </summary>
-		public SubResourceId StepId { get; }
+		public JobStepId StepId { get; }
 
 		/// <summary>
 		/// Time that the step started

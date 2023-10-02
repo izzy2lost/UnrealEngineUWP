@@ -116,10 +116,10 @@ namespace Horde.Server.Jobs
 
 		Task<(IJob, IJobStepBatch, IJobStep)> AuthorizeAsync(string jobId, string stepId, ServerCallContext context)
 		{
-			return AuthorizeAsync(JobId.Parse(jobId), SubResourceId.Parse(stepId), context);
+			return AuthorizeAsync(JobId.Parse(jobId), JobStepId.Parse(stepId), context);
 		}
 
-		async Task<(IJob, IJobStepBatch, IJobStep)> AuthorizeAsync(JobId jobId, SubResourceId stepId, ServerCallContext context)
+		async Task<(IJob, IJobStepBatch, IJobStep)> AuthorizeAsync(JobId jobId, JobStepId stepId, ServerCallContext context)
 		{
 			IJob? job = await _jobCollection.GetAsync(jobId);
 			if (job == null)
@@ -304,7 +304,7 @@ namespace Horde.Server.Jobs
 		/// <returns>Information about the new agent</returns>
 		public async Task<BeginBatchResponse> BeginBatchAsync(BeginBatchRequest request, ServerCallContext context)
 		{
-			SubResourceId batchId = request.BatchId.ToSubResourceId();
+			JobStepBatchId batchId = JobStepBatchId.Parse(request.BatchId);
 
 			IJob? job = await _jobService.GetJobAsync(JobId.Parse(request.JobId));
 			if (job == null)
@@ -316,7 +316,7 @@ namespace Horde.Server.Jobs
 				throw new StructuredRpcException(StatusCode.NotFound, "Stream {StreamId} not found", job.StreamId);
 			}
 
-			IJobStepBatch batch = AuthorizeBatch(job, request.BatchId.ToSubResourceId(), context);
+			IJobStepBatch batch = AuthorizeBatch(job, JobStepBatchId.Parse(request.BatchId), context);
 			job = await _jobService.UpdateBatchAsync(job, batchId, streamConfig, newState: JobStepBatchState.Starting);
 
 			if (job == null)
@@ -367,7 +367,7 @@ namespace Horde.Server.Jobs
 				throw new StructuredRpcException(StatusCode.NotFound, "Stream {StreamId} not found", job.StreamId);
 			}
 
-			IJobStepBatch batch = AuthorizeBatch(job, request.BatchId.ToSubResourceId(), context);
+			IJobStepBatch batch = AuthorizeBatch(job, JobStepBatchId.Parse(request.BatchId), context);
 			await _jobService.UpdateBatchAsync(job, batch.Id, streamConfig, newState: JobStepBatchState.Complete);
 			return new Empty();
 		}
@@ -405,7 +405,7 @@ namespace Horde.Server.Jobs
 			}
 
 			// Find the batch being executed
-			IJobStepBatch batch = AuthorizeBatch(job, request.BatchId.ToSubResourceId(), context);
+			IJobStepBatch batch = AuthorizeBatch(job, JobStepBatchId.Parse(request.BatchId), context);
 			if (batch.State != JobStepBatchState.Starting && batch.State != JobStepBatchState.Running)
 			{
 				return new BeginStepResponse { State = BeginStepResponse.Types.Result.Complete };
@@ -635,7 +635,7 @@ namespace Horde.Server.Jobs
 			return job;
 		}
 
-		static IJobStepBatch AuthorizeBatch(IJob job, SubResourceId batchId, ServerCallContext context)
+		static IJobStepBatch AuthorizeBatch(IJob job, JobStepBatchId batchId, ServerCallContext context)
 		{
 			IJobStepBatch? batch;
 			if (!job.TryGetBatch(batchId, out batch))
@@ -678,9 +678,9 @@ namespace Horde.Server.Jobs
 				throw new StructuredRpcException(StatusCode.NotFound, "Stream {StreamId} not found", job.StreamId);
 			}
 
-			IJobStepBatch batch = AuthorizeBatch(job, request.BatchId.ToSubResourceId(), context);
+			IJobStepBatch batch = AuthorizeBatch(job, JobStepBatchId.Parse(request.BatchId), context);
 
-			SubResourceId stepId = request.StepId.ToSubResourceId();
+			JobStepId stepId = JobStepId.Parse(request.StepId);
 			if (!batch.TryGetStep(stepId, out IJobStep? step))
 			{
 				throw new StructuredRpcException(StatusCode.NotFound, "Unable to find step {JobId}:{BatchId}:{StepId}", job.Id, batch.Id, stepId);
@@ -692,7 +692,7 @@ namespace Horde.Server.Jobs
 				error = JobStepError.TimedOut;
 			}
 
-			await _jobService.UpdateStepAsync(job, batch.Id, request.StepId.ToSubResourceId(), streamConfig, request.State, request.Outcome, error, null, null, null, null, null);
+			await _jobService.UpdateStepAsync(job, batch.Id, JobStepId.Parse(request.StepId), streamConfig, request.State, request.Outcome, error, null, null, null, null, null);
 			return new Empty();
 		}
 
@@ -705,9 +705,9 @@ namespace Horde.Server.Jobs
 		public async Task<RpcGetStepResponse> GetStepAsync(GetStepRequest request, ServerCallContext context)
 		{
 			IJob job = await GetJobAsync(JobId.Parse(request.JobId));
-			IJobStepBatch batch = AuthorizeBatch(job, request.BatchId.ToSubResourceId(), context);
+			IJobStepBatch batch = AuthorizeBatch(job, JobStepBatchId.Parse(request.BatchId), context);
 
-			SubResourceId stepId = request.StepId.ToSubResourceId();
+			JobStepId stepId = JobStepId.Parse(request.StepId);
 			if (!batch.TryGetStep(stepId, out IJobStep? step))
 			{
 				throw new StructuredRpcException(StatusCode.NotFound, "Unable to find step {JobId}:{BatchId}:{StepId}", job.Id, batch.Id, stepId);
@@ -861,10 +861,10 @@ namespace Horde.Server.Jobs
 
 			// Get the job and step
 			IJob job = await GetJobAsync(JobId.Parse(metadata.JobId));
-			AuthorizeBatch(job, metadata.BatchId.ToSubResourceId(), context);
+			AuthorizeBatch(job, JobStepBatchId.Parse(metadata.BatchId), context);
 
 			IJobStep? step;
-			if (!job.TryGetStep(metadata.BatchId.ToSubResourceId(), metadata.StepId.ToSubResourceId(), out step))
+			if (!job.TryGetStep(JobStepBatchId.Parse(metadata.BatchId), JobStepId.Parse(metadata.StepId), out step))
 			{
 				throw new StructuredRpcException(StatusCode.NotFound, "Unable to find step {JobId}:{BatchId}:{StepId}", job.Id, metadata.BatchId, metadata.StepId);
 			}
@@ -910,7 +910,7 @@ namespace Horde.Server.Jobs
 					throw new StructuredRpcException(StatusCode.InvalidArgument, "Job {JobId} does not match previous Job {JobId} in request", jobId, job.Id);
 				}
 
-				SubResourceId jobStepId = request.JobStepId.ToSubResourceId();
+				JobStepId jobStepId = JobStepId.Parse(request.JobStepId);
 
 				if (jobStep == null)
 				{
@@ -955,7 +955,7 @@ namespace Horde.Server.Jobs
 				throw new StructuredRpcException(StatusCode.NotFound, "Stream {StreamId} not found", job.StreamId);
 			}
 
-			IJobStepBatch batch = AuthorizeBatch(job, request.BatchId.ToSubResourceId(), context);
+			IJobStepBatch batch = AuthorizeBatch(job, JobStepBatchId.Parse(request.BatchId), context);
 
 			Report newReport = new Report { Name = request.Name, Placement = request.Placement, ArtifactId = ObjectId.Parse(request.ArtifactId) };
 			if (request.Scope == ReportScope.Job)
@@ -966,7 +966,7 @@ namespace Horde.Server.Jobs
 			else
 			{
 				_logger.LogDebug("Adding report to step {JobId}:{BatchId}:{StepId}: {Name} -> {ArtifactId}", job.Id, batch.Id, request.StepId, request.Name, request.ArtifactId);
-				await _jobService.UpdateStepAsync(job, batch.Id, request.StepId.ToSubResourceId(), streamConfig, newReports: new List<Report> { newReport });
+				await _jobService.UpdateStepAsync(job, batch.Id, JobStepId.Parse(request.StepId), streamConfig, newReports: new List<Report> { newReport });
 			}
 
 			return new CreateReportResponse();

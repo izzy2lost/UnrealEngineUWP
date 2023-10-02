@@ -510,10 +510,10 @@ namespace Horde.Server.Issues
 			public JobId JobId { get; set; }
 
 			[BsonRequired]
-			public SubResourceId BatchId { get; set; }
+			public JobStepBatchId BatchId { get; set; }
 
 			[BsonRequired]
-			public SubResourceId StepId { get; set; }
+			public JobStepId StepId { get; set; }
 
 			public DateTime StepTime { get; set; }
 
@@ -1656,7 +1656,7 @@ namespace Horde.Server.Issues
 		}
 
 		/// <inheritdoc/>
-		public Task<List<IIssueStep>> FindStepsAsync(JobId jobId, SubResourceId? batchId, SubResourceId? stepId)
+		public Task<List<IIssueStep>> FindStepsAsync(JobId jobId, JobStepBatchId? batchId, JobStepId? stepId)
 		{
 			FilterDefinition<IssueStep> filter = Builders<IssueStep>.Filter.Eq(x => x.JobId, jobId);
 			if (batchId != null)

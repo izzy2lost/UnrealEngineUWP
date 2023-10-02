@@ -18,13 +18,13 @@ namespace Horde.Server.Jobs.TestData
 		/// The job which produced the data
 		/// </summary>
 		[Required]
-		public string JobId { get; set; } = String.Empty;
+		public JobId JobId { get; set; }
 
 		/// <summary>
 		/// The step that ran
 		/// </summary>
 		[Required]
-		public string StepId { get; set; } = String.Empty;
+		public JobStepId StepId { get; set; }
 
 		/// <summary>
 		/// Key used to identify the particular data

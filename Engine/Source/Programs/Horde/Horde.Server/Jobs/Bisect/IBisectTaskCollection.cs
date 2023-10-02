@@ -29,7 +29,7 @@ namespace Horde.Server.Jobs.Bisect
 		/// <param name="options">Options for the bisection</param>
 		/// <param name="cancellationToken">Cancellation token for the operation</param>
 		/// <returns>The new bisect task instance</returns>
-		public Task<IBisectTask> CreateAsync(IJob job, SubResourceId batchId, SubResourceId stepId, string nodeName, JobStepOutcome outcome, UserId ownerId, CreateBisectTaskOptions? options = null, CancellationToken cancellationToken = default);
+		public Task<IBisectTask> CreateAsync(IJob job, JobStepBatchId batchId, JobStepId stepId, string nodeName, JobStepOutcome outcome, UserId ownerId, CreateBisectTaskOptions? options = null, CancellationToken cancellationToken = default);
 
 		/// <summary>
 		/// Finds all the active bisect tasks

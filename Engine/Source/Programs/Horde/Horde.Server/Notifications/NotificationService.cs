@@ -236,7 +236,7 @@ namespace Horde.Server.Notifications
 		}
 
 		/// <inheritdoc/>
-		public void NotifyJobStepComplete(IJob job, IGraph graph, SubResourceId batchId, SubResourceId stepId)
+		public void NotifyJobStepComplete(IJob job, IGraph graph, JobStepBatchId batchId, JobStepId stepId)
 		{
 			// Enqueue job step complete notifications if needed
 			if (job.TryGetStep(batchId, stepId, out IJobStep? step))
@@ -255,7 +255,7 @@ namespace Horde.Server.Notifications
 		}
 		
 		/// <inheritdoc/>
-		public void NotifyJobScheduled(IPool pool, bool poolHasAgentsOnline, IJob job, IGraph graph, SubResourceId batchId)
+		public void NotifyJobScheduled(IPool pool, bool poolHasAgentsOnline, IJob job, IGraph graph, JobStepBatchId batchId)
 		{
 			if (pool.EnableAutoscaling && !poolHasAgentsOnline)
 			{
@@ -618,7 +618,7 @@ namespace Horde.Server.Notifications
 			return await _userCollection.FindUsersAsync(userIds);
 		}
 
-		private async Task SendJobStepNotificationsAsync(IJob job, SubResourceId batchId, SubResourceId stepId)
+		private async Task SendJobStepNotificationsAsync(IJob job, JobStepBatchId batchId, JobStepId stepId)
 		{
 			using IDisposable scope = _logger.BeginScope("Sending notifications for step {JobId}:{BatchId}:{StepId}", job.Id, batchId, stepId);
 

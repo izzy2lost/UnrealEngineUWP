@@ -152,7 +152,7 @@ namespace Horde.Server.Jobs
 		}
 
 		/// <inheritdoc/>
-		public async Task<IJobStepRef?> UpdateAsync(JobId jobId, SubResourceId batchId, SubResourceId stepId, List<int>? issueIds)
+		public async Task<IJobStepRef?> UpdateAsync(JobId jobId, JobStepBatchId batchId, JobStepId stepId, List<int>? issueIds)
 		{
 			UpdateDefinitionBuilder<JobStepRef> updateBuilder = Builders<JobStepRef>.Update;
 			List<UpdateDefinition<JobStepRef>> updates = new List<UpdateDefinition<JobStepRef>>();
@@ -172,7 +172,7 @@ namespace Horde.Server.Jobs
 		}
 
 		/// <inheritdoc/>
-		public async Task<IJobStepRef?> FindAsync(JobId jobId, SubResourceId batchId, SubResourceId stepId)
+		public async Task<IJobStepRef?> FindAsync(JobId jobId, JobStepBatchId batchId, JobStepId stepId)
 		{
 			JobStepRefId id = new JobStepRefId(jobId, batchId, stepId);
 			return await _jobStepRefs.Find(x => x.Id.Equals(id)).FirstOrDefaultAsync();

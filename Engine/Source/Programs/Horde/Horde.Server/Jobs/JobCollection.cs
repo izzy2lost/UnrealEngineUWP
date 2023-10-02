@@ -46,7 +46,7 @@ namespace Horde.Server.Jobs
 		class JobStepDocument : IJobStep
 		{
 			[BsonRequired]
-			public SubResourceId Id { get; set; }
+			public JobStepId Id { get; set; }
 
 			[BsonRequired]
 			public int NodeIdx { get; set; }
@@ -107,7 +107,7 @@ namespace Horde.Server.Jobs
 			{
 			}
 
-			public JobStepDocument(SubResourceId id, int nodeIdx)
+			public JobStepDocument(JobStepId id, int nodeIdx)
 			{
 				Id = id;
 				NodeIdx = nodeIdx;
@@ -132,7 +132,7 @@ namespace Horde.Server.Jobs
 		class JobStepBatchDocument : IJobStepBatch
 		{
 			[BsonRequired]
-			public SubResourceId Id { get; set; }
+			public JobStepBatchId Id { get; set; }
 
 			public LogId? LogId { get; set; }
 
@@ -180,7 +180,7 @@ namespace Horde.Server.Jobs
 			{
 			}
 
-			public JobStepBatchDocument(SubResourceId id, int groupIdx)
+			public JobStepBatchDocument(JobStepBatchId id, int groupIdx)
 			{
 				Id = id;
 				GroupIdx = groupIdx;
@@ -366,7 +366,7 @@ namespace Horde.Server.Jobs
 					Environment[pair.Key] = pair.Value;
 				}
 
-				NextSubResourceId = SubResourceId.Random();
+				NextSubResourceId = SubResourceId.GenerateNewId();
 				UpdateTimeUtc = createTimeUtc;
 			}
 		}
@@ -731,7 +731,7 @@ namespace Horde.Server.Jobs
 		}
 
 		/// <inheritdoc/>
-		public async Task<IJob?> TryUpdateBatchAsync(IJob job, IGraph graph, SubResourceId batchId, LogId? newLogId, JobStepBatchState? newState, JobStepBatchError? newError)
+		public async Task<IJob?> TryUpdateBatchAsync(IJob job, IGraph graph, JobStepBatchId batchId, LogId? newLogId, JobStepBatchState? newState, JobStepBatchError? newError)
 		{
 			JobDocument jobDocument = Clone((JobDocument)job);
 
@@ -865,7 +865,7 @@ namespace Horde.Server.Jobs
 		}
 
 		/// <inheritdoc/>
-		public Task<IJob?> TryUpdateStepAsync(IJob job, IGraph graph, SubResourceId batchId, SubResourceId stepId, JobStepState newState, JobStepOutcome newOutcome, JobStepError? newError, bool? newAbortRequested, UserId? newAbortByUserId, LogId? newLogId, ObjectId? newNotificationTriggerId, UserId? newRetryByUserId, Priority? newPriority, List<Report>? newReports, Dictionary<string, string?>? newProperties)
+		public Task<IJob?> TryUpdateStepAsync(IJob job, IGraph graph, JobStepBatchId batchId, JobStepId stepId, JobStepState newState, JobStepOutcome newOutcome, JobStepError? newError, bool? newAbortRequested, UserId? newAbortByUserId, LogId? newLogId, ObjectId? newNotificationTriggerId, UserId? newRetryByUserId, Priority? newPriority, List<Report>? newReports, Dictionary<string, string?>? newProperties)
 		{
 			JobDocument jobDocument = Clone((JobDocument)job);
 
@@ -1246,7 +1246,7 @@ namespace Horde.Server.Jobs
 		}
 
 		/// <inheritdoc/>
-		public async Task<IJob?> SkipBatchAsync(IJob? job, SubResourceId batchId, IGraph graph, JobStepBatchError reason)
+		public async Task<IJob?> SkipBatchAsync(IJob? job, JobStepBatchId batchId, IGraph graph, JobStepBatchError reason)
 		{
 			while (job != null)
 			{
@@ -1430,7 +1430,7 @@ namespace Horde.Server.Jobs
 			RefreshJobPriority(job, updates);
 		}
 
-		static void RemoveSteps(JobStepBatchDocument batch, Predicate<JobStepDocument> predicate, Dictionary<NodeRef, SubResourceId> recycleStepIds)
+		static void RemoveSteps(JobStepBatchDocument batch, Predicate<JobStepDocument> predicate, Dictionary<NodeRef, JobStepId> recycleStepIds)
 		{
 			for (int idx = batch.Steps.Count - 1; idx >= 0; idx--)
 			{
@@ -1443,7 +1443,7 @@ namespace Horde.Server.Jobs
 			}
 		}
 
-		static void RemoveBatches(JobDocument job, Predicate<JobStepBatchDocument> predicate, Dictionary<int, SubResourceId> recycleBatchIds)
+		static void RemoveBatches(JobDocument job, Predicate<JobStepBatchDocument> predicate, Dictionary<int, JobStepBatchId> recycleBatchIds)
 		{
 			for (int idx = job.Batches.Count - 1; idx >= 0; idx--)
 			{
@@ -1487,7 +1487,7 @@ namespace Horde.Server.Jobs
 			}
 
 			// Remove any steps and batches that haven't started yet, saving their ids so we can re-use them if we re-add them
-			Dictionary<NodeRef, SubResourceId> recycleStepIds = new Dictionary<NodeRef, SubResourceId>();
+			Dictionary<NodeRef, JobStepId> recycleStepIds = new Dictionary<NodeRef, JobStepId>();
 			foreach (JobStepBatchDocument batch in job.Batches)
 			{
 				RemoveSteps(batch, x => x.State == JobStepState.Waiting || x.State == JobStepState.Ready, recycleStepIds);
@@ -1548,7 +1548,7 @@ namespace Horde.Server.Jobs
 			}
 
 			// Remove any batches which are now empty
-			Dictionary<int, SubResourceId> recycleBatchIds = new Dictionary<int, SubResourceId>();
+			Dictionary<int, JobStepBatchId> recycleBatchIds = new Dictionary<int, JobStepBatchId>();
 			RemoveBatches(job, x => x.Steps.Count == 0 && x.LeaseId == null && x.Error == JobStepBatchError.None, recycleBatchIds);
 
 			// Find all the targets in this job
@@ -1711,11 +1711,11 @@ namespace Horde.Server.Jobs
 						JobStepBatchDocument? batch = appendToBatches[groupIdx];
 						if (batch == null)
 						{
-							SubResourceId batchId;
+							JobStepBatchId batchId;
 							if (!recycleBatchIds.Remove(groupIdx, out batchId))
 							{
 								job.NextSubResourceId = job.NextSubResourceId.Next();
-								batchId = job.NextSubResourceId;
+								batchId = new JobStepBatchId(job.NextSubResourceId);
 							}
 
 							batch = new JobStepBatchDocument(batchId, groupIdx);
@@ -1728,11 +1728,11 @@ namespace Horde.Server.Jobs
 						// is already valid.
 						if (batch.Steps.Count == 0 || nodeIdx > batch.Steps[^1].NodeIdx)
 						{
-							SubResourceId stepId;
+							JobStepId stepId;
 							if (!recycleStepIds.Remove(new NodeRef(groupIdx, nodeIdx), out stepId))
 							{
 								job.NextSubResourceId = job.NextSubResourceId.Next();
-								stepId = job.NextSubResourceId;
+								stepId = new JobStepId(job.NextSubResourceId);
 							}
 
 							JobStepDocument step = new JobStepDocument(stepId, nodeIdx);

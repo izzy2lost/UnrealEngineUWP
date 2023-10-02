@@ -32,12 +32,12 @@ namespace Horde.Server.Jobs.Artifacts
 		/// <summary>
 		/// Job id to get all artifacts for
 		/// </summary>
-		public string? JobId { get; set; }
+		public JobId? JobId { get; set; }
 
 		/// <summary>
 		/// Step id to filter by
 		/// </summary>
-		public string? StepId { get; set; }
+		public JobStepId? StepId { get; set; }
 
 		/// <summary>
 		/// Further filter by a list of artifact ids
@@ -50,7 +50,7 @@ namespace Horde.Server.Jobs.Artifacts
 		/// <param name="jobId">Job id to get all artifacts for</param>
 		/// <param name="stepId">step to filter by</param>
 		/// <param name="artifactIds">The artifact ids.  Returns all artifacts for a job </param>
-		public GetJobArtifactZipRequest(string? jobId, string? stepId, List<string>? artifactIds)
+		public GetJobArtifactZipRequest(JobId? jobId, JobStepId? stepId, List<string>? artifactIds)
 		{
 			JobId = jobId;
 			StepId = stepId;

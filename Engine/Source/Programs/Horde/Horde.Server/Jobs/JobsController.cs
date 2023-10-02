@@ -1064,7 +1064,7 @@ namespace Horde.Server.Jobs
 		/// <param name="request">Updates to apply to the node</param>
 		[HttpPut]
 		[Route("/api/v1/jobs/{jobId}/batches/{batchId}")]
-		public async Task<ActionResult> UpdateBatchAsync(JobId jobId, SubResourceId batchId, [FromBody] UpdateBatchRequest request)
+		public async Task<ActionResult> UpdateBatchAsync(JobId jobId, JobStepBatchId batchId, [FromBody] UpdateBatchRequest request)
 		{
 			IJob? job = await _jobService.GetJobAsync(jobId);
 			if (job == null)
@@ -1104,7 +1104,7 @@ namespace Horde.Server.Jobs
 		[HttpGet]
 		[Route("/api/v1/jobs/{jobId}/batches/{batchId}")]
 		[ProducesResponseType(typeof(GetBatchResponse), 200)]
-		public async Task<ActionResult<object>> GetBatchAsync(JobId jobId, SubResourceId batchId, [FromQuery] PropertyFilter? filter = null)
+		public async Task<ActionResult<object>> GetBatchAsync(JobId jobId, JobStepBatchId batchId, [FromQuery] PropertyFilter? filter = null)
 		{
 			IJob? job = await _jobService.GetJobAsync(jobId);
 			if (job == null)
@@ -1145,7 +1145,7 @@ namespace Horde.Server.Jobs
 		[HttpGet]
 		[Route("/api/v1/jobs/{jobId}/batches/{batchId}/steps")]
 		[ProducesResponseType(typeof(List<GetStepResponse>), 200)]
-		public async Task<ActionResult<List<object>>> GetStepsAsync(JobId jobId, SubResourceId batchId, [FromQuery] PropertyFilter? filter = null)
+		public async Task<ActionResult<List<object>>> GetStepsAsync(JobId jobId, JobStepBatchId batchId, [FromQuery] PropertyFilter? filter = null)
 		{
 			IJob? job = await _jobService.GetJobAsync(jobId);
 			if (job == null)
@@ -1189,7 +1189,7 @@ namespace Horde.Server.Jobs
 		/// <param name="request">Updates to apply to the node</param>
 		[HttpPut]
 		[Route("/api/v1/jobs/{jobId}/batches/{batchId}/steps/{stepId}")]
-		public async Task<ActionResult<UpdateStepResponse>> UpdateStepAsync(JobId jobId, SubResourceId batchId, SubResourceId stepId, [FromBody] UpdateStepRequest request)
+		public async Task<ActionResult<UpdateStepResponse>> UpdateStepAsync(JobId jobId, JobStepBatchId batchId, JobStepId stepId, [FromBody] UpdateStepRequest request)
 		{
 			IJob? job = await _jobService.GetJobAsync(jobId);
 			if (job == null)
@@ -1278,7 +1278,7 @@ namespace Horde.Server.Jobs
 		[HttpGet]
 		[Route("/api/v1/jobs/{jobId}/batches/{batchId}/steps/{stepId}")]
 		[ProducesResponseType(typeof(GetStepResponse), 200)]
-		public async Task<ActionResult<object>> GetStepAsync(JobId jobId, SubResourceId batchId, SubResourceId stepId, [FromQuery] PropertyFilter? filter = null)
+		public async Task<ActionResult<object>> GetStepAsync(JobId jobId, JobStepBatchId batchId, JobStepId stepId, [FromQuery] PropertyFilter? filter = null)
 		{
 			IJob? job = await _jobService.GetJobAsync(jobId);
 			if (job == null)
@@ -1325,7 +1325,7 @@ namespace Horde.Server.Jobs
 		/// <returns>Information about the requested job</returns>
 		[HttpPut]
 		[Route("/api/v1/jobs/{jobId}/batches/{batchId}/steps/{stepId}/notifications")]
-		public async Task<ActionResult> UpdateStepNotificationsAsync(JobId jobId, SubResourceId batchId, SubResourceId stepId, [FromBody] UpdateNotificationsRequest request)
+		public async Task<ActionResult> UpdateStepNotificationsAsync(JobId jobId, JobStepBatchId batchId, JobStepId stepId, [FromBody] UpdateNotificationsRequest request)
 		{
 			IJob? job = await _jobService.GetJobAsync(jobId);
 			if (job == null)
@@ -1376,7 +1376,7 @@ namespace Horde.Server.Jobs
 		/// <returns>Information about the requested job</returns>
 		[HttpGet]
 		[Route("/api/v1/jobs/{jobId}/batches/{batchId}/steps/{stepId}/notifications")]
-		public async Task<ActionResult<GetNotificationResponse>> GetStepNotificationsAsync(JobId jobId, SubResourceId batchId, SubResourceId stepId)
+		public async Task<ActionResult<GetNotificationResponse>> GetStepNotificationsAsync(JobId jobId, JobStepBatchId batchId, JobStepId stepId)
 		{
 			IJob? job = await _jobService.GetJobAsync(jobId);
 			if (job == null)
@@ -1426,7 +1426,7 @@ namespace Horde.Server.Jobs
 		/// <returns>List of nodes to be executed</returns>
 		[HttpGet]
 		[Route("/api/v1/jobs/{jobId}/batches/{batchId}/steps/{stepId}/artifacts/{*name}")]
-		public async Task<ActionResult> GetArtifactAsync(JobId jobId, SubResourceId batchId, SubResourceId stepId, string name)
+		public async Task<ActionResult> GetArtifactAsync(JobId jobId, JobStepBatchId batchId, JobStepId stepId, string name)
 		{
 			IJob? job = await _jobService.GetJobAsync(jobId);
 			if (job == null)
@@ -1472,7 +1472,7 @@ namespace Horde.Server.Jobs
 		/// <returns>List of nodes to be executed</returns>
 		[HttpGet]
 		[Route("/api/v1/jobs/{jobId}/batches/{batchId}/steps/{stepId}/trace")]
-		public async Task<ActionResult> GetStepTraceAsync(JobId jobId, SubResourceId batchId, SubResourceId stepId)
+		public async Task<ActionResult> GetStepTraceAsync(JobId jobId, JobStepBatchId batchId, JobStepId stepId)
 		{
 			IJob? job = await _jobService.GetJobAsync(jobId);
 			if (job == null)

@@ -288,7 +288,7 @@ namespace Horde.Server.Jobs.TestData
 		[Route("/api/v1/testdata")]
 		public async Task<ActionResult<CreateTestDataResponse>> CreateAsync(CreateTestDataRequest request)
 		{
-			IJob? job = await _jobService.GetJobAsync(JobId.Parse(request.JobId));
+			IJob? job = await _jobService.GetJobAsync(request.JobId);
 			if (job == null)
 			{
 				return NotFound();
@@ -299,7 +299,7 @@ namespace Horde.Server.Jobs.TestData
 			}
 
 			IJobStep? jobStep;
-			if (!job.TryGetStep(request.StepId.ToSubResourceId(), out jobStep))
+			if (!job.TryGetStep(request.StepId, out jobStep))
 			{
 				return NotFound();
 			}
@@ -324,7 +324,7 @@ namespace Horde.Server.Jobs.TestData
 		[HttpGet]
 		[Route("/api/v1/testdata")]
 		[ProducesResponseType(typeof(List<GetTestDataResponse>), 200)]
-		public async Task<ActionResult<List<object>>> FindTestDataAsync([FromQuery] string? streamId = null, [FromQuery] int? minChange = null, [FromQuery] int? maxChange = null, string? jobId = null, string? jobStepId = null, string? key = null, int index = 0, int count = 10, PropertyFilter? filter = null)
+		public async Task<ActionResult<List<object>>> FindTestDataAsync([FromQuery] string? streamId = null, [FromQuery] int? minChange = null, [FromQuery] int? maxChange = null, JobId? jobId = null, JobStepId? jobStepId = null, string? key = null, int index = 0, int count = 10, PropertyFilter? filter = null)
 		{
 			StreamId? streamIdValue = null;
 			if(streamId != null)
@@ -334,7 +334,7 @@ namespace Horde.Server.Jobs.TestData
 
 			List<object> results = new List<object>();
 
-			List<ITestData> documents = await _testDataCollection.FindAsync(streamIdValue, minChange, maxChange, (jobId == null)? null : JobId.Parse(jobId), jobStepId?.ToSubResourceId(), key, index, count);
+			List<ITestData> documents = await _testDataCollection.FindAsync(streamIdValue, minChange, maxChange, jobId, jobStepId, key, index, count);
 			foreach (ITestData document in documents)
 			{
 				if (await _jobService.AuthorizeAsync(document.JobId, JobAclAction.ViewJob, User, _globalConfig.Value))

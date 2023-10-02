@@ -211,7 +211,7 @@ namespace Horde.Server.Issues
 		[HttpGet]
 		[Route("/api/v1/issues")]
 		[ProducesResponseType(typeof(List<GetIssueResponse>), 200)]
-		public async Task<ActionResult<object>> FindIssuesAsync([FromQuery(Name = "Id")] int[]? ids = null, [FromQuery] string? streamId = null, [FromQuery] int? change = null, [FromQuery] int? minChange = null, [FromQuery] int? maxChange = null, [FromQuery] JobId? jobId = null, [FromQuery] string? batchId = null, [FromQuery] string? stepId = null, [FromQuery(Name = "label")] int? labelIdx = null, [FromQuery] string? ownerId = null, [FromQuery] bool? resolved = null, [FromQuery] bool? promoted = null, [FromQuery] int index = 0, [FromQuery] int count = 10, [FromQuery] PropertyFilter? filter = null)
+		public async Task<ActionResult<object>> FindIssuesAsync([FromQuery(Name = "Id")] int[]? ids = null, [FromQuery] string? streamId = null, [FromQuery] int? change = null, [FromQuery] int? minChange = null, [FromQuery] int? maxChange = null, [FromQuery] JobId? jobId = null, [FromQuery] JobStepBatchId? batchId = null, [FromQuery] JobStepId? stepId = null, [FromQuery(Name = "label")] int? labelIdx = null, [FromQuery] string? ownerId = null, [FromQuery] bool? resolved = null, [FromQuery] bool? promoted = null, [FromQuery] int index = 0, [FromQuery] int count = 10, [FromQuery] PropertyFilter? filter = null)
 		{
 			if(ids != null && ids.Length == 0)
 			{
@@ -248,7 +248,7 @@ namespace Horde.Server.Issues
 				}
 
 				IGraph graph = await _jobService.GetGraphAsync(job);
-				issues = await _issueService.Collection.FindIssuesForJobAsync(job, graph, stepId?.ToSubResourceId(), batchId?.ToSubResourceId(), labelIdx, ownerIdValue, resolved, promoted, index, count);
+				issues = await _issueService.Collection.FindIssuesForJobAsync(job, graph, stepId, batchId, labelIdx, ownerIdValue, resolved, promoted, index, count);
 			}
 
 			List<object> responses = new List<object>();
@@ -425,8 +425,8 @@ namespace Horde.Server.Issues
 		public async Task<ActionResult<List<object>>> GetIssueEventsAsync(
 			int issueId,
 			[FromQuery] JobId? jobId = null,
-			[FromQuery] string? batchId = null,
-			[FromQuery] string? stepId = null,
+			[FromQuery] JobStepBatchId? batchId = null,
+			[FromQuery] JobStepId? stepId = null,
 			[FromQuery(Name = "label")] int? labelIdx = null,
 			[FromQuery] string[]? logIds = null,
 			[FromQuery] int index = 0, 
@@ -446,7 +446,7 @@ namespace Horde.Server.Issues
 				if (stepId != null)
 				{
 					IJobStep? step;
-					if (job.TryGetStep(stepId.ToSubResourceId(), out step) && step.Outcome != JobStepOutcome.Success && step.LogId != null)
+					if (job.TryGetStep(stepId.Value, out step) && step.Outcome != JobStepOutcome.Success && step.LogId != null)
 					{
 						logIdValues.Add(step.LogId.Value);
 					}
@@ -454,7 +454,7 @@ namespace Horde.Server.Issues
 				else if (batchId != null)
 				{
 					IJobStepBatch? batch;
-					if (job.TryGetBatch(batchId.ToSubResourceId(), out batch))
+					if (job.TryGetBatch(batchId.Value, out batch))
 					{
 						logIdValues.UnionWith(batch.Steps.Where(x => x.Outcome != JobStepOutcome.Success && x.LogId != null).Select(x => x.LogId!.Value));
 					}

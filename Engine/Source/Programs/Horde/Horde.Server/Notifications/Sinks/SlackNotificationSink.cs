@@ -1349,7 +1349,7 @@ namespace Horde.Server.Notifications.Sinks
 			return new Uri(_settings.DashboardUrl, $"job/{jobId}");
 		}
 
-		Uri GetStepUrl(JobId jobId, SubResourceId stepId)
+		Uri GetStepUrl(JobId jobId, JobStepId stepId)
 		{
 			return new Uri(_settings.DashboardUrl, $"job/{jobId}?step={stepId}");
 		}

@@ -20,7 +20,7 @@ namespace Horde.Server.Jobs.Artifacts
 		/// <param name="mimeType">Type of artifact</param>
 		/// <param name="data">The data to write</param>
 		/// <returns>The new log file document</returns>
-		Task<IArtifactV1> CreateArtifactAsync(JobId jobId, SubResourceId? stepId, string name, string mimeType, System.IO.Stream data);
+		Task<IArtifactV1> CreateArtifactAsync(JobId jobId, JobStepId? stepId, string name, string mimeType, System.IO.Stream data);
 
 		/// <summary>
 		/// Gets all the available artifacts for a job
@@ -29,7 +29,7 @@ namespace Horde.Server.Jobs.Artifacts
 		/// <param name="stepId">Unique id of the Step to query</param>
 		/// <param name="name">Name of the artifact</param>
 		/// <returns>List of artifact documents</returns>
-		Task<List<IArtifactV1>> GetArtifactsAsync(JobId? jobId, SubResourceId? stepId, string? name);
+		Task<List<IArtifactV1>> GetArtifactsAsync(JobId? jobId, JobStepId? stepId, string? name);
 
 		/// <summary>
 		/// Gets a specific list of artifacts based on id
