@@ -100,6 +100,11 @@ public:
 		return Descriptor.VersePath;
 	}
 
+	virtual void SetVersePath(FString&& InVersePath) override
+	{
+		Descriptor.VersePath = MoveTemp(InVersePath);
+	}
+
 	virtual EPluginType GetType() const override
 	{
 		return Type;

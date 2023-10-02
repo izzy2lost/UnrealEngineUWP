@@ -172,6 +172,12 @@ public:
 	virtual const FString& GetVersePath() const = 0;
 
 	/**
+	 * Sets the Verse path to the root of the plugin's content directory
+	 * @param InVersePath Verse path to set
+	 */
+	virtual void SetVersePath(FString&& InVersePath) = 0;
+
+	/**
 	 * Returns the plugin's location
 	 *
 	 * @return Where the plugin was loaded from
