@@ -715,10 +715,6 @@ namespace Horde.Server.Issues
 			{
 				issues.AddRange(handler.GetIssues());
 			}
-			foreach (IssueEventGroup issue in issues)
-			{
-				issue.Metadata.Add("Node", node.Name);
-			}
 
 			// If the node has an annotation to prevent grouping issues together, update all the fingerprints to match
 			string? group = annotations.IssueGroup;

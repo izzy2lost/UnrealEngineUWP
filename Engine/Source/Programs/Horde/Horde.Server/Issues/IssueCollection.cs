@@ -361,7 +361,7 @@ namespace Horde.Server.Issues
 				["Copyright"] = new("Missing copyright notice in {Files}", IssueChangeFilter.Code),
 				["Default"] = new("{Severity} in {Nodes}", IssueChangeFilter.All),
 				["Gauntlet"] = new("Gauntlet {Meta:Type} {Severity} {Meta:Context}", IssueChangeFilter.Code),
-				//				["Hashed"] = new()
+				["Hashed"] = new("{Severity} in {Meta:Node}", IssueChangeFilter.All),
 				["Localization"] = new("Localization {Severity} in {Files}", IssueChangeFilter.Code),
 				["PerforceCase"] = new("Inconsistent case for {Files}", IssueChangeFilter.All),
 				["Scoped"] = new("{Severity} in {Meta:Node} - {Meta:Scope}", IssueChangeFilter.All),

@@ -24,6 +24,7 @@ namespace Horde.Server.Issues.Handlers
 			if (_issue == null)
 			{
 				_issue = new IssueEventGroup("Default", "{Severity} in {Meta:Node}", IssueChangeFilter.All);
+				_issue.Metadata.Add("Node", _context.NodeName);
 				_issue.Keys.Add(IssueKey.FromStep(_context.StreamId, _context.TemplateId, _context.NodeName));
 			}
 

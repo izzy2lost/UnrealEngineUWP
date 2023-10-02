@@ -74,6 +74,7 @@ namespace Horde.Server.Issues.Handlers
 					IssueEventGroup issue = new IssueEventGroup("Hashed", "{Severity} in {Meta:Node}", IssueChangeFilter.All);
 					issue.Events.Add(stepEvent);
 					issue.Keys.AddHash(hash);
+					issue.Metadata.Add("Node", _context.NodeName);
 					issues.Add(issue);
 				}
 				else
@@ -82,6 +83,7 @@ namespace Horde.Server.Issues.Handlers
 					{
 						genericFingerprint = new IssueEventGroup("Hashed", "{Severity} in {Meta:Node}", IssueChangeFilter.All);
 						genericFingerprint.Keys.Add(IssueKey.FromStep(_context.StreamId, _context.TemplateId, _context.NodeName));
+						genericFingerprint.Metadata.Add("Node", _context.NodeName);
 						issues.Add(genericFingerprint);
 					}
 					genericFingerprint.Events.Add(stepEvent);
