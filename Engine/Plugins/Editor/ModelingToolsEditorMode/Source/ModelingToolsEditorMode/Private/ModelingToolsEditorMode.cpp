@@ -937,6 +937,15 @@ void UModelingToolsEditorMode::Enter()
 
 				RegisterTool(ToolInfo.ToolCommand, ToolInfo.ToolName.ToString(), ToolInfo.ToolBuilder);
 			}
+
+			TArray<TSubclassOf<UToolTargetFactory>> ExtensionToolTargetFactoryClasses;
+			if (Extensions[k]->GetExtensionToolTargets(ExtensionToolTargetFactoryClasses))
+			{
+				for (const TSubclassOf<UToolTargetFactory>& ExtensionTargetFactoryClass : ExtensionToolTargetFactoryClasses)
+				{
+					GetInteractiveToolsContext()->TargetManager->AddTargetFactory(NewObject<UToolTargetFactory>(GetToolManager(), ExtensionTargetFactoryClass.Get()));
+				}
+			}
 		}
 	}
 
