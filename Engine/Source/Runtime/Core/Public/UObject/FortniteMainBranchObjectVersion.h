@@ -378,6 +378,9 @@ struct FFortniteMainBranchObjectVersion
 		// Serialize custom editor bounds for HLOD actor descriptors.
 		WorldPartitionHLODActorDescSerializeEditorBounds,
 
+		// Changed default Local Exposure Contrast from 1.0 to 0.8
+		LocalExposureDefaultChangeFrom1,
+
 		// -----<new versions can be added above this line>-------------------------------------------------
 		VersionPlusOne,
 		LatestVersion = VersionPlusOne - 1

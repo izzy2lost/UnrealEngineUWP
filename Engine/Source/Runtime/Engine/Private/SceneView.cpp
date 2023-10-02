@@ -182,15 +182,15 @@ static TAutoConsoleVariable<int32> CVarDefaultAutoExposureExtendDefaultLuminance
 	TEXT(" 0: Legacy range (UE4 default)\n")
 	TEXT(" 1: Extended range (UE5 default)"));
 
-static TAutoConsoleVariable<float> CVarDefaultLocalExposureHighlightContrastScale(
+static TAutoConsoleVariable<float> CVarDefaultLocalExposureHighlightContrast(
 	TEXT("r.DefaultFeature.LocalExposure.HighlightContrastScale"),
 	1.0f,
-	TEXT("Engine default (project setting) for Local Exposure Highlight Contrast Scale (postprocess volume/camera/game setting still can override)\n"));
+	TEXT("Engine default (project setting) for Local Exposure Highlight Contrast (postprocess volume/camera/game setting still can override)\n"));
 
-static TAutoConsoleVariable<float> CVarDefaultLocalExposureShadowContrastScale(
+static TAutoConsoleVariable<float> CVarDefaultLocalExposureShadowContrast(
 	TEXT("r.DefaultFeature.LocalExposure.ShadowContrastScale"),
 	1.0f,
-	TEXT("Engine default (project setting) for Local Exposure Shadow Contrast Scale (postprocess volume/camera/game setting still can override)\n"));
+	TEXT("Engine default (project setting) for Local Exposure Shadow Contrast (postprocess volume/camera/game setting still can override)\n"));
 
 static TAutoConsoleVariable<int32> CVarDefaultMotionBlur(
 	TEXT("r.DefaultFeature.MotionBlur"),
@@ -1544,9 +1544,8 @@ void FSceneView::OverridePostProcessSettings(const FPostProcessSettings& Src, fl
 		LERP_PP(AutoExposureBias);
 		LERP_PP(HistogramLogMin);
 		LERP_PP(HistogramLogMax);
-		LERP_PP(LocalExposureContrastScale_DEPRECATED);
-		LERP_PP(LocalExposureHighlightContrastScale);
-		LERP_PP(LocalExposureShadowContrastScale);
+		LERP_PP(LocalExposureHighlightContrast);
+		LERP_PP(LocalExposureShadowContrast);
 		LERP_PP(LocalExposureDetailStrength);
 		LERP_PP(LocalExposureBlurredLuminanceBlend);
 		LERP_PP(LocalExposureBlurredLuminanceKernelSizePercent);
@@ -1844,15 +1843,15 @@ void FSceneView::StartFinalPostprocessSettings(FVector InViewLocation)
 		}
 
 		{
-			const float HighlightContrastScale = FMath::Clamp(CVarDefaultLocalExposureHighlightContrastScale.GetValueOnGameThread(), 0.0f, 1.0f);
+			const float HighlightContrast = FMath::Clamp(CVarDefaultLocalExposureHighlightContrast.GetValueOnGameThread(), 0.0f, 1.0f);
 
-			FinalPostProcessSettings.LocalExposureHighlightContrastScale = HighlightContrastScale;
+			FinalPostProcessSettings.LocalExposureHighlightContrast = HighlightContrast;
 		}
 
 		{
-			const float ShadowContrastScale = FMath::Clamp(CVarDefaultLocalExposureHighlightContrastScale.GetValueOnGameThread(), 0.0f, 1.0f);
+			const float ShadowContrast = FMath::Clamp(CVarDefaultLocalExposureHighlightContrast.GetValueOnGameThread(), 0.0f, 1.0f);
 
-			FinalPostProcessSettings.LocalExposureShadowContrastScale = ShadowContrastScale;
+			FinalPostProcessSettings.LocalExposureShadowContrast = ShadowContrast;
 		}
 
 		if (!CVarDefaultMotionBlur.GetValueOnGameThread())
@@ -1927,12 +1926,12 @@ void FSceneView::EndFinalPostprocessSettings(const FSceneViewInitOptions& ViewIn
 	{
 		static const auto LocalExposureCVar = IConsoleManager::Get().FindTConsoleVariableDataInt(TEXT("r.LocalExposure"));
 
-		int Value = LocalExposureCVar->GetValueOnGameThread();
+		const int LocalExposureCVarValue = LocalExposureCVar->GetValueOnGameThread();
 
-		if (Value <= 0)
+		if (LocalExposureCVarValue <= 0 || !Family->EngineShowFlags.LocalExposure)
 		{
-			FinalPostProcessSettings.LocalExposureHighlightContrastScale = 1.0f;
-			FinalPostProcessSettings.LocalExposureShadowContrastScale = 1.0f;
+			FinalPostProcessSettings.LocalExposureHighlightContrast = 1.0f;
+			FinalPostProcessSettings.LocalExposureShadowContrast = 1.0f;
 			FinalPostProcessSettings.LocalExposureDetailStrength = 1.0f;
 		}
 	}
@@ -1951,13 +1950,6 @@ void FSceneView::EndFinalPostprocessSettings(const FSceneViewInitOptions& ViewIn
 	if(!Family->EngineShowFlags.Bloom)
 	{
 		FinalPostProcessSettings.BloomIntensity = 0.0f;
-	}
-
-	if (!Family->EngineShowFlags.LocalExposure)
-	{
-		FinalPostProcessSettings.LocalExposureHighlightContrastScale = 1.0f;
-		FinalPostProcessSettings.LocalExposureShadowContrastScale = 1.0f;
-		FinalPostProcessSettings.LocalExposureDetailStrength = 1.0f;
 	}
 
 	// scale down tone mapper shader permutation

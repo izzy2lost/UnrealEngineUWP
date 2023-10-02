@@ -111,8 +111,8 @@ FLocalExposureParameters GetLocalExposureParameters(const FViewInfo& View, FIntP
 	const FVector2f LocalExposureBilateralGridUVScale = GetLocalExposureBilateralGridUVScale(ViewRectSize);
 
 	FLocalExposureParameters Parameters;
-	Parameters.HighlightContrastScale = Settings.LocalExposureHighlightContrastScale;
-	Parameters.ShadowContrastScale = Settings.LocalExposureShadowContrastScale;
+	Parameters.HighlightContrastScale = Settings.LocalExposureHighlightContrast;
+	Parameters.ShadowContrastScale = Settings.LocalExposureShadowContrast;
 	Parameters.DetailStrength = Settings.LocalExposureDetailStrength;
 	Parameters.BlurredLuminanceBlend = Settings.LocalExposureBlurredLuminanceBlend;
 	Parameters.MiddleGreyExposureCompensation = LocalExposureMiddleGreyExposureCompensation;
