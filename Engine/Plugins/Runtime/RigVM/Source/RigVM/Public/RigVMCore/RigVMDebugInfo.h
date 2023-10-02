@@ -40,7 +40,7 @@ struct RIGVM_API FRigVMBreakpoint
 		Guid.Invalidate();
 	}
 	
-	FRigVMBreakpoint(const uint16 InInstructionIndex, UObject* InNode, const uint16 InDepth)
+	FRigVMBreakpoint(const uint16 InInstructionIndex, TWeakObjectPtr<UObject> InNode, const uint16 InDepth)
 	: bIsActive(true)
 	, Guid(FGuid::NewGuid())
 	, InstructionIndex(InInstructionIndex)
@@ -79,7 +79,7 @@ struct RIGVM_API FRigVMBreakpoint
 	uint16 InstructionIndex;
 
 	// Node related to the breakpoint
-	UObject* Subject; 
+	TWeakObjectPtr<UObject> Subject; 
 
 	// The same instruction might be related to multiple breakpoints at different callstack depths
 	uint16 Depth; 
@@ -138,7 +138,7 @@ struct RIGVM_API FRigVMDebugInfo
 	TArray<FRigVMBreakpoint> FindBreakpointsAtInstruction(const uint16 InInstructionIndex) const;
 	const FRigVMBreakpoint& FindBreakpoint(const FGuid& InGuid) const;
 	
-	const FRigVMBreakpoint& AddBreakpoint(const uint16 InstructionIndex, UObject* InNode, const uint16 InDepth, const bool bIsTemporary = false);
+	const FRigVMBreakpoint& AddBreakpoint(const uint16 InstructionIndex, TWeakObjectPtr<UObject> InNode, const uint16 InDepth, const bool bIsTemporary = false);
 
 	bool RemoveBreakpoint(const FRigVMBreakpoint& Breakpoint);
 
@@ -190,9 +190,9 @@ struct RIGVM_API FRigVMDebugInfo
 		}
 	}
 
-	inline TArray<UObject*>& GetCurrentActiveBreakpointCallstack() { return CurrentActiveBreakpointCallstack; }
+	inline TArray<TWeakObjectPtr<UObject>>& GetCurrentActiveBreakpointCallstack() { return CurrentActiveBreakpointCallstack; }
 
-	inline void SetCurrentActiveBreakpointCallstack(TArray<UObject*> Callstack) { CurrentActiveBreakpointCallstack = Callstack; }
+	inline void SetCurrentActiveBreakpointCallstack(TArray<TWeakObjectPtr<UObject>> Callstack) { CurrentActiveBreakpointCallstack = Callstack; }
 
 	inline uint64 GetStartCycles() const {	return StartCycles;	}
 	inline void SetStartCycles(uint64 InStartCycles) { StartCycles = InStartCycles; }
@@ -260,7 +260,7 @@ private:
 	TMap<FGuid, uint16> BreakpointHits; // How many times this instruction has been executed
 
 	FGuid CurrentActiveBreakpoint;
-	TArray<UObject*> CurrentActiveBreakpointCallstack;
+	TArray<TWeakObjectPtr<UObject>> CurrentActiveBreakpointCallstack;
 
 	// --- ---
 

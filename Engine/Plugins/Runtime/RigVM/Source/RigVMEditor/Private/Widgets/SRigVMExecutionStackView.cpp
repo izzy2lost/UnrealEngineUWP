@@ -591,7 +591,7 @@ void SRigVMExecutionStackView::PopulateStackView(URigVM* InVM, FRigVMExtendedExe
 				if (FilterText.IsEmpty() || Label.Contains(FilterText.ToString()))
 				{
 					FRigVMASTProxy Proxy;
-					if(const TArray<UObject*>* Callstack = ByteCode.GetCallstackForInstruction(InstructionIndex))
+					if(const TArray<TWeakObjectPtr<UObject>>* Callstack = ByteCode.GetCallstackForInstruction(InstructionIndex))
 					{
 						Proxy = FRigVMASTProxy::MakeFromCallstack(Callstack);
 					}

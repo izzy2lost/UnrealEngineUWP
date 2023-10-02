@@ -1195,20 +1195,20 @@ public:
 	TArray<int32> GetAllInstructionIndicesForCallPath(const FString& InCallPath, bool bStartsWith = false, bool bEndsWith = false) const;
 
 	// returns the first hit instruction index for a given callpath (or INDEX_NONE)
-	int32 GetFirstInstructionIndexForCallstack(const TArray<UObject*>& InCallstack) const;
+	int32 GetFirstInstructionIndexForCallstack(const TArray<TWeakObjectPtr<UObject>>& InCallstack) const;
 
 	// returns all found instruction indices for a given callpath
-	const TArray<int32>& GetAllInstructionIndicesForCallstack(const TArray<UObject*>& InCallstack) const;
+	const TArray<int32>& GetAllInstructionIndicesForCallstack(const TArray<TWeakObjectPtr<UObject>>& InCallstack) const;
 
 	// returns the callstack which was used to inject a given instruction
-	const TArray<UObject*>* GetCallstackForInstruction(int32 InInstructionIndex) const;
+	const TArray<TWeakObjectPtr<UObject>>* GetCallstackForInstruction(int32 InInstructionIndex) const;
 
 	// returns the callstack hash which was used to inject a given instruction
 	uint32 GetCallstackHashForInstruction(int32 InInstructionIndex) const;
 
 	// computes a hash for a given callstack
-	static uint32 GetCallstackHash(const TArray<UObject*>& InCallstack);
-	static uint32 GetCallstackHash(const TArrayView<UObject* const>& InCallstack);
+	static uint32 GetCallstackHash(const TArray<TWeakObjectPtr<UObject>>& InCallstack);
+	static uint32 GetCallstackHash(const TArrayView<TWeakObjectPtr<UObject> const>& InCallstack);
 
 	// returns the input operands of a given instruction
 	FRigVMOperandArray GetInputOperands(int32 InInstructionIndex) const
@@ -1270,11 +1270,11 @@ private:
 	
 #if WITH_EDITORONLY_DATA
 
-	TArray<UObject*> SubjectPerInstruction;
-	TMap<UObject*, TArray<int32>> SubjectToInstructions;
+	TArray<TWeakObjectPtr<UObject>> SubjectPerInstruction;
+	TMap<TWeakObjectPtr<UObject>, TArray<int32>> SubjectToInstructions;
 	TArray<FString> CallPathPerInstruction;
 	TMap<FString, TArray<int32>> CallPathToInstructions;
-	TArray<TArray<UObject*>> CallstackPerInstruction;
+	TArray<TArray<TWeakObjectPtr<UObject>>> CallstackPerInstruction;
 	TMap<uint32, TArray<int32>> CallstackHashToInstructions;
 	TArray<uint32> CallstackHashPerInstruction;
 	TArray<TArray<FRigVMOperand>> InputOperandsPerInstruction;
@@ -1284,7 +1284,7 @@ private:
 
 #if WITH_EDITOR
 
-	void SetSubject(int32 InInstructionIndex, const FString& InCallPath, const TArray<UObject*>& InCallstack);
+	void SetSubject(int32 InInstructionIndex, const FString& InCallPath, const TArray<TWeakObjectPtr<UObject>>& InCallstack);
 
 #endif
 

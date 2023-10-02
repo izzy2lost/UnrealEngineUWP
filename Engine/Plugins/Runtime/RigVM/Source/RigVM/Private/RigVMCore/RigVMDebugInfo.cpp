@@ -79,7 +79,7 @@ const FRigVMBreakpoint& FRigVMDebugInfo::FindBreakpoint(const FGuid& InGuid) con
 	return EmptyBreakpoint;
 }
 
-const FRigVMBreakpoint& FRigVMDebugInfo::AddBreakpoint(const uint16 InstructionIndex, UObject* InNode, const uint16 InDepth,
+const FRigVMBreakpoint& FRigVMDebugInfo::AddBreakpoint(const uint16 InstructionIndex, TWeakObjectPtr<UObject> InNode, const uint16 InDepth,
                                                             const bool bIsTemporary)
 {
 	static const FRigVMBreakpoint EmptyBreakpoint;

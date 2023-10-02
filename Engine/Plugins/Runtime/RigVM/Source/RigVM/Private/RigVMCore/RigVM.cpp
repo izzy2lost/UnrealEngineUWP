@@ -1209,12 +1209,13 @@ bool URigVM::ShouldHaltAtInstruction(FRigVMExtendedExecuteContext& Context, cons
 						RigVMDebugInfo->SetCurrentActiveBreakpoint(Breakpoint);
 						
 						// We want to keep the callstack up to the node that produced the halt
-						const TArray<UObject*>* FullCallstack = ByteCode.GetCallstackForInstruction(ContextPublicData.InstructionIndex);
+						const TArray<TWeakObjectPtr<UObject>>* FullCallstack = ByteCode.GetCallstackForInstruction(ContextPublicData.InstructionIndex);
 						if (FullCallstack)
 						{
-							RigVMDebugInfo->SetCurrentActiveBreakpointCallstack(TArray<UObject*>(FullCallstack->GetData(), FullCallstack->Find((UObject*)Breakpoint.Subject)+1));
+							RigVMDebugInfo->SetCurrentActiveBreakpointCallstack(TArray<TWeakObjectPtr<UObject>>(FullCallstack->GetData(), FullCallstack->Find((TWeakObjectPtr<UObject>)Breakpoint.Subject)+1));
 						}
-						RigVMDebugInfo->ExecutionHalted().Broadcast(ContextPublicData.InstructionIndex, Breakpoint.Subject, InEventName);
+						UObject* BreakpointNode = Breakpoint.Subject.IsValid() ? Breakpoint.Subject.Get() : nullptr;
+						RigVMDebugInfo->ExecutionHalted().Broadcast(ContextPublicData.InstructionIndex, BreakpointNode, InEventName);
 					}
 					return true;
 				}
@@ -1241,14 +1242,14 @@ bool URigVM::ShouldHaltAtInstruction(FRigVMExtendedExecuteContext& Context, cons
 					if (!RigVMDebugInfo->GetCurrentActiveBreakpoint())
 					{
 						RigVMDebugInfo->SetCurrentActiveBreakpoint(Breakpoint);
-						const TArray<UObject*>* FullCallstack = ByteCode.GetCallstackForInstruction(ContextPublicData.InstructionIndex);
+						const TArray<TWeakObjectPtr<UObject>>* FullCallstack = ByteCode.GetCallstackForInstruction(ContextPublicData.InstructionIndex);
 						
 						// We want to keep the callstack up to the node that produced the halt
 						if (FullCallstack)
 						{
-							RigVMDebugInfo->SetCurrentActiveBreakpointCallstack(TArray<UObject*>(FullCallstack->GetData(), FullCallstack->Find((UObject*)RigVMDebugInfo->GetCurrentActiveBreakpoint().Subject)+1));
+							RigVMDebugInfo->SetCurrentActiveBreakpointCallstack(TArray<TWeakObjectPtr<UObject>>(FullCallstack->GetData(), FullCallstack->Find((TWeakObjectPtr<UObject>)RigVMDebugInfo->GetCurrentActiveBreakpoint().Subject)+1));
 						}
-					}							
+					}
 					
 					break;	
 				}
@@ -1268,14 +1269,14 @@ bool URigVM::ShouldHaltAtInstruction(FRigVMExtendedExecuteContext& Context, cons
 	// If we are stepping, and the last active breakpoint was set, check if this is the new temporary breakpoint
 	if (RigVMDebugInfo->GetCurrentBreakpointAction() != ERigVMBreakpointAction::None && RigVMDebugInfo->GetCurrentActiveBreakpoint())
 	{
-		const TArray<UObject*>* CurrentCallstack = ByteCode.GetCallstackForInstruction(ContextPublicData.InstructionIndex);
+		const TArray<TWeakObjectPtr<UObject>>* CurrentCallstack = ByteCode.GetCallstackForInstruction(ContextPublicData.InstructionIndex);
 		if (CurrentCallstack && !CurrentCallstack->IsEmpty())
 		{
 			UObject* NewBreakpointNode = nullptr;
 
 			// Find the first difference in the callstack
 			int32 DifferenceIndex = INDEX_NONE;
-			TArray<UObject*>& PreviousCallstack = RigVMDebugInfo->GetCurrentActiveBreakpointCallstack();
+			TArray<TWeakObjectPtr<UObject>>& PreviousCallstack = RigVMDebugInfo->GetCurrentActiveBreakpointCallstack();
 			for (int32 i=0; i<PreviousCallstack.Num(); ++i)
 			{
 				if (CurrentCallstack->Num() == i)
@@ -1294,7 +1295,10 @@ bool URigVM::ShouldHaltAtInstruction(FRigVMExtendedExecuteContext& Context, cons
 			{
 				if (DifferenceIndex != INDEX_NONE)
 				{
-					NewBreakpointNode = CurrentCallstack->operator[](DifferenceIndex);
+					if ((*CurrentCallstack)[DifferenceIndex].IsValid())
+					{
+						NewBreakpointNode = (*CurrentCallstack)[DifferenceIndex].Get();
+					}
 				}
 			}
 			else if (RigVMDebugInfo->GetCurrentBreakpointAction() == ERigVMBreakpointAction::StepInto)
@@ -1303,19 +1307,29 @@ bool URigVM::ShouldHaltAtInstruction(FRigVMExtendedExecuteContext& Context, cons
 				{
 					if (!CurrentCallstack->IsEmpty() && !PreviousCallstack.IsEmpty() && CurrentCallstack->Last() != PreviousCallstack.Last())
 					{
-						NewBreakpointNode = CurrentCallstack->operator[](FMath::Min(PreviousCallstack.Num(), CurrentCallstack->Num()-1));
+						const int32 MinIndex = FMath::Min(PreviousCallstack.Num(), CurrentCallstack->Num()-1);
+						if ((*CurrentCallstack)[MinIndex].IsValid())
+						{
+							NewBreakpointNode = (*CurrentCallstack)[MinIndex].Get();
+						}
 					}
 				}
 				else
 				{
-					NewBreakpointNode = CurrentCallstack->operator[](DifferenceIndex);
+					if ((*CurrentCallstack)[DifferenceIndex].IsValid())
+					{
+						NewBreakpointNode = (*CurrentCallstack)[DifferenceIndex].Get();
+					}
 				}
 			}
 			else if (RigVMDebugInfo->GetCurrentBreakpointAction() == ERigVMBreakpointAction::StepOut)
 			{
 				if (DifferenceIndex != INDEX_NONE && DifferenceIndex <= PreviousCallstack.Num() - 2)
                 {
-                	NewBreakpointNode = CurrentCallstack->operator[](DifferenceIndex);
+					if ((*CurrentCallstack)[DifferenceIndex].IsValid())
+					{
+						NewBreakpointNode = (*CurrentCallstack)[DifferenceIndex].Get();
+					}
                 }
 			}
 			
