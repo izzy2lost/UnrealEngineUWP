@@ -180,6 +180,14 @@ private:
 			ParameterType.ValueType = EValueType::SoftClass;
 			ParameterType.ValueTypeObject = ParamType::ElementType::StaticClass();
 		}
+		else if constexpr (std::is_same_v<ParamType, uint32>)
+		{
+			ParameterType.ValueType = EValueType::UInt32;
+		}
+		else if constexpr (std::is_same_v<ParamType, uint64>)
+		{
+			ParameterType.ValueType = EValueType::UInt64;
+		}
 		else
 		{
 			static_assert(sizeof(ParamType) == 0, "Type is not expressible as a FAnimNextParamType for available types.");
@@ -265,6 +273,9 @@ public:
 	/** Get a string representing this type */
 	FString ToString() const;
 
+	/** Get a type from a string */
+	static FAnimNextParamType FromString(const FString& InString);
+
 	/** Equality operator */
 	friend bool operator==(const FAnimNextParamType& InLHS, const FAnimNextParamType& InRHS)
 	{
@@ -291,5 +302,8 @@ public:
 		const bool bHasValidObjectType = (ValueType < EValueType::Enum) || (ValueType >= EValueType::Enum && ValueType <= EValueType::SoftClass && IsValidObject());
 		return bHasValidValueType && bHasValidContainerType && bHasValidObjectType;
 	}
+
+	/** @return whether this type represents an object (object/class/softobject/softclass) */
+	bool IsObjectType() const;
 };
 

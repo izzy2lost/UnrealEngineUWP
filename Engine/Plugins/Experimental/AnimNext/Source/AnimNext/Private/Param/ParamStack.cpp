@@ -4,181 +4,169 @@
 #include "Param/ParamHelpers.h"
 #include "PropertyBag.h"
 #include "EngineLogs.h"
-#include "Param/ParamUtils.h"
+#include "Param/ParamAdapter.h"
+#include "UObject/UObjectGlobals.h"
+#include "UObject/Package.h"
+#include "Param/ParamStackLayer.h"
+#include "UObject/ObjectKey.h"
 
 #define LOCTEXT_NAMESPACE "AnimNextParamStack"
 
 namespace UE::AnimNext
 {
 
-FParamStack::FParam::FParam(const FParamTypeHandle& InTypeHandle, TArrayView<uint8> InData, bool bInIsReference, bool bInIsMutable)
-	: Data(nullptr)
-	, TypeHandle(InTypeHandle)
-	, Size(InData.Num())
-	, Flags(EParamFlags::None)
+// Stack layer that can own its own data as a UObject or reference an externally owned object
+struct FUObjectLayer : FParamStackLayer
 {
-	check(TypeHandle.IsValid());
-	check(InData.Num() > 0 && InData.Num() < 0xffff);
+	FUObjectLayer() = delete;
 
-	// If we can store our data inside of a ptr, we do
-	if (!bInIsReference && InData.Num() <= sizeof(void*))
+	explicit FUObjectLayer(UObject* InObject, bool bInMutable)
 	{
-		FParamHelpers::Copy(InTypeHandle, InData, TArrayView<uint8>(reinterpret_cast<uint8*>(&Data), sizeof(void*)));
-		Flags |= EParamFlags::Embedded;
-	}
-	else
-	{
-		Data = InData.GetData();
-	}
+		Object = InObject;
 
-	if (bInIsReference)
-	{
-		Flags |= EParamFlags::Reference;
-	}
+		const UClass* Class = InObject->GetClass();
 
-	if (bInIsMutable)
-	{
-		Flags |= EParamFlags::Mutable;
-	}
-}
-
-FParamStack::FParam::~FParam()
-{
-	if (Size > 0)
-	{
-		if (IsEmbedded())
-		{
-			FParamHelpers::Destroy(TypeHandle, TArrayView<uint8>(reinterpret_cast<uint8*>(&Data), sizeof(void*)));
-		}
-	}
-}
-
-FParamStack::FParam::FParam(const FParam& InOtherParam)
-	: TypeHandle(InOtherParam.TypeHandle)
-	, Size(InOtherParam.Size)
-	, Flags(InOtherParam.Flags)
-{
-	if (IsEmbedded())
-	{
-		FParamHelpers::Copy(InOtherParam.TypeHandle, TConstArrayView<uint8>(reinterpret_cast<const uint8*>(&InOtherParam.Data), sizeof(void*)), TArrayView<uint8>(reinterpret_cast<uint8*>(&Data), sizeof(void*)));
-	}
-	else
-	{
-		Data = InOtherParam.Data;
-	}
-}
-
-FParamStack::FParam& FParamStack::FParam::operator=(const FParam& InOtherParam)
-{
-	TypeHandle = InOtherParam.TypeHandle;
-	Size = InOtherParam.Size;
-	Flags = InOtherParam.Flags;
-
-	if (IsEmbedded())
-	{
-		FParamHelpers::Copy(InOtherParam.TypeHandle, TConstArrayView<uint8>(reinterpret_cast<const uint8*>(&InOtherParam.Data), sizeof(void*)), TArrayView<uint8>(reinterpret_cast<uint8*>(&Data), sizeof(void*)));
-	}
-	else
-	{
-		Data = InOtherParam.Data;
-	}
-
-	return *this;
-}
-
-FParamStack::FParam::FParam(FParam&& InOtherParam)
-	: TypeHandle(InOtherParam.TypeHandle)
-	, Size(InOtherParam.Size)
-	, Flags(InOtherParam.Flags)
-{
-	if (IsEmbedded())
-	{
-		FParamHelpers::Copy(InOtherParam.TypeHandle, TConstArrayView<uint8>(reinterpret_cast<const uint8*>(&InOtherParam.Data), sizeof(void*)), TArrayView<uint8>(reinterpret_cast<uint8*>(&Data), sizeof(void*)));
-	}
-	else
-	{
-		Data = InOtherParam.Data;
-	}
-}
-
-FParamStack::FParam& FParamStack::FParam::operator=(FParam&& InOtherParam)
-{
-	TypeHandle = InOtherParam.TypeHandle;
-	Size = InOtherParam.Size;
-	Flags = InOtherParam.Flags;
-
-	if (IsEmbedded())
-	{
-		FParamHelpers::Copy(InOtherParam.TypeHandle, TConstArrayView<uint8>(reinterpret_cast<const uint8*>(&InOtherParam.Data), sizeof(void*)), TArrayView<uint8>(reinterpret_cast<uint8*>(&Data), sizeof(void*)));
-	}
-	else
-	{
-		Data = InOtherParam.Data;
-	}
-
-	return *this;
-}
-
-FParamStack::FLayer::FLayer(FInstancedPropertyBag& InPropertyBag, bool bInIsMutable)
-{
-	if (const UPropertyBag* PropertyBagStruct = InPropertyBag.GetPropertyBagStruct())
-	{
-		TConstArrayView<FPropertyBagPropertyDesc> Descs = PropertyBagStruct->GetPropertyDescs();
+		TArray<FParamId, TInlineAllocator<128>> CachedIds;
+		TArray<FProperty*, TInlineAllocator<128>> CachedProperties;
+		TArray<FParamTypeHandle, TInlineAllocator<128>> CachedParamTypes;
 
 		// Determine param ID range for this layer
-		TArray<FParamId> CachedIds;
-		CachedIds.SetNumUninitialized(Descs.Num());
 		MinParamId = MAX_uint32;
 		uint32 MaxParamId = 0;
-		for (uint32 DescIndex = 0; DescIndex < static_cast<uint32>(Descs.Num()); ++DescIndex)
+
+		for (TFieldIterator<FProperty> PropIt(Class, EFieldIteratorFlags::IncludeSuper); PropIt; ++PropIt)
 		{
-			const FPropertyBagPropertyDesc& Desc = Descs[DescIndex];
-			const FParamId& ParamId = CachedIds[DescIndex] = FParamId(Desc.Name);
-			MinParamId = FMath::Min(ParamId.ToInt(), MinParamId);
-			MaxParamId = FMath::Max(ParamId.ToInt(), MaxParamId);
+			FParamTypeHandle ParamTypeHandle = FParamTypeHandle::FromProperty(*PropIt);
+			if(ParamTypeHandle.IsValid())
+			{
+				CachedParamTypes.Add(ParamTypeHandle);
+				CachedProperties.Add(*PropIt);
+				const FParamId& ParamId = CachedIds.Add_GetRef(FParamId(PropIt->GetFName()));
+				MinParamId = FMath::Min(ParamId.ToInt(), MinParamId);
+				MaxParamId = FMath::Max(ParamId.ToInt(), MaxParamId);
+			}
 		}
 
 		if (MinParamId <= MaxParamId)
 		{
 			const uint32 ParamRangeSize = (MaxParamId - MinParamId) + 1;
 			Params.SetNumZeroed(ParamRangeSize);
-			FConstStructView StructView = InPropertyBag.GetValue();
-			for (uint32 DescIndex = 0; DescIndex < static_cast<uint32>(Descs.Num()); ++DescIndex)
+			for (uint32 PropertyIndex = 0; PropertyIndex < static_cast<uint32>(CachedProperties.Num()); ++PropertyIndex)
 			{
-				const FPropertyBagPropertyDesc& Desc = Descs[DescIndex];
-				const FParamId& ParamId = CachedIds[DescIndex];
-				const uint8* DataPtr = StructView.GetMemory() + Desc.CachedProperty->GetOffset_ForInternal();
+				const FProperty* Property = CachedProperties[PropertyIndex];
+				const FParamId& ParamId = CachedIds[PropertyIndex];
+				uint8* DataPtr = Property->ContainerPtrToValuePtr<uint8>(InObject);
 				const uint32 LocalParamIndex = ParamId.ToInt() - MinParamId;
-				Params[LocalParamIndex] = FParamStack::FParam(FParamTypeHandle::FromPropertyBagPropertyDesc(Desc), TArrayView<uint8>(const_cast<uint8*>(DataPtr), Desc.CachedProperty->GetSize()), true, bInIsMutable);
+				Params[LocalParamIndex] = Private::FParamEntry(CachedParamTypes[PropertyIndex], TArrayView<uint8>(DataPtr, Property->GetSize()), true, bInMutable);
 			}
 		}
 	}
-}
 
-FParamStack::FLayer::FLayer(TConstArrayView<TPair<FParamId, FParamStack::FParam>> InParams)
-{
-	MinParamId = MAX_uint32;
-	uint32 MaxParamId = 0;
-	for (uint32 ParamIndex = 0; ParamIndex < static_cast<uint32>(InParams.Num()); ++ParamIndex)
+	// FParamStackLayer interface
+	virtual UObject* AsUObject() override
 	{
-		MinParamId = FMath::Min(InParams[ParamIndex].Key.ToInt(), MinParamId);
-		MaxParamId = FMath::Max(InParams[ParamIndex].Key.ToInt(), MaxParamId);
+		return Object.Get();
 	}
 
-	if (MinParamId <= MaxParamId)
+	TWeakObjectPtr<UObject> Object;
+};
+
+// Stack layer that can own its own data or reference an external FInstancedPropertyBag
+struct FInstancedPropertyBagLayer : FParamStackLayer, FGCObject
+{
+	FInstancedPropertyBagLayer() = delete;
+
+	explicit FInstancedPropertyBagLayer(FInstancedPropertyBag& InPropertyBag, bool bInMutable)
 	{
-		const uint32 ParamRangeSize = (MaxParamId - MinParamId) + 1;
-		Params.SetNumZeroed(ParamRangeSize);
-		for (uint32 ParamIndex = 0; ParamIndex < static_cast<uint32>(InParams.Num()); ++ParamIndex)
+		if (const UPropertyBag* PropertyBagStruct = InPropertyBag.GetPropertyBagStruct())
 		{
-			const TPair<FParamId, FParamStack::FParam>& Pair = InParams[ParamIndex];
-			const uint32 LocalParamIndex = Pair.Key.ToInt() - MinParamId;
-			Params[LocalParamIndex] = Pair.Value;
+			TConstArrayView<FPropertyBagPropertyDesc> Descs = PropertyBagStruct->GetPropertyDescs();
+
+			// Determine param ID range for this layer
+			TArray<FParamId, TInlineAllocator<128>> CachedIds;
+			CachedIds.SetNumUninitialized(Descs.Num());
+			MinParamId = MAX_uint32;
+			uint32 MaxParamId = 0;
+			for (uint32 DescIndex = 0; DescIndex < static_cast<uint32>(Descs.Num()); ++DescIndex)
+			{
+				const FPropertyBagPropertyDesc& Desc = Descs[DescIndex];
+				const FParamId& ParamId = CachedIds[DescIndex] = FParamId(Desc.Name);
+				MinParamId = FMath::Min(ParamId.ToInt(), MinParamId);
+				MaxParamId = FMath::Max(ParamId.ToInt(), MaxParamId);
+			}
+
+			if (MinParamId <= MaxParamId)
+			{
+				const uint32 ParamRangeSize = (MaxParamId - MinParamId) + 1;
+				Params.SetNumZeroed(ParamRangeSize);
+				FStructView StructView = InPropertyBag.GetMutableValue();
+				for (uint32 DescIndex = 0; DescIndex < static_cast<uint32>(Descs.Num()); ++DescIndex)
+				{
+					const FPropertyBagPropertyDesc& Desc = Descs[DescIndex];
+					const FParamId& ParamId = CachedIds[DescIndex];
+					uint8* DataPtr = StructView.GetMemory() + Desc.CachedProperty->GetOffset_ForInternal();
+					const uint32 LocalParamIndex = ParamId.ToInt() - MinParamId;
+					Params[LocalParamIndex] = Private::FParamEntry(FParamTypeHandle::FromPropertyBagPropertyDesc(Desc), TArrayView<uint8>(DataPtr, Desc.CachedProperty->GetSize()), true, true);
+				}
+			}
 		}
 	}
-}
 
-FParamStack::FPushedLayer::FPushedLayer(FLayer& InLayer, FParamStack& InStack)
+	// FGCObject interface
+	virtual FString GetReferencerName() const override
+	{
+		return TEXT("AnimNext Instanced Property Bag Parameter Layer");
+	}
+};
+
+// Stack layer that owns its own data as a FInstancedPropertyBag
+struct FInstancedPropertyBagValueLayer : FInstancedPropertyBagLayer
+{
+	FInstancedPropertyBagValueLayer() = delete;
+
+	explicit FInstancedPropertyBagValueLayer(FInstancedPropertyBag&& InPropertyBag, bool bInMutable)
+		: FInstancedPropertyBagLayer(InPropertyBag, bInMutable)
+		, PropertyBag(MoveTemp(InPropertyBag))
+	{}
+
+	// FGCObject interface
+	virtual void AddReferencedObjects(FReferenceCollector& Collector) override
+	{
+		PropertyBag.AddStructReferencedObjects(Collector);
+	}
+
+	// FParamStackLayer interface
+	virtual FInstancedPropertyBag* AsInstancedPropertyBag() override
+	{
+		return &PropertyBag;
+	}
+
+	FInstancedPropertyBag PropertyBag;
+};
+
+// Stack layer that references an external FInstancedPropertyBag
+struct FInstancedPropertyBagReferenceLayer : FInstancedPropertyBagLayer
+{
+	FInstancedPropertyBagReferenceLayer() = delete;
+
+	explicit FInstancedPropertyBagReferenceLayer(FInstancedPropertyBag& InPropertyBag, bool bInMutable)
+		: FInstancedPropertyBagLayer(InPropertyBag, bInMutable)
+		, PropertyBag(InPropertyBag)
+	{}
+
+	// FGCObject interface
+	virtual void AddReferencedObjects(FReferenceCollector& Collector) { /* We do not own the references held here, assume they are accounted for elsewhere */ }
+
+	// FParamStackLayer interface
+	virtual FInstancedPropertyBag* AsInstancedPropertyBag() override
+	{
+		return &PropertyBag;
+	}
+
+	FInstancedPropertyBag& PropertyBag;
+};
+
+FParamStack::FPushedLayer::FPushedLayer(FParamStackLayer& InLayer, FParamStack& InStack)
 	: Layer(InLayer)
 {
 	SerialNumber = InStack.MakeSerialNumber();
@@ -195,7 +183,7 @@ FParamStack::FPushedLayer::FPushedLayer(FLayer& InLayer, FParamStack& InStack)
 	}
 }
 
-FParamStack::FPushedLayer::FPushedLayer(const FPushedLayer& InPreviousLayer, FLayer& InLayer, FParamStack& InStack)
+FParamStack::FPushedLayer::FPushedLayer(const FPushedLayer& InPreviousLayer, FParamStackLayer& InLayer, FParamStack& InStack)
 	: Layer(InLayer)
 {
 	SerialNumber = InStack.MakeSerialNumber();
@@ -222,10 +210,12 @@ FParamStack::FPushedLayer::FPushedLayer(const FPushedLayer& InPreviousLayer, FLa
 	}
 }
 
-struct FParamStackThreadData : TThreadSingleton<FParamStackThreadData>
-{
-	FParamStack Stack;
-};
+// Current stack assigned to this thread
+static thread_local TWeakPtr<FParamStack> GWeakStack;
+
+// Stacks that are asscociated with objects, pending execution of an object's tick function
+static TMap<TObjectKey<UObject>, TWeakPtr<FParamStack>> GPendingObjects;
+static FRWLock GPendingObjectsLock;
 
 FParamStack::FParamStack()
 {
@@ -234,21 +224,86 @@ FParamStack::FParamStack()
 	PreviousLayerIndices.Reserve(FParamId::GetMaxParamId().ToInt());
 }
 
-FParamStack& FParamStack::Get()
+FParamStack::~FParamStack()
 {
-	return FParamStackThreadData::Get().Stack;
 }
 
-FParamStack::FPushedLayerHandle FParamStack::PushLayer(const FLayerHandle& InLayerHandle)
+void FParamStack::SetParent(TWeakPtr<const FParamStack> InParent)
+{
+	WeakParentStack = InParent;
+}
+
+FParamStack& FParamStack::Get()
+{
+	return *GWeakStack.Pin().Get();
+}
+
+TWeakPtr<FParamStack> FParamStack::GetForCurrentThread()
+{
+	return GWeakStack;
+}
+
+void FParamStack::AddForPendingObject(const UObject* InObject, TWeakPtr<FParamStack> InStack)
+{
+	FRWScopeLock ScopeLock(GPendingObjectsLock, SLT_Write);
+	if(!GPendingObjects.Contains(InObject))
+	{
+		GPendingObjects.Add(InObject, InStack);
+	}
+}
+
+void FParamStack::RemoveForPendingObject(const UObject* InObject)
+{
+	FRWScopeLock ScopeLock(GPendingObjectsLock, SLT_Write);
+	GPendingObjects.Remove(InObject);
+}
+
+bool FParamStack::AttachToCurrentThreadForPendingObject(const UObject* InObject)
+{
+	FRWScopeLock ScopeLock(GPendingObjectsLock, SLT_ReadOnly);
+	if (TWeakPtr<FParamStack>* PendingStack = GPendingObjects.Find(InObject))
+	{
+		GWeakStack = *PendingStack;
+		return true;
+	}
+
+	return false;
+}
+
+bool FParamStack::DetachFromCurrentThreadForPendingObject(const UObject* InObject)
+{
+	FRWScopeLock ScopeLock(GPendingObjectsLock, SLT_ReadOnly);
+	if (TWeakPtr<FParamStack>* PendingStack = GPendingObjects.Find(InObject))
+	{
+		GWeakStack.Reset();
+		return true;
+	}
+
+	return false;
+}
+
+void FParamStack::AttachToCurrentThread(TWeakPtr<FParamStack> InStack)
+{
+	GWeakStack = InStack;
+}
+
+TWeakPtr<FParamStack> FParamStack::DetachFromCurrentThread()
+{
+	TWeakPtr<FParamStack> Stack = GWeakStack;
+	GWeakStack.Reset();
+	return Stack;
+}
+
+FParamStack::FPushedLayerHandle FParamStack::PushLayer(const FParamStackLayerHandle& InLayerHandle)
 {
 	return PushLayerInternal(*InLayerHandle.Layer.Get());
 }
 
-FParamStack::FPushedLayerHandle FParamStack::PushLayer(TConstArrayView<TPair<FParamId, FParamStack::FParam>> InParams)
+FParamStack::FPushedLayerHandle FParamStack::PushLayer(TConstArrayView<TPair<FParamId, Private::FParamEntry>> InParams)
 {
 	if(Layers.Num() < MAX_uint16)
 	{
-		FLayer& OwnedLayer = OwnedStackLayers.Add_GetRef(FLayer(InParams));
+		FParamStackLayer& OwnedLayer = OwnedStackLayers.Add_GetRef(FParamStackLayer(InParams));
 		OwnedLayer.OwnedStorageOffset = AllocAndCopyOwnedParamStorage(OwnedLayer.Params);
 		return PushLayerInternal(OwnedLayer);
 	}
@@ -259,31 +314,35 @@ FParamStack::FPushedLayerHandle FParamStack::PushLayer(TConstArrayView<TPair<FPa
 	}
 }
 
-FParamStack::FPushedLayerHandle FParamStack::PushLayerInternal(FLayer& InLayer)
+FParamStack::FPushedLayerHandle FParamStack::PushLayerInternal(FParamStackLayer& InLayer)
 {
-	if (Layers.Num() < MAX_uint16)
+	if(InLayer.Params.Num() > 0)
 	{
-		if (Layers.Num())
+		if (Layers.Num() < MAX_uint16)
 		{
-			FPushedLayer& NewPushedLayer = Layers.Emplace_GetRef(Layers.Top(), InLayer, *this);
-			return FPushedLayerHandle(Layers.Num() - 1, NewPushedLayer.SerialNumber);
+			if (Layers.Num())
+			{
+				FPushedLayer& NewPushedLayer = Layers.Emplace_GetRef(Layers.Top(), InLayer, *this);
+				return FPushedLayerHandle(Layers.Num() - 1, NewPushedLayer.SerialNumber);
+			}
+			else
+			{
+				FPushedLayer& NewPushedLayer = Layers.Emplace_GetRef(InLayer, *this);
+				return FPushedLayerHandle(Layers.Num() - 1, NewPushedLayer.SerialNumber);
+			}
 		}
 		else
 		{
-			FPushedLayer& NewPushedLayer = Layers.Emplace_GetRef(InLayer, *this);
-			return FPushedLayerHandle(Layers.Num() - 1, NewPushedLayer.SerialNumber);
+			UE_LOG(LogAnimation, Warning, TEXT("FParamStack: Could not push a layer: Maximum 65535 stack layers."));
 		}
 	}
-	else
-	{
-		UE_LOG(LogAnimation, Warning, TEXT("FParamStack: Could not push a layer: Maximum 65535 stack layers."));
-		return FPushedLayerHandle();
-	}
+
+	return FPushedLayerHandle();
 }
 
 void FParamStack::PopLayer(FPushedLayerHandle InHandle)
 {
-	if(Layers.Num() > 0)
+	if(InHandle.IsValid() && Layers.Num() > 0)
 	{
 		const FPushedLayer& TopLayer = Layers.Top();
 
@@ -307,6 +366,11 @@ void FParamStack::PopLayer(FPushedLayerHandle InHandle)
 
 			PreviousLayerIndices.SetNum(PreviousLayerIndices.Num() - NumParams);
 		}
+		else
+		{
+			// Clear layer indices as this is the last layer to be popped
+			FMemory::Memset(&LayerIndices[0], 0xff, LayerIndices.Num() * LayerIndices.GetTypeSize());
+		}
 
 		// Dont shrink allocs to avoid thrashing
 		constexpr bool bAllowShrinking = false;
@@ -326,108 +390,135 @@ void FParamStack::PopLayer(FPushedLayerHandle InHandle)
 	}
 }
 
-FParamStack::FLayerHandle FParamStack::MakeLayer(const FInstancedPropertyBag& InPropertyBag)
+FParamStackLayerHandle FParamStack::MakeValueLayer(const UClass* InClass)
 {
-	TUniquePtr<FLayer> Layer = TUniquePtr<FLayer>(new FLayer(const_cast<FInstancedPropertyBag&>(InPropertyBag), false));
-	return FLayerHandle(MoveTemp(Layer));
+	check(InClass != nullptr);
+
+	UObject* OwnedObject = NewObject<UObject>(GetTransientPackage(), InClass);
+	TUniquePtr<FParamStackLayer> Layer = MakeUnique<FUObjectLayer>(OwnedObject, true);
+	return FParamStackLayerHandle(MoveTemp(Layer));
 }
 
-FParamStack::FLayerHandle FParamStack::MakeMutableLayer(FInstancedPropertyBag& InPropertyBag)
+FParamStackLayerHandle FParamStack::MakeReferenceLayer(UObject* InObject)
 {
-	TUniquePtr<FLayer> Layer = TUniquePtr<FLayer>(new FLayer(InPropertyBag, true));
-	return FLayerHandle(MoveTemp(Layer));
+	check(InObject != nullptr);
+
+	TUniquePtr<FParamStackLayer> Layer = MakeUnique<FUObjectLayer>(InObject, true);
+	return FParamStackLayerHandle(MoveTemp(Layer));
 }
 
-FParamStack::FLayerHandle FParamStack::MakeLayer(TConstArrayView<TPair<FParamId, FParamStack::FParam>> InParams)
+FParamStackLayerHandle FParamStack::MakeValueLayer(const FInstancedPropertyBag& InPropertyBag)
 {
-	TUniquePtr<FLayer> Layer = TUniquePtr<FLayer>(new FLayer(InParams));
-	return FLayerHandle(MoveTemp(Layer));
+	FInstancedPropertyBag OwnedPropertyBag = InPropertyBag;
+	TUniquePtr<FParamStackLayer> Layer = MakeUnique<FInstancedPropertyBagValueLayer>(MoveTemp(OwnedPropertyBag), true);
+	return FParamStackLayerHandle(MoveTemp(Layer));
 }
 
-FParamStack::EGetParamResult FParamStack::GetParamData(FParamId InId, FParamTypeHandle InTypeHandle, TConstArrayView<uint8>& OutParamData, FParamCompatibility InRequiredCompatibility) const
+FParamStackLayerHandle FParamStack::MakeReferenceLayer(FInstancedPropertyBag& InPropertyBag)
+{
+	TUniquePtr<FParamStackLayer> Layer = MakeUnique<FInstancedPropertyBagReferenceLayer>(InPropertyBag, true);
+	return FParamStackLayerHandle(MoveTemp(Layer));
+}
+
+FParamStackLayerHandle FParamStack::MakeLayer(TConstArrayView<TPair<FParamId, Private::FParamEntry>> InParams)
+{
+	TUniquePtr<FParamStackLayer> Layer = MakeUnique<FParamStackLayer>(InParams);
+	return FParamStackLayerHandle(MoveTemp(Layer));
+}
+
+FParamResult FParamStack::GetParamData(FParamId InId, FParamTypeHandle InTypeHandle, TConstArrayView<uint8>& OutParamData, FParamCompatibility InRequiredCompatibility) const
 {
 	FParamTypeHandle ParamTypeHandle;
 	return GetParamData(InId, InTypeHandle, OutParamData, ParamTypeHandle, InRequiredCompatibility);
 }
 
-FParamStack::EGetParamResult FParamStack::GetParamData(FParamId InId, FParamTypeHandle InTypeHandle, TConstArrayView<uint8>& OutParamData, FParamTypeHandle& OutParamTypeHandle, FParamCompatibility InRequiredCompatibility) const
+FParamResult FParamStack::GetParamData(FParamId InId, FParamTypeHandle InTypeHandle, TConstArrayView<uint8>& OutParamData, FParamTypeHandle& OutParamTypeHandle, FParamCompatibility InRequiredCompatibility) const
+{
+	const FParamResult Result = GetParamDataInternal(InId, InTypeHandle, OutParamData, OutParamTypeHandle, InRequiredCompatibility);
+	if (Result.IsInScope())
+	{
+		return Result;
+	}
+	else if (TSharedPtr<const FParamStack> ParentStack = WeakParentStack.Pin())
+	{
+		return ParentStack->GetParamData(InId, InTypeHandle, OutParamData, OutParamTypeHandle, InRequiredCompatibility);
+	}
+	// Check if we have a built in adapter to fall back on
+	else if(const FParamAdapter* Adapter = InId.GetAdapter(InId))
+	{
+		return Adapter->GetParamData(InTypeHandle, OutParamData, OutParamTypeHandle, InRequiredCompatibility);
+	}
+
+	return EParamResult::NotInScope;
+}
+
+FParamResult FParamStack::GetParamDataInternal(FParamId InId, FParamTypeHandle InTypeHandle, TConstArrayView<uint8>& OutParamData, FParamTypeHandle& OutParamTypeHandle, FParamCompatibility InRequiredCompatibility) const
 {
 	if (Layers.Num() == 0 || InId.ToInt() >= (uint32)LayerIndices.Num() || LayerIndices[InId.ToInt()] == MAX_uint16)
 	{
-		return EGetParamResult::NotInScope;
+		return EParamResult::NotInScope;
 	}
 
 	const FPushedLayer& Layer = Layers[LayerIndices[InId.ToInt()]];
-	const uint32 LocalParamIndex = InId.ToInt() - Layer.Layer.MinParamId;
-
-	const FParam& Param = Layer.Layer.Params[LocalParamIndex];
-	if (!Param.IsValid())
+	const FParamResult Result = Layer.Layer.GetParamData(InId, InTypeHandle, OutParamData, OutParamTypeHandle, InRequiredCompatibility);
+	if(Result.IsInScope())
 	{
-		return EGetParamResult::NotInScope;
+		return Result;
 	}
 
-	OutParamTypeHandle = Param.GetTypeHandle();
 
-	FParamCompatibility Compatibility = UE::AnimNext::FParamUtils::GetCompatibility(InTypeHandle, OutParamTypeHandle);
-	if (Compatibility < InRequiredCompatibility)
-	{
-		return EGetParamResult::IncompatibleType;
-	}
-	
-	OutParamData = Param.GetData();
 
-	if (Compatibility == InRequiredCompatibility)
-	{
-		return EGetParamResult::CompatibleType;
-	}
-
-	return EGetParamResult::Succeeded;
+	return EParamResult::NotInScope;
 }
 
-FParamStack::EGetParamResult FParamStack::GetMutableParamData(FParamId InId, FParamTypeHandle InTypeHandle, TArrayView<uint8>& OutParamData, FParamCompatibility InRequiredCompatibility)
+FParamResult FParamStack::GetMutableParamData(FParamId InId, FParamTypeHandle InTypeHandle, TArrayView<uint8>& OutParamData, FParamCompatibility InRequiredCompatibility)
 {
 	FParamTypeHandle ParamTypeHandle;
 	return GetMutableParamData(InId, InTypeHandle, OutParamData, ParamTypeHandle, InRequiredCompatibility);
 }
 
-FParamStack::EGetParamResult FParamStack::GetMutableParamData(FParamId InId, FParamTypeHandle InTypeHandle, TArrayView<uint8>& OutParamData, FParamTypeHandle& OutParamTypeHandle, FParamCompatibility InRequiredCompatibility)
+FParamResult FParamStack::GetMutableParamData(FParamId InId, FParamTypeHandle InTypeHandle, TArrayView<uint8>& OutParamData, FParamTypeHandle& OutParamTypeHandle, FParamCompatibility InRequiredCompatibility)
+{
+	const FParamResult Result = GetMutableParamDataInternal(InId, InTypeHandle, OutParamData, OutParamTypeHandle, InRequiredCompatibility);
+	if (Result.IsInScope())
+	{
+		return Result;
+	}
+	else if (TSharedPtr<const FParamStack> ParentStack = WeakParentStack.Pin())
+	{
+		// we use a dummy here because if the data is present in a parent, it must be immutable anyways and we will early out
+		TConstArrayView<uint8> ParamData;
+		FParamResult ParentResult = ParentStack->GetParamData(InId, InTypeHandle, ParamData, OutParamTypeHandle, InRequiredCompatibility);
+		if (ParentResult.IsInScope())
+		{
+			// Parent data is immutable
+			return ParentResult.Result & EParamResult::MutabilityError;
+		}
+	}
+	// Check if we have a built in adapter to fall back on
+	else if(const FParamAdapter* Adapter = InId.GetAdapter(InId))
+	{
+		return Adapter->GetMutableParamData(InTypeHandle, OutParamData, OutParamTypeHandle, InRequiredCompatibility);
+	}
+
+	return EParamResult::NotInScope;
+}
+
+FParamResult FParamStack::GetMutableParamDataInternal(FParamId InId, FParamTypeHandle InTypeHandle, TArrayView<uint8>& OutParamData, FParamTypeHandle& OutParamTypeHandle, FParamCompatibility InRequiredCompatibility)
 {
 	if (Layers.Num() == 0 || InId.ToInt() >= (uint32)LayerIndices.Num() || LayerIndices[InId.ToInt()] == MAX_uint16)
 	{
-		return EGetParamResult::NotInScope;
+		return EParamResult::NotInScope;
 	}
 
 	FPushedLayer& Layer = Layers[LayerIndices[InId.ToInt()]];
-	const uint32 LocalParamIndex = InId.ToInt() - Layer.Layer.MinParamId;
-
-	FParam& Param = Layer.Layer.Params[LocalParamIndex];
-	if (!Param.IsValid())
+	const FParamResult Result =  Layer.Layer.GetMutableParamData(InId, InTypeHandle, OutParamData, OutParamTypeHandle, InRequiredCompatibility);
+	if(Result.IsInScope())
 	{
-		return EGetParamResult::NotInScope;
+		return Result;
 	}
 
-	OutParamTypeHandle = Param.GetTypeHandle();
-
-	EGetParamResult AccessResult = EGetParamResult::Succeeded;
-	FParamCompatibility Compatibility = UE::AnimNext::FParamUtils::GetCompatibility(InTypeHandle, OutParamTypeHandle);
-	if (Compatibility < InRequiredCompatibility)
-	{
-		AccessResult |= EGetParamResult::IncompatibleType;
-	}
-	else if (Compatibility == InRequiredCompatibility)
-	{
-		AccessResult |= EGetParamResult::CompatibleType;
-	}
-
-	AccessResult |= !Param.IsMutable() ? EGetParamResult::Immutable : EGetParamResult::Succeeded;
-	if (AccessResult != EGetParamResult::Succeeded && AccessResult != EGetParamResult::CompatibleType)
-	{
-		return AccessResult;
-	}
-
-	OutParamData = Param.GetMutableData();
-
-	return EGetParamResult::Succeeded;
+	return EParamResult::NotInScope;
 }
 
 bool FParamStack::IsMutableParam(FParamId InId) const
@@ -440,7 +531,7 @@ bool FParamStack::IsMutableParam(FParamId InId) const
 	const FPushedLayer& Layer = Layers[LayerIndices[InId.ToInt()]];
 	const uint32 LocalParamIndex = InId.ToInt() - Layer.Layer.MinParamId;
 
-	const FParam& Param = Layer.Layer.Params[LocalParamIndex];
+	const Private::FParamEntry& Param = Layer.Layer.Params[LocalParamIndex];
 
 	return Param.IsMutable();
 }
@@ -455,17 +546,30 @@ bool FParamStack::IsReferenceParam(FParamId InId) const
 	const FPushedLayer& Layer = Layers[LayerIndices[InId.ToInt()]];
 	const uint32 LocalParamIndex = InId.ToInt() - Layer.Layer.MinParamId;
 
-	const FParam& Param = Layer.Layer.Params[LocalParamIndex];
+	const Private::FParamEntry& Param = Layer.Layer.Params[LocalParamIndex];
 
 	return Param.IsReference();
 }
 
-uint32 FParamStack::AllocAndCopyOwnedParamStorage(TArrayView<FParam> InParams)
+bool FParamStack::LayerContainsParam(const FParamStackLayerHandle& InHandle, FName InKey)
+{
+	const FParamId ParamIdToFind(InKey);
+	const uint32 MinParamId = InHandle.Layer->MinParamId;
+	const uint32 NumParams = InHandle.Layer->Params.Num();
+	if (ParamIdToFind.ToInt() >= MinParamId && ParamIdToFind.ToInt() < MinParamId + NumParams)
+	{
+		const uint32 LocalParamIndex = ParamIdToFind.ToInt() - MinParamId;
+		return InHandle.Layer->Params[LocalParamIndex].IsValid();
+	}
+	return false;
+}
+
+uint32 FParamStack::AllocAndCopyOwnedParamStorage(TArrayView<Private::FParamEntry> InParams)
 {
 	const uint32 CurrentOffset = OwnedLayerParamStorage.Num();
 	const uint32 PageSize = OwnedLayerParamStorage.MaxPerPage();
 
-	for (FParam& Param : InParams)
+	for (Private::FParamEntry& Param : InParams)
 	{
 		if(Param.IsValid())
 		{

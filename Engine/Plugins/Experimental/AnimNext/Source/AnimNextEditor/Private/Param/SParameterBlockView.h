@@ -71,6 +71,8 @@ private:
 	// Generate a row for the list view
 	TSharedRef<ITableRow> HandleGenerateRow(TSharedRef<FParameterBlockViewEntry> InEntry, const TSharedRef<STableViewBase>& InOwnerTable);
 
+	void HandleGetChildren(TSharedRef<FParameterBlockViewEntry> InEntry, TArray<TSharedRef<FParameterBlockViewEntry>>& OutChildren);
+
 	// Handle rename after scrolling into view
 	void HandleItemScrolledIntoView(TSharedRef<FParameterBlockViewEntry> Entry, const TSharedPtr<ITableRow>& Widget);
 

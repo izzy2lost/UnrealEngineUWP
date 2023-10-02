@@ -1,0 +1,79 @@
+// Copyright Epic Games, Inc. All Rights Reserved.
+
+#pragma once
+
+#include "CoreMinimal.h"
+#include "AnimNextScheduleParamScopeTask.generated.h"
+
+class UAnimNextSchedule;
+class UAnimNextParameterBlock;
+class UAnimNextSchedulerWorldSubsystem;
+
+namespace UE::AnimNext
+{
+	struct FScheduleContext;
+	struct FScheduleInstanceData;
+	struct FScheduleTickFunction;
+}
+
+USTRUCT()
+struct FAnimNextScheduleParamScopeEntryTask
+{
+	GENERATED_BODY()
+
+	FAnimNextScheduleParamScopeEntryTask() = default;
+
+private:
+	void RunParamScopeEntry(const UE::AnimNext::FScheduleContext& InScheduleContext) const;
+
+private:
+	friend class UAnimNextSchedule;
+	friend class UAnimNextSchedulerWorldSubsystem;
+	friend struct UE::AnimNext::FScheduleInstanceData;
+	friend struct UE::AnimNext::FScheduleTickFunction;
+
+	UPROPERTY()
+	uint32 TaskIndex = MAX_uint32;
+
+	UPROPERTY()
+	uint32 ParamScopeIndex = MAX_uint32;
+
+	UPROPERTY()
+	uint32 ParamParentScopeIndex = MAX_uint32;
+
+	UPROPERTY()
+	uint32 TickFunctionIndex = MAX_uint32;
+
+	// The name of the scope
+	UPROPERTY()
+	FName Name;
+
+	/** Parameters to apply in this scope */
+	UPROPERTY()
+	TArray<TObjectPtr<UAnimNextParameterBlock>> ParameterBlocks;
+};
+
+USTRUCT()
+struct FAnimNextScheduleParamScopeExitTask
+{
+	GENERATED_BODY()
+
+	FAnimNextScheduleParamScopeExitTask() = default;
+
+private:
+	void RunParamScopeExit(const UE::AnimNext::FScheduleContext& InScheduleContext) const;
+
+private:
+	friend class UAnimNextSchedule;
+	friend struct UE::AnimNext::FScheduleTickFunction;
+
+	UPROPERTY()
+	uint32 TaskIndex = MAX_uint32;
+
+	UPROPERTY()
+	uint32 ParamScopeIndex = MAX_uint32;
+
+	// The name of the scope
+	UPROPERTY()
+	FName Name;
+};

@@ -5,6 +5,7 @@
 #include "Animation/AnimNodeBase.h"
 #include "Animation/AnimSubsystem_PropertyAccess.h"
 #include "Animation/AnimClassInterface.h"
+#include "AnimGraphParamStackScope.h"
 
 void FAnimNodeExposedValueHandler_AnimNextParameters::Initialize(const UClass* InClass)
 {
@@ -432,29 +433,33 @@ void FAnimNodeExposedValueHandler_AnimNextParameters::Execute(const FAnimationBa
 
 	Super::Execute(InContext);
 
-	FParamStack& ParamStack = FParamStack::Get();
-	UObject* Object = InContext.GetAnimInstanceObject();
-
-	for (const FAnimNodeExposedValueHandler_AnimNextParameters_Entry& Entry : Entries)
 	{
-		EPropertyAccessCopyType CopyType = Entry.AccessType;
-		FParamTypeHandle FoundTypeHandle;
-		TConstArrayView<uint8> Value;
-		FParamStack::EGetParamResult Result = ParamStack.GetParamData(Entry.ParamId, Entry.PropertyParamTypeHandle, Value, FoundTypeHandle, FParamCompatibility::IncompatibleWithDataLoss());
-		if (Result == FParamStack::EGetParamResult::CompatibleType)
-		{
-			// Compatibility indicates we need to potentially modify the access type
-			CopyType = Private::GetCopyTypeForCompatibility(CopyType, Entry.PropertyParamTypeHandle, FoundTypeHandle);
-		}
+		FAnimGraphParamStackScope Scope(InContext);
 
-		if(Result == FParamStack::EGetParamResult::CompatibleType || Result == FParamStack::EGetParamResult::Succeeded)
-		{
-			const uint8* SrcAddr = Value.GetData();
+		FParamStack& ParamStack = FParamStack::Get();
+		UObject* Object = InContext.GetAnimInstanceObject();
 
-			PropertyAccess::GetAccessAddress(Object, *PropertyAccessLibrary, Entry.AccessIndex, [CopyType, SrcAddr](const FProperty* InProperty, void* InAddress)
+		for (const FAnimNodeExposedValueHandler_AnimNextParameters_Entry& Entry : Entries)
+		{
+			EPropertyAccessCopyType CopyType = Entry.AccessType;
+			FParamTypeHandle FoundTypeHandle;
+			TConstArrayView<uint8> Value;
+			FParamResult Result = ParamStack.GetParamData(Entry.ParamId, Entry.PropertyParamTypeHandle, Value, FoundTypeHandle, FParamCompatibility::IncompatibleWithDataLoss());
+			if (Result.IsOfCompatibleType())
 			{
-				Private::PerformCopy(CopyType, InProperty, InAddress, SrcAddr);
-			});
+				// Compatibility indicates we need to potentially modify the access type
+				CopyType = Private::GetCopyTypeForCompatibility(CopyType, Entry.PropertyParamTypeHandle, FoundTypeHandle);
+			}
+
+			if(Result.IsSuccessful())
+			{
+				const uint8* SrcAddr = Value.GetData();
+
+				PropertyAccess::GetAccessAddress(Object, *PropertyAccessLibrary, Entry.AccessIndex, [CopyType, SrcAddr](const FProperty* InProperty, void* InAddress)
+				{
+					Private::PerformCopy(CopyType, InProperty, InAddress, SrcAddr);
+				});
+			}
 		}
 	}
 }

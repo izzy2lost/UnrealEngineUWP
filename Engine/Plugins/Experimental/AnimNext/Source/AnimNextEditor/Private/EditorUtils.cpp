@@ -8,6 +8,9 @@
 #include "Param/AnimNextParameterBlock.h"
 #include "Param/AnimNextParameterLibrary.h"
 #include "PropertyBagDetails.h"
+#include "AssetRegistry/AssetRegistryModule.h"
+#include "AssetRegistry/IAssetRegistry.h"
+#include "Param/Params.h"
 
 namespace UE::AnimNext::Editor
 {
@@ -233,7 +236,7 @@ FAnimNextParamType FUtils::GetParameterTypeFromMetaData(const FStringView& InStr
 void FUtils::GetAllGraphNames(const UAnimNextParameterBlock_EditorData* InEditorData, TSet<FName>& OutNames)
 {
 	// TODO
-	ensure(false);
+//	ensure(false);
 }
 
 FName FUtils::ValidateName(const UAnimNextParameterBlock_EditorData* InEditorData, const FString& InName)
@@ -501,6 +504,39 @@ bool FUtils::GetExportedBindingsForBlock(const FAssetData& InLibraryAsset, FAnim
 {
 	const FString TagValue = InLibraryAsset.GetTagValueRef<FString>(UAnimNextParameterBlock_EditorData::ExportsAssetRegistryTag);
 	return FAnimNextParameterBlockAssetRegistryExports::StaticStruct()->ImportText(*TagValue, &OutExports, nullptr, PPF_None, nullptr, FAnimNextParameterBlockAssetRegistryExports::StaticStruct()->GetName()) != nullptr;
+}
+
+FAnimNextParamType FUtils::GetParameterTypeFromName(FName InName)
+{
+	// Check built-in params first as they are cheaper
+	if(const FParamDefinition* FoundDefinition = FParams::FindBuiltInParameter(InName))
+	{
+		return FoundDefinition->Type;
+	}
+
+	// Query the asset registry for other params
+	IAssetRegistry& AssetRegistry = FModuleManager::Get().LoadModuleChecked<FAssetRegistryModule>(TEXT("AssetRegistry")).Get();
+
+	FARFilter ARFilter;
+	ARFilter.ClassPaths = { UAnimNextParameterLibrary::StaticClass()->GetClassPathName() };
+
+	TArray<FAssetData> LibraryAssets;
+	AssetRegistry.GetAssets(ARFilter, LibraryAssets);
+
+	for(const FAssetData& LibraryAsset : LibraryAssets)
+	{
+		FAnimNextParameterLibraryAssetRegistryExports Exports;
+		GetExportedParametersForLibrary(LibraryAsset, Exports);
+		for(const FAnimNextParameterLibraryAssetRegistryExportEntry& Export : Exports.Parameters)
+		{
+			if(Export.Name == InName)
+			{
+				return Export.Type;
+			}
+		}
+	}
+
+	return FAnimNextParamType();
 }
 
 }

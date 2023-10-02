@@ -1,0 +1,72 @@
+// Copyright Epic Games, Inc. All Rights Reserved.
+
+#pragma once
+
+#include "CoreMinimal.h"
+#include "Param/ParamTypeHandle.h"
+#include "ScheduleHandle.h"
+
+class UAnimNextGraph;
+class UAnimNextParameterBlock;
+class UAnimNextSchedule;
+struct FAnimNextParameterCollection;
+
+namespace UE::AnimNext
+{
+	struct FScheduler;
+	struct FSchedulerImpl;
+	struct FSchedulePortDefinition;
+	struct FParamStackLayerHandle;
+	struct FScheduleContext;
+}
+
+namespace UE::AnimNext
+{
+
+// Main interface into the AnimNext scheduling system
+struct FScheduler
+{
+	// Start up the scheduler system
+	static void Init();
+
+	// Shut down the scheduler system
+	static void Destroy();
+
+	// Acquire a handle that binds a schedule with the supplied parameters
+	static FScheduleHandle AcquireHandle(UObject* InObject, UAnimNextSchedule* InSchedule, const TMap<FName, FAnimNextParameterCollection>& InUserScopes);
+
+	// Release an already acquired handle
+	// The full release of the binding referenced by the handle map be deferred after this call is made
+	static void ReleaseHandle(UObject* InObject, FScheduleHandle& InHandle);
+
+	// Enables or disables the schedule parameterization represented by the supplied handle
+	// This operation is deferred until the next time the schedule ticks
+	static void EnableHandle(UObject* InObject, FScheduleHandle InHandle, bool bInEnabled);
+
+	enum class ETaskRunLocation : int32
+	{
+		// Run the task before the specified task
+		Before,
+
+		// Run the task after the specified task
+		After,
+	};
+
+	// Queue a task to run at a particular point in a schedule
+	// @param	InHandle		The handle to queue the task to
+	// @param	InTaskName		The name of the task in the schedule to run the supplied task relative to
+	// @param	InTaskFunction	The function to run
+	// @param	InLocation		Where to run the task, before or after
+	static void QueueTask(UObject* InObject, FScheduleHandle InHandle, FName InScheduleTaskName, TUniqueFunction<void(const FScheduleContext&)>&& InTaskFunction, ETaskRunLocation InLocation = ETaskRunLocation::Before);
+
+	// Register a port definition
+	static void RegisterPortDefinition(FSchedulePortDefinition&& InPortDefinition);
+
+	// Unregister a port definition
+	static void UnregisterPortDefinition(FName InDefinitionName);
+
+	// Find a registered port definition
+	static const FSchedulePortDefinition* FindPortDefinition(FName InDefinitionName);
+};
+
+}

@@ -7,6 +7,7 @@
 #include "AnimNextParameter.generated.h"
 
 class UAnimNextParameter;
+class UAnimNextParameterBlockParameter;
 
 namespace UE::AnimNext::Editor
 {
@@ -31,13 +32,13 @@ class UAnimNextParameter : public UObject
 #if WITH_EDITORONLY_DATA
 	friend class UAnimNextParameterBlock_EditorData;
 	friend class UAnimNextParameterLibrary;
+	friend class UAnimNextParameterBlockParameter;
 	friend class UAnimNextParameterBlockBinding;
 	friend class UAnimNextParameterBlockBindingReference;
 	friend struct UE::AnimNext::Editor::FUtils;
 	friend class UE::AnimNext::Editor::SParameterBlockView;
 	friend struct UE::AnimNext::Editor::FParameterPickerEntry;
 	friend class UE::AnimNext::Editor::SParameterLibraryViewRow;
-	friend struct FRigVMDispatch_SetParameter;
 
 	// Get the type of this parameter
 	const FAnimNextParamType& GetType() const { return Type; }

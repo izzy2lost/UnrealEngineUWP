@@ -12,11 +12,16 @@
 #include "Param/AnimNextParameterLibrary.h"
 #include "DetailLayoutBuilder.h"
 #include "EditorUtils.h"
+#include "SAddParametersDialog.h"
 #include "Param/ParameterPickerArgs.h"
 #include "Widgets/Input/SSearchBox.h"
 #include "String/ParseTokens.h"
 #include "Widgets/Layout/SBox.h"
 #include "Widgets/Images/SImage.h"
+#include "Param/Params.h"
+#include "Widgets/Input/SButton.h"
+#include "Framework/Application/SlateApplication.h"
+#include "ScopedTransaction.h"
 
 #define LOCTEXT_NAMESPACE "SParameterPicker"
 
@@ -29,6 +34,7 @@ static FName Column_Parameter(TEXT("Parameter"));
 static FName Column_Library(TEXT("Library"));
 static FName Column_Block(TEXT("Block"));
 static FName Column_Type(TEXT("Type"));
+static FName Column_New(TEXT("New"));
 }
 
 struct FParameterPickerEntry
@@ -185,6 +191,58 @@ void SParameterPicker::Construct(const FArguments& InArgs)
 			.FillWidth(0.33f));
 	}
 
+	if(Args.bAllowNew)
+	{
+		HeaderRow->AddColumn(
+			SHeaderRow::Column(Column_New)
+			.DefaultLabel(FText::GetEmpty())
+			.HeaderContentPadding(FMargin(0.0f))
+			.FixedWidth(24.0f)
+			.HeaderContent()
+			[
+				SNew(SButton)
+				.ToolTipText(LOCTEXT("AddColumnHeaderTooltip", "Add a new parameter at global scope"))
+				.ButtonStyle(FAppStyle::Get(), "HoverHintOnly")
+				.OnClicked_Lambda([this]()
+				{
+					FSlateApplication::Get().DismissAllMenus();
+					TSharedRef<SAddParametersDialog> AddParametersDialog =
+						SNew(SAddParametersDialog)
+						.AllowMultiple(false);
+					TArray<FParameterToAdd> ParametersToAdd;
+					if(AddParametersDialog->ShowModal(ParametersToAdd))
+					{
+						if(ParametersToAdd.Num() > 0)
+						{
+							FScopedTransaction Transaction(LOCTEXT("AddParameter", "Add parameter"));
+
+							// Create a new parameter in the supplied library
+							UAnimNextParameterLibrary* Library = Cast<UAnimNextParameterLibrary>(ParametersToAdd[0].Library.GetAsset());
+							UAnimNextParameter* NewParameter = Library->AddParameter(ParametersToAdd[0].Name, ParametersToAdd[0].Type);
+							
+							FParameterBindingReference Reference;
+							Reference.Parameter = ParametersToAdd[0].Name;
+							Reference.Library = ParametersToAdd[0].Library;
+							Args.OnParameterPicked.ExecuteIfBound(Reference);
+						}
+					}
+					return FReply::Handled();
+				})
+				[
+					SNew(SBox)
+					.WidthOverride(16.0f)
+					.HeightOverride(16.0f)
+					.VAlign(VAlign_Center)
+					.HAlign(HAlign_Center)
+					[
+						SNew(SImage)
+						.ColorAndOpacity(FSlateColor::UseForeground())
+						.Image(FAppStyle::GetBrush("Icons.Plus"))
+					]
+				]
+			]);
+	}
+	
 	RefreshEntries();
 }
 
@@ -279,6 +337,21 @@ void SParameterPicker::RefreshEntries()
 		}
 	}
 
+	if (Args.bShowBuiltInParameters)
+	{
+		FParams::ForEachBuiltInParameter([this](const FParamDefinition& InDefinition)
+		{
+			FParameterBindingReference NewReference(InDefinition.GetName());
+			if (!Args.OnFilterParameter.IsBound() || Args.OnFilterParameter.Execute(NewReference) == EFilterParameterResult::Include)
+			{
+				if (!Args.OnFilterParameterType.IsBound() || Args.OnFilterParameterType.Execute(InDefinition.GetType()) == EFilterParameterResult::Include)
+				{
+					Entries.Add(MakeShared<FParameterPickerEntry>(NewReference, InDefinition.GetType()));
+				}
+			}
+		});
+	}
+
 	BuildHierarchy();
 
 	RefreshFilter();
@@ -305,7 +378,7 @@ void SParameterPicker::BuildHierarchy()
 
 		TStringBuilder<256> PartialParameterString;
 
-		// We use '_' as a seperator here as:
+		// We use '_' as a separator here as:
 		// - Each param is a UObject in editor and uses its object name, so we cannot use '.'
 		// - This maps nicely to Verse tags that use '_' to hierarchically define their relationship
 		TSharedPtr<FParameterPickerEntry> Parent = nullptr;

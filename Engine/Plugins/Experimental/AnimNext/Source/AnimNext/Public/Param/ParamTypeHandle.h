@@ -326,6 +326,9 @@ public:
 	/** Make a parameter type handle from a FProperty */
 	static FParamTypeHandle FromProperty(const FProperty* InProperty);
 
+	/** Make a parameter type handle from a UObject */
+	static FParamTypeHandle FromObject(const UObject* InObject);
+	
 	/** Return the raw value that this handle uses to represent itself */
 	uint32 ToRaw() const
 	{

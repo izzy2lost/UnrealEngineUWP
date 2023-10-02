@@ -2,54 +2,42 @@
 
 #include "Graph/AnimGraph/AnimNode_AnimNextParameters.h"
 #include "Param/ParamStack.h"
-#include "Param/AnimNextParameterBlock.h"
-#include "Context.h"
+#include "Param/IAnimNextParameterSourceInterface.h"
+#include "AnimGraphParamStackScope.h"
 
 #include UE_INLINE_GENERATED_CPP_BY_NAME(AnimNode_AnimNextParameters)
 
 FAnimNode_AnimNextParameters::FAnimNode_AnimNextParameters(const FAnimNode_AnimNextParameters& InOther)
 	: Source(InOther.Source)
-#if WITH_EDITORONLY_DATA
-	, ParameterBlock(InOther.ParameterBlock)
-#endif
-	, PreviousParameterBlock(nullptr)
+	, Parameters(InOther.Parameters)
+	, PreviousParameters(nullptr)
 	, ParamLayerHandle()
-	, PropertyBag()
 {
 }
 
 FAnimNode_AnimNextParameters& FAnimNode_AnimNextParameters::operator=(const FAnimNode_AnimNextParameters& InOther)
 {
 	Source = InOther.Source;
-#if WITH_EDITORONLY_DATA
-	ParameterBlock = InOther.ParameterBlock;
-#endif
-	PreviousParameterBlock = nullptr;
+	Parameters = InOther.Parameters;
+	PreviousParameters = nullptr;
 	ParamLayerHandle.Invalidate();
-	PropertyBag.Reset();
 	return *this;
 }
 
-FAnimNode_AnimNextParameters::FAnimNode_AnimNextParameters(FAnimNode_AnimNextParameters&& InOther)
+FAnimNode_AnimNextParameters::FAnimNode_AnimNextParameters(FAnimNode_AnimNextParameters&& InOther) noexcept
 {
 	Source = InOther.Source;
-#if WITH_EDITORONLY_DATA
-	ParameterBlock = InOther.ParameterBlock;
-#endif
-	PreviousParameterBlock = nullptr;
+	Parameters = InOther.Parameters;
+	PreviousParameters = nullptr;
 	ParamLayerHandle.Invalidate();
-	PropertyBag.Reset();
 }
 
-FAnimNode_AnimNextParameters& FAnimNode_AnimNextParameters::operator=(FAnimNode_AnimNextParameters&& InOther)
+FAnimNode_AnimNextParameters& FAnimNode_AnimNextParameters::operator=(FAnimNode_AnimNextParameters&& InOther) noexcept
 {
 	Source = InOther.Source;
-#if WITH_EDITORONLY_DATA
-	ParameterBlock = InOther.ParameterBlock;
-#endif
-	PreviousParameterBlock = nullptr;
+	Parameters = InOther.Parameters;
+	PreviousParameters = nullptr;
 	ParamLayerHandle.Invalidate();
-	PropertyBag.Reset();
 	return *this;
 }
 
@@ -64,36 +52,38 @@ void FAnimNode_AnimNextParameters::Update_AnyThread(const FAnimationUpdateContex
 
 	GetEvaluateGraphExposedInputs().Execute(Context);
 
-	UAnimNextParameterBlock* CurrentParameterBlock = GetParameterBlock();
+	IAnimNextParameterSourceInterface* CurrentParameters = Parameters ? Parameters.GetInterface() : nullptr;
 
 	// Reconstruct param block's cached layer if required
-	if (CurrentParameterBlock != PreviousParameterBlock || !ParamLayerHandle.IsValid())
+	if (CurrentParameters != PreviousParameters || !ParamLayerHandle.IsValid())
 	{
 		ParamLayerHandle.Invalidate();
 
-		if (CurrentParameterBlock)
+		if (CurrentParameters)
 		{
-			PropertyBag = CurrentParameterBlock->PropertyBag;
-			ParamLayerHandle = FParamStack::MakeMutableLayer(PropertyBag);
+			ParamLayerHandle = CurrentParameters->CacheLayer();
 		}
 
-		PreviousParameterBlock = CurrentParameterBlock;
+		PreviousParameters = CurrentParameters;
 	}
 
-	FParamStack& ParamStack = FParamStack::Get();
-	FParamStack::FPushedLayerHandle PushedLayerHandle;
-	if (CurrentParameterBlock && ParamLayerHandle.IsValid())
 	{
-		PushedLayerHandle = ParamStack.PushLayer(ParamLayerHandle);
-		UE::AnimNext::FContext AnimNextContext;
-		CurrentParameterBlock->Run(AnimNextContext);
-	}
+		FAnimGraphParamStackScope Scope(Context);
 
-	Source.Update(Context);
+		FParamStack& ParamStack = FParamStack::Get();
+		FParamStack::FPushedLayerHandle PushedLayerHandle;
+		if (CurrentParameters && ParamLayerHandle.IsValid())
+		{
+			CurrentParameters->UpdateLayer(ParamLayerHandle);
+			PushedLayerHandle = ParamStack.PushLayer(ParamLayerHandle);
+		}
 
-	if (PushedLayerHandle.IsValid())
-	{
-		ParamStack.PopLayer(PushedLayerHandle);
+		Source.Update(Context);
+
+		if (PushedLayerHandle.IsValid())
+		{
+			ParamStack.PopLayer(PushedLayerHandle);
+		}
 	}
 }
 
@@ -112,9 +102,4 @@ void FAnimNode_AnimNextParameters::GatherDebugData(FNodeDebugData& DebugData)
 	DebugData.AddDebugItem(DebugData.GetNodeName(this));
 
 	Source.GatherDebugData(DebugData);
-}
-
-UAnimNextParameterBlock* FAnimNode_AnimNextParameters::GetParameterBlock() const
-{
-	return GET_ANIM_NODE_DATA(TObjectPtr<UAnimNextParameterBlock>, ParameterBlock);
 }

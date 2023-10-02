@@ -14,7 +14,7 @@
 #include "RigVMCore/RigVMRegistry.h"
 #include "Units/RigUnit.h"
 #include "Widgets/SToolTip.h"
-#include "Graph/AnimNextExecuteContext.h"
+#include "Param/AnimNextParameterExecuteContext.h"
 
 #define LOCTEXT_NAMESPACE "AnimNextParametersEditor"
 
@@ -25,7 +25,8 @@ static void CollectAllAnimNextParameterActions(FGraphContextMenuBuilder& MenuBui
 {
 	static const TArray<UScriptStruct*> AllowedExecuteContexts =
 	{
-		FRigVMExecuteContext::StaticStruct()
+		FRigVMExecuteContext::StaticStruct(),
+		FAnimNextParameterExecuteContext::StaticStruct()
 	};
 
 	for (const FRigVMFunction& Function : FRigVMRegistry::Get().GetFunctions())
@@ -64,7 +65,8 @@ static void CollectAllAnimNextParameterActions(FGraphContextMenuBuilder& MenuBui
 
 	for (const FRigVMDispatchFactory* Factory : FRigVMRegistry::Get().GetFactories())
 	{
-		if (!Factory->SupportsExecuteContextStruct(FRigVMExecuteContext::StaticStruct()))
+		if (!Factory->SupportsExecuteContextStruct(FRigVMExecuteContext::StaticStruct()) &&
+			!Factory->SupportsExecuteContextStruct(FAnimNextParameterExecuteContext::StaticStruct()))
 		{
 			continue;
 		}

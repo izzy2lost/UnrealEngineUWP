@@ -4,11 +4,16 @@
 
 #include "Param/ParamType.h"
 #include "UObject/Interface.h"
-#include "IAnimNextParameterBlockBindingInterface.generated.h"
+#include "IAnimNextParameterBlockParameterInterface.generated.h"
 
 class UAnimNextParameter;
 class UAnimNextParameterLibrary;
 class UAnimNextParameterBlock_EditorData;
+
+namespace UE::AnimNext
+{
+	struct FParamDefinition;
+}
 
 namespace UE::AnimNext::Editor
 {
@@ -22,12 +27,12 @@ namespace UE::AnimNext::UncookedOnly
 }
 
 UINTERFACE(meta=(CannotImplementInterfaceInBlueprint))
-class ANIMNEXTUNCOOKEDONLY_API UAnimNextParameterBlockBindingInterface : public UInterface
+class ANIMNEXTUNCOOKEDONLY_API UAnimNextParameterBlockParameterInterface : public UInterface
 {
 	GENERATED_BODY()
 };
 
-class ANIMNEXTUNCOOKEDONLY_API IAnimNextParameterBlockBindingInterface
+class ANIMNEXTUNCOOKEDONLY_API IAnimNextParameterBlockParameterInterface
 {
 	GENERATED_BODY()
 

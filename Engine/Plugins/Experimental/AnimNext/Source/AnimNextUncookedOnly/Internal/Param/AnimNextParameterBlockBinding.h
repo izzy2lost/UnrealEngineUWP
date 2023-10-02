@@ -1,11 +1,11 @@
-﻿// Copyright Epic Games, Inc. All Rights Reserved.
+// Copyright Epic Games, Inc. All Rights Reserved.
 
 #pragma once
 
 #include "CoreMinimal.h"
 #include "AnimNextParameterBlockEntry.h"
 #include "IAnimNextParameterBlockGraphInterface.h"
-#include "IAnimNextParameterBlockBindingInterface.h"
+#include "IAnimNextParameterBlockParameterInterface.h"
 #include "AnimNextParameterBlockBinding.generated.h"
 
 class UAssetDefinition_AnimNextParameterBlockBinding;
@@ -20,7 +20,7 @@ namespace UE::AnimNext::Editor
 
 /** Parameter binding block entry */
 UCLASS(MinimalAPI, BlueprintType)
-class UAnimNextParameterBlockBinding : public UAnimNextParameterBlockEntry, public IAnimNextParameterBlockBindingInterface, public IAnimNextParameterBlockGraphInterface
+class UAnimNextParameterBlockBinding : public UAnimNextParameterBlockEntry, public IAnimNextParameterBlockParameterInterface, public IAnimNextParameterBlockGraphInterface
 {
 	GENERATED_BODY()
 
@@ -28,7 +28,7 @@ class UAnimNextParameterBlockBinding : public UAnimNextParameterBlockEntry, publ
 	friend class UAssetDefinition_AnimNextParameterBlockBinding;
 	friend class UE::AnimNext::Editor::SParameterBlockViewRow;
 
-	// IAnimNextParameterBlockBindingInterface interface
+	// IAnimNextParameterBlockParameterInterface interface
 	virtual FAnimNextParamType GetParamType() const override;
 	virtual void SetParameterName(FName InName, bool bSetupUndoRedo = true) override;
 	virtual FName GetParameterName() const override;
@@ -37,6 +37,8 @@ class UAnimNextParameterBlockBinding : public UAnimNextParameterBlockEntry, publ
 
 	// IAnimNextParameterBlockGraphInterface interface
 	virtual URigVMGraph* GetGraph() const override { return BindingGraph; }
+	virtual FName GetGraphName() const override { return ParameterName; }
+	virtual void SetGraphName(FName InName, bool bSetupUndoRedo = true) override { SetParameterName(InName, bSetupUndoRedo); };
 
 	// UAnimNextParameterBlockEntry interface
 	virtual FText GetDisplayName() const override;

@@ -135,7 +135,12 @@ bool FAnimationAnimNextParametersEditorTest_Block::RunTest(const FString& InPara
 
 	GEditor->UndoTransaction();
 	AddErrorIfFalse(EditorData->Entries.Num() == 1, FString::Printf(TEXT("Unexpected entry count found in parameter block (Have %d, expected 1)."), EditorData->Entries.Num()));
-	
+
+	// FindBinding
+	AddErrorIfFalse(EditorData->FindBinding(TEXT("TestParam")) != nullptr, TEXT("Could not find binding in block."));
+
+	GEditor->RedoTransaction();
+
 	UAnimNextParameterBlock* OtherBlock = Cast<UAnimNextParameterBlock>(BlockFactory->FactoryCreateNew(UAnimNextParameterBlock::StaticClass(), GetTransientPackage(), TEXT("TestAnimNextParameterBlock2"), RF_Transient, nullptr, nullptr, NAME_None));
 	if(OtherBlock == nullptr)
 	{
@@ -164,8 +169,35 @@ bool FAnimationAnimNextParametersEditorTest_Block::RunTest(const FString& InPara
 	AddErrorIfFalse(OtherEditorData->Entries.Num() == 1, FString::Printf(TEXT("Unexpected entry count found in parameter block (Have %d, expected 1)."), OtherEditorData->Entries.Num()));
 
 	// FindBinding
-	AddErrorIfFalse(EditorData->FindBinding(TEXT("TestParam")) != nullptr, TEXT("Could not find binding in block."));
 	AddErrorIfFalse(OtherEditorData->FindBinding(TEXT("TestParam")) != nullptr, TEXT("Could not find binding refernce in block."));
+
+	UAnimNextParameterBlockParameter* Parameter = nullptr;
+	{
+		FScopedTransaction Transaction(FText::GetEmpty());
+		Parameter = EditorData->AddParameter(TEXT("TestParam"), Library);
+		AddErrorIfFalse(Parameter != nullptr, TEXT("Could not create new parameter in block."));
+	}
+
+	GEditor->UndoTransaction();
+	AddErrorIfFalse(EditorData->Entries.Num() == 0, FString::Printf(TEXT("Unexpected entry count found in parameter block (Have %d, expected 0)."), EditorData->Entries.Num()));
+
+	GEditor->RedoTransaction();
+	AddErrorIfFalse(EditorData->Entries.Num() == 1, FString::Printf(TEXT("Unexpected entry count found in parameter block (Have %d, expected 1)."), EditorData->Entries.Num()));
+	GEditor->UndoTransaction();
+	
+	UAnimNextParameterBlockGraph* Graph = nullptr;
+	{
+		FScopedTransaction Transaction(FText::GetEmpty());
+		Graph = EditorData->AddGraph(TEXT("TestGraph"));
+		AddErrorIfFalse(Graph != nullptr, TEXT("Could not create new graph in block."));
+	}
+
+	GEditor->UndoTransaction();
+	AddErrorIfFalse(EditorData->Entries.Num() == 0, FString::Printf(TEXT("Unexpected entry count found in parameter block (Have %d, expected 0)."), EditorData->Entries.Num()));
+
+	GEditor->RedoTransaction();
+	AddErrorIfFalse(EditorData->Entries.Num() == 1, FString::Printf(TEXT("Unexpected entry count found in parameter block (Have %d, expected 1)."), EditorData->Entries.Num()));
+	GEditor->UndoTransaction();
 
 	CollectGarbage(GARBAGE_COLLECTION_KEEPFLAGS);
 
@@ -186,6 +218,8 @@ bool FAnimationAnimNextParametersEditorTest_Python::RunTest(const FString& InPar
 		"library.add_parameter(name = \"TestParam\", value_type = unreal.PropertyBagPropertyType.BOOL, container_type = unreal.PropertyBagContainerType.NONE)\n"
 		"block.add_binding(name = \"TestParam\", library = library)\n"
 		"other_block.add_binding_reference(name = \"TestParam\", library = library, referenced_block = block)\n"
+		"block.add_parameter(name = \"TestParam\", library = library)\n"
+		"block.add_graph(name = \"TestGraph\")\n"
 		"unreal.EditorAssetLibrary.delete_loaded_asset(library)\n"
 		"unreal.EditorAssetLibrary.delete_loaded_asset(block)\n"
 		"unreal.EditorAssetLibrary.delete_loaded_asset(other_block)\n"

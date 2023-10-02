@@ -8,6 +8,7 @@
 
 class UAnimNextParameter;
 class UAnimNextParameterLibrary;
+class UAnimNextParameterBlockParameter;
 class UAnimNextParameterBlockBinding;
 class UAnimNextParameterBlockBindingReference;
 class UAnimNextParameterBlock_EditorData;
@@ -19,6 +20,7 @@ namespace UE::AnimNext::Editor
 	struct FUtils;
 	class SParameterBlockView;
 	class SParameterLibraryView;
+	class SParameterPicker;
 }
 
 namespace UE::AnimNext::UncookedOnly
@@ -69,7 +71,9 @@ class UAnimNextParameterLibrary : public UObject
 	friend struct UE::AnimNext::Editor::FUtils;
 	friend class UE::AnimNext::Editor::SParameterBlockView;
 	friend class UE::AnimNext::Editor::SParameterLibraryView;
+	friend class UE::AnimNext::Editor::SParameterPicker;
 	friend class UAnimNextParameterBlockBinding;
+	friend class UAnimNextParameterBlockParameter;
 	friend class UAnimNextParameterBlockBindingReference;
 	friend class UAnimNextParameterBlock_EditorData;
 	friend class FAnimationAnimNextParametersEditorTest_Library;

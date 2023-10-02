@@ -10,6 +10,7 @@
 #include "Kismet2/BlueprintEditorUtils.h"
 #include "RigVMBlueprintGeneratedClass.h"
 #include "ControlRigBlueprint.h"
+#include "Graph/AnimGraph/AnimBlueprintExtension_AnimNextParameters.h"
 
 #include UE_INLINE_GENERATED_CPP_BY_NAME(AnimGraphNode_AnimNextGraph)
 
@@ -46,6 +47,11 @@ void UAnimGraphNode_AnimNextGraph::PreloadRequiredAssets()
 		PreloadObject(Node.AnimNextGraph);
 		PreloadObject(Node.AnimNextGraph->EditorData);
 	}
+}
+
+void UAnimGraphNode_AnimNextGraph::GetRequiredExtensions(TArray<TSubclassOf<UAnimBlueprintExtension>>& OutExtensions) const
+{
+	OutExtensions.Add(UAnimBlueprintExtension_AnimNextParameters::StaticClass());
 }
 
 void UAnimGraphNode_AnimNextGraph::CreateCustomPins(TArray<UEdGraphPin*>* OldPins)

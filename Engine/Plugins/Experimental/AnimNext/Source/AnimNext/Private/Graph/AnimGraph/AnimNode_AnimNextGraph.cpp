@@ -15,6 +15,7 @@
 #include "Engine/SkeletalMesh.h"
 #include "BoneContainer.h"
 #include "Param/ParamStack.h"
+#include "AnimGraphParamStackScope.h"
 
 #include UE_INLINE_GENERATED_CPP_BY_NAME(AnimNode_AnimNextGraph)
 
@@ -62,6 +63,8 @@ void FAnimNode_AnimNextGraph::Update_AnyThread(const FAnimationUpdateContext& Co
 		// Populate our param stack since our instance data might need it during construction
 		const int32 LODLevel = Context.AnimInstanceProxy->GetLODLevel();
 
+		UE::AnimNext::FAnimGraphParamStackScope Scope(Context);
+
 		FParamStack& ParamStack = FParamStack::Get();
 		FParamStack::FPushedLayerHandle LayerHandle = ParamStack.PushValues(
 			"GraphLODLevel", LODLevel
@@ -91,17 +94,21 @@ void FAnimNode_AnimNextGraph::Initialize_AnyThread(const FAnimationInitializeCon
 	{
 		// If we don't have an instance yet, create one
 
-		// Populate our param stack since our instance data might need it during construction
-		const int32 LODLevel = Context.AnimInstanceProxy->GetLODLevel();
+		{
+			UE::AnimNext::FAnimGraphParamStackScope Scope(Context);
 
-		FParamStack& ParamStack = FParamStack::Get();
-		FParamStack::FPushedLayerHandle LayerHandle = ParamStack.PushValues(
-			"GraphLODLevel", LODLevel
-		);
+			// Populate our param stack since our instance data might need it during construction
+			const int32 LODLevel = Context.AnimInstanceProxy->GetLODLevel();
 
-		AnimNextGraph->AllocateInstance(GraphInstance);
+			FParamStack& ParamStack = FParamStack::Get();
+			FParamStack::FPushedLayerHandle LayerHandle = ParamStack.PushValues(
+				"GraphLODLevel", LODLevel
+			);
 
-		ParamStack.PopLayer(LayerHandle);
+			AnimNextGraph->AllocateInstance(GraphInstance);
+
+			ParamStack.PopLayer(LayerHandle);
+		}
 	}
 
 	FAnimNode_CustomProperty::Initialize_AnyThread(Context);
@@ -149,22 +156,26 @@ void FAnimNode_AnimNextGraph::Evaluate_AnyThread(FPoseContext & Output)
 	FAnimNextGraphLODPose ResultPose(FLODPoseHeap(RefPose, LODLevel, true, Output.ExpectsAdditivePose()));
 	FGenerationTools::RemapPose(LODLevel, SourcePose, RefPose, GraphSourceLODPose.LODPose);
 
-	FParamStack& ParamStack = FParamStack::Get();
-	FParamStack::FPushedLayerHandle LayerHandle = ParamStack.PushValues(
-		"GraphReferencePose", GraphReferencePose,
-		"ResultPose", ResultPose,
-		"GraphLODLevel", LODLevel,
-		"GraphExpectsAdditive", Output.ExpectsAdditivePose(),
-		"SourcePose", GraphSourceLODPose						// TODO : Pass this as a external variable maybe ? When we have support for variables in the rigvm graph
-	);
+	{
+		UE::AnimNext::FAnimGraphParamStackScope Scope(Output);
 
-	AnimNextGraph->Run(Context, GraphInstance, EAnimNextGraphSimulationSteps::Evaluate);
+		FParamStack& ParamStack = FParamStack::Get();
+		FParamStack::FPushedLayerHandle LayerHandle = ParamStack.PushValues(
+			"GraphReferencePose", GraphReferencePose,
+			"ResultPose", ResultPose,
+			"GraphLODLevel", LODLevel,
+			"GraphExpectsAdditive", Output.ExpectsAdditivePose(),
+			"SourcePose", GraphSourceLODPose						// TODO : Pass this as a external variable maybe ? When we have support for variables in the rigvm graph
+		);
 
-	FGenerationTools::RemapPose(LODLevel, RefPose, ResultPose.LODPose, Output);
+		AnimNextGraph->Run(Context, GraphInstance, EAnimNextGraphSimulationSteps::Evaluate);
 
-	FAnimNode_CustomProperty::Evaluate_AnyThread(Output);
+		FGenerationTools::RemapPose(LODLevel, RefPose, ResultPose.LODPose, Output);
 
-	ParamStack.PopLayer(LayerHandle);
+		FAnimNode_CustomProperty::Evaluate_AnyThread(Output);
+
+		ParamStack.PopLayer(LayerHandle);
+	}
 }
 
 void FAnimNode_AnimNextGraph::PostSerialize(const FArchive& Ar)

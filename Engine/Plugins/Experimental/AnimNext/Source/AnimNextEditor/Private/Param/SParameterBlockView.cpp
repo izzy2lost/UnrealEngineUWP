@@ -5,7 +5,6 @@
 #include "Param/AnimNextParameterBlock.h"
 #include "Param/AnimNextParameter.h"
 #include "Param/AnimNextParameterBlock_EditorData.h"
-#include "Param/AnimNextParameterBlockBinding.h"
 #include "Widgets/Layout/SBox.h"
 #include "Widgets/Input/SSearchBox.h"
 #include "Param/AnimNextParameterBlockEntry.h"
@@ -18,7 +17,6 @@
 #include "ParameterBlockViewMenuContext.h"
 #include "PropertyBagDetails.h"
 #include "SAddParametersDialog.h"
-#include "SLinkParametersDialog.h"
 #include "SourceControlOperations.h"
 #include "SPinTypeSelector.h"
 #include "SSimpleButton.h"
@@ -29,6 +27,11 @@
 #include "Param/AnimNextParameterBlockBindingReference.h"
 #include "ToolMenus.h"
 #include "ScopedTransaction.h"
+#include "SParameterPicker.h"
+#include "SSimpleComboButton.h"
+#include "Param/AnimNextParameterBlockParameter.h"
+#include "Param/AnimNextParameterBlockGraph.h"
+#include "Framework/Application/SlateApplication.h"
 
 #define LOCTEXT_NAMESPACE "AnimNextParameterBlockView"
 
@@ -104,8 +107,37 @@ void SParameterBlockView::Construct(const FArguments& InArgs, UAnimNextParameter
 			.AutoWidth()
 			.Padding(2.0f)
 			[
+				SNew(SSimpleComboButton)
+				.Text(LOCTEXT("AddParameterButton", "Add Parameter"))
+				.HasDownArrow(true)
+				.OnGetMenuContent_Lambda([this]()
+				{
+					FParameterPickerArgs Args;
+					Args.bMultiSelect = false;
+					Args.bShowLibraries = false;
+					Args.bShowBlocks = false;
+					Args.OnParameterPicked = FOnParameterPicked::CreateLambda([this](const FParameterBindingReference& InParameterBinding)
+					{
+						FSlateApplication::Get().DismissAllMenus();
+
+						FScopedTransaction Transaction(LOCTEXT("AddParameter", "Add parameter"));
+						PendingSelection.Empty();
+
+						// Create a new entry for the parameter
+						UAnimNextParameterLibrary* Library = Cast<UAnimNextParameterLibrary>(InParameterBinding.Library.GetAsset());
+						UAnimNextParameterBlockParameter* Parameter = EditorData->AddParameter(InParameterBinding.Parameter, Library);
+						PendingSelection.Add(Parameter);
+					});
+					return SNew(SParameterPicker)
+						.Args(Args);
+				})
+			]
+			+SHorizontalBox::Slot()
+			.AutoWidth()
+			.Padding(2.0f)
+			[
 				SNew(SSimpleButton)
-				.Text(LOCTEXT("AddNewParameterButton", "New"))
+				.Text(LOCTEXT("AddNewParameterButton", "Add New Parameter"))
 				.Icon(FAppStyle::Get().GetBrush("Icons.Plus"))
 				.OnClicked_Lambda([this]()
 				{
@@ -124,8 +156,8 @@ void SParameterBlockView::Construct(const FArguments& InArgs, UAnimNextParameter
 							UAnimNextParameter* NewParameter = Library->AddParameter(ParameterToAdd.Name, ParameterToAdd.Type);
 
 							// Create a new entry for the parameter
-							UAnimNextParameterBlockBinding* Binding = EditorData->AddBinding(NewParameter->GetFName(), Library);
-							PendingSelection.Add(Binding);
+							UAnimNextParameterBlockParameter* Parameter = EditorData->AddParameter(NewParameter->GetFName(), Library);
+							PendingSelection.Add(Parameter);
 						}
 					}
 
@@ -137,33 +169,17 @@ void SParameterBlockView::Construct(const FArguments& InArgs, UAnimNextParameter
 			.Padding(2.0f)
 			[
 				SNew(SSimpleButton)
-				.Text(LOCTEXT("LinkParameterButton", "Link"))
-				.Icon(FAppStyle::Get().GetBrush("Icons.Link"))
+				.Text(LOCTEXT("AddNewGraphButton", "Graph"))
+				.Icon(FAppStyle::Get().GetBrush("Icons.Plus"))
 				.OnClicked_Lambda([this]()
 				{
-					TSharedRef<SLinkParametersDialog> AddParametersDialog = SNew(SLinkParametersDialog)
-						.OnFilterParameter(this, &SParameterBlockView::HandleFilterLinkedParameter);
-					TArray<FParameterBindingReference> ParametersToLink;
-					if(AddParametersDialog->ShowModal(ParametersToLink))
-					{
-						FScopedTransaction Transaction(FText::FormatOrdered(LOCTEXT("LinkParameters", "Link {0}|plural(one=parameter,other=parameters)"), ParametersToLink.Num()));
+					FScopedTransaction Transaction(LOCTEXT("AddGraph", "Add Graph"));
 
-						PendingSelection.Empty();
+					PendingSelection.Empty();
 
-						for(const FParameterBindingReference& ParameterToLink : ParametersToLink)
-						{
-							check(ParameterToLink.Block.IsValid());
-							check(ParameterToLink.Parameter != NAME_None);
-
-							// Load our assets
-							UAnimNextParameterBlock* ExistingBlock = CastChecked<UAnimNextParameterBlock>(ParameterToLink.Block.GetAsset());
-							UAnimNextParameterLibrary* ExistingLibrary = CastChecked<UAnimNextParameterLibrary>(ParameterToLink.Library.GetAsset());
-
-							// Create a new entry for the supplied parameter
-							UAnimNextParameterBlockBindingReference* BindingReference = EditorData->AddBindingReference(ParameterToLink.Parameter, ExistingLibrary, ExistingBlock);
-							PendingSelection.Add(BindingReference);
-						}
-					}
+					// Create a new entry for the graph
+					UAnimNextParameterBlockGraph* Graph = EditorData->AddGraph(TEXT("NewGraph"));
+					PendingSelection.Add(Graph);
 
 					return FReply::Handled();
 				})
@@ -183,9 +199,10 @@ void SParameterBlockView::Construct(const FArguments& InArgs, UAnimNextParameter
 		+SVerticalBox::Slot()
 		.FillHeight(1.0f)
 		[
-			SAssignNew(EntriesList, SListView<TSharedRef<FParameterBlockViewEntry>>)
-			.ListItemsSource(&FilteredEntries)
+			SAssignNew(EntriesList, STreeView<TSharedRef<FParameterBlockViewEntry>>)
+			.TreeItemsSource(&FilteredEntries)
 			.OnGenerateRow(this, &SParameterBlockView::HandleGenerateRow)
+			.OnGetChildren(this, &SParameterBlockView::HandleGetChildren)
 			.OnItemScrolledIntoView(this, &SParameterBlockView::HandleItemScrolledIntoView)
 			.OnSelectionChanged(this, &SParameterBlockView::HandleSelectionChanged)
 			.ItemHeight(20.0f)
@@ -431,6 +448,20 @@ class SParameterBlockViewRow : public SMultiColumnTableRow<TSharedRef<FParameter
 		SMultiColumnTableRow<TSharedRef<FParameterBlockViewEntry>>::Construct( SMultiColumnTableRow<TSharedRef<FParameterBlockViewEntry>>::FArguments(), InOwnerTableView);
 	}
 
+	virtual FReply OnMouseButtonDoubleClick(const FGeometry& InMyGeometry, const FPointerEvent& InMouseEvent) override
+	{
+		if(IAnimNextParameterBlockGraphInterface* GraphInterface = Cast<IAnimNextParameterBlockGraphInterface>(Entry->WeakEntry.Get()))
+		{
+			if(TSharedPtr<SParameterBlockView> View = WeakView.Pin())
+			{
+				View->OnOpenGraphDelegate.ExecuteIfBound(GraphInterface->GetGraph());
+			}
+			return FReply::Handled();
+		}
+
+		return SMultiColumnTableRow<TSharedRef<FParameterBlockViewEntry>>::OnMouseButtonDoubleClick(InMyGeometry, InMouseEvent);
+	}
+	
 	virtual TSharedRef<SWidget> GenerateWidgetForColumn(const FName& InColumnName) override
 	{
 		using namespace ParameterBlockView;
@@ -495,7 +526,7 @@ class SParameterBlockViewRow : public SMultiColumnTableRow<TSharedRef<FParameter
 								TextBuilder.AppendLine(FText::FromName(ExternalPackage->GetFName()));
 							}
 
-							if(const IAnimNextParameterBlockBindingInterface* Binding = Cast<IAnimNextParameterBlockBindingInterface>(BlockEntry))
+							if(const IAnimNextParameterBlockParameterInterface* Binding = Cast<IAnimNextParameterBlockParameterInterface>(BlockEntry))
 							{
 								if(const UAnimNextParameter* Parameter = Binding->GetParameter())
 								{
@@ -523,7 +554,7 @@ class SParameterBlockViewRow : public SMultiColumnTableRow<TSharedRef<FParameter
 								bIsDirty = true;
 							}
 
-							if(const IAnimNextParameterBlockBindingInterface* Binding = Cast<IAnimNextParameterBlockBindingInterface>(BlockEntry))
+							if(const IAnimNextParameterBlockParameterInterface* Binding = Cast<IAnimNextParameterBlockParameterInterface>(BlockEntry))
 							{
 								if(const UAnimNextParameter* Parameter = Binding->GetParameter())
 								{
@@ -544,7 +575,7 @@ class SParameterBlockViewRow : public SMultiColumnTableRow<TSharedRef<FParameter
 		}
 		else if(InColumnName == Column_Type)
 		{
-			if(Entry->WeakEntry.Get()->Implements<UAnimNextParameterBlockBindingInterface>())
+			if(Entry->WeakEntry.Get()->Implements<UAnimNextParameterBlockParameterInterface>())
 			{
 				return
 					SNew(SBox)
@@ -555,7 +586,7 @@ class SParameterBlockViewRow : public SMultiColumnTableRow<TSharedRef<FParameter
 						SNew(SPinTypeSelector, FGetPinTypeTree::CreateStatic(&Editor::FUtils::GetFilteredVariableTypeTree))
 							.TargetPinType_Lambda([this]()
 							{
-								if(IAnimNextParameterBlockBindingInterface* Binding = Cast<IAnimNextParameterBlockBindingInterface>(Entry->WeakEntry.Get()))
+								if(IAnimNextParameterBlockParameterInterface* Binding = Cast<IAnimNextParameterBlockParameterInterface>(Entry->WeakEntry.Get()))
 								{
 									return UncookedOnly::FUtils::GetPinTypeFromParamType(Binding->GetParamType());
 								}
@@ -572,27 +603,35 @@ class SParameterBlockViewRow : public SMultiColumnTableRow<TSharedRef<FParameter
 		else if(InColumnName == Column_Name)
 		{
 			return
-				SNew(SBox)
+				SNew(SHorizontalBox)
+				+SHorizontalBox::Slot()
 				.HAlign(HAlign_Left)
 				.VAlign(VAlign_Center)
+				.AutoWidth()
 				[
-					// TODO: make this into a picker appropriately
+					SNew(SExpanderArrow, SharedThis(this))
+				]
+				+SHorizontalBox::Slot()
+				.HAlign(HAlign_Left)
+				.VAlign(VAlign_Center)
+				.AutoWidth()
+				[
 					SAssignNew(Entry->NameWidget, SInlineEditableTextBlock)
 					.Font(IDetailLayoutBuilder::GetDetailFont())
 					.IsSelected(this, &SParameterBlockViewRow::IsSelectedExclusively)
 					.IsReadOnly_Lambda([this]()
 					{
-						return Cast<UAnimNextParameterBlockBinding>(Entry->WeakEntry.Get()) == nullptr;
+						return Cast<IAnimNextParameterBlockGraphInterface>(Entry->WeakEntry.Get()) == nullptr;
 					})
 					.OnTextCommitted_Lambda([this](const FText& InNewText, ETextCommit::Type InCommitType)
 					{
 						if(InCommitType == ETextCommit::OnEnter)
 						{
-							if(IAnimNextParameterBlockBindingInterface* Binding = Cast<IAnimNextParameterBlockBindingInterface>(Entry->WeakEntry.Get()))
+							if(IAnimNextParameterBlockGraphInterface* Graph = Cast<IAnimNextParameterBlockGraphInterface>(Entry->WeakEntry.Get()))
 							{
-								FScopedTransaction Transaction(LOCTEXT("SetParameteName", "Set parameter name"));
+								FScopedTransaction Transaction(LOCTEXT("SetGraphName", "Set graph name"));
 
-								Binding->SetParameterName(*InNewText.ToString());
+								Graph->SetGraphName(*InNewText.ToString());
 							}
 						}
 					})
@@ -600,18 +639,11 @@ class SParameterBlockViewRow : public SMultiColumnTableRow<TSharedRef<FParameter
 					{
 						const FString NewString = InNewText.ToString();
 
-						if(IAnimNextParameterBlockBindingInterface* Binding = Cast<IAnimNextParameterBlockBindingInterface>(Entry->WeakEntry.Get()))
+						if(IAnimNextParameterBlockGraphInterface* Binding = Cast<IAnimNextParameterBlockGraphInterface>(Entry->WeakEntry.Get()))
 						{
 							// Make sure the new name only contains valid characters
 							if (!FName::IsValidXName(NewString, INVALID_OBJECTNAME_CHARACTERS INVALID_LONGPACKAGE_CHARACTERS, &OutErrorText))
 							{
-								return false;
-							}
-
-							const FName Name(*NewString);
-							if(!FUtils::DoesParameterExistInLibrary(Binding->GetLibrary(), Name))
-							{
-								OutErrorText = LOCTEXT("Error_NameDoesNotExistInLibrary", "This name does not exist in the specified library");
 								return false;
 							}
 						}
@@ -630,9 +662,14 @@ class SParameterBlockViewRow : public SMultiColumnTableRow<TSharedRef<FParameter
 					})
 					.Text_Lambda([this]()
 					{
-						if(UAnimNextParameterBlockEntry* BlockEntry = Entry->WeakEntry.Get())
+						if(IAnimNextParameterBlockParameterInterface* Parameter = Cast<IAnimNextParameterBlockParameterInterface>(Entry->WeakEntry.Get()))
 						{
-							return BlockEntry->GetDisplayName();
+							return UncookedOnly::FUtils::GetParameterDisplayNameText(Parameter->GetParameterName());
+						}
+
+						if(IAnimNextParameterBlockGraphInterface* Graph = Cast<IAnimNextParameterBlockGraphInterface>(Entry->WeakEntry.Get()))
+						{
+							return FText::FromName(Graph->GetGraphName());
 						}
 						return FText::GetEmpty();
 					})
@@ -688,29 +725,8 @@ class SParameterBlockViewRow : public SMultiColumnTableRow<TSharedRef<FParameter
 						})
 					];
 				}
-				
-				if(IAnimNextParameterBlockGraphInterface* GraphInterface = Cast<IAnimNextParameterBlockGraphInterface>(BlockEntry))
-				{
-					URigVMGraph* ReferencedGraph = GraphInterface->GetGraph();
-					HorizontalBox->AddSlot()
-					[
-						SNew(SSimpleButton)
-						.Icon(FAppStyle::GetBrush("Icons.Blueprints"))
-						.OnClicked_Lambda([this, WeakGraph = TWeakObjectPtr<URigVMGraph>(ReferencedGraph)]()
-						{
-							if(URigVMGraph* Graph = WeakGraph.Get())
-							{
-								if(TSharedPtr<SParameterBlockView> View = WeakView.Pin())
-								{
-									View->OnOpenGraphDelegate.ExecuteIfBound(Graph);
-								}
-							}
-							return FReply::Handled();
-						})
-					];
-				}
 			}
-			
+
 			return Widget;
 		}
 
@@ -724,6 +740,11 @@ class SParameterBlockViewRow : public SMultiColumnTableRow<TSharedRef<FParameter
 TSharedRef<ITableRow> SParameterBlockView::HandleGenerateRow(TSharedRef<FParameterBlockViewEntry> InEntry, const TSharedRef<STableViewBase>& InOwnerTable)
 {
 	return SNew(SParameterBlockViewRow, InOwnerTable, SharedThis(this), InEntry);
+}
+
+void SParameterBlockView::HandleGetChildren(TSharedRef<FParameterBlockViewEntry> InEntry, TArray<TSharedRef<FParameterBlockViewEntry>>& OutChildren)
+{
+
 }
 
 void SParameterBlockView::HandleSelectionChanged(TSharedPtr<FParameterBlockViewEntry> InEntry, ESelectInfo::Type InSelectionType)

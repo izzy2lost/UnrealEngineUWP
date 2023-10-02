@@ -1,6 +1,7 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 
 #include "CoreMinimal.h"
+#include "AnimNextConfig.h"
 #include "Modules/ModuleInterface.h"
 #include "Modules/ModuleManager.h"
 #include "Misc/CoreDelegates.h"
@@ -9,6 +10,9 @@
 #include "DecoratorBase/NodeTemplateRegistry.h"
 #include "RigVMCore/RigVMRegistry.h"
 #include "Animation/AnimSequence.h"
+#include "Scheduler/Scheduler.h"
+#include "Param/Params.h"
+#include "Components/SkeletalMeshComponent.h"
 
 namespace UE::AnimNext
 {
@@ -18,6 +22,10 @@ class FModule : public IModuleInterface
 public:
 	virtual void StartupModule() override
 	{
+		GetMutableDefault<UAnimNextConfig>()->LoadConfig();
+
+		FParamId::Init();
+
 		static TPair<UClass*, FRigVMRegistry::ERegisterObjectOperation> const AllowedObjectTypes[] =
 		{
 			{ UAnimSequence::StaticClass(), FRigVMRegistry::ERegisterObjectOperation::Class },
@@ -29,16 +37,22 @@ public:
 		FDataRegistry::Init();
 		FDecoratorRegistry::Init();
 		FNodeTemplateRegistry::Init();
+		FScheduler::Init();
 	}
 
 	virtual void ShutdownModule() override
 	{
+		FScheduler::Destroy();
 		FNodeTemplateRegistry::Destroy();
 		FDecoratorRegistry::Destroy();
 		FDataRegistry::Destroy();
+
+		FParamId::Destroy();
 	}
 };
 
 }
 
 IMPLEMENT_MODULE(UE::AnimNext::FModule, AnimNext)
+
+#undef LOCTEXT_NAMESPACE

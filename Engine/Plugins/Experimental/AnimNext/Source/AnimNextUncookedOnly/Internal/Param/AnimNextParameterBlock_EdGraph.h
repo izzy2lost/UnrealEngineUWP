@@ -3,7 +3,7 @@
 #pragma once
 
 #include "CoreMinimal.h"
-#include "Graph/ControlRigGraph.h"
+#include "EdGraph/RigVMEdGraph.h"
 #include "AnimNextParameterBlock_EdGraph.generated.h"
 
 class UAnimNextParameterBlock_EditorData;
@@ -14,7 +14,7 @@ namespace UE::AnimNext::UncookedOnly
 }
 
 UCLASS(MinimalAPI)
-class UAnimNextParameterBlock_EdGraph : public UControlRigGraph
+class UAnimNextParameterBlock_EdGraph : public URigVMEdGraph
 {
 	GENERATED_BODY()
 

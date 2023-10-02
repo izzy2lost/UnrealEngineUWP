@@ -443,6 +443,35 @@ FParamTypeHandle FParamTypeHandle::FromProperty(const FProperty* InProperty)
 	return Handle;
 }
 
+FParamTypeHandle FParamTypeHandle::FromObject(const UObject* InObject)
+{
+	FParamTypeHandle Handle;
+
+	if(InObject)
+	{
+		Handle.SetParameterType(EParamType::Custom);
+
+		if(const UEnum* Enum = Cast<UEnum>(InObject))
+		{
+			Handle.SetCustomTypeIndex(GetOrAllocateCustomTypeIndex(FAnimNextParamType::EValueType::Enum, FAnimNextParamType::EContainerType::None, Enum));
+		}
+		else if(const UClass* Class = Cast<UClass>(InObject))
+		{
+			Handle.SetCustomTypeIndex(GetOrAllocateCustomTypeIndex(FAnimNextParamType::EValueType::Class, FAnimNextParamType::EContainerType::None, Class));
+		}
+		else if(const UScriptStruct* Struct = Cast<UScriptStruct>(InObject))
+		{
+			Handle.SetCustomTypeIndex(GetOrAllocateCustomTypeIndex(FAnimNextParamType::EValueType::Struct, FAnimNextParamType::EContainerType::None, Struct));
+		}
+		else
+		{
+			Handle.SetCustomTypeIndex(GetOrAllocateCustomTypeIndex(FAnimNextParamType::EValueType::Object, FAnimNextParamType::EContainerType::None, InObject->GetClass()));
+		}
+	}
+
+	return Handle;
+}
+
 FAnimNextParamType FParamTypeHandle::GetType() const
 {
 	FAnimNextParamType ParameterType;

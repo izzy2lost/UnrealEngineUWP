@@ -44,6 +44,11 @@ struct FUtils
 	static FAnimNextParamType GetParameterTypeFromLibraryExports(FName InName, const FAnimNextParameterLibraryAssetRegistryExports& InExports);
 
 	static bool GetExportedBindingsForBlock(const FAssetData& InBlockAsset, FAnimNextParameterBlockAssetRegistryExports& OutExports);
+
+	// Attempts to determine the type from a parameter name
+	// If the name cannot be found, the returned type will be invalid
+	// Note that this is expensive and can query the asset registry
+	static FAnimNextParamType GetParameterTypeFromName(FName InName);
 };
 
 }

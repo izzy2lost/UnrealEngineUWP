@@ -5,9 +5,13 @@
 #include "CoreMinimal.h"
 #include "PropertyBag.h"
 #include "RigVMCore/RigVMExecuteContext.h"
+#include "Param/IAnimNextParameterSourceInterface.h"
+#include "RigVMHost.h"
 #include "AnimNextParameterBlock.generated.h"
 
 class UEdGraph;
+struct FAnimNextScheduleGraphTask;
+struct FAnimNextScheduleParamScopeTask;
 
 namespace UE::AnimNext
 {
@@ -58,7 +62,7 @@ struct FAnimNextParameterBlockAssetRegistryExports
 
 /** An asset used to define AnimNext parameters and their bindings */
 UCLASS(MinimalAPI, BlueprintType)
-class UAnimNextParameterBlock : public UObject
+class UAnimNextParameterBlock : public URigVMHost, public IAnimNextParameterSourceInterface
 {
 	GENERATED_BODY()
 
@@ -69,25 +73,22 @@ class UAnimNextParameterBlock : public UObject
 	friend class UE::AnimNext::Editor::FParametersEditor;
 	friend struct UE::AnimNext::Editor::FUtils;
 	friend struct FAnimNode_AnimNextParameters;
+	friend struct FAnimNextScheduleGraphTask;
+	friend struct FAnimNextScheduleParamScopeEntryTask;
 
-	void Run(const UE::AnimNext::FContext& Context) const;
+	// IAnimNextParameterSourceInterface interface
+	virtual void UpdateLayer(UE::AnimNext::FParamStackLayerHandle& InHandle) const override;
+	virtual UE::AnimNext::FParamStackLayerHandle CacheLayer() const override;
+	virtual bool ShouldCacheLayer(const UE::AnimNext::FParamStackLayerHandle& InHandle) const override;
 
 	// UObject interface
+	virtual void PostLoad() override;
 	virtual void PostRename(UObject* OldOuter, const FName OldName) override;
 	virtual void GetPreloadDependencies(TArray<UObject*>& OutDeps) override;
 	virtual void GetAssetRegistryTags(TArray<FAssetRegistryTag>& OutTags) const override;
 
-	// Support rig VM execution
-	ANIMNEXT_API TArray<FRigVMExternalVariable> GetRigVMExternalVariables();
-
 	UPROPERTY()
 	TObjectPtr<URigVM> RigVM;
-
-	UPROPERTY(transient)
-	FRigVMExtendedExecuteContext ExtendedExecuteContext;
-
-	UPROPERTY()
-	FRigVMRuntimeSettings VMRuntimeSettings;
 
 	UPROPERTY()
 	FInstancedPropertyBag PropertyBag;

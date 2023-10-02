@@ -27,6 +27,8 @@ struct FParameterToAdd
 	{
 		return Name != NAME_None && Type.IsValid() && Library.IsValid(); 
 	}
+
+	bool IsValid(FText& OutReason) const;
 	
 	// Type
 	FAnimNextParamType Type;
@@ -43,9 +45,14 @@ class SAddParametersDialog : public SWindow
 public:
 	SLATE_BEGIN_ARGS(SAddParametersDialog)
 		: _Library(nullptr)
+		, _AllowMultiple(true)
 	{}
 
+	/** The default library to create new parameters in */
 	SLATE_ARGUMENT(UAnimNextParameterLibrary*, Library)
+
+	/** Whether we allow multiple parameters to be added or just one at a time */
+	SLATE_ARGUMENT(bool, AllowMultiple)
 	
 	SLATE_END_ARGS()
 

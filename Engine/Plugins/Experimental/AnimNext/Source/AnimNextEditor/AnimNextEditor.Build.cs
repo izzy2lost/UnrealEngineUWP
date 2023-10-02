@@ -38,6 +38,7 @@ namespace UnrealBuildTool.Rules
 					"DesktopWidgets",
 					"ContentBrowserFileDataSource",
 					"SubobjectEditor",
+					"Settings",
 				}
 			);
 		}

@@ -15,7 +15,7 @@ struct FParameterBindingReference
 {
 	FParameterBindingReference() = default;
 
-	FParameterBindingReference(const FName& InParameter, const FAssetData& InLibrary, const FAssetData& InBlock = FAssetData())
+	FParameterBindingReference(const FName& InParameter, const FAssetData& InLibrary = FAssetData(), const FAssetData& InBlock = FAssetData())
 		: Parameter(InParameter)
 		, Library(InLibrary)
 		, Block(InBlock)
@@ -25,7 +25,7 @@ struct FParameterBindingReference
 	// Parameter name
 	FName Parameter;
 
-	// Library asset
+	// Optional library asset (as this can represent built-in parameters too)
 	FAssetData Library;
 
 	// Optional block asset that the parameter is bound in
@@ -36,7 +36,7 @@ struct FParameterBindingReference
 DECLARE_DELEGATE_OneParam(FOnGetParameterBindings, TArray<FParameterBindingReference>& /*OutParameterBindings*/);
 
 // Delegate called when a parameter has been picked. Block argument is invalid when an unbound parameter is chosen.
-DECLARE_DELEGATE_OneParam(FOnParameterPicked, const FParameterBindingReference& /*OutParameterBinding*/);
+DECLARE_DELEGATE_OneParam(FOnParameterPicked, const FParameterBindingReference& /*InParameterBinding*/);
 
 // Result of a filter operation via FOnFilterParameter
 enum class EFilterParameterResult : int32
@@ -80,11 +80,17 @@ struct FParameterPickerArgs
 	// Whether we should show parameters that are not bound in a parameter block (if bShowBoundParameters is false this will show all parameters)
 	bool bShowUnboundParameters = true;	
 
+	// Whether we should show parameters that are built in
+	bool bShowBuiltInParameters = true;
+
 	// Whether we should show the library alongside parameters
 	bool bShowLibraries = true;
 
 	// Whether we should show the block alongside bound parameters
 	bool bShowBlocks = true;
+
+	// Whether we should allow new parameters to be created by this widget
+	bool bAllowNew = true;
 };
 
 }

@@ -1,0 +1,66 @@
+// Copyright Epic Games, Inc. All Rights Reserved.
+
+#pragma once
+
+#include "CoreMinimal.h"
+#include "Param/ParamStack.h"
+#include "Scheduler/ScheduleHandle.h"
+#include "Scheduler/ScheduleInstanceData.h"
+
+class UAnimNextSchedule;
+
+namespace UE::AnimNext
+{
+
+struct FScheduleContext
+{
+public:
+	// Attach a context to the current thread
+	static void AttachToCurrentThread(const FScheduleContext& InContext);
+
+	// Detach a context from the current thread
+	static void DetachFromCurrentThread();
+
+	// Get the context that is attached to the current thread
+	static const FScheduleContext& Get();
+
+	FScheduleContext() = default;
+
+	FScheduleContext(FScheduleContext&& InOther) = default;
+	FScheduleContext& operator=(FScheduleContext&& InOther) = default;
+	FScheduleContext(const FScheduleContext& InOther) = delete;
+	FScheduleContext& operator=(const FScheduleContext& InOther) = delete;
+
+	FScheduleContext(const UAnimNextSchedule* InSchedule, FAnimNextSchedulerEntry* InEntry)
+		: Schedule(InSchedule)
+		, Entry(InEntry)
+	{}
+
+	// Get a string that can identify this schedule for debugging
+	FString GetDebugString() const 
+	{ 
+		if(ensure(InstanceData))
+		{
+			return InstanceData->Handle.ToString(); 
+		}
+		return TEXT("Invalid schedule instance data");
+	}
+
+	// Get the instance data for this running schedule
+	FScheduleInstanceData& GetInstanceData() const 
+	{ 
+		check(InstanceData.IsValid());
+		return *InstanceData.Get(); 
+	}
+
+	// Current schedule
+	const UAnimNextSchedule* Schedule = nullptr;
+
+	// Current entry for this schedule
+	FAnimNextSchedulerEntry* Entry = nullptr;
+
+	// Instance data for the schedule
+	TUniquePtr<FScheduleInstanceData> InstanceData;
+};
+
+}

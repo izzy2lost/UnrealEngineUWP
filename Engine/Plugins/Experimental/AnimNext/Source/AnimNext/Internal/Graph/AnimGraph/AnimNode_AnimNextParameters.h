@@ -4,10 +4,11 @@
 
 #include "CoreMinimal.h"
 #include "Animation/AnimNodeBase.h"
-#include "Param/ParamStack.h"
+#include "Param/ParamStackLayerHandle.h"
 #include "AnimNode_AnimNextParameters.generated.h"
 
-class UAnimNextParameterBlock;
+class IAnimNextParameterSourceInterface;
+class UAnimNextParameters;
 
 USTRUCT(BlueprintInternalUseOnly)
 struct FAnimNode_AnimNextParameters : public FAnimNode_Base
@@ -19,28 +20,22 @@ struct FAnimNode_AnimNextParameters : public FAnimNode_Base
 	FAnimNode_AnimNextParameters() = default;
 	FAnimNode_AnimNextParameters(const FAnimNode_AnimNextParameters& InOther);
 	FAnimNode_AnimNextParameters& operator=(const FAnimNode_AnimNextParameters& InOther);
-	FAnimNode_AnimNextParameters(FAnimNode_AnimNextParameters&& InOther);
-	FAnimNode_AnimNextParameters& operator=(FAnimNode_AnimNextParameters&& InOther);
-	~FAnimNode_AnimNextParameters() = default;
+	FAnimNode_AnimNextParameters(FAnimNode_AnimNextParameters&& InOther) noexcept;
+	FAnimNode_AnimNextParameters& operator=(FAnimNode_AnimNextParameters&& InOther) noexcept;
+	virtual ~FAnimNode_AnimNextParameters() override = default;
 
 private:
 	UPROPERTY(EditAnywhere, Category = Links)
 	FPoseLink Source;
 
-#if WITH_EDITORONLY_DATA
-	UPROPERTY(EditAnywhere, Category = Settings, meta=(FoldProperty, PinHiddenByDefault))
-	TObjectPtr<UAnimNextParameterBlock> ParameterBlock;
-#endif
+	UPROPERTY(EditAnywhere, Category = Settings)
+	TScriptInterface<IAnimNextParameterSourceInterface> Parameters;
 
 	// Cache previous param block so we know when it changes via pin
-	UAnimNextParameterBlock* PreviousParameterBlock = nullptr;
+	IAnimNextParameterSourceInterface* PreviousParameters = nullptr;
 
 	// Cached layer
-	UE::AnimNext::FParamStack::FLayerHandle ParamLayerHandle;
-
-	// Property bag for layer backing storage
-	UPROPERTY(Transient)
-	FInstancedPropertyBag PropertyBag;
+	UE::AnimNext::FParamStackLayerHandle ParamLayerHandle;
 
 private:
 	// FAnimNode_Base
@@ -49,6 +44,4 @@ private:
 	ANIMNEXT_API virtual void CacheBones_AnyThread(const FAnimationCacheBonesContext& Context) override;
 	ANIMNEXT_API virtual void Evaluate_AnyThread(FPoseContext& Output) override;
 	ANIMNEXT_API virtual void GatherDebugData(FNodeDebugData& DebugData) override;
-
-	UAnimNextParameterBlock* GetParameterBlock() const;
 };

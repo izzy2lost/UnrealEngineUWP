@@ -3,6 +3,7 @@
 #pragma once
 
 #include "CoreMinimal.h"
+#include "Param/AnimNextParameterBlock_EditorData.h"
 #include "Param/ParamTypeHandle.h"
 #include "RigVMCore/RigVMTemplate.h"
 
@@ -67,11 +68,30 @@ struct ANIMNEXTUNCOOKEDONLY_API FUtils
 	static FRigVMTemplateArgumentType GetRigVMArgTypeFromParamTypeHandle(const FParamTypeHandle& InParamTypeHandle);
 	static FRigVMTemplateArgumentType GetRigVMArgTypeFromParamType(const FAnimNextParamType& InParamType);
 
+	/** Set up a simple graph */
+	static void SetupGraph(URigVMController* InController);
+	
 	/** Set up a binding graph given the type to set */
+	static void SetupBindingGraph(URigVMController* InController, FName InParameterName, const FAnimNextParamType& InParamType);
+
+	/** Set up a binding graph for a simple literal value given the type to set */
 	static void SetupBindingGraphForLiteral(URigVMController* InController, FName InParameterName, const FAnimNextParamType& InParamType);
 
 	/** Converts the Verse-tag-like snake_case_parameter_name to a period-separated display name similar to a gameplay tag */
 	static FText GetParameterDisplayNameText(FName InParameterName);
+
+	/** Returns all nodes in all graphs of the specified class */
+	template<class T>
+	static void GetAllNodesOfClass(const UAnimNextParameterBlock_EditorData* InEditorData, TArray<T*>& OutNodes)
+	{
+		for(const UAnimNextParameterBlock_EdGraph* Graph : InEditorData->Graphs)
+		{
+			check(Graph);
+			TArray<T*> GraphNodes;
+			Graph->GetNodesOfClass<T>(GraphNodes);
+			OutNodes.Append(GraphNodes);
+		}
+	}
 };
 
 }

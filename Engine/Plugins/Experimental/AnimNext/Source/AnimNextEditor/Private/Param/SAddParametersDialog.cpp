@@ -11,6 +11,7 @@
 #include "EditorUtils.h"
 #include "UncookedOnlyUtils.h"
 #include "PropertyBagDetails.h"
+#include "SParameterPickerCombo.h"
 #include "SPinTypeSelector.h"
 #include "Framework/Application/SlateApplication.h"
 #include "Framework/Docking/TabManager.h"
@@ -38,6 +39,26 @@ static FName Column_Library(TEXT("Library"));
 static FName SelectLibraryMenuName(TEXT("AnimNext.AddParametersDialog.SelectedLibraryMenu"));
 }
 
+bool FParameterToAdd::IsValid(FText& OutReason) const
+{
+	if(Name == NAME_None)
+	{
+		OutReason = LOCTEXT("InvalidParameterName", "Invalid Parameter Name");
+	}
+
+	if(!Type.IsValid())
+	{
+		OutReason = LOCTEXT("InvalidParameterType", "Invalid Parameter Type");
+	}
+
+	if(!Library.IsValid())
+	{
+		OutReason = LOCTEXT("InvalidParameterType", "Invalid Parameter Library");
+	}
+	
+	return true; 
+}
+
 void SAddParametersDialog::Construct(const FArguments& InArgs)
 {
 	using namespace AddParametersDialog;
@@ -47,7 +68,7 @@ void SAddParametersDialog::Construct(const FArguments& InArgs)
 	SWindow::Construct(SWindow::FArguments()
 		.Title(LOCTEXT("WindowTitle", "Add Parameters"))
 		.SizingRule(ESizingRule::UserSized)
-		.ClientSize(FVector2D(500.f, 500.f))
+		.ClientSize(InArgs._AllowMultiple ? FVector2D(500.f, 500.f) : FVector2D(500.f, 100.f))
 		.SupportsMaximize(false)
 		.SupportsMinimize(false)
 		[
@@ -61,6 +82,7 @@ void SAddParametersDialog::Construct(const FArguments& InArgs)
 				.Padding(0.0f, 5.0f)
 				[
 					SNew(SSimpleButton)
+					.Visibility(InArgs._AllowMultiple ? EVisibility::Visible : EVisibility::Collapsed)
 					.Text(LOCTEXT("AddButton", "Add"))
 					.ToolTipText(LOCTEXT("AddButtonTooltip", "Queue a new parameter for adding. New parameters will re-use the settings from the last queued parameter."))
 					.Icon(FAppStyle::Get().GetBrush("Icons.Plus"))
@@ -108,11 +130,36 @@ void SAddParametersDialog::Construct(const FArguments& InArgs)
 						SNew(SButton)
 						.HAlign(HAlign_Center)
 						.ButtonStyle(&FAppStyle::Get().GetWidgetStyle<FButtonStyle>("PrimaryButton"))
+						.IsEnabled_Lambda([this]()
+						{
+							// Check each entry to see if the button can be pressed
+							for(TSharedRef<FParameterToAdd> Entry : Entries)
+							{
+								if(!Entry->IsValid())
+								{
+									return false;
+								}
+							}
+
+							return true;
+						})
 						.Text_Lambda([this]()
 						{
 							return FText::Format(LOCTEXT("AddParametersButtonFormat", "Add {0} {0}|plural(one=Parameter,other=Parameters)"), FText::AsNumber(Entries.Num()));
 						})
-						.ToolTipText(LOCTEXT("AddParametersButtonTooltip", "Add the selected parameters to the current parameter block"))
+						.ToolTipText_Lambda([this]()
+						{
+							// Check each entry to see if the button can be pressed
+							for(TSharedRef<FParameterToAdd> Entry : Entries)
+							{
+								FText Reason;
+								if(!Entry->IsValid(Reason))
+								{
+									return FText::Format(LOCTEXT("AddParametersButtonTooltip_InvalidEntry", "A parameter to add is not valid: {0}"), Reason);
+								}
+							}
+							return LOCTEXT("AddParametersButtonTooltip", "Add the selected parameters to the current parameter block");
+						})
 						.OnClicked_Lambda([this]()
 						{
 							RequestDestroyWindow();

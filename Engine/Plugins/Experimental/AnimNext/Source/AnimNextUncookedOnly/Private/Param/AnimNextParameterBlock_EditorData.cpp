@@ -6,7 +6,7 @@
 #include "Param/AnimNextParameterBlock_EdGraph.h"
 #include "Param/AnimNextParameterBlock_EdGraphSchema.h"
 #include "UncookedOnlyUtils.h"
-#include "Graph/AnimNextExecuteContext.h"
+#include "Param/AnimNextParameterExecuteContext.h"
 #include "Rigs/RigHierarchyPose.h"
 #include "RigVMModel/RigVMFunctionLibrary.h"
 #include "RigVMModel/RigVMNotifications.h"
@@ -21,6 +21,8 @@
 #include "Param/AnimNextParameterLibrary.h"
 #include "Misc/TransactionObjectEvent.h"
 #include "ObjectTools.h"
+#include "Param/AnimNextParameterBlockGraph.h"
+#include "Param/AnimNextParameterBlockParameter.h"
 
 #if WITH_EDITORONLY_DATA
 
@@ -58,7 +60,7 @@ UAnimNextParameterBlock_EditorData::UAnimNextParameterBlock_EditorData(const FOb
 {
 	RigVMClient.Reset();
 	RigVMClient.SetSchemaClass(UAnimNextParameterBlockLibrary_Schema::StaticClass());
-	RigVMClient.SetExecuteContextStruct(FAnimNextExecuteContext::StaticStruct());
+	RigVMClient.SetExecuteContextStruct(FAnimNextParameterExecuteContext::StaticStruct());
 	RigVMClient.SetOuterClientHost(this, GET_MEMBER_NAME_CHECKED(UAnimNextParameterBlock_EditorData, RigVMClient));
 	{
 		TGuardValue<bool> DisableClientNotifs(RigVMClient.bSuspendNotifications, true);
@@ -68,6 +70,125 @@ UAnimNextParameterBlock_EditorData::UAnimNextParameterBlock_EditorData(const FOb
 }
 
 #if WITH_EDITORONLY_DATA
+
+UAnimNextParameterBlockParameter* UAnimNextParameterBlockLibrary::AddParameter(UAnimNextParameterBlock* InBlock, FName InName, UAnimNextParameterLibrary* InLibrary, bool bSetupUndoRedo, bool bPrintPythonCommand)
+{
+	return UE::AnimNext::UncookedOnly::FUtils::GetEditorData(InBlock)->AddParameter(InName, InLibrary, bSetupUndoRedo, bPrintPythonCommand);
+}
+
+UAnimNextParameterBlockParameter* UAnimNextParameterBlock_EditorData::AddParameter(FName InName, UAnimNextParameterLibrary* InLibrary, bool bSetupUndoRedo, bool bPrintPythonCommand)
+{
+	if(InName == NAME_None)
+	{
+		ReportError(TEXT("UAnimNextParameterBlock_EditorData::AddParameter: Invalid parameter name supplied."));
+		return nullptr;
+	}
+
+	if(InLibrary != nullptr)
+	{
+		// Check if parameter exists in library
+		UAnimNextParameter* Parameter = InLibrary->FindParameter(InName);
+		if(Parameter == nullptr)
+		{
+			ReportError(TEXT("UAnimNextParameterBlock_EditorData::AddParameter: Parameter does not exist in library."));
+			return nullptr;
+		}
+	}
+
+	// Check for duplicate parameter
+	const bool bAlreadyExists = Entries.ContainsByPredicate([InName](const UAnimNextParameterBlockEntry* InEntry)
+	{
+		if(const UAnimNextParameterBlockParameter* Parameter = Cast<UAnimNextParameterBlockParameter>(InEntry))
+		{
+			return Parameter->ParameterName == InName;
+		}
+		return false;
+	});
+
+	if(bAlreadyExists)
+	{
+		ReportError(TEXT("UAnimNextParameterBlock_EditorData::AddParameter: A parameter already exists for the supplied parameter name."));
+		return nullptr;
+	}
+
+	UAnimNextParameterBlockParameter* NewEntry = UE::AnimNext::Parameters::Private::CreateNewParameterBlockEntry<UAnimNextParameterBlockParameter>(this);
+	NewEntry->ParameterName = InName;
+	NewEntry->Library = InLibrary;
+
+	if(bSetupUndoRedo)
+	{
+		NewEntry->Modify();
+		Modify();
+	}
+	
+	Entries.Add(NewEntry);
+
+	BroadcastModified();
+
+	return NewEntry;
+}
+
+
+UAnimNextParameterBlockGraph* UAnimNextParameterBlockLibrary::AddGraph(UAnimNextParameterBlock* InBlock, FName InName, bool bSetupUndoRedo, bool bPrintPythonCommand)
+{
+	return UE::AnimNext::UncookedOnly::FUtils::GetEditorData(InBlock)->AddGraph(InName, bSetupUndoRedo, bPrintPythonCommand);
+}
+
+UAnimNextParameterBlockGraph* UAnimNextParameterBlock_EditorData::AddGraph(FName InName, bool bSetupUndoRedo, bool bPrintPythonCommand)
+{
+	if(InName == NAME_None)
+	{
+		ReportError(TEXT("UAnimNextParameterBlock_EditorData::AddGraph: Invalid graph name supplied."));
+		return nullptr;
+	}
+
+	// Check for duplicate name
+	FName NewGraphName = InName;
+	auto DuplicateNamePredicate = [&NewGraphName](const UAnimNextParameterBlockEntry* InEntry)
+	{
+		if(const IAnimNextParameterBlockGraphInterface* GraphInterface = Cast<IAnimNextParameterBlockGraphInterface>(InEntry))
+		{
+			return GraphInterface->GetGraphName() == NewGraphName;
+		}
+		return false;
+	};
+
+	bool bAlreadyExists = Entries.ContainsByPredicate(DuplicateNamePredicate);
+	int32 NameNumber = InName.GetNumber() + 1;
+	while(bAlreadyExists)
+	{
+		NewGraphName = FName(InName, NameNumber);
+		bAlreadyExists =  Entries.ContainsByPredicate(DuplicateNamePredicate);
+	}
+
+	UAnimNextParameterBlockGraph* NewEntry = UE::AnimNext::Parameters::Private::CreateNewParameterBlockEntry<UAnimNextParameterBlockGraph>(this);
+	NewEntry->GraphName = NewGraphName;
+
+	if(bSetupUndoRedo)
+	{
+		NewEntry->Modify();
+		Modify();
+	}
+	
+	Entries.Add(NewEntry);
+
+	// Add new graph
+	{
+		TGuardValue<bool> EnablePythonPrint(bSuspendPythonMessagesForRigVMClient, !bPrintPythonCommand);
+		TGuardValue<bool> DisableAutoCompile(bAutoRecompileVM, false);
+		URigVMGraph* NewGraph = RigVMClient.AddModel(NewGraphName, bSetupUndoRedo);
+		ensure(NewGraph);
+		NewEntry->Graph = NewGraph;
+
+		URigVMController* Controller = RigVMClient.GetController(NewGraph);
+		UE::AnimNext::UncookedOnly::FUtils::SetupGraph(Controller);
+	}
+	
+	BroadcastModified();
+
+	return NewEntry;
+}
+
 
 UAnimNextParameterBlockBinding* UAnimNextParameterBlockLibrary::AddBinding(UAnimNextParameterBlock* InBlock, FName InName, UAnimNextParameterLibrary* InLibrary, bool bSetupUndoRedo, bool bPrintPythonCommand)
 {
@@ -99,7 +220,7 @@ UAnimNextParameterBlockBinding* UAnimNextParameterBlock_EditorData::AddBinding(F
 	// Check for duplicate bindings
 	const bool bAlreadyExists = Entries.ContainsByPredicate([InName, InLibrary](const UAnimNextParameterBlockEntry* InEntry)
 	{
-		if(const IAnimNextParameterBlockBindingInterface* Binding = Cast<IAnimNextParameterBlockBindingInterface>(InEntry))
+		if(const IAnimNextParameterBlockParameterInterface* Binding = Cast<IAnimNextParameterBlockParameterInterface>(InEntry))
 		{
 			return Binding->GetParameterName() == InName && Binding->GetLibrary() == InLibrary;
 		}
@@ -133,7 +254,7 @@ UAnimNextParameterBlockBinding* UAnimNextParameterBlock_EditorData::AddBinding(F
 		NewEntry->BindingGraph = NewGraph;
 
 		URigVMController* Controller = RigVMClient.GetController(NewGraph);
-		UE::AnimNext::UncookedOnly::FUtils::SetupBindingGraphForLiteral(Controller, InName, Parameter->GetType());
+		UE::AnimNext::UncookedOnly::FUtils::SetupBindingGraph(Controller, InName, Parameter->GetType());
 	}
 
 	BroadcastModified();
@@ -177,7 +298,7 @@ UAnimNextParameterBlockBindingReference* UAnimNextParameterBlock_EditorData::Add
 	// Check for duplicates
 	const bool bAlreadyExists = Entries.ContainsByPredicate([InName, InLibrary](const UAnimNextParameterBlockEntry* InEntry)
 	{
-		if(const IAnimNextParameterBlockBindingInterface* Binding = Cast<IAnimNextParameterBlockBindingInterface>(InEntry))
+		if(const IAnimNextParameterBlockParameterInterface* Binding = Cast<IAnimNextParameterBlockParameterInterface>(InEntry))
 		{
 			return Binding->GetParameterName() == InName && Binding->GetLibrary() == InLibrary;
 		}
@@ -225,7 +346,7 @@ bool UAnimNextParameterBlock_EditorData::RemoveAllBindings(FName InName, bool bS
 	// Check parameter binding exists
 	TObjectPtr<UAnimNextParameterBlockEntry>* EntryToRemove = Entries.FindByPredicate([InName](const UAnimNextParameterBlockEntry* InEntry)
 	{
-		if(const IAnimNextParameterBlockBindingInterface* Binding = Cast<IAnimNextParameterBlockBindingInterface>(InEntry))
+		if(const IAnimNextParameterBlockParameterInterface* Binding = Cast<IAnimNextParameterBlockParameterInterface>(InEntry))
 		{
 			return Binding->GetParameterName() == InName;
 		}
@@ -247,7 +368,7 @@ bool UAnimNextParameterBlock_EditorData::RemoveAllBindings(FName InName, bool bS
 
 	Entries.RemoveAll([InName](const UAnimNextParameterBlockEntry* InEntry)
 	{
-		if(const IAnimNextParameterBlockBindingInterface* Binding = Cast<IAnimNextParameterBlockBindingInterface>(InEntry))
+		if(const IAnimNextParameterBlockParameterInterface* Binding = Cast<IAnimNextParameterBlockParameterInterface>(InEntry))
 		{
 			return Binding->GetParameterName() == InName;
 		}
@@ -355,7 +476,7 @@ UAnimNextParameterBlockEntry* UAnimNextParameterBlock_EditorData::FindBinding(FN
 
 	const TObjectPtr<UAnimNextParameterBlockEntry>* FoundEntry = Entries.FindByPredicate([InName](const UAnimNextParameterBlockEntry* InEntry)
 	{
-		if(const IAnimNextParameterBlockBindingInterface* Binding = Cast<IAnimNextParameterBlockBindingInterface>(InEntry))
+		if(const IAnimNextParameterBlockParameterInterface* Binding = Cast<IAnimNextParameterBlockParameterInterface>(InEntry))
 		{
 			return Binding->GetParameterName() == InName;
 		}
@@ -380,6 +501,40 @@ void UAnimNextParameterBlock_EditorData::ReportError(const TCHAR* InMessage) con
 #if WITH_EDITOR
 	FScriptExceptionHandler::Get().HandleException(ELogVerbosity::Error, InMessage, TEXT(""));
 #endif
+}
+
+void UAnimNextParameterBlock_EditorData::ReconstructAllNodes()
+{
+#ifdef WITH_EDITORONLY_DATA
+	// Avoid refreshing EdGraph nodes during cook
+	if (GIsCookerLoadingPackage)
+	{
+		return;
+	}
+	
+	if (GetRigVMClient()->GetDefaultModel() == nullptr)
+	{
+		return;
+	}
+
+	TArray<URigVMEdGraphNode*> AllNodes;
+	UE::AnimNext::UncookedOnly::FUtils::GetAllNodesOfClass(this, AllNodes);
+
+	for (URigVMEdGraphNode* Node : AllNodes)
+	{
+		Node->SetFlags(RF_Transient);
+	}
+
+	for(URigVMEdGraphNode* Node : AllNodes)
+	{
+		Node->ReconstructNode();
+	}
+
+	for (URigVMEdGraphNode* Node : AllNodes)
+	{
+		Node->ClearFlags(RF_Transient);
+	}
+#endif	
 }
 
 void UAnimNextParameterBlock_EditorData::Serialize(FArchive& Ar)
@@ -462,7 +617,7 @@ void UAnimNextParameterBlock_EditorData::GetAssetRegistryTags(TArray<FAssetRegis
 
 	for(const UAnimNextParameterBlockEntry* Entry : Entries)
 	{
-		if(const IAnimNextParameterBlockBindingInterface* Binding = Cast<IAnimNextParameterBlockBindingInterface>(Entry))
+		if(const IAnimNextParameterBlockParameterInterface* Binding = Cast<IAnimNextParameterBlockParameterInterface>(Entry))
 		{
 			Exports.Bindings.Emplace(Binding->GetParameterName(), FSoftObjectPath(Binding->GetLibrary()));
 		}
@@ -489,6 +644,8 @@ void UAnimNextParameterBlock_EditorData::HandlePackageDone()
 	FCoreUObjectDelegates::OnEndLoadPackage.RemoveAll(this);
 
 	RecompileVM();
+
+	ReconstructAllNodes();
 }
 
 void UAnimNextParameterBlock_EditorData::RefreshAllModels(EAnimNextParameterLoadType InLoadType)
@@ -632,7 +789,7 @@ void UAnimNextParameterBlock_EditorData::HandleRigVMGraphAdded(const FRigVMClien
 {
 	if(URigVMGraph* RigVMGraph = InClient->GetModel(InNodePath))
 	{
-		RigVMGraph->SetExecuteContextStruct(FAnimNextExecuteContext::StaticStruct());
+		RigVMGraph->SetExecuteContextStruct(FAnimNextParameterExecuteContext::StaticStruct());
 
 		if(!HasAnyFlags(RF_ClassDefaultObject | RF_NeedInitialization | RF_NeedLoad | RF_NeedPostLoad) &&
 			GetOuter() != GetTransientPackage())
@@ -685,7 +842,7 @@ void UAnimNextParameterBlock_EditorData::HandleConfigureRigVMController(const FR
 			{
 				if (UAnimNextParameterBlock* ParameterBlock = EditorData->GetTypedOuter<UAnimNextParameterBlock>())
 				{
-					return ParameterBlock->GetRigVMExternalVariables();
+					return ParameterBlock->GetExternalVariables();
 				}
 			}
 		}
@@ -699,9 +856,9 @@ void UAnimNextParameterBlock_EditorData::HandleConfigureRigVMController(const FR
 		{
 			if(UAnimNextParameterBlock* ParameterBlock = WeakThis->GetTypedOuter<UAnimNextParameterBlock>())
 			{
-				if (ParameterBlock->RigVM)
+				if (ParameterBlock->VM)
 				{
-					return &ParameterBlock->RigVM->GetByteCode();
+					return &ParameterBlock->VM->GetByteCode();
 				}
 			}
 		}
@@ -944,7 +1101,7 @@ UEdGraph* UAnimNextParameterBlock_EditorData::CreateEdGraph(URigVMGraph* InRigVM
 
 	if(GraphName.IsEmpty())
 	{
-		GraphName = UControlRigGraphSchema::GraphName_ControlRig.ToString();
+		GraphName = URigVMEdGraphSchema::GraphName_RigVM.ToString();
 	}
 
 	GraphName = RigVMClient.GetUniqueName(*GraphName).ToString();
@@ -976,4 +1133,4 @@ bool UAnimNextParameterBlock_EditorData::RemoveEdGraph(URigVMGraph* InModel)
 	return false;
 }
 
-#endif // #if WITH_EDITORONLY_DATA
+#endif // #if WITH_EDI

@@ -14,10 +14,11 @@
 #include "Param/AnimNextParameterBlock_EditorData.h"
 #include "Param/AnimNextParameterBlock_EdGraph.h"
 #include "Graph/RigDecorator_AnimNextCppDecorator.h"
-#include "Graph/RigUnit_AnimNextBeginExecution.h"
-#include "Param/RigVMDispatch_SetParameter.h"
+#include "Param/RigUnit_AnimNextParameterBeginExecution.h"
+#include "Param/RigVMDispatch_GetParameter.h"
+#include "Param/RigVMDispatch_SetLayerParameter.h"
 #include "Param/AnimNextParameterBlockEntry.h"
-#include "Param/IAnimNextParameterBlockBindingInterface.h"
+#include "Param/IAnimNextParameterBlockParameterInterface.h"
 #include "DecoratorBase/DecoratorReader.h"
 #include "DecoratorBase/DecoratorWriter.h"
 #include "DecoratorBase/NodeTemplate.h"
@@ -27,6 +28,7 @@
 #include "DecoratorBase/NodeInstance.h"
 #include "DecoratorBase/DecoratorRegistry.h"
 #include "DecoratorBase/Decorator.h"
+#include "Graph/RigUnit_AnimNextBeginExecution.h"
 #include "Serialization/MemoryReader.h"
 
 #include "RigVMCompiler/RigVMCompiler.h"
@@ -639,23 +641,37 @@ void FUtils::CompileVM(UAnimNextParameterBlock* InParameterBlock)
 
 	URigVMCompiler* Compiler = URigVMCompiler::StaticClass()->GetDefaultObject<URigVMCompiler>();
 	EditorData->VMCompileSettings.SetExecuteContextStruct(EditorData->RigVMClient.GetExecuteContextStruct());
+	FRigVMExtendedExecuteContext& CDOContext = InParameterBlock->GetExtendedExecuteContext();
 	const FRigVMCompileSettings Settings = (EditorData->bCompileInDebugMode) ? FRigVMCompileSettings::Fast(EditorData->VMCompileSettings.GetExecuteContextStruct()) : EditorData->VMCompileSettings;
 	URigVMController* RootController = EditorData->GetRigVMClient()->GetOrCreateController(EditorData->GetRigVMClient()->GetDefaultModel());
-	Compiler->Compile(Settings, EditorData->GetRigVMClient()->GetAllModels(false, false), RootController, InParameterBlock->RigVM, InParameterBlock->ExtendedExecuteContext, InParameterBlock->GetRigVMExternalVariables(), &EditorData->PinToOperandMap);
+	Compiler->Compile(Settings, EditorData->GetRigVMClient()->GetAllModels(false, false), RootController, InParameterBlock->RigVM, InParameterBlock->GetExtendedExecuteContext(), InParameterBlock->GetExternalVariables(), &EditorData->PinToOperandMap);
+
+	InParameterBlock->RigVM->SetVMHash(InParameterBlock->RigVM->ComputeVMHash(CDOContext));
+	CDOContext.VMHash = InParameterBlock->RigVM->GetVMHash();
+	InParameterBlock->RigVM->Initialize(CDOContext, InParameterBlock->RigVM->GetLocalMemoryArray(CDOContext));
+	InParameterBlock->GenerateUserDefinedDependenciesData(CDOContext);
+
+	// Notable difference with vanilla RigVM host behavior - we init the VM here at the moment as we only have one 'instance'
+	InParameterBlock->bTEMP_CopyDefaultsFromCDO = false;
+	InParameterBlock->VM = InParameterBlock->RigVM;
+	InParameterBlock->InitializeVM(FRigUnit_AnimNextBeginExecution::EventName);
 
 	if (EditorData->bErrorsDuringCompilation)
 	{
 		if(Settings.SurpressErrors)
 		{
-			Settings.Reportf(EMessageSeverity::Info, InParameterBlock, TEXT("Compilation Errors may be suppressed for AnimNext Interface Graph: %s. See VM Compile Settings for more Details"), *InParameterBlock->GetName());
+			Settings.Reportf(EMessageSeverity::Info, InParameterBlock,
+				TEXT("Compilation Errors may be suppressed for ControlRigBlueprint: %s. See VM Compile Setting in Class Settings for more Details"), *InParameterBlock->GetName());
 		}
+		EditorData->bVMRecompilationRequired = false;
+		if(InParameterBlock->RigVM)
+		{
+			EditorData->RigVMCompiledEvent.Broadcast(InParameterBlock, InParameterBlock->RigVM, InParameterBlock->GetExtendedExecuteContext());
+		}
+		return;
 	}
 
-	EditorData->bVMRecompilationRequired = false;
-	if(InParameterBlock->RigVM)
-	{
-		EditorData->RigVMCompiledEvent.Broadcast(InParameterBlock, InParameterBlock->RigVM, InParameterBlock->ExtendedExecuteContext);
-	}
+//	InitializeArchetypeInstances();
 
 #if WITH_EDITOR
 //	RefreshBreakpoints(EditorData);
@@ -680,10 +696,10 @@ void FUtils::CompileStruct(UAnimNextParameterBlock* InParameterBlock)
 	TArray<FPropertyBagPropertyDesc> PropertyDescs;
 	PropertyDescs.Reserve(EditorData->Entries.Num());
 	
-	// Gather all properties in this block
+	// Gather all parameters in this block
 	for(const UAnimNextParameterBlockEntry* Entry : EditorData->Entries)
 	{
-		if(const IAnimNextParameterBlockBindingInterface* Binding = Cast<IAnimNextParameterBlockBindingInterface>(Entry))
+		if(const IAnimNextParameterBlockParameterInterface* Binding = Cast<IAnimNextParameterBlockParameterInterface>(Entry))
 		{
 			if(const UAnimNextParameter* Parameter = Binding->GetParameter())
 			{
@@ -718,11 +734,11 @@ void FUtils::RecreateVM(UAnimNextParameterBlock* InParameterBlock)
 	{
 		// We dont support ERigVMMemoryType::Work memory as we dont operate on an instance
 	//	InParameterBlock->RigVM->GetMemoryByType(ERigVMMemoryType::Work, true);
-		InParameterBlock->RigVM->CreateMemoryByType(InParameterBlock->ExtendedExecuteContext, ERigVMMemoryType::Literal);
-		InParameterBlock->RigVM->CreateMemoryByType(InParameterBlock->ExtendedExecuteContext, ERigVMMemoryType::Debug);
+		InParameterBlock->RigVM->CreateMemoryByType(InParameterBlock->GetExtendedExecuteContext(), ERigVMMemoryType::Literal);
+		InParameterBlock->RigVM->CreateMemoryByType(InParameterBlock->GetExtendedExecuteContext(), ERigVMMemoryType::Debug);
 	}
 
-	InParameterBlock->RigVM->Reset(InParameterBlock->ExtendedExecuteContext);
+	InParameterBlock->RigVM->Reset(InParameterBlock->GetExtendedExecuteContext());
 }
 
 UAnimNextParameterBlock_EditorData* FUtils::GetEditorData(const UAnimNextParameterBlock* InParameterBlock)
@@ -926,7 +942,6 @@ FEdGraphPinType FUtils::GetPinTypeFromParamType(const FAnimNextParamType& InPara
 		PinType.PinSubCategoryObject = const_cast<UObject*>(InParamType.ValueTypeObject.Get());
 		break;
 	default:
-		ensureMsgf(false, TEXT("Unhandled value type %d"), InParamType.ValueType);
 		break;
 	}
 
@@ -983,14 +998,15 @@ FRigVMTemplateArgumentType FUtils::GetRigVMArgTypeFromParamType(const FAnimNextP
 		ArgType.CPPTypeObject = const_cast<UObject*>(InParamType.ValueTypeObject.Get());
 		break;
 	case EPropertyBagPropertyType::Object:
-		CPPTypeString = RigVMTypeUtils::CPPTypeFromObject(Cast<UClass>(InParamType.ValueTypeObject.Get()));
+		CPPTypeString = RigVMTypeUtils::CPPTypeFromObject(Cast<UClass>(InParamType.ValueTypeObject.Get()), RigVMTypeUtils::EClassArgType::AsObject);
 		ArgType.CPPTypeObject = const_cast<UObject*>(InParamType.ValueTypeObject.Get());
 		break;
 	case EPropertyBagPropertyType::SoftObject:
 		ensureMsgf(false, TEXT("Unhandled value type %d"), InParamType.ValueType);
 		break;
 	case EPropertyBagPropertyType::Class:
-		ensureMsgf(false, TEXT("Unhandled value type %d"), InParamType.ValueType);
+		CPPTypeString = RigVMTypeUtils::CPPTypeFromObject(Cast<UClass>(InParamType.ValueTypeObject.Get()), RigVMTypeUtils::EClassArgType::AsClass);
+		ArgType.CPPTypeObject = const_cast<UObject*>(InParamType.ValueTypeObject.Get());
 		break;
 	case EPropertyBagPropertyType::SoftClass:
 		ensureMsgf(false, TEXT("Unhandled value type %d"), InParamType.ValueType);
@@ -1018,6 +1034,21 @@ FRigVMTemplateArgumentType FUtils::GetRigVMArgTypeFromParamType(const FAnimNextP
 	return ArgType;
 }
 
+
+void FUtils::SetupGraph(URigVMController* InController)
+{
+	// Clear the graph
+	InController->RemoveNodes(InController->GetGraph()->GetNodes());
+
+	// Add entry point
+	InController->AddUnitNode(FRigUnit_AnimNextParameterBeginExecution::StaticStruct(), FRigVMStruct::ExecuteName, FVector2D(-200.0f, 0.0f), FString(), false);
+}
+
+void FUtils::SetupBindingGraph(URigVMController* InController, FName InParameterName, const FAnimNextParamType& InParamType)
+{
+	SetupBindingGraphForLiteral(InController, InParameterName, InParamType);
+}
+
 void FUtils::SetupBindingGraphForLiteral(URigVMController* InController, FName InParameterName, const FAnimNextParamType& InParamType)
 {
 	FRigVMTemplateArgumentType ArgType = GetRigVMArgTypeFromParamType(InParamType);
@@ -1027,15 +1058,15 @@ void FUtils::SetupBindingGraphForLiteral(URigVMController* InController, FName I
 	InController->RemoveNodes(InController->GetGraph()->GetNodes());
 
 	// Add new nodes for a simple literal binding
-	URigVMUnitNode* EntryPointNode = InController->AddUnitNode(FRigUnit_AnimNextBeginExecution::StaticStruct(), FRigVMStruct::ExecuteName, FVector2D(-200.0f, 0.0f), FString(), false);
+	URigVMUnitNode* EntryPointNode = InController->AddUnitNode(FRigUnit_AnimNextParameterBeginExecution::StaticStruct(), FRigVMStruct::ExecuteName, FVector2D(-200.0f, 0.0f), FString(), false);
 
-	const FName FactoryName = FRigVMDispatch_SetParameter().GetFactoryName();
-	FRigVMDispatch_SetParameter* Factory = static_cast<FRigVMDispatch_SetParameter*>(FRigVMRegistry::Get().FindDispatchFactory(FactoryName));
+	const FName FactoryName = FRigVMDispatch_SetLayerParameter().GetFactoryName();
+	FRigVMDispatch_SetLayerParameter* Factory = static_cast<FRigVMDispatch_SetLayerParameter*>(FRigVMRegistry::Get().FindDispatchFactory(FactoryName));
 	URigVMTemplateNode* SetParameterNode = InController->AddTemplateNode(Factory->GetTemplate()->GetNotation(), FVector2D(200.0f, 0.0f));
-	InController->SetPinDefaultValue(SetParameterNode->FindPin(FRigVMDispatch_SetParameter::ParameterName.ToString())->GetPinPath(), InParameterName.ToString());
-	InController->ResolveWildCardPin(SetParameterNode->FindPin(FRigVMDispatch_SetParameter::ValueName.ToString()), TypeIndex);
+	InController->SetPinDefaultValue(SetParameterNode->FindPin(FRigVMDispatch_SetLayerParameter::ParameterName.ToString())->GetPinPath(), InParameterName.ToString());
+	InController->ResolveWildCardPin(SetParameterNode->FindPin(FRigVMDispatch_SetLayerParameter::ValueName.ToString()), TypeIndex);
 
-	InController->AddLink(EntryPointNode->FindPin(GET_MEMBER_NAME_STRING_CHECKED(FRigUnit_AnimNextBeginExecution, ExecuteContext)), SetParameterNode->FindPin(FRigVMDispatch_SetParameter::ExecuteContextName.ToString()));
+	InController->AddLink(EntryPointNode->FindPin(GET_MEMBER_NAME_STRING_CHECKED(FRigUnit_AnimNextParameterBeginExecution, ExecuteContext)), SetParameterNode->FindPin(FRigVMDispatch_SetLayerParameter::ExecuteContextName.ToString()));
 }
 
 FText FUtils::GetParameterDisplayNameText(FName InParameterName)
@@ -1044,5 +1075,7 @@ FText FUtils::GetParameterDisplayNameText(FName InParameterName)
 	NameAsString.ReplaceCharInline(TEXT('_'), TEXT('.'));
 	return FText::FromString(NameAsString);
 }
+
+
 
 }

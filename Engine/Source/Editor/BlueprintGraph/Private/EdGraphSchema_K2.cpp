@@ -3004,11 +3004,6 @@ FString UEdGraphSchema_K2::IsPinDefaultValid(const UEdGraphPin* Pin, const FStri
 	MessageArgs.Add(TEXT("PinName"), Pin->GetDisplayName());
 
 	const UBlueprint* OwningBP = FBlueprintEditorUtils::FindBlueprintForNode(Pin->GetOwningNodeUnchecked());
-	if (!OwningBP)
-	{
-		FText MsgFormat = LOCTEXT("NoBlueprintFoundForPin", "No Blueprint was found for the pin '{PinName}'.");
-		return FText::Format(MsgFormat, MessageArgs).ToString();
-	}
 
 	const bool bIsArray = Pin->PinType.IsArray();
 	const bool bIsSet = Pin->PinType.IsSet();
@@ -3016,7 +3011,7 @@ FString UEdGraphSchema_K2::IsPinDefaultValid(const UEdGraphPin* Pin, const FStri
 	const bool bIsReference = Pin->PinType.bIsReference;
 	const bool bIsAutoCreateRefTerm = IsAutoCreateRefTerm(Pin);
 
-	if (OwningBP->BlueprintType != BPTYPE_Interface)
+	if (OwningBP == nullptr || OwningBP->BlueprintType != BPTYPE_Interface)
 	{
 		if( !bIsAutoCreateRefTerm )
 		{

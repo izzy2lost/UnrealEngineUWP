@@ -37,6 +37,12 @@ class ANIMNEXTUNCOOKEDONLY_API IAnimNextParameterBlockGraphInterface
 	friend struct UE::AnimNext::UncookedOnly::FUtilsPrivate;
 	friend class UE::AnimNext::Editor::FParameterBlockTabSummoner;
 
+	// Get the graph name
+	virtual FName GetGraphName() const = 0;
+
+	// Set the graph name
+	virtual void SetGraphName(FName InName, bool bSetupUndoRedo = true) = 0;
+
 	// Get the graph
 	virtual URigVMGraph* GetGraph() const = 0;
 };

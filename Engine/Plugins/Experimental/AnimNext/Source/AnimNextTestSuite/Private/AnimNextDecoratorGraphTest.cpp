@@ -242,6 +242,9 @@ bool FAnimationAnimNextRuntimeTest_GraphExecute::RunTest(const FString& InParame
 	Controller->SetPinDefaultValue(DecoratorPin->GetSubPins()[1]->GetPinPath(), TEXT("78"));
 	Controller->SetPinDefaultValue(DecoratorPin->GetSubPins()[2]->GetPinPath(), TEXT("142.33"));
 
+	TSharedRef<UE::AnimNext::FParamStack> ParamStack = MakeShared<UE::AnimNext::FParamStack>();
+	UE::AnimNext::FParamStack::AttachToCurrentThread(ParamStack);
+
 	FAnimNextGraphInstance GraphInstance;
 	AnimNextGraph->AllocateInstance(GraphInstance);
 
@@ -269,6 +272,8 @@ bool FAnimationAnimNextRuntimeTest_GraphExecute::RunTest(const FString& InParame
 
 	Context.GetMutableParamStack().PopLayer(LayerHandle);
 	GraphInstance.Release();
+
+	UE::AnimNext::FParamStack::DetachFromCurrentThread();
 
 	return true;
 }
@@ -374,6 +379,9 @@ bool FAnimationAnimNextRuntimeTest_GraphExecuteLatent::RunTest(const FString& In
 			DecoratorPin->GetSubPins()[4]);	// SomeOtherLatentInt32
 	}
 
+	TSharedRef<UE::AnimNext::FParamStack> ParamStack = MakeShared<UE::AnimNext::FParamStack>();
+	UE::AnimNext::FParamStack::AttachToCurrentThread(ParamStack);
+
 	FAnimNextGraphInstance GraphInstance;
 	AnimNextGraph->AllocateInstance(GraphInstance);
 
@@ -402,6 +410,8 @@ bool FAnimationAnimNextRuntimeTest_GraphExecuteLatent::RunTest(const FString& In
 
 	Context.GetMutableParamStack().PopLayer(LayerHandle);
 	GraphInstance.Release();
+
+	UE::AnimNext::FParamStack::DetachFromCurrentThread();
 
 	return true;
 }

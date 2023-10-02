@@ -1,11 +1,11 @@
-﻿// Copyright Epic Games, Inc. All Rights Reserved.
+// Copyright Epic Games, Inc. All Rights Reserved.
 
 #pragma once
 
 #include "CoreMinimal.h"
 #include "AnimNextParameterBlockEntry.h"
 #include "IAnimNextParameterBlockReferenceInterface.h"
-#include "IAnimNextParameterBlockBindingInterface.h"
+#include "IAnimNextParameterBlockParameterInterface.h"
 #include "AnimNextParameterBlockBindingReference.generated.h"
 
 class UAnimNextParameter;
@@ -21,14 +21,14 @@ namespace UE::AnimNext::Editor
 
 /** Parameter binding block entry */
 UCLASS(MinimalAPI, BlueprintType)
-class UAnimNextParameterBlockBindingReference : public UAnimNextParameterBlockEntry, public IAnimNextParameterBlockBindingInterface, public IAnimNextParameterBlockReferenceInterface
+class UAnimNextParameterBlockBindingReference : public UAnimNextParameterBlockEntry, public IAnimNextParameterBlockParameterInterface, public IAnimNextParameterBlockReferenceInterface
 {
 	GENERATED_BODY()
 
 	friend class UAnimNextParameterBlock_EditorData;
 	friend class UAssetDefinition_AnimNextParameterBlockBindingReference;
 
-	// IAnimNextParameterBlockBindingInterface interface
+	// IAnimNextParameterBlockParameterInterface interface
 	virtual FAnimNextParamType GetParamType() const override;
 	virtual FName GetParameterName() const override;
 	virtual void SetParameterName(FName InName, bool bSetupUndoRedo = true) override;

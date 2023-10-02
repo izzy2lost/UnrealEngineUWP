@@ -330,11 +330,11 @@ bool FParamStackTest::RunTest(const FString& InParameters)
 		const FDateTime Now = FDateTime::Now();
 		Stack.PushValue("Param0", Now);
 
-		FParamStack::EGetParamResult Result;
+		FParamResult Result;
 		AddErrorIfFalse(Stack.GetParamPtr<FDateTime>("Param0", &Result) != nullptr, "Const ptr cannot be accessed");
-		AddErrorIfFalse(Result == FParamStack::EGetParamResult::Succeeded, "Result != FParamStack::EGetParamResult::Succeeded");
+		AddErrorIfFalse(Result.IsSuccessful(), "Unexpected result");
 		AddErrorIfFalse(Stack.GetMutableParamPtr<FDateTime>("Param0", &Result) == nullptr, "Mutable ptr can be accessed");
-		AddErrorIfFalse(Result == FParamStack::EGetParamResult::Immutable, "Result != FParamStack::EGetParamResult::Immutable");
+		AddErrorIfFalse(!Result.IsOfCompatibleMutability(), "Unexpected result");
 	}
 
 	// Check type variance
@@ -345,11 +345,11 @@ bool FParamStackTest::RunTest(const FString& InParameters)
 		const float Float = 1.0f;
 		Handle = Stack.PushValue("Param0", Float);
 
-		FParamStack::EGetParamResult Result;
+		FParamResult Result;
 		AddErrorIfFalse(Stack.GetParamPtr<double>("Param0", &Result) == nullptr, "Promoted typed access is non-null");
-		AddErrorIfFalse(Result == FParamStack::EGetParamResult::IncompatibleType, "Result != FParamStack::EGetParamResult::IncompatibleType");
+		AddErrorIfFalse(Result.IsOfIncompatibleType(), "Unexpected result");
 		AddErrorIfFalse(Stack.GetParamPtr<uint8>("Param0", &Result) == nullptr, "Demoted typed access is non-null");
-		AddErrorIfFalse(Result == FParamStack::EGetParamResult::IncompatibleType, "Result != FParamStack::EGetParamResult::IncompatibleType");
+		AddErrorIfFalse(Result.IsOfIncompatibleType(), "Unexpected result");
 
 		Stack.PopLayer(Handle);
 
@@ -357,11 +357,11 @@ bool FParamStackTest::RunTest(const FString& InParameters)
 		Handle = Stack.PushValue("Param0", Blue);
 
 		AddErrorIfFalse(Stack.GetParamPtr<FDateTime>("Param0", &Result) == nullptr, "Incorrectly typed access is non-null");
-		AddErrorIfFalse(Result == FParamStack::EGetParamResult::IncompatibleType, "Result != FParamStack::EGetParamResult::IncompatibleType");
+		AddErrorIfFalse(Result.IsOfIncompatibleType(), "Unexpected result");
 		AddErrorIfFalse(Stack.GetMutableParamPtr<FDateTime>("Param0", &Result) == nullptr, "Incorrectly typed mutable access is non-null");
-		AddErrorIfFalse(Result == (FParamStack::EGetParamResult::IncompatibleType | FParamStack::EGetParamResult::Immutable), "Result != (FParamStack::EGetParamResult::IncompatibleType | FParamStack::EGetParamResult::Immutable)");
+		AddErrorIfFalse(Result.IsOfIncompatibleType() && !Result.IsOfCompatibleMutability(), "Result.IsOfIncompatibleType() && !Result.IsOfCompatibleMutability()");
 		AddErrorIfFalse(Stack.GetParamPtr<FLinearColor>("Param0", &Result) != nullptr, "Correctly typed access is null");
-		AddErrorIfFalse(Result == FParamStack::EGetParamResult::Succeeded, "Result != FParamStack::EGetParamResult::Succeeded");
+		AddErrorIfFalse(Result.IsSuccessful(), "Unexpected result");
 
 		Stack.PopLayer(Handle);
 
@@ -369,13 +369,13 @@ bool FParamStackTest::RunTest(const FString& InParameters)
 		Handle = Stack.PushValue("Param0", AnimSequence);
 
 		AddErrorIfFalse(Stack.GetParamPtr<UAnimSequence>("Param0", &Result) != nullptr, "Correctly typed access is null");
-		AddErrorIfFalse(Result == FParamStack::EGetParamResult::Succeeded, "Result != FParamStack::EGetParamResult::Succeeded");
+		AddErrorIfFalse(Result.IsSuccessful(), "Unexpected result");
 		AddErrorIfFalse(Stack.GetParamPtr<UAnimSequenceBase>("Param0", &Result) != nullptr, "Base class access is null");
-		AddErrorIfFalse(Result == FParamStack::EGetParamResult::CompatibleType, "Result != FParamStack::EGetParamResult::Succeeded");
+		AddErrorIfFalse(Result.IsOfCompatibleType(), "Unexpected result");
 		AddErrorIfFalse(Stack.GetParamPtr<UAnimationAsset>("Param0", &Result) != nullptr, "Ancestor class access is null");
-		AddErrorIfFalse(Result == FParamStack::EGetParamResult::CompatibleType, "Result != FParamStack::EGetParamResult::Succeeded");
+		AddErrorIfFalse(Result.IsOfCompatibleType(), "Unexpected result");
 		AddErrorIfFalse(Stack.GetParamPtr<UAnimMontage>("Param0", &Result) == nullptr, "Sibling class access is non-null");
-		AddErrorIfFalse(Result == FParamStack::EGetParamResult::IncompatibleType, "Result != FParamStack::EGetParamResult::IncompatibleType");
+		AddErrorIfFalse(Result.IsOfIncompatibleType(), "Unexpected result");
 
 		Stack.PopLayer(Handle);
 	}
@@ -384,9 +384,9 @@ bool FParamStackTest::RunTest(const FString& InParameters)
 	{
 		FParamStack Stack;
 
-		FParamStack::FLayerHandle Layer0 = FParamStack::MakeValueLayer("Param0", 1.0f);
-		FParamStack::FLayerHandle Layer1 = FParamStack::MakeValuesLayer("Param1", 2.0, "Param3", 5);
-		FParamStack::FLayerHandle Layer2 = FParamStack::MakeValueLayer(ParamIds[2], true);
+		FParamStackLayerHandle Layer0 = FParamStack::MakeValueLayer("Param0", 1.0f);
+		FParamStackLayerHandle Layer1 = FParamStack::MakeValuesLayer("Param1", 2.0, "Param3", 5);
+		FParamStackLayerHandle Layer2 = FParamStack::MakeValueLayer(ParamIds[2], true);
 
 		Stack.PushLayer(Layer0);
 		Stack.PushLayer(Layer1);
@@ -519,7 +519,7 @@ bool FParamStackTest::RunTest(const FString& InParameters)
 		PropertyBag.SetValueBool("Param1", true);
 		PropertyBag.SetValueInt32("Param2", 5);
 
-		FParamStack::FLayerHandle Layer = FParamStack::MakeLayer(PropertyBag);
+		FParamStackLayerHandle Layer = FParamStack::MakeReferenceLayer(PropertyBag);
 
 		FParamStack Stack;
 

@@ -1,4 +1,4 @@
-﻿// Copyright Epic Games, Inc. All Rights Reserved.
+// Copyright Epic Games, Inc. All Rights Reserved.
 
 #include "Param/ParamType.h"
 #include "Param/ParamTypeHandle.h"
@@ -483,4 +483,123 @@ FString FAnimNextParamType::ToString() const
 	}
 
 	return StringBuilder.ToString();
+}
+
+FAnimNextParamType FAnimNextParamType::FromString(const FString& InString)
+{
+	auto GetInnerType = [](const FString& InTypeString, FAnimNextParamType& OutType)
+	{
+		static TMap<FString, FAnimNextParamType> BasicTypes =
+		{
+			{ TEXT("bool"),		GetType<bool>() },
+			{ TEXT("uint8"),		GetType<uint8>() },
+			{ TEXT("int32"),		GetType<int32>() },
+			{ TEXT("int64"),		GetType<int64>() },
+			{ TEXT("float"),		GetType<float>() },
+			{ TEXT("double"),		GetType<double>() },
+			{ TEXT("FName"),		GetType<FName>() },
+			{ TEXT("FString"),		GetType<FString>() },
+			{ TEXT("FText"),		GetType<FText>() },
+			{ TEXT("uint32"),		GetType<uint32>() },
+			{ TEXT("uint64"),		GetType<uint64>() },
+		};
+
+		if(const FAnimNextParamType* BasicType = BasicTypes.Find(InTypeString))
+		{
+			OutType = *BasicType;
+			return true;
+		}
+
+		// Check for object/struct/enum
+		EValueType ObjectValueType = EValueType::None;
+		FString ObjectInnerString;
+		if(InTypeString.StartsWith(TEXT("U"), ESearchCase::CaseSensitive))
+		{
+			ObjectInnerString = InTypeString.RightChop(1).TrimStartAndEnd();
+			ObjectValueType = EValueType::Object;
+		}
+		else if(InTypeString.StartsWith(TEXT("TObjectPtr<U"), ESearchCase::CaseSensitive))
+		{
+			ObjectInnerString = InTypeString.RightChop(12).LeftChop(1).TrimStartAndEnd();
+			ObjectValueType = EValueType::Object;
+		}
+		else if(InTypeString.StartsWith(TEXT("TSubClassOf<U"), ESearchCase::CaseSensitive))
+		{
+			ObjectInnerString = InTypeString.RightChop(13).LeftChop(1).TrimStartAndEnd();
+			ObjectValueType = EValueType::Class;
+		}
+		else if(InTypeString.StartsWith(TEXT("F"), ESearchCase::CaseSensitive))
+		{
+			ObjectInnerString = InTypeString.RightChop(1).TrimStartAndEnd();
+			ObjectValueType = EValueType::Struct;
+		}
+		else if(InTypeString.StartsWith(TEXT("E"), ESearchCase::CaseSensitive))
+		{
+			ObjectInnerString = InTypeString.RightChop(1).TrimStartAndEnd();
+			ObjectValueType = EValueType::Enum;
+		}
+		
+		if(UObject* ObjectType = FindFirstObject<UObject>(*ObjectInnerString, EFindFirstObjectOptions::NativeFirst))
+		{
+			OutType.ValueType = ObjectValueType;
+			OutType.ValueTypeObject = nullptr;
+
+			switch(ObjectValueType)
+			{
+			case EPropertyBagPropertyType::Enum:
+				OutType.ValueTypeObject = Cast<UEnum>(ObjectType);
+				break;
+			case EPropertyBagPropertyType::Struct:
+				OutType.ValueTypeObject = Cast<UScriptStruct>(ObjectType);
+				break;
+			case EPropertyBagPropertyType::Object:
+				OutType.ValueTypeObject = Cast<UClass>(ObjectType);
+				break;
+			case EPropertyBagPropertyType::Class:
+				OutType.ValueTypeObject = Cast<UClass>(ObjectType);
+				break;
+			default:
+				break;
+			}
+
+			return OutType.ValueTypeObject != nullptr;
+		}
+
+		return false;
+	};
+
+	{
+		FAnimNextParamType Type;
+		if(GetInnerType(InString, Type))
+		{
+			return Type;
+		}
+	}
+	
+	if(InString.StartsWith(TEXT("TArray<"), ESearchCase::CaseSensitive))
+	{
+		const FString InnerTypeString = InString.RightChop(7).LeftChop(1).TrimStartAndEnd();
+		FAnimNextParamType Type;
+		if(GetInnerType(InnerTypeString, Type))
+		{
+			Type.ContainerType = EContainerType::Array;
+			return Type;
+		}
+	}
+
+	return FAnimNextParamType();
+}
+
+bool FAnimNextParamType::IsObjectType() const
+{
+	switch (ValueType)
+	{
+	case EValueType::Object:
+	case EValueType::SoftObject:
+	case EValueType::Class:
+	case EValueType::SoftClass:
+		return true;
+	default:
+		return false;
+	}
 }

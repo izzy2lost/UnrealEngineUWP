@@ -20,6 +20,7 @@ class UAnimGraphNode_AnimNextGraph : public UAnimGraphNode_CustomProperty
 	virtual void CustomizeDetails(IDetailLayoutBuilder& DetailBuilder) override;
 	virtual void PostEditChangeProperty(FPropertyChangedEvent& PropertyChangedEvent) override;
 	virtual void PostReconstructNode() override;
+	virtual void GetRequiredExtensions(TArray<TSubclassOf<UAnimBlueprintExtension>>& OutExtensions) const override;
 
 private:
 	// UEdGraphNode interface
