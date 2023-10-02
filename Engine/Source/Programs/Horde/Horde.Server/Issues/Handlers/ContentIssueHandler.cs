@@ -2,10 +2,6 @@
 
 using System.Collections.Generic;
 using EpicGames.Core;
-using Horde.Server.Jobs;
-using Horde.Server.Jobs.Graphs;
-using Horde.Server.Logs;
-using Horde.Server.Utilities;
 using Microsoft.Extensions.Logging;
 
 namespace Horde.Server.Issues.Handlers
@@ -16,77 +12,35 @@ namespace Horde.Server.Issues.Handlers
 	[IssueHandler(Priority = 10)]
 	class ContentIssueHandler : IssueHandler
 	{
-		/// <inheritdoc/>
-		public override string Type => "Content";
+		readonly List<IssueEventGroup> _issues = new List<IssueEventGroup>();
+
+		static bool IsMatchingEventId(EventId eventId) => eventId == KnownLogEvents.Engine_AssetLog;
+		static bool IsMaskedEventId(EventId eventId) => eventId == KnownLogEvents.ExitCode;
 
 		/// <inheritdoc/>
-		public override string SummaryTemplate => "{Severity} in {Files}";
-
-		/// <inheritdoc/>
-		public override IReadOnlyList<string> SuspectFilter => IssueSuspectFilter.Content;
-
-		/// <summary>
-		/// Determines if the given event id matches
-		/// </summary>
-		/// <param name="eventId">The event id to compare</param>
-		/// <returns>True if the given event id matches</returns>
-		public static bool IsMatchingEventId(EventId eventId)
+		public override bool HandleEvent(IssueEvent issueEvent)
 		{
-			return eventId == KnownLogEvents.Engine_AssetLog;
-		}
-
-		/// <summary>
-		/// Determines if an event should be masked by this 
-		/// </summary>
-		/// <param name="eventId"></param>
-		/// <returns></returns>
-		static bool IsMaskedEventId(EventId eventId)
-		{
-			return eventId == KnownLogEvents.ExitCode;
-		}
-
-		/// <summary>
-		/// Adds all the assets from the given log event
-		/// </summary>
-		/// <param name="eventData">The log event to parse</param>
-		/// <param name="assetNames">Receives the referenced asset names</param>
-		public static void GetAssetNames(ILogEventData eventData, HashSet<IssueKey> assetNames)
-		{
-			foreach (ILogEventLine line in eventData.Lines)
+			if (issueEvent.EventId != null)
 			{
-				string? relativePath;
-				if (line.Data.TryGetNestedProperty("properties.asset.relativePath", out relativePath) || line.Data.TryGetNestedProperty("properties.asset.$text", out relativePath))
+				EventId eventId = issueEvent.EventId.Value;
+				if (IsMatchingEventId(eventId))
 				{
-					int endIdx = relativePath.LastIndexOfAny(new char[] { '/', '\\' }) + 1;
-					string fileName = relativePath.Substring(endIdx);
-					IssueKey issueKey = new IssueKey(fileName, IssueKeyType.File);
-					assetNames.Add(issueKey);
+					IssueEventGroup issue = new IssueEventGroup("Content", "{Severity} in {Files}", IssueChangeFilter.Content);
+					issue.Events.Add(issueEvent);
+					issue.Keys.AddAssets(issueEvent);
+					_issues.Add(issue);
+
+					return true;
+				}
+				else if (_issues.Count > 0 && IsMaskedEventId(eventId))
+				{
+					return true;
 				}
 			}
+			return false;
 		}
 
 		/// <inheritdoc/>
-		public override void TagEvents(IJob job, INode node, IReadOnlyNodeAnnotations annotations, IReadOnlyList<IssueEvent> stepEvents)
-		{
-			bool hasMatches = false;
-			foreach (IssueEvent stepEvent in stepEvents)
-			{
-				if (stepEvent.EventId != null)
-				{
-					if (IsMatchingEventId(stepEvent.EventId.Value))
-					{
-						HashSet<IssueKey> newAssetNames = new HashSet<IssueKey>();
-						GetAssetNames(stepEvent.EventData, newAssetNames);
-
-						stepEvent.Fingerprint = new NewIssueFingerprint(Type, newAssetNames, null, null);
-						hasMatches = true;
-					}
-					else if (hasMatches && IsMaskedEventId(stepEvent.EventId.Value))
-					{
-						stepEvent.Ignored = true;
-					}
-				}
-			}
-		}
+		public override IEnumerable<IssueEventGroup> GetIssues() => _issues;
 	}
 }

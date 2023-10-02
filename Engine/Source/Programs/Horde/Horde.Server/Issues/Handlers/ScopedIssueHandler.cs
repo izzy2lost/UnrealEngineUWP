@@ -5,8 +5,6 @@ using System.Collections.Generic;
 using System.Text;
 using System.Text.RegularExpressions;
 using EpicGames.Core;
-using Horde.Server.Jobs;
-using Horde.Server.Jobs.Graphs;
 using Horde.Server.Logs;
 using Horde.Server.Utilities;
 
@@ -15,70 +13,70 @@ namespace Horde.Server.Issues.Handlers
 	/// <summary>
 	/// Instance of a particular compile error
 	/// </summary>
-	[IssueHandler(Priority = 2)]
+	[IssueHandler(Priority = 2, Tag = "Scoped")]
 	class ScopedIssueHandler : IssueHandler
 	{
-
-		public override bool RequiresWorkflow { get; } = true;
-
 		const string NodeName = "Node";
 		const string ScopeName = "Scope";
 
-		/// <inheritdoc/>
-		public override string Type => "Scoped";
+		readonly IssueHandlerContext _context;
+		readonly List<IssueEventGroup> _issues = new List<IssueEventGroup>();
+
+		public ScopedIssueHandler(IssueHandlerContext context) => _context = context;
 
 		/// <inheritdoc/>
-		public override string SummaryTemplate => "{Severity} in {Meta:Node} - {Meta:Scope}";
+		public override bool HandleEvent(IssueEvent logEvent)
+		{
+			string? scope = null;
 
-		/// <inheritdoc/>
-		public override IReadOnlyList<string> SuspectFilter => IssueSuspectFilter.All;
-
-		/// <inheritdoc/>
-		public override void TagEvents(IJob job, INode node, IReadOnlyNodeAnnotations annotations, IReadOnlyList<IssueEvent> stepEvents)
-		{			
-			foreach (IssueEvent stepEvent in stepEvents)
+			foreach (ILogEventLine line in logEvent.Lines)
 			{
-				string? scope = null;
-
-				foreach (ILogEventLine line in stepEvent.Lines)
+				string? channelType;
+				string? channelText;
+				if (line.Data.TryGetNestedProperty("properties.channel.$type", out channelType) && line.Data.TryGetNestedProperty("properties.channel.$text", out channelText))
 				{
-					string? channelType;
-					string? channelText;
-					if (line.Data.TryGetNestedProperty("properties.channel.$type", out channelType) && line.Data.TryGetNestedProperty("properties.channel.$text", out channelText))
+					if (channelType != "Channel" || !channelText.StartsWith("Log", StringComparison.Ordinal))
 					{
-						if (channelType != "Channel" || !channelText.StartsWith("Log", StringComparison.Ordinal))
-						{
-							scope = null;
-							break;
-						}
-						
-						if (scope != null && scope != channelText)
-						{
-							scope = null;
-							break;
-						}
-
-						scope = channelText;
+						scope = null;
+						break;
 					}
-				}
+						
+					if (scope != null && scope != channelText)
+					{
+						scope = null;
+						break;
+					}
 
-				if (scope == null)
-				{
-					continue;
-				}
-
-				string[] metadata = new[] { $"{NodeName}={node.Name}", $"{ScopeName}={scope}" };
-
-				string fingerprintType = $"{Type}:{scope}";
-
-				string hashSource = stepEvent.Message;
-				
-				if (TryGetHash(hashSource, out Md5Hash hash))
-				{
-					stepEvent.Fingerprint = new NewIssueFingerprint(fingerprintType, new[] { IssueKey.FromHash(hash) }, null, metadata);
+					scope = channelText;
 				}
 			}
+
+			if (scope == null)
+			{
+				return false;
+			}
+
+			string fingerprintType = $"Scoped:{scope}";
+
+			string hashSource = logEvent.Message;
+				
+			if (TryGetHash(hashSource, out Md5Hash hash))
+			{
+				IssueEventGroup issue = new IssueEventGroup(fingerprintType, "{Severity} in {Meta:Node} - {Meta:Scope}", IssueChangeFilter.All);
+				issue.Events.Add(logEvent);
+				issue.Keys.Add(IssueKey.FromHash(hash));
+				issue.Metadata.Add(NodeName, _context.NodeName);
+				issue.Metadata.Add(ScopeName, scope);
+				_issues.Add(issue);
+
+				return true;
+			}
+
+			return false;
 		}
+
+		/// <inheritdoc/>
+		public override IEnumerable<IssueEventGroup> GetIssues() => _issues;
 
 		static bool TryGetHash(string message, out Md5Hash hash)
 		{

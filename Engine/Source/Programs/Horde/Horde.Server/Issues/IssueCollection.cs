@@ -2,10 +2,12 @@
 
 using System;
 using System.Collections.Generic;
+using System.Data;
 using System.Diagnostics;
 using System.Diagnostics.CodeAnalysis;
 using System.Linq;
 using System.Threading.Tasks;
+using EpicGames.Core;
 using EpicGames.Horde.Api;
 using EpicGames.Redis.Utility;
 using Horde.Server.Auditing;
@@ -233,6 +235,15 @@ namespace Horde.Server.Issues
 		{
 			public string Type { get; set; }
 
+			[BsonElement("summary"), BsonIgnoreIfNull]
+			string? SummaryTemplateValue { get; set; }
+
+			[BsonIgnore]
+			public string SummaryTemplate => SummaryTemplateValue ?? GetLegacyHandlerInfo(Type).SummaryTemplate;
+
+			[BsonElement("scp"), BsonIgnoreIfNull]
+			public string? Scope { get; set; }
+
 			[BsonElement("inc")]
 			public HashSet<IssueKey> Keys { get; set; } = new HashSet<IssueKey>();
 
@@ -243,23 +254,15 @@ namespace Horde.Server.Issues
 
 			IReadOnlySet<IssueKey>? IIssueFingerprint.RejectKeys => RejectKeys;
 
-#pragma warning disable IDE0051
-			[BsonElement("Keys"), BsonIgnoreIfNull]
-			CaseInsensitiveStringSet? LegacyKeys 
-			{ 
-				get => null;
-				set => Keys = ParseKeySet(value) ?? new HashSet<IssueKey>();
-			}
+			[BsonElement("met"), BsonIgnoreIfNull]
+			public HashSet<IssueMetadata>? Metadata { get; set; } = new HashSet<IssueMetadata>();
 
-			[BsonElement("RejectKeys"), BsonIgnoreIfNull]
-			CaseInsensitiveStringSet? LegacyRejectKeys
-			{ 
-				get => null;
-				set => RejectKeys = ParseKeySet(value);
-			}
-#pragma warning restore IDE0051
+			IReadOnlySet<IssueMetadata>? IIssueFingerprint.Metadata => Metadata;
 
-			public CaseInsensitiveStringSet? Metadata { get; set; }
+			[BsonElement("flt"), BsonIgnoreIfNull]
+			public List<string>? ChangeFilter { get; set; }
+
+			IReadOnlyList<string> IIssueFingerprint.ChangeFilter => ChangeFilter ?? GetLegacyHandlerInfo(Type).ChangeFilter;
 
 			[BsonConstructor]
 			private IssueFingerprint()
@@ -270,10 +273,46 @@ namespace Horde.Server.Issues
 			public IssueFingerprint(IIssueFingerprint fingerprint)
 			{
 				Type = fingerprint.Type;
+				SummaryTemplateValue = fingerprint.SummaryTemplate;
+				Scope = fingerprint.Scope;
+
 				Keys = new HashSet<IssueKey>(fingerprint.Keys);
-				RejectKeys = (fingerprint.RejectKeys == null)? null : new HashSet<IssueKey>(fingerprint.RejectKeys);
-				Metadata = fingerprint.Metadata;
+				if (fingerprint.RejectKeys != null && fingerprint.RejectKeys.Count > 0)
+				{
+					RejectKeys = new HashSet<IssueKey>(fingerprint.RejectKeys);
+				}
+				if (fingerprint.Metadata != null && fingerprint.Metadata.Count > 0)
+				{
+					Metadata = new HashSet<IssueMetadata>(fingerprint.Metadata);
+				}
+
+				ChangeFilter = new List<string>(fingerprint.ChangeFilter);
 			}
+
+			#region Legacy
+
+#pragma warning disable IDE0051
+			[BsonElement("Keys"), BsonIgnoreIfNull]
+			CaseInsensitiveStringSet? LegacyKeys
+			{
+				get => null;
+				set => Keys = ParseKeySet(value) ?? new HashSet<IssueKey>();
+			}
+
+			[BsonElement("RejectKeys"), BsonIgnoreIfNull]
+			CaseInsensitiveStringSet? LegacyRejectKeys
+			{
+				get => null;
+				set => RejectKeys = ParseKeySet(value);
+			}
+
+			[BsonElement("Metadata"), BsonIgnoreIfNull]
+			CaseInsensitiveStringSet? LegacyMetadata
+			{
+				get => null;
+				set => Metadata = ParseMetadata(value);
+			}
+#pragma warning restore IDE0051
 
 			[return: NotNullIfNotNull("set")]
 			static HashSet<IssueKey>? ParseKeySet(CaseInsensitiveStringSet? set) => (set == null)? null : new HashSet<IssueKey>(set.Select(x => ParseKey(x)));
@@ -294,11 +333,63 @@ namespace Horde.Server.Issues
 					}
 					if (prefix.Equals("step", StringComparison.Ordinal))
 					{
-						return new IssueKey(key.Substring(colonIdx + 1), IssueKeyType.Step);
+						return new IssueKey(key.Substring(colonIdx + 1), IssueKeyType.None);
 					}
 				}
-				return new IssueKey(key, IssueKeyType.Unknown);
+				return new IssueKey(key, IssueKeyType.None);
 			}
+
+			[return: NotNullIfNotNull("set")]
+			static HashSet<IssueMetadata>? ParseMetadata(CaseInsensitiveStringSet? set)
+			{
+				HashSet<IssueMetadata>? entries = null;
+				if (set != null)
+				{
+					entries = new HashSet<IssueMetadata>();
+					foreach (string entry in set)
+					{
+						int idx = entry.IndexOf('=', StringComparison.Ordinal);
+						entries.Add(new IssueMetadata(entry.Substring(0, idx), entry.Substring(idx + 1)));
+					}
+				}
+				return entries;
+			}
+
+			record class LegacyHandlerInfo(string SummaryTemplate, IReadOnlyList<string> ChangeFilter);
+
+			static readonly Dictionary<StringView, LegacyHandlerInfo> s_legacyHandlers = new Dictionary<StringView, LegacyHandlerInfo>
+			{
+				["BuildGraph"] = new("BuildGraph {Severity} in {Files}", IssueChangeFilter.All),
+				["Compile"] = new("{Meta:CompileType} {Severity} in {Files}", IssueChangeFilter.Code),
+				["Content"] = new("{Severity} in {Files}", IssueChangeFilter.Content),
+				["Copyright"] = new("Missing copyright notice in {Files}", IssueChangeFilter.Code),
+				["Default"] = new("{Severity} in {Nodes}", IssueChangeFilter.All),
+				["Gauntlet"] = new("Gauntlet {Meta:Type} {Severity} {Meta:Context}", IssueChangeFilter.Code),
+				//				["Hashed"] = new()
+				["Localization"] = new("Localization {Severity} in {Files}", IssueChangeFilter.Code),
+				["PerforceCase"] = new("Inconsistent case for {Files}", IssueChangeFilter.All),
+				["Scoped"] = new("{Severity} in {Meta:Node} - {Meta:Scope}", IssueChangeFilter.All),
+				["Shader"] = new("Shader compile {Severity} in {Files}", IssueChangeFilter.Code),
+				["Symbol"] = new("{LegacySymbolIssueHandler}", IssueChangeFilter.Code),
+				["Systemic"] = new("Systemic {Severity} in {Nodes}", IssueChangeFilter.None),
+				["UnacceptableWords"] = new("Unacceptable words in {Files}", IssueChangeFilter.Code)
+			};
+
+			static LegacyHandlerInfo GetLegacyHandlerInfo(string type)
+			{
+				StringView baseType = type;
+
+				int endIdx = type.IndexOf(':', StringComparison.Ordinal);
+				if (endIdx != -1)
+				{
+					baseType = new StringView(type, 0, endIdx);
+				}
+
+				s_legacyHandlers.TryGetValue(baseType, out LegacyHandlerInfo? info);
+				return info ?? new LegacyHandlerInfo($"{type} {{Severity}}", IssueChangeFilter.All);
+			}
+
+			#endregion
 		}
 
 		class IssueSpan : IIssueSpan
@@ -508,9 +599,17 @@ namespace Horde.Server.Issues
 		{
 			BsonClassMap.RegisterClassMap<IssueKey>(cm =>
 			{
-				cm.MapConstructor(() => new IssueKey("", IssueKeyType.Unknown), nameof(IssueKey.Name), nameof(IssueKey.Type));
+				cm.MapConstructor(() => new IssueKey("", IssueKeyType.None), nameof(IssueKey.Name), nameof(IssueKey.Type));
 				cm.MapProperty(x => x.Name).SetElementName("n");
 				cm.MapProperty(x => x.Type).SetElementName("t");
+				cm.MapProperty(x => x.Scope).SetElementName("s").SetIgnoreIfNull(true);
+			});
+
+			BsonClassMap.RegisterClassMap<IssueMetadata>(cm =>
+			{
+				cm.MapConstructor(() => new IssueMetadata("", ""), nameof(IssueMetadata.Key), nameof(IssueMetadata.Value));
+				cm.MapProperty(x => x.Key).SetElementName("k");
+				cm.MapProperty(x => x.Value).SetElementName("v");
 			});
 		}
 

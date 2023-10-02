@@ -2,8 +2,6 @@
 
 using System.Collections.Generic;
 using EpicGames.Core;
-using Horde.Server.Jobs;
-using Horde.Server.Jobs.Graphs;
 using Microsoft.Extensions.Logging;
 
 namespace Horde.Server.Issues.Handlers
@@ -12,16 +10,9 @@ namespace Horde.Server.Issues.Handlers
 	/// Instance of a particular BuildGraph script error
 	/// </summary>
 	[IssueHandler(Priority = 10)]
-	class BuildGraphIssueHandler : SourceFileIssueHandler
+	class BuildGraphIssueHandler : IssueHandler
 	{
-		/// <inheritdoc/>
-		public override string Type => "BuildGraph";
-
-		/// <inheritdoc/>
-		public override string SummaryTemplate => "BuildGraph {Severity} in {Files}";
-
-		/// <inheritdoc/>
-		public override IReadOnlyList<string> SuspectFilter => IssueSuspectFilter.All;
+		readonly List<IssueEventGroup> _issues = new List<IssueEventGroup>();
 
 		/// <summary>
 		/// Determines if the given event id matches
@@ -36,27 +27,28 @@ namespace Horde.Server.Issues.Handlers
 		static bool IsMaskedEventId(EventId id) => id == KnownLogEvents.ExitCode || id == KnownLogEvents.Systemic_Xge_BuildFailed;
 
 		/// <inheritdoc/>
-		public override void TagEvents(IJob job, INode node, IReadOnlyNodeAnnotations annotations, IReadOnlyList<IssueEvent> stepEvents)
+		public override bool HandleEvent(IssueEvent issueEvent)
 		{
-			bool hasMatches = false;
-			foreach (IssueEvent stepEvent in stepEvents)
+			if (issueEvent.EventId.HasValue)
 			{
-				if (stepEvent.EventId.HasValue)
+				EventId eventId = issueEvent.EventId.Value;
+				if (IsMatchingEventId(eventId))
 				{
-					EventId eventId = stepEvent.EventId.Value;
-					if (IsMatchingEventId(eventId))
-					{
-						HashSet<IssueKey> newFileNames = new HashSet<IssueKey>();
-						GetSourceFiles(stepEvent.EventData, newFileNames);
-						stepEvent.Fingerprint = new NewIssueFingerprint(Type, newFileNames, null, null);
-						hasMatches = true;
-					}
-					else if (hasMatches && IsMaskedEventId(eventId))
-					{
-						stepEvent.Ignored = true;
-					}
+					IssueEventGroup issue = new IssueEventGroup("BuildGraph", "BuildGraph {Severity} in {Files}", IssueChangeFilter.All);
+					issue.Events.Add(issueEvent);
+					issue.Keys.AddSourceFiles(issueEvent);
+					_issues.Add(issue);
+
+					return true;
+				}
+				else if (_issues.Count > 0 && IsMaskedEventId(eventId))
+				{
+					return true;
 				}
 			}
+			return false;
 		}
+
+		public override IEnumerable<IssueEventGroup> GetIssues() => _issues;
 	}
 }

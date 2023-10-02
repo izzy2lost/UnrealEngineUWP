@@ -3,8 +3,6 @@
 using System;
 using System.Collections.Generic;
 using EpicGames.Core;
-using Horde.Server.Jobs;
-using Horde.Server.Jobs.Graphs;
 using Horde.Server.Logs;
 using Horde.Server.Utilities;
 using Microsoft.Extensions.Logging;
@@ -17,14 +15,7 @@ namespace Horde.Server.Issues.Handlers
 	[IssueHandler(Priority = 10)]
 	class LocalizationIssueHandler : IssueHandler
 	{
-		/// <inheritdoc/>
-		public override string Type => "Localization";
-
-		/// <inheritdoc/>
-		public override string SummaryTemplate => "Localization {Severity} in {Files}";
-
-		/// <inheritdoc/>
-		public override IReadOnlyList<string> SuspectFilter => IssueSuspectFilter.Code;
+		readonly List<IssueEventGroup> _issues = new List<IssueEventGroup>();
 
 		/// <summary>
 		/// Determines if the given event id matches
@@ -49,11 +40,11 @@ namespace Horde.Server.Issues.Handlers
 		/// <summary>
 		/// Extracts a list of source files from an event
 		/// </summary>
-		/// <param name="logEventData">The event data</param>
+		/// <param name="issueEvent">The event data</param>
 		/// <param name="sourceFiles">List of source files</param>
-		public static void GetSourceFiles(ILogEventData logEventData, HashSet<IssueKey> sourceFiles)
+		public static void GetSourceFiles(IssueEvent issueEvent, HashSet<IssueKey> sourceFiles)
 		{
-			foreach (ILogEventLine line in logEventData.Lines)
+			foreach (ILogEventLine line in issueEvent.Lines)
 			{
 				string? relativePath;
 				if (line.Data.TryGetNestedProperty("properties.file.relativePath", out relativePath) || line.Data.TryGetNestedProperty("properties.file", out relativePath))
@@ -69,35 +60,33 @@ namespace Horde.Server.Issues.Handlers
 		}
 
 		/// <inheritdoc/>
-		public override void TagEvents(IJob job, INode node, IReadOnlyNodeAnnotations annotations, IReadOnlyList<IssueEvent> stepEvents)
+		public override bool HandleEvent(IssueEvent logEvent)
 		{
-			bool hasMatches = false;
-			foreach (IssueEvent stepEvent in stepEvents)
+			if (logEvent.EventId != null)
 			{
-				if (stepEvent.EventId != null)
+				EventId eventId = logEvent.EventId.Value;
+				if (IsMatchingEventId(eventId))
 				{
-					if (IsMatchingEventId(stepEvent.EventId.Value))
-					{
-						HashSet<IssueKey> newFileNames = new HashSet<IssueKey>();
-						GetSourceFiles(stepEvent.EventData, newFileNames);
+					IssueEventGroup issue = new IssueEventGroup("Localization", "Localization {Severity} in {Files}", IssueChangeFilter.Code);
+					issue.Events.Add(logEvent);
+					GetSourceFiles(logEvent, issue.Keys);
 
-						if (newFileNames.Count == 0)
-						{
-							stepEvent.Ignored = true;
-						}
-						else
-						{
-							stepEvent.Fingerprint = new NewIssueFingerprint(Type, newFileNames, null, null);
-						}
-
-						hasMatches = true;
-					}
-					else if (hasMatches && IsMaskedEventId(stepEvent.EventId.Value))
+					if (issue.Keys.Count > 0)
 					{
-						stepEvent.Ignored = true;
+						_issues.Add(issue);
 					}
+
+					return true;
+				}
+				else if(_issues.Count > 0 && IsMaskedEventId(eventId))
+				{
+					return true;
 				}
 			}
+			return false;
 		}
+
+		/// <inheritdoc/>
+		public override IEnumerable<IssueEventGroup> GetIssues() => _issues;
 	}
 }

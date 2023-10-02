@@ -1,12 +1,9 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 
 using System.Collections.Generic;
-using System.Linq;
 using System.Text;
 using System.Text.RegularExpressions;
 using EpicGames.Core;
-using Horde.Server.Jobs;
-using Horde.Server.Jobs.Graphs;
 using Horde.Server.Logs;
 using Horde.Server.Utilities;
 using Microsoft.Extensions.Logging;
@@ -49,14 +46,8 @@ namespace Horde.Server.Issues.Handlers
 		/// </summary>
 		const int MaxMessageLength = 2000;
 
-		/// <inheritdoc/>
-		public override string Type => "Gauntlet";
-
-		/// <inheritdoc/>
-		public override string SummaryTemplate => "Gauntlet {Meta:Type} {Severity} {Meta:Context}";
-
-		/// <inheritdoc/>
-		public override IReadOnlyList<string> SuspectFilter => IssueSuspectFilter.Code;
+		readonly IssueHandlerContext _context;
+		readonly List<IssueEventGroup> _issues = new List<IssueEventGroup>();
 
 		/// <summary>
 		///  Known Gauntlet events
@@ -70,6 +61,11 @@ namespace Horde.Server.Issues.Handlers
 			{ KnownLogEvents.Gauntlet_BuildDropEvent, AccessPrefix},
 			{ KnownLogEvents.Gauntlet_FatalEvent, FatalPrefix}
 		};
+
+		/// <summary>
+		/// Constructor
+		/// </summary>
+		public GauntletIssueHandler(IssueHandlerContext context) => _context = context;
 
 		/// <summary>
 		/// Determines if the given event id matches
@@ -94,12 +90,12 @@ namespace Horde.Server.Issues.Handlers
 		/// <summary>
 		/// Parses symbol names from a log event
 		/// </summary>
-		/// <param name="eventData">The log event data</param>
+		/// <param name="issueEvent">The log event data</param>
 		/// <param name="testNames">Receives a set of the test names</param>
 		/// <param name="metadata"></param>
-		private static void GetNames(ILogEventData eventData, HashSet<string> testNames, HashSet<string> metadata)
+		private static void GetNames(IssueEvent issueEvent, HashSet<IssueKey> testNames, HashSet<IssueMetadata> metadata)
 		{
-			foreach (ILogEventLine line in eventData.Lines)
+			foreach (ILogEventLine line in issueEvent.Lines)
 			{
 				string? name = null;
 
@@ -111,9 +107,9 @@ namespace Horde.Server.Issues.Handlers
 
 				if (name != null)
 				{
-					string prefix = GetEventPrefix(eventData.EventId!.Value);
-					testNames.Add($"{prefix}:{name}");
-					metadata.Add($"context=with {name}");
+					string prefix = GetEventPrefix(issueEvent.EventId!.Value);
+					testNames.Add($"{prefix}:{name}", IssueKeyType.None);
+					metadata.Add("Context", $"with {name}");
 				}
 			}
 		}
@@ -121,14 +117,14 @@ namespace Horde.Server.Issues.Handlers
 		/// <summary>
 		/// Parses symbol file or directory from a log event
 		/// </summary>
-		/// <param name="eventData">The log event data</param>
+		/// <param name="issueEvent">The log event data</param>
 		/// <param name="paths">Receives a set of the paths</param>
 		/// <param name="metadata"></param>
-		private static void GetPaths(ILogEventData eventData, HashSet<string> paths, HashSet<string> metadata)
+		private static void GetPaths(IssueEvent issueEvent, HashSet<IssueKey> paths, HashSet<IssueMetadata> metadata)
 		{
-			if(eventData.EventId == KnownLogEvents.Gauntlet_BuildDropEvent)
+			if(issueEvent.EventId == KnownLogEvents.Gauntlet_BuildDropEvent)
 			{
-				foreach (ILogEventLine line in eventData.Lines)
+				foreach (ILogEventLine line in issueEvent.Lines)
 				{
 					string? path = null;
 
@@ -144,8 +140,8 @@ namespace Horde.Server.Issues.Handlers
 
 					if (path != null)
 					{
-						paths.Add($"{AccessPrefix}:{path}");
-						metadata.Add($"context=with {path}");
+						paths.Add($"{AccessPrefix}:{path}", IssueKeyType.None);
+						metadata.Add("Context", $"with {path}");
 					}
 				}
 			}
@@ -154,25 +150,23 @@ namespace Horde.Server.Issues.Handlers
 		/// <summary>
 		/// Produce a hash from error message
 		/// </summary>
-		/// <param name="job">The job that spawned the event</param>
 		/// <param name="eventData">The log event data</param>
 		/// <param name="keys">Receives a set of the keys</param>
 		/// <param name="metadata">Receives a set of metadata</param>
-		/// <param name="node">Node that was executed</param>
-		private static void GetHash(IJob job, ILogEventData eventData, HashSet<string> keys, HashSet<string> metadata, INode node)
+		private void GetHash(ILogEventData eventData, HashSet<IssueKey> keys, HashSet<IssueMetadata> metadata)
 		{
 
 			string error = eventData.Message.Length > MaxMessageLength? eventData.Message.Substring(0, MaxMessageLength): eventData.Message;
 
 			if (TryGetHash(error, out Md5Hash hash))
 			{
-				keys.Add($"hash:{hash}:stream:{job.StreamId}");
+				keys.Add($"hash:{hash}:stream:{_context.StreamId}", IssueKeyType.None);
 			}
 			else
 			{
-				keys.Add($"{node.Name}");
+				keys.Add($"{_context.NodeName}", IssueKeyType.None);
 			}
-			metadata.Add($"context=in {node.Name}");
+			metadata.Add("Context", $"in {_context.NodeName}");
 		}
 
 		private static bool TryGetHash(string message, out Md5Hash hash)
@@ -195,25 +189,29 @@ namespace Horde.Server.Issues.Handlers
 		}
 
 		/// <inheritdoc/>
-		public override void TagEvents(IJob job, INode node, IReadOnlyNodeAnnotations annotations, IReadOnlyList<IssueEvent> stepEvents)
+		public override bool HandleEvent(IssueEvent issueEvent)
 		{
-			foreach (IssueEvent stepEvent in stepEvents)
+			if (issueEvent.EventId != null && IsMatchingEventId(issueEvent.EventId.Value))
 			{
-				if (stepEvent.EventId != null && IsMatchingEventId(stepEvent.EventId.Value))
-				{
-					HashSet<string> keys = new HashSet<string>();
-					HashSet<string> metadata = new HashSet<string>();
-					GetNames(stepEvent.EventData, keys, metadata);
-					GetPaths(stepEvent.EventData, keys, metadata);
-					if(keys.Count == 0)
-					{
-						GetHash(job, stepEvent.EventData, keys, metadata, node);
-					}
-					metadata.Add($"type={GetEventPrefix(stepEvent.EventId.Value)}");
+				IssueEventGroup issue = new IssueEventGroup("Gauntlet", "Gauntlet {Meta:Type} {Severity} {Meta:Context}", IssueChangeFilter.Code);
+				issue.Events.Add(issueEvent);
 
-					stepEvent.Fingerprint = new NewIssueFingerprint(Type, keys.Select(x => new IssueKey(x, IssueKeyType.Unknown)), null, metadata);
+				GetNames(issueEvent, issue.Keys, issue.Metadata);
+				GetPaths(issueEvent, issue.Keys, issue.Metadata);
+				if (issue.Keys.Count == 0)
+				{
+					GetHash(issueEvent.EventData, issue.Keys, issue.Metadata);
 				}
+
+				issue.Metadata.Add(new IssueMetadata("type", GetEventPrefix(issueEvent.EventId.Value)));
+				_issues.Add(issue);
+
+				return true;
 			}
+			return false;
 		}
+
+		/// <inheritdoc/>
+		public override IEnumerable<IssueEventGroup> GetIssues() => _issues;
 	}
 }

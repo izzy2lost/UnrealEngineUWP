@@ -1,7 +1,7 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 
 using System.Collections.Generic;
-using System.Text;
+using System.Threading;
 using EpicGames.Core;
 using Horde.Server.Logs;
 using HordeCommon;
@@ -45,16 +45,6 @@ namespace Horde.Server.Issues
 		public IReadOnlyList<ILogEventLine> Lines => EventData.Lines;
 
 		/// <summary>
-		/// Fingerprint assigned to this issue
-		/// </summary>
-		public NewIssueFingerprint? Fingerprint { get; set; }
-
-		/// <summary>
-		/// Whether this event should be ignored
-		/// </summary>
-		public bool Ignored { get; set; }
-
-		/// <summary>
 		/// Constructor
 		/// </summary>
 		public IssueEvent(ILogEvent stepEvent, ILogEventData stepEventData)
@@ -85,19 +75,30 @@ namespace Horde.Server.Issues
 	class IssueEventGroup
 	{
 		/// <summary>
-		/// Digest of the fingerprint, for log tracking
+		/// Unique id for this group
 		/// </summary>
-		public Md5Hash Digest { get; }
+		public int TraceId { get; }
 
 		/// <summary>
 		/// Fingerprint for the event
 		/// </summary>
 		public NewIssueFingerprint Fingerprint { get; }
 
+		public string? Scope
+		{
+			get => Fingerprint.Scope;
+			set => Fingerprint.Scope = value;
+		}
+
+		public HashSet<IssueKey> Keys => Fingerprint.Keys;
+		public HashSet<IssueMetadata> Metadata => Fingerprint.Metadata;
+
 		/// <summary>
 		/// Individual log events
 		/// </summary>
 		public List<IssueEvent> Events { get; } = new List<IssueEvent>();
+
+		static int s_nextId = 1;
 
 		/// <summary>
 		/// Constructor
@@ -105,8 +106,30 @@ namespace Horde.Server.Issues
 		/// <param name="fingerprint">Fingerprint for the event</param>
 		public IssueEventGroup(NewIssueFingerprint fingerprint)
 		{
-			Digest = Md5Hash.Compute(Encoding.UTF8.GetBytes(fingerprint.ToString()));
+			TraceId = Interlocked.Increment(ref s_nextId);
 			Fingerprint = fingerprint;
+		}
+
+		/// <summary>
+		/// Constructor
+		/// </summary>
+		/// <param name="fingerprint">Fingerprint for the event</param>
+		/// <param name="issueEvent"></param>
+		public IssueEventGroup(NewIssueFingerprint fingerprint, IssueEvent issueEvent)
+			: this(fingerprint)
+		{
+			Events.Add(issueEvent);
+		}
+
+		/// <summary>
+		/// Constructor
+		/// </summary>
+		/// <param name="type">The type of issue</param>
+		/// <param name="summaryTemplate">Template for the summary string to display for the issue</param>
+		/// <param name="changeFilter">Filter for changes covered by this issue</param>
+		public IssueEventGroup(string type, string summaryTemplate, IReadOnlyList<string> changeFilter)
+			: this(new NewIssueFingerprint(type, summaryTemplate, changeFilter))
+		{
 		}
 
 		/// <summary>

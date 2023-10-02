@@ -2,7 +2,6 @@
 
 using System;
 using System.Collections.Generic;
-using System.Diagnostics.CodeAnalysis;
 using System.Globalization;
 using System.Linq;
 using System.Reflection;
@@ -21,6 +20,7 @@ using Horde.Server.Server;
 using Horde.Server.Streams;
 using Horde.Server.Users;
 using HordeCommon;
+using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
@@ -124,7 +124,7 @@ namespace Horde.Server.Issues
 		/// <returns>True if the user should be notified for this change</returns>
 		public bool ShowNotifications()
 		{
-			return _showDesktopAlerts && Issue.Fingerprints.Any(x => x.Type != DefaultIssueHandler.TypeConst);
+			return _showDesktopAlerts && Issue.Fingerprints.Any(x => x.Type != "Default");
 		}
 
 		/// <summary>
@@ -172,17 +172,8 @@ namespace Horde.Server.Issues
 		/// </summary>
 		public event IssueUpdatedEvent? OnIssueUpdated;
 
-		readonly Type[] _handlerTypes;
-
-		/// <summary>
-		/// List of issue handlers
-		/// </summary>
-		readonly List<IssueHandler> _handlers = new List<IssueHandler>();
-
-		/// <summary>
-		/// Available issue serializers
-		/// </summary>
-		readonly Dictionary<string, IssueHandler> _typeToHandler = new Dictionary<string, IssueHandler>(StringComparer.Ordinal);
+		// All discovered issue handlers, sorted by priority
+		readonly (Type Type, IssueHandlerAttribute Attribute)[] _handlerTypes;
 
 		/// <summary>
 		/// Cached list of currently open issues
@@ -197,7 +188,6 @@ namespace Horde.Server.Issues
 		/// <summary>
 		/// Tracer
 		/// </summary>
-		/// 
 		readonly Tracer _tracer;
 
 		/// <summary>
@@ -237,26 +227,16 @@ namespace Horde.Server.Issues
 			_logger = logger;
 
 			// Find all the issue handler types
-			List<(int Priority, Type Type)> handlerTypes = new List<(int, Type)>();
+			List<(Type Type, IssueHandlerAttribute Attribute)> handlerTypes = new List<(Type, IssueHandlerAttribute)>();
 			foreach (Type type in Assembly.GetExecutingAssembly().GetTypes())
 			{
 				IssueHandlerAttribute? attribute = type.GetCustomAttribute<IssueHandlerAttribute>();
 				if (attribute != null)
 				{
-					handlerTypes.Add((attribute.Priority, type));
+					handlerTypes.Add((type, attribute));
 				}
 			}
-			_handlerTypes = handlerTypes.OrderByDescending(x => x.Priority).Select(x => x.Type).ToArray();
-
-			// Create all the issue handlers
-			foreach (Type handlerType in _handlerTypes)
-			{
-				IssueHandler matcher = (IssueHandler)Activator.CreateInstance(handlerType)!;
-				_handlers.Add(matcher);
-			}
-
-			// Build the type name to factory map
-			_typeToHandler = _handlers.ToDictionary(x => x.Type, x => x, StringComparer.Ordinal);
+			_handlerTypes = handlerTypes.OrderByDescending(x => x.Attribute.Priority).ToArray();
 		}
 
 		/// <inheritdoc/>
@@ -651,70 +631,70 @@ namespace Horde.Server.Issues
 				throw new ArgumentException($"Unable to retrieve log {step.LogId}");
 			}
 
-			// Create a list of all the events for this step
-			List<IssueEvent> issueEvents = new List<IssueEvent>();
+			// Create the DI container for issue handlers
+			ServiceCollection services = new ServiceCollection();
+			services.AddSingleton<IssueHandlerContext>(new IssueHandlerContext(job.StreamId, job.TemplateId, node.Name));
+			services.AddSingleton<IReadOnlyNodeAnnotations>(node.Annotations);
 
+			using ServiceProvider serviceProvider = services.BuildServiceProvider();
+
+			// Create the issue handler pipeline
+			List<IssueHandler> handlers = new List<IssueHandler>();
+			foreach ((Type type, IssueHandlerAttribute attribute) in _handlerTypes)
+			{
+				if (attribute.Tag == null || workflow?.IssueHandlers?.Contains(attribute.Tag) == true)
+				{
+					handlers.Add((IssueHandler)ActivatorUtilities.CreateInstance(serviceProvider, type));
+				}
+			}
+
+			// Create all the issue definitions by passing each log event to the handlers in order until one attaches it to an issue
 			List<ILogEvent> stepEvents = await _logFileService.FindEventsAsync(logFile);
 			foreach (ILogEvent stepEvent in stepEvents)
 			{
 				ILogEventData stepEventData = await _logFileService.GetEventDataAsync(logFile, stepEvent.LineIndex, stepEvent.LineCount);
-				issueEvents.Add(new IssueEvent(stepEvent, stepEventData));
-			}
 
-			// Pass all the events to each matcher in turn, and allow it to tag any events it can handle
-			List<IssueEvent> remainingEvents = new List<IssueEvent>(issueEvents);
-
-			foreach (IssueHandler handler in _handlers)
-			{
-				if (handler.RequiresWorkflow && (workflow?.IssueHandlers == null || !workflow.IssueHandlers.Any(h => h == handler.Type)))
+				IssueEvent issueEvent = new IssueEvent(stepEvent, stepEventData);
+				foreach (IssueHandler handler in handlers)
 				{
-					continue;
-				}
-
-				handler.TagEvents(job, node, annotations, remainingEvents);
-				remainingEvents.RemoveAll(x => x.Ignored || x.Fingerprint != null);
-			}
-
-			// Create all the event groups from the non-ignored events
-			Dictionary<NewIssueFingerprint, IssueEventGroup> fingerprintToEventGroup = new Dictionary<NewIssueFingerprint, IssueEventGroup>();
-			foreach (IssueEvent issueEvent in issueEvents)
-			{
-				if (!issueEvent.Ignored && issueEvent.Fingerprint != null)
-				{
-					IssueEventGroup? eventGroup;
-					if (!fingerprintToEventGroup.TryGetValue(issueEvent.Fingerprint, out eventGroup))
+					if (handler.HandleEvent(issueEvent))
 					{
-						eventGroup = new IssueEventGroup(issueEvent.Fingerprint);
-						fingerprintToEventGroup.Add(issueEvent.Fingerprint, eventGroup);
+						break;
 					}
-					eventGroup.Events.Add(issueEvent);
 				}
+			}
+
+			// Gather all the issue event groups
+			List<IssueEventGroup> issues = new List<IssueEventGroup>();
+			foreach (IssueHandler handler in handlers)
+			{
+				issues.AddRange(handler.GetIssues());
+			}
+			foreach (IssueEventGroup issue in issues)
+			{
+				issue.Metadata.Add("Node", node.Name);
 			}
 
 			// If the node has an annotation to prevent grouping issues together, update all the fingerprints to match
 			string? group = annotations.IssueGroup;
 			if (group != null)
 			{
-				Dictionary<NewIssueFingerprint, IssueEventGroup> newFingerprintToEventGroup = new Dictionary<NewIssueFingerprint, IssueEventGroup>(fingerprintToEventGroup.Count);
-				foreach ((NewIssueFingerprint fingerprint, IssueEventGroup eventGroup) in fingerprintToEventGroup)
+				foreach (IssueEventGroup issue in issues)
 				{
-					IssueEventGroup newEventGroup = new IssueEventGroup(new NewIssueFingerprint($"{fingerprint.Type}:{group}", fingerprint.Keys, fingerprint.RejectKeys, fingerprint.Metadata));
-					newEventGroup.Events.AddRange(eventGroup.Events);
-					newFingerprintToEventGroup[newEventGroup.Fingerprint] = newEventGroup;
+					issue.Fingerprint.Type = $"{issue.Fingerprint.Type}:{group}";
 				}
-				fingerprintToEventGroup = newFingerprintToEventGroup;
 			}
 
 			// Print the list of new events
-			HashSet<IssueEventGroup> eventGroups = new HashSet<IssueEventGroup>(fingerprintToEventGroup.Values);
+			HashSet<IssueEventGroup> eventGroups = new HashSet<IssueEventGroup>(issues);
 
 			_logger.LogInformation("UpdateCompleteStep({JobId}, {BatchId}, {StepId}): {NumEvents} events, {NumFingerprints} unique fingerprints", job.Id, batch.Id, step.Id, stepEvents.Count, eventGroups.Count);
 			foreach (IssueEventGroup eventGroup in eventGroups)
 			{
-				_logger.LogInformation("Group {Digest}: Type '{FingerprintType}', keys '{FingerprintKeys}', {NumEvents} events", eventGroup.Digest.ToString(), eventGroup.Fingerprint.Type, String.Join(", ", eventGroup.Fingerprint.Keys), eventGroup.Events.Count);
+				_logger.LogInformation("Group {Digest}: Type '{FingerprintType}', keys '{FingerprintKeys}', {NumEvents} events", eventGroup.TraceId.ToString(), eventGroup.Fingerprint.Type, String.Join(", ", eventGroup.Keys), eventGroup.Events.Count);
 				foreach (IssueEvent eventItem in eventGroup.Events)
 				{
-					_logger.LogDebug("Group {Digest}: [{Line}] {Message}", eventGroup.Digest.ToString(), eventItem.Event.LineIndex, eventItem.EventData.Message);
+					_logger.LogDebug("Group {Digest}: [{Line}] {Message}", eventGroup.TraceId.ToString(), eventItem.Event.LineIndex, eventItem.EventData.Message);
 				}
 			}
 
@@ -763,7 +743,7 @@ namespace Horde.Server.Issues
 						// Write out all the merged events
 						foreach (IssueEventGroup eventGroup in matchEventGroups)
 						{
-							_logger.LogDebug("Matched fingerprint {Digest} ({NumLogEvents} log events) to span {SpanId}", eventGroup.Digest, eventGroup.Events.Count, newSpan.Id);
+							_logger.LogDebug("Matched fingerprint {Digest} ({NumLogEvents} log events) to span {SpanId}", eventGroup.TraceId, eventGroup.Events.Count, newSpan.Id);
 						}
 
 						// Assign all the events to the span
@@ -831,7 +811,7 @@ namespace Horde.Server.Issues
 					if (otherEventGroup.Fingerprint.IsMatchForNewSpan(eventGroup.Fingerprint))
 					{
 						IssueEventGroup newEventGroup = eventGroup.MergeWith(otherEventGroup);
-						_logger.LogDebug("Merging group {Group} with group {OtherGroup} to form {NewGroup}", eventGroup.Digest.ToString(), otherEventGroup.Digest.ToString(), newEventGroup.Digest.ToString());
+						_logger.LogDebug("Merging group {Group} with group {OtherGroup} to form {NewGroup}", eventGroup.TraceId.ToString(), otherEventGroup.TraceId.ToString(), newEventGroup.TraceId.ToString());
 						sourceEventGroups.Add(otherEventGroup);
 						eventGroup = newEventGroup;
 					}
@@ -863,7 +843,7 @@ namespace Horde.Server.Issues
 				await UpdateIssueDerivedDataAsync(newIssue);
 
 				// Update the log events
-				_logger.LogDebug("Created new span {SpanId} from event group {Group}", newSpan.Id, eventGroup.Digest.ToString());
+				_logger.LogDebug("Created new span {SpanId} from event group {Group}", newSpan.Id, eventGroup.TraceId.ToString());
 				await _logFileService.AddSpanToEventsAsync(eventGroup.Events.Select(x => x.Event), newSpan.Id);
 
 				// Remove the events from the remaining list of events to match
@@ -1175,7 +1155,7 @@ namespace Horde.Server.Issues
 		async Task<List<NewIssueSpanSuspectData>> FindSuspectsForSpanAsync(StreamConfig streamConfig, IIssueFingerprint fingerprint, int minChange, int maxChange)
 		{
 			List<NewIssueSpanSuspectData> suspects = new List<NewIssueSpanSuspectData>();
-			if (TryGetHandler(fingerprint, out IssueHandler? handler) && handler.SuspectFilter.Count > 0)
+			if (fingerprint.ChangeFilter.Count > 0)
 			{
 				_logger.LogDebug("Querying for changes in {StreamName} between {MinChange} and {MaxChange}", streamConfig.Name, minChange, maxChange);
 
@@ -1184,7 +1164,7 @@ namespace Horde.Server.Issues
 				_logger.LogDebug("Found {NumResults} changes", changes.Count);
 
 				// Get all the parameters used to rank suspects
-				FileFilter filter = new FileFilter(handler.SuspectFilter);
+				FileFilter filter = new FileFilter(fingerprint.ChangeFilter);
 
 				// Build a set of all the files to include as suspects
 				HashSet<string> suspectFiles = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
@@ -1341,14 +1321,9 @@ namespace Horde.Server.Issues
 		/// <param name="fingerprint">The issue fingerprint</param>
 		/// <param name="severity">Severity of the issue</param>
 		/// <returns>The summary text</returns>
-		string GetSummary(IIssueFingerprint fingerprint, IssueSeverity severity)
+		static string GetSummary(IIssueFingerprint fingerprint, IssueSeverity severity)
 		{
-			if (!TryGetHandler(fingerprint, out IssueHandler? handler))
-			{
-				return $"Unknown issue type '{fingerprint.Type}";
-			}
-
-			string template = handler.SummaryTemplate;
+			string template = fingerprint.SummaryTemplate;
 
 			StringBuilder summary = new StringBuilder();
 			for (int pos = 0; ;)
@@ -1415,7 +1390,7 @@ namespace Horde.Server.Issues
 			const string MetaPrefix = "Meta:";
 			if (name.StartsWith("Meta:", StringComparison.OrdinalIgnoreCase))
 			{
-				string[] values = fingerprint.GetMetadataValues(name.Slice(MetaPrefix.Length).ToString()).ToArray();
+				string[] values = fingerprint.Metadata?.FindValues(name.Slice(MetaPrefix.Length).ToString()).ToArray() ?? Array.Empty<string>();
 				summary.Append(StringUtils.FormatList(values, 3));
 				return true;
 			}
@@ -1462,7 +1437,6 @@ namespace Horde.Server.Issues
 						}
 
 						_logger.LogInformation("Set next success for issue {IssueId}, template {TemplateId}, node {Node} as job {JobId}, cl {Change}", span.IssueId, job.TemplateId, span.NodeName, job.Id, job.Change);
-
 					}
 					else
 					{
@@ -1500,25 +1474,6 @@ namespace Horde.Server.Issues
 			{
 				return null;
 			}
-		}
-
-		/// <summary>
-		/// Finds the handler for a given issue
-		/// </summary>
-		/// <param name="fingerprint">The fingerprint to get the handler for</param>
-		/// <param name="handler">Receives the handler on success</param>
-		/// <returns>True if a matching handler was found</returns>
-		bool TryGetHandler(IIssueFingerprint fingerprint, [NotNullWhen(true)] out IssueHandler? handler)
-		{
-			string type = fingerprint.Type;
-
-			int endIdx = type.IndexOf(':', StringComparison.Ordinal);
-			if (endIdx != -1)
-			{
-				type = type.Substring(0, endIdx);
-			}
-
-			return _typeToHandler.TryGetValue(type, out handler);
 		}
 	}
 }

@@ -2,7 +2,6 @@
 
 using System.Collections.Generic;
 using EpicGames.Core;
-using Horde.Server.Jobs;
 using Horde.Server.Jobs.Graphs;
 using Microsoft.Extensions.Logging;
 
@@ -12,7 +11,7 @@ namespace Horde.Server.Issues.Handlers
 	/// Instance of a particular compile error
 	/// </summary>
 	[IssueHandler(Priority = 10)]
-	class CompileIssueHandler : SourceFileIssueHandler
+	class CompileIssueHandler : IssueHandler
 	{
 		/// <summary>
 		/// Annotation describing the compile type
@@ -24,11 +23,13 @@ namespace Horde.Server.Issues.Handlers
 		/// </summary>
 		const string CompileGroupAnnotation = "CompileGroup";
 
-		/// <inheritdoc/>
-		public override string Type => "Compile";
+		readonly IReadOnlyNodeAnnotations _annotations;
+		readonly List<IssueEventGroup> _issues = new List<IssueEventGroup>();
 
-		/// <inheritdoc/>
-		public override string SummaryTemplate => "{Meta:CompileType} {Severity} in {Files}";
+		public CompileIssueHandler(IReadOnlyNodeAnnotations annotations)
+		{
+			_annotations = annotations;
+		}
 
 		/// <summary>
 		/// Determines if the given event id matches
@@ -43,43 +44,42 @@ namespace Horde.Server.Issues.Handlers
 		static bool IsMaskedEventId(EventId id) => id == KnownLogEvents.ExitCode || id == KnownLogEvents.Systemic_Xge_BuildFailed || id == KnownLogEvents.Compiler_Summary;
 
 		/// <inheritdoc/>
-		public override void TagEvents(IJob job, INode node, IReadOnlyNodeAnnotations annotations, IReadOnlyList<IssueEvent> stepEvents)
+		public override bool HandleEvent(IssueEvent issueEvent)
 		{
-			bool hasMatches = false;
-			foreach (IssueEvent stepEvent in stepEvents)
+			if (issueEvent.EventId.HasValue)
 			{
-				if (stepEvent.EventId.HasValue)
+				EventId eventId = issueEvent.EventId.Value;
+				if (IsMatchingEventId(eventId))
 				{
-					EventId eventId = stepEvent.EventId.Value;
-					if (IsMatchingEventId(eventId))
+					string compileType = "Compile";
+					if (_annotations.TryGetValue(CompileTypeAnnotation, out string? type))
 					{
-						HashSet<IssueKey> newFileNames = new HashSet<IssueKey>();
-						GetSourceFiles(stepEvent.EventData, newFileNames);
-
-						string compileType = "Compile";
-						if (annotations.TryGetValue(CompileTypeAnnotation, out string? type))
-						{
-							compileType = type;
-						}
-
-						string fingerprintType = Type;
-						if (annotations.TryGetValue(CompileGroupAnnotation, out string? group))
-						{
-							fingerprintType = $"{fingerprintType}:{group}";
-						}
-
-						List<string> newMetadata = new List<string>();
-						newMetadata.Add($"{CompileTypeAnnotation}={compileType}");
-
-						stepEvent.Fingerprint = new NewIssueFingerprint(fingerprintType, newFileNames, null, newMetadata);
-						hasMatches = true;
+						compileType = type;
 					}
-					else if (hasMatches && IsMaskedEventId(eventId))
+
+					string fingerprintType = "Compile";
+					if (_annotations.TryGetValue(CompileGroupAnnotation, out string? group))
 					{
-						stepEvent.Ignored = true;
+						fingerprintType = $"{fingerprintType}:{group}";
 					}
+
+					IssueEventGroup issue = new IssueEventGroup(fingerprintType, "{Meta:CompileType} {Severity} in {Files}", IssueChangeFilter.Code);
+					issue.Events.Add(issueEvent);
+					issue.Keys.AddSourceFiles(issueEvent);
+					issue.Metadata.Add(CompileTypeAnnotation, compileType);
+					_issues.Add(issue);
+
+					return true;
+				}
+				else if (_issues.Count > 0 && IsMaskedEventId(eventId))
+				{
+					return true;
 				}
 			}
+			return false;
 		}
+
+		/// <inheritdoc/>
+		public override IEnumerable<IssueEventGroup> GetIssues() => _issues;
 	}
 }

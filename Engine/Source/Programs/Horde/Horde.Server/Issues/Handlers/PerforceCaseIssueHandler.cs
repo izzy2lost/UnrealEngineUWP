@@ -1,12 +1,7 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 
-using System;
 using System.Collections.Generic;
-using System.Text.Json;
 using EpicGames.Core;
-using Horde.Server.Jobs;
-using Horde.Server.Jobs.Graphs;
-using Horde.Server.Logs;
 using Microsoft.Extensions.Logging;
 
 namespace Horde.Server.Issues.Handlers
@@ -17,14 +12,7 @@ namespace Horde.Server.Issues.Handlers
 	[IssueHandler(Priority = 10)]
 	class PerforceCaseIssueHandler : IssueHandler
 	{
-		/// <inheritdoc/>
-		public override string Type => "PerforceCase";
-
-		/// <inheritdoc/>
-		public override string SummaryTemplate => "Inconsistent case for {Files}";
-
-		/// <inheritdoc/>
-		public override IReadOnlyList<string> SuspectFilter => IssueSuspectFilter.All;
+		readonly List<IssueEventGroup> _issues = new List<IssueEventGroup>();
 
 		/// <summary>
 		/// Determines if the given event id matches
@@ -36,47 +24,22 @@ namespace Horde.Server.Issues.Handlers
 			return eventId == KnownLogEvents.AutomationTool_PerforceCase;
 		}
 
-		/// <summary>
-		/// Extracts a list of source files from an event
-		/// </summary>
-		/// <param name="logEventData">The event data</param>
-		/// <param name="fileNames">List of source files</param>
-		static void GetSourceFiles(ILogEventData logEventData, HashSet<IssueKey> fileNames)
+		/// <inheritdoc/>
+		public override bool HandleEvent(IssueEvent issueEvent)
 		{
-			foreach (JsonProperty property in logEventData.FindPropertiesOfType(LogValueType.DepotPath))
+			if (issueEvent.EventId != null && IsMatchingEventId(issueEvent.EventId.Value))
 			{
-				JsonElement value;
-				if (property.Value.TryGetProperty(LogEventPropertyName.Text.Span, out value) && value.ValueKind == JsonValueKind.String)
-				{
-					string fileName = GetFileName(value.GetString() ?? String.Empty);
-					fileNames.Add(new IssueKey(fileName, IssueKeyType.File));
-				}
-			}
-		}
+				IssueEventGroup issue = new IssueEventGroup("PerforceCase", "Inconsistent case for {Files}", IssueChangeFilter.All);
+				issue.Events.Add(issueEvent);
+				issue.Keys.AddDepotPaths(issueEvent);
+				_issues.Add(issue);
 
-		/// <summary>
-		/// Extracts the name part of a depot file
-		/// </summary>
-		/// <param name="path"></param>
-		/// <returns></returns>
-		static string GetFileName(string path)
-		{
-			return path.Substring(path.LastIndexOf('/') + 1);
+				return true;
+			}
+			return false;
 		}
 
 		/// <inheritdoc/>
-		public override void TagEvents(IJob job, INode node, IReadOnlyNodeAnnotations annotations, IReadOnlyList<IssueEvent> stepEvents)
-		{
-			foreach (IssueEvent stepEvent in stepEvents)
-			{
-				if (stepEvent.EventId != null && IsMatchingEventId(stepEvent.EventId.Value))
-				{
-					HashSet<IssueKey> newFileNames = new HashSet<IssueKey>();
-					GetSourceFiles(stepEvent.EventData, newFileNames);
-
-					stepEvent.Fingerprint = new NewIssueFingerprint(Type, newFileNames, null, null);
-				}
-			}
-		}
+		public override IEnumerable<IssueEventGroup> GetIssues() => _issues;
 	}
 }

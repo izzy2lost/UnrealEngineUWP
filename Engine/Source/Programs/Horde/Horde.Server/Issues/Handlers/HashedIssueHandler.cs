@@ -5,8 +5,6 @@ using System.Linq;
 using System.Text;
 using System.Text.RegularExpressions;
 using EpicGames.Core;
-using Horde.Server.Jobs;
-using Horde.Server.Jobs.Graphs;
 using Microsoft.Extensions.Logging;
 
 namespace Horde.Server.Issues.Handlers
@@ -17,21 +15,15 @@ namespace Horde.Server.Issues.Handlers
 	[IssueHandler(Priority = 1)]
 	class HashedIssueHandler : IssueHandler
 	{
-		const string NodeName = "Node";
-
-		/// <inheritdoc/>
-		public override string Type => "Hashed";
-
-		/// <inheritdoc/>
-		public override string SummaryTemplate => "{Severity} in {Meta:Node}";
-
-		/// <inheritdoc/>
-		public override IReadOnlyList<string> SuspectFilter => IssueSuspectFilter.All;
+		readonly IssueHandlerContext _context;
+		readonly List<IssueEvent> _issueEvents = new List<IssueEvent>();
 
 		/// <summary>
-		///  Known general events
+		/// Known general events
 		/// </summary>
 		static readonly HashSet<EventId> s_knownGeneralEvents = new HashSet<EventId> { KnownLogEvents.Generic, KnownLogEvents.ExitCode, KnownLogEvents.Horde, KnownLogEvents.Horde_InvalidPreflight };
+
+		public HashedIssueHandler(IssueHandlerContext context) => _context = context;
 
 		/// <summary>
 		/// Determines if the given event is general and should be salted to make it unique
@@ -44,41 +36,59 @@ namespace Horde.Server.Issues.Handlers
 		}
 
 		/// <inheritdoc/>
-		public override void TagEvents(IJob job, INode node, IReadOnlyNodeAnnotations annotations, IReadOnlyList<IssueEvent> stepEvents)
+		public override bool HandleEvent(IssueEvent logEvent)
 		{
-			string[] metadata = new[] { $"{NodeName}={node.Name}" };
+			_issueEvents.Add(logEvent);
+			return true;
+		}
 
-			NewIssueFingerprint? genericFingerprint = null;
+		/// <inheritdoc/>
+		public override IEnumerable<IssueEventGroup> GetIssues()
+		{
+			List<IssueEventGroup> issues = new List<IssueEventGroup>();
+
+			IssueEventGroup? genericFingerprint = null;
 			HashSet<Md5Hash> hashes = new HashSet<Md5Hash>();
 
 			// keep hash consistent when only have general, non-unique events
-			bool allGeneral = stepEvents.FirstOrDefault(stepEvent => stepEvent.EventId == null || !IsGeneralEventId(stepEvent.EventId.Value)) == null;
+			bool allGeneral = _issueEvents.FirstOrDefault(stepEvent => stepEvent.EventId == null || !IsGeneralEventId(stepEvent.EventId.Value)) == null;
 
-			foreach (IssueEvent stepEvent in stepEvents)
+			foreach (IssueEvent stepEvent in _issueEvents)
 			{
 				string hashSource = stepEvent.Message;
-				
+
 				if (!allGeneral && stepEvent.EventId != null)
 				{
 					// If the event is general, salt the hash with the stream id, template, otherwise it will be aggressively matched.
 					// Consider salting with node name, though template id should be enough and have better grouping
 					if (IsGeneralEventId(stepEvent.EventId.Value))
 					{
-						hashSource += $"step:{job.StreamId}:{job.TemplateId}";
+						hashSource += $"step:{_context.StreamId}:{_context.TemplateId}";
 					}
 				}
 
 				if (hashes.Count < 25 && TryGetHash(hashSource, out Md5Hash hash))
 				{
 					hashes.Add(hash);
-					stepEvent.Fingerprint = new NewIssueFingerprint(Type, new[] { IssueKey.FromHash(hash) }, null, metadata);
+
+					IssueEventGroup issue = new IssueEventGroup("Hashed", "{Severity} in {Meta:Node}", IssueChangeFilter.All);
+					issue.Events.Add(stepEvent);
+					issue.Keys.AddHash(hash);
+					issues.Add(issue);
 				}
 				else
 				{
-					genericFingerprint ??= new NewIssueFingerprint(Type, new[] { IssueKey.FromStep(job.StreamId, job.TemplateId, node.Name) }, null, metadata);
-					stepEvent.Fingerprint = genericFingerprint;
+					if (genericFingerprint == null)
+					{
+						genericFingerprint = new IssueEventGroup("Hashed", "{Severity} in {Meta:Node}", IssueChangeFilter.All);
+						genericFingerprint.Keys.Add(IssueKey.FromStep(_context.StreamId, _context.TemplateId, _context.NodeName));
+						issues.Add(genericFingerprint);
+					}
+					genericFingerprint.Events.Add(stepEvent);
 				}
 			}
+
+			return issues;
 		}
 
 		static bool TryGetHash(string message, out Md5Hash hash)

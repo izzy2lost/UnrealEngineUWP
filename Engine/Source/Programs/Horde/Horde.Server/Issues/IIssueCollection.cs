@@ -9,7 +9,6 @@ using Horde.Server.Jobs;
 using Horde.Server.Jobs.Graphs;
 using Horde.Server.Logs;
 using Horde.Server.Streams;
-using Horde.Server.Utilities;
 using MongoDB.Bson;
 using MongoDB.Driver;
 using EpicGames.Horde.Api;
@@ -22,33 +21,61 @@ namespace Horde.Server.Issues
 	public class NewIssueFingerprint : IIssueFingerprint, IEquatable<IIssueFingerprint>
 	{
 		/// <inheritdoc/>
-		public string Type { get; }
+		public string Type { get; set; }
+
+		/// <inheritdoc/>
+		public string SummaryTemplate { get; set; }
+
+		/// <inheritdoc/>
+		public string? Scope { get; set; }
 
 		/// <inheritdoc cref="IIssueFingerprint.Keys"/>
-		public HashSet<IssueKey> Keys { get; set; }
+		public HashSet<IssueKey> Keys { get; set; } = new HashSet<IssueKey>();
 
 		/// <inheritdoc/>
 		IReadOnlySet<IssueKey> IIssueFingerprint.Keys => Keys;
 
 		/// <inheritdoc cref="IIssueFingerprint.RejectKeys"/>
-		public HashSet<IssueKey>? RejectKeys { get; set; }
+		public HashSet<IssueKey> RejectKeys { get; set; } = new HashSet<IssueKey>();
 
 		/// <inheritdoc/>
-		IReadOnlySet<IssueKey>? IIssueFingerprint.RejectKeys => RejectKeys;
+		IReadOnlySet<IssueKey>? IIssueFingerprint.RejectKeys => (RejectKeys.Count > 0)? RejectKeys : null;
 
 		/// <inheritdoc/>
-		public CaseInsensitiveStringSet? Metadata { get; set; }
+		public HashSet<IssueMetadata> Metadata { get; set; } = new HashSet<IssueMetadata>();
+
+		/// <inheritdoc/>
+		IReadOnlySet<IssueMetadata>? IIssueFingerprint.Metadata => (Metadata.Count > 0) ? Metadata : null;
+
+		/// <inheritdoc/>
+		public IReadOnlyList<string> ChangeFilter { get; set; }
 
 		/// <summary>
 		/// Constructor
 		/// </summary>
 		/// <param name="type">The type of issue</param>
+		/// <param name="summaryTemplate">Template for the summary string to display for the issue</param>
+		/// <param name="changeFilter">Filter for changes covered by this issue</param>
+		public NewIssueFingerprint(string type, string summaryTemplate, IReadOnlyList<string> changeFilter)
+		{
+			Type = type;
+			SummaryTemplate = summaryTemplate;
+			ChangeFilter = changeFilter;
+		}
+
+		/// <summary>
+		/// Constructor
+		/// </summary>
+		/// <param name="type">The type of issue</param>
+		/// <param name="summaryTemplate">Template for the summary string to display for the issue</param>
 		/// <param name="keys">Keys which uniquely identify this issue</param>
 		/// <param name="rejectKeys">Keys which should not match with this issue</param>
 		/// <param name="metadata">Additional metadata added by the issue handler</param>
-		public NewIssueFingerprint(string type, IEnumerable<IssueKey> keys, IEnumerable<IssueKey>? rejectKeys, IEnumerable<string>? metadata)
+		/// <param name="changeFilter">Filter for changes covered by this issue</param>
+		public NewIssueFingerprint(string type, string summaryTemplate, IEnumerable<IssueKey> keys, IEnumerable<IssueKey>? rejectKeys, IEnumerable<IssueMetadata>? metadata, IEnumerable<string> changeFilter)
 		{
 			Type = type;
+			SummaryTemplate = summaryTemplate;
 			Keys = new HashSet<IssueKey>(keys);
 
 			if (rejectKeys != null && rejectKeys.Any())
@@ -57,8 +84,10 @@ namespace Horde.Server.Issues
 			}
 			if (metadata != null && metadata.Any())
 			{
-				Metadata = new CaseInsensitiveStringSet(metadata);
+				Metadata = new HashSet<IssueMetadata>(metadata);
 			}
+
+			ChangeFilter = new List<string>(changeFilter);
 		}
 
 		/// <summary>
@@ -66,7 +95,7 @@ namespace Horde.Server.Issues
 		/// </summary>
 		/// <param name="other">The fingerprint to copy from</param>
 		public NewIssueFingerprint(IIssueFingerprint other)
-			: this(other.Type, other.Keys, other.RejectKeys, other.Metadata)
+			: this(other.Type, other.SummaryTemplate, other.Keys, other.RejectKeys, other.Metadata, other.ChangeFilter)
 		{
 		}
 
@@ -84,7 +113,7 @@ namespace Horde.Server.Issues
 			}
 			if (other.Metadata != null)
 			{
-				Metadata ??= new CaseInsensitiveStringSet();
+				Metadata ??= new HashSet<IssueMetadata>();
 				Metadata.UnionWith(other.Metadata);
 			}
 		}
@@ -129,25 +158,7 @@ namespace Horde.Server.Issues
 		/// <param name="setA"></param>
 		/// <param name="setB"></param>
 		/// <returns></returns>
-		static bool ContentsEqual(IReadOnlySet<IssueKey>? setA, IReadOnlySet<IssueKey>? setB)
-		{
-			if (setA == null || setA.Count == 0)
-			{
-				return setB == null || setB.Count == 0;
-			}
-			else
-			{
-				return setB != null && setA.SetEquals(setB);
-			}
-		}
-
-		/// <summary>
-		/// Checks if the contents of two sets are equal
-		/// </summary>
-		/// <param name="setA"></param>
-		/// <param name="setB"></param>
-		/// <returns></returns>
-		static bool ContentsEqual(CaseInsensitiveStringSet? setA, CaseInsensitiveStringSet? setB)
+		static bool ContentsEqual<T>(IReadOnlySet<T>? setA, IReadOnlySet<T>? setB)
 		{
 			if (setA == null || setA.Count == 0)
 			{
@@ -164,32 +175,14 @@ namespace Horde.Server.Issues
 		/// </summary>
 		/// <param name="set"></param>
 		/// <returns></returns>
-		static int GetContentsHash(IEnumerable<IssueKey>? set)
+		static int GetContentsHash<T>(IEnumerable<T>? set)
 		{
 			int value = 0;
 			if (set != null)
 			{
-				foreach (IssueKey element in set)
+				foreach (T element in set)
 				{
 					value = HashCode.Combine(value, element);
-				}
-			}
-			return value;
-		}
-
-		/// <summary>
-		/// Gets the hash of the contents of a case insensitive set
-		/// </summary>
-		/// <param name="set"></param>
-		/// <returns></returns>
-		static int GetContentsHash(CaseInsensitiveStringSet? set)
-		{
-			int value = 0;
-			if (set != null)
-			{
-				foreach (string element in set)
-				{
-					value = HashCode.Combine(value, StringComparer.OrdinalIgnoreCase.GetHashCode(element));
 				}
 			}
 			return value;

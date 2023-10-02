@@ -1,13 +1,10 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 
+using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Text;
 using EpicGames.Core;
-using Horde.Server.Jobs;
-using Horde.Server.Jobs.Graphs;
-using Horde.Server.Logs;
-using Horde.Server.Utilities;
 using Microsoft.Extensions.Logging;
 
 namespace Horde.Server.Issues.Handlers
@@ -21,16 +18,9 @@ namespace Horde.Server.Issues.Handlers
 		const string NodeName = "Node";
 		const string EventIdName = "EventId";
 
-		static readonly string s_duplicateEventIdMetadata = $"{EventIdName}={KnownLogEvents.Linker_DuplicateSymbol.Id}";
+		readonly List<IssueEventGroup> _issues = new List<IssueEventGroup>();
 
-		/// <inheritdoc/>
-		public override string Type => "Symbol";
-
-		/// <inheritdoc/>
-		public override string SummaryTemplate => "{LegacySymbolIssueHandler}";
-
-		/// <inheritdoc/>
-		public override IReadOnlyList<string> SuspectFilter => IssueSuspectFilter.Code;
+		static readonly IssueMetadata s_duplicateEventIdMetadata = new IssueMetadata(EventIdName, KnownLogEvents.Linker_DuplicateSymbol.Id.ToString());
 
 		/// <summary>
 		/// Determines if the given event id matches
@@ -52,30 +42,12 @@ namespace Horde.Server.Issues.Handlers
 			return eventId == KnownLogEvents.ExitCode || eventId == KnownLogEvents.Systemic_Xge_BuildFailed;
 		}
 
-		/// <summary>
-		/// Parses symbol names from a log event
-		/// </summary>
-		/// <param name="eventData">The log event data</param>
-		/// <param name="symbolNames">Receives the list of symbol names</param>
-		public static void GetSymbolNames(ILogEventData eventData, HashSet<IssueKey> symbolNames)
-		{
-			foreach (ILogEventLine line in eventData.Lines)
-			{
-				string? identifier;
-				if (line.Data.TryGetNestedProperty("properties.symbol.identifier", out identifier))
-				{
-					IssueKey key = new IssueKey(identifier, IssueKeyType.Symbol);
-					symbolNames.Add(key);
-				}
-			}
-		}
-
 		public static string GetSummaryStatic(IIssueFingerprint fingerprint, IssueSeverity severity)
 		{
 			HashSet<string> symbols = new HashSet<string>(fingerprint.Keys.Where(x => x.Type == IssueKeyType.Symbol).Select(x => x.Name));
 			if (symbols.Count == 0)
 			{
-				string[] nodes = fingerprint.GetMetadataValues(NodeName).ToArray();
+				string[] nodes = fingerprint.Metadata?.FindValues(NodeName).ToArray() ?? Array.Empty<string>();
 
 				StringBuilder summary = new StringBuilder("Linker ");
 				summary.Append((severity == IssueSeverity.Warning) ? "warnings" : "errors");
@@ -88,7 +60,7 @@ namespace Horde.Server.Issues.Handlers
 			}
 			else
 			{
-				string problemType = fingerprint.HasMetadataValue(s_duplicateEventIdMetadata) ? "Duplicate" : "Undefined";
+				string problemType = (fingerprint.Metadata?.Contains(s_duplicateEventIdMetadata) == true) ? "Duplicate" : "Undefined";
 				if (symbols.Count == 1)
 				{
 					return $"{problemType} symbol '{symbols.First()}'";
@@ -100,39 +72,38 @@ namespace Horde.Server.Issues.Handlers
 			}
 		}
 
-		public override void TagEvents(IJob job, INode node, IReadOnlyNodeAnnotations annotations, IReadOnlyList<IssueEvent> stepEvents)
+		/// <inheritdoc/>
+		public override bool HandleEvent(IssueEvent issueEvent)
 		{
-			bool hasMatches = false;
-			foreach (IssueEvent stepEvent in stepEvents)
+			if (issueEvent.EventId != null)
 			{
-				if (stepEvent.EventId != null)
+				EventId eventId = issueEvent.EventId.Value;
+				if (IsMatchingEventId(eventId))
 				{
-					EventId eventId = stepEvent.EventId.Value;
-					if (IsMatchingEventId(eventId))
+					IssueEventGroup issue = new IssueEventGroup("Symbol", "{LegacySymbolIssueHandler}", IssueChangeFilter.Code);
+					issue.Events.Add(issueEvent);
+					issue.Keys.AddSymbols(issueEvent);
+					issue.Metadata.Add(EventIdName, eventId.Id.ToString());
+
+					if (issue.Keys.Count > 0)
 					{
-						HashSet<IssueKey> symbolNames = new HashSet<IssueKey>();
-						GetSymbolNames(stepEvent.EventData, symbolNames);
-
-						if (symbolNames.Count > 0)
-						{
-							List<string> metadata = new List<string>();
-							metadata.Add($"{NodeName}={node.Name}");
-							metadata.Add($"{EventIdName}={eventId.Id}");
-
-							stepEvent.Fingerprint = new NewIssueFingerprint(Type, symbolNames, null, metadata);
-							hasMatches = true;
-						}
-						else if (hasMatches)
-						{
-							stepEvent.Ignored = true;
-						}
+						_issues.Add(issue);
+						return true;
 					}
-					else if (hasMatches && IsMaskedEventId(eventId))
+					if (_issues.Count > 0)
 					{
-						stepEvent.Ignored = true;
+						return true;
 					}
 				}
+				else if (_issues.Count > 0 && IsMaskedEventId(eventId))
+				{
+					return true;
+				}
 			}
+			return false;
 		}
+
+		/// <inheritdoc/>
+		public override IEnumerable<IssueEventGroup> GetIssues() => _issues;
 	}
 }

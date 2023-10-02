@@ -2,8 +2,7 @@
 
 using System;
 using System.Collections.Generic;
-using Horde.Server.Jobs;
-using Horde.Server.Jobs.Graphs;
+using Horde.Server.Streams;
 
 namespace Horde.Server.Issues
 {
@@ -17,6 +16,42 @@ namespace Horde.Server.Issues
 		/// Priority of this handler
 		/// </summary>
 		public int Priority { get; set; }
+
+		/// <summary>
+		/// Class of handler which can be explicitly enabled via a workflow
+		/// </summary>
+		public string? Tag { get; set; }
+	}
+
+	/// <summary>
+	/// Context object for issue handlers
+	/// </summary>
+	public class IssueHandlerContext
+	{
+		/// <summary>
+		/// Identifier for the current stream 
+		/// </summary>
+		public StreamId StreamId { get; }
+
+		/// <summary>
+		/// Identififer of the template
+		/// </summary>
+		public TemplateId TemplateId { get; }
+
+		/// <summary>
+		/// Identifier for the current node name 
+		/// </summary>
+		public string NodeName { get; }
+
+		/// <summary>
+		/// Constructor
+		/// </summary>
+		public IssueHandlerContext(StreamId streamId, TemplateId templateId, string nodeName)
+		{
+			StreamId = streamId;
+			TemplateId = templateId;
+			NodeName = nodeName;
+		}
 	}
 
 	/// <summary>
@@ -25,83 +60,16 @@ namespace Horde.Server.Issues
 	abstract class IssueHandler
 	{
 		/// <summary>
-		/// Identifier for the type of issue
+		/// Attempts to assign a log event to an issue
 		/// </summary>
-		public abstract string Type { get; }
+		/// <param name="issueEvent">Events to process</param>
+		/// <returns>Issue definition for this log event</returns>
+		public abstract bool HandleEvent(IssueEvent issueEvent);
 
 		/// <summary>
-		/// Template for the issue summary
+		/// Gets all the issues created by this handler
 		/// </summary>
-		public abstract string SummaryTemplate { get; }
-
-		/// <summary>
-		/// Filter for changes to consider as suspects
-		/// </summary>
-		public abstract IReadOnlyList<string> SuspectFilter { get; }
-
-		/// <summary>
-		/// Whether this handler requires being enabled by a workflow
-		/// </summary>
-		public virtual bool RequiresWorkflow { get; } = false;
-
-		/// <summary>
-		/// Tag all thethe events for a step completing
-		/// </summary>
-		/// <param name="job">The job that spawned the event</param>
-		/// <param name="node">Node that was executed</param>
-		/// <param name="annotations">Combined annotations from this step</param>
-		/// <param name="events">Events from this step</param>
-		public abstract void TagEvents(IJob job, INode node, IReadOnlyNodeAnnotations annotations, IReadOnlyList<IssueEvent> events);
-	}
-
-	/// <summary>
-	/// Predefined filters for issue suspects
-	/// </summary>
-	public static class IssueSuspectFilter
-	{
-		/// <summary>
-		/// Filter exclude all changes
-		/// </summary>
-		public static IReadOnlyList<string> None { get; } = Array.Empty<string>();
-
-		/// <summary>
-		/// Filter including all changes
-		/// </summary>
-		public static IReadOnlyList<string> All { get; } = new[] { "..." };
-
-		/// <summary>
-		/// Set of extensions to treat as code
-		/// </summary>
-		public static IReadOnlyList<string> Code { get; } = new[]
-		{
-			"*.c",
-			"*.cc",
-			"*.cpp",
-			"*.inl",
-			"*.m",
-			"*.mm",
-			"*.rc",
-			"*.cs",
-			"*.csproj",
-			"*.h",
-			"*.hpp",
-			"*.inl",
-			"*.usf",
-			"*.ush",
-			"*.uproject",
-			"*.uplugin",
-			"*.sln",
-			"*.verse"
-		};
-
-		/// <summary>
-		/// Set of file extensions to treat as content
-		/// </summary>
-		public static IReadOnlyList<string> Content { get; } = new[]
-		{
-			"*.uasset",
-			"*.umap",
-			"*.ini"
-		};
+		/// <returns></returns>
+		public abstract IEnumerable<IssueEventGroup> GetIssues();
 	}
 }

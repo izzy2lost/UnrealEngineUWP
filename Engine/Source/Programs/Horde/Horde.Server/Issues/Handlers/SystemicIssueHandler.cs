@@ -2,8 +2,6 @@
 
 using System.Collections.Generic;
 using EpicGames.Core;
-using Horde.Server.Jobs;
-using Horde.Server.Jobs.Graphs;
 using Horde.Server.Logs;
 using HordeCommon;
 using Microsoft.Extensions.Logging;
@@ -16,16 +14,6 @@ namespace Horde.Server.Issues.Handlers
 	[IssueHandler(Priority = 10)]
 	class SystemicIssueHandler : IssueHandler
 	{
-		const string NodeNameKey = "Node";
-
-		public override string Type => "Systemic";
-
-		/// <inheritdoc/>
-		public override string SummaryTemplate =>"Systemic {Severity} in {Nodes}";
-
-		/// <inheritdoc/>
-		public override IReadOnlyList<string> SuspectFilter => IssueSuspectFilter.None;
-	
 		/// <summary>
 		///  Known systemic errors
 		/// </summary>
@@ -41,40 +29,44 @@ namespace Horde.Server.Issues.Handlers
 			return s_knownSystemic.Contains(eventId) || (eventId.Id >= KnownLogEvents.Systemic.Id && eventId.Id <= KnownLogEvents.Systemic_Max.Id);
 		}
 
-		/// <inheritdoc/>
-		public override void TagEvents(IJob job, INode node, IReadOnlyNodeAnnotations annotations, IReadOnlyList<IssueEvent> stepEvents)
-		{
-			NewIssueFingerprint? fingerprint = null;
-			bool nonSystemicError = false;
-			foreach (IssueEvent stepEvent in stepEvents)
-			{
-				if (stepEvent.EventId == null)
-				{					
-					continue;
-				}
+		bool _nonSystemicError = false;
+		readonly IssueHandlerContext _context;
+		readonly List<IssueEventGroup> _issues = new List<IssueEventGroup>();
 
-				if (MatchEvent(stepEvent.EventData))
+		public SystemicIssueHandler(IssueHandlerContext context) => _context = context;
+
+		/// <inheritdoc/>
+		public override bool HandleEvent(IssueEvent logEvent)
+		{
+			if (logEvent.EventId != null)
+			{
+				if (MatchEvent(logEvent.EventData))
 				{
-					if (nonSystemicError)
-					{						
-						stepEvent.Ignored = true;
+					if (_nonSystemicError)
+					{
+						return true;
 					}
 					else
 					{
-						fingerprint ??= new NewIssueFingerprint(Type, new[] { IssueKey.FromStep(job.StreamId, job.TemplateId, node.Name) }, null, new[] { $"{NodeNameKey}={node.Name}" });
-						stepEvent.Fingerprint = fingerprint;
+						IssueEventGroup issue = new IssueEventGroup("Systemic", "Systemic {Severity} in {Nodes}", IssueChangeFilter.None);
+						issue.Keys.Add(IssueKey.FromStep(_context.StreamId, _context.TemplateId, _context.NodeName));
+						issue.Events.Add(logEvent);
+						_issues.Add(issue);
+
+						return true;
 					}
 				}
-				else
-				{					
-					if (stepEvent.Severity == EventSeverity.Error)
-					{
-						// We've seen a non-systemic error event, so ignore this systemic event to prevent superfluous issues from being created
-						nonSystemicError = true;
-					}
+				else if (logEvent.Severity == EventSeverity.Error)
+				{
+					// We've seen a non-systemic error event, so ignore this systemic event to prevent superfluous issues from being created
+					_nonSystemicError = true;
 				}
 			}
+			return false;
 		}
+
+		/// <inheritdoc/>
+		public override IEnumerable<IssueEventGroup> GetIssues() => _issues;
 
 		static bool MatchEvent(ILogEventData eventData)
 		{

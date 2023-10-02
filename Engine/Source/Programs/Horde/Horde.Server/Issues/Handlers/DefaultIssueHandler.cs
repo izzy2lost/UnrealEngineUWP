@@ -1,38 +1,42 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 
 using System.Collections.Generic;
-using Horde.Server.Jobs;
-using Horde.Server.Jobs.Graphs;
 
 namespace Horde.Server.Issues.Handlers
 {
 	/// <summary>
-	/// Instance of a particular compile error
+	/// Default handler for log events not matched by any other handler
 	/// </summary>
 	[IssueHandler(Priority = 0)]
 	class DefaultIssueHandler : IssueHandler
 	{
+		readonly IssueHandlerContext _context;
+		IssueEventGroup? _issue;
+
 		/// <summary>
-		/// Name of the handler
+		/// Constructor
 		/// </summary>
-		public const string TypeConst = "Default";
+		public DefaultIssueHandler(IssueHandlerContext context) => _context = context;
 
 		/// <inheritdoc/>
-		public override string Type => TypeConst;
-
-		/// <inheritdoc/>
-		public override string SummaryTemplate => "{Severity} in {Nodes}";
-
-		/// <inheritdoc/>
-		public override IReadOnlyList<string> SuspectFilter => IssueSuspectFilter.All;
-
-		/// <inheritdoc/>
-		public override void TagEvents(IJob job, INode node, IReadOnlyNodeAnnotations annotations, IReadOnlyList<IssueEvent> stepEvents)
+		public override bool HandleEvent(IssueEvent issueEvent)
 		{
-			NewIssueFingerprint fingerprint = new NewIssueFingerprint(TypeConst, new[] { IssueKey.FromStep(job.StreamId, job.TemplateId, node.Name) }, null, null);
-			foreach (IssueEvent stepEvent in stepEvents)
+			if (_issue == null)
 			{
-				stepEvent.Fingerprint = fingerprint;
+				_issue = new IssueEventGroup("Default", "{Severity} in {Meta:Node}", IssueChangeFilter.All);
+				_issue.Keys.Add(IssueKey.FromStep(_context.StreamId, _context.TemplateId, _context.NodeName));
+			}
+
+			_issue.Events.Add(issueEvent);
+			return true;
+		}
+
+		/// <inheritdoc/>
+		public override IEnumerable<IssueEventGroup> GetIssues()
+		{
+			if (_issue != null)
+			{
+				yield return _issue;
 			}
 		}
 	}
