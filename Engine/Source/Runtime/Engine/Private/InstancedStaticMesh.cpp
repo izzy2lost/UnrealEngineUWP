@@ -3716,7 +3716,7 @@ bool UInstancedStaticMeshComponent::UpdateInstances(
 	int32 TotalSizeUpdateBytes = 0;
 #endif
 
-	// Note: this will nuke the custom data for all instaces meaning they will be updated below
+	// Note: this will reset the custom data for all instaces meaning they will be updated below
 	if (InNumCustomDataFloats != NumCustomDataFloats)
 	{
 		SetNumCustomDataFloats(InNumCustomDataFloats);

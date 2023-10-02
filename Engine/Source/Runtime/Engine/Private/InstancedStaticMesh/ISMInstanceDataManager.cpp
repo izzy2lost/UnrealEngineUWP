@@ -554,7 +554,7 @@ bool FPrimitiveInstanceDataManager::FlushChanges(FInstanceUpdateComponentDesc &&
 		return false;
 	}
 
-	// Can't update if there is no proxy, if it was nuked we must wait for a new scene proxy to come around and request a new one to be created.
+	// Can't update if there is no proxy, if it was destroyed we must wait for a new scene proxy to come around and request a new one to be created.
 	if (!Proxy)
 	{
 		return false;
@@ -647,7 +647,7 @@ bool FPrimitiveInstanceDataManager::FlushChanges(FInstanceUpdateComponentDesc &&
 		{
 			FISMCInstanceDataSceneProxy &ProxyRef = *Proxy;
 			
-			// Forcibly nuke any tracking state, if the external entity manages this it can track the data on its own.
+			// Forcibly destroy any tracking state, if the external entity manages this it can track the data on its own.
 			ProxyRef.ChangeMask.Reset();
 			ProxyRef.InstanceIdIndexMap = MoveTemp(InstanceIdIndexMap);
 #if WITH_EDITOR
