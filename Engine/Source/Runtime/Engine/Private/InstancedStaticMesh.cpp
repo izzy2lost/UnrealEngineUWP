@@ -2884,7 +2884,7 @@ void UInstancedStaticMeshComponent::SerializeRenderData(FArchive& Ar)
 		uint64 RenderDataSizeBytes = 0;
 		Ar << RenderDataSizeBytes;
 
-		bool bSaveRenderData = NeedRenderDataForTargetPlatform(Ar.CookingTarget());
+		bool bSaveRenderData = NeedRenderDataForTargetPlatform(Ar.CookingTarget()) && InstancingRandomSeed != 0;
 		if (bSaveRenderData && !HasAnyFlags(RF_ClassDefaultObject | RF_ArchetypeObject))
 		{
 			uint64 RenderDataPos = Ar.Tell();
