@@ -539,7 +539,7 @@ void FUsdShadeMaterialTranslator::PostImportMaterial(const FString& MaterialHash
 				UUsdAssetUserData* TextureUserData = Texture->GetAssetUserData<UUsdAssetUserData>();
 				if (!TextureUserData)
 				{
-					TextureUserData = NewObject<UUsdAssetUserData>(ImportedMaterial, TEXT("USDAssetUserData"));
+					TextureUserData = NewObject<UUsdAssetUserData>(Texture, TEXT("USDAssetUserData"));
 					Texture->AddAssetUserData(TextureUserData);
 				}
 				TextureUserData->PrimPaths.AddUnique(PrimPath.GetString());
