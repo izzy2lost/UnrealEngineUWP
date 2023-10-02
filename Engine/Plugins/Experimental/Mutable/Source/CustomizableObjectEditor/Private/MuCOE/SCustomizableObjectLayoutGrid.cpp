@@ -844,6 +844,8 @@ FReply SCustomizableObjectLayoutGrid::OnMouseWheel(const FGeometry& MyGeometry, 
 				Zoom--;
 			}
 		}
+
+		return FReply::Handled().SetUserFocus(SharedThis(this), EFocusCause::Mouse, true);
 	}
 
 	return SCompoundWidget::OnMouseWheel(MyGeometry, MouseEvent);
