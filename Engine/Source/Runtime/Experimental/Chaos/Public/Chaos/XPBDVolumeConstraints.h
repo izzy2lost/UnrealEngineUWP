@@ -53,7 +53,7 @@ namespace Chaos::Softs
 
 		virtual void ApplyOneElement(FSolverParticles& Particles, const FSolverReal Dt, const int32 ElementIndex) const
 		{
-			//TRACE_CPUPROFILER_EVENT_SCOPE(TEXT("STAT_ChaosXPBDCorotatedApplySingle"));
+			//TRACE_CPUPROFILER_EVENT_SCOPE(STAT_ChaosXPBDCorotatedApplySingle);
 			
 			TVec4<FSolverVec3> VolumeDelta = GetVolumeDelta(Particles, Dt, ElementIndex);
 			for (int i = 0; i < 4; i++)
@@ -66,8 +66,8 @@ namespace Chaos::Softs
 
 		void ApplyInSerial(FSolverParticles& Particles, const FSolverReal Dt) const
 		{
-			SCOPE_CYCLE_COUNTER(STAT_ChaosXPBDCorotated);
-			TRACE_CPUPROFILER_EVENT_SCOPE(TEXT("STAT_ChaosXPBDVolumeApplySerial"));
+			//SCOPE_CYCLE_COUNTER(STAT_ChaosXPBDCorotated);
+			TRACE_CPUPROFILER_EVENT_SCOPE(STAT_ChaosXPBDVolumeApplySerial);
 			for (int32 ElementIndex = 0; ElementIndex < MeshConstraints.Num(); ++ElementIndex)
 			{
 				ApplyOneElement(Particles, Dt, ElementIndex);
@@ -79,7 +79,7 @@ namespace Chaos::Softs
 		void ApplyInParallel(FSolverParticles& Particles, const FSolverReal Dt) const
 		{
 			{
-				TRACE_CPUPROFILER_EVENT_SCOPE(TEXT("STAT_ChaosXPBDVolumeApply"));
+				TRACE_CPUPROFILER_EVENT_SCOPE(STAT_ChaosXPBDVolumeApply);
 				if ((ConstraintsPerColorStartIndex.Num() > 1))//&& (MeshConstraints.Num() > Chaos_Spring_ParallelConstraintCount))
 				{
 					const int32 ConstraintColorNum = ConstraintsPerColorStartIndex.Num() - 1;

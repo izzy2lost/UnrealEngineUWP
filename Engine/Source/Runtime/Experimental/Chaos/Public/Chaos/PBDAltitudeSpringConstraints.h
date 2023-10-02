@@ -113,7 +113,7 @@ namespace Chaos::Softs
 
 		virtual void ApplySingleElement(FSolverParticles& Particles, const FSolverReal Dt, const int32 ElementIndex) const
 		{
-			TRACE_CPUPROFILER_EVENT_SCOPE(TEXT("STAT_ChaosPBDAltitudeSpringApplySingle"));
+			TRACE_CPUPROFILER_EVENT_SCOPE(STAT_ChaosPBDAltitudeSpringApplySingle);
 			const TVec4<int32>& Constraint = Constraints[ElementIndex];
 			for (int ie = 0; ie < 4; ++ie)
 			{
@@ -133,7 +133,7 @@ namespace Chaos::Softs
 
 		virtual void ApplySingleElementAllInOne(FSolverParticles& Particles, const FSolverReal Dt, const int32 ElementIndex) const
 		{
-			TRACE_CPUPROFILER_EVENT_SCOPE(TEXT("STAT_ChaosPBDAltitudeSpringApplySingle"));
+			TRACE_CPUPROFILER_EVENT_SCOPE(STAT_ChaosPBDAltitudeSpringApplySingle);
 			const TVec4<int32>& Constraint = Constraints[ElementIndex];
 			for (int ie = 0; ie < 4; ++ie)
 			{
@@ -223,7 +223,7 @@ namespace Chaos::Softs
 
 		virtual void ApplySingleElementShortest(FSolverParticles& Particles, const FSolverReal Dt, const int32 ElementIndex) const
 		{
-			TRACE_CPUPROFILER_EVENT_SCOPE(TEXT("STAT_ChaosPBDAltitudeSpringApplySingleShortest"));
+			TRACE_CPUPROFILER_EVENT_SCOPE(STAT_ChaosPBDAltitudeSpringApplySingleShortest);
 			const TVec4<int32>& Constraint = Constraints[ElementIndex];
 			int32 ie = GetSingleElementShortestLength(Particles, Dt, ElementIndex);
 			
@@ -294,7 +294,7 @@ namespace Chaos::Softs
 		void ApplyInSerial(FSolverParticles& Particles, const FSolverReal Dt) const
 		{
 			//SCOPE_CYCLE_COUNTER(STAT_ChaosXPBDCorotated);
-			TRACE_CPUPROFILER_EVENT_SCOPE(TEXT("STAT_ChaosPBDAltitudeSpringApplySerial"));
+			TRACE_CPUPROFILER_EVENT_SCOPE(STAT_ChaosPBDAltitudeSpringApplySerial);
 			for (int32 ElementIndex = 0; ElementIndex < Constraints.Num(); ++ElementIndex)
 			{
 				ApplySingleElement(Particles, Dt, ElementIndex);
@@ -306,7 +306,7 @@ namespace Chaos::Softs
 		void ApplyInParallel(FSolverParticles& Particles, const FSolverReal Dt) const
 		{
 			{
-				TRACE_CPUPROFILER_EVENT_SCOPE(TEXT("STAT_ChaosPBDAltitudeSpringApply"));
+				TRACE_CPUPROFILER_EVENT_SCOPE(STAT_ChaosPBDAltitudeSpringApply);
 				if ((ConstraintsPerColorStartIndex.Num() > 1))//&& (MeshConstraints.Num() > Chaos_Spring_ParallelConstraintCount))
 				{
 					const int32 ConstraintColorNum = ConstraintsPerColorStartIndex.Num() - 1;

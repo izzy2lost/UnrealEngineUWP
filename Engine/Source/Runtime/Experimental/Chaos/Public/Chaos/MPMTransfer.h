@@ -63,7 +63,7 @@ public:
 		int32 N = InParticles.Size();
 
 		{
-			TRACE_CPUPROFILER_EVENT_SCOPE(TEXT("STAT_ChaosMPMTransferInitialBinning"));
+			TRACE_CPUPROFILER_EVENT_SCOPE(STAT_ChaosMPMTransferInitialBinning);
 			Indices.SetNum(N);
 			Weights.SetNum(N);
 
@@ -83,7 +83,7 @@ public:
 		// Computes which particles in the same cell
 		/////////////////////
 		{
-			TRACE_CPUPROFILER_EVENT_SCOPE(TEXT("STAT_ChaosMPMTransferCellMetaCalc"));
+			TRACE_CPUPROFILER_EVENT_SCOPE(STAT_ChaosMPMTransferCellMetaCalc);
 			NumCells = Grid.Size();
 			CellData.SetNum(NumCells);
 			for (int32 c = 0; c < NumCells; c++)
@@ -100,7 +100,7 @@ public:
 		// splat data to cells
 		/////////////////////
 		{
-			TRACE_CPUPROFILER_EVENT_SCOPE(TEXT("STAT_ChaosMPMTransferSplatData"));
+			TRACE_CPUPROFILER_EVENT_SCOPE(STAT_ChaosMPMTransferSplatData);
 			GridData.Init((T)0., CellData.Num() * (NTransfer + 1));
 
 			TVector<int32, 3> GridCells = Grid.GetCells();
