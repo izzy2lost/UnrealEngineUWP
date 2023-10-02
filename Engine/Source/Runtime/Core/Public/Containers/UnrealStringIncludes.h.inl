@@ -7,6 +7,13 @@
  * UnrealString.h.inl.                                                                                 *
  *******************************************************************************************************/
 
+#ifdef UE_STRING_CLASS
+	#error "UnrealStringIncludes.h.inl should not be included after defining UE_STRING_CLASS"
+#endif
+#ifdef UE_STRING_CHARTYPE
+	#error "UnrealStringIncludes.h.inl should not be included after defining UE_STRING_CHARTYPE"
+#endif
+
 #include "CoreTypes.h"
 #include "Misc/VarArgs.h"
 #include "Misc/OutputDevice.h"

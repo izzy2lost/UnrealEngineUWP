@@ -7,6 +7,13 @@
  * String.cpp.inl.                                                                                     *
  *******************************************************************************************************/
 
+#ifdef UE_STRING_CLASS
+	#error "StringIncludes.cpp.inl should not be included after defining UE_STRING_CLASS"
+#endif
+#ifdef UE_STRING_CHARTYPE
+	#error "StringIncludes.cpp.inl should not be included after defining UE_STRING_CHARTYPE"
+#endif
+
 #include "Containers/Array.h"
 #include "Containers/StringConv.h"
 #include "CoreGlobals.h"

@@ -5,8 +5,10 @@
 // Include String.cpp.inl's includes before defining the macros, in case the macros 'poison' other headers or there are re-entrant includes.
 #include "Containers/StringIncludes.cpp.inl"
 
-#define UE_STRING_CLASS FString
+#define UE_STRING_CLASS    FString
+#define UE_STRING_CHARTYPE TCHAR
 	#include "Containers/String.cpp.inl"
+#undef UE_STRING_CHARTYPE
 #undef UE_STRING_CLASS
 
 void FTextRange::CalculateLineRangesFromString(const FString& Input, TArray<FTextRange>& LineRanges)

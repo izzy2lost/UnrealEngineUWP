@@ -13,6 +13,9 @@
 #ifndef UE_STRING_CLASS
 	#error "String.cpp.inl should only be included after defining UE_STRING_CLASS"
 #endif
+#ifndef UE_STRING_CHARTYPE
+	#error "String.cpp.inl should only be included after defining UE_STRING_CHARTYPE"
+#endif
 
  /* String implementation
  *****************************************************************************/
