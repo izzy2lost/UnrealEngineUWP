@@ -55,7 +55,7 @@ static FAutoConsoleVariableRef CVarCoreRunnerTaskPriority(
 	ECVF_Default);
 
 
-bool bBusyWait = false;
+bool bBusyWait = true;
 
 static FAutoConsoleVariableRef CVarCodeRunnerTaskGraphBusyWait(
 	TEXT("mutable.CodeRunnerTaskGraphBusyWait"),
