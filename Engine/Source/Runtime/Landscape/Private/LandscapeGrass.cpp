@@ -870,23 +870,33 @@ FLandscapeComponentGrassData::FLandscapeComponentGrassData(ULandscapeComponent* 
 {
 }
 
-void ULandscapeComponent::UpdateGrassTypes()
-	{
-	GrassTypesMaxDiscardDistance = 0.0f;
-	GrassTypes.Reset();
-	
+bool ULandscapeComponent::UpdateGrassTypes(bool bForceUpdate)
+{
+	bool bChanged = false;
 	if (UMaterialInterface* Material = GetLandscapeMaterial())
 	{
-		GrassTypes = Material->GetMaterial()->GetCachedExpressionData().GrassTypes;
-
-		for (const ULandscapeGrassType* GrassType : GrassTypes)
+		uint32 CurMaterialAllStateCRC = Material->ComputeAllStateCRC();
+		if (bForceUpdate || (LastLandscapeMaterialAllStateCRCWhenGrassTypesBuilt != CurMaterialAllStateCRC))
 		{
-			if (GrassType != nullptr)
+			LastLandscapeMaterialAllStateCRCWhenGrassTypesBuilt = CurMaterialAllStateCRC;
+			bChanged = true;
+
+			GrassTypes = Material->GetMaterial()->GetCachedExpressionData().GrassTypes;
+		}
+	}
+	return bChanged;
+}
+
+void ULandscapeComponent::UpdateGrassTypesMaxDiscardDistance()
+{
+	GrassTypesMaxDiscardDistance = 0.0f;
+	for (const ULandscapeGrassType* GrassType : GrassTypes)
+	{
+		if (GrassType != nullptr)
+		{
+			for (const FGrassVariety& GrassVariety : GrassType->GrassVarieties)
 			{
-				for (const FGrassVariety& GrassVariety : GrassType->GrassVarieties)
-				{
-					GrassTypesMaxDiscardDistance = FMath::Max((float)GrassVariety.EndCullDistance.GetValue(), GrassTypesMaxDiscardDistance);
-				}
+				GrassTypesMaxDiscardDistance = FMath::Max((float)GrassVariety.EndCullDistance.GetValue(), GrassTypesMaxDiscardDistance);
 			}
 		}
 	}
@@ -909,21 +919,19 @@ uint32 ULandscapeComponent::ComputeGrassMapGenerationHash() const
 		// If anything changes in the grass types, we should take that into account as well :
 		for (ULandscapeGrassType* GrassType : GrassTypes)
 		{
-			if (GrassType == nullptr)
+			if (GrassType != nullptr)
 			{
-				continue;
-			}
-
-			Hash = FCrc::TypeCrc32(GrassType->StateHash, Hash);
+				Hash = FCrc::TypeCrc32(GrassType->StateHash, Hash);
 			}
 		}
+	}
 
 	return Hash;
 }
 
 bool ULandscapeComponent::IsGrassMapOutdated() const
 {
-	return GrassData->HasValidData() ? (ComputeGrassMapGenerationHash() != GrassData->GenerationHash) : false;
+	return GrassData->HasValidData() && (ComputeGrassMapGenerationHash() != GrassData->GenerationHash);
 }
 
 bool ULandscapeComponent::CanRenderGrassMap() const
@@ -1369,6 +1377,10 @@ void ULandscapeGrassType::PostEditChangeProperty(FPropertyChangedEvent& Property
 {
 	Super::PostEditChangeProperty(PropertyChangedEvent);
 
+	// Look for landscape components using this grass type, and flush their grass data
+	// This is not required to trigger a grass update (the state hash changing will do that for us)
+	// This is only necessary to immediately delete the instances while dragging in the UI.
+	// (otherwise the instances stick around until we actually rebuild them)
 	if (GIsEditor)
 	{
 		for (TObjectIterator<ALandscapeProxy> It; It; ++It)
@@ -1376,22 +1388,15 @@ void ULandscapeGrassType::PostEditChangeProperty(FPropertyChangedEvent& Property
 			ALandscapeProxy* Proxy = *It;
 			if (Proxy->GetWorld() && !Proxy->GetWorld()->IsPlayInEditor())
 			{
-				const UMaterialInterface* MaterialInterface = Proxy->GetLandscapeMaterial();
-				if (MaterialInterface)
+				for (ULandscapeComponent* Component : Proxy->LandscapeComponents)
 				{
-					TArray<const UMaterialExpressionLandscapeGrassOutput*> GrassExpressions;
-					MaterialInterface->GetMaterial()->GetAllExpressionsOfType<UMaterialExpressionLandscapeGrassOutput>(GrassExpressions);
-
-					// Should only be one grass type node
-					if (GrassExpressions.Num() > 0)
+					for (ULandscapeGrassType* GrassType : Component->GetGrassTypes())
 					{
-						for (auto& Output : GrassExpressions[0]->GrassTypes)
+						if (GrassType == this)
 						{
-							if (Output.GrassType == this)
-							{
-								Proxy->FlushGrassComponents();
-								break;
-							}
+							TSet<ULandscapeComponent*> Components = { Component };
+							Proxy->FlushGrassComponents(&Components, /* bFlushGrassMaps= */ true);
+							break;
 						}
 					}
 				}
@@ -1399,6 +1404,7 @@ void ULandscapeGrassType::PostEditChangeProperty(FPropertyChangedEvent& Property
 		}
 	}
 
+	// Update the state hash (so we detect the change and rebuild the relevant grass)
 	StateHash = ComputeStateHash();
 }
 #endif
@@ -2435,6 +2441,7 @@ void ALandscapeProxy::BuildGrassMaps(FScopedSlowTask* InSlowTask)
 		bHasLandscapeGrass = false;
 		for (ULandscapeComponent* Component : LandscapeComponents)
 		{
+			Component->UpdateGrassTypes(/* bForceUpdate = */ true);
 			bHasLandscapeGrass |= (Component->GetGrassTypes().Num() > 0);
 			GrassTypesMaxDiscardDistance = FMath::Max(Component->GetGrassTypesMaxDiscardDistance(), GrassTypesMaxDiscardDistance);
 		}
@@ -2524,22 +2531,25 @@ void ALandscapeProxy::UpdateGrassDataStatus(TSet<UTexture2D*>* OutCurrentForcedS
 				}
 			}
 
-			bool bIsGrassMapOutdated = Component->IsGrassMapOutdated();
-			if (bIsGrassMapOutdated)
-			{
-#if WITH_EDITOR
-				// If the material has changed we need to cache the GrassTypes and related info again : 
-				Component->UpdateGrassTypes();
-#endif // WITH_EDITOR
+			// if the landscape material has changed, update the grass types (needed to ensure ComputeGrassMapGenerationHash is correct)
+			Component->UpdateGrassTypes();
+			bool bGrassMapGenerationHashChanged = (Component->ComputeGrassMapGenerationHash() != Component->GrassData->GenerationHash);
 
-				if (OutOutdatedComponents)
+			// outdated meaning: it has grass data, but it is not up to date
+			bool bIsGrassMapOutdated = Component->GrassData->HasValidData() && bGrassMapGenerationHashChanged;
+
+			if (bGrassMapGenerationHashChanged)
+			{
+				Component->UpdateGrassTypesMaxDiscardDistance();
+			}
+
+			if (bIsGrassMapOutdated && OutOutdatedComponents)
 			{
 				OutOutdatedComponents->Add(Component);
 			}
-			}
 
 			// Needs to be called after UpdateGrassTypes
-			TArray<ULandscapeGrassType*> GrassTypes = Component->GetGrassTypes();
+			const TArray<TObjectPtr<ULandscapeGrassType>>& GrassTypes = Component->GetGrassTypes();
 			bool bHasGrassTypes = (GrassTypes.Num() > 0);
 			if (bHasGrassTypes || bBakeMaterialPositionOffsetIntoCollision)
 			{

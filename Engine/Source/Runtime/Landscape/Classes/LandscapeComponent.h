@@ -514,14 +514,16 @@ private:
 	UPROPERTY(EditAnywhere, Category = LandscapeComponent)
 	TArray<FLandscapePerLODMaterialOverride> PerLODOverrideMaterials;
 
-	/** Cached list of grass types supported by the component's material */
+	/** The value of the landscape material AllStateCRC the last time the GrassTypes array was updated from it */
+	uint32 LastLandscapeMaterialAllStateCRCWhenGrassTypesBuilt = 0;
+
+	/** Cached list of grass types supported by the component's material. Call UpdateGrassTypes() to ensure this array is up to date */
 	UPROPERTY()
 	TArray<TObjectPtr<ULandscapeGrassType>> GrassTypes;
 
 	/** Cached max discard distance of all grass types supported by the component's material*/
 	UPROPERTY()
 	float GrassTypesMaxDiscardDistance = 0.0f;
-
 
 public:
 
@@ -795,11 +797,12 @@ public:
 
 	/** Gets the landscape info object for this landscape */
 	LANDSCAPE_API ULandscapeInfo* GetLandscapeInfo() const;
-	
-	const TArray<ULandscapeGrassType*>& GetGrassTypes() const { return GrassTypes; }
 
-	/** Temporarily sets the grass type for this component. Any call to UpdateGrassTypes will override what has been set using this method */
-	void SetGrassTypes(const TArray<ULandscapeGrassType*>& InGrassTypes) { GrassTypes = InGrassTypes; }
+	/** Returns the array of grass types used by the landscape material. Call UpdateGrassTypes first to ensure this array is up to date. */
+	const TArray<TObjectPtr<ULandscapeGrassType>>& GetGrassTypes() const { return GrassTypes; }
+
+	/** Temporarily sets the grass type for this component. Any call to UpdateGrassTypes may override what has been set using this method. */
+	void SetGrassTypes(const TArray<TObjectPtr<ULandscapeGrassType>>& InGrassTypes)	{ GrassTypes = InGrassTypes; }
 	
 	bool MaterialHasGrass() const { return !GetGrassTypes().IsEmpty(); }
 	
@@ -807,8 +810,11 @@ public:
 	void SetGrassTypesMaxDiscardDistance(const float InGrassTypesMaxDiscardDistance) { GrassTypesMaxDiscardDistance = InGrassTypesMaxDiscardDistance; }
 
 #if WITH_EDITOR
-	/** Recomputes the list of grass types and other related info (in case there was a material change, for example) : */
-	void UpdateGrassTypes();
+	/** If the LandscapeMaterial has changed, updates the GrassTypes array. Returns true if the GrassTypes array was updated. */
+	bool UpdateGrassTypes(bool bForceUpdate = false);
+
+	/** Recomputes the maximum discard distance across all grass types in the GrassTypes array. */
+	void UpdateGrassTypesMaxDiscardDistance();
 
 	/** Deletes a material layer from the current edit layer on this component, removing all its data, adjusting other layer's weightmaps if necessary, etc. */
 	LANDSCAPE_API void DeleteLayer(ULandscapeLayerInfoObject* LayerInfo, FLandscapeEditDataInterface& LandscapeEdit);
@@ -839,7 +845,7 @@ public:
 	/** Computes a hash representing the state of the material and grasstypes used by this component. */
 	LANDSCAPE_API uint32 ComputeGrassMapGenerationHash() const;
 
-	/* Is the grassmap data outdated, eg by a material */
+	/* Returns true if the component HAS grass data, but it is not up to date */
 	bool IsGrassMapOutdated() const;
 
 	/** Renders the heightmap of this component (including material world-position-offset) at the specified LOD */
