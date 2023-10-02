@@ -528,7 +528,7 @@ TOnlineAsyncOpHandle<FAuthQueryExternalAuthToken> FAuthOSSAdapter::QueryExternal
 
 FUniqueNetIdPtr FAuthOSSAdapter::GetUniqueNetId(FAccountId AccountId) const
 {
-	check(AccountId.GetOnlineServicesType() == GetOnlineServicesOSSAdapter().GetServicesProvider());
+	check(!AccountId.IsValid() || AccountId.GetOnlineServicesType() == GetOnlineServicesOSSAdapter().GetServicesProvider());
 
 	return GetOnlineServicesOSSAdapter().GetAccountIdRegistry().GetIdValue(AccountId);
 }
