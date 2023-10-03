@@ -83,7 +83,8 @@ void LocalFogVolumeTiledPS(
 	uint2 TilePos = LFVUnpackTile(OtherVertexOutput.TileData);
 
 	uint LFVCount = 0;
-	float4 LFVContribution = GetLFVContribution(ResolvedView, TilePos, DepthBufferTranslatedWorldPos, LFVCount);
+	const bool bPlatformSupportsVolumetricFogOntranslucent = false;
+	float4 LFVContribution = GetLFVContribution(ResolvedView, TilePos, DepthBufferTranslatedWorldPos, bPlatformSupportsVolumetricFogOntranslucent, LFVCount);
 
 	bool bDoClip = true;
 #if USE_DEVELOPMENT_SHADERS

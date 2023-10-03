@@ -243,10 +243,11 @@ float3 LocalFogVolumeEvaluateInScattering(in FLocalFogVolumeGPUInstanceData FogI
 
 // Returns color transmittance
 float4 GetLFVInstanceContribution(
-	uint InstanceIndex,
-	float3 CamRayWorldOrigin,
-	float3 CamRayWorldDir,
-	float3 DepthBufferWorldPos)
+	in uint InstanceIndex,
+	in float3 CamRayWorldOrigin,
+	in float3 CamRayWorldDir,
+	in float3 DepthBufferWorldPos,
+	in bool bPlatformSupportsVolumetricFogOntranslucent)
 {
 	FLocalFogVolumeGPUInstanceData FogInstance = GetLocalFogVolumeGPUInstanceData(InstanceIndex);
 
@@ -271,7 +272,7 @@ float4 GetLFVInstanceContribution(
 	if (any(TsU > 0.0))
 	{
 		// Make the ray start after the volumetric fog far distance
-		if (LFVRenderInVolumetricFog)
+		if (LFVRenderInVolumetricFog && bPlatformSupportsVolumetricFogOntranslucent)
 		{
 			// Volumetric fog covers up to MaxDistance along ViewZ, exclude analytical fog from this range
 			float CosAngle = dot(CamRayWorldDir, View.ViewForward);
@@ -302,6 +303,7 @@ float4 GetLFVContribution(
 	in ViewState ResolvedView,
 	in uint2 TilePos,
 	in float3 DepthBufferTranslatedWorldPos,
+	in bool bPlatformSupportsVolumetricFogOntranslucent,
 	inout uint OutLFVCount)
 {
 	const float3 PreViewTranslation			= LWCHackToFloat(ResolvedView.PreViewTranslation);
@@ -321,7 +323,8 @@ float4 GetLFVContribution(
 			InstanceIndex,
 			CamRayWorldOrigin,
 			CamRayWorldDir,
-			DepthBufferWorldPos);
+			DepthBufferWorldPos,
+			bPlatformSupportsVolumetricFogOntranslucent);
 
 		LFVContribution = float4(LFVContribution.rgb * LFVLuminanceColorTransmittance.a + LFVLuminanceColorTransmittance.rgb, LFVContribution.a * LFVLuminanceColorTransmittance.a);
 	}
@@ -331,10 +334,11 @@ float4 GetLFVContribution(
 float4 GetLFVContribution(
 	in ViewState ResolvedView,
 	in uint2 TilePos,
-	in float3 TranslatedWorldPosition)
+	in float3 TranslatedWorldPosition,
+	in bool bPlatformSupportsVolumetricFogOntranslucent = true)
 {
 	uint OutLFVCount = 0;
-	return GetLFVContribution(ResolvedView, TilePos, TranslatedWorldPosition, OutLFVCount);
+	return GetLFVContribution(ResolvedView, TilePos, TranslatedWorldPosition, bPlatformSupportsVolumetricFogOntranslucent, OutLFVCount);
 }
 
 
