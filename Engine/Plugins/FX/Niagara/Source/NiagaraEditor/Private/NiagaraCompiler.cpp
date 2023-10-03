@@ -2082,6 +2082,11 @@ TOptional<FNiagaraCompileResults> FHlslNiagaraCompiler::GetCompileResult(int32 J
 		Ar.SetLimitSize(ShaderCode.GetActualShaderCodeSize());
 		Ar << CompilationOutput;
 
+		if (!CompilationOutput.Errors.IsEmpty())
+		{
+			Warning(FText::Format(LOCTEXT("VectorVMCompileWarningMessageFormat", "The Vector VM compile generated warnings:\n{0}"), FText::FromString(CompilationOutput.Errors)));
+		}
+
 		Results.bVMSucceeded = true;
 	}
 	else if (CompilationJob->ShaderCompileJob->Output.Errors.Num() > 0)

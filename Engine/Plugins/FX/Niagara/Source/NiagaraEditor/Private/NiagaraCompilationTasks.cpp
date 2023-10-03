@@ -636,6 +636,13 @@ bool FNiagaraSystemCompilationTask::FCompileTaskInfo::RetrieveCompilationResult(
 
 	check(!ExeData.IsValid());
 
+	// in cases where asynchronous shader compiling isn't allowed we'll simply block execution here till the task
+	// is complete
+	if (!GShaderCompilingManager->AllowAsynchronousShaderCompiling())
+	{
+		bWait = true;
+	}
+
 	TOptional<FNiagaraCompileResults> CompileResult;
 	CompileResult = Compiler->GetCompileResult(CompilationJobId, bWait);
 	if (!CompileResult)
@@ -1776,7 +1783,7 @@ UE::Tasks::FTask FNiagaraSystemCompilationTask::BuildRapidIterationParametersAsy
 			FTask EmitterCollectStaticVariableTask = Launch(UE_SOURCE_LOCATION, [this, &EmitterInfo]
 			{
 				FCollectStaticVariablesTaskBuilder EmitterTaskBuilder(*this, EmitterInfo);
-				FTask EmitterStaticVariableTask = EmitterTaskBuilder.LaunchCollectedTasks();
+				AddNested(EmitterTaskBuilder.LaunchCollectedTasks());
 			}, SystemCollectStaticVariableTask);
 
 			CollectStaticVariableTasks.Add(EmitterInfo.DigestedEmitterIndex, EmitterCollectStaticVariableTask);
