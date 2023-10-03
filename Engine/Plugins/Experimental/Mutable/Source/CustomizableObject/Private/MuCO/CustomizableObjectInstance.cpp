@@ -6367,7 +6367,7 @@ void UCustomizableObjectInstance::SetRequestedLODs(int32 InMinLOD, int32 InMaxLO
 	
 #if !UE_BUILD_SHIPPING
 	// Ignore Min/Max LOD limits. Mainly used for debug
-	if (!bIgnoreMinMaxLOD)
+	if (bIgnoreMinMaxLOD)
 	{
 		InMinLOD = 0;
 		InMaxLOD = MAX_MESH_LOD_COUNT;
