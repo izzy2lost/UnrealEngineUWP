@@ -217,6 +217,11 @@ class FIoStoreOnDemandModule
 private:
 	void InitializeInternal();
 	TSharedPtr<IOnDemandIoDispatcherBackend> Backend;
+	// Deferred state requests if called before backend
+	// is initialized
+	TOptional<bool> DeferredEnabled;
+	TOptional<bool> DeferredAbandonCache;
+	TOptional<bool> DeferredBulkOptionalEnabled;
 
 public:
 	UE_API void SetBulkOptionalEnabled(bool bInEnabled);

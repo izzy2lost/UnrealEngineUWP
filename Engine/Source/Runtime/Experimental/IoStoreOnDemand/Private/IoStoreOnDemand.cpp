@@ -1489,6 +1489,10 @@ void FIoStoreOnDemandModule::SetBulkOptionalEnabled(bool bInEnabled)
 	{
 		Backend->SetBulkOptionalEnabled(bInEnabled);
 	}
+	else
+	{
+		DeferredBulkOptionalEnabled = bInEnabled;
+	}
 }
 
 void FIoStoreOnDemandModule::SetEnabled(bool bInEnabled)
@@ -1497,6 +1501,10 @@ void FIoStoreOnDemandModule::SetEnabled(bool bInEnabled)
 	{
 		Backend->SetEnabled(bInEnabled);
 	}
+	else
+	{
+		DeferredEnabled = bInEnabled;
+	}
 }
 
 void FIoStoreOnDemandModule::AbandonCache()
@@ -1504,6 +1512,10 @@ void FIoStoreOnDemandModule::AbandonCache()
 	if (Backend.IsValid())
 	{
 		Backend->AbandonCache();
+	}
+	else
+	{
+		DeferredAbandonCache = true;
 	}
 }
 
@@ -1584,6 +1596,7 @@ void FIoStoreOnDemandModule::InitializeInternal()
 
 	TUniquePtr<IIasCache> Cache;
 	FIasCacheConfig CacheConfig = GetIasCacheConfig(CommandLine);
+	CacheConfig.DropCache = DeferredAbandonCache.Get(CacheConfig.DropCache);
 	if (CacheConfig.DiskQuota > 0)
 	{
 		FString CacheDir = FPaths::ProjectPersistentDownloadDir();
@@ -1605,6 +1618,17 @@ void FIoStoreOnDemandModule::InitializeInternal()
 		BackendPriority = 10;
 	}
 #endif
+
+	// Setup any states changes issued before initialization
+	if (DeferredEnabled.IsSet())
+	{
+		Backend->SetEnabled(*DeferredEnabled);
+	}
+	if (DeferredBulkOptionalEnabled.IsSet())
+	{
+		Backend->SetBulkOptionalEnabled(*DeferredBulkOptionalEnabled);
+	}
+	
 	FIoDispatcher::Get().Mount(Backend.ToSharedRef(), BackendPriority);
 }
 	
