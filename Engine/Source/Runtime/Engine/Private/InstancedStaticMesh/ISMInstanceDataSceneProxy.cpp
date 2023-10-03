@@ -473,7 +473,6 @@ void FISMCInstanceDataSceneProxyLegacyReordered::BuildFromLegacyData(TUniquePtr<
 	ProxyData.InstanceLightShadowUVBias.SetNumZeroed(ProxyData.Flags.bHasPerInstanceLMSMUVBias ? NumInstances : 0);
 	ProxyData.InstanceLocalBounds = MakeArrayView(&InstanceLocalBounds, 1);
 	ProxyData.NumCustomDataFloats = ExternalLegacyData->GetNumCustomDataFloats();
-	ProxyData.Flags.bHasPerInstanceCustomData = ProxyData.NumCustomDataFloats != 0;
 	ProxyData.InstanceCustomData.SetNumZeroed(ProxyData.Flags.bHasPerInstanceCustomData ? NumInstances * ProxyData.NumCustomDataFloats : 0); 
 
 	ProxyData.InstanceRandomIDs.SetNumZeroed(ProxyData.Flags.bHasPerInstanceRandom ? NumInstances : 0);
