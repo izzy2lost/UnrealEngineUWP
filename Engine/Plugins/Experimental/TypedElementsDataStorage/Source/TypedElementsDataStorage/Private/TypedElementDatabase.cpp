@@ -118,7 +118,8 @@ void UTypedElementDatabase::OnPreMassTick(float DeltaTime)
 	OnUpdateDelegate.Broadcast();
 	// Process pending commands after other systems have had a chance to update. Other systems may have executed work needed
 	// to complete pending work.
-	ProcessPendingCommands();
+	FTypedElementDatabaseCommandBuffer::ProcessBuffer(DeferredCommands, *Environment);
+	DeferredCommands.Reset();
 
 	Environment->GetScratchBuffer().NextFrame();
 }
@@ -280,29 +281,25 @@ void UTypedElementDatabase::RemoveRow(TypedElementRowHandle Row)
 
 bool UTypedElementDatabase::IsRowAvailable(TypedElementRowHandle Row) const
 {
-	return ActiveEditorEntityManager ? ActiveEditorEntityManager->IsEntityValid(FMassEntityHandle::FromNumber(Row)) : false;
+	return ActiveEditorEntityManager ? FTypedElementDatabaseCommandBuffer::Execute_IsRowAvailable(*ActiveEditorEntityManager, Row) : false;
 }
 
 bool UTypedElementDatabase::HasRowBeenAssigned(TypedElementRowHandle Row) const
 {
-	return ActiveEditorEntityManager ? ActiveEditorEntityManager->IsEntityActive(FMassEntityHandle::FromNumber(Row)) : false;
+	return ActiveEditorEntityManager ? FTypedElementDatabaseCommandBuffer::Execute_HasRowBeenAssigned(*ActiveEditorEntityManager, Row) : false;
 }
 
 bool UTypedElementDatabase::AddColumn(TypedElementRowHandle Row, const UScriptStruct* ColumnType)
 {
-	if (ColumnType && ActiveEditorEntityManager)
+	if (ColumnType && ActiveEditorEntityManager && HasRowBeenAssigned(Row))
 	{
-		if (HasRowBeenAssigned(Row))
-		{
-			ExecuteAddColumnCommand(Row, ColumnType);
-		}
-		else
-		{
-			AddPendingCommand(Row, FAddColumnCommand{ .ColumnType = ColumnType });
-		}
-		return true;
+		FTypedElementDatabaseCommandBuffer::Execute_AddColumnCommand(*ActiveEditorEntityManager, Row, ColumnType);
 	}
-	return false;
+	else
+	{
+		FTypedElementDatabaseCommandBuffer::Queue_AddColumnCommand(DeferredCommands, Row, ColumnType);
+	}
+	return true;
 }
 
 bool UTypedElementDatabase::AddColumn(TypedElementRowHandle Row, FTopLevelAssetPath ColumnName)
@@ -314,16 +311,13 @@ bool UTypedElementDatabase::AddColumn(TypedElementRowHandle Row, FTopLevelAssetP
 
 void UTypedElementDatabase::RemoveColumn(TypedElementRowHandle Row, const UScriptStruct* ColumnType)
 {
-	if (ActiveEditorEntityManager)
+	if (ActiveEditorEntityManager && HasRowBeenAssigned(Row))
 	{
-		if (HasRowBeenAssigned(Row))
-		{
-			ExecuteRemoveColumnCommand(Row, ColumnType);
-		}
-		else
-		{
-			AddPendingCommand(Row, FRemoveColumnCommand{ .ColumnType = ColumnType });
-		}
+		FTypedElementDatabaseCommandBuffer::Execute_RemoveColumnCommand(*ActiveEditorEntityManager, Row, ColumnType);
+	}
+	else
+	{
+		FTypedElementDatabaseCommandBuffer::Queue_RemoveColumnCommand(DeferredCommands, Row, ColumnType);
 	}
 }
 
@@ -424,9 +418,9 @@ ColumnDataResult UTypedElementDatabase::GetColumnData(TypedElementRowHandle Row,
 
 bool UTypedElementDatabase::AddColumns(TypedElementRowHandle Row, TConstArrayView<const UScriptStruct*> Columns)
 {
-	FMassEntityHandle Entity = FMassEntityHandle::FromNumber(Row);
 	if (ActiveEditorEntityManager)
 	{
+		FMassEntityHandle Entity = FMassEntityHandle::FromNumber(Row);
 		FMassArchetypeHandle Archetype = ActiveEditorEntityManager->GetArchetypeForEntity(Entity);
 
 		FMassFragmentBitSet FragmentsToAdd;
@@ -435,11 +429,11 @@ bool UTypedElementDatabase::AddColumns(TypedElementRowHandle Row, TConstArrayVie
 		{
 			if (ActiveEditorEntityManager->IsEntityActive(Entity))
 			{
-				ExecuteAddColumnsCommand(Row, FragmentsToAdd, TagsToAdd);
+				FTypedElementDatabaseCommandBuffer::Execute_AddColumnsCommand(*ActiveEditorEntityManager, Row, FragmentsToAdd, TagsToAdd);
 			}
 			else
 			{
-				AddPendingCommand(Row, FAddColumnsCommand{ .FragmentsToAdd = MoveTemp(FragmentsToAdd), .TagsToAdd = MoveTemp(TagsToAdd) });
+				FTypedElementDatabaseCommandBuffer::Queue_AddColumnsCommand(DeferredCommands, Row, FragmentsToAdd, TagsToAdd);
 			}
 			return true;
 		}
@@ -460,12 +454,11 @@ void UTypedElementDatabase::RemoveColumns(TypedElementRowHandle Row, TConstArray
 		{
 			if (ActiveEditorEntityManager->IsEntityActive(Entity))
 			{
-				ExecuteRemoveColumnsCommand(Row, FragmentsToRemove, TagsToRemove);
+				FTypedElementDatabaseCommandBuffer::Execute_RemoveColumnsCommand(*ActiveEditorEntityManager, Row, FragmentsToRemove, TagsToRemove);
 			}
 			else
 			{
-				AddPendingCommand(Row, 
-					FRemoveColumnsCommand{ .FragmentsToRemove = MoveTemp(FragmentsToRemove), .TagsToRemove = MoveTemp(TagsToRemove) });
+				FTypedElementDatabaseCommandBuffer::Queue_RemoveColumnsCommand(DeferredCommands, Row, FragmentsToRemove, TagsToRemove);
 			}
 		}
 	}
@@ -762,97 +755,6 @@ bool UTypedElementDatabase::ColumnsToBitSets(TConstArrayView<const UScriptStruct
 		}
 	}
 	return bResult;
-}
-
-template<typename T>
-void UTypedElementDatabase::AddPendingCommand(TypedElementRowHandle Row, T&& Args)
-{
-	FCommand Command;
-	Command.Row = Row;
-	Command.Data.Emplace<T>(Forward<T>(Args));
-	PendingCommands.Add(MoveTemp(Command));
-}
-
-void UTypedElementDatabase::ProcessPendingCommands()
-{
-	PendingCommands.StableSort(
-		[](const FCommand& Lhs, const FCommand& Rhs)
-		{
-			return Lhs.Row < Rhs.Row;
-		});
-	
-	struct FProcessor
-	{
-		UTypedElementDatabase* This;
-		TypedElementRowHandle Row;
-		void operator()(const FAddColumnCommand& Command)		{ This->ExecuteAddColumnCommand(Row, Command.ColumnType.Get()); }
-		void operator()(const FAddColumnsCommand& Command)		{ This->ExecuteAddColumnsCommand(Row, Command.FragmentsToAdd, Command.TagsToAdd); }
-		void operator()(const FRemoveColumnCommand& Command)	{ This->ExecuteRemoveColumnCommand(Row, Command.ColumnType.Get()); }
-		void operator()(const FRemoveColumnsCommand& Command)	{ This->ExecuteRemoveColumnsCommand(Row, Command.FragmentsToRemove, Command.TagsToRemove); }
-	};
-	FProcessor Processor;
-	Processor.This = this;
-
-	for (FCommand& Command : PendingCommands)
-	{
-		if (HasRowBeenAssigned(Command.Row))
-		{
-			Processor.Row = Command.Row;
-			Visit(Processor, Command.Data);
-		}
-	}
-	PendingCommands.Reset();
-}
-
-void UTypedElementDatabase::ExecuteAddColumnCommand(TypedElementRowHandle Row, const UScriptStruct* ColumnType)
-{
-	if (ColumnType)
-	{
-		FMassEntityHandle Entity = FMassEntityHandle::FromNumber(Row);
-		if (ColumnType->IsChildOf(FMassTag::StaticStruct()))
-		{
-			ActiveEditorEntityManager->AddTagToEntity(Entity, ColumnType);
-		}
-		else if (ColumnType->IsChildOf(FMassFragment::StaticStruct()))
-		{
-			FStructView Column = ActiveEditorEntityManager->GetFragmentDataStruct(Entity, ColumnType);
-			// Only add if not already added to avoid asserts from Mass.
-			if (!Column.IsValid())
-			{
-				ActiveEditorEntityManager->AddFragmentToEntity(Entity, ColumnType);
-			}
-		}
-	}
-}
-
-void UTypedElementDatabase::ExecuteRemoveColumnCommand(TypedElementRowHandle Row, const UScriptStruct* ColumnType)
-{
-	if (ColumnType)
-	{
-		FMassEntityHandle Entity = FMassEntityHandle::FromNumber(Row);
-		if (ColumnType->IsChildOf(FMassTag::StaticStruct()))
-		{
-			ActiveEditorEntityManager->RemoveTagFromEntity(Entity, ColumnType);
-		}
-		else if (ColumnType->IsChildOf(FMassFragment::StaticStruct()))
-		{
-			ActiveEditorEntityManager->RemoveFragmentFromEntity(Entity, ColumnType);
-		}
-	}
-}
-
-void UTypedElementDatabase::ExecuteAddColumnsCommand(TypedElementRowHandle Row, FMassFragmentBitSet FragmentsToAdd, FMassTagBitSet TagsToAdd)
-{
-	FMassArchetypeCompositionDescriptor AddComposition(
-		MoveTemp(FragmentsToAdd), MoveTemp(TagsToAdd), FMassChunkFragmentBitSet(), FMassSharedFragmentBitSet());
-	ActiveEditorEntityManager->AddCompositionToEntity_GetDelta(FMassEntityHandle::FromNumber(Row), AddComposition);
-}
-
-void UTypedElementDatabase::ExecuteRemoveColumnsCommand(TypedElementRowHandle Row, FMassFragmentBitSet FragmentsToRemove, FMassTagBitSet TagsToRemove)
-{
-	FMassArchetypeCompositionDescriptor RemoveComposition(
-		MoveTemp(FragmentsToRemove), MoveTemp(TagsToRemove), FMassChunkFragmentBitSet(), FMassSharedFragmentBitSet());
-	ActiveEditorEntityManager->RemoveCompositionFromEntity(FMassEntityHandle::FromNumber(Row), RemoveComposition);
 }
 
 void UTypedElementDatabase::PreparePhase(EQueryTickPhase Phase, float DeltaTime)

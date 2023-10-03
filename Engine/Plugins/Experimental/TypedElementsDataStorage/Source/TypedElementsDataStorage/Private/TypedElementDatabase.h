@@ -8,6 +8,7 @@
 #include "Misc/TVariant.h"
 #include "Queries/TypedElementExtendedQueryStore.h"
 #include "Templates/SharedPointer.h"
+#include "TypedElementDatabaseCommandBuffer.h"
 #include "TypedElementDatabaseEnvironment.h"
 #include "UObject/ObjectMacros.h"
 #include "UObject/StrongObjectPtr.h"
@@ -98,44 +99,10 @@ public:
 
 	void DebugPrintQueryCallbacks(FOutputDevice& Output);
 
-private:	
-	struct FAddColumnCommand
-	{
-		TWeakObjectPtr<const UScriptStruct> ColumnType;
-	};
-	struct FAddColumnsCommand
-	{
-		FMassFragmentBitSet FragmentsToAdd;
-		FMassTagBitSet TagsToAdd;
-	};
-	struct FRemoveColumnCommand
-	{
-		TWeakObjectPtr<const UScriptStruct> ColumnType;
-	};
-	struct FRemoveColumnsCommand
-	{
-		FMassFragmentBitSet FragmentsToRemove;
-		FMassTagBitSet TagsToRemove;
-	};
-	using CommandData = TVariant<FAddColumnCommand, FAddColumnsCommand, FRemoveColumnCommand, FRemoveColumnsCommand>;
-
-	struct FCommand
-	{
-		TypedElementRowHandle Row;
-		CommandData Data;
-	};
-	
+private:
 	/** Converts a set of column types into Mass specific fragment and tag bit sets. Returns true if any values were added. */
 	static bool ColumnsToBitSets(TConstArrayView<const UScriptStruct*> Columns, FMassFragmentBitSet& Fragments, FMassTagBitSet& Tags);
 
-	template<typename T>
-	void AddPendingCommand(TypedElementRowHandle Row, T&& Args);
-	void ProcessPendingCommands();
-	void ExecuteAddColumnCommand(TypedElementRowHandle Row, const UScriptStruct* ColumnType);
-	void ExecuteAddColumnsCommand(TypedElementRowHandle Row, FMassFragmentBitSet FragmentsToAdd, FMassTagBitSet TagsToAdd);
-	void ExecuteRemoveColumnCommand(TypedElementRowHandle Row, const UScriptStruct* ColumnType);
-	void ExecuteRemoveColumnsCommand(TypedElementRowHandle Row, FMassFragmentBitSet FragmentsToRemove, FMassTagBitSet TagsToRemove);
-	
 	void PreparePhase(EQueryTickPhase Phase, float DeltaTime);
 	void FinalizePhase(EQueryTickPhase Phase, float DeltaTime);
 	void Reset();
@@ -147,6 +114,8 @@ private:
 
 	TUniquePtr<FTypedElementDatabaseEnvironment> Environment;
 	FTypedElementExtendedQueryStore Queries;
+
+	FTypedElementDatabaseCommandBuffer::CommandBuffer DeferredCommands;
 	
 	FTypedElementOnDataStorageUpdate OnUpdateDelegate;
 	FDelegateHandle OnPreMassTickHandle;
@@ -154,6 +123,4 @@ private:
 
 	TSharedPtr<FMassEntityManager> ActiveEditorEntityManager;
 	TSharedPtr<FMassProcessingPhaseManager> ActiveEditorPhaseManager;
-
-	TArray<FCommand> PendingCommands;
 };
