@@ -2780,8 +2780,6 @@ int32 FEngineLoop::PreInitPreStartupScreen(const TCHAR* CmdLine)
 		UE::ConfigUtilities::RecordApplyCVarSettingsFromIni();
 	}
 
-	UE::ConfigUtilities::ApplyCVarsFromBootHotfix();
-
 #if WITH_ENGINE
 	extern ENGINE_API void InitializeRenderingCVarsCaching();
 	InitializeRenderingCVarsCaching();
@@ -6423,6 +6421,12 @@ bool FEngineLoop::AppInit( )
 		}
 	}
 #endif
+
+	{
+		SCOPED_BOOT_TIMING("ConfigUtilities::ApplyCVarsFromBootHotfix");
+		// Apply boot hotfixes
+		UE::ConfigUtilities::ApplyCVarsFromBootHotfix();
+	}
 
 #if USE_IO_DISPATCHER
 	// Initialize on demand I/O dispatcher backend

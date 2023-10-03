@@ -43,6 +43,7 @@ void LoadCVarsFromFileForNextBoot(TMap<FString, FString>& OutCVars)
 {
 	if (!FPaths::HasProjectPersistentDownloadDir())
 	{
+		UE_LOG(LogConfig, Log, TEXT("No project persistent download dir available for boot hotfix"));
 		return;
 	}
 
