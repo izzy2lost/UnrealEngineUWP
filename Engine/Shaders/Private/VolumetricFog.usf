@@ -184,7 +184,8 @@ void MaterialSetupCS(
 
 		float3 UnitSpacePos = mul(float4(WorldPosition, 1.0), FogInstance.InvTransform).xyz;
 
-		float SphereFade = saturate(1.0 - length(UnitSpacePos - float3(0, 0, 0)));
+		float DistToCenter = length(UnitSpacePos - float3(0.0f, 0.0f, 0.0f));
+		float SphereFade = saturate(1.0f - DistToCenter * DistToCenter);
 
 		float LFVExtinction = 0.0;
 		if (FogInstance.HeightFogExtinction > 0.0f)
