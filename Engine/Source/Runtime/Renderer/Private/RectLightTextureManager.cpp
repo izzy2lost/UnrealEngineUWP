@@ -20,6 +20,7 @@
 #include "CommonRenderResources.h"
 #include "ScreenPass.h"
 #include "RectLightTexture.h"
+#include "DataDrivenShaderPlatformInfo.h"
 
 ///////////////////////////////////////////////////////////////////////////////////////////////////
 // Possible improvements:
@@ -301,7 +302,7 @@ class FRectLightAtlasDebugInfoCS : public FGlobalShader
 	END_SHADER_PARAMETER_STRUCT()
 
 public:
-	static bool ShouldCompilePermutation(const FGlobalShaderPermutationParameters& Parameters) { return ShaderPrint::IsSupported(Parameters.Platform); }
+	static bool ShouldCompilePermutation(const FGlobalShaderPermutationParameters& Parameters) { return ShaderPrint::IsSupported(Parameters.Platform) && !IsMobilePlatform(Parameters.Platform); }
 	static void ModifyCompilationEnvironment(const FGlobalShaderPermutationParameters& Parameters, FShaderCompilerEnvironment& OutEnvironment)
 	{
 		FGlobalShader::ModifyCompilationEnvironment(Parameters, OutEnvironment);

@@ -30,6 +30,7 @@
 #include "ScreenPass.h"
 #include "ScenePrivate.h"
 #include "UnrealEngine.h"
+#include "DataDrivenShaderPlatformInfo.h"
 
 #include "GroomVisualizationData.h"
 
@@ -119,7 +120,7 @@ class FHairPrintLODInfoCS : public FGlobalShader
 public:
 	static bool ShouldCompilePermutation(const FGlobalShaderPermutationParameters& Parameters) 
 	{
-		return IsHairStrandsSupported(EHairStrandsShaderType::All, Parameters.Platform) && ShaderPrint::IsSupported(Parameters.Platform);
+		return IsHairStrandsSupported(EHairStrandsShaderType::All, Parameters.Platform) && ShaderPrint::IsSupported(Parameters.Platform) && !IsMobilePlatform(Parameters.Platform);
 	}
 	static void ModifyCompilationEnvironment(const FGlobalShaderPermutationParameters& Parameters, FShaderCompilerEnvironment& OutEnvironment)
 	{
