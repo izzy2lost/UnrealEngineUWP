@@ -333,6 +333,7 @@ private:
 	{
 		FComputeAndMarkRelevance* Context = nullptr;
 		TCommandPipe<FPrimitiveIndexList> CommandPipe{ TEXT("RelevancePipe") };
+		TCommandPipe<FPrimitiveIndexList>* PrimaryViewCommandPipe; // When using instanced stereo, secondary views will also send their commands to the primary view's command pipe to merge data
 
 	} Relevance;
 
@@ -702,6 +703,7 @@ private:
 	const bool bLaunchOnAddPrimitive;
 	bool bFinished = false;
 	bool bFinalized = false;
+	FSceneBitArray InstancedPrimitiveAddedMap;
 };
 
 ///////////////////////////////////////////////////////////////////////////////
