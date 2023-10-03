@@ -2,25 +2,35 @@
 
 #pragma once
 
-#include "CoreMinimal.h"
+#include "UObject/WeakInterfacePtr.h"
 #include "ActorInstanceHandle.generated.h"
 
-// Handle to a unique object. This may specify a full weigh actor or it may only specify the light weight instance that represents the same object.
+class USceneComponent;
+class AActor;
+class UActorInstanceManager;
+class IActorInstanceManagerInterface;
+class ULevel;
+
+using FActorInstanceManagerInterface = TWeakInterfacePtr<IActorInstanceManagerInterface>;
+
+// Handle to a unique object. This may specify a full weigh actor or it may only specify the actor instance that represents the same object.
 USTRUCT(BlueprintType)
 struct FActorInstanceHandle
 {
 	GENERATED_BODY()
 
-	friend struct FLightWeightInstanceSubsystem;
-	friend class ALightWeightInstanceManager;
-	friend class UActorInstanceHandleInterface;
-
 	ENGINE_API FActorInstanceHandle();
 
 	ENGINE_API explicit FActorInstanceHandle(AActor* InActor);
-	ENGINE_API explicit FActorInstanceHandle(class ALightWeightInstanceManager* Manager, int32 InInstanceIndex);
-
+	ENGINE_API FActorInstanceHandle(UObject* InManager, const UPrimitiveComponent* RelevantComponent, int32 CollisionInstanceIndex);
+	ENGINE_API FActorInstanceHandle(FActorInstanceManagerInterface InManagerInterface, int32 InstanceIndex);
 	ENGINE_API FActorInstanceHandle(const FActorInstanceHandle& Other);
+
+	/** 
+	 * A path dedicated to creation of handles while converting actor to a dehydrated representation. This path ensures
+	 * an actor won't be spawned as a side effect of looking for the actor given Manager/Index represents
+	 */
+	static FActorInstanceHandle MakeDehydratedActorHandle(UObject& Manager, int32 InInstanceIndex);
 
 	ENGINE_API bool IsValid() const;
 
@@ -30,7 +40,7 @@ struct FActorInstanceHandle
 	bool DoesRepresent() const;
 
 	ENGINE_API UClass* GetRepresentedClass() const;
-
+	ENGINE_API ULevel* GetLevel() const;
 	ENGINE_API FVector GetLocation() const;
 	ENGINE_API FRotator GetRotation() const;
 	ENGINE_API FTransform GetTransform() const;
@@ -46,14 +56,15 @@ struct FActorInstanceHandle
 
 	/** Returns the actor specified by this handle. This may require loading and creating the actor object. */
 	ENGINE_API AActor* FetchActor() const;
+
 	template <typename T>
 	T* FetchActor() const;
 
+	AActor* GetCachedActor() const { return Actor.Get(); }
+	ENGINE_API void SetCachedActor(AActor* InActor) const;
+
 	/* Returns the index used internally by the manager */
 	FORCEINLINE int32 GetInstanceIndex() const { return InstanceIndex; }
-
-	/* Returns the index used by rendering and collision */
-	ENGINE_API int32 GetRenderingInstanceIndex() const;
 
 	FActorInstanceHandle& operator=(const FActorInstanceHandle& Other) = default;
 	FActorInstanceHandle& operator=(FActorInstanceHandle&& Other) = default;
@@ -69,9 +80,17 @@ struct FActorInstanceHandle
 
 	friend ENGINE_API FArchive& operator<<(FArchive& Ar, FActorInstanceHandle& Handle);
 
-	uint32 GetInstanceUID() const { return InstanceUID; }
+	FActorInstanceManagerInterface GetManagerInterface() const { return ManagerInterface; }
+
+	template<typename T>
+	T* GetManager() const 
+	{
+		return Cast<T>(ManagerInterface.GetObject());
+	}
 
 private:
+	void SetInternal(IActorInstanceManagerInterface& InManagerInterface, const UPrimitiveComponent* RelevantComponent, int32 CollisionInstanceIndex);
+
 	/**
 	 * helper functions that let us treat the actor pointer as a UObject in templated functions
 	 * these do NOT fetch the actor so they will return nullptr if we don't have a full actor representation
@@ -84,16 +103,13 @@ private:
 
 	/** this is cached here for convenience */
 	UPROPERTY()
-		mutable TWeakObjectPtr<AActor> Actor;
+	mutable TWeakObjectPtr<AActor> Actor;
 
-	/** Identifies the light weight instance manager to use */
-	TWeakObjectPtr<ALightWeightInstanceManager> Manager;
+	/** Identifies the actor instance manager to use */
+	FActorInstanceManagerInterface ManagerInterface;
 
 	/** Identifies the instance within the manager */
 	int32 InstanceIndex;
-
-	/** Unique identifier for instances represented by the handle */
-	uint32 InstanceUID;
 };
 
 template<typename T>

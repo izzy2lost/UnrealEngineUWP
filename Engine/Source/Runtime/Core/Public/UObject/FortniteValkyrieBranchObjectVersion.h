@@ -30,6 +30,9 @@ struct FFortniteValkyrieBranchObjectVersion
 		// Fix rest transforms wrongly stored in geometry collection components
 		FixRestTransformsInGeometryCollectionComponent,
 
+		// Distinct version required to properly handle legacy serialization of FActorInstanceHandle to avoid hitting replay deserialization perf 
+		ActorInstanceHandleSwitchedToInterfaces,
+
 		// -----<new versions can be added above this line>-------------------------------------------------
 		VersionPlusOne,
 		LatestVersion = VersionPlusOne - 1
