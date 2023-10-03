@@ -141,7 +141,7 @@ public:
 	void ClearPoseBeforeBackwardsSolve();
 
 	/* For additive rigs, will set control values by inverting the pose found after the backwards solve */
-	void InvertInputPose(EControlRigSetKey InSetKey);
+	void InvertInputPose(const TArray<FRigElementKey>& InElements = TArray<FRigElementKey>(), EControlRigSetKey InSetKey = EControlRigSetKey::Never);
 
 	/** Setup bindings to a runtime object (or clear by passing in nullptr). */
 	void SetObjectBinding(TSharedPtr<IControlRigObjectBinding> InObjectBinding)

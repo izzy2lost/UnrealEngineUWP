@@ -2369,14 +2369,17 @@ void FControlRigEditMode::BindCommands()
 		Commands.ToggleAllManipulators,
 		FExecuteAction::CreateRaw(this, &FControlRigEditMode::ToggleAllManipulators));
 	CommandBindings->MapAction(
-		Commands.ResetTransforms,
-		FExecuteAction::CreateRaw(this, &FControlRigEditMode::ResetTransforms, true));
+		Commands.ZeroTransforms,
+		FExecuteAction::CreateRaw(this, &FControlRigEditMode::ZeroTransforms, true));
 	CommandBindings->MapAction(
-		Commands.ResetAllTransforms,
-		FExecuteAction::CreateRaw(this, &FControlRigEditMode::ResetTransforms, false));
+		Commands.ZeroAllTransforms,
+		FExecuteAction::CreateRaw(this, &FControlRigEditMode::ZeroTransforms, false));
 	CommandBindings->MapAction(
-		Commands.InvertInputPose,
-		FExecuteAction::CreateRaw(this, &FControlRigEditMode::InvertInputPose));
+		Commands.InvertTransforms,
+		FExecuteAction::CreateRaw(this, &FControlRigEditMode::InvertInputPose, true));
+	CommandBindings->MapAction(
+		Commands.InvertAllTransforms,
+		FExecuteAction::CreateRaw(this, &FControlRigEditMode::InvertInputPose, false));
 	CommandBindings->MapAction(
 		Commands.ClearSelection,
 		FExecuteAction::CreateRaw(this, &FControlRigEditMode::ClearSelection));
@@ -2862,7 +2865,7 @@ void FControlRigEditMode::ToggleAllManipulators()
 	}
 }
 
-void FControlRigEditMode::ResetTransforms(bool bSelectionOnly)
+void FControlRigEditMode::ZeroTransforms(bool bSelectionOnly)
 {
 	// Gather up the control rigs for the selected controls
 	TArray<UControlRig*> ControlRigs;
@@ -2881,7 +2884,7 @@ void FControlRigEditMode::ResetTransforms(bool bSelectionOnly)
 		return;
 	}
 
-	FScopedTransaction Transaction(LOCTEXT("HierarchyResetTransforms", "Reset Transforms"));
+	FScopedTransaction Transaction(LOCTEXT("HierarchyZeroTransforms", "Zero Transforms"));
 
 	for (UControlRig* ControlRig : ControlRigs)
 	{
@@ -3062,19 +3065,43 @@ void FControlRigEditMode::ResetTransforms(bool bSelectionOnly)
 	}
 }
 
-void FControlRigEditMode::InvertInputPose()
+void FControlRigEditMode::InvertInputPose(bool bSelectionOnly)
 {
-	FScopedTransaction Transaction(LOCTEXT("HierarchyInvertInputPose", "Invert Input Pose"));
+	// Gather up the control rigs for the selected controls
+	TArray<UControlRig*> ControlRigs;
 	for (TWeakObjectPtr<UControlRig>& RuntimeRigPtr : RuntimeControlRigs)
 	{
-		if (RuntimeRigPtr.IsValid())
+		if (UControlRig* ControlRig = RuntimeRigPtr.Get())
 		{
-			if (RuntimeRigPtr->IsAdditive())
+			if (!bSelectionOnly || ControlRig->CurrentControlSelection().Num() > 0)
 			{
-				RuntimeRigPtr->InvertInputPose(EControlRigSetKey::Never);
-				RuntimeRigPtr->Evaluate_AnyThread();
+				ControlRigs.Add(ControlRig);
 			}
 		}
+	}
+	if (ControlRigs.Num() == 0)
+	{
+		return;
+	}
+
+	FScopedTransaction Transaction(LOCTEXT("HierarchyInvertTransformsToRestPose", "Invert Transforms to Rest Pose"));
+
+	for (UControlRig* ControlRig : ControlRigs)
+	{
+		if (!ControlRig->IsAdditive())
+		{
+			ZeroTransforms(bSelectionOnly);
+			continue;
+		}
+
+		TArray<FRigElementKey> SelectedRigElements;
+		if (bSelectionOnly)
+		{
+			SelectedRigElements = GetSelectedRigElements(ControlRig);
+		}
+
+		ControlRig->InvertInputPose(SelectedRigElements, EControlRigSetKey::Never);
+		ControlRig->Evaluate_AnyThread();
 	}
 }
 

@@ -1109,7 +1109,7 @@ void FControlRigParameterTrackEditor::BakeInvertedPose(UControlRig* InControlRig
 
 	auto DelegateHandle = InControlRig->OnPreAdditiveValuesApplication_AnyThread().AddLambda([](UControlRig* InControlRig, const FName& InEventName)
 	{
-		InControlRig->InvertInputPose(EControlRigSetKey::Never);
+		InControlRig->InvertInputPose();
 	});
 
 	auto KeyFrame = [this, ParentSequencer, InControlRig, SkelMeshComp](const FFrameNumber FrameNumber)

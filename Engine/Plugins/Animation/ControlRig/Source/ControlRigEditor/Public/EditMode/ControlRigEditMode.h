@@ -248,10 +248,10 @@ private:
 	bool CanFrameSelection();
 
 	/** Reset Transforms */
-	void ResetTransforms(bool bSelectionOnly);
+	void ZeroTransforms(bool bSelectionOnly);
 
 	/** Invert Input Pose */
-	void InvertInputPose();
+	void InvertInputPose(bool bSelectionOnly);
 
 	/** Increase Shape Size */
 	void IncreaseShapeSize();
