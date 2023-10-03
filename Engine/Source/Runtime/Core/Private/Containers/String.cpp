@@ -50,3 +50,16 @@ void StringConv::InlineCombineSurrogates(FString& Str)
 {
 	InlineCombineSurrogates_Array(Str.GetCharArray());
 }
+
+namespace UE::Core::Private
+{
+	UE_DISABLE_OPTIMIZATION_SHIP
+	void StripNegativeZero(double& InFloat)
+	{
+		// This works for translating a negative zero into a positive zero,
+		// but if optimizations are enabled when compiling with -ffast-math
+		// or /fp:fast, the compiler can strip it out.
+		InFloat += 0.0f;
+	}
+	UE_ENABLE_OPTIMIZATION_SHIP
+}

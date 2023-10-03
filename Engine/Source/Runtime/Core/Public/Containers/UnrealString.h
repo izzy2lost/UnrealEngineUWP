@@ -449,3 +449,8 @@ struct FTextRange
 	int32 BeginIndex;
 	int32 EndIndex;
 };
+
+namespace UE::Core::Private
+{
+	CORE_API void StripNegativeZero(double& InFloat);
+}
