@@ -1286,16 +1286,13 @@ struct GAMEPLAYABILITIES_API FActiveGameplayEffect : public FFastArraySerializer
 	//  IMPORTANT: Any new state added to FActiveGameplayEffect must be handled in the copy/move constructor/operator
 	// ---------------------------------------------------------------------------------------------------------------------------------
 
-	FActiveGameplayEffect();
+	FActiveGameplayEffect() = default;
+	FActiveGameplayEffect(FActiveGameplayEffectHandle InHandle, const FGameplayEffectSpec& InSpec, float CurrentWorldTime, float InStartServerWorldTime, FPredictionKey InPredictionKey);
 
+	// These need to be defined because we need to omit PendingNext from move operations and the base class isn't trivially copyable
 	FActiveGameplayEffect(const FActiveGameplayEffect& Other);
-
-	FActiveGameplayEffect(FActiveGameplayEffectHandle InHandle, const FGameplayEffectSpec &InSpec, float CurrentWorldTime, float InStartServerWorldTime, FPredictionKey InPredictionKey);
-	
 	FActiveGameplayEffect(FActiveGameplayEffect&& Other);
-
 	FActiveGameplayEffect& operator=(FActiveGameplayEffect&& other);
-
 	FActiveGameplayEffect& operator=(const FActiveGameplayEffect& other);
 
 	float GetTimeRemaining(float WorldTime) const
@@ -1365,32 +1362,33 @@ struct GAMEPLAYABILITIES_API FActiveGameplayEffect : public FFastArraySerializer
 
 	/** Server time this started */
 	UPROPERTY()
-	float StartServerWorldTime;
+	float StartServerWorldTime = 0.0f;
 
 	/** Used for handling duration modifications being replicated */
 	UPROPERTY(NotReplicated)
-	float CachedStartServerWorldTime;
+	float CachedStartServerWorldTime = 0.0f;
 
 	UPROPERTY(NotReplicated)
-	float StartWorldTime;
+	float StartWorldTime = 0.0f;
 
 	// Not sure if this should replicate or not. If replicated, we may have trouble where IsInhibited doesn't appear to change when we do tag checks (because it was previously inhibited, but replication made it inhibited).
 	UPROPERTY(NotReplicated)
-	bool bIsInhibited;
+	bool bIsInhibited = true;
 
 	/** When replicated down, we cue the GC events until the entire list of active gameplay effects has been received */
-	mutable bool bPendingRepOnActiveGC;
-	mutable bool bPendingRepWhileActiveGC;
+	mutable bool bPendingRepOnActiveGC = false;
+	mutable bool bPendingRepWhileActiveGC = false;
 
-	bool IsPendingRemove;
+	bool IsPendingRemove = false;
 
 	/** Last StackCount that the client had. Used to tell if the stackcount has changed in PostReplicatedChange */
-	int32 ClientCachedStackCount;
+	int32 ClientCachedStackCount = 0;
 
 	FTimerHandle PeriodHandle;
 	FTimerHandle DurationHandle;
 
-	FActiveGameplayEffect* PendingNext;
+	/** Cached pointer.  Since these ActiveGE's can be reused in-place, this should *not* be copied during copy/move operations */
+	FActiveGameplayEffect* PendingNext = nullptr;
 	
 	/** All the bindable events for this active effect (bundled to allow easier non-const access to these events via the ASC) */
 	FActiveGameplayEffectEvents EventSet;
