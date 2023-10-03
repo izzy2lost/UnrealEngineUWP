@@ -1,6 +1,8 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 
 #include "Polygroups/PolygroupsGenerator.h"
+
+#include "Clustering/FaceNormalClustering.h"
 #include "DynamicMesh/MeshNormals.h"
 #include "Selections/MeshConnectedComponents.h"
 #include "Util/IndexUtil.h"
@@ -582,12 +584,11 @@ bool FPolygroupsGenerator::FindSourceMeshPolygonPolygroups(
 
 
 bool FPolygroupsGenerator::FindPolygroupsFromFaceNormals(
-	double DotTolerance,
+	double OneMinusCosAngleTolerance,
 	bool bRespectUVSeams,
-	bool bRespectNormalSeams)
+	bool bRespectNormalSeams,
+	bool bUseAveragePolygroupNormals)
 {
-	DotTolerance = 1.0 - DotTolerance;
-
 	// if we are respecting seams or hard normals, find all those edges
 	TSet<int32> InvalidEdges;
 	if (bRespectUVSeams || bRespectNormalSeams)
@@ -595,56 +596,69 @@ bool FPolygroupsGenerator::FindPolygroupsFromFaceNormals(
 		GetSeamConstraintEdges(bRespectUVSeams, bRespectNormalSeams, InvalidEdges);
 	}
 
-	// compute face normals
-	FMeshNormals Normals(Mesh);
-	Normals.ComputeTriangleNormals();
-
-	TArray<bool> DoneTriangle;
-	DoneTriangle.SetNum(Mesh->MaxTriangleID());
-
-	TArray<int> Stack;
-
-	// grow outward from vertices until we have no more left
-	for (int TriID : Mesh->TriangleIndicesItr())
+	if (bUseAveragePolygroupNormals)
 	{
-		if (DoneTriangle[TriID] == true)
-		{
-			continue;
-		}
+		FaceNormalClustering::FClusterOptions Options;
+		Options.NormalOneMinusCosTolerance = OneMinusCosAngleTolerance;
+		Options.bApplyNormalToleranceToClusters = true;
+		FaceNormalClustering::ComputeMeshPolyGroupsFromClusters(*Mesh, FoundPolygroups, Options, &InvalidEdges);
+	}
+	else
+	{
+		// Transform into normal-dot-product tolerance
+		const double DotTolerance = 1.0 - OneMinusCosAngleTolerance;
 
-		TArray<int> Polygroup;
-		Polygroup.Add(TriID);
-		DoneTriangle[TriID] = true;
+		// compute face normals
+		FMeshNormals Normals(Mesh);
+		Normals.ComputeTriangleNormals();
 
-		Stack.SetNum(0);
-		Stack.Add(TriID);
-		while (Stack.Num() > 0)
+		TArray<bool> DoneTriangle;
+		DoneTriangle.SetNum(Mesh->MaxTriangleID());
+
+		TArray<int> Stack;
+
+		// grow outward from vertices until we have no more left
+		for (int TriID : Mesh->TriangleIndicesItr())
 		{
-			int CurTri = Stack.Pop(false);
-			FIndex3i NbrTris = Mesh->GetTriNeighbourTris(CurTri);
-			FIndex3i NbrEdges = Mesh->GetTriEdges(CurTri);
-			for (int j = 0; j < 3; ++j)
+			if (DoneTriangle[TriID] == true)
 			{
-				if (InvalidEdges.Contains(NbrEdges[j]))
-				{
-					continue;
-				}
+				continue;
+			}
 
-				if (NbrTris[j] >= 0
-					&& DoneTriangle[NbrTris[j]] == false)
+			TArray<int> Polygroup;
+			Polygroup.Add(TriID);
+			DoneTriangle[TriID] = true;
+
+			Stack.Reset();
+			Stack.Add(TriID);
+			while (Stack.Num() > 0)
+			{
+				int CurTri = Stack.Pop(false);
+				FIndex3i NbrTris = Mesh->GetTriNeighbourTris(CurTri);
+				FIndex3i NbrEdges = Mesh->GetTriEdges(CurTri);
+				for (int j = 0; j < 3; ++j)
 				{
-					double Dot = Normals[CurTri].Dot(Normals[NbrTris[j]]);
-					if (Dot > DotTolerance)
+					if (InvalidEdges.Contains(NbrEdges[j]))
 					{
-						Polygroup.Add(NbrTris[j]);
-						Stack.Add(NbrTris[j]);
-						DoneTriangle[NbrTris[j]] = true;
+						continue;
+					}
+
+					if (NbrTris[j] >= 0
+						&& DoneTriangle[NbrTris[j]] == false)
+					{
+						double Dot = Normals[CurTri].Dot(Normals[NbrTris[j]]);
+						if (Dot > DotTolerance)
+						{
+							Polygroup.Add(NbrTris[j]);
+							Stack.Add(NbrTris[j]);
+							DoneTriangle[NbrTris[j]] = true;
+						}
 					}
 				}
 			}
-		}
 
-		FoundPolygroups.Add(Polygroup);
+			FoundPolygroups.Add(Polygroup);
+		}
 	}
 
 	if (bApplyPostProcessing)

@@ -57,12 +57,13 @@ public:
 
 	/**
 	 * Find Polygroups by randomly picking initial seed triangles and then flood-filling outwards,
-	 * stopping when the opening angle at an edge is larger than the angle defined by the DotTolerance.
+	 * stopping when the opening angle at an edge is larger than the angle defined by the OneMinusCosAngleTolerance.
 	 */
 	bool FindPolygroupsFromFaceNormals(
-		double DotTolerance = 0.0001,
+		double OneMinusCosAngleTolerance = 0.0001,
 		bool bRespectUVSeams = false,
-		bool bRespectNormalSeams = false);
+		bool bRespectNormalSeams = false,
+		bool bUseAveragePolygroupNormals = false);
 
 	/**
 	 * Find Polygroups based on UV Islands, ie each UV Island becomes a Polygroup
