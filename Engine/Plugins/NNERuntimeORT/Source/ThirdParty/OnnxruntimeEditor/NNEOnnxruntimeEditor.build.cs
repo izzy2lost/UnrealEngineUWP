@@ -13,9 +13,9 @@ public class NNEOnnxruntimeEditor : ModuleRules
 
 		string PlatformDir = Target.Platform.ToString();
 		string IncDirPath = Path.Combine(ModuleDirectory, "include");
-		string BinDirPath = Path.GetFullPath(Path.Combine(ModuleDirectory, "bin", PlatformDir));
 		string LibDirPath = Path.Combine(ModuleDirectory, "lib", PlatformDir);
 		string OrtPlatformRelativePath = Path.Combine("Binaries", "ThirdParty", "OnnxruntimeEditor", PlatformDir);
+		string OrtPlatformPath = Path.Combine(PluginDirectory, OrtPlatformRelativePath);
 		string SharedLibName = "onnxruntime";
 
 		PublicIncludePaths.Add(IncDirPath);
@@ -25,7 +25,7 @@ public class NNEOnnxruntimeEditor : ModuleRules
 		if (Target.Platform == UnrealTargetPlatform.Win64)
 		{
 			string DllFileName = SharedLibName + ".dll";
-			string DllFilePath = Path.Combine(BinDirPath, DllFileName);
+			string DllFilePath = Path.Combine(OrtPlatformPath, DllFileName);
 
 			PublicAdditionalLibraries.Add(Path.Combine(LibDirPath, SharedLibName + ".lib"));
 			PublicDelayLoadDLLs.Add(DllFileName);
