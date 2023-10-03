@@ -1,6 +1,6 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 
-#include "SCurveEditorEventChannelView.h"
+#include "Channels/SCurveEditorEventChannelView.h"
 
 #include "Containers/SortedMap.h"
 #include "CurveEditor.h"

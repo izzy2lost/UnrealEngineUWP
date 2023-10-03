@@ -744,6 +744,29 @@ bool FMovieSceneToolsModule::ImportStringProperty(const FString& InPropertyName,
 	return false;
 }
 
+void FMovieSceneToolsModule::RegisterKeyStructInstancedPropertyTypeCustomizer(IMovieSceneToolsKeyStructInstancedPropertyTypeCustomizer* InCustomizer)
+{
+	checkf(!KeyStructInstancedPropertyTypeCustomizers.Contains(InCustomizer), TEXT("Key Struct Instanced Property Type Customizer is already registered"));
+	KeyStructInstancedPropertyTypeCustomizers.Add(InCustomizer);
+}
+
+void FMovieSceneToolsModule::UnregisterKeyStructInstancedPropertyTypeCustomizer(IMovieSceneToolsKeyStructInstancedPropertyTypeCustomizer* InCustomizer)
+{
+	checkf(KeyStructInstancedPropertyTypeCustomizers.Contains(InCustomizer), TEXT("Key Struct Instanced Property Type Customizer is not registered"));
+	KeyStructInstancedPropertyTypeCustomizers.Remove(InCustomizer);
+}
+
+void FMovieSceneToolsModule::CustomizeKeyStructInstancedPropertyTypes(TSharedRef<IStructureDetailsView> StructureDetailsView, TWeakObjectPtr<UMovieSceneSection> Section)
+{
+	for (IMovieSceneToolsKeyStructInstancedPropertyTypeCustomizer* Customizer : KeyStructInstancedPropertyTypeCustomizers)
+	{
+		if (Customizer)
+		{
+			Customizer->RegisterKeyStructInstancedPropertyTypeCustomization(StructureDetailsView, Section);
+		}
+	}
+}
+
 IMPLEMENT_MODULE( FMovieSceneToolsModule, MovieSceneTools );
 
 #undef LOCTEXT_NAMESPACE
