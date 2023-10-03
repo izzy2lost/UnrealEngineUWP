@@ -121,9 +121,17 @@ static FAutoConsoleVariableRef CVarNaniteSoftwareVRS(
 	ECVF_RenderThreadSafe
 );
 
-static uint32 GetShadingRateTileSize()
+int32 GNaniteValidateShadeBinning = 0;
+static FAutoConsoleVariableRef CVarNaniteValidateShadeBinning(
+	TEXT("r.Nanite.Debug.ValidateShadeBinning"),
+	GNaniteValidateShadeBinning,
+	TEXT(""),
+	ECVF_RenderThreadSafe
+);
+
+static uint32 GetShadingRateTileSizeBits()
 {
-	uint32 TileSize = 0;
+	uint32 TileSizeBits = 0;
 
 	if (GNaniteSoftwareVRS != 0 && GRHISupportsAttachmentVariableRateShading)
 	{
@@ -133,20 +141,21 @@ static uint32 GetShadingRateTileSize()
 		(
 			GRHIVariableRateShadingImageTileMinWidth == GRHIVariableRateShadingImageTileMinHeight &&
 			GRHIVariableRateShadingImageTileMinWidth == GRHIVariableRateShadingImageTileMaxWidth &&
-			GRHIVariableRateShadingImageTileMinWidth == GRHIVariableRateShadingImageTileMaxHeight
+			GRHIVariableRateShadingImageTileMinWidth == GRHIVariableRateShadingImageTileMaxHeight &&
+			FMath::IsPowerOfTwo(GRHIVariableRateShadingImageTileMinWidth)
 		);
 
-		TileSize = GRHIVariableRateShadingImageTileMinWidth;
+		TileSizeBits = FMath::FloorLog2(GRHIVariableRateShadingImageTileMinWidth);
 	}
 
-	return TileSize;
+	return TileSizeBits;
 }
 
 static FRDGTextureRef GetShadingRateImage(FRDGBuilder& GraphBuilder, const FViewInfo& ViewInfo)
 {
 	FRDGTextureRef ShadingRateImage = nullptr;
 
-	if (GetShadingRateTileSize() != 0)
+	if (GetShadingRateTileSizeBits() != 0)
 	{
 		ShadingRateImage = GVRSImageManager.GetVariableRateShadingImage(GraphBuilder, ViewInfo, FVariableRateShadingImageManager::EVRSPassType::NaniteEmitGBufferPass);
 	}
@@ -174,7 +183,7 @@ public:
 		SHADER_PARAMETER_RDG_TEXTURE_UAV_ARRAY(RWTextureMetadata, OutCMaskBuffer, [MaxSimultaneousRenderTargets])
 		SHADER_PARAMETER_RDG_TEXTURE_SRV(Texture2D<uint>, ShadingMask)
 		SHADER_PARAMETER_RDG_BUFFER_SRV(StructuredBuffer<FNaniteShadingBinMeta>, ShadingBinMeta)
-		END_SHADER_PARAMETER_STRUCT()
+	END_SHADER_PARAMETER_STRUCT()
 
 	FClearTilesCS() = default;
 	FClearTilesCS(const ShaderMetaType::CompiledShaderInitializerType& Initializer)
@@ -234,11 +243,6 @@ class FShadingBinBuildCS : public FNaniteGlobalShader
 		}
 
 		FPermutationDomain PermutationVector(Parameters.PermutationId);
-		if (PermutationVector.Get<FGatherStatsDim>() && PermutationVector.Get<FBuildPassDim>() != NANITE_SHADING_BIN_COUNT)
-		{
-			return false;
-		}
-
 		if (PermutationVector.Get<FOptimizeWriteMaskDim>() && !RHISupportsRenderTargetWriteMask(Parameters.Platform))
 		{
 			return false;
@@ -270,13 +274,15 @@ class FShadingBinBuildCS : public FNaniteGlobalShader
 		SHADER_PARAMETER(uint32, ValidWriteMask)
 		SHADER_PARAMETER(FUint32Vector2, DispatchOffsetTL)
 		SHADER_PARAMETER(uint32, ShadingBinCount)
-		SHADER_PARAMETER(uint32, ShadingRateTileSize)
+		SHADER_PARAMETER(uint32, ShadingRateTileSizeBits)
+		SHADER_PARAMETER(uint32, DummyZero)
 		SHADER_PARAMETER_RDG_TEXTURE(Texture2D<uint>, ShadingRateImage)
 		SHADER_PARAMETER_RDG_TEXTURE(Texture2D<uint>, ShadingMask)
 		SHADER_PARAMETER_SAMPLER(SamplerState, ShadingMaskSampler)
 		SHADER_PARAMETER_RDG_TEXTURE_UAV_ARRAY(RWTextureMetadata, OutCMaskBuffer, [MaxSimultaneousRenderTargets])
+		SHADER_PARAMETER_RDG_BUFFER_UAV(RWStructuredBuffer<FNaniteShadingBinStats>, OutShadingBinStats)
 		SHADER_PARAMETER_RDG_BUFFER_UAV(RWStructuredBuffer<FNaniteShadingBinMeta>, OutShadingBinMeta)
-		SHADER_PARAMETER_RDG_BUFFER_UAV(RWStructuredBuffer<uint>, OutShadingBinData)
+		SHADER_PARAMETER_RDG_BUFFER_UAV(RWByteAddressBuffer, OutShadingBinData)
 		SHADER_PARAMETER_RDG_BUFFER_UAV(RWByteAddressBuffer, OutShadingBinArgs)
 	END_SHADER_PARAMETER_STRUCT()
 
@@ -313,6 +319,30 @@ class FShadingBinReserveCS : public FNaniteGlobalShader
 	END_SHADER_PARAMETER_STRUCT()
 };
 IMPLEMENT_GLOBAL_SHADER(FShadingBinReserveCS, "/Engine/Private/Nanite/NaniteShadeBinning.usf", "ShadingBinReserveCS", SF_Compute);
+
+class FShadingBinValidateCS : public FNaniteGlobalShader
+{
+	DECLARE_GLOBAL_SHADER(FShadingBinValidateCS);
+	SHADER_USE_PARAMETER_STRUCT(FShadingBinValidateCS, FNaniteGlobalShader);
+
+	static bool ShouldCompilePermutation(const FGlobalShaderPermutationParameters& Parameters)
+	{
+		return DoesPlatformSupportNanite(Parameters.Platform);
+	}
+
+	static void ModifyCompilationEnvironment(const FGlobalShaderPermutationParameters& Parameters, FShaderCompilerEnvironment& OutEnvironment)
+	{
+		FNaniteGlobalShader::ModifyCompilationEnvironment(Parameters, OutEnvironment);
+		OutEnvironment.SetDefine(TEXT("SHADING_BIN_PASS"), NANITE_SHADING_BIN_VALIDATE);
+	}
+
+	BEGIN_SHADER_PARAMETER_STRUCT(FParameters, )
+		SHADER_PARAMETER(uint32, ShadingBinCount)
+		SHADER_PARAMETER_RDG_BUFFER_UAV(RWStructuredBuffer<FNaniteShadingBinMeta>, OutShadingBinMeta)	
+	END_SHADER_PARAMETER_STRUCT()
+};
+IMPLEMENT_GLOBAL_SHADER(FShadingBinValidateCS, "/Engine/Private/Nanite/NaniteShadeBinning.usf", "ShadingBinValidateCS", SF_Compute);
+
 
 BEGIN_SHADER_PARAMETER_STRUCT(FNaniteShadingPassParameters, )
 	RDG_BUFFER_ACCESS(MaterialIndirectArgs, ERHIAccess::IndirectArgs)
@@ -353,12 +383,7 @@ inline bool HasNoDerivativeOps(FRHIComputeShader* ComputeShaderRHI)
 	}
 	else
 	{
-#if 0
-		// Temporary debug code
-		return (GetTypeHash(ComputeShaderRHI) & 1) != 0;
-#else
 		return ComputeShaderRHI ? ComputeShaderRHI->HasNoDerivativeOps() : false;
-#endif
 	}
 }
 
@@ -607,7 +632,7 @@ void RecordShadingParameters(
 	const bool bNoDerivativeOps = !!ShadingCommand.Pipeline->bNoDerivativeOps;
 
 	PassData.X = ShadingCommand.ShadingBin;
-	PassData.Z = bNoDerivativeOps ? 0 /* Pixel Binning */ : 1 /* Quad Binning */;
+	PassData.Y = bNoDerivativeOps ? 0 /* Pixel Binning */ : 1 /* Quad Binning */;
 
 	ShadingCommand.Pipeline->ShaderBindings->SetParameters(BatchedParameters, ComputeShaderRHI);
 
@@ -1047,12 +1072,12 @@ void DispatchBasePass(
 		FRHIUnorderedAccessView* OutputTargetsArray = GetOutputTargetRHI(ShadingPassParameters->OutTargets);
 
 		// .X = Active Shading Bin
-		// .Y = VRS Tile Size
-		// .Z = Quad Binning Flag
+		// .Y = Quad Binning Flag
+		// .Z = Unused
 		// .W = Unused
 		FUint32Vector4 PassData(
 			0, // Set per shading command
-			GetShadingRateTileSize(),
+			0,
 			0,
 			0
 		);
@@ -1410,7 +1435,7 @@ FShadeBinning ShadeBinning(
 	);
 
 	Binning.ShadingBinArgs   = GraphBuilder.CreateBuffer(FRDGBufferDesc::CreateRawIndirectDesc(sizeof(FUint32Vector4) * ShadingBinCountPow2), TEXT("Nanite.ShadingBinArgs"));
-	Binning.ShadingBinData   = GraphBuilder.CreateBuffer(FRDGBufferDesc::CreateStructuredDesc(sizeof(uint32), PixelCount), TEXT("Nanite.ShadingBinData"));
+	Binning.ShadingBinData	= GraphBuilder.CreateBuffer(FRDGBufferDesc::CreateByteAddressDesc(PixelCount * 8), TEXT("Nanite.ShadingBinData"));
 	Binning.ShadingBinStats  = bGatherStats ? GraphBuilder.CreateBuffer(FRDGBufferDesc::CreateStructuredDesc(sizeof(FNaniteShadingBinStats), 1u), TEXT("Nanite.ShadingBinStats")) : nullptr;
 
 	FRDGBufferUAVRef ShadingBinMetaUAV  = GraphBuilder.CreateUAV(Binning.ShadingBinMeta);
@@ -1423,18 +1448,31 @@ FShadeBinning ShadeBinning(
 		AddClearUAVPass(GraphBuilder, ShadingBinStatsUAV, 0);
 	}
 
+	const bool bOptimizeWriteMask = (ValidClearTargets.Num() > 0);
+
+	const uint32 ShadingRateTileSizeBits = GetShadingRateTileSizeBits();
+	const bool bVariableRateShading = (ShadingRateTileSizeBits != 0);
+
+	const uint32 TargetAlignment =	bOptimizeWriteMask ? 8 :	// 8x8 for optimized write mask
+									bVariableRateShading ? 4 :	// 4x4 for VRS
+									2;							// 2x2 for just quad processing
+	const uint32 TargetAlignmentMask = ~(TargetAlignment - 1u);
+
+	const FUint32Vector2 AlignedDispatchOffsetTL = FUint32Vector2(InViewRect.Min.X & TargetAlignmentMask, InViewRect.Min.Y & TargetAlignmentMask);
+	const FIntVector AlignedDispatchDim = FComputeShaderUtils::GetGroupCount(FIntPoint(InViewRect.Max.X - AlignedDispatchOffsetTL.X, InViewRect.Max.Y - AlignedDispatchOffsetTL.Y), GroupDim * 2);
+
+	check(QuadDispatchDim.X == AlignedDispatchDim.X);
+	check(QuadDispatchDim.Y == AlignedDispatchDim.Y);
+
 	// Shading Bin Count
 	{
-		const bool bOptimizeWriteMask = (ValidClearTargets.Num() > 0);
-
-		const FUint32Vector2 AlignedDispatchOffsetTL = FUint32Vector2(InViewRect.Min.X & ~7u, InViewRect.Min.Y & ~7u);
-
 		FShadingBinBuildCS::FParameters* PassParameters = GraphBuilder.AllocParameters<FShadingBinBuildCS::FParameters>();
 		PassParameters->ViewRect = ViewRect;
 		PassParameters->ValidWriteMask = ValidWriteMask;
 		PassParameters->DispatchOffsetTL = bOptimizeWriteMask ? AlignedDispatchOffsetTL : DispatchOffsetTL;
 		PassParameters->ShadingBinCount = ShadingBinCount;
-		PassParameters->ShadingRateTileSize = GetShadingRateTileSize();
+		PassParameters->ShadingRateTileSizeBits = GetShadingRateTileSizeBits();
+		PassParameters->DummyZero = 0;
 		PassParameters->ShadingRateImage = GetShadingRateImage(GraphBuilder, View);
 		PassParameters->ShadingMaskSampler = TStaticSamplerState<SF_Point>::GetRHI();
 		PassParameters->ShadingMask = RasterResults.ShadingMask;
@@ -1446,7 +1484,7 @@ FShadeBinning ShadeBinning(
 		PermutationVector.Set<FShadingBinBuildCS::FBuildPassDim>(NANITE_SHADING_BIN_COUNT);
 		PermutationVector.Set<FShadingBinBuildCS::FTechniqueDim>(FMath::Clamp<int32>(GBinningTechnique, 0, 1));
 		PermutationVector.Set<FShadingBinBuildCS::FGatherStatsDim>(bGatherStats);
-		PermutationVector.Set<FShadingBinBuildCS::FVariableRateDim>(PassParameters->ShadingRateTileSize != 0u);
+		PermutationVector.Set<FShadingBinBuildCS::FVariableRateDim>(bVariableRateShading);
 		PermutationVector.Set<FShadingBinBuildCS::FOptimizeWriteMaskDim>(bOptimizeWriteMask);
 		PermutationVector.Set<FShadingBinBuildCS::FNumExports>(FMath::Max(1, ValidClearTargets.Num()));
 		auto ComputeShader = View.ShaderMap->GetShader<FShadingBinBuildCS>(PermutationVector);
@@ -1457,14 +1495,12 @@ FShadeBinning ShadeBinning(
 			{
 				PassParameters->OutCMaskBuffer[TargetIndex] = GraphBuilder.CreateUAV(FRDGTextureUAVDesc::CreateForMetaData(ValidClearTargets[TargetIndex], ERDGTextureMetaDataAccess::CMask));
 			}
-
-			const FIntVector AlignedQuadDispatchDim = FComputeShaderUtils::GetGroupCount(FIntPoint(InViewRect.Max.X - AlignedDispatchOffsetTL.X, InViewRect.Max.Y - AlignedDispatchOffsetTL.Y), GroupDim * 2);
 	
 			GraphBuilder.AddPass(
 				RDG_EVENT_NAME("ShadingCount"),
 				PassParameters,
 				ERDGPassFlags::Compute,
-				[AlignedQuadDispatchDim, ComputeShader, PassParameters](FRHIComputeCommandList& RHICmdList)
+				[AlignedDispatchDim, ComputeShader, PassParameters](FRHIComputeCommandList& RHICmdList)
 				{
 					void* PlatformDataPtr = nullptr;
 					uint32 PlatformDataSize = 0;
@@ -1489,13 +1525,13 @@ FShadeBinning ShadeBinning(
 					SetComputePipelineState(RHICmdList, ComputeShader.GetComputeShader());
 					SetShaderParametersMixedCS(RHICmdList, ComputeShader, *PassParameters, PlatformDataPtr, PlatformDataSize);
 
-					RHICmdList.DispatchComputeShader(AlignedQuadDispatchDim.X, AlignedQuadDispatchDim.Y, AlignedQuadDispatchDim.Z);
+					RHICmdList.DispatchComputeShader(AlignedDispatchDim.X, AlignedDispatchDim.Y, AlignedDispatchDim.Z);
 				}
 			);
 		}
 		else
 		{
-			FComputeShaderUtils::AddPass(GraphBuilder, RDG_EVENT_NAME("ShadingCount"), ComputeShader, PassParameters, QuadDispatchDim);
+			FComputeShaderUtils::AddPass(GraphBuilder, RDG_EVENT_NAME("ShadingCount"), ComputeShader, PassParameters, AlignedDispatchDim);
 		}
 	}
 
@@ -1507,6 +1543,7 @@ FShadeBinning ShadeBinning(
 
 		FShadingBinReserveCS::FParameters* PassParameters = GraphBuilder.AllocParameters<FShadingBinReserveCS::FParameters>();
 		PassParameters->ShadingBinCount = ShadingBinCount;
+		PassParameters->OutShadingBinStats = ShadingBinStatsUAV;
 		PassParameters->OutShadingBinMeta = ShadingBinMetaUAV;
 		PassParameters->OutShadingBinAllocator = ShadingBinAllocatorUAV;
 		PassParameters->OutShadingBinArgs = ShadingBinArgsUAV;
@@ -1523,28 +1560,39 @@ FShadeBinning ShadeBinning(
 	{
 		FShadingBinBuildCS::FParameters* PassParameters = GraphBuilder.AllocParameters<FShadingBinBuildCS::FParameters>();
 		PassParameters->ViewRect = ViewRect;
-		PassParameters->DispatchOffsetTL = DispatchOffsetTL;
+		PassParameters->DispatchOffsetTL = AlignedDispatchOffsetTL;
 		PassParameters->ShadingBinCount = ShadingBinCount;
-		PassParameters->ShadingRateTileSize = GetShadingRateTileSize();
+		PassParameters->ShadingRateTileSizeBits = GetShadingRateTileSizeBits();
+		PassParameters->DummyZero = 0;
 		PassParameters->ShadingRateImage = GetShadingRateImage(GraphBuilder, View);
 		PassParameters->ShadingMaskSampler = TStaticSamplerState<SF_Point>::GetRHI();
 		PassParameters->ShadingMask = RasterResults.ShadingMask;
+		PassParameters->OutShadingBinStats = ShadingBinStatsUAV;
 		PassParameters->OutShadingBinMeta = ShadingBinMetaUAV;
 		PassParameters->OutShadingBinData = ShadingBinDataUAV;
 		PassParameters->OutShadingBinArgs = nullptr;
 
-		const bool bVariableRateShading = PassParameters->ShadingRateTileSize != 0u;
-
 		FShadingBinBuildCS::FPermutationDomain PermutationVector;
 		PermutationVector.Set<FShadingBinBuildCS::FBuildPassDim>(NANITE_SHADING_BIN_SCATTER);
 		PermutationVector.Set<FShadingBinBuildCS::FTechniqueDim>(FMath::Clamp<int32>(GBinningTechnique, 0, 1));
-		PermutationVector.Set<FShadingBinBuildCS::FGatherStatsDim>(false);
-		PermutationVector.Set<FShadingBinBuildCS::FVariableRateDim>(PassParameters->ShadingRateTileSize != 0u);
+		PermutationVector.Set<FShadingBinBuildCS::FGatherStatsDim>(bGatherStats);
+		PermutationVector.Set<FShadingBinBuildCS::FVariableRateDim>(bVariableRateShading);
 		PermutationVector.Set<FShadingBinBuildCS::FOptimizeWriteMaskDim>(false);
 		PermutationVector.Set<FShadingBinBuildCS::FNumExports>(1);
 		auto ComputeShader = View.ShaderMap->GetShader<FShadingBinBuildCS>(PermutationVector);
 
-		FComputeShaderUtils::AddPass(GraphBuilder, RDG_EVENT_NAME("ShadingScatter"), ComputeShader, PassParameters, QuadDispatchDim);
+		FComputeShaderUtils::AddPass(GraphBuilder, RDG_EVENT_NAME("ShadingScatter"), ComputeShader, PassParameters, AlignedDispatchDim);
+	}
+
+	// Shading Bin Validate
+	if (GNaniteValidateShadeBinning)
+	{
+		FShadingBinValidateCS::FParameters* PassParameters = GraphBuilder.AllocParameters<FShadingBinValidateCS::FParameters>();
+		PassParameters->ShadingBinCount = ShadingBinCount;
+		PassParameters->OutShadingBinMeta = ShadingBinMetaUAV;
+
+		auto ComputeShader = View.ShaderMap->GetShader<FShadingBinValidateCS>();
+		FComputeShaderUtils::AddPass(GraphBuilder, RDG_EVENT_NAME("ShadingValidate"), ERDGPassFlags::Compute | ERDGPassFlags::NeverCull, ComputeShader, PassParameters, BinDispatchDim);
 	}
 
 	return Binning;

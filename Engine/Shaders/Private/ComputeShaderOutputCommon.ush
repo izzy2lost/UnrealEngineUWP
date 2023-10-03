@@ -24,12 +24,12 @@ struct FUERootConstants
 };
 
 // RecordIndex = ShadingBin
-// PassData .x = VRS tile size, .y = Quad Binning Flag, .z = Unused
+// PassData .x = Quad Binning Flag, .y = Unused, .z = Unused
 ConstantBuffer<FUERootConstants> UERootConstants : UE_HLSL_REGISTER(b, 0, UE_HLSL_SPACE_SHADER_ROOT_CONSTANTS);
 
 #else
 
-// .x = shading bin, y = VRS tile size, .z = Quad Binning Flag, .w = unused
+// .x = shading bin, .y = Quad Binning Flag, .z = Unused, .w = Unused
 uint4 PassData; 
 
 #endif
@@ -103,7 +103,7 @@ uint4 PassData;
 
 #endif // SUBSTRATE_OPAQUE_DEFERRED
 
-FPixelShaderOut ShadePixel(const uint2 PixelPos, uint QuadIndex)
+FPixelShaderOut ShadePixel(const float2 SVPositionXY, uint QuadIndex)
 {
 #if PIXELSHADEROUTPUT_INTERPOLANTS || PIXELSHADEROUTPUT_BASEPASS
 #if IS_NANITE_PASS
@@ -114,8 +114,7 @@ FPixelShaderOut ShadePixel(const uint2 PixelPos, uint QuadIndex)
 #endif
 #endif
 
-	const float2 HalfPixelOffset = float2(0.5f, 0.5f);
-	const float4 SvPosition = float4(float2(PixelPos) + HalfPixelOffset, 0.0f, 1.0f);
+	const float4 SvPosition = float4(SVPositionXY, 0.0f, 1.0f);
 
 #if IS_NANITE_PASS && (PIXELSHADEROUTPUT_INTERPOLANTS || PIXELSHADEROUTPUT_BASEPASS)
 	FVertexFactoryInterpolantsVSToPS Interpolants = (FVertexFactoryInterpolantsVSToPS)0;
@@ -246,10 +245,10 @@ void ExportPixel(const uint2 PixelPos, FPixelShaderOut ShadedPixel)
 
 #define VIS_HELPER_LANES 0
 
-void ProcessPixel(uint ShadingBin, const uint2 PixelPos, uint QuadIndex, uint DispatchIndex, uint PixelWriteMask, uint HelperLaneCount)
+void ProcessPixel(uint ShadingBin, const uint2 PixelPos, const float2 SVPositionXY, uint QuadIndex, uint DispatchIndex, uint PixelWriteMask, uint HelperLaneCount)
 {
 	// All lanes shade (regardless of export - so ddx/ddy are valid)
-	FPixelShaderOut ShadedPixel = ShadePixel(PixelPos, QuadIndex);
+	FPixelShaderOut ShadedPixel = ShadePixel(SVPositionXY, QuadIndex);
 
 #if VIS_HELPER_LANES
 	ShadedPixel.MRT[3].rgb = ColorMapTurbo(float(HelperLaneCount) / 4.0f);
@@ -274,24 +273,24 @@ void ProcessPixel(uint ShadingBin, const uint2 PixelPos, uint QuadIndex, uint Di
 	if (PixelWriteMask & 1u)
 	{
 		ExportPixel(PixelPos, ShadedPixel);
+	}
 
-		BRANCH
-		if (PixelWriteMask & 2u) // Copy H
-		{
-			ExportPixel(PixelPos + uint2(1, 0), ShadedPixel);
-		}
+	BRANCH
+	if (PixelWriteMask & 2u) // Copy H
+	{
+		ExportPixel(PixelPos + uint2(1, 0), ShadedPixel);
+	}
 
-		BRANCH
-		if (PixelWriteMask & 4u) // Copy V
-		{
-			ExportPixel(PixelPos + uint2(0, 1), ShadedPixel);
-		}
+	BRANCH
+	if (PixelWriteMask & 4u) // Copy V
+	{
+		ExportPixel(PixelPos + uint2(0, 1), ShadedPixel);
+	}
 
-		BRANCH
-		if (PixelWriteMask & 8u) // Copy D
-		{
-			ExportPixel(PixelPos + uint2(1, 1), ShadedPixel);
-		}
+	BRANCH
+	if (PixelWriteMask & 8u) // Copy D
+	{
+		ExportPixel(PixelPos + uint2(1, 1), ShadedPixel);
 	}
 }
 
@@ -300,16 +299,16 @@ void MainCS(uint ThreadIndex : SV_GroupIndex, uint GroupID : SV_GroupID)
 {
 #if PLATFORM_SUPPORTS_SHADER_ROOT_CONSTANTS
 	const uint ShadingBin   = UERootConstants.RecordIndex;
-	const bool bQuadBinning = UERootConstants.PassData.y != 0u;
+	const bool bQuadBinning = UERootConstants.PassData.x != 0u;
 #else
 	const uint ShadingBin   = PassData.x;
-	const bool bQuadBinning = PassData.z != 0u;
+	const bool bQuadBinning = PassData.y != 0u;
 #endif
 
 	const uint PixelIndex = (GroupID * 64u) + ThreadIndex;
 
 	const uint3 ShadingBinMeta = Nanite.ShadingBinMeta[ShadingBin].xyz;
-	const uint ElementCount = bQuadBinning ? ShadingBinMeta.x : ShadingBinMeta.y;
+	const uint ElementCount = ShadingBinMeta.x;
 	const uint ElementIndex = bQuadBinning ? (PixelIndex >> 2) : PixelIndex;
 
 	BRANCH
@@ -318,18 +317,34 @@ void MainCS(uint ThreadIndex : SV_GroupIndex, uint GroupID : SV_GroupID)
 		return;
 	}
 
-	const uint PackedElement = Nanite.ShadingBinData[ShadingBinMeta.z + ElementIndex];
-	const FShadingElement Element = UnpackShadingElement(PackedElement);
+	uint2 PixelPos;
+	uint2 VRSShift;
+	uint PixelWriteMask;
+	uint HelperLaneCount;
+	
+	BRANCH
+	if (bQuadBinning)
+	{
+		const uint2 PackedElement = Nanite.ShadingBinData.Load2(ShadingBinMeta.z * 4 + ElementIndex * 8);
 
-	const uint CornerIndex = bQuadBinning ? (ThreadIndex & 3u) : 0u;
+		const uint CornerIndex = (ThreadIndex & 3u);
 
-	const uint2 PixelPos = Element.TopLeft + uint2(CornerIndex & 1u, CornerIndex >> 1u);
+		const uint2 TopLeft = uint2(BitFieldExtractU32(PackedElement.x, 14, 0), BitFieldExtractU32(PackedElement.x, 14, 14));
+		VRSShift			= uint2(BitFieldExtractU32(PackedElement.x, 1, 28), BitFieldExtractU32(PackedElement.x, 1, 29));
+		PixelWriteMask		= BitFieldExtractU32(PackedElement.y, 4, CornerIndex * 4u);
 
-	const uint PixelWriteMask = bQuadBinning ? BitFieldExtractU32(Element.Mask, 1, CornerIndex) :	// Set TL bit based on coverage mask
-												Element.Mask;										// Take write mask directly from pixel
+		PixelPos			= TopLeft + (uint2(CornerIndex & 1u, CornerIndex >> 1u) << VRSShift);
 
-	const uint HelperLaneCount = (VIS_HELPER_LANES && bQuadBinning) ? (4u - countbits(Element.Mask)) : 0u;
+		HelperLaneCount		= (VIS_HELPER_LANES && bQuadBinning) ? (4u - countbits(PixelWriteMask)) : 0u;
+	}
+	else
+	{
+		const uint PackedElement= Nanite.ShadingBinData.Load(ShadingBinMeta.z * 4 + ElementIndex * 4);
+		PixelPos				= uint2(BitFieldExtractU32(PackedElement, 13, 0), BitFieldExtractU32(PackedElement, 13, 13));
+		VRSShift				= uint2(BitFieldExtractU32(PackedElement, 1, 26), BitFieldExtractU32(PackedElement, 1, 27));
+		PixelWriteMask			= PackedElement >> 28;
+	}
 
-	// Shade and export quad
-	ProcessPixel(ShadingBin, PixelPos, ElementIndex, PixelIndex, PixelWriteMask, HelperLaneCount);
+	const float2 SVPositionXY = PixelPos + ((1u << VRSShift) * 0.5f);
+	ProcessPixel(ShadingBin, PixelPos, SVPositionXY, ElementIndex, PixelIndex, PixelWriteMask, HelperLaneCount);
 }

@@ -208,6 +208,7 @@
 #define NANITE_SHADING_BIN_COUNT		0
 #define NANITE_SHADING_BIN_RESERVE		1
 #define NANITE_SHADING_BIN_SCATTER		2
+#define NANITE_SHADING_BIN_VALIDATE		3
 
 // 3x for SW, 1x for padding, 4x for HW
 #define NANITE_RASTERIZER_ARG_COUNT 8u
@@ -363,6 +364,7 @@ struct FNaniteStats
 	UINT_TYPE NumEmptyRasterBins;
 	UINT_TYPE NumTotalShadingBins;
 	UINT_TYPE NumEmptyShadingBins;
+	UINT_TYPE NumNanitePixels;
 	UINT_TYPE NumShadedQuads;
 	UINT_TYPE NumShadedPixels;
 	UINT_TYPE NumHelperLanes;
@@ -413,11 +415,11 @@ struct FNaniteRasterBinMeta
 
 struct FNaniteShadingBinMeta
 {
-	// Quad count shaded by bin
-	UINT_TYPE QuadCount;
+	// Quad/pixel count shaded by bin
+	UINT_TYPE ElementCount;
 
-	// Pixel count shaded by bin
-	UINT_TYPE PixelCount;
+	// Number of quads/pixels written to the shading bin
+	UINT_TYPE NumWrittenElements;
 
 	// Quad/pixel coord range start
 	UINT_TYPE RangeStart;
@@ -428,8 +430,9 @@ struct FNaniteShadingBinMeta
 
 struct FNaniteShadingBinStats
 {
-	UINT_TYPE TotalQuadCount;
-	UINT_TYPE TotalPixelCount;
+	UINT_TYPE TotalNanitePixels;
+	UINT_TYPE TotalShadedPixels;
+	UINT_TYPE TotalShadedQuads;
 	UINT_TYPE TotalHelperCount;
 };
 
