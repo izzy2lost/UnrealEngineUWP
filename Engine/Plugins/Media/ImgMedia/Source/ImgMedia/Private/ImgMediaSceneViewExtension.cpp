@@ -37,23 +37,18 @@ static TAutoConsoleVariable<bool> CVarImgMediaProcessTilesInnerOnly(
 FImgMediaSceneViewExtension::FImgMediaSceneViewExtension(const FAutoRegister& AutoReg)
 	: FSceneViewExtensionBase(AutoReg)
 	, CachedViewInfos()
-	, LastFrameNumber(0)
 {
+	OnBeginFrameDelegate = FCoreDelegates::OnBeginFrame.AddRaw(this, &FImgMediaSceneViewExtension::ResetViewInfoCache);
+}
+
+FImgMediaSceneViewExtension::~FImgMediaSceneViewExtension()
+{
+	FCoreDelegates::OnBeginFrame.Remove(OnBeginFrameDelegate);
 }
 
 void FImgMediaSceneViewExtension::BeginRenderViewFamily(FSceneViewFamily& InViewFamily)
 {
 	TRACE_CPUPROFILER_EVENT_SCOPE(FImgMediaSceneViewExtension::BeginRenderViewFamily);
-
-	/**
-	* NOTE: Scene captures call this function after the primary `BeginRenderViewFamily` with the same frame number.
-	* Therefore, the view infos we cache here will be correctly kept until the next frame.
-	*/
-	if (LastFrameNumber != InViewFamily.FrameNumber)
-	{
-		CachedViewInfos.Reset();
-		LastFrameNumber = InViewFamily.FrameNumber;
-	}
 
 	for (const FSceneView* View : InViewFamily.Views)
 	{
@@ -156,4 +151,10 @@ void FImgMediaSceneViewExtension::CacheViewInfo(FSceneViewFamily& InViewFamily, 
 
 	CachedViewInfos.Add(MoveTemp(Info));
 }
+
+void FImgMediaSceneViewExtension::ResetViewInfoCache()
+{
+	CachedViewInfos.Reset();
+}
+
 #undef LOCTEXT_NAMESPACE
