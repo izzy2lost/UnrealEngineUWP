@@ -224,24 +224,9 @@ private:
 	
 #if UE_POSE_SEARCH_TRACE_ENABLED
 
-	struct FPoseCandidateId
+	struct FPoseCandidateIdCost
 	{
 		int32 PoseIdx = 0;
-		const UPoseSearchDatabase* Database = nullptr;
-
-		bool operator==(const FPoseCandidateId& Other) const
-		{
-			return PoseIdx == Other.PoseIdx && Database == Other.Database;
-		}
-		
-		friend uint32 GetTypeHash(const FPoseCandidateId& PoseCandidateId)
-		{
-			return HashCombineFast(GetTypeHash(PoseCandidateId.PoseIdx), GetTypeHash(PoseCandidateId.Database));
-		}
-	};
-
-	struct FPoseCandidateIdCost : public FPoseCandidateId
-	{
 		FPoseSearchCost Cost;
 		bool operator<(const FPoseCandidateIdCost& Other) const { return Other.Cost < Cost; } // Reverse compare because BestCandidates is a max heap
 	};
@@ -253,30 +238,39 @@ public:
 		EPoseCandidateFlags PoseCandidateFlags = EPoseCandidateFlags::None;
 	};
 
+	void Track(const UPoseSearchDatabase* Database, int32 PoseIdx = INDEX_NONE, EPoseCandidateFlags PoseCandidateFlags = EPoseCandidateFlags::None, const FPoseSearchCost& Cost = FPoseSearchCost())
+	{
+		check(Database);
+
+		FBestPoseCandidates& BestPoseCandidates = BestPoseCandidatesMap.FindOrAdd(Database);
+		if (PoseIdx != INDEX_NONE)
+		{
+			BestPoseCandidates.Add(PoseIdx, PoseCandidateFlags, Cost);
+		}
+	}
+
+
 	struct FBestPoseCandidates
 	{
 		FBestPoseCandidates()
 		{
 			// preallocating memory to avoid multiple reallocations / rehashing
-			PoseCandidateHeap.Reserve(MaxPoseCandidates);
-			PoseIdxToFlags.Empty(MaxPoseCandidates);
+			PoseCandidateHeap.Reserve(MaxNumberOfCollectedPoseCandidatesPerDatabase);
+			PoseIdxToFlags.Empty(MaxNumberOfCollectedPoseCandidatesPerDatabase);
 		}
 
-		void Add(const FPoseSearchCost& Cost, int32 PoseIdx, const UPoseSearchDatabase* Database, EPoseCandidateFlags PoseCandidateFlags)
+		void Add(int32 PoseIdx, EPoseCandidateFlags PoseCandidateFlags, const FPoseSearchCost& Cost)
 		{
-			FPoseCandidate PoseCandidate;
-			PoseCandidate.PoseIdx = PoseIdx;
-			PoseCandidate.Database = Database;
-
-			if (EPoseCandidateFlags* PoseIdxPoseCandidateFlags = PoseIdxToFlags.Find(PoseCandidate))
+			check(PoseIdx >= 0);
+			if (EPoseCandidateFlags* PoseIdxPoseCandidateFlags = PoseIdxToFlags.Find(PoseIdx))
 			{
 				*PoseIdxPoseCandidateFlags |= PoseCandidateFlags;
 			}
-			else if (PoseCandidateHeap.Num() < MaxPoseCandidates || Cost < PoseCandidateHeap.HeapTop().Cost)
+			else if (PoseCandidateHeap.Num() < MaxNumberOfCollectedPoseCandidatesPerDatabase || Cost < PoseCandidateHeap.HeapTop().Cost)
 			{
 				bool bPoppedContinuingPoseCandidate = false;
 				FPoseCandidate ContinuingPoseCandidate;
-				while (PoseCandidateHeap.Num() >= MaxPoseCandidates)
+				while (PoseCandidateHeap.Num() >= MaxNumberOfCollectedPoseCandidatesPerDatabase)
 				{
 					FPoseCandidate PoppedPoseCandidate;
 					Pop(PoppedPoseCandidate);
@@ -296,38 +290,50 @@ public:
 					FPoseCandidate PoppedPoseCandidate;
 					Pop(PoppedPoseCandidate);
 					PoseCandidateHeap.HeapPush(ContinuingPoseCandidate);
-					PoseIdxToFlags.Add(ContinuingPoseCandidate, ContinuingPoseCandidate.PoseCandidateFlags);
+					PoseIdxToFlags.Add(ContinuingPoseCandidate.PoseIdx, ContinuingPoseCandidate.PoseCandidateFlags);
 				}
 
+				FPoseCandidate PoseCandidate;
+				PoseCandidate.PoseIdx = PoseIdx;
 				PoseCandidate.Cost = Cost;
 				PoseCandidateHeap.HeapPush(PoseCandidate);
-				PoseIdxToFlags.Add(PoseCandidate, PoseCandidateFlags);
+				PoseIdxToFlags.Add(PoseIdx, PoseCandidateFlags);
 			}
 		}
 
-		void Pop(FPoseCandidate& OutItem)
+		int32 Num() const
 		{
-			PoseCandidateHeap.HeapPop(OutItem, false);
-			OutItem.PoseCandidateFlags = PoseIdxToFlags.FindAndRemoveChecked(OutItem);
+			return PoseCandidateHeap.Num();
 		}
 
-		bool IsEmpty() const
+		FPoseCandidate GetUnsortedCandidate(int32 Index) const
 		{
-			return PoseCandidateHeap.IsEmpty();
-		}
-
-		void SetMaxPoseCandidates(int32 Value)
-		{
-			MaxPoseCandidates = Value;
+			FPoseCandidate PoseCandidate;
+			const FPoseCandidateIdCost& PoseCandidateIdCost = PoseCandidateHeap[Index];
+			PoseCandidate.PoseIdx = PoseCandidateIdCost.PoseIdx;
+			PoseCandidate.Cost = PoseCandidateIdCost.Cost;
+			PoseCandidate.PoseCandidateFlags = PoseIdxToFlags[PoseCandidateIdCost.PoseIdx];
+			return PoseCandidate;
 		}
 
 	private:
+		void Pop(FPoseCandidate& OutItem)
+		{
+			PoseCandidateHeap.HeapPop(OutItem, false);
+			OutItem.PoseCandidateFlags = PoseIdxToFlags.FindAndRemoveChecked(OutItem.PoseIdx);
+		}
+
 		TArray<FPoseCandidateIdCost> PoseCandidateHeap;
-		TMap<FPoseCandidateId, EPoseCandidateFlags> PoseIdxToFlags;
-		int32 MaxPoseCandidates = 200;
+		TMap<int32, EPoseCandidateFlags> PoseIdxToFlags;
 	};
 	
-	FBestPoseCandidates BestCandidates;
+	const TMap<const UPoseSearchDatabase*, FBestPoseCandidates>& GetBestPoseCandidatesMap() const
+	{
+		return BestPoseCandidatesMap;
+	}
+
+private:
+	TMap<const UPoseSearchDatabase*, FBestPoseCandidates> BestPoseCandidatesMap;
 #endif // UE_POSE_SEARCH_TRACE_ENABLED
 };
 

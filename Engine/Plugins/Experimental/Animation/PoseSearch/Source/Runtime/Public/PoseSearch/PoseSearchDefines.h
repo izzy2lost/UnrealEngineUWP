@@ -28,8 +28,8 @@ static constexpr FBoneIndexType RootBoneIndexType = 0;
 static constexpr FBoneIndexType ComponentSpaceIndexType = FBoneIndexType(-1);
 
 static constexpr int32 PreallocatedCachedQueriesNum = 8;
-
 static constexpr float FiniteDelta = 1 / 60.0f; // Time delta used for computing pose derivatives
+static constexpr int32 MaxNumberOfCollectedPoseCandidatesPerDatabase = 200;
 
 constexpr int32 TMax(int32 A, int32 B) { return (A > B ? A : B); }
 template<typename ElementType> constexpr int32 TAlignOf() { return TMax(alignof(ElementType), 16); }

@@ -148,57 +148,46 @@ void UPoseSearchLibrary::TraceMotionMatchingState(
 {
 	using namespace UE::PoseSearch;
 	
-	auto AddUniqueDatabase = [](TArray<FTraceMotionMatchingStateDatabaseEntry>& DatabaseEntries, const UPoseSearchDatabase* Database, UE::PoseSearch::FSearchContext& SearchContext) -> int32
-	{
-		const uint64 DatabaseId = FTraceMotionMatchingState::GetIdFromObject(Database);
-
-		int32 DbEntryIdx = INDEX_NONE;
-		for (int32 i = 0; i < DatabaseEntries.Num(); ++i)
-		{
-			if (DatabaseEntries[i].DatabaseId == DatabaseId)
-			{
-				DbEntryIdx = i;
-				break;
-			}
-		}
-		if (DbEntryIdx == INDEX_NONE)
-		{
-			DbEntryIdx = DatabaseEntries.Add({ DatabaseId });
-
-			// if throttling is on, the continuing pose can be valid, but no actual search occurred, so the query will not be cached, and we need to build it
-			DatabaseEntries[DbEntryIdx].QueryVector = SearchContext.GetOrBuildQuery(Database->Schema).GetValues();
-		}
-
-		return DbEntryIdx;
-	};
-
 	const int32 CurrentPoseIdx = bSearch && CurrentResult.PoseCost.IsValid() ? CurrentResult.PoseIdx : INDEX_NONE;
 	FTraceMotionMatchingState TraceState;
-	while (!SearchContext.BestCandidates.IsEmpty()) 
+	TraceState.DatabaseEntries.SetNum(SearchContext.GetBestPoseCandidatesMap().Num());
+	
+	int32 DbEntryIdx = 0;
+	for (TPair<const UPoseSearchDatabase*, FSearchContext::FBestPoseCandidates> DatabaseBestPoseCandidates : SearchContext.GetBestPoseCandidatesMap())
 	{
-		FSearchContext::FPoseCandidate PoseCandidate;
-		SearchContext.BestCandidates.Pop(PoseCandidate);
+		const UPoseSearchDatabase* Database = DatabaseBestPoseCandidates.Key;
+		check(Database);
 
-		const int32 DbEntryIdx = AddUniqueDatabase(TraceState.DatabaseEntries, PoseCandidate.Database, SearchContext);
 		FTraceMotionMatchingStateDatabaseEntry& DbEntry = TraceState.DatabaseEntries[DbEntryIdx];
 
-		FTraceMotionMatchingStatePoseEntry PoseEntry;
-		PoseEntry.DbPoseIdx = PoseCandidate.PoseIdx;
-		PoseEntry.Cost = PoseCandidate.Cost;
-		PoseEntry.PoseCandidateFlags = PoseCandidate.PoseCandidateFlags;
-		if (CurrentPoseIdx == PoseCandidate.PoseIdx && CurrentResult.Database.Get() == PoseCandidate.Database)
-		{
-			check(EnumHasAnyFlags(PoseEntry.PoseCandidateFlags, EPoseCandidateFlags::Valid_Pose | EPoseCandidateFlags::Valid_ContinuingPose));
+		// if throttling is on, the continuing pose can be valid, but no actual search occurred, so the query will not be cached, and we need to build it
+		DbEntry.QueryVector = SearchContext.GetOrBuildQuery(Database->Schema).GetValues();
+		DbEntry.DatabaseId = FTraceMotionMatchingState::GetIdFromObject(Database);
 
-			EnumAddFlags(PoseEntry.PoseCandidateFlags, EPoseCandidateFlags::Valid_CurrentPose);
-			
-			TraceState.CurrentDbEntryIdx = DbEntryIdx;
-			TraceState.CurrentPoseEntryIdx = DbEntry.PoseEntries.Add(PoseEntry);
-		}
-		else
+		for (int32 CandidateIdx = 0; CandidateIdx < DatabaseBestPoseCandidates.Value.Num(); ++CandidateIdx)
 		{
-			DbEntry.PoseEntries.Add(PoseEntry);
+			const FSearchContext::FPoseCandidate PoseCandidate = DatabaseBestPoseCandidates.Value.GetUnsortedCandidate(CandidateIdx);
+
+			FTraceMotionMatchingStatePoseEntry PoseEntry;
+			PoseEntry.DbPoseIdx = PoseCandidate.PoseIdx;
+			PoseEntry.Cost = PoseCandidate.Cost;
+			PoseEntry.PoseCandidateFlags = PoseCandidate.PoseCandidateFlags;
+			if (CurrentPoseIdx == PoseCandidate.PoseIdx && CurrentResult.Database.Get() == Database)
+			{
+				check(EnumHasAnyFlags(PoseEntry.PoseCandidateFlags, EPoseCandidateFlags::Valid_Pose | EPoseCandidateFlags::Valid_ContinuingPose));
+
+				EnumAddFlags(PoseEntry.PoseCandidateFlags, EPoseCandidateFlags::Valid_CurrentPose);
+
+				TraceState.CurrentDbEntryIdx = DbEntryIdx;
+				TraceState.CurrentPoseEntryIdx = DbEntry.PoseEntries.Add(PoseEntry);
+			}
+			else
+			{
+				DbEntry.PoseEntries.Add(PoseEntry);
+			}
 		}
+
+		++DbEntryIdx;
 	}
 
 	if (DeltaTime > SMALL_NUMBER)

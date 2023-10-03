@@ -94,7 +94,7 @@ static void PopulateNonSelectableIdx(FNonSelectableIdx& NonSelectableIdx, FSearc
 #if UE_POSE_SEARCH_TRACE_ENABLED
 							const TArray<float> PoseValues = SearchIndex.GetPoseValuesSafe(PoseIdx);
 							const FPoseSearchCost PoseCost = SearchIndex.ComparePoses(PoseIdx, 0.f, PoseValues, QueryValues);
-							SearchContext.BestCandidates.Add(PoseCost, PoseIdx, Database, EPoseCandidateFlags::DiscardedBy_PoseJumpThresholdTime);
+							SearchContext.Track(Database, PoseIdx, EPoseCandidateFlags::DiscardedBy_PoseJumpThresholdTime, PoseCost);
 #endif // UE_POSE_SEARCH_TRACE_ENABLED
 						}
 					}
@@ -122,7 +122,7 @@ static void PopulateNonSelectableIdx(FNonSelectableIdx& NonSelectableIdx, FSearc
 #if UE_POSE_SEARCH_TRACE_ENABLED
 						const TArray<float> PoseValues = SearchIndex.GetPoseValuesSafe(PoseIdx);
 						const FPoseSearchCost PoseCost = SearchIndex.ComparePoses(PoseIdx, 0.f, PoseValues, QueryValues);
-						SearchContext.BestCandidates.Add(PoseCost, PoseIdx, Database, EPoseCandidateFlags::DiscardedBy_PoseJumpThresholdTime);
+						SearchContext.Track(Database, PoseIdx, EPoseCandidateFlags::DiscardedBy_PoseJumpThresholdTime, PoseCost);
 #endif // UE_POSE_SEARCH_TRACE_ENABLED
 					}
 				}
@@ -138,7 +138,7 @@ static void PopulateNonSelectableIdx(FNonSelectableIdx& NonSelectableIdx, FSearc
 #if UE_POSE_SEARCH_TRACE_ENABLED
 						const TArray<float> PoseValues = SearchIndex.GetPoseValuesSafe(PoseIdx);
 						const FPoseSearchCost PoseCost = SearchIndex.ComparePoses(PoseIdx, 0.f, PoseValues, QueryValues);
-						SearchContext.BestCandidates.Add(PoseCost, PoseIdx, Database, EPoseCandidateFlags::DiscardedBy_PoseJumpThresholdTime);
+						SearchContext.Track(Database, PoseIdx, EPoseCandidateFlags::DiscardedBy_PoseJumpThresholdTime, PoseCost);
 #endif // UE_POSE_SEARCH_TRACE_ENABLED
 					}
 				}
@@ -163,7 +163,7 @@ static void PopulateNonSelectableIdx(FNonSelectableIdx& NonSelectableIdx, FSearc
 				if (HistoricalPoseIndex.PoseIndex < SearchIndex.GetNumPoses())
 				{
 					const FPoseSearchCost PoseCost = SearchIndex.ComparePoses(HistoricalPoseIndex.PoseIndex, 0.f, SearchIndex.GetPoseValuesSafe(HistoricalPoseIndex.PoseIndex), QueryValues);
-					SearchContext.BestCandidates.Add(PoseCost, HistoricalPoseIndex.PoseIndex, Database, EPoseCandidateFlags::DiscardedBy_PoseReselectHistory);
+					SearchContext.Track(Database, HistoricalPoseIndex.PoseIndex, EPoseCandidateFlags::DiscardedBy_PoseReselectHistory, PoseCost);
 				}
 #endif // UE_POSE_SEARCH_TRACE_ENABLED
 			}
@@ -219,17 +219,17 @@ struct FSearchFilters
 				else if (Filter == &SelectableAssetIdxFilter)
 				{
 					const FPoseSearchCost PoseCost = SearchIndex.ComparePoses(PoseIdx, 0.f, PoseValues, QueryValues);
-					SearchContext.BestCandidates.Add(PoseCost, PoseIdx, Database, EPoseCandidateFlags::DiscardedBy_AssetIdxFilter);
+					SearchContext.Track(Database, PoseIdx, EPoseCandidateFlags::DiscardedBy_AssetIdxFilter, PoseCost);
 				}
 				else if (Filter == &BlockTransitionFilter)
 				{
 					const FPoseSearchCost PoseCost = SearchIndex.ComparePoses(PoseIdx, 0.f, PoseValues, QueryValues);
-					SearchContext.BestCandidates.Add(PoseCost, PoseIdx, Database, EPoseCandidateFlags::DiscardedBy_BlockTransition);
+					SearchContext.Track(Database, PoseIdx, EPoseCandidateFlags::DiscardedBy_BlockTransition, PoseCost);
 				}
 				else
 				{
 					const FPoseSearchCost PoseCost = SearchIndex.ComparePoses(PoseIdx, 0.f, PoseValues, QueryValues);
-					SearchContext.BestCandidates.Add(PoseCost, PoseIdx, Database, EPoseCandidateFlags::DiscardedBy_PoseFilter);
+					SearchContext.Track(Database, PoseIdx, EPoseCandidateFlags::DiscardedBy_PoseFilter, PoseCost);
 				}
 #endif // UE_POSE_SEARCH_TRACE_ENABLED
 				return false;
@@ -892,6 +892,11 @@ UE::PoseSearch::FSearchResult UPoseSearchDatabase::Search(UE::PoseSearch::FSearc
 #endif // WITH_EDITOR && ENABLE_ANIM_DEBUG
 	}
 
+#if UE_POSE_SEARCH_TRACE_ENABLED
+	// in case we skipped the search, or we didn't find any candidates we still have to track we requested to evaluate this database, so we keep track of this
+	SearchContext.Track(this);
+#endif // UE_POSE_SEARCH_TRACE_ENABLED
+
 	return Result;
 }
 
@@ -926,7 +931,7 @@ static inline void EvaluatePoseKernel(UE::PoseSearch::FSearchResult& Result, con
 #if UE_POSE_SEARCH_TRACE_ENABLED
 		if (bUpdateBestCandidates)
 		{
-			SearchContext.BestCandidates.Add(PoseCost, PoseIdx, Database, EPoseCandidateFlags::Valid_Pose);
+			SearchContext.Track(Database, PoseIdx, EPoseCandidateFlags::Valid_Pose, PoseCost);
 		}
 #endif // UE_POSE_SEARCH_TRACE_ENABLED
 	}
@@ -992,7 +997,7 @@ FPoseSearchCost UPoseSearchDatabase::SearchContinuingPose(UE::PoseSearch::FSearc
 		}
 
 #if UE_POSE_SEARCH_TRACE_ENABLED
-		SearchContext.BestCandidates.Add(ContinuingPoseCost, ContinuingPoseIdx, this, EPoseCandidateFlags::Valid_ContinuingPose);
+		SearchContext.Track(this, ContinuingPoseIdx, EPoseCandidateFlags::Valid_ContinuingPose, ContinuingPoseCost);
 #endif // UE_POSE_SEARCH_TRACE_ENABLED
 	}
 
