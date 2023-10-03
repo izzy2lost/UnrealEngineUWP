@@ -695,6 +695,18 @@ namespace UnrealBuildTool
 		}
 
 		/// <summary>
+		/// Determines if a given compiler is installed and valid
+		/// </summary>
+		/// <param name="Compiler">Compiler to check for</param>
+		/// <param name="Architecture">Architecture the compiler must support</param>
+		/// <param name="Logger">Logger for output</param>
+		/// <returns>True if the given compiler is installed and valid</returns>
+		public static bool HasValidCompiler(WindowsCompiler Compiler, UnrealArch Architecture, ILogger Logger)
+		{
+			return MicrosoftPlatformSDK.HasValidCompiler(Compiler, Architecture, Logger);
+		}
+
+		/// <summary>
 		/// Constructor
 		/// </summary>
 		/// <param name="Target">The target rules which owns this object</param>
@@ -1297,12 +1309,12 @@ namespace UnrealBuildTool
 		}
 
 		/// <summary>
-		/// Determines if a given compiler is installed
+		/// Determines if a given compiler is installed and valid
 		/// </summary>
 		/// <param name="Compiler">Compiler to check for</param>
 		/// <param name="Architecture">Architecture the compiler must support</param>
 		/// <param name="Logger">Logger for output</param>
-		/// <returns>True if the given compiler is installed</returns>
+		/// <returns>True if the given compiler is installed and valid</returns>
 		public static bool HasCompiler(WindowsCompiler Compiler, UnrealArch Architecture, ILogger Logger)
 		{
 			return MicrosoftPlatformSDK.HasCompiler(Compiler, Architecture, Logger);
