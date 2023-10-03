@@ -1426,7 +1426,7 @@ FPropertyBagPropertyDesc::FPropertyBagPropertyDesc(const FName InName, const FPr
 	ContainerTypes = UE::StructUtils::Private::GetContainerTypesFromProperty(InSourceProperty);
 
 #if WITH_EDITORONLY_DATA
-	if (const FClassProperty* ClassProperty = CastFieldChecked<FClassProperty>(InSourceProperty))
+	if (const FClassProperty* ClassProperty = CastField<FClassProperty>(InSourceProperty))
 	{
 		MetaClass = ClassProperty->MetaClass;
 	}
