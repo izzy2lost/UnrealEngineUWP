@@ -8,6 +8,7 @@
 #include "DetailLayoutBuilder.h"
 #include "DetailWidgetRow.h"
 #include "Engine/SkeletalMesh.h"
+#include "Engine/SkeletalMeshLODSettings.h"
 #include "Fonts/SlateFontInfo.h"
 #include "HAL/PlatformCrt.h"
 #include "IDetailChildrenBuilder.h"
@@ -92,7 +93,8 @@ void FSkeletalMeshReductionSettingsDetails::CustomizeChildren(TSharedRef<IProper
 	{
 		if (StructPropertyHandle->GetParentHandle().IsValid())
 		{
-			if (StructPropertyHandle->GetParentHandle()->GetProperty()->GetFName() == GET_MEMBER_NAME_CHECKED(FSkeletalMeshObject, LODInfo))
+			if (StructPropertyHandle->GetParentHandle()->GetProperty()->GetFName() == GET_MEMBER_NAME_CHECKED(FSkeletalMeshObject, LODInfo) ||
+				StructPropertyHandle->GetParentHandle()->GetProperty()->GetFName() == GET_MEMBER_NAME_CHECKED(USkeletalMeshLODSettings, LODGroups))
 			{
 				return StructPropertyHandle->GetParentHandle()->GetIndexInArray();
 			}
