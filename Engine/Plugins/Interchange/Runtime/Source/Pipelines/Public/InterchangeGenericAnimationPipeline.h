@@ -127,7 +127,7 @@ protected:
 
 private:
 
-	void CreateAnimationTrackSetFactoryNode(UInterchangeAnimationTrackSetNode& Node);
+	void CreateLevelSequenceFactoryNode(UInterchangeAnimationTrackSetNode& Node);
 
 	void CreateAnimSequenceFactoryNode(UInterchangeSkeletalAnimationTrackNode& Node);
 

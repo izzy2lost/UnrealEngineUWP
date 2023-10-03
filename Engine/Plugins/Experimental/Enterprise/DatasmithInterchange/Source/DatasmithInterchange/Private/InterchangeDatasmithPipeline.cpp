@@ -12,7 +12,7 @@
 #include "InterchangeDatasmithTexturePipeline.h"
 #include "InterchangeDatasmithUtils.h"
 
-#include "InterchangeAnimationTrackSetFactoryNode.h"
+#include "InterchangeLevelSequenceFactoryNode.h"
 #include "InterchangeGenericAnimationPipeline.h"
 #include "InterchangeGenericScenesPipeline.h"
 #include "InterchangeMaterialFactoryNode.h"
@@ -196,7 +196,7 @@ void UInterchangeDatasmithPipeline::ExecutePipeline(UInterchangeBaseNodeContaine
 	}
 
 	// LevelSequences
-	for (UInterchangeAnimationTrackSetFactoryNode* AnimationTrackSetFactoryNode : NodeUtils::GetNodes<UInterchangeAnimationTrackSetFactoryNode>(BaseNodeContainer))
+	for (UInterchangeLevelSequenceFactoryNode* AnimationTrackSetFactoryNode : NodeUtils::GetNodes<UInterchangeLevelSequenceFactoryNode>(BaseNodeContainer))
 	{
 		DependenciesUids.Add(AnimationTrackSetFactoryNode->GetUniqueID());
 		AnimationTrackSetFactoryNode->SetCustomSubPath(FPaths::Combine(PackageSubPath, "Animations"));

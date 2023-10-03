@@ -1,9 +1,9 @@
 // Copyright Epic Games, Inc. All Rights Reserved. 
 
-#include "Animation/InterchangeAnimationTrackSetFactory.h"
+#include "Animation/InterchangeLevelSequenceFactory.h"
 
 #include "Animation/InterchangeAnimationPayloadInterface.h"
-#include "InterchangeAnimationTrackSetFactoryNode.h"
+#include "InterchangeLevelSequenceFactoryNode.h"
 #include "InterchangeAnimationTrackSetNode.h"
 #include "InterchangeAnimSequenceFactoryNode.h"
 #include "InterchangeImportCommon.h"
@@ -35,7 +35,7 @@
 
 #endif //WITH_EDITORONLY_DATA
 
-#define LOCTEXT_NAMESPACE "InterchangeAnimationTrackSetFactory"
+#define LOCTEXT_NAMESPACE "InterchangeLevelSequenceFactory"
 
 #if WITH_EDITOR
 namespace UE::Interchange::Private
@@ -64,7 +64,7 @@ namespace UE::Interchange::Private
 		return Actor;
 	}
 
-	bool HasActorToUse(const UInterchangeBaseNodeContainer* NodeContainer, const UInterchangeAnimationTrackSetFactoryNode* FactoryNode)
+	bool HasActorToUse(const UInterchangeBaseNodeContainer* NodeContainer, const UInterchangeLevelSequenceFactoryNode* FactoryNode)
 	{
 
 		TArray<FString> AnimationTrackUids;
@@ -91,7 +91,7 @@ namespace UE::Interchange::Private
 					}
 
 					const FString TrackSetFactoryNodeUid = UInterchangeFactoryBaseNode::BuildFactoryNodeUid(TrackSetNodeUid);
-					const UInterchangeAnimationTrackSetFactoryNode* InstanceFactoryNode = Cast<UInterchangeAnimationTrackSetFactoryNode>(NodeContainer->GetNode(TrackSetFactoryNodeUid));
+					const UInterchangeLevelSequenceFactoryNode* InstanceFactoryNode = Cast<UInterchangeLevelSequenceFactoryNode>(NodeContainer->GetNode(TrackSetFactoryNodeUid));
 
 					if (!InstanceFactoryNode)
 					{
@@ -133,10 +133,10 @@ namespace UE::Interchange::Private
 		return false;
 	}
 
-	class FAnimationTrackSetHelper
+	class FLevelSequenceHelper
 	{
 	public:
-		FAnimationTrackSetHelper(ULevelSequence& InLevelSequence, UInterchangeAnimationTrackSetFactoryNode& InFactoryNode, const UInterchangeBaseNodeContainer& InNodeContainer, const IInterchangeAnimationPayloadInterface& InPayloadInterface)
+		FLevelSequenceHelper(ULevelSequence& InLevelSequence, UInterchangeLevelSequenceFactoryNode& InFactoryNode, const UInterchangeBaseNodeContainer& InNodeContainer, const IInterchangeAnimationPayloadInterface& InPayloadInterface)
 			: LevelSequence(InLevelSequence)
 			, MovieScene(InLevelSequence.MovieScene)
 			, FactoryNode(InFactoryNode)
@@ -186,7 +186,7 @@ namespace UE::Interchange::Private
 	private:
 		ULevelSequence& LevelSequence;
 		UMovieScene* MovieScene = nullptr;
-		UInterchangeAnimationTrackSetFactoryNode& FactoryNode;
+		UInterchangeLevelSequenceFactoryNode& FactoryNode;
 		const UInterchangeBaseNodeContainer& NodeContainer;
 		const IInterchangeAnimationPayloadInterface& PayloadInterface;
 
@@ -195,7 +195,7 @@ namespace UE::Interchange::Private
 		bool ClearSubsequenceTrack = true;
 	};
 
-	void FAnimationTrackSetHelper::PopulateLevelSequence()
+	void FLevelSequenceHelper::PopulateLevelSequence()
 	{
 		if (!MovieScene || FactoryNode.GetCustomAnimationTrackUidCount() == 0)
 		{
@@ -247,7 +247,7 @@ namespace UE::Interchange::Private
 		LevelSequence.MovieScene->SetEvaluationType(EMovieSceneEvaluationType::FrameLocked);
 	}
 
-	void FAnimationTrackSetHelper::PopulateTransformTrack(const UInterchangeTransformAnimationTrackNode& TransformTrackNode, int32 TrackIndex)
+	void FLevelSequenceHelper::PopulateTransformTrack(const UInterchangeTransformAnimationTrackNode& TransformTrackNode, int32 TrackIndex)
 	{
 		// Get targeted actor exists
 		AActor* Actor = GetActor(TransformTrackNode);
@@ -353,7 +353,7 @@ namespace UE::Interchange::Private
 		}
 	}
 
-	void FAnimationTrackSetHelper::PopulateSubsequenceTrack(const UInterchangeAnimationTrackSetInstanceNode& InstanceNode)
+	void FLevelSequenceHelper::PopulateSubsequenceTrack(const UInterchangeAnimationTrackSetInstanceNode& InstanceNode)
 	{
 		FString TrackSetNodeUid;
 		if (!InstanceNode.GetCustomTrackSetDependencyUid(TrackSetNodeUid))
@@ -363,7 +363,7 @@ namespace UE::Interchange::Private
 		}
 
 		const FString TrackSetFactoryNodeUid = UInterchangeFactoryBaseNode::BuildFactoryNodeUid(TrackSetNodeUid);
-		const UInterchangeAnimationTrackSetFactoryNode* InstanceFactoryNode = Cast<UInterchangeAnimationTrackSetFactoryNode>(NodeContainer.GetNode(TrackSetFactoryNodeUid));
+		const UInterchangeLevelSequenceFactoryNode* InstanceFactoryNode = Cast<UInterchangeLevelSequenceFactoryNode>(NodeContainer.GetNode(TrackSetFactoryNodeUid));
 		
 		FString InstanceNodeDisplayLabel = InstanceNode.GetDisplayLabel();
 		auto LogMissingTrackError = [&InstanceNodeDisplayLabel]()
@@ -444,7 +444,7 @@ namespace UE::Interchange::Private
 		ClearSubsequenceTrack = false;
 	}
 
-	void FAnimationTrackSetHelper::PopulateAnimationTrack(const UInterchangeAnimationTrackNode& AnimationTrackNode, int32 TrackIndex)
+	void FLevelSequenceHelper::PopulateAnimationTrack(const UInterchangeAnimationTrackNode& AnimationTrackNode, int32 TrackIndex)
 	{
 		int32 TargetedProperty;
 		if (!AnimationTrackNode.GetCustomTargetedProperty(TargetedProperty))
@@ -538,7 +538,7 @@ namespace UE::Interchange::Private
 		}
 	}
 
-	AActor* FAnimationTrackSetHelper::GetActor(const UInterchangeAnimationTrackNode& TrackNode)
+	AActor* FLevelSequenceHelper::GetActor(const UInterchangeAnimationTrackNode& TrackNode)
 	{
 		AActor* Actor = nullptr;
 
@@ -562,7 +562,7 @@ namespace UE::Interchange::Private
 		return Actor;
 	}
 
-	FGuid FAnimationTrackSetHelper::BindActorToLevelSequence(AActor& Actor, int32 TrackIndex)
+	FGuid FLevelSequenceHelper::BindActorToLevelSequence(AActor& Actor, int32 TrackIndex)
 	{
 		// Bind the actor to the level sequence
 		// But first, check if there's already a possessable at the current index
@@ -602,7 +602,7 @@ namespace UE::Interchange::Private
 		return ObjectBinding;
 	}
 
-	void FAnimationTrackSetHelper::UpdateTransformChannels(TArrayView<FMovieSceneDoubleChannel*>& Channels, int32 IndexOffset, const TArray<FRichCurve>& Curves)
+	void FLevelSequenceHelper::UpdateTransformChannels(TArrayView<FMovieSceneDoubleChannel*>& Channels, int32 IndexOffset, const TArray<FRichCurve>& Curves)
 	{
 		auto CopyToChannel = [this](FMovieSceneDoubleChannel* Channel, const FRichCurve& Curve)
 		{
@@ -655,14 +655,14 @@ namespace UE::Interchange::Private
 } //namespace UE::Interchange::Private
 #endif //WITH_EDITOR
 
-UClass* UInterchangeAnimationTrackSetFactory::GetFactoryClass() const
+UClass* UInterchangeLevelSequenceFactory::GetFactoryClass() const
 {
 	return ULevelSequence::StaticClass();
 }
 
-UInterchangeFactoryBase::FImportAssetResult UInterchangeAnimationTrackSetFactory::BeginImportAsset_GameThread(const FImportAssetObjectParams& Arguments)
+UInterchangeFactoryBase::FImportAssetResult UInterchangeLevelSequenceFactory::BeginImportAsset_GameThread(const FImportAssetObjectParams& Arguments)
 {
-	TRACE_CPUPROFILER_EVENT_SCOPE(UInterchangeAnimationTrackSetFactory::BeginImportAsset_GameThread);
+	TRACE_CPUPROFILER_EVENT_SCOPE(UInterchangeLevelSequenceFactory::BeginImportAsset_GameThread);
 
 	FImportAssetResult ImportAssetResult;
 #if !WITH_EDITOR || !WITH_EDITORONLY_DATA
@@ -693,7 +693,7 @@ UInterchangeFactoryBase::FImportAssetResult UInterchangeAnimationTrackSetFactory
 		return ImportAssetResult;
 	}
 
-	UInterchangeAnimationTrackSetFactoryNode* FactoryNode = Cast<UInterchangeAnimationTrackSetFactoryNode>(Arguments.AssetNode);
+	UInterchangeLevelSequenceFactoryNode* FactoryNode = Cast<UInterchangeLevelSequenceFactoryNode>(Arguments.AssetNode);
 	if (FactoryNode == nullptr)
 	{
 		return ImportAssetResult;
@@ -745,9 +745,9 @@ UInterchangeFactoryBase::FImportAssetResult UInterchangeAnimationTrackSetFactory
 #endif //else !WITH_EDITOR || !WITH_EDITORONLY_DATA
 }
 
-UObject* UInterchangeAnimationTrackSetFactory::ImportObjectSourceData(const FImportAssetObjectParams& Arguments)
+UObject* UInterchangeLevelSequenceFactory::ImportObjectSourceData(const FImportAssetObjectParams& Arguments)
 {
-	TRACE_CPUPROFILER_EVENT_SCOPE(UInterchangeAnimationTrackSetFactory::ImportObjectSourceData);
+	TRACE_CPUPROFILER_EVENT_SCOPE(UInterchangeLevelSequenceFactory::ImportObjectSourceData);
 
 #if !WITH_EDITOR || !WITH_EDITORONLY_DATA
 	// TODO: Can we import ULevelSequence at runtime
@@ -775,7 +775,7 @@ UObject* UInterchangeAnimationTrackSetFactory::ImportObjectSourceData(const FImp
 		return nullptr;
 	}
 
-	UInterchangeAnimationTrackSetFactoryNode* FactoryNode = Cast<UInterchangeAnimationTrackSetFactoryNode>(Arguments.AssetNode);
+	UInterchangeLevelSequenceFactoryNode* FactoryNode = Cast<UInterchangeLevelSequenceFactoryNode>(Arguments.AssetNode);
 	if (!FactoryNode)
 	{
 		return nullptr;
@@ -811,7 +811,7 @@ UObject* UInterchangeAnimationTrackSetFactory::ImportObjectSourceData(const FImp
 
 	LevelSequence->Initialize();
 
-	Private::FAnimationTrackSetHelper Helper(*LevelSequence, *FactoryNode, *Arguments.NodeContainer, *AnimSequenceTranslatorPayloadInterface);
+	Private::FLevelSequenceHelper Helper(*LevelSequence, *FactoryNode, *Arguments.NodeContainer, *AnimSequenceTranslatorPayloadInterface);
 	Helper.PopulateLevelSequence();
 
 	/** Apply all FactoryNode custom attributes to the level sequence asset */
@@ -826,9 +826,9 @@ UObject* UInterchangeAnimationTrackSetFactory::ImportObjectSourceData(const FImp
 }
 
 /* This function is call in the completion task on the main thread, use it to call main thread post creation step for your assets*/
-void UInterchangeAnimationTrackSetFactory::SetupObject_GameThread(const FSetupObjectParams& Arguments)
+void UInterchangeLevelSequenceFactory::SetupObject_GameThread(const FSetupObjectParams& Arguments)
 {
-	TRACE_CPUPROFILER_EVENT_SCOPE(UInterchangeAnimationTrackSetFactory::SetupObject_GameThread);
+	TRACE_CPUPROFILER_EVENT_SCOPE(UInterchangeLevelSequenceFactory::SetupObject_GameThread);
 
 	check(IsInGameThread());
 	Super::SetupObject_GameThread(Arguments);

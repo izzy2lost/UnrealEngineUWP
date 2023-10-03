@@ -9,7 +9,7 @@
 #include "InterchangeDecalActorFactoryNode.h"
 #include "InterchangeDecalNode.h"
 
-#include "InterchangeAnimationTrackSetFactoryNode.h"
+#include "InterchangeLevelSequenceFactoryNode.h"
 #include "InterchangeAnimationTrackSetNode.h"
 #include "InterchangeMaterialFactoryNode.h"
 #include "InterchangeMeshActorFactoryNode.h"
@@ -104,7 +104,7 @@ void UInterchangeDatasmithLevelPipeline::ExecutePostImportPipeline(const UInterc
 	}
 
 	// If a ULevelSequence is referencing a ADatasmithAreaLightActor, update its mobility property
-	if (const UInterchangeAnimationTrackSetFactoryNode* FactoryNode = Cast<UInterchangeAnimationTrackSetFactoryNode>(NodeContainer->GetFactoryNode(FactoryNodeKey)))
+	if (const UInterchangeLevelSequenceFactoryNode* FactoryNode = Cast<UInterchangeLevelSequenceFactoryNode>(NodeContainer->GetFactoryNode(FactoryNodeKey)))
 	{
 		FSoftObjectPath FactoryNodeReferenceObject;
 		FactoryNode->GetCustomReferenceObject(FactoryNodeReferenceObject);

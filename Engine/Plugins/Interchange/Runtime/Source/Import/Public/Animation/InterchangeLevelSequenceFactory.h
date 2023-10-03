@@ -7,10 +7,10 @@
 #include "UObject/Object.h"
 #include "UObject/ObjectMacros.h"
 
-#include "InterchangeAnimationTrackSetFactory.generated.h"
+#include "InterchangeLevelSequenceFactory.generated.h"
 
 UCLASS(BlueprintType)
-class INTERCHANGEIMPORT_API UInterchangeAnimationTrackSetFactory : public UInterchangeFactoryBase
+class INTERCHANGEIMPORT_API UInterchangeLevelSequenceFactory : public UInterchangeFactoryBase
 {
 	GENERATED_BODY()
 public:

@@ -3,7 +3,7 @@
 #include "InterchangeImportModule.h"
 
 #include "Animation/InterchangeAnimSequenceFactory.h"
-#include "Animation/InterchangeAnimationTrackSetFactory.h"
+#include "Animation/InterchangeLevelSequenceFactory.h"
 #include "CoreMinimal.h"
 #include "Engine/Engine.h"
 #include "Engine/RendererSettings.h"
@@ -102,7 +102,7 @@ void FInterchangeImportModule::StartupModule()
 		InterchangeManager.RegisterFactory(UInterchangeStaticMeshFactory::StaticClass());
 		InterchangeManager.RegisterFactory(UInterchangePhysicsAssetFactory::StaticClass());
 		InterchangeManager.RegisterFactory(UInterchangeActorFactory::StaticClass());
-		InterchangeManager.RegisterFactory(UInterchangeAnimationTrackSetFactory::StaticClass());
+		InterchangeManager.RegisterFactory(UInterchangeLevelSequenceFactory::StaticClass());
 		InterchangeManager.RegisterFactory(UInterchangeAnimSequenceFactory::StaticClass());
 		InterchangeManager.RegisterFactory(UInterchangeCineCameraActorFactory::StaticClass());
 		InterchangeManager.RegisterFactory(UInterchangeCameraActorFactory::StaticClass());
