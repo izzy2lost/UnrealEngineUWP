@@ -54,6 +54,9 @@ namespace UE::ConcertSyncServer::Replication
 		 */
 		bool HasAuthorityToChange(const FReplicatedObjectId& ObjectChange) const;
 
+		/** Utility for iterating authority a client has for a given stream. */
+		void EnumerateAuthority(const FClientId& ClientId, const FStreamId& StreamId, TFunctionRef<EBreakBehavior(const FSoftObjectPath& Object)> Callback) const;
+
 		enum class EAuthorityResult : uint8
 		{
 			/** The client is allowed to take authority */

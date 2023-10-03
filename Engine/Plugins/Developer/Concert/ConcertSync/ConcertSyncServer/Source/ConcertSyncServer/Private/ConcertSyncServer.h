@@ -5,6 +5,7 @@
 #include "ConcertServerEventForwardingSink.h"
 #include "IConcertSyncServer.h"
 #include "IConcertServerEventSink.h"
+#include "HAL/IConsoleManager.h"
 
 class IConcertServerSession;
 class FConcertServerWorkspace;
@@ -26,6 +27,7 @@ struct FConcertSessionFilter;
 class FConcertSyncServer : public IConcertSyncServer, public TConcertServerEventForwardingSink<FConcertSyncServer>
 {
 public:
+	
 	FConcertSyncServer(const FString& InRole, const FConcertSessionFilter& InAutoArchiveSessionFilter);
 	virtual ~FConcertSyncServer();
 
@@ -93,4 +95,14 @@ private:
 
 	/** Optional side channel to exchange large blobs (package data) with the server in a scalable way (ex. the request/response transport layer is not designed and doesn't support exchanging 3GB packages). */
 	TSharedPtr<IConcertFileSharingService> FileSharingService;
+
+	/** Logs the replication streams registered by all clients */
+	FAutoConsoleCommand LogReplicationStreamsConsoleCommand;
+	/** Logs the replication authority of the clients */
+	FAutoConsoleCommand LogReplicationAuthorityConsoleCommand;
+
+	/** Logs the replication streams registered by all clients */
+	void LogReplicationStreams() const;
+	/** Logs the replication authority of the clients */
+	void LogReplicationAuthority() const;
 };

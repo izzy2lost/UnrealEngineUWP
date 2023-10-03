@@ -42,6 +42,8 @@ namespace UE::ConcertSyncServer::Replication
 		explicit FConcertServerReplicationManager(TSharedRef<IConcertServerSession> InLiveSession);
 		virtual ~FConcertServerReplicationManager() override;
 
+		const FAuthorityManager& GetAuthorityManager() const { return AuthorityManager.Get(); }
+
 		//~ Begin IAuthorityManagerGetters Interface
 		virtual void ForEachStream(const FGuid& ClientEndpointId, TFunctionRef<EBreakBehavior(const FReplicationStreamDescription& Stream)> Callback) override;
 		virtual void ForEachSendingClient(TFunctionRef<EBreakBehavior(const FGuid& ClientEndpointId)> Callback) override;

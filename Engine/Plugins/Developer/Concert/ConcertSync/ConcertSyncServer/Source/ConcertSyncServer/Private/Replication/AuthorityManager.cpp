@@ -46,6 +46,24 @@ namespace UE::ConcertSyncServer::Replication
 		return OwnedObjects && OwnedObjects->Contains(ObjectChange.Object);
 	}
 
+	void FAuthorityManager::EnumerateAuthority(const FClientId& ClientId, const FStreamId& StreamId, TFunctionRef<EBreakBehavior(const FSoftObjectPath& Object)> Callback) const
+	{
+		const FClientAuthorityData* AuthorityData = ClientAuthorityData.Find(ClientId);
+		const TSet<FSoftObjectPath>* OwnedObjects = AuthorityData ? AuthorityData->OwnedObjects.Find(StreamId) : nullptr;
+		if (!OwnedObjects)
+		{
+			return;
+		}
+		
+		for (const FSoftObjectPath& AuthoredObject : *OwnedObjects)
+		{
+			if (Callback(AuthoredObject) == EBreakBehavior::Break)
+			{
+				break;
+			}
+		}
+	}
+
 	FAuthorityManager::EAuthorityResult FAuthorityManager::EnumerateAuthorityConflicts(
 		const FReplicatedObjectId& Object, 
 		const FConcertPropertySelection* OverwriteProperties,
