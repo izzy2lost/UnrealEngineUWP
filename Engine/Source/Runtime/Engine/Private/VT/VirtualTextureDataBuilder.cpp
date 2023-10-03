@@ -272,6 +272,16 @@ bool FVirtualTextureBuilderDerivedInfo::InitializeFromBuildSettings(const FTextu
 		BlockSizeX = FMath::Max(BlockSizeX, BlockSizeY);
 		BlockSizeY = BlockSizeX;
 		break;
+	case ETexturePowerOfTwoSetting::ResizeToSpecificResolution:
+		if (BuildSettingsLayer0.ResizeDuringBuildX)
+		{
+			BlockSizeX = BuildSettingsLayer0.ResizeDuringBuildX;
+		}
+		if (BuildSettingsLayer0.ResizeDuringBuildY)
+		{
+			BlockSizeY = BuildSettingsLayer0.ResizeDuringBuildY;
+		}
+		break;
 	default:
 		checkNoEntry();
 		break;

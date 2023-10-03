@@ -149,6 +149,8 @@ static FTextureBuildSettings ReadBuildSettingsFromCompactBinary(const FCbObjectV
 	ReadCbField(Object["PowerOfTwoMode"], BuildSettings.PowerOfTwoMode);
 	ReadCbField(Object["PaddingColor"], BuildSettings.PaddingColor);
 	BuildSettings.bPadWithBorderColor = Object["bPadWithBorderColor"].AsBool(BuildSettings.bPadWithBorderColor);
+	ReadCbField(Object["ResizeDuringBuildX"], BuildSettings.ResizeDuringBuildX);
+	ReadCbField(Object["ResizeDuringBuildY"], BuildSettings.ResizeDuringBuildY);
 	ReadCbField(Object["ChromaKeyColor"], BuildSettings.ChromaKeyColor);
 	ReadCbField(Object["ChromaKeyThreshold"], BuildSettings.ChromaKeyThreshold);
 	ReadCbField(Object["CompressionQuality"], BuildSettings.CompressionQuality);

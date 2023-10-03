@@ -1219,7 +1219,7 @@ public:
 	uint32 bFlipGreenChannel:1;
 
 	/** How to pad the texture to a power of 2 size (if necessary) */
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category=Texture)
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category=Texture, meta = (DisplayName = "Padding and Resizing"))
 	TEnumAsByte<enum ETexturePowerOfTwoSetting::Type> PowerOfTwoMode;
 
 	/** The color used to pad the texture out if it is padded due to PowerOfTwoMode */
@@ -1229,6 +1229,14 @@ public:
 	/** If set to true, texture padding will be performed using colors of the border pixels. This can be used to improve quality of the generated mipmaps for padded textures. */
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category=Texture, meta = (EditCondition = "PowerOfTwoMode == ETexturePowerOfTwoSetting::PadToPowerOfTwo || PowerOfTwoMode == ETexturePowerOfTwoSetting::PadToSquarePowerOfTwo", EditConditionHides))
 	bool bPadWithBorderColor;
+
+	/** Width of the resized texture when using "Resize To Specific Resolution" padding and resizing option. If set to zero, original width will be used. */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = Texture, meta = (EditCondition = "PowerOfTwoMode == ETexturePowerOfTwoSetting::ResizeToSpecificResolution", EditConditionHides))
+	int32 ResizeDuringBuildX;
+
+	/** Width of the resized texture when using "Resize To Specific Resolution" padding and resizing option. If set to zero, original height will be used. */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = Texture, meta = (EditCondition = "PowerOfTwoMode == ETexturePowerOfTwoSetting::ResizeToSpecificResolution", EditConditionHides))
+	int32 ResizeDuringBuildY;
 
 	/** Whether to chroma key the image, replacing any pixels that match ChromaKeyColor with transparent black */
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category=Adjustments)

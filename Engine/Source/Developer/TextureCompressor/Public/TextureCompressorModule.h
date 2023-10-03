@@ -187,6 +187,10 @@ struct FTextureBuildSettings
 	FColor PaddingColor;
 	/** If set to true, texture padding will be performed using colors of the border pixels in order to improve quality of the generated mipmaps. */
 	bool bPadWithBorderColor;
+	/** Width of the resized texture when using "Resize To Specific Resolution" padding and resizing option. If set to zero, original width will be used. */
+	int32 ResizeDuringBuildX;
+	/** Width of the resized texture when using "Resize To Specific Resolution" padding and resizing option. If set to zero, original height will be used. */
+	int32 ResizeDuringBuildY;
 	/** The color that will be replaced with transparent black if chroma keying is enabled */
 	FColor ChromaKeyColor;
 	/** The threshold that components have to match for the texel to be considered equal to the ChromaKeyColor when chroma keying (<=, set to 0 to require a perfect exact match) */
@@ -298,6 +302,8 @@ struct FTextureBuildSettings
 		, PowerOfTwoMode(0 /*ETexturePowerOfTwoSetting::None*/)
 		, PaddingColor(FColor::Black)
 		, bPadWithBorderColor(false)
+		, ResizeDuringBuildX(0)
+		, ResizeDuringBuildY(0)
 		, ChromaKeyColor(FColorList::Magenta)
 		, ChromaKeyThreshold(1.0f / 255.0f)
 		, CompressionQuality(-1)

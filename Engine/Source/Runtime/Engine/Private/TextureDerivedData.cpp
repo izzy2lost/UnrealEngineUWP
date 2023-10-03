@@ -336,6 +336,14 @@ static void SerializeForKey(FArchive& Ar, const FTextureBuildSettings& Settings)
 		Ar << TempGuid;
 	}
 
+	if (Settings.ResizeDuringBuildX || Settings.ResizeDuringBuildY)
+	{
+		// @todo SerializeForKey these can go away whenever we bump the overall ddc key
+		TempGuid = FGuid(0xDAE8B3E9, 0x605B49DC, 0xADA3C221, 0x02D5567D); Ar << TempGuid;
+		TempUint32 = Settings.ResizeDuringBuildX; Ar << TempUint32;
+		TempUint32 = Settings.ResizeDuringBuildY; Ar << TempUint32;
+	}
+
 	if ( Settings.bUseNewMipFilter )
 	{
 		// @todo SerializeForKey : TextureAddressModeX is only used if bUseNewMipFilter is true
@@ -983,6 +991,8 @@ static void GetTextureBuildSettings(
 	OutBuildSettings.PowerOfTwoMode = Texture.PowerOfTwoMode;
 	OutBuildSettings.PaddingColor = Texture.PaddingColor;
 	OutBuildSettings.bPadWithBorderColor = Texture.bPadWithBorderColor;
+	OutBuildSettings.ResizeDuringBuildX = Texture.ResizeDuringBuildX;
+	OutBuildSettings.ResizeDuringBuildY = Texture.ResizeDuringBuildY;
 	OutBuildSettings.ChromaKeyColor = Texture.ChromaKeyColor;
 	OutBuildSettings.bChromaKeyTexture = Texture.bChromaKeyTexture;
 	OutBuildSettings.ChromaKeyThreshold = Texture.ChromaKeyThreshold;

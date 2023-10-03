@@ -3410,7 +3410,7 @@ static void NormalizeMip(FImage& InOutMip)
 
 
 // Returns true if the target texture size is different and padding/stretching is required.
-static bool GetPowerOfTwoTargetTextureSize(int32 InMip0SizeX, int32 InMip0SizeY, int32 InMip0NumSlices, bool bInIsVolume, ETexturePowerOfTwoSetting::Type InPow2Setting, int32& OutTargetSizeX, int32& OutTargetSizeY, int32& OutTargetSizeZ)
+static bool GetPowerOfTwoTargetTextureSize(int32 InMip0SizeX, int32 InMip0SizeY, int32 InMip0NumSlices, bool bInIsVolume, ETexturePowerOfTwoSetting::Type InPow2Setting, int32 InResizeDuringBuildX, int32 InResizeDuringBuildY, int32& OutTargetSizeX, int32& OutTargetSizeY, int32& OutTargetSizeZ)
 {
 	check(InPow2Setting != ETexturePowerOfTwoSetting::None);
 
@@ -3437,6 +3437,17 @@ static bool GetPowerOfTwoTargetTextureSize(int32 InMip0SizeX, int32 InMip0SizeY,
 	case ETexturePowerOfTwoSetting::StretchToSquarePowerOfTwo:
 		TargetTextureSizeX = TargetTextureSizeY = TargetTextureSizeZ =
 			FMath::Max3<int32>(PowerOfTwoTextureSizeX, PowerOfTwoTextureSizeY, PowerOfTwoTextureSizeZ);
+		break;
+
+	case ETexturePowerOfTwoSetting::ResizeToSpecificResolution:
+		if (InResizeDuringBuildX)
+		{
+			TargetTextureSizeX = InResizeDuringBuildX;
+		}
+		if (InResizeDuringBuildY)
+		{
+			TargetTextureSizeY = InResizeDuringBuildY;
+		}
 		break;
 
 	default:
@@ -3491,7 +3502,7 @@ int32 ITextureCompressorModule::GetMipCountForBuildSettings(
 			PowerOfTwoMode != ETexturePowerOfTwoSetting::None)
 		{
 			int32 TargetSizeX, TargetSizeY, TargetSizeZ;
-			bool NeedsAdjustment = GetPowerOfTwoTargetTextureSize(BaseSizeX, BaseSizeY, BaseSizeZ, BuildSettings.bVolume, PowerOfTwoMode, TargetSizeX, TargetSizeY, TargetSizeZ);
+			bool NeedsAdjustment = GetPowerOfTwoTargetTextureSize(BaseSizeX, BaseSizeY, BaseSizeZ, BuildSettings.bVolume, PowerOfTwoMode, BuildSettings.ResizeDuringBuildX, BuildSettings.ResizeDuringBuildY, TargetSizeX, TargetSizeY, TargetSizeZ);
 			if (NeedsAdjustment)
 			{
 				// In this case we are regenerating the entire mip chain.
@@ -3871,23 +3882,23 @@ private:
 			int32 TargetTextureSizeZ = 0;			
 			bool bPadOrStretchTexture = GetPowerOfTwoTargetTextureSize(
 				FirstSourceMipImage.SizeX, FirstSourceMipImage.SizeY, FirstSourceMipImage.NumSlices,
-				BuildSettings.bVolume, PowerOfTwoMode,
+				BuildSettings.bVolume, PowerOfTwoMode, BuildSettings.ResizeDuringBuildX, BuildSettings.ResizeDuringBuildY,
 				TargetTextureSizeX, TargetTextureSizeY, TargetTextureSizeZ);
 
 			if (bPadOrStretchTexture)
 			{
-				bool bStretchTexture = PowerOfTwoMode == ETexturePowerOfTwoSetting::StretchToPowerOfTwo || PowerOfTwoMode == ETexturePowerOfTwoSetting::StretchToSquarePowerOfTwo;
+				bool bResizeTexture = PowerOfTwoMode == ETexturePowerOfTwoSetting::StretchToPowerOfTwo || PowerOfTwoMode == ETexturePowerOfTwoSetting::StretchToSquarePowerOfTwo || PowerOfTwoMode == ETexturePowerOfTwoSetting::ResizeToSpecificResolution;
 				if (BuildSettings.MipGenSettings == TMGS_LeaveExistingMips)
 				{
 					// pad/stretch+leave existing is broken
-					UE_LOG(LogTextureCompressor, Error,	TEXT("Texture padding or stretching to power of two is not allowed when leaving existing mips."));
+					UE_LOG(LogTextureCompressor, Error,	TEXT("Texture padding or resizing is not allowed when leaving existing mips."));
 					return false;
 				}
 				if ( bLongLatCubemap )
 				{
-					if (bStretchTexture)
+					if (bResizeTexture)
 					{
-						UE_LOG(LogTextureCompressor, Warning, TEXT("In order to improve the quality of the generated texture, stretching LongLat cubemaps should be avoided."));
+						UE_LOG(LogTextureCompressor, Warning, TEXT("In order to improve the quality of the generated texture, resizing LongLat cubemaps should be avoided."));
 					}
 					else
 					{
@@ -3909,12 +3920,12 @@ private:
 				const FImage& SourceImage = bSuitableFormat ? FirstSourceMipImage : Temp;
 				FImage& TargetImage = PaddedSourceMips.Emplace_GetRef(TargetTextureSizeX, TargetTextureSizeY, BuildSettings.bVolume ? TargetTextureSizeZ : SourceImage.NumSlices, SourceImage.Format);
 
-				if (bStretchTexture)
+				if (bResizeTexture)
 				{
 					if (TargetImage.NumSlices != 1)
 					{
 						// FImageCore::ResizeTo currently only supports resizing textures with 1 slice
-						UE_LOG(LogTextureCompressor, Error, TEXT("Texture stretching is currently only supported on Texture2D."));
+						UE_LOG(LogTextureCompressor, Error, TEXT("Texture resizing is currently only supported on Texture2D."));
 						return false;
 					}
 					SourceImage.ResizeTo(TargetImage, TargetTextureSizeX, TargetTextureSizeY, SourceImage.Format, SourceImage.GetGammaSpace());

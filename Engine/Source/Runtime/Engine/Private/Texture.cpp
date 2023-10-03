@@ -177,6 +177,8 @@ UTexture::UTexture(const FObjectInitializer& ObjectInitializer)
 	bUseNewMipFilter = false;
 	PaddingColor = FColor::Black;
 	bPadWithBorderColor = false;
+	ResizeDuringBuildX = 0;
+	ResizeDuringBuildY = 0;
 	ChromaKeyColor = FColorList::Magenta;
 	ChromaKeyThreshold = 1.0f / 255.0f;
 	VirtualTextureStreaming = 0;
@@ -528,18 +530,21 @@ void UTexture::ValidateSettingsAfterImportOrEdit(bool * pRequiresNotifyMaterials
 		if ( MipGenSettings == TMGS_LeaveExistingMips && PowerOfTwoMode != ETexturePowerOfTwoSetting::None )
 		{
 			// power of 2 padding or stretching is not allowed with LeaveExistingMips
-			UE_LOG(LogTexture, Display, TEXT("Power of 2 padding or stretching cannot be used with LeaveExistingMips, disabled. (%s)"), *GetName());
+			UE_LOG(LogTexture, Display, TEXT("Texture padding or resizing cannot be used with LeaveExistingMips, disabled. (%s)"), *GetName());
 
 			PowerOfTwoMode = ETexturePowerOfTwoSetting::None;
 		}
 
-		if ((PowerOfTwoMode == ETexturePowerOfTwoSetting::StretchToPowerOfTwo || PowerOfTwoMode == ETexturePowerOfTwoSetting::StretchToSquarePowerOfTwo) && !this->IsA<UTexture2D>())
+		if ((PowerOfTwoMode == ETexturePowerOfTwoSetting::StretchToPowerOfTwo || PowerOfTwoMode == ETexturePowerOfTwoSetting::StretchToSquarePowerOfTwo || PowerOfTwoMode == ETexturePowerOfTwoSetting::ResizeToSpecificResolution) && !this->IsA<UTexture2D>())
 		{
-			// currently power of 2 stretching is only supported for 2D textures, but can be implemented for other types of textures in the future
-			UE_LOG(LogTexture, Display, TEXT("Currently power of two stretching is only supported for Texture2D, forcing PowerOfTwoMode to None. (%s)"), *GetName());
+			// currently resizing is only supported for 2D textures, but can be implemented for other types of textures in the future
+			UE_LOG(LogTexture, Display, TEXT("Currently resizing is only supported for Texture2D, forcing PowerOfTwoMode to None. (%s)"), *GetName());
 
 			PowerOfTwoMode = ETexturePowerOfTwoSetting::None;
 		}
+
+		ResizeDuringBuildX = FMath::Max(0, FMath::Min((int32)GetMaximumDimension(), ResizeDuringBuildX));
+		ResizeDuringBuildY = FMath::Max(0, FMath::Min((int32)GetMaximumDimension(), ResizeDuringBuildY));
 
 		// IsPowerOfTwo only checks XY :
 		bool bIsPowerOfTwo = Source.IsPowerOfTwo();
@@ -3344,6 +3349,17 @@ void UTexture::GetBuiltTextureSize( const ITargetPlatform* TargetPlatform , int3
 		if (PowerOfTwoMode == ETexturePowerOfTwoSetting::PadToSquarePowerOfTwo || PowerOfTwoMode == ETexturePowerOfTwoSetting::StretchToSquarePowerOfTwo)
 		{
 			SizeX = SizeY = FMath::Max(SizeX, SizeY);
+		}
+	}
+	else if (PowerOfTwoMode == ETexturePowerOfTwoSetting::ResizeToSpecificResolution)
+	{
+		if (ResizeDuringBuildX)
+		{
+			SizeX = ResizeDuringBuildX;
+		}
+		if (ResizeDuringBuildY)
+		{
+			SizeY = ResizeDuringBuildY;
 		}
 	}
 	else
