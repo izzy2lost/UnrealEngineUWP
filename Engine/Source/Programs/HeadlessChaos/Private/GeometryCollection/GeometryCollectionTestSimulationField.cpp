@@ -86,7 +86,7 @@ namespace GeometryCollectionTest
 			UnitTest.Advance();
 		}
 
-		TManagedArray<int32>& DynamicState = Collection->DynamicCollection->DynamicState;
+		TManagedArray<uint8>& DynamicState = Collection->DynamicCollection->DynamicState;
 		EXPECT_EQ(DynamicState[0], (int32)EObjectStateTypeEnum::Chaos_Object_Kinematic);
 
 		// simulated
@@ -182,7 +182,7 @@ namespace GeometryCollectionTest
 
 		UnitTest.Initialize();
 
-		TManagedArray<int32>& DynamicState = Collection->DynamicCollection->DynamicState;
+		TManagedArray<uint8>& DynamicState = Collection->DynamicCollection->DynamicState;
 
 		FReal PreviousY = 0.f;
 		EXPECT_EQ(Collection->DynamicCollection->GetTransform(0).GetTranslation().X, 0);

@@ -502,17 +502,12 @@ void FGeometryCollectionPhysicsProxy::Initialize(Chaos::FPBDRigidsEvolutionBase 
 
 	InitializeDynamicCollection(DynamicCollection, *Parameters.RestCollection, Parameters);
 
-	// Attach the external particles to the gamethread collection
-	if (DynamicCollection.HasAttribute(FGeometryCollection::ParticlesAttribute, FTransformCollection::TransformGroup))
-		DynamicCollection.RemoveAttribute(FGeometryCollection::ParticlesAttribute, FTransformCollection::TransformGroup);
-	DynamicCollection.AddExternalAttribute<TUniquePtr<FParticle>>(FGeometryCollection::ParticlesAttribute, FTransformCollection::TransformGroup, GTParticles);
-
-
 	NumParticles = DynamicCollection.NumElements(FGeometryCollection::TransformGroup);
 	BaseParticleIndex = 0; // Are we always zero indexed now?
 	SolverClusterID.Init(nullptr, NumParticles);
 	SolverClusterHandles.Init(nullptr, NumParticles);
 	SolverParticleHandles.Init(nullptr, NumParticles);
+	GTParticles.SetNum(NumParticles);
 	
 	TBitArray<> EffectiveParticles;
 	NumEffectiveParticles = CalculateEffectiveParticles(DynamicCollection, NumParticles, Parameters.MaxSimulatedLevel, Parameters.EnableClustering, GetOwner(), EffectiveParticles);
@@ -556,14 +551,6 @@ void FGeometryCollectionPhysicsProxy::Initialize(Chaos::FPBDRigidsEvolutionBase 
 	// Initialise GT/External particles
 	const int32 NumTransforms = DynamicCollection.Transform.Num();
 
-	// Attach the external particles to the gamethread collection
-	if (GameThreadCollection.HasAttribute(FGeometryCollection::ParticlesAttribute, FTransformCollection::TransformGroup))
-	{ 
-		GameThreadCollection.RemoveAttribute(FGeometryCollection::ParticlesAttribute, FTransformCollection::TransformGroup);
-	}
-		
-	GameThreadCollection.AddExternalAttribute<TUniquePtr<FParticle>>(FGeometryCollection::ParticlesAttribute, FTransformCollection::TransformGroup, GTParticles);
-
 	// make sure we copy the anchored information over to the physics thread collection
 	const Chaos::Facades::FCollectionAnchoringFacade DynamicCollectionAnchoringFacade(DynamicCollection);
 	Chaos::Facades::FCollectionAnchoringFacade PhysicsThreadCollectionAnchoringFacade(PhysicsThreadCollection);
@@ -574,7 +561,8 @@ void FGeometryCollectionPhysicsProxy::Initialize(Chaos::FPBDRigidsEvolutionBase 
 	const TManagedArray<FTransform>& MassToLocal = Parameters.RestCollection->GetAttribute<FTransform>(MassToLocalAttributeName, FTransformCollection::TransformGroup);
 
 	TArray<int32> ChildrenToCheckForParentFix;
-	if(ensure(NumTransforms == GameThreadCollection.Implicits.Num() && NumTransforms == GTParticles.Num())) // Implicits are in the transform group so this invariant should always hold
+	TManagedArray<Chaos::FImplicitObjectPtr>& Implicits = GameThreadCollection.ModifyAttribute<Chaos::FImplicitObjectPtr>(FGeometryDynamicCollection::ImplicitsAttribute, FTransformCollection::TransformGroup);
+	if(ensure(NumTransforms == Implicits.Num() && NumTransforms == GTParticles.Num())) // Implicits are in the transform group so this invariant should always hold
 	{
 		for(int32 Index = 0; Index < NumTransforms; ++Index)
 		{
@@ -600,7 +588,7 @@ void FGeometryCollectionPhysicsProxy::Initialize(Chaos::FPBDRigidsEvolutionBase 
 				P->SetUserData(Parameters.UserData);
 				P->SetProxy(this);
 
-				Chaos::FImplicitObjectPtr ImplicitGeometry = GameThreadCollection.Implicits[Index];
+				Chaos::FImplicitObjectPtr ImplicitGeometry = Implicits[Index];
 				if (ImplicitGeometry && !Scale.Equals(FVector::OneVector))
 				{
 					ImplicitGeometry = ImplicitGeometry->CopyGeometryWithScale(Scale);
@@ -657,7 +645,7 @@ void FGeometryCollectionPhysicsProxy::Initialize(Chaos::FPBDRigidsEvolutionBase 
 				// step 2: fix the parent if necessary
 				for (const int32 ParentToFixIndex: ParentToPotentiallyFix)
 				{
-					if (GameThreadCollection.Implicits[ParentToFixIndex] == nullptr)
+					if (Implicits[ParentToFixIndex] == nullptr)
 					{
 						const Chaos::FRigidTransform3 ParentShapeTransform =  MassToLocal[ParentToFixIndex];
 				
@@ -667,7 +655,7 @@ void FGeometryCollectionPhysicsProxy::Initialize(Chaos::FPBDRigidsEvolutionBase 
 						GameThreadCollection.IterateThroughChildren(ParentToFixIndex, [&](int32 ChildIndex)
 						{
 							// defer if any of the children is a cluster with no collision yet generated 
-							if (GameThreadCollection.Implicits[ChildIndex] == nullptr && GameThreadCollection.HasChildren(ChildIndex))
+							if (Implicits[ChildIndex] == nullptr && GameThreadCollection.HasChildren(ChildIndex))
 							{
 								bAllChildrenHaveCollision = false;
 								return false;
@@ -681,7 +669,7 @@ void FGeometryCollectionPhysicsProxy::Initialize(Chaos::FPBDRigidsEvolutionBase 
 							TArray<Chaos::FImplicitObjectPtr> ChildImplicits;
 							GameThreadCollection.IterateThroughChildren(ParentToFixIndex, [&](int32 ChildIndex)
 							{
-								const Chaos::FImplicitObjectPtr& ChildImplicit = GameThreadCollection.Implicits[ChildIndex];
+								const Chaos::FImplicitObjectPtr& ChildImplicit = Implicits[ChildIndex];
 								if (ChildImplicit)
 								{
 									const Chaos::FRigidTransform3 ChildShapeTransform = MassToLocal[ChildIndex] * FTransform(GameThreadCollection.Transform[ChildIndex]);
@@ -706,11 +694,11 @@ void FGeometryCollectionPhysicsProxy::Initialize(Chaos::FPBDRigidsEvolutionBase 
 							if (ChildImplicits.Num() > 0)
 							{
 								Chaos::FImplicitObject* UnionImplicit = new Chaos::FImplicitObjectUnion(MoveTemp(ChildImplicits));
-								GameThreadCollection.Implicits[ParentToFixIndex] = Chaos::FImplicitObjectPtr(UnionImplicit);
+								Implicits[ParentToFixIndex] = Chaos::FImplicitObjectPtr(UnionImplicit);
 							}
 							if (GTParticles[ParentToFixIndex] != nullptr)
 							{
-								GTParticles[ParentToFixIndex]->SetGeometry(GameThreadCollection.Implicits[ParentToFixIndex]);
+								GTParticles[ParentToFixIndex]->SetGeometry(Implicits[ParentToFixIndex]);
 							}
 						}
 					}
@@ -749,6 +737,8 @@ void FGeometryCollectionPhysicsProxy::Initialize(Chaos::FPBDRigidsEvolutionBase 
 	};
 	static constexpr int32 SkipListSize = sizeof(SkipList) / sizeof(FAttributeAndGroupId);
 
+	// Adding the Implicits to PhysicsThreadCollection, before it copies all matching attributes
+	PhysicsThreadCollection.AddAttribute<Chaos::FImplicitObjectPtr>(FGeometryDynamicCollection::ImplicitsAttribute, FTransformCollection::TransformGroup);
 	PhysicsThreadCollection.CopyMatchingAttributesFrom(DynamicCollection, MakeArrayView(SkipList, SkipListSize));
 	PhysicsThreadCollection.CopyInitialVelocityAttributesFrom(DynamicCollection);
 
@@ -795,6 +785,9 @@ void FGeometryCollectionPhysicsProxy::Initialize(Chaos::FPBDRigidsEvolutionBase 
 			}
 		}
 	}
+
+	// The Implicits attributes from the Dynamic Collection are just used for initialization, after they can be removed and so free some memory.
+	GameThreadCollection.RemoveAttribute(FGeometryDynamicCollection::ImplicitsAttribute, FTransformCollection::TransformGroup);
 }
 
 
@@ -817,6 +810,7 @@ void FGeometryCollectionPhysicsProxy::InitializeDynamicCollection(FGeometryDynam
 	};
 	static const int32 SkipListSize = sizeof(SkipList) / sizeof(FAttributeAndGroupId);
 
+	DynamicCollection.AddAttribute<Chaos::FImplicitObjectPtr>(FGeometryDynamicCollection::ImplicitsAttribute, FTransformCollection::TransformGroup);
 	DynamicCollection.CopyMatchingAttributesFrom(RestCollection, MakeArrayView(SkipList, SkipListSize));
 
 	// User defined initial velocities need to be populated. 
@@ -1059,10 +1053,10 @@ void FGeometryCollectionPhysicsProxy::InitializeBodiesPT(Chaos::FPBDRigidsSolver
 		const TManagedArray<FVector3f>& InertiaTensor = RestCollection->GetAttribute<FVector3f>(InertiaTensorAttributeName, FTransformCollection::TransformGroup);
 
 		const int32 NumTransforms = DynamicCollection.NumElements(FTransformCollection::TransformGroup);
-		const TManagedArray<int32>& DynamicState = DynamicCollection.DynamicState;
+		const TManagedArray<uint8>& DynamicState = DynamicCollection.DynamicState;
 		const TManagedArray<bool>& SimulatableParticles = DynamicCollection.SimulatableParticles;
 		const TManagedArray<FTransform>& MassToLocal = RestCollection->GetAttribute<FTransform>(MassToLocalAttributeName, FTransformCollection::TransformGroup);
-		const TManagedArray<Chaos::FImplicitObjectPtr>& Implicits = DynamicCollection.Implicits;
+		const TManagedArray<Chaos::FImplicitObjectPtr>& Implicits = DynamicCollection.GetAttribute<Chaos::FImplicitObjectPtr>(FGeometryDynamicCollection::ImplicitsAttribute, FTransformCollection::TransformGroup);
 		const TManagedArray<TUniquePtr<FCollisionStructureManager::FSimplicial>>& Simplicials = DynamicCollection.Simplicials;
 
 		// In PushToPhysicsState, we're going to compute a relative transform from Parameters.PrevWorldTransform
@@ -1493,6 +1487,8 @@ void FGeometryCollectionPhysicsProxy::InitializeBodiesPT(Chaos::FPBDRigidsSolver
 
 	} // end if simulating...
 
+	// The Implicits attributes from the Dynamic Collection are just used for initialization, after they can be removed and so free some memory.
+	PhysicsThreadCollection.RemoveAttribute(FGeometryDynamicCollection::ImplicitsAttribute, FTransformCollection::TransformGroup);
 }
 
 int32 ReportNoLevelsetCluster = 0;
@@ -1583,11 +1579,11 @@ float FGeometryCollectionPhysicsProxy::ComputeUserDefinedDamageThreshold_Interna
 		{
 			// bounding box volume is used as a fallback to find specific size if the relative size if not available
 			// ( May happen with older GC )
+			const FClusterHandle* Handle = SolverParticleHandles[TransformIndex];
 			FBox LocalBoundingBox;
-			const Chaos::FImplicitObjectPtr& Implicit = PhysicsThreadCollection.Implicits[TransformIndex];
-			if (Implicit && Implicit->HasBoundingBox())
+			if (Handle && Handle->HasBounds())
 			{
-				const Chaos::FAABB3& ImplicitBoundingBox = Implicit->BoundingBox();
+				const Chaos::FAABB3& ImplicitBoundingBox = Handle->LocalBounds();
 				LocalBoundingBox = FBox(ImplicitBoundingBox.Min(), ImplicitBoundingBox.Max());
 			}
 
@@ -1631,10 +1627,10 @@ Chaos::FVec3f FGeometryCollectionPhysicsProxy::AdjustInertiaForScale(const Chaos
 Chaos::TPBDGeometryCollectionParticleHandle<Chaos::FReal, 3>* FGeometryCollectionPhysicsProxy::BuildNonClusters_Internal(const uint32 CollectionClusterIndex, Chaos::FPBDRigidsSolver* RigidsSolver, float Mass, Chaos::FVec3f Inertia)
 {
 	FGeometryDynamicCollection& DynamicCollection = PhysicsThreadCollection;
-	TManagedArray<int32>& DynamicState = DynamicCollection.DynamicState;
+	TManagedArray<uint8>& DynamicState = DynamicCollection.DynamicState;
 	TManagedArray<FTransform3f>& Transform = DynamicCollection.Transform;
 	const TManagedArray<FTransform>& MassToLocal = Parameters.RestCollection->GetAttribute<FTransform>(MassToLocalAttributeName, FTransformCollection::TransformGroup);
-	const TManagedArray<Chaos::FImplicitObjectPtr>& Implicits = DynamicCollection.Implicits;
+	const TManagedArray<Chaos::FImplicitObjectPtr>& Implicits = DynamicCollection.GetAttribute<Chaos::FImplicitObjectPtr>(FGeometryDynamicCollection::ImplicitsAttribute, FTransformCollection::TransformGroup);
 	const TManagedArray<TUniquePtr<FCollisionStructureManager::FSimplicial>>& Simplicials = DynamicCollection.Simplicials;
 	Chaos::Facades::FCollectionAnchoringFacade AnchoringFacade(DynamicCollection);
 
@@ -1749,11 +1745,11 @@ FGeometryCollectionPhysicsProxy::BuildClusters_Internal(
 	check(ChildHandles.Num() != 0);
 
 	FGeometryDynamicCollection& DynamicCollection = PhysicsThreadCollection;
-	TManagedArray<int32>& DynamicState = DynamicCollection.DynamicState;
+	TManagedArray<uint8>& DynamicState = DynamicCollection.DynamicState;
 	TManagedArray<FTransform3f>& Transform = DynamicCollection.Transform;
 	const TManagedArray<FTransform>& MassToLocal = Parameters.RestCollection->GetAttribute<FTransform>(MassToLocalAttributeName, FTransformCollection::TransformGroup);
 	//TManagedArray<TSharedPtr<FCollisionStructureManager::FSimplicial> >& Simplicials = DynamicCollection.Simplicials;
-	TManagedArray<Chaos::FImplicitObjectPtr>& Implicits = DynamicCollection.Implicits;
+	const TManagedArray<Chaos::FImplicitObjectPtr>& Implicits = DynamicCollection.GetAttribute<Chaos::FImplicitObjectPtr>(FGeometryDynamicCollection::ImplicitsAttribute, FTransformCollection::TransformGroup);
 
 	//If we are a root particle use the world transform, otherwise set the relative transform
 	const FTransform CollectionSpaceTransform = GeometryCollectionAlgo::GlobalMatrix(Transform, DynamicCollection, CollectionClusterIndex);
@@ -2661,7 +2657,8 @@ TBitArray<> FGeometryCollectionPhysicsProxy::CalculateClustersToCreateFromChildr
 			// step 2: test the parent for having children with geometry
 			for (const int32 ParentToFixIndex : ParentToPotentiallyFix)
 			{
-				const bool bParentHasCollision = (DynamicCollection.Implicits[ParentToFixIndex] != nullptr) || ClustersToGenerate[ParentToFixIndex];
+				const bool bParentHasCollision = 
+					(DynamicCollection.GetAttribute<Chaos::FImplicitObjectPtr>(FGeometryDynamicCollection::ImplicitsAttribute, FTransformCollection::TransformGroup)[ParentToFixIndex] != nullptr) || ClustersToGenerate[ParentToFixIndex];
 				if (!bParentHasCollision)
 				{
 					// let's make sure all our children have an implicit defined, otherwise, postpone to next iteration 
@@ -2669,7 +2666,8 @@ TBitArray<> FGeometryCollectionPhysicsProxy::CalculateClustersToCreateFromChildr
 					DynamicCollection.IterateThroughChildren(ParentToFixIndex, [&](int32 ChildIndex)
 					{
 						// defer if any of the children is a cluster with no collision yet generated 
-						const bool bChildHasCollision = (DynamicCollection.Implicits[ChildIndex] != nullptr) || ClustersToGenerate[ChildIndex];
+						const bool bChildHasCollision = 
+							(DynamicCollection.GetAttribute<Chaos::FImplicitObjectPtr>(FGeometryDynamicCollection::ImplicitsAttribute, FTransformCollection::TransformGroup)[ChildIndex] != nullptr) || ClustersToGenerate[ChildIndex];
 						if (!bChildHasCollision && DynamicCollection.HasChildren(ChildIndex))
 						{
 							bAllChildrenHaveCollision = false;
@@ -2705,7 +2703,7 @@ int32 FGeometryCollectionPhysicsProxy::CalculateEffectiveParticles(const FGeomet
 		if (Level <= MaxSimulatedLevel || !bEnableClustering)
 		{
 			const bool bIsClusterUsingChildGeometry = (ClustersUsingChildGeometry.Num() > 0) && ClustersUsingChildGeometry[TransformIndex];
-			const bool bHasGeometry = DynamicCollection.Implicits[TransformIndex].IsValid();
+			const bool bHasGeometry = DynamicCollection.GetAttribute<Chaos::FImplicitObjectPtr>(FGeometryDynamicCollection::ImplicitsAttribute, FTransformCollection::TransformGroup)[TransformIndex].IsValid();
 
 			if (bHasGeometry || bIsClusterUsingChildGeometry)
 			{
@@ -3739,7 +3737,7 @@ bool FGeometryCollectionPhysicsProxy::PullNonInterpolatableDataFromSinglePhysics
 			bIsCollectionDirty = true;
 		}
 
-		if (UpdateValue(GameThreadCollection.DynamicState[TransformGroupIndex], StateData.State.DynamicState))
+		if (UpdateValue(GameThreadCollection.DynamicState[TransformGroupIndex], static_cast<uint8>(StateData.State.DynamicState)))
 		{
 			GTParticle.SetObjectState(static_cast<Chaos::EObjectStateType>(StateData.State.DynamicState));
 			bIsCollectionDirty = true;

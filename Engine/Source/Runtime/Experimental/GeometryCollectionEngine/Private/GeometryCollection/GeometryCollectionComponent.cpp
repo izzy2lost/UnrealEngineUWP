@@ -2918,10 +2918,10 @@ void UGeometryCollectionComponent::SetDynamicState(const Chaos::EObjectStateType
 {
 	if (DynamicCollection)
 	{
-		TManagedArray<int32>& DynamicState = DynamicCollection->DynamicState;
+		TManagedArray<uint8>& DynamicState = DynamicCollection->DynamicState;
 		for (int i = 0; i < DynamicState.Num(); i++)
 		{
-			DynamicState[i] = static_cast<int32>(NewDynamicState);
+			DynamicState[i] = static_cast<uint8>(NewDynamicState);
 		}
 	}
 }
@@ -3589,7 +3589,7 @@ void UGeometryCollectionComponent::OnCreatePhysicsState()
 			FChaosUserData::Set<UPrimitiveComponent>(&PhysicsUserData, this);
 
 			// If the Component is set to Dynamic, we look to the RestCollection for initial dynamic state override per transform.
-			TManagedArray<int32> & DynamicState = DynamicCollection->DynamicState;
+			TManagedArray<uint8> & DynamicState = DynamicCollection->DynamicState;
 
 			// if this code is changed you may need to account for bStartAwake
 			EObjectStateTypeEnum LocalObjectType = (ObjectType != EObjectStateTypeEnum::Chaos_Object_Sleeping) ? ObjectType : EObjectStateTypeEnum::Chaos_Object_Dynamic;
@@ -3600,14 +3600,14 @@ void UGeometryCollectionComponent::OnCreatePhysicsState()
 					TManagedArray<int32>& InitialDynamicState = RestCollection->GetGeometryCollection()->InitialDynamicState;
 					for (int i = 0; i < DynamicState.Num(); i++)
 					{
-						DynamicState[i] = (InitialDynamicState[i] == static_cast<int32>(Chaos::EObjectStateType::Uninitialized)) ? static_cast<int32>(LocalObjectType) : InitialDynamicState[i];
+						DynamicState[i] = (InitialDynamicState[i] == static_cast<int32>(Chaos::EObjectStateType::Uninitialized)) ? static_cast<uint8>(LocalObjectType) : InitialDynamicState[i];
 					}
 				}
 				else
 				{
 					for (int i = 0; i < DynamicState.Num(); i++)
 					{
-						DynamicState[i] = static_cast<int32>(LocalObjectType);
+						DynamicState[i] = static_cast<uint8>(LocalObjectType);
 					}
 				}
 			}

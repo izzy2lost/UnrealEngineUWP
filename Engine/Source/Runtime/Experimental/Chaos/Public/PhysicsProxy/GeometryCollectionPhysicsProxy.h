@@ -297,7 +297,7 @@ public:
 		return GameThreadCollection;
 	}
 
-	TManagedArray<TUniquePtr<FParticle>>& GetExternalParticles()
+	TArray<TUniquePtr<FParticle>>& GetExternalParticles()
 	{
 		return GTParticles;
 	}
@@ -587,7 +587,7 @@ private:
 
 	EReplicationMode ReplicationMode = EReplicationMode::Unknown;	
 
-	TManagedArray<TUniquePtr<FParticle>> GTParticles;
+	TArray<TUniquePtr<FParticle>> GTParticles;
 	TMap<FParticle*, int32> GTParticlesToTransformGroupIndex;
 	TMap<FParticle*, int32> GTParticlesToInternalClusterUniqueIdx;
 	TMap<int32, TArray<int32>> InternalClusterUniqueIdxToChildrenTransformIndices;

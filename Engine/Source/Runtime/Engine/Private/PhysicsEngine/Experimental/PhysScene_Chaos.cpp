@@ -2175,7 +2175,7 @@ static void UpdateAccelerationStructureFromGeometryCollectionProxy(FGeometryColl
 		return Chaos::FAABB3(Particle.X(), Particle.X());
 	};
 
-	const TManagedArray<TUniquePtr<Chaos::FPBDRigidParticle>>& GTParticles = Proxy.GetExternalParticles();
+	const TArray<TUniquePtr<Chaos::FPBDRigidParticle>>& GTParticles = Proxy.GetExternalParticles();
 	if (bIsParentProxyNull)
 	{
 		for (const TUniquePtr<Chaos::FPBDRigidParticle>& GTParticle : GTParticles)

@@ -333,11 +333,13 @@ namespace GeometryCollectionTest
 			EXPECT_TRUE(UnitTest.Solver->GetParticles().GetGeometryCollectionParticles().CollisionParticles(0) != nullptr);
 			EXPECT_TRUE(Collection->DynamicCollection->Simplicials[0]->Size() == UnitTest.Solver->GetParticles().GetGeometryCollectionParticles().CollisionParticles(0)->Size());
 			EXPECT_TRUE(Collection->DynamicCollection->Simplicials[0]->Size() != 0);
-			EXPECT_TRUE(Collection->DynamicCollection->Implicits[0]->GetType() == (int32)Chaos::ImplicitObjectType::LevelSet);
+			// The following test has been disabled because from now we remove the Implicits after initialization to free up some memory
+			// EXPECT_TRUE(Collection->DynamicCollection->GetAttribute<Chaos::FImplicitObjectPtr>(FGeometryDynamicCollection::ImplicitsAttribute, FTransformCollection::TransformGroup)[0]->GetType() == (int32)Chaos::ImplicitObjectType::LevelSet);
 
 			EXPECT_EQ(CollectionStaticSphere->DynamicCollection->GetTransforms().Num(), 4);
 			EXPECT_TRUE(CollectionStaticSphere->DynamicCollection->Simplicials[0] == nullptr);
-			EXPECT_TRUE(CollectionStaticSphere->DynamicCollection->Implicits[0]->GetType() == (int32)Chaos::ImplicitObjectType::Sphere);
+			// The following test has been disabled because from now we remove the Implicits after initialization to free up some memory
+			// EXPECT_TRUE(CollectionStaticSphere->DynamicCollection->GetAttribute<Chaos::FImplicitObjectPtr>(FGeometryDynamicCollection::ImplicitsAttribute, FTransformCollection::TransformGroup)[0]->GetType() == (int32)Chaos::ImplicitObjectType::Sphere);
 
 			// validate the ball collides and moved away from the static ball
 			EXPECT_LT(FMath::Abs(Collection->RestCollection->Transform[0].GetTranslation().Z) - 10.f, KINDA_SMALL_NUMBER);

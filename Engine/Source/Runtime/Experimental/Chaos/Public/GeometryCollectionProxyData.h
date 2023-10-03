@@ -106,8 +106,9 @@ public:
 	// Transform Group
 	TManagedArray<bool> Active;
 	
-	TManagedArray<int32> DynamicState;
-	TManagedArray<Chaos::FImplicitObjectPtr> Implicits;
+	TManagedArray<uint8> DynamicState; 
+	static_assert(sizeof(EObjectStateTypeEnum) <= sizeof(uint8)); // DynamicState must fit  EObjectStateTypeEnum
+
 	TManagedArray<TUniquePtr<FCollisionStructureManager::FSimplicial>> Simplicials;
 	TManagedArray<bool> SimulatableParticles;
 
