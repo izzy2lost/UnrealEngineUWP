@@ -86,12 +86,17 @@ static uint32 GetLocalFogVolumeTileMaxInstanceCount()
 	return FMath::Max(1u, FMath::Min(256u, (uint32)CVarLocalFogVolumeTileMaxInstanceCount.GetValueOnRenderThread()));
 }
 
+bool ProjectSupportsLocalFogVolumes()
+{
+	return CVarSupportLocalFogVolumes.GetValueOnRenderThread() > 0;
+}
+
 bool ShouldRenderLocalFogVolume(const FScene* Scene, const FSceneViewFamily& SceneViewFamily)
 {
 	const FEngineShowFlags EngineShowFlags = SceneViewFamily.EngineShowFlags;
 	if (Scene && Scene->HasAnyLocalFogVolume() && EngineShowFlags.Fog && !SceneViewFamily.UseDebugViewPS())
 	{
-		return (CVarSupportLocalFogVolumes.GetValueOnRenderThread() > 0) && (CVarLocalFogVolume.GetValueOnRenderThread() > 0);
+		return ProjectSupportsLocalFogVolumes() && (CVarLocalFogVolume.GetValueOnRenderThread() > 0);
 	}
 	return false;
 }
