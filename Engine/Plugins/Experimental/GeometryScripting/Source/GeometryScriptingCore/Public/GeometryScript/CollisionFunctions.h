@@ -209,6 +209,27 @@ public:
 	int32 MinTargetFaceCount = 12;
 };
 
+USTRUCT(BlueprintType)
+struct GEOMETRYSCRIPTINGCORE_API FGeometryScriptTransformCollisionOptions
+{
+	GENERATED_BODY()
+public:
+
+	/** Whether to log a warning when a requested transform is not compatible with the simple collision shapes */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = Options)
+	bool bWarnOnInvalidTransforms = true;
+
+	/**
+	 * If true, we apply the Transform to each collision shape separately, and pivot the Transform around the local center of each shape.
+	 * Otherwise, we apply the Transform to all shapes in the same space, with the pivot at the origin of the origin of that space.
+	 * 
+	 * For example, if we apply a uniform 2x scale to a sphere w/ center (1,1,1), with this enabled, the center will not move and only the radius will scale.
+	 * If this setting is not enabled, the 2x scale will move the sphere center to (2,2,2)
+	 */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = Options)
+	bool bCenterTransformPivotPerShape = false;
+};
+
 UCLASS(meta = (ScriptName = "GeometryScript_Collision"))
 class GEOMETRYSCRIPTINGCORE_API UGeometryScriptLibrary_CollisionFunctions : public UBlueprintFunctionLibrary
 {
@@ -314,6 +335,19 @@ public:
 		return SimpleCollision.AggGeom.GetElementCount();
 	}
 
+	/*
+	 * Transform simple collision shapes
+	 * @param bSuccess	Indicates whether all collision shapes were accurately transformed. On failure, shapes will still be copied over and a best-effort transform will still be applied.
+	 */
+	UFUNCTION(BlueprintCallable, Category = "GeometryScript|Collision", meta = (AutoCreateRefTerm = "TransformOptions"))
+	static UPARAM(DisplayName = "Transformed Collision") FGeometryScriptSimpleCollision TransformSimpleCollisionShapes(
+		const FGeometryScriptSimpleCollision& SimpleCollision,
+		FTransform Transform,
+		const FGeometryScriptTransformCollisionOptions& TransformOptions,
+		bool& bSuccess,
+		UGeometryScriptDebug* Debug = nullptr
+	);
+	
 	/**
 	 * Simplify any convex hulls in the given simple collision representation. Updates the passed-in Simple Collision.
 	 *
@@ -321,7 +355,7 @@ public:
 	 * @param ConvexSimplifyOptions	Options controlling how convex hulls are simplified
 	 * @param bHasSimplified		Indicates whether any convex hulls were modified
 	 */
-	UFUNCTION(BlueprintCallable, Category = "GeometryScript|Collision", meta = (AutoCreateRefTerm = "SimplifyOptions"))
+	UFUNCTION(BlueprintCallable, Category = "GeometryScript|Collision", meta = (ScriptMethod, AutoCreateRefTerm = "SimplifyOptions"))
 	static void SimplifyConvexHulls(
 		UPARAM(ref) FGeometryScriptSimpleCollision& SimpleCollision,
 		const FGeometryScriptConvexHullSimplificationOptions& SimplifyOptions,

@@ -548,6 +548,249 @@ void UGeometryScriptLibrary_CollisionFunctions::SetSimpleCollisionOfStaticMesh(
 	UELocal::SetStaticMeshSimpleCollision(StaticMesh, SimpleCollision.AggGeom, Options.bEmitTransaction, StaticMeshCollisionOptions.bMarkAsCustomized);
 }
 
+FGeometryScriptSimpleCollision UGeometryScriptLibrary_CollisionFunctions::TransformSimpleCollisionShapes(
+	const FGeometryScriptSimpleCollision& SimpleCollision,
+	FTransform Transform,
+	const FGeometryScriptTransformCollisionOptions& TransformOptions,
+	bool& bSuccess,
+	UGeometryScriptDebug* Debug)
+{
+	bSuccess = true;
+
+	FGeometryScriptSimpleCollision TransformedCollision;
+	FVector Scale = Transform.GetScale3D();
+	bool bUniformScale = Scale.AllComponentsEqual();
+	bool bNoRotation = Transform.GetRotation().IsIdentity();
+	double ApproxUniformScale = Scale.X;
+	if (!bUniformScale)
+	{
+		ApproxUniformScale = FMathd::Cbrt(Scale.X * Scale.Y * Scale.Z);
+	}
+
+	int32 NumSpheres = SimpleCollision.AggGeom.SphereElems.Num();
+	if (NumSpheres > 0)
+	{
+		if (!bUniformScale)
+		{
+			if (TransformOptions.bWarnOnInvalidTransforms)
+			{
+				UE::Geometry::AppendWarning(Debug, EGeometryScriptErrorType::InvalidInputs, LOCTEXT("TransformSimpleCollisionShapes Non-Uniform Scale on Sphere", "TransformSimpleCollisionShapes: Cannot apply Non-Uniform Scale to Spheres"));
+			}
+			bSuccess = false;
+		}
+		TransformedCollision.AggGeom.SphereElems.Reserve(NumSpheres);
+		for (FKSphereElem Sphere : SimpleCollision.AggGeom.SphereElems)
+		{
+			if (TransformOptions.bCenterTransformPivotPerShape)
+			{
+				// Apply Transform w/ pivot at the sphere center; only the translation part will have an effect
+				Sphere.Center += Transform.GetTranslation();
+			}
+			else
+			{
+				Sphere.Center = Transform.TransformPosition(Sphere.Center);
+			}
+			Sphere.Radius = FMath::Abs(ApproxUniformScale * Sphere.Radius);
+			TransformedCollision.AggGeom.SphereElems.Add(Sphere);
+		}
+	}
+
+	int32 NumBoxes = SimpleCollision.AggGeom.BoxElems.Num();
+	if (NumBoxes > 0)
+	{
+		if (!bUniformScale)
+		{
+			bool bHasRotatedBox = false;
+			for (const FKBoxElem& Box : SimpleCollision.AggGeom.BoxElems)
+			{
+				if (!Box.Rotation.IsNearlyZero())
+				{
+					bHasRotatedBox = true;
+					break;
+				}
+			}
+			if (bHasRotatedBox)
+			{
+				if (TransformOptions.bWarnOnInvalidTransforms)
+				{
+					UE::Geometry::AppendWarning(Debug, EGeometryScriptErrorType::InvalidInputs, LOCTEXT("TransformSimpleCollisionShapes Non-Uniform Scale on Rotated Box", "TransformSimpleCollisionShapes: Cannot apply Non-Uniform Scale to Rotated Box"));
+				}
+				bSuccess = false;
+			}
+		}
+		TransformedCollision.AggGeom.BoxElems.Reserve(NumBoxes);
+		for (FKBoxElem Box : SimpleCollision.AggGeom.BoxElems)
+		{
+			if (TransformOptions.bCenterTransformPivotPerShape)
+			{
+				Box.Center += Transform.GetTranslation();
+			}
+			else
+			{
+				Box.Center = Transform.TransformPosition(Box.Center);
+			}
+			Box.Rotation = (Transform.GetRotation() * Box.Rotation.Quaternion()).Rotator();
+			Box.X = FMath::Abs(Box.X * Scale.X);
+			Box.Y = FMath::Abs(Box.Y * Scale.Y);
+			Box.Z = FMath::Abs(Box.Z * Scale.Z);
+			TransformedCollision.AggGeom.BoxElems.Add(Box);
+		}
+	}
+
+	int32 NumSphyl = SimpleCollision.AggGeom.SphylElems.Num();
+	if (NumSphyl > 0)
+	{
+		if (!bUniformScale)
+		{
+			if (TransformOptions.bWarnOnInvalidTransforms)
+			{
+				UE::Geometry::AppendWarning(Debug, EGeometryScriptErrorType::InvalidInputs, LOCTEXT("TransformSimpleCollisionShapes Non-Uniform Scale on Sphyl", "TransformSimpleCollisionShapes: Cannot apply Non-Uniform Scale to Sphyls"));
+			}
+			bSuccess = false;
+		}
+
+		TransformedCollision.AggGeom.SphylElems.Reserve(NumSphyl);
+		for (FKSphylElem Sphyl : SimpleCollision.AggGeom.SphylElems)
+		{
+			if (TransformOptions.bCenterTransformPivotPerShape)
+			{
+				Sphyl.Center += Transform.GetTranslation();
+			}
+			else
+			{
+				Sphyl.Center = Transform.TransformPosition(Sphyl.Center);
+			}
+			Sphyl.Radius = FMath::Abs(Sphyl.Radius * ApproxUniformScale);
+			Sphyl.Length = FMath::Abs(Sphyl.Length * ApproxUniformScale);
+			Sphyl.Rotation = (Transform.GetRotation() * Sphyl.Rotation.Quaternion()).Rotator();
+			TransformedCollision.AggGeom.SphylElems.Add(Sphyl);
+		}
+	}
+
+	int32 NumConvex = SimpleCollision.AggGeom.ConvexElems.Num();
+	TransformedCollision.AggGeom.ConvexElems.Reserve(NumConvex);
+	for (const FKConvexElem& Convex : SimpleCollision.AggGeom.ConvexElems)
+	{
+		FKConvexElem& AddConvex = TransformedCollision.AggGeom.ConvexElems.Add_GetRef(Convex);
+		AddConvex.ElemBox = FBox(EForceInit::ForceInit);
+		for (FVector& V : AddConvex.VertexData)
+		{
+			if (TransformOptions.bCenterTransformPivotPerShape)
+			{
+				FVector Center = Convex.ElemBox.GetCenter();
+				V = Transform.TransformPosition(V - Center) + Center;
+			}
+			else
+			{
+				V = Transform.TransformPosition(V);
+			}
+			AddConvex.ElemBox += V;
+		}
+	}
+
+	int32 NumTaperedCapsule = SimpleCollision.AggGeom.TaperedCapsuleElems.Num();
+	if (NumTaperedCapsule > 0)
+	{
+		if (!bUniformScale)
+		{
+			if (TransformOptions.bWarnOnInvalidTransforms)
+			{
+				UE::Geometry::AppendWarning(Debug, EGeometryScriptErrorType::InvalidInputs, LOCTEXT("TransformSimpleCollisionShapes Non-Uniform Scale on Tapered Capsule", "TransformSimpleCollisionShapes: Cannot apply Non-Uniform Scale to Tapered Capsules"));
+			}
+			bSuccess = false;
+		}
+
+		TransformedCollision.AggGeom.TaperedCapsuleElems.Reserve(NumTaperedCapsule);
+		for (FKTaperedCapsuleElem TaperedCapsule : SimpleCollision.AggGeom.TaperedCapsuleElems)
+		{
+			if (TransformOptions.bCenterTransformPivotPerShape)
+			{
+				TaperedCapsule.Center += Transform.GetTranslation();
+			}
+			else
+			{
+				TaperedCapsule.Center = Transform.TransformPosition(TaperedCapsule.Center);
+			}
+			if (ApproxUniformScale < 0)
+			{
+				TaperedCapsule.Radius0 = TaperedCapsule.Radius1 * ApproxUniformScale;
+				TaperedCapsule.Radius1 = TaperedCapsule.Radius0 * ApproxUniformScale;
+				TaperedCapsule.Length *= -ApproxUniformScale;
+			}
+			else
+			{
+				TaperedCapsule.Radius0 *= ApproxUniformScale;
+				TaperedCapsule.Radius1 *= ApproxUniformScale;
+				TaperedCapsule.Length *= ApproxUniformScale;
+			}
+
+			TaperedCapsule.Rotation = (Transform.GetRotation() * TaperedCapsule.Rotation.Quaternion()).Rotator();
+			TransformedCollision.AggGeom.TaperedCapsuleElems.Add(TaperedCapsule);
+		}
+	}
+
+	int32 NumLevelSet = SimpleCollision.AggGeom.LevelSetElems.Num();
+	if (NumLevelSet > 0)
+	{
+		// Non-uniform scale cannot be properly represented if a level set was already rotated
+		if (!bUniformScale)
+		{
+			bool bHasUnsupportedTransform = false;
+			for (const FKLevelSetElem& LevelSet : SimpleCollision.AggGeom.LevelSetElems)
+			{
+				const FTransform ElemTransform = LevelSet.GetTransform();
+				bool bElementNoRotation = ElemTransform.GetRotation().IsIdentity();
+				if (!bElementNoRotation)
+				{
+					bHasUnsupportedTransform = true;
+					break;
+				}
+			}
+			if (bHasUnsupportedTransform)
+			{
+				if (TransformOptions.bWarnOnInvalidTransforms)
+				{
+					UE::Geometry::AppendWarning(Debug, EGeometryScriptErrorType::InvalidInputs, LOCTEXT("TransformSimpleCollisionShapes Unsupported Level Set Transform", "TransformSimpleCollisionShapes: Cannot apply requested transform to Level Set"));
+				}
+				bSuccess = false;
+			}
+		}
+
+		TransformedCollision.AggGeom.LevelSetElems.Reserve(NumLevelSet);
+		for (const FKLevelSetElem& LevelSet : SimpleCollision.AggGeom.LevelSetElems)
+		{
+			FKLevelSetElem& AddLevelSet = TransformedCollision.AggGeom.LevelSetElems.Add_GetRef(LevelSet);
+			if (TransformOptions.bCenterTransformPivotPerShape)
+			{
+				FTransform LevelSetTransform = LevelSet.GetTransform();
+				// Translate to the bounds center, apply Transform, and translate back
+				FVector OrigLocation = LevelSetTransform.TransformPosition(LevelSet.UntransformedAABB().GetCenter());
+				LevelSetTransform.SetLocation(LevelSetTransform.GetLocation() - OrigLocation);
+				LevelSetTransform = LevelSetTransform * Transform;
+				LevelSetTransform.SetTranslation(LevelSetTransform.GetLocation() + OrigLocation);
+				AddLevelSet.SetTransform(LevelSetTransform);
+			}
+			else
+			{
+				AddLevelSet.SetTransform(LevelSet.GetTransform() * Transform);
+			}
+		}
+	}
+
+	int32 NumSkinnedLevelSet = SimpleCollision.AggGeom.SkinnedLevelSetElems.Num();
+	if (NumSkinnedLevelSet > 0)
+	{
+		if (TransformOptions.bWarnOnInvalidTransforms)
+		{
+			UE::Geometry::AppendWarning(Debug, EGeometryScriptErrorType::InvalidInputs, LOCTEXT("TransformSimpleCollisionShapes Cannot Transform Skinned Level Set", "TransformSimpleCollisionShapes: Cannot transform Skinned Level Sets"));
+		}
+		TransformedCollision.AggGeom.SkinnedLevelSetElems = SimpleCollision.AggGeom.SkinnedLevelSetElems;
+		bSuccess = false;
+	}
+
+	return TransformedCollision;
+}
+
 void UGeometryScriptLibrary_CollisionFunctions::SimplifyConvexHulls(
 	FGeometryScriptSimpleCollision& SimpleCollision,
 	const FGeometryScriptConvexHullSimplificationOptions& SimplifyOptions,
