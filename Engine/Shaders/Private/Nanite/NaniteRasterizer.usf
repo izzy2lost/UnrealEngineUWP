@@ -521,7 +521,7 @@ void ClusterRasterize( uint VisibleIndex, uint GroupThreadIndex )
 			break;
 
 		// Transform vertex and store in group shared memory.
-		FNanitePostDeformVertex InputVert = FetchAndDeformLocalNaniteVertex(PrimitiveData, InstanceData, Cluster, VertIndex);
+		FNanitePostDeformVertex InputVert = FetchAndDeformLocalNaniteVertex(PrimitiveData, InstanceData, Cluster, VertIndex, NANITE_NUM_TEXCOORDS_TO_DECODE);
 		float3 WorldPositionOffset = 0.0f;
 	#if NANITE_VERTEX_PROGRAMMABLE
 		BRANCH
@@ -898,7 +898,7 @@ VSOut CommonRasterizerVS(FNaniteView NaniteView, FPrimitiveSceneData PrimitiveDa
 {
 	VSOut Out;
 
-	const FNanitePostDeformVertex InputVert = FetchAndDeformLocalNaniteVertex(PrimitiveData, InstanceData, Cluster, VertIndex);
+	const FNanitePostDeformVertex InputVert = FetchAndDeformLocalNaniteVertex(PrimitiveData, InstanceData, Cluster, VertIndex, NANITE_NUM_TEXCOORDS_TO_DECODE);
 
 	float3 WorldPositionOffset = 0.0f;
 #if NANITE_VERTEX_PROGRAMMABLE

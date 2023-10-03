@@ -167,12 +167,9 @@ FSplineMeshSlice SplineMeshCalcSlice(FSplineMeshShaderParams Params, half Spline
 
 #endif // USE_SPLINE_MESH_SCENE_RESOURCES
 
-/** Calculate full transform that defines frame along spline, given the normalized distance along the spline. */
-float4x3 SplineMeshCalcSliceTransform(FSplineMeshShaderParams Params, half SplineDist)
+/** Calculate full transform that defines frame along spline, given the pre-calculated slice data. */
+float4x3 SplineMeshCalcSliceTransform(FSplineMeshShaderParams Params, FSplineMeshSlice Slice)
 {
-	// Find the center, orientation, and scale of the slice at this point along the spline
-	const FSplineMeshSlice Slice = SplineMeshCalcSlice(Params, SplineDist);
-
 	// Apply scale to the X/Y vector directions
 	const float3 XVec = Slice.ScaleXY.x * float3(Slice.Rot[1]);
 	const float3 YVec = Slice.ScaleXY.y * float3(Slice.Rot[2]);
@@ -184,24 +181,23 @@ float4x3 SplineMeshCalcSliceTransform(FSplineMeshShaderParams Params, half Splin
 	return SliceTransform;
 }
 
+/** Calculate full transform that defines frame along spline, given the normalized distance along the spline. */
+float4x3 SplineMeshCalcSliceTransform(FSplineMeshShaderParams Params, half SplineDist)
+{
+	// Find the center, orientation, and scale of the slice at this point along the spline
+	const FSplineMeshSlice Slice = SplineMeshCalcSlice(Params, SplineDist);
+	return SplineMeshCalcSliceTransform(Params, Slice);
+}
+
 /** Calculate full transform that defines frame along spline, given the local position of a vertex. */
 float4x3 SplineMeshCalcSliceTransformFromLocalPos(FSplineMeshShaderParams Params, float3 LocalPos)
 {
 	return SplineMeshCalcSliceTransform(Params, SplineMeshCalcSplineDistance(Params, LocalPos));
 }
 
-/** Calculate full transform that defines frame along spline, given the local position of a vertex. */
-float3 SplineMeshDeformLocalPos(FSplineMeshShaderParams Params, float4 LocalPos)
+/** Calculate rotation matrix that defines frame along spline, given the pre-calculated slice data. */
+half3x3 SplineMeshCalcSliceRot(FSplineMeshShaderParams Params, FSplineMeshSlice Slice)
 {
-	return mul(LocalPos, SplineMeshCalcSliceTransformFromLocalPos(Params, LocalPos.xyz));
-}
-
-/** Calculate rotation matrix that defines frame along spline, given the normalized distance along the spline. */
-half3x3 SplineMeshCalcSliceRot(FSplineMeshShaderParams Params, half SplineDist)
-{
-	// Find the center, orientation, and scale of the slice at this point along the spline
-	const FSplineMeshSlice Slice = SplineMeshCalcSlice(Params, SplineDist);
-
 	// Flip X or Y direction when negative scale
 	const half3 XVec = half(Slice.ScaleXY.x >= 0.0f ? 1.0f : -1.0f) * Slice.Rot[1];
 	const half3 YVec = half(Slice.ScaleXY.y >= 0.0f ? 1.0f : -1.0f) * Slice.Rot[2];
@@ -212,10 +208,51 @@ half3x3 SplineMeshCalcSliceRot(FSplineMeshShaderParams Params, half SplineDist)
 	return SliceTransform;
 }
 
+/** Calculate rotation matrix that defines frame along spline, given the normalized distance along the spline. */
+half3x3 SplineMeshCalcSliceRot(FSplineMeshShaderParams Params, half SplineDist)
+{
+	// Find the center, orientation, and scale of the slice at this point along the spline
+	const FSplineMeshSlice Slice = SplineMeshCalcSlice(Params, SplineDist);
+	return SplineMeshCalcSliceRot(Params, Slice);
+}
+
 /** Calculate rotation matrix that defines frame along spline, given the local position of a vertex. */
 half3x3 SplineMeshCalcSliceRotFromLocalPos(FSplineMeshShaderParams Params, float3 LocalPos)
 {
 	return SplineMeshCalcSliceRot(Params, SplineMeshCalcSplineDistance(Params, LocalPos));
+}
+
+/** Deforms a local-space position along the spline, given its pre-calculated spline distance */
+float3 SplineMeshDeformLocalPos(FSplineMeshShaderParams Params, half SplineDist, float3 LocalPos)
+{
+	const float4x3 SliceTransform = SplineMeshCalcSliceTransform(Params, SplineDist);
+	return mul(float4(LocalPos, 1), SliceTransform).xyz;
+}
+
+/** Deforms a local-space position along the spline. */
+float3 SplineMeshDeformLocalPos(FSplineMeshShaderParams Params, float3 LocalPos)
+{
+	const float4x3 SliceTransform = SplineMeshCalcSliceTransformFromLocalPos(Params, LocalPos);
+	return mul(float4(LocalPos, 1), SliceTransform).xyz;
+}
+
+/** Deforms a local-space normal at the specified distance along the spline. */
+float3 SplineMeshDeformLocalNormal(FSplineMeshShaderParams Params, half SplineDist, half3 LocalNormal)
+{
+	const half3x3 SliceRot = SplineMeshCalcSliceRot(Params, SplineDist);
+	return mul(LocalNormal, SliceRot);
+}
+
+/** Deforms local-space position and normal along a spline, and retrieves the spline length */
+half SplineMeshDeformLocalPosAndNormal(FSplineMeshShaderParams Params, inout float3 Pos, inout half3 Normal)
+{
+	const half SplineDist = SplineMeshCalcSplineDistance(Params, Pos);
+	const FSplineMeshSlice Slice = SplineMeshCalcSlice(Params, SplineDist);
+	
+	Pos = mul(float4(Pos, 1), SplineMeshCalcSliceTransform(Params, Slice)).xyz;
+	Normal = mul(Normal, SplineMeshCalcSliceRot(Params, Slice));
+	
+	return SplineDist;
 }
 
 struct FSplineMeshDeformBoundsContext

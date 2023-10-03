@@ -385,9 +385,9 @@ struct FMaterialShader
 
 	#if NANITE_TESSELLATION && USES_DISPLACEMENT
 		float3 Normal = Lerp(
-			TransformedTri.Verts[0].RawAttributeData.TangentZ,
-			TransformedTri.Verts[1].RawAttributeData.TangentZ,
-			TransformedTri.Verts[2].RawAttributeData.TangentZ,
+			TransformedTri.Verts[0].PostDeformNormal,
+			TransformedTri.Verts[1].PostDeformNormal,
+			TransformedTri.Verts[2].PostDeformNormal,
 			Barycentrics ).Value;
 		Normal = normalize( Normal );
 

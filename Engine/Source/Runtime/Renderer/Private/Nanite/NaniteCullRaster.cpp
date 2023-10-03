@@ -1001,7 +1001,8 @@ class FPatchSplitCS : public FNaniteGlobalShader
 	class FCullingPassDim : SHADER_PERMUTATION_SPARSE_INT("CULLING_PASS", CULLING_PASS_NO_OCCLUSION, CULLING_PASS_OCCLUSION_MAIN, CULLING_PASS_OCCLUSION_POST);
 	class FMultiViewDim : SHADER_PERMUTATION_BOOL("NANITE_MULTI_VIEW");
 	class FVirtualTextureTargetDim : SHADER_PERMUTATION_BOOL("VIRTUAL_TEXTURE_TARGET");
-	using FPermutationDomain = TShaderPermutationDomain< FCullingPassDim, FMultiViewDim, FVirtualTextureTargetDim >;
+	class FSplineDeformDim : SHADER_PERMUTATION_BOOL("USE_SPLINEDEFORM");
+	using FPermutationDomain = TShaderPermutationDomain< FCullingPassDim, FMultiViewDim, FVirtualTextureTargetDim, FSplineDeformDim >;
 
 	BEGIN_SHADER_PARAMETER_STRUCT( FParameters, )
 		SHADER_PARAMETER_RDG_UNIFORM_BUFFER( FSceneUniformParameters, Scene )
@@ -1042,14 +1043,17 @@ class FPatchSplitCS : public FNaniteGlobalShader
 		{
 			return false;
 		}
+
+		if (PermutationVector.Get<FSplineDeformDim>() && !NaniteSplineMeshesSupported())
+		{
+			return false;
+		}
 		
 		return FNaniteGlobalShader::ShouldCompilePermutation(Parameters);
 	}
 
 	static void ModifyCompilationEnvironment(const FGlobalShaderPermutationParameters& Parameters, FShaderCompilerEnvironment& OutEnvironment)
 	{
-		FPermutationDomain PermutationVector(Parameters.PermutationId);
-
 		FNaniteGlobalShader::ModifyCompilationEnvironment(Parameters, OutEnvironment);
 
 		OutEnvironment.CompilerFlags.Add(CFLAG_Wave32);
@@ -3797,6 +3801,7 @@ void FRenderer::AddPass_PatchSplit(
 		PermutationVector.Set< FPatchSplitCS::FCullingPassDim >( CullingPass );
 		PermutationVector.Set< FPatchSplitCS::FMultiViewDim >( ViewArray.NumViews > 1 || VirtualShadowMapArray != nullptr );
 		PermutationVector.Set< FPatchSplitCS::FVirtualTextureTargetDim >( VirtualShadowMapArray != nullptr );
+		PermutationVector.Set< FPatchSplitCS::FSplineDeformDim >( NaniteSplineMeshesSupported() );
 		
 		auto ComputeShader = SharedContext.ShaderMap->GetShader< FPatchSplitCS >( PermutationVector );
 

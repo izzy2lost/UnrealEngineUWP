@@ -738,7 +738,7 @@ float4 CalcWorldPosition(FVertexFactoryIntermediatesCommon Intermediates, float4
 #elif USE_SPLINEDEFORM && !RAYHITGROUPSHADER
 	// NOTE: The #if above does not include raytracing shaders because the cached position already
 	// has the spline deformation baked in.
-	return TransformLocalToTranslatedWorld(SplineMeshDeformLocalPos(Intermediates.SplineMeshParams, Position), LocalToWorld);
+	return TransformLocalToTranslatedWorld(SplineMeshDeformLocalPos(Intermediates.SplineMeshParams, Position.xyz), LocalToWorld);
 #else
 	return TransformLocalToTranslatedWorld(Position.xyz, LocalToWorld);
 #endif

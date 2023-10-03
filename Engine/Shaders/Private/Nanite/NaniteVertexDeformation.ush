@@ -1,0 +1,101 @@
+#include "../Common.ush"
+#include "../SceneData.ush"
+#include "../SplineMeshCommon.ush"
+#include "NaniteDataDecode.ush"
+#include "NaniteAttributeDecode.ush"
+
+// Represents vertex data for a Nanite mesh in local space
+struct FNaniteLocalVertex
+{
+	uint VertIndex;
+	float3 Position;
+	FNaniteRawAttributeData RawAttributeData;
+};
+
+// Decodes vertex data for the specified vertex in a cluster (and potentially deforms it into final local space)
+FNaniteLocalVertex FetchLocalNaniteVertex(FCluster Cluster, uint VertIndex, uint CompileTimeMaxTexCoords)
+{
+	FNaniteLocalVertex Output = (FNaniteLocalVertex)0;
+
+	Output.VertIndex = VertIndex;
+	Output.Position = DecodePosition(VertIndex, Cluster);
+	Output.RawAttributeData = GetRawAttributeData(Cluster, VertIndex, CompileTimeMaxTexCoords);
+
+	return Output;
+}
+
+void FetchLocalNaniteTriangle(FCluster Cluster, uint3 VertIndexes, uint CompileTimeMaxTexCoords, inout FNaniteLocalVertex OutVerts[3])
+{
+	const float3 Positions[3] = 
+	{
+		DecodePosition(VertIndexes.x, Cluster),
+		DecodePosition(VertIndexes.y, Cluster),
+		DecodePosition(VertIndexes.z, Cluster)
+	};
+
+	FNaniteRawAttributeData RawAttributeData[3];
+	GetRawAttributeData3(RawAttributeData, Cluster, VertIndexes, CompileTimeMaxTexCoords);
+
+	UNROLL_N(3)
+	for (uint i = 0; i < 3; ++i)
+	{
+		OutVerts[i].VertIndex			= VertIndexes[i];
+		OutVerts[i].Position			= Positions[i];
+		OutVerts[i].RawAttributeData	= RawAttributeData[i];
+	}
+}
+
+
+// Represents vertex data for a Nanite mesh in local space, post-deformation (when applicable)
+struct FNanitePostDeformVertex
+{
+	uint VertIndex;
+	float3 Position;
+	half3 Normal;
+	half SplineDist;
+	FNaniteRawAttributeData RawAttributeData;
+};
+
+FNanitePostDeformVertex DeformLocalNaniteVertex(FPrimitiveSceneData PrimitiveData, FInstanceSceneData InstanceData, FNaniteLocalVertex Input)
+{
+	FNanitePostDeformVertex Output;
+	Output.VertIndex			= Input.VertIndex;
+	Output.Position				= Input.Position;
+	Output.Normal				= half3(Input.RawAttributeData.TangentZ);
+	Output.SplineDist			= 0.0f;
+	Output.RawAttributeData		= Input.RawAttributeData;
+
+#if USE_SPLINEDEFORM
+	BRANCH
+	if ((PrimitiveData.Flags & PRIMITIVE_SCENE_DATA_FLAG_SPLINE_MESH) != 0 &&
+		(InstanceData.Flags & INSTANCE_SCENE_DATA_FLAG_HAS_PAYLOAD_EXTENSION) != 0)
+	{
+		// Deform the local position along the spline
+		// NOTE: Storing off the spline distance for use later when calculating tangent frame.
+		FSplineMeshShaderParams SplineMeshParams = SplineMeshLoadParamsFromInstancePayload(InstanceData);
+		Output.SplineDist = SplineMeshDeformLocalPosAndNormal(SplineMeshParams, Output.Position, Output.Normal);
+		//Output.SplineDist = SplineMeshCalcSplineDistance(SplineMeshParams, Output.Position);
+		//Output.Position = mul(float4(Output.Position, 1), SplineMeshCalcSliceTransform(SplineMeshParams, Output.SplineDist)).xyz;
+		//Output.Normal = mul(Output.Normal, SplineMeshCalcSliceRot(SplineMeshParams, Output.SplineDist));
+	}
+#endif
+
+	return Output;
+}
+
+FNanitePostDeformVertex FetchAndDeformLocalNaniteVertex(FPrimitiveSceneData PrimitiveData, FInstanceSceneData InstanceData, FCluster Cluster, uint VertIndex, uint CompileTimeMaxTexCoords)
+{
+	return DeformLocalNaniteVertex(PrimitiveData, InstanceData, FetchLocalNaniteVertex(Cluster, VertIndex, CompileTimeMaxTexCoords));
+}
+
+void FetchAndDeformLocalNaniteTriangle(FPrimitiveSceneData PrimitiveData, FInstanceSceneData InstanceData, FCluster Cluster, uint3 VertIndexes, uint CompileTimeMaxTexCoords, inout FNanitePostDeformVertex OutVerts[3])
+{
+	FNaniteLocalVertex InVerts[3];
+	FetchLocalNaniteTriangle(Cluster, VertIndexes, CompileTimeMaxTexCoords, InVerts);
+
+	UNROLL_N(3)
+	for(uint i = 0; i < 3; ++i)
+	{
+		OutVerts[i] = DeformLocalNaniteVertex(PrimitiveData, InstanceData, InVerts[i]);
+	}
+}

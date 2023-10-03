@@ -6,6 +6,7 @@
 #include "NaniteTessellation.ush"
 #include "NaniteHZBCull.ush"
 #include "NaniteCullingCommon.ush"
+#include "NaniteVertexDeformation.ush"
 #if VIRTUAL_TEXTURE_TARGET
 #include "../VirtualShadowMaps/VirtualShadowMapPageOverlap.ush"
 #endif
@@ -105,6 +106,7 @@ uint FSplitTask::Run()
 
 	FVisibleCluster VisibleCluster = GetVisibleCluster( Patch.VisibleClusterIndex, VIRTUAL_TEXTURE_TARGET );
 	FInstanceSceneData InstanceData = GetInstanceSceneData( VisibleCluster.InstanceId, false );
+	FPrimitiveSceneData PrimitiveData = GetPrimitiveData( InstanceData.PrimitiveId );
 	FNaniteView NaniteView = GetNaniteView( VisibleCluster.ViewId );
 	
 	FInstanceDynamicData InstanceDynamicData = CalculateInstanceDynamicData( NaniteView, InstanceData );
@@ -119,17 +121,12 @@ uint FSplitTask::Run()
 #endif
 
 	uint3 VertIndexes = DecodeTriangleIndices( Cluster, Patch.TriIndex );
-	float3 Verts[3] = 
-	{
-		DecodePosition( VertIndexes.x, Cluster ),
-		DecodePosition( VertIndexes.y, Cluster ),
-		DecodePosition( VertIndexes.z, Cluster ),
-	};
 
-	FNaniteRawAttributeData RawAttributeData[3];
-	GetRawAttributeData3( RawAttributeData, Cluster, VertIndexes, 0 );
+	const uint MaxTexCoords = 0; // UVs are unused here
+	FNanitePostDeformVertex Verts[3];
+	FetchAndDeformLocalNaniteTriangle( PrimitiveData, InstanceData, Cluster, VertIndexes, MaxTexCoords, Verts );
 
-	// TODO: Handle GetPrimitiveData(InstanceData.PrimitiveId).MaxWPOExtent?
+	// TODO: Handle PrimitiveData.MaxWPOExtent?
 #if DISABLE_DISPLACEMENT_BOUNDS
 	const float DisplacementMin = 0.0f;
 	const float DisplacementMax = 0.0f;
@@ -137,8 +134,8 @@ uint FSplitTask::Run()
 	const float DisplacementMin = RasterBinMeta[RasterBin].MinMaterialDisplacement;
 	const float DisplacementMax = RasterBinMeta[RasterBin].MaxMaterialDisplacement;
 #else
-	const float DisplacementMin = GetPrimitiveData(InstanceData.PrimitiveId).MinMaterialDisplacement;
-	const float DisplacementMax = GetPrimitiveData(InstanceData.PrimitiveId).MaxMaterialDisplacement;
+	const float DisplacementMin = PrimitiveData.MinMaterialDisplacement;
+	const float DisplacementMax = PrimitiveData.MaxMaterialDisplacement;
 #endif
 
 	float3 BoundsMin = +INFINITE_FLOAT;
@@ -149,21 +146,21 @@ uint FSplitTask::Run()
 	float3 NormalLocal[3];
 	for( int i = 0; i < 3; i++ )
 	{
-		float3 PointLocal = 
-			Verts[0] * Patch.Barycentrics[i].x +
-			Verts[1] * Patch.Barycentrics[i].y +
-			Verts[2] * Patch.Barycentrics[i].z;
+		float3 PointPostDeform = 
+			Verts[0].Position * Patch.Barycentrics[i].x +
+			Verts[1].Position * Patch.Barycentrics[i].y +
+			Verts[2].Position * Patch.Barycentrics[i].z;
 
-		BoundsMin = min( BoundsMin, PointLocal );
-		BoundsMax = max( BoundsMax, PointLocal );
+		BoundsMin = min( BoundsMin, PointPostDeform );
+		BoundsMax = max( BoundsMax, PointPostDeform );
 
-		float3 PointTranslatedWorld = mul( float4( PointLocal, 1 ), InstanceDynamicData.LocalToTranslatedWorld ).xyz;
+		float3 PointTranslatedWorld = mul( float4( PointPostDeform, 1 ), InstanceDynamicData.LocalToTranslatedWorld ).xyz;
 		PointView[i] = mul( float4( PointTranslatedWorld, 1 ), NaniteView.TranslatedWorldToView ).xyz;
 
 		NormalLocal[i] = 
-			RawAttributeData[0].TangentZ * Patch.Barycentrics[i].x +
-			RawAttributeData[1].TangentZ * Patch.Barycentrics[i].y +
-			RawAttributeData[2].TangentZ * Patch.Barycentrics[i].z;
+			Verts[0].Normal * Patch.Barycentrics[i].x +
+			Verts[1].Normal * Patch.Barycentrics[i].y +
+			Verts[2].Normal * Patch.Barycentrics[i].z;
 		NormalLocal[i] = normalize( NormalLocal[i] );
 
 		AvgNormal += NormalLocal[i];
