@@ -1474,6 +1474,10 @@ void FEDLCookChecker::Verify(const UE::SavePackageUtilities::FEDLMessageCallback
 	check(!GIsSavingPackage);
 	FEDLCookChecker Accumulator = AccumulateAndClear();
 
+	FString SeverityStr;
+	GConfig->GetString(TEXT("CookSettings"), TEXT("CookContentMissingSeverity"), SeverityStr, GEditorIni);
+	ELogVerbosity::Type MissingContentSeverity = ParseLogVerbosityFromString(SeverityStr);
+
 	if (Accumulator.bIsActive)
 	{
 		double StartTime = FPlatformTime::Seconds();
@@ -1529,7 +1533,7 @@ void FEDLCookChecker::Verify(const UE::SavePackageUtilities::FEDLMessageCallback
 					Message << TEXT("\tTarget package: ") << NodeDataOfExportPackage->Name << TEXT("\n");
 					Message << TEXT("\tReferenced object: ");
 					NodeData.AppendPathName(Accumulator, Message);
-					MessageCallback(ELogVerbosity::Warning, Message);
+					MessageCallback(MissingContentSeverity, Message);
 				}
 			}
 		}
