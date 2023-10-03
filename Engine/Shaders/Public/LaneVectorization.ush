@@ -21,6 +21,11 @@
 #endif
 
 
+//------------------------------------------------------- GLOBAL VARIABLE
+
+static uint GGroupThreadIndex = 0;
+
+
 //------------------------------------------------------- STANDARD SCALAR OPERATIONS
 
 bool not(bool x)
@@ -325,6 +330,283 @@ int16_t4 PackRegistersTightly(int16_t4 v)
 #endif // PLATFORM_SUPPORTS_REAL_TYPES
 
 
+//------------------------------------------------------- DWORD PACKING/UNPACKING
+
+/** Returns the byte size of vector<ScalarType, VectorSize> */
+#define GetVectorByteSize(ScalarType, VectorSize) uint(sizeof(ScalarType) * uint(VectorSize))
+
+/** Returns the dowrd size of vector<ScalarType, VectorSize> */
+#define GetVectorDwordSize(ScalarType, VectorSize) (uint(GetVectorByteSize(ScalarType, VectorSize) + 3u) / 4u)
+
+// uint
+void PackVectorToDwords(uint V, out uint DW[1])
+{
+	DW[0] = V;
+}
+
+void PackVectorToDwords(uint2 V, out uint DW[2])
+{
+	DW[0] = V.x;
+	DW[1] = V.y;
+}
+
+void PackVectorToDwords(uint3 V, out uint DW[3])
+{
+	DW[0] = V.x;
+	DW[1] = V.y;
+	DW[2] = V.z;
+}
+
+void PackVectorToDwords(uint4 V, out uint DW[4])
+{
+	DW[0] = V.x;
+	DW[1] = V.y;
+	DW[2] = V.z;
+	DW[3] = V.w;
+}
+
+void UnpackDwordsToVector(uint DW[1], out uint V)
+{
+	V   = DW[0];
+}
+
+void UnpackDwordsToVector(uint DW[2], out uint2 V)
+{
+	V.x = DW[0];
+	V.y = DW[1];
+}
+
+void UnpackDwordsToVector(uint DW[3], out uint3 V)
+{
+	V.x = DW[0];
+	V.y = DW[1];
+	V.z = DW[2];
+}
+
+void UnpackDwordsToVector(uint DW[4], out uint4 V)
+{
+	V.x = DW[0];
+	V.y = DW[1];
+	V.z = DW[2];
+	V.w = DW[3];
+}
+
+// float
+void PackVectorToDwords(float V, out uint DW[1])
+{
+	DW[0] = asuint(V);
+}
+
+void PackVectorToDwords(float2 V, out uint DW[2])
+{
+	DW[0] = asuint(V.x);
+	DW[1] = asuint(V.y);
+}
+
+void PackVectorToDwords(float3 V, out uint DW[3])
+{
+	DW[0] = asuint(V.x);
+	DW[1] = asuint(V.y);
+	DW[2] = asuint(V.z);
+}
+
+void PackVectorToDwords(float4 V, out uint DW[4])
+{
+	DW[0] = asuint(V.x);
+	DW[1] = asuint(V.y);
+	DW[2] = asuint(V.z);
+	DW[3] = asuint(V.w);
+}
+
+void UnpackDwordsToVector(uint DW[1], out float V)
+{
+	V   = asfloat(DW[0]);
+}
+
+void UnpackDwordsToVector(uint DW[2], out float2 V)
+{
+	V.x = asfloat(DW[0]);
+	V.y = asfloat(DW[1]);
+}
+
+void UnpackDwordsToVector(uint DW[3], out float3 V)
+{
+	V.x = asfloat(DW[0]);
+	V.y = asfloat(DW[1]);
+	V.z = asfloat(DW[2]);
+}
+
+void UnpackDwordsToVector(uint DW[4], out float4 V)
+{
+	V.x = asfloat(DW[0]);
+	V.y = asfloat(DW[1]);
+	V.z = asfloat(DW[2]);
+	V.w = asfloat(DW[3]);
+}
+
+#if PLATFORM_SUPPORTS_REAL_TYPES
+
+#if COMPILER_SUPPORT_UINT16_BITCAST
+
+// uint16_t
+void PackVectorToDwords(uint16_t V, out uint DW[1])
+{
+	DW[0] = uint(V);
+}
+
+void PackVectorToDwords(uint16_t2 V, out uint DW[1])
+{
+	DW[0] = bit_cast_uint(V.xy);
+}
+
+void PackVectorToDwords(uint16_t3 V, out uint DW[2])
+{
+	DW[0] = bit_cast_uint(V.xy);
+	DW[1] = uint(V.z);
+}
+
+void PackVectorToDwords(uint16_t4 V, out uint DW[2])
+{
+	DW[0] = bit_cast_uint(V.xy);
+	DW[1] = bit_cast_uint(V.zw);
+}
+
+void UnpackDwordsToVector(uint DW[1], out uint16_t V)
+{
+	V = uint16_t(DW[0]);
+}
+
+void UnpackDwordsToVector(uint DW[1], out uint16_t2 V)
+{
+	V.xy = bit_cast_uint16_t2(DW[0]);
+}
+
+void UnpackDwordsToVector(uint DW[2], out uint16_t3 V)
+{
+	V.xy = bit_cast_uint16_t2(DW[0]);
+	V.z = uint16_t(DW[1]);
+}
+
+void UnpackDwordsToVector(uint DW[2], out uint16_t4 V)
+{
+	V.xy = bit_cast_uint16_t2(DW[0]);
+	V.zw = bit_cast_uint16_t2(DW[1]);
+}
+
+#else // !COMPILER_SUPPORT_UINT16_BITCAST
+
+// uint16_t
+void PackVectorToDwords(uint16_t V, out uint DW[1])
+{
+	DW[0] = uint(V);
+}
+
+void PackVectorToDwords(uint16_t2 V, out uint DW[1])
+{
+	DW[0] = uint(V.x) | (uint(V.y) << 16u);
+}
+
+void PackVectorToDwords(uint16_t3 V, out uint DW[2])
+{
+	DW[0] = uint(V.x) | (uint(V.y) << 16u);
+	DW[1] = uint(V.z);
+}
+
+void PackVectorToDwords(uint16_t4 V, out uint DW[2])
+{
+	DW[0] = uint(V.x) | (uint(V.y) << 16u);
+	DW[1] = uint(V.z) | (uint(V.w) << 16u);
+}
+
+void UnpackDwordsToVector(uint DW[1], out uint16_t V)
+{
+	V = uint16_t(DW[0]);
+}
+
+void UnpackDwordsToVector(uint DW[1], out uint16_t2 V)
+{
+	V.x = tsr_ushort((DW[0] >>  0u) & 0xFFFFu);
+	V.y = tsr_ushort((DW[0] >> 16u) & 0xFFFFu);
+}
+
+void UnpackDwordsToVector(uint DW[2], out uint16_t3 V)
+{
+	V.x = tsr_ushort((DW[0] >>  0u) & 0xFFFFu);
+	V.y = tsr_ushort((DW[0] >> 16u) & 0xFFFFu);
+	V.z = tsr_ushort((DW[1] >>  0u) & 0xFFFFu);
+}
+
+void UnpackDwordsToVector(uint DW[2], out uint16_t4 V)
+{
+	V.x = tsr_ushort((DW[0] >>  0u) & 0xFFFFu);
+	V.y = tsr_ushort((DW[0] >> 16u) & 0xFFFFu);
+	V.z = tsr_ushort((DW[1] >>  0u) & 0xFFFFu);
+	V.w = tsr_ushort((DW[1] >> 16u) & 0xFFFFu);
+}
+
+#endif // !COMPILER_SUPPORT_UINT16_BITCAST
+
+// half
+void PackVectorToDwords(half V, out uint DW[1])
+{
+	PackVectorToDwords(asuint16(V), /* out */ DW);
+}
+
+void PackVectorToDwords(half2 V, out uint DW[1])
+{
+	PackVectorToDwords(uint16_t2(asuint16(V.x), asuint16(V.y)), /* out */ DW);
+}
+
+void PackVectorToDwords(half3 V, out uint DW[2])
+{
+	PackVectorToDwords(uint16_t3(asuint16(V.x), asuint16(V.y), asuint16(V.z)), /* out */ DW);
+}
+
+void PackVectorToDwords(half4 V, out uint DW[2])
+{
+	PackVectorToDwords(uint16_t4(asuint16(V.x), asuint16(V.y), asuint16(V.z), asuint16(V.w)), /* out */ DW);
+}
+
+void UnpackDwordsToVector(uint DW[1], out half V)
+{
+	uint16_t UV;
+	UnpackDwordsToVector(DW, /* out */ UV);
+	V = asfloat16(UV);
+}
+
+void UnpackDwordsToVector(uint DW[1], out half2 V)
+{
+	uint16_t2 UV;
+	UnpackDwordsToVector(DW, /* out */ UV);
+	V.x = asfloat16(UV.x);
+	V.y = asfloat16(UV.y);
+}
+
+void UnpackDwordsToVector(uint DW[2], out half3 V)
+{
+	uint16_t3 UV;
+	UnpackDwordsToVector(DW, /* out */ UV);
+	V.x = asfloat16(UV.x);
+	V.y = asfloat16(UV.y);
+	V.z = asfloat16(UV.z);
+}
+
+void UnpackDwordsToVector(uint DW[2], out half4 V)
+{
+	uint16_t4 UV;
+	UnpackDwordsToVector(DW, /* out */ UV);
+	V.x = asfloat16(UV.x);
+	V.y = asfloat16(UV.y);
+	V.z = asfloat16(UV.z);
+	V.w = asfloat16(UV.w);
+}
+
+
+#endif // PLATFORM_SUPPORTS_REAL_TYPES
+
+
+
+
 //------------------------------------------------------- GROUP SHARED COMMUNICATION
 
 #if defined(LDS_SIZE)
@@ -346,286 +628,40 @@ void AtomicIncrementLDSDword(const uint SharedIndex, uint V)
 	InterlockedAdd(/* inout */ SharedData[SharedIndex], V);
 }
 
-// uint
-void WriteVectorToLDS(const uint SharedIndex, uint V)
+template<typename ScalarType, uint VectorSize>
+void WriteVectorToLDS(const uint SharedIndex, vector<ScalarType, VectorSize> V)
 {
-	WriteDwordToLDS(SharedIndex, V);
+	uint DW[GetVectorDwordSize(ScalarType, VectorSize)];
+	PackVectorToDwords(V, /* out */ DW);
+	
+	UNROLL
+	for (uint i = 0; i < GetVectorDwordSize(ScalarType, VectorSize); i++)
+	{
+		SharedData[SharedIndex + i * LDS_SIZE] = DW[i];
+	}
 }
 
-void WriteVectorToLDS(const uint SharedIndex, uint2 V)
+template<typename ScalarType, uint VectorSize>
+void ReadVectorFromLDS(const uint SharedIndex, out vector<ScalarType, VectorSize> V)
 {
-	WriteDwordToLDS(SharedIndex + 0 * LDS_SIZE, V.x);
-	WriteDwordToLDS(SharedIndex + 1 * LDS_SIZE, V.y);
+	uint DW[GetVectorDwordSize(ScalarType, VectorSize)];
+	UNROLL
+	for (uint i = 0; i < GetVectorDwordSize(ScalarType, VectorSize); i++)
+	{
+		DW[i] = SharedData[SharedIndex + i * LDS_SIZE];
+	}
+	UnpackDwordsToVector(DW, /* out */ V);
 }
-
-void WriteVectorToLDS(const uint SharedIndex, uint3 V)
-{
-	WriteDwordToLDS(SharedIndex + 0 * LDS_SIZE, V.x);
-	WriteDwordToLDS(SharedIndex + 1 * LDS_SIZE, V.y);
-	WriteDwordToLDS(SharedIndex + 2 * LDS_SIZE, V.z);
-}
-
-void WriteVectorToLDS(const uint SharedIndex, uint4 V)
-{
-	WriteDwordToLDS(SharedIndex + 0 * LDS_SIZE, V.x);
-	WriteDwordToLDS(SharedIndex + 1 * LDS_SIZE, V.y);
-	WriteDwordToLDS(SharedIndex + 2 * LDS_SIZE, V.z);
-	WriteDwordToLDS(SharedIndex + 3 * LDS_SIZE, V.w);
-}
-
-void ReadVectorFromLDS(const uint SharedIndex, out uint V)
-{
-	V = ReadDwordFromLDS(SharedIndex);
-}
-
-void ReadVectorFromLDS(const uint SharedIndex, out uint2 V)
-{
-	V.x = ReadDwordFromLDS(SharedIndex + 0 * LDS_SIZE);
-	V.y = ReadDwordFromLDS(SharedIndex + 1 * LDS_SIZE);
-}
-
-void ReadVectorFromLDS(const uint SharedIndex, out uint3 V)
-{
-	V.x = ReadDwordFromLDS(SharedIndex + 0 * LDS_SIZE);
-	V.y = ReadDwordFromLDS(SharedIndex + 1 * LDS_SIZE);
-	V.z = ReadDwordFromLDS(SharedIndex + 2 * LDS_SIZE);
-}
-
-void ReadVectorFromLDS(const uint SharedIndex, out uint4 V)
-{
-	V.x = ReadDwordFromLDS(SharedIndex + 0 * LDS_SIZE);
-	V.y = ReadDwordFromLDS(SharedIndex + 1 * LDS_SIZE);
-	V.z = ReadDwordFromLDS(SharedIndex + 2 * LDS_SIZE);
-	V.w = ReadDwordFromLDS(SharedIndex + 3 * LDS_SIZE);
-}
-
-// float
-void WriteVectorToLDS(const uint SharedIndex, float V)
-{
-	WriteVectorToLDS(SharedIndex, asuint(V));
-}
-
-void WriteVectorToLDS(const uint SharedIndex, float2 V)
-{
-	WriteVectorToLDS(SharedIndex, uint2(asuint(V.x), asuint(V.y)));
-}
-
-void WriteVectorToLDS(const uint SharedIndex, float3 V)
-{
-	WriteVectorToLDS(SharedIndex, uint3(asuint(V.x), asuint(V.y), asuint(V.z)));
-}
-
-void WriteVectorToLDS(const uint SharedIndex, float4 V)
-{
-	WriteVectorToLDS(SharedIndex, uint4(asuint(V.x), asuint(V.y), asuint(V.z), asuint(V.w)));
-}
-
-void ReadVectorFromLDS(const uint SharedIndex, out float V)
-{
-	uint UV;
-	ReadVectorFromLDS(SharedIndex, /* out */ UV);
-	V = asfloat(UV);
-}
-
-void ReadVectorFromLDS(const uint SharedIndex, out float2 V)
-{
-	uint2 UV;
-	ReadVectorFromLDS(SharedIndex, /* out */ UV);
-	V.x = asfloat(UV.x);
-	V.y = asfloat(UV.y);
-}
-
-void ReadVectorFromLDS(const uint SharedIndex, out float3 V)
-{
-	uint3 UV;
-	ReadVectorFromLDS(SharedIndex, /* out */ UV);
-	V.x = asfloat(UV.x);
-	V.y = asfloat(UV.y);
-	V.z = asfloat(UV.z);
-}
-
-void ReadVectorFromLDS(const uint SharedIndex, out float4 V)
-{
-	uint4 UV;
-	ReadVectorFromLDS(SharedIndex, /* out */ UV);
-	V.x = asfloat(UV.x);
-	V.y = asfloat(UV.y);
-	V.z = asfloat(UV.z);
-	V.w = asfloat(UV.w);
-}
-
-#if PLATFORM_SUPPORTS_REAL_TYPES
-
-#if COMPILER_SUPPORT_UINT16_BITCAST
-
-// uint16_t
-void WriteVectorToLDS(const uint SharedIndex, uint16_t V)
-{
-	WriteVectorToLDS(SharedIndex, uint(V));
-}
-
-void WriteVectorToLDS(const uint SharedIndex, uint16_t2 V)
-{
-	WriteVectorToLDS(SharedIndex, bit_cast_uint(V.xy));
-}
-
-void WriteVectorToLDS(const uint SharedIndex, uint16_t3 V)
-{
-	WriteVectorToLDS(SharedIndex, uint2(bit_cast_uint(V.xy), uint(V.z)));
-}
-
-void WriteVectorToLDS(const uint SharedIndex, uint16_t4 V)
-{
-	WriteVectorToLDS(SharedIndex, uint2(bit_cast_uint(V.xy), bit_cast_uint(V.zw)));
-}
-
-void ReadVectorFromLDS(const uint SharedIndex, out uint16_t V)
-{
-	uint UV;
-	ReadVectorFromLDS(SharedIndex, /* out */ UV);
-	V = tsr_ushort(UV);
-}
-
-void ReadVectorFromLDS(const uint SharedIndex, out uint16_t2 V)
-{
-	uint UV;
-	ReadVectorFromLDS(SharedIndex, /* out */ UV);
-	V.xy = bit_cast_uint16_t2(UV);
-}
-
-void ReadVectorFromLDS(const uint SharedIndex, out uint16_t3 V)
-{
-	uint2 UV;
-	ReadVectorFromLDS(SharedIndex, /* out */ UV);
-	V.xy = bit_cast_uint16_t2(UV.x);
-	V.z = tsr_ushort(UV.y);
-}
-
-void ReadVectorFromLDS(const uint SharedIndex, out uint16_t4 V)
-{
-	uint2 UV;
-	ReadVectorFromLDS(SharedIndex, /* out */ UV);
-	V.xy = bit_cast_uint16_t2(UV.x);
-	V.zw = bit_cast_uint16_t2(UV.y);
-}
-
-#else // !COMPILER_SUPPORT_UINT16_BITCAST
-
-// uint16_t
-void WriteVectorToLDS(const uint SharedIndex, uint16_t V)
-{
-	WriteVectorToLDS(SharedIndex, uint(V));
-}
-
-void WriteVectorToLDS(const uint SharedIndex, uint16_t2 V)
-{
-	WriteVectorToLDS(SharedIndex, uint(V.x) | (uint(V.y) << 16u));
-}
-
-void WriteVectorToLDS(const uint SharedIndex, uint16_t3 V)
-{
-	WriteVectorToLDS(SharedIndex, uint2(uint(V.x) | (uint(V.y) << 16u), uint(V.z)));
-}
-
-void WriteVectorToLDS(const uint SharedIndex, uint16_t4 V)
-{
-	WriteVectorToLDS(SharedIndex, uint2(uint(V.x) | (uint(V.y) << 16u), uint(V.z) | (uint(V.w) << 16u)));
-}
-
-void ReadVectorFromLDS(const uint SharedIndex, out uint16_t V)
-{
-	uint UV;
-	ReadVectorFromLDS(SharedIndex, /* out */ UV);
-	V = tsr_ushort(UV);
-}
-
-void ReadVectorFromLDS(const uint SharedIndex, out uint16_t2 V)
-{
-	uint UV;
-	ReadVectorFromLDS(SharedIndex, /* out */ UV);
-	V.x = tsr_ushort((UV >>  0u) & 0xFFFFu);
-	V.y = tsr_ushort((UV >> 16u) & 0xFFFFu);
-}
-
-void ReadVectorFromLDS(const uint SharedIndex, out uint16_t3 V)
-{
-	uint2 UV;
-	ReadVectorFromLDS(SharedIndex, /* out */ UV);
-	V.x = tsr_ushort((UV.x >>  0u) & 0xFFFFu);
-	V.y = tsr_ushort((UV.x >> 16u) & 0xFFFFu);
-	V.z = tsr_ushort((UV.y >>  0u) & 0xFFFFu);
-}
-
-void ReadVectorFromLDS(const uint SharedIndex, out uint16_t4 V)
-{
-	uint2 UV;
-	ReadVectorFromLDS(SharedIndex, /* out */ UV);
-	V.x = tsr_ushort((UV.x >>  0u) & 0xFFFFu);
-	V.y = tsr_ushort((UV.x >> 16u) & 0xFFFFu);
-	V.z = tsr_ushort((UV.y >>  0u) & 0xFFFFu);
-	V.w = tsr_ushort((UV.y >> 16u) & 0xFFFFu);
-}
-
-#endif // !COMPILER_SUPPORT_UINT16_BITCAST
-
-// half
-void WriteVectorToLDS(const uint SharedIndex, half V)
-{
-	WriteVectorToLDS(SharedIndex, asuint16(V));
-}
-
-void WriteVectorToLDS(const uint SharedIndex, half2 V)
-{
-	WriteVectorToLDS(SharedIndex, uint16_t2(asuint16(V.x), asuint16(V.y)));
-}
-
-void WriteVectorToLDS(const uint SharedIndex, half3 V)
-{
-	WriteVectorToLDS(SharedIndex, uint16_t3(asuint16(V.x), asuint16(V.y), asuint16(V.z)));
-}
-
-void WriteVectorToLDS(const uint SharedIndex, half4 V)
-{
-	WriteVectorToLDS(SharedIndex, uint16_t4(asuint16(V.x), asuint16(V.y), asuint16(V.z), asuint16(V.w)));
-}
-
-void ReadVectorFromLDS(const uint SharedIndex, out half V)
-{
-	uint16_t UV;
-	ReadVectorFromLDS(SharedIndex, /* out */ UV);
-	V = asfloat16(UV);
-}
-
-void ReadVectorFromLDS(const uint SharedIndex, out half2 V)
-{
-	uint16_t2 UV;
-	ReadVectorFromLDS(SharedIndex, /* out */ UV);
-	V.x = asfloat16(UV.x);
-	V.y = asfloat16(UV.y);
-}
-
-void ReadVectorFromLDS(const uint SharedIndex, out half3 V)
-{
-	uint16_t3 UV;
-	ReadVectorFromLDS(SharedIndex, /* out */ UV);
-	V.x = asfloat16(UV.x);
-	V.y = asfloat16(UV.y);
-	V.z = asfloat16(UV.z);
-}
-
-void ReadVectorFromLDS(const uint SharedIndex, out half4 V)
-{
-	uint16_t4 UV;
-	ReadVectorFromLDS(SharedIndex, /* out */ UV);
-	V.x = asfloat16(UV.x);
-	V.y = asfloat16(UV.y);
-	V.z = asfloat16(UV.z);
-	V.w = asfloat16(UV.w);
-}
-
-#endif // PLATFORM_SUPPORTS_REAL_TYPES
 
 #endif // defined(LDS_SIZE)
+
+//------------------------------------------------------- MANUAL LDS DESPILL
+
+#if defined(LDS_DESPILL_DWORD_COUNT)
+
+groupshared uint DespilledData[LDS_DESPILL_DWORD_COUNT];
+
+#endif // defined(LDS_DESPILL_DWORD_COUNT)
 
 
 //------------------------------------------------------- REGISTERS LAYOUTS
@@ -1246,6 +1282,59 @@ struct TLaneVector2D
 		// NOP
 	}
 	#endif
+	
+	#if defined(LDS_DESPILL_DWORD_COUNT)
+	
+	/** Returns the LDS spill size in dwords */
+	static uint GetLDSSpillDwordSize()
+	{
+		return RegisterRowCount * GetVectorDwordSize(ScalarType, RegisterRowSize);
+	}
+	
+	/** Store to LDS spill to save VGPR. */
+	CALL_SITE_DEBUGLOC
+	void StoreLDSSpill(const uint DespillDwordOffset)
+	{
+		UNROLL
+		for (uint RegisterRowIndex = 0; RegisterRowIndex < RegisterRowCount; RegisterRowIndex++)
+		{
+			vector<ScalarType, RegisterRowSize> ResgiterRow = Registers.GetRegisterRow(RegisterRowIndex);
+			
+			uint ResgiterRowDW[GetVectorDwordSize(ScalarType, RegisterRowSize)];
+			PackVectorToDwords(ResgiterRow, /* out */ ResgiterRowDW);
+	
+			UNROLL
+			for (uint i = 0; i < GetVectorDwordSize(ScalarType, RegisterRowSize); i++)
+			{
+				DespilledData[GGroupThreadIndex + DespillDwordOffset + (RegisterRowIndex * GetVectorDwordSize(ScalarType, RegisterRowSize) + i) * LDS_DESPILL_THREAD_COUNT] = ResgiterRowDW[i];
+			}
+		}
+	}
+	
+	/** Load from LDS spill to save VGPR. */
+	CALL_SITE_DEBUGLOC
+	static TLaneVector2D<ScalarType, VectorSize, SimdSizeX, SimdSizeY> LoadLDSSpill(const uint DespillDwordOffset)
+	{
+		TLaneVector2D<ScalarType, VectorSize, SimdSizeX, SimdSizeY> Vector;
+		UNROLL
+		for (uint RegisterRowIndex = 0; RegisterRowIndex < RegisterRowCount; RegisterRowIndex++)
+		{
+			uint ResgiterRowDW[GetVectorDwordSize(ScalarType, RegisterRowSize)];
+			UNROLL
+			for (uint i = 0; i < GetVectorDwordSize(ScalarType, RegisterRowSize); i++)
+			{
+				ResgiterRowDW[i] = DespilledData[GGroupThreadIndex + DespillDwordOffset + (RegisterRowIndex * GetVectorDwordSize(ScalarType, RegisterRowSize) + i) * LDS_DESPILL_THREAD_COUNT];
+			}
+			
+			vector<ScalarType, RegisterRowSize> ResgiterRow;
+			UnpackDwordsToVector(ResgiterRowDW, /* out */ ResgiterRow);
+	
+			Vector.Registers.SetRegisterRow(RegisterRowIndex, ResgiterRow);
+		}
+		return Vector;
+	}
+	
+	#endif // defined(LDS_DESPILL_DWORD_COUNT)
 	
 	
 	// ------------- binary operator +

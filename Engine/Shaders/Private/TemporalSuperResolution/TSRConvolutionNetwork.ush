@@ -43,11 +43,6 @@
  *    o   o   o   o | o   o   o   o
  */
 
- 
-//------------------------------------------------------- GLOBAL VARIABLE
-
-static uint GGroupThreadIndex = 0;
-
 
 //------------------------------------------------------- VECTOR MEMORY ORDER
 
@@ -321,7 +316,7 @@ void AccessNeighborTexels3x1(
 		UNROLL
 		for (uint SimdIndex = 0; SimdIndex < LaneStrideY; SimdIndex++)
 		{
-			WriteVectorToLDS(GGroupThreadIndex + SimdIndex * TotalNumberOfLaneInGroup, CO.GetElement(SimdIndex));
+			WriteVectorToLDS<ScalarType, VectorSize>(GGroupThreadIndex + SimdIndex * TotalNumberOfLaneInGroup, CO.GetElement(SimdIndex));
 		}
 		GroupMemoryBarrierWithGroupSync();
 		
@@ -330,8 +325,8 @@ void AccessNeighborTexels3x1(
 		{
 			vector<ScalarType, VectorSize> FirstElement;
 			vector<ScalarType, VectorSize> LastElement;
-			ReadVectorFromLDS(((GGroupThreadIndex - 1) % TotalNumberOfLaneInGroup) + SimdIndex * TotalNumberOfLaneInGroup, /* out */ FirstElement);
-			ReadVectorFromLDS(((GGroupThreadIndex + 1) % TotalNumberOfLaneInGroup) + SimdIndex * TotalNumberOfLaneInGroup, /* out */ LastElement);
+			ReadVectorFromLDS<ScalarType, VectorSize>(((GGroupThreadIndex - 1) % TotalNumberOfLaneInGroup) + SimdIndex * TotalNumberOfLaneInGroup, /* out */ FirstElement);
+			ReadVectorFromLDS<ScalarType, VectorSize>(((GGroupThreadIndex + 1) % TotalNumberOfLaneInGroup) + SimdIndex * TotalNumberOfLaneInGroup, /* out */ LastElement);
 	
 			CP.SetElement(SimdIndex, LastElement);
 			CN.SetElement(SimdIndex, FirstElement);
@@ -371,7 +366,7 @@ void AccessNeighborTexels1x3(
 		UNROLL
 		for (uint SimdIndex = 0; SimdIndex < LaneStrideX; SimdIndex++)
 		{
-			WriteVectorToLDS(GGroupThreadIndex + SimdIndex * TotalNumberOfLaneInGroup, CO.GetElement(SimdIndex));
+			WriteVectorToLDS<ScalarType, VectorSize>(GGroupThreadIndex + SimdIndex * TotalNumberOfLaneInGroup, CO.GetElement(SimdIndex));
 		}
 		GroupMemoryBarrierWithGroupSync();
 		
@@ -380,8 +375,8 @@ void AccessNeighborTexels1x3(
 		{
 			vector<ScalarType, VectorSize> FirstElement;
 			vector<ScalarType, VectorSize> LastElement;
-			ReadVectorFromLDS(((GGroupThreadIndex - LANE_COUNT_X * WAVE_COUNT_X) % TotalNumberOfLaneInGroup) + SimdIndex * TotalNumberOfLaneInGroup, /* out */ FirstElement);
-			ReadVectorFromLDS(((GGroupThreadIndex + LANE_COUNT_X * WAVE_COUNT_X) % TotalNumberOfLaneInGroup) + SimdIndex * TotalNumberOfLaneInGroup, /* out */ LastElement);
+			ReadVectorFromLDS<ScalarType, VectorSize>(((GGroupThreadIndex - LANE_COUNT_X * WAVE_COUNT_X) % TotalNumberOfLaneInGroup) + SimdIndex * TotalNumberOfLaneInGroup, /* out */ FirstElement);
+			ReadVectorFromLDS<ScalarType, VectorSize>(((GGroupThreadIndex + LANE_COUNT_X * WAVE_COUNT_X) % TotalNumberOfLaneInGroup) + SimdIndex * TotalNumberOfLaneInGroup, /* out */ LastElement);
 	
 			CP.SetElement(SimdIndex, LastElement);
 			CN.SetElement(SimdIndex, FirstElement);
@@ -396,8 +391,8 @@ void AccessNeighborTexels1x3(
 		UNROLL
 		for (uint SimdIndex = 0; SimdIndex < LaneStrideX; SimdIndex++)
 		{
-			WriteVectorToLDS(GGroupThreadIndex + (0 + SimdIndex) * TotalNumberOfLaneInGroup, CO.GetElement(FirstElementIndex + SimdIndex));
-			WriteVectorToLDS(GGroupThreadIndex + (LaneStrideX + SimdIndex) * TotalNumberOfLaneInGroup, CO.GetElement(LastElementIndex + SimdIndex));
+			WriteVectorToLDS<ScalarType, VectorSize>(GGroupThreadIndex + (0 + SimdIndex) * TotalNumberOfLaneInGroup, CO.GetElement(FirstElementIndex + SimdIndex));
+			WriteVectorToLDS<ScalarType, VectorSize>(GGroupThreadIndex + (LaneStrideX + SimdIndex) * TotalNumberOfLaneInGroup, CO.GetElement(LastElementIndex + SimdIndex));
 		}
 		GroupMemoryBarrierWithGroupSync();
 	
@@ -413,8 +408,8 @@ void AccessNeighborTexels1x3(
 		{
 			vector<ScalarType, VectorSize> FirstElement;
 			vector<ScalarType, VectorSize> LastElement;
-			ReadVectorFromLDS(((GGroupThreadIndex - LANE_COUNT_X * WAVE_COUNT_X) % TotalNumberOfLaneInGroup) + (LaneStrideX + SimdIndex) * TotalNumberOfLaneInGroup, /* out */ FirstElement);
-			ReadVectorFromLDS(((GGroupThreadIndex + LANE_COUNT_X * WAVE_COUNT_X) % TotalNumberOfLaneInGroup) + (0 + SimdIndex) * TotalNumberOfLaneInGroup, /* out */ LastElement);
+			ReadVectorFromLDS<ScalarType, VectorSize>(((GGroupThreadIndex - LANE_COUNT_X * WAVE_COUNT_X) % TotalNumberOfLaneInGroup) + (LaneStrideX + SimdIndex) * TotalNumberOfLaneInGroup, /* out */ FirstElement);
+			ReadVectorFromLDS<ScalarType, VectorSize>(((GGroupThreadIndex + LANE_COUNT_X * WAVE_COUNT_X) % TotalNumberOfLaneInGroup) + (0 + SimdIndex) * TotalNumberOfLaneInGroup, /* out */ LastElement);
 	
 			CP.SetElement(LastElementIndex + SimdIndex, LastElement);
 			CN.SetElement(FirstElementIndex + SimdIndex, FirstElement);

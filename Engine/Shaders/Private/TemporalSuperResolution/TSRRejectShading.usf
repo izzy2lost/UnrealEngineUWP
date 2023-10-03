@@ -58,6 +58,11 @@
 	#ifdef PLATFORM_SPECIFIC_TENSOR_REGISTER_LAYOUT
 		#define TENSOR_REGISTER_LAYOUT PLATFORM_SPECIFIC_TENSOR_REGISTER_LAYOUT
 	#endif
+	
+	/** Manually despill to LDS on RDNA platforms with history resurrection to save more register pressure. */
+	#if CONFIG_MINIMISE_VGPRS && CONFIG_COMPILE_FP16 && !CONFIG_SCENE_COLOR_ALPHA
+		#define CONFIG_LDS_DESPILL 1
+	#endif
 
 #elif DIM_WAVE_SIZE == 0
 	/** Load an entire 32x32 with 1x1 worth of data by lane, only using LDS. */
@@ -84,6 +89,24 @@
 	#define LDS_DWORD_COMPONENT_COUNT 2
 #else
 	#define LDS_DWORD_COMPONENT_COUNT 4
+#endif
+
+#ifndef CONFIG_LDS_DESPILL
+	#define CONFIG_LDS_DESPILL 0
+#endif
+
+/** Manually despill to LDS on RDNA platforms to save more register pressure. */
+#if CONFIG_LDS_DESPILL
+	#define LDS_DESPILL_THREAD_COUNT (WAVE_COUNT_X * WAVE_COUNT_Y) * (LANE_COUNT_X * LANE_COUNT_Y)
+	#define LDS_DESPILL_OFFSET       (LANE_STRIDE_X * LANE_STRIDE_Y) * GetVectorDwordSize(tsr_half, 4)
+
+	#if CONFIG_HISTORY_RESURRECTION
+		#define LDS_DESPILL_OFFSET_COUNT 2
+	#else
+		#define LDS_DESPILL_OFFSET_COUNT 1
+	#endif
+	
+	#define LDS_DESPILL_DWORD_COUNT  LDS_DESPILL_THREAD_COUNT * LDS_DESPILL_OFFSET * LDS_DESPILL_OFFSET_COUNT
 #endif
 
 /** Size of the SIMD per lane that also number of input pixel loaded into each individual lanes. */
@@ -747,6 +770,29 @@ void MainCS(
 			/* SourcePerceptionAdd = */ 1.0,
 			/* DestPerceptionAdd   = */ PerceptionAdd);
 			
+		// Despill to LDS to make room in VGPRs for the convolutions of MeasureRejection()
+		#if CONFIG_LDS_DESPILL
+		const uint kDespillHistory = LDS_DESPILL_THREAD_COUNT * LDS_DESPILL_OFFSET * 0;
+		#if CONFIG_HISTORY_RESURRECTION
+			const uint kDespillResurrectedHistory = LDS_DESPILL_THREAD_COUNT * LDS_DESPILL_OFFSET * 1;
+		#endif
+		PLATFORM_SPECIFIC_ISOLATE
+		{
+			Concatenate(ExposedHistory, OriginalHistoryUncertainty).StoreLDSSpill(kDespillHistory);
+			
+			#if CONFIG_HISTORY_RESURRECTION
+			{
+				tsr_simd_halfC ExposedResurrectedHistory = ChangePerceptionAdd(
+					OriginalResurrectedHistory,
+					/* SourcePerceptionAdd = */ 1.0,
+					/* DestPerceptionAdd   = */ PerceptionAdd);
+				
+				Concatenate(ExposedResurrectedHistory, OriginalResurrectedHistoryUncertainty).StoreLDSSpill(kDespillResurrectedHistory);
+			}
+			#endif
+		}
+		#endif // CONFIG_LDS_DESPILL
+
 		tsr_simd_halfC ExposedInputMin;
 		tsr_simd_halfC ExposedInputMax;
 		MinMax3x3(ExposedInput, /* out */ ExposedInputMin, /* out */ ExposedInputMax);
@@ -780,6 +826,14 @@ void MainCS(
 				/* SourcePerceptionAdd = */ 1.0,
 				/* DestPerceptionAdd   = */ PerceptionAdd);
 				
+			#if CONFIG_LDS_DESPILL
+			PLATFORM_SPECIFIC_ISOLATE
+			{
+				Deconcatenate(tsr_simd_half4::LoadLDSSpill(kDespillHistory), /* out */ ExposedHistory, /* out */ OriginalHistoryUncertainty);
+				Deconcatenate(tsr_simd_half4::LoadLDSSpill(kDespillResurrectedHistory), /* out */ ExposedResurrectedHistory, /* out */ OriginalResurrectedHistoryUncertainty);
+			}
+			#endif // CONFIG_LDS_DESPILL
+
 			tsr_simd_halfC PrevMatch         = abs(ExposedInput - ExposedHistory);
 			tsr_simd_halfC ResurrectionMatch = abs(ExposedInput - ExposedResurrectedHistory);
 
@@ -812,6 +866,14 @@ void MainCS(
 				tsr_simd_bool bResurrectionIsBetter = (ResurrectionRejectionBlendFinal - RejectionBlendFinal) > tsr_simd_half::Const(0.1);
 				bResurrectHistory = and(bResurrectionIsCloser, bResurrectionIsBetter);
 				
+				#if CONFIG_LDS_DESPILL
+				PLATFORM_SPECIFIC_ISOLATE
+				{
+					Deconcatenate(tsr_simd_half4::LoadLDSSpill(kDespillHistory), /* out */ ExposedHistory, /* out */ OriginalHistoryUncertainty);
+					Deconcatenate(tsr_simd_half4::LoadLDSSpill(kDespillResurrectedHistory), /* out */ ExposedResurrectedHistory, /* out */ OriginalResurrectedHistoryUncertainty);
+				}
+				#endif // CONFIG_LDS_DESPILL
+
 				RejectionBlendFinal = select(bResurrectHistory, ResurrectionRejectionBlendFinal, RejectionBlendFinal);
 				RejectionClampBlend = select(bResurrectHistory, ResurrectionRejectionClampBlend, RejectionClampBlend);
 				OriginalHistoryUncertainty = select(bResurrectHistory, OriginalResurrectedHistoryUncertainty, OriginalHistoryUncertainty);
@@ -823,7 +885,12 @@ void MainCS(
 				#endif
 			}
 		}
-		#endif
+		#elif !CONFIG_HISTORY_RESURRECTION && CONFIG_LDS_DESPILL
+		PLATFORM_SPECIFIC_ISOLATE
+		{
+			Deconcatenate(tsr_simd_half4::LoadLDSSpill(kDespillHistory), /* out */ ExposedHistory, /* out */ OriginalHistoryUncertainty);
+		}
+		#endif //!CONFIG_HISTORY_RESURRECTION
 
 		// Recomputes original off the exposed shading to save register pressure.
 		#if CONFIG_MINIMISE_VGPRS
