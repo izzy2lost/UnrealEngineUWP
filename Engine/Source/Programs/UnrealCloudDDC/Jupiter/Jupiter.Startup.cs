@@ -306,7 +306,7 @@ namespace Jupiter
 			Builder clusterBuilder = Cluster.Builder()
 				.WithConnectionString(connectionString)
 				.WithLoadBalancingPolicy(Policies.NewDefaultLoadBalancingPolicy(settings.LocalDatacenterName))
-				.WithPoolingOptions(PoolingOptions.Create().SetMaxConnectionsPerHost(HostDistance.Local, settings.MaxConnectionForLocalHost))
+				.WithPoolingOptions(PoolingOptions.Create().SetMaxConnectionsPerHost(HostDistance.Local, settings.MaxConnectionForLocalHost).SetMaxRequestsPerConnection(settings.MaxRequestsPerConnection))
 				.WithExecutionProfiles(options =>
 					options.WithProfile("default", builder => builder.WithConsistencyLevel(ConsistencyLevel.LocalOne)));
 

@@ -38,10 +38,15 @@ public class ScyllaSettings : IValidatableObject
 	public string LocalKeyspaceSuffix { get; set; } = null!;
 
 	/// <summary>
-	/// Max number of connections for each scylla host before switching to another host
+	/// Max number of connections opened, so the max amount of scylla nodes connected to.
 	/// See https://docs.datastax.com/en/developer/nodejs-driver/4.6/features/connection-pooling/
 	/// </summary>
-	public int MaxConnectionForLocalHost { get; set; } = 8192;
+	public int MaxConnectionForLocalHost { get; set; } = 8;
+
+	/// <summary>
+	/// Fixed maximum amount of requests in flight for a connection before a new connection is used (thus max requests per node)
+	/// </summary>
+	public int MaxRequestsPerConnection { get; set; } = 4096;
 
 	/// <summary>
 	/// The time for a replication log event to live in the incremental state before being deleted, assumption is that the snapshot will have processed the event within this time
