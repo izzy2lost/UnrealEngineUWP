@@ -341,6 +341,14 @@ namespace UnrealBuildTool
 				GlobalDefinitions.Add("USE_ANDROID_OPENGL=0");
 				GlobalDefinitions.Add("USE_ANDROID_LAUNCH=0");
 				GlobalDefinitions.Add("USE_ANDROID_JNI=0");
+
+				string VersionScriptFile = Path.GetTempPath() + "LLTWorkaroundScrip.ldscript";
+				using (StreamWriter Writer = System.IO.File.CreateText(VersionScriptFile))
+				{
+					// Workaround for a linker bug when building LowLevelTests for Android
+					Writer.WriteLine("{ local: *; };");
+				}
+				AdditionalLinkerArguments = " -Wl,--version-script=\"" + VersionScriptFile + "\"";
 			}
 			else if (Target.Platform == UnrealTargetPlatform.IOS)
 			{
