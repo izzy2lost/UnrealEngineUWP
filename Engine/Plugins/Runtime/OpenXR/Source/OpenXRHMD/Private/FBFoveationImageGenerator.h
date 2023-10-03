@@ -17,7 +17,8 @@ public:
 	virtual ~FFBFoveationImageGenerator() override {};
 
 	bool IsFoveationExtensionEnabled() { return bFoveationExtensionSupported;}
-	void UpdateFoveationImages();
+	// bReallocatedSwapchain forces foveation images to update even if the foveation params haven't changed.
+	void UpdateFoveationImages(bool bReallocatedSwapchain = false);
 	void SetCurrentFrameSwapchainIndex(int32 CurrentFrameSwapchainIndex);
 
 	/** IVariableRateShadingImageGenerator interface */

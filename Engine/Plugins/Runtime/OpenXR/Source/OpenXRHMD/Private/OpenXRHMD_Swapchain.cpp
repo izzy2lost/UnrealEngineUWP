@@ -262,6 +262,11 @@ void FOpenXRSwapchain::GetFragmentDensityMaps(TArray<FTextureRHIRef>& OutTexture
 
 	TArray<XrSwapchainImageVulkanKHR> Images = EnumerateImages<XrSwapchainImageVulkanKHR>(Swapchain, XR_TYPE_SWAPCHAIN_IMAGE_VULKAN_KHR, Next);
 
+	if(!Images.IsEmpty())
+	{
+		OutTextureChain.Reset(Images.Num());
+	}
+
 	for (const XrSwapchainImageVulkanKHR& Image : Images)
 	{
 		const XrBaseOutStructure* NextHeader = reinterpret_cast<const XrBaseOutStructure*>(Image.next);

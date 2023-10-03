@@ -2292,7 +2292,7 @@ bool FOpenXRHMD::AllocateRenderTargetTextures(uint32 SizeX, uint32 SizeY, uint8 
 		}
 		if (FBFoveationImageGenerator && FBFoveationImageGenerator->IsFoveationExtensionEnabled())
 		{
-			FBFoveationImageGenerator->UpdateFoveationImages();
+			FBFoveationImageGenerator->UpdateFoveationImages(/* bReallocatedSwapchain */ true);
 		}
 	}
 
@@ -2846,6 +2846,7 @@ void FOpenXRHMD::OnBeginRendering_RenderThread(FRHICommandListImmediate& RHICmdL
 
 		if (bFoveationExtensionSupported && FBFoveationImageGenerator.IsValid())
 		{
+			FBFoveationImageGenerator->UpdateFoveationImages();
 			FBFoveationImageGenerator->SetCurrentFrameSwapchainIndex(ColorSwapchain->GetSwapChainIndex_RHIThread());
 		}
 
