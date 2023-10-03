@@ -132,7 +132,7 @@ static FAutoConsoleVariableRef CVar_IoReportAnalytics(
 	GIasReportAnalyticsEnabled,
 	TEXT("Enables reporting statics to the analytics system"));
 
-bool GIasGenerateOnDemandToc = true;
+bool GIasGenerateOnDemandToc = false;
 static FAutoConsoleVariableRef CVar_IasGenerateOnDemandToc(
 	TEXT("s.IasGenerateOnDemandToc"),
 	GIasGenerateOnDemandToc,
