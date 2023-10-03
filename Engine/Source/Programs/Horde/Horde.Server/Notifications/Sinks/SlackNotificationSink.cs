@@ -15,7 +15,9 @@ using System.Text.RegularExpressions;
 using System.Threading;
 using System.Threading.Tasks;
 using EpicGames.Core;
-using EpicGames.Horde.Api;
+using EpicGames.Horde.Agents;
+using EpicGames.Horde.Streams;
+using EpicGames.Horde.Users;
 using EpicGames.Redis;
 using EpicGames.Redis.Utility;
 using EpicGames.Slack;
@@ -27,7 +29,6 @@ using Horde.Server.Issues;
 using Horde.Server.Issues.External;
 using Horde.Server.Jobs;
 using Horde.Server.Jobs.Graphs;
-using Horde.Server.Jobs.Templates;
 using Horde.Server.Logs;
 using Horde.Server.Server;
 using Horde.Server.Streams;
@@ -45,6 +46,7 @@ using MongoDB.Bson.Serialization.Attributes;
 using MongoDB.Driver;
 using EpicGames.Horde;
 using Horde.Server.Agents;
+using EpicGames.Horde.Jobs.Templates;
 
 namespace Horde.Server.Notifications.Sinks
 {

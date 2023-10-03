@@ -16,6 +16,7 @@ using HordeCommon;
 using Microsoft.Extensions.Caching.Memory;
 using Microsoft.Extensions.Options;
 using OpenTelemetry.Trace;
+using EpicGames.Horde.Streams;
 
 namespace Horde.Server.Agents.Fleet
 {

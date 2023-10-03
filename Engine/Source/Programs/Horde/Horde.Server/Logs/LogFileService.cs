@@ -27,7 +27,7 @@ using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
 using MongoDB.Bson;
 using OpenTelemetry.Trace;
-using EpicGames.Horde.Api;
+using EpicGames.Horde.Agents.Leases;
 
 namespace Horde.Server.Logs
 {

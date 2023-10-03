@@ -10,7 +10,8 @@ using Horde.Server.Utilities;
 using HordeCommon;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.VisualStudio.TestTools.UnitTesting;
-using EpicGames.Horde.Api;
+using EpicGames.Horde.Agents;
+using EpicGames.Horde.Agents.Leases;
 
 namespace Horde.Server.Tests
 {

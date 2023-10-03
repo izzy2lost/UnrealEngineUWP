@@ -2,11 +2,12 @@
 
 using System;
 using System.Collections.Generic;
-using EpicGames.Horde.Compute;
+using EpicGames.Horde.Agents;
+using EpicGames.Horde.Agents.Leases;
 
 #pragma warning disable CA2227 // Collection properties should be read only
 
-namespace EpicGames.Horde.Api
+namespace EpicGames.Horde.Compute
 {
 	/// <summary>
 	/// Request a machine to execute compute requests

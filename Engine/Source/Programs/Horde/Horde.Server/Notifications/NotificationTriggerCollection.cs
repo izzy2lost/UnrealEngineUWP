@@ -9,7 +9,7 @@ using Horde.Server.Utilities;
 using MongoDB.Bson;
 using MongoDB.Bson.Serialization.Attributes;
 using MongoDB.Driver;
-using EpicGames.Horde.Api;
+using EpicGames.Horde.Users;
 
 namespace Horde.Server.Notifications
 {

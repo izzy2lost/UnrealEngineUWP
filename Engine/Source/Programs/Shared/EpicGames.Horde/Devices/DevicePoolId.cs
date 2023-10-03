@@ -4,7 +4,7 @@ using System.ComponentModel;
 using EpicGames.Core;
 using EpicGames.Serialization;
 
-namespace EpicGames.Horde.Api
+namespace EpicGames.Horde.Devices
 {
 	/// <summary>
 	/// Identifier for a device pool

@@ -15,7 +15,7 @@ using Amazon.Runtime;
 using Amazon.SQS;
 using Amazon.SQS.Model;
 using EpicGames.Core;
-using EpicGames.Horde.Api;
+using EpicGames.Horde.Agents;
 using Horde.Server.Server;
 using Horde.Server.Utilities;
 using HordeCommon;

@@ -1,9 +1,10 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 
 using System.Collections.Generic;
-using Horde.Server.Jobs.Templates;
+using EpicGames.Horde.Streams;
 using Horde.Server.Streams;
 using Microsoft.VisualStudio.TestTools.UnitTesting;
+using EpicGames.Horde.Jobs.Templates;
 
 namespace Horde.Server.Tests.Streams
 {

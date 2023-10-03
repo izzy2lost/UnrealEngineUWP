@@ -8,7 +8,7 @@ using System.Runtime.InteropServices;
 using System.Threading;
 using System.Threading.Tasks;
 using EpicGames.Core;
-using EpicGames.Horde.Api;
+using EpicGames.Horde.Server;
 using EpicGames.Perforce;
 using Horde.Server.Agents;
 using Horde.Server.Configuration;

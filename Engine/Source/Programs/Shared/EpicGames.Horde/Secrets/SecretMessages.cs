@@ -5,7 +5,7 @@ using System.Diagnostics;
 
 #pragma warning disable CA2227 // Collection properties should be read only
 
-namespace EpicGames.Horde.Api
+namespace EpicGames.Horde.Secrets
 {
 	/// <summary>
 	/// Response listing all the secrets available to the current user

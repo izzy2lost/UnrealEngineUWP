@@ -1,14 +1,18 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 
 using EpicGames.Core;
-using EpicGames.Horde.Api;
+using EpicGames.Horde.Agents;
+using EpicGames.Horde.Agents.Leases;
+using EpicGames.Horde.Artifacts;
 using EpicGames.Horde.Compute;
+using EpicGames.Horde.Jobs.Templates;
+using EpicGames.Horde.Projects;
+using EpicGames.Horde.Secrets;
 using EpicGames.Horde.Storage;
+using EpicGames.Horde.Streams;
 using Horde.Server.Acls;
 using Horde.Server.Jobs;
 using Horde.Server.Jobs.Bisect;
-using Horde.Server.Jobs.Templates;
-using Horde.Server.Streams;
 using Horde.Server.Tools;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Mvc;

@@ -6,9 +6,10 @@ using System.Threading.Tasks;
 using Horde.Server.Agents.Pools;
 using Horde.Server.Agents.Sessions;
 using Horde.Server.Logs;
-using Horde.Server.Streams;
 using HordeCommon;
-using EpicGames.Horde.Api;
+using EpicGames.Horde.Agents;
+using EpicGames.Horde.Agents.Leases;
+using EpicGames.Horde.Streams;
 
 namespace Horde.Server.Agents.Leases
 {

@@ -1,6 +1,6 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 
-namespace EpicGames.Horde.Api
+namespace EpicGames.Horde.Agents.Leases
 {
 	/// <summary>
 	/// Updates an existing lease

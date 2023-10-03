@@ -10,7 +10,7 @@ using Amazon.AutoScaling;
 using Amazon.CloudWatch;
 using Amazon.EC2;
 using EpicGames.Core;
-using EpicGames.Horde.Api;
+using EpicGames.Horde.Agents;
 using EpicGames.Horde.Storage;
 using EpicGames.Horde.Storage.Backends;
 using Horde.Server.Acls;

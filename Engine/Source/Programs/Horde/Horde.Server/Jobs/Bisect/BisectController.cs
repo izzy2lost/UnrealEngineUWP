@@ -7,7 +7,6 @@ using System.Threading;
 using System.Threading.Tasks;
 using Horde.Server.Acls;
 using Horde.Server.Jobs.Graphs;
-using Horde.Server.Jobs.Templates;
 using Horde.Server.Perforce;
 using Horde.Server.Server;
 using Horde.Server.Streams;
@@ -17,7 +16,9 @@ using HordeCommon;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.Extensions.Options;
-using EpicGames.Horde.Api;
+using EpicGames.Horde.Jobs.Templates;
+using EpicGames.Horde.Streams;
+using EpicGames.Horde.Users;
 using OpenTelemetry.Trace;
 using Microsoft.Extensions.Logging;
 

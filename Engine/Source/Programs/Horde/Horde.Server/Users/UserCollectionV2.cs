@@ -5,9 +5,7 @@ using System.Collections.Generic;
 using System.Linq;
 using System.Threading.Tasks;
 using Horde.Server.Jobs;
-using Horde.Server.Jobs.Templates;
 using Horde.Server.Server;
-using Horde.Server.Streams;
 using Horde.Server.Utilities;
 using Microsoft.Extensions.Caching.Memory;
 using Microsoft.Extensions.Logging;
@@ -15,8 +13,10 @@ using MongoDB.Bson;
 using MongoDB.Bson.Serialization;
 using MongoDB.Bson.Serialization.Attributes;
 using MongoDB.Driver;
-using EpicGames.Horde.Api;
 using Horde.Server.Jobs.Bisect;
+using EpicGames.Horde.Jobs.Templates;
+using EpicGames.Horde.Streams;
+using EpicGames.Horde.Users;
 
 namespace Horde.Server.Users
 {

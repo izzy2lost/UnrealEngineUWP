@@ -6,7 +6,7 @@ using System.Net;
 using System.Threading;
 using System.Threading.Tasks;
 using EpicGames.Core;
-using EpicGames.Horde.Api;
+using EpicGames.Horde.Agents.Leases;
 using EpicGames.Horde.Compute;
 using Horde.Server.Acls;
 using Horde.Server.Agents;

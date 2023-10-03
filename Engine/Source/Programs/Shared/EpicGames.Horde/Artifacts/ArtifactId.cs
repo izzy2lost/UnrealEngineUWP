@@ -2,7 +2,7 @@
 
 using System.ComponentModel;
 
-namespace EpicGames.Horde.Api
+namespace EpicGames.Horde.Artifacts
 {
 	/// <summary>
 	/// Unique id for an artifact

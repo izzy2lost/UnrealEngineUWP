@@ -3,7 +3,9 @@
 using System;
 using System.Collections.Generic;
 using System.Threading.Tasks;
-using EpicGames.Horde.Api;
+using EpicGames.Horde.Devices;
+using EpicGames.Horde.Projects;
+using EpicGames.Horde.Users;
 using MongoDB.Bson;
 
 namespace Horde.Server.Devices

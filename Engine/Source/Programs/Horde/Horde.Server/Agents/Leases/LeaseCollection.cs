@@ -8,12 +8,13 @@ using Horde.Server.Agents.Pools;
 using Horde.Server.Agents.Sessions;
 using Horde.Server.Logs;
 using Horde.Server.Server;
-using Horde.Server.Streams;
 using Horde.Server.Utilities;
 using HordeCommon;
 using MongoDB.Bson.Serialization.Attributes;
 using MongoDB.Driver;
-using EpicGames.Horde.Api;
+using EpicGames.Horde.Agents.Leases;
+using EpicGames.Horde.Agents;
+using EpicGames.Horde.Streams;
 
 namespace Horde.Server.Agents.Leases
 {

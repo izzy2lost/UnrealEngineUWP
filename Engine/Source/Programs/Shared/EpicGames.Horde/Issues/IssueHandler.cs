@@ -2,8 +2,8 @@
 
 using System;
 using System.Collections.Generic;
-using Horde.Server.Streams;
-using Horde.Server.Jobs.Templates;
+using EpicGames.Horde.Streams;
+using EpicGames.Horde.Jobs.Templates;
 
 namespace EpicGames.Horde.Issues
 {

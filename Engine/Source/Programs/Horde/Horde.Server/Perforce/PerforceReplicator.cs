@@ -12,6 +12,7 @@ using EpicGames.Core;
 using EpicGames.Horde.Storage;
 using EpicGames.Horde.Storage.Bundles;
 using EpicGames.Horde.Storage.Nodes;
+using EpicGames.Horde.Streams;
 using EpicGames.Perforce;
 using Horde.Server.Storage;
 using Horde.Server.Streams;

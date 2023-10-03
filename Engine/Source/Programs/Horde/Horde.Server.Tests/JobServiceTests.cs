@@ -6,6 +6,8 @@ using System.Text;
 using System.Threading;
 using System.Threading.Tasks;
 using EpicGames.Core;
+using EpicGames.Horde.Jobs.Templates;
+using EpicGames.Horde.Streams;
 using Horde.Server.Agents;
 using Horde.Server.Agents.Pools;
 using Horde.Server.Jobs;
@@ -23,7 +25,7 @@ using Microsoft.VisualStudio.TestTools.UnitTesting;
 
 namespace Horde.Server.Tests
 {
-	using ProjectId = EpicGames.Horde.Api.ProjectId;
+	using ProjectId = EpicGames.Horde.Projects.ProjectId;
 
 	[TestClass]
 	public class JobServiceTests : TestSetup

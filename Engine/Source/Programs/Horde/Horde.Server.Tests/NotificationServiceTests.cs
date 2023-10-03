@@ -18,6 +18,7 @@ using Moq;
 using Horde.Server.Logs;
 using Microsoft.Extensions.Caching.Memory;
 using Horde.Server.Agents;
+using EpicGames.Horde.Streams;
 
 namespace Horde.Server.Tests
 {

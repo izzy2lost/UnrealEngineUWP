@@ -6,16 +6,16 @@ using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
 using Horde.Server.Agents.Pools;
-using Horde.Server.Jobs.Templates;
 using Horde.Server.Logs;
 using Horde.Server.Server;
-using Horde.Server.Streams;
 using Horde.Server.Telemetry;
 using Horde.Server.Utilities;
 using HordeCommon;
 using MongoDB.Bson.Serialization.Attributes;
 using MongoDB.Driver;
-using EpicGames.Horde.Api;
+using EpicGames.Horde.Agents;
+using EpicGames.Horde.Streams;
+using EpicGames.Horde.Jobs.Templates;
 
 namespace Horde.Server.Jobs
 {

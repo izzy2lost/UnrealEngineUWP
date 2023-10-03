@@ -9,7 +9,7 @@ using Horde.Server.Utilities;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.Extensions.Options;
-using EpicGames.Horde.Api;
+using EpicGames.Horde.Users;
 
 namespace Horde.Server.Notifications
 {

@@ -4,7 +4,7 @@ using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Threading.Tasks;
-using EpicGames.Horde.Api;
+using EpicGames.Horde.Agents.Telemetry;
 using Microsoft.AspNetCore.Mvc;
 
 namespace Horde.Server.Agents.Telemetry

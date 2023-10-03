@@ -2,7 +2,7 @@
 
 using System;
 
-namespace EpicGames.Horde.Api
+namespace EpicGames.Horde.Dashboard
 {
 	/// <summary>
 	/// Setting information required by dashboard

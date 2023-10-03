@@ -7,7 +7,7 @@ using System.Threading.Tasks;
 using Horde.Server.Utilities;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
-using EpicGames.Horde.Api;
+using EpicGames.Horde.Users;
 
 namespace Horde.Server.Users
 {

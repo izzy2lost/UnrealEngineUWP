@@ -6,7 +6,7 @@ using System.Threading;
 using System.Threading.Tasks;
 using Horde.Server.Perforce;
 using HordeCommon;
-using EpicGames.Horde.Api;
+using EpicGames.Horde.Users;
 using Microsoft.Extensions.Logging;
 using Horde.Server.Jobs.Graphs;
 

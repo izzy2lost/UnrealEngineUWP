@@ -2,7 +2,7 @@
 
 using EpicGames.Core;
 using EpicGames.Horde;
-using EpicGames.Horde.Api;
+using EpicGames.Horde.Artifacts;
 using Microsoft.Extensions.Logging;
 
 namespace Horde.Commands.Bundles

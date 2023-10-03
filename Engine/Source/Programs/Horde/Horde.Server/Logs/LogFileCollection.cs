@@ -5,7 +5,7 @@ using System.Linq;
 using System.Net;
 using System.Threading;
 using System.Threading.Tasks;
-using EpicGames.Horde.Api;
+using EpicGames.Horde.Agents.Leases;
 using EpicGames.Horde.Storage;
 using Horde.Server.Agents.Sessions;
 using Horde.Server.Jobs;

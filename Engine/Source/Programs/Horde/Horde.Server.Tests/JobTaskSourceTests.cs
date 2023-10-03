@@ -13,7 +13,7 @@ using System;
 using Horde.Server.Agents;
 using Horde.Server.Agents.Pools;
 using Horde.Server.Streams;
-using EpicGames.Horde.Api;
+using EpicGames.Horde.Users;
 
 namespace Horde.Server.Tests
 {

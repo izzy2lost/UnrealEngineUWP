@@ -5,7 +5,7 @@ using System.Collections.Generic;
 
 #pragma warning disable CA2227 // Collection properties should be read only
 
-namespace EpicGames.Horde.Api
+namespace EpicGames.Horde.Agents.Telemetry
 {
 	/// <summary>
 	/// Represents one stream in one pool in one hour of telemetry

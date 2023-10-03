@@ -4,6 +4,10 @@ using System;
 using System.Collections.Generic;
 using System.ComponentModel.DataAnnotations;
 using EpicGames.Core;
+using EpicGames.Horde.Jobs.Templates;
+using EpicGames.Horde.Projects;
+using EpicGames.Horde.Streams;
+using EpicGames.Horde.Users;
 using Horde.Server.Jobs.Templates;
 using Horde.Server.Jobs.Schedules;
 using Horde.Server.Users;
@@ -11,7 +15,6 @@ using Horde.Server.Issues;
 using Horde.Server.Perforce;
 using Horde.Server.Projects;
 using Horde.Server.Jobs;
-using EpicGames.Horde.Api;
 
 namespace Horde.Server.Streams
 {

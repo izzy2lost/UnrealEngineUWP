@@ -3,7 +3,7 @@
 using System.ComponentModel;
 using EpicGames.Core;
 
-namespace EpicGames.Horde.Api
+namespace EpicGames.Horde.Users
 {
 	/// <summary>
 	/// Identifier for a user

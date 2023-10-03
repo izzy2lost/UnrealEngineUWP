@@ -2,7 +2,7 @@
 
 using System;
 using System.ComponentModel.DataAnnotations;
-using EpicGames.Horde.Api;
+using EpicGames.Horde.Users;
 
 namespace Horde.Server.Server.Notices
 {

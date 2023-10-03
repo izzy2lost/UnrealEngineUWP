@@ -3,6 +3,7 @@
 using System;
 using System.Threading.Tasks;
 using EpicGames.Core;
+using EpicGames.Horde.Streams;
 using Horde.Server.Perforce;
 using Horde.Server.Server;
 using Horde.Server.Streams;

@@ -6,12 +6,12 @@ using System.Threading;
 using System.Threading.Tasks;
 using Horde.Server.Agents.Pools;
 using Horde.Server.Jobs.Graphs;
-using Horde.Server.Jobs.Templates;
 using Horde.Server.Logs;
-using Horde.Server.Streams;
 using HordeCommon;
 using Microsoft.Extensions.Logging;
-using EpicGames.Horde.Api;
+using EpicGames.Horde.Agents;
+using EpicGames.Horde.Jobs.Templates;
+using EpicGames.Horde.Streams;
 
 namespace Horde.Server.Jobs
 {

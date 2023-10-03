@@ -6,7 +6,7 @@ using System.Text.Json;
 
 #pragma warning disable CA2227
 
-namespace EpicGames.Horde.Api
+namespace EpicGames.Horde.Users
 {
 	/// <summary>
 	/// Response describing the current user

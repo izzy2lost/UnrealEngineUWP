@@ -10,13 +10,13 @@ using Google.Protobuf.WellKnownTypes;
 using Horde.Server.Agents;
 using Horde.Server.Agents.Fleet;
 using Horde.Server.Agents.Leases;
-using Horde.Server.Streams;
 using Horde.Server.Agents.Pools;
 using Horde.Server.Utilities;
 using HordeCommon;
 using HordeCommon.Rpc.Tasks;
 using Microsoft.VisualStudio.TestTools.UnitTesting;
-using EpicGames.Horde.Api;
+using EpicGames.Horde.Agents.Leases;
+using EpicGames.Horde.Streams;
 using Microsoft.Extensions.Logging.Abstractions;
 
 namespace Horde.Server.Tests.Fleet

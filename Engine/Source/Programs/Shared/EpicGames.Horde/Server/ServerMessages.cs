@@ -2,7 +2,7 @@
 
 using System;
 
-namespace EpicGames.Horde.Api
+namespace EpicGames.Horde.Server
 {
 	/// <summary>
 	/// Server Info

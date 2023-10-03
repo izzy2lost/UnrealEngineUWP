@@ -7,7 +7,7 @@ using System.Text.Json;
 using System.Text.Json.Serialization;
 using EpicGames.Core;
 
-namespace EpicGames.Horde.Api
+namespace EpicGames.Horde.Agents
 {
 	/// <summary>
 	/// Normalized hostname of an agent

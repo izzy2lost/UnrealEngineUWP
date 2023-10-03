@@ -3,7 +3,7 @@
 using System.ComponentModel;
 using EpicGames.Core;
 
-namespace EpicGames.Horde.Api
+namespace EpicGames.Horde.Artifacts
 {
 	/// <summary>
 	/// Type of an artifact

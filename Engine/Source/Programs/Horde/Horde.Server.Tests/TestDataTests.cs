@@ -4,7 +4,6 @@ using System;
 using System.Collections.Generic;
 using System.Threading.Tasks;
 using Horde.Server.Jobs.Graphs;
-using Horde.Server.Jobs.Templates;
 using Horde.Server.Projects;
 using Horde.Server.Jobs;
 using Horde.Server.Users;
@@ -22,7 +21,9 @@ using System.Linq;
 using System.Threading;
 using Horde.Server.Server;
 using EpicGames.Horde;
-using EpicGames.Horde.Api;
+using EpicGames.Horde.Jobs.Templates;
+using EpicGames.Horde.Projects;
+using EpicGames.Horde.Streams;
 
 namespace Horde.Server.Tests
 {

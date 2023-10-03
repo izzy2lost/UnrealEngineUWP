@@ -6,9 +6,10 @@ using Google.Protobuf.WellKnownTypes;
 using Horde.Server.Agents.Pools;
 using Horde.Server.Agents.Sessions;
 using Horde.Server.Logs;
-using Horde.Server.Streams;
 using HordeCommon;
-using EpicGames.Horde.Api;
+using EpicGames.Horde.Streams;
+using EpicGames.Horde.Agents;
+using EpicGames.Horde.Agents.Leases;
 
 namespace Horde.Server.Agents.Leases
 {

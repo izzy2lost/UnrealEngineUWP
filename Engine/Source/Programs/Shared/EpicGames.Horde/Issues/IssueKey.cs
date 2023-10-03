@@ -5,8 +5,8 @@ using System.Collections.Generic;
 using System.Linq;
 using System.Text.Json;
 using EpicGames.Core;
-using Horde.Server.Jobs.Templates;
-using Horde.Server.Streams;
+using EpicGames.Horde.Jobs.Templates;
+using EpicGames.Horde.Streams;
 
 namespace EpicGames.Horde.Issues
 {

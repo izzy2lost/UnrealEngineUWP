@@ -1,10 +1,10 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 
 using System.Collections.Generic;
-using Horde.Server.Jobs.Templates;
-using Horde.Server.Streams;
 using MongoDB.Bson;
-using EpicGames.Horde.Api;
+using EpicGames.Horde.Jobs.Templates;
+using EpicGames.Horde.Streams;
+using EpicGames.Horde.Users;
 
 namespace Horde.Server.Issues
 {

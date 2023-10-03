@@ -11,9 +11,9 @@ using System.Threading.Tasks;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Configuration;
 using EpicGames.OIDC;
-using EpicGames.Horde.Api;
 using System.Net.Http.Json;
 using System.Text.Json;
+using EpicGames.Horde.Server;
 
 namespace EpicGames.Horde
 {

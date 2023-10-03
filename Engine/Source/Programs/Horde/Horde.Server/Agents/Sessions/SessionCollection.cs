@@ -8,7 +8,7 @@ using Horde.Server.Server;
 using Horde.Server.Utilities;
 using MongoDB.Bson.Serialization.Attributes;
 using MongoDB.Driver;
-using EpicGames.Horde.Api;
+using EpicGames.Horde.Agents;
 
 namespace Horde.Server.Agents.Sessions
 {

@@ -12,7 +12,7 @@ using Horde.Server.Server;
 using System.Collections.Generic;
 using System.Linq;
 using Horde.Server.Acls;
-using EpicGames.Horde.Api;
+using EpicGames.Horde.Dashboard;
 
 namespace Horde.Server.Dashboard
 {

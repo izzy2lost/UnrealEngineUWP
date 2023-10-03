@@ -6,8 +6,8 @@ using System.Threading.Tasks;
 using Horde.Server.Jobs;
 using Horde.Server.Utilities;
 using MongoDB.Bson;
-using EpicGames.Horde.Api;
 using Horde.Server.Jobs.Bisect;
+using EpicGames.Horde.Users;
 
 namespace Horde.Server.Users
 {

@@ -10,11 +10,12 @@ using Horde.Server.Projects;
 using Horde.Server.Streams;
 using Horde.Server.Jobs;
 using Horde.Server.Jobs.Graphs;
-using Horde.Server.Jobs.Templates;
 using Horde.Server.Server;
 using Microsoft.VisualStudio.TestTools.UnitTesting;
 using Horde.Server.Agents;
-using EpicGames.Horde.Api;
+using EpicGames.Horde.Jobs.Templates;
+using EpicGames.Horde.Projects;
+using EpicGames.Horde.Streams;
 
 namespace Horde.Server.Tests.Fleet
 {

@@ -4,7 +4,7 @@ using System;
 using System.Collections.Generic;
 using System.Threading;
 using System.Threading.Tasks;
-using EpicGames.Horde.Api;
+using EpicGames.Horde.Artifacts;
 using EpicGames.Horde.Storage;
 using Horde.Server.Acls;
 

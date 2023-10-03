@@ -5,7 +5,8 @@ using System.Collections.Generic;
 using Horde.Server.Utilities;
 using MongoDB.Bson;
 using MongoDB.Bson.Serialization.Attributes;
-using EpicGames.Horde.Api;
+using EpicGames.Horde.Agents;
+using EpicGames.Horde.Agents.Leases;
 
 namespace Horde.Server.Agents
 {

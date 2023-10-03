@@ -9,7 +9,7 @@ using System.Net;
 using System.Security.Claims;
 using System.Threading;
 using System.Threading.Tasks;
-using EpicGames.Horde.Api;
+using EpicGames.Horde.Agents;
 using Google.Protobuf;
 using Google.Protobuf.WellKnownTypes;
 using Grpc.Core;

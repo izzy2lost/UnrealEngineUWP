@@ -4,11 +4,11 @@ using System;
 using System.Collections.Generic;
 using System.Linq;
 using EpicGames.Core;
-using EpicGames.Horde.Api;
+using EpicGames.Horde.Jobs.Templates;
+using EpicGames.Horde.Streams;
+using EpicGames.Horde.Users;
 using Horde.Server.Jobs;
 using Horde.Server.Jobs.Bisect;
-using Horde.Server.Jobs.Templates;
-using Horde.Server.Streams;
 using MongoDB.Bson;
 
 namespace Horde.Server.Users

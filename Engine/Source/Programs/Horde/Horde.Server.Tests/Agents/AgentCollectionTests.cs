@@ -3,12 +3,12 @@
 using System;
 using System.Collections.Generic;
 using System.Threading.Tasks;
-using EpicGames.Horde.Api;
 using Horde.Server.Agents;
 using Horde.Server.Agents.Pools;
 using Horde.Server.Agents.Sessions;
 using HordeCommon;
 using Microsoft.VisualStudio.TestTools.UnitTesting;
+using EpicGames.Horde.Agents.Leases;
 
 namespace Horde.Server.Tests.Agents;
 

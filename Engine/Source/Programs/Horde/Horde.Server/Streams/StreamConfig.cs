@@ -10,6 +10,7 @@ using System.Text.RegularExpressions;
 using EpicGames.Core;
 using EpicGames.Horde;
 using EpicGames.Horde.Common;
+using EpicGames.Horde.Jobs.Templates;
 using Horde.Server.Acls;
 using Horde.Server.Agents.Pools;
 using Horde.Server.Configuration;
@@ -22,6 +23,7 @@ using Horde.Server.Server;
 using HordeCommon;
 using HordeCommon.Rpc.Tasks;
 using System.Diagnostics;
+using EpicGames.Horde.Streams;
 
 namespace Horde.Server.Streams
 {

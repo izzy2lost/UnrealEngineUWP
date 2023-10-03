@@ -2,7 +2,7 @@
 
 using EpicGames.Core;
 using EpicGames.Horde;
-using EpicGames.Horde.Api;
+using EpicGames.Horde.Server;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
 

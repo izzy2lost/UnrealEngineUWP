@@ -11,7 +11,8 @@ using Horde.Server.Server;
 using Horde.Server.Utilities;
 using Microsoft.IdentityModel.Tokens;
 using MongoDB.Driver;
-using EpicGames.Horde.Api;
+using EpicGames.Horde.Agents;
+using EpicGames.Horde.Agents.Leases;
 
 namespace Horde.Server.Acls
 {

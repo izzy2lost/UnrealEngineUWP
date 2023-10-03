@@ -3,7 +3,7 @@
 using System.Linq;
 using System.Security.Claims;
 using Horde.Server.Users;
-using EpicGames.Horde.Api;
+using EpicGames.Horde.Users;
 
 namespace Horde.Server.Utilities
 {

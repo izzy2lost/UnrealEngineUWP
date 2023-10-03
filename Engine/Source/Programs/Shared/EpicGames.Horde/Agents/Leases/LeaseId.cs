@@ -4,7 +4,7 @@ using System.ComponentModel;
 using System.Text.Json;
 using EpicGames.Core;
 
-namespace EpicGames.Horde.Api
+namespace EpicGames.Horde.Agents.Leases
 {
 	/// <summary>
 	/// Identifier for a user

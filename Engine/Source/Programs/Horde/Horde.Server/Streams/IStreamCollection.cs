@@ -4,8 +4,8 @@ using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Threading.Tasks;
+using EpicGames.Horde.Jobs.Templates;
 using Horde.Server.Jobs;
-using Horde.Server.Jobs.Templates;
 
 namespace Horde.Server.Streams
 {

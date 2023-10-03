@@ -5,7 +5,7 @@ using System.Threading;
 using System.Threading.Tasks;
 using Horde.Server.Agents.Sessions;
 using Horde.Server.Jobs;
-using EpicGames.Horde.Api;
+using EpicGames.Horde.Agents.Leases;
 
 namespace Horde.Server.Logs
 {

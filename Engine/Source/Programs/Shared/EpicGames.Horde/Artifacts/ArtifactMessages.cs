@@ -5,7 +5,7 @@ using EpicGames.Core;
 
 #pragma warning disable CA2227
 
-namespace EpicGames.Horde.Api
+namespace EpicGames.Horde.Artifacts
 {
 	/// <summary>
 	/// Describes an artifact

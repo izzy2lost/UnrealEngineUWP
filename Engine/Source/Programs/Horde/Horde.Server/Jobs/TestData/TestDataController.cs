@@ -13,6 +13,7 @@ using MongoDB.Bson;
 using EpicGames.Core;
 using Microsoft.Extensions.Options;
 using Horde.Server.Server;
+using EpicGames.Horde.Streams;
 
 namespace Horde.Server.Jobs.TestData
 {

@@ -14,7 +14,6 @@ using HordeAgent.Horde.Agent.Parser;
 using HordeAgent.Horde.Agent.Utility;
 using Horde.Server.Jobs;
 using Horde.Server.Jobs.Graphs;
-using Horde.Server.Jobs.Templates;
 using Horde.Server.Issues;
 using Horde.Server.Logs;
 using Horde.Server.Users;
@@ -29,8 +28,11 @@ using MongoDB.Bson;
 using MongoDB.Driver;
 using Moq;
 using System.Threading;
-using EpicGames.Horde.Api;
+using EpicGames.Horde.Jobs.Templates;
+using EpicGames.Horde.Projects;
+using EpicGames.Horde.Users;
 using System.Buffers;
+using EpicGames.Horde.Streams;
 
 namespace Horde.Server.Tests
 {

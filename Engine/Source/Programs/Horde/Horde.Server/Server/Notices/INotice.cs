@@ -3,7 +3,7 @@
 using System;
 using MongoDB.Bson;
 using MongoDB.Bson.Serialization.Attributes;
-using EpicGames.Horde.Api;
+using EpicGames.Horde.Users;
 
 namespace Horde.Server.Server.Notices
 {

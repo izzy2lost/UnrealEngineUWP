@@ -12,7 +12,7 @@ using Horde.Server.Configuration;
 using Horde.Server.Server;
 using Horde.Server.Streams;
 using HordeCommon.Rpc.Tasks;
-using EpicGames.Horde.Api;
+using EpicGames.Horde.Projects;
 
 namespace Horde.Server.Projects
 {

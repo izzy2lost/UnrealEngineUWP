@@ -18,7 +18,7 @@ using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
 using Microsoft.VisualStudio.TestTools.UnitTesting;
 using Moq;
-using EpicGames.Horde.Api;
+using EpicGames.Horde.Agents.Leases;
 
 namespace Horde.Server.Tests.Fleet;
 

@@ -4,8 +4,8 @@ using System;
 using System.Collections.Generic;
 using System.ComponentModel.DataAnnotations;
 using System.Linq;
-using Horde.Server.Streams;
 using MongoDB.Bson.Serialization;
+using EpicGames.Horde.Streams;
 
 namespace Horde.Server.Jobs.TestData
 {

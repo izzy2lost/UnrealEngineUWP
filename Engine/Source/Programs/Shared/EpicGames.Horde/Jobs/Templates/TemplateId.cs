@@ -2,10 +2,9 @@
 
 using System.ComponentModel;
 using EpicGames.Core;
-using EpicGames.Horde;
 using EpicGames.Serialization;
 
-namespace Horde.Server.Jobs.Templates
+namespace EpicGames.Horde.Jobs.Templates
 {
 	/// <summary>
 	/// Identifier for a job template

@@ -3,7 +3,7 @@
 using System;
 using System.Collections.Generic;
 using System.Threading.Tasks;
-using Horde.Server.Streams;
+using EpicGames.Horde.Streams;
 using MongoDB.Bson;
 
 namespace Horde.Server.Jobs.TestData

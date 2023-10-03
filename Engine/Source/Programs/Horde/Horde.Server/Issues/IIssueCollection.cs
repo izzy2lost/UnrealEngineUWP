@@ -7,13 +7,13 @@ using System.Threading.Tasks;
 using Horde.Server.Auditing;
 using Horde.Server.Jobs;
 using Horde.Server.Jobs.Graphs;
-using Horde.Server.Jobs.Templates;
 using Horde.Server.Logs;
-using Horde.Server.Streams;
 using MongoDB.Bson;
 using MongoDB.Driver;
-using EpicGames.Horde.Api;
 using EpicGames.Horde.Issues;
+using EpicGames.Horde.Users;
+using EpicGames.Horde.Streams;
+using EpicGames.Horde.Jobs.Templates;
 
 namespace Horde.Server.Issues
 {

@@ -10,7 +10,7 @@ using Horde.Server.Logs;
 using Horde.Server.Utilities;
 using HordeCommon;
 using HordeCommon.Rpc.Tasks;
-using EpicGames.Horde.Api;
+using EpicGames.Horde.Agents.Leases;
 
 namespace Horde.Server.Tasks
 {

@@ -25,7 +25,8 @@ using Horde.Server.Jobs.Artifacts;
 using Horde.Server.Agents;
 using HordeCommon.Rpc.Messages;
 using Horde.Server.Agents.Sessions;
-using EpicGames.Horde.Api;
+using EpicGames.Horde.Agents;
+using EpicGames.Horde.Agents.Leases;
 
 namespace Horde.Server.Tests
 {

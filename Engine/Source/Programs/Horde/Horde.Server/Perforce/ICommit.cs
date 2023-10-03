@@ -5,8 +5,8 @@ using System.Collections.Generic;
 using System.Threading;
 using System.Threading.Tasks;
 using EpicGames.Core;
-using EpicGames.Horde.Api;
-using Horde.Server.Streams;
+using EpicGames.Horde.Streams;
+using EpicGames.Horde.Users;
 
 namespace Horde.Server.Perforce
 {

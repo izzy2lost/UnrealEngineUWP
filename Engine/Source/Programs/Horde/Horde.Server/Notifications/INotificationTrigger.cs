@@ -2,7 +2,7 @@
 
 using System.Collections.Generic;
 using MongoDB.Bson;
-using EpicGames.Horde.Api;
+using EpicGames.Horde.Users;
 
 namespace Horde.Server.Notifications
 {

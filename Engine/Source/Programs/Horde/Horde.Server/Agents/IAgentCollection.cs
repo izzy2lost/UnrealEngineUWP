@@ -7,7 +7,8 @@ using Horde.Server.Agents.Pools;
 using Horde.Server.Agents.Sessions;
 using Horde.Server.Auditing;
 using HordeCommon;
-using EpicGames.Horde.Api;
+using EpicGames.Horde.Agents.Leases;
+using EpicGames.Horde.Agents;
 
 namespace Horde.Server.Agents
 {

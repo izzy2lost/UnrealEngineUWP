@@ -3,9 +3,10 @@
 using System;
 using System.Collections.Generic;
 using System.Linq;
-using EpicGames.Horde.Api;
+using EpicGames.Horde.Jobs.Templates;
+using EpicGames.Horde.Streams;
+using EpicGames.Horde.Users;
 using Horde.Server.Jobs;
-using Horde.Server.Jobs.Templates;
 
 namespace Horde.Server.Streams
 {

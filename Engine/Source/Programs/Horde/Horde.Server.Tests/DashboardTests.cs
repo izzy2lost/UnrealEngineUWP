@@ -3,8 +3,8 @@
 using System.Collections.Generic;
 using System.Threading.Tasks;
 using Microsoft.VisualStudio.TestTools.UnitTesting;
-using EpicGames.Horde.Api;
 using System.Linq;
+using EpicGames.Horde.Dashboard;
 
 namespace Horde.Server.Tests
 {

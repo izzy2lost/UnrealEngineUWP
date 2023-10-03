@@ -2,8 +2,10 @@
 
 using System;
 using System.Collections.Generic;
-using EpicGames.Horde.Api;
-using Horde.Server.Streams;
+using EpicGames.Horde.Devices;
+using EpicGames.Horde.Projects;
+using EpicGames.Horde.Streams;
+using EpicGames.Horde.Users;
 using MongoDB.Bson;
 using MongoDB.Bson.Serialization.Attributes;
 

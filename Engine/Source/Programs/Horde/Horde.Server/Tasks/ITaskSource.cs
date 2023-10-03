@@ -15,7 +15,7 @@ using Google.Protobuf.WellKnownTypes;
 using Horde.Server.Agents;
 using HordeCommon;
 using Microsoft.Extensions.Logging;
-using EpicGames.Horde.Api;
+using EpicGames.Horde.Agents.Leases;
 
 namespace Horde.Server.Tasks
 {
