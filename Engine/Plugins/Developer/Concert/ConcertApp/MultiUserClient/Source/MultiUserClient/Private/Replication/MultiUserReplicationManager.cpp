@@ -3,16 +3,15 @@
 #include "MultiUserReplicationManager.h"
 
 #include "IConcertSyncClient.h"
-#include "ReplicationUtils.h"
+#include "Replication/IConcertClientReplicationManager.h"
 
+#include "Containers/Ticker.h"
 #include "UObject/Package.h"
 
 namespace UE::MultiUserClient
 {
 	FMultiUserReplicationManager::FMultiUserReplicationManager(TSharedRef<IConcertSyncClient> InClient)
 		: Client(MoveTemp(InClient))
-		, SessionContent(NewObject<UMultiUserReplicationSessionPreset>(GetTransientPackage(), NAME_None, RF_Transient))
-		, LocalClientContent(SessionContent->AddClient())
 	{
 		Client->GetConcertClient()->OnSessionConnectionChanged().AddRaw(
 			this,
@@ -25,10 +24,30 @@ namespace UE::MultiUserClient
 		Client->GetConcertClient()->OnSessionConnectionChanged().RemoveAll(this);
 	}
 
-	void FMultiUserReplicationManager::AddReferencedObjects(FReferenceCollector& Collector)
+	void FMultiUserReplicationManager::JoinReplicationSession()
 	{
-		Collector.AddReferencedObject(SessionContent);
-		Collector.AddReferencedObject(LocalClientContent);
+		IConcertClientReplicationManager* Manager = Client->GetReplicationManager();
+		if (!ensure(ConnectionState == EMultiUserReplicationConnectionState::Disconnected)
+			|| !ensure(Manager))
+		{
+			return;
+		}
+
+		ConnectionState = EMultiUserReplicationConnectionState::Connecting;
+		// For now we join without any initial data - this will likely change in the future (5.5+)
+		Manager->JoinReplicationSession({})
+			.Next([WeakThis = AsWeak()](ConcertSyncClient::Replication::FJoinReplicatedSessionResult&& JoinSessionResult)
+			{
+				// The future can execute on any thread
+				ExecuteOnGameThread(TEXT("JoinReplicationSession"), [WeakThis, JoinSessionResult = MoveTemp(JoinSessionResult)]()
+				{
+					// Shutting down engine?
+					if (const TSharedPtr<FMultiUserReplicationManager> ThisPin = WeakThis.Pin())
+					{
+						ThisPin->HandleReplicationSessionJoined(JoinSessionResult);
+					}
+				});
+			});
 	}
 
 	void FMultiUserReplicationManager::OnSessionConnectionChanged(
@@ -41,7 +60,7 @@ namespace UE::MultiUserClient
 		case EConcertConnectionStatus::Connecting:
 			break;
 		case EConcertConnectionStatus::Connected:
-			OnJoinSession(ConcertClientSession);
+			JoinReplicationSession();
 			break;
 		case EConcertConnectionStatus::Disconnecting:
 			break;
@@ -52,24 +71,36 @@ namespace UE::MultiUserClient
 		}
 	}
 
-	void FMultiUserReplicationManager::OnJoinSession(IConcertClientSession& ConcertClientSession)
-	{
-		Replication::JoinSessionForMultiUser(Client, {});
-	}
-
 	void FMultiUserReplicationManager::OnLeaveSession(IConcertClientSession& ConcertClientSession)
 	{
-		ClearSessionData();
-		
-		if (IConcertClientReplicationManager* ReplicationManager = Client->GetReplicationManager())
+		// Keep in mind that FClientStreamRepository::GetLocalClientEditModel is referenced by the UI ...
+		ConnectedState.Reset();
+		// ... and after this broadcast the model should no longer be referenced by anyone
+		SetConnectionStateAndBroadcast(EMultiUserReplicationConnectionState::Disconnected);
+	}
+
+	void FMultiUserReplicationManager::HandleReplicationSessionJoined(const ConcertSyncClient::Replication::FJoinReplicatedSessionResult& JoinSessionResult)
+	{
+		const bool bSuccess = JoinSessionResult.ErrorCode == EJoinReplicationErrorCode::Success;
+		if (bSuccess)
 		{
-			ReplicationManager->LeaveReplicationSession();
+			ConnectedState.Emplace(Client);
+			SetConnectionStateAndBroadcast(EMultiUserReplicationConnectionState::Connected);
+		}
+		else
+		{
+			SetConnectionStateAndBroadcast(EMultiUserReplicationConnectionState::Disconnected);
 		}
 	}
 
-	void FMultiUserReplicationManager::ClearSessionData()
+	void FMultiUserReplicationManager::SetConnectionStateAndBroadcast(EMultiUserReplicationConnectionState NewState)
 	{
-		SessionContent->ClearClients();
-		LocalClientContent = SessionContent->AddClient();
+		ConnectionState = NewState;
+		OnReplicationConnectionStateChangedDelegate.Broadcast(ConnectionState);
 	}
+
+	FMultiUserReplicationManager::FConnectedState::FConnectedState(TSharedRef<IConcertSyncClient> InClient)
+		: StreamSynchronizer(InClient)
+		, AuthorityPolicy(StreamSynchronizer.GetDiffer(), InClient)
+	{}
 }

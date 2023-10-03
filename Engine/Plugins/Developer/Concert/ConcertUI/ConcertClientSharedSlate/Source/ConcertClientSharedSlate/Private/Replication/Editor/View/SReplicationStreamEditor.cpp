@@ -17,9 +17,15 @@ namespace UE::ConcertClientSharedSlate
 
 			+SVerticalBox::Slot()
 			[
-				SNew(SPropertyReplicationSelectionEditor, Params.DataModel, Params.ObjectSource, Params.PropertySource)
+				SAssignNew(Editor, SPropertyReplicationSelectionEditor, Params.DataModel, Params.ObjectSource, Params.PropertySource)
 			]
 		];
+	}
+
+	void SReplicationStreamEditor::Refresh()
+	{
+		Editor->RefreshObjectData();
+		Editor->RefreshPropertyData();
 	}
 }
 

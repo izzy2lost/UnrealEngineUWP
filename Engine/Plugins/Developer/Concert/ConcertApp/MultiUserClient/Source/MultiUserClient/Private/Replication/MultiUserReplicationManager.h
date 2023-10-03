@@ -2,61 +2,119 @@
 
 #pragma once
 
-#include "Assets/MultiUserReplicationSessionPreset.h"
+#include "Replication/Authority/AuthorityPolicy.h"
+#include "Replication/Stream/ClientStreamRepository.h"
 #include "IConcertSession.h"
+
+#include "Misc/Optional.h"
 #include "Templates/SharedPointer.h"
-#include "UObject/GCObject.h"
+#include "Templates/UnrealTemplate.h"
 
 class IConcertClientSession;
 class IConcertSyncClient;
-
 enum class EConcertConnectionStatus : uint8;
+
+namespace UE::ConcertSyncClient::Replication
+{
+	struct FJoinReplicatedSessionResult;
+}
+namespace UE::ConcertClientSharedSlate
+{
+	class IEditableObjectToPropertiesModel;
+}
 
 namespace UE::MultiUserClient
 {
+	namespace Replication
+	{
+		struct FJoinSessionResult;
+	}
+
+	enum class EMultiUserReplicationConnectionState : uint8
+	{
+		Connecting,
+		Connected,
+		Disconnected
+	};
+	
 	/**
 	 * Interacts with the replication system on behalf of Multi-User to execute actions specific to Multi-User workflows;
 	 * this is opposed to other uses of the replication API, e.g. users using the system in a shipped game.
 	 *
-	 * This class will
-	 *  - be used as a model for the MU control views, such as displaying the streams in the current session (TODO DP UE-193541).
-	 *  - implement auto-join behavior in response to joining a concert session (TODO DP UE-193538)
-	 *
 	 * This class implements the Fence design pattern. All knowledge Multi-User might need should be encapsulated by this class.
 	 */
-	class FMultiUserReplicationManager : public FGCObject
+	class FMultiUserReplicationManager
+		: public TSharedFromThis<FMultiUserReplicationManager>
+		, public FNoncopyable
 	{
 	public:
 		
 		FMultiUserReplicationManager(TSharedRef<IConcertSyncClient> InClient);
-		virtual ~FMultiUserReplicationManager() override;
+		~FMultiUserReplicationManager();
 
-		UMultiUserReplicationSessionPreset* GetSessionContent() const { return SessionContent; }
-		UMultiUserReplicationClientPreset* GetLocalClientContent() const { return LocalClientContent; }
+		/**
+		 * Joins the replication session.
+		 *
+		 * Joining occurs automatically after successful connection to the Concert session. However the request can be
+		 * rejected by the server. In that case, the user can manually attempt to connect again, which is what this
+		 * is exposed publicly for.
+		 */
+		void JoinReplicationSession();
 
-		//~ Begin FGCObject Interface
-		virtual void AddReferencedObjects(FReferenceCollector& Collector) override;
-		virtual FString GetReferencerName() const override { return TEXT("FMultiUserReplicationManager"); }
-		//~ End FGCObject Interface
+		/** @note You're not supposed to keep any reference to StreamSynchronizer since it can become invalid depending on connection state. */
+		FClientStreamRepository* GetStreamSynchronizer() { return ConnectedState ? &ConnectedState->StreamSynchronizer : nullptr; }
+		const FClientStreamRepository* GetStreamSynchronizer() const { return ConnectedState ? &ConnectedState->StreamSynchronizer : nullptr; }
+
+		/** @note You're not supposed to keep any reference to AuthorityPolicy since it can become invalid depending on connection state. */
+		FAuthorityPolicy* GetAuthorityPolicy() { return ConnectedState ? & ConnectedState->AuthorityPolicy : nullptr; }
+		const FAuthorityPolicy* GetAuthorityPolicy() const { return ConnectedState ? & ConnectedState->AuthorityPolicy : nullptr; }
+
+		/** Called when the connection to the replication system changes. */
+		DECLARE_MULTICAST_DELEGATE_OneParam(FOnReplicationConnectionStateChanged, EMultiUserReplicationConnectionState /*NewState*/);
+		FOnReplicationConnectionStateChanged& OnReplicationConnectionStateChanged() { return OnReplicationConnectionStateChangedDelegate; }
+		EMultiUserReplicationConnectionState GetConnectionState() const { return ConnectionState; }
 
 	private:
 
 		/** Client through which the replication bridge is accessed. */
-		TSharedRef<IConcertSyncClient> Client;
+		const TSharedRef<IConcertSyncClient> Client;
+		
+		/** Reflects the current connection state to the replication system (note: this does not reflect the state to the concert session). */
+		EMultiUserReplicationConnectionState ConnectionState = EMultiUserReplicationConnectionState::Disconnected;
 
-		/** The state of the server is synched up with this object and displayed in the UI. */
-		TObjectPtr<UMultiUserReplicationSessionPreset> SessionContent;
-		/** Data for the local client. Also part of SessionContent->ClientPresets. */
-		TObjectPtr<UMultiUserReplicationClientPreset> LocalClientContent;
-		
+		struct FConnectedState
+		{
+			// The order of the below members matters so they are destroyed in the right order!
+			// Rule: Lower systems can only reference higher systems (reminder: C++ destroys in reverse declaration order).
+			
+			/**
+			 * Creates UMultiUserReplicationSessionPreset which is displayed by UI.
+			 * Keeps the preset in sync with the state on the server.
+			 *
+			 * Only valid when ConnectionState == EMultiUserReplicationConnectionState::Connected.
+			 */
+			FClientStreamRepository StreamSynchronizer;
+
+			/** Manages the client's authority like automatically taking ownership over newly submitted objects. */
+			FAuthorityPolicy AuthorityPolicy;
+			
+			FConnectedState(TSharedRef<IConcertSyncClient> InClient);
+		};
+		/** Set when connected to a replication session. */
+		TOptional<FConnectedState> ConnectedState;
+
+		/** Called when ConnectionState changes. */
+		FOnReplicationConnectionStateChanged OnReplicationConnectionStateChangedDelegate;
+
+		/** Callback into Concert for when client connection has changed. */
 		void OnSessionConnectionChanged(IConcertClientSession& ConcertClientSession, EConcertConnectionStatus ConcertConnectionStatus);
-		
-		/** Joins a replication session. */
-		void OnJoinSession(IConcertClientSession& ConcertClientSession);
 		/** Leaves the current replication session */
 		void OnLeaveSession(IConcertClientSession& ConcertClientSession);
+
+		/** Handles server response for joining replication session */
+		void HandleReplicationSessionJoined(const ConcertSyncClient::Replication::FJoinReplicatedSessionResult& JoinSessionResult);
 		
-		void ClearSessionData();
+		void SetConnectionStateAndBroadcast(EMultiUserReplicationConnectionState NewState);
 	};
 }
 

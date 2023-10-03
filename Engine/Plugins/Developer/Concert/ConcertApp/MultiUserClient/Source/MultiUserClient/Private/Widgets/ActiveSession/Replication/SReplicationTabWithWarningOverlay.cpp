@@ -2,7 +2,7 @@
 
 #include "SReplicationTabWithWarningOverlay.h"
 
-#include "SReplicationControlsTab.h"
+#include "SReplicationRootWidget.h"
 
 #include "Widgets/Input/SButton.h"
 #include "Widgets/Layout/SBox.h"
@@ -23,7 +23,7 @@ namespace UE::MultiUserClient
 			// The real content
 			+SOverlay::Slot()
 			[
-				SNew(SReplicationControlsTab, InReplicationManager)
+				SNew(SReplicationRootWidget, InReplicationManager)
 			]
 
 			//  

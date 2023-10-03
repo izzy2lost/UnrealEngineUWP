@@ -7,7 +7,7 @@
 
 namespace UE::ConcertClientSharedSlate
 {
-	TSharedRef<SWidget> CreateEditor(FCreateEditorParams Params)
+	TSharedRef<IReplicationEditorView> CreateEditor(FCreateEditorParams Params)
 	{
 		return SNew(SReplicationStreamEditor, MoveTemp(Params));
 	}

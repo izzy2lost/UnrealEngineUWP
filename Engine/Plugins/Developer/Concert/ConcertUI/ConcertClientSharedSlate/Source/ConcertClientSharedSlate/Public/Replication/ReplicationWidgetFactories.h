@@ -14,18 +14,28 @@ struct FObjectReplicationMap;
 namespace UE::ConcertClientSharedSlate
 {
 	class IEditableObjectToPropertiesModel;
+	class IReplicationEditorView;
 	class IObjectSelectionSourceModel;
 	class IPropertySelectionSourceModel;
 		
 	struct FCreateEditorParams
 	{
-		/** The model that the editor is displaying */
+		/**
+		 * The model that the editor is displaying.
+		 * @note The view will keep a strong reference to this.
+		 */
 		TSharedRef<IEditableObjectToPropertiesModel> DataModel;
 
-		/** Determines the objects that can be added to the object list. */
+		/**
+		 * Determines the objects that can be added to the object list. 
+		 * @note The view will keep a strong reference to this.
+		 */
 		TSharedRef<IObjectSelectionSourceModel> ObjectSource;
 
-		/** Determines the properties that can be added to the property list. */
+		/**
+		 * Determines the properties that can be added to the property list.
+		 * @note The view will keep a strong reference to this.
+		 */
 		TSharedRef<IPropertySelectionSourceModel> PropertySource;
 
 		// TODO DP: Add way to add more columns
@@ -39,7 +49,7 @@ namespace UE::ConcertClientSharedSlate
 	 * 2. Subobjects, similar to component view (SSubobjectEditor): Shows subobjects of a root objects selected above; typically components.
 	 * 3. Properties, similar to details panel: Shows properties of the selected root object and / or subobjects.
 	 */
-	CONCERTCLIENTSHAREDSLATE_API TSharedRef<SWidget> CreateEditor(FCreateEditorParams Params);
+	CONCERTCLIENTSHAREDSLATE_API TSharedRef<IReplicationEditorView> CreateEditor(FCreateEditorParams Params);
 
 	/**
 	 * Creates a model that can be passed to CreateEditor.
