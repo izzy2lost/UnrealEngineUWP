@@ -667,7 +667,7 @@ public:
 	//~ End UObject Interface.
 
 	// Called when the particle system is done
-	UPROPERTY(BlueprintAssignable)
+	UPROPERTY(BlueprintAssignable, DuplicateTransient)
 	FOnNiagaraSystemFinished OnSystemFinished;
 
 	/** Removes all local overrides and replaces them with the values from the source System - note: this also removes the editor overrides from the component as it is used by the pooling mechanism to prevent values leaking between different instances. */
