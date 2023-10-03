@@ -3,6 +3,7 @@
 #pragma once
 
 #include "IRemoteControlUIModule.h"
+#include "Misc/TextFilter.h"
 #include "RemoteControlPreset.h"
 #include "SRCPanelTreeNode.h"
 #include "Widgets/DeclarativeSyntaxSupport.h"
@@ -21,10 +22,12 @@ struct FRemoteControlPresetGroup;
 struct FRemoteControlFunction;
 class ITableRow;
 class SRCHeaderRow;
+class SRCPanelFilter;
 class SRCPanelGroup;
 struct SRCPanelTreeNode;
 class SRemoteControlTarget;
 struct SRCPanelExposedField;
+class SSearchBox;
 class STableViewBase;
 class URemoteControlPreset;
 struct FRCPanelStyle;
@@ -104,7 +107,13 @@ public:
 
 	/** Returns delegate triggered upon a modification to an exposed entity. */
 	FSimpleDelegate OnEntityListUpdated() { return OnEntityListUpdatedDelegate; }
-	
+
+	/** Return the FilterPtr of this RCPanelEntitiesList*/
+	TSharedPtr<SRCPanelFilter> GetFilterPtr() const { return FilterPtr; }
+
+	/** Update the Search */
+	void UpdateSearch();
+
 private:
 	/** Handles label to be shown in the entity list header.  */
 	FText HandleEntityListHeaderLabel() const;
@@ -124,6 +133,8 @@ private:
 	void OnSelectionChanged(TSharedPtr<SRCPanelTreeNode> Node, ESelectInfo::Type SelectInfo);
 	/** Handlers for drag/drop events. */
 	FReply OnDropOnGroup(const TSharedPtr<FDragDropOperation>& DragDropOperation, const TSharedPtr<SRCPanelTreeNode>& TargetEntity, const TSharedPtr<SRCPanelTreeNode>& DragTargetGroup);
+	/** Handler for when a filter in the filter list has changed */
+	void OnFilterChanged();
 	/** Get the id of the group that holds a particular widget. */
 	FGuid GetGroupId(const FGuid& EntityId);
 	/** Handles creating a new group. */
@@ -140,6 +151,11 @@ private:
 	float OnGetLeftColumnWidth() const { return 1.0f - ColumnWidth; }
 	float OnGetRightColumnWidth() const { return ColumnWidth; }
 	void OnSetColumnWidth(float InWidth) { ColumnWidth = InWidth; }
+
+	// Exposed Entities filtering. (Filters the Exposed Entities view)
+	void OnSearchTextChanged(const FText& InFilterText);
+	void OnSearchTextCommitted(const FText& InFilterText, ETextCommit::Type InCommitType);
+	void PopulateSearchStrings(const SRCPanelTreeNode& Item, TArray<FString>& OutSearchStrings) const;
 
 	/** Find a group using its id. */
 	TSharedPtr<SRCPanelGroup> FindGroupById(const FGuid& Id);
@@ -224,12 +240,18 @@ private:
 	bool bFilterApplicationRequested;
 	/** If true, the entity items will be refreshed next frame. */
 	bool bSearchRequested;
-	/** Holds the text that is being searched actively. */
-	TSharedPtr<FText> SearchedText;
 	/** Panel Style reference. */
 	const FRCPanelStyle* RCPanelStyle;
 	/** Holds the header row of entities list. */
 	TSharedPtr<SRCHeaderRow> FieldsHeaderRow;
+	/** The filter list */
+	TSharedPtr<SRCPanelFilter> FilterPtr;
+	/** The text box used to search for tags. */
+	TSharedPtr<SSearchBox> SearchBoxPtr;
+	/** Text filter for the search text. */
+    TSharedPtr<TTextFilter<const SRCPanelTreeNode&>> SearchTextFilter;
+    /** Actively searched term. */
+    TSharedPtr<FText> SearchedText;
 	/** Holds the active list mode. */
 	EEntitiesListMode ActiveListMode;
 	/** Holds the active protocol enabled by the mode switcher. */

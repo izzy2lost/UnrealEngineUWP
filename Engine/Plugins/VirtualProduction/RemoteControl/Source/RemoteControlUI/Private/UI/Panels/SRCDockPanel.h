@@ -16,7 +16,10 @@ enum EToolbar
 	Left,
 
 	/** Right toolbar. */
-	Right
+	Right,
+
+	/** Center toolbar. */
+	Center
 };
 
 /**
@@ -123,6 +126,9 @@ private:
 	/** Actual toolbar widget located right to the footer. */
 	TSharedPtr<SHorizontalBox> RightToolbar;
 
+	/** Actual toolbar widget located Center to the footer. */
+	TSharedPtr<SHorizontalBox> CenterToolbar;
+
 	/** Holds the entire child panels. */
 	TSharedPtr<SSplitter> Children;
 
@@ -197,4 +203,7 @@ private:
 
 	/** Actual toolbar widget located right to the header. */
 	TSharedPtr<SHorizontalBox> RightHeaderToolbar;
+
+	/** Actual toolbar widget located Center to the header. */
+    TSharedPtr<SHorizontalBox> CenterHeaderToolbar;
 };

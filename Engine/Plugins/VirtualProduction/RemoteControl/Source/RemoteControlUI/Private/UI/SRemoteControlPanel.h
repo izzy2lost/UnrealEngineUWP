@@ -332,16 +332,8 @@ private:
 	/** Called to test if user is able to Duplicate a logic UI item. */
 	bool CanDuplicateItem() const;
 
-	// Exposed Entities filtering. (Filters the Exposed Entities view)
-	void OnSearchTextChanged(const FText& InFilterText);
-	void OnSearchTextCommitted(const FText& InFilterText, ETextCommit::Type InCommitType);
-	void PopulateSearchStrings(const SRCPanelTreeNode& Item, TArray<FString>& OutSearchStrings) const;
-
-	/** Handler for when a filter in the filter list has changed */
-	void OnFilterChanged();
-
 	/** Loads settings from config based on the preset identifier. */
-	void LoadSettings(const FGuid& InInstanceId);
+	void LoadSettings(const FGuid& InInstanceId) const;
 
 	/** Saves settings from config based on the preset identifier. */
 	void SaveSettings();
@@ -406,16 +398,8 @@ private:
 	TSharedPtr<SBorder> AuxiliaryToolbarWidgetContent;
 	/** Additional widgets to be added to the toolbar */
 	TArray<TSharedRef<SWidget>> ToolbarWidgets;
-	/** The text box used to search for tags. */
-	TSharedPtr<SSearchBox> SearchBoxPtr;
 	/** Holds a shared pointer reference to the active entity that is selected. */
 	TSharedPtr<SRCPanelTreeNode> SelectedEntity;
-	/** Text filter for the search text. */
-	TSharedPtr<TTextFilter<const SRCPanelTreeNode&>> SearchTextFilter;
-	/** The filter list */
-	TSharedPtr<SRCPanelFilter> FilterPtr;
-	/** Actively serached term. */
-	TSharedPtr<FText> SearchedText;
 	/** Panel Drawer widget holds all docked panels. */
 	TSharedPtr<SRCPanelDrawer> PanelDrawer;
 	/** Map of Opened Drawers. */

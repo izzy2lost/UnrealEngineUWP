@@ -262,7 +262,7 @@ void SRCMinorPanel::Construct(const SRCMinorPanel::FArguments& InArgs)
 
 				// Header Label.
 				+SHorizontalBox::Slot()
-				.FillWidth(1.f)
+				.AutoWidth()
 				.VAlign(VAlign_Center)
 				.Padding(2.f, 4.f)
 				[
@@ -270,7 +270,16 @@ void SRCMinorPanel::Construct(const SRCMinorPanel::FArguments& InArgs)
 					.TextStyle(&RCPanelStyle->HeaderTextStyle)
 					.Text(InArgs._HeaderLabel)
 				]
-				
+
+				// Center Toolbar
+				+SHorizontalBox::Slot()
+				.FillWidth(1.0f)
+				.VAlign(VAlign_Center)
+				.Padding(2.f, 4.f, 5.f, 4.f)
+				[
+					SAssignNew(CenterHeaderToolbar, SHorizontalBox)
+				]
+
 				// Right Toolbar
 				+SHorizontalBox::Slot()
 				.AutoWidth()
@@ -396,6 +405,18 @@ void SRCMinorPanel::AddHeaderToolbarItem(EToolbar InToolbar, TSharedRef<SWidget>
 				RightHeaderToolbar->AddSlot()
 					.Padding(5.f, 0.f)
 					.AutoWidth()
+					.VAlign(VAlign_Center)
+					[
+						InWidget
+					];
+			}
+			break;
+		case Center:
+			if (CenterHeaderToolbar.IsValid() && bIsHeaderEnabled.Get())
+			{
+				CenterHeaderToolbar->AddSlot()
+					.FillWidth(1.0f)
+					.Padding(5.f, 0.f)
 					.VAlign(VAlign_Center)
 					[
 						InWidget

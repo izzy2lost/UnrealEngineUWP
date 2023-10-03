@@ -8,6 +8,7 @@
 #include "Editor/EditorEngine.h"
 #include "EditorFontGlyphs.h"
 #include "Engine/Selection.h"
+#include "Filters/SRCPanelFilter.h"
 #include "GameFramework/Actor.h"
 #include "ISettingsModule.h"
 #include "Input/DragAndDrop.h"
@@ -28,10 +29,12 @@
 #include "SRCModeSwitcher.h"
 #include "SRCPanelFieldGroup.h"
 #include "SRCPanelExposedField.h"
+#include "SSearchToggleButton.h"
 #include "Styling/RemoteControlStyles.h"
 #include "UI/Panels/SRCDockPanel.h"
 #include "UObject/Object.h"
 #include "Widgets/Input/SButton.h"
+#include "Widgets/Input/SSearchBox.h"
 #include "Widgets/Layout/SSpacer.h"
 #include "Widgets/Layout/SSeparator.h"
 #include "Widgets/Layout/SWidgetSwitcher.h"
@@ -187,7 +190,10 @@ void SRCPanelExposedEntitiesList::Construct(const FArguments& InArgs, URemoteCon
 
 	bFilterApplicationRequested = false;
 	bSearchRequested = false;
-	SearchedText = MakeShared<FText>();
+	
+	// Setup search filter.
+	SearchTextFilter = MakeShared<TTextFilter<const SRCPanelTreeNode&>>(TTextFilter<const SRCPanelTreeNode&>::FItemToStringArray::CreateSP(this, &SRCPanelExposedEntitiesList::PopulateSearchStrings));
+	SearchedText = MakeShared<FText>(FText::GetEmpty());
 
 	RCPanelStyle = &FRemoteControlPanelStyle::Get()->GetWidgetStyle<FRCPanelStyle>("RemoteControlPanel.MinorPanel");
 	ActiveListMode = EEntitiesListMode::Default;
@@ -385,7 +391,28 @@ void SRCPanelExposedEntitiesList::Construct(const FArguments& InArgs, URemoteCon
 		}
 	}
 
+	// Create the Filter Widget
+	FilterPtr = SNew(SRCPanelFilter)
+		.OnFilterChanged(this, &SRCPanelExposedEntitiesList::OnFilterChanged)
+		.AddMetaData<FTagMetaData>(FTagMetaData(TEXT("RemoteControlFilters")));
+
+	// Create the Filter Combo Button
+	const TSharedPtr<SWidget> FilterComboButton = SRCPanelFilter::MakeAddFilterButton(FilterPtr.ToSharedRef());
+
+	const TSharedPtr<ISlateMetaData> FilterComboButtonMetaData = MakeShared<FTagMetaData>(TEXT("ContentBrowserFiltersCombo"));
+	FilterComboButton->AddMetadata(FilterComboButtonMetaData.ToSharedRef());
+
+	//Create the SearchBox for the EntitiesList
+	SAssignNew(SearchBoxPtr, SSearchBox)
+		.HintText(LOCTEXT("SearchHint", "Search"))
+		.OnTextChanged(this, &SRCPanelExposedEntitiesList::OnSearchTextChanged)
+		.OnTextCommitted(this, &SRCPanelExposedEntitiesList::OnSearchTextCommitted)
+		.DelayChangeNotificationsWhileTyping(true);
+
 	// Expose Button
+	ExposeDockPanel->AddHeaderToolbarItem(EToolbar::Center, SearchBoxPtr.ToSharedRef());
+	ExposeDockPanel->AddHeaderToolbarItem(EToolbar::Right, SNew(SSearchToggleButton, SearchBoxPtr.ToSharedRef()));
+	ExposeDockPanel->AddHeaderToolbarItem(EToolbar::Right, FilterComboButton.ToSharedRef());
 	ExposeDockPanel->AddHeaderToolbarItem(EToolbar::Right, ModeSwitcher.ToSharedRef());
 	ExposeDockPanel->AddHeaderToolbarItem(EToolbar::Left, InArgs._ExposeActorsComboButton.Get().ToSharedRef());
 	ExposeDockPanel->AddHeaderToolbarItem(EToolbar::Left, InArgs._ExposeFunctionsComboButton.Get().ToSharedRef());
@@ -569,6 +596,14 @@ void SRCPanelExposedEntitiesList::RebuildListWithColumns(EEntitiesListMode InLis
 				InsertColumn(ColumnToBeAdded);
 			}
 		}
+	}
+}
+
+void SRCPanelExposedEntitiesList::UpdateSearch()
+{
+	if (SearchedText.IsValid() && !SearchedText->IsEmptyOrWhitespace() && SearchedText->ToString().Len() > 3)
+	{
+		OnSearchTextChanged(*SearchedText);
 	}
 }
 
@@ -1074,6 +1109,60 @@ void SRCPanelExposedEntitiesList::UnregisterEvents()
 	FCoreUObjectDelegates::OnObjectPropertyChanged.Remove(OnPropertyChangedHandle);
 
 	IRemoteControlProtocolWidgetsModule::Get().OnProtocolBindingAddedOrRemoved().Remove(OnProtocolBindingAddedOrRemovedHandle);
+}
+
+void SRCPanelExposedEntitiesList::OnFilterChanged()
+{
+	check(FilterPtr.IsValid());
+
+	const FRCFilter Filter = FilterPtr->GetCombinedBackendFilter();
+
+	SetBackendFilter(Filter);
+}
+
+void SRCPanelExposedEntitiesList::OnSearchTextChanged(const FText& InFilterText)
+{
+	SearchTextFilter->SetRawFilterText(InFilterText);
+	SearchBoxPtr->SetError(SearchTextFilter->GetFilterErrorText());
+	*SearchedText = InFilterText;
+
+	const int32 Length = InFilterText.ToString().Len();
+
+	if (Length > 3)
+	{
+		TryRefreshingSearch(InFilterText);
+	}
+	else if (Length == 3 || Length == 0) // Avoid unnecessary refresh if search text is below the threshold.
+		{
+			ResetSearch();
+
+			Refresh();
+		}
+}
+
+void SRCPanelExposedEntitiesList::OnSearchTextCommitted(const FText& InFilterText, ETextCommit::Type InCommitType)
+{
+	if (InCommitType == ETextCommit::OnCleared || InFilterText.IsEmpty())
+	{
+		ResetSearch();
+
+		Refresh();
+
+		return;
+	}
+
+	OnSearchTextChanged(InFilterText);
+}
+
+void SRCPanelExposedEntitiesList::PopulateSearchStrings(const SRCPanelTreeNode& Item, TArray<FString>& OutSearchStrings) const
+{
+	if (Preset.IsValid())
+	{
+		if (const TSharedPtr<FRemoteControlEntity> Entity = Preset->GetExposedEntity<FRemoteControlEntity>(Item.GetRCId()).Pin())
+		{
+			OutSearchStrings.Add(Entity->GetLabel().ToString());
+		}
+	}
 }
 
 TSharedPtr<SRCPanelGroup> SRCPanelExposedEntitiesList::FindGroupById(const FGuid& Id)
