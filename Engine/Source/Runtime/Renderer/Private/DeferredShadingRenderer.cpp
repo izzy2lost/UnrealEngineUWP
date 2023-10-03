@@ -3131,6 +3131,7 @@ void FDeferredShadingSceneRenderer::Render(FRDGBuilder& GraphBuilder)
 	const bool bUseGBuffer = IsUsingGBuffers(ShaderPlatform);
 	const bool bShouldRenderVolumetricFog = ShouldRenderVolumetricFog();
 	const bool bShouldRenderLocalFogVolume = ShouldRenderLocalFogVolume(Scene, ViewFamily);
+	const bool bShouldRenderLocalFogVolumeDuringHeightFogPass = ShouldRenderLocalFogVolumeDuringHeightFogPass(Scene, ViewFamily);
 	const bool bShouldRenderLocalFogVolumeInVolumetricFog = ShouldRenderLocalFogVolumeInVolumetricFog(Scene, ViewFamily, bShouldRenderLocalFogVolume);
 
 	const bool bRenderDeferredLighting = ViewFamily.EngineShowFlags.Lighting
@@ -4122,7 +4123,7 @@ void FDeferredShadingSceneRenderer::Render(FRDGBuilder& GraphBuilder)
 			RDG_CSV_STAT_EXCLUSIVE_SCOPE(GraphBuilder, RenderFog);
 			SCOPED_NAMED_EVENT(RenderFog, FColor::Emerald);
 			SCOPE_CYCLE_COUNTER(STAT_FDeferredShadingSceneRenderer_RenderFog);
-			const bool bFogComposeLocalFogVolumes = bShouldRenderLocalFogVolumeInVolumetricFog && bShouldRenderVolumetricFog;
+			const bool bFogComposeLocalFogVolumes = bShouldRenderLocalFogVolumeInVolumetricFog && bShouldRenderVolumetricFog || bShouldRenderLocalFogVolumeDuringHeightFogPass;
 			RenderFog(GraphBuilder, SceneTextures, LightShaftOcclusionTexture, bFogComposeLocalFogVolumes);
 			bHeightFogHasComposedLocalFogVolume = bFogComposeLocalFogVolumes;
 		}

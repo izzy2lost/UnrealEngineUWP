@@ -288,7 +288,8 @@ static void RenderViewFog(
 	FIntRect ViewRect, 
 	FFogPassParameters* PassParameters, 
 	bool bShouldRenderVolumetricFog,
-	bool bFogComposeLocalFogVolumes)
+	bool bFogComposeLocalFogVolumes,
+	bool bSkipDepthBound = false)
 {
 	FGraphicsPipelineStateInitializer GraphicsPSOInit;
 	RHICmdList.ApplyCachedRenderTargets(GraphicsPSOInit);
@@ -315,7 +316,7 @@ static void RenderViewFog(
 	GraphicsPSOInit.BoundShaderState.PixelShaderRHI = PixelShader.GetPixelShader();
 
 	// Setup the depth bound optimization if possible on that platform.
-	GraphicsPSOInit.bDepthBounds = GSupportsDepthBoundsTest && CVarFogUseDepthBounds.GetValueOnAnyThread();
+	GraphicsPSOInit.bDepthBounds = GSupportsDepthBoundsTest && CVarFogUseDepthBounds.GetValueOnAnyThread() && !bSkipDepthBound;
 	if (GraphicsPSOInit.bDepthBounds)
 	{
 		float ExpFogStartDistance = View.ExponentialFogParameters.W;
@@ -380,6 +381,9 @@ void FDeferredShadingSceneRenderer::RenderFog(
 
 		const bool bShouldRenderVolumetricFog = ShouldRenderVolumetricFog();
 
+		// Without volumetric fog, LFVs would not be rendered correctly according to depth and height fog start distance. Since LFVs do not have any start distance as of today.
+		const bool bSkipDepthBound = !bShouldRenderVolumetricFog && bFogComposeLocalFogVolumes && ShouldRenderLocalFogVolumeDuringHeightFogPass(Scene, ViewFamily);
+
 		for(int32 ViewIndex = 0;ViewIndex < Views.Num();ViewIndex++)
 		{
 			const FViewInfo& View = Views[ViewIndex];
@@ -399,9 +403,9 @@ void FDeferredShadingSceneRenderer::RenderFog(
 				PassParameters->RenderTargets.DepthStencil = FDepthStencilBinding(SceneTextures.Depth.Target, ERenderTargetLoadAction::ELoad, ERenderTargetLoadAction::ELoad, FExclusiveDepthStencil::DepthRead_StencilWrite);
 
 				GraphBuilder.AddPass(RDG_EVENT_NAME("Fog"), PassParameters, ERDGPassFlags::Raster, 
-					[this, &View, PassParameters, bShouldRenderVolumetricFog, bFogComposeLocalFogVolumes](FRHICommandList& RHICmdList)
+					[this, &View, PassParameters, bShouldRenderVolumetricFog, bFogComposeLocalFogVolumes, bSkipDepthBound](FRHICommandList& RHICmdList)
 				{
-					RenderViewFog(RHICmdList, View, View.ViewRect, PassParameters, bShouldRenderVolumetricFog, bFogComposeLocalFogVolumes);
+					RenderViewFog(RHICmdList, View, View.ViewRect, PassParameters, bShouldRenderVolumetricFog, bFogComposeLocalFogVolumes, bSkipDepthBound);
 				});
 			}
 		}

@@ -21,6 +21,11 @@ static TAutoConsoleVariable<int32> CVarSupportLocalFogVolumes(
 	TEXT("Enables local fog volume rendering and shader code."),
 	ECVF_ReadOnly | ECVF_RenderThreadSafe);
 
+static TAutoConsoleVariable<int32> CVarLocalFogVolumeRenderDuringHeightFogPass(
+	TEXT("r.LocalFogVolume.RenderDuringHeightFogPass"), 0,
+	TEXT("LocalFogVolume are going to be rendered during the height fog pass, skipping the tiled rendering pass specific to them. Only work on the non mobile path as an experiment.\n"),
+	ECVF_RenderThreadSafe);
+
 static TAutoConsoleVariable<int32> CVarLocalFogVolumeRenderIntoVolumetricFog(
 	TEXT("r.LocalFogVolume.RenderIntoVolumetricFog"), 1,
 	TEXT("LocalFogVolume are going to be voxelised into the volumetric fog when this is not 0, otherwise it will remain isolated.\n"),
@@ -87,6 +92,15 @@ bool ShouldRenderLocalFogVolume(const FScene* Scene, const FSceneViewFamily& Sce
 	if (Scene && Scene->HasAnyLocalFogVolume() && EngineShowFlags.Fog && !SceneViewFamily.UseDebugViewPS())
 	{
 		return (CVarSupportLocalFogVolumes.GetValueOnRenderThread() > 0) && (CVarLocalFogVolume.GetValueOnRenderThread() > 0);
+	}
+	return false;
+}
+
+bool ShouldRenderLocalFogVolumeDuringHeightFogPass(const FScene* Scene, const FSceneViewFamily& SceneViewFamily)
+{
+	if (ShouldRenderLocalFogVolume(Scene, SceneViewFamily))
+	{
+		return CVarLocalFogVolumeRenderDuringHeightFogPass.GetValueOnRenderThread() > 0;
 	}
 	return false;
 }
