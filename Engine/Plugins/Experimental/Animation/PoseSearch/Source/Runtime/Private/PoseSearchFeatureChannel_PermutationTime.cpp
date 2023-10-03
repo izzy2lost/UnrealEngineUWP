@@ -10,7 +10,9 @@ void UPoseSearchFeatureChannel_PermutationTime::FindOrAddToSchema(UPoseSearchSch
 	if (Schema->FindFirstChannelOfType<UPoseSearchFeatureChannel_PermutationTime>() == nullptr)
 	{
 		UPoseSearchFeatureChannel_PermutationTime* PermutationTime = NewObject<UPoseSearchFeatureChannel_PermutationTime>(Schema, NAME_None, RF_Transient);
+#if WITH_EDITORONLY_DATA
 		PermutationTime->Weight = 0.f;
+#endif // WITH_EDITORONLY_DATA
 		Schema->AddTemporaryChannel(PermutationTime);
 	}
 }

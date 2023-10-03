@@ -85,7 +85,13 @@ void UPoseSearchFeatureChannel_Velocity::DebugDraw(const UE::PoseSearch::FDebugD
 {
 	using namespace UE::PoseSearch;
 
-	const FColor Color = DebugColor.ToFColor(true);
+	FColor Color;
+#if WITH_EDITORONLY_DATA
+	Color = DebugColor.ToFColor(true);
+#else // WITH_EDITORONLY_DATA
+	Color = FLinearColor::Green.ToFColor(true);
+#endif // WITH_EDITORONLY_DATA
+
 	const float LinearVelocityScale = bNormalize ? 15.f : 0.08f;
 
 	const FVector LinearVelocity = DrawParams.GetRootTransform().TransformVector(FFeatureVectorHelper::DecodeVector(PoseVector, ChannelDataOffset, ComponentStripping));

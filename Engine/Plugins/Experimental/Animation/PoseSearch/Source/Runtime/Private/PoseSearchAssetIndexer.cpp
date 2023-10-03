@@ -290,7 +290,7 @@ FAssetIndexer::FSampleInfo FAssetIndexer::GetSampleInfo(float SampleTime) const
 
 FTransform FAssetIndexer::MirrorTransform(const FTransform& Transform) const
 {
-	return SearchIndexAsset.bMirrored ? SamplingContext.MirrorTransform(Transform) : Transform;
+	return SearchIndexAsset.IsMirrored() ? SamplingContext.MirrorTransform(Transform) : Transform;
 }
 
 FAssetIndexer::CachedEntry& FAssetIndexer::GetEntry(float SampleTime)
@@ -364,7 +364,7 @@ FAssetIndexer::CachedEntry& FAssetIndexer::GetEntry(float SampleTime)
 
 		Pose[FCompactPoseBoneIndex(RootBoneIndexType)].SetIdentity();
 
-		if (SearchIndexAsset.bMirrored && Schema.MirrorDataTable)
+		if (SearchIndexAsset.IsMirrored() && Schema.MirrorDataTable)
 		{
 			FAnimationRuntime::MirrorPose(
 				Pose,
@@ -754,12 +754,14 @@ const UPoseSearchSchema* FAssetIndexer::GetSchema() const
 	return &Schema;
 }
 
+#if WITH_EDITOR
 float FAssetIndexer::CalculatePermutationTimeOffset() const
 {
 	check(Schema.PermutationsSampleRate > 0 && SearchIndexAsset.IsInitialized());
-	const float PermutationTimeOffset = Schema.PermutationsTimeOffset + SearchIndexAsset.PermutationIdx / float(Schema.PermutationsSampleRate);
+	const float PermutationTimeOffset = Schema.PermutationsTimeOffset + SearchIndexAsset.GetPermutationIdx() / float(Schema.PermutationsSampleRate);
 	return PermutationTimeOffset;
 }
+#endif // WITH_EDITOR
 
 #if ENABLE_ANIM_DEBUG
 void FAssetIndexer::CompareCachedEntries(const FAssetIndexer& Other) const

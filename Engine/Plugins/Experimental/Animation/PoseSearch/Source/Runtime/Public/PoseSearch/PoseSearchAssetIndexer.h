@@ -78,10 +78,12 @@ public:
 	
 	TArrayView<float> GetPoseVector(int32 SampleIdx) const;
 	const UPoseSearchSchema* GetSchema() const;
-	float CalculatePermutationTimeOffset() const;
 	float CalculateSampleTime(int32 SampleIdx) const;
-
 	bool IsProcessFailed() const { return bProcessFailed; }
+
+#if WITH_EDITOR
+	float CalculatePermutationTimeOffset() const;
+#endif //WITH_EDITOR
 
 #if ENABLE_ANIM_DEBUG
 	void CompareCachedEntries(const FAssetIndexer& Other) const;

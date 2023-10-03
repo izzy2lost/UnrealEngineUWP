@@ -332,8 +332,12 @@ void UPoseSearchFeatureChannel_Phase::DebugDraw(const UE::PoseSearch::FDebugDraw
 
 	static float ScaleFactor = 1.f;
 
-
-	const FColor Color = DebugColor.ToFColor(true);
+	FColor Color;
+#if WITH_EDITORONLY_DATA
+	Color = DebugColor.ToFColor(true);
+#else // WITH_EDITORONLY_DATA
+	Color = FLinearColor::Yellow.ToFColor(true);
+#endif // WITH_EDITORONLY_DATA
 
 	const FVector2D Phase = FFeatureVectorHelper::DecodeVector2D(PoseVector, ChannelDataOffset);
 	const FVector BonePos = DrawParams.ExtractPosition(PoseVector, 0.f, SchemaBoneIdx);

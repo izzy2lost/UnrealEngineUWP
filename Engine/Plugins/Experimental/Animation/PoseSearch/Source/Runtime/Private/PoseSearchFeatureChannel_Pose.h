@@ -29,11 +29,13 @@ struct POSESEARCH_API FPoseSearchBone
 	UPROPERTY(EditAnywhere, meta = (Bitmask, BitmaskEnum = "/Script/PoseSearch.EPoseSearchBoneFlags"), Category = Config)
 	int32 Flags = int32(EPoseSearchBoneFlags::Position);
 
+#if WITH_EDITORONLY_DATA
 	UPROPERTY(EditAnywhere, Category = Config)
 	float Weight = 1.f;
 
 	UPROPERTY(EditAnywhere, Category = Config, meta=(ExcludeFromHash, DisplayPriority = 0))
 	FLinearColor DebugColor = FLinearColor::Green;
+#endif // WITH_EDITORONLY_DATA
 };
 
 // UPoseSearchFeatureChannel_Pose
@@ -43,8 +45,10 @@ class POSESEARCH_API UPoseSearchFeatureChannel_Pose : public UPoseSearchFeatureC
 	GENERATED_BODY()
 
 public:
+#if WITH_EDITORONLY_DATA
 	UPROPERTY(EditAnywhere, Category = "Settings")
 	float Weight = 1.f;
+#endif // WITH_EDITORONLY_DATA
 
 	// List of skeletal joints and associated Flags (Velocity, Position, etc) to sample.
 	UPROPERTY(EditAnywhere, Category = "Settings")

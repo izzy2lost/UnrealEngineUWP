@@ -29,9 +29,10 @@ public:
 	UPROPERTY(EditAnywhere, Category = "Settings")
 	FBoneReference OriginBone;
 
+#if WITH_EDITORONLY_DATA
 	UPROPERTY(EditAnywhere, Category = "Settings")
 	float Weight = 1.f;
-
+#endif // WITH_EDITORONLY_DATA
 
 	// if SamplingAttributeId >= 0, ALL the animations contained in the pose search database referencing the schema containing this channel are expected to have 
 	// UAnimNotifyState_PoseSearchSamplingAttribute notify state with a matching SamplingAttributeId, and the UAnimNotifyState_PoseSearchSamplingAttribute properties
@@ -60,8 +61,10 @@ public:
 	UPROPERTY(Transient)
 	int8 SchemaOriginBoneIdx = 0;
 
+#if WITH_EDITORONLY_DATA
 	UPROPERTY(EditAnywhere, Category = "Settings", meta = (ExcludeFromHash, DisplayPriority = 0))
 	FLinearColor DebugColor = FLinearColor::White;
+#endif // WITH_EDITORONLY_DATA
 
 	UPROPERTY(EditAnywhere, Category = "Settings")
 	EInputQueryPose InputQueryPose = EInputQueryPose::UseContinuingPose;

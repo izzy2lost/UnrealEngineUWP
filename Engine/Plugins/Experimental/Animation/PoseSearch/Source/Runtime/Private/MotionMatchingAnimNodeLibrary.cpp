@@ -26,9 +26,9 @@ void UMotionMatchingAnimNodeLibrary::GetMotionMatchingSearchResult(const FMotion
 				{
 					Result.SelectedAnimation = DatabaseAsset->GetAnimationAsset();
 					Result.SelectedTime = MotionMatchingState.CurrentSearchResult.AssetTime;
-					Result.bLoop = DatabaseAsset->IsLooping();
-					Result.bIsMirrored = SearchIndexAsset->bMirrored;
-					Result.BlendParameters = SearchIndexAsset->BlendParameters;
+					Result.bLoop = SearchIndexAsset->IsLooping();
+					Result.bIsMirrored = SearchIndexAsset->IsMirrored();
+					Result.BlendParameters = SearchIndexAsset->GetBlendParameters();
 					Result.SelectedDatabase = CurrentResultDatabase;
 					Result.WantedPlayRate = MotionMatchingState.WantedPlayRate;
 					bIsResultValid = true;

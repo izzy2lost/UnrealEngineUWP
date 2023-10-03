@@ -29,10 +29,12 @@ void UPoseSearchFeatureChannel_Position::FindOrAddToSchema(UPoseSearchSchema* Sc
 	{
 		UPoseSearchFeatureChannel_Position* Position = NewObject<UPoseSearchFeatureChannel_Position>(Schema, NAME_None, RF_Transient);
 		Position->Bone.BoneName = BoneName;
+#if WITH_EDITORONLY_DATA
 		Position->Weight = 0.f;
-		Position->SampleTimeOffset = SampleTimeOffset;
 		// @todo: perhaps add a tunable color for injected channels
 		Position->DebugColor = FLinearColor::Gray;
+#endif // WITH_EDITORONLY_DATA
+		Position->SampleTimeOffset = SampleTimeOffset;
 		Position->PermutationTimeType = PermutationTimeType;
 		Schema->AddTemporaryChannel(Position);
 	}
@@ -104,7 +106,12 @@ void UPoseSearchFeatureChannel_Position::DebugDraw(const UE::PoseSearch::FDebugD
 {
 	using namespace UE::PoseSearch;
 
-	const FColor Color = DebugColor.ToFColor(true);
+	FColor Color;
+#if WITH_EDITORONLY_DATA
+	Color = DebugColor.ToFColor(true);
+#else // WITH_EDITORONLY_DATA
+	Color = FLinearColor::Blue.ToFColor(true);
+#endif // WITH_EDITORONLY_DATA
 
 	const FVector FeaturesVector = FFeatureVectorHelper::DecodeVector(PoseVector, ChannelDataOffset, ComponentStripping);
 	if (SchemaOriginBoneIdx == RootSchemaBoneIdx)

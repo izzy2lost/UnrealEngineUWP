@@ -87,31 +87,59 @@ struct FSearchIndexAsset
 
 	FSearchIndexAsset(
 		int32 InSourceAssetIdx,
+		bool bInMirrored,
+		bool bInLooping,
+		bool bInDisableReselection,
+		int32 InPermutationIdx,
+		const FVector& InBlendParameters,
 		int32 InFirstPoseIdx,
-		bool bInMirrored, 
+		int32 InFirstSampleIdx,
+		int32 InLastSampleIdx)
+		: SourceAssetIdx(InSourceAssetIdx)
+		, bMirrored(bInMirrored)
+		, bLooping(bInLooping)
+		, bDisableReselection(bInDisableReselection)
+		, PermutationIdx(InPermutationIdx)
+		, BlendParameterX(InBlendParameters.X)
+		, BlendParameterY(InBlendParameters.Y)
+		, FirstPoseIdx(InFirstPoseIdx)
+		, FirstSampleIdx(InFirstSampleIdx)
+		, LastSampleIdx(InLastSampleIdx)
+	{
+		check(FMath::IsNearlyZero(InBlendParameters.Z));
+	}
+
+	FSearchIndexAsset(
+		int32 InSourceAssetIdx,
+		int32 InFirstPoseIdx,
+		bool bInMirrored,
+		bool bInLooping,
+		bool bInDisableReselection,
 		const FFloatInterval& InSamplingInterval,
 		int32 SchemaSampleRate,
 		int32 InPermutationIdx,
 		FVector InBlendParameters = FVector::Zero())
-		: SourceAssetIdx(InSourceAssetIdx)
-		, bMirrored(bInMirrored)
-		, PermutationIdx(InPermutationIdx)
-		, BlendParameters(InBlendParameters)
-		, FirstPoseIdx(InFirstPoseIdx)
-		, FirstSampleIdx(FMath::CeilToInt(InSamplingInterval.Min * SchemaSampleRate))
-		, LastSampleIdx(FMath::FloorToInt(InSamplingInterval.Max * SchemaSampleRate))
+		: FSearchIndexAsset(
+			InSourceAssetIdx,
+			bInMirrored,
+			bInLooping,
+			bInDisableReselection,
+			InPermutationIdx,
+			InBlendParameters,
+			InFirstPoseIdx,
+			FMath::CeilToInt(InSamplingInterval.Min * SchemaSampleRate),
+			FMath::FloorToInt(InSamplingInterval.Max * SchemaSampleRate))
 	{
 		check(SchemaSampleRate > 0);
 	}
-
-	// Index of the source asset in search index's container (i.e. UPoseSearchDatabase)
-	int32 SourceAssetIdx = INDEX_NONE;
-	bool bMirrored = false;
-	int32 PermutationIdx = INDEX_NONE;
-	FVector BlendParameters = FVector::Zero();
-	int32 FirstPoseIdx = INDEX_NONE;
-	int32 FirstSampleIdx = INDEX_NONE;
-	int32 LastSampleIdx = INDEX_NONE;
+	
+	int32 GetSourceAssetIdx() const { return SourceAssetIdx; }
+	bool IsMirrored() const { return bMirrored; }
+	bool IsLooping() const { return bLooping; }
+	bool IsDisableReselection() const { return bDisableReselection; }
+	int32 GetPermutationIdx() const { return PermutationIdx; }
+	FVector GetBlendParameters() const { return FVector(BlendParameterX, BlendParameterY, 0.f); }
+	int32 GetFirstPoseIdx() const { return FirstPoseIdx; }
 
 	bool IsPoseInRange(int32 PoseIdx) const { return (PoseIdx >= FirstPoseIdx) && (PoseIdx < FirstPoseIdx + GetNumPoses()); }
 	bool operator==(const FSearchIndexAsset& Other) const;
@@ -135,13 +163,13 @@ struct FSearchIndexAsset
 	float GetFirstSampleTime(int32 SchemaSampleRate) const { check(SchemaSampleRate > 0); return FirstSampleIdx / float(SchemaSampleRate); }
 	float GetLastSampleTime(int32 SchemaSampleRate) const { check(SchemaSampleRate > 0); return LastSampleIdx / float(SchemaSampleRate); }
 
-	int32 GetPoseIndexFromTime(float Time, bool bIsLooping, int32 SchemaSampleRate) const
+	int32 GetPoseIndexFromTime(float Time, int32 SchemaSampleRate) const
 	{
 		check(IsInitialized());
 
 		const int32 NumPoses = GetNumPoses();
 		int32 PoseOffset = FMath::RoundToInt(SchemaSampleRate * Time) - FirstSampleIdx;
-		if (bIsLooping)
+		if (bLooping)
 		{
 			if (PoseOffset < 0)
 			{
@@ -174,6 +202,19 @@ struct FSearchIndexAsset
 	}
 
 	friend FArchive& operator<<(FArchive& Ar, FSearchIndexAsset& IndexAsset);
+
+private:
+	// Index of the source asset in search index's container (i.e. UPoseSearchDatabase)
+	const int32 SourceAssetIdx = INDEX_NONE;
+	const bool bMirrored : 1 = false; 
+	const bool bLooping : 1 = false;
+	const bool bDisableReselection : 1 = false;
+	const int32 PermutationIdx = INDEX_NONE;
+	const float BlendParameterX = 0.f;
+	const float BlendParameterY = 0.f;
+	const int32 FirstPoseIdx = INDEX_NONE;
+	const int32 FirstSampleIdx = INDEX_NONE;
+	const int32 LastSampleIdx = INDEX_NONE;
 };
 
 struct FSearchStats
@@ -395,6 +436,8 @@ struct FSearchIndex : public FSearchIndexBase
 	void Reset();
 	TConstArrayView<float> GetPoseValues(int32 PoseIdx) const;
 	TConstArrayView<float> GetReconstructedPoseValues(int32 PoseIdx, TArrayView<float> BufferUsedForReconstruction) const;
+	int32 GetNumDimensions() const;
+	int32 GetNumberOfPrincipalComponents() const;
 	POSESEARCH_API TConstArrayView<float> PCAProject(TConstArrayView<float> PoseValues, TArrayView<float> BufferUsedForProjection) const;
 
 	POSESEARCH_API TArray<float> GetPoseValuesSafe(int32 PoseIdx) const;
@@ -432,13 +475,13 @@ struct FVPTreeDataSource
 
     const TConstArrayView<float> operator[](int32 Index) const
     {
-		const int32 DataCardinality = SearchIndex.WeightsSqrt.Num();
+		const int32 DataCardinality = SearchIndex.GetNumDimensions();
         return SearchIndex.GetValuesVector(Index, DataCardinality);
     }
 
     int32 Num() const
     {
-		const int32 DataCardinality = SearchIndex.WeightsSqrt.Num();
+		const int32 DataCardinality = SearchIndex.GetNumDimensions();
         return SearchIndex.GetNumValuesVectors(DataCardinality);
     }
 

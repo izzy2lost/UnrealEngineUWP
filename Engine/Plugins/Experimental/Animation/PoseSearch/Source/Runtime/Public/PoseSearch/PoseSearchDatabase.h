@@ -56,6 +56,7 @@ struct FPoseSearchExcludeFromDatabaseParameters
 {
 	GENERATED_BODY()
 
+#if WITH_EDITORONLY_DATA
 	// Determines how much of the start of an animation segment is preserved for blending in seconds.
 	// Excluding the beginning of animation segments can help ensure an exact past trajectory is used when building the channels.
 	UPROPERTY(EditAnywhere, Category = "Settings", meta = (DisplayName = "Anim Start Interval"))
@@ -66,6 +67,7 @@ struct FPoseSearchExcludeFromDatabaseParameters
 	// and also prevents the selection of a anim segment which will end too soon to be worth selecting.
 	UPROPERTY(EditAnywhere, Category = "Settings", meta = (DisplayName = "Anim End Interval"))
 	float SequenceEndInterval = 0.3f;
+#endif // WITH_EDITORONLY_DATA
 };
 
 USTRUCT()
@@ -73,17 +75,19 @@ struct POSESEARCH_API FPoseSearchDatabaseAnimationAssetBase
 {
 	GENERATED_BODY()
 	virtual ~FPoseSearchDatabaseAnimationAssetBase() = default;
-
 	virtual UAnimationAsset* GetAnimationAsset() const { return nullptr; }
+
+#if WITH_EDITORONLY_DATA
+	virtual bool IsDisableReselection() const { return bDisableReselection; }
+	virtual void SetDisableReselection(bool bValue) { bDisableReselection = bValue; }
 	virtual UClass* GetAnimationAssetStaticClass() const { return nullptr; }
 	virtual bool IsLooping() const { return false; }
 	virtual const FString GetName() const { return FString(); }
-	virtual bool IsDisableReselection() const { return bDisableReselection; }
-	virtual void SetDisableReselection(bool bValue) { bDisableReselection = bValue; }
 	virtual bool IsEnabled() const { return bEnabled; }
 	virtual void SetIsEnabled(bool bValue) { bEnabled = bValue; }
 	virtual bool IsRootMotionEnabled() const { return false; }
 	virtual EPoseSearchMirrorOption GetMirrorOption() const { return MirrorOption; }
+
 	// [0, 0] represents the entire frame range of the original animation.
 	virtual FFloatInterval GetSamplingRange() const { return FFloatInterval(0.f, 0.f); }
 
@@ -100,7 +104,6 @@ struct POSESEARCH_API FPoseSearchDatabaseAnimationAssetBase
 	UPROPERTY(EditAnywhere, Category = "Settings", meta = (DisplayPriority = 3))
 	EPoseSearchMirrorOption MirrorOption = EPoseSearchMirrorOption::UnmirroredOnly;
 
-#if WITH_EDITORONLY_DATA
 	// SynchronizeWithExternalDependency is true when this asset has been added via SynchronizeWithExternalDependencies.
 	// To delete it, remove the PoseSearchBranchIn notify state
 	UPROPERTY(VisibleAnywhere, Category = "Settings", meta = (DisplayPriority = 20))
@@ -118,18 +121,21 @@ struct POSESEARCH_API FPoseSearchDatabaseSequence : public FPoseSearchDatabaseAn
 	UPROPERTY(EditAnywhere, Category="Settings", meta = (DisplayPriority = 0))
 	TObjectPtr<UAnimSequence> Sequence;
 
+#if WITH_EDITORONLY_DATA
 	// It allows users to set a time range to an individual animation sequence in the database. 
 	// This is effectively trimming the beginning and end of the animation in the database (not in the original sequence).
 	// If set to [0, 0] it will be the entire frame range of the original sequence.
 	UPROPERTY(EditAnywhere, Category="Settings", meta = (DisplayPriority = 2))
 	FFloatInterval SamplingRange = FFloatInterval(0.f, 0.f);
 
-	UAnimationAsset* GetAnimationAsset() const override;
 	UClass* GetAnimationAssetStaticClass() const override;
 	bool IsLooping() const override;
 	const FString GetName() const override;
 	bool IsRootMotionEnabled() const override;
 	FFloatInterval GetSamplingRange() const override { return SamplingRange; }
+#endif // WITH_EDITORONLY_DATA
+	
+	UAnimationAsset* GetAnimationAsset() const override;
 };
 
 /** An blend space entry in a UPoseSearchDatabase. */
@@ -141,6 +147,8 @@ struct POSESEARCH_API FPoseSearchDatabaseBlendSpace : public FPoseSearchDatabase
 
 	UPROPERTY(EditAnywhere, Category = "Settings", meta = (DisplayPriority = 0))
 	TObjectPtr<UBlendSpace> BlendSpace;
+
+#if WITH_EDITORONLY_DATA
 
 	// If true this BlendSpace will output a single segment in the database.
 	UPROPERTY(EditAnywhere, Category = "Settings", meta = (DisplayPriority = 4))
@@ -166,7 +174,6 @@ struct POSESEARCH_API FPoseSearchDatabaseBlendSpace : public FPoseSearchDatabase
 	UPROPERTY(EditAnywhere, Category = "Settings", meta = (EditCondition = "bUseSingleSample", EditConditionHides, DisplayPriority = 9))
 	float BlendParamY = 0.f;
 
-	UAnimationAsset* GetAnimationAsset() const override;
 	UClass* GetAnimationAssetStaticClass() const override;
 	bool IsLooping() const override;
 	const FString GetName() const override;
@@ -174,6 +181,9 @@ struct POSESEARCH_API FPoseSearchDatabaseBlendSpace : public FPoseSearchDatabase
 
 	void GetBlendSpaceParameterSampleRanges(int32& HorizontalBlendNum, int32& VerticalBlendNum) const;
 	FVector BlendParameterForSampleRanges(int32 HorizontalBlendIndex, int32 VerticalBlendIndex) const;
+#endif // WITH_EDITORONLY_DATA
+
+	UAnimationAsset* GetAnimationAsset() const override;
 };
 
 /** An entry in a UPoseSearchDatabase. */
@@ -186,18 +196,21 @@ struct POSESEARCH_API FPoseSearchDatabaseAnimComposite : public FPoseSearchDatab
 	UPROPERTY(EditAnywhere, Category = "Settings", meta = (DisplayPriority = 0))
 	TObjectPtr<UAnimComposite> AnimComposite;
 
+#if WITH_EDITORONLY_DATA
 	// It allows users to set a time range to an individual animation sequence in the database. 
 	// This is effectively trimming the beginning and end of the animation in the database (not in the original sequence).
 	// If set to [0, 0] it will be the entire frame range of the original sequence.
 	UPROPERTY(EditAnywhere, Category = "Settings", meta = (DisplayPriority = 3))
 	FFloatInterval SamplingRange = FFloatInterval(0.f, 0.f);
 
-	UAnimationAsset* GetAnimationAsset() const override;
 	UClass* GetAnimationAssetStaticClass() const override;
 	bool IsLooping() const override;
 	const FString GetName() const override;
 	bool IsRootMotionEnabled() const override;
 	FFloatInterval GetSamplingRange() const override { return SamplingRange; }
+#endif // WITH_EDITORONLY_DATA
+
+	UAnimationAsset* GetAnimationAsset() const override;
 };
 
 /** An anim montage entry in a UPoseSearchDatabase. */
@@ -210,18 +223,21 @@ struct POSESEARCH_API FPoseSearchDatabaseAnimMontage : public FPoseSearchDatabas
 	UPROPERTY(EditAnywhere, Category="Settings", meta = (DisplayPriority = 0))
 	TObjectPtr<UAnimMontage> AnimMontage;
 
+#if WITH_EDITORONLY_DATA
 	// It allows users to set a time range to an individual animation sequence in the database. 
 	// This is effectively trimming the beginning and end of the animation in the database (not in the original sequence).
 	// If set to [0, 0] it will be the entire frame range of the original sequence.
 	UPROPERTY(EditAnywhere, Category="Settings", meta = (DisplayPriority = 2))
 	FFloatInterval SamplingRange = FFloatInterval(0.f, 0.f);
 
-	UAnimationAsset* GetAnimationAsset() const override;
 	UClass* GetAnimationAssetStaticClass() const override;
 	bool IsLooping() const override;
 	const FString GetName() const override;
 	bool IsRootMotionEnabled() const override;
 	FFloatInterval GetSamplingRange() const override { return SamplingRange; }
+#endif // WITH_EDITORONLY_DATA
+
+	UAnimationAsset* GetAnimationAsset() const override;
 };
 
 /** A data asset for indexing a collection of animation sequences. */
@@ -252,9 +268,11 @@ public:
 	UPROPERTY(EditAnywhere, Category = "Database")
 	float LoopingCostBias = -0.005f;
 
+#if WITH_EDITORONLY_DATA
 	// These settings allow users to trim the start and end of animations in the database to preserve start/end frames for blending, and prevent the system from selecting the very last frames before it blends out.
 	UPROPERTY(EditAnywhere, Category = "Database")
 	FPoseSearchExcludeFromDatabaseParameters ExcludeFromDatabaseParameters;
+#endif // WITH_EDITORONLY_DATA
 
 	UPROPERTY(EditAnywhere, Category="Database")
 	TArray<FInstancedStruct> AnimationAssets;
@@ -282,18 +300,21 @@ public:
 	UPROPERTY(EditAnywhere, Category = "Performance")
 	EPoseSearchMode PoseSearchMode = EPoseSearchMode::PCAKDTree;
 
+#if WITH_EDITORONLY_DATA
 	// Number of dimensions used to create the kdtree. More dimensions allows a better explanation of the variance of the dataset that usually translates in better search results, but will imply more memory usage and worse performances.
 	UPROPERTY(EditAnywhere, Category = "Performance", meta = (EditCondition = "PoseSearchMode == EPoseSearchMode::PCAKDTree", EditConditionHides, ClampMin = "1", ClampMax = "64", UIMin = "1", UIMax = "64"))
 	int32 NumberOfPrincipalComponents = 4;
 
 	UPROPERTY(EditAnywhere, Category = "Performance", meta = (EditCondition = "PoseSearchMode == EPoseSearchMode::PCAKDTree", EditConditionHides, ClampMin = "1", ClampMax = "256", UIMin = "1", UIMax = "256"))
 	int32 KDTreeMaxLeafSize = 16;
+#endif // WITH_EDITORONLY_DATA
 	
 	// @todo: rename to KNNQueryNumNeighbors to be usable with the VPTree as well
 	// Out of a kdtree search, results will have only an approximate cost, so the database search will select the best “KDTree Query Num Neighbors” poses to perform the full cost analysis, and be able to elect the best pose.
 	UPROPERTY(EditAnywhere, Category = "Performance", meta = (DisplayName = "KNNQueryNumNeighbors", EditCondition = "PoseSearchMode == EPoseSearchMode::PCAKDTree || PoseSearchMode == VPTree", EditConditionHides, ClampMin = "1", ClampMax = "600", UIMin = "1"))
 	int32 KDTreeQueryNumNeighbors = 200;
 
+#if WITH_EDITORONLY_DATA
 	// if two poses values (multi dimensional point with the schema cardinality) are closer than PosePruningSimilarityThreshold,
 	// only one will be saved into the database FSearchIndexBase (to save memory) and accessed by the two different pose indexes
 	UPROPERTY(EditAnywhere, Category = "Performance")
@@ -303,6 +324,7 @@ public:
 	// only one will be saved into the database FSearchIndex (to save memory).
 	UPROPERTY(EditAnywhere, Category = "Performance", meta = (EditCondition = "PoseSearchMode == EPoseSearchMode::PCAKDTree", EditConditionHides))
 	float PCAValuesPruningSimilarityThreshold = 0.f;
+#endif // WITH_EDITORONLY_DATA
 
 	// @todo: rename to KNNQueryNumNeighborsWithDuplicates to be usable with the VPTree as well
 	// if PCAValuesPruningSimilarityThreshold > 0 the kdtree will remove duplicates, every result out of the KDTreeQueryNumNeighbors could potentially references multiple poses.
@@ -340,9 +362,6 @@ public:
 	const FPoseSearchDatabaseAnimationAssetBase* GetAnimationAssetBase(const UE::PoseSearch::FSearchIndexAsset& SearchIndexAsset) const;
 	FPoseSearchDatabaseAnimationAssetBase* GetMutableAnimationAssetBase(int32 AnimationAssetIndex);
 	FPoseSearchDatabaseAnimationAssetBase* GetMutableAnimationAssetBase(const UE::PoseSearch::FSearchIndexAsset& SearchIndexAsset);
-	const bool IsSourceAssetLooping(const UE::PoseSearch::FSearchIndexAsset& SearchIndexAsset) const;
-	const FString GetSourceAssetName(const UE::PoseSearch::FSearchIndexAsset& SearchIndexAsset) const;
-	int32 GetNumberOfPrincipalComponents() const;
 	float GetRealAssetTime(int32 PoseIdx) const;
 	float GetNormalizedAssetTime(int32 PoseIdx) const;
 
@@ -357,6 +376,8 @@ public:
 	FPoseSearchCost SearchContinuingPose(UE::PoseSearch::FSearchContext& SearchContext) const;
 
 #if WITH_EDITOR
+	int32 GetNumberOfPrincipalComponents() const;
+
 	virtual void BeginCacheForCookedPlatformData(const ITargetPlatform* TargetPlatform) override;
 	virtual bool IsCachedCookedPlatformDataLoaded(const ITargetPlatform* TargetPlatform) override;
 

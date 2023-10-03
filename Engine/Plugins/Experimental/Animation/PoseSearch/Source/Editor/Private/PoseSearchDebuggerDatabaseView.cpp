@@ -166,9 +166,9 @@ static void AddUnfilteredDatabaseRow(const UPoseSearchDatabase* Database,
 
 		Row->PoseIdx = DbPoseIdx;
 		Row->PoseCandidateFlags = PoseCandidateFlags;
-		Row->DbAssetIdx = SearchIndexAsset->SourceAssetIdx;
+		Row->DbAssetIdx = SearchIndexAsset->GetSourceAssetIdx();
 		Row->AssetTime = Time;
-		Row->bMirrored = SearchIndexAsset->bMirrored;
+		Row->bMirrored = SearchIndexAsset->IsMirrored();
 
 		Row->CostVector.SetNum(Database->Schema->SchemaCardinality);
 		const TArray<float> PoseValues = SearchIndex.GetPoseValuesSafe(DbPoseIdx);
@@ -217,7 +217,7 @@ static void AddUnfilteredDatabaseRow(const UPoseSearchDatabase* Database,
 			Row->AssetName = DatabaseAsset->GetName();
 			Row->AssetPath = DatabaseAsset->GetAnimationAsset() ? DatabaseAsset->GetAnimationAsset()->GetPathName() : "";
 			Row->bLooping = DatabaseAsset->IsLooping();
-			Row->BlendParameters = SearchIndexAsset->BlendParameters;
+			Row->BlendParameters = SearchIndexAsset->GetBlendParameters();
 			Row->AnimFrame = 0;
 			Row->AnimPercentage = 0.0f;
 

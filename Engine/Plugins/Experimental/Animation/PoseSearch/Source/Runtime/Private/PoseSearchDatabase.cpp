@@ -76,17 +76,15 @@ static void PopulateNonSelectableIdx(FNonSelectableIdx& NonSelectableIdx, FSearc
 	{
 		if (const FSearchIndexAsset* CurrentIndexAsset = SearchContext.GetCurrentResult().GetSearchIndexAsset(true))
 		{
-			const FPoseSearchDatabaseAnimationAssetBase* DatabaseAnimationAssetBase = Database->GetAnimationAssetStruct(CurrentIndexAsset->SourceAssetIdx).GetPtr<FPoseSearchDatabaseAnimationAssetBase>();
-			check(DatabaseAnimationAssetBase);
-			if (DatabaseAnimationAssetBase->bDisableReselection)
+			if (CurrentIndexAsset->IsDisableReselection())
 			{
-				// excluding all the poses from DatabaseAnimationAssetBase
+				// excluding all the poses with CurrentIndexAsset->GetSourceAssetIdx()
 				// @todo: optimize this code!
 				for (const FSearchIndexAsset& SearchIndexAsset : SearchIndex.Assets)
 				{
-					if (SearchIndexAsset.SourceAssetIdx == CurrentIndexAsset->SourceAssetIdx)
+					if (SearchIndexAsset.GetSourceAssetIdx() == CurrentIndexAsset->GetSourceAssetIdx())
 					{
-						const int32 FirstPoseIdx = SearchIndexAsset.FirstPoseIdx;
+						const int32 FirstPoseIdx = SearchIndexAsset.GetFirstPoseIdx();
 						const int32 LastPoseIdx = FirstPoseIdx + SearchIndexAsset.GetNumPoses();
 						for (int32 PoseIdx = FirstPoseIdx; PoseIdx < LastPoseIdx; ++PoseIdx)
 						{
@@ -107,11 +105,11 @@ static void PopulateNonSelectableIdx(FNonSelectableIdx& NonSelectableIdx, FSearc
 				const int32 CurrentResultPoseIdx = SearchContext.GetCurrentResult().PoseIdx;
 				const int32 UnboundMinPoseIdx = CurrentResultPoseIdx + FMath::FloorToInt(SearchContext.GetPoseJumpThresholdTime().Min * Database->Schema->SampleRate);
 				const int32 UnboundMaxPoseIdx = CurrentResultPoseIdx + FMath::CeilToInt(SearchContext.GetPoseJumpThresholdTime().Max * Database->Schema->SampleRate);
-				const int32 CurrentIndexAssetFirstPoseIdx = CurrentIndexAsset->FirstPoseIdx;
+				const int32 CurrentIndexAssetFirstPoseIdx = CurrentIndexAsset->GetFirstPoseIdx();
 				const int32 CurrentIndexAssetNumPoses = CurrentIndexAsset->GetNumPoses();
-				const bool IsLooping = Database->IsSourceAssetLooping(*CurrentIndexAsset);
+				const bool bIsLooping = CurrentIndexAsset->IsLooping();
 
-				if (IsLooping)
+				if (bIsLooping)
 				{
 					for (int32 UnboundPoseIdx = UnboundMinPoseIdx; UnboundPoseIdx < UnboundMaxPoseIdx; ++UnboundPoseIdx)
 					{
@@ -314,6 +312,7 @@ UAnimationAsset* FPoseSearchDatabaseSequence::GetAnimationAsset() const
 	return Sequence;
 }
 
+#if WITH_EDITORONLY_DATA
 UClass* FPoseSearchDatabaseSequence::GetAnimationAssetStaticClass() const
 {
 	return UAnimSequence::StaticClass();
@@ -336,6 +335,7 @@ bool FPoseSearchDatabaseSequence::IsRootMotionEnabled() const
 {
 	return Sequence ? Sequence->HasRootMotion() : false;
 }
+#endif // WITH_EDITORONLY_DATA
 
 //////////////////////////////////////////////////////////////////////////
 // FPoseSearchDatabaseBlendSpace
@@ -344,6 +344,7 @@ UAnimationAsset* FPoseSearchDatabaseBlendSpace::GetAnimationAsset() const
 	return BlendSpace.Get();
 }
 
+#if WITH_EDITORONLY_DATA
 UClass* FPoseSearchDatabaseBlendSpace::GetAnimationAssetStaticClass() const
 {
 	return UBlendSpace::StaticClass();
@@ -446,6 +447,8 @@ FVector FPoseSearchDatabaseBlendSpace::BlendParameterForSampleRanges(int32 Horiz
 		0.f);
 }
 
+#endif // WITH_EDITORONLY_DATA
+
 //////////////////////////////////////////////////////////////////////////
 // FPoseSearchDatabaseAnimComposite
 UAnimationAsset* FPoseSearchDatabaseAnimComposite::GetAnimationAsset() const
@@ -453,6 +456,7 @@ UAnimationAsset* FPoseSearchDatabaseAnimComposite::GetAnimationAsset() const
 	return AnimComposite;
 }
 
+#if WITH_EDITORONLY_DATA
 UClass* FPoseSearchDatabaseAnimComposite::GetAnimationAssetStaticClass() const
 {
 	return UAnimComposite::StaticClass();
@@ -475,6 +479,7 @@ bool FPoseSearchDatabaseAnimComposite::IsRootMotionEnabled() const
 {
 	return AnimComposite ? AnimComposite->HasRootMotion() : false;
 }
+#endif // WITH_EDITORONLY_DATA
 
 //////////////////////////////////////////////////////////////////////////
 // FPoseSearchDatabaseAnimMontage
@@ -483,6 +488,7 @@ UAnimationAsset* FPoseSearchDatabaseAnimMontage::GetAnimationAsset() const
 	return AnimMontage;
 }
 
+#if WITH_EDITORONLY_DATA
 UClass* FPoseSearchDatabaseAnimMontage::GetAnimationAssetStaticClass() const
 {
 	return UAnimMontage::StaticClass();
@@ -505,6 +511,7 @@ bool FPoseSearchDatabaseAnimMontage::IsRootMotionEnabled() const
 {
 	return AnimMontage ? AnimMontage->HasRootMotion() : false;
 }
+#endif // WITH_EDITORONLY_DATA
 
 //////////////////////////////////////////////////////////////////////////
 // UPoseSearchDatabase
@@ -521,14 +528,13 @@ void UPoseSearchDatabase::SetSearchIndex(const UE::PoseSearch::FSearchIndex& Sea
 const UE::PoseSearch::FSearchIndex& UPoseSearchDatabase::GetSearchIndex() const
 {
 	// making sure the search index is consistent. if it fails the calling code hasn't been protected by FAsyncPoseSearchDatabasesManagement::RequestAsyncBuildIndex
-	check(Schema && Schema->IsValid() && !SearchIndexPrivate.IsEmpty() && SearchIndexPrivate.WeightsSqrt.Num() == Schema->SchemaCardinality);
+	check(Schema && Schema->IsValid() && !SearchIndexPrivate.IsEmpty() && SearchIndexPrivate.GetNumDimensions() == Schema->SchemaCardinality);
 	return SearchIndexPrivate;
 }
 
 int32 UPoseSearchDatabase::GetPoseIndexFromTime(float Time, const UE::PoseSearch::FSearchIndexAsset& SearchIndexAsset) const
 {
-	const bool bIsLooping = IsSourceAssetLooping(SearchIndexAsset);
-	return SearchIndexAsset.GetPoseIndexFromTime(Time, bIsLooping, Schema->SampleRate);
+	return SearchIndexAsset.GetPoseIndexFromTime(Time, Schema->SampleRate);
 }
 
 const FInstancedStruct& UPoseSearchDatabase::GetAnimationAssetStruct(int32 AnimationAssetIndex) const
@@ -539,7 +545,7 @@ const FInstancedStruct& UPoseSearchDatabase::GetAnimationAssetStruct(int32 Anima
 
 const FInstancedStruct& UPoseSearchDatabase::GetAnimationAssetStruct(const UE::PoseSearch::FSearchIndexAsset& SearchIndexAsset) const
 {
-	return GetAnimationAssetStruct(SearchIndexAsset.SourceAssetIdx);
+	return GetAnimationAssetStruct(SearchIndexAsset.GetSourceAssetIdx());
 }
 
 FInstancedStruct& UPoseSearchDatabase::GetMutableAnimationAssetStruct(int32 AnimationAssetIndex)
@@ -550,7 +556,7 @@ FInstancedStruct& UPoseSearchDatabase::GetMutableAnimationAssetStruct(int32 Anim
 
 FInstancedStruct& UPoseSearchDatabase::GetMutableAnimationAssetStruct(const UE::PoseSearch::FSearchIndexAsset& SearchIndexAsset)
 {
-	return GetMutableAnimationAssetStruct(SearchIndexAsset.SourceAssetIdx);
+	return GetMutableAnimationAssetStruct(SearchIndexAsset.GetSourceAssetIdx());
 }
 
 const FPoseSearchDatabaseAnimationAssetBase* UPoseSearchDatabase::GetAnimationAssetBase(int32 AnimationAssetIndex) const
@@ -565,7 +571,7 @@ const FPoseSearchDatabaseAnimationAssetBase* UPoseSearchDatabase::GetAnimationAs
 
 const FPoseSearchDatabaseAnimationAssetBase* UPoseSearchDatabase::GetAnimationAssetBase(const UE::PoseSearch::FSearchIndexAsset& SearchIndexAsset) const
 {
-	return GetAnimationAssetBase(SearchIndexAsset.SourceAssetIdx);
+	return GetAnimationAssetBase(SearchIndexAsset.GetSourceAssetIdx());
 }
 
 FPoseSearchDatabaseAnimationAssetBase* UPoseSearchDatabase::GetMutableAnimationAssetBase(int32 AnimationAssetIndex)
@@ -580,23 +586,15 @@ FPoseSearchDatabaseAnimationAssetBase* UPoseSearchDatabase::GetMutableAnimationA
 
 FPoseSearchDatabaseAnimationAssetBase* UPoseSearchDatabase::GetMutableAnimationAssetBase(const UE::PoseSearch::FSearchIndexAsset& SearchIndexAsset)
 {
-	return GetMutableAnimationAssetBase(SearchIndexAsset.SourceAssetIdx);
+	return GetMutableAnimationAssetBase(SearchIndexAsset.GetSourceAssetIdx());
 }
 
-const bool UPoseSearchDatabase::IsSourceAssetLooping(const UE::PoseSearch::FSearchIndexAsset& SearchIndexAsset) const
-{
-	return GetAnimationAssetBase(SearchIndexAsset.SourceAssetIdx)->IsLooping();
-}
-
-const FString UPoseSearchDatabase::GetSourceAssetName(const UE::PoseSearch::FSearchIndexAsset& SearchIndexAsset) const
-{
-	return GetAnimationAssetBase(SearchIndexAsset.SourceAssetIdx)->GetName();
-}
-
+#if WITH_EDITOR
 int32 UPoseSearchDatabase::GetNumberOfPrincipalComponents() const
 {
 	return FMath::Min<int32>(NumberOfPrincipalComponents, Schema->SchemaCardinality);
 }
+#endif //WITH_EDITOR
 
 bool UPoseSearchDatabase::GetSkipSearchIfPossible() const
 {
@@ -818,7 +816,7 @@ float UPoseSearchDatabase::GetNormalizedAssetTime(int32 PoseIdx) const
 {
 	check(Schema);
 	const UE::PoseSearch::FSearchIndexAsset& Asset = GetSearchIndex().GetAssetForPose(PoseIdx);
-	const bool bIsBlendSpace = AnimationAssets[Asset.SourceAssetIdx].GetPtr<FPoseSearchDatabaseBlendSpace>() != nullptr;
+	const bool bIsBlendSpace = AnimationAssets[Asset.GetSourceAssetIdx()].GetPtr<FPoseSearchDatabaseBlendSpace>() != nullptr;
 
 	// sequences or anim composites
 	float AssetTime = Asset.GetTimeFromPoseIndex(PoseIdx, Schema->SampleRate);
@@ -957,7 +955,7 @@ FPoseSearchCost UPoseSearchDatabase::SearchContinuingPose(UE::PoseSearch::FSearc
 	const FSearchIndexAsset& SearchIndexAsset = SearchIndex.GetAssetForPose(PoseIdx);
 	const FPoseSearchDatabaseAnimationAssetBase* DatabaseAnimationAssetBase = GetAnimationAssetStruct(SearchIndexAsset).GetPtr<FPoseSearchDatabaseAnimationAssetBase>();
 	check(DatabaseAnimationAssetBase);
-	const FAnimationAssetSampler SequenceBaseSampler(DatabaseAnimationAssetBase->GetAnimationAsset(), SearchIndexAsset.BlendParameters);
+	const FAnimationAssetSampler SequenceBaseSampler(DatabaseAnimationAssetBase->GetAnimationAsset(), SearchIndexAsset.GetBlendParameters());
 	const float SampleTime = GetNormalizedAssetTime(PoseIdx);
 
 	float UpdatedContinuingPoseCostBias = ContinuingPoseCostBias;
@@ -1016,7 +1014,7 @@ UE::PoseSearch::FSearchResult UPoseSearchDatabase::SearchPCAKDTree(UE::PoseSearc
 	// there's no point in performing the search if CurrentBestTotalCost is already better than that
 	if (!GetSkipSearchIfPossible() || SearchContext.GetCurrentBestTotalCost() > SearchIndex.MinCostAddend)
 	{
-		const uint32 ClampedNumberOfPrincipalComponents = GetNumberOfPrincipalComponents();
+		const uint32 ClampedNumberOfPrincipalComponents = SearchIndex.GetNumberOfPrincipalComponents();
 		const uint32 ClampedKDTreeQueryNumNeighbors = FMath::Clamp<uint32>(KDTreeQueryNumNeighbors, 1, SearchIndex.GetNumPoses());
 		const bool bArePCAValuesPruned = SearchIndex.PCAValuesVectorToPoseIndexes.Num() > 0;
 

@@ -11,8 +11,10 @@ class POSESEARCH_API UPoseSearchFeatureChannel_PermutationTime : public UPoseSea
 	GENERATED_BODY()
 
 public:
+#if WITH_EDITORONLY_DATA
 	UPROPERTY(EditAnywhere, Category = "Settings")
 	float Weight = 1.f;
+#endif // WITH_EDITORONLY_DATA
 
 	// UPoseSearchFeatureChannel interface
 	virtual void Finalize(UPoseSearchSchema* Schema) override;

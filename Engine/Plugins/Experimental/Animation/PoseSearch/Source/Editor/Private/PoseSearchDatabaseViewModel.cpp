@@ -129,7 +129,7 @@ namespace UE::PoseSearch
 		const FSearchIndex& SearchIndex = PoseSearchDatabase->GetSearchIndex();
 		const FSearchIndexAsset& IndexAsset = SearchIndex.Assets[IndexAssetIndex];
 
-		const FPoseSearchDatabaseAnimationAssetBase* DatabaseAnimationAsset = PoseSearchDatabase->GetAnimationAssetBase(IndexAsset.SourceAssetIdx);
+		const FPoseSearchDatabaseAnimationAssetBase* DatabaseAnimationAsset = PoseSearchDatabase->GetAnimationAssetBase(IndexAsset.GetSourceAssetIdx());
 		UAnimationAsset* PreviewAsset = DatabaseAnimationAsset->GetAnimationAsset();
 		if (!PreviewAsset)
 		{
@@ -139,7 +139,7 @@ namespace UE::PoseSearch
 		const FInstancedStruct& DatabaseAsset = PoseSearchDatabase->GetAnimationAssetStruct(IndexAsset);
 		const FPoseSearchDatabaseAnimationAssetBase* DatabaseAnimationAssetBase = DatabaseAsset.GetPtr<FPoseSearchDatabaseAnimationAssetBase>();
 		check(DatabaseAnimationAssetBase);
-		PreviewActor.Sampler.Init(DatabaseAnimationAssetBase->GetAnimationAsset(), IndexAsset.BlendParameters);
+		PreviewActor.Sampler.Init(DatabaseAnimationAssetBase->GetAnimationAsset(), IndexAsset.GetBlendParameters());
 		PreviewActor.IndexAssetIndex = IndexAssetIndex;
 		PreviewActor.CurrentPoseIndex = INDEX_NONE;
 		PreviewActor.PlayTimeOffset = PoseIdxForTimeOffset < 0 ? 0.f : PoseSearchDatabase->GetRealAssetTime(PoseIdxForTimeOffset);
@@ -162,9 +162,9 @@ namespace UE::PoseSearch
 		Mesh->EnablePreview(true, PreviewAsset);
 		
 		AnimInstance->SetAnimationAsset(PreviewAsset, false, 0.0f);
-		AnimInstance->SetBlendSpacePosition(IndexAsset.BlendParameters);
+		AnimInstance->SetBlendSpacePosition(IndexAsset.GetBlendParameters());
 		
-		if (IndexAsset.bMirrored && PoseSearchDatabase->Schema)
+		if (IndexAsset.IsMirrored() && PoseSearchDatabase->Schema)
 		{
 			AnimInstance->SetMirrorDataTable(PoseSearchDatabase->Schema->MirrorDataTable);
 		}
@@ -243,7 +243,7 @@ namespace UE::PoseSearch
 			// SetPosition is in [0..1] range for blendspaces
 			AnimInstance->SetPosition(PreviewActor.Sampler.ToNormalizedTime(PreviewActor.CurrentTime));
 			AnimInstance->SetPlayRate(0.f);
-			AnimInstance->SetBlendSpacePosition(IndexAsset.BlendParameters);
+			AnimInstance->SetBlendSpacePosition(IndexAsset.GetBlendParameters());
 
 			PreviewActor.QuantizedTimeRootTransform = PreviewActor.Sampler.ExtractRootTransform(QuantizedTime);
 			FTransform RootMotion = PreviewActor.Sampler.ExtractRootTransform(PreviewActor.CurrentTime);
@@ -439,7 +439,7 @@ namespace UE::PoseSearch
 						MaxPreviewPlayLength = FMath::Max(MaxPreviewPlayLength, IndexAsset.GetLastSampleTime(PoseSearchDatabase->Schema->SampleRate) - PreviewActor.PlayTimeOffset);
 						MinPreviewPlayLength = FMath::Min(MinPreviewPlayLength, IndexAsset.GetFirstSampleTime(PoseSearchDatabase->Schema->SampleRate) - PreviewActor.PlayTimeOffset);
 						PreviewActors.Add(PreviewActor);
-						SelectedSourceAssetIdx = IndexAsset.SourceAssetIdx;
+						SelectedSourceAssetIdx = IndexAsset.GetSourceAssetIdx();
 					}
 				}
 			}
@@ -477,9 +477,9 @@ namespace UE::PoseSearch
 			for (int32 IndexAssetIndex = 0; IndexAssetIndex < SearchIndex.Assets.Num(); ++IndexAssetIndex)
 			{
 				const FSearchIndexAsset& IndexAsset = SearchIndex.Assets[IndexAssetIndex];
-				if (AnimationPreviewMode == EAnimationPreviewMode::OriginalAndMirrored || !IndexAsset.bMirrored)
+				if (AnimationPreviewMode == EAnimationPreviewMode::OriginalAndMirrored || !IndexAsset.IsMirrored())
 				{
-					if (const int32* SelectedNodesIndex = AssociatedAssetIndices.Find(IndexAsset.SourceAssetIdx))
+					if (const int32* SelectedNodesIndex = AssociatedAssetIndices.Find(IndexAsset.GetSourceAssetIdx()))
 					{
 						FDatabasePreviewActor PreviewActor = SpawnPreviewActor(IndexAssetIndex);
 						if (PreviewActor.IsValid())
@@ -570,10 +570,10 @@ namespace UE::PoseSearch
 				if (PreviewActor.IndexAssetIndex >= 0 && PreviewActor.IndexAssetIndex < SearchIndex.Assets.Num() && PreviewActor.Sampler.IsInitialized())
 				{
 					const FSearchIndexAsset& IndexAsset = SearchIndex.Assets[PreviewActor.IndexAssetIndex];
-					if (IndexAsset.SourceAssetIdx == SourceAssetIdx)
+					if (IndexAsset.GetSourceAssetIdx() == SourceAssetIdx)
 					{
 						CurrentPlayTime = PreviewActor.Sampler.ToNormalizedTime(PlayTime + IndexAsset.GetFirstSampleTime(PoseSearchDatabase->Schema->SampleRate) + PreviewActor.PlayTimeOffset);
-						BlendParameters = IndexAsset.BlendParameters;
+						BlendParameters = IndexAsset.GetBlendParameters();
 						return true;
 					}
 				}
@@ -581,10 +581,10 @@ namespace UE::PoseSearch
 
 			for (const FSearchIndexAsset& IndexAsset : SearchIndex.Assets)
 			{
-				if (IndexAsset.SourceAssetIdx == SourceAssetIdx)
+				if (IndexAsset.GetSourceAssetIdx() == SourceAssetIdx)
 				{
 					CurrentPlayTime = PlayTime + IndexAsset.GetFirstSampleTime(PoseSearchDatabase->Schema->SampleRate);
-					BlendParameters = IndexAsset.BlendParameters;
+					BlendParameters = IndexAsset.GetBlendParameters();
 
 					const bool bIsBlendSpace = PoseSearchDatabase->GetAnimationAssetStruct(IndexAsset).GetPtr<FPoseSearchDatabaseBlendSpace>() != nullptr;
 					if (bIsBlendSpace && !FMath::IsNearlyEqual(MaxPreviewPlayLength, MinPreviewPlayLength))

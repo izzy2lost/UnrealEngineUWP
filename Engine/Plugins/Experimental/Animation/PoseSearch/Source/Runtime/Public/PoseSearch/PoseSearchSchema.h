@@ -58,9 +58,11 @@ public:
 	UPROPERTY(EditAnywhere, Category = "Schema", meta = (DisplayPriority = 1))
 	TObjectPtr<UMirrorDataTable> MirrorDataTable;
 
+#if WITH_EDITORONLY_DATA
 	// Type of operation performed to the full pose features dataset
 	UPROPERTY(EditAnywhere, Category = "Schema", meta = (DisplayPriority = 2))
 	EPoseSearchDataPreprocessor DataPreprocessor = EPoseSearchDataPreprocessor::Normalize;
+#endif //WITH_EDITORONLY_DATA
 
 	UPROPERTY(Transient)
 	int32 SchemaCardinality = 0;
@@ -71,6 +73,7 @@ public:
 	UPROPERTY(Transient)
 	TArray<uint16> BoneIndicesWithParents;
 
+#if WITH_EDITORONLY_DATA
 	// How many times the animation assets of the database using this schema will be indexed.
 	UPROPERTY(EditAnywhere, Category = "Permutations", meta = (ClampMin = "1"))
 	int32 NumberOfPermutations = 1;
@@ -83,6 +86,7 @@ public:
 	// subsequent permutations will have PermutationTime = SamplingTime + PermutationsTimeOffset + PermutationIndex / PermutationsSampleRate.
 	UPROPERTY(EditAnywhere, Category = "Permutations")
 	float PermutationsTimeOffset = 0.f;
+#endif // WITH_EDITORONLY_DATA
 
 	// if true a padding channel will be added to make sure the data is 16 bytes (aligned) and padded, to facilitate performance improvements at cost of eventual additional memory
 	UPROPERTY(EditAnywhere, Category = "Performance")

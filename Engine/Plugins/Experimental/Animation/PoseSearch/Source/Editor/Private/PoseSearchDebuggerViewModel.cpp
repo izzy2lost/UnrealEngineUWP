@@ -66,10 +66,10 @@ void FDebuggerViewModel::ShowSelectedSkeleton(const UPoseSearchDatabase* Databas
 		bSelecting = true;
 
 		Skeletons[SelectedPose].Time = Time;
-		Skeletons[SelectedPose].bMirrored = IndexAsset->bMirrored;
+		Skeletons[SelectedPose].bMirrored = IndexAsset->IsMirrored();
 		Skeletons[SelectedPose].SourceDatabase = Database;
-		Skeletons[SelectedPose].AssetIdx = IndexAsset->SourceAssetIdx;
-		Skeletons[SelectedPose].BlendParameters = IndexAsset->BlendParameters;
+		Skeletons[SelectedPose].AssetIdx = IndexAsset->GetSourceAssetIdx();
+		Skeletons[SelectedPose].BlendParameters = IndexAsset->GetBlendParameters();
 	}
 }
 
@@ -145,10 +145,10 @@ void FDebuggerViewModel::OnUpdateNodeSelection(int32 InNodeId)
 			int32 CurrentPoseIdx = ActiveMotionMatchingState->GetCurrentDatabasePoseIndex();
 			if (const FSearchIndexAsset* IndexAsset = CurrentSearchIndex.GetAssetForPoseSafe(CurrentPoseIdx))
 			{
-				Skeletons[Asset].bMirrored = IndexAsset->bMirrored;
+				Skeletons[Asset].bMirrored = IndexAsset->IsMirrored();
 				Skeletons[Asset].SourceDatabase = CurrentDatabase;
-				Skeletons[Asset].AssetIdx = IndexAsset->SourceAssetIdx;
-				Skeletons[Asset].BlendParameters = IndexAsset->BlendParameters;
+				Skeletons[Asset].AssetIdx = IndexAsset->GetSourceAssetIdx();
+				Skeletons[Asset].BlendParameters = IndexAsset->GetBlendParameters();
 			}
 		}
 	}

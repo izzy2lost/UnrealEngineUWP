@@ -383,7 +383,7 @@ namespace UE::PoseSearch
 		TSharedPtr<FDatabaseAssetTreeNode> TreeNodePtr = WeakAssetTreeNode.Pin();
 		if (const FSearchIndexAsset* SelectedIndexAsset = ViewModelPtr->GetSelectedActorIndexAsset())
 		{
-			if (TreeNodePtr->SourceAssetIdx == SelectedIndexAsset->SourceAssetIdx)
+			if (TreeNodePtr->SourceAssetIdx == SelectedIndexAsset->GetSourceAssetIdx())
 			{
 				return EVisibility::Visible;
 			}

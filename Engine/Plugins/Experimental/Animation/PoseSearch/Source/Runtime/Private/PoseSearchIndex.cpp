@@ -302,6 +302,7 @@ FArchive& operator<<(FArchive& Ar, FPoseMetadata& Metadata)
 	bool bInBlockTransition = Metadata.IsBlockTransition();
 	FFloat16 CostAddend = Metadata.CostAddend;
 	
+	// @todo: optimize the archived size of FPoseMetadata, since most members are bitfields
 	Ar << ValueOffset;
 	Ar << AssetIndex;
 	Ar << bInBlockTransition;
@@ -318,8 +319,11 @@ bool FSearchIndexAsset::operator==(const FSearchIndexAsset& Other) const
 	return
 		SourceAssetIdx == Other.SourceAssetIdx &&
 		bMirrored == Other.bMirrored &&
+		bLooping == Other.bLooping &&
+		bDisableReselection == Other.bDisableReselection &&
 		PermutationIdx == Other.PermutationIdx &&
-		BlendParameters == Other.BlendParameters &&
+		BlendParameterX == Other.BlendParameterX &&
+		BlendParameterY == Other.BlendParameterY &&
 		FirstPoseIdx == Other.FirstPoseIdx &&
 		FirstSampleIdx == Other.FirstSampleIdx &&
 		LastSampleIdx == Other.LastSampleIdx;
@@ -327,13 +331,32 @@ bool FSearchIndexAsset::operator==(const FSearchIndexAsset& Other) const
 
 FArchive& operator<<(FArchive& Ar, FSearchIndexAsset& IndexAsset)
 {
-	Ar << IndexAsset.SourceAssetIdx;
-	Ar << IndexAsset.bMirrored;
-	Ar << IndexAsset.PermutationIdx;
-	Ar << IndexAsset.BlendParameters;
-	Ar << IndexAsset.FirstPoseIdx;
-	Ar << IndexAsset.FirstSampleIdx;
-	Ar << IndexAsset.LastSampleIdx;
+	int32 SourceAssetIdx = IndexAsset.SourceAssetIdx;
+	bool bMirrored = IndexAsset.bMirrored; 
+	bool bLooping = IndexAsset.bLooping;
+	bool bDisableReselection = IndexAsset.bDisableReselection;
+	int32 PermutationIdx = IndexAsset.PermutationIdx;
+	float BlendParameterX = IndexAsset.BlendParameterX;
+	float BlendParameterY = IndexAsset.BlendParameterY;
+	int32 FirstPoseIdx = IndexAsset.FirstPoseIdx;
+	int32 FirstSampleIdx = IndexAsset.FirstSampleIdx;
+	int32 LastSampleIdx = IndexAsset.LastSampleIdx;
+
+	// @todo: optimize the archived size of FSearchIndexAsset, since most members are bitfields
+	Ar << SourceAssetIdx;
+	Ar << bMirrored;
+	Ar << bLooping;
+	Ar << bDisableReselection;
+	Ar << PermutationIdx;
+	Ar << BlendParameterX;
+	Ar << BlendParameterY;
+	Ar << FirstPoseIdx;
+	Ar << FirstSampleIdx;
+	Ar << LastSampleIdx;
+
+	new(&IndexAsset) FSearchIndexAsset(SourceAssetIdx, bMirrored, bLooping, bDisableReselection,
+		PermutationIdx, FVector(BlendParameterX, BlendParameterY, 0.f), FirstPoseIdx, FirstSampleIdx, LastSampleIdx);
+
 	return Ar;
 }
 
@@ -516,7 +539,7 @@ void FSearchIndex::Reset()
 
 TConstArrayView<float> FSearchIndex::GetPoseValues(int32 PoseIdx) const
 {
-	return GetPoseValuesBase(PoseIdx, WeightsSqrt.Num());
+	return GetPoseValuesBase(PoseIdx, GetNumDimensions());
 }
 
 TConstArrayView<float> FSearchIndex::GetReconstructedPoseValues(int32 PoseIdx, TArrayView<float> BufferUsedForReconstruction) const
@@ -526,7 +549,7 @@ TConstArrayView<float> FSearchIndex::GetReconstructedPoseValues(int32 PoseIdx, T
 	// @todo: reconstruction is not yet supported with pruned PCAValues
 	check(PCAValuesVectorToPoseIndexes.Num() == 0);
 
-	const int32 NumDimensions = WeightsSqrt.Num();
+	const int32 NumDimensions = GetNumDimensions();
 	const int32 NumPoses = GetNumPoses();
 	check(PoseIdx >= 0 && PoseIdx < NumPoses && NumDimensions > 0);
 	check(BufferUsedForReconstruction.Num() == NumDimensions);
@@ -552,15 +575,27 @@ TConstArrayView<float> FSearchIndex::GetReconstructedPoseValues(int32 PoseIdx, T
 	return BufferUsedForReconstruction;
 }
 
+int32 FSearchIndex::GetNumDimensions() const
+{
+	return WeightsSqrt.Num();
+}
+
+int32 FSearchIndex::GetNumberOfPrincipalComponents() const
+{
+	const int32 NumDimensions = GetNumDimensions();
+	check(NumDimensions > 0 && PCAProjectionMatrix.Num() > 0 && PCAProjectionMatrix.Num() % NumDimensions == 0);
+
+	const int32 NumberOfPrincipalComponents = PCAProjectionMatrix.Num() / NumDimensions;
+	return NumberOfPrincipalComponents;
+}
+
 TConstArrayView<float> FSearchIndex::PCAProject(TConstArrayView<float> PoseValues, TArrayView<float> BufferUsedForProjection) const
 {
 	QUICK_SCOPE_CYCLE_COUNTER(STAT_PoseSearch_PCAProject);
 
-	const int32 NumDimensions = WeightsSqrt.Num();
-	const int32 NumberOfPrincipalComponents = PCAProjectionMatrix.Num() / NumDimensions;
-
+	const int32 NumDimensions = GetNumDimensions();
+	const int32 NumberOfPrincipalComponents = GetNumberOfPrincipalComponents();
 	check(PoseValues.Num() == NumDimensions);
-	check(PCAProjectionMatrix.Num() > 0 && PCAProjectionMatrix.Num() % NumDimensions == 0);
 	check(BufferUsedForProjection.Num() == NumberOfPrincipalComponents);
 
 	const RowMajorVectorMapConst WeightsSqrtMap(WeightsSqrt.GetData(), 1, NumDimensions);
@@ -657,7 +692,7 @@ TArray<float> FSearchIndex::GetPoseValuesSafe(int32 PoseIdx) const
 	{
 		if (IsValuesEmpty())
 		{
-			const int32 NumDimensions = WeightsSqrt.Num();
+			const int32 NumDimensions = GetNumDimensions();
 			PoseValues.SetNumUninitialized(NumDimensions);
 			GetReconstructedPoseValues(PoseIdx, PoseValues);
 		}
@@ -676,11 +711,10 @@ TConstArrayView<float> FSearchIndex::GetPCAPoseValues(int32 PCAValuesVectorIdx) 
 		return TConstArrayView<float>();
 	}
 
-	const int32 NumDimensions = WeightsSqrt.Num();
-	const int32 NumberOfPrincipalComponents = PCAProjectionMatrix.Num() / NumDimensions;
+	const int32 NumDimensions = GetNumDimensions();
+	const int32 NumberOfPrincipalComponents = GetNumberOfPrincipalComponents();
 
 #if DO_CHECK
-	check(NumDimensions > 0 && PCAProjectionMatrix.Num() > 0 && PCAProjectionMatrix.Num() % NumDimensions == 0);
 	check(PCAValues.Num() % NumberOfPrincipalComponents == 0);
 	const int32 NumPCAValuesVectors = PCAValues.Num() / NumberOfPrincipalComponents;
 	check(PCAValuesVectorIdx >= 0 && PCAValuesVectorIdx < NumPCAValuesVectors );

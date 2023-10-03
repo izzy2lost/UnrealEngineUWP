@@ -478,9 +478,9 @@ void UPoseSearchLibrary::MotionMatch(
 				if (const FAnimNode_PoseSearchHistoryCollector_Base* PoseHistoryNode = TagSubsystem->FindNodeByTag<FAnimNode_PoseSearchHistoryCollector_Base>(PoseHistoryName, AnimInstance))
 				{
 					ExtendedPoseHistory.Init(&PoseHistoryNode->GetPoseHistory());
-#if ENABLE_DRAW_DEBUG && ENABLE_ANIM_DEBUG
+#if ENABLE_DRAW_DEBUG && ENABLE_ANIM_DEBUG && WITH_EDITORONLY_DATA
 					HistoryCollectorColor = PoseHistoryNode->DebugColor.ToFColor(true);
-#endif // ENABLE_DRAW_DEBUG && ENABLE_ANIM_DEBUG
+#endif // ENABLE_DRAW_DEBUG && ENABLE_ANIM_DEBUG && WITH_EDITORONLY_DATA
 				}
 			}
 		}
@@ -556,9 +556,9 @@ void UPoseSearchLibrary::MotionMatch(
 			{
 				Result.SelectedAnimation = DatabaseAsset->GetAnimationAsset();
 				Result.SelectedTime = SearchResult.AssetTime;
-				Result.bLoop = DatabaseAsset->IsLooping();
-				Result.bIsMirrored = SearchIndexAsset->bMirrored;
-				Result.BlendParameters = SearchIndexAsset->BlendParameters;
+				Result.bLoop = SearchIndexAsset->IsLooping();
+				Result.bIsMirrored = SearchIndexAsset->IsMirrored();
+				Result.BlendParameters = SearchIndexAsset->GetBlendParameters();
 				Result.SelectedDatabase = Database;
 				Result.SearchCost = SearchResult.PoseCost.GetTotalCost();
 			}

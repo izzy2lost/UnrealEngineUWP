@@ -36,8 +36,10 @@ public:
 	// Update Counter for detecting being relevant
 	FGraphTraversalCounter UpdateCounter;
 
+#if WITH_EDITORONLY_DATA
 	UPROPERTY(EditAnywhere, Category = Debug)
 	FLinearColor DebugColor = FLinearColor::Red;
+#endif // WITH_EDITORONLY_DATA
 
 	// Optional Trajectory for debug drawing purposes only: if not provided, all the collected pose transforms will be drawn using the Graph context
 	UPROPERTY(EditAnywhere, Category = Debug, meta = (PinHiddenByDefault))

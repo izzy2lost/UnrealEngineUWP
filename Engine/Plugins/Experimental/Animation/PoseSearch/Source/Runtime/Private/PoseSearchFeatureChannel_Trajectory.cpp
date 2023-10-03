@@ -15,11 +15,33 @@
 UPoseSearchFeatureChannel_Trajectory::UPoseSearchFeatureChannel_Trajectory()
 {
 	// defaulting UPoseSearchFeatureChannel_Trajectory for a meaningful locomotion setup
+#if WITH_EDITORONLY_DATA
 	Weight = 7.f;
-	Samples.Add(FPoseSearchTrajectorySample({ -0.4f, int32(EPoseSearchTrajectoryFlags::PositionXY), 0.4f, FLinearColor::Red }));
-	Samples.Add(FPoseSearchTrajectorySample({ 0.f, int32(EPoseSearchTrajectoryFlags::VelocityXY | EPoseSearchTrajectoryFlags::FacingDirectionXY), 2.f, FLinearColor::Blue }));
-	Samples.Add(FPoseSearchTrajectorySample({ 0.35f, int32(EPoseSearchTrajectoryFlags::PositionXY | EPoseSearchTrajectoryFlags::FacingDirectionXY), 0.7f, FLinearColor::Blue }));
-	Samples.Add(FPoseSearchTrajectorySample({ 0.7f, int32(EPoseSearchTrajectoryFlags::VelocityXY | EPoseSearchTrajectoryFlags::PositionXY | EPoseSearchTrajectoryFlags::FacingDirectionXY), 0.5f, FLinearColor::Blue }));
+#endif // WITH_EDITORONLY_DATA
+
+	Samples.Add(FPoseSearchTrajectorySample({ -0.4f, int32(EPoseSearchTrajectoryFlags::PositionXY)
+#if WITH_EDITORONLY_DATA
+		, 0.4f, FLinearColor::Red
+#endif // WITH_EDITORONLY_DATA
+		}));
+
+	Samples.Add(FPoseSearchTrajectorySample({ 0.f, int32(EPoseSearchTrajectoryFlags::VelocityXY | EPoseSearchTrajectoryFlags::FacingDirectionXY)
+#if WITH_EDITORONLY_DATA
+		, 2.f, FLinearColor::Blue
+#endif // WITH_EDITORONLY_DATA
+		}));
+
+	Samples.Add(FPoseSearchTrajectorySample({ 0.35f, int32(EPoseSearchTrajectoryFlags::PositionXY | EPoseSearchTrajectoryFlags::FacingDirectionXY)
+#if WITH_EDITORONLY_DATA
+		, 0.7f, FLinearColor::Blue
+#endif // WITH_EDITORONLY_DATA
+		}));
+
+	Samples.Add(FPoseSearchTrajectorySample({ 0.7f, int32(EPoseSearchTrajectoryFlags::VelocityXY | EPoseSearchTrajectoryFlags::PositionXY | EPoseSearchTrajectoryFlags::FacingDirectionXY)
+#if WITH_EDITORONLY_DATA
+		, 0.5f, FLinearColor::Blue
+#endif // WITH_EDITORONLY_DATA
+		}));
 }
 
 void UPoseSearchFeatureChannel_Trajectory::Finalize(UPoseSearchSchema* Schema)
@@ -31,9 +53,11 @@ void UPoseSearchFeatureChannel_Trajectory::Finalize(UPoseSearchSchema* Schema)
 		if (EnumHasAnyFlags(Sample.Flags, EPoseSearchTrajectoryFlags::Position | EPoseSearchTrajectoryFlags::PositionXY))
 		{
 			UPoseSearchFeatureChannel_Position* Position = NewObject<UPoseSearchFeatureChannel_Position>(this, NAME_None, RF_Transient);
+#if WITH_EDITORONLY_DATA
 			Position->Weight = Sample.Weight * Weight;
-			Position->SampleTimeOffset = Sample.Offset;
 			Position->DebugColor = Sample.DebugColor;
+#endif // WITH_EDITORONLY_DATA
+			Position->SampleTimeOffset = Sample.Offset;
 			Position->InputQueryPose = EInputQueryPose::UseCharacterPose;
 			if (EnumHasAnyFlags(Sample.Flags, EPoseSearchTrajectoryFlags::PositionXY))
 			{
@@ -45,9 +69,11 @@ void UPoseSearchFeatureChannel_Trajectory::Finalize(UPoseSearchSchema* Schema)
 		if (EnumHasAnyFlags(Sample.Flags, EPoseSearchTrajectoryFlags::Velocity | EPoseSearchTrajectoryFlags::VelocityXY))
 		{
 			UPoseSearchFeatureChannel_Velocity* Velocity = NewObject<UPoseSearchFeatureChannel_Velocity>(this, NAME_None, RF_Transient);
+#if WITH_EDITORONLY_DATA
 			Velocity->Weight = Sample.Weight * Weight;
-			Velocity->SampleTimeOffset = Sample.Offset;
 			Velocity->DebugColor = Sample.DebugColor;
+#endif // WITH_EDITORONLY_DATA
+			Velocity->SampleTimeOffset = Sample.Offset;
 			Velocity->InputQueryPose = EInputQueryPose::UseCharacterPose;
 			Velocity->bUseCharacterSpaceVelocities = false;
 			if (EnumHasAnyFlags(Sample.Flags, EPoseSearchTrajectoryFlags::VelocityXY))
@@ -60,9 +86,11 @@ void UPoseSearchFeatureChannel_Trajectory::Finalize(UPoseSearchSchema* Schema)
 		if (EnumHasAnyFlags(Sample.Flags, EPoseSearchTrajectoryFlags::VelocityDirection | EPoseSearchTrajectoryFlags::VelocityDirectionXY))
 		{
 			UPoseSearchFeatureChannel_Velocity* Velocity = NewObject<UPoseSearchFeatureChannel_Velocity>(this, NAME_None, RF_Transient);
+#if WITH_EDITORONLY_DATA
 			Velocity->Weight = Sample.Weight * Weight;
-			Velocity->SampleTimeOffset = Sample.Offset;
 			Velocity->DebugColor = Sample.DebugColor;
+#endif // WITH_EDITORONLY_DATA
+			Velocity->SampleTimeOffset = Sample.Offset;
 			Velocity->InputQueryPose = EInputQueryPose::UseCharacterPose;
 			Velocity->bUseCharacterSpaceVelocities = false;
 			Velocity->bNormalize = true;
@@ -76,9 +104,11 @@ void UPoseSearchFeatureChannel_Trajectory::Finalize(UPoseSearchSchema* Schema)
 		if (EnumHasAnyFlags(Sample.Flags, EPoseSearchTrajectoryFlags::FacingDirection | EPoseSearchTrajectoryFlags::FacingDirectionXY))
 		{
 			UPoseSearchFeatureChannel_Heading* Heading = NewObject<UPoseSearchFeatureChannel_Heading>(this, NAME_None, RF_Transient);
+#if WITH_EDITORONLY_DATA
 			Heading->Weight = Sample.Weight * Weight;
-			Heading->SampleTimeOffset = Sample.Offset;
 			Heading->DebugColor = Sample.DebugColor;
+#endif // WITH_EDITORONLY_DATA
+			Heading->SampleTimeOffset = Sample.Offset;
 			Heading->InputQueryPose = EInputQueryPose::UseCharacterPose;
 			if (EnumHasAnyFlags(Sample.Flags, EPoseSearchTrajectoryFlags::FacingDirectionXY))
 			{
@@ -119,7 +149,12 @@ void UPoseSearchFeatureChannel_Trajectory::DebugDraw(const UE::PoseSearch::FDebu
 		for (int32 i = 0; i < Positions.Num(); ++i)
 		{
 			const float CurrTimeOffset = Positions[i]->SampleTimeOffset;
-			const FColor Color = Positions[i]->DebugColor.ToFColor(true);;
+			FColor Color;
+#if WITH_EDITORONLY_DATA
+			Color = Positions[i]->DebugColor.ToFColor(true);
+#else // WITH_EDITORONLY_DATA
+			Color = FLinearColor::Blue.ToFColor(true);
+#endif // WITH_EDITORONLY_DATA
 
 			if (PrevTimeOffset * CurrTimeOffset < UE_KINDA_SMALL_NUMBER)
 			{

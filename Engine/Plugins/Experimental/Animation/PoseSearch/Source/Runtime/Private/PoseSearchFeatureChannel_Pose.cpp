@@ -14,9 +14,21 @@
 UPoseSearchFeatureChannel_Pose::UPoseSearchFeatureChannel_Pose()
 {
 	// defaulting UPoseSearchFeatureChannel_Pose for a meaningful locomotion setup
+#if WITH_EDITORONLY_DATA
 	Weight = 1.f;
-	SampledBones.Add(FPoseSearchBone({ {"foot_l"}, int32(EPoseSearchBoneFlags::Position | EPoseSearchBoneFlags::Velocity), 1.f, FLinearColor::Green }));
-	SampledBones.Add(FPoseSearchBone({ {"foot_r"}, int32(EPoseSearchBoneFlags::Position | EPoseSearchBoneFlags::Velocity), 1.f, FLinearColor::Green}));
+#endif // WITH_EDITORONLY_DATA
+
+	SampledBones.Add(FPoseSearchBone({ {"foot_l"}, int32(EPoseSearchBoneFlags::Position | EPoseSearchBoneFlags::Velocity)
+#if WITH_EDITORONLY_DATA
+		, 1.f, FLinearColor::Green
+#endif // WITH_EDITORONLY_DATA
+		}));
+
+	SampledBones.Add(FPoseSearchBone({ {"foot_r"}, int32(EPoseSearchBoneFlags::Position | EPoseSearchBoneFlags::Velocity)
+#if WITH_EDITORONLY_DATA
+		, 1.f, FLinearColor::Green
+#endif // WITH_EDITORONLY_DATA
+		}));
 }
 
 void UPoseSearchFeatureChannel_Pose::Finalize(UPoseSearchSchema* Schema)
@@ -30,9 +42,11 @@ void UPoseSearchFeatureChannel_Pose::Finalize(UPoseSearchSchema* Schema)
 		{
 			UPoseSearchFeatureChannel_Position* Position = NewObject<UPoseSearchFeatureChannel_Position>(this, NAME_None, RF_Transient);
 			Position->Bone = SampledBone.Reference;
+#if WITH_EDITORONLY_DATA
 			Position->Weight = SampledBone.Weight * Weight;
-			Position->SampleTimeOffset = 0.f;
 			Position->DebugColor = SampledBone.DebugColor;
+#endif // WITH_EDITORONLY_DATA
+			Position->SampleTimeOffset = 0.f;
 			Position->InputQueryPose = InputQueryPose;
 			SubChannels.Add(Position);
 		}
@@ -41,19 +55,23 @@ void UPoseSearchFeatureChannel_Pose::Finalize(UPoseSearchSchema* Schema)
 		{
 			UPoseSearchFeatureChannel_Heading* HeadingX = NewObject<UPoseSearchFeatureChannel_Heading>(this, NAME_None, RF_Transient);
 			HeadingX->Bone = SampledBone.Reference;
+#if WITH_EDITORONLY_DATA
 			HeadingX->Weight = SampledBone.Weight * Weight;
+			HeadingX->DebugColor = SampledBone.DebugColor;
+#endif // WITH_EDITORONLY_DATA
 			HeadingX->SampleTimeOffset = 0.f;
 			HeadingX->HeadingAxis = EHeadingAxis::X;
-			HeadingX->DebugColor = SampledBone.DebugColor;
 			HeadingX->InputQueryPose = InputQueryPose;
 			SubChannels.Add(HeadingX);
 
 			UPoseSearchFeatureChannel_Heading* HeadingY = NewObject<UPoseSearchFeatureChannel_Heading>(this, NAME_None, RF_Transient);
 			HeadingY->Bone = SampledBone.Reference;
+#if WITH_EDITORONLY_DATA
 			HeadingY->Weight = SampledBone.Weight * Weight;
+			HeadingY->DebugColor = SampledBone.DebugColor;
+#endif // WITH_EDITORONLY_DATA
 			HeadingY->SampleTimeOffset = 0.f;
 			HeadingY->HeadingAxis = EHeadingAxis::Y;
-			HeadingY->DebugColor = SampledBone.DebugColor;
 			HeadingY->InputQueryPose = InputQueryPose;
 			SubChannels.Add(HeadingY);
 		}
@@ -62,9 +80,11 @@ void UPoseSearchFeatureChannel_Pose::Finalize(UPoseSearchSchema* Schema)
 		{
 			UPoseSearchFeatureChannel_Velocity* Velocity = NewObject<UPoseSearchFeatureChannel_Velocity>(this, NAME_None, RF_Transient);
 			Velocity->Bone = SampledBone.Reference;
+#if WITH_EDITORONLY_DATA
 			Velocity->Weight = SampledBone.Weight * Weight;
-			Velocity->SampleTimeOffset = 0.f;
 			Velocity->DebugColor = SampledBone.DebugColor;
+#endif // WITH_EDITORONLY_DATA
+			Velocity->SampleTimeOffset = 0.f;
 			Velocity->InputQueryPose = InputQueryPose;
 			Velocity->bUseCharacterSpaceVelocities = bUseCharacterSpaceVelocities;
 			SubChannels.Add(Velocity);
@@ -74,8 +94,10 @@ void UPoseSearchFeatureChannel_Pose::Finalize(UPoseSearchSchema* Schema)
 		{
 			UPoseSearchFeatureChannel_Phase* Phase = NewObject<UPoseSearchFeatureChannel_Phase>(this, NAME_None, RF_Transient);
 			Phase->Bone = SampledBone.Reference;
+#if WITH_EDITORONLY_DATA
 			Phase->Weight = SampledBone.Weight * Weight;
 			Phase->DebugColor = SampledBone.DebugColor;
+#endif // WITH_EDITORONLY_DATA
 			Phase->InputQueryPose = InputQueryPose;
 			SubChannels.Add(Phase);
 		}
