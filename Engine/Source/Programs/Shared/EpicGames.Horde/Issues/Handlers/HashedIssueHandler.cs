@@ -7,13 +7,13 @@ using System.Text.RegularExpressions;
 using EpicGames.Core;
 using Microsoft.Extensions.Logging;
 
-namespace Horde.Server.Issues.Handlers
+namespace EpicGames.Horde.Issues.Handlers
 {
 	/// <summary>
 	/// Instance of a particular compile error
 	/// </summary>
 	[IssueHandler(Priority = 1)]
-	class HashedIssueHandler : IssueHandler
+	public class HashedIssueHandler : IssueHandler
 	{
 		readonly IssueHandlerContext _context;
 		readonly List<IssueEvent> _issueEvents = new List<IssueEvent>();
@@ -23,6 +23,9 @@ namespace Horde.Server.Issues.Handlers
 		/// </summary>
 		static readonly HashSet<EventId> s_knownGeneralEvents = new HashSet<EventId> { KnownLogEvents.Generic, KnownLogEvents.ExitCode, KnownLogEvents.Horde, KnownLogEvents.Horde_InvalidPreflight };
 
+		/// <summary>
+		/// Constructor
+		/// </summary>
 		public HashedIssueHandler(IssueHandlerContext context) => _context = context;
 
 		/// <summary>

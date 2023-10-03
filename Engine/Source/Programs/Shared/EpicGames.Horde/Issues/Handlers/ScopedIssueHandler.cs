@@ -7,13 +7,13 @@ using System.Text.Json;
 using System.Text.RegularExpressions;
 using EpicGames.Core;
 
-namespace Horde.Server.Issues.Handlers
+namespace EpicGames.Horde.Issues.Handlers
 {
 	/// <summary>
 	/// Instance of a particular compile error
 	/// </summary>
 	[IssueHandler(Priority = 2, Tag = "Scoped")]
-	class ScopedIssueHandler : IssueHandler
+	public class ScopedIssueHandler : IssueHandler
 	{
 		const string NodeName = "Node";
 		const string ScopeName = "Scope";
@@ -21,6 +21,9 @@ namespace Horde.Server.Issues.Handlers
 		readonly IssueHandlerContext _context;
 		readonly List<IssueEventGroup> _issues = new List<IssueEventGroup>();
 
+		/// <summary>
+		/// Constructor
+		/// </summary>
 		public ScopedIssueHandler(IssueHandlerContext context) => _context = context;
 
 		/// <inheritdoc/>

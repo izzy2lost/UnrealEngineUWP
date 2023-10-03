@@ -2,13 +2,13 @@
 
 using System.Collections.Generic;
 
-namespace Horde.Server.Issues.Handlers
+namespace EpicGames.Horde.Issues.Handlers
 {
 	/// <summary>
 	/// Default handler for log events not matched by any other handler
 	/// </summary>
 	[IssueHandler(Priority = 0)]
-	class DefaultIssueHandler : IssueHandler
+	public class DefaultIssueHandler : IssueHandler
 	{
 		readonly IssueHandlerContext _context;
 		IssueEventGroup? _issue;

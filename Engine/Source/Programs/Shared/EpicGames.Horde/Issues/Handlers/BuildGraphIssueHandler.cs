@@ -4,13 +4,13 @@ using System.Collections.Generic;
 using EpicGames.Core;
 using Microsoft.Extensions.Logging;
 
-namespace Horde.Server.Issues.Handlers
+namespace EpicGames.Horde.Issues.Handlers
 {
 	/// <summary>
 	/// Instance of a particular BuildGraph script error
 	/// </summary>
 	[IssueHandler(Priority = 10)]
-	class BuildGraphIssueHandler : IssueHandler
+	public class BuildGraphIssueHandler : IssueHandler
 	{
 		readonly List<IssueEventGroup> _issues = new List<IssueEventGroup>();
 
@@ -49,6 +49,7 @@ namespace Horde.Server.Issues.Handlers
 			return false;
 		}
 
+		/// <inheritdoc/>
 		public override IEnumerable<IssueEventGroup> GetIssues() => _issues;
 	}
 }

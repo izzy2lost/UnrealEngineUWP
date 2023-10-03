@@ -3,7 +3,7 @@
 using System;
 using System.Collections.Generic;
 
-namespace Horde.Server.Issues
+namespace EpicGames.Horde.Issues
 {
 	/// <summary>
 	/// Set of rules for filtering the list of suspects for an issue

@@ -4,7 +4,7 @@ using System.Collections.Generic;
 using EpicGames.Core;
 using Microsoft.Extensions.Logging;
 
-namespace Horde.Server.Issues
+namespace EpicGames.Horde.Issues
 {
 	/// <summary>
 	/// Wraps a log event and allows it to be tagged by issue handlers
@@ -55,7 +55,7 @@ namespace Horde.Server.Issues
 	/// <summary>
 	/// A group of <see cref="IssueEvent"/> objects with their fingerprint
 	/// </summary>
-	class IssueEventGroup
+	public class IssueEventGroup
 	{
 		/// <summary>
 		/// The type of issue, which defines the handler to use for it

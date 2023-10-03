@@ -8,7 +8,7 @@ using EpicGames.Core;
 using Horde.Server.Jobs.Templates;
 using Horde.Server.Streams;
 
-namespace Horde.Server.Issues
+namespace EpicGames.Horde.Issues
 {
 	/// <summary>
 	/// Type of a key in an issue, used for grouping.

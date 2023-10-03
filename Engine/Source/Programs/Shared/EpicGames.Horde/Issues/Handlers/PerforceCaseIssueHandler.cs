@@ -4,13 +4,13 @@ using System.Collections.Generic;
 using EpicGames.Core;
 using Microsoft.Extensions.Logging;
 
-namespace Horde.Server.Issues.Handlers
+namespace EpicGames.Horde.Issues.Handlers
 {
 	/// <summary>
 	/// Instance of a Perforce case mismatch error
 	/// </summary>
 	[IssueHandler(Priority = 10)]
-	class PerforceCaseIssueHandler : IssueHandler
+	public class PerforceCaseIssueHandler : IssueHandler
 	{
 		readonly List<IssueEventGroup> _issues = new List<IssueEventGroup>();
 

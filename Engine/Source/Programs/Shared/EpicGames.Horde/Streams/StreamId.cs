@@ -34,7 +34,7 @@ namespace Horde.Server.Streams
 	/// <summary>
 	/// Converter to and from <see cref="StringId"/> instances.
 	/// </summary>
-	class StreamIdConverter : StringIdConverter<StreamId>
+	public class StreamIdConverter : StringIdConverter<StreamId>
 	{
 		/// <inheritdoc/>
 		public override StreamId FromStringId(StringId id) => new StreamId(id);

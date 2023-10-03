@@ -7,13 +7,13 @@ using System.Text.RegularExpressions;
 using EpicGames.Core;
 using Microsoft.Extensions.Logging;
 
-namespace Horde.Server.Issues.Handlers
+namespace EpicGames.Horde.Issues.Handlers
 {
 	/// <summary>
 	/// Instance of a particular Gauntlet error
 	/// </summary>
 	[IssueHandler(Priority = 10)]
-	class GauntletIssueHandler : IssueHandler
+	public class GauntletIssueHandler : IssueHandler
 	{
 		/// <summary>
 		/// Prefix for framework keys

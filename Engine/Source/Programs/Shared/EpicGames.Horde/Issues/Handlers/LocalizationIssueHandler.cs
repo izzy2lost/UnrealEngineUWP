@@ -6,13 +6,13 @@ using System.Text.Json;
 using EpicGames.Core;
 using Microsoft.Extensions.Logging;
 
-namespace Horde.Server.Issues.Handlers
+namespace EpicGames.Horde.Issues.Handlers
 {
 	/// <summary>
 	/// Instance of a localization error
 	/// </summary>
 	[IssueHandler(Priority = 10)]
-	class LocalizationIssueHandler : IssueHandler
+	public class LocalizationIssueHandler : IssueHandler
 	{
 		readonly List<IssueEventGroup> _issues = new List<IssueEventGroup>();
 

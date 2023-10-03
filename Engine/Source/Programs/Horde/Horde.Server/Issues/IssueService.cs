@@ -11,7 +11,7 @@ using System.Threading;
 using System.Threading.Tasks;
 using EpicGames.Core;
 using EpicGames.Horde.Api;
-using Horde.Server.Issues.Handlers;
+using EpicGames.Horde.Issues;
 using Horde.Server.Jobs;
 using Horde.Server.Jobs.Graphs;
 using Horde.Server.Jobs.Templates;
@@ -275,7 +275,7 @@ namespace Horde.Server.Issues
 
 			// Find all the issue handler types
 			List<(Type Type, IssueHandlerAttribute Attribute)> handlerTypes = new List<(Type, IssueHandlerAttribute)>();
-			foreach (Type type in Assembly.GetExecutingAssembly().GetTypes())
+			foreach (Type type in typeof(IssueHandler).Assembly.GetTypes())
 			{
 				IssueHandlerAttribute? attribute = type.GetCustomAttribute<IssueHandlerAttribute>();
 				if (attribute != null)
@@ -1437,7 +1437,7 @@ namespace Horde.Server.Issues
 			}
 			if (name.Equals("LegacySymbolIssueHandler", StringComparison.OrdinalIgnoreCase))
 			{
-				summary.Append(SymbolIssueHandler.GetSummaryStatic(fingerprint, severity));
+				summary.Append(GetSymbolIssueSummary(fingerprint, severity));
 				return true;
 			}
 
@@ -1450,6 +1450,38 @@ namespace Horde.Server.Issues
 			}
 
 			return false;
+		}
+
+		static readonly IssueMetadata s_duplicateEventIdMetadata = new IssueMetadata("EventId", KnownLogEvents.Linker_DuplicateSymbol.Id.ToString());
+
+		static string GetSymbolIssueSummary(IIssueFingerprint fingerprint, IssueSeverity severity)
+		{
+			HashSet<string> symbols = new HashSet<string>(fingerprint.Keys.Where(x => x.Type == IssueKeyType.Symbol).Select(x => x.Name));
+			if (symbols.Count == 0)
+			{
+				string[] nodes = fingerprint.Metadata?.FindValues("Node").ToArray() ?? Array.Empty<string>();
+
+				StringBuilder summary = new StringBuilder("Linker ");
+				summary.Append((severity == IssueSeverity.Warning) ? "warnings" : "errors");
+				if (nodes.Length > 0)
+				{
+					summary.Append($" in {StringUtils.FormatList(nodes, 2)}");
+				}
+
+				return summary.ToString();
+			}
+			else
+			{
+				string problemType = (fingerprint.Metadata?.Contains(s_duplicateEventIdMetadata) == true) ? "Duplicate" : "Undefined";
+				if (symbols.Count == 1)
+				{
+					return $"{problemType} symbol '{symbols.First()}'";
+				}
+				else
+				{
+					return $"{problemType} symbols: {StringUtils.FormatList(symbols.ToArray(), 3)}";
+				}
+			}
 		}
 
 		/// <summary>

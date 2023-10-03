@@ -2,16 +2,16 @@
 
 using System;
 using System.Collections.Generic;
-using Horde.Server.Jobs.Templates;
 using Horde.Server.Streams;
+using Horde.Server.Jobs.Templates;
 
-namespace Horde.Server.Issues
+namespace EpicGames.Horde.Issues
 {
 	/// <summary>
 	/// Marks an issue handler that should be automatically inserted into the pipeline
 	/// </summary>
 	[AttributeUsage(AttributeTargets.Class)]
-	sealed class IssueHandlerAttribute : Attribute
+	public sealed class IssueHandlerAttribute : Attribute
 	{
 		/// <summary> 
 		/// Priority of this handler
@@ -64,7 +64,7 @@ namespace Horde.Server.Issues
 	/// <summary>
 	/// Interface for issue matchers
 	/// </summary>
-	abstract class IssueHandler
+	public abstract class IssueHandler
 	{
 		/// <summary>
 		/// Attempts to assign a log event to an issue

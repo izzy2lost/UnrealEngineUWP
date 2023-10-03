@@ -9,6 +9,7 @@ using System.Runtime.InteropServices;
 using System.Text.Json;
 using System.Threading.Tasks;
 using EpicGames.Core;
+using EpicGames.Horde.Issues;
 using HordeAgent.Horde.Agent.Parser;
 using HordeAgent.Horde.Agent.Utility;
 using Horde.Server.Jobs;

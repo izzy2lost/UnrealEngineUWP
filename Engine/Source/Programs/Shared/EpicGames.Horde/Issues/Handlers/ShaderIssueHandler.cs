@@ -4,13 +4,13 @@ using System.Collections.Generic;
 using EpicGames.Core;
 using Microsoft.Extensions.Logging;
 
-namespace Horde.Server.Issues.Handlers
+namespace EpicGames.Horde.Issues.Handlers
 {
 	/// <summary>
 	/// Instance of a particular shader compile error
 	/// </summary>
 	[IssueHandler(Priority = 10)]
-	class ShaderIssueHandler : IssueHandler
+	public class ShaderIssueHandler : IssueHandler
 	{
 		readonly List<IssueEventGroup> _issues = new List<IssueEventGroup>();
 

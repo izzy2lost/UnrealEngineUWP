@@ -3,22 +3,22 @@
 using System.Collections.Generic;
 using EpicGames.Core;
 
-namespace Horde.Server.Issues.Handlers
+namespace EpicGames.Horde.Issues.Handlers
 {
 	/// <summary>
-	/// Instance of a particular compile error
+	/// Instance of a Perforce case mismatch error
 	/// </summary>
-	[IssueHandler(Priority = 10)]
-	class CopyrightIssueHandler : IssueHandler
+	[IssueHandler(Priority = 8)]
+	public class UnacceptableWordsIssueHandler : IssueHandler
 	{
 		readonly List<IssueEventGroup> _issues = new List<IssueEventGroup>();
 
 		/// <inheritdoc/>
 		public override bool HandleEvent(IssueEvent issueEvent)
 		{
-			if (issueEvent.EventId == KnownLogEvents.AutomationTool_MissingCopyright)
+			if(issueEvent.EventId == KnownLogEvents.AutomationTool_UnacceptableWords)
 			{
-				IssueEventGroup issue = new IssueEventGroup("Copyright", "Missing copyright notice in {Files}", IssueChangeFilter.Code);
+				IssueEventGroup issue = new IssueEventGroup("UnacceptableWords", "Unacceptable words in {Files}", IssueChangeFilter.Code);
 				issue.Events.Add(issueEvent);
 				issue.Keys.AddSourceFiles(issueEvent);
 				_issues.Add(issue);

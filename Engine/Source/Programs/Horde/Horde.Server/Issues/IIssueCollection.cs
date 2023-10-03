@@ -13,6 +13,7 @@ using Horde.Server.Streams;
 using MongoDB.Bson;
 using MongoDB.Driver;
 using EpicGames.Horde.Api;
+using EpicGames.Horde.Issues;
 
 namespace Horde.Server.Issues
 {

@@ -4,13 +4,13 @@ using System.Collections.Generic;
 using EpicGames.Core;
 using Microsoft.Extensions.Logging;
 
-namespace Horde.Server.Issues.Handlers
+namespace EpicGames.Horde.Issues.Handlers
 {
 	/// <summary>
 	/// Instance of a particular compile error
 	/// </summary>
 	[IssueHandler(Priority = 10)]
-	class CompileIssueHandler : IssueHandler
+	public class CompileIssueHandler : IssueHandler
 	{
 		/// <summary>
 		/// Annotation describing the compile type
@@ -25,6 +25,9 @@ namespace Horde.Server.Issues.Handlers
 		readonly IssueHandlerContext _context;
 		readonly List<IssueEventGroup> _issues = new List<IssueEventGroup>();
 
+		/// <summary>
+		/// Constructor
+		/// </summary>
 		public CompileIssueHandler(IssueHandlerContext context)
 		{
 			_context = context;

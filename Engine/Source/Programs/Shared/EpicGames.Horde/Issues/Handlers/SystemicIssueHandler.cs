@@ -4,13 +4,13 @@ using System.Collections.Generic;
 using EpicGames.Core;
 using Microsoft.Extensions.Logging;
 
-namespace Horde.Server.Issues.Handlers
+namespace EpicGames.Horde.Issues.Handlers
 {
 	/// <summary>
 	/// Instance of a particular systemic error
 	/// </summary>
 	[IssueHandler(Priority = 10)]
-	class SystemicIssueHandler : IssueHandler
+	public class SystemicIssueHandler : IssueHandler
 	{
 		/// <summary>
 		///  Known systemic errors
@@ -31,6 +31,9 @@ namespace Horde.Server.Issues.Handlers
 		readonly IssueHandlerContext _context;
 		readonly List<IssueEventGroup> _issues = new List<IssueEventGroup>();
 
+		/// <summary>
+		/// Constructor
+		/// </summary>
 		public SystemicIssueHandler(IssueHandlerContext context) => _context = context;
 
 		/// <inheritdoc/>
