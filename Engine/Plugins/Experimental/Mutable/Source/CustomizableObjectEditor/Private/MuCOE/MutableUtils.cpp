@@ -39,6 +39,7 @@ TArray<FVector2f> GetUV(const USkeletalMesh& SkeletalMesh, const int32 LODIndex,
 	return Result;
 }
 
+
 TArray<FVector2f> GetUV(const UStaticMesh& StaticMesh, const int32 LODIndex, const int32 SectionIndex, const int32 UVIndex)
 {
 	TArray<FVector2f> Result;
@@ -67,55 +68,10 @@ TArray<FVector2f> GetUV(const UStaticMesh& StaticMesh, const int32 LODIndex, con
 	return Result;
 }
 
+
 bool HasNormalizedBounds(const FVector2f& Point)
 {
 	return Point.X >= 0.0f && Point.X <= 1.0 && Point.Y >= 0.0f && Point.Y <= 1.0;
-}
-
-
-bool IsUVNormalized(const USkeletalMesh& SkeletalMesh, const int32 LODIndex, const int32 SectionIndex, const int32 UVIndex)
-{
-	const FSkeletalMeshModel* ImportedModel = SkeletalMesh.GetImportedModel();
-	const FSkeletalMeshLODModel& LOD = ImportedModel->LODModels[LODIndex];
-	const FSkelMeshSection& Section = LOD.Sections[SectionIndex];
-	
-	TArray<FSoftSkinVertex> Vertices;
-	LOD.GetVertices(Vertices);
-
-	TArray<uint32> Indices;
-	SkeletalMesh.GetResourceForRendering()->LODRenderData[LODIndex].MultiSizeIndexContainer.GetIndexBuffer(Indices);
-	
-	for (int32 VertexIndex = Section.BaseVertexIndex; VertexIndex < Section.NumVertices; ++VertexIndex)
-	{
-		if (!HasNormalizedBounds(Vertices[Indices[VertexIndex]].UVs[UVIndex]))
-		{
-			return false;
-		}
-	}
-
-	return true;
-}
-
-
-bool IsUVNormalized(const UStaticMesh& StaticMesh, const int32 LODIndex, const int32 SectionIndex, const int32 UVIndex)
-{
-	const FStaticMeshRenderData* RenderData = StaticMesh.GetRenderData();
-	const FStaticMeshLODResources& LOD = RenderData->LODResources[LODIndex];
-	const FStaticMeshSection& Section = LOD.Sections[SectionIndex];
-	
-	const FStaticMeshVertexBuffer& VertexBuffer = LOD.VertexBuffers.StaticMeshVertexBuffer;
-	
-	FIndexArrayView Indices = LOD.IndexBuffer.GetArrayView();
-
-	for (uint32 VertexIndex = Section.MinVertexIndex; VertexIndex < Section.MaxVertexIndex; ++VertexIndex)
-	{
-		if (!HasNormalizedBounds(VertexBuffer.GetVertexUV(Indices[VertexIndex + 0], UVIndex)))
-		{
-			return false;
-		}
-	}
-	
-	return true;
 }
 
 

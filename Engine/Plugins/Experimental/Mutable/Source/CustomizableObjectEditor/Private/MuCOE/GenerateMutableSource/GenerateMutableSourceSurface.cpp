@@ -53,44 +53,6 @@
 
 #define LOCTEXT_NAMESPACE "CustomizableObjectEditor"
 
-/**
- * Show a compilation warning when any of the meshes behind the pin InMeshPin has a UV that is not normalized.
- * 
- * @param InMeshPin Meshes connected to this pin (directly or indirectly through switch/variation nodes).
- * @param OperationNode Node which is performing the block operation. 
- */
-void LayoutOperationUVNormalizedWarning(FMutableGraphGenerationContext& GenerationContext, const UEdGraphPin* InMeshPin, const UCustomizableObjectNode* OperationNode, const int32 UVIndex)
-{
-	if (const UEdGraphPin* ConnectedPin = FollowInputPin(*InMeshPin))
-	{
-		FPinDataValue* PinData = GenerationContext.PinData.Find(ConnectedPin);
-		if (PinData)
-		{
-			for (const FMeshData& MeshData : PinData->MeshesData)
-			{
-				if (const UCustomizableObjectNodeMesh* Node = Cast<UCustomizableObjectNodeMesh>(MeshData.Node))
-				{
-					bool bNormalized = true;
-					if (const USkeletalMesh* SkeletalMesh = Cast<USkeletalMesh>(MeshData.Mesh))
-					{
-						bNormalized = IsUVNormalized(*SkeletalMesh, MeshData.LOD, MeshData.MaterialIndex, UVIndex);
-					}
-					else if (const UStaticMesh* StaticMesh = Cast<UStaticMesh>(MeshData.Mesh))
-					{
-						bNormalized = IsUVNormalized(*StaticMesh, MeshData.LOD, MeshData.MaterialIndex, UVIndex);
-					}
-
-					if (!bNormalized)
-					{
-						FText Text = FText::Format(LOCTEXT("UVNotNormalized", "UV from mesh {0} not normalized. Required to perform texture layout operations."), FText::FromString(*MeshData.Mesh->GetName()));
-						GenerationContext.Compiler->CompilerLog(Text, OperationNode, EMessageSeverity::Type::Info);
-					}
-				}
-			}
-		}
-	}
-}
-
 
 void SetSurfaceFormat( FMutableGraphGenerationContext& GenerationContext,
 					   mu::FMeshBufferSet& OutVertexBufferFormat, mu::FMeshBufferSet& OutIndexBufferFormat, const FMutableGraphMeshGenerationData& MeshData, 
@@ -1181,10 +1143,6 @@ mu::NodeSurfacePtr GenerateMutableSourceSurface(const UEdGraphPin * Pin, FMutabl
 					SurfNode->SetImage(ImageIndex, ImageNode);
 				}
 
-				const int32 UVIndex = ParentMaterialNode->GetImageUVLayout(ImageIndex);
-				LayoutOperationUVNormalizedWarning(GenerationContext, ParentMaterialNode->GetMeshPin(), Node, UVIndex);
-				LayoutOperationUVNormalizedWarning(GenerationContext, TypedNodeExt->AddMeshPin(), Node, UVIndex);
-
 				// Validate if the ParentMaterialNode can be shared between LODs.
 				UpdateSharedSurfaceId(GenerationContext, ParentMaterialNode, nullptr);
 			}
@@ -1314,8 +1272,6 @@ mu::NodeSurfacePtr GenerateMutableSourceSurface(const UEdGraphPin * Pin, FMutabl
 				MeshPatch->SetMessageContext(Node);
 			}
 
-			LayoutOperationUVNormalizedWarning(GenerationContext, ParentMaterialNode->GetMeshPin(), Node, TypedNodeRemBlocks->ParentLayoutIndex);
-
 			// Validate if the ParentMaterialNode can be shared between LODs.
 			UpdateSharedSurfaceId(GenerationContext, ParentMaterialNode, nullptr);
 		}
@@ -1424,8 +1380,6 @@ mu::NodeSurfacePtr GenerateMutableSourceSurface(const UEdGraphPin * Pin, FMutabl
 
 					SurfNode->SetPatch(ImageIndex, ImagePatchNode);
 				}
-				
-				LayoutOperationUVNormalizedWarning(GenerationContext, ParentMaterialNode->GetMeshPin(), Node, ParentMaterialNode->GetImageUVLayout(ImageIndex));
 
 				// Validate if the ParentMaterialNode can be shared between LODs.
 				UpdateSharedSurfaceId(GenerationContext, ParentMaterialNode, nullptr);
