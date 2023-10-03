@@ -47,21 +47,6 @@ class METASOUNDFRONTEND_API FMetasoundAssetBase
 public:
 	static const FString FileExtension;
 
-	// FRuntimeInput represents an input to a MetaSound which can be manipulated.
-	struct FRuntimeInput
-	{
-		// Name of input vertex
-		FName Name;
-		// Data type name of input vertex.
-		FName TypeName;
-		// Access type of input vertex.
-		EMetasoundFrontendVertexAccessType AccessType;
-		// Default literal of input vertex.
-		FMetasoundFrontendLiteral DefaultLiteral;
-		// True if the data type is transmittable. False otherwise.
-		bool bIsTransmittable;
-	};
-
 	FMetasoundAssetBase() = default;
 	virtual ~FMetasoundAssetBase() = default;
 
@@ -92,7 +77,7 @@ public:
 	virtual bool ConformObjectDataToInterfaces() = 0;
 
 	// Registers the root graph of the given asset with the MetaSound Frontend.
-	void RegisterGraphWithFrontend(Metasound::Frontend::FMetaSoundAssetRegistrationOptions InRegistrationOptions = Metasound::Frontend::FMetaSoundAssetRegistrationOptions());
+	virtual void RegisterGraphWithFrontend(Metasound::Frontend::FMetaSoundAssetRegistrationOptions InRegistrationOptions = Metasound::Frontend::FMetaSoundAssetRegistrationOptions());
 
 	// Unregisters the root graph of the given asset with the MetaSound Frontend.
 	void UnregisterGraphWithFrontend();
@@ -230,7 +215,7 @@ protected:
 protected:
 	
 	// Container for runtime data of MetaSound graph.
-	struct FRuntimeData
+	struct FRuntimeData_DEPRECATED
 	{
 		// Current ID of graph.
 		FGuid ChangeID;
@@ -238,28 +223,26 @@ protected:
 		// Array of inputs which can be set for construction. 
 		TArray<FMetasoundFrontendClassInput> PublicInputs;
 
-		// Map of runtime inputs keyed by vertex names. 
-		Metasound::TSortedVertexNameMap<FRuntimeInput> PublicInputMap;
-
 		// Array of inputs which can be transmitted to.
 		TArray<FMetasoundFrontendClassInput> TransmittableInputs;
 
 		// Core graph.
 		TSharedPtr<Metasound::FGraph, ESPMode::ThreadSafe> Graph;
+	};
 
-		bool IsValid() const 
-		{
-			return ChangeID.IsValid();
-		}
+	struct UE_DEPRECATED(5.4, "FRuntimeData is no longer used to store runtime graphs and inputs. Runtime graphs are stored in the node registry. Runtime inputs are stored on the UMetaSoundSoruce") FRuntimeData : FRuntimeData_DEPRECATED
+	{
 	};
 
 	// Returns the cached runtime data.
+	PRAGMA_DISABLE_DEPRECATION_WARNINGS
+	UE_DEPRECATED(5.4, "Access to graph and public inputs has moved. Use the node registry to access the graph and GetPublicClassInputs() to access public inputs")
 	const FRuntimeData& GetRuntimeData() const;
+	PRAGMA_ENABLE_DEPRECATION_WARNINGS
 
 	// Returns all public class inputs.  This is a potentially expensive.
 	// Prefer accessing public class inputs using CacheRuntimeData.
 	TArray<FMetasoundFrontendClassInput> GetPublicClassInputs() const;
-
 
 	bool AutoUpdate(bool bInLogWarningsOnDroppedConnection);
 	void CookReferencedMetaSounds();
@@ -286,7 +269,6 @@ private:
 
 	Metasound::Frontend::FNodeRegistryKey RegistryKey;
 
-	FRuntimeData CachedRuntimeData;
 
 	TSharedPtr<Metasound::FGraph, ESPMode::ThreadSafe> BuildMetasoundDocument(const FMetasoundFrontendDocument& InPreprocessDoc, const Metasound::Frontend::FProxyDataCache& InProxies) const;
 };

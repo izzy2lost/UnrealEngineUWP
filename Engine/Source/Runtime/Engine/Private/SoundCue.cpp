@@ -646,7 +646,7 @@ void USoundCue::Parse(FAudioDevice* AudioDevice, const UPTRINT NodeWaveInstanceH
 				{
 					TArray<FAudioParameter> Params = Transmitter->ParamsToSet;
 
-					if (USoundBase* Sound = Instance->WaveData)
+					if (USoundWave* Sound = Instance->WaveData)
 					{
 						Sound->InitParameters(Params);
 					}

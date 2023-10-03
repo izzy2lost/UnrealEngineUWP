@@ -5,6 +5,7 @@
 #include "Algo/Transform.h"
 #include "AssetRegistry/AssetRegistryModule.h"
 #include "AudioDeviceManager.h"
+#include "Containers/Ticker.h"
 #include "IAudioParameterInterfaceRegistry.h"
 #include "Interfaces/MetasoundOutputFormatInterfaces.h"
 #include "Interfaces/MetasoundFrontendSourceInterface.h"
@@ -459,32 +460,358 @@ void UMetaSoundSource::ResolveQualitySettings(const UMetaSoundSettings* Settings
 
 void UMetaSoundSource::InitParameters(TArray<FAudioParameter>& ParametersToInit, FName InFeatureName)
 {
-	using namespace Metasound::SourcePrivate;
-	using namespace Metasound::Frontend;
-	using FRuntimeInput = FMetasoundAssetBase::FRuntimeInput;
-
 	METASOUND_LLM_SCOPE;
 	METASOUND_TRACE_CPUPROFILER_EVENT_SCOPE(UMetaSoundSource::InitParameters);
 
-	const FRuntimeData& RuntimeData = GetRuntimeData();
-
-	// To initialize parameters, we need the PublicInputMap which lives on FRuntimeData. 
-	// If the runtime data has not valid, it can be created via a call to RegisterGraphWithFrontend(...) 
-	// which subsequently pupulates the runtime data.
-	if (!RuntimeData.IsValid())
+	if (bIsBuilderActive)
 	{
-		// If a InitParameters is called before InitResources, the graph will not 
-		// yet be registered. RegisterGraphWithFrontend is called here to cover that 
-		// scenario. 
+		InitParametersInternal(CreateRuntimeInputMap(), ParametersToInit, InFeatureName);
+	}
+	else
+	{
+		const bool bIsRuntimeInputDataValid = RuntimeInputData.bIsValid.load();
+		if (bIsRuntimeInputDataValid)
+		{
+			InitParametersInternal(RuntimeInputData.InputMap, ParametersToInit, InFeatureName);
+		}
+		else
+		{
+			// The runtime input data should have been cached, but is not so we use
+			// a fallback method. If this is occurring, then callers need to ensure
+			// that InitResources has been called before this method executes or else
+			// suffer the consequences of incurring significant performance losses 
+			// each time a parameter is set on the MetaSound. 
+			UE_LOG(LogMetaSound, Warning, TEXT("Initializing parameters on uninitialized UMetaSoundSource %s will result in slower performance. UMetaSoundSource::InitResources should finish executing on the game thread before attempting to call UMetaSoundSource::InitParameters(...)"), *GetOwningAssetName());
+			InitParametersInternal(CreateRuntimeInputMap(), ParametersToInit, InFeatureName);
+		}
+	}
+}
+
+void UMetaSoundSource::InitResources()
+{
+	using namespace Metasound::Frontend;
+	using namespace Metasound::SourcePrivate;
+
+	METASOUND_LLM_SCOPE;
+	METASOUND_TRACE_CPUPROFILER_EVENT_SCOPE(UMetaSoundSource::InitResources); 
+
+	if (IsInGameThread())
+	{
 		RegisterGraphWithFrontend(GetInitRegistrationOptions());
-		check(RuntimeData.IsValid());
+	}
+	else
+	{
+		const bool bIsInGCSafeThread = IsInAudioThread() || IsInAsyncLoadingThread(); // Audio Thread is safe from GC, so we can safely construct the TWeakObjectPtr<> to this.
+		if (!bIsInGCSafeThread)
+		{
+			UE_LOG(LogMetaSound, Warning, TEXT("Attempt to call UMetaSoundSource::InitResources() on %s from thread which may not provide garbage collection safety of the UMetaSoundSource"), *GetOwningAssetName());
+		}
+
+		ExecuteOnGameThread(
+			UE_SOURCE_LOCATION, 
+			[MetaSoundSourcePtr=TWeakObjectPtr<UMetaSoundSource>(this)]()
+			{
+				if (UMetaSoundSource* Source = MetaSoundSourcePtr.Get())
+				{
+					Source->InitResources();
+				}
+			}
+		);
+	}
+}
+
+void UMetaSoundSource::RegisterGraphWithFrontend(Metasound::Frontend::FMetaSoundAssetRegistrationOptions InRegistrationOptions)
+{
+	check(IsInGameThread());
+
+	const bool bIsRuntimeInputDataValid = RuntimeInputData.bIsValid.load();
+	if (!bIsRuntimeInputDataValid)
+	{
+		CacheRuntimeInputData();
+	}
+	FMetasoundAssetBase::RegisterGraphWithFrontend(InRegistrationOptions);
+}
+
+bool UMetaSoundSource::IsPlayable() const
+{
+	return true;
+}
+
+float UMetaSoundSource::GetDuration() const
+{
+	// This is an unfortunate function required by logic in determining what sounds can be potentially
+	// culled (in this case prematurally). MetaSound OneShots are stopped either by internally logic that
+	// triggers OnFinished, or if an external system requests the sound to be stopped. Setting the duration
+	// as a "close to" maximum length without being considered looping avoids the MetaSound from being
+	// culled inappropriately.
+	return IsOneShot() ? INDEFINITELY_LOOPING_DURATION - 1.0f : INDEFINITELY_LOOPING_DURATION;
+}
+
+Metasound::Frontend::FDocumentAccessPtr UMetaSoundSource::GetDocumentAccessPtr()
+{
+	using namespace Metasound::Frontend;
+
+	// Mutation of a document via the soft deprecated access ptr/controller system is not tracked by
+	// the builder registry, so the document cache is invalidated here. It is discouraged to mutate
+	// documents using both systems at the same time as it can corrupt a builder document's cache.
+	if (UMetaSoundBuilderSubsystem* BuilderSubsystem = UMetaSoundBuilderSubsystem::Get())
+	{
+		const FMetasoundFrontendClassName& Name = RootMetasoundDocument.RootGraph.Metadata.GetClassName();
+		BuilderSubsystem->InvalidateDocumentCache(Name);
 	}
 
+	// Return document using FAccessPoint to inform the TAccessPtr when the 
+	// object is no longer valid.
+	return MakeAccessPtr<FDocumentAccessPtr>(RootMetasoundDocument.AccessPoint, RootMetasoundDocument);
+}
+
+Metasound::Frontend::FConstDocumentAccessPtr UMetaSoundSource::GetDocumentConstAccessPtr() const
+{
+	using namespace Metasound::Frontend;
+
+	// Return document using FAccessPoint to inform the TAccessPtr when the 
+	// object is no longer valid.
+	return MakeAccessPtr<FConstDocumentAccessPtr>(RootMetasoundDocument.AccessPoint, RootMetasoundDocument);
+}
+
+bool UMetaSoundSource::ImplementsParameterInterface(Audio::FParameterInterfacePtr InInterface) const
+{
+	const FMetasoundFrontendVersion Version { InInterface->GetName(), { InInterface->GetVersion().Major, InInterface->GetVersion().Minor } };
+	return GetDocumentChecked().Interfaces.Contains(Version);
+}
+
+ISoundGeneratorPtr UMetaSoundSource::CreateSoundGenerator(const FSoundGeneratorInitParams& InParams, TArray<FAudioParameter>&& InDefaultParameters)
+{
+	using namespace Metasound;
+	using namespace Metasound::Frontend;
+	using namespace Metasound::Engine;
+	using namespace Metasound::SourcePrivate;
+
+	METASOUND_LLM_SCOPE;
+	METASOUND_TRACE_CPUPROFILER_EVENT_SCOPE(UMetaSoundSource::CreateSoundGenerator);
+
+	FOperatorSettings InSettings = GetOperatorSettings(static_cast<FSampleRate>(InParams.SampleRate));
+
+	SampleRate = InSettings.GetSampleRate();
+
+	FMetasoundEnvironment Environment = CreateEnvironment(InParams);
+	FParameterRouter& Router = UMetaSoundSource::GetParameterRouter();
+	TSharedPtr<TSpscQueue<FMetaSoundParameterTransmitter::FParameter>> DataChannel = Router.FindOrCreateDataChannelForReader(InParams.AudioDeviceID, InParams.InstanceID);
+
+	FOperatorBuilderSettings BuilderSettings = FOperatorBuilderSettings::GetDefaultSettings();
+	// Graph analyzer currently only enabled for preview sounds (but can theoretically be supported for all sounds)
+	BuilderSettings.bPopulateInternalDataReferences = InParams.bIsPreviewSound;
+
+	constexpr bool bBuildSynchronous = false;
+
+	const bool bIsDynamic = DynamicTransactor.IsValid();
+	TSharedPtr<FMetasoundGenerator> Generator;
+
+	if (bIsDynamic)
+	{
+		// In order to ensure synchronization and avoid race conditions the current state
+		// of the graph is copied and transform queue created here. This ensures that:
+		//
+		// 1. Modifications to the underlying FGraph in the FDynamicOperatorTransactor can continue 
+		// while the generator is being constructed on an async task.  If this were not ensured, 
+		// a race condition would be introduced wherein the FGraph could be manipulated while the
+		// graph is being read while building the generator.
+		//
+		// 2. The state of the FGraph and TransformQueue are synchronized so that any additional
+		// changes applied to the FDynamicOperatorTransactor will be placed in the TransformQueue.
+		// The dynamic operator & generator will then consume these transforms after it has finished 
+		// being built.
+
+		BuilderSettings.bEnableOperatorRebind = true;
+
+		FMetasoundDynamicGraphGeneratorInitParams InitParams
+		{
+			{
+				InSettings,
+				MoveTemp(BuilderSettings),
+				MakeShared<FGraph>(DynamicTransactor->GetGraph()), // Make a copy of the graph.
+				Environment,
+				GetName(),
+				GetOutputAudioChannelOrder(),
+				MoveTemp(InDefaultParameters),
+				bBuildSynchronous,
+				DataChannel
+			},
+			DynamicTransactor->CreateTransformQueue(InSettings, Environment) // Create transaction queue
+		};
+		TSharedPtr<FMetasoundDynamicGraphGenerator> DynamicGenerator = MakeShared<FMetasoundDynamicGraphGenerator>(InSettings);
+		DynamicGenerator->Init(MoveTemp(InitParams));
+
+		Generator = MoveTemp(DynamicGenerator);
+	}
+	else
+	{
+		TSharedPtr<const IGraph> MetasoundGraph = FMetasoundFrontendRegistryContainer::Get()->GetGraph(GetRegistryKey());
+		if (!MetasoundGraph.IsValid())
+		{
+			return ISoundGeneratorPtr(nullptr);
+		}
+
+		FMetasoundGeneratorInitParams InitParams
+		{
+			InSettings,
+			MoveTemp(BuilderSettings),
+			MetasoundGraph,
+			Environment,
+			GetName(),
+			GetOutputAudioChannelOrder(),
+			MoveTemp(InDefaultParameters),
+			bBuildSynchronous,
+			DataChannel
+		};
+
+		Generator = MakeShared<FMetasoundConstGraphGenerator>(MoveTemp(InitParams));
+	}
+
+	if (Generator.IsValid())
+	{
+		TrackGenerator(InParams.AudioComponentId, Generator);
+	}
+
+	return ISoundGeneratorPtr(Generator);
+}
+
+void UMetaSoundSource::OnEndGenerate(ISoundGeneratorPtr Generator)
+{
+	using namespace Metasound;
+	ForgetGenerator(Generator);
+}
+
+bool UMetaSoundSource::GetAllDefaultParameters(TArray<FAudioParameter>& OutParameters) const
+{
+	using namespace Metasound;
+	using namespace Metasound::Frontend;
+	using namespace Metasound::Engine;
+
+	
+	if(!RuntimeInputData.bIsValid.load())
+	{
+		UE_LOG(LogMetaSound, Warning, TEXT("Default parameters will be ommitted. Accessing invalid runtime data on MetaSound %s. Ensure that UMetaSoundSource::InitResources() is executed on the game thread before calling UMetaSoundSource::GetAllDefaultParameters(...)"), *GetOwningAssetName());
+		return false;
+	}
+
+
+	for(const TPair<FVertexName, FRuntimeInput>& Pair : RuntimeInputData.InputMap)
+	{
+		const FRuntimeInput& Input = Pair.Value;
+		FAudioParameter Params;
+		Params.ParamName = Input.Name;
+		Params.TypeName = Input.TypeName;
+
+		switch (Input.DefaultLiteral.GetType())
+		{
+			case EMetasoundFrontendLiteralType::Boolean:
+			{
+				static const FName TriggerName = "Trigger";
+				if (Params.TypeName == TriggerName)
+				{
+					Params.ParamType = EAudioParameterType::Trigger;
+				}
+				else
+				{
+					Params.ParamType = EAudioParameterType::Boolean;
+				}
+					
+				ensure(Input.DefaultLiteral.TryGet(Params.BoolParam));
+			}
+			break;
+
+			case EMetasoundFrontendLiteralType::BooleanArray:
+			{
+				Params.ParamType = EAudioParameterType::BooleanArray;
+				ensure(Input.DefaultLiteral.TryGet(Params.ArrayBoolParam));
+			}
+			break;
+
+			case EMetasoundFrontendLiteralType::Integer:
+			{
+				Params.ParamType = EAudioParameterType::Integer;
+				ensure(Input.DefaultLiteral.TryGet(Params.IntParam));
+			}
+			break;
+
+			case EMetasoundFrontendLiteralType::IntegerArray:
+			{
+				Params.ParamType = EAudioParameterType::IntegerArray;
+				ensure(Input.DefaultLiteral.TryGet(Params.ArrayIntParam));
+			}
+			break;
+
+			case EMetasoundFrontendLiteralType::Float:
+			{
+				Params.ParamType = EAudioParameterType::Float;
+				ensure(Input.DefaultLiteral.TryGet(Params.FloatParam));
+			}
+			break;
+
+			case EMetasoundFrontendLiteralType::FloatArray:
+			{
+				Params.ParamType = EAudioParameterType::FloatArray;
+				ensure(Input.DefaultLiteral.TryGet(Params.ArrayFloatParam));
+			}
+			break;
+
+			case EMetasoundFrontendLiteralType::String:
+			{
+				Params.ParamType = EAudioParameterType::String;
+				ensure(Input.DefaultLiteral.TryGet(Params.StringParam));
+			}
+			break;
+
+			case EMetasoundFrontendLiteralType::StringArray:
+			{
+				Params.ParamType = EAudioParameterType::StringArray;
+				ensure(Input.DefaultLiteral.TryGet(Params.ArrayStringParam));
+			}
+			break;
+
+			case EMetasoundFrontendLiteralType::UObject:
+			{
+				Params.ParamType = EAudioParameterType::Object;
+				UObject* Object = nullptr;
+				ensure(Input.DefaultLiteral.TryGet(Object));
+				Params.ObjectParam = Object;
+			}
+			break;
+
+			case EMetasoundFrontendLiteralType::UObjectArray:
+			{
+				Params.ParamType = EAudioParameterType::ObjectArray;
+				ensure(Input.DefaultLiteral.TryGet(MutableView(Params.ArrayObjectParam)));
+			}
+			break;
+
+			default:
+			break;
+		}
+
+		if (Params.ParamType != EAudioParameterType::None)
+		{
+			OutParameters.Add(Params);
+		}
+	}
+	return true;
+}
+
+void UMetaSoundSource::InitParametersInternal(const Metasound::TSortedVertexNameMap<FRuntimeInput>& InInputMap, TArray<FAudioParameter>& ParametersToInit, FName InFeatureName) const
+{
+	using namespace Metasound;
+	using namespace Metasound::Frontend;
+
+	METASOUND_LLM_SCOPE;
+	METASOUND_TRACE_CPUPROFILER_EVENT_SCOPE(UMetaSoundSource::InitParametersInternal);
+
+	checkf(IsInGameThread() || IsInAudioThread(), TEXT("Parameter initialization must happen on the GameThread or AudioThread to allow for safe creation of UObject proxies"));
+
 	IDataTypeRegistry& DataTypeRegistry = IDataTypeRegistry::Get();
-	const Metasound::TSortedVertexNameMap<FRuntimeInput>& PublicInputMap = RuntimeData.PublicInputMap;
 
 	// Removes values that are not explicitly defined by the ParamType
-	auto Sanitize = [&PublicInputMap](FAudioParameter& Parameter)
+	auto Sanitize = [](FAudioParameter& Parameter)
 	{
 		switch (Parameter.ParamType)
 		{
@@ -607,9 +934,9 @@ void UMetaSoundSource::InitParameters(TArray<FAudioParameter>& ParametersToInit,
 		bool bIsParameterValid = false;
 
 		FAudioParameter& Parameter = ParametersToInit[i];
-		if (const FRuntimeInput* Input = PublicInputMap.Find(Parameter.ParamName))
+		if (const FRuntimeInput* Input = InInputMap.Find(Parameter.ParamName))
 		{
-			if (IsParameterValid(Parameter, Input->TypeName, DataTypeRegistry))
+			if (IsParameterValidInternal(Parameter, Input->TypeName, DataTypeRegistry))
 			{
 				Sanitize(Parameter);
 				ConstructProxies(Parameter, Input->TypeName);
@@ -633,287 +960,6 @@ void UMetaSoundSource::InitParameters(TArray<FAudioParameter>& ParametersToInit,
 	}
 }
 
-void UMetaSoundSource::InitResources()
-{
-	using namespace Metasound::Frontend;
-	using namespace Metasound::SourcePrivate;
-
-	METASOUND_LLM_SCOPE;
-	METASOUND_TRACE_CPUPROFILER_EVENT_SCOPE(UMetaSoundSource::InitResources);
-
-	RegisterGraphWithFrontend(GetInitRegistrationOptions());
-}
-
-bool UMetaSoundSource::IsPlayable() const
-{
-	// todo: cache off whether this metasound is buildable to an operator.
-	return true;
-}
-
-bool UMetaSoundSource::SupportsSubtitles() const
-{
-	return Super::SupportsSubtitles();
-}
-
-float UMetaSoundSource::GetDuration() const
-{
-	// This is an unfortunate function required by logic in determining what sounds can be potentially
-	// culled (in this case prematurally). MetaSound OneShots are stopped either by internally logic that
-	// triggers OnFinished, or if an external system requests the sound to be stopped. Setting the duration
-	// as a "close to" maximum length without being considered looping avoids the MetaSound from being
-	// culled inappropriately.
-	return IsOneShot() ? INDEFINITELY_LOOPING_DURATION - 1.0f : INDEFINITELY_LOOPING_DURATION;
-}
-
-Metasound::Frontend::FDocumentAccessPtr UMetaSoundSource::GetDocumentAccessPtr()
-{
-	using namespace Metasound::Frontend;
-
-	// Mutation of a document via the soft deprecated access ptr/controller system is not tracked by
-	// the builder registry, so the document cache is invalidated here. It is discouraged to mutate
-	// documents using both systems at the same time as it can corrupt a builder document's cache.
-	if (UMetaSoundBuilderSubsystem* BuilderSubsystem = UMetaSoundBuilderSubsystem::Get())
-	{
-		const FMetasoundFrontendClassName& Name = RootMetasoundDocument.RootGraph.Metadata.GetClassName();
-		BuilderSubsystem->InvalidateDocumentCache(Name);
-	}
-
-	// Return document using FAccessPoint to inform the TAccessPtr when the 
-	// object is no longer valid.
-	return MakeAccessPtr<FDocumentAccessPtr>(RootMetasoundDocument.AccessPoint, RootMetasoundDocument);
-}
-
-Metasound::Frontend::FConstDocumentAccessPtr UMetaSoundSource::GetDocumentConstAccessPtr() const
-{
-	using namespace Metasound::Frontend;
-
-	// Return document using FAccessPoint to inform the TAccessPtr when the 
-	// object is no longer valid.
-	return MakeAccessPtr<FConstDocumentAccessPtr>(RootMetasoundDocument.AccessPoint, RootMetasoundDocument);
-}
-
-bool UMetaSoundSource::ImplementsParameterInterface(Audio::FParameterInterfacePtr InInterface) const
-{
-	const FMetasoundFrontendVersion Version { InInterface->GetName(), { InInterface->GetVersion().Major, InInterface->GetVersion().Minor } };
-	return GetDocumentChecked().Interfaces.Contains(Version);
-}
-
-ISoundGeneratorPtr UMetaSoundSource::CreateSoundGenerator(const FSoundGeneratorInitParams& InParams, TArray<FAudioParameter>&& InDefaultParameters)
-{
-	using namespace Metasound;
-	using namespace Metasound::Frontend;
-	using namespace Metasound::Engine;
-	using namespace Metasound::SourcePrivate;
-
-	METASOUND_LLM_SCOPE;
-	METASOUND_TRACE_CPUPROFILER_EVENT_SCOPE(UMetaSoundSource::CreateSoundGenerator);
-
-	FOperatorSettings InSettings = GetOperatorSettings(static_cast<FSampleRate>(InParams.SampleRate));
-
-	SampleRate = InSettings.GetSampleRate();
-
-	FMetasoundEnvironment Environment = CreateEnvironment(InParams);
-	FParameterRouter& Router = GetParameterRouter();
-	TSharedPtr<TSpscQueue<FMetaSoundParameterTransmitter::FParameter>> DataChannel = Router.FindOrCreateDataChannelForReader(InParams.AudioDeviceID, InParams.InstanceID);
-
-	FOperatorBuilderSettings BuilderSettings = FOperatorBuilderSettings::GetDefaultSettings();
-	// Graph analyzer currently only enabled for preview sounds (but can theoretically be supported for all sounds)
-	BuilderSettings.bPopulateInternalDataReferences = InParams.bIsPreviewSound;
-
-	constexpr bool bBuildSynchronous = false;
-
-	const bool bIsDynamic = DynamicTransactor.IsValid();
-	TSharedPtr<FMetasoundGenerator> Generator;
-
-	if (bIsDynamic)
-	{
-		// In order to ensure synchronization and avoid race conditions the current state
-		// of the graph is copied and transform queue created here. This ensures that:
-		//
-		// 1. Modifications to the underlying FGraph in the FDynamicOperatorTransactor can continue 
-		// while the generator is being constructed on an async task.  If this were not ensured, 
-		// a race condition would be introduced wherein the FGraph could be manipulated while the
-		// graph is being read while building the generator.
-		//
-		// 2. The state of the FGraph and TransformQueue are synchronized so that any additional
-		// changes applied to the FDynamicOperatorTransactor will be placed in the TransformQueue.
-		// The dynamic operator & generator will then consume these transforms after it has finished 
-		// being built.
-
-		BuilderSettings.bEnableOperatorRebind = true;
-
-		FMetasoundDynamicGraphGeneratorInitParams InitParams
-		{
-			{
-				InSettings,
-				MoveTemp(BuilderSettings),
-				MakeShared<FGraph>(DynamicTransactor->GetGraph()), // Make a copy of the graph.
-				Environment,
-				GetName(),
-				GetOutputAudioChannelOrder(),
-				MoveTemp(InDefaultParameters),
-				bBuildSynchronous,
-				DataChannel
-			},
-			DynamicTransactor->CreateTransformQueue(InSettings, Environment) // Create transaction queue
-		};
-		TSharedPtr<FMetasoundDynamicGraphGenerator> DynamicGenerator = MakeShared<FMetasoundDynamicGraphGenerator>(InSettings);
-		DynamicGenerator->Init(MoveTemp(InitParams));
-
-		Generator = MoveTemp(DynamicGenerator);
-	}
-	else
-	{
-		TSharedPtr<const IGraph> MetasoundGraph = FMetasoundFrontendRegistryContainer::Get()->GetGraph(GetRegistryKey());
-		if (!MetasoundGraph.IsValid())
-		{
-			return ISoundGeneratorPtr(nullptr);
-		}
-
-		FMetasoundGeneratorInitParams InitParams
-		{
-			InSettings,
-			MoveTemp(BuilderSettings),
-			MetasoundGraph,
-			Environment,
-			GetName(),
-			GetOutputAudioChannelOrder(),
-			MoveTemp(InDefaultParameters),
-			bBuildSynchronous,
-			DataChannel
-		};
-
-		Generator = MakeShared<FMetasoundConstGraphGenerator>(MoveTemp(InitParams));
-	}
-
-	if (Generator.IsValid())
-	{
-		TrackGenerator(InParams.AudioComponentId, Generator);
-	}
-
-	return ISoundGeneratorPtr(Generator);
-}
-
-void UMetaSoundSource::OnEndGenerate(ISoundGeneratorPtr Generator)
-{
-	using namespace Metasound;
-	ForgetGenerator(Generator);
-}
-
-bool UMetaSoundSource::GetAllDefaultParameters(TArray<FAudioParameter>& OutParameters) const
-{
-	using namespace Metasound;
-	using namespace Metasound::Frontend;
-	using namespace Metasound::Engine;
-
-	const FRuntimeData& RuntimeData = GetRuntimeData();
-	if(!RuntimeData.IsValid())
-	{
-		UE_LOG(LogMetaSound, Warning, TEXT("Default parameters may be incorrect. Accessing invalid runtime data on MetaSound %s"), *GetOwningAssetName());
-	}
-
-	for(const TPair<FVertexName, FMetasoundAssetBase::FRuntimeInput>& Pair : GetRuntimeData().PublicInputMap)
-	{
-		const FMetasoundAssetBase::FRuntimeInput& Input = Pair.Value;
-		FAudioParameter Params;
-		Params.ParamName = Input.Name;
-		Params.TypeName = Input.TypeName;
-
-		switch (Input.DefaultLiteral.GetType())
-		{
-			case EMetasoundFrontendLiteralType::Boolean:
-			{
-				static const FName TriggerName = "Trigger";
-				if (Params.TypeName == TriggerName)
-				{
-					Params.ParamType = EAudioParameterType::Trigger;
-				}
-				else
-				{
-					Params.ParamType = EAudioParameterType::Boolean;
-				}
-					
-				ensure(Input.DefaultLiteral.TryGet(Params.BoolParam));
-			}
-			break;
-
-			case EMetasoundFrontendLiteralType::BooleanArray:
-			{
-				Params.ParamType = EAudioParameterType::BooleanArray;
-				ensure(Input.DefaultLiteral.TryGet(Params.ArrayBoolParam));
-			}
-			break;
-
-			case EMetasoundFrontendLiteralType::Integer:
-			{
-				Params.ParamType = EAudioParameterType::Integer;
-				ensure(Input.DefaultLiteral.TryGet(Params.IntParam));
-			}
-			break;
-
-			case EMetasoundFrontendLiteralType::IntegerArray:
-			{
-				Params.ParamType = EAudioParameterType::IntegerArray;
-				ensure(Input.DefaultLiteral.TryGet(Params.ArrayIntParam));
-			}
-			break;
-
-			case EMetasoundFrontendLiteralType::Float:
-			{
-				Params.ParamType = EAudioParameterType::Float;
-				ensure(Input.DefaultLiteral.TryGet(Params.FloatParam));
-			}
-			break;
-
-			case EMetasoundFrontendLiteralType::FloatArray:
-			{
-				Params.ParamType = EAudioParameterType::FloatArray;
-				ensure(Input.DefaultLiteral.TryGet(Params.ArrayFloatParam));
-			}
-			break;
-
-			case EMetasoundFrontendLiteralType::String:
-			{
-				Params.ParamType = EAudioParameterType::String;
-				ensure(Input.DefaultLiteral.TryGet(Params.StringParam));
-			}
-			break;
-
-			case EMetasoundFrontendLiteralType::StringArray:
-			{
-				Params.ParamType = EAudioParameterType::StringArray;
-				ensure(Input.DefaultLiteral.TryGet(Params.ArrayStringParam));
-			}
-			break;
-
-			case EMetasoundFrontendLiteralType::UObject:
-			{
-				Params.ParamType = EAudioParameterType::Object;
-				UObject* Object = nullptr;
-				ensure(Input.DefaultLiteral.TryGet(Object));
-				Params.ObjectParam = Object;
-			}
-			break;
-
-			case EMetasoundFrontendLiteralType::UObjectArray:
-			{
-				Params.ParamType = EAudioParameterType::ObjectArray;
-				ensure(Input.DefaultLiteral.TryGet(MutableView(Params.ArrayObjectParam)));
-			}
-			break;
-
-			default:
-			break;
-		}
-
-		if (Params.ParamType != EAudioParameterType::None)
-		{
-			OutParameters.Add(Params);
-		}
-	}
-	return true;
-}
-
 bool UMetaSoundSource::IsParameterValid(const FAudioParameter& InParameter) const
 {
 	const TArray<FMetasoundFrontendClassInput>& Inputs = GetDocumentChecked().RootGraph.Interface.Inputs;
@@ -924,7 +970,7 @@ bool UMetaSoundSource::IsParameterValid(const FAudioParameter& InParameter) cons
 	
 	if (Vertex)
 	{
-		return IsParameterValid(InParameter, Vertex->TypeName, Metasound::Frontend::IDataTypeRegistry::Get());
+		return IsParameterValidInternal(InParameter, Vertex->TypeName, Metasound::Frontend::IDataTypeRegistry::Get());
 	}
 	else
 	{
@@ -932,7 +978,7 @@ bool UMetaSoundSource::IsParameterValid(const FAudioParameter& InParameter) cons
 	}
 }
 
-bool UMetaSoundSource::IsParameterValid(const FAudioParameter& InParameter, const FName& InTypeName, Metasound::Frontend::IDataTypeRegistry& InDataTypeRegistry) const
+bool UMetaSoundSource::IsParameterValidInternal(const FAudioParameter& InParameter, const FName& InTypeName, Metasound::Frontend::IDataTypeRegistry& InDataTypeRegistry) const
 {
 	using namespace Metasound;
 	using namespace Metasound::Frontend;
@@ -1071,29 +1117,52 @@ TSharedPtr<Audio::IParameterTransmitter> UMetaSoundSource::CreateParameterTransm
 
 	METASOUND_LLM_SCOPE;
 
-	const FRuntimeData& RuntimeData = GetRuntimeData();
-	if(!RuntimeData.IsValid())
+	auto CreateParameterTransmitterInternal = [this](const TSortedVertexNameMap<FRuntimeInput>& InInputMap, Audio::FParameterTransmitterInitParams& InParams)
 	{
-		UE_LOG(LogMetaSound, Warning, TEXT("Parameter Transmitter may not work. Accessing invalid runtime data on MetaSound %s"), *GetOwningAssetName());
-	}
-
-	// Build list of parameters that can be set at runtime.
-	TArray<FName> ValidParameters;
-	for (const TPair<FVertexName, FMetasoundAssetBase::FRuntimeInput>& Pair : RuntimeData.PublicInputMap)
-	{
-		if (Pair.Value.bIsTransmittable && (Pair.Value.AccessType == EMetasoundFrontendVertexAccessType::Reference))
+		// Build list of parameters that can be set at runtime.
+		TArray<FName> ValidParameters;
+		for (const TPair<FVertexName, FRuntimeInput>& Pair : InInputMap)
 		{
-			ValidParameters.Add(Pair.Value.Name);
+			if (Pair.Value.bIsTransmittable && (Pair.Value.AccessType == EMetasoundFrontendVertexAccessType::Reference))
+			{
+				ValidParameters.Add(Pair.Value.Name);
+			}
 		}
+
+		FParameterRouter& Router = UMetaSoundSource::GetParameterRouter();
+		TSharedPtr<TSpscQueue<FMetaSoundParameterTransmitter::FParameter>> DataChannel = Router.FindOrCreateDataChannelForWriter(InParams.AudioDeviceID, InParams.InstanceID);
+
+		Metasound::FMetaSoundParameterTransmitter::FInitParams InitParams
+		(
+			GetOperatorSettings(InParams.SampleRate), 
+			InParams.InstanceID, 
+			MoveTemp(InParams.DefaultParams), 
+			MoveTemp(ValidParameters), 
+			DataChannel
+		);
+
+		InitParams.DebugMetaSoundName = this->GetFName();
+
+		return MakeShared<Metasound::FMetaSoundParameterTransmitter>(MoveTemp(InitParams));
+	};
+
+	const bool bIsRuntimeInputDataValid = RuntimeInputData.bIsValid.load();
+	const bool bCreateInputMapOnTheFly = bIsBuilderActive || !bIsRuntimeInputDataValid;
+
+	if (bCreateInputMapOnTheFly)
+	{
+		if (!bIsBuilderActive)
+		{
+			// If we're not using a builder, that means the metasound cannot change and that the runtime input data should have been cached. 
+			UE_LOG(LogMetaSound, Warning, TEXT("Creating a Parameter Transmiiter on uninitialized UMetaSoundSource %s will result in slower performance. UMetaSoundSource::InitResources should finish executing on the game thread before attempting to call UMetaSoundSource::CreateParameterTransmitter(...)"), *GetOwningAssetName());
+		}
+
+		return CreateParameterTransmitterInternal(CreateRuntimeInputMap(), InParams);
 	}
-
-	FParameterRouter& Router = GetParameterRouter();
-	TSharedPtr<TSpscQueue<FMetaSoundParameterTransmitter::FParameter>> DataChannel = Router.FindOrCreateDataChannelForWriter(InParams.AudioDeviceID, InParams.InstanceID);
-
-	Metasound::FMetaSoundParameterTransmitter::FInitParams InitParams(GetOperatorSettings(InParams.SampleRate), InParams.InstanceID, MoveTemp(InParams.DefaultParams), MoveTemp(ValidParameters), DataChannel);
-	InitParams.DebugMetaSoundName = GetFName();
-
-	return MakeShared<Metasound::FMetaSoundParameterTransmitter>(MoveTemp(InitParams));
+	else
+	{
+		return CreateParameterTransmitterInternal(RuntimeInputData.InputMap, InParams);
+	}
 }
 
 Metasound::FOperatorSettings UMetaSoundSource::GetOperatorSettings(Metasound::FSampleRate InSampleRate) const
@@ -1283,6 +1352,12 @@ void UMetaSoundSource::OnBeginActiveBuilder()
 	WaitForAsyncGraphRegistration();
 
 	bIsBuilderActive = true;
+
+	// Currently we do not have information on whether inputs were added or removed
+	// from the document. We invalidate the cached runtime inputs just in case. 
+	// MetaSounds which have an active builder should not be using cached runtime
+	// input data until the builder is no longer active. 
+	InvalidateCachedRuntimeInputData();
 }
 
 void UMetaSoundSource::OnFinishActiveBuilder()
@@ -1337,4 +1412,78 @@ TSharedPtr<Metasound::DynamicGraph::FDynamicOperatorTransactor> UMetaSoundSource
 {
 	return DynamicTransactor;
 }
+
+Metasound::TSortedVertexNameMap<UMetaSoundSource::FRuntimeInput> UMetaSoundSource::CreateRuntimeInputMap() const
+{
+	using namespace Metasound;
+	using namespace Metasound::Frontend;
+
+	METASOUND_TRACE_CPUPROFILER_EVENT_SCOPE(UMetaSoundSource::CreateRuntimeInputMap);
+
+	auto GetInputName = [](const FMetasoundFrontendClassInput& InInput) { return InInput.Name; };
+
+	IDataTypeRegistry& Registry = IDataTypeRegistry::Get();
+	const FMetasoundFrontendDocument& Doc = GetConstDocument();
+
+	TArray<const IInterfaceRegistryEntry*> Interfaces;
+	FMetaSoundFrontendDocumentBuilder::FindDeclaredInterfaces(Doc, Interfaces);
+
+	// Inputs which are controlled by an interface are private unless
+	// their router name is `Audio::IParameterTransmitter::RouterName`
+	TSet<FVertexName> PrivateInputs;
+	for (const IInterfaceRegistryEntry* InterfaceEntry : Interfaces)
+	{
+		if (InterfaceEntry)
+		{
+			if (InterfaceEntry->GetRouterName() != Audio::IParameterTransmitter::RouterName)
+			{
+				const FMetasoundFrontendInterface& Interface = InterfaceEntry->GetInterface();
+				Algo::Transform(Interface.Inputs, PrivateInputs, GetInputName);
+			}
+		}
+	}
+
+	// Cache all inputs which are not private inputs.
+	TSortedVertexNameMap<FRuntimeInput> PublicInputs;
+	for (const FMetasoundFrontendClassInput& Input : Doc.RootGraph.Interface.Inputs)
+	{
+		if (!PrivateInputs.Contains(Input.Name))
+		{
+			bool bIsTransmittable = false;
+			if (const IDataTypeRegistryEntry* RegistryEntry = Registry.FindDataTypeRegistryEntry(Input.TypeName))
+			{
+				bIsTransmittable = RegistryEntry->GetDataTypeInfo().bIsTransmittable;	
+			}
+			else
+			{
+				UE_LOG(LogMetaSound, Warning, TEXT("Failed to find data type '%s' in registry. Assuming data type is not transmittable"), *Input.TypeName.ToString());
+
+			}
+			PublicInputs.Add(Input.Name, FRuntimeInput{Input.Name, Input.TypeName, Input.AccessType, Input.DefaultLiteral, bIsTransmittable});
+		}
+	}
+
+	// Add the parameter pack input that ALL Metasounds have
+	FMetasoundFrontendClassInput ParameterPackInput = UMetasoundParameterPack::GetClassInput();
+	PublicInputs.Add(ParameterPackInput.Name, FRuntimeInput{ParameterPackInput.Name, ParameterPackInput.TypeName, ParameterPackInput.AccessType, ParameterPackInput.DefaultLiteral, true /* bIsTransmittable */});
+	
+	return PublicInputs;
+}
+
+void UMetaSoundSource::CacheRuntimeInputData()
+{
+	if (bIsBuilderActive)
+	{
+		UE_LOG(LogMetaSound, Warning, TEXT("Skipping caching of runtime inputs for UMetaSoundSource %s because there is an active builder"), *GetOwningAssetName());
+	}
+
+	RuntimeInputData.InputMap = CreateRuntimeInputMap();
+	RuntimeInputData.bIsValid.store(true);
+}
+
+void UMetaSoundSource::InvalidateCachedRuntimeInputData()
+{
+	RuntimeInputData.bIsValid.store(false);
+}
+
 #undef LOCTEXT_NAMESPACE // MetaSound

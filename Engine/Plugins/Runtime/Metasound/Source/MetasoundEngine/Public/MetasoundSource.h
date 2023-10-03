@@ -13,8 +13,11 @@
 #include "MetasoundOperatorSettings.h"
 #include "MetasoundParameterTransmitter.h"
 #include "MetasoundRouter.h"
+#include "MetasoundVertex.h"
 #include "Sound/SoundWaveProcedural.h"
 #include "UObject/MetaData.h"
+
+#include <atomic>
 
 #include "MetasoundSource.generated.h"
 
@@ -55,6 +58,27 @@ class METASOUNDENGINE_API UMetaSoundSource : public USoundWaveProcedural, public
 
 	friend struct Metasound::FMetaSoundEngineAssetHelper;
 	friend class UMetaSoundSourceBuilder;
+
+	// FRuntimeInput represents an input to a MetaSound which can be manipulated.
+	struct FRuntimeInput
+	{
+		// Name of input vertex
+		FName Name;
+		// Data type name of input vertex.
+		FName TypeName;
+		// Access type of input vertex.
+		EMetasoundFrontendVertexAccessType AccessType;
+		// Default literal of input vertex.
+		FMetasoundFrontendLiteral DefaultLiteral;
+		// True if the data type is transmittable. False otherwise.
+		bool bIsTransmittable;
+	};
+
+	struct FRuntimeInputData
+	{
+		std::atomic<bool> bIsValid = false;
+		Metasound::TSortedVertexNameMap<FRuntimeInput> InputMap;
+	};
 
 protected:
 	UPROPERTY(EditAnywhere, Category = CustomView)
@@ -209,9 +233,9 @@ public:
 	virtual void InitParameters(TArray<FAudioParameter>& ParametersToInit, FName InFeatureName) override;
 
 	virtual void InitResources() override;
+	virtual void RegisterGraphWithFrontend(Metasound::Frontend::FMetaSoundAssetRegistrationOptions InRegistrationOptions = Metasound::Frontend::FMetaSoundAssetRegistrationOptions()) override;
 
 	virtual bool IsPlayable() const override;
-	virtual bool SupportsSubtitles() const override;
 	virtual float GetDuration() const override;
 	virtual bool ImplementsParameterInterface(Audio::FParameterInterfacePtr InInterface) const override;
 	virtual ISoundGeneratorPtr CreateSoundGenerator(const FSoundGeneratorInitParams& InParams, TArray<FAudioParameter>&& InDefaultParameters) override;
@@ -251,7 +275,8 @@ private:
 	virtual void OnBeginActiveBuilder() override;
 	virtual void OnFinishActiveBuilder() override;
 
-	bool IsParameterValid(const FAudioParameter& InParameter, const FName& InTypeName, Metasound::Frontend::IDataTypeRegistry& InDataTypeRegistry) const;
+	void InitParametersInternal(const Metasound::TSortedVertexNameMap<FRuntimeInput>& InputMap, TArray<FAudioParameter>& ParametersToInit, FName InFeatureName) const;
+	bool IsParameterValidInternal(const FAudioParameter& InParameter, const FName& InTypeName, Metasound::Frontend::IDataTypeRegistry& InDataTypeRegistry) const;
 
 	static Metasound::SourcePrivate::FParameterRouter& GetParameterRouter();
 
@@ -265,6 +290,12 @@ private:
 	TSortedMap<uint64, TWeakPtr<Metasound::FMetasoundGenerator>> Generators;
 	void TrackGenerator(uint64 Id, TSharedPtr<Metasound::FMetasoundGenerator> Generator);
 	void ForgetGenerator(ISoundGeneratorPtr Generator);
+
+	Metasound::TSortedVertexNameMap<FRuntimeInput> CreateRuntimeInputMap() const;
+	void CacheRuntimeInputData();
+	void InvalidateCachedRuntimeInputData();
+
+	FRuntimeInputData RuntimeInputData;
 
 	/** Enable/disable dynamic generator.
 	 *
