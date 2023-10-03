@@ -44,7 +44,7 @@ bool FIKRetargetAnimInstanceProxy::Evaluate(FPoseContext& Output)
 {
 	if (PreviewPoseNode->IKRetargeterAsset)
 	{
-		bIgnoreRootLock = PreviewPoseNode->IKRetargeterAsset->bIgnoreRootLock;	
+		bIgnoreRootLock = PreviewPoseNode->IKRetargeterAsset->bIgnoreRootLockInPreview;	
 	}
 	
 	switch (OutputMode)

@@ -127,6 +127,15 @@ void UIKRetargetBatchOperation::DuplicateRetargetAssets(
 		
 		TMap<UAnimationAsset*, UAnimationAsset*> DuplicateMap = DuplicateAssets<UAnimationAsset>({Asset}, DestinationPackage, &Context.NameRule);
 		DuplicatedAnimAssets.Append(DuplicateMap);
+
+		// optionally let user override root lock on exported animation sequences,
+		// (by default it will inherit the bForceRootLock state from the duplicated source animation)
+		const ERetargetRootLockMode RootLockMode = Context.IKRetargetAsset->ExportRootLockMode;
+		UAnimSequence* TargetSequence = Cast<UAnimSequence>(DuplicateMap[Asset]);
+		if (RootLockMode != ERetargetRootLockMode::FromSourceAnimation && TargetSequence)
+		{
+			TargetSequence->bForceRootLock = RootLockMode == ERetargetRootLockMode::ForceRootLocked ? true : false;
+		}
 	}
 	for (UAnimBlueprint* Asset : AnimBlueprintsToDuplicate)
 	{
@@ -376,10 +385,9 @@ void UIKRetargetBatchOperation::ConvertAnimation(
 		// ensure we evaluate the source animation using the skeletal mesh proportions that were evaluated in the viewport
 		FAnimPoseEvaluationOptions EvaluationOptions = FAnimPoseEvaluationOptions();
 		EvaluationOptions.OptionalSkeletalMesh = SourceSkeleton.SkeletalMesh;
-
-		// optionally ignore root lock
-		const bool bIgnoreRootLock = Context.IKRetargetAsset->bIgnoreRootLock;
-		TGuardValue<bool> RootLockGuard(SourceSequence->bForceRootLock, bIgnoreRootLock ? false : SourceSequence->bForceRootLock);
+		// ensure WYSIWYG with editor by ensuring the same root motion is evaluated during export as during the editor preview
+		EvaluationOptions.bExtractRootMotion = !TargetSequence->bForceRootLock;
+		EvaluationOptions.bIncorporateRootMotionIntoPose = !TargetSequence->bForceRootLock;
 
 		// reset the planting state
 		Processor->ResetPlanting();
