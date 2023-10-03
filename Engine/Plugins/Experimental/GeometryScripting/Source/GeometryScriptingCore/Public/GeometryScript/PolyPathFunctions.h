@@ -17,6 +17,18 @@ enum class EGeometryScriptSampleSpacing : uint8
 	ErrorTolerance
 };
 
+UENUM(BlueprintType)
+enum class EGeometryScriptEvaluateSplineRange : uint8
+{
+	// Evaluate the full spline, ignoring any specified range
+	FullSpline,
+	// Evaluate a range specified by distances along the spline
+	DistanceRange,
+	// Evaluate a range specified by times, based on travelling at constant speed along the spline
+	TimeRange_ConstantSpeed,
+	// Evaluate a range specified by times, based on travelling at a constant rate of spline segments/second
+	TimeRange_VariableSpeed
+};
 
 USTRUCT(BlueprintType)
 struct GEOMETRYSCRIPTINGCORE_API FGeometryScriptSplineSamplingOptions
@@ -34,6 +46,19 @@ public:
 
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = Options)
 	TEnumAsByte<ESplineCoordinateSpace::Type> CoordinateSpace = ESplineCoordinateSpace::Type::Local;
+
+	// How the RangeStart and RangeEnd parameters will be interpreted
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = Options)
+	EGeometryScriptEvaluateSplineRange RangeMethod = EGeometryScriptEvaluateSplineRange::FullSpline;
+
+	// If not evaluating the full spline, where to start sampling. Expressed in units based on the EvaluateRange value.
+	UPROPERTY(BlueprintReadWrite, Category = Options, meta = (EditCondition = "EvaluateRange != EGeometryScriptEvaluateSplineRange::FullSpline"))
+	float RangeStart = 0;
+
+	// If not evaluating the full spline, where to stop sampling. Expressed in units based on the EvaluateRange value.
+	UPROPERTY(BlueprintReadWrite, Category = Options, meta = (EditCondition = "EvaluateRange != EGeometryScriptEvaluateSplineRange::FullSpline"))
+	float RangeEnd = 1;
+
 };
 
 
@@ -124,12 +149,13 @@ public:
 	/**
 	 * Sample a USplineComponent into a list of FTransforms, based on the given SamplingOptions.
 	 * @param Frames Transforms are returned here, with X axis oriented along spline Tangent and Z as the 'Up' vector.
-	 * @param FrameTimes the spline Time value used for each Frame
+	 * @param FrameTimes the spline Time value used for each Frame. Note the Times Use Constant Velocity output indicates whether these times are w.r.t. to a constant-speed parameterization of the spline.
 	 * @param RelativeTransform a constant Transform applied to each sample Transform in its local frame of reference. So, eg, an X Rotation will rotate each frame around the local spline Tangent vector
 	 * @param bIncludeScale if true, the Scale of each FTransform is taken from the Spline, otherwise the Transforms have unit scale
+	 * @return whether the FrameTimes are w.r.t. a 'constant speed' traversal of the spline
 	 */
 	UFUNCTION(BlueprintCallable, Category = "GeometryScript|PolyPath")
-	static void SampleSplineToTransforms(
+	static UPARAM(DisplayName = "Times Use Constant Velocity") bool SampleSplineToTransforms(
 		const USplineComponent* Spline, 
 		TArray<FTransform>& Frames, 
 		TArray<double>& FrameTimes,
