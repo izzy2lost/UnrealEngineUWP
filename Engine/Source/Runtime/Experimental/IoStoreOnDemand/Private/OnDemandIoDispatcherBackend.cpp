@@ -63,6 +63,27 @@ namespace UE::IO::IAS
 {
 
 ///////////////////////////////////////////////////////////////////////////////
+int32 GIasHttpPollTimeoutMs = 17;
+static FAutoConsoleVariableRef CVar_GIasHttpPollTimeoutMs(
+	TEXT("ias.HttpPollTimeoutMs"),
+	GIasHttpPollTimeoutMs,
+	TEXT("Http tick poll timeout in milliseconds")
+);
+
+int32 GIasHttpRateLimitKiBPerSecond = 0;
+static FAutoConsoleVariableRef CVar_GIasHttpRateLimitKiBPerSecond(
+	TEXT("ias.HttpRateLimitKiBPerSecond"),
+	GIasHttpRateLimitKiBPerSecond,
+	TEXT("Http throttle limit in KiBPerSecond")
+);
+
+static int32 GIasHttpRecvBufKiB = -1;
+static FAutoConsoleVariableRef CVar_GIasHttpRecvBufKiB(
+	TEXT("ias.HttpRecvBufKiB"),
+	GIasHttpRecvBufKiB,
+	TEXT("Recv buffer size")
+);
+
 int32 GIasMaxHttpConnectionCount = 8;
 static FAutoConsoleVariableRef CVar_IasMaxHttpConnectionCount(
 	TEXT("ias.MaxHttpConnectionCount"),
@@ -754,11 +775,6 @@ struct FChunkRequest
 		return Head;
 	}
 
-	const FIoChunkId& GetChunkId()
-	{
-		return RequestHead->ChunkId;
-	}
-
 	FChunkRequest* NextRequest;
 	FChunkRequestParams Params;
 	FIoRequestImpl* RequestHead;
@@ -1284,6 +1300,12 @@ class FOnDemandIoBackend final
 			return false;
 		}
 
+		FIoChunkId GetChunkId(FChunkRequest* Request)
+		{
+			FScopeLock _(&Mutex);
+			return Request->RequestHead ? Request->RequestHead->ChunkId : FIoChunkId::InvalidChunkId;
+		}
+
 		void Remove(FChunkRequest* Request)
 		{
 			FScopeLock _(&Mutex);
@@ -1365,7 +1387,7 @@ private:
 	FIoStatus DownloadoadOnDemandToc(const FString& CdnUrl, const FString& TocPath);
 
 	void AddDeferredTocs();
-	void ProcessHttpRequests(FOnDemandHttpClient* HttpClient, FBitWindow& HttpErrors, int32 MaxConcurrentRequests);
+	void ProcessHttpRequests(FHttpClient* HttpClient, FBitWindow& HttpErrors, int32 MaxConcurrentRequests);
 
 	TUniquePtr<IIasCache> Cache;
 	TUniquePtr<FOnDemandIoStore> IoStore;
@@ -1901,7 +1923,7 @@ void FOnDemandIoBackend::Mount(const FOnDemandEndpoint& Endpoint)
 	LLM_SCOPE_BYTAG(Ias);
 	TRACE_CPUPROFILER_EVENT_SCOPE(IasBackend::Mount);
 
-	if ((Endpoint.DistributionUrl.IsEmpty() && Endpoint.ServiceUrl.IsEmpty()) || Endpoint.TocPath.IsEmpty())
+	if ((Endpoint.DistributionUrl.IsEmpty() && Endpoint.ServiceUrls.IsEmpty()) || Endpoint.TocPath.IsEmpty())
 	{
 		UE_LOG(LogIas, Error, TEXT("Trying to mount an invalid on demand endpoint"));
 		return;
@@ -1919,7 +1941,7 @@ void FOnDemandIoBackend::Mount(const FOnDemandEndpoint& Endpoint)
 	{
 		{
 			FWriteScopeLock _(Lock);
-			if (Endpoint.ServiceUrl.IsEmpty())
+			if (Endpoint.ServiceUrls.IsEmpty())
 			{
 				if (AvailableEps.HasCurrent() == false)
 				{
@@ -1933,7 +1955,10 @@ void FOnDemandIoBackend::Mount(const FOnDemandEndpoint& Endpoint)
 			}
 			else if (AvailableEps.Urls.IsEmpty())
 			{
-				AvailableEps.Urls.Add(Endpoint.ServiceUrl.Replace(TEXT("https"), TEXT("http")));
+				for (const FString& Url : Endpoint.ServiceUrls)
+				{
+					AvailableEps.Urls.Add(Url.Replace(TEXT("https"), TEXT("http")));
+				}
 				AvailableEps.Current = 0;
 			}
 		}
@@ -1956,13 +1981,12 @@ void FOnDemandIoBackend::Mount(const FOnDemandEndpoint& Endpoint)
 					FWriteScopeLock _(Lock);
 					DeferredTocs.Add(Endpoint.TocPath);
 			}
-	}
-
+		}
 		ConditionallyStartBackendThread();
 	}
 	else
 	{
-		UE_LOG(LogIas, Log, TEXT("Mounting ZEN endpoint, Url='%s'"), *Endpoint.ServiceUrl);
+		UE_LOG(LogIas, Log, TEXT("Mounting ZEN endpoint, Url='%s'"), *Endpoint.ServiceUrls[0]);
 	}
 }
 
@@ -2005,7 +2029,7 @@ void FOnDemandIoBackend::ReportAnalytics(TArray<FAnalyticsEventAttribute>& OutAn
 	}
 }
 
-void FOnDemandIoBackend::ProcessHttpRequests(FOnDemandHttpClient* HttpClient, FBitWindow& HttpErrors, int32 MaxConcurrentRequests)
+void FOnDemandIoBackend::ProcessHttpRequests(FHttpClient* HttpClient, FBitWindow& HttpErrors, int32 MaxConcurrentRequests)
 {
 	int32 NumConcurrentRequests = 0;
 	FChunkRequest* NextChunkRequest = HttpRequests.Dequeue();
@@ -2037,42 +2061,50 @@ void FOnDemandIoBackend::ProcessHttpRequests(FOnDemandHttpClient* HttpClient, FB
 
 					NumConcurrentRequests++;
 					HttpClient->Get(Url.ToView(), ChunkRequest->Params.ChunkRange,
-						[this, &NextChunkRequest, ChunkRequest, &NumConcurrentRequests, &HttpErrors](TIoStatusOr<FIoBuffer> Status, uint64 DurationMs)
+						[this, &NextChunkRequest, ChunkRequest, &NumConcurrentRequests, &HttpErrors]
+						(TIoStatusOr<FIoBuffer> Status, uint64 DurationMs)
 						{
 							NumConcurrentRequests--;
-
-							if (Status.Status().GetErrorCode() == EIoErrorCode::ReadError)
+							switch (Status.Status().GetErrorCode())
 							{
-								if (++ChunkRequest->HttpRetryCount <= GIasMaxHttpRetryCount)
-								{
-									Stats.OnHttpRetry();
-									ChunkRequest->NextRequest = NextChunkRequest;
-									NextChunkRequest = ChunkRequest;
-									return;
-								}
-							}
-
-							if (Status.IsOk())
+							case EIoErrorCode::Ok:
 							{
 								HttpErrors.Add(false);
 								ChunkRequest->Chunk = Status.ConsumeValueOrDie();
 								Stats.OnHttpGet(ChunkRequest->Chunk.DataSize(), DurationMs);
+								break;
 							}
-							else
+							case EIoErrorCode::ReadError:
+							case EIoErrorCode::NotFound:
 							{
 								Stats.OnHttpError();
 								HttpErrors.Add(true);
 
 								const float Average = HttpErrors.AvgSetBits();
 								const bool bAboveHighWaterMark = Average > GIasHttpErrorHighWater;
-								UE_LOG(LogIas, Warning, TEXT("%.2f%% the last %d HTTP requests failed"), Average * 100.0f, GIasHttpErrorSampleCount);
+								UE_LOG(LogIas, Log, TEXT("%.2f%% the last %d HTTP requests failed"), Average * 100.0f, GIasHttpErrorSampleCount);
 
-								if (bAboveHighWaterMark)
+								if (bAboveHighWaterMark && BackendStatus.IsHttpEnabled())
 								{
 									BackendStatus.SetHttpError(true);
 									UE_LOG(LogIas, Warning, TEXT("HTTP streaming disabled due to high water mark of %.2f of the last %d requests reached"),
 										GIasHttpErrorHighWater * 100.0f, GIasHttpErrorSampleCount);
 								}
+								break;
+							}
+							case EIoErrorCode::Cancelled:
+							{
+								const FIoChunkId ChunkId = ChunkRequests.GetChunkId(ChunkRequest);
+								UE_LOG(LogIas, Log, TEXT("HTTP request for chunk '%s' cancelled"), *LexToString(ChunkId));
+								break;
+							}
+							default:
+							{
+								const FIoChunkId ChunkId = ChunkRequests.GetChunkId(ChunkRequest);
+								UE_LOG(LogIas, Warning, TEXT("Unhandled HTTP response '%s' for chunk '%s'"),
+									GetIoErrorText(Status.Status().GetErrorCode()), *LexToString(ChunkId));
+								break;
+							}
 							}
 
 							UE::Tasks::Launch(UE_SOURCE_LOCATION, [this, ChunkRequest]()
@@ -2088,7 +2120,7 @@ void FOnDemandIoBackend::ProcessHttpRequests(FOnDemandHttpClient* HttpClient, FB
 				TRACE_CPUPROFILER_EVENT_SCOPE(IasBackend::TickHttpSaturated);
 				while (NumConcurrentRequests >= MaxConcurrentRequests)
 				{
-					HttpClient->Tick(/*Block*/true);
+					HttpClient->Tick(MAX_uint32, GIasHttpRateLimitKiBPerSecond);
 				}
 			}
 
@@ -2101,7 +2133,7 @@ void FOnDemandIoBackend::ProcessHttpRequests(FOnDemandHttpClient* HttpClient, FB
 		{
 			// Keep processing pending connections until all requests are completed or a new one is issued
 			TRACE_CPUPROFILER_EVENT_SCOPE(IasBackend::TickHttp);
-			while (HttpClient->Tick(/*Block*/false))
+			while (HttpClient->Tick(GIasHttpPollTimeoutMs, GIasHttpRateLimitKiBPerSecond))
 			{
 				if (!NextChunkRequest)
 				{
@@ -2122,11 +2154,19 @@ uint32 FOnDemandIoBackend::Run()
 
 	FBitWindow HttpErrors;
 	HttpErrors.Reset(GIasHttpErrorSampleCount);
-	
-	TUniquePtr<FOnDemandHttpClient> HttpClient;
+
+	const int32 MaxHttpRetryCount = FMath::Max(AvailableEps.Urls.Num() + 1, GIasMaxHttpRetryCount);
+	TUniquePtr<FHttpClient> HttpClient;
 	if (AvailableEps.HasCurrent())
 	{
-		HttpClient = MakeUnique<FOnDemandHttpClient>(AvailableEps.GetCurrent(), GIasMaxHttpConnectionCount);
+		HttpClient = FHttpClient::Create(FHttpClientConfig
+		{
+			.Endpoints = AvailableEps.Urls,
+			.PrimaryEndpoint = AvailableEps.Current,
+			.MaxConnectionCount = GIasMaxHttpConnectionCount,
+			.MaxRetryCount = MaxHttpRetryCount,
+			.ReceiveBufferSize = GIasHttpRecvBufKiB >= 0 ? GIasHttpRecvBufKiB << 10 : -1
+		});
 #if !UE_BUILD_SHIPPING
 		LatencyTest(AvailableEps.GetCurrent(), GetEndpointTestPath());
 #endif 
@@ -2136,6 +2176,7 @@ uint32 FOnDemandIoBackend::Run()
 	{
 		// Process HTTP request(s) even if the client is invalid to ensure enqueued request(s) gets completed.
 		ProcessHttpRequests(HttpClient.Get(), HttpErrors, FMath::Min(2 * GIasMaxHttpConnectionCount, 64));
+		AvailableEps.Current = HttpClient.IsValid() ? HttpClient->GetPrimaryConnection() : INDEX_NONE;
 
 		if (!bStopRequested)
 		{
@@ -2155,10 +2196,38 @@ uint32 FOnDemandIoBackend::Run()
 				if (int32 Idx = LatencyTest(AvailableEps.Urls, TestPath, bStopRequested); Idx != INDEX_NONE)
 				{
 					AvailableEps.Current = Idx;
-					HttpClient = MakeUnique<FOnDemandHttpClient>(AvailableEps.GetCurrent(), GIasMaxHttpConnectionCount);
+					HttpClient = FHttpClient::Create(FHttpClientConfig
+					{
+						.Endpoints = AvailableEps.Urls,
+						.PrimaryEndpoint = Idx,
+						.MaxConnectionCount = GIasMaxHttpConnectionCount,
+						.MaxRetryCount = MaxHttpRetryCount,
+						.ReceiveBufferSize = GIasHttpRecvBufKiB >= 0 ? GIasHttpRecvBufKiB << 10 : -1
+					});
 					BackendStatus.SetHttpError(false);
 					UE_LOG(LogIas, Log, TEXT("Successfully reconnected to '%s'"), *AvailableEps.GetCurrent());
 					AddDeferredTocs();
+				}
+			}
+			else if (HttpClient.IsValid() && HttpClient->GetPrimaryConnection() != 0)
+			{
+				WaitTime = GIasHttpHealthCheckWaitTime;
+				const FString TestPath = GetEndpointTestPath(); 
+				TConstArrayView<FString> Urls = AvailableEps.Urls;
+
+				UE_LOG(LogIas, Log, TEXT("Trying to reconnect to primary endpoint '%s'"), *AvailableEps.Urls[0]);
+				if (int32 Idx = LatencyTest(Urls.Left(1), TestPath, bStopRequested); Idx != INDEX_NONE)
+				{
+					AvailableEps.Current = Idx;
+					HttpClient = FHttpClient::Create(FHttpClientConfig
+					{
+						.Endpoints = AvailableEps.Urls,
+						.PrimaryEndpoint = Idx,
+						.MaxConnectionCount = GIasMaxHttpConnectionCount,
+						.MaxRetryCount = MaxHttpRetryCount,
+						.ReceiveBufferSize = GIasHttpRecvBufKiB >= 0 ? GIasHttpRecvBufKiB << 10 : -1
+					});
+					UE_LOG(LogIas, Log, TEXT("Successfully reconnected to '%s'"), *AvailableEps.GetCurrent());
 				}
 			}
 			if (BackendStatus.ShouldAbandonCache())

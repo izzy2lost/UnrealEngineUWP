@@ -124,7 +124,7 @@ static bool TryParseConfigContent(const FString& ConfigContent, const FString& C
 	Config.ProcessInputFileContents(ConfigContent, ConfigFileName);
 
 	Config.GetString(TEXT("Endpoint"), TEXT("DistributionUrl"), OutEndpoint.DistributionUrl);
-	Config.GetString(TEXT("Endpoint"), TEXT("ServiceUrl"), OutEndpoint.ServiceUrl);
+	Config.GetArray(TEXT("Endpoint"), TEXT("ServiceUrl"), OutEndpoint.ServiceUrls);
 	Config.GetString(TEXT("Endpoint"), TEXT("TocPath"), OutEndpoint.TocPath);
 
 	if (OutEndpoint.DistributionUrl.EndsWith(TEXT("/")))
@@ -132,9 +132,12 @@ static bool TryParseConfigContent(const FString& ConfigContent, const FString& C
 		OutEndpoint.DistributionUrl = OutEndpoint.DistributionUrl.Left(OutEndpoint.DistributionUrl.Len() - 1);
 	}
 
-	if (OutEndpoint.ServiceUrl.EndsWith(TEXT("/")))
+	for (FString& ServiceUrl : OutEndpoint.ServiceUrls)
 	{
-		OutEndpoint.ServiceUrl = OutEndpoint.DistributionUrl.Left(OutEndpoint.ServiceUrl.Len() - 1);
+		if (ServiceUrl.EndsWith(TEXT("/")))
+		{
+			ServiceUrl.LeftInline(ServiceUrl.Len() - 1);
+		}
 	}
 
 	if (OutEndpoint.TocPath.StartsWith(TEXT("/")))
@@ -545,7 +548,7 @@ bool LoadFromCompactBinary(FCbFieldView Field, FOnDemandToc& OutToc)
 	return false;
 }
 
-TIoStatusOr<FOnDemandToc> LoadTocFromUrl(const FString& ServiceURL, const FString& TocPath, int32 RetryCount)
+TIoStatusOr<FOnDemandToc> LoadTocFromUrl(const FString& ServiceUrl, const FString& TocPath, int32 RetryCount)
 {
 	TRACE_CPUPROFILER_EVENT_SCOPE(LoadTocFromUrl);
 
@@ -553,11 +556,11 @@ TIoStatusOr<FOnDemandToc> LoadTocFromUrl(const FString& ServiceURL, const FStrin
 
 	for (int32 Attempt = 0; Attempt <= RetryCount; ++Attempt)
 	{
-		TUniquePtr<FOnDemandHttpClient> HttpClient = MakeUnique<FOnDemandHttpClient>(ServiceURL, 1);
+		TUniquePtr<FHttpClient> HttpClient = FHttpClient::Create(ServiceUrl);
 		TAnsiStringBuilder<256> Url;
 
 		Url << "/" << TocPath;
-		UE_LOG(LogIas, Log, TEXT("Fetching TOC '%s/%s' (#%d/%d)"), *HttpClient->ServiceUrl(), *TocPath, Attempt + 1, RetryCount);
+		UE_LOG(LogIas, Log, TEXT("Fetching TOC '%s/%s' (#%d/%d)"), *ServiceUrl, *TocPath, Attempt + 1, RetryCount);
 
 		TIoStatusOr<FOnDemandToc> Toc;
 		HttpClient->Get(Url.ToView(), [&Toc, &ErrorMsg](TIoStatusOr<FIoBuffer> Response, uint64 DurationMs)
@@ -585,8 +588,7 @@ TIoStatusOr<FOnDemandToc> LoadTocFromUrl(const FString& ServiceURL, const FStrin
 				}
 			});
 
-		const bool bBlock = true;
-		while (HttpClient->Tick(bBlock));
+		while (HttpClient->Tick());
 
 		if (Toc.IsOk())
 		{
@@ -1564,8 +1566,8 @@ void FIoStoreOnDemandModule::InitializeInternal()
 			int32 Delim = INDEX_NONE;
 			if (UrlView.RightChop(7).FindChar(TEXT('/'), Delim))
 			{
-				Endpoint.ServiceUrl = UrlView.Left(7 +  Delim);
-				Endpoint.TocPath = UrlView.RightChop(Endpoint.ServiceUrl.Len() + 1);
+				Endpoint.ServiceUrls.Add(FString(UrlView.Left(7 +  Delim)));
+				Endpoint.TocPath = UrlView.RightChop(Endpoint.ServiceUrls[0].Len() + 1);
 			}
 		}
 	}
@@ -1586,9 +1588,6 @@ void FIoStoreOnDemandModule::InitializeInternal()
 			return;
 		}
 	}
-
-	UE_LOG(LogIas, Display, TEXT("Initializing IoStoreOnDemand on service %s from %s."),
-		*Endpoint.ServiceUrl, *Endpoint.DistributionUrl);
 
 	FLatencyInjector::Initialize(CommandLine);
 

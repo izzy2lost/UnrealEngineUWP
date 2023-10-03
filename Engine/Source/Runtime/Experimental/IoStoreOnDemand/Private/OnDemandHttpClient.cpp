@@ -11,124 +11,220 @@
 namespace UE::IO::IAS
 {
 
-int32 GIasHttpRateLimitKiBPerSecond = 0;
-static FAutoConsoleVariableRef CVar_GIasHttpRateLimitKiBPerSecond(
-	TEXT("ias.HttpRateLimitKiBPerSecond"),
-	GIasHttpRateLimitKiBPerSecond,
-	TEXT("Http throttle limit in KiBPerSecond")
-);
-
-int32 GIasHttpPollTimeoutMs = 17;
-static FAutoConsoleVariableRef CVar_GIasHttpPollTimeoutMs(
-	TEXT("ias.HttpPollTimeoutMs"),
-	GIasHttpPollTimeoutMs,
-	TEXT("Http tick poll timeout in milliseconds")
-);
-
-static int32 GIasHttpRecvBufKiB = -1;
-static FAutoConsoleVariableRef CVar_GIasHttpRecvBufKiB(
-	TEXT("ias.HttpRecvBufKiB"),
-	GIasHttpRecvBufKiB,
-	TEXT("Recv buffer size")
-);
-
-static void LogHttpResult(const TCHAR* Url, uint32 StatusCode, uint64 DurationMs, uint64 Size, uint64 Offset, const char* Memo = "ok")
+static void LogHttpResult(const TCHAR* Host, const TCHAR* Url, uint32 StatusCode, uint64 DurationMs, uint64 Size, uint64 Offset, const char* Memo = "ok")
 {
 	Size >>= 10;
-	UE_LOG(LogIas, VeryVerbose, TEXT("http-%3u: %5" UINT64_FMT "ms %5" UINT64_FMT "KiB[%7" UINT64_FMT "] '%S' %s"), StatusCode, DurationMs, Size, Offset, Memo, Url);
+	UE_LOG(LogIas, VeryVerbose, TEXT("http-%3u: %5" UINT64_FMT "ms %5" UINT64_FMT "KiB[%7" UINT64_FMT "] '%S' %s%s"), StatusCode, DurationMs, Size, Offset, Memo, Host, Url);
 };
 
-FOnDemandHttpClient::FOnDemandHttpClient(const FString& ServiceUrl, int32 MaxConnectionCount)
-	: SvcsUrl(ServiceUrl)
-	, MaxConnections(MaxConnectionCount)
+void FHttpClient::Get(FAnsiStringView Url, const FIoOffsetAndLength& Range, FGetCallback&& Callback)
 {
-	auto ServiceUrlAnsi = StringCast<ANSICHAR>(*ServiceUrl, ServiceUrl.Len());
-
-	HTTP::FConnectionPool::FParams Params;
-	if (Params.SetHostFromUrl(ServiceUrlAnsi) < 0)
+	check(PrimaryConnection != INDEX_NONE);
+	IssueRequest(FRequestParams
 	{
-		UE_LOG(LogIas, Error, TEXT("Failed to set host from '%s'"), *ServiceUrl);
+		.Url = FString(Url),
+		.Range = Range,
+		.Callback = MoveTemp(Callback),
+		.Connection = PrimaryConnection
+	});
+}
+
+void FHttpClient::Get(FAnsiStringView Url, FGetCallback&& Callback)
+{
+	Get(Url, FIoOffsetAndLength(), MoveTemp(Callback));
+}
+
+bool FHttpClient::Tick(uint32 WaitTimeMs, uint32 MaxKiBPerSecond)
+{
+	if (PrimaryConnection == INDEX_NONE)
+	{
+		return false;
 	}
 
-	if (GIasHttpRecvBufKiB >= 0)
+	EventLoop.Throttle(MaxKiBPerSecond);
+	const bool bTicked = EventLoop.Tick(WaitTimeMs) != 0;
+
+	// Clean up all but the primary connection
+	if (bTicked == false)
 	{
-		UE_LOG(LogIas, VeryVerbose, TEXT("Set HTTP recv buffer size to %dKib"), GIasHttpRecvBufKiB);
-		Params.RecvBufSize = GIasHttpRecvBufKiB << 10;
+		for (int32 Idx = 0, Count = Connections.Num(); Idx < Count; ++Idx)
+		{
+			if (Idx != PrimaryConnection)
+			{
+				Connections[Idx].Reset();
+			}
+		}
 	}
-	Params.ConnectionCount = MaxConnectionCount;
-	ConnectionPool = MakeUnique<HTTP::FConnectionPool>(Params);
+
+	return bTicked;
 }
 
-void FOnDemandHttpClient::Get(FAnsiStringView Url, const FIoOffsetAndLength& Range, FGetCallback&& Callback)
+FHttpClient::FHttpClient(FHttpClientConfig&& ClientConfig)
+	: Config(MoveTemp(ClientConfig))
 {
-	Issue(Url, MoveTemp(Callback), Range);
+	Configure();
 }
 
-void FOnDemandHttpClient::Get(FAnsiStringView Url, FGetCallback&& Callback)
+TUniquePtr<FHttpClient> FHttpClient::Create(FHttpClientConfig&& ClientConfig)
 {
-	Issue(Url, MoveTemp(Callback));
+	if (ClientConfig.Endpoints.IsEmpty())
+	{
+		return TUniquePtr<FHttpClient>();
+	}
+
+	for (const FString& Ep : ClientConfig.Endpoints)
+	{
+		if (Ep.IsEmpty())
+		{
+			return TUniquePtr<FHttpClient>();
+		}
+
+		//TODO: Get rid of all string conversions
+		if (UE::IO::IAS::HTTP::FConnectionPool::IsValidHostUrl(StringCast<ANSICHAR>(*Ep, Ep.Len())) == false)
+		{
+			return TUniquePtr<FHttpClient>();
+		}
+	}
+
+	return TUniquePtr<FHttpClient>(new FHttpClient(MoveTemp(ClientConfig)));
 }
 
-void FOnDemandHttpClient::Issue(FAnsiStringView Url, FGetCallback&& Callback, FIoOffsetAndLength Range)
+TUniquePtr<FHttpClient> FHttpClient::Create(const FString& Endpoint)
+{
+	FHttpClientConfig Config;
+	Config.Endpoints.Add(Endpoint);
+	return Create(MoveTemp(Config));
+}
+
+void FHttpClient::Configure()
+{
+	check(Config.Endpoints.IsEmpty() == false);
+	Connections.SetNum(Config.Endpoints.Num());
+	Connections[Config.PrimaryEndpoint] = CreateConnection(Config.Endpoints[Config.PrimaryEndpoint]);
+	PrimaryConnection = Config.PrimaryEndpoint;
+}
+
+void FHttpClient::IssueRequest(FRequestParams&& Params)
 {
 	using namespace UE::IO::IAS::HTTP;
 
+	//TODO: Remove string conversion
+	const auto Url = StringCast<ANSICHAR>(*Params.Url, Params.Url.Len());
+
 	auto Sink = [
+		this,
+		Params = MoveTemp(Params),
 		Buffer = FIoBuffer(),
-		Callback = MoveTemp(Callback),
-		Url = FString(Url),
-		Offset = Range.GetOffset(),
 		StartTime = FPlatformTime::Cycles64(),
 		StatusCode = uint32(0)]
 		(const FTicketStatus& Status) mutable
+		{
+			const uint64 DurationMs = (uint64)FPlatformTime::ToMilliseconds64(FPlatformTime::Cycles64() - StartTime);
+			switch (Status.GetId())
+			{
+			case FTicketStatus::EId::Response:
+			{
+				FResponse& Response = Status.GetResponse();
+				StatusCode = Response.GetStatusCode();
+				Response.SetDestination(&Buffer);
+				break;
+			}
+			case FTicketStatus::EId::Content:
+			{
+				const FIoBuffer& Content = Status.GetContent();
+				LogHttpResult(*Config.Endpoints[Params.Connection], *Params.Url, StatusCode, DurationMs, Content.GetSize(), Params.Range.GetOffset());
+				
+				const bool bSuccessful = StatusCode > 199 && StatusCode < 300;
+				if (bSuccessful && Content.GetSize() > 0)
+				{
+					Params.Callback(Content, DurationMs);
+					if (Params.Attempt > 1 && Params.Connection != PrimaryConnection)
+					{
+						UE_LOG(LogIas, Log, TEXT("HTTP client endpoint changed from '%s' to '%s'"),
+							*Config.Endpoints[PrimaryConnection], *Config.Endpoints[Params.Connection]);
+						PrimaryConnection = Params.Connection;
+					}
+				}
+				else
+				{
+					const bool bServerError = StatusCode > 499 && StatusCode < 600;
+					if (Params.Attempt < Config.MaxRetryCount)
+					{
+						const bool bNextConnection = bServerError == false && Params.Attempt > 0;
+						RetryRequest(MoveTemp(Params), bNextConnection);
+					}
+					else
+					{
+						const EIoErrorCode ErrorCode = bServerError ? EIoErrorCode::ReadError : EIoErrorCode::NotFound;
+						Params.Callback(FIoStatus(ErrorCode), DurationMs);
+					}
+				}
+				break;
+			}
+			case FTicketStatus::EId::Error:
+			{
+				if (Params.Attempt < Config.MaxRetryCount)
+				{
+					const bool bNextConnection = Params.Attempt > 0;
+					RetryRequest(MoveTemp(Params), bNextConnection);
+				}
+				else
+				{
+					LogHttpResult(*Config.Endpoints[Params.Connection], *Params.Url, StatusCode, DurationMs, 0, Params.Range.GetOffset(), Status.GetErrorReason());
+					Params.Callback(FIoStatus(EIoErrorCode::ReadError, FString(Status.GetErrorReason())), DurationMs);
+				}
+				break;
+			}
+			default:
+			{
+				LogHttpResult(*Config.Endpoints[Params.Connection], *Params.Url, StatusCode, DurationMs, 0, Params.Range.GetOffset(), "cancelled");
+				Params.Callback(FIoStatus(EIoErrorCode::Cancelled, FString(Status.GetErrorReason())), DurationMs);
+				break;
+			}
+			}
+		};
+
+	TUniquePtr<FConnectionPool>& Connection = Connections[Params.Connection];
+	check(Connection.IsValid());
+
+	FRequest Request = EventLoop.Get(Url, *Connection);
+
+	if (Params.Range.GetOffset() > 0 || Params.Range.GetLength() > 0)
 	{
-		if (FTicketStatus::EId::Response == Status.GetId())
-		{
-			FResponse& Response = Status.GetResponse();
-			StatusCode = Response.GetStatusCode();
-			Response.SetDestination(&Buffer);
-		}
-		else if (FTicketStatus::EId::Content == Status.GetId())
-		{
-			const uint64 DurationMs = (uint64)FPlatformTime::ToMilliseconds64(FPlatformTime::Cycles64() - StartTime);
-			const FIoBuffer& Content = Status.GetContent();
+		Request.Header(ANSITEXTVIEW("Range"),
+			WriteToAnsiString<64>(ANSITEXTVIEW("bytes="), Params.Range.GetOffset(), ANSITEXTVIEW("-"), Params.Range.GetOffset() + Params.Range.GetLength()));
+	}
 
-			LogHttpResult(*Url, StatusCode, DurationMs, Content.GetSize(), Offset);
-
-			const bool bSuccessful = StatusCode > 199 && StatusCode < 300;
-			if (bSuccessful && Content.GetSize() > 0)
-			{
-				Callback(Content, DurationMs);
-			}
-			else
-			{
-				Callback(FIoStatus(EIoErrorCode::NotFound, TEXTVIEW("Invalid Content")), DurationMs);
-			}
-		}
-		else if (FTicketStatus::EId::Error == Status.GetId())
-		{
-			const uint64 DurationMs = (uint64)FPlatformTime::ToMilliseconds64(FPlatformTime::Cycles64() - StartTime);
-			LogHttpResult(*Url, StatusCode, DurationMs, 0, Offset, Status.GetErrorReason());
-			Callback(FIoStatus(EIoErrorCode::ReadError, FString(Status.GetErrorReason())), DurationMs);
-		}
-	};
-
-		UE::IO::IAS::HTTP::FRequest Request = EventLoop.Get(Url, *ConnectionPool);
-		const uint64 RangeStart = Range.GetOffset();
-		const uint64 RangeEnd = Range.GetOffset() + Range.GetLength();
-		if (RangeStart > 0 || RangeEnd > 0)
-		{
-			Request.Header(ANSITEXTVIEW("Range"), WriteToAnsiString<64>(ANSITEXTVIEW("bytes="), RangeStart, ANSITEXTVIEW("-"), RangeEnd));
-		}
-
-		EventLoop.Send(MoveTemp(Request), MoveTemp(Sink));
+	EventLoop.Send(MoveTemp(Request), MoveTemp(Sink));
 }
 
-bool FOnDemandHttpClient::Tick(bool Block)
+void FHttpClient::RetryRequest(FRequestParams&& Params, bool bNextConnection)
 {
-	int32 TimeoutMs = Block ? -1 : GIasHttpPollTimeoutMs;
-	EventLoop.Throttle(GIasHttpRateLimitKiBPerSecond);
-	return EventLoop.Tick(TimeoutMs) != 0;
+	check(Params.Attempt < Config.MaxRetryCount);
+	if (bNextConnection && Config.Endpoints.Num() > 1)
+	{
+		Params.Connection = (Params.Connection + 1) % Config.Endpoints.Num();
+		if (Connections[Params.Connection].IsValid() == false)
+		{
+			Connections[Params.Connection] = CreateConnection(Config.Endpoints[Params.Connection]);
+		}
+	}
+	Params.Attempt++;
+	IssueRequest(MoveTemp(Params));
+}
+
+TUniquePtr<HTTP::FConnectionPool> FHttpClient::CreateConnection(const FStringView& HostAddr)
+{
+	HTTP::FConnectionPool::FParams Params;
+	ensure(Params.SetHostFromUrl(StringCast<ANSICHAR>(HostAddr.GetData(), HostAddr.Len())) >= 0);
+	if (Config.ReceiveBufferSize >= 0)
+	{
+		UE_LOG(LogIas, Log, TEXT("HTTP client receive buffer size set to %d"), Config.ReceiveBufferSize);
+		Params.RecvBufSize = Config.ReceiveBufferSize;
+	}
+	Params.ConnectionCount = Config.MaxConnectionCount;
+
+	return MakeUnique<HTTP::FConnectionPool>(Params);
 }
 
 } //namespace UE::IO::IAS

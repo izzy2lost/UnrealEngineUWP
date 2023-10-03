@@ -1499,7 +1499,12 @@ bool FConnectionPool::Resolve()
 	return (Ptr->ResolveHostName().GetValue() > 0);
 }
 
-
+////////////////////////////////////////////////////////////////////////////////
+bool FConnectionPool::IsValidHostUrl(FAnsiStringView Url)
+{
+	FUrlOffsets Tmp;
+	return ParseUrl(Url, Tmp) >= 0;
+}
 
 // {{{1 activity ...............................................................
 

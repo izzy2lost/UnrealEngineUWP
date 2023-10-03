@@ -21,12 +21,12 @@ struct FOnDemandEndpoint
 {
 	EOnDemandEndpointType EndpointType;
 	FString DistributionUrl;
-	FString ServiceUrl;
+	TArray<FString> ServiceUrls;
 	FString TocPath;
 
 	bool IsValid() const
 	{
-		return (DistributionUrl.Len() > 0 || ServiceUrl.Len() > 0) && TocPath.Len() > 0;
+		return (DistributionUrl.Len() > 0 || ServiceUrls.Num() > 0) && TocPath.Len() > 0;
 	}
 };
 

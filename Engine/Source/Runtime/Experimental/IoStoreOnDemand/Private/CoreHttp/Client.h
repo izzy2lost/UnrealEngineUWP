@@ -77,6 +77,8 @@ public:
 	FConnectionPool&		operator = (FConnectionPool&& Rhs)		{ Swap(Ptr, Rhs.Ptr); return *this; }
 	bool					Resolve();
 
+	static bool				IsValidHostUrl(FAnsiStringView Url);
+
 private:
 	friend					class FEventLoop;
 	class FSocketPool*		Ptr = nullptr;
