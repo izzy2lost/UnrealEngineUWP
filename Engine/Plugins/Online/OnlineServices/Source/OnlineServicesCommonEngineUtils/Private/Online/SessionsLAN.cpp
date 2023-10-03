@@ -409,7 +409,7 @@ void FSessionsLAN::OnLANSearchTimeout(const FAccountId LocalAccountId)
 		LANSessionManager->StopLANSession();
 	}
 
-	UE_LOG(LogOnlineServices, Warning, TEXT("[FSessionsLAN::OnLANSearchTimeout] %d sessions found!"), SearchResultsUserMap.FindChecked(LocalAccountId).Num());
+	UE_LOG(LogOnlineServices, Verbose, TEXT("[FSessionsLAN::OnLANSearchTimeout] %d sessions found!"), SearchResultsUserMap.FindChecked(LocalAccountId).Num());
 
 	TArray<FOnlineSessionId>& FoundSessionIds = SearchResultsUserMap.FindChecked(LocalAccountId);
 
