@@ -552,6 +552,10 @@ const FBacktracer::FFunction* FBacktracer::LookupFunction(UPTRINT Address, FLook
 	uint32 FuncId = uint32(Address - IdToAddress(Module->Id)); 
 	TArrayView<FFunction> FuncsView(Module->Functions, Module->NumFunctions);
 	uint32 Index = Algo::UpperBound(FuncsView, FuncId, IdPredicate);
+	if (Index == 0)
+	{
+		return nullptr;
+	}
 
 	const FFunction* Function = Module->Functions + (Index - 1);
 #if BACKTRACE_DBGLVL >= 2
