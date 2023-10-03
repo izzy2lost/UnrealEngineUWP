@@ -222,6 +222,42 @@ bool UPCGMetadataMathsSettings::IsSupportedInputType(uint16 TypeId, uint32 Input
 	return PCG::Private::IsOfTypes<float, double, int32, int64, FVector2D, FVector, FVector4>(TypeId);
 }
 
+bool UPCGMetadataMathsSettings::ShouldForceOutputToInt(uint16 InputTypeId) const
+{
+	return PCG::Private::IsOfTypes<float, double>(InputTypeId) && bForceRoundingOpToInt &&
+		(Operation == EPCGMedadataMathsOperation::Round ||
+		Operation == EPCGMedadataMathsOperation::Truncate ||
+		Operation == EPCGMedadataMathsOperation::Floor ||
+		Operation == EPCGMedadataMathsOperation::Ceil);
+}
+
+bool UPCGMetadataMathsSettings::ShouldForceOutputToDouble(uint16 InputTypeId) const
+{
+	return PCG::Private::IsOfTypes<int32, int64>(InputTypeId) && bForceOpToDouble &&
+		(Operation == EPCGMedadataMathsOperation::Divide ||
+		Operation == EPCGMedadataMathsOperation::Sqrt ||
+		Operation == EPCGMedadataMathsOperation::Pow ||
+		Operation == EPCGMedadataMathsOperation::Lerp);
+}
+
+uint16 UPCGMetadataMathsSettings::GetOutputType(uint16 InputTypeId) const
+{
+	// If attribute Type is a float or double, can convert to int if it is a rounding op.
+	if (ShouldForceOutputToInt(InputTypeId))
+	{
+		return PCG::Private::MetadataTypes<int64>::Id;
+	}
+	// If attribute Type is an integer, can convert to double if it is an operation that can yield a floating point value.
+	else if (ShouldForceOutputToDouble(InputTypeId))
+	{
+		return PCG::Private::MetadataTypes<double>::Id;
+	}
+	else
+	{
+		return InputTypeId;
+	}
+}
+
 FPCGAttributePropertyInputSelector UPCGMetadataMathsSettings::GetInputSource(uint32 Index) const
 {
 	switch (Index)
@@ -302,7 +338,17 @@ bool FPCGMetadataMathsElement::DoOperation(FOperationData& OperationData) const
 			if (PCGMetadataMathsSettings::IsUnaryOp(Operation))
 			{
 				TRACE_CPUPROFILER_EVENT_SCOPE(FPCGMetadataMathsElement::ExecuteInternal::UnaryOp);
-				DoUnaryOp<AttributeType>(OperationData, [Operation](const AttributeType& Value) -> AttributeType { return PCGMetadataMathsSettings::UnaryOp(Value, Operation); });
+				// For int64 as output of the lambda if the output type is int64, as AttributeType might be different (cf GetOutputType)
+				using OverriddenOutputType = typename std::conditional_t<PCG::Private::IsOfTypes<AttributeType, float, double>(), int64, AttributeType>;
+
+				if (OperationData.OutputType == PCG::Private::MetadataTypes<int64>::Id)
+				{
+					DoUnaryOp<AttributeType>(OperationData, [Operation](const AttributeType& Value) -> OverriddenOutputType { return static_cast<OverriddenOutputType>(PCGMetadataMathsSettings::UnaryOp<AttributeType>(Value, Operation)); });
+				}
+				else
+				{
+					DoUnaryOp<AttributeType>(OperationData, [Operation](const AttributeType& Value) -> AttributeType { return PCGMetadataMathsSettings::UnaryOp(Value, Operation); });
+				}
 			}
 			else if (PCGMetadataMathsSettings::IsBinaryOp(Operation))
 			{
@@ -317,7 +363,15 @@ bool FPCGMetadataMathsElement::DoOperation(FOperationData& OperationData) const
 		}
 	};
 
-	PCGMetadataAttribute::CallbackWithRightType(OperationData.OutputType, MathFunc);
+	// If the output is double, force all to double.
+	if (OperationData.OutputType == PCG::Private::MetadataTypes<double>::Id)
+	{
+		MathFunc(double{});
+	}
+	else
+	{
+		PCGMetadataAttribute::CallbackWithRightType(OperationData.MostComplexInputType, MathFunc);
+	}
 
 	return true;
 }

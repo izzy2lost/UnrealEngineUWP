@@ -68,6 +68,7 @@ public:
 
 	virtual FName GetInputPinLabel(uint32 Index) const override;
 	virtual uint32 GetInputPinNum() const override;
+	virtual uint16 GetOutputType(uint16 InputTypeId) const;
 
 	virtual bool IsSupportedInputType(uint16 TypeId, uint32 InputIndex, bool& bHasSpecialRequirement) const override;
 	//~End UPCGMetadataSettingsBase interface
@@ -80,6 +81,14 @@ protected:
 public:
 	UPROPERTY(BlueprintReadWrite, EditAnywhere, Category = Settings)
 	EPCGMedadataMathsOperation Operation = EPCGMedadataMathsOperation::Add;
+
+	/** For rounding operation, if the input type is float or double, use this option to force the output attribute to be int64. */
+	UPROPERTY(BlueprintReadWrite, EditAnywhere, Category = Settings, meta = (EditConditionHides, EditCondition = "Operation == EPCGMedadataMathsOperation::Round || Operation == EPCGMedadataMathsOperation::Truncate || Operation == EPCGMedadataMathsOperation::Floor || Operation == EPCGMedadataMathsOperation::Ceil"))
+	bool bForceRoundingOpToInt = false;
+
+	/** For operations that can yield floating point values, if the input type are ints, use this option to force the output attribute to be double. */
+	UPROPERTY(BlueprintReadWrite, EditAnywhere, Category = Settings, meta = (EditConditionHides, EditCondition = "Operation == EPCGMedadataMathsOperation::Divide || Operation == EPCGMedadataMathsOperation::Sqrt || Operation == EPCGMedadataMathsOperation::Pow || Operation == EPCGMedadataMathsOperation::Lerp"))
+	bool bForceOpToDouble = false;
 
 	UPROPERTY(BlueprintReadWrite, EditAnywhere, Category = Input)
 	FPCGAttributePropertyInputSelector InputSource1;
@@ -100,6 +109,10 @@ public:
 	UPROPERTY()
 	FName Input3AttributeName_DEPRECATED = NAME_None;
 #endif
+
+private:
+	bool ShouldForceOutputToInt(uint16 InputTypeId) const;
+	bool ShouldForceOutputToDouble(uint16 InputTypeId) const;
 };
 
 class FPCGMetadataMathsElement : public FPCGMetadataElementBase
