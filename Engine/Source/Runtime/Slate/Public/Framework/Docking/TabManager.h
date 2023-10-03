@@ -215,7 +215,7 @@ DECLARE_MULTICAST_DELEGATE_OneParam(FOnReadOnlyModeChanged, bool /*bReadOnly*/);
 struct FTabSpawnerEntry : public FWorkspaceItem
 {
 	FTabSpawnerEntry(const FName& InTabType, const FOnSpawnTab& InSpawnTabMethod, const FCanSpawnTab& InCanSpawnTab)
-		: FWorkspaceItem(FText(), FSlateIcon(), false)
+		: FWorkspaceItem(InTabType, FText(), FSlateIcon(), false)
 		, TabType(InTabType)
 		, OnSpawnTab(InSpawnTabMethod)
 		, CanSpawnTab(InCanSpawnTab)

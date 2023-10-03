@@ -92,6 +92,7 @@ FContentBrowserSingleton::FContentBrowserSingleton()
 	const FSlateIcon ContentBrowserIcon(FAppStyle::Get().GetStyleSetName(), "ContentBrowser.TabIcon");
 	const IWorkspaceMenuStructure& MenuStructure = WorkspaceMenu::GetMenuStructure();
 	TSharedRef<FWorkspaceItem> ContentBrowserGroup = MenuStructure.GetLevelEditorCategory()->AddGroup(
+		"ContentBrowser",
 		LOCTEXT("WorkspaceMenu_ContentBrowserCategory", "Content Browser"),
 		LOCTEXT("ContentBrowserMenuTooltipText", "Open a Content Browser tab."),
 		ContentBrowserIcon,

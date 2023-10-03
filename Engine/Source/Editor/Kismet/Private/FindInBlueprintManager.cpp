@@ -3683,6 +3683,7 @@ void FFindInBlueprintSearchManager::EnableGlobalFindResults(bool bEnable)
 		// Register the spawners for all global Find Results tabs
 		const FSlateIcon GlobalFindResultsIcon(FAppStyle::GetAppStyleSetName(), "BlueprintEditor.FindInBlueprints.MenuIcon");
 		GlobalFindResultsMenuItem = WorkspaceMenu::GetMenuStructure().GetToolsCategory()->AddGroup(
+			"FindInBlueprints",
 			LOCTEXT("WorkspaceMenu_GlobalFindResultsCategory", "Find in Blueprints"),
 			LOCTEXT("GlobalFindResultsMenuTooltipText", "Find references to functions, events and variables in all Blueprints."),
 			GlobalFindResultsIcon,
