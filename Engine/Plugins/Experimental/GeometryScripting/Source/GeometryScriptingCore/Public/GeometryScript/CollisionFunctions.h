@@ -347,6 +347,15 @@ public:
 		bool& bSuccess,
 		UGeometryScriptDebug* Debug = nullptr
 	);
+
+	/*
+	 * Add simple collision shapes from AppendCollision to CollisionToUpdate
+	 */
+	UFUNCTION(BlueprintCallable, Category = "GeometryScript|Collision", meta = (ScriptMethod))
+	static void CombineSimpleCollision(
+		UPARAM(ref) FGeometryScriptSimpleCollision& CollisionToUpdate,
+		const FGeometryScriptSimpleCollision& AppendCollision
+	);
 	
 	/**
 	 * Simplify any convex hulls in the given simple collision representation. Updates the passed-in Simple Collision.

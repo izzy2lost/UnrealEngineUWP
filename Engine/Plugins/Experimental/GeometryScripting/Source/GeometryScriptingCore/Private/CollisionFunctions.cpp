@@ -791,6 +791,20 @@ FGeometryScriptSimpleCollision UGeometryScriptLibrary_CollisionFunctions::Transf
 	return TransformedCollision;
 }
 
+void UGeometryScriptLibrary_CollisionFunctions::CombineSimpleCollision(
+	FGeometryScriptSimpleCollision& Collision,
+	const FGeometryScriptSimpleCollision& AppendCollision
+)
+{
+	Collision.AggGeom.BoxElems.Append(AppendCollision.AggGeom.BoxElems);
+	Collision.AggGeom.ConvexElems.Append(AppendCollision.AggGeom.ConvexElems);
+	Collision.AggGeom.SphylElems.Append(AppendCollision.AggGeom.SphylElems);
+	Collision.AggGeom.SphereElems.Append(AppendCollision.AggGeom.SphereElems);
+	Collision.AggGeom.TaperedCapsuleElems.Append(AppendCollision.AggGeom.TaperedCapsuleElems);
+	Collision.AggGeom.LevelSetElems.Append(AppendCollision.AggGeom.LevelSetElems);
+	Collision.AggGeom.SkinnedLevelSetElems.Append(AppendCollision.AggGeom.SkinnedLevelSetElems);
+}
+
 void UGeometryScriptLibrary_CollisionFunctions::SimplifyConvexHulls(
 	FGeometryScriptSimpleCollision& SimpleCollision,
 	const FGeometryScriptConvexHullSimplificationOptions& SimplifyOptions,
