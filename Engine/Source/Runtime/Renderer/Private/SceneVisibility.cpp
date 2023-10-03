@@ -4114,14 +4114,10 @@ void FSceneRenderer::PreVisibilityFrameSetup(FRDGBuilder& GraphBuilder)
 		if (Views.Num() > 0 && !ViewFamily.EngineShowFlags.HitProxies)
 		{
 			FHairStrandsBookmarkParameters Parameters; 
-			CreateHairStrandsBookmarkParameters(Scene, Views, AllFamilyViews, Parameters);
-
+			CreateHairStrandsBookmarkParameters(Scene, Views, AllFamilyViews, Parameters, false /*bComputeVisibleInstances*/);
 			if (Parameters.HasInstances())
 			{
-				// 1. Select appropriate LOD & geometry type
-				RunHairStrandsBookmark(GraphBuilder, EHairStrandsBookmark::ProcessLODSelection, Parameters);
-
-				// 2. Run guide/simulation update
+				// Prepare (skel.) data for guide/simulation update
 				// If we are rendering from scene capture we don't need to run another time the hair bookmarks.
 				if (IsHairStrandsEnabled(EHairStrandsShaderType::All, Scene->GetShaderPlatform()) && Views[0].AllowGPUParticleUpdate())
 				{

@@ -3451,6 +3451,21 @@ IVisibilityTaskData* FSceneRenderer::OnRenderBegin(FRDGBuilder& GraphBuilder)
 
 	PrepareViewStateForVisibility(SceneTexturesConfig);
 
+	// Run Groom LOD selection prior to visibility for selecting appropriate LOD & geometry type
+	if (IsGroomEnabled())
+	{
+		if (Views.Num() > 0 && !ViewFamily.EngineShowFlags.HitProxies)
+		{
+			FHairStrandsBookmarkParameters Parameters;
+			CreateHairStrandsBookmarkParameters(Scene, Views, AllFamilyViews, Parameters, false/*bComputeVisibleInstances*/);
+			if (Parameters.HasInstances())
+			{
+				// 1. Select appropriate LOD & geometry type
+				RunHairStrandsBookmark(GraphBuilder, EHairStrandsBookmark::ProcessLODSelection, Parameters);
+			}
+		}
+	}
+
 	FVisualizeTexturePresent::OnStartRender(Views[0]);
 
 	GraphBuilder.RHICmdList.BeginScene();
@@ -4632,7 +4647,7 @@ static void RenderViewFamilies_RenderThread(FRHICommandListImmediate& RHICmdList
 		if (IsHairStrandsEnabled(EHairStrandsShaderType::All, Scene->GetShaderPlatform()) && (SceneRenderers[0]->AllFamilyViews.Num() > 0) && !bAnyShowHitProxies)
 		{
 			FHairStrandsBookmarkParameters Parameters;
-			CreateHairStrandsBookmarkParameters(Scene, SceneRenderers[0]->Views, SceneRenderers[0]->AllFamilyViews, Parameters);
+			CreateHairStrandsBookmarkParameters(Scene, SceneRenderers[0]->Views, SceneRenderers[0]->AllFamilyViews, Parameters, false /*bComputeVisibleInstances*/);
 			if (Parameters.HasInstances())
 			{
 				RunHairStrandsBookmark(EHairStrandsBookmark::ProcessEndOfFrame, Parameters);

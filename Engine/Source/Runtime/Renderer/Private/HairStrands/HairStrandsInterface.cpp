@@ -381,41 +381,45 @@ void RunHairStrandsBookmark(EHairStrandsBookmark Bookmark, FHairStrandsBookmarkP
 	}
 }
 
-void CreateHairStrandsBookmarkParameters(FScene* Scene, FViewInfo& View, FHairStrandsBookmarkParameters& Out)
+void CreateHairStrandsBookmarkParameters(FScene* Scene, FViewInfo& View, FHairStrandsBookmarkParameters& Out, bool bComputeVisibleInstances)
 {
-	const int32 ActiveInstanceCount = Scene->HairStrandsSceneData.RegisteredProxies.Num();
-	Out.InstancesVisibility.Init(false, ActiveInstanceCount);
-
-	// 1. Strands - Add all visible strands instances
-	Out.VisibleStrands.Reserve(View.HairStrandsMeshElements.Num());
-	for (const FMeshBatchAndRelevance& MeshBatch : View.HairStrandsMeshElements)
+	// Only compute visible instances when required as this is expensive.
+	if (bComputeVisibleInstances)
 	{
-		check(MeshBatch.PrimitiveSceneProxy && MeshBatch.PrimitiveSceneProxy->ShouldRenderInMainPass());
-		if (MeshBatch.Mesh && MeshBatch.Mesh->Elements.Num() > 0)
+		const int32 ActiveInstanceCount = Scene->HairStrandsSceneData.RegisteredProxies.Num();
+		Out.InstancesVisibility.Init(false, ActiveInstanceCount);
+	
+		// 1. Strands - Add all visible strands instances
+		Out.VisibleStrands.Reserve(View.HairStrandsMeshElements.Num());
+		for (const FMeshBatchAndRelevance& MeshBatch : View.HairStrandsMeshElements)
 		{
-			FHairGroupPublicData* HairData = HairStrands::GetHairData(MeshBatch.Mesh);
-			if (HairData && HairData->Instance)
+			check(MeshBatch.PrimitiveSceneProxy && MeshBatch.PrimitiveSceneProxy->ShouldRenderInMainPass());
+			if (MeshBatch.Mesh && MeshBatch.Mesh->Elements.Num() > 0)
 			{
-				Out.VisibleStrands.Add(HairData->Instance);
-				Out.InstancesVisibility[HairData->Instance->RegisteredIndex] = true;
-				Out.InstanceCountPerType[uint32(EHairInstanceCount::StrandsPrimaryView)]++;
+				FHairGroupPublicData* HairData = HairStrands::GetHairData(MeshBatch.Mesh);
+				if (HairData && HairData->Instance)
+				{
+					Out.VisibleStrands.Add(HairData->Instance);
+					Out.InstancesVisibility[HairData->Instance->RegisteredIndex] = true;
+					Out.InstanceCountPerType[uint32(EHairInstanceCount::StrandsPrimaryView)]++;
+				}
 			}
 		}
-	}
-
-	// 2. Cards/Meshes - Add all visible cards instances
-	Out.VisibleCardsOrMeshes_Primary.Reserve(View.HairStrandsMeshElements.Num());
-	for (const FMeshBatchAndRelevance& MeshBatch : View.HairCardsMeshElements)
-	{
-		check(MeshBatch.PrimitiveSceneProxy && MeshBatch.PrimitiveSceneProxy->ShouldRenderInMainPass());
-		if (MeshBatch.Mesh && MeshBatch.Mesh->Elements.Num() > 0)
+	
+		// 2. Cards/Meshes - Add all visible cards instances
+		Out.VisibleCardsOrMeshes_Primary.Reserve(View.HairCardsMeshElements.Num());
+		for (const FMeshBatchAndRelevance& MeshBatch : View.HairCardsMeshElements)
 		{
-			FHairGroupPublicData* HairData = HairStrands::GetHairData(MeshBatch.Mesh);
-			if (HairData && HairData->Instance)
+			check(MeshBatch.PrimitiveSceneProxy && MeshBatch.PrimitiveSceneProxy->ShouldRenderInMainPass());
+			if (MeshBatch.Mesh && MeshBatch.Mesh->Elements.Num() > 0)
 			{
-				Out.VisibleCardsOrMeshes_Primary.Add(HairData->Instance);
-				Out.InstancesVisibility[HairData->Instance->RegisteredIndex] = true;
-				Out.InstanceCountPerType[uint32(EHairInstanceCount::CardsOrMeshesPrimaryView)]++;
+				FHairGroupPublicData* HairData = HairStrands::GetHairData(MeshBatch.Mesh);
+				if (HairData && HairData->Instance)
+				{
+					Out.VisibleCardsOrMeshes_Primary.Add(HairData->Instance);
+					Out.InstancesVisibility[HairData->Instance->RegisteredIndex] = true;
+					Out.InstanceCountPerType[uint32(EHairInstanceCount::CardsOrMeshesPrimaryView)]++;
+				}
 			}
 		}
 	}
@@ -467,9 +471,9 @@ void UpdateHairStrandsBookmarkParameters(FScene* Scene, TArray<FViewInfo>& Views
 	}
 }
 
-void CreateHairStrandsBookmarkParameters(FScene* Scene, TArray<FViewInfo>& Views, TArray<const FSceneView*>& AllFamilyViews, FHairStrandsBookmarkParameters& Out)
+void CreateHairStrandsBookmarkParameters(FScene* Scene, TArray<FViewInfo>& Views, TArray<const FSceneView*>& AllFamilyViews, FHairStrandsBookmarkParameters& Out, bool bComputeVisibleInstances)
 {
-	CreateHairStrandsBookmarkParameters(Scene, Views[0], Out);
+	CreateHairStrandsBookmarkParameters(Scene, Views[0], Out, bComputeVisibleInstances);
 	Out.AllViews = AllFamilyViews;
 }
 
