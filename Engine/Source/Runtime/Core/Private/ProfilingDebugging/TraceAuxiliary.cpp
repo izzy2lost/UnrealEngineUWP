@@ -1801,7 +1801,7 @@ void FTraceAuxiliary::TryAutoConnect()
 {
 #if UE_TRACE_ENABLED
 #if PLATFORM_WINDOWS
-	if (GTraceAutoStart)
+	if (GTraceAutoStart && !IsConnected())
 	{
 		// If we can detect a named event it means UnrealInsights (Browser Mode) is running.
 		// In this case, we try to auto-connect with the Trace Server.
