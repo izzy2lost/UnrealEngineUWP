@@ -102,6 +102,8 @@ private:
 
 	void OnMaxTickRateChanged(UNetDriver* InNetDriver, int32 NewMaxTickRate, int32 OldMaxTickRate);
 
+	void WakeUpObjectInstantiatedFromRemote(AActor* Actor) const;
+
 private:
 	UNetDriver* NetDriver;
 
