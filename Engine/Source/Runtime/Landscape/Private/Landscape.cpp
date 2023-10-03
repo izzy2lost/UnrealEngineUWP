@@ -2594,6 +2594,8 @@ void ALandscapeProxy::PostRegisterAllComponents()
 				LandscapeSubsystem->RegisterActor(this);
 			}
 		}
+
+		UpdateRenderingMethod();
 	}
 #if WITH_EDITOR
 	if ((LandscapeInfo != nullptr) && !IsPendingKillPending() && LandscapeGuid.IsValid())
@@ -4147,8 +4149,6 @@ void ALandscapeProxy::PostLoad()
 		ClearNaniteTransactional();
 	}
 #endif // WITH_EDITOR
-
-	UpdateRenderingMethod();
 }
 
 FIntPoint ALandscapeProxy::GetSectionBaseOffset() const
