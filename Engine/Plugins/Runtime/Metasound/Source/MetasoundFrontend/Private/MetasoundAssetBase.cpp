@@ -181,14 +181,14 @@ namespace Metasound
 
 		namespace ConsoleVariables
 		{
-			static bool bDisableAsyncGraphRegistration = false;
+			static bool bDisableAsyncGraphRegistration = true;
 		}
 
 		FAutoConsoleVariableRef CVarMetaSoundDisableAsyncGraphRegistration(
 			TEXT("au.MetaSound.Experimental.DisableAsyncGraphRegistration"),
 			Metasound::Frontend::ConsoleVariables::bDisableAsyncGraphRegistration,
 			TEXT("Disables async registration of MetaSound graphs\n")
-			TEXT("Default: false"),
+			TEXT("Default: true"),
 			ECVF_Default);
 
 		FAutoConsoleVariableRef CVarMetaSoundBlockRate(
