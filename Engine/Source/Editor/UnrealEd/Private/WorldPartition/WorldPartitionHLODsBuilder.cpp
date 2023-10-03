@@ -618,12 +618,20 @@ bool UWorldPartitionHLODsBuilder::DeleteHLODActors()
 {
 	UE_LOG(LogWorldPartitionHLODsBuilder, Display, TEXT("#### Deleting HLOD actors ####"));
 
-	TArray<FString> PackagesToDelete;
-	for (FActorDescContainerCollection::TIterator<AWorldPartitionHLOD> HLODIterator(WorldPartition); HLODIterator; ++HLODIterator)
+	TArray<UClass*> HLODActorClasses =
 	{
-		FWorldPartitionActorDesc* HLODActorDesc = *HLODIterator;
-		FString PackageName = HLODActorDesc->GetActorPackage().ToString();
-		PackagesToDelete.Add(PackageName);
+		AWorldPartitionHLOD::StaticClass(),
+		FindObject<UClass>(nullptr, TEXT("/Script/Engine.SpatialHashRuntimeGridInfo"))
+	};
+
+	TArray<FString> PackagesToDelete;
+	for (FActorDescContainerCollection::TIterator<> ActorDescIterator(WorldPartition); ActorDescIterator; ++ActorDescIterator)
+	{
+		if (HLODActorClasses.FindByPredicate([ActorClass = ActorDescIterator->GetActorNativeClass()](const UClass* HLODClass) { return ActorClass->IsChildOf(HLODClass); }))
+		{
+			FString PackageName = ActorDescIterator->GetActorPackage().ToString();
+			PackagesToDelete.Add(PackageName);
+		}
 	}
 
 	// Ensure we don't hold on to packages of always loaded actors
