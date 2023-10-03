@@ -33,8 +33,6 @@
 // Defaults to being disabled, enable using the command line argument: -CsvCategory GPUScene
 CSV_DEFINE_CATEGORY(GPUScene, false);
 
-DEFINE_GPU_STAT(GPUSceneUpdate);
-
 #define LOG_INSTANCE_ALLOCATIONS 0
 
 static void ConstructDefault(FGPUSceneResourceParameters& GPUScene, FRDGBuilder& GraphBuilder)
@@ -687,7 +685,7 @@ void FGPUScene::EndRender()
 	ShaderParameters = {};
 }
 
-void FGPUScene::UpdateGPULights(FRDGBuilder& GraphBuilder, FScene& Scene, const UE::Tasks::FTask& PrerequisiteTask)
+void FGPUScene::UpdateGPULights(FRDGBuilder& GraphBuilder, FScene& Scene)
 {
 	FRDGUploadData<FLightSceneData> LightData(GraphBuilder, FMath::Max(1, Scene.Lights.Num()));
 
@@ -703,8 +701,7 @@ void FGPUScene::UpdateGPULights(FRDGBuilder& GraphBuilder, FScene& Scene, const 
 				InitLightData(Scene.Lights[Index], bAllowStaticLighting, LightData[Index]);
 			}
 		}
-
-	}, PrerequisiteTask);
+	});
 
 	GraphBuilder.QueueBufferUpload<FLightSceneData>(BufferState.LightDataBuffer, LightData, ERDGInitialDataFlags::NoCopy);
 }
@@ -743,7 +740,7 @@ void FGPUScene::InitLightData(const FLightSceneInfoCompact& LightInfoCompact, bo
 	DataOut.LightTypeAndShadowMapChannelMaskPacked = LightInfo.PackLightTypeAndShadowMapChannelMask(bAllowStaticLighting);
 }
 
-void FGPUScene::UpdateInternal(FRDGBuilder& GraphBuilder, FSceneUniformBuffer& SceneUB, FScene& Scene, FRDGExternalAccessQueue& ExternalAccessQueue, IVisibilityTaskData* VisibilityTaskData)
+void FGPUScene::UpdateInternal(FRDGBuilder& GraphBuilder, FSceneUniformBuffer& SceneUB, FScene& Scene, FRDGExternalAccessQueue& ExternalAccessQueue)
 {
 	LLM_SCOPE_BYTAG(GPUScene);
 
@@ -835,22 +832,14 @@ void FGPUScene::UpdateInternal(FRDGBuilder& GraphBuilder, FSceneUniformBuffer& S
 	PrimitivesToUpdate.Reset();
 	PrimitiveDirtyState.Init(EPrimitiveDirtyState::None, PrimitiveDirtyState.Num());
 
-	UE::Tasks::FTask PrerequisiteAsyncTask;
-
-	// An optimization to schedule the async task to occur after dynamic mesh elements are computed in order to reduce contention in the visibility task graph.
-	if (GraphBuilder.IsParallelSetupEnabled() && VisibilityTaskData)
-	{
-		PrerequisiteAsyncTask = VisibilityTaskData->GetComputeRelevanceTask();
-	}
-
 	{
 		SCOPED_NAMED_EVENT(UpdateGPUScene, FColor::Green);
 		QUICK_SCOPE_CYCLE_COUNTER(STAT_UpdateGPUScene);
 		SCOPE_CYCLE_COUNTER(STAT_UpdateGPUSceneTime);
 
-		UploadGeneral<FUploadDataSourceAdapterScenePrimitives>(GraphBuilder, Scene, &ExternalAccessQueue, Adapter, PrerequisiteAsyncTask);
+		UploadGeneral<FUploadDataSourceAdapterScenePrimitives>(GraphBuilder, Scene, ExternalAccessQueue, Adapter);
 
-		UpdateGPULights(GraphBuilder, Scene, PrerequisiteAsyncTask);
+		UpdateGPULights(GraphBuilder, Scene);
 	}
 }
 
@@ -996,7 +985,7 @@ struct FInstanceBatcher
 };
 
 template<typename FUploadDataSourceAdapter>
-void FGPUScene::UploadGeneral(FRDGBuilder& GraphBuilder, FScene& Scene, FRDGExternalAccessQueue* ExternalAccessQueue, const FUploadDataSourceAdapter& UploadDataSourceAdapter, const UE::Tasks::FTask& PrerequisiteTask)
+void FGPUScene::UploadGeneral(FRDGBuilder& GraphBuilder, FScene& Scene, FRDGExternalAccessQueue& ExternalAccessQueue, const FUploadDataSourceAdapter& UploadDataSourceAdapter)
 {
 	LLM_SCOPE_BYTAG(GPUScene);
 
@@ -1367,8 +1356,7 @@ void FGPUScene::UploadGeneral(FRDGBuilder& GraphBuilder, FScene& Scene, FRDGExte
 		{
 			UnlockIfValid(RHICmdList, Uploader);
 		}
-
-	}, PrerequisiteTask);
+	});
 
 	PrimitiveUploadBuffer.End(GraphBuilder, TaskContext.PrimitiveUploader);
 
@@ -1389,11 +1377,9 @@ void FGPUScene::UploadGeneral(FRDGBuilder& GraphBuilder, FScene& Scene, FRDGExte
 
 	if (TaskContext.bUseNaniteMaterialUploaders)
 	{
-		check(ExternalAccessQueue);
-
 		for (int32 NaniteMeshPassIndex = 0; NaniteMeshPassIndex < ENaniteMeshPass::Num; ++NaniteMeshPassIndex)
 		{
-			Scene.NaniteMaterials[NaniteMeshPassIndex].Finish(GraphBuilder, *ExternalAccessQueue, TaskContext.NaniteMaterialUploaders[NaniteMeshPassIndex]);
+			Scene.NaniteMaterials[NaniteMeshPassIndex].Finish(GraphBuilder, ExternalAccessQueue, TaskContext.NaniteMaterialUploaders[NaniteMeshPassIndex]);
 		}
 	}
 	const uint32 MaxPooledSize = uint32(CVarGPUSceneMaxPooledUploadBufferSize.GetValueOnRenderThread());
@@ -1557,12 +1543,11 @@ struct FUploadDataSourceAdapterDynamicPrimitives
 	TArray<uint32, SceneRenderingAllocator> PrimitivesIds;
 };
 
-void FGPUScene::UploadDynamicPrimitiveShaderDataForViewInternal(FRDGBuilder& GraphBuilder, FScene& Scene, FViewInfo& View, bool bIsShadowView)
+void FGPUScene::UploadDynamicPrimitiveShaderDataForViewInternal(FRDGBuilder& GraphBuilder, FScene& Scene, FViewInfo& View, FRDGExternalAccessQueue& ExternalAccessQueue, bool bIsShadowView)
 {
 	LLM_SCOPE_BYTAG(GPUScene);
 
 	RDG_EVENT_SCOPE(GraphBuilder, "GPUScene.UploadDynamicPrimitiveShaderDataForView");
-	SCOPED_NAMED_EVENT(FGPUScene_UploadDynamicPrimitiveShaderDataForView, FColor::Green);
 
 	ensure(bInBeginEndBlock);
 	ensure(DynamicPrimitivesOffset >= Scene.Primitives.Num());
@@ -1627,7 +1612,7 @@ void FGPUScene::UploadDynamicPrimitiveShaderDataForViewInternal(FRDGBuilder& Gra
 		// Run a pass that clears (Sets ID to invalid) any instances that need it.
 		AddClearInstancesPass(GraphBuilder, Scene.InstanceCullingOcclusionQueryRenderer);
 
-		UploadGeneral<FUploadDataSourceAdapterDynamicPrimitives>(GraphBuilder, Scene, nullptr, UploadAdapter, UE::Tasks::FTask{});
+		UploadGeneral<FUploadDataSourceAdapterDynamicPrimitives>(GraphBuilder, Scene, ExternalAccessQueue, UploadAdapter);
 	}
 
 	FSceneUniformBuffer& SceneUniforms = View.GetSceneUniforms();
@@ -1740,7 +1725,7 @@ void FGPUScene::AddPrimitiveToUpdate(int32 PrimitiveId, EPrimitiveDirtyState Dir
 }
 
 
-void FGPUScene::Update(FRDGBuilder& GraphBuilder, FSceneUniformBuffer& SceneUB, FScene& Scene, FRDGExternalAccessQueue& ExternalAccessQueue, IVisibilityTaskData* VisibilityTaskData)
+void FGPUScene::Update(FRDGBuilder& GraphBuilder, FSceneUniformBuffer& SceneUB, FScene& Scene, FRDGExternalAccessQueue& ExternalAccessQueue)
 {
 	if (bIsEnabled)
 	{
@@ -1748,17 +1733,17 @@ void FGPUScene::Update(FRDGBuilder& GraphBuilder, FSceneUniformBuffer& SceneUB, 
 
 		ensure(bInBeginEndBlock);
 		
-		UpdateInternal(GraphBuilder, SceneUB, Scene, ExternalAccessQueue, VisibilityTaskData);
+		UpdateInternal(GraphBuilder, SceneUB, Scene, ExternalAccessQueue);
 	}
 }
 
-void FGPUScene::UploadDynamicPrimitiveShaderDataForView(FRDGBuilder& GraphBuilder, FScene& Scene, FViewInfo& View, bool bIsShadowView)
+void FGPUScene::UploadDynamicPrimitiveShaderDataForView(FRDGBuilder& GraphBuilder, FScene& Scene, FViewInfo& View, FRDGExternalAccessQueue& ExternalAccessQueue, bool bIsShadowView)
 {
 	if (bIsEnabled)
 	{
 		RDG_GPU_MASK_SCOPE(GraphBuilder, FRHIGPUMask::All());
 
-		UploadDynamicPrimitiveShaderDataForViewInternal(GraphBuilder, Scene, View, bIsShadowView);
+		UploadDynamicPrimitiveShaderDataForViewInternal(GraphBuilder, Scene, View, ExternalAccessQueue, bIsShadowView);
 	}
 }
 
