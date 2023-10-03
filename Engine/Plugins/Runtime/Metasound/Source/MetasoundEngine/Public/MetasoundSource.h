@@ -226,12 +226,13 @@ public:
 	FOnGeneratorInstanceCreated OnGeneratorInstanceCreated;
 	FOnGeneratorInstanceDestroyed OnGeneratorInstanceDestroyed;
 
+	virtual const FMetasoundFrontendDocument& GetConstDocument() const override;
+
 protected:
 	Metasound::Frontend::FDocumentAccessPtr GetDocumentAccessPtr() override;
 	Metasound::Frontend::FConstDocumentAccessPtr GetDocumentConstAccessPtr() const override;
 
 	virtual const UClass& GetBaseMetaSoundUClass() const final override;
-	virtual const FMetasoundFrontendDocument& GetConstDocument() const override;
 
 	/** Gets all the default parameters for this Asset.  */
 	virtual bool GetAllDefaultParameters(TArray<FAudioParameter>& OutParameters) const override;
