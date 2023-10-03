@@ -318,6 +318,7 @@ TSharedRef<FTabManager::FLayoutNode> FTabManager::FLayout::NewFromString_Helper(
 	}	
 }
 
+
 TSharedPtr<FTabManager::FLayout> FTabManager::FLayout::NewFromString( const FString& LayoutAsText )
 {
 	TSharedPtr<FJsonObject> JsonObject;
@@ -1459,7 +1460,7 @@ TSharedPtr<SDockTab> FTabManager::InvokeTab_Internal(const FTabId& TabId, bool b
 
 	// Tab is not live. Figure out where to spawn it.
 	TSharedPtr<SDockingTabStack> StackToSpawnIn = bForceOpenWindowIfNeeded ? AttemptToOpenTab( TabId, true ) : FindPotentiallyClosedTab( TabId );
-
+	
 	if (StackToSpawnIn.IsValid())
 	{
 		const TSharedPtr<SDockTab> NewTab = SpawnTab(TabId, TSharedPtr<SWindow>());
@@ -1480,8 +1481,7 @@ TSharedPtr<SDockTab> FTabManager::InvokeTab_Internal(const FTabId& TabId, bool b
 	}
 	else
 	{
-		const TSharedPtr<FArea> Area = FGlobalTabmanager::Get()->GetFAreaFromInitialLayoutWithTabType(TabId);
-		const TSharedRef<FArea> NewAreaForTab = Area.IsValid() ? Area.ToSharedRef() : FTabManager::NewArea(FTabManager::GetDefaultTabWindowSize(TabId));
+		const TSharedRef<FArea> NewAreaForTab = GetFAreaForFTabId(TabId);
 
 		NewAreaForTab
 		->Split
@@ -2276,6 +2276,20 @@ TSharedPtr<FTabManager::FArea> FTabManager::GetFAreaFromInitialLayoutWithTabType
 		}
 	}
 	return nullptr;
+}
+
+TSharedRef<FTabManager::FArea> FTabManager::GetFAreaForFTabId(const FTabId& TabId)
+{
+	if (const TSharedPtr<FArea> AreaFromInitiallyLoadedLayout = FGlobalTabmanager::Get()->GetFAreaFromInitialLayoutWithTabType(TabId))
+	{
+		/* we must reuse positions from the initial layout for positionally specified floating windows. If we don't
+		* do this then any persisted floating windows load in a big cluster in the middle on top of one another */
+		if ( AreaFromInitiallyLoadedLayout->DefinesPositionallySpecifiedFloatingWindow() )
+		{
+			return AreaFromInitiallyLoadedLayout.ToSharedRef();
+		}
+	}
+	return NewArea( GetDefaultTabWindowSize(TabId) );
 }
 
 void FGlobalTabmanager::SetInitialLayoutSP(TSharedPtr<FTabManager::FLayout> InLayout)

@@ -615,16 +615,21 @@ class FTabManager : public TSharedFromThis<FTabManager>
 				TArray< TSharedRef<FLayoutNode> > ChildNodes;
 		};
 
-
 		class FArea : public FSplitter
 		{
 				friend class FTabManager;
 		
-			public:			
+			public:
+				/** An enum which specifies how content appears within a window. */
 				enum EWindowPlacement
 				{
+					/** The content is docked within a primary window. */
 					Placement_NoWindow,
+
+					/** The content is docked within a floating window that is initially automatically positioned. */
 					Placement_Automatic,
+
+					/** The content is docked within a floating window with positioning specified by an FArea. */
 					Placement_Specified
 				};
 
@@ -674,6 +679,14 @@ class FTabManager : public TSharedFromThis<FTabManager>
 				virtual ~FArea()
 				{
 				}
+
+			/**
+			 * Returns true if this FArea defines a positionally specified window, else it returns false
+			*/
+			bool DefinesPositionallySpecifiedFloatingWindow()const
+			{
+				return WindowPlacement == Placement_Specified;
+			}
 
 			protected:
 				FArea( const float InWidth, const float InHeight )
@@ -1109,7 +1122,7 @@ class FTabManager : public TSharedFromThis<FTabManager>
 		 */
 	    SLATE_API TSharedPtr<FArea> GetFAreaFromInitialLayoutWithTabType(const FTabId& InTabIdToMatch ) const;
 
-	protected:
+protected:
 		SLATE_API bool HasValidTabs( const TSharedRef<FTabManager::FLayoutNode>& SomeNode ) const;
 
 		/**
@@ -1158,6 +1171,13 @@ class FTabManager : public TSharedFromThis<FTabManager>
 	 * @param SomeNode the TSharedRef<FLayoutNode> in which to look for the tab with FTabId.TabType == InTabTypeToMatch
 	 */
 	bool HasAnyTabWithTabId( const TSharedRef<FTabManager::FLayoutNode>& SomeNode, const FName& InTabTypeToMatch ) const;
+
+	/**
+	 * Given FTabId returns the proper TSharedRef<FArea> to load it
+	 *
+	 * @param TabId the FTabId for which to find the FArea 
+	 */
+	TSharedRef<FArea> GetFAreaForFTabId(const FTabId& TabId);
 
 	protected:
 		FTabSpawner TabSpawner;
