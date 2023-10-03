@@ -454,3 +454,5 @@ namespace UE::Core::Private
 {
 	CORE_API void StripNegativeZero(double& InFloat);
 }
+
+#include "Misc/StringFormatArg.h"

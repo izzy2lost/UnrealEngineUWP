@@ -2176,5 +2176,3 @@ CORE_API int32 FindMatchingClosingParenthesis(const UE_STRING_CLASS& TargetStrin
 * @return	The slugged string
 */
 CORE_API UE_STRING_CLASS SlugStringForValidName(const UE_STRING_CLASS& DisplayString, const TCHAR* ReplaceWith = TEXT(""));
-
-#include "Misc/StringFormatArg.h"
