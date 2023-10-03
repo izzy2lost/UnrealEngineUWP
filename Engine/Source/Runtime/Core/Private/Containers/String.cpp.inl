@@ -637,7 +637,7 @@ namespace UE::String::Private
 {
 
 template <typename LhsType, typename RhsType>
-UE_NODISCARD FORCEINLINE UE_STRING_CLASS ConcatFStrings(LhsType&& Lhs, RhsType&& Rhs)
+UE_NODISCARD FORCEINLINE UE_STRING_CLASS PREPROCESSOR_JOIN(ConcatStrings_, UE_STRING_CLASS)(LhsType&& Lhs, RhsType&& Rhs)
 {
 	Lhs.CheckInvariants();
 	Rhs.CheckInvariants();
@@ -656,7 +656,7 @@ UE_NODISCARD FORCEINLINE UE_STRING_CLASS ConcatFStrings(LhsType&& Lhs, RhsType&&
 }
 
 template <typename LhsCharType, typename RhsType>
-UE_NODISCARD FORCEINLINE UE_STRING_CLASS ConcatRangeFString(const LhsCharType* Lhs, int32 LhsLen, RhsType&& Rhs)
+UE_NODISCARD FORCEINLINE UE_STRING_CLASS PREPROCESSOR_JOIN(ConcatRangeString_, UE_STRING_CLASS)(const LhsCharType* Lhs, int32 LhsLen, RhsType&& Rhs)
 {
 	using ElementType = UE_STRING_CLASS::ElementType;
 
@@ -685,7 +685,7 @@ UE_NODISCARD FORCEINLINE UE_STRING_CLASS ConcatRangeFString(const LhsCharType* L
 }
 
 template <typename LhsType, typename RhsCharType>
-UE_NODISCARD FORCEINLINE UE_STRING_CLASS ConcatFStringRange(LhsType&& Lhs, const RhsCharType* Rhs, int32 RhsLen)
+UE_NODISCARD FORCEINLINE UE_STRING_CLASS PREPROCESSOR_JOIN(ConcatStringRange_, UE_STRING_CLASS)(LhsType&& Lhs, const RhsCharType* Rhs, int32 RhsLen)
 {
 	Lhs.CheckInvariants();
 	checkSlow(RhsLen >= 0);
@@ -701,7 +701,7 @@ UE_NODISCARD FORCEINLINE UE_STRING_CLASS ConcatFStringRange(LhsType&& Lhs, const
 }
 
 template <typename LhsCharType, typename RhsType>
-UE_NODISCARD FORCEINLINE UE_STRING_CLASS ConcatCStringFString(const LhsCharType* Lhs, RhsType&& Rhs)
+UE_NODISCARD FORCEINLINE UE_STRING_CLASS PREPROCESSOR_JOIN(ConcatPtrString_, UE_STRING_CLASS)(const LhsCharType* Lhs, RhsType&& Rhs)
 {
 	checkSlow(Lhs);
 	if (!Lhs)
@@ -709,34 +709,34 @@ UE_NODISCARD FORCEINLINE UE_STRING_CLASS ConcatCStringFString(const LhsCharType*
 		return Forward<RhsType>(Rhs);
 	}
 
-	return ConcatRangeFString(Lhs, TCString<LhsCharType>::Strlen(Lhs), Forward<RhsType>(Rhs));
+	return PREPROCESSOR_JOIN(ConcatRangeString_, UE_STRING_CLASS)(Lhs, TCString<LhsCharType>::Strlen(Lhs), Forward<RhsType>(Rhs));
 }
 
 template <typename LhsType, typename RhsCharType>
-UE_NODISCARD FORCEINLINE UE_STRING_CLASS ConcatFStringCString(LhsType&& Lhs, const RhsCharType* Rhs)
+UE_NODISCARD FORCEINLINE UE_STRING_CLASS PREPROCESSOR_JOIN(ConcatStringPtr_, UE_STRING_CLASS)(LhsType&& Lhs, const RhsCharType* Rhs)
 {
 	checkSlow(Rhs);
 	if (!Rhs)
 	{
 		return Forward<LhsType>(Lhs);
 	}
-	return ConcatFStringRange(Forward<LhsType>(Lhs), Rhs, TCString<RhsCharType>::Strlen(Rhs));
+	return PREPROCESSOR_JOIN(ConcatStringRange_, UE_STRING_CLASS)(Forward<LhsType>(Lhs), Rhs, TCString<RhsCharType>::Strlen(Rhs));
 }
 
 } // namespace UE::String::Private
 
-UE_STRING_CLASS UE_STRING_CLASS::ConcatFF(const UE_STRING_CLASS& Lhs, const UE_STRING_CLASS& Rhs)				{ return UE::String::Private::ConcatFStrings(Lhs, Rhs); }
-UE_STRING_CLASS UE_STRING_CLASS::ConcatFF(UE_STRING_CLASS&& Lhs, const UE_STRING_CLASS& Rhs)					{ return UE::String::Private::ConcatFStrings(MoveTemp(Lhs), Rhs); }
-UE_STRING_CLASS UE_STRING_CLASS::ConcatFF(const UE_STRING_CLASS& Lhs, UE_STRING_CLASS&& Rhs)					{ return UE::String::Private::ConcatFStrings(Lhs, MoveTemp(Rhs)); }
-UE_STRING_CLASS UE_STRING_CLASS::ConcatFF(UE_STRING_CLASS&& Lhs, UE_STRING_CLASS&& Rhs)							{ return UE::String::Private::ConcatFStrings(MoveTemp(Lhs), MoveTemp(Rhs)); }
-UE_STRING_CLASS UE_STRING_CLASS::ConcatFC(const UE_STRING_CLASS& Lhs, const ElementType* Rhs)					{ return UE::String::Private::ConcatFStringCString(Lhs, Rhs); }
-UE_STRING_CLASS UE_STRING_CLASS::ConcatFC(UE_STRING_CLASS&& Lhs, const ElementType* Rhs)						{ return UE::String::Private::ConcatFStringCString(MoveTemp(Lhs), Rhs); }
-UE_STRING_CLASS UE_STRING_CLASS::ConcatCF(const ElementType* Lhs,	const UE_STRING_CLASS& Rhs)					{ return UE::String::Private::ConcatCStringFString(Lhs, Rhs); }
-UE_STRING_CLASS UE_STRING_CLASS::ConcatCF(const ElementType* Lhs, UE_STRING_CLASS&& Rhs)						{ return UE::String::Private::ConcatCStringFString(Lhs, MoveTemp(Rhs)); }
-UE_STRING_CLASS UE_STRING_CLASS::ConcatFR(const UE_STRING_CLASS& Lhs, const ElementType* Rhs, int32 RhsLen)		{ return UE::String::Private::ConcatFStringRange(Lhs, Rhs, RhsLen); }
-UE_STRING_CLASS UE_STRING_CLASS::ConcatFR(UE_STRING_CLASS&& Lhs, const ElementType* Rhs, int32 RhsLen)			{ return UE::String::Private::ConcatFStringRange(MoveTemp(Lhs), Rhs, RhsLen); }
-UE_STRING_CLASS UE_STRING_CLASS::ConcatRF(const ElementType* Lhs, int32 LhsLen, const UE_STRING_CLASS& Rhs)		{ return UE::String::Private::ConcatRangeFString(Lhs, LhsLen, Rhs); }
-UE_STRING_CLASS UE_STRING_CLASS::ConcatRF(const ElementType* Lhs, int32 LhsLen, UE_STRING_CLASS&& Rhs)			{ return UE::String::Private::ConcatRangeFString(Lhs, LhsLen, MoveTemp(Rhs)); }
+UE_STRING_CLASS UE_STRING_CLASS::ConcatFF(const UE_STRING_CLASS& Lhs, const UE_STRING_CLASS& Rhs)				{ return UE::String::Private::PREPROCESSOR_JOIN(ConcatStrings_,     UE_STRING_CLASS)(Lhs, Rhs); }
+UE_STRING_CLASS UE_STRING_CLASS::ConcatFF(UE_STRING_CLASS&& Lhs, const UE_STRING_CLASS& Rhs)					{ return UE::String::Private::PREPROCESSOR_JOIN(ConcatStrings_,     UE_STRING_CLASS)(MoveTemp(Lhs), Rhs); }
+UE_STRING_CLASS UE_STRING_CLASS::ConcatFF(const UE_STRING_CLASS& Lhs, UE_STRING_CLASS&& Rhs)					{ return UE::String::Private::PREPROCESSOR_JOIN(ConcatStrings_,     UE_STRING_CLASS)(Lhs, MoveTemp(Rhs)); }
+UE_STRING_CLASS UE_STRING_CLASS::ConcatFF(UE_STRING_CLASS&& Lhs, UE_STRING_CLASS&& Rhs)							{ return UE::String::Private::PREPROCESSOR_JOIN(ConcatStrings_,     UE_STRING_CLASS)(MoveTemp(Lhs), MoveTemp(Rhs)); }
+UE_STRING_CLASS UE_STRING_CLASS::ConcatFC(const UE_STRING_CLASS& Lhs, const ElementType* Rhs)					{ return UE::String::Private::PREPROCESSOR_JOIN(ConcatStringPtr_,   UE_STRING_CLASS)(Lhs, Rhs); }
+UE_STRING_CLASS UE_STRING_CLASS::ConcatFC(UE_STRING_CLASS&& Lhs, const ElementType* Rhs)						{ return UE::String::Private::PREPROCESSOR_JOIN(ConcatStringPtr_,   UE_STRING_CLASS)(MoveTemp(Lhs), Rhs); }
+UE_STRING_CLASS UE_STRING_CLASS::ConcatCF(const ElementType* Lhs,	const UE_STRING_CLASS& Rhs)					{ return UE::String::Private::PREPROCESSOR_JOIN(ConcatPtrString_,   UE_STRING_CLASS)(Lhs, Rhs); }
+UE_STRING_CLASS UE_STRING_CLASS::ConcatCF(const ElementType* Lhs, UE_STRING_CLASS&& Rhs)						{ return UE::String::Private::PREPROCESSOR_JOIN(ConcatPtrString_,   UE_STRING_CLASS)(Lhs, MoveTemp(Rhs)); }
+UE_STRING_CLASS UE_STRING_CLASS::ConcatFR(const UE_STRING_CLASS& Lhs, const ElementType* Rhs, int32 RhsLen)		{ return UE::String::Private::PREPROCESSOR_JOIN(ConcatStringRange_, UE_STRING_CLASS)(Lhs, Rhs, RhsLen); }
+UE_STRING_CLASS UE_STRING_CLASS::ConcatFR(UE_STRING_CLASS&& Lhs, const ElementType* Rhs, int32 RhsLen)			{ return UE::String::Private::PREPROCESSOR_JOIN(ConcatStringRange_, UE_STRING_CLASS)(MoveTemp(Lhs), Rhs, RhsLen); }
+UE_STRING_CLASS UE_STRING_CLASS::ConcatRF(const ElementType* Lhs, int32 LhsLen, const UE_STRING_CLASS& Rhs)		{ return UE::String::Private::PREPROCESSOR_JOIN(ConcatRangeString_, UE_STRING_CLASS)(Lhs, LhsLen, Rhs); }
+UE_STRING_CLASS UE_STRING_CLASS::ConcatRF(const ElementType* Lhs, int32 LhsLen, UE_STRING_CLASS&& Rhs)			{ return UE::String::Private::PREPROCESSOR_JOIN(ConcatRangeString_, UE_STRING_CLASS)(Lhs, LhsLen, MoveTemp(Rhs)); }
 
 /**
  * Concatenate this path with given path ensuring the / character is used between them
