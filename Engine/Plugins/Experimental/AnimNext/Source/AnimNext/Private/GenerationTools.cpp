@@ -105,9 +105,11 @@ struct FCompareBoneIndexType
 
 			if (bCanGenerateSingleBonesList)
 			{
+				const USkeleton* Skeleton = SkeletalMesh->GetSkeleton();
+
 				OutAnimationReferencePose.GenerationFlags = EReferencePoseGenerationFlags::FastPath;
 				OutAnimationReferencePose.SkeletalMesh = SkeletalMesh;
-				OutAnimationReferencePose.Skeleton = SkeletalMesh->GetSkeleton();
+				OutAnimationReferencePose.Skeleton = Skeleton;
 
 				TArray<int32> LODNumBones;
 				LODNumBones.Reset(NumLODs);
@@ -116,14 +118,27 @@ struct FCompareBoneIndexType
 					LODNumBones.Add(GenerationLODData[LODIndex].RequiredBones.Num());
 				}
 
+				// Removing const here because the linkup lazily builds the mapping and caches it
+				const int32 SkelMeshLinkupIndex = const_cast<USkeleton*>(Skeleton)->GetMeshLinkupIndex(SkeletalMesh);
+				check(SkelMeshLinkupIndex != INDEX_NONE);
+
+				const FSkeletonToMeshLinkup& LinkupTable = Skeleton->LinkupCache[SkelMeshLinkupIndex];
+
 				// Generate a Skeleton to LOD look up table
 				const int32 NumOrderedBones = OrderedBoneList.Num();
 
 				TArray<FBoneIndexType> SkeletonToLODBoneList;
 				SkeletonToLODBoneList.SetNumZeroed(NumOrderedBones);
-				for (int i = 0; i < NumOrderedBones; ++i)
+				for (int32 LODBoneIndex = 0; LODBoneIndex < NumOrderedBones; ++LODBoneIndex)
 				{
-					SkeletonToLODBoneList[OrderedBoneList[i]] = i;
+					// The ordered list contains skeletal mesh bone indices sorted by LOD
+					const FMeshPoseBoneIndex MeshBoneIndex(OrderedBoneList[LODBoneIndex]);
+
+					// Remap our skeletal mesh bone index into the skeleton bone index we output for
+					const FSkeletonPoseBoneIndex SkeletonBoneIndex(LinkupTable.MeshToSkeletonTable[MeshBoneIndex.GetInt()]);
+					ensure(SkeletonBoneIndex.IsValid());	// We expect the skeletal mesh bone to map to a valid skeleton bone
+
+					SkeletonToLODBoneList[static_cast<FBoneIndexType>(SkeletonBoneIndex.GetInt())] = LODBoneIndex;
 				}
 
 				OutAnimationReferencePose.Initialize(SkeletalMesh->GetRefSkeleton(), { OrderedBoneList }, { SkeletonToLODBoneList }, LODNumBones, bCanGenerateSingleBonesList);
@@ -387,22 +402,34 @@ struct FCompareBoneIndexType
 // Converts AnimBP pose to AnimNext Pose
 // This function expects both poses to have the same LOD (number of bones and indexes)
 // The target pose should be assigned to the correct reference pose prior to this call
-/*static*/ void FGenerationTools::RemapPose(int32 LODLevel, const FPoseContext& SourcePose, const FReferencePose& RefPose, FLODPose& TargetPose)
+/*static*/ void FGenerationTools::RemapPose(const FPoseContext& SourcePose, FLODPose& TargetPose)
 {
-	const TArrayView<const FBoneIndexType> LODBoneIndexes = RefPose.GetLODBoneIndexes(LODLevel);
-	const int32 NumBones = LODBoneIndexes.Num();
+	const FBoneContainer& BoneContainer = SourcePose.Pose.GetBoneContainer();
+	const FReferencePose& RefPose = TargetPose.GetRefPose();
+	const TArrayView<const FBoneIndexType> LODBoneIndexes = RefPose.GetLODBoneIndexes(TargetPose.LODLevel);
+	const int32 NumLODBones = LODBoneIndexes.Num();
 
-	if (TargetPose.GetNumBones() == NumBones)
+	check(TargetPose.GetNumBones() == NumLODBones);
+
+	for (int32 LODBoneIndex = 0; LODBoneIndex < NumLODBones; ++LODBoneIndex)
 	{
-		for (int i = 0; i < NumBones; ++i)
-		{
-			const auto& SkeletonBoneIndex = LODBoneIndexes[i];
+		// Reference pose holds a list of skeletal mesh bone indices sorted by LOD
+		const FMeshPoseBoneIndex MeshBoneIndex(LODBoneIndexes[LODBoneIndex]);
 
-			const FCompactPoseBoneIndex CompactBoneIndex = SourcePose.Pose.GetBoneContainer().GetCompactPoseIndexFromSkeletonIndex(SkeletonBoneIndex);
-			if (CompactBoneIndex.GetInt() != INDEX_NONE)
-			{
-				TargetPose.LocalTransformsView[i] = SourcePose.Pose[CompactBoneIndex];
-			}
+		// Remap our skeletal mesh bone index into the skeleton bone index we output for
+		const FSkeletonPoseBoneIndex SkeletonBoneIndex = BoneContainer.GetSkeletonPoseIndexFromMeshPoseIndex(MeshBoneIndex);
+		ensure(SkeletonBoneIndex.IsValid());	// We expect the skeletal mesh bone to map to a valid skeleton bone
+
+		// Remap our skeleton bone index into the compact pose bone index we output for
+		const FCompactPoseBoneIndex CompactBoneIndex = BoneContainer.GetCompactPoseIndexFromSkeletonPoseIndex(SkeletonBoneIndex);
+
+		if (ensure(CompactBoneIndex.IsValid()))	// We expect the skeleton bone to map to a valid compact pose bone
+		{
+			TargetPose.LocalTransformsView[LODBoneIndex] = SourcePose.Pose[CompactBoneIndex];
+		}
+		else
+		{
+			// This bone is part of the LOD but isn't part of the required bones
 		}
 	}
 }
@@ -410,22 +437,34 @@ struct FCompareBoneIndexType
 // Converts AnimNext pose to AnimBP Pose
 // This function expects both poses to have the same LOD (number of bones and indexes)
 // The target pose should be assigned to the correct reference pose prior to this call
-/*static*/ void FGenerationTools::RemapPose(int32 LODLevel, const FReferencePose& RefPose, const FLODPose& SourcePose, FPoseContext& TargetPose)
+/*static*/ void FGenerationTools::RemapPose(const FLODPose& SourcePose, FPoseContext& TargetPose)
 {
-	const TArrayView<const FBoneIndexType> LODBoneIndexes = RefPose.GetLODBoneIndexes(LODLevel);
-	const int32 NumBones = LODBoneIndexes.Num();
+	const FBoneContainer& BoneContainer = TargetPose.Pose.GetBoneContainer();
+	const FReferencePose& RefPose = SourcePose.GetRefPose();
+	const TArrayView<const FBoneIndexType> LODBoneIndexes = RefPose.GetLODBoneIndexes(SourcePose.LODLevel);
+	const int32 NumLODBones = LODBoneIndexes.Num();
 
-	if (SourcePose.GetNumBones() == NumBones)
+	check(SourcePose.GetNumBones() == NumLODBones);
+
+	for (int32 LODBoneIndex = 0; LODBoneIndex < NumLODBones; ++LODBoneIndex)
 	{
-		for (int i = 0; i < NumBones; ++i)
-		{
-			const auto& SkeletonBoneIndex = LODBoneIndexes[i];
+		// Reference pose holds a list of skeletal mesh bone indices sorted by LOD
+		const FMeshPoseBoneIndex MeshBoneIndex(LODBoneIndexes[LODBoneIndex]);
 
-			const FCompactPoseBoneIndex CompactBoneIndex = TargetPose.Pose.GetBoneContainer().GetCompactPoseIndexFromSkeletonIndex(SkeletonBoneIndex);
-			if (CompactBoneIndex.GetInt() != INDEX_NONE)
-			{
-				TargetPose.Pose[CompactBoneIndex] = SourcePose.LocalTransformsView[i];
-			}
+		// Remap our skeletal mesh bone index into the skeleton bone index we output for
+		const FSkeletonPoseBoneIndex SkeletonBoneIndex = BoneContainer.GetSkeletonPoseIndexFromMeshPoseIndex(MeshBoneIndex);
+		ensure(SkeletonBoneIndex.IsValid());	// We expect the skeletal mesh bone to map to a valid skeleton bone
+
+		// Remap our skeleton bone index into the compact pose bone index we output for
+		const FCompactPoseBoneIndex CompactBoneIndex = BoneContainer.GetCompactPoseIndexFromSkeletonPoseIndex(SkeletonBoneIndex);
+
+		if (ensure(CompactBoneIndex.IsValid()))	// We expect the skeleton bone to map to a valid compact pose bone
+		{
+			TargetPose.Pose[CompactBoneIndex] = SourcePose.LocalTransformsView[LODBoneIndex];
+		}
+		else
+		{
+			// This bone is part of the LOD but isn't part of the required bones
 		}
 	}
 }

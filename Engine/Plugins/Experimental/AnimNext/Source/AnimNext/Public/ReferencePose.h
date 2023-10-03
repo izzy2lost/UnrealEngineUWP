@@ -35,11 +35,11 @@ struct TReferencePose
 	TTransformArray<AllocatorType> ReferenceLocalTransforms;
 
 	// List of LOD bone indices for each LOD
-	// Each list of bone indices is a mapping of: BoneIndexAtLOD -> BoneIndexInSkeleton
+	// Each list of bone indices is a mapping of: LODSortedBoneIndex -> SkeletalMeshBoneIndex
 	TArray<TArray<FBoneIndexType, AllocatorType>, AllocatorType> LODBoneIndexes;
 
 	// List of skeleton bone indices for each LOD
-	// Each list of skeleton bone indices is a mapping of: BoneIndexInSkeleton -> BoneIndexAtLOD
+	// Each list of skeleton bone indices is a mapping of: SkeletonBoneIndex -> LODSortedBoneIndex
 	TArray<TArray<FBoneIndexType, AllocatorType>, AllocatorType> SkeletonToLODBoneIndexes;
 
 	// Number of bones for each LOD

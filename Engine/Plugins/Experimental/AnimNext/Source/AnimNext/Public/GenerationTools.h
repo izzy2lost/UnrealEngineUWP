@@ -85,18 +85,12 @@ public:
 	// Converts AnimBP pose to AnimNext Pose
 	// This function expects both poses to have the same LOD (number of bones and indexes)
 	// The target pose should be assigned to the correct reference pose prior to this call
-	static void RemapPose(int32 LODLevel
-		, const FPoseContext& SourcePose
-		, const FReferencePose& RefPose
-		, FLODPose& TargetPose);
+	static void RemapPose(const FPoseContext& SourcePose, FLODPose& TargetPose);
 
 	// Converts AnimNext pose to AnimBP Pose
 	// This function expects both poses to have the same LOD (number of bones and indexes)
 	// The target pose should be assigned to the correct reference pose prior to this call
-	static void RemapPose(int32 LODLevel
-		, const FReferencePose& RefPose
-		, const FLODPose& SourcePose
-		, FPoseContext& TargetPose);
+	static void RemapPose(const FLODPose& SourcePose, FPoseContext& TargetPose);
 };
 
 } // namespace UE::AnimNext

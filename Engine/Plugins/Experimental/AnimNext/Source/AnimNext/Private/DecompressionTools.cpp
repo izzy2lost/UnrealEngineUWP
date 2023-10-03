@@ -276,12 +276,11 @@ void FDecompressionTools::DecompressPose(FLODPose& OutAnimationPoseData,
 										const FRootMotionReset& RootMotionReset)
 {
 	const FReferencePose& ReferencePose = OutAnimationPoseData.GetRefPose();
-	const TArrayView<const FBoneIndexType>LODBoneIndexes = OutAnimationPoseData.GetLODBoneIndexes();
-	const TArrayView<const FBoneIndexType> SkeletoonToLODBoneIndexes = ReferencePose.GetSkeletonToLODBoneIndexes(0); // Full list of Skeleton to LOD conversion
+	const TArrayView<const FBoneIndexType> LODBoneIndexes = OutAnimationPoseData.GetLODBoneIndexes();
+	const TArrayView<const FBoneIndexType> SkeletonToLODBoneIndexes = ReferencePose.GetSkeletonToLODBoneIndexes(0); // Full list of Skeleton to LOD conversion
 	const int32 NumLODBoneIndexes = LODBoneIndexes.Num();
 
 	const int32 NumTracks = CompressedData.CompressedTrackToSkeletonMapTable.Num();
-
 
 	const USkeleton* TargetSkeleton = OutAnimationPoseData.GetSkeletonAsset();
 	const FSkeletonRemapping& SkeletonRemapping = UE::Anim::FSkeletonRemappingRegistry::Get().GetRemapping(DecompressionContext.GetSourceSkeleton(), TargetSkeleton);
@@ -315,7 +314,7 @@ void FDecompressionTools::DecompressPose(FLODPose& OutAnimationPoseData,
 
 			if (TargetSkeletonBoneIndex != INDEX_NONE)
 			{
-				const int32 LODBoneIndex = TargetSkeletonBoneIndex < SkeletoonToLODBoneIndexes.Num() ? SkeletoonToLODBoneIndexes[TargetSkeletonBoneIndex] : INDEX_NONE;
+				const int32 LODBoneIndex = TargetSkeletonBoneIndex < SkeletonToLODBoneIndexes.Num() ? SkeletonToLODBoneIndexes[TargetSkeletonBoneIndex] : INDEX_NONE;
 
 				if (LODBoneIndex != INDEX_NONE && LODBoneIndex < NumLODBoneIndexes) // skip bones not in current LOD
 				{

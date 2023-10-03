@@ -68,18 +68,18 @@ namespace UE::AnimNext
 		// The new handle will remain weak
 		if (!DecoratorPtr.IsWeak())
 		{
-			if (FNodeInstance* Node = DecoratorPtr.GetNodeInstance())
+			if (FNodeInstance* NewNode = DecoratorPtr.GetNodeInstance())
 			{
-				Node->AddReference();
+				NewNode->AddReference();
 			}
 		}
 
 		// Only decrement the reference count if we aren't a weak handle
 		if (!IsWeak())
 		{
-			if (FNodeInstance* Node = GetNodeInstance())
+			if (FNodeInstance* OldNode = GetNodeInstance())
 			{
-				Node->ReleaseReference();
+				OldNode->ReleaseReference();
 			}
 		}
 

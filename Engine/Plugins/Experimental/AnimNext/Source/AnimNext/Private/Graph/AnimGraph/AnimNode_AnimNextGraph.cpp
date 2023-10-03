@@ -23,6 +23,8 @@
 #include "Editor.h"
 #endif
 
+TAutoConsoleVariable<int32> CVarAnimNextForceAnimBP(TEXT("a.AnimNextForceAnimBP"), 0, TEXT("If != 0, then we use the input pose of the AnimNext AnimBP node instead of the AnimNext graph."));
+
 FAnimNode_AnimNextGraph::FAnimNode_AnimNextGraph()
 	: FAnimNode_CustomProperty()
 	, AnimNextGraph(nullptr)
@@ -54,7 +56,7 @@ void FAnimNode_AnimNextGraph::Update_AnyThread(const FAnimationUpdateContext& Co
 
 	SourceLink.Update(Context);
 
-	if (IsLODEnabled(Context.AnimInstanceProxy))
+	if (IsLODEnabled(Context.AnimInstanceProxy) && !CVarAnimNextForceAnimBP.GetValueOnAnyThread() && GraphInstance.IsValid())
 	{
 		GetEvaluateGraphExposedInputs().Execute(Context);
 
@@ -93,22 +95,19 @@ void FAnimNode_AnimNextGraph::Initialize_AnyThread(const FAnimationInitializeCon
 	if (!GraphInstance.IsValid() && AnimNextGraph)
 	{
 		// If we don't have an instance yet, create one
+		UE::AnimNext::FAnimGraphParamStackScope Scope(Context);
 
-		{
-			UE::AnimNext::FAnimGraphParamStackScope Scope(Context);
+		// Populate our param stack since our instance data might need it during construction
+		const int32 LODLevel = Context.AnimInstanceProxy->GetLODLevel();
 
-			// Populate our param stack since our instance data might need it during construction
-			const int32 LODLevel = Context.AnimInstanceProxy->GetLODLevel();
+		FParamStack& ParamStack = FParamStack::Get();
+		FParamStack::FPushedLayerHandle LayerHandle = ParamStack.PushValues(
+			"GraphLODLevel", LODLevel
+		);
 
-			FParamStack& ParamStack = FParamStack::Get();
-			FParamStack::FPushedLayerHandle LayerHandle = ParamStack.PushValues(
-				"GraphLODLevel", LODLevel
-			);
+		AnimNextGraph->AllocateInstance(GraphInstance);
 
-			AnimNextGraph->AllocateInstance(GraphInstance);
-
-			ParamStack.PopLayer(LayerHandle);
-		}
+		ParamStack.PopLayer(LayerHandle);
 	}
 
 	FAnimNode_CustomProperty::Initialize_AnyThread(Context);
@@ -123,59 +122,51 @@ void FAnimNode_AnimNextGraph::CacheBones_AnyThread(const FAnimationCacheBonesCon
 	SourceLink.CacheBones(Context);
 }
 
-void FAnimNode_AnimNextGraph::Evaluate_AnyThread(FPoseContext & Output)
+void FAnimNode_AnimNextGraph::Evaluate_AnyThread(FPoseContext& Output)
 {
 	DECLARE_SCOPE_HIERARCHICAL_COUNTER_FUNC()
 
 	using namespace UE::AnimNext;
 
-	FPoseContext SourcePose(Output);
-
-	if (SourceLink.GetLinkNode())
+	if (!CVarAnimNextForceAnimBP.GetValueOnAnyThread() && GraphInstance.IsValid())
 	{
-		SourceLink.Evaluate(SourcePose);
-	}
-	else
-	{
-		SourcePose.ResetToRefPose();
-	}
+		USkeletalMeshComponent* SkeletalMeshComponent = Output.AnimInstanceProxy->GetSkelMeshComponent();
+		check(SkeletalMeshComponent != nullptr);
 
-	USkeletalMeshComponent* SkeletalMeshComponent = Output.AnimInstanceProxy->GetSkelMeshComponent();
-	check(SkeletalMeshComponent != nullptr);
+		FDataHandle RefPoseHandle = FDataRegistry::Get()->GetOrGenerateReferencePose(SkeletalMeshComponent);
+		const UE::AnimNext::FReferencePose& RefPose = RefPoseHandle.GetRef<UE::AnimNext::FReferencePose>();
+		FAnimNextGraphReferencePose GraphReferencePose(&RefPose);
 
-	FDataHandle RefPoseHandle = FDataRegistry::Get()->GetOrGenerateReferencePose(SkeletalMeshComponent);
-	const UE::AnimNext::FReferencePose& RefPose = RefPoseHandle.GetRef<UE::AnimNext::FReferencePose>();
+		const int32 LODLevel = Output.AnimInstanceProxy->GetLODLevel();
 
-	const int32 LODLevel = Output.AnimInstanceProxy->GetLODLevel();
-	
-	UE::AnimNext::FContext Context(0.0f);
+		UE::AnimNext::FContext Context(0.0f);
 
-	FAnimNextGraphReferencePose GraphReferencePose(&RefPose);
+		FAnimNextGraphLODPose ResultPose(FLODPoseHeap(RefPose, LODLevel, true, Output.ExpectsAdditivePose()));
 
-	FAnimNextGraphLODPose GraphSourceLODPose(FLODPoseHeap(RefPose, LODLevel, false, Output.ExpectsAdditivePose()));
-	FAnimNextGraphLODPose ResultPose(FLODPoseHeap(RefPose, LODLevel, true, Output.ExpectsAdditivePose()));
-	FGenerationTools::RemapPose(LODLevel, SourcePose, RefPose, GraphSourceLODPose.LODPose);
-
-	{
 		UE::AnimNext::FAnimGraphParamStackScope Scope(Output);
-
 		FParamStack& ParamStack = FParamStack::Get();
 		FParamStack::FPushedLayerHandle LayerHandle = ParamStack.PushValues(
 			"GraphReferencePose", GraphReferencePose,
 			"ResultPose", ResultPose,
 			"GraphLODLevel", LODLevel,
-			"GraphExpectsAdditive", Output.ExpectsAdditivePose(),
-			"SourcePose", GraphSourceLODPose						// TODO : Pass this as a external variable maybe ? When we have support for variables in the rigvm graph
+			"GraphExpectsAdditive", Output.ExpectsAdditivePose()
 		);
 
 		AnimNextGraph->Run(Context, GraphInstance, EAnimNextGraphSimulationSteps::Evaluate);
 
-		FGenerationTools::RemapPose(LODLevel, RefPose, ResultPose.LODPose, Output);
-
-		FAnimNode_CustomProperty::Evaluate_AnyThread(Output);
+		FGenerationTools::RemapPose(ResultPose.LODPose, Output);
 
 		ParamStack.PopLayer(LayerHandle);
 	}
+	else
+	{
+		if (SourceLink.GetLinkNode())
+		{
+			SourceLink.Evaluate(Output);
+		}
+	}
+
+	FAnimNode_CustomProperty::Evaluate_AnyThread(Output);
 }
 
 void FAnimNode_AnimNextGraph::PostSerialize(const FArchive& Ar)
