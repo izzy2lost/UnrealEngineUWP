@@ -863,6 +863,9 @@ public:
 	template<typename TransformHandlerType, typename bInterpolated>
 	void GetTriCoordSkinnedDataFallback(FVectorVMExternalFunctionContext& Context);
 
+	template<typename SkinningHandlerType, typename TransformHandlerType, typename VertexAccessorType, typename bInterpolated>
+	void VMGetSkinnedTriangleVertexData(FVectorVMExternalFunctionContext& Context);
+
 	NIAGARA_API void GetTriCoordColor(FVectorVMExternalFunctionContext& Context);
 
 	NIAGARA_API void GetTriCoordColorFallback(FVectorVMExternalFunctionContext& Context);
@@ -992,6 +995,10 @@ public:
 	static const FName GetSkinnedTriangleDataWSName;
 	static const FName GetSkinnedTriangleDataInterpName;
 	static const FName GetSkinnedTriangleDataWSInterpName;
+	static const FName GetSkinnedTriangleVertexDataName;
+	static const FName GetSkinnedTriangleVertexDataWSName;
+	static const FName GetSkinnedTriangleVertexDataInterpName;
+	static const FName GetSkinnedTriangleVertexDataWSInterpName;
 	static const FName GetTriColorName;
 	static const FName GetTriUVName;
 	static const FName GetTriCoordVerticesName;

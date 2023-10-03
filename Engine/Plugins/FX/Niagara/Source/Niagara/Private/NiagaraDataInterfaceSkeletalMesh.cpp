@@ -2829,6 +2829,10 @@ bool UNiagaraDataInterfaceSkeletalMesh::GetFunctionHLSL(const FNiagaraDataInterf
 		FSkeletalMeshInterfaceHelper::GetTriCoordVerticesName,
 		FSkeletalMeshInterfaceHelper::GetTriangleCountName,
 		FSkeletalMeshInterfaceHelper::GetFilteredTriangleCountName,
+		FSkeletalMeshInterfaceHelper::GetSkinnedTriangleVertexDataName,
+		FSkeletalMeshInterfaceHelper::GetSkinnedTriangleVertexDataWSName,
+		FSkeletalMeshInterfaceHelper::GetSkinnedTriangleVertexDataInterpName,
+		FSkeletalMeshInterfaceHelper::GetSkinnedTriangleVertexDataWSInterpName,
 		//////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 		// Bone Sampling
 		FSkeletalMeshInterfaceHelper::GetSkinnedBoneDataName,

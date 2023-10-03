@@ -269,6 +269,17 @@ FDISkelMeshSkinnedVertex GetSkinnedVertex_{ParameterName}(uint VertexIndex)
 	return SkinnedVertex;
 }
 
+FDISkelMeshSkinnedVertex GetSkinnedVertexWS_{ParameterName}(uint VertexIndex)
+{
+	FDISkelMeshSkinnedVertex SkinnedVertex = GetSkinnedVertex_{ParameterName}(VertexIndex);
+    SkinnedVertex.Position		= mul(float4(SkinnedVertex.Position, 1.0f), {ParameterName}_InstanceTransform).xyz;
+    SkinnedVertex.PrevPosition	= mul(float4(SkinnedVertex.PrevPosition, 1.0f), {ParameterName}_InstancePrevTransform).xyz;
+    SkinnedVertex.TangentX		= normalize(mul(float4(SkinnedVertex.TangentX, 0.0f), {ParameterName}_InstanceTransform).xyz);
+    SkinnedVertex.TangentY		= normalize(mul(float4(SkinnedVertex.TangentY, 0.0f), {ParameterName}_InstanceTransform).xyz);
+    SkinnedVertex.TangentZ		= normalize(mul(float4(SkinnedVertex.TangentZ, 0.0f), {ParameterName}_InstanceTransform).xyz);
+	return SkinnedVertex;
+}
+
 FDISkelMeshSkinnedVertex GetSkinnedPointOnTriangle_{ParameterName}(uint TriangleIndex, float3 BaryCoord)
 {
 	// Early out for bad data
@@ -402,6 +413,118 @@ void GetSkinnedTriangleDataInterpolated_{ParameterName}(in uint TriangleIndex, i
 	OutNormal	= normalize(SkinnedVertex.TangentZ);
 	OutBinormal	= normalize(SkinnedVertex.TangentY);
 	OutTangent	= normalize(SkinnedVertex.TangentX);
+}
+
+void GetSkinnedTriangleVertexDataHelper_{ParameterName}(
+	int TriangleIndex, 
+	float Interp,
+	bool bWorldSpace,
+	out float3 Position0, out float3 Velocity0, out float3 Normal0, out float3 Binormal0, out float3 Tangent0,
+	out float3 Position1, out float3 Velocity1, out float3 Normal1, out float3 Binormal1, out float3 Tangent1,
+	out float3 Position2, out float3 Velocity2, out float3 Normal2, out float3 Binormal2, out float3 Tangent2
+)
+{
+    int VertexIndex0 = 0;
+    int VertexIndex1 = 0;
+    int VertexIndex2 = 0;
+	if ( {ParameterName}_MeshTriangleCount != 0 )
+	{
+		TriangleIndex = clamp(TriangleIndex, 0, {ParameterName}_MeshTriangleCount - 1);
+		const uint IndexBufferOffset = TriangleIndex * 3;
+		VertexIndex0 = {ParameterName}_MeshIndexBuffer[IndexBufferOffset];
+		VertexIndex1 = {ParameterName}_MeshIndexBuffer[IndexBufferOffset + 1];
+		VertexIndex2 = {ParameterName}_MeshIndexBuffer[IndexBufferOffset + 2];
+	}
+
+	FDISkelMeshSkinnedVertex SkinnedVertex0;
+	FDISkelMeshSkinnedVertex SkinnedVertex1;
+	FDISkelMeshSkinnedVertex SkinnedVertex2;
+
+	BRANCH
+	if ( bWorldSpace )
+	{
+		SkinnedVertex0 = GetSkinnedVertexWS_{ParameterName}(VertexIndex0);
+		SkinnedVertex1 = GetSkinnedVertexWS_{ParameterName}(VertexIndex1);
+		SkinnedVertex2 = GetSkinnedVertexWS_{ParameterName}(VertexIndex2);
+	}
+	else
+	{
+		SkinnedVertex0 = GetSkinnedVertex_{ParameterName}(VertexIndex0);
+		SkinnedVertex1 = GetSkinnedVertex_{ParameterName}(VertexIndex1);
+		SkinnedVertex2 = GetSkinnedVertex_{ParameterName}(VertexIndex2);
+	}
+
+	Position0		= lerp(SkinnedVertex0.PrevPosition, SkinnedVertex0.Position, Interp);
+	Velocity0		= SkinnedVertex0.Position - SkinnedVertex0.PrevPosition;
+	Normal0			= SkinnedVertex0.TangentZ;
+	Binormal0		= SkinnedVertex0.TangentY;
+	Tangent0		= SkinnedVertex0.TangentX;
+
+	Position1		= lerp(SkinnedVertex1.PrevPosition, SkinnedVertex1.Position, Interp);
+	Velocity1		= SkinnedVertex1.Position - SkinnedVertex1.PrevPosition;
+	Normal1			= SkinnedVertex1.TangentZ;
+	Binormal1		= SkinnedVertex1.TangentY;
+	Tangent1		= SkinnedVertex1.TangentX;
+
+	Position2		= lerp(SkinnedVertex2.PrevPosition, SkinnedVertex2.Position, Interp);
+	Velocity2		= SkinnedVertex2.Position - SkinnedVertex2.PrevPosition;
+	Normal2			= SkinnedVertex2.TangentZ;
+	Binormal2		= SkinnedVertex2.TangentY;
+	Tangent2		= SkinnedVertex2.TangentX;
+}
+
+void GetSkinnedTriangleVertexData_{ParameterName}(
+	int TriangleIndex, 
+	out float3 Position0, out float3 Velocity0, out float3 Normal0, out float3 Binormal0, out float3 Tangent0,
+	out float3 Position1, out float3 Velocity1, out float3 Normal1, out float3 Binormal1, out float3 Tangent1,
+	out float3 Position2, out float3 Velocity2, out float3 Normal2, out float3 Binormal2, out float3 Tangent2
+)
+{
+	GetSkinnedTriangleVertexDataHelper_{ParameterName}(
+		TriangleIndex, 1.0f, false,
+		Position0, Velocity0, Normal0, Binormal0, Tangent0, Position1, Velocity1, Normal1, Binormal1, Tangent1, Position2, Velocity2, Normal2, Binormal2, Tangent2
+	);
+}
+
+void GetSkinnedTriangleVertexDataWS_{ParameterName}(
+	int TriangleIndex, 
+	out float3 Position0, out float3 Velocity0, out float3 Normal0, out float3 Binormal0, out float3 Tangent0,
+	out float3 Position1, out float3 Velocity1, out float3 Normal1, out float3 Binormal1, out float3 Tangent1,
+	out float3 Position2, out float3 Velocity2, out float3 Normal2, out float3 Binormal2, out float3 Tangent2
+)
+{
+	GetSkinnedTriangleVertexDataHelper_{ParameterName}(
+		TriangleIndex, 1.0f, true,
+		Position0, Velocity0, Normal0, Binormal0, Tangent0, Position1, Velocity1, Normal1, Binormal1, Tangent1, Position2, Velocity2, Normal2, Binormal2, Tangent2
+	);
+}
+
+void GetSkinnedTriangleVertexDataInterpolated_{ParameterName}(
+	int TriangleIndex, 
+	float Interp,
+	out float3 Position0, out float3 Velocity0, out float3 Normal0, out float3 Binormal0, out float3 Tangent0,
+	out float3 Position1, out float3 Velocity1, out float3 Normal1, out float3 Binormal1, out float3 Tangent1,
+	out float3 Position2, out float3 Velocity2, out float3 Normal2, out float3 Binormal2, out float3 Tangent2
+)
+{
+	GetSkinnedTriangleVertexDataHelper_{ParameterName}(
+		TriangleIndex, Interp, false,
+		Position0, Velocity0, Normal0, Binormal0, Tangent0, Position1, Velocity1, Normal1, Binormal1, Tangent1, Position2, Velocity2, Normal2, Binormal2, Tangent2
+	);
+}
+
+void GetSkinnedTriangleVertexDataWSInterpolated_{ParameterName}(
+	int TriangleIndex, 
+	float Interp,
+	out float3 Position0, out float3 Velocity0, out float3 Normal0, out float3 Binormal0, out float3 Tangent0,
+	out float3 Position1, out float3 Velocity1, out float3 Normal1, out float3 Binormal1, out float3 Tangent1,
+	out float3 Position2, out float3 Velocity2, out float3 Normal2, out float3 Binormal2, out float3 Tangent2
+)
+{
+	GetSkinnedTriangleVertexDataHelper_{ParameterName}(
+		TriangleIndex, Interp, true,
+		Position0, Velocity0, Normal0, Binormal0, Tangent0, Position1, Velocity1, Normal1, Binormal1, Tangent1, Position2, Velocity2, Normal2, Binormal2, Tangent2
+	);
 }
 
 void GetTriUV_{ParameterName}(in uint TriangleIndex, in float3 BaryCoord, in int UVSet, out float2 OutUV)
