@@ -181,7 +181,8 @@
 #include "/Engine/Private/Substrate/SubstrateExport.ush"
 #endif
 
-#if (NEEDS_BASEPASS_PIXEL_VOLUMETRIC_FOGGING && OPAQUE_NEEDS_BASEPASS_FOGGING)
+#define ENABLE_LOCAL_FOG_VOLUMES_ON_OPAQUE_FORWARD (PROJECT_SUPPORTS_LOCALFOGVOLUME && NEEDS_BASEPASS_PIXEL_VOLUMETRIC_FOGGING && OPAQUE_NEEDS_BASEPASS_FOGGING)
+#if ENABLE_LOCAL_FOG_VOLUMES_ON_OPAQUE_FORWARD
 #include "LocalFogVolumes/LocalFogVolumeCommon.ush"
 #endif
 
@@ -1310,7 +1311,7 @@ void FPixelShaderInOut_MainPS(
 #if NEEDS_BASEPASS_PIXEL_VOLUMETRIC_FOGGING
 	if (FogStruct.ApplyVolumetricFog > 0) 
 	{
-	#if OPAQUE_NEEDS_BASEPASS_FOGGING
+	#if ENABLE_LOCAL_FOG_VOLUMES_ON_OPAQUE_FORWARD
 		float3 TranslatedWorldPosition = SvPositionToResolvedTranslatedWorld(In.SvPosition);
 		uint2 TilePos = clamp(uint2(In.SvPosition.xy / float(LFVTilePixelSize)), uint2(0, 0), LFVTileDataResolution - 1);
 		float4 LocalFogVolumeContrib = GetLFVContribution(ResolvedView, TilePos, TranslatedWorldPosition);

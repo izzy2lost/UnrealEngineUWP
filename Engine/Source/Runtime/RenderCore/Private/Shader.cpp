@@ -1935,10 +1935,20 @@ void ShaderMapAppendKeyString(EShaderPlatform Platform, FString& KeyString)
 		}
 	}
 
+	bool bSupportLocalFogVolumes = false;
+	{
+		static IConsoleVariable* CVar = IConsoleManager::Get().FindConsoleVariable(TEXT("r.SupportLocalFogVolumes"));
+		bSupportLocalFogVolumes = CVar && CVar->GetInt() > 0;
+		if (bSupportLocalFogVolumes)
+		{
+			KeyString += TEXT("_LFV");
+		}
+	}
+
 	{
 		static IConsoleVariable* CVar = IConsoleManager::Get().FindConsoleVariable(TEXT("r.LocalFogVolume.ApplyOnTranslucent"));
 		const bool bLocalFogVolumesApplyOnTranclucent = CVar && CVar->GetInt() > 0;
-		if (bLocalFogVolumesApplyOnTranclucent)
+		if (bSupportLocalFogVolumes && bLocalFogVolumesApplyOnTranclucent)
 		{
 			KeyString += TEXT("_LFVTRA");
 		}

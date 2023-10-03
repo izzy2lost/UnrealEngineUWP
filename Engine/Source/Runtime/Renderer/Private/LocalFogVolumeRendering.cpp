@@ -14,6 +14,13 @@ static TAutoConsoleVariable<int32> CVarLocalFogVolume(
 	TEXT("LocalFogVolume components are rendered when this is not 0, otherwise ignored.\n"),
 	ECVF_RenderThreadSafe);
 
+// The project setting (disable runtime and shader code)
+static TAutoConsoleVariable<int32> CVarSupportLocalFogVolumes(
+	TEXT("r.SupportLocalFogVolumes"),
+	1,
+	TEXT("Enables local fog volume rendering and shader code."),
+	ECVF_ReadOnly | ECVF_RenderThreadSafe);
+
 static TAutoConsoleVariable<int32> CVarLocalFogVolumeRenderIntoVolumetricFog(
 	TEXT("r.LocalFogVolume.RenderIntoVolumetricFog"), 1,
 	TEXT("LocalFogVolume are going to be voxelised into the volumetric fog when this is not 0, otherwise it will remain isolated.\n"),
@@ -79,7 +86,7 @@ bool ShouldRenderLocalFogVolume(const FScene* Scene, const FSceneViewFamily& Sce
 	const FEngineShowFlags EngineShowFlags = SceneViewFamily.EngineShowFlags;
 	if (Scene && Scene->HasAnyLocalFogVolume() && EngineShowFlags.Fog && !SceneViewFamily.UseDebugViewPS())
 	{
-		return CVarLocalFogVolume.GetValueOnRenderThread() > 0;
+		return (CVarSupportLocalFogVolumes.GetValueOnRenderThread() > 0) && (CVarLocalFogVolume.GetValueOnRenderThread() > 0);
 	}
 	return false;
 }
