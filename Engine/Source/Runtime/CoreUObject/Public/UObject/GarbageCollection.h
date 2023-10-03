@@ -76,6 +76,18 @@ private:
 	uint64 SchemaView = 0;
 };
 
+#if WITH_VERSE_VM
+/**
+* Enable/Disable merger of UE and Verse GC
+*
+* @parm bEnable If true, enable franken GC
+*/
+COREUOBJECT_API void EnableFrankenGCMode(bool bEnable);
+
+/** True during the whole time that Franken GC is collecting from both Verse and UE */
+extern COREUOBJECT_API bool GIsFrankenGCCollecting;
+#endif
+
 } // namespace UE::GC
 
 /** Prevent GC from running in the current scope */

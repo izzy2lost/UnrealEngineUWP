@@ -18,6 +18,11 @@
 #include "UObject/DynamicallyTypedValue.h"
 #include "UObject/GCObject.h"
 
+#if WITH_VERSE_VM
+#include "VerseVM/VVMValue.h"
+#include "VerseVM/VVMWriteBarrier.h"
+#endif
+
 /*=============================================================================
 	FastReferenceCollector.h: Unreal realtime garbage collection helpers
 =============================================================================*/
@@ -226,16 +231,20 @@ struct FProcessorStats
 #if UE_BUILD_SHIPPING
 	static constexpr uint32 NumObjects = 0;
 	static constexpr uint32 NumReferences = 0;
+	static constexpr uint32 NumVerseCells = 0;
 	static constexpr bool bFoundGarbageRef = false;
 	FORCEINLINE constexpr void AddObjects(uint32) {}
 	FORCEINLINE constexpr void AddReferences(uint32) {}
+	FORCEINLINE constexpr void AddVerseCells(uint32) {}
 	FORCEINLINE constexpr void TrackPotentialGarbageReference(bool) {}
 #else
 	uint32 NumObjects = 0;
 	uint32 NumReferences = 0;
+	uint32 NumVerseCells = 0;
 	bool bFoundGarbageRef = false;
 	FORCEINLINE void AddObjects(uint32 Num) { NumObjects += Num; }
 	FORCEINLINE void AddReferences(uint32 Num) { NumReferences += Num; }
+	FORCEINLINE void AddVerseCells(uint32 Num) { NumVerseCells += Num; }
 	FORCEINLINE void TrackPotentialGarbageReference(bool bDetectedGarbage) { bFoundGarbageRef |= bDetectedGarbage; }
 #endif
 
@@ -243,6 +252,7 @@ struct FProcessorStats
 	{
 		AddObjects(Stats.NumObjects);
 		AddReferences(Stats.NumReferences);
+		AddVerseCells(Stats.NumVerseCells);
 		TrackPotentialGarbageReference(Stats.bFoundGarbageRef);
 	}
 };
@@ -585,6 +595,12 @@ FORCEINLINE_DEBUGGABLE void VisitMembers(DispatcherType& Dispatcher, FSchemaView
 			return; // ARO is an implicit stop
 			case EMemberType::Stop:
 			return; // Stop schema without ARO call
+#if WITH_VERSE_VM
+			case EMemberType::VerseValue:				Dispatcher.HandleVerseValue(*(Verse::TWriteBarrier<Verse::VValue>*)MemberPtr, FMemberId(DebugIdx), Origin);
+			break;
+			case EMemberType::VerseValueArray:			Dispatcher.HandleVerseValueArray(*(TArray<Verse::TWriteBarrier<Verse::VValue>>*)MemberPtr, FMemberId(DebugIdx), Origin);
+			break;
+#endif
 			default:									LogIllegalTypeFatal(Member.Type, DebugIdx, Instance);
 			return;
 			}
@@ -653,6 +669,47 @@ struct TDirectDispatcher
 	{
 		HandleKillableReferences(ToView(Array), MemberId, Origin);
 	}
+
+#if WITH_VERSE_VM
+	// Some helper templates to detect if the ProcessorType supports HasHandleTokenStreamVerseCellReference
+	template <typename T, typename = void>
+	struct HasHandleTokenStreamVerseCellReference : std::false_type {};
+
+	template <typename T>
+	using HandleTokenStreamVerseCellReference_t = decltype(std::declval<T>().HandleTokenStreamVerseCellReference(std::declval<FWorkerContext&>(), std::declval<UObject*>(), std::declval<Verse::VCell*>(), std::declval<FMemberId>(), std::declval<EOrigin>()));
+
+	template <typename T>
+	struct HasHandleTokenStreamVerseCellReference <T, std::void_t<HandleTokenStreamVerseCellReference_t<T>>> : std::true_type {};
+
+	FORCEINLINE_DEBUGGABLE void HandleVerseValueDirectly(UObject* ReferencingObject, Verse::VValue& Value, FMemberId MemberId, EOrigin Origin) const
+	{
+		if (Verse::VCell* Cell = Value.ExtractCell())
+		{
+			if constexpr (HasHandleTokenStreamVerseCellReference<ProcessorType>::value)
+			{
+				Processor.HandleTokenStreamVerseCellReference(Context, ReferencingObject, Cell, MemberId, Origin);
+			}
+			Context.Stats.AddVerseCells(1);
+		}
+		else if (Value.IsUObject())
+		{
+			HandleImmutableReference(Value.AsUObject(), MemberId, Origin);
+		}
+	}
+
+	FORCEINLINE_DEBUGGABLE void HandleVerseValue(Verse::TWriteBarrier<Verse::VValue>& BarrierValue, FMemberId MemberId, EOrigin Origin)
+	{
+		HandleVerseValueDirectly(Context.GetReferencingObject(), reinterpret_cast<Verse::VValue&>(BarrierValue), MemberId, Origin);
+	}
+
+	FORCEINLINE void HandleVerseValueArray(TArrayView<Verse::TWriteBarrier<Verse::VValue>> BarrierValues, FMemberId MemberId, EOrigin Origin)
+	{
+		for (Verse::TWriteBarrier<Verse::VValue>& BarrierValue : BarrierValues)
+		{
+			HandleVerseValueDirectly(Context.GetReferencingObject(), reinterpret_cast<Verse::VValue&>(BarrierValue), MemberId, Origin);
+		}
+	}
+#endif
 
 	void Suspend()
 	{
@@ -818,6 +875,13 @@ private:
 		}
 	}
 
+	// Some helper templates to detect if the DispatcherType supports FlushWord
+	template <typename T, typename = void>
+	struct HasFlushWork : std::false_type {};
+
+	template <typename T>
+	struct HasFlushWork <T, std::void_t<decltype(std::declval<T>().FlushWork())>> : std::true_type {};
+
 	FORCEINLINE_DEBUGGABLE void FlushWork(DispatcherType& Dispatcher)
 	{
 		if constexpr (DispatcherType::bBatching)
@@ -828,6 +892,11 @@ private:
 			}
 
 			Dispatcher.FlushQueuedReferences();
+		}
+
+		if constexpr (HasFlushWork<DispatcherType>::value)
+		{
+			Dispatcher.FlushWork();
 		}
 	}
 
@@ -903,6 +972,9 @@ public:
 
 	// Implement this in your derived class, don't make this virtual as it will affect performance!
 	//FORCEINLINE void HandleTokenStreamObjectReference(FWorkerContext& Context, UObject* ReferencingObject, UObject*& Object, FMemberId MemberId, EOrigin Origin, bool bAllowReferenceElimination)
+
+	// Implement this in your derived class to add VCell support, don't make this virtual as it will affect performance!
+	//FORCEINLINE void HandleTokenStreamVerseCellReference(FWorkerContext& Context, UObject* ReferencingObject, Verse::VCell* Cell, FMemberId MemberId, EOrigin Origin)
 };
 
 

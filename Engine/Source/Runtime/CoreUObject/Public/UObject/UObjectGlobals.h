@@ -3383,6 +3383,7 @@ namespace UECodeGen_Private
 		FieldPath         = 0x1F,
 		LargeWorldCoordinatesReal = 0x20,
 		Optional          = 0x21,
+		VValue            = 0x22,
 
 		// Property-specific flags
 		NativeBool        = 0x40,
@@ -3759,6 +3760,7 @@ namespace UECodeGen_Private
 	typedef FObjectPropertyParams  FObjectPtrPropertyParams;
 	typedef FClassPropertyParams   FClassPtrPropertyParams;
 	typedef FObjectPropertyParams  FSoftObjectPropertyParams;
+	typedef FGenericPropertyParams FVerseValuePropertyParams;
 
 	struct FFunctionParams
 	{

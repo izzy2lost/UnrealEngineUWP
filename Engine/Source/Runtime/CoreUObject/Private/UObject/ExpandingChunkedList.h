@@ -8,22 +8,35 @@
 
 #include "CoreMinimal.h"
 #include <atomic>
+#include "Misc/SpinLock.h"
 
 template<typename T, int32 NumElementsPerChunk = 64>
 class TExpandingChunkedList
 {
 	struct FChunk
 	{
-		/** Chunk items */
-		T Items[NumElementsPerChunk];
-		/** Number of items in this chunk, this can be > NumElementsPerChunk if the chunk is full */
-		std::atomic<int32> NumItems = 0;
 		/** Pointer to the next chunk */
 		FChunk* Next = nullptr;
+		/** Number of items in this chunk, this can be > NumElementsPerChunk if the chunk is full */
+		int32 NumItems = 0;
+		/** Chunk items */
+		T Items[NumElementsPerChunk];
 	};
+
+	alignas(PLATFORM_CACHE_LINE_SIZE) mutable UE::FSpinLock Lock;
 
 	/** Head of the chunk list */
 	FChunk* Head = nullptr;
+
+	static void DeleteChunks(FChunk* Head)
+	{
+		for (FChunk* Chunk = Head; Chunk;)
+		{
+			FChunk* NextChunk = Chunk->Next;
+			delete Chunk;
+			Chunk = NextChunk;
+		}
+	}
 
 public:
 
@@ -35,81 +48,78 @@ public:
 	/**
 	* Thread safe: Pushes a new item into the list
 	**/
-	FORCEINLINE void Push(T Item)
+	void Push(T Item)
 	{
-		FChunk* NewChunk = nullptr;
+
+		// If we have a chunk and aren't full, then use it
+		Lock.Lock();
 		FChunk* OldHead = Head;
-		FChunk* DestChunk = OldHead;
-		int32 Index = DestChunk ? DestChunk->NumItems.fetch_add(1, std::memory_order_acq_rel) : NumElementsPerChunk;
-		while (Index >= NumElementsPerChunk)
+		if (Head != nullptr && Head->NumItems < NumElementsPerChunk)
 		{
-			// There's no chunks or no free chunks so allocate a new one
-			if (!NewChunk)
-			{
-				// Allocate a new chunk if we haven't already
-				NewChunk = new FChunk();
-				// reserve index 0 for the new item
-				Index = NewChunk->NumItems.fetch_add(1, std::memory_order_acq_rel);
-			}
-			// Try to swap the head chunk with our new chunk
-			FChunk* MaybeDifferentHead = (FChunk*)FPlatformAtomics::InterlockedCompareExchangePointer((void**)&Head, NewChunk, OldHead);
-			if (MaybeDifferentHead != OldHead)
-			{
-				// Someone got here first and added new chunk before we did
-				int32 MaybeFreeIndex = MaybeDifferentHead->NumItems.fetch_add(1, std::memory_order_acq_rel);
-				if (MaybeFreeIndex < NumElementsPerChunk)
-				{
-					// And it had a free index so dispose of the chunk we were going to add
-					delete NewChunk;
-					DestChunk = MaybeDifferentHead;
-					Index = MaybeFreeIndex;
-				}
-				// else keep trying to replace Head with NewChunk in the next iteration
-			}
-			else
-			{
-				// We successfully replaced Head with NewChunk
-				NewChunk->Next = OldHead;
-				DestChunk = NewChunk;
-			}
+			Head->Items[Head->NumItems++] = Item;
+			Lock.Unlock();
+			return;
 		}
 
-		check(DestChunk != nullptr);
-		check(Index >= 0 && Index < NumElementsPerChunk);
-		DestChunk->Items[Index] = Item;
+		// Outside of the lock, allocate the chunk
+		Lock.Unlock();
+		FChunk* NewChunk = new (FMemory::Malloc(sizeof(FChunk), PLATFORM_CACHE_LINE_SIZE)) FChunk();
+		Lock.Lock();
+
+		// If the head hs changed, then someone else has added a new node, try to add to that one
+		if (Head != nullptr && OldHead != Head && Head->NumItems < NumElementsPerChunk)
+		{
+			Head->Items[Head->NumItems++] = Item;
+			Lock.Unlock();
+			delete NewChunk;
+			return;
+		}
+
+		// Otherwise, we can just add out allocated node
+		NewChunk->Next = Head;
+		Head = NewChunk;
+		Head->Items[Head->NumItems++] = Item;
+		Lock.Unlock();
+		return;
 	}
 
 	/**
-	* Not thread safe: checks if the list is empty
+	* Checks if the list is empty
 	**/
 	FORCEINLINE bool IsEmpty() const
 	{
-		return Head == nullptr;
+		Lock.Lock();
+		bool bIsEmpty = Head == nullptr;
+		Lock.Unlock();
+		return bIsEmpty;
 	}
 
 	/**
-	* Not thread safe: Empties the list and frees its memory
+	* Empties the list and frees its memory
 	**/
 	void Empty()
 	{
-		for (FChunk* Chunk = Head; Chunk;)
-		{
-			FChunk* NextChunk = Chunk->Next;
-			delete Chunk;
-			Chunk = NextChunk;
-		}
+		Lock.Lock();
+		FChunk* Current = Head;
 		Head = nullptr;
+		Lock.Unlock();
+		DeleteChunks(Current);
 	}
 
 	/**
-	* Not thread safe: Moves all items to the provided array and empties the list
+	* Moves all items to the provided array and empties the list
 	**/
 	FORCEINLINE void PopAllAndEmpty(TArray<T>& OutArray)
 	{
-		for (FChunk* Chunk = Head; Chunk; Chunk = Chunk->Next)
+		Lock.Lock();
+		FChunk* Current = Head;
+		Head = nullptr;
+		Lock.Unlock();
+
+		for (FChunk* Chunk = Current; Chunk; Chunk = Chunk->Next)
 		{
-			OutArray.Append(Chunk->Items, FMath::Min(Chunk->NumItems.load(std::memory_order_relaxed), NumElementsPerChunk));
+			OutArray.Append(Chunk->Items, Chunk->NumItems);
 		}
-		Empty();
+		DeleteChunks(Current);
 	}
 };

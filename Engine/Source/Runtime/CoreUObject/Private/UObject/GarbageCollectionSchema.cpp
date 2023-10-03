@@ -52,6 +52,10 @@ FName ToName(EMemberType Type)
 			Names[(uint8)EMemberType::ARO] =							"ARO";
 			Names[(uint8)EMemberType::SlowARO] =						"SlowARO";
 			Names[(uint8)EMemberType::MemberARO] =						"MemberARO";
+#if WITH_VERSE_VM
+			Names[(uint8)EMemberType::VerseValue] =						"VerseValue";
+			Names[(uint8)EMemberType::VerseValueArray] =				"VerseValueArray";
+#endif
 		}
 
 		FName Names[MemberTypeCount];

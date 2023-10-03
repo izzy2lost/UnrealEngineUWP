@@ -76,6 +76,7 @@
 #include "Containers/VersePath.h"
 #include "AutoRTFM/AutoRTFM.h"
 #include "UObject/PropertyOptional.h"
+#include "UObject/VerseValueProperty.h"
 
 #include "Interfaces/IPluginManager.h"
 
@@ -5976,6 +5977,12 @@ namespace UECodeGen_Private
 
 				// Next property is the optional inner
 				ReadMore = 1;
+			}
+			break;
+
+			case EPropertyGenFlags::VValue:
+			{
+				NewProp = NewFProperty<FVerseValueProperty, FVerseValuePropertyParams>(Outer, *PropBase);
 			}
 			break;
 		}

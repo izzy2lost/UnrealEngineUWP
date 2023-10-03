@@ -45,6 +45,14 @@
 
 #include <atomic>
 
+#if WITH_VERSE_VM
+#include "VerseVM/VVMCollectionCycleRequest.h"
+#include "VerseVM/VVMContext.h"
+#include "VerseVM/VVMHeap.h"
+#include "VerseVM/VVMValue.h"
+#include "VerseVM/VVMWriteBarrier.h"
+#endif
+
 /*-----------------------------------------------------------------------------
    Garbage collection.
 -----------------------------------------------------------------------------*/
@@ -100,6 +108,15 @@ struct FGCTimingInfo
 static FGCTimingInfo GTimingInfo;
 
 bool GIsGarbageCollecting = false;
+
+#if WITH_VERSE_VM
+namespace UE::GC
+{
+bool GIsFrankenGCCollecting = false;
+}
+static bool bFrankenGCEnabled = false;
+static Verse::FCollectionCycleRequest VerseCycleRequest;
+#endif
 
 /**
 * Call back into the async loading code to inform of the destruction of serialized objects
@@ -200,6 +217,16 @@ static FAutoConsoleVariableRef CMultithreadedDestructionEnabled(
 	TEXT("If true, the engine will free objects' memory from a worker thread"),
 	ECVF_Default
 );
+
+#if WITH_VERSE_VM
+bool GEnableFrankenGC = true;
+static FAutoConsoleVariableRef CEnableFrankenGC(
+	TEXT("gc.EnableFrankenGC"),
+	GEnableFrankenGC,
+	TEXT("If true, the engine will run Verse GC concurrently with UE GC"),
+	ECVF_Default
+);
+#endif
 
 static TArray<UObjectReachabilityStressData*> GReachabilityStressData;
 static void AllocateReachabilityStressData(FOutputDevice&)
@@ -2970,6 +2997,9 @@ struct TBatchDispatcher
 	FReferenceCollector& Collector;
 	TReferenceBatcher<FMutableReference, FResolvedMutableReference, ProcessorType> KillableBatcher;
 	TReferenceBatcher<FImmutableReference, FImmutableReference, ProcessorType> ImmutableBatcher;
+#if WITH_VERSE_VM
+	Verse::FMarkStack VerseGCMarkStack;
+#endif
 	FStructBatcher StructBatcher;
 
 	UE_NONCOPYABLE(TBatchDispatcher);
@@ -3021,13 +3051,47 @@ struct TBatchDispatcher
 		HandleReferenceDirectly(ReferencingObject, WeakObject, MemberId, EKillable::No);
 	}
 
+#if WITH_VERSE_VM
+	FORCEINLINE_DEBUGGABLE void HandleVerseValueDirectly(UObject* ReferencingObject, Verse::VValue& Value, FMemberId MemberId, EOrigin Origin)
+	{
+		if (Verse::VCell* Cell = Value.ExtractCell())
+		{
+			VerseGCMarkStack.Mark(Cell);
+			Context.Stats.AddVerseCells(1);
+		}
+		else if (Value.IsUObject())
+		{
+			HandleImmutableReference(Value.AsUObject(), MemberId, Origin);
+		}
+	}
+
+	FORCEINLINE_DEBUGGABLE void HandleVerseValue(Verse::TWriteBarrier<Verse::VValue>& BarrierValue, FMemberId MemberId, EOrigin Origin)
+	{
+		HandleVerseValueDirectly(Context.GetReferencingObject(), reinterpret_cast<Verse::VValue&>(BarrierValue), MemberId, Origin);
+	}
+
+	FORCEINLINE void HandleVerseValueArray(TArrayView<Verse::TWriteBarrier<Verse::VValue>> BarrierValues, FMemberId MemberId, EOrigin Origin)
+	{
+		for (Verse::TWriteBarrier<Verse::VValue>& BarrierValue : BarrierValues)
+		{
+			HandleVerseValueDirectly(Context.GetReferencingObject(), reinterpret_cast<Verse::VValue&>(BarrierValue), MemberId, Origin);
+		}
+	}
+
+	FORCEINLINE_DEBUGGABLE void FlushWork()
+	{
+		if (GIsFrankenGCCollecting)
+		{
+			Verse::FHeap::AddExternalMarkStack(MoveTemp(VerseGCMarkStack));
+		}
+	}
+#endif
+
 	FORCENOINLINE void FlushQueuedReferences()
 	{
 		KillableBatcher.FlushQueues();
 		ImmutableBatcher.FlushQueues();
 	}
-
-	static constexpr bool bSupportsStructQueueing = true;
 
 	FORCENOINLINE bool FlushToStructBlocks()
 	{
@@ -3329,6 +3393,105 @@ private:
 	}
 };
 
+/** Batches up references before dispatching them to the processor, unlike TDirectDispatcher */
+template <class ProcessorType>
+struct TDebugDispatcher
+{
+	static constexpr bool bBatching = false;
+	static constexpr bool bParallel = IsParallel(ProcessorType::Options);
+
+	ProcessorType& Processor;
+	FWorkerContext& Context;
+	FReferenceCollector& Collector;
+#if WITH_VERSE_VM
+	Verse::FMarkStack VerseGCMarkStack;
+#endif
+
+	UE_NONCOPYABLE(TDebugDispatcher);
+	explicit TDebugDispatcher(ProcessorType& InProcessor, FWorkerContext& InContext, FReferenceCollector& InCollector)
+		: Processor(InProcessor)
+		, Context(InContext)
+		, Collector(InCollector)
+	{}
+
+	FORCEINLINE void HandleReferenceDirectly(UObject* ReferencingObject, UObject*& Object, FMemberId MemberId, EOrigin Origin, bool bAllowReferenceElimination) const
+	{
+		if (IsObjectHandleResolved(*reinterpret_cast<FObjectHandle*>(&Object)))
+		{
+			Processor.HandleTokenStreamObjectReference(Context, ReferencingObject, Object, MemberId, Origin, bAllowReferenceElimination);
+		}
+		Context.Stats.AddReferences(1);
+	}
+
+	FORCEINLINE void HandleKillableReference(UObject*& Object, FMemberId MemberId, EOrigin Origin) const
+	{
+		HandleReferenceDirectly(Context.GetReferencingObject(), Object, MemberId, Origin, true);
+	}
+
+	FORCEINLINE void HandleImmutableReference(UObject* Object, FMemberId MemberId, EOrigin Origin) const
+	{
+		HandleReferenceDirectly(Context.GetReferencingObject(), Object, MemberId, Origin, false);
+	}
+
+	template<class ArrayType>
+	FORCEINLINE void HandleKillableReferences(ArrayType&& Objects, FMemberId MemberId, EOrigin Origin) const
+	{
+		for (UObject*& Object : Objects)
+		{
+			HandleReferenceDirectly(Context.GetReferencingObject(), Object, MemberId, Origin, true);
+		}
+	}
+
+	FORCEINLINE void HandleKillableArray(TArray<UObject*>& Array, FMemberId MemberId, EOrigin Origin) const
+	{
+		HandleKillableReferences(Array, MemberId, Origin);
+	}
+
+	FORCEINLINE void HandleKillableArray(Private::FStridedReferenceArray Array, FMemberId MemberId, EOrigin Origin) const
+	{
+		HandleKillableReferences(ToView(Array), MemberId, Origin);
+	}
+
+#if WITH_VERSE_VM
+	FORCEINLINE_DEBUGGABLE void HandleVerseValueDirectly(UObject* ReferencingObject, Verse::VValue& Value, FMemberId MemberId, EOrigin Origin)
+	{
+		if (Verse::VCell* Cell = Value.ExtractCell())
+		{
+			VerseGCMarkStack.Mark(Cell);
+			Context.Stats.AddVerseCells(1);
+		}
+		else if (Value.IsUObject())
+		{
+			HandleImmutableReference(Value.AsUObject(), MemberId, Origin);
+		}
+	}
+
+	FORCEINLINE_DEBUGGABLE void HandleVerseValue(Verse::TWriteBarrier<Verse::VValue>& BarrierValue, FMemberId MemberId, EOrigin Origin)
+	{
+		HandleVerseValueDirectly(Context.GetReferencingObject(), reinterpret_cast<Verse::VValue&>(BarrierValue), MemberId, Origin);
+	}
+
+	FORCEINLINE void HandleVerseValueArray(TArrayView<Verse::TWriteBarrier<Verse::VValue>> BarrierValues, FMemberId MemberId, EOrigin Origin)
+	{
+		for (Verse::TWriteBarrier<Verse::VValue>& BarrierValue : BarrierValues)
+		{
+			HandleVerseValueDirectly(Context.GetReferencingObject(), reinterpret_cast<Verse::VValue&>(BarrierValue), MemberId, Origin);
+		}
+	}
+
+	FORCENOINLINE void FlushWork()
+	{
+		if (GIsFrankenGCCollecting)
+		{
+			Verse::FHeap::AddExternalMarkStack(MoveTemp(VerseGCMarkStack));
+		}
+	}
+#endif
+
+	void Suspend()
+	{
+	}
+};
 
 template <EGCOptions Options>
 class TDebugReachabilityCollector final : public TReachabilityCollectorBase<Options>
@@ -3337,11 +3500,16 @@ class TDebugReachabilityCollector final : public TReachabilityCollectorBase<Opti
 	using Super::bAllowEliminatingReferences;
 	using Super::CurrentOrigin;
 	using ProcessorType = TDebugReachabilityProcessor<Options>;
+	using DispatcherType = TDebugDispatcher<ProcessorType>;
 	ProcessorType& Processor;
 	FWorkerContext& Context;
 
+	DispatcherType Dispatcher;
+
+	friend DispatcherType& GetDispatcher(TDebugReachabilityCollector<Options>& Collector, ProcessorType&, FWorkerContext&) { return Collector.Dispatcher; }
+
 public:
-	TDebugReachabilityCollector(ProcessorType& InProcessor, FWorkerContext& InContext) : Processor(InProcessor), Context(InContext) {}
+	TDebugReachabilityCollector(ProcessorType& InProcessor, FWorkerContext& InContext) : Processor(InProcessor), Context(InContext), Dispatcher(Processor, Context, *this) {}
 
 	virtual void HandleObjectReference(UObject*& Object, const UObject* ReferencingObject, const FProperty* ReferencingProperty) override
 	{
@@ -4025,7 +4193,7 @@ public:
 			do
 			{
 				PerformReachabilityAnalysisPass(Options);
-			} while ((!Private::GReachableObjects.IsEmpty() || !Private::GReachableClusters.IsEmpty()) && !GReachabilityState.IsSuspended());
+			} while ((!Private::GReachableObjects.IsEmpty() || !Private::GReachableClusters.IsEmpty() || VerseGCActive()) && !GReachabilityState.IsSuspended());
 
 			UE_LOG(LogGarbage, Verbose, TEXT("%f ms for Reachability Analysis"), (FPlatformTime::Seconds() - StartTime) * 1000);
 		}
@@ -4038,6 +4206,26 @@ PRAGMA_DISABLE_DEPRECATION_WARNINGS
 			FCoreUObjectDelegates::TraceExternalRootsForReachabilityAnalysis.Broadcast(*this, KeepFlags, !(Options & EGCOptions::Parallel));
 		}
 PRAGMA_ENABLE_DEPRECATION_WARNINGS
+	}
+
+	bool VerseGCActive()
+	{
+#if WITH_VERSE_VM
+		if (!GIsFrankenGCCollecting)
+		{
+			return false;
+		}
+
+		bool bIsDone = false;
+		Verse::FIOContext::Create(
+			[&bIsDone](Verse::FIOContext VerseContext) {
+				bIsDone = Verse::FHeap::IsGCTerminationPendingExternalSignal(VerseContext);
+			}
+		);
+		return !bIsDone;
+#else
+		return false;
+#endif
 	}
 
 	virtual void PerformReachabilityAnalysisOnObjects(FWorkerContext* Context, EGCOptions Options) override
@@ -4827,6 +5015,89 @@ EGCOptions GetReferenceCollectorOptions(bool bPerformFullPurge)
 		((GAllowIncrementalReachability && !bPerformFullPurge) ? EGCOptions::IncrementalReachability : EGCOptions::None);
 }
 
+#if WITH_VERSE_VM
+static bool UpdateFrankenGCMode()
+{
+	bool bNewState = GEnableFrankenGC;
+	if (bFrankenGCEnabled != bNewState)
+	{
+		bFrankenGCEnabled = bNewState;
+		if (bFrankenGCEnabled)
+		{
+			Verse::FIOContext::Create([](Verse::FIOContext Context) {
+				Verse::FHeap::EnableExternalControl(Context);
+				});
+		}
+		else
+		{
+			Verse::FHeap::DisableExternalControl();
+		}
+	}
+	return bFrankenGCEnabled;
+}
+
+void EnableFrankenGCMode(bool bEnable)
+{
+	GEnableFrankenGC = bEnable;
+	UpdateFrankenGCMode();
+}
+
+static FORCEINLINE void StartVerseGCBody(Verse::FIOContext Context)
+{
+	Verse::FHeap::ExternallySynchronouslyStartGC(Context);
+	VerseCycleRequest = Verse::FHeap::StartCollectingIfNotCollecting();
+}
+
+static FORCEINLINE void StartVerseGC()
+{
+	GIsFrankenGCCollecting = UpdateFrankenGCMode();
+	if (GIsFrankenGCCollecting)
+	{
+		Verse::FIOContext::Create([](Verse::FIOContext Context) { StartVerseGCBody(Context); });
+	}
+}
+
+static FORCEINLINE void StopVerseGCBody(Verse::FIOContext Context)
+{
+	Verse::FHeap::ExternallySynchronouslyTerminateGC(Context);
+	VerseCycleRequest.Wait(Context);
+}
+
+static FORCEINLINE void StopVerseGC()
+{
+	if (GIsFrankenGCCollecting)
+	{
+		GIsFrankenGCCollecting = false;
+		Verse::FIOContext::Create([](Verse::FIOContext Context) { StopVerseGCBody(Context); });
+	}
+}
+
+static FORCEINLINE void RestartVerseGC()
+{
+	// If we are going to scan again, we need to cycle verse GC so the cells are unmarked.
+	if (GIsFrankenGCCollecting)
+	{
+		Verse::FIOContext::Create([](Verse::FIOContext Context) {
+			StopVerseGCBody(Context);
+			StartVerseGCBody(Context);
+			});
+	}
+}
+#else
+static FORCEINLINE void StartVerseGC()
+{
+}
+
+static FORCEINLINE void StopVerseGC()
+{
+
+}
+
+static FORCEINLINE void RestartVerseGC()
+{
+}
+#endif
+
 /** 
  * Deletes all unreferenced objects, keeping objects that have any of the passed in KeepFlags set
  *
@@ -4899,6 +5170,8 @@ void PreCollectGarbageImpl(EObjectFlags KeepFlags)
 		{
 			check(!GObjIncrementalPurgeIsInProgress);
 			check(!GObjPurgeIsRequired);
+
+			StartVerseGC();
 
 			// This can happen if someone disables clusters from the console (gc.CreateGCClusters)
 			if (!GCreateGCClusters && GUObjectClusters.GetNumAllocatedClusters())
@@ -4977,6 +5250,8 @@ void PostCollectGarbageImpl(EObjectFlags KeepFlags)
 		{
 			ClearWeakReferences<false>(AllContexts);
 		}
+
+		StopVerseGC();
 
 		if (bPerformFullPurge)
 		{
@@ -5153,13 +5428,18 @@ void FReachabilityAnalysisState::PerformReachabilityAnalysisAndConditionallyPurg
 			const double ReferenceProcessingTotalTimeMs = ReferenceProcessingTotalTime * 1000;
 			const double IncrementalMarkPhaseTotalTimeMs = IncrementalMarkPhaseTotalTime * 1000;			
 			UE_LOG(LogGarbage, Log, TEXT("GC Reachability Analysis total time: %f.2 ms (%f.2 ms on reference traversal)"), IncrementalMarkPhaseTotalTimeMs, ReferenceProcessingTotalTimeMs);
-			UE_LOG(LogGarbage, Log, TEXT("%.2f ms for %sGC - %d refs/ms while processing %d references from %d objects with %d clusters"),
-				IncrementalMarkPhaseTotalTimeMs,
-				bForceNonIncrementalReachability ? TEXT("") : TEXT("Incremental "),
-				(int32)(Stats.NumReferences / ReferenceProcessingTotalTimeMs),
-				Stats.NumReferences, 
-				Stats.NumObjects, 
-				GUObjectClusters.GetNumAllocatedClusters());			
+			if (UE_LOG_ACTIVE(LogGarbage, Log))
+			{
+				FString ExtraDetail = WITH_VERSE_VM ? FString::Printf(TEXT("and %d verse cells"), Stats.NumVerseCells) : FString();
+				UE_LOG(LogGarbage, Log, TEXT("%.2f ms for %sGC - %d refs/ms while processing %d references from %d objects %s with %d clusters"),
+					IncrementalMarkPhaseTotalTimeMs,
+					bForceNonIncrementalReachability ? TEXT("") : TEXT("Incremental "),
+					(int32)(Stats.NumReferences / ReferenceProcessingTotalTimeMs),
+					Stats.NumReferences,
+					Stats.NumObjects,
+					*ExtraDetail,
+					GUObjectClusters.GetNumAllocatedClusters());
+			}
 		}
 
 		// Reset timer and the time limit. These values will be set to their target values in the next iteration but we don't want 
@@ -5175,6 +5455,8 @@ void FReachabilityAnalysisState::PerformReachabilityAnalysisAndConditionallyPurg
 		DECLARE_SCOPE_CYCLE_COUNTER(TEXT("FRealtimeGC::PerformReachabilityAnalysisRerun"), STAT_FArchiveRealtimeGC_PerformReachabilityAnalysisRerun, STATGROUP_GC);		
 		const double StartTime = FPlatformTime::Seconds();
 		{
+			// If we are going to scan again, we need to cycle verse GC so the cells are unmarked.
+			RestartVerseGC();
 			TGuardValue<bool> GuardReachabilityUsingTimeLimit(bReachabilityUsingTimeLimit, false);
 			FRealtimeGC GC;
 			GC.Stats = Stats; // This is to pass Stats.bFoundGarbageRef to CG
@@ -5431,11 +5713,22 @@ bool UObject::IsDestructionThreadSafe() const
 	return false;
 }
 
+template <bool bIsVerse>
 FORCEINLINE static void MarkObjectItemAsReachable(FUObjectItem* ObjectItem)
 {
 	using namespace UE::GC::Private;
 
-	checkf(GIsIncrementalReachabilityPending, TEXT("%s is marked as MaybeUnreachable but Incremental Reachability Analysis is not in progress"), *static_cast<UObject*>(ObjectItem->Object)->GetFullName());
+#if WITH_VERSE_VM
+	if constexpr (bIsVerse)
+	{
+		// When verse VM is enabled, this method is also used to report that a UObject is being referenced inside of a VCell
+		checkf(UE::GC::GIsFrankenGCCollecting, TEXT("%s is marked as MaybeUnreachable but Reachability Analysis is not in progress"), *static_cast<UObject*>(ObjectItem->Object)->GetFullName());
+	}
+	else
+#endif
+	{
+		checkf(GIsIncrementalReachabilityPending, TEXT("%s is marked as MaybeUnreachable but Incremental Reachability Analysis is not in progress"), *static_cast<UObject*>(ObjectItem->Object)->GetFullName());
+	}
 	if (ObjectItem->ThisThreadAtomicallyClearedMaybeUnreachable())
 	{
 		if (ObjectItem->GetOwnerIndex() >= 0)
@@ -5451,22 +5744,35 @@ FORCEINLINE static void MarkObjectItemAsReachable(FUObjectItem* ObjectItem)
 	}
 }
 
-void UObject::MarkAsReachable() const
-{	
-	FUObjectItem* ObjectItem = GUObjectArray.ObjectToObjectItem(const_cast<UObject*>(this));
+template <bool bIsVerse>
+FORCEINLINE static void MarkAsReachable(const UObject* Obj)
+{
+	FUObjectItem* ObjectItem = GUObjectArray.ObjectToObjectItem(const_cast<UObject*>(Obj));
 	if (ObjectItem->IsMaybeUnreachable())
 	{
-		MarkObjectItemAsReachable(ObjectItem);
+		MarkObjectItemAsReachable<bIsVerse>(ObjectItem);
 	}
 	else if (ObjectItem->GetOwnerIndex() > 0) // Clustered objects are never marked as MaybeUnreachable so we need to check if the cluster root is MaybeUnreachable
 	{
 		FUObjectItem* ClusterRootObjectItem = GUObjectArray.IndexToObject(ObjectItem->GetOwnerIndex());
 		if (ClusterRootObjectItem->IsMaybeUnreachable())
 		{
-			MarkObjectItemAsReachable(ClusterRootObjectItem);
+			MarkObjectItemAsReachable<bIsVerse>(ClusterRootObjectItem);
 		}
 	}
 }
+
+void UObject::MarkAsReachable() const
+{
+	::MarkAsReachable<false>(this);
+}
+
+#if WITH_VERSE_VM
+void UObject::VerseMarkAsReachable() const
+{
+	::MarkAsReachable<true>(this);
+}
+#endif
 
 /*-----------------------------------------------------------------------------
 	Implementation of realtime garbage collection helper functions in 

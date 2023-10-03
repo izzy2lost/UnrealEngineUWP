@@ -196,6 +196,10 @@ struct VValue
 		{
 			MarkStack.MarkNonNull(reinterpret_cast<VCell*>(&ValueCopy.AsPlaceholder()));
 		}
+		else if (ValueCopy.IsUObject())
+		{
+			MarkStack.MarkNonNull(ValueCopy.AsUObject());
+		}
 	}
 
 private:

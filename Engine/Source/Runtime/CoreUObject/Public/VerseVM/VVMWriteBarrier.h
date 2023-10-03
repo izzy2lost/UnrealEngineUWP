@@ -6,6 +6,8 @@
 #error In order to use VerseVM, WITH_VERSE_VM must be set
 #endif
 
+#include "UObject/Object.h"
+#include "UObject/UObjectGlobals.h"
 #include "VVMContext.h"
 #include "VVMContextImpl.h"
 #include "VVMValue.h"
@@ -175,6 +177,13 @@ private:
 				{
 					// Delay construction of the context (which does the expensive TLS lookup), until we actually need the mark stack to do marking.
 					FAccessContext(Context).RunWriteBarrierNonNullDuringMarking(Cell);
+				}
+			}
+			else if (Value.IsUObject())
+			{
+				if (UE::GC::Private::GIsIncrementalReachabilityPending)
+				{
+					Value.AsUObject()->VerseMarkAsReachable();
 				}
 			}
 		}

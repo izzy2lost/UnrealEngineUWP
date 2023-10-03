@@ -777,6 +777,13 @@ public:
 	*/
 	COREUOBJECT_API void MarkAsReachable() const;
 
+#if WITH_VERSE_VM
+	/**
+	* Coming from verse, marks the object as Reachable if it's currently marked as MaybeUnreachable by incremental GC.
+	*/
+	COREUOBJECT_API void VerseMarkAsReachable() const;
+#endif
+
 	/**
 	 * Save information for StaticAllocateObject in the case of overwriting an existing object.
 	 * StaticAllocateObject will call delete on the result after calling Restore()

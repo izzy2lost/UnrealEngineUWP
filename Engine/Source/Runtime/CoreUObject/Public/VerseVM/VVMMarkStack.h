@@ -6,8 +6,15 @@
 #error In order to use VerseVM, WITH_VERSE_VM must be set
 #endif
 
+#include "UObject/Object.h"
+#include "UObject/UObjectGlobals.h"
 #include "VVMHeap.h"
 #include <Containers/Array.h>
+
+namespace UE::GC
+{
+extern COREUOBJECT_API bool GIsFrankenGCCollecting;
+}
 
 namespace Verse
 {
@@ -63,6 +70,22 @@ struct FMarkStack
 		if (Cell)
 		{
 			MarkNonNull(Cell);
+		}
+	}
+
+	void MarkNonNull(const UObject* Object)
+	{
+		if (ensure(UE::GC::GIsFrankenGCCollecting))
+		{
+			Object->VerseMarkAsReachable();
+		}
+	}
+
+	void Mark(const UObject* Object)
+	{
+		if (Object)
+		{
+			MarkNonNull(Object);
 		}
 	}
 
