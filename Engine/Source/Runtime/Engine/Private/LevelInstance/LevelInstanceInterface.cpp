@@ -127,6 +127,17 @@ void ILevelInstanceInterface::UpdateLevelInstanceFromWorldAsset()
 	{
 		if (ULevelInstanceSubsystem* LevelInstanceSubsystem = GetLevelInstanceSubsystem())
 		{
+#if WITH_EDITOR
+			LevelInstanceSubsystem->ForEachLevelInstanceAncestorsAndSelf(CastChecked<AActor>(this), [](const ILevelInstanceInterface* Ancestor)
+			{
+				if (ULevelInstanceComponent* LevelInstanceComponent = Ancestor->GetLevelInstanceComponent())
+				{
+					LevelInstanceComponent->ClearCachedFilter();
+				}
+				return true;
+			});
+#endif
+
 			if (IsWorldAssetValid() && IsLoadingEnabled())
 			{
 				const bool bForceUpdate = true;

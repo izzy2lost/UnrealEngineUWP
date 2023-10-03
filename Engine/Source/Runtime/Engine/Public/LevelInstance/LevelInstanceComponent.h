@@ -45,6 +45,7 @@ public:
 	ENGINE_API void SetFilter(const FWorldPartitionActorFilter& InFilter, bool bNotify = true);
 	ENGINE_API const TMap<FActorContainerID, TSet<FGuid>>& GetFilteredActorsPerContainer() const;
 	ENGINE_API void UpdateEditFilter();
+	ENGINE_API void ClearCachedFilter();
 private:
 	ENGINE_API bool ShouldShowSpriteComponent() const;
 	ENGINE_API void OnFilterChanged();
