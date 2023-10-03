@@ -162,15 +162,13 @@ void FSequencerTrailHierarchy::OnActorsChangedSomehow(TArray<AActor*>& InActors)
 double FSequencerTrailHierarchy::GetSecondsPerSegment() const 
 { 
 	double SecondsPerFrame =  WeakSequencer.Pin()->GetFocusedDisplayRate().AsInterval();
-	//evalsperframe will not be less than one
-	return SecondsPerFrame / double(UMotionTrailToolOptions::GetTrailOptions()->EvalsPerFrame);
+	return SecondsPerFrame; // no longer use this to avoid divide by zero options / double(UMotionTrailToolOptions::GetTrailOptions()->EvalsPerFrame);
 }
 
 FFrameNumber FSequencerTrailHierarchy::GetFramesPerSegment() const
 {
 	FFrameNumber FramesPerTick = FFrameRate::TransformTime(FFrameNumber(1), WeakSequencer.Pin()->GetFocusedDisplayRate(), 
 		WeakSequencer.Pin()->GetFocusedTickResolution()).RoundToFrame();
-	FramesPerTick.Value /= (UMotionTrailToolOptions::GetTrailOptions()->EvalsPerFrame);
 	return FramesPerTick;
 }
 

@@ -59,8 +59,7 @@ public:
 	UPROPERTY(EditAnywhere, Category = Trail, Meta = (EditCondition = "!bShowFullTrail", ClampMin = "0"))
 	int32 FramesAfter;
 
-	/** The number of evaluations per frame */
-	UPROPERTY(EditAnywhere, Category = Trail, Meta = (ClampMin = "1.0"))
+	/** No longer exposed and clamped to 1 The number of evaluations per frame */
 	int32 EvalsPerFrame;
 	
 	/** Whether or not to show keys on the motion trail */
