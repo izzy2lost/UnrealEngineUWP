@@ -5,6 +5,7 @@
 #include "Sequencer/ControlRigLayerInstance.h"
 #include "AnimSequencerInstance.h"
 #include "ControlRig.h"
+#include "Sequencer/MovieSceneControlRigParameterTrack.h"
 
 #include UE_INLINE_GENERATED_CPP_BY_NAME(ControlRigLayerInstanceProxy)
 
@@ -39,8 +40,42 @@ void FControlRigLayerInstanceProxy::PreEvaluateAnimation(UAnimInstance* InAnimIn
 	}
 }
 
+void FControlRigLayerInstanceProxy::SortControlRigNodes()
+{
+	auto SortPredicate = [](TSharedPtr<FAnimNode_ControlRig_ExternalSource>& A, TSharedPtr<FAnimNode_ControlRig_ExternalSource>& B)
+	{
+		FAnimNode_ControlRig_ExternalSource* APtr = A.Get();
+		FAnimNode_ControlRig_ExternalSource* BPtr = B.Get();
+		if (APtr && BPtr && APtr->GetControlRig() && B->GetControlRig())
+		{
+			const bool AIsAdditive = A->GetControlRig()->IsAdditive();
+			const bool BIsAdditive = B->GetControlRig()->IsAdditive();
+			if (AIsAdditive != BIsAdditive)
+			{
+				return AIsAdditive; // if additive then first(first goes last) so true if AIsAdditive;
+			}
+			UMovieSceneControlRigParameterTrack* TrackA = APtr->GetControlRig()->GetTypedOuter<UMovieSceneControlRigParameterTrack>();
+			UMovieSceneControlRigParameterTrack* TrackB = BPtr->GetControlRig()->GetTypedOuter<UMovieSceneControlRigParameterTrack>();
+			if (TrackA && TrackB)
+			{
+				return TrackA->GetPriorityOrder() < TrackB->GetPriorityOrder();
+			}
+		}
+		else if (APtr && APtr->GetControlRig())
+		{
+			return false;
+		}
+		return true;
+	};
+
+	Algo::Sort(ControlRigNodes, SortPredicate);
+
+	ConstructNodes(); //we need to sort since prority may change at any time 
+}
+
 bool FControlRigLayerInstanceProxy::Evaluate(FPoseContext& Output)
 {
+	SortControlRigNodes();  //mz todo once we move over to ECS see if we can avoid this and trigger it as needed.
 	check(CurrentRoot);
 	CurrentRoot->Evaluate_AnyThread(Output);
 	return true;
@@ -144,35 +179,120 @@ void FControlRigLayerInstanceProxy::AddControlRigTrack(int32 ControlRigID, UCont
 
 	if(!Node)
 	{
-		FAnimNode_ControlRig_ExternalSource* PreviousNode = nullptr;
-		FAnimNode_ControlRig_ExternalSource* NextNode = nullptr;
-		if (InControlRig->IsAdditive())
+		UMovieSceneControlRigParameterTrack* Track = InControlRig->GetTypedOuter<UMovieSceneControlRigParameterTrack>();
+
+		if (ControlRigNodes.Num() > 0)
 		{
-			PreviousNode = (ControlRigNodes.Num() > 0)? ControlRigNodes.Last().Get() : nullptr;
+			int32 PriorityOrder = Track->GetPriorityOrder();
+			if (PriorityOrder == INDEX_NONE) //track has no order so just add to end, will happen on creation
+			{
+				if (InControlRig->IsAdditive()) //additive added to end of all
+				{
+					Node = ControlRigNodes[ControlRigNodes.Num() - 1].Get();
+					if (UMovieSceneControlRigParameterTrack* OtherTrack = Node->GetControlRig()->GetTypedOuter<UMovieSceneControlRigParameterTrack>())
+					{
+						Track->SetPriorityOrder(OtherTrack->GetPriorityOrder() + 1);
+					}
+					else
+					{
+						Track->SetPriorityOrder(ControlRigNodes.Num() -1);
+					}
+					Node = ControlRigNodes.Add_GetRef(MakeShared<FAnimNode_ControlRig_ExternalSource>()).Get();
+				}
+				else //if non-additive find first additive then insert there..
+				{
+					for (int32 Index = 0; Index < ControlRigNodes.Num(); ++Index)
+					{
+						Node = ControlRigNodes[Index].Get();
+						if (!Node || !Node->GetControlRig() || !Node->GetControlRig()->IsAdditive())
+						{
+							Node = nullptr;
+							continue; // not additive
+						}
+						//okay first additive so insert, but set priority first
+						if (UMovieSceneControlRigParameterTrack* OtherTrack = Node->GetControlRig()->GetTypedOuter<UMovieSceneControlRigParameterTrack>())
+						{
+							Track->SetPriorityOrder(OtherTrack->GetPriorityOrder() + 1);
+						}
+						else
+						{
+							Track->SetPriorityOrder(Index);
+						}
+						Node = ControlRigNodes.Insert_GetRef(MakeShared<FAnimNode_ControlRig_ExternalSource>(), Index).Get();
+						break;
+					}
+
+					if (Node == nullptr) //add to end
+					{
+						//set priority
+						Node = ControlRigNodes[ControlRigNodes.Num() - 1].Get();
+						if (UMovieSceneControlRigParameterTrack* OtherTrack = Node->GetControlRig()->GetTypedOuter<UMovieSceneControlRigParameterTrack>())
+						{
+							Track->SetPriorityOrder(OtherTrack->GetPriorityOrder() + 1);
+						}
+						else
+						{
+							Track->SetPriorityOrder(ControlRigNodes.Num() - 1);
+						}
+						Node = ControlRigNodes.Add_GetRef(MakeShared<FAnimNode_ControlRig_ExternalSource>()).Get();
+					}
+				}
+			}
+			else
+			{ 
+				for (int32 Index = 0; Index < ControlRigNodes.Num(); ++Index)
+				{
+					Node = ControlRigNodes[Index].Get();
+	
+					if (!Node || !Node->GetControlRig())
+					{
+						continue; // shouldn't happen
+					}
+					//additive but current isn't so keep going
+					if (InControlRig->IsAdditive() && !Node->GetControlRig()->IsAdditive())
+					{
+						continue;
+					}
+					//not additive but this one is so we add it here
+					else if (!InControlRig->IsAdditive() && Node->GetControlRig()->IsAdditive())
+					{
+						Node = ControlRigNodes.Insert_GetRef(MakeShared<FAnimNode_ControlRig_ExternalSource>(), Index).Get();
+						break;
+					}
+					if (UMovieSceneControlRigParameterTrack* OtherTrack = Node->GetControlRig()->GetTypedOuter<UMovieSceneControlRigParameterTrack>())
+					{
+						if (PriorityOrder >= OtherTrack->GetPriorityOrder())
+						{
+							//if last one then add it
+							if (Index == ControlRigNodes.Num() - 1)
+							{
+								Node = ControlRigNodes.Add_GetRef(MakeShared<FAnimNode_ControlRig_ExternalSource>()).Get();
+								break;
+							}
+						}
+						else
+						{
+							Node = ControlRigNodes.Insert_GetRef(MakeShared<FAnimNode_ControlRig_ExternalSource>(), Index).Get();
+							break;
+						}
+					}
+				}
+			}
+		}
+		else
+		{
 			Node = ControlRigNodes.Add_GetRef(MakeShared<FAnimNode_ControlRig_ExternalSource>()).Get();
+			int32 PriorityOrder = Track->GetPriorityOrder();
+			if (PriorityOrder == INDEX_NONE) //track has no order so just add to end, will happen on creation
+			{
+				Track->SetPriorityOrder(ControlRigNodes.Num() - 1);
+			}
 		}
-		else
-		{
-			NextNode = (ControlRigNodes.Num() > 0)? ControlRigNodes[0].Get() : nullptr;
-			Node = ControlRigNodes.Insert_GetRef(MakeShared<FAnimNode_ControlRig_ExternalSource>(), 0).Get();
-		}
-
-		if (PreviousNode)
-		{
-			Node->Source.SetLinkNode(PreviousNode);
-		}
-		else
-		{
-			// first node
-			Node->Source.SetLinkNode(&InputPose);
-		}
+	
+		check(Node);
 		
-		if (NextNode)
-		{
-			NextNode->Source.SetLinkNode(Node);
-		}
-
-		CurrentRoot = ControlRigNodes.Last().Get();
+		//this will set up the link nodes
+		ConstructNodes();
 		SequencerToControlRigNodeMap.FindOrAdd(ControlRigID) = Node;
 	}
 

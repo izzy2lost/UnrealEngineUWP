@@ -109,6 +109,9 @@ public:
 
 	friend struct FAnimNode_ControlRigInputPose;
 protected:
+	/** Sort Control Rig node*/
+	void SortControlRigNodes();
+
 	/** Find ControlRig node of the */
 	FAnimNode_ControlRig_ExternalSource* FindControlRigNode(int32 ControlRigID) const;
 

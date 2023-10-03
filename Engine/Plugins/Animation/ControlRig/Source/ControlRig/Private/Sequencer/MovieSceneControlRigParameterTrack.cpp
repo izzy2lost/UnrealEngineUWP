@@ -31,6 +31,7 @@ FControlRotationOrder::FControlRotationOrder()
 UMovieSceneControlRigParameterTrack::UMovieSceneControlRigParameterTrack(const FObjectInitializer& ObjectInitializer)
 	: Super(ObjectInitializer)
 	, ControlRig(nullptr)
+	, PriorityOrder(INDEX_NONE)
 {
 #if WITH_EDITORONLY_DATA
 	TrackTint = AbsoluteRigTrackColor;
@@ -787,6 +788,23 @@ void UMovieSceneControlRigParameterTrack::GetSelectedNodes(TArray<FName>& Select
 	if (GetControlRig())
 	{
 		SelectedControlNames = GetControlRig()->CurrentControlSelection();
+	}
+}
+
+int32 UMovieSceneControlRigParameterTrack::GetPriorityOrder() const
+{
+	return PriorityOrder;
+}
+
+void UMovieSceneControlRigParameterTrack::SetPriorityOrder(int32 InPriorityIndex)
+{
+	if (InPriorityIndex >= 0)
+	{
+		PriorityOrder = InPriorityIndex;
+	}
+	else
+	{
+		PriorityOrder = 0;
 	}
 }
 

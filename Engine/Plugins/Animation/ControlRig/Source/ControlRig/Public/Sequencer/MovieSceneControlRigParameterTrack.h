@@ -156,6 +156,9 @@ public:
 	// if order is not set then it uses the default FRotator conversions
 	CONTROLRIG_API void ChangeControlRotationOrder(const FName& InControlName, const TOptional<EEulerRotationOrder>& NewOrder,
 		EMovieSceneKeyInterpolation Interpolation = EMovieSceneKeyInterpolation::SmartAuto);
+
+	CONTROLRIG_API int32 GetPriorityOrder() const;
+	CONTROLRIG_API void SetPriorityOrder(int32 InPriorityIndex);
 private:
 	//get the rotation orderm will not be set if it's default FRotator order. If bCurrent is true, it uses what's set
 	//if false it uses the default setting from the current control rig.
@@ -173,8 +176,6 @@ private:
 		IMovieSceneConstrainedSection* InSection,
 		FMovieSceneConstraintChannel* InChannel) const;
 	IMovieSceneConstrainedSection::FConstraintChannelAddedEvent OnConstraintChannelAdded;
-
-
 	void ReconstructControlRig();
 
 private:
@@ -198,6 +199,9 @@ private:
 	/** Uses Rotation Order*/
 	UPROPERTY()
 	TMap<FName,FControlRotationOrder> ControlsRotationOrder;
+
+	UPROPERTY()
+	int32 PriorityOrder;
 
 public:
 	static CONTROLRIG_API FColor AbsoluteRigTrackColor;

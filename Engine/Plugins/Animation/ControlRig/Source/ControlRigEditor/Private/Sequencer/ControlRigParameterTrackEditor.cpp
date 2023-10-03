@@ -9,6 +9,7 @@
 #include "Framework/Commands/Commands.h"
 #include "Rendering/DrawElements.h"
 #include "Widgets/SBoxPanel.h"
+#include "Widgets/Input/SSpinBox.h"
 #include "Framework/MultiBox/MultiBoxBuilder.h"
 #include "GameFramework/Actor.h"
 #include "AssetRegistry/AssetData.h"
@@ -1174,26 +1175,8 @@ void FControlRigParameterTrackEditor::BuildObjectBindingTrackMenu(FMenuBuilder& 
 
 		if (Skeleton)
 		{
-			//if there are any other absolute control rigs we don't allow it for now..
-			//mz todo will allow later
-			UMovieScene* MovieScene = GetSequencer()->GetFocusedMovieSceneSequence()->GetMovieScene();
-			TArray<UMovieSceneTrack*> ExistingTracks = MovieScene->FindTracks(UMovieSceneControlRigParameterTrack::StaticClass(), ObjectBindings[0], NAME_None);
-			ExistingTracks = ExistingTracks.FilterByPredicate([](UMovieSceneTrack* Track)
-			{
-				if (UMovieSceneControlRigParameterTrack* CRTrack = Cast<UMovieSceneControlRigParameterTrack>(Track))
-				{
-					if (UControlRig* ControlRig = CRTrack->GetControlRig())
-					{
-						return !ControlRig->IsAdditive();
-					}
-				}
-				return false;
-			});
-			if (ExistingTracks.IsEmpty())
-			{
-				UMovieSceneTrack* Track = nullptr;
-				MenuBuilder.AddSubMenu(LOCTEXT("ControlRigText", "Control Rig"), FText(), FNewMenuDelegate::CreateSP(this, &FControlRigParameterTrackEditor::HandleAddTrackSubMenu, ObjectBindings, Track));
-			}
+			UMovieSceneTrack* Track = nullptr;
+			MenuBuilder.AddSubMenu(LOCTEXT("ControlRigText", "Control Rig"), FText(), FNewMenuDelegate::CreateSP(this, &FControlRigParameterTrackEditor::HandleAddTrackSubMenu, ObjectBindings, Track));
 		}
 	}
 }
@@ -3858,6 +3841,22 @@ void FControlRigParameterTrackEditor::BuildTrackContextMenu(FMenuBuilder& MenuBu
 			FSlateIcon(),
 			FUIAction(
 				FExecuteAction::CreateRaw(this, &FControlRigParameterTrackEditor::ExportFBX, Track, SectionToKey)));
+	}
+	MenuBuilder.EndSection();
+
+	MenuBuilder.BeginSection("Control Rig", LOCTEXT("ControlRig", "Control Rig"));
+	{
+		MenuBuilder.AddWidget(
+			SNew(SSpinBox<int32>)
+			.MinValue(0)
+			.Font(FAppStyle::GetFontStyle(TEXT("MenuItem.Font")))
+			.ToolTipText(LOCTEXT("OrderTooltip", "Order for this Control Rig to evaluate compared to others on the same binding"))
+			.Value_Lambda([Track]() { return Track->GetPriorityOrder(); })
+			.OnValueChanged_Lambda([Track](int32 InValue) { Track->SetPriorityOrder(InValue); })
+			,
+			LOCTEXT("Order", "Order")
+		);
+
 	}
 	MenuBuilder.EndSection();
 

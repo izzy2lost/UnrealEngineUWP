@@ -1222,7 +1222,13 @@ struct FControlRigParameterExecutionToken : IMovieSceneExecutionToken
 					{
 						if (UControlRigLayerInstance* AnimInstance = Cast<UControlRigLayerInstance>(SkeletalMeshComponent->GetAnimInstance()))
 						{
-							float Weight = 1.0f;
+							float Weight = Section->EvaluateEasing(Context.GetTime());
+							if (EnumHasAllFlags(Section->TransformMask.GetChannels(), EMovieSceneTransformChannel::Weight))
+							{
+								float ManualWeight = 1.f;
+								Section->Weight.Evaluate(Context.GetTime(), ManualWeight);
+								Weight *= ManualWeight;
+							}
 							FControlRigIOSettings InputSettings;
 							InputSettings.bUpdateCurves = true;
 							InputSettings.bUpdatePose = true;
