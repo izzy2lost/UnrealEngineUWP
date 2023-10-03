@@ -6,4 +6,4 @@ class FTedsOutlinerModule : public FDefaultModuleImpl
 {
 };
 
-IMPLEMENT_MODULE(FTedsOutlinerModule, TEDSOutliner)
+IMPLEMENT_MODULE(FTedsOutlinerModule, TedsOutliner)
