@@ -503,8 +503,15 @@ IDetailPropertyRow* FDetailCategoryImpl::AddExternalStructureProperty(TSharedPtr
 
 TArray<TSharedPtr<IPropertyHandle>> FDetailCategoryImpl::AddAllExternalStructureProperties(TSharedRef<FStructOnScope> StructData, EPropertyLocation::Type Location, TArray<IDetailPropertyRow*>* OutPropertiesRow)
 {
+	return AddAllExternalStructureProperties(MakeShared<FStructOnScopeStructureDataProvider>(StructData), Location, OutPropertiesRow);
+}
+
+TArray<TSharedPtr<IPropertyHandle>> FDetailCategoryImpl::AddAllExternalStructureProperties(
+	TSharedPtr<IStructureDataProvider> StructProvider, EPropertyLocation::Type Location,
+	TArray<IDetailPropertyRow*>* OutPropertiesRow)
+{
 	TSharedPtr<FStructurePropertyNode> RootPropertyNode(new FStructurePropertyNode);
-	RootPropertyNode->SetStructure(StructData);
+	RootPropertyNode->SetStructure(StructProvider);
 
 	FPropertyNodeInitParams InitParams;
 	InitParams.ParentNode = nullptr;
