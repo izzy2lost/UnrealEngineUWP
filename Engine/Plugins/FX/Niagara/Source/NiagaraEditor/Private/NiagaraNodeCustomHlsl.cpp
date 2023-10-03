@@ -120,7 +120,7 @@ bool UNiagaraNodeCustomHlsl::GetTokensFromString(const FString& InHlsl, TArray<F
 		return false;
 	}
 
-	FString Separators = TEXT(";/*+-=)(?:, []<>\"\t\r\n");
+	FString Separators = TEXT(";/*+-=)(?:, []<>\"\t\r\n{}");
 	const int32 TargetLength = InHlsl.Len();
 
 	int32 TokenStart = 0;
