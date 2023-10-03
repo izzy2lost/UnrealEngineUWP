@@ -33,7 +33,7 @@ void UTypedElementDatabaseCompatibility::Initialize(ITypedElementDataStorageInte
 
 void UTypedElementDatabaseCompatibility::Deinitialize()
 {
-	FCoreUObjectDelegates::OnObjectPropertyChanged.Remove(ObjectModifiedDelegateHandle);
+	FCoreUObjectDelegates::OnObjectModified.Remove(ObjectModifiedDelegateHandle);
 	FCoreUObjectDelegates::OnObjectPropertyChanged.Remove(PostEditChangePropertyDelegateHandle);
 	
 	Reset();
