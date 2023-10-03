@@ -74,6 +74,11 @@ namespace UE::NNE::Internal
 			return !PreparedData.IsEmpty();
 		}
 
+		bool IsConstant() const
+		{
+			return Volume == 0 || HasPreparedData();
+		}
+
 		uint32 GetVolume() const
 		{
 			return Volume;
