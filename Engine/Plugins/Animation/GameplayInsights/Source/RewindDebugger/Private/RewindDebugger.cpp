@@ -2,33 +2,36 @@
 
 #include "RewindDebugger.h"
 
-#include "Components/SkeletalMeshComponent.h"
-#include "Editor.h"
-#include "IAnimationProvider.h"
-#include "IGameplayProvider.h"
-#include "Insights/IUnrealInsightsModule.h"
-#include "Modules/ModuleManager.h"
-#include "Animation/AnimTrace.h"
-#include "ObjectTrace.h"
-#include "TraceServices/Model/Frames.h"
-#include "SLevelViewport.h"
-#include "Widgets/Docking/SDockTab.h"
-#include "Widgets/Layout/SSpacer.h"
-#include "IRewindDebuggerExtension.h"
-#include "IRewindDebuggerDoubleClickHandler.h"
-#include "RewindDebuggerObjectTrack.h"
 #include "Animation/AnimBlueprint.h"
 #include "Animation/AnimBlueprintGeneratedClass.h"
-#include "EngineUtils.h"
-#include "ToolMenus.h"
-#include "RewindDebuggerSettings.h"
-#include "RewindDebuggerCommands.h"
-#include "LevelEditor.h"
-#include "RewindDebuggerModule.h"
+#include "Animation/AnimTrace.h"
+#include "Components/SkeletalMeshComponent.h"
+#include "Editor.h"
 #include "Engine/PoseWatch.h"
-#include "ProfilingDebugging/TraceAuxiliary.h"
-#include "UObject/UObjectIterator.h"
 #include "Engine/World.h"
+#include "EngineUtils.h"
+#include "GameFramework/Controller.h"
+#include "GameFramework/Pawn.h"
+#include "IAnimationProvider.h"
+#include "IGameplayProvider.h"
+#include "IRewindDebuggerDoubleClickHandler.h"
+#include "IRewindDebuggerExtension.h"
+#include "Insights/IUnrealInsightsModule.h"
+#include "LevelEditor.h"
+#include "Modules/ModuleManager.h"
+#include "ObjectTrace.h"
+#include "ProfilingDebugging/TraceAuxiliary.h"
+#include "RewindDebuggerCommands.h"
+#include "RewindDebuggerModule.h"
+#include "RewindDebuggerObjectTrack.h"
+#include "RewindDebuggerSettings.h"
+#include "SLevelViewport.h"
+#include "ToolMenus.h"
+#include "TraceServices/Model/Frames.h"
+#include "UObject/UObjectIterator.h"
+#include "Widgets/Docking/SDockTab.h"
+#include "Widgets/Layout/SSpacer.h"
+#include "RewindDebuggerCommands.h"
 
 #define LOCTEXT_NAMESPACE "RewindDebugger"
 
@@ -831,6 +834,13 @@ void FRewindDebugger::Tick(float DeltaTime)
 				for (TActorIterator<AActor> Iterator(*World); Iterator; ++Iterator)
 				{
 					TRACE_OBJECT_LIFETIME_BEGIN(*Iterator);
+					if (APawn* Pawn = Cast<APawn>(*Iterator))
+					{
+						if (AController* Controller = Pawn->GetController())
+						{
+							TRACE_PAWN_POSSESS(static_cast<UObject*>(Controller), static_cast<UObject*>(Pawn));
+						}
+					}
 				}
 			}
 		}

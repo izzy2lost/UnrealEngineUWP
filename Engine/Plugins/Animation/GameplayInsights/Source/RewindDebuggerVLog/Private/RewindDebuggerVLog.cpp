@@ -7,11 +7,14 @@
 #include "IVisualLoggerProvider.h"
 #include "Insights/IUnrealInsightsModule.h"
 #include "LogVisualizerSettings.h"
+#include "Editor/EditorEngine.h"
 #include "Modules/ModuleManager.h"
 #include "RewindDebuggerVLogSettings.h"
 #include "ToolMenus.h"
 #include "TraceServices/Model/Frames.h"
 #include "VisualLogger/VisualLogger.h"
+#include "RewindDebuggerVLogSettings.h"
+#include "ToolMenus.h"
 
 #define LOCTEXT_NAMESPACE "RewindDebuggerVLog"
 

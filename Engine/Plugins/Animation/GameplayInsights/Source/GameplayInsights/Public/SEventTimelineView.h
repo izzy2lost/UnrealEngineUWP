@@ -10,7 +10,7 @@ class FPaintArgs;
 class FSlateWindowElementList;
 class FTimeSliderController;
 
-class SEventTimelineView : public SCompoundWidget
+class GAMEPLAYINSIGHTS_API SEventTimelineView : public SCompoundWidget
 {
 public:
 	struct FTimelineEventData
