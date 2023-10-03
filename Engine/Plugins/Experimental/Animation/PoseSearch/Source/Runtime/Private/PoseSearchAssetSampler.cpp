@@ -313,8 +313,14 @@ float FAnimationAssetSampler::ToNormalizedTime(float RealTime) const
 	if (CachedPlayLength > UE_KINDA_SMALL_NUMBER && Cast<UBlendSpace>(AnimationAsset.Get()))
 	{
 		const float NormalizedTime = RealTime / CachedPlayLength;
-		check(NormalizedTime >= 0.f && NormalizedTime <= 1.f);
-		return NormalizedTime;
+
+		if (NormalizedTime >= 0.f && NormalizedTime <= 1.f)
+		{
+			return NormalizedTime;
+		}
+
+		UE_LOG(LogPoseSearch, Error, TEXT("FAnimationAssetSampler::ToNormalizedTime: requested RealTime %f is greater than CachedPlayLength %f for UBlendSpace %s!"), RealTime, CachedPlayLength, *AnimationAsset->GetName());
+		return FMath::Clamp(NormalizedTime, 0.f, 1.f);
 	}
 
 	return RealTime;

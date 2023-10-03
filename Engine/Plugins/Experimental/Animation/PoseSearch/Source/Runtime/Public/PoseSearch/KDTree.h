@@ -82,20 +82,18 @@ struct FKDTree
 
 	struct FKNNResultSet
 	{
-		inline FKNNResultSet(AccessorType InNumNeighbors, TArrayView<AccessorType> InIndexes, TArrayView<float> InDistances, TConstArrayView<AccessorType> InExcludeFromSearchIndexes = TConstArrayView<AccessorType>())
+		inline FKNNResultSet(AccessorType InNumNeighbors, TArrayView<AccessorType> InIndexes, TArrayView<float> InDistances, float InitValue = UE_BIG_NUMBER)
 		: Indexes(InIndexes)
 		, Distances(InDistances)
 		, NumNeighbors(InNumNeighbors)
 		, Count(0)
-		, ExcludeFromSearchIndexes(InExcludeFromSearchIndexes)
 		{
 			// by having IndexesView and DistancesView cardinality bigger than NumNeighbors, we can skip some if statements in the addPoint method
 			check(NumNeighbors > 0);
 			check(InIndexes.Num() > NumNeighbors);
 			check(InDistances.Num() > NumNeighbors);
-			check(Algo::IsSorted(InExcludeFromSearchIndexes));
 
-			Distances[NumNeighbors - 1] = UE_BIG_NUMBER;
+			Distances[NumNeighbors - 1] = InitValue;
 		}
 
 		inline AccessorType Num() const
@@ -110,11 +108,6 @@ struct FKDTree
 
 		inline bool addPoint(float dist, AccessorType index)
 		{
-			if (Algo::BinarySearch(ExcludeFromSearchIndexes, index) != INDEX_NONE)
-			{
-				return true;
-			}
-
 			// shifting Distances[i] and Indexes[i] to make space for "dist" and "index" at the right "i"th slot
 			AccessorType i;
 			for (i = Count; (i > 0) && (Distances[i - 1] > dist); --i)
@@ -140,75 +133,50 @@ struct FKDTree
 
 		inline float worstDist() const { return Distances[NumNeighbors - 1]; }
 
-	private:
+	protected:
 		TArrayView<AccessorType> Indexes;
 		TArrayView<float> Distances;
 		AccessorType NumNeighbors;
 		AccessorType Count;
+	};
+
+	struct FFilteredKNNResultSet : public FKNNResultSet
+	{
+		inline FFilteredKNNResultSet(AccessorType InNumNeighbors, TArrayView<AccessorType> InIndexes, TArrayView<float> InDistances, TConstArrayView<AccessorType> InExcludeFromSearchIndexes = TConstArrayView<AccessorType>())
+		: FKNNResultSet(InNumNeighbors, InIndexes, InDistances)
+		, ExcludeFromSearchIndexes(InExcludeFromSearchIndexes)
+		{
+			check(Algo::IsSorted(InExcludeFromSearchIndexes));
+		}
+
+		inline bool addPoint(float dist, AccessorType index)
+		{
+			if (Algo::BinarySearch(ExcludeFromSearchIndexes, index) == INDEX_NONE)
+			{
+				FKNNResultSet::addPoint(dist, index);
+			}
+			return true;
+		}
+
+	protected:
 		TConstArrayView<AccessorType> ExcludeFromSearchIndexes; // sorted array view
 	};
 
-	struct FRadiusResultSet
+	struct FRadiusResultSet : public FKNNResultSet
 	{
-		inline FRadiusResultSet(float Radius, AccessorType MaxNumNeighbors, TArrayView<AccessorType> InIndexes, TArrayView<float> InDistances)
-		: Indexes(InIndexes)
-		, Distances(InDistances)
-		, NumNeighbors(MaxNumNeighbors)
-		, Count(0)
+		inline FRadiusResultSet(float Radius, AccessorType InNumNeighbors, TArrayView<AccessorType> InIndexes, TArrayView<float> InDistances)
+		: FKNNResultSet(InNumNeighbors, InIndexes, InDistances, Radius)
 		{
-			// by having IndexesView and DistancesView cardinality bigger than NumNeighbors, we can skip some if statements in the addPoint method
-			check(NumNeighbors > 0);
-			check(InIndexes.Num() > NumNeighbors);
-			check(InDistances.Num() > NumNeighbors);
-
-			Distances[NumNeighbors - 1] = Radius;
-		}
-
-		inline AccessorType Num() const
-		{
-			return Count;
-		}
-
-		inline bool full() const
-		{
-			return Count == NumNeighbors;
 		}
 
 		inline bool addPoint(float dist, AccessorType index)
 		{
 			if (dist < worstDist())
 			{
-				// shifting Distances[i] and Indexes[i] to make space for "dist" and "index" at the right "i"th slot
-				AccessorType i;
-				for (i = Count; (i > 0) && (Distances[i - 1] > dist); --i)
-				{
-					// no need to check "if (i < capacity)" since dists and indices can contains more items than capacity_ 
-					Distances[i] = Distances[i - 1];
-					Indexes[i] = Indexes[i - 1];
-				}
-
-				// inserting "dist" and "index" in a sorted manner
-				// no need to check "if (i < capacity)" since dists and indices can contains more items than capacity_ 
-				Distances[i] = dist;
-				Indexes[i] = index;
-
-				if (Count < NumNeighbors)
-				{
-					Count++;
-				}
+				FKNNResultSet::addPoint(dist, index);
 			}
-			
-			// tell caller that the search shall continue
 			return true;
 		}
-
-		inline float worstDist() const { return Distances[NumNeighbors - 1]; }
-
-	private:
-		TArrayView<AccessorType> Indexes;
-		TArrayView<float> Distances;
-		AccessorType NumNeighbors;
-		AccessorType Count;
 	};
 	
 
@@ -225,8 +193,11 @@ struct FKDTree
 	
 	void Reset();
 	void Construct(AccessorType Count, AccessorType Dim, const float* Data, AccessorType MaxLeafSize = 16);
-	bool FindNeighbors(FKNNResultSet& Result, TConstArrayView<float> Query) const;
-	bool FindNeighbors(FRadiusResultSet& Result, TConstArrayView<float> Query) const;
+
+	int32 FindNeighbors(FKNNResultSet& Result, TConstArrayView<float> Query) const;
+	int32 FindNeighbors(FFilteredKNNResultSet& Result, TConstArrayView<float> Query) const;
+	int32 FindNeighbors(FRadiusResultSet& Result, TConstArrayView<float> Query) const;
+
 	POSESEARCH_API SIZE_T GetAllocatedSize() const;
 
 	FDataSource DataSource;

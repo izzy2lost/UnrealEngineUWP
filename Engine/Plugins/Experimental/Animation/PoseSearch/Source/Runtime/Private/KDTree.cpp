@@ -294,7 +294,8 @@ void FKDTree::Construct(AccessorType Count, AccessorType Dim, const float* Data,
 	new(this)FKDTree(Count, Dim, Data, MaxLeafSize);
 }
 
-bool FKDTree::FindNeighbors(FKNNResultSet& Result, TConstArrayView<float> Query) const
+template <typename RESULTSET>
+inline int32 FindNeighborsInternal(FKDTreeImplementation* Impl, RESULTSET& Result, TConstArrayView<float> Query)
 {
 #if UE_POSE_SEARCH_USE_NANOFLANN
 
@@ -306,36 +307,30 @@ bool FKDTree::FindNeighbors(FKNNResultSet& Result, TConstArrayView<float> Query)
 		32,			// Ignored parameter (Kept for compatibility with the FLANN interface).
 		0.f,		// search for eps-approximate neighbours (default: 0)
 		false);		// only for radius search, require neighbours sorted by
-	return Impl->findNeighbors(Result, Query.GetData(), SearchParams);
+	Impl->findNeighbors(Result, Query.GetData(), SearchParams);
+	return Result.Num();
 
 #else // UE_POSE_SEARCH_USE_NANOFLANN
 
 	checkNoEntry(); // unimplemented
-	return false;
+	return 0;
 
 #endif // UE_POSE_SEARCH_USE_NANOFLANN
 }
 
-bool FKDTree::FindNeighbors(FRadiusResultSet& Result, TConstArrayView<float> Query) const
+int32 FKDTree::FindNeighbors(FKNNResultSet& Result, TConstArrayView<float> Query) const
 {
-#if UE_POSE_SEARCH_USE_NANOFLANN
+	return FindNeighborsInternal(Impl, Result, Query);
+}
 
-	QUICK_SCOPE_CYCLE_COUNTER(STAT_FKDTree_FindNeighbors);
+int32 FKDTree::FindNeighbors(FFilteredKNNResultSet& Result, TConstArrayView<float> Query) const
+{
+	return FindNeighborsInternal(Impl, Result, Query);
+}
 
-	check(Query.GetData() && Query.Num() == Impl->dim && Impl->root_node);
-
-	const nanoflann::SearchParams SearchParams(
-		32,			// Ignored parameter (Kept for compatibility with the FLANN interface).
-		0.f,		// search for eps-approximate neighbours (default: 0)
-		false);		// only for radius search, require neighbours sorted by
-	return Impl->findNeighbors(Result, Query.GetData(), SearchParams);
-
-#else // UE_POSE_SEARCH_USE_NANOFLANN
-
-	checkNoEntry(); // unimplemented
-	return false;
-
-#endif // UE_POSE_SEARCH_USE_NANOFLANN
+int32 FKDTree::FindNeighbors(FRadiusResultSet& Result, TConstArrayView<float> Query) const
+{
+	return FindNeighborsInternal(Impl, Result, Query);
 }
 
 SIZE_T FKDTree::GetAllocatedSize() const

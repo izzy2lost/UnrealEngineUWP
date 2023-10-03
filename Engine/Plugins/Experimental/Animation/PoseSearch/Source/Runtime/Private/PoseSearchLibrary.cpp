@@ -618,6 +618,10 @@ UE::PoseSearch::FSearchResult UPoseSearchLibrary::MotionMatch(const FAnimationBa
 					{
 						PerDbAnimMap.FindOrAdd(PoseSearchBranchIn->Database).AddUnique(SequenceBase);
 					}
+					else
+					{
+						UE_LOG(LogPoseSearch, Error, TEXT("improperly setup UAnimNotifyState_PoseSearchBranchIn with null Database in %s"), *SequenceBase->GetName());
+					}
 				}
 			}
 		}
@@ -639,6 +643,8 @@ UE::PoseSearch::FSearchResult UPoseSearchLibrary::MotionMatch(const FAnimationBa
 
 		for (const FPerDbAnimPair& PerDbAnimPair : PerDbAnimMap)
 		{
+			check(PerDbAnimPair.Key);
+			
 			SearchContext.SetAnimationsToConsider(PerDbAnimPair.Value);
 
 			const FSearchResult NewSearchResult = PerDbAnimPair.Key->Search(SearchContext);

@@ -79,6 +79,12 @@ struct FVPTreeResultSet
     FVPTreeResultSet(int32 InNumNeighbors)
         : NumNeighbors(InNumNeighbors)
     {
+#if !NO_LOGGING
+		if (InNumNeighbors > HeapDefaultMaxSize)
+		{
+			UE_LOG(LogPoseSearch, Warning, TEXT("FVPTreeResultSet - preallocated Heap data size 'HeapDefaultMaxSize' of %d is less than requested %d num neighbors. Performances will be negatively impacted"), HeapDefaultMaxSize, InNumNeighbors);
+		}
+#endif // !NO_LOGGING
     }
 
     VPTreeScalar GetWorstDistance() const
@@ -140,7 +146,7 @@ struct FVPTreeResultSet
 		return Results;
     }
 
-	const TArray<FIndexDistance>& GetUnsortedResults() const
+	TConstArrayView<FIndexDistance> GetUnsortedResults() const
 	{
 		return Heap;
 	}
@@ -161,7 +167,8 @@ private:
 	};
 
     const int32 NumNeighbors;
-    TArray<FIndexDistance> Heap;
+	enum { HeapDefaultMaxSize = 256 };
+    TArray<FIndexDistance, TInlineAllocator<HeapDefaultMaxSize>> Heap;
 };
 
 struct FVPTree
@@ -227,8 +234,8 @@ struct FVPTree
 		bool bBestNodeIndexFound = false;
 #endif // VALIDATE_FINDNEIGHBORS
 
-		// @todo: avoid allocations
-		TArray<int32> NodesToSearch;
+		enum { NodesToSearchDefaultMaxSize = 512 };
+		TArray<int32, TInlineAllocator<NodesToSearchDefaultMaxSize>> NodesToSearch;
 		NodesToSearch.Emplace(0);
 
         VPTreeScalar Tau = VPTreeScalar(UE_BIG_NUMBER);
@@ -304,6 +311,12 @@ struct FVPTree
 			if (Node.LeftIndex != INDEX_NONE && QueryDistance < Node.Distance + Tau)
 			{
 				NodesToSearch.Emplace(Node.LeftIndex);
+#if !NO_LOGGING
+				if (NodesToSearch.Num() > NodesToSearchDefaultMaxSize)
+				{
+					UE_LOG(LogPoseSearch, Warning, TEXT("FVPTree::FindNeighbors - requested more than preallocated NodesToSearch data size 'NodesToSearchDefaultMaxSize' (%d / %d)"), NodesToSearch.Num(), NodesToSearchDefaultMaxSize);
+				}
+#endif // !NO_LOGGING
 
 #if VALIDATE_FINDNEIGHBORS
 				if (bNodeIndexContainsBestNodeIndex)
@@ -319,6 +332,12 @@ struct FVPTree
 			if (Node.RightIndex != INDEX_NONE && QueryDistance >= Node.Distance - Tau)
 			{
 				NodesToSearch.Emplace(Node.RightIndex);
+#if !NO_LOGGING
+				if (NodesToSearch.Num() > NodesToSearchDefaultMaxSize)
+				{
+					UE_LOG(LogPoseSearch, Warning, TEXT("FVPTree::FindNeighbors - requested more than preallocated NodesToSearch data size 'NodesToSearchDefaultMaxSize' (%d / %d)"), NodesToSearch.Num(), NodesToSearchDefaultMaxSize);
+				}
+#endif // !NO_LOGGING
 
 #if VALIDATE_FINDNEIGHBORS
 				if (bNodeIndexContainsBestNodeIndex)
