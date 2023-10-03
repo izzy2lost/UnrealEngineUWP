@@ -216,7 +216,7 @@ TArray<AWorldPartitionHLOD*> FWorldPartitionHLODUtilities::CreateHLODActors(FHLO
 		}
 
 		// Runtime grid
-		const FName RuntimeGrid = InCreationParams.RuntimeGrid.IsNone() ? HLODLayer->GetRuntimeGrid(InCreationParams.HLODLevel) : InCreationParams.RuntimeGrid;
+		const FName RuntimeGrid = InCreationParams.GetRuntimeGrid(HLODLayer);
 		if (HLODActor->GetRuntimeGrid() != RuntimeGrid)
 		{
 			HLODActor->SetRuntimeGrid(RuntimeGrid);

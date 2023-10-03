@@ -203,6 +203,7 @@ static TArray<FGuid> GenerateHLODActorsForGrid(UWorldPartition* WorldPartition, 
 				CreationParams.CellGuid = CellGuid;
 				CreationParams.CellName = CellName;
 				CreationParams.CellBounds = CellBounds;
+				CreationParams.GetRuntimeGrid = [HLODLevel](const UHLODLayer* HLODLayer) { return HLODLayer->GetRuntimeGrid(HLODLevel); };
 				CreationParams.HLODLevel = HLODLevel;
 				CreationParams.MinVisibleDistance = RuntimeGrid.LoadingRange;
 				CreationParams.ContentBundleGuid = GridCellDataChunk.GetContentBundleID();

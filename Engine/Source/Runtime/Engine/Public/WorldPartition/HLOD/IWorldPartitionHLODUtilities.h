@@ -30,7 +30,7 @@ struct FHLODCreationParams
 	FGuid CellGuid;
 	FString CellName;
 	FBox CellBounds;
-	FName RuntimeGrid;
+	TUniqueFunction<FName(const UHLODLayer*)> GetRuntimeGrid;
 	uint32 HLODLevel;
 	FGuid ContentBundleGuid;
 	TArray<const UDataLayerInstance*> DataLayerInstances;
