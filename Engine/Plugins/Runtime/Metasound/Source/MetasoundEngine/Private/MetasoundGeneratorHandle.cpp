@@ -223,15 +223,16 @@ namespace Metasound
 
 		while (TOptional<FOutputPayload> ChangedOutput = ChangedOutputs.Dequeue())
 		{
-			if (const FOutputWatcher* OutputListener = OutputWatchers.FindByPredicate(
-				[&ChangedOutput](const FOutputWatcher& ExistingListener)
-				{
-					return ChangedOutput->AnalyzerName == ExistingListener.AnalyzerAddress.AnalyzerName
-					&& ChangedOutput->OutputName == ExistingListener.AnalyzerAddress.OutputName
-					&& ChangedOutput->OutputValue.Name == ExistingListener.AnalyzerAddress.AnalyzerMemberName;
-				}))
+			const FOutputWatcherKey WatcherKey
 			{
-				OutputListener->OnOutputValueChanged.Broadcast(ChangedOutput->OutputName, ChangedOutput->OutputValue);
+				ChangedOutput->OutputName,
+				ChangedOutput->AnalyzerName,
+				ChangedOutput->OutputValue.Name
+			};
+
+			if (const FOutputWatcher* Watcher = OutputWatchers.Find(WatcherKey))
+			{
+				Watcher->OnOutputValueChanged.Broadcast(ChangedOutput->OutputName, ChangedOutput->OutputValue);
 			}
 
 			++NumDequeued;
@@ -411,9 +412,9 @@ namespace Metasound
 		{
 			// For each watcher, make sure the generator has a corresponding analyzer
 			// (will fail gracefully on duplicates or non-existent outputs)
-			for (const FOutputWatcher& Watcher : OutputWatchers)
+			for (const auto& Watcher : OutputWatchers)
 			{
-				PinnedGenerator->AddOutputVertexAnalyzer(Watcher.AnalyzerAddress);
+				PinnedGenerator->AddOutputVertexAnalyzer(Watcher.Value.AnalyzerAddress);
 			}
 		}
 	}
@@ -428,20 +429,21 @@ namespace Metasound
 		check(IsInGameThread()); // modifying watchers isn't thread-safe
 		
 		// If we already have a watcher for this output, just add the delegate to that one
-		if (FOutputWatcher* Watcher = OutputWatchers.FindByPredicate(
-			[&AnalyzerAddress](const FOutputWatcher& ExistingListener)
-			{
-				return AnalyzerAddress.OutputName == ExistingListener.AnalyzerAddress.OutputName
-					&& AnalyzerAddress.AnalyzerName == ExistingListener.AnalyzerAddress.AnalyzerName
-					&& AnalyzerAddress.AnalyzerMemberName == ExistingListener.AnalyzerAddress.AnalyzerMemberName;
-			}))
+		const FOutputWatcherKey WatcherKey
+		{
+			AnalyzerAddress.OutputName,
+			AnalyzerAddress.AnalyzerName,
+			AnalyzerAddress.AnalyzerMemberName
+		};
+
+		if (FOutputWatcher* Watcher = OutputWatchers.Find(WatcherKey))
 		{
 			Watcher->OnOutputValueChanged.AddUnique(OnOutputValueChanged);
 		}
 		// Otherwise add a new watcher
 		else
 		{
-			OutputWatchers.Emplace(AnalyzerAddress, OnOutputValueChanged);
+			OutputWatchers.Emplace(WatcherKey, { AnalyzerAddress, OnOutputValueChanged });
 		}
 	}
 

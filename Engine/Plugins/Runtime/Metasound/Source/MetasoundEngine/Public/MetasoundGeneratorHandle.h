@@ -189,6 +189,32 @@ namespace Metasound
 		};
 		static TMap<FName, FPassthroughAnalyzerInfo> PassthroughAnalyzers;
 
+		struct FOutputWatcherKey
+		{
+			FName OutputName;
+			FName AnalyzerName;
+			FName AnalyzerMemberName;
+
+			bool operator==(const FOutputWatcherKey& Other) const
+			{
+				return OutputName == Other.OutputName
+				&& AnalyzerName == Other.AnalyzerName
+				&& AnalyzerMemberName == Other.AnalyzerMemberName;
+			}
+
+			bool operator!=(const FOutputWatcherKey& Other) const
+			{
+				return !(*this == Other);
+			}
+		};
+
+		friend uint32 GetTypeHash(FOutputWatcherKey Key)
+		{
+			return HashCombineFast(
+				HashCombineFast(GetTypeHash(Key.OutputName), GetTypeHash(Key.AnalyzerName)),
+				GetTypeHash(Key.AnalyzerMemberName));
+		}
+
 		/**
 		 * Info about an output being watched by one or more listeners
 		 */
@@ -205,8 +231,8 @@ namespace Metasound
 				OnOutputValueChanged.AddUnique(InOnOutputValueChanged);
 			}
 		};
-
-		TArray<FOutputWatcher> OutputWatchers;
+		
+		TMap<FOutputWatcherKey, FOutputWatcher> OutputWatchers;
 
 		struct FOutputPayload
 		{
