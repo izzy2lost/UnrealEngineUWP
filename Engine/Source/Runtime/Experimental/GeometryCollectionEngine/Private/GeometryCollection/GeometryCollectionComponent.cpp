@@ -6590,6 +6590,11 @@ void UGeometryCollectionComponent::OnComponentCollisionSettingsChanged(bool bUpd
 	LoadCollisionProfiles();
 }
 
+bool UGeometryCollectionComponent::CanBeUsedInPhysicsReplication(const FName BoneName) const
+{
+	return false;
+}
+
 #if WITH_EDITOR
 
 bool UGeometryCollectionComponent::IsHLODRelevant() const

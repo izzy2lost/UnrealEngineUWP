@@ -40,6 +40,11 @@ namespace PrimitiveComponentCVars
 
 void UPrimitiveComponent::SetRigidBodyReplicatedTarget(FRigidBodyState& UpdatedState, FName BoneName, int32 ServerFrame, int32 ServerHandle)
 {
+	if (!CanBeUsedInPhysicsReplication(BoneName))
+	{
+		return;
+	}
+
 	if (UWorld* World = GetWorld())
 	{
 		if (FPhysScene* PhysScene = World->GetPhysicsScene())

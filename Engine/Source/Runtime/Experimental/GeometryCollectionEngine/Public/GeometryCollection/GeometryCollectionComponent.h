@@ -644,6 +644,7 @@ public:
 	GEOMETRYCOLLECTIONENGINE_API virtual void PostLoad() override;
 protected:
 	GEOMETRYCOLLECTIONENGINE_API virtual void OnComponentCollisionSettingsChanged(bool bUpdateOverlaps=true) override;
+	GEOMETRYCOLLECTIONENGINE_API virtual bool CanBeUsedInPhysicsReplication(const FName BoneName = NAME_None) const override;
 	//~ End UPrimitiveComponent Interface.
 
 

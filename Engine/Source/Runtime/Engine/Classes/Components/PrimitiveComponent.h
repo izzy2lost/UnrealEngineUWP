@@ -2710,6 +2710,11 @@ public:
 	 */
 	ENGINE_API void SetRigidBodyReplicatedTarget(FRigidBodyState& UpdatedState, const FName BoneName = NAME_None, int32 ServerFrame = 0, int32 ServerHandle = 0);
 
+protected:
+	ENGINE_API virtual bool CanBeUsedInPhysicsReplication(const FName BoneName = NAME_None) const { return true; }
+
+public:
+
 	/** 
 	 *	Get the state of the rigid body responsible for this Actor's physics, and fill in the supplied FRigidBodyState struct based on it.
 	 *
