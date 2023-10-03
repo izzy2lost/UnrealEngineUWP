@@ -2331,22 +2331,6 @@ namespace impl
 
 		FCustomizableObjectSystemPrivate* CustomizableObjectSystemPrivateData = System->GetPrivateChecked();
 
-		for (int32 ComponentIndex = 0; ComponentIndex < CustomizableObjectInstance->GetPrivate()->ComponentsData.Num(); ++ComponentIndex)
-		{
-			// TODO PRP: Fix properly by moving the whole AssetUserData block to UCustomizableInstancePrivateData::InitSkeletalMeshData
-			if (!CustomizableObjectInstance->SkeletalMeshes.IsValidIndex(ComponentIndex))
-			{
-				break;
-			}
-
-			FCustomizableInstanceComponentData& ComponentData = CustomizableObjectInstance->GetPrivate()->ComponentsData[ComponentIndex];
-			
-			for (TObjectPtr<UAssetUserData> AssetUserData : ComponentData.AssetUserDataArray)
-			{
-				CustomizableObjectInstance->SkeletalMeshes[ComponentIndex]->AddAssetUserData(AssetUserData);
-			}
-		}
-
 		// Next Task: Release Mutable. We need this regardless if we cancel or not
 		//-------------------------------------------------------------		
 		{
@@ -2590,9 +2574,7 @@ namespace impl
 			FinishUpdateGlobal(nullptr, EUpdateResult::Error, &Operation->UpdateCallback);
 			return;
 		}
-		
-		CandidateInstancePrivateData->InstanceUpdateFlags(*CandidateInstance);
-		
+
 		if (CandidateInstancePrivateData->HasCOInstanceFlags(PendingLODsUpdate))
 		{
 			CandidateInstancePrivateData->ClearCOInstanceFlags(PendingLODsUpdate);

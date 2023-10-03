@@ -128,8 +128,6 @@ struct FCustomizableInstanceComponentData
 {
 	GENERATED_USTRUCT_BODY();
 
-	uint16 ComponentIndex = 0;
-
 	// AnimBP data gathered for a component from its constituent meshes
 	UPROPERTY(Transient, Category = CustomizableObjectInstance, editfixedsize, VisibleAnywhere)
 	TMap<FName, TSoftClassPtr<UAnimInstance>> AnimSlotToBP;
@@ -161,8 +159,6 @@ struct FCustomizableInstanceComponentData
 	 *  Size == NumLODsAvailable
 	 *  LODs without mesh will be set to the maximum value of FResourceID (Max_uint64). */
 	TArray<mu::FResourceID> LastMeshIdPerLOD;
-
-	bool operator==(const FCustomizableInstanceComponentData& Other) const { return ComponentIndex == Other.ComponentIndex; }
 };
 
 USTRUCT()
@@ -219,6 +215,18 @@ public:
 	 * This cache is required since the Instance can have a LOD Update at any time.
 	 * So we need to make sure that the initially provided Texture Parameters by the user will be available until the user decides to change them. */
 	TArray<FName> UpdateTextureParameters;
+
+#if WITH_EDITOR
+
+	virtual void PostDuplicate(bool bDuplicateForPIE) override;
+
+	void OnPostCompile();
+
+#endif
+
+	/** Invalidates the previously generated data and retrieves information from the CObject after specific actions.
+	 *  It'll be called in the PostLoad, after Compiling the CO, and after changing the CO of the Instance. */
+	void InitCustomizableObjectData(const UCustomizableObject* InCustomizableObject);
 	
 	FCustomizableInstanceComponentData* GetComponentData(int32 ComponentIndex);
 	const FCustomizableInstanceComponentData* GetComponentData(int32 ComponentIndex) const;
@@ -235,12 +243,6 @@ public:
 	// Return an event that will be fired when the assets  have been loaded. It returns null if no asset needs loading.
 	FGraphEventRef LoadAdditionalAssetsAsync(const TSharedPtr<FMutableOperationData>& OperationData, UCustomizableObjectInstance* Public, struct FStreamableManager &StreamableManager);
 	void AdditionalAssetsAsyncLoaded(UCustomizableObjectInstance* Public);
-
-	/** Temporal function. Used by GetParameters and ReloadParameters but its body should be moved somewhere else (probably on some other Instance update function). */
-	void InstanceUpdateFlags(const UCustomizableObjectInstance& Public);
-
-	/** See FCustomizableObjectInstanceDescriptor::ReloadParameters(...). */
-	void ReloadParameters(UCustomizableObjectInstance* Public, bool bInvalidatePreviousData = false);
 
 	void TickUpdateCloseCustomizableObjects(UCustomizableObjectInstance& Publics, FMutableInstanceUpdateMap& InOutRequestedUpdates);
 	void UpdateInstanceIfNotGenerated(UCustomizableObjectInstance& Public, FMutableInstanceUpdateMap& InOutRequestedUpdates);
