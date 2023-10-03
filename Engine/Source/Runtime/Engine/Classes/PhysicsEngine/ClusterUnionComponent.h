@@ -206,6 +206,12 @@ protected:
 	Chaos::FClusterUnionPhysicsProxy* GetPhysicsProxy() const { return PhysicsProxy; }
 	Chaos::FClusterUnionPhysicsProxy* GetPhysicsProxy() { return PhysicsProxy; }
 
+	// We need to keep track of the mapping of primitive components to physics objects.
+	// This way we know the right physics objects to pass when removing the component (because
+	// it's possible to get a different list of physics objects when we get to removal). A
+	// side benefit here is being able to track which components are clustered.
+	TMap<TObjectKey<UPrimitiveComponent>, FClusteredComponentData> PerComponentData;
+
 private:
 	// These are the statically clustered components. These should
 	// be specified in the editor and never change.
@@ -217,12 +223,6 @@ private:
 	UPROPERTY(EditAnywhere, Category = "Cluster Union")
 	int32 GravityGroupIndexOverride;
 	
-	// We need to keep track of the mapping of primitive components to physics objects.
-	// This way we know the right physics objects to pass when removing the component (because
-	// it's possible to get a different list of physics objects when we get to removal). A
-	// side benefit here is being able to track which components are clustered.
-	TMap<TObjectKey<UPrimitiveComponent>, FClusteredComponentData> PerComponentData;
-
 	// Also keep track of which actors we are clustering and their components. We make modifications on
 	// actors that get clustered so we need to make sure we undo those changes only once all its clustered
 	// components are removed from the cluster.
