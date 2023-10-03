@@ -28,6 +28,15 @@ namespace UE::ConcertSyncTests::Replication
 			for (const FSoftObjectPath& Path : InTrackedObjects)
 			{
 				TrackedObjects.Add(Path);
+
+				UObject** AvailableObject = AvailableObjects.FindByPredicate([&Path](UObject* Object)
+				{
+					return Path == Object;
+				});
+				if (AvailableObject)
+				{
+					OnObjectDiscoveredDelegate.Broadcast(**AvailableObject);
+				}
 			}
 		}
 		

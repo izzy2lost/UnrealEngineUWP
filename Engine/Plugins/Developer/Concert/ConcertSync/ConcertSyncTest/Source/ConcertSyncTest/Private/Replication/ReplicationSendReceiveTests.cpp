@@ -22,11 +22,10 @@
 
 namespace UE::ConcertSyncTests::Replication::SendReceiveFlow
 {
-	static bool SharedRunTest(FSendReceiveObjectTestBase& Test)
+	/** Sets up clients, server, and makes the sender take authority over the test object. */
+	static void SharedSetupSet(FSendReceiveObjectTestBase& Test)
 	{
-		// 1. Init
 		Test.SetUpClientAndServer();
-		
 		Test.ClientReplicationManager_Sender->TakeAuthorityOver({ Test.TestObject })
 			.Next([&Test](ConcertSyncClient::Replication::FAuthorityChangeResponse&& Response)
 			{
@@ -35,8 +34,11 @@ namespace UE::ConcertSyncTests::Replication::SendReceiveFlow
 					Test.AddError(TEXT("Failed to take authority"));
 				}
 			});
-		
-		// 2. Send data
+	}
+	
+	/** Send values from sender > server > receiver and validate it arrived. */
+	static void SharedRunSendReceiveTest(FSendReceiveObjectTestBase& Test, EPropertyTestFlags PropertyTestFlags = EPropertyTestFlags::All)
+	{
 		bool bHasServerReceivedData = false;
 		bool bHasClientReceivedData = false;
 		auto OnServerReceive = [&Test, &bHasServerReceivedData](const FConcertSessionContext& Context, const FConcertBatchReplicationEvent& Event) mutable
@@ -55,14 +57,34 @@ namespace UE::ConcertSyncTests::Replication::SendReceiveFlow
 			}
 			bHasClientReceivedData = true;
 		};
-		Test.SimulateSendObjectToReceiver(OnServerReceive, OnClientReceive);
+		Test.SimulateSendObjectToReceiver(OnServerReceive, OnClientReceive,
+			// Explicitly sets all values before & after sending so the caller can test whether the other properties were changed
+			EPropertyTestFlags::All
+			);
 
 		// 3. Test
 		Test.TestTrue(TEXT("Server received replication event"), bHasServerReceivedData);
 		Test.TestTrue(TEXT("Client 2 received replication event"), bHasClientReceivedData);
-		Test.TestEqualTestValues(*Test.TestObject, Test);
+		Test.TestEqualTestValues(*Test.TestObject, PropertyTestFlags);
+	}
+
+	/** Changes the sending stream so it sends only the Float property. */
+	static void ChangeStreamToSendingVectorOnly(FSendReceiveObjectTestBase& Test)
+	{
+		FConcertPropertySelection VectorOnlySelection;
+		const TOptional<FConcertPropertyChain> VectorPropertyChain = FConcertPropertyChain::CreateFromPath(*UTestReflectionObject::StaticClass(), { TEXT("Vector") });
+		VectorOnlySelection.ReplicatedProperties.Add(*VectorPropertyChain);
 		
-		return true;
+		ConcertSyncClient::Replication::FChangeStreamRequest Request;
+		Request.ObjectsToPut.Add(FObjectInStreamID{ Test.SenderStreamId, Test.TestObject }, FConcertChangeStream_PutObject{ VectorOnlySelection });
+		bool bReceivedChangeStreamResponse = false;
+		Test.ClientReplicationManager_Sender->ChangeStream(Request)
+			.Next([&Test, &bReceivedChangeStreamResponse](ConcertSyncClient::Replication::FChangeStreamResponse&& Response)
+			{
+				bReceivedChangeStreamResponse = true;
+				Test.TestTrue(TEXT("Changed Stream"), Response.IsSuccess());
+			});
+		Test.TestTrue(TEXT("Received change stream response"), bReceivedChangeStreamResponse);
 	}
 	
 	/**
@@ -71,7 +93,9 @@ namespace UE::ConcertSyncTests::Replication::SendReceiveFlow
 	IMPLEMENT_CUSTOM_SIMPLE_AUTOMATION_TEST(FSendReceiveFlowTests, FSendReceiveObjectTestBase, "Concert.Replication.SendReceive.SingleStream", EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter);
 	bool FSendReceiveFlowTests::RunTest(const FString& Parameters)
 	{
-		return SharedRunTest(*this);
+		SharedSetupSet(*this);
+		SharedRunSendReceiveTest(*this);
+		return true;
 	}
 
 	/** Test which still sends TestObject but does so with two separate streams: one for the float and the other for the vector property. */
@@ -118,6 +142,24 @@ namespace UE::ConcertSyncTests::Replication::SendReceiveFlow
 	IMPLEMENT_CUSTOM_SIMPLE_AUTOMATION_TEST(FSendReceiveMultiStreamSameObjectTests, FSplitSendReceiveObjectTest, "Concert.Replication.SendReceive.MultipleStreamsForSameObject", EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter);
 	bool FSendReceiveMultiStreamSameObjectTests::RunTest(const FString& Parameters)
 	{
-		return SharedRunTest(*this);
+		SharedSetupSet(*this);
+		SharedRunSendReceiveTest(*this);
+		return true;
+	}
+
+	/** Tests that changing a stream while replication is in progress actually changes the properties being replicated. */
+	IMPLEMENT_CUSTOM_SIMPLE_AUTOMATION_TEST(FUpdateStreamWhileSendingUpdatesSentProperties, FSendReceiveObjectTestBase, "Concert.Replication.SendReceive.UpdateStreamWhileSendingUpdatesSentProperties", EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter);
+	bool FUpdateStreamWhileSendingUpdatesSentProperties::RunTest(const FString& Parameters)
+	{
+		// 1. Send all properties with the stream from handshake
+		SharedSetupSet(*this);
+		SharedRunSendReceiveTest(*this);
+
+		// 2. Change stream to only send floats and test only the float is sent.
+		ChangeStreamToSendingVectorOnly(*this);
+		SharedRunSendReceiveTest(*this, EPropertyTestFlags::Vector);
+		// Test that only the vector was written
+		TestEqualDifferentValues(*TestObject, EPropertyTestFlags::Float);
+		return true;
 	}
 }

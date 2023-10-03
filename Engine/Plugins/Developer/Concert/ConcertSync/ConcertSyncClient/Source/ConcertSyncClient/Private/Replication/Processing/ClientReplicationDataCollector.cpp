@@ -2,6 +2,7 @@
 
 #include "ClientReplicationDataCollector.h"
 
+#include "Algo/RemoveIf.h"
 #include "Replication/Data/ReplicationStreamDescription.h"
 #include "Replication/Formats/IObjectReplicationFormat.h"
 #include "Replication/IConcertClientReplicationBridge.h"
@@ -11,36 +12,17 @@
 namespace UE::ConcertSyncClient::Replication
 {
 	FClientReplicationDataCollector::FClientReplicationDataCollector(
-		IConcertClientReplicationBridge* ReplicationBridge,
-		TSharedRef<ConcertSyncCore::IObjectReplicationFormat> ReplicationFormat,
-		TArrayView<const FReplicationStreamDescription> StreamDescriptions
+		IConcertClientReplicationBridge* InReplicationBridge,
+		TSharedRef<ConcertSyncCore::IObjectReplicationFormat> InReplicationFormat,
+		FGetClientStreams InGetStreamsDelegate
 		)
-		: Bridge(ReplicationBridge)
-		, ReplicationFormat(MoveTemp(ReplicationFormat))
+		: Bridge(InReplicationBridge)
+		, ReplicationFormat(MoveTemp(InReplicationFormat))
+		, GetStreamsDelegate(MoveTemp(InGetStreamsDelegate))
 	{
+		check(GetStreamsDelegate.IsBound());
 		Bridge->OnObjectDiscovered().AddRaw(this, &FClientReplicationDataCollector::StartTrackingObject);
 		Bridge->OnObjectHidden().AddRaw(this, &FClientReplicationDataCollector::StopTrackingObject);
-
-		TSet<FSoftObjectPath> PushedSet;
-		for (const FReplicationStreamDescription& StreamDescription : StreamDescriptions)
-		{
-			const FGuid StreamId = StreamDescription.BaseDescription.Identifier;
-			for (const TPair<FSoftObjectPath, FReplicatedObjectInfo>& Pair : StreamDescription.BaseDescription.ReplicationMap.ReplicatedObjects)
-			{
-				const FSoftObjectPath& ObjectPath = Pair.Key;
-				
-				TArray<FObjectInfo>& ExistingObjectInfo = ObjectsToReplicate.FindOrAdd(ObjectPath);
-				checkf(!ExistingObjectInfo.ContainsByPredicate([&StreamId](const FObjectInfo& ObjectInfo){ return ObjectInfo.StreamId == StreamId; }), TEXT("Invalid data should have been rejected during handshake"));
-
-				ExistingObjectInfo.Add({ StreamId, Pair.Value.PropertySelection });
-				// Only push it once because each push increments a counter
-				if (!PushedSet.Contains(ObjectPath))
-				{
-					PushedSet.Add(ObjectPath);
-					Bridge->PushTrackedObjects({ ObjectPath });
-				}
-			}
-		}
 	}
 
 	FClientReplicationDataCollector::~FClientReplicationDataCollector()
@@ -51,6 +33,94 @@ namespace UE::ConcertSyncClient::Replication
 		for (const TPair<FSoftObjectPath, TArray<FObjectInfo>>& Pair : ObjectsToReplicate)
 		{
 			Bridge->PopTrackedObjects({ Pair.Key });
+		}
+	}
+	
+	void FClientReplicationDataCollector::AddReplicatedObjectStreams(const FSoftObjectPath& Object, TArrayView<const FGuid> AddedStreams)
+	{
+		TArray<FObjectInfo>& ReplicatedObjectInfo = ObjectsToReplicate.FindOrAdd(Object);
+		const bool bIsNewReplicatedObject = ReplicatedObjectInfo.IsEmpty();
+		
+		const TArray<FReplicationStreamDescription>& RegisteredStreams = *GetStreamsDelegate.Execute();
+		ReplicatedObjectInfo.Reserve(ReplicatedObjectInfo.Num() + AddedStreams.Num());
+		for (const FGuid& StreamId : AddedStreams)
+		{
+			const FReplicationStreamDescription* Stream = RegisteredStreams.FindByPredicate([&StreamId](const FReplicationStreamDescription& Stream)
+			{
+				return Stream.BaseDescription.Identifier == StreamId;
+			});
+			const FReplicatedObjectInfo* ObjectInfo = Stream ? Stream->BaseDescription.ReplicationMap.ReplicatedObjects.Find(Object) : nullptr;
+			if (ensureAlwaysMsgf(ObjectInfo, TEXT("Client's registered streams cache is out of sync")))
+			{
+				ReplicatedObjectInfo.Add({ StreamId, ObjectInfo->PropertySelection });
+			}
+		}
+		
+		// FClientReplicationDataCollector should not push Object more than once because each push increments an internal counter
+		if (bIsNewReplicatedObject)
+		{
+			Bridge->PushTrackedObjects({ Object });
+		}
+	}
+
+	void FClientReplicationDataCollector::RemoveReplicatedObjectStreams(const FSoftObjectPath& Object, TArrayView<const FGuid> RemovedStreams)
+	{
+		TArray<FObjectInfo>* ReplicatedObjectInfo = ObjectsToReplicate.Find(Object);
+		if (!ReplicatedObjectInfo)
+		{
+			// This object is not being replicated
+			return;
+		}
+
+		ReplicatedObjectInfo->SetNum(Algo::RemoveIf(*ReplicatedObjectInfo, [&RemovedStreams](const FObjectInfo& ObjectInfo)
+		{
+			return RemovedStreams.Contains(ObjectInfo.StreamId);
+		}));
+
+		if (ReplicatedObjectInfo->IsEmpty())
+		{
+			ObjectsToReplicate.Remove(Object);
+			Bridge->PopTrackedObjects({ Object });
+		}
+	}
+
+	void FClientReplicationDataCollector::OnObjectStreamModified(const FSoftObjectPath& Object, TArrayView<const FGuid> PutStreams)
+	{
+		TArray<FObjectInfo>* ReplicatedObjectInfo = ObjectsToReplicate.Find(Object);
+		if (!ReplicatedObjectInfo)
+		{
+			// This object is not being replicated
+			return;
+		}
+
+		const TArray<FReplicationStreamDescription>& RegisteredStreams = *GetStreamsDelegate.Execute();
+		for (const FGuid& StreamId : PutStreams)
+		{
+			const FReplicationStreamDescription* Stream = RegisteredStreams.FindByPredicate([&StreamId](const FReplicationStreamDescription& Stream)
+			{
+				return Stream.BaseDescription.Identifier == StreamId;
+			});
+			const FReplicatedObjectInfo* ObjectInfo = Stream ? Stream->BaseDescription.ReplicationMap.ReplicatedObjects.Find(Object) : nullptr;
+			if (!ensureAlwaysMsgf(ObjectInfo, TEXT("Client's registered streams cache is out of sync")))
+			{
+				continue;
+			}
+
+			// The PutObject request either just created ObjectInfo or updated it.
+			FObjectInfo* ReplicatedObject = ReplicatedObjectInfo->FindByPredicate([&](const FObjectInfo& Existing)
+			{
+				return Existing.StreamId == StreamId;
+			});
+			if (ReplicatedObject)
+			{
+				// PutObject updated existing object in stream
+				ReplicatedObject->SelectedProperties = ObjectInfo->PropertySelection;
+			}
+			else
+			{
+				// PutObject added object to stream
+				ReplicatedObjectInfo->Add({ StreamId, ObjectInfo->PropertySelection });
+			}
 		}
 	}
 

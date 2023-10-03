@@ -52,14 +52,17 @@ namespace UE::ConcertSyncCore
 				}
 			}
 		}
-		
-		UE_CLOG(CVarLogReceivedObjects.GetValueOnGameThread(), LogConcert, Log, TEXT("Received %d streams with %d object changes from endpoint %s. Rejected %d object changes. Cached %d object changes with a total of %d cache usages."),
-			Event.Streams.Num(),
-			NumObjects,
-			*SessionContext.SourceEndpointId.ToString(),
-			NumRejectedObjectChanges,
-			NumOfAcceptedObjectChanges,
-			NumCacheUsages
+
+		if (CVarLogReceivedObjects.GetValueOnGameThread())
+		{
+			UE_LOG(LogConcert, Log, TEXT("Received %d streams with %d object changes from endpoint %s. Cached %d object changes with a total of %d cache usages."),
+				Event.Streams.Num(),
+				NumObjects,
+				*SessionContext.SourceEndpointId.ToString(),
+				NumOfAcceptedObjectChanges,
+				NumCacheUsages
 			);
+			UE_CLOG(NumRejectedObjectChanges > 0, LogConcert, Warning, TEXT("Rejected %d object changes."), NumRejectedObjectChanges);
+		}
 	}
 }

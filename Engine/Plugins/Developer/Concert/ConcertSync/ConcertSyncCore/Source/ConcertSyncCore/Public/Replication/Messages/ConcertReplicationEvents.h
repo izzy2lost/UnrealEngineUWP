@@ -329,6 +329,8 @@ struct FConcertChangeStream_Response
 	bool IsSuccess() const { return AuthorityConflicts.IsEmpty() && ObjectsToPutSemanticErrors.IsEmpty() && FailedStreamCreation.IsEmpty(); }
 	bool IsFailure() const { return !IsSuccess(); }
 
+	bool WasObjectPutSuccessful(const FObjectInStreamID& Object) const { return !AuthorityConflicts.Contains(Object) && !ObjectsToPutSemanticErrors.Contains(Object); }
+
 	/** If IsFailure(), logs the errors. */
 	CONCERTSYNCCORE_API void LogErrors(FOutputDevice& OutputDevice) const;
 };

@@ -115,5 +115,18 @@ namespace UE::ConcertSyncClient::Replication
 		void TickSender(float TimeBudget);
 		/** Processes received data and serializes UObjects. */
 		void TickReceiver(float TimeBudget);
+		
+		/** Updates replicated objects affected by the change request. */
+		void UpdateReplicatedObjectsAfterStreamChange(const FChangeStreamRequest& Request);
+		void HandleRemovingReplicatedObjects(const FChangeStreamRequest& Request) const;
+
+		/**
+		 * Updates the objects which should be replicated after changing authority.
+		 * 
+		 * @note Request is accepted as && because this function rewrites its memory when looking at rejections.
+		 * Since the request was already sent to the server it is assumed the request can just contain trash after.
+		 */
+		void UpdateReplicatedObjectsAfterAuthorityChange(FAuthorityChangeRequest&& Request, const FConcertChangeAuthority_Response& Response) const;
+		void HandleReleasingReplicatedObjects(const FAuthorityChangeRequest& Request) const;
 	};
 }

@@ -14,6 +14,7 @@
 #include "Replication/Processing/ObjectReplicationReceiver.h"
 #include "Replication/Processing/ObjectReplicationSender.h"
 
+#include "Algo/RemoveIf.h"
 #include "UObject/Package.h"
 #include "UObject/UObjectGlobals.h"
 
@@ -29,9 +30,16 @@ namespace UE::ConcertSyncClient::Replication
 		, LiveSession(LiveSession)
 		, ReplicationBridge(ReplicationBridge)
 		, RegisteredStreams(MoveTemp(StreamDescriptions))
-		// TODO: Use config to determine which replication format to use
+		// TODO DP: Use config to determine which replication format to use
 		, ReplicationFormat(MakeShared<ConcertSyncCore::FFullObjectFormat>())
-		, ReplicationDataSource(MakeShared<FClientReplicationDataCollector>(ReplicationBridge, ReplicationFormat, RegisteredStreams))
+		, ReplicationDataSource(MakeShared<FClientReplicationDataCollector>(
+			ReplicationBridge,
+			ReplicationFormat,
+			FClientReplicationDataCollector::FGetClientStreams::CreateLambda([this]()
+			{
+				return &RegisteredStreams;
+			}))
+			)
 		, Sender(MakeShared<ConcertSyncCore::FObjectReplicationSender>(LiveSession->GetSessionServerEndpointId(), LiveSession, ReplicationDataSource))
 		, ReceivedDataCache(MakeShared<ConcertSyncCore::FObjectReplicationCache>(ReplicationFormat))
 		, Receiver(MakeShared<ConcertSyncCore::FObjectReplicationReceiver>(LiveSession, ReceivedDataCache))
@@ -73,9 +81,18 @@ namespace UE::ConcertSyncClient::Replication
 
 	TFuture<FAuthorityChangeResponse> FReplicationManagerState_Connected::RequestAuthorityChange(FAuthorityChangeRequest Args)
 	{
+		// Stop replicating removed objects right now: the server will remove authority after processing this request.
+		// At that point, it will log errors for receiving replication data from a client without authority.
+		HandleReleasingReplicatedObjects(Args);
+		
 		return LiveSession->SendCustomRequest<FConcertChangeAuthority_Request, FConcertChangeAuthority_Response>(Args, LiveSession->GetSessionServerEndpointId())
-			.Next([](FConcertChangeAuthority_Response&& Response)
+			.Next([WeakThis = TWeakPtr<FReplicationManagerState_Connected>(SharedThis(this)), Args](FConcertChangeAuthority_Response&& Response) mutable
 			{
+				if (const TSharedPtr<FReplicationManagerState_Connected> ThisPin = WeakThis.Pin())
+				{
+					ThisPin->UpdateReplicatedObjectsAfterAuthorityChange(MoveTemp(Args), Response);
+				}
+
 				return FAuthorityChangeResponse { MoveTemp(Response) };
 			});
 	}
@@ -97,14 +114,17 @@ namespace UE::ConcertSyncClient::Replication
 
 	TFuture<FChangeStreamResponse> FReplicationManagerState_Connected::ChangeStream(FChangeStreamRequest Args)
 	{
+		// Stop replicating removed objects right now: the server will remove authority after processing this request.
+		// At that point, it will log errors for receiving replication data from a client without authority.
+		HandleRemovingReplicatedObjects(Args);
+		
 		return LiveSession->SendCustomRequest<FConcertChangeStream_Request, FConcertChangeStream_Response>(Args, LiveSession->GetSessionServerEndpointId())
 			.Next([WeakThis = TWeakPtr<FReplicationManagerState_Connected>(SharedThis(this)), Args](FConcertChangeStream_Response&& Response)
 			{
 				const TSharedPtr<FReplicationManagerState_Connected> ThisPin = WeakThis.Pin();
 				if (ThisPin && Response.IsSuccess())
 				{
-					// Need to update local cache of streams
-					ConcertSyncCore::Replication::ChangeStreamUtils::ApplyValidatedRequest(Args, ThisPin->RegisteredStreams);
+					ThisPin->UpdateReplicatedObjectsAfterStreamChange(Args);
 				}
 				
 				return FChangeStreamResponse { MoveTemp(Response) };
@@ -118,7 +138,7 @@ namespace UE::ConcertSyncClient::Replication
 
 	void FReplicationManagerState_Connected::Tick(IConcertClientSession& Session, float DeltaTime)
 	{
-		// TODO: Set this up in a config file
+		// TODO DP: Set this up in a config file
 		constexpr double TimeBudget = 1.0 / 60.0;
 		double TimeLeft = TimeBudget;
 
@@ -146,6 +166,86 @@ namespace UE::ConcertSyncClient::Replication
 	void FReplicationManagerState_Connected::TickReceiver(float TimeBudget)
 	{
 		ReplicationApplier->ProcessObjects(TimeBudget);
+	}
+
+	void FReplicationManagerState_Connected::UpdateReplicatedObjectsAfterStreamChange(const FChangeStreamRequest& Request)
+	{
+		// Build RegisteredStreams while RegisteredStreams has the old, unupdated state
+		TMap<FSoftObjectPath, TArray<FGuid>> BundledModifiedObjects;
+		for (const TPair<FObjectInStreamID, FConcertChangeStream_PutObject>& PutObject : Request.ObjectsToPut)
+		{
+			const FObjectInStreamID ObjectInfo = PutObject.Key;
+			const FSoftObjectPath Object = ObjectInfo.Object;
+			const FGuid StreamId = ObjectInfo.StreamId;
+			
+			const FReplicationStreamDescription* StreamDescription = RegisteredStreams.FindByPredicate([&StreamId](const FReplicationStreamDescription& Stream)
+			{
+				return Stream.BaseDescription.Identifier == StreamId;
+			});
+			// ReplicationDataSource only cares about inflight objects.
+			// Newly added objects inflight because the client must first request authority.
+			const bool bWasAddedByRequest = !ensure(StreamDescription) || !StreamDescription->BaseDescription.ReplicationMap.ReplicatedObjects.Contains(Object);
+			if (!bWasAddedByRequest)
+			{
+				BundledModifiedObjects.FindOrAdd(Object).Add(StreamId);
+			}
+		}
+
+		// The local cache must be updated before calling OnObjectStreamModified
+		ConcertSyncCore::Replication::ChangeStreamUtils::ApplyValidatedRequest(Request, RegisteredStreams);
+		
+		for (const TPair<FSoftObjectPath, TArray<FGuid>>& ModifiedObject : BundledModifiedObjects)
+		{
+			ReplicationDataSource->OnObjectStreamModified(ModifiedObject.Key, ModifiedObject.Value);
+		}
+	}
+
+	void FReplicationManagerState_Connected::HandleRemovingReplicatedObjects(const FChangeStreamRequest& Request) const
+	{
+		TMap<FSoftObjectPath, TArray<FGuid>> BundledRemovedObjects;
+		for (const FObjectInStreamID& RemovedObject : Request.ObjectsToRemove)
+		{
+			BundledRemovedObjects.FindOrAdd(RemovedObject.Object).Add(RemovedObject.StreamId);
+		}
+		for (const TPair<FSoftObjectPath, TArray<FGuid>>& RemovedObjectInfo : BundledRemovedObjects)
+		{
+			// Removing an object from a stream implies removing its authority so stop replicating it
+			ReplicationDataSource->RemoveReplicatedObjectStreams(RemovedObjectInfo.Key, RemovedObjectInfo.Value);
+		}
+	}
+
+	void FReplicationManagerState_Connected::UpdateReplicatedObjectsAfterAuthorityChange(FAuthorityChangeRequest&& Request, const FConcertChangeAuthority_Response& Response) const
+	{
+		for (TPair<FSoftObjectPath, FConcertStreamArray>& TakeAuthority : Request.TakeAuthority)
+		{
+			const FSoftObjectPath& ReplicatedObject = TakeAuthority.Key;
+			// Request will be discarded so ...
+			FConcertStreamArray& ReplicatedStreams = TakeAuthority.Value;
+
+			const FConcertStreamArray* RejectedStreams = Response.RejectedObjects.Find(ReplicatedObject);
+			if (RejectedStreams)
+			{
+				// ... reuse the memory
+				ReplicatedStreams.StreamIds.SetNum(Algo::RemoveIf(ReplicatedStreams.StreamIds, [RejectedStreams](const FGuid& Stream)
+				{
+					return RejectedStreams->StreamIds.Contains(Stream);
+				}));
+			}
+
+			const bool bWasFullyRejected = ReplicatedStreams.StreamIds.IsEmpty(); 
+			if (!bWasFullyRejected)
+			{
+				ReplicationDataSource->AddReplicatedObjectStreams(TakeAuthority.Key, ReplicatedStreams.StreamIds);
+			}
+		}
+	}
+
+	void FReplicationManagerState_Connected::HandleReleasingReplicatedObjects(const FAuthorityChangeRequest& Request) const
+	{
+		for (const TPair<FSoftObjectPath, FConcertStreamArray>& ReleaseAuthority : Request.ReleaseAuthority)
+		{
+			ReplicationDataSource->RemoveReplicatedObjectStreams(ReleaseAuthority.Key, ReleaseAuthority.Value.StreamIds);
+		}
 	}
 }
 

@@ -47,7 +47,9 @@ namespace UE::ConcertSyncTests::Replication
 	
 	void FSendReceiveObjectTestBase::SimulateSendObjectToReceiver(
 		TFunctionRef<FReceiveReplicationEventSignature> OnServerReceive,
-		TFunctionRef<FReceiveReplicationEventSignature> OnReceiverClientReceive)
+		TFunctionRef<FReceiveReplicationEventSignature> OnReceiverClientReceive,
+		EPropertyTestFlags PropertyFlags
+		)
 	{
 		auto TestReplicationData_Server = [this, OnServerReceive](const FConcertSessionContext& Context, const FConcertBatchReplicationEvent& Event)
 		{
@@ -82,37 +84,67 @@ namespace UE::ConcertSyncTests::Replication
 		// TestObject is the same UObject on both clients.
 		// Hence we must override test values with SetTestValues and SetDifferentValues.
 		// 1 Sender > Server
-		SetTestValues(*TestObject);
+		SetTestValues(*TestObject, PropertyFlags);
 		TickClient(Client_Sender);
 		
 		// 2 Forward from server to receiver
 		TickServer();
 		
 		// 3 Receive from server
-		SetDifferentValues(*TestObject);
+		SetDifferentValues(*TestObject, PropertyFlags);
 		TickClient(Client_Receiver);
 
 		ServerSession->UnregisterCustomEventHandler<FConcertBatchReplicationEvent>(ServerHandle);
-		ServerSession->UnregisterCustomEventHandler<FConcertBatchReplicationEvent>(ClientHandle);
+		Client_Receiver->ClientSessionMock->UnregisterCustomEventHandler<FConcertBatchReplicationEvent>(ClientHandle);
 		
 		// No call to Super because we're completely overriding the behavior.
 	}
 
-	void FSendReceiveObjectTestBase::SetTestValues(UTestReflectionObject& Object)
+	void FSendReceiveObjectTestBase::SetTestValues(UTestReflectionObject& Object, EPropertyTestFlags PropertyFlags)
 	{
-		Object.Float = SentFloat;
-		Object.Vector = SentVector;
+		if (EnumHasAnyFlags(PropertyFlags, EPropertyTestFlags::Float))
+		{
+			Object.Float = SentFloat;
+		}
+		if (EnumHasAnyFlags(PropertyFlags, EPropertyTestFlags::Vector))
+		{
+			Object.Vector = SentVector;
+		}
 	}
 	
-	void FSendReceiveObjectTestBase::SetDifferentValues(UTestReflectionObject& Object)
+	void FSendReceiveObjectTestBase::SetDifferentValues(UTestReflectionObject& Object, EPropertyTestFlags PropertyFlags)
 	{
-		Object.Float *= -1.f;
-		Object.Vector *= -1.f;
+		if (EnumHasAnyFlags(PropertyFlags, EPropertyTestFlags::Float))
+		{
+			Object.Float = DifferentFloat;
+		}
+		if (EnumHasAnyFlags(PropertyFlags, EPropertyTestFlags::Vector))
+		{
+			Object.Vector = DifferentVector;
+		}
 	}
 	
-	void FSendReceiveObjectTestBase::TestEqualTestValues(UTestReflectionObject& Object, FAutomationTestBase& Test)
+	void FSendReceiveObjectTestBase::TestEqualTestValues(UTestReflectionObject& Object, EPropertyTestFlags PropertyFlags)
 	{
-		Test.TestEqual(TEXT("Float"), Object.Float, SentFloat);
-		Test.TestEqual(TEXT("Vector"), Object.Vector, SentVector);
+		if (EnumHasAnyFlags(PropertyFlags, EPropertyTestFlags::Float))
+		{
+			TestEqual(TEXT("Float"), Object.Float, SentFloat);
+		}
+		if (EnumHasAnyFlags(PropertyFlags, EPropertyTestFlags::Vector))
+		{
+			TestEqual(TEXT("Vector"), Object.Vector, SentVector);
+		}
+	}
+
+	void FSendReceiveObjectTestBase::TestEqualDifferentValues(UTestReflectionObject& Object, EPropertyTestFlags PropertyFlags)
+	{
+		if (EnumHasAnyFlags(PropertyFlags, EPropertyTestFlags::Float))
+		{
+			TestEqual(TEXT("Float"), Object.Float, DifferentFloat);
+		}
+		if (EnumHasAnyFlags(PropertyFlags, EPropertyTestFlags::Vector))
+		{
+			TestEqual(TEXT("Vector"), Object.Vector, DifferentVector);
+		}
 	}
 }

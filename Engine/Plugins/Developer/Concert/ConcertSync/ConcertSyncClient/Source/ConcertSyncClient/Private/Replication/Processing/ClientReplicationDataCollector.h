@@ -7,6 +7,7 @@
 #include "Containers/ArrayView.h"
 #include "Containers/Set.h"
 #include "Replication/Data/ConcertPropertySelection.h"
+#include "Replication/Data/ObjectIds.h"
 #include "Templates/SharedPointer.h"
 #include "UObject/SoftObjectPtr.h"
 
@@ -24,7 +25,6 @@ namespace UE::ConcertSyncCore
 
 namespace UE::ConcertSyncClient::Replication
 {
-	
 	/**
 	 * Exposes UObject instances to an FObjectReplicationProcessor.
 	 * IConcertClientReplicationBridge tracks UObject lifetime, this class exposes them.
@@ -32,13 +32,33 @@ namespace UE::ConcertSyncClient::Replication
 	class FClientReplicationDataCollector : public ConcertSyncCore::IReplicationDataSource
 	{
 	public:
-		
+
+		DECLARE_DELEGATE_RetVal(const TArray<FReplicationStreamDescription>*, FGetClientStreams);
 		FClientReplicationDataCollector(
-			IConcertClientReplicationBridge* ReplicationBridge,
-			TSharedRef<ConcertSyncCore::IObjectReplicationFormat> ReplicationFormat,
-			TArrayView<const FReplicationStreamDescription> StreamsToSend
+			IConcertClientReplicationBridge* InReplicationBridge,
+			TSharedRef<ConcertSyncCore::IObjectReplicationFormat> InReplicationFormat,
+			FGetClientStreams InGetStreamsDelegate
 			);
 		virtual ~FClientReplicationDataCollector() override;
+		
+		/**
+		 * Indicates that this object should start replicating for the given streams.
+		 * @param Object The object that should start replicating
+		 * @param AddedStreams The streams determine which properties are to be replicated
+		 */
+		void AddReplicatedObjectStreams(const FSoftObjectPath& Object, TArrayView<const FGuid> AddedStreams);
+		/**
+		 * Indicates that certain properties of an object should no longer be replicated.
+		 * @param Object The object that should start replicating
+		 * @param RemovedStreams The streams determine which properties are to be replicated
+		 */
+		void RemoveReplicatedObjectStreams(const FSoftObjectPath& Object, TArrayView<const FGuid> RemovedStreams);
+		/**
+		 * Called when the client modifies pre-existing object. Adjusts any inflight replication if needed.
+		 * @param Object The object that should start replicating
+		 * @param PutStreams The streams determine which properties are to be replicated
+		 */
+		void OnObjectStreamModified(const FSoftObjectPath& Object, TArrayView<const FGuid> PutStreams);
 
 		//~ Begin IReplicationDataSource Interface
 		virtual void ForEachPendingObject(TFunctionRef<void(const FObjectInStreamID&)> ProcessItemFunc) const override;
@@ -51,7 +71,10 @@ namespace UE::ConcertSyncClient::Replication
 		/** Gets and tracks replicated objects */
 		IConcertClientReplicationBridge* Bridge;
 		/** Used to create the replication data sent to the server. */
-		TSharedRef<ConcertSyncCore::IObjectReplicationFormat> ReplicationFormat;
+		const TSharedRef<ConcertSyncCore::IObjectReplicationFormat> ReplicationFormat;
+
+		/** Gets the stream of the managed client. */
+		const FGetClientStreams GetStreamsDelegate;
 
 		struct FObjectInfo
 		{

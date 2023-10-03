@@ -105,7 +105,7 @@ namespace UE::ConcertSyncTests::Replication
 		TickClient(Client_Receiver);
 		
 		ServerSession->UnregisterCustomEventHandler<FConcertBatchReplicationEvent>(ServerHandle);
-		ServerSession->UnregisterCustomEventHandler<FConcertBatchReplicationEvent>(ClientHandle);
+		Client_Receiver->ClientSessionMock->UnregisterCustomEventHandler<FConcertBatchReplicationEvent>(ClientHandle);
 	}
 	
 	void FSendReceiveTestBase::TickClient(FClientInfo* Client)

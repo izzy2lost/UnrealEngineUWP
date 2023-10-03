@@ -9,6 +9,8 @@
 #include "Misc/AutomationTest.h"
 #include "Misc/Paths.h"
 #include "HAL/FileManager.h"
+#include "Replication/Formats/FullObjectFormat.h"
+#include "Util/ConcertClientReplicationBridgeMock.h"
 #include "Util/SendReceiveGenericStreamTestBase.h"
 
 namespace UE::ConcertSyncTests::Replication::Authority
@@ -20,7 +22,28 @@ namespace UE::ConcertSyncTests::Replication::Authority
 		// 1. Init
 		SetUpClientAndServer();
 		
-		// 2. Send data without authority > Reject
+		// 2.1 Generate replication data
+		ConcertSyncCore::FFullObjectFormat SerializeObject;
+		const TOptional<FConcertSessionSerializedPayload> Payload = SerializeObject.CreateReplicationEvent(*TestObject, [](const FArchiveSerializedPropertyChain* Chain, const FProperty& Property)
+		{
+			return true;
+		});
+		if (!Payload)
+		{
+			AddError(TEXT("Faild to create payload"));
+			return false;
+		}
+		
+		FConcertObjectReplicationEvent ObjectReplicationEvent;
+		ObjectReplicationEvent.ReplicatedObject = TestObject;
+		ObjectReplicationEvent.SerializedPayload = *Payload;
+		FConcertStreamReplicationEvent ReplicationEvent;
+		ReplicationEvent.StreamId = SenderStreamId;
+		ReplicationEvent.ReplicatedObjects.Add(ObjectReplicationEvent);
+		FConcertBatchReplicationEvent ReplicationBatchEvent;
+		ReplicationBatchEvent.Streams.Add(ReplicationEvent);
+		
+		// 2.2 Prepare for sending data without authority > Reject
 		bool bHasServerReceivedData = false;
 		auto OnServerReceive = [this, &bHasServerReceivedData](const FConcertSessionContext& Context, const FConcertBatchReplicationEvent& Event) mutable
 		{
@@ -34,8 +57,34 @@ namespace UE::ConcertSyncTests::Replication::Authority
 		{
 			AddError(TEXT("Server sent data from non-authorative client to receiving client!"));
 		};
-		SimulateSenderToReceiver(OnServerReceive, OnClientReceive);
-		TestTrue(TEXT("Server received replication event from non-authorative client"), bHasServerReceivedData);
+		ServerSession->RegisterCustomEventHandler<FConcertBatchReplicationEvent>(OnServerReceive);
+		Client_Receiver->ClientSessionMock->RegisterCustomEventHandler<FConcertBatchReplicationEvent>(OnClientReceive);
+		const FGuid ServerSessionId { 0, 0, 0, 0};
+		
+		// 3. Test that server processed the data and rejected it.
+		IConsoleVariable* ConsoleVariable = IConsoleManager::Get().FindConsoleVariable(TEXT("Concert.Replication.LogReceivedObjects"));
+		if (ConsoleVariable)
+		{
+			// Hacky way of making sure that the server REALLY rejected the change...
+			// In the future we should add a callback that can be registered via the server instance.
+			AddExpectedError(TEXT("Rejected 1 object change"));
+			bool bValue;
+			ConsoleVariable->GetValue(bValue);
+			ConsoleVariable->Set(true);
+			
+			// Send data without authority > Reject
+			Client_Sender->ClientSessionMock->SendCustomEvent(ReplicationBatchEvent, { ServerSessionId }, EConcertMessageFlags::ReliableOrdered);
+			TickServer();
+			TestTrue(TEXT("Server received replication event from non-authorative client"), bHasServerReceivedData);
+			
+			ConsoleVariable->Set(bValue);
+		}
+		else
+		{
+			Client_Sender->ClientSessionMock->SendCustomEvent(ReplicationBatchEvent, { ServerSessionId }, EConcertMessageFlags::ReliableOrdered);
+			TickServer();
+			TestTrue(TEXT("Server received replication event from non-authorative client"), bHasServerReceivedData);
+		}
 		
 		return true;
 	}
@@ -47,7 +96,10 @@ namespace UE::ConcertSyncTests::Replication::Authority
 		// 1. Init
 		const UObject* UnusedTestObject = GetDefault<UTestReflectionObject>();
 		const FSoftObjectPath TestObjectPath { UnusedTestObject };
-		SenderArgs = CreateHandshakeArgsFrom(*UnusedTestObject);
+		
+		const FGuid SenderStreamId = FGuid::NewGuid();
+		const FGuid ReceiverStreamId = SenderStreamId;
+		SenderArgs = CreateHandshakeArgsFrom(*UnusedTestObject, SenderStreamId);
 		ReceiverArgs = SenderArgs;
 		
 		SetUpClientAndServer();
@@ -64,13 +116,23 @@ namespace UE::ConcertSyncTests::Replication::Authority
 		TickServer();
 		TestTrue(TEXT("Sender received response to take authority"), bSenderReceivedResponse);
 
-		// 2.2 ... so does receiver fails taking authority over the same object
+		// 2.2 ... so does receiver, who fails taking authority over the same object
 		bool bReceiverReceivedResponse = false;
 		ClientReplicationManager_Receiver->TakeAuthorityOver({ TestObjectPath })
-			.Next([this, &bReceiverReceivedResponse](const ConcertSyncClient::Replication::FAuthorityChangeResponse& Response) mutable
+			.Next([this, &TestObjectPath, &ReceiverStreamId, &bReceiverReceivedResponse](const ConcertSyncClient::Replication::FAuthorityChangeResponse& Response) mutable
 			{
 				bReceiverReceivedResponse = true;
-				TestEqual(TEXT("Rejected because Sender already has authority"), Response.RejectedObjects.Num(), 1); 
+				TestEqual(TEXT("Rejected because Sender already has authority"), Response.RejectedObjects.Num(), 1);
+				
+				if (const FConcertStreamArray* RejectedStreams = Response.RejectedObjects.Find(TestObjectPath))
+				{
+					TestEqual(TEXT("1 stream rejected"), RejectedStreams->StreamIds.Num(), 1);
+					TestTrue(TEXT("Rejected streams contains stream registered by receiver client"), RejectedStreams->StreamIds.Contains(ReceiverStreamId));
+				}
+				else
+				{
+					AddError(TEXT("Expected rejected stream array for TestObjectPath"));
+				}
 			});
 		TickClient(Client_Receiver);
 		TickServer();
@@ -115,15 +177,26 @@ namespace UE::ConcertSyncTests::Replication::Authority
 		// 2. Attempt to take authority over object that was not in handshake
 		bool bReceivedResponse = false;
 		const FSoftObjectPath SomePath(GetDefault<UTestReflectionObject>());
+		const FGuid StreamId = FGuid::NewGuid();
 		ConcertSyncClient::Replication::FAuthorityChangeRequest Request;
-		Request.TakeAuthority.Add(SomePath, FConcertStreamArray{ .StreamIds = { FGuid::NewGuid() } });
+		Request.TakeAuthority.Add(SomePath, FConcertStreamArray{ .StreamIds = { StreamId } });
 		// Detail: Cannot use IConcertClientReplicationManager::TakeAuthority util here because it builds the request based on what streams were registered
 		ClientReplicationManager_Sender->RequestAuthorityChange(Request)
-			.Next([this, &bReceivedResponse, SomePath](const ConcertSyncClient::Replication::FAuthorityChangeResponse& Response) mutable
+			.Next([this, &bReceivedResponse, &SomePath, &StreamId](const ConcertSyncClient::Replication::FAuthorityChangeResponse& Response) mutable
 			{
 				bReceivedResponse = true;
 				TestTrue(TEXT("Cannot take authority over unregistered object"), Response.RejectedObjects.Contains(SomePath));
-				TestEqual(TEXT("Rejected exactly 1 object"), Response.RejectedObjects.Num(), 1); 
+				TestEqual(TEXT("Rejected exactly 1 object"), Response.RejectedObjects.Num(), 1);
+
+				if (const FConcertStreamArray* RejectedStreams = Response.RejectedObjects.Find(SomePath))
+				{
+					TestEqual(TEXT("1 stream rejected"), RejectedStreams->StreamIds.Num(), 1);
+					TestTrue(TEXT("Rejected streams contains stream registered by sender client"), RejectedStreams->StreamIds.Contains(StreamId));
+				}
+				else
+				{
+					AddError(TEXT("Expected rejected stream array for SomePath"));
+				}
 			});
 
 		// 3. Authority request was rejected
@@ -218,6 +291,48 @@ namespace UE::ConcertSyncTests::Replication::Authority
 		TickServer();
 		TestTrue(TEXT("Receiver received response to take authority"), bReceiverReceivedResponse);
 		
+		return true;
+	}
+	
+	/**
+	 * Tests that the client's local bridge is updated if and only if changing authority:
+	 * - Taking authority calls IConcertClientReplicationBridge::PushTrackedObjects
+	 * - Releasing authority calls IConcertClientReplicationBridge::ReleaseTrackedObjects
+	 */
+	IMPLEMENT_CUSTOM_SIMPLE_AUTOMATION_TEST(FChangingAuthorityUpdatesClientBridge, FSendReceiveObjectTestBase, "Concert.Replication.Authority.ChangingAuthorityUpdatesClientBridge", EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter);
+	bool FChangingAuthorityUpdatesClientBridge::RunTest(const FString& Parameters)
+	{
+		// 1. Init
+		SetUpClientAndServer();
+
+		// 2. Send authority
+		TestEqual(TEXT("No tracked objects"), BridgeMock_Sender->TrackedObjects.Num(), 0);
+		bool bSenderReceivedTakeResponse = false;
+		ClientReplicationManager_Sender->TakeAuthorityOver({ TestObject })
+			.Next([this, &bSenderReceivedTakeResponse](const ConcertSyncClient::Replication::FAuthorityChangeResponse& Response) mutable
+			{
+				bSenderReceivedTakeResponse = true;
+				TestEqual(TEXT("No rejection taking authority"), Response.RejectedObjects.Num(), 0); 
+			});
+		TestTrue(TEXT("Sender received response taking authority"), bSenderReceivedTakeResponse);
+
+		// 3. Test: Added TestObject to tracked objects
+		TestEqual(TEXT("Tracked exactly 1 object"), BridgeMock_Sender->TrackedObjects.Num(), 1);
+		TestTrue(TEXT("Tracked TestObject"), BridgeMock_Sender->TrackedObjects.Contains(TestObject));
+
+		// 4. Release authority
+		bool bSenderReceivedReleaseResponse = false;
+		ClientReplicationManager_Sender->ReleaseAuthorityOf({ TestObject })
+			.Next([this, &bSenderReceivedReleaseResponse](const ConcertSyncClient::Replication::FAuthorityChangeResponse& Response) mutable
+			{
+				bSenderReceivedReleaseResponse = true;
+				TestEqual(TEXT("No rejection releasing authority"), Response.RejectedObjects.Num(), 0); 
+			});
+		TestTrue(TEXT("Sender received response releasing authority"), bSenderReceivedReleaseResponse);
+		
+		// 4. Test: Removed TestObject from tracked objects
+		TestEqual(TEXT("Removed tracked object"), BridgeMock_Sender->TrackedObjects.Num(), 0);
+
 		return true;
 	}
 }

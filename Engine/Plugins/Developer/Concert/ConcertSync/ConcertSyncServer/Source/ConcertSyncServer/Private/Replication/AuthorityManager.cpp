@@ -164,22 +164,7 @@ namespace UE::ConcertSyncServer::Replication
 			else
 			{
 				UE_LOG(LogConcert, Log, TEXT("Rejected %s request of authority over %s in stream %s"), *ClientId.ToString(EGuidFormats::Short), *ObjectPath.ToString(), *StreamId.ToString(EGuidFormats::Short));
-				Response.RejectedObjects.FindOrAdd(ObjectPath).StreamIds.Add(ClientId);
-			}
-		});
-		
-		Private::ForEachReplicatedObject(Request.TakeAuthority, [this, &Response, &AuthorityData, &ClientId](const FStreamId& StreamId, const FSoftObjectPath& ObjectPath)
-		{
-			const FReplicatedObjectId ObjectToAuthor{ { StreamId, ObjectPath }, ClientId };
-			if (CanTakeAuthority(ObjectToAuthor))
-			{
-				UE_LOG(LogConcert, Log, TEXT("Transferred authority of %s to client %s for their stream %s"), *ObjectPath.ToString(), *ClientId.ToString(EGuidFormats::Short), *StreamId.ToString(EGuidFormats::Short));
-				AuthorityData.OwnedObjects.FindOrAdd(StreamId).Add(ObjectPath);
-			}
-			else
-			{
-				UE_LOG(LogConcert, Log, TEXT("Rejected %s request of authority over %s in stream %s"), *ClientId.ToString(EGuidFormats::Short), *ObjectPath.ToString(), *StreamId.ToString(EGuidFormats::Short));
-				Response.RejectedObjects.Add(ObjectPath);
+				Response.RejectedObjects.FindOrAdd(ObjectPath).StreamIds.AddUnique(StreamId);
 			}
 		});
 		
