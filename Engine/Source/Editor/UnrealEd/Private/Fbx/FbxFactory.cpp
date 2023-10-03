@@ -404,7 +404,7 @@ UObject* UFbxFactory::FactoryCreateFile
 				ImportOptions->bUpdateSkeletonReferencePose = false;
 			}
 		}
-		if (!FbxImporter->CanCreateClass(UPhysicsAsset::StaticClass()))
+		if (!FbxImporter->CanImportClass(UPhysicsAsset::StaticClass()))
 		{
 			ImportOptions->bCreatePhysicsAsset = false;
 		}
