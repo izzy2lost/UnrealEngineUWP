@@ -992,7 +992,7 @@ bool UEdGraphNode::IsInDevelopmentMode() const
 {
 #if WITH_EDITOR
 	// By default, development mode is implied when running in the editor and not cooking via commandlet, unless enabled in the project settings.
-	return !IsRunningCommandlet() || GetDefault<UCookerSettings>()->bCompileBlueprintsInDevelopmentMode;
+	return !IsRunningCookCommandlet() || GetDefault<UCookerSettings>()->bCompileBlueprintsInDevelopmentMode;
 #else
 	return false;
 #endif
