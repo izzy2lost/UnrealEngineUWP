@@ -241,16 +241,16 @@ static void CreateHLSLUniformBufferStructMembersDeclaration(
 			HLSLBaseOffset = AbsoluteMemberOffset + HLSLMemberSize;
 
 			// Generate the member declaration.
+			const TCHAR* MemberPrefix = (Member.GetBaseType() == UBMT_SAMPLER ? FShaderParameterParser::kBindlessSamplerPrefix : FShaderParameterParser::kBindlessResourcePrefix);
 
 			TStringBuilder<256> ParameterName;
-			ParameterName << (Member.GetBaseType() == UBMT_SAMPLER ? FShaderParameterParser::kBindlessSamplerPrefix : FShaderParameterParser::kBindlessResourcePrefix);
 			if (!GlobalPrefix.IsEmpty())
 			{
 				ParameterName << GlobalPrefix << TEXT("_");
 			}
 			ParameterName << Member.GetName();
 
-			Decl.ConstantBufferMembers.Appendf(TEXT("\tUB_UINT() UB_CB_MEMBER_NAME(%s, %s);\r\n"), *UniformBufferName, *ParameterName);
+			Decl.ConstantBufferMembers.Appendf(TEXT("\tUB_UINT() UB_CB_PREFIXED_MEMBER_NAME(%s, %s, %s);\r\n"), *UniformBufferName, MemberPrefix, *ParameterName);
 		}
 		else
 		{

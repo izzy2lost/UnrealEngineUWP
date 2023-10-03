@@ -457,18 +457,22 @@
 #define PLATFORM_MAX_UNIFORM_BUFFER_RANGE_FLOAT4 (PLATFORM_MAX_UNIFORM_BUFFER_RANGE/16u)
 
 #if PLATFORM_SUPPORTS_CONSTANTBUFFER_OBJECT
-	#define UB_CB_DEFINITION_START(UBName            ) struct F##UBName##Constants {
-	#define UB_CB_MEMBER_NAME(     UBName, MemberName) MemberName
-	#define UB_CB_DEFINITION_END(  UBName            ) }; ConstantBuffer<F##UBName##Constants> UBName;
-	#define UB_CB_MEMBER_ACCESS(   UBName, MemberName) UBName##.##MemberName
+	#define UB_CB_DEFINITION_START(      UBName                    ) struct F##UBName##Constants {
+	#define UB_CB_MEMBER_NAME(           UBName,         MemberName) MemberName
+	#define UB_CB_PREFIXED_MEMBER_NAME(  UBName, Prefix, MemberName) Prefix##MemberName
+	#define UB_CB_DEFINITION_END(        UBName                    ) }; ConstantBuffer<F##UBName##Constants> UBName;
+	#define UB_CB_MEMBER_ACCESS(         UBName,         MemberName) UBName##.##MemberName
+	#define UB_CB_PREFIXED_MEMBER_ACCESS(UBName, Prefix, MemberName) UBName##.##Prefix##MemberName
 
 	#define UB_DECL_PARAMETER(UBName, StructName, GlobalName) UBName##.##StructName = UBName##.##GlobalName
 	#define UB_DECL_RESOURCE(UBName, StructName, GlobalName)  UBName##.##StructName = UBName##_##GlobalName
 #else
-	#define UB_CB_DEFINITION_START(UBName            ) cbuffer UBName {
-	#define UB_CB_MEMBER_NAME(     UBName, MemberName) UBName##_##MemberName
-	#define UB_CB_DEFINITION_END(  UBName            ) }
-	#define UB_CB_MEMBER_ACCESS(   UBName, MemberName) UBName##_##MemberName
+	#define UB_CB_DEFINITION_START(      UBName                    ) cbuffer UBName {
+	#define UB_CB_MEMBER_NAME(           UBName,         MemberName) UBName##_##MemberName
+	#define UB_CB_PREFIXED_MEMBER_NAME(  UBName, Prefix, MemberName) Prefix##UBName##_##MemberName
+	#define UB_CB_DEFINITION_END(        UBName                    ) }
+	#define UB_CB_MEMBER_ACCESS(         UBName,         MemberName) UBName##_##MemberName
+	#define UB_CB_PREFIXED_MEMBER_ACCESS(UBName, Prefix, MemberName) Prefix##UBName##_##MemberName
 
 	#define UB_DECL_PARAMETER(UBName, StructName, GlobalName) UBName##.##StructName = UBName##_##GlobalName
 	#define UB_DECL_RESOURCE(UBName, StructName, GlobalName)  UBName##.##StructName = UBName##_##GlobalName
