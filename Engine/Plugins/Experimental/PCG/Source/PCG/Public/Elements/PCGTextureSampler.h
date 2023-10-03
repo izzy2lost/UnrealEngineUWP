@@ -8,12 +8,21 @@
 
 #include "PCGTextureSampler.generated.h"
 
+class UTexture;
+
 UCLASS(BlueprintType, ClassGroup = (Procedural))
 class PCG_API UPCGTextureSamplerSettings : public UPCGSettings
 {
 	GENERATED_BODY()
 
 public:
+	//~Begin UObject interface
+#if WITH_EDITOR
+	virtual void PostEditChangeProperty(FPropertyChangedEvent& PropertyChangedEvent) override;
+	virtual void PostLoad() override;
+#endif
+	//~End UObject interface
+
 	//~Begin UPCGSettings interface
 #if WITH_EDITOR
 	virtual FName GetDefaultNodeName() const override { return FName(TEXT("GetTextureData")); }
@@ -28,17 +37,31 @@ protected:
 	virtual FPCGElementPtr CreateElement() const override;
 	//~End UPCGSettings interface
 
+#if WITH_EDITOR
+	void UpdateDisplayTextureArrayIndex();
+#endif
+
 public:
-	// Surface transform
+	/** Surface transform */
 	UPROPERTY(BlueprintReadWrite, EditAnywhere, Category = Settings, meta = (PCG_Overridable))
 	FTransform Transform = FTransform::Identity;
 
 	UPROPERTY(BlueprintReadWrite, EditAnywhere, Category = Settings, meta = (PCG_Overridable))
 	bool bUseAbsoluteTransform = false;
 
-	// Texture specific parameters
+	/** Texture specific parameters */
 	UPROPERTY(BlueprintReadWrite, EditAnywhere, Category = Settings, meta = (PCG_Overridable))
-	TSoftObjectPtr<UTexture2D> Texture = nullptr;
+	TSoftObjectPtr<UTexture> Texture = nullptr;
+
+#if WITH_EDITORONLY_DATA
+	/** Index of texture array slice. Only used when built with editor and if the type of Texture is Texture2DArray. */
+	UPROPERTY(BlueprintReadWrite, EditAnywhere, Category = Settings, meta = (EditCondition = bDisplayTextureArrayIndex, EditConditionHides, HideEditConditionToggle, ClampMin = '0', PCG_Overridable))
+	int TextureArrayIndex = 0;
+
+	// This can be set false by inheriting nodes to hide the 'TextureArrayIndex' property.
+	UPROPERTY(Transient, meta = (EditCondition = false, EditConditionHides))
+	bool bDisplayTextureArrayIndex = false;
+#endif
 
 	// Common members in BaseTextureData
 	UPROPERTY(BlueprintReadWrite, VisibleAnywhere, Category = SpatialData, meta = (PCG_Overridable))

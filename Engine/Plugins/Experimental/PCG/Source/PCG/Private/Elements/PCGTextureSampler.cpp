@@ -9,12 +9,38 @@
 #include "Helpers/PCGHelpers.h"
 #include "Helpers/PCGSettingsHelpers.h"
 
+#include "Engine/Texture.h"
 #include "Engine/Texture2D.h"
+#include "Engine/Texture2DArray.h"
 #include "GameFramework/Actor.h"
 
 #include UE_INLINE_GENERATED_CPP_BY_NAME(PCGTextureSampler)
 
 #define LOCTEXT_NAMESPACE "PCGTextureSamplerElement"
+
+#if WITH_EDITOR
+void UPCGTextureSamplerSettings::PostEditChangeProperty(FPropertyChangedEvent& PropertyChangedEvent) 
+{
+	if (PropertyChangedEvent.Property)
+	{
+		const FName PropertyName = PropertyChangedEvent.Property->GetFName();
+
+		if (PropertyName == GET_MEMBER_NAME_CHECKED(UPCGTextureSamplerSettings, Texture))
+		{
+			UpdateDisplayTextureArrayIndex();
+		} 
+	}
+
+	Super::PostEditChangeProperty(PropertyChangedEvent);
+}
+
+void UPCGTextureSamplerSettings::PostLoad()
+{
+	Super::PostLoad();
+
+	UpdateDisplayTextureArrayIndex();
+}
+#endif
 
 #if WITH_EDITOR
 FText UPCGTextureSamplerSettings::GetNodeTooltipText() const
@@ -37,6 +63,14 @@ FPCGElementPtr UPCGTextureSamplerSettings::CreateElement() const
 {
 	return MakeShared<FPCGTextureSamplerElement>();
 }
+
+#if WITH_EDITOR
+void UPCGTextureSamplerSettings::UpdateDisplayTextureArrayIndex()
+{
+	UTexture* NewTexture = Texture.LoadSynchronous();
+	bDisplayTextureArrayIndex = NewTexture && NewTexture->IsA<UTexture2DArray>();
+}
+#endif
 
 bool FPCGTextureSamplerElement::ExecuteInternal(FPCGContext* InContext) const
 {
@@ -62,11 +96,49 @@ bool FPCGTextureSamplerElement::ExecuteInternal(FPCGContext* InContext) const
 		return true;
 	}
 
-	UTexture2D* Texture = Settings->Texture.LoadSynchronous();
+	UTexture* Texture = Settings->Texture.LoadSynchronous();
 
 	if (!Texture)
 	{
 		PCGE_LOG(Error, GraphAndLog, FText::Format(LOCTEXT("CouldNotResolveTexture", "Texture at path '{0}' could not be loaded"), FText::FromString(Settings->Texture.ToString())));
+		return true;
+	}
+
+	UTexture2D* Texture2D = Cast<UTexture2D>(Texture);
+
+	// If the type is not a UTexture2D, try UTexture2DArray instead
+	if (!Texture2D)
+	{
+#if WITH_EDITOR
+		// TODO: support Texture2DArray without editor
+		if (UTexture2DArray* Tex2DArray = Cast<UTexture2DArray>(Texture))
+		{
+			if (Tex2DArray->SourceTextures.IsValidIndex(Settings->TextureArrayIndex))
+			{
+				Texture2D = Tex2DArray->SourceTextures[Settings->TextureArrayIndex];
+
+				if (!Texture2D)
+				{
+					PCGE_LOG(Error, GraphAndLog, FText::Format(LOCTEXT("CouldNotResolveTextureArray", "Texture index {0} could not be loaded."), Settings->TextureArrayIndex));
+				}
+			}
+			else
+			{
+				PCGE_LOG(Error, GraphAndLog, FText::Format(LOCTEXT("TextureArrayIndexOutOfBounds", "Texture array index {0} was out of bounds. There are only {1} textures in the array."), Settings->TextureArrayIndex, Tex2DArray->SourceTextures.Num()));
+			}
+		}
+		else
+		{
+			PCGE_LOG(Error, GraphAndLog, FText::Format(LOCTEXT("InvalidTextureType", "Texture at path '{0}' was not of valid type. Must be either Texture2D or Texture2DArray."), FText::FromString(Settings->Texture.ToString())));
+		}
+#else
+		PCGE_LOG(Error, GraphAndLog, FText::Format(LOCTEXT("InvalidTextureTypeWithoutEditor", "Texture at path '{0}' was not of valid type. Must be a Texture2D when built without editor."), FText::FromString(Settings->Texture.ToString())));
+#endif
+	}
+
+	if (!Texture2D)
+	{
+		PCGE_LOG(Error, GraphAndLog, FText::Format(LOCTEXT("InvalidTexture2D", "Texture at path '{0}' could not evaluate to a valid 2D Texture"), FText::FromString(Settings->Texture.ToString())));
 		return true;
 	}
 
@@ -114,7 +186,7 @@ bool FPCGTextureSamplerElement::ExecuteInternal(FPCGContext* InContext) const
 		}
 	};
 
-	TextureData->Initialize(Texture, FinalTransform, PostInitializeCallback);
+	TextureData->Initialize(Texture2D, FinalTransform, PostInitializeCallback);
 
 	TextureData->DensityFunction = DensityFunction;
 	TextureData->ColorChannel = ColorChannel;
