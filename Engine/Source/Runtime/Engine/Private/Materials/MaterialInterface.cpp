@@ -40,6 +40,7 @@
 #include "Components/DecalComponent.h"
 #include "UObject/ArchiveCookContext.h"
 #include "UObject/Package.h"
+#include "ShaderCompiler.h"
 
 #if WITH_EDITOR
 #include "ObjectCacheEventSink.h"
@@ -47,20 +48,6 @@
 #endif
 
 #define LOCTEXT_NAMESPACE "MaterialInterface"
-
-#if ENABLE_COOK_STATS
-namespace MaterialCookStats
-{
-	static int32 NumMaterialsCooked = 0;
-
-	static FCookStatsManager::FAutoRegisterCallback RegisterCookStats2([](FCookStatsManager::AddStatFuncRef AddStat)
-	{
-		AddStat(TEXT("Material"), FCookStatsManager::CreateKeyValueArray(
-			TEXT("NumMaterialsCooked"), NumMaterialsCooked
-		));
-	});
-}
-#endif
 
 /**
  * This is used to deprecate data that has been built with older versions.
@@ -1656,7 +1643,7 @@ void UMaterialInterface::PreSave(FObjectPreSaveContext ObjectSaveContext)
 #if WITH_EDITOR
 	if (ObjectSaveContext.IsCooking())
 	{
-		COOK_STAT(MaterialCookStats::NumMaterialsCooked++);
+		GShaderCompilerStats->IncrementMaterialCook();
 	}
 #endif // WITH_EDITOR
 }

@@ -4615,6 +4615,8 @@ void FShaderCompilerStats::WriteStatSummary()
 		}
 	}
 
+	MaterialCounters.WriteStatSummary(AggregatedSuffix);
+
 	UE_LOG(LogShaderCompilers, Display, TEXT("================================================"));
 }
 
@@ -4695,6 +4697,8 @@ void FShaderCompilerStats::GatherAnalytics(const FString& BaseName, TArray<FAnal
 			Attributes.Emplace(MoveTemp(AttrName), Counters.CacheMemBudget);
 		}
 	}
+
+	MaterialCounters.GatherAnalytics(Attributes);
 }
 
 uint32 FShaderCompilerStats::GetTotalShadersCompiled()
@@ -4794,12 +4798,16 @@ void FShaderCompilerStats::Aggregate(FShaderCompilerStats& Other)
 			ShaderTimings.Add(TimingsKeyValue);
 		}
 	}
+
+	MaterialCounters += Other.MaterialCounters;
 }
 
 void FShaderCompilerStats::WriteToCompactBinary(FCbWriter& Writer)
 {
 	FScopeLock Lock(&CompileStatsLock);
 	Writer.AddBinary("Counters", &Counters, sizeof(Counters));
+
+	Writer.AddBinary("MaterialCounters", &MaterialCounters, sizeof(MaterialCounters));
 
 	Writer.BeginArray("CompileStatIndices");	
 	// Write the array of valid indices this worker has in the compile stats sparse array
@@ -4885,6 +4893,10 @@ void FShaderCompilerStats::ReadFromCompactBinary(FCbObjectView& Reader)
 	FMemoryView CountersMem = Reader["Counters"].AsBinaryView();
 	check(CountersMem.GetSize() == sizeof(FCounters));
 	Counters = *reinterpret_cast<const FCounters*>(CountersMem.GetData());
+
+	FMemoryView MaterialCountersMem = Reader["MaterialCounters"].AsBinaryView();
+	check(MaterialCountersMem.GetSize() == sizeof(FMaterialCounters));
+	MaterialCounters = *reinterpret_cast<const FMaterialCounters*>(MaterialCountersMem.GetData());
 
 	FCbArrayView CompileStatIndicesView = Reader["CompileStatIndices"].AsArrayView();
 	FCbArrayView CompileStatsView = Reader["CompileStats"].AsArrayView();
@@ -5103,6 +5115,39 @@ void FShaderCompilerStats::RegisterJobBatch(int32 NumJobs, EExecutionType ExecTy
 	{
 		checkNoEntry();
 	}
+}
+
+void FShaderCompilerStats::FMaterialCounters::WriteStatSummary(const TCHAR* AggregatedSuffix)
+{
+	UE_LOG(LogShaderCompilers, Display, TEXT("=== Material stats%s ==="), AggregatedSuffix);
+	UE_LOG(LogShaderCompilers, Display, TEXT("Materials Cooked:        %d"), NumMaterialsCooked);
+	UE_LOG(LogShaderCompilers, Display, TEXT("Materials Translated:    %d"), MaterialTranslateCalls);
+	UE_LOG(LogShaderCompilers, Display, TEXT("Material Translate Time: %.2f s"), MaterialTranslateTimeSec);
+}
+
+void FShaderCompilerStats::FMaterialCounters::GatherAnalytics(TArray<FAnalyticsEventAttribute>& Attributes)
+{
+	Attributes.Emplace(TEXT("Material_NumMaterialsCooked"), NumMaterialsCooked);
+	Attributes.Emplace(TEXT("Material_MaterialTranslateCalls"), MaterialTranslateCalls);
+	Attributes.Emplace(TEXT("Material_MaterialTranslateTimeSec"), MaterialTranslateTimeSec);
+}
+
+void FShaderCompilerStats::IncrementMaterialCook()
+{
+	FScopeLock Lock(&CompileStatsLock);
+	MaterialCounters.NumMaterialsCooked++;
+}
+
+void FShaderCompilerStats::IncrementMaterialsTranslated()
+{
+	FScopeLock Lock(&CompileStatsLock);
+	MaterialCounters.MaterialTranslateCalls++;
+}
+
+void FShaderCompilerStats::IncrementMaterialTranslateTime(double InTime)
+{
+	FScopeLock Lock(&CompileStatsLock);
+	MaterialCounters.MaterialTranslateTimeSec += InTime;
 }
 
 void FShaderCompilerStats::RegisterCookedShaders(uint32 NumCooked, float CompileTime, EShaderPlatform Platform, const FString MaterialPath, FString PermutationString)

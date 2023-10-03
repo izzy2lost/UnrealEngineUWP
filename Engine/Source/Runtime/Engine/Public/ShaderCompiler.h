@@ -362,6 +362,10 @@ public:
 		}
 	};
 
+	void IncrementMaterialCook();
+	void IncrementMaterialsTranslated();
+	void IncrementMaterialTranslateTime(double InTime);
+
 	ENGINE_API void RegisterCookedShaders(uint32 NumCooked, float CompileTime, EShaderPlatform Platform, const FString MaterialPath, FString PermutationString = FString(""));
 	ENGINE_API void RegisterCompiledShaders(uint32 NumPermutations, EShaderPlatform Platform, const FString MaterialPath, FString PermutationString = FString(""));
 	const TSparseArray<ShaderCompilerStats>& GetShaderCompilerStats() { return CompileStats; }
@@ -548,6 +552,32 @@ private:
 	};
 
 	FCounters Counters;
+
+	struct FMaterialCounters
+	{
+		/** The total number of materials cooked.  This corresponds to UMaterialInterface::Presave() */
+		int32 NumMaterialsCooked = 0;
+
+		/** The total number of materials that have been translated.  */
+		int32 MaterialTranslateCalls = 0;
+
+		/** The total time in seconds to translate all materials.  */
+		double MaterialTranslateTimeSec = 0.0f;
+
+		FMaterialCounters& operator+=(const FMaterialCounters& Other)
+		{
+			NumMaterialsCooked += Other.NumMaterialsCooked;
+			MaterialTranslateCalls += Other.MaterialTranslateCalls;
+			MaterialTranslateTimeSec += Other.MaterialTranslateTimeSec;
+
+			return *this;
+		}
+
+		void WriteStatSummary(const TCHAR* AggregatedSuffix);
+		void GatherAnalytics(TArray<FAnalyticsEventAttribute>& Attributes);
+	};
+
+	FMaterialCounters MaterialCounters;
 
 	/** Accumulates the job lifetimes without overlaps */
 	TArray<TInterval<double>> JobLifeTimeIntervals;

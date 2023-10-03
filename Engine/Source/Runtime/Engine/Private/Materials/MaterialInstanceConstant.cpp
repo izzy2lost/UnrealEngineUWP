@@ -7,7 +7,6 @@
 #include "Materials/MaterialInstanceConstant.h"
 #include "Materials/Material.h"
 #include "Materials/MaterialInstanceSupport.h"
-#include "ProfilingDebugging/CookStats.h"
 #include "MaterialCachedData.h"
 
 #include UE_INLINE_GENERATED_CPP_BY_NAME(MaterialInstanceConstant)
@@ -15,21 +14,6 @@
 #if WITH_EDITOR
 #include "MaterialCachedHLSLTree.h"
 #include "ObjectCacheEventSink.h"
-#endif
-
-#if ENABLE_COOK_STATS
-#include "ProfilingDebugging/ScopedTimers.h"
-namespace MaterialInstanceCookStats
-{
-static double MaterialInstanceUpdateCachedExpressionDataSec = 0.0;
-
-static FCookStatsManager::FAutoRegisterCallback RegisterCookStats([](FCookStatsManager::AddStatFuncRef AddStat)
-	{
-		AddStat(TEXT("Material"), FCookStatsManager::CreateKeyValueArray(
-			TEXT("MaterialInstanceUpdateCachedExpressionDataSec"), MaterialInstanceUpdateCachedExpressionDataSec
-		));
-	});
-}
 #endif
 
 UMaterialInstanceConstant::UMaterialInstanceConstant(const FObjectInitializer& ObjectInitializer)
@@ -187,8 +171,6 @@ void FMaterialInstanceCachedData::InitializeForConstant(const FMaterialLayersFun
 
 void UMaterialInstanceConstant::UpdateCachedData()
 {
-	COOK_STAT(FScopedDurationTimer BlockingTimer(MaterialInstanceCookStats::MaterialInstanceUpdateCachedExpressionDataSec));
-
 	// Don't need to rebuild cached data if it was serialized
 	if (!bLoadedCachedData)
 	{

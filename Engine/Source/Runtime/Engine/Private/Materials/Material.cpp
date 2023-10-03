@@ -101,20 +101,6 @@
 
 #include UE_INLINE_GENERATED_CPP_BY_NAME(Material)
 
-#if ENABLE_COOK_STATS
-namespace MaterialCookStats
-{
-	static double MaterialUpdateCachedExpressionDataSec = 0.0;
-
-	static FCookStatsManager::FAutoRegisterCallback RegisterCookStats([](FCookStatsManager::AddStatFuncRef AddStat)
-		{
-			AddStat(TEXT("Material"), FCookStatsManager::CreateKeyValueArray(
-				TEXT("MaterialUpdateCachedExpressionDataSec"), MaterialUpdateCachedExpressionDataSec
-			));
-		});
-}
-#endif
-
 #define LOCTEXT_NAMESPACE "Material"
 
 static TAutoConsoleVariable<int32> CVarMaterialParameterLegacyChecks(
@@ -2050,8 +2036,6 @@ void UMaterial::UpdateTransientExpressionData()
 #if WITH_EDITOR
 void UMaterial::UpdateCachedExpressionData()
 {
-	COOK_STAT(FScopedDurationTimer BlockingTimer(MaterialCookStats::MaterialUpdateCachedExpressionDataSec));
-
 	//@note FH: temporary preemptive PostLoad until zenloader load ordering improvements
 	ConditionalPostLoad();
 

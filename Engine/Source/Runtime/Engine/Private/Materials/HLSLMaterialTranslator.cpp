@@ -102,15 +102,8 @@ struct FCsvLogFile
 #include "ProfilingDebugging/ScopedTimers.h"
 namespace MaterialTranslatorCookStats
 {
-	static int32 MaterialTranslateCalls = 0;
-	static double MaterialTranslateTimeSec = 0.0f;
-
 	static FCookStatsManager::FAutoRegisterCallback RegisterCookStats([](FCookStatsManager::AddStatFuncRef AddStat)
 		{
-			AddStat(TEXT("Material"), FCookStatsManager::CreateKeyValueArray(
-				TEXT("MaterialTranslateCalls"), MaterialTranslateCalls,
-				TEXT("MaterialTranslateTimeSec"), MaterialTranslateTimeSec
-			));
 			FCsvLogFile::Get().Save();
 		});
 }
@@ -883,8 +876,6 @@ bool FHLSLMaterialTranslator::Translate()
 		<< FHLSLMaterialTranslatorTranslate.MaterialName(*TraceMaterialName);
 #endif
 
-	COOK_STAT(MaterialTranslatorCookStats::MaterialTranslateCalls++);
-	COOK_STAT(FScopedDurationTimer DurationTimer(MaterialTranslatorCookStats::MaterialTranslateTimeSec));
 	COOK_STAT(FDateTime TranslationDateTime = FDateTime::Now());
 
 	STAT(double HLSLTranslateTime = 0);
@@ -1971,8 +1962,12 @@ bool FHLSLMaterialTranslator::Translate()
 		// Store the number of unique VT samples
 		MaterialCompilationOutput.EstimatedNumVirtualTextureLookups = NumVtSamples;
 	}
+
 	ClearAllFunctionStacks();
-		
+	
+#if STATS
+	GShaderCompilerStats->IncrementMaterialTranslateTime(HLSLTranslateTime);
+#endif // STATS
 	INC_FLOAT_STAT_BY(STAT_ShaderCompiling_HLSLTranslation,(float)HLSLTranslateTime);
 
 #if ENABLE_COOK_STATS
