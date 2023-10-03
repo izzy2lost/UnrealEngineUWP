@@ -14,7 +14,7 @@ public:
 #if WITH_EDITOR
 	//~ Begin URuntimePartition interface
 	virtual bool SupportsHLODs() const override { return true; }
-	virtual bool IsValidPartitionTokens(const TArray<FName> InPartitionTokens) const override;
+	virtual bool IsValidPartitionTokens(const TArray<FName>& InPartitionTokens) const override;
 	virtual bool GenerateStreaming(const FGenerateStreamingParams& InParams, FGenerateStreamingResult& OutResult) override;
 	//~ End URuntimePartition interface
 #endif

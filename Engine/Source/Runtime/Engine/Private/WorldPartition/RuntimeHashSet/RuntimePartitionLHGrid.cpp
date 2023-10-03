@@ -74,7 +74,7 @@ void URuntimePartitionLHGrid::SetDefaultValues()
 	CellSize = LoadingRange / 2;
 }
 
-bool URuntimePartitionLHGrid::IsValidPartitionTokens(const TArray<FName> InPartitionTokens) const
+bool URuntimePartitionLHGrid::IsValidPartitionTokens(const TArray<FName>& InPartitionTokens) const
 {
 	return InPartitionTokens.Num() == 1;
 }

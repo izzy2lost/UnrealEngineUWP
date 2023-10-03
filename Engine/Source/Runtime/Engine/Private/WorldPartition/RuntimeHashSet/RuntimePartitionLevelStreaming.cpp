@@ -5,7 +5,7 @@
 #include "WorldPartition/WorldPartitionStreamingGenerationContext.h"
 
 #if WITH_EDITOR
-bool URuntimePartitionLevelStreaming::IsValidPartitionTokens(const TArray<FName> InPartitionTokens) const
+bool URuntimePartitionLevelStreaming::IsValidPartitionTokens(const TArray<FName>& InPartitionTokens) const
 {
 	return InPartitionTokens.Num() && (InPartitionTokens.Num() <= 2);
 }
