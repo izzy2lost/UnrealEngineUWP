@@ -53,7 +53,7 @@ bool FParameterToAdd::IsValid(FText& OutReason) const
 
 	if(!Library.IsValid())
 	{
-		OutReason = LOCTEXT("InvalidParameterType", "Invalid Parameter Library");
+		OutReason = LOCTEXT("InvalidParameterLibrary", "Invalid Parameter Library");
 	}
 	
 	return true; 

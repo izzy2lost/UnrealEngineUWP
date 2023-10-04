@@ -54,5 +54,3 @@ public:
 }
 
 IMPLEMENT_MODULE(UE::AnimNext::FModule, AnimNext)
-
-#undef LOCTEXT_NAMESPACE
