@@ -178,6 +178,18 @@ private:
 // Buoyancy Sim Callback
 //
 
+// Each particle will have a list of potential midphases to process,
+// which must be sorted in descending Z order. This struct is used
+// to store them
+struct FBuoyancyInteraction
+{
+	Chaos::FPBDRigidParticleHandle* RigidParticle;
+	Chaos::FGeometryParticleHandle* WaterParticle;
+	const FBuoyancyWaterSplineData& WaterSpline;
+	float ClosestSplineKey;
+	FVector ClosestPoint;
+};
+
 // Metadata for submersions, used for event callbacks
 struct FBuoyancySubmersionMetaData
 {
@@ -252,8 +264,10 @@ private:
 	virtual void OnPreSimulate_Internal() override;
 	virtual void OnMidPhaseModification_Internal(Chaos::FMidPhaseModifierAccessor& Modifier) override;
 
-	void ProcessMidPhases(Chaos::FPBDRigidsEvolution& Evolution, Chaos::FMidPhaseModifierAccessor& MidPhaseAccessor);
-	void ProcessMidPhase(Chaos::FPBDRigidsEvolution& Evolution, Chaos::FGeometryParticleHandle* WaterParticle, Chaos::FPBDRigidParticleHandle* RigidParticle, const FBuoyancyWaterSplineData& WaterSpline, Chaos::FMidPhaseModifier& MidPhase);
+	void TrackInteractions(Chaos::FPBDRigidsEvolution& Evolution, Chaos::FMidPhaseModifierAccessor& MidPhaseAccessor);
+	void TrackInteraction(Chaos::FPBDRigidsEvolution& Evolution, Chaos::FGeometryParticleHandle* WaterParticle, Chaos::FPBDRigidParticleHandle* RigidParticle, const FBuoyancyWaterSplineData& WaterSpline, Chaos::FMidPhaseModifier& MidPhase);
+	void ProcessInteractions(Chaos::FPBDRigidsEvolution& Evolution);
+	void ProcessInteraction(Chaos::FPBDRigidsEvolution& Evolution, FBuoyancyInteraction& Interaction);
 	void ApplyBuoyantForces(Chaos::FPBDRigidsEvolution& Evolution);
 	void GenerateCallbackData();
 
@@ -265,6 +279,16 @@ private:
 	// via async input. I used TUniquePtr to control access to the same
 	// memory that was allocated by GT to minimize copies.
 	TUniquePtr<FBuoyancySettings> BuoyancySettings;
+
+	// Sparse array of arrays of buoyancy interactions - the outer array has one
+	// entry per particle, the inner array has an entry per water body that it interacts
+	// with. Each will be a very small array, sorted by Z.
+	//
+	// We use inline allocator to avoid more heap allocations, and to express the
+	// assumption that a single particle is unlikely to exceed interactions with a
+	// certain number of waterbodies at a time.
+	static constexpr int32 MaxNumBuoyancyInteractions = 2;
+	TSparseArray<TArray<FBuoyancyInteraction, TInlineAllocator<MaxNumBuoyancyInteractions>>> Interactions;
 
 	// This sparse array of submersion events is indexed on particle unique indices.
 	// All buoyant forces due to submersions are applied at once. It's stored as
