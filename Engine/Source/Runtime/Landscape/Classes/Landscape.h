@@ -274,7 +274,7 @@ public:
 	* @return false in case of failure (e.g. invalid inputs, incompatible render target format...)
 	*/
 	UFUNCTION(BlueprintCallable, Category = "Landscape|Runtime")
-	LANDSCAPE_API bool RenderHeightmap(const FTransform& InWorldTransform, const FBox2D& InExtents, UTextureRenderTarget2D* OutRenderTarget);
+	LANDSCAPE_API bool RenderHeightmap(FTransform InWorldTransform, FBox2D InExtents, UTextureRenderTarget2D* OutRenderTarget);
 
 	/**
 	* Render the final weightmap for the requested layer, in the requested top-down window, as one -atlased- texture in the provided render target 2D
@@ -286,7 +286,7 @@ public:
 	* @return false in case of failure (e.g. invalid inputs, incompatible render target format...)
 	*/
 	UFUNCTION(BlueprintCallable, Category = "Landscape|Runtime")
-	LANDSCAPE_API bool RenderWeightmap(const FTransform& InWorldTransform, const FBox2D& InExtents, FName InWeightmapLayerName, UTextureRenderTarget2D* OutRenderTarget);
+	LANDSCAPE_API bool RenderWeightmap(FTransform InWorldTransform, FBox2D InExtents, FName InWeightmapLayerName, UTextureRenderTarget2D* OutRenderTarget);
 
 	/**
 	* Render the final weightmaps for the requested layers, in the requested top-down window, as one -atlased- texture in the provided render target (2D or 2DArray) 
@@ -300,7 +300,7 @@ public:
 	* @return false in case of failure (e.g. invalid inputs, incompatible render target format...)
 	*/
 	UFUNCTION(BlueprintCallable, Category = "Landscape|Runtime")
-	LANDSCAPE_API bool RenderWeightmaps(const FTransform& InWorldTransform, const FBox2D& InExtents, const TArray<FName>& InWeightmapLayerNames, UTextureRenderTarget* OutRenderTarget);
+	LANDSCAPE_API bool RenderWeightmaps(FTransform InWorldTransform, FBox2D InExtents, const TArray<FName>& InWeightmapLayerNames, UTextureRenderTarget* OutRenderTarget);
 
 	bool IsValidRenderTargetFormatHeightmap(EPixelFormat InRenderTargetFormat, bool& bOutCompressHeight);
 	bool IsValidRenderTargetFormatWeightmap(EPixelFormat InRenderTargetFormat, int32& OutNumChannels);
