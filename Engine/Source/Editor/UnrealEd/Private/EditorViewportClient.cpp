@@ -3856,6 +3856,19 @@ bool FEditorViewportClient::InputWidgetDelta(FViewport* InViewport, EAxisList::T
 
 void FEditorViewportClient::SetWidgetMode(UE::Widget::EWidgetMode NewMode)
 {
+	// Don't set hit proxies or redraw collapsed viewport widgets
+	if (TSharedPtr<SEditorViewport> EditorViewportWidgetPinned = EditorViewportWidget.Pin())
+	{
+		if (!EditorViewportWidgetPinned->IsVisible() || EditorViewportWidgetPinned->GetVisibility() != EVisibility::Visible)
+		{
+			return;
+		}
+	}
+	else
+	{
+		return;
+	}
+
 	if (!ModeTools->IsTracking() && !IsFlightCameraActive())
 	{
 		ModeTools->SetWidgetMode(NewMode);
