@@ -577,6 +577,31 @@ const UWidget* FUIActionBindingHandle::GetBoundWidget() const
 FUIInputConfig::FUIInputConfig()
 	: InputMode(ECommonInputMode::Menu)
 	, MouseCaptureMode(EMouseCaptureMode::NoCapture)
+	, MouseLockMode(EMouseLockMode::DoNotLock)
+{}
+
+FUIInputConfig::FUIInputConfig(ECommonInputMode InInputMode, EMouseCaptureMode InMouseCaptureMode, bool bInHideCursorDuringViewportCapture)
+	: InputMode(InInputMode)
+	, MouseCaptureMode(InMouseCaptureMode)
+	, bHideCursorDuringViewportCapture(bInHideCursorDuringViewportCapture)
+{
+	switch (MouseCaptureMode)
+	{
+	case EMouseCaptureMode::CapturePermanently:
+	case EMouseCaptureMode::CapturePermanently_IncludingInitialMouseDown:
+		MouseLockMode = EMouseLockMode::LockOnCapture;
+		break;
+	default:
+		MouseLockMode = EMouseLockMode::DoNotLock;
+		break;
+	}
+}
+
+FUIInputConfig::FUIInputConfig(ECommonInputMode InInputMode, EMouseCaptureMode InMouseCaptureMode, EMouseLockMode InMouseLockMode, bool bInHideCursorDuringViewportCapture)
+	: InputMode(InInputMode)
+	, MouseCaptureMode(InMouseCaptureMode)
+	, MouseLockMode(InMouseLockMode)
+	, bHideCursorDuringViewportCapture(bInHideCursorDuringViewportCapture)
 {}
 
 FString FUIInputConfig::ToString() const

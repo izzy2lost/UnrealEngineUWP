@@ -7,6 +7,7 @@
 #include "UIActionBindingHandle.generated.h"
 
 enum class EMouseCaptureMode : uint8;
+enum class EMouseLockMode : uint8;
 struct FScriptContainerElement;
 
 class UWidget;
@@ -89,19 +90,18 @@ struct COMMONUI_API FUIInputConfig
 
 	ECommonInputMode GetInputMode() const { return InputMode; }
 	EMouseCaptureMode GetMouseCaptureMode() const { return MouseCaptureMode; }
+	EMouseLockMode GetMouseLockMode() const { return MouseLockMode; }
 	bool HideCursorDuringViewportCapture() const { return bHideCursorDuringViewportCapture; }
 
 	FUIInputConfig();
-	FUIInputConfig(ECommonInputMode InInputMode, EMouseCaptureMode InMouseCaptureMode, bool bInHideCursorDuringViewportCapture = true)
-		: InputMode(InInputMode)
-		, MouseCaptureMode(InMouseCaptureMode)
-		, bHideCursorDuringViewportCapture(bInHideCursorDuringViewportCapture)
-	{}
+	FUIInputConfig(ECommonInputMode InInputMode, EMouseCaptureMode InMouseCaptureMode, bool bInHideCursorDuringViewportCapture = true);
+	FUIInputConfig(ECommonInputMode InInputMode, EMouseCaptureMode InMouseCaptureMode, EMouseLockMode InMouseLockMode, bool bInHideCursorDuringViewportCapture = true);
 
 	bool operator==(const FUIInputConfig& Other) const
 	{
 		return InputMode == Other.InputMode
 			&& MouseCaptureMode == Other.MouseCaptureMode
+			&& MouseLockMode == Other.MouseLockMode
 			&& bHideCursorDuringViewportCapture == Other.bHideCursorDuringViewportCapture;
 	}
 
@@ -127,6 +127,10 @@ protected:
 
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = InputConfig)
 	EMouseCaptureMode MouseCaptureMode;
+
+
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = InputConfig)
+	EMouseLockMode MouseLockMode;
 
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = InputConfig)
 	bool bHideCursorDuringViewportCapture = true;

@@ -1456,11 +1456,11 @@ void UCommonUIActionRouterBase::ApplyUIInputConfig(const FUIInputConfig& NewConf
 						GetWorld()->GetTimerManager().SetTimerForNextTick(this, &ThisClass::FlushPressedKeys);
 					}
 
-					EMouseCaptureMode PrevCaptureMode = GameViewportClient->GetMouseCaptureMode();
-					const bool bWasPermanentlyCaptured = PrevCaptureMode == EMouseCaptureMode::CapturePermanently || PrevCaptureMode == EMouseCaptureMode::CapturePermanently_IncludingInitialMouseDown;
+					const bool bWasCursorHidden = !PC->ShouldShowMouseCursor();
 
 					GameViewportClient->SetMouseCaptureMode(NewConfig.GetMouseCaptureMode());
 					GameViewportClient->SetHideCursorDuringCapture(NewConfig.HideCursorDuringViewportCapture() && !ShouldAlwaysShowCursor());
+					GameViewportClient->SetMouseLockMode(NewConfig.GetMouseLockMode());
 
 					FReply& SlateOperations = LocalPlayer.GetSlateOperations();
 					const EMouseCaptureMode CaptureMode = NewConfig.GetMouseCaptureMode();
@@ -1469,59 +1469,73 @@ void UCommonUIActionRouterBase::ApplyUIInputConfig(const FUIInputConfig& NewConf
 					case EMouseCaptureMode::CapturePermanently:
 					case EMouseCaptureMode::CapturePermanently_IncludingInitialMouseDown:
 					{
-						GameViewportClient->SetMouseLockMode(EMouseLockMode::LockOnCapture);
-						PC->SetShowMouseCursor(ShouldAlwaysShowCursor());
+						PC->SetShowMouseCursor(ShouldAlwaysShowCursor() || !NewConfig.HideCursorDuringViewportCapture());
 
 						TSharedRef<SViewport> ViewportWidgetRef = ViewportWidget.ToSharedRef();
 						SlateOperations.UseHighPrecisionMouseMovement(ViewportWidgetRef);
 						SlateOperations.SetUserFocus(ViewportWidgetRef);
-						SlateOperations.LockMouseToWidget(ViewportWidgetRef);
 						SlateOperations.CaptureMouse(ViewportWidgetRef);
+
+						if (GameViewportClient->ShouldAlwaysLockMouse() || GameViewportClient->LockDuringCapture() || !PC->ShouldShowMouseCursor())
+						{
+							SlateOperations.LockMouseToWidget(ViewportWidget.ToSharedRef());
+						}
+						else
+						{
+							SlateOperations.ReleaseMouseLock();
+						}
 					}
 					break;
 					case EMouseCaptureMode::NoCapture:
 					case EMouseCaptureMode::CaptureDuringMouseDown:
 					case EMouseCaptureMode::CaptureDuringRightMouseDown:
 					{
-						GameViewportClient->SetMouseLockMode(EMouseLockMode::DoNotLock);
 						PC->SetShowMouseCursor(true);
 
-						SlateOperations.ReleaseMouseLock();
 						SlateOperations.ReleaseMouseCapture();
 
-						// If the mouse was captured previously, set it back to the center of the viewport now that we're showing it again 
-						if (!bForceRefresh && bWasPermanentlyCaptured)
+						if (GameViewportClient->ShouldAlwaysLockMouse())
 						{
-							const ECommonInputType CurrentInputType = GetInputSubsystem().GetCurrentInputType();
-							
-							bool bCenterCursor = true;
-							switch (CurrentInputType)
-							{
-								// Touch - Don't do it - the cursor isn't really relevant there.
-								case ECommonInputType::Touch:
-									bCenterCursor = false;
-									break;
-								// Gamepad - Let the settings tell us if we should center it.
-								case ECommonInputType::Gamepad:
-									break;
-							}
-
-							if (bCenterCursor)
-							{
-								TSharedPtr<FSlateUser> SlateUser = LocalPlayer.GetSlateUser();
-								TSharedPtr<IGameLayerManager> GameLayerManager = GameViewportClient->GetGameLayerManager();
-								if (ensure(SlateUser) && ensure(GameLayerManager))
-								{
-									FGeometry PlayerViewGeometry = GameLayerManager->GetPlayerWidgetHostGeometry(&LocalPlayer);
-									const FVector2D AbsoluteViewCenter = PlayerViewGeometry.GetAbsolutePositionAtCoordinates(FVector2D(0.5f, 0.5f));
-									SlateUser->SetCursorPosition(AbsoluteViewCenter);
-
-									UE_LOG(LogUIActionRouter, Verbose, TEXT("Capturing the cursor at the viewport center."));
-								}
-							}
+							SlateOperations.LockMouseToWidget(ViewportWidget.ToSharedRef());
+						}
+						else
+						{
+							SlateOperations.ReleaseMouseLock();
 						}
 					}
 					break;
+					}
+
+					// If the mouse was hidden previously, set it back to the center of the viewport now that we're showing it again 
+					if (!bForceRefresh && bWasCursorHidden && PC->ShouldShowMouseCursor())
+					{
+						const ECommonInputType CurrentInputType = GetInputSubsystem().GetCurrentInputType();
+						
+						bool bCenterCursor = true;
+						switch (CurrentInputType)
+						{
+							// Touch - Don't do it - the cursor isn't really relevant there.
+							case ECommonInputType::Touch:
+								bCenterCursor = false;
+								break;
+							// Gamepad - Let the settings tell us if we should center it.
+							case ECommonInputType::Gamepad:
+								break;
+						}
+
+						if (bCenterCursor)
+						{
+							TSharedPtr<FSlateUser> SlateUser = LocalPlayer.GetSlateUser();
+							TSharedPtr<IGameLayerManager> GameLayerManager = GameViewportClient->GetGameLayerManager();
+							if (ensure(SlateUser) && ensure(GameLayerManager))
+							{
+								FGeometry PlayerViewGeometry = GameLayerManager->GetPlayerWidgetHostGeometry(&LocalPlayer);
+								const FVector2D AbsoluteViewCenter = PlayerViewGeometry.GetAbsolutePositionAtCoordinates(FVector2D(0.5f, 0.5f));
+								SlateUser->SetCursorPosition(AbsoluteViewCenter);
+
+								UE_LOG(LogUIActionRouter, Verbose, TEXT("Moving the cursor to the viewport center."));
+							}
+						}
 					}
 				}
 				else
