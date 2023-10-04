@@ -1,19 +1,20 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 
 #include "Iris/ReplicationState/PropertyReplicationState.h"
+#include "Iris/Core/IrisDebugging.h"
+#include "Iris/Core/IrisLog.h"
+#include "Iris/Core/IrisProfiler.h"
 #include "Iris/ReplicationState/InternalPropertyReplicationState.h"
 #include "Iris/ReplicationState/InternalReplicationStateDescriptorUtils.h"
 #include "Iris/ReplicationState/ReplicationStateUtil.h"
 #include "Iris/ReplicationSystem/ReplicationSystem.h"
 #include "Net/Core/NetBitArray.h"
+#include "Net/Core/PushModel/PushModel.h"
 #include "Net/Core/Trace/NetDebugName.h"
 #include "CoreTypes.h"
 #include "UObject/UnrealType.h"
-#include "Iris/Core/IrisLog.h"
 #include "UObject/PropertyPortFlags.h"
 #include "Containers/StringFwd.h"
-#include "Iris/Core/IrisDebugging.h"
-#include "Iris/Core/IrisProfiler.h"
 
 DEFINE_LOG_CATEGORY_STATIC(LogIrisRepNotify, Warning, All);
 
@@ -319,14 +320,19 @@ bool FPropertyReplicationState::PollPropertyReplicationStateForRepNotifies(const
 	return IsDirty();
 }
 
-void FPropertyReplicationState::PushPropertyReplicationState(void* RESTRICT DstData, bool bInPushAll) const
+void FPropertyReplicationState::PushPropertyReplicationState(const UObject* Owner, void* RESTRICT DstData, bool bInPushAll) const
 {
 	// $IRIS TODO: Rewrite this to iterate over change mask instead of iterating over all members and querying the mask
 	// Note, we need to use a NetBitStreamReader and the changemask descriptor since each member might have different number of bits.
 	if (IsValid())
 	{
+#if WITH_PUSH_MODEL
+		using RepIndexType = decltype(FProperty::RepIndex);
+		TArray<RepIndexType, TInlineAllocator<128>> DirtyRepIndices;
+#endif
+
 		const FReplicationStateDescriptor* Descriptor = ReplicationStateDescriptor;
-		uint8* DstBuffer = reinterpret_cast<uint8*>(DstData);
+		uint8* DstBuffer = static_cast<uint8*>(DstData);
 
 		IRIS_PROFILER_PROTOCOL_NAME(ReplicationStateDescriptor->DebugName->Name);
 
@@ -347,8 +353,25 @@ void FPropertyReplicationState::PushPropertyReplicationState(void* RESTRICT DstD
 				const FProperty* Property = MemberProperties[MemberIt];
 
 				PushPropertyValue(MemberIt, DstBuffer + Property->GetOffset_ForGC() + Property->ElementSize*MemberPropertyDescriptor.ArrayIndex);
+
+#if WITH_PUSH_MODEL
+				if (MemberPropertyDescriptor.ArrayIndex == 0)
+				{
+					DirtyRepIndices.Add(Property->RepIndex);
+				}
+#endif
 			}
 		}
+
+#if WITH_PUSH_MODEL
+		if (Owner != nullptr)
+		{
+			for (RepIndexType RepIndex : DirtyRepIndices)
+			{
+				MARK_PROPERTY_DIRTY_UNSAFE(Owner, RepIndex);
+			}
+		}
+#endif
 	}
 }
 

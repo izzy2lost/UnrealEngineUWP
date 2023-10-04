@@ -132,7 +132,7 @@ void FPropertyReplicationFragment::ApplyReplicatedState(FReplicationStateApplyCo
 	const FPropertyReplicationState ReceivedState(Context.Descriptor, Context.StateBufferData.ExternalStateBuffer);
 
 	// Just push the state data to owner
-	ReceivedState.PushPropertyReplicationState(Owner);
+	ReceivedState.PushPropertyReplicationState(Owner, static_cast<void*>(Owner));
 }
 
 bool FPropertyReplicationFragment::PollReplicatedState(EReplicationFragmentPollFlags PollOption)

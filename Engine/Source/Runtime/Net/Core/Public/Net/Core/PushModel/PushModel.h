@@ -469,6 +469,7 @@ namespace UEPushModelPrivate
 
 #else // WITH_PUSH_MODEL
 
+#define MARK_PROPERTY_DIRTY_UNSAFE(Object, RepIndex)
 #define MARK_PROPERTY_DIRTY(Object, Property) 
 #define MARK_PROPERTY_DIRTY_STATIC_ARRAY_INDEX(Object, RepIndex, ArrayIndex) 
 #define MARK_PROPERTY_DIRTY_STATIC_ARRAY(Object, RepIndex, ArrayIndex) 
