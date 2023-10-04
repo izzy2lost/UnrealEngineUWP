@@ -55,7 +55,7 @@ struct FBoundIKRig
 	FBoundIKRig(UIKRigDefinition* InIKRig, const FIKRetargetEditorController& InController);
 	void UnBind() const;
 	
-	UIKRigDefinition* IKRig;
+	TWeakObjectPtr<UIKRigDefinition> IKRig;
 	FDelegateHandle ReInitIKDelegateHandle;
 	FDelegateHandle AddedChainDelegateHandle;
 	FDelegateHandle RenameChainDelegateHandle;

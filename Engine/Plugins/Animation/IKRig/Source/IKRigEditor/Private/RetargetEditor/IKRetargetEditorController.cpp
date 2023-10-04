@@ -44,12 +44,12 @@ FBoundIKRig::FBoundIKRig(UIKRigDefinition* InIKRig, const FIKRetargetEditorContr
 
 void FBoundIKRig::UnBind() const
 {
-	if (!IsValid(IKRig))
+	if (!IKRig.IsValid())
 	{
 		return;
 	}
 	
-	UIKRigController* IKRigController = UIKRigController::GetController(IKRig);
+	UIKRigController* IKRigController = UIKRigController::GetController(IKRig.Get());
 	IKRigController->OnIKRigNeedsInitialized().Remove(ReInitIKDelegateHandle);
 	IKRigController->OnRetargetChainAdded().Remove(AddedChainDelegateHandle);
 	IKRigController->OnRetargetChainRemoved().Remove(RemoveChainDelegateHandle);
