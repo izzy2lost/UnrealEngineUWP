@@ -57,6 +57,7 @@ private:
 	FHttpClientConfig Config;
 	HTTP::FEventLoop EventLoop;
 	TArray<TUniquePtr<HTTP::FConnectionPool>> Connections;
+	TArray<FRequestParams> Retries;
 	int32 PrimaryConnection = INDEX_NONE;
 };
 

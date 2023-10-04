@@ -42,10 +42,20 @@ bool FHttpClient::Tick(uint32 WaitTimeMs, uint32 MaxKiBPerSecond)
 	}
 
 	EventLoop.Throttle(MaxKiBPerSecond);
-	const bool bTicked = EventLoop.Tick(WaitTimeMs) != 0;
+	const uint32 TicketCount = EventLoop.Tick(WaitTimeMs);
 
-	// Clean up all but the primary connection
-	if (bTicked == false)
+	if (Retries.IsEmpty() == false)
+	{
+		const int32 RequestCount = FMath::Min(Retries.Num(), int32(HTTP::FEventLoop::MaxActiveTickets - TicketCount));
+		for (int32 Idx = 0; Idx < RequestCount; Idx++)
+		{
+			IssueRequest(MoveTemp(Retries[Idx]));
+		}
+		Retries.RemoveAtSwap(0, RequestCount);
+	}
+
+	const bool bIsIdle = EventLoop.IsIdle();
+	if (bIsIdle)
 	{
 		for (int32 Idx = 0, Count = Connections.Num(); Idx < Count; ++Idx)
 		{
@@ -56,7 +66,7 @@ bool FHttpClient::Tick(uint32 WaitTimeMs, uint32 MaxKiBPerSecond)
 		}
 	}
 
-	return bTicked;
+	return bIsIdle == false;
 }
 
 FHttpClient::FHttpClient(FHttpClientConfig&& ClientConfig)
@@ -210,7 +220,7 @@ void FHttpClient::RetryRequest(FRequestParams&& Params, bool bNextConnection)
 		}
 	}
 	Params.Attempt++;
-	IssueRequest(MoveTemp(Params));
+	Retries.Emplace(MoveTemp(Params));
 }
 
 TUniquePtr<HTTP::FConnectionPool> FHttpClient::CreateConnection(const FStringView& HostAddr)

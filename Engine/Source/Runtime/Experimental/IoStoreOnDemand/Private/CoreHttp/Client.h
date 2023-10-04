@@ -180,6 +180,8 @@ class UE_API FEventLoop
 	class FImpl;
 
 public:
+	static const uint32		MaxActiveTickets = 64;
+
 	struct FRequestParams
 	{
 		uint32	BufferSize	= 256;
