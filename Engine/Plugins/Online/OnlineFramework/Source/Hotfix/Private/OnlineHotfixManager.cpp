@@ -747,8 +747,40 @@ EHotfixResult UOnlineHotfixManager::ApplyHotfix()
 	return Result;
 }
 
+#if !UE_BUILD_SHIPPING
+void UOnlineHotfixManager::ApplyLocalTestHotfix(FString Filename)
+{
+	const FString CleanName = FPaths::GetCleanFilename(Filename);
+	FString IniData;
+	if (FFileHelper::LoadFileToString(IniData, *Filename))
+	{
+		if (HotfixIniFile(CleanName, IniData))
+		{
+			UE_LOG(LogHotfixManager, Display, TEXT("Successfully applied test hotfix file %s"), *Filename);
+		}
+		else
+		{
+			UE_LOG(LogHotfixManager, Display, TEXT("Failed to apply test hotfix file %s"), *Filename);
+		}
+	}
+	else
+	{
+		UE_LOG(LogHotfixManager, Warning, TEXT("Unable to read test hotfix file '%s'"), *Filename);
+	}
+}
+#endif
+
 void UOnlineHotfixManager::TriggerHotfixComplete(EHotfixResult HotfixResult)
 {
+#if !UE_BUILD_SHIPPING
+	// Apply this here so it overwrites any downloaded hotfix changes
+	FString IniFilename;
+	if (FParse::Value(FCommandLine::Get(), TEXT("-TestHotfixIniFile="), IniFilename))
+	{
+		ApplyLocalTestHotfix(IniFilename);
+	}
+#endif
+	
 	if (HotfixResult != EHotfixResult::Failed && HotfixResult != EHotfixResult::SuccessNoChange)
 	{
 		PatchAssetsFromIniFiles();

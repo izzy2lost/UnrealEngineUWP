@@ -372,6 +372,11 @@ protected:
 	/** Allow child classes to determine if specific assets should be hotfixed or not */
 	virtual bool ShouldHotfixAsset(const FString& AssetPath) const;
 
+#if !UE_BUILD_SHIPPING
+	/** Test function that applies a local file as if it were a hotfix. */
+	void ApplyLocalTestHotfix(FString Filename);
+#endif
+
 public:
 	UOnlineHotfixManager();
 	UOnlineHotfixManager(FVTableHelper& Helper);
