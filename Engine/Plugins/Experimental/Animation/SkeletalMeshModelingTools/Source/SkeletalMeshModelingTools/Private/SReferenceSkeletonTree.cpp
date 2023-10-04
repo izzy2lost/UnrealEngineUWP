@@ -521,7 +521,8 @@ void SReferenceSkeletonTree::HandlePasteBones()
 
 	static constexpr bool bRebuildAll = true;
 	RefreshTreeView(bRebuildAll);
-	SelectItemFromNames(NewBones);
+	static constexpr bool bFrameSelection = true;
+	SelectItemFromNames(NewBones, bFrameSelection);
 
 	if (Notifier.IsValid())
 	{
@@ -557,7 +558,8 @@ void SReferenceSkeletonTree::HandleDuplicateBones()
 
 	static constexpr bool bRebuildAll = true;
 	RefreshTreeView(bRebuildAll);
-	SelectItemFromNames(NewBones);
+	static constexpr bool bFrameSelection = true;
+	SelectItemFromNames(NewBones, bFrameSelection);
 
 	if (Notifier.IsValid())
 	{
@@ -585,12 +587,18 @@ void SReferenceSkeletonTree::GetSelectedBoneNames(TArray<FName>& OutSelectedBone
 	});
 }
 
-void SReferenceSkeletonTree::SelectItemFromNames(const TArray<FName>& InBoneNames)
+void SReferenceSkeletonTree::SelectItemFromNames(const TArray<FName>& InBoneNames, bool bFrameSelection)
 {
 	for (const TSharedPtr<FBoneElement>& Item : AllElements)
 	{
 		const bool bSelect = InBoneNames.Contains(Item->BoneName);
 		TreeView->SetItemSelection(Item, bSelect, ESelectInfo::Direct);
+
+		if (bFrameSelection && bSelect)
+		{
+			TreeView->RequestScrollIntoView(Item);
+			bFrameSelection = false;
+		}
 	}
 }
 
@@ -835,8 +843,13 @@ void SReferenceSkeletonTree::HandleGetChildrenForTree(
 	OutChildren = InItem.Get()->Children;
 }
 
-void SReferenceSkeletonTree::OnSelectionChanged(TSharedPtr<FBoneElement> Selection, ESelectInfo::Type SelectInfo)
+void SReferenceSkeletonTree::OnSelectionChanged(TSharedPtr<FBoneElement> InItem, ESelectInfo::Type InSelectInfo)
 {
+	if (!InItem || InSelectInfo == ESelectInfo::Direct)
+	{
+		return;
+	}
+	
 	TArray<FName> BoneNames;
 	GetSelectedBoneNames(BoneNames);
 	
@@ -1027,7 +1040,7 @@ FReferenceSkeletonWidgetNotifier::FReferenceSkeletonWidgetNotifier(TSharedRef<SR
 
 void FReferenceSkeletonWidgetNotifier::HandleNotification(const TArray<FName>& InBoneNames, const ESkeletalMeshNotifyType InNotifyType)
 {
-	if (!Tree.IsValid())
+	if (Notifying() || !Tree.IsValid())
 	{
 		return;
 	}
@@ -1044,8 +1057,11 @@ void FReferenceSkeletonWidgetNotifier::HandleNotification(const TArray<FName>& I
 		case ESkeletalMeshNotifyType::BonesMoved:
 			break;
 		case ESkeletalMeshNotifyType::BonesSelected:
-			TreePtr->SelectItemFromNames(InBoneNames);
-			break;
+			{
+				static constexpr bool bFrameSelection = true;
+				TreePtr->SelectItemFromNames(InBoneNames, bFrameSelection);
+				break;
+			}
 		case ESkeletalMeshNotifyType::BonesRenamed:
 			TreePtr->RefreshTreeView();
 			TreePtr->SelectItemFromNames(InBoneNames);

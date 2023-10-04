@@ -176,7 +176,7 @@ public:
 	void GetSelectedBoneNames(TArray<FName>& OutSelectedBoneNames) const;
 	TArray<TSharedPtr<FBoneElement>> GetSelectedItems() const;
 	bool HasSelectedItems() const;
-	void SelectItemFromNames(const TArray<FName>& InBoneNames);
+	void SelectItemFromNames(const TArray<FName>& InBoneNames, bool bFrameSelection = false);
 
 	ISkeletalMeshNotifier& GetNotifier();
 
@@ -215,7 +215,7 @@ private:
 	// Callbacks
 	void RefreshTreeView(bool IsInitialSetup=false);
 	void HandleGetChildrenForTree(TSharedPtr<FBoneElement> InItem, TArray<TSharedPtr<FBoneElement>>& OutChildren);
-	void OnSelectionChanged(TSharedPtr<FBoneElement> Selection, ESelectInfo::Type SelectInfo);
+	void OnSelectionChanged(TSharedPtr<FBoneElement> InItem, ESelectInfo::Type InSelectInfo);
 	
 	TSharedRef< SWidget > CreateAddNewMenu();
 	TSharedPtr< SWidget > CreateContextMenu();

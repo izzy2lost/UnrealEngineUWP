@@ -1568,7 +1568,7 @@ FSkeletalMeshEditorNotifier::FSkeletalMeshEditorNotifier(TSharedRef<FSkeletalMes
 
 void FSkeletalMeshEditorNotifier::HandleNotification(const TArray<FName>& BoneNames, const ESkeletalMeshNotifyType InNotifyType)
 {
-	if (!Editor.IsValid())
+	if (Notifying() || !Editor.IsValid())
 	{
 		return;
 	}
