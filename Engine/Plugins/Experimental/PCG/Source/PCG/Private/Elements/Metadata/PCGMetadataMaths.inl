@@ -440,5 +440,32 @@ namespace PCGMetadataMaths
 			Modulo(Value1.Y, Value2.Y),
 			Modulo(Value1.Z, Value2.Z),
 			Modulo(Value1.W, Value2.W));
-	}	
+	}
+
+	////////////////////
+	// One Minus
+	////////////////////
+	template <typename T>
+	inline T OneMinus(const T& Value)
+	{
+		return T{ 1 } - Value;
+	}
+
+	template<>
+	inline FVector2D OneMinus(const FVector2D& Value)
+	{
+		return FVector2D::One() - Value;
+	}
+
+	template<>
+	inline FVector OneMinus(const FVector& Value)
+	{
+		return FVector::One() - Value;
+	}
+
+	template<>
+	inline FVector4 OneMinus(const FVector4& Value)
+	{
+		return FVector4::One() - Value;
+	}
 }
