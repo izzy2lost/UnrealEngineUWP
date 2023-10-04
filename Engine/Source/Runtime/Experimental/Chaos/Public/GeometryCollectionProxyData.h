@@ -187,7 +187,7 @@ private:
 	TManagedArrayAccessor<bool> ActiveAttribute;
 
 	/** physics state of the transform (Dynamic, kinematic, static, sleeping) */
-	TManagedArrayAccessor<int32> DynamicStateAttribute;
+	TManagedArrayAccessor<uint8> DynamicStateAttribute;
 
 	/** type of internal state parent */
 	TManagedArrayAccessor<uint8> InternalClusterParentTypeAttribute;
