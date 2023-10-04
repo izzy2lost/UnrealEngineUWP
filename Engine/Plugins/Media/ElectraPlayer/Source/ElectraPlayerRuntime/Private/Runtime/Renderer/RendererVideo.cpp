@@ -107,13 +107,13 @@ void FElectraRendererVideo::AcquireFromPool(FVideoDecoderOutputPtr& DelayedImage
  */
 UEMediaError FElectraRendererVideo::CreateBufferPool(const Electra::FParamDict& Parameters)
 {
-	const FVariantValue& variantNumBuffers = Parameters.GetValue("num_buffers");
+	const FVariantValue& variantNumBuffers = Parameters.GetValue(RenderOptionKeys::NumBuffers);
 	if (!variantNumBuffers.IsType(FVariantValue::EDataType::TypeInt64))
 		return UEMEDIA_ERROR_BAD_ARGUMENTS;
 	int32 RequestedNumBuffers = (int32)variantNumBuffers.GetInt64();
 
 	// Update dict for later query via GetBufferPoolProperties
-	BufferPoolProperties.Set("max_buffers", Electra::FVariantValue((int64)RequestedNumBuffers));
+	BufferPoolProperties.Set(RenderOptionKeys::MaxBuffers, Electra::FVariantValue((int64)RequestedNumBuffers));
 
 	// Currently, we only handle enlargement of the buffer pool. If the size should shrink,
 	if (RequestedNumBuffers != NumBuffers)
@@ -175,7 +175,7 @@ UEMediaError FElectraRendererVideo::AcquireBuffer(IBuffer*& OutBuffer, int32 Tim
 
 	FMediaBufferSharedPtrWrapper* MediaBufferSharedPtrWrapper = new FMediaBufferSharedPtrWrapper(DelayedImage);
 	check(MediaBufferSharedPtrWrapper);
-	MediaBufferSharedPtrWrapper->BufferProperties.Set("texture", FVariantValue(DelayedImage));
+	MediaBufferSharedPtrWrapper->BufferProperties.Set(RenderOptionKeys::Texture, FVariantValue(DelayedImage));
 	OutBuffer = MediaBufferSharedPtrWrapper;
 
 	FPlatformAtomics::InterlockedIncrement(&NumBuffersAcquiredForDecoder);
@@ -199,7 +199,7 @@ UEMediaError FElectraRendererVideo::ReturnBuffer(IBuffer* Buffer, bool bRender, 
 	if (bRender)
 	{
 		//OPT/CHANGE: Note that "MediaBufferSharedPtrWrapper->DecoderOutput->GetDict()" is the very same as InSampleProperties!
-		bool bIsDummyBuffer = InSampleProperties.GetValue("is_dummy").SafeGetBool(false);
+		bool bIsDummyBuffer = InSampleProperties.GetValue(RenderOptionKeys::DummyBufferFlag).SafeGetBool(false);
 
 		// Put frame into output queue...
 		if (TSharedPtr<FElectraPlayer, ESPMode::ThreadSafe> PinnedPlayer = Player.Pin())

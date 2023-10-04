@@ -395,7 +395,7 @@ void FStreamReaderMKV::HandleRequest()
 				TSharedPtrTS<FAccessUnit::CodecData> CSD(new FAccessUnit::CodecData);
 				CSD->ParsedInfo = SelectedTrackMetadata->CodecInfo;
 				CSD->CodecSpecificData = SelectedTrackMetadata->CodecInfo.GetCodecSpecificData();
-				FVariantValue dcr = SelectedTrackMetadata->CodecInfo.GetExtras().GetValue(TEXT("dcr"));
+				FVariantValue dcr = SelectedTrackMetadata->CodecInfo.GetExtras().GetValue(StreamCodecInformationOptions::DecoderConfigurationRecord);
 				if (dcr.IsValid() && dcr.IsType(FVariantValue::EDataType::TypeU8Array))
 				{
 					CSD->RawCSD = dcr.GetArray();

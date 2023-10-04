@@ -212,8 +212,8 @@ private:
 	TSharedPtr<IElectraDecoderVideoOutput, ESPMode::ThreadSafe>				CurrentDecoderOutput;
 
 	IMediaRenderer::IBuffer*												CurrentOutputBuffer = nullptr;
-	FParamDict																BufferAcquireOptions;
-	FParamDict																OutputBufferSampleProperties;
+	FParamDict																EmptyOptions;
+	FParamDict																DummyBufferSampleProperties;
 };
 ENUM_CLASS_FLAGS(FVideoDecoderImpl::EAUChangeFlags);
 
@@ -390,10 +390,10 @@ void FVideoDecoderImpl::CreateDecoderOutputPool()
 
 // TODO/FIXME: get the default value of 8 from some config option?
 	int64 NumOutputFrames = ElectraDecodersUtil::GetVariantValueSafeI64(DecoderConfigOptions, IElectraDecoderFeature::MinimumNumberOfOutputFrames, 8);
-	poolOpts.Set(TEXT("num_buffers"), FVariantValue(NumOutputFrames));
+	poolOpts.Set(RenderOptionKeys::NumBuffers, FVariantValue(NumOutputFrames));
 	if (Renderer->CreateBufferPool(poolOpts) == UEMEDIA_ERROR_OK)
 	{
-		MaxDecodeBufferSize = (int32) Renderer->GetBufferPoolProperties().GetValue(TEXT("max_buffers")).GetInt64();
+		MaxDecodeBufferSize = (int32) Renderer->GetBufferPoolProperties().GetValue(RenderOptionKeys::MaxBuffers).GetInt64();
 	}
 	else
 	{
@@ -569,8 +569,7 @@ void FVideoDecoderImpl::ReturnUnusedOutputBuffer()
 {
 	if (CurrentOutputBuffer)
 	{
-		OutputBufferSampleProperties.Clear();
-		Renderer->ReturnBuffer(CurrentOutputBuffer, false, OutputBufferSampleProperties);
+		Renderer->ReturnBuffer(CurrentOutputBuffer, false, EmptyOptions);
 		CurrentOutputBuffer = nullptr;
 	}
 }
@@ -777,7 +776,7 @@ IElectraDecoder::EOutputStatus FVideoDecoderImpl::HandleOutput()
 				{
 					SCOPE_CYCLE_COUNTER(STAT_ElectraPlayer_VideoConvertOutput);
 					CSV_SCOPED_TIMING_STAT(ElectraPlayer, VideoConvertOutput);
-					UEMediaError bufResult = Renderer->AcquireBuffer(CurrentOutputBuffer, 0, BufferAcquireOptions);
+					UEMediaError bufResult = Renderer->AcquireBuffer(CurrentOutputBuffer, 0, EmptyOptions);
 					check(bufResult == UEMEDIA_ERROR_OK || bufResult == UEMEDIA_ERROR_INSUFFICIENT_DATA);
 					if (bufResult != UEMEDIA_ERROR_OK && bufResult != UEMEDIA_ERROR_INSUFFICIENT_DATA)
 					{
@@ -852,8 +851,8 @@ IElectraDecoder::EOutputStatus FVideoDecoderImpl::HandleOutput()
 
 				// Create the platform specific decoder output.
 				TSharedPtr<FParamDict, ESPMode::ThreadSafe> BufferProperties(new FParamDict);
-				BufferProperties->Set(TEXT("pts"), FVariantValue(MatchingInput->AdjustedPTS));
-				BufferProperties->Set(TEXT("duration"), FVariantValue(MatchingInput->AdjustedDuration));
+				BufferProperties->Set(RenderOptionKeys::PTS, FVariantValue(MatchingInput->AdjustedPTS));
+				BufferProperties->Set(RenderOptionKeys::Duration, FVariantValue(MatchingInput->AdjustedDuration));
 
 				// Set properties from the bitstream messages.
 				BitstreamProcessor->SetPropertiesOnOutput(CurrentDecoderOutput, BufferProperties.Get(), MatchingInput->BitstreamInfo);
@@ -1104,7 +1103,7 @@ bool FVideoDecoderImpl::HandleDummyDecoding()
 		{
 			SCOPE_CYCLE_COUNTER(STAT_ElectraPlayer_VideoConvertOutput);
 			CSV_SCOPED_TIMING_STAT(ElectraPlayer, VideoConvertOutput);
-			UEMediaError bufResult = Renderer->AcquireBuffer(CurrentOutputBuffer, 0, BufferAcquireOptions);
+			UEMediaError bufResult = Renderer->AcquireBuffer(CurrentOutputBuffer, 0, EmptyOptions);
 			check(bufResult == UEMEDIA_ERROR_OK || bufResult == UEMEDIA_ERROR_INSUFFICIENT_DATA);
 			if (bufResult != UEMEDIA_ERROR_OK && bufResult != UEMEDIA_ERROR_INSUFFICIENT_DATA)
 			{
@@ -1121,11 +1120,10 @@ bool FVideoDecoderImpl::HandleDummyDecoding()
 
 		NotifyReadyBufferListener(true);
 
-		OutputBufferSampleProperties.Clear();
-		OutputBufferSampleProperties.Set(TEXT("duration"), FVariantValue(CurrentAccessUnit->AdjustedDuration));
-		OutputBufferSampleProperties.Set(TEXT("pts"), FVariantValue(CurrentAccessUnit->AdjustedPTS));
-		OutputBufferSampleProperties.Set("is_dummy", FVariantValue(true));
-		Renderer->ReturnBuffer(CurrentOutputBuffer, true, OutputBufferSampleProperties);
+		DummyBufferSampleProperties.Set(RenderOptionKeys::Duration, FVariantValue(CurrentAccessUnit->AdjustedDuration));
+		DummyBufferSampleProperties.Set(RenderOptionKeys::PTS, FVariantValue(CurrentAccessUnit->AdjustedPTS));
+		DummyBufferSampleProperties.Set(RenderOptionKeys::DummyBufferFlag, FVariantValue(true));
+		Renderer->ReturnBuffer(CurrentOutputBuffer, true, DummyBufferSampleProperties);
 		CurrentOutputBuffer = nullptr;
 		return true;
 	}

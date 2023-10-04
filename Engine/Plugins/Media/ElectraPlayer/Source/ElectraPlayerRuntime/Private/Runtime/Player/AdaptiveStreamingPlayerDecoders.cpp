@@ -11,6 +11,12 @@
 
 namespace Electra
 {
+namespace DecoderOptionKeys
+{
+static const FName SendEmptySubtitleDuringGaps(TEXT("sendEmptySubtitleDuringGaps"));
+static const FName MaxResolutionY(TEXT("max_resoY"));
+static const FName MaxResolutionYAbove30FPS(TEXT("max_resoY_above_30fps"));
+}
 
 // AU memory
 void* FAdaptiveStreamingPlayer::AUAllocate(IAccessUnitMemoryProvider::EDataType type, SIZE_T NumBytes, SIZE_T Alignment)
@@ -279,9 +285,9 @@ int32 FAdaptiveStreamingPlayer::CreateDecoder(EStreamType type)
 
 					// Add in any player options that are for decoder use
 					FParamDict AdditionalOptions;
-					TArray<FString> DecoderOptionKeys;
-					PlayerOptions.GetKeysStartingWith("videoDecoder", DecoderOptionKeys);
-					for (const FString & Key : DecoderOptionKeys)
+					TArray<FName> DecoderOptionKeys;
+					PlayerOptions.GetKeysStartingWith(TEXT("videoDecoder"), DecoderOptionKeys);
+					for (const FName& Key : DecoderOptionKeys)
 					{
 						AdditionalOptions.Set(Key, PlayerOptions.GetValue(Key));
 					}
@@ -385,7 +391,7 @@ int32 FAdaptiveStreamingPlayer::CreateDecoder(EStreamType type)
 				if (SubtitleDecoder.Decoder)
 				{
 					FParamDict Options;
-					Options.Set(TEXT("sendEmptySubtitleDuringGaps"), Electra::FVariantValue(true));
+					Options.Set(DecoderOptionKeys::SendEmptySubtitleDuringGaps, Electra::FVariantValue(true));
 
 					SubtitleDecoder.Decoder->SetPlayerSessionServices(this);
 					SubtitleDecoder.Decoder->GetDecodedSubtitleReceiveDelegate().BindRaw(this, &FAdaptiveStreamingPlayer::OnDecodedSubtitleReceived);
@@ -803,15 +809,15 @@ void FAdaptiveStreamingPlayer::Deprecate_InternalInitializeDecoderLimits()
 	// compared against these limits and those that exceed the limit will not be considered for playback.
 
 	// Maximum allowed vertical resolution specified?
-	if (PlayerOptions.HaveKey(TEXT("max_resoY")))
+	if (PlayerOptions.HaveKey(DecoderOptionKeys::MaxResolutionY))
 	{
-		PlayerConfig.H264LimitUpto30fps.MaxResolution.Height = (int32)PlayerOptions.GetValue(TEXT("max_resoY")).GetInt64();
-		PlayerConfig.H264LimitAbove30fps.MaxResolution.Height = (int32)PlayerOptions.GetValue(TEXT("max_resoY")).GetInt64();
+		PlayerConfig.H264LimitUpto30fps.MaxResolution.Height =
+		PlayerConfig.H264LimitAbove30fps.MaxResolution.Height = (int32)PlayerOptions.GetValue(DecoderOptionKeys::MaxResolutionY).GetInt64();
 	}
 	// A limit in vertical resolution for streams with more than 30fps?
-	if (PlayerOptions.HaveKey(TEXT("max_resoY_above_30fps")))
+	if (PlayerOptions.HaveKey(DecoderOptionKeys::MaxResolutionYAbove30FPS))
 	{
-		PlayerConfig.H264LimitAbove30fps.MaxResolution.Height = (int32)PlayerOptions.GetValue(TEXT("max_resoY_above_30fps")).GetInt64();
+		PlayerConfig.H264LimitAbove30fps.MaxResolution.Height = (int32)PlayerOptions.GetValue(DecoderOptionKeys::MaxResolutionYAbove30FPS).GetInt64();
 	}
 }
 

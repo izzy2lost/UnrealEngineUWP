@@ -207,10 +207,12 @@ private:
 	static std::atomic_ulong NextRequestIndex;
 	static FCriticalSection AllRequestHandleLock;
 	static TMap<uint64, FRequestPointers> AllRequestHandles;
+	static FName OptionName_Proxy;
 };
 std::atomic_ulong											FElectraHTTPStreamWinHttp::NextRequestIndex = {0};
 FCriticalSection											FElectraHTTPStreamWinHttp::AllRequestHandleLock;
 TMap<uint64, FElectraHTTPStreamWinHttp::FRequestPointers>	FElectraHTTPStreamWinHttp::AllRequestHandles;
+FName														FElectraHTTPStreamWinHttp::OptionName_Proxy(TEXT("proxy"));
 
 /***************************************************************************************************************************************************/
 /***************************************************************************************************************************************************/
@@ -1120,9 +1122,9 @@ bool FElectraHTTPStreamWinHttp::Initialize(const Electra::FParamDict& InOptions)
 #endif
 
 	HINTERNET sh;
-	if (InOptions.HaveKey(TEXT("proxy")))
+	if (InOptions.HaveKey(OptionName_Proxy))
 	{
-		FString ProxyNameAndPort = InOptions.GetValue(TEXT("proxy")).SafeGetFString();
+		FString ProxyNameAndPort = InOptions.GetValue(OptionName_Proxy).SafeGetFString();
 		if (ProxyNameAndPort.Len())
 		{
 			AccessType = WINHTTP_ACCESS_TYPE_NAMED_PROXY;

@@ -5967,7 +5967,7 @@ private:
 		};
 
 
-		void AddExtraBoxToCodecInfo(FStreamCodecInformation& InOutCodecInformation, const FMP4Box* InBox, IParserISO14496_12::FBoxType InBoxType, const FString& InAs)
+		void AddExtraBoxToCodecInfo(FStreamCodecInformation& InOutCodecInformation, const FMP4Box* InBox, IParserISO14496_12::FBoxType InBoxType, const FName& InAs)
 		{
 			const FMP4BoxIgnored* Box = static_cast<const FMP4BoxIgnored*>(InBox->FindBox(InBoxType, 3));
 			if (Box && Box->GetFillerData())
@@ -5976,7 +5976,7 @@ private:
 				InOutCodecInformation.GetExtras().Set(InAs, FVariantValue(Data));
 			}
 		}
-		void AddExtraBoxToCodecInfo(FStreamCodecInformation& InOutCodecInformation, const FMP4Box* InBox, const FString& InAs)
+		void AddExtraBoxToCodecInfo(FStreamCodecInformation& InOutCodecInformation, const FMP4Box* InBox, const FName& InAs)
 		{
 			const FMP4BoxIgnored* Box = static_cast<const FMP4BoxIgnored*>(InBox);
 			if (Box && Box->GetFillerData())
@@ -6115,7 +6115,7 @@ private:
 			{
 				if (CodecInformation.GetCodec4CC() == Utils::Make4CC('O','p','u','s'))
 				{
-					FVariantValue dOps = CodecInformation.GetExtras().GetValue(TEXT("dOps_box"));
+					FVariantValue dOps = CodecInformation.GetExtras().GetValue(StreamCodecInformationOptions::DOpsBox);
 					if (dOps.IsType(FVariantValue::EDataType::TypeU8Array))
 					{
 						return dOps.GetArray();
@@ -7312,7 +7312,7 @@ private:
 						{
 							Track->CodecInformation.SetNumberOfChannels(2);
 						}
-						Track->CodecInformation.GetExtras().Set(TEXT("samples_per_block"), FVariantValue(ConfigRecord.SBRSignal > 0 ? (int64)2048 : (int64)1024));
+						Track->CodecInformation.GetExtras().Set(StreamCodecInformationOptions::SamplesPerBlock, FVariantValue(ConfigRecord.SBRSignal > 0 ? (int64)2048 : (int64)1024));
 					}
 
 					// Typically an mp4a track will not have a 'btrt' box because the bitrate is stored in the DecoderConfigDescriptor.
@@ -7356,9 +7356,9 @@ private:
 			{
 				if (AudioSampleEntry->HaveFormatSpecificFlags())
 				{
-					Track->CodecInformation.GetExtras().Set(TEXT("FormatSpecificFlags"), FVariantValue((int64) AudioSampleEntry->GetFormatSpecificFlags()));
+					Track->CodecInformation.GetExtras().Set(StreamCodecInformationOptions::FormatSpecificFlags, FVariantValue((int64) AudioSampleEntry->GetFormatSpecificFlags()));
 				}
-				AddExtraBoxToCodecInfo(Track->CodecInformation, SampleBox->GetParentBox(), FMP4Box::kBox_chan, TEXT("chan_box"));
+				AddExtraBoxToCodecInfo(Track->CodecInformation, SampleBox->GetParentBox(), FMP4Box::kBox_chan, StreamCodecInformationOptions::ChanBox);
 			}
 
 			for(int32 j=0, jMax=AudioSampleEntry->GetNumberOfChildren(); j<jMax; ++j)
@@ -7537,7 +7537,7 @@ private:
 								// Note: adding the box via the filler data only works as long as these boxes are not explicitly handled in this module!
 								FString BoxName = Utils::Printable4CC(SampleEntry->GetType());
 								BoxName.Append(TEXT("_box"));
-								AddExtraBoxToCodecInfo(CodecInformation, SampleEntry, BoxName);
+								AddExtraBoxToCodecInfo(CodecInformation, SampleEntry, FName(*BoxName));
 								break;
 							}
 						}
@@ -7570,12 +7570,12 @@ private:
 					CodecInformation.SetNumberOfChannels(AudioSampleEntry->GetChannelCount());
 					CodecInformation.SetCodecSpecifierRFC6381(Utils::Printable4CC(CodecInformation.GetCodec4CC()));
 
-					CodecInformation.GetExtras().Set(TEXT("SampleSize"), FVariantValue((int64)AudioSampleEntry->GetSampleSize()));
+					CodecInformation.GetExtras().Set(StreamCodecInformationOptions::SampleSize, FVariantValue((int64)AudioSampleEntry->GetSampleSize()));
 					if (AudioSampleEntry->HaveFormatSpecificFlags())
 					{
-						CodecInformation.GetExtras().Set(TEXT("FormatSpecificFlags"), FVariantValue((int64) AudioSampleEntry->GetFormatSpecificFlags()));
-						CodecInformation.GetExtras().Set(TEXT("ConstBytesPerAudioPacket"), FVariantValue((int64)AudioSampleEntry->GetConstBytesPerAudioPacket()));
-						CodecInformation.GetExtras().Set(TEXT("ConstLPCMFramesPerAudioPacket"), FVariantValue((int64)AudioSampleEntry->GetConstLPCMFramesPerAudioPacket()));
+						CodecInformation.GetExtras().Set(StreamCodecInformationOptions::FormatSpecificFlags, FVariantValue((int64) AudioSampleEntry->GetFormatSpecificFlags()));
+						CodecInformation.GetExtras().Set(StreamCodecInformationOptions::ConstBytesPerAudioPacket, FVariantValue((int64)AudioSampleEntry->GetConstBytesPerAudioPacket()));
+						CodecInformation.GetExtras().Set(StreamCodecInformationOptions::ConstLPCMFramesPerAudioPacket, FVariantValue((int64)AudioSampleEntry->GetConstLPCMFramesPerAudioPacket()));
 					}
 
 					// Look at the additional boxes
@@ -7597,7 +7597,7 @@ private:
 								// Note: adding the box via the filler data only works as long as these boxes are not explicitly handled in this module!
 								FString BoxName = Utils::Printable4CC(SampleEntry->GetType());
 								BoxName.Append(TEXT("_box"));
-								AddExtraBoxToCodecInfo(CodecInformation, SampleEntry, BoxName);
+								AddExtraBoxToCodecInfo(CodecInformation, SampleEntry, FName(*BoxName));
 								break;
 							}
 						}

@@ -2733,7 +2733,7 @@ namespace Electra
 
 			TMKVElementPtr<FMKVVideo> Video = InFromTrack->GetVideo();
 
-			OutCodecInformation.GetExtras().Set(TEXT("dcr"), FVariantValue(InFromTrack->GetCodecPrivate()));
+			OutCodecInformation.GetExtras().Set(StreamCodecInformationOptions::DecoderConfigurationRecord, FVariantValue(InFromTrack->GetCodecPrivate()));
 			OutCodecInformation.SetStreamType(EStreamType::Video);
 			OutCodecInformation.SetMimeType(TEXT("video/mp4"));
 			OutCodecInformation.SetCodec(FStreamCodecInformation::ECodec::H264);
@@ -2812,7 +2812,7 @@ namespace Electra
 
 			TMKVElementPtr<FMKVVideo> Video = InFromTrack->GetVideo();
 
-			OutCodecInformation.GetExtras().Set(TEXT("dcr"), FVariantValue(InFromTrack->GetCodecPrivate()));
+			OutCodecInformation.GetExtras().Set(StreamCodecInformationOptions::DecoderConfigurationRecord, FVariantValue(InFromTrack->GetCodecPrivate()));
 			OutCodecInformation.SetStreamType(EStreamType::Video);
 			OutCodecInformation.SetMimeType(TEXT("video/mp4"));
 			OutCodecInformation.SetCodec(FStreamCodecInformation::ECodec::H265);
@@ -2938,7 +2938,7 @@ namespace Electra
 			vpcC[7] = (uint8)OutCodecInformation.GetCodecVideoColorInfo().ColourPrimaries.Get(2);
 			vpcC[8] = (uint8)OutCodecInformation.GetCodecVideoColorInfo().TransferCharacteristics.Get(2);
 			vpcC[9] = (uint8)OutCodecInformation.GetCodecVideoColorInfo().MatrixCoefficients.Get(2);
-			OutCodecInformation.GetExtras().Set(TEXT("vpcC_box"), FVariantValue(vpcC));
+			OutCodecInformation.GetExtras().Set(StreamCodecInformationOptions::VPccBox, FVariantValue(vpcC));
 
 			int32 CropL = Video->GetCropLeft();
 			int32 CropR = Video->GetCropRight();
@@ -3082,7 +3082,7 @@ namespace Electra
 			vpcC[7] = (uint8)OutCodecInformation.GetCodecVideoColorInfo().ColourPrimaries.Get(2);
 			vpcC[8] = (uint8)OutCodecInformation.GetCodecVideoColorInfo().TransferCharacteristics.Get(2);
 			vpcC[9] = (uint8)OutCodecInformation.GetCodecVideoColorInfo().MatrixCoefficients.Get(2);
-			OutCodecInformation.GetExtras().Set(TEXT("vpcC_box"), FVariantValue(vpcC));
+			OutCodecInformation.GetExtras().Set(StreamCodecInformationOptions::VPccBox, FVariantValue(vpcC));
 
 			int32 CropL = Video->GetCropLeft();
 			int32 CropR = Video->GetCropRight();
@@ -3120,7 +3120,7 @@ namespace Electra
 				return false;
 			}
 
-			OutCodecInformation.GetExtras().Set(TEXT("dcr"), FVariantValue(InFromTrack->GetCodecPrivate()));
+			OutCodecInformation.GetExtras().Set(StreamCodecInformationOptions::DecoderConfigurationRecord, FVariantValue(InFromTrack->GetCodecPrivate()));
 			OutCodecInformation.SetStreamType(EStreamType::Audio);
 			OutCodecInformation.SetMimeType(TEXT("audio/mp4"));
 			OutCodecInformation.SetCodec(FStreamCodecInformation::ECodec::AAC);
@@ -3137,7 +3137,7 @@ namespace Electra
 				OutCodecInformation.SetNumberOfChannels(2);
 			}
 			const int32 NumDecodedSamplesPerBlock = AudioSpecificConfig.SBRSignal > 0 ? 2048 : 1024;
-			OutCodecInformation.GetExtras().Set(TEXT("samples_per_block"), FVariantValue((int64)NumDecodedSamplesPerBlock));
+			OutCodecInformation.GetExtras().Set(StreamCodecInformationOptions::SamplesPerBlock, FVariantValue((int64)NumDecodedSamplesPerBlock));
 			// If there is no default duration set we try to calculate it from the sample rate.
 			if (InFromTrack->GetDefaultDurationNanos() == 0)
 			{
@@ -3192,7 +3192,7 @@ namespace Electra
 				return false;
 			}
 
-			OutCodecInformation.GetExtras().Set(TEXT("dOps_box"), FVariantValue(OpusHead));
+			OutCodecInformation.GetExtras().Set(StreamCodecInformationOptions::DOpsBox, FVariantValue(OpusHead));
 			OutCodecInformation.SetStreamType(EStreamType::Audio);
 			OutCodecInformation.SetMimeType(TEXT("audio/mp4"));
 			OutCodecInformation.SetCodec(FStreamCodecInformation::ECodec::Audio4CC);

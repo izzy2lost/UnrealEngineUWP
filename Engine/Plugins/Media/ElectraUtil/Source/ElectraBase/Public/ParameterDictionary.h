@@ -19,7 +19,7 @@ class ELECTRABASE_API FVariantValue
 	{
 	public:
 		virtual ~FSharedPtrHolderBase() {}
-		virtual void SetValueOn(FSharedPtrHolderBase *Dst) const = 0;
+		virtual void SetValueOn(FSharedPtrHolderBase* Dst) const = 0;
 	};
 
 	template<typename T> class TSharedPtrHolder : public FSharedPtrHolderBase
@@ -33,7 +33,7 @@ class ELECTRABASE_API FVariantValue
 
 		SharedPtrType	Pointer;
 
-		virtual void SetValueOn(FSharedPtrHolderBase *Dst) const override
+		virtual void SetValueOn(FSharedPtrHolderBase* Dst) const override
 		{
 			new(Dst) TSharedPtrHolder<T>(reinterpret_cast<const SharedPtrType&>(Pointer));
 		}
@@ -43,7 +43,7 @@ public:
 	FVariantValue();
 	~FVariantValue();
 	FVariantValue(const FVariantValue& rhs);
-	FVariantValue& operator=(const FVariantValue&rhs);
+	FVariantValue& operator=(const FVariantValue& rhs);
 
 	explicit FVariantValue(const FString& StringValue);
 	explicit FVariantValue(double DoubleValue);
@@ -162,29 +162,19 @@ public:
 	FParamDict& operator=(const FParamDict& Other);
 	~FParamDict();
 	void Clear();
-	void Set(const FString& Key, const FVariantValue& Value);
-	bool HaveKey(const FString& Key) const;
-	FVariantValue GetValue(const FString& Key) const;
-	void Remove(const FString& Key)
-	{
-		FScopeLock lock(&Lock);
-		Dictionary.Remove(Key); 
-	}
-	void SetOrUpdate(const FString& Key, const FVariantValue& Value)
-	{ 
-		FScopeLock lock(&Lock);
-		Dictionary.Add(Key, Value); 
-	}
+	void Set(const FName& Key, const FVariantValue& Value);
+	bool HaveKey(const FName& Key) const;
+	FVariantValue GetValue(const FName& Key) const;
+	void Remove(const FName& Key);
 
 	void ConvertTo(TMap<FString, FVariant>& OutVariantMap, const FString& InAddPrefixToKey) const;
 	void ConvertKeysStartingWithTo(TMap<FString, FVariant>& OutVariantMap, const FString& InKeyStartsWith, const FString& InAddPrefixToKey) const;
 
-	void GetKeys(TArray<FString>& Keys) const;
-	void GetKeysStartingWith(const FString& StartsWith, TArray<FString>& Keys) const;
+	void GetKeysStartingWith(const FString& InStartsWith, TArray<FName>& OutKeys) const;
 private:
 	void InternalCopy(const FParamDict& Other);
 	mutable FCriticalSection Lock;
-	TMap<FString, FVariantValue> Dictionary;
+	TMap<FName, FVariantValue> Dictionary;
 };
 
 

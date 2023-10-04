@@ -60,7 +60,7 @@ TSharedPtr<IVideoDecoderResourceDelegate, ESPMode::ThreadSafe> PlatformCreateVid
 bool FElectraPlayerPlatform::StartupPlatformResources(const Electra::FParamDict& Params)
 {
 	FElectraDecoderResourceManagerWindows::FCallbacks Callbacks;
-	auto GetDeviceTypeCallback = reinterpret_cast<void(*)(void**, int64*)>(Params.GetValue(TEXT("GetDeviceTypeCallback")).SafeGetPointer());
+	auto GetDeviceTypeCallback = reinterpret_cast<void(*)(void**, int64*)>(Params.GetValue(FName(TEXT("GetDeviceTypeCallback"))).SafeGetPointer());
 
 	Callbacks.GetD3DDevice = [GetDeviceTypeCallback](void **OutD3DDevice, int32* OutD3DVersionTimes1000, void*) -> bool
 	{

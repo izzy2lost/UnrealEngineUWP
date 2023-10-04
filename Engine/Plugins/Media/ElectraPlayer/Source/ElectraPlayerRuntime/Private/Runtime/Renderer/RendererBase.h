@@ -225,6 +225,30 @@ namespace Electra
 		virtual void TickOutputBufferPool() {};
 	};
 
+
+	namespace RenderOptionKeys
+	{
+		static const FName ValidityValue(TEXT("$renderVV$"));
+		static const FName Duration(TEXT("duration"));
+		static const FName PTS(TEXT("pts"));
+		static const FName EOSFlag(TEXT("eos"));
+		static const FName DummyBufferFlag(TEXT("is_dummy"));
+
+		static const FName Texture(TEXT("texture"));
+		static const FName AllocatedAddress(TEXT("address"));
+		static const FName AllocatedSize(TEXT("size"));
+
+		static const FName MaxBuffers(TEXT("max_buffers"));
+		static const FName MaxBufferSize(TEXT("max_buffer_size"));
+		static const FName NumBuffers(TEXT("num_buffers"));
+		static const FName UsedByteSize(TEXT("byte_size"));
+
+		static const FName MaxChannels(TEXT("max_channels"));
+		static const FName NumChannels(TEXT("num_channels"));
+		static const FName SamplesPerBlock(TEXT("samples_per_block"));
+		static const FName SampleRate(TEXT("sample_rate"));
+	}
+
 } // namespace Electra
 
 

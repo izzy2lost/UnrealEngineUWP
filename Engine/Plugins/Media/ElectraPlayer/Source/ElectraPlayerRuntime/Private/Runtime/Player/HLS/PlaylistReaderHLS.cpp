@@ -32,16 +32,16 @@ DECLARE_CYCLE_STAT(TEXT("FPlaylistReaderHLS_WorkerThread"), STAT_ElectraPlayer_H
 namespace Electra
 {
 
-const FString IPlaylistReaderHLS::OptionKeyLiveSeekableStartOffset(TEXT("seekable_range_live_start_offset"));							//!< (FTimeValue) value specifying how many seconds away from the Live media timeline the seekable range should start.
-const FString IPlaylistReaderHLS::OptionKeyLiveSeekableEndOffsetAudioOnly(TEXT("seekable_range_live_end_offset_audioonly"));			//!< (FTimeValue) value specifying how many seconds away from the Live media timeline the seekable range should end for audio-only playlists.
-const FString IPlaylistReaderHLS::OptionKeyLiveSeekableEndOffsetBeConservative(TEXT("seekable_range_live_end_offset_conservative"));	//!< (bool) true to use a larger Live edge distance, false to go with the smaller absolute difference
+const FName IPlaylistReaderHLS::OptionKeyLiveSeekableStartOffset(TEXT("seekable_range_live_start_offset"));							//!< (FTimeValue) value specifying how many seconds away from the Live media timeline the seekable range should start.
+const FName IPlaylistReaderHLS::OptionKeyLiveSeekableEndOffsetAudioOnly(TEXT("seekable_range_live_end_offset_audioonly"));			//!< (FTimeValue) value specifying how many seconds away from the Live media timeline the seekable range should end for audio-only playlists.
+const FName IPlaylistReaderHLS::OptionKeyLiveSeekableEndOffsetBeConservative(TEXT("seekable_range_live_end_offset_conservative"));	//!< (bool) true to use a larger Live edge distance, false to go with the smaller absolute difference
 
-const FString IPlaylistReaderHLS::OptionKeyMasterPlaylistLoadConnectTimeout (TEXT("master_playlist_connection_timeout") );		//!< (FTimeValue) value specifying connection timeout fetching the master playlist
-const FString IPlaylistReaderHLS::OptionKeyMasterPlaylistLoadNoDataTimeout  (TEXT("master_playlist_nodata_timeout")     );		//!< (FTimeValue) value specifying no-data timeout fetching the master playlist
-const FString IPlaylistReaderHLS::OptionKeyVariantPlaylistLoadConnectTimeout(TEXT("variant_playlist_connection_timeout"));		//!< (FTimeValue) value specifying connection timeout fetching a variant playlist the first time
-const FString IPlaylistReaderHLS::OptionKeyVariantPlaylistLoadNoDataTimeout (TEXT("variant_playlist_nodata_timeout")    );		//!< (FTimeValue) value specifying no-data timeout fetching a variant playlist the first time
-const FString IPlaylistReaderHLS::OptionKeyUpdatePlaylistLoadConnectTimeout (TEXT("update_playlist_connection_timeout") );		//!< (FTimeValue) value specifying connection timeout fetching a variant playlist repeatedly
-const FString IPlaylistReaderHLS::OptionKeyUpdatePlaylistLoadNoDataTimeout  (TEXT("update_playlist_nodata_timeout" )    );		//!< (FTimeValue) value specifying no-data timeout fetching a variant playlist repeatedly
+const FName IPlaylistReaderHLS::OptionKeyMasterPlaylistLoadConnectTimeout (TEXT("master_playlist_connection_timeout") );		//!< (FTimeValue) value specifying connection timeout fetching the master playlist
+const FName IPlaylistReaderHLS::OptionKeyMasterPlaylistLoadNoDataTimeout  (TEXT("master_playlist_nodata_timeout")     );		//!< (FTimeValue) value specifying no-data timeout fetching the master playlist
+const FName IPlaylistReaderHLS::OptionKeyVariantPlaylistLoadConnectTimeout(TEXT("variant_playlist_connection_timeout"));		//!< (FTimeValue) value specifying connection timeout fetching a variant playlist the first time
+const FName IPlaylistReaderHLS::OptionKeyVariantPlaylistLoadNoDataTimeout (TEXT("variant_playlist_nodata_timeout")    );		//!< (FTimeValue) value specifying no-data timeout fetching a variant playlist the first time
+const FName IPlaylistReaderHLS::OptionKeyUpdatePlaylistLoadConnectTimeout (TEXT("update_playlist_connection_timeout") );		//!< (FTimeValue) value specifying connection timeout fetching a variant playlist repeatedly
+const FName IPlaylistReaderHLS::OptionKeyUpdatePlaylistLoadNoDataTimeout  (TEXT("update_playlist_nodata_timeout" )    );		//!< (FTimeValue) value specifying no-data timeout fetching a variant playlist repeatedly
 
 
 

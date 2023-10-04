@@ -107,7 +107,7 @@ public:
 			}
 
 			Electra::FParamDict Params;
-			Params.Set("GetDeviceTypeCallback", Electra::FVariantValue((void*)&FElectraPlayerPluginModule::GetDynamicRHIInfo));
+			Params.Set(FName(TEXT("GetDeviceTypeCallback")), Electra::FVariantValue((void*)&FElectraPlayerPluginModule::GetDynamicRHIInfo));
 			if (!FElectraPlayerPlatform::StartupPlatformResources(Params))
 			{
 				UE_LOG(LogElectraPlayerPlugin, Log, TEXT("Platform resource setup failed! Electra Player plugin is not initialised."));

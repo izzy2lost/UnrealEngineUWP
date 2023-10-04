@@ -1183,7 +1183,7 @@ void FStreamReaderHLSfmp4::FStreamHandler::HandleRequest()
 							{
 								case FStreamCodecInformation::ECodec::AAC:
 								{
-									n = CSD->ParsedInfo.GetExtras().GetValue("samples_per_block").SafeGetInt64(1024);
+									n = CSD->ParsedInfo.GetExtras().GetValue(StreamCodecInformationOptions::SamplesPerBlock).SafeGetInt64(1024);
 									break;
 								}
 							}

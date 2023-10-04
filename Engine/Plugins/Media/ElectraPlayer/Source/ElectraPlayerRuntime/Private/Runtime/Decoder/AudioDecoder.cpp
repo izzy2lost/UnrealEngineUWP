@@ -199,8 +199,9 @@ private:
 	bool																	bMustBeSuspendedInBackground = false;
 
 	IMediaRenderer::IBuffer*												CurrentOutputBuffer = nullptr;
-	FParamDict																BufferAcquireOptions;
+	FParamDict																EmptyOptions;
 	FParamDict																OutputBufferSampleProperties;
+	FParamDict																EOSBufferProperties;
 	FAudioChannelMapper														ChannelMapper;
 };
 ENUM_CLASS_FLAGS(FAudioDecoderImpl::EAUChangeFlags);
@@ -267,6 +268,12 @@ TSharedPtr<IElectraCodecFactory, ESPMode::ThreadSafe> FAudioDecoderImpl::GetDeco
 FAudioDecoderImpl::FAudioDecoderImpl()
 	: FMediaThread("ElectraPlayer::Audio decoder")
 {
+	EOSBufferProperties.Set(RenderOptionKeys::NumChannels, FVariantValue((int64)0));
+	EOSBufferProperties.Set(RenderOptionKeys::UsedByteSize, FVariantValue((int64)0));
+	EOSBufferProperties.Set(RenderOptionKeys::SampleRate, FVariantValue((int64) 0));
+	EOSBufferProperties.Set(RenderOptionKeys::Duration, FVariantValue(FTimeValue::GetZero()));
+	EOSBufferProperties.Set(RenderOptionKeys::PTS, FVariantValue(FTimeValue::GetInvalid()));
+	EOSBufferProperties.Set(RenderOptionKeys::EOSFlag, FVariantValue(true));
 }
 
 FAudioDecoderImpl::~FAudioDecoderImpl()
@@ -365,13 +372,13 @@ void FAudioDecoderImpl::CreateDecoderOutputPool()
 	const int32 kMaxChannels = 16;
 	const int32 kMaxSamplesPerBlock = 2048;
 	uint32 frameSize = sizeof(float) * kMaxChannels * kMaxSamplesPerBlock;
-	poolOpts.Set(TEXT("max_buffer_size"), FVariantValue((int64) frameSize));
-	poolOpts.Set(TEXT("num_buffers"), FVariantValue((int64) 8));
-	poolOpts.Set(TEXT("samples_per_block"), FVariantValue((int64) kMaxSamplesPerBlock));
-	poolOpts.Set(TEXT("max_channels"), FVariantValue((int64) kMaxChannels));
+	poolOpts.Set(RenderOptionKeys::MaxBufferSize, FVariantValue((int64) frameSize));
+	poolOpts.Set(RenderOptionKeys::NumBuffers, FVariantValue((int64) 8));
+	poolOpts.Set(RenderOptionKeys::SamplesPerBlock, FVariantValue((int64) kMaxSamplesPerBlock));
+	poolOpts.Set(RenderOptionKeys::MaxChannels, FVariantValue((int64) kMaxChannels));
 	if (Renderer->CreateBufferPool(poolOpts) == UEMEDIA_ERROR_OK)
 	{
-		MaxDecodeBufferSize = (int32) Renderer->GetBufferPoolProperties().GetValue(TEXT("max_buffers")).GetInt64();
+		MaxDecodeBufferSize = (int32) Renderer->GetBufferPoolProperties().GetValue(RenderOptionKeys::MaxBuffers).GetInt64();
 	}
 	else
 	{
@@ -526,8 +533,7 @@ void FAudioDecoderImpl::ReturnUnusedOutputBuffer()
 {
 	if (CurrentOutputBuffer)
 	{
-		OutputBufferSampleProperties.Clear();
-		Renderer->ReturnBuffer(CurrentOutputBuffer, false, OutputBufferSampleProperties);
+		Renderer->ReturnBuffer(CurrentOutputBuffer, false, EmptyOptions);
 		CurrentOutputBuffer = nullptr;
 	}
 }
@@ -691,7 +697,7 @@ IElectraDecoder::EOutputStatus FAudioDecoderImpl::HandleOutput()
 			{
 				SCOPE_CYCLE_COUNTER(STAT_ElectraPlayer_AudioConvertOutput);
 				CSV_SCOPED_TIMING_STAT(ElectraPlayer, AudioConvertOutput);
-				UEMediaError bufResult = Renderer->AcquireBuffer(CurrentOutputBuffer, 0, BufferAcquireOptions);
+				UEMediaError bufResult = Renderer->AcquireBuffer(CurrentOutputBuffer, 0, EmptyOptions);
 				check(bufResult == UEMEDIA_ERROR_OK || bufResult == UEMEDIA_ERROR_INSUFFICIENT_DATA);
 				if (bufResult != UEMEDIA_ERROR_OK && bufResult != UEMEDIA_ERROR_INSUFFICIENT_DATA)
 				{
@@ -819,19 +825,18 @@ IElectraDecoder::EOutputStatus FAudioDecoderImpl::HandleOutput()
 				int32 NumDecodedSamplesPerChannel = NumDecodedBytes / NumBytesPerFrame;
 				if (NumDecodedSamplesPerChannel)
 				{
-					int32 CurrentRenderOutputBufferSize = (int32)CurrentOutputBuffer->GetBufferProperties().GetValue(TEXT("size")).GetInt64();
-					void* CurrentRenderOutputBufferAddress = CurrentOutputBuffer->GetBufferProperties().GetValue(TEXT("address")).GetPointer();
+					int32 CurrentRenderOutputBufferSize = (int32)CurrentOutputBuffer->GetBufferProperties().GetValue(RenderOptionKeys::AllocatedSize).GetInt64();
+					void* CurrentRenderOutputBufferAddress = CurrentOutputBuffer->GetBufferProperties().GetValue(RenderOptionKeys::AllocatedAddress).GetPointer();
 					ChannelMapper.MapChannels(CurrentRenderOutputBufferAddress, CurrentRenderOutputBufferSize, AdvancePointer(PCMBuffer, ByteOffsetToFirstSample), NumDecodedBytes, NumDecodedSamplesPerChannel);
 
 					FTimeValue Duration;
 					Duration.SetFromND(NumSamplesProduced, SamplingRate);
 
-					OutputBufferSampleProperties.Clear();
-					OutputBufferSampleProperties.Set(TEXT("num_channels"), FVariantValue((int64)ChannelMapper.GetNumTargetChannels()));
-					OutputBufferSampleProperties.Set(TEXT("byte_size"), FVariantValue((int64)((int64)NumDecodedSamplesPerChannel * ChannelMapper.GetNumTargetChannels() * NumBytesPerSample)));
-					OutputBufferSampleProperties.Set(TEXT("sample_rate"), FVariantValue((int64) SamplingRate));
-					OutputBufferSampleProperties.Set(TEXT("duration"), FVariantValue(Duration));
-					OutputBufferSampleProperties.Set(TEXT("pts"), FVariantValue(MatchingInput->AdjustedPTS));
+					OutputBufferSampleProperties.Set(RenderOptionKeys::NumChannels, FVariantValue((int64)ChannelMapper.GetNumTargetChannels()));
+					OutputBufferSampleProperties.Set(RenderOptionKeys::UsedByteSize, FVariantValue((int64)((int64)NumDecodedSamplesPerChannel * ChannelMapper.GetNumTargetChannels() * NumBytesPerSample)));
+					OutputBufferSampleProperties.Set(RenderOptionKeys::SampleRate, FVariantValue((int64) SamplingRate));
+					OutputBufferSampleProperties.Set(RenderOptionKeys::Duration, FVariantValue(Duration));
+					OutputBufferSampleProperties.Set(RenderOptionKeys::PTS, FVariantValue(MatchingInput->AdjustedPTS));
 
 					Renderer->ReturnBuffer(CurrentOutputBuffer, true, OutputBufferSampleProperties);
 					CurrentOutputBuffer = nullptr;
@@ -949,7 +954,7 @@ bool FAudioDecoderImpl::SendSilenceOrEOS(ESendMode InSendMode)
 		{
 			SCOPE_CYCLE_COUNTER(STAT_ElectraPlayer_AudioConvertOutput);
 			CSV_SCOPED_TIMING_STAT(ElectraPlayer, AudioConvertOutput);
-			UEMediaError bufResult = Renderer->AcquireBuffer(CurrentOutputBuffer, 0, BufferAcquireOptions);
+			UEMediaError bufResult = Renderer->AcquireBuffer(CurrentOutputBuffer, 0, EmptyOptions);
 			check(bufResult == UEMEDIA_ERROR_OK || bufResult == UEMEDIA_ERROR_INSUFFICIENT_DATA);
 			if (bufResult != UEMEDIA_ERROR_OK && bufResult != UEMEDIA_ERROR_INSUFFICIENT_DATA)
 			{
@@ -975,8 +980,8 @@ bool FAudioDecoderImpl::SendSilenceOrEOS(ESendMode InSendMode)
 			if (InSendMode == ESendMode::SendSilence)
 			{
 				// Clear to silence
-				int64 MaxBufferSize = CurrentOutputBuffer->GetBufferProperties().GetValue(TEXT("size")).GetInt64();
-				FMemory::Memzero(CurrentOutputBuffer->GetBufferProperties().GetValue(TEXT("address")).GetPointer(), MaxBufferSize);
+				int64 MaxBufferSize = CurrentOutputBuffer->GetBufferProperties().GetValue(RenderOptionKeys::AllocatedSize).GetInt64();
+				FMemory::Memzero(CurrentOutputBuffer->GetBufferProperties().GetValue(RenderOptionKeys::AllocatedAddress).GetPointer(), MaxBufferSize);
 
 				int32 NumChannels = CurrentOutputFormat.NumChannels ? CurrentOutputFormat.NumChannels : 2;
 				int32 SampleRate = CurrentOutputFormat.SampleRate ? CurrentOutputFormat.SampleRate : 48000;
@@ -988,12 +993,11 @@ bool FAudioDecoderImpl::SendSilenceOrEOS(ESendMode InSendMode)
 					FTimeValue Duration;
 					Duration.SetFromND(SamplesPerBlock, (uint32) SampleRate);
 
-					OutputBufferSampleProperties.Clear();
-					OutputBufferSampleProperties.Set(TEXT("num_channels"), FVariantValue((int64)NumChannels));
-					OutputBufferSampleProperties.Set(TEXT("sample_rate"), FVariantValue((int64)SampleRate));
-					OutputBufferSampleProperties.Set(TEXT("byte_size"), FVariantValue((int64)(EmptySize < MaxBufferSize ? EmptySize : MaxBufferSize)));
-					OutputBufferSampleProperties.Set(TEXT("duration"), FVariantValue(Duration));
-					OutputBufferSampleProperties.Set(TEXT("pts"), FVariantValue(CurrentAccessUnit->AdjustedPTS));
+					OutputBufferSampleProperties.Set(RenderOptionKeys::NumChannels, FVariantValue((int64)NumChannels));
+					OutputBufferSampleProperties.Set(RenderOptionKeys::UsedByteSize, FVariantValue((int64)(EmptySize < MaxBufferSize ? EmptySize : MaxBufferSize)));
+					OutputBufferSampleProperties.Set(RenderOptionKeys::SampleRate, FVariantValue((int64)SampleRate));
+					OutputBufferSampleProperties.Set(RenderOptionKeys::Duration, FVariantValue(Duration));
+					OutputBufferSampleProperties.Set(RenderOptionKeys::PTS, FVariantValue(CurrentAccessUnit->AdjustedPTS));
 
 					Renderer->ReturnBuffer(CurrentOutputBuffer, true, OutputBufferSampleProperties);
 					CurrentOutputBuffer = nullptr;
@@ -1005,14 +1009,7 @@ bool FAudioDecoderImpl::SendSilenceOrEOS(ESendMode InSendMode)
 			}
 			else
 			{
-				OutputBufferSampleProperties.Clear();
-				OutputBufferSampleProperties.Set(TEXT("num_channels"), FVariantValue((int64)0));
-				OutputBufferSampleProperties.Set(TEXT("byte_size"), FVariantValue((int64)0));
-				OutputBufferSampleProperties.Set(TEXT("sample_rate"), FVariantValue((int64) 0));
-				OutputBufferSampleProperties.Set(TEXT("duration"), FVariantValue(FTimeValue::GetZero()));
-				OutputBufferSampleProperties.Set(TEXT("pts"), FVariantValue(FTimeValue::GetInvalid()));
-				OutputBufferSampleProperties.Set(TEXT("eos"), FVariantValue(true));
-				Renderer->ReturnBuffer(CurrentOutputBuffer, false, OutputBufferSampleProperties);
+				Renderer->ReturnBuffer(CurrentOutputBuffer, false, EOSBufferProperties);
 				CurrentOutputBuffer = nullptr;
 			}
 			return true;

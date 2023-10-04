@@ -7,6 +7,7 @@
 
 #include "PlayerRuntimeGlobal.h"
 #include "Player/AdaptiveStreamingPlayer.h"
+#include "Player/AdaptivePlayerOptionKeynames.h"
 #include "Player/IExternalDataReader.h"
 #include "Renderer/RendererVideo.h"
 #include "Renderer/RendererAudio.h"
@@ -267,7 +268,7 @@ bool FElectraPlayer::OpenInternal(const FString& Url, const FParamDict& InPlayer
 		FParamDict PlayerOptions(InPlayerOptions);
 		if (PlaystartOptions.ExternalDataReader.IsValid())
 		{
-			PlayerOptions.Set(TEXT("use_external_data_reader"), FVariantValue(true));
+			PlayerOptions.Set(Electra::OptionKeyUseExternalDataReader, FVariantValue(true));
 			StaticResourceProvider->SetExternalDataReader(PlaystartOptions.ExternalDataReader);
 		}
 
@@ -306,7 +307,7 @@ bool FElectraPlayer::OpenInternal(const FString& Url, const FParamDict& InPlayer
 
 		if (InOpenType == IElectraPlayerInterface::EOpenType::Blob)
 		{
-			const TCHAR * const KeyBlob = TEXT("blobparams");
+			const FName KeyBlob(TEXT("blobparams"));
 			if (PlayerOptions.HaveKey(KeyBlob))
 			{
 				BlobParams = PlayerOptions.GetValue(KeyBlob).SafeGetFString();

@@ -7,8 +7,8 @@
 
 namespace Electra
 {
-	const TCHAR* const OptionKeyResponseCacheMaxEntries = TEXT("httpcache_max_entries");
-	const TCHAR* const OptionKeyResponseCacheMaxByteSize = TEXT("httpcache_max_bytesize");
+	static const FName OptionKeyResponseCacheMaxEntries(TEXT("httpcache_max_entries"));
+	static const FName OptionKeyResponseCacheMaxByteSize(TEXT("httpcache_max_bytesize"));
 
 
 class FHTTPResponseCache : public IHTTPResponseCache

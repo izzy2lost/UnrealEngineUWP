@@ -1612,7 +1612,7 @@ void FStreamReaderDASH::FStreamHandler::HandleRequestMP4()
 						{
 							case FStreamCodecInformation::ECodec::AAC:
 							{
-								n = ActiveTrackData.CSD->ParsedInfo.GetExtras().GetValue("samples_per_block").SafeGetInt64(1024);
+								n = ActiveTrackData.CSD->ParsedInfo.GetExtras().GetValue(StreamCodecInformationOptions::SamplesPerBlock).SafeGetInt64(1024);
 								break;
 							}
 						}
@@ -1888,7 +1888,7 @@ void FStreamReaderDASH::FStreamHandler::HandleRequestMKV()
 			{
 				ActiveTrackData.CSD->ParsedInfo = Track->GetCodecInformation();
 				ActiveTrackData.CSD->CodecSpecificData = ActiveTrackData.CSD->ParsedInfo.GetCodecSpecificData();
-				FVariantValue dcr = ActiveTrackData.CSD->ParsedInfo.GetExtras().GetValue(TEXT("dcr"));
+				FVariantValue dcr = ActiveTrackData.CSD->ParsedInfo.GetExtras().GetValue(StreamCodecInformationOptions::DecoderConfigurationRecord);
 				if (dcr.IsValid() && dcr.IsType(FVariantValue::EDataType::TypeU8Array))
 				{
 					ActiveTrackData.CSD->RawCSD = dcr.GetArray();

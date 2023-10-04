@@ -282,7 +282,7 @@ void FAdaptiveStreamingPlayer::Initialize(const FParamDict& Options)
 void FAdaptiveStreamingPlayer::ModifyOptions(const FParamDict& InOptionsToSetOrChange, const FParamDict& InOptionsToClear)
 {
 	// Remove options
-	TArray<FString> Keys;
+	TArray<FName> Keys;
 	InOptionsToClear.GetKeysStartingWith(FString(), Keys);
 	for(auto &Key : Keys)
 	{
@@ -293,7 +293,7 @@ void FAdaptiveStreamingPlayer::ModifyOptions(const FParamDict& InOptionsToSetOrC
 	for(auto &Key : Keys)
 	{
 		FVariantValue Value = InOptionsToSetOrChange.GetValue(Key);
-		PlayerOptions.SetOrUpdate(Key, Value);
+		PlayerOptions.Set(Key, Value);
 	}
 }
 
@@ -2632,7 +2632,7 @@ void FAdaptiveStreamingPlayer::InternalHandlePendingStartRequest(const FTimeValu
 						}
 
 						// Set the current average video bitrate in the player options for the period to retrieve if necessary.
-						PlayerOptions.SetOrUpdate(OptionKeyCurrentAvgStartingVideoBitrate, FVariantValue(StreamSelector->GetAverageBandwidth()));
+						PlayerOptions.Set(OptionKeyCurrentAvgStartingVideoBitrate, FVariantValue(StreamSelector->GetAverageBandwidth()));
 
 						InitialPlayPeriod->PrepareForPlay();
 						break;
@@ -3193,7 +3193,7 @@ void FAdaptiveStreamingPlayer::HandlePendingMediaSegmentRequests()
 				else if (PeriodState == IManifest::IPlayPeriod::EReadyState::Loaded)
 				{
 					// Set the current average video bitrate in the player options for the period to retrieve if necessary.
-					PlayerOptions.SetOrUpdate(OptionKeyCurrentAvgStartingVideoBitrate, FVariantValue(StreamSelector->GetAverageBandwidth()));
+					PlayerOptions.Set(OptionKeyCurrentAvgStartingVideoBitrate, FVariantValue(StreamSelector->GetAverageBandwidth()));
 					FinishedReq.Period->PrepareForPlay();
 					NextPendingSegmentRequests.Enqueue(MoveTemp(FinishedReq));
 					continue;
@@ -4448,7 +4448,7 @@ void FAdaptiveStreamingPlayer::InternalInitialize()
 	CreateRenderers();
 
 	// Check for codecs that are not to be used as per the user's choice, even if the device supports them.
-	auto GetExcludedCodecPrefixes = [](TArray<FString>& OutList, const FParamDict& InOptions, const FString& InKey) -> void
+	auto GetExcludedCodecPrefixes = [](TArray<FString>& OutList, const FParamDict& InOptions, const FName& InKey) -> void
 	{
 		if (InOptions.HaveKey(InKey))
 		{
@@ -4467,7 +4467,7 @@ void FAdaptiveStreamingPlayer::InternalInitialize()
 	GetExcludedCodecPrefixes(ExcludedAudioDecoderPrefixes, PlayerOptions, TEXT("excluded_codecs_audio"));
 	GetExcludedCodecPrefixes(ExcludedSubtitleDecoderPrefixes, PlayerOptions, TEXT("excluded_codecs_subtitles"));
 
-	auto GetCodecSelectionPriorities = [this](FCodecSelectionPriorities& OutPriorities, const FParamDict& InOptions, const FString& InKey, const TCHAR* const InType) -> void
+	auto GetCodecSelectionPriorities = [this](FCodecSelectionPriorities& OutPriorities, const FParamDict& InOptions, const FName& InKey, const TCHAR* const InType) -> void
 	{
 		if (InOptions.HaveKey(InKey))
 		{

@@ -13,21 +13,6 @@
 
 #include <atomic>
 
-#define VALIDITY_VALUE_KEY TEXT("$renderVV$")
-#define DURATION_VALUE_KEY TEXT("duration")
-#define TIMESTAMP_VALUE_KEY TEXT("pts")
-#define EOS_VALUE_KEY TEXT("eos")
-
-#define AUDIO_BUFFER_SIZE TEXT("max_buffer_size")
-#define AUDIO_BUFFER_NUM TEXT("num_buffers")
-#define AUDIO_BUFFER_MAX_CHANNELS TEXT("max_channels")
-#define AUDIO_BUFFER_SAMPLES_PER_BLOCK TEXT("samples_per_block")
-#define AUDIO_BUFFER_ALLOCATED_ADDRESS TEXT("address")
-#define AUDIO_BUFFER_ALLOCATED_SIZE TEXT("size")
-#define AUDIO_BUFFER_NUM_CHANNELS TEXT("num_channels")
-#define AUDIO_BUFFER_BYTE_SIZE TEXT("byte_size")
-#define AUDIO_BUFFER_SAMPLE_RATE TEXT("sample_rate")
-
 /***************************************************************************************************************************************************/
 
 DECLARE_STATS_GROUP(TEXT("Electra Audio"), STATGROUP_ElectraAudioProcessing, STATCAT_Advanced);
@@ -271,11 +256,11 @@ void FAdaptiveStreamingWrappedRenderer::SampleReleasedToPool(IDecoderOutput* InD
 	check(InDecoderOutput);
 	if (InDecoderOutput && RenderClock.IsValid())
 	{
-		int64 ValidityValue = InDecoderOutput->GetMutablePropertyDictionary().GetValue(VALIDITY_VALUE_KEY).SafeGetInt64(0);
+		int64 ValidityValue = InDecoderOutput->GetMutablePropertyDictionary().GetValue(RenderOptionKeys::ValidityValue).SafeGetInt64(0);
 		if (ValidityValue == CurrentValidityValue)
 		{
-			FTimeValue RenderTime = InDecoderOutput->GetMutablePropertyDictionary().GetValue(TIMESTAMP_VALUE_KEY).SafeGetTimeValue(FTimeValue::GetInvalid());
-			FTimeValue Duration = InDecoderOutput->GetMutablePropertyDictionary().GetValue(DURATION_VALUE_KEY).SafeGetTimeValue(FTimeValue::GetZero());
+			FTimeValue RenderTime = InDecoderOutput->GetMutablePropertyDictionary().GetValue(RenderOptionKeys::PTS).SafeGetTimeValue(FTimeValue::GetInvalid());
+			FTimeValue Duration = InDecoderOutput->GetMutablePropertyDictionary().GetValue(RenderOptionKeys::Duration).SafeGetTimeValue(FTimeValue::GetZero());
 			switch(Type)
 			{
 				case EStreamType::Video:
@@ -330,16 +315,16 @@ UEMediaError FAdaptiveStreamingWrappedRenderer::CreateBufferPool(const FParamDic
 		FMemory::Free(AudioVars.AudioTempSourceBuffer);
 		AudioVars.AudioTempSourceBuffer = nullptr;
 		AudioVars.NumAudioBuffersInUse = 0;
-		AudioVars.OriginalAudioBufferNum = Parameters.GetValue(AUDIO_BUFFER_NUM).SafeGetInt64(0);
-		AudioVars.OriginalAudioBufferSize = Parameters.GetValue(AUDIO_BUFFER_SIZE).SafeGetInt64(0);
+		AudioVars.OriginalAudioBufferNum = Parameters.GetValue(RenderOptionKeys::NumBuffers).SafeGetInt64(0);
+		AudioVars.OriginalAudioBufferSize = Parameters.GetValue(RenderOptionKeys::MaxBufferSize).SafeGetInt64(0);
 		if (AudioVars.OriginalAudioBufferSize)
 		{
 			// We need an occasional extra buffer when the input sample sequence counter changes. Double the number of buffers to accommodate.
-			Parameters.SetOrUpdate(AUDIO_BUFFER_NUM, FVariantValue(AudioVars.OriginalAudioBufferNum * 2));
+			Parameters.Set(RenderOptionKeys::NumBuffers, FVariantValue(AudioVars.OriginalAudioBufferNum * 2));
 			AudioVars.AudioTempSourceBuffer = (float*)FMemory::Malloc(AudioVars.OriginalAudioBufferSize);
 
-			int32 SamplesPerBlock = (int32) Parameters.GetValue(AUDIO_BUFFER_SAMPLES_PER_BLOCK).SafeGetInt64(2048);
-			int32 MaxChannels = (int32) Parameters.GetValue(AUDIO_BUFFER_MAX_CHANNELS).SafeGetInt64(8);
+			int32 SamplesPerBlock = (int32) Parameters.GetValue(RenderOptionKeys::SamplesPerBlock).SafeGetInt64(2048);
+			int32 MaxChannels = (int32) Parameters.GetValue(RenderOptionKeys::MaxChannels).SafeGetInt64(8);
 
 			// Get maximum number of samples we may produce when slowing down the most.
 			int32 NumTempoSamples = AudioVars.TempoChanger->GetNominalOutputSampleNum(MaxSampleRate, MinPlaybackSpeed);
@@ -347,7 +332,7 @@ UEMediaError FAdaptiveStreamingWrappedRenderer::CreateBufferPool(const FParamDic
 
 			AudioVars.MaxOutputSampleBlockSize = Utils::Max(Utils::Max(NumTempoSamples, NumResampleSamples), SamplesPerBlock);
 			AudioVars.AudioBufferSize = AudioVars.MaxOutputSampleBlockSize * MaxChannels * sizeof(float);
-			Parameters.SetOrUpdate(AUDIO_BUFFER_SIZE, FVariantValue(AudioVars.AudioBufferSize));
+			Parameters.Set(RenderOptionKeys::MaxBufferSize, FVariantValue(AudioVars.AudioBufferSize));
 			AudioVars.TempoChanger->SetMaxOutputSamples(AudioVars.MaxOutputSampleBlockSize);
 		}
 	}
@@ -372,7 +357,7 @@ UEMediaError FAdaptiveStreamingWrappedRenderer::AcquireBuffer(IBuffer*& OutBuffe
 		if (Error == UEMEDIA_ERROR_OK && OutBuffer)
 		{
 			++NumBuffersInCirculation;
-			OutBuffer->GetMutableBufferProperties().SetOrUpdate(AUDIO_BUFFER_ALLOCATED_SIZE, FVariantValue(AudioVars.OriginalAudioBufferSize));
+			OutBuffer->GetMutableBufferProperties().Set(RenderOptionKeys::AllocatedSize, FVariantValue(AudioVars.OriginalAudioBufferSize));
 		}
 		return Error;
 	}
@@ -393,7 +378,7 @@ UEMediaError FAdaptiveStreamingWrappedRenderer::ReturnBuffer(IBuffer* Buffer, bo
 
 	FParamDict SampleProperties(InSampleProperties);
 	Lock.Lock();
-	SampleProperties.SetOrUpdate(VALIDITY_VALUE_KEY, FVariantValue(CurrentValidityValue));
+	SampleProperties.Set(RenderOptionKeys::ValidityValue, FVariantValue(CurrentValidityValue));
 	Lock.Unlock();
 	if (Type == EStreamType::Video)
 	{
@@ -458,14 +443,14 @@ UEMediaError FAdaptiveStreamingWrappedRenderer::ReturnAudioBuffer(IBuffer* Buffe
 
 UEMediaError FAdaptiveStreamingWrappedRenderer::ReturnBufferCommon(IBuffer* Buffer, bool bRender, FParamDict& InSampleProperties)
 {
-	FTimeValue Duration = InSampleProperties.GetValue(DURATION_VALUE_KEY).SafeGetTimeValue(FTimeValue::GetZero());
+	FTimeValue Duration = InSampleProperties.GetValue(RenderOptionKeys::Duration).SafeGetTimeValue(FTimeValue::GetZero());
 	if (!Duration.IsValid())
 	{
 		Duration.SetToZero();
-		InSampleProperties.SetOrUpdate(DURATION_VALUE_KEY, FVariantValue(Duration));
+		InSampleProperties.Set(RenderOptionKeys::Duration, FVariantValue(Duration));
 	}
 
-	bool bIsUnusedReturnBuffer = bRender == false && InSampleProperties.GetValue(EOS_VALUE_KEY).SafeGetBool(false) == false;
+	bool bIsUnusedReturnBuffer = bRender == false && InSampleProperties.GetValue(RenderOptionKeys::EOSFlag).SafeGetBool(false) == false;
 
 	FScopeLock lock(&Lock);
 	EnqueuedDuration += Duration;
@@ -664,13 +649,13 @@ bool FAdaptiveStreamingWrappedRenderer::ProcessAudio(bool& bOutNeed2ndBuffer, IB
 	bool bGetResiduals = bOutNeed2ndBuffer;
 	bOutNeed2ndBuffer = false;
 
-	int32 SizeInBytes = (int32)InSampleProperties.GetValue(AUDIO_BUFFER_BYTE_SIZE).SafeGetInt64();
-	FTimeValue Timestamp = InSampleProperties.GetValue(TIMESTAMP_VALUE_KEY).SafeGetTimeValue(FTimeValue::GetInvalid());
-	FTimeValue Duration = InSampleProperties.GetValue(DURATION_VALUE_KEY).SafeGetTimeValue(FTimeValue::GetZero());
-	int32 NumChannels = (int32)InSampleProperties.GetValue(AUDIO_BUFFER_NUM_CHANNELS).SafeGetInt64();
+	int32 SizeInBytes = (int32)InSampleProperties.GetValue(RenderOptionKeys::UsedByteSize).SafeGetInt64();
+	FTimeValue Timestamp = InSampleProperties.GetValue(RenderOptionKeys::PTS).SafeGetTimeValue(FTimeValue::GetInvalid());
+	FTimeValue Duration = InSampleProperties.GetValue(RenderOptionKeys::Duration).SafeGetTimeValue(FTimeValue::GetZero());
+	int32 NumChannels = (int32)InSampleProperties.GetValue(RenderOptionKeys::NumChannels).SafeGetInt64();
 	int32 NumSamples = SizeInBytes / NumChannels / sizeof(float);
-	int32 SampleRate = (int32)InSampleProperties.GetValue(AUDIO_BUFFER_SAMPLE_RATE).SafeGetInt64();
-	float* BufferAddress = (float*)Buffer->GetBufferProperties().GetValue(AUDIO_BUFFER_ALLOCATED_ADDRESS).GetPointer();
+	int32 SampleRate = (int32)InSampleProperties.GetValue(RenderOptionKeys::SampleRate).SafeGetInt64();
+	float* BufferAddress = (float*)Buffer->GetBufferProperties().GetValue(RenderOptionKeys::AllocatedAddress).GetPointer();
 
 	if (AudioVars.CurrentConfig.DiffersFrom(SampleRate, NumChannels))
 	{
@@ -789,9 +774,9 @@ bool FAdaptiveStreamingWrappedRenderer::ProcessAudio(bool& bOutNeed2ndBuffer, IB
 	if (bUpdateProperties)
 	{
 		check(NumSamples <= AudioVars.AudioBufferSize / NumChannels / sizeof(float));
-		InSampleProperties.SetOrUpdate(AUDIO_BUFFER_BYTE_SIZE, FVariantValue((int64)(NumSamples * sizeof(float) * NumChannels)));
-		InSampleProperties.SetOrUpdate(TIMESTAMP_VALUE_KEY, FVariantValue(Timestamp));
-		InSampleProperties.SetOrUpdate(DURATION_VALUE_KEY, FVariantValue(FTimeValue(NumSamples, SampleRate, 0)));
+		InSampleProperties.Set(RenderOptionKeys::UsedByteSize, FVariantValue((int64)(NumSamples * sizeof(float) * NumChannels)));
+		InSampleProperties.Set(RenderOptionKeys::PTS, FVariantValue(Timestamp));
+		InSampleProperties.Set(RenderOptionKeys::Duration, FVariantValue(FTimeValue(NumSamples, SampleRate, 0)));
 	}
 
 	// Need to interpolate this block's start samples from the last block's last values?

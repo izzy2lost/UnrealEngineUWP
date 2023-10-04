@@ -23,6 +23,7 @@
 #include "Player/PlayerStreamFilter.h"
 #include "Player/PlayerEntityCache.h"
 #include "Player/AdaptiveStreamingPlayerABR.h"
+#include "Player/AdaptivePlayerOptionKeynames.h"
 
 #include "Utilities/UtilsMP4.h"
 
@@ -1185,7 +1186,7 @@ private:
 			if (Renderer.IsValid())
 			{
 				FParamDict options;
-				options.Set("hold_current_frame", FVariantValue(bHoldCurrentFrame));
+				options.Set(Electra::OptionKeyHoldCurrentFrame, FVariantValue(bHoldCurrentFrame));
 				Renderer->Flush(options);
 			}
 		}

@@ -473,20 +473,6 @@ FErrorDetail FManifestBuilderHLS::SetupVariants(FManifestHLSInternal* Manifest, 
 				}
 				return false;
 			};
-
-			// Check indicator for b-frame presence.
-			FString CustAttrBFrame;
-			if (GetCustomAttribute(CustAttrBFrame, TEXT("BFRAMES")))
-			{
-				// The value is an int with 0=no B frames, 1=B frames present.
-				int32 bCustAttrBFrame = 0;
-				LexFromString(bCustAttrBFrame, *CustAttrBFrame);
-				if (bCustAttrBFrame != 0)
-				{
-					// We set custom options only when the attribute is explicitly set to non-0.
-					CompanyCustomExtraOptions.Set(TEXT("b_frames"), FVariantValue((int64) 1));
-				}
-			}
 		}
 
 		// The only required attribute is bandwidth, so let's make sure it's there.

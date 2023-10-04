@@ -37,7 +37,7 @@ namespace Electra
 namespace DashUtils
 {
 	#define GETPLAYEROPTION(Type, Getter)																						\
-		bool GetPlayerOption(IPlayerSessionServices* InPlayerSessionServices, Type& OutValue, const TCHAR* Key, Type Default)	\
+		bool GetPlayerOption(IPlayerSessionServices* InPlayerSessionServices, Type& OutValue, const FName& Key, Type Default)	\
 		{																														\
 			if (InPlayerSessionServices->GetOptions().HaveKey(Key))																\
 			{																													\
@@ -1040,7 +1040,7 @@ void FDASHPlayPeriod::PrepareForPlay()
 		{
 			if (llDesc->Latency.ReferenceID >= 0)
 			{
-				PlayerSessionServices->GetOptions().SetOrUpdate(DASH::OptionKey_LatencyReferenceId, FVariantValue(llDesc->Latency.ReferenceID));
+				PlayerSessionServices->GetOptions().Set(DASH::OptionKey_LatencyReferenceId, FVariantValue(llDesc->Latency.ReferenceID));
 			}
 			else
 			{
