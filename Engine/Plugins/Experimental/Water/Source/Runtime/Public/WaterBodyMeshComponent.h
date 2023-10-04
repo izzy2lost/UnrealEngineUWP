@@ -29,5 +29,9 @@ protected:
 
 	// Exclude water meshes from loading on the server since we don't render at all.
 	virtual bool NeedsLoadForServer() const override { return false; }
+
+#if WITH_EDITOR
+	virtual void PostLoad() override;
+#endif
 };
 

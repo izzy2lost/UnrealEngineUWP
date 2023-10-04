@@ -82,3 +82,25 @@ bool UWaterBodyMeshComponent::CanCreateSceneProxy() const
 
 	return true;
 }
+
+
+#if WITH_EDITOR
+void UWaterBodyMeshComponent::PostLoad()
+{
+	Super::PostLoad();
+
+	// Fix for a bug that existing where the body setup was not created with bNeverNeedsCookedCollisionData, and also address an issue where bNeverNeedsCookedCollisionData was allowing meshes to generate cooked data.
+	UBodySetup* BodySetup = GetBodySetup();
+	UStaticMesh* Mesh = GetStaticMesh();
+	bool bResetBodySetup = Mesh != nullptr && (BodySetup == nullptr || !BodySetup->bNeverNeedsCookedCollisionData || BodySetup->bHasCookedCollisionData);
+	if (bResetBodySetup)
+	{
+		Mesh->CreateBodySetup();
+		BodySetup = GetBodySetup();
+		BodySetup->bNeverNeedsCookedCollisionData = true;
+		BodySetup->bHasCookedCollisionData = false;
+		BodySetup->InvalidatePhysicsData();
+	}
+}
+#endif // WITH_EDITOR
+

@@ -570,12 +570,16 @@ UStaticMesh* FWaterBodyMeshBuilder::CreateUStaticMesh(UObject* Outer, FName Mesh
 	// Disable ray tracing as we don't want water meshes to show up in LumenScene.
 	StaticMesh->bSupportRayTracing = false;
 
+	// Always call CreateBodySetup before attempting to modify it.  The BodySetup is normally created when the mesh data is built, but can be created ahead of time to set default data
+	StaticMesh->CreateBodySetup();
+
 	if (UBodySetup* BodySetup = StaticMesh->GetBodySetup())
 	{
 		BodySetup->DefaultInstance.SetCollisionProfileName(UCollisionProfile::NoCollision_ProfileName);
 		BodySetup->CollisionTraceFlag = CTF_UseSimpleAsComplex;
 		// We won't ever enable collisions (since collisions are handled by the dedicated water body collision components), ensure we don't even cook or load any collision data on this mesh: 
 		BodySetup->bNeverNeedsCookedCollisionData = true;
+		BodySetup->bHasCookedCollisionData = false;
 	}
 	return StaticMesh;
 }
