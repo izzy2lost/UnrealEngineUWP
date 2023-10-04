@@ -1493,26 +1493,14 @@ bool UNetDriver::InitBase(bool bInitAsClient, FNetworkNotify* InNotify, const FU
 	}
 #endif // UE_WITH_IRIS
 
-
+	
 	if (NetDriverDefinition == NAME_GameNetDriver)
 	{
-		static FString CrashContext_ReplicationDriver = TEXT("ReplicationDriver");
-
-		if (UReplicationDriver* RepDriver = GetReplicationDriver())
-		{
-			FGenericCrashContext::SetEngineData(CrashContext_ReplicationDriver, RepDriver->GetClass()->GetName());
-		}
-#if UE_WITH_IRIS
-		else if (ReplicationSystem)
-		{
-			FGenericCrashContext::SetEngineData(CrashContext_ReplicationDriver, TEXT("Iris"));
-		}
-#endif
-		else
-		{
-			FGenericCrashContext::SetEngineData(CrashContext_ReplicationDriver, TEXT("Generic"));
-		}
+		static FString CrashContext_ReplicationModel = TEXT("ReplicationModel");
+		FGenericCrashContext::SetEngineData(CrashContext_ReplicationModel, *GetReplicationModelName());
 	}
+
+	UE_LOG(LogNet, Log, TEXT("InitBase %s (NetDriverDefinition %s) using replication model %s"), *NetDriverName.ToString(), *NetDriverDefinition.ToString(), *GetReplicationModelName());
 	
 	InitNetTraceId();
 
@@ -1527,6 +1515,24 @@ bool UNetDriver::InitBase(bool bInitAsClient, FNetworkNotify* InNotify, const FU
 	CachedGlobalNetTravelCount = GEngine->GetGlobalNetTravelCount();
 
 	return bSuccess;
+}
+
+FString UNetDriver::GetReplicationModelName() const
+{
+	if (UReplicationDriver* RepDriver = GetReplicationDriver())
+	{
+		return RepDriver->GetClass()->GetName();
+	}
+#if UE_WITH_IRIS
+	else if (ReplicationSystem)
+	{
+		return TEXT("Iris");
+	}
+#endif
+	else
+	{
+		return TEXT("Generic");
+	}
 }
 
 void UNetDriver::InitConnectionlessHandler()

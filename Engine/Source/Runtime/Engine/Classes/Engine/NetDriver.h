@@ -2130,6 +2130,9 @@ private:
 	void PostDispatchSendUpdate();
 #endif
 
+	/** Description of the replication model used by this Driver (RepGraph, Iris or Generic) */
+	FString GetReplicationModelName() const;
+
 	void InitNetTraceId();
 
 	/** Called from RPC processing code to forward RPC to other NetDrivers if ShouldForwardFunction returns true. */
