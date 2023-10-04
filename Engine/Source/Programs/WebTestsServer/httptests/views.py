@@ -14,6 +14,12 @@ def methods(request):
     return JsonResponse({})
 
 @api_view(['GET'])
+def query_with_params(request):
+    var_int = int(request.GET.get('var_int'))
+    var_str = request.GET.get('var_str')
+    return JsonResponse({'var_int' : var_int, 'var_str' : var_str}, content_type="application/json")
+
+@api_view(['GET'])
 def get_large_response_without_chunks(request, bytes_number):
     data = "d" * bytes_number
     return JsonResponse({'data' : data})

@@ -5,7 +5,7 @@
 #include "CoreMinimal.h"
 #include "Containers/UnrealString.h"
 #include "GenericPlatform/HttpRequestCommon.h"
-#include "Interfaces/IHttpResponse.h"
+#include "GenericPlatform/HttpResponseCommon.h"
 #include "HttpManager.h"
 #include "PlatformHttp.h"
 
@@ -25,7 +25,6 @@ public:
 
 	//~ Begin IHttpBase Interface
 	virtual FString GetURL() const override;
-	virtual FString GetURLParameter(const FString& ParameterName) const override;
 	virtual FString GetHeader(const FString& HeaderName) const override;
 	virtual TArray<FString> GetAllHeaders() const override;	
 	virtual FString GetContentType() const override;
@@ -173,15 +172,11 @@ private:
 /**
  * Apple implementation of an Http response
  */
-class FAppleHttpNSUrlConnectionResponse : public IHttpResponse
+class FAppleHttpNSUrlConnectionResponse : public FHttpResponseCommon
 {
 private:
 	// This is the NSHTTPURLResponse, all our functionality will deal with.
 	FHttpResponseAppleNSUrlConnectionWrapper* ResponseWrapper;
-
-	/** Request that owns this response */
-	const FAppleHttpNSUrlConnectionRequest& Request;
-
 
 public:
 	// implementation friends
@@ -189,8 +184,6 @@ public:
 
 
 	//~ Begin IHttpBase Interface
-	virtual FString GetURL() const override;
-	virtual FString GetURLParameter(const FString& ParameterName) const override;
 	virtual FString GetHeader(const FString& HeaderName) const override;
 	virtual TArray<FString> GetAllHeaders() const override;	
 	virtual FString GetContentType() const override;

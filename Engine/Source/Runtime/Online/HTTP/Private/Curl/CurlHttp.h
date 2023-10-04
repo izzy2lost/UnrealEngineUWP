@@ -5,10 +5,10 @@
 #include "CoreMinimal.h"
 #include "HAL/LowLevelMemTracker.h"
 #include "HAL/ThreadSafeCounter.h"
-#include "Interfaces/IHttpResponse.h"
 #include "IHttpThreadedRequest.h"
 #include "Containers/SpscQueue.h"
 #include "GenericPlatform/HttpRequestPayload.h"
+#include "GenericPlatform/HttpResponseCommon.h"
 #include "HAL/ThreadSafeBool.h"
 
 class FCurlHttpResponse;
@@ -145,7 +145,6 @@ public:
 
 	//~ Begin IHttpBase Interface
 	virtual FString GetURL() const override;
-	virtual FString GetURLParameter(const FString& ParameterName) const override;
 	virtual FString GetHeader(const FString& HeaderName) const override;
 	virtual TArray<FString> GetAllHeaders() const override;
 	virtual FString GetContentType() const override;
@@ -413,21 +412,13 @@ private:
 /**
  * Curl implementation of an HTTP response
  */
-class FCurlHttpResponse : public IHttpResponse
+class FCurlHttpResponse : public FHttpResponseCommon
 {
-private:
-
-	/** Request that owns this response */
-	FCurlHttpRequest& Request;
-
-
 public:
 	// implementation friends
 	friend class FCurlHttpRequest;
 
 	//~ Begin IHttpBase Interface
-	virtual FString GetURL() const override;
-	virtual FString GetURLParameter(const FString& ParameterName) const override;
 	virtual FString GetHeader(const FString& HeaderName) const override;
 	virtual TArray<FString> GetAllHeaders() const override;	
 	virtual FString GetContentType() const override;
@@ -445,15 +436,9 @@ public:
 	 *
 	 * @param InRequest - original request that created this response
 	 */
-	FCurlHttpResponse(FCurlHttpRequest& InRequest);
-
-	/**
-	 * Destructor
-	 */
-	virtual ~FCurlHttpResponse();
+	FCurlHttpResponse(const FCurlHttpRequest& InRequest);
 
 private:
-
 	/** BYTE array to fill in as the response is read via didReceiveData */
 	TArray<uint8> Payload;
 	/** The stream to receive response body */

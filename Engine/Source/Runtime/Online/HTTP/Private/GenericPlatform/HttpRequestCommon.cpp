@@ -4,6 +4,16 @@
 #include "Http.h"
 #include "HttpManager.h"
 
+FString FHttpRequestCommon::GetURLParameter(const FString& ParameterName) const
+{
+	FString ReturnValue;
+	if (TOptional<FString> OptionalParameterValue = FGenericPlatformHttp::GetUrlParameter(GetURL(), ParameterName))
+	{
+		ReturnValue = MoveTemp(OptionalParameterValue.GetValue());
+	}
+	return ReturnValue;
+}
+
 EHttpRequestStatus::Type FHttpRequestCommon::GetStatus() const
 {
 	return CompletionStatus;
@@ -22,6 +32,12 @@ bool FHttpRequestCommon::PreCheck() const
 	if (GetURL().IsEmpty())
 	{
 		UE_LOG(LogHttp, Warning, TEXT("ProcessRequest failed. No URL was specified."));
+		return false;
+	}
+
+	if (GetVerb().IsEmpty())
+	{
+		UE_LOG(LogHttp, Warning, TEXT("ProcessRequest failed. No Verb was specified."));
 		return false;
 	}
 

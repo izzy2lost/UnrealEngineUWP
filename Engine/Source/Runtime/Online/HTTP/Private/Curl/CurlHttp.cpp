@@ -62,21 +62,22 @@ static CURLcode sslctx_function(CURL * curl, void * sslctx, void * parm)
 #endif //#if WITH_SSL
 
 FCurlHttpRequest::FCurlHttpRequest()
-	:	EasyHandle(nullptr)
-	,	HeaderList(nullptr)
-	,	bCanceled(false)
-	,	bCurlRequestCompleted(false)
-	,	bRedirected(false)
-	,	CurlAddToMultiResult(CURLM_OK)
-	,	CurlCompletionResult(CURLE_OK)
-	,	ElapsedTime(0.0f)
-	,	TimeSinceLastResponse(0.0f)
-	,	bAnyHttpActivity(false)
-	,   BytesSent(0)
-	,	TotalBytesSent(0)
-	,	LastReportedBytesRead(0)
-	,	LastReportedBytesSent(0)
-	,   LeastRecentlyCachedInfoMessageIndex(0)
+	: EasyHandle(nullptr)
+	, HeaderList(nullptr)
+	, Verb(TEXT("GET"))
+	, bCanceled(false)
+	, bCurlRequestCompleted(false)
+	, bRedirected(false)
+	, CurlAddToMultiResult(CURLM_OK)
+	, CurlCompletionResult(CURLE_OK)
+	, ElapsedTime(0.0f)
+	, TimeSinceLastResponse(0.0f)
+	, bAnyHttpActivity(false)
+	, BytesSent(0)
+	, TotalBytesSent(0)
+	, LastReportedBytesRead(0)
+	, LastReportedBytesSent(0)
+	, LeastRecentlyCachedInfoMessageIndex(0)
 {
 	checkf(FCurlHttpManager::IsInit(), TEXT("Curl request was created while the library is shutdown"));
 
@@ -201,42 +202,6 @@ FCurlHttpRequest::~FCurlHttpRequest()
 FString FCurlHttpRequest::GetURL() const
 {
 	return URL;
-}
-
-FString FCurlHttpRequest::GetURLParameter(const FString& ParameterName) const
-{
-	TArray<FString> StringElements;
-
-	//Parameters start after "?" in url
-	FString Path, Parameters;
-	if (URL.Split(TEXT("?"), &Path, &Parameters))
-	{
-		int32 NumElems = Parameters.ParseIntoArray(StringElements, TEXT("&"), true);
-		check(NumElems == StringElements.Num());
-		
-		FString ParamValDelimiter(TEXT("="));
-		for (int Idx = 0; Idx < NumElems; ++Idx )
-		{
-			FString Param, Value;
-			if (StringElements[Idx].Split(ParamValDelimiter, &Param, &Value) && Param == ParameterName)
-			{
-				// unescape
-				auto Converter = StringCast<ANSICHAR>(*Value);
-				char * EscapedAnsi = (char *)Converter.Get();
-				int32 EscapedLength = Converter.Length();
-
-				int32 UnescapedLength = 0;	
-				char * UnescapedAnsi = curl_easy_unescape(EasyHandle, EscapedAnsi, EscapedLength, &UnescapedLength);
-				
-				FString UnescapedValue(ANSI_TO_TCHAR(UnescapedAnsi));
-				curl_free(UnescapedAnsi);
-				
-				return UnescapedValue;
-			}
-		}
-	}
-
-	return FString();
 }
 
 FString FCurlHttpRequest::GetHeader(const FString& HeaderName) const
@@ -1358,28 +1323,14 @@ float FCurlHttpRequest::GetElapsedTime() const
 
 // FCurlHttpRequest
 
-FCurlHttpResponse::FCurlHttpResponse(FCurlHttpRequest& InRequest)
-	:	Request(InRequest)
-	,	TotalBytesRead(0)
-	,	HttpCode(EHttpResponseCodes::Unknown)
-	,	ContentLength(0)
-	,	bIsReady(0)
-	,	bSucceeded(0)
+FCurlHttpResponse::FCurlHttpResponse(const FCurlHttpRequest& InRequest)
+	: FHttpResponseCommon(InRequest.GetURL())
+	, TotalBytesRead(0)
+	, HttpCode(EHttpResponseCodes::Unknown)
+	, ContentLength(0)
+	, bIsReady(0)
+	, bSucceeded(0)
 {
-}
-
-FCurlHttpResponse::~FCurlHttpResponse()
-{	
-}
-
-FString FCurlHttpResponse::GetURL() const
-{
-	return Request.GetURL();
-}
-
-FString FCurlHttpResponse::GetURLParameter(const FString& ParameterName) const
-{
-	return Request.GetURLParameter(ParameterName);
 }
 
 FString FCurlHttpResponse::GetHeader(const FString& HeaderName) const
@@ -1387,8 +1338,7 @@ FString FCurlHttpResponse::GetHeader(const FString& HeaderName) const
 	FString Result;
 	if (!bIsReady)
 	{
-		UE_LOG(LogHttp, Warning, TEXT("Can't get cached header [%s]. Response still processing. %p"),
-			*HeaderName, &Request);
+		UE_LOG(LogHttp, Warning, TEXT("Can't get cached header [%s]. Response still processing. %s"), *HeaderName, *GetURL());
 	}
 	else
 	{
@@ -1406,7 +1356,7 @@ TArray<FString> FCurlHttpResponse::GetAllHeaders() const
 	TArray<FString> Result;
 	if (!bIsReady)
 	{
-		UE_LOG(LogHttp, Warning, TEXT("Can't get cached headers. Response still processing. %p"),&Request);
+		UE_LOG(LogHttp, Warning, TEXT("Can't get cached headers. Response still processing. %s"), *GetURL());
 	}
 	else
 	{
@@ -1433,7 +1383,7 @@ const TArray<uint8>& FCurlHttpResponse::GetContent() const
 {
 	if (!bIsReady)
 	{
-		UE_LOG(LogHttp, Warning, TEXT("Payload is incomplete. Response still processing. %p"),&Request);
+		UE_LOG(LogHttp, Warning, TEXT("Payload is incomplete. Response still processing. %s"), *GetURL());
 	}
 	return Payload;
 }

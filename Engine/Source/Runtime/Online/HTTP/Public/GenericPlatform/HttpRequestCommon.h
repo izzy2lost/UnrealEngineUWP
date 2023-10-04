@@ -10,6 +10,9 @@
 class FHttpRequestCommon : public FHttpRequestImpl
 {
 public:
+	// IHttpBase
+	HTTP_API virtual FString GetURLParameter(const FString& ParameterName) const override;
+
 	// IHttpRequest
 	HTTP_API virtual EHttpRequestStatus::Type GetStatus() const override;
 	HTTP_API virtual void SetDelegateThreadPolicy(EHttpRequestDelegateThreadPolicy InDelegateThreadPolicy) override;

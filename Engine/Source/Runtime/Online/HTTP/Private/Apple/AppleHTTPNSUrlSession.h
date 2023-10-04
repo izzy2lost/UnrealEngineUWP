@@ -3,8 +3,8 @@
 #pragma once
 
 #include "CoreMinimal.h"
+#include "GenericPlatform/HttpResponseCommon.h"
 #include "IHttpThreadedRequest.h"
-#include "Interfaces/IHttpResponse.h"
 #include "PlatformHttp.h"
 
 
@@ -26,7 +26,6 @@ public:
 
 	//~ Begin IHttpBase Interface
 	virtual FString GetURL() const override;
-	virtual FString GetURLParameter(const FString& ParameterName) const override;
 	virtual FString GetHeader(const FString& HeaderName) const override;
 	virtual TArray<FString> GetAllHeaders() const override;	
 	virtual FString GetContentType() const override;
@@ -134,15 +133,11 @@ private:
 /**
  * Apple implementation of an Http response
  */
-class FAppleHttpNSUrlSessionResponse : public IHttpResponse
+class FAppleHttpNSUrlSessionResponse : public FHttpResponseCommon
 {
 private:
 	// Delegate implementation. Keeps the response state and data
 	FAppleHttpNSUrlSessionResponseDelegate* ResponseDelegate;
-
-	/** Request that owns this response */
-	const FAppleHttpNSUrlSessionRequest& Request;
-
 
 public:
 	// implementation friends
@@ -150,8 +145,6 @@ public:
 
 
 	//~ Begin IHttpBase Interface
-	virtual FString GetURL() const override;
-	virtual FString GetURLParameter(const FString& ParameterName) const override;
 	virtual FString GetHeader(const FString& HeaderName) const override;
 	virtual TArray<FString> GetAllHeaders() const override;	
 	virtual FString GetContentType() const override;

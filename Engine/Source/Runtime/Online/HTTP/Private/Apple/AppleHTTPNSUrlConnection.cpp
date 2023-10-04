@@ -86,33 +86,6 @@ void FAppleHttpNSUrlConnectionRequest::SetURL(const FString& URL)
 	Request.URL = [NSURL URLWithString: URL.GetNSString()];
 }
 
-
-FString FAppleHttpNSUrlConnectionRequest::GetURLParameter(const FString& ParameterName) const
-{
-	SCOPED_AUTORELEASE_POOL;
-	UE_LOG(LogHttp, Verbose, TEXT("FAppleHttpNSUrlConnectionRequest::GetURLParameter() - %s"), *ParameterName);
-
-	NSRange ParametersStart = [Request.URL.query rangeOfString:@"?"];
-	if (ParametersStart.location != NSNotFound && ParametersStart.length > 0)
-	{
-		NSString* ParametersStr = [Request.URL.query substringFromIndex:ParametersStart.location + 1];
-		NSString* ParameterNameStr = ParameterName.GetNSString();
-		NSArray* Parameters = [ParametersStr componentsSeparatedByString:@"&"];
-		for (NSString* Parameter in Parameters)
-		{
-			NSArray* KeyValue = [Parameter componentsSeparatedByString:@"="];
-			NSString* Key = KeyValue[0];
-			if ([Key compare:ParameterNameStr] == NSOrderedSame)
-			{
-				return FString(KeyValue[1]);
-			}
-		}
-	}
-
-	return FString();
-}
-
-
 FString FAppleHttpNSUrlConnectionRequest::GetHeader(const FString& HeaderName) const
 {
 	SCOPED_AUTORELEASE_POOL;
@@ -846,12 +819,11 @@ float FAppleHttpNSUrlConnectionRequest::GetElapsedTime() const
  **************************************************************************/
 
 FAppleHttpNSUrlConnectionResponse::FAppleHttpNSUrlConnectionResponse(const FAppleHttpNSUrlConnectionRequest& InRequest)
-	: Request( InRequest )
+	: FHttpResponseCommon(InRequest.GetURL())
 {
 	UE_LOG(LogHttp, Verbose, TEXT("FAppleHttpNSUrlConnectionResponse::FAppleHttpNSUrlConnectionResponse()"));
 	ResponseWrapper = [[FHttpResponseAppleNSUrlConnectionWrapper alloc] init];
 }
-
 
 FAppleHttpNSUrlConnectionResponse::~FAppleHttpNSUrlConnectionResponse()
 {
@@ -861,34 +833,6 @@ FAppleHttpNSUrlConnectionResponse::~FAppleHttpNSUrlConnectionResponse()
 	[ResponseWrapper release];
 	ResponseWrapper = nil;
 }
-
-
-FString FAppleHttpNSUrlConnectionResponse::GetURL() const
-{
-	UE_LOG(LogHttp, Verbose, TEXT("FAppleHttpNSUrlConnectionResponse::GetURL()"));
-	return FString(Request.Request.URL.query);
-}
-
-
-FString FAppleHttpNSUrlConnectionResponse::GetURLParameter(const FString& ParameterName) const
-{
-	SCOPED_AUTORELEASE_POOL;
-	UE_LOG(LogHttp, Verbose, TEXT("FAppleHttpNSUrlConnectionResponse::GetURLParameter()"));
-
-	NSString* ParameterNameStr = ParameterName.GetNSString();
-	NSArray* Parameters = [[[Request.Request URL] query] componentsSeparatedByString:@"&"];
-	for (NSString* Parameter in Parameters)
-	{
-		NSArray* KeyValue = [Parameter componentsSeparatedByString:@"="];
-		NSString* Key = [KeyValue objectAtIndex:0];
-		if ([Key compare:ParameterNameStr] == NSOrderedSame)
-		{
-			return FString([[KeyValue objectAtIndex:1] stringByRemovingPercentEncoding]);
-		}
-	}
-	return FString();
-}
-
 
 FString FAppleHttpNSUrlConnectionResponse::GetHeader(const FString& HeaderName) const
 {
@@ -937,7 +881,7 @@ const TArray<uint8>& FAppleHttpNSUrlConnectionResponse::GetContent() const
 {
 	if( !IsReady() )
 	{
-		UE_LOG(LogHttp, Warning, TEXT("Payload is incomplete. Response still processing. %p"), &Request);
+		UE_LOG(LogHttp, Warning, TEXT("Payload is incomplete. Response still processing. %s"), *GetURL());
 	}
 	else
 	{

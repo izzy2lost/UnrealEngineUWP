@@ -10,6 +10,7 @@
 #include "Http.h"
 #include "Misc/CommandLine.h"
 #include "TestHarness.h"
+#include "Serialization/JsonSerializerMacros.h"
 
 /**
  *  HTTP Tests
@@ -210,8 +211,13 @@ public:
 TEST_CASE_METHOD(FWaitUntilCompleteHttpFixture, "Http Methods", HTTP_TAG)
 {
 	TSharedRef<IHttpRequest> HttpRequest = HttpModule->CreateRequest();
+	CHECK(HttpRequest->GetVerb() == TEXT("GET"));
+
 	HttpRequest->SetURL(UrlToTestMethods());
 
+	SECTION("Default GET")
+	{
+	}
 	SECTION("GET")
 	{
 		HttpRequest->SetVerb(TEXT("GET"));
@@ -622,6 +628,71 @@ TEST_CASE_METHOD(FWaitUntilCompleteHttpFixture, "Redirect enabled by default and
 	HttpRequest->ProcessRequest();
 }
 
+// Response shared ptr should be able to be kept by user code and valid to access without http request
+class FValidateResponseDependencyFixture : public FWaitUntilCompleteHttpFixture
+{
+public:
+	DECLARE_DELEGATE(FValidateResponseDependencyDelegate);
+
+	~FValidateResponseDependencyFixture()
+	{
+		WaitUntilAllHttpRequestsComplete();
+
+		ValidateResponseDependencyDelegate.ExecuteIfBound();
+	}
+
+	FValidateResponseDependencyDelegate ValidateResponseDependencyDelegate;
+};
+
+TEST_CASE_METHOD(FValidateResponseDependencyFixture, "Http query with parameters", HTTP_TAG)
+{
+	struct FQueryWithParamsResponse : public FJsonSerializable
+	{
+		int32 VarInt;
+		FString VarStr;
+
+		BEGIN_JSON_SERIALIZER
+			JSON_SERIALIZE("var_int", VarInt);
+			JSON_SERIALIZE("var_str", VarStr);
+		END_JSON_SERIALIZER
+	};
+
+	TSharedRef<IHttpRequest> HttpRequest = HttpModule->CreateRequest();
+	FString UrlQueryWithParams = FString::Format(TEXT("{0}/query_with_params/?var_int=3&var_str=abc"), { *UrlHttpTests() });
+	HttpRequest->SetURL(UrlQueryWithParams);
+	HttpRequest->SetVerb(TEXT("GET"));
+	HttpRequest->OnProcessRequestComplete().BindLambda([this, UrlQueryWithParams](FHttpRequestPtr HttpRequest, FHttpResponsePtr HttpResponse, bool bSucceeded) {
+		CHECK(bSucceeded);
+		REQUIRE(HttpResponse != nullptr);
+		CHECK(HttpResponse->GetResponseCode() == 200);
+
+		CHECK(HttpRequest->GetURL() == UrlQueryWithParams);
+
+		FQueryWithParamsResponse QueryWithParamsResponse;
+		REQUIRE(QueryWithParamsResponse.FromJson(HttpResponse->GetContentAsString()));
+
+		CHECK(FString::FromInt(QueryWithParamsResponse.VarInt) == HttpRequest->GetURLParameter(TEXT("var_int")));
+		CHECK(QueryWithParamsResponse.VarStr == HttpRequest->GetURLParameter(TEXT("var_str")));
+
+		CHECK(FString::FromInt(QueryWithParamsResponse.VarInt) == HttpResponse->GetURLParameter(TEXT("var_int")));
+		CHECK(QueryWithParamsResponse.VarStr == HttpResponse->GetURLParameter(TEXT("var_str")));
+
+		ValidateResponseDependencyDelegate.BindLambda([HttpResponse, UrlQueryWithParams, QueryWithParamsResponse](){
+			// Validate all interfaces of http response can be called without accessing the destroyed http request
+			CHECK(HttpResponse->GetResponseCode() == 200);
+			CHECK(!HttpResponse->GetContent().IsEmpty());
+			CHECK(!HttpResponse->GetContentAsString().IsEmpty());
+			CHECK(HttpResponse->GetContentType() == TEXT("application/json"));
+			CHECK(HttpResponse->GetHeader("Content-Type") == TEXT("application/json"));
+			CHECK(!HttpResponse->GetAllHeaders().IsEmpty());
+			CHECK(HttpResponse->GetURL() == UrlQueryWithParams);
+			CHECK(HttpResponse->GetURLParameter(TEXT("var_int")) == FString::FromInt(QueryWithParamsResponse.VarInt));
+			CHECK(HttpResponse->GetURLParameter(TEXT("var_str")) == QueryWithParamsResponse.VarStr);
+		});
+	});
+	HttpRequest->ProcessRequest();
+}
+
 class FThreadedHttpRunnable : public FRunnable
 {
 public:
@@ -742,6 +813,34 @@ TEST_CASE_METHOD(FWaitThreadedHttpFixture, "Http download request progress callb
 	CHECK(bRequestProgressTriggered);
 }
 
+TEST_CASE_METHOD(FWaitUntilCompleteHttpFixture, "Http request pre check will fail", HTTP_TAG)
+{
+	DisableWarningsInThisTest();
+
+	TSharedRef<IHttpRequest> HttpRequest = HttpModule->CreateRequest();
+
+	SECTION("when verb was set to empty")
+	{
+		HttpRequest->SetURL(UrlToTestMethods());
+		HttpRequest->SetVerb(TEXT(""));
+	}
+	SECTION("when url protocol is not valid")
+	{
+		HttpRequest->SetURL("http_abc://www.epicgames.com");
+		HttpRequest->SetVerb(TEXT("GET"));
+	}
+	SECTION("when url was not set")
+	{
+		HttpRequest->SetVerb(TEXT("GET"));
+	}
+
+	HttpRequest->OnProcessRequestComplete().BindLambda([](FHttpRequestPtr HttpRequest, FHttpResponsePtr HttpResponse, bool bSucceeded) {
+		CHECK(!bSucceeded);
+	});
+
+	HttpRequest->ProcessRequest();
+}
+
 namespace UE
 {
 namespace TestHttp
@@ -759,7 +858,7 @@ void SetupURLRequestFilter(FHttpModule* HttpModule)
 }
 }
 
-TEST_CASE_METHOD(FWaitUntilCompleteHttpFixture, "Http request pre check will fail", HTTP_TAG)
+TEST_CASE_METHOD(FWaitUntilCompleteHttpFixture, "Http request pre check will fail by thread policy", HTTP_TAG)
 {
 	DisableWarningsInThisTest();
 
@@ -789,7 +888,7 @@ TEST_CASE_METHOD(FWaitUntilCompleteHttpFixture, "Http request pre check will fai
 	HttpRequest->ProcessRequest();
 }
 
-TEST_CASE_METHOD(FWaitThreadedHttpFixture, "Threaded http request pre check will fail", HTTP_TAG)
+TEST_CASE_METHOD(FWaitThreadedHttpFixture, "Threaded http request pre check will fail by thread policy", HTTP_TAG)
 {
 	DisableWarningsInThisTest();
 
