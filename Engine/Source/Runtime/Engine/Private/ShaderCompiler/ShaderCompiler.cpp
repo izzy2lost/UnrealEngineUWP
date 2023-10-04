@@ -201,6 +201,18 @@ static TAutoConsoleVariable<bool> CVarShaderCompilerPerShaderDDCCook(
 	ECVF_Default
 );
 
+static TAutoConsoleVariable<bool> CVarAreShaderErrorsFatal(
+	TEXT("r.AreShaderErrorsFatal"),
+	true,
+	TEXT("When enabled, when a the default material or global shaders fail to compile it will issue a Fatal error.  Otherwise just an Error.\n")
+	TEXT("Default: true"),
+	ECVF_RenderThreadSafe);
+
+bool AreShaderErrorsFatal()
+{
+	return CVarAreShaderErrorsFatal.GetValueOnAnyThread();
+}
+
 static bool IsShaderJobCacheDDCRemotePolicyEnabled()
 {
 	return CVarJobCacheDDCPolicy.GetValueOnAnyThread();
@@ -6488,8 +6500,16 @@ void FShaderCompilingManager::ProcessCompiledShaderMaps(
 						}
 
 						ErrorString += FString::Printf(TEXT("Failed to compile default material %s!"), *Material->GetBaseMaterialPathName());
-						// Assert if a default material could not be compiled, since there will be nothing for other failed materials to fall back on.
-						UE_LOG(LogShaderCompilers, Fatal, TEXT("%s"), *ErrorString);
+
+						if (AreShaderErrorsFatal())
+						{
+							// Assert if a default material could not be compiled, since there will be nothing for other failed materials to fall back on.
+							UE_LOG(LogShaderCompilers, Fatal, TEXT("%s"), *ErrorString);
+						}
+						else
+						{
+							UE_LOG(LogShaderCompilers, Error, TEXT("%s"), *ErrorString);
+						}
 					}
 					
 					FString ErrorString;
@@ -10088,10 +10108,20 @@ static inline FShader* ProcessCompiledJob(FShaderCompileJob* SingleJob, const FS
 	}
 	else
 	{
-		UE_LOG(LogShaders, Fatal, TEXT("Failed to compile global shader %s %s %s.  Enable 'r.ShaderDevelopmentMode' in ConsoleVariables.ini for retries."),
-			GlobalShaderType->GetName(),
-			Pipeline ? TEXT("for pipeline") : TEXT(""),
-			Pipeline ? Pipeline->GetName() : TEXT(""));
+		if (AreShaderErrorsFatal())
+		{
+			UE_LOG(LogShaders, Fatal, TEXT("Failed to compile global shader %s %s %s.  Enable 'r.ShaderDevelopmentMode' in ConsoleVariables.ini for retries."),
+				GlobalShaderType->GetName(),
+				Pipeline ? TEXT("for pipeline") : TEXT(""),
+				Pipeline ? Pipeline->GetName() : TEXT(""));
+		}
+		else
+		{
+			UE_LOG(LogShaders, Error, TEXT("Failed to compile global shader %s %s %s.  Enable 'r.ShaderDevelopmentMode' in ConsoleVariables.ini for retries."),
+				GlobalShaderType->GetName(),
+				Pipeline ? TEXT("for pipeline") : TEXT(""),
+				Pipeline ? Pipeline->GetName() : TEXT(""));
+		}
 	}
 
 	return Shader;

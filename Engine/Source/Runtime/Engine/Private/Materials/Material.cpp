@@ -2505,7 +2505,14 @@ namespace MaterialImpl
 			
 			if (bIsDefaultMaterial)
 			{
-				UE_ASSET_LOG(LogMaterial, Fatal, This, TEXT("%s"), *ErrorString);
+				if (AreShaderErrorsFatal())
+				{
+					UE_ASSET_LOG(LogMaterial, Fatal, This, TEXT("%s"), *ErrorString);
+				}
+				else
+				{
+					UE_ASSET_LOG(LogMaterial, Error, This, TEXT("%s"), *ErrorString);
+				}
 			}
 			else if (CVarMaterialLogErrorOnFailure.GetValueOnAnyThread())
 			{

@@ -45,6 +45,8 @@ struct FAnalyticsEventAttribute;
 
 #define DEBUG_INFINITESHADERCOMPILE 0
 
+bool AreShaderErrorsFatal();
+
 extern ENGINE_API bool IsShaderJobCacheDDCEnabled();
 extern ENGINE_API bool IsMaterialMapDDCEnabled();
 

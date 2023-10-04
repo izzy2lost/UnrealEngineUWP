@@ -2989,7 +2989,14 @@ bool FMaterial::CacheShaders(const FMaterialShaderMapId& ShaderMapId, EShaderPla
 					}
 
 					// Assert if the default material could not be compiled, since there will be nothing for other failed materials to fall back on.
-					UE_LOG(LogMaterial, Fatal,TEXT("Failed to compile default material %s!"), *GetFriendlyName());
+					if (AreShaderErrorsFatal())
+					{
+						UE_LOG(LogMaterial, Fatal, TEXT("Failed to compile default material %s!"), *GetFriendlyName());
+					}
+					else
+					{
+						UE_LOG(LogMaterial, Error, TEXT("Failed to compile default material %s!"), *GetFriendlyName());
+					}
 				}
 #endif // WITH_EDITOR
 			}
