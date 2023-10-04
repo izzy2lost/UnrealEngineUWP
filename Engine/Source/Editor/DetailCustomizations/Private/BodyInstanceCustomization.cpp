@@ -1265,6 +1265,7 @@ void FBodyInstanceCustomizationHelper::UpdateFilters()
 	bDisplayAngularDamping = true;
 	bDisplayEnableGravity = true;
 	bDisplayInertiaConditioning = true;
+	bDisplayInitialOverlapDepenetration = true;
 	bDisplayWalkableSlopeOverride = true;
 	bDisplayAutoWeld = true;
 	bDisplayStartAwake = true;
@@ -1291,6 +1292,7 @@ void FBodyInstanceCustomizationHelper::UpdateFilters()
 				bDisplayAngularDamping = false;
 				bDisplayEnableGravity = false;
 				bDisplayInertiaConditioning = false;
+				bDisplayInitialOverlapDepenetration = false;
 				bDisplayWalkableSlopeOverride = false;
 				bDisplayAutoWeld = false;
 				bDisplayStartAwake = false;
@@ -1354,6 +1356,7 @@ void FBodyInstanceCustomizationHelper::CustomizeDetails( IDetailLayoutBuilder& D
 		EnablePhysicsProperty(GET_MEMBER_NAME_CHECKED(FBodyInstance, AngularDamping), bDisplayAngularDamping);
 		EnablePhysicsProperty(GET_MEMBER_NAME_CHECKED(FBodyInstance, bEnableGravity), bDisplayEnableGravity);
 		EnablePhysicsProperty(GET_MEMBER_NAME_CHECKED(FBodyInstance, bInertiaConditioning), bDisplayInertiaConditioning);
+		EnablePhysicsProperty(GET_MEMBER_NAME_CHECKED(FBodyInstance, bInitialOverlapDepenetration), bDisplayInitialOverlapDepenetration);
 		EnablePhysicsProperty(GET_MEMBER_NAME_CHECKED(FBodyInstance, WalkableSlopeOverride), bDisplayWalkableSlopeOverride);
 
 		AddBodyConstraint(PhysicsCategory, BodyInstanceHandler);

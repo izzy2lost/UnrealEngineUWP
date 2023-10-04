@@ -440,6 +440,15 @@ protected:
 	UPROPERTY(EditAnywhere, AdvancedDisplay, BlueprintReadWrite, Category = Physics)
 	uint8 bInertiaConditioning : 1;
 
+	/**
+	 * @brief Enable the initial-overlap de-penetration mechanism
+	 * 
+	 * When enabled, initial overlaps are de-penetrated at a speed that is limited by the physics project configuration.
+	 * If disabled, initial overlaps are not tracked and bodies will attempt to de-penetrate in one tick which can lead to large separating velocities.
+	 */
+	UPROPERTY(EditAnywhere, AdvancedDisplay, BlueprintReadWrite, Category = Physics)
+	uint8 bInitialOverlapDepenetration : 1;
+
 
 public:
 	/** Current scale of physics - used to know when and how physics must be rescaled to match current transform of OwnerComponent. */
@@ -811,6 +820,12 @@ public:
 
 	/** If set to true, this body will treat bodies that do not have the flag set as having infinite mass */
 	ENGINE_API void SetOneWayInteraction(bool InOneWayInteraction = true);
+
+	/** Is the controlled inital-overlap depenetration system enabled for this body */
+	ENGINE_API bool IsInitialOverlapDepenetrationEnabled() const;
+
+	/** Enable/disable the controlled inital-overlap depenetration system for this body */
+	ENGINE_API void SetInitialOverlapDepenetrationEnabled(bool bInEnabled);
 
 	/** Add a torque to this body */
 	ENGINE_API void AddTorqueInRadians(const FVector& Torque, bool bAllowSubstepping = true, bool bAccelChange = false, const FAsyncPhysicsTimestamp TimeStamp = FAsyncPhysicsTimestamp(), APlayerController* PlayerController = nullptr);

@@ -458,6 +458,30 @@ public:
 		});
 	}
 
+	bool InitialOverlapDepenetrationEnabled() const
+	{
+		return Read([](auto* Particle)
+			{
+				if (auto Rigid = Particle->CastToRigidParticle())
+				{
+					return Rigid->InitialOverlapDepenetrationEnabled();
+				}
+
+				return true;
+			});
+	}
+
+	void SetInitialOverlapDepenetrationEnabled(const bool bEnabled)
+	{
+		Write([bEnabled](auto* Particle)
+			{
+				if (auto Rigid = Particle->CastToRigidParticle())
+				{
+					return Rigid->SetInitialOverlapDepenetrationEnabled(bEnabled);
+				}
+			});
+	}
+
 	bool InertiaConditioningEnabled() const
 	{
 		return Read([](auto* Particle)

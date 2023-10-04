@@ -336,6 +336,7 @@ FBodyInstance::FBodyInstance()
 	, bInterpolateWhenSubStepping(true)
 	, bPendingCollisionProfileSetup(false)
 	, bInertiaConditioning(true)
+	, bInitialOverlapDepenetration(true)
 	, Scale3D(1.0f)
 	, CollisionProfileName(UCollisionProfile::CustomCollisionProfileName)
 	, PositionSolverIterationCount(8)
@@ -1210,8 +1211,9 @@ void FInitBodiesHelperBase::CreateActor_AssumesLocked(FBodyInstance* Instance, c
 		FPhysicsInterface::SetMaxLinearVelocity_AssumesLocked(Instance->ActorHandle, TNumericLimits<float>::Max());
 		FPhysicsInterface::SetSmoothEdgeCollisionsEnabled_AssumesLocked(Instance->ActorHandle, Instance->bSmoothEdgeCollisions);
 		FPhysicsInterface::SetInertiaConditioningEnabled_AssumesLocked(Instance->ActorHandle, Instance->bInertiaConditioning);
+		FPhysicsInterface::SetInitialOverlapDepenetrationEnabled_AssumesLocked(Instance->ActorHandle, Instance->bInitialOverlapDepenetration);
 
-		// Set sleep even notification
+		// Set sleep event notification
 		FPhysicsInterface::SetSendsSleepNotifies_AssumesLocked(Instance->ActorHandle, Instance->bGenerateWakeEvents);
 	}
 }
@@ -3379,6 +3381,27 @@ void FBodyInstance::SetOneWayInteraction(bool InOneWayInteraction /*= true*/)
 				FPhysicsInterface::SetOneWayInteraction_AssumesLocked(Actor, InOneWayInteraction);
 			}
 		});
+}
+
+bool FBodyInstance::IsInitialOverlapDepenetrationEnabled() const
+{
+	return bInitialOverlapDepenetration;
+}
+
+void FBodyInstance::SetInitialOverlapDepenetrationEnabled(bool bInEnabled)
+{
+	if (bInEnabled != bInitialOverlapDepenetration)
+	{
+		bInitialOverlapDepenetration = bInEnabled;
+
+		FPhysicsCommand::ExecuteWrite(ActorHandle, [bInEnabled](const FPhysicsActorHandle& Actor)
+			{
+				if (FChaosEngineInterface::IsValid(Actor))
+				{
+					Actor->GetGameThreadAPI().SetInitialOverlapDepenetrationEnabled(bInEnabled);
+				}
+			});
+	}
 }
 
 void FBodyInstance::AddTorqueInRadians(const FVector& Torque, bool bAllowSubstepping, bool bAccelChange, const FAsyncPhysicsTimestamp TimeStamp, APlayerController* PlayerController)

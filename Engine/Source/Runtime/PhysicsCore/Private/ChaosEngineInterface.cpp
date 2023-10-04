@@ -1193,6 +1193,16 @@ void FChaosEngineInterface::SetInertiaConditioningEnabled_AssumesLocked(const FP
 	InActorReference->GetGameThreadAPI().SetInertiaConditioningEnabled(bEnabled);
 }
 
+bool FChaosEngineInterface::IsInitialOverlapDepenetrationEnabled_AssumesLocked(const FPhysicsActorHandle& InActorReference)
+{
+	return InActorReference->GetGameThreadAPI().InitialOverlapDepenetrationEnabled();
+}
+
+void FChaosEngineInterface::SetInitialOverlapDepenetrationEnabled_AssumesLocked(const FPhysicsActorHandle& InActorReference, bool bEnabled)
+{
+	InActorReference->GetGameThreadAPI().SetInitialOverlapDepenetrationEnabled(bEnabled);
+}
+
 void FChaosEngineInterface::SetIsSimulationShape(const FPhysicsShapeHandle& InShape,bool bIsSimShape)
 {
 	InShape.Shape->SetSimEnabled(bIsSimShape);
