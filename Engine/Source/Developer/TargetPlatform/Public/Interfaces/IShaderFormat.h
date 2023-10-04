@@ -28,6 +28,7 @@ public:
 	 * @param Output The output from shader compiler.
 	 * @param WorkingDirectory The working directory.
 	 */
+	UE_DEPRECATED(5.4, "Monolithic CompileShader is deprecated. Please implement separate compilation and preprocess via PreprocessShader/CompilePreprocessedShader")
 	virtual void CompileShader(FName Format, const FShaderCompilerInput& Input, FShaderCompilerOutput& Output, const FString& WorkingDirectory) const {};
 
 	/**
