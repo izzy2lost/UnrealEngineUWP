@@ -70,6 +70,8 @@ public:
 	const UE::Shader::FStructType* GetMaterialAttributesType() const { return MaterialAttributesType; }
 	const UE::Shader::FStructType* GetVTPageTableResultType() const { return VTPageTableResultType; }
 
+	const TArray<UMaterialExpressionCustomOutput*>& GetMaterialCustomOutputs() const { return MaterialCustomOutputs; }
+
 	const TMap<FMaterialConnectionKey, const UE::HLSLTree::FExpression*>& GetConnections() const { return ConnectionMap; }
 
 	ENGINE_API void SetRequestedFields(const UE::HLSLTree::FEmitContext& Context, UE::HLSLTree::FRequestedType& OutRequestedType) const;

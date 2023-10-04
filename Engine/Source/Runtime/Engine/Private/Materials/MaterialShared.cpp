@@ -3932,14 +3932,15 @@ void FMaterialVirtualTextureStack::GetTextureValues(const FMaterialRenderContext
 void FMaterialVirtualTextureStack::GetTextureValue(const FMaterialRenderContext& Context, const FUniformExpressionSet& UniformExpressionSet, const URuntimeVirtualTexture*& OutValue) const
 {
 	OutValue = nullptr;
-	if (NumLayers > 0)
+	for (uint32 LayerIndex = 0u; LayerIndex < NumLayers; ++LayerIndex)
 	{
-		const int32 ParameterIndex = LayerUniformExpressionIndices[0];
+		const int32 ParameterIndex = LayerUniformExpressionIndices[LayerIndex];
 		if (ParameterIndex != INDEX_NONE)
 		{
 			const URuntimeVirtualTexture* Texture = nullptr;
 			UniformExpressionSet.GetTextureValue(ParameterIndex, Context, Context.Material, Texture);
 			OutValue = Texture;
+			break;
 		}
 	}
 }

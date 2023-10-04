@@ -490,6 +490,14 @@ static void GetMaterialEnvironment(EShaderPlatform InPlatform,
 	// Count the number of VTStacks (each stack will allocate a feedback slot)
 	OutEnvironment.SetDefine(TEXT("NUM_VIRTUALTEXTURE_SAMPLES"), EmitMaterialData.VTStacks.Num());
 
+	// Check if any feedback slots are in use. We can simplify shader and remove EARLYZ optimizations if none are.
+	bool bGenerateFeedback = false;
+	for (int32 i = 0; i < EmitMaterialData.VTStacks.Num() && !bGenerateFeedback; ++i)
+	{
+		bGenerateFeedback |= EmitMaterialData.VTStacks[i].bGenerateFeedback;
+	}
+	OutEnvironment.SetDefine(TEXT("MATERIAL_VIRTUALTEXTURE_FEEDBACK"), bGenerateFeedback);
+
 	// Setup defines to map each VT stack to either 1 or 2 page table textures, depending on how many layers it uses
 	for (int i = 0; i < EmitMaterialData.VTStacks.Num(); ++i)
 	{

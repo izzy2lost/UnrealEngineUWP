@@ -925,7 +925,7 @@ uint32 AcquireVTStackIndex(
 	bool bGenerateFeedback)
 {
 	FHasher Hasher;
-	AppendHashes(Hasher, &Scope, MipValueMode, AddressU, AddressV, AspectRatio, EmitTexCoordValue, EmitTexCoordValueDdx, EmitTexCoordValueDdy, EmitMipValue, PreallocatedStackTextureIndex, bAdaptive, bGenerateFeedback);
+	AppendHashes(Hasher, MipValueMode, AddressU, AddressV, AspectRatio, EmitTexCoordValue, EmitTexCoordValueDdx, EmitTexCoordValueDdy, EmitMipValue, PreallocatedStackTextureIndex, bAdaptive, bGenerateFeedback);
 	const FXxHash64 Hash = Hasher.Finalize();
 
 	// First check to see if we have an existing VTStack that matches this key, that can still fit another layer
@@ -937,7 +937,6 @@ uint32 AcquireVTStackIndex(
 			Entry.EmitTexCoordValue == EmitTexCoordValue &&
 			Entry.EmitTexCoordValueDdx == EmitTexCoordValueDdx &&
 			Entry.EmitTexCoordValueDdy == EmitTexCoordValueDdy &&
-			Entry.Scope == &Scope &&
 			Entry.EmitMipValue == EmitMipValue &&
 			Entry.MipValueMode == MipValueMode &&
 			Entry.AddressU == AddressU &&
@@ -947,6 +946,7 @@ uint32 AcquireVTStackIndex(
 			Entry.bAdaptive == bAdaptive &&
 			Entry.bGenerateFeedback == bGenerateFeedback)
 		{
+			UE::HLSLTree::Private::MoveToScope(Entry.EmitResult, Scope);
 			return Index;
 		}
 	}
@@ -958,7 +958,7 @@ uint32 AcquireVTStackIndex(
 	Entry.EmitTexCoordValue = EmitTexCoordValue;
 	Entry.EmitTexCoordValueDdx = EmitTexCoordValueDdx;
 	Entry.EmitTexCoordValueDdy = EmitTexCoordValueDdy;
-	Entry.Scope = &Scope;
+	Entry.EmitMipValue = EmitMipValue;
 	Entry.MipValueMode = MipValueMode;
 	Entry.AddressU = AddressU;
 	Entry.AddressV = AddressV;
@@ -1140,15 +1140,47 @@ FEmitShaderExpression* EmitTextureSampleShader(
 		EmitTexCoordValueDdy = nullptr;
 	}
 
+	auto EmitManualMipViewBias = [&]()
+	{
+		if (MipValueMode == TMVM_Derivative)
+		{
+			// When doing derivative based sampling, multiply.
+			FEmitShaderExpression* EmitMultiplier = Context.EmitInlineExpression(Scope, Shader::EValueType::Float1, TEXT("View.MaterialTextureDerivativeMultiply"));
+			EmitTexCoordValueDdx = Context.EmitExpression(Scope, Shader::EValueType::Float2, TEXT("(% * %)"), EmitTexCoordValueDdx, EmitMultiplier);
+			EmitTexCoordValueDdy = Context.EmitExpression(Scope, Shader::EValueType::Float2, TEXT("(% * %)"), EmitTexCoordValueDdy, EmitMultiplier);
+		}
+		else if (MipValueMode == TMVM_MipLevel || MipValueMode == TMVM_MipBias)
+		{
+			check(EmitMipValue);
+			// Adds bias to existing input level bias.
+			EmitMipValue = Context.EmitExpression(Scope, Shader::EValueType::Float1, TEXT("(% + View.MaterialTextureMipBias)"), EmitMipValue);
+		}
+		else
+		{
+			// Sets bias.
+			EmitMipValue = Context.EmitInlineExpression(Scope, Shader::EValueType::Float1, TEXT("View.MaterialTextureMipBias"));
+		}
+
+		// If no Mip mode, then use MipBias.
+		MipValueMode = MipValueMode == TMVM_None ? TMVM_MipBias : MipValueMode;
+	};
+
 	FEmitShaderExpression* EmitTextureResult = nullptr;
 	if (TextureType == MCT_TextureVirtual)
 	{
+		// VT does not have explicit samplers (and always requires manual view mip bias)
+		if (bAutomaticViewMipBias)
+		{
+			EmitManualMipViewBias();
+		}
+
 		FEmitData& EmitMaterialData = Context.FindData<FEmitData>();
 
 		FMaterialTextureParameterInfo TextureParameterInfo;
 		TextureParameterInfo.ParameterInfo = TextureValue.ParameterInfo;
 		TextureParameterInfo.TextureIndex = Context.Material->GetReferencedTextures().Find(TextureObject);
 		TextureParameterInfo.SamplerSource = SamplerSource;
+		TextureParameterInfo.VirtualTextureLayerIndex = TextureLayerIndex;
 		check(TextureParameterInfo.TextureIndex != INDEX_NONE);
 		const int32 TextureParameterIndex = Context.MaterialCompilationOutput->UniformExpressionSet.FindOrAddTextureParameter(EMaterialTextureParameterType::Virtual, TextureParameterInfo);
 
@@ -1263,6 +1295,7 @@ FEmitShaderExpression* EmitTextureSampleShader(
 		Private::EmitTextureShader(Context, TextureValue, FormattedTexture);
 
 		TStringBuilder<256> FormattedSampler;
+		bool bRequiresManualViewMipBias = bAutomaticViewMipBias;
 		switch (SamplerSource)
 		{
 		case SSM_FromTextureAsset:
@@ -1272,20 +1305,28 @@ FEmitShaderExpression* EmitTextureSampleShader(
 			FormattedSampler.Appendf(TEXT("GetMaterialSharedSampler(%sSampler,%s)"),
 				FormattedTexture.ToString(),
 				bAutomaticViewMipBias ? TEXT("View.MaterialTextureBilinearWrapedSampler") : TEXT("Material.Wrap_WorldGroupSettings"));
+			bRequiresManualViewMipBias = false;
 			break;
 		case SSM_Clamp_WorldGroupSettings:
 			FormattedSampler.Appendf(TEXT("GetMaterialSharedSampler(%sSampler,%s)"),
 				FormattedTexture.ToString(),
 				bAutomaticViewMipBias ? TEXT("View.MaterialTextureBilinearClampedSampler") : TEXT("Material.Clamp_WorldGroupSettings"));
+			bRequiresManualViewMipBias = false;
 			break;
 		case SSM_TerrainWeightmapGroupSettings:
 			FormattedSampler.Appendf(TEXT("GetMaterialSharedSampler(%sSampler,%s)"),
 				FormattedTexture.ToString(),
 				TEXT("View.LandscapeWeightmapSampler"));
+			bRequiresManualViewMipBias = false;
 			break;
 		default:
 			checkNoEntry();
 			break;
+		}
+
+		if (bRequiresManualViewMipBias)
+		{
+			EmitManualMipViewBias();
 		}
 
 		switch (MipValueMode)

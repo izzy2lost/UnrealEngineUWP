@@ -2273,6 +2273,29 @@ void UMaterialInstance::CacheResourceShadersForRendering(EMaterialShaderPrecompi
 			FMaterialResource* CurrentResource = FindOrCreateMaterialResource(StaticPermutationMaterialResources, BaseMaterial, this, FeatureLevel, ActiveQualityLevel);
 			check(CurrentResource);
 
+			if (IsUsingNewHLSLGenerator())
+			{
+				// Release resources from unused qualities. For some reason, FindOrCreateMaterialResource checks material quality usage
+				// but FindMaterialResource doesn't. The two functions can choose differently if unused quality resources aren't removed.
+				// When that happens, stale material resources may be used for rendering and cause troubles
+				TArray<bool, TInlineAllocator<EMaterialQualityLevel::Num>> QualityLevelsUsed;
+				GetQualityLevelUsage(QualityLevelsUsed, ShaderPlatform);
+
+				for (int32 Index = 0; Index < StaticPermutationMaterialResources.Num(); ++Index)
+				{
+					FMaterialResource* MaterialResource = StaticPermutationMaterialResources[Index];
+					if (MaterialResource != CurrentResource
+						&& MaterialResource->GetFeatureLevel() == FeatureLevel
+						&& MaterialResource->GetQualityLevel() != EMaterialQualityLevel::Num
+						&& !QualityLevelsUsed[MaterialResource->GetQualityLevel()])
+					{
+						OutResourcesToFree.Add(MaterialResource);
+						StaticPermutationMaterialResources.RemoveAtSwap(Index);
+						--Index;
+					}
+				}
+			}
+
 #if STORE_ONLY_ACTIVE_SHADERMAPS
 			if (!CurrentResource->GetGameThreadShaderMap())
 			{

@@ -26,6 +26,7 @@
 #include "Materials/MaterialExpressionNamedReroute.h"
 #include "Materials/MaterialExpressionFunctionInput.h"
 #include "Materials/MaterialExpressionStaticBool.h"
+#include "Materials/MaterialExpressionLandscapeGrassOutput.h"
 #include "Materials/MaterialFunctionInterface.h"
 #include "Materials/MaterialParameterCollection.h"
 #include "MaterialHLSLTree.h"
@@ -979,6 +980,17 @@ void FMaterialCachedExpressionData::UpdateForCachedHLSLTree(const FMaterialCache
 
 	::Private::PrepareHLSLTree(EmitContext, CachedTree, *this, SF_Pixel);
 	::Private::PrepareHLSLTree(EmitContext, CachedTree, *this, SF_Vertex);
+
+	for (const UMaterialExpressionCustomOutput* CustomOutput : CachedTree.GetMaterialCustomOutputs())
+	{
+		if (const UMaterialExpressionLandscapeGrassOutput* ExpressionGrassOutput = Cast<UMaterialExpressionLandscapeGrassOutput>(CustomOutput))
+		{
+			for (const FGrassInput& GrassInput : ExpressionGrassOutput->GrassTypes)
+			{
+				GrassTypes.AddUnique(GrassInput.GrassType);
+			}
+		}
+	}
 }
 
 void FMaterialCachedExpressionData::Validate()

@@ -3331,6 +3331,30 @@ bool UMaterialExpressionIf::GenerateHLSLExpression(FMaterialHLSLGenerator& Gener
 	return true;
 }
 
+bool UMaterialExpressionSwitch::GenerateHLSLExpression(FMaterialHLSLGenerator& Generator, UE::HLSLTree::FScope& Scope, int32 OutputIndex, UE::HLSLTree::FExpression const*& OutExpression) const
+{
+	using namespace UE::HLSLTree;
+
+	FTree& Tree = Generator.GetTree();
+	const FExpression* SwitchValueExpression = SwitchValue.AcquireHLSLExpressionOrConstant(Generator, Scope, ConstSwitchValue);
+	OutExpression = Default.AcquireHLSLExpressionOrConstant(Generator, Scope, ConstDefault);
+
+	for (int32 Index = Inputs.Num() - 1; Index >= 0; --Index)
+	{
+		const FExpressionInput& Input = Inputs[Index].Input;
+		const FExpression* InputExpression = Input.AcquireHLSLExpression(Generator, Scope);
+		if (!InputExpression)
+		{
+			return false;
+		}
+
+		const FExpression* ConditionExpression = Tree.NewLess(SwitchValueExpression, Tree.NewConstant(Index + 1.f));
+		OutExpression = Generator.GenerateBranch(Scope, ConditionExpression, InputExpression, OutExpression);
+	}
+
+	return true;
+}
+
 bool UMaterialExpressionFresnel::GenerateHLSLExpression(FMaterialHLSLGenerator& Generator, UE::HLSLTree::FScope& Scope, int32 OutputIndex, UE::HLSLTree::FExpression const*& OutExpression) const
 {
 	using namespace UE::HLSLTree;

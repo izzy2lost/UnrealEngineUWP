@@ -640,6 +640,8 @@ struct FEmitOwnerScope
 
 namespace Private
 {
+void MoveToScope(FEmitShaderNode* EmitNode, FEmitScope& Scope);
+
 void EmitPreshaderField(
 	FEmitContext& Context,
 	TMemoryImageArray<FMaterialUniformPreshaderHeader>& UniformPreshaders,
