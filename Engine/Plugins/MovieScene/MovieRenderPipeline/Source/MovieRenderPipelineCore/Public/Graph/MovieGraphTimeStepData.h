@@ -26,6 +26,8 @@ public:
 		, WorldSeconds(0.f)
 		, MotionBlurFraction(0.f)
 		, FrameRate(0, 0)
+		, TemporalSampleIndex(0)
+		, TemporalSampleCount(0)
 		, bIsFirstTemporalSampleForFrame(false)
 		, bIsLastTemporalSampleForFrame(false)
 		, bDiscardOutput(false)
@@ -52,6 +54,19 @@ public:
 	
 	UPROPERTY(BlueprintReadWrite, EditAnywhere, Category = "Movie Graph")
 	FFrameRate FrameRate;
+
+	/*
+	* Index out of TemporalSampleCount we're on. No guarantee that we'll ever reach Index == Count-1,
+	* if bIsLastTemporalSampleForFrame has priority over that (to allow early outs)
+	*/
+	UPROPERTY(BlueprintReadWrite, EditAnywhere, Category = "Movie Graph")
+	int32 TemporalSampleIndex;
+
+	/*
+	* What is the maximum number of Temporal Samples this frame is expected to be able to process.
+	*/
+	UPROPERTY(BlueprintReadWrite, EditAnywhere, Category = "Movie Graph")
+	int32 TemporalSampleCount;
 
 	/** 
 	* Should be set to true for the first sample of each output frame. Used to determine

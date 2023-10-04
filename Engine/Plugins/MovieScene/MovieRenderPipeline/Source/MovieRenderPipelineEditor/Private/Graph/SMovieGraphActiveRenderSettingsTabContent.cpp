@@ -12,7 +12,6 @@
 #include "MoviePipelineQueue.h"
 #include "MoviePipelineQueueSubsystem.h"
 #include "SPositiveActionButton.h"
-#include "Graph/Nodes/MovieGraphCoreRenderPassNode.h"
 #include "Widgets/Input/SComboBox.h"
 
 #define LOCTEXT_NAMESPACE "SMoviePipelineActiveRenderSettingsTabContent"

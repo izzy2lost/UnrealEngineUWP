@@ -6,13 +6,20 @@
 #include "Graph/Nodes/MovieGraphGlobalGameOverrides.h"
 #include "Graph/Nodes/MovieGraphRenderLayerNode.h"
 #include "Graph/Nodes/MovieGraphRenderPassNode.h"
+#include "Graph/Nodes/MovieGraphGlobalGameOverrides.h"
+#include "Graph/Nodes/MovieGraphDebugNode.h"
 #include "MovieRenderPipelineCoreModule.h"
 #include "RenderingThread.h"
 #include "Engine/TextureRenderTarget2D.h"
 #include "UObject/Package.h"
 #include "MoviePipelineSurfaceReader.h"
+#include "RenderCaptureInterface.h"
 
 // For flushing async systems
+#include "EngineModule.h"
+#include "MeshCardRepresentation.h"
+#include "ShaderCompiler.h"
+#include "EngineUtils.h"
 #include "AssetCompilingManager.h"
 #include "ContentStreaming.h"
 #include "EngineModule.h"
@@ -174,7 +181,6 @@ void UMovieGraphDefaultRenderer::AddReferencedObjects(UObject* InThis, FReferenc
 
 void UMovieGraphDefaultRenderer::Render(const FMovieGraphTimeStepData& InTimeStepData)
 {
-	// Flush built-in systems before we render anything. This maximizes the likelihood that the data is prepared for when
 	// the render thread uses it.
 	FlushAsyncEngineSystems(InTimeStepData.EvaluatedConfig);
 
@@ -227,6 +233,22 @@ void UMovieGraphDefaultRenderer::Render(const FMovieGraphTimeStepData& InTimeSte
 			TimeStats->StartTime = FDateTime::UtcNow();
 		}
 	}
+
+	// There is some work we need to signal to the renderer for only the first view of a frame,
+	// so we have to track when any of our *FSceneView* render passes submit stuff (UI renderers don't count)
+	bHasRenderedFirstViewThisFrame = false;
+
+	// Support for RenderDoc captures of just the MRQ work
+#if WITH_EDITOR && !UE_BUILD_SHIPPING
+	TUniquePtr<RenderCaptureInterface::FScopedCapture> ScopedGPUCapture;
+	{
+		UMovieGraphDebugSettingNode* DebugSettings = InTimeStepData.EvaluatedConfig->GetSettingForBranch<UMovieGraphDebugSettingNode>(UMovieGraphNode::GlobalsPinName);
+		if (DebugSettings && DebugSettings->bCaptureFramesWithRenderDoc)
+		{
+			ScopedGPUCapture = MakeUnique<RenderCaptureInterface::FScopedCapture>(true, *FString::Printf(TEXT("MRQ Frame: %d"), InTimeStepData.RootFrameNumber.Value));
+		}
+	}
+#endif
 
 	for (const TObjectPtr<UMovieGraphRenderPassNode>& RenderPass : RenderPassesInUse)
 	{
@@ -341,7 +363,7 @@ UE::MovieGraph::DefaultRenderer::FCameraInfo UMovieGraphDefaultRenderer::GetCame
 	{
 		CameraInfo.ViewInfo = LocalPlayerController->PlayerCameraManager->GetCameraCacheView();
 		CameraInfo.ViewActor = LocalPlayerController->GetViewTarget();
-		CameraInfo.CameraName = TEXT("Unnamed_Camera"); // ToDo: This eventually needs to come from Level Sequences
+		CameraInfo.CameraName = TEXT("Unsupported"); // ToDo: This eventually needs to come from Level Sequences
 	}
 	else
 	{

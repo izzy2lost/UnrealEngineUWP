@@ -1019,5 +1019,37 @@ namespace UE
 
 			return OutRenderPassMetrics;
 		}
+
+		FVector2f GetSubPixelJitter(int32 InFrameIndex, int32 InSamplesPerFrame)
+		{
+			// Repeat the Halton Offset equally on each output frame so non-moving objects don't have any chance to crawl between frames.
+			int32 HaltonIndex = (InFrameIndex % InSamplesPerFrame) + 1;
+			float HaltonOffsetX = Halton(HaltonIndex, 2);
+			float HaltonOffsetY = Halton(HaltonIndex, 3);
+
+			float SpatialShiftX = 0.0f;
+			float SpatialShiftY = 0.0f;
+
+			static auto CVar = IConsoleManager::Get().FindConsoleVariable(TEXT("r.TemporalAAFilterSize"));
+			float FilterSize = CVar->GetFloat();
+
+			// Scale distribution to set non-unit variance
+			// Variance = Sigma^2
+			float Sigma = 0.47f * FilterSize;
+
+			// Window to [-0.5, 0.5] output
+			// Without windowing we could generate samples far away on the infinite tails.
+			float OutWindow = 0.5f;
+			float InWindow = FMath::Exp(-0.5 * FMath::Square(OutWindow / Sigma));
+
+			// Box-Muller transform
+			float Theta = 2.0f * PI * HaltonOffsetY;
+			float r = Sigma * FMath::Sqrt(-2.0f * FMath::Loge((1.0f - HaltonOffsetX) * InWindow + HaltonOffsetX));
+
+			SpatialShiftX = r * FMath::Cos(Theta);
+			SpatialShiftY = r * FMath::Sin(Theta);
+
+			return FVector2f(SpatialShiftX, SpatialShiftY);
+		}
 	}
 }

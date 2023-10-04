@@ -307,6 +307,15 @@ namespace UE::MovieGraph
 		/** Set this to true if this pass should be composited on top of other renders. */
 		bool bCompositeOnOtherRenders;
 
+		/** When using high-res tiling, how many pixels does each tile overlap the adjacent tiles (on each side)? This should be zero if not using tiling. */
+		FIntPoint OverlappedPad;
+
+		/** When using high-res tiling, how many pixels offset into the output image does this accumulation get added to. */
+		FIntPoint OverlappedOffset;
+
+		/** When using spatial jitters, how much do we need to shift the output data during accumulation to counter-act the jitter. */
+		FVector2D OverlappedSubpixelShift;
+
 		/**
 		* If multiple passes are composited on top of a render, the sort order determines the order in which they're composited.
 		* Passes with a low sort order will composite on top of passes with a higher sort order.

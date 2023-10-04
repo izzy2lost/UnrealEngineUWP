@@ -4,11 +4,12 @@
 
 #include "DetailWidgetRow.h"
 #include "EditorShowFlags.h"
-#include "Graph/Nodes/MovieGraphCoreRenderPassNode.h"
+#include "Graph/Renderers/MovieGraphShowFlags.h"
 #include "IDetailChildrenBuilder.h"
 #include "IDetailGroup.h"
 #include "PropertyHandle.h"
 #include "Widgets/Input/SCheckBox.h"
+#include "Widgets/Text/STextBlock.h"
 
 #define LOCTEXT_NAMESPACE "MoviePipelineEditor"
 

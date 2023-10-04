@@ -1,12 +1,17 @@
 ﻿// Copyright Epic Games, Inc. All Rights Reserved.
 
-#include "Graph/Nodes/MovieGraphDeferredRenderPassNode.h"
+#include "Graph/Nodes/MovieGraphDeferredPassNode.h"
+#include "Graph/Renderers/MovieGraphDeferredPass.h"
 
-#include "Engine/EngineBaseTypes.h"
-#include "ShowFlags.h"
+TUniquePtr<UE::MovieGraph::Rendering::FMovieGraphImagePassBase> UMovieGraphDeferredRenderPassNode::CreateInstance() const
+{
+	return MakeUnique<UE::MovieGraph::Rendering::FMovieGraphDeferredPass>();
+}
 
 UMovieGraphDeferredRenderPassNode::UMovieGraphDeferredRenderPassNode()
-	: ViewModeIndex(VMI_Lit)
+	: SpatialSampleCount(1)
+	, AntiAliasingMethod(EAntiAliasingMethod::AAM_TSR)
+	, ViewModeIndex(VMI_Lit)
 {
 }
 

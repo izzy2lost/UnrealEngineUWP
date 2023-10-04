@@ -1,14 +1,14 @@
-﻿// Copyright Epic Games, Inc. All Rights Reserved.
+// Copyright Epic Games, Inc. All Rights Reserved.
 
 #pragma once
 
-#include "Graph/Nodes/MovieGraphCoreRenderPassNode.h"
+#include "Graph/Nodes/MovieGraphImagePassBaseNode.h"
 
 #include "MovieGraphPathTracedRenderPassNode.generated.h"
 
 /** A render node which uses the path tracer. */
 UCLASS()
-class MOVIERENDERPIPELINECORE_API UMovieGraphPathTracedRenderPassNode : public UMovieGraphCoreRenderPassNode
+class MOVIERENDERPIPELINECORE_API UMovieGraphPathTracedRenderPassNode : public UMovieGraphImagePassBaseNode
 {
 	GENERATED_BODY()
 

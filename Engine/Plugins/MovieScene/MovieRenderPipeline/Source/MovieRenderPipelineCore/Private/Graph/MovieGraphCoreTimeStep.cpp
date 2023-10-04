@@ -382,6 +382,8 @@ void UMovieGraphCoreTimeStep::TickProducingFrames()
 	CurrentTimeStepData.bRequiresAccumulator = CurrentFrameData.TemporalSampleCount > 1 && !CurrentTimeStepData.bDiscardOutput;
 	CurrentTimeStepData.OutputFrameNumber = CurrentFrameData.OutputFrameNumber;
 	CurrentTimeStepData.RenderedFrameNumber = CurrentFrameData.RenderedFrameNumber;
+	CurrentTimeStepData.TemporalSampleCount = CurrentFrameData.TemporalSampleCount;
+	CurrentTimeStepData.TemporalSampleIndex = CurrentFrameData.TemporalSampleIndex;
 	CurrentTimeStepData.EvaluatedConfig = TObjectPtr<UMovieGraphEvaluatedConfig>(CurrentFrameData.EvaluatedConfig.Get());
 
 	//UE_LOG(LogTemp, Warning, TEXT("F# %d bFirst: %d bLast: %d bReqAc: %d"),

@@ -5,6 +5,7 @@
 #include "Graph/MovieGraphPipeline.h"
 #include "Graph/Nodes/MovieGraphOutputSettingNode.h"
 #include "Graph/Nodes/MovieGraphRenderLayerNode.h"
+#include "Graph/Nodes/MovieGraphCameraNode.h"
 #include "HAL/FileManager.h"
 #include "Internationalization/Regex.h"
 #include "MoviePipelineBlueprintLibrary.h"
@@ -306,8 +307,15 @@ FIntPoint UMovieGraphBlueprintLibrary::GetEffectiveOutputResolution(UMovieGraphE
 	{
 		return FIntPoint();
 	}
-	
-	return UMoviePipelineBlueprintLibrary::Utility_GetEffectiveOutputResolution(0 /* TODO: Overscan percentage needs to be provided */, OutputSetting->OutputResolution);
+
+	float RescaledOverscan = 0.f;
+	if (UMovieGraphCameraSettingNode* CameraSetting = InEvaluatedGraph->GetSettingForBranch<UMovieGraphCameraSettingNode>(UMovieGraphNode::GlobalsPinName, bIncludeCDOs))
+	{
+		// The old system used [0-1] range for floats, the new system will use [0-100], so we rescale down before calling through.
+		RescaledOverscan = CameraSetting->OverscanPercentage / 100.f;
+	}
+
+	return UMoviePipelineBlueprintLibrary::Utility_GetEffectiveOutputResolution(RescaledOverscan, OutputSetting->OutputResolution);
 }
 
 FText UMovieGraphBlueprintLibrary::GetJobName(const UMovieGraphPipeline* InMovieGraphPipeline)

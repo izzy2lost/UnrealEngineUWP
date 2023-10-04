@@ -23,15 +23,50 @@ typedef TSharedPtr<UE::MovieGraph::DefaultRenderer::FSurfaceAccumulatorPool, ESP
 
 namespace UE::MovieGraph::DefaultRenderer
 {
+	struct FMovieGraphTilingParams
+	{
+		// The number of pixels that the tiles overlap each other.
+		FVector2f OverlapPad;
+		// Size of the backbuffer in pixels
+		FIntPoint TileSize;
+		// Which tile index is this 
+		FIntPoint TileIndexes;
+		// How many tiles are there total
+		FIntPoint TileCount;
+	};
+
 	struct FCameraInfo
 	{
 		FCameraInfo()
 			: ViewActor(nullptr)
+			, OverscanFraction(0.f)
+			, bAllowCameraAspectRatio(true)
+			, DoFSensorScale(1.0f)
 		{}
 
 		FMinimalViewInfo ViewInfo;
-		FString CameraName;
 		class AActor* ViewActor;
+
+		/** The name to use for the {camera_name} token. Filled out by the renderer where possible. */
+		FString CameraName;
+
+		/** In the [0-1] Range. */
+		float OverscanFraction;
+
+		/** should we respect the camera's aspect ratio settings. */
+		bool bAllowCameraAspectRatio;
+
+		/** Projection Matrix this camera should use. Used instead of the one calculated by FMinimalViewInfo to handle special cases. */
+		FMatrix ProjectionMatrix;
+
+		// questionable if these are fcamerainfo
+		/** When using tiling, we scale the sensor to counteract the view changes. This value comes from modifying the ProjectionMatrix. */
+		float DoFSensorScale;
+		FMovieGraphTilingParams TilingParams;
+
+		// Sub-pixel jitter this camera should use. Only applied when using no AA.
+		FVector2D ProjectionMatrixJitterAmount;
+
 	};
 
 	struct FRenderTargetInitParams
@@ -154,7 +189,8 @@ public:
 
 	void AddOutstandingRenderTask_AnyThread(UE::Tasks::FTask InTask);
 	UE::MovieGraph::DefaultRenderer::FCameraInfo GetCameraInfo(const FGuid& InCameraIdentifier) const;
-
+	void SetHasRenderedFirstViewThisFrame(bool bInValue) { bHasRenderedFirstViewThisFrame = bInValue; }
+	bool GetHasRenderedFirstViewThisFrame() const { return bHasRenderedFirstViewThisFrame; }
 public:
 	UTextureRenderTarget2D* GetOrCreateViewRenderTarget(const UE::MovieGraph::DefaultRenderer::FRenderTargetInitParams& InInitParams);
 	FMoviePipelineSurfaceQueuePtr GetOrCreateSurfaceQueue(const UE::MovieGraph::DefaultRenderer::FRenderTargetInitParams& InInitParams);
@@ -191,6 +227,9 @@ protected:
 	/** A pointer to the CDOs of the Render Pass nodes that are valid for the current shot render. */
 	UPROPERTY(Transient)
 	TArray<TObjectPtr<UMovieGraphRenderPassNode>> RenderPassesInUse;
+
+	/** For this engine tick, has any view been submitted yet? */
+	bool bHasRenderedFirstViewThisFrame = false;
 
 	/** Keep track of some statistics about render frame data for metadata purposes. */
 	TMap<int32, UE::MovieGraph::FRenderTimeStatistics> RenderTimeStatistics;
