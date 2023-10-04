@@ -2164,6 +2164,31 @@ void FDisplayClusterLightCardEditorViewportClient::MoveSelectedActorsToPixel(con
 	MoveActorsToPixel(PixelPos, SelectedActors);
 }
 
+void FDisplayClusterLightCardEditorViewportClient::MoveActorsToPixel(const FIntPoint& PixelPos, const TArray<FDisplayClusterWeakStageActorPtr>& InActors)
+{
+	FSceneViewFamilyContext ViewFamily(FSceneViewFamily::ConstructionValues(
+		Viewport,
+		GetScene(),
+		EngineShowFlags)
+		.SetRealtimeUpdate(IsRealtime())
+	);
+
+	FSceneView* View = CalcSceneView(&ViewFamily);
+
+	ProjectionHelper->MoveActorsToPixel(InActors, PixelPos, *View);
+
+	// Update each light card with the delta coordinates; the flush constraint is applied by MoveActorTo, ensuring the light card is always flush to screens
+	for (const FDisplayClusterWeakStageActorPtr& LightCard : InActors)
+	{
+		if (LightCard.IsValid() &&
+			((LightCard->IsUVActor() && ProjectionMode == EDisplayClusterMeshProjectionType::UV) ||
+			(!LightCard->IsUVActor() && ProjectionMode != EDisplayClusterMeshProjectionType::UV)))
+		{
+			PropagateActorTransform(LightCard);
+		}
+	}
+}
+
 void FDisplayClusterLightCardEditorViewportClient::BeginTransaction(const FText& Description)
 {
 	GEditor->BeginTransaction(Description);
@@ -2544,31 +2569,6 @@ void FDisplayClusterLightCardEditorViewportClient::MoveSelectedActors(FViewport*
 	else
 	{
 		DesiredLookAtLocation.Reset();
-	}
-}
-
-void FDisplayClusterLightCardEditorViewportClient::MoveActorsToPixel(const FIntPoint& PixelPos, const TArray<FDisplayClusterWeakStageActorPtr>& InActors)
-{
-	FSceneViewFamilyContext ViewFamily(FSceneViewFamily::ConstructionValues(
-		Viewport,
-		GetScene(),
-		EngineShowFlags)
-		.SetRealtimeUpdate(IsRealtime())
-	);
-
-	FSceneView* View = CalcSceneView(&ViewFamily);
-
-	ProjectionHelper->MoveActorsToPixel(SelectedActors, PixelPos, *View);
-
-	// Update each light card with the delta coordinates; the flush constraint is applied by MoveActorTo, ensuring the light card is always flush to screens
-	for (const FDisplayClusterWeakStageActorPtr& LightCard : InActors)
-	{
-		if (LightCard.IsValid() &&
-			((LightCard->IsUVActor() && ProjectionMode == EDisplayClusterMeshProjectionType::UV) ||
-			(!LightCard->IsUVActor() && ProjectionMode != EDisplayClusterMeshProjectionType::UV)))
-		{
-			PropagateActorTransform(LightCard);
-		}
 	}
 }
 

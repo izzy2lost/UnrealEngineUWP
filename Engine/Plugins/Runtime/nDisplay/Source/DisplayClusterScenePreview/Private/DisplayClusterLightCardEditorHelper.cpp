@@ -1456,8 +1456,9 @@ bool FDisplayClusterLightCardEditorHelper::UpdateNormalMaps()
 
 void FDisplayClusterLightCardEditorHelper::UpdateNormalMapMesh()
 {
-	if (!NormalMeshScene.IsValid())
+	if (!NormalMeshScene.IsValid() || !IsValid(NormalMeshScene->GetWorld()))
 	{
+		FWorldDelegates::OnWorldCleanup.RemoveAll(this);
 		FWorldDelegates::OnWorldCleanup.AddRaw(this, &FDisplayClusterLightCardEditorHelper::OnWorldCleanup);
 		NormalMeshScene = MakeShared<FPreviewScene>(FPreviewScene::ConstructionValues());
 	}
