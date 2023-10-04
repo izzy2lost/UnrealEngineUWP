@@ -33,7 +33,7 @@ namespace EpicGames.Serialization.Tests
 			CbWriter writer1 = new CbWriter();
 			writer1.BeginObject();
 			writer1.WriteInteger("a", 1);
-			writer1.WriteUtf8String("b", "hello");
+			writer1.WriteUtf8String("b", new Utf8String("hello"));
 			writer1.EndObject();
 
 			CbObject object1 = writer1.ToObject();
@@ -148,7 +148,7 @@ namespace EpicGames.Serialization.Tests
 
 			CbWriter writer = new CbWriter();
 			writer.BeginObject();
-			writer.WriteUtf8String("string", "test");
+			writer.WriteUtf8String("string", new Utf8String("test"));
 			writer.WriteBinaryAttachment("hash", hash1);
 			writer.EndObject();
 

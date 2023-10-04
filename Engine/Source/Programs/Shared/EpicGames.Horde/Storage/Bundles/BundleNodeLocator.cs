@@ -145,10 +145,10 @@ namespace EpicGames.Horde.Storage.Bundles
 		public override BundleNodeLocator Read(CbField field) => BundleNodeLocator.Parse(field.AsString());
 
 		/// <inheritdoc/>
-		public override void Write(CbWriter writer, BundleNodeLocator value) => writer.WriteUtf8StringValue(value.ToString());
+		public override void Write(CbWriter writer, BundleNodeLocator value) => writer.WriteUtf8StringValue(new Utf8String(value.ToString()));
 
 		/// <inheritdoc/>
-		public override void WriteNamed(CbWriter writer, Utf8String name, BundleNodeLocator value) => writer.WriteUtf8String(name, value.ToString());
+		public override void WriteNamed(CbWriter writer, Utf8String name, BundleNodeLocator value) => writer.WriteUtf8String(name, new Utf8String(value.ToString()));
 	}
 
 	/// <summary>

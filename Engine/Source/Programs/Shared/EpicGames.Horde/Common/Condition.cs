@@ -653,7 +653,7 @@ namespace EpicGames.Horde.Common
 			}
 			else
 			{
-				writer.WriteUtf8StringValue(value.Text);
+				writer.WriteUtf8StringValue(new Utf8String(value.Text));
 			}
 		}
 
@@ -662,7 +662,7 @@ namespace EpicGames.Horde.Common
 		{
 			if (value != null)
 			{
-				writer.WriteUtf8String(name, value.Text);
+				writer.WriteUtf8String(name, new Utf8String(value.Text));
 			}
 		}
 	}
