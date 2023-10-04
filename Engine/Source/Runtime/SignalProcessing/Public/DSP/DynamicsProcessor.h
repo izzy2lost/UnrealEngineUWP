@@ -73,10 +73,12 @@ namespace Audio
 		SIGNALPROCESSING_API void ProcessAudio(const float* InBuffer, const int32 InNumSamples, float* OutBuffer, const float* InKeyBuffer = nullptr);
 		SIGNALPROCESSING_API void ProcessAudio(const float* InBuffer, const int32 InNumSamples, float* OutBuffer, const float* InKeyBuffer, float* OutEnvelope);
 		 
+		// For single channels of audio OR non-interleaved blocks of multichannel audio.
+		SIGNALPROCESSING_API void ProcessAudio(const float* const* const InBuffers, const int32 InNumSamples, float* const* OutBuffers, const float* const* const InKeyBuffers, float* const* OutEnvelopes);
 
 	protected:
-
 		SIGNALPROCESSING_API float ComputeGain(const float InEnvFollowerDb);
+		SIGNALPROCESSING_API void ComputeGains(float* InEnvFollowerDbOutGain, const int32 InNumSamples);
 
 		// Process key frame, returning true if should continue processing
 		// (Returns false in audition mode and writes straight to output).
@@ -92,6 +94,8 @@ namespace Audio
 
 		EDynamicsProcessingMode::Type ProcessingMode;
 
+		float SlopeFactor;
+
 		// Peak mode of envelope followers
 		EPeakMode::Type EnvelopeFollowerPeakMode;
 
@@ -100,9 +104,6 @@ namespace Audio
 
 		// Envelope followers
 		TArray<FInlineEnvelopeFollower> EnvFollower;
-
-		// Points in the knee used for lagrangian interpolation
-		TArray<FVector2D> KneePoints;
 
 		// Channel values of cached detector sample
 		TArray<float> DetectorOuts;
@@ -158,5 +159,26 @@ namespace Audio
 		static constexpr float UpwardsCompressionMaxGain = 36.0f;
 
 		static constexpr float MaxLookaheadMsec = 100.0f;
+
+	private:
+		void CalculateSlope();
+
+		void CalculateKnee();
+
+		// Points in the knee used for lagrangian interpolation
+		struct FKneePoint
+		{
+			float X{ 0.0f };
+			float Y{ 0.0f };
+		};
+		TArray<FKneePoint> KneePoints;
+
+		// For optimized LagrangianInterpolation on blocks...
+		float Denominator0Minus1;
+
+		// For optimized LagrangianInterpolation on blocks...
+		float Denominator1Minus0;
+
 	};
+
 }
