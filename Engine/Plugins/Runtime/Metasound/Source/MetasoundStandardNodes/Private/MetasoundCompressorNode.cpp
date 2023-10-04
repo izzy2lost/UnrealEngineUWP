@@ -84,10 +84,15 @@ namespace Metasound
 			, PrevAttackTime(FMath::Max(FTime::ToMilliseconds(*InAttackTime), 0.0))
 			, PrevReleaseTime(FMath::Max(FTime::ToMilliseconds(*InReleaseTime), 0.0))
 			, PrevLookaheadTime(FMath::Max(FTime::ToMilliseconds(*InLookaheadTime), 0.0))
+			, PrevKneeInput(*KneeInput)
+			, PrevPeakMode(*EnvelopeModeInput)
+			, bPrevIsUpwardsInput(*bIsUpwardsInput)
+			, PrevClampedRatio(GetClampedRatio())
+			, PrevThreshold(*ThresholdDbInput)
 		{
 			Compressor.Init(InSettings.GetSampleRate(), 1);
 			Compressor.SetKeyNumChannels(1);
-			Compressor.SetRatio(FMath::Max(*InRatio, 1.0f));
+			Compressor.SetRatio(GetClampedRatio());
 			Compressor.SetThreshold(*ThresholdDbInput);
 			Compressor.SetAttackTime(PrevAttackTime);
 			Compressor.SetReleaseTime(PrevReleaseTime);
@@ -116,7 +121,6 @@ namespace Metasound
 				Compressor.SetPeakMode(Audio::EPeakMode::Peak);
 				break;
 			}
-
 		}
 
 		static const FNodeClassMetadata& GetNodeInfo()
@@ -261,12 +265,15 @@ namespace Metasound
 			// Initialize compressor
 			Compressor.Init(InParams.OperatorSettings.GetSampleRate(), 1);
 			Compressor.SetKeyNumChannels(1);
-			Compressor.SetRatio(FMath::Max(*RatioInput, 1.0f));
+			PrevClampedRatio = GetClampedRatio();
+			Compressor.SetRatio(PrevClampedRatio);
 			Compressor.SetThreshold(*ThresholdDbInput);
+			PrevThreshold = *ThresholdDbInput;
 			Compressor.SetAttackTime(PrevAttackTime);
 			Compressor.SetReleaseTime(PrevReleaseTime);
 			Compressor.SetLookaheadMsec(PrevLookaheadTime);
 			Compressor.SetKneeBandwidth(*KneeInput);
+			PrevKneeInput = *KneeInput;
 
 			if (*bIsUpwardsInput)
 			{
@@ -276,6 +283,7 @@ namespace Metasound
 			{
 				Compressor.SetProcessingMode(Audio::EDynamicsProcessingMode::Compressor);
 			}
+			bPrevIsUpwardsInput = *bIsUpwardsInput;
 
 			switch (*EnvelopeModeInput)
 			{
@@ -290,6 +298,7 @@ namespace Metasound
 				Compressor.SetPeakMode(Audio::EPeakMode::Peak);
 				break;
 			}
+			PrevPeakMode = *EnvelopeModeInput;
 		}
 
 		void Execute()
@@ -308,8 +317,17 @@ namespace Metasound
 			/* Update parameters */
 			
 			// For a compressor, ratio values should be 1 or greater
-			Compressor.SetRatio(FMath::Max(*RatioInput, 1.0f));
-			Compressor.SetThreshold(*ThresholdDbInput);
+			float UpdatedClampedRatio = GetClampedRatio();
+			if (PrevClampedRatio != UpdatedClampedRatio)
+			{
+				Compressor.SetRatio(UpdatedClampedRatio);
+				PrevClampedRatio = UpdatedClampedRatio;
+			}
+			if (PrevThreshold != *ThresholdDbInput)
+			{
+				Compressor.SetThreshold(*ThresholdDbInput);
+				PrevThreshold = *ThresholdDbInput;
+			}
 
 			// Attack time cannot be negative
 			float CurrAttack = FMath::Max(FTime::ToMilliseconds(*AttackTimeInput), 0.0f);
@@ -335,44 +353,55 @@ namespace Metasound
 			}
 			InputDelay.SetDelayLengthSamples(CurrLookahead * MsToSamples);
 
-			Compressor.SetKneeBandwidth(*KneeInput);
-
-			if (*bIsUpwardsInput)
+			if (*KneeInput != PrevKneeInput)
 			{
-				Compressor.SetProcessingMode(Audio::EDynamicsProcessingMode::UpwardsCompressor);
+				Compressor.SetKneeBandwidth(*KneeInput);
+				PrevKneeInput = *KneeInput;
 			}
-			else
+
+			if (*bIsUpwardsInput != bPrevIsUpwardsInput)
 			{
-				Compressor.SetProcessingMode(Audio::EDynamicsProcessingMode::Compressor);
+				if (*bIsUpwardsInput)
+				{
+					Compressor.SetProcessingMode(Audio::EDynamicsProcessingMode::UpwardsCompressor);
+				}
+				else
+				{
+					Compressor.SetProcessingMode(Audio::EDynamicsProcessingMode::Compressor);
+				}
+				bPrevIsUpwardsInput = *bIsUpwardsInput;
 			}
-				
-			switch (*EnvelopeModeInput)
+
+			if (*EnvelopeModeInput != PrevPeakMode)
 			{
-			default:
-			case EEnvelopePeakMode::MeanSquared:
-				Compressor.SetPeakMode(Audio::EPeakMode::MeanSquared);
-				break;
+				switch (*EnvelopeModeInput)
+				{
+				default:
+				case EEnvelopePeakMode::MeanSquared:
+					Compressor.SetPeakMode(Audio::EPeakMode::MeanSquared);
+					break;
 
-			case EEnvelopePeakMode::RootMeanSquared:
-				Compressor.SetPeakMode(Audio::EPeakMode::RootMeanSquared);
-				break;
+				case EEnvelopePeakMode::RootMeanSquared:
+					Compressor.SetPeakMode(Audio::EPeakMode::RootMeanSquared);
+					break;
 
-			case EEnvelopePeakMode::Peak:
-				Compressor.SetPeakMode(Audio::EPeakMode::Peak);
-				break;
+				case EEnvelopePeakMode::Peak:
+					Compressor.SetPeakMode(Audio::EPeakMode::Peak);
+					break;
+				}
+				PrevPeakMode = *EnvelopeModeInput;
 			}
 
 			// Apply lookahead delay to dry signal
 			InputDelay.ProcessAudio(*AudioInput, DelayedInputSignal);
 
-			if (bUseSidechain)
-			{
-				Compressor.ProcessAudio(AudioInput->GetData(), AudioInput->Num(), AudioOutput->GetData(), SidechainInput->GetData(), EnvelopeOutput->GetData());
-			}
-			else
-			{
-				Compressor.ProcessAudio(AudioInput->GetData(), AudioInput->Num(), AudioOutput->GetData(), nullptr, EnvelopeOutput->GetData());
-			}
+			const float* InSamples = AudioInput->GetData();
+			float* OutSamples      = AudioOutput->GetData();
+			const float* InKey     = SidechainInput->GetData();
+			float* OutEnvelope     = EnvelopeOutput->GetData();
+
+			Compressor.ProcessAudio(&InSamples, AudioInput->Num(), &OutSamples, bUseSidechain ? &InKey : nullptr, &OutEnvelope);
+
 			bEnvelopeOutputIsZero = false;
 
 			// Calculate Wet/Dry mix
@@ -382,6 +411,11 @@ namespace Metasound
 			// Add Dry signal
 			Audio::ArrayMultiplyAddInPlace(DelayedInputSignal, 1.0f - NewWetDryMix, *AudioOutput);
 			
+		}
+
+		float GetClampedRatio() const
+		{
+			return FMath::Max(*RatioInput, 1.0f);
 		}
 
 	private:
@@ -420,10 +454,18 @@ namespace Metasound
 		// Conversion from milliseconds to samples
 		float MsToSamples;
 
-		// Cached variables
+		// Cached variables to minimize updating the underlying
+		// DynamicsProcessor when there are no changes. It DOES NOT
+		// "early out" if it is told about "new" settngs that actually
+		// match its existing settings. 
 		float PrevAttackTime;
 		float PrevReleaseTime;
 		float PrevLookaheadTime;
+		float PrevKneeInput;
+		EEnvelopePeakMode PrevPeakMode;
+		bool bPrevIsUpwardsInput;
+		float PrevClampedRatio;
+		float PrevThreshold;
 	};
 
 	// Node Class
