@@ -189,7 +189,7 @@ struct FRepMovement
 		RBState.Flags = 
 			(decltype(FRigidBodyState::Flags))(bSimulatedPhysicSleep ? ERigidBodyFlags::Sleeping : ERigidBodyFlags::None)
 			| ERigidBodyFlags::NeedsUpdate
-			| (bRepPhysics ? ERigidBodyFlags::RepPhysics : ERigidBodyFlags::None);
+			| (decltype(FRigidBodyState::Flags))(bRepPhysics ? ERigidBodyFlags::RepPhysics : ERigidBodyFlags::None);
 	}
 
 	bool operator==(const FRepMovement& Other) const
