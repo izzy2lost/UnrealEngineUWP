@@ -8999,7 +8999,12 @@ void FAsyncLoadingThread2::FlushLoading(TConstArrayView<int32> RequestIDs)
 	if (IsAsyncLoadingPackages())
 	{
 		// We can't possibly support flushing from async loading thread unless we have the partial request support active.
-		const bool bIsFlushSupportedOnCurrentThread = IsInGameThread() || (WITH_PARTIAL_REQUEST_DURING_RECURSION && IsInAsyncLoadingThread());
+#if WITH_PARTIAL_REQUEST_DURING_RECURSION
+		const bool bIsFlushSupportedOnCurrentThread = IsInGameThread() || IsInAsyncLoadingThread();
+#else
+		const bool bIsFlushSupportedOnCurrentThread = IsInGameThread();
+#endif
+
 		ensureMsgf(bIsFlushSupportedOnCurrentThread, TEXT("The current loader '%s' is unable to FlushAsyncLoading from the current thread."), *GetLoaderName().ToString());
 
 		if (!bIsFlushSupportedOnCurrentThread)

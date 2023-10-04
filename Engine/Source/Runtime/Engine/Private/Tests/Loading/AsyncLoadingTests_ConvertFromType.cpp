@@ -100,8 +100,11 @@ bool FConvertFromType_SoftToHard::RunTest(const FString& Parameters)
 		FlushAsyncLoading(RequestID);
 
 		TestTrue(TEXT("The object should have been properly loaded"), LoadedObject != nullptr);
-		TestTrue(TEXT("The hard-ref should now point to the object inside the second package"), LoadedObject->Reference.Get() != nullptr);
-		TestTrue(TEXT("The hard-ref should now point to the object inside the second package"), LoadedObject->Reference->GetPathName() == ObjectPath2);
+		if (LoadedObject)
+		{
+			TestTrue(TEXT("The hard-ref should now point to the object inside the second package"), LoadedObject->Reference.Get() != nullptr);
+			TestTrue(TEXT("The hard-ref should now point to the object inside the second package"), LoadedObject->Reference->GetPathName() == ObjectPath2);
+		}
 	}
 
 	// Cleanup phase
