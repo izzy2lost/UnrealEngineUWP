@@ -9,6 +9,7 @@
  *                                                                                                                   *
  * #includes needed to compile this file need to be specified in StringIncludes.cpp.inl file rather than here.       *
  *********************************************************************************************************************/
+#define UE_INCLUDETOOL_IGNORE_INCONSISTENT_STATE
 
 #ifndef UE_STRING_CLASS
 	#error "String.cpp.inl should only be included after defining UE_STRING_CLASS"
@@ -1946,3 +1947,5 @@ UE_STRING_CLASS SlugStringForValidName(const UE_STRING_CLASS& DisplayString, con
 
 	return GeneratedName;
 }
+
+#undef UE_INCLUDETOOL_IGNORE_INCONSISTENT_STATE
