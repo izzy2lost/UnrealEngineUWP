@@ -40,6 +40,9 @@ public:
 	/** Notifies the widget that the mesh assigned to a foliage type in the list has changed */
 	void NotifyFoliageTypeMeshChanged(UFoliageType* FoliageType);
 
+	/** Notifies the widget to reflect its selected foliage types based on the selected foliage instances */
+	void ReflectSelectionInPalette();
+
 	/** Gets FoliageEditMode. Used by the cluster details to notify changes */
 	class FEdModeFoliage* GetFoliageEditMode() const { return FoliageEditMode; }
 

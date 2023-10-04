@@ -408,6 +408,10 @@ void FEdModeFoliage::BindCommands()
 	{
 		return UISettings.GetPaintBucketToolSelected();
 	}));
+
+	UICommandList->MapAction(
+		Commands.ReflectSelectionInPalette,
+		FExecuteAction::CreateSP(this, &FEdModeFoliage::OnReflectSelectionInPalette));
 }
 
 bool FEdModeFoliage::CurrentToolUsesBrush() const
@@ -758,6 +762,11 @@ void FEdModeFoliage::OnSetPlace()
 	UISettings.SetPaintToolSelected(true);
 	UISettings.SetIsInSingleInstantiationMode(true);
 	HandleToolChanged();
+}
+
+void FEdModeFoliage::OnReflectSelectionInPalette()
+{
+	StaticCastSharedPtr<FFoliageEdModeToolkit>(Toolkit)->ReflectSelectionInPalette();
 }
 
 bool FEdModeFoliage::DisallowMouseDeltaTracking() const

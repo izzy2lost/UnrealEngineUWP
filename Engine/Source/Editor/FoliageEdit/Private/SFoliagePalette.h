@@ -91,6 +91,9 @@ public:
 
 	/** Adds the foliage type asset to the instanced foliage actor's list of types. */
 	UFoliageType* AddFoliageType(const FAssetData& AssetData, bool bPlaceholderAsset = false);
+
+	/** Updates the selection of foliage types in the palette based on the selected foliage instances. */
+	void ReflectSelectionInPalette();
 	
 private:	// GENERAL
 	void AddFoliageTypePicker(const FAssetData& AssetData);
@@ -211,9 +214,6 @@ private:	// CONTEXT MENU
 
 	/** @return Whether selecting instances is currently possible */
 	bool CanSelectInstances() const;
-
-	/** Handler for 'Reflect Selection in Palette ' command */
-	void OnReflectSelectionInPalette();
 
 	/** Selects Foliage Type in palette */
 	void SelectFoliageTypesInPalette(const TArray<const UFoliageType*>& FoliageTypes);

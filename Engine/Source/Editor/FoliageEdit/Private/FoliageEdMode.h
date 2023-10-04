@@ -585,6 +585,9 @@ public:
 	/** Sets the tool mode to Place Single Instance*/
 	void OnSetPlace();
 
+	/** Handle reflecting selected foliage types in the FoliagePalette */
+	void OnReflectSelectionInPalette();
+
 	/** Remove currently selected instances*/
 	void RemoveSelectedInstances(UWorld* InWorld);
 

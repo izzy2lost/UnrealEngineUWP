@@ -534,10 +534,6 @@ void SFoliagePalette::BindCommands()
 		FExecuteAction::CreateSP(this, &SFoliagePalette::OnShowFoliageTypeInCB));
 
 	UICommandList->MapAction(
-		Commands.ReflectSelectionInPalette,
-		FExecuteAction::CreateSP(this, &SFoliagePalette::OnReflectSelectionInPalette));
-
-	UICommandList->MapAction(
 		Commands.SelectAllInstances,
 		FExecuteAction::CreateSP(this, &SFoliagePalette::OnSelectAllInstances),
 		FCanExecuteAction::CreateSP(this, &SFoliagePalette::CanSelectInstances));
@@ -1263,7 +1259,7 @@ void SFoliagePalette::OnShowFoliageTypeInCB()
 	}
 }
 
-void SFoliagePalette::OnReflectSelectionInPalette()
+void SFoliagePalette::ReflectSelectionInPalette()
 {
 	TArray<const UFoliageType*> SelectedFoliageTypes;
 	FoliageEditMode->GetSelectedInstanceFoliageTypes(SelectedFoliageTypes);

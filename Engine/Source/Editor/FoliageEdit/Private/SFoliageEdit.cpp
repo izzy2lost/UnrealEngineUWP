@@ -711,6 +711,11 @@ void SFoliageEdit::NotifyFoliageTypeMeshChanged(UFoliageType* FoliageType)
 	FoliagePalette->UpdateThumbnailForType(FoliageType);
 }
 
+void SFoliageEdit::ReflectSelectionInPalette()
+{
+	FoliagePalette->ReflectSelectionInPalette();
+}
+
 bool SFoliageEdit::IsFoliageEditorEnabled() const
 {
 	ErrorText->SetError(GetFoliageEditorErrorText());
