@@ -204,6 +204,7 @@ public:
 	TAttribute<FText> Label;
 	TAttribute<FText> ToolTip;
 	TAttribute<FSlateIcon> Icon;
+	TAttribute<FText> InputBindingLabel;
 
 private:
 
