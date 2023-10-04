@@ -459,6 +459,9 @@ public:
 	void AddCollisionConstraintFlag(const ECollisionConstraintFlags Flag) { MCollisionConstraintFlag |= uint32(Flag); }
 	void RemoveCollisionConstraintFlag(const ECollisionConstraintFlags Flag) { MCollisionConstraintFlag &= ~uint32(Flag); }
 	
+	bool InitialOverlapDepenetrationEnabled() const { return MControlFlags.GetInitialOverlapDepenetrationEnabled(); }
+	void SetInitialOverlapDepenetrationEnabled(const bool bEnabled) { MControlFlags.SetInitialOverlapDepenetrationEnabled(bEnabled); }
+
 	bool OneWayInteraction() const { return MControlFlags.GetOneWayInteractionEnabled(); }
 	void SetOneWayInteraction(bool bInOneWayInteraction) { MControlFlags.SetOneWayInteractionEnabled(bInOneWayInteraction); }
 

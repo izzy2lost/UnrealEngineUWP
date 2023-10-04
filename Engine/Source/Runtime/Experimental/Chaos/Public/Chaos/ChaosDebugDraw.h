@@ -31,15 +31,17 @@ namespace Chaos
 				FColor InDynamicColor,
 				FColor InSleepingColor,
 				FColor InKinematicColor,
-				FColor InStaticColor
+				FColor InStaticColor,
+				FColor InDebrisColor = FColor::Green
 			);
 
 			FColor DynamicColor;
 			FColor SleepingColor;
 			FColor KinematicColor;
 			FColor StaticColor;
+			FColor DebrisColor;
 
-			CHAOS_API FColor GetColorFromState(EObjectStateType State) const;
+			CHAOS_API FColor GetColorFromState(EObjectStateType State, bool bIsDebris = false) const;
 		};
 
 		struct FChaosDebugDrawColorsByShapeType

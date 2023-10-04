@@ -155,7 +155,7 @@ namespace Chaos
 		// Initial Phi for initial-overlap depenetration.
 		// If we have an initial contact, calculate the initial overlap. This will get saved in SetSolverResults
 		FRealSingle WorldContactInitialPhi = 0;
-		if (CVars::bChaos_Collision_EnableInitialDepenetration)
+		if (MaxDepentrationVelocity >= 0)
 		{
 			if (ManifoldPoint.Flags.bInitialContact)
 			{
@@ -219,12 +219,16 @@ namespace Chaos
 		Private::FPBDCollisionSolver& Solver, 
 		FPBDCollisionConstraint* Constraint, 
 		const FSolverReal Dt, 
-		const FRealSingle MaxDepentrationVelocity,
 		const int32 ConstraintPointBeginIndex,
-		const int32 ConstraintPointEndIndex)
+		const int32 ConstraintPointEndIndex,
+		const FPBDCollisionSolverSettings& SolverSettings)
 	{
 		const FConstraintSolverBody& Body0 = Solver.SolverBody0();
 		const FConstraintSolverBody& Body1 = Solver.SolverBody1();
+
+		// Negative DepenetrationVelocity means depenetrate immediately
+		const bool bEnableDepenetrationVelocity = CVars::bChaos_Collision_EnableInitialDepenetration && Constraint->GetInitialOverlapDepentrationEnabled();
+		const FSolverReal MaxDepenetrationVelocity = bEnableDepenetrationVelocity ? SolverSettings.DepenetrationVelocity : FSolverReal(-1);
 
 		// Only calculate state for newly added contacts. Normally this is all of them, but maybe not if incremental collision is used by RBAN.
 		// Also we only add active points to the solver's manifold points list
@@ -237,7 +241,7 @@ namespace Chaos
 				{
 					// Transform the constraint contact data into world space for use by the solver
 					// We build this data directly into the solver's world-space contact data which looks a bit odd with "Init" called after but there you go
-					UpdateCollisionSolverContactPointFromConstraint(Solver, SolverManifoldPointIndex, Constraint, ConstraintManifoldPointIndex, Dt, MaxDepentrationVelocity, Body0, Body1);
+					UpdateCollisionSolverContactPointFromConstraint(Solver, SolverManifoldPointIndex, Constraint, ConstraintManifoldPointIndex, Dt, MaxDepenetrationVelocity, Body0, Body1);
 				}
 			}
 		}
@@ -293,7 +297,7 @@ namespace Chaos
 
 		bOutPerIterationCollision = (!Constraint->GetUseManifold() || Constraint->GetUseIncrementalCollisionDetection());
 
-		UpdateCollisionSolverManifoldFromConstraint(Solver, Constraint, Dt, SolverSettings.DepenetrationVelocity, 0, Constraint->NumManifoldPoints());
+		UpdateCollisionSolverManifoldFromConstraint(Solver, Constraint, Dt, 0, Constraint->NumManifoldPoints(), SolverSettings);
 	}
 
 	FORCEINLINE_DEBUGGABLE void UpdateCollisionConstraintFromSolver(FPBDCollisionConstraint* Constraint, const Private::FPBDCollisionSolver& Solver, const FSolverReal Dt)
@@ -784,8 +788,9 @@ namespace Chaos
 				// Update the manifold based on the new or updated contacts
 				UpdateCollisionSolverManifoldFromConstraint(
 					CollisionSolver, Constraint, 
-					Dt, ConstraintContainer.GetSolverSettings().DepenetrationVelocity, 
-					BeginPointIndex, Constraint->NumManifoldPoints());
+					Dt,
+					BeginPointIndex, Constraint->NumManifoldPoints(),
+					ConstraintContainer.GetSolverSettings());
 
 				Constraint->SetSolverBodies(nullptr, nullptr);
 			}

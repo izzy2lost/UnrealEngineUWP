@@ -63,8 +63,9 @@ struct FChaosVDFRigidParticleControlFlags : public FChaosVDParticleDataBase
 		: bGravityEnabled(false),
 		  bCCDEnabled(false),
 		  bOneWayInteractionEnabled(false),
-		  bMaxDepenetrationVelocityOverrideEnabled(false),
-		  bInertiaConditioningEnabled(false), GravityGroupIndex(0)
+		  bEnableInitialOverlapDepenetration(false),
+		  bInertiaConditioningEnabled(false), 
+		  GravityGroupIndex(0)
 	{
 	}
 
@@ -76,7 +77,7 @@ struct FChaosVDFRigidParticleControlFlags : public FChaosVDParticleDataBase
 		bGravityEnabled = Other.GetGravityEnabled();
 		bCCDEnabled = Other.GetCCDEnabled();
 		bOneWayInteractionEnabled = Other.GetOneWayInteractionEnabled();
-		bMaxDepenetrationVelocityOverrideEnabled = Other.GetMaxDepenetrationVelocityOverrideEnabled();
+		bEnableInitialOverlapDepenetration = Other.GetInitialOverlapDepenetrationEnabled();
 		bInertiaConditioningEnabled = Other.GetInertiaConditioningEnabled();
 		GravityGroupIndex = Other.GetGravityGroupIndex();
 
@@ -89,9 +90,9 @@ struct FChaosVDFRigidParticleControlFlags : public FChaosVDParticleDataBase
 	bool bCCDEnabled;
 	UPROPERTY(EditAnywhere, Category= "Particle Control Flags")
 	bool bOneWayInteractionEnabled;
-	UPROPERTY(EditAnywhere, Category= "Particle Control Flags")
-	bool bMaxDepenetrationVelocityOverrideEnabled;
-	UPROPERTY(EditAnywhere, Category= "Particle Control Flags")
+	UPROPERTY(EditAnywhere, Category = "Particle Control Flags")
+	bool bEnableInitialOverlapDepenetration;
+	UPROPERTY(EditAnywhere, Category = "Particle Control Flags")
 	bool bInertiaConditioningEnabled;
 	UPROPERTY(EditAnywhere, Category= "Particle Control Flags")
 	int32 GravityGroupIndex;

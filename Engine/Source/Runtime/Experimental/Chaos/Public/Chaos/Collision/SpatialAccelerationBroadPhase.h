@@ -598,6 +598,13 @@ namespace Chaos
 
 				if (Overlap.bCollisionsEnabled)
 				{
+					const bool bIsOneWay0 = FConstGenericParticleHandle(Overlap.Particles[0])->OneWayInteraction();
+					const bool bIsOneWay1 = FConstGenericParticleHandle(Overlap.Particles[1])->OneWayInteraction();
+					if (bIsOneWay0 && bIsOneWay1)
+					{
+						continue;
+					}
+
 					// Get the midphase for this pair
 					FParticlePairMidPhase* MidPhase = ContextAllocator->GetMidPhase(Overlap.Particles[0], Overlap.Particles[1], Overlap.Particles[Overlap.SearchParticleIndex], BroadphaseContext.CollisionContext);
 					BroadphaseContext.MidPhases[MidPhaseIndex] = MidPhase;
@@ -632,10 +639,16 @@ namespace Chaos
 					BroadphaseContext.MidPhases[Index + PrefetchLookahead]->CachePrefetch();
 				}
 
-				// Run MidPhase + NarrowPhase
-				BroadphaseContext.MidPhases[Index]->GenerateCollisions(BroadphaseContext.CollisionContext.GetSettings().BoundsExpansion, Dt, BroadphaseContext.CollisionContext);
+				FParticlePairMidPhase* MidPhase = BroadphaseContext.MidPhases[Index];
+				const FGeometryParticleHandle* Particle0 = MidPhase->GetParticle0();
+				const FGeometryParticleHandle* Particle1 = MidPhase->GetParticle1();
+				if ((Particle0 != nullptr) && (Particle1 != nullptr))
+				{
+					// Run MidPhase + NarrowPhase
+					MidPhase->GenerateCollisions(BroadphaseContext.CollisionContext.GetSettings().BoundsExpansion, Dt, BroadphaseContext.CollisionContext);
+				}
 
-				CVD_TRACE_MID_PHASE(BroadphaseContext.MidPhases[Index]);
+				CVD_TRACE_MID_PHASE(MidPhase);
 			}
 
 			PHYSICS_CSV_CUSTOM_EXPENSIVE(PhysicsCounters, NumFromBroadphase, NumPotentials, ECsvCustomStatOp::Accumulate);

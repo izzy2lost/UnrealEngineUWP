@@ -215,6 +215,7 @@ namespace Chaos
 				/* InSleepingColor =  */ FColor(128, 0, 0),
 				/* InKinematicColor = */ FColor(255, 0, 0),
 				/* InStaticColor =	  */ FColor(255, 0, 0),
+				/* InDebrisColor =	  */ FColor(255, 0, 0),
 			};
 			return SolverShapesColorsByState_Server;
 		}
@@ -227,6 +228,7 @@ namespace Chaos
 				/* InSleepingColor =  */ FColor(0, 0, 128),
 				/* InKinematicColor = */ FColor(0, 0, 255),
 				/* InStaticColor =	  */ FColor(0, 0, 255),
+				/* InDebrisColor =	  */ FColor(0, 0, 255),
 			};
 			return SolverShapesColorsByState_Client;
 		}

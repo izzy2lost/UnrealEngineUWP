@@ -70,6 +70,11 @@ namespace Chaos
 	int32 ClusteringParticleReleaseThrottlingMaxCount = INDEX_NONE;
 	FAutoConsoleVariableRef CVarClusteringParticleReleaseThrottlingMaxCount(TEXT("p.Clustering.ParticleReleaseThrottlingMaxCount"), ClusteringParticleReleaseThrottlingMaxCount, TEXT("Maximum number of active geometry collection to reach before all released clustering disable all released particle instantly"));
 
+	bool bClusteringEnableDebris = false;
+	FAutoConsoleVariableRef CVarClusteringEnableDebris(TEXT("p.Clustering.Debris.Enabled"), bClusteringEnableDebris, TEXT(""));
+
+	float ClusteringDebrisSizeThreshold = 200.0f;
+	FAutoConsoleVariableRef CVarClusteringDebrisSizeThreshold(TEXT("p.Clustering.Debris.SizeThreshold"), ClusteringDebrisSizeThreshold, TEXT(""));
 
 	template <typename TProxy=FGeometryCollectionPhysicsProxy>
 	TProxy* GetConcreteProxy(FPBDRigidClusteredParticleHandle* ClusteredParticle)
@@ -809,6 +814,16 @@ namespace Chaos
 			Child->SetW(Child->W() + ClusteredParent->W());
 			Child->SetPreV(Child->PreV() + ClusteredParent->PreV());
 			Child->SetPreW(Child->PreW() + ClusteredParent->PreW());
+
+			// Experimental
+			if (bClusteringEnableDebris && Child->HasBounds())
+			{
+				const FReal ChildSize = Child->LocalBounds().Extents().GetMax();
+				if (ChildSize < ClusteringDebrisSizeThreshold)
+				{
+					Child->SetOneWayInteraction(true);
+				}
+			}
 
 			// We also need to do cluster book-keeping on the parent.
 			// If the parent is an internal cluster and has become empty, we need to mark this particle as ready to be destroyed.

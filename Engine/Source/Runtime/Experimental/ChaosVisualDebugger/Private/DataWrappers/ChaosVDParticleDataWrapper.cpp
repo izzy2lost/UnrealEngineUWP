@@ -11,7 +11,7 @@ bool FChaosVDFRigidParticleControlFlags::Serialize(FArchive& Ar)
 	Ar << bGravityEnabled;
 	Ar << bCCDEnabled;
 	Ar << bOneWayInteractionEnabled;
-	Ar << bMaxDepenetrationVelocityOverrideEnabled;
+	Ar << bEnableInitialOverlapDepenetration;
 	Ar << bInertiaConditioningEnabled;
 	Ar << GravityGroupIndex;
 

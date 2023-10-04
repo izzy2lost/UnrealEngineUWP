@@ -460,6 +460,9 @@ namespace Chaos
 		// NOTE: This is initially set based on whether are allowing incremental manifolds
 		bool GetUseIncrementalCollisionDetection() const { return !Flags.bUseManifold || Flags.bUseIncrementalManifold; }
 
+		// Does this contact support the initial overlap depenetration. If not, bodies are depenetrated in one frame as opposed to at a fixed speed
+		bool GetInitialOverlapDepentrationEnabled() const { return Flags.bOverlapDepenetrationEnabled; }
+
 		/**
 		* Reset the material properties to those from the shape materials. Called each frame to reset contact modifications to the material.
 		*/
@@ -468,6 +471,11 @@ namespace Chaos
 			if (Flags.bModifierApplied)
 			{
 				Material.ResetMaterialModifications();
+
+				if (Flags.bIsOneWayInteraction)
+				{
+					UpdateMassScales();
+				}
 
 				// Reset other properties which may have changed in contact modification last frame
 				Flags.bIsProbe = BoundsTestFlags.bIsProbe;
@@ -855,6 +863,8 @@ namespace Chaos
 
 		CHAOS_API void UpdateMaterialPropertiesImpl();
 
+		CHAOS_API void UpdateMassScales();
+
 	private:
 		CHAOS_API FRealSingle CalculateSavedManifoldPointDistanceSq(const FSavedManifoldPoint& SavedManifoldPoint, const FManifoldPoint& ManifoldPoint) const;
 
@@ -879,6 +889,8 @@ namespace Chaos
 				uint16 bModifierApplied : 1;			// Was a constraint modifier applied this tick
 				uint16 bMaterialSet : 1;				// Has the material been set (or does it need to be reset)
 				uint16 bInitialContact : 1;				// Is this contact considered an initial contact
+				uint16 bOverlapDepenetrationEnabled : 1;// Does this contact support the initial overlap depenetration system
+				uint16 bIsOneWayInteraction : 1;		// Does one of the bodies have the one-way interaction bit set?
 			};
 			uint16 Bits;
 		};

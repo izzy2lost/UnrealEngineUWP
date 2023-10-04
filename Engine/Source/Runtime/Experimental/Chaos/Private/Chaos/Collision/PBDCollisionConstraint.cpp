@@ -50,8 +50,15 @@ namespace Chaos
 	FRealSingle Chaos_Collision_ConvexZeroMargin = 0.0f;
 	FAutoConsoleVariableRef CVarChaos_Collision_ConvexZeroMargin(TEXT("p.Chaos.Collision.ConvexZeroMargin"), Chaos_Collision_ConvexZeroMargin, TEXT(""));
 
+	// A collision solver stiffness override if >= 0. A value < 0 means use ths config setting.
 	FRealSingle Chaos_Collision_Stiffness = -1.0f;
 	FAutoConsoleVariableRef CVarChaos_Collision_Stiffness(TEXT("p.Chaos.Collision.Stiffness"), Chaos_Collision_Stiffness, TEXT("Override the collision solver stiffness (if >= 0)"));
+
+	// The stiffness used for collision between one-way objects and other dynamic objects. The stiffness against kinematics and statics is not affected. A value of less than 1
+	// will treat collisions with the static scene as "harder" than collisions with dynamics which will prevent one-way objects from getting squeezed out of the world when a dynamic
+	// lands on top of them. Instead, they will stay on top of the terrain and sink into the dynamic.
+	FRealSingle Chaos_Collision_OneWayStiffness = 0.5f;
+	FAutoConsoleVariableRef CVarChaos_Collision_OneWayStiffness(TEXT("p.Chaos.Collision.OneWayStiffness"), Chaos_Collision_OneWayStiffness, TEXT("Collision solver stiffnes for one-way interactions"));
 
 	bool bChaos_Collision_EnableBoundsChecks = true;
 	FAutoConsoleVariableRef CVarChaos_Collision_EnableBoundsChecks(TEXT("p.Chaos.Collision.EnableBoundsChecks"), bChaos_Collision_EnableBoundsChecks, TEXT(""));
@@ -316,16 +323,20 @@ namespace Chaos
 		Flags.bUseManifold = bInUseManifold;
 		Flags.bUseIncrementalManifold = false;
 
+		// Should we use the initial overlap depenetration mechanism
+		Flags.bOverlapDepenetrationEnabled = FConstGenericParticleHandle(GetParticle0())->InitialOverlapDepentrationEnabled() && FConstGenericParticleHandle(GetParticle1())->InitialOverlapDepentrationEnabled();
+
+		// Is this a one-way interaction?
+		const bool bDynamic0 = FConstGenericParticleHandle(GetParticle0())->IsDynamic();
+		const bool bDynamic1 = FConstGenericParticleHandle(GetParticle1())->IsDynamic();
+		const bool bOneWay0 = FConstGenericParticleHandle(GetParticle0())->OneWayInteraction();
+		const bool bOneWay1 = FConstGenericParticleHandle(GetParticle1())->OneWayInteraction();
+		Flags.bIsOneWayInteraction = bDynamic0 && bDynamic1 && (bOneWay0 || bOneWay1);
+
 		// Only levelsets use incremental collision manifolds
 		if (bInUseManifold && ((ImplicitType0 == ImplicitObjectType::LevelSet) || (ImplicitType1 == ImplicitObjectType::LevelSet)))
 		{
 			Flags.bUseIncrementalManifold = true;
-		}
-
-		// Debug testing for solver stiffness
-		if (Chaos_Collision_Stiffness >= 0)
-		{
-			SetStiffness(Chaos_Collision_Stiffness);
 		}
 	}
 
@@ -451,6 +462,42 @@ namespace Chaos
 	void FPBDCollisionConstraint::UpdateMaterialPropertiesImpl()
 	{
 		ConcreteContainer()->UpdateConstraintMaterialProperties(*this);
+
+		UpdateMassScales();
+	}
+
+	void FPBDCollisionConstraint::UpdateMassScales()
+	{
+		if (Flags.bIsOneWayInteraction)
+		{
+			const bool bOneWay0 = FConstGenericParticleHandle(GetParticle0())->OneWayInteraction();
+			const bool bOneWay1 = FConstGenericParticleHandle(GetParticle1())->OneWayInteraction();
+			if (bOneWay0 && !bOneWay1)
+			{
+				Material.InvMassScale1 = 0;
+				Material.InvInertiaScale1 = 0;
+			}
+			if (bOneWay1 && !bOneWay0)
+			{
+				Material.InvMassScale0 = 0;
+				Material.InvInertiaScale0 = 0;
+			}
+			Stiffness = Chaos_Collision_OneWayStiffness;
+		}
+		else
+		{
+			Material.InvMassScale0 = 1;
+			Material.InvInertiaScale0 = 1;
+			Material.InvMassScale1 = 1;
+			Material.InvInertiaScale1 = 1;
+			Stiffness = 1;
+
+			// Debug testing for solver stiffness
+			if (Chaos_Collision_Stiffness >= 0)
+			{
+				SetStiffness(Chaos_Collision_Stiffness);
+			}
+		}
 	}
 
 	bool FPBDCollisionConstraint::IsSleeping() const

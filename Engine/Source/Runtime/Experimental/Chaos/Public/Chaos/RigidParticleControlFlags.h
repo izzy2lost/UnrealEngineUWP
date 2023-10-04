@@ -47,9 +47,11 @@ namespace Chaos
 		bool GetOneWayInteractionEnabled() const { return Flags.bOneWayInteractionEnabled; }
 		FRigidParticleControlFlags& SetOneWayInteractionEnabled(const bool bEnabled) { Flags.bOneWayInteractionEnabled = bEnabled; return *this; }
 
-		bool GetMaxDepenetrationVelocityOverrideEnabled() const { return Flags.bMaxDepenetrationVelocityOverrideEnabled; }
-		FRigidParticleControlFlags& SetMaxDepenetrationVelocityOverrideEnabled(const bool bEnabled) { Flags.bMaxDepenetrationVelocityOverrideEnabled = bEnabled; return *this; }
+		// If enabled initial overlaps will be depenetrated at a rate that depends on physics settings
+		bool GetInitialOverlapDepenetrationEnabled() const { return Flags.bEnableInitialOverlapDepenetration; }
+		FRigidParticleControlFlags& SetInitialOverlapDepenetrationEnabled(const bool bEnabled) { Flags.bEnableInitialOverlapDepenetration = bEnabled; return *this; }
 
+		// If enabled, inertia may be increased to improve stability
 		bool GetInertiaConditioningEnabled() const { return Flags.bInertiaConditioningEnabled; }
 		FRigidParticleControlFlags& SetInertiaConditioningEnabled(const bool bEnabled) { Flags.bInertiaConditioningEnabled = bEnabled; return *this; }
 
@@ -63,13 +65,19 @@ namespace Chaos
 		// Serialization
 		friend FChaosArchive& operator<<(FChaosArchive& Ar, FRigidParticleControlFlags& Data);
 
+		UE_DEPRECATED(5.4, "Not used")
+		bool GetMaxDepenetrationVelocityOverrideEnabled() const { return false; }
+
+		UE_DEPRECATED(5.4, "Not used")
+		FRigidParticleControlFlags& SetMaxDepenetrationVelocityOverrideEnabled(const bool bEnabled) { return *this; }
+
 	private:
 		struct FFlags
 		{
 			FStorage bGravityEnabled : 1;
 			FStorage bCCDEnabled : 1;
 			FStorage bOneWayInteractionEnabled : 1;
-			FStorage bMaxDepenetrationVelocityOverrideEnabled : 1;
+			FStorage bEnableInitialOverlapDepenetration : 1;
 			FStorage bInertiaConditioningEnabled : 1;
 			FStorage GravityGroupIndex : 3;
 			FStorage bUpdateKinematicFromSimulation : 1;

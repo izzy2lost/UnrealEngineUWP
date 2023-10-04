@@ -113,6 +113,7 @@ void PBDRigidParticleDefaultConstruct(FConcrete& Concrete, const FPBDRigidPartic
 	Concrete.SetLinearEtherDrag(0.f);
 	Concrete.SetAngularEtherDrag(0.f);
 	Concrete.SetGravityEnabled(Params.bGravityEnabled);
+	Concrete.SetInitialOverlapDepenetrationEnabled(true);
 	Concrete.SetCCDEnabled(Params.bCCDEnabled);
 	Concrete.SetDisabled(Params.bDisabled);
 	Concrete.SetSleepType(ESleepType::MaterialSleep);
@@ -1230,6 +1231,16 @@ public:
 		PBDRigidParticles->ControlFlags(ParticleIdx).SetCCDEnabled(bEnabled);
 	}
 
+	bool InitialOverlapDepenetrationEnabled() const 
+	{ 
+		return ControlFlags().GetInitialOverlapDepenetrationEnabled();
+	}
+
+	void SetInitialOverlapDepenetrationEnabled(const bool bEnabled)
+	{ 
+		PBDRigidParticles->ControlFlags(ParticleIdx).SetInitialOverlapDepenetrationEnabled(bEnabled);
+	}
+
 	inline bool OneWayInteraction() const
 	{ 
 		return ControlFlags().GetOneWayInteractionEnabled();
@@ -2219,6 +2230,23 @@ public:
 		return FReal(0);
 	}
 
+	bool InitialOverlapDepentrationEnabled() const
+	{
+		if (auto RigidHandle = MHandle->CastToRigidParticle())
+		{
+			return RigidHandle->InitialOverlapDepenetrationEnabled();
+		}
+		return true;
+	}
+
+	bool OneWayInteraction() const
+	{
+		if (auto RigidHandle = MHandle->CastToRigidParticle())
+		{
+			return RigidHandle->OneWayInteraction();
+		}
+		return false;
+	}
 
 #if CHAOS_DEBUG_NAME
 	const TSharedPtr<FString, ESPMode::ThreadSafe>& DebugName() const
@@ -3073,6 +3101,12 @@ public:
 	void SetUpdateKinematicFromSimulation(const bool bUpdateKinematicFromSimulation)
 	{
 		MMiscData.Modify(true, MDirtyFlags, Proxy, [bUpdateKinematicFromSimulation](auto& Data) { Data.SetUpdateKinematicFromSimulation(bUpdateKinematicFromSimulation); });
+	}
+
+	bool InitialOverlapDepenetrationEnabled() const { return MMiscData.Read().InitialOverlapDepenetrationEnabled(); }
+	void SetInitialOverlapDepenetrationEnabled(const bool bInEnabled)
+	{
+		MMiscData.Modify(true, MDirtyFlags, Proxy, [bInEnabled](auto& Data) { Data.SetInitialOverlapDepenetrationEnabled(bInEnabled); });
 	}
 
 	bool OneWayInteraction() const { return MMiscData.Read().OneWayInteraction(); }
