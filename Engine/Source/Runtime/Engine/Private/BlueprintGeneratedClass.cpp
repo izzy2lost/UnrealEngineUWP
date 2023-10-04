@@ -11,7 +11,6 @@
 #include "UObject/CoreRedirects.h"
 #include "UObject/ObjectSaveContext.h"
 #include "Serialization/ObjectWriter.h"
-#include "CookedMetaData.h"
 #include "Curves/CurveFloat.h"
 #include "Engine/DynamicBlueprintBinding.h"
 #include "Components/TimelineComponent.h"
@@ -38,6 +37,7 @@
 #include "BlueprintCompilationManager.h"
 #include "Engine/LevelScriptBlueprint.h"
 #include "WorldPartition/WorldPartitionActorDescUtils.h"
+#include "UObject/CookedMetaData.h"
 #include "UObject/UObjectGlobals.h"
 extern UNREALED_API class UEditorEngine* GEditor;
 #else

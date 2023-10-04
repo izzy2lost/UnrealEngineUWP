@@ -7,12 +7,12 @@
 #include "UObject/UnrealType.h"
 #include "UObject/LinkerLoad.h"
 #include "UObject/ObjectSaveContext.h"
-#include "CookedMetaData.h"
 #include "UObject/FrameworkObjectVersion.h"
 #include "Misc/PackageName.h"
 #include "Blueprint/BlueprintSupport.h"
 
 #if WITH_EDITOR
+#include "UObject/CookedMetaData.h"
 #include "UserDefinedStructure/UserDefinedStructEditorData.h"
 #endif //WITH_EDITOR
 

@@ -1,6 +1,6 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 
-#include "CookedMetaData.h"
+#include "UObject/CookedMetaData.h"
 #include "UObject/Package.h"
 #include "UObject/MetaData.h"
 #include "UObject/UnrealType.h"

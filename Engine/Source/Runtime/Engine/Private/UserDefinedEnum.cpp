@@ -4,13 +4,13 @@
 #include "Templates/SubclassOf.h"
 #include "UObject/EditorObjectVersion.h"
 #include "UObject/ObjectSaveContext.h"
-#include "CookedMetaData.h"
 #include "UObject/Package.h"
 
 #include UE_INLINE_GENERATED_CPP_BY_NAME(UserDefinedEnum)
 
 #if WITH_EDITOR
 #include "Kismet2/EnumEditorUtils.h"
+#include "UObject/CookedMetaData.h"
 #include "UObject/MetaData.h"
 #include "UObject/Package.h"
 #endif	// WITH_EDITOR
