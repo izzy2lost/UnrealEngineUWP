@@ -117,6 +117,12 @@ TSharedRef<FTokenizedMessage> FTokenizedMessage::AddToken( const TSharedRef<IMes
 	return AsShared();
 }
 
+TSharedRef<FTokenizedMessage> FTokenizedMessage::AddText(const FText& InText)
+{
+	MessageTokens.Add(FTextToken::Create(InText));
+	return AsShared();
+}
+
 
 void FTokenizedMessage::SetMessageLink(const TSharedRef<IMessageToken>& InToken)
 {

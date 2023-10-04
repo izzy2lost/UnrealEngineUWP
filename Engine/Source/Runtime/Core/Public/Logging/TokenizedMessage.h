@@ -139,6 +139,26 @@ public:
 	CORE_API TSharedRef<FTokenizedMessage> AddToken( const TSharedRef<IMessageToken>& InToken );
 
 	/** 
+	 * Adds a text token to a message.
+	 * @param	InMessage	The message to insert a token into
+	 * @param	InText		The text to insert as a token
+	 * @returns this message, for chaining calls.
+	 */
+	CORE_API TSharedRef<FTokenizedMessage> AddText(const FText& InText);
+
+	/** 
+	 * Adds a text token to a message as by calling FText::FormatOrdered
+	 * @param	InMessage	The message to insert a token into
+	 * @param	InText		The text to insert as a token
+	 * @returns this message, for chaining calls.
+	 */
+	template<typename... TArguments>
+	TSharedRef<FTokenizedMessage> AddText(FTextFormat InTextFormat, TArguments&&... InArgs)
+	{
+		return AddText(FText::FormatOrdered(InTextFormat, Forward<TArguments...>(InArgs...)));
+	}
+
+	/** 
 	 * Sets the severity of this message
 	 * 
 	 * @param	InSeverity	The severity to set this message to
