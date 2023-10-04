@@ -55,5 +55,7 @@ void UComputeGraphComponent::SendRenderDynamicData_Concurrent()
 
 void UComputeGraphComponent::DestroyRenderState_Concurrent()
 {
+	Super::DestroyRenderState_Concurrent();
+	
 	ComputeFramework::AbortWork(GetScene(), this);
 }
