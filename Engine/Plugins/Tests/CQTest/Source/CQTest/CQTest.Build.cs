@@ -14,6 +14,9 @@ public class CQTest : ModuleRules
 		// reference a deleted function
 		CppStandard = CppStandardVersion.Cpp17;
 
+		// Remove when this module can compile with cpp20
+		PCHUsage = PCHUsageMode.NoPCHs;
+
 		PublicDependencyModuleNames.Add("DeveloperSettings");
 
 		PrivateDependencyModuleNames.AddRange(

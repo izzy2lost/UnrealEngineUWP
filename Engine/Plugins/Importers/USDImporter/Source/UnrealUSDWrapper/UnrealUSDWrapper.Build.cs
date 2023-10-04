@@ -15,6 +15,9 @@ namespace UnrealBuildTool.Rules
 			// error C2666: 'UE::FDummyRefPtrType::operator ==': overloaded functions have similar conversions
 			CppStandard = CppStandardVersion.Cpp17;
 
+			// Remove when this plugin can compile with cpp20
+			PCHUsage = PCHUsageMode.NoPCHs;
+
 			bUseRTTI = true;
 
 			PublicDependencyModuleNames.AddRange(

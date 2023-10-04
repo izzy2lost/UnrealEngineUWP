@@ -15,6 +15,9 @@ namespace UnrealBuildTool.Rules
 			// warning C5103: pasting '"TF_LOG_STACK_TRACE_ON_ERROR"' and '"TF_LOG_STACK_TRACE_ON_WARNING"' does not result in a valid preprocessing token
 			CppStandard = CppStandardVersion.Cpp17;
 
+			// Remove when this plugin can compile with cpp20
+			PCHUsage = PCHUsageMode.NoPCHs;
+
 			bUseRTTI = true;
 
 			PublicDependencyModuleNames.AddRange(

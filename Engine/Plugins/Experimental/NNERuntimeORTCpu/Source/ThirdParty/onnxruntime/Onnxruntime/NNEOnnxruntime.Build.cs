@@ -8,6 +8,9 @@ public class NNEOnnxruntime : ModuleRules
 	{
 		CppStandard = CppStandardVersion.Cpp17;
 
+		// Remove when this plugin can compile with cpp20
+		PCHUsage = PCHUsageMode.NoPCHs;
+
 		// Disable all static analysis checkers for this module
 		bDisableStaticAnalysis = true;
 

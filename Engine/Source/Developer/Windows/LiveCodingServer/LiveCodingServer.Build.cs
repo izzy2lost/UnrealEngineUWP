@@ -9,7 +9,10 @@ public class LiveCodingServer : ModuleRules
 	{
 		CppStandard = CppStandardVersion.Cpp17;
 
-        PrivateDependencyModuleNames.Add("Core");
+		// Remove when this module can compile with cpp20
+		PCHUsage = PCHUsageMode.NoPCHs;
+
+		PrivateDependencyModuleNames.Add("Core");
         PrivateDependencyModuleNames.Add("Json");
         PrivateDependencyModuleNames.Add("LiveCoding");
 		PrivateDependencyModuleNames.Add("VisualStudioDTE");
