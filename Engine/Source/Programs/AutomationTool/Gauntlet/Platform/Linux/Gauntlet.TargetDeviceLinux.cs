@@ -345,8 +345,6 @@ namespace Gauntlet
 
 		protected IAppInstall InstallStagedBuild(UnrealAppConfig AppConfig, StagedBuild InBuild)
 		{
-			bool SkipDeploy = Globals.Params.ParseParam("SkipDeploy");
-
 			string BuildPath = InBuild.BuildPath;
 
 			if (CanRunFromPath(BuildPath) == false)
@@ -354,7 +352,7 @@ namespace Gauntlet
 				string SubDir = string.IsNullOrEmpty(AppConfig.Sandbox) ? AppConfig.ProjectName : AppConfig.Sandbox;
 				string DestPath = Path.Combine(this.LocalCachePath, SubDir, AppConfig.ProcessType.ToString());
 
-				if (!SkipDeploy)
+				if (!AppConfig.SkipInstall)
 				{
 					DestPath = StagedBuild.InstallBuildParallel(AppConfig, InBuild, BuildPath, DestPath, ToString());
 				}

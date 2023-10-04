@@ -102,6 +102,10 @@ namespace Gauntlet
 		// new system
 		public IBuild Build { get; set; }
 
+		// Prevents installing a build on device
+		[AutoParamWithNames(false, "SkipInstall", "SkipDeploy", "SkipCopy")]
+		public bool SkipInstall { get; set; }
+
 		/// <summary>
 		/// Constructor that sets some required values to defaults
 		/// </summary>
@@ -112,6 +116,7 @@ namespace Gauntlet
 			CommandLine = "";
 			Configuration = UnrealTargetConfiguration.Development;
 			Sandbox = "Gauntlet";
+			AutoParam.ApplyParamsAndDefaults(this, Globals.Params.AllArguments);
 		}
 	}
 }

@@ -926,11 +926,9 @@ namespace Gauntlet
 				RunAdbDeviceCommand(string.Format("shell rm -r {0}/Android/data/{1}/*", StorageLocation, Build.AndroidPackageName));
 				RunAdbDeviceCommand(string.Format("shell rm -r {0}/Android/obb/{1}/*", StorageLocation, Build.AndroidPackageName));
 				RunAdbDeviceCommand(string.Format("shell rm -r {0}/Download/*", StorageLocation));
-			}
+			}			
 
-				bool SkipDeploy = Globals.Params.ParseParam("SkipDeploy");
-
-			if (SkipDeploy == false)
+			if (!AppConfig.SkipInstall)
 			{
 				if (Globals.Params.ParseParam("cleandevice")
 					|| Globals.Params.ParseParam("fullclean"))
@@ -1010,7 +1008,7 @@ namespace Gauntlet
                 }
             }
 
-			if (SkipDeploy == false)
+			if (!AppConfig.SkipInstall)
 			{
 				// obb files need to be named based on APK version (grrr), so find that out. This should return something like
 				// versionCode=2 minSdk=21 targetSdk=21
