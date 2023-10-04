@@ -783,6 +783,8 @@ public:
 	UFUNCTION(BlueprintCallable, Category = "ChaosPhysics")
 	GEOMETRYCOLLECTIONENGINE_API FTransform GetRootCurrentTransform() const;
 
+	GEOMETRYCOLLECTIONENGINE_API FTransform GetRootCurrentComponentSpaceTransform() const;
+
 	/** return true if the root cluster is not longer active at runtime */
 	UFUNCTION(BlueprintCallable, Category = "ChaosPhysics")
 	GEOMETRYCOLLECTIONENGINE_API bool IsRootBroken() const;
@@ -1280,6 +1282,9 @@ public:
 	/** Force all GC components to reregister their custom renderer objects. */
 	static GEOMETRYCOLLECTIONENGINE_API void ReregisterAllCustomRenderers();
 
+	/** allow update of the custom renderer if enabled */
+	GEOMETRYCOLLECTIONENGINE_API void SetUpdateCustomRenderer(bool bValue) { bUpdateCustomRenderer = bValue; }
+
 public:
 	UPROPERTY(BlueprintAssignable, Category = "Collision")
 	FOnChaosPhysicsCollision OnChaosPhysicsCollision;
@@ -1688,6 +1693,8 @@ private:
 
 	/** True if GeometryCollection transforms have changed from previous tick. */
 	bool bIsMoving;
+
+	bool bUpdateCustomRenderer;
 
 	//~ Begin IPhysicsComponent Interface.
 public:

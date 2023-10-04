@@ -622,6 +622,7 @@ UGeometryCollectionComponent::UGeometryCollectionComponent(const FObjectInitiali
 	, bIsTransformSelectionModeEnabled(false)
 #endif  // #if GEOMETRYCOLLECTION_EDITOR_SELECTION
 	, bIsMoving(false)
+	, bUpdateCustomRenderer(true)
 {
 	// by default tick is registered but disabled, we only need it when we need to update the removal timers
 	// tick will be then enabled only when the root is broken from OnPostPhysicsSync callback
@@ -869,8 +870,10 @@ namespace
 	template <typename TTransformType>
 	inline FBox ComputeBoundsFromTransforms(const UGeometryCollectionComponent& Component, const TTransformType& LocalToWorldWithScale, const TArray<TTransformType>& GlobalMatricesArray)
 	{
+		static FName BoundingBoxAttributeName = "BoundingBox";
+
 		auto GeometryCollectionPtr = Component.GetRestCollection()->GetGeometryCollection();
-		const TManagedArray<FBox>* TransformBoundingBoxes = GeometryCollectionPtr->FindAttribute<FBox>("BoundingBox", FGeometryCollection::TransformGroup);
+		const TManagedArray<FBox>* TransformBoundingBoxes = GeometryCollectionPtr->FindAttribute<FBox>(BoundingBoxAttributeName, FGeometryCollection::TransformGroup);
 		const TManagedArray<FBox>& GeometryBoundingBoxes = Component.GetBoundingBoxArray();
 		const TManagedArray<int32>& TransformToGeometryIndex = Component.GetTransformToGeometryIndexArray();
 
@@ -5727,7 +5730,7 @@ void UGeometryCollectionComponent::RefreshCustomRenderer()
 	if (CanUseCustomRenderer())
 	{
 		// Don't refresh the custom renderer on the server but we still need to do the work of computing component space transforms.
-		const bool bUpdateRenderer = !IsNetMode(NM_DedicatedServer);
+		const bool bUpdateRenderer = !IsNetMode(NM_DedicatedServer) && bUpdateCustomRenderer;
 
 		if (IGeometryCollectionExternalRenderInterface* RendererInterface = CustomRenderer.GetInterface())
 		{
@@ -6191,6 +6194,11 @@ FTransform UGeometryCollectionComponent::GetRootCurrentTransform() const
 		RootInitialTransform = CompSpaceRootTransform * GetComponentTransform();
 	}
 	return RootInitialTransform;
+}
+
+FTransform UGeometryCollectionComponent::GetRootCurrentComponentSpaceTransform() const
+{
+	return (RestCollection) ? ComponentSpaceTransforms.RequestRootTransform() : FTransform::Identity;
 }
 
 TArray<FTransform> UGeometryCollectionComponent::GetInitialLocalRestTransforms() const

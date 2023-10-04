@@ -86,6 +86,7 @@ void FGeometryCollectionISM::CreateISM(AActor* InOwningActor, bool bInUseHISM)
 	ISMComponent->SetRemoveSwap();
 	ISMComponent->SetCanEverAffectNavigation(false);
 	ISMComponent->SetCollisionEnabled(ECollisionEnabled::NoCollision);
+	ISMComponent->SetupAttachment(InOwningActor->GetRootComponent());
 
 	InOwningActor->AddInstanceComponent(ISMComponent);
 	ISMComponent->RegisterComponent();
