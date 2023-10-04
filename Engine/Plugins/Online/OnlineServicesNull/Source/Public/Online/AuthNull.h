@@ -42,7 +42,7 @@ private:
 
 	mutable FRWLock Lock;
 	TArray<FOnlineAccountIdString> Ids;
-	TMap<FString, FOnlineAccountIdString*> StringToIdIndex;
+	TMap<FString, uint32> StringToIdIndex;
 
 };
 
