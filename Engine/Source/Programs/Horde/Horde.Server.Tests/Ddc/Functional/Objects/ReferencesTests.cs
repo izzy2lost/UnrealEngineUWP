@@ -259,7 +259,7 @@ namespace Horde.Server.Tests.Ddc.FunctionalTests.References
 
                 Assert.AreEqual(1, fields.Count);
                 CbField stringField = fields[0];
-                Assert.AreEqual("stringField", stringField.Name);
+                Assert.AreEqual("stringField", stringField.Name.ToString());
                 Assert.AreEqual("thisIsAField", stringField.AsString());
             }
 
@@ -476,7 +476,7 @@ namespace Horde.Server.Tests.Ddc.FunctionalTests.References
 
                 Assert.AreEqual(1, fields.Count);
                 CbField childObjectField = fields[0];
-                Assert.AreEqual("childObject", childObjectField.Name);
+                Assert.AreEqual("childObject", childObjectField.Name.ToString());
                 Assert.AreEqual(childObjectHash, BlobId.FromIoHash(childObjectField.AsHash()));
             }
 

@@ -19,22 +19,22 @@ namespace Horde.Server.Tests.Ddc.UnitTests
 
 			CbObject o = new CbObject(bytes);
 
-			Assert.AreEqual("BuildAction", o.AsField().Name);
+			Assert.AreEqual("BuildAction", o.AsField().Name.ToString());
 			List<CbField> buildActionFields = o.ToList();
 			Assert.AreEqual(3, buildActionFields.Count);
-			Assert.AreEqual("Function", buildActionFields[0].Name);
-			Assert.AreEqual("Constants", buildActionFields[1].Name);
-			Assert.AreEqual("Inputs", buildActionFields[2].Name);
+			Assert.AreEqual("Function", buildActionFields[0].Name.ToString());
+			Assert.AreEqual("Constants", buildActionFields[1].Name.ToString());
+			Assert.AreEqual("Inputs", buildActionFields[2].Name.ToString());
 
 			List<CbField>  constantsFields = buildActionFields[1].ToList();
 			Assert.AreEqual(3, constantsFields.Count);
-			Assert.AreEqual("TextureBuildSettings", constantsFields[0].Name);
-			Assert.AreEqual("TextureOutputSettings", constantsFields[1].Name);
-			Assert.AreEqual("TextureSource", constantsFields[2].Name);
+			Assert.AreEqual("TextureBuildSettings", constantsFields[0].Name.ToString());
+			Assert.AreEqual("TextureOutputSettings", constantsFields[1].Name.ToString());
+			Assert.AreEqual("TextureSource", constantsFields[2].Name.ToString());
 
 			List<CbField>  inputsFields = buildActionFields[2].ToList();
 			Assert.AreEqual(1, inputsFields.Count);
-			Assert.AreEqual("7587B323422942733DDD048A91709FDE", inputsFields[0].Name);
+			Assert.AreEqual("7587B323422942733DDD048A91709FDE", inputsFields[0].Name.ToString());
 			Assert.IsTrue(inputsFields[0].IsBinaryAttachment());
 			Assert.IsTrue(inputsFields[0].IsAttachment());
 			Assert.IsFalse(inputsFields[0].IsObjectAttachment());
@@ -49,7 +49,7 @@ namespace Horde.Server.Tests.Ddc.UnitTests
 
 			CbObject o = new CbObject(bytes);
 
-			Assert.AreEqual("BuildOutput", o.AsField().Name);
+			Assert.AreEqual("BuildOutput", o.AsField().Name.ToString());
 			List<CbField> buildActionFields = o.ToList();
 			Assert.AreEqual(1, buildActionFields.Count);
 			CbField payloads = buildActionFields[0];
@@ -67,7 +67,7 @@ namespace Horde.Server.Tests.Ddc.UnitTests
 			byte[] bytes = File.ReadAllBytes("Ddc/UnitTests/CompactBinaryObjects/compact_binary");
 
 			CbObject o = new CbObject(bytes);
-			Assert.AreEqual("", o.AsField().Name);
+			Assert.AreEqual("", o.AsField().Name.ToString());
 			List<CbField> buildActionFields = o.ToList();
 			Assert.AreEqual(3, buildActionFields.Count);
 			CbField payloads = buildActionFields[0];
@@ -95,7 +95,7 @@ namespace Horde.Server.Tests.Ddc.UnitTests
 			CbObject o = new CbObject(objectData);
 
 			// the top object has no name
-			Assert.AreEqual("", o.AsField().Name);
+			Assert.AreEqual("", o.AsField().Name.ToString());
 			List<CbField> fields = o.ToList();
 			Assert.AreEqual(1, fields.Count);
 			CbField? needs = o["needs"];
@@ -119,7 +119,7 @@ namespace Horde.Server.Tests.Ddc.UnitTests
 			CbObject o = new CbObject(objectData);
 
 			// the object has no name and 2 fields
-			Assert.AreEqual("", o.AsField().Name);
+			Assert.AreEqual("", o.AsField().Name.ToString());
 			List<CbField> fields = o.ToList();
 			Assert.AreEqual(2, fields.Count);
 

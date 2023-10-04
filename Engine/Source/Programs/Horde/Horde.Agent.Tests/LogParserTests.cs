@@ -220,7 +220,7 @@ namespace Horde.Agent.Tests
 
 				LogValue fileProperty1 = (LogValue)logEvents[0].GetProperty("file");
 				Assert.AreEqual(@"GenerateSigningRequestDialog.cs", fileProperty1.Text);
-				Assert.AreEqual(@"SourceFile", fileProperty1.Type);
+				Assert.AreEqual(@"SourceFile", fileProperty1.Type.ToString());
 				Assert.AreEqual(@"Engine/Source/Programs/IOS/iPhonePackager/GenerateSigningRequestDialog.cs", fileProperty1.Properties![LogEventPropertyName.RelativePath].ToString());
 				Assert.AreEqual(@"//UE4/Main/Engine/Source/Programs/IOS/iPhonePackager/GenerateSigningRequestDialog.cs@12345", fileProperty1.Properties[LogEventPropertyName.DepotPath].ToString());
 
@@ -230,7 +230,7 @@ namespace Horde.Agent.Tests
 
 				LogValue fileProperty2 = (LogValue)logEvents[1].GetProperty("file");
 				Assert.AreEqual(@"Utilities.cs", fileProperty2.Text);
-				Assert.AreEqual(@"SourceFile", fileProperty2.Type);
+				Assert.AreEqual(@"SourceFile", fileProperty2.Type.ToString());
 				Assert.AreEqual(@"Engine/Source/Programs/IOS/iPhonePackager/Utilities.cs", fileProperty2.Properties![LogEventPropertyName.RelativePath].ToString());
 				Assert.AreEqual(@"//UE4/Main/Engine/Source/Programs/IOS/iPhonePackager/Utilities.cs@12345", fileProperty2.Properties[LogEventPropertyName.DepotPath].ToString());
 			}
@@ -254,7 +254,7 @@ namespace Horde.Agent.Tests
 
 				LogValue fileProperty = (LogValue)events[0].GetProperty("file");
 				Assert.AreEqual(@"Configuration\TargetRules.cs", fileProperty.Text);
-				Assert.AreEqual(@"SourceFile", fileProperty.Type);
+				Assert.AreEqual(@"SourceFile", fileProperty.Type.ToString());
 				Assert.AreEqual(@"Engine/Source/Programs/UnrealBuildTool/Configuration/TargetRules.cs", fileProperty.Properties![LogEventPropertyName.RelativePath].ToString());
 				Assert.AreEqual(@"//UE4/Main/Engine/Source/Programs/UnrealBuildTool/Configuration/TargetRules.cs@12345", fileProperty.Properties![LogEventPropertyName.DepotPath].ToString());
 			}
@@ -282,7 +282,7 @@ namespace Horde.Agent.Tests
 
 				LogValue fileProperty = (LogValue)logEvents[0].GetProperty("file");
 				Assert.AreEqual(absPath, fileProperty.Text);
-				Assert.AreEqual(@"SourceFile", fileProperty.Type);
+				Assert.AreEqual(@"SourceFile", fileProperty.Type.ToString());
 				Assert.AreEqual(@"Engine/Source/Runtime/CoreOnline/CoreOnline.Build.cs", fileProperty.Properties![LogEventPropertyName.RelativePath].ToString());
 				Assert.AreEqual(@"//UE4/Main/Engine/Source/Runtime/CoreOnline/CoreOnline.Build.cs@12345", fileProperty.Properties![LogEventPropertyName.DepotPath].ToString());
 
@@ -292,7 +292,7 @@ namespace Horde.Agent.Tests
 
 				LogValue fileProperty1 = logEvents[1].GetProperty<LogValue>("file");
 				Assert.AreEqual(absPath, fileProperty1.Text);
-				Assert.AreEqual(@"SourceFile", fileProperty1.Type);
+				Assert.AreEqual(@"SourceFile", fileProperty1.Type.ToString());
 				Assert.AreEqual(@"Engine/Source/Runtime/CoreOnline/CoreOnline.Build.cs", fileProperty1.Properties![LogEventPropertyName.RelativePath].ToString());
 				Assert.AreEqual(@"//UE4/Main/Engine/Source/Runtime/CoreOnline/CoreOnline.Build.cs@12345", fileProperty1.Properties![LogEventPropertyName.DepotPath].ToString());
 			}
@@ -366,7 +366,7 @@ namespace Horde.Agent.Tests
 				Assert.AreEqual("20", logEvents[0].GetProperty("line").ToString());
 
 				LogValue fileProperty0 = (LogValue)logEvents[0].GetProperty("file");
-				Assert.AreEqual(@"SourceFile", fileProperty0.Type);
+				Assert.AreEqual(@"SourceFile", fileProperty0.Type.ToString());
 				Assert.AreEqual(@"Foo/Bar.txt", fileProperty0.Properties![LogEventPropertyName.RelativePath].ToString());
 
 				// 1
@@ -376,7 +376,7 @@ namespace Horde.Agent.Tests
 				Assert.AreEqual("30", logEvents[1].GetProperty("column").ToString());
 
 				LogValue fileProperty1 = logEvents[1].GetProperty<LogValue>("file");
-				Assert.AreEqual(@"SourceFile", fileProperty1.Type);
+				Assert.AreEqual(@"SourceFile", fileProperty1.Type.ToString());
 				Assert.AreEqual(@"Foo/Bar.txt", fileProperty1.Properties![LogEventPropertyName.RelativePath].ToString());
 
 				// 2
@@ -416,7 +416,7 @@ namespace Horde.Agent.Tests
 				//Assert.AreEqual(@"//UE4/Main/Engine/Plugins/Experimental/VirtualCamera/Source/VirtualCamera/Private/VCamBlueprintFunctionLibrary.cpp@12345", FileProperty.Properties["depotPath"].ToString());
 
 				LogValue noteProperty1 = logEvents[2].GetProperty<LogValue>("file");
-				Assert.AreEqual(@"SourceFile", noteProperty1.Type);
+				Assert.AreEqual(@"SourceFile", noteProperty1.Type.ToString());
 				Assert.AreEqual(@"//UE4/Main/Engine/Plugins/Editor/EditorScriptingUtilities/Source/EditorScriptingUtilities/Public/EditorLevelLibrary.h@12345", noteProperty1.Properties![LogEventPropertyName.DepotPath].ToString());
 			}
 		}
@@ -434,7 +434,7 @@ namespace Horde.Agent.Tests
 			Assert.AreEqual(events[0].Id, KnownLogEvents.Engine_AssetLog);
 
 			LogValue assetProperty = events[0].GetProperty<LogValue>("asset");
-			Assert.AreEqual("Asset", assetProperty.Type);
+			Assert.AreEqual(new Utf8String("Asset"), assetProperty.Type);
 			Assert.AreEqual(@"//UE4/Main/QAGame/Plugins/NiagaraFluids/Content/Blueprints/Phsyarum_BP.uasset@12345", assetProperty.Properties![LogEventPropertyName.DepotPath].ToString());
 			Assert.AreEqual(@"QAGame/Plugins/NiagaraFluids/Content/Blueprints/Phsyarum_BP.uasset", assetProperty.Properties![LogEventPropertyName.RelativePath].ToString());
 		}
