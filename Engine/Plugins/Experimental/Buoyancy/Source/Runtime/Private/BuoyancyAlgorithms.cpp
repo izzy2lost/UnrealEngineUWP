@@ -456,9 +456,9 @@ namespace BuoyancyAlgorithms
 	// This variant of ComputesSubmergedVolume scales the submerged volume
 	// so as not to violate the actual volume of the object, and returns the
 	// total volume calculated.
-	bool ComputeSubmergedVolume(const FPBDRigidsEvolutionGBF& Evolution, const FGeometryParticleHandle* SubmergedParticle, const FGeometryParticleHandle* WaterParticle, const float WaterZ, const FVector& WaterN, int32 NumSubdivisions, float MinVolume, TSparseArray<TBitArray<>>& SubmergedShapes, float& SubmergedVol, FVec3& SubmergedCoM, float& TotalVol)
+	bool ComputeSubmergedVolume(const FPBDRigidsEvolutionGBF& Evolution, const FGeometryParticleHandle* SubmergedParticle, const FGeometryParticleHandle* WaterParticle, const FVector& WaterX, const FVector& WaterN, int32 NumSubdivisions, float MinVolume, TSparseArray<TBitArray<>>& SubmergedShapes, float& SubmergedVol, FVec3& SubmergedCoM, float& TotalVol)
 	{
-		if (ComputeSubmergedVolume(SubmergedParticle, WaterParticle, WaterZ, WaterN, NumSubdivisions, MinVolume, SubmergedShapes, SubmergedVol, SubmergedCoM))
+		if (ComputeSubmergedVolume(SubmergedParticle, WaterParticle, WaterX, WaterN, NumSubdivisions, MinVolume, SubmergedShapes, SubmergedVol, SubmergedCoM))
 		{
 			ScaleSubmergedVolume(Evolution, SubmergedParticle, SubmergedVol, TotalVol);
 
@@ -477,7 +477,7 @@ namespace BuoyancyAlgorithms
 		return false;
 	}
 
-	bool ComputeSubmergedVolume(const FGeometryParticleHandle* SubmergedParticle, const FGeometryParticleHandle* WaterParticle, const float WaterZ, const FVector& WaterN, int32 NumSubdivisions, float MinVolume, TSparseArray<TBitArray<>>& SubmergedShapes, float& SubmergedVol, FVec3& SubmergedCoM)
+	bool ComputeSubmergedVolume(const FGeometryParticleHandle* SubmergedParticle, const FGeometryParticleHandle* WaterParticle, const FVector& WaterX, const FVector& WaterN, int32 NumSubdivisions, float MinVolume, TSparseArray<TBitArray<>>& SubmergedShapes, float& SubmergedVol, FVec3& SubmergedCoM)
 	{
 		// Get some initial data about the submerged particle
 		const FImplicitObject* RootImplicit = SubmergedParticle->GetGeometry();
@@ -498,7 +498,7 @@ namespace BuoyancyAlgorithms
 
 		// Traverse the submerged particle's leaves
 		RootImplicit->VisitLeafObjects(
-			[SubmergedParticle, ParticleIndex, &ShapeInstances, WaterShapeType, WaterShapeInstance, &ParticleWorldTransform, WaterZ, &WaterN, &NumSubdivisions, &MinVolume, &SubmergedShapes, &SubmergedVol, &SubmergedCoM]
+			[SubmergedParticle, ParticleIndex, &ShapeInstances, WaterShapeType, WaterShapeInstance, &ParticleWorldTransform, &WaterX, &WaterN, &NumSubdivisions, &MinVolume, &SubmergedShapes, &SubmergedVol, &SubmergedCoM]
 			(const FImplicitObject* Implicit, const FRigidTransform3& RelativeTransform, const int32 RootObjectIndex, const int32 ObjectIndex, const int32 LeafObjectIndex)
 		{
 			const FAABB3 RelativeBounds = Implicit->CalculateTransformedBounds(RelativeTransform);
@@ -544,11 +544,16 @@ namespace BuoyancyAlgorithms
 			bool bSubmerged = false;
 			for (const FAABB3& Box : SubmergedBoxes)
 			{
-				// Compute the portion of the object bounds that are submerged
+				// Get the world space position of the shape
 				const FVec3 ShapePos = ShapeWorldTransform.GetTranslation();
-				const FVec3 WaterPos = FVec3(ShapePos.X, ShapePos.Y, WaterZ);
+
+				// Get the projection of the shape position onto the water
+				const FVec3 ShapeDiff = ShapePos - WaterX;
+				const FVec3 ShapeSurfacePos = WaterX + ShapeDiff - (WaterN * FVec3::DotProduct(WaterN, ShapeDiff));
+
+				// Compute the portion of the object bounds that are submerged
 				FAABB3 SubmergedBox;
-				if (ComputeSubmergedBounds(WaterPos, WaterN, Box, ShapeWorldTransform, SubmergedBox))
+				if (ComputeSubmergedBounds(ShapeSurfacePos, WaterN, Box, ShapeWorldTransform, SubmergedBox))
 				{
 					// At this point we know that the shape is submerged
 					bSubmerged = true;
