@@ -179,6 +179,23 @@ void UCustomizableObject::PostLoad()
 			;
 	}
 #endif
+
+#if WITH_EDITORONLY_DATA
+	for (TTuple<TObjectPtr<const UObject>, FGuid>& ParticipatingObject : ParticipatingObjects)
+	{
+		PRAGMA_DISABLE_DEPRECATION_WARNINGS
+		const FGuid PackageGuid = ParticipatingObject.Key.GetPackage()->GetGuid();
+		PRAGMA_ENABLE_DEPRECATION_WARNINGS
+		
+		if (PackageGuid != ParticipatingObject.Value)
+		{
+			SetModel(nullptr);
+			
+			UE_LOG(LogMutable, Display, TEXT("Forcing recompilation due to changes in %s."), *ParticipatingObject.Key->GetFullName());
+			break;
+		}
+	}
+#endif
 }
 
 
@@ -1850,6 +1867,14 @@ TSharedPtr<const mu::Model, ESPMode::ThreadSafe> FCustomizableObjectPrivateData:
 {
 	return MutableModel;
 }
+
+
+#if WITH_EDITORONLY_DATA
+TMap<TObjectPtr<const UObject>, FGuid>& FCustomizableObjectPrivateData::GetParticipatingObjects(UCustomizableObject& Public)
+{
+	return Public.ParticipatingObjects;
+}
+#endif
 
 
 //-------------------------------------------------------------------------------------------------

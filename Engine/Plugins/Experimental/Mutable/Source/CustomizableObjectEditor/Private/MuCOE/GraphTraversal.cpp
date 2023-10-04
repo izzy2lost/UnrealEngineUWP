@@ -298,6 +298,12 @@ UCustomizableObject* GetFullGraphRootObject(UCustomizableObjectNodeObject* Node,
 }
 
 
+UCustomizableObject* GetRootObject(const UCustomizableObjectNode& Node)
+{
+	return CastChecked<UCustomizableObject>(Node.GetGraph()->GetOuter());
+}
+
+
 UCustomizableObjectNodeObject* GetFullGraphRootNodeObject(UCustomizableObjectNodeObject* Node, TArray<UCustomizableObject*>& VisitedObjects)
 {
 	if (Node->ParentObject != nullptr)

@@ -152,6 +152,8 @@ mu::NodeImagePtr GenerateMutableSourceImage(const UEdGraphPin* Pin, FMutableGrap
 		UTexture2D* BaseTexture = TypedNodeTex->Texture;
 		if (BaseTexture)
 		{
+			GenerationContext.AddParticipatingObject(*BaseTexture);
+			
 			// Check the specific image cache
 			FGeneratedImageKey imageKey = FGeneratedImageKey(Pin);
 			mu::NodeImageConstantPtr ImageNode;
@@ -216,6 +218,8 @@ mu::NodeImagePtr GenerateMutableSourceImage(const UEdGraphPin* Pin, FMutableGrap
 		const UTexture2D* ReferenceTexture = TypedNodeParam->ReferenceValue;
 		if (ReferenceTexture)
 		{
+			GenerationContext.AddParticipatingObject(*ReferenceTexture);
+
 			ResizeNode->SetSize(FMath::Max(ReferenceTexture->GetImportedSize().X,1), FMath::Max(ReferenceTexture->GetImportedSize().X, 1));
 		}
 		else
@@ -584,6 +588,8 @@ mu::NodeImagePtr GenerateMutableSourceImage(const UEdGraphPin* Pin, FMutableGrap
 		// Calculating Texture size using Reference texture parameters
 		if (TypedNodeProject->ReferenceTexture)
 		{
+			GenerationContext.AddParticipatingObject(*TypedNodeProject->ReferenceTexture);
+
 			int32 LODBias = ComputeLODBias(GenerationContext, TypedNodeProject->ReferenceTexture, TypedNodeProject->ReferenceTexture->MaxTextureSize, nullptr, INDEX_NONE, false);
 
 			if (TextureSize.X > 0 && TextureSize.Y > 0)
@@ -817,6 +823,8 @@ mu::NodeImagePtr GenerateMutableSourceImage(const UEdGraphPin* Pin, FMutableGrap
 		// Calculating Texture size using Reference texture parameters
 		if (TypedNodeTransform->ReferenceTexture)
 		{
+			GenerationContext.AddParticipatingObject(*TypedNodeTransform->ReferenceTexture);
+			
 			const int32 LODBias = ComputeLODBias(
 				GenerationContext, TypedNodeTransform->ReferenceTexture, TypedNodeTransform->ReferenceTexture->MaxTextureSize, 
 				nullptr, INDEX_NONE, false);

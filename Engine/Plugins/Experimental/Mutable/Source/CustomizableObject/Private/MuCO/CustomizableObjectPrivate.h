@@ -9,21 +9,23 @@
 #endif
 
 namespace mu { class Model; }
-
+class UCustomizableObject;
 
 
 class FCustomizableObjectPrivateData
 {
-private:
-
 	TSharedPtr<mu::Model, ESPMode::ThreadSafe> MutableModel;
 
 public:
-
 	void SetModel(const TSharedPtr<mu::Model, ESPMode::ThreadSafe>& Model, const FGuid Identifier);
 	const TSharedPtr<mu::Model, ESPMode::ThreadSafe>& GetModel();
 	TSharedPtr<const mu::Model, ESPMode::ThreadSafe> GetModel() const;
 
+#if WITH_EDITORONLY_DATA
+	/** See UCustomizableObject::ParticipatingObjects. */
+	CUSTOMIZABLEOBJECT_API TMap<TObjectPtr<const UObject>, FGuid>& GetParticipatingObjects(UCustomizableObject& Public);
+#endif
+	
 	// See UCustomizableObjectSystem::LockObject. Must only be modified from the game thread
 	bool bLocked = false;
 
@@ -33,6 +35,5 @@ public:
 	bool bModelCompiledForCook = false;
 	TArray<FString> CachedPlatformNames;
 #endif
-
 };
 

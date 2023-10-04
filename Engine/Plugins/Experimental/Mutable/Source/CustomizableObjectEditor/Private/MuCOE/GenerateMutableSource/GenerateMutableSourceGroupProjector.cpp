@@ -69,6 +69,11 @@ mu::NodeImagePtr GenerateMutableGroupProjection(const int32 NodeLOD, const int32
 		if (!GroupProjectionReferenceTexture)
 		{
 			GroupProjectionReferenceTexture = ProjectorTempData.CustomizableObjectNodeGroupProjectorParameter->ReferenceTexture;
+			
+			if (GroupProjectionReferenceTexture)
+			{
+				GenerationContext.AddParticipatingObject(*GroupProjectionReferenceTexture);
+			}
 		}
 
 		const bool bProjectToImage = [&]

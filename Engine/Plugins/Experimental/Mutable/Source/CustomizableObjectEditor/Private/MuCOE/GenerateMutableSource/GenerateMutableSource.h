@@ -505,6 +505,22 @@ struct FMutableGraphGenerationContext
 	FMutableGraphGenerationContext(UCustomizableObject* CustomizableObject, class FCustomizableObjectCompiler* InCompiler, const FCompilationOptions& InOptions);
 	~FMutableGraphGenerationContext();
 
+	/** See UCustomizableObject::ParticipatingObjects. */
+	void AddParticipatingObject(const UObject& Object);
+
+	/** See UCustomizableObject::ParticipatingObjects. */
+	template<typename Type>
+	void AddParticipatingObject(const TArray<Type>& InObjects)
+	{
+		for (Type InObject : InObjects)
+		{
+			if (InObject)
+			{	
+				AddParticipatingObject(*InObject);
+			}
+		}
+	}
+	
 	UCustomizableObject* Object = nullptr;
 
 	// Non-owned reference to the compiler object
@@ -755,6 +771,9 @@ struct FMutableGraphGenerationContext
 	FExtensionDataCompilerInterface ExtensionDataCompilerInterface;
 	TArray<FCustomizableObjectExtensionData> AlwaysLoadedExtensionData;
 	TArray<UCustomizableObjectExtensionDataContainer*> StreamedExtensionData;
+
+	/** See UCustomizableObject::ParticipatingObjects. */
+	TMap<TObjectPtr<const UObject>, FGuid> ParticipatingObjects;
 };
 
 /** Pin Data scope wrapper. Pops the pin data on scope exit. */

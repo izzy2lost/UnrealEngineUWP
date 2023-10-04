@@ -601,6 +601,8 @@ mu::MeshPtr ConvertSkeletalMeshToMutable(const USkeletalMesh* InSkeletalMesh, co
 		return nullptr;
 	}
 
+	GenerationContext.AddParticipatingObject(*InSkeletalMesh);
+	
 	const FSkeletalMeshModel* ImportedModel = InSkeletalMesh->GetImportedModel();
 	if (!ImportedModel)
 	{
@@ -1783,6 +1785,8 @@ mu::MeshPtr ConvertStaticMeshToMutable(const UStaticMesh* StaticMesh, int32 LODI
 		GenerationContext.Compiler->CompilerLog(FText::FromString(Msg), CurrentNode, EMessageSeverity::Warning);
 		return nullptr;
 	}
+
+	GenerationContext.AddParticipatingObject(*StaticMesh);
 
 	mu::MeshPtr MutableMesh = new mu::Mesh();
 

@@ -23,6 +23,7 @@
 #include "Widgets/Notifications/SNotificationList.h"
 #include "Interfaces/ITargetPlatform.h"
 #include "Misc/App.h"
+#include "MuCO/CustomizableObjectPrivate.h"
 
 class UTexture2D;
 
@@ -335,7 +336,7 @@ void FCustomizableObjectCompiler::UpdateArrayGCProtect()
 }
 
 
-void FCustomizableObjectCompiler::ProcessChildObjectsRecursively(UCustomizableObject* Object, FAssetRegistryModule& AssetRegistryModule, FMutableGraphGenerationContext &GenerationContext)
+void FCustomizableObjectCompiler::ProcessChildObjectsRecursively(UCustomizableObject* Object, FMutableGraphGenerationContext &GenerationContext)
 {
 	TArray<FName> ArrayReferenceNames;
 	AddCachedReferencers(*Object->GetOuter()->GetPathName(), ArrayReferenceNames);
@@ -343,60 +344,62 @@ void FCustomizableObjectCompiler::ProcessChildObjectsRecursively(UCustomizableOb
 
 	bool bMultipleBaseObjectsFound = false;
 
-	FAssetData* AssetData;
-	UCustomizableObject* ChildObject;
-
 	for (const FName& ReferenceName : ArrayReferenceNames)
 	{
-		AssetData = GetCachedAssetData(ReferenceName.ToString());
-
-		if (AssetData != nullptr) // Elements in ArrayAssetData are already of static class UCustomizableObject
+		if (ArrayAlreadyProcessedChild.Contains(ReferenceName))
 		{
-			ChildObject = Cast<UCustomizableObject>(AssetData->GetAsset());
-			
-			if (!ChildObject)
-				continue;
+			continue;
+		}
+		
+		ArrayAlreadyProcessedChild.Add(ReferenceName);
 
-			if (ChildObject != Object && !ChildObject->HasAnyFlags(RF_Transient))
+		const FAssetData* AssetData = GetCachedAssetData(ReferenceName.ToString());
+		if (!AssetData) // Elements in ArrayAssetData are already of static class UCustomizableObject
+		{
+			continue;
+		}
+		
+		UCustomizableObject* ChildObject = Cast<UCustomizableObject>(AssetData->GetAsset());
+		if (!ChildObject)
+		{
+			continue;
+		}
+		
+		if (ChildObject != Object && !ChildObject->HasAnyFlags(RF_Transient))
+		{
+			UCustomizableObjectNodeObject* ChildRoot = GetRootNode(ChildObject, bMultipleBaseObjectsFound);
+
+			if (ChildRoot && !bMultipleBaseObjectsFound)
 			{
-				UCustomizableObjectNodeObject* ChildRoot = GetRootNode(ChildObject, bMultipleBaseObjectsFound);
-
-				if (ChildRoot && !bMultipleBaseObjectsFound)
+				if (ChildRoot->ParentObject == Object)
 				{
-					if (ChildRoot->ParentObject == Object)
+					if (const FGroupNodeIdsTempData* GroupGuid = GenerationContext.DuplicatedGroupNodeIds.FindPair(Object, FGroupNodeIdsTempData(ChildRoot->ParentObjectGroupId)))
 					{
-						if (const FGroupNodeIdsTempData* GroupGuid = GenerationContext.DuplicatedGroupNodeIds.FindPair(Object, FGroupNodeIdsTempData(ChildRoot->ParentObjectGroupId)))
-						{
-							ChildRoot->ParentObjectGroupId = GroupGuid->NewGroupNodeId;
-						}
-
-						GenerationContext.GroupIdToExternalNodeMap.Add(ChildRoot->ParentObjectGroupId, ChildRoot);
-						GenerationContext.CustomizableObjectGuidsInCompilation.Add(ChildObject->GetVersionId());
+						ChildRoot->ParentObjectGroupId = GroupGuid->NewGroupNodeId;
 					}
+
+					GenerationContext.GroupIdToExternalNodeMap.Add(ChildRoot->ParentObjectGroupId, ChildRoot);
+					GenerationContext.CustomizableObjectGuidsInCompilation.Add(ChildObject->GetVersionId());
+				}
+			}
+		}
+
+		TArray<UCustomizableObjectNodeObjectGroup*> GroupNodes;
+		ChildObject->Source->GetNodesOfClass<UCustomizableObjectNodeObjectGroup>(GroupNodes);
+
+		if (GroupNodes.Num() > 0) // Only grafs with group nodes should have child grafs
+		{
+			for (int32 i = 0; i < GroupNodes.Num(); ++i)
+			{
+				const FGuid NodeId = GenerationContext.GetNodeIdUnique(GroupNodes[i]);
+				if (NodeId != GroupNodes[i]->NodeGuid)
+				{
+					GenerationContext.DuplicatedGroupNodeIds.Add(ChildObject, FGroupNodeIdsTempData(GroupNodes[i]->NodeGuid, NodeId));
+					GroupNodes[i]->NodeGuid = NodeId;
 				}
 			}
 
-			TArray<UCustomizableObjectNodeObjectGroup*> GroupNodes;
-			ChildObject->Source->GetNodesOfClass<UCustomizableObjectNodeObjectGroup>(GroupNodes);
-
-			if (GroupNodes.Num() > 0) // Only grafs with group nodes should have child grafs
-			{
-				if (ArrayAlreadyProcessedChild.Find(ReferenceName) == INDEX_NONE)
-				{
-					for (int32 i = 0; i < GroupNodes.Num(); ++i)
-					{
-						const FGuid NodeId = GenerationContext.GetNodeIdUnique(GroupNodes[i]);
-						if (NodeId != GroupNodes[i]->NodeGuid)
-						{
-							GenerationContext.DuplicatedGroupNodeIds.Add(ChildObject, FGroupNodeIdsTempData(GroupNodes[i]->NodeGuid, NodeId));
-							GroupNodes[i]->NodeGuid = NodeId;
-						}
-					}
-
-					ArrayAlreadyProcessedChild.Add(ReferenceName);
-					ProcessChildObjectsRecursively(ChildObject, AssetRegistryModule, GenerationContext);
-				}
-			}
+			ProcessChildObjectsRecursively(ChildObject, GenerationContext);
 		}
 	}
 }
@@ -510,6 +513,8 @@ mu::NodeObjectPtr FCustomizableObjectCompiler::GenerateMutableRoot(
 	FText& ErrorMsg, 
 	bool& bOutIsRootObject)
 {
+	check(Object);
+	
 	if (!Object->Source)
 	{
 		ErrorMsg = LOCTEXT("NoSource", "Object with no valid graph found. Object not build.");
@@ -574,7 +579,7 @@ mu::NodeObjectPtr FCustomizableObjectCompiler::GenerateMutableRoot(
 
 			// The object doesn't reference a root object but is a root object, look for all the objects that reference it and get their root nodes
 			FAssetRegistryModule& AssetRegistryModule = FModuleManager::LoadModuleChecked<FAssetRegistryModule>("AssetRegistry");
-			ProcessChildObjectsRecursively(ActualRootObject, AssetRegistryModule, GenerationContext);
+			ProcessChildObjectsRecursively(ActualRootObject, GenerationContext);
 			UE_LOG(LogMutable, Verbose, TEXT("PROFILE: [ %16.8f ] End search for children."), FPlatformTime::Seconds());
 		}
 	}
@@ -618,7 +623,7 @@ mu::NodeObjectPtr FCustomizableObjectCompiler::GenerateMutableRoot(
 			if (GroupNodes.Num() > 0) // Only grafs with group nodes should have child grafs
 			{
 				FAssetRegistryModule& AssetRegistryModule = FModuleManager::LoadModuleChecked<FAssetRegistryModule>("AssetRegistry");
-				ProcessChildObjectsRecursively(Object, AssetRegistryModule, GenerationContext);
+				ProcessChildObjectsRecursively(Object, GenerationContext);
 			}
 		}
 
@@ -677,6 +682,8 @@ mu::NodeObjectPtr FCustomizableObjectCompiler::GenerateMutableRoot(
 	}
 
 	Object->ReferenceSkeletalMeshes = ActualRootObject->ReferenceSkeletalMeshes;
+
+	GenerationContext.AddParticipatingObject(Object->ReferenceSkeletalMeshes);
 
     GenerationContext.RealTimeMorphTargetsOverrides = ActualRoot->RealTimeMorphSelectionOverrides;
     GenerationContext.RealTimeMorphTargetsOverrides.Reset();
@@ -1280,6 +1287,26 @@ void FCustomizableObjectCompiler::CompileInternal(UCustomizableObject* Object, c
 			{
 				Object->MarkPackageDirty();
 			}
+		}
+
+		{
+			GenerationContext.ParticipatingObjects.Remove(Object); // Remove self CO reference.
+
+			checkCode
+			(
+				for (auto Pair : GenerationContext.ParticipatingObjects)
+				{
+					check(Pair.Key.GetPackage() != Object->GetPackage()); // Adding a reference to itself will always force a recompilation after the CO is saved, so avoid doing that.
+				}
+			);
+			
+			TMap<TObjectPtr<const UObject>, FGuid>& ParticipatingObjects = Object->GetPrivate()->GetParticipatingObjects(*Object);
+			if (ParticipatingObjects != GenerationContext.ParticipatingObjects)
+			{
+				Object->MarkPackageDirty();
+			}
+
+			ParticipatingObjects = MoveTemp(GenerationContext.ParticipatingObjects);
 		}
 
 		if (bIsRootObject && (GenerationContext.MaskOutMaterialCache.Num() > 0 || GenerationContext.MaskOutTextureCache.Num() > 0))

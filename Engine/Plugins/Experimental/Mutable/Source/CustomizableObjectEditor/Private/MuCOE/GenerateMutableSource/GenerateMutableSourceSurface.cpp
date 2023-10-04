@@ -298,6 +298,8 @@ mu::NodeSurfacePtr GenerateMutableSourceSurface(const UEdGraphPin * Pin, FMutabl
 		int32 ReferencedMaterialsIndex = -1;
 		if (TypedNodeMat->Material)
 		{
+			GenerationContext.AddParticipatingObject(*TypedNodeMat->Material);
+			
 			const int32 lastMaterialAmount = GenerationContext.ReferencedMaterials.Num();
 			ReferencedMaterialsIndex = GenerationContext.ReferencedMaterials.AddUnique(TypedNodeMat->Material);
 			// Used ReferencedMaterialsIndex instead of TypedNodeMat->Material->GetName() to prevent material name collisions
@@ -520,6 +522,8 @@ mu::NodeSurfacePtr GenerateMutableSourceSurface(const UEdGraphPin * Pin, FMutabl
 						FGeneratedImageProperties Props;
 						if (ReferenceTexture)
 						{
+							GenerationContext.AddParticipatingObject(*ReferenceTexture);
+							
 							// Store properties for the generated images
 							Props.TextureParameterName = ImageName;
 							Props.CompressionSettings = ReferenceTexture->CompressionSettings;
@@ -1316,6 +1320,12 @@ mu::NodeSurfacePtr GenerateMutableSourceSurface(const UEdGraphPin * Pin, FMutabl
 
 					// Calculate the LODBias for this texture
 					UTexture2D* ReferenceTexture = ParentMaterialNode->GetImageReferenceTexture(ImageIndex);
+
+					if (ReferenceTexture)
+					{
+						GenerationContext.AddParticipatingObject(*ReferenceTexture);
+					}
+					
 					int32 LODBias = ComputeLODBias(GenerationContext, ReferenceTexture, ReferenceTexture ? ReferenceTexture->MaxTextureSize : 0, ParentMaterialNode, ImageIndex);
 
 					GenerationContext.CurrentTextureLODBias = LODBias;

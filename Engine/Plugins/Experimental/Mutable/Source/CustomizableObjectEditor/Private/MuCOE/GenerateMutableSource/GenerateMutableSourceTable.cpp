@@ -350,7 +350,7 @@ bool FillTableColumn(const UCustomizableObjectNodeTable* TableNode,	mu::TablePtr
 				CurrentColumn = MutableTable->AddColumn(StringCast<ANSICHAR>(*MutableColumnName).Get(), mu::ETableColumnType::Mesh);
 			}
 
-			mu::MeshPtr MutableMesh = GenerateMutableMesh(StaticMesh, TSoftClassPtr<UAnimInstance>(), CurrentLOD, SectionIndex, CurrentLOD, SectionIndex, FString(), GenerationContext, TableNode); // TODO GMT
+			mu::MeshPtr MutableMesh = GenerateMutableMesh(StaticMesh, TSoftClassPtr<UAnimInstance>(), CurrentLOD, SectionIndex, CurrentLOD, SectionIndex, FString(), GenerationContext, TableNode);
 
 			if (MutableMesh)
 			{
@@ -414,9 +414,14 @@ bool FillTableColumn(const UCustomizableObjectNodeTable* TableNode,	mu::TablePtr
 				mu::Ptr<mu::ResourceProxyMemory<mu::Image>> Proxy = new mu::ResourceProxyMemory<mu::Image>(mu::Image::CreateAsReference(ImageReferenceID));
 				MutableTable->SetCell(CurrentColumn, RowIdx, Proxy.get());
 			}
-			else
+			else 
 			{
-				GenerationContext.ArrayTextureUnrealToMutableTask.Add(FTextureUnrealToMutableTask(MutableTable, Texture2D, TableNode, CurrentColumn, RowIdx));
+				if (Texture2D)
+				{
+					GenerationContext.AddParticipatingObject(*Texture2D);
+
+					GenerationContext.ArrayTextureUnrealToMutableTask.Add(FTextureUnrealToMutableTask(MutableTable, Texture2D, TableNode, CurrentColumn, RowIdx));
+				}
 			}
 		}
 
@@ -435,6 +440,8 @@ bool FillTableColumn(const UCustomizableObjectNodeTable* TableNode,	mu::TablePtr
 
 				return false;
 			}
+
+			GenerationContext.AddParticipatingObject(*ReferenceMaterial);
 
 			if (!Material || ReferenceMaterial->GetMaterial() != Material->GetMaterial())
 			{
@@ -456,6 +463,8 @@ bool FillTableColumn(const UCustomizableObjectNodeTable* TableNode,	mu::TablePtr
 				GenerationContext.Compiler->CompilerLog(Warning, TableNode);
 			}
 
+			GenerationContext.AddParticipatingObject(*Material);
+			
 			FString EncodedSwitchParameterName = "__MutableMaterialId";
 			if (ColumnName.Contains(EncodedSwitchParameterName))
 			{
@@ -619,6 +628,8 @@ bool GenerateTableColumn(const UCustomizableObjectNodeTable* TableNode, const UE
 	{
 		return false;
 	}
+	
+	GenerationContext.AddParticipatingObject(*TableNode->Table);
 
 	// Getting names of the rows to access the information
 	TArray<FName> RowNames = TableNode->GetRowNames();

@@ -48,6 +48,7 @@
 #include "MuT/NodeSurfaceEdit.h"
 #include "PhysicsEngine/PhysicsAsset.h"
 #include "PlatformInfo.h"
+#include "MuCO/CustomizableObjectPrivate.h"
 
 #define LOCTEXT_NAMESPACE "CustomizableObjectEditor"
 
@@ -127,6 +128,17 @@ FMutableGraphGenerationContext::FMutableGraphGenerationContext(UCustomizableObje
 }
 
 FMutableGraphGenerationContext::~FMutableGraphGenerationContext() = default;
+
+
+void FMutableGraphGenerationContext::AddParticipatingObject(const UObject& InObject)
+{
+	PRAGMA_DISABLE_DEPRECATION_WARNINGS
+	const FGuid PackageGuid = InObject.GetPackage()->GetGuid();
+	PRAGMA_ENABLE_DEPRECATION_WARNINGS
+
+	ParticipatingObjects.Add(&InObject, PackageGuid);
+}
+
 
 mu::MeshPtr FMutableGraphGenerationContext::FindGeneratedMesh( const FGeneratedMeshData::FKey& Key )
 {
@@ -613,6 +625,8 @@ mu::NodeObjectPtr GenerateMutableSource(const UEdGraphPin * Pin, FMutableGraphGe
 	CheckNumOutputs(*Pin, GenerationContext);
 	
 	UCustomizableObjectNode* Node = CastChecked<UCustomizableObjectNode>(Pin->GetOwningNode());
+
+	GenerationContext.AddParticipatingObject(*GetRootObject(*Node));
 	
 	const FGeneratedKey Key(reinterpret_cast<void*>(&GenerateMutableSource), *Pin, *Node, GenerationContext, true);
 	if (const FGeneratedData* Generated = GenerationContext.Generated.Find(Key))

@@ -7,6 +7,7 @@
 class UCustomizableObject;
 class UCustomizableObjectNodeObject;
 class UEdGraphPin;
+class UCustomizableObjectNode;
 
 /** Follow the given input pin returning the output connected pin.
  *
@@ -45,8 +46,11 @@ bool GetParentsUntilRoot(UCustomizableObject* Object, TArray<UCustomizableObject
 /** Returns true if the Candidate is parent of the current Customizable Object */
 bool HasCandidateAsParent(UCustomizableObjectNodeObject* Node, UCustomizableObject* ParentCandidate);
 
-/** Return the full graph Customizable Object root of the node given as parameter */
+/** Return the full graph Customizable Object root of the given node. */
 UCustomizableObject* GetFullGraphRootObject(UCustomizableObjectNodeObject* Node, TArray<UCustomizableObject*>& VisitedObjects);
+
+/** Return Customizable Object of the given node. */
+UCustomizableObject* GetRootObject(const UCustomizableObjectNode& Node);
 
 /** Return the full graph Customizable Object Node root of the node given as parameter */
 UCustomizableObjectNodeObject* GetFullGraphRootNodeObject(UCustomizableObjectNodeObject* Node, TArray<UCustomizableObject*>& VisitedObjects);

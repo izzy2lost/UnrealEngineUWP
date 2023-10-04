@@ -108,7 +108,7 @@ private:
 
 	static void PreloadingReferencerAssetsCallback(UCustomizableObject* Object, FCustomizableObjectCompiler* CustomizableObjectCompiler, const FCompilationOptions Options, bool bAsync);
 	
-	void ProcessChildObjectsRecursively(UCustomizableObject* Object, class FAssetRegistryModule& AssetRegistryModule, struct FMutableGraphGenerationContext &GenerationContext);
+	void ProcessChildObjectsRecursively(UCustomizableObject* Object, FMutableGraphGenerationContext &GenerationContext);
 
 	//
 	FCompilationOptions Options;

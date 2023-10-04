@@ -1110,6 +1110,8 @@ private:
 UCLASS( BlueprintType, config=Engine )
 class CUSTOMIZABLEOBJECT_API UCustomizableObject : public UObject
 {
+	friend FCustomizableObjectPrivateData;
+	
 public:
 	GENERATED_BODY()
 
@@ -1472,7 +1474,7 @@ private:
 	// This is a manual version number for the binary blobs in this asset.
 	// Increasing it invalidates all the previously compiled models.
 	// Warning: If while merging code both versions have changed, take the highest+1.
-	static const int32 CurrentSupportedVersion = 406;
+	static const int32 CurrentSupportedVersion = 407;
 
 public:
 
@@ -1728,6 +1730,13 @@ private:
 	UPROPERTY()
 	TObjectPtr<UCustomizableObjectBulk> BulkData;
 
+#if WITH_EDITORONLY_DATA
+	/** List of external objects that if changed, a compilation is required.
+	 * The FGuid is the the UPackage::Guid, which is regenerated each time the packages is saved. */
+	UPROPERTY()
+	TMap<TObjectPtr<const UObject>, FGuid> ParticipatingObjects;
+#endif
+	
 	TSharedPtr<FCustomizableObjectPrivateData> PrivateData;
 };
 
