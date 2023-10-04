@@ -2376,17 +2376,13 @@ void FSequencer::NotifyMovieSceneDataChanged( EMovieSceneDataChangeType DataChan
 		EMovieScenePlayerStatus::Type StoredPlaybackState = GetPlaybackStatus();
 		SetPlaybackStatus( EMovieScenePlayerStatus::Stopped );
 		SelectionPreview.Empty();
-
-		if (DataChangeType == EMovieSceneDataChangeType::MovieSceneStructureItemsChanged)
-		{
-			RefreshUI();
-		}
-		else
-		{	
-			RefreshTree();
-		}
-
+		RefreshTree();
 		SetPlaybackStatus( StoredPlaybackState );
+	}
+	else if (DataChangeType == EMovieSceneDataChangeType::RefreshUI)
+	{
+		RefreshUI();
+		return;
 	}
 	else if (DataChangeType == EMovieSceneDataChangeType::TrackValueChangedRefreshImmediately)
 	{
