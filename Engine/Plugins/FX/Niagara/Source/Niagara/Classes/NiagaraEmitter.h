@@ -150,8 +150,6 @@ struct FNiagaraEmitterScriptProperties
 	TArray<FNiagaraEventGeneratorProperties> EventGenerators;
 
 	NIAGARA_API void InitDataSetAccess();
-
-	NIAGARA_API bool DataSetAccessSynchronized() const;
 };
 
 USTRUCT()
@@ -374,6 +372,7 @@ struct FVersionedNiagaraEmitterData
 	FORCEINLINE const TArray<FNiagaraEventScriptProperties>& GetEventHandlers() const { return EventHandlerScriptProps; }
 	NIAGARA_API void CacheFromCompiledData(const FNiagaraDataSetCompiledData* CompiledData, const UNiagaraEmitter& Emitter);
 	NIAGARA_API void CacheFromShaderCompiled();
+	bool IsAllowedToExecute() const { return bIsAllowedToExecute; }
 
 	NIAGARA_API FGraphEventArray PrecacheComputePSOs(const UNiagaraEmitter& NiagaraEmitter);
 	bool DidPSOPrecacheFail() const { return PSOPrecacheResult == EPSOPrecacheResult::NotSupported; }
@@ -499,7 +498,10 @@ private:
 
 	UPROPERTY(Transient)
 	FNiagaraEmitterScalabilitySettings CurrentScalabilitySettings;
-	
+
+	/** Can this emitter run with the current scalability settings, etc */
+	uint32 bIsAllowedToExecute : 1;
+
 	/** Indicates that the GPU script requires the view uniform buffer. */
 	uint32 bRequiresViewUniformBuffer : 1;
 
@@ -542,6 +544,13 @@ private:
 	NIAGARA_API void OnPostCompile(const UNiagaraEmitter& InEmitter);
 
 	EPSOPrecacheResult PSOPrecacheResult = EPSOPrecacheResult::Unknown;
+
+	bool IsValidInternal() const;
+	bool IsReadyToRunInternal() const;
+#if !WITH_EDITORONLY_DATA
+	mutable TOptional<bool> IsValidCached;
+	mutable TOptional<bool> IsReadyToRunCached;
+#endif
 };
 
 /** 

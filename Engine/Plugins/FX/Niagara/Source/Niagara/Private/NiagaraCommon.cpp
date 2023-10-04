@@ -1089,12 +1089,14 @@ bool FNiagaraScriptDataInterfaceInfo::IsUserDataInterface() const
 {
 	TStringBuilder<128> NameBuilder;
 	Name.ToString(NameBuilder);
-	return FCString::Strnicmp(NameBuilder.ToString(), TEXT("user."), 5) == 0;
+	return FCString::Strnicmp(NameBuilder.ToString(), PARAM_MAP_USER_STR, 5) == 0;
 }
 
 bool FNiagaraScriptResolvedDataInterfaceInfo::NeedsPerInstanceBinding() const
 {
-	return ResolvedVariable.GetName().ToString().StartsWith(TEXT("User."));
+	FNameBuilder NameBuilder;
+	ResolvedVariable.GetName().ToString(NameBuilder);
+	return NameBuilder.ToView().StartsWith(PARAM_MAP_USER_STR);
 }
 
 bool FNiagaraScriptDataInterfaceCompileInfo::CanExecuteOnTarget(ENiagaraSimTarget SimTarget) const
@@ -1132,11 +1134,18 @@ UNiagaraDataInterface* FNiagaraScriptDataInterfaceCompileInfo::GetDefaultDataInt
 
 bool FNiagaraScriptDataInterfaceCompileInfo::NeedsPerInstanceBinding()const
 {
-	if (Name.ToString().StartsWith(TEXT("User.")))
+	FNameBuilder NameBuilder;
+	Name.ToString(NameBuilder);
+	if (NameBuilder.ToView().StartsWith(TEXT("User.")))
+	{
 		return true;
+	}
+
 	UNiagaraDataInterface* Obj = GetDefaultDataInterface();
 	if (Obj && Obj->PerInstanceDataSize() > 0)
+	{
 		return true;
+	}
 	return false;
 }
 

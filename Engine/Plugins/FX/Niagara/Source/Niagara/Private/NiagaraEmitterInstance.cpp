@@ -214,43 +214,7 @@ void FNiagaraEmitterInstance::Dump()const
 bool FNiagaraEmitterInstance::IsAllowedToExecute() const
 {
 	FVersionedNiagaraEmitterData* EmitterData = CachedEmitter.GetEmitterData();
-	if (!GetEmitterHandle().GetIsEnabled() || EmitterData == nullptr || !EmitterData->IsAllowedByScalability())
-	{
-		return false;
-	}
-
-	if (EmitterData->SimTarget == ENiagaraSimTarget::GPUComputeSim)
-	{
-		//-TODO: Could replace with CPU side sim in some cases
-		if ( !ComputeDispatchInterface || !FNiagaraUtilities::AllowGPUParticles(ComputeDispatchInterface->GetShaderPlatform()) )
-		{
-			return false;
-		}
-
-		if (EmitterData->DidPSOPrecacheFail() == true)
-		{
-			return false;
-		}
-
-		if (const UNiagaraScript* GPUComputeScript = EmitterData->GetGPUComputeScript())
-		{
-			if (const FNiagaraShaderScript* ShaderScript = GPUComputeScript->GetRenderThreadScript())
-			{
-				const uint64 ScriptCBufferSize = ShaderScript->GetScriptParametersMetadata()->ShaderParametersMetadata->GetLayout().ConstantBufferSize;
-				const uint64 RHIMaxCBufferSize = GetMaxConstantBufferByteSize();
-				if (ScriptCBufferSize > RHIMaxCBufferSize)
-				{
-				#if !(UE_BUILD_SHIPPING || UE_BUILD_TEST)
-					GEngine->AddOnScreenDebugMessage(uint64(EmitterData), 1.f, FColor::Red, *FString::Printf(TEXT("GPU Simulation(%s) is disabled due to using too much constant buffer space (%d/%d)."), EmitterData->GetDebugSimName(), ScriptCBufferSize, RHIMaxCBufferSize));
-				#endif
-					return false;
-				}
-			}
-		}
-	}
-
-	// Do we allow the emitter to run or not?
-	return FNiagaraComponentSettings::IsEmitterAllowedToRun(this);
+	return GetEmitterHandle().GetIsEnabled() && EmitterData && EmitterData->IsAllowedToExecute();
 }
 
 void FNiagaraEmitterInstance::Init(int32 InEmitterIdx, FNiagaraSystemInstanceID InSystemInstanceID)
@@ -342,12 +306,8 @@ void FNiagaraEmitterInstance::Init(int32 InEmitterIdx, FNiagaraSystemInstanceID 
 	}
 
 	{
-		ensure(EmitterData->UpdateScriptProps.DataSetAccessSynchronized());
 		const int32 UpdateEventGeneratorCount = EmitterData->UpdateScriptProps.EventGenerators.Num();
-
-		ensure(EmitterData->SpawnScriptProps.DataSetAccessSynchronized());
 		const int32 SpawnEventGeneratorCount = EmitterData->SpawnScriptProps.EventGenerators.Num();
-
 		const int32 NumEvents = EmitterData->GetEventHandlers().Num();
 
 		if (UpdateEventGeneratorCount || SpawnEventGeneratorCount || NumEvents)
@@ -384,8 +344,6 @@ void FNiagaraEmitterInstance::Init(int32 InEmitterIdx, FNiagaraSystemInstanceID 
 
 			for (int32 i = 0; i < NumEvents; i++)
 			{
-				ensure(EmitterData->GetEventHandlers()[i].DataSetAccessSynchronized());
-
 				UNiagaraScript* EventScript = EmitterData->GetEventHandlers()[i].Script;
 
 				//This is cpu explicitly? Are we doing event handlers on GPU?

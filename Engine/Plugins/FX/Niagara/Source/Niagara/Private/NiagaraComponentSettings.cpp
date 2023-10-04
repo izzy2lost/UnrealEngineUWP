@@ -260,28 +260,22 @@ namespace FNiagaraComponentSettings
 		return bUseSystemDenyList ? !SystemDenyList.Contains(System->GetFName()) : true;
 	}
 
-	bool IsEmitterAllowedToRun(const FNiagaraEmitterInstance* EmitterInstance)
+	bool IsEmitterAllowedToRun(const FVersionedNiagaraEmitterData& EmitterData, const UNiagaraEmitter& NiagaraEmitter)
 	{
 		if (bUseEmitterDenyList)
 		{
-			const UNiagaraSystem* NiagaraSystem = EmitterInstance->GetParentSystemInstance()->GetSystem();
-			const FVersionedNiagaraEmitter CachedEmitter = EmitterInstance->GetCachedEmitter();
-			FVersionedNiagaraEmitterData* EmitterData = CachedEmitter.GetEmitterData();
-			if (EmitterData == nullptr)
-			{
-				return false;
-			}
+			const UNiagaraSystem* NiagaraSystem = NiagaraEmitter.GetTypedOuter<UNiagaraSystem>();
 
 			FNiagaraEmitterNameSettingsRef EmitterRef;
 			EmitterRef.SystemName = NiagaraSystem ? NiagaraSystem->GetFName() : NAME_None;
-			EmitterRef.EmitterName = FName(*CachedEmitter.Emitter->GetUniqueEmitterName());
+			EmitterRef.EmitterName = FName(*NiagaraEmitter.GetUniqueEmitterName());
 
 			if (EmitterDenyList.Contains(EmitterRef))
 			{
 				return false;
 			}
 
-			if (EmitterData->SimTarget == ENiagaraSimTarget::GPUComputeSim)
+			if (EmitterData.SimTarget == ENiagaraSimTarget::GPUComputeSim)
 			{
 				if (GpuEmitterDenyList.Contains(EmitterRef))
 				{
@@ -290,7 +284,7 @@ namespace FNiagaraComponentSettings
 
 				if (GpuDataInterfaceDenyList.Num() > 0)
 				{
-					if (const UNiagaraScript* GPUComputeScript = EmitterData->GetGPUComputeScript())
+					if (const UNiagaraScript* GPUComputeScript = EmitterData.GetGPUComputeScript())
 					{
 						for (const FNiagaraScriptResolvedDataInterfaceInfo& DefaultDIInfo : GPUComputeScript->GetResolvedDataInterfaces())
 						{
@@ -305,9 +299,7 @@ namespace FNiagaraComponentSettings
 		}
 		if (bAllowGpuEmitters == false)
 		{
-			const FVersionedNiagaraEmitter CachedEmitter = EmitterInstance->GetCachedEmitter();
-			FVersionedNiagaraEmitterData* EmitterData = CachedEmitter.GetEmitterData();
-			return EmitterData && (EmitterData->SimTarget != ENiagaraSimTarget::GPUComputeSim);
+			return EmitterData.SimTarget != ENiagaraSimTarget::GPUComputeSim;
 		}
 		return true;
 	}

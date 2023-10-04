@@ -6,8 +6,8 @@
 #include "INiagaraEditorOnlyDataUtlities.h"
 #include "NiagaraBoundsCalculator.h"
 #include "NiagaraCustomVersion.h"
+#include "NiagaraComponentSettings.h"
 #include "NiagaraMessageDataBase.h"
-#include "UObject/UE5MainStreamObjectVersion.h"
 #include "NiagaraEditorDataBase.h"
 #include "NiagaraModule.h"
 #include "NiagaraRendererProperties.h"
@@ -20,10 +20,13 @@
 #include "NiagaraStats.h"
 #include "NiagaraSystem.h"
 #include "NiagaraTrace.h"
+
+#include "Engine/Engine.h"
 #include "HAL/LowLevelMemTracker.h"
 #include "Interfaces/ITargetPlatform.h"
 #include "Modules/ModuleManager.h"
 #include "Templates/Greater.h"
+#include "UObject/UE5MainStreamObjectVersion.h"
 #include "UObject/LinkerLoad.h"
 #include "UObject/ObjectSaveContext.h"
 #include "UObject/Package.h"
@@ -140,26 +143,6 @@ void FNiagaraEmitterScriptProperties::InitDataSetAccess()
 			FNiagaraEventGeneratorProperties Props(WriteID, NAME_None);
 			EventGenerators.Add(Props);
 		}
-	}
-}
-
-bool FNiagaraEmitterScriptProperties::DataSetAccessSynchronized() const
-{
-	if (Script && Script->IsReadyToRun(ENiagaraSimTarget::CPUSim))
-	{
-		if (Script->GetVMExecutableData().ReadDataSets.Num() != EventReceivers.Num())
-		{
-			return false;
-		}
-		if (Script->GetVMExecutableData().WriteDataSets.Num() != EventGenerators.Num())
-		{
-			return false;
-		}
-		return true;
-	}
-	else
-	{
-		return EventReceivers.Num() == 0 && EventGenerators.Num() == 0;
 	}
 }
 
@@ -1459,7 +1442,7 @@ bool UNiagaraEmitter::IsEnabledOnPlatform(const FString& PlatformName)const
 	return false;
 }
 
-bool FVersionedNiagaraEmitterData::IsValid() const
+bool FVersionedNiagaraEmitterData::IsValidInternal() const
 {
 	if (!SpawnScriptProps.Script || !UpdateScriptProps.Script)
 	{
@@ -1500,7 +1483,7 @@ bool FVersionedNiagaraEmitterData::IsValid() const
 	return true;
 }
 
-bool FVersionedNiagaraEmitterData::IsReadyToRun() const
+bool FVersionedNiagaraEmitterData::IsReadyToRunInternal() const
 {
 	//Check for various failure conditions and bail.
 	if (!UpdateScriptProps.Script || !SpawnScriptProps.Script)
@@ -1539,6 +1522,32 @@ bool FVersionedNiagaraEmitterData::IsReadyToRun() const
 	}
 
 	return true;
+}
+
+bool FVersionedNiagaraEmitterData::IsValid() const
+{
+#if WITH_EDITORONLY_DATA
+	return IsValidInternal();
+#else
+	if (!IsValidCached.IsSet())
+	{
+		IsValidCached = IsValidInternal();
+	}
+	return IsValidCached.GetValue();
+#endif
+}
+
+bool FVersionedNiagaraEmitterData::IsReadyToRun() const
+{
+#if WITH_EDITORONLY_DATA
+	return IsReadyToRunInternal();
+#else
+	if (!IsReadyToRunCached.IsSet())
+	{
+		IsReadyToRunCached = IsReadyToRunInternal();
+	}
+	return IsReadyToRunCached.GetValue();
+#endif
 }
 
 void FVersionedNiagaraEmitterData::GetScripts(TArray<UNiagaraScript*>& OutScripts, bool bCompilableOnly, bool bEnabledOnly) const
@@ -1597,6 +1606,7 @@ UNiagaraScript* FVersionedNiagaraEmitterData::GetScript(ENiagaraScriptUsage Usag
 
 void FVersionedNiagaraEmitterData::CacheFromCompiledData(const FNiagaraDataSetCompiledData* CompiledData, const UNiagaraEmitter& Emitter)
 {
+	bIsAllowedToExecute = true;
 	bRequiresViewUniformBuffer = false;
 	bNeedsPartialDepthTexture = false;
 
@@ -1703,6 +1713,38 @@ void FVersionedNiagaraEmitterData::CacheFromCompiledData(const FNiagaraDataSetCo
 		MaxInstanceCount = 0;
 	}
 	UpdateDebugName(Emitter, CompiledData);
+
+	// Detemine if we are allowed to execute or not
+	bIsAllowedToExecute = IsAllowedByScalability();
+	if (bIsAllowedToExecute && (SimTarget == ENiagaraSimTarget::GPUComputeSim))
+	{
+		if (const FNiagaraShaderScript* ShaderScript = GPUComputeScript ? GPUComputeScript->GetRenderThreadScript() : nullptr)
+		{
+			TSharedRef<FNiagaraShaderScriptParametersMetadata> ShaderParametersMetadata = ShaderScript->GetScriptParametersMetadata();
+			if (ShaderParametersMetadata->ShaderParametersMetadata != nullptr)
+			{
+				const uint64 ScriptCBufferSize = ShaderParametersMetadata->ShaderParametersMetadata->GetLayout().ConstantBufferSize;
+				const uint64 RHIMaxCBufferSize = GetMaxConstantBufferByteSize();
+				if (ScriptCBufferSize > RHIMaxCBufferSize)
+				{
+#if !(UE_BUILD_SHIPPING || UE_BUILD_TEST)
+					GEngine->AddOnScreenDebugMessage(uint64(this), 1.f, FColor::Red, *FString::Printf(TEXT("GPU Simulation(%s) is disabled due to using too much constant buffer space (%d/%d)."), GetDebugSimName(), ScriptCBufferSize, RHIMaxCBufferSize));
+#endif
+					bIsAllowedToExecute = false;
+				}
+			}
+			else
+			{
+				bIsAllowedToExecute = false;
+			}
+		}
+		else
+		{
+			bIsAllowedToExecute = false;
+		}
+	}
+
+	bIsAllowedToExecute &= FNiagaraComponentSettings::IsEmitterAllowedToRun(*this, Emitter);
 }
 
 void FVersionedNiagaraEmitterData::UpdateDebugName(const UNiagaraEmitter& Emitter, const FNiagaraDataSetCompiledData* CompiledData)
