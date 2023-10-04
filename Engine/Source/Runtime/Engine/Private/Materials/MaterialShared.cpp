@@ -628,11 +628,8 @@ FString FColorMaterialInput::GetDefaultValue() const
 {
 	FString DefaultValue;
 #if WITH_EDITOR
-	if (UseConstant)
-	{
-		FLinearColor Color = Constant.ReinterpretAsLinear();
-		DefaultValue = Color.ToString();
-	}
+	FLinearColor Color = Constant.ReinterpretAsLinear();
+	DefaultValue = Color.ToString();
 #endif
 	return DefaultValue;
 }
@@ -649,10 +646,7 @@ FString FScalarMaterialInput::GetDefaultValue() const
 {
 	FString DefaultValue;
 #if WITH_EDITOR
-	if (UseConstant)
-	{
-		DefaultValue = FString::SanitizeFloat(Constant);
-	}
+	DefaultValue = FString::SanitizeFloat(Constant);
 #endif
 	return DefaultValue;
 }
@@ -671,10 +665,7 @@ FString FVector2MaterialInput::GetDefaultValue() const
 {
 	FString DefaultValue;
 #if WITH_EDITOR
-	if (UseConstant)
-	{
-		DefaultValue = FString(TEXT("(X=")) + FString::SanitizeFloat(Constant.X) + FString(TEXT(",Y=")) + FString::SanitizeFloat(Constant.Y) + FString(TEXT(")"));
-	}
+	DefaultValue = FString(TEXT("(X=")) + FString::SanitizeFloat(Constant.X) + FString(TEXT(",Y=")) + FString::SanitizeFloat(Constant.Y) + FString(TEXT(")"));
 #endif
 	return DefaultValue;
 }
@@ -697,10 +688,7 @@ FString FVectorMaterialInput::GetDefaultValue() const
 {
 	FString DefaultValue;
 #if WITH_EDITOR
-	if (UseConstant)
-	{
-		DefaultValue = FString::SanitizeFloat(Constant.X) + FString(TEXT(",")) + FString::SanitizeFloat(Constant.Y) + FString(TEXT(",")) + FString::SanitizeFloat(Constant.Z);
-	}
+	DefaultValue = FString::SanitizeFloat(Constant.X) + FString(TEXT(",")) + FString::SanitizeFloat(Constant.Y) + FString(TEXT(",")) + FString::SanitizeFloat(Constant.Z);
 #endif
 	return DefaultValue;
 }

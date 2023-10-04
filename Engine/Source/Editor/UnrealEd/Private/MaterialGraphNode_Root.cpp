@@ -29,6 +29,13 @@ static TAutoConsoleVariable<bool> CVarEnableRootNodeInlineControls(
 UMaterialGraphNode_Root::UMaterialGraphNode_Root(const FObjectInitializer& ObjectInitializer)
 	: Super(ObjectInitializer)
 {
+	CVarEnableRootNodeInlineControls->SetOnChangedCallback(FConsoleVariableDelegate::CreateLambda([this](IConsoleVariable* InVariable)
+		{
+			for (UEdGraphPin* Pin : this->Pins)
+			{
+				UpdateInputUseConstant(Pin, InVariable->GetBool());
+			}
+		}));
 }
 
 void UMaterialGraphNode_Root::UpdateInputUseConstant(UEdGraphPin* Pin, bool bUseConstant)
@@ -36,6 +43,9 @@ void UMaterialGraphNode_Root::UpdateInputUseConstant(UEdGraphPin* Pin, bool bUse
 	const UMaterialGraph* MaterialGraph = CastChecked<UMaterialGraph>(GetGraph());
 	const FMaterialInputInfo& MaterialInput = MaterialGraph->MaterialInputs[Pin->SourceIndex];
 
+	const bool ShouldEnableInlineControls = CVarEnableRootNodeInlineControls.GetValueOnAnyThread();
+	bUseConstant &= ShouldEnableInlineControls;
+	
 	UMaterialEditorOnlyData* EditorOnlyData = Material->GetEditorOnlyData();
 	EMaterialProperty Property = MaterialInput.GetProperty();
 	switch (Property)
