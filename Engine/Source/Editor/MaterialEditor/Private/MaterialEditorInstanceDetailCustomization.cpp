@@ -1,3 +1,4 @@
+
 // Copyright Epic Games, Inc. All Rights Reserved.
 
 #include "MaterialEditorInstanceDetailCustomization.h"
@@ -309,7 +310,7 @@ void FMaterialInstanceParameterDetails::CreateGroupsWidget(TSharedRef<IPropertyH
 				FUIAction PasteAction(
 					FExecuteAction::CreateSP(this, &FMaterialInstanceParameterDetails::OnPasteParameterValues, GroupIdx),
 					FCanExecuteAction::CreateSP(this, &FMaterialInstanceParameterDetails::CanPasteParameterValues, GroupIdx));
-				DetailGroup.HeaderRow()
+				FDetailWidgetRow& HeaderRow = DetailGroup.HeaderRow()
 					.CopyAction(CopyAction)
 					.PasteAction(PasteAction)
 					.NameContent()
@@ -319,6 +320,24 @@ void FMaterialInstanceParameterDetails::CreateGroupsWidget(TSharedRef<IPropertyH
 					];
 
 				CreateSingleGroupWidget(ParameterGroup, ParameterGroupsProperty->GetChildHandle(GroupIdx), DetailGroup);
+
+				HeaderRow.AddCustomContextMenuAction(FUIAction(
+						FExecuteAction::CreateLambda([&]()mutable 
+						{
+							EnableGroupParameters(ParameterGroup, true);
+						})),
+							LOCTEXT("ToggleParametersEnable", "Enable All Parameters"),
+							LOCTEXT("ToggleParametersEnableTooltip", "Enable All Parameters in group"),
+							FSlateIcon());
+
+				HeaderRow.AddCustomContextMenuAction(FUIAction(
+						FExecuteAction::CreateLambda([&]()mutable 
+						{
+							EnableGroupParameters(ParameterGroup, false);
+						})),
+							LOCTEXT("ToggleParametersDisable", "Disable All Parameters"),
+							LOCTEXT("ToggleParametersDisableTooltip", "Disable All Parameters in group"),
+							FSlateIcon());
 			}
 		}
 	}
@@ -374,7 +393,15 @@ void FMaterialInstanceParameterDetails::CreateGroupsWidget(TSharedRef<IPropertyH
 	}
 }
 
-
+void FMaterialInstanceParameterDetails::EnableGroupParameters(FEditorParameterGroup& ParameterGroup, bool ShouldEnable)
+{
+	// loop through each parameter in the group and toggle to enable/disable them all
+	for (int32 ParamIdx = 0; ParamIdx < ParameterGroup.Parameters.Num(); ++ParamIdx)
+	{
+		UDEditorParameterValue* Parameter = ParameterGroup.Parameters[ParamIdx];
+		Parameter->bOverride = ShouldEnable;
+	}
+}
 
 void FMaterialInstanceParameterDetails::CreateSingleGroupWidget(FEditorParameterGroup& ParameterGroup, TSharedPtr<IPropertyHandle> ParameterGroupProperty, IDetailGroup& DetailGroup )
 {
