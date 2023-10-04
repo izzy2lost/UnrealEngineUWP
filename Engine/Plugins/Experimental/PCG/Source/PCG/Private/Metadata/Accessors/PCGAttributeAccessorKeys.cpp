@@ -6,7 +6,7 @@
 
 #include "PCGPoint.h"
 
-////////////////////////////////////////////////////////////////////
+//////////////////////////////////////////////////////////////////// 
 
 FPCGAttributeAccessorKeysEntries::FPCGAttributeAccessorKeysEntries(const FPCGMetadataAttributeBase* Attribute)
 	: IPCGAttributeAccessorKeys(/*bInReadOnly=*/ false)
@@ -20,10 +20,16 @@ FPCGAttributeAccessorKeysEntries::FPCGAttributeAccessorKeysEntries(const FPCGMet
 		Current = Current->GetParent();
 	}
 
-	// If the attribute doesn't have any entry, we will always take the default value.
+	// If the attribute doesn't have any entry, re-try with metadata entries.
 	if (Entries.IsEmpty())
 	{
-		Entries.Add(PCGInvalidEntryKey);
+		InitializeFromMetadata(Attribute->GetMetadata());
+
+		// If the attribute still doesn't have any entry, we will always take the default value.
+		if (Entries.IsEmpty())
+		{
+			Entries.Add(PCGInvalidEntryKey);
+		}
 	}
 }
 
@@ -36,10 +42,17 @@ FPCGAttributeAccessorKeysEntries::FPCGAttributeAccessorKeysEntries(PCGMetadataEn
 FPCGAttributeAccessorKeysEntries::FPCGAttributeAccessorKeysEntries(const UPCGMetadata* Metadata)
 	: IPCGAttributeAccessorKeys(/*bInReadOnly=*/ true)
 {
+	InitializeFromMetadata(Metadata);
+}
+
+void FPCGAttributeAccessorKeysEntries::InitializeFromMetadata(const UPCGMetadata* Metadata)
+{
 	if (!Metadata)
 	{
 		return;
 	}
+
+	check(Entries.IsEmpty());
 
 	const PCGMetadataEntryKey ItemKeyLowerBound = Metadata->GetItemKeyCountForParent();
 	const PCGMetadataEntryKey ItemKeyUpperBound = Metadata->GetItemCountForChild();

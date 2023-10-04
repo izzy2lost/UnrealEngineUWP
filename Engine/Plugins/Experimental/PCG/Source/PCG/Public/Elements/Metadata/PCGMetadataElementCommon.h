@@ -14,10 +14,10 @@ struct FPCGTaggedData;
 
 namespace PCGMetadataElementCommon
 {
-	void DuplicateTaggedData(const FPCGTaggedData& InTaggedData, FPCGTaggedData& OutTaggedData, UPCGMetadata*& OutMetadata);
+	PCG_API void DuplicateTaggedData(const FPCGTaggedData& InTaggedData, FPCGTaggedData& OutTaggedData, UPCGMetadata*& OutMetadata);
 
 	/** Copies the entry to value key relationship stored in the given Metadata, including its parents */
-	void CopyEntryToValueKeyMap(const UPCGMetadata* MetadataToCopy, const FPCGMetadataAttributeBase* AttributeToCopy, FPCGMetadataAttributeBase* OutAttribute);
+	PCG_API void CopyEntryToValueKeyMap(const UPCGMetadata* MetadataToCopy, const FPCGMetadataAttributeBase* AttributeToCopy, FPCGMetadataAttributeBase* OutAttribute);
 
 	/** Creates a new attribute, or clears the attribute if it already exists and is a 'T' type */
 	template<typename T>
@@ -45,15 +45,15 @@ namespace PCGMetadataElementCommon
 	constexpr int32 DefaultChunkSize = 256;
 
 	/**
-	* Iterate over the full range of the keys, calling the callback with values get from the accessor.
+	* Iterate over the full range of the keys (if Count is negative, otherwise, as many times as Count), calling the callback with values range get from the accessor.
 	* ChunkSize influence the max number of values to get in one go with GetRange.
-	* Callback should have a signature: void(const T&, int32)
+	* Callback should have a signature: void(const TArrayView<T>& View, int32 Start, int32 Range)
 	* Return false if it process nothing.
 	*/
 	template <typename T, typename Func>
-	bool ApplyOnAccessor(const IPCGAttributeAccessorKeys& Keys, const IPCGAttributeAccessor& Accessor, Func&& Callback, EPCGAttributeAccessorFlags Flags = EPCGAttributeAccessorFlags::StrictType, const int32 ChunkSize = DefaultChunkSize)
+	bool ApplyOnAccessorRange(const IPCGAttributeAccessorKeys& Keys, const IPCGAttributeAccessor& Accessor, Func&& Callback, EPCGAttributeAccessorFlags Flags = EPCGAttributeAccessorFlags::StrictType, const int32 ChunkSize = DefaultChunkSize, const int32 Count = -1)
 	{
-		const int32 NumberOfEntries = Keys.GetNum();
+		const int32 NumberOfEntries = Count < 0 ? Keys.GetNum() : Count;
 
 		if (NumberOfEntries == 0)
 		{
@@ -76,21 +76,62 @@ namespace PCGMetadataElementCommon
 				return false;
 			}
 
-			for (int32 j = 0; j < Range; ++j)
-			{
-				Callback(TempValues[j], StartIndex + j);
-			}
+			Callback(View, StartIndex, Range);
 		}
 
 		return true;
 	}
 
 	/**
+	* Iterate over the full range of the keys (if Count is negative, otherwise, as many times as Count), calling the callback with values get from the accessor.
+	* ChunkSize influence the max number of values to get in one go with GetRange.
+	* Callback should have a signature: void(const T& Value, int32 Index)
+	* Return false if it process nothing.
+	*/
+	template <typename T, typename Func>
+	bool ApplyOnAccessor(const IPCGAttributeAccessorKeys& Keys, const IPCGAttributeAccessor& Accessor, Func&& InCallback, EPCGAttributeAccessorFlags Flags = EPCGAttributeAccessorFlags::StrictType, const int32 ChunkSize = DefaultChunkSize, const int32 Count = -1)
+	{
+		auto RangeCallback = [Callback = std::forward<Func>(InCallback)](const TArrayView<T>& View, int32 Start, int32 Range)
+		{
+			for (int32 j = 0; j < Range; ++j)
+			{
+				Callback(View[j], Start + j);
+			}
+		};
+
+		return ApplyOnAccessorRange<T>(Keys, Accessor, std::move(RangeCallback), Flags, ChunkSize, Count);
+	}
+
+	/**
+	* Read all the values from in accessor and write to out accessor. Iterate as many times than the out accessor keys
+	*/
+	struct PCG_API FCopyFromAccessorToAccessorParams
+	{
+		enum EIterationCount
+		{
+			In, // Iterate as many times than the in accessor keys
+			Out, // Iterate as many times than the out accessor keys
+			Min, // Iterate as many times than the min of accessor keys
+			Max, // Iterate as many times than the max of accessor keys
+		};
+
+		EIterationCount IterationCount;
+		const IPCGAttributeAccessor* InAccessor = nullptr;
+		const IPCGAttributeAccessorKeys* InKeys = nullptr;
+		IPCGAttributeAccessor* OutAccessor = nullptr;
+		IPCGAttributeAccessorKeys* OutKeys = nullptr;
+		EPCGAttributeAccessorFlags Flags = EPCGAttributeAccessorFlags::StrictType;
+		int32 ChunkSize = DefaultChunkSize;
+	};
+
+	PCG_API bool CopyFromAccessorToAccessor(FCopyFromAccessorToAccessorParams& Params);
+
+	/**
 	* Automatically fill all preconfigured settings depending on the enum operation.
 	* Can also specify explicitly values that should not be included, as metadata is not available in non-editor builds.
 	*/
 	template <typename EnumOperation>
-	TArray<FPCGPreConfiguredSettingsInfo> FillPreconfiguredSettingsInfoFromEnum(const TSet<EnumOperation>& InValuesToSkip = {})
+	TArray<FPCGPreConfiguredSettingsInfo> FillPreconfiguredSettingsInfoFromEnum(const TSet<EnumOperation>& InValuesToSkip = {}, const FText& InOptionalPrefix = FText())
 	{
 		TArray<FPCGPreConfiguredSettingsInfo> PreconfiguredInfo;
 
@@ -103,7 +144,7 @@ namespace PCGMetadataElementCommon
 
 				if (Value != EnumPtr->GetMaxEnumValue() && !InValuesToSkip.Contains(EnumOperation(Value)))
 				{
-					PreconfiguredInfo.Emplace(Value, EnumPtr->GetDisplayNameTextByValue(Value));
+					PreconfiguredInfo.Emplace(Value, FText::Format(FText::FromString(TEXT("{0}{1}")), InOptionalPrefix, EnumPtr->GetDisplayNameTextByValue(Value)));
 				}
 			}
 		}

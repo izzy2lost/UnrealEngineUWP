@@ -46,4 +46,44 @@ namespace PCGMetadataElementCommon
 			OutAttribute->SetValueFromValueKey(EntryKey, ValueKey);
 		}
 	}
+
+	bool CopyFromAccessorToAccessor(FCopyFromAccessorToAccessorParams& Params)
+	{
+		check(Params.InAccessor && Params.OutAccessor && Params.InKeys && Params.OutKeys);
+
+		int32 Count = 0;
+		switch (Params.IterationCount)
+		{
+		case FCopyFromAccessorToAccessorParams::EIterationCount::In:
+			Count = Params.InKeys->GetNum();
+			break;
+		case FCopyFromAccessorToAccessorParams::EIterationCount::Out:
+			Count = Params.OutKeys->GetNum();
+			break;
+		case FCopyFromAccessorToAccessorParams::EIterationCount::Min:
+			Count = FMath::Min(Params.InKeys->GetNum(), Params.OutKeys->GetNum());
+			break;
+		case FCopyFromAccessorToAccessorParams::EIterationCount::Max:
+			Count = FMath::Max(Params.InKeys->GetNum(), Params.OutKeys->GetNum());
+			break;
+		default:
+			checkNoEntry();
+			return false;
+		}
+
+		auto Operation = [&Params, Count](auto Dummy)
+		{
+			using OutputType = decltype(Dummy);
+			OutputType Value{};
+
+			auto SetToAccessor = [&Params](const TArrayView<OutputType>& View, const int32 Start, const int32 Range)
+			{
+				Params.OutAccessor->SetRange<OutputType>(View, Start, *Params.OutKeys, Params.Flags);
+			};
+
+			return PCGMetadataElementCommon::ApplyOnAccessorRange<OutputType>(*Params.InKeys, *Params.InAccessor, SetToAccessor, Params.Flags, Params.ChunkSize, Count);
+		};
+
+		return PCGMetadataAttribute::CallbackWithRightType(Params.OutAccessor->GetUnderlyingType(), Operation);
+	}
 }

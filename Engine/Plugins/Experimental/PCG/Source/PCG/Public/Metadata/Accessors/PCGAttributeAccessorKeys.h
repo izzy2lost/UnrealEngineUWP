@@ -150,6 +150,8 @@ protected:
 	virtual bool GetMetadataEntryKeys(int32 InStart, TArrayView<PCGMetadataEntryKey*>& OutEntryKeys) override;
 	virtual bool GetMetadataEntryKeys(int32 InStart, TArrayView<const PCGMetadataEntryKey*>& OutEntryKeys) const override;
 
+	void InitializeFromMetadata(const UPCGMetadata* Metadata);
+
 	TArray<PCGMetadataEntryKey> Entries;
 };
 

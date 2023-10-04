@@ -291,12 +291,6 @@ bool FPCGCreateAttributeElement::ExecuteInternal(FPCGContext* Context) const
 			PCGE_LOG(Error, GraphAndLog, FText::Format(LOCTEXT("ParamMissingAttribute", "Source Attribute Set data does not have an attribute '{0}'"), FText::FromName(SourceParamAttributeName)));
 			return true;
 		}
-
-		// We don't support multi-entry yet
-		if (SourceParamData->Metadata->GetLocalItemCount() > 1)
-		{
-			PCGE_LOG(Warning, GraphAndLog,LOCTEXT("NotSupportingMultiEntry", "Source Attribute Set data has more than one entry. Not yet supported. Will use the default value of the attribute."));
-		}
 	}
 	else
 	{
@@ -360,8 +354,11 @@ bool FPCGCreateAttributeElement::ExecuteInternal(FPCGContext* Context) const
 		{
 			const FPCGAttributePropertyInputSelector InputSource = Settings->InputSource.CopyAndFixLast(SourceParamData);
 
-			// If no field accessor, copy over the attribute
-			if (InputSource.GetExtraNames().IsEmpty())
+			// We need accessors if we have a multi entry source attribute or we have extractors
+			const bool bNeedAccessors = SourceParamData->Metadata->GetLocalItemCount() > 1 || !InputSource.GetExtraNames().IsEmpty();
+
+			// If no accessor, copy over the attribute
+			if (!bNeedAccessors)
 			{
 				const FPCGMetadataAttributeBase* SourceAttribute = SourceParamData->Metadata->GetConstAttribute(SourceParamAttributeName);
 				Attribute = Metadata->CopyAttribute(SourceAttribute, OutputAttributeName, /*bKeepParent=*/false, /*bCopyEntries=*/false, /*bCopyValues=*/false);
@@ -376,12 +373,46 @@ bool FPCGCreateAttributeElement::ExecuteInternal(FPCGContext* Context) const
 					return true;
 				}
 
-				auto CreateOutputAttribute = [Metadata, OutputAttributeName, &InputAccessor, &InputKeys]<typename Type>(Type Dummy) -> FPCGMetadataAttributeBase*
+				auto CreateOutputAttribute = [Metadata, OutputAttributeName, &InputAccessor, &InputKeys, OutputData, bIsParamData]<typename Type>(Type Dummy) -> FPCGMetadataAttributeBase*
 				{
-					// Get the value from the input accessor and pass that as the default value
+					// Get the value from the input accessor default value and pass that as the default value
 					Type Value{};
-					InputAccessor->Get<Type>(Value, *InputKeys);
-					return PCGMetadataElementCommon::ClearOrCreateAttribute<Type>(Metadata, OutputAttributeName, Value);
+					InputAccessor->Get<Type>(Value, FPCGAttributeAccessorKeysEntries(PCGInvalidEntryKey));
+					FPCGMetadataAttribute<Type>* Attribute = PCGMetadataElementCommon::ClearOrCreateAttribute<Type>(Metadata, OutputAttributeName, Value);
+
+					FPCGAttributePropertySelector OutputSelector;
+					OutputSelector.SetAttributeName(OutputAttributeName);
+
+					TUniquePtr<IPCGAttributeAccessor> OutputAccessor = PCGAttributeAccessorHelpers::CreateAccessor(OutputData, OutputSelector);
+					TUniquePtr<IPCGAttributeAccessorKeys> OutputKeys = PCGAttributeAccessorHelpers::CreateKeys(OutputData, OutputSelector);
+
+					// We just created the attribute, this should not fail
+					if (!ensure(OutputAccessor.IsValid() && OutputKeys.IsValid()))
+					{
+						return nullptr;
+					}
+
+					PCGMetadataElementCommon::FCopyFromAccessorToAccessorParams Params;
+					Params.InKeys = InputKeys.Get();
+					Params.InAccessor = InputAccessor.Get();
+					Params.OutKeys = OutputKeys.Get();
+					Params.OutAccessor = OutputAccessor.Get();
+					Params.IterationCount = PCGMetadataElementCommon::FCopyFromAccessorToAccessorParams::Min;
+
+					PCGMetadataElementCommon::CopyFromAccessorToAccessor(Params);
+
+					// In case of param data, do some padding at the end if needed
+					if (bIsParamData)
+					{
+						int32 NumInKeys = InputKeys->GetNum();
+						int32 Padding = OutputKeys->GetNum() - NumInKeys;
+						for (int32 Key = 0; Key < Padding; ++Key)
+						{
+							Attribute->SetValueFromValueKey(PCGMetadataEntryKey(NumInKeys + Key), PCGDefaultValueKey);
+						}
+					}
+
+					return Attribute;
 				};
 
 				Attribute = PCGMetadataAttribute::CallbackWithRightType(InputAccessor->GetUnderlyingType(), CreateOutputAttribute);
@@ -398,20 +429,10 @@ bool FPCGCreateAttributeElement::ExecuteInternal(FPCGContext* Context) const
 			continue;
 		}
 
-		// In the case of an input param data, remap all entries for the output data (which is also a param data) 
-		// to the default value for the newly created attribute.
-		if (bIsParamData)
+		// Making sure the metadata has at least one entry.
+		if (bIsParamData && Metadata->GetLocalItemCount() == 0)
 		{
-			// Making sure the metadata has at least one entry.
-			if (Metadata->GetLocalItemCount() == 0)
-			{
-				Metadata->AddEntry();
-			}
-
-			for (PCGMetadataEntryKey Key = 0; Key < Metadata->GetLocalItemCount(); ++Key)
-			{
-				Attribute->SetValueFromValueKey(Key, PCGDefaultValueKey);
-			}
+			Metadata->AddEntry();
 		}
 
 		TArray<FPCGTaggedData>& Outputs = Context->OutputData.TaggedData;
