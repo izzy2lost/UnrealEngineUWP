@@ -2659,7 +2659,26 @@ void AActor::PrestreamTextures( float Seconds, bool bEnableStreaming, int32 Cine
 
 void AActor::OnRep_Instigator() {}
 
-void AActor::OnRep_ReplicateMovement() {}
+void AActor::OnRep_ReplicateMovement()
+{
+	// If the actor stops replicating movement and is using PhysicsReplication PredictiveInterpolation, remove replicated target else it will linger waiting for a sleep state.
+	if (!IsReplicatingMovement() && GetPhysicsReplicationMode() == EPhysicsReplicationMode::PredictiveInterpolation)
+	{
+		if (UPrimitiveComponent* RootPrimComp = Cast<UPrimitiveComponent>(RootComponent))
+		{
+			if (UWorld* World = GetWorld())
+			{
+				if (FPhysScene* PhysScene = World->GetPhysicsScene())
+				{
+					if (IPhysicsReplication* PhysicsReplication = PhysScene->GetPhysicsReplication())
+					{
+						PhysicsReplication->RemoveReplicatedTarget(RootPrimComp);
+					}
+				}
+			}
+		}
+	}
+}
 
 void AActor::RouteEndPlay(const EEndPlayReason::Type EndPlayReason)
 {

@@ -1285,16 +1285,17 @@ bool FPhysicsReplicationAsync::PredictiveInterpolation(Chaos::FPBDRigidParticleH
 	const bool bCanSimulate = Handle->IsDynamic() || Handle->IsSleeping();
 
 	// Helper for sleep and target clearing at replication end
-	auto EndReplicationHelper = [RigidsSolver, Handle, bCanSimulate](FReplicatedPhysicsTargetAsync& Target, bool bAllowSleep) -> bool
+	auto EndReplicationHelper = [RigidsSolver, Handle, bCanSimulate](FReplicatedPhysicsTargetAsync& Target, bool bOkToClear) -> bool
 	{
 		const bool bShouldSleep = (Target.TargetState.Flags & ERigidBodyFlags::Sleeping) != 0;
+		const bool bReplicatingPhysics = (Target.TargetState.Flags & ERigidBodyFlags::RepPhysics) != 0;
 
-		if (bAllowSleep && bShouldSleep && bCanSimulate)
+		if (bOkToClear && bShouldSleep && bCanSimulate)
 		{
 			RigidsSolver->GetEvolution()->SetParticleObjectState(Handle, Chaos::EObjectStateType::Sleeping);
 		}
 
-		const bool bClearTarget = (!bCanSimulate || (bAllowSleep && bShouldSleep)) && !PhysicsReplicationCVars::PredictiveInterpolationCVars::bDontClearTarget;
+		const bool bClearTarget = (!bCanSimulate || (bOkToClear && bShouldSleep) || (bOkToClear && !bReplicatingPhysics)) && !PhysicsReplicationCVars::PredictiveInterpolationCVars::bDontClearTarget;
 		return bClearTarget;
 	};
 
