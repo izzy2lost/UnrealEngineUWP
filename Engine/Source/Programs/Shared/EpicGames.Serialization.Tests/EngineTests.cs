@@ -144,7 +144,7 @@ namespace EpicGames.Serialization.Tests
 				byte[] noneBytes = { (byte)fieldType, 4, (byte)'N', (byte)'a', (byte)'m', (byte)'e' };
 				CbField noneField = new CbField(noneBytes);
 				Assert.AreEqual(noneField.GetSize(), noneBytes.Length);
-				Assert.AreEqual(noneField.GetName(), "Name");
+				Assert.AreEqual(noneField.GetName(), new Utf8String("Name"));
 				Assert.IsTrue(noneField.HasName());
 				Assert.IsFalse(noneField.HasValue());
 				Assert.AreEqual(noneField.GetHash(), Blake3Hash.Compute(noneBytes));
@@ -176,7 +176,7 @@ namespace EpicGames.Serialization.Tests
 				byte[] noneBytes = { (byte)fieldType, 4, (byte)'N', (byte)'a', (byte)'m', (byte)'e' };
 				CbField noneField = new CbField(noneBytes.AsMemory(1), fieldType);
 				Assert.AreEqual(noneField.GetSize(), noneBytes.Length);
-				Assert.AreEqual(noneField.GetName(), "Name");
+				Assert.AreEqual(noneField.GetName(), new Utf8String("Name"));
 				Assert.IsTrue(noneField.HasName());
 				Assert.IsFalse(noneField.HasValue());
 				Assert.AreEqual(noneField.GetHash(), Blake3Hash.Compute(noneBytes));
@@ -192,8 +192,8 @@ namespace EpicGames.Serialization.Tests
 				CbFieldType fieldType = CbFieldType.None | CbFieldType.HasFieldName;
 				byte[] noneBytes = { (byte)fieldType, 0 };
 				CbField noneField = new CbField(noneBytes.AsMemory(1), fieldType);
-				Assert.AreEqual(noneField.GetSize(), noneBytes.Length);
-				Assert.AreEqual(noneField.GetName(), "");
+				Assert.AreEqual(noneBytes.Length, noneField.GetSize());
+				Assert.AreEqual(Utf8String.Empty, noneField.GetName());
 				Assert.IsTrue(noneField.HasName());
 				Assert.IsFalse(noneField.HasValue());
 				Assert.AreEqual(noneField.GetHash(), Blake3Hash.Compute(noneBytes));
@@ -341,7 +341,7 @@ namespace EpicGames.Serialization.Tests
 				for (CbFieldIterator it = objectClone.CreateIterator(); it; ++it)
 				{
 					CbField field = it.Current;
-					Assert.AreEqual(field.GetName(), "F");
+					Assert.AreEqual(field.GetName(), new Utf8String("F"));
 					Assert.AreEqual(field.AsInt32(), 8);
 				}
 				for (CbFieldIterator it = objectClone.CreateIterator(), end = new CbFieldIterator(); it != end; ++it)
@@ -1621,22 +1621,22 @@ namespace EpicGames.Serialization.Tests
 				for (CbFieldIterator it = obj.CreateIterator(); it;)
 				{
 					CbFieldIterator last = it;
-					if (it.Current.GetName().Equals("A"))
+					if (it.Current.GetName() == new Utf8String("A"))
 					{
 						a = it.Current.AsUInt32();
 						++it;
 					}
-					if (it.Current.GetName().Equals("B"))
+					if (it.Current.GetName() == new Utf8String("B"))
 					{
 						b = it.Current.AsUInt32();
 						++it;
 					}
-					if (it.Current.GetName().Equals("C"))
+					if (it.Current.GetName() == new Utf8String("C"))
 					{
 						c = it.Current.AsUInt32();
 						++it;
 					}
-					if (it.Current.GetName().Equals("D"))
+					if (it.Current.GetName() == new Utf8String("D"))
 					{
 						d = it.Current.AsUInt32();
 						++it;

@@ -28,7 +28,7 @@ namespace EpicGames.Redis.Tests
 			TestRecord output = RedisSerializer.Deserialize<TestRecord>(value);
 			Assert.AreEqual(123, output.Number);
 			Assert.AreEqual("hello", output.String);
-			Assert.AreEqual("world", output.StringU8);
+			Assert.AreEqual(new Utf8String("world"), output.StringU8);
 		}
 
 		[TestMethod]
@@ -43,7 +43,7 @@ namespace EpicGames.Redis.Tests
 			TestRecord output = RedisSerializer.Deserialize<TestRecord>(value);
 			Assert.AreEqual(123, output.Number);
 			Assert.AreEqual("|||", output.String);
-			Assert.AreEqual("\\", output.StringU8);
+			Assert.AreEqual(new Utf8String("\\"), output.StringU8);
 		}
 
 		[TypeConverter(typeof(TestStringTypeConverter))]
