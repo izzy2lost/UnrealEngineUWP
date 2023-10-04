@@ -403,7 +403,6 @@ protected:
 	TArray<TObjectPtr<UAssetUserData>> AssetUserDataEditorOnly;
 #endif
 
-	mutable TArray<TObjectPtr<UAssetUserData>> CachedAssetUserData;
 
 
 protected:

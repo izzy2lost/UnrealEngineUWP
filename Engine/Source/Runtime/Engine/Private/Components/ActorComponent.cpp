@@ -2088,6 +2088,7 @@ UAssetUserData* UActorComponent::GetAssetUserDataOfClass(TSubclassOf<UAssetUserD
 const TArray<UAssetUserData*>* UActorComponent::GetAssetUserDataArray() const
 {
 #if WITH_EDITOR
+	static thread_local TArray<TObjectPtr<UAssetUserData>> CachedAssetUserData;
 	CachedAssetUserData.Reset();
 	CachedAssetUserData.Append(AssetUserData);
 	CachedAssetUserData.Append(AssetUserDataEditorOnly);

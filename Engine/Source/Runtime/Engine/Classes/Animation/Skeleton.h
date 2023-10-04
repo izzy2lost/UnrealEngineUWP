@@ -1034,7 +1034,6 @@ protected:
 	TArray<TObjectPtr<UAssetUserData>> AssetUserDataEditorOnly;
 #endif
 
-	mutable TArray<TObjectPtr<UAssetUserData>> CachedAssetUserData;
 
 	friend struct FReferenceSkeletonModifier;
 	friend class FEditableSkeleton;

@@ -163,7 +163,6 @@ protected:
 	TArray<TObjectPtr<UAssetUserData>> AssetUserDataEditorOnly;
 #endif
 
-	mutable TArray<TObjectPtr<UAssetUserData>> CachedAssetUserData;
 
 private:
 	/** Used for fast removal of end of frame update */

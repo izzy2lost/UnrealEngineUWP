@@ -2783,6 +2783,7 @@ const TArray<UAssetUserData*>* UControlRig::GetAssetUserDataArray() const
 	if(HasAnyFlags(RF_ClassDefaultObject))
 	{
 #if WITH_EDITOR
+		static thread_local TArray<TObjectPtr<UAssetUserData>> CachedAssetUserData;
 		CachedAssetUserData.Reset();
 		CachedAssetUserData.Append(AssetUserData);
 		CachedAssetUserData.Append(AssetUserDataEditorOnly);
@@ -2860,8 +2861,7 @@ const TArray<UAssetUserData*>* UControlRig::GetAssetUserDataArray() const
 				{
 					if(const TArray<UAssetUserData*>* SkeletonUserDataArray = Skeleton->GetAssetUserDataArray())
 					{
-						const TArray<UAssetUserData*> LocalSkeletonUserDataArray = *SkeletonUserDataArray;
-						for(UAssetUserData* SkeletonUserData : LocalSkeletonUserDataArray)
+						for(UAssetUserData* SkeletonUserData : *SkeletonUserDataArray)
 						{
 							CombinedAssetUserData.Add(SkeletonUserData);
 						}
@@ -2869,8 +2869,7 @@ const TArray<UAssetUserData*>* UControlRig::GetAssetUserDataArray() const
 				}
 				if(const TArray<UAssetUserData*>* SkeletalMeshUserDataArray = SkeletalMesh->GetAssetUserDataArray())
 				{
-					const TArray<UAssetUserData*> LocalSkeletalMeshUserDataArray = *SkeletalMeshUserDataArray;
-					for(UAssetUserData* SkeletalMeshUserData : LocalSkeletalMeshUserDataArray)
+					for(UAssetUserData* SkeletalMeshUserData : *SkeletalMeshUserDataArray)
 					{
 						CombinedAssetUserData.Add(SkeletalMeshUserData);
 					}
@@ -2878,8 +2877,7 @@ const TArray<UAssetUserData*>* UControlRig::GetAssetUserDataArray() const
 			}
 			if (const TArray<UAssetUserData*>* ActorComponentUserDataArray = SkeletalMeshComponent->GetAssetUserDataArray())
 			{
-				const TArray<UAssetUserData*> LocalActorComponentUserDataArray = *ActorComponentUserDataArray;
-				for(UAssetUserData* ActorComponentUserData : LocalActorComponentUserDataArray)
+				for(UAssetUserData* ActorComponentUserData : *ActorComponentUserDataArray)
 				{
 					CombinedAssetUserData.Add(ActorComponentUserData);
 				}

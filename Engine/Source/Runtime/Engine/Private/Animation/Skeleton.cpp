@@ -2121,6 +2121,7 @@ void USkeleton::RemoveUserDataOfClass(TSubclassOf<UAssetUserData> InUserDataClas
 const TArray<UAssetUserData*>* USkeleton::GetAssetUserDataArray() const
 {
 #if WITH_EDITOR
+	static thread_local TArray<TObjectPtr<UAssetUserData>> CachedAssetUserData;
 	CachedAssetUserData.Reset();
 	CachedAssetUserData.Append(AssetUserData);
 	CachedAssetUserData.Append(AssetUserDataEditorOnly);

@@ -4768,6 +4768,7 @@ void USkeletalMesh::RemoveUserDataOfClass(TSubclassOf<UAssetUserData> InUserData
 const TArray<UAssetUserData*>* USkeletalMesh::GetAssetUserDataArray() const
 {
 #if WITH_EDITOR
+	static thread_local TArray<TObjectPtr<UAssetUserData>> CachedAssetUserData;
 	CachedAssetUserData.Reset();
 	CachedAssetUserData.Append(AssetUserData);
 	CachedAssetUserData.Append(AssetUserDataEditorOnly);
