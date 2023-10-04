@@ -42,6 +42,14 @@ DEFINE_LOG_CATEGORY(LogIas);
 namespace UE::IO::IAS
 {
 
+bool GIasSuspendSystem = false;
+static FAutoConsoleVariableRef CVar_SuspendSystemEnabled(
+	TEXT("ias.SuspendSystem"),
+	GIasSuspendSystem,
+	TEXT("Suspends the use of the OnDemand system"),
+	ECVF_ReadOnly
+);
+
 ////////////////////////////////////////////////////////////////////////////////
 static int64 ParseSizeParam(FStringView Value)
 {
@@ -1493,6 +1501,7 @@ void FIoStoreOnDemandModule::SetBulkOptionalEnabled(bool bInEnabled)
 	}
 	else
 	{
+		UE_LOG(LogIas, Log, TEXT("Deferring call to FIoStoreOnDemandModule::SetBulkOptionalEnabled(%s)"), bInEnabled ? TEXT("true") : TEXT("false"));
 		DeferredBulkOptionalEnabled = bInEnabled;
 	}
 }
@@ -1505,6 +1514,7 @@ void FIoStoreOnDemandModule::SetEnabled(bool bInEnabled)
 	}
 	else
 	{
+		UE_LOG(LogIas, Log, TEXT("Deferring call to FIoStoreOnDemandModule::SetEnabled(%s)"), bInEnabled ? TEXT("true") : TEXT("false"));
 		DeferredEnabled = bInEnabled;
 	}
 }
@@ -1517,6 +1527,7 @@ void FIoStoreOnDemandModule::AbandonCache()
 	}
 	else
 	{
+		UE_LOG(LogIas, Log, TEXT("Deferring call to FIoStoreOnDemandModule::AbandonCache"));
 		DeferredAbandonCache = true;
 	}
 }
@@ -1634,13 +1645,39 @@ void FIoStoreOnDemandModule::InitializeInternal()
 void FIoStoreOnDemandModule::StartupModule()
 {
 #if !UE_IAS_CUSTOM_INITIALIZATION
-	InitializeInternal();
-#endif
+
+	if (!GIasSuspendSystem)
+	{
+		InitializeInternal();
+	}
+	else
+	{
+		UE_LOG(LogIas, Display, TEXT("The IoStoreOnDemand module has been remotely disabled by the 'ias.SuspendSystemEnabled' cvar"));
+	}
+
+#endif // !UE_IAS_CUSTOM_INITIALIZATION
 }
 
 void FIoStoreOnDemandModule::ShutdownModule()
 {
 }
+
+#if UE_IAS_CUSTOM_INITIALIZATION
+
+EOnDemandInitResult FIoStoreOnDemandModule::Initialize()
+{
+	if (GIasSuspendSystem)
+	{
+		UE_LOG(LogIas, Display, TEXT("The IoStoreOnDemand module has been remotely disabled by the 'ias.SuspendSystemEnabled' cvar"));
+		return EOnDemandInitResult::Suspended;
+	}
+
+	InitializeInternal();
+
+	return Backend.IsValid() ? EOnDemandInitResult::Success : EOnDemandInitResult::Disabled;
+};
+
+#endif // UE_IAS_CUSTOM_INITIALIZATION
 
 } // namespace UE::IO::IAS
 

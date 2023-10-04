@@ -211,6 +211,27 @@ UE_API FIoStatus PrimeEndPoint(FStringView IoStoreOnDemandIniPath);
 
 class IOnDemandIoDispatcherBackend;
 
+#if UE_IAS_CUSTOM_INITIALIZATION
+
+/** Result of calling FIoStoreOnDemandModule::Initialize */
+enum class EOnDemandInitResult
+{
+	/** The module initialized correctly and can be used */
+	Success = 0,
+	/** The module is disabled as OnDemand data is not required for the current process*/
+	Disabled,
+	/** The module was unable to start up correctly due to an unexpected error */
+	Error,
+
+	/**
+	 * The use of the module has been suspended, if possible calling systems should activate alternative ways
+	 * to access the OnDemand data. This option is temporary and not intended for general use.
+	 */
+	Suspended
+};
+
+#endif // UE_IAS_CUSTOM_INITIALIZATION
+
 class FIoStoreOnDemandModule
 	: public IModuleInterface
 {
@@ -234,8 +255,8 @@ public:
 	virtual void ShutdownModule() override;
 	
 #if UE_IAS_CUSTOM_INITIALIZATION
-	UE_API void Initialize() { InitializeInternal(); };
-#endif
+	UE_API EOnDemandInitResult Initialize();
+#endif //UE_IAS_CUSTOM_INITIALIZATION
 };
 
 } // namespace UE::IO::IAS
