@@ -57,7 +57,7 @@ class QtHandler(logging.Handler):
             initial = 'S'
             color = '#A6E22E'
 
-        return self.html_format.format(datetime.datetime.now().strftime("%H:%M:%S"), initial, color, record.msg)
+        return self.html_format.format(datetime.datetime.now().strftime("%H:%M:%S"), initial, color, record.message)
 
     def get_record(self):
         return self.record

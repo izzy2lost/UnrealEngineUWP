@@ -6,6 +6,7 @@
 #include "Interfaces/IPv4/IPv4Endpoint.h"
 #include "JsonObjectConverter.h"
 
+
 struct FSwitchboardPacket;
 struct FSwitchboardTask;
 struct FSyncStatus;
@@ -20,6 +21,7 @@ FString CreateMessage(const InStructType& InStruct)
 	check(bMessageOk);
 	return Message;
 }
+FString CreateMessage(const TMap<FString, FString>& InFields);
 
 FString CreateTaskDeclinedMessage(const FSwitchboardTask& InTask, const FString& InErrorMessage, const TMap<FString, FString>& InAdditionalFields);
 FString CreateCommandAcceptedMessage(const FGuid& InMessageID);
@@ -37,4 +39,23 @@ FString CreateRedeployStatusMessage(const FGuid& InMessageID, bool bAck, const F
 
 //~
 
-bool CreateTaskFromCommand(const FString& InCommand, const FIPv4Endpoint& InEndpoint, TUniquePtr<FSwitchboardTask>& OutTask, bool& bOutEcho);
+enum class ECreateTaskStatus
+{
+	Success,
+
+	Error_Unauthenticated,
+	Error_ParsingFailed,
+	Error_Unhandled,
+};
+
+struct FCreateTaskResult
+{
+	ECreateTaskStatus Status;
+	TUniquePtr<FSwitchboardTask> Task;
+	bool bEcho;
+
+	TOptional<FString> CommandName;
+	TOptional<FGuid> MessageID;
+};
+
+FCreateTaskResult CreateTaskFromCommand(const FString& InCommand, const FIPv4Endpoint& InEndpoint, bool bAuthenticated);

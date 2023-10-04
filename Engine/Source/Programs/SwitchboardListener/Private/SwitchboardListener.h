@@ -2,8 +2,8 @@
 
 #pragma once
 
-#include "CoreMinimal.h"
-
+#include "Async/Mutex.h"
+#include "Async/RecursiveMutex.h"
 #include "Containers/Queue.h"
 #include "Interfaces/IPv4/IPv4Endpoint.h"
 
@@ -11,9 +11,19 @@
 #include "SyncStatus.h"
 
 
+#if !PLATFORM_WINDOWS
+#	include <msquic.h>
+#else
+#	include "Windows/AllowWindowsPlatformTypes.h"
+#	include <msquic.h>
+#	include "Windows/HideWindowsPlatformTypes.h"
+#endif
+
+
 struct FRunningProcess;
 struct FSwitchboardMessageFuture;
 struct FSwitchboardTask;
+struct FSwitchboardAuthenticateTask;
 struct FSwitchboardDisconnectTask;
 struct FSwitchboardSendFileToClientTask;
 struct FSwitchboardStartTask;
@@ -40,6 +50,23 @@ struct FSwitchboardCommandLineOptions
 
 	TOptional<FIPv4Address> Address;
 	TOptional<uint16> Port;
+
+	enum class ESecureMode : uint8
+	{
+		Unspecified = 0,
+		CertificateFromFile,
+#if PLATFORM_WINDOWS
+		CertificateByHash,
+#endif
+	};
+
+	ESecureMode SecureMode;
+	TOptional<FString> CertificateFile;
+	TOptional<FString> PrivateKeyFile;
+#if PLATFORM_WINDOWS
+	TOptional<FString> CertificateHash;
+#endif
+
 	TOptional<uint32> RedeployFromPid;
 
 	static FSwitchboardCommandLineOptions FromString(const TCHAR* CommandLine);
@@ -98,6 +125,10 @@ struct FRedeployStatus
 
 class FSwitchboardListener
 {
+	struct FConnection;
+	using FConnectionRef = TSharedRef<FConnection>;
+	using FByteArrayRef = TSharedRef<TArray<uint8>>;
+
 	static const FIPv4Endpoint InvalidEndpoint;
 
 public:
@@ -116,10 +147,10 @@ private:
 	bool StartListening();
 	bool StopListening();
 
-	bool OnIncomingConnection(FSocket* InSocket, const FIPv4Endpoint& InEndpoint);
-	bool ParseIncomingMessage(const FString& InMessage, const FIPv4Endpoint& InEndpoint);
+	bool ParseIncomingMessage(const FString& InMessage, const FIPv4Endpoint& InEndpoint, const FConnectionRef& Connection);
 
 	bool RunScheduledTask(const FSwitchboardTask& InTask);
+	bool Task_Authenticate(const FSwitchboardAuthenticateTask& InAuthTask);
 	bool Task_StartProcess(const FSwitchboardStartTask& InRunTask);
 	bool Task_KillProcess(const FSwitchboardKillTask& KillTask);
 	bool Task_ReceiveFileFromClient(const FSwitchboardReceiveFileFromClientTask& InReceiveFileFromClientTask);
@@ -136,7 +167,6 @@ private:
 	FRunningProcess* FindOrStartFlipModeMonitorForUUID(const FGuid& UUID);
 
 	void CleanUpDisconnectedSockets();
-	void DisconnectClient(const FIPv4Endpoint& InClientEndpoint);
 	void HandleStdout(const TSharedPtr<FRunningProcess>& Process);
 	void HandleRunningProcesses(TArray<TSharedPtr<FRunningProcess>>& Processes, bool bNotifyThatProgramEnded);
 
@@ -147,16 +177,87 @@ private:
 
 	void RollbackRedeploy();
 
-private:
-	const FSwitchboardCommandLineOptions Options;
+	static QUIC_STATUS QUIC_API QuicListenerThunk(HQUIC Listener, void* Context, QUIC_LISTENER_EVENT* Event);
+	static QUIC_STATUS QUIC_API QuicConnectionThunk(HQUIC Connection, void* Context, QUIC_CONNECTION_EVENT* Event);
+	static QUIC_STATUS QUIC_API QuicStreamThunk(HQUIC Stream, void* Context, QUIC_STREAM_EVENT* Event);
+	QUIC_STATUS QuicListenerCallback(HQUIC Listener, QUIC_LISTENER_EVENT* Event);
+	QUIC_STATUS QuicConnectionCallback(HQUIC Connection, QUIC_CONNECTION_EVENT* Event);
+	QUIC_STATUS QuicStreamCallback(HQUIC Stream, QUIC_STREAM_EVENT* Event);
 
-	TUniquePtr<FIPv4Endpoint> Endpoint;
-	TUniquePtr<FTcpListener> SocketListener;
-	TQueue<TPair<FIPv4Endpoint, TSharedPtr<FSocket>>, EQueueMode::Spsc> PendingConnections;
-	TMap<FIPv4Endpoint, TSharedPtr<FSocket>> Connections;
-	TMap<FIPv4Endpoint, float> InactiveTimeouts;
-	TMap<FIPv4Endpoint, double> LastActivityTime;
-	TMap<FIPv4Endpoint, TArray<uint8>> ReceiveBuffer;
+private: // Private nested types.
+	/** Combines a QUIC_BUFFER span (ptr + len) and its backing array. */
+	struct FQuicBuffer
+	{
+		QUIC_BUFFER QuicBuffer;
+		FByteArrayRef Storage;
+
+		FQuicBuffer()
+			: QuicBuffer{ .Length = 0, .Buffer = nullptr }
+			, Storage(MakeShared<TArray<uint8>>())
+		{
+		}
+
+		explicit FQuicBuffer(FByteArrayRef&& InStorage)
+			: Storage(MoveTemp(InStorage))
+		{
+			QuicBuffer = {
+				.Length = static_cast<uint32>(Storage->Num()),
+				.Buffer = Storage->GetData(),
+			};
+		}
+	};
+
+	/** Tracks all the state for an established connection. */
+	struct FConnection
+	{
+		FIPv4Endpoint Endpoint;
+		HQUIC QuicConn = nullptr;
+		// We currently assume a single bidirectional stream initiated by the peer.
+		HQUIC QuicStream = nullptr;
+
+		UE::FMutex SendLock;
+		TQueue<TSharedPtr<FQuicBuffer>> SendBuffers;
+
+		UE::FMutex ReceiveLock;
+		bool bMessageComplete = false;
+		FByteArrayRef ReceiveBuffer = MakeShared<TArray<uint8>>();
+
+		bool bAuthenticated = false;
+
+		// TODO?: MsQuic handles idle timeout, but configuration is app-wide.
+		// If we want to support the existing per-client override, need to
+		// figure out how best to pass one override when calling
+		// QuicApi->ConnectionSetConfiguration() (clone config obj N times?).
+		float InactiveTimeout;
+		double LastActivityTime;
+	};
+
+private:
+	FSwitchboardCommandLineOptions Options;
+	TUniquePtr<FIPv4Endpoint> ListenerEndpoint;
+
+	TOptional<FString> PrivateKeyPassword;
+	FString ExpectedAuthenticationToken;
+
+	/** MsQuic top level function table for all other API calls. */
+	const QUIC_API_TABLE* QuicApi = nullptr;
+
+	/** MsQuic registration manages the execution context for all child objects. */
+	HQUIC QuicRegistration = nullptr;
+
+	/** MsQuic configuration manages security-related and other common QUIC settings. */
+	HQUIC QuicConfiguration = nullptr;
+
+	/** MsQuic incoming connection handler. */
+	HQUIC QuicListener = nullptr;
+
+	UE::FRecursiveMutex ConnectionsLock;
+	TMap<FIPv4Endpoint, FConnectionRef> ConnectionsByEndpoint;
+	TMap<HQUIC, FConnectionRef> ConnectionsByQuicConn;
+	TMap<HQUIC, FConnectionRef> ConnectionsByQuicStream;
+
+	static constexpr int8 MaxAuthFailures = 5;
+	TMap<FIPv4Address, int8> AuthFailuresByAddress;
 
 	TQueue<TUniquePtr<FSwitchboardTask>, EQueueMode::Spsc> ScheduledTasks;
 	TQueue<TUniquePtr<FSwitchboardTask>, EQueueMode::Spsc> DisconnectTasks;

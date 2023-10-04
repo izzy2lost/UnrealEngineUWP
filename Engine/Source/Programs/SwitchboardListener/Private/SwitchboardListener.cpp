@@ -4,6 +4,7 @@
 
 #include "CpuUtilizationMonitor.h"
 #include "SBLHelperClient.h"
+#include "SwitchboardAuth.h"
 #include "SwitchboardListenerApp.h"
 #include "SwitchboardMessageFuture.h"
 #include "SwitchboardPacket.h"
@@ -20,12 +21,20 @@
 #include "HAL/PlatformFileManager.h"
 #include "Interfaces/IPv4/IPv4Endpoint.h"
 #include "IPAddress.h"
+#include "Logging/StructuredLog.h"
 #include "Misc/Base64.h"
 #include "Misc/CommandLine.h"
 #include "Misc/FileHelper.h"
 #include "Misc/Paths.h"
 #include "Misc/ScopeExit.h"
+#include "String/BytesToHex.h"
+#include "String/HexToBytes.h"
 #include <atomic>
+
+#if !PLATFORM_WINDOWS
+#include <string.h> // memset
+#endif
+
 
 #if PLATFORM_WINDOWS
 
@@ -43,7 +52,10 @@
 
 static void FillOutMosaicTopologies(TArray<FMosaicTopo>& MosaicTopos);
 
-#endif // PLATFORM_WINDOWS
+#endif
+
+
+#define QUIC_ENSURE(X)		ensure(QUIC_SUCCEEDED(X))
 
 
 const FIPv4Endpoint FSwitchboardListener::InvalidEndpoint(FIPv4Address::LanBroadcast, 0);
@@ -51,7 +63,12 @@ const FIPv4Endpoint FSwitchboardListener::InvalidEndpoint(FIPv4Address::LanBroad
 
 namespace
 {
+#if !UE_BUILD_DEBUG
 	const double DefaultInactiveTimeoutSeconds = 5.0;
+#else
+	// Infinite timeout in debug; convenient for pausing at breakpoints for long periods.
+	const double DefaultInactiveTimeoutSeconds = 0.0;
+#endif
 
 	bool TryFindIdInBrokenMessage(const FString& InMessage, FGuid& OutGuid)
 	{
@@ -85,6 +102,42 @@ namespace
 		}
 
 		return false;
+	}
+
+	QUIC_ADDR QuicAddrFromEndpoint(FIPv4Endpoint Endpoint)
+	{
+		QUIC_ADDR QuicAddr = {};
+
+		inet_pton(AF_INET, TCHAR_TO_ANSI(*Endpoint.Address.ToString()),
+			&QuicAddr.Ipv4.sin_addr.s_addr);
+
+		QuicAddrSetFamily(&QuicAddr, QUIC_ADDRESS_FAMILY_INET);
+		QuicAddrSetPort(&QuicAddr, Endpoint.Port);
+
+		return QuicAddr;
+	}
+
+
+	FIPv4Endpoint EndpointFromQuicAddr(QUIC_ADDR QuicAddr)
+	{
+		FIPv4Endpoint Endpoint;
+
+		char Ipv4Buf[INET_ADDRSTRLEN];
+		inet_ntop(AF_INET, &QuicAddr.Ipv4.sin_addr.s_addr, Ipv4Buf, sizeof(Ipv4Buf));
+		FIPv4Address::Parse(ANSI_TO_TCHAR(Ipv4Buf), Endpoint.Address);
+
+		Endpoint.Port = QuicAddrGetPort(&QuicAddr);
+		return Endpoint;
+	}
+
+	void SecureZero(void* Buffer, size_t Length)
+	{
+#if PLATFORM_WINDOWS
+		SecureZeroMemory(Buffer, Length);
+#else
+		static void* (* const volatile memset_ptr)(void*, int, size_t) = memset;
+		(memset_ptr)(Buffer, 0, Length);
+#endif
 	}
 }
 
@@ -172,6 +225,36 @@ FSwitchboardCommandLineOptions FSwitchboardCommandLineOptions::FromString(const 
 		}
 	}
 
+	OutOptions.SecureMode = ESecureMode::Unspecified;
+
+	if (SwitchPairs.Contains(TEXT("certfile")))
+	{
+		OutOptions.CertificateFile = SwitchPairs[TEXT("certfile")];
+		OutOptions.SecureMode = ESecureMode::CertificateFromFile;
+	}
+
+	if (SwitchPairs.Contains(TEXT("keyfile")))
+	{
+		OutOptions.PrivateKeyFile = SwitchPairs[TEXT("keyfile")];
+		OutOptions.SecureMode = ESecureMode::CertificateFromFile;
+	}
+
+	if (SwitchPairs.Contains(TEXT("certhash")))
+	{
+#if PLATFORM_WINDOWS
+		OutOptions.CertificateHash = SwitchPairs[TEXT("certhash")];
+
+		if (OutOptions.SecureMode == ESecureMode::CertificateFromFile)
+		{
+			UE_LOGFMT(LogSwitchboard, Error, "Both certificate file and hash arguments were specified; using certificate hash, IGNORING file");
+		}
+
+		OutOptions.SecureMode = ESecureMode::CertificateByHash;
+#else
+		UE_LOGFMT(LogSwitchboard, Fatal, "Certificate by hash is only supported on Windows");
+#endif
+	}
+
 	if (SwitchPairs.Contains(TEXT("port")))
 	{
 		OutOptions.Port = FCString::Atoi(*SwitchPairs[TEXT("port")]);
@@ -217,7 +300,6 @@ FString FSwitchboardCommandLineOptions::ToString(bool bIncludeRedeploy /* = fals
 
 FSwitchboardListener::FSwitchboardListener(const FSwitchboardCommandLineOptions& InOptions)
 	: Options(InOptions)
-	, SocketListener(nullptr)
 	, CpuMonitor(MakeShared<FCpuUtilizationMonitor>())
 	, SBLHelper(MakeShared<FSBLHelperClient>())
 	, bIsNvAPIInitialized(false)
@@ -255,7 +337,7 @@ FSwitchboardListener::FSwitchboardListener(const FSwitchboardCommandLineOptions&
 		UE_LOG(LogSwitchboard, Warning, TEXT("Defaulting to: -port=%u"), DefaultPort);
 	}
 
-	Endpoint = MakeUnique<FIPv4Endpoint>(Options.Address.Get(DefaultIp), Options.Port.Get(DefaultPort));
+	ListenerEndpoint = MakeUnique<FIPv4Endpoint>(Options.Address.Get(DefaultIp), Options.Port.Get(DefaultPort));
 }
 
 FSwitchboardListener::~FSwitchboardListener()
@@ -264,30 +346,285 @@ FSwitchboardListener::~FSwitchboardListener()
 
 bool FSwitchboardListener::Init()
 {
+	if (Options.SecureMode == FSwitchboardCommandLineOptions::ESecureMode::Unspecified)
+	{
+		TTuple<FString, FString> CertKeyPaths = UE::SwitchboardListener::Certificates::GetSelfSignedPaths();
+
+		Options.SecureMode = FSwitchboardCommandLineOptions::ESecureMode::CertificateFromFile;
+		Options.CertificateFile = CertKeyPaths.Get<0>();
+		Options.PrivateKeyFile = CertKeyPaths.Get<1>();
+
+		// Try to load the private key password.
+		const FString PrivateKeyPwCredentialName = FString::Printf(
+			TEXT("PrivateKeyPassword_%s"), **Options.PrivateKeyFile);
+		if (TOptional<UE::SwitchboardListener::FCredential> PrivateKeyPwCredential =
+			UE::SwitchboardListener::LoadCredential(PrivateKeyPwCredentialName))
+		{
+			PrivateKeyPassword = PrivateKeyPwCredential->CredentialBlob;
+		}
+
+
+		if (!FPaths::FileExists(*Options.CertificateFile)
+			|| !FPaths::FileExists(*Options.PrivateKeyFile))
+		{
+			UE_LOGFMT(LogSwitchboard, Display, "SwitchboardListener requires a TLS certificate to be specified; generating self-signed certificate...");
+
+			// Platforms with a persistent credential store encrypt the generated
+			// private key with a random string, and persist it for the user.
+			if (UE::SwitchboardListener::SupportsPersistentCredentials())
+			{
+				UE_LOGFMT(LogSwitchboard, Verbose, "Generating random private key password");
+				constexpr int32 RandomPwByteLength = 20;
+				TArray<uint8> RandomPwBytes;
+				RandomPwBytes.SetNumUninitialized(RandomPwByteLength);
+				UE::SwitchboardListener::FillSecureRandom(RandomPwBytes);
+				PrivateKeyPassword = BytesToHexLower(RandomPwBytes.GetData(), RandomPwByteLength);
+
+				UE::SwitchboardListener::FCredential PrivateKeyPwCredential = {
+					.CredentialName = PrivateKeyPwCredentialName,
+					.CredentialBlob = *PrivateKeyPassword,
+				};
+
+				check(UE::SwitchboardListener::SaveCredential(PrivateKeyPwCredential));
+			}
+
+			TOptional<FString> Fingerprint =
+				UE::SwitchboardListener::Certificates::CreateSelfSigned(
+					PrivateKeyPassword.Get(FString()));
+
+			check(Fingerprint.IsSet());
+
+			UE_LOGFMT(LogSwitchboard, Display, "Your new self-signed certificate fingerprint is: {Fingerprint}", *Fingerprint);
+		}
+	}
+
+	constexpr const TCHAR* TokenCredentialName = TEXT("PresharedAuthToken");
+	if (TOptional<UE::SwitchboardListener::FCredential> SavedCredential =
+		UE::SwitchboardListener::LoadCredential(TokenCredentialName))
+	{
+		UE_LOGFMT(LogSwitchboard, Display, "Using stored authentication token");
+		ExpectedAuthenticationToken = SavedCredential->CredentialBlob;
+	}
+	else
+	{
+#if PLATFORM_WINDOWS
+		FLASHWINFO FlashInfo = { 0 };
+		FlashInfo.cbSize = sizeof(FlashInfo);
+		FlashInfo.hwnd = ::GetConsoleWindow();
+		FlashInfo.dwFlags = FLASHW_TRAY | FLASHW_TIMER;
+		::FlashWindowEx(&FlashInfo);
+#endif
+
+		printf("\nFirst time setup:\n"
+			"Please choose an authentication token.\n"
+			"This is a memorable string which Switchboard clients will "
+			"be required to provide the first time they connect.\n");
+
+		if (UE::SwitchboardListener::SupportsPersistentCredentials())
+		{
+			printf("This string will be saved automatically and reused on future launches.\n");
+		}
+
+		ExpectedAuthenticationToken =
+			UE::SwitchboardListener::ReadCredentialFromStdin(
+				TEXT("authentication token"));
+
+#if PLATFORM_WINDOWS
+		FlashInfo.dwFlags = FLASHW_STOP;
+		::FlashWindowEx(&FlashInfo);
+#endif
+
+		UE::SwitchboardListener::FCredential NewCredential = {
+			.CredentialName = TokenCredentialName,
+			.CredentialBlob = ExpectedAuthenticationToken,
+		};
+
+		UE_LOGFMT(LogSwitchboard, Display, "Storing provided authentication token");
+		ensure(UE::SwitchboardListener::SaveCredential(NewCredential));
+	}
+
+#if PLATFORM_WINDOWS && !UE_BUILD_DEBUG
+	if (Options.MinimizeOnLaunch)
+	{
+		ShowWindow(GetConsoleWindow(), SW_MINIMIZE);
+	}
+#endif
+
 	return StartListening();
 }
 
 bool FSwitchboardListener::StartListening()
 {
-	check(!SocketListener);
-
-	SocketListener = MakeUnique<FTcpListener>(*Endpoint, FTimespan::FromSeconds(1), false);
-	if (SocketListener->IsActive())
+	QUIC_STATUS Status;
+	if (QUIC_FAILED(Status = MsQuicOpen2(&QuicApi)))
 	{
-		SocketListener->OnConnectionAccepted().BindRaw(this, &FSwitchboardListener::OnIncomingConnection);
-		UE_LOG(LogSwitchboard, Display, TEXT("Started listening on %s:%d"), *SocketListener->GetLocalEndpoint().Address.ToString(), SocketListener->GetLocalEndpoint().Port);
-		return true;
+		UE_LOGFMT(LogSwitchboard, Error, "MsQuicOpen2 failed with status {Status}", static_cast<int64>(Status));
+		return false;
 	}
-	
-	UE_LOG(LogSwitchboard, Error, TEXT("Could not create Tcp Listener!"));
-	return false;
+
+	// Create a registration for the app's connections. This sets a name for the
+	// app (used for persistent storage and for debugging). It also configures
+	// the execution profile, using the default "low latency" profile.
+	const QUIC_REGISTRATION_CONFIG RegConfig = { "switchboardlistener", QUIC_EXECUTION_PROFILE_LOW_LATENCY };
+	if (QUIC_FAILED(Status = QuicApi->RegistrationOpen(&RegConfig, &QuicRegistration))) {
+		UE_LOGFMT(LogSwitchboard, Error, "MsQuic RegistrationOpen failed with status {Status}", static_cast<int64>(Status));
+		return false;
+	}
+
+	QUIC_CERTIFICATE_FILE CertFile = { 0 };
+	QUIC_CERTIFICATE_FILE_PROTECTED CertFileProtected = { 0 };
+	QUIC_CERTIFICATE_HASH CertHash = { 0 };
+	QUIC_CREDENTIAL_CONFIG CredConfig = {
+		.Type = QUIC_CREDENTIAL_TYPE_NONE,
+		.Flags =
+			QUIC_CREDENTIAL_FLAG_INDICATE_CERTIFICATE_RECEIVED |
+			QUIC_CREDENTIAL_FLAG_USE_PORTABLE_CERTIFICATES,
+	};
+
+	// Path FString -> UTF8 backing stores for the ConfigurationLoadCredential call.
+	TArray<UTF8CHAR> CertificateFileArray, PrivateKeyFileArray, PrivateKeyPwArray;
+
+	if (Options.SecureMode == FSwitchboardCommandLineOptions::ESecureMode::CertificateFromFile)
+	{
+		auto PrivateKeyFileU8 = StringCast<UTF8CHAR>(**Options.PrivateKeyFile);
+		PrivateKeyFileArray = TArray<UTF8CHAR>(PrivateKeyFileU8.Get(), PrivateKeyFileU8.Length() + 1);
+		auto CertificateFileU8 = StringCast<UTF8CHAR>(**Options.CertificateFile);
+		CertificateFileArray = TArray<UTF8CHAR>(CertificateFileU8.Get(), CertificateFileU8.Length() + 1);
+
+		if (PrivateKeyPassword)
+		{
+			auto PrivateKeyPwU8 = StringCast<UTF8CHAR>(**PrivateKeyPassword);
+			PrivateKeyPwArray = TArray<UTF8CHAR>(PrivateKeyPwU8.Get(), PrivateKeyPwU8.Length() + 1);
+			SecureZero(const_cast<UTF8CHAR*>(PrivateKeyPwU8.Get()), PrivateKeyPwU8.Length());
+
+			CertFileProtected.PrivateKeyFile = reinterpret_cast<const char*>(PrivateKeyFileArray.GetData());
+			CertFileProtected.CertificateFile = reinterpret_cast<const char*>(CertificateFileArray.GetData());
+			CertFileProtected.PrivateKeyPassword = reinterpret_cast<const char*>(PrivateKeyPwArray.GetData());
+
+			CredConfig.Type = QUIC_CREDENTIAL_TYPE_CERTIFICATE_FILE_PROTECTED;
+			CredConfig.CertificateFileProtected = &CertFileProtected;
+		}
+		else
+		{
+			CertFile.PrivateKeyFile = reinterpret_cast<const char*>(PrivateKeyFileArray.GetData());
+			CertFile.CertificateFile = reinterpret_cast<const char*>(CertificateFileArray.GetData());
+
+			CredConfig.Type = QUIC_CREDENTIAL_TYPE_CERTIFICATE_FILE;
+			CredConfig.CertificateFile = &CertFile;
+		}
+	}
+#if PLATFORM_WINDOWS
+	else if (Options.SecureMode == FSwitchboardCommandLineOptions::ESecureMode::CertificateByHash)
+	{
+		constexpr int32 ExpectedBytes = sizeof(CertHash.ShaHash);
+		constexpr int32 ExpectedStrLen = ExpectedBytes * 2;
+		const int32 HashStrLen = Options.CertificateHash->Len();
+		if (HashStrLen != ExpectedStrLen)
+		{
+			UE_LOGFMT(LogSwitchboard, Error, "Certificate hash should be {ExpectedStrLen} characters ({ExpectedBytes} bytes); got {HashStrLen} characters",
+				ExpectedStrLen, ExpectedBytes, HashStrLen);
+			return false;
+		}
+
+		const int32 HashLen = UE::String::HexToBytes(Options.CertificateHash.GetValue(), CertHash.ShaHash);
+		ensure(HashLen == ExpectedBytes);
+
+		UE_LOGFMT(LogSwitchboard, Display, "Using certificate with hash {CertificateHash}", Options.CertificateHash.GetValue());
+		CredConfig.Type = QUIC_CREDENTIAL_TYPE_CERTIFICATE_HASH;
+		CredConfig.CertificateHash = &CertHash;
+	}
+#endif // PLATFORM_WINDOWS
+	else
+	{
+		// This should never happen.
+		checkf(false, TEXT("Unsupported credential configuration"));
+		return false;
+	}
+
+	QUIC_SETTINGS Settings = {};
+
+	Settings.IdleTimeoutMs = DefaultInactiveTimeoutSeconds * 1000.0;
+	Settings.IsSet.IdleTimeoutMs = 1;
+
+	// Allow each peer to open a single bidirectional stream.
+	Settings.PeerBidiStreamCount = 1;
+	Settings.IsSet.PeerBidiStreamCount = 1;
+
+	// The protocol name used in Application Layer Protocol Negotiation.
+	constexpr char SblAlpnStr[] = "ue-switchboard";
+	const QUIC_BUFFER SblAlpn = { sizeof(SblAlpnStr) - 1, (uint8_t*)SblAlpnStr };
+
+	// Allocate/initialize the configuration object with the configured ALPN and settings.
+	if (QUIC_FAILED(Status = QuicApi->ConfigurationOpen(QuicRegistration, &SblAlpn, 1, &Settings, sizeof(Settings), NULL, &QuicConfiguration)))
+	{
+		UE_LOGFMT(LogSwitchboard, Error, "MsQuic ConfigurationOpen failed with status {Status}", static_cast<int64>(Status));
+		return false;
+	}
+
+	// Loads the TLS credential part of the configuration.
+	if (QUIC_FAILED(Status = QuicApi->ConfigurationLoadCredential(QuicConfiguration, &CredConfig)))
+	{
+		UE_LOGFMT(LogSwitchboard, Error, "MsQuic ConfigurationLoadCredential failed with status {Status}", static_cast<int64>(Status));
+		return false;
+	}
+	else
+	{
+		if (PrivateKeyPwArray.Num())
+		{
+			SecureZero(PrivateKeyPwArray.GetData(), PrivateKeyPwArray.Num());
+		}
+
+		if (PrivateKeyPassword.IsSet())
+		{
+			SecureZero(PrivateKeyPassword->GetCharArray().GetData(),
+				PrivateKeyPassword->GetCharArray().Num() * sizeof(TCHAR));
+			PrivateKeyPassword.Reset();
+		}
+	}
+
+	// Create/allocate a new listener object.
+	if (QUIC_FAILED(Status = QuicApi->ListenerOpen(QuicRegistration, QuicListenerThunk, this, &QuicListener))) {
+		UE_LOGFMT(LogSwitchboard, Error, "MsQuic ListenerOpen failed with status {Status}", static_cast<int64>(Status));
+		return false;
+	}
+
+	// Starts listening for incoming connections.
+	QUIC_ADDR QuicAddr = QuicAddrFromEndpoint(*ListenerEndpoint);
+	if (QUIC_FAILED(Status = QuicApi->ListenerStart(QuicListener, &SblAlpn, 1, &QuicAddr))) {
+		UE_LOGFMT(LogSwitchboard, Error, "MsQuic ListenerStart failed with status {Status}", static_cast<int64>(Status));
+		return false;
+	}
+
+	return true;
 }
 
 bool FSwitchboardListener::StopListening()
 {
-	check(SocketListener.IsValid());
-	UE_LOG(LogSwitchboard, Display, TEXT("No longer listening on %s:%d"), *SocketListener->GetLocalEndpoint().Address.ToString(), SocketListener->GetLocalEndpoint().Port);
-	SocketListener.Reset();
+	if (QuicApi)
+	{
+		if (QuicListener)
+		{
+			QuicApi->ListenerClose(QuicListener);
+			QuicListener = nullptr;
+		}
+
+		if (QuicConfiguration)
+		{
+			QuicApi->ConfigurationClose(QuicConfiguration);
+			QuicConfiguration = nullptr;
+		}
+
+		if (QuicRegistration)
+		{
+			// This will block until all outstanding child objects have been closed.
+			QuicApi->RegistrationClose(QuicRegistration);
+			QuicRegistration = nullptr;
+		}
+
+		MsQuicClose(QuicApi);
+		QuicApi = nullptr;
+	}
+
 	return true;
 }
 
@@ -295,76 +632,24 @@ bool FSwitchboardListener::Tick()
 {
 	SWITCHBOARD_TRACE_CPUPROFILER_EVENT_SCOPE(FSwitchboardListener::Tick);
 
-	// Dequeue pending connections
-	{
-		TPair<FIPv4Endpoint, TSharedPtr<FSocket>> Connection;
-		while (PendingConnections.Dequeue(Connection))
-		{
-			Connections.Add(Connection);
-
-			FIPv4Endpoint ClientEndpoint = Connection.Key;
-			InactiveTimeouts.FindOrAdd(ClientEndpoint, DefaultInactiveTimeoutSeconds);
-			LastActivityTime.FindOrAdd(ClientEndpoint, FPlatformTime::Seconds());
-
-			// Send current state upon connection
-			{
-				FSwitchboardStatePacket StatePacket;
-
-				FPlatformMisc::GetOSVersions(StatePacket.OsVersionLabel, StatePacket.OsVersionLabelSub);
-				StatePacket.OsVersionNumber = FPlatformMisc::GetOSVersion();
-
-				StatePacket.TotalPhysicalMemory = FPlatformMemory::GetConstants().TotalPhysical;
-				StatePacket.PlatformBinaryDirectory = FPlatformProcess::GetBinariesSubdirectory();
-
-				for (const TSharedPtr<FRunningProcess>& RunningProcess : RunningProcesses)
-				{
-					check(RunningProcess.IsValid());
-
-					FSwitchboardStateRunningProcess StateRunningProcess;
-
-					StateRunningProcess.Uuid = RunningProcess->UUID.ToString();
-					StateRunningProcess.Name = RunningProcess->Name;
-					StateRunningProcess.Path = RunningProcess->Path;
-					StateRunningProcess.Caller = RunningProcess->Caller;
-					StateRunningProcess.Pid = RunningProcess->PID;
-
-					StatePacket.RunningProcesses.Add(MoveTemp(StateRunningProcess));
-				}
-
-				SendMessage(CreateMessage(StatePacket), ClientEndpoint);
-			}
-		}
-	}
-
 	// Parse incoming data from remote connections
-	for (const TPair<FIPv4Endpoint, TSharedPtr<FSocket>>& Connection: Connections)
 	{
-		const FIPv4Endpoint& ClientEndpoint = Connection.Key;
-		const TSharedPtr<FSocket>& ClientSocket = Connection.Value;
-
-		uint32 PendingDataSize = 0;
-		while (ClientSocket->HasPendingData(PendingDataSize))
+		UE::TUniqueLock<UE::FRecursiveMutex> ConnectionsScopeLock(ConnectionsLock);
+		for (const TPair<FIPv4Endpoint, FConnectionRef>& ConnectionPair : ConnectionsByEndpoint)
 		{
-			TArray<uint8> Buffer;
-			Buffer.AddUninitialized(PendingDataSize);
-			int32 BytesRead = 0;
-			if (!ClientSocket->Recv(Buffer.GetData(), PendingDataSize, BytesRead, ESocketReceiveFlags::None))
+			const FIPv4Endpoint& ClientEndpoint = ConnectionPair.Key;
+			FConnectionRef Connection = ConnectionPair.Value;
+			if (Connection->bMessageComplete && Connection->ReceiveLock.TryLock())
 			{
-				UE_LOG(LogSwitchboard, Error, TEXT("Error while receiving data via endpoint %s"), *ClientEndpoint.ToString());
-				continue;
-			}
+				ON_SCOPE_EXIT{ Connection->ReceiveLock.Unlock(); };
 
-			LastActivityTime[ClientEndpoint] = FPlatformTime::Seconds();
-			TArray<uint8>& MessageBuffer = ReceiveBuffer.FindOrAdd(ClientEndpoint);
-			for (int32 i = 0; i < BytesRead; ++i)
-			{
-				MessageBuffer.Add(Buffer[i]);
-				if (Buffer[i] == '\x00')
-				{
-					const FString Message(UTF8_TO_TCHAR(MessageBuffer.GetData()));
-					ParseIncomingMessage(Message, ClientEndpoint);
-					MessageBuffer.Empty();
-				}
+				const FString Message(UTF8_TO_TCHAR(Connection->ReceiveBuffer->GetData()));
+				ParseIncomingMessage(Message, ClientEndpoint, Connection);
+				Connection->ReceiveBuffer->Empty();
+				Connection->bMessageComplete = false;
+
+				// Resume receive events after processing the pending message.
+				QuicApi->StreamReceiveSetEnabled(Connection->QuicStream, true);
 			}
 		}
 	}
@@ -391,58 +676,78 @@ bool FSwitchboardListener::Tick()
 	return true;
 }
 
-bool FSwitchboardListener::ParseIncomingMessage(const FString& InMessage, const FIPv4Endpoint& InEndpoint)
+bool FSwitchboardListener::ParseIncomingMessage(const FString& InMessage, const FIPv4Endpoint& InEndpoint, const FConnectionRef& Connection)
 {
 	SWITCHBOARD_TRACE_CPUPROFILER_EVENT_SCOPE(FSwitchboardListener::ParseIncomingMessage);
 
-	TUniquePtr<FSwitchboardTask> Task;
-	bool bEcho = true;
-	if (CreateTaskFromCommand(InMessage, InEndpoint, Task, bEcho))
+	FCreateTaskResult CreateTaskResult =
+		CreateTaskFromCommand(InMessage, InEndpoint, Connection->bAuthenticated);
+
+	if (CreateTaskResult.Status == ECreateTaskStatus::Success)
 	{
-		if (Task->Type == ESwitchboardTaskType::Disconnect)
+		if (CreateTaskResult.Task->Type == ESwitchboardTaskType::Disconnect)
 		{
-			DisconnectTasks.Enqueue(MoveTemp(Task));
+			DisconnectTasks.Enqueue(MoveTemp(CreateTaskResult.Task));
 		}
-		else if (Task->Type == ESwitchboardTaskType::KeepAlive)
+		else if (CreateTaskResult.Task->Type == ESwitchboardTaskType::KeepAlive)
 		{
-			LastActivityTime[InEndpoint] = FPlatformTime::Seconds();
+			UE::TUniqueLock<UE::FRecursiveMutex> ConnectionsScopeLock(ConnectionsLock);
+			ConnectionsByEndpoint[InEndpoint]->LastActivityTime = FPlatformTime::Seconds();
 		}
 		else
 		{
-			if (bEcho)
+			if (CreateTaskResult.bEcho)
 			{
-				UE_LOG(LogSwitchboard, Display, TEXT("Received %s command"), *Task->Name);
+				UE_LOG(LogSwitchboard, Display, TEXT("Received %s command"), CreateTaskResult.Task->GetCommandName());
 			}
 
-			SendMessage(CreateCommandAcceptedMessage(Task->TaskID), InEndpoint);
-			ScheduledTasks.Enqueue(MoveTemp(Task));
+			SendMessage(CreateCommandAcceptedMessage(CreateTaskResult.Task->TaskID), InEndpoint);
+			ScheduledTasks.Enqueue(MoveTemp(CreateTaskResult.Task));
 		}
 		return true;
 	}
+	else if (CreateTaskResult.Status == ECreateTaskStatus::Error_Unauthenticated)
+	{
+		static FString UnauthenticatedError = FString::Printf(TEXT("Rejecting '%s' command for unauthenticated client %s"),
+			*CreateTaskResult.CommandName.Get(TEXT("(?)")), *InEndpoint.ToString());
+
+		UE_LOG(LogSwitchboard, Error, TEXT("%s"), *UnauthenticatedError);
+
+		// just use an empty ID if we couldn't find one
+		SendMessage(CreateCommandDeclinedMessage(CreateTaskResult.MessageID.Get(FGuid()), UnauthenticatedError), InEndpoint);
+	}
 	else
 	{
-		FGuid MessageID;
-		if (TryFindIdInBrokenMessage(InMessage, MessageID))
+		if (!CreateTaskResult.MessageID.IsSet())
 		{
-			static FString ParseError = FString::Printf(TEXT("Could not parse message %s with ID %s"), *InMessage, *MessageID.ToString());
-			SendMessage(CreateCommandDeclinedMessage(MessageID, ParseError), InEndpoint);
+			FGuid RecoveredID;
+			if (TryFindIdInBrokenMessage(InMessage, RecoveredID))
+			{
+				CreateTaskResult.MessageID = RecoveredID;
+			}
 		}
-		else
-		{
-			static FString ParseError = FString::Printf(TEXT("Could not parse message %s with unknown ID"), *InMessage);
-			UE_LOG(LogSwitchboard, Error, TEXT("%s"), *ParseError);
+
+		static FString ParseError = FString::Printf(TEXT("Could not parse message %s with ID %s"),
+			*InMessage,
+			CreateTaskResult.MessageID.IsSet() ? *CreateTaskResult.MessageID.GetValue().ToString() : TEXT("(?)"));
+		UE_LOG(LogSwitchboard, Error, TEXT("%s"), *ParseError);
 			
-			// just use an empty ID if we couldn't find one
-			SendMessage(CreateCommandDeclinedMessage(MessageID, ParseError), InEndpoint);
-		}
-		return false;
+		// just use an empty ID if we couldn't find one
+		SendMessage(CreateCommandDeclinedMessage(CreateTaskResult.MessageID.Get(FGuid()), ParseError), InEndpoint);
 	}
+
+	return false;
 }
 
 bool FSwitchboardListener::RunScheduledTask(const FSwitchboardTask& InTask)
 {
 	switch (InTask.Type)
 	{
+		case ESwitchboardTaskType::Authenticate:
+		{
+			const FSwitchboardAuthenticateTask& AuthTask = static_cast<const FSwitchboardAuthenticateTask&>(InTask);
+			return Task_Authenticate(AuthTask);
+		}
 		case ESwitchboardTaskType::Start:
 		{
 			const FSwitchboardStartTask& StartTask = static_cast<const FSwitchboardStartTask&>(InTask);
@@ -639,6 +944,53 @@ static bool DisableFullscreenOptimizationForProcess(const FRunningProcess* Proce
 #endif // PLATFORM_WINDOWS
 }
 
+bool FSwitchboardListener::Task_Authenticate(const FSwitchboardAuthenticateTask& InAuthTask)
+{
+	SWITCHBOARD_TRACE_CPUPROFILER_EVENT_SCOPE(FSwitchboardListener::Task_Authenticate);
+
+	UE::TUniqueLock<UE::FRecursiveMutex> ConnectionsScopeLock(ConnectionsLock);
+	FConnectionRef Connection = ConnectionsByEndpoint[InAuthTask.Recipient];
+
+	auto SendAuthResponse = [this, &InAuthTask, &Connection]() {
+		SendMessage(CreateMessage(
+			{
+				{ TEXT("command"), FSwitchboardAuthenticateTask::CommandName },
+				{ TEXT("id"), InAuthTask.TaskID.ToString() },
+				{ TEXT("bAuthenticated"), Connection->bAuthenticated ? TEXT("true") : TEXT("false") },
+			}),
+			InAuthTask.Recipient);
+		};
+
+	if (Connection->bAuthenticated)
+	{
+		UE_LOGFMT(LogSwitchboard, Warning, "Ignoring redundant auth attempt for authenticated client {Endpoint}", Connection->Endpoint.ToString());
+		SendAuthResponse();
+		return false;
+	}
+
+	int8& AuthFailures = AuthFailuresByAddress.FindOrAdd(InAuthTask.Recipient.Address);
+	if (AuthFailures >= MaxAuthFailures)
+	{
+		UE_LOGFMT(LogSwitchboard, Error, "Ignoring auth attempt for client with excessive failures {Endpoint}", Connection->Endpoint.ToString());
+		SendAuthResponse();
+		return false;
+	}
+
+	if (InAuthTask.Token == ExpectedAuthenticationToken)
+	{
+		UE_LOGFMT(LogSwitchboard, Display, "Client {Endpoint} authenticated successfully", Connection->Endpoint.ToString());
+		Connection->bAuthenticated = true;
+		// TODO: Issue JWT?
+		SendAuthResponse();
+		return true;
+	}
+
+	UE_LOGFMT(LogSwitchboard, Warning, "Failed authentication attempt for client {Endpoint}", Connection->Endpoint.ToString());
+	++AuthFailures;
+	SendAuthResponse();
+	return false;
+}
+
 bool FSwitchboardListener::Task_StartProcess(const FSwitchboardStartTask& InRunTask)
 {
 	SWITCHBOARD_TRACE_CPUPROFILER_EVENT_SCOPE(FSwitchboardListener::Task_StartProcess);
@@ -768,7 +1120,8 @@ bool FSwitchboardListener::Task_StartProcess(const FSwitchboardStartTask& InRunT
 		Packet.Process.Caller = NewProcess->Caller;
 		Packet.Process.Pid = NewProcess->PID;
 
-		for (const TPair<FIPv4Endpoint, TSharedPtr<FSocket>>& Connection : Connections)
+		UE::TUniqueLock<UE::FRecursiveMutex> ConnectionsScopeLock(ConnectionsLock);
+		for (const TPair<FIPv4Endpoint, FConnectionRef>& Connection : ConnectionsByEndpoint)
 		{
 			const FIPv4Endpoint& ClientEndpoint = Connection.Key;
 			SendMessage(CreateMessage(Packet), ClientEndpoint);
@@ -1269,6 +1622,281 @@ bool FSwitchboardListener::Task_SendFileToClient(const FSwitchboardSendFileToCli
 	const FString EncodedFileContent = FBase64::Encode(FileContent);
 	return SendMessage(CreateSendFileToClientCompletedMessage(InSendFileToClientTask.Source, EncodedFileContent), InSendFileToClientTask.Recipient);
 }
+
+
+//static
+QUIC_STATUS QUIC_API FSwitchboardListener::QuicListenerThunk(HQUIC Listener, void* Context, QUIC_LISTENER_EVENT* Event)
+{
+	FSwitchboardListener* This = reinterpret_cast<FSwitchboardListener*>(Context);
+	return This->QuicListenerCallback(Listener, Event);
+}
+
+
+QUIC_STATUS FSwitchboardListener::QuicListenerCallback(HQUIC Listener, QUIC_LISTENER_EVENT* Event)
+{
+	switch (Event->Type) {
+		case QUIC_LISTENER_EVENT_NEW_CONNECTION:
+		{
+			// A new connection is being attempted by a client. For the handshake to
+			// proceed, the server must provide a configuration for QUIC to use. The
+			// app MUST set the callback handler before returning.
+			const FIPv4Endpoint Endpoint = EndpointFromQuicAddr(*Event->NEW_CONNECTION.Info->RemoteAddress);
+			UE_LOGFMT(LogSwitchboard, Verbose, "[quic][{Endpoint}] LISTENER_EVENT_NEW_CONNECTION", Endpoint.ToString());
+
+			FConnectionRef Connection = MakeShared<FConnection>();
+			Connection->Endpoint = Endpoint;
+			Connection->QuicConn = Event->NEW_CONNECTION.Connection;
+			Connection->InactiveTimeout = DefaultInactiveTimeoutSeconds;
+			Connection->LastActivityTime = FPlatformTime::Seconds();
+
+			{
+				UE::TUniqueLock<UE::FRecursiveMutex> ConnectionsScopeLock(ConnectionsLock);
+				ConnectionsByEndpoint.Add(Endpoint, Connection);
+				ConnectionsByQuicConn.Add(Connection->QuicConn, Connection);
+			}
+
+			QuicApi->SetCallbackHandler(Connection->QuicConn, reinterpret_cast<void*>(&QuicConnectionThunk), this);
+			QuicApi->ConnectionSetConfiguration(Connection->QuicConn, QuicConfiguration);
+
+			return QUIC_STATUS_SUCCESS;
+		}
+		default:
+			break;
+	}
+
+	return QUIC_STATUS_NOT_SUPPORTED;
+}
+
+
+//static
+QUIC_STATUS QUIC_API FSwitchboardListener::QuicConnectionThunk(HQUIC Connection, void* Context, QUIC_CONNECTION_EVENT* Event)
+{
+	FSwitchboardListener* This = reinterpret_cast<FSwitchboardListener*>(Context);
+	return This->QuicConnectionCallback(Connection, Event);
+}
+
+
+QUIC_STATUS FSwitchboardListener::QuicConnectionCallback(HQUIC QuicConn, QUIC_CONNECTION_EVENT* Event)
+{
+	QUIC_ADDR RemoteAddr;
+	uint32_t BufferSize = sizeof(RemoteAddr);
+	QUIC_ENSURE(QuicApi->GetParam(QuicConn, QUIC_PARAM_CONN_REMOTE_ADDRESS, &BufferSize, &RemoteAddr));
+	const FIPv4Endpoint RemoteEndpoint = EndpointFromQuicAddr(RemoteAddr);
+
+	switch (Event->Type)
+	{
+		case QUIC_CONNECTION_EVENT_PEER_CERTIFICATE_RECEIVED:
+			// TODO, someday: Client certificate auth. //return QUIC_STATUS_UNKNOWN_CERTIFICATE;
+			break;
+		case QUIC_CONNECTION_EVENT_CONNECTED:
+			// The handshake has completed for the connection.
+			UE_LOGFMT(LogSwitchboard, Display, "[quic][conn][{Endpoint}] Connected", *RemoteEndpoint.ToString());
+			QuicApi->ConnectionSendResumptionTicket(QuicConn, QUIC_SEND_RESUMPTION_FLAG_NONE, 0, NULL);
+			break;
+		case QUIC_CONNECTION_EVENT_SHUTDOWN_INITIATED_BY_TRANSPORT:
+			// The connection has been shut down by the transport. Generally, this
+			// is the expected way for the connection to shut down with this
+			// protocol, since we let idle timeout kill the connection.
+			if (Event->SHUTDOWN_INITIATED_BY_TRANSPORT.Status == QUIC_STATUS_CONNECTION_IDLE)
+			{
+				UE_LOGFMT(LogSwitchboard, Display, "[quic][conn][{Endpoint}] Successfully shut down on idle.",
+					*RemoteEndpoint.ToString());
+			}
+			else
+			{
+				UE_LOGFMT(LogSwitchboard, Display, "[quic][conn][{Endpoint}] Shut down by transport, {Status}",
+					*RemoteEndpoint.ToString(), static_cast<int64>(Event->SHUTDOWN_INITIATED_BY_TRANSPORT.Status));
+			}
+			break;
+		case QUIC_CONNECTION_EVENT_SHUTDOWN_INITIATED_BY_PEER:
+			// The connection was explicitly shut down by the peer.
+			UE_LOGFMT(LogSwitchboard, Display, "[quic][conn][{Endpoint}] Shut down by peer, {ErrorCode}",
+				*RemoteEndpoint.ToString(), static_cast<uint64>(Event->SHUTDOWN_INITIATED_BY_PEER.ErrorCode));
+			break;
+		case QUIC_CONNECTION_EVENT_SHUTDOWN_COMPLETE:
+		{
+			// The connection has completed the shutdown process and is ready to be
+			// safely cleaned up.
+			UE_LOGFMT(LogSwitchboard, Display, "[quic][conn][{Endpoint}] Shutdown complete", *RemoteEndpoint.ToString());
+
+			{
+				UE::TUniqueLock<UE::FRecursiveMutex> ConnectionsScopeLock(ConnectionsLock);
+				FConnectionRef Connection = ConnectionsByQuicConn.FindAndRemoveChecked(QuicConn);
+				ConnectionsByEndpoint.FindAndRemoveChecked(Connection->Endpoint);
+				if (Connection->QuicStream)
+				{
+					ConnectionsByQuicStream.FindAndRemoveChecked(Connection->QuicStream);
+				}
+			}
+
+			QuicApi->ConnectionClose(QuicConn);
+			break;
+		}
+		case QUIC_CONNECTION_EVENT_PEER_STREAM_STARTED:
+		{
+			// The peer has started/created a new stream. The app MUST set the
+			// callback handler before returning.
+			UE_LOGFMT(LogSwitchboard, Display, "[quic][conn][{Endpoint}] Peer stream started", *RemoteEndpoint.ToString());
+
+			UE::TUniqueLock<UE::FRecursiveMutex> ConnectionsScopeLock(ConnectionsLock);
+
+			FConnectionRef Connection = ConnectionsByQuicConn[QuicConn];
+			ensure(Connection->QuicStream == nullptr); // Single stream per connection
+			Connection->QuicStream = Event->PEER_STREAM_STARTED.Stream;
+
+			ConnectionsByQuicStream.Add(Connection->QuicStream, Connection);
+
+			QuicApi->SetCallbackHandler(Connection->QuicStream, reinterpret_cast<void*>(&QuicStreamThunk), this);
+
+			// Send current state upon connection
+			{
+				FSwitchboardStatePacket StatePacket;
+
+				FPlatformMisc::GetOSVersions(StatePacket.OsVersionLabel, StatePacket.OsVersionLabelSub);
+				StatePacket.OsVersionNumber = FPlatformMisc::GetOSVersion();
+
+				StatePacket.TotalPhysicalMemory = FPlatformMemory::GetConstants().TotalPhysical;
+				StatePacket.PlatformBinaryDirectory = FPlatformProcess::GetBinariesSubdirectory();
+
+				for (const TSharedPtr<FRunningProcess>& RunningProcess : RunningProcesses)
+				{
+					check(RunningProcess.IsValid());
+
+					FSwitchboardStateRunningProcess StateRunningProcess;
+
+					StateRunningProcess.Uuid = RunningProcess->UUID.ToString();
+					StateRunningProcess.Name = RunningProcess->Name;
+					StateRunningProcess.Path = RunningProcess->Path;
+					StateRunningProcess.Caller = RunningProcess->Caller;
+					StateRunningProcess.Pid = RunningProcess->PID;
+
+					StatePacket.RunningProcesses.Add(MoveTemp(StateRunningProcess));
+				}
+
+				SendMessage(CreateMessage(StatePacket), RemoteEndpoint);
+			}
+
+			break;
+		}
+		case QUIC_CONNECTION_EVENT_RESUMED:
+			// The connection succeeded in doing a TLS resumption of a previous
+			// connection's session.
+			UE_LOGFMT(LogSwitchboard, Display, "[quic][conn][{Endpoint}] Connection resumed", *RemoteEndpoint.ToString());
+			break;
+		default:
+			break;
+	}
+
+	return QUIC_STATUS_SUCCESS;
+}
+
+
+//static
+QUIC_STATUS QUIC_API FSwitchboardListener::QuicStreamThunk(HQUIC Stream, void* Context, QUIC_STREAM_EVENT* Event)
+{
+	FSwitchboardListener* This = reinterpret_cast<FSwitchboardListener*>(Context);
+	return This->QuicStreamCallback(Stream, Event);
+}
+
+
+QUIC_STATUS FSwitchboardListener::QuicStreamCallback(HQUIC Stream, QUIC_STREAM_EVENT* Event)
+{
+	UE::TUniqueLock<UE::FRecursiveMutex> ConnectionsScopeLock(ConnectionsLock);
+	FConnectionRef Connection = ConnectionsByQuicStream[Stream];
+
+	QUIC_ADDR RemoteAddr;
+	uint32_t BufferSize = sizeof(RemoteAddr);
+	QUIC_ENSURE(QuicApi->GetParam(Connection->QuicConn, QUIC_PARAM_CONN_REMOTE_ADDRESS, &BufferSize, &RemoteAddr));
+	const FIPv4Endpoint RemoteEndpoint = EndpointFromQuicAddr(RemoteAddr);
+
+	QUIC_UINT62 StreamId;
+	BufferSize = sizeof(StreamId);
+	QUIC_ENSURE(QuicApi->GetParam(Stream, QUIC_PARAM_STREAM_ID, &BufferSize, &StreamId));
+
+	const FString StreamStr = FString::Printf(TEXT("%s[%llu]"), *RemoteEndpoint.ToString(), StreamId);
+
+	switch (Event->Type)
+	{
+		case QUIC_STREAM_EVENT_SEND_COMPLETE:
+		{
+			// A previous StreamSend call has completed, and the context is being
+			// returned back to the app.
+			UE::TUniqueLock<UE::FMutex> SendLock(Connection->SendLock);
+			TSharedPtr<FQuicBuffer> DequeuedSend;
+			Connection->SendBuffers.Dequeue(DequeuedSend);
+
+			// Single stream, ordered delivery, dequeue should release the right thing
+			ensure(DequeuedSend.Get() == Event->SEND_COMPLETE.ClientContext);
+
+			break;
+		}
+		case QUIC_STREAM_EVENT_RECEIVE:
+		{
+			// The value of this struct member when the callback returns is taken to mean
+			// how many bytes we actually consumed. Bytes left unconsumed will be handled
+			// after the tick re-enables receiving, upon consuming the preceding message.
+			const uint64 IncomingTotalBufferLength = Event->RECEIVE.TotalBufferLength;
+			Event->RECEIVE.TotalBufferLength = 0;
+
+			// Data was received from the peer on the stream.
+			Connection->LastActivityTime = FPlatformTime::Seconds();
+
+			UE::TUniqueLock<UE::FMutex> ReceiveLock(Connection->ReceiveLock);
+			for (uint32_t BufferNum = 0; BufferNum < Event->RECEIVE.BufferCount; ++BufferNum)
+			{
+				const QUIC_BUFFER Buffer = Event->RECEIVE.Buffers[BufferNum];
+				for (uint32 ReadIdx = 0; ReadIdx < Buffer.Length; ++ReadIdx)
+				{
+					const uint8_t Byte = Buffer.Buffer[ReadIdx];
+					Connection->ReceiveBuffer->Add(Byte);
+					++Event->RECEIVE.TotalBufferLength;
+
+					// If this concluded the outstanding message, signal the main thread to
+					// process it, and let MsQuic keep the next message buffered internally.
+					// Partial buffer consumption implicitly suspends receive events, which
+					// we then resume after the main thread processes the previous message.
+					if (Byte == 0)
+					{
+						Connection->bMessageComplete = true;
+
+						// Break inner loop + outer loop + switch
+						goto stream_receive_outer_break;
+					}
+				}	
+			}
+
+stream_receive_outer_break:
+			break;
+		}
+		case QUIC_STREAM_EVENT_PEER_SEND_SHUTDOWN:
+			// The peer gracefully shut down its send direction of the stream.
+			UE_LOGFMT(LogSwitchboard, Display, "[quic][strm][{Stream}] Peer shut down", StreamStr);
+			break;
+		case QUIC_STREAM_EVENT_PEER_SEND_ABORTED:
+			// The peer aborted its send direction of the stream.
+			UE_LOGFMT(LogSwitchboard, Display, "[quic][strm][{Stream}] Peer aborted", StreamStr);
+			QuicApi->StreamShutdown(Stream, QUIC_STREAM_SHUTDOWN_FLAG_ABORT, 0);
+			break;
+		case QUIC_STREAM_EVENT_SHUTDOWN_COMPLETE:
+		{
+			// Both directions of the stream have been shut down and MsQuic is done
+			// with the stream. It can now be safely cleaned up.
+			UE_LOGFMT(LogSwitchboard, Display, "[quic][strm][{Stream}] Shutdown complete", StreamStr);
+
+			ensure(Connection->QuicStream == Stream);
+			ConnectionsByQuicStream.FindAndRemoveChecked(Stream);
+			QuicApi->StreamClose(Stream);
+			Connection->QuicStream = nullptr;
+
+			break;
+		}
+		default:
+			break;
+	}
+
+	return QUIC_STATUS_SUCCESS;
+}
+
 
 #if PLATFORM_WINDOWS
 static FCriticalSection SwitchboardListenerMutexNvapi;
@@ -2101,7 +2729,7 @@ bool FSwitchboardListener::Task_SetInactiveTimeout(const FSwitchboardSetInactive
 		return false;
 	}
 
-	float& ClientTimeout = InactiveTimeouts[Client];
+	float& ClientTimeout = ConnectionsByEndpoint[Client]->InactiveTimeout;
 	if (RequestedTimeout != ClientTimeout)
 	{
 		UE_LOG(LogSwitchboard, Display, TEXT("Changing client %s inactive timeout from %.0f to %.0f seconds"),
@@ -2154,12 +2782,15 @@ void FSwitchboardListener::CleanUpDisconnectedSockets()
 {
 	SWITCHBOARD_TRACE_CPUPROFILER_EVENT_SCOPE(FSwitchboardListener::CleanUpDisconnectedSockets);
 
+	UE::TUniqueLock<UE::FRecursiveMutex> ConnectionsScopeLock(ConnectionsLock);
+
 	const double CurrentTime = FPlatformTime::Seconds();
-	for (const TPair<FIPv4Endpoint, double>& LastActivity : LastActivityTime)
+	for (const TPair<FIPv4Endpoint, FConnectionRef>& Connection : ConnectionsByEndpoint)
 	{
-		const FIPv4Endpoint& Client = LastActivity.Key;
-		const float ClientTimeout = InactiveTimeouts[Client];
-		if (CurrentTime - LastActivity.Value > ClientTimeout)
+		const FIPv4Endpoint& Client = Connection.Key;
+		const float ClientTimeout = Connection.Value->InactiveTimeout;
+		const double InactiveTime = CurrentTime - Connection.Value->LastActivityTime;
+		if (ClientTimeout > 0.0f && InactiveTime > ClientTimeout)
 		{
 			UE_LOG(LogSwitchboard, Warning, TEXT("Client %s has been inactive for more than %.1fs -- closing connection"), *Client.ToString(), ClientTimeout);
 			TUniquePtr<FSwitchboardDisconnectTask> DisconnectTask = MakeUnique<FSwitchboardDisconnectTask>(FGuid(), Client);
@@ -2180,18 +2811,16 @@ void FSwitchboardListener::CleanUpDisconnectedSockets()
 			RollbackRedeploy();
 		}
 
-		DisconnectClient(Client);
-	}
-}
+		UE_LOG(LogSwitchboard, Display, TEXT("Client %s disconnecting"), *Client.ToString());
 
-void FSwitchboardListener::DisconnectClient(const FIPv4Endpoint& InClientEndpoint)
-{
-	const FString Client = InClientEndpoint.ToString();
-	UE_LOG(LogSwitchboard, Display, TEXT("Client %s disconnected"), *Client);
-	Connections.Remove(InClientEndpoint);
-	InactiveTimeouts.Remove(InClientEndpoint);
-	LastActivityTime.Remove(InClientEndpoint);
-	ReceiveBuffer.Remove(InClientEndpoint);
+		if (FConnectionRef* MaybeConnection = ConnectionsByEndpoint.Find(Client))
+		{
+			if ((*MaybeConnection)->QuicConn)
+			{
+				QuicApi->ConnectionShutdown((*MaybeConnection)->QuicConn, QUIC_CONNECTION_SHUTDOWN_FLAG_SILENT, 0);
+			}
+		}
+	}
 }
 
 void FSwitchboardListener::HandleStdout(const TSharedPtr<FRunningProcess>& Process)
@@ -2217,7 +2846,8 @@ void FSwitchboardListener::HandleStdout(const TSharedPtr<FRunningProcess>& Proce
 
 		Packet.PartialStdoutB64 = FBase64::Encode(Output);
 
-		for (const TPair<FIPv4Endpoint, TSharedPtr<FSocket>>& Connection : Connections)
+		UE::TUniqueLock<UE::FRecursiveMutex> ConnectionsScopeLock(ConnectionsLock);
+		for (const TPair<FIPv4Endpoint, FConnectionRef>& Connection : ConnectionsByEndpoint)
 		{
 			const FIPv4Endpoint& ClientEndpoint = Connection.Key;
 			SendMessage(CreateMessage(Packet), ClientEndpoint);
@@ -2274,10 +2904,13 @@ void FSwitchboardListener::HandleRunningProcesses(TArray<TSharedPtr<FRunningProc
 					Packet.Returncode = ReturnCode;
 					Packet.StdoutB64 = FBase64::Encode(Process->Output);
 
-					for (const TPair<FIPv4Endpoint, TSharedPtr<FSocket>>& Connection : Connections)
 					{
-						const FIPv4Endpoint& ClientEndpoint = Connection.Key;
-						SendMessage(CreateMessage(Packet), ClientEndpoint);
+						UE::TUniqueLock<UE::FRecursiveMutex> ConnectionsScopeLock(ConnectionsLock);
+						for (const TPair<FIPv4Endpoint, FConnectionRef>& Connection : ConnectionsByEndpoint)
+						{
+							const FIPv4Endpoint& ClientEndpoint = Connection.Key;
+							SendMessage(CreateMessage(Packet), ClientEndpoint);
+						}
 					}
 
 					// Kill its monitor to avoid potential zombies (unless it is already pending kill)
@@ -2307,16 +2940,6 @@ void FSwitchboardListener::HandleRunningProcesses(TArray<TSharedPtr<FRunningProc
 	}
 }
 
-bool FSwitchboardListener::OnIncomingConnection(FSocket* InSocket, const FIPv4Endpoint& InEndpoint)
-{
-	UE_LOG(LogSwitchboard, Display, TEXT("Incoming connection via %s:%d"), *InEndpoint.Address.ToString(), InEndpoint.Port);
-
-	InSocket->SetNoDelay(true);
-	PendingConnections.Enqueue(TPair<FIPv4Endpoint, TSharedPtr<FSocket>>(InEndpoint, MakeShareable(InSocket)));
-
-	return true;
-}
-
 bool FSwitchboardListener::SendMessage(const FString& InMessage, const FIPv4Endpoint& InEndpoint)
 {
 	SWITCHBOARD_TRACE_CPUPROFILER_EVENT_SCOPE(FSwitchboardListener::SendMessage);
@@ -2326,22 +2949,30 @@ bool FSwitchboardListener::SendMessage(const FString& InMessage, const FIPv4Endp
 		return false;
 	}
 
-	if (Connections.Contains(InEndpoint))
-	{
-		TSharedPtr<FSocket> ClientSocket = Connections[InEndpoint];
-		if (!ClientSocket.IsValid())
-		{
-			return false;
-		}
+	UE::TUniqueLock<UE::FRecursiveMutex> ConnectionsScopeLock(ConnectionsLock);
 
-		UE_LOG(LogSwitchboard, Verbose, TEXT("Sending message %s"), *InMessage);
-		int32 BytesSent = 0;
-		return ClientSocket->Send((uint8*)TCHAR_TO_UTF8(*InMessage), InMessage.Len() + 1, BytesSent);
+	if (!ConnectionsByEndpoint.Contains(InEndpoint))
+	{
+		// this happens when a client disconnects while a task it had issued is not finished
+		UE_LOG(LogSwitchboard, Verbose, TEXT("Trying to send message to disconnected client %s"), *InEndpoint.ToString());
+		return false;
 	}
 
-	// this happens when a client disconnects while a task it had issued is not finished
-	UE_LOG(LogSwitchboard, Verbose, TEXT("Trying to send message to disconnected client %s"), *InEndpoint.ToString());
-	return false;
+	FConnectionRef Connection = ConnectionsByEndpoint[InEndpoint];
+
+	UE_LOG(LogSwitchboard, Verbose, TEXT("Sending message %s"), *InMessage);
+
+	uint64 Utf8Length = FPlatformString::ConvertedLength<UTF8CHAR>(*InMessage, InMessage.Len() + 1);
+	FByteArrayRef SendArray = MakeShared<TArray<uint8>>();
+	SendArray->SetNumUninitialized(Utf8Length);
+	FPlatformString::Convert((UTF8CHAR*)SendArray->GetData(), SendArray->Num(), *InMessage, InMessage.Len() + 1);
+
+	UE::TUniqueLock<UE::FMutex> SendLock(Connection->SendLock);
+	TSharedPtr<FQuicBuffer> SendBuffer = MakeShared<FQuicBuffer>(MoveTemp(SendArray));
+	Connection->SendBuffers.Enqueue(SendBuffer);
+	QuicApi->StreamSend(Connection->QuicStream, &SendBuffer->QuicBuffer, 1, QUIC_SEND_FLAG_NONE, SendBuffer.Get());
+
+	return true;
 }
 
 void FSwitchboardListener::SendMessageFutures()

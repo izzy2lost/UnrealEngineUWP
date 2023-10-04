@@ -16,6 +16,8 @@ public class SwitchboardListener : ModuleRules
 				"Projects", // for LaunchEngineLoop.cpp dependency
 				"JsonUtilities",
 				"TraceLog",
+				"MsQuic",
+				"MsQuicRuntime"
 			}
 		);
 
@@ -41,5 +43,7 @@ public class SwitchboardListener : ModuleRules
 				"Sockets",
 			}
 		);
+
+		AddEngineThirdPartyPrivateStaticDependencies(Target, "OpenSSL");
 	}
 }

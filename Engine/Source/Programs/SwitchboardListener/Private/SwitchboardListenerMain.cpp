@@ -7,6 +7,7 @@
 #include "HAL/ExceptionHandling.h"
 #include "Interfaces/IPv4/IPv4Endpoint.h"
 #include "Misc/ScopeExit.h"
+#include "MsQuicRuntimeModule.h"
 #include "ProfilingDebugging/TraceAuxiliary.h"
 #include "RequiredProgramMainCPPInclude.h"
 
@@ -171,12 +172,11 @@ bool HandleRedeploy(FProcHandle& RedeployParentProc, uint32 RedeployParentPid)
 	return true;
 }
 
-int32 RunSwitchboardListener(int32 ArgC, TCHAR* ArgV[])
+int32 RunSwitchboardListener()
 {
-	const FString CommandLine = FCommandLine::BuildFromArgV(nullptr, ArgC, ArgV, nullptr);
-	FCommandLine::Set(*CommandLine);
+	const TCHAR* CommandLine = FCommandLine::Get();
 
-	const FSwitchboardCommandLineOptions Options = FSwitchboardCommandLineOptions::FromString(*CommandLine);
+	const FSwitchboardCommandLineOptions Options = FSwitchboardCommandLineOptions::FromString(CommandLine);
 
 	if (Options.OutputVersion)
 	{
@@ -211,7 +211,7 @@ int32 RunSwitchboardListener(int32 ArgC, TCHAR* ArgV[])
 	}
 #endif
 
-	const int32 InitResult = InitEngine(*CommandLine);
+	const int32 InitResult = InitEngine(CommandLine);
 
 	UE_LOG(LogSwitchboard, Display, TEXT("SwitchboardListener %u.%u.%u"), SBLISTENER_VERSION_MAJOR, SBLISTENER_VERSION_MINOR, SBLISTENER_VERSION_PATCH);
 
@@ -233,19 +233,19 @@ int32 RunSwitchboardListener(int32 ArgC, TCHAR* ArgV[])
 
 	UE_LOG(LogSwitchboard, Display, TEXT("Successfully initialized socket system."));
 
+	if (!FMsQuicRuntimeModule::InitRuntime())
+	{
+		UE_LOG(LogSwitchboard, Fatal, TEXT("Could not initialize MsQuic runtime."));
+		RequestEngineExit(TEXT("MsQuic init failure"));
+		return 1;
+	}
+
 	FProcHandle RedeployParentProc = CheckRedeploy(Options);
 	if (RedeployParentProc.IsValid())
 	{
 		UE_LOG(LogSwitchboard, Display, TEXT("Performing redeploy"));
 		HandleRedeploy(RedeployParentProc, Options.RedeployFromPid.GetValue());
 	}
-
-#if PLATFORM_WINDOWS
-	if (Options.MinimizeOnLaunch)
-	{
-		ShowWindow(GetConsoleWindow(), SW_MINIMIZE);
-	}
-#endif
 
 	FSwitchboardListener Listener(Options);
 
@@ -254,6 +254,8 @@ int32 RunSwitchboardListener(int32 ArgC, TCHAR* ArgV[])
 		RequestEngineExit(TEXT("FSwitchboardListener init failure"));
 		return 1;
 	}
+
+	UE_LOG(LogSwitchboard, Display, TEXT("Initialized and listening"));
 
 	double LastTime = FPlatformTime::Seconds();
 	const float IdealFrameTime = 1.0f / 30.0f;
@@ -323,12 +325,13 @@ int32 RunSwitchboardListener(int32 ArgC, TCHAR* ArgV[])
 	return 0;
 }
 
-INT32_MAIN_INT32_ARGC_TCHAR_ARGV()
+
+int32 SwitchboardListenerMain()
 {
 	int32 ExitCode;
 	if (FPlatformMisc::IsDebuggerPresent())
 	{
-		ExitCode = RunSwitchboardListener(ArgC, ArgV);
+		ExitCode = RunSwitchboardListener();
 	}
 	else
 	{
@@ -339,7 +342,7 @@ INT32_MAIN_INT32_ARGC_TCHAR_ARGV()
 			// SetCrashHandler(nullptr) sets up default behavior for Linux and Mac interfacing with CrashReportClient
 			FPlatformMisc::SetCrashHandler(nullptr);
 			GIsGuarded = true;
-			ExitCode = RunSwitchboardListener(ArgC, ArgV);
+			ExitCode = RunSwitchboardListener();
 			GIsGuarded = false;
 		}
 #if PLATFORM_WINDOWS && !PLATFORM_SEH_EXCEPTIONS_DISABLED
@@ -359,3 +362,25 @@ INT32_MAIN_INT32_ARGC_TCHAR_ARGV()
 
 	return ExitCode;
 }
+
+
+#if PLATFORM_WINDOWS && SWITCHBOARD_SLATE
+int32 WINAPI WinMain(HINSTANCE hInInstance, HINSTANCE hPrevInstance, char* lpCmdLine, int32 nShowCmd)
+{
+	hInstance = hInInstance;
+
+	const TCHAR* CommandLine = ::GetCommandLineW();
+	CommandLine = FCommandLine::RemoveExeName(CommandLine);
+	FCommandLine::Set(CommandLine);
+
+	return SwitchboardListenerMain();
+}
+#else
+INT32_MAIN_INT32_ARGC_TCHAR_ARGV()
+{
+	const FString CommandLine = FCommandLine::BuildFromArgV(nullptr, ArgC, ArgV, nullptr);
+	FCommandLine::Set(*CommandLine);
+
+	return SwitchboardListenerMain();
+}
+#endif

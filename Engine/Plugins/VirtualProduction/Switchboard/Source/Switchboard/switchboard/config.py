@@ -2003,8 +2003,8 @@ class Config(object):
             self.file_path = None
             data = {}
 
-        self.init_switchboard_settings()
-        self.init_sblhelper_settings()
+        self.init_switchboard_settings(data)
+        self.init_sblhelper_settings(data)
         self.init_project_settings(data)
         self.init_unreal_insights(data)
         self.init_muserver(data)

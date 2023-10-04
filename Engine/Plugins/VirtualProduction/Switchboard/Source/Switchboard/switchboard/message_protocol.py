@@ -5,6 +5,16 @@ import json
 import uuid
 
 
+def create_authenticate_message(token: str):
+    cmd_id = uuid.uuid4()
+    message = {
+        'command': 'authenticate',
+        'id': str(cmd_id),
+        'token': token,
+    }
+    message_json = json.dumps(message).encode() + b'\x00'
+    return (cmd_id, message_json)
+
 def create_start_process_message(
     prog_path: str,
     prog_args: str,
@@ -12,7 +22,7 @@ def create_start_process_message(
     caller: str,
     working_dir: str = "",
     *,
-	update_clients_with_stdout: bool = False,
+    update_clients_with_stdout: bool = False,
     priority_modifier: int = 0,
     lock_gpu_clock: bool = False,
 ):
@@ -120,8 +130,8 @@ def create_fixExeFlags_message(puuid):
     message = json.dumps(cmd).encode() + b'\x00'
     return (cmd_id, message)
 
-def decode_message(msg_in_bytes):
-    msg_as_str = ''.join(msg_in_bytes)
+def decode_message(msg_as_bytes: bytes):
+    msg_as_str = msg_as_bytes.decode()
     msg_json = json.loads(msg_as_str)
     return msg_json
 
@@ -137,4 +147,3 @@ def create_set_inactive_timeout_message(timeout_seconds: int):
            'seconds': timeout_seconds}
     message = json.dumps(cmd).encode() + b'\x00'
     return (cmd_id, message)
-

@@ -8,6 +8,7 @@
 
 enum class ESwitchboardTaskType : uint8
 {
+	Authenticate,
 	Start,
 	Kill,
 	Restart,
@@ -29,31 +30,51 @@ enum class ESwitchboardTaskType : uint8
 struct FSwitchboardTask
 {
 	ESwitchboardTaskType Type;
-	FString Name;
 	FGuid TaskID;
 	FIPv4Endpoint Recipient;
 
-	FSwitchboardTask(ESwitchboardTaskType InType, FString InName, FGuid InTaskID, FIPv4Endpoint InRecipient)
+	FSwitchboardTask(ESwitchboardTaskType InType, FGuid InTaskID, FIPv4Endpoint InRecipient)
 		: Type(InType)
-		, Name(InName)
 		, TaskID(InTaskID)
 		, Recipient(InRecipient)
 	{}
+
+	virtual ~FSwitchboardTask() = default;
+
+	virtual const TCHAR* GetCommandName() const = 0;
 
 	/** Calculates a hash that should be the same for equivalent Tasks, even if their TaskID is different */
 	virtual uint32 GetEquivalenceHash() const
 	{
 		return HashCombine(GetTypeHash(Type), GetTypeHash(Recipient));
-	}
-	
-	virtual ~FSwitchboardTask()
+	}	
+};
+
+struct FSwitchboardAuthenticateTask : public FSwitchboardTask
+{
+	FSwitchboardAuthenticateTask(const FGuid& InTaskId, const FIPv4Endpoint& InEndpoint, const FString& InToken)
+		: FSwitchboardTask{ ESwitchboardTaskType::Authenticate, InTaskId, InEndpoint }
+		, Token(InToken)
 	{}
+
+	/** Authentication token. */
+	FString Token;
+
+	//~ Begin FSwitchboardTask interface
+	static constexpr const TCHAR* CommandName = TEXT("authenticate");
+	virtual const TCHAR* GetCommandName() const override { return CommandName; };
+
+	virtual uint32 GetEquivalenceHash() const override
+	{
+		return HashCombine(FSwitchboardTask::GetEquivalenceHash(), GetTypeHash(Token));
+	}
+	//~ End FSwitchboardTask interface
 };
 
 struct FSwitchboardGetSyncStatusTask : public FSwitchboardTask
 {
 	FSwitchboardGetSyncStatusTask(const FGuid& InTaskId, const FIPv4Endpoint& InEndpoint, const FGuid& InProgramID)
-		: FSwitchboardTask{ ESwitchboardTaskType::GetSyncStatus, TEXT("get sync status"), InTaskId, InEndpoint }
+		: FSwitchboardTask{ ESwitchboardTaskType::GetSyncStatus, InTaskId, InEndpoint }
 		, ProgramID(InProgramID)
 	{}
 
@@ -61,6 +82,9 @@ struct FSwitchboardGetSyncStatusTask : public FSwitchboardTask
 	FGuid ProgramID;
 
 	//~ Begin FSwitchboardTask interface
+	static constexpr const TCHAR* CommandName = TEXT("get sync status");
+	virtual const TCHAR* GetCommandName() const override { return CommandName; };
+
 	virtual uint32 GetEquivalenceHash() const override
 	{
 		return HashCombine(FSwitchboardTask::GetEquivalenceHash(), GetTypeHash(ProgramID));
@@ -71,14 +95,12 @@ struct FSwitchboardGetSyncStatusTask : public FSwitchboardTask
 struct FSwitchboardRefreshMosaicsTask : public FSwitchboardTask
 {
 	FSwitchboardRefreshMosaicsTask(const FGuid& InTaskId, const FIPv4Endpoint& InEndpoint)
-		: FSwitchboardTask{ ESwitchboardTaskType::RefreshMosaics, TEXT("refresh mosaics"), InTaskId, InEndpoint }
+		: FSwitchboardTask{ ESwitchboardTaskType::RefreshMosaics, InTaskId, InEndpoint }
 	{}
 
 	//~ Begin FSwitchboardTask interface
-	virtual uint32 GetEquivalenceHash() const override
-	{
-		return HashCombine(GetTypeHash(Type), GetTypeHash(Name));
-	}
+	static constexpr const TCHAR* CommandName = TEXT("refresh mosaics");
+	virtual const TCHAR* GetCommandName() const override { return CommandName; };
 	//~ End FSwitchboardTask interface
 };
 
@@ -93,7 +115,7 @@ struct FSwitchboardStartTask : public FSwitchboardTask
 		const FString& InCaller, 
 		const FString& InWorkingDir
 	)
-		: FSwitchboardTask{ ESwitchboardTaskType::Start, TEXT("start"), InTaskId, InEndpoint }
+		: FSwitchboardTask{ ESwitchboardTaskType::Start, InTaskId, InEndpoint }
 		, Command(InCommand)
 		, Arguments(InArgs)
 		, Name(InName)
@@ -112,6 +134,9 @@ struct FSwitchboardStartTask : public FSwitchboardTask
 	int32 PriorityModifier = 0;
 
 	//~ Begin FSwitchboardTask interface
+	static constexpr const TCHAR* CommandName = TEXT("start");
+	virtual const TCHAR* GetCommandName() const override { return CommandName; };
+
 	virtual uint32 GetEquivalenceHash() const override
 	{
 		uint32 Hash = HashCombine(FSwitchboardTask::GetEquivalenceHash(), GetTypeHash(Command));
@@ -124,13 +149,16 @@ struct FSwitchboardStartTask : public FSwitchboardTask
 struct FSwitchboardKillTask : public FSwitchboardTask
 {
 	FSwitchboardKillTask(const FGuid& InTaskId, const FIPv4Endpoint& InEndpoint, const FGuid& InProgramID)
-		: FSwitchboardTask{ ESwitchboardTaskType::Kill, TEXT("kill"), InTaskId, InEndpoint}
+		: FSwitchboardTask{ ESwitchboardTaskType::Kill, InTaskId, InEndpoint}
 		, ProgramID(InProgramID)
 	{}
 
 	FGuid ProgramID; // unique ID of process to kill
 
 	//~ Begin FSwitchboardTask interface
+	static constexpr const TCHAR* CommandName = TEXT("kill");
+	virtual const TCHAR* GetCommandName() const override { return CommandName; };
+
 	virtual uint32 GetEquivalenceHash() const override
 	{
 		return HashCombine(FSwitchboardTask::GetEquivalenceHash(), GetTypeHash(ProgramID));
@@ -141,7 +169,7 @@ struct FSwitchboardKillTask : public FSwitchboardTask
 struct FSwitchboardReceiveFileFromClientTask : public FSwitchboardTask
 {
 	FSwitchboardReceiveFileFromClientTask(const FGuid& InTaskID, const FIPv4Endpoint& InEndpoint, const FString& InDestination, const FString& InContent)
-		: FSwitchboardTask{ ESwitchboardTaskType::ReceiveFileFromClient, TEXT("receive file from client"), InTaskID, InEndpoint }
+		: FSwitchboardTask{ ESwitchboardTaskType::ReceiveFileFromClient, InTaskID, InEndpoint }
 		, Destination(InDestination)
 		, FileContent(InContent)
 	{}
@@ -151,6 +179,9 @@ struct FSwitchboardReceiveFileFromClientTask : public FSwitchboardTask
 	bool bForceOverwrite = false;
 
 	//~ Begin FSwitchboardTask interface
+	static constexpr const TCHAR* CommandName = TEXT("send file");
+	virtual const TCHAR* GetCommandName() const override { return CommandName; };
+
 	virtual uint32 GetEquivalenceHash() const override
 	{
 		uint32 Hash = HashCombine(FSwitchboardTask::GetEquivalenceHash(), GetTypeHash(Destination));
@@ -162,7 +193,7 @@ struct FSwitchboardReceiveFileFromClientTask : public FSwitchboardTask
 struct FSwitchboardRedeployListenerTask : public FSwitchboardTask
 {
 	FSwitchboardRedeployListenerTask(const FGuid& InTaskID, const FIPv4Endpoint& InEndpoint, const FString& InExpectedHashHexDigest, const FString& InContent)
-		: FSwitchboardTask{ ESwitchboardTaskType::RedeployListener, TEXT("deploy new listener executable from client"), InTaskID, InEndpoint }
+		: FSwitchboardTask{ ESwitchboardTaskType::RedeployListener, InTaskID, InEndpoint }
 		, FileContent(InContent)
 	{
 		ExpectedHash.FromString(InExpectedHashHexDigest);
@@ -172,6 +203,9 @@ struct FSwitchboardRedeployListenerTask : public FSwitchboardTask
 	FString FileContent;
 
 	//~ Begin FSwitchboardTask interface
+	static constexpr const TCHAR* CommandName = TEXT("redeploy listener");
+	virtual const TCHAR* GetCommandName() const override { return CommandName; };
+
 	virtual uint32 GetEquivalenceHash() const override
 	{
 		uint32 Hash = HashCombine(FSwitchboardTask::GetEquivalenceHash(), GetTypeHash(ExpectedHash));
@@ -183,13 +217,16 @@ struct FSwitchboardRedeployListenerTask : public FSwitchboardTask
 struct FSwitchboardSendFileToClientTask : public FSwitchboardTask
 {
 	FSwitchboardSendFileToClientTask(const FGuid& InTaskID, const FIPv4Endpoint& InEndpoint, const FString& InSource)
-		: FSwitchboardTask{ ESwitchboardTaskType::SendFileToClient, TEXT("send file to client"), InTaskID, InEndpoint }
+		: FSwitchboardTask{ ESwitchboardTaskType::SendFileToClient, InTaskID, InEndpoint }
 		, Source(InSource)
 	{}
 
 	FString Source;
 
 	//~ Begin FSwitchboardTask interface
+	static constexpr const TCHAR* CommandName = TEXT("receive file");
+	virtual const TCHAR* GetCommandName() const override { return CommandName; };
+
 	virtual uint32 GetEquivalenceHash() const override
 	{
 		return HashCombine(FSwitchboardTask::GetEquivalenceHash(), GetTypeHash(Source));
@@ -200,13 +237,16 @@ struct FSwitchboardSendFileToClientTask : public FSwitchboardTask
 struct FSwitchboardFixExeFlagsTask : public FSwitchboardTask
 {
 	FSwitchboardFixExeFlagsTask(const FGuid& InTaskId, const FIPv4Endpoint& InEndpoint, const FGuid& InProgramID)
-		: FSwitchboardTask{ ESwitchboardTaskType::FixExeFlags, TEXT("fixExeFlags"), InTaskId, InEndpoint }
+		: FSwitchboardTask{ ESwitchboardTaskType::FixExeFlags, InTaskId, InEndpoint }
 		, ProgramID(InProgramID)
 	{}
 
 	FGuid ProgramID;
 
 	//~ Begin FSwitchboardTask interface
+	static constexpr const TCHAR* CommandName = TEXT("fixExeFlags");
+	virtual const TCHAR* GetCommandName() const override { return CommandName; };
+
 	virtual uint32 GetEquivalenceHash() const override
 	{
 		return HashCombine(FSwitchboardTask::GetEquivalenceHash(), GetTypeHash(ProgramID));
@@ -217,34 +257,52 @@ struct FSwitchboardFixExeFlagsTask : public FSwitchboardTask
 struct FSwitchboardDisconnectTask : public FSwitchboardTask
 {
 	FSwitchboardDisconnectTask(const FGuid& InTaskId, const FIPv4Endpoint& InEndpoint)
-		: FSwitchboardTask{ESwitchboardTaskType::Disconnect, TEXT("disconnect"), InTaskId, InEndpoint}
+		: FSwitchboardTask{ESwitchboardTaskType::Disconnect, InTaskId, InEndpoint}
 	{}
+
+	//~ Begin FSwitchboardTask interface
+	static constexpr const TCHAR* CommandName = TEXT("disconnect");
+	virtual const TCHAR* GetCommandName() const override { return CommandName; };
+	//~ End FSwitchboardTask interface
 };
 
 struct FSwitchboardKeepAliveTask : public FSwitchboardTask
 {
 	FSwitchboardKeepAliveTask(const FGuid& InTaskId, const FIPv4Endpoint& InEndpoint)
-		: FSwitchboardTask{ESwitchboardTaskType::KeepAlive, TEXT("keep alive"), InTaskId, InEndpoint}
+		: FSwitchboardTask{ESwitchboardTaskType::KeepAlive, InTaskId, InEndpoint}
 	{}
+
+	//~ Begin FSwitchboardTask interface
+	static constexpr const TCHAR* CommandName = TEXT("keep alive");
+	virtual const TCHAR* GetCommandName() const override { return CommandName; };
+	//~ End FSwitchboardTask interface
 };
 
 struct FSwitchboardMinimizeWindowsTask : public FSwitchboardTask
 {
 	FSwitchboardMinimizeWindowsTask(const FGuid& InTaskId, const FIPv4Endpoint& InEndpoint)
-		: FSwitchboardTask{ ESwitchboardTaskType::MinimizeWindows, TEXT("minimize windows"), InTaskId, InEndpoint }
+		: FSwitchboardTask{ ESwitchboardTaskType::MinimizeWindows, InTaskId, InEndpoint }
 	{}
+
+	//~ Begin FSwitchboardTask interface
+	static constexpr const TCHAR* CommandName = TEXT("minimize windows");
+	virtual const TCHAR* GetCommandName() const override { return CommandName; };
+	//~ End FSwitchboardTask interface
 };
 
 struct FSwitchboardSetInactiveTimeoutTask : public FSwitchboardTask
 {
 	FSwitchboardSetInactiveTimeoutTask(const FGuid& InTaskId, const FIPv4Endpoint& InEndpoint, double InTimeoutSeconds)
-		: FSwitchboardTask{ ESwitchboardTaskType::SetInactiveTimeout, TEXT("set inactive timeout"), InTaskId, InEndpoint }
+		: FSwitchboardTask{ ESwitchboardTaskType::SetInactiveTimeout, InTaskId, InEndpoint }
 		, TimeoutSeconds(InTimeoutSeconds)
 	{}
 
 	double TimeoutSeconds;
 
 	//~ Begin FSwitchboardTask interface
+	static constexpr const TCHAR* CommandName = TEXT("set inactive timeout");
+	virtual const TCHAR* GetCommandName() const override { return CommandName; };
+
 	virtual uint32 GetEquivalenceHash() const override
 	{
 		return HashCombine(FSwitchboardTask::GetEquivalenceHash(), GetTypeHash(TimeoutSeconds));
@@ -255,7 +313,11 @@ struct FSwitchboardSetInactiveTimeoutTask : public FSwitchboardTask
 struct FSwitchboardFreeListenerBinaryTask : public FSwitchboardTask
 {
 	FSwitchboardFreeListenerBinaryTask(const FGuid& InTaskID, const FIPv4Endpoint& InEndpoint)
-		: FSwitchboardTask{ ESwitchboardTaskType::FreeListenerBinary, TEXT("frees (moves) the listener binary file on disk so that it can be overwritten"), InTaskID, InEndpoint }
+		: FSwitchboardTask{ ESwitchboardTaskType::FreeListenerBinary, InTaskID, InEndpoint }
 	{}
-};
 
+	//~ Begin FSwitchboardTask interface
+	static constexpr const TCHAR* CommandName = TEXT("free binary");
+	virtual const TCHAR* GetCommandName() const override { return CommandName; };
+	//~ End FSwitchboardTask interface
+};
