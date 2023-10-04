@@ -109,10 +109,6 @@ public abstract class ApplePlatform : Platform
 				string TargetName = Target.TargetName;
 				if (!Params.IsCodeBasedProject)
 				{
-					// instead of staging an UnrealGame.app, stage something with the project name, like say MyProjectClient-IOS-Shipping.app
-					string ProductName = AppleExports.MakeBinaryFileName(SC.ShortProjectName, Target.Platform, Target.Configuration, Target.Architectures, UnrealTargetConfiguration.Development, null);
-					ExtraOptions += $" PRODUCT_NAME={ProductName}";
-
 					if (Params.RawProjectPath != null)
 					{
 						TargetName = MakeContentOnlyTargetName(Target, Params.ShortProjectName);
@@ -205,11 +201,12 @@ public abstract class ApplePlatform : Platform
 					$"UE_OVERRIDE_STAGE_DIR=\"{SC.StageDirectory}\"";
 				if (!Params.IsCodeBasedProject)
 				{
-					// override where the .app will be located and named
-					ExtraOptions += $" SYMROOT=\"{SC.ProjectRoot}/Binaries\"";
-					string ProductName = AppleExports.MakeBinaryFileName(SC.ShortProjectName, Receipt.Platform, Receipt.Configuration, Receipt.Architectures, UnrealTargetConfiguration.Development, null);
-					ExtraOptions += $" PRODUCT_NAME={ProductName}";
-
+					if (!Params.Distribution)
+					{
+						// override where the .app will be located and named
+						ExtraOptions += $" SYMROOT=\"{SC.ProjectRoot}/Binaries\"";
+					}
+					
 					if (Params.RawProjectPath != null)
 					{
 						TargetName = MakeContentOnlyTargetName(Receipt, Params.ShortProjectName);

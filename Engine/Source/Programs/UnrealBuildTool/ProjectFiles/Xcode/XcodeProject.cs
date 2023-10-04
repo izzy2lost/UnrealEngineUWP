@@ -1370,6 +1370,8 @@ namespace UnrealBuildTool.XcodeProjectXcconfig
 				string DefaultStageDir = bIsEngineBuild ? "" : "${UE_PROJECT_DIR}/Saved/StagedBuilds/${UE_TARGET_PLATFORM_NAME}";
 				string SyncSourceSubdir = (Platform == UnrealTargetPlatform.Mac) ? "" : "/cookeddata";
 				string SyncDestSubdir = (Platform == UnrealTargetPlatform.Mac) ? "/UE" : "/cookeddata";
+				string ExecutableKey = $"UE_{Platform.ToString().ToUpper()}_EXECUTABLE_NAME";
+
 				CopyScript.AddRange(new string[]
 				{
 					"# Skip syncing if desired",
@@ -1414,7 +1416,7 @@ namespace UnrealBuildTool.XcodeProjectXcconfig
 				{
 					"",
 					$"echo \\\"Syncing ${{STAGED_DIR}}{SyncSourceSubdir} to ${{CONFIGURATION_BUILD_DIR}}/${{CONTENTS_FOLDER_PATH}}{SyncDestSubdir}\\\"",
-					$"rsync -a --delete --exclude=/Info.plist --exclude=/Manifest_* --exclude=${{UE_TARGET_NAME}}.app \\\"${{STAGED_DIR}}{SyncSourceSubdir}/\\\" \\\"${{CONFIGURATION_BUILD_DIR}}/${{CONTENTS_FOLDER_PATH}}{SyncDestSubdir}\\\"",
+					$"rsync -a --delete --exclude=/Info.plist --exclude=/Manifest_* --exclude=${{{ExecutableKey}}}.app --exclude=${{PRODUCT_NAME}} --exclude=${{{ExecutableKey}}} --exclude=${{PRODUCT_NAME}}.app \\\"${{STAGED_DIR}}{SyncSourceSubdir}/\\\" \\\"${{CONFIGURATION_BUILD_DIR}}/${{CONTENTS_FOLDER_PATH}}{SyncDestSubdir}\\\"",
 				});
 			}
 
@@ -1940,10 +1942,22 @@ namespace UnrealBuildTool.XcodeProjectXcconfig
 				// hook up the Buildconfig that matches this info to this xcconfig file
 				XcconfigFile ConfigXcconfig = MatchedConfig.Xcconfig!;
 
-				string ExecutableName = XcodeUtils.MakeExecutableFileName(Config.ExeName, Platform, Config.BuildConfig, TargetRules.Architectures, TargetRules.UndecoratedConfiguration);
+				string ExecutableName = AppleExports.MakeBinaryFileName(Config.ExeName, Platform, Config.BuildConfig, TargetRules.Architectures, TargetRules.UndecoratedConfiguration, null);
 				string ExetuableSubPath = FileReference.Combine(ConfigBuildDir, ExecutableName).MakeRelativeTo(ConfigBuildDir);
-				string ProductName = ExecutableName;
 				string ExecutableKey = $"UE_{Platform.ToString().ToUpper()}_EXECUTABLE_NAME";
+
+				// we want to make Foo.app, not FooGame.app, since we added on the target type when making targets
+				string PerTargetTypeProductName = UnrealData.ProductName;
+				if (UnrealData.bIsContentOnlyProject && TargetRules.Type == TargetType.Game)
+				{
+					PerTargetTypeProductName = UnrealData.UProjectFileLocation!.GetFileNameWithoutAnyExtensions();
+				}
+				string ProductName = ExecutableName;
+				// content only projects don't want UnrealGame, etc as the ProductName
+				if (UnrealData.bIsContentOnlyProject && TargetRules.Type != TargetType.Editor)
+				{
+					ProductName = AppleExports.MakeBinaryFileName(PerTargetTypeProductName, Platform, Config.BuildConfig, TargetRules.Architectures, TargetRules.UndecoratedConfiguration, null);
+				}
 
 				MetadataItem? EntitlementsMetadata = UnrealData.Metadata!.EntitlementsFiles[MetadataPlatform];
 

@@ -340,6 +340,7 @@
 		Engine/Build/BatchFiles/Mac/XcodeBuild.sh
 		Engine/Build/BatchFiles/Mac/GenerateUniversalDSYM.sh
 		Engine/Build/BatchFiles/Mac/UpdateVersionAfterBuild.sh
+		Engine/Build/BatchFiles/Mac/ThinApp.sh
 		Engine/Build/BatchFiles/RunDotnet.sh
 		Engine/Build/BatchFiles/RunDotnetMSBuild.sh
 		Engine/Build/BatchFiles/RunUAT.command
