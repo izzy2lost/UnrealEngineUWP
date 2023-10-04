@@ -38,6 +38,15 @@ namespace FaceNormalClustering
 	 */
 	void GEOMETRYCORE_API ComputeMeshPolyGroupsFromClusters(FDynamicMesh3& Mesh, TArray<TArray<int32>>& OutPolyGroups, const FClusterOptions& Options, TSet<int32>* IgnoreEdges = nullptr);
 
+	/**
+	 * Find the vertices at the corners of face clusters -- i.e., vertices which touch faces from three or more clusters
+	 *
+	 * @param Mesh				The Mesh to operate on
+	 * @param OutCornerVertices	All vertices which touch at least three clusters
+	 * @param Options			Options controlling the tolerances used for clustering
+	 * @param IgnoreEdges		Optional set of edges that clusters should not be merged across
+	 */
+	 void GEOMETRYCORE_API ComputeClusterCornerVertices(FDynamicMesh3& Mesh, TArray<int32>& OutCornerVertices, const FClusterOptions& Options, TSet<int32>* IgnoreEdges = nullptr);
 }
 
 } // end namespace UE::Geometry

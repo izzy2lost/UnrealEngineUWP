@@ -10,11 +10,13 @@
 #include "VectorUtil.h"
 #include "VertexConnectedComponents.h" // for FSizedDisjointSet
 
-namespace UE::Geometry::FaceNormalClustering
+namespace UE::Local::FaceNormalClusteringHelpers
 {
 
+using namespace UE::Geometry;
 
-void ComputeMeshPolyGroupsFromClusters(FDynamicMesh3& Mesh, TArray<TArray<int32>>& OutPolyGroups, const FClusterOptions& Options, TSet<int32>* IgnoreEdges)
+// Common clustering functionality used by multiple functions below
+void ComputeClustersHelper(FDynamicMesh3& Mesh, FSizedDisjointSet& OutPlaneGroups, const FaceNormalClustering::FClusterOptions& Options, TSet<int32>* IgnoreEdges)
 {
 	int32 NumT = Mesh.MaxTriangleID();
 
@@ -38,7 +40,7 @@ void ComputeMeshPolyGroupsFromClusters(FDynamicMesh3& Mesh, TArray<TArray<int32>
 	}
 
 	FSizedDisjointSet PlaneGroups;
-	PlaneGroups.Init(NumT, [&Mesh](int32 TID) { return Mesh.IsTriangle(TID); });
+	OutPlaneGroups.Init(NumT, [&Mesh](int32 TID) { return Mesh.IsTriangle(TID); });
 	int32 NumEdges = Mesh.MaxEdgeID();
 	Mesh.GetEdge(0);
 	FIndexPriorityQueue EdgeQueue(NumEdges);
@@ -53,13 +55,13 @@ void ComputeMeshPolyGroupsFromClusters(FDynamicMesh3& Mesh, TArray<TArray<int32>
 		float NormalAlignment = 1 - float(GroupNormalAreas[EdgeGroups.A].Normal.Dot(GroupNormalAreas[EdgeGroups.B].Normal));
 		return NormalAlignment;
 	};
-	auto GetMergeWeightForEdge = [&GetMergeWeightForGroups, &Mesh, &PlaneGroups](int32 EdgeID, FIndex2i& EdgeGroups) -> float
+	auto GetMergeWeightForEdge = [&GetMergeWeightForGroups, &Mesh, &OutPlaneGroups](int32 EdgeID, FIndex2i& EdgeGroups) -> float
 	{
 		EdgeGroups = Mesh.GetEdgeT(EdgeID);
-		EdgeGroups.A = PlaneGroups.Find(EdgeGroups.A);
-		EdgeGroups.B = PlaneGroups.Find(EdgeGroups.B);
+		EdgeGroups.A = OutPlaneGroups.Find(EdgeGroups.A);
+		EdgeGroups.B = OutPlaneGroups.Find(EdgeGroups.B);
 		if (EdgeGroups.A == EdgeGroups.B)
-		{		
+		{
 			// return a value guaranteed to be above any merge tolerance, so we ignore edges connecting already-merged groups
 			constexpr float CannotMergeValue = FMathf::MaxReal;
 			return CannotMergeValue;
@@ -116,7 +118,7 @@ void ComputeMeshPolyGroupsFromClusters(FDynamicMesh3& Mesh, TArray<TArray<int32>
 		}
 
 		// We know UpdatedWt < Threshold, so merge the groups
-		int32 Parent = PlaneGroups.Union(EdgeGroups.A, EdgeGroups.B);
+		int32 Parent = OutPlaneGroups.Union(EdgeGroups.A, EdgeGroups.B);
 		// Update the NormalArea of the new parent
 		const FNormalArea& NA_A = GroupNormalAreas[EdgeGroups.A];
 		const FNormalArea& NA_B = GroupNormalAreas[EdgeGroups.B];
@@ -130,6 +132,19 @@ void ComputeMeshPolyGroupsFromClusters(FDynamicMesh3& Mesh, TArray<TArray<int32>
 			break;
 		}
 	}
+}
+
+
+} // UE::Local::FaceNormalClusteringHelpers
+
+namespace UE::Geometry::FaceNormalClustering
+{
+
+
+void ComputeMeshPolyGroupsFromClusters(FDynamicMesh3& Mesh, TArray<TArray<int32>>& OutPolyGroups, const FClusterOptions& Options, TSet<int32>* IgnoreEdges)
+{
+	FSizedDisjointSet PlaneGroups;
+	UE::Local::FaceNormalClusteringHelpers::ComputeClustersHelper(Mesh, PlaneGroups, Options, IgnoreEdges);
 
 	// Copy triangle IDs of plane groups into the OutPolyGroups arrays
 	TArray<int32> CompactIdxToGroupID, GroupIDToCompactIdx;
@@ -147,6 +162,40 @@ void ComputeMeshPolyGroupsFromClusters(FDynamicMesh3& Mesh, TArray<TArray<int32>
 		int32 GroupID = PlaneGroups.Find(TID);
 		int32 CompactIdx = GroupIDToCompactIdx[GroupID];
 		OutPolyGroups[CompactIdx].Add(TID);
+	}
+}
+
+void ComputeClusterCornerVertices(FDynamicMesh3& Mesh, TArray<int32>& OutCornerVertices, const FClusterOptions& Options, TSet<int32>* IgnoreEdges)
+{
+	FSizedDisjointSet PlaneGroups;
+	UE::Local::FaceNormalClusteringHelpers::ComputeClustersHelper(Mesh, PlaneGroups, Options, IgnoreEdges);
+
+	for (int32 VID : Mesh.VertexIndicesItr())
+	{
+		int32 GIDs[3]{ -1,-1,-1 };
+		int32 FoundGIDs = 0;
+		Mesh.EnumerateVertexTriangles(VID,
+			[&](int32 TID)
+			{
+				if (FoundGIDs > 2)
+				{
+					return;
+				}
+				int32 GID = PlaneGroups.Find(TID);
+				for (int32 TestIdx = 0; TestIdx < FoundGIDs; ++TestIdx)
+				{
+					if (GIDs[TestIdx] == GID)
+					{
+						return;
+					}
+				}
+				GIDs[FoundGIDs++] = GID;
+			}
+		);
+		if (FoundGIDs > 2)
+		{
+			OutCornerVertices.Add(VID);
+		}
 	}
 }
 

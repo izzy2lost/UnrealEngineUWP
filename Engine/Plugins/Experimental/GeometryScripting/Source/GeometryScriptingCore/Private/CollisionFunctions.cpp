@@ -21,6 +21,7 @@
 #include "ShapeApproximation/ShapeDetection3.h"
 #include "ShapeApproximation/MeshSimpleShapeApproximation.h"
 
+#include "Clustering/FaceNormalClustering.h"
 #include "CompGeom/ConvexDecomposition3.h"
 #include "OrientedBoxTypes.h"
 #include "MeshQueries.h"
@@ -224,7 +225,7 @@ static void SetStaticMeshSimpleCollision(UStaticMesh* StaticMeshAsset, const FKA
 
 
 // local helper to convert the blueprint-accessible enum to the geometrycore equivalent
-static UE::Geometry::FNegativeSpaceSampleSettings::ESampleMethod ConvertNegativeSpaceSampleMethodDataflowEnum(ENegativeSpaceSampleMethod SampleMethod)
+static UE::Geometry::FNegativeSpaceSampleSettings::ESampleMethod ConvertNegativeSpaceSampleMethodEnum(ENegativeSpaceSampleMethod SampleMethod)
 {
 	switch (SampleMethod)
 	{
@@ -244,7 +245,7 @@ static FNegativeSpaceSampleSettings ConvertNegativeSpaceOptions(const FComputeNe
 	NegativeSpaceSettings.MinRadius = NegativeSpaceOptions.MinRadius;
 	NegativeSpaceSettings.ReduceRadiusMargin = NegativeSpaceOptions.NegativeSpaceTolerance;
 	NegativeSpaceSettings.MinSpacing = NegativeSpaceOptions.MinSampleSpacing;
-	NegativeSpaceSettings.SampleMethod = ConvertNegativeSpaceSampleMethodDataflowEnum(NegativeSpaceOptions.SampleMethod);
+	NegativeSpaceSettings.SampleMethod = ConvertNegativeSpaceSampleMethodEnum(NegativeSpaceOptions.SampleMethod);
 	NegativeSpaceSettings.bRequireSearchSampleCoverage = NegativeSpaceOptions.bRequireSearchSampleCoverage;
 	NegativeSpaceSettings.bReferenceMeshHasNegativeWinding = false;
 	NegativeSpaceSettings.Sanitize();
@@ -819,40 +820,60 @@ void UGeometryScriptLibrary_CollisionFunctions::SimplifyConvexHulls(
 		FKConvexElem& Elem = ConvexElems[ConvexIdx];
 		Elem.ComputeChaosConvexIndices(false); // make sure indices are computed
 
-		int32 TargetTriangleCount = FMath::Max(4, SimplifyOptions.MinTargetFaceCount);
+		int32 TargetFaceCount = FMath::Max(4, SimplifyOptions.MinTargetFaceCount);
 
 		// Convert hull to a dynamic mesh
 		FDynamicMesh3 Mesh;
-		if (!UELocal::AppendConvexElemToCompactDynamicMesh(Elem, Mesh, TargetTriangleCount))
+		if (!UELocal::AppendConvexElemToCompactDynamicMesh(Elem, Mesh, TargetFaceCount))
 		{
 			continue;
 		}
 
 		int32 InitialTriangleCount = Mesh.TriangleCount();
 
-		// Run simplification
-		FVolPresMeshSimplification Simplifier(&Mesh);
-		Simplifier.CollapseMode = FVolPresMeshSimplification::ESimplificationCollapseModes::MinimalExistingVertexError;
-		Simplifier.GeometricErrorConstraint = UE::Geometry::FVolPresMeshSimplification::EGeometricErrorCriteria::PredictedPointToProjectionTarget;
-		Simplifier.GeometricErrorTolerance = SimplifyOptions.SimplificationDistanceThreshold;
-
-		FDynamicMesh3 ProjectionTargetMesh(Mesh);
-		FDynamicMeshAABBTree3 ProjectionTargetSpatial(&ProjectionTargetMesh, true);
-		FMeshProjectionTarget ProjTarget(&ProjectionTargetMesh, &ProjectionTargetSpatial);
-		Simplifier.SetProjectionTarget(&ProjTarget);
-		Simplifier.SimplifyToTriangleCount(TargetTriangleCount);
-
-		// Simplification didn't reduce triangle count, so skip updating the convex hull
-		if (Mesh.TriangleCount() == InitialTriangleCount)
+		if (SimplifyOptions.SimplificationMethod == EGeometryScriptConvexHullSimplifyMethod::MeshQSlim)
 		{
-			continue;
+			// Run simplification
+			FVolPresMeshSimplification Simplifier(&Mesh);
+			Simplifier.CollapseMode = FVolPresMeshSimplification::ESimplificationCollapseModes::MinimalExistingVertexError;
+			Simplifier.GeometricErrorConstraint = UE::Geometry::FVolPresMeshSimplification::EGeometricErrorCriteria::PredictedPointToProjectionTarget;
+			Simplifier.GeometricErrorTolerance = SimplifyOptions.SimplificationDistanceThreshold;
+
+			FDynamicMesh3 ProjectionTargetMesh(Mesh);
+			FDynamicMeshAABBTree3 ProjectionTargetSpatial(&ProjectionTargetMesh, true);
+			FMeshProjectionTarget ProjTarget(&ProjectionTargetMesh, &ProjectionTargetSpatial);
+			Simplifier.SetProjectionTarget(&ProjTarget);
+			Simplifier.SimplifyToTriangleCount(TargetFaceCount);
+
+			// Simplification didn't reduce triangle count, so skip updating the convex hull
+			if (Mesh.TriangleCount() == InitialTriangleCount)
+			{
+				continue;
+			}
+
+			Elem.VertexData.Reset(Mesh.VertexCount());
+			for (FVector3d V : Mesh.VerticesItr())
+			{
+				Elem.VertexData.Add(V);
+			}
+		}
+		else // EGeometryScriptConvexHullSimplifyMethod::AngleTolerance
+		{
+			TArray<int32> VertexCorners;
+			FaceNormalClustering::FClusterOptions ClusterOptions;
+			ClusterOptions.TargetMinGroups = TargetFaceCount;
+			ClusterOptions.bApplyNormalToleranceToClusters = true;
+			ClusterOptions.SmallFaceAreaThreshold = UE_DOUBLE_KINDA_SMALL_NUMBER;
+			ClusterOptions.SetNormalAngleToleranceInDegrees(SimplifyOptions.SimplificationAngleThreshold);
+			FaceNormalClustering::ComputeClusterCornerVertices(Mesh, VertexCorners, ClusterOptions, nullptr);
+			Elem.VertexData.Reset(VertexCorners.Num());
+			for (int32 CornerVID : VertexCorners)
+			{
+				Elem.VertexData.Add(Mesh.GetVertex(CornerVID));
+			}
 		}
 
-		Elem.VertexData.Reset(Mesh.VertexCount());
-		for (FVector3d V : Mesh.VerticesItr())
-		{
-			Elem.VertexData.Add(V);
-		}
+
 		Elem.UpdateElemBox();
 		bHasSimplified = true;
 	}

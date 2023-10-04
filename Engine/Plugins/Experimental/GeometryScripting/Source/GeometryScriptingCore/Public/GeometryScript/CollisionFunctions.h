@@ -194,17 +194,38 @@ public:
 	FGeometryScriptSimpleCollisionTriangulationOptions ShapeToHullTriangulation;
 };
 
+// Methods to simplify convex hulls, used by FGeometryScriptConvexHullSimplificationOptions
+UENUM(BlueprintType)
+enum class EGeometryScriptConvexHullSimplifyMethod : uint8
+{
+	// Simplify convex hulls using a general mesh-based simplifier, and taking the convex hull of the simplified mesh
+	MeshQSlim,
+	// Simplify convex hulls by merging hull faces that have similar normals
+	AngleTolerance
+};
+
 USTRUCT(BlueprintType)
 struct GEOMETRYSCRIPTINGCORE_API FGeometryScriptConvexHullSimplificationOptions
 {
 	GENERATED_BODY()
 public:
 
-	/** Simplified hull should stay within this distance of the initial convex hull. */
+	/** Method to use to simplify convex hulls */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = Options)
+	EGeometryScriptConvexHullSimplifyMethod SimplificationMethod = EGeometryScriptConvexHullSimplifyMethod::MeshQSlim;
+
+	/** Simplified hull should stay within this distance of the initial convex hull. Used by the MeshQSlim simplification method. */
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = Options)
 	float SimplificationDistanceThreshold = 10.f;
 
-	/** The minimum number of faces to use for the convex hull. */
+	/** Simplified hull should preserve angles larger than this (in degrees). Used by the AngleTolerance simplification method. */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = Options)
+	float SimplificationAngleThreshold = 10.f;
+
+	/** 
+	 * The minimum number of faces to use for the convex hull.
+	 * Note that for the MeshQSlim method all faces are triangles, while the AngleTolerance method can consider more general polygons. 
+	 */
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = Options, meta = (ClampMin = 4))
 	int32 MinTargetFaceCount = 12;
 };
