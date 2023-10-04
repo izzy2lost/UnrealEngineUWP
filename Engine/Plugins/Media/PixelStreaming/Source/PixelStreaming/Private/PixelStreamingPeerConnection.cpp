@@ -209,46 +209,46 @@ namespace
 } // namespace
 
 // self registering/deregistering object for polling stats
-class FPeerWebRTCStatsSource : public UE::PixelStreaming::IStatsSource
+class FPeerWebRTCStatsSource : public IPixelStreamingStatsSource, public TSharedFromThis<FPeerWebRTCStatsSource, ESPMode::ThreadSafe>
 {
 public:
-	FPeerWebRTCStatsSource(rtc::scoped_refptr<webrtc::PeerConnectionInterface>& InPeerConnectionPtr)
-		: PeerConnection(InPeerConnectionPtr)
+	FPeerWebRTCStatsSource(rtc::scoped_refptr<webrtc::PeerConnectionInterface> InPC, rtc::scoped_refptr<webrtc::RTCStatsCollectorCallback> InCallback)
+		: PeerConnection(InPC)
+		, WebRTCStatsCallback(InCallback)
 	{
-		UE::PixelStreaming::FStats::Get()->AddWebRTCStatsSource(this);
+	}
+
+	void BindToStatsPollEvent()
+	{
+		if (UE::PixelStreaming::FStats* PSStats = UE::PixelStreaming::FStats::Get())
+		{
+			Handle = PSStats->OnStatsPolled.AddSP(this, &FPeerWebRTCStatsSource::PollStats);
+		}
 	}
 
 	virtual ~FPeerWebRTCStatsSource()
 	{
-		UE::PixelStreaming::FStats::Get()->RemoveWebRTCStatsSource(this);
-	}
-
-	virtual void PollWebRTCStats() const
-	{
-		if (PeerConnection && WebRTCStatsCallback)
+		if (UE::PixelStreaming::FStats* PSStats = UE::PixelStreaming::FStats::Get())
 		{
-			std::vector<rtc::scoped_refptr<webrtc::RtpTransceiverInterface>> Transceivers = PeerConnection->GetTransceivers();
-			for (rtc::scoped_refptr<webrtc::RtpTransceiverInterface> Transceiver : Transceivers)
-			{
-				if (Transceiver->media_type() == cricket::MediaType::MEDIA_TYPE_VIDEO)
-				{
-					const webrtc::RtpTransceiverDirection TransceiverDirection = Transceiver->direction();
-					if (TransceiverDirection == webrtc::RtpTransceiverDirection::kSendRecv || TransceiverDirection == webrtc::RtpTransceiverDirection::kSendOnly)
-					{
-						PeerConnection->GetStats(Transceiver->sender(), WebRTCStatsCallback);
-					}
-
-					if (TransceiverDirection == webrtc::RtpTransceiverDirection::kSendRecv || TransceiverDirection == webrtc::RtpTransceiverDirection::kRecvOnly)
-					{
-						PeerConnection->GetStats(Transceiver->receiver(), WebRTCStatsCallback);
-					}
-				}
-			}
+			PSStats->OnStatsPolled.Remove(Handle);
 		}
 	}
 
-	rtc::scoped_refptr<webrtc::PeerConnectionInterface>& PeerConnection;
+	virtual void PollStats() const
+	{
+		if (PeerConnection && WebRTCStatsCallback)
+		{
+			// Use the top-level PeerConnection::GetStats call as this gets us stats for video, audio, transports, datachannels etc
+			// https://w3c.github.io/webrtc-pc/#mandatory-to-implement-stats
+			// Note: For the avoidance of doubt, this GetStats() call is posted onto the WebRTC signaling thread internally.
+			PeerConnection->GetStats(WebRTCStatsCallback.get());
+		}
+	}
+
+private:
+	rtc::scoped_refptr<webrtc::PeerConnectionInterface> PeerConnection;
 	rtc::scoped_refptr<webrtc::RTCStatsCollectorCallback> WebRTCStatsCallback;
+	FDelegateHandle Handle;
 };
 
 TUniquePtr<rtc::Thread> FPixelStreamingPeerConnection::SignallingThread = nullptr;
@@ -657,11 +657,9 @@ TSharedPtr<FPixelStreamingDataChannel> FPixelStreamingPeerConnection::CreateData
 
 void FPixelStreamingPeerConnection::SetWebRTCStatsCallback(rtc::scoped_refptr<webrtc::RTCStatsCollectorCallback> InCallback)
 {
-	if (!StatsSource)
-	{
-		StatsSource = std::make_unique<FPeerWebRTCStatsSource>(PeerConnection);
-	}
-	StatsSource->WebRTCStatsCallback = InCallback;
+	TSharedPtr<FPeerWebRTCStatsSource> NewStatsSource = MakeShared<FPeerWebRTCStatsSource>(PeerConnection, InCallback);
+	NewStatsSource->BindToStatsPollEvent();
+	StatsSource = NewStatsSource;
 }
 
 rtc::scoped_refptr<webrtc::AudioSourceInterface> FPixelStreamingPeerConnection::GetApplicationAudioSource()

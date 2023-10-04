@@ -4,6 +4,7 @@
 #include "ILiveLinkClient.h"
 #include "Roles/LiveLinkTransformRole.h"
 #include "Roles/LiveLinkTransformTypes.h"
+#include "IPixelStreamingStats.h"
 
 #define LOCTEXT_NAMESPACE "PixelStreamingLiveLinkSource"
 
@@ -17,6 +18,7 @@ UPixelStreamingLiveLinkSourceSettings::UPixelStreamingLiveLinkSourceSettings()
 FPixelStreamingLiveLinkSource::FPixelStreamingLiveLinkSource()
 	: LiveLinkClient(nullptr)
 {
+	LastTransformGraphedCycles = FPlatformTime::Cycles64();
 }
 
 void FPixelStreamingLiveLinkSource::ReceiveClient(ILiveLinkClient* InClient, FGuid InSourceGuid)
@@ -79,7 +81,7 @@ void FPixelStreamingLiveLinkSource::RemoveSubject(FName SubjectName) const
 	}
 }
 
-void FPixelStreamingLiveLinkSource::PushTransformForSubject(FName SubjectName, FTransform Transform) const
+void FPixelStreamingLiveLinkSource::PushTransformForSubject(FName SubjectName, FTransform Transform)
 {
 	if (LiveLinkClient)
 	{
@@ -91,11 +93,12 @@ void FPixelStreamingLiveLinkSource::PushTransformForSubject(FName SubjectName, F
 	}
 }
 
-void FPixelStreamingLiveLinkSource::PushTransformForSubject(FName SubjectName, FTransform Transform,
-	double Timestamp) const
+void FPixelStreamingLiveLinkSource::PushTransformForSubject(FName SubjectName, FTransform Transform, double Timestamp)
 {
 	if (LiveLinkClient)
 	{
+		NTransformsPushed++;
+
 		const FLiveLinkSubjectKey SubjectKey(SourceGuid, SubjectName);
 		FLiveLinkFrameDataStruct FrameDataStruct(FLiveLinkTransformFrameData::StaticStruct());
 		FLiveLinkTransformFrameData* TransformFrameData = FrameDataStruct.Cast<FLiveLinkTransformFrameData>();
@@ -105,8 +108,20 @@ void FPixelStreamingLiveLinkSource::PushTransformForSubject(FName SubjectName, F
 		// this will be adjusted as actual rate information is supported
 		const int32 NumberOfFrames = FMath::FloorToInt32(Timestamp * 60.0);
 		TransformFrameData->MetaData.SceneTime = FQualifiedFrameTime(NumberOfFrames, FFrameRate(60,1));
-		
+
 		LiveLinkClient->PushSubjectFrameData_AnyThread(SubjectKey, MoveTemp(FrameDataStruct));
+
+		// Graph the number of transforms sent to livelink
+		uint64 NowCycles = FPlatformTime::Cycles64();
+		double SecondsDelta = FGenericPlatformTime::ToSeconds64(NowCycles - LastTransformGraphedCycles);
+		if(SecondsDelta > 1.0f)
+		{
+			FName GraphName = FName(*(FString(TEXT("NTransformsSentSec_")) + SubjectName.ToString()));
+			IPixelStreamingStats::Get().GraphValue(GraphName, NTransformsPushed, 60, 0, 300);
+			NTransformsPushed = 0;
+			LastTransformGraphedCycles = NowCycles;
+		}
+
 	}
 }
 

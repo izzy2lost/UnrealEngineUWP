@@ -705,11 +705,6 @@ namespace UE::PixelStreaming
 			});
 		}
 
-		if (FStats* Stats = FStats::Get())
-		{
-			Stats->RemovePeerStats(PlayerId);
-		}
-
 		if (UPixelStreamingDelegates* Delegates = UPixelStreamingDelegates::GetPixelStreamingDelegates())
 		{
 			Delegates->OnClosedConnection.Broadcast(StreamerId, PlayerId, bWasQualityController);
@@ -720,15 +715,30 @@ namespace UE::PixelStreaming
 				Delegates->OnAllConnectionsClosedNative.Broadcast(StreamerId);
 			}
 		}
+
+		if(FStats* PSStats = FStats::Get())
+		{
+			PSStats->RemovePeerStats(PlayerId);
+		}
 	}
 
 	void FStreamer::DeleteAllPlayerSessions()
 	{
+		if(FStats* PSStats = FStats::Get())
+		{
+			PSStats->RemoveAllPeerStats();
+		}
+
 		VideoSourceGroup->RemoveAllVideoSources();
 		Players.Empty();
 		SFUPlayerId = INVALID_PLAYER_ID;
 		QualityControllingId = INVALID_PLAYER_ID;
 		InputControllingId = INVALID_PLAYER_ID;
+		if (UPixelStreamingDelegates* Delegates = UPixelStreamingDelegates::GetPixelStreamingDelegates())
+		{
+			Delegates->OnAllConnectionsClosed.Broadcast(StreamerId);
+			Delegates->OnAllConnectionsClosedNative.Broadcast(StreamerId);
+		}
 	}
 
 	void FStreamer::AddNewDataChannel(FPixelStreamingPlayerId PlayerId, TSharedPtr<FPixelStreamingDataChannel> NewChannel)
@@ -979,9 +989,8 @@ namespace UE::PixelStreaming
 				FStats* Stats = FStats::Get();
 				if (Stats)
 				{
-					// bool QueryPeerStat(FPixelStreamingPlayerId PlayerId, FName StatToQuery, double& OutStatValue)
-					Stats->QueryPeerStat(PlayerId, PixelStreamingStatNames::MeanEncodeTime, EncodeMs);
-					Stats->QueryPeerStat(PlayerId, PixelStreamingStatNames::AvgSendDelay, CaptureToSendMs);
+					Stats->QueryPeerStat(PlayerId, RTCStatTypes::OutboundRTP, PixelStreamingStatNames::MeanEncodeTime, EncodeMs);
+					Stats->QueryPeerStat(PlayerId, RTCStatTypes::OutboundRTP, PixelStreamingStatNames::AvgSendDelay, CaptureToSendMs);
 				}
 
 				double TransmissionTimeMs = FPlatformTime::ToMilliseconds64(FPlatformTime::Cycles64());

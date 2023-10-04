@@ -14,6 +14,17 @@ namespace UE::PixelStreaming
 	class FAudioInputMixer;
 }
 
+// TODO(Luke.Bermingham): PixelStreamingPeerConnection should have an IPixelStreamingPeerConnection and FPixelStreamingPeerConnection can go private.
+
+// An interface that allows us to collect regular stats from anything that implements it (we use this for WebRTC stats polling internally).
+class IPixelStreamingStatsSource
+{
+public:
+	virtual ~IPixelStreamingStatsSource() = default;
+	/* Implement your function to poll whatever stats you are returning/storing. */
+	virtual void PollStats() const = 0;
+};
+
 /**
  * A specialized representation of a WebRTC peer connection for Pixel Streaming.
  */
@@ -284,8 +295,8 @@ private:
 	/* The video codec that is negotiated and extracted from the SDP. */
 	EPixelStreamingCodec NegotiatedVideoCodec = EPixelStreamingCodec::Invalid;
 
-	// using unique_ptr here because TUniquePtr does not like incomplete types with -disableunity and -nopch
-	std::unique_ptr<class FPeerWebRTCStatsSource> StatsSource;
+	/* Source of WebRTC stats that we poll regularly. */
+	TSharedPtr<IPixelStreamingStatsSource> StatsSource;
 
 	bool IsSFU = false;
 	bool bIsDestroying = false;

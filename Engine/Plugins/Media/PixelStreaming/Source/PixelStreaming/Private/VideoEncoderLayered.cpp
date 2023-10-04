@@ -88,6 +88,21 @@ namespace
 			return adapter_->OnEncodedImage(stream_idx_, encoded_image, codec_specific_info);
 		}
 
+		virtual void OnDroppedFrame(EncodedImageCallback::DropReason Reason) override
+		{
+			switch(Reason)
+			{
+				case EncodedImageCallback::DropReason::kDroppedByEncoder:
+					UE_LOG(LogPixelStreaming, Warning, TEXT("Frame was dropped by the encoder."))
+					break;
+				case EncodedImageCallback::DropReason::kDroppedByMediaOptimizations:
+					UE_LOG(LogPixelStreaming, Warning, TEXT("Frame was dropped due to media optimization (perhaps bitrate limits)."))
+					break;
+				default:
+					UE_LOG(LogPixelStreaming, Warning, TEXT("Frame was dropped due to unknown drop reason, perhaps we need a new case here.)."))
+			}
+		}
+
 	private:
 		UE::PixelStreaming::FVideoEncoderLayered* const adapter_;
 		const size_t stream_idx_;
