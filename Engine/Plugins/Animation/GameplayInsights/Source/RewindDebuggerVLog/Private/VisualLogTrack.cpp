@@ -69,63 +69,62 @@ bool FVisualLogCategoryTrack::UpdateInternal()
 	double EndTime = TraceTimeRange.GetUpperBoundValue();
 	
 	const TraceServices::IAnalysisSession* AnalysisSession = RewindDebugger->GetAnalysisSession();
-	const FVisualLoggerProvider* VisLogProvider = AnalysisSession->ReadProvider<FVisualLoggerProvider>(FVisualLoggerProvider::ProviderName);
-	
-	if(EventUpdateRequested > 10 && VisLogProvider)
+	if (const FVisualLoggerProvider* VisLogProvider = AnalysisSession->ReadProvider<FVisualLoggerProvider>(FVisualLoggerProvider::ProviderName))
 	{
-		EventUpdateRequested = 0;
-		
-		EventData->Points.SetNum(0,false);
-		EventData->Windows.SetNum(0);
-
-		TraceServices::FAnalysisSessionReadScope SessionReadScope(*AnalysisSession);
-		
-		VisLogProvider->ReadVisualLogEntryTimeline(ObjectId, [this, StartTime, EndTime, VisLogProvider, AnalysisSession](const FVisualLoggerProvider::VisualLogEntryTimeline& InTimeline)
+		if(EventUpdateRequested > 10)
 		{
-			InTimeline.EnumerateEvents(StartTime, EndTime, [this, StartTime, EndTime, VisLogProvider, AnalysisSession](double InStartTime, double InEndTime, uint32 InDepth, const FVisualLogEntry& InMessage)
-			{
-				for(const FVisualLogShapeElement& Element : InMessage.ElementsToDraw)
-				{
-					EventData->Points.Add({InMessage.TimeStamp,FText::FromName(Element.Category), FText::FromString(Element.Description),Element.GetFColor()});
-				}
-				return TraceServices::EEventEnumerate::Continue;
-			});
-		});
-	}
+			EventUpdateRequested = 0;
+			
+			EventData->Points.SetNum(0,false);
+			EventData->Windows.SetNum(0);
 
-
-	double CurrentScrubTime = IRewindDebugger::Instance()->CurrentTraceTime();
-	if (PreviousScrubTime != CurrentScrubTime)
-	{
-		PreviousScrubTime = CurrentScrubTime;
-		DetailsObject->VisualLogDetails.SetNum(0,false);
-		
-		const TraceServices::IFrameProvider& FramesProvider = TraceServices::ReadFrameProvider(*AnalysisSession);
-		TraceServices::FFrame MarkerFrame;
-		if(FramesProvider.GetFrameFromTime(ETraceFrameType::TraceFrameType_Game, CurrentScrubTime, MarkerFrame))
-		{
-			VisLogProvider->ReadVisualLogEntryTimeline(ObjectId, [this, &MarkerFrame, EndTime, VisLogProvider, AnalysisSession](const FVisualLoggerProvider::VisualLogEntryTimeline& InTimeline)
+			TraceServices::FAnalysisSessionReadScope SessionReadScope(*AnalysisSession);
+			
+			VisLogProvider->ReadVisualLogEntryTimeline(ObjectId, [this, StartTime, EndTime, VisLogProvider, AnalysisSession](const FVisualLoggerProvider::VisualLogEntryTimeline& InTimeline)
 			{
-				InTimeline.EnumerateEvents(MarkerFrame.StartTime, MarkerFrame.EndTime, [this, VisLogProvider, AnalysisSession](double InStartTime, double InEndTime, uint32 InDepth, const FVisualLogEntry& InMessage)
+				InTimeline.EnumerateEvents(StartTime, EndTime, [this, StartTime, EndTime, VisLogProvider, AnalysisSession](double InStartTime, double InEndTime, uint32 InDepth, const FVisualLogEntry& InMessage)
 				{
 					for(const FVisualLogShapeElement& Element : InMessage.ElementsToDraw)
 					{
-						DetailsObject->VisualLogDetails.Add({Element.Category, Element.Description});
-					}
-					
-					for(const FVisualLogLine& Line : InMessage.LogLines)
-					{
-						DetailsObject->VisualLogDetails.Add({Line.Category, Line.Line});
+						EventData->Points.Add({InMessage.TimeStamp,FText::FromName(Element.Category), FText::FromString(Element.Description),Element.GetFColor()});
 					}
 					return TraceServices::EEventEnumerate::Continue;
 				});
 			});
 		}
+
+
+		double CurrentScrubTime = IRewindDebugger::Instance()->CurrentTraceTime();
+		if (PreviousScrubTime != CurrentScrubTime)
+		{
+			PreviousScrubTime = CurrentScrubTime;
+			DetailsObject->VisualLogDetails.SetNum(0,false);
+			
+			const TraceServices::IFrameProvider& FramesProvider = TraceServices::ReadFrameProvider(*AnalysisSession);
+			TraceServices::FFrame MarkerFrame;
+			if(FramesProvider.GetFrameFromTime(ETraceFrameType::TraceFrameType_Game, CurrentScrubTime, MarkerFrame))
+			{
+				VisLogProvider->ReadVisualLogEntryTimeline(ObjectId, [this, &MarkerFrame, EndTime, VisLogProvider, AnalysisSession](const FVisualLoggerProvider::VisualLogEntryTimeline& InTimeline)
+				{
+					InTimeline.EnumerateEvents(MarkerFrame.StartTime, MarkerFrame.EndTime, [this, VisLogProvider, AnalysisSession](double InStartTime, double InEndTime, uint32 InDepth, const FVisualLogEntry& InMessage)
+					{
+						for(const FVisualLogShapeElement& Element : InMessage.ElementsToDraw)
+						{
+							DetailsObject->VisualLogDetails.Add({Element.Category, Element.Description});
+						}
+						
+						for(const FVisualLogLine& Line : InMessage.LogLines)
+						{
+							DetailsObject->VisualLogDetails.Add({Line.Category, Line.Line});
+						}
+						return TraceServices::EEventEnumerate::Continue;
+					});
+				});
+			}
+		}
 	}
 	
-	
 	bool bChanged = false;
-
 	return bChanged;
 	
 }
