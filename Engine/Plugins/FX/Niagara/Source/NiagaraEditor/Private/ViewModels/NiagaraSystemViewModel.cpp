@@ -2184,7 +2184,10 @@ void FNiagaraSystemViewModel::UpdateSequencerTracksForEmitters(const TArray<FGui
 				EmitterTrack->UpdateTrackFromEmitterGraphChange(NiagaraSequence->GetMovieScene()->GetTickResolution());
 			}
 		}
-		Sequencer->NotifyMovieSceneDataChanged(EMovieSceneDataChangeType::MovieSceneStructureItemsChanged);
+
+		// We use 'Unknown' here because this is a generic Refresh function with no context as to what changed.
+		// Also, using 'MovieSceneStructureItemsChanged' will clear the selection
+		Sequencer->NotifyMovieSceneDataChanged(EMovieSceneDataChangeType::Unknown);
 	}
 }
 
