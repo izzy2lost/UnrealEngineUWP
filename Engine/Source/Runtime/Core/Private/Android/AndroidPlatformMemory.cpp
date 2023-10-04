@@ -25,6 +25,12 @@ extern jobject GGameActivityThis;
 #include "Containers/Ticker.h"
 #include "memory_advice/memory_advice.h"
 
+// TEMP because a future update to mem advisor will include this API.
+int64_t TEMPMemoryAdvice_getAvailableMemory()
+{
+	return static_cast<int64_t>((MemoryAdvice_getPercentageAvailableMemory() / 100.0) * (double)MemoryAdvice_getTotalMemory());
+}
+
 static int GAndroidUseMemoryAdvisor = 0;
 static bool GMemoryAdvisorInitialized = false;
 static MemoryAdvice_MemoryState GMemoryAdvisorState = MEMORYADVICE_STATE_OK;
@@ -52,15 +58,21 @@ static const TCHAR* MemStateToString(MemoryAdvice_MemoryState State)
 	}
 }
 
+JNI_METHOD jlong Java_com_epicgames_unreal_GameActivity_nativeGetMemAdvisorAvailableBytes(JNIEnv* jenv, jobject thiz)
+{
+	return TEMPMemoryAdvice_getAvailableMemory();
+}
+
 static bool MemoryAdvisorTick(float dt)
 {
 	const MemoryAdvice_MemoryState State = GMemoryAdvisorStateThreaded.load(std::memory_order_acquire);
 	if (State != GMemoryAdvisorState)
 	{
-		//SetGameData is not thread safe, so we have to set it in GT only, that's why we update the value via GMemoryAdvisorStateThreaded
+		//SetEngineData is not thread safe, so we have to set it in GT only, that's why we update the value via GMemoryAdvisorStateThreaded
 		const TCHAR* StringState = MemStateToString(State);
 		UE_LOG(LogAndroid, Log, TEXT("MemAdvice new state : %s"), StringState);
-		FGenericCrashContext::SetGameData(TEXT("UE.Android.GoogleMemAdvice"), StringState);
+		FGenericCrashContext::SetEngineData(TEXT("UE.Android.GoogleMemAdvice"), StringState);
+		FGenericCrashContext::SetEngineData(TEXT("UE.Android.GoogleMemAdviceAvailableMem"), *FString::Printf(TEXT("%lld"), TEMPMemoryAdvice_getAvailableMemory()));
 		GMemoryAdvisorState = State;
 	}
 
@@ -89,6 +101,11 @@ static void OnCVarAndroidUseMemoryAdvisorChanged(IConsoleVariable* Var)
 		{
 			FTSTicker& Ticker = FTSTicker::GetCoreTicker();
 			Ticker.AddTicker(FTickerDelegate::CreateStatic(&MemoryAdvisorTick), 1.0f);
+
+			const int64 MemAvail = TEMPMemoryAdvice_getAvailableMemory();
+			UE_LOG(LogInit, Log, TEXT("Mem advisor v%d.%d.%d in use, %lld total bytes predicted. %lld available bytes."), MEMORY_ADVICE_MAJOR_VERSION, MEMORY_ADVICE_MINOR_VERSION, MEMORY_ADVICE_BUGFIX_VERSION, MemoryAdvice_getTotalMemory(), MemAvail);
+			FGenericCrashContext::SetEngineData(TEXT("UE.Android.GoogleMemAdviceTotalMem"), *FString::Printf(TEXT("%lld"), MemoryAdvice_getTotalMemory()));
+			FGenericCrashContext::SetEngineData(TEXT("UE.Android.GoogleMemAdviceAvailableMem"), *FString::Printf(TEXT("%lld"), MemAvail));
 		}
 		else
 		{
@@ -161,6 +178,8 @@ void FAndroidPlatformMemory::Init()
 
 #if HAS_ANDROID_MEMORY_ADVICE
 	CVarAndroidUseMemoryAdvisor->SetOnChangedCallback(FConsoleVariableDelegate::CreateStatic(&OnCVarAndroidUseMemoryAdvisorChanged));
+	// explicitly init memadvisor.
+	OnCVarAndroidUseMemoryAdvisorChanged(nullptr);
 #endif
 }
 

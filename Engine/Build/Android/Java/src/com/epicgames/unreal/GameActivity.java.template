@@ -2596,6 +2596,7 @@ public class GameActivity extends $${gameActivitySuperClass}$$ implements Surfac
 							memLog += "memstat: "+memstatusline + "\n";
 				    	}
 					}
+					//$${gameActivityMemStatAdditions}$$
 					Log.debug(memLog);
 				}
 				synchronized(_activity)
