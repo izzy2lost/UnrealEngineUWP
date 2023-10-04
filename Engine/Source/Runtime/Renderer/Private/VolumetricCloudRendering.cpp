@@ -1424,6 +1424,7 @@ public:
 	{
 		FGlobalShader::ModifyCompilationEnvironment(Parameters, OutEnvironment);
 		OutEnvironment.SetDefine(TEXT("SHADER_DEBUG_SHADOW_CS"), TEXT("1"));
+		OutEnvironment.CompilerFlags.Add(CFLAG_ForceDXC);
 	}
 };
 

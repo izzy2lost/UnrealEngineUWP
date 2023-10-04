@@ -1097,6 +1097,7 @@ class FDebugLightGridPS : public FGlobalShader
 		OutEnvironment.CompilerFlags.Add(CFLAG_Debug);
 		OutEnvironment.CompilerFlags.Add(CFLAG_AllowTypedUAVLoads);
 		OutEnvironment.SetDefine(TEXT("SHADER_DEBUG_LIGHT_GRID_PS"), 1);
+		OutEnvironment.CompilerFlags.Add(CFLAG_ForceDXC);
 		FForwardLightingParameters::ModifyCompilationEnvironment(Parameters.Platform, OutEnvironment);
 	}
 };
