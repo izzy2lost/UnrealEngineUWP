@@ -383,9 +383,14 @@ void FLandscapeConfigHelper::MoveFoliageToLandscape(ULandscapeInfo* InLandscapeI
 
 				if (NewCollisionComponent && FBoxSphereBounds::BoxesIntersect(NewCollisionComponent->Bounds, OldCollisionComponent->Bounds))
 				{
+					// only transfer instances overlapping the new box in x,y
 					FBox Box = NewCollisionComponent->Bounds.GetBox();
-					Box.Min.Z = -WORLD_MAX;
-					Box.Max.Z = WORLD_MAX;
+					FBox OldBox = OldCollisionComponent->Bounds.GetBox();
+
+					// but allow just about any Z (expand old bounds by max extent)
+					double Extent = OldBox.GetExtent().GetMax();
+					Box.Min.Z = OldBox.Min.Z - Extent;
+					Box.Max.Z = OldBox.Max.Z + Extent;
 
 					AInstancedFoliageActor::MoveInstancesToNewComponent(World, OldCollisionComponent, Box, NewCollisionComponent);
 				}
