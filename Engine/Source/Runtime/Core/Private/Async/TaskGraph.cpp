@@ -1824,7 +1824,6 @@ class FTaskGraphCompatibilityImplementation final : public FTaskGraphInterface
 	TArray<FWorkerThread> NamedThreads;
 
 	FThreadSafeCounter	ReentrancyCheck;
-	FAAArrayQueue<FBaseGraphTask>	QueuedBackgroundTasks;
 
 	std::atomic<bool> bReserveWorkersEnabled{ false };
 
