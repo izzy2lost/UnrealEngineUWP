@@ -109,10 +109,12 @@ struct FUpdateGroupsTask
 	UMovieSceneEntityGroupingSystem* System;
 	FBuiltInComponentTypes* BuiltInComponents;
 	TBitArray<> ModifiedGroups;
+	bool bFreeGroupIDs = true;
 
-	FUpdateGroupsTask(UMovieSceneEntityGroupingSystem* InSystem)
+	FUpdateGroupsTask(UMovieSceneEntityGroupingSystem* InSystem, bool bInFreeGroupIDs = true)
 		: System(InSystem)
 		, BuiltInComponents(nullptr)
+		, bFreeGroupIDs(bInFreeGroupIDs)
 	{
 	}
 
@@ -167,7 +169,7 @@ struct FUpdateGroupsTask
 		// Run the handlers' post-task callback.
 		for (const UMovieSceneEntityGroupingSystem::FEntityGroupingHandlerInfo& HandlerInfo : System->GroupHandlers)
 		{
-			HandlerInfo.Handler->PostTask();
+			HandlerInfo.Handler->PostTask(bFreeGroupIDs);
 		}
 	}
 };
@@ -274,7 +276,10 @@ void UMovieSceneEntityGroupingSystem::OnCleanTaggedGarbage()
 	// group.
 	FBuiltInComponentTypes* BuiltInComponents = FBuiltInComponentTypes::Get();
 
-	FUpdateGroupsTask GroupTask(this);
+	// Don't free group IDs. We only want to free them on instantiation phases, so that downstream
+	// systems don't see any surprisingly re-used IDs from one instantiation frame to another.
+	const bool bFreeGroupIDs = false;
+	FUpdateGroupsTask GroupTask(this, bFreeGroupIDs);
 	FEntityTaskBuilder()
 	.ReadEntityIDs()
 	.Write(BuiltInComponents->Group)

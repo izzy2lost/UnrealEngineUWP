@@ -54,7 +54,7 @@ struct IEntityGroupingHandler
 	virtual ~IEntityGroupingHandler() {}
 	virtual void PreTask() {}
 	virtual void ProcessAllocation(FEntityAllocationIteratorItem Item, FReadEntityIDs EntityIDs, TWrite<FEntityGroupID> GroupIDs, FEntityGroupBuilder* Builder) = 0;
-	virtual void PostTask() {}
+	virtual void PostTask(bool bFreeGroupIDs) {}
 
 #if WITH_EDITOR
 	virtual void OnObjectsReplaced(const TMap<UObject*, UObject*>& ReplacementMap) = 0;
@@ -152,7 +152,6 @@ struct TEntityGroupingHandlerImpl<GroupingPolicy, TIntegerSequence<int, Componen
 
 	virtual void PreTask() override
 	{
-		FreedGroupIndices.Reset();
 		PreTaskImpl(&Policy);
 	}
 
@@ -274,14 +273,14 @@ struct TEntityGroupingHandlerImpl<GroupingPolicy, TIntegerSequence<int, Componen
 	}
 
 	static void PostTaskImpl(void*, ...){}
-	template <typename T> static void PostTaskImpl(T* InPolicy, decltype(&T::PostTask)* = 0)
+	template <typename T> static void PostTaskImpl(T* InPolicy, bool bInFreeGroupIDs, decltype(&T::PostTask)* = 0)
 	{
-		InPolicy->PostTask();
+		InPolicy->PostTask(bInFreeGroupIDs);
 	}
 	
-	virtual void PostTask() override
+	virtual void PostTask(bool bInFreeGroupIDs) override
 	{
-		if (FreedGroupIndices.CountSetBits() > 0)
+		if (bInFreeGroupIDs && FreedGroupIndices.Find(true) != INDEX_NONE)
 		{
 			// Build a reverse lookup map to figure out which group keys we don't need anymore
 			// based on the group indices we have freed.
