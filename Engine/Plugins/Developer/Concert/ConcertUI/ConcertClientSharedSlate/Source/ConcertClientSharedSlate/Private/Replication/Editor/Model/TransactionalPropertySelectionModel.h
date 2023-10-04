@@ -21,10 +21,10 @@ namespace UE::ConcertClientSharedSlate
 			);
 		
 		//~ Begin IEditableObjectToPropertiesModel Interface
-		virtual void AddObjects(TArrayView<UObject*> Objects) override;
-		virtual void RemoveObjects(TArrayView<FSoftObjectPath> Objects) override;
-		virtual void AddProperties(const FSoftObjectPath&, TArrayView<FConcertPropertyChain> Properties) override;
-		virtual void RemoveProperties(const FSoftObjectPath&, TArrayView<FConcertPropertyChain> Properties) override;
+		virtual void AddObjects(TConstArrayView<UObject*> Objects) override;
+		virtual void RemoveObjects(TConstArrayView<FSoftObjectPath> Objects) override;
+		virtual void AddProperties(const FSoftObjectPath&, TConstArrayView<FConcertPropertyChain> Properties) override;
+		virtual void RemoveProperties(const FSoftObjectPath&, TConstArrayView<FConcertPropertyChain> Properties) override;
 		//~ End IEditableObjectToPropertiesModel Interface
 
 		//~ Begin FEditorUndoClient Interface

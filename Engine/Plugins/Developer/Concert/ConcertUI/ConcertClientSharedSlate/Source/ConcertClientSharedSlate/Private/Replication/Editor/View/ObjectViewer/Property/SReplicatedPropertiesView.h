@@ -5,7 +5,7 @@
 #include "Filters/SBasicFilterBar.h"
 #include "Widgets/DeclarativeSyntaxSupport.h"
 #include "Widgets/SCompoundWidget.h"
-#include "Replication/Editor/View/ObjectViewer/SReplicationTreeView.h"
+#include "Replication/Editor/View/ObjectViewer/Tree/SReplicationTreeView.h"
 
 namespace UE::ConcertClientSharedSlate
 {

@@ -7,14 +7,18 @@
 namespace UE::ConcertClientSharedSlate
 {
 	class IPropertySelectionSourceModel;
+	
 	/**
-	 * This model is used by SPropertyReplicationSelectionEditor.
+	 * This model is passed tp SObjectToPropertyView by SObjectToPropertyEditor.
+	 *
+	 * The goal here is to mock some of the functions so the UI displays more than is in the model for an easier editing
+	 * experience:
+	 * - The root object outliner will only displays AActors.
+	 * - The property view will display the properties reported by an IPropertySelectionSourceModel (which is usually ALL properties of the object class).
 	 * 
-	 * It forwards most functions except for ForEachProperty, which fakes to the SPropertyReplicationSelectionView
-	 * that all properties are selected. The properties are added to the real model via checking and unchecking the box.
-	 * 
-	 * This allows the SPropertyReplicationSelectionView to continue to show the properties it is being told are in the model,
-	 * which is important e.g. for the connection view (when a client is connected to a session and views the properties being sent).
+	 * SObjectToPropertyEditor injects column checkboxes on property rows which handle adding the properties to the real,
+	 * underlying model.
+	 * @see UE::ConcertClientSharedSlate::ReplicationPropertyColumns::ReplicatesColumns.
 	 */
 	class FFakeObjectToPropertiesEditorModel : public IObjectToPropertiesModel
 	{
@@ -26,14 +30,17 @@ namespace UE::ConcertClientSharedSlate
 		{}
 
 		//~ Begin IObjectToPropertiesModel Interface
+		
+		// Technically these functions should be also be wrapped but the SObjectToPropertyView does not use them so let's not for now.
 		virtual uint32 GetNumReplicatedObjects() const override { return RealModel->GetNumReplicatedObjects(); }
 		virtual uint32 GetNumProperties(const FSoftObjectPath& Object) const override { return RealModel->GetNumProperties(Object); }
-		virtual FSoftClassPath GetObjectClass(const FSoftObjectPath& Object) const override { return RealModel->GetObjectClass(Object); }
 		virtual bool ContainsObjects(const TSet<FSoftObjectPath>& Objects) const override { return RealModel->ContainsObjects(Objects); }
-		// This function is by SPropertyReplicationSelectionEditor and not used by SPropertyReplicationSelectionView so forward it normally
+		
+		virtual FSoftClassPath GetObjectClass(const FSoftObjectPath& Object) const override;
+		// This function is by SObjectToPropertyEditor and not used by SObjectToPropertyView so forward it normally
 		virtual bool ContainsProperties(const FSoftObjectPath& Object, const TSet<FConcertPropertyChain>& Properties) const override { return RealModel->ContainsProperties(Object, Properties); }
-		virtual bool ForEachReplicatedObject(TFunctionRef<EBreakBehavior(const FSoftObjectPath& Object)> Delegate) const override { return RealModel->ForEachReplicatedObject(Delegate); }
-		virtual bool ForEachProperty(const FSoftObjectPath& Object, TFunctionRef<EBreakBehavior(const FConcertPropertyChain& Property)> Delegate) const override;
+		virtual bool ForEachReplicatedObject(TFunctionRef<EBreakBehavior(const FSoftObjectPath& Object)> Delegate) const override;
+		virtual bool ForEachProperty(const FSoftObjectPath& ObjectPath, TFunctionRef<EBreakBehavior(const FConcertPropertyChain& Property)> Delegate) const override;
 		//~ End IObjectToPropertiesModel Interface
 
 	private:
@@ -43,6 +50,8 @@ namespace UE::ConcertClientSharedSlate
 
 		/** Determines the properties that can be selected. */
 		TSharedRef<IPropertySelectionSourceModel> PropertySelectionSource;
+
+		bool IsRootObject(const FSoftObjectPath& ObjectPath) const;
 	};
 }
 

@@ -39,8 +39,8 @@ namespace UE::MultiUserClient
 	}
 
 	void FClientStreamRepository::OnObjectsChanged(
-		TArrayView<UObject*> Objects,
-		TArrayView<FSoftObjectPath> SoftObjectPaths,
+		TConstArrayView<UObject*> Objects,
+		TConstArrayView<FSoftObjectPath> SoftObjectPaths,
 		ConcertClientSharedSlate::EReplicatedObjectChangeReason ReplicatedObjectChangeReason
 		)
 	{

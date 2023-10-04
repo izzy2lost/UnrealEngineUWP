@@ -13,6 +13,11 @@ struct FObjectReplicationMap;
 
 namespace UE::ConcertClientSharedSlate
 {
+	class IReplicationSubobjectView;
+}
+
+namespace UE::ConcertClientSharedSlate
+{
 	class IEditableObjectToPropertiesModel;
 	class IReplicationEditorView;
 	class IObjectSelectionSourceModel;
@@ -39,18 +44,36 @@ namespace UE::ConcertClientSharedSlate
 		TSharedRef<IPropertySelectionSourceModel> PropertySource;
 
 		// TODO DP: Add way to add more columns
+
+		/**
+		 * Optional. This is inserted between the root object outliner and property view.
+		 * It e.g. displays the components of the actor selected in the root object view.
+		 * 
+		 * Exists so it can be customized differently depending on whether used in the editor or on the server-
+		 */
+		TSharedPtr<IReplicationSubobjectView> SubobjectView;
 	};
+	
+	/** Creates an object that looks like the SSubobjectEditor. */
+	CONCERTCLIENTSHAREDSLATE_API TSharedRef<IReplicationSubobjectView> CreateUnrealEditorSubobjectView();
 
 	/**
 	 * Creates a replication editor.
 	 * 
 	 * The editor consists of three areas, which share similar workflows as the world outliner and details panel in the level editor:
 	 * 1. Root objects,  similar to world outliner: objects (usually actors) are added here. FCreateEditorParams::ObjectSource is used to build a combo button through which new objects can be added.
-	 * 2. Subobjects, similar to component view (SSubobjectEditor): Shows subobjects of a root objects selected above; typically components.
+	 * 2. Subobjects (optional), similar to component view (SSubobjectEditor): Shows subobjects of a root objects selected above; typically components.
 	 * 3. Properties, similar to details panel: Shows properties of the selected root object and / or subobjects.
 	 */
 	CONCERTCLIENTSHAREDSLATE_API TSharedRef<IReplicationEditorView> CreateEditor(FCreateEditorParams Params);
 
+	/** Creates a default IReplicationEditorView view to use in the Unreal Editor (as opposed to on the server, etc.). */
+	inline TSharedRef<IReplicationEditorView> CreateEditorForUnrealEditor(FCreateEditorParams BaseParams)
+	{
+		BaseParams.SubobjectView = CreateUnrealEditorSubobjectView();
+		return CreateEditor(MoveTemp(BaseParams));
+	}
+	
 	/**
 	 * Creates a model that can be passed to CreateEditor.
 	 * 

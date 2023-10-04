@@ -74,7 +74,7 @@ namespace UE::MultiUserClient
 		/** Called when the data underlying the model has changed and the UI needs to be refreshed. */
 		FOnModelChanged OnModelChangedDelegate;
 		
-		void OnObjectsChanged(TArrayView<UObject*> Objects, TArrayView<FSoftObjectPath> SoftObjectPaths, ConcertClientSharedSlate::EReplicatedObjectChangeReason ReplicatedObjectChangeReason);
+		void OnObjectsChanged(TConstArrayView<UObject*> Objects, TConstArrayView<FSoftObjectPath> SoftObjectPaths, ConcertClientSharedSlate::EReplicatedObjectChangeReason ReplicatedObjectChangeReason);
 		void OnPropertiesChanged();
 	};
 }

@@ -3,7 +3,7 @@
 #include "SReplicationStreamEditor.h"
 
 #include "Replication/ReplicationWidgetFactories.h"
-#include "Replication/Editor/View/ObjectEditor/SPropertyReplicationSelectionEditor.h"
+#include "Replication/Editor/View/ObjectEditor/SObjectToPropertyEditor.h"
 
 #include "Widgets/SBoxPanel.h"
 
@@ -17,7 +17,8 @@ namespace UE::ConcertClientSharedSlate
 
 			+SVerticalBox::Slot()
 			[
-				SAssignNew(Editor, SPropertyReplicationSelectionEditor, Params.DataModel, Params.ObjectSource, Params.PropertySource)
+				SAssignNew(Editor, SObjectToPropertyEditor, Params.DataModel, Params.ObjectSource, Params.PropertySource)
+				.SubobjectView(Params.SubobjectView)
 			]
 		];
 	}
@@ -25,6 +26,7 @@ namespace UE::ConcertClientSharedSlate
 	void SReplicationStreamEditor::Refresh()
 	{
 		Editor->RefreshObjectData();
+		Editor->RefreshSubobjectData();
 		Editor->RefreshPropertyData();
 	}
 }

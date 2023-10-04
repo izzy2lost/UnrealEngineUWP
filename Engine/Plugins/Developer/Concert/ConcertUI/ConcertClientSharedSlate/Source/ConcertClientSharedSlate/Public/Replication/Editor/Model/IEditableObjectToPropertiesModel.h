@@ -2,6 +2,7 @@
 
 #pragma once
 
+#include "Containers/ContainersFwd.h"
 #include "Containers/Map.h"
 #include "Containers/Set.h"
 #include "Delegates/DelegateCombinations.h"
@@ -29,17 +30,17 @@ namespace UE::ConcertClientSharedSlate
 	public:
 
 		/** Adds the objects to the mapping */
-		virtual void AddObjects(TArrayView<UObject*> Objects) = 0;
+		virtual void AddObjects(TConstArrayView<UObject*> Objects) = 0;
 		/** Removes the objects from the mapping */
-		virtual void RemoveObjects(TArrayView<FSoftObjectPath> Objects) = 0;
+		virtual void RemoveObjects(TConstArrayView<FSoftObjectPath> Objects) = 0;
 
 		/** Adds these properties to the object's list of selected properties. */
-		virtual void AddProperties(const FSoftObjectPath& Object, TArrayView<FConcertPropertyChain> Properties) = 0;
+		virtual void AddProperties(const FSoftObjectPath& Object, TConstArrayView<FConcertPropertyChain> Properties) = 0;
 		/** Removes these properties from the object's list of selected properties. */
-		virtual void RemoveProperties(const FSoftObjectPath& Object, TArrayView<FConcertPropertyChain> Properties) = 0;
+		virtual void RemoveProperties(const FSoftObjectPath& Object, TConstArrayView<FConcertPropertyChain> Properties) = 0;
 
 		/** Called when the object list changes. AddedObjects and RemovedObjects are empty if and only if ChangeReason == EReplicatedObjectChangeReason::Transacted. */
-		DECLARE_MULTICAST_DELEGATE_ThreeParams(FOnObjectsChanged, TArrayView<UObject*> AddedObjects, TArrayView<FSoftObjectPath> RemovedObjects, EReplicatedObjectChangeReason ChangeReason);
+		DECLARE_MULTICAST_DELEGATE_ThreeParams(FOnObjectsChanged, TConstArrayView<UObject*> AddedObjects, TConstArrayView<FSoftObjectPath> RemovedObjects, EReplicatedObjectChangeReason ChangeReason);
 		virtual FOnObjectsChanged& OnObjectsChanged() = 0;
 
 		/** Called when the property list of some object changes. If the properties are removed because the object is removed outright, FOnObjectsChanged is called instead.  */

@@ -117,7 +117,7 @@ namespace UE::ConcertClientSharedSlate
 		return !AssignedProperties->PropertySelection.ReplicatedProperties.IsEmpty();
 	}
 
-	void FGenericPropertySelectionModel::AddObjects(TArrayView<UObject*> Objects)
+	void FGenericPropertySelectionModel::AddObjects(TConstArrayView<UObject*> Objects)
 	{
 		FObjectReplicationMap* ReplicationMap = ReplicationMapAttribute.Get();
 		if (!ensure(ReplicationMap) || Objects.IsEmpty())
@@ -176,7 +176,7 @@ namespace UE::ConcertClientSharedSlate
 		AddObjects(AdditionalObjectsToAdd);
 	}
 
-	void FGenericPropertySelectionModel::RemoveObjects(TArrayView<FSoftObjectPath> Objects)
+	void FGenericPropertySelectionModel::RemoveObjects(TConstArrayView<FSoftObjectPath> Objects)
 	{
 		FObjectReplicationMap* ReplicationMap = ReplicationMapAttribute.Get();
 		if (!ensure(ReplicationMap) || Objects.IsEmpty())
@@ -213,7 +213,7 @@ namespace UE::ConcertClientSharedSlate
 		}
 	}
 
-	void FGenericPropertySelectionModel::AddProperties(const FSoftObjectPath& Object, TArrayView<FConcertPropertyChain> Properties)
+	void FGenericPropertySelectionModel::AddProperties(const FSoftObjectPath& Object, TConstArrayView<FConcertPropertyChain> Properties)
 	{
 		FObjectReplicationMap* ReplicationMap = ReplicationMapAttribute.Get();
 		if (!ensure(ReplicationMap))
@@ -258,7 +258,7 @@ namespace UE::ConcertClientSharedSlate
 		}
 	}
 
-	void FGenericPropertySelectionModel::RemoveProperties(const FSoftObjectPath& Object, TArrayView<FConcertPropertyChain> Properties)
+	void FGenericPropertySelectionModel::RemoveProperties(const FSoftObjectPath& Object, TConstArrayView<FConcertPropertyChain> Properties)
 	{
 		FObjectReplicationMap* ReplicationMap = ReplicationMapAttribute.Get();
 		if (!ensure(ReplicationMap))

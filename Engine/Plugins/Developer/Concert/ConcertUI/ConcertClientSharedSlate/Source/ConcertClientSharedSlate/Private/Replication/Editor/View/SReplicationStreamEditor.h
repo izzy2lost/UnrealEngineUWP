@@ -10,7 +10,7 @@ class UMultiUserReplicationClientPreset;
 
 namespace UE::ConcertClientSharedSlate
 {
-	class SPropertyReplicationSelectionEditor;
+	class SObjectToPropertyEditor;
 	
 	struct FCreateEditorParams;
 	
@@ -31,6 +31,6 @@ namespace UE::ConcertClientSharedSlate
 
 	private:
 		
-		TSharedPtr<SPropertyReplicationSelectionEditor> Editor;
+		TSharedPtr<SObjectToPropertyEditor> Editor;
 	};
 }

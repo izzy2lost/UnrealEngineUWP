@@ -32,7 +32,7 @@ namespace UE::MultiUserClient
 			MakeShared<FSelectPropertyFromUClassModel>()
 		};
 
-		const TSharedRef<IReplicationEditorView> NewEditorView = CreateEditor(ReplicationEditorCreationParams);
+		const TSharedRef<IReplicationEditorView> NewEditorView = CreateEditorForUnrealEditor(ReplicationEditorCreationParams);
 		WeakEditorView = NewEditorView;
 		ChildSlot
 		[

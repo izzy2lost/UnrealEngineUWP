@@ -6,13 +6,15 @@
 #include "ReplicationColumn.h"
 #include "Templates/SharedPointer.h"
 
+struct FConcertPropertyChain;
+
 namespace UE::ConcertClientSharedSlate
 {
 	class FReplicatedObjectData;
 	class FReplicatedPropertyData;
 	class IEditableObjectToPropertiesModel;
 	class IObjectToPropertiesModel;
-	class SPropertyReplicationSelectionEditor;
+	class SObjectToPropertyEditor;
 }
 
 namespace UE::ConcertClientSharedSlate::ReplicationObjectColumns
@@ -44,7 +46,7 @@ namespace UE::ConcertClientSharedSlate::ReplicationPropertyColumns
 	
 	enum class EReplicationPropertyColumnOrder : int32
 	{
-		/** The checkbox in SPropertyReplicationSelectionEditor determining whether the property is in the selection*/
+		/** The checkbox in SObjectToPropertyEditor determining whether the property is in the selection*/
 		ReplicatesCheckbox = 0,
 		/** Label of the property */
 		Label = 10,
@@ -52,14 +54,17 @@ namespace UE::ConcertClientSharedSlate::ReplicationPropertyColumns
 		Type = 20
 	};
 	
-	/** The checkbox in SPropertyReplicationSelectionEditor determining whether the property is in the selection*/
+	/** The checkbox in SObjectToPropertyEditor determining whether the property is in the selection*/
 	extern const FName ReplicatesColumnId;
 	extern const FName LabelColumnId;
 	extern const FName TypeColumnId;
 
+	DECLARE_DELEGATE_RetVal_OneParam(ECheckBoxState, FGetPropertyCheckboxState, const FConcertPropertyChain& /*Property*/);
+	DECLARE_DELEGATE_TwoParams(FOnPropertyCheckboxChanged, bool /*bIsChecked*/, const FConcertPropertyChain& /*Property*/);
+
 	FReplicationPropertyColumn ReplicatesColumns(
-		TSharedRef<SPropertyReplicationSelectionEditor> EditorWidget,
-		TSharedRef<IEditableObjectToPropertiesModel> Model,
+		FGetPropertyCheckboxState GetPropertyCheckboxStateDelegate,
+		FOnPropertyCheckboxChanged OnPropertyBoxToggledDelegate,
 		const float ColumnWidth = 20.f
 		);
 	FReplicationPropertyColumn LabelColumn();
@@ -71,5 +76,5 @@ namespace UE::ConcertClientSharedSlate::ReplicationPropertyColumns
 	 *
 	 * This is used by ReplicatesColumns.
 	 */
-	ECheckBoxState GetPropertyCheckboxStateBasedOnSelection(const FReplicatedPropertyData& RowData, TConstArrayView<TSharedPtr<FReplicatedObjectData>> Selection, const IObjectToPropertiesModel& Model);
+	ECheckBoxState GetPropertyCheckboxStateBasedOnSelection(const FConcertPropertyChain& Property, TConstArrayView<FSoftObjectPath> Selection, const IObjectToPropertiesModel& Model);
 }

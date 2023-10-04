@@ -1,0 +1,220 @@
+// Copyright Epic Games, Inc. All Rights Reserved.
+
+#include "SObjectToPropertyView.h"
+
+#include "ConcertFrontendUtils.h"
+#include "Replication/Editor/Model/IObjectToPropertiesModel.h"
+#include "Replication/Editor/Model/ReplicatedObjectData.h"
+#include "Replication/Editor/Model/ReplicatedPropertyData.h"
+#include "Replication/Editor/View/ObjectViewer/Property/SReplicatedPropertiesView.h"
+#include "Replication/Editor/View/ObjectViewer/Tree/SelectionViewerColumns.h"
+#include "SSubobjectAndPropertySection.h"
+
+#include "Widgets/Layout/SBorder.h"
+#include "Widgets/Layout/SSplitter.h"
+#include "Widgets/SBoxPanel.h"
+#include "Widgets/Text/STextBlock.h"
+
+#define LOCTEXT_NAMESPACE "SObjectToPropertyViewer"
+
+namespace UE::ConcertClientSharedSlate
+{
+	void SObjectToPropertyView::Construct(const FArguments& InArgs, TSharedRef<IObjectToPropertiesModel> InPropertiesModel)
+	{
+		PropertiesModel = MoveTemp(InPropertiesModel);
+		
+		ChildSlot
+		[
+			CreateContentWidget(InArgs)
+		];
+
+		RefreshObjectData();
+		RefreshSubobjectData();
+		RefreshPropertyData();
+
+		PropertyArea->SetExpanded(true);
+	}
+
+	void SObjectToPropertyView::RefreshObjectData()
+	{
+		const int32 NumElements = PropertiesModel->GetNumReplicatedObjects();
+		// Re-using existing instances is tricky: we cannot update the object path in an item because the list view will no detect this change;
+		// list view only looks at the shared ptr address. So the UI will not be refreshed. Since the number of items will be small, just reallocate... 
+		ObjectRowData.Empty(NumElements);
+
+		// Try to re-use old instances by using the old PathToObjectDataCache. This is also done so the expansion states restore correctly in the tree view.
+		TMap<FSoftObjectPath, TSharedPtr<FReplicatedObjectData>> NewPathToObjectDataCache;
+		
+		// Do a complete refresh.
+		// Complete refresh is acceptable because the list is updated infrequently and typically small < 500 items.
+		// An alternative would be to change RefreshObjectData to be called with two variables ObjectsAdded and ObjectsRemoved.
+		PropertiesModel->ForEachReplicatedObject([this, &NewPathToObjectDataCache](const FSoftObjectPath& Path) mutable
+		{
+			const TSharedPtr<FReplicatedObjectData>* ExistingItem = PathToObjectDataCache.Find(Path);
+			const TSharedRef<FReplicatedObjectData> Item = ExistingItem ? ExistingItem->ToSharedRef() : AllocateObjectData(Path);
+			ObjectRowData.Emplace(Item);
+			NewPathToObjectDataCache.Emplace(Path, Item);
+			return EBreakBehavior::Continue;
+		});
+
+		// Only refresh the tree if it is necessary as it causes us to select stuff in the subobject view
+		if (!PathToObjectDataCache.OrderIndependentCompareEqual(NewPathToObjectDataCache))
+		{
+			// If an item was removed, then NewPathToObjectDataCache does not contain it. 
+			PathToObjectDataCache = MoveTemp(NewPathToObjectDataCache);
+
+			// The tree view requires the item source to only contain the root items. Children are discovered via GetObjectRowChildren. We re-use GetObjectRowChildren to remove any non-root nodes.
+			BuildRootObjectRowData();
+			ReplicatedObjects->OnItemsChanged();
+		}
+	}
+
+	void SObjectToPropertyView::RefreshSubobjectData()
+	{
+		SubobjectAndPropertySection->RefreshSubobjectData();
+		
+		// Need to update properties in case the subobject view changed selection
+		RefreshPropertyData();
+	}
+
+	void SObjectToPropertyView::RefreshPropertyData()
+	{
+		SubobjectAndPropertySection->RefreshPropertyData();
+	}
+	
+	const TArray<TSharedPtr<FReplicatedPropertyData>>& SObjectToPropertyView::GetPropertyRowData() const
+	{
+		return SubobjectAndPropertySection->GetPropertyRowData();
+	}
+
+	TArray<FSoftObjectPath> SObjectToPropertyView::GetSelectedObjectShowingProperties() const
+	{
+		return SubobjectAndPropertySection->GetSelectedObjects();
+	}
+
+	TSharedRef<FReplicatedObjectData> SObjectToPropertyView::AllocateObjectData(FSoftObjectPath ObjectPath)
+	{
+		return MakeShared<FReplicatedObjectData>(MoveTemp(ObjectPath));
+	}
+
+	TSharedRef<SWidget> SObjectToPropertyView::CreateContentWidget(const FArguments& InArgs)
+	{
+		return SNew(SSplitter)
+			.Orientation(Orient_Vertical)
+
+			+SSplitter::Slot()
+			 .Value(1.f)
+			[
+				CreateActorsSection(InArgs)
+			]
+
+			+SSplitter::Slot()
+			.SizeRule(TAttribute<SSplitter::ESizeRule>(this, &SObjectToPropertyView::GetPropertyAreaSizeRule))
+			.Value(2.f)
+			[
+				CreatePropertiesSection(InArgs)
+			];
+	}
+
+	TSharedRef<SWidget> SObjectToPropertyView::CreateActorsSection(const FArguments& InArgs)
+	{
+		TArray<ReplicationObjectColumns::FReplicationObjectColumn> Columns
+		{
+			ReplicationObjectColumns::IconColumn(PropertiesModel.ToSharedRef()),
+			ReplicationObjectColumns::LabelColumn(),
+			ReplicationObjectColumns::TypeColumn(PropertiesModel.ToSharedRef())
+		};
+		Columns.Append(InArgs._AdditionalObjectColumns);
+		
+		return SAssignNew(ReplicatedObjects, SReplicationTreeView<TSharedPtr<FReplicatedObjectData>>)
+			.RootItemsSource(&RootObjectRowData)
+			.OnGetChildren(this, &SObjectToPropertyView::GetObjectRowChildren)
+			.OnContextMenuOpening(InArgs._OnObjectsContextMenuOpening)
+			.OnDeleteItems(InArgs._OnDeleteObjects)
+			.OnSelectionChanged_Lambda([this]()
+			{
+				RefreshSubobjectData();
+				// The subobject UI should automatically highlight the root objects after they are selected in the outliner
+				SubobjectAndPropertySection->SelectRootObjects();
+			})
+			.Columns(Columns)
+			.ExpandableColumnLabel(ReplicationObjectColumns::LabelColumnId)
+			.SelectionMode(ESelectionMode::Multi)
+			.LeftOfSearchBar()
+			[
+				InArgs._LeftOfObjectSearchBar.Widget
+			];
+	}
+
+	TSharedRef<SWidget> SObjectToPropertyView::CreatePropertiesSection(const FArguments& InArgs)
+	{
+		return SNew(SBorder)
+			.BorderImage(FAppStyle::Get().GetBrush("ToolPanel.GroupBorder"))
+			.Padding(0.0f)
+			[
+				SAssignNew(PropertyArea, SExpandableArea)
+				.InitiallyCollapsed(true) 
+				.BorderBackgroundColor(FLinearColor(0.6f, 0.6f, 0.6f, 1.0f))
+				.BorderImage_Lambda([this]() { return ConcertFrontendUtils::GetExpandableAreaBorderImage(*PropertyArea); })
+				.BodyBorderImage(FAppStyle::Get().GetBrush("ToolPanel.GroupBorder"))
+				.BodyBorderBackgroundColor(FLinearColor::White)
+				.OnAreaExpansionChanged(this, &SObjectToPropertyView::OnPropertyAreaExpansionChanged)
+				.Padding(0.0f)
+				.HeaderContent()
+				[
+					SNew(STextBlock)
+					.Text(LOCTEXT("ReplicatedProperties", "Subobjects & Properties"))
+					.Font(FAppStyle::Get().GetFontStyle("DetailsView.CategoryFontStyle"))
+					.ShadowOffset(FVector2D(1.0f, 1.0f))
+				]
+				.BodyContent()
+				[
+					SAssignNew(SubobjectAndPropertySection, SSubobjectAndPropertySection, PropertiesModel.ToSharedRef())
+					.AdditionalPropertyColumns(InArgs._AdditionalPropertyColumns)
+					.SubobjectView(InArgs._SubobjectView)
+					.SortPropertyRowPredicate(InArgs._SortPropertyRowPredicate)
+					.GetSelectedRootObjects_Lambda([this](){ return GetSelectedOutlinerObjects(); })
+					.LeftOfPropertySearchBar()
+					[
+						InArgs._LeftOfPropertySearchBar.Widget
+					]
+				]
+			];
+	}
+
+	void SObjectToPropertyView::BuildRootObjectRowData()
+	{
+		TSet<TSharedPtr<FReplicatedObjectData>> NonRootNodes;
+		for (const TSharedPtr<FReplicatedObjectData>& Node : ObjectRowData)
+		{
+			GetObjectRowChildren(Node, [&NonRootNodes](TSharedPtr<FReplicatedObjectData> Child)
+			{
+				NonRootNodes.Add(MoveTemp(Child));
+			});
+		}
+
+		// Make RootObjectRowData only contain those nodes which were not listed as children 
+		RootObjectRowData.Empty(NonRootNodes.Num());
+		for (const TSharedPtr<FReplicatedObjectData>& Node : ObjectRowData)
+		{
+			if (!NonRootNodes.Contains(Node))
+			{
+				RootObjectRowData.Add(Node);
+			}
+		}
+		
+		RootObjectRowData.Sort([](const TSharedPtr<FReplicatedObjectData>& Left, const TSharedPtr<FReplicatedObjectData>& Right)
+		{
+			return Left->GetObjectPath().GetSubPathString() < Right->GetObjectPath().GetSubPathString();
+		});
+	}
+
+	void SObjectToPropertyView::GetObjectRowChildren(TSharedPtr<FReplicatedObjectData> ReplicatedObjectData, TFunctionRef<void(TSharedPtr<FReplicatedObjectData>)> ProcessChild)
+	{
+		// For now there are no children in the outliner.
+		// In the future we could add an external delegate that allows child actors to be parented.
+		// Important: this view should be possible to be built in programs, so it should not reference things like AActor, UActorComponent, ResolveObject, etc. directly.
+	}
+}
+
+#undef LOCTEXT_NAMESPACE

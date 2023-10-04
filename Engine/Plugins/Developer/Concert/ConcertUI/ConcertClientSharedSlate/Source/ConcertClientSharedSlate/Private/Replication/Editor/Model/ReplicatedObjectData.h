@@ -6,7 +6,7 @@
 
 namespace UE::ConcertClientSharedSlate
 {
-	/** Instanced for each object row in SPropertyReplicationSelectionViewer.*/
+	/** Instanced for each object row in SObjectToPropertyViewer.*/
 	class FReplicatedObjectData
 	{
 	public:
@@ -24,10 +24,10 @@ namespace UE::ConcertClientSharedSlate
 		FSoftObjectPath ObjectPath;
 	};
 
-	/** Instanced for each object row SPropertyReplicationSelectionEditor. */
+	/** Instanced for each object row SObjectToPropertyEditor. */
 	class FReplicatedObjectData_Editor : public FReplicatedObjectData
 	{
-		// Empty and unused for now. I just want to highlight that if you want custom data for SPropertyReplicationSelectionEditor,
-		// you should add it here and override SPropertyReplicationSelectionViewer::AllocateObjectData.
+		// Empty and unused for now. I just want to highlight that if you want custom data for SObjectToPropertyEditor,
+		// you should add it here and override SObjectToPropertyViewer::AllocateObjectData.
 	};
 }

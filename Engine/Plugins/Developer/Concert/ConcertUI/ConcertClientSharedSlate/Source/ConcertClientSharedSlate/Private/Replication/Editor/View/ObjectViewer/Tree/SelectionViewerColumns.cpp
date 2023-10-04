@@ -6,7 +6,7 @@
 #include "Replication/Editor/Model/IEditableObjectToPropertiesModel.h"
 #include "Replication/Editor/Model/ReplicatedPropertyData.h"
 #include "Replication/Editor/Model/ReplicatedObjectData.h"
-#include "Replication/Editor/View/ObjectEditor/SPropertyReplicationSelectionEditor.h"
+#include "Replication/Editor/View/ObjectEditor/SObjectToPropertyEditor.h"
 #include "Replication/PropertyChainUtils.h"
 
 #include "Internationalization/Internationalization.h"
@@ -99,35 +99,25 @@ namespace UE::ConcertClientSharedSlate::ReplicationPropertyColumns
 	const FName TypeColumnId = TEXT("TypeColumn");
 
 	FReplicationPropertyColumn ReplicatesColumns(
-		TSharedRef<SPropertyReplicationSelectionEditor> EditorWidget,
-		TSharedRef<IEditableObjectToPropertiesModel> Model,
+		FGetPropertyCheckboxState GetPropertyCheckboxStateDelegate,
+		FOnPropertyCheckboxChanged OnPropertyBoxToggledDelegate,
 		const float ColumnWidth
 		)
 	{
 		return FReplicationPropertyColumn(
 			FReplicationPropertyColumn::FArguments()
-				.GenerateWidgetColumn_Lambda([EditorWidget = MoveTemp(EditorWidget), Model = MoveTemp(Model)](const FReplicationPropertyColumn::FBuildArgs& Args)
+				.GenerateWidgetColumn_Lambda([GetPropertyCheckboxStateDelegate, OnPropertyBoxToggledDelegate](const FReplicationPropertyColumn::FBuildArgs& Args)
 				{
 					return SNew(SCheckBox)
 						.ToolTipText(LOCTEXT("ReplicatesCheckbox.Tooltip", "Should replicate?"))
-						.IsChecked_Lambda([EditorWidget, Model, RowData = Args.RowData]()
+						.IsChecked_Lambda([GetPropertyCheckboxStateDelegate, RowData = Args.RowData]()
 						{
-							return GetPropertyCheckboxStateBasedOnSelection(*RowData.Get(), EditorWidget->GetSelectedObjects(), *Model);
+							return GetPropertyCheckboxStateDelegate.Execute(RowData->GetProperty());
 						})
-						.OnCheckStateChanged_Lambda([EditorWidget, Model, RowData = Args.RowData](ECheckBoxState NewState)
+						.OnCheckStateChanged_Lambda([OnPropertyBoxToggledDelegate, RowData = Args.RowData](ECheckBoxState NewState)
 						{
-							TArray Properties{ RowData->GetProperty() };
-							for (const TSharedPtr<FReplicatedObjectData>& SelectedObject : EditorWidget->GetSelectedObjects())
-							{
-								if (NewState == ECheckBoxState::Checked)
-								{
-									Model->AddProperties(SelectedObject->GetObjectPath(), Properties);
-								}
-								else
-								{
-									Model->RemoveProperties(SelectedObject->GetObjectPath(), Properties);
-								}
-							}
+							const bool bIsChecked = NewState == ECheckBoxState::Checked;
+							OnPropertyBoxToggledDelegate.Execute(bIsChecked, RowData->GetProperty());
 						});
 				})
 				.ColumnSortOrder(static_cast<int32>(EReplicationPropertyColumnOrder::ReplicatesCheckbox)),
@@ -187,12 +177,12 @@ namespace UE::ConcertClientSharedSlate::ReplicationPropertyColumns
 			);
 	}
 
-	ECheckBoxState GetPropertyCheckboxStateBasedOnSelection(const FReplicatedPropertyData& RowData, TConstArrayView<TSharedPtr<FReplicatedObjectData>> Selection, const IObjectToPropertiesModel& Model)
+	ECheckBoxState GetPropertyCheckboxStateBasedOnSelection(const FConcertPropertyChain& Property, TConstArrayView<FSoftObjectPath> Selection, const IObjectToPropertiesModel& Model)
 	{
 		ECheckBoxState CheckBoxState = ECheckBoxState::Undetermined;
-		for (const TSharedPtr<FReplicatedObjectData>& SelectedObject : Selection)
+		for (const FSoftObjectPath& SelectedObject : Selection)
 		{
-			const bool bContainsProperty = Model.ContainsProperties(SelectedObject->GetObjectPath(), { RowData.GetProperty() });
+			const bool bContainsProperty = Model.ContainsProperties(SelectedObject, { Property });
 			const ECheckBoxState StateForThisObject = bContainsProperty
 				? ECheckBoxState::Checked
 				: ECheckBoxState::Unchecked;

@@ -17,28 +17,28 @@ namespace UE::ConcertClientSharedSlate
 		, OwningObject(&OwningObject)
 	{}
 
-	void FTransactionalPropertySelectionModel::AddObjects(TArrayView<UObject*> Objects)
+	void FTransactionalPropertySelectionModel::AddObjects(TConstArrayView<UObject*> Objects)
 	{
 		const FScopedTransaction Transaction(LOCTEXT("AddObjects", "Add replicated objects"));
 		OwningObject->Modify();
 		FGenericPropertySelectionModel::AddObjects(Objects);
 	}
 
-	void FTransactionalPropertySelectionModel::RemoveObjects(TArrayView<FSoftObjectPath> Objects)
+	void FTransactionalPropertySelectionModel::RemoveObjects(TConstArrayView<FSoftObjectPath> Objects)
 	{
 		const FScopedTransaction Transaction(LOCTEXT("RemoveObjects", "Remove replicated objects"));
 		OwningObject->Modify();
 		FGenericPropertySelectionModel::RemoveObjects(Objects);
 	}
 
-	void FTransactionalPropertySelectionModel::AddProperties(const FSoftObjectPath& SoftObjectPath, TArrayView<FConcertPropertyChain> Properties)
+	void FTransactionalPropertySelectionModel::AddProperties(const FSoftObjectPath& SoftObjectPath, TConstArrayView<FConcertPropertyChain> Properties)
 	{
 		const FScopedTransaction Transaction(LOCTEXT("AddProperties", "Add replicated properties"));
 		OwningObject->Modify();
 		FGenericPropertySelectionModel::AddProperties(SoftObjectPath, Properties);
 	}
 
-	void FTransactionalPropertySelectionModel::RemoveProperties(const FSoftObjectPath& SoftObjectPath, TArrayView<FConcertPropertyChain> Properties)
+	void FTransactionalPropertySelectionModel::RemoveProperties(const FSoftObjectPath& SoftObjectPath, TConstArrayView<FConcertPropertyChain> Properties)
 	{
 		const FScopedTransaction Transaction(LOCTEXT("RemoveProperties", "Remove replicated properties"));
 		OwningObject->Modify();
