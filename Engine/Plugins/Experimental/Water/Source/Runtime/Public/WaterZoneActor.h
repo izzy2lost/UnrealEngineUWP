@@ -84,6 +84,9 @@ public:
 	virtual FBox GetStreamingBounds() const override;
 #endif //WITH_EDITOR
 
+	UFUNCTION(BlueprintCallable, Category=Rendering)
+	void SetFarMeshMaterial(UMaterialInterface* InFarMaterial);
+
 	UE_DEPRECATED(5.3, "Function renamed to GetDynamicWaterInfoCenter")
 	FVector GetTessellatedWaterMeshCenter() const { return GetDynamicWaterInfoCenter(); }
 

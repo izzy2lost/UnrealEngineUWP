@@ -376,8 +376,17 @@ FBox AWaterZone::GetStreamingBounds() const
 {
 	return GetZoneBounds();
 }
-
 #endif // WITH_EDITOR
+
+void AWaterZone::SetFarMeshMaterial(UMaterialInterface* InFarDistanceMaterial)
+{
+	if (WaterMesh && InFarDistanceMaterial != WaterMesh->FarDistanceMaterial)
+	{
+		WaterMesh->FarDistanceMaterial = InFarDistanceMaterial;
+		MarkForRebuild(EWaterZoneRebuildFlags::UpdateWaterMesh);
+	}
+}
+
 
 void AWaterZone::OnExtentChanged()
 {
