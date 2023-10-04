@@ -408,27 +408,23 @@ bool UPoseSearchFeatureChannel_Phase::IndexAsset(UE::PoseSearch::FAssetIndexer& 
 	return true;
 }
 
-FString UPoseSearchFeatureChannel_Phase::GetLabel() const
+UE::PoseSearch::TLabelBuilder& UPoseSearchFeatureChannel_Phase::GetLabel(UE::PoseSearch::TLabelBuilder& LabelBuilder, UE::PoseSearch::ELabelFormat LabelFormat) const
 {
 	using namespace UE::PoseSearch;
 
-	TStringBuilder<256> Label;
-	if (const UPoseSearchFeatureChannel* OuterChannel = Cast<UPoseSearchFeatureChannel>(GetOuter()))
-	{
-		Label.Append(OuterChannel->GetLabel());
-		Label.Append(TEXT("_"));
-	}
+	GetOuterLabel(LabelBuilder, LabelFormat);
+	AppendLabelSeparator(LabelBuilder, LabelFormat);
 
-	Label.Append(TEXT("Pha"));
+	LabelBuilder.Append(TEXT("Pha"));
 
 	const UPoseSearchSchema* Schema = GetSchema();
 	check(Schema);
 	if (SchemaBoneIdx != RootSchemaBoneIdx)
 	{
-		Label.Append(TEXT("_"));
-		Label.Append(Schema->BoneReferences[SchemaBoneIdx].BoneName.ToString());
+		LabelBuilder.Append(TEXT("_"));
+		LabelBuilder.Append(Schema->BoneReferences[SchemaBoneIdx].BoneName.ToString());
 	}
 
-	return Label.ToString();
+	return LabelBuilder;
 }
 #endif

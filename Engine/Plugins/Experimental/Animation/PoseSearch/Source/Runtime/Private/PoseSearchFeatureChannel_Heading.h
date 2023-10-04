@@ -96,7 +96,7 @@ public:
 #if WITH_EDITOR
 	virtual void FillWeights(TArrayView<float> Weights) const override;
 	virtual bool IndexAsset(UE::PoseSearch::FAssetIndexer& Indexer) const override;
-	virtual FString GetLabel() const override;
+	virtual UE::PoseSearch::TLabelBuilder& GetLabel(UE::PoseSearch::TLabelBuilder& LabelBuilder, UE::PoseSearch::ELabelFormat LabelFormat = UE::PoseSearch::ELabelFormat::Full_Horizontal) const override;
 #endif
 
 	FVector GetAxis(const FQuat& Rotation) const;

@@ -107,16 +107,12 @@ void UPoseSearchFeatureChannel_Pose::Finalize(UPoseSearchSchema* Schema)
 }
 
 #if WITH_EDITOR
-FString UPoseSearchFeatureChannel_Pose::GetLabel() const
+UE::PoseSearch::TLabelBuilder& UPoseSearchFeatureChannel_Pose::GetLabel(UE::PoseSearch::TLabelBuilder& LabelBuilder, UE::PoseSearch::ELabelFormat LabelFormat) const
 {
-	TStringBuilder<256> Label;
-	if (const UPoseSearchFeatureChannel* OuterChannel = Cast<UPoseSearchFeatureChannel>(GetOuter()))
-	{
-		Label.Append(OuterChannel->GetLabel());
-		Label.Append(TEXT("_"));
-	}
-	Label.Append(TEXT("Pose"));
-	return Label.ToString();
+	GetOuterLabel(LabelBuilder, LabelFormat);
+	AppendLabelSeparator(LabelBuilder, UE::PoseSearch::ELabelFormat::Full_Horizontal);
+	LabelBuilder.Append(TEXT("Pose"));
+	return LabelBuilder;
 }
 #endif // WITH_EDITOR
 

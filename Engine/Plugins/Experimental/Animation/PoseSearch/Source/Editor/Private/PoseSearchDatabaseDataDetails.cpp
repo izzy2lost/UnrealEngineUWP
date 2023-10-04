@@ -17,7 +17,8 @@ class FChannelItem
 {
 public:
 	FChannelItem(const UPoseSearchFeatureChannel* Channel, int32 ChannelComponentIdx = -1)
-	: Label(ComputeLabel(Channel, ChannelComponentIdx))
+	: FullLabel(ComputeLabel(Channel, ChannelComponentIdx, true))
+	, CompactLabel(ComputeLabel(Channel, ChannelComponentIdx, false))
 	, DataOffset(ComputeDataOffset(Channel, ChannelComponentIdx))
 	, Cardinality(ComputeCardinality(Channel, ChannelComponentIdx))
 	{
@@ -28,9 +29,14 @@ public:
 		return ChannelItems;
 	}
 
-	FString GetLabel() const
+	FString GetFullLabel() const
 	{
-		return Label;
+		return FullLabel;
+	}
+
+	FString GetCompactLabel() const
+	{
+		return CompactLabel;
 	}
 
 	int32 GetDataOffset() const
@@ -54,7 +60,7 @@ public:
 	}
 
 private:
-	static FString ComputeLabel(const UPoseSearchFeatureChannel* Channel, int32 ChannelComponentIdx)
+	static FString ComputeLabel(const UPoseSearchFeatureChannel* Channel, int32 ChannelComponentIdx, bool bFullLabel)
 	{
 		if (ChannelComponentIdx >= 0)
 		{
@@ -70,7 +76,8 @@ private:
 
 		if (Channel != nullptr)
 		{
-			return Channel->GetLabel();
+			TLabelBuilder LabelBuilder;
+			return Channel->GetLabel(LabelBuilder, bFullLabel ? ELabelFormat::Full_Horizontal : ELabelFormat::Compact_Horizontal).ToString();
 		}
 
 		return FString();
@@ -109,7 +116,8 @@ private:
 		return Cardinality;
 	}
 
-	const FString Label;
+	const FString FullLabel;
+	const FString CompactLabel;
 	const int32 DataOffset = 0;
 	const int32 Cardinality = 0;
 	bool bExpanded = false;
@@ -149,7 +157,7 @@ public:
 				.VAlign(VAlign_Center)
 				[
 					SNew(STextBlock)
-					.Text(FText::FromString(ChannelItem->GetLabel()))
+					.Text(FText::FromString(ChannelItem->GetCompactLabel()))
 				];
 		}
 		
@@ -262,7 +270,7 @@ void SDatabaseDataDetails::TrackExpandedItems(const TArray<FChannelItemPtr>& Cha
 	for (const FChannelItemPtr& ChannelItem : ChannelItems)
 	{
 		TrackExpandedItems(ChannelItem->GetChannelItems(), ExpandedItems);
-		ExpandedItems.FindOrAdd(ChannelItem->GetLabel()) = ChannelItem->IsExpanded();
+		ExpandedItems.FindOrAdd(ChannelItem->GetFullLabel()) = ChannelItem->IsExpanded();
 	}
 }
 
@@ -273,7 +281,7 @@ void SDatabaseDataDetails::SetExpandedItems(TArray<FChannelItemPtr>& ChannelItem
 		SetExpandedItems(ChannelItem->GetChannelItems(), ExpandedItems, ChannelItemsTreeView);
 		
 		bool bIsExpanded = false;
-		if (const bool* IsExpandedPtr = ExpandedItems.Find(ChannelItem->GetLabel()))
+		if (const bool* IsExpandedPtr = ExpandedItems.Find(ChannelItem->GetFullLabel()))
 		{
 			bIsExpanded = *IsExpandedPtr;
 		}

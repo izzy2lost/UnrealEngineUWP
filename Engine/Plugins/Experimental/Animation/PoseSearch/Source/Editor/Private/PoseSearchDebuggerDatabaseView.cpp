@@ -32,6 +32,7 @@ public:
 	SCostBreakDownData(const TArray<FTraceMotionMatchingStateDatabaseEntry>& DatabaseEntries, bool bIsVerbose)
 	{
 		// processing all the DatabaseEntries to collect the LabelToChannels
+		TLabelBuilder LabelBuilder;
 		for (const FTraceMotionMatchingStateDatabaseEntry& DbEntry : DatabaseEntries)
 		{
 			const UPoseSearchDatabase* Database = FTraceMotionMatchingState::GetObjectFromId<UPoseSearchDatabase>(DbEntry.DatabaseId);
@@ -39,7 +40,7 @@ public:
 			{
 				for (const TObjectPtr<UPoseSearchFeatureChannel>& ChannelPtr : Database->Schema->GetChannels())
 				{
-					AnalyzeChannelRecursively(ChannelPtr.Get(), bIsVerbose);
+					AnalyzeChannelRecursively(LabelBuilder, ChannelPtr.Get(), bIsVerbose);
 				}
 			}
 		}
@@ -102,9 +103,10 @@ public:
 	}
 
 private:
-	void AnalyzeChannelRecursively(const UPoseSearchFeatureChannel* Channel, bool bIsVerbose)
+	void AnalyzeChannelRecursively(TLabelBuilder& LabelBuilder, const UPoseSearchFeatureChannel* Channel, bool bIsVerbose)
 	{
-		const FText Label = FText::FromString(Channel->GetLabel());
+		LabelBuilder.Reset();
+		const FText Label = FText::FromString(Channel->GetLabel(LabelBuilder, ELabelFormat::Full_Vertical).ToString());
 
 		bool bLabelFound = false;
 		for (int32 i = 0; i < LabelToChannels.Num(); ++i)
@@ -128,7 +130,7 @@ private:
 			{
 				if (const UPoseSearchFeatureChannel* SubChannel = SubChannelPtr.Get())
 				{
-					AnalyzeChannelRecursively(SubChannel, bIsVerbose);
+					AnalyzeChannelRecursively(LabelBuilder, SubChannel, bIsVerbose);
 				}
 			}
 		}
@@ -456,7 +458,6 @@ void SDebuggerDatabaseView::Update(const FTraceMotionMatchingStateMessage& State
 			{
 				SHeaderRow::FColumn::FArguments ColumnArgs = SHeaderRow::FColumn::FArguments()
 					.ColumnId(Column.ColumnId)
-					.DefaultLabel(Column.GetLabel())
 					.DefaultTooltip(Column.GetLabelTooltip())
 					.SortMode(this, &SDebuggerDatabaseView::GetColumnSortMode, Column.ColumnId)
 					.OnSort(this, &SDebuggerDatabaseView::OnColumnSortModeChanged)
@@ -464,7 +465,20 @@ void SDebuggerDatabaseView::Update(const FTraceMotionMatchingStateMessage& State
 					.VAlignCell(VAlign_Center)
 					.VAlignHeader(VAlign_Center)
 					.HAlignHeader(HAlign_Center)
-					.HAlignCell(HAlign_Fill);
+					.HAlignCell(HAlign_Fill)
+					.HeaderContent()
+					[
+						SNew( SBox )
+						.VAlign( VAlign_Fill )
+						.HAlign( HAlign_Fill )
+						[
+							SNew( STextBlock )
+							.TextStyle(FAppStyle::Get(), "SmallText")
+							.Text(Column.GetLabel())
+							.Margin(FMargin(5.f, 5.f, 5.f, 5.f))
+							.Justification(ETextJustify::Center)
+						]
+					];
 
 				FilteredDatabaseView.HeaderRow->AddColumn(ColumnArgs);
 				ContinuingPoseView.HeaderRow->AddColumn(ColumnArgs);

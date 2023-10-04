@@ -51,16 +51,11 @@ bool UPoseSearchFeatureChannel_PermutationTime::IndexAsset(UE::PoseSearch::FAsse
 	return true;
 }
 
-FString UPoseSearchFeatureChannel_PermutationTime::GetLabel() const
+UE::PoseSearch::TLabelBuilder& UPoseSearchFeatureChannel_PermutationTime::GetLabel(UE::PoseSearch::TLabelBuilder& LabelBuilder, UE::PoseSearch::ELabelFormat LabelFormat) const
 {
-	TStringBuilder<256> Label;
-	if (const UPoseSearchFeatureChannel* OuterChannel = Cast<UPoseSearchFeatureChannel>(GetOuter()))
-	{
-		Label.Append(OuterChannel->GetLabel());
-		Label.Append(TEXT("_"));
-	}
-
-	Label.Append(TEXT("PermTime"));
-	return Label.ToString();
+	GetOuterLabel(LabelBuilder, LabelFormat);
+	AppendLabelSeparator(LabelBuilder, LabelFormat);
+	LabelBuilder.Append(TEXT("PermTime"));
+	return LabelBuilder;
 }
 #endif

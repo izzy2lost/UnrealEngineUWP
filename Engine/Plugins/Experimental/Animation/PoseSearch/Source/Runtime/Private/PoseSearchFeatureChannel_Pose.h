@@ -77,7 +77,7 @@ public:
 	virtual void Finalize(UPoseSearchSchema* Schema) override;
 
 #if WITH_EDITOR
-	virtual FString GetLabel() const override;
+	virtual UE::PoseSearch::TLabelBuilder& GetLabel(UE::PoseSearch::TLabelBuilder& LabelBuilder, UE::PoseSearch::ELabelFormat LabelFormat = UE::PoseSearch::ELabelFormat::Full_Horizontal) const override;
 #endif
 };
 

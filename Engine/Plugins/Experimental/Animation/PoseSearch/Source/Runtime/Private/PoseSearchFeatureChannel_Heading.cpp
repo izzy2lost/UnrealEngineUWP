@@ -170,61 +170,59 @@ bool UPoseSearchFeatureChannel_Heading::IndexAsset(UE::PoseSearch::FAssetIndexer
 	return true;
 }
 
-FString UPoseSearchFeatureChannel_Heading::GetLabel() const
+UE::PoseSearch::TLabelBuilder& UPoseSearchFeatureChannel_Heading::GetLabel(UE::PoseSearch::TLabelBuilder& LabelBuilder, UE::PoseSearch::ELabelFormat LabelFormat) const
 {
 	using namespace UE::PoseSearch;
 
-	TStringBuilder<256> Label;
-	if (const UPoseSearchFeatureChannel* OuterChannel = Cast<UPoseSearchFeatureChannel>(GetOuter()))
-	{
-		Label.Append(OuterChannel->GetLabel());
-		Label.Append(TEXT("_"));
-	}
+	GetOuterLabel(LabelBuilder, LabelFormat);
+	AppendLabelSeparator(LabelBuilder, LabelFormat);
 
-	Label.Append(TEXT("Head"));
+	LabelBuilder.Append(TEXT("Head"));
 	switch (HeadingAxis)
 	{
 	case EHeadingAxis::X:
-		Label.Append(TEXT("X"));
+		LabelBuilder.Append(TEXT("X"));
 		break;
 	case EHeadingAxis::Y:
-		Label.Append(TEXT("Y"));
+		LabelBuilder.Append(TEXT("Y"));
 		break;
 	case EHeadingAxis::Z:
-		Label.Append(TEXT("Z"));
+		LabelBuilder.Append(TEXT("Z"));
 		break;
 	}
 
 	if (ComponentStripping == EComponentStrippingVector::StripXY)
 	{
-		Label.Append(TEXT("_z"));
+		LabelBuilder.Append(TEXT("_z"));
 	}
 	else if (ComponentStripping == EComponentStrippingVector::StripZ)
 	{
-		Label.Append(TEXT("_xy"));
+		LabelBuilder.Append(TEXT("_xy"));
 	}
 
 	const UPoseSearchSchema* Schema = GetSchema();
 	check(Schema);
 	if (SchemaBoneIdx != RootSchemaBoneIdx)
 	{
-		Label.Append(TEXT("_"));
-		Label.Append(Schema->BoneReferences[SchemaBoneIdx].BoneName.ToString());
+		LabelBuilder.Append(TEXT("_"));
+		LabelBuilder.Append(Schema->BoneReferences[SchemaBoneIdx].BoneName.ToString());
 	}
 
 	if (SchemaOriginBoneIdx != RootSchemaBoneIdx)
 	{
-		Label.Append(TEXT("_"));
-		Label.Append(Schema->BoneReferences[SchemaOriginBoneIdx].BoneName.ToString());
+		LabelBuilder.Append(TEXT("_"));
+		LabelBuilder.Append(Schema->BoneReferences[SchemaOriginBoneIdx].BoneName.ToString());
 	}
 
-	Label.Appendf(TEXT(" %.2f"), SampleTimeOffset);
+	AppendLabelSeparator(LabelBuilder, LabelFormat, true);
+
+	LabelBuilder.Appendf(TEXT("%.2f"), SampleTimeOffset);
 
 	if (!FMath::IsNearlyZero(OriginTimeOffset))
 	{
-		Label.Appendf(TEXT("-%.2f"), OriginTimeOffset);
+		LabelBuilder.Appendf(TEXT("-%.2f"), OriginTimeOffset);
 	}
 
-	return Label.ToString();
+	return LabelBuilder;
 }
 #endif

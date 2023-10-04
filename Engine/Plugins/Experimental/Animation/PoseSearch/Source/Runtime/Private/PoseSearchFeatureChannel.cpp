@@ -129,20 +129,53 @@ void UPoseSearchFeatureChannel::GetPermutationTimeOffsets(EPermutationTimeType P
 }
 
 #if WITH_EDITOR
-FString UPoseSearchFeatureChannel::GetLabel() const
+void UPoseSearchFeatureChannel::GetOuterLabel(UE::PoseSearch::TLabelBuilder& LabelBuilder, UE::PoseSearch::ELabelFormat LabelFormat) const
 {
-	TStringBuilder<256> Label;
-	if (const UPoseSearchFeatureChannel* OuterChannel = Cast<UPoseSearchFeatureChannel>(GetOuter()))
+	if (LabelFormat != UE::PoseSearch::ELabelFormat::Compact_Horizontal)
 	{
-		Label.Append(OuterChannel->GetLabel());
-		Label.Append(TEXT("_"));
+		if (const UPoseSearchFeatureChannel* OuterChannel = Cast<UPoseSearchFeatureChannel>(GetOuter()))
+		{
+			if (LabelBuilder.Len() > 0)
+			{
+				LabelBuilder.Append(TEXT("_"));
+			}
+			OuterChannel->GetLabel(LabelBuilder, UE::PoseSearch::ELabelFormat::Full_Horizontal);
+		}
 	}
-	Label.Append(GetName());
-	return Label.ToString();
+}
+
+void UPoseSearchFeatureChannel::AppendLabelSeparator(UE::PoseSearch::TLabelBuilder& LabelBuilder, UE::PoseSearch::ELabelFormat LabelFormat, bool bTryUsingSpace)
+{
+	if (LabelBuilder.Len() == 0)
+	{
+		// do nothing
+	}
+	else if (LabelFormat == UE::PoseSearch::ELabelFormat::Full_Vertical)
+	{
+		LabelBuilder.Append(TEXT("\n"));
+	}
+	else if (bTryUsingSpace)
+	{
+		LabelBuilder.Append(TEXT(" "));
+	}
+	else
+	{
+		LabelBuilder.Append(TEXT("_"));
+	}
+}
+
+UE::PoseSearch::TLabelBuilder& UPoseSearchFeatureChannel::GetLabel(UE::PoseSearch::TLabelBuilder& LabelBuilder, UE::PoseSearch::ELabelFormat LabelFormat) const
+{
+	GetOuterLabel(LabelBuilder, LabelFormat);
+	AppendLabelSeparator(LabelBuilder, LabelFormat);
+	LabelBuilder.Append(GetName());
+	return LabelBuilder;
 }
 
 bool UPoseSearchFeatureChannel::CanBeNormalizedWith(const UPoseSearchFeatureChannel* Other) const
 {
+	using namespace UE::PoseSearch;
+
 	if (this == Other)
 	{
 		return true;
@@ -163,7 +196,8 @@ bool UPoseSearchFeatureChannel::CanBeNormalizedWith(const UPoseSearchFeatureChan
 		return false;
 	}
 
-	if (GetLabel() != Other->GetLabel())
+	TLabelBuilder ThisLabelBuilder, OtherLabelBuilder;
+	if (GetLabel(ThisLabelBuilder).ToString() != Other->GetLabel(OtherLabelBuilder).ToString())
 	{
 		return false;
 	}

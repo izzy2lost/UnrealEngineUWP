@@ -61,6 +61,21 @@ struct FPoseMetadata;
 
 #if WITH_EDITOR
 class FAssetIndexer;
+
+enum class ELabelFormat : uint8
+{
+	// output label example: "Traj_Vel_xy 1.20"
+	Full_Horizontal,
+
+	// output label example: "Traj\nVel_xy\n1.20"
+	Full_Vertical,
+
+	// output label example: "Vel_xy 1.20"
+	Compact_Horizontal
+};
+
+typedef TStringBuilder<256> TLabelBuilder;
+
 #endif // WITH_EDITOR
 
 /** Helper class for extracting and encoding features into a float buffer */
@@ -135,8 +150,9 @@ public:
 	// Called at database build time to populate pose vectors with this channel's data
 	virtual bool IndexAsset(UE::PoseSearch::FAssetIndexer& Indexer) const PURE_VIRTUAL(UPoseSearchFeatureChannel::IndexAsset, return false;);
 
-	// returns the FString used editor side to identify this UPoseSearchFeatureChannel (for instance in the pose search debugger)
-	virtual FString GetLabel() const;
+	// returns the TLabelBuilder used editor side to identify this UPoseSearchFeatureChannel (for instance in the pose search debugger)
+	virtual UE::PoseSearch::TLabelBuilder& GetLabel(UE::PoseSearch::TLabelBuilder& LabelBuilder, UE::PoseSearch::ELabelFormat LabelFormat = UE::PoseSearch::ELabelFormat::Full_Horizontal) const;
+
 	virtual bool CanBeNormalizedWith(const UPoseSearchFeatureChannel* Other) const;
 	const UPoseSearchSchema* GetSchema() const;
 #endif
@@ -147,6 +163,10 @@ private:
 	USkeleton* GetSkeleton(bool& bInvalidSkeletonIsError, const IPropertyHandle* PropertyHandle) override;
 
 protected:
+#if WITH_EDITOR
+	void GetOuterLabel(UE::PoseSearch::TLabelBuilder& LabelBuilder, UE::PoseSearch::ELabelFormat LabelFormat) const;
+	static void AppendLabelSeparator(UE::PoseSearch::TLabelBuilder& LabelBuilder, UE::PoseSearch::ELabelFormat LabelFormat, bool bTryUsingSpace = false);
+#endif //WITH_EDITOR
 	friend class ::UPoseSearchSchema;
 
 	UPROPERTY(Transient)

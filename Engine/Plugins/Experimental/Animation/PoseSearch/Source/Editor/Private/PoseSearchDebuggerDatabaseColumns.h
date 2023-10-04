@@ -94,7 +94,7 @@ struct FPoseIdx : ITextColumn
 
 	virtual FText GetLabel() const override
 	{
-		return LOCTEXT("ColumnLabelPoseIndex", "PoseIndex");
+		return LOCTEXT("ColumnLabelPoseIndex", "Pose Id");
 	}
 
 	virtual FText GetLabelTooltip() const override
@@ -119,7 +119,7 @@ struct FAssetIdx : ITextColumn
 
 	virtual FText GetLabel() const override
 	{
-		return LOCTEXT("ColumnLabelAssetIndex", "AssetIndex");
+		return LOCTEXT("ColumnLabelAssetIndex", "Asset Id");
 	}
 
 	virtual FText GetLabelTooltip() const override
@@ -349,7 +349,7 @@ struct FPercentage : ITextColumn
 
 	virtual FText GetLabel() const override
 	{
-		return LOCTEXT("ColumnLabelPercentage", "Percentage");
+		return LOCTEXT("ColumnLabelPercentage", "Percent");
 	}
 
 	virtual FText GetLabelTooltip() const override

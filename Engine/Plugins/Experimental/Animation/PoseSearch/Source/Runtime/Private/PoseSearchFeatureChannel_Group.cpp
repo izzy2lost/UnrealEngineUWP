@@ -113,15 +113,11 @@ bool UPoseSearchFeatureChannel_GroupBase::IsFilterValid(TConstArrayView<float> P
 }
 
 #if WITH_EDITOR
-FString UPoseSearchFeatureChannel_Group::GetLabel() const
+UE::PoseSearch::TLabelBuilder& UPoseSearchFeatureChannel_Group::GetLabel(UE::PoseSearch::TLabelBuilder& LabelBuilder, UE::PoseSearch::ELabelFormat LabelFormat) const
 {
-	TStringBuilder<256> Label;
-	if (const UPoseSearchFeatureChannel* OuterChannel = Cast<UPoseSearchFeatureChannel>(GetOuter()))
-	{
-		Label.Append(OuterChannel->GetLabel());
-		Label.Append(TEXT("_"));
-	}
-	Label.Append(TEXT("Group"));
-	return Label.ToString();
+	GetOuterLabel(LabelBuilder, LabelFormat);
+	AppendLabelSeparator(LabelBuilder, UE::PoseSearch::ELabelFormat::Full_Horizontal);
+	LabelBuilder.Append(TEXT("Group"));
+	return LabelBuilder;
 }
 #endif // WITH_EDITOR

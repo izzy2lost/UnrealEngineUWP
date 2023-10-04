@@ -171,8 +171,4 @@ bool UPoseSearchFeatureChannel_FilterCrashingLegs::IndexAsset(UE::PoseSearch::FA
 	return true;
 }
 
-FString UPoseSearchFeatureChannel_FilterCrashingLegs::GetLabel() const
-{
-	return Super::GetLabel();
-}
 #endif

@@ -38,16 +38,11 @@ bool UPoseSearchFeatureChannel_SamplingTime::IndexAsset(UE::PoseSearch::FAssetIn
 	return true;
 }
 
-FString UPoseSearchFeatureChannel_SamplingTime::GetLabel() const
+UE::PoseSearch::TLabelBuilder& UPoseSearchFeatureChannel_SamplingTime::GetLabel(UE::PoseSearch::TLabelBuilder& LabelBuilder, UE::PoseSearch::ELabelFormat LabelFormat) const
 {
-	TStringBuilder<256> Label;
-	if (const UPoseSearchFeatureChannel* OuterChannel = Cast<UPoseSearchFeatureChannel>(GetOuter()))
-	{
-		Label.Append(OuterChannel->GetLabel());
-		Label.Append(TEXT("_"));
-	}
-
-	Label.Append(TEXT("SamplTime"));
-	return Label.ToString();
+	GetOuterLabel(LabelBuilder, LabelFormat);
+	AppendLabelSeparator(LabelBuilder, LabelFormat);
+	LabelBuilder.Append(TEXT("SamplTime"));
+	return LabelBuilder;
 }
 #endif
