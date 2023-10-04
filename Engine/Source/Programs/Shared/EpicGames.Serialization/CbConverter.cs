@@ -122,7 +122,7 @@ namespace EpicGames.Serialization
 
 			public MethodInfo ReadMethod { get; } = GetMethodInfo(() => Read(null!));
 			public MethodInfo WriteMethod { get; } = GetMethodInfo(() => Write(null!, default!));
-			public MethodInfo WriteNamedMethod { get; } = GetMethodInfo(() => WriteNamed(null!, null!, default!));
+			public MethodInfo WriteNamedMethod { get; } = GetMethodInfo(() => WriteNamed(null!, default, default!));
 
 			public CbConverterMethodsWrapper(TConverter converter)
 			{

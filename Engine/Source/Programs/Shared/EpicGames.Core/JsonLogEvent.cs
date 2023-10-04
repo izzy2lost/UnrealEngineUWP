@@ -184,7 +184,7 @@ namespace EpicGames.Core
 			return (LogLevel)result;
 		}
 
-		static readonly Utf8String s_newlineEscaped = "\\n";
+		static readonly Utf8String s_newlineEscaped = new Utf8String("\\n");
 
 		/// <summary>
 		/// Gets the rendered message from the event data

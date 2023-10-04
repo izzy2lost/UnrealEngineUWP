@@ -25,7 +25,7 @@ namespace Horde.Server.Ddc
 			_tracer = tracer;
 		}
 
-		public static Utf8String GetAlias(BlobId blobId) => $"ddc:{blobId}";
+		public static string GetAlias(BlobId blobId) => $"ddc:{blobId}";
 
 		public async Task VerifyContentMatchesHashAsync(Stream stream, IoHash expectedHash, CancellationToken cancellationToken)
 		{
@@ -69,7 +69,7 @@ namespace Horde.Server.Ddc
 		public async Task DeleteObjectAsync(NamespaceId ns, BlobId blob, CancellationToken cancellationToken)
 		{
 			using IStorageClient storageClient = _storageService.CreateClient(ns);
-			Utf8String aliasName = GetAlias(blob);
+			string aliasName = GetAlias(blob);
 
 			BlobAlias[] aliases = await storageClient.FindAliasesAsync(aliasName, cancellationToken: cancellationToken);
 			foreach (BlobAlias alias in aliases)

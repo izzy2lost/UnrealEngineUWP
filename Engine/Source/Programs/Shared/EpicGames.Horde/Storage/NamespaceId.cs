@@ -26,6 +26,15 @@ namespace EpicGames.Horde.Storage
 		/// Constructor
 		/// </summary>
 		/// <param name="text">Unique id for the namespace</param>
+		public NamespaceId(string text)
+			: this(new Utf8String(text))
+		{
+		}
+
+		/// <summary>
+		/// Constructor
+		/// </summary>
+		/// <param name="text">Unique id for the namespace</param>
 		public NamespaceId(Utf8String text)
 		{
 			Text = new StringId(text);
@@ -71,6 +80,6 @@ namespace EpicGames.Horde.Storage
 		public override bool CanConvertFrom(ITypeDescriptorContext? context, Type sourceType) => sourceType == typeof(string);
 
 		/// <inheritdoc/>
-		public override object ConvertFrom(ITypeDescriptorContext? context, CultureInfo? culture, object value) => new NamespaceId((string)value);
+		public override object ConvertFrom(ITypeDescriptorContext? context, CultureInfo? culture, object value) => new NamespaceId(new Utf8String((string)value));
 	}
 }

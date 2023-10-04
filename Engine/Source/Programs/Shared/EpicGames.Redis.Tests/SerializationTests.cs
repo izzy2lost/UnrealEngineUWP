@@ -19,7 +19,7 @@ namespace EpicGames.Redis.Tests
 		[TestMethod]
 		public void RoundTrip()
 		{
-			TestRecord input = new TestRecord(123, "hello", "world");
+			TestRecord input = new TestRecord(123, "hello", new Utf8String("world"));
 
 			RedisValue value = RedisSerializer.Serialize(input);
 
@@ -34,7 +34,7 @@ namespace EpicGames.Redis.Tests
 		[TestMethod]
 		public void EscapedCharacters()
 		{
-			TestRecord input = new TestRecord(123, "|||", "\\");
+			TestRecord input = new TestRecord(123, "|||", new Utf8String("\\"));
 
 			RedisValue value = RedisSerializer.Serialize(input);
 

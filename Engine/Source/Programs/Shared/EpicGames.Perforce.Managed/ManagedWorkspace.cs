@@ -905,10 +905,10 @@ namespace EpicGames.Perforce.Managed
 				}
 				else
 				{
-					contents = await TryLoadClientContentsAsync(cacheFile, streamName, cancellationToken);
+					contents = await TryLoadClientContentsAsync(cacheFile, new Utf8String(streamName), cancellationToken);
 					if (contents == null)
 					{
-						contents = await FindAndSaveClientContentsAsync(perforce, streamName, view, changeNumber, cacheFile, cancellationToken);
+						contents = await FindAndSaveClientContentsAsync(perforce, new Utf8String(streamName), view, changeNumber, cacheFile, cancellationToken);
 					}
 				}
 
@@ -1473,7 +1473,7 @@ namespace EpicGames.Perforce.Managed
 				Stopwatch timer = Stopwatch.StartNew();
 
 				// Get the expected prefix for any paths in client syntax
-				Utf8String clientPrefix = $"//{perforceClient.Settings.ClientName}/";
+				Utf8String clientPrefix = new Utf8String($"//{perforceClient.Settings.ClientName}/");
 
 				// List of the last path fragments. Since file records that are returned are typically sorted by their position in the tree, we can save quite a lot of processing by
 				// reusing as many fragemnts as possible.

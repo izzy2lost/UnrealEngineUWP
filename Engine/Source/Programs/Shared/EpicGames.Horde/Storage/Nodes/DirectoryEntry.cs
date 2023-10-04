@@ -12,12 +12,12 @@ namespace EpicGames.Horde.Storage.Nodes
 		/// <summary>
 		/// Name of this directory
 		/// </summary>
-		public Utf8String Name { get; }
+		public string Name { get; }
 
 		/// <summary>
 		/// Constructor
 		/// </summary>
-		public DirectoryEntry(Utf8String name, long length, NodeRef<DirectoryNode> nodeRef)
+		public DirectoryEntry(string name, long length, NodeRef<DirectoryNode> nodeRef)
 			: base(length, nodeRef)
 		{
 			Name = name;
@@ -30,7 +30,7 @@ namespace EpicGames.Horde.Storage.Nodes
 		public DirectoryEntry(NodeReader reader)
 			: base(reader)
 		{
-			Name = reader.ReadUtf8String();
+			Name = reader.ReadString();
 		}
 
 		/// <summary>
@@ -41,10 +41,10 @@ namespace EpicGames.Horde.Storage.Nodes
 		{
 			base.Serialize(writer);
 
-			writer.WriteUtf8String(Name);
+			writer.WriteString(Name);
 		}
 
 		/// <inheritdoc/>
-		public override string ToString() => Name.ToString();
+		public override string ToString() => Name;
 	}
 }

@@ -38,9 +38,9 @@ namespace Horde.Server.Tests
 			{
 				List<Utf8String> lines = await tailService.ReadAsync(_logId, 30, 10);
 				Assert.AreEqual(3, lines.Count);
-				Assert.AreEqual("foo", lines[0]);
-				Assert.AreEqual("bar", lines[1]);
-				Assert.AreEqual("baz", lines[2]);
+				Assert.AreEqual("foo", lines[0].ToString());
+				Assert.AreEqual("bar", lines[1].ToString());
+				Assert.AreEqual("baz", lines[2].ToString());
 			}
 		}
 
@@ -62,9 +62,9 @@ namespace Horde.Server.Tests
 			{
 				List<Utf8String> lines = await tailService.ReadAsync(_logId, 30, 10);
 				Assert.AreEqual(3, lines.Count);
-				Assert.AreEqual("foo", lines[0]);
-				Assert.AreEqual("bar", lines[1]);
-				Assert.AreEqual("baz", lines[2]);
+				Assert.AreEqual("foo", lines[0].ToString());
+				Assert.AreEqual("bar", lines[1].ToString());
+				Assert.AreEqual("baz", lines[2].ToString());
 			}
 		}
 
@@ -99,15 +99,15 @@ namespace Horde.Server.Tests
 			}
 			{
 				List<Utf8String> lines = await tailService.ReadAsync(_logId, 32, 20);
-				Assert.AreEqual("line32", lines[0]);
-				Assert.AreEqual("line33", lines[1]);
-				Assert.AreEqual("line34", lines[2]);
-				Assert.AreEqual("line35", lines[3]);
-				Assert.AreEqual("line36", lines[4]);
-				Assert.AreEqual("line37", lines[5]);
-				Assert.AreEqual("line38", lines[6]);
-				Assert.AreEqual("line39", lines[7]);
-				Assert.AreEqual("line40", lines[8]);
+				Assert.AreEqual("line32", lines[0].ToString());
+				Assert.AreEqual("line33", lines[1].ToString());
+				Assert.AreEqual("line34", lines[2].ToString());
+				Assert.AreEqual("line35", lines[3].ToString());
+				Assert.AreEqual("line36", lines[4].ToString());
+				Assert.AreEqual("line37", lines[5].ToString());
+				Assert.AreEqual("line38", lines[6].ToString());
+				Assert.AreEqual("line39", lines[7].ToString());
+				Assert.AreEqual("line40", lines[8].ToString());
 			}
 		}
 
@@ -159,7 +159,7 @@ namespace Horde.Server.Tests
 			{
 				List<Utf8String> lines = await tailService.ReadAsync(_logId, 30, 4);
 				Assert.AreEqual(1, lines.Count);
-				Assert.AreEqual("line30", lines[0]);
+				Assert.AreEqual("line30", lines[0].ToString());
 			}
 			{
 				List<Utf8String> lines = await tailService.ReadAsync(_logId, 32, 4);

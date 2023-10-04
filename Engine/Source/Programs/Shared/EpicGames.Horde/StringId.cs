@@ -49,6 +49,15 @@ namespace EpicGames.Horde
 		/// Constructor
 		/// </summary>
 		/// <param name="text">Unique id for the string</param>
+		public StringId(string text)
+			: this(new Utf8String(text))
+		{
+		}
+
+		/// <summary>
+		/// Constructor
+		/// </summary>
+		/// <param name="text">Unique id for the string</param>
 		public StringId(Utf8String text)
 		{
 			Text = ValidateArgument(text, nameof(text));
@@ -98,7 +107,7 @@ namespace EpicGames.Horde
 			{
 				result.Remove(result.Length - 1, 1);
 			}
-			return new StringId(result.ToString(), Validate.None);
+			return new StringId(new Utf8String(result.ToString()), Validate.None);
 		}
 
 		/// <summary>

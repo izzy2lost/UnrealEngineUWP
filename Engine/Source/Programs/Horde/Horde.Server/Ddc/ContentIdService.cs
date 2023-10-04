@@ -1,6 +1,5 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 
-using EpicGames.Core;
 using EpicGames.Horde.Storage;
 using Horde.Server.Storage;
 using System.Threading;
@@ -17,8 +16,8 @@ namespace Horde.Server.Ddc
 			_storageService = storageService;
 		}
 
-		static Utf8String GetAlias(BlobId blobId) => BlobService.GetAlias(blobId);
-		static Utf8String GetAlias(ContentId contentId) => $"cid:{contentId}";
+		static string GetAlias(BlobId blobId) => BlobService.GetAlias(blobId);
+		static string GetAlias(ContentId contentId) => $"cid:{contentId}";
 
 		public async Task<BlobId[]?> ResolveAsync(NamespaceId ns, ContentId contentId, bool mustBeContentId = false)
 		{

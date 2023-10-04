@@ -24,7 +24,7 @@ namespace EpicGames.Serialization.Converters
 			}
 		}
 
-		static readonly Utf8String s_discriminatorKey = "_t";
+		static readonly Utf8String s_discriminatorKey = new Utf8String("_t");
 
 		public Type ClassType { get; }
 		public bool IsPolymorphic { get; }
@@ -126,7 +126,7 @@ namespace EpicGames.Serialization.Converters
 						if (baseType == classType)
 						{
 							CbDiscriminatorAttribute discriminator = knownType.GetCustomAttribute<CbDiscriminatorAttribute>() ?? throw new NotSupportedException();
-							discriminatorToKnownType[discriminator.Name] = knownType;
+							discriminatorToKnownType[new Utf8String(discriminator.Name)] = knownType;
 						}
 					}
 				}
@@ -193,7 +193,7 @@ namespace EpicGames.Serialization.Converters
 
 			generator.Emit(OpCodes.Ldarg_0);
 			generator.Emit(OpCodes.Ldarg_1);
-			generator.EmitCall(OpCodes.Call, GetMethodInfo<CbWriter>(x => x.BeginObject(null!)), null);
+			generator.EmitCall(OpCodes.Call, GetMethodInfo<CbWriter>(x => x.BeginObject(default)), null);
 
 			generator.Emit(OpCodes.Ldarg_0);
 			generator.Emit(OpCodes.Ldarg_2);
@@ -466,7 +466,7 @@ namespace EpicGames.Serialization.Converters
 				CbFieldAttribute? attribute = property.GetCustomAttribute<CbFieldAttribute>();
 				if (attribute != null)
 				{
-					Utf8String name = attribute.Name ?? property.Name;
+					Utf8String name = new Utf8String(attribute.Name ?? property.Name);
 					propertyList.Add((name, property));
 				}
 			}

@@ -33,6 +33,8 @@ namespace EpicGames.Core
 
 		public static readonly Utf8String File = new Utf8String("file"); // For source file / asset types
 		public static readonly Utf8String Identifier = new Utf8String("identifier"); // For symbols
+		public static readonly Utf8String RelativePath = new Utf8String("relativePath");
+		public static readonly Utf8String DepotPath = new Utf8String("depotPath");
 
 		public static readonly Utf8String Exception = new Utf8String("exception");
 		public static readonly Utf8String Trace = new Utf8String("trace");
@@ -327,7 +329,7 @@ namespace EpicGames.Core
 				}
 			}
 
-			return new LogValue(type, text, properties);
+			return new LogValue(new Utf8String(type), text, properties);
 		}
 
 		/// <summary>

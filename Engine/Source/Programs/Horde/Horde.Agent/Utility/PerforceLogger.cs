@@ -138,10 +138,10 @@ namespace Horde.Agent.Utility
 			}
 		}
 
-		static readonly Utf8String s_sourceFileType = "SourceFile";
-		static readonly Utf8String s_assetType = "Asset";
+		static readonly Utf8String s_sourceFileType = new Utf8String("SourceFile");
+		static readonly Utf8String s_assetType = new Utf8String("Asset");
 
-		static readonly Utf8String s_file = "file";
+		static readonly Utf8String s_file = new Utf8String("file");
 
 		ReadOnlyMemory<byte> Annotate(ReadOnlyMemory<byte> data)
 		{

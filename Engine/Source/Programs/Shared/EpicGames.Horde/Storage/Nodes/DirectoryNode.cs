@@ -141,8 +141,8 @@ namespace EpicGames.Horde.Storage.Nodes
 	[NodeType("{0714EC11-291A-4D07-867F-E78AD6809979}", 1)]
 	public class DirectoryNode : Node
 	{
-		readonly SortedDictionary<Utf8String, FileEntry> _nameToFileEntry = new SortedDictionary<Utf8String, FileEntry>();
-		readonly SortedDictionary<Utf8String, DirectoryEntry> _nameToDirectoryEntry = new SortedDictionary<Utf8String, DirectoryEntry>();
+		readonly SortedDictionary<string, FileEntry> _nameToFileEntry = new SortedDictionary<string, FileEntry>(StringComparer.Ordinal);
+		readonly SortedDictionary<string, DirectoryEntry> _nameToDirectoryEntry = new SortedDictionary<string, DirectoryEntry>(StringComparer.Ordinal);
 
 		/// <summary>
 		/// Total size of this directory
@@ -162,7 +162,7 @@ namespace EpicGames.Horde.Storage.Nodes
 		/// <summary>
 		/// Map of name to file entry
 		/// </summary>
-		public IReadOnlyDictionary<Utf8String, FileEntry> NameToFile => _nameToFileEntry;
+		public IReadOnlyDictionary<string, FileEntry> NameToFile => _nameToFileEntry;
 
 		/// <summary>
 		/// All the subdirectories within this directory
@@ -172,7 +172,7 @@ namespace EpicGames.Horde.Storage.Nodes
 		/// <summary>
 		/// Map of name to file entry
 		/// </summary>
-		public IReadOnlyDictionary<Utf8String, DirectoryEntry> NameToDirectory => _nameToDirectoryEntry;
+		public IReadOnlyDictionary<string, DirectoryEntry> NameToDirectory => _nameToDirectoryEntry;
 
 		/// <summary>
 		/// Constructor
@@ -240,7 +240,7 @@ namespace EpicGames.Horde.Storage.Nodes
 		/// </summary>
 		/// <param name="name">Name of the entry to search for</param>
 		/// <returns>True if the entry exists</returns>
-		public bool Contains(Utf8String name) => TryGetFileEntry(name, out _) || TryGetDirectoryEntry(name, out _);
+		public bool Contains(string name) => TryGetFileEntry(name, out _) || TryGetDirectoryEntry(name, out _);
 
 		#region File operations
 
@@ -255,14 +255,14 @@ namespace EpicGames.Horde.Storage.Nodes
 		}
 
 		/// <summary>
-		/// Adds a new directory with the given name
+		/// Adds a new file with the given name
 		/// </summary>
 		/// <param name="name">Name of the new directory</param>
 		/// <param name="flags">Flags for the new file</param>
 		/// <param name="length">Length of the file</param>
 		/// <param name="data">Chunked data for the file</param>
 		/// <returns>The new directory object</returns>
-		public FileEntry AddFile(Utf8String name, FileEntryFlags flags, long length, ChunkedData data)
+		public FileEntry AddFile(string name, FileEntryFlags flags, long length, ChunkedData data)
 		{
 			FileEntry entry = new FileEntry(name, flags, length, data);
 			AddFile(entry);
@@ -274,7 +274,7 @@ namespace EpicGames.Horde.Storage.Nodes
 		/// </summary>
 		/// <param name="name">Name of the file</param>
 		/// <returns>Entry for the given name</returns>
-		public FileEntry GetFileEntry(Utf8String name) => _nameToFileEntry[name];
+		public FileEntry GetFileEntry(string name) => _nameToFileEntry[name];
 
 		/// <summary>
 		/// Attempts to get a file entry with the given name
@@ -282,21 +282,21 @@ namespace EpicGames.Horde.Storage.Nodes
 		/// <param name="name">Name of the file</param>
 		/// <param name="entry">Entry for the file</param>
 		/// <returns>True if the file was found</returns>
-		public bool TryGetFileEntry(Utf8String name, [NotNullWhen(true)] out FileEntry? entry) => _nameToFileEntry.TryGetValue(name, out entry);
+		public bool TryGetFileEntry(string name, [NotNullWhen(true)] out FileEntry? entry) => _nameToFileEntry.TryGetValue(name, out entry);
 
 		/// <summary>
 		/// Opens a file for reading
 		/// </summary>
 		/// <param name="name">Name of the file to open</param>
 		/// <returns>Stream for the file</returns>
-		public Stream OpenFile(Utf8String name) => GetFileEntry(name).OpenAsStream();
+		public Stream OpenFile(string name) => GetFileEntry(name).OpenAsStream();
 
 		/// <summary>
 		/// Attempts to open a file for reading
 		/// </summary>
 		/// <param name="name">Name of the file</param>
 		/// <returns>File stream, or null if the file does not exist</returns>
-		public Stream? TryOpenFile(Utf8String name)
+		public Stream? TryOpenFile(string name)
 		{
 			FileEntry? entry;
 			if (TryGetFileEntry(name, out entry))
@@ -314,7 +314,7 @@ namespace EpicGames.Horde.Storage.Nodes
 		/// </summary>
 		/// <param name="name">Name of the entry to delete</param>
 		/// <returns>True if the entry was found, false otherwise</returns>
-		public bool DeleteFile(Utf8String name)
+		public bool DeleteFile(string name)
 		{
 			if (_nameToFileEntry.Remove(name))
 			{
@@ -330,7 +330,7 @@ namespace EpicGames.Horde.Storage.Nodes
 		/// <param name="path">Path to the directory</param>
 		/// <param name="cancellationToken">Cancellation token</param>
 		/// <returns>The directory with the given path, or null if it was not found</returns>
-		public async ValueTask<FileEntry?> GetFileEntryByPathAsync(Utf8String path, CancellationToken cancellationToken = default)
+		public async ValueTask<FileEntry?> GetFileEntryByPathAsync(string path, CancellationToken cancellationToken = default)
 		{
 			FileEntry? fileEntry;
 
@@ -344,12 +344,12 @@ namespace EpicGames.Horde.Storage.Nodes
 			}
 			else
 			{
-				DirectoryNode? directoryNode = await GetDirectoryByPathAsync(path.Slice(0, slashIdx), cancellationToken);
+				DirectoryNode? directoryNode = await GetDirectoryByPathAsync(path.Substring(0, slashIdx), cancellationToken);
 				if (directoryNode == null)
 				{
 					return null;
 				}
-				if (!directoryNode.TryGetFileEntry(path.Slice(slashIdx + 1), out fileEntry))
+				if (!directoryNode.TryGetFileEntry(path.Substring(slashIdx + 1), out fileEntry))
 				{
 					return null;
 				}
@@ -364,24 +364,24 @@ namespace EpicGames.Horde.Storage.Nodes
 		/// <param name="path">Path to the directory</param>
 		/// <param name="cancellationToken">Cancellation token</param>
 		/// <returns>The directory with the given path, or null if it was not found</returns>
-		public ValueTask<DirectoryNode?> GetDirectoryByPathAsync(Utf8String path, CancellationToken cancellationToken = default) => GetDirectoryByPathAsync(this, path, cancellationToken);
+		public ValueTask<DirectoryNode?> GetDirectoryByPathAsync(string path, CancellationToken cancellationToken = default) => GetDirectoryByPathAsync(this, path, cancellationToken);
 
-		static async ValueTask<DirectoryNode?> GetDirectoryByPathAsync(DirectoryNode directoryNode, Utf8String path, CancellationToken cancellationToken = default)
+		static async ValueTask<DirectoryNode?> GetDirectoryByPathAsync(DirectoryNode directoryNode, string path, CancellationToken cancellationToken = default)
 		{
 			while (path.Length > 0)
 			{
-				Utf8String directoryName;
+				string directoryName;
 
-				int slashIdx = path.IndexOf('/');
+				int slashIdx = path.IndexOf('/', StringComparison.Ordinal);
 				if (slashIdx == -1)
 				{
 					directoryName = path;
-					path = Utf8String.Empty;
+					path = String.Empty;
 				}
 				else
 				{
-					directoryName = path.Slice(0, slashIdx);
-					path = path.Slice(slashIdx + 1);
+					directoryName = path.Substring(0, slashIdx);
+					path = path.Substring(slashIdx + 1);
 				}
 
 				DirectoryEntry? directoryEntry;
@@ -401,21 +401,21 @@ namespace EpicGames.Horde.Storage.Nodes
 		/// <param name="path"></param>
 		/// <param name="cancellationToken"></param>
 		/// <returns></returns>
-		public async ValueTask<bool> DeleteFileByPathAsync(Utf8String path, CancellationToken cancellationToken = default)
+		public async ValueTask<bool> DeleteFileByPathAsync(string path, CancellationToken cancellationToken = default)
 		{
-			Utf8String remainingPath = path;
+			string remainingPath = path;
 			for (DirectoryNode? directory = this; directory != null;)
 			{
-				int length = remainingPath.IndexOf('/');
+				int length = remainingPath.IndexOf('/', StringComparison.Ordinal);
 				if (length == -1)
 				{
 					return directory.DeleteFile(remainingPath);
 				}
 				if (length > 0)
 				{
-					directory = await directory.TryOpenDirectoryAsync(remainingPath.Slice(0, length), cancellationToken);
+					directory = await directory.TryOpenDirectoryAsync(remainingPath.Substring(0, length), cancellationToken);
 				}
-				remainingPath = remainingPath.Slice(length + 1);
+				remainingPath = remainingPath.Substring(length + 1);
 			}
 			return false;
 		}
@@ -444,7 +444,7 @@ namespace EpicGames.Horde.Storage.Nodes
 		/// </summary>
 		/// <param name="name">Name of the directory</param>
 		/// <returns>The entry with the given name</returns>
-		public DirectoryEntry GetDirectoryEntry(Utf8String name) => _nameToDirectoryEntry[name];
+		public DirectoryEntry GetDirectoryEntry(string name) => _nameToDirectoryEntry[name];
 
 		/// <summary>
 		/// Attempts to get a directory entry with the given name
@@ -452,7 +452,7 @@ namespace EpicGames.Horde.Storage.Nodes
 		/// <param name="name">Name of the directory</param>
 		/// <param name="entry">Entry for the directory</param>
 		/// <returns>True if the directory was found</returns>
-		public bool TryGetDirectoryEntry(Utf8String name, [NotNullWhen(true)] out DirectoryEntry? entry) => _nameToDirectoryEntry.TryGetValue(name, out entry);
+		public bool TryGetDirectoryEntry(string name, [NotNullWhen(true)] out DirectoryEntry? entry) => _nameToDirectoryEntry.TryGetValue(name, out entry);
 
 		/// <summary>
 		/// Tries to get a directory with the given name
@@ -460,7 +460,7 @@ namespace EpicGames.Horde.Storage.Nodes
 		/// <param name="name">Name of the new directory</param>
 		/// <param name="cancellationToken">Cancellation token for the operation</param>
 		/// <returns>The new directory object</returns>
-		public async ValueTask<DirectoryNode> OpenDirectoryAsync(Utf8String name, CancellationToken cancellationToken = default)
+		public async ValueTask<DirectoryNode> OpenDirectoryAsync(string name, CancellationToken cancellationToken = default)
 		{
 			DirectoryNode? directoryNode = await TryOpenDirectoryAsync(name, cancellationToken);
 			if (directoryNode == null)
@@ -476,7 +476,7 @@ namespace EpicGames.Horde.Storage.Nodes
 		/// <param name="name">Name of the new directory</param>
 		/// <param name="cancellationToken">Cancellation token for the operation</param>
 		/// <returns>The new directory object</returns>
-		public async ValueTask<DirectoryNode?> TryOpenDirectoryAsync(Utf8String name, CancellationToken cancellationToken = default)
+		public async ValueTask<DirectoryNode?> TryOpenDirectoryAsync(string name, CancellationToken cancellationToken = default)
 		{
 			if (TryGetDirectoryEntry(name, out DirectoryEntry? entry))
 			{
@@ -493,7 +493,7 @@ namespace EpicGames.Horde.Storage.Nodes
 		/// </summary>
 		/// <param name="name">Name of the entry to delete</param>
 		/// <returns>True if the entry was found, false otherwise</returns>
-		public bool DeleteDirectory(Utf8String name)
+		public bool DeleteDirectory(string name)
 		{
 			if (_nameToDirectoryEntry.Remove(name))
 			{

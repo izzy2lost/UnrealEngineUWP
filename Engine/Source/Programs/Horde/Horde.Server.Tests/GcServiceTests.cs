@@ -106,7 +106,7 @@ namespace Horde.Server.Tests
 				List<BundleLocator> imports = children[idx].ConvertAll(x => locators[x]);
 				BundleHeader header = new BundleHeader(types.ToArray(), imports.ToArray(), Array.Empty<BundleExport>(), Array.Empty<BundlePacket>());
 				Bundle bundle = new Bundle(header, Array.Empty<ReadOnlyMemory<byte>>());
-				locators[idx] = await store.WriteBundleAsync(bundle, prefix: "gctest");
+				locators[idx] = await store.WriteBundleAsync(bundle, prefix: new Utf8String("gctest"));
 			}
 
 			return locators;

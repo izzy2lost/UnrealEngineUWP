@@ -60,11 +60,11 @@ namespace EpicGames.Horde.Storage.Clients
 
 		#region Aliases
 
-		/// <inheritdoc cref="IStorageClient.AddAliasAsync(Utf8String, BlobHandle, Int32, ReadOnlyMemory{Byte}, CancellationToken)"/>
-		Task AddAliasAsync(Utf8String name, BundleNodeLocator locator, int rank = 0, ReadOnlyMemory<byte> data = default, CancellationToken cancellationToken = default);
+		/// <inheritdoc cref="IStorageClient.AddAliasAsync(string, BlobHandle, Int32, ReadOnlyMemory{Byte}, CancellationToken)"/>
+		Task AddAliasAsync(string name, BundleNodeLocator locator, int rank = 0, ReadOnlyMemory<byte> data = default, CancellationToken cancellationToken = default);
 
-		/// <inheritdoc cref="IStorageClient.RemoveAliasAsync(Utf8String, BlobHandle, CancellationToken)"/>
-		Task RemoveAliasAsync(Utf8String name, BundleNodeLocator locator, CancellationToken cancellationToken = default);
+		/// <inheritdoc cref="IStorageClient.RemoveAliasAsync(string, BlobHandle, CancellationToken)"/>
+		Task RemoveAliasAsync(string name, BundleNodeLocator locator, CancellationToken cancellationToken = default);
 
 		#endregion
 
@@ -209,19 +209,19 @@ namespace EpicGames.Horde.Storage.Clients
 		#region Aliases
 
 		/// <inheritdoc/>
-		Task IStorageClient.AddAliasAsync(Utf8String name, BlobHandle handle, int rank, ReadOnlyMemory<byte> data, CancellationToken cancellationToken) => AddAliasAsync(name, ((BundleNodeHandle)handle).GetLocator(), rank, data, cancellationToken);
+		Task IStorageClient.AddAliasAsync(string name, BlobHandle handle, int rank, ReadOnlyMemory<byte> data, CancellationToken cancellationToken) => AddAliasAsync(name, ((BundleNodeHandle)handle).GetLocator(), rank, data, cancellationToken);
 
 		/// <inheritdoc/>
-		public abstract Task AddAliasAsync(Utf8String name, BundleNodeLocator handle, int rank = 0, ReadOnlyMemory<byte> data = default, CancellationToken cancellationToken = default);
+		public abstract Task AddAliasAsync(string name, BundleNodeLocator handle, int rank = 0, ReadOnlyMemory<byte> data = default, CancellationToken cancellationToken = default);
 
 		/// <inheritdoc/>
-		Task IStorageClient.RemoveAliasAsync(Utf8String name, BlobHandle handle, CancellationToken cancellationToken) => RemoveAliasAsync(name, ((BundleNodeHandle)handle).GetLocator(), cancellationToken);
+		Task IStorageClient.RemoveAliasAsync(string name, BlobHandle handle, CancellationToken cancellationToken) => RemoveAliasAsync(name, ((BundleNodeHandle)handle).GetLocator(), cancellationToken);
 
 		/// <inheritdoc/>
-		public abstract Task RemoveAliasAsync(Utf8String name, BundleNodeLocator locator, CancellationToken cancellationToken = default);
+		public abstract Task RemoveAliasAsync(string name, BundleNodeLocator locator, CancellationToken cancellationToken = default);
 
 		/// <inheritdoc/>
-		public abstract Task<BlobAlias[]> FindAliasesAsync(Utf8String name, int? maxLength = null, CancellationToken cancellationToken = default);
+		public abstract Task<BlobAlias[]> FindAliasesAsync(string name, int? maxLength = null, CancellationToken cancellationToken = default);
 
 		#endregion
 

@@ -181,7 +181,7 @@ namespace UnrealBuildToolTests
 
 				LogValue noteProperty1 = logEvents[2].GetProperty<LogValue>("file");
 				Assert.AreEqual(LogValueType.SourceFile, noteProperty1.Type);
-				Assert.AreEqual(@"Engine\Plugins\Editor\EditorScriptingUtilities\Source\EditorScriptingUtilities\Public\EditorLevelLibrary.h", noteProperty1.Properties!["file"].ToString()!);
+				Assert.AreEqual(@"Engine\Plugins\Editor\EditorScriptingUtilities\Source\EditorScriptingUtilities\Public\EditorLevelLibrary.h", noteProperty1.Properties![LogEventPropertyName.File].ToString()!);
 			}
 		}
 
@@ -675,10 +675,10 @@ namespace UnrealBuildToolTests
 			CheckEventGroup(logEvents, 0, 2, LogLevel.Error, KnownLogEvents.Linker_UndefinedSymbol);
 
 			LogValue symbolProperty = (LogValue)logEvents[0].GetProperty("symbol");
-			Assert.AreEqual("Foo::Bar", symbolProperty.Properties!["identifier"].ToString());
+			Assert.AreEqual("Foo::Bar", symbolProperty.Properties![LogEventPropertyName.Identifier].ToString());
 
 			LogValue symbolProperty2 = (LogValue)logEvents[1].GetProperty("symbol");
-			Assert.AreEqual("Foo::Bar2", symbolProperty2.Properties!["identifier"].ToString());
+			Assert.AreEqual("Foo::Bar2", symbolProperty2.Properties![LogEventPropertyName.Identifier].ToString());
 		}
 
 		[TestMethod]
@@ -696,7 +696,7 @@ namespace UnrealBuildToolTests
 			CheckEventGroup(logEvents, 0, 4, LogLevel.Error, KnownLogEvents.Linker_UndefinedSymbol);
 
 			LogValue symbolProperty = (LogValue)logEvents[0].GetProperty("symbol");
-			Assert.AreEqual("USkeleton::GetBlendProfile", symbolProperty.Properties!["identifier"].ToString());
+			Assert.AreEqual("USkeleton::GetBlendProfile", symbolProperty.Properties![LogEventPropertyName.Identifier].ToString());
 		}
 
 		[TestMethod]
@@ -713,7 +713,7 @@ namespace UnrealBuildToolTests
 			CheckEventGroup(logEvents, 0, 3, LogLevel.Error, KnownLogEvents.Linker_DuplicateSymbol);
 
 			LogValue symbolProperty = (LogValue)logEvents[0].GetProperty("symbol");
-			Assert.AreEqual("IMPLEMENT_MODULE_DataInterface", symbolProperty.Properties!["identifier"].ToString());
+			Assert.AreEqual("IMPLEMENT_MODULE_DataInterface", symbolProperty.Properties![LogEventPropertyName.Identifier].ToString());
 		}
 
 		[TestMethod]
@@ -730,7 +730,7 @@ namespace UnrealBuildToolTests
 
 			LogValue symbolProperty = (LogValue)logEvents[1].GetProperty("symbol");
 			Assert.AreEqual(LogValueType.Symbol, symbolProperty.Type);
-			Assert.AreEqual("Foo::Bar", symbolProperty.Properties!["identifier"].ToString());
+			Assert.AreEqual("Foo::Bar", symbolProperty.Properties![LogEventPropertyName.Identifier].ToString());
 		}
 
 		[TestMethod]
@@ -784,7 +784,7 @@ namespace UnrealBuildToolTests
 			CheckEventGroup(logEvents, 0, 1, LogLevel.Error, KnownLogEvents.Linker_UndefinedSymbol);
 
 			LogValue symbolProperty = (LogValue)logEvents[0].GetProperty("symbol");
-			Assert.AreEqual("Foo::Bar", symbolProperty.Properties!["identifier"].ToString());
+			Assert.AreEqual("Foo::Bar", symbolProperty.Properties![LogEventPropertyName.Identifier].ToString());
 		}
 
 		[TestMethod]
@@ -817,7 +817,7 @@ namespace UnrealBuildToolTests
 			CheckEventGroup(logEvents, 0, 1, LogLevel.Error, KnownLogEvents.Linker_UndefinedSymbol);
 
 			LogValue symbolProperty = logEvents[0].GetProperty<LogValue>("symbol");
-			Assert.AreEqual("Foo::Bar", symbolProperty.Properties!["identifier"].ToString());
+			Assert.AreEqual("Foo::Bar", symbolProperty.Properties![LogEventPropertyName.Identifier].ToString());
 		}
 
 		[TestMethod]
@@ -832,7 +832,7 @@ namespace UnrealBuildToolTests
 			CheckEventGroup(logEvents, 0, 1, LogLevel.Error, KnownLogEvents.Linker_UndefinedSymbol);
 
 			LogValue symbolProperty = logEvents[0].GetProperty<LogValue>("symbol");
-			Assert.AreEqual("Foo::Bar", symbolProperty.Properties!["identifier"].ToString());
+			Assert.AreEqual("Foo::Bar", symbolProperty.Properties![LogEventPropertyName.Identifier].ToString());
 		}
 
 		[TestMethod]
@@ -847,7 +847,7 @@ namespace UnrealBuildToolTests
 			CheckEventGroup(logEvents, 0, 1, LogLevel.Error, KnownLogEvents.Linker_UndefinedSymbol);
 
 			LogValue symbolProperty = logEvents[0].GetProperty<LogValue>("symbol");
-			Assert.AreEqual("Foo::Bar", symbolProperty.Properties!["identifier"].ToString());
+			Assert.AreEqual("Foo::Bar", symbolProperty.Properties![LogEventPropertyName.Identifier].ToString());
 		}
 
 		[TestMethod]

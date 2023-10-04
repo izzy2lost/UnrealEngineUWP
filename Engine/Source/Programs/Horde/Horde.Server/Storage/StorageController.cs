@@ -588,13 +588,13 @@ namespace Horde.Server.Storage
 				case DirectoryNode directoryNode:
 					{
 						List<object> directories = new List<object>();
-						foreach ((Utf8String name, DirectoryEntry entry) in directoryNode.NameToDirectory)
+						foreach ((string name, DirectoryEntry entry) in directoryNode.NameToDirectory)
 						{
 							directories.Add(new { name = name.ToString(), length = entry.Length, hash = entry.Handle.Hash, link = GetNodeLink(linkBase, (BundleNodeHandle)entry.Handle) });
 						}
 
 						List<object> files = new List<object>();
-						foreach ((Utf8String name, FileEntry entry) in directoryNode.NameToFile)
+						foreach ((string name, FileEntry entry) in directoryNode.NameToFile)
 						{
 							files.Add(new { name = name.ToString(), length = entry.Length, flags = entry.Flags, hash = entry.Hash, link = GetNodeLink(linkBase, (BundleNodeHandle)entry.Handle) });
 						}

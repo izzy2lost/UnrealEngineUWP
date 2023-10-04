@@ -55,7 +55,7 @@ namespace EpicGames.Horde.Storage.Nodes
 		/// <summary>
 		/// Name of this file
 		/// </summary>
-		public Utf8String Name { get; }
+		public string Name { get; }
 
 		/// <summary>
 		/// Flags for this file
@@ -80,7 +80,7 @@ namespace EpicGames.Horde.Storage.Nodes
 		/// <summary>
 		/// Constructor
 		/// </summary>
-		public FileEntry(Utf8String name, FileEntryFlags flags, long length, ChunkedData data)
+		public FileEntry(string name, FileEntryFlags flags, long length, ChunkedData data)
 			: base(data.Root)
 		{
 			Name = name;
@@ -96,7 +96,7 @@ namespace EpicGames.Horde.Storage.Nodes
 		public FileEntry(NodeReader reader)
 			: base(reader)
 		{
-			Name = reader.ReadUtf8String();
+			Name = reader.ReadString();
 			Flags = (FileEntryFlags)reader.ReadUnsignedVarInt();
 			Length = (long)reader.ReadUnsignedVarInt();
 			Hash = reader.ReadIoHash();
@@ -118,7 +118,7 @@ namespace EpicGames.Horde.Storage.Nodes
 
 			FileEntryFlags flags = (CustomData.Length > 0) ? (Flags | FileEntryFlags.HasCustomData) : (Flags & ~FileEntryFlags.HasCustomData);
 
-			writer.WriteUtf8String(Name);
+			writer.WriteString(Name);
 			writer.WriteUnsignedVarInt((ulong)flags);
 			writer.WriteUnsignedVarInt((ulong)Length);
 			writer.WriteIoHash(Hash);

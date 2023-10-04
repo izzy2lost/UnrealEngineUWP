@@ -146,7 +146,7 @@ namespace EpicGames.Perforce.Managed
 			for (int i = 0; i < pathFragments.Length - 1; i++)
 			{
 				string pathFragment = pathFragments[i];
-				Utf8String unescapedFragment = PerforceUtils.UnescapePath(pathFragment);
+				Utf8String unescapedFragment = new Utf8String(PerforceUtils.UnescapePath(pathFragment));
 
 				if (!currentStreamDirectory.NameToTreeBuilder.TryGetValue(unescapedFragment, out StreamTreeBuilder? nextStreamDirectory))
 				{
@@ -156,7 +156,7 @@ namespace EpicGames.Perforce.Managed
 				currentStreamDirectory = nextStreamDirectory;
 			}
 
-			string filename = PerforceUtils.UnescapePath(pathFragments[^1]); // Last fragment is filename
+			Utf8String filename = new Utf8String(PerforceUtils.UnescapePath(pathFragments[^1])); // Last fragment is filename
 			currentStreamDirectory.NameToFile[filename] = depotFile;
 		}
 	}

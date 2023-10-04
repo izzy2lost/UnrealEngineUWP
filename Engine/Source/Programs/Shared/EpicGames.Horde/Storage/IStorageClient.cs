@@ -5,7 +5,6 @@ using System.Collections.Generic;
 using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
-using EpicGames.Core;
 using Microsoft.Extensions.Logging;
 
 namespace EpicGames.Horde.Storage
@@ -75,7 +74,7 @@ namespace EpicGames.Horde.Storage
 	/// <param name="Name">Name of the alias</param>
 	/// <param name="Rank">Rank of the alias</param>
 	/// <param name="Data">Inline data to be stored for the alias</param>
-	public record class AliasInfo(Utf8String Name, int Rank, ReadOnlyMemory<byte> Data);
+	public record class AliasInfo(string Name, int Rank, ReadOnlyMemory<byte> Data);
 
 	/// <summary>
 	/// Interface for the storage system.
@@ -103,7 +102,7 @@ namespace EpicGames.Horde.Storage
 		/// <param name="rank">Rank for this alias. In situations where an alias has multiple mappings, the alias with the highest rank will be returned by default.</param>
 		/// <param name="data">Additional data to be stored inline with the alias</param>
 		/// <param name="cancellationToken">Cancellation token for the operation</param>
-		Task AddAliasAsync(Utf8String name, BlobHandle handle, int rank = 0, ReadOnlyMemory<byte> data = default, CancellationToken cancellationToken = default);
+		Task AddAliasAsync(string name, BlobHandle handle, int rank = 0, ReadOnlyMemory<byte> data = default, CancellationToken cancellationToken = default);
 
 		/// <summary>
 		/// Removes an alias from a node
@@ -111,7 +110,7 @@ namespace EpicGames.Horde.Storage
 		/// <param name="name">Name of the alias</param>
 		/// <param name="handle">Locator for the node</param>
 		/// <param name="cancellationToken">Cancellation token for the operation</param>
-		Task RemoveAliasAsync(Utf8String name, BlobHandle handle, CancellationToken cancellationToken = default);
+		Task RemoveAliasAsync(string name, BlobHandle handle, CancellationToken cancellationToken = default);
 
 		/// <summary>
 		/// Finds nodes with the given alias. Unlike refs, aliases do not serve as GC roots.
@@ -120,7 +119,7 @@ namespace EpicGames.Horde.Storage
 		/// <param name="maxResults">Maximum number of aliases to return</param>
 		/// <param name="cancellationToken">Cancellation token for the operation</param>
 		/// <returns>Nodes matching the given handle</returns>
-		Task<BlobAlias[]> FindAliasesAsync(Utf8String name, int? maxResults = null, CancellationToken cancellationToken = default);
+		Task<BlobAlias[]> FindAliasesAsync(string name, int? maxResults = null, CancellationToken cancellationToken = default);
 
 		#endregion
 
@@ -316,7 +315,7 @@ namespace EpicGames.Horde.Storage
 		/// <param name="name">Alias for the node</param>
 		/// <param name="cancellationToken">Cancellation token for the operation</param>
 		/// <returns>Nodes matching the given handle</returns>
-		public static async Task<BlobAlias?> FindAliasAsync(this IStorageClient store, Utf8String name, CancellationToken cancellationToken = default)
+		public static async Task<BlobAlias?> FindAliasAsync(this IStorageClient store, string name, CancellationToken cancellationToken = default)
 		{
 			BlobAlias[] aliases = await store.FindAliasesAsync(name, 1, cancellationToken);
 			return aliases.FirstOrDefault();

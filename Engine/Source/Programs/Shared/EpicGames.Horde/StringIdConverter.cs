@@ -55,7 +55,7 @@ namespace EpicGames.Horde
 		/// <inheritdoc/>
 		public override TValue Read(CbField field)
 		{
-			return _converter.FromStringId(new StringId(field.AsString()));
+			return _converter.FromStringId(new StringId(new Utf8String(field.AsString())));
 		}
 
 		/// <inheritdoc/>
@@ -89,7 +89,7 @@ namespace EpicGames.Horde
 		{
 			if (value is string str)
 			{
-				return _converter.FromStringId(new StringId(str));
+				return _converter.FromStringId(new StringId(new Utf8String(str)));
 			}
 			if (value is StringId stringId)
 			{

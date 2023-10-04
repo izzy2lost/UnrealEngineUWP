@@ -5,7 +5,6 @@ using System.Collections.Concurrent;
 using System.Collections.Generic;
 using System.Threading;
 using System.Threading.Tasks;
-using EpicGames.Core;
 using Microsoft.Extensions.Logging.Abstractions;
 using EpicGames.Horde.Storage.Bundles;
 using EpicGames.Horde.Storage.Backends;
@@ -32,7 +31,7 @@ namespace EpicGames.Horde.Storage.Clients
 		/// <summary>
 		/// Content addressed data lookup
 		/// </summary>
-		readonly ConcurrentDictionary<Utf8String, ExportEntry> _exports = new ConcurrentDictionary<Utf8String, ExportEntry>();
+		readonly ConcurrentDictionary<string, ExportEntry> _aliases = new ConcurrentDictionary<string, ExportEntry>(StringComparer.Ordinal);
 
 		/// <summary>
 		/// All data stored by the client
@@ -62,23 +61,23 @@ namespace EpicGames.Horde.Storage.Clients
 		#region Aliases
 
 		/// <inheritdoc/>
-		public override Task AddAliasAsync(Utf8String name, BundleNodeLocator handle, int rank = 0, ReadOnlyMemory<byte> data = default, CancellationToken cancellationToken = default)
+		public override Task AddAliasAsync(string name, BundleNodeLocator handle, int rank = 0, ReadOnlyMemory<byte> data = default, CancellationToken cancellationToken = default)
 		{
-			_exports.AddOrUpdate(name, _ => new ExportEntry(handle, rank, data, null), (_, entry) => new ExportEntry(handle, rank, data, entry));
+			_aliases.AddOrUpdate(name, _ => new ExportEntry(handle, rank, data, null), (_, entry) => new ExportEntry(handle, rank, data, entry));
 			return Task.CompletedTask;
 		}
 
 		/// <inheritdoc/>
-		public override Task RemoveAliasAsync(Utf8String name, BundleNodeLocator handle, CancellationToken cancellationToken = default)
+		public override Task RemoveAliasAsync(string name, BundleNodeLocator handle, CancellationToken cancellationToken = default)
 		{
 			throw new NotSupportedException();
 		}
 
 		/// <inheritdoc/>
-		public override Task<BlobAlias[]> FindAliasesAsync(Utf8String alias, int? maxResults = null, CancellationToken cancellationToken = default)
+		public override Task<BlobAlias[]> FindAliasesAsync(string alias, int? maxResults = null, CancellationToken cancellationToken = default)
 		{
 			List<BlobAlias> aliases = new List<BlobAlias>();
-			if (_exports.TryGetValue(alias, out ExportEntry? entry))
+			if (_aliases.TryGetValue(alias, out ExportEntry? entry))
 			{
 				for (; entry != null; entry = entry.Next)
 				{

@@ -220,7 +220,7 @@ namespace EpicGames.Core
 		{
 			readonly Utf8String _type;
 
-			public AnnotateTypeFormatter(string type) => _type = type;
+			public AnnotateTypeFormatter(string type) => _type = new Utf8String(type);
 
 			public void Format(object value, Utf8JsonWriter writer)
 			{

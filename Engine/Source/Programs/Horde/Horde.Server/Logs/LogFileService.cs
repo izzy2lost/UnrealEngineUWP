@@ -663,7 +663,7 @@ namespace Horde.Server.Logs
 
 						for (; index < maxIndex && index < chunk.LineIndex; index++)
 						{
-							lines.Add($"Internal error; missing data for line {index}\n");
+							lines.Add(new Utf8String($"Internal error; missing data for line {index}\n"));
 						}
 
 						for (; index < maxIndex && index < chunk.LineIndex + chunk.LineCount; index++)

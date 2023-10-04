@@ -36,11 +36,11 @@ namespace EpicGames.AspNet
 			
 			ProblemDetails result = new ProblemDetails
 			{
-				Title = field["title"].AsString(),
-				Detail = field["detail"].AsString(),
-				Type = field["type"].AsString(),
-				Instance = field["instance"].AsString(),
-				Status = field["status"].AsInt32()
+				Title = field[new Utf8String("title")].AsString(),
+				Detail = field[new Utf8String("detail")].AsString(),
+				Type = field[new Utf8String("type")].AsString(),
+				Instance = field[new Utf8String("instance")].AsString(),
+				Status = field[new Utf8String("status")].AsInt32()
 			};
 			return result;
 		}
@@ -62,25 +62,25 @@ namespace EpicGames.AspNet
 			CbWriter objectWriter = new CbWriter();
 			objectWriter.BeginObject();
 
-			objectWriter.WriteString("title", problemDetails.Title);
+			objectWriter.WriteString(new Utf8String("title"), problemDetails.Title);
 			if (!String.IsNullOrEmpty(problemDetails.Detail))
 			{
-				objectWriter.WriteString("detail", problemDetails.Detail);
+				objectWriter.WriteString(new Utf8String("detail"), problemDetails.Detail);
 			}
 
 			if (!String.IsNullOrEmpty(problemDetails.Type))
 			{
-				objectWriter.WriteString("type", problemDetails.Type);
+				objectWriter.WriteString(new Utf8String("type"), problemDetails.Type);
 			}
 
 			if (!String.IsNullOrEmpty(problemDetails.Instance))
 			{
-				objectWriter.WriteString("instance", problemDetails.Instance);
+				objectWriter.WriteString(new Utf8String("instance"), problemDetails.Instance);
 			}
 
 			if (problemDetails.Status.HasValue)
 			{
-				objectWriter.WriteInteger("status", problemDetails.Status.Value);
+				objectWriter.WriteInteger(new Utf8String("status"), problemDetails.Status.Value);
 			}
 			
 			objectWriter.EndObject();

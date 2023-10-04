@@ -937,7 +937,7 @@ namespace EpicGames.Serialization
 		/// Access the field as a UTF-8 string.
 		/// </summary>
 		/// <returns></returns>
-		public string AsString(string defaultValue) => AsUtf8String(defaultValue).ToString();
+		public string AsString(string defaultValue) => AsUtf8String(new Utf8String(defaultValue)).ToString();
 
 		/// <summary>
 		/// Access the field as a UTF-8 string.
@@ -1611,7 +1611,7 @@ namespace EpicGames.Serialization
 		/// <param name="name"></param>
 		/// <returns></returns>
 #pragma warning disable CA1043 // Use Integral Or String Argument For Indexers
-		public CbField this[Utf8String name] => this.FirstOrDefault(field => field.Name == name) ?? CbField.Empty;
+		public CbField this[CbFieldName name] => this.FirstOrDefault(field => field.Name == name.Text) ?? CbField.Empty;
 #pragma warning restore CA1043 // Use Integral Or String Argument For Indexers
 
 		/// <summary>
@@ -2445,14 +2445,14 @@ namespace EpicGames.Serialization
 		/// </summary>
 		/// <param name="name">The name of the field.</param>
 		/// <returns>The matching field if found, otherwise a field with no value.</returns>
-		public CbField Find(Utf8String name) => _innerField[name];
+		public CbField Find(CbFieldName name) => _innerField[name.Text];
 
 		/// <summary>
 		/// Find a field by case-insensitive name comparison.
 		/// </summary>
 		/// <param name="name">The name of the field.</param>
 		/// <returns>The matching field if found, otherwise a field with no value.</returns>
-		public CbField FindIgnoreCase(Utf8String name) => _innerField.FirstOrDefault(field => Utf8StringComparer.OrdinalIgnoreCase.Equals(field.Name, name)) ?? new CbField();
+		public CbField FindIgnoreCase(CbFieldName name) => _innerField.FirstOrDefault(field => Utf8StringComparer.OrdinalIgnoreCase.Equals(field.Name, name.Text)) ?? new CbField();
 
 		/// <summary>
 		/// Find a field by case-sensitive name comparison.
@@ -2460,7 +2460,7 @@ namespace EpicGames.Serialization
 		/// <param name="name">The name of the field.</param>
 		/// <returns>The matching field if found, otherwise a field with no value.</returns>
 #pragma warning disable CA1043 // Use Integral Or String Argument For Indexers
-		public CbField this[Utf8String name] => _innerField[name];
+		public CbField this[CbFieldName name] => _innerField[name.Text];
 #pragma warning restore CA1043 // Use Integral Or String Argument For Indexers
 
 		/// <summary>

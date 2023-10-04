@@ -74,7 +74,7 @@ namespace Horde.Commands.Vcs
 			DirectoryState newState = new DirectoryState();
 
 			DirectoryNode directoryNode = await directoryRef.ExpandAsync();
-			foreach ((Utf8String name, DirectoryEntry? subDirEntry, DirectoryState? subDirState) in EnumerableExtensions.Zip(directoryNode.NameToDirectory, directoryState?.Directories))
+			foreach ((string name, DirectoryEntry? subDirEntry, DirectoryState? subDirState) in EnumerableExtensions.Zip(directoryNode.NameToDirectory, directoryState?.Directories))
 			{
 				DirectoryReference subDirPath = DirectoryReference.Combine(dirPath, name.ToString());
 				if (subDirEntry == null)
@@ -90,7 +90,7 @@ namespace Horde.Commands.Vcs
 				}
 			}
 
-			foreach ((Utf8String name, FileEntry? fileEntry, FileState? fileState) in EnumerableExtensions.Zip(directoryNode.NameToFile, directoryState?.Files))
+			foreach ((string name, FileEntry? fileEntry, FileState? fileState) in EnumerableExtensions.Zip(directoryNode.NameToFile, directoryState?.Files))
 			{
 				FileReference filePath = FileReference.Combine(dirPath, name.ToString());
 				if (fileEntry == null)

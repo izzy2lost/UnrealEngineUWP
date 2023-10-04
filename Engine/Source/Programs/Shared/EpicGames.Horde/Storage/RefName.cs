@@ -34,6 +34,15 @@ namespace EpicGames.Horde.Storage
 		/// Constructor
 		/// </summary>
 		/// <param name="text"></param>
+		public RefName(string text)
+			: this(new Utf8String(text))
+		{
+		}
+
+		/// <summary>
+		/// Constructor
+		/// </summary>
+		/// <param name="text"></param>
 		public RefName(Utf8String text)
 		{
 			Text = text;

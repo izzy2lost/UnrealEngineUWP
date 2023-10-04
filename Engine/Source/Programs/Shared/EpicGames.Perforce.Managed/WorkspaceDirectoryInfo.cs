@@ -46,7 +46,7 @@ namespace EpicGames.Perforce.Managed
 		/// </summary>
 		/// <param name="rootDir"></param>
 		public WorkspaceDirectoryInfo(DirectoryReference rootDir)
-			: this(null, rootDir.FullName, null)
+			: this(null, new Utf8String(rootDir.FullName), null)
 		{
 		}
 
@@ -152,7 +152,7 @@ namespace EpicGames.Perforce.Managed
 			foreach (DirectoryInfo subDirectoryInfo in info.EnumerateDirectories())
 			{
 				WorkspaceDirectoryInfo? subDirectory;
-				if (NameToSubDirectory.TryGetValue(subDirectoryInfo.Name, out subDirectory))
+				if (NameToSubDirectory.TryGetValue(new Utf8String(subDirectoryInfo.Name), out subDirectory))
 				{
 					newNameToSubDirectory.Add(subDirectory.Name, subDirectory);
 					await queue.EnqueueAsync(_ => subDirectory.RefreshAsync(subDirectoryInfo, removeUntracked, filesToDelete, directoriesToDelete, queue));
@@ -169,7 +169,7 @@ namespace EpicGames.Perforce.Managed
 			foreach (FileInfo file in info.EnumerateFiles())
 			{
 				WorkspaceFileInfo? stagedFile;
-				if (NameToFile.TryGetValue(file.Name, out stagedFile))
+				if (NameToFile.TryGetValue(new Utf8String(file.Name), out stagedFile))
 				{
 					if (stagedFile.MatchesAttributes(file))
 					{
@@ -229,9 +229,9 @@ namespace EpicGames.Perforce.Managed
 			foreach (DirectoryInfo subDirectory in directory.EnumerateDirectories())
 			{
 				WorkspaceDirectoryInfo? stagedSubDirectory;
-				if (NameToSubDirectory.TryGetValue(subDirectory.Name, out stagedSubDirectory))
+				if (NameToSubDirectory.TryGetValue(new Utf8String(subDirectory.Name), out stagedSubDirectory))
 				{
-					remainingSubDirectoryNames.Remove(subDirectory.Name);
+					remainingSubDirectoryNames.Remove(new Utf8String(subDirectory.Name));
 					await queue.EnqueueAsync(_ => stagedSubDirectory.FindDifferencesAsync(subDirectory, String.Format("{0}{1}/", path, subDirectory.Name), paths, queue));
 					continue;
 				}
@@ -247,18 +247,18 @@ namespace EpicGames.Perforce.Managed
 			foreach (FileInfo file in directory.EnumerateFiles())
 			{
 				WorkspaceFileInfo? stagedFile;
-				if (!NameToFile.TryGetValue(file.Name, out stagedFile))
+				if (!NameToFile.TryGetValue(new Utf8String(file.Name), out stagedFile))
 				{
 					paths.Enqueue(String.Format("+{0}{1}", path, file.Name));
 				}
 				else if (!stagedFile.MatchesAttributes(file))
 				{
 					paths.Enqueue(String.Format("!{0}{1}", path, file.Name));
-					remainingFileNames.Remove(file.Name);
+					remainingFileNames.Remove(new Utf8String(file.Name));
 				}
 				else
 				{
-					remainingFileNames.Remove(file.Name);
+					remainingFileNames.Remove(new Utf8String(file.Name));
 				}
 			}
 			foreach (Utf8String remainingFileName in remainingFileNames)

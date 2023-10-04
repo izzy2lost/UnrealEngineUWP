@@ -62,13 +62,13 @@ namespace Horde.Commands.Vcs
 		protected class DirectoryState
 		{
 			public IoHash Hash { get; set; }
-			public Dictionary<Utf8String, DirectoryState> Directories { get; } = new Dictionary<Utf8String, DirectoryState>(Utf8StringComparer.OrdinalIgnoreCase);
-			public Dictionary<Utf8String, FileState> Files { get; } = new Dictionary<Utf8String, FileState>(Utf8StringComparer.OrdinalIgnoreCase);
+			public Dictionary<string, DirectoryState> Directories { get; }
+			public Dictionary<string, FileState> Files { get; }
 
 			public DirectoryState()
 			{
-				Directories = new Dictionary<Utf8String, DirectoryState>(Utf8StringComparer.OrdinalIgnoreCase);
-				Files = new Dictionary<Utf8String, FileState>(Utf8StringComparer.OrdinalIgnoreCase);
+				Directories = new Dictionary<string, DirectoryState>(StringComparer.OrdinalIgnoreCase);
+				Files = new Dictionary<string, FileState>(StringComparer.OrdinalIgnoreCase);
 			}
 
 			public DirectoryState(IMemoryReader reader)
@@ -76,20 +76,20 @@ namespace Horde.Commands.Vcs
 				Hash = reader.ReadIoHash();
 
 				int numDirectories = reader.ReadInt32();
-				Directories = new Dictionary<Utf8String, DirectoryState>(numDirectories, Utf8StringComparer.OrdinalIgnoreCase);
+				Directories = new Dictionary<string, DirectoryState>(numDirectories, StringComparer.OrdinalIgnoreCase);
 
 				for (int idx = 0; idx < numDirectories; idx++)
 				{
-					Utf8String name = reader.ReadUtf8String();
+					string name = reader.ReadString();
 					Directories[name] = new DirectoryState(reader);
 				}
 
 				int numFiles = reader.ReadInt32();
-				Files = new Dictionary<Utf8String, FileState>(numFiles, Utf8StringComparer.OrdinalIgnoreCase);
+				Files = new Dictionary<string, FileState>(numFiles, StringComparer.OrdinalIgnoreCase);
 
 				for (int idx = 0; idx < numFiles; idx++)
 				{
-					Utf8String name = reader.ReadUtf8String();
+					string name = reader.ReadString();
 					Files[name] = new FileState(reader);
 				}
 			}
@@ -99,16 +99,16 @@ namespace Horde.Commands.Vcs
 				writer.WriteIoHash(Hash);
 
 				writer.WriteInt32(Directories.Count);
-				foreach ((Utf8String name, DirectoryState state) in Directories)
+				foreach ((string name, DirectoryState state) in Directories)
 				{
-					writer.WriteUtf8String(name);
+					writer.WriteString(name);
 					state.Write(writer);
 				}
 
 				writer.WriteInt32(Files.Count);
-				foreach ((Utf8String name, FileState state) in Files)
+				foreach ((string name, FileState state) in Files)
 				{
-					writer.WriteUtf8String(name);
+					writer.WriteString(name);
 					state.Write(writer);
 				}
 			}
@@ -259,8 +259,8 @@ namespace Horde.Commands.Vcs
 
 		protected static void RemoveAddedFiles(DirectoryState oldState, DirectoryState newState)
 		{
-			List<(Utf8String, DirectoryState?, DirectoryState?)> directoryDeltas = EnumerableExtensions.Zip(oldState.Directories, newState.Directories).ToList();
-			foreach ((Utf8String name, DirectoryState? oldSubDirState, _) in directoryDeltas)
+			List<(string, DirectoryState?, DirectoryState?)> directoryDeltas = EnumerableExtensions.Zip(oldState.Directories, newState.Directories).ToList();
+			foreach ((string name, DirectoryState? oldSubDirState, _) in directoryDeltas)
 			{
 				if (oldSubDirState == null)
 				{
@@ -268,8 +268,8 @@ namespace Horde.Commands.Vcs
 				}
 			}
 
-			List<(Utf8String, FileState?, FileState?)> fileDeltas = EnumerableExtensions.Zip(oldState.Files, newState.Files).ToList();
-			foreach ((Utf8String name, FileState? oldFileState, _) in fileDeltas)
+			List<(string, FileState?, FileState?)> fileDeltas = EnumerableExtensions.Zip(oldState.Files, newState.Files).ToList();
+			foreach ((string name, FileState? oldFileState, _) in fileDeltas)
 			{
 				if (oldFileState == null)
 				{
@@ -308,7 +308,7 @@ namespace Horde.Commands.Vcs
 
 		static void PrintDelta(string prefix, DirectoryState oldState, DirectoryState newState, ILogger logger)
 		{
-			foreach ((Utf8String name, DirectoryState? oldSubDirState, DirectoryState? newSubDirState) in EnumerableExtensions.Zip(oldState.Directories, newState.Directories))
+			foreach ((string name, DirectoryState? oldSubDirState, DirectoryState? newSubDirState) in EnumerableExtensions.Zip(oldState.Directories, newState.Directories))
 			{
 				if (oldSubDirState == null)
 				{
@@ -324,7 +324,7 @@ namespace Horde.Commands.Vcs
 				}
 			}
 
-			foreach ((Utf8String name, FileState? oldFileState, FileState? newFileState) in EnumerableExtensions.Zip(oldState.Files, newState.Files))
+			foreach ((string name, FileState? oldFileState, FileState? newFileState) in EnumerableExtensions.Zip(oldState.Files, newState.Files))
 			{
 				if (oldFileState == null)
 				{

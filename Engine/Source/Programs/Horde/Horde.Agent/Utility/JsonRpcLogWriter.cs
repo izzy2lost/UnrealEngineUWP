@@ -31,7 +31,7 @@ namespace Horde.Agent.Utility
 		static readonly string s_linePropertyName = LogEventPropertyName.Line.ToString();
 		static readonly string s_lineCountPropertyName = LogEventPropertyName.LineCount.ToString();
 
-		static readonly Utf8String s_escapedNewline = "\\n";
+		static readonly Utf8String s_escapedNewline = new Utf8String("\\n");
 
 		readonly List<JsonLogEvent> _logEvents = new List<JsonLogEvent>();
 		readonly ArrayBufferWriter<byte> _lineWriter;

@@ -47,7 +47,7 @@ namespace EpicGames.Redis.Converters
 				else if (TryGetStringTypeConverter(propertyType, out converter))
 				{
 					_typeReaders[idx] = str => converter.ConvertFromInvariantString(str.ToString());
-					_typeWriters[idx] = (obj, builder) => WriteEscapedString(converter.ConvertToInvariantString(obj) ?? String.Empty, builder);
+					_typeWriters[idx] = (obj, builder) => WriteEscapedString(new Utf8String(converter.ConvertToInvariantString(obj) ?? String.Empty), builder);
 				}
 				else
 				{

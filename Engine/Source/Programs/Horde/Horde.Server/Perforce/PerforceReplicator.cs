@@ -6,6 +6,7 @@ using System.Collections.Generic;
 using System.Diagnostics;
 using System.Linq;
 using System.Security.Cryptography;
+using System.Text;
 using System.Threading;
 using System.Threading.Tasks;
 using EpicGames.Core;
@@ -42,14 +43,14 @@ namespace Horde.Server.Perforce
 			public int Change { get; }
 			public int ParentChange { get; }
 			public NodeRef<DirectoryNode> Contents { get; set; }
-			public List<Utf8String> Paths { get; }
+			public List<string> Paths { get; }
 
 			public SyncNode(int number, int parentNumber, NodeRef<DirectoryNode> contents)
 			{
 				Change = number;
 				ParentChange = parentNumber;
 				Contents = contents;
-				Paths = new List<Utf8String>();
+				Paths = new List<string>();
 			}
 
 			public SyncNode(NodeReader reader)
@@ -57,7 +58,7 @@ namespace Horde.Server.Perforce
 				Change = (int)reader.ReadUnsignedVarInt();
 				ParentChange = (int)reader.ReadUnsignedVarInt();
 				Contents = reader.ReadNodeRef<DirectoryNode>();
-				Paths = reader.ReadList(() => reader.ReadUtf8String());
+				Paths = reader.ReadList(() => reader.ReadString());
 			}
 
 			/// <inheritdoc/>
@@ -66,7 +67,7 @@ namespace Horde.Server.Perforce
 				writer.WriteUnsignedVarInt(Change);
 				writer.WriteUnsignedVarInt(ParentChange);
 				writer.WriteNodeRef(Contents);
-				writer.WriteList(Paths, x => writer.WriteUtf8String(x));
+				writer.WriteList(Paths, x => writer.WriteString(x));
 			}
 		}
 
@@ -89,24 +90,24 @@ namespace Horde.Server.Perforce
 		[DebuggerDisplay("{_path}")]
 		class DirectoryToSync
 		{
-			public readonly Utf8String Path;
-			public readonly Dictionary<Utf8String, long> FileNameToSize;
+			public readonly string Path;
+			public readonly Dictionary<string, long> FileNameToSize;
 			public long _size;
 
-			public DirectoryToSync(Utf8String path, Utf8StringComparer comparer)
+			public DirectoryToSync(string path, StringComparer comparer)
 			{
 				Path = path;
-				FileNameToSize = new Dictionary<Utf8String, long>(comparer);
+				FileNameToSize = new Dictionary<string, long>(comparer);
 			}
 		}
 
-		record class FileInfo(Utf8String Path, FileEntryFlags Flags, long Length, byte[] Md5, ChunkedData ChunkedData);
+		record class FileInfo(string Path, FileEntryFlags Flags, long Length, byte[] Md5, ChunkedData ChunkedData);
 
 		class FileWriter : IDisposable
 		{
 			class Handle : IDisposable
 			{
-				public Utf8String _path;
+				public string? _path;
 				public FileEntryFlags _flags;
 				public readonly ChunkedDataWriter FileWriter;
 				public long _size;
@@ -149,7 +150,7 @@ namespace Horde.Server.Perforce
 				}
 			}
 
-			public void Open(int fd, Utf8String path, long size, FileEntryFlags flags)
+			public void Open(int fd, string path, long size, FileEntryFlags flags)
 			{
 				Handle? handle;
 				if (!_freeHandles.TryPop(out handle))
@@ -185,7 +186,7 @@ namespace Horde.Server.Perforce
 
 				ChunkedData chunkedData = await handle.FileWriter.FlushAsync(cancellationToken);
 				byte[] hash = handle.Hash.GetHashAndReset();
-				FileInfo info = new FileInfo(handle._path, handle._flags, handle._size, hash, chunkedData);
+				FileInfo info = new FileInfo(handle._path!, handle._flags, handle._size, hash, chunkedData);
 
 				_openHandles.Remove(fd);
 				_freeHandles.Push(handle);
@@ -309,11 +310,11 @@ namespace Horde.Server.Perforce
 			await FlushWorkspaceAsync(clientInfo, perforce, parentChange);
 			clientInfo.Change = -1;
 
-			Utf8String clientRoot = new Utf8String(clientInfo.Client.Root);
+			string clientRoot = clientInfo.Client.Root;
 			string queryPath = $"//{clientInfo.Client.Name}/...";
 
 			// Replay the files that have already been synced
-			foreach (Utf8String path in syncNode.Paths)
+			foreach (string path in syncNode.Paths)
 			{
 				string flushPath = $"//{clientInfo.Client.Name}/{path}@{change}";
 				_logger.LogInformation("Flushing {FlushPath}", flushPath);
@@ -321,7 +322,7 @@ namespace Horde.Server.Perforce
 			}
 
 			// Add the root directory from the filter to the list of files to sync. This prevents traversing above it.
-			Dictionary<Utf8String, DirectoryToSync> pathToDirectory = new Dictionary<Utf8String, DirectoryToSync>(clientInfo.ServerInfo.Utf8PathComparer);
+			Dictionary<string, DirectoryToSync> pathToDirectory = new Dictionary<string, DirectoryToSync>(clientInfo.ServerInfo.PathComparer);
 
 			// Do a sync preview to find everything that's left, and sort the remaining list of paths
 			await foreach (PerforceResponse<SyncRecord> response in perforce.StreamCommandAsync<SyncRecord>("sync", new[] { "-n" }, new string[] { $"{queryPath}@{change}" }, null, cancellationToken))
@@ -333,8 +334,8 @@ namespace Horde.Server.Perforce
 					continue;
 				}
 
-				Utf8String path = response.Data.Path;
-				if (!path.StartsWith(clientRoot, Utf8StringComparer.Ordinal))
+				string path = response.Data.Path.ToString();
+				if (!path.StartsWith(clientRoot, StringComparison.Ordinal))
 				{
 					throw new ArgumentException($"Unable to make path {path} relative to client root {clientRoot}");
 				}
@@ -345,15 +346,15 @@ namespace Horde.Server.Perforce
 					fileIdx--;
 				}
 
-				Utf8String directoryPath = path.Slice(clientRoot.Length, fileIdx - clientRoot.Length);
+				string directoryPath = path.Substring(clientRoot.Length, fileIdx - clientRoot.Length);
 
-				DirectoryToSync directory = FindOrAddDirectoryTree(pathToDirectory, directoryPath, clientInfo.ServerInfo.Utf8PathComparer);
-				directory.FileNameToSize.Add(path.Slice(fileIdx).Clone(), response.Data.FileSize);
+				DirectoryToSync directory = FindOrAddDirectoryTree(pathToDirectory, directoryPath, clientInfo.ServerInfo.PathComparer);
+				directory.FileNameToSize.Add(path.Substring(fileIdx), response.Data.FileSize);
 				directory._size += response.Data.FileSize;
 			}
 
 			// Sort the directories by name to ensure that they are consistent between runs
-			List<DirectoryToSync> directories = pathToDirectory.Values.OrderBy(x => x.Path, clientInfo.ServerInfo.Utf8PathComparer).ToList();
+			List<DirectoryToSync> directories = pathToDirectory.Values.OrderBy(x => x.Path, clientInfo.ServerInfo.PathComparer).ToList();
 
 			// Output some stats for the sync
 			long totalSize = directories.Sum(x => x._size);
@@ -407,11 +408,11 @@ namespace Horde.Server.Perforce
 				List<string> syncPaths = new List<string>();
 				for (int idx = dirIdx; idx < directories.Count; idx++)
 				{
-					Utf8String basePath = directories[idx].Path;
+					string basePath = directories[idx].Path;
 					syncPaths.Add($"//{clientInfo.Client.Name}/{basePath}...@{change}");
 
 					long dirSize = directories[idx]._size;
-					while (idx + 1 < directories.Count && directories[idx + 1].Path.StartsWith(basePath, clientInfo.ServerInfo.Utf8PathComparer))
+					while (idx + 1 < directories.Count && directories[idx + 1].Path.StartsWith(basePath, clientInfo.ServerInfo.PathComparison))
 					{
 						dirSize += directories[idx + 1]._size;
 						idx++;
@@ -467,7 +468,7 @@ namespace Horde.Server.Perforce
 								flags |= FileEntryFlags.Executable;
 							}
 
-							Utf8String file = GetClientRelativePath(path, clientInfo.Client.Root);
+							string file = GetClientRelativePath(path.ToString(), clientInfo.Client.Root);
 							int offset = GetFileOffset(file);
 
 							long fileSize = 0;
@@ -494,8 +495,8 @@ namespace Horde.Server.Perforce
 						}
 						else if (io.Command == PerforceIoCommand.Unlink)
 						{
-							UnpackUnlinkPayload(io.Payload, out Utf8String path);
-							Utf8String file = GetClientRelativePath(path, clientInfo.Client.Root);
+							UnpackUnlinkPayload(io.Payload, out string path);
+							string file = GetClientRelativePath(path, clientInfo.Client.Root);
 							await root.DeleteFileByPathAsync(file, cancellationToken);
 						}
 						else
@@ -513,19 +514,19 @@ namespace Horde.Server.Perforce
 				// Combine all the existing sync paths together with a new wildcard.
 				while (directories.Count > dirIdx)
 				{
-					Utf8String nextPath = directories[^1].Path;
+					string nextPath = directories[^1].Path;
 					if (syncNode.Paths.Count > 0)
 					{
-						Utf8String lastPath = syncNode.Paths[^1];
+						string lastPath = syncNode.Paths[^1];
 						for (int endIdx = 0; endIdx < lastPath.Length; endIdx++)
 						{
 							if (lastPath[endIdx] == '/')
 							{
-								Utf8String prefix = lastPath.Substring(0, endIdx + 1);
-								if (!nextPath.StartsWith(prefix, clientInfo.ServerInfo.Utf8PathComparer))
+								string prefix = lastPath.Substring(0, endIdx + 1);
+								if (!nextPath.StartsWith(prefix, clientInfo.ServerInfo.PathComparison))
 								{
 									// Remove any paths that start with this prefix
-									while (syncNode.Paths.Count > 0 && syncNode.Paths[^1].StartsWith(prefix, clientInfo.ServerInfo.Utf8PathComparer))
+									while (syncNode.Paths.Count > 0 && syncNode.Paths[^1].StartsWith(prefix, clientInfo.ServerInfo.PathComparison))
 									{
 										syncNode.Paths.RemoveAt(syncNode.Paths.Count - 1);
 									}
@@ -552,7 +553,7 @@ namespace Horde.Server.Perforce
 			_logger.LogInformation("Snapshot for {StreamId} CL {Change} is ref {RefName} (commit: {CommitHandle}, root: {RootHandle})", streamConfig.Id, change, refName, ((BundleNodeHandle)commitHandle).GetLocator(), ((BundleNodeHandle)rootRef.Handle).GetLocator());
 		}
 
-		static int GetFileOffset(Utf8String path)
+		static int GetFileOffset(string path)
 		{
 			int fileIdx = path.Length;
 			while (fileIdx > 0 && path[fileIdx - 1] != '/' && path[fileIdx - 1] != '\\')
@@ -562,13 +563,13 @@ namespace Horde.Server.Perforce
 			return fileIdx;
 		}
 
-		static DirectoryToSync FindOrAddDirectoryTree(Dictionary<Utf8String, DirectoryToSync> pathToDirectory, Utf8String directoryPath, Utf8StringComparer comparer)
+		static DirectoryToSync FindOrAddDirectoryTree(Dictionary<string, DirectoryToSync> pathToDirectory, string directoryPath, StringComparer comparer)
 		{
 			DirectoryToSync? directory;
 			if (!pathToDirectory.TryGetValue(directoryPath, out directory))
 			{
 				// Add a new path
-				Utf8String normalizedPath = NormalizePathSeparators(directoryPath);
+				string normalizedPath = NormalizePathSeparators(directoryPath);
 				directory = new DirectoryToSync(normalizedPath, comparer);
 				pathToDirectory.Add(directoryPath, directory);
 
@@ -577,7 +578,7 @@ namespace Horde.Server.Perforce
 				{
 					if (normalizedPath[idx] == '/')
 					{
-						Utf8String parentDirectoryPath = directoryPath.Substring(0, idx + 1);
+						string parentDirectoryPath = directoryPath.Substring(0, idx + 1);
 						if (pathToDirectory.ContainsKey(parentDirectoryPath))
 						{
 							break;
@@ -592,15 +593,7 @@ namespace Horde.Server.Perforce
 			return directory;
 		}
 
-		static Utf8String NormalizePathSeparators(Utf8String path)
-		{
-			byte[] newPath = new byte[path.Length];
-			for (int idx = 0; idx < path.Length; idx++)
-			{
-				newPath[idx] = (path[idx] == '\\') ? (byte)'/' : path[idx];
-			}
-			return new Utf8String(newPath);
-		}
+		static string NormalizePathSeparators(string path) => path.Replace('\\', '/');
 
 		async Task FlushWorkspaceAsync(ReplicationClient clientInfo, IPerforceConnection perforce, int change)
 		{
@@ -635,19 +628,19 @@ namespace Horde.Server.Perforce
 			perms = BinaryPrimitives.ReadInt32LittleEndian(data.Span.Slice(length + 9, sizeof(int)));
 		}
 
-		static void UnpackUnlinkPayload(ReadOnlyMemory<byte> data, out Utf8String path)
+		static void UnpackUnlinkPayload(ReadOnlyMemory<byte> data, out string path)
 		{
 			int length = data.Span.IndexOf((byte)0);
 			if (length != -1)
 			{
 				data = data.Slice(0, length);
 			}
-			path = new Utf8String(data).Clone();
+			path = Encoding.UTF8.GetString(data.Span);
 		}
 
-		static Utf8String GetClientRelativePath(Utf8String path, Utf8String clientRoot)
+		static string GetClientRelativePath(string path, string clientRoot)
 		{
-			if (!path.StartsWith(clientRoot, Utf8StringComparer.Ordinal))
+			if (!path.StartsWith(clientRoot, StringComparison.Ordinal))
 			{
 				throw new ArgumentException($"Unable to make path {path} relative to client root {clientRoot}");
 			}

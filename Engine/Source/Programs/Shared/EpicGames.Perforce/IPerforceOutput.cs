@@ -48,13 +48,13 @@ namespace EpicGames.Perforce
 		/// </summary>
 		static class ReadOnlyUtf8StringConstants
 		{
-			public static readonly Utf8String Code = "code";
-			public static readonly Utf8String Stat = "stat";
-			public static readonly Utf8String Info = "info";
-			public static readonly Utf8String Error = "error";
-			public static readonly Utf8String Io = "io";
-			public static readonly Utf8String Func = "func";
-			public static readonly Utf8String IsSparse = "isSparse";
+			public static readonly Utf8String Code = new Utf8String("code");
+			public static readonly Utf8String Stat = new Utf8String("stat");
+			public static readonly Utf8String Info = new Utf8String("info");
+			public static readonly Utf8String Error = new Utf8String("error");
+			public static readonly Utf8String Io = new Utf8String("io");
+			public static readonly Utf8String Func = new Utf8String("func");
+			public static readonly Utf8String IsSparse = new Utf8String("isSparse");
 		}
 
 		/// <summary>

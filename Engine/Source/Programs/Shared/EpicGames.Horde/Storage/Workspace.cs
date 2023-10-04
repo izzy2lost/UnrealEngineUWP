@@ -24,13 +24,13 @@ namespace EpicGames.Horde.Storage
 		class DirectoryState
 		{
 			public DirectoryState? Parent { get; }
-			public Utf8String Name { get; }
+			public string Name { get; }
 			public List<DirectoryState> Directories { get; } = new List<DirectoryState>();
 			public List<FileState> Files { get; } = new List<FileState>();
 
 			public ulong LayerFlags { get; set; }
 
-			public DirectoryState(DirectoryState? parent, Utf8String name)
+			public DirectoryState(DirectoryState? parent, string name)
 			{
 				Parent = parent;
 				Name = name;
@@ -38,7 +38,7 @@ namespace EpicGames.Horde.Storage
 
 			public void AddFile(FileState fileState)
 			{
-				int index = Files.BinarySearch(x => x.Name, fileState.Name);
+				int index = Files.BinarySearch(x => x.Name, fileState.Name, StringComparer.Ordinal);
 				if (index >= 0)
 				{
 					throw new InvalidOperationException($"File {fileState.Name} already exists");
@@ -57,11 +57,11 @@ namespace EpicGames.Horde.Storage
 				}
 			}
 
-			public bool ContainsFile(Utf8String name) => TryGetFile(name, out _);
+			public bool ContainsFile(string name) => TryGetFile(name, out _);
 
-			public bool TryGetFile(Utf8String name, [NotNullWhen(true)] out FileState? fileState)
+			public bool TryGetFile(string name, [NotNullWhen(true)] out FileState? fileState)
 			{
-				int index = Files.BinarySearch(x => x.Name, name);
+				int index = Files.BinarySearch(x => x.Name, name, StringComparer.Ordinal);
 				if (index >= 0)
 				{
 					fileState = Files[index];
@@ -74,9 +74,9 @@ namespace EpicGames.Horde.Storage
 				}
 			}
 
-			public FileState FindOrAddFile(Utf8String name)
+			public FileState FindOrAddFile(string name)
 			{
-				int index = Files.BinarySearch(x => x.Name, name);
+				int index = Files.BinarySearch(x => x.Name, name, StringComparer.Ordinal);
 				if (index >= 0)
 				{
 					return Files[index];
@@ -89,9 +89,9 @@ namespace EpicGames.Horde.Storage
 				}
 			}
 
-			public bool TryGetDirectory(Utf8String name, [NotNullWhen(true)] out DirectoryState? directoryState)
+			public bool TryGetDirectory(string name, [NotNullWhen(true)] out DirectoryState? directoryState)
 			{
-				int index = Directories.BinarySearch(x => x.Name, name);
+				int index = Directories.BinarySearch(x => x.Name, name, StringComparer.Ordinal);
 				if (index >= 0)
 				{
 					directoryState = Directories[index];
@@ -104,9 +104,9 @@ namespace EpicGames.Horde.Storage
 				}
 			}
 
-			public DirectoryState FindOrAddDirectory(Utf8String name)
+			public DirectoryState FindOrAddDirectory(string name)
 			{
-				int index = Directories.BinarySearch(x => x.Name, name);
+				int index = Directories.BinarySearch(x => x.Name, name, StringComparer.Ordinal);
 				if (index >= 0)
 				{
 					return Directories[index];
@@ -130,7 +130,7 @@ namespace EpicGames.Horde.Storage
 			{
 				Parent?.AppendPath(builder);
 
-				if (!Name.IsEmpty)
+				if (Name.Length > 0)
 				{
 					builder.Append(Name);
 				}
@@ -155,7 +155,7 @@ namespace EpicGames.Horde.Storage
 
 				for (int idx = 0; idx < numDirectories; idx++)
 				{
-					Utf8String subDirName = reader.ReadUtf8String();
+					string subDirName = reader.ReadString();
 
 					DirectoryState subDirState = new DirectoryState(this, subDirName);
 					subDirState.Read(reader);
@@ -169,7 +169,7 @@ namespace EpicGames.Horde.Storage
 
 				for (int idx = 0; idx < numFiles; idx++)
 				{
-					Utf8String fileName = reader.ReadUtf8String();
+					string fileName = reader.ReadString();
 				
 					FileState fileState = new FileState(this, fileName);
 					fileState.Read(reader);
@@ -185,14 +185,14 @@ namespace EpicGames.Horde.Storage
 				writer.WriteInt32(Directories.Count);
 				foreach (DirectoryState directory in Directories)
 				{
-					writer.WriteUtf8String(directory.Name);
+					writer.WriteString(directory.Name);
 					directory.Write(writer);
 				}
 
 				writer.WriteInt32(Files.Count);
 				foreach (FileState file in Files)
 				{
-					writer.WriteUtf8String(file.Name);
+					writer.WriteString(file.Name);
 					file.Write(writer);
 				}
 
@@ -207,13 +207,13 @@ namespace EpicGames.Horde.Storage
 		class FileState
 		{
 			public DirectoryState Parent { get; set; }
-			public Utf8String Name { get; private set; }
+			public string Name { get; private set; }
 			public long Length { get; private set; }
 			public long LastModifiedTimeUtc { get; private set; }
 			public IoHash Hash { get; set; }
 			public ulong LayerFlags { get; set; }
 
-			public FileState(DirectoryState parent, Utf8String name)
+			public FileState(DirectoryState parent, string name)
 			{
 				Parent = parent;
 				Name = name;
@@ -228,7 +228,7 @@ namespace EpicGames.Horde.Storage
 				LayerFlags = reader.ReadUnsignedVarInt();
 			}
 
-			public void MoveTo(DirectoryState newParent, Utf8String newName)
+			public void MoveTo(DirectoryState newParent, string newName)
 			{
 				Parent.RemoveFile(this);
 				Name = newName;
@@ -400,7 +400,7 @@ namespace EpicGames.Horde.Storage
 		{
 			_rootDir = rootDir;
 			_stateFile = stateFile;
-			_rootDirState = new DirectoryState(null, Utf8String.Empty);
+			_rootDirState = new DirectoryState(null, String.Empty);
 			_layers = new List<LayerState> { new LayerState(WorkspaceLayerId.Default, 1) };
 			_logger = logger;
 		}
@@ -759,7 +759,7 @@ namespace EpicGames.Horde.Storage
 			await LeafChunkedDataNode.CopyToStreamAsync(nodeData, outputStream, cancellationToken);
 		}
 
-		FileState? TryMoveCachedDataAsync(IoHash hash, DirectoryState targetDirState, Utf8String targetName)
+		FileState? TryMoveCachedDataAsync(IoHash hash, DirectoryState targetDirState, string targetName)
 		{
 			HashInfo? hashInfo;
 			if (_hashes.TryGetValue(hash, out hashInfo))
@@ -900,10 +900,10 @@ namespace EpicGames.Horde.Storage
 		*/
 		void MoveFileToCache(FileState fileState, DirectoryState cacheDirState)
 		{
-			Utf8String name = fileState.Hash.ToUtf8String();
+			string name = fileState.Hash.ToString();
 			for (int idx = 0; idx < 2; idx++)
 			{
-				cacheDirState = cacheDirState.FindOrAddDirectory(name.Slice(idx * 2, 2));
+				cacheDirState = cacheDirState.FindOrAddDirectory(name.Substring(idx * 2, 2));
 			}
 
 			FileInfo fileInfo = fileState.GetFileReference(_rootDir).ToFileInfo();
@@ -921,7 +921,7 @@ namespace EpicGames.Horde.Storage
 			}
 		}
 
-		void MoveFile(FileState fileState, DirectoryState targetDirState, Utf8String targetName)
+		void MoveFile(FileState fileState, DirectoryState targetDirState, string targetName)
 		{
 			FileReference sourceFile = fileState.GetFileReference(_rootDir);
 			fileState.MoveTo(targetDirState, targetName);
