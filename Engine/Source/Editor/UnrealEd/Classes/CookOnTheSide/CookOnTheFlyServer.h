@@ -8,6 +8,7 @@
 #include "CookPackageSplitter.h"
 #include "HAL/PlatformMemory.h"
 #include "INetworkFileSystemModule.h"
+#include "Logging/LogMacros.h"
 #include "Misc/EnumClassFlags.h"
 #include "Misc/Optional.h"
 #include "Misc/PackageAccessTracking.h"
@@ -1451,6 +1452,7 @@ private:
 	/** Classes (and all subclasses) that were listed as the only classes that should be cooked in the filter settings. */
 	TSet<FName> CookFilterIncludedClasses;
 
+	ELogVerbosity::Type CookerIdleWarningSeverity = ELogVerbosity::Warning;
 	/** True when PumpLoads has detected it is blocked on async work and CookOnTheFlyServer should do work elsewhere. */
 	bool bLoadBusy = false;
 	/** True when PumpSaves has detected it is blocked on async work and CookOnTheFlyServer should do work elsewhere. */

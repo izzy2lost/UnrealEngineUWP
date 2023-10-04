@@ -1648,14 +1648,14 @@ void UCookOnTheFlyServer::SetSaveBusy(bool bInBusy)
 			
 			FString Message = FString::Printf(TEXT("Cooker has been blocked from saving the current packages for %.0f seconds."),
 				(float)CurrentTime - SaveBusyStartTimeSeconds);
-			if (NonExpectedObjects.IsEmpty())
+			ELogVerbosity::Type MessageSeverity = ELogVerbosity::Display;
+			if (ExpectedObjects.IsEmpty() || !NonExpectedObjects.IsEmpty())
 			{
-				UE_LOG(LogCook, Display, TEXT("%s"), *Message);
+				MessageSeverity = CookerIdleWarningSeverity;
 			}
-			else
-			{
-				UE_LOG(LogCook, Warning, TEXT("%s"), *Message);
-			}
+#if !NO_LOGGING
+			FMsg::Logf(__FILE__, __LINE__, LogCook.GetCategoryName(), MessageSeverity, TEXT("%s"), *Message);
+#endif
 
 			UE_LOG(LogCook, Display, TEXT("%d packages in the savequeue: "), SaveQueue.Num());
 			int DisplayCount = 0;
@@ -1734,8 +1734,11 @@ void UCookOnTheFlyServer::SetLoadBusy(bool bInLoadBusy)
 			int DisplayCount = 0;
 			const int DisplayMax = 10;
 			FLoadPrepareQueue& LoadPrepareQueue = PackageDatas->GetLoadPrepareQueue();
-			UE_LOG(LogCook, Warning, TEXT("Cooker has been blocked from loading the current packages for %.0f seconds. %d packages in the loadqueue:"),
+#if !NO_LOGGING
+			FMsg::Logf(__FILE__, __LINE__, LogCook.GetCategoryName(), CookerIdleWarningSeverity,
+				TEXT("Cooker has been blocked from loading the current packages for %.0f seconds. %d packages in the loadqueue:"),
 				(float)(CurrentTime - LoadBusyStartTimeSeconds), LoadPrepareQueue.PreloadingQueue.Num() + LoadPrepareQueue.EntryQueue.Num());
+#endif
 			for (FPackageData* PackageData : LoadPrepareQueue.PreloadingQueue)
 			{
 				if (DisplayCount == DisplayMax)
@@ -6896,6 +6899,10 @@ void UCookOnTheFlyServer::SetInitializeConfigSettings(UE::Cook::FInitializeConfi
 
 	bIgnoreUnsolicitedPackages = FParse::Param(FCommandLine::Get(), TEXT("odsc"));
 	bSkipSave = FParse::Param(FCommandLine::Get(), TEXT("CookSkipSave"));
+
+	FString Severity;
+	GConfig->GetString(TEXT("CookSettings"), TEXT("CookerIdleWarningSeverity"), Severity, GEditorIni);
+	CookerIdleWarningSeverity = ParseLogVerbosityFromString(Severity);
 }
 
 void UCookOnTheFlyServer::ParseCookFilters()
