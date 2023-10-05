@@ -30,7 +30,7 @@ namespace EpicGames.Horde.Storage
 		/// <param name="cancellationToken">Cancellation token for the operation</param>
 		public virtual async ValueTask<BlobType> GetTypeAsync(CancellationToken cancellationToken = default)
 		{
-			BlobData data = await ReadAsync(cancellationToken);
+			using BlobData data = await ReadAsync(cancellationToken);
 			return data.Type;
 		}
 
@@ -40,12 +40,12 @@ namespace EpicGames.Horde.Storage
 		/// <param name="cancellationToken">Cancellation token for the operation</param>
 		public virtual async ValueTask<IReadOnlyList<BlobHandle>> GetRefsAsync(CancellationToken cancellationToken = default)
 		{
-			BlobData data = await ReadAsync(cancellationToken);
+			using BlobData data = await ReadAsync(cancellationToken);
 			return data.Refs;
 		}
 
 		/// <summary>
-		/// Creates a reader for this node's data
+		/// Reads the blob's data
 		/// </summary>
 		/// <param name="cancellationToken">Cancellation token for the operation</param>
 		public abstract ValueTask<BlobData> ReadAsync(CancellationToken cancellationToken = default);
@@ -59,7 +59,7 @@ namespace EpicGames.Horde.Storage
 		/// <returns>Number of bytes that were read</returns>
 		public virtual async ValueTask<int> ReadPartialAsync(int offset, Memory<byte> buffer, CancellationToken cancellationToken = default)
 		{
-			BlobData data = await ReadAsync(cancellationToken);
+			using BlobData data = await ReadAsync(cancellationToken);
 
 			int length = data.Data.Length - offset;
 			if (length < 0)

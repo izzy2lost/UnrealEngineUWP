@@ -755,8 +755,8 @@ namespace EpicGames.Horde.Storage
 			}
 
 			// Otherwise 
-			BlobData nodeData = await nodeRef.Handle.ReadAsync(cancellationToken);
-			await LeafChunkedDataNode.CopyToStreamAsync(nodeData, outputStream, cancellationToken);
+			using BlobData blobData = await nodeRef.Handle.ReadAsync(cancellationToken);
+			await LeafChunkedDataNode.CopyToStreamAsync(blobData, outputStream, cancellationToken);
 		}
 
 		FileState? TryMoveCachedDataAsync(IoHash hash, DirectoryState targetDirState, string targetName)

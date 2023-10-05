@@ -50,7 +50,7 @@ namespace Horde.Server.Ddc
 			}
 
 			BlobHandle blobHandle = blobAlias.Target;
-			BlobData blobContents = await blobHandle.ReadAsync(cancellationToken);
+			using BlobData blobContents = await blobHandle.ReadAsync(cancellationToken);
 			CbObject payload = new CbObject(blobContents.Data);
 
 			BlobId[] referencedBlobs = Array.Empty<BlobId>();

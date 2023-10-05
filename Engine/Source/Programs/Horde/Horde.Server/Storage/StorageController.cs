@@ -580,7 +580,7 @@ namespace Horde.Server.Storage
 
 			object content;
 
-			BlobData nodeData = await storageClient.ReadNodeDataAsync(new BundleNodeLocator(export.Hash, locator, exportIdx), cancellationToken);
+			using BlobData nodeData = await storageClient.ReadNodeDataAsync(new BundleNodeLocator(export.Hash, locator, exportIdx), cancellationToken);
 
 			Node node = Node.Deserialize(nodeData);
 			switch (node)

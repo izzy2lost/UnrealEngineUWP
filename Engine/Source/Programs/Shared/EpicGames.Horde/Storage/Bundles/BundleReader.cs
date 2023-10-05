@@ -579,8 +579,8 @@ namespace EpicGames.Horde.Storage.Bundles
 		/// <returns>Node data read from the given bundle</returns>
 		public async ValueTask<Node> ReadNodeAsync(BundleNodeLocator locator, CancellationToken cancellationToken = default)
 		{
-			BlobData nodeData = await ReadNodeDataAsync(locator, cancellationToken);
-			return Node.Deserialize(nodeData);
+			using BlobData blobData = await ReadNodeDataAsync(locator, cancellationToken);
+			return Node.Deserialize(blobData);
 		}
 
 		/// <summary>
