@@ -18,8 +18,6 @@
 #include "BaseBehaviors/ClickDragBehavior.h"
 #include "BaseGizmos/GizmoViewContext.h"
 
-#include "Algo/Count.h"
-#include "BaseGizmos/TransformGizmoUtil.h"
 #include "SkeletalMesh/SkeletonTransformProxy.h"
 #include "TargetInterfaces/PrimitiveComponentBackedTarget.h"
 
@@ -1385,23 +1383,45 @@ void UOrientingProperties::PostEditChangeProperty(FPropertyChangedEvent &Propert
 
 	if (PropertyChangedEvent.ChangeType == EPropertyChangeType::ValueSet)
 	{
-		auto CheckAxis = [&](const TEnumAsByte<EAxis::Type>& InRef, TEnumAsByte<EAxis::Type>& OutOther)
+		auto CheckAxis = [&](const EOrientAxis& InRef, EOrientAxis& OutOther)
 		{
-			if (OutOther != InRef)
-			{
-				return;
-			}
-
 			switch (InRef)
 			{
-			case EAxis::X:
-				OutOther = EAxis::Y;
+			case EOrientAxis::PositiveX:
+				if (OutOther == InRef || OutOther == EOrientAxis::NegativeX)
+				{
+					OutOther = EOrientAxis::PositiveY;
+				}
 				break;
-			case EAxis::Y:
-				OutOther = EAxis::Z;
+			case EOrientAxis::PositiveY:
+				if (OutOther == InRef || OutOther == EOrientAxis::NegativeY)
+				{
+					OutOther = EOrientAxis::PositiveZ;
+				}
 				break;
-			case EAxis::Z:
-				OutOther = EAxis::X;
+			case EOrientAxis::PositiveZ:
+				if (OutOther == InRef || OutOther == EOrientAxis::NegativeZ)
+				{
+					OutOther = EOrientAxis::PositiveX;
+				}
+				break;
+			case EOrientAxis::NegativeX:
+				if (OutOther == InRef || OutOther == EOrientAxis::PositiveX)
+				{
+					OutOther = EOrientAxis::PositiveY;
+				}
+				break;
+			case EOrientAxis::NegativeY:
+				if (OutOther == InRef || OutOther == EOrientAxis::PositiveY)
+				{
+					OutOther = EOrientAxis::PositiveZ;
+				}
+				break;
+			case EOrientAxis::NegativeZ:
+				if (OutOther == InRef || OutOther == EOrientAxis::PositiveZ)
+				{
+					OutOther = EOrientAxis::PositiveX;
+				}
 				break;
 			default:
 				break;
@@ -1411,12 +1431,6 @@ void UOrientingProperties::PostEditChangeProperty(FPropertyChangedEvent &Propert
 		const FName PropertyName = PropertyChangedEvent.GetPropertyName();
 		if (PropertyName == GET_MEMBER_NAME_CHECKED(FOrientOptions, Primary))
 		{
-			if (Options.Primary == EAxis::None)
-			{
-				Options.Primary = EAxis::X;
-				Options.Secondary = EAxis::Y;
-				return;
-			}
 			CheckAxis(Options.Primary, Options.Secondary);
 			return;
 		}

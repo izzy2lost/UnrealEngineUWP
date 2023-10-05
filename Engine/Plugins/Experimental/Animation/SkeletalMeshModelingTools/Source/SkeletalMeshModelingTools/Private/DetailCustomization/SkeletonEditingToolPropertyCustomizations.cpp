@@ -631,6 +631,10 @@ void FOrientingPropertiesDetailCustomization::CustomizeDetails(IDetailLayoutBuil
 			.HAlign(HAlign_Center)
 			.VAlign(VAlign_Center)
 			.Text(LOCTEXT("OrientButtonLabel", "Orient"))
+			.IsEnabled_Lambda([Properties]()
+			{
+				return Properties->Options.Primary != EOrientAxis::None; 
+			})
 			.OnClicked_Lambda([Properties]()
 			{
 				Properties->OrientBones();
