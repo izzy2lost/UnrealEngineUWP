@@ -59,6 +59,9 @@ public:
 	// Is this viewport being captured by a media capture device?
 	bool bIsBeingCaptured = false;
 
+	// Should OCIO be forcibly applied at later pass (custom nDisplay pass)?
+	bool bForceLateOCIOPass = false;
+
 	// Enable cross-GPU transfer for this viewport.
 	// It may be disabled in some configurations. For example, when using offscreen rendering with TextureShare,
 	// cross-gpu transfer can be disabled for this viewport to improve performance, because when transfer is called,

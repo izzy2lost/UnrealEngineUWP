@@ -551,11 +551,17 @@ void FDisplayClusterViewportConfigurationHelpers_ICVFX::UpdateCameraViewportSett
 			{
 				const FString ThisClusterNodeId = DstViewport.GetClusterNodeId();
 
+				const bool bMediaInputAssigned  = MediaICVFXSettings.IsMediaInputAssigned(ThisClusterNodeId);
+				const bool bMediaOutputAssigned = MediaICVFXSettings.IsMediaOutputAssigned(ThisClusterNodeId);
+
 				// Don't render the viewport if media input assigned
-				InOutRenderSettings.bSkipSceneRenderingButLeaveResourcesAvailable = MediaICVFXSettings.IsMediaInputAssigned(ThisClusterNodeId);
+				InOutRenderSettings.bSkipSceneRenderingButLeaveResourcesAvailable = bMediaInputAssigned;
 
 				// Mark this viewport is going to be captured by a capture device
-				InOutRenderSettings.bIsBeingCaptured = MediaICVFXSettings.IsMediaOutputAssigned(ThisClusterNodeId);
+				InOutRenderSettings.bIsBeingCaptured = bMediaOutputAssigned;
+
+				// Late OCIO pass
+				InOutRenderSettings.bForceLateOCIOPass = (bMediaOutputAssigned || bMediaInputAssigned ? MediaICVFXSettings.bLateOCIOPass : false);
 			}
 		}
 	}

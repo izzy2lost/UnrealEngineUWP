@@ -72,6 +72,10 @@ public:
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Media")
 	TArray<FDisplayClusterConfigurationMediaOutput> MediaOutputs;
 
+	/** Force late OCIO pass */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Media", meta = (DisplayName = "Late OCIO Pass"))
+	bool bLateOCIOPass = false;
+
 public:
 	/** Returns true if a media source assigned */
 	bool IsMediaInputAssigned() const;
@@ -156,6 +160,10 @@ public:
 	/** Media output mapping */
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Media")
 	TArray<FDisplayClusterConfigurationMediaOutputGroup> MediaOutputGroups;
+
+	/** Force late OCIO pass */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Media", meta = (DisplayName = "Late OCIO Pass"))
+	bool bLateOCIOPass = false;
 
 public:
 	/** Returns true if a specific cluster node has media source assigned */

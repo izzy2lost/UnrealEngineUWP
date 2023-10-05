@@ -107,11 +107,17 @@ void FDisplayClusterViewportConfigurationHelpers::UpdateBaseViewportSetting(FDis
 
 			if (MediaSettings.bEnable)
 			{
-				// Don't render the viewport if media input assigned
-				InOutRenderSettings.bSkipSceneRenderingButLeaveResourcesAvailable = MediaSettings.IsMediaInputAssigned();
+				const bool bMediaInputAssigned  = MediaSettings.IsMediaInputAssigned();
+				const bool bMediaOutputAssigned = MediaSettings.IsMediaOutputAssigned();
+
+				// Don't render this viewport if media input assigned
+				InOutRenderSettings.bSkipSceneRenderingButLeaveResourcesAvailable = bMediaInputAssigned;
 
 				// Mark this viewport is going to be captured by a capture device
-				InOutRenderSettings.bIsBeingCaptured = MediaSettings.IsMediaOutputAssigned();
+				InOutRenderSettings.bIsBeingCaptured = bMediaOutputAssigned;
+
+				// Late OCIO pass
+				InOutRenderSettings.bForceLateOCIOPass = (bMediaOutputAssigned || bMediaInputAssigned ? MediaSettings.bLateOCIOPass : false);
 			}
 		}
 	}

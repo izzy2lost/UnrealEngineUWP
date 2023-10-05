@@ -448,6 +448,12 @@ EDisplayClusterViewportOpenColorIOMode FDisplayClusterViewportProxy::GetOpenColo
 			// Rendering without post-processing, OCIO is applied last, to the RTT texture of the viewport
 			return EDisplayClusterViewportOpenColorIOMode::Resolved;
 		}
+		else if (RenderSettings.bForceLateOCIOPass)
+		{
+			// When capturing a viewport, it's possible that it's going to be shared within a cluster via the media pipeline.
+			// In this case we should postpone the OCIO step so every node can apply its own OCIO settings.
+			return EDisplayClusterViewportOpenColorIOMode::Resolved;
+		}
 
 		// By default, viewports render with a postprocess, OCIO must be done in between.
 		return EDisplayClusterViewportOpenColorIOMode::PostProcess;
