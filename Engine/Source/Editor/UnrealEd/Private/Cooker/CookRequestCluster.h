@@ -233,11 +233,12 @@ private:
 		struct FScratchPlatformDependencyBits
 		{
 			TBitArray<> HasPlatformByIndex;
-			bool bHardDependency = false;
+			EInstigator InstigatorType = EInstigator::SoftDependency;
 		};
 		struct FScratch
 		{
 			TArray<FName> HardGameDependencies;
+			TArray<FName> HardEditorDependencies;
 			TArray<FName> SoftGameDependencies;
 			TArray<FName> CookerLoadingDependencies;
 			TMap<FName, FScratchPlatformDependencyBits> PlatformDependencyMap;

@@ -7126,6 +7126,7 @@ TArray<UE::Cook::FInstigator> UCookOnTheFlyServer::GetInstigatorChain(FName Pack
 		{
 			case EInstigator::Dependency: bGetNext = true; break;
 			case EInstigator::HardDependency: bGetNext = true; break;
+			case EInstigator::HardEditorOnlyDependency: bGetNext = true; break;
 			case EInstigator::SoftDependency: bGetNext = true; break;
 			case EInstigator::Unsolicited: bGetNext = true; break;
 			case EInstigator::EditorOnlyLoad: bGetNext = true; break;

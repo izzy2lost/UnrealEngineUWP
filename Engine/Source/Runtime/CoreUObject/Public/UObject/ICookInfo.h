@@ -47,6 +47,7 @@ namespace UE::Cook
 	CallbackMacro(RequestPackageFunction, true) \
 	CallbackMacro(Dependency, false) \
 	CallbackMacro(HardDependency, false) \
+	CallbackMacro(HardEditorOnlyDependency, false) \
 	CallbackMacro(SoftDependency, false) \
 	CallbackMacro(Unsolicited, false) \
 	CallbackMacro(EditorOnlyLoad, false) \
