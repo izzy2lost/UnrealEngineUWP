@@ -1689,7 +1689,7 @@ public:
 	 * @param	bAllowNativeOverride If true, will try to run native version of export text on the struct
 	 * @return Buffer after parsing has succeeded, or NULL on failure
 	 */
-	COREUOBJECT_API const TCHAR* ImportText(const TCHAR* Buffer, void* Value, UObject* OwnerObject, int32 PortFlags, FOutputDevice* ErrorText, const FString& StructName, bool bAllowNativeOverride = true);
+	COREUOBJECT_API const TCHAR* ImportText(const TCHAR* Buffer, void* Value, UObject* OwnerObject, int32 PortFlags, FOutputDevice* ErrorText, const FString& StructName, bool bAllowNativeOverride = true) const;
 
 	/**
 	 * Sets value of script struct based on imported string
@@ -1703,7 +1703,7 @@ public:
 	 * @param	bAllowNativeOverride If true, will try to run native version of export text on the struct
 	 * @return Buffer after parsing has succeeded, or NULL on failure
 	 */
-	COREUOBJECT_API const TCHAR* ImportText(const TCHAR* Buffer, void* Value, UObject* OwnerObject, int32 PortFlags, FOutputDevice* ErrorText, const TFunctionRef<FString()>& StructNameGetter, bool bAllowNativeOverride = true);
+	COREUOBJECT_API const TCHAR* ImportText(const TCHAR* Buffer, void* Value, UObject* OwnerObject, int32 PortFlags, FOutputDevice* ErrorText, const TFunctionRef<FString()>& StructNameGetter, bool bAllowNativeOverride = true) const;
 
 	/**
 	 * Compare two script structs

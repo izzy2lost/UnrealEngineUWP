@@ -221,11 +221,11 @@ public:
 	 * @param DefinedProperties (out)	list of properties/indices that have been parsed by previous calls, so duplicate definitions cause an error
 	 * @return pointer to remaining text in the stream (even on failure, but on failure it may not be advanced past the entire key/value pair)
 	 */
-	static COREUOBJECT_API const TCHAR* ImportSingleProperty( const TCHAR* Str, void* DestData, class UStruct* ObjectStruct, UObject* SubobjectOuter, int32 PortFlags,
+	static COREUOBJECT_API const TCHAR* ImportSingleProperty( const TCHAR* Str, void* DestData, const UStruct* ObjectStruct, UObject* SubobjectOuter, int32 PortFlags,
 											FOutputDevice* Warn, TArray<struct FDefinedProperty>& DefinedProperties );
 
 	/** Gets a redirected property name, will return NAME_None if no redirection was found */
-	static COREUOBJECT_API FName FindRedirectedPropertyName(UStruct* ObjectStruct, FName OldName);
+	static COREUOBJECT_API FName FindRedirectedPropertyName(const UStruct* ObjectStruct, FName OldName);
 
 	/**
 	 * Returns the C++ name of the property, including the _DEPRECATED suffix if the

@@ -1523,7 +1523,7 @@ void FProperty::PerformOperationWithGetter(void* OutContainer, const void* Direc
  * @param	Warn			the output device to send errors/warnings to
  * @return	the array index for this defaultproperties line.  INDEX_NONE if this line doesn't contains an array specifier, or 0 if there was an error parsing the specifier.
  */
-static const int32 ReadArrayIndex(UStruct* ObjectStruct, const TCHAR*& Str, FOutputDevice* Warn)
+static const int32 ReadArrayIndex(const UStruct* ObjectStruct, const TCHAR*& Str, FOutputDevice* Warn)
 {
 	const TCHAR* Start = Str;
 	int32 Index = INDEX_NONE;
@@ -1616,7 +1616,7 @@ static bool IsPropertyValueSpecified( const TCHAR* Buffer )
 	return Buffer && *Buffer && *Buffer != TCHAR(',') && *Buffer != TCHAR(')');
 }
 
-const TCHAR* FProperty::ImportSingleProperty( const TCHAR* Str, void* DestData, UStruct* ObjectStruct, UObject* SubobjectOuter, int32 PortFlags,
+const TCHAR* FProperty::ImportSingleProperty( const TCHAR* Str, void* DestData, const UStruct* ObjectStruct, UObject* SubobjectOuter, int32 PortFlags,
 											FOutputDevice* Warn, TArray<FDefinedProperty>& DefinedProperties )
 {
 	check(ObjectStruct);
@@ -2024,7 +2024,7 @@ const TCHAR* FProperty::ImportSingleProperty( const TCHAR* Str, void* DestData, 
 	return Str;
 }
 
-FName FProperty::FindRedirectedPropertyName(UStruct* ObjectStruct, FName OldName)
+FName FProperty::FindRedirectedPropertyName(const UStruct* ObjectStruct, FName OldName)
 {
 	DECLARE_SCOPE_CYCLE_COUNTER(TEXT("FProperty::FindRedirectedPropertyName"), STAT_LinkerLoad_FindRedirectedPropertyName, STATGROUP_LoadTimeVerbose);
 
