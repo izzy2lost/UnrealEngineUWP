@@ -117,6 +117,7 @@ private:
 	bool OverrideIsThinSurfaceEnabled() const;
 	bool OverrideDitheredLODTransitionEnabled() const;
 	bool OverrideOutputTranslucentVelocityEnabled() const;
+	bool OverrideHasPixelAnimationEnabled() const;
 	bool OverrideDisplacementScalingEnabled() const;
 	bool OverrideMaxWorldPositionOffsetDisplacementEnabled() const;
 	void OnOverrideOpacityClipMaskValueChanged(bool NewValue);
@@ -126,6 +127,7 @@ private:
 	void OnOverrideIsThinSurfaceChanged(bool NewValue);
 	void OnOverrideDitheredLODTransitionChanged(bool NewValue);
 	void OnOverrideOutputTranslucentVelocityChanged(bool NewValue);
+	void OnOverrideHasPixelAnimationChanged(bool NewValue);
 	void OnOverrideDisplacementScalingChanged(bool NewValue);
 	void OnOverrideMaxWorldPositionOffsetDisplacementChanged(bool NewValue);
 

@@ -1259,7 +1259,8 @@ void FMaterialInstanceParameterDetails::CreateBasePropertyOverrideWidgets(IDetai
 	TAttribute<bool> IsOverrideIsThinSurfaceEnabled = TAttribute<bool>::Create(TAttribute<bool>::FGetter::CreateSP(this, &FMaterialInstanceParameterDetails::OverrideIsThinSurfaceEnabled));
 	TAttribute<bool> IsOverrideDitheredLODTransitionEnabled = TAttribute<bool>::Create(TAttribute<bool>::FGetter::CreateSP(this, &FMaterialInstanceParameterDetails::OverrideDitheredLODTransitionEnabled));
 	TAttribute<bool> IsOverrideOutputTranslucentVelocityEnabled = TAttribute<bool>::Create(TAttribute<bool>::FGetter::CreateSP(this, &FMaterialInstanceParameterDetails::OverrideOutputTranslucentVelocityEnabled));
-	TAttribute<bool> IsOverrideDisplacementScalingEnabled = TAttribute<bool>::Create(TAttribute<bool>::FGetter::CreateSP(this, &FMaterialInstanceParameterDetails::OverrideDisplacementScalingEnabled)); 
+	TAttribute<bool> IsOverrideHasPixelAnimationEnabled = TAttribute<bool>::Create(TAttribute<bool>::FGetter::CreateSP(this, &FMaterialInstanceParameterDetails::OverrideHasPixelAnimationEnabled));
+	TAttribute<bool> IsOverrideDisplacementScalingEnabled = TAttribute<bool>::Create(TAttribute<bool>::FGetter::CreateSP(this, &FMaterialInstanceParameterDetails::OverrideDisplacementScalingEnabled));
 	TAttribute<bool> IsOverrideMaxWorldPositionOffsetDisplacementEnabled = TAttribute<bool>::Create(TAttribute<bool>::FGetter::CreateSP(this, &FMaterialInstanceParameterDetails::OverrideMaxWorldPositionOffsetDisplacementEnabled));
 
 	TSharedRef<IPropertyHandle> BasePropertyOverridePropery = DetailLayout.GetProperty("BasePropertyOverrides");
@@ -1270,6 +1271,7 @@ void FMaterialInstanceParameterDetails::CreateBasePropertyOverrideWidgets(IDetai
 	TSharedPtr<IPropertyHandle> IsThinSurfaceProperty = BasePropertyOverridePropery->GetChildHandle("IsThinSurface");
 	TSharedPtr<IPropertyHandle> DitheredLODTransitionProperty = BasePropertyOverridePropery->GetChildHandle("DitheredLODTransition");
 	TSharedPtr<IPropertyHandle> OutputTranslucentVelocityProperty = BasePropertyOverridePropery->GetChildHandle("bOutputTranslucentVelocity");
+	TSharedPtr<IPropertyHandle> HasPixelAnimationProperty = BasePropertyOverridePropery->GetChildHandle("bHasPixelAnimation");
 	TSharedPtr<IPropertyHandle> DisplacementScalingProperty = BasePropertyOverridePropery->GetChildHandle("DisplacementScaling");
 	TSharedPtr<IPropertyHandle> MaxWorldPositionOffsetDisplacementProperty = BasePropertyOverridePropery->GetChildHandle("MaxWorldPositionOffsetDisplacement");
 
@@ -1438,6 +1440,25 @@ void FMaterialInstanceParameterDetails::CreateBasePropertyOverrideWidgets(IDetai
 			.OverrideResetToDefault(ResetOutputTranslucentVelocityPropertyOverride);
 	}
 	{
+		FIsResetToDefaultVisible IsHasPixelAnimationPropertyResetVisible = FIsResetToDefaultVisible::CreateLambda([this](TSharedPtr<IPropertyHandle> InHandle) {
+			return MaterialEditorInstance->Parent != nullptr ? MaterialEditorInstance->BasePropertyOverrides.bHasPixelAnimation != MaterialEditorInstance->Parent->HasPixelAnimation() : false;
+			});
+		FResetToDefaultHandler ResetHasPixelAnimationPropertyHandler = FResetToDefaultHandler::CreateLambda([this](TSharedPtr<IPropertyHandle> InHandle) {
+			if (MaterialEditorInstance->Parent != nullptr)
+			{
+				MaterialEditorInstance->BasePropertyOverrides.bHasPixelAnimation = MaterialEditorInstance->Parent->HasPixelAnimation();
+			}
+			});
+		FResetToDefaultOverride ResetHasPixelAnimationPropertyOverride = FResetToDefaultOverride::Create(IsHasPixelAnimationPropertyResetVisible, ResetHasPixelAnimationPropertyHandler);
+		IDetailPropertyRow& HasPixelAnimationPropertyRow = BasePropertyOverrideGroup.AddPropertyRow(HasPixelAnimationProperty.ToSharedRef());
+		HasPixelAnimationPropertyRow
+			.DisplayName(HasPixelAnimationProperty->GetPropertyDisplayName())
+			.ToolTip(bStaticParametersOverrideDisabled ? ParameterDisabledToolTipString : HasPixelAnimationProperty->GetToolTipText())
+			.EditCondition(IsOverrideHasPixelAnimationEnabled, FOnBooleanValueChanged::CreateSP(this, &FMaterialInstanceParameterDetails::OnOverrideHasPixelAnimationChanged))
+			.Visibility(TAttribute<EVisibility>::Create(TAttribute<EVisibility>::FGetter::CreateSP(this, &FMaterialInstanceParameterDetails::IsOverriddenAndVisible, IsOverrideHasPixelAnimationEnabled)))
+			.OverrideResetToDefault(ResetHasPixelAnimationPropertyOverride);
+	}
+	{
 		FIsResetToDefaultVisible IsDisplacementScalingPropertyResetVisible = FIsResetToDefaultVisible::CreateLambda([this](TSharedPtr<IPropertyHandle> InHandle)
 		{
 			return MaterialEditorInstance->Parent != nullptr ?
@@ -1523,6 +1544,11 @@ bool FMaterialInstanceParameterDetails::OverrideDitheredLODTransitionEnabled() c
 bool FMaterialInstanceParameterDetails::OverrideOutputTranslucentVelocityEnabled() const
 {
 	return MaterialEditorInstance->BasePropertyOverrides.bOverride_OutputTranslucentVelocity;
+}
+
+bool FMaterialInstanceParameterDetails::OverrideHasPixelAnimationEnabled() const
+{
+	return MaterialEditorInstance->BasePropertyOverrides.bOverride_bHasPixelAnimation;
 }
 
 bool FMaterialInstanceParameterDetails::OverrideDisplacementScalingEnabled() const
@@ -1620,6 +1646,17 @@ void FMaterialInstanceParameterDetails::OnOverrideOutputTranslucentVelocityChang
 		return;
 	}
 	MaterialEditorInstance->BasePropertyOverrides.bOverride_OutputTranslucentVelocity = NewValue;
+	MaterialEditorInstance->PostEditChange();
+	FEditorSupportDelegates::RedrawAllViewports.Broadcast();
+}
+
+void FMaterialInstanceParameterDetails::OnOverrideHasPixelAnimationChanged(bool NewValue)
+{
+	if (DoesSourceMaterialInstanceDisallowStaticParameterPermutation(MaterialEditorInstance, NewValue))
+	{
+		return;
+	}
+	MaterialEditorInstance->BasePropertyOverrides.bOverride_bHasPixelAnimation = NewValue;
 	MaterialEditorInstance->PostEditChange();
 	FEditorSupportDelegates::RedrawAllViewports.Broadcast();
 }

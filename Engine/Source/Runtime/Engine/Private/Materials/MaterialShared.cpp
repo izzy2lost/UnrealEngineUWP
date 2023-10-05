@@ -1670,7 +1670,7 @@ bool FMaterialResource::ShouldWriteOnlyAlpha() const { return Material->bWriteOn
 bool FMaterialResource::ShouldEnableResponsiveAA() const { return Material->bEnableResponsiveAA; }
 bool FMaterialResource::ShouldDoSSR() const { return Material->bScreenSpaceReflections; }
 bool FMaterialResource::ShouldDoContactShadows() const { return Material->bContactShadows; }
-bool FMaterialResource::HasPixelAnimation() const { return Material->HasPixelAnimation() && GetMaterialDomain() == MD_Surface && IsOpaqueOrMaskedBlendMode(GetBlendMode()); }
+bool FMaterialResource::HasPixelAnimation() const { return (MaterialInstance ? MaterialInstance->HasPixelAnimation() : Material->HasPixelAnimation()) && GetMaterialDomain() == MD_Surface && IsOpaqueOrMaskedBlendMode(GetBlendMode()); }
 bool FMaterialResource::IsWireframe() const { return Material->Wireframe; }
 bool FMaterialResource::IsUIMaterial() const { return Material->MaterialDomain == MD_UI; }
 bool FMaterialResource::IsPostProcessMaterial() const { return Material->MaterialDomain == MD_PostProcess; }
@@ -4813,6 +4813,7 @@ FMaterialInstanceBasePropertyOverrides::FMaterialInstanceBasePropertyOverrides()
 	,bOverride_TwoSided(false)
 	,bOverride_bIsThinSurface(false)
 	,bOverride_OutputTranslucentVelocity(false)
+	,bOverride_bHasPixelAnimation(false)
 	,bOverride_DisplacementScaling(false)
 	,bOverride_MaxWorldPositionOffsetDisplacement(false)
 	,TwoSided(0)
@@ -4820,6 +4821,7 @@ FMaterialInstanceBasePropertyOverrides::FMaterialInstanceBasePropertyOverrides()
 	,DitheredLODTransition(0)
 	,bCastDynamicShadowAsMasked(false)
 	,bOutputTranslucentVelocity(false)
+	,bHasPixelAnimation(false)
 	,BlendMode(BLEND_Opaque)
 	,ShadingModel(MSM_DefaultLit)
 	,OpacityMaskClipValue(.333333f)
@@ -4837,6 +4839,7 @@ bool FMaterialInstanceBasePropertyOverrides::operator==(const FMaterialInstanceB
 		bOverride_bIsThinSurface == Other.bOverride_bIsThinSurface &&
 		bOverride_DitheredLODTransition == Other.bOverride_DitheredLODTransition &&
 		bOverride_OutputTranslucentVelocity == Other.bOverride_OutputTranslucentVelocity &&
+		bOverride_bHasPixelAnimation == Other.bOverride_bHasPixelAnimation &&
 		bOverride_DisplacementScaling == Other.bOverride_DisplacementScaling &&
 		bOverride_MaxWorldPositionOffsetDisplacement == Other.bOverride_MaxWorldPositionOffsetDisplacement &&
 		OpacityMaskClipValue == Other.OpacityMaskClipValue &&
@@ -4846,6 +4849,8 @@ bool FMaterialInstanceBasePropertyOverrides::operator==(const FMaterialInstanceB
 		bIsThinSurface == Other.bIsThinSurface &&
 		DitheredLODTransition == Other.DitheredLODTransition &&
 		bCastDynamicShadowAsMasked == Other.bCastDynamicShadowAsMasked &&
+		bOutputTranslucentVelocity == Other.bOutputTranslucentVelocity &&
+		bHasPixelAnimation == Other.bHasPixelAnimation &&
 		DisplacementScaling == Other.DisplacementScaling &&
 		MaxWorldPositionOffsetDisplacement == Other.MaxWorldPositionOffsetDisplacement;
 }

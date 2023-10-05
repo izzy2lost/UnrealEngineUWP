@@ -44,6 +44,10 @@ struct FMaterialInstanceBasePropertyOverrides
 	/** Enables override of the output velocity property. */
 	UPROPERTY(EditAnywhere, Category = Material)
 	uint8 bOverride_OutputTranslucentVelocity : 1;
+	
+	/** Enables override of the has pixel animation property. */
+	UPROPERTY(EditAnywhere, Category = Material)
+	uint8 bOverride_bHasPixelAnimation : 1;
 
 	/** Enables override of the displacement magnitude and center property. */
 	UPROPERTY(EditAnywhere, Category = Material)
@@ -72,6 +76,12 @@ struct FMaterialInstanceBasePropertyOverrides
 	/** Whether the material should output velocity even though it has a translucent blend mode. */
 	UPROPERTY(EditAnywhere, Category = Material, meta = (editcondition = "bOverride_OutputTranslucentVelocity"))
 	uint8 bOutputTranslucentVelocity : 1;
+	
+	/** Whether the opaque material has any pixel animations happening, that isn't included in the geometric velocities.
+	 * This allows to disable renderer's heuristics that assumes animation is fully described with motion vector, such as TSR's anti-flickering heuristic.
+	 */
+	UPROPERTY(EditAnywhere, Category = Material, meta = (editcondition = "bOverride_bHasPixelAnimation"))
+	uint8 bHasPixelAnimation : 1;
 
 	/** The blend mode */
 	UPROPERTY(EditAnywhere, Category = Material, meta = (editcondition = "bOverride_BlendMode"))

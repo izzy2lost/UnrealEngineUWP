@@ -581,6 +581,7 @@ class UMaterialInstance : public UMaterialInterface
 	uint8 bCastDynamicShadowAsMasked : 1;
 	uint8 bOutputTranslucentVelocity : 1;
 	uint8 bIsShadingModelFromMaterialExpression : 1;
+	uint8 bHasPixelAnimation : 1;
 protected:
 	uint8 bLoadedCachedData : 1;
 public:

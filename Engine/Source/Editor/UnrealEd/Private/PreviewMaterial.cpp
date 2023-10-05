@@ -941,6 +941,10 @@ void UMaterialEditorInstanceConstant::CopyBasePropertiesFromParent()
 	{
 		BasePropertyOverrides.bOutputTranslucentVelocity = SourceInstance->IsTranslucencyWritingVelocity();
 	}
+	if (!BasePropertyOverrides.bOverride_bHasPixelAnimation)
+	{
+		BasePropertyOverrides.bHasPixelAnimation = SourceInstance->HasPixelAnimation();
+	}
 	if (!BasePropertyOverrides.DitheredLODTransition)
 	{
 		BasePropertyOverrides.DitheredLODTransition = SourceInstance->IsDitheredLODTransition();

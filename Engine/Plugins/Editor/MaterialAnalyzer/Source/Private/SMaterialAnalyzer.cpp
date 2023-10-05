@@ -38,6 +38,7 @@ SMaterialAnalyzer::SMaterialAnalyzer()
 	BasePropertyOverrideNames.Add(TEXT("bOverride_TwoSided"), TEXT("TwoSidedOverride"));
 	BasePropertyOverrideNames.Add(TEXT("bOverride_bIsThinSurface"), TEXT("bIsThinSurfaceOverride"));
 	BasePropertyOverrideNames.Add(TEXT("bOverride_OutputTranslucentVelocity"), TEXT("bOutputTranslucentVelocity"));
+	BasePropertyOverrideNames.Add(TEXT("bOverride_bHasPixelAnimation"), TEXT("bHasPixelAnimation"));
 }
 
 SMaterialAnalyzer::~SMaterialAnalyzer()

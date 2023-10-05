@@ -2084,6 +2084,7 @@ void UMaterialInstance::UpdateOverridableBaseProperties()
 		DitheredLODTransition = 0;
 		bIsShadingModelFromMaterialExpression = 0;
 		bOutputTranslucentVelocity = false;
+		bHasPixelAnimation = false;
 		DisplacementScaling = FDisplacementScaling();
 		MaxWorldPositionOffsetDisplacement = 0.0f;
 		return;
@@ -2117,6 +2118,16 @@ void UMaterialInstance::UpdateOverridableBaseProperties()
 	{
 		bOutputTranslucentVelocity = Parent->IsTranslucencyWritingVelocity();
 		BasePropertyOverrides.bOutputTranslucentVelocity = bOutputTranslucentVelocity;
+	}
+
+	if (BasePropertyOverrides.bOverride_bHasPixelAnimation)
+	{
+		bHasPixelAnimation = BasePropertyOverrides.bHasPixelAnimation;
+	}
+	else
+	{
+		bHasPixelAnimation = Parent->HasPixelAnimation();
+		BasePropertyOverrides.bHasPixelAnimation = bHasPixelAnimation;
 	}
 
 	if (BasePropertyOverrides.bOverride_ShadingModel)
@@ -4503,6 +4514,7 @@ bool UMaterialInstance::HasOverridenBaseProperties()const
 		(IsDitheredLODTransition() != Parent->IsDitheredLODTransition()) ||
 		(GetCastDynamicShadowAsMasked() != Parent->GetCastDynamicShadowAsMasked()) ||
 		(IsTranslucencyWritingVelocity() != Parent->IsTranslucencyWritingVelocity()) ||
+		(HasPixelAnimation() != Parent->HasPixelAnimation()) ||
 		(GetDisplacementScaling() != Parent->GetDisplacementScaling()) ||
 		(GetMaxWorldPositionOffsetDisplacement() != Parent->GetMaxWorldPositionOffsetDisplacement())
 		))
@@ -4527,6 +4539,7 @@ FString UMaterialInstance::GetBasePropertyOverrideString() const
 		BasePropString += FString::Printf(TEXT("bOverride_DitheredLODTransition_%d, "), (IsDitheredLODTransition() != Parent->IsDitheredLODTransition()));
 		BasePropString += FString::Printf(TEXT("bOverride_CastDynamicShadowAsMasked_%d, "), (GetCastDynamicShadowAsMasked() != Parent->GetCastDynamicShadowAsMasked()));
 		BasePropString += FString::Printf(TEXT("bOverride_OutputTranslucentVelocity_%d "), (IsTranslucencyWritingVelocity() != Parent->IsTranslucencyWritingVelocity()));
+		BasePropString += FString::Printf(TEXT("bOverride_bHasPixelAnimation_%d "), (HasPixelAnimation() != Parent->HasPixelAnimation()));
 		BasePropString += FString::Printf(TEXT("bOverride_DisplacementScaling_%d "), (GetDisplacementScaling() != Parent->GetDisplacementScaling()));
 		BasePropString += FString::Printf(TEXT("bOverride_MaxWorldPositionOffsetDisplacement_%d "), (GetMaxWorldPositionOffsetDisplacement() != Parent->GetMaxWorldPositionOffsetDisplacement()));
 	}
@@ -4596,7 +4609,8 @@ bool UMaterialInstance::ShouldAlwaysEvaluateWorldPositionOffset() const
 
 bool UMaterialInstance::HasPixelAnimation() const
 {
-	return Parent ? Parent->HasPixelAnimation() : false;
+	const UMaterial* Material = GetMaterial();
+	return Material ? bHasPixelAnimation && GetMaterial()->MaterialDomain == MD_Surface : false;
 }
 
 bool UMaterialInstance::IsMasked() const
@@ -4806,7 +4820,8 @@ bool UMaterialInstance::IsRedundant() const
 	|| BasePropertyOverrides.bOverride_DitheredLODTransition 
 	|| BasePropertyOverrides.bOverride_CastDynamicShadowAsMasked
 	|| BasePropertyOverrides.bOverride_TwoSided 
-	|| BasePropertyOverrides.bOutputTranslucentVelocity)
+	|| BasePropertyOverrides.bOutputTranslucentVelocity
+	|| BasePropertyOverrides.bHasPixelAnimation)
 	{
 		return false;
 	}
