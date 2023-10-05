@@ -100,6 +100,22 @@ namespace Chaos
 			ComputeUnitMassInertiaTensorAndRotationOfMass(Volume);
 		}
 
+		FConvex(TArray<FPlaneType>&& InPlanes, TArray<TArray<int32>>&& InFaceIndices, TArray<FVec3Type>&& InVertices, 
+			const FVec3Type& InMin, const FVec3Type& InMax, const FRealType InVolume, const FVec3Type InInertiaTensor, const FRotation3& InRotationMatrix, const bool bRegularDatas)
+			: FImplicitObject(EImplicitObject::IsConvex | EImplicitObject::HasBoundingBox, ImplicitObjectType::Convex)
+			, Planes(MoveTemp(InPlanes))
+			, Vertices(MoveTemp(InVertices))
+		{
+			LocalBoundingBox = FAABB3Type(InMin, InMax);
+			CenterOfMass = LocalBoundingBox.GetCenterOfMass();
+			
+			Volume = InVolume;
+			RotationOfMass = InRotationMatrix;
+			UnitMassInertiaTensor = InInertiaTensor;
+			
+			CreateStructureData(MoveTemp(InFaceIndices), bRegularDatas);
+		}
+
 		FConvex(const TArray<FVec3Type>& InVertices, const FReal InMargin, FConvexBuilder::EBuildMethod BuildMethod = FConvexBuilder::EBuildMethod::Default)
 		    : FImplicitObject(EImplicitObject::IsConvex | EImplicitObject::HasBoundingBox, ImplicitObjectType::Convex)
 		{
@@ -184,7 +200,7 @@ namespace Chaos
 		CHAOS_API void MovePlanesAndRebuild(FRealType InDelta);
 
 	private:
-		CHAOS_API void CreateStructureData(TArray<TArray<int32>>&& FaceIndices);
+		CHAOS_API void CreateStructureData(TArray<TArray<int32>>&& FaceIndices, const bool bRegularDatas = false);
 
 	public:
 		static constexpr EImplicitObjectType StaticType()
@@ -223,7 +239,6 @@ namespace Chaos
 		{
 			return PhiWithNormalScaledInternal(X, Scale, Normal);
 		}
-
 
 	private:
 		// Distance to the surface

@@ -221,6 +221,32 @@ public:
 		}
 		return static_cast<const TImplicitObjectInstanced<TConcrete>&>(Obj);
 	}
+	
+	static const TImplicitObjectInstanced<TConcrete>* AsInstanced(const FImplicitObject& Obj)
+	{
+		if constexpr (std::is_same_v<TConcrete, FImplicitObject>)
+		{
+			//can cast any scaled to ImplicitObject base
+			return IsInstanced(Obj.GetType()) ? static_cast<const TImplicitObjectInstanced<TConcrete>*>(&Obj) : nullptr;
+		}
+		else
+		{
+			return StaticType() == Obj.GetType() ? static_cast<const TImplicitObjectInstanced<TConcrete>*>(&Obj) : nullptr;
+		}
+	}
+
+	static TImplicitObjectInstanced<TConcrete>* AsInstanced(FImplicitObject& Obj)
+	{
+		if constexpr (std::is_same_v<TConcrete, FImplicitObject>)
+		{
+			//can cast any scaled to ImplicitObject base
+			return IsInstanced(Obj.GetType()) ? static_cast<TImplicitObjectInstanced<TConcrete>*>(&Obj) : nullptr;
+		}
+		else
+		{
+			return StaticType() == Obj.GetType() ? static_cast<TImplicitObjectInstanced<TConcrete>*>(&Obj) : nullptr;
+		}
+	}
 
 	/** This is a low level function and assumes the internal object has a SweepGeom function. Should not be called directly. See GeometryQueries.h : SweepQuery */
 	template <typename QueryGeomType>

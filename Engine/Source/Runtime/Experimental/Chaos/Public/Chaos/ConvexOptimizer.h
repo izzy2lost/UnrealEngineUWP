@@ -42,7 +42,7 @@ namespace Private
 		CHAOS_API ~FConvexOptimizer();
 
 		// Simplify all the convexes in the hierarchy 
-		CHAOS_API void SimplifyRootConvexes(const Chaos::FImplicitObjectUnionPtr& UnionGeometry, const FShapesArray& UnionShapes);
+		CHAOS_API void SimplifyRootConvexes(const Chaos::FImplicitObjectUnionPtr& UnionGeometry, const FShapesArray& UnionShapes, const EObjectStateType ObjectState);
 
 		// Check if the manager is valid or not
 		CHAOS_API bool IsValid() const {return !SimplifiedConvexes.IsEmpty();}
@@ -55,6 +55,9 @@ namespace Private
 
 		// Get the shapes array 
 		CHAOS_API const FShapeInstanceArray& GetShapeInstances() const { return ShapesArray;}
+		
+		// Get the number of collision objects
+		CHAOS_API int32 NumCollisionObjects() const; 
 
 	private:
 
@@ -62,7 +65,7 @@ namespace Private
 		void BuildSingleConvex(const Chaos::FImplicitObjectUnionPtr& UnionGeometry, const FShapesArray& UnionShapes);
 
 		// Build several convexes 
-		void BuildMultipleConvex(const Chaos::FImplicitObjectUnionPtr& UnionGeometry, const FShapesArray& UnionShapes);
+		void BuildMultipleConvex(const Chaos::FImplicitObjectUnionPtr& UnionGeometry, const FShapesArray& UnionShapes, const int32 MaxLODs);
 
 		// Build the simplified shapes
 		void BuildConvexShapes(const FShapesArray& UnionShapes);

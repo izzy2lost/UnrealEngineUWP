@@ -78,6 +78,9 @@ public :
 	// Find the overlapping tribox 
 	bool OverlapTribox(const FTribox& OtherTribox, FTribox& OverlapTribox) const;
 
+	// Check if the tribox is overlapping or not
+	bool IsTriboxOverlapping(const FTribox& OtherTribox) const;
+
 	// Split the tribox in 2 along a defined cuttng plane
 	bool SplitTriboxSlab(const int32 PlaneAxis, const FRealType& PlaneDistance,
 					FTribox& LeftTribox, FTribox& RightTribox) const;
@@ -134,6 +137,10 @@ private :
 	// Build the max dist along the chamfer axis
 	void BuildChamferDist(const FVec3Type& P, const int32 CoordIndexA, const int32 CoordIndexB,
 			const int32 DistsIndexA, const int32 DistsIndexB, const int32 DistsIndexC, const int32 DistsIndexD);
+
+	// Create a FConvex from a list of convex planes, face indices and convex vertices
+	FImplicitObjectPtr CreateConvexFromTopology(TArray<FConvex::FPlaneType>&& ConvexPlanes,
+		TArray<TArray<int32>>&& FaceIndices, TArray<FConvex::FVec3Type>&& ConvexVertices) const;
 
 	// Max distance along eaxh tribox axis (principal + chamfer)
 	FRealType MaxDists[NumPlanes] = {TNumericLimits<FRealType>::Lowest(), TNumericLimits<FRealType>::Lowest(),

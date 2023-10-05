@@ -27,6 +27,7 @@
 #include "ChaosSolverConfiguration.h"
 #include "Chaos/PullPhysicsDataImp.h"
 #include "Chaos/PhysicsSolverBaseImpl.h"
+#include "Chaos/ConvexOptimizer.h"
 
 #include "ProfilingDebugging/CountersTrace.h"
 #include "ProfilingDebugging/CsvProfiler.h"
@@ -2264,6 +2265,13 @@ TRACE_COUNTER_SET(ChaosTraceCounter_##Name, Value)
 				if (const FImplicitObjectUnion* Union = Particle.GetGeometry()->AsA<FImplicitObjectUnion>())
 				{
 					NumShapes = Union->GetNumLeafObjects();
+				}
+				if(auto* ClusteredParticle = Particle.CastToClustered())
+				{
+					if((ClusteredParticle->ConvexOptimizer().Get() != nullptr) && ClusteredParticle->ConvexOptimizer()->IsValid())
+					{
+						NumShapes = ClusteredParticle->ConvexOptimizer()->NumCollisionObjects();
+					}
 				}
 				if (P->IsDynamic())
 				{

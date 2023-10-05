@@ -303,9 +303,11 @@ namespace Chaos
 	}
 
 	// Store the structure data with the convex. This is used by manifold generation, for example
-	void FConvex::CreateStructureData(TArray<TArray<int32>>&& PlaneVertexIndices)
+	DECLARE_CYCLE_STAT(TEXT("FConvex::CreateStructureData"), STAT_CreateConvexStructureData, STATGROUP_ChaosCollision);
+	void FConvex::CreateStructureData(TArray<TArray<int32>>&& PlaneVertexIndices, const bool bRegularDatas)
 	{
-		const bool bSuccess = StructureData.SetPlaneVertices(MoveTemp(PlaneVertexIndices), Vertices.Num());
+		SCOPE_CYCLE_COUNTER(STAT_CreateConvexStructureData);
+		const bool bSuccess = StructureData.SetPlaneVertices(MoveTemp(PlaneVertexIndices), Vertices.Num(), bRegularDatas);
 		if (!bSuccess || !StructureData.IsValid())
 		{
 			UE_LOG(LogChaos, Error, TEXT("Unable to create structure data for %s"), *ToStringFull());
@@ -379,8 +381,10 @@ namespace Chaos
 		*this = FConvex(NewPoints, 0.0f);
 	}
 
+	DECLARE_CYCLE_STAT(TEXT("FConvex::ComputeUnitMassInertiaTensorAndRotationOfMass"), STAT_ComputeConvexMassInertia, STATGROUP_ChaosCollision);
 	void FConvex::ComputeUnitMassInertiaTensorAndRotationOfMass(const FReal InVolume)
 	{
+		SCOPE_CYCLE_COUNTER(STAT_ComputeConvexMassInertia);
 		if (InVolume < UE_SMALL_NUMBER || !StructureData.IsValid())
 		{
 			UnitMassInertiaTensor = FVec3{1., 1., 1.};

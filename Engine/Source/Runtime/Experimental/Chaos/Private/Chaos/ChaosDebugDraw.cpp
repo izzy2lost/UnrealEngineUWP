@@ -61,6 +61,9 @@ namespace Chaos
 		bool bChaosDebugDebugDrawColorShapesBySimQueryType = false;
 		FAutoConsoleVariableRef CVarChaosDebugDebugDrawColorShapesBySimQueryType(TEXT("p.Chaos.DebugDraw.ColorShapesBySimQueryType"), bChaosDebugDebugDrawColorShapesBySimQueryType, TEXT("Whether to show with different colors shapes that are sim enabled and query enabled (sim : blue, query : orange)"));
 
+		bool bChaosDebugDebugDrawColorShapesByConvexType = false;
+		FAutoConsoleVariableRef CVarChaosDebugDebugDrawColorShapesByConvexType(TEXT("p.Chaos.DebugDraw.ColorShapesByConvexType"), bChaosDebugDebugDrawColorShapesByConvexType, TEXT("Whether to show with different colors shapes that are convex and simplified (simplified : green, normal : orange)"));
+
 		bool bChaosDebugDebugDrawColorShapesByClusterUnion = false;
 		FAutoConsoleVariableRef CVarChaosDebugDebugDrawColorShapesByClusterUnion(TEXT("p.Chaos.DebugDraw.ColorShapesByClusterUnion"), bChaosDebugDebugDrawColorShapesByClusterUnion, TEXT("An extension of the ColorShapesByInternalCluster option: instead of using a single color for every internal cluster, will use a unique color per cluster union. Non-cluster unions will be black."));
 
@@ -350,8 +353,8 @@ namespace Chaos
 		//
 		//
 		//
+		void DrawShapesImpl(const FGeometryParticleHandle* Particle, const FRigidTransform3& ShapeTransform, const FImplicitObject* Implicit, const FPerShapeData* Shape, const FReal Margin, const FColor& Color, const FRealSingle Duration, const FChaosDebugDrawSettings& Settings, const bool bHasConvexOptimizer = false);
 
-		void DrawShapesImpl(const FGeometryParticleHandle* Particle, const FRigidTransform3& ShapeTransform, const FImplicitObject* Implicit, const FPerShapeData* Shape, const FReal Margin, const FColor& Color, const FRealSingle Duration, const FChaosDebugDrawSettings& Settings);
 
 		void DrawShape(const FRigidTransform3& ShapeTransform, const FImplicitObject* Implicit, const FPerShapeData* Shape, const FColor& Color, const float Duration, const FChaosDebugDrawSettings* Settings)
 		{
@@ -578,7 +581,7 @@ namespace Chaos
 			}
 		}
 
-		void DrawShapesImpl(const FGeometryParticleHandle* Particle, const FRigidTransform3& ShapeTransform, const FImplicitObject* Implicit, const FPerShapeData* Shape, const FReal Margin, const FColor& Color, const FRealSingle Duration, const FChaosDebugDrawSettings& Settings)
+		void DrawShapesImpl(const FGeometryParticleHandle* Particle, const FRigidTransform3& ShapeTransform, const FImplicitObject* Implicit, const FPerShapeData* Shape, const FReal Margin, const FColor& Color, const FRealSingle Duration, const FChaosDebugDrawSettings& Settings, const bool bHasConvexOptimizer)
 		{
 			if (Implicit == nullptr)
 			{
@@ -703,30 +706,30 @@ namespace Chaos
 					}
 				}
 			}
+			if (bChaosDebugDebugDrawColorShapesByConvexType)
+			{
+				if(InnerType == ImplicitObjectType::Convex)
+				{
+					ShapeColor = bHasConvexOptimizer ? FColor::Green : Particle->GetGeometry()->IsUnderlyingUnion() ? FColor::Blue : FColor::Orange;
+				}
+				else
+				{
+					ShapeColor = FColor::Yellow;
+				}
+			}
 			if (Shape && bChaosDebugDebugDrawColorShapesBySimQueryType)
 			{
 				if (Shape->GetSimEnabled())
 				{
-					const bool bIsUnion = Particle->GetGeometry()->IsUnderlyingUnion();
-					if (bIsUnion)
-					{
-						if(Implicit->GetDoCollide())
-						{
-							ShapeColor = FColor::Green;
-						}
-						else
-						{
-							ShapeColor = FColor::Blue;
-						}
-					}
-					else
-					{
-						ShapeColor = FColor::Orange;
-					}
+					ShapeColor = FColor::Green;
 				}
 				else if (Shape->GetQueryEnabled())
 				{
 					ShapeColor = FColor::Red;
+				}
+				else if (Shape->GetIsProbe())
+				{
+					ShapeColor = FColor::Orange;
 				}
 			}
 			if (Shape && !bChaosDebugDebugDrawShowQueryOnlyShapes)
@@ -854,6 +857,31 @@ namespace Chaos
 				FDebugDrawQueue::GetInstance().DrawDebugBox(ShapeBoundsPos, 0.5f * ShapeBounds.Extents(), ShapeTransform.GetRotation(), ShapeBoundsColor, false, Duration, uint8(Settings.DrawPriority), Settings.LineThickness);
 			}
 		}
+		
+		bool DrawConvexOptimizerShapes(const FVec3& P, const FRotation3& Q, const FGeometryParticleHandle* Particle, const FColor& InColor, const FChaosDebugDrawSettings& Settings)
+		{
+			if(auto ClusteredParticle = Particle->CastToClustered())
+			{
+				const TPimplPtr<Private::FConvexOptimizer>& ConvexOptimizer = ClusteredParticle->ConvexOptimizer();
+				if(ConvexOptimizer && ConvexOptimizer->IsValid())
+				{
+					ConvexOptimizer->VisitCollisionObjects([&Particle, &P, &Q, &ConvexOptimizer, &InColor, &Settings](
+						const FImplicitObject* ImplicitObject, const FRigidTransform3& RelativeTransform, const int32 RootObjectIndex, const int32 ObjectIndex, const int32 LeafObjectIndex)-> void
+					{
+						if(RootObjectIndex == INDEX_NONE && !ConvexOptimizer->GetShapeInstances().IsEmpty())
+						{
+							DrawShapesImpl(Particle, RelativeTransform * FRigidTransform3(P, Q), ImplicitObject, ConvexOptimizer->GetShapeInstances()[0].Get(), 0.0f, InColor, 0.0f, Settings, true);
+						}
+						else if(Particle->ShapeInstances().IsValidIndex(RootObjectIndex))
+						{
+							DrawShapesImpl(Particle, RelativeTransform * FRigidTransform3(P, Q), ImplicitObject, Particle->ShapeInstances()[RootObjectIndex].Get(), 0.0f, InColor, 0.0f, Settings, false);
+						}
+					});
+					return true;
+				}
+			}
+			return false;
+		}
 
 		void DrawParticleShapesImpl(const FRigidTransform3& SpaceTransform, const FGeometryParticleHandle* Particle, const FColor& InColor, const FChaosDebugDrawSettings& Settings)
 		{
@@ -861,21 +889,11 @@ namespace Chaos
 			const FRotation3 Q = SpaceTransform.GetRotation() * (Particle->ObjectState() == EObjectStateType::Dynamic ? Particle->CastToRigidParticle()->Q() : Particle->R());
 			const FRigidTransform3 ParticleSpaceTransform = FRigidTransform3(P, Q);
 
-			for (const FShapeInstancePtr& ShapeInstance : Particle->ShapeInstances())
+			if(!DrawConvexOptimizerShapes(P, Q, Particle, InColor, Settings))
 			{
-				DrawShapesImpl(Particle, ParticleSpaceTransform, ShapeInstance->GetGeometry(), ShapeInstance.Get(), 0.0f, InColor, 0.0f, Settings);
-			}
-
-			// Draw the optimized shapes if the particle has any
-			if (const FPBDRigidClusteredParticleHandle* ClusteredParticle = Particle->CastToClustered())
-			{
-				const TPimplPtr<Private::FConvexOptimizer>& ConvexOptimizer = ClusteredParticle->ConvexOptimizer();
-				if (ConvexOptimizer && ConvexOptimizer->IsValid())
+				for (const FShapeInstancePtr& ShapeInstance : Particle->ShapeInstances())
 				{
-					for (const FShapeInstancePtr& ShapeInstance : ConvexOptimizer->GetShapeInstances())
-					{
-						DrawShapesImpl(Particle, ParticleSpaceTransform, ShapeInstance->GetGeometry(), ShapeInstance.Get(), 0.0f, FColor::Green, 0.0f, Settings);
-					}
+					DrawShapesImpl(Particle, ParticleSpaceTransform, ShapeInstance->GetGeometry(), ShapeInstance.Get(), 0.0f, InColor, 0.0f, Settings);
 				}
 			}
 		}
