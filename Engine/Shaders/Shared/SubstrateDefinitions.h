@@ -71,6 +71,11 @@
 #define SUBSTRATE_TILE_TYPE_DECAL_COMPLEX				8
 #define SUBSTRATE_TILE_TYPE_COUNT						9
 
+#define SUBSTRATE_MATERIAL_TYPE_SIMPLE					0
+#define SUBSTRATE_MATERIAL_TYPE_SINGLE					1
+#define SUBSTRATE_MATERIAL_TYPE_COMPLEX					2
+#define SUBSTRATE_MATERIAL_TYPE_COMPLEX_SPECIAL			3
+
 // sizeof(FRHIDrawIndirectParameters) = 4 uints = 16 bytes
 #define GetSubstrateTileTypeDrawIndirectArgOffset_Byte(x)  (x * 16)
 #define GetSubstrateTileTypeDrawIndirectArgOffset_DWord(x) (x * 4)

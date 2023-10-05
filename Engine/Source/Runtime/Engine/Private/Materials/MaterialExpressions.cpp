@@ -23979,53 +23979,35 @@ int32 UMaterialExpressionSubstrateSlabBSDF::Compile(class FMaterialCompiler* Com
 	return OutputCodeChunk;
 }
 
-UMaterialExpressionSubstrateSlabBSDF::FComplexity UMaterialExpressionSubstrateSlabBSDF::GetComplexity() const
+FSubstrateMaterialComplexity UMaterialExpressionSubstrateSlabBSDF::GetComplexity() const
 {
-	UMaterialExpressionSubstrateSlabBSDF::FComplexity Complexity;
-	Complexity.bSubstrateMaterialIsComplexSpecial = HasGlint() || HasSpecularProfile();
-	Complexity.bSubstrateMaterialIsComplex = HasAnisotropy();
-	Complexity.bSubstrateMaterialIsSingle = HasEdgeColor() || HasFuzz() || HasSecondRoughness() || HasMFPPluggedIn() || HasSSS();
+	FSubstrateMaterialComplexity Out;
+	Out.bIsComplexSpecial = HasGlint() || HasSpecularProfile();
+	Out.bIsSingle 		  = !HasAnisotropy() && (HasEdgeColor() || HasFuzz() || HasSecondRoughness() || HasMFPPluggedIn() || HasSSS());
+	Out.bIsSimple 		  = !HasAnisotropy();
 
-	// MAsk out to only have a single possibility
-	Complexity.bSubstrateMaterialIsComplex &= !Complexity.bSubstrateMaterialIsComplexSpecial;
-	Complexity.bSubstrateMaterialIsSingle &= !Complexity.bSubstrateMaterialIsComplexSpecial && !Complexity.bSubstrateMaterialIsComplex;
+	// Mask out to only have a single possibility
+	Out.bIsSingle &= !Out.bIsComplexSpecial;
+	Out.bIsSimple &= !Out.bIsComplexSpecial && !Out.bIsSingle;
 
-	return Complexity;
-}
-
-static FString GetSlabComplexityString(UMaterialExpressionSubstrateSlabBSDF::FComplexity Complexity)
-{
-	FString ComplexityString = TEXT("Simple");
-	if (Complexity.bSubstrateMaterialIsComplexSpecial)
-	{
-		ComplexityString = TEXT("ComplexSpecial");
-	}
-	else if (Complexity.bSubstrateMaterialIsComplex)
-	{
-		ComplexityString = TEXT("Complex");
-	}
-	else if (Complexity.bSubstrateMaterialIsSingle)
-	{
-		ComplexityString = TEXT("Single");
-	}
-	return ComplexityString;
+	return Out;
 }
 
 void UMaterialExpressionSubstrateSlabBSDF::GetCaption(TArray<FString>& OutCaptions) const
 {
 	// The node complexity is manually maintained to match FSubstrateCompilationContext::SubstrateGenerateDerivedMaterialOperatorData and shaders.
-	OutCaptions.Add(TEXT("Substrate Slab BSDF - ") + GetSlabComplexityString(GetComplexity()));
+	OutCaptions.Add(TEXT("Substrate Slab BSDF - ") + FSubstrateMaterialComplexity::ToString(GetComplexity().SubstrateMaterialType()));
 }
 
 void UMaterialExpressionSubstrateSlabBSDF::GetExpressionToolTip(TArray<FString>& OutToolTip)
 {
 	OutToolTip.Add(TEXT("Substrate Slab BSDF"));
-	OutToolTip.Add(TEXT("Complexity = ") + GetSlabComplexityString(GetComplexity()));
+	OutToolTip.Add(TEXT("Complexity = ") + FSubstrateMaterialComplexity::ToString(GetComplexity().SubstrateMaterialType()));
 	OutToolTip.Add(TEXT("The complexity represents the cost of the shading path (Lighting, Lumen, SSS) the material will follow:"));
 	OutToolTip.Add(TEXT(" - Simple means the Slab only relies on Diffuse, F0 and Roughness. It will follow a fast shading path."));
 	OutToolTip.Add(TEXT(" - Single means the Slab uses more features such as F90, Fuzz, Second Roughness, MFP or SSS. It will follow a more expenssive shading path."));
 	OutToolTip.Add(TEXT(" - Complex means a Slab uses anisotropic lighting, with any of the previous features."));
-	OutToolTip.Add(TEXT(" - ComplexSpecial means the Slab is using more advanced features such as glints or specular LUT. This is the most expenssive shading path."));
+	OutToolTip.Add(TEXT(" - Complex Special means the Slab is using more advanced features such as glints or specular LUT. This is the most expenssive shading path."));
 }
 
 uint32 UMaterialExpressionSubstrateSlabBSDF::GetOutputType(int32 OutputIndex)

@@ -103,7 +103,7 @@ public:
 	//// The following data is required at runtime
 	////
 
-	/** Substrate material type, at compile time (0:simple, 1:single, 2: complex) */
+	/** Substrate material type, at compile time (Possible values from SUBSTRATE_MATERIAL_TYPE_XXX: simple/single/complex/complex special) */
 	LAYOUT_FIELD(uint8, SubstrateMaterialType);
 
 	/** Substrate BSDF count, at compile time (0-7) */
@@ -111,9 +111,6 @@ public:
 
 	/** Substrate uint per pixel, at compile time (0-255) */
 	LAYOUT_FIELD(uint8, SubstrateUintPerPixel);
-
-	/** If Glints or SpecularLUT are used, we need to go the special more expenssive render path */
-	LAYOUT_BITFIELD(uint8, bUsesComplexSpecialRenderPath, 1);
 
 	////
 	//// The following data is only needed when compiling with the editor.

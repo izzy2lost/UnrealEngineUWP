@@ -495,8 +495,7 @@ protected:
 		uint32 SubstrateMaterialBSDFCount; // Also acts as requested 
 		uint32 SubstrateMaterialRequestedSizeByte;
 		uint32 SubstrateMaterialClosureCount;
-		bool bSubstrateMaterialIsSimple;
-		bool bSubstrateMaterialIsSingle;
+		FSubstrateMaterialComplexity SubstrateMaterialComplexity;
 		bool bSubstrateMaterialIsUnlitNode;
 
 		bool bSubstrateWritesEmissive;

@@ -342,8 +342,7 @@ void FHLSLMaterialTranslator::FSubstrateCompilationContext::Initialise()
 	SubstrateMaterialExpressionToOperatorIndex.Reserve(SUBSTRATE_MAX_COMPILER_REGISTERED_OPERATOR_COUNT);
 	SubstrateMaterialBSDFCount = 0;
 	SubstrateMaterialRequestedSizeByte = 0;
-	bSubstrateMaterialIsSimple = false;
-	bSubstrateMaterialIsSingle = false;
+	SubstrateMaterialComplexity.Reset();
 	bSubstrateMaterialIsUnlitNode = false;
 	bSubstrateWritesEmissive = false;
 	bSubstrateWritesAmbientOcclusion = false;
@@ -2367,10 +2366,10 @@ void FHLSLMaterialTranslator::GetMaterialEnvironment(EShaderPlatform InPlatform,
 			// For now, the fully simplified mode is used for Lumen or anything else supported inlined evaluation. The export is only valid for the default case.
 			// SUBSTRATE_TODO: generate an export for the different context (need to generate two export functions: the default one and the FullSimplification one)
 			FSubstrateCompilationContext& SubstrateCtx = SubstrateCompilationContext[ESubstrateCompilationContext::SCC_Default];
-			OutEnvironment.SetDefine(TEXT("SUBSTRATE_SINGLEPATH"), SubstrateCtx.bSubstrateMaterialIsSingle ? TEXT("1") : TEXT("0"));
-			OutEnvironment.SetDefine(TEXT("SUBSTRATE_FASTPATH"), SubstrateCtx.bSubstrateMaterialIsSingle ? TEXT("0") : (SubstrateCtx.bSubstrateMaterialIsSimple ? TEXT("1") : TEXT("0")));
+			OutEnvironment.SetDefine(TEXT("SUBSTRATE_SINGLEPATH"), SubstrateCtx.SubstrateMaterialComplexity.IsSingle() ? TEXT("1") : TEXT("0"));
+			OutEnvironment.SetDefine(TEXT("SUBSTRATE_FASTPATH"), SubstrateCtx.SubstrateMaterialComplexity.IsSimple() ? TEXT("1") : TEXT("0"));
+			OutEnvironment.SetDefine(TEXT("SUBSTRATE_COMPLEXSPECIALPATH"), SubstrateCtx.SubstrateMaterialComplexity.IsComplexSpecial() ? TEXT("1") : TEXT("0"));
 			OutEnvironment.SetDefine(TEXT("SUBSTRATE_CLAMPED_BSDF_COUNT"), SubstrateCtx.SubstrateMaterialBSDFCount);
-			OutEnvironment.SetDefine(TEXT("SUBSTRATE_COMPLEXSPECIALPATH"), MaterialCompilationOutput.SubstrateMaterialCompilationOutput.bUsesComplexSpecialRenderPath ? TEXT("1") : TEXT("0"));
 		}
 
 
@@ -2411,7 +2410,6 @@ void FHLSLMaterialTranslator::GetMaterialEnvironment(EShaderPlatform InPlatform,
 					return TEXT("ERROR");
 				};
 				FString SubstrateCompilationContextName = GetSubstrateCompilationContextName(SubstrateCompilationContextIndex);
-
 				SubstrateMaterialContextDescription += FString::Printf(TEXT("----- SUBSTRATE - %s -----\r\n"), *SubstrateCompilationContextName);
 				SubstrateMaterialContextDescription += FString::Printf(TEXT("SubstrateCompilationInfo -\r\n"));
 				SubstrateMaterialContextDescription += FString::Printf(TEXT(" - Byte Per Pixel Budget                           %u\r\n"), SubstrateBytePerPixel);
@@ -2420,7 +2418,7 @@ void FHLSLMaterialTranslator::GetMaterialEnvironment(EShaderPlatform InPlatform,
 				SubstrateMaterialContextDescription += FString::Printf(TEXT(" - Requested Byte Size after simplification        %u (%d UINT32)\r\n"), SubstrateCtx.SubstrateMaterialRequestedSizeByte, SubstrateCtx.SubstrateMaterialRequestedSizeByte / 4);
 				SubstrateMaterialContextDescription += FString::Printf(TEXT(" - Requested Closure Count before simplification   %u\r\n"), SubstrateSimplificationStatus.OriginalRequestedClosureCount);
 				SubstrateMaterialContextDescription += FString::Printf(TEXT(" - Requested Closure Count after simplification    %u\r\n"), SubstrateCtx.SubstrateMaterialClosureCount);
-				SubstrateMaterialContextDescription += FString::Printf(TEXT(" - Material complexity                             %s\r\n"), SubstrateCtx.bSubstrateMaterialIsSingle ? TEXT("SINGLE") : (SubstrateCtx.bSubstrateMaterialIsSimple ? TEXT("SIMPLE") : TEXT("COMPLEX")));
+				SubstrateMaterialContextDescription += FString::Printf(TEXT(" - Material complexity                             %s\r\n"), *FSubstrateMaterialComplexity::ToString(SubstrateCtx.SubstrateMaterialComplexity.SubstrateMaterialType(), true /* Upper case */));
 				SubstrateMaterialContextDescription += FString::Printf(TEXT(" - BSDF Count                                      %i\r\n"), SubstrateCtx.SubstrateMaterialBSDFCount); // REMOVE?
 				if (RequestedSharedLocalBasesCount > SUBSTRATE_MAX_SHAREDLOCALBASES_REGISTERS)
 				{
@@ -7375,8 +7373,8 @@ int32 FHLSLMaterialTranslator::SceneTextureLookup(int32 ViewportUV, uint32 InSce
 	// for optimization purpose (simple/single/complex). To avoid compiling out single or complex unpacking paths (due to defines set by analyzing 
 	// the current shader, vs. scene texture pixels), we force Simple/Single versions to be disabled
 	FSubstrateCompilationContext& SubstrateCtx = SubstrateCompilationContext[CurrentSubstrateCompilationContext];
-	SubstrateCtx.bSubstrateMaterialIsSimple = false;
-	SubstrateCtx.bSubstrateMaterialIsSingle = false;
+	SubstrateCtx.SubstrateMaterialComplexity.bIsSimple = false;
+	SubstrateCtx.SubstrateMaterialComplexity.bIsSingle = false;
 	
 	if (SceneTextureId == PPI_PostProcessInput0 && Material->GetMaterialDomain() == MD_PostProcess && Material->GetBlendableLocation() != BL_AfterTonemapping)
 	{
@@ -12026,11 +12024,11 @@ bool FHLSLMaterialTranslator::FSubstrateCompilationContext::SubstrateGenerateDer
 			SubstrateMaterialRequestedSizeByte = 0;
 
 			// 1. Evaluate simple/single BSDF
-			bSubstrateMaterialIsSimple = SubstrateMaterialBSDFCount == 1;
-			bSubstrateMaterialIsSingle = SubstrateMaterialBSDFCount == 1;
+			SubstrateMaterialComplexity.bIsSimple = SubstrateMaterialBSDFCount == 1;
+			SubstrateMaterialComplexity.bIsSingle = SubstrateMaterialBSDFCount == 1;
+			SubstrateMaterialComplexity.bIsComplexSpecial = false;
 			bool bIsFastWaterPath = false;
 			bool bCustomEncoding = false;
-			bool bUsesComplexSpecialRenderPath = false;
 			for (const auto& It : SubstrateMaterialExpressionRegisteredOperators)
 			{
 				if (It.IsDiscarded())
@@ -12049,29 +12047,29 @@ bool FHLSLMaterialTranslator::FSubstrateCompilationContext::SubstrateGenerateDer
 					{
 					case SUBSTRATE_BSDF_TYPE_SLAB:
 					{
-						bSubstrateMaterialIsSimple = bSubstrateMaterialIsSimple && !bMayHaveColoredWeight && !It.bBSDFHasAnisotropy && !It.bBSDFHasEdgeColor && !It.bBSDFHasFuzz && !It.bBSDFHasSecondRoughnessOrSimpleClearCoat && !It.bBSDFHasMFPPluggedIn && !It.bBSDFHasSSS && !It.bBSDFHasGlint && !It.bBSDFHasSpecularProfile;
-						bSubstrateMaterialIsSingle = bSubstrateMaterialIsSingle && !bMayHaveColoredWeight && !It.bBSDFHasAnisotropy && !It.bBSDFHasGlint && !It.bBSDFHasSpecularProfile;
-						bUsesComplexSpecialRenderPath |= It.bBSDFHasGlint || It.bBSDFHasSpecularProfile;
+						SubstrateMaterialComplexity.bIsSimple = SubstrateMaterialComplexity.bIsSimple && !bMayHaveColoredWeight && !It.bBSDFHasAnisotropy && !It.bBSDFHasEdgeColor && !It.bBSDFHasFuzz && !It.bBSDFHasSecondRoughnessOrSimpleClearCoat && !It.bBSDFHasMFPPluggedIn && !It.bBSDFHasSSS && !It.bBSDFHasGlint && !It.bBSDFHasSpecularProfile;
+						SubstrateMaterialComplexity.bIsSingle = SubstrateMaterialComplexity.bIsSingle && !bMayHaveColoredWeight && !It.bBSDFHasAnisotropy && !It.bBSDFHasGlint && !It.bBSDFHasSpecularProfile;
+						SubstrateMaterialComplexity.bIsComplexSpecial |= It.bBSDFHasGlint || It.bBSDFHasSpecularProfile;
 						break;
 					}
 					case SUBSTRATE_BSDF_TYPE_HAIR:
 					{
-						bSubstrateMaterialIsSimple = false;
-						bSubstrateMaterialIsSingle = false;
+						SubstrateMaterialComplexity.bIsSimple = false;
+						SubstrateMaterialComplexity.bIsSingle = false;
 						bCustomEncoding			= true;
 						break;
 					}
 					case SUBSTRATE_BSDF_TYPE_EYE:
 					{
-						bSubstrateMaterialIsSimple = false;
-						bSubstrateMaterialIsSingle = false;
+						SubstrateMaterialComplexity.bIsSimple = false;
+						SubstrateMaterialComplexity.bIsSingle = false;
 						bCustomEncoding			= true;
 						break;
 					}
 					case SUBSTRATE_BSDF_TYPE_SINGLELAYERWATER:
 					{
-						bSubstrateMaterialIsSimple = false;
-						bSubstrateMaterialIsSingle = false;
+						SubstrateMaterialComplexity.bIsSimple = false;
+						SubstrateMaterialComplexity.bIsSingle = false;
 						bIsFastWaterPath		= true;
 						break;
 					}
@@ -12081,17 +12079,17 @@ bool FHLSLMaterialTranslator::FSubstrateCompilationContext::SubstrateGenerateDer
 				case SUBSTRATE_OPERATOR_WEIGHT:
 				{
 					// If a BSDF modified by a weight operator, its weight will be < 1.0f, and it won't be a single material anymore
-					bSubstrateMaterialIsSimple = false;
-					bSubstrateMaterialIsSingle = false;
+					SubstrateMaterialComplexity.bIsSimple = false;
+					SubstrateMaterialComplexity.bIsSingle = false;
 					break;
 				}
 				}
 			}
-			bSubstrateMaterialIsSingle = bSubstrateMaterialIsSingle && !bSubstrateMaterialIsSimple;
+			SubstrateMaterialComplexity.bIsSingle = SubstrateMaterialComplexity.bIsSingle && !SubstrateMaterialComplexity.bIsSimple;
 
 			// 2. Header
 
-			if (!bSubstrateMaterialIsSimple && !bSubstrateMaterialIsSingle && !bCustomEncoding && !bIsFastWaterPath) // header written later, 
+			if (!SubstrateMaterialComplexity.bIsSimple && !SubstrateMaterialComplexity.bIsSingle && !bCustomEncoding && !bIsFastWaterPath) // header written later, 
 			{
 				// Packed Header
 				SubstrateMaterialRequestedSizeByte += UintByteSize;
@@ -12131,7 +12129,7 @@ bool FHLSLMaterialTranslator::FSubstrateCompilationContext::SubstrateGenerateDer
 					// From the compiler side, we can only assume the top layer has gray scale luminance weight.
 					const bool bMayHaveColoredWeight = !It.bIsTop;
 
-					if (bSubstrateMaterialIsSimple)
+					if (SubstrateMaterialComplexity.bIsSimple)
 					{
 						// Header
 						SubstrateMaterialRequestedSizeByte += UintByteSize;
@@ -12139,7 +12137,7 @@ bool FHLSLMaterialTranslator::FSubstrateCompilationContext::SubstrateGenerateDer
 						SubstrateMaterialRequestedSizeByte += UintByteSize;
 						break; // Stop here
 					}
-					else if (bSubstrateMaterialIsSingle)
+					else if (SubstrateMaterialComplexity.bIsSingle)
 					{
 						// Header
 						SubstrateMaterialRequestedSizeByte += UintByteSize;
@@ -12278,10 +12276,9 @@ bool FHLSLMaterialTranslator::FSubstrateCompilationContext::SubstrateGenerateDer
 			if (CompilationContextIndex == ESubstrateCompilationContext::SCC_Default)
 			{
 				// Only write those data for the default material
-				Compiler->MaterialCompilationOutput.SubstrateMaterialCompilationOutput.SubstrateMaterialType = bSubstrateMaterialIsSimple ? 0 : (bSubstrateMaterialIsSingle ? 1 : (bUsesComplexSpecialRenderPath ? 3 : 2));
+				Compiler->MaterialCompilationOutput.SubstrateMaterialCompilationOutput.SubstrateMaterialType = SubstrateMaterialComplexity.SubstrateMaterialType();
 				Compiler->MaterialCompilationOutput.SubstrateMaterialCompilationOutput.SubstrateBSDFCount = SubstrateMaterialBSDFCount;
 				Compiler->MaterialCompilationOutput.SubstrateMaterialCompilationOutput.SubstrateUintPerPixel = uint8(FMath::Clamp(RequestedSizeInUint, 0u, 0xFF));
-				Compiler->MaterialCompilationOutput.SubstrateMaterialCompilationOutput.bUsesComplexSpecialRenderPath = bUsesComplexSpecialRenderPath;
 
 #if WITH_EDITOR
 				Compiler->MaterialCompilationOutput.SubstrateMaterialCompilationOutput.SharedLocalBasesCount = 0; // FinalUsedSharedLocalBasesCount is not valid yet

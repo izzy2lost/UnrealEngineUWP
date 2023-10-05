@@ -8,6 +8,7 @@
 #include "MaterialExpressionSubstrate.generated.h"
 
 class FMaterialCompiler;
+struct FSubstrateMaterialComplexity;
 
 /**
  * Compile a special blend function for Substrate when blending material attribute
@@ -342,14 +343,7 @@ class UMaterialExpressionSubstrateSlabBSDF : public UMaterialExpressionSubstrate
 	bool HasGlint() const;
 	bool HasSpecularProfile() const;
 
-	struct FComplexity
-	{
-		bool bSubstrateMaterialIsComplexSpecial;
-		bool bSubstrateMaterialIsComplex;
-		bool bSubstrateMaterialIsSingle;
-		// If all the above are false, complexity is Simple
-	};
-	FComplexity GetComplexity() const;
+	FSubstrateMaterialComplexity GetComplexity() const;
 #endif
 	//~ End UMaterialExpression Interface
 };

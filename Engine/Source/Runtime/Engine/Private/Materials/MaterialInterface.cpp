@@ -483,7 +483,6 @@ FMaterialRelevance UMaterialInterface::GetRelevance_Internal(const UMaterial* Ma
 		const uint8 SubstrateBSDFCount = FMath::Max(MaterialResource->MaterialGetSubstrateBSDFCount_GameThread(), uint8(1u));
 		const uint8 SubstrateBSDFCountMask = 1u << uint8(FMath::Min(SubstrateBSDFCount - 1, 8));
 		const uint8 SubstrateUintPerPixel = FMath::Max(MaterialResource->MaterialGetSubstrateUintPerPixel_GameThread(), uint8(1u));
-		const uint8 bUsesComplexSpecialRenderPath = MaterialResource->MaterialGetSubstrateUsesComplexSpecialRenderPath_GameThread();
 
 		MaterialRelevance.bOpaque = !bIsTranslucent;
 		MaterialRelevance.bMasked = IsMasked();
@@ -511,7 +510,7 @@ FMaterialRelevance UMaterialInterface::GetRelevance_Internal(const UMaterial* Ma
 		MaterialRelevance.bUsesAnisotropy = bUsesAnisotropy;
 		MaterialRelevance.SubstrateBSDFCountMask = SubstrateBSDFCountMask;
 		MaterialRelevance.SubstrateUintPerPixel = SubstrateUintPerPixel;
-		MaterialRelevance.bUsesComplexSpecialRenderPath = bUsesComplexSpecialRenderPath;
+		MaterialRelevance.bUsesComplexSpecialRenderPath = MaterialResource->MaterialGetSubstrateUsesComplexSpecialRenderPath_GameThread();
 
 		return MaterialRelevance;
 	}

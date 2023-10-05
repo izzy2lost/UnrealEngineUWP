@@ -1404,7 +1404,7 @@ public:
 	uint8 GetSubstrateMaterialType() const { return GetSubstrateMaterialCompilationOutput().SubstrateMaterialType; }
 	uint8 GetSubstrateBSDFCount() const { return GetSubstrateMaterialCompilationOutput().SubstrateBSDFCount; }
 	uint8 GetSubstrateUintPerPixel() const { return GetSubstrateMaterialCompilationOutput().SubstrateUintPerPixel; }
-	bool GetSubstrateUsesComplexSpecialRenderPath() const { return GetSubstrateMaterialCompilationOutput().bUsesComplexSpecialRenderPath; }
+	bool GetSubstrateUsesComplexSpecialRenderPath() const { return GetSubstrateMaterialCompilationOutput().SubstrateMaterialType == SUBSTRATE_MATERIAL_TYPE_COMPLEX_SPECIAL; }
 	
 #if WITH_EDITOR
 	uint32 GetNumUsedUVScalars() const { return GetContent()->MaterialCompilationOutput.NumUsedUVScalars; }

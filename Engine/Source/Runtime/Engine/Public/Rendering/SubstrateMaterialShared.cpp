@@ -9,7 +9,6 @@ FSubstrateMaterialCompilationOutput::FSubstrateMaterialCompilationOutput()
 	: SubstrateMaterialType(0)
 	, SubstrateBSDFCount(0)
 	, SubstrateUintPerPixel(0)
-	, bUsesComplexSpecialRenderPath(0)
 #if WITH_EDITOR
 	, SubstrateMaterialDescription()
 	, SharedLocalBasesCount(0)

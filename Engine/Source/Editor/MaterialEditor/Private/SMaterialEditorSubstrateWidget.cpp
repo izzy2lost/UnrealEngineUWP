@@ -377,6 +377,18 @@ SMaterialEditorSubstrateWidget::~SMaterialEditorSubstrateWidget()
 {
 }
 
+static FString SubstrateMaterialTypeToString(uint8 InMaterialType)
+{
+	switch (InMaterialType)
+	{
+		case SUBSTRATE_MATERIAL_TYPE_SIMPLE:  			return FString::Printf(TEXT("SIMPLE  (Diffuse, albedo, roughness)\r\n"));
+		case SUBSTRATE_MATERIAL_TYPE_SINGLE:  			return FString::Printf(TEXT("SINGLE  (BSDF all features except anisotropy)\r\n"));
+		case SUBSTRATE_MATERIAL_TYPE_COMPLEX:  			return FString::Printf(TEXT("COMPLEX (Anisotropy, multi-slabs)\r\n"));
+		case SUBSTRATE_MATERIAL_TYPE_COMPLEX_SPECIAL:  	return FString::Printf(TEXT("COMPLEX SPECIAL (Glints, specular profile)\r\n"));
+		default: 										return FString::Printf(TEXT("UNKOWN => ERROR!\r\n"));
+	}
+}
+
 void SMaterialEditorSubstrateWidget::Tick(const FGeometry& AllottedGeometry, const double InCurrentTime, const float InDeltaTime)
 {
 	if (!bUpdateRequested || !Substrate::IsSubstrateEnabled())
@@ -420,25 +432,7 @@ void SMaterialEditorSubstrateWidget::Tick(const FGeometry& AllottedGeometry, con
 				}
 				MaterialDescription += FString::Printf(TEXT("BSDF Count	                  = %i\r\n"), CompilationOutput.SubstrateBSDFCount);
 				MaterialDescription += FString::Printf(TEXT("Local bases Count            = %i\r\n"), CompilationOutput.SharedLocalBasesCount);
-
-				switch (CompilationOutput.SubstrateMaterialType)
-				{
-				case 0:
-					MaterialDescription += FString::Printf(TEXT("Material complexity          = SIMPLE (diffuse, albedo, roughness)\r\n"));
-					break;
-				case 1:
-					MaterialDescription += FString::Printf(TEXT("Material complexity          = SINGLE (BSDF all features except anisotropy)\r\n"));
-					break;
-				case 2:
-					MaterialDescription += FString::Printf(TEXT("Material complexity          = COMPLEX\r\n"));
-					break;
-				case 3:
-					MaterialDescription += FString::Printf(TEXT("Material complexity          = COMPLEX SPECIAL\r\n"));
-					break;
-				default:
-					MaterialDescription += FString::Printf(TEXT("Material complexity          = UNKOWN => ERROR!\r\n"));
-				}
-
+				MaterialDescription += FString::Printf(TEXT("Material complexity          = %s\r\n"), *SubstrateMaterialTypeToString(CompilationOutput.SubstrateMaterialType));
 				MaterialDescription += FString::Printf(TEXT("Root Node Is Thin            = %i\r\n"), CompilationOutput.bIsThin);
 
 				//if (CompilationOutput.SubstrateBSDFCount == 1)
