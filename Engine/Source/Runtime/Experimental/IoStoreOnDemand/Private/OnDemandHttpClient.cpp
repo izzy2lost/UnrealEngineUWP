@@ -19,13 +19,13 @@ static void LogHttpResult(const TCHAR* Host, const TCHAR* Url, uint32 StatusCode
 
 void FHttpClient::Get(FAnsiStringView Url, const FIoOffsetAndLength& Range, FGetCallback&& Callback)
 {
-	check(PrimaryConnection != INDEX_NONE);
+	check(CurrentEndpoint != INDEX_NONE);
 	IssueRequest(FRequestParams
 	{
 		.Url = FString(Url),
 		.Range = Range,
 		.Callback = MoveTemp(Callback),
-		.Connection = PrimaryConnection
+		.Endpoint = CurrentEndpoint
 	});
 }
 
@@ -36,11 +36,6 @@ void FHttpClient::Get(FAnsiStringView Url, FGetCallback&& Callback)
 
 bool FHttpClient::Tick(uint32 WaitTimeMs, uint32 MaxKiBPerSecond)
 {
-	if (PrimaryConnection == INDEX_NONE)
-	{
-		return false;
-	}
-
 	EventLoop.Throttle(MaxKiBPerSecond);
 	const uint32 TicketCount = EventLoop.Tick(WaitTimeMs);
 
@@ -59,7 +54,7 @@ bool FHttpClient::Tick(uint32 WaitTimeMs, uint32 MaxKiBPerSecond)
 	{
 		for (int32 Idx = 0, Count = Connections.Num(); Idx < Count; ++Idx)
 		{
-			if (Idx != PrimaryConnection)
+			if (Idx != CurrentEndpoint)
 			{
 				Connections[Idx].Reset();
 			}
@@ -69,10 +64,23 @@ bool FHttpClient::Tick(uint32 WaitTimeMs, uint32 MaxKiBPerSecond)
 	return bIsIdle == false;
 }
 
+void FHttpClient::SetEndpoint(int32 Endpoint)
+{
+	if (CurrentEndpoint == Endpoint)
+	{
+		return;
+	}
+
+	EnsureConnection(Endpoint);
+	CurrentEndpoint = Endpoint;
+}
+
 FHttpClient::FHttpClient(FHttpClientConfig&& ClientConfig)
 	: Config(MoveTemp(ClientConfig))
 {
-	Configure();
+	check(Config.Endpoints.IsEmpty() == false);
+	Connections.SetNum(Config.Endpoints.Num());
+	SetEndpoint(Config.PrimaryEndpoint);
 }
 
 TUniquePtr<FHttpClient> FHttpClient::Create(FHttpClientConfig&& ClientConfig)
@@ -106,14 +114,6 @@ TUniquePtr<FHttpClient> FHttpClient::Create(const FString& Endpoint)
 	return Create(MoveTemp(Config));
 }
 
-void FHttpClient::Configure()
-{
-	check(Config.Endpoints.IsEmpty() == false);
-	Connections.SetNum(Config.Endpoints.Num());
-	Connections[Config.PrimaryEndpoint] = CreateConnection(Config.Endpoints[Config.PrimaryEndpoint]);
-	PrimaryConnection = Config.PrimaryEndpoint;
-}
-
 void FHttpClient::IssueRequest(FRequestParams&& Params)
 {
 	using namespace UE::IO::IAS::HTTP;
@@ -142,17 +142,15 @@ void FHttpClient::IssueRequest(FRequestParams&& Params)
 			case FTicketStatus::EId::Content:
 			{
 				const FIoBuffer& Content = Status.GetContent();
-				LogHttpResult(*Config.Endpoints[Params.Connection], *Params.Url, StatusCode, DurationMs, Content.GetSize(), Params.Range.GetOffset());
+				LogHttpResult(*GetEndpointUrl(Params.Endpoint), *Params.Url, StatusCode, DurationMs, Content.GetSize(), Params.Range.GetOffset());
 				
 				const bool bSuccessful = StatusCode > 199 && StatusCode < 300;
 				if (bSuccessful && Content.GetSize() > 0)
 				{
 					Params.Callback(Content, DurationMs);
-					if (Params.Attempt > 1 && Params.Connection != PrimaryConnection)
+					if (Params.Attempt > 0 && Config.bChangeEndpointAfterSuccessfulRetry)
 					{
-						UE_LOG(LogIas, Log, TEXT("HTTP client endpoint changed from '%s' to '%s'"),
-							*Config.Endpoints[PrimaryConnection], *Config.Endpoints[Params.Connection]);
-						PrimaryConnection = Params.Connection;
+						SetEndpoint(Params.Endpoint);
 					}
 				}
 				else
@@ -160,8 +158,8 @@ void FHttpClient::IssueRequest(FRequestParams&& Params)
 					const bool bServerError = StatusCode > 499 && StatusCode < 600;
 					if (Params.Attempt < Config.MaxRetryCount)
 					{
-						const bool bNextConnection = bServerError == false && Params.Attempt > 0;
-						RetryRequest(MoveTemp(Params), bNextConnection);
+						const bool bNextEndpoint = bServerError == false && Params.Attempt > 0;
+						RetryRequest(MoveTemp(Params), bNextEndpoint);
 					}
 					else
 					{
@@ -175,26 +173,26 @@ void FHttpClient::IssueRequest(FRequestParams&& Params)
 			{
 				if (Params.Attempt < Config.MaxRetryCount)
 				{
-					const bool bNextConnection = Params.Attempt > 0;
-					RetryRequest(MoveTemp(Params), bNextConnection);
+					const bool bNextEndpoint = Params.Attempt > 0;
+					RetryRequest(MoveTemp(Params), bNextEndpoint);
 				}
 				else
 				{
-					LogHttpResult(*Config.Endpoints[Params.Connection], *Params.Url, StatusCode, DurationMs, 0, Params.Range.GetOffset(), Status.GetErrorReason());
+					LogHttpResult(*GetEndpointUrl(Params.Endpoint), *Params.Url, StatusCode, DurationMs, 0, Params.Range.GetOffset(), Status.GetErrorReason());
 					Params.Callback(FIoStatus(EIoErrorCode::ReadError, FString(Status.GetErrorReason())), DurationMs);
 				}
 				break;
 			}
 			default:
 			{
-				LogHttpResult(*Config.Endpoints[Params.Connection], *Params.Url, StatusCode, DurationMs, 0, Params.Range.GetOffset(), "cancelled");
+				LogHttpResult(*GetEndpointUrl(Params.Endpoint), *Params.Url, StatusCode, DurationMs, 0, Params.Range.GetOffset(), "cancelled");
 				Params.Callback(FIoStatus(EIoErrorCode::Cancelled, FString(Status.GetErrorReason())), DurationMs);
 				break;
 			}
 			}
 		};
 
-	TUniquePtr<FConnectionPool>& Connection = Connections[Params.Connection];
+	TUniquePtr<FConnectionPool>& Connection = Connections[Params.Endpoint];
 	check(Connection.IsValid());
 
 	FRequest Request = EventLoop.Get(Url, *Connection);
@@ -208,16 +206,13 @@ void FHttpClient::IssueRequest(FRequestParams&& Params)
 	EventLoop.Send(MoveTemp(Request), MoveTemp(Sink));
 }
 
-void FHttpClient::RetryRequest(FRequestParams&& Params, bool bNextConnection)
+void FHttpClient::RetryRequest(FRequestParams&& Params, bool bNextEndpoint)
 {
 	check(Params.Attempt < Config.MaxRetryCount);
-	if (bNextConnection && Config.Endpoints.Num() > 1)
+	if (bNextEndpoint && Config.Endpoints.Num() > 1)
 	{
-		Params.Connection = (Params.Connection + 1) % Config.Endpoints.Num();
-		if (Connections[Params.Connection].IsValid() == false)
-		{
-			Connections[Params.Connection] = CreateConnection(Config.Endpoints[Params.Connection]);
-		}
+		Params.Endpoint = (Params.Endpoint + 1) % Config.Endpoints.Num();
+		EnsureConnection(Params.Endpoint);
 	}
 	Params.Attempt++;
 	Retries.Emplace(MoveTemp(Params));
@@ -236,6 +231,22 @@ TUniquePtr<HTTP::FConnectionPool> FHttpClient::CreateConnection(const FStringVie
 	Params.PipelineLength = uint16(Config.PipelineLength);
 
 	return MakeUnique<HTTP::FConnectionPool>(Params);
+}
+
+void FHttpClient::EnsureConnection(int32 Connection)
+{
+	check(Connection >= INDEX_NONE && Connection < Connections.Num());
+	if (Connection != INDEX_NONE && Connections[Connection].IsValid() == false)
+	{
+		Connections[Connection] = CreateConnection(Config.Endpoints[Connection]);
+	}
+}
+
+const FString& FHttpClient::GetEndpointUrl(int32 Endpoint)
+{
+	check(Endpoint >= INDEX_NONE && Endpoint < Config.Endpoints.Num());
+	static const FString None(TEXT("None"));
+	return Endpoint == INDEX_NONE ? None : Config.Endpoints[Endpoint];
 }
 
 } //namespace UE::IO::IAS

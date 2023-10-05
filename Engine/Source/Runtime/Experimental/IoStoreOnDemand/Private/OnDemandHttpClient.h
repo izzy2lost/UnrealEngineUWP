@@ -21,6 +21,7 @@ struct FHttpClientConfig
 	int32 PipelineLength = 1;
 	int32 MaxRetryCount = 1;
 	int32 ReceiveBufferSize = -1;
+	bool bChangeEndpointAfterSuccessfulRetry = true;
 };
 
 class FHttpClient
@@ -37,7 +38,10 @@ public:
 	bool Tick(uint32 WaitTimeMs, uint32 MaxKiBPerSecond);
 	bool Tick() { return Tick(-1, 0); }
 
-	int32 GetPrimaryConnection() const { return PrimaryConnection; }
+	int32 GetEndpoint() const { return CurrentEndpoint; }
+	int32 GetPrimaryEndpoint() const { return Config.PrimaryEndpoint; }
+	void SetEndpoint(int32 Endpoint);
+	bool IsUsingPrimaryEndpoint() const { return CurrentEndpoint == Config.PrimaryEndpoint; }
 
 private:
 	struct FRequestParams
@@ -46,20 +50,21 @@ private:
 		FIoOffsetAndLength Range;
 		FGetCallback Callback;
 		int32 Attempt = 0;
-		int32 Connection = INDEX_NONE;
+		int32 Endpoint = INDEX_NONE;
 	};
 
 	FHttpClient(FHttpClientConfig&& ClientConfig);
-	void Configure();
-	void RetryRequest(FRequestParams&& Params, bool bNextConnection);
+	void RetryRequest(FRequestParams&& Params, bool bNextEndpoint);
 	void IssueRequest(FRequestParams&& Params);
 	TUniquePtr<HTTP::FConnectionPool> CreateConnection(const FStringView& HostAddr);
+	void EnsureConnection(int32 Connection);
+	const FString& GetEndpointUrl(int32 Endpoint);
 
 	FHttpClientConfig Config;
 	HTTP::FEventLoop EventLoop;
 	TArray<TUniquePtr<HTTP::FConnectionPool>> Connections;
 	TArray<FRequestParams> Retries;
-	int32 PrimaryConnection = INDEX_NONE;
+	int32 CurrentEndpoint = INDEX_NONE;
 };
 
 } // namespace UE::IO::IAS

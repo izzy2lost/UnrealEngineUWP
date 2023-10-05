@@ -63,6 +63,20 @@ namespace UE::IO::IAS
 {
 
 ///////////////////////////////////////////////////////////////////////////////
+int32 GIasHttpPrimaryEndpoint = 0;
+static FAutoConsoleVariableRef CVar_IasHttpPrimaryEndpoint(
+	TEXT("ias.HttpPrimaryEndpoint"),
+	GIasHttpPrimaryEndpoint,
+	TEXT("Primary endpoint to use returned from the distribution endpoint")
+);
+
+bool GIasHttpChangeEndpointAfterSuccessfulRetry = true;
+static FAutoConsoleVariableRef CVar_IasHttpChangeEndpointAfterSuccessfulRetry(
+	TEXT("ias.HttpChangeEndpointAfterSuccessfulRetry"),
+	GIasHttpChangeEndpointAfterSuccessfulRetry,
+	TEXT("Whether to change the current endpoint after a sucessful retry")
+);
+
 int32 GIasHttpPollTimeoutMs = 17;
 static FAutoConsoleVariableRef CVar_GIasHttpPollTimeoutMs(
 	TEXT("ias.HttpPollTimeoutMs"),
@@ -1408,7 +1422,7 @@ private:
 	FIoStatus DownloadoadOnDemandToc(const FString& CdnUrl, const FString& TocPath);
 
 	void AddDeferredTocs();
-	void ProcessHttpRequests(FHttpClient* HttpClient, FBitWindow& HttpErrors, int32 MaxConcurrentRequests);
+	void ProcessHttpRequests(FHttpClient& HttpClient, FBitWindow& HttpErrors, int32 MaxConcurrentRequests);
 	int32 WaitForPendingRequests(float WaitTimeSeconds, float PollTimeSeconds);
 
 	TUniquePtr<IIasCache> Cache;
@@ -2059,7 +2073,7 @@ void FOnDemandIoBackend::ReportAnalytics(TArray<FAnalyticsEventAttribute>& OutAn
 	}
 }
 
-void FOnDemandIoBackend::ProcessHttpRequests(FHttpClient* HttpClient, FBitWindow& HttpErrors, int32 MaxConcurrentRequests)
+void FOnDemandIoBackend::ProcessHttpRequests(FHttpClient& HttpClient, FBitWindow& HttpErrors, int32 MaxConcurrentRequests)
 {
 	int32 NumConcurrentRequests = 0;
 	FChunkRequest* NextChunkRequest = HttpRequests.Dequeue();
@@ -2085,12 +2099,12 @@ void FOnDemandIoBackend::ProcessHttpRequests(FHttpClient* HttpClient, FBitWindow
 				}
 				else
 				{
-					check(HttpClient);
+					check(HttpClient.GetEndpoint() != INDEX_NONE);
 					TAnsiStringBuilder<256> Url;
 					ChunkRequest->Params.GetUrl(Url);
 
 					NumConcurrentRequests++;
-					HttpClient->Get(Url.ToView(), ChunkRequest->Params.ChunkRange,
+					HttpClient.Get(Url.ToView(), ChunkRequest->Params.ChunkRange,
 						[this, &NextChunkRequest, ChunkRequest, &NumConcurrentRequests, &HttpErrors]
 						(TIoStatusOr<FIoBuffer> Status, uint64 DurationMs)
 						{
@@ -2150,7 +2164,7 @@ void FOnDemandIoBackend::ProcessHttpRequests(FHttpClient* HttpClient, FBitWindow
 				TRACE_CPUPROFILER_EVENT_SCOPE(IasBackend::TickHttpSaturated);
 				while (NumConcurrentRequests >= MaxConcurrentRequests)
 				{
-					HttpClient->Tick(MAX_uint32, GIasHttpRateLimitKiBPerSecond);
+					HttpClient.Tick(MAX_uint32, GIasHttpRateLimitKiBPerSecond);
 				}
 			}
 
@@ -2163,7 +2177,7 @@ void FOnDemandIoBackend::ProcessHttpRequests(FHttpClient* HttpClient, FBitWindow
 		{
 			// Keep processing pending connections until all requests are completed or a new one is issued
 			TRACE_CPUPROFILER_EVENT_SCOPE(IasBackend::TickHttp);
-			while (HttpClient->Tick(GIasHttpPollTimeoutMs, GIasHttpRateLimitKiBPerSecond))
+			while (HttpClient.Tick(GIasHttpPollTimeoutMs, GIasHttpRateLimitKiBPerSecond))
 			{
 				if (!NextChunkRequest)
 				{
@@ -2185,29 +2199,30 @@ uint32 FOnDemandIoBackend::Run()
 	FBitWindow HttpErrors;
 	HttpErrors.Reset(GIasHttpErrorSampleCount);
 
-	const int32 MaxHttpRetryCount = FMath::Max(AvailableEps.Urls.Num() + 1, GIasMaxHttpRetryCount);
-	TUniquePtr<FHttpClient> HttpClient;
+	TUniquePtr<FHttpClient> HttpClient = FHttpClient::Create(FHttpClientConfig
+	{
+		.Endpoints = AvailableEps.Urls,
+		.PrimaryEndpoint = FMath::Min(GIasHttpPrimaryEndpoint, AvailableEps.Urls.Num() -1),
+		.MaxConnectionCount = GIasMaxHttpConnectionCount,
+		.PipelineLength = GIasHttpPipelineLength,
+		.MaxRetryCount = FMath::Max(AvailableEps.Urls.Num() + 1, GIasMaxHttpRetryCount),
+		.ReceiveBufferSize = GIasHttpRecvBufKiB >= 0 ? GIasHttpRecvBufKiB << 10 : -1,
+		.bChangeEndpointAfterSuccessfulRetry = GIasHttpChangeEndpointAfterSuccessfulRetry
+	});
+	check(HttpClient.IsValid());
+	HttpClient->SetEndpoint(AvailableEps.Current);
+#if !UE_BUILD_SHIPPING
 	if (AvailableEps.HasCurrent())
 	{
-		HttpClient = FHttpClient::Create(FHttpClientConfig
-		{
-			.Endpoints = AvailableEps.Urls,
-			.PrimaryEndpoint = AvailableEps.Current,
-			.MaxConnectionCount = GIasMaxHttpConnectionCount,
-			.PipelineLength = GIasHttpPipelineLength,
-			.MaxRetryCount = MaxHttpRetryCount,
-			.ReceiveBufferSize = GIasHttpRecvBufKiB >= 0 ? GIasHttpRecvBufKiB << 10 : -1
-		});
-#if !UE_BUILD_SHIPPING
 		LatencyTest(AvailableEps.GetCurrent(), GetEndpointTestPath());
-#endif 
 	}
+#endif 
 
 	while (!bStopRequested)
 	{
 		// Process HTTP request(s) even if the client is invalid to ensure enqueued request(s) gets completed.
-		ProcessHttpRequests(HttpClient.Get(), HttpErrors, FMath::Min(GIasHttpPipelineLength * GIasMaxHttpConnectionCount, 64));
-		AvailableEps.Current = HttpClient.IsValid() ? HttpClient->GetPrimaryConnection() : INDEX_NONE;
+		ProcessHttpRequests(*HttpClient, HttpErrors, FMath::Min(GIasHttpPipelineLength * GIasMaxHttpConnectionCount, 64));
+		AvailableEps.Current = HttpClient->GetEndpoint();
 
 		if (!bStopRequested)
 		{
@@ -2215,11 +2230,11 @@ uint32 FOnDemandIoBackend::Run()
 			if (BackendStatus.IsHttpError())
 			{
 				WaitTime = GIasHttpHealthCheckWaitTime;
-				if (HttpClient.IsValid())
+				if (HttpClient->GetEndpoint() != INDEX_NONE)
 				{
-					HttpClient.Reset();
-					HttpErrors.Reset(GIasHttpErrorSampleCount);
 					AvailableEps.Current = INDEX_NONE;
+					HttpClient->SetEndpoint(INDEX_NONE);
+					HttpErrors.Reset(GIasHttpErrorSampleCount);
 				}
 
 				UE_LOG(LogIas, Log, TEXT("Trying to reconnect to any available endpoint"));
@@ -2227,38 +2242,23 @@ uint32 FOnDemandIoBackend::Run()
 				if (int32 Idx = LatencyTest(AvailableEps.Urls, TestPath, bStopRequested); Idx != INDEX_NONE)
 				{
 					AvailableEps.Current = Idx;
-					HttpClient = FHttpClient::Create(FHttpClientConfig
-					{
-						.Endpoints = AvailableEps.Urls,
-						.PrimaryEndpoint = Idx,
-						.MaxConnectionCount = GIasMaxHttpConnectionCount,
-						.MaxRetryCount = MaxHttpRetryCount,
-						.ReceiveBufferSize = GIasHttpRecvBufKiB >= 0 ? GIasHttpRecvBufKiB << 10 : -1
-					});
+					HttpClient->SetEndpoint(Idx);
 					BackendStatus.SetHttpError(false);
 					UE_LOG(LogIas, Log, TEXT("Successfully reconnected to '%s'"), *AvailableEps.GetCurrent());
 					AddDeferredTocs();
 				}
 			}
-			else if (HttpClient.IsValid() && HttpClient->GetPrimaryConnection() != 0)
+			else if (HttpClient->IsUsingPrimaryEndpoint() == false)
 			{
 				WaitTime = GIasHttpHealthCheckWaitTime;
 				const FString TestPath = GetEndpointTestPath(); 
 				TConstArrayView<FString> Urls = AvailableEps.Urls;
 
-				UE_LOG(LogIas, Log, TEXT("Trying to reconnect to primary endpoint '%s'"), *AvailableEps.Urls[0]);
 				if (int32 Idx = LatencyTest(Urls.Left(1), TestPath, bStopRequested); Idx != INDEX_NONE)
 				{
 					AvailableEps.Current = Idx;
-					HttpClient = FHttpClient::Create(FHttpClientConfig
-					{
-						.Endpoints = AvailableEps.Urls,
-						.PrimaryEndpoint = Idx,
-						.MaxConnectionCount = GIasMaxHttpConnectionCount,
-						.MaxRetryCount = MaxHttpRetryCount,
-						.ReceiveBufferSize = GIasHttpRecvBufKiB >= 0 ? GIasHttpRecvBufKiB << 10 : -1
-					});
-					UE_LOG(LogIas, Log, TEXT("Successfully reconnected to '%s'"), *AvailableEps.GetCurrent());
+					HttpClient->SetEndpoint(Idx);
+					UE_LOG(LogIas, Log, TEXT("Reconnected to primary endpoint '%s'"), *AvailableEps.GetCurrent());
 				}
 			}
 			if (BackendStatus.ShouldAbandonCache())
