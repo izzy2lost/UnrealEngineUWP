@@ -79,7 +79,7 @@ namespace CrossCompiler
 		{
 			for (auto& Child : Children)
 			{
-				if (!FCString::Strcmp(Child.Name, Namespace))
+				if (Child.Name && FCString::Strcmp(Child.Name, Namespace) == 0)
 				{
 					return &Child;
 				}
