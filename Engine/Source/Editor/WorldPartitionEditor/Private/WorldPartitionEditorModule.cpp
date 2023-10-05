@@ -724,7 +724,7 @@ bool FWorldPartitionEditorModule::Build(const FRunBuilderParams& InParams)
 
 	// Unload map if required
 	FString MapPackage = ParamsCopy.World->GetPackage()->GetName();
-	if (ParamsCopy.bUnloadMap && !UnloadCurrentMap(MapPackage))
+	if (!UnloadCurrentMap(MapPackage))
 	{
 		return false;
 	}
@@ -752,18 +752,7 @@ bool FWorldPartitionEditorModule::Build(const FRunBuilderParams& InParams)
 	RunCommandletAsExternalProcess(CommandletArgs, OperationDescription, Result, bCancelled);
 
 	RescanAssets(MapPackage);
-
-	if (ParamsCopy.bUnloadMap)
-	{
-		LoadMap(MapPackage);
-	}
-	else
-	{
-		if (UWorldPartition* WorldPartition = ParamsCopy.World->GetWorldPartition())
-		{
-			WorldPartition->Update();
-		}
-	}
+	LoadMap(MapPackage);
 
 	if (bCancelled)
 	{

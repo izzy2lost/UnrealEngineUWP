@@ -26,7 +26,6 @@ public:
 		UWorld* World = nullptr;
 		FString ExtraArgs;
 		FText OperationDescription;
-		bool bUnloadMap = true;
 	};
 
 	virtual bool RunBuilder(TSubclassOf<UWorldPartitionBuilder> BuilderClass, UWorld* InWorld);

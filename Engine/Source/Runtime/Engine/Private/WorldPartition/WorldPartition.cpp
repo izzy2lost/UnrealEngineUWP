@@ -830,20 +830,6 @@ bool UWorldPartition::IsInitialized() const
 	return InitState == EWorldPartitionInitState::Initialized;
 }
 
-void UWorldPartition::Update()
-{
-#if WITH_EDITOR
-	UWorld* OuterWorld = GetTypedOuter<UWorld>();
-	check(OuterWorld);
-	check(!OuterWorld->IsInstanced());
-
-	ForEachActorDescContainer([](UActorDescContainer* InActorDescContainer)
-	{
-		InActorDescContainer->Update();
-	});
-#endif
-}
-
 bool UWorldPartition::SupportsStreaming() const
 {
 	return World ? World->GetWorldSettings()->SupportsWorldPartitionStreaming() : false;

@@ -296,9 +296,6 @@ public:
 	//~ End IWorldPartitionCookPackageGenerator Interface 
 	// End Cooking
 
-	UE_DEPRECATED(5.1, "GetWorldBounds is deprecated, use GetEditorWorldBounds or GetRuntimeWorldBounds instead.")
-	FBox GetWorldBounds() const { return GetRuntimeWorldBounds(); }
-
 	ENGINE_API FBox GetEditorWorldBounds() const;
 	ENGINE_API FBox GetRuntimeWorldBounds() const;
 	
@@ -399,6 +396,7 @@ public:
 	ENGINE_API bool CanInitialize(UWorld* InWorld) const;
 	ENGINE_API void Initialize(UWorld* World, const FTransform& InTransform);
 	ENGINE_API bool IsInitialized() const;
+	UE_DEPRECATED(5.4, "UWorldPartition::Update is deprecated.")
 	ENGINE_API void Update();
 	ENGINE_API void Uninitialize();
 

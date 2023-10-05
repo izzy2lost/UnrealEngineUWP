@@ -43,10 +43,9 @@ public:
 		TUniqueFunction<bool(const FWorldPartitionActorDesc*)> FilterActorDesc;
 	};
 
-	UE_DEPRECATED(5.1, "UActorDescContainer::Initialize is deprecated, UActorDescContainer::Initialize with UActorDescContainer::FInitializeParams should be used instead.")
-	ENGINE_API void Initialize(UWorld* InWorld, FName InPackageName);
 	ENGINE_API void Initialize(const FInitializeParams& InitParams);
-	ENGINE_API void Update();
+	UE_DEPRECATED(5.4, "UActorDescContainer::Update is deprecated.")
+	ENGINE_API void Update() {}
 	ENGINE_API void Uninitialize();
 
 	bool IsInitialized() const { return bContainerInitialized; }
