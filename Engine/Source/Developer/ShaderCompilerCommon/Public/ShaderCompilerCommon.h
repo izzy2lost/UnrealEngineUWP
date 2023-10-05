@@ -345,7 +345,36 @@ extern SHADERCOMPILERCOMMON_API void ParseHLSLTypeName(const TCHAR* SearchString
 // Processes TEXT macros
 extern SHADERCOMPILERCOMMON_API void TransformStringIntoCharacterArray(FString& PreprocessedShaderSource, TArray<FShaderDiagnosticData>* OutDiagnosticDatas=nullptr);
 
+// Structure to hold forward declarations for a specific scope/namespace chain for the HlslParser
+struct FScopedDeclarations
+{
+	FScopedDeclarations(TConstArrayView<FStringView> InScope, TConstArrayView<FStringView> InSymbols)
+		: Scope(InScope)
+		, Symbols(InSymbols)
+	{
+	}
+	TConstArrayView<FStringView> Scope;
+	TConstArrayView<FStringView> Symbols;
+};
+
+extern SHADERCOMPILERCOMMON_API bool RemoveUnusedOutputs(
+	FString& InOutSourceCode,
+	TConstArrayView<FStringView> InUsedOutputs,
+	TConstArrayView<FStringView> InExceptions,
+	TConstArrayView<FScopedDeclarations> InScopedDeclarations,
+	FString& InOutEntryPoint,
+	TArray<FString>& OutErrors
+);
+
 extern SHADERCOMPILERCOMMON_API bool RemoveUnusedOutputs(FString& InOutSourceCode, const TArray<FString>& InUsedOutputs, const TArray<FString>& InExceptions, FString& InOutEntryPoint, TArray<FString>& OutErrors);
+
+extern SHADERCOMPILERCOMMON_API bool RemoveUnusedInputs(
+	FString& InOutSourceCode,
+	TConstArrayView<FStringView> InUsedInputs,
+	TConstArrayView<FScopedDeclarations> InScopedDeclarations,
+	FString& InOutEntryPoint,
+	TArray<FString>& OutErrors
+);
 
 extern SHADERCOMPILERCOMMON_API bool RemoveUnusedInputs(FString& InOutSourceCode, const TArray<FString>& InUsedInputs, FString& InOutEntryPoint, TArray<FString>& OutErrors);
 

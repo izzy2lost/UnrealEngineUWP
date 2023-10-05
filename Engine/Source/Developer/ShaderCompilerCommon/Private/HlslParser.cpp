@@ -6,6 +6,7 @@
 
 #include "HlslParser.h"
 #include "HlslExpressionParser.inl"
+#include "ShaderCompilerCommon.h"
 
 namespace CrossCompiler
 {
@@ -28,7 +29,7 @@ namespace CrossCompiler
 	class FHlslParser
 	{
 	public:
-		FHlslParser(FLinearAllocator* InAllocator, FCompilerMessages& InCompilerMessages);
+		FHlslParser(FLinearAllocator* InAllocator, FCompilerMessages& InCompilerMessages, TConstArrayView<FScopedDeclarations> InScopedDeclarations);
 		FHlslScanner Scanner;
 		FCompilerMessages& CompilerMessages;
 		FSymbolScope GlobalScope;
@@ -2025,7 +2026,7 @@ Done:
 		} GStaticInitializer;
 	}
 
-	FHlslParser::FHlslParser(FLinearAllocator* InAllocator, FCompilerMessages& InCompilerMessages) :
+	FHlslParser::FHlslParser(FLinearAllocator* InAllocator, FCompilerMessages& InCompilerMessages, TConstArrayView<FScopedDeclarations> InScopedDeclarations) :
 		Scanner(InCompilerMessages),
 		CompilerMessages(InCompilerMessages),
 		GlobalScope(InAllocator, nullptr),
@@ -2034,22 +2035,21 @@ Done:
 	{
 		CurrentScope = &GlobalScope;
 
+		for (const FScopedDeclarations& ScopedDeclarations : InScopedDeclarations)
 		{
-			FCreateSymbolScope SceScope(Allocator, &CurrentScope);
-			CurrentScope->Name = TEXT("sce");
+			TArray<FCreateSymbolScope> ScopeStack;
+
+			FSymbolScope* IterScope = CurrentScope;
+			for (FStringView Scope : ScopedDeclarations.Scope)
 			{
-				FCreateSymbolScope GnmScope(Allocator, &CurrentScope);
-				CurrentScope->Name = TEXT("Gnm");
-
-				CurrentScope->Add(TEXT("Sampler"));	// sce::Gnm::Sampler
-
-				CurrentScope->Add(TEXT("kAnisotropyRatio1"));	// sce::Gnm::kAnisotropyRatio1
-				CurrentScope->Add(TEXT("kBorderColorTransBlack"));	// sce::Gnm::kBorderColorTransBlack
-				CurrentScope->Add(TEXT("kDepthCompareNever"));	// sce::Gnm::kDepthCompareNever
+				ScopeStack.Emplace(Allocator, &IterScope);
+				IterScope->Name = Scope.GetData();
 			}
-			//auto* Found = CurrentScope->FindGlobalNamespace(TEXT("sce"), CurrentScope);
-			//Found = Found->FindNamespace(TEXT("Gnm"));
-			//Found->FindType(Found, TEXT("Sampler"), false);
+
+			for (FStringView Symbol : ScopedDeclarations.Symbols)
+			{
+				IterScope->Add(Symbol);
+			}
 		}
 
 		// Register built-in structure for DXR in SM6
@@ -2058,10 +2058,10 @@ Done:
 
 	namespace Parser
 	{
-		bool Parse(const FString& Input, const FString& Filename, FCompilerMessages& OutCompilerMessages, TCallback* Callback, void* CallbackData)
+		bool Parse(const FString& Input, const FString& Filename, FCompilerMessages& OutCompilerMessages, TConstArrayView<FScopedDeclarations> InScopedDeclarations, TCallback* Callback, void* CallbackData)
 		{
 			FLinearAllocator Allocator;
-			FHlslParser Parser(&Allocator, OutCompilerMessages);
+			FHlslParser Parser(&Allocator, OutCompilerMessages, InScopedDeclarations);
 			if (!Parser.Scanner.Lex(Input, Filename))
 			{
 				return false;
@@ -2100,10 +2100,10 @@ Done:
 			return bSuccess;
 		}
 
-		bool Parse(const FString& Input, const FString& Filename, FCompilerMessages& OutCompilerMessages, TFunction< void(CrossCompiler::FLinearAllocator* Allocator, CrossCompiler::TLinearArray<CrossCompiler::AST::FNode*>& ASTNodes)> Function)
+		bool Parse(const FString& Input, const FString& Filename, FCompilerMessages& OutCompilerMessages, TConstArrayView<FScopedDeclarations> InScopedDeclarations, TFunction< void(CrossCompiler::FLinearAllocator* Allocator, CrossCompiler::TLinearArray<CrossCompiler::AST::FNode*>& ASTNodes)> Function)
 		{
 			FLinearAllocator Allocator;
-			FHlslParser Parser(&Allocator, OutCompilerMessages);
+			FHlslParser Parser(&Allocator, OutCompilerMessages, InScopedDeclarations);
 			if (!Parser.Scanner.Lex(Input, Filename))
 			{
 				return false;

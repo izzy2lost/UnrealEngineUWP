@@ -257,11 +257,11 @@ struct FRemoveAlgorithm
 	}
 
 	// Case-insensitive when working with Semantics
-	static bool IsStringInArray(const TArray<FString>& Array, const TCHAR* Semantic)
+	static bool IsStringInArray(const TConstArrayView<FStringView> Array, const TCHAR* Semantic)
 	{
-		for (const FString& String : Array)
+		for (FStringView String : Array)
 		{
-			if (FCString::Stricmp(*String, Semantic) == 0)
+			if (String.Equals(Semantic, ESearchCase::IgnoreCase))
 			{
 				return true;
 			}
@@ -270,11 +270,11 @@ struct FRemoveAlgorithm
 		return false;
 	};
 
-	static bool IsSubstringInArray(const TArray<FString>& Array, const TCHAR* Semantic)
+	static bool IsSubstringInArray(const TConstArrayView<FStringView> Array, const TCHAR* Semantic)
 	{
-		for (const FString& String : Array)
+		for (FStringView String : Array)
 		{
-			if (FCString::Stristr(*String, Semantic) != NULL)
+			if (UE::String::FindFirst(String, Semantic, ESearchCase::IgnoreCase) != INDEX_NONE)
 			{
 				return true;
 			}
@@ -420,8 +420,8 @@ struct FRemoveAlgorithm
 
 struct FRemoveUnusedOutputs : FRemoveAlgorithm
 {
-	const TArray<FString>& UsedOutputs;
-	const TArray<FString>& Exceptions;
+	const TConstArrayView<FStringView> UsedOutputs;
+	const TConstArrayView<FStringView> Exceptions;
 
 	struct FOutputsBodyContext : FBodyContext
 	{
@@ -445,7 +445,7 @@ struct FRemoveUnusedOutputs : FRemoveAlgorithm
 		}
 	};
 
-	FRemoveUnusedOutputs(const TArray<FString>& InUsedOutputs, const TArray<FString>& InExceptions) :
+	FRemoveUnusedOutputs(const TConstArrayView<FStringView> InUsedOutputs, const TConstArrayView<FStringView> InExceptions) :
 		UsedOutputs(InUsedOutputs),
 		Exceptions(InExceptions)
 	{
@@ -899,7 +899,12 @@ struct FRemoveUnusedOutputs : FRemoveAlgorithm
 	}
 };
 
-bool RemoveUnusedOutputs(FString& InOutSourceCode, const TArray<FString>& InUsedOutputs, const TArray<FString>& InExceptions, FString& EntryPoint, TArray<FString>& OutErrors)
+bool RemoveUnusedOutputs(FString& InOutSourceCode,
+	TConstArrayView<FStringView> InUsedOutputs,
+	TConstArrayView<FStringView> InExceptions,
+	TConstArrayView<FScopedDeclarations> InScopedDeclarations,
+	FString& EntryPoint,
+	TArray<FString>& OutErrors)
 {
 	FString DummyFilename(TEXT("/Engine/Private/RemoveUnusedOutputs.usf"));
 	FRemoveUnusedOutputs Data(InUsedOutputs, InExceptions);
@@ -915,7 +920,7 @@ bool RemoveUnusedOutputs(FString& InOutSourceCode, const TArray<FString>& InUsed
 		}
 	};
 	CrossCompiler::FCompilerMessages Messages;
-	if (!CrossCompiler::Parser::Parse(InOutSourceCode, DummyFilename, Messages, Lambda))
+	if (!CrossCompiler::Parser::Parse(InOutSourceCode, DummyFilename, Messages, InScopedDeclarations, Lambda))
 	{
 		Data.Errors.Add(FString(TEXT("RemoveUnusedOutputs: Failed to compile!")));
 		OutErrors = Data.Errors;
@@ -944,9 +949,16 @@ bool RemoveUnusedOutputs(FString& InOutSourceCode, const TArray<FString>& InUsed
 	return false;
 }
 
+bool RemoveUnusedOutputs(FString& InOutSourceCode, const TArray<FString>& InUsedOutputs, const TArray<FString>& InExceptions, FString& EntryPoint, TArray<FString>& OutErrors)
+{
+	const TArray<FStringView> UsedOutputs(MakeArrayView(InUsedOutputs));
+	const TArray<FStringView> Exceptions(MakeArrayView(InExceptions));
+	return RemoveUnusedOutputs(InOutSourceCode, UsedOutputs, Exceptions, {}, EntryPoint, OutErrors);
+}
+
 struct FRemoveUnusedInputs : FRemoveAlgorithm
 {
-	const TArray<FString>& UsedInputs;
+	const TConstArrayView<FStringView> UsedInputs;
 
 	struct FInputsBodyContext : FBodyContext
 	{
@@ -963,7 +975,7 @@ struct FRemoveUnusedInputs : FRemoveAlgorithm
 		}
 	};
 
-	FRemoveUnusedInputs(const TArray<FString>& InUsedInputs) :
+	FRemoveUnusedInputs(const TConstArrayView<FStringView> InUsedInputs) :
 		UsedInputs(InUsedInputs)
 	{
 	}
@@ -1369,11 +1381,15 @@ struct FRemoveUnusedInputs : FRemoveAlgorithm
 	}
 };
 
-bool RemoveUnusedInputs(FString& InOutSourceCode, const TArray<FString>& InInputs, FString& EntryPoint, TArray<FString>& OutErrors)
+bool RemoveUnusedInputs(FString& InOutSourceCode,
+	TConstArrayView<FStringView> InUsedInputs,
+	TConstArrayView<FScopedDeclarations> InScopedDeclarations,
+	FString& InOutEntryPoint,
+	TArray<FString>& OutErrors)
 {
 	FString DummyFilename(TEXT("/Engine/Private/RemoveUnusedInputs.usf"));
-	FRemoveUnusedInputs Data(InInputs);
-	Data.EntryPoint = EntryPoint;
+	FRemoveUnusedInputs Data(InUsedInputs);
+	Data.EntryPoint = InOutEntryPoint;
 	CrossCompiler::FCompilerMessages Messages;
 	auto Lambda = [&Data](CrossCompiler::FLinearAllocator* Allocator, CrossCompiler::TLinearArray<CrossCompiler::AST::FNode*>& ASTNodes)
 	{
@@ -1385,7 +1401,7 @@ bool RemoveUnusedInputs(FString& InOutSourceCode, const TArray<FString>& InInput
 			++i;
 		}
 	};
-	if (!CrossCompiler::Parser::Parse(InOutSourceCode, DummyFilename, Messages, Lambda))
+	if (!CrossCompiler::Parser::Parse(InOutSourceCode, DummyFilename, Messages, InScopedDeclarations, Lambda))
 	{
 		Data.Errors.Add(FString(TEXT("RemoveUnusedInputs: Failed to compile!")));
 		OutErrors = Data.Errors;
@@ -1405,13 +1421,19 @@ bool RemoveUnusedInputs(FString& InOutSourceCode, const TArray<FString>& InInput
 	{
 		InOutSourceCode += (TCHAR)'\n';
 		InOutSourceCode += Data.GeneratedCode;
-		EntryPoint = Data.EntryPoint;
+		InOutEntryPoint = Data.EntryPoint;
 
 		return true;
 	}
 
 	OutErrors = Data.Errors;
 	return false;
+}
+
+bool RemoveUnusedInputs(FString& InOutSourceCode, const TArray<FString>& InInputs, FString& EntryPoint, TArray<FString>& OutErrors)
+{
+	const TArray<FStringView> Inputs(MakeArrayView(InInputs));
+	return RemoveUnusedInputs(InOutSourceCode, Inputs, {}, EntryPoint, OutErrors);
 }
 
 struct FConvertFP32ToFP16 {
@@ -1688,7 +1710,7 @@ bool ConvertFromFP32ToFP16(FString& InOutSourceCode, TArray<FString>& OutErrors)
 	FConvertFP32ToFP16 Data;
 	Data.Filename = DummyFilename;
 	Data.GeneratedCode = "";
-	if (!CrossCompiler::Parser::Parse(InOutSourceCode, DummyFilename, Messages, HlslParserCallbackWrapperFP32ToFP16, &Data))
+	if (!CrossCompiler::Parser::Parse(InOutSourceCode, DummyFilename, Messages, {}, HlslParserCallbackWrapperFP32ToFP16, &Data))
 	{
 		OutErrors.Add(FString(TEXT("ConvertFP32ToFP16: Failed to compile!")));
 		for (auto& Message : Messages.MessageList)
@@ -1728,7 +1750,7 @@ bool PrettyPrintHlslParser(FString& InOutSourceCode, TArray<FString>& OutErrors)
 	FString DummyFilename(TEXT("/Engine/Private/PrettyPrinter.usf"));
 	FString Out;
 	CrossCompiler::FCompilerMessages Messages;
-	if (!CrossCompiler::Parser::Parse(InOutSourceCode, DummyFilename, Messages, PrettyPrinter, &Out))
+	if (!CrossCompiler::Parser::Parse(InOutSourceCode, DummyFilename, Messages, {}, PrettyPrinter, &Out))
 	{
 		OutErrors.Add(FString(TEXT("PrettyPrintHlslParser: Failed to compile!")));
 		for (auto& Message : Messages.MessageList)
