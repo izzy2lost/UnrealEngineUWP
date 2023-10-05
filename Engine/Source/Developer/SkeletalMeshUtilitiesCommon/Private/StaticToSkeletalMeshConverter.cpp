@@ -491,6 +491,10 @@ bool FStaticToSkeletalMeshConverter::InitializeSkeletalMeshFromMeshDescriptions(
 		{
 			// Add default LOD build settings.
 			FSkeletalMeshLODInfo& SkeletalLODInfo = InSkeletalMesh->AddLODInfo();
+			SkeletalLODInfo.ReductionSettings.NumOfTrianglesPercentage = 1.0f;
+			SkeletalLODInfo.ReductionSettings.NumOfVertPercentage = 1.0f;
+			SkeletalLODInfo.ReductionSettings.MaxDeviationPercentage = 0.0f;
+			SkeletalLODInfo.LODHysteresis = 0.02f;
 
 			SkeletalLODInfo.BuildSettings.bRecomputeNormals = bInRecomputeNormals;
 			SkeletalLODInfo.BuildSettings.bRecomputeTangents = bInRecomputeTangents;
