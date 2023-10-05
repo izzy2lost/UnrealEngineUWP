@@ -1182,6 +1182,11 @@ bool FRepChangelistState::HasAnyDirtyProperties() const
 {
 	return UEPushModelPrivate::DoesHaveDirtyPropertiesOrRecentlyCollectedGarbage(PushModelObjectHandle);
 }
+
+bool FRepChangelistState::HasValidPushModelHandle() const
+{
+	return PushModelObjectHandle.IsValid();
+}
 #endif
 
 void FRepChangelistState::CountBytes(FArchive& Ar) const

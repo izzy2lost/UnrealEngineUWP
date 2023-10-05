@@ -422,6 +422,8 @@ public:
 
 	bool HasAnyDirtyProperties() const;
 
+	bool HasValidPushModelHandle() const;
+
 private:
 	const UEPushModelPrivate::FPushModelPerNetDriverHandle PushModelObjectHandle;
 #endif

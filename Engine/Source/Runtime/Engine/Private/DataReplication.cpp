@@ -1754,6 +1754,9 @@ bool FObjectReplicator::CanSkipUpdate(FReplicationFlags RepFlags)
 
 	bool bCanSkip = true;
 
+	// Is the pushmodel handle properly assigned.
+	bCanSkip = bCanSkip && RepChangelistState.HasValidPushModelHandle();
+
 	// Have the RepFlags changed ?
 	bCanSkip = bCanSkip && SendingRepState.RepFlags.Value == RepFlags.Value; 
 
