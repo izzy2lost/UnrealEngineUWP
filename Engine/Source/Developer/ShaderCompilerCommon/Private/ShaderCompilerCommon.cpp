@@ -1262,9 +1262,9 @@ bool FindNextCompoundIdentifier(const TCHAR*& Search, const uint64 RootIdentifie
 		}
 		else if (SearchCharFlag & (uint8)AsciiFlags::Quote)
 		{
-			// Quote, skip to next Quote (or maybe end of string if text is malformed)
+			// Quote, skip to next Quote (or maybe end of string if text is malformed), ignoring the quote if it's escaped
 			SearchChar++;
-			while (*SearchChar && *SearchChar != TEXT('\"'))
+			while (*SearchChar && (*SearchChar != TEXT('\"') || *(SearchChar - 1) == TEXT('\\')))
 			{
 				SearchChar++;
 			}
