@@ -20,22 +20,22 @@ namespace Jupiter.Tests.Unit
 
 			CbObject o = new CbObject(bytes);
 
-			Assert.AreEqual("BuildAction", o.AsField().Name);
+			Assert.AreEqual(new Utf8String("BuildAction"), o.AsField().Name);
 			List<CbField> buildActionFields = o.ToList();
 			Assert.AreEqual(3, buildActionFields.Count);
-			Assert.AreEqual("Function", buildActionFields[0].Name);
-			Assert.AreEqual("Constants", buildActionFields[1].Name);
-			Assert.AreEqual("Inputs", buildActionFields[2].Name);
+			Assert.AreEqual(new Utf8String("Function"), buildActionFields[0].Name);
+			Assert.AreEqual(new Utf8String("Constants"), buildActionFields[1].Name);
+			Assert.AreEqual(new Utf8String("Inputs"), buildActionFields[2].Name);
 
 			List<CbField>  constantsFields = buildActionFields[1].ToList();
 			Assert.AreEqual(3, constantsFields.Count);
-			Assert.AreEqual("TextureBuildSettings", constantsFields[0].Name);
-			Assert.AreEqual("TextureOutputSettings", constantsFields[1].Name);
-			Assert.AreEqual("TextureSource", constantsFields[2].Name);
+			Assert.AreEqual(new Utf8String("TextureBuildSettings"), constantsFields[0].Name);
+			Assert.AreEqual(new Utf8String("TextureOutputSettings"), constantsFields[1].Name);
+			Assert.AreEqual(new Utf8String("TextureSource"), constantsFields[2].Name);
 
 			List<CbField>  inputsFields = buildActionFields[2].ToList();
 			Assert.AreEqual(1, inputsFields.Count);
-			Assert.AreEqual("7587B323422942733DDD048A91709FDE", inputsFields[0].Name);
+			Assert.AreEqual(new Utf8String("7587B323422942733DDD048A91709FDE"), inputsFields[0].Name);
 			Assert.IsTrue(inputsFields[0].IsBinaryAttachment());
 			Assert.IsTrue(inputsFields[0].IsAttachment());
 			Assert.IsFalse(inputsFields[0].IsObjectAttachment());
@@ -50,7 +50,7 @@ namespace Jupiter.Tests.Unit
 
 			CbObject o = new CbObject(bytes);
 
-			Assert.AreEqual("BuildOutput", o.AsField().Name);
+			Assert.AreEqual(new Utf8String("BuildOutput"), o.AsField().Name);
 			List<CbField> buildActionFields = o.ToList();
 			Assert.AreEqual(1, buildActionFields.Count);
 			CbField payloads = buildActionFields[0];
@@ -68,7 +68,7 @@ namespace Jupiter.Tests.Unit
 			byte[] bytes = File.ReadAllBytes("CompactBinaryObjects/compact_binary");
 
 			CbObject o = new CbObject(bytes);
-			Assert.AreEqual("", o.AsField().Name);
+			Assert.AreEqual(new Utf8String(""), o.AsField().Name);
 			List<CbField> buildActionFields = o.ToList();
 			Assert.AreEqual(3, buildActionFields.Count);
 			CbField payloads = buildActionFields[0];
@@ -96,7 +96,7 @@ namespace Jupiter.Tests.Unit
 			CbObject o = new CbObject(objectData);
 
 			// the top object has no name
-			Assert.AreEqual("", o.AsField().Name);
+			Assert.AreEqual(new Utf8String(""), o.AsField().Name);
 			List<CbField> fields = o.ToList();
 			Assert.AreEqual(1, fields.Count);
 			CbField? needs = o["needs"];
@@ -120,7 +120,7 @@ namespace Jupiter.Tests.Unit
 			CbObject o = new CbObject(objectData);
 
 			// the object has no name and 2 fields
-			Assert.AreEqual("", o.AsField().Name);
+			Assert.AreEqual(new Utf8String(""), o.AsField().Name);
 			List<CbField> fields = o.ToList();
 			Assert.AreEqual(2, fields.Count);
 
