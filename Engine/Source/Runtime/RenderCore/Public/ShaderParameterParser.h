@@ -133,19 +133,6 @@ public:
 		EBindlessParameterMode BindlessParameterMode = EBindlessParameterMode::Default
 	);
 
-	UE_DEPRECATED(5.2, "ParseAndModify doesn't need ConstantBufferType anymore")
-	bool ParseAndModify(
-		const FShaderCompilerInput& CompilerInput,
-		FShaderCompilerOutput& CompilerOutput,
-		FString& PreprocessedShaderSource,
-		const TCHAR* InConstantBufferType
-	)
-	{
-		PRAGMA_DISABLE_DEPRECATION_WARNINGS
-		return ParseAndModify(CompilerInput, CompilerOutput, PreprocessedShaderSource);
-		PRAGMA_ENABLE_DEPRECATION_WARNINGS
-	}
-
 	/** Gets parsing information from a parameter binding name. */
 	const FParsedShaderParameter& FindParameterInfos(const FString& ParameterName) const
 	{

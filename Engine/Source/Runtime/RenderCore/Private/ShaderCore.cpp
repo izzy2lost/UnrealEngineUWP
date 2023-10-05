@@ -2894,18 +2894,6 @@ void AppendKeyStringShaderDependencies(
 	}
 }
 
-void SerializeUniformBufferInfo(FShaderSaveArchive& Ar, const TSortedMap<const TCHAR*, FCachedUniformBufferDeclaration, FDefaultAllocator, FUniformBufferNameSortOrder>& UniformBufferEntries)
-{
-	TArray<const TCHAR*> UniformBufferNames;
-	for (const TPair<const TCHAR*, FCachedUniformBufferDeclaration>& Entry : UniformBufferEntries)
-	{
-		UniformBufferNames.Emplace(Entry.Key);
-	}
-	Algo::Sort(UniformBufferNames, FUniformBufferNameSortOrder());
-
-	SerializeUniformBufferInfo_Internal(Ar, UniformBufferNames);
-}
-
 #endif // WITH_EDITOR
 
 FString MakeInjectedShaderCodeBlock(const TCHAR* BlockName, const FString& CodeToInject)

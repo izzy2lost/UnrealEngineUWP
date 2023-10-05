@@ -23,7 +23,6 @@ class FRHITexture;
 class FRHIUnorderedAccessView;
 class FShaderParameterMap;
 class FShaderParametersMetadata;
-struct FCachedUniformBufferDeclaration;
 struct FRWBuffer;
 struct FRWBufferStructured;
 struct FShaderCompilerEnvironment;
@@ -42,15 +41,6 @@ namespace UE::ShaderParameters
 
 	RENDERCORE_API void AddUniformBufferIncludesToEnvironment(FShaderCompilerEnvironment& OutEnvironment, const TSet<const TCHAR*, TStringPointerSetKeyFuncs_DEPRECATED<const TCHAR*>>& InUniformBufferNames);
 }
-
-UE_DEPRECATED(5.2, "CreateUniformBufferShaderDeclaration has moved to UE::ShaderParameters::CreateUniformBufferShaderDeclaration, does not take a EShaderPlatform argument and now returns the Declaration.")
-inline void CreateUniformBufferShaderDeclaration(const TCHAR* Name, const FShaderParametersMetadata& UniformBufferStruct, EShaderPlatform Platform, FString& OutDeclaration)
-{
-	OutDeclaration = UE::ShaderParameters::CreateUniformBufferShaderDeclaration(Name, UniformBufferStruct);
-}
-
-UE_DEPRECATED(5.2, "CacheUniformBufferIncludes should no longer be used.")
-RENDERCORE_API void CacheUniformBufferIncludes(TMap<const TCHAR*, FCachedUniformBufferDeclaration, FDefaultSetAllocator, TStringPointerMapKeyFuncs_DEPRECATED<const TCHAR*, FCachedUniformBufferDeclaration>>& Cache, EShaderPlatform Platform);
 #endif
 
 enum EShaderParameterFlags

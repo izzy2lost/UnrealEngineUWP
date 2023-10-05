@@ -746,13 +746,6 @@ extern RENDERCORE_API void CompileShader(const TArray<const IShaderFormat*>& Sha
 extern RENDERCORE_API void CompileShader(const TArray<const IShaderFormat*>& ShaderFormats, FShaderCompileJob& Job, const FString& WorkingDirectory, int32* CompileCount = nullptr);
 extern RENDERCORE_API void CompileShaderPipeline(const TArray<const IShaderFormat*>& ShaderFormats, FShaderPipelineCompileJob* PipelineJob, const FString& WorkingDirectory, int32* CompileCount = nullptr);
 
-UE_DEPRECATED(5.2, "Functionality has moved to FShaderCompilerInput::ShouldUseStableConstantBuffer")
-inline bool ShouldUseStableConstantBuffer(const FShaderCompilerInput& Input)
-{
-	return Input.ShouldUseStableConstantBuffer();
-}
-
-
 /**
  * Validates the format of a virtual shader file path.
  * Meant to be use as such: check(CheckVirtualShaderFilePath(VirtualFilePath));

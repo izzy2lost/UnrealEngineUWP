@@ -419,27 +419,6 @@ static FShaderParametersMetadata* FindShaderParametersMetadataWithVariableName(u
 	return nullptr;
 }
 
-/* deprecated */
-void CacheUniformBufferIncludes(TMap<const TCHAR*, FCachedUniformBufferDeclaration, FDefaultSetAllocator, TStringPointerMapKeyFuncs_DEPRECATED<const TCHAR*, FCachedUniformBufferDeclaration>>& Cache, EShaderPlatform Platform)
-{
-	for (TMap<const TCHAR*, FCachedUniformBufferDeclaration, FDefaultSetAllocator, TStringPointerMapKeyFuncs_DEPRECATED<const TCHAR*, FCachedUniformBufferDeclaration>>::TIterator It(Cache); It; ++It)
-	{
-		const TCHAR* UniformBufferName = It.Key();
-		FCachedUniformBufferDeclaration& BufferDeclaration = It.Value();
-		check(BufferDeclaration.Declaration.Get() == NULL);
-
-		FStringView UniformBufferNameView(UniformBufferName);
-		uint32 UniformBufferNameHash = GetTypeHash(UniformBufferNameView);
-
-		if (const FShaderParametersMetadata* Metadata = FindShaderParametersMetadataWithVariableName(UniformBufferNameHash, UniformBufferNameView))
-		{
-			FString* NewDeclaration = new FString(UE::ShaderParameters::CreateUniformBufferShaderDeclaration(UniformBufferName, *Metadata));
-			check(!NewDeclaration->IsEmpty());
-			BufferDeclaration.Declaration = MakeShareable(NewDeclaration);
-		}
-	}
-}
-
 void UE::ShaderParameters::AddUniformBufferIncludesToEnvironment(FShaderCompilerEnvironment& OutEnvironment, const TSet<const TCHAR*, TStringPointerSetKeyFuncs_DEPRECATED<const TCHAR*>>& InUniformBufferNames)
 {
 	TRACE_CPUPROFILER_EVENT_SCOPE(UE::ShaderParameters::AddUniformBufferIncludesToEnvironment);
@@ -470,10 +449,6 @@ void UE::ShaderParameters::AddUniformBufferIncludesToEnvironment(FShaderCompiler
 
 	FString& GeneratedUniformBuffersInclude = OutEnvironment.IncludeVirtualPathToContentsMap.FindOrAdd("/Engine/Generated/GeneratedUniformBuffers.ush");
 	GeneratedUniformBuffersInclude.Append(UniformBufferIncludes);
-}
-
-void FShaderType::FlushShaderFileCache(const TMap<FString, TArray<const TCHAR*> >& ShaderFileToUniformBufferVariables)
-{
 }
 
 void FShaderType::AddUniformBufferIncludesToEnvironment(FShaderCompilerEnvironment& OutEnvironment, EShaderPlatform Platform) const

@@ -1192,12 +1192,6 @@ extern RENDERCORE_API const class FSHAHash& GetShaderFilesHash(const TArray<FStr
  */
 extern RENDERCORE_API void FlushShaderFileCache();
 
-UE_DEPRECATED(5.2, "FlushShaderFileCache no longer needs a ShaderPlatformName argument")
-inline void FlushShaderFileCache(const FName* ShaderPlatformName)
-{
-	FlushShaderFileCache();
-}
-
 extern RENDERCORE_API void VerifyShaderSourceFiles(EShaderPlatform ShaderPlatform);
 
 #if WITH_EDITOR
@@ -1211,13 +1205,6 @@ RENDERCORE_API void UpdateReferencedUniformBufferNames(
 	TArrayView<const FShaderType*> OutdatedShaderTypes,
 	TArrayView<const FVertexFactoryType*> OutdatedFactoryTypes,
 	TArrayView<const FShaderPipelineType*> OutdatedShaderPipelineTypes);
-
-/** Deprecated structure (only used by deprecated "CacheUniformBufferIncludes" and "SerializeUniformBufferInfo") */
-struct FCachedUniformBufferDeclaration
-{
-	// Using SharedPtr so we can hand off lifetime ownership to FShaderCompilerEnvironment::IncludeVirtualPathToSharedContentsMap when invalidating this cache
-	FThreadSafeSharedStringPtr Declaration;
-};
 
 /** Parses the given source file and its includes for references of uniform buffers. */
 extern void GenerateReferencedUniformBufferNames(
@@ -1233,14 +1220,6 @@ struct FUniformBufferNameSortOrder
 		return FCString::Strcmp(Name1, Name2) < 0;
 	}
 };
-
-using FSortedMapUniformBufferDeclaration = TSortedMap<const TCHAR*, FCachedUniformBufferDeclaration, FDefaultAllocator, FUniformBufferNameSortOrder>;
-
-/** Records information about all the uniform buffer layouts referenced by UniformBufferEntries. This function is now deprecated as there now a unified way of preparing
- * shadermap keys that includes this and more: AppendKeyStringShaderDependencies.
- */
-UE_DEPRECATED(5.2, "SerializeUniformBufferInfo is depreceated. For creating shadermap keys please use AppendKeyStringShaderDependencies")
-extern RENDERCORE_API void SerializeUniformBufferInfo(class FShaderSaveArchive& Ar, const FSortedMapUniformBufferDeclaration& UniformBufferEntries);
 
 /**
  * Return the hash of the given type layout for a partical platform type layout. This function employs caching to avoid re-hashing the same parameters several times.

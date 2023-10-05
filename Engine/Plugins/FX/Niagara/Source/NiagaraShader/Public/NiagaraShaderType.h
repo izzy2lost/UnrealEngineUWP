@@ -8,7 +8,6 @@
 
 #include "Shader.h"
 
-struct FCachedUniformBufferDeclaration;
 struct FNiagaraShaderScriptParametersMetadata;
 struct FShaderTarget;
 struct FSharedShaderCompilerEnvironment;
@@ -157,16 +156,6 @@ public:
 #if WITH_EDITOR
 	/** Adds include statements for uniform buffers that this shader type references, and builds a prefix for the shader file with the include statements. */
 	void AddUniformBufferIncludesToEnvironment(FShaderCompilerEnvironment& OutEnvironment, EShaderPlatform Platform) const;
-
-	UE_DEPRECATED(5.2, "AddReferencedUniformBufferIncludes has moved to AddUniformBufferIncludesToEnvironment and no longer takes a prefix argument.")
-	inline void AddReferencedUniformBufferIncludes(FShaderCompilerEnvironment& OutEnvironment, FString& OutSourceFilePrefix, EShaderPlatform Platform) const
-	{
-		AddUniformBufferIncludesToEnvironment(OutEnvironment, Platform);
-	}
-
-	UE_DEPRECATED(5.2, "CacheUniformBufferIncludes should no longer be used.")
-	inline void CacheUniformBufferIncludes(TMap<const TCHAR*, FCachedUniformBufferDeclaration, FDefaultSetAllocator, TStringPointerMapKeyFuncs_DEPRECATED<const TCHAR*, FCachedUniformBufferDeclaration>>& Cache, EShaderPlatform Platform) const;
-
 protected:
 
 	/**

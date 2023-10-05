@@ -390,13 +390,6 @@ void FNiagaraShaderType::BeginCompileShader(
 	NewJobs.Add(FShaderCommonCompileJobPtr(NewJob));
 }
 
-void FNiagaraShaderType::CacheUniformBufferIncludes(TMap<const TCHAR*, FCachedUniformBufferDeclaration, FDefaultSetAllocator, TStringPointerMapKeyFuncs_DEPRECATED<const TCHAR*, FCachedUniformBufferDeclaration>>& Cache, EShaderPlatform Platform) const
-{
-PRAGMA_DISABLE_DEPRECATION_WARNINGS
-	::CacheUniformBufferIncludes(Cache, Platform);
-PRAGMA_ENABLE_DEPRECATION_WARNINGS
-}
-
 void FNiagaraShaderType::AddUniformBufferIncludesToEnvironment(FShaderCompilerEnvironment& OutEnvironment, EShaderPlatform Platform) const
 {
 	UE::ShaderParameters::AddUniformBufferIncludesToEnvironment(OutEnvironment, ReferencedUniformBufferNames);
