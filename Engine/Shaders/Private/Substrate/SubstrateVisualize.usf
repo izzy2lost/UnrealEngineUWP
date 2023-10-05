@@ -94,7 +94,7 @@ void PrintPixelType(inout FShaderPrintContext Ctx, in FSubstratePixelHeader Head
 {
 	if (Header.IsSimpleMaterial())						Print(Ctx, TEXT("Simple  "), InColor);
 	else if (Header.IsSingleMaterial())					Print(Ctx, TEXT("Single  "), InColor);
-	else if (Header.GetUsesComplexSpecialRenderPath())	Print(Ctx, TEXT("Complex Special "), InColor);
+	else if (Header.IsComplexSpecialMaterial())			Print(Ctx, TEXT("Complex Special "), InColor);
 	else if (Header.IsComplexMaterial())				Print(Ctx, TEXT("Complex "), InColor);
 	else if (Header.IsSingleLayerWater())				Print(Ctx, TEXT("SLWater "), InColor);
 	else if (Header.IsHair())							Print(Ctx, TEXT("Hair    "), InColor);

@@ -129,7 +129,7 @@ void TileMainCS(uint2 DispatchThreadId : SV_DispatchThreadID, uint LinearIndex :
 
 		const bool bIsSimple =  SubstratePixelHeader.IsSimpleMaterial() || SubstratePixelHeader.BSDFCount == 0; // BSDFCount == 0 ensures that non-Substrate pixel, like sky pixels, won't make a simple tile flagged as complex
 		const bool bIsSingle = !SubstratePixelHeader.IsSimpleMaterial() && SubstratePixelHeader.IsSingleMaterial();
-		const bool bIsComplexSpecial = SubstratePixelHeader.GetUsesComplexSpecialRenderPath();
+		const bool bIsComplexSpecial = SubstratePixelHeader.IsComplexSpecialMaterial();
 		bContainsSubstrateMaterial  = SubstratePixelHeader.BSDFCount > 0;
 		bContainsSimpleMaterial  = bIsSimple;
 		bContainsSingleMaterial  = bIsSingle;

@@ -2070,6 +2070,7 @@ struct FSubstratePixelHeader
 	bool IsSimpleMaterial()										{ return (this.State & HEADER_MASK_MATERIALMODE) == HEADER_MATERIALMODE_SLAB_SIMPLE || SUBSTRATE_FASTPATH; }
 	bool IsSingleMaterial()										{ return (this.State & HEADER_MASK_MATERIALMODE) == HEADER_MATERIALMODE_SLAB_SINGLE || SUBSTRATE_SINGLEPATH; }
 	bool IsComplexMaterial()									{ return (this.State & HEADER_MASK_MATERIALMODE) == HEADER_MATERIALMODE_SLAB_COMPLEX && !SUBSTRATE_FASTPATH && !SUBSTRATE_SINGLEPATH; }
+	bool IsComplexSpecialMaterial()								{ return (this.State & HEADER_COMPLEXSPECIALPATH_MASK) != 0; }
 	bool IsSingleLayerWater()									{ return (this.State & HEADER_MASK_MATERIALMODE) == HEADER_MATERIALMODE_SLWATER; }
 	bool IsHair()												{ return (this.State & HEADER_MASK_MATERIALMODE) == HEADER_MATERIALMODE_HAIR; }
 	bool IsEye()												{ return (this.State & HEADER_MASK_MATERIALMODE) == HEADER_MATERIALMODE_EYE; }
@@ -2099,11 +2100,10 @@ struct FSubstratePixelHeader
 	void SetHasSubsurface(bool bIn)								{ this.State |= (bIn ? HEADER_MASK_HASSUBSURFACE : 0u); }
 	void SetDynamicIndirectShadowCasterRepresentation(bool bIn)	{ this.State |= (bIn ? HEADER_MASK_HASDYNINDIRECTSHADOWCASTER : 0u); }
 
-	bool IsSubstrateMaterial()										{ return this.GetMaterialMode() != HEADER_MATERIALMODE_NONE; }
+	bool IsSubstrateMaterial()									{ return this.GetMaterialMode() != HEADER_MATERIALMODE_NONE; }
 	void SetMaterialMode(uint MaterialMode)						{ this.State = (this.State & ~HEADER_MASK_MATERIALMODE) | (MaterialMode & HEADER_MASK_MATERIALMODE); }
 
-	bool GetUsesComplexSpecialRenderPath()						{ return (this.State & HEADER_COMPLEXSPECIALPATH_MASK) != 0; }
-	void SetUsesComplexSpecialRenderPath(bool bIn)				{ this.State |= (bIn ? HEADER_COMPLEXSPECIALPATH_MASK : 0u); }
+	void SetIsComplexSpecialMaterial(bool bIn)					{ this.State |= (bIn ? HEADER_COMPLEXSPECIALPATH_MASK : 0u); }
 };
 
 #if SUBSTRATE_DEFERRED_SHADING && SUBSTRATE_MATERIALCONTAINER_IS_VIEWRESOURCE
@@ -3818,7 +3818,7 @@ FSubstratePixelHeader UnpackSubstrateHeaderIn(uint PackedHeader, inout FSubstrat
 		uint SharedLocalBasesCount = HEADER_GETSHAREDLOCALBASESCOUNT(PackedHeader); // ?
 		uint SharedLocalBasesTypes = HEADER_GETSHAREDLOCALBASESTYPE(PackedHeader);
 
-		Out.SetUsesComplexSpecialRenderPath((PackedHeader & HEADER_COMPLEXSPECIALPATH_MASK) > 0);
+		Out.SetIsComplexSpecialMaterial((PackedHeader & HEADER_COMPLEXSPECIALPATH_MASK) > 0);
 
 	#if SUBSTRATE_DEFERRED_SHADING
 		Out.SharedLocalBasesTypes_PackedHeader = SharedLocalBasesTypes;

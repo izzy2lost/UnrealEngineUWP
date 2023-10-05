@@ -227,7 +227,7 @@ void PackSubstrateOut(
 						const bool bSSSMask = BSDF.bIsBottom;	// SSS and Thin can only be on the bottom layer, so ignoring bIsSimpleVolume here.
 						SubstratePixelHeader.SetHasSubsurface(bSSSMask && bHasSSS && !bIsSimpleVolume);
 
-						SubstratePixelHeader.SetUsesComplexSpecialRenderPath(bForceComplexSpecialPath);
+						SubstratePixelHeader.SetIsComplexSpecialMaterial(bForceComplexSpecialPath);
 						break;
 					}
 
