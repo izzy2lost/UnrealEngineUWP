@@ -440,7 +440,16 @@ bool UWorldPartitionLevelStreamingDynamic::IssueLoadRequests()
 	// Load saved actors
 	if (ChildPackagesToLoad.Num())
 	{
-		FWorldPartitionLevelHelper::LoadActors(GetStreamingWorld(), RuntimeLevel, ChildPackagesToLoad, PackageReferencer, FinalizeLoading, World->IsGameWorld(), MoveTemp(InstancingContext));
+		FWorldPartitionLevelHelper::FLoadActorsParams Params = FWorldPartitionLevelHelper::FLoadActorsParams()
+			.SetOuterWorld(GetStreamingWorld())
+			.SetDestLevel(RuntimeLevel)
+			.SetActorPackages(ChildPackagesToLoad)
+			.SetPackageReferencer(&PackageReferencer)
+			.SetCompletionCallback(FinalizeLoading)
+			.SetLoadAsync(World->IsGameWorld())
+			.SetInstancingContext(MoveTemp(InstancingContext));
+
+		FWorldPartitionLevelHelper::LoadActors(Params);
 	}
 	else
 	{

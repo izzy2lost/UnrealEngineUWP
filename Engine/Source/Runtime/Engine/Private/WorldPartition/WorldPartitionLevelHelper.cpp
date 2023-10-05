@@ -405,9 +405,23 @@ ULevel* FWorldPartitionLevelHelper::CreateEmptyLevelForRuntimeCell(const UWorldP
 	return NewLevel;
 }
 
-bool FWorldPartitionLevelHelper::LoadActors(UWorld* InOuterWorld, ULevel* InDestLevel, TArrayView<FWorldPartitionRuntimeCellObjectMapping> InActorPackages, FWorldPartitionLevelHelper::FPackageReferencer& InPackageReferencer, TFunction<void(bool)> InCompletionCallback, bool bInLoadAsync, FLinkerInstancingContext InstancingContext)
+bool FWorldPartitionLevelHelper::LoadActors(UWorld* InOuterWorld, ULevel* InDestLevel, TArrayView<FWorldPartitionRuntimeCellObjectMapping> InActorPackages, FWorldPartitionLevelHelper::FPackageReferencer& InPackageReferencer, TFunction<void(bool)> InCompletionCallback, bool bInLoadAsync, FLinkerInstancingContext InInstancingContext)
 {
-	UPackage* DestPackage = InDestLevel ? InDestLevel->GetPackage() : nullptr;
+	FLoadActorsParams Params = FLoadActorsParams()
+		.SetOuterWorld(InOuterWorld)
+		.SetDestLevel(InDestLevel)
+		.SetActorPackages(InActorPackages)
+		.SetPackageReferencer(&InPackageReferencer)
+		.SetCompletionCallback(InCompletionCallback)
+		.SetLoadAsync(bInLoadAsync)
+		.SetInstancingContext(InInstancingContext);
+
+	return LoadActors(Params);
+}
+
+bool FWorldPartitionLevelHelper::LoadActors(const FLoadActorsParams& InParams)
+{
+	UPackage* DestPackage = InParams.DestLevel ? InParams.DestLevel->GetPackage() : nullptr;
 	FString ShortLevelPackageName = DestPackage? FPackageName::GetShortName(DestPackage->GetFName()) : FString();
 
 	struct FLoadProgress
@@ -419,20 +433,20 @@ bool FWorldPartitionLevelHelper::LoadActors(UWorld* InOuterWorld, ULevel* InDest
 
 	// Actors to load
 	TArray<FWorldPartitionRuntimeCellObjectMapping*> ActorPackages;
-	ActorPackages.Reserve(InActorPackages.Num());
+	ActorPackages.Reserve(InParams.ActorPackages.Num());
 
 	TMap<FActorContainerID, FLinkerInstancingContext> LinkerInstancingContexts;
 	// Add Main container context
-	LinkerInstancingContexts.Add(FActorContainerID::GetMainContainerID(), MoveTemp(InstancingContext));
+	LinkerInstancingContexts.Add(FActorContainerID::GetMainContainerID(), MoveTemp(InParams.InstancingContext));
 			
-	for (FWorldPartitionRuntimeCellObjectMapping& PackageObjectMapping : InActorPackages)
+	for (FWorldPartitionRuntimeCellObjectMapping& PackageObjectMapping : InParams.ActorPackages)
 	{
 		FLinkerInstancingContext* Context = LinkerInstancingContexts.Find(PackageObjectMapping.ContainerID);
 		if (!Context)
 		{
 			check(!PackageObjectMapping.ContainerID.IsMainContainer());
 		
-			const FString DestLevelPackageName = InDestLevel ? InDestLevel->GetPackage()->GetName() : FString();
+			const FString DestLevelPackageName = InParams.DestLevel ? InParams.DestLevel->GetPackage()->GetName() : FString();
 			const FName ContainerPackageInstanceName(GetContainerPackage(PackageObjectMapping.ContainerID, PackageObjectMapping.ContainerPackage.ToString(), DestLevelPackageName));
 
 			FLinkerInstancingContext& NewContext = LinkerInstancingContexts.Add(PackageObjectMapping.ContainerID);
@@ -466,7 +480,7 @@ bool FWorldPartitionLevelHelper::LoadActors(UWorld* InOuterWorld, ULevel* InDest
 
 	for (FWorldPartitionRuntimeCellObjectMapping* PackageObjectMapping : ActorPackages)
 	{
-		FLoadPackageAsyncDelegate CompletionCallback = FLoadPackageAsyncDelegate::CreateLambda([LoadProgress, PackageObjectMapping, &InPackageReferencer, InOuterWorld, InDestLevel, InCompletionCallback](const FName& LoadedPackageName, UPackage* LoadedPackage, EAsyncLoadingResult::Type Result)
+		FLoadPackageAsyncDelegate CompletionCallback = FLoadPackageAsyncDelegate::CreateLambda([LoadProgress, PackageObjectMapping, PackageReferencer = InParams.PackageReferencer, OuterWorld = InParams.OuterWorld, DestLevel = InParams.DestLevel, CompletionCallback = InParams.CompletionCallback](const FName& LoadedPackageName, UPackage* LoadedPackage, EAsyncLoadingResult::Type Result)
 		{
 			const FName ActorName = *FPaths::GetExtension(PackageObjectMapping->Path.ToString());
 			check(LoadProgress->NumPendingLoadRequests);
@@ -475,7 +489,7 @@ bool FWorldPartitionLevelHelper::LoadActors(UWorld* InOuterWorld, ULevel* InDest
 			// In PIE, we make sure to clear RF_Standalone flag on objects in external packages (UMetaData) 
 			// This guarantees that external packages of actors that are destroyed during the PIE session will
 			// properly get GC'ed and will allow future edits/modifications of OFPA actors.
-			if (LoadedPackage && InDestLevel && InDestLevel->GetPackage()->HasAnyPackageFlags(PKG_PlayInEditor))
+			if (LoadedPackage && DestLevel && DestLevel->GetPackage()->HasAnyPackageFlags(PKG_PlayInEditor))
 			{
 				ForEachObjectWithPackage(LoadedPackage, [](UObject* Object)
 				{
@@ -488,7 +502,7 @@ bool FWorldPartitionLevelHelper::LoadActors(UWorld* InOuterWorld, ULevel* InDest
 
 			if (Actor)
 			{
-				const UWorld* ContainerWorld = PackageObjectMapping->ContainerID.IsMainContainer() ? InOuterWorld : Actor->GetTypedOuter<UWorld>();
+				const UWorld* ContainerWorld = PackageObjectMapping->ContainerID.IsMainContainer() ? OuterWorld : Actor->GetTypedOuter<UWorld>();
 				
 				TOptional<FName> SrcActorFolderPath;
 
@@ -500,7 +514,7 @@ bool FWorldPartitionLevelHelper::LoadActors(UWorld* InOuterWorld, ULevel* InDest
 						ContainerWorld->PersistentLevel->bFixupActorFoldersAtLoad = false;
 						ContainerWorld->PersistentLevel->FixupActorFolders();
 					}
-				
+
 					// Since actor's level doesn't necessarily uses actor folders, access Folder Guid directly
 					const bool bDirectAccess = true;
 					const FGuid ActorFolderGuid = Actor->GetFolderGuid(bDirectAccess);
@@ -514,24 +528,24 @@ bool FWorldPartitionLevelHelper::LoadActors(UWorld* InOuterWorld, ULevel* InDest
 				if (!PackageObjectMapping->ContainerID.IsMainContainer())
 				{					
 					// Add Cache handle on world so it gets unloaded properly
-					InPackageReferencer.AddReference(ContainerWorld->GetPackage());
+					PackageReferencer->AddReference(ContainerWorld->GetPackage());
 										
 					// We only care about the source paths here
 					FString SourceWorldPath, DummyUnusedPath;
 					// Verify that it is indeed an instanced world
 					verify(ContainerWorld->GetSoftObjectPathMapping(SourceWorldPath, DummyUnusedPath));
 					FString SourceOuterWorldPath;
-					InOuterWorld->GetSoftObjectPathMapping(SourceOuterWorldPath, DummyUnusedPath);
+					OuterWorld->GetSoftObjectPathMapping(SourceOuterWorldPath, DummyUnusedPath);
 
 					// Rename through UObject to avoid changing Actor's external packaging and folder properties
-					Actor->UObject::Rename(*FString::Printf(TEXT("%s_%s"), *Actor->GetName(), *PackageObjectMapping->ContainerID.ToShortString()), InDestLevel, REN_NonTransactional | REN_ForceNoResetLoaders | REN_DoNotDirty | REN_DontCreateRedirectors);
+					Actor->UObject::Rename(*FString::Printf(TEXT("%s_%s"), *Actor->GetName(), *PackageObjectMapping->ContainerID.ToShortString()), DestLevel, REN_NonTransactional | REN_ForceNoResetLoaders | REN_DoNotDirty | REN_DontCreateRedirectors);
 
 					// Handle child actors
-					Actor->ForEachComponent<UChildActorComponent>(true, [InDestLevel, PackageObjectMapping](UChildActorComponent* ChildActorComponent)
+					Actor->ForEachComponent<UChildActorComponent>(true, [DestLevel = DestLevel, PackageObjectMapping](UChildActorComponent* ChildActorComponent)
 					{
 						if (AActor* ChildActor = ChildActorComponent->GetChildActor())
 						{
-							ChildActor->UObject::Rename(*FString::Printf(TEXT("%s_%s"), *ChildActor->GetName(), *PackageObjectMapping->ContainerID.ToShortString()), InDestLevel, REN_NonTransactional | REN_ForceNoResetLoaders | REN_DoNotDirty | REN_DontCreateRedirectors);
+							ChildActor->UObject::Rename(*FString::Printf(TEXT("%s_%s"), *ChildActor->GetName(), *PackageObjectMapping->ContainerID.ToShortString()), DestLevel, REN_NonTransactional | REN_ForceNoResetLoaders | REN_DoNotDirty | REN_DontCreateRedirectors);
 						}
 					});
 					
@@ -556,7 +570,7 @@ bool FWorldPartitionLevelHelper::LoadActors(UWorld* InOuterWorld, ULevel* InDest
 					{
 						if (!Value.IsNull() && Value.GetAssetPathString().Equals(SourceWorldPath, ESearchCase::IgnoreCase))
 						{
-							InOuterWorld->GetWorldPartition()->ConvertContainerPathToEditorPath(PackageObjectMapping->ContainerID, FSoftObjectPath(Value), Value);
+							OuterWorld->GetWorldPartition()->ConvertContainerPathToEditorPath(PackageObjectMapping->ContainerID, FSoftObjectPath(Value), Value);
 						}
 					});
 					FixupArchive.Fixup(Actor);
@@ -567,26 +581,26 @@ bool FWorldPartitionLevelHelper::LoadActors(UWorld* InOuterWorld, ULevel* InDest
 					}
 				}
 
-				if (InDestLevel)
+				if (DestLevel)
 				{
 					// Propagate resolved actor folder path
-					check(!InDestLevel->IsUsingActorFolders());
+					check(!DestLevel->IsUsingActorFolders());
 					if (SrcActorFolderPath.IsSet())
 					{
 						Actor->SetFolderPath(*SrcActorFolderPath);
 					}
 
 					check(Actor->IsPackageExternal());
-					InDestLevel->Actors.Add(Actor);
-					checkf(Actor->GetLevel() == InDestLevel, TEXT("Levels mismatch, got : %s, expected: %s\nActor: %s\nActorFullName: %s\nActorPackage: %s"), *InDestLevel->GetFullName(), *Actor->GetLevel()->GetFullName(), *Actor->GetActorNameOrLabel(), *Actor->GetFullName(), *Actor->GetPackage()->GetFullName());
+					DestLevel->Actors.Add(Actor);
+					checkf(Actor->GetLevel() == DestLevel, TEXT("Levels mismatch, got : %s, expected: %s\nActor: %s\nActorFullName: %s\nActorPackage: %s"), *DestLevel->GetFullName(), *Actor->GetLevel()->GetFullName(), *Actor->GetActorNameOrLabel(), *Actor->GetFullName(), *Actor->GetPackage()->GetFullName());
 
 					// Handle child actors
-					Actor->ForEachComponent<UChildActorComponent>(true, [InDestLevel](UChildActorComponent* ChildActorComponent)
+					Actor->ForEachComponent<UChildActorComponent>(true, [DestLevel = DestLevel](UChildActorComponent* ChildActorComponent)
 					{
 						if (AActor* ChildActor = ChildActorComponent->GetChildActor())
 						{
-							InDestLevel->Actors.Add(ChildActor);
-							check(ChildActor->GetLevel() == InDestLevel);
+							DestLevel->Actors.Add(ChildActor);
+							check(ChildActor->GetLevel() == DestLevel);
 						}
 					});
 				}
@@ -615,7 +629,7 @@ bool FWorldPartitionLevelHelper::LoadActors(UWorld* InOuterWorld, ULevel* InDest
 
 			if (!LoadProgress->NumPendingLoadRequests)
 			{
-				InCompletionCallback(!LoadProgress->NumFailedLoadedRequests);
+				CompletionCallback(!LoadProgress->NumFailedLoadedRequests);
 			}
 		});
 
@@ -623,7 +637,7 @@ bool FWorldPartitionLevelHelper::LoadActors(UWorld* InOuterWorld, ULevel* InDest
 		const FLinkerInstancingContext& ContainerInstancingContext = LinkerInstancingContexts.FindChecked(PackageObjectMapping->ContainerID);
 		FName PackageName = ContainerInstancingContext.RemapPackage(PackageToLoad);
 
-		if (bInLoadAsync)
+		if (InParams.bLoadAsync)
 		{
 			FPackagePath PackagePath = FPackagePath::FromPackageNameChecked(PackageToLoad);
 

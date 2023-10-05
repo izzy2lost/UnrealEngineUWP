@@ -284,14 +284,20 @@ bool UWorldPartitionRuntimeLevelStreamingCell::PopulateGeneratorPackageForCook(T
 
 	if (GetActorCount() > 0)
 	{
-		FWorldPartitionLevelHelper::FPackageReferencer PackageReferencer;
-		const bool bLoadAsync = false;
 		UWorld* OuterWorld = GetOuterWorld();
 		UWorldPartition* WorldPartition = OuterWorld->GetWorldPartition();
 
-		// Don't do SoftObjectPath remapping for PersistentLevel actors because references can end up in different cells
-		const bool bSoftObjectRemappingEnabled = false;
-		verify(FWorldPartitionLevelHelper::LoadActors(OuterWorld, nullptr, Packages, PackageReferencer, [](bool) {}, bLoadAsync, FLinkerInstancingContext(bSoftObjectRemappingEnabled)));
+		FWorldPartitionLevelHelper::FPackageReferencer PackageReferencer;
+		FWorldPartitionLevelHelper::FLoadActorsParams Params = FWorldPartitionLevelHelper::FLoadActorsParams()
+			.SetOuterWorld(OuterWorld)
+			.SetDestLevel(nullptr)
+			.SetActorPackages(Packages)
+			.SetPackageReferencer(&PackageReferencer)
+			.SetCompletionCallback([](bool) {})
+			.SetLoadAsync(false)
+			.SetInstancingContext(FLinkerInstancingContext(false)); // Don't do SoftObjectPath remapping for PersistentLevel actors because references can end up in different cells
+
+		verify(FWorldPartitionLevelHelper::LoadActors(Params));
 
 		FWorldPartitionLevelHelper::MoveExternalActorsToLevel(Packages, OuterWorld->PersistentLevel, OutModifiedPackages);
 
@@ -346,11 +352,16 @@ bool UWorldPartitionRuntimeLevelStreamingCell::PopulateGeneratedPackageForCook(U
 
 		// Load cell Actors
 		FWorldPartitionLevelHelper::FPackageReferencer PackageReferencer;
-		const bool bLoadAsync = false;
+		FWorldPartitionLevelHelper::FLoadActorsParams Params = FWorldPartitionLevelHelper::FLoadActorsParams()
+			.SetOuterWorld(OuterWorld)
+			.SetDestLevel(nullptr)
+			.SetActorPackages(Packages)
+			.SetPackageReferencer(&PackageReferencer)
+			.SetCompletionCallback([](bool) {})
+			.SetLoadAsync(false)
+			.SetInstancingContext(FLinkerInstancingContext(false)); // Don't do SoftObjectPath remapping for PersistentLevel actors because references can end up in different cells
 
-		// Don't do SoftObjectPath remapping for PersistentLevel actors because references can end up in different cells
-		const bool bSoftObjectRemappingEnabled = false;
-		verify(FWorldPartitionLevelHelper::LoadActors(OuterWorld, nullptr, Packages, PackageReferencer, [](bool) {}, bLoadAsync, FLinkerInstancingContext(bSoftObjectRemappingEnabled)));
+		verify(FWorldPartitionLevelHelper::LoadActors(Params));
 
 		// Create a level and move these actors in it
 		ULevel* NewLevel = FWorldPartitionLevelHelper::CreateEmptyLevelForRuntimeCell(this, OuterWorld, LevelStreaming->GetWorldAsset().ToString(), InPackage);
