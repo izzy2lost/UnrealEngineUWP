@@ -1247,6 +1247,9 @@ public:
 	// #todo should this only be available in editor?
 	GEOMETRYCOLLECTIONENGINE_API void SetRestState(TArray<FTransform>&& InRestTransforms);
 
+	// this reset the rest transform to use the rest collection asset ones
+	GEOMETRYCOLLECTIONENGINE_API void ResetRestTransforms();
+
 	/** Set the dynamic state for all bodies in the DynamicCollection. */
 	GEOMETRYCOLLECTIONENGINE_API void SetDynamicState(const Chaos::EObjectStateType& NewDynamicState);
 
@@ -1526,6 +1529,10 @@ private:
 	void ProcessRepDataOnPT();
 	void ProcessRepStateDataOnPT();
 	void ProcessRepDynamicDataOnPT();
+
+	// called when the rest transform are updated from SetRestState / ResetRestTransforms
+	// this upadtes the renderer as well as the dynamic collection initial transforms
+	void RestTransformsChanged(const TArray<FTransform>& NewRestTransform);
 
 	// return the most actual transforms
 	// this can be the rest collection ones, the overriden RestTransforms or the dynamic collection ones

@@ -1608,13 +1608,31 @@ int32 UGeometryCollectionComponent::EmbeddedIndexToTransformIndex(const UInstanc
 }
 #endif
 
+void UGeometryCollectionComponent::ResetRestTransforms()
+{
+	const bool bWasOverriden = (RestTransforms.Num() > 0);
+	if (bWasOverriden)
+	{
+		RestTransforms.Empty();
+
+		if (RestCollection && RestCollection->GetGeometryCollection())
+		{
+			RestTransformsChanged(RestCollection->GetGeometryCollection()->Transform.GetConstArray());
+		}
+	}
+}
+
 void UGeometryCollectionComponent::SetRestState(TArray<FTransform>&& InRestTransforms)
-{	
+{
 	RestTransforms = InRestTransforms;
-	
+	RestTransformsChanged(RestTransforms);
+}
+
+void UGeometryCollectionComponent::RestTransformsChanged(const TArray<FTransform>& NewRestTransform)
+{
 	if (DynamicCollection)
 	{
-		SetInitialTransforms(RestTransforms);
+		SetInitialTransforms(NewRestTransform);
 	}
 
 	if (SceneProxy)
