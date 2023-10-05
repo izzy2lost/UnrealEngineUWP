@@ -7,6 +7,7 @@
 #include "MVVMBlueprintViewModelContext.h"
 #include "PropertyPermissionList.h"
 #include "Types/MVVMExecutionMode.h"
+#include "UObject/UnrealType.h"
 
 #define LOCTEXT_NAMESPACE "MVVMDeveloperProjectSettings"
 
@@ -33,6 +34,36 @@ FName UMVVMDeveloperProjectSettings::GetCategoryName() const
 FText UMVVMDeveloperProjectSettings::GetSectionText() const
 {
 	return LOCTEXT("MVVMProjectSettings", "Model View Viewmodel");
+}
+
+bool UMVVMDeveloperProjectSettings::PropertyHasFiltering(const FProperty* Property) const
+{
+	check(Property);
+	const UStruct* ObjectStruct = nullptr;
+
+	if (const FObjectProperty* ObjectProperty = CastField<FObjectProperty>(Property))
+	{
+		ObjectStruct = ObjectProperty->PropertyClass;
+	}
+	else
+	{
+		ObjectStruct = Property->GetOwnerStruct();
+	}
+
+	if (!FPropertyEditorPermissionList::Get().HasFiltering(ObjectStruct))
+	{
+		return false;
+	}
+
+	TStringBuilder<512> StringBuilder;
+	Property->GetOwnerClass()->GetPathName(nullptr, StringBuilder);
+	FSoftClassPath StructPath;
+	StructPath.SetPath(StringBuilder);
+	if (const FMVVMDeveloperProjectWidgetSettings* Settings = FieldSelectorPermissions.Find(StructPath))
+	{
+		return !Settings->DisallowedFieldNames.Find(Property->GetFName());
+	}
+	return true;
 }
 
 bool UMVVMDeveloperProjectSettings::IsPropertyAllowed(const FProperty* Property) const

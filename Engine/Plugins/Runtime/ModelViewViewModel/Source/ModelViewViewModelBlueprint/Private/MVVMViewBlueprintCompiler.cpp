@@ -17,6 +17,7 @@
 #include "Templates/ValueOrError.h"
 #include "Types/MVVMBindingName.h"
 #include "UObject/LinkerLoad.h"
+#include "UObject/UnrealType.h"
 #include "View/MVVMViewClass.h"
 #include "View/MVVMViewModelContextResolver.h"
 
@@ -2570,8 +2571,11 @@ TArray<FMVVMConstFieldVariant> FMVVMViewBlueprintCompiler::CreatePropertyPath(co
 
 bool FMVVMViewBlueprintCompiler::IsPropertyPathValid(TArrayView<const FMVVMConstFieldVariant> PropertyPath)
 {
-	for (const FMVVMConstFieldVariant& Field : PropertyPath)
+	int32 PathLength = PropertyPath.Num();
+	for (int32 Index = 0; Index < PathLength; Index++)
 	{
+		const FMVVMConstFieldVariant& Field = PropertyPath[Index];
+
 		if (Field.IsEmpty())
 		{
 			return false;
@@ -2582,7 +2586,16 @@ bool FMVVMViewBlueprintCompiler::IsPropertyPathValid(TArrayView<const FMVVMConst
 			{
 				return false;
 			}
-			if (!GetDefault<UMVVMDeveloperProjectSettings>()->IsPropertyAllowed(Field.GetProperty()))
+
+			// Don't filter objects in path if properties remain in path to be filtered (by length). 
+			// Child properties will acquire their parent struct / these objects for filtering.
+			// @TODO: Consider same for 'FCompiledBindingLibraryCompiler::AddFieldPathImpl' & 'UE::MVVM::Private::PassFilter'.
+			const FObjectProperty* ObjectProperty = CastField<FObjectProperty>(Field.GetProperty());
+			if (ObjectProperty && Index != PathLength - 1)
+			{
+				// Do nothing
+			}
+			else if (!GetDefault<UMVVMDeveloperProjectSettings>()->IsPropertyAllowed(Field.GetProperty()))
 			{
 				return false;
 			}
