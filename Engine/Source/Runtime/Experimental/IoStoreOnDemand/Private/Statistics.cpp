@@ -5,6 +5,7 @@
 #include "Algo/MaxElement.h"
 #include "AnalyticsEventAttribute.h"
 #include "HAL/IConsoleManager.h"
+#include "HAL/PlatformTime.h"
 #include "Misc/CoreDelegates.h"
 #include "IO/IoStoreOnDemand.h"
 
