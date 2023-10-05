@@ -78,7 +78,7 @@ namespace EpicGames.Horde.Storage.Nodes
 
 		// Tree state
 		long _totalLength;
-		readonly List<NodeRef<ChunkedDataNode>> _leafHandles = new List<NodeRef<ChunkedDataNode>>();
+		readonly List<ChunkedDataNodeRef> _leafHandles = new List<ChunkedDataNodeRef>();
 
 		// Leaf node state
 		uint _leafHash;
@@ -346,7 +346,7 @@ namespace EpicGames.Horde.Storage.Nodes
 		async ValueTask FlushLeafNodeAsync(CancellationToken cancellationToken)
 		{
 			BlobHandle handle = await _writer.WriteBlobAsync(_leafLength, Array.Empty<BlobHandle>(), s_leafNodeType, cancellationToken);
-			_leafHandles.Add(new NodeRef<ChunkedDataNode>(handle));
+			_leafHandles.Add(new ChunkedDataNodeRef(ChunkedDataNodeType.Leaf, handle));
 			ResetLeafState();
 		}
 	}

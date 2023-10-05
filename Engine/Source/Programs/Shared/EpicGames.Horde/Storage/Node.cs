@@ -270,7 +270,7 @@ namespace EpicGames.Horde.Storage
 		/// <summary>
 		/// Type to deserialize
 		/// </summary>
-		public BlobType Type => _nodeData.Type;
+		public BlobType Type => _blobData.Type;
 
 		/// <summary>
 		/// Version of the current node, as specified via <see cref="NodeTypeAttribute"/>
@@ -280,42 +280,42 @@ namespace EpicGames.Horde.Storage
 		/// <summary>
 		/// Total length of the data in this node
 		/// </summary>
-		public int Length => _nodeData.Data.Length;
+		public int Length => _blobData.Data.Length;
 
 		/// <summary>
 		/// Hash of the node being deserialized
 		/// </summary>
-		public IoHash Hash => _nodeData.Hash;
+		public IoHash Hash => _blobData.Hash;
 
 		/// <summary>
 		/// 
 		/// </summary>
-		public ReadOnlyMemory<byte> Data => _nodeData.Data;
+		public ReadOnlyMemory<byte> Data => _blobData.Data;
 
 		/// <summary>
 		/// Locations of all referenced nodes.
 		/// </summary>
-		public IReadOnlyList<BlobHandle> References => _nodeData.Refs;
+		public IReadOnlyList<BlobHandle> References => _blobData.Refs;
 
-		readonly BlobData _nodeData;
+		readonly BlobData _blobData;
 		int _refIdx;
 
 		/// <summary>
 		/// Constructor
 		/// </summary>
-		public NodeReader(BlobData nodeData)
-			: base(nodeData.Data)
+		public NodeReader(BlobData blobData)
+			: base(blobData.Data)
 		{
-			_nodeData = nodeData;
+			_blobData = blobData;
 		}
 
 		/// <summary>
 		/// Reads the next reference to another node
 		/// </summary>
-		public BlobHandle ReadNodeHandle()
+		public BlobHandle ReadBlobHandle()
 		{
 			IoHash hash = this.ReadIoHash();
-			return GetNodeHandle(_refIdx++, hash);
+			return GetBlobHandle(_refIdx++, hash);
 		}
 
 		/// <summary>
@@ -324,10 +324,10 @@ namespace EpicGames.Horde.Storage
 		/// <param name="index"></param>
 		/// <param name="hash"></param>
 		/// <returns></returns>
-		public BlobHandle GetNodeHandle(int index, IoHash hash)
+		public BlobHandle GetBlobHandle(int index, IoHash hash)
 		{
-			Debug.Assert(_nodeData.Refs[index].Hash == hash);
-			return _nodeData.Refs[index];
+			Debug.Assert(_blobData.Refs[index].Hash == hash);
+			return _blobData.Refs[index];
 		}
 	}
 

@@ -31,7 +31,7 @@ namespace EpicGames.Horde.Storage
 		/// Deserialization constructor
 		/// </summary>
 		/// <param name="reader"></param>
-		public NodeRef(NodeReader reader) : this(reader.ReadNodeHandle())
+		public NodeRef(NodeReader reader) : this(reader.ReadBlobHandle())
 		{
 		}
 
@@ -80,7 +80,7 @@ namespace EpicGames.Horde.Storage
 		/// <summary>
 		/// Constructor
 		/// </summary>
-		public NodeRef(NodeReader reader) : base(reader.ReadNodeHandle())
+		public NodeRef(NodeReader reader) : base(reader.ReadBlobHandle())
 		{
 		}
 

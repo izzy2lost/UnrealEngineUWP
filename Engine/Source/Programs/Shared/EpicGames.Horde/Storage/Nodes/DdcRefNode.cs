@@ -37,7 +37,7 @@ namespace Horde.Server.Ddc
 		public DdcRefNode(NodeReader reader)
 		{
 			RootHash = reader.ReadIoHash();
-			References = reader.ReadList(x => (reader.ReadIoHash(), reader.ReadNodeHandle()));
+			References = reader.ReadList(x => (reader.ReadIoHash(), reader.ReadBlobHandle()));
 		}
 
 		/// <inheritdoc/>
