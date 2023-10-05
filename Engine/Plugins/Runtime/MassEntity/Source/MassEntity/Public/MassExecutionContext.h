@@ -119,10 +119,31 @@ public:
 		return EntityListView[Index];
 	}
 
+	bool DoesArchetypeHaveFragment(const UScriptStruct& FragmentType) const
+	{
+		return FragmentViews.FindByPredicate(
+			[&FragmentType](const FFragmentView& Element) 
+			{ 
+				return Element.Requirement.StructType == &FragmentType; 
+			}) != nullptr;
+	}
+
+	template<typename T>
+	bool DoesArchetypeHaveFragment() const
+	{
+		static_assert(TIsDerivedFrom<T, FMassFragment>::IsDerived, "Given struct is not of a valid fragment type.");
+		return DoesArchetypeHaveFragment(T::StaticStruct());
+	}
+
+	bool DoesArchetypeHaveTag(const UScriptStruct& TagType) const
+	{
+		return CurrentArchetypesTagBitSet.Contains(TagType);
+	}
+
 	template<typename T>
 	bool DoesArchetypeHaveTag() const
 	{
-		static_assert(TIsDerivedFrom<T, FMassTag>::IsDerived, "Given struct is not of a valid fragment type.");
+		static_assert(TIsDerivedFrom<T, FMassTag>::IsDerived, "Given struct is not of a valid tag type.");
 		return CurrentArchetypesTagBitSet.Contains<T>();
 	}
 

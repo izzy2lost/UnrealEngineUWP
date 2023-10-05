@@ -150,6 +150,31 @@ private:
 struct FMassContextForwarder final : public FMassContextCommon<ITypedElementDataStorageInterface::IQueryContext>
 {
 private:
+	void TedsColumnsToMassDescriptorIfActiveTable(
+		FMassArchetypeCompositionDescriptor& Descriptor, 
+		TConstArrayView<const UScriptStruct*> ColumnTypes)
+	{
+		for (const UScriptStruct* ColumnType : ColumnTypes)
+		{
+			if (ColumnType->IsChildOf(FMassTag::StaticStruct()))
+			{
+				if (Context.DoesArchetypeHaveTag(*ColumnType))
+				{
+					Descriptor.Tags.Add(*ColumnType);
+				}
+			}
+			else
+			{
+				checkf(ColumnType->IsChildOf(FMassFragment::StaticStruct()),
+					TEXT("Given struct type is not a valid fragment or tag type."));
+				if (Context.DoesArchetypeHaveFragment(*ColumnType))
+				{
+					Descriptor.Fragments.Add(*ColumnType);
+				}
+			}
+		}
+	}
+
 	void TedsColumnsToMassDescriptor(FMassArchetypeCompositionDescriptor& Descriptor, TConstArrayView<const UScriptStruct*> ColumnTypes)
 	{
 		for (const UScriptStruct* ColumnType : ColumnTypes)
@@ -470,7 +495,7 @@ public:
 		};
 
 		FRemovedColumns* RemovedColumns = Environment.GetScratchBuffer().Emplace<FRemovedColumns>();
-		TedsColumnsToMassDescriptor(RemovedColumns->RemoveDescriptor, ColumnTypes);
+		TedsColumnsToMassDescriptorIfActiveTable(RemovedColumns->RemoveDescriptor, ColumnTypes);
 		RemovedColumns->Entity = FMassEntityHandle::FromNumber(Row);
 
 		Context.Defer().PushCommand<FMassDeferredAddCommand>(
@@ -491,7 +516,7 @@ public:
 
 		FTypedElementDatabaseScratchBuffer& ScratchBuffer = Environment.GetScratchBuffer();
 		FRemovedColumns* RemovedColumns = ScratchBuffer.Emplace<FRemovedColumns>();
-		TedsColumnsToMassDescriptor(RemovedColumns->RemoveDescriptor, ColumnTypes);
+		TedsColumnsToMassDescriptorIfActiveTable(RemovedColumns->RemoveDescriptor, ColumnTypes);
 
 		FMassEntityHandle* Entities = ScratchBuffer.EmplaceArray<FMassEntityHandle>(Rows.Num());
 		RemovedColumns->Entities = Entities;
