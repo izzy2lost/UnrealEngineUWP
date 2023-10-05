@@ -582,6 +582,7 @@ public:
 	bool bUseAnalyticDerivatives = false;
 
 	bool bUsesSkyAtmosphere = false;
+	bool bUsesSpeedTree = false;
 
 	uint32 DynamicParticleParameterMask = 0u;
 

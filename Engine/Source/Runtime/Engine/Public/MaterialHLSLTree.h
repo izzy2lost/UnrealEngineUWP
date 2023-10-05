@@ -205,6 +205,8 @@ enum class EExternalInput : uint8
 
 	IsOrthographic,
 
+	AOMask,
+
 	Num,
 };
 static constexpr int32 MaxNumTexCoords = 8;
@@ -341,6 +343,103 @@ public:
 
 	virtual bool PrepareValue(FEmitContext& Context, FEmitScope& Scope, const FRequestedType& RequestedType, FPrepareValueResult& OutResult) const override;
 	virtual void EmitValueShader(FEmitContext& Context, FEmitScope& Scope, const FRequestedType& RequestedType, FEmitValueShaderResult& OutResult) const override;
+};
+
+class FExpressionSpeedTree : public FExpression
+{
+public:
+	const FExpression* GeometryExpression;
+	const FExpression* WindExpression;
+	const FExpression* LODExpression;
+	const FExpression* ExtraBendExpression;
+	const float BillboardThreshold;
+	const bool bExtraBend;
+	const bool bAccurateWind;
+	const bool bPreviousFrame;
+
+	FExpressionSpeedTree(const FExpression* InGeometryExpression, const FExpression* InWindExpression, const FExpression* InLODExpression, const FExpression* InExtraBendExpression, bool bInExtraBend, bool bInAccurateWind, float InBillboardThreshold, bool bInPreviousFrame)
+		: GeometryExpression(InGeometryExpression)
+		, WindExpression(InWindExpression)
+		, LODExpression(InLODExpression)
+		, ExtraBendExpression(InExtraBendExpression)
+		, BillboardThreshold(InBillboardThreshold)
+		, bExtraBend(bInExtraBend)
+		, bAccurateWind(bInAccurateWind)
+		, bPreviousFrame(bInPreviousFrame)
+	{}
+
+	virtual bool PrepareValue(FEmitContext& Context, FEmitScope& Scope, const FRequestedType& RequestedType, FPrepareValueResult& OutResult) const override;
+	virtual void EmitValueShader(FEmitContext& Context, FEmitScope& Scope, const FRequestedType& RequestedType, FEmitValueShaderResult& OutResult) const override;
+	virtual const FExpression* ComputePreviousFrame(FTree& Tree, const FRequestedType& RequestedType) const override;
+};
+
+class FExpressionDecalMipmapLevel : public FExpression
+{
+public:
+	const FExpression* TextureSizeExpression;
+
+	FExpressionDecalMipmapLevel(const FExpression* InTextureSizeExpression)
+		: TextureSizeExpression(InTextureSizeExpression)
+	{}
+
+	virtual bool PrepareValue(FEmitContext& Context, FEmitScope& Scope, const FRequestedType& RequestedType, FPrepareValueResult& OutResult) const override;
+	virtual void EmitValueShader(FEmitContext& Context, FEmitScope& Scope, const FRequestedType& RequestedType, FEmitValueShaderResult& OutResult) const override;
+};
+
+class FExpressionDBufferTexture : public FExpression
+{
+public:
+	const FExpression* UVExpression;
+	const uint8 DBufferTextureID;
+
+	FExpressionDBufferTexture(const FExpression* InUVExpression, uint8 InDBufferTextureID)
+		: UVExpression(InUVExpression)
+		, DBufferTextureID(InDBufferTextureID)
+	{}
+
+	virtual bool PrepareValue(FEmitContext& Context, FEmitScope& Scope, const FRequestedType& RequestedType, FPrepareValueResult& OutResult) const override;
+	virtual void EmitValueShader(FEmitContext& Context, FEmitScope& Scope, const FRequestedType& RequestedType, FEmitValueShaderResult& OutResult) const override;
+};
+
+class FExpressionSobolFunction : public FExpression
+{
+public:
+	const FExpression* CellExpression;		// optional, nullptr or ignored when Temporal is true
+	const FExpression* IndexExpression;
+	const FExpression* SeedExpression;
+	bool bTemporal;
+
+	FExpressionSobolFunction(const FExpression* InCellExpression, const FExpression* InIndexExpression, const FExpression* InSeedExpression, bool bInTemporal)
+		: CellExpression(InCellExpression)
+		, IndexExpression(InIndexExpression)
+		, SeedExpression(InSeedExpression)
+		, bTemporal(bInTemporal)
+	{}
+
+	virtual bool PrepareValue(FEmitContext& Context, FEmitScope& Scope, const FRequestedType& RequestedType, FPrepareValueResult& OutResult) const override;
+	virtual void EmitValueShader(FEmitContext& Context, FEmitScope& Scope, const FRequestedType& RequestedType, FEmitValueShaderResult& OutResult) const override;
+};
+
+// Expression for a single float at Index from CustomPrimitiveData, out of range returns 0
+class FExpressionCustomPrimitiveDataFunction : public FExpression
+{
+public:
+	const uint8 Index;
+
+	FExpressionCustomPrimitiveDataFunction(uint8 InIndex)
+		: Index(InIndex)
+	{}
+
+	virtual bool PrepareValue(FEmitContext& Context, FEmitScope& Scope, const FRequestedType& RequestedType, FPrepareValueResult& OutResult) const override;
+	virtual void EmitValueShader(FEmitContext& Context, FEmitScope& Scope, const FRequestedType& RequestedType, FEmitValueShaderResult& OutResult) const override;
+};
+
+class FExpressionAOMaskFunction : public FExpressionForward
+{
+public:
+	FExpressionAOMaskFunction(const FExpression* InExpression) : FExpressionForward(InExpression) {}
+
+	virtual bool PrepareValue(FEmitContext& Context, FEmitScope& Scope, const FRequestedType& RequestedType, FPrepareValueResult& OutResult) const override;
 };
 
 class FExpressionDepthOfFieldFunction : public FExpression

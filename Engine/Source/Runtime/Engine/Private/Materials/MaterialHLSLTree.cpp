@@ -167,6 +167,8 @@ FExternalInputDescription GetExternalInputDescription(EExternalInput Input)
 
 	case EExternalInput::IsOrthographic: return FExternalInputDescription(TEXT("IsOrthographic"), Shader::EValueType::Float1);
 
+	case EExternalInput::AOMask: return FExternalInputDescription(TEXT("PrecomputedAOMask"), Shader::EValueType::Float1);
+
 	default: checkNoEntry(); return FExternalInputDescription(TEXT("Invalid"), Shader::EValueType::Void);
 	}
 }
@@ -443,6 +445,8 @@ void FExpressionExternalInput::EmitValueShader(FEmitContext& Context, FEmitScope
 		case EExternalInput::DistanceCullFade: Code = TEXT("GetDistanceCullFade()"); break;
 
 		case EExternalInput::IsOrthographic: Code = TEXT("((View.ViewToClip[3][3] < 1.0f) ? 0.0f : 1.0f)"); break;
+
+		case EExternalInput::AOMask: Code = TEXT("Parameters.AOMaterialMask"); break;
 
 		default:
 			checkNoEntry();
@@ -803,6 +807,131 @@ void FExpressionSkyLightEnvMapSample::EmitValueShader(FEmitContext& Context, FEm
 	FEmitShaderExpression* EmitDirectionExpression = DirectionExpression->GetValueShader(Context, Scope, Shader::EValueType::Float3);
 	FEmitShaderExpression* EmitRoughnessExpression = RoughnessExpression->GetValueShader(Context, Scope, Shader::EValueType::Float1);
 	OutResult.Code = Context.EmitExpression(Scope, Shader::EValueType::Float3, TEXT("MaterialExpressionSkyLightEnvMapSample(%, %)"), EmitDirectionExpression, EmitRoughnessExpression);
+}
+
+const FExpression* FExpressionSpeedTree::ComputePreviousFrame(FTree& Tree, const FRequestedType& RequestedType) const
+{
+	// if bAccurateWind and computing previous frame use new expression
+	if (bAccurateWind)
+	{
+		return Tree.NewExpression<Material::FExpressionSpeedTree>(
+			GeometryExpression, 
+			WindExpression, 
+			LODExpression, 
+			ExtraBendExpression, 
+			bExtraBend, 
+			bAccurateWind,
+			BillboardThreshold, 
+			true);
+	}
+
+	return nullptr;
+}
+
+bool FExpressionSpeedTree::PrepareValue(FEmitContext& Context, FEmitScope& Scope, const FRequestedType& RequestedType, FPrepareValueResult& OutResult) const
+{
+	if (Context.Material && Context.Material->IsUsedWithSkeletalMesh())
+	{
+		return Context.Error(TEXT("SpeedTree node not currently supported for Skeletal Meshes, please disable usage flag."));
+	}
+
+	if (Context.ShaderFrequency != SF_Vertex)
+	{
+		return Context.Error(TEXT("Invalid node used in pixel/hull/domain shader input."));
+	}
+
+	if (Context.PrepareExpression(GeometryExpression, Scope, RequestedType).IsVoid() || 
+		Context.PrepareExpression(WindExpression, Scope, RequestedType).IsVoid() ||
+		Context.PrepareExpression(LODExpression, Scope, RequestedType).IsVoid() ||
+		Context.PrepareExpression(ExtraBendExpression, Scope, RequestedType).IsVoid())
+	{
+		return false;
+	}
+
+	if (Context.bMarkLiveValues)
+	{
+		FEmitData& EmitMaterialData = Context.FindData<FEmitData>();
+		for (int32 i = (int32)EExternalInput::TexCoord2; i <= (int32)EExternalInput::TexCoord7; ++i)
+		{
+			EmitMaterialData.ExternalInputMask[SF_Vertex][i] = true;
+		}
+	}
+
+	return OutResult.SetType(Context, RequestedType, EExpressionEvaluation::Shader, Shader::EValueType::Float3);
+}
+
+void FExpressionSpeedTree::EmitValueShader(FEmitContext& Context, FEmitScope& Scope, const FRequestedType& RequestedType, FEmitValueShaderResult& OutResult) const
+{
+	Context.bUsesSpeedTree = true;
+
+	FEmitShaderExpression* EmitGeometryExpression = GeometryExpression->GetValueShader(Context, Scope, Shader::EValueType::Int1);
+	FEmitShaderExpression* EmitWindExpression = WindExpression->GetValueShader(Context, Scope, Shader::EValueType::Int1);
+	FEmitShaderExpression* EmitLODExpression = LODExpression->GetValueShader(Context, Scope, Shader::EValueType::Int1);
+	FEmitShaderExpression* EmitExtraBendExpression = ExtraBendExpression->GetValueShader(Context, Scope, Shader::EValueType::Float3);
+	OutResult.Code = Context.EmitInlineExpression(
+		Scope, Shader::EValueType::Float3, 
+		TEXT("GetSpeedTreeVertexOffset(%, %, %, %, %, %, %)"), 
+		EmitGeometryExpression, 
+		EmitWindExpression,
+		EmitLODExpression,
+		BillboardThreshold,
+		bPreviousFrame ? TEXT("true") : TEXT("false"),
+		bExtraBend ? TEXT("true") : TEXT("false"),
+		EmitExtraBendExpression);
+}
+
+bool FExpressionDecalMipmapLevel::PrepareValue(FEmitContext& Context, FEmitScope& Scope, const FRequestedType& RequestedType, FPrepareValueResult& OutResult) const
+{
+	if (Context.PrepareExpression(TextureSizeExpression, Scope, RequestedType).IsVoid())
+	{
+		return false;
+	}
+
+	return OutResult.SetType(Context, RequestedType, EExpressionEvaluation::Shader, Shader::EValueType::Float1);
+}
+
+void FExpressionDecalMipmapLevel::EmitValueShader(FEmitContext& Context, FEmitScope& Scope, const FRequestedType& RequestedType, FEmitValueShaderResult& OutResult) const
+{
+	FEmitShaderExpression* EmitSizeExpression = TextureSizeExpression->GetValueShader(Context, Scope, Shader::EValueType::Float2);
+	OutResult.Code = Context.EmitInlineExpression(
+		Scope, Shader::EValueType::Float1,
+		TEXT("ComputeDecalMipmapLevel(Parameters, %)"),
+		EmitSizeExpression);
+}
+
+bool FExpressionDBufferTexture::PrepareValue(FEmitContext& Context, FEmitScope& Scope, const FRequestedType& RequestedType, FPrepareValueResult& OutResult) const
+{
+	if (UVExpression && Context.PrepareExpression(UVExpression, Scope, RequestedType).IsVoid())
+	{
+		return false;
+	}
+
+	if (Context.bMarkLiveValues && Context.MaterialCompilationOutput)
+	{
+		Context.MaterialCompilationOutput->SetIsDBufferTextureUsed(DBufferTextureID);
+		Context.MaterialCompilationOutput->SetIsDBufferTextureLookupUsed(true);
+	}
+
+	return OutResult.SetType(Context, RequestedType, EExpressionEvaluation::Shader, Shader::EValueType::Float4);
+}
+
+void FExpressionDBufferTexture::EmitValueShader(FEmitContext& Context, FEmitScope& Scope, const FRequestedType& RequestedType, FEmitValueShaderResult& OutResult) const
+{
+	FEmitShaderExpression* EmitTexCoord = nullptr;
+	if (UVExpression)
+	{
+		EmitTexCoord = UVExpression->GetValueShader(Context, Scope, Shader::EValueType::Float2);
+		EmitTexCoord = Context.EmitExpression(Scope, Shader::EValueType::Float2, TEXT("ClampSceneTextureUV(ViewportUVToSceneTextureUV(%), 0)"), EmitTexCoord);
+	}
+	else
+	{
+		EmitTexCoord = Context.EmitExpression(Scope, Shader::EValueType::Float2, TEXT("GetDefaultSceneTextureUV(Parameters, 0)"));
+	}
+
+	OutResult.Code = Context.EmitInlineExpression(
+		Scope, Shader::EValueType::Float4,
+		TEXT("MaterialExpressionDBufferTextureLookup(Parameters, %, %)"),
+		EmitTexCoord, DBufferTextureID);
 }
 
 namespace Private
@@ -2656,6 +2785,82 @@ void FExpressionDepthOfFieldFunction::EmitValueShader(FEmitContext& Context, FEm
 		TEXT("MaterialExpressionDepthOfFieldFunction(%, %)"),
 		EmitDepth,
 		FunctionValue);
+}
+
+bool FExpressionSobolFunction::PrepareValue(FEmitContext& Context, FEmitScope& Scope, const FRequestedType& RequestedType, FPrepareValueResult& OutResult) const
+{
+	if ((CellExpression && Context.PrepareExpression(CellExpression, Scope, Shader::EValueType::Float2).IsVoid()) ||
+		Context.PrepareExpression(IndexExpression, Scope, Shader::EValueType::Int1).IsVoid() ||
+		Context.PrepareExpression(SeedExpression, Scope, Shader::EValueType::Float2).IsVoid())
+	{
+		return false;
+	}
+
+	return OutResult.SetType(Context, RequestedType, EExpressionEvaluation::Shader, Shader::EValueType::Float2);
+}
+
+void FExpressionSobolFunction::EmitValueShader(FEmitContext& Context, FEmitScope& Scope, const FRequestedType& RequestedType, FEmitValueShaderResult& OutResult) const
+{
+	FEmitShaderExpression* EmitCell = CellExpression ? CellExpression->GetValueShader(Context, Scope, Shader::EValueType::Float2) : nullptr;
+	FEmitShaderExpression* EmitIndex = IndexExpression->GetValueShader(Context, Scope, Shader::EValueType::Int1);
+	FEmitShaderExpression* EmitSeed = SeedExpression->GetValueShader(Context, Scope, Shader::EValueType::Float2);
+
+	if (bTemporal)
+	{
+		OutResult.Code = Context.EmitExpression(Scope, Shader::EValueType::Float2,
+			TEXT("float2(SobolIndex(SobolPixel(uint2(Parameters.SvPosition.xy)), uint(View.StateFrameIndexMod8 + 8 * %)) ^ uint2(% * 0x10000) & 0xffff) / 0x10000"),
+			EmitIndex, EmitSeed);
+	}
+	else
+	{
+		check(EmitCell);
+		OutResult.Code = Context.EmitExpression(Scope, Shader::EValueType::Float2,
+			TEXT("floor(%) + float2(SobolIndex(SobolPixel(uint2(%)), uint(%)) ^ uint2(% * 0x10000) & 0xffff) / 0x10000"),
+			EmitCell, EmitCell, EmitIndex, EmitSeed);
+	}
+}
+
+bool FExpressionCustomPrimitiveDataFunction::PrepareValue(FEmitContext& Context, FEmitScope& Scope, const FRequestedType& RequestedType, FPrepareValueResult& OutResult) const
+{
+	if (Index < FCustomPrimitiveData::NumCustomPrimitiveDataFloats)
+	{
+		return OutResult.SetType(Context, RequestedType, EExpressionEvaluation::Shader, Shader::EValueType::Float1);
+	}
+	
+	// out of range values set to 0
+	return OutResult.SetType(Context, RequestedType, EExpressionEvaluation::ConstantZero, Shader::EValueType::Float1);
+}
+
+void FExpressionCustomPrimitiveDataFunction::EmitValueShader(FEmitContext& Context, FEmitScope& Scope, const FRequestedType& RequestedType, FEmitValueShaderResult& OutResult) const
+{
+	if (Index < FCustomPrimitiveData::NumCustomPrimitiveDataFloats)
+	{
+		const int32 CustomDataIndex = Index / 4;
+		const int32 ElementIndex = Index % 4; // x, y, z or w
+
+		OutResult.Code = Context.EmitInlineExpression(Scope, Shader::EValueType::Float1,
+			TEXT("GetPrimitiveData(Parameters).CustomPrimitiveData[%][%]"),
+			CustomDataIndex, ElementIndex);
+	}
+	else
+	{
+		OutResult.Code = Context.EmitConstantZero(Scope, Shader::EValueType::Float1);
+	}
+}
+
+bool FExpressionAOMaskFunction::PrepareValue(FEmitContext& Context, FEmitScope& Scope, const FRequestedType& RequestedType, FPrepareValueResult& OutResult) const
+{
+	if (Context.TargetParameters.FeatureLevel < ERHIFeatureLevel::SM5)
+	{
+		return Context.Errorf(TEXT("Node not supported in feature level %d. %d required."), Context.TargetParameters.FeatureLevel, ERHIFeatureLevel::SM5);
+	}
+
+	if (Context.ShaderFrequency != SF_Pixel && Context.ShaderFrequency != SF_Compute)
+	{
+		return Context.Error(TEXT("Invalid node used in vertex/hull/domain shader."));
+	}
+
+	return FExpressionForward::PrepareValue(Context, Scope, RequestedType, OutResult);
 }
 
 bool FExpressionNaniteReplaceFunction::PrepareValue(FEmitContext& Context, FEmitScope& Scope, const FRequestedType& RequestedType, FPrepareValueResult& OutResult) const

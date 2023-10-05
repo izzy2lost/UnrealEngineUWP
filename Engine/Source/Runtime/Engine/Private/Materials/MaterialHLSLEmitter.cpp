@@ -389,7 +389,12 @@ static void GetMaterialEnvironment(EShaderPlatform InPlatform,
 		OutEnvironment.SetDefine(TEXT("SPHERICAL_PARTICLE_OPACITY"), TEXT("1"));
 	}
 
-	if (false)//bUsesParticleSubUVs)
+	const bool bNeedsParticleSubUVs =
+		EmitMaterialData.IsExternalInputUsed(Material::EExternalInput::ParticleSubUVCoords0) ||
+		EmitMaterialData.IsExternalInputUsed(Material::EExternalInput::ParticleSubUVCoords1) ||
+		EmitMaterialData.IsExternalInputUsed(Material::EExternalInput::ParticleSubUVLerp);
+
+	if (bNeedsParticleSubUVs)
 	{
 		OutEnvironment.SetDefine(TEXT("USE_PARTICLE_SUBUVS"), TEXT("1"));
 	}
@@ -399,14 +404,14 @@ static void GetMaterialEnvironment(EShaderPlatform InPlatform,
 		OutEnvironment.SetDefine(TEXT("LIGHTMAP_UV_ACCESS"), TEXT("1"));
 	}
 
-	if (false)//bUsesAOMaterialMask)
+	if (EmitMaterialData.IsExternalInputUsed(Material::EExternalInput::AOMask))
 	{
 		OutEnvironment.SetDefine(TEXT("USES_AO_MATERIAL_MASK"), TEXT("1"));
 	}
 
-	if (false)//bUsesSpeedTree)
+	if (EmitContext.bUsesSpeedTree)
 	{
-		OutEnvironment.SetDefine(TEXT("USES_SPEEDTREE"), TEXT("1"));
+		OutEnvironment.SetDefine(TEXT("USES_SPEEDTREE"), 1);
 	}
 
 	const bool bNeedsWorldPositionExcludingShaderOffsets =
@@ -425,16 +430,6 @@ static void GetMaterialEnvironment(EShaderPlatform InPlatform,
 	if (bNeedsParticleSize)
 	{
 		OutEnvironment.SetDefine(TEXT("NEEDS_PARTICLE_SIZE"), TEXT("1"));
-	}
-
-	const bool bNeedsParticleSubUVs =
-		EmitMaterialData.IsExternalInputUsed(Material::EExternalInput::ParticleSubUVCoords0) ||
-		EmitMaterialData.IsExternalInputUsed(Material::EExternalInput::ParticleSubUVCoords1) ||
-		EmitMaterialData.IsExternalInputUsed(Material::EExternalInput::ParticleSubUVLerp);
-
-	if (bNeedsParticleSubUVs)
-	{
-		OutEnvironment.SetDefine(TEXT("USE_PARTICLE_SUBUVS"), TEXT("1"));
 	}
 
 	if (MaterialCompilationOutput.bNeedsSceneTextures)
