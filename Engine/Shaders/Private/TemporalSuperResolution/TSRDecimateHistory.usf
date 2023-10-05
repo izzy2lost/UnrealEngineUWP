@@ -525,7 +525,7 @@ void MainCS(
 					PrevGuideInfo_Extent,
 					PrevGuideInfo_ExtentInverse,
 					PrevGuideInfo_UVViewportBilinearMin,
-					PrevGuideInfo_UVViewportBilinearMax).r;
+					PrevGuideInfo_UVViewportBilinearMax);
 			#endif
 
 			#if CONFIG_MOIRE_REPROJECTION
