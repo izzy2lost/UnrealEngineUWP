@@ -1333,7 +1333,7 @@ private:
 	UNREALED_API void PopulateCookedPackages(const TConstArrayView<const ITargetPlatform*> TargetPlatforms);
 
 	/** Waits for the AssetRegistry to complete so that we know any missing assets are missing on disk */
-	UNREALED_API void BlockOnAssetRegistry();
+	UNREALED_API void BlockOnAssetRegistry(TConstArrayView<FString> CommandlinePackages);
 
 	/** Construct or refresh-for-filechanges the platform-specific asset registry for the given platforms */
 	UNREALED_API void RefreshPlatformAssetRegistries(const TArrayView<const ITargetPlatform* const>& TargetPlatforms);
@@ -1495,6 +1495,8 @@ private:
 	bool bCookFilter = false;
 	/** True if commandline arguments specify that packages on commandline should be cooked first. */
 	bool bCookFirst = false;
+	/** True if experimental optimizations for fast startup should be used. */
+	bool bCookFastStartup = false;
 	/**
 	 * Experimental feature to correctly invoke the BeginCacheForCookedPlatformData contracts for
 	 * objects created by PreSave
