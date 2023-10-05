@@ -540,12 +540,12 @@ void UMetaSoundSource::RegisterGraphWithFrontend(Metasound::Frontend::FMetaSound
 {
 	check(IsInGameThread());
 
+	FMetasoundAssetBase::RegisterGraphWithFrontend(InRegistrationOptions);
 	const bool bIsRuntimeInputDataValid = RuntimeInputData.bIsValid.load();
 	if (!bIsRuntimeInputDataValid)
 	{
 		CacheRuntimeInputData();
 	}
-	FMetasoundAssetBase::RegisterGraphWithFrontend(InRegistrationOptions);
 }
 
 bool UMetaSoundSource::IsPlayable() const
