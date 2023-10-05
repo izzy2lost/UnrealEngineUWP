@@ -483,6 +483,12 @@ void UGeometryScriptLibrary_CollisionFunctions::SetSimpleCollisionOfDynamicMeshC
 	FGeometryScriptSetSimpleCollisionOptions Options,
 	UGeometryScriptDebug* Debug)
 {
+	if (DynamicMeshComponent == nullptr)
+	{
+		UE::Geometry::AppendError(Debug, EGeometryScriptErrorType::InvalidInputs, LOCTEXT("SetSimpleCollisionOfDynamicMeshComponent_InvalidComponent", "SetSimpleCollisionOfDynamicMeshComponent: Component is Null"));
+		return;
+	}
+
 #if WITH_EDITOR
 	if (Options.bEmitTransaction && GEditor)
 	{
