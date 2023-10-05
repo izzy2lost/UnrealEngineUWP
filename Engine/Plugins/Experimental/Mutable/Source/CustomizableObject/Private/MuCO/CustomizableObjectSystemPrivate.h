@@ -352,44 +352,6 @@ struct FMutableTask
 };
 
 
-// Mutable data generated during the last update of an instance.
-struct FInstanceGeneratedData
-{
-	struct FComponent
-	{
-		uint16 ComponentId = 0;
-
-		/** True if it can be reused */
-		bool bGenerated = false;
-
-		mu::FResourceID MeshID;
-
-		/** Range in the Surfaces array */
-		uint16 FirstSurface = 0;
-		uint16 SurfaceCount = 0;
-	};
-
-	struct FLOD
-	{
-		/** Range in the Components array */
-		uint16 FirstComponent = 0;
-		uint16 ComponentCount = 0;
-	};
-
-	TArray<FLOD> LODs;
-	TArray<FComponent> Components;
-	TArray<uint32> SurfaceIds;
-
-	/** Clear data, called upon failing to generate a mesh and after recompiling the CO */
-	void Clear()
-	{
-		LODs.Empty();
-		Components.Empty();
-		SurfaceIds.Empty();
-	}
-};
-
-
 // Mutable data generated during the update steps.
 // We keep it from begin to end update, and it is used in several steps.
 struct FInstanceUpdateData
@@ -446,11 +408,8 @@ struct FInstanceUpdateData
 	{
 		uint16 Id = 0;
 		
-		// True if the Mesh is valid or if we're reusing a component
+		// True if the Mesh is valid
 		bool bGenerated = false;
-
-		// Reuse component from a previously generated SkeletalMesh
-		bool bReuseMesh = false;
 
 		mu::FResourceID MeshID;
 		mu::MeshPtrConst Mesh;
@@ -546,9 +505,6 @@ struct FPendingTextureCoverageQuery
 struct FMutableOperationData
 {
 	TWeakObjectPtr<UCustomizableObjectInstance> Instance;
-	
-	bool bCanReuseGeneratedData = false;
-	FInstanceGeneratedData LastUpdateData;
 
 	FInstanceUpdateData InstanceUpdateData;
 	TArray<int> RelevantParametersInProgress;
@@ -678,7 +634,6 @@ public:
 	static int32 EnableOnlyGenerateRequestedLODs;
 	static int32 MaxTextureSizeToGenerate;
 	static int32 SkeletalMeshMinLodQualityLevel;
-	static bool bEnableMutableReusePreviousUpdateData;
 
 #if WITH_EDITOR
 	mu::FImageOperator::FImagePixelFormatFunc ImageFormatOverrideFunc;

@@ -646,13 +646,6 @@ static FAutoConsoleVariableRef CVarEnableMutableReuseInstanceTextures(
 	ECVF_Default);
 
 
-bool FCustomizableObjectSystemPrivate::bEnableMutableReusePreviousUpdateData = false;
-static FAutoConsoleVariableRef CVarEnableMutableReusePreviousUpdateData(
-	TEXT("mutable.EnableMutableReusePreviousUpdateData"), FCustomizableObjectSystemPrivate::bEnableMutableReusePreviousUpdateData,
-	TEXT("If true, Mutable will try to reuse render sections from previous SkeletalMeshes. If false, all SkeletalMeshes will be build from scratch."),
-	ECVF_Default);
-
-
 int32 FCustomizableObjectSystemPrivate::EnableOnlyGenerateRequestedLODs = 1;
 
 static FAutoConsoleVariableRef CVarEnableOnlyGenerateRequestedLODs(
@@ -1571,10 +1564,6 @@ namespace impl
 			LOD.FirstComponent = OperationData->InstanceUpdateData.Components.Num();
 			LOD.ComponentCount = Instance->GetComponentCount(MutableLODIndex);
 
-			const FInstanceGeneratedData::FLOD& PrevUpdateLODData = OperationData->LastUpdateData.LODs.IsValidIndex(MutableLODIndex) ?
-				OperationData->LastUpdateData.LODs[MutableLODIndex] : FInstanceGeneratedData::FLOD();
-
-
 			for (int32 ComponentIndex = 0; ComponentIndex < LOD.ComponentCount; ++ComponentIndex)
 			{
 				OperationData->InstanceUpdateData.Components.Push(FInstanceUpdateData::FComponent());
@@ -1582,9 +1571,6 @@ namespace impl
 				Component.Id = Instance->GetComponentId(MutableLODIndex, ComponentIndex);
 				Component.FirstSurface = OperationData->InstanceUpdateData.Surfaces.Num();
 				Component.SurfaceCount = 0;
-
-				const FInstanceGeneratedData::FComponent& PrevUpdateComponent = OperationData->LastUpdateData.Components.IsValidIndex(PrevUpdateLODData.FirstComponent + ComponentIndex) ?
-					OperationData->LastUpdateData.Components[PrevUpdateLODData.FirstComponent +  ComponentIndex] : FInstanceGeneratedData::FComponent();
 
 				const bool bGenerateLOD = OperationData->RequestedLODs.IsValidIndex(Component.Id) ? (OperationData->RequestedLODs[Component.Id] & (1 << MutableLODIndex)) != 0 : true;
 
@@ -1595,38 +1581,27 @@ namespace impl
 
 					Component.MeshID = Instance->GetMeshId(MutableLODIndex, ComponentIndex, 0);
 
-					// Mesh cache is not enabled yet.
-					//auto CachedMesh = Cache.Meshes.Find(meshId);
-					//if (CachedMesh && CachedMesh->IsValid(false, true))
-					//{
-					//	UE_LOG(LogMutable, Verbose, TEXT("Mesh resource with id [%d] can be cached."), meshId);
-					//	INC_DWORD_STAT(STAT_MutableNumCachedSkeletalMeshes);
-					//}
-
-					// Check if we can use data from the currently generated SkeletalMesh
-					Component.bReuseMesh = OperationData->bCanReuseGeneratedData && PrevUpdateComponent.bGenerated ? PrevUpdateComponent.MeshID == Component.MeshID : false;
-
-					if(bGenerateLOD && !Component.bReuseMesh)
+					if(bGenerateLOD)
 					{
 						Component.Mesh = System->GetMesh(OperationData->InstanceID, Component.MeshID);
 					}
 				}
 
-				if (!Component.Mesh && !Component.bReuseMesh)
+				if (!Component.Mesh)
 				{
 					continue;
 				}
 
 				Component.bGenerated = true;
 
-				const int32 SurfaceCount = Component.Mesh ? Component.Mesh->GetSurfaceCount() : PrevUpdateComponent.SurfaceCount;
 
 				// Materials and images
+				const int32 SurfaceCount = Component.Mesh->GetSurfaceCount();
 				for (int32 MeshSurfaceIndex = 0; MeshSurfaceIndex < SurfaceCount; ++MeshSurfaceIndex)
 				{
-					const uint32 SurfaceId = Component.Mesh ? Component.Mesh->GetSurfaceId(MeshSurfaceIndex) : OperationData->LastUpdateData.SurfaceIds[PrevUpdateComponent.FirstSurface + MeshSurfaceIndex];
+					const uint32 SurfaceId = Component.Mesh->GetSurfaceId(MeshSurfaceIndex);
 					const int32 InstanceSurfaceIndex = Instance->FindSurfaceById(MutableLODIndex, ComponentIndex, SurfaceId);
-					check(Component.bReuseMesh || Component.Mesh->GetVertexCount() == 0 || InstanceSurfaceIndex >= 0);
+					check(Component.Mesh->GetVertexCount() > 0 || InstanceSurfaceIndex >= 0);
 
 					int32 BaseSurfaceIndex = InstanceSurfaceIndex;
 					int32 BaseLODIndex = MutableLODIndex;
@@ -2700,8 +2675,6 @@ namespace impl
 		CurrentOperationData->Instance = Operation->CustomizableObjectInstance;
 		CurrentOperationData->TextureCoverageQueries_MutableThreadParams = CandidateInstancePrivateData->TextureCoverageQueries;
 		CurrentOperationData->TextureCoverageQueries_MutableThreadResults.Empty();
-		CurrentOperationData->bCanReuseGeneratedData = SystemPrivateData->bEnableMutableReusePreviousUpdateData;
-		CurrentOperationData->LastUpdateData = SystemPrivateData->bEnableMutableReusePreviousUpdateData ? CandidateInstancePrivateData->LastUpdateData : FInstanceGeneratedData();
 		CurrentOperationData->CurrentMinLOD = Operation->InstanceDescriptorRuntimeHash.GetMinLOD();
 		CurrentOperationData->CurrentMaxLOD = Operation->InstanceDescriptorRuntimeHash.GetMaxLOD();
 		CurrentOperationData->bNeverStream = bNeverStream;
