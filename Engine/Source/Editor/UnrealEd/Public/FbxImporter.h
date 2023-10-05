@@ -1812,8 +1812,8 @@ private:
 
 	// logger set/clear function
 	class FFbxLogger * Logger;
-	void SetLogger(class FFbxLogger * InLogger);
-	void ClearLogger();
+	UNREALED_API void SetLogger(class FFbxLogger * InLogger);
+	UNREALED_API void ClearLogger();
 
 	FImportedMaterialData ImportedMaterialData;
 
