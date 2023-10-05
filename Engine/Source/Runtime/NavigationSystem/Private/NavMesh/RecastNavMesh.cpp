@@ -542,6 +542,7 @@ ARecastNavMesh::ARecastNavMesh(const FObjectInitializer& ObjectInitializer)
 	, RecastNavMeshImpl(NULL)
 {
 	HeuristicScale = 0.999f;
+	LedgeSlopeFilterMode = ENavigationLedgeSlopeFilterMode::Recast;
 	RegionPartitioning = ERecastPartitioning::Watershed;
 	LayerPartitioning = ERecastPartitioning::Watershed;
 	RegionChunkSplits = 2;

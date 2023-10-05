@@ -81,6 +81,8 @@ struct FRecastBuildConfig : public rcConfig
 	int32 AgentIndex;
 	/** Resolution level */ 
 	ENavigationDataResolution TileResolution;
+	/** Ledge filtering mode */
+	ENavigationLedgeSlopeFilterMode LedgeSlopeFilterMode;
 
 	FRecastBuildConfig()
 	{
@@ -101,6 +103,7 @@ struct FRecastBuildConfig : public rcConfig
 		MaxPolysPerTile = -1;
 		AgentIndex = 0;
 		TileResolution = ENavigationDataResolution::Default;
+		LedgeSlopeFilterMode = ENavigationLedgeSlopeFilterMode::Recast;
 	}
 
 	rcReal GetTileSizeUU() const { return tileSize * cs; }

@@ -71,6 +71,14 @@ namespace ERecastPartitioning
 	};
 }
 
+UENUM()
+enum class ENavigationLedgeSlopeFilterMode : uint8
+{
+	Recast,							// Use walkableClimb value to filter
+	None,							// Skip slope filtering
+	UseStepHeightFromAgentMaxSlope	// Use maximum step height computed from AgentMaxSlope
+};
+
 struct FDetourTileSizeInfo
 {
 	unsigned short VertCount = 0;
@@ -371,6 +379,10 @@ struct FRecastNavMeshGenerationProperties
 	UPROPERTY(EditAnywhere, Category = Generation, meta = (ClampMin = "1", UIMin = "1"), AdvancedDisplay)
 	int32 TileNumberHardLimit;
 
+	/** filtering methode used for filtering ledge slopes */
+	UPROPERTY(EditAnywhere, Category = Generation, AdvancedDisplay)
+	ENavigationLedgeSlopeFilterMode LedgeFilterMode;
+	
 	/** partitioning method for creating navmesh polys */
 	UPROPERTY(EditAnywhere, Category = Generation, AdvancedDisplay)
 	TEnumAsByte<ERecastPartitioning::Type> RegionPartitioning;
@@ -827,6 +839,10 @@ class ARecastNavMesh : public ANavigationData
 	UPROPERTY(config)
 	float DefaultMaxHierarchicalSearchNodes;
 
+	/** filtering methode used for filtering ledge slopes */
+	UPROPERTY(EditAnywhere, Category=Generation, config, AdvancedDisplay)
+	ENavigationLedgeSlopeFilterMode LedgeSlopeFilterMode;
+	
 	/** partitioning method for creating navmesh polys */
 	UPROPERTY(EditAnywhere, Category=Generation, config, AdvancedDisplay)
 	TEnumAsByte<ERecastPartitioning::Type> RegionPartitioning;
