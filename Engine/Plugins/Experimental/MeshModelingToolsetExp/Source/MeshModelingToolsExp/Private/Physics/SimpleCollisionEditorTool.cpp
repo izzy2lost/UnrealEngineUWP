@@ -163,6 +163,11 @@ void USimpleCollisionEditorTool::OnShutdown(EToolShutdownType ShutdownType)
 		}
 		else if (UDynamicMeshComponent* DynamicMeshComponent = Cast<UDynamicMeshComponent>(Component))
 		{
+			DynamicMeshComponent->Modify();
+			if (UBodySetup* BodySetup = DynamicMeshComponent->GetBodySetup())
+			{
+				BodySetup->Modify();
+			}
 			DynamicMeshComponent->SetSimpleCollisionShapes(PhysicsInfos->AggGeom, true);
 			DynamicMeshComponent->MarkRenderStateDirty();
 		}

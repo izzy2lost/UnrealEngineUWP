@@ -549,6 +549,11 @@ void USetCollisionGeometryTool::OnShutdown(EToolShutdownType ShutdownType)
 		}
 		else if (UDynamicMeshComponent* DynamicMeshComponent = Cast<UDynamicMeshComponent>(Component))
 		{
+			DynamicMeshComponent->Modify();
+			if (UBodySetup* BodySetup = DynamicMeshComponent->GetBodySetup())
+			{
+				BodySetup->Modify();
+			}
 			DynamicMeshComponent->CollisionType = (ECollisionTraceFlag)(int32)Settings->SetCollisionType;
 			DynamicMeshComponent->SetSimpleCollisionShapes(GeneratedCollision->AggGeom, true);		
 			DynamicMeshComponent->MarkRenderStateDirty();
