@@ -21,6 +21,7 @@
 #include "GeometryCollection/GeometryCollectionUtility.h"
 #include "GeometryCollection/Facades/CollectionAnchoringFacade.h"
 #include "GeometryCollection/Facades/CollectionHierarchyFacade.h"
+#include "GeometryCollection/GeometryCollectionSimulationTypes.h"
 #include "PhysicsProxy/GeometryCollectionPhysicsProxy.h"
 
 #include UE_INLINE_GENERATED_CPP_BY_NAME(SGeometryCollectionOutliner)
@@ -71,19 +72,21 @@ void FGeometryCollectionTreeItem::GenerateContextMenu(UToolMenu* Menu, SGeometry
 	StateSection.AddSubMenu("FractureToolSetInitialDynamicStateMenu", NSLOCTEXT("Fracture", "FractureToolSetInitialDynamicStateMenu", "Initial Dynamic State"), FText(),
 		FNewToolMenuDelegate::CreateLambda([&Outliner](UToolMenu* Menu)
 		{
-			const FName MenuEntryNames[] =
+			constexpr int32 MenuEntryNamesCount = 3;
+			const TPair<FName, EObjectStateTypeEnum> MenuEntryNameState[MenuEntryNamesCount] =
 			{
-				"NoOverride"
-				"Sleeping",
-				"Kinematic",
-				"Static"
+				{"NoOverride",EObjectStateTypeEnum::Chaos_NONE},
+				// Note: Sleeping state intentionally skipped here, as it's not a valid initial state
+				{"Kinematic",EObjectStateTypeEnum::Chaos_Object_Kinematic},
+				{"Static",EObjectStateTypeEnum::Chaos_Object_Static}
 			};
-			const int32 MenuEntryNamesCount = sizeof(MenuEntryNames) / sizeof(FName);
 
 			FToolMenuSection& StateSection = Menu->AddSection("State");
 			for (int32 Index = 0; Index < MenuEntryNamesCount; ++Index)
 			{
-				StateSection.AddMenuEntry(MenuEntryNames[Index], GetTextFromInitialDynamicState(Index), FText(), FSlateIcon(), FUIAction(FExecuteAction::CreateRaw(&Outliner, &SGeometryCollectionOutliner::SetInitialDynamicState, Index)));
+				int32 State = (int32)MenuEntryNameState[Index].Value;
+				StateSection.AddMenuEntry(MenuEntryNameState[Index].Key, GetTextFromInitialDynamicState(State), FText(), FSlateIcon(),
+					FUIAction(FExecuteAction::CreateRaw(&Outliner, &SGeometryCollectionOutliner::SetInitialDynamicState, State)));
 			}
 		}));
 
