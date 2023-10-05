@@ -1815,7 +1815,7 @@ void FAssetDataDiscovery::GetDiagnostics(float& OutCumulativeDiscoveryTime)
 }
 
 
-void FAssetDataDiscovery::WaitForIdle()
+void FAssetDataDiscovery::WaitForIdle(double EndTimeSeconds)
 {
 	if (bIsIdle)
 	{
@@ -1838,13 +1838,30 @@ void FAssetDataDiscovery::WaitForIdle()
 		}
 		else
 		{
-			FPlatformProcess::Sleep(IdleSleepTime);
+			float SleepTime = IdleSleepTime;
+			if (EndTimeSeconds > 0)
+			{
+				SleepTime = FMath::Min(SleepTime, static_cast<float>(EndTimeSeconds - FPlatformTime::Seconds()));
+			}
+			if (SleepTime > 0.f)
+			{
+				FPlatformProcess::Sleep(SleepTime);
+			}
+		}
+		if (EndTimeSeconds > 0 && FPlatformTime::Seconds() > EndTimeSeconds)
+		{
+			break;
 		}
 	}
 	if (bTickOwner)
 	{
 		TickOwner.ReleaseOwnershipChecked(TreeLock);
 	}
+}
+
+bool FAssetDataDiscovery::IsIdle() const
+{
+	return bIsIdle;
 }
 
 FPathExistence::FPathExistence(FStringView InLocalAbsPath)
@@ -3211,6 +3228,8 @@ FAssetDataGatherer::FAssetDataGatherer(const TArray<FString>& InLongPackageNames
 {
 	using namespace UE::AssetDataGather::Private;
 
+	TickInternalBatchSize = FMath::Max(1, FTaskGraphInterface::Get().GetNumWorkerThreads()) * AssetDataGathererConstants::SingleThreadFilesPerBatch;
+
 	GPreloadSettings.Initialize();
 	bGatherAssetPackageData = GIsEditor || GPreloadSettings.IsForceDependsGathering();
 	bGatherDependsData = GPreloadSettings.IsGatherDependsData();
@@ -3297,30 +3316,33 @@ bool FAssetDataGatherer::Init()
 uint32 FAssetDataGatherer::Run()
 {
 	constexpr float IdleSleepTime = 0.1f;
+	constexpr float PausedSleepTime = 0.005f;
 	LLM_SCOPE(ELLMTag::AssetRegistry);
 
 	while (!IsStopped)
 	{
-		InnerTickLoop(false /* bInSynchronousTick */, true /* bContributeToCacheSave */);
+		InnerTickLoop(false /* bInSynchronousTick */, true /* bContributeToCacheSave */, -1. /* EndTimeSeconds */);
 
 		for (;;)
 		{
+			bool bLocalIdle = false;
 			{
 				FGathererScopeLock ResultsScopeLock(&ResultsLock); // bIsIdle requires the lock
 				if (IsStopped || bSaveAsyncCacheTriggered || (!IsPaused && !bIsIdle))
 				{
 					break;
 				}
+				bLocalIdle = bIsIdle;
 			}
 			// No work to do. Sleep for a little and try again later.
 			// TODO: Need IsPaused to be a condition variable so we avoid sleeping while waiting for it and then taking a long time to wake after it is unset.
-			FPlatformProcess::Sleep(IdleSleepTime);
+			FPlatformProcess::Sleep(bLocalIdle ? IdleSleepTime : PausedSleepTime);
 		}
 	}
 	return 0;
 }
 
-void FAssetDataGatherer::InnerTickLoop(bool bInSynchronousTick, bool bContributeToCacheSave)
+void FAssetDataGatherer::InnerTickLoop(bool bInSynchronousTick, bool bContributeToCacheSave, double EndTimeSeconds)
 {
 	using namespace UE::AssetDataGather::Private;
 
@@ -3335,11 +3357,61 @@ void FAssetDataGatherer::InnerTickLoop(bool bInSynchronousTick, bool bContribute
 		FGathererScopeLock RunScopeLock(&TickLock);
 		TGuardValue<bool> ScopeSynchronousTick(bSynchronousTick, bInSynchronousTick);
 		TRACE_CPUPROFILER_EVENT_SCOPE(FAssetDataGatherer::Tick);
-		bool bTickInterruptionEvent = false;
 		double TickStartTime = FPlatformTime::Seconds();
-		while (!IsStopped && (bInSynchronousTick || !IsPaused) && !bTickInterruptionEvent)
+		bool bPollDiscovery = true;
+		constexpr float PollDiscoveryPeriodSeconds = .005f;
+		double LastPollTimeSeconds = 0;
+
+		for (;;)
 		{
-			TickInternal(bTickInterruptionEvent, TickStartTime);
+			ETickResult TickResult = TickInternal(TickStartTime, bPollDiscovery);
+			if (EndTimeSeconds > 0. && FPlatformTime::Seconds() > EndTimeSeconds)
+			{
+				break;
+			}
+			if (IsStopped || (!bInSynchronousTick && IsPaused))
+			{
+				break;
+			}
+			if (TickResult != ETickResult::KeepTicking && TickResult != ETickResult::PollDiscovery)
+			{
+				break;
+			}
+			double CurrentTimeSeconds = FPlatformTime::Seconds();
+			if (bPollDiscovery)
+			{
+				LastPollTimeSeconds = CurrentTimeSeconds;
+			}
+			if (TickResult == ETickResult::KeepTicking)
+			{
+				// Poll discovery every so often to reduce super-linear costs
+				bPollDiscovery =
+					static_cast<float>(CurrentTimeSeconds - LastPollTimeSeconds) > PollDiscoveryPeriodSeconds;
+			}
+			else if (!bPollDiscovery)
+			{
+				bPollDiscovery = true;
+			}
+			else
+			{
+				// We just polled discovery; go to sleep to wait for the discovery thread rather than busy-spinning and
+				// causing contention on its critical section
+				float SleepTimeSeconds = PollDiscoveryPeriodSeconds;
+				if (EndTimeSeconds > 0.)
+				{
+					SleepTimeSeconds = FMath::Min(SleepTimeSeconds,
+						static_cast<float>(EndTimeSeconds - CurrentTimeSeconds));
+				}
+				if (SleepTimeSeconds > 0.f)
+				{
+					if (TickStartTime >= 0.)
+					{
+						CurrentSearchTime += CurrentTimeSeconds - TickStartTime;
+					}
+					FPlatformProcess::Sleep(SleepTimeSeconds);
+					TickStartTime = FPlatformTime::Seconds();
+				}
+			}
 		}
 		if (TickStartTime >= 0.)
 		{
@@ -3505,13 +3577,10 @@ void FAssetDataGatherer::EnsureCompletion()
 	}
 }
 
-void FAssetDataGatherer::TickInternal(bool& bOutIsTickInterrupt, double& TickStartTime)
+FAssetDataGatherer::ETickResult FAssetDataGatherer::TickInternal(double& TickStartTime, bool bPollDiscovery)
 {
-	LLM_SCOPE(ELLMTag::AssetRegistry);
-
 	using namespace UE::AssetDataGather::Private;
 
-	const int32 BatchSize = FMath::Max(1, FTaskGraphInterface::Get().GetNumWorkerThreads()) * AssetDataGathererConstants::SingleThreadFilesPerBatch;
 	typedef TInlineAllocator<AssetDataGathererConstants::ExpectedMaxBatchSize> FBatchInlineAllocator;
 
 	TArray<FGatheredPathData, FBatchInlineAllocator> LocalFilesToSearch;
@@ -3524,7 +3593,7 @@ void FAssetDataGatherer::TickInternal(bool& bOutIsTickInterrupt, double& TickSta
 	bool bLocalIsCacheWriteEnabled = false;
 	double LocalLastCacheWriteTime = 0.0;
 	bool bWaitBatchCountDecremented = false;
-	bOutIsTickInterrupt = false;
+	ETickResult TickResult = ETickResult::KeepTicking;
 
 	{
 		FGathererScopeLock ResultsScopeLock(&ResultsLock);
@@ -3535,7 +3604,10 @@ void FAssetDataGatherer::TickInternal(bool& bOutIsTickInterrupt, double& TickSta
 			LastCacheWriteTime = FPlatformTime::Seconds();
 		}
 
-		IngestDiscoveryResults();
+		if (bPollDiscovery)
+		{
+			IngestDiscoveryResults();
+		}
 		if (bInitialPluginsLoaded && !bFlushedRetryFiles)
 		{
 			bFlushedRetryFiles = true;
@@ -3543,19 +3615,22 @@ void FAssetDataGatherer::TickInternal(bool& bOutIsTickInterrupt, double& TickSta
 		}
 
 		// Take a batch off of the work list. If we're waiting only on the first WaitBatchCount results don't take more than that
-		int32 NumToProcess = FMath::Min<int32>(BatchSize-LocalFilesToSearch.Num(), FilesToSearch->GetNumAvailable());
+		int32 NumToProcess = FMath::Min<int32>(TickInternalBatchSize - LocalFilesToSearch.Num(), FilesToSearch->GetNumAvailable());
 		// If no work is available mark idle and exit
 		if (NumToProcess == 0)
 		{
 			if (WaitBatchCount != -1)
 			{
 				WaitBatchCount = -1; // WaitBatchCount was set higher than FilesToSearch->GetNumAvailable(), mark it completed
-				bOutIsTickInterrupt = true;
+				TickResult = ETickResult::Interrupt;
 			}
 
 			if (bDiscoveryIsComplete)
 			{
-				bOutIsTickInterrupt = true;
+				if (TickResult == ETickResult::KeepTicking)
+				{
+					TickResult = ETickResult::Idle;
+				}
 				const bool bWasInitialDiscoveryFinished = bFinishedInitialDiscovery;
 				SetIsIdle(true, TickStartTime);
 				if (!bWasInitialDiscoveryFinished && bFinishedInitialDiscovery)
@@ -3564,7 +3639,12 @@ void FAssetDataGatherer::TickInternal(bool& bOutIsTickInterrupt, double& TickSta
 					bSaveAsyncCacheTriggered = true;
 				}
 			}
-			return;
+			else if (TickResult == ETickResult::KeepTicking)
+			{
+				TickResult = ETickResult::PollDiscovery;
+			}
+
+			return TickResult;
 		}
 
 		if (WaitBatchCount >= 0)
@@ -3574,8 +3654,7 @@ void FAssetDataGatherer::TickInternal(bool& bOutIsTickInterrupt, double& TickSta
 				// We've finished executing the caller's requested batchcount (and we have restored idle if we
 				// are idle), so exit now without doing any further work.
 				WaitBatchCount = -1;
-				bOutIsTickInterrupt = true;
-				return;
+				return ETickResult::Interrupt;
 			}
 
 			// Otherwise we still have some work to do for the caller's requested batchcount, so do work up to
@@ -3587,7 +3666,7 @@ void FAssetDataGatherer::TickInternal(bool& bOutIsTickInterrupt, double& TickSta
 			{
 				// Mark that WaitBatchCount has been consumed and is no longer active
 				WaitBatchCount = -1;
-				bOutIsTickInterrupt = true;
+				TickResult = ETickResult::Interrupt;
 			}
 		}
 		DependencyResults.Reserve(FilesToSearch->GetNumAvailable() + DependencyResults.Num());
@@ -3844,9 +3923,10 @@ void FAssetDataGatherer::TickInternal(bool& bOutIsTickInterrupt, double& TickSta
 			&& NumAssetsReadSinceLastCacheWrite >= AssetDataGathererConstants::MinAssetReadsBeforeCacheWrite)
 		{
 			bSaveAsyncCacheTriggered = true;
-			bOutIsTickInterrupt = true;
+			TickResult = ETickResult::Interrupt;
 		}
 	}
+	return TickResult;
 }
 
 void FAssetDataGatherer::IngestDiscoveryResults()
@@ -4122,6 +4202,8 @@ void FAssetDataGatherer::ScanPathsSynchronous(const TArray<FString>& InLocalPath
 void FAssetDataGatherer::WaitOnPathsInternal(TArrayView<UE::AssetDataGather::Private::FPathExistence> QueryPaths,
 	const FString& SaveCacheFilename, const TArray<FString>& SaveCacheLongPackageNameDirs)
 {
+	LLM_SCOPE(ELLMTag::AssetRegistry);
+
 	// Request a halt to the async tick
 	FScopedPause ScopedPause(*this);
 	CHECK_IS_NOT_LOCKED_CURRENT_THREAD(ResultsLock);
@@ -4148,7 +4230,7 @@ void FAssetDataGatherer::WaitOnPathsInternal(TArrayView<UE::AssetDataGather::Pri
 	TRACE_CPUPROFILER_EVENT_SCOPE(FAssetDataGatherer::Tick);
 	for (;;)
 	{
-		InnerTickLoop(true /* bInSynchronousTick */, bContributeToCacheSave);
+		InnerTickLoop(true /* bInSynchronousTick */, bContributeToCacheSave, -1. /* EndTimeSeconds */);
 		FGathererScopeLock ResultsScopeLock(&ResultsLock); // WaitBatchCount requires the lock
 		if (WaitBatchCount < 0)
 		{
@@ -4173,7 +4255,7 @@ void FAssetDataGatherer::WaitOnPathsInternal(TArrayView<UE::AssetDataGather::Pri
 	}
 }
 
-void FAssetDataGatherer::WaitForIdle()
+void FAssetDataGatherer::WaitForIdle(float TimeoutSeconds)
 {
 	{
 		FGathererScopeLock ResultsScopeLock(&ResultsLock);
@@ -4183,7 +4265,22 @@ void FAssetDataGatherer::WaitForIdle()
 		}
 	}
 	TRACE_CPUPROFILER_EVENT_SCOPE_STR("FAssetDataGatherer::WaitForIdle");
-	Discovery->WaitForIdle();
+	LLM_SCOPE(ELLMTag::AssetRegistry);
+
+	double EndTimeSeconds = -1.;
+	if (TimeoutSeconds >= 0.0f)
+	{
+		EndTimeSeconds = FPlatformTime::Seconds() + TimeoutSeconds;
+	}
+	if (Discovery->IsSynchronous())
+	{
+		Discovery->WaitForIdle(EndTimeSeconds);
+		if (EndTimeSeconds > 0. && FPlatformTime::Seconds() > EndTimeSeconds)
+		{
+			return;
+		}
+	}
+
 	CHECK_IS_NOT_LOCKED_CURRENT_THREAD(ResultsLock);
 
 	// Request a halt to the async tick
@@ -4191,7 +4288,11 @@ void FAssetDataGatherer::WaitForIdle()
 	// Tick until idle
 	for (;;)
 	{
-		InnerTickLoop(true /* bInSynchronousTick */, true /* bContributeToCacheSave */);
+		InnerTickLoop(true /* bInSynchronousTick */, true /* bContributeToCacheSave */, EndTimeSeconds);
+		if (EndTimeSeconds > 0 && FPlatformTime::Seconds() > EndTimeSeconds)
+		{
+			break;
+		}
 		FGathererScopeLock ResultsScopeLock(&ResultsLock); // bIsIdle requires the lock
 		if (bIsIdle)
 		{

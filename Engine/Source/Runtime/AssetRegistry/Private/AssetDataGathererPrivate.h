@@ -604,7 +604,9 @@ public:
 	/** Get diagnostics for telemetry or logging. */
 	void GetDiagnostics(float& OutCumulativeDiscoveryTime);
 	/** Wait (joining in on the tick) until all currently monitored paths have been scanned. */
-	void WaitForIdle();
+	void WaitForIdle(double EndTimeSeconds);
+	bool IsIdle() const;
+
 	/** Optionally set some scan properties for the given paths and then wait for their scans to finish. */
 	void SetPropertiesAndWait(TArrayView<FPathExistence> QueryPaths, bool bAddToAllowList, bool bForceRescan,
 		bool bIgnoreDenyListScanFilters);

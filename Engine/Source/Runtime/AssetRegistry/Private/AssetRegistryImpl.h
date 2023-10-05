@@ -189,6 +189,8 @@ public:
 
 	/** Waits for the gatherer to be idle if it is operating synchronously. */
 	void WaitForGathererIdleIfSynchronous();
+	/** Waits for the gatherer to be idle. */
+	void WaitForGathererIdle(float TimeoutSeconds);
 	/** Callback type for TickGatherer */
 	typedef TFunctionRef<void(const TMultiMap<FName, FAssetData*>&)> FAssetsFoundCallback;
 	/** Consume any results from the gatherer and return its status */

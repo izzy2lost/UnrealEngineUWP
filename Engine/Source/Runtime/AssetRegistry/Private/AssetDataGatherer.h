@@ -161,7 +161,7 @@ public:
 	void ScanPathsSynchronous(const TArray<FString>& InPaths, bool bForceRescan, bool bIgnoreDenyListScanFilters,
 		const FString& SaveCacheFilename, const TArray<FString>& SaveCacheLongPackageNameDirs);
 	/** Wait for all monitored assets to be added to search results. */
-	void WaitForIdle();
+	void WaitForIdle(float TimeoutSeconds = -1.0f);
 	/**
 	 * Report whether all monitored assets have been added to search results, AND these results have been gathered
 	 * through a GetAndTrimSearchResults call.
@@ -240,17 +240,23 @@ public:
 		FPackageReader::EReadOptions Options);
 
 private:
-
+	enum class ETickResult
+	{
+		KeepTicking,
+		PollDiscovery,
+		Idle,
+		Interrupt,
+	};
 	/**
 	 * Helper function to run the tick in a loop-within-a-loop to minimize critical section entry, and to move expensive
 	 * operations out of the critical section
 	 */
-	void InnerTickLoop(bool bInSynchronousTick, bool bContributeToCacheSave);
+	void InnerTickLoop(bool bInSynchronousTick, bool bContributeToCacheSave, double EndTimeSeconds);
 	/**
 	 * Tick function to pump scanning and push results into the search results structure. May be called from devoted
 	 * thread or inline from synchronous functions on other threads.
 	 */
-	void TickInternal(bool& bOutIsIdle, double& TickStartTime);
+	ETickResult TickInternal(double& TickStartTime, bool bPollDiscovery);
 	/** Add any new package files from the background directory scan to our work list **/
 	void IngestDiscoveryResults();
 
@@ -370,6 +376,8 @@ private:
 	 * If null, results will only be added when Wait functions are called. Constant during threading.
 	 */
 	FRunnableThread* Thread;
+	int32 TickInternalBatchSize = 1;
+
 	/**
 	 * True if async gathering is enabled, false if e.g. singlethreaded or disabled by commandline.
  	 * Even when enabled, gathering is still synchronous until StartAsync is called.

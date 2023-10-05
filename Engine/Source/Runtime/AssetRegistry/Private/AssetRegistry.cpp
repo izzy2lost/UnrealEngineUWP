@@ -1680,10 +1680,6 @@ void UAssetRegistryImpl::SearchAllAssets(bool bSynchronousSearch)
 			GuardedData.ConditionalLoadPremadeAssetRegistry(*this, EventContext, InterfaceScopeLock);
 		}
 		GuardedData.SearchAllAssets(EventContext, InheritanceContext, bSynchronousSearch);
-		if (bSynchronousSearch)
-		{
-			GuardedData.LogSearchDiagnostics(StartTime);
-		}
 	}
 #if WITH_EDITOR
 	if (bSynchronousSearch)
@@ -1763,6 +1759,19 @@ void UAssetRegistryImpl::WaitForCompletion()
 
 	using namespace UE::AssetRegistry::Impl;
 
+	// Try taking over the gather thread for a short time in case it is mostly done.
+	// But if it has more than a small amount of work to do, let the gather thread do that work
+	// while we consume the results in parallel.
+	{
+		LLM_SCOPE(ELLMTag::AssetRegistry);
+		FWriteScopeLock InterfaceScopeLock(InterfaceLock);
+		FClassInheritanceContext InheritanceContext;
+		FClassInheritanceBuffer InheritanceBuffer;
+		GetInheritanceContextWithRequiredLock(InterfaceScopeLock, InheritanceContext, InheritanceBuffer);
+		constexpr float TimeToJoinSeconds = 0.100f;
+		GuardedData.WaitForGathererIdle(TimeToJoinSeconds);
+	}
+
 	for (;;)
 	{
 		FEventContext EventContext;
@@ -1789,7 +1798,9 @@ void UAssetRegistryImpl::WaitForCompletion()
 		}
 
 		FThreadHeartBeat::Get().HeartBeat();
-		FPlatformProcess::SleepNoStats(0.0001f);
+		// Sleep long enough to avoid causing contention on the CriticalSection in GetAndTrimSearchResults
+		constexpr float SleepTimeSeconds = 0.010f;
+		FPlatformProcess::SleepNoStats(SleepTimeSeconds);
 	}
 }
 
@@ -4153,6 +4164,14 @@ void FAssetRegistryImpl::WaitForGathererIdleIfSynchronous()
 	if (GlobalGatherer && GlobalGatherer->IsSynchronous())
 	{
 		GlobalGatherer->WaitForIdle();
+	}
+}
+
+void FAssetRegistryImpl::WaitForGathererIdle(float TimeoutSeconds)
+{
+	if (GlobalGatherer)
+	{
+		GlobalGatherer->WaitForIdle(TimeoutSeconds);
 	}
 }
 
