@@ -48,11 +48,13 @@
 #include "Sections/MovieSceneBoolSection.h"
 #include "Sections/MovieSceneColorSection.h"
 #include "Sections/MovieSceneFloatSection.h"
+#include "Sections/MovieSceneVisibilitySection.h"
 #include "Tracks/MovieScene3DTransformTrack.h"
 #include "Tracks/MovieSceneBoolTrack.h"
 #include "Tracks/MovieSceneColorTrack.h"
 #include "Tracks/MovieSceneFloatTrack.h"
 #include "Tracks/MovieScenePropertyTrack.h"
+#include "Tracks/MovieSceneVisibilityTrack.h"
 
 #if USE_USD_SDK
 
@@ -575,6 +577,75 @@ bool UsdToUnreal::ConvertBoolTimeSamples( const UE::FUsdStage& Stage, const TArr
 	}
 
 	Section->SetRange( Section->GetAutoSizeRange().Get( TRange<FFrameNumber>::Empty() ) );
+
+	return true;
+}
+
+bool UsdToUnreal::ConvertBoolTimeSamples(const UE::FUsdStage& Stage, const TArray<double>& UsdTimeSamples, const TFunction<bool(double)>& ReaderFunc, UMovieSceneVisibilityTrack& MovieSceneTrack, const FMovieSceneSequenceTransform& SequenceTransform)
+{
+	if (!ReaderFunc)
+	{
+		return false;
+	}
+
+	const UMovieScene* MovieScene = MovieSceneTrack.GetTypedOuter< UMovieScene >();
+	if (!MovieScene)
+	{
+		return false;
+	}
+
+	const FFrameRate Resolution = MovieScene->GetTickResolution();
+	const FFrameRate DisplayRate = MovieScene->GetDisplayRate();
+
+	FScopedUsdAllocs Allocs;
+
+	pxr::UsdStageRefPtr UsdStage{ Stage };
+	FUsdStageInfo StageInfo{ Stage };
+
+	TArray< FFrameNumber > FrameNumbers;
+	FrameNumbers.Reserve(UsdTimeSamples.Num());
+
+	TArray< bool > SectionValues;
+	SectionValues.Reserve(UsdTimeSamples.Num());
+
+	const double StageTimeCodesPerSecond = UsdStage->GetTimeCodesPerSecond();
+	const FFrameRate StageFrameRate(StageTimeCodesPerSecond, 1);
+
+	double LastTimeSample = TNumericLimits<double>::Lowest();
+	for (const double UsdTimeSample : UsdTimeSamples)
+	{
+		// We never want to evaluate the same time twice
+		if (FMath::IsNearlyEqual(UsdTimeSample, LastTimeSample))
+		{
+			continue;
+		}
+		LastTimeSample = UsdTimeSample;
+
+		int32 FrameNumber = FMath::FloorToInt(UsdTimeSample);
+		float SubFrameNumber = UsdTimeSample - FrameNumber;
+
+		FFrameTime FrameTime(FrameNumber, SubFrameNumber);
+
+		FFrameTime KeyFrameTime = FFrameRate::TransformTime(FrameTime, StageFrameRate, Resolution);
+		KeyFrameTime *= SequenceTransform;
+		FrameNumbers.Add(KeyFrameTime.GetFrame());
+
+		bool UEValue = ReaderFunc(UsdTimeSample);
+		SectionValues.Emplace_GetRef(UEValue);
+	}
+
+	bool bSectionAdded = false;
+	UMovieSceneVisibilitySection* Section = Cast< UMovieSceneVisibilitySection >(MovieSceneTrack.FindOrAddSection(0, bSectionAdded));
+	Section->EvalOptions.CompletionMode = EMovieSceneCompletionMode::KeepState;
+
+	TMovieSceneChannelData<bool> Data = Section->GetChannel().GetData();
+	Data.Reset();
+	for (int32 KeyIndex = 0; KeyIndex < FrameNumbers.Num(); ++KeyIndex)
+	{
+		Data.AddKey(FrameNumbers[KeyIndex], SectionValues[KeyIndex]);
+	}
+
+	Section->SetRange(Section->GetAutoSizeRange().Get(TRange<FFrameNumber>::Empty()));
 
 	return true;
 }
