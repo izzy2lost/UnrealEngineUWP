@@ -2333,7 +2333,7 @@ void FPhysicsAssetEditor::ResetBoneCollision()
 
 				UBoneProxy* BoneProxy = CastChecked<UBoneProxy>(BoneItem->GetObject());
 
-				int32 BoneIndex = SharedData->EditorSkelComp->GetBoneIndex(BoneProxy->BoneName);
+				const int32 BoneIndex = EditorSkelMesh->GetRefSkeleton().FindBoneIndex(BoneProxy->BoneName);
 				if (BoneIndex != INDEX_NONE)
 				{
 					SharedData->MakeNewBody(BoneIndex);
