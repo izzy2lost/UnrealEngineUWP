@@ -710,7 +710,7 @@ namespace Chaos
 			{
 				if(InnerType == ImplicitObjectType::Convex)
 				{
-					ShapeColor = bHasConvexOptimizer ? FColor::Green : Particle->GetGeometry()->IsUnderlyingUnion() ? FColor::Blue : FColor::Orange;
+					ShapeColor = bHasConvexOptimizer ? FColor::Green : FColor::Orange;
 				}
 				else
 				{
