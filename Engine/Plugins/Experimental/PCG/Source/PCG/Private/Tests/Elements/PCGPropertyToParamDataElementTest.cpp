@@ -52,7 +52,7 @@ bool VerifyAttributeValue(FPCGTestBaseClass* TestInstance, PCGTestsCommon::FTest
 
 	Settings->PropertyName = PropertyName;
 	Settings->OutputAttributeName = AttributeNames[0];
-	Settings->bExtractObjectAndStruct = AttributeNames.Num() > 1;
+	Settings->bForceObjectAndStructExtraction = AttributeNames.Num() > 1;
 
 	// Add 2 nodes, PropertyToParamDataNode and a Trivial node (just there for the connection)
 	UPCGNode* TestNode = TestData.TestPCGComponent->GetGraph()->AddNode(Settings);
@@ -286,7 +286,7 @@ bool FPCGPropertyToParamDataPropertyTypeTest::RunTest(const FString& Parameters)
 	bSuccess &= VerifyAttributeValueInvalid(this, TestData, GET_MEMBER_NAME_CHECKED(APCGUnitTestDummyActor, ColorProperty), ColorValue, ExtraTestWhat);
 
 	// Unknown property
-	AddExpectedError(TEXT("Property 'DummyMissingProperty' does not exist in the found actor"), EAutomationExpectedErrorFlags::Contains, 1);
+	AddExpectedError(TEXT("Property 'DummyMissingProperty' does not exist"), EAutomationExpectedErrorFlags::Contains, 1);
 	bSuccess &= VerifyAttributeValueInvalid(this, TestData, TEXT("DummyMissingProperty"), 42, ExtraTestWhat);
 
 	// Missing property

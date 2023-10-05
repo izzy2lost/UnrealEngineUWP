@@ -4,18 +4,12 @@
 
 #include "PCGComponent.h"
 #include "PCGContext.h"
-#include "PCGEdge.h"
 #include "PCGGraph.h"
-#include "PCGNode.h"
 #include "PCGParamData.h"
 #include "PCGPin.h"
 #include "PCGSubgraph.h"
 #include "Data/PCGUserParametersData.h"
-#include "Metadata/PCGMetadata.h"
-#include "Metadata/PCGMetadataAttributeTpl.h"
-#include "Metadata/Accessors/IPCGAttributeAccessor.h"
-#include "Metadata/Accessors/PCGAttributeAccessorHelpers.h"
-#include "Metadata/Accessors/PCGAttributeAccessorKeys.h"
+#include "Helpers/PCGPropertyHelpers.h"
 
 #include "PropertyBag.h"
 #include "StructView.h"
@@ -155,6 +149,7 @@ bool FPCGUserParameterGetElement::ExecuteInternal(FPCGContext* Context) const
 
 	FConstStructView Parameters = PCGUserParameterGetSettings::GetFirstValidLayout(*Context);
 	const UScriptStruct* PropertyBag = Parameters.GetScriptStruct();
+
 	const FProperty* Property = PropertyBag ? PropertyBag->FindPropertyByName(PropertyName) : nullptr;
 
 	if (!Property)
@@ -163,35 +158,13 @@ bool FPCGUserParameterGetElement::ExecuteInternal(FPCGContext* Context) const
 		return true;
 	}
 
-	TUniquePtr<IPCGAttributeAccessor> PropertyAccessor = PCGAttributeAccessorHelpers::CreatePropertyAccessor(Property);
+	PCGPropertyHelpers::FExtractorParameters ExtractorParameters{ Parameters.GetMemory(), PropertyBag, PropertyName, PropertyName, Settings->bForceObjectAndStructExtraction, /*bPropertyNeedsToBeVisible=*/false };
 
-	if (!PropertyAccessor)
+	if (UPCGParamData* ParamData = PCGPropertyHelpers::ExtractPropertyAsAttributeSet(ExtractorParameters, Context))
 	{
-		// TODO: Should not happen when we have a working filter on the Property types.
-		PCGE_LOG(Error, GraphAndLog, FText::Format(LOCTEXT("InvalidType", "Parameter '{0}' type is unsupported by metadata. Available types are the ones you can find in the Create Attribute node"), FText::FromName(PropertyName)));
-		return true;
+		Context->OutputData.TaggedData.Emplace_GetRef().Data = ParamData;
 	}
 
-	const FPCGAttributeAccessorKeysSingleObjectPtr PropertyAccessorKey(Parameters.GetMemory());
-
-	UPCGParamData* NewParamData = NewObject<UPCGParamData>();
-	check(NewParamData && NewParamData->Metadata);
-	PCGMetadataEntryKey NewEntry = NewParamData->Metadata->AddEntry();
-
-	auto CreateAndSet = [&PropertyAccessor, &PropertyAccessorKey, PropertyName, NewEntry, Metadata = NewParamData->Metadata](auto&& Dummy)
-	{
-		using AttributeType = std::decay_t<decltype(Dummy)>;
-
-		AttributeType Value{};
-		PropertyAccessor->Get<AttributeType>(Value, PropertyAccessorKey);
-
-		FPCGMetadataAttribute<AttributeType>* Attribute = Metadata->CreateAttribute<AttributeType>(PropertyName, Value, /*bAllowInterpolation=*/true, /*bOverrideParent=*/false);
-		Attribute->SetValue(NewEntry, Value);
-	};
-
-	PCGMetadataAttribute::CallbackWithRightType(PropertyAccessor->GetUnderlyingType(), CreateAndSet);
-
-	Context->OutputData.TaggedData.Emplace_GetRef().Data = NewParamData;
 	return true;
 }
 

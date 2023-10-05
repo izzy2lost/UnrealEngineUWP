@@ -143,10 +143,6 @@ void FPCGOverrideInstancedPropertyBagDataDetails::OnChildRowAdded(IDetailPropert
 	FDetailWidgetRow Row;
 	ChildRow.GetDefaultWidgets(NameWidget, ValueWidget, Row);
 
-	FGuid PropertyID;
-
-	const bool bIsOverridden = Owner->IsPropertyOverridden(ChildPropertyHandle->GetProperty());
-
 	ChildRow
 	.CustomWidget(/*bShowChildren*/true)
 	.NameContent()
@@ -171,30 +167,6 @@ void FPCGOverrideInstancedPropertyBagDataDetails::OnChildRowAdded(IDetailPropert
 				})
 				.Image(FAppStyle::GetBrush("Icons.Error"))
 			]
-		]
-		// Override 
-		+ SHorizontalBox::Slot()
-		.AutoWidth()
-		[
-			SNew(SCheckBox)
-			.IsChecked_Lambda([this, ChildPropertyHandle]()
-			{
-				return (Owner.IsValid() && Owner->IsPropertyOverridden(ChildPropertyHandle->GetProperty())) ? ECheckBoxState::Checked : ECheckBoxState::Unchecked;
-			})
-			.OnCheckStateChanged_Lambda([this, ValueWidget, ChildPropertyHandle](ECheckBoxState NewState)
-			{
-				PropertiesIDsOverriddenHandle->NotifyPreChange();
-
-				FScopedTransaction Transaction(FText::Format(LOCTEXT("OnCheckStateChanged", "Change Override for {0}"), FText::FromName(ChildPropertyHandle->GetProperty()->GetFName())));
-				const bool bIsOverridden = NewState == ECheckBoxState::Checked;
-				if (Owner.IsValid())
-				{
-					Owner->UpdatePropertyOverride(ChildPropertyHandle->GetProperty(), bIsOverridden);
-				}
-
-				PropertiesIDsOverriddenHandle->NotifyPostChange(EPropertyChangeType::ValueSet);
-			})
-			.IsEnabled_Lambda([this, ChildPropertyHandle]() -> bool { return !IsPropertyOverriddenByPin(ChildPropertyHandle); })
 		]
 		// Name
 		+ SHorizontalBox::Slot()
@@ -224,8 +196,22 @@ void FPCGOverrideInstancedPropertyBagDataDetails::OnChildRowAdded(IDetailPropert
 		]
 	];
 
-	ValueWidget->SetEnabled(TAttribute<bool>::CreateLambda([this, ChildPropertyHandle]() -> bool { return Owner.IsValid() && Owner->IsPropertyOverridden(ChildPropertyHandle->GetProperty()) && !IsPropertyOverriddenByPin(ChildPropertyHandle); }));
-	NameWidget->SetEnabled(TAttribute<bool>::CreateLambda([this, ChildPropertyHandle]() -> bool { return !IsPropertyOverriddenByPin(ChildPropertyHandle); }));
+	// A property is mark overriden if the property is overridden and the property is not overridden by a pin (in the case of a subgraph).
+	TAttribute<bool> EditConditionValue = TAttribute<bool>::CreateLambda([this, ChildPropertyHandle]() -> bool { return Owner.IsValid() && Owner->IsPropertyOverridden(ChildPropertyHandle->GetProperty()) && !IsPropertyOverriddenByPin(ChildPropertyHandle); });
+	FOnBooleanValueChanged OnEditConditionChanged = FOnBooleanValueChanged::CreateLambda([this, ChildPropertyHandle](bool bNewValue)
+	{
+		PropertiesIDsOverriddenHandle->NotifyPreChange();
+
+		FScopedTransaction Transaction(FText::Format(LOCTEXT("OnCheckStateChanged", "Change Override for {0}"), FText::FromName(ChildPropertyHandle->GetProperty()->GetFName())));
+		if (Owner.IsValid())
+		{
+			Owner->UpdatePropertyOverride(ChildPropertyHandle->GetProperty(), bNewValue);
+		}
+
+		PropertiesIDsOverriddenHandle->NotifyPostChange(EPropertyChangeType::ValueSet);
+	});
+
+	ChildRow.EditCondition(std::move(EditConditionValue), std::move(OnEditConditionChanged));
 }
 
 #undef LOCTEXT_NAMESPACE

@@ -27,6 +27,10 @@ public:
 	UPROPERTY()
 	FName PropertyName;
 
+	/** If the property is a struct/object supported by metadata, this option can be toggled to force extracting all (compatible) properties contained in this property. Automatically true if unsupported by metadata. For now, only supports direct child properties (and not deeper). */
+	UPROPERTY(BlueprintReadWrite, EditAnywhere, Category = Settings)
+	bool bForceObjectAndStructExtraction = false;
+	
 	void UpdatePropertyName(FName InNewName);
 
 	//~Begin UPCGSettings interface

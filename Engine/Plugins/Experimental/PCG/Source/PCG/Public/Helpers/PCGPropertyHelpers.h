@@ -12,7 +12,9 @@
 
 enum class EPCGMetadataTypes : uint8;
 
+struct FPCGContext;
 class UPCGData;
+class UPCGParamData;
 
 namespace PCGPropertyHelpers
 {
@@ -42,6 +44,36 @@ namespace PCGPropertyHelpers
 	* @returns PCG type if the property is supported, Unknown otherwise.
 	*/
 	PCG_API EPCGMetadataTypes GetMetadataTypeFromProperty(const FProperty* InProperty);
+
+	struct FExtractorParameters
+	{
+		// Pointer to the container containing the data we want to extract
+		const void* Container = nullptr;
+
+		// Class or ScriptStruct of the object/struct we want to extract the property from.
+		const UStruct* Class = nullptr;
+
+		// Name of the property we want to extract
+		FName PropertyName = NAME_None;
+
+		// Optional name of the attribute that will receive the extracted property. If None, will take the property name. 
+		// Also not used for Structs/Object extraction, as we will create multiple attributes, and they will be the name of all the extracted members.
+		FName OutputAttributeName = NAME_None;
+
+		// If the property we want to extract is an object/struct, give the possibility to extract all their member in one go.
+		// Only work if their members are not structs or containers (like array).
+		bool bShouldExtract = false;
+
+		// Extra flag if the property needs to be visible to be extractable.
+		bool bPropertyNeedsToBeVisible = false;
+	};
+
+	/**
+	* Extract a given property in an Attribute Set.
+	* @param Parameters - Parameters for extaction, cf above.
+	* @prama InOptionalContext - Optional context if the extraction is done in a PCG Node, so errors are using the context to log.
+	*/
+	UPCGParamData* ExtractPropertyAsAttributeSet(const FExtractorParameters& Parameters, FPCGContext* InOptionalContext = nullptr);
 }
 
 //////
