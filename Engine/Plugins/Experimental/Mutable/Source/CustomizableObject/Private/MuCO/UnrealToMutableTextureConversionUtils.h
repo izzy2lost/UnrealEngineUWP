@@ -4,6 +4,8 @@
 
 #if WITH_EDITOR
 
+#include "HAL/Platform.h"
+
 namespace mu
 {
 	class Image;

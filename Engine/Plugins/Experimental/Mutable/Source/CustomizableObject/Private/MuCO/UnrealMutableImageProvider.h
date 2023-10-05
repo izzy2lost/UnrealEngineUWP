@@ -5,6 +5,7 @@
 #include "MuR/Image.h"
 #include "MuR/System.h"
 #include "UObject/GCObject.h"
+#include "Containers/Ticker.h"
 
 #ifdef MUTABLE_USE_NEW_TASKGRAPH
 #include "Tasks/Task.h"
