@@ -23,6 +23,7 @@
 #include "ObjectCacheEventSink.h"
 #include "Engine/SubsurfaceProfile.h"
 #include "Engine/SpecularProfile.h"
+#include "Engine/NeuralProfile.h"
 #include "Interfaces/ITargetPlatform.h"
 #include "Components/PrimitiveComponent.h"
 #include "ContentStreaming.h"
@@ -1331,6 +1332,12 @@ USpecularProfile* UMaterialInterface::GetSpecularProfile_Internal(uint32 Index) 
 	return nullptr;
 }
 
+UNeuralProfile* UMaterialInterface::GetNeuralProfile_Internal() const
+{
+	return nullptr;
+}
+
+
 uint32 UMaterialInterface::NumSpecularProfile_Internal() const
 {
 	return 0u;
@@ -1405,6 +1412,40 @@ void UMaterialInterface::UpdateMaterialRenderProxy(FMaterialRenderProxy& Proxy)
 			}
 			InProxy->SetSubsurfaceProfileRT(LocalSubsurfaceProfile/*, ParameterName */); // how to have a unique identifier?
 		});
+	}
+
+	UMaterial* Material = GetMaterial();
+	if (Material && Material->IsPostProcessMaterial())
+	{
+		struct FEntry
+		{
+			UNeuralProfile* Profile = nullptr;
+			FNeuralProfileStruct Setting;
+			FGuid Guid;
+		};
+		
+		UNeuralProfile* LocalNeuralProfile = GetNeuralProfile_Internal();
+		
+		if (LocalNeuralProfile)
+		{
+			FEntry Entry;
+			Entry.Profile = LocalNeuralProfile;
+			Entry.Setting = LocalNeuralProfile->Settings;
+			Entry.Guid = LocalNeuralProfile->Guid;
+
+			FMaterialRenderProxy* InProxy = &Proxy;
+			ENQUEUE_RENDER_COMMAND(UpdateMaterialRenderProxyNNEModelData)(
+				[LocalNeuralProfile, InProxy, Entry, Material](FRHICommandListImmediate& RHICmdList)
+				{
+					
+					const uint32 AllocationId = NeuralProfile::AddOrUpdateProfile(Entry.Profile, Entry.Guid, Entry.Setting);
+					check(AllocationId >= 0 && AllocationId < MAX_NEURAL_PROFILE_COUNT);
+
+					Material->NeuralProfileId = AllocationId;
+					
+					InProxy->SetNeuralProfileRT(LocalNeuralProfile);
+				});
+		}
 	}
 
 	if (Substrate::IsSubstrateEnabled())

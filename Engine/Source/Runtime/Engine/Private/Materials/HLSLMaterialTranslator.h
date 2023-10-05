@@ -1197,6 +1197,9 @@ protected:
 	virtual int32 SetLocal(const FName& LocalName, int32 Value) override;
 	virtual int32 GetLocal(const FName& LocalName) override;
 
+	// Neural network nodes
+	virtual int32 NeuralOutput(int32 ViewportUV, uint32 NeuralIndexType) override;
+
 	// Substrate
 	virtual int32 SubstrateCreateAndRegisterNullMaterial() override;
 	virtual int32 SubstrateSlabBSDF(

@@ -111,6 +111,7 @@
 #include "Factories/StringTableFactory.h"
 #include "Factories/SubsurfaceProfileFactory.h"
 #include "Factories/SpecularProfileFactory.h"
+#include "Factories/NeuralProfileFactory.h"
 #include "Factories/Texture2dFactoryNew.h"
 #include "Engine/Texture.h"
 #include "Factories/TextureFactory.h"
@@ -147,6 +148,7 @@
 #include "GameFramework/DefaultPhysicsVolume.h"
 #include "Engine/SubsurfaceProfile.h"
 #include "Engine/SpecularProfile.h"
+#include "Engine/NeuralProfile.h"
 #include "Misc/ConfigCacheIni.h"
 #include "Misc/FeedbackContext.h"
 #include "GameFramework/WorldSettings.h"
@@ -7915,6 +7917,25 @@ USpecularProfileFactory::USpecularProfileFactory(const FObjectInitializer& Objec
 UObject* USpecularProfileFactory::FactoryCreateNew(UClass* InClass, UObject* InParent, FName InName, EObjectFlags Flags, UObject* Context, FFeedbackContext* Warn)
 {
 	USpecularProfile* Object = NewObject<USpecularProfile>(InParent, InName, Flags);	
+	Object->Guid = FGuid::NewGuid();
+	return Object;
+}
+
+/*-----------------------------------------------------------------------------
+	UNeuralProfileFactory implementation.
+	-----------------------------------------------------------------------------*/
+UNeuralProfileFactory::UNeuralProfileFactory(const FObjectInitializer& ObjectInitializer)
+	: Super(ObjectInitializer)
+{
+	SupportedClass = UNeuralProfile::StaticClass();
+	bCreateNew = true;
+	bEditorImport = false;
+	bEditAfterNew = true;
+}
+
+UObject* UNeuralProfileFactory::FactoryCreateNew(UClass* Class, UObject* InParent, FName InName, EObjectFlags Flags, UObject* Context, FFeedbackContext* Warn)
+{
+	UNeuralProfile* Object = NewObject<UNeuralProfile>(InParent, InName, Flags);
 	Object->Guid = FGuid::NewGuid();
 	return Object;
 }

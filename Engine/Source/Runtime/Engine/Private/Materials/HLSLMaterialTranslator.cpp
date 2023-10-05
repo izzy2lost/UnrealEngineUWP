@@ -2130,6 +2130,7 @@ void FHLSLMaterialTranslator::GetMaterialEnvironment(EShaderPlatform InPlatform,
 	OutEnvironment.SetDefine(TEXT("MATERIAL_DECAL_READ_MASK"), MaterialCompilationOutput.UsedDBufferTextures);
 	OutEnvironment.SetDefine(TEXT("MATERIAL_USES_DECAL_LOOKUP"), MaterialCompilationOutput.bUsesDBufferTextureLookup);
 	OutEnvironment.SetDefine(TEXT("MATERIAL_PATH_TRACING_BUFFER_READ"), MaterialCompilationOutput.UsedPathTracingBufferTextures);
+	OutEnvironment.SetDefine(TEXT("MATERIAL_NEURAL_POST_PROCESS"), (MaterialCompilationOutput.bUsedWithNeuralNetworks || Material->IsUsedWithNeuralNetworks()) && Material->IsPostProcessMaterial());
 
 	// Count the number of VTStacks (each stack will allocate a feedback slot)
 	OutEnvironment.SetDefine(TEXT("NUM_VIRTUALTEXTURE_SAMPLES"), VTStacks.Num());
@@ -11305,6 +11306,47 @@ int32 FHLSLMaterialTranslator::GetLocal(const FName& LocalName)
 	// ensure the declaration is visible in the current scope
 	AddCodeChunkToCurrentScope(Entry->DeclarationCodeIndex);
 	return AddInlinedCodeChunk(MCT_Float1, TEXT("%s"), *Entry->Name);
+}
+
+int32 FHLSLMaterialTranslator::NeuralOutput(int32 ViewportUV, uint32 NeuralIndexType)
+{
+	if (Material->GetMaterialDomain() != MD_PostProcess)
+	{
+		Errorf(TEXT("NNE Output Node are only available on post process material."));
+	}
+
+	AddEstimatedTextureSample();
+	MaterialCompilationOutput.bUsedWithNeuralNetworks = true;
+	
+	if (NeuralIndexType == 0)
+	{
+		if (ViewportUV == INDEX_NONE)
+		{
+			ViewportUV = AddInlinedCodeChunk(MCT_Float2, TEXT("GetViewportUV(Parameters)"));
+		}
+
+		return AddCodeChunk(MCT_Float4, TEXT("NeuralTextureOutput(Parameters,%s)"),
+			*CoerceParameter(ViewportUV, MCT_Float2));
+	}
+	else if (NeuralIndexType == 1)
+	{
+		int32 BufferIndex = INDEX_NONE;
+
+		if (ViewportUV == INDEX_NONE)
+		{
+			ViewportUV = AddInlinedCodeChunk(MCT_Float2, TEXT("GetViewportUV(Parameters)"));
+			BufferIndex = AppendVector(Constant2(0.0f, 0.0f), ViewportUV);
+		}
+		else
+		{
+			BufferIndex = ViewportUV;
+		}
+
+		return AddCodeChunk(MCT_Float4, TEXT("NeuralBufferOutput(Parameters,%s)"),
+			*CoerceParameter(BufferIndex, MCT_Float4));
+	}
+
+	return INDEX_NONE;
 }
 
 FSubstrateOperator& FHLSLMaterialTranslator::SubstrateCompilationRegisterOperator(int32 OperatorType, FGuid SubstrateExpressionGuid, UMaterialExpression* Child, UMaterialExpression* Parent, FGuid SubstrateParentExpressionGuid, bool bUseParameterBlending)

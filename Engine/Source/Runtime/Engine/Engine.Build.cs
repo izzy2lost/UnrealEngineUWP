@@ -158,6 +158,7 @@ public class Engine : ModuleRules
 				"ColorManagement",
 				"Icmp",
 				"XmlParser",
+				"NNE"
 			}
 		);
 
