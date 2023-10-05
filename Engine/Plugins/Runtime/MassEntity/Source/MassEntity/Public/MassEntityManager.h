@@ -334,6 +334,40 @@ public:
 		return FStructView(FragmentType, static_cast<uint8*>(InternalGetFragmentDataPtr(Entity, FragmentType)));
 	}
 
+	template <typename ConstSharedFragmentType>
+	ConstSharedFragmentType& GetConstSharedFragmentDataChecked(FMassEntityHandle Entity) const
+	{
+		return *((ConstSharedFragmentType*)InternalGetConstSharedFragmentDataChecked(Entity, ConstSharedFragmentType::StaticStruct()));
+	}
+
+	template <typename ConstSharedFragmentType>
+	ConstSharedFragmentType* GetConstSharedFragmentDataPtr(FMassEntityHandle Entity) const
+	{
+		return (ConstSharedFragmentType*)InternalGetConstSharedFragmentDataPtr(Entity, ConstSharedFragmentType::StaticStruct());
+	}
+
+	FConstStructView GetConstSharedFragmentDataStruct(FMassEntityHandle Entity, const UScriptStruct* ConstSharedFragmentType) const
+	{
+		return FConstStructView(ConstSharedFragmentType, static_cast<const uint8*>(InternalGetConstSharedFragmentDataPtr(Entity, ConstSharedFragmentType)));
+	}
+
+	template <typename SharedFragmentType>
+	SharedFragmentType& GetSharedFragmentDataChecked(FMassEntityHandle Entity) const
+	{
+		return *((SharedFragmentType*)InternalGetSharedFragmentDataChecked(Entity, SharedFragmentType::StaticStruct()));
+	}
+
+	template <typename SharedFragmentType>
+	SharedFragmentType* GetSharedFragmentDataPtr(FMassEntityHandle Entity) const
+	{
+		return (SharedFragmentType*)InternalGetSharedFragmentDataPtr(Entity, SharedFragmentType::StaticStruct());
+	}
+
+	FConstStructView GetSharedFragmentDataStruct(FMassEntityHandle Entity, const UScriptStruct* SharedFragmentType) const
+	{
+		return FConstStructView(SharedFragmentType, static_cast<uint8*>(InternalGetSharedFragmentDataPtr(Entity, SharedFragmentType)));
+	}
+
 	uint32 GetArchetypeDataVersion() const { return ArchetypeDataVersion; }
 
 	/**
@@ -466,6 +500,10 @@ private:
 	void InternalAddFragmentListToEntity(FMassEntityHandle Entity, const FMassFragmentBitSet& InFragments);
 	void* InternalGetFragmentDataChecked(FMassEntityHandle Entity, const UScriptStruct* FragmentType) const;
 	void* InternalGetFragmentDataPtr(FMassEntityHandle Entity, const UScriptStruct* FragmentType) const;
+	const void* InternalGetConstSharedFragmentDataChecked(FMassEntityHandle Entity, const UScriptStruct* ConstSharedFragmentType) const;
+	const void* InternalGetConstSharedFragmentDataPtr(FMassEntityHandle Entity, const UScriptStruct* ConstSharedFragmentType) const;
+	void* InternalGetSharedFragmentDataChecked(FMassEntityHandle Entity, const UScriptStruct* SharedFragmentType) const;
+	void* InternalGetSharedFragmentDataPtr(FMassEntityHandle Entity, const UScriptStruct* SharedFragmentType) const;
 
 	TSharedRef<FEntityCreationContext> InternalBatchCreateReservedEntities(const FMassArchetypeHandle& ArchetypeHandle,
 		const FMassArchetypeSharedFragmentValues& SharedFragmentValues, TConstArrayView<FMassEntityHandle> ReservedEntities);
