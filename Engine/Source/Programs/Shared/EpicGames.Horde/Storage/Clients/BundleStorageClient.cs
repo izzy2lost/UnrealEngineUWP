@@ -245,6 +245,10 @@ namespace EpicGames.Horde.Storage.Clients
 		#endregion
 
 		/// <inheritdoc/>
-		public void GetStats(StorageStats stats) => _bundleReader.GetStats(stats);
+		public void GetStats(StorageStats stats)
+		{
+			_backend.GetStats(stats);
+			_bundleReader.GetStats(stats);
+		}
 	}
 }

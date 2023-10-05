@@ -138,6 +138,7 @@ namespace EpicGames.Horde.Storage.Bundles
 		int _numHeaderReads;
 		int _numPacketReads;
 		long _numBytesRead;
+		long _decodeTimeTicks;
 
 		/// <summary>
 		/// Accessor for the cache
@@ -238,7 +239,9 @@ namespace EpicGames.Horde.Storage.Bundles
 			BundlePacket packet = header.Packets[packetIdx];
 
 			byte[] decodedPacket = new byte[packet.DecodedLength];
+			Stopwatch decodeTimer = Stopwatch.StartNew();
 			BundleData.Decompress(packet.CompressionFormat, encodedPacket, decodedPacket);
+			Interlocked.Add(ref _decodeTimeTicks, decodeTimer.ElapsedTicks);
 			_cache.AddCachedDecodedPacket(locator, packetIdx, decodedPacket);
 
 			lock (_queueLock)
@@ -596,6 +599,7 @@ namespace EpicGames.Horde.Storage.Bundles
 			stats.Add("Num bytes read", _numBytesRead);
 			stats.Add("Num header reads", _numHeaderReads);
 			stats.Add("Num packet reads", _numPacketReads);
+			stats.Add("Decode time (ms)", (_decodeTimeTicks * 1000) / Stopwatch.Frequency);
 		}
 	}
 }
