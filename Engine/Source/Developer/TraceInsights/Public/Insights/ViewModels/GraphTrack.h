@@ -123,10 +123,11 @@ protected:
 	// Get the Y value that is used to provide a clipping border between adjacent graph tracks.
 	virtual float GetBorderY() const { return 0.0f; }
 
-private:
 	bool ContextMenu_ToggleOption_CanExecute(EGraphOptions Option);
-	void ContextMenu_ToggleOption_Execute(EGraphOptions Option);
+	virtual void ContextMenu_ToggleOption_Execute(EGraphOptions Option);
 	bool ContextMenu_ToggleOption_IsChecked(EGraphOptions Option);
+
+private:
 	bool ContextMenu_ShowPointsWithBorder_CanExecute();
 	bool ContextMenu_UseEventDuration_CanExecute();
 

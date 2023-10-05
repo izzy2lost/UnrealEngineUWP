@@ -113,6 +113,15 @@ FString FTimingGraphSeries::FormatValue(double Value) const
 }
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////
+
+void FTimingGraphSeries::SetVisibility(bool bOnOff)
+{
+	FGraphSeries::SetVisibility(bOnOff);
+
+	VisibilityChangedDelegate.Broadcast(bOnOff);
+}
+
+////////////////////////////////////////////////////////////////////////////////////////////////////
 // FTimingGraphTrack
 ////////////////////////////////////////////////////////////////////////////////////////////////////
 
@@ -120,8 +129,9 @@ INSIGHTS_IMPLEMENT_RTTI(FTimingGraphTrack)
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////
 
-FTimingGraphTrack::FTimingGraphTrack()
+FTimingGraphTrack::FTimingGraphTrack(TSharedPtr<STimingView> InTimingView)
 	: FGraphTrack()
+	, TimingView(InTimingView)
 	//, SharedValueViewport()
 {
 	EnabledOptions = //EGraphOptions::ShowDebugInfo |
@@ -135,6 +145,8 @@ FTimingGraphTrack::FTimingGraphTrack()
 					 EGraphOptions::ShowVerticalAxisGrid |
 					 EGraphOptions::ShowHeader |
 					 EGraphOptions::None;
+
+	LoadDefaultSettings();
 }
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////
@@ -143,16 +155,30 @@ FTimingGraphTrack::~FTimingGraphTrack()
 {
 	if (OnTrackVisibilityChangedHandle.IsValid())
 	{
-		TSharedPtr<class STimingProfilerWindow> TimingWindow = FTimingProfilerManager::Get()->GetProfilerWindow();
-		if (TimingWindow.IsValid())
+		TSharedPtr<STimingView> TimingViewPtr = TimingView.Pin();
+		if (TimingView.IsValid())
 		{
-			TSharedPtr<STimingView> TimingView = TimingWindow->GetTimingView();
-			if (TimingView.IsValid())
-			{
-				TimingView->OnTrackVisibilityChanged().Remove(OnTrackVisibilityChangedHandle);
-				TimingView->OnTrackAdded().Remove(OnTrackAddedHandle);
-				TimingView->OnTrackRemoved().Remove(OnTrackRemovedHandle);
-			}
+			TimingViewPtr->OnTrackVisibilityChanged().Remove(OnTrackVisibilityChangedHandle);
+			TimingViewPtr->OnTrackAdded().Remove(OnTrackAddedHandle);
+			TimingViewPtr->OnTrackRemoved().Remove(OnTrackRemovedHandle);
+		}
+	}
+
+	if (GameFrameSeriesVisibilityHandle.IsValid())
+	{
+		TSharedPtr<FTimingGraphSeries> GameFramesSeries = GetFrameSeries(ETraceFrameType::TraceFrameType_Game);
+		if (GameFramesSeries.IsValid())
+		{
+			GameFramesSeries->VisibilityChangedDelegate.Remove(GameFrameSeriesVisibilityHandle);
+		}
+	}
+
+	if (RenderingFrameSeriesVisibilityHandle.IsValid())
+	{
+		TSharedPtr<FTimingGraphSeries> RenderingFramesSeries = GetFrameSeries(ETraceFrameType::TraceFrameType_Game);
+		if (RenderingFramesSeries.IsValid())
+		{
+			RenderingFramesSeries->VisibilityChangedDelegate.Remove(RenderingFrameSeriesVisibilityHandle);
 		}
 	}
 }
@@ -162,34 +188,31 @@ FTimingGraphTrack::~FTimingGraphTrack()
 void FTimingGraphTrack::Update(const ITimingTrackUpdateContext& Context)
 {
 	FGraphTrack::Update(Context);
+
 	if (!OnTrackVisibilityChangedHandle.IsValid())
 	{
-		TSharedPtr<class STimingProfilerWindow> TimingWindow = FTimingProfilerManager::Get()->GetProfilerWindow();
-		if (TimingWindow.IsValid())
+		TSharedPtr<STimingView> TimingViewPtr = TimingView.Pin();
+		if (TimingViewPtr.IsValid())
 		{
-			TSharedPtr<STimingView> TimingView = TimingWindow->GetTimingView();
-			if (TimingView.IsValid())
+			auto OnTrackAddedRemovedLamda = [this](const TSharedPtr<const FBaseTimingTrack> Track)
 			{
-				auto OnTrackAddedRemovedLamda = [this](const TSharedPtr<const FBaseTimingTrack> Track)
+				if (Track->Is<FThreadTimingTrack>())
 				{
-					if (Track->Is<FThreadTimingTrack>())
-					{
-						// If there are more series than the default frame series.
-						if (this->AllSeries.Num() > ETraceFrameType::TraceFrameType_Count)
-						{
-							this->SetDirtyFlag();
-						}
-					}
-				};
-
-				OnTrackAddedHandle = TimingView->OnTrackAdded().AddLambda(OnTrackAddedRemovedLamda);
-				OnTrackRemovedHandle = TimingView->OnTrackRemoved().AddLambda(OnTrackAddedRemovedLamda);
-
-				OnTrackVisibilityChangedHandle = TimingView->OnTrackVisibilityChanged().AddLambda([this]()
+					// If there are more series than the default frame series.
+					if (this->AllSeries.Num() > ETraceFrameType::TraceFrameType_Count)
 					{
 						this->SetDirtyFlag();
-					});
-			}
+					}
+				}
+			};
+
+			OnTrackAddedHandle = TimingViewPtr->OnTrackAdded().AddLambda(OnTrackAddedRemovedLamda);
+			OnTrackRemovedHandle = TimingViewPtr->OnTrackRemoved().AddLambda(OnTrackAddedRemovedLamda);
+
+			OnTrackVisibilityChangedHandle = TimingViewPtr->OnTrackVisibilityChanged().AddLambda([this]()
+				{
+					this->SetDirtyFlag();
+				});
 		}
 	}
 
@@ -256,6 +279,9 @@ void FTimingGraphTrack::Update(const ITimingTrackUpdateContext& Context)
 
 void FTimingGraphTrack::AddDefaultFrameSeries()
 {
+	const FInsightsSettings& Settings = FInsightsManager::Get()->GetSettings();
+	TSharedPtr<STimingView> TimingViewPtr = TimingView.Pin();
+
 	TSharedRef<FTimingGraphSeries> GameFramesSeries = MakeShared<FTimingGraphSeries>(FTimingGraphSeries::ESeriesType::Frame);
 	GameFramesSeries->SetName(TEXT("Game Frames"));
 	GameFramesSeries->SetDescription(TEXT("Duration of Game frames"));
@@ -264,6 +290,15 @@ void FTimingGraphTrack::AddDefaultFrameSeries()
 	GameFramesSeries->SetBaselineY(SharedValueViewport.GetBaselineY());
 	GameFramesSeries->SetScaleY(SharedValueViewport.GetScaleY());
 	GameFramesSeries->EnableSharedViewport();
+	if (TimingViewPtr.IsValid() && TimingViewPtr->GetName() == FInsightsManagerTabs::TimingProfilerTabId)
+	{
+		GameFramesSeries->SetVisibility(Settings.GetTimingViewMainGraphShowGameFrames());
+		GameFrameSeriesVisibilityHandle = GameFramesSeries->VisibilityChangedDelegate.AddLambda([](bool bOnOff)
+			{
+				FInsightsSettings& Settings = FInsightsManager::Get()->GetSettings();
+				Settings.SetAndSaveTimingViewMainGraphShowGameFrames(bOnOff);
+			});
+	}
 	AllSeries.Add(GameFramesSeries);
 
 	TSharedRef<FTimingGraphSeries> RenderingFramesSeries = MakeShared<FTimingGraphSeries>(FTimingGraphSeries::ESeriesType::Frame);
@@ -274,7 +309,28 @@ void FTimingGraphTrack::AddDefaultFrameSeries()
 	RenderingFramesSeries->SetBaselineY(SharedValueViewport.GetBaselineY());
 	RenderingFramesSeries->SetScaleY(SharedValueViewport.GetScaleY());
 	RenderingFramesSeries->EnableSharedViewport();
+	if (TimingViewPtr.IsValid() && TimingViewPtr->GetName() == FInsightsManagerTabs::TimingProfilerTabId)
+	{
+		RenderingFramesSeries->SetVisibility(Settings.GetTimingViewMainGraphShowRenderingFrames());
+		RenderingFrameSeriesVisibilityHandle = RenderingFramesSeries->VisibilityChangedDelegate.AddLambda([](bool bOnOff)
+			{
+				FInsightsSettings& Settings = FInsightsManager::Get()->GetSettings();
+				Settings.SetAndSaveTimingViewMainGraphShowRenderingFrames(bOnOff);
+			});
+	}
 	AllSeries.Add(RenderingFramesSeries);
+}
+
+////////////////////////////////////////////////////////////////////////////////////////////////////
+
+TSharedPtr<FTimingGraphSeries> FTimingGraphTrack::GetFrameSeries(ETraceFrameType FrameType)
+{
+	TSharedPtr<FGraphSeries>* Ptr = AllSeries.FindByPredicate([FrameType](const TSharedPtr<FGraphSeries>& Series)
+		{
+			const TSharedPtr<FTimingGraphSeries> TimingSeries = StaticCastSharedPtr<FTimingGraphSeries>(Series);
+			return TimingSeries->Type == FTimingGraphSeries::ESeriesType::Frame && TimingSeries->FrameType == FrameType;
+		});
+	return (Ptr != nullptr) ? StaticCastSharedPtr<FTimingGraphSeries>(*Ptr) : nullptr;
 }
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////
@@ -718,23 +774,95 @@ void FTimingGraphTrack::UpdateStatsCounterSeries(FTimingGraphSeries& Series, con
 
 void FTimingGraphTrack::GetVisibleTimelineIndexes(TSet<uint32>& TimelineIndexes)
 {
-	TSharedPtr<class STimingProfilerWindow> TimingWindow = FTimingProfilerManager::Get()->GetProfilerWindow();
-	if (!TimingWindow.IsValid())
+	TSharedPtr<STimingView> TimingViewPtr = TimingView.Pin();
+	if (!TimingViewPtr.IsValid())
 	{
 		return;
 	}
 
-	TSharedPtr<STimingView> TimingView = TimingWindow->GetTimingView();
-	if (!TimingView.IsValid())
-	{
-		return;
-	}
-
-	TSharedPtr<FThreadTimingSharedState> ThreadSharedState = TimingView->GetThreadTimingSharedState();
+	TSharedPtr<FThreadTimingSharedState> ThreadSharedState = TimingViewPtr->GetThreadTimingSharedState();
 	ThreadSharedState->GetVisibleTimelineIndexes(TimelineIndexes);
 }
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////
+
+void FTimingGraphTrack::ContextMenu_ToggleOption_Execute(EGraphOptions Option)
+{
+	FGraphTrack::ContextMenu_ToggleOption_Execute(Option);
+
+	TSharedPtr<STimingView> TimingViewPtr = TimingView.Pin();
+	if (!TimingViewPtr.IsValid())
+	{
+		return;
+	}
+	if (TimingViewPtr->GetName() != FInsightsManagerTabs::TimingProfilerTabId)
+	{
+		return;
+	}
+
+	FInsightsSettings& Settings = FInsightsManager::Get()->GetSettings();
+	if (EnumHasAnyFlags(Option, EGraphOptions::ShowPoints))
+	{
+		Settings.SetAndSaveTimingViewMainGraphShowPoints(EnumHasAnyFlags(EnabledOptions, EGraphOptions::ShowPoints));
+	}
+	if (EnumHasAnyFlags(Option, EGraphOptions::ShowPointsWithBorder))
+	{
+		Settings.SetAndSaveTimingViewMainGraphShowPointsWithBorder(EnumHasAnyFlags(EnabledOptions, EGraphOptions::ShowPointsWithBorder));
+	}
+	if (EnumHasAnyFlags(Option, EGraphOptions::ShowLines))
+	{
+		Settings.SetAndSaveTimingViewMainGraphShowConnectedLines(EnumHasAnyFlags(EnabledOptions, EGraphOptions::ShowLines));
+	}
+	if (EnumHasAnyFlags(Option, EGraphOptions::ShowPolygon))
+	{
+		Settings.SetAndTimingViewMainGraphShowPolygons(EnumHasAnyFlags(EnabledOptions, EGraphOptions::ShowPolygon));
+	}
+	if (EnumHasAnyFlags(Option, EGraphOptions::UseEventDuration))
+	{
+		Settings.SetAndSaveTimingViewMainGraphShowEventDuration(EnumHasAnyFlags(EnabledOptions, EGraphOptions::UseEventDuration));
+	}
+	if (EnumHasAnyFlags(Option, EGraphOptions::ShowBars))
+	{
+		Settings.SetAndSaveTimingViewMainGraphShowBars(EnumHasAnyFlags(EnabledOptions, EGraphOptions::ShowBars));
+	}
+}
+
+////////////////////////////////////////////////////////////////////////////////////////////////////
+
+void FTimingGraphTrack::LoadDefaultSettings()
+{
+	TSharedPtr<STimingView> TimingViewPtr = TimingView.Pin();
+	if (TimingViewPtr.IsValid() && TimingViewPtr->GetName() == FInsightsManagerTabs::TimingProfilerTabId)
+	{
+		EnabledOptions = EGraphOptions::None;
+		const FInsightsSettings& Settings = FInsightsManager::Get()->GetSettings();
+		if (Settings.GetTimingViewMainGraphShowPoints())
+		{
+			EnabledOptions |= EGraphOptions::ShowPoints;
+		}
+		if (Settings.GetTimingViewMainGraphShowPointsWithBorder())
+		{
+			EnabledOptions |= EGraphOptions::ShowPointsWithBorder;
+		}
+		if (Settings.GetTimingViewMainGraphShowConnectedLines())
+		{
+			EnabledOptions |= EGraphOptions::ShowLines;
+		}
+		if (Settings.GetTimingViewMainGraphShowPolygons())
+		{
+			EnabledOptions |= EGraphOptions::ShowPolygon;
+		}
+		if (Settings.GetTimingViewMainGraphShowEventDuration())
+		{
+			EnabledOptions |= EGraphOptions::UseEventDuration;
+		}
+		if (Settings.GetTimingViewMainGraphShowBars())
+		{
+			EnabledOptions |= EGraphOptions::ShowBars;
+		}
+	}
+}
+
 ////////////////////////////////////////////////////////////////////////////////////////////////////
 
 void FTimingGraphTrack::DrawVerticalAxisGrid(const ITimingTrackDrawContext& Context) const

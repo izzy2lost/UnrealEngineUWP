@@ -105,7 +105,6 @@ STimingView::STimingView()
 	, TimeRulerTrack(MakeShared<FTimeRulerTrack>())
 	, DefaultTimeMarker(MakeShared<Insights::FTimeMarker>())
 	, MarkersTrack(MakeShared<FMarkersTimingTrack>())
-	, GraphTrack(MakeShared<FTimingGraphTrack>())
 	, bAllowPanningOnScreenEdges(false)
 	, DPIScaleFactor(1.0f)
 	, EdgeFrameCountX(0)
@@ -117,7 +116,6 @@ STimingView::STimingView()
 	DefaultTimeMarker->SetName(TEXT(""));
 	DefaultTimeMarker->SetColor(FLinearColor(0.85f, 0.5f, 0.03f, 0.5f));
 
-	GraphTrack->SetName(TEXT("Main Graph"));
 
 	IModularFeatures::Get().RegisterModularFeature(Insights::TimingViewExtenderFeatureName, FrameSharedState.Get());
 	IModularFeatures::Get().RegisterModularFeature(Insights::TimingViewExtenderFeatureName, ThreadTimingSharedState.Get());
@@ -158,6 +156,9 @@ STimingView::~STimingView()
 void STimingView::Construct(const FArguments& InArgs, FName InViewName)
 {
 	ViewName = InViewName;
+
+	GraphTrack = MakeShared<FTimingGraphTrack>(SharedThis(this));
+	GraphTrack->SetName(TEXT("Main Graph"));
 
 	FSlimHorizontalToolBarBuilder LeftToolbar(nullptr, FMultiBoxCustomization::None);
 	LeftToolbar.SetStyle(&FInsightsStyle::Get(), "SecondaryToolbar");
