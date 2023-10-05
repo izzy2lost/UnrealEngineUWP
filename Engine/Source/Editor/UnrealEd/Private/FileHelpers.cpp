@@ -5172,6 +5172,12 @@ void FEditorFileUtils::GetDirtyWorldPackages(TArray<UPackage*>& OutDirtyPackages
 
 	for (TObjectIterator<UWorld> WorldIt; WorldIt; ++WorldIt)
 	{
+		// Filter out pending-delete worlds that may have leaked, e.g. from PIE sessions which were not cleaned up which cleared the PKG_PlayInEditor flag
+		if (!IsValid(*WorldIt))
+		{
+			continue;
+		}
+
 		UPackage* WorldPackage = WorldIt->GetOutermost();
 		if (!WorldPackage->HasAnyPackageFlags(PKG_PlayInEditor)
 			&& !WorldPackage->HasAnyFlags(RF_Transient)

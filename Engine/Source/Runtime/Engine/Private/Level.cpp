@@ -4008,6 +4008,13 @@ TArray<FString> ULevel::GetOnDiskExternalActorPackages(bool bTryUsingPackageLoad
 
 TArray<UPackage*> ULevel::GetLoadedExternalObjectPackages() const
 {
+	// We also need to provide empty packages (for example, actors that were converted to non-external)
+	UWorld* World = GetTypedOuter<UWorld>();
+	if (!ensure(IsValid(World)))
+	{
+		return {};
+	}
+
 	TSet<UPackage*> ExternalObjectPackages;
 
 	// Get external packages (including deleted actors)
@@ -4025,10 +4032,6 @@ TArray<UPackage*> ULevel::GetLoadedExternalObjectPackages() const
 		}
 		return InPath;
 	};
-
-	// We also need to provide empty packages (for example, actors that were converted to non-external)
-	UWorld* World = GetTypedOuter<UWorld>();
-	check(IsValid(World));
 
 	TArray<FString> ExternalObjectsPaths;
 	ExternalObjectsPaths.Add(SanitizeExternalPath(ULevel::GetExternalActorsPath(World->GetPackage(), (World->OriginalWorldName == NAME_None) ? World->GetName() : World->OriginalWorldName.ToString())));
