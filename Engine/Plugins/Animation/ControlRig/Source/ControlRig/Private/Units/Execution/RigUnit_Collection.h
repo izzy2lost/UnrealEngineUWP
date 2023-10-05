@@ -56,7 +56,7 @@ struct CONTROLRIG_API FRigUnit_CollectionChain : public FRigUnit_CollectionBase
 * Creates an item array based on a first and last item within a chain.
 * Chains can refer to bone chains or chains within a control hierarchy.
 */
-USTRUCT(meta=(DisplayName="Item Chain", Keywords="Bone,Joint,Collection", Varying))
+USTRUCT(meta=(DisplayName="Item Chain", Keywords="Bone,Joint,Collection", Varying, Deprecated = "5.4"))
 struct CONTROLRIG_API FRigUnit_CollectionChainArray : public FRigUnit_CollectionBase
 {
 	GENERATED_BODY()
@@ -81,6 +81,9 @@ struct CONTROLRIG_API FRigUnit_CollectionChainArray : public FRigUnit_Collection
 
 	UPROPERTY(meta = (Output))
 	TArray<FRigElementKey> Items;
+
+	RIGVM_METHOD()
+	virtual FRigVMStructUpgradeInfo GetUpgradeInfo() const override;
 };
 
 /**
