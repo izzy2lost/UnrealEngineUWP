@@ -32,6 +32,7 @@
 #include "VerseVM/VVMSuspension.h"
 #include "VerseVM/VVMTuple.h"
 #include "VerseVM/VVMUTF8String.h"
+#include "VerseVM/VVMUnreachable.h"
 #include "VerseVM/VVMValue.h"
 #include "VerseVM/VVMValuePrinting.h"
 #include "VerseVM/VVMVar.h"
@@ -720,27 +721,19 @@ class FInterpreter
 		}
 		else if (LeftSource.IsCellOfType<VUTF8String>() && RightSource.IsCellOfType<VUTF8String>())
 		{
+			// String concatenation.
 			VUTF8String& LeftString = LeftSource.StaticCast<VUTF8String>();
 			VUTF8String& RightString = RightSource.StaticCast<VUTF8String>();
 
-			// concat string
 			DEF(Op.Dest, VUTF8String::Concat(Context, LeftString, RightString));
 		}
-		else if (VArray* Array = LeftSource.DynamicCast<VArray>())
+		else if (LeftSource.IsCellOfType<VArray>() && RightSource.IsCellOfType<VArray>())
 		{
 			// Array concatenation.
-			if (VArray* RightArray = RightSource.DynamicCast<VArray>())
-			{
-				VArray& CombinedArray = VArray::Concat(Context, *Array, *RightArray);
-				DEF(Op.Dest, CombinedArray);
-			}
-			// Array add.
-			else
-			{
-				VArray& ArrayCopy = VArray::New(Context, *Array);
-				ArrayCopy.AddValue(Context, RightSource);
-				DEF(Op.Dest, ArrayCopy);
-			}
+			VArray& LeftArray = LeftSource.StaticCast<VArray>();
+			VArray& RightArray = RightSource.StaticCast<VArray>();
+
+			DEF(Op.Dest, VArray::Concat(Context, LeftArray, RightArray));
 		}
 		else
 		{
@@ -789,27 +782,44 @@ class FInterpreter
 		REQUIRE_CONCRETE(LeftSource);
 		REQUIRE_CONCRETE(RightSource);
 
-		if (LeftSource.IsInt() && RightSource.IsInt())
+		if (LeftSource.IsInt())
 		{
-			DEF(Op.Dest, VInt::Mul(Context, LeftSource.AsInt(), RightSource.AsInt()));
+			if (RightSource.IsInt())
+			{
+				DEF(Op.Dest, VInt::Mul(Context, LeftSource.AsInt(), RightSource.AsInt()));
+				return {FOpResult::Normal};
+			}
+			else if (RightSource.IsFloat())
+			{
+				DEF(Op.Dest, LeftSource.AsInt().ConvertToFloat() * RightSource.AsFloat());
+				return {FOpResult::Normal};
+			}
 		}
-		else if (LeftSource.IsFloat() && RightSource.IsFloat())
+		else if (LeftSource.IsFloat())
 		{
-			DEF(Op.Dest, LeftSource.AsFloat() * RightSource.AsFloat());
+			if (RightSource.IsInt())
+			{
+				DEF(Op.Dest, LeftSource.AsFloat() * RightSource.AsInt().ConvertToFloat());
+				return {FOpResult::Normal};
+			}
+			else if (RightSource.IsFloat())
+			{
+				DEF(Op.Dest, LeftSource.AsFloat() * RightSource.AsFloat());
+				return {FOpResult::Normal};
+			}
 		}
-		else if (LeftSource.IsCellOfType<VRational>() || RightSource.IsCellOfType<VRational>())
+
+		if (LeftSource.IsCellOfType<VRational>() || RightSource.IsCellOfType<VRational>())
 		{
 			VRational& LeftRational = PrepareRationalSourceHelper(LeftSource);
 			VRational& RightRational = PrepareRationalSourceHelper(RightSource);
 
 			DEF(Op.Dest, VRational::Mul(Context, LeftRational, RightRational).StaticCast<VCell>());
-		}
-		else
-		{
-			V_DIE("Unsupported operands were passed to a `Mul` operation!");
+			return {FOpResult::Normal};
 		}
 
-		return {FOpResult::Normal};
+		V_DIE("Unsupported operands were passed to a `Mul` operation!");
+		VERSE_UNREACHABLE();
 	}
 
 	template <typename OpType>
@@ -914,9 +924,9 @@ class FInterpreter
 		{
 			FAIL();
 		}
-		else if (Source.IsCellOfType<VOption>()) // True = VOption(VFalse), which is handled by this case
+		else if (VOption* Option = Source.DynamicCast<VOption>()) // True = VOption(VFalse), which is handled by this case
 		{
-			DEF(Op.Dest, Source.StaticCast<VOption>().GetValue());
+			DEF(Op.Dest, Option->GetValue());
 		}
 		else
 		{
@@ -1026,6 +1036,10 @@ class FInterpreter
 		{
 			DEF(Op.Dest, VInt{static_cast<int32>(Map->Num())});
 		}
+		else if (const VUTF8String* String = Container.DynamicCast<VUTF8String>())
+		{
+			DEF(Op.Dest, VInt{static_cast<int32>(String->Num())});
+		}
 		else
 		{
 			V_DIE("Unsupported container type passed!");
@@ -1064,7 +1078,7 @@ class FInterpreter
 		if (VTuple* Tuple = Container.DynamicCast<VTuple>())
 		{
 			// Bounds check since this index access in Verse is failable.
-			if (Index.IsInt() && Tuple->IsInBounds(Index.AsInt()))
+			if (Index.IsInt32() && Index.AsInt32() >= 0 && Tuple->IsInBounds(Index.AsInt32()))
 			{
 				Tuple->SetValue(Context, static_cast<uint32>(Index.AsInt32()), ValueToSet);
 			}
@@ -1075,7 +1089,7 @@ class FInterpreter
 		}
 		else if (VArray* Array = Container.DynamicCast<VArray>())
 		{
-			if (Index.IsInt() && Array->IsInBounds(Index.AsInt()))
+			if (Index.IsInt32() && Index.AsInt32() >= 0 && Array->IsInBounds(Index.AsInt32()))
 			{
 				Array->SetValue(Context, static_cast<uint32>(Index.AsInt32()), ValueToSet);
 			}
@@ -1129,7 +1143,7 @@ class FInterpreter
 			{
 				REQUIRE_CONCRETE(Argument);
 				// Bounds check since this index access in Verse is failable.
-				if (Argument.IsInt() && Tuple->IsInBounds(Argument.AsInt()))
+				if (Argument.IsInt32() && Argument.AsInt32() >= 0 && Tuple->IsInBounds(Argument.AsInt32()))
 				{
 					DEF(Op.Dest, Tuple->GetValue(Argument.AsInt32()));
 				}
@@ -1142,7 +1156,7 @@ class FInterpreter
 			{
 				REQUIRE_CONCRETE(Argument);
 				// Bounds check since this index access in Verse is failable.
-				if (Argument.IsInt() && Array->IsInBounds(Argument.AsInt()))
+				if (Argument.IsInt32() && Argument.AsInt32() >= 0 && Array->IsInBounds(Argument.AsInt32()))
 				{
 					DEF(Op.Dest, Array->GetValue(Argument.AsInt32()));
 				}

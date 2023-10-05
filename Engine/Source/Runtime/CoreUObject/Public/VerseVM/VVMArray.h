@@ -38,6 +38,7 @@ public:
 
 	uint32 Capacity() const;
 
+	bool IsInBounds(uint32 Index) const;
 	bool IsInBounds(const VInt& Index) const;
 
 	void SetValue(FAccessContext Context, uint32 Index, VValue Value);

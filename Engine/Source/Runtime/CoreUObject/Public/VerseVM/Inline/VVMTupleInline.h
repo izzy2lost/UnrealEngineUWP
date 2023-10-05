@@ -22,6 +22,11 @@ inline VValue VTuple::GetValue(uint32 Index)
 	return Values[Index].Follow();
 }
 
+inline bool VTuple::IsInBounds(uint32 Index) const
+{
+	return Index < NumValues;
+}
+
 inline bool VTuple::IsInBounds(const VInt& Index) const
 {
 	if (Index.IsInt64())

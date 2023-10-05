@@ -65,6 +65,7 @@ struct VTuple : VHeapValue
 		return NumValues;
 	}
 
+	bool IsInBounds(uint32 Index) const;
 	bool IsInBounds(const VInt& Index) const;
 
 	static VTuple& New(FAllocationContext Context, uint32 NumValues)

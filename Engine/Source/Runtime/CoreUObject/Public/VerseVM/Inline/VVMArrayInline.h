@@ -16,6 +16,11 @@ inline uint32 VArray::Capacity() const
 	return Tuple->Num();
 }
 
+inline bool VArray::IsInBounds(uint32 Index) const
+{
+	return Tuple->IsInBounds(Index);
+}
+
 inline bool VArray::IsInBounds(const VInt& Index) const
 {
 	return Tuple->IsInBounds(Index);
