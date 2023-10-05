@@ -13,6 +13,8 @@
 #include "TextureDefines.generated.h"
 #endif // WITH_ENGINE
 
+enum EPixelFormat : uint8;
+
 /**
  * @warning: if this is changed:
  *     update BaseEngine.ini [SystemSettings]
@@ -354,6 +356,22 @@ enum ETextureSourceFormat : int
 	TSF_RGBA8 UE_DEPRECATED(5.1,"Legacy ETextureSourceFormat not supported, use BGRA8") = TSF_RGBA8_DEPRECATED,
 	TSF_RGBE8 UE_DEPRECATED(5.1,"Legacy ETextureSourceFormat not supported, use BGRE8") = TSF_RGBE8_DEPRECATED
 };
+
+/**
+* Information about a texture source format
+*/
+struct FTextureSourceFormatInfo
+{
+	FTextureSourceFormatInfo() = delete;
+	FTextureSourceFormatInfo(ETextureSourceFormat InTextureSourceFormat, EPixelFormat InPixelFormat, const TCHAR* InName, int32 InNumComponents, int32 InBytesPerPixel);
+
+	ETextureSourceFormat TextureSourceFormat;
+	EPixelFormat PixelFormat;
+	const TCHAR* Name;
+	int32 NumComponents;
+	int32 BytesPerPixel;
+};
+extern ENGINE_API FTextureSourceFormatInfo GTextureSourceFormats[TSF_MAX];		// Maps members of ETextureSourceFormat to a FTextureSourceFormatInfo describing the format.
 
 // This needs to be mirrored in EditorFactories.cpp.
 // TC_EncodedReflectionCapture is no longer used and could be deleted

@@ -156,39 +156,49 @@ class UTextureRenderTarget2D : public UTextureRenderTarget
 	ENGINE_API void ResizeTarget(uint32 InSizeX, uint32 InSizeY);
 
 	/**
-	 * Utility for creating a new UTexture2D from a TextureRenderTarget2D
-	 * TextureRenderTarget2D must be square and a power of two size.
-	 * @param Outer - Outer to use when constructing the new Texture2D.
-	 * @param NewTexName - Name of new UTexture2D object.
-	 * @param ObjectFlags - Flags to apply to the new Texture2D object
-	 * @param Flags - Various control flags for operation (see EConstructTextureFlags)
-	 * @param AlphaOverride - If specified, the values here will become the alpha values in the resulting texture
+	 * Utility for creating a new UTexture2D from a UTextureRenderTarget2D
+	 * @param InOuter - Outer to use when constructing the new UTexture2D.
+	 * @param InNewTextureName - Name of new UTexture2D object.
+	 * @param InObjectFlags - Flags to apply to the new UTexture2D object
+	 * @param InFlags - Various control flags for operation (see EConstructTextureFlags)
+	 * @param InAlphaOverride - If specified, the values here will become the alpha values in the resulting texture
 	 * @return New UTexture2D object.
 	 */
-	ENGINE_API UTexture2D* ConstructTexture2D(UObject* InOuter, const FString& NewTexName, EObjectFlags InObjectFlags, uint32 Flags=CTF_Default, TArray<uint8>* AlphaOverride=NULL);
+	ENGINE_API UTexture2D* ConstructTexture2D(UObject* InOuter, const FString& InNewTextureName, EObjectFlags InObjectFlags, uint32 InFlags = CTF_Default, TArray<uint8>* InAlphaOverride = nullptr);
+	
+	UE_DEPRECATED(5.4, "Use CanConvertToTexture")
 	ENGINE_API ETextureSourceFormat GetTextureFormatForConversionToTexture2D() const;
+
+	//~ Begin UTextureRenderTarget Interface
+	virtual bool CanConvertToTexture(ETextureSourceFormat& OutTextureSourceFormat, EPixelFormat& OutPixelFormat, FText* OutErrorMessage) const override;
+	virtual TSubclassOf<UTexture> GetTextureUClass() const override;
+	//~ End UTextureRenderTarget Interface
 
 	/**
 	 * Utility for updating an existing UTexture2D from a TextureRenderTarget2D
-	 * TextureRenderTarget2D must be square and a power of two size.
 	 * @param InTexture2D					Texture which will contain the content of this render target after the call.
 	 * @param InTextureFormat				Format in which the texture should be stored.
 	 * @param Flags				Optional	Various control flags for operation (see EConstructTextureFlags)
 	 * @param AlphaOverride		Optional	If non-null, the values here will become the alpha values in the resulting texture
 	 */
-	ENGINE_API void UpdateTexture2D(UTexture2D* InTexture2D, ETextureSourceFormat InTextureFormat, uint32 Flags = CTF_Default, TArray<uint8>* AlphaOverride = NULL);
+	UE_DEPRECATED(5.4, "Use URenderTarget::UpdateTexture")
+	ENGINE_API void UpdateTexture2D(UTexture2D* InTexture2D, ETextureSourceFormat InTextureFormat, uint32 Flags = CTF_Default, TArray<uint8>* AlphaOverride = nullptr);
 
 	/**
 	 * Utility for updating an existing UTexture2D from a TextureRenderTarget2D
-	 * TextureRenderTarget2D must be square and a power of two size.
 	 * @param InTexture2D				Texture which will contain the content of this render target after the call.
 	 * @param InTextureFormat			Format in which the texture should be stored.
 	 * @param Flags						Various control flags for operation (see EConstructTextureFlags)
 	 * @param AlphaOverride				If non-null, the values here will become the alpha values in the resulting texture
 	 * @param TextureChangingDelegate	If the texture needs to be modified (as it's properties or content will change), this delegate will be called beforehand.
 	 */
+	UE_DEPRECATED(5.4, "Use URenderTarget::FOnTextureChangingDelegate")
 	DECLARE_DELEGATE_OneParam(FTextureChangingDelegate, UTexture2D*);
+
+PRAGMA_DISABLE_DEPRECATION_WARNINGS
+	UE_DEPRECATED(5.4, "Use URenderTarget::UpdateTexture")
 	ENGINE_API void UpdateTexture2D(UTexture2D* InTexture2D, ETextureSourceFormat InTextureFormat, uint32 Flags, TArray<uint8>* AlphaOverride, FTextureChangingDelegate TextureChangingDelegate);
+PRAGMA_ENABLE_DEPRECATION_WARNINGS
 
 	/**
 	 * Updates (resolves) the render target texture immediately.

@@ -57,14 +57,15 @@ class UTextureRenderTargetCube : public UTextureRenderTarget
 	ENGINE_API void UpdateResourceImmediate(bool bClearRenderTarget=true);
 
 	/**
-	* Utility for creating a new UTextureCube from a TextureRenderTargetCube.
-	* TextureRenderTargetCube must be square and a power of two size.
-	* @param	Outer			Outer to use when constructing the new TextureCube.
-	* @param	NewTexName		Name of new UTextureCube object.
-	* @param	Flags			Various control flags for operation (see EObjectFlags)
-	* @return					New UTextureCube object.
-	*/
-	ENGINE_API class UTextureCube* ConstructTextureCube(UObject* InOuter, const FString& NewTexName, EObjectFlags InFlags);
+	 * Utility for creating a new UTextureCube from a UTextureRenderTargetCube
+	 * @param InOuter - Outer to use when constructing the new UTextureCube.
+	 * @param InNewTextureName - Name of new UTextureCube object.
+	 * @param InObjectFlags - Flags to apply to the new UTextureCube object
+	 * @param InFlags - Various control flags for operation (see EConstructTextureFlags)
+	 * @param InAlphaOverride - If specified, the values here will become the alpha values in the resulting texture
+	 * @return New UTextureCube object.
+	 */
+	ENGINE_API class UTextureCube* ConstructTextureCube(UObject* InOuter, const FString& InNewTextureName, EObjectFlags InObjectFlags, uint32 InFlags = CTF_Default, TArray<uint8>* InAlphaOverride = nullptr);
 
 	//~ Begin UTexture Interface.
 	virtual float GetSurfaceWidth() const  override { return static_cast<float>(SizeX); }
@@ -100,7 +101,12 @@ class UTextureRenderTargetCube : public UTextureRenderTarget
 	virtual void PostLoad() override;
 	virtual void GetResourceSizeEx(FResourceSizeEx& CumulativeResourceSize) override;
 	virtual FString GetDesc() override;
-	//~ Begin UObject Interface
+	//~ End UObject Interface
+
+	//~ Begin UTextureRenderTarget Interface
+	virtual bool CanConvertToTexture(ETextureSourceFormat& OutTextureSourceFormat, EPixelFormat& OutPixelFormat, FText* OutErrorMessage) const override;
+	virtual TSubclassOf<UTexture> GetTextureUClass() const override;
+	//~ End UTextureRenderTarget Interface
 };
 
 

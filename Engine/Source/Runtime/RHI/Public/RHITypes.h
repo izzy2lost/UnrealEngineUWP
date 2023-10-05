@@ -24,7 +24,6 @@ public:
 
 	ECubeFace GetCubeFace() const
 	{
-		checkSlow(CubeFace <= CubeFace_NegZ);
 		return CubeFace;
 	}
 

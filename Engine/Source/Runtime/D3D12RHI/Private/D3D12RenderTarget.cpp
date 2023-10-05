@@ -372,9 +372,6 @@ TRefCountPtr<FD3D12Resource> FD3D12DynamicRHI::GetStagingTexture(FRHITexture* Te
 	FD3D12Texture* Texture = GetD3D12TextureFromRHITexture(TextureRHI, GPUIndex);
 	D3D12_RESOURCE_DESC const& SourceDesc = Texture->GetResource()->GetDesc();
 
-	// Ensure we're dealing with a Texture2D, which the rest of this function already assumes
-	check(TextureRHI->GetTexture2D());
-
 	bool bRequiresTempStagingTexture = Texture->GetResource()->GetHeapType() != D3D12_HEAP_TYPE_READBACK;
 	if (bRequiresTempStagingTexture == false)
 	{
@@ -422,11 +419,12 @@ TRefCountPtr<FD3D12Resource> FD3D12DynamicRHI::GetStagingTexture(FRHITexture* Te
 	if (Texture->GetDesc().IsTextureCube())
 	{
 		uint32 D3DFace = GetD3D12CubeFace(InFlags.GetCubeFace());
-		Subresource = CalcSubresource(InFlags.GetMip(), D3DFace, TextureRHI->GetNumMips());
+		Subresource = CalcSubresource(InFlags.GetMip(), InFlags.GetArrayIndex() * 6 + D3DFace, TextureRHI->GetNumMips());
 	}
 	else
 	{
-		Subresource = CalcSubresource(InFlags.GetMip(), 0, TextureRHI->GetNumMips());
+		const bool bIsTextureArray = Texture->GetDesc().IsTextureArray();
+		Subresource = CalcSubresource(InFlags.GetMip(), bIsTextureArray ? InFlags.GetArrayIndex() : 0, TextureRHI->GetNumMips());
 	}
 
 	D3D12_BOX* RectPtr = nullptr; // API prefers NULL for entire texture.
@@ -580,6 +578,9 @@ static void ConvertDXGIToFColor(DXGI_FORMAT Format, uint32 Width, uint32 Height,
 		break;
 	case DXGI_FORMAT_R8_UNORM:
 		ConvertRawR8DataToFColor(Width, Height, In, SrcPitch, Out);
+		break;
+	case DXGI_FORMAT_R8G8_UNORM:
+		ConvertRawR8G8DataToFColor(Width, Height, In, SrcPitch, Out);
 		break;
 	default:
 		checkf(0, TEXT("Unknown surface format!"));
@@ -1040,19 +1041,17 @@ void FD3D12DynamicRHI::ReadSurfaceDataMSAARaw(FRHITexture* TextureRHI, FIntRect 
 	const uint32 MipBytesAligned = XBytesAligned * SizeY;
 	VERIFYD3D12RESULT(Adapter->CreateBuffer(D3D12_HEAP_TYPE_READBACK, NodeMask, NodeMask, MipBytesAligned, StagingTexture2D.GetInitReference(), nullptr));
 
-	// Ensure we're dealing with a Texture2D, which the rest of this function already assumes
-	check(TextureRHI->GetTexture2D());
-
 	// Determine the subresource index for cubemaps.
 	uint32 Subresource = 0;
 	if (Texture->GetDesc().IsTextureCube())
 	{
 		uint32 D3DFace = GetD3D12CubeFace(InFlags.GetCubeFace());
-		Subresource = CalcSubresource(InFlags.GetMip(), D3DFace, TextureRHI->GetNumMips());
+		Subresource = CalcSubresource(InFlags.GetMip(), InFlags.GetArrayIndex() * 6 + D3DFace, TextureRHI->GetNumMips());
 	}
 	else
 	{
-		Subresource = CalcSubresource(InFlags.GetMip(), 0, TextureRHI->GetNumMips());
+		const bool bIsTextureArray = Texture->GetDesc().IsTextureArray();
+		Subresource = CalcSubresource(InFlags.GetMip(), bIsTextureArray ? InFlags.GetArrayIndex() : 0, TextureRHI->GetNumMips());
 	}
 
 	// Setup the descriptions for the copy to the readback heap.
@@ -1416,7 +1415,7 @@ void FD3D12DynamicRHI::RHIRead3DSurfaceFloatData(FRHITexture* TextureRHI, FIntRe
 	}
 	else if (bIsR32FFmt)
 	{
-		// Texture is R16F format
+		// Texture is PF_R32_FLOAT format
 		for (int32 Z = ZMinMax.X; Z < ZMinMax.Y; ++Z)
 		{
 			for (int32 Y = InRect.Min.Y; Y < InRect.Max.Y; ++Y)

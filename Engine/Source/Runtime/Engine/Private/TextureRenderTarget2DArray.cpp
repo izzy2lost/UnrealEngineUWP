@@ -134,82 +134,54 @@ FString UTextureRenderTarget2DArray::GetDesc()
 	return FString::Printf( TEXT("Render to Texture 2DArray %dx%d[%s]"), SizeX, SizeX, GPixelFormats[GetFormat()].Name);
 }
 
-UTexture2DArray* UTextureRenderTarget2DArray::ConstructTexture2DArray(UObject* ObjOuter, const FString& NewTexName, EObjectFlags InFlags)
+TSubclassOf<UTexture> UTextureRenderTarget2DArray::GetTextureUClass() const
 {
-#if WITH_EDITOR
-	if (SizeX == 0 || SizeY == 0 || Slices == 0)
+	return UTexture2DArray::StaticClass();
+}
+
+bool UTextureRenderTarget2DArray::CanConvertToTexture(ETextureSourceFormat& OutTextureSourceFormat, EPixelFormat& OutPixelFormat, FText* OutErrorMessage) const
+{
+	const EPixelFormat LocalFormat = GetFormat();
+	// These are the formats currently available for conversion to texture for UTextureRenderTarget2DArray : 
+	const ETextureSourceFormat TextureSourceFormat = ValidateTextureFormatForConversionToTextureInternal(GetFormat(), { PF_G8, PF_R8G8, PF_B8G8R8A8, PF_FloatRGBA }, OutErrorMessage);
+	if (TextureSourceFormat == TSF_Invalid)
 	{
-		return nullptr;
+		return false;
 	}
 
-	const EPixelFormat PixelFormat = GetFormat();
-	ETextureSourceFormat TextureFormat = TSF_Invalid;
-	switch (PixelFormat)
+	if ((SizeX <= 0) || (SizeY <= 0) || (Slices <= 0))
 	{
-		case PF_FloatRGBA:
-			TextureFormat = TSF_RGBA16F;
-			break;
-	}
-
-	if (TextureFormat == TSF_Invalid)
-	{
-		return nullptr;
-	}
-
-	FTextureRenderTarget2DArrayResource* TextureResource = (FTextureRenderTarget2DArrayResource*)GameThread_GetRenderTargetResource();
-	if (TextureResource == nullptr)
-	{
-		return nullptr;
-	}
-
-	// Create texture
-	UTexture2DArray* Texture2DArray = NewObject<UTexture2DArray>(ObjOuter, FName(*NewTexName), InFlags);
-
-	bool bSRGB = true;
-	// if render target gamma used was 1.0 then disable SRGB for the static texture
-	if (FMath::Abs(TextureResource->GetDisplayGamma() - 1.0f) < UE_KINDA_SMALL_NUMBER)
-	{
-		bSRGB = false;
-	}
-	Texture2DArray->Source.Init(SizeX, SizeX, Slices, 1, TextureFormat);
-
-	const int32 SrcMipSize = CalculateImageBytes(SizeX, SizeY, 1, PixelFormat);
-	const int32 DstMipSize = CalculateImageBytes(SizeX, SizeY, 1, PF_FloatRGBA);
-	uint8* SliceData = Texture2DArray->Source.LockMip(0);
-	switch (TextureFormat)
-	{
-		case TSF_RGBA16F:
+		if (OutErrorMessage != nullptr)
 		{
-			for (int i = 0; i < Slices; ++i)
-			{
-				TArray<FFloat16Color> OutputBuffer;
-				FReadSurfaceDataFlags ReadSurfaceDataFlags(RCM_UNorm);
-				if (TextureResource->ReadPixels(OutputBuffer, i))
-				{
-					FMemory::Memcpy((FFloat16Color*)(SliceData + i * DstMipSize), OutputBuffer.GetData(), DstMipSize);
-				}
-			}
-			break;
+			*OutErrorMessage = FText::Format(NSLOCTEXT("TextureRenderTargetVolume", "InvalidSizeForConversionToTexture", "Invalid size (({0},{1}), {2} slices) for converting {3} to {4}"),
+				FText::AsNumber(SizeX),
+				FText::AsNumber(SizeY),
+				FText::AsNumber(Slices),
+				FText::FromString(GetClass()->GetName()),
+				FText::FromString(GetTextureUClass()->GetName()));
 		}
-
-		default:
-			// Missing conversion from PF -> TSF
-			check(false);
-			break;
+		return false;
 	}
 
-	Texture2DArray->Source.UnlockMip(0);
-	Texture2DArray->SRGB = bSRGB;
-	// If HDR source image then choose HDR compression settings..
-	Texture2DArray->CompressionSettings = TextureFormat == TSF_RGBA16F ? TextureCompressionSettings::TC_HDR : TextureCompressionSettings::TC_Default; //-V547 - future proofing
-	// Default to no mip generation for cube render target captures.
-	Texture2DArray->MipGenSettings = TextureMipGenSettings::TMGS_NoMipmaps;
-	Texture2DArray->PostEditChange();
+	OutPixelFormat = LocalFormat;
+	OutTextureSourceFormat = TextureSourceFormat;
+	return true;
+}
 
-	return Texture2DArray;
-#else
-	return nullptr;
+UTexture2DArray* UTextureRenderTarget2DArray::ConstructTexture2DArray(UObject* InOuter, const FString& InNewTextureName, EObjectFlags InObjectFlags, uint32 InFlags, TArray<uint8>* InAlphaOverride)
+{
+	UTexture2DArray* Result = nullptr;
+
+#if WITH_EDITOR
+	FText ErrorMessage;
+	Result = Cast<UTexture2DArray>(ConstructTexture(InOuter, InNewTextureName, InObjectFlags, static_cast<EConstructTextureFlags>(InFlags), InAlphaOverride, &ErrorMessage));
+	if (Result == nullptr)
+	{
+		UE_LOG(LogTexture, Error, TEXT("Couldn't construct texture : %s"), *ErrorMessage.ToString());
+	}
 #endif // #if WITH_EDITOR
+
+	return Result;
 }
 
 /*-----------------------------------------------------------------------------
@@ -357,50 +329,18 @@ float FTextureRenderTarget2DArrayResource::GetDisplayGamma() const
 	return FTextureRenderTargetResource::GetDisplayGamma();
 }
 
+PRAGMA_DISABLE_DEPRECATION_WARNINGS
 bool FTextureRenderTarget2DArrayResource::ReadPixels(TArray<FColor>& OutImageData, int32 InSlice, FIntRect InRect)
 {
-	if (InRect == FIntRect(0, 0, 0, 0))
-	{
-		InRect = FIntRect(0, 0, GetSizeXY().X, GetSizeXY().Y);
-	}
-
-	OutImageData.Reset();
-
-	ENQUEUE_RENDER_COMMAND(ReadSurfaceCommand)
-	(
-		[RenderTarget_RT=this, OutData_RT=&OutImageData, Rect_RT=InRect, Slice_RT=InSlice, bSRGB_RT= bSRGB](FRHICommandListImmediate& RHICmdList)
-		{
-			TArray<FFloat16Color> TempData;
-			RHICmdList.ReadSurfaceFloatData(RenderTarget_RT->TextureRHI, Rect_RT, TempData, (ECubeFace)0, Slice_RT, 0);
-			for (const FFloat16Color& SrcColor : TempData)
-			{
-				OutData_RT->Emplace(FLinearColor(SrcColor).ToFColor(bSRGB_RT));
-			}
-		}
-	);
-	FlushRenderingCommands();
-
-	return true;
+	FReadSurfaceDataFlags Flags;
+	Flags.SetArrayIndex(InSlice);
+	return FRenderTarget::ReadPixels(OutImageData, Flags, InRect);
 }
 
 bool FTextureRenderTarget2DArrayResource::ReadPixels(TArray<FFloat16Color>& OutImageData, int32 InSlice, FIntRect InRect)
 {
-	if (InRect == FIntRect(0, 0, 0, 0))
-	{
-		InRect = FIntRect(0, 0, GetSizeXY().X, GetSizeXY().Y);
-	}
-
-	OutImageData.Reset();
-
-	ENQUEUE_RENDER_COMMAND(ReadSurfaceCommand)
-	(
-		[RenderTarget_RT=this, OutData_RT=&OutImageData, Rect_RT=InRect, Slice_RT=InSlice](FRHICommandListImmediate& RHICmdList)
-		{
-			RHICmdList.ReadSurfaceFloatData(RenderTarget_RT->TextureRHI, Rect_RT, *OutData_RT, (ECubeFace)0, Slice_RT, 0);
-		}
-	);
-	FlushRenderingCommands();
-
-	return true;
+	FReadSurfaceDataFlags Flags;
+	Flags.SetArrayIndex(InSlice);
+	return FRenderTarget::ReadFloat16Pixels(OutImageData, Flags, InRect);
 }
-
+PRAGMA_ENABLE_DEPRECATION_WARNINGS

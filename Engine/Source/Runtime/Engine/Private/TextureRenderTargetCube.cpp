@@ -156,88 +156,51 @@ FString UTextureRenderTargetCube::GetDesc()
 	return FString::Printf( TEXT("Render to Texture Cube %dx%d[%s]"), SizeX, SizeX, GPixelFormats[GetFormat()].Name);
 }
 
-UTextureCube* UTextureRenderTargetCube::ConstructTextureCube(
-  UObject* ObjOuter,
-  const FString& NewTexName,
-  EObjectFlags InFlags
-)
+TSubclassOf<UTexture> UTextureRenderTargetCube::GetTextureUClass() const
+{
+	return UTextureCube::StaticClass();
+}
+
+bool UTextureRenderTargetCube::CanConvertToTexture(ETextureSourceFormat& OutTextureSourceFormat, EPixelFormat& OutPixelFormat, FText* OutErrorMessage) const
+{
+	const EPixelFormat LocalFormat = GetFormat();
+	// These are the formats currently available for conversion to texture for UTextureRenderTargetCube : 
+	const ETextureSourceFormat TextureSourceFormat = ValidateTextureFormatForConversionToTextureInternal(GetFormat(), { PF_B8G8R8A8, PF_FloatRGBA }, OutErrorMessage);
+	if (TextureSourceFormat == TSF_Invalid)
+	{
+		return false;
+	}
+
+	if ((SizeX <= 0) || (SizeX & (SizeX - 1)))
+	{
+		if (OutErrorMessage != nullptr)
+		{
+			*OutErrorMessage = FText::Format(NSLOCTEXT("TextureRenderTargetVolume", "InvalidSizeForConversionToTexture", "Invalid size ({0},{0}) for converting {1} to {2}. Needs to be a power of 2."),
+				FText::AsNumber(SizeX),
+				FText::FromString(GetClass()->GetName()),
+				FText::FromString(GetTextureUClass()->GetName()));
+		}
+		return false;
+	}
+
+	OutPixelFormat = LocalFormat;
+	OutTextureSourceFormat = TextureSourceFormat;
+	return true;
+}
+
+UTextureCube* UTextureRenderTargetCube::ConstructTextureCube(UObject* InOuter, const FString& InNewTextureName, EObjectFlags InObjectFlags, uint32 InFlags, TArray<uint8>* InAlphaOverride)
 {
 	UTextureCube* Result = NULL;
+
 #if WITH_EDITOR
-	// Check render target size is valid and power of two.
-	if (SizeX != 0 && !(SizeX & (SizeX - 1)))
+	FText ErrorMessage;
+	Result = Cast<UTextureCube>(ConstructTexture(InOuter, InNewTextureName, InObjectFlags, static_cast<EConstructTextureFlags>(InFlags), InAlphaOverride, &ErrorMessage));
+	if (Result == nullptr)
 	{
-		const EPixelFormat PixelFormat = GetFormat();
-		ETextureSourceFormat TextureFormat = TSF_Invalid;
-		switch (PixelFormat)
-		{
-			case PF_FloatRGBA:
-				TextureFormat = TSF_RGBA16F;
-				break;
-			case PF_B8G8R8A8:
-				TextureFormat = TSF_BGRA8;
-				break;
-			default:
-				return nullptr;
-		}
-
-		// The r2t resource will be needed to read its surface contents
-		FTextureRenderTargetCubeResource* CubeResource = (FTextureRenderTargetCubeResource*)GameThread_GetRenderTargetResource();
-		if (CubeResource && TextureFormat != TSF_Invalid)
-		{
-			// create the cube texture
-			Result = NewObject<UTextureCube>(ObjOuter, FName(*NewTexName), InFlags);
-
-			bool bSRGB = true;
-			// if render target gamma used was 1.0 then disable SRGB for the static texture
-			if (FMath::Abs(CubeResource->GetDisplayGamma() - 1.0f) < UE_KINDA_SMALL_NUMBER)
-			{
-				bSRGB = false;
-			}
-
-			Result->Source.Init(SizeX, SizeX, 6, 1, TextureFormat);
-
-			int32 MipSize = CalculateImageBytes(SizeX, SizeX, 0, PixelFormat);
-			uint8* SliceData = Result->Source.LockMip(0);
-
-			switch (TextureFormat)
-			{
-				case TSF_BGRA8:
-				{
-					TArray<FColor> OutputBuffer;
-					for (int32 SliceIndex = 0; SliceIndex < 6; SliceIndex++)
-					{
-						if (CubeResource->ReadPixels(OutputBuffer, FReadSurfaceDataFlags(RCM_UNorm, (ECubeFace)SliceIndex)))
-						{
-							FMemory::Memcpy((FColor*)(SliceData + SliceIndex * MipSize), OutputBuffer.GetData(), MipSize);
-						}
-					}
-				}
-				break;
-				case TSF_RGBA16F:
-				{
-					TArray<FFloat16Color> OutputBuffer;
-					for (int32 SliceIndex = 0; SliceIndex < 6; SliceIndex++)
-					{
-						if (CubeResource->ReadPixels(OutputBuffer, FReadSurfaceDataFlags(RCM_UNorm, (ECubeFace)SliceIndex)))
-						{
-							FMemory::Memcpy((FFloat16Color*)(SliceData + SliceIndex * MipSize), OutputBuffer.GetData(), MipSize);
-						}
-					}
-				}
-				break;
-			}
-
-			Result->Source.UnlockMip(0);
-			Result->SRGB = bSRGB;
-			// If HDR source image then choose HDR compression settings..
-			Result->CompressionSettings = TextureFormat == TSF_RGBA16F ? TextureCompressionSettings::TC_HDR : TextureCompressionSettings::TC_Default;
-			// Default to no mip generation for cube render target captures.
-			Result->MipGenSettings = TextureMipGenSettings::TMGS_NoMipmaps;
-			Result->PostEditChange();
-		}
+		UE_LOG(LogTexture, Error, TEXT("Couldn't construct texture : %s"), *ErrorMessage.ToString());
 	}
 #endif // #if WITH_EDITOR
+
 	return Result;
 }
 
@@ -414,7 +377,7 @@ float FTextureRenderTargetCubeResource::GetDisplayGamma() const
 	return FTextureRenderTargetResource::GetDisplayGamma();
 }
 
-
+PRAGMA_DISABLE_DEPRECATION_WARNINGS
 /**
 * Copy the texels of a single face of a cube texture into an array.
 * @param OutImageData - RGBA8 values will be stored in this array.
@@ -424,42 +387,7 @@ float FTextureRenderTargetCubeResource::GetDisplayGamma() const
 */
 bool FTextureRenderTargetCubeResource::ReadPixels(TArray< FColor >& OutImageData, FReadSurfaceDataFlags InFlags, FIntRect InRect)
 {
-	if (InRect == FIntRect(0, 0, 0, 0))
-	{
-		InRect = FIntRect(0, 0, GetSizeXY().X, GetSizeXY().Y);
-	}
-
-	// Read the render target surface data back.
-	struct FReadSurfaceContext
-	{
-		FTextureRenderTargetCubeResource* SrcRenderTarget;
-		TArray<FColor>* OutData;
-		FIntRect Rect;
-		FReadSurfaceDataFlags Flags;
-	};
-
-	OutImageData.Reset();
-	FReadSurfaceContext Context =
-	{
-		this,
-		&OutImageData,
-		InRect,
-		InFlags
-	};
-
-	ENQUEUE_RENDER_COMMAND(ReadSurfaceCommand)(
-		[Context](FRHICommandListImmediate& RHICmdList)
-		{
-			RHICmdList.ReadSurfaceData(
-				Context.SrcRenderTarget->TextureRHI,
-				Context.Rect,
-				*Context.OutData,
-				Context.Flags
-			);
-		});
-	FlushRenderingCommands();
-
-	return true;
+	return FRenderTarget::ReadPixels(OutImageData, InFlags, InRect);
 }
 
 /**
@@ -471,42 +399,6 @@ bool FTextureRenderTargetCubeResource::ReadPixels(TArray< FColor >& OutImageData
 */
 bool FTextureRenderTargetCubeResource::ReadPixels(TArray<FFloat16Color>& OutImageData, FReadSurfaceDataFlags InFlags, FIntRect InRect)
 {
-	if (InRect == FIntRect(0, 0, 0, 0))
-	{
-		InRect = FIntRect(0, 0, GetSizeXY().X, GetSizeXY().Y);
-	}
-	// Read the render target surface data back.
-	struct FReadSurfaceFloatContext
-	{
-		FTextureRenderTargetCubeResource* SrcRenderTarget;
-		TArray<FFloat16Color>* OutData;
-		FIntRect Rect;
-		ECubeFace CubeFace;
-	};
-
-	FReadSurfaceFloatContext Context =
-	{
-		this,
-		&OutImageData,
-		InRect,
-		InFlags.GetCubeFace()
-	};
-
-	ENQUEUE_RENDER_COMMAND(ReadSurfaceFloatCommand)(
-		[Context](FRHICommandListImmediate& RHICmdList)
-		{
-			RHICmdList.ReadSurfaceFloatData(
-				Context.SrcRenderTarget->TextureRHI,
-				Context.Rect,
-				*Context.OutData,
-				Context.CubeFace,
-				0,
-				0
-			);
-	});
-
-	FlushRenderingCommands();
-
-	return true;
+	return FRenderTarget::ReadFloat16Pixels(OutImageData, InFlags, InRect);
 }
-
+PRAGMA_ENABLE_DEPRECATION_WARNINGS

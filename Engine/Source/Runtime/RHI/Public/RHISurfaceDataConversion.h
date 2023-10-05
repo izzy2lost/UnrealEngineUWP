@@ -394,6 +394,21 @@ inline void ConvertRawR8DataToFColor(uint32 Width, uint32 Height, uint8 *In, uin
 	}
 }
 
+inline void ConvertRawR8G8DataToFColor(uint32 Width, uint32 Height, uint8* In, uint32 SrcPitch, FColor* Out)
+{
+	for (uint32 Y = 0; Y < Height; Y++)
+	{
+		uint8* SrcPtr = (uint8*)(In + Y * SrcPitch);
+		FColor* DestPtr = Out + Y * Width;
+		for (uint32 X = 0; X < Width; X++)
+		{
+			*DestPtr = FColor(*SrcPtr, *(SrcPtr + 1), 0);
+			SrcPtr += 2;
+			++DestPtr;
+		}
+	}
+}
+
 inline void ConvertRawD32S8DataToFColor(uint32 Width, uint32 Height, uint8 *In, uint32 SrcPitch, FColor* Out, FReadSurfaceDataFlags InFlags)
 {
 	bool bLinearToGamma = InFlags.GetLinearToGamma();

@@ -107,6 +107,10 @@ static void ConvertRawDataToFColor(VkFormat VulkanFormat, uint32 DestWidth, uint
 		ConvertRawR8DataToFColor(DestWidth, DestHeight, In, SrcPitch, Dest);
 		break;
 
+	case VK_FORMAT_R8G8_UNORM:
+		ConvertRawR8G8DataToFColor(DestWidth, DestHeight, In, SrcPitch, Dest);
+		break;
+
 	case VK_FORMAT_R16_UNORM:
 		ConvertRawR16DataToFColor(DestWidth, DestHeight, In, SrcPitch, Dest);
 		break;

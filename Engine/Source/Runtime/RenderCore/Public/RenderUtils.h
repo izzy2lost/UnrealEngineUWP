@@ -128,8 +128,8 @@ struct FPackedPosition
 };
 
 
-/** Flags that control ConstructTexture2D */
-enum EConstructTextureFlags
+/** Flags that control ConstructTexture(2D/2DArray/Volume/etc.) */
+enum EConstructTextureFlags : uint32
 {
 	/** Compress RGBA8 to DXT */
 	CTF_Compress =				0x01,

@@ -75,6 +75,12 @@ public:
 	*/
 	float GetDisplayGamma() const override;
 
+	virtual bool ReadPixels(TArray<FColor>& OutImageData, FReadSurfaceDataFlags InFlags = FReadSurfaceDataFlags(RCM_UNorm, CubeFace_MAX), FIntRect InSrcRect = FIntRect(0, 0, 0, 0)) override;
+
+	virtual bool ReadFloat16Pixels(TArray<FFloat16Color>& OutImageData, FReadSurfaceDataFlags InFlags = FReadSurfaceDataFlags(RCM_UNorm, CubeFace_MAX), FIntRect InSrcRect = FIntRect(0, 0, 0, 0)) override;
+
+	virtual bool ReadLinearColorPixels(TArray<FLinearColor>& OutImageData, FReadSurfaceDataFlags InFlags = FReadSurfaceDataFlags(RCM_UNorm, CubeFace_MAX), FIntRect InSrcRect = FIntRect(0, 0, 0, 0)) override;
+
 	/**
 	* Copy the texels of a single depth slice of the volume into an array.
 	* @param OutImageData - float16 values will be stored in this array.
@@ -82,6 +88,7 @@ public:
 	* @param InRect - Rectangle of texels to copy.
 	* @return true if the read succeeded.
 	*/
+	UE_DEPRECATED(5.4, "Use FRenderTarget's ReadPixels, which is functionally equivalent")
 	ENGINE_API bool ReadPixels(TArray<FColor>& OutImageData, int32 InDepthSlice, FIntRect InRect = FIntRect(0, 0, 0, 0));
 
 	/**
@@ -91,6 +98,7 @@ public:
 	* @param InRect - Rectangle of texels to copy.
 	* @return true if the read succeeded.
 	*/
+	UE_DEPRECATED(5.4, "Use FRenderTarget's ReadFloat16Pixels, which is functionally equivalent")
 	ENGINE_API bool ReadPixels(TArray<FFloat16Color>& OutImageData, int32 InDepthSlice, FIntRect InRect = FIntRect(0, 0, 0, 0));
 
 protected:

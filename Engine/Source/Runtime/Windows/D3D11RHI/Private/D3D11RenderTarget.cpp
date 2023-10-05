@@ -336,11 +336,12 @@ TRefCountPtr<ID3D11Texture2D> FD3D11DynamicRHI::GetStagingTexture(FRHITexture* T
 	if( SourceDesc.MiscFlags == D3D11_RESOURCE_MISC_TEXTURECUBE )
 	{
 		uint32 D3DFace = GetD3D11CubeFace(InFlags.GetCubeFace());
-		Subresource = D3D11CalcSubresource(InFlags.GetMip(),D3DFace,TextureRHI->GetNumMips());
+		Subresource = D3D11CalcSubresource(InFlags.GetMip(), InFlags.GetArrayIndex() * 6 + D3DFace, TextureRHI->GetNumMips());
 	}
 	else
 	{
-		Subresource = D3D11CalcSubresource(InFlags.GetMip(), 0, TextureRHI->GetNumMips());
+		const bool bIsTextureArray = Texture->GetDesc().IsTextureArray();
+		Subresource = D3D11CalcSubresource(InFlags.GetMip(), bIsTextureArray ? InFlags.GetArrayIndex() : 0, TextureRHI->GetNumMips());
 	}
 
 	D3D11_BOX* RectPtr = NULL; // API prefers NULL for entire texture.
@@ -482,6 +483,9 @@ static void ConvertDXGIToFColor(DXGI_FORMAT Format, uint32 Width, uint32 Height,
 		case DXGI_FORMAT_R8_UNORM:
 			ConvertRawR8DataToFColor(Width, Height, In, SrcPitch, Out);
 			break;
+		case DXGI_FORMAT_R8G8_UNORM:
+			ConvertRawR8G8DataToFColor(Width, Height, In, SrcPitch, Out);
+			break;
 		default:
 			checkf(0, TEXT("Unknown surface format!"));
 			break;
@@ -598,11 +602,16 @@ void FD3D11DynamicRHI::ReadSurfaceDataMSAARaw(FRHITexture* TextureRHI,FIntRect I
 	VERIFYD3D11RESULT_EX(Direct3DDevice->CreateTexture2D(&StagingDesc,NULL,StagingTexture2D.GetInitReference()), Direct3DDevice);
 
 	// Determine the subresource index for cubemaps.
-	uint32 Subresource = InFlags.GetMip();
-	if( TextureDesc.MiscFlags == D3D11_RESOURCE_MISC_TEXTURECUBE )
+	uint32 Subresource = 0;
+	if (TextureDesc.MiscFlags == D3D11_RESOURCE_MISC_TEXTURECUBE)
 	{
 		uint32 D3DFace = GetD3D11CubeFace(InFlags.GetCubeFace());
-		Subresource = D3D11CalcSubresource(0,D3DFace,1);
+		Subresource = D3D11CalcSubresource(InFlags.GetMip(), InFlags.GetArrayIndex() * 6 + D3DFace, TextureRHI->GetNumMips());
+	}
+	else
+	{
+		const bool bIsTextureArray = Texture->GetDesc().IsTextureArray();
+		Subresource = D3D11CalcSubresource(InFlags.GetMip(), bIsTextureArray ? InFlags.GetArrayIndex() : 0, TextureRHI->GetNumMips());
 	}
 	
 	// Allocate the output buffer.

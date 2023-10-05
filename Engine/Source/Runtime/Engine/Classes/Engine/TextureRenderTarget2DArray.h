@@ -66,14 +66,15 @@ class UTextureRenderTarget2DArray : public UTextureRenderTarget
 	ENGINE_API void UpdateResourceImmediate(bool bClearRenderTarget/*=true*/);
 
 	/**
-	* Utility for creating a new UTexture2DArray from a TextureRenderTarget2DArray.
-	* TextureRenderTarget2DArray must be square and a power of two size.
-	* @param	Outer			Outer to use when constructing the new Texture2DArray.
-	* @param	NewTexName		Name of new UTexture2DArray object.
-	* @param	Flags			Various control flags for operation (see EObjectFlags)
-	* @return					New UTexture2DArray object.
-	*/
-	ENGINE_API class UTexture2DArray* ConstructTexture2DArray(UObject* InOuter, const FString& NewTexName, EObjectFlags InFlags);
+	 * Utility for creating a new UTexture2DArray from a UTextureRenderTarget2DArray
+	 * @param InOuter - Outer to use when constructing the new UTexture2DArray.
+	 * @param InNewTextureName - Name of new UTexture2DArray object.
+	 * @param InObjectFlags - Flags to apply to the new UTexture2DArray object
+	 * @param InFlags - Various control flags for operation (see EConstructTextureFlags)
+	 * @param InAlphaOverride - If specified, the values here will become the alpha values in the resulting texture
+	 * @return New UTexture2DArray object.
+	 */
+	ENGINE_API class UTexture2DArray* ConstructTexture2DArray(UObject* InOuter, const FString& InNewTextureName, EObjectFlags InObjectFlags, uint32 InFlags = CTF_Default, TArray<uint8>* InAlphaOverride = nullptr);
 
 	//~ Begin UTexture Interface.
 	virtual float GetSurfaceWidth() const  override { return static_cast<float>(SizeX); }
@@ -109,7 +110,12 @@ class UTextureRenderTarget2DArray : public UTextureRenderTarget
 	virtual void PostLoad() override;
 	virtual void GetResourceSizeEx(FResourceSizeEx& CumulativeResourceSize) override;
 	virtual FString GetDesc() override;
-	//~ Begin UObject Interface
+	//~ End UObject Interface
+
+	//~ Begin UTextureRenderTarget Interface
+	virtual bool CanConvertToTexture(ETextureSourceFormat& OutTextureSourceFormat, EPixelFormat& OutPixelFormat, FText* OutErrorMessage) const override;
+	virtual TSubclassOf<UTexture> GetTextureUClass() const override;
+	//~ End UTextureRenderTarget Interface
 };
 
 

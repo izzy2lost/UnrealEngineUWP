@@ -601,6 +601,7 @@ public:
 	* @param InRect - Rectangle of texels to copy.
 	* @return true if the read succeeded.
 	*/
+	UE_DEPRECATED(5.4, "Use FRenderTarget's ReadPixels, which is functionally equivalent")
 	ENGINE_API bool ReadPixels(TArray< FColor >& OutImageData, FReadSurfaceDataFlags InFlags, FIntRect InRect = FIntRect(0, 0, 0, 0));
 
 	/**
@@ -610,6 +611,7 @@ public:
 	* @param InRect - Rectangle of texels to copy.
 	* @return true if the read succeeded.
 	*/
+	UE_DEPRECATED(5.4, "Use FRenderTarget's ReadFloat16Pixels, which is functionally equivalent")
 	ENGINE_API bool ReadPixels(TArray<FFloat16Color>& OutImageData, FReadSurfaceDataFlags InFlags, FIntRect InRect = FIntRect(0, 0, 0, 0));
 
 protected:
