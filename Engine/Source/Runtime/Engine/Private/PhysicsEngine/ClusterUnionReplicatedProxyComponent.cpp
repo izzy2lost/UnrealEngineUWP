@@ -112,6 +112,8 @@ void UClusterUnionReplicatedProxyComponent::OnRep_ParticleChildToParents()
 
 void UClusterUnionReplicatedProxyComponent::PostRepNotifies()
 {
+	QUICK_SCOPE_CYCLE_COUNTER(UClusterUnionReplicatedProxyComponent_PostRepNotifies);
+
 	UActorComponent::PostRepNotifies();
 
 	if (IsPendingDeletion())
