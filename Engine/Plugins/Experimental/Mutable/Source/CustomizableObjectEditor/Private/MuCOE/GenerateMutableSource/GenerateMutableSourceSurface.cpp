@@ -717,8 +717,8 @@ mu::NodeSurfacePtr GenerateMutableSourceSurface(const UEdGraphPin * Pin, FMutabl
 									EPixelFormat UnrealTargetPlatformFormatAlpha = TextureFormat->GetEncodedPixelFormat(BuildSettingsPerLayer[0], true);
 
 									// \TODO: The QualityFix filter is used while the internal mutable runtime compression doesn't provide enough quality for some large block formats.
-									mu::EImageFormat MutableFormat = QualityFix(UnrealToMutablePixelFormat(UnrealTargetPlatformFormat,false));
-									mu::EImageFormat MutableFormatIfAlpha = QualityFix(UnrealToMutablePixelFormat(UnrealTargetPlatformFormatAlpha,true));
+									mu::EImageFormat MutableFormat = QualityAndPerformanceFix(UnrealToMutablePixelFormat(UnrealTargetPlatformFormat,false));
+									mu::EImageFormat MutableFormatIfAlpha = QualityAndPerformanceFix(UnrealToMutablePixelFormat(UnrealTargetPlatformFormatAlpha,true));
 
 									// Unsupported format: look for something generic
 									if (MutableFormat == mu::EImageFormat::IF_NONE)

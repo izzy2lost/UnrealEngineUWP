@@ -30,6 +30,7 @@
 #include "MuT/ASTOpImageMakeGrowMap.h"
 #include "MuT/ASTOpImageSwizzle.h"
 #include "MuT/ASTOpImageRasterMesh.h"
+#include "MuT/ASTOpImageCrop.h"
 #include "MuT/ASTOpMeshExtractLayoutBlocks.h"
 #include "MuT/ASTOpMeshFormat.h"
 #include "MuT/ASTOpParameter.h"
@@ -176,9 +177,6 @@ namespace mu
     {
 		const NodeImageConstant::Private& node = *InNode->GetPrivate();
 		
-        Ptr<ASTOpConstantResource> op = new ASTOpConstantResource();
-        op->type = OP_TYPE::IM_CONSTANT;
-
         // TODO: check duplicates
         Ptr<const Image> pImage;
 		if (node.m_pProxy)
@@ -227,24 +225,63 @@ namespace mu
 			// Do we need to crop?
 			if (rect.min[0]!=0 || rect.min[1]!=0 || pImage->GetSizeX() != rect.size[0] || pImage->GetSizeY() != rect.size[1])
 			{
-				FImageOperator ImOp = FImageOperator::GetDefault(m_compilerOptions->ImageFormatFunc);
+				// Option 1: Crop now
+				if (true)
+				{
+					FImageOperator ImOp = FImageOperator::GetDefault(m_compilerOptions->ImageFormatFunc);
 
-				Ptr<Image> pCropped = new Image(rect.size[0], rect.size[1], 1, pImage->GetFormat(), EInitializationType::NotInitialized);
-				ImOp.ImageCrop(pCropped.get(), m_compilerOptions->ImageCompressionQuality, pImage.get(), rect);
-				op->SetValue(pCropped, m_compilerOptions->OptimisationOptions.bUseDiskCache);
+					Ptr<Image> pCropped = new Image(rect.size[0], rect.size[1], 1, pImage->GetFormat(), EInitializationType::NotInitialized);
+					ImOp.ImageCrop(pCropped.get(), m_compilerOptions->ImageCompressionQuality, pImage.get(), rect);
+
+					Ptr<ASTOpConstantResource> op = new ASTOpConstantResource();
+					op->type = OP_TYPE::IM_CONSTANT;
+					op->SetValue(pCropped, m_compilerOptions->OptimisationOptions.bUseDiskCache);
+					Result.op = op;
+				}
+
+				// Option 2: Generate a crop instruction: seems to be a lot slower and give worse results.
+				else
+				{
+					//Ptr<ASTOpConstantResource>* Found = ImageConstantOpPerImage.Find( pImage );
+					//Ptr<ASTOpConstantResource> ConstantOp;
+					//if (Found)
+					//{
+					//	ConstantOp = *Found;
+					//}
+					//else
+					//{ 
+					//	ConstantOp = new ASTOpConstantResource();
+					//	ConstantOp->type = OP_TYPE::IM_CONSTANT;
+					//	ConstantOp->SetValue(pImage, m_compilerOptions->OptimisationOptions.bUseDiskCache);
+					//	ImageConstantOpPerImage.Add(pImage, ConstantOp);
+					//}
+
+					//Ptr<ASTOpImageCrop> CropOp = new ASTOpImageCrop();
+					//CropOp->Source = ConstantOp;
+					//CropOp->Min[0] = rect.min[0];
+					//CropOp->Min[1] = rect.min[1];
+					//CropOp->Size[0] = rect.size[0];
+					//CropOp->Size[1] = rect.size[1];
+
+					//Result.op = CropOp;
+				}
 			}
 			else
 			{
 				// No need to crop.
+				Ptr<ASTOpConstantResource> op = new ASTOpConstantResource();
+				op->type = OP_TYPE::IM_CONSTANT;
 				op->SetValue(pImage, m_compilerOptions->OptimisationOptions.bUseDiskCache);
+				Result.op = op;
 			}
 		}
         else
         {
-            op->SetValue( pImage, m_compilerOptions->OptimisationOptions.bUseDiskCache );
-        }
-
-		Result.op = op;
+			Ptr<ASTOpConstantResource> op = new ASTOpConstantResource();
+			op->type = OP_TYPE::IM_CONSTANT;
+			op->SetValue( pImage, m_compilerOptions->OptimisationOptions.bUseDiskCache );
+			Result.op = op;
+		}
     }
 
 
@@ -253,12 +290,64 @@ namespace mu
 	{
 		const NodeImageReference::Private& node = *InNode->GetPrivate();
 
-		Ptr<ASTOpReferenceResource> op = new ASTOpReferenceResource();
-		op->type = OP_TYPE::IM_REFERENCE;
-		op->ID = node.ImageReferenceID;
+		Ptr<ASTOpReferenceResource> ReferenceOp = new ASTOpReferenceResource();
+		ReferenceOp->type = OP_TYPE::IM_REFERENCE;
+		ReferenceOp->ID = node.ImageReferenceID;
+		ReferenceOp->bForceLoad = node.bForceLoad;
 
-		// TODO: check no crop
-		Result.op = op;
+		if (Options.ImageLayoutStrategy != CompilerOptions::TextureLayoutStrategy::None && Options.LayoutToApply)
+		{
+			// We want to generate only a block from the image.
+
+			FIntVector2 SourceImageSize(node.ImageDesc.m_size[0], node.ImageDesc.m_size[1]);
+
+			int32 BlockIndex = Options.LayoutToApply->FindBlock(Options.LayoutBlockId);
+			check(BlockIndex >= 0);
+
+			// Block in layout grid units
+			box< UE::Math::TIntVector2<uint16> > RectInCells;
+			Options.LayoutToApply->GetBlock
+			(
+				BlockIndex,
+				&RectInCells.min[0], &RectInCells.min[1],
+				&RectInCells.size[0], &RectInCells.size[1]
+			);
+
+			FIntPoint grid = Options.LayoutToApply->GetGridSize();
+			grid[0] = FMath::Max(1, grid[0]);
+			grid[1] = FMath::Max(1, grid[1]);
+
+			// Transform to pixels
+			box< UE::Math::TIntVector2<int32> > rect;
+			rect.min[0] = (RectInCells.min[0] * SourceImageSize[0]) / grid[0];
+			rect.min[1] = (RectInCells.min[1] * SourceImageSize[1]) / grid[1];
+			rect.size[0] = (RectInCells.size[0] * SourceImageSize[0]) / grid[0];
+			rect.size[1] = (RectInCells.size[1] * SourceImageSize[1]) / grid[1];
+
+			// Do we need to crop?
+			if (rect.min[0] != 0 || rect.min[1] != 0 || node.ImageDesc.m_size[0] != rect.size[0] || node.ImageDesc.m_size[1] != rect.size[1])
+			{
+				// If need to crop it has to be the case of an image we will force to load.
+				check(node.bForceLoad);
+
+				Ptr<ASTOpImageCrop> CropOp = new ASTOpImageCrop();
+				CropOp->Source = ReferenceOp;
+				CropOp->Min[0] = rect.min[0];
+				CropOp->Min[1] = rect.min[1];
+				CropOp->Size[0] = rect.size[0];
+				CropOp->Size[1] = rect.size[1];
+
+				Result.op = CropOp;
+			}
+			else
+			{
+				Result.op = ReferenceOp;
+			}
+		}
+		else
+		{
+			Result.op = ReferenceOp;
+		}
 	}
 
 
@@ -1721,8 +1810,15 @@ namespace mu
 				{
 					if (pImage->IsReference())
 					{
+						FImageDesc ImageDesc;
+						ImageDesc.m_format = pImage->GetFormat();
+						ImageDesc.m_lods = pImage->GetLODCount();
+						ImageDesc.m_size[0] = pImage->GetSizeX();
+						ImageDesc.m_size[1] = pImage->GetSizeY();
+
 						Ptr<NodeImageReference> ImageRef = new NodeImageReference();
-						ImageRef->SetImageReference(pImage->GetReferencedTexture());
+						ImageRef->SetImageReference(pImage->GetReferencedTexture(), ImageDesc);
+						ImageRef->SetForceLoad( pImage->m_flags & Image::IF_IS_FORCELOAD );
 
 						CellImage = ImageRef;
 					}

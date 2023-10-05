@@ -22,23 +22,37 @@ namespace mu
 
 		uint32 ImageReferenceID = 0;
 
-		//!
+		FImageDesc ImageDesc;
+		
+		bool bForceLoad = false;
+
 		void Serialise(OutputArchive& arch) const
 		{
-			uint32 Ver = 0;
+			uint32 Ver = 1;
 			arch << Ver;
 
 			arch << ImageReferenceID;
+			arch << ImageDesc.m_size;
+			arch << ImageDesc.m_lods;
+			arch << ImageDesc.m_format;
+			arch << bForceLoad;
 		}
 
-		//!
 		void Unserialise(InputArchive& arch)
 		{
 			uint32 Ver;
 			arch >> Ver;
-			check(Ver == 0);
+			check(Ver >= 0 && Ver <= 1);
 
 			arch >> ImageReferenceID;
+			
+			if (Ver >= 1)
+			{
+				arch >> ImageDesc.m_size;
+				arch >> ImageDesc.m_lods;
+				arch >> ImageDesc.m_format;
+				arch >> bForceLoad;
+			}
 		}
 	};
 

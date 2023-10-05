@@ -4,6 +4,7 @@
 
 #include "MuCO/CustomizableObjectSystem.h"
 #include "MuCO/CustomizableObject.h"
+#include "MuCO/UnrealToMutableTextureConversionUtils.h"
 #include "TextureResource.h"
 #include "MuR/Parameters.h"
 
@@ -12,44 +13,12 @@
 namespace
 {
 
-	mu::ImagePtr ConvertTextureUnrealToMutable(UTexture2D* Texture, uint8 MipmapsToSkip)
-	{
-		mu::ImagePtr pResult;
-
+	void ConvertTextureUnrealToMutable(mu::Image* OutResult, UTexture2D* Texture, bool bIsNormalComposite, uint8 MipmapsToSkip)
+	{		
 #if WITH_EDITOR
-		int LODs = 1;
-		int SizeX = Texture->Source.GetSizeX() >> MipmapsToSkip;
-		int SizeY = Texture->Source.GetSizeY() >> MipmapsToSkip;
-		check(SizeX > 0 && SizeY > 0);
 
-		ETextureSourceFormat Format = Texture->Source.GetFormat();
-		mu::EImageFormat MutableFormat = mu::EImageFormat::IF_NONE;
-
-		switch (Format)
-		{
-		case ETextureSourceFormat::TSF_BGRA8: MutableFormat = mu::EImageFormat::IF_BGRA_UBYTE; break;
-		// This format is deprecated and using the enum fails to compile in some cases.
-		//case ETextureSourceFormat::TSF_RGBA8: MutableFormat = mu::EImageFormat::IF_RGBA_UBYTE; break;
-		case ETextureSourceFormat::TSF_G8: MutableFormat = mu::EImageFormat::IF_L_UBYTE; break;
-		default:
-			break;
-		}
-
-		// If not locked ReadOnly the Texture Source's FGuid can change, invalidating the texture's caching/shaders
-		// making shader compile and cook times increase
-		const uint8* pSource = Texture->Source.LockMipReadOnly(MipmapsToSkip);
-		if (pSource)
-		{
-			pResult = new mu::Image(SizeX, SizeY, LODs, MutableFormat, mu::EInitializationType::NotInitialized);
-			FMemory::Memcpy(pResult->GetData(), pSource, pResult->GetDataSize());
-			Texture->Source.UnlockMip(MipmapsToSkip);
-		}
-		else
-		{
-			check(false);
-			pResult = new mu::Image(SizeX, SizeY, LODs, MutableFormat, mu::EInitializationType::Black);
-		}
-
+		EUnrealToMutableConversionError Error = ConvertTextureUnrealSourceToMutable(OutResult, Texture, bIsNormalComposite, MipmapsToSkip);
+		check(Error==EUnrealToMutableConversionError::Success);
 
 #else
 		check(Texture->GetPlatformData()->Mips[MipmapsToSkip].BulkData.IsBulkDataLoaded());
@@ -78,19 +47,17 @@ namespace
 
 		if (pSource)
 		{
-			pResult = new mu::Image(SizeX, SizeY, LODs, MutableFormat, mu::EInitializationType::NotInitialized);
-			FMemory::Memcpy(pResult->GetData(), pSource, pResult->GetDataSize());
+			OutResult->Init(SizeX, SizeY, LODs, MutableFormat, mu::EInitializationType::NotInitialized);
+			FMemory::Memcpy(OutResult->GetData(), pSource, OutResult->GetDataSize());
 			Texture->GetPlatformData()->Mips[MipmapsToSkip].BulkData.Unlock();
 		}
 		else
 		{
 			check(false);
-			pResult = new mu::Image(SizeX, SizeY, LODs, MutableFormat, mu::EInitializationType::Black);
+			OutResult->Init(SizeX, SizeY, LODs, MutableFormat, mu::EInitializationType::Black);
 		}
 
 #endif
-
-		return pResult;
 	}
 }
 
@@ -117,6 +84,77 @@ mu::EImageFormat GetMutablePixelFormat(EPixelFormat InTextureFormat)
 }
 
 
+FUnrealMutableImageProvider::FUnrealMutableImageProvider()
+{
+#if WITH_EDITOR
+	TickDelegate = FTickerDelegate::CreateRaw(this, &FUnrealMutableImageProvider::Tick);
+	TickDelegateHandle = FTSTicker::GetCoreTicker().AddTicker(TickDelegate, 0.f);
+#endif 
+}
+
+
+#if WITH_EDITOR
+
+bool FUnrealMutableImageProvider::Tick(float DeltaTime)
+{
+	FReferencedImageRequest* Request=nullptr;
+
+	// Process only one request per tick, or zero.
+	if (!QueuedReferencedImageRequests.Dequeue(Request))
+	{
+		return true;
+	}
+
+	// Find the CO for this model.
+	UCustomizableObject* CO = nullptr;
+	for (TObjectIterator<UCustomizableObject> It; It; ++It)
+	{
+		if (It->GetModel().Get() == Request->ModelPtr)
+		{
+			CO = *It;
+			break;
+		}
+	}
+
+	if (!CO)
+	{
+		// The CO for this request has been unloaded!
+		check(false);
+		return true;
+	}
+
+	if (!CO->ReferencedPassThroughTextures.IsValidIndex(Request->Id))
+	{
+		// The id is not valid for this CO
+		check(false);
+		return true;
+	}
+
+	// Find the texture id
+	TSoftObjectPtr<UTexture> TexturePtr = CO->ReferencedPassThroughTextures[Request->Id];
+
+	// This can cause a stall because of loading the asset.
+	UTexture2D* Texture = Cast<UTexture2D>( TexturePtr.Get() );
+	if (!Texture)
+	{
+		// Failed to load the texture
+		check(false);
+		return true;
+	}
+
+	// In the editor the src data can be directly accessed
+	int32 MipIndex = (Request->MipmapsToSkip < Texture->GetPlatformData()->Mips.Num()) ? Request->MipmapsToSkip : Texture->GetPlatformData()->Mips.Num() - 1;
+	check(MipIndex >= 0);
+	bool bIsNormalComposite = false; // TODO?
+	ConvertTextureUnrealToMutable(Request->ResultImage.get(), Texture, bIsNormalComposite, MipIndex);
+	Request->CompletionEvent.Trigger();
+
+	return true;
+}
+
+#endif
+
+
 //-------------------------------------------------------------------------------------------------
 #ifdef MUTABLE_USE_NEW_TASKGRAPH
 	TTuple<UE::Tasks::FTask, TFunction<void()>> FUnrealMutableImageProvider::GetImageAsync(FName Id, uint8 MipmapsToSkip, TFunction<void(mu::Ptr<mu::Image>)>& ResultCallback)
@@ -126,9 +164,6 @@ mu::EImageFormat GetMutablePixelFormat(EPixelFormat InTextureFormat)
 {
 	// Thread: worker
 	MUTABLE_CPUPROFILER_SCOPE(FUnrealMutableImageProvider::GetImage);
-
-	// Out Texture
-	mu::ImagePtr Image;
 
 	// Some data that may have to be copied from the GlobalExternalImages while it's locked
 	IBulkDataIORequest* IORequest = nullptr;
@@ -212,7 +247,10 @@ mu::EImageFormat GetMutablePixelFormat(EPixelFormat InTextureFormat)
 
 #if WITH_EDITOR
 			// In the editor the src data can be directly accessed
-			ResultCallback(ConvertTextureUnrealToMutable(TextureToLoad, MipIndex));
+			mu::Ptr<mu::Image> Image = new mu::Image();
+			bool bIsNormalComposite = false; // TODO?
+			ConvertTextureUnrealToMutable(Image.get(), TextureToLoad, bIsNormalComposite,  MipIndex);
+			ResultCallback(Image);
 			return Invoke(TrivialReturn);
 #else
 			// Texture format and the equivalent mutable format
@@ -230,7 +268,7 @@ mu::EImageFormat GetMutablePixelFormat(EPixelFormat InTextureFormat)
 			int SizeX = TextureToLoad->GetSizeX() >> MipIndex;
 			int SizeY = TextureToLoad->GetSizeY() >> MipIndex;
 
-			Image = new mu::Image(SizeX, SizeY, LODs, MutImageFormat, mu::EInitializationType::NotInitialized);
+			mu::Ptr<mu::Image> Image = new mu::Image(SizeX, SizeY, LODs, MutImageFormat, mu::EInitializationType::NotInitialized);
 			MutImageDataSize = Image->GetDataSize();
 
 			// In a packaged game the bulk data has to be loaded
@@ -402,6 +440,73 @@ mu::EImageFormat GetMutablePixelFormat(EPixelFormat InTextureFormat)
 }
 
 
+//-------------------------------------------------------------------------------------------------
+#ifdef MUTABLE_USE_NEW_TASKGRAPH
+TTuple<UE::Tasks::FTask, TFunction<void()>> FUnrealMutableImageProvider::GetReferencedImageAsync(const void* ModelPtr, int32 Id, uint8 MipmapsToSkip, TFunction<void(mu::Ptr<mu::Image>)>& ResultCallback)
+#else
+TTuple<FGraphEventRef, TFunction<void()>> FUnrealMutableImageProvider::GetReferencedImageAsync(const void* ModelPtr, int32 Id, uint8 MipmapsToSkip, TFunction<void(mu::Ptr<mu::Image>)>& ResultCallback)
+#endif
+{
+	// Thread: worker
+	MUTABLE_CPUPROFILER_SCOPE(FUnrealMutableImageProvider::GetReferencedImageAsync);
+
+#ifdef MUTABLE_USE_NEW_TASKGRAPH
+	auto TrivialReturn = []() -> TTuple<UE::Tasks::FTask, TFunction<void()>>
+	{
+		UE::Tasks::FTaskEvent CompletionEvent(TEXT("GetImageAsyncCompleted"));
+		CompletionEvent.Trigger();
+
+		return MakeTuple(CompletionEvent, []() -> void {});
+	};
+#else
+	auto TrivialReturn = []() -> TTuple<FGraphEventRef, TFunction<void()>>
+	{
+		FGraphEventRef CompletionEvent = FGraphEvent::CreateGraphEvent();
+		CompletionEvent->DispatchSubsequents();
+
+		return MakeTuple(CompletionEvent, []() -> void {});
+	};
+#endif
+
+
+#if WITH_EDITOR
+
+	TUniquePtr<FReferencedImageRequest> Request( new FReferencedImageRequest(UE::Tasks::FTaskEvent(TEXT("GetReferencedImageCompletion"))) );
+	Request->ModelPtr = ModelPtr;
+	Request->Id = Id;
+	Request->MipmapsToSkip = MipmapsToSkip;
+	Request->ResultImage = new mu::Image();
+
+	QueuedReferencedImageRequests.Enqueue(Request.Get());
+
+	if (IsInGameThread())
+	{
+		// This may happen in the mutable debugger.
+		while (!Request->CompletionEvent.IsCompleted())
+		{
+			Tick(0.1f);
+		}
+	}
+	else
+	{
+		Request->CompletionEvent.BusyWait();
+	}
+
+	ResultCallback(Request->ResultImage);
+	return Invoke(TrivialReturn);
+
+#else // WITH_EDITOR
+
+	// Not supported outside editor yet.
+	UE_LOG(LogMutable, Warning, TEXT("Failed to get reference image. Only supported in editor."));
+
+	ResultCallback(CreateDummy());
+	return Invoke(TrivialReturn);
+
+#endif
+}
+
+
 // This should mantain parity with the descriptor of the images generated by GetImageAsync 
 mu::FImageDesc FUnrealMutableImageProvider::GetImageDesc(FName Id, uint8 MipmapsToSkip)
 {
@@ -521,7 +626,9 @@ void FUnrealMutableImageProvider::CacheImage(FName Id, bool bUser)
 					case UCustomizableSystemImageProvider::ValueType::Unreal:
 					{
 						UTexture2D* UnrealTexture = Provider->GetTextureParameterValue(Id);
-						pResult = ConvertTextureUnrealToMutable(UnrealTexture, 0);
+						pResult = new mu::Image();
+						bool bIsNormalComposite = false;
+						ConvertTextureUnrealToMutable(pResult.get(), UnrealTexture, bIsNormalComposite, 0);
 						break;
 					}
 

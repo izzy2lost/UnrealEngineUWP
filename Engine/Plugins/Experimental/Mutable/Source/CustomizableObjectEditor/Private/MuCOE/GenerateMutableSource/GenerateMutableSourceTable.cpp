@@ -367,8 +367,6 @@ bool FillTableColumn(const UCustomizableObjectNodeTable* TableNode,	mu::TablePtr
 
 		else if (SoftObjectProperty->PropertyClass->IsChildOf(UTexture::StaticClass()))
 		{
-			UTexture* Texture = nullptr;
-
 			// Two supported texture types
 			UTexture2D* Texture2D = Cast<UTexture2D>(Object);
 			UTexture2DArray* TextureArray = Cast<UTexture2DArray>(Object);
@@ -383,7 +381,9 @@ bool FillTableColumn(const UCustomizableObjectNodeTable* TableNode,	mu::TablePtr
 				GenerationContext.Compiler->CompilerLog(FText::FromString(WarningMessage), TableNode);
 			}
 
+			// There will be always one of the two options
 			check(Texture2D || TextureArray);
+			UTexture* Texture = Texture2D ? Cast<UTexture>(Texture2D) : Cast<UTexture>(TextureArray);
 
 			// Getting column index from column name
 			CurrentColumn = MutableTable->FindColumn(StringCast<ANSICHAR>(*ColumnName).Get());
@@ -395,23 +395,22 @@ bool FillTableColumn(const UCustomizableObjectNodeTable* TableNode,	mu::TablePtr
 
 			if (TableNode->GetColumnImageMode(ColumnName) == ETableTextureType::PASSTHROUGH_TEXTURE)
 			{
-				// There will be always one of the two options
-				Texture = Texture2D ? Cast<UTexture>(Texture2D) : Cast<UTexture>(TextureArray);
 
-				uint32* FoundIndex = GenerationContext.PassThroughTextureToIndexMap.Find(Texture);
-				uint32 ImageReferenceID;
+				FMutableGraphGenerationContext::FGeneratedPassThroughTexture* FoundIndex = GenerationContext.PassThroughTextureMap.Find(Texture);
+				FMutableGraphGenerationContext::FGeneratedPassThroughTexture NewEntry;
 
 				if (!FoundIndex)
 				{
-					ImageReferenceID = GenerationContext.PassThroughTextureToIndexMap.Num();
-					GenerationContext.PassThroughTextureToIndexMap.Add(Texture, ImageReferenceID);
-				}
-				else
-				{
-					ImageReferenceID = *FoundIndex;
+					FoundIndex = &NewEntry;
+					NewEntry.ID = GenerationContext.PassThroughTextureMap.Num();
+					NewEntry.ImageDesc.m_size[0] = Texture->Source.GetSizeX();
+					NewEntry.ImageDesc.m_size[1] = Texture->Source.GetSizeY();
+					NewEntry.ImageDesc.m_lods = Texture->Source.GetNumMips();
+					NewEntry.ImageDesc.m_format = mu::EImageFormat::IF_RGBA_UBYTE; //TODO: it cannot be known without actually loading the image, which we don't want to do here.
+					GenerationContext.PassThroughTextureMap.Add(Texture, NewEntry);
 				}
 
-				mu::Ptr<mu::ResourceProxyMemory<mu::Image>> Proxy = new mu::ResourceProxyMemory<mu::Image>(mu::Image::CreateAsReference(ImageReferenceID));
+				mu::Ptr<mu::ResourceProxyMemory<mu::Image>> Proxy = new mu::ResourceProxyMemory<mu::Image>(mu::Image::CreateAsReference(FoundIndex->ID,FoundIndex->ImageDesc, false));
 				MutableTable->SetCell(CurrentColumn, RowIdx, Proxy.get());
 			}
 			else 
@@ -419,9 +418,34 @@ bool FillTableColumn(const UCustomizableObjectNodeTable* TableNode,	mu::TablePtr
 				if (Texture2D)
 				{
 					GenerationContext.AddParticipatingObject(*Texture2D);
+				}
 
+				if (GenerationContext.Options.OptimizationLevel == 0)
+				{
+					// In the "None" optimization level, we don't process any image, and we set them all as image references
+					// that will be loaded at instance generation time: fast compilation x slow generation.
+					FMutableGraphGenerationContext::FGeneratedPassThroughTexture* FoundIndex = GenerationContext.PassThroughTextureMap.Find(Texture);
+					FMutableGraphGenerationContext::FGeneratedPassThroughTexture NewEntry;
+
+					if (!FoundIndex)
+					{
+						FoundIndex = &NewEntry;
+						NewEntry.ID = GenerationContext.PassThroughTextureMap.Num();
+						NewEntry.ImageDesc.m_size[0] = Texture->Source.GetSizeX();
+						NewEntry.ImageDesc.m_size[1] = Texture->Source.GetSizeY();
+						NewEntry.ImageDesc.m_lods = Texture->Source.GetNumMips();
+						NewEntry.ImageDesc.m_format = mu::EImageFormat::IF_RGBA_UBYTE; //TODO: it cannot be known without actually loading the image, which we don't want to do here.
+						GenerationContext.PassThroughTextureMap.Add(Texture, NewEntry);
+					}
+
+					mu::Ptr<mu::ResourceProxyMemory<mu::Image>> Proxy = new mu::ResourceProxyMemory<mu::Image>(mu::Image::CreateAsReference(FoundIndex->ID, FoundIndex->ImageDesc, true));
+					MutableTable->SetCell(CurrentColumn, RowIdx, Proxy.get());
+				}
+				else
+				{
 					GenerationContext.ArrayTextureUnrealToMutableTask.Add(FTextureUnrealToMutableTask(MutableTable, Texture2D, TableNode, CurrentColumn, RowIdx));
 				}
+
 			}
 		}
 

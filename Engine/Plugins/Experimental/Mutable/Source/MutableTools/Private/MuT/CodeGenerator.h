@@ -289,6 +289,9 @@ namespace mu
 
 		TArray<FConditionalExtensionDataOp> m_conditionalExtensionDataOps;
 
+		/** This is used to cache the conatant image op generation. */
+		TMap<Ptr<const Image>,Ptr<class ASTOpConstantResource>> ImageConstantOpPerImage;
+
 		//-----------------------------------------------------------------------------------------
 
 		// Get the modifiers that have to be applied to elements with a specific tag.

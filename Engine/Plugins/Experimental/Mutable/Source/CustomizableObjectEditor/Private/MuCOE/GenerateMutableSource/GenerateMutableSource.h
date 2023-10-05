@@ -540,10 +540,16 @@ struct FMutableGraphGenerationContext
 
 	// Cache of generated images, because sometimes they are reused by LOD, we use this as a second
 	// level cache
-	TMap<FGeneratedImageKey, mu::NodeImageConstantPtr> GeneratedImages;
+	TMap<FGeneratedImageKey, mu::NodeImagePtr> GeneratedImages;
 
+	/** Data stored per-generated passthrough texture. */
+	struct FGeneratedPassThroughTexture
+	{
+		uint32 ID;
+		mu::FImageDesc ImageDesc;
+	};
 	// Cache of pass-through images and their IDs used in the core to indentify them
-	TMap<TSoftObjectPtr<UTexture>, uint32> PassThroughTextureToIndexMap;
+	TMap<TSoftObjectPtr<UTexture>, FGeneratedPassThroughTexture> PassThroughTextureMap;
 
     // Global morph selection overrides.
     TArray<FRealTimeMorphSelectionOverride> RealTimeMorphTargetsOverrides;

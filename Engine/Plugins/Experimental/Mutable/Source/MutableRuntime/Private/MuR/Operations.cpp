@@ -294,10 +294,6 @@ namespace mu
             f(&op.args.ImagePlainColour.colour );
             break;
 
-        case OP_TYPE::IM_CROP:
-            f(&op.args.ImageCrop.source );
-            break;
-
         case OP_TYPE::IM_DISPLACE:
             f(&op.args.ImageDisplace.source );
             f(&op.args.ImageDisplace.displacementMap );

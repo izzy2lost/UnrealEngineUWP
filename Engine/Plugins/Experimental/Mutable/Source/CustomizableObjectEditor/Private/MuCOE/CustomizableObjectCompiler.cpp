@@ -620,7 +620,7 @@ mu::NodeObjectPtr FCustomizableObjectCompiler::GenerateMutableRoot(
 			TArray<UCustomizableObjectNodeObjectGroup*> GroupNodes;
 			Object->Source->GetNodesOfClass<UCustomizableObjectNodeObjectGroup>(GroupNodes);
 
-			if (GroupNodes.Num() > 0) // Only grafs with group nodes should have child grafs
+			if (GroupNodes.Num() > 0) // Only graphs with group nodes should have child graphs
 			{
 				FAssetRegistryModule& AssetRegistryModule = FModuleManager::LoadModuleChecked<FAssetRegistryModule>("AssetRegistry");
 				ProcessChildObjectsRecursively(Object, GenerationContext);
@@ -717,10 +717,6 @@ mu::NodeObjectPtr FCustomizableObjectCompiler::GenerateMutableRoot(
 
 		return nullptr;
 	}
-
-	// Apply the platform specific transform
-	// Format and mips are done per-image now.
-	//MutableRoot = GenerateMutableTransform(MutableRoot, GenerationContext);
 
 	return MutableRoot;
 }
@@ -1271,9 +1267,9 @@ void FCustomizableObjectCompiler::CompileInternal(UCustomizableObject* Object, c
 		// Pass-through textures
 		TArray<TSoftObjectPtr<UTexture>> NewReferencedPassThroughTextures;
 
-		for (const TPair<TSoftObjectPtr<UTexture>, uint32>& Pair : GenerationContext.PassThroughTextureToIndexMap)
+		for (const TPair<TSoftObjectPtr<UTexture>, FMutableGraphGenerationContext::FGeneratedPassThroughTexture>& Pair : GenerationContext.PassThroughTextureMap)
 		{
-			check(Pair.Value == NewReferencedPassThroughTextures.Num());
+			check(Pair.Value.ID == NewReferencedPassThroughTextures.Num());
 			NewReferencedPassThroughTextures.Add(Pair.Key);
 		}
 
@@ -1450,7 +1446,7 @@ void FCustomizableObjectCompiler::CompileInternal(UCustomizableObject* Object, c
 }
 
 
-mu::NodePtr FCustomizableObjectCompiler::Export(UCustomizableObject* Object, const FCompilationOptions& InCompilerOptions)
+mu::NodePtr FCustomizableObjectCompiler::Export(UCustomizableObject* Object, const FCompilationOptions& InCompilerOptions, TArray<TSoftObjectPtr<UTexture>>& OutReferencedTextures)
 {
 	UE_LOG(LogMutable, Log, TEXT("Started Customizable Object Export %s."), *Object->GetName());
 
@@ -1491,6 +1487,14 @@ mu::NodePtr FCustomizableObjectCompiler::Export(UCustomizableObject* Object, con
 		ArrayTextureUnrealToMutableTask.Insert(GenerationContext.ArrayTextureUnrealToMutableTask, ArrayTextureUnrealToMutableTask.Num());
 		PendingTexturesToLoad = true;
 		UpdatePendingTextureConversion(false);
+	}
+
+	// Pass out the references textures
+	OutReferencedTextures.Empty();
+	for (const TPair<TSoftObjectPtr<UTexture>, FMutableGraphGenerationContext::FGeneratedPassThroughTexture>& Pair : GenerationContext.PassThroughTextureMap)
+	{
+		check(Pair.Value.ID == OutReferencedTextures.Num());
+		OutReferencedTextures.Add(Pair.Key);
 	}
 
 	return MutableRoot;

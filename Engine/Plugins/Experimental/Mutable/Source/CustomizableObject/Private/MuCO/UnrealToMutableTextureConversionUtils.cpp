@@ -1,16 +1,20 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 
-#include "MuCOE/UnrealToMutableTextureConversionUtils.h"
+#include "MuCO/UnrealToMutableTextureConversionUtils.h"
 
+#include "MuR/MutableTrace.h"
+#include "MuR/Image.h"
 #include "Engine/Texture2D.h"
 #include "ImageCoreUtils.h"
 #include "ImageUtils.h"
 #include "Async/ParallelFor.h"
 
+#if WITH_EDITOR
+
 namespace UnrealToMutableImageConversion_Interanl
 {
-
-FORCEINLINE ERawImageFormat::Type ConvertFormatSourceToRaw(const ETextureSourceFormat SourceFormat) 
+	
+FORCEINLINE ERawImageFormat::Type ConvertFormatSourceToRaw(const ETextureSourceFormat SourceFormat)
 {
 	return FImageCoreUtils::ConvertToRawImageFormat(SourceFormat);
 }
@@ -166,17 +170,23 @@ void BlurNormalForComposite(FImage& Image)
 	}
 }
 
-} //namespace UnrealToMutableImageConversion_Interanl
+} //namespace UnrealToMutableImageConversion_Internal
 
-TTuple<mu::ImagePtr, EUnrealToMutableConversionError> ConvertTextureUnrealToMutable(UTexture2D* Texture, bool bIsNormalComposite)
+
+EUnrealToMutableConversionError ConvertTextureUnrealSourceToMutable(mu::Image* OutResult, UTexture2D* Texture, bool bIsNormalComposite, uint8 MipmapsToSkip)
 {
 	MUTABLE_CPUPROFILER_SCOPE(ConvertTextureUnrealToMutableTuple);
 
     using namespace UnrealToMutableImageConversion_Interanl;
 
+	// Correct mips to skip to fit source data
+	MipmapsToSkip = FMath::Clamp(MipmapsToSkip, 0, Texture->Source.GetNumMips()-1);
+
     const int32 LODs = 1;
-    const int32 SizeX = Texture->Source.GetSizeX();
-    const int32 SizeY = Texture->Source.GetSizeY();
+    const int32 SizeX = Texture->Source.GetSizeX() >> MipmapsToSkip;
+    const int32 SizeY = Texture->Source.GetSizeY() >> MipmapsToSkip;
+	check(SizeX > 0 && SizeY > 0);
+
     ETextureSourceFormat Format = Texture->Source.GetFormat();
  
     ERawImageFormat::Type RawFormat = ConvertFormatSourceToRaw(Format);
@@ -192,9 +202,9 @@ TTuple<mu::ImagePtr, EUnrealToMutableConversionError> ConvertTextureUnrealToMuta
     FImage TempImage(SizeX, SizeY, 1, RawFormat, EGammaSpace::Linear);
 	FImage TempImage2;
 
-    if (!Texture->Source.GetMipData(TempImage.RawData, 0))
+    if (!Texture->Source.GetMipData(TempImage.RawData, MipmapsToSkip))
     {
-        return MakeTuple(nullptr, EUnrealToMutableConversionError::Unknown);
+        return EUnrealToMutableConversionError::Unknown;
     }
 
     bool bFlipGreenChannel = Texture->bFlipGreenChannel;
@@ -239,14 +249,13 @@ TTuple<mu::ImagePtr, EUnrealToMutableConversionError> ConvertTextureUnrealToMuta
 		FlipGreenChannelBGRA8(TempImage);
 	}
 
-	mu::ImagePtr Image;
 	switch (MutableCompatibleFormat)
 	{
 	case ERawImageFormat::G8:
 	{
 		MUTABLE_CPUPROFILER_SCOPE(NoConvert);
-		Image = new mu::Image(SizeX, SizeY, LODs, mu::EImageFormat::IF_L_UBYTE, mu::EInitializationType::NotInitialized);
-		Image->m_data = MoveTemp(TempImage.RawData);
+		OutResult->Init(SizeX, SizeY, LODs, mu::EImageFormat::IF_L_UBYTE, mu::EInitializationType::NotInitialized);
+		OutResult->m_data = MoveTemp(TempImage.RawData);
 		break;
 	}
 
@@ -265,8 +274,8 @@ TTuple<mu::ImagePtr, EUnrealToMutableConversionError> ConvertTextureUnrealToMuta
 		if (bHasAlphaChannel)
 		{
 			MUTABLE_CPUPROFILER_SCOPE(ToRGBA);
-			Image = new mu::Image(SizeX, SizeY, LODs, mu::EImageFormat::IF_RGBA_UBYTE, mu::EInitializationType::NotInitialized);
-			uint8* DataDest = Image->GetData();
+			OutResult->Init(SizeX, SizeY, LODs, mu::EImageFormat::IF_RGBA_UBYTE, mu::EInitializationType::NotInitialized);
+			uint8* DataDest = OutResult->GetData();
 
 			// Convert to RGBA8 in place
 			TArrayView64<FColor> ImageDataView = TempImage.AsBGRA8();
@@ -283,9 +292,9 @@ TTuple<mu::ImagePtr, EUnrealToMutableConversionError> ConvertTextureUnrealToMuta
 		{
 			MUTABLE_CPUPROFILER_SCOPE(ToRGB);
 
-			// TODO: add support for a mu::IF_RGBX_UBYTE?
-			Image = new mu::Image(SizeX, SizeY, LODs, mu::EImageFormat::IF_RGB_UBYTE, mu::EInitializationType::NotInitialized);
-			uint8* DataDest = Image->GetData();
+			// TODO: add support for a mu::IF_RGBX_UBYTE?			
+			OutResult->Init(SizeX, SizeY, LODs, mu::EImageFormat::IF_RGB_UBYTE, mu::EInitializationType::NotInitialized);
+			uint8* DataDest = OutResult->GetData();
 
 			// Convert to RGB8 in place
 			TArrayView64<FColor> ImageDataView = TempImage.AsBGRA8();
@@ -310,5 +319,7 @@ TTuple<mu::ImagePtr, EUnrealToMutableConversionError> ConvertTextureUnrealToMuta
 		break;
 	}
 
-    return MakeTuple(Image, EUnrealToMutableConversionError::Success);
+    return EUnrealToMutableConversionError::Success;
 }
+
+#endif // WITH_EDITOR

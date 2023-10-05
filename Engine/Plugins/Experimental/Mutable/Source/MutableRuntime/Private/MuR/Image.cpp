@@ -117,29 +117,35 @@ namespace mu
 
 
     //---------------------------------------------------------------------------------------------
-    Image::Image( uint32 sizeX, uint32 sizeY, uint32 lods, EImageFormat format, EInitializationType Init )
-    {
+	Image::Image(uint32 SizeX, uint32 SizeY, uint32 Lods, EImageFormat Format, EInitializationType InitType)
+	{
+		Init(SizeX, SizeY, Lods, Format, InitType);
+	}
+
+	
+	void Image::Init(uint32 SizeX, uint32 SizeY, uint32 Lods, EImageFormat Format, EInitializationType InitType)
+	{
 		MUTABLE_CPUPROFILER_SCOPE(NewImage)
 		LLM_SCOPE_BYNAME(TEXT("MutableRuntime"));
 
-        check(format != EImageFormat::IF_NONE);
-		check(format < EImageFormat::IF_COUNT);
+        check(Format != EImageFormat::IF_NONE);
+		check(Format < EImageFormat::IF_COUNT);
 
-		check(sizeX <= TNumericLimits<uint16>::Max());
-		check(sizeY <= TNumericLimits<uint16>::Max());
-		check(lods <= TNumericLimits<uint8>::Max());
+		check(SizeX <= TNumericLimits<uint16>::Max());
+		check(SizeY <= TNumericLimits<uint16>::Max());
+		check(Lods <= TNumericLimits<uint8>::Max());
 
 		// TODO: check that lods is sensible for the size.
 
-        m_format = format;
-        m_size = FImageSize( (uint16)sizeX, (uint16)sizeY );
-        m_lods = (uint8)lods;
+        m_format = Format;
+        m_size = FImageSize( (uint16)SizeX, (uint16)SizeY );
+        m_lods = (uint8)Lods;
 
-        const FImageFormatData& fdata = GetImageFormatData( format );
+        const FImageFormatData& fdata = GetImageFormatData( Format );
         int32 PixelsPerBlock = fdata.PixelsPerBlockX*fdata.PixelsPerBlockY;
         if (PixelsPerBlock)
         {
-			if (Init == EInitializationType::Black)
+			if (InitType == EInitializationType::Black)
 			{
 				InitToBlack();
 			}
@@ -196,11 +202,18 @@ namespace mu
 	}
 
 	//---------------------------------------------------------------------------------------------
-	Ptr<Image> Image::CreateAsReference(uint32 ID)
+	Ptr<Image> Image::CreateAsReference(uint32 ID, const FImageDesc& Desc, bool bForceLoad)
 	{
 		Ptr<Image> Result = new Image;
 		Result->ReferenceID = ID;
+		Result->m_size = Desc.m_size;
+		Result->m_lods = Desc.m_lods;
+		Result->m_format = Desc.m_format;
 		Result->m_flags = EImageFlags::IF_IS_REFERENCE;
+		if (bForceLoad)
+		{
+			Result->m_flags = Result->m_flags | EImageFlags::IF_IS_FORCELOAD;
+		}
 		return Result;
 	}
 

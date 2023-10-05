@@ -30,7 +30,7 @@
 #include "MuCOE/Nodes/CustomizableObjectNodeTextureSaturate.h"
 #include "MuCOE/Nodes/CustomizableObjectNodeTextureVariation.h"
 #include "MuCOE/UnrealEditorPortabilityHelpers.h"
-#include "MuCOE/UnrealToMutableTextureConversionUtils.h"
+#include "MuCO/UnrealToMutableTextureConversionUtils.h"
 #include "MuT/NodeImageBinarise.h"
 #include "MuT/NodeImageColourMap.h"
 #include "MuT/NodeImageFormat.h"
@@ -49,6 +49,7 @@
 #include "MuT/NodeImageTransform.h"
 #include "MuT/NodeImageVariation.h"
 #include "MuT/NodeImageReference.h"
+#include "MuT/NodeImageConstant.h"
 #include "MuT/NodeScalarConstant.h"
 
 #define LOCTEXT_NAMESPACE "CustomizableObjectEditor"
@@ -58,10 +59,10 @@ mu::ImagePtr ConvertTextureUnrealToMutable(UTexture2D* Texture, const UCustomiza
 {     
 	MUTABLE_CPUPROFILER_SCOPE(ConvertTextureUnrealToMutable);
 
-	mu::ImagePtr MutableImage;
+	mu::Ptr<mu::Image> MutableImage = new mu::Image;
 	EUnrealToMutableConversionError Error = EUnrealToMutableConversionError::Unknown;
 
-	Tie(MutableImage, Error) = ConvertTextureUnrealToMutable(Texture, bIsNormalComposite);
+	Error = ConvertTextureUnrealSourceToMutable(MutableImage.get(), Texture, bIsNormalComposite, 0);
 
 	switch(Error)
 	{
@@ -104,7 +105,7 @@ mu::ImagePtr ConvertTextureUnrealToMutable(UTexture2D* Texture, const UCustomiza
 }
 
 
-mu::Ptr<mu::NodeImage> ResizeToMaxTextureSize(float MaxTextureSize, const UTexture2D* BaseTexture, mu::Ptr<mu::NodeImageConstant> ImageNode)
+mu::Ptr<mu::NodeImage> ResizeToMaxTextureSize(float MaxTextureSize, const UTexture2D* BaseTexture, const mu::Ptr<mu::NodeImage>& ImageNode)
 {
 	// To scale when above MaxTextureSize if defined
 	if (MaxTextureSize > 0 && BaseTexture
@@ -156,16 +157,44 @@ mu::NodeImagePtr GenerateMutableSourceImage(const UEdGraphPin* Pin, FMutableGrap
 			
 			// Check the specific image cache
 			FGeneratedImageKey imageKey = FGeneratedImageKey(Pin);
-			mu::NodeImageConstantPtr ImageNode;
-			mu::NodeImageConstantPtr* Cached = GenerationContext.GeneratedImages.Find(imageKey);
+			mu::NodeImagePtr ImageNode;
+			mu::NodeImagePtr* Cached = GenerationContext.GeneratedImages.Find(imageKey);
 			if (Cached)
 			{
 				ImageNode = *Cached;
 			}
 			else
 			{
-				ImageNode = new mu::NodeImageConstant();
-				GenerationContext.ArrayTextureUnrealToMutableTask.Add(FTextureUnrealToMutableTask(ImageNode, BaseTexture, Node));
+				if (GenerationContext.Options.OptimizationLevel==0)
+				{
+					// In the "None" optimization level, we don't process any image, and we set them all as image references
+					// that will be loaded at instance generation time: fast compilation x slow generation.
+					FMutableGraphGenerationContext::FGeneratedPassThroughTexture* FoundIndex = GenerationContext.PassThroughTextureMap.Find(BaseTexture);
+					FMutableGraphGenerationContext::FGeneratedPassThroughTexture NewEntry;
+
+					if (!FoundIndex)
+					{
+						FoundIndex = &NewEntry;
+						NewEntry.ID = GenerationContext.PassThroughTextureMap.Num();
+						NewEntry.ImageDesc.m_size[0] = BaseTexture->Source.GetSizeX();
+						NewEntry.ImageDesc.m_size[1] = BaseTexture->Source.GetSizeY();
+						NewEntry.ImageDesc.m_lods = BaseTexture->Source.GetNumMips();
+						NewEntry.ImageDesc.m_format = mu::EImageFormat::IF_RGBA_UBYTE; //TODO: it cannot be known without actually loading the image, which we don't want to do here.
+						GenerationContext.PassThroughTextureMap.Add(BaseTexture, NewEntry);
+					}
+
+					mu::Ptr<mu::NodeImageReference> ReferenceImageNode = new mu::NodeImageReference;
+					ReferenceImageNode->SetImageReference(FoundIndex->ID,FoundIndex->ImageDesc);
+					ReferenceImageNode->SetForceLoad(true);
+					ImageNode = ReferenceImageNode;
+				}
+				else
+				{
+					mu::Ptr<mu::NodeImageConstant> ConstantImageNode = new mu::NodeImageConstant();
+					ImageNode = ConstantImageNode;
+					GenerationContext.ArrayTextureUnrealToMutableTask.Add(FTextureUnrealToMutableTask(ConstantImageNode, BaseTexture, Node));
+				}
+
 				GenerationContext.GeneratedImages.Add(imageKey, ImageNode);
 			}
 
@@ -184,8 +213,8 @@ mu::NodeImagePtr GenerateMutableSourceImage(const UEdGraphPin* Pin, FMutableGrap
 
 		GenerationContext.AddParameterNameUnique(Node, TypedNodeParam->ParameterName);
 
-		TextureNode->SetName(StringCast<ANSICHAR>(*TypedNodeParam->ParameterName).Get());
-		TextureNode->SetUid(StringCast<ANSICHAR>(*GenerationContext.GetNodeIdUnique(Node).ToString()).Get());
+		TextureNode->SetName(TypedNodeParam->ParameterName);
+		TextureNode->SetUid(GenerationContext.GetNodeIdUnique(Node).ToString());
 
 		if (TypedNodeParam->DefaultValue)
 		{
@@ -869,21 +898,22 @@ mu::NodeImagePtr GenerateMutableSourceImage(const UEdGraphPin* Pin, FMutableGrap
 		UTexture2D* BaseTexture = TypedNodePassThroughTex->Texture;
 		if (BaseTexture)
 		{
-			uint32* FoundIndex = GenerationContext.PassThroughTextureToIndexMap.Find(BaseTexture);
-			uint32 NewId;
+			FMutableGraphGenerationContext::FGeneratedPassThroughTexture* FoundIndex = GenerationContext.PassThroughTextureMap.Find(BaseTexture);
+			FMutableGraphGenerationContext::FGeneratedPassThroughTexture NewEntry;
 
 			if (!FoundIndex)
 			{
-				NewId = GenerationContext.PassThroughTextureToIndexMap.Num();
-				GenerationContext.PassThroughTextureToIndexMap.Add(BaseTexture, NewId);
-			}
-			else
-			{
-				NewId = *FoundIndex;
+				FoundIndex = &NewEntry;
+				NewEntry.ID = GenerationContext.PassThroughTextureMap.Num();
+				NewEntry.ImageDesc.m_size[0] = BaseTexture->Source.GetSizeX();
+				NewEntry.ImageDesc.m_size[1] = BaseTexture->Source.GetSizeY();
+				NewEntry.ImageDesc.m_lods = BaseTexture->Source.GetNumMips();
+				NewEntry.ImageDesc.m_format = mu::EImageFormat::IF_RGBA_UBYTE; //TODO: it cannot be known without actually loading the image, which we don't want to do here.
+				GenerationContext.PassThroughTextureMap.Add(BaseTexture, NewEntry);
 			}
 
 			mu::Ptr<mu::NodeImageReference> ImageNode = new mu::NodeImageReference;
-			ImageNode->SetImageReference(NewId);
+			ImageNode->SetImageReference(FoundIndex->ID, FoundIndex->ImageDesc);
 
 			Result = ImageNode;
 		}

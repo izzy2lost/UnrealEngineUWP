@@ -24,6 +24,7 @@
 #include "MuT/ASTOpImageLayer.h"
 #include "MuT/ASTOpImageLayerColor.h"
 #include "MuT/ASTOpImagePatch.h"
+#include "MuT/ASTOpImageCrop.h"
 #include "MuT/ASTOpInstanceAdd.h"
 #include "MuT/ASTOpMeshBindShape.h"
 #include "MuT/ASTOpMeshClipDeform.h"
@@ -706,13 +707,12 @@ namespace mu
 				int32 TileSizeX = FMath::Min(TileSize, Size[0] - MinX);
 				int32 TileSizeY = FMath::Min(TileSize, Size[1] - MinY);
 
-				Ptr<ASTOpFixed> TileImage = new ASTOpFixed();
-				TileImage->op.type = OP_TYPE::IM_CROP;
-				TileImage->SetChild(TileImage->op.args.ImageCrop.source, Source);
-				TileImage->op.args.ImageCrop.minX = MinX;
-				TileImage->op.args.ImageCrop.minY = MinY;
-				TileImage->op.args.ImageCrop.sizeX = TileSizeX;
-				TileImage->op.args.ImageCrop.sizeY = TileSizeY;
+				Ptr<ASTOpImageCrop> TileImage = new ASTOpImageCrop();
+				TileImage->Source = Source;
+				TileImage->Min[0] = MinX;
+				TileImage->Min[1] = MinY;
+				TileImage->Size[0] = TileSizeX;
+				TileImage->Size[1] = TileSizeY;
 
 				Ptr<ASTOpImagePatch> PatchedImage = new ASTOpImagePatch();
 				PatchedImage->base = CurrentImage;
@@ -733,7 +733,7 @@ namespace mu
                                          NodeSurfaceNewPtrConst surfaceNode,
                                          const TArray<FirstPassGenerator::FSurface::FEdit>& edits )
     {
-        //MUTABLE_CPUPROFILER_SCOPE(GenerateSurface);
+        MUTABLE_CPUPROFILER_SCOPE(GenerateSurface);
 
         const NodeSurfaceNew::Private& node = *surfaceNode->GetPrivate();
 
@@ -1188,7 +1188,7 @@ namespace mu
 		{
 			for (int32 t = 0; t < node.m_images.Num(); ++t)
 			{
-				//MUTABLE_CPUPROFILER_SCOPE(SurfaceTexture);
+				MUTABLE_CPUPROFILER_SCOPE(SurfaceTexture);
 
 				if (NodeImagePtr pImageNode = node.m_images[t].m_pImage)
 				{

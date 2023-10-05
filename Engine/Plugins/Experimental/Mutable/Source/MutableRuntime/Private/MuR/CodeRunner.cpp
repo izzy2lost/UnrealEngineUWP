@@ -151,9 +151,9 @@ namespace mu
 
     //---------------------------------------------------------------------------------------------
 #ifdef MUTABLE_USE_NEW_TASKGRAPH
-	TTuple<UE::Tasks::FTask, TFunction<void()>> CodeRunner::LoadExternalImageAsync(FName Id, uint8 MipmapsToSkip, TFunction<void(Ptr<Image>)>& ResultCallback)
+	TTuple<UE::Tasks::FTask, TFunction<void()>> CodeRunner::LoadExternalImageAsync(FExternalImageId Id, uint8 MipmapsToSkip, TFunction<void(Ptr<Image>)>& ResultCallback)
 #else
-	TTuple<FGraphEventRef, TFunction<void()>> CodeRunner::LoadExternalImageAsync(FName Id, uint8 MipmapsToSkip, TFunction<void(Ptr<Image>)>& ResultCallback)
+	TTuple<FGraphEventRef, TFunction<void()>> CodeRunner::LoadExternalImageAsync(FExternalImageId Id, uint8 MipmapsToSkip, TFunction<void(Ptr<Image>)>& ResultCallback)
 #endif
     {
 		MUTABLE_CPUPROFILER_SCOPE(LoadExternalImageAsync);
@@ -162,7 +162,16 @@ namespace mu
 
 		if (m_pSystem->ImageParameterGenerator)
 		{
-			return m_pSystem->ImageParameterGenerator->GetImageAsync(Id, MipmapsToSkip, ResultCallback);
+			if (Id.ReferenceImageId < 0)
+			{
+				// It's a parameter image
+				return m_pSystem->ImageParameterGenerator->GetImageAsync(Id.ParameterId, MipmapsToSkip, ResultCallback);
+			}
+			else
+			{
+				// It's an image reference
+				return m_pSystem->ImageParameterGenerator->GetReferencedImageAsync(m_pModel.Get(), Id.ReferenceImageId, MipmapsToSkip, ResultCallback);
+			}
 		}
 		else
 		{
@@ -4026,7 +4035,16 @@ namespace mu
 			{
 			case 0:
 			{
-				Ptr<Image> Result = Image::CreateAsReference(Args.ID);
+				Ptr<Image> Result;
+				if (Args.ForceLoad)
+				{
+					// This should never be reached because it should have been caught as a Task in IssueOp
+					check(false);
+				}
+				else
+				{
+					Result = Image::CreateAsReference(Args.ID, Args.ImageDesc, false);
+				}
 				StoreImage(item, Result);
 				break;
 			}
@@ -5901,11 +5919,9 @@ namespace mu
 		case OP_TYPE::IM_REFERENCE:
 		{
 			check(item.Stage == 0);
+			OP::ResourceReferenceArgs Args = program.GetOpArgs<OP::ResourceReferenceArgs>(item.At);
 			FImageDesc& Result = m_heapImageDesc[item.CustomState];
-			Result.m_format = EImageFormat::IF_NONE;
-			Result.m_size[0] = 0;
-			Result.m_size[1] = 0;
-			Result.m_lods = 0;
+			Result = Args.ImageDesc;
 			StoreValidDesc(item);
 			break;
 		}

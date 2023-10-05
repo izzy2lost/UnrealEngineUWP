@@ -37,7 +37,7 @@ public:
 
 	SLATE_END_ARGS()
 
-	void Construct(const FArguments& InArgs, const mu::NodePtr& InRootNode, const FCompilationOptions& InCompileOptions,
+	void Construct(const FArguments& InArgs, const mu::NodePtr& InRootNode, const TArray<TSoftObjectPtr<UTexture>>& ReferencedTextures, const FCompilationOptions& InCompileOptions,
 		TWeakPtr<FTabManager> InParentTabManager, const FName& InParentNewTabId);
 
 	// SWidget interface
@@ -55,6 +55,9 @@ private:
 
 	/** The Mutable Graph to show, represented by its root. */
 	mu::NodePtr RootNode;
+
+	/** Array of external referenced textures in MutableModel, indexed by id. */
+	TArray<TSoftObjectPtr<UTexture>> ReferencedTextures;
 
 	/** Compilation options to use in the debugger operations. */
 	FCompilationOptions CompileOptions;

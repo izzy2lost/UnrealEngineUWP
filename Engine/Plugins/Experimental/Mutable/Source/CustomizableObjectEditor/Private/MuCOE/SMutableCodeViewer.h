@@ -56,7 +56,8 @@ public:
 		
 	SLATE_END_ARGS()
 
-	void Construct(const FArguments& InArgs, const TSharedPtr<mu::Model, ESPMode::ThreadSafe>& InMutableModel /*, const TSharedPtr<SDockTab>& ConstructUnderMajorTab*/);
+	void Construct(const FArguments& InArgs, const TSharedPtr<mu::Model, ESPMode::ThreadSafe>& InMutableModel,
+		const TArray<TSoftObjectPtr<UTexture>>& ReferencedTextures );
 
 	// SWidget interface
 	virtual void Tick(const FGeometry& AllottedGeometry, const double InCurrentTime, const float InDeltaTime) override;
@@ -75,6 +76,9 @@ private:
 	/** The Mutable Model that we are showing. */
 	TSharedPtr<mu::Model, ESPMode::ThreadSafe> MutableModel;
 	
+	/** Array of external referenced textures in MutableModel, indexed by id. */
+	TArray<TSoftObjectPtr<UTexture>> ReferencedTextures;
+
 	/** Selected model operation for preview. */
 	mu::OP::ADDRESS SelectedOperationAddress = 0;
 
@@ -178,7 +182,7 @@ private:
 	TMap< mu::OP::ADDRESS, TSharedPtr<FMutableCodeTreeElement>> ExpandedElements;
 
 	/** Prepare the widget for the given model. */
-	void SetCurrentModel(const TSharedPtr<mu::Model, ESPMode::ThreadSafe>&);
+	void SetCurrentModel(const TSharedPtr<mu::Model, ESPMode::ThreadSafe>&, const TArray<TSoftObjectPtr<UTexture>>& ReferencedTextures);
 
 	/** Before any UI operation generate all the elements that may be navigable over the tree. No children of duplicated 
 	 * addresses will be generated.

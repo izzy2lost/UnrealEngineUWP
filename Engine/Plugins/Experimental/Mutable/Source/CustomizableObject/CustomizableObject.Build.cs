@@ -26,6 +26,7 @@ public class CustomizableObject : ModuleRules
 			"ClothingSystemRuntimeInterface",
 			//"ClothingSystemEditor",
 			"UMG",
+			"ImageCore",
 		});
 
         PublicDependencyModuleNames.AddRange(new string[] {

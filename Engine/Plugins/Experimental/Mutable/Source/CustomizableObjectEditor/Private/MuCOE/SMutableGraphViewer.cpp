@@ -116,12 +116,14 @@ FString SMutableGraphViewer::GetReferencerName() const
 }
 
 
-void SMutableGraphViewer::Construct(const FArguments& InArgs, const mu::NodePtr& InRootNode, 
+void SMutableGraphViewer::Construct(const FArguments& InArgs, const mu::NodePtr& InRootNode,
+	const TArray<TSoftObjectPtr<UTexture>>& InReferencedTextures,
 	const FCompilationOptions& InCompileOptions,
 	TWeakPtr<FTabManager> InParentTabManager, const FName& InParentNewTabId)
 {
 	DataTag = InArgs._DataTag;
 	RootNode = InRootNode;
+	ReferencedTextures = InReferencedTextures;
 	CompileOptions = InCompileOptions;	
 	ParentTabManager = InParentTabManager;
 	ParentNewTabId = InParentNewTabId;
@@ -265,7 +267,7 @@ void SMutableGraphViewer::CompileMutableCodePressed()
 	TSharedPtr<SDockTab> NewMutableCodeTab = SNew(SDockTab)
 		.Label(LOCTEXT("MutableCode", "Mutable Code"))
 		[
-			SNew(SMutableCodeViewer, CompileTask->Model)
+			SNew(SMutableCodeViewer, CompileTask->Model, ReferencedTextures)
 			.DataTag(NewDataTag)
 		];
 
@@ -290,7 +292,6 @@ TSharedRef<SWidget> SMutableGraphViewer::GenerateCompileOptionsMenuContent()
 		CompileOptimizationStrings.Empty();
 		CompileOptimizationStrings.Add(MakeShareable(new FString(NSLOCTEXT("CustomizableObjectEditor", "OptimizationNone", "None").ToString())));
 		CompileOptimizationStrings.Add(MakeShareable(new FString(NSLOCTEXT("CustomizableObjectEditor", "OptimizationMin", "Minimal").ToString())));
-		CompileOptimizationStrings.Add(MakeShareable(new FString(NSLOCTEXT("CustomizableObjectEditor", "OptimizationMed", "Medium").ToString())));
 		CompileOptimizationStrings.Add(MakeShareable(new FString(NSLOCTEXT("CustomizableObjectEditor", "OptimizationMax", "Maximum").ToString())));
 
 		CompileOptions.OptimizationLevel = FMath::Min(CompileOptions.OptimizationLevel, CompileOptimizationStrings.Num() - 1);

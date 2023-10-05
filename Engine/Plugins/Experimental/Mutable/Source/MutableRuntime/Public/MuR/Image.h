@@ -210,9 +210,9 @@ namespace mu
         //!         depends on the image size.
         //! \param format Pixel format.
         Image( uint32 sizeX, uint32 sizeY, uint32 lods, EImageFormat format, EInitializationType Init );
-		
+
 		/** */
-		static Ptr<Image> CreateAsReference( uint32 ID );
+		static Ptr<Image> CreateAsReference( uint32 ID, const FImageDesc& Desc, bool bForceLoad);
 
 		//! Serialisation
 		static void Serialise( const Image* p, OutputArchive& arch );
@@ -224,6 +224,9 @@ namespace mu
 		//-----------------------------------------------------------------------------------------
 		// Own interface
 		//-----------------------------------------------------------------------------------------
+
+		/** */
+		void Init(uint32 sizeX, uint32 sizeY, uint32 lods, EImageFormat format, EInitializationType Init);
 
 		//! Return the width of the image.
         uint16 GetSizeX() const;
@@ -293,6 +296,9 @@ namespace mu
 
 			/** If this is set, this is a reference to an external image, and the ReferenceID is valid. */
 			IF_IS_REFERENCE = 1 << 4,
+
+			/** For reference images, this indicates that they should be loaded into full images as soon as they are generated. */
+			IF_IS_FORCELOAD = 1 << 5
 		} EImageFlags;
 
 		/** Persistent flags with some image properties. The meaning will depend of every context. */

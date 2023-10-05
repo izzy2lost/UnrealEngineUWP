@@ -2,8 +2,12 @@
 
 #pragma once
 
+#if WITH_EDITOR
 
-#include "MuR/Image.h"
+namespace mu
+{
+	class Image;
+}
 
 // Forward declarations
 class UTexture2D;
@@ -17,4 +21,7 @@ enum class EUnrealToMutableConversionError
     Unknown
 };
 
-TTuple<mu::ImagePtr, EUnrealToMutableConversionError> ConvertTextureUnrealToMutable(UTexture2D* Texture, bool bIsNormalComposite = false );
+
+CUSTOMIZABLEOBJECT_API EUnrealToMutableConversionError ConvertTextureUnrealSourceToMutable(mu::Image* OutResult, UTexture2D* Texture, bool bIsNormalComposite, uint8 MipmapsToSkip);
+
+#endif

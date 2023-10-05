@@ -742,7 +742,7 @@ void UCustomizableObject::CompileForTargetPlatform(const ITargetPlatform* Target
 	if (bIsRootObject && bIsRelevantForThisTarget)
 	{
 		FCompilationOptions Options;
-		Options.OptimizationLevel = 3;	// max optimization when packaging.
+		Options.OptimizationLevel = 2;	// max optimization when packaging.
 		Options.TextureCompression = ECustomizableObjectTextureCompression::HighQuality;
 		Options.bIsCooking = true;
 		Options.bSaveCookedDataToDisk = bUsesOnCookStart;

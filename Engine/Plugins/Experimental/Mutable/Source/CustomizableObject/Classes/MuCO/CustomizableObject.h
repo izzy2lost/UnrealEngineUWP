@@ -176,7 +176,7 @@ struct FCompilationOptions
 	UPROPERTY()
 	ECustomizableObjectTextureCompression TextureCompression = ECustomizableObjectTextureCompression::Fast;
 
-	// From 0 to 3
+	// From 0 to 2
 	UPROPERTY()
 	int32 OptimizationLevel = 1;
 

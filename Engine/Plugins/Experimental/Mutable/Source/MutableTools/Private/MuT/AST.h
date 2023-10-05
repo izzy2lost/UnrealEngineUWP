@@ -218,8 +218,8 @@ namespace mu
 
 		int32 MinTextureResidentMipCount = 0;
 
-		/** */
-		struct FDeduplicationMeshFuncs : TDefaultMapHashableKeyFuncs<mu::Ptr<const mu::Mesh>, int32, false>
+		/** Structure used to speedup mesh constant comparison. */
+		struct FDeduplicationMeshFuncs : TDefaultMapHashableKeyFuncs<Ptr<const Mesh>, int32, false>
 		{
 			static FORCEINLINE bool Matches(KeyInitType A, KeyInitType B)
 			{
@@ -229,14 +229,43 @@ namespace mu
 			static FORCEINLINE uint32 GetKeyHash(KeyInitType Key)
 			{
 				const mu::Mesh* Data = Key.get();
-				return HashCombine(
+				return HashCombineFast(
 					::GetTypeHash(Data->m_VertexBuffers.GetElementCount()),
 					::GetTypeHash(Data->m_IndexBuffers.GetElementCount())
 				);
 			}
 		};
 
-		TMap<mu::Ptr<const mu::Mesh>, int32, FDefaultSetAllocator, FDeduplicationMeshFuncs> MeshConstantMap;
+		TMap<Ptr<const Mesh>, int32, FDefaultSetAllocator, FDeduplicationMeshFuncs> MeshConstantMap;
+
+		/** Structure used to speedup image mip comparison. */
+		struct FDeduplicationImageFuncs : TDefaultMapHashableKeyFuncs<Ptr<const Image>, int32, false>
+		{
+			static FORCEINLINE bool Matches(KeyInitType A, KeyInitType B)
+			{
+				return *A == *B;
+			}
+
+			static FORCEINLINE uint32 GetKeyHash(KeyInitType Key)
+			{
+				const mu::Image* Data = Key.get();
+				uint32 Hash = HashCombineFast(
+					::GetTypeHash(Data->m_format),
+					HashCombineFast(::GetTypeHash(Data->m_size[0]),
+								::GetTypeHash(Data->m_size[1]))
+				);
+
+				if (Data->m_data.Num()>=4)
+				{
+					uint32 FirstData = *(reinterpret_cast<const uint32*>(Data->m_data.GetData()));
+					Hash = HashCombineFast( Hash, ::GetTypeHash(FirstData) );
+				}
+
+				return Hash;
+			}
+		};
+
+		TMap<Ptr<const Image>, int32, FDefaultSetAllocator, FDeduplicationImageFuncs> ImageConstantMipMap;
 
 		/** Image operation functions, so that they can be overriden. */
 		FImageOperator& ImageOperator;
@@ -251,7 +280,7 @@ namespace mu
 
 		friend inline uint32 GetTypeHash(const FSinkerOldToNewKey& Key)
 		{
-			return HashCombine(::GetTypeHash(Key.Op.get()), ::GetTypeHash(Key.SinkingOp.get()));
+			return HashCombineFast(::GetTypeHash(Key.Op.get()), ::GetTypeHash(Key.SinkingOp.get()));
 		}
 
 		friend inline bool operator==(const FSinkerOldToNewKey& A, const FSinkerOldToNewKey& B)
@@ -265,16 +294,16 @@ namespace mu
 	{
 	public:
 
-		Ptr<ASTOp> Apply(const ASTOp* root);
+		Ptr<ASTOp> Apply(const class ASTOpImageCrop* root);
 
 	protected:
 
-		const ASTOp* m_root = nullptr;
+		const class ASTOpImageCrop* m_root = nullptr;
 		Ptr<ASTOp> m_initialSource;
 		//! For each operation we sink, the map from old instructions to new instructions.
 		TMap<FSinkerOldToNewKey, Ptr<ASTOp>> OldToNew;
 
-		Ptr<ASTOp> Visit(Ptr<ASTOp> at, const ASTOpFixed* currentCropOp);
+		Ptr<ASTOp> Visit(Ptr<ASTOp> at, const class ASTOpImageCrop* currentCropOp);
 	};
 
 	//---------------------------------------------------------------------------------------------

@@ -9,6 +9,7 @@
 #include "Framework/Views/TableViewMetadata.h"
 #include "Misc/Paths.h"
 #include "MuCO/CustomizableObject.h"
+#include "MuCO/UnrealToMutableTextureConversionUtils.h"
 #include "MuCOE/SMutableBoolViewer.h"
 #include "MuCOE/SMutableColorViewer.h"
 #include "MuCOE/SMutableConstantsWidget.h"
@@ -309,9 +310,10 @@ void SMutableCodeViewer::ClearSelectedTreeRow() const
 	TreeView->ClearSelection();
 }
 
-void SMutableCodeViewer::SetCurrentModel(const TSharedPtr<mu::Model, ESPMode::ThreadSafe>& InMutableModel)
+void SMutableCodeViewer::SetCurrentModel(const TSharedPtr<mu::Model, ESPMode::ThreadSafe>& InMutableModel, const TArray<TSoftObjectPtr<UTexture>>& InReferencedTextures)
 {
 	MutableModel = InMutableModel;
+	ReferencedTextures = InReferencedTextures;
 	PreviewParameters = mu::Model::NewParameters(MutableModel);
 
 	RootNodes.Empty();
@@ -356,13 +358,14 @@ void SMutableCodeViewer::SetCurrentModel(const TSharedPtr<mu::Model, ESPMode::Th
 }
 
 
-void SMutableCodeViewer::Construct(const FArguments& InArgs, const TSharedPtr<mu::Model, ESPMode::ThreadSafe>& InMutableModel/*, const TSharedPtr<SDockTab>& ConstructUnderMajorTab*/)
+void SMutableCodeViewer::Construct(const FArguments& InArgs, const TSharedPtr<mu::Model, ESPMode::ThreadSafe>& InMutableModel,
+	const TArray<TSoftObjectPtr<UTexture>>& InReferencedTextures )
 {
 	// Min width allowed for the column. Needed to avoid having issues with the constants space being to small
 	// and then getting too tall on the y axis crashing the UI drawer.
 	constexpr float MinParametersCollWidth = 400;
 
-	SetCurrentModel(InMutableModel);
+	SetCurrentModel(InMutableModel, InReferencedTextures);
 	
 	FToolBarBuilder ToolbarBuilder(TSharedPtr<const FUICommandList>(), FMultiBoxCustomization::None, TSharedPtr<FExtender>(), true);
 	ToolbarBuilder.SetLabelVisibility(EVisibility::Visible);
@@ -2457,8 +2460,15 @@ namespace
 	{
 		static inline const mu::FImageDesc IMAGE_DESC = 
 			mu::FImageDesc(mu::FImageSize(1024, 1024), mu::EImageFormat::IF_RGBA_UBYTE, 1);
-		
+
 	public:
+
+		/** */
+		TArray<TSoftObjectPtr<UTexture>> ReferencedTextures;
+
+	public:
+
+
 #ifdef MUTABLE_USE_NEW_TASKGRAPH
 		TTuple<UE::Tasks::FTask, TFunction<void()>> GetImageAsync(FName Id, uint8 MipmapsToSkip, TFunction<void(mu::Ptr<mu::Image>)>& ResultCallback) override
 #else
@@ -2517,6 +2527,53 @@ namespace
 		{
 			return IMAGE_DESC;
 		}
+
+
+		//-------------------------------------------------------------------------------------------------
+#ifdef MUTABLE_USE_NEW_TASKGRAPH
+		TTuple<UE::Tasks::FTask, TFunction<void()>> GetReferencedImageAsync(const void* ModelPtr, int32 Id, uint8 MipmapsToSkip, TFunction<void(mu::Ptr<mu::Image>)>& ResultCallback)
+#else
+		TTuple<FGraphEventRef, TFunction<void()>> GetReferencedImageAsync(const void* ModelPtr, int32 Id, uint8 MipmapsToSkip, TFunction<void(mu::Ptr<mu::Image>)>& ResultCallback)
+#endif
+		{
+			check(ReferencedTextures.IsValidIndex(Id));
+
+			TSoftObjectPtr<UTexture> TexturePtr = ReferencedTextures[Id].Get();
+			UTexture2D* Texture = Cast<UTexture2D>( TexturePtr.Get() );
+			check(Texture);
+			
+			// In the editor the src data can be directly accessed
+			int32 MipIndex = (MipmapsToSkip < Texture->GetPlatformData()->Mips.Num()) ? MipmapsToSkip : Texture->GetPlatformData()->Mips.Num() - 1;
+			check(MipIndex >= 0);
+
+			mu::Ptr<mu::Image> ResultImage = new mu::Image();
+			bool bIsNormalComposite = false; // TODO?
+			EUnrealToMutableConversionError Error = ConvertTextureUnrealSourceToMutable(ResultImage.get(), Texture, bIsNormalComposite, MipmapsToSkip);
+			check(Error == EUnrealToMutableConversionError::Success);
+
+			ResultCallback(ResultImage);
+
+#ifdef MUTABLE_USE_NEW_TASKGRAPH
+			auto TrivialReturn = []() -> TTuple<UE::Tasks::FTask, TFunction<void()>>
+			{
+				UE::Tasks::FTaskEvent CompletionEvent(TEXT("GetImageAsyncCompleted"));
+				CompletionEvent.Trigger();
+
+				return MakeTuple(CompletionEvent, []() -> void {});
+			};
+#else
+			auto TrivialReturn = []() -> TTuple<FGraphEventRef, TFunction<void()>>
+			{
+				FGraphEventRef CompletionEvent = FGraphEvent::CreateGraphEvent();
+				CompletionEvent->DispatchSubsequents();
+
+				return MakeTuple(CompletionEvent, []() -> void {});
+			};
+#endif
+
+			return Invoke(TrivialReturn);
+		}
+
 	};
 }
 
@@ -2552,6 +2609,7 @@ void SMutableCodeViewer::Tick(const FGeometry& AllottedGeometry, const double In
 	const mu::Ptr<mu::System> System = new mu::System(Settings);
 
 	TSharedPtr<TestImageProvider> ImageProvider = MakeShared<TestImageProvider>();
+	ImageProvider->ReferencedTextures = ReferencedTextures;
 	System->SetImageParameterGenerator(ImageProvider);
 
 	System->GetPrivate()->BeginBuild(MutableModel);
@@ -2852,7 +2910,8 @@ FReply SMutableCodeViewer::OnDrop(const FGeometry& MyGeometry, const FDragDropEv
 					{
 						mu::InputArchive arch(&stream);
 						TSharedPtr<mu::Model, ESPMode::ThreadSafe> Model = mu::Model::StaticUnserialise(arch);
-						SetCurrentModel(Model);
+						TArray<TSoftObjectPtr<UTexture>> DummyReferencedTextures;
+						SetCurrentModel(Model, DummyReferencedTextures);
 
 						TreeView->RequestTreeRefresh();
 

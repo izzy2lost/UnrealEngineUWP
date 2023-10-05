@@ -28,6 +28,11 @@ namespace mu
 
 		//!
 		uint32 ID = 0;
+		
+		/** */
+		bool bForceLoad = false;
+
+		FImageDesc ImageDesc;
 
 	public:
 

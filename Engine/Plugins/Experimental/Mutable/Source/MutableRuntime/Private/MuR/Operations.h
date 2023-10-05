@@ -435,7 +435,9 @@ namespace mu
 
 		struct ResourceReferenceArgs
 		{
+			FImageDesc ImageDesc;
 			int32 ID;
+			int8 ForceLoad;
 		};
 
         //-------------------------------------------------------------------------------------
@@ -1129,7 +1131,6 @@ namespace mu
             ImageBinariseArgs ImageBinarise;
             ImagePlainColourArgs ImagePlainColour;
             ImageGPUArgs ImageGPU;
-            ImageCropArgs ImageCrop;
             ImageDisplaceArgs ImageDisplace;
 			ImageInvertArgs ImageInvert;
 

@@ -7,6 +7,7 @@
 #include "MuT/ASTOpImageLayerColor.h"
 #include "MuT/ASTOpImageSwizzle.h"
 #include "MuT/ASTOpImageRasterMesh.h"
+#include "MuT/ASTOpImageCrop.h"
 #include "MuT/ASTOpSwitch.h"
 #include "MuR/ModelPrivate.h"
 #include "MuR/RefCounted.h"
@@ -484,29 +485,26 @@ namespace mu
 					check(maskUsage.size[0] > 0);
 					check(maskUsage.size[1] > 0);
 
-					Ptr<ASTOpFixed> cropMask = new ASTOpFixed();
-					cropMask->op.type = OP_TYPE::IM_CROP;
-					cropMask->SetChild(cropMask->op.args.ImageCrop.source, mask.child());
-					cropMask->op.args.ImageCrop.minX = maskUsage.min[0];
-					cropMask->op.args.ImageCrop.minY = maskUsage.min[1];
-					cropMask->op.args.ImageCrop.sizeX = maskUsage.size[0];
-					cropMask->op.args.ImageCrop.sizeY = maskUsage.size[1];
+					Ptr<ASTOpImageCrop> cropMask = new ASTOpImageCrop();
+					cropMask->Source = mask.child();
+					cropMask->Min[0] = maskUsage.min[0];
+					cropMask->Min[1] = maskUsage.min[1];
+					cropMask->Size[0] = maskUsage.size[0];
+					cropMask->Size[1] = maskUsage.size[1];
 
-					Ptr<ASTOpFixed> cropBlended = new ASTOpFixed();
-					cropBlended->op.type = OP_TYPE::IM_CROP;
-					cropBlended->SetChild(cropBlended->op.args.ImageCrop.source, blend.child());
-					cropBlended->op.args.ImageCrop.minX = maskUsage.min[0];
-					cropBlended->op.args.ImageCrop.minY = maskUsage.min[1];
-					cropBlended->op.args.ImageCrop.sizeX = maskUsage.size[0];
-					cropBlended->op.args.ImageCrop.sizeY = maskUsage.size[1];
+					Ptr<ASTOpImageCrop> cropBlended = new ASTOpImageCrop();
+					cropBlended->Source = blend.child();
+					cropBlended->Min[0] = maskUsage.min[0];
+					cropBlended->Min[1] = maskUsage.min[1];
+					cropBlended->Size[0] = maskUsage.size[0];
+					cropBlended->Size[1] = maskUsage.size[1];
 
-					Ptr<ASTOpFixed> cropBase = new ASTOpFixed();
-					cropBase->op.type = OP_TYPE::IM_CROP;
-					cropBase->SetChild(cropBase->op.args.ImageCrop.source, base.child());
-					cropBase->op.args.ImageCrop.minX = maskUsage.min[0];
-					cropBase->op.args.ImageCrop.minY = maskUsage.min[1];
-					cropBase->op.args.ImageCrop.sizeX = maskUsage.size[0];
-					cropBase->op.args.ImageCrop.sizeY = maskUsage.size[1];
+					Ptr<ASTOpImageCrop> cropBase = new ASTOpImageCrop();
+					cropBase->Source = base.child();
+					cropBase->Min[0] = maskUsage.min[0];
+					cropBase->Min[1] = maskUsage.min[1];
+					cropBase->Size[0] = maskUsage.size[0];
+					cropBase->Size[1] = maskUsage.size[1];
 
 					Ptr<ASTOpImageLayer> newLayer = mu::Clone<ASTOpImageLayer>(this);
 					newLayer->base = cropBase;

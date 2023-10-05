@@ -67,21 +67,19 @@ namespace mu
 	namespace
 	{
 		/** Adds a constant image data to a program and returns its constant index. */
-		int32 AddConstantImage(FProgram& Program, Ptr<const Image> pImage, int32 MinTextureResidentMipCount, FLinkerOptions* Options)
+		int32 AddConstantImage(FProgram& Program, const Ptr<const Image>& pImage, FLinkerOptions& Options)
 		{
+			MUTABLE_CPUPROFILER_SCOPE(AddConstantImage);
+
 			check(pImage->GetSizeX() * pImage->GetSizeY() > 0);
 
 			// Mips to store
 			int32 MipsToStore = 1;
-			if (MinTextureResidentMipCount > 0 && MinTextureResidentMipCount < 255)
-			{
-				int32 MaxMipmaps = Image::GetMipmapCount(pImage->GetSizeX(), pImage->GetSizeY());
 
-				// This is not true. We may want the full mipmaps for fragments of images, regardless of the resident mip size.
-				//MipsToStore = FMath::Max(1, MaxMipmaps-MinTextureResidentMipCount);
-				// \TODO: Calculate the mip ranges that makes sense to store.
-				MipsToStore = MaxMipmaps;
-			}
+			// We may want the full mipmaps for fragments of images, regardless of the resident mip size, for intermediate operations.
+			// \TODO: Calculate the mip ranges that makes sense to store.
+			int32 MaxMipmaps = Image::GetMipmapCount(pImage->GetSizeX(), pImage->GetSizeY());
+			MipsToStore = MaxMipmaps;
 
 			int32 FirstLODIndexIndex = Program.m_constantImageLODIndices.Num();
 
@@ -94,41 +92,41 @@ namespace mu
 				MipsToStore = pImage->GetLODCount();
 			}
 
-			// TODO:
-			int32 CompressionQuality = 4;
+			FImageOperator& ImOp = Options.ImageOperator;
 
-			FImageOperator& ImOp = Options->ImageOperator;
-
-			// TODO: Not efficient if we don't make mips (no need to clone base)
 			// TODO: If the image already has mips, we will be duplicating them...
-			Ptr<Image> pMip = ImOp.ExtractMip(pImage.get(), 0);
+			Ptr<const Image> pMip;
+			if (pImage->GetLODCount() == 1)
+			{
+				pMip = pImage;
+			}
+			else
+			{
+				pMip = ImOp.ExtractMip(pImage.get(), 0);
+			}
 			for (int Mip = 0; Mip < MipsToStore; ++Mip)
 			{
 				check(pMip->GetFormat() == pImage->GetFormat());
 
-				// Shrink the buffer to the minimum necessary size.
-				uint32 CalculatedSize = pMip->CalculateDataSize();
-				if (CalculatedSize)
-				{
-					pMip->m_data.SetNum(CalculatedSize);
-				}
-
 				// Ensure unique at mip level
 				int32 MipIndex = -1;
-				for (int32 CandidateMipIndex = 0; CandidateMipIndex < Program.m_constantImageLODs.Num(); ++CandidateMipIndex)
-				{
-					const Image* pCandidate = Program.m_constantImageLODs[CandidateMipIndex].Value.get();
-					if (*pCandidate == *pMip)
-					{
-						// Reuse mip
-						MipIndex = CandidateMipIndex;
-					}
-				}
 
-				if (MipIndex < 0)
+				// Use a map-based deduplication
 				{
-					check(pMip->GetLODCount() == 1);
-					MipIndex = Program.m_constantImageLODs.Add(TPair<int32, Ptr<const Image>>(-1, pMip));
+					MUTABLE_CPUPROFILER_SCOPE(Deduplicate);
+
+					Ptr<const mu::Image> Key = pMip;
+					const int32* IndexPtr = Options.ImageConstantMipMap.Find(Key);
+					if (IndexPtr)
+					{
+						MipIndex = *IndexPtr;
+					}
+					else
+					{
+						check(pMip->GetLODCount() == 1);
+						MipIndex = Program.m_constantImageLODs.Add(TPair<int32, Ptr<const Image>>(-1, pMip));
+						Options.ImageConstantMipMap.Add(Key, MipIndex);
+					}
 				}
 
 				Program.m_constantImageLODIndices.Add(uint32(MipIndex));
@@ -136,16 +134,26 @@ namespace mu
 				// Generate next mip if necessary
 				if (Mip + 1 < MipsToStore)
 				{
+					Ptr<Image> NewMip;
 					if (Mip > pImage->GetLODCount())
 					{
 						// Generate from the last mip.
-						pMip = ImOp.ExtractMip(pMip.get(), 1);
+						NewMip = ImOp.ExtractMip(pMip.get(), 1);
 					}
 					else
 					{
-						pMip = ImOp.ExtractMip(pImage.get(), Mip + 1);
+						NewMip = ImOp.ExtractMip(pImage.get(), Mip + 1);
 					}
-					check(pMip);
+					check(NewMip);
+
+					// Shrink the buffer to the minimum necessary size.
+					uint32 CalculatedSize = NewMip->CalculateDataSize();
+					if (CalculatedSize)
+					{
+						NewMip->m_data.SetNum(CalculatedSize);
+					}
+
+					pMip = NewMip;
 				}
 			}
 
@@ -229,8 +237,7 @@ namespace mu
 					}
 					else
 					{
-						int32 MinTextureResidentMipCount = Options->MinTextureResidentMipCount;
-						args.value = AddConstantImage( program, pTyped, MinTextureResidentMipCount, Options);
+						args.value = AddConstantImage( program, pTyped, *Options);
 					}
 					break;
 				}
@@ -508,24 +515,16 @@ namespace mu
 	//-------------------------------------------------------------------------------------------------
 	mu::Ptr<ImageSizeExpression> ASTOpConstantResource::GetImageSizeExpression() const
 	{
-		Ptr<ImageSizeExpression> pRes = new ImageSizeExpression;
-		pRes->type = ImageSizeExpression::ISET_CONSTANT;
-
-		switch (type)
+		if (type==OP_TYPE::IM_CONSTANT)
 		{
-		case OP_TYPE::IM_CONSTANT:
-		{
+			Ptr<ImageSizeExpression> pRes = new ImageSizeExpression;
+			pRes->type = ImageSizeExpression::ISET_CONSTANT;
 			Ptr<const Image> pConst = static_cast<const Image*>(GetValue().get());
 			pRes->size = pConst->m_size;
-			break;
+			return pRes;
 		}
 
-		default:
-			check(false);
-			return nullptr;
-		}
-
-		return pRes;
+		return nullptr;
 	}
 
 }

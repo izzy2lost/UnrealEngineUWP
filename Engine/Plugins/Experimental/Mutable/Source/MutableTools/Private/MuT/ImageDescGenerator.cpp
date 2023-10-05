@@ -16,6 +16,7 @@
 #include "MuT/NodeImageColourMapPrivate.h"
 #include "MuT/NodeImageConditionalPrivate.h"
 #include "MuT/NodeImageConstantPrivate.h"
+#include "MuT/NodeImageReferencePrivate.h"
 #include "MuT/NodeImageFormatPrivate.h"
 #include "MuT/NodeImageGradientPrivate.h"
 #include "MuT/NodeImageInterpolatePrivate.h"
@@ -99,7 +100,7 @@ namespace mu
 	//---------------------------------------------------------------------------------------------
 	Ptr<ASTOp> ImageDescGenerator::Visit( const NodeImageReference::Private& node )
 	{
-		m_desc = MUTABLE_MISSING_IMAGE_DESC;
+		m_desc = node.ImageDesc;
 		return 0;
 	}
 
@@ -132,12 +133,6 @@ namespace mu
         std::size_t i = 0;
         while ( !pImage && i<node.m_pTable->GetPrivate()->Rows.Num() )
         {
-			if (node.m_pTable->GetPrivate()->Rows[i].Values[colIndex].ProxyImage->Get()->IsReference())
-			{
-				// Image References do not need an image desc
-				break;
-			}
-
             pImage = node.m_pTable->GetPrivate()->Rows[i].Values[ colIndex ].ProxyImage->Get();
             ++i;
         }

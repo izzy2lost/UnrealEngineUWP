@@ -47,10 +47,10 @@ namespace mu
 		//-----------------------------------------------------------------------------------------
 
 		//! Set the name of the parameter.
-		void SetName( const char* );
+		void SetName(const FString&);
 
 		//! Set the uid of the parameter.
-		void SetUid( const char* );
+		void SetUid(const FString&);
 
     	//! Get the default value of the parameter.
     	void SetDefaultValue(FName Value);

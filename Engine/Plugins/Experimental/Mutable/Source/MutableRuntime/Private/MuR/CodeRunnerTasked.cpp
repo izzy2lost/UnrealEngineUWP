@@ -2407,13 +2407,13 @@ namespace mu
 	}
 
 
-	//---------------------------------------------------------------------------------------------
-	//---------------------------------------------------------------------------------------------
-	//---------------------------------------------------------------------------------------------
+	/** This task is used to load an image parameter (by its FName) or an image reference (from its ID).
+	*/
 	class FImageExternalLoadTask : public CodeRunner::FIssuedTask
 	{
 	public:
-		FImageExternalLoadTask(const FScheduledOp& InItem, uint8 InMipmapsToSkip, FName InId);
+
+		FImageExternalLoadTask(const FScheduledOp& InItem, uint8 InMipmapsToSkip, CodeRunner::FExternalImageId InId);
 
 		// FIssuedTask interface
 		virtual bool Prepare(CodeRunner*, bool& bOutFailed) override;
@@ -2421,7 +2421,7 @@ namespace mu
 		
 	private:
 		uint8 MipmapsToSkip;
-		FName Id;
+		CodeRunner::FExternalImageId Id;
 
 		Ptr<Image> Result;
 		
@@ -2429,15 +2429,14 @@ namespace mu
 	};
 
 
-	//---------------------------------------------------------------------------------------------
-	FImageExternalLoadTask::FImageExternalLoadTask(const FScheduledOp& InOp,  uint8 InMipmapsToSkip, FName InId)
+	FImageExternalLoadTask::FImageExternalLoadTask(const FScheduledOp& InOp, uint8 InMipmapsToSkip, CodeRunner::FExternalImageId InId)
 		: FIssuedTask(InOp)
 	{
 		MipmapsToSkip = InMipmapsToSkip;
 		Id = InId;
 	}
 
-	//---------------------------------------------------------------------------------------------
+
 	bool FImageExternalLoadTask::Prepare(CodeRunner* Runner, bool& bOutFailed)
 	{
 		// This runs in the mutable Runner thread
@@ -2461,7 +2460,7 @@ namespace mu
 		return false;
 	}
 
-	//---------------------------------------------------------------------------------------------
+
 	void FImageExternalLoadTask::Complete(CodeRunner* Runner)
 	{
 		if (ExternalCleanUpFunc)
@@ -2573,11 +2572,32 @@ namespace mu
 
 			const uint8 MipmapsToSkip = item.ExecutionOptions + static_cast<uint8>(ImageLOD);
 
-			Issued = MakeShared<FImageExternalLoadTask>(item, MipmapsToSkip, Id);
+			CodeRunner::FExternalImageId FullId;
+			FullId.ParameterId = Id;
+			Issued = MakeShared<FImageExternalLoadTask>(item, MipmapsToSkip, FullId);
 
 			break;
 		}
-			
+
+		case OP_TYPE::IM_REFERENCE:
+		{
+			OP::ResourceReferenceArgs Args = m_pModel->GetPrivate()->m_program.GetOpArgs<OP::ResourceReferenceArgs>(item.At);
+
+			// We only convert references to images if indicated in the operation.
+			if (Args.ForceLoad)
+			{
+				check(item.Stage==0);
+
+				const uint8 MipmapsToSkip = item.ExecutionOptions + static_cast<uint8>(ImageLOD);
+
+				FExternalImageId FullId;
+				FullId.ReferenceImageId = Args.ID;
+				Issued = MakeShared<FImageExternalLoadTask>(item, MipmapsToSkip, FullId);
+			}
+
+			break;
+		}
+
 		case OP_TYPE::IM_PIXELFORMAT:
 		{
 			if (item.Stage == 1)

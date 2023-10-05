@@ -1147,19 +1147,6 @@ FImageDesc ASTOpFixed::GetImageDesc( bool returnBestOption, FGetImageDescContext
         check( res.m_format != EImageFormat::IF_NONE );
         break;
 
-    case OP_TYPE::IM_CROP:
-        res = GetImageDesc( op.args.ImageCrop.source, returnBestOption, context );
-
-		check(op.args.ImageCrop.sizeX > 0);
-		check(op.args.ImageCrop.sizeY > 0);
-
-        res.m_size = FImageSize
-            (
-                op.args.ImageCrop.sizeX,
-                op.args.ImageCrop.sizeY
-            );
-        break;
-
     case OP_TYPE::IM_RESIZE:
         res = GetImageDesc( op.args.ImageResize.source, returnBestOption, context );
 
@@ -1277,12 +1264,6 @@ void ASTOpFixed::GetLayoutBlockSize( int* pBlockX, int* pBlockY )
 	{
 		*pBlockX = 0;
 		*pBlockY = 0;
-		break;
-	}
-
-	case OP_TYPE::IM_CROP:
-	{
-		GetLayoutBlockSize(op.args.ImageCrop.source, pBlockX, pBlockY);
 		break;
 	}
 
@@ -1665,13 +1646,7 @@ mu::Ptr<ImageSizeExpression> ASTOpFixed::GetImageSizeExpression() const
 			pRes = children[op.args.ImageInvert.base].child()->GetImageSizeExpression();
 		}
 		break;
-    	
-    case OP_TYPE::IM_CROP:
-		pRes->type = ImageSizeExpression::ISET_CONSTANT;
-		pRes->size[0] = op.args.ImageCrop.sizeX;
-		pRes->size[1] = op.args.ImageCrop.sizeY;
-    	break;
-
+ 
     default:
     	check( false );
     	break;

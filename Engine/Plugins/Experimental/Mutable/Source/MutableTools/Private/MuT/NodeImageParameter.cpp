@@ -52,30 +52,16 @@ namespace mu
 	//---------------------------------------------------------------------------------------------
 	// Own Interface
 	//---------------------------------------------------------------------------------------------
-    void NodeImageParameter::SetName( const char* strName )
+    void NodeImageParameter::SetName( const FString& Name )
 	{
-		if ( strName )
-		{
-			m_pD->m_name = strName;
-		}
-		else
-		{
-			m_pD->m_name = "";
-		}
+		m_pD->m_name = Name;
 	}
 
 
 	//---------------------------------------------------------------------------------------------
-	void NodeImageParameter::SetUid( const char* strUid )
+	void NodeImageParameter::SetUid(const FString& Uid)
 	{
-		if ( strUid )
-		{
-			m_pD->m_uid = strUid;
-		}
-		else
-		{
-			m_pD->m_uid = "";
-		}
+		m_pD->m_uid = Uid;
 	}
 
 	

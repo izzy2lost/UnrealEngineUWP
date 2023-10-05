@@ -49,7 +49,12 @@ namespace mu
 		//-----------------------------------------------------------------------------------------
 
 		/** Set this node value to be an "image reference" (to point to an unreal engine image). */
-		void SetImageReference(uint32 ID);
+		void SetImageReference(uint32 ID, const FImageDesc& Desc);
+
+		/** Set the image to be loaded as soon as it is used in the core. This will convert it into a normal image for other operations to process. 
+		* Disabled by default.
+		*/
+		void SetForceLoad(bool bForce);
 
 		//-----------------------------------------------------------------------------------------
 		// Interface pattern

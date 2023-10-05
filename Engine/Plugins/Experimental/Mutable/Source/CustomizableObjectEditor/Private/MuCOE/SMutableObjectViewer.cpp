@@ -215,7 +215,8 @@ void SMutableObjectViewer::Construct(const FArguments& InArgs, UCustomizableObje
 void SMutableObjectViewer::GenerateMutableGraphPressed()
 {
 	// Convert from Unreal graph to Mutable graph.
-	mu::Ptr<mu::Node> RootNode = Compiler.Export(CustomizableObject, CompileOptions);
+	TArray<TSoftObjectPtr<UTexture>> ReferencedTextures;
+	mu::Ptr<mu::Node> RootNode = Compiler.Export(CustomizableObject, CompileOptions, ReferencedTextures);
 	if (!RootNode)
 	{
 		// TODO: Show errors
@@ -227,7 +228,7 @@ void SMutableObjectViewer::GenerateMutableGraphPressed()
 	TSharedPtr<SDockTab> NewMutableGraphTab = SNew(SDockTab)
 		.Label(LOCTEXT("MutableGraph", "Mutable Graph"))
 		[
-			SNew(SMutableGraphViewer, RootNode, CompileOptions, ParentTabManager, ParentNewTabId)
+			SNew(SMutableGraphViewer, RootNode, ReferencedTextures, CompileOptions, ParentTabManager, ParentNewTabId)
 			.DataTag(DataTag)
 		];
 
@@ -239,6 +240,7 @@ void SMutableObjectViewer::GenerateMutableGraphPressed()
 
 void SMutableObjectViewer::CompileMutableCodePressed()
 {
+	TArray<TSoftObjectPtr<UTexture>> ReferencedTextures;
 	if (CompileOptions.bForceLargeLODBias)
 	{
 		// Debug compile with many different biasses
@@ -247,7 +249,7 @@ void SMutableObjectViewer::CompileMutableCodePressed()
 		{
 			CompileOptions.DebugBias = Bias;
 
-			mu::NodePtr RootNode = Compiler.Export(CustomizableObject, CompileOptions);
+			mu::NodePtr RootNode = Compiler.Export(CustomizableObject, CompileOptions, ReferencedTextures);
 			if (!RootNode)
 			{
 				// TODO: Show errors
@@ -265,7 +267,7 @@ void SMutableObjectViewer::CompileMutableCodePressed()
 	}
 
 	// Convert from Unreal graph to Mutable graph.
-	mu::NodePtr RootNode = Compiler.Export(CustomizableObject, CompileOptions);
+	mu::NodePtr RootNode = Compiler.Export(CustomizableObject, CompileOptions, ReferencedTextures);
 	if (!RootNode)
 	{
 		// TODO: Show errors
@@ -284,7 +286,7 @@ void SMutableObjectViewer::CompileMutableCodePressed()
 	TSharedPtr<SDockTab> NewMutableCodeTab = SNew(SDockTab)
 		.Label(LOCTEXT("MutableCode", "Mutable Code"))
 		[
-			SNew(SMutableCodeViewer, CompileTask->Model)
+			SNew(SMutableCodeViewer, CompileTask->Model, ReferencedTextures)
 			.DataTag(DataTag)
 		];
 
@@ -347,7 +349,6 @@ TSharedRef<SWidget> SMutableObjectViewer::GenerateCompileOptionsMenuContent()
 		CompileOptimizationStrings.Empty();
 		CompileOptimizationStrings.Add(MakeShareable(new FString(LOCTEXT("OptimizationNone", "None").ToString())));
 		CompileOptimizationStrings.Add(MakeShareable(new FString(LOCTEXT("OptimizationMin", "Minimal").ToString())));
-		CompileOptimizationStrings.Add(MakeShareable(new FString(LOCTEXT("OptimizationMed", "Medium").ToString())));
 		CompileOptimizationStrings.Add(MakeShareable(new FString(LOCTEXT("OptimizationMax", "Maximum").ToString())));
 
 		CompileOptions.OptimizationLevel = FMath::Min(CompileOptions.OptimizationLevel, CompileOptimizationStrings.Num() - 1);

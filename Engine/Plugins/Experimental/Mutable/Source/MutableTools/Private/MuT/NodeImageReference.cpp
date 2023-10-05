@@ -12,25 +12,18 @@
 
 namespace mu
 {
-
-	//---------------------------------------------------------------------------------------------
-	// Static initialisation
-	//---------------------------------------------------------------------------------------------
 	NODE_TYPE NodeImageReference::Private::s_type = NODE_TYPE( "ImageReference", NodeImage::GetStaticType() );
 
 
-	//---------------------------------------------------------------------------------------------
 	MUTABLE_IMPLEMENT_NODE( NodeImageReference, EType::Reference, Node, Node::EType::Image);
 
 
-	//---------------------------------------------------------------------------------------------
 	int NodeImageReference::GetInputCount() const
 	{
 		return 0;
 	}
 
 
-	//---------------------------------------------------------------------------------------------
     Node* NodeImageReference::GetInputNode( int ) const
 	{
 		check( false );
@@ -38,17 +31,22 @@ namespace mu
 	}
 
 
-	//---------------------------------------------------------------------------------------------
     void NodeImageReference::SetInputNode( int, NodePtr )
 	{
 		check( false );
 	}
 
 
-	//---------------------------------------------------------------------------------------------
-	void NodeImageReference::SetImageReference( uint32 ID)
+	void NodeImageReference::SetImageReference(uint32 ID, const FImageDesc& Desc )
 	{
 		m_pD->ImageReferenceID = ID;
+		m_pD->ImageDesc = Desc;
+	}
+
+
+	void NodeImageReference::SetForceLoad(bool bForce)
+	{
+		m_pD->bForceLoad = bForce;
 	}
 
 

@@ -206,7 +206,7 @@ mu::EImageFormat UnrealToMutablePixelFormat(EPixelFormat PlatformFormat, bool bH
 }
 
 
-mu::EImageFormat QualityFix(mu::EImageFormat Format)
+mu::EImageFormat QualityAndPerformanceFix(mu::EImageFormat Format)
 {
 	switch (Format)
 	{
@@ -222,6 +222,10 @@ mu::EImageFormat QualityFix(mu::EImageFormat Format)
 	case mu::EImageFormat::IF_ASTC_10x10_RGB_LDR:	return mu::EImageFormat::IF_ASTC_4x4_RGB_LDR; break;
 	case mu::EImageFormat::IF_ASTC_10x10_RGBA_LDR:	return mu::EImageFormat::IF_ASTC_4x4_RGBA_LDR; break;
 	case mu::EImageFormat::IF_ASTC_10x10_RG_LDR:	return mu::EImageFormat::IF_ASTC_4x4_RG_LDR; break;
+
+	// This is more of a performance fix.
+	case mu::EImageFormat::IF_BGRA_UBYTE:			return mu::EImageFormat::IF_RGBA_UBYTE;
+
 	default:
 		break;
 	}

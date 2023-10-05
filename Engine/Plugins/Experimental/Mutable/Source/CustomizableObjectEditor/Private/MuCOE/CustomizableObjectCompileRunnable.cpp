@@ -48,10 +48,10 @@ uint32 FCustomizableObjectCompileRunnable::Run()
 
 	CompilerOptions->SetUseDiskCache(Options.bUseDiskCompilation);
 
-	if (Options.OptimizationLevel > 3)
+	if (Options.OptimizationLevel > 2)
 	{
 		UE_LOG(LogMutable, Log, TEXT("Mutable compile optimization level out of range. Clamping to maximum."));
-		Options.OptimizationLevel = 3;
+		Options.OptimizationLevel = 2;
 	}
 
 	switch (Options.OptimizationLevel)
@@ -71,19 +71,13 @@ uint32 FCustomizableObjectCompileRunnable::Run()
 	case 2:
 		CompilerOptions->SetOptimisationEnabled(true);
 		CompilerOptions->SetConstReductionEnabled(true);
-		CompilerOptions->SetOptimisationMaxIteration(16);
-		break;
-
-	case 3:
-		CompilerOptions->SetOptimisationEnabled(true);
-		CompilerOptions->SetConstReductionEnabled(true);
 		CompilerOptions->SetOptimisationMaxIteration(0);
 		break;
 
 	default:
-		CompilerOptions->SetOptimisationEnabled(false);
+		CompilerOptions->SetOptimisationEnabled(true);
 		CompilerOptions->SetConstReductionEnabled(true);
-		CompilerOptions->SetOptimisationMaxIteration(1);
+		CompilerOptions->SetOptimisationMaxIteration(0);
 		break;
 	}
 

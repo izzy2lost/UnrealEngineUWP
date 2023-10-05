@@ -26,7 +26,7 @@ void ImageCoreToMutable(const FCompressedImage2D& Compressed, mu::Image* Mutable
 MUTABLETOOLS_API extern mu::EImageFormat UnrealToMutablePixelFormat(EPixelFormat PlatformFormat, bool bHasAlpha);
 
 /** Function that remaps some formats to the ones that provide more acceptable quality in Mutable. */
-MUTABLETOOLS_API extern mu::EImageFormat QualityFix(mu::EImageFormat Format);
+MUTABLETOOLS_API extern mu::EImageFormat QualityAndPerformanceFix(mu::EImageFormat Format);
 
 /** Try to convert an image using unreal's compression. If the format is not supported, it will return false in bOutSuccess.
 * Can be called from any thread.

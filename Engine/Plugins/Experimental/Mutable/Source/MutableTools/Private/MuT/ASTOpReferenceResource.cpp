@@ -23,7 +23,7 @@ namespace mu
 	{
 		if (const ASTOpReferenceResource* other = dynamic_cast<const ASTOpReferenceResource*>(&otherUntyped))
 		{
-			return type == other->type && ID == other->ID;
+			return type == other->type && ID == other->ID && bForceLoad == other->bForceLoad && ImageDesc == other->ImageDesc;
 		}
 		return false;
 	}
@@ -35,6 +35,8 @@ namespace mu
 		Ptr<ASTOpReferenceResource> n = new ASTOpReferenceResource();
 		n->type = type;
 		n->ID = ID;
+		n->bForceLoad = bForceLoad;
+		n->ImageDesc = ImageDesc;
 		return n;
 	}
 
@@ -56,6 +58,8 @@ namespace mu
 			OP::ResourceReferenceArgs Args;
 			FMemory::Memset(&Args, 0, sizeof(Args));
 			Args.ID = ID;
+			Args.ForceLoad = bForceLoad?1:0;
+			Args.ImageDesc = ImageDesc;
 
 			linkedAddress = (OP::ADDRESS)program.m_opAddress.Num();
 			program.m_opAddress.Add((uint32)program.m_byteCode.Num());
