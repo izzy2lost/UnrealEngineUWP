@@ -187,6 +187,7 @@ class FWorkLoop
 public:
 	// If we have been idle for 20 seconds then exit. Can be overriden from the cmd line with -TimeToLive=N where N is in seconds (and a float value)
 	float TimeToLive = 20.0f;
+	int32 NumberToProcess = -1;
 	bool DisableFileWrite = false;
 	bool KeepInput = false;
 
@@ -215,6 +216,10 @@ public:
 			{
 				KeepInput = true;
 			}
+			else if (Switch.StartsWith(TEXT("NumJobs=")))
+			{
+				NumberToProcess = FCString::Atoi(Switch.GetCharArray().GetData() + 8);
+			}
 		}
 	}
 
@@ -222,6 +227,8 @@ public:
 	{
 		UE_LOG(LogShaders, Log, TEXT("Entering job loop"));
 		TRACE_CPUPROFILER_EVENT_SCOPE(Loop);
+
+		int32 NumberProcessed = 0;
 
 		while(true)
 		{
@@ -281,6 +288,13 @@ public:
 			if (TimeToLive == 0)
 			{
 				UE_LOG(LogShaders, Log, TEXT("TimeToLive set to 0, exiting after single job"));
+				break;
+			}
+
+			NumberProcessed++;
+			if (NumberToProcess > 0 && NumberProcessed > NumberToProcess)
+			{
+				UE_LOG(LogShaders, Log, TEXT("NumJobs limit hit"));
 				break;
 			}
 
