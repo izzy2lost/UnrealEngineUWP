@@ -32,4 +32,4 @@ struct FFXAAInputs
 	EFXAAQuality Quality = EFXAAQuality::MAX;
 };
 
-FScreenPassTexture RENDERER_API AddFXAAPass(FRDGBuilder& GraphBuilder, const FViewInfo& View, const FFXAAInputs& Inputs);
+FScreenPassTexture RENDERER_API AddFXAAPass(FRDGBuilder& GraphBuilder, const FSceneView& View, const FFXAAInputs& Inputs);

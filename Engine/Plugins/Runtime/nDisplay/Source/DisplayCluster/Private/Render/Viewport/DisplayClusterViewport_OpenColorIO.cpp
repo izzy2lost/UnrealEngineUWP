@@ -11,13 +11,10 @@
 #include "OpenColorIODisplayExtension.h"
 #include "OpenColorIOShader.h"
 
-#include "Shader.h"
-#include "SceneRendering.h"
 #include "SceneView.h"
 #include "ScreenPass.h"
 #include "CommonRenderResources.h"
-// for FPostProcessMaterialInputs
-#include "PostProcess/PostProcessMaterial.h"
+#include "PostProcess/PostProcessMaterialInputs.h"
 
 //////////////////////////////////////////////////////////////////////////
 // FDisplayClusterViewport_OpenColorIO
@@ -101,19 +98,17 @@ FScreenPassTexture FDisplayClusterViewport_OpenColorIO::PostProcessPassAfterTone
 {
 	const FScreenPassTexture& SceneColor = InOutInputs.GetInput(EPostProcessMaterialInput::SceneColor);
 	check(SceneColor.IsValid());
-	checkSlow(View.bIsViewInfo);
-	const FViewInfo& ViewInfo = static_cast<const FViewInfo&>(View);
 	FScreenPassRenderTarget Output = InOutInputs.OverrideOutput;
 
 	// If the override output is provided, it means that this is the last pass in post processing.
 	if (!Output.IsValid())
 	{
-		Output = FScreenPassRenderTarget::CreateFromInput(GraphBuilder, SceneColor, ViewInfo.GetOverwriteLoadAction(), TEXT("OCIORenderTarget"));
+		Output = FScreenPassRenderTarget::CreateFromInput(GraphBuilder, SceneColor, View.GetOverwriteLoadAction(), TEXT("OCIORenderTarget"));
 	}
 
 	FOpenColorIORendering::AddPass_RenderThread(
 		GraphBuilder,
-		ViewInfo,
+		View,
 		SceneColor,
 		Output,
 		CachedResourcesRenderThread

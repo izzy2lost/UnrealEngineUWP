@@ -42,8 +42,7 @@
 #include "PostProcess/DrawRectangle.h"
 
 #include "ScreenPass.h"
-#include "PostProcess/PostProcessing.h"
-// for FPostProcessMaterialInputs
+#include "SceneTextures.h"
 #include "PostProcess/PostProcessMaterialInputs.h"
 
 static TAutoConsoleVariable<int32> CVarDisplayClusterRenderOverscanResolve(
@@ -1087,10 +1086,8 @@ void FDisplayClusterViewportProxy::OnPostRenderViewFamily_RenderThread(FRDGBuild
 	// Get the GPUIndex used to render this viewport
 	if (Contexts.IsValidIndex(InContextNum))
 	{
-		checkSlow(InSceneView.bIsViewInfo);
-		const FViewInfo& ViewInfo = static_cast<const FViewInfo&>(InSceneView);
 
-		const uint32 GPUIndex = ViewInfo.GPUMask.GetFirstIndex();
+		const uint32 GPUIndex = InSceneView.GPUMask.GetFirstIndex();
 		Contexts[InContextNum].RenderThreadData.GPUIndex = (GPUIndex < GNumExplicitGPUsForRendering) ? GPUIndex : -1;
 	}
 #endif
@@ -1129,9 +1126,6 @@ void FDisplayClusterViewportProxy::OnPostRenderViewFamily_RenderThread(FRDGBuild
 					// Copy Alpha channels back from'InputShaderResource' to 'InternalRenderTargetResource'
 					CopyResource_RenderThread(GraphBuilder, EDisplayClusterTextureCopyMode::Alpha, InContextNum, EDisplayClusterViewportResourceType::InputShaderResource, EDisplayClusterViewportResourceType::InternalRenderTargetResource);
 
-					checkSlow(InSceneView.bIsViewInfo);
-					const FViewInfo& ViewInfo = static_cast<const FViewInfo&>(InSceneView);
-
 					// 1. Copy RGB channels from 'InternalRenderTargetResource' to 'InputShaderResource'
 					CopyResource_RenderThread(GraphBuilder, EDisplayClusterTextureCopyMode::RGB, InContextNum, EDisplayClusterViewportResourceType::InternalRenderTargetResource, EDisplayClusterViewportResourceType::InputShaderResource);
 
@@ -1145,7 +1139,7 @@ void FDisplayClusterViewportProxy::OnPostRenderViewFamily_RenderThread(FRDGBuild
 					PassInputs.Quality = FXAAQuality;
 
 					// 2.1. Do FXAA
-					FScreenPassTexture OutputColorTexture = AddFXAAPass(GraphBuilder, ViewInfo, PassInputs);
+					FScreenPassTexture OutputColorTexture = AddFXAAPass(GraphBuilder, InSceneView, PassInputs);
 
 					// 2.2. Copy FXAA result from 'OutputTexture' to the 'InternalRenderTargetResource'
 					if (OutputColorTexture.Texture)

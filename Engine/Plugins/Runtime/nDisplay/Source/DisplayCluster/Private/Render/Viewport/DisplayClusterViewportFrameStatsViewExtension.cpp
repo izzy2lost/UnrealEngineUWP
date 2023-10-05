@@ -10,13 +10,11 @@
 #include "GlobalShader.h"
 #include "Misc/App.h"
 #include "Misc/Timecode.h"
-#include "SceneRendering.h"
 #include "SceneView.h"
 #include "ScreenPass.h"
 #include "ShaderParameters.h"
 #include "ShaderParameterStruct.h"
 #include "SystemTextures.h"
-#include "PostProcess/PostProcessTestImage.h"
 #include "PostProcess/PostProcessMaterialInputs.h"
 
 
@@ -104,7 +102,6 @@ void FDisplayClusterViewportFrameStatsViewExtension::BeginRenderViewFamily(FScen
 
 FScreenPassTexture FDisplayClusterViewportFrameStatsViewExtension::PostProcessPassAfterTonemap_RenderThread(FRDGBuilder& GraphBuilder, const FSceneView& View, const FPostProcessMaterialInputs& Inputs)
 {
-	const FViewInfo& ViewInfo = static_cast<const FViewInfo&>(View);
 	const FScreenPassTexture& SceneColor = Inputs.GetInput(EPostProcessMaterialInput::SceneColor);
 	check(SceneColor.IsValid());
 
@@ -127,7 +124,7 @@ FScreenPassTexture FDisplayClusterViewportFrameStatsViewExtension::PostProcessPa
 		Parameters->FrameCount = FrameCount;
 		Parameters->Timecode = EncodedTimecode;
 
-		AddDrawScreenPass(GraphBuilder, RDG_EVENT_NAME("DisplayClusterViewportFrameStatsPass"), ViewInfo, Viewport, Viewport, VertexShader, FrameStatsPixelShader, Parameters);
+		AddDrawScreenPass(GraphBuilder, RDG_EVENT_NAME("DisplayClusterViewportFrameStatsPass"), View, Viewport, Viewport, VertexShader, FrameStatsPixelShader, Parameters);
 	}
 
 	FScreenPassRenderTarget Output = Inputs.OverrideOutput;
@@ -149,7 +146,7 @@ FScreenPassTexture FDisplayClusterViewportFrameStatsViewExtension::PostProcessPa
 		Parameters->FrameStatsTextureSampler = TStaticSamplerState<SF_Point, AM_Wrap, AM_Wrap>::GetRHI();
 		Parameters->RenderTargets[0] = Output.GetRenderTargetBinding();
 
-		AddDrawScreenPass(GraphBuilder, RDG_EVENT_NAME("DisplayClusterViewportFrameStatsOutputPass"), ViewInfo, OutputViewport, InputViewport, VertexShader, OutputPixelShader, Parameters);
+		AddDrawScreenPass(GraphBuilder, RDG_EVENT_NAME("DisplayClusterViewportFrameStatsOutputPass"), View, OutputViewport, InputViewport, VertexShader, OutputPixelShader, Parameters);
 	}
 
 	return Output;
