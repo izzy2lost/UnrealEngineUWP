@@ -73,6 +73,22 @@ enum class ETextIdenticalModeFlags : uint8
 };
 ENUM_CLASS_FLAGS(ETextIdenticalModeFlags);
 
+enum class ETextFormatFlags : uint8
+{
+	/** No special behavior */
+	None = 0,
+
+	/**
+	 * Set to evaluate argument modifiers when formatting text
+	 * Unset to print the literal argument modifier syntax into the result
+	 */
+	EvaluateArgumentModifiers = 1<<0,
+
+	/** Default formatting flags */
+	Default = EvaluateArgumentModifiers,
+};
+ENUM_CLASS_FLAGS(ETextFormatFlags);
+
 enum class ETextPluralType : uint8
 {
 	Cardinal,
@@ -275,27 +291,27 @@ public:
 	 * Construct an instance from an FText.
 	 * The text will be immediately compiled. 
 	 */
-	CORE_API FTextFormat(const FText& InText);
+	CORE_API FTextFormat(const FText& InText, ETextFormatFlags InFormatFlags = ETextFormatFlags::Default);
 
 	/**
 	 * Construct an instance from an FText and custom format pattern definition.
 	 * The text will be immediately compiled.
 	 */
-	CORE_API FTextFormat(const FText& InText, FTextFormatPatternDefinitionConstRef InCustomPatternDef);
+	CORE_API FTextFormat(const FText& InText, FTextFormatPatternDefinitionConstRef InCustomPatternDef, ETextFormatFlags InFormatFlags = ETextFormatFlags::Default);
 
 	/**
 	 * Construct an instance from an FString.
 	 * The string will be immediately compiled.
 	 */
-	static CORE_API FTextFormat FromString(const FString& InString);
-	static CORE_API FTextFormat FromString(FString&& InString);
+	static CORE_API FTextFormat FromString(const FString& InString, ETextFormatFlags InFormatFlags = ETextFormatFlags::Default);
+	static CORE_API FTextFormat FromString(FString&& InString, ETextFormatFlags InFormatFlags = ETextFormatFlags::Default);
 
 	/**
 	 * Construct an instance from an FString and custom format pattern definition.
 	 * The string will be immediately compiled.
 	 */
-	static CORE_API FTextFormat FromString(const FString& InString, FTextFormatPatternDefinitionConstRef InCustomPatternDef);
-	static CORE_API FTextFormat FromString(FString&& InString, FTextFormatPatternDefinitionConstRef InCustomPatternDef);
+	static CORE_API FTextFormat FromString(const FString& InString, FTextFormatPatternDefinitionConstRef InCustomPatternDef, ETextFormatFlags InFormatFlags = ETextFormatFlags::Default);
+	static CORE_API FTextFormat FromString(FString&& InString, FTextFormatPatternDefinitionConstRef InCustomPatternDef, ETextFormatFlags InFormatFlags = ETextFormatFlags::Default);
 
 	/**
 	 * Test to see whether this instance contains valid compiled data.
@@ -325,6 +341,11 @@ public:
 	CORE_API EExpressionType GetExpressionType() const;
 
 	/**
+	 * Get the format flags being used.
+	 */
+	CORE_API ETextFormatFlags GetFormatFlags() const;
+
+	/**
 	 * Get the format pattern definition being used.
 	 */
 	CORE_API FTextFormatPatternDefinitionConstRef GetPatternDefinition() const;
@@ -345,7 +366,7 @@ private:
 	 * Construct an instance from an FString.
 	 * The string will be immediately compiled.
 	 */
-	CORE_API FTextFormat(FString&& InString, FTextFormatPatternDefinitionConstRef InCustomPatternDef);
+	CORE_API FTextFormat(FString&& InString, FTextFormatPatternDefinitionConstRef InCustomPatternDef, ETextFormatFlags InFormatFlags);
 
 	/** Cached compiled expression data */
 	TSharedRef<FTextFormatData, ESPMode::ThreadSafe> TextFormatData;
