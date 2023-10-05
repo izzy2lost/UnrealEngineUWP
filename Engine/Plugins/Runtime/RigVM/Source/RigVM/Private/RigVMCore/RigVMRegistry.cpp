@@ -676,8 +676,9 @@ TRigVMTypeIndex FRigVMRegistry::FindOrAddType_Internal(const FRigVMTemplateArgum
 		{
 			if (CPPTypeObject->IsA<UUserDefinedStruct>() || CPPTypeObject->IsA<UUserDefinedEnum>())
 			{
-				// used to track name changes to user defined types
-				UserDefinedTypeToIndex.FindOrAdd(CPPTypeObject) = Index;
+				TRigVMTypeIndex ElementTypeIndex = GetTypeIndex(ElementType);
+				// used to track name changes to user defined types, stores the element type index, see RemoveType()
+				UserDefinedTypeToIndex.FindOrAdd(CPPTypeObject) = ElementTypeIndex;
 			}
 		}
 		
