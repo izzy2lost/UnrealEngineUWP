@@ -56,7 +56,8 @@ public:
 	struct FParams
 	{
 		int32				SetHostFromUrl(FAnsiStringView Url);
-		uint32				ConnectionCount;
+		uint16				ConnectionCount = 1;
+		uint16				PipelineLength = 1;
 		int32				SendBufSize = -1;
 		int32				RecvBufSize = -1;
 		struct {

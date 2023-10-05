@@ -232,7 +232,8 @@ TUniquePtr<HTTP::FConnectionPool> FHttpClient::CreateConnection(const FStringVie
 		UE_LOG(LogIas, Log, TEXT("HTTP client receive buffer size set to %d"), Config.ReceiveBufferSize);
 		Params.RecvBufSize = Config.ReceiveBufferSize;
 	}
-	Params.ConnectionCount = Config.MaxConnectionCount;
+	Params.ConnectionCount = uint16(Config.MaxConnectionCount);
+	Params.PipelineLength = uint16(Config.PipelineLength);
 
 	return MakeUnique<HTTP::FConnectionPool>(Params);
 }

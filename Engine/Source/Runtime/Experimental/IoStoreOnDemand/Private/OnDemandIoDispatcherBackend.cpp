@@ -84,11 +84,18 @@ static FAutoConsoleVariableRef CVar_GIasHttpRecvBufKiB(
 	TEXT("Recv buffer size")
 );
 
-int32 GIasMaxHttpConnectionCount = 8;
+int32 GIasMaxHttpConnectionCount = 4;
 static FAutoConsoleVariableRef CVar_IasMaxHttpConnectionCount(
 	TEXT("ias.MaxHttpConnectionCount"),
 	GIasMaxHttpConnectionCount,
 	TEXT("Max number of open HTTP connections to the on demand endpoint(s).")
+);
+
+static int32 GIasHttpPipelineLength = 2;
+static FAutoConsoleVariableRef CVar_GIasHttpPipelineLength(
+	TEXT("ias.HttpPipelineLength"),
+	GIasHttpPipelineLength,
+	TEXT("Number of concurrent requests on one connection")
 );
 
 int32 GIasMaxHttpRetryCount = 2;
@@ -2168,6 +2175,7 @@ uint32 FOnDemandIoBackend::Run()
 			.Endpoints = AvailableEps.Urls,
 			.PrimaryEndpoint = AvailableEps.Current,
 			.MaxConnectionCount = GIasMaxHttpConnectionCount,
+			.PipelineLength = GIasHttpPipelineLength,
 			.MaxRetryCount = MaxHttpRetryCount,
 			.ReceiveBufferSize = GIasHttpRecvBufKiB >= 0 ? GIasHttpRecvBufKiB << 10 : -1
 		});
@@ -2179,7 +2187,7 @@ uint32 FOnDemandIoBackend::Run()
 	while (!bStopRequested)
 	{
 		// Process HTTP request(s) even if the client is invalid to ensure enqueued request(s) gets completed.
-		ProcessHttpRequests(HttpClient.Get(), HttpErrors, FMath::Min(2 * GIasMaxHttpConnectionCount, 64));
+		ProcessHttpRequests(HttpClient.Get(), HttpErrors, FMath::Min(GIasHttpPipelineLength * GIasMaxHttpConnectionCount, 64));
 		AvailableEps.Current = HttpClient.IsValid() ? HttpClient->GetPrimaryConnection() : INDEX_NONE;
 
 		if (!bStopRequested)

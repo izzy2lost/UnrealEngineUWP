@@ -1213,13 +1213,14 @@ public:
 	enum class EDirection : uint8 { Send, Recv };
 	static const uint32 InvalidIp = 0x00ff'ffff;
 
-					FHost(const ANSICHAR* InHostName, uint32 InPort, uint32 InMaxConn);
+					FHost(const ANSICHAR* InHostName, uint32 InPort, uint32 InMaxConn, uint32 PipeLength=1);
 	void			SetBufferSize(EDirection Dir, int32 Size);
 	int32			GetBufferSize(EDirection Dir) const;
 	FResult			Connect(FSocket& Socket);
 	int32			IsResolved() const;
 	FResult			ResolveHostName();
 	uint32			GetMaxConnections() const	{ return MaxConnections; }
+	uint32			GetPipelineLength() const	{ return PipelineLength; }
 	uint32			GetIpAddress() const		{ return IpAddresses[0]; }
 	FAnsiStringView	GetHostName() const			{ return HostName; }
 	uint32			GetPort() const				{ return Port; }
@@ -1231,13 +1232,15 @@ private:
 	int16			RecvBufKb = -1;
 	uint16			Port;
 	uint8			MaxConnections;
+	uint8			PipelineLength;
 };
 
 ////////////////////////////////////////////////////////////////////////////////
-FHost::FHost(const ANSICHAR* InHostName, uint32 InPort, uint32 InMaxConn)
+FHost::FHost(const ANSICHAR* InHostName, uint32 InPort, uint32 InMaxConn, uint32 PipeLength)
 : HostName(InHostName)
 , Port(uint16(InPort))
 , MaxConnections(uint8(InMaxConn))
+, PipelineLength(uint8(PipeLength))
 {
 	check(MaxConnections && MaxConnections == InMaxConn);
 }
@@ -1392,7 +1395,7 @@ class FSocketPool
 	: public FHost
 {
 public:
-					FSocketPool(const ANSICHAR* InHostName, uint32 InPort, uint32 InMaxLeases);
+					FSocketPool(const ANSICHAR* InHostName, uint32 InPort, uint32 InMaxLeases, uint32 PipeLen=1);
 					~FSocketPool();
 	static uint32	GetAllocSize(uint32 MaxLeases);
 	bool			LeaseSocket(FSocket& Out);
@@ -1404,8 +1407,8 @@ private:
 };
 
 ////////////////////////////////////////////////////////////////////////////////
-FSocketPool::FSocketPool(const ANSICHAR* InHostName, uint32 InPort, uint32 InMaxLeases)
-: FHost(InHostName, InPort, InMaxLeases)
+FSocketPool::FSocketPool(const ANSICHAR* InHostName, uint32 InPort, uint32 InMaxLeases, uint32 PipeLen)
+: FHost(InHostName, InPort, InMaxLeases, PipeLen)
 {
 
 	for (uint32 i = 0; i < GetMaxConnections(); ++i)
@@ -1496,7 +1499,8 @@ FConnectionPool::FConnectionPool(const FParams& Params)
 	new (Internal) FSocketPool(
 		HostDest,
 		Params.Host.Port,
-		Params.ConnectionCount
+		Params.ConnectionCount,
+		Params.PipelineLength
 	);
 	Internal->SetBufferSize(FHost::EDirection::Send, Params.SendBufSize);
 	Internal->SetBufferSize(FHost::EDirection::Recv, Params.RecvBufSize);
@@ -3194,7 +3198,7 @@ void FHostGroup::ScatterPendings()
 		Activity->Next = nullptr;
 
 		FSocketGroupPtr& Group = SocketGroups.Emplace_GetRef();
-		Group = MakeUnique<FSocketGroup>(1);
+		Group = MakeUnique<FSocketGroup>(Host.GetPipelineLength());
 		Group->AddActivity(Activity);
 
 		if (Iter == nullptr)
