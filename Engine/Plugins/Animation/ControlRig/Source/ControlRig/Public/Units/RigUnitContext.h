@@ -153,15 +153,26 @@ public:
 	FName RemoveRigModuleNameSpace(const FName& InName) const;
 	FString RemoveRigModuleNameSpace(const FString& InName) const;
 
+	/**
+	 * Returns true if this context is used on a module currently
+	 */
 	bool IsRigModule() const
 	{
 		return !GetRigModuleNameSpace().IsEmpty();
 	}
 
+	/**
+	 * Returns the namespace of the currently running rig module
+	 */
 	FString GetRigModuleNameSpace() const
 	{
 		return RigModuleNameSpace;
 	}
+
+	/**
+	 * Adapts a metadata name according to rig module namespace.
+	 */
+	FName AdaptMetadataName(bool bUseNameSpace, const FName& InMetadataName) const;
 
 	/** The list of available asset user data object */
 	TArray<const UAssetUserData*> AssetUserData;

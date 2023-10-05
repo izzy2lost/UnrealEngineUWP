@@ -13,6 +13,7 @@
 
 FName FRigDispatch_MetadataBase::ItemArgName = TEXT("Item");
 FName FRigDispatch_MetadataBase::NameArgName = TEXT("Name");
+FName FRigDispatch_MetadataBase::UseNameSpaceArgName = TEXT("UseNameSpace");
 FName FRigDispatch_MetadataBase::CacheArgName = TEXT("Cache");
 FName FRigDispatch_MetadataBase::DefaultArgName = TEXT("Default");
 FName FRigDispatch_MetadataBase::ValueArgName = TEXT("Value");
@@ -71,6 +72,7 @@ const TArray<FRigVMTemplateArgument>& FRigDispatch_MetadataBase::GetArguments() 
 	{
 		ItemArgIndex = Arguments.Emplace(ItemArgName, ERigVMPinDirection::Input, FRigVMRegistry::Get().GetTypeIndex<FRigElementKey>());
 		NameArgIndex = Arguments.Emplace(NameArgName, ERigVMPinDirection::Input, RigVMTypeUtils::TypeIndex::FName);
+		UseNameSpaceArgIndex = Arguments.Emplace(UseNameSpaceArgName, ERigVMPinDirection::Input, RigVMTypeUtils::TypeIndex::Bool);
 		CacheArgIndex = Arguments.Emplace(CacheArgName, ERigVMPinDirection::Hidden, FRigVMRegistry::Get().GetTypeIndex<FCachedRigElement>());
 	};
 	return Arguments;
@@ -87,6 +89,10 @@ FText FRigDispatch_MetadataBase::GetArgumentTooltip(const FName& InArgumentName,
 	if(InArgumentName == NameArgName)
 	{
 		return NSLOCTEXT("FRigDispatch_MetadataBase", "NameArgTooltip", "The name of the metadata");
+	}
+	if(InArgumentName == UseNameSpaceArgName)
+	{
+		return NSLOCTEXT("FRigDispatch_MetadataBase", "UseNameSpaceArgTooltip", "If checked the metadata will be available only in this name space / module");
 	}
 	if(InArgumentName == DefaultArgName)
 	{
@@ -107,9 +113,19 @@ FText FRigDispatch_MetadataBase::GetArgumentTooltip(const FName& InArgumentName,
 	return FRigDispatchFactory::GetArgumentTooltip(InArgumentName, InTypeIndex);
 }
 
+FString FRigDispatch_MetadataBase::GetArgumentDefaultValue(const FName& InArgumentName,
+	TRigVMTypeIndex InTypeIndex) const
+{
+	if(InArgumentName == UseNameSpaceArgName)
+	{
+		return TrueString;
+	}
+	return FRigDispatchFactory::GetArgumentDefaultValue(InArgumentName, InTypeIndex);
+}
+
 FString FRigDispatch_MetadataBase::GetArgumentMetaData(const FName& InArgumentName, const FName& InMetaDataKey) const
 {
-	if(InArgumentName == TEXT("Name"))
+	if(InArgumentName == NameArgName)
 	{
 		if(InMetaDataKey == FRigVMStruct::CustomWidgetMetaName)
 		{
@@ -168,15 +184,23 @@ const TArray<FRigVMTemplateArgument>& FRigDispatch_GetMetadata::GetArguments() c
 }
 
 FRigBaseMetadata* FRigDispatch_GetMetadata::FindMetadata(const FRigVMExtendedExecuteContext& InContext,
-                                                         const FRigElementKey& InKey, const FName& InName, ERigMetadataType InType, FCachedRigElement& Cache)
+                                                         const FRigElementKey& InKey, const FName& InName,
+                                                         ERigMetadataType InType, bool bUseNameSpace, FCachedRigElement& Cache)
 {
 	const FControlRigExecuteContext& ExecuteContext = InContext.GetPublicData<FControlRigExecuteContext>();
 	if(Cache.UpdateCache(InKey, ExecuteContext.Hierarchy))
 	{
-		if(FRigBaseElement* Element = ExecuteContext.Hierarchy->Get(Cache.GetIndex()))
+		if(const FRigBaseElement* Element = ExecuteContext.Hierarchy->Get(Cache.GetIndex()))
 		{
+			// first try to find the metadata in the namespace
+			const FName Name = ExecuteContext.AdaptMetadataName(bUseNameSpace, InName);
+			if(FRigBaseMetadata* Metadata = Element->GetMetadata(Name, InType))
+			{
+				return Metadata;
+			}
+			
 			return Element->GetMetadata(InName, InType);
-		}
+		};
 	}
 	return nullptr;
 }
@@ -292,13 +316,15 @@ const TArray<FRigVMExecuteArgument>& FRigDispatch_SetMetadata::GetExecuteArgumen
 }
 
 FRigBaseMetadata* FRigDispatch_SetMetadata::FindOrAddMetadata(FControlRigExecuteContext& InContext,
-                                                              const FRigElementKey& InKey, const FName& InName, ERigMetadataType InType, FCachedRigElement& Cache)
+                                                              const FRigElementKey& InKey, const FName& InName, ERigMetadataType InType,
+                                                              bool bUseNameSpace, FCachedRigElement& Cache)
 {
 	if(Cache.UpdateCache(InKey, InContext.Hierarchy))
 	{
 		if(FRigBaseElement* Element = InContext.Hierarchy->Get(Cache.GetIndex()))
 		{
-			return Element->SetupValidMetadata(InName, InType);
+			const FName Name = InContext.AdaptMetadataName(bUseNameSpace, InName);
+			return Element->SetupValidMetadata(Name, InType);
 		}
 	}
 	return nullptr;
@@ -407,7 +433,12 @@ FRigUnit_RemoveMetadata_Execute()
 	{
 		if(FRigBaseElement* Element = Hierarchy->Get(CachedIndex))
 		{
-			Removed = Element->RemoveMetadata(Name);
+			const FName LocalName = ExecuteContext.AdaptMetadataName(UseNameSpace, Name);
+			Removed = Element->RemoveMetadata(LocalName);
+			if(!Removed)
+			{
+				Removed = Element->RemoveMetadata(Name);
+			}
 		}
 	}
 }
@@ -426,6 +457,28 @@ FRigUnit_RemoveAllMetadata_Execute()
 	{
 		if(FRigBaseElement* Element = Hierarchy->Get(CachedIndex))
 		{
+			if(UseNameSpace)
+			{
+				// only remove the metadata within this module / with this namespace
+				if(ExecuteContext.IsRigModule())
+				{
+					const TArray<FName> MetadataNames = Hierarchy->GetMetadataNames(Element->GetKey());
+
+					Removed = false;
+					const FString NameSpace = ExecuteContext.GetRigModuleNameSpace();
+					for(const FName& MetadataName : MetadataNames)
+					{
+						if(MetadataName.ToString().StartsWith(NameSpace, ESearchCase::CaseSensitive))
+						{
+							if(Element->RemoveMetadata(MetadataName))
+							{
+								Removed = true;
+							}
+						}
+					}
+					return;
+				}
+			}
 			Removed = Element->RemoveAllMetadata();
 		}
 	}
@@ -445,7 +498,12 @@ FRigUnit_HasMetadata_Execute()
 	{
 		if(const FRigBaseElement* Element = Hierarchy->Get(CachedIndex))
 		{
-			Found = Element->GetMetadata(Name, Type) != nullptr;
+			const FName LocalName = ExecuteContext.AdaptMetadataName(UseNameSpace, Name);
+			Found = Element->GetMetadata(LocalName, Type) != nullptr;
+			if(!Found)
+			{
+				Found = Element->GetMetadata(Name, Type) != nullptr;
+			}
 		}
 	}
 }
@@ -460,9 +518,10 @@ FRigUnit_FindItemsWithMetadata_Execute()
 		return;
 	}
 
-	Hierarchy->Traverse([&Items, Name, Type](const FRigBaseElement* Element, bool& bContinue)
+	const FName LocalName = ExecuteContext.AdaptMetadataName(UseNameSpace, Name);
+	Hierarchy->Traverse([&Items, Name, LocalName, Type](const FRigBaseElement* Element, bool& bContinue)
 	{
-		if(Element->GetMetadata(Name, Type) != nullptr)
+		if(Element->GetMetadata(LocalName, Type) != nullptr)
 		{
 			Items.AddUnique(Element->GetKey());
 		}
@@ -479,7 +538,7 @@ FRigUnit_GetMetadataTags_Execute()
 	{
 		return;
 	}
-	
+
 	if(CachedIndex.UpdateCache(Item, Hierarchy))
 	{
 		if(const FRigBaseElement* Element = Hierarchy->Get(CachedIndex))
@@ -499,7 +558,7 @@ FRigUnit_SetMetadataTag_Execute()
 	{
 		return;
 	}
-	
+
 	if(CachedIndex.UpdateCache(Item, Hierarchy))
 	{
 		if(FRigBaseElement* Element = Hierarchy->Get(CachedIndex))
@@ -507,9 +566,10 @@ FRigUnit_SetMetadataTag_Execute()
 			if(FRigNameArrayMetadata* Md = Cast<FRigNameArrayMetadata>(Element->SetupValidMetadata(URigHierarchy::TagMetadataName, ERigMetadataType::NameArray)))
 			{
 				const int32 LastIndex = Md->GetValue().Num(); 
-				if(Md->GetValue().AddUnique(Tag) == LastIndex)
+				const FName LocalTag = ExecuteContext.AdaptMetadataName(UseNameSpace, Tag);
+				if(Md->GetValue().AddUnique(LocalTag) == LastIndex)
 				{
-					Element->NotifyMetadataTagChanged(Tag, true);
+					Element->NotifyMetadataTagChanged(LocalTag, true);
 				}
 			}
 		}
@@ -523,7 +583,7 @@ FRigUnit_SetMetadataTagArray_Execute()
 	{
 		return;
 	}
-	
+
 	if(CachedIndex.UpdateCache(Item, Hierarchy))
 	{
 		if(FRigBaseElement* Element = Hierarchy->Get(CachedIndex))
@@ -533,9 +593,10 @@ FRigUnit_SetMetadataTagArray_Execute()
 				for(const FName& Tag : Tags)
 				{
 					const int32 LastIndex = Md->GetValue().Num(); 
-					if(Md->GetValue().AddUnique(Tag) == LastIndex)
+					const FName LocalTag = ExecuteContext.AdaptMetadataName(UseNameSpace, Tag);
+					if(Md->GetValue().AddUnique(LocalTag) == LastIndex)
 					{
-						Element->NotifyMetadataTagChanged(Tag, true);
+						Element->NotifyMetadataTagChanged(LocalTag, true);
 					}
 				}
 			}
@@ -551,17 +612,18 @@ FRigUnit_RemoveMetadataTag_Execute()
 	{
 		return;
 	}
-	
+
 	if(CachedIndex.UpdateCache(Item, Hierarchy))
 	{
 		if(FRigBaseElement* Element = Hierarchy->Get(CachedIndex))
 		{
 			if(FRigNameArrayMetadata* Md = Cast<FRigNameArrayMetadata>(Element->GetMetadata(URigHierarchy::TagMetadataName, ERigMetadataType::NameArray)))
 			{
-				Removed = Md->GetValue().Remove(Tag) > 0;
+				const FName LocalTag = ExecuteContext.AdaptMetadataName(UseNameSpace, Tag);
+				Removed = Md->GetValue().Remove(LocalTag) > 0;
 				if(Removed)
 				{
-					Element->NotifyMetadataTagChanged(Tag, false);
+					Element->NotifyMetadataTagChanged(LocalTag, false);
 				}
 			}
 		}
@@ -577,14 +639,15 @@ FRigUnit_HasMetadataTag_Execute()
 	{
 		return;
 	}
-	
+
 	if(CachedIndex.UpdateCache(Item, Hierarchy))
 	{
 		if(const FRigBaseElement* Element = Hierarchy->Get(CachedIndex))
 		{
 			if(const FRigNameArrayMetadata* Md = Cast<FRigNameArrayMetadata>(Element->GetMetadata(URigHierarchy::TagMetadataName, ERigMetadataType::NameArray)))
 			{
-				Found = Md->GetValue().Contains(Tag);
+				const FName LocalTag = ExecuteContext.AdaptMetadataName(UseNameSpace, Tag);
+				Found = Md->GetValue().Contains(LocalTag);
 			}
 		}
 	}
@@ -599,7 +662,7 @@ FRigUnit_HasMetadataTagArray_Execute()
 	{
 		return;
 	}
-	
+
 	if(CachedIndex.UpdateCache(Item, Hierarchy))
 	{
 		if(const FRigBaseElement* Element = Hierarchy->Get(CachedIndex))
@@ -609,7 +672,8 @@ FRigUnit_HasMetadataTagArray_Execute()
 				Found = true;
 				for(const FName& Tag : Tags)
 				{
-					if(!Md->GetValue().Contains(Tag))
+					const FName LocalTag = ExecuteContext.AdaptMetadataName(UseNameSpace, Tag);
+					if(!Md->GetValue().Contains(LocalTag))
 					{
 						Found = false;
 						break;
@@ -630,11 +694,12 @@ FRigUnit_FindItemsWithMetadataTag_Execute()
 		return;
 	}
 
-	Hierarchy->Traverse([&Items, Tag](const FRigBaseElement* Element, bool& bContinue)
+	const FName LocalTag = ExecuteContext.AdaptMetadataName(UseNameSpace, Tag);
+	Hierarchy->Traverse([&Items, LocalTag](const FRigBaseElement* Element, bool& bContinue)
 	{
 		if(const FRigNameArrayMetadata* Md = Cast<FRigNameArrayMetadata>(Element->GetMetadata(URigHierarchy::TagMetadataName, ERigMetadataType::NameArray)))
 		{
-			if(Md->GetValue().Contains(Tag))
+			if(Md->GetValue().Contains(LocalTag))
 			{
 				Items.AddUnique(Element->GetKey());
 			}
@@ -653,12 +718,25 @@ FRigUnit_FindItemsWithMetadataTagArray_Execute()
 		return;
 	}
 
-	Hierarchy->Traverse([&Items, Tags](const FRigBaseElement* Element, bool& bContinue)
+	TArrayView<const FName> LocalTags(Tags);
+	TArray<FName> AdaptedTags;
+	if(UseNameSpace && ExecuteContext.IsRigModule())
+	{
+		AdaptedTags.Reserve(Tags.Num());
+		for(const FName& Tag : Tags)
+		{
+			const FName LocalTag = ExecuteContext.AdaptMetadataName(UseNameSpace, Tag);
+			AdaptedTags.Add(LocalTag);
+		}
+		LocalTags = TArrayView<const FName>(AdaptedTags);
+	}
+	
+	Hierarchy->Traverse([&Items, LocalTags](const FRigBaseElement* Element, bool& bContinue)
 	{
 		if(const FRigNameArrayMetadata* Md = Cast<FRigNameArrayMetadata>(Element->GetMetadata(URigHierarchy::TagMetadataName, ERigMetadataType::NameArray)))
 		{
 			bool bFoundAll = true;
-			for(const FName& Tag : Tags)
+			for(const FName& Tag : LocalTags)
 			{
 				if(!Md->GetValue().Contains(Tag))
 				{
@@ -692,6 +770,19 @@ FRigUnit_FilterItemsByMetadataTags_Execute()
 		CachedIndices.SetNumZeroed(Items.Num());
 	}
 
+	TArrayView<const FName> LocalTags(Tags);
+	TArray<FName> AdaptedTags;
+	if(UseNameSpace && ExecuteContext.IsRigModule())
+	{
+		AdaptedTags.Reserve(Tags.Num());
+		for(const FName& Tag : Tags)
+		{
+			const FName LocalTag = ExecuteContext.AdaptMetadataName(UseNameSpace, Tag);
+			AdaptedTags.Add(LocalTag);
+		}
+		LocalTags = TArrayView<const FName>(AdaptedTags);
+	}
+
 	for(int32 Index = 0; Index < Items.Num(); Index++)
 	{
 		if(CachedIndices[Index].UpdateCache(Items[Index], Hierarchy))
@@ -703,7 +794,7 @@ FRigUnit_FilterItemsByMetadataTags_Execute()
 					if(Inclusive)
 					{
 						bool bFoundAll = true;
-						for(const FName& Tag : Tags)
+						for(const FName& Tag : LocalTags)
 						{
 							if(!Md->GetValue().Contains(Tag))
 							{
@@ -719,7 +810,7 @@ FRigUnit_FilterItemsByMetadataTags_Execute()
 					else
 					{
 						bool bFoundAny = false;
-						for(const FName& Tag : Tags)
+						for(const FName& Tag : LocalTags)
 						{
 							if(Md->GetValue().Contains(Tag))
 							{

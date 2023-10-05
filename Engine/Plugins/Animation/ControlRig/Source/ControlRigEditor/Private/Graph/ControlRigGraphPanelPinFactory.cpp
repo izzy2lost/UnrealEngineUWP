@@ -19,6 +19,7 @@
 #include "RigVMModel/Nodes/RigVMUnitNode.h"
 #include "RigVMCore/RigVMExecuteContext.h"
 #include "Units/Execution/RigUnit_DynamicHierarchy.h"
+#include "Units/Hierarchy/RigUnit_Metadata.h"
 #include "ControlRigElementDetails.h"
 #include "IPropertyAccessEditor.h"
 
@@ -333,7 +334,19 @@ TSharedPtr<SGraphPin> FControlRigGraphPanelPinFactory::CreatePin_Internal(UEdGra
 								if(UControlRig* ControlRig = Cast<UControlRig>(Blueprint->GetObjectBeingDebugged()))
 								{
 									const FString MapHash = Blueprint->GetPathName();
-									const int32 MetadataVersion = ControlRig->GetHierarchy()->GetMetadataVersion(); 
+									const int32 MetadataVersion = ControlRig->GetHierarchy()->GetMetadataVersion();
+									
+									bool bUseShortNames = false;
+									if (const URigVMNode* ModelNode = InPin->GetNode())
+									{
+										if(const URigVMPin* UseNameSpacePin = ModelNode->FindPin(GET_MEMBER_NAME_STRING_CHECKED(FRigUnit_HasMetadata, UseNameSpace)))
+										{
+											if(UseNameSpacePin->GetDefaultValue().Equals(TEXT("true"), ESearchCase::IgnoreCase))
+											{
+												bUseShortNames = true;
+											}
+										}
+									}
 
 									static TMap<FString, FCachedMetadataNames> MetadataNameLists;
 									FCachedMetadataNames& MetadataNames = MetadataNameLists.FindOrAdd(MapHash);
@@ -358,7 +371,16 @@ TSharedPtr<SGraphPin> FControlRigGraphPanelPinFactory::CreatePin_Internal(UEdGra
 
 										for(const FName& Name : Names)
 										{
-											MetadataNames.Names->Add(MakeShareable(new FRigVMStringWithTag(Name.ToString())));
+											FString NameString = Name.ToString();
+											if(bUseShortNames)
+											{
+												int32 Index = INDEX_NONE;
+												if(NameString.FindChar(TEXT(':'), Index))
+												{
+													NameString.MidInline(Index + 1);
+												}
+											}
+											MetadataNames.Names->Add(MakeShareable(new FRigVMStringWithTag(NameString)));
 										}
 
 										MetadataNames.Names->Sort([](const TSharedPtr<FRigVMStringWithTag>& A, const TSharedPtr<FRigVMStringWithTag>& B)
@@ -402,6 +424,18 @@ TSharedPtr<SGraphPin> FControlRigGraphPanelPinFactory::CreatePin_Internal(UEdGra
 									const FString MapHash = Blueprint->GetPathName();
 									const int32 MetadataTagVersion = ControlRig->GetHierarchy()->GetMetadataTagVersion(); 
 
+									bool bUseShortNames = false;
+									if (const URigVMNode* ModelNode = InPin->GetNode())
+									{
+										if(const URigVMPin* UseNameSpacePin = ModelNode->FindPin(GET_MEMBER_NAME_STRING_CHECKED(FRigUnit_HasMetadata, UseNameSpace)))
+										{
+											if(UseNameSpacePin->GetDefaultValue().Equals(TEXT("true"), ESearchCase::IgnoreCase))
+											{
+												bUseShortNames = true;
+											}
+										}
+									}
+
 									static TMap<FString, FCachedMetadataTagNames> MetadataTagNameLists;
 									FCachedMetadataTagNames& MetadataTagNames = MetadataTagNameLists.FindOrAdd(MapHash);
 
@@ -428,7 +462,16 @@ TSharedPtr<SGraphPin> FControlRigGraphPanelPinFactory::CreatePin_Internal(UEdGra
 
 										for(const FName& Tag : Tags)
 										{
-											MetadataTagNames.Names->Add(MakeShareable(new FRigVMStringWithTag(Tag.ToString())));
+											FString TagString = Tag.ToString();
+											if(bUseShortNames)
+											{
+												int32 Index = INDEX_NONE;
+												if(TagString.FindChar(TEXT(':'), Index))
+												{
+													TagString.MidInline(Index + 1);
+												}
+											}
+											MetadataTagNames.Names->Add(MakeShareable(new FRigVMStringWithTag(TagString)));
 										}
 										MetadataTagNames.Names->Sort([](const TSharedPtr<FRigVMStringWithTag>& A, const TSharedPtr<FRigVMStringWithTag>& B)
 										{
