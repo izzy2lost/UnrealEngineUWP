@@ -126,7 +126,7 @@ namespace UE::ConcertSyncClient::Replication
 		 * @note Request is accepted as && because this function rewrites its memory when looking at rejections.
 		 * Since the request was already sent to the server it is assumed the request can just contain trash after.
 		 */
-		void UpdateReplicatedObjectsAfterAuthorityChange(FAuthorityChangeRequest&& Request, const FConcertChangeAuthority_Response& Response) const;
+		void UpdateReplicatedObjectsAfterAuthorityChange(FAuthorityChangeRequest&& Request, const FConcertReplication_ChangeAuthority_Response& Response) const;
 		void HandleReleasingReplicatedObjects(const FAuthorityChangeRequest& Request) const;
 	};
 }

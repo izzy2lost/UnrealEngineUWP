@@ -4,7 +4,7 @@
 
 #include "SendReceiveTestBase.h"
 
-struct FConcertBatchReplicationEvent;
+struct FConcertReplication_BatchReplicationEvent;
 class IConcertClientReplicationManager;
 class UTestReflectionObject;
 

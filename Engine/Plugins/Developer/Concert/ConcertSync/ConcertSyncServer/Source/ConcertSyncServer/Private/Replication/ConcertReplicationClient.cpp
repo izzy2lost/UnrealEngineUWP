@@ -4,7 +4,7 @@
 
 #include "Processing/ServerReplicationDataQueuer.h"
 #include "Replication/ChangeStreamSharedUtils.h"
-#include "Replication/Messages/ConcertReplicationHandshakeMessages.h"
+#include "Replication/Messages/Handshake.h"
 
 namespace UE::ConcertSyncServer::Replication
 {
@@ -25,7 +25,7 @@ namespace UE::ConcertSyncServer::Replication
 		DataRelay.ProcessObjects(TimeBudget);
 	}
 
-	void FConcertReplicationClient::ApplyValidatedRequest(const FConcertChangeStream_Request& Request)
+	void FConcertReplicationClient::ApplyValidatedRequest(const FConcertReplication_ChangeStream_Request& Request)
 	{
 		// Right now there is nothing further to do but if in future you need to update some client systems of the change, this is the place to do it.
 		ConcertSyncCore::Replication::ChangeStreamUtils::ApplyValidatedRequest(Request, StreamDescriptions);

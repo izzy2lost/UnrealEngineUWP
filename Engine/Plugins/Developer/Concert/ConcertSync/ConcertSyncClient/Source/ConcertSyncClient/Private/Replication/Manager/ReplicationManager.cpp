@@ -6,7 +6,7 @@
 #include "ReplicationManagerState_Disconnected.h"
 #include "ReplicationManagerUtils.h"
 
-#include "Replication/Messages/ConcertReplicationHandshakeMessages.h"
+#include "Replication/Messages/Handshake.h"
 
 namespace UE::ConcertSyncClient::Replication
 {

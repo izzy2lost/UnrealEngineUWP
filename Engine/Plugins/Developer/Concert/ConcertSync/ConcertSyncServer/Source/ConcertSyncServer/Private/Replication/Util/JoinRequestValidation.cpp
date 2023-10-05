@@ -5,7 +5,7 @@
 #include "Replication/ConcertReplicationClient.h"
 #include "Replication/Data/ObjectReplicationMap.h"
 #include "Replication/Data/ReplicationStreamDescription.h"
-#include "Replication/Messages/ConcertReplicationHandshakeMessages.h"
+#include "Replication/Messages/Handshake.h"
 
 namespace UE::ConcertSyncServer::Replication
 {

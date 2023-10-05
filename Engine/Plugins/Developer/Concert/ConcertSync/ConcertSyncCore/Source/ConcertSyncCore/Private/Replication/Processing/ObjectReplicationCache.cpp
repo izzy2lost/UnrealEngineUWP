@@ -4,7 +4,7 @@
 
 #include "Replication/Data/ObjectIds.h"
 #include "Replication/Formats/IObjectReplicationFormat.h"
-#include "Replication/Messages/ConcertReplicationEvents.h"
+#include "Replication/Messages/ObjectReplication.h"
 
 namespace UE::ConcertSyncCore
 {
@@ -12,7 +12,7 @@ namespace UE::ConcertSyncCore
 		: ReplicationFormat(MoveTemp(ReplicationFormat))
 	{}
 
-	int32 FObjectReplicationCache::StoreUntilConsumed(const FGuid& SendingEndpointId, const FGuid& OriginStreamId, const FConcertObjectReplicationEvent& ObjectReplicationEvent)
+	int32 FObjectReplicationCache::StoreUntilConsumed(const FGuid& SendingEndpointId, const FGuid& OriginStreamId, const FConcertReplication_ObjectReplicationEvent& ObjectReplicationEvent)
 	{
 		int32 NumAccepted = 0;
 		
@@ -21,11 +21,11 @@ namespace UE::ConcertSyncCore
 		if (ObjectCacheBeforeAddition)
 		{
 			// It is important to compare by address and not by TWeakPtr instance because each user has a different TWeakPtr instance (but they all point to the same memory).
-			TSet<FConcertObjectReplicationEvent*> CombineOnceDetection;
-			for (const TPair<TWeakPtr<IReplicationCacheUser>, TWeakPtr<FConcertObjectReplicationEvent>>& InUseDataPair : ObjectCacheBeforeAddition->DataInUse)
+			TSet<FConcertReplication_ObjectReplicationEvent*> CombineOnceDetection;
+			for (const TPair<TWeakPtr<IReplicationCacheUser>, TWeakPtr<FConcertReplication_ObjectReplicationEvent>>& InUseDataPair : ObjectCacheBeforeAddition->DataInUse)
 			{
-				const TWeakPtr<FConcertObjectReplicationEvent>& EventData = InUseDataPair.Value;
-				const TSharedPtr<FConcertObjectReplicationEvent> EventDataPin = EventData.Pin();
+				const TWeakPtr<FConcertReplication_ObjectReplicationEvent>& EventData = InUseDataPair.Value;
+				const TSharedPtr<FConcertReplication_ObjectReplicationEvent> EventDataPin = EventData.Pin();
 				if (EventDataPin && !CombineOnceDetection.Contains(EventDataPin.Get()))
 				{
 					CombineOnceDetection.Add(EventDataPin.Get());
@@ -35,7 +35,7 @@ namespace UE::ConcertSyncCore
 		}
 
 		FObjectCache* ObjectCacheAfterAddition = ObjectCacheBeforeAddition ? ObjectCacheBeforeAddition : nullptr;
-		TSharedPtr<FConcertObjectReplicationEvent> LazilyCopiedEventPtr;
+		TSharedPtr<FConcertReplication_ObjectReplicationEvent> LazilyCopiedEventPtr;
 		for (const TSharedRef<IReplicationCacheUser>& CacheUser : CacheUsers)
 		{
 			if (ObjectCacheBeforeAddition && ObjectCacheBeforeAddition->DataInUse.Contains(CacheUser))
@@ -50,13 +50,13 @@ namespace UE::ConcertSyncCore
 				// Do the event copy only when somebody wants the data...
 				if (!LazilyCopiedEventPtr.IsValid())
 				{
-					LazilyCopiedEventPtr = MakeShared<FConcertObjectReplicationEvent>(ObjectReplicationEvent);
+					LazilyCopiedEventPtr = MakeShared<FConcertReplication_ObjectReplicationEvent>(ObjectReplicationEvent);
 				}
 
 				// We'll constructor a new proxy shared ptr which will clean-up Cache when released
 				TWeakPtr<IReplicationCacheUser> WeakUserPtr = CacheUser;
 				TWeakPtr<FObjectReplicationCache> WeakThisPtr = AsWeak();
-				TSharedRef<FConcertObjectReplicationEvent> GuardPtr = MakeShareable(LazilyCopiedEventPtr.Get(), [OriginStreamId, LazilyCopiedEventPtr, WeakUserPtr, WeakThisPtr](auto*)
+				TSharedRef<FConcertReplication_ObjectReplicationEvent> GuardPtr = MakeShareable(LazilyCopiedEventPtr.Get(), [OriginStreamId, LazilyCopiedEventPtr, WeakUserPtr, WeakThisPtr](auto*)
 				{
 					// Replication cache user can survive the destruction of the cache because it is created externally
 					const TSharedPtr<FObjectReplicationCache> This = WeakThisPtr.Pin();
@@ -82,7 +82,7 @@ namespace UE::ConcertSyncCore
 					// LazyCopiedEventPtr will decrement counter and possibly be destroyed now
 				});
 				
-				const TWeakPtr<FConcertObjectReplicationEvent> WeakGuardPtr = GuardPtr;
+				const TWeakPtr<FConcertReplication_ObjectReplicationEvent> WeakGuardPtr = GuardPtr;
 				CacheUser->OnDataCached(ObjectId, MoveTemp(GuardPtr));
 				// Was it instantly consumed? Should not really happen but it could technically...
 				if (!LIKELY(WeakGuardPtr.IsValid()))

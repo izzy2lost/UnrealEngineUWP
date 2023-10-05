@@ -2,7 +2,7 @@
 
 #include "Replication/Processing/ReplicationDataQueuer.h"
 
-#include "Replication/Messages/ConcertReplicationEvents.h"
+#include "Replication/Messages/ObjectReplication.h"
 
 namespace UE::ConcertSyncCore
 {
@@ -33,7 +33,7 @@ namespace UE::ConcertSyncCore
 		TFunctionRef<void(FConcertSessionSerializedPayload&& Payload)> ProcessMoveable
 		)
 	{
-		TSharedPtr<const FConcertObjectReplicationEvent> Event;
+		TSharedPtr<const FConcertReplication_ObjectReplicationEvent> Event;
 		const bool bSuccess = PendingEvents.RemoveAndCopyValue(Object, Event);
 		if (!ensureMsgf(bSuccess, TEXT("ExtractReplicationDataForObject for an item that was not returned by ForEachPendingObject")))
 		{
@@ -45,7 +45,7 @@ namespace UE::ConcertSyncCore
 		return true;
 	}
 
-	void FReplicationDataQueuer::OnDataCached(const FReplicatedObjectId& Object, TSharedRef<const FConcertObjectReplicationEvent> Data)
+	void FReplicationDataQueuer::OnDataCached(const FReplicatedObjectId& Object, TSharedRef<const FConcertReplication_ObjectReplicationEvent> Data)
 	{
 		PendingEvents.Add(Object, MoveTemp(Data));
 	}

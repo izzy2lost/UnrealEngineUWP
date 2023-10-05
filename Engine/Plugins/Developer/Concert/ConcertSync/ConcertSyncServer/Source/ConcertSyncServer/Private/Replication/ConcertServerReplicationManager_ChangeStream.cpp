@@ -7,8 +7,8 @@
 #include "IConcertSession.h"
 #include "Replication/ChangeStreamSharedUtils.h"
 #include "Replication/ConcertReplicationClient.h"
-#include "Replication/Messages/ConcertReplicationHandshakeMessages.h"
-#include "Replication/Processing/ObjectReplicationCache.h"
+#include "Replication/Messages/ChangeStream.h"
+#include "Replication/Messages/Handshake.h"
 
 namespace UE::ConcertSyncServer::Replication
 {
@@ -23,9 +23,9 @@ namespace UE::ConcertSyncServer::Replication
 		}
 		
 		/** Validates that ObjectsToPut writes only to pre-existing streams. */
-		static void ValidatePutObjectsRequestSemantics(const FConcertChangeStream_Request& Request, const FConcertReplicationClient& Client, FConcertChangeStream_Response& OutResponse)
+		static void ValidatePutObjectsRequestSemantics(const FConcertReplication_ChangeStream_Request& Request, const FConcertReplicationClient& Client, FConcertReplication_ChangeStream_Response& OutResponse)
 		{
-			const auto PutObjectHasEnoughData = [](const FReplicationStreamDescription* ExistingStream, const FSoftObjectPath& ChangedObjectPath, const FConcertChangeStream_PutObject& PutObject)
+			const auto PutObjectHasEnoughData = [](const FReplicationStreamDescription* ExistingStream, const FSoftObjectPath& ChangedObjectPath, const FConcertReplication_ChangeStream_PutObject& PutObject)
 			{
 				const bool bHasProperties = !PutObject.Properties.ReplicatedProperties.IsEmpty();
 				const bool bHasClassPath = !PutObject.ClassPath.IsNull();
@@ -36,7 +36,7 @@ namespace UE::ConcertSyncServer::Replication
 				return bHasEnoughData;
 			};
 			
-			for (const TPair<FObjectInStreamID, FConcertChangeStream_PutObject>& Change : Request.ObjectsToPut)
+			for (const TPair<FObjectInStreamID, FConcertReplication_ChangeStream_PutObject>& Change : Request.ObjectsToPut)
 			{
 				const FObjectInStreamID ChangedObject = Change.Key;
 				
@@ -48,7 +48,7 @@ namespace UE::ConcertSyncServer::Replication
 					// FReplicatedObjectInfo must have non-empty values for its members. Hence we must check that
 					// 1. if creating a new entry, both fields are given
 					// 2. if writing to pre-existing entry, at least one field is given
-					const FConcertChangeStream_PutObject& PutObject = Change.Value; 
+					const FConcertReplication_ChangeStream_PutObject& PutObject = Change.Value; 
 					if (!PutObjectHasEnoughData(ExistingStream, ChangedObject.Object, PutObject))
 					{
 						OutResponse.ObjectsToPutSemanticErrors.Add(ChangedObject, EConcertPutObjectErrorCode::MissingData);
@@ -63,7 +63,7 @@ namespace UE::ConcertSyncServer::Replication
 		}
 
 		/** Checks that StreamsToAdd do not conflict with pre-existing ones and that all IDs in the request are also unique. */
-		static void ValidateAddedStreamsAreUnique(const FConcertChangeStream_Request& Request, const FConcertReplicationClient& Client, FConcertChangeStream_Response& OutResponse)
+		static void ValidateAddedStreamsAreUnique(const FConcertReplication_ChangeStream_Request& Request, const FConcertReplicationClient& Client, FConcertReplication_ChangeStream_Response& OutResponse)
 		{
 			TSet<FGuid> DuplicateEntryDetection;
 			for (const FReplicationStreamDescription_NetPacked& NewStream : Request.StreamsToAdd)
@@ -84,10 +84,10 @@ namespace UE::ConcertSyncServer::Replication
 		}
 
 		/** If the requesting client has authority over a changed object, checks that no other client has authority over the properties being added. */
-		static void LookForAuthorityConflicts(const FConcertChangeStream_Request& Request, const FConcertReplicationClient& Client, const FAuthorityManager& AuthorityManager, FConcertChangeStream_Response& OutResponse)
+		static void LookForAuthorityConflicts(const FConcertReplication_ChangeStream_Request& Request, const FConcertReplicationClient& Client, const FAuthorityManager& AuthorityManager, FConcertReplication_ChangeStream_Response& OutResponse)
 		{
 			const FGuid ClientEndpointId = Client.GetClientEndpointId();
-			for (const TPair<FObjectInStreamID, FConcertChangeStream_PutObject>& PutObjectPair : Request.ObjectsToPut)
+			for (const TPair<FObjectInStreamID, FConcertReplication_ChangeStream_PutObject>& PutObjectPair : Request.ObjectsToPut)
 			{
 				// No conflict possible if requesting client does not have authority over the changed object
 				const FReplicatedObjectId ReplicatedObjectInfo { { PutObjectPair.Key }, ClientEndpointId };
@@ -116,7 +116,7 @@ namespace UE::ConcertSyncServer::Replication
 		}
 
 		/** Stream description can have UObjects attached which fail to serialize on the receiving end. If so, reject. */
-		static void ValidateUnpacking(const FConcertChangeStream_Request& Request, FConcertChangeStream_Response& OutResponse)
+		static void ValidateUnpacking(const FConcertReplication_ChangeStream_Request& Request, FConcertReplication_ChangeStream_Response& OutResponse)
 		{
 			for (const FReplicationStreamDescription_NetPacked& ToUnpack : Request.StreamsToAdd)
 			{
@@ -128,7 +128,7 @@ namespace UE::ConcertSyncServer::Replication
 		}
 
 		/** Checks whether this request is valid to apply. */
-		static bool ShouldAcceptRequest(const FConcertChangeStream_Request& Request, const FConcertReplicationClient& Client, const FAuthorityManager& AuthorityManager, FConcertChangeStream_Response& OutResponse)
+		static bool ShouldAcceptRequest(const FConcertReplication_ChangeStream_Request& Request, const FConcertReplicationClient& Client, const FAuthorityManager& AuthorityManager, FConcertReplication_ChangeStream_Response& OutResponse)
 		{
 			ValidatePutObjectsRequestSemantics(Request, Client, OutResponse);
 			ValidateAddedStreamsAreUnique(Request, Client, OutResponse);
@@ -140,8 +140,8 @@ namespace UE::ConcertSyncServer::Replication
 
 	EConcertSessionResponseCode FConcertServerReplicationManager::HandleChangeStreamRequest(
 		const FConcertSessionContext& ConcertSessionContext,
-		const FConcertChangeStream_Request& Request,
-		FConcertChangeStream_Response& Response)
+		const FConcertReplication_ChangeStream_Request& Request,
+		FConcertReplication_ChangeStream_Response& Response)
 	{
 		const FGuid SendingClientId = ConcertSessionContext.SourceEndpointId;
 		const TSharedRef<FConcertReplicationClient>* SendingClient = Clients.Find(SendingClientId);

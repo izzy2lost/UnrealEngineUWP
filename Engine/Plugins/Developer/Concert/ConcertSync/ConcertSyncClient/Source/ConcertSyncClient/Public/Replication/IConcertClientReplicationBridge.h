@@ -7,7 +7,7 @@
 #include "Delegates/DelegateCombinations.h"
 
 class UObject;
-struct FConcertObjectReplicationEvent;
+struct FConcertReplication_ObjectReplicationEvent;
 struct FSoftObjectPath;
 
 DECLARE_MULTICAST_DELEGATE_OneParam(FConcertClientReplicationBridgeObjectEvent, UObject&);

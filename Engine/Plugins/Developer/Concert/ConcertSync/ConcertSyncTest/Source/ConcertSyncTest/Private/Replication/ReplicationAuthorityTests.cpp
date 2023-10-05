@@ -2,16 +2,17 @@
 
 #include "Util/SendReceiveObjectTestBase.h"
 
+#include "Replication/Formats/FullObjectFormat.h"
 #include "Replication/IConcertClientReplicationManager.h"
+#include "Replication/Messages/ObjectReplication.h"
 #include "TestReflectionObject.h"
+#include "Util/ConcertClientReplicationBridgeMock.h"
+#include "Util/SendReceiveGenericStreamTestBase.h"
 
 #include "Components/StaticMeshComponent.h"
 #include "Misc/AutomationTest.h"
 #include "Misc/Paths.h"
 #include "HAL/FileManager.h"
-#include "Replication/Formats/FullObjectFormat.h"
-#include "Util/ConcertClientReplicationBridgeMock.h"
-#include "Util/SendReceiveGenericStreamTestBase.h"
 
 namespace UE::ConcertSyncTests::Replication::Authority
 {
@@ -34,18 +35,18 @@ namespace UE::ConcertSyncTests::Replication::Authority
 			return false;
 		}
 		
-		FConcertObjectReplicationEvent ObjectReplicationEvent;
+		FConcertReplication_ObjectReplicationEvent ObjectReplicationEvent;
 		ObjectReplicationEvent.ReplicatedObject = TestObject;
 		ObjectReplicationEvent.SerializedPayload = *Payload;
-		FConcertStreamReplicationEvent ReplicationEvent;
+		FConcertReplication_StreamReplicationEvent ReplicationEvent;
 		ReplicationEvent.StreamId = SenderStreamId;
 		ReplicationEvent.ReplicatedObjects.Add(ObjectReplicationEvent);
-		FConcertBatchReplicationEvent ReplicationBatchEvent;
+		FConcertReplication_BatchReplicationEvent ReplicationBatchEvent;
 		ReplicationBatchEvent.Streams.Add(ReplicationEvent);
 		
 		// 2.2 Prepare for sending data without authority > Reject
 		bool bHasServerReceivedData = false;
-		auto OnServerReceive = [this, &bHasServerReceivedData](const FConcertSessionContext& Context, const FConcertBatchReplicationEvent& Event) mutable
+		auto OnServerReceive = [this, &bHasServerReceivedData](const FConcertSessionContext& Context, const FConcertReplication_BatchReplicationEvent& Event) mutable
 		{
 			if (bHasServerReceivedData)
 			{
@@ -53,12 +54,12 @@ namespace UE::ConcertSyncTests::Replication::Authority
 			}
 			bHasServerReceivedData = true;
 		};
-		auto OnClientReceive = [this](const FConcertSessionContext& Context, const FConcertBatchReplicationEvent& Event) mutable
+		auto OnClientReceive = [this](const FConcertSessionContext& Context, const FConcertReplication_BatchReplicationEvent& Event) mutable
 		{
 			AddError(TEXT("Server sent data from non-authorative client to receiving client!"));
 		};
-		ServerSession->RegisterCustomEventHandler<FConcertBatchReplicationEvent>(OnServerReceive);
-		Client_Receiver->ClientSessionMock->RegisterCustomEventHandler<FConcertBatchReplicationEvent>(OnClientReceive);
+		ServerSession->RegisterCustomEventHandler<FConcertReplication_BatchReplicationEvent>(OnServerReceive);
+		Client_Receiver->ClientSessionMock->RegisterCustomEventHandler<FConcertReplication_BatchReplicationEvent>(OnClientReceive);
 		const FGuid ServerSessionId { 0, 0, 0, 0};
 		
 		// 3. Test that server processed the data and rejected it.

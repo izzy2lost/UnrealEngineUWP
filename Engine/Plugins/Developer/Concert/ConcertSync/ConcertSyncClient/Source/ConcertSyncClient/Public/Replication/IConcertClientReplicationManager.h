@@ -3,9 +3,11 @@
 #pragma once
 
 #include "Misc/EBreakBehavior.h"
-#include "Replication/Messages/ConcertReplicationHandshakeMessages.h"
+#include "Replication/Messages/Handshake.h"
 #include "Replication/Data/ReplicationClientDescription.h"
-#include "Replication/Messages/ConcertReplicationEvents.h"
+#include "Replication/Messages/ChangeAuthority.h"
+#include "Replication/Messages/ChangeStream.h"
+#include "Replication/Messages/ClientQuery.h"
 
 template<typename ResultType>
 class TFuture;
@@ -37,12 +39,12 @@ namespace UE::ConcertSyncClient::Replication
 	};
 
 	// The intention here is to wrap the request in case there is some more specific meta data we want to add in the future.
-	struct FAuthorityChangeRequest : FConcertChangeAuthority_Request {};
-	struct FAuthorityChangeResponse : FConcertChangeAuthority_Response {};
-	struct FClientQueryRequest : FConcertQueryReplicationInfo_Request {};
-	struct FClientQueryResponse : FConcertQueryReplicationInfo_Response {};
-	struct FChangeStreamRequest : FConcertChangeStream_Request {};
-	struct FChangeStreamResponse : FConcertChangeStream_Response {};
+	struct FAuthorityChangeRequest : FConcertReplication_ChangeAuthority_Request {};
+	struct FAuthorityChangeResponse : FConcertReplication_ChangeAuthority_Response {};
+	struct FClientQueryRequest : FConcertReplication_QueryReplicationInfo_Request {};
+	struct FClientQueryResponse : FConcertReplication_QueryReplicationInfo_Response {};
+	struct FChangeStreamRequest : FConcertReplication_ChangeStream_Request {};
+	struct FChangeStreamResponse : FConcertReplication_ChangeStream_Response {};
 }
 
 /**

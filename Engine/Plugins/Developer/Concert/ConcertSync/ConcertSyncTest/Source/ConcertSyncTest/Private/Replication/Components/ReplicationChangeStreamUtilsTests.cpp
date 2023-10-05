@@ -3,11 +3,11 @@
 #include "Replication/ChangeStreamSharedUtils.h"
 #include "Replication/Data/ConcertPropertySelection.h"
 #include "Replication/Data/ObjectReplicationMap.h"
-#include "Replication/Messages/ConcertReplicationEvents.h"
 
 #include "Misc/AutomationTest.h"
 #include "Components/SceneComponent.h"
 #include "Components/StaticMeshComponent.h"
+#include "Replication/Messages/ChangeStream.h"
 
 /**
  * Tests for UE::ConcertSyncCore::Replication::ChangeStreamUtils
@@ -52,7 +52,7 @@ namespace UE::ConcertSyncTests::ChangeStreamUtils
 		Desired.ReplicatedObjects.Add(ChangeProperties, { SceneComponentClass, Selection_RelativeLocationOnlyX });
 		Desired.ReplicatedObjects.Add(ChangeClass, { StaticMeshComponentClass, Selection_RelativeLocation });
 		Desired.ReplicatedObjects.Add(AddMe, { SceneComponentClass, Selection_RelativeLocation });
-		const FConcertChangeStream_Request Request = ConcertSyncCore::Replication::ChangeStreamUtils::BuildRequestFromDiff(StreamId, Base, Desired);
+		const FConcertReplication_ChangeStream_Request Request = ConcertSyncCore::Replication::ChangeStreamUtils::BuildRequestFromDiff(StreamId, Base, Desired);
 
 		
 		// 3. Test
@@ -64,7 +64,7 @@ namespace UE::ConcertSyncTests::ChangeStreamUtils
 		TestEqual(TEXT("Remove exactly 1"), Request.ObjectsToRemove.Num(), 1);
 		TestTrue(TEXT("Remove correct object"), Request.ObjectsToRemove.Contains({ StreamId, RemoveMe }));
 
-		if (const FConcertChangeStream_PutObject* ChangePropertiesChange = Request.ObjectsToPut.Find({ StreamId, ChangeProperties }))
+		if (const FConcertReplication_ChangeStream_PutObject* ChangePropertiesChange = Request.ObjectsToPut.Find({ StreamId, ChangeProperties }))
 		{
 			// No class change, so it should be null in the request
 			TestTrue(TEXT("Change Properties > Class unset"), ChangePropertiesChange->ClassPath.IsNull());
@@ -75,7 +75,7 @@ namespace UE::ConcertSyncTests::ChangeStreamUtils
 			AddError(TEXT("Did not change ChangeProperties object"));
 		}
 
-		if (const FConcertChangeStream_PutObject* ChangeClassChange = Request.ObjectsToPut.Find({ StreamId, ChangeClass }))
+		if (const FConcertReplication_ChangeStream_PutObject* ChangeClassChange = Request.ObjectsToPut.Find({ StreamId, ChangeClass }))
 		{
 			TestEqual(TEXT("Change Class > Class"), ChangeClassChange->ClassPath, StaticMeshComponentClass);
 			// No properties changed, so it should be empty in the request
@@ -86,7 +86,7 @@ namespace UE::ConcertSyncTests::ChangeStreamUtils
 			AddError(TEXT("Did not change ChangeClass object"));
 		}
 
-		if (const FConcertChangeStream_PutObject* AddMeChange = Request.ObjectsToPut.Find({ StreamId, AddMe }))
+		if (const FConcertReplication_ChangeStream_PutObject* AddMeChange = Request.ObjectsToPut.Find({ StreamId, AddMe }))
 		{
 			TestEqual(TEXT("Add Object > Class"), AddMeChange->ClassPath, SceneComponentClass);
 			TestEqual(TEXT("Add Object > Properties"), AddMeChange->Properties, Selection_RelativeLocation);

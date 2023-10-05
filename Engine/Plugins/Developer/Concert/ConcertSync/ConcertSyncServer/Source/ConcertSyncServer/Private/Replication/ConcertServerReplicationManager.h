@@ -7,20 +7,24 @@
 #include "ConcertReplicationClient.h"
 #include "Processing/ServerObjectReplicationReceiver.h"
 #include "Replication/IConcertServerReplicationManager.h"
-#include "Replication/Messages/ConcertReplicationHandshakeMessages.h"
+#include "Replication/Messages/Handshake.h"
 
 #include "Templates/SharedPointer.h"
 #include "Templates/Tuple.h"
 #include "Templates/UnrealTemplate.h"
+
+class IConcertClientReplicationBridge;
+class IConcertServerSession;
+
+struct FConcertReplication_ChangeStream_Response;
+struct FConcertReplication_QueryReplicationInfo_Response;
+struct FConcertReplication_QueryReplicationInfo_Request;
 
 namespace UE::ConcertSyncCore
 {
 	class IObjectReplicationFormat;
 	class FObjectReplicationCache;
 }
-
-class IConcertClientReplicationBridge;
-class IConcertServerSession;
 
 namespace UE::ConcertSyncServer::Replication
 {
@@ -73,14 +77,14 @@ namespace UE::ConcertSyncServer::Replication
 		EConcertSessionResponseCode InternalHandleJoinReplicationSessionRequest(const FConcertSessionContext& ConcertSessionContext, const FConcertReplication_Join_Request& Request, FConcertReplication_Join_Response& Response);
 
 		// Querying
-		EConcertSessionResponseCode HandleQueryReplicationInfoRequest(const FConcertSessionContext& ConcertSessionContext, const FConcertQueryReplicationInfo_Request& Request, FConcertQueryReplicationInfo_Response& Response);
+		EConcertSessionResponseCode HandleQueryReplicationInfoRequest(const FConcertSessionContext& ConcertSessionContext, const FConcertReplication_QueryReplicationInfo_Request& Request, FConcertReplication_QueryReplicationInfo_Response& Response);
 		/** Gets all registered streams and optionally removes the properties. */
 		TArray<FSharedReplicationStreamDescription> BuildClientStreamInfo(const FConcertReplicationClient& Client, bool bSkipProperties) const;
 		/** Maps the client's streams to the objects in that stream the client has taken authority over. */
 		TArray<FReplicationAuthorityInfo> BuildClientAuthorityInfo(const FConcertReplicationClient& Client) const;
 
 		// Changing streams
-		EConcertSessionResponseCode HandleChangeStreamRequest(const FConcertSessionContext& ConcertSessionContext, const FConcertChangeStream_Request& Request, FConcertChangeStream_Response& Response);
+		EConcertSessionResponseCode HandleChangeStreamRequest(const FConcertSessionContext& ConcertSessionContext, const FConcertReplication_ChangeStream_Request& Request, FConcertReplication_ChangeStream_Response& Response);
 
 		// Leaving
 		void HandleLeaveReplicationSessionRequest(const FConcertSessionContext& ConcertSessionContext, const FConcertReplication_LeaveEvent& EventData);

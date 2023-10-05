@@ -5,8 +5,8 @@
 #include "Replication/Data/ReplicationStreamDescription.h"
 #include "Replication/IConcertClientReplicationManager.h"
 #include "Replication/IConcertServerReplicationManager.h"
-#include "Replication/Messages/ConcertReplicationEvents.h"
-#include "Replication/Messages/ConcertReplicationHandshakeMessages.h"
+#include "Replication/Messages/ObjectReplication.h"
+#include "Replication/Messages/Handshake.h"
 #include "Replication/PropertyChainUtils.h"
 #include "Replication/ReplicationTestInterface.h"
 #include "TestReflectionObject.h"
@@ -41,7 +41,7 @@ namespace UE::ConcertSyncTests::Replication::SendReceiveFlow
 	{
 		bool bHasServerReceivedData = false;
 		bool bHasClientReceivedData = false;
-		auto OnServerReceive = [&Test, &bHasServerReceivedData](const FConcertSessionContext& Context, const FConcertBatchReplicationEvent& Event) mutable
+		auto OnServerReceive = [&Test, &bHasServerReceivedData](const FConcertSessionContext& Context, const FConcertReplication_BatchReplicationEvent& Event) mutable
 		{
 			if (bHasServerReceivedData)
 			{
@@ -49,7 +49,7 @@ namespace UE::ConcertSyncTests::Replication::SendReceiveFlow
 			}
 			bHasServerReceivedData = true;
 		};
-		auto OnClientReceive = [&Test, &bHasClientReceivedData](const FConcertSessionContext& Context, const FConcertBatchReplicationEvent& Event) mutable
+		auto OnClientReceive = [&Test, &bHasClientReceivedData](const FConcertSessionContext& Context, const FConcertReplication_BatchReplicationEvent& Event) mutable
 		{
 			if (bHasClientReceivedData)
 			{
@@ -76,7 +76,7 @@ namespace UE::ConcertSyncTests::Replication::SendReceiveFlow
 		VectorOnlySelection.ReplicatedProperties.Add(*VectorPropertyChain);
 		
 		ConcertSyncClient::Replication::FChangeStreamRequest Request;
-		Request.ObjectsToPut.Add(FObjectInStreamID{ Test.SenderStreamId, Test.TestObject }, FConcertChangeStream_PutObject{ VectorOnlySelection });
+		Request.ObjectsToPut.Add(FObjectInStreamID{ Test.SenderStreamId, Test.TestObject }, FConcertReplication_ChangeStream_PutObject{ VectorOnlySelection });
 		bool bReceivedChangeStreamResponse = false;
 		Test.ClientReplicationManager_Sender->ChangeStream(Request)
 			.Next([&Test, &bReceivedChangeStreamResponse](ConcertSyncClient::Replication::FChangeStreamResponse&& Response)

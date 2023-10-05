@@ -1,30 +1,30 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 
-#include "Replication/Messages/ConcertReplicationEvents.h"
+#include "Replication/Messages/ChangeStream.h"
 
 #include "Misc/OutputDevice.h"
 
-TOptional<FConcertChangeStream_PutObject> FConcertChangeStream_PutObject::MakeFromInfo(const FReplicatedObjectInfo& New)
+TOptional<FConcertReplication_ChangeStream_PutObject> FConcertReplication_ChangeStream_PutObject::MakeFromInfo(const FReplicatedObjectInfo& New)
 {
 	if (!New.IsValidForSendingToServer())
 	{
 		return {};
 	}
-	return FConcertChangeStream_PutObject{ New.PropertySelection, New.ClassPath };
+	return FConcertReplication_ChangeStream_PutObject{ New.PropertySelection, New.ClassPath };
 }
 
-TOptional<FConcertChangeStream_PutObject> FConcertChangeStream_PutObject::MakeFromChange(const FReplicatedObjectInfo& Base, const FReplicatedObjectInfo& Desired)
+TOptional<FConcertReplication_ChangeStream_PutObject> FConcertReplication_ChangeStream_PutObject::MakeFromChange(const FReplicatedObjectInfo& Base, const FReplicatedObjectInfo& Desired)
 {
 	if (Base.IsValidForSendingToServer() && Desired.IsValidForSendingToServer())
 	{
 		const FConcertPropertySelection PropertySelection = Base.PropertySelection != Desired.PropertySelection ? Desired.PropertySelection : FConcertPropertySelection{};
 		const FSoftClassPath ClassPath = Base.ClassPath != Desired.ClassPath ? Desired.ClassPath : FSoftClassPath{};
-		return FConcertChangeStream_PutObject{ PropertySelection, ClassPath };
+		return FConcertReplication_ChangeStream_PutObject{ PropertySelection, ClassPath };
 	}
 	return {};
 }
 
-TOptional<FReplicatedObjectInfo> FConcertChangeStream_PutObject::MakeObjectInfoIfValid() const
+TOptional<FReplicatedObjectInfo> FConcertReplication_ChangeStream_PutObject::MakeObjectInfoIfValid() const
 {
 	if (Properties.ReplicatedProperties.IsEmpty() || ClassPath.IsNull())
 	{
@@ -33,7 +33,7 @@ TOptional<FReplicatedObjectInfo> FConcertChangeStream_PutObject::MakeObjectInfoI
 	return FReplicatedObjectInfo{ ClassPath, Properties };
 }
 
-void FConcertChangeStream_Response::LogErrors(FOutputDevice& OutputDevice) const
+void FConcertReplication_ChangeStream_Response::LogErrors(FOutputDevice& OutputDevice) const
 {
 	for (const TPair<FObjectInStreamID, FReplicatedObjectId>& Conflict : AuthorityConflicts)
 	{

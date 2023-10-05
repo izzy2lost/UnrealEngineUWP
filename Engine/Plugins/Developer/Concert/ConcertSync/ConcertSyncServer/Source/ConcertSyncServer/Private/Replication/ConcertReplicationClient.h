@@ -8,7 +8,7 @@
 
 struct FReplicationStreamDescription;
 struct FConcertReplication_Join_Request;
-struct FConcertChangeStream_Request;
+struct FConcertReplication_ChangeStream_Request;
 
 namespace UE::ConcertSyncCore
 {
@@ -38,7 +38,7 @@ namespace UE::ConcertSyncServer::Replication
 		void ProcessClient(float TimeBudget);
 		
 		/** Updates the StreamDescriptions array with the changes from Request. The request already passed validation and is valid to apply. */
-		void ApplyValidatedRequest(const FConcertChangeStream_Request& Request);
+		void ApplyValidatedRequest(const FConcertReplication_ChangeStream_Request& Request);
 
 		const FGuid& GetClientEndpointId() const { return ClientEndpointId; }
 		const TArray<FReplicationStreamDescription>& GetStreamDescriptions() const { return StreamDescriptions; }

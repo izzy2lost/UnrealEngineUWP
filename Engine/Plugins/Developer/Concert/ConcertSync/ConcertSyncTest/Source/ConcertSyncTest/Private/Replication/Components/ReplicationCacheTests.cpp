@@ -1,7 +1,7 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 
 #include "Replication/Formats/IObjectReplicationFormat.h"
-#include "Replication/Messages/ConcertReplicationEvents.h"
+#include "Replication/Messages/ObjectReplication.h"
 #include "Replication/Processing/ObjectReplicationCache.h"
 #include "Replication/Data/ObjectIds.h"
 #include "Replication/TestReflectionObject.h"
@@ -46,7 +46,7 @@ namespace UE::ConcertSyncTests
 			}
 			virtual void ApplyReplicationEvent(UObject& Object, const FConcertSessionSerializedPayload& Payload) override { return NotMocked<void>(); }
 
-			static FConcertObjectReplicationEvent CreateEvent(FSoftObjectPath Object, float Value)
+			static FConcertReplication_ObjectReplicationEvent CreateEvent(FSoftObjectPath Object, float Value)
 			{
 				FNativeStruct Data{ Value };
 				FConcertSessionSerializedPayload Payload;
@@ -62,7 +62,7 @@ namespace UE::ConcertSyncTests
 			FAutomationTestBase& Test;
 			FObjectInStreamID AllowedObject;
 			EReplicationCacheTestFlags Flags;
-			TSharedPtr<const FConcertObjectReplicationEvent> CachedData;
+			TSharedPtr<const FConcertReplication_ObjectReplicationEvent> CachedData;
 
 			FTestReplicationCacheUser(FAutomationTestBase& Test, FObjectInStreamID AllowedObject, EReplicationCacheTestFlags Flags = EReplicationCacheTestFlags::None)
 				: Test(Test)
@@ -75,7 +75,7 @@ namespace UE::ConcertSyncTests
 				return !EnumHasAnyFlags(Flags, EReplicationCacheTestFlags::NeverReceive) && AllowedObject == Object;
 			}
 			
-			virtual void OnDataCached(const FReplicatedObjectId& Object, TSharedRef<const FConcertObjectReplicationEvent> Data) override
+			virtual void OnDataCached(const FReplicatedObjectId& Object, TSharedRef<const FConcertReplication_ObjectReplicationEvent> Data) override
 			{
 				if (EnumHasAnyFlags(Flags, EReplicationCacheTestFlags::NeverReceive))
 				{
@@ -137,10 +137,10 @@ namespace UE::ConcertSyncTests
 		Cache->RegisterDataCacheUser(User_ConsumeManually);
 		Cache->RegisterDataCacheUser(User_InstantConsume);
 
-		const FConcertObjectReplicationEvent Event_5 = FTestReplicationFormat::CreateEvent(ObjectPath, 5.f);
-		const FConcertObjectReplicationEvent Event_10 = FTestReplicationFormat::CreateEvent(ObjectPath, 10.f);
-		const FConcertObjectReplicationEvent Event_20 = FTestReplicationFormat::CreateEvent(ObjectPath, 20.f);
-		const FConcertObjectReplicationEvent Event_100 = FTestReplicationFormat::CreateEvent(ObjectPath, 100.f);
+		const FConcertReplication_ObjectReplicationEvent Event_5 = FTestReplicationFormat::CreateEvent(ObjectPath, 5.f);
+		const FConcertReplication_ObjectReplicationEvent Event_10 = FTestReplicationFormat::CreateEvent(ObjectPath, 10.f);
+		const FConcertReplication_ObjectReplicationEvent Event_20 = FTestReplicationFormat::CreateEvent(ObjectPath, 20.f);
+		const FConcertReplication_ObjectReplicationEvent Event_100 = FTestReplicationFormat::CreateEvent(ObjectPath, 100.f);
 
 
 		

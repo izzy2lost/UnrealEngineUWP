@@ -3,7 +3,7 @@
 #pragma once
 
 #include "ObjectReplicationProcessor.h"
-#include "Replication/Messages/ConcertReplicationEvents.h"
+#include "Replication/Messages/ObjectReplication.h"
 
 class IConcertSession;
 
@@ -37,6 +37,6 @@ namespace UE::ConcertSyncCore
 		TSharedRef<IConcertSession> Session;
 
 		/** This event is filled in ProcessObjects and finally sent to TargetEndpointId. */
-		FConcertBatchReplicationEvent EventToSend;
+		FConcertReplication_BatchReplicationEvent EventToSend;
 	};
 }

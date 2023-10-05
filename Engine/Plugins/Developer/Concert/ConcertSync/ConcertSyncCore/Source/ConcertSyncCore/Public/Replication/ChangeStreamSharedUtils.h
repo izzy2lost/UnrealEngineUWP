@@ -8,7 +8,7 @@
 
 enum class EBreakBehavior : uint8;
 
-struct FConcertChangeStream_Request;
+struct FConcertReplication_ChangeStream_Request;
 struct FObjectInStreamID;
 struct FObjectReplicationMap;
 struct FReplicationStreamDescription;
@@ -25,7 +25,7 @@ namespace UE::ConcertSyncCore::Replication::ChangeStreamUtils
 	 * @param Callback The callback to process the objects
 	 */
 	CONCERTSYNCCORE_API void ForEachObjectLosingAuthority(
-		const FConcertChangeStream_Request& Request,
+		const FConcertReplication_ChangeStream_Request& Request,
 		const TArray<FReplicationStreamDescription>& ExistingStreams,
 		TFunctionRef<EBreakBehavior(const FObjectInStreamID&)> Callback
 		);
@@ -36,7 +36,7 @@ namespace UE::ConcertSyncCore::Replication::ChangeStreamUtils
 	 * @param StreamsToModify The streams to apply the request to
 	 */
 	CONCERTSYNCCORE_API void ApplyValidatedRequest(
-		const FConcertChangeStream_Request& Request,
+		const FConcertReplication_ChangeStream_Request& Request,
 		IN OUT TArray<FReplicationStreamDescription>& StreamsToModify
 		);
 
@@ -56,7 +56,7 @@ namespace UE::ConcertSyncCore::Replication::ChangeStreamUtils
 	 * @param Desired The state the stream should end up in 
 	 * @return A semantically correct FConcertChangeStream_Request which Base to Desired (note is can be rejected due to authority conflicts).
 	 */
-	CONCERTSYNCCORE_API FConcertChangeStream_Request BuildRequestFromDiff(
+	CONCERTSYNCCORE_API FConcertReplication_ChangeStream_Request BuildRequestFromDiff(
 		const FGuid& StreamId,
 		const FObjectReplicationMap& Base,
 		const FObjectReplicationMap& Desired

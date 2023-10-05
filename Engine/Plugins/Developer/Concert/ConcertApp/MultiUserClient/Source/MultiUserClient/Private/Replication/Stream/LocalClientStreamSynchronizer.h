@@ -5,7 +5,7 @@
 #include "Replication/IToken.h"
 #include "Replication/Data/ObjectIds.h"
 #include "Replication/Data/ObjectReplicationMap.h"
-#include "Replication/Messages/ConcertReplicationEvents.h"
+#include "Replication/Messages/ChangeStream.h"
 
 #include "Async/Future.h"
 #include "Misc/Attribute.h"
@@ -130,7 +130,7 @@ namespace UE::MultiUserClient
 		struct FChangelist
 		{
 			TSet<FObjectInStreamID> ObjectsToRemove;
-			TMap<FObjectInStreamID, FConcertChangeStream_PutObject> ObjectsToPut;
+			TMap<FObjectInStreamID, FConcertReplication_ChangeStream_PutObject> ObjectsToPut;
 		};
 		
 		/**

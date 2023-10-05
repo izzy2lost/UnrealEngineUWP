@@ -8,7 +8,7 @@
 #include "ReplicationManagerState_Disconnected.h"
 #include "Replication/ChangeStreamSharedUtils.h"
 #include "Replication/Formats/FullObjectFormat.h"
-#include "Replication/Messages/ConcertReplicationHandshakeMessages.h"
+#include "Replication/Messages/Handshake.h"
 #include "Replication/Processing/ClientReplicationDataCollector.h"
 #include "Replication/Processing/ObjectReplicationApplierProcessor.h"
 #include "Replication/Processing/ObjectReplicationReceiver.h"
@@ -85,8 +85,8 @@ namespace UE::ConcertSyncClient::Replication
 		// At that point, it will log errors for receiving replication data from a client without authority.
 		HandleReleasingReplicatedObjects(Args);
 		
-		return LiveSession->SendCustomRequest<FConcertChangeAuthority_Request, FConcertChangeAuthority_Response>(Args, LiveSession->GetSessionServerEndpointId())
-			.Next([WeakThis = TWeakPtr<FReplicationManagerState_Connected>(SharedThis(this)), Args](FConcertChangeAuthority_Response&& Response) mutable
+		return LiveSession->SendCustomRequest<FConcertReplication_ChangeAuthority_Request, FConcertReplication_ChangeAuthority_Response>(Args, LiveSession->GetSessionServerEndpointId())
+			.Next([WeakThis = TWeakPtr<FReplicationManagerState_Connected>(SharedThis(this)), Args](FConcertReplication_ChangeAuthority_Response&& Response) mutable
 			{
 				if (const TSharedPtr<FReplicationManagerState_Connected> ThisPin = WeakThis.Pin())
 				{
@@ -105,8 +105,8 @@ namespace UE::ConcertSyncClient::Replication
 			return MakeFulfilledPromise<FClientQueryResponse>().GetFuture();
 		}
 		
-		return LiveSession->SendCustomRequest<FConcertQueryReplicationInfo_Request, FConcertQueryReplicationInfo_Response>(Args, LiveSession->GetSessionServerEndpointId())
-			.Next([](FConcertQueryReplicationInfo_Response&& Response)
+		return LiveSession->SendCustomRequest<FConcertReplication_QueryReplicationInfo_Request, FConcertReplication_QueryReplicationInfo_Response>(Args, LiveSession->GetSessionServerEndpointId())
+			.Next([](FConcertReplication_QueryReplicationInfo_Response&& Response)
 			{
 				return FClientQueryResponse { MoveTemp(Response) };
 			});
@@ -118,8 +118,8 @@ namespace UE::ConcertSyncClient::Replication
 		// At that point, it will log errors for receiving replication data from a client without authority.
 		HandleRemovingReplicatedObjects(Args);
 		
-		return LiveSession->SendCustomRequest<FConcertChangeStream_Request, FConcertChangeStream_Response>(Args, LiveSession->GetSessionServerEndpointId())
-			.Next([WeakThis = TWeakPtr<FReplicationManagerState_Connected>(SharedThis(this)), Args](FConcertChangeStream_Response&& Response)
+		return LiveSession->SendCustomRequest<FConcertReplication_ChangeStream_Request, FConcertReplication_ChangeStream_Response>(Args, LiveSession->GetSessionServerEndpointId())
+			.Next([WeakThis = TWeakPtr<FReplicationManagerState_Connected>(SharedThis(this)), Args](FConcertReplication_ChangeStream_Response&& Response)
 			{
 				const TSharedPtr<FReplicationManagerState_Connected> ThisPin = WeakThis.Pin();
 				if (ThisPin && Response.IsSuccess())
@@ -172,7 +172,7 @@ namespace UE::ConcertSyncClient::Replication
 	{
 		// Build RegisteredStreams while RegisteredStreams has the old, unupdated state
 		TMap<FSoftObjectPath, TArray<FGuid>> BundledModifiedObjects;
-		for (const TPair<FObjectInStreamID, FConcertChangeStream_PutObject>& PutObject : Request.ObjectsToPut)
+		for (const TPair<FObjectInStreamID, FConcertReplication_ChangeStream_PutObject>& PutObject : Request.ObjectsToPut)
 		{
 			const FObjectInStreamID ObjectInfo = PutObject.Key;
 			const FSoftObjectPath Object = ObjectInfo.Object;
@@ -214,7 +214,7 @@ namespace UE::ConcertSyncClient::Replication
 		}
 	}
 
-	void FReplicationManagerState_Connected::UpdateReplicatedObjectsAfterAuthorityChange(FAuthorityChangeRequest&& Request, const FConcertChangeAuthority_Response& Response) const
+	void FReplicationManagerState_Connected::UpdateReplicatedObjectsAfterAuthorityChange(FAuthorityChangeRequest&& Request, const FConcertReplication_ChangeAuthority_Response& Response) const
 	{
 		for (TPair<FSoftObjectPath, FConcertStreamArray>& TakeAuthority : Request.TakeAuthority)
 		{

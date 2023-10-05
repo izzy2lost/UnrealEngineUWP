@@ -33,7 +33,7 @@ namespace UE::ConcertSyncCore
 		//~ End IReplicationDataSource Interface
 		
 		//~ Begin IReplicationCacheUser Interface
-		virtual void OnDataCached(const FReplicatedObjectId& Object, TSharedRef<const FConcertObjectReplicationEvent> Data) override;
+		virtual void OnDataCached(const FReplicatedObjectId& Object, TSharedRef<const FConcertReplication_ObjectReplicationEvent> Data) override;
 		//~ End IReplicationCacheUser Interface
 
 	protected:
@@ -44,7 +44,7 @@ namespace UE::ConcertSyncCore
 	private:
 
 		/** Stores events as they are received. */
-		TMap<FObjectInStreamID, TSharedPtr<const FConcertObjectReplicationEvent>> PendingEvents;
+		TMap<FObjectInStreamID, TSharedPtr<const FConcertReplication_ObjectReplicationEvent>> PendingEvents;
 
 		/** Provides us with replication events and shares them effectively. */
 		TSharedPtr<FObjectReplicationCache> ReplicationCache;

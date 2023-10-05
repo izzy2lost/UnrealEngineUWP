@@ -9,8 +9,8 @@
 
 class IConcertSession;
 
-struct FConcertChangeAuthority_Response;
-struct FConcertChangeAuthority_Request;
+struct FConcertReplication_ChangeAuthority_Response;
+struct FConcertReplication_ChangeAuthority_Request;
 struct FConcertPropertySelection;
 struct FConcertSessionContext;
 struct FObjectInStreamID;
@@ -100,8 +100,8 @@ namespace UE::ConcertSyncServer::Replication
 
 		EConcertSessionResponseCode HandleChangeAuthorityRequest(
 			const FConcertSessionContext& ConcertSessionContext,
-			const FConcertChangeAuthority_Request& Request,
-			FConcertChangeAuthority_Response& Response
+			const FConcertReplication_ChangeAuthority_Request& Request,
+			FConcertReplication_ChangeAuthority_Response& Response
 			);
 
 		/** Finds a stream registered with the client by its ID. */

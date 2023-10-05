@@ -28,7 +28,7 @@ namespace UE::MultiUserClient
 			}
 
 			// Call for put object requests 
-			for (const TPair<FObjectInStreamID, FConcertChangeStream_PutObject>& Pair : AcceptedRequest.ObjectsToPut)
+			for (const TPair<FObjectInStreamID, FConcertReplication_ChangeStream_PutObject>& Pair : AcceptedRequest.ObjectsToPut)
 			{
 				const bool bObjectWasAddedWithPut = !OldState.ReplicatedObjects.Contains(Pair.Key.Object);
 				if (bObjectWasAddedWithPut)

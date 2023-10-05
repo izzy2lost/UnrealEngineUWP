@@ -3,7 +3,7 @@
 #pragma once
 
 #include "Replication/Data/ReplicationStreamDescription.h"
-#include "ConcertReplicationHandshakeMessages.generated.h"
+#include "Handshake.generated.h"
 
 class FText;
 

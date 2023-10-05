@@ -4,8 +4,8 @@
 
 #include "ConcertClientReplicationBridgeMock.h"
 #include "Replication/IConcertClientReplicationManager.h"
-#include "Replication/Messages/ConcertReplicationEvents.h"
-#include "Replication/Messages/ConcertReplicationHandshakeMessages.h"
+#include "Replication/Messages/ObjectReplication.h"
+#include "Replication/Messages/Handshake.h"
 #include "Replication/ReplicationTestInterface.h"
 #include "Util/ClientServerCommunicationTest.h"
 
@@ -67,18 +67,18 @@ namespace UE::ConcertSyncTests::Replication
 		}
 		
 		// 1.3 Test basic assumptions: only sender sends, only receiver receives.
-		auto TestReplicationData_Server = [&](const FConcertSessionContext& Context, const FConcertBatchReplicationEvent& Event)
+		auto TestReplicationData_Server = [&](const FConcertSessionContext& Context, const FConcertReplication_BatchReplicationEvent& Event)
 		{
 			TestEqual(TEXT("Only sender is supposed to send data!"), Context.SourceEndpointId, Client_Sender->ClientSessionMock->GetSessionClientEndpointId());
 		};
-		auto TestReplicationData_Client_Sender = [&](const FConcertSessionContext& Context, const FConcertBatchReplicationEvent& Event)
+		auto TestReplicationData_Client_Sender = [&](const FConcertSessionContext& Context, const FConcertReplication_BatchReplicationEvent& Event)
         {
         	// There was a bug where client would receive its own data...
 			AddError(TEXT("Sender was not supposed to receive data!"));
         };
 		
-		ServerSession->RegisterCustomEventHandler<FConcertBatchReplicationEvent>(TestReplicationData_Server);
-		Client_Sender->ClientSessionMock->RegisterCustomEventHandler<FConcertBatchReplicationEvent>(TestReplicationData_Client_Sender);
+		ServerSession->RegisterCustomEventHandler<FConcertReplication_BatchReplicationEvent>(TestReplicationData_Server);
+		Client_Sender->ClientSessionMock->RegisterCustomEventHandler<FConcertReplication_BatchReplicationEvent>(TestReplicationData_Client_Sender);
 	}
 	
 	void FSendReceiveTestBase::SimulateSenderToReceiver(
@@ -86,16 +86,16 @@ namespace UE::ConcertSyncTests::Replication
 		TFunctionRef<FReceiveReplicationEventSignature> OnReceiverClientReceive
 		)
 	{
-		auto TestReplicationData_Server = [this, OnServerReceive](const FConcertSessionContext& Context, const FConcertBatchReplicationEvent& Event)
+		auto TestReplicationData_Server = [this, OnServerReceive](const FConcertSessionContext& Context, const FConcertReplication_BatchReplicationEvent& Event)
 		{
 			OnServerReceive(Context, Event);
 		};
-		auto TestReplicationData_Client_Receiver = [this, OnReceiverClientReceive](const FConcertSessionContext& Context, const FConcertBatchReplicationEvent& Event)
+		auto TestReplicationData_Client_Receiver = [this, OnReceiverClientReceive](const FConcertSessionContext& Context, const FConcertReplication_BatchReplicationEvent& Event)
 		{
 			OnReceiverClientReceive(Context, Event);
 		};
-		const FDelegateHandle ServerHandle = ServerSession->RegisterCustomEventHandler<FConcertBatchReplicationEvent>(TestReplicationData_Server);
-		const FDelegateHandle ClientHandle = Client_Receiver->ClientSessionMock->RegisterCustomEventHandler<FConcertBatchReplicationEvent>(TestReplicationData_Client_Receiver);
+		const FDelegateHandle ServerHandle = ServerSession->RegisterCustomEventHandler<FConcertReplication_BatchReplicationEvent>(TestReplicationData_Server);
+		const FDelegateHandle ClientHandle = Client_Receiver->ClientSessionMock->RegisterCustomEventHandler<FConcertReplication_BatchReplicationEvent>(TestReplicationData_Client_Receiver);
 
 		// 1. Sender > Server
 		TickClient(Client_Sender);
@@ -104,8 +104,8 @@ namespace UE::ConcertSyncTests::Replication
 		// 3. Receive from server
 		TickClient(Client_Receiver);
 		
-		ServerSession->UnregisterCustomEventHandler<FConcertBatchReplicationEvent>(ServerHandle);
-		Client_Receiver->ClientSessionMock->UnregisterCustomEventHandler<FConcertBatchReplicationEvent>(ClientHandle);
+		ServerSession->UnregisterCustomEventHandler<FConcertReplication_BatchReplicationEvent>(ServerHandle);
+		Client_Receiver->ClientSessionMock->UnregisterCustomEventHandler<FConcertReplication_BatchReplicationEvent>(ClientHandle);
 	}
 	
 	void FSendReceiveTestBase::TickClient(FClientInfo* Client)

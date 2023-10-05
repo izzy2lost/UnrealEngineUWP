@@ -5,7 +5,7 @@
 #include "IConcertSessionHandler.h"
 #include "Replication/AuthorityManager.h"
 #include "Replication/Data/ObjectIds.h"
-#include "Replication/Messages/ConcertReplicationEvents.h"
+#include "Replication/Messages/ObjectReplication.h"
 
 namespace UE::ConcertSyncServer::Replication
 {
@@ -20,8 +20,8 @@ namespace UE::ConcertSyncServer::Replication
 
 	bool FServerObjectReplicationReceiver::ShouldAcceptObject(
 		const FConcertSessionContext& SessionContext,
-		const FConcertStreamReplicationEvent& StreamEvent,
-		const FConcertObjectReplicationEvent& ObjectEvent
+		const FConcertReplication_StreamReplicationEvent& StreamEvent,
+		const FConcertReplication_ObjectReplicationEvent& ObjectEvent
 		) const
 	{
 		const FReplicatedObjectId ReplicatedObjectInfo { { StreamEvent.StreamId, ObjectEvent.ReplicatedObject }, SessionContext.SourceEndpointId };

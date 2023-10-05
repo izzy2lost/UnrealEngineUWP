@@ -5,7 +5,7 @@
 #include "IConcertSession.h"
 #include "ReplicationManagerState_Connected.h"
 #include "ReplicationManagerState_Disconnected.h"
-#include "Replication/Messages/ConcertReplicationHandshakeMessages.h"
+#include "Replication/Messages/Handshake.h"
 
 #include "Algo/Transform.h"
 

@@ -8,7 +8,7 @@
 #include "Templates/Function.h"
 #include "Templates/SharedPointer.h"
 
-struct FConcertObjectReplicationEvent;
+struct FConcertReplication_ObjectReplicationEvent;
 struct FSoftObjectPath;
 struct FGuid;
 
@@ -33,7 +33,7 @@ namespace UE::ConcertSyncCore
 		 * The user can keep hold of Data until it is used, at which point it just let's Data get out of scope.
 		 * If new data is received while this user is referencing Data, Data will be combined to contain any new data.
 		 */
-		virtual void OnDataCached(const FReplicatedObjectId& Object, TSharedRef<const FConcertObjectReplicationEvent> Data) = 0;
+		virtual void OnDataCached(const FReplicatedObjectId& Object, TSharedRef<const FConcertReplication_ObjectReplicationEvent> Data) = 0;
 
 		virtual ~IReplicationCacheUser() = default;
 	};
@@ -63,7 +63,7 @@ namespace UE::ConcertSyncCore
 		 * @param ObjectReplicationEvent The data that was replicated
 		 * @return The number of cache users that accepted this event. 
 		 */
-		int32 StoreUntilConsumed(const FGuid& SendingEndpointId, const FGuid& OriginStreamId, const FConcertObjectReplicationEvent& ObjectReplicationEvent);
+		int32 StoreUntilConsumed(const FGuid& SendingEndpointId, const FGuid& OriginStreamId, const FConcertReplication_ObjectReplicationEvent& ObjectReplicationEvent);
 
 		/** Registers a new user, which will start receiving data for any new data received from now on. */
 		void RegisterDataCacheUser(TSharedRef<IReplicationCacheUser> User);
@@ -89,7 +89,7 @@ namespace UE::ConcertSyncCore
 			 * The intention is that as soon as IReplicationCacheUser has finished using a data event, it will receive a
 			 * new instance: we do not want IReplicationCacheUsers to have large histories of events being combined into them.
 			 */
-			TMap<TWeakPtr<IReplicationCacheUser>, TWeakPtr<FConcertObjectReplicationEvent>> DataInUse;
+			TMap<TWeakPtr<IReplicationCacheUser>, TWeakPtr<FConcertReplication_ObjectReplicationEvent>> DataInUse;
 		};
 		/** Maps every object to the events cached for it. */
 		TMap<FObjectInStreamID, FObjectCache> Cache; 

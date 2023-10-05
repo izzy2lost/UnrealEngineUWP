@@ -7,7 +7,7 @@
 #include "Replication/IConcertClientReplicationBridge.h"
 #include "Replication/IConcertClientReplicationManager.h"
 #include "Replication/IConcertServerReplicationManager.h"
-#include "Replication/Messages/ConcertReplicationHandshakeMessages.h"
+#include "Replication/Messages/Handshake.h"
 #include "ReplicationTestInterface.h"
 #include "Util/ConcertClientReplicationBridgeMock.h"
 

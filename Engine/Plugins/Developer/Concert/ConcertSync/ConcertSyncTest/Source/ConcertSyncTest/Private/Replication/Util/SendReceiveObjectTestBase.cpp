@@ -6,8 +6,8 @@
 #include "Replication/Data/ReplicationStreamDescription.h"
 #include "Replication/IConcertClientReplicationManager.h"
 #include "Replication/IConcertServerReplicationManager.h"
-#include "Replication/Messages/ConcertReplicationEvents.h"
-#include "Replication/Messages/ConcertReplicationHandshakeMessages.h"
+#include "Replication/Messages/ObjectReplication.h"
+#include "Replication/Messages/Handshake.h"
 #include "Replication/PropertyChainUtils.h"
 #include "Replication/ReplicationTestInterface.h"
 #include "Replication/TestReflectionObject.h"
@@ -51,7 +51,7 @@ namespace UE::ConcertSyncTests::Replication
 		EPropertyTestFlags PropertyFlags
 		)
 	{
-		auto TestReplicationData_Server = [this, OnServerReceive](const FConcertSessionContext& Context, const FConcertBatchReplicationEvent& Event)
+		auto TestReplicationData_Server = [this, OnServerReceive](const FConcertSessionContext& Context, const FConcertReplication_BatchReplicationEvent& Event)
 		{
 			const TSet<FGuid> SenderStreamIds = GetSenderStreamIds();
 			TestEqual(TEXT("Server received right number of streams"), Event.Streams.Num(), SenderStreamIds.Num());
@@ -64,7 +64,7 @@ namespace UE::ConcertSyncTests::Replication
 			}
 			OnServerReceive(Context, Event);
 		};
-		auto TestReplicationData_Client_Receiver = [this, OnReceiverClientReceive](const FConcertSessionContext& Context, const FConcertBatchReplicationEvent& Event)
+		auto TestReplicationData_Client_Receiver = [this, OnReceiverClientReceive](const FConcertSessionContext& Context, const FConcertReplication_BatchReplicationEvent& Event)
 		{
 			const TSet<FGuid> SenderStreamIds = GetSenderStreamIds();
 			TestEqual(TEXT("Client 2 received right number of streams"), Event.Streams.Num(), SenderStreamIds.Num());
@@ -77,8 +77,8 @@ namespace UE::ConcertSyncTests::Replication
 			}
 			OnReceiverClientReceive(Context, Event);
 		};
-		const FDelegateHandle ServerHandle = ServerSession->RegisterCustomEventHandler<FConcertBatchReplicationEvent>(TestReplicationData_Server);
-		const FDelegateHandle ClientHandle = Client_Receiver->ClientSessionMock->RegisterCustomEventHandler<FConcertBatchReplicationEvent>(TestReplicationData_Client_Receiver);
+		const FDelegateHandle ServerHandle = ServerSession->RegisterCustomEventHandler<FConcertReplication_BatchReplicationEvent>(TestReplicationData_Server);
+		const FDelegateHandle ClientHandle = Client_Receiver->ClientSessionMock->RegisterCustomEventHandler<FConcertReplication_BatchReplicationEvent>(TestReplicationData_Client_Receiver);
 
 		
 		// TestObject is the same UObject on both clients.
@@ -94,8 +94,8 @@ namespace UE::ConcertSyncTests::Replication
 		SetDifferentValues(*TestObject, PropertyFlags);
 		TickClient(Client_Receiver);
 
-		ServerSession->UnregisterCustomEventHandler<FConcertBatchReplicationEvent>(ServerHandle);
-		Client_Receiver->ClientSessionMock->UnregisterCustomEventHandler<FConcertBatchReplicationEvent>(ClientHandle);
+		ServerSession->UnregisterCustomEventHandler<FConcertReplication_BatchReplicationEvent>(ServerHandle);
+		Client_Receiver->ClientSessionMock->UnregisterCustomEventHandler<FConcertReplication_BatchReplicationEvent>(ClientHandle);
 		
 		// No call to Super because we're completely overriding the behavior.
 	}

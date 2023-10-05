@@ -6,7 +6,7 @@
 #include "IConcertSession.h"
 #include "Replication/Data/ObjectIds.h"
 #include "Replication/Data/ReplicationStreamDescription.h"
-#include "Replication/Messages/ConcertReplicationEvents.h"
+#include "Replication/Messages/ChangeAuthority.h"
 
 namespace UE::ConcertSyncServer::Replication
 {
@@ -31,12 +31,12 @@ namespace UE::ConcertSyncServer::Replication
 		: Getters(Getters)
 		, Session(MoveTemp(InSession))
 	{
-		Session->RegisterCustomRequestHandler<FConcertChangeAuthority_Request, FConcertChangeAuthority_Response>(this, &FAuthorityManager::HandleChangeAuthorityRequest);
+		Session->RegisterCustomRequestHandler<FConcertReplication_ChangeAuthority_Request, FConcertReplication_ChangeAuthority_Response>(this, &FAuthorityManager::HandleChangeAuthorityRequest);
 	}
 
 	FAuthorityManager::~FAuthorityManager()
 	{
-		Session->UnregisterCustomRequestHandler<FConcertChangeAuthority_Request>();
+		Session->UnregisterCustomRequestHandler<FConcertReplication_ChangeAuthority_Request>();
 	}
 
 	bool FAuthorityManager::HasAuthorityToChange(const FReplicatedObjectId& ObjectChange) const
@@ -144,8 +144,8 @@ namespace UE::ConcertSyncServer::Replication
 
 	EConcertSessionResponseCode FAuthorityManager::HandleChangeAuthorityRequest(
 		const FConcertSessionContext& ConcertSessionContext,
-		const FConcertChangeAuthority_Request& Request,
-		FConcertChangeAuthority_Response& Response
+		const FConcertReplication_ChangeAuthority_Request& Request,
+		FConcertReplication_ChangeAuthority_Response& Response
 		)
 	{
 		// This log does two things: 1. Identify issues in unit tests / at runtime 2. Warn about possibly malicious attempts when the server runs.

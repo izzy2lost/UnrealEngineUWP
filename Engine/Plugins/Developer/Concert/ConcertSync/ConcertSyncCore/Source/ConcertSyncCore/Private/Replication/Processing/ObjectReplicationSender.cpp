@@ -29,7 +29,7 @@ namespace UE::ConcertSyncCore
 
 		if (!EventToSend.Streams.IsEmpty())
 		{
-			const int32 NumObjects = Algo::TransformAccumulate(EventToSend.Streams, [](const FConcertStreamReplicationEvent& Event){ return Event.ReplicatedObjects.Num(); }, 0);
+			const int32 NumObjects = Algo::TransformAccumulate(EventToSend.Streams, [](const FConcertReplication_StreamReplicationEvent& Event){ return Event.ReplicatedObjects.Num(); }, 0);
 			UE_CLOG(CVarLogSentObjects.GetValueOnGameThread(), LogConcert, Log, TEXT("Sending %d streams with %d objects to %s"),
 				EventToSend.Streams.Num(),
 				NumObjects,
@@ -53,8 +53,8 @@ namespace UE::ConcertSyncCore
 		const FSoftObjectPath& ReplicatedObject = Args.ObjectInfo.Object;
 		auto CaptureData = [this, &Args, &ReplicatedObject]<typename TPayloadRefType>(TPayloadRefType&& Payload)
 		{
-			const int32 PreexistingIndex = EventToSend.Streams.IndexOfByPredicate([&Args](const FConcertStreamReplicationEvent& StreamData){ return StreamData.StreamId == Args.ObjectInfo.StreamId; });
-			FConcertStreamReplicationEvent& StreamData = EventToSend.Streams.IsValidIndex(PreexistingIndex)
+			const int32 PreexistingIndex = EventToSend.Streams.IndexOfByPredicate([&Args](const FConcertReplication_StreamReplicationEvent& StreamData){ return StreamData.StreamId == Args.ObjectInfo.StreamId; });
+			FConcertReplication_StreamReplicationEvent& StreamData = EventToSend.Streams.IsValidIndex(PreexistingIndex)
 				? EventToSend.Streams[PreexistingIndex]
 				: EventToSend.Streams[EventToSend.Streams.Emplace(Args.ObjectInfo.StreamId)];
 			StreamData.ReplicatedObjects.Add({

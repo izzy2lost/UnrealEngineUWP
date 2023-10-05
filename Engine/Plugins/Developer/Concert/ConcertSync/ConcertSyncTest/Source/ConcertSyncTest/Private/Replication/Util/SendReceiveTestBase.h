@@ -3,6 +3,7 @@
 #pragma once
 
 #include "Replication/IConcertClientReplicationManager.h"
+#include "Replication/Messages/ObjectReplication.h"
 #include "Util/ClientServerCommunicationTest.h"
 
 class IConcertClientReplicationManager;
@@ -30,7 +31,7 @@ namespace UE::ConcertSyncTests::Replication
 		
 		static ConcertSyncClient::Replication::FJoinReplicatedSessionArgs CreateHandshakeArgsFrom(const UObject& Object, const FGuid& SenderStreamId = FGuid::NewGuid());
 		
-		using FReceiveReplicationEventSignature = void(const FConcertSessionContext& Context, const FConcertBatchReplicationEvent& Event);
+		using FReceiveReplicationEventSignature = void(const FConcertSessionContext& Context, const FConcertReplication_BatchReplicationEvent& Event);
 		
 		float FakeDeltaTime = 1.f / 60.f;
 		

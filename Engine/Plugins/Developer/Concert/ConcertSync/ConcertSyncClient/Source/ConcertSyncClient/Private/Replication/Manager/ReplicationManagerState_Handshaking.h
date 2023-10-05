@@ -5,7 +5,7 @@
 #include "IConcertSessionHandler.h"
 #include "ReplicationManagerState.h"
 #include "ReplicationManagerUtils.h"
-#include "Replication/Messages/ConcertReplicationHandshakeMessages.h"
+#include "Replication/Messages/Handshake.h"
 #include "Replication/Processing/ClientReplicationDataCollector.h"
 
 class IConcertClientSession;

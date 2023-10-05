@@ -7,7 +7,9 @@
 #include "IConcertSession.h"
 #include "Replication/ConcertReplicationClient.h"
 #include "Replication/Formats/FullObjectFormat.h"
-#include "Replication/Messages/ConcertReplicationHandshakeMessages.h"
+#include "Replication/Messages/ChangeStream.h"
+#include "Replication/Messages/ClientQuery.h"
+#include "Replication/Messages/Handshake.h"
 #include "Replication/Processing/ObjectReplicationCache.h"
 #include "Util/JoinRequestValidation.h"
 
@@ -21,8 +23,8 @@ namespace UE::ConcertSyncServer::Replication
 		, ReplicationDataReceiver(AuthorityManager, Session, ReplicationCache)
 	{
 		Session->RegisterCustomRequestHandler<FConcertReplication_Join_Request, FConcertReplication_Join_Response>(this, &FConcertServerReplicationManager::HandleJoinReplicationSessionRequest);
-		Session->RegisterCustomRequestHandler<FConcertQueryReplicationInfo_Request, FConcertQueryReplicationInfo_Response>(this, &FConcertServerReplicationManager::HandleQueryReplicationInfoRequest);
-		Session->RegisterCustomRequestHandler<FConcertChangeStream_Request, FConcertChangeStream_Response>(this, &FConcertServerReplicationManager::HandleChangeStreamRequest);
+		Session->RegisterCustomRequestHandler<FConcertReplication_QueryReplicationInfo_Request, FConcertReplication_QueryReplicationInfo_Response>(this, &FConcertServerReplicationManager::HandleQueryReplicationInfoRequest);
+		Session->RegisterCustomRequestHandler<FConcertReplication_ChangeStream_Request, FConcertReplication_ChangeStream_Response>(this, &FConcertServerReplicationManager::HandleChangeStreamRequest);
 		Session->RegisterCustomEventHandler<FConcertReplication_LeaveEvent>(this, &FConcertServerReplicationManager::HandleLeaveReplicationSessionRequest);
 		Session->OnSessionClientChanged().AddRaw(this, &FConcertServerReplicationManager::OnConnectionChanged);
 
@@ -32,7 +34,7 @@ namespace UE::ConcertSyncServer::Replication
 	FConcertServerReplicationManager::~FConcertServerReplicationManager()
 	{
 		Session->UnregisterCustomRequestHandler<FConcertReplication_Join_Response>();
-		Session->UnregisterCustomRequestHandler<FConcertQueryReplicationInfo_Response>();
+		Session->UnregisterCustomRequestHandler<FConcertReplication_QueryReplicationInfo_Response>();
 		Session->UnregisterCustomEventHandler<FConcertReplication_LeaveEvent>(this);
 
 		Session->OnTick().RemoveAll(this);
@@ -117,8 +119,8 @@ namespace UE::ConcertSyncServer::Replication
 
 	EConcertSessionResponseCode FConcertServerReplicationManager::HandleQueryReplicationInfoRequest(
 		const FConcertSessionContext& ConcertSessionContext,
-		const FConcertQueryReplicationInfo_Request& Request,
-		FConcertQueryReplicationInfo_Response& Response
+		const FConcertReplication_QueryReplicationInfo_Request& Request,
+		FConcertReplication_QueryReplicationInfo_Response& Response
 		)
 	{
 		for (const FGuid& EndpointId : Request.ClientEndpointIds)

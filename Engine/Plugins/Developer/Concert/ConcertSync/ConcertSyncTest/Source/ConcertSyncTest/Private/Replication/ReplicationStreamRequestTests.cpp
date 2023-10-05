@@ -339,7 +339,7 @@ namespace UE::ConcertSyncTests::Replication::Stream
 		FChangeStreamRequest AppendFloatRequest;
 		FConcertPropertySelection& NewSelection = GetPropertySelection(VectorFloatStream, *TestObject);
 		AddFloatProperty(NewSelection);
-		AppendFloatRequest.ObjectsToPut.Add(FObjectInStreamID{ VectorFloatStreamID, TestObject }, FConcertChangeStream_PutObject{ NewSelection });
+		AppendFloatRequest.ObjectsToPut.Add(FObjectInStreamID{ VectorFloatStreamID, TestObject }, FConcertReplication_ChangeStream_PutObject{ NewSelection });
 		ChangeStreamForSenderClientAndValidate(TEXT("AppendFloatRequest"), AppendFloatRequest, { FloatStream.BaseDescription, VectorFloatStream.BaseDescription });
 		
 		return true;
@@ -450,7 +450,7 @@ namespace UE::ConcertSyncTests::Replication::Stream
 		FChangeStreamRequest InvalidRequest;
 		FConcertPropertySelection NewSelection = GetPropertySelection(Stream, *TestObject);
 		AddFloatProperty(NewSelection);
-		InvalidRequest.ObjectsToPut.Add(FObjectInStreamID{ StreamId, TestObject}, FConcertChangeStream_PutObject{ NewSelection });
+		InvalidRequest.ObjectsToPut.Add(FObjectInStreamID{ StreamId, TestObject}, FConcertReplication_ChangeStream_PutObject{ NewSelection });
 		InvalidRequest.StreamsToAdd.Add(Stream.Pack()); // This will make it fail due to pre-existing stream ID
 
 		// Server logs a warning when rejecting - avoid the test being marked with a warning.

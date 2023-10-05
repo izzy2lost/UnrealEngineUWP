@@ -142,7 +142,7 @@ namespace UE::MultiUserClient
 			return EBreakBehavior::Continue;
 		});
 
-		FConcertChangeStream_Request Request = ConcertSyncCore::Replication::ChangeStreamUtils::BuildRequestFromDiff(StreamId, Base, Cleansed);
+		FConcertReplication_ChangeStream_Request Request = ConcertSyncCore::Replication::ChangeStreamUtils::BuildRequestFromDiff(StreamId, Base, Cleansed);
 		return { MoveTemp(Request.ObjectsToRemove), MoveTemp(Request.ObjectsToPut) };
 	}
 
@@ -180,7 +180,7 @@ namespace UE::MultiUserClient
 
 	ConcertSyncClient::Replication::FChangeStreamRequest FLocalClientStreamSynchronizer::BuildChangeRequest_CreateNewStream(const FGuid& StreamId, const FChangelist& FromChangelist)
 	{
-		const TMap<FObjectInStreamID, FConcertChangeStream_PutObject>& ObjectsToPut = FromChangelist.ObjectsToPut;
+		const TMap<FObjectInStreamID, FConcertReplication_ChangeStream_PutObject>& ObjectsToPut = FromChangelist.ObjectsToPut;
 		
 		ConcertSyncClient::Replication::FChangeStreamRequest Request;
 		Request.StreamsToAdd.Emplace();
@@ -190,7 +190,7 @@ namespace UE::MultiUserClient
 		// If creating a new stream, the objects must be supplied in the description instead of in PutObjects!
 		FObjectReplicationMap& ReplicationMap = NewStream.BaseDescription.ReplicationMap;
 		ReplicationMap.ReplicatedObjects.Reserve(ObjectsToPut.Num());
-		for (const TPair<FObjectInStreamID, FConcertChangeStream_PutObject>& PutObjectPair : ObjectsToPut)
+		for (const TPair<FObjectInStreamID, FConcertReplication_ChangeStream_PutObject>& PutObjectPair : ObjectsToPut)
 		{
 			const TOptional<FReplicatedObjectInfo> NewObjectInfo = PutObjectPair.Value.MakeObjectInfoIfValid();
 			// The editing UI allows adding objects without properties (to make UX easier) - do not submit those to the server.

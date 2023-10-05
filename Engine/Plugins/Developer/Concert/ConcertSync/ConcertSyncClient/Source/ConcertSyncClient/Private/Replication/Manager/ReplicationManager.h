@@ -3,7 +3,7 @@
 #pragma once
 
 #include "Replication/IConcertClientReplicationManager.h"
-#include "Replication/Messages/ConcertReplicationHandshakeMessages.h"
+#include "Replication/Messages/Handshake.h"
 #include "Templates/SharedPointer.h"
 
 class IConcertClientReplicationBridge;

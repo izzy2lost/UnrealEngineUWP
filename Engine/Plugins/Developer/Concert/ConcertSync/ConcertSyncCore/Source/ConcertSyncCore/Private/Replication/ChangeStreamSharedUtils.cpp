@@ -4,12 +4,13 @@
 
 #include "Misc/EBreakBehavior.h"
 #include "Replication/Data/ObjectIds.h"
-#include "Replication/Messages/ConcertReplicationEvents.h"
+#include "Replication/Messages/ChangeStream.h"
+#include "Replication/Messages/ObjectReplication.h"
 
 namespace UE::ConcertSyncCore::Replication::ChangeStreamUtils
 {
 	void ForEachObjectLosingAuthority(
-		const FConcertChangeStream_Request& Request,
+		const FConcertReplication_ChangeStream_Request& Request,
 		const TArray<FReplicationStreamDescription>& ExistingStreams,
 		TFunctionRef<EBreakBehavior(const FObjectInStreamID&)> Callback
 		)
@@ -41,7 +42,7 @@ namespace UE::ConcertSyncCore::Replication::ChangeStreamUtils
 		}
 	}
 	
-	void ApplyValidatedRequest(const FConcertChangeStream_Request& Request, TArray<FReplicationStreamDescription>& StreamsToModify)
+	void ApplyValidatedRequest(const FConcertReplication_ChangeStream_Request& Request, TArray<FReplicationStreamDescription>& StreamsToModify)
 	{
 		for (auto StreamIt = StreamsToModify.CreateIterator(); StreamIt; ++StreamIt)
 		{
@@ -64,7 +65,7 @@ namespace UE::ConcertSyncCore::Replication::ChangeStreamUtils
 				StreamIt.RemoveCurrent();
 			}
 			
-			for (const TPair<FObjectInStreamID, FConcertChangeStream_PutObject>& PutObjectPair : Request.ObjectsToPut)
+			for (const TPair<FObjectInStreamID, FConcertReplication_ChangeStream_PutObject>& PutObjectPair : Request.ObjectsToPut)
 			{
 				if (PutObjectPair.Key.StreamId != StreamId)
 				{
@@ -119,7 +120,7 @@ namespace UE::ConcertSyncCore::Replication::ChangeStreamUtils
 
 	namespace Private
 	{
-		static void BuildPutObjectList(const FGuid& StreamId, const FObjectReplicationMap& Base, const FObjectReplicationMap& Desired, FConcertChangeStream_Request& Request)
+		static void BuildPutObjectList(const FGuid& StreamId, const FObjectReplicationMap& Base, const FObjectReplicationMap& Desired, FConcertReplication_ChangeStream_Request& Request)
 		{
 			for (const TPair<FSoftObjectPath, FReplicatedObjectInfo>& BasePair : Base.ReplicatedObjects)
 			{
@@ -129,7 +130,7 @@ namespace UE::ConcertSyncCore::Replication::ChangeStreamUtils
 				if (DesiredObjectInfo)
 				{
 					const FReplicatedObjectInfo& BaseObjectInfo = BasePair.Value;
-					const TOptional<FConcertChangeStream_PutObject> PutObject = FConcertChangeStream_PutObject::MakeFromChange(BaseObjectInfo, *DesiredObjectInfo);
+					const TOptional<FConcertReplication_ChangeStream_PutObject> PutObject = FConcertReplication_ChangeStream_PutObject::MakeFromChange(BaseObjectInfo, *DesiredObjectInfo);
 				
 					const bool bDesiredHasChangedFromBase = BaseObjectInfo != *DesiredObjectInfo;
 					// If MakeFromChange returned unset, it means that this request is not valid to submit. 
@@ -146,7 +147,7 @@ namespace UE::ConcertSyncCore::Replication::ChangeStreamUtils
 			}
 		}
 
-		static void BuildRemoveObjectList(const FGuid& StreamId, const FObjectReplicationMap& Base, const FObjectReplicationMap& Desired, FConcertChangeStream_Request& Request)
+		static void BuildRemoveObjectList(const FGuid& StreamId, const FObjectReplicationMap& Base, const FObjectReplicationMap& Desired, FConcertReplication_ChangeStream_Request& Request)
 		{
 			for (const TPair<FSoftObjectPath, FReplicatedObjectInfo>& DesiredPair : Desired.ReplicatedObjects)
 			{
@@ -159,7 +160,7 @@ namespace UE::ConcertSyncCore::Replication::ChangeStreamUtils
 
 				// Desired wants to add an object
 				const FReplicatedObjectInfo& ObjectInfo = DesiredPair.Value;
-				const TOptional<FConcertChangeStream_PutObject> PutObject = FConcertChangeStream_PutObject::MakeFromInfo(ObjectInfo);
+				const TOptional<FConcertReplication_ChangeStream_PutObject> PutObject = FConcertReplication_ChangeStream_PutObject::MakeFromInfo(ObjectInfo);
 				const bool bDesiredStateHasEnoughDataToForPut = ensureMsgf(PutObject, TEXT("Function assumption violated; you did not pass in valid base or desired state."));
 				if (bDesiredStateHasEnoughDataToForPut)
 				{
@@ -169,13 +170,13 @@ namespace UE::ConcertSyncCore::Replication::ChangeStreamUtils
 		}
 	}
 
-	FConcertChangeStream_Request BuildRequestFromDiff(
+	FConcertReplication_ChangeStream_Request BuildRequestFromDiff(
 		const FGuid& StreamId,
 		const FObjectReplicationMap& Base,
 		const FObjectReplicationMap& Desired
 		)
 	{
-		FConcertChangeStream_Request Request;
+		FConcertReplication_ChangeStream_Request Request;
 		Private::BuildPutObjectList(StreamId, Base, Desired, Request);
 		Private::BuildRemoveObjectList(StreamId, Base, Desired, Request);
 		return Request;

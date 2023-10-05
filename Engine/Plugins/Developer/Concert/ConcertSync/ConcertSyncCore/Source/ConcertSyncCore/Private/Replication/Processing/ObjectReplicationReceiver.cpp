@@ -4,7 +4,7 @@
 
 #include "ConcertLogGlobal.h"
 #include "IConcertSession.h"
-#include "Replication/Messages/ConcertReplicationEvents.h"
+#include "Replication/Messages/ObjectReplication.h"
 #include "Replication/Processing/ObjectReplicationCache.h"
 
 #include "HAL/IConsoleManager.h"
@@ -17,15 +17,15 @@ namespace UE::ConcertSyncCore
 		: Session(MoveTemp(Session))
 		, ReplicationCache(MoveTemp(ReplicationCache))
 	{
-		Session->RegisterCustomEventHandler<FConcertBatchReplicationEvent>(this, &FObjectReplicationReceiver::HandleBatchReplicationEvent);
+		Session->RegisterCustomEventHandler<FConcertReplication_BatchReplicationEvent>(this, &FObjectReplicationReceiver::HandleBatchReplicationEvent);
 	}
 
 	FObjectReplicationReceiver::~FObjectReplicationReceiver()
 	{
-		Session->UnregisterCustomEventHandler<FConcertBatchReplicationEvent>(this);
+		Session->UnregisterCustomEventHandler<FConcertReplication_BatchReplicationEvent>(this);
 	}
 
-	void FObjectReplicationReceiver::HandleBatchReplicationEvent(const FConcertSessionContext& SessionContext, const FConcertBatchReplicationEvent& Event)
+	void FObjectReplicationReceiver::HandleBatchReplicationEvent(const FConcertSessionContext& SessionContext, const FConcertReplication_BatchReplicationEvent& Event)
 	{
 		// Fyi: an object may have multiple changes in a batch replication event: each stream can modify different properties as long as they do not overlap.
 		int32 NumObjects = 0;
@@ -33,12 +33,12 @@ namespace UE::ConcertSyncCore
 		int32 NumCacheUsages = 0;
 		int32 NumOfAcceptedObjectChanges = 0;
 		
-		for (const FConcertStreamReplicationEvent& StreamEvent : Event.Streams)
+		for (const FConcertReplication_StreamReplicationEvent& StreamEvent : Event.Streams)
 		{
 			const int32 ObjectsInStream = StreamEvent.ReplicatedObjects.Num();
 			NumObjects += ObjectsInStream;
 			
-			for (const FConcertObjectReplicationEvent& ObjectEvent : StreamEvent.ReplicatedObjects)
+			for (const FConcertReplication_ObjectReplicationEvent& ObjectEvent : StreamEvent.ReplicatedObjects)
 			{
 				if (ShouldAcceptObject(SessionContext, StreamEvent, ObjectEvent))
 				{

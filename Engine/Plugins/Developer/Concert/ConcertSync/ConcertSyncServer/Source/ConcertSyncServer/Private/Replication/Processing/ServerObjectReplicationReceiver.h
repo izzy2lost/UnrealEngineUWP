@@ -19,7 +19,7 @@ namespace UE::ConcertSyncServer::Replication
 	protected:
 
 		//~ Begin FObjectReplicationReceiver Interface
-		virtual bool ShouldAcceptObject(const FConcertSessionContext& SessionContext, const FConcertStreamReplicationEvent& StreamEvent, const FConcertObjectReplicationEvent& ObjectEvent) const override;
+		virtual bool ShouldAcceptObject(const FConcertSessionContext& SessionContext, const FConcertReplication_StreamReplicationEvent& StreamEvent, const FConcertReplication_ObjectReplicationEvent& ObjectEvent) const override;
 		//~ End FObjectReplicationReceiver Interface
 
 	private:

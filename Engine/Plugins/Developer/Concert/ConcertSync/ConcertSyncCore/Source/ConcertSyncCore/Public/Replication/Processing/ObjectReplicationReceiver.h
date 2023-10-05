@@ -5,10 +5,10 @@
 #include "Templates/SharedPointer.h"
 
 class IConcertSession;
-struct FConcertBatchReplicationEvent;
-struct FConcertObjectReplicationEvent;
+struct FConcertReplication_BatchReplicationEvent;
+struct FConcertReplication_ObjectReplicationEvent;
 struct FConcertSessionContext;
-struct FConcertStreamReplicationEvent;
+struct FConcertReplication_StreamReplicationEvent;
 
 namespace UE::ConcertSyncCore
 {
@@ -25,7 +25,7 @@ namespace UE::ConcertSyncCore
 	protected:
 
 		/** Whether the object should be processed. */
-		virtual bool ShouldAcceptObject(const FConcertSessionContext& SessionContext, const FConcertStreamReplicationEvent& StreamEvent, const FConcertObjectReplicationEvent& ObjectEvent) const { return true; }
+		virtual bool ShouldAcceptObject(const FConcertSessionContext& SessionContext, const FConcertReplication_StreamReplicationEvent& StreamEvent, const FConcertReplication_ObjectReplicationEvent& ObjectEvent) const { return true; }
 
 	private:
 
@@ -34,6 +34,6 @@ namespace UE::ConcertSyncCore
 		/** Where received data is stored. */
 		TSharedRef<FObjectReplicationCache> ReplicationCache;
 
-		void HandleBatchReplicationEvent(const FConcertSessionContext& SessionContext, const FConcertBatchReplicationEvent& Event);
+		void HandleBatchReplicationEvent(const FConcertSessionContext& SessionContext, const FConcertReplication_BatchReplicationEvent& Event);
 	};
 }
