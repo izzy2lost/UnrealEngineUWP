@@ -13,26 +13,20 @@ TSharedPtr<UE::NNE::IModelInstanceRDG> CreateNNEModelInstance(UNNEModelData* NNE
 	TWeakInterfacePtr<INNERuntimeRDG> RuntimeRDG = UE::NNE::GetRuntime<INNERuntimeRDG>(RuntimeName);
 	if (!Runtime.IsValid())
 	{
-#if WITH_EDITOR
 		UE_LOG(LogNeuralPostProcessing, Error, TEXT("Can't get %s runtime."), *RuntimeName);
-#endif
 		return nullptr;
 	}
 
 	if (!RuntimeRDG.IsValid())
 	{
-#if WITH_EDITOR
 		UE_LOG(LogNeuralPostProcessing, Error, TEXT("No RDG runtime '%s' found"), *RuntimeName);
-#endif
 		return nullptr;
 	}
 
 	TSharedPtr<UE::NNE::IModelRDG> ModelRDG = RuntimeRDG->CreateModelRDG(NNEModelData);
 	if (!ModelRDG.IsValid())
 	{
-#if WITH_EDITOR
 		UE_LOG(LogNeuralPostProcessing, Error, TEXT("CreateModelRDG failed for Runtime = %s"), *RuntimeName);
-#endif
 		return nullptr;
 	}
 
@@ -47,26 +41,20 @@ TSharedPtr<UE::NNE::IModelInstanceCPU> CreateNNECpuModelInstance(UNNEModelData* 
 	TWeakInterfacePtr<INNERuntimeCPU> RuntimeCPU = UE::NNE::GetRuntime<INNERuntimeCPU>(RuntimeName);
 	if (!Runtime.IsValid())
 	{
-#if WITH_EDITOR
 		UE_LOG(LogNeuralPostProcessing, Error, TEXT("Can't get %s runtime."), *RuntimeName);
-#endif
 		return nullptr;
 	}
 
 	if (!RuntimeCPU.IsValid())
 	{
-#if WITH_EDITOR
 		UE_LOG(LogNeuralPostProcessing, Error, TEXT("No CPU runtime '%s' found"), *RuntimeName);
-#endif
 		return nullptr;
 	}
 
 	TSharedPtr<UE::NNE::IModelCPU> ModelCPU = RuntimeCPU->CreateModelCPU(NNEModelData);
 	if (!ModelCPU.IsValid())
 	{
-#if WITH_EDITOR
 		UE_LOG(LogNeuralPostProcessing, Error, TEXT("CreateModelCPU failed for Runtime = %s"), *RuntimeName);
-#endif
 		return nullptr;
 	}
 
@@ -191,9 +179,7 @@ bool UNeuralPostProcessModelInstance::ModifyInputShape(int Dim, int Size)
 
 	if (NewResolvedInputShape[Dim] != Size)
 	{
-#if WITH_EDITOR
 		UE_LOG(LogNeuralPostProcessing, Error, TEXT("Cannot set dimension %d to %d. It is dynamic. revert back to %d"),Dim, Size, NewResolvedInputShape[Dim]);
-#endif
 		return false;
 	}
 
@@ -206,9 +192,7 @@ bool UNeuralPostProcessModelInstance::ModifyInputShape(int Dim, int Size)
 	TConstArrayView<UE::NNE::FTensorShape> ResolvedOutputTensorShapes = ModelInstanceRDG->GetOutputTensorShapes();
 	if (ResolvedOutputTensorShapes.Num() < 1)
 	{
-#if WITH_EDITOR
 		UE_LOG(LogNeuralPostProcessing, Error, TEXT("Cannot set dimension %d to %d due to NNE eror. Revert back to %d"), Dim, Size, CurrentResolvedInputTensorShape.GetData()[Dim]);
-#endif
 		ModelInstanceRDG->SetInputTensorShapes({ CurrentResolvedInputTensorShape });
 		return false;
 	}
@@ -298,8 +282,6 @@ void UNeuralPostProcessModelInstance::CreateDefaultNNEModel(UNNEModelData* NNEMo
 	}
 	else
 	{
-#if WITH_EDITOR
 		UE_LOG(LogNeuralPostProcessing, Error, TEXT("Failed to create NNE RDG Model."));
-#endif
 	}
 }
