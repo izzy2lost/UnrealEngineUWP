@@ -181,6 +181,11 @@ static FAutoConsoleVariableRef CEnforcePackageCompatibleVersionCheck(
 	ECVF_Default
 );
 
+bool IsEnforcePackageCompatibleVersionCheck()
+{
+	return GEnforcePackageCompatibleVersionCheck != 0;
+}
+
 /** 
  * Required to load packages saved from the editor domain between UE 5.0 and 5.2, the cvar is only provided in case the fix causes
  * unintended problems so that it can be disabled quickly.
@@ -1373,7 +1378,7 @@ FLinkerLoad::ELinkerStatus FLinkerLoad::SerializePackageFileSummaryInternal()
 	}
 
 	// Don't load packages that are only compatible with an engine version newer than the current one.
-	if (bLoaderNeedsEngineVersionChecks && GEnforcePackageCompatibleVersionCheck && !FEngineVersion::Current().IsCompatibleWith(Summary.CompatibleWithEngineVersion))
+	if (bLoaderNeedsEngineVersionChecks && IsEnforcePackageCompatibleVersionCheck() && !FEngineVersion::Current().IsCompatibleWith(Summary.CompatibleWithEngineVersion))
 	{
 		FMessageLog("LoadErrors").Warning(FText::Format(NSLOCTEXT("Core", "LinkerLoad_EngineVersionIncompatible", "Package '{0}' has been saved with a newer engine version and can't be loaded. Current EngineVersion: {1} (Licensee={2}). Package EngineVersion: {3} (Licensee={4})"),
 			FText::FromString(GetDebugName()), 

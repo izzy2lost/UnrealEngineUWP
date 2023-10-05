@@ -1488,3 +1488,4 @@ enum class ENotifyRegistrationPhase
 
 COREUOBJECT_API void NotifyRegistrationEvent(const TCHAR* PackageName, const TCHAR* Name, ENotifyRegistrationType NotifyRegistrationType, ENotifyRegistrationPhase NotifyRegistrationPhase, UObject *(*InRegister)() = nullptr, bool InbDynamic = false, UObject* FinishedObject = nullptr);
 COREUOBJECT_API void NotifyRegistrationComplete();
+COREUOBJECT_API bool IsEnforcePackageCompatibleVersionCheck();
