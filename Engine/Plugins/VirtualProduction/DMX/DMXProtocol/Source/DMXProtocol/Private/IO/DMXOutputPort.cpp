@@ -14,7 +14,7 @@
 #include "HAL/Event.h"
 #include "HAL/IConsoleManager.h"
 #include "HAL/RunnableThread.h"
-#include <limits.h>
+#include <limits>
 #include "Misc/FrameRate.h"
 
 
