@@ -159,6 +159,10 @@ bool FMeshRegionGraph::MergeSmallRegionsPass(int32 SmallThreshold,
 		int32 SmallRegionIdx = SmallRegions[j];
 		if (IsRegion(SmallRegionIdx) == false) continue;
 		const FRegion& SmallRegion = Regions[SmallRegionIdx];
+		if (SmallRegion.Triangles.Num() > SmallThreshold)
+		{
+			continue;
+		}
 
 		TArray<FMatch> Matches;
 		for (const FNeighbour& Nbr : SmallRegion.Neighbours)
