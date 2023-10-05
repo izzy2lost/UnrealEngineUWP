@@ -58,7 +58,7 @@ void FGeometryCollectionRemoveOnBreakDynamicFacade::SetAttributeValues(const Geo
 
 		// make sure we generate random value consistently between client and server 
 		// we can use the length of the transform group for that
-		const int32 RandomSeed = DynamicCollection.GetTransforms().Num();
+		const int32 RandomSeed = DynamicCollection.GetNumTransforms();
 		FRandomStream Random(RandomSeed);
 
 		TManagedArray<float>& PostBreakDuration = PostBreakDurationAttribute.Modify();

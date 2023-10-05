@@ -90,7 +90,7 @@ namespace GeometryCollectionTest
 		EXPECT_EQ(DynamicState[0], (int32)EObjectStateTypeEnum::Chaos_Object_Kinematic);
 
 		// simulated
-		EXPECT_EQ(Collection->DynamicCollection->GetTransforms().Num(), 1);
+		EXPECT_EQ(Collection->DynamicCollection->GetNumTransforms(), 1);
 		const FVector Translation1 = FVector(Collection->DynamicCollection->GetTransform(0).GetTranslation());
 		EXPECT_NEAR((Translation0 - Translation1).Size(), 0.f, KINDA_SMALL_NUMBER);
 		EXPECT_NEAR(Collection->DynamicCollection->GetTransform(0).GetTranslation().Z, 1.f, KINDA_SMALL_NUMBER);
@@ -134,7 +134,7 @@ namespace GeometryCollectionTest
 		}
 
 		// simulated
-		EXPECT_EQ(Collection->DynamicCollection->GetTransforms().Num(), 1);
+		EXPECT_EQ(Collection->DynamicCollection->GetNumTransforms(), 1);
 		const FVector Translation1 = FVector(Collection->DynamicCollection->GetTransform(0).GetTranslation());
 		EXPECT_NEAR((Translation0 - Translation1).Size(), 0.f, KINDA_SMALL_NUMBER);
 		EXPECT_NEAR(Collection->DynamicCollection->GetTransform(0).GetTranslation().Z, 1.f, KINDA_SMALL_NUMBER);

@@ -40,7 +40,7 @@ namespace GeometryCollectionTest
 
 		{ // test results
 			EXPECT_LT(FMath::Abs(Collection->RestCollection->Transform[0].GetTranslation().Z), SMALL_THRESHOLD); // rest never touched
-			EXPECT_EQ(Collection->DynamicCollection->GetTransforms().Num(), 1); // simulated is falling
+			EXPECT_EQ(Collection->DynamicCollection->GetNumTransforms(), 1); // simulated is falling
 			EXPECT_LT(Collection->DynamicCollection->GetTransform(0).GetTranslation().Z, 0.f);
 			EXPECT_NEAR(Collection->DynamicCollection->GetTransform(0).GetTranslation().Z, -980.f * UnitTest.Dt * UnitTest.Dt, 1e-2);// we seem to be twice gravity
 		}
@@ -70,7 +70,7 @@ namespace GeometryCollectionTest
 
 		{
 			EXPECT_LT(FMath::Abs(Collection->RestCollection->Transform[0].GetTranslation().Z), SMALL_THRESHOLD);
-			EXPECT_EQ(Collection->DynamicCollection->GetTransforms().Num(), 1);
+			EXPECT_EQ(Collection->DynamicCollection->GetNumTransforms(), 1);
 			EXPECT_LT(FMath::Abs(Collection->DynamicCollection->GetTransform(0).GetTranslation().Z - 0.1f * Scale), MEDIUM_THRESHOLD * Scale);
 		}
 	}
@@ -98,7 +98,7 @@ namespace GeometryCollectionTest
 
 		{ // test results
 			EXPECT_LT(FMath::Abs(Collection->RestCollection->Transform[0].GetTranslation().Z), SMALL_THRESHOLD);
-			EXPECT_EQ(Collection->DynamicCollection->GetTransforms().Num(), 1);
+			EXPECT_EQ(Collection->DynamicCollection->GetNumTransforms(), 1);
 			EXPECT_LT(FMath::Abs(Collection->DynamicCollection->GetTransform(0).GetTranslation().Z) - Scale[0], SMALL_THRESHOLD);
 		}
 	}
@@ -126,7 +126,7 @@ namespace GeometryCollectionTest
 
 		{
 			EXPECT_LT(FMath::Abs(Collection->RestCollection->Transform[0].GetTranslation().Z), SMALL_THRESHOLD);
-			EXPECT_EQ(Collection->DynamicCollection->GetTransforms().Num(), 1);
+			EXPECT_EQ(Collection->DynamicCollection->GetNumTransforms(), 1);
 			EXPECT_LT(FMath::Abs(Collection->DynamicCollection->GetTransform(0).GetTranslation().Z - 0.1f * Scale[0]), MEDIUM_THRESHOLD * Scale[0]);
 		}
 	}
@@ -145,7 +145,7 @@ namespace GeometryCollectionTest
 			UnitTest.Advance();
 
 		{
-			EXPECT_EQ(Collection->DynamicCollection->GetTransforms().Num(), 1);
+			EXPECT_EQ(Collection->DynamicCollection->GetNumTransforms(), 1);
 			//UE_LOG(LogTest, Verbose, TEXT("Position : (%3.5f,%3.5f,%3.5f)"), Transform[0].GetTranslation().X, Transform[0].GetTranslation().Y, Transform[0].GetTranslation().Z);
 			EXPECT_EQ(Collection->DynamicCollection->GetTransform(0).GetTranslation().Z, 0.f);
 			EXPECT_EQ(Collection->DynamicCollection->DynamicState[0], (int32)EObjectStateTypeEnum::Chaos_Object_Kinematic);
@@ -204,12 +204,12 @@ namespace GeometryCollectionTest
 		UnitTest.AddSimulationObject(MovingCollection);
 		UnitTest.Initialize();
 
-		const auto& Transform0 = MovingCollection->DynamicCollection->GetTransform(0);
-		const auto& Transform1 = SleepingCollection->DynamicCollection->GetTransform(0);
 		for (int i = 0; i < 15; i++)
 		{
 			UnitTest.Advance();
 
+			//const auto& Transform0 = MovingCollection->DynamicCollection->GetTransform(0);
+			//const auto& Transform1 = SleepingCollection->DynamicCollection->GetTransform(0);
 			//UE_LOG(LogTest, Verbose, TEXT("Position[0] : (%3.5f,%3.5f,%3.5f)"), Transform0.GetTranslation().X, Transform0.GetTranslation().Y, Transform0.GetTranslation().Z);
 			//UE_LOG(LogTest, Verbose, TEXT("Position[1] : (%3.5f,%3.5f,%3.5f)"), Transform1.GetTranslation().X, Transform1.GetTranslation().Y, Transform1.GetTranslation().Z);
 		}
@@ -217,7 +217,7 @@ namespace GeometryCollectionTest
 		{
 			// Is now dynamic and has moved from initial position
 			EXPECT_EQ(SleepingCollection->DynamicCollection->DynamicState[0], (int32)EObjectStateTypeEnum::Chaos_Object_Dynamic);
-			EXPECT_LT(Transform0.GetTranslation().Z, InitialStartHeight - 2.0f);
+			EXPECT_LT(MovingCollection->DynamicCollection->GetTransform(0).GetTranslation().Z, InitialStartHeight - 2.0f);
 		}
 
 	}
@@ -236,21 +236,20 @@ namespace GeometryCollectionTest
 		UnitTest.AddSimulationObject(MovingCollection);
 		UnitTest.Initialize();
 
-		const auto& Transform0 = MovingCollection->DynamicCollection->GetTransform(0);
 		for (int i = 0; i < 5; i++)
 		{
 			UnitTest.Advance();
 			EXPECT_EQ(MovingCollection->DynamicCollection->DynamicState[0], (int32)EObjectStateTypeEnum::Chaos_Object_Dynamic);
-			EXPECT_LT(Transform0.GetTranslation().Z, 15.0f);
+			EXPECT_LT(MovingCollection->DynamicCollection->GetTransform(0).GetTranslation().Z, 15.0f);
 		}
 		// Disabled particle
 		MovingCollection->PhysObject->DisableParticles_External({ 0 });
-		FReal CurrentPosition = Transform0.GetTranslation().Z;
+		FReal CurrentPosition = MovingCollection->DynamicCollection->GetTransform(0).GetTranslation().Z;
 		for (int i = 0; i < 5; i++)
 		{
 			UnitTest.Advance();
 			EXPECT_EQ(MovingCollection->DynamicCollection->DynamicState[0], (int32)EObjectStateTypeEnum::Chaos_Object_Dynamic);
-			EXPECT_EQ(Transform0.GetTranslation().Z, CurrentPosition);
+			EXPECT_EQ(MovingCollection->DynamicCollection->GetTransform(0).GetTranslation().Z, CurrentPosition);
 		}
 	}
 

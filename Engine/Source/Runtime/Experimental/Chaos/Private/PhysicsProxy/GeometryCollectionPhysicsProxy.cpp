@@ -492,7 +492,7 @@ void FGeometryCollectionPhysicsProxy::Initialize(Chaos::FPBDRigidsEvolutionBase 
 {
 	check(IsInGameThread());
 	//
-	// Game thread initilization. 
+	// Game thread initialization. 
 	//
 	//  1) Create a input buffer to store all game thread side data. 
 	//  2) Populate the buffer with the necessary data.
@@ -549,7 +549,7 @@ void FGeometryCollectionPhysicsProxy::Initialize(Chaos::FPBDRigidsEvolutionBase 
 	}
 
 	// Initialise GT/External particles
-	const int32 NumTransforms = DynamicCollection.GetTransforms().Num();
+	const int32 NumTransforms = DynamicCollection.GetNumTransforms();
 
 	// make sure we copy the anchored information over to the physics thread collection
 	const Chaos::Facades::FCollectionAnchoringFacade DynamicCollectionAnchoringFacade(DynamicCollection);
@@ -3363,7 +3363,7 @@ void FGeometryCollectionPhysicsProxy::BufferPhysicsResults_Internal(Chaos::FPBDR
 
 	UniqueIdxToInternalClusterHandle.Reset();
 	
-	const int32 NumTransforms = PhysicsThreadCollection.GetTransforms().Num();
+	const int32 NumTransforms = PhysicsThreadCollection.GetNumTransforms();
 	if(NumTransforms > 0)
 	{ 
 		SCOPE_CYCLE_COUNTER(STAT_CalcParticleToWorld);
@@ -3831,7 +3831,7 @@ bool FGeometryCollectionPhysicsProxy::PullFromPhysicsState(const Chaos::FDirtyGe
 		InterpolationData.AccumlateErrorXR(Error->ErrorX, Error->ErrorR, SolverSyncTimestamp, RenderInterpErrorCorrectionDurationTicks);
 	}
 
-	const int32 NumTransforms = GameThreadCollection.GetTransforms().Num();
+	const int32 NumTransforms = GameThreadCollection.GetNumTransforms();
 	const bool bNeedInterpolation = (NextPullData != nullptr);
 
 	bool bIsCollectionDirty = false;
@@ -4003,7 +4003,7 @@ void FGeometryCollectionPhysicsProxy::UpdateFilterData_External(const FCollision
 	check(IsInGameThread());
 
 	// SimFilter/QueryFilter members are read on both threads, these are const after initialization and are not updated here.
-	const int32 NumTransforms = GameThreadCollection.GetTransforms().Num();
+	const int32 NumTransforms = GameThreadCollection.GetNumTransforms();
 	for (int32 Index = 0; Index < NumTransforms; ++Index)
 	{
 		FParticle* P = GTParticles[Index].Get();
@@ -5056,7 +5056,7 @@ void FGeometryCollectionPhysicsProxy::FieldParameterUpdateCallback(Chaos::FPBDRi
 
 	// Process Particle-Collection commands
 	int32 NumCommands = Commands.Num();
-	if (NumCommands && !RigidSolver->IsShuttingDown() && Collection.GetTransforms().Num())
+	if (NumCommands && !RigidSolver->IsShuttingDown() && Collection.GetNumTransforms())
 	{
 		TArray<int32> CommandsToRemove;
 		CommandsToRemove.Reserve(NumCommands);

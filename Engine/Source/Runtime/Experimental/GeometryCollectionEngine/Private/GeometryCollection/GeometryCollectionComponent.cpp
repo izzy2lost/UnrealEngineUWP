@@ -503,13 +503,6 @@ private:
 COPY_ON_WRITE_ATTRIBUTES
 
 
-void UGeometryCollectionComponent::GetTransformArrayCopyOnWrite()
-{
-	DynamicCollection->AddAttribute<FTransform3f>(FTransformCollection::TransformAttribute, FTransformCollection::TransformGroup);
-	DynamicCollection->CopyAttribute(*RestCollection->GetGeometryCollection(), FTransformCollection::TransformAttribute, FTransformCollection::TransformGroup);
-	DynamicCollection->ModifyAttribute<FTransform3f>(FTransformCollection::TransformAttribute, FTransformCollection::TransformGroup);
-}
-
 const TManagedArray<FTransform>& UGeometryCollectionComponent::GetTransformArrayRest() const
 {
 	return RestCollection->GetGeometryCollection()->Transform;
@@ -2919,7 +2912,7 @@ void UGeometryCollectionComponent::SetInitialTransforms(const TArray<FTransform>
 {
 	if (DynamicCollection)
 	{
-		int32 MaxIdx = FMath::Min(DynamicCollection->GetTransforms().Num(), InitialTransforms.Num());
+		int32 MaxIdx = FMath::Min(DynamicCollection->GetNumTransforms(), InitialTransforms.Num());
 		for (int32 Idx = 0; Idx < MaxIdx; ++Idx)
 		{
 			DynamicCollection->SetTransform(Idx, FTransform3f(InitialTransforms[Idx]));
@@ -2931,7 +2924,7 @@ void UGeometryCollectionComponent::SetInitialClusterBreaks(const TArray<int32>& 
 {
 	if (DynamicCollection)
 	{
-		const int32 NumTransforms = DynamicCollection->GetTransforms().Num();
+		const int32 NumTransforms = DynamicCollection->GetNumTransforms();
 
 		for (int32 ReleaseIndex : ReleaseIndices)
 		{
@@ -3487,7 +3480,6 @@ void UGeometryCollectionComponent::ResetDynamicCollection()
 			*DynamicArray = nullptr;
 		}
 
-		GetTransformArrayCopyOnWrite();
 		GetParentArrayCopyOnWrite();
 
 		if (bStoreVelocities || bNotifyTrailing)
@@ -3571,7 +3563,7 @@ void UGeometryCollectionComponent::OnCreatePhysicsState()
 		}
 #endif
 		const bool bValidWorld = GetWorld() && (GetWorld()->IsGameWorld() || GetWorld()->IsPreviewWorld() || GeometryCollectionCreatePhysicsStateInEditor);
-		const bool bValidCollection = DynamicCollection && DynamicCollection->GetTransforms().Num() > 0;
+		const bool bValidCollection = DynamicCollection && DynamicCollection->GetNumTransforms() > 0;
 		if (bValidWorld && bValidCollection)
 		{
 			FChaosUserData::Set<UPrimitiveComponent>(&PhysicsUserData, this);
@@ -5429,7 +5421,7 @@ const TArray<FTransform>& UGeometryCollectionComponent::FComponentSpaceTransform
 	int32 CurrentTransformNum;
 	if (Component->DynamicCollection)
 	{
-		CurrentTransformNum = Component->DynamicCollection->GetTransforms().Num();
+		CurrentTransformNum = Component->DynamicCollection->GetNumTransforms();
 	}
 	else
 	{

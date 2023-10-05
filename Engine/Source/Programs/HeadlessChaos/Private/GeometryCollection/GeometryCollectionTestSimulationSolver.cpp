@@ -62,7 +62,7 @@ using namespace ChaosTest;
 			EXPECT_LT(FMath::Abs(RestTransform[0].GetTranslation().Z), SMALL_THRESHOLD);
 
 			// simulated
-			EXPECT_EQ(Collection->DynamicCollection->GetTransforms().Num(), 1);
+			EXPECT_EQ(Collection->DynamicCollection->GetNumTransforms(), 1);
 			EXPECT_LT(FMath::Abs(Collection->DynamicCollection->GetTransform(0).GetTranslation().Z), SMALL_THRESHOLD);
 		}
 	}

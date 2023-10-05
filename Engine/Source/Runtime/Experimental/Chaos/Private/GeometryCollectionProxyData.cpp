@@ -15,6 +15,7 @@ GeometryCollectionProxyData.cpp:
 FTransformDynamicCollection::FTransformDynamicCollection(const FGeometryCollection* InRestCollection)
 	: FManagedArrayCollection()
 	, RestCollection(InRestCollection)
+	, bTransformHasChanged(false)
 {
 	check(RestCollection != nullptr);
 	Construct();
@@ -25,23 +26,39 @@ void FTransformDynamicCollection::Construct()
 	FManagedArrayCollection::FConstructionParameters TransformDependency(FTransformCollection::TransformGroup);
 
 	// Transform Group
-	AddExternalAttribute<FTransform3f>(FTransformCollection::TransformAttribute, FTransformCollection::TransformGroup, Transform);
 	AddExternalAttribute<bool>(FTransformCollection::ParentAttribute, FTransformCollection::TransformGroup, HasParent);
 }
 
-const FTransform3f& FTransformDynamicCollection::GetTransform(int32 Index) const
+void FTransformDynamicCollection::InitializeTransforms()
 {
+	if (bTransformHasChanged == false)
+	{
+		AddExternalAttribute<FTransform3f>(FTransformCollection::TransformAttribute, FTransformCollection::TransformGroup, Transform);
+		CopyAttribute(*RestCollection, FTransformCollection::TransformAttribute, FTransformCollection::TransformGroup);
+
+		bTransformHasChanged = true;
+	}
+}
+
+FTransform3f FTransformDynamicCollection::GetTransform(int32 Index) const
+{
+	if (bTransformHasChanged == false)
+	{
+		return FTransform3f(RestCollection->Transform[Index]);
+	}
 	return Transform[Index];
 }
 
 void FTransformDynamicCollection::SetTransform(int32 Index, const FTransform3f& InTransform)
 {
+	InitializeTransforms();
 	Transform[Index] = InTransform;
 }
 
-const TArray<FTransform3f>& FTransformDynamicCollection::GetTransforms() const
+int32 FTransformDynamicCollection::GetNumTransforms() const
 {
-	return Transform.GetConstArray();
+	ensure(!bTransformHasChanged || RestCollection->Transform.Num() == Transform.Num());
+	return RestCollection->Transform.Num();
 }
 
 const TManagedArray<bool>& FTransformDynamicCollection::GetHasParent() const
@@ -56,6 +73,7 @@ bool FTransformDynamicCollection::GetHasParent(int32 Index) const
 
 void FTransformDynamicCollection::SetHasParent(int32 Index, bool Value)
 {
+	InitializeTransforms();
 	HasParent[Index] = Value;
 }
 

@@ -355,7 +355,7 @@ namespace GeometryCollectionAlgo
 		}
 
 		FIndicesNeedMatricesArray ToProcess;
-		if (!GlobalMatricesGetIndicesToProcessHelper(Index, DynamicCollection, DynamicCollection.GetTransforms().Num(), IsTransformComputed, ToProcess))
+		if (!GlobalMatricesGetIndicesToProcessHelper(Index, DynamicCollection, DynamicCollection.GetNumTransforms(), IsTransformComputed, ToProcess))
 		{
 			return;
 		}
@@ -464,7 +464,7 @@ namespace GeometryCollectionAlgo
 		}
 
 		FIndicesNeedMatricesArray ToProcess;
-		if (!GlobalMatricesGetIndicesToProcessHelper(Index, DynamicCollection, DynamicCollection.GetTransforms().Num(), IsTransformComputed, ToProcess))
+		if (!GlobalMatricesGetIndicesToProcessHelper(Index, DynamicCollection, DynamicCollection.GetNumTransforms(), IsTransformComputed, ToProcess))
 		{
 			return TransformCache[Index];
 		}
@@ -538,13 +538,11 @@ namespace GeometryCollectionAlgo
 		{
 			FTransform Transform = FTransform::Identity;
 
-			if (DynamicCollection.GetTransforms().IsValidIndex(Index))
+			check(Index < DynamicCollection.GetNumTransforms())
+			while (Index != FGeometryCollection::Invalid)
 			{
-				while (Index != FGeometryCollection::Invalid)
-				{
-					Transform = Transform * FTransform(DynamicCollection.GetTransform(Index));
-					Index = DynamicCollection.GetParent(Index);
-				}
+				Transform = Transform * FTransform(DynamicCollection.GetTransform(Index));
+				Index = DynamicCollection.GetParent(Index);
 			}
 			return Transform;
 		}
@@ -570,7 +568,7 @@ namespace GeometryCollectionAlgo
 		void GlobalMatrices(const FGeometryDynamicCollection& DynamicCollection, const TArray<int32>& Indices, TArray<FTransform>& OutGlobalTransforms)
 		{
 			TArray<bool> IsTransformComputed;
-			const int32 NumTransform = DynamicCollection.GetTransforms().Num();
+			const int32 NumTransform = DynamicCollection.GetNumTransforms();
 			IsTransformComputed.AddDefaulted(NumTransform);
 
 			TArray<FTransform> TransformCache;
@@ -638,7 +636,7 @@ namespace GeometryCollectionAlgo
 	{
 		void GlobalMatrices(const FGeometryDynamicCollection& DynamicCollection, TArray<FTransform>& OutGlobalTransforms)
 		{
-			int32 NumTransforms = DynamicCollection.GetTransforms().Num();
+			int32 NumTransforms = DynamicCollection.GetNumTransforms();
 
 			TArray<bool> IsTransformComputed;
 			IsTransformComputed.AddDefaulted(NumTransforms);

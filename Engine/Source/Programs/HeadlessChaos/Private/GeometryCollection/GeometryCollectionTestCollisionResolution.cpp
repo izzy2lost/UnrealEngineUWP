@@ -49,7 +49,7 @@ namespace GeometryCollectionTest
 		}
 		{
 			// validate that Simplicials are null when CollisionType==Chaos_Volumetric
-			EXPECT_EQ(Collection->DynamicCollection->GetTransforms().Num(), 4);
+			EXPECT_EQ(Collection->DynamicCollection->GetNumTransforms(), 4);
 			EXPECT_EQ(Collection->DynamicCollection->Simplicials[0], nullptr);
 			EXPECT_EQ(Collection->DynamicCollection->Simplicials[1], nullptr);
 			EXPECT_EQ(Collection->DynamicCollection->Simplicials[2], nullptr);
@@ -96,7 +96,7 @@ namespace GeometryCollectionTest
 		}
 		{
 			// validate that Simplicials are null when CollisionType==Chaos_Volumetric
-			EXPECT_EQ(Collection->DynamicCollection->GetTransforms().Num(), 4);
+			EXPECT_EQ(Collection->DynamicCollection->GetNumTransforms(), 4);
 			EXPECT_TRUE(Collection->DynamicCollection->Simplicials[0]!=nullptr);
 			EXPECT_TRUE(UnitTest.Solver->GetParticles().GetGeometryCollectionParticles().CollisionParticles(0)!=nullptr);
 			EXPECT_TRUE(Collection->DynamicCollection->Simplicials[0]->Size() == UnitTest.Solver->GetParticles().GetGeometryCollectionParticles().CollisionParticles(0)->Size());
@@ -328,7 +328,7 @@ namespace GeometryCollectionTest
 		}
 		{
 			// validate simplicials and implicits are configured correctly
-			EXPECT_EQ(Collection->DynamicCollection->GetTransforms().Num(), 4);
+			EXPECT_EQ(Collection->DynamicCollection->GetNumTransforms(), 4);
 			EXPECT_TRUE(Collection->DynamicCollection->Simplicials[0] != nullptr);
 			EXPECT_TRUE(UnitTest.Solver->GetParticles().GetGeometryCollectionParticles().CollisionParticles(0) != nullptr);
 			EXPECT_TRUE(Collection->DynamicCollection->Simplicials[0]->Size() == UnitTest.Solver->GetParticles().GetGeometryCollectionParticles().CollisionParticles(0)->Size());
@@ -336,7 +336,7 @@ namespace GeometryCollectionTest
 			// The following test has been disabled because from now we remove the Implicits after initialization to free up some memory
 			// EXPECT_TRUE(Collection->DynamicCollection->GetAttribute<Chaos::FImplicitObjectPtr>(FGeometryDynamicCollection::ImplicitsAttribute, FTransformCollection::TransformGroup)[0]->GetType() == (int32)Chaos::ImplicitObjectType::LevelSet);
 
-			EXPECT_EQ(CollectionStaticSphere->DynamicCollection->GetTransforms().Num(), 4);
+			EXPECT_EQ(CollectionStaticSphere->DynamicCollection->GetNumTransforms(), 4);
 			EXPECT_TRUE(CollectionStaticSphere->DynamicCollection->Simplicials[0] == nullptr);
 			// The following test has been disabled because from now we remove the Implicits after initialization to free up some memory
 			// EXPECT_TRUE(CollectionStaticSphere->DynamicCollection->GetAttribute<Chaos::FImplicitObjectPtr>(FGeometryDynamicCollection::ImplicitsAttribute, FTransformCollection::TransformGroup)[0]->GetType() == (int32)Chaos::ImplicitObjectType::Sphere);
