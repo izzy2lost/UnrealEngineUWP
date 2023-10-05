@@ -894,13 +894,9 @@ public:
 	// Declare all the methods
 	COPY_ON_WRITE_ATTRIBUTES
 
-	GEOMETRYCOLLECTIONENGINE_API const TManagedArray<FTransform3f>& GetTransformArray() const;
-	GEOMETRYCOLLECTIONENGINE_API TManagedArray<FTransform3f>& GetTransformArrayCopyOnWrite();
-	GEOMETRYCOLLECTIONENGINE_API void ResetTransformArrayDynamic();
+	GEOMETRYCOLLECTIONENGINE_API void GetTransformArrayCopyOnWrite();
 	GEOMETRYCOLLECTIONENGINE_API const TManagedArray<FTransform>& GetTransformArrayRest() const;
-	private:
-		TManagedArray<FTransform3f>* IndirectTransformArray;
-	public:
+
 	GEOMETRYCOLLECTIONENGINE_API TManagedArray<int32>& GetParentArrayCopyOnWrite();
 	GEOMETRYCOLLECTIONENGINE_API int32 GetParent(int32 Index) const;
 	GEOMETRYCOLLECTIONENGINE_API const TManagedArray<int32>& GetParentArrayRest() const;

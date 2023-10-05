@@ -502,28 +502,14 @@ private:
 // Define the methods
 COPY_ON_WRITE_ATTRIBUTES
 
-const TManagedArray<FTransform3f>& UGeometryCollectionComponent::GetTransformArray() const
+
+void UGeometryCollectionComponent::GetTransformArrayCopyOnWrite()
 {
-	check(IndirectTransformArray != nullptr);
-	return *IndirectTransformArray;
+	DynamicCollection->AddAttribute<FTransform3f>(FTransformCollection::TransformAttribute, FTransformCollection::TransformGroup);
+	DynamicCollection->CopyAttribute(*RestCollection->GetGeometryCollection(), FTransformCollection::TransformAttribute, FTransformCollection::TransformGroup);
+	DynamicCollection->ModifyAttribute<FTransform3f>(FTransformCollection::TransformAttribute, FTransformCollection::TransformGroup);
 }
 
-TManagedArray<FTransform3f>& UGeometryCollectionComponent::GetTransformArrayCopyOnWrite()
-{
-	if (!IndirectTransformArray)
-	{
-		DynamicCollection->AddAttribute<FTransform>(FTransformCollection::TransformAttribute, FTransformCollection::TransformGroup);
-		DynamicCollection->CopyAttribute(*RestCollection->GetGeometryCollection(), FTransformCollection::TransformAttribute, FTransformCollection::TransformGroup);
-		IndirectTransformArray = &DynamicCollection->ModifyAttribute<FTransform3f>(FTransformCollection::TransformAttribute, FTransformCollection::TransformGroup);
-		CopyOnWriteAttributeList.Add(reinterpret_cast<FManagedArrayBase**>(&IndirectTransformArray));
-	}
-	return *IndirectTransformArray;
-}
-
-void UGeometryCollectionComponent::ResetTransformArrayDynamic()
-{
-	IndirectTransformArray = nullptr;
-}
 const TManagedArray<FTransform>& UGeometryCollectionComponent::GetTransformArrayRest() const
 {
 	return RestCollection->GetGeometryCollection()->Transform;
@@ -1340,7 +1326,7 @@ bool UGeometryCollectionComponent::DoCustomNavigableGeometryExport(FNavigableGeo
 			{
 				const int32 RootIndex = GetRootIndex();
 				const FTransform& CompToWorld = GetComponentToWorld(); 
-				const FTransform FinalTransform = (DynamicCollection ? FTransform(DynamicCollection->Transform[RootIndex]) : FTransform::Identity) * CompToWorld;
+				const FTransform FinalTransform = (DynamicCollection ? FTransform(DynamicCollection->GetTransform(RootIndex)) : FTransform::Identity) * CompToWorld;
 				const FVector Scale3D = FinalTransform.GetScale3D();
 				if (!Scale3D.IsZero())
 				{
@@ -1404,7 +1390,7 @@ bool UGeometryCollectionComponent::DoCustomNavigableGeometryExport(FNavigableGeo
 	TArray<FTransform> GeomToComponent;
 	if (DynamicCollection)
 	{
-		GeometryCollectionAlgo::GlobalMatrices(GetTransformArray(), *DynamicCollection, TransformIndexBuffer, GeomToComponent);
+		GeometryCollectionAlgo::Private::GlobalMatrices(*DynamicCollection, TransformIndexBuffer, GeomToComponent);
 	}
 	else
 	{
@@ -2933,11 +2919,10 @@ void UGeometryCollectionComponent::SetInitialTransforms(const TArray<FTransform>
 {
 	if (DynamicCollection)
 	{
-		TManagedArray<FTransform3f>& Transform = DynamicCollection->Transform;
-		int32 MaxIdx = FMath::Min(Transform.Num(), InitialTransforms.Num());
+		int32 MaxIdx = FMath::Min(DynamicCollection->GetTransforms().Num(), InitialTransforms.Num());
 		for (int32 Idx = 0; Idx < MaxIdx; ++Idx)
 		{
-			Transform[Idx] = FTransform3f(InitialTransforms[Idx]);
+			DynamicCollection->SetTransform(Idx, FTransform3f(InitialTransforms[Idx]));
 		}
 	}
 }
@@ -3586,7 +3571,7 @@ void UGeometryCollectionComponent::OnCreatePhysicsState()
 		}
 #endif
 		const bool bValidWorld = GetWorld() && (GetWorld()->IsGameWorld() || GetWorld()->IsPreviewWorld() || GeometryCollectionCreatePhysicsStateInEditor);
-		const bool bValidCollection = DynamicCollection && DynamicCollection->Transform.Num() > 0;
+		const bool bValidCollection = DynamicCollection && DynamicCollection->GetTransforms().Num() > 0;
 		if (bValidWorld && bValidCollection)
 		{
 			FChaosUserData::Set<UPrimitiveComponent>(&PhysicsUserData, this);
@@ -3908,7 +3893,7 @@ void UGeometryCollectionComponent::MoveComponentToRootTransform()
 			if (bIsRootActive || bHasDynamicOPrClusterUnionParent)
 			{
 				const FTransform& OriginalComponentSpaceRootTransformOffset = AssetCollection->Transform[RootIndex];
-				DynamicCollection->Transform[RootIndex] = FTransform3f(OriginalComponentSpaceRootTransformOffset);
+				DynamicCollection->SetTransform(RootIndex, FTransform3f(OriginalComponentSpaceRootTransformOffset));
 				const Chaos::FPBDRigidParticle* RootParticle = PhysicsProxy->GetExternalParticles()[RootIndex].Get();
 				const FTransform ParticleWorldPosition(RootParticle->R(), RootParticle->X());
 				const FTransform MassToLocal = MassToLocalAttribute[RootIndex];
@@ -4015,7 +4000,9 @@ void UGeometryCollectionComponent::UpdateRemovalIfNeeded()
 					const float Scale = 1.0 - Decay;
 					if (Scale < UE_SMALL_NUMBER)
 					{
-						DynamicCollection->Transform[TransformIndex].SetScale3D(FVector3f::ZeroVector);
+						FTransform3f Transform = DynamicCollection->GetTransform(TransformIndex);
+						Transform.SetScale3D(FVector3f::ZeroVector);
+						DynamicCollection->SetTransform(TransformIndex, Transform);
 					}
 					// do not try to get this condition out of the loop as this may cause some optimizer related issues
 					else if (RestCollection->bScaleOnRemoval && MassToLocal && CompSpaceTransform)
@@ -4033,7 +4020,7 @@ void UGeometryCollectionComponent::UpdateRemovalIfNeeded()
 						const FVector CenterOfMass = (*MassToLocal)[TransformIndex].GetTranslation();
 						const FVector ScaleCenter = LocalDown + CenterOfMass;
 						const FTransform ScaleTransform(FQuat::Identity, ScaleCenter * FVector::FReal(1.f - Scale), FVector(Scale));
-						DynamicCollection->Transform[TransformIndex] = FTransform3f(ScaleTransform) * DynamicCollection->Transform[TransformIndex];
+						DynamicCollection->SetTransform(TransformIndex, FTransform3f(ScaleTransform) * DynamicCollection->GetTransform(TransformIndex));
 					}
 				}
 			}
@@ -5408,7 +5395,7 @@ const FTransform& UGeometryCollectionComponent::FComponentSpaceTransforms::Reque
 		{
 			if (Component->DynamicCollection)
 			{
-				Transforms[RootIndex] = FTransform(Component->GetTransformArray()[RootIndex]);
+				Transforms[RootIndex] = FTransform(Component->DynamicCollection->GetTransform(RootIndex));
 			}
 			else
 			{
@@ -5442,7 +5429,7 @@ const TArray<FTransform>& UGeometryCollectionComponent::FComponentSpaceTransform
 	int32 CurrentTransformNum;
 	if (Component->DynamicCollection)
 	{
-		CurrentTransformNum = Component->GetTransformArray().Num();
+		CurrentTransformNum = Component->DynamicCollection->GetTransforms().Num();
 	}
 	else
 	{
@@ -5469,7 +5456,7 @@ const TArray<FTransform>& UGeometryCollectionComponent::FComponentSpaceTransform
 			FTransform CurrentTransform;
 			if (Component->DynamicCollection)
 			{
-				CurrentTransform = FTransform(Component->GetTransformArray()[TransformIndex]);
+				CurrentTransform = FTransform(Component->DynamicCollection->GetTransform(TransformIndex));
 			}
 			else
 			{
@@ -5491,7 +5478,7 @@ const TArray<FTransform>& UGeometryCollectionComponent::FComponentSpaceTransform
 	{
 		if (Component->DynamicCollection)
 		{
-			GeometryCollectionAlgo::GlobalMatrices(Component->GetTransformArray(), *Component->GetDynamicCollection(), Transforms);
+			GeometryCollectionAlgo::Private::GlobalMatrices(*Component->DynamicCollection, Transforms);
 		}
 		else
 		{
@@ -5923,7 +5910,7 @@ void UGeometryCollectionComponent::IncrementSleepTimer(float DeltaTime)
 						bool ShouldUpdateTimer = (DecayFacade.GetDecay(TransformIdx) > 0);
 						if (!ShouldUpdateTimer && RestCollection->bSlowMovingAsSleeping)
 						{
-							const FVector3f CurrentPosition = DynamicCollection->Transform[TransformIdx].GetTranslation();
+							const FVector3f CurrentPosition = DynamicCollection->GetTransform(TransformIdx).GetTranslation();
 							ShouldUpdateTimer |= RemoveOnSleepFacade.ComputeSlowMovingState(TransformIdx, FVector(CurrentPosition), DeltaTime, RestCollection->SlowMovingVelocityThreshold);
 						}
 						if (ShouldUpdateTimer || DynamicStateFacade.IsSleeping(TransformIdx))

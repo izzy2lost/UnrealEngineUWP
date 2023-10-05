@@ -65,9 +65,6 @@ private:
 
 	/** Construct */
 	CHAOS_API void Construct();
-
-	friend class FGeometryCollectionPhysicsProxy;
-	friend class UGeometryCollectionComponent;
 };
 
 
