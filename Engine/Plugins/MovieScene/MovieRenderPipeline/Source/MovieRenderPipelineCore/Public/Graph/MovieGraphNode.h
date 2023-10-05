@@ -203,6 +203,12 @@ public:
 	virtual void TogglePromotePropertyToPin(const FName& PropertyName);
 
 	/**
+	 * Determines if this node type can be added to the graph interactively by a user or via the API when constructing a graph.
+	 * @return true if the object can be added via the API, false otherwise
+	 */
+	virtual bool CanBeAddedByUser() const { return true; }
+
+	/**
 	 * Gets all overrideable properties that are defined on the node. This includes UPROPERTY-defined properties, as
 	 * well as dynamic properties. "Overrideable" means that the property has a corresponding property prefixed with
 	 * "bOverride_".

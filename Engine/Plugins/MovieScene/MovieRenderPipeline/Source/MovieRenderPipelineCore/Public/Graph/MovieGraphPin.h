@@ -9,6 +9,8 @@
 class UMovieGraphNode;
 class UMovieGraphEdge;
 
+struct FPinConnectionResponse;
+
 USTRUCT(BlueprintType)
 struct FMovieGraphPinProperties
 {
@@ -76,7 +78,10 @@ public:
 	bool AddEdgeTo(UMovieGraphPin* InOtherPin);
 	bool BreakEdgeTo(UMovieGraphPin* InOtherPin);
 	bool BreakAllEdges();
+	FPinConnectionResponse CanCreateConnection_PinConnectionResponse(const UMovieGraphPin* InOtherPin) const;
+	bool CanCreateConnection(const UMovieGraphPin* InOtherPin) const;
 	bool IsConnected() const;
+	bool IsInputPin() const;
 	bool IsOutputPin() const;
 	int32 EdgeCount() const;
 	bool AllowsMultipleConnections() const;
@@ -86,6 +91,13 @@ public:
 
 	/** Gets all connected pins. */
 	TArray<UMovieGraphPin*> GetAllConnectedPins() const;
+
+	/**
+	 * Determines if the connection between this pin and OtherPin follows branch restriction rules. OutError is populated
+	 * with an error if the connection should be rejected and the function will return false.
+	 */
+	bool IsConnectionToBranchAllowed(const UMovieGraphPin* OtherPin, FText& OutError) const;
+	bool IsPinDirectionCompatibleWith(const UMovieGraphPin* OtherPin) const;
 
 public:
 	// The node that this pin belongs to.

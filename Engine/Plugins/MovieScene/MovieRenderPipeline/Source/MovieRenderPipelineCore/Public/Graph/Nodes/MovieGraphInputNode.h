@@ -19,6 +19,8 @@ public:
 	virtual TArray<FMovieGraphPinProperties> GetOutputPinProperties() const override;
 	virtual TArray<UMovieGraphPin*> EvaluatePinsToFollow(FMovieGraphEvaluationContext& InContext) const override;
 	virtual bool CanBeDisabled() const override;
+	
+	virtual bool CanBeAddedByUser() const override { return false; }
 
 #if WITH_EDITOR
 	virtual FText GetNodeTitle(const bool bGetDescriptive = false) const override;

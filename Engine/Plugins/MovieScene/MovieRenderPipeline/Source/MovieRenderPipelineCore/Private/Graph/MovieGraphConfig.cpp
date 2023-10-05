@@ -378,21 +378,40 @@ bool UMovieGraphConfig::AddLabeledEdge(UMovieGraphNode* FromNode, const FName& F
 {
 	if (!FromNode || !ToNode)
 	{
-		UE_LOG(LogMovieRenderPipeline, Error, TEXT("AddLabeledEdge: Invalid Edge Nodes"));
+		FFrame::KismetExecutionMessage(
+			*FString::Printf(
+				TEXT("%hs: Invalid Edge Nodes"), __FUNCTION__),
+				ELogVerbosity::Error);
 		return false;
 	}
+	
 
 	UMovieGraphPin* FromPin = FromNode->GetOutputPin(FromPinLabel);
 	if (!FromPin)
 	{
-		UE_LOG(LogMovieRenderPipeline, Error, TEXT("AddLabeledEdge: FromNode: %s does not have a pin with the label: %s"), *FromNode->GetName(), *FromPinLabel.ToString());
+		FFrame::KismetExecutionMessage(
+			*FString::Printf(
+				TEXT("%hs: FromNode: %s does not have a pin with the label: %s"), __FUNCTION__, *FromNode->GetName(), *FromPinLabel.ToString()),
+				ELogVerbosity::Error);
 		return false;
 	}
 
 	UMovieGraphPin* ToPin = ToNode->GetInputPin(ToPinLabel);
 	if (!ToPin)
 	{
-		UE_LOG(LogMovieRenderPipeline, Error, TEXT("AddLabeledEdge: ToNode: %s does not have a pin with the label: %s"), *ToNode->GetName(), *ToPinLabel.ToString());
+		FFrame::KismetExecutionMessage(
+			*FString::Printf(
+				TEXT("%hs: ToNode: %s does not have a pin with the label: %s"), __FUNCTION__, *ToNode->GetName(), *ToPinLabel.ToString()),
+				ELogVerbosity::Error);
+		return false;
+	}
+
+	if (!FromPin->CanCreateConnection(ToPin))
+	{
+		FFrame::KismetExecutionMessage(
+			*FString::Printf(
+				TEXT("%hs: FromNode %s's pin %s cannot be connected to ToNode %s's pin %s "), __FUNCTION__, *FromNode->GetName(), *FromPinLabel.ToString(), *ToNode->GetName(), *ToPinLabel.ToString()),
+				ELogVerbosity::Error);
 		return false;
 	}
 
@@ -421,21 +440,28 @@ bool UMovieGraphConfig::RemoveEdge(UMovieGraphNode* FromNode, const FName& FromP
 {
 	if (!FromNode || !ToNode)
 	{
-		UE_LOG(LogMovieRenderPipeline, Error, TEXT("RemoveEdge: Invalid Edge Nodes"));
+		FFrame::KismetExecutionMessage(
+			*FString::Printf(TEXT("%hs: Invalid Edge Nodes"), __FUNCTION__), ELogVerbosity::Error);
 		return false;
 	}
 
 	UMovieGraphPin* FromPin = FromNode->GetOutputPin(FromPinLabel);
 	if (!FromPin)
 	{
-		UE_LOG(LogMovieRenderPipeline, Error, TEXT("RemoveEdge: FromNode: %s does not have a pin with the label: %s"), *FromNode->GetName(), *FromPinLabel.ToString());
+		FFrame::KismetExecutionMessage(
+			*FString::Printf(
+				TEXT("%hs: FromNode: %s does not have a pin with the label: %s"), __FUNCTION__, *FromNode->GetName(), *FromPinLabel.ToString()),
+				ELogVerbosity::Error);
 		return false;
 	}
 
 	UMovieGraphPin* ToPin = ToNode->GetInputPin(ToPinLabel);
 	if (!ToPin)
 	{
-		UE_LOG(LogMovieRenderPipeline, Error, TEXT("RemoveEdge: ToNode: %s does not have a pin with the label: %s"), *ToNode->GetName(), *ToPinLabel.ToString());
+		FFrame::KismetExecutionMessage(
+			*FString::Printf(
+				TEXT("%hs: ToNode: %s does not have a pin with the label: %s"), __FUNCTION__, *ToNode->GetName(), *ToPinLabel.ToString()),
+				ELogVerbosity::Error);
 		return false;
 	}
 
@@ -454,7 +480,8 @@ bool UMovieGraphConfig::RemoveAllInboundEdges(UMovieGraphNode* InNode)
 {
 	if (!InNode)
 	{
-		UE_LOG(LogMovieRenderPipeline, Error, TEXT("RemoveAllInboundEdges: Invalid Edge Nodes"));
+		FFrame::KismetExecutionMessage(
+			*FString::Printf(TEXT("%hs: Invalid Edge Nodes"), __FUNCTION__ ), ELogVerbosity::Error);
 		return false;
 	}
 
@@ -477,7 +504,8 @@ bool UMovieGraphConfig::RemoveAllOutboundEdges(UMovieGraphNode* InNode)
 {
 	if (!InNode)
 	{
-		UE_LOG(LogMovieRenderPipeline, Error, TEXT("RemoveAllOutboundEdges: Invalid Edge Nodes"));
+		FFrame::KismetExecutionMessage(
+			*FString::Printf(TEXT("%hs: Invalid Edge Nodes"), __FUNCTION__), ELogVerbosity::Error);
 		return false;
 	}
 
@@ -500,7 +528,10 @@ bool UMovieGraphConfig::RemoveInboundEdges(UMovieGraphNode* InNode, const FName&
 {
 	if (!InNode)
 	{
-		UE_LOG(LogMovieRenderPipeline, Error, TEXT("RemoveInboundEdges: Invalid Edge Nodes"));
+		FFrame::KismetExecutionMessage(
+			*FString::Printf(
+				TEXT("%hs: Invalid Edge Nodes"), __FUNCTION__),
+				ELogVerbosity::Error);
 		return false;
 	}
 
@@ -523,7 +554,10 @@ bool UMovieGraphConfig::RemoveOutboundEdges(UMovieGraphNode* InNode, const FName
 {
 	if (!InNode)
 	{
-		UE_LOG(LogMovieRenderPipeline, Error, TEXT("RemoveOutboundEdges: Invalid Edge Nodes"));
+		FFrame::KismetExecutionMessage(
+			*FString::Printf(
+				TEXT("%hs: Invalid Edge Nodes"), __FUNCTION__),
+				ELogVerbosity::Error);
 		return false;
 	}
 
@@ -546,6 +580,19 @@ void UMovieGraphConfig::AddNode(UMovieGraphNode* InNode)
 {
 	if (!InNode)
 	{
+		FFrame::KismetExecutionMessage(
+			*FString::Printf(
+				TEXT("%hs: No node was specified for add."), __FUNCTION__),
+				ELogVerbosity::Display);
+		return;
+	}
+
+	if (!InNode->CanBeAddedByUser())
+	{
+		FFrame::KismetExecutionMessage(
+			*FString::Printf(
+				TEXT("%hs:Cannot add node of type %s."), __FUNCTION__, *InNode->GetClass()->GetName()),
+				ELogVerbosity::Display);
 		return;
 	}
 
@@ -573,7 +620,10 @@ bool UMovieGraphConfig::RemoveNode(UMovieGraphNode* InNode)
 {
 	if (!InNode)
 	{
-		UE_LOG(LogMovieRenderPipeline, Error, TEXT("RemoveNode: Invalid Node"));
+		FFrame::KismetExecutionMessage(
+			*FString::Printf(
+				TEXT("%hs: Could not remove invalid InNode"), __FUNCTION__),
+				ELogVerbosity::Display);
 		return false;
 	}
 
@@ -609,7 +659,10 @@ RetType* UMovieGraphConfig::AddMember(TArray<TObjectPtr<ArrType>>& InMemberArray
 	
 	if (!NewMember)
 	{
-		UE_LOG(LogMovieRenderPipeline, Warning, TEXT("Unable to create new member object in the graph."));
+		FFrame::KismetExecutionMessage(
+			*FString::Printf(
+				TEXT("%hs: Unable to create new member object in the graph."), __FUNCTION__),
+				ELogVerbosity::Error);
 		return nullptr;
 	}
 
@@ -739,7 +792,10 @@ bool UMovieGraphConfig::DeleteMember(UMovieGraphMember* MemberToDelete)
 
 	if (!MemberToDelete->IsDeletable())
 	{
-		UE_LOG(LogMovieRenderPipeline, Error, TEXT("DeleteMember: The member '%s' cannot be deleted because it is flagged as non-deletable."), *MemberToDelete->GetMemberName());
+		FFrame::KismetExecutionMessage(
+			*FString::Printf(
+				TEXT("%hs: The member '%s' cannot be deleted because it is flagged as non-deletable."), __FUNCTION__, *MemberToDelete->GetMemberName()),
+				ELogVerbosity::Error);
 		return false;
 	}
 
@@ -1174,7 +1230,9 @@ void UMovieGraphConfig::CreateFlattenedGraph_Recursive(UMovieGraphEvaluatedConfi
 				{
 					// ToDo: This won't work long term if you have two different branches visiting the same node
 					// also we need to reset this every time we go start from the root.
-					UE_LOG(LogMovieRenderPipeline, Error, TEXT("Circular graph?"));
+					FFrame::KismetExecutionMessage(
+						*FString::Printf(TEXT("%hs: Circular graph?"), __FUNCTION__),
+						ELogVerbosity::Warning);
 					continue;
 				}
 

@@ -17,6 +17,8 @@ public:
 	
 	virtual TArray<FMovieGraphPinProperties> GetInputPinProperties() const override;
 	virtual bool CanBeDisabled() const override;
+	
+	virtual bool CanBeAddedByUser() const override { return false; }
 
 #if WITH_EDITOR
 	virtual FText GetNodeTitle(const bool bGetDescriptive = false) const override;

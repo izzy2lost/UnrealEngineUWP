@@ -41,7 +41,7 @@ public:
 private:
 	/**
 	 * Determines if the connection between InputPin and OutputPin follows branch restriction rules. OutError is populated
-	 * with an error if the connection should be rejected.
+	 * with an error if the connection should be rejected and the function will return false.
 	 */
 	bool IsConnectionToBranchAllowed(const UEdGraphPin* InputPin, const UEdGraphPin* OutputPin, FText& OutError) const;
 
