@@ -43,6 +43,7 @@
 #include "MuT/CompilerPrivate.h"
 #include "MuT/ErrorLogPrivate.h"
 #include "MuT/NodeColour.h"
+#include "MuT/NodeColourConstant.h"
 #include "MuT/NodeComponent.h"
 #include "MuT/NodeComponentNewPrivate.h"
 #include "MuT/NodeImage.h"
@@ -50,6 +51,7 @@
 #include "MuT/NodeImageFormatPrivate.h"
 #include "MuT/NodeImageMipmap.h"
 #include "MuT/NodeImageMipmapPrivate.h"
+#include "MuT/NodeImageReference.h"
 #include "MuT/NodeLODPrivate.h"
 #include "MuT/NodeMesh.h"
 #include "MuT/NodeMeshClipMorphPlane.h"
@@ -2325,6 +2327,51 @@ namespace mu
 		m_activeTags.Pop();
 
 		return lastMeshOp;
+	}
+
+
+	Ptr<ASTOp> CodeGenerator::GenerateDefaultTableValue(ETableColumnType NodeType)
+	{
+		switch (NodeType)
+		{
+		case mu::ETableColumnType::Scalar:
+		{
+			//TODO(Max):MTBL-1660
+			//Ptr<NodeScalarConstant> pNode = new NodeScalarConstant();
+			//pNode->SetValue(-UE_MAX_FLT);
+			//
+			//return Generate(pNode);
+			return nullptr;
+		}
+		case mu::ETableColumnType::Color:
+		{
+			mu::Ptr<mu::NodeColourConstant> pNode = new NodeColourConstant();
+			pNode->SetValue(mu::DefaultMutableColorValue);
+
+			return Generate(pNode);
+		}
+		case mu::ETableColumnType::Image:
+		{
+			//TODO(Max):MTBL-1660
+			//FImageGenerationOptions DummyOptions;
+			//FImageGenerationResult DefaultValue;
+			//
+			//mu::Ptr<mu::NodeImageReference> ImageNode = new mu::NodeImageReference();
+			//ImageNode->SetImageReference(-1);
+			//
+			//GenerateImage(DummyOptions, DefaultValue, ImageNode);
+			//
+			//return DefaultValue.op;
+			return nullptr;
+		}
+		case mu::ETableColumnType::Mesh:
+			/* The default mesh is always null */
+			return nullptr;
+		default:
+			break;
+		}
+
+		return nullptr;
 	}
 
 }

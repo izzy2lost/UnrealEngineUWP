@@ -737,6 +737,10 @@ namespace mu
         void GenerateSurface( FSurfaceGenerationResult& result,
                               NodeSurfaceNewPtrConst node,
                               const TArray<FirstPassGenerator::FSurface::FEdit>& edits );
+
+		//-----------------------------------------------------------------------------------------
+		//Default Table Parameters
+		Ptr<ASTOp> GenerateDefaultTableValue(ETableColumnType NodeType);
     };
 
 
@@ -805,7 +809,7 @@ namespace mu
         Ptr<ASTOpSwitch> SwitchOp = new ASTOpSwitch();
 		SwitchOp->type = OPTYPE;
 		SwitchOp->variable = variable;
-		SwitchOp->def = nullptr;
+		SwitchOp->def = GenerateDefaultTableValue(TYPE);
 
 		for (int32 i = 0; i < rows; ++i)
         {

@@ -6020,7 +6020,15 @@ void UCustomizableInstancePrivateData::BuildMaterials(const TSharedPtr<FMutableO
 							case FMutableMaterialPlaceholder::EPlaceHolderParamType::Vector:
 								if (Param.LayerIndex < 0)
 								{
-									MaterialInstance->SetVectorParameterValue(Param.ParamName, Param.Vector);
+									FLinearColor Color = Param.Vector;
+
+									if (FVector4f(Color) == mu::DefaultMutableColorValue)
+									{
+										FMaterialParameterInfo ParameterInfo(Param.ParamName);
+										MaterialTemplate->GetVectorParameterValue(ParameterInfo, Color);
+									}
+
+									MaterialInstance->SetVectorParameterValue(Param.ParamName, Color);
 								}
 								else
 								{
