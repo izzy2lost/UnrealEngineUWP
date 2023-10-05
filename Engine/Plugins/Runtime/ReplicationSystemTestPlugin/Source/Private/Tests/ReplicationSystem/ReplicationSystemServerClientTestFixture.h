@@ -169,6 +169,9 @@ class FReplicationSystemTestClient : public FReplicationSystemTestNode
 public:
 	FReplicationSystemTestClient(const TCHAR* Name);
 
+	// Tick and send packets to the server
+	bool UpdateAndSend(class FReplicationSystemTestServer* Server, bool bDeliver = true);
+
 	uint32 ConnectionIdOnServer;
 	uint32 LocalConnectionId;
 };

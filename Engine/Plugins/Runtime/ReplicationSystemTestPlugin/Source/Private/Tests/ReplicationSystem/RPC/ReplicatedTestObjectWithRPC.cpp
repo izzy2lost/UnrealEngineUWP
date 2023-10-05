@@ -24,6 +24,18 @@ void UTestReplicatedObjectWithRPC::RegisterReplicationFragments(UE::Net::FFragme
 	UE::Net::FReplicationFragmentUtil::CreateAndRegisterFragmentsForObject(this, Context, RegistrationFlags, &this->ReplicationFragments);
 }
 
+void UTestReplicatedObjectWithRPC::Init(UReplicationSystem* InRepSystem)
+{
+	bIsServerObject = InRepSystem->IsServer();
+	ReplicationSystem = InRepSystem;
+}
+
+void UTestReplicatedObjectWithRPC::SetRootObject(UTestReplicatedObjectWithRPC* InRootObject)
+{
+	check(InRootObject);
+	RootObject = InRootObject;
+}
+
 int32 UTestReplicatedObjectWithRPC::GetFunctionCallspace(UFunction* Function, FFrame* Stack)
 {
 	check(!(Function->FunctionFlags & FUNC_Static));
@@ -84,7 +96,14 @@ int32 UTestReplicatedObjectWithRPC::GetFunctionCallspace(UFunction* Function, FF
 
 bool UTestReplicatedObjectWithRPC::CallRemoteFunction(UFunction* Function, void* Parameters, FOutParmRec* OutParms, FFrame* Stack)
 {
-	return ReplicationSystem->SendRPC(this, nullptr, Function, Parameters);
+	if (bIsSubObject)
+	{
+		return ReplicationSystem->SendRPC(RootObject, this, Function, Parameters);
+	}
+	else
+	{
+		return ReplicationSystem->SendRPC(this, nullptr, Function, Parameters);
+	}
 }
 
 void UTestReplicatedObjectWithRPC::ClientRPC_Implementation()

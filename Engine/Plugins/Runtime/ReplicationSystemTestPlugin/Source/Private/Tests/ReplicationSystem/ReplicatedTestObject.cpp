@@ -77,19 +77,22 @@ UE::Net::FNetRefHandle UReplicatedTestObjectBridge::BeginReplication(UReplicated
 	return Handle;
 }
 
-UE::Net::FNetRefHandle UReplicatedTestObjectBridge::BeginReplication(FNetRefHandle OwnerHandle, UReplicatedTestObject* Instance, FNetRefHandle InsertRelativeToSubObjectHandle, ESubObjectInsertionOrder InsertionOrder)
+UE::Net::FNetRefHandle UReplicatedTestObjectBridge::BeginReplication(FNetRefHandle OwnerHandle, UReplicatedTestObject* SubObjectInstance, FNetRefHandle InsertRelativeToSubObjectHandle, ESubObjectInsertionOrder InsertionOrder)
 {
+	check(OwnerHandle.IsValid());
+
 	// Create NetRefHandle for the registered fragments
 	Super::FCreateNetRefHandleParams Params = Super::DefaultCreateNetRefHandleParams;
 	Params.bCanReceive = true;
 
 	// Create NetRefHandle for the registered fragments
-	FNetRefHandle Handle = Super::BeginReplication(OwnerHandle, Instance, InsertRelativeToSubObjectHandle, InsertionOrder, Params);
+	FNetRefHandle Handle = Super::BeginReplication(OwnerHandle, SubObjectInstance, InsertRelativeToSubObjectHandle, InsertionOrder, Params);
 
 	if (Handle.IsValid())
 	{
 		// This is optional but typically we want to cache at least the NetRefHandle in the game instance to avoid doing map lookups to find it
-		Instance->NetRefHandle = Handle;
+		SubObjectInstance->NetRefHandle = Handle;
+		SubObjectInstance->bIsSubObject = true;
 	}
 	
 	return Handle;
@@ -171,6 +174,11 @@ FObjectReplicationBridgeInstantiateResult UReplicatedTestObjectBridge::BeginInst
 
 	FStaticConstructObjectParameters ConstructObjectParameters(ArcheType->GetClass());
 	UObject* CreatedObject = StaticConstructObject_Internal(ConstructObjectParameters);
+
+	if (UReplicatedTestObject* BaseTestObject = Cast<UReplicatedTestObject>(CreatedObject))
+	{
+		BaseTestObject->bIsSubObject = RootObjectOfSubObject.IsValid();
+	}
 	
 	if (UTestReplicatedIrisObject* CreatedTestObject = Cast<UTestReplicatedIrisObject>(CreatedObject))
 	{

@@ -17,18 +17,24 @@ class UTestReplicatedObjectWithRPC : public UReplicatedTestObject
 public:
 	UTestReplicatedObjectWithRPC();
 
+	void Init(UReplicationSystem* InRepSystem);
+	void SetRootObject(UTestReplicatedObjectWithRPC* InRootObject);
+
 	virtual void RegisterReplicationFragments(UE::Net::FFragmentRegistrationContext& Context, UE::Net::EFragmentRegistrationFlags RegistrationFlags) override;
 
 	virtual int32 GetFunctionCallspace(UFunction* Function, FFrame* Stack) override;
 	virtual bool CallRemoteFunction(UFunction* Function, void* Parameters, FOutParmRec* OutParms, FFrame* Stack) override;
-
 
 	UReplicationSystem* ReplicationSystem = nullptr;
 
 	// Network data only for test
 	TArray<UE::Net::FReplicationFragment*> ReplicationFragments;
 
+	// To determine if this object is located on the server or client
 	bool bIsServerObject = false;
+
+	// Our owner when the object is a subobject
+	UTestReplicatedObjectWithRPC* RootObject = nullptr;
 
 	// RPC test functions
 	UFUNCTION(Reliable, Client)

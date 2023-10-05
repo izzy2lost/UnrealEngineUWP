@@ -352,16 +352,40 @@ float FReplicationSystemTestNode::ConvertPollPeriodIntoFrequency(uint32 PollPeri
 	return PollFrequency;
 }
 
-// FReplicationSystemTestClient implementation
+//*****************************************************************************
+// Class FReplicationSystemTestClient
+//*****************************************************************************
+
 FReplicationSystemTestClient::FReplicationSystemTestClient(const TCHAR* Name)
 : FReplicationSystemTestNode(false, Name)
 , ConnectionIdOnServer(~0U)
 {
 }
 
-// FReplicationSystemTestServer implementation
+bool FReplicationSystemTestClient::UpdateAndSend(FReplicationSystemTestServer* Server, bool bDeliver)
+{
+	bool bSuccess = false;
+
+	PreSendUpdate();
+
+	if (SendUpdate())
+	{
+		constexpr uint32 ServerRemoteConnectionId = 0x01;
+		DeliverTo(*Server, LocalConnectionId, ServerRemoteConnectionId, bDeliver);
+		bSuccess = true;
+	}
+
+	PostSendUpdate();
+
+	return bSuccess;
+}
+
+//*****************************************************************************
+// Class FReplicationSystemTestServer
+//*****************************************************************************
+
 FReplicationSystemTestServer::FReplicationSystemTestServer(const TCHAR* Name)
-: FReplicationSystemTestNode(true, Name)
+	: FReplicationSystemTestNode(true, Name)
 {
 }
 
@@ -406,7 +430,10 @@ bool FReplicationSystemTestServer::UpdateAndSend(const TArray<FReplicationSystem
 	return bSuccess;
 }
 
-// FReplicationSystemServerClientTestFixture implementation
+//*****************************************************************************
+// Class FReplicationSystemServerClientTestFixture
+//*****************************************************************************
+
 void FReplicationSystemServerClientTestFixture::SetUp()
 {
 	FNetworkAutomationTestSuiteFixture::SetUp();

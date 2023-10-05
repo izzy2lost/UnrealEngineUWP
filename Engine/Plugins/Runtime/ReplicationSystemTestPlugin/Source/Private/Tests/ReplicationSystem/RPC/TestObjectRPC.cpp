@@ -62,10 +62,7 @@ namespace UE::Net::Private
 		ClientObject->ServerRPC();
 
 		// Send and deliver client packet
-		Client->PreSendUpdate();
-		Client->SendUpdate();
-		Client->DeliverTo(*Server, 0x01, 0x01, true);
-		Client->PostSendUpdate();
+		Client->UpdateAndSend(Server);
 
 		// Verify RPC reception
 		UE_NET_ASSERT_TRUE(ServerObject->bServerRPCCalled);
@@ -74,10 +71,7 @@ namespace UE::Net::Private
 		ClientObject->ServerRPCWithParam(IntParam);
 
 		// Send and deliver client packet
-		Client->PreSendUpdate();
-		Client->SendUpdate();
-		Client->DeliverTo(*Server, 0x01, 0x01, true);
-		Client->PostSendUpdate();
+		Client->UpdateAndSend(Server);
 
 		// Verify RPC reception
 		UE_NET_ASSERT_TRUE(ServerObject->ServerRPCWithParamCalled == IntParam);
@@ -134,6 +128,81 @@ namespace UE::Net::Private
 		// Verify RPC reception, at this point we expect the other RPC to have been received as well.
 		UE_NET_ASSERT_EQ(ClientObject->NetMulticast_MultiCastRPCSendImmediateCallOrder, 1);
 		UE_NET_ASSERT_EQ(ClientObject->NetMulticast_MultiCastRPCCallOrder, 2);
+	}
+
+	UE_NET_TEST_FIXTURE(FRPCTestFixture, TestSubObjectRPC)
+	{
+		// Add a client
+		FReplicationSystemTestClient* Client = CreateClient();
+
+		// Spawn object on server
+		UTestReplicatedObjectWithRPC* ServerRootObject = Server->CreateObject<UTestReplicatedObjectWithRPC>();
+		ServerRootObject->Init(Server->GetReplicationSystem());
+
+		const FNetRefHandle ServerRootObjectHandle = ServerRootObject->NetRefHandle;
+		Server->ReplicationSystem->SetOwningNetConnection(ServerRootObjectHandle, 0x01);
+
+		UTestReplicatedObjectWithRPC* ServerSubObject = Server->CreateSubObject<UTestReplicatedObjectWithRPC>(ServerRootObjectHandle);
+		ServerSubObject->Init(Server->GetReplicationSystem());
+		ServerSubObject->SetRootObject(ServerRootObject);
+
+		const FNetRefHandle ServerSubObjectHandle = ServerSubObject->NetRefHandle;
+
+		// Send and deliver packet
+		Server->PreSendUpdate();
+		Server->SendAndDeliverTo(Client, true);
+		Server->PostSendUpdate();
+
+		UTestReplicatedObjectWithRPC* ClientRootObject = Cast<UTestReplicatedObjectWithRPC>(Client->GetReplicationBridge()->GetReplicatedObject(ServerRootObjectHandle));
+
+		// Verify that the root object exists on the client
+		UE_NET_ASSERT_TRUE(ClientRootObject != nullptr);
+
+		UTestReplicatedObjectWithRPC* ClientSubObject = Cast<UTestReplicatedObjectWithRPC>(Client->GetReplicationBridge()->GetReplicatedObject(ServerSubObjectHandle));
+
+		// Verify that the subobject also exists on the client
+		UE_NET_ASSERT_TRUE(ClientSubObject != nullptr);
+
+		ClientRootObject->Init(Client->GetReplicationSystem());
+		ClientSubObject->Init(Client->GetReplicationSystem());
+		ClientSubObject->SetRootObject(ClientRootObject);
+
+		// Call an RPC server->client on the subobject
+		ServerSubObject->ClientRPC();
+
+		// Send and deliver packet
+		Server->UpdateAndSend({ Client });
+
+		// Verify RPC reception
+		UE_NET_ASSERT_TRUE(ClientSubObject->bClientRPCCalled);
+
+		// Call an RPC server->client on the subobject
+		const int32 IntParam = 0xBABA;
+		ServerSubObject->ClientRPCWithParam(0xBABA);
+
+		// Send and deliver packet
+		Server->UpdateAndSend({ Client });
+
+		// Verify RPC reception
+		UE_NET_ASSERT_TRUE(ClientSubObject->ClientRPCWithParamCalled == IntParam);
+
+		// Call an RPC client->server
+		ClientSubObject->ServerRPC();
+
+		// Send and deliver client packet
+		Client->UpdateAndSend(Server);
+
+		// Verify RPC reception
+		UE_NET_ASSERT_TRUE(ServerSubObject->bServerRPCCalled);
+
+		// Call an RPC client->server
+		ClientSubObject->ServerRPCWithParam(IntParam);
+
+		// Send and deliver client packet
+		Client->UpdateAndSend(Server);
+
+		// Verify RPC reception
+		UE_NET_ASSERT_TRUE(ServerSubObject->ServerRPCWithParamCalled == IntParam);
 	}
 
 }

@@ -39,6 +39,9 @@ public:
 
 	/** If this is set to true, this instance will fail to instantiate on remote end. */
 	bool bForceFailToInstantiateOnRemote = false;
+
+	// To determine if this object is a root object or a subobject
+	bool bIsSubObject = false;
 };
 
 USTRUCT()
