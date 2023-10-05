@@ -67,7 +67,7 @@ struct TNetRewindHistory : public Chaos::TDatasRewindHistory<DatasType>
 	{
 		TNetRewindHistory& NetNewDatas = static_cast<TNetRewindHistory&>(NewDatas);
 
-		if ((FrameOffset >= 0) && NetNewDatas.NumFrames > 0)
+		if (NetNewDatas.NumFrames > 0)
 		{
 			for (int32 FrameIndex = 0; FrameIndex < NetNewDatas.NumFrames; ++FrameIndex)
 			{
@@ -268,12 +268,6 @@ struct FNetworkPhysicsCallback : public Chaos::IRewindCallback
 	// but also needs to be able to access GT data (actor iterator, actor state)
 	void UpdateReplicationMap_Internal(int32 PhysicsStep);
 
-	// Update client player on GT
-	void UpdateClientPlayer_External(int32 PhysicsStep);
-
-	// Update server player on GT
-	void UpdateServerPlayer_External(int32 PhysicsStep);
-
 	// Cache the current netmode for use in PT
 	void UpdateNetMode()
 	{
@@ -398,9 +392,6 @@ public:
 
 	// Delegate linked to the physics rewind callback to send record local inputs/states
 	ENGINE_API void OnPostProcessInputsInternal(const int32 PhysicsStep);
-
-	// Correct the player controller Server to local offset based on the received replicated states
-	ENGINE_API void CorrectServerToLocalOffset(const int32 LocalToServerOffset);
 
 	// Used to create any physics engine information for this component 
 	ENGINE_API virtual void BeginPlay() override;

@@ -14,72 +14,6 @@
 
 #include UE_INLINE_GENERATED_CPP_BY_NAME(NetworkPhysicsComponent)
 
-namespace InputCmdCVars
-{
-	static int32 ForceFault = 0;
-	static FAutoConsoleVariableRef CVarForceFault(TEXT("p.net.ForceFault"), ForceFault, TEXT("Forces server side input fault"));
-
-	static int32 MaxBufferedCmds = 16;
-	static FAutoConsoleVariableRef CVarMaxBufferedCmds(TEXT("p.net.MaxBufferedCmds"), MaxBufferedCmds, TEXT("MaxNumber of buffered server side commands"));
-
-	static int32 TimeDilationEnabled = 0;
-	static FAutoConsoleVariableRef CVarTimeDilationEnabled(TEXT("p.net.TimeDilationEnabled"), TimeDilationEnabled, TEXT("Enable clientside TimeDilation"));
-
-	static float MaxTargetNumBufferedCmds = 5.0;
-	static FAutoConsoleVariableRef CVarMaxTargetNumBufferedCmds(TEXT("p.net.MaxTargetNumBufferedCmds"), MaxTargetNumBufferedCmds, TEXT("Maximum number of buffered inputs the server will target per client."));
-
-	static float MaxTimeDilationMag = 0.01f;
-	static FAutoConsoleVariableRef CVarMaxTimeDilationMag(TEXT("p.net.MaxTimeDilationMag"), MaxTimeDilationMag, TEXT("Maximum time dilation that client will use to slow down / catch up with server"));
-
-	static float TimeDilationAlpha = 0.1f;
-	static FAutoConsoleVariableRef CVarTimeDilationAlpha(TEXT("p.net.TimeDilationAlpha"), TimeDilationAlpha, TEXT("Lerp strength for sliding client time dilation"));
-
-	static float TargetNumBufferedCmdsDeltaOnFault = 1.0f;
-	static FAutoConsoleVariableRef CVarTargetNumBufferedCmdsDeltaOnFault(TEXT("p.net.TargetNumBufferedCmdsDeltaOnFault"), TargetNumBufferedCmdsDeltaOnFault, TEXT("How much to increase TargetNumBufferedCmds when an input fault occurs"));
-
-	static float TargetNumBufferedCmds = 1.9f;
-	static FAutoConsoleVariableRef CVarTargetNumBufferedCmds(TEXT("p.net.TargetNumBufferedCmds"), TargetNumBufferedCmds, TEXT("How much to increase TargetNumBufferedCmds when an input fault occurs"));
-
-	static float TargetNumBufferedCmdsAlpha = 0.005f;
-	static FAutoConsoleVariableRef CVarTargetNumBufferedCmdsAlpha(TEXT("p.net.TargetNumBufferedCmdsAlpha"), TargetNumBufferedCmdsAlpha, TEXT("Lerp strength for TargetNumBufferedCmds"));
-
-	static int32 LerpTargetNumBufferedCmdsAggresively = 0;
-	static FAutoConsoleVariableRef CVarLerpTargetNumBufferedCmdsAggresively(TEXT("p.net.LerpTargetNumBufferedCmdsAggresively"), LerpTargetNumBufferedCmdsAggresively, TEXT("Aggresively lerp towards TargetNumBufferedCmds. Reduces server side buffering but can cause more artifacts."));
-}
-
-// --------------------------------------------------------------------------------------------------------------------------------------------------
-//	Client InputCmd Stream stuff
-// --------------------------------------------------------------------------------------------------------------------------------------------------
-
-namespace
-{
-
-int8 QuantizeTimeDilation(float F)
-{
-	if (F == 1.f)
-	{
-		return 0;
-	}
-
-	float Normalized = FMath::Clamp<float>((F - 1.f) / InputCmdCVars::MaxTimeDilationMag, -1.f, 1.f);
-	return (int8)(Normalized * 128.f);
-}
-
-float DeQuantizeTimeDilation(int8 i)
-{
-	if (i == 0)
-	{
-		return 1.f;
-	}
-
-	float Normalized = (float)i / 128.f;
-	float Uncompressed = 1.f + (Normalized * InputCmdCVars::MaxTimeDilationMag);
-	return Uncompressed;
-}
-
-}
-
-
 bool FNetworkPhysicsRewindDataProxy::NetSerializeBase(FArchive& Ar, class UPackageMap* Map, bool& bOutSuccess, TUniqueFunction<TUniquePtr<Chaos::FBaseRewindHistory>()> CreateHistoryFunction)
 {
 	Ar << Owner;
@@ -197,115 +131,6 @@ int32 FNetworkPhysicsCallback::TriggerRewindIfNeeded_Internal(int32 LatestStepCo
 	return ResimFrame;
 }
 
-void FNetworkPhysicsCallback::UpdateClientPlayer_External(int32 PhysicsStep)
-{
-	int32 LocalOffset = 0;
-	if (APlayerController* PC = World->GetFirstPlayerController())
-	{
-		// ------------------------------------------------
-		// Send RPC to server telling them what (client/local) physics step we are running
-		//	* Note that SendData is empty because of the existing API, should change this
-		// ------------------------------------------------	
-
-		TArray<uint8> SendData;
-		PC->PushClientInput(PhysicsStep, SendData);
-
-		// -----------------------------------------------------------------
-		// Calculate latest frame offset to map server frame to local frame
-		// -----------------------------------------------------------------
-		APlayerController::FClientFrameInfo& ClientFrameInfo = PC->GetClientFrameInfo();
-
-		// -----------------------------------------------------------------
-		// Apply local TIme Dilation based on server's recommendation.
-		// This speeds up or slows down our consumption of real time (by like < 1%)
-		// Ultimately this causes us to send InputCmds at a lower or higher rate in
-		// order to keep server side buffer at optimal capacity. 
-		// Optimal capacity = as small as possible without ever "missing" a frame (e.g, minimal buffer yet always a new fresh cmd to consume server side)
-		// -----------------------------------------------------------------
-		const float RealTimeDilation = DeQuantizeTimeDilation(ClientFrameInfo.QuantizedTimeDilation);
-
-		if (InputCmdCVars::TimeDilationEnabled > 0)
-		{
-			FPhysScene* PhysScene = World->GetPhysicsScene();
-			PhysScene->SetNetworkDeltaTimeScale(RealTimeDilation);
-		}
-	}
-}
-
-void FNetworkPhysicsCallback::UpdateServerPlayer_External(int32 PhysicsStep)
-{
-	// -----------------------------------------------
-	// Server: "consume" an InputCmd from each Player Controller
-	// All this means in this context is updating FServerFrameInfo:: LastProcessedInputFrame, LastLocalFrame
-	// (E.g, telling each client what "Input" of theirs we were processing and our local physics frame number.
-	// In cases where the buffer has a fault, we calculate a suggested time dilation to temporarily make client speed up 
-	// or slow down their input cmd production.
-	// -----------------------------------------------
-
-	const bool bForceFault = InputCmdCVars::ForceFault > 0;
-	InputCmdCVars::ForceFault = FMath::Max(0, InputCmdCVars::ForceFault - 1);
-
-	for (FConstPlayerControllerIterator Iterator = World->GetPlayerControllerIterator(); Iterator; ++Iterator)
-	{
-		if (APlayerController* PC = Iterator->Get())
-		{
-			APlayerController::FServerFrameInfo& FrameInfo = PC->GetServerFrameInfo();
-			APlayerController::FInputCmdBuffer& InputBuffer = PC->GetInputBuffer();
-
-			{
-				const int32 NumBufferedInputCmds = bForceFault ? 0 : (InputBuffer.HeadFrame() - FrameInfo.LastProcessedInputFrame);
-
-				// Check Overflow
-				if (NumBufferedInputCmds > InputCmdCVars::MaxBufferedCmds)
-				{
-					UE_LOG(LogPhysics, Warning, TEXT("[Remote.Input] overflow %d %d -> %d"), InputBuffer.HeadFrame(), FrameInfo.LastProcessedInputFrame, NumBufferedInputCmds);
-					FrameInfo.LastProcessedInputFrame = InputBuffer.HeadFrame() - InputCmdCVars::MaxBufferedCmds + 1;
-				}
-
-				// Check fault - we are waiting for Cmds to reach TargetNumBufferedCmds before continuing
-				if (FrameInfo.bFault)
-				{
-					if (NumBufferedInputCmds < (int32)FrameInfo.TargetNumBufferedCmds)
-					{
-						// Skip this because it is in fault. We will use the prev input for this frame.
-						UE_CLOG(FrameInfo.LastProcessedInputFrame != INDEX_NONE, LogPhysics, Warning, TEXT("[Remote.Input] in fault. Reusing Inputcmd. (Client) Input: %d. (Server) Local Frame: %d"), FrameInfo.LastProcessedInputFrame, FrameInfo.LastLocalFrame);
-						continue;
-					}
-					FrameInfo.bFault = false;
-				}
-				else if (NumBufferedInputCmds <= 0)
-				{
-					// No Cmds to process, enter fault state. Increment TargetNumBufferedCmds each time this happens.
-					// TODO: We should have something to bring this back down (which means skipping frames) we don't want temporary poor conditions to cause permanent high input buffering
-					FrameInfo.bFault = true;
-					FrameInfo.TargetNumBufferedCmds = FMath::Min(FrameInfo.TargetNumBufferedCmds + InputCmdCVars::TargetNumBufferedCmdsDeltaOnFault, InputCmdCVars::MaxTargetNumBufferedCmds);
-
-					UE_CLOG(FrameInfo.LastProcessedInputFrame != INDEX_NONE, LogPhysics, Warning, TEXT("[Remote.Input] ENTERING fault. New Target: %.2f. (Client) Input: %d. (Server) Local Frame: %d"), FrameInfo.TargetNumBufferedCmds, FrameInfo.LastProcessedInputFrame, FrameInfo.LastLocalFrame);
-					continue;
-				}
-
-				float TargetTimeDilation = 1.f;
-				if (NumBufferedInputCmds < (int32)FrameInfo.TargetNumBufferedCmds)
-				{
-					TargetTimeDilation += InputCmdCVars::MaxTimeDilationMag; // Tell client to speed up, we are starved on cmds
-				}
-
-				FrameInfo.TargetTimeDilation = FMath::Lerp(FrameInfo.TargetTimeDilation, TargetTimeDilation, InputCmdCVars::TimeDilationAlpha);
-				FrameInfo.QuantizedTimeDilation = QuantizeTimeDilation(TargetTimeDilation);
-
-				if (InputCmdCVars::LerpTargetNumBufferedCmdsAggresively != 0)
-				{
-					// When aggressive, always lerp towards target
-					FrameInfo.TargetNumBufferedCmds = FMath::Lerp(FrameInfo.TargetNumBufferedCmds, InputCmdCVars::TargetNumBufferedCmds, InputCmdCVars::TargetNumBufferedCmdsAlpha);
-				}
-
-				FrameInfo.LastProcessedInputFrame++;
-				FrameInfo.LastLocalFrame = PhysicsStep;
-			}
-		}
-	}
-}
-
 void FNetworkPhysicsCallback::InjectInputs_External(int32 PhysicsStep, int32 NumSteps)
 {
 	InjectInputsExternal.Broadcast(PhysicsStep, NumSteps);
@@ -319,15 +144,6 @@ void FNetworkPhysicsCallback::ProcessInputs_External(int32 PhysicsStep, const TA
 		{
 			SimCallbackObject.CallbackObject->ProcessInputs_External(PhysicsStep);
 		}
-	}
-
-	if (NetMode == NM_Client)
-	{
-		UpdateClientPlayer_External(PhysicsStep);
-	}
-	else
-	{
-		UpdateServerPlayer_External(PhysicsStep);
 	}
 }
 
@@ -413,11 +229,6 @@ void UNetworkPhysicsComponent::BeginPlay()
 			{
 				if (UPhysicsSettings::Get()->PhysicsPrediction.bEnablePhysicsPrediction)
 				{
-					if (APlayerController* PlayerController = GetPlayerController())
-					{
-						PlayerController->EnableNetworkedPhysicsInputSync(true);
-					}
-
 					if (Solver->GetRewindData() == nullptr)
 					{
 						const int32 NumFrames = FMath::Max<int32>(1, UPhysicsSettings::Get()->GetPhysicsHistoryCount());
@@ -512,13 +323,18 @@ void UNetworkPhysicsComponent::AsyncPhysicsTickComponent(float DeltaTime, float 
 
 void UNetworkPhysicsComponent::SendLocalInputsDatas()
 {
-	if (HasLocalController() && InputsHistory)
+	const APlayerController* PlayerController = GetPlayerController();
+	if (!PlayerController)
+	{
+		return;
+	}
+
+	if (PlayerController->IsLocalController() && InputsHistory)
 	{
 		// We just check that the local client to server offset is valid before doing something
-		const int32 LocalOffset = HasServerWorld() ? 0 : GetPlayerController()->GetLocalToServerAsyncPhysicsTickOffset();
-
-		if (LocalOffset >= 0)
+		if (HasServerWorld() || PlayerController->GetLocalToServerAsyncPhysicsTickOffsetAssigned())
 		{
+			const int32 LocalOffset = HasServerWorld() ? 0 : PlayerController->GetLocalToServerAsyncPhysicsTickOffset();
 			const int32 NextIndex = (InputsIndex + 1) % (InputsRedundancy + 1);
 
 			// if on server (Listen server) we should send the inputs onto all the clients through repnotify
@@ -527,19 +343,16 @@ void UNetworkPhysicsComponent::SendLocalInputsDatas()
 			if (!HasServerWorld())
 			{
 #if DEBUG_NETWORK_PHYSICS
-				if (APlayerController* PlayerController = GetPlayerController())
+				FAsyncPhysicsTimestamp Timestamp = PlayerController->GetAsyncPhysicsTimestamp();
+
+				TArray<int32> LocalFrames, ServerFrames, InputFrames;
+				InputsHistory->DebugDatas(*ReplicatedInputs.History, LocalFrames, ServerFrames, InputFrames);
+
+				UE_LOG(LogTemp, Log, TEXT("CLIENT | GT | SendLocalInputsDatas | Sending %d inputs from CLIENT | Component = %s"), LocalFrames.Num(), *GetFullName());
+				for (int32 FrameIndex = 0; FrameIndex < LocalFrames.Num(); ++FrameIndex)
 				{
-					FAsyncPhysicsTimestamp Timestamp = PlayerController->GetAsyncPhysicsTimestamp();
-
-					TArray<int32> LocalFrames, ServerFrames, InputFrames;
-					InputsHistory->DebugDatas(*ReplicatedInputs.History, LocalFrames, ServerFrames, InputFrames);
-
-					UE_LOG(LogTemp, Log, TEXT("CLIENT | GT | SendLocalInputsDatas | Sending %d inputs from CLIENT | Component = %s"), LocalFrames.Num(), *GetFullName());
-					for (int32 FrameIndex = 0; FrameIndex < LocalFrames.Num(); ++FrameIndex)
-					{
-						UE_LOG(LogTemp, Log, TEXT("		Debugging local inputs at local frame = %d | server frame = %d | Current local frame = %d | Current server frame = %d"),
-							LocalFrames[FrameIndex], ServerFrames[FrameIndex], Timestamp.LocalFrame, Timestamp.ServerFrame);
-					}
+					UE_LOG(LogTemp, Log, TEXT("		Debugging local inputs at local frame = %d | server frame = %d | Current local frame = %d | Current server frame = %d"),
+						LocalFrames[FrameIndex], ServerFrames[FrameIndex], Timestamp.LocalFrame, Timestamp.ServerFrame);
 				}
 #endif
 
@@ -562,29 +375,6 @@ void UNetworkPhysicsComponent::SendLocalStatesDatas()
 	}
 }
 
-void UNetworkPhysicsComponent::CorrectServerToLocalOffset(const int32 LocalToServerOffset)
-{
-	if (HasLocalController() && !HasServerWorld() && StatesHistory)
-	{
-		TArray<int32> LocalFrames, ServerFrames, InputFrames;
-		StatesHistory->DebugDatas(*ReplicatedStates.History, LocalFrames, ServerFrames, InputFrames);
-
-		int32 ServerToLocalOffset = LocalToServerOffset;
-		for (int32 FrameIndex = 0; FrameIndex < LocalFrames.Num(); ++FrameIndex)
-		{
-#if DEBUG_NETWORK_PHYSICS || DEBUG_REWIND_DATA
-			UE_LOG(LogTemp, Log, TEXT("CLIENT | GT | CorrectServerToLocalOffset | Server frame = %d | Client Frame = %d"), ServerFrames[FrameIndex], InputFrames[FrameIndex]);
-#endif
-			ServerToLocalOffset = FMath::Min(ServerToLocalOffset, ServerFrames[FrameIndex] - InputFrames[FrameIndex]);
-		}
-
-		GetPlayerController()->SetServerToLocalAsyncPhysicsTickOffset(ServerToLocalOffset);
-#if DEBUG_NETWORK_PHYSICS || DEBUG_REWIND_DATA
-		UE_LOG(LogTemp, Log, TEXT("CLIENT | GT | CorrectServerToLocalOffset | Server to local offset = %d | Local to server offset = %d"), ServerToLocalOffset, LocalToServerOffset);
-#endif
-	}
-}
-
 void UNetworkPhysicsComponent::OnRep_SetReplicatedStates()
 {
 	// The replicated states should only be used on the client since the server already have authoritative local ones
@@ -595,8 +385,7 @@ void UNetworkPhysicsComponent::OnRep_SetReplicatedStates()
 		{
 			PlayerController = GetWorld()->GetFirstPlayerController();
 		}
-		CorrectServerToLocalOffset(PlayerController->GetLocalToServerAsyncPhysicsTickOffset());
-		const int32 LocalOffset = PlayerController->GetServerToLocalAsyncPhysicsTickOffset();
+		const int32 LocalOffset = PlayerController->GetLocalToServerAsyncPhysicsTickOffset();
 
 		// Record the received states from the server into the history for future use
 		if (UWorld* World = GetWorld())
@@ -640,7 +429,7 @@ void UNetworkPhysicsComponent::OnRep_SetReplicatedInputs()
 		{
 			PlayerController = GetWorld()->GetFirstPlayerController();
 		}
-		const int32 LocalOffset = PlayerController->GetServerToLocalAsyncPhysicsTickOffset();
+		const int32 LocalOffset = PlayerController->GetLocalToServerAsyncPhysicsTickOffset();
 
 		// Record the received inputs from the server into the history for future use
 		if (UWorld* World = GetWorld())
@@ -810,22 +599,23 @@ void UNetworkPhysicsComponent::OnPostProcessInputsInternal(const int32 PhysicsSt
 			InputsOffsets[InputsIndex] = FMath::Max(InputsOffsets[InputsIndex], PhysicsStep + 1);
 			InputsHistory->RecordDatas(PhysicsStep, PhysicsDatas);
 
-	#if DEBUG_NETWORK_PHYSICS
+#if DEBUG_NETWORK_PHYSICS
 			UE_LOG(LogTemp, Log, TEXT("		Recording local inputs at frame %d | Component = %s"), PhysicsDatas->LocalFrame, *GetFullName());
-	#endif
-		}
-		// Compute of the local frame coming from the client that was used to generate this state
-		int32 InputFrame = INDEX_NONE;
-		{
-			FNetworkPhysicsDatas* PhysicsDatas = InputsDatas.Get();
-			if(InputsHistory->ExtractDatas(PhysicsStep, false, PhysicsDatas, true))
-			{
-				InputFrame = PhysicsDatas->InputFrame;
-			}
+#endif
 		}
 
-		if (HasServerWorld() && !bIsSolverResim)
+		if (HasServerWorld())
 		{
+			// Compute of the local frame coming from the client that was used to generate this state
+			int32 InputFrame = INDEX_NONE;
+			{
+				FNetworkPhysicsDatas* PhysicsDatas = InputsDatas.Get();
+				if(InputsHistory->ExtractDatas(PhysicsStep, false, PhysicsDatas, true))
+				{
+					InputFrame = PhysicsDatas->InputFrame;
+				}
+			}
+
 			FNetworkPhysicsDatas* PhysicsDatas = StatesDatas.Get();
 			PhysicsDatas->LocalFrame = PhysicsStep;
 			PhysicsDatas->ServerFrame = PhysicsStep;
@@ -833,12 +623,12 @@ void UNetworkPhysicsComponent::OnPostProcessInputsInternal(const int32 PhysicsSt
 
 			PhysicsDatas->BuildDatas(ActorComponent);
 
-			StatesOffsets[StatesIndex] = FMath::Max(StatesOffsets[StatesIndex], PhysicsStep+1);
+			StatesOffsets[StatesIndex] = FMath::Max(StatesOffsets[StatesIndex], PhysicsStep + 1);
 			StatesHistory->RecordDatas(PhysicsStep, PhysicsDatas);
 
-	#if DEBUG_NETWORK_PHYSICS
+#if DEBUG_NETWORK_PHYSICS
 			UE_LOG(LogTemp, Log, TEXT("		Recording local states at frame %d | from input frame = %d | Component = %s"), PhysicsDatas->LocalFrame, PhysicsDatas->InputFrame, *GetFullName());
-	#endif
+#endif
 		}
 	}
 }
