@@ -6,6 +6,8 @@
 #include "MuR/System.h"
 #include "UObject/GCObject.h"
 #include "Containers/Ticker.h"
+#include "Containers/Map.h"
+#include "Containers/Queue.h"
 
 #ifdef MUTABLE_USE_NEW_TASKGRAPH
 #include "Tasks/Task.h"

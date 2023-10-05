@@ -8,6 +8,8 @@
 #include "UObject/GCObject.h"
 #include "Widgets/SCompoundWidget.h"
 #include "Widgets/Input/SSearchBox.h"
+#include "Engine/Texture.h"
+#include "UObject/SoftObjectPtr.h"
 
 class STableViewBase;
 namespace ESelectInfo { enum Type : int; }
