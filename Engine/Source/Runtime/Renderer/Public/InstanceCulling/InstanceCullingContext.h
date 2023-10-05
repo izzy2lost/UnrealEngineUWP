@@ -225,6 +225,7 @@ public:
 	void SetupDrawCommands(
 		FMeshCommandOneFrameArray& VisibleMeshDrawCommandsInOut,
 		bool bCompactIdenticalCommands,
+		const FScene *Scene,
 		// Stats
 		int32& MaxInstancesOut,
 		int32& VisibleMeshDrawCommandsNumOut,

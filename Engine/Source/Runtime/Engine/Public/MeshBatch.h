@@ -256,6 +256,7 @@ struct FMeshBatchElement
 	uint32 bIsInstanceRuns : 1;
 	uint32 bForceInstanceCulling : 1;
 	uint32 bPreserveInstanceOrder : 1;
+	uint32 bFetchInstanceCountFromScene : 1;
 
 #if UE_ENABLE_DEBUG_DRAWING
 	/** Conceptual element index used for debug viewmodes. */
@@ -311,6 +312,7 @@ struct FMeshBatchElement
 	,	bIsInstanceRuns(false)
 	,	bForceInstanceCulling(false)
 	,	bPreserveInstanceOrder(false)
+	,	bFetchInstanceCountFromScene(false)
 #if UE_ENABLE_DEBUG_DRAWING
 	,	VisualizeElementIndex(INDEX_NONE)
 #endif

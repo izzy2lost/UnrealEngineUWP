@@ -464,6 +464,7 @@ FPrimitiveSceneProxy::FPrimitiveSceneProxy(const FPrimitiveSceneProxyDesc& InPro
 ,	bSingleSampleShadowFromStationaryLights(InProxyDesc.bSingleSampleShadowFromStationaryLights)
 ,	bStaticElementsAlwaysUseProxyPrimitiveUniformBuffer(false)
 ,	bVFRequiresPrimitiveUniformBuffer(true)
+,	bDoesMeshBatchesUseSceneInstanceCount(false)
 ,	bIsNaniteMesh(false)
 ,	bIsHeterogeneousVolume(false)
 ,	bIsHierarchicalInstancedStaticMesh(false)

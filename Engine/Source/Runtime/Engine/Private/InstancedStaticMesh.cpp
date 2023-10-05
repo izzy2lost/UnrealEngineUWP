@@ -173,6 +173,11 @@ static TAutoConsoleVariable<int32> CVarISMForceRemoveAtSwap(
 	0,
 	TEXT("Force the RemoveAtSwap optimization when removing instances from an ISM."));
 
+static TAutoConsoleVariable<int32> CVarISMFetchInstanceCountFromScene(
+	TEXT("r.InstancedStaticMeshes.FetchInstanceCountFromScene"),
+	1,
+	TEXT("Enables the data path that allows instance count to be fetched from the Scene rather than the Mesh Draw Commands (MDCs), which removes the need to re-cache MDCs when instance count changes."));
+
 class FISMExecHelper : public FSelfRegisteringExec
 {
 	virtual bool Exec_Runtime(class UWorld* InWorld, const TCHAR* Cmd, FOutputDevice& Ar)
@@ -1340,6 +1345,8 @@ void FInstancedStaticMeshSceneProxy::SetupProxy(const FInstancedStaticMeshSceneP
 	}
 #endif
 
+	bDoesMeshBatchesUseSceneInstanceCount = CVarISMFetchInstanceCountFromScene.GetValueOnGameThread() != 0;
+
 	SetupInstanceSceneDataBuffers(InstanceDataSceneProxy->GeInstanceSceneDataBuffers());
 
 	bAnySegmentUsesWorldPositionOffset = false;
@@ -1491,7 +1498,7 @@ void FInstancedStaticMeshSceneProxy::SetupInstancedMeshBatch(int32 LODIndex, int
 			BatchElement0.bPreserveInstanceOrder = IsTranslucentBlendMode(Material);
 		}
 	}
-
+	BatchElement0.bFetchInstanceCountFromScene = CVarISMFetchInstanceCountFromScene.GetValueOnRenderThread() != 0;
 	BatchElement0.NumInstances = GetInstanceDataHeader().NumInstances;
 }
 

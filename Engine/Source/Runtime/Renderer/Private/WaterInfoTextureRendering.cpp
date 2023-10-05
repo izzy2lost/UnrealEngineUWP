@@ -871,7 +871,7 @@ void RenderWaterInfoTexture(
 				static FName NAME_WaterInfoTexturePass("WaterInfoTexture");
 				PassDraws[PassIdx].InstanceCullingContext = GraphBuilder.AllocObject<FInstanceCullingContext>(NAME_WaterInfoTexturePass, WaterView.GetShaderPlatform(), nullptr, TArrayView<const int32>(&WaterView.GPUSceneViewId, 1), nullptr);
 
-				PassDraws[PassIdx].InstanceCullingContext->SetupDrawCommands(PassDraws[PassIdx].VisibleMeshCommands, false, MaxInstances, VisibleMeshDrawCommandsNum, NewPassVisibleMeshDrawCommandsNum);
+				PassDraws[PassIdx].InstanceCullingContext->SetupDrawCommands(PassDraws[PassIdx].VisibleMeshCommands, false, Scene, MaxInstances, VisibleMeshDrawCommandsNum, NewPassVisibleMeshDrawCommandsNum);
 				// Not supposed to do any compaction here.
 				ensure(VisibleMeshDrawCommandsNum == PassDraws[PassIdx].VisibleMeshCommands.Num());
 

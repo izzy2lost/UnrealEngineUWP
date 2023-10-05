@@ -1422,6 +1422,7 @@ void FInstanceCullingContext::AddClearIndirectArgInstanceCountPass(FRDGBuilder& 
 void FInstanceCullingContext::SetupDrawCommands(
 	FMeshCommandOneFrameArray& VisibleMeshDrawCommandsInOut,
 	bool bInCompactIdenticalCommands,
+	const FScene *Scene,
 	// Stats
 	int32& MaxInstances,
 	int32& VisibleMeshDrawCommandsNum,
@@ -1481,12 +1482,15 @@ void FInstanceCullingContext::SetupDrawCommands(
 		const FVisibleMeshDrawCommand& RESTRICT VisibleMeshDrawCommand = PassVisibleMeshDrawCommands[DrawCommandIndex];
 		const FMeshDrawCommand* RESTRICT MeshDrawCommand = VisibleMeshDrawCommand.MeshDrawCommand;
 
+		const bool bFetchInstanceCountFromScene = EnumHasAnyFlags(VisibleMeshDrawCommand.Flags, EFVisibleMeshDrawCommandFlags::FetchInstanceCountFromScene);
+		check(!bFetchInstanceCountFromScene || Scene != nullptr);
+
 		const bool bSupportsGPUSceneInstancing = EnumHasAnyFlags(VisibleMeshDrawCommand.Flags, EFVisibleMeshDrawCommandFlags::HasPrimitiveIdStreamIndex);
 		const bool bMaterialUsesWorldPositionOffset = EnumHasAnyFlags(VisibleMeshDrawCommand.Flags, EFVisibleMeshDrawCommandFlags::MaterialUsesWorldPositionOffset);
 		const bool bMaterialAlwaysEvaluatesWorldPositionOffset = EnumHasAnyFlags(VisibleMeshDrawCommand.Flags, EFVisibleMeshDrawCommandFlags::MaterialAlwaysEvaluatesWorldPositionOffset);
 		const bool bForceInstanceCulling = EnumHasAnyFlags(VisibleMeshDrawCommand.Flags, EFVisibleMeshDrawCommandFlags::ForceInstanceCulling);
 		const bool bPreserveInstanceOrder = bOrderPreservationEnabled && EnumHasAnyFlags(VisibleMeshDrawCommand.Flags, EFVisibleMeshDrawCommandFlags::PreserveInstanceOrder);
-		const bool bUseIndirectDraw = bAlwaysUseIndirectDraws || bForceInstanceCulling || (VisibleMeshDrawCommand.NumRuns > 0 || MeshDrawCommand->NumInstances > 1);
+		const bool bUseIndirectDraw = bFetchInstanceCountFromScene || bAlwaysUseIndirectDraws || bForceInstanceCulling || (VisibleMeshDrawCommand.NumRuns > 0 || MeshDrawCommand->NumInstances > 1);
 		// UniformBufferView path does not support merging ISM draws atm
 		const bool bCompactIdenticalCommands = bInCompactIdenticalCommands && (bUsesUniformBufferView ? (CurrentAutoInstanceCount < MaxPrimitiveBatchSize && !bUseIndirectDraw) : true);
 
@@ -1584,8 +1588,27 @@ void FInstanceCullingContext::SetupDrawCommands(
 			{
 				AddInstanceRunsToDrawCommand(CurrentIndirectArgsOffset, VisibleMeshDrawCommand.PrimitiveIdInfo.InstanceSceneDataOffset, VisibleMeshDrawCommand.RunArray, VisibleMeshDrawCommand.NumRuns, InstanceFlags, MaxGenericBatchSize);
 			}
+			else if (bFetchInstanceCountFromScene)
+			{
+				check(Scene != nullptr);
+				check(!VisibleMeshDrawCommand.PrimitiveIdInfo.bIsDynamicPrimitive);
+				uint32 NumInstances = uint32(Scene->Primitives[VisibleMeshDrawCommand.PrimitiveIdInfo.ScenePrimitiveId]->GetNumInstanceSceneDataEntries());
+				if (NumInstances > 0u)
+				{
+					AddInstancesToDrawCommand(CurrentIndirectArgsOffset, VisibleMeshDrawCommand.PrimitiveIdInfo.InstanceSceneDataOffset, 0, NumInstances, InstanceFlags, MaxGenericBatchSize);
+				}
+			}
 			else
 			{
+				if (Scene != nullptr)
+				{
+					// Make sure the cached MDC matches what is stored in the scene
+					checkSlow(VisibleMeshDrawCommand.PrimitiveIdInfo.bIsDynamicPrimitive 
+						|| !bSupportsGPUSceneInstancing
+						|| VisibleMeshDrawCommand.MeshDrawCommand->NumInstances == uint32(Scene->Primitives[VisibleMeshDrawCommand.PrimitiveIdInfo.ScenePrimitiveId]->GetNumInstanceSceneDataEntries()));
+					// This condition is used to skip re-caching MDCs and thus should not be set on anything that doesn't take the above path
+					checkSlow(!Scene->Primitives[VisibleMeshDrawCommand.PrimitiveIdInfo.ScenePrimitiveId]->Proxy->DoesMeshBatchesUseSceneInstanceCount());
+				}
 				AddInstancesToDrawCommand(CurrentIndirectArgsOffset, VisibleMeshDrawCommand.PrimitiveIdInfo.InstanceSceneDataOffset, 0, VisibleMeshDrawCommand.MeshDrawCommand->NumInstances, InstanceFlags, MaxGenericBatchSize);
 			}
 

@@ -43,7 +43,7 @@ void FSimpleMeshDrawCommandPass::BuildRenderingCommands(FRDGBuilder& GraphBuilde
 		// 1. Run draw command setup, but only the first time.
 		if (!bWasDrawCommandsSetup)
 		{
-			InstanceCullingContext.SetupDrawCommands(VisibleMeshDrawCommands, true, MaxInstances, VisibleMeshDrawCommandsNum, NewPassVisibleMeshDrawCommandsNum);
+			InstanceCullingContext.SetupDrawCommands(VisibleMeshDrawCommands, true, &GPUScene.GetScene(), MaxInstances, VisibleMeshDrawCommandsNum, NewPassVisibleMeshDrawCommandsNum);
 			bWasDrawCommandsSetup = true;
 		}
 

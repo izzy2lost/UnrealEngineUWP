@@ -326,9 +326,21 @@ struct FInstanceCullingOcclusionQueryDeferredContext
 		// Commands that use instance runs are currently not supported.
 		return bCompatibleFlags
 			&& bSupportsGPUSceneInstancing
-			&& VisibleCommand.MeshDrawCommand->NumPrimitives != 0
+			&& VisibleCommand.PrimitiveIdInfo.InstanceSceneDataOffset != INDEX_NONE
 			&& VisibleCommand.NumRuns == 0;
 	};
+
+	static FORCEINLINE uint32 GetCommandNumInstances(const FVisibleMeshDrawCommand& VisibleMeshDrawCommand, const FScene *Scene)
+	{
+		const bool bFetchInstanceCountFromScene = EnumHasAnyFlags(VisibleMeshDrawCommand.Flags, EFVisibleMeshDrawCommandFlags::FetchInstanceCountFromScene);
+		if (bFetchInstanceCountFromScene)
+		{
+			check(Scene != nullptr);
+			check(!VisibleMeshDrawCommand.PrimitiveIdInfo.bIsDynamicPrimitive);
+			return uint32(Scene->Primitives[VisibleMeshDrawCommand.PrimitiveIdInfo.ScenePrimitiveId]->GetNumInstanceSceneDataEntries());
+		}
+		return VisibleMeshDrawCommand.MeshDrawCommand->NumInstances;
+	}
 
 	void Execute()
 	{
@@ -349,7 +361,9 @@ struct FInstanceCullingOcclusionQueryDeferredContext
 
 		const FMeshCommandOneFrameArray& VisibleMeshDrawCommands = MeshDrawCommandPass.GetMeshDrawCommands();
 
-		NumInstances = CountVisibleInstances(VisibleMeshDrawCommands);
+		const FScene *Scene = View->Family->Scene->GetRenderScene();
+
+		NumInstances = CountVisibleInstances(VisibleMeshDrawCommands, Scene);
 
 		NumThreadGroups = FComputeShaderUtils::GetGroupCount(NumInstances, FInstanceCullingOcclusionQueryCS::NumThreadsPerGroup);
 
@@ -373,12 +387,12 @@ struct FInstanceCullingOcclusionQueryDeferredContext
 
 		const uint32 DynamicPrimitiveInstanceOffset = View->DynamicPrimitiveCollector.GetInstanceSceneDataOffset();
 
-		FillVisibleInstanceIds(VisibleMeshDrawCommands, DynamicPrimitiveInstanceOffset);
+		FillVisibleInstanceIds(VisibleMeshDrawCommands, DynamicPrimitiveInstanceOffset, Scene);
 
 		bValid = true;
 	}
 
-	uint32 CountVisibleInstances(const FMeshCommandOneFrameArray& VisibleMeshDrawCommands) const 
+	uint32 CountVisibleInstances(const FMeshCommandOneFrameArray& VisibleMeshDrawCommands, const FScene *Scene) const 
 	{
 		TRACE_CPUPROFILER_EVENT_SCOPE(FInstanceCullingOcclusionQueryDeferredContext::CountVisibleInstances);
 
@@ -390,13 +404,13 @@ struct FInstanceCullingOcclusionQueryDeferredContext
 			{
 				continue;
 			}
-			Result += VisibleCommand.MeshDrawCommand->NumInstances;
+			Result += GetCommandNumInstances(VisibleCommand, Scene);
 		}
 
 		return Result;
 	}
 
-	void FillVisibleInstanceIds(const FMeshCommandOneFrameArray& VisibleMeshDrawCommands, const uint32 DynamicPrimitiveInstanceOffset)
+	void FillVisibleInstanceIds(const FMeshCommandOneFrameArray& VisibleMeshDrawCommands, const uint32 DynamicPrimitiveInstanceOffset, const FScene *Scene)
 	{
 		TRACE_CPUPROFILER_EVENT_SCOPE(FInstanceCullingOcclusionQueryDeferredContext::FillVisibleInstanceIds);
 
@@ -413,14 +427,17 @@ struct FInstanceCullingOcclusionQueryDeferredContext
 			{
 				continue;
 			}
+			uint32 CommandNumInstances = GetCommandNumInstances(VisibleCommand, Scene);
+			if (CommandNumInstances == 0u)
+			{
+				continue;
+			}
 
 			uint32 InstanceBaseIndex = VisibleCommand.PrimitiveIdInfo.InstanceSceneDataOffset;
 			if (VisibleCommand.PrimitiveIdInfo.bIsDynamicPrimitive)
 			{
 				InstanceBaseIndex += DynamicPrimitiveInstanceOffset;
 			}
-
-			uint32 CommandNumInstances = VisibleCommand.MeshDrawCommand->NumInstances;
 
 			check(InstanceBaseIndex + CommandNumInstances <= uint32(NumGPUSceneInstances));
 

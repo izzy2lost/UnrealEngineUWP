@@ -173,6 +173,10 @@ void FMeshPassProcessor::BuildMeshDrawCommands(
 					Flags |= EFVisibleMeshDrawCommandFlags::PreserveInstanceOrder;
 				}
 			}
+			if (BatchElement.bFetchInstanceCountFromScene)
+			{
+				Flags |= EFVisibleMeshDrawCommandFlags::FetchInstanceCountFromScene;
+			}
 
 			DataOffset = 0;
 			if (PassShaders.VertexShader.IsValid())

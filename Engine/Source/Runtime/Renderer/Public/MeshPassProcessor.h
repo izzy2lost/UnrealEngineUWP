@@ -1389,8 +1389,11 @@ enum class EFVisibleMeshDrawCommandFlags : uint8
 	/** If set, requires that instances preserve their original draw order in the draw command */
 	PreserveInstanceOrder = 1U << 4U,
 
-	All = MaterialUsesWorldPositionOffset | HasPrimitiveIdStreamIndex | ForceInstanceCulling | PreserveInstanceOrder,
-	NumBits = 5U
+	/** If set, the instance culling machinery will pull the instance count from the primitive in FScene, making it possible to bypass MDC re-caching */
+	FetchInstanceCountFromScene = 1U << 5U,
+
+	All = MaterialUsesWorldPositionOffset | HasPrimitiveIdStreamIndex | ForceInstanceCulling | PreserveInstanceOrder | FetchInstanceCountFromScene,
+	NumBits = 6U
 };
 ENUM_CLASS_FLAGS(EFVisibleMeshDrawCommandFlags);
 static_assert(uint32(EFVisibleMeshDrawCommandFlags::All) < (1U << uint32(EFVisibleMeshDrawCommandFlags::NumBits)), "EFVisibleMeshDrawCommandFlags::NumBits too small to represent all flags in EFVisibleMeshDrawCommandFlags.");

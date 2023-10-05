@@ -193,7 +193,7 @@ struct FGPUSceneInstanceRange
 class FGPUScene
 {
 public:
-	FGPUScene();
+	FGPUScene(FScene &InScene);
 	~FGPUScene();
 
 	void SetEnabled(ERHIFeatureLevel::Type InFeatureLevel);
@@ -362,7 +362,11 @@ public:
 	TArray<FInstanceRange> DynamicPrimitiveInstancesToInvalidate;
 
 	using FInstanceGPULoadBalancer = TInstanceCullingLoadBalancer<SceneRenderingAllocator>;
+
+	inline const FScene &GetScene() const { return Scene; }
+
 private:
+	FScene &Scene;
 	FSpanAllocator		           InstanceSceneDataAllocator;
 	FGPUSceneBufferState BufferState;
 	FGPUSceneResourceParameters ShaderParameters;

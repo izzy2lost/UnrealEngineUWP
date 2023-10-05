@@ -1938,7 +1938,7 @@ void FDeferredShadingSceneRenderer::UpdateLumenScene(FRDGBuilder& GraphBuilder, 
 				int32 VisibleMeshDrawCommandsNum = 0;
 				int32 NewPassVisibleMeshDrawCommandsNum = 0;
 				
-				InstanceCullingContext->SetupDrawCommands(LumenCardRenderer.MeshDrawCommands, false, MaxInstances, VisibleMeshDrawCommandsNum, NewPassVisibleMeshDrawCommandsNum);
+				InstanceCullingContext->SetupDrawCommands(LumenCardRenderer.MeshDrawCommands, false, Scene, MaxInstances, VisibleMeshDrawCommandsNum, NewPassVisibleMeshDrawCommandsNum);
 				// Not supposed to do any compaction here.
 				ensure(VisibleMeshDrawCommandsNum == LumenCardRenderer.MeshDrawCommands.Num());
 

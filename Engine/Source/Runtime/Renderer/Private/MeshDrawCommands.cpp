@@ -1119,6 +1119,7 @@ public:
 				Context.InstanceCullingContext.SetupDrawCommands(
 					Context.MeshDrawCommands, 
 					true, 
+					Context.Scene,
 					Context.MaxInstances, 
 					Context.VisibleMeshDrawCommandsNum, 
 					Context.NewPassVisibleMeshDrawCommandsNum);

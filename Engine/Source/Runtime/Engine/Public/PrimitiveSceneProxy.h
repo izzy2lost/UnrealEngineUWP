@@ -709,6 +709,14 @@ public:
 	ENGINE_API bool UseSingleSampleShadowFromStationaryLights() const;
 	inline bool StaticElementsAlwaysUseProxyPrimitiveUniformBuffer() const { return bStaticElementsAlwaysUseProxyPrimitiveUniformBuffer; }
 	inline bool DoesVFRequirePrimitiveUniformBuffer() const { return bVFRequiresPrimitiveUniformBuffer; }
+	
+	/** 
+	 * Returns true to inform scene update that the mesh batches produced makes use of the (GPU)Scene instance count, and thus don't require recaching if the instance count changed. 
+	 * Defaults to false, the proxy should only opt in if the above condition is true (or risk GPU-crashes).
+	 * Requires FMeshBatchElement::bFetchInstanceCountFromScene to be true.
+	 */
+	inline bool DoesMeshBatchesUseSceneInstanceCount() const { return bDoesMeshBatchesUseSceneInstanceCount; }
+
 	inline bool ShouldUseAsOccluder() const { return bUseAsOccluder; }
 	inline bool AllowApproximateOcclusion() const { return bAllowApproximateOcclusion; }
 	inline bool Holdout() const { return bHoldout; }
@@ -1296,6 +1304,9 @@ protected:
 	 * When false, updating the primitive uniform buffer can be skipped since vertex factories always use GPUScene instead.
 	 */
 	uint8 bVFRequiresPrimitiveUniformBuffer : 1;
+
+	/** Set to true to inform scene update that the MDCs produced may use the (GPU)Scene instance count, and thus don't require recaching if the instance count changed. */
+	uint8 bDoesMeshBatchesUseSceneInstanceCount : 1;
 
 	/** Whether this proxy is a Nanite mesh. */
 	uint8 bIsNaniteMesh : 1;
