@@ -118,7 +118,7 @@ public:
 	UFUNCTION(BlueprintCallable, Category=RetargetOps)
 	int32 GetIndexOfRetargetOp(URetargetOpBase* RetargetOp) const;
 
-	// Get the number of solvers in the stack.
+	// Get the number of Ops in the stack.
 	UFUNCTION(BlueprintCallable, Category=RetargetOps)
 	int32 GetNumRetargetOps() const;
 
@@ -130,7 +130,7 @@ public:
 	UFUNCTION(BlueprintCallable, BlueprintPure=false, Category=RetargetOps)
 	bool SetRetargetOpEnabled(int32 RetargetOpIndex, bool bIsEnabled) const;
 
-	// Get enabled status of the given solver. 
+	// Get enabled status of the given Op. 
 	UFUNCTION(BlueprintCallable, Category=RetargetOps)
 	bool GetRetargetOpEnabled(int32 RetargetOpIndex) const;
 
