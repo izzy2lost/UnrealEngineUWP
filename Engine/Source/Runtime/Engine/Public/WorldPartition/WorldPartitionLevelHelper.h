@@ -10,6 +10,7 @@
 #pragma once
 
 #include "Engine/World.h"
+#include "UObject/LinkerInstancingContext.h"
 #include "WorldPartition/WorldPartitionRuntimeCell.h"
 
 class FWorldPartitionPackageHelper;
