@@ -129,7 +129,6 @@ public:
 		, bSearchable(true)
 		, bIsPartOfHeading(InMultiBlockParams.bIsPartOfHeading)
 	{
-		check(Action.IsValid() || DirectActions.IsBound());
 	}
 
 	virtual ~FMultiBlock()
