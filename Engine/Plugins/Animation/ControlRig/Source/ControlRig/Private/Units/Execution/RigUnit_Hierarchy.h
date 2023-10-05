@@ -271,6 +271,7 @@ struct CONTROLRIG_API FRigUnit_HierarchyGetChainItemArray : public FRigUnit_Hier
 		CachedStart = CachedEnd = FCachedRigElement();
 		CachedChain = FRigElementKeyCollection();
 		bIncludeStart = bIncludeEnd = true;
+		bReverse = false;
 	}
 
 	RIGVM_METHOD()
@@ -288,6 +289,9 @@ struct CONTROLRIG_API FRigUnit_HierarchyGetChainItemArray : public FRigUnit_Hier
 	UPROPERTY(meta = (Input))
 	bool bIncludeEnd;
 
+	UPROPERTY(meta = (Input))
+	bool bReverse;
+	
 	UPROPERTY(meta = (Output))
 	TArray<FRigElementKey> Chain;
 

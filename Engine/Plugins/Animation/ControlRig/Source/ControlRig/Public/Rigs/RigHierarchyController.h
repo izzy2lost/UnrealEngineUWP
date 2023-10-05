@@ -616,6 +616,18 @@ private:
 	bool IsValid() const;
 
 	/**
+	 * Determine a safe new name for an element. If a name is passed which contains a namespace
+	 * (for example "MyNameSpace:Control") we'll remove the namespace and just use the short name
+	 * prefixed with the current namespace (for example: "MyOtherNameSpace:Control"). Name clashes
+	 * will be resolved for the full name. So two modules with two different namespaces can have
+	 * elements with the same short name (for example "MyModuleA:Control" and "MyModuleB:Control").
+	 * @param InDesiredName The name provided by the user
+	 * @param InElementType The kind of element we are about to create
+	 * @return The safe name of the element to create.
+	 */
+	FName GetSafeNewName(const FName& InDesiredName, ERigElementType InElementType) const;
+	
+	/**
 	 * Adds a new element to the hierarchy
 	 * @param InElementToAdd The new element to add to the hierarchy 
 	 * @param InFirstParent The (optional) parent of the new bone. If you don't need a parent, pass nullptr

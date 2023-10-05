@@ -1406,8 +1406,7 @@ bool UControlRig::Execute_Internal(const FName& InEventName)
 
 		// setup the module information
 		FControlRigExecuteContext& PublicContext = Context.GetPublicDataSafe<FControlRigExecuteContext>();
-		TGuardValue<FName> ModuleInstanceNameGuard(PublicContext.ModuleInstanceName, GetModuleInstanceName());
-		TGuardValue<FString> ModuleInstanceNameSpaceGuard(PublicContext.ModuleInstanceNameSpace, GetRigModuleNameSpace());
+		FControlRigExecuteContextRigModuleGuard RigModuleGuard(PublicContext, this);
 		FRigHierarchyRedirectorGuard ElementRedirectorGuard(this);
 
 		TArray<FRigVMMemoryStorageStruct*> LocalMemory = VM->GetLocalMemoryArray(Context);
@@ -1659,15 +1658,6 @@ bool UControlRig::IsRigModuleInstance() const
 UControlRig* UControlRig::GetParentRig() const
 {
 	return GetTypedOuter<UControlRig>();
-}
-
-FName UControlRig::GetModuleInstanceName() const
-{
-	if(IsRigModuleInstance())
-	{
-		return GetFName();
-	}
-	return NAME_None;
 }
 
 const FString& UControlRig::GetRigModuleNameSpace() const

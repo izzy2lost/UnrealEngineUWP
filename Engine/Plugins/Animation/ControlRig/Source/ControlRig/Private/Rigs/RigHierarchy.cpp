@@ -1259,9 +1259,9 @@ FRigName URigHierarchy::GetSafeNewName(const FRigName& InPotentialNewName, ERigE
 	if(ExecuteContext)
 	{
 		const FControlRigExecuteContext& CRContext = ExecuteContext->GetPublicData<FControlRigExecuteContext>();
-		if(!CRContext.ModuleInstanceNameSpace.IsEmpty())
+		if(CRContext.IsRigModule())
 		{
-			SanitizedName = CRContext.ModuleInstanceNameSpace + SanitizedName.GetName();
+			SanitizedName = CRContext.GetRigModuleNameSpace() + SanitizedName.GetName();
 			bAllowNameSpaceWhenSanitizingName = true;
 		}
 	}

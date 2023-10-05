@@ -98,9 +98,6 @@ public:
 	// Returns the parent rig hosting this module instance
 	UControlRig* GetParentRig() const;
 
-	// Returns the name of this module instance
-	FName GetModuleInstanceName() const;
-
 	// Returns the namespace of this module (for example ArmModule::)
 	const FString& GetRigModuleNameSpace() const;
 

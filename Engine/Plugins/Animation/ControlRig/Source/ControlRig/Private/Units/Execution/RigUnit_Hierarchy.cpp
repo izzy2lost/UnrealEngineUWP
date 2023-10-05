@@ -216,7 +216,13 @@ FRigUnit_HierarchyGetChainItemArray_Execute()
 				}
 
 				CachedChain = FRigElementKeyCollection(Keys);
-				CachedChain = FRigElementKeyCollection::MakeReversed(CachedChain);
+
+				// we are collecting the chain in reverse order (from tail to head)
+				// so we'll reverse it again if we are expecting the chain to be in order parent to child.
+				if(!bReverse)
+				{
+					CachedChain = FRigElementKeyCollection::MakeReversed(CachedChain);
+				}
 			}
 		}
 	}

@@ -164,6 +164,11 @@ public:
 	typedef TPair<int32, TArray<int32>> TElementDependencyMapPair;
 	typedef TTuple<int32, int32, int32, ERigTransformType::Type> TInstructionSliceElement;
 	inline static const FName TagMetadataName = TEXT("Tags");
+	inline static const FName ShortNameMetadataName = TEXT("ShortName");
+	inline static const FName DesiredNameMetadataName = TEXT("DesiredName");
+	inline static const FName DesiredKeyMetadataName = TEXT("DesiredKey");
+	inline static const FName ModuleMetadataName = TEXT("Module");
+	inline static const FName NameSpaceMetadataName = TEXT("NameSpace");
 
 	URigHierarchy();
 
@@ -4372,10 +4377,21 @@ protected:
 
 public:
 
-	const FRigElementKeyCollection* FindCachedCollection(uint32 InHash) const { return KeyCollectionCache.Find(InHash); }
-	FRigElementKeyCollection& FindOrAddCachedCollection(uint32 InHash) const { return KeyCollectionCache.FindOrAdd(InHash); };
-	void AddCachedCollection(uint32 InHash, const FRigElementKeyCollection& InCollection) const { KeyCollectionCache.Add(InHash, InCollection); }
+	const FRigElementKeyCollection* FindCachedCollection(uint32 InHash) const
+	{
+		return KeyCollectionCache.Find(InHash);
+	}
 	
+	FRigElementKeyCollection& FindOrAddCachedCollection(uint32 InHash) const
+	{
+		return KeyCollectionCache.FindOrAdd(InHash);
+	};
+	
+	void AddCachedCollection(uint32 InHash, const FRigElementKeyCollection& InCollection) const
+	{
+		KeyCollectionCache.Add(InHash, InCollection);
+	}
+
 private:
 	
 	mutable TMap<uint32, FRigElementKeyCollection> KeyCollectionCache;

@@ -11,7 +11,9 @@
 #include "RigVMCore/RigVMExecuteContext.h"
 #include "RigUnitContext.generated.h"
 
+class UControlRig;
 class UControlRigShapeLibrary;
+
 /**
  * The type of interaction happening on a rig
  */
@@ -97,11 +99,13 @@ struct FControlRigExecuteContext : public FRigVMExecuteContext
 {
 	GENERATED_BODY()
 
+public:
+	
 	FControlRigExecuteContext()
 		: FRigVMExecuteContext()
 		, Hierarchy(nullptr)
-		, ModuleInstanceName(NAME_None)
-		, ModuleInstanceNameSpace()
+		, RigModuleNameSpace()
+		, RigModuleNameSpaceHash(0)
 	{
 	}
 
@@ -149,6 +153,16 @@ struct FControlRigExecuteContext : public FRigVMExecuteContext
 	FName RemoveRigModuleNameSpace(const FName& InName) const;
 	FString RemoveRigModuleNameSpace(const FString& InName) const;
 
+	bool IsRigModule() const
+	{
+		return !GetRigModuleNameSpace().IsEmpty();
+	}
+
+	FString GetRigModuleNameSpace() const
+	{
+		return RigModuleNameSpace;
+	}
+
 	/** The list of available asset user data object */
 	TArray<const UAssetUserData*> AssetUserData;
 
@@ -160,8 +174,25 @@ struct FControlRigExecuteContext : public FRigVMExecuteContext
 	
 	FRigUnitContext UnitContext;
 	URigHierarchy* Hierarchy;
-	FName ModuleInstanceName;
-	FString ModuleInstanceNameSpace;
+
+private:
+	FString RigModuleNameSpace;
+	uint32 RigModuleNameSpaceHash;
+
+	friend class FControlRigExecuteContextRigModuleGuard;
+};
+
+class CONTROLRIG_API FControlRigExecuteContextRigModuleGuard
+{
+public:
+	FControlRigExecuteContextRigModuleGuard(FControlRigExecuteContext& InContext, const UControlRig* InControlRig);
+	~FControlRigExecuteContextRigModuleGuard();
+
+private:
+
+	FControlRigExecuteContext& Context;
+	FString PreviousRigModuleNameSpace;
+	uint32 PreviousRigModuleNameSpaceHash;
 };
 
 #if WITH_EDITOR

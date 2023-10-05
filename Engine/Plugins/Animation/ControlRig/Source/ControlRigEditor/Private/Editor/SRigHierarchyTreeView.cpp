@@ -34,6 +34,7 @@ FRigTreeDisplaySettings FRigTreeDelegates::DefaultDisplaySettings;
 FRigTreeElement::FRigTreeElement(const FRigElementKey& InKey, TWeakPtr<SRigHierarchyTreeView> InTreeView, bool InSupportsRename, ERigTreeFilterResult InFilterResult)
 {
 	Key = InKey;
+	ShortName = InKey.Name;
 	ChannelName = NAME_None;
 	bIsTransient = false;
 	bIsAnimationChannel = false;
@@ -45,6 +46,8 @@ FRigTreeElement::FRigTreeElement(const FRigElementKey& InKey, TWeakPtr<SRigHiera
 	{
 		if(const URigHierarchy* Hierarchy = InTreeView.Pin()->GetRigTreeDelegates().GetHierarchy())
 		{
+			ShortName = Hierarchy->GetNameMetadata(InKey, URigHierarchy::ShortNameMetadataName, ShortName);
+			
 			const FRigTreeDisplaySettings& Settings = InTreeView.Pin()->GetRigTreeDelegates().GetDisplaySettings();
 			RefreshDisplaySettings(Hierarchy, Settings);
 		}
@@ -169,7 +172,8 @@ void SRigHierarchyItem::Construct(const FArguments& InArgs, const TSharedRef<STa
 			.VAlign(VAlign_Center)
 			[
 				SAssignNew(InlineWidget, SInlineEditableTextBlock)
-				.Text(this, &SRigHierarchyItem::GetName)
+				.Text(this, &SRigHierarchyItem::GetName, true)
+				.ToolTipText(this, &SRigHierarchyItem::GetItemTooltip)
 				.OnVerifyTextChanged(this, &SRigHierarchyItem::OnVerifyNameChanged)
 				.OnTextCommitted(this, &SRigHierarchyItem::OnNameCommitted)
 				.MultiLine(false)
@@ -196,7 +200,7 @@ void SRigHierarchyItem::Construct(const FArguments& InArgs, const TSharedRef<STa
 	InRigTreeElement->OnRenameRequested.BindSP(InlineWidget.Get(), &SInlineEditableTextBlock::EnterEditingMode);
 }
 
-FText SRigHierarchyItem::GetName() const
+FText SRigHierarchyItem::GetName(bool bUseShortName) const
 {
 	if(WeakRigTreeElement.Pin()->bIsTransient)
 	{
@@ -207,7 +211,22 @@ FText SRigHierarchyItem::GetName() const
 	{
 		return FText::FromName(WeakRigTreeElement.Pin()->ChannelName);
 	}
+	if(bUseShortName)
+	{
+		return (FText::FromName(WeakRigTreeElement.Pin()->ShortName));
+	}
 	return (FText::FromName(WeakRigTreeElement.Pin()->Key.Name));
+}
+
+FText SRigHierarchyItem::GetItemTooltip() const
+{
+	const FText FullName = GetName(false);
+	const FText ShortName = GetName(true);
+	if(FullName.EqualTo(ShortName))
+	{
+		return FText();
+	}
+	return FullName;
 }
 
 //////////////////////////////////////////////////////////////

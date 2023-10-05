@@ -189,6 +189,7 @@ public:
 public:
 	/** Element Data to display */
 	FRigElementKey Key;
+	FName ShortName;
 	FName ChannelName;
 	bool bIsTransient;
 	bool bIsAnimationChannel;
@@ -236,7 +237,8 @@ private:
 	TWeakPtr<FRigTreeElement> WeakRigTreeElement;
  	FRigTreeDelegates Delegates;
 
-	FText GetName() const;
+	FText GetName(bool bUseShortName) const;
+	FText GetItemTooltip() const;
 
 	friend class SRigHierarchyTreeView; 
 };

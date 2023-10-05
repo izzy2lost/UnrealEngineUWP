@@ -1,12 +1,13 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 
 #include "Units/RigUnitContext.h"
+#include "ControlRig.h"
 
 #include UE_INLINE_GENERATED_CPP_BY_NAME(RigUnitContext)
 
 FName FControlRigExecuteContext::AddRigModuleNameSpace(const FName& InName) const
 {
-	if(ModuleInstanceName.IsNone())
+	if(IsRigModule())
 	{
 		return InName;
 	}
@@ -15,17 +16,17 @@ FName FControlRigExecuteContext::AddRigModuleNameSpace(const FName& InName) cons
 
 FString FControlRigExecuteContext::AddRigModuleNameSpace(const FString& InName) const
 {
-	if(ModuleInstanceName.IsNone())
+	if(IsRigModule())
 	{
 		return InName;
 	}
-	check(!ModuleInstanceNameSpace.IsEmpty());
-	return ModuleInstanceNameSpace + InName;
+	check(!RigModuleNameSpace.IsEmpty());
+	return RigModuleNameSpace + InName;
 }
 
 FName FControlRigExecuteContext::RemoveRigModuleNameSpace(const FName& InName) const
 {
-	if(ModuleInstanceName.IsNone())
+	if(IsRigModule())
 	{
 		return InName;
 	}
@@ -34,15 +35,30 @@ FName FControlRigExecuteContext::RemoveRigModuleNameSpace(const FName& InName) c
 
 FString FControlRigExecuteContext::RemoveRigModuleNameSpace(const FString& InName) const
 {
-	if(ModuleInstanceName.IsNone())
+	if(IsRigModule())
 	{
 		return InName;
 	}
-	check(!ModuleInstanceNameSpace.IsEmpty());
+	check(!RigModuleNameSpace.IsEmpty());
 
-	if(InName.StartsWith(ModuleInstanceNameSpace, ESearchCase::CaseSensitive))
+	if(InName.StartsWith(RigModuleNameSpace, ESearchCase::CaseSensitive))
 	{
-		return InName.Mid(ModuleInstanceNameSpace.Len());
+		return InName.Mid(RigModuleNameSpace.Len());
 	}
 	return InName;
+}
+
+FControlRigExecuteContextRigModuleGuard::FControlRigExecuteContextRigModuleGuard(FControlRigExecuteContext& InContext, const UControlRig* InControlRig)
+	: Context(InContext)
+	, PreviousRigModuleNameSpace(InContext.RigModuleNameSpace)
+	, PreviousRigModuleNameSpaceHash(InContext.RigModuleNameSpaceHash)
+{
+	Context.RigModuleNameSpace = InControlRig->GetRigModuleNameSpace();
+	Context.RigModuleNameSpaceHash = GetTypeHash(Context.RigModuleNameSpace);
+}
+	
+FControlRigExecuteContextRigModuleGuard::~FControlRigExecuteContextRigModuleGuard()
+{
+	Context.RigModuleNameSpace = PreviousRigModuleNameSpace;
+	Context.RigModuleNameSpaceHash = PreviousRigModuleNameSpaceHash; 
 }
