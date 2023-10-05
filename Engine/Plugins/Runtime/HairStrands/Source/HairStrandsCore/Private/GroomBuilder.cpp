@@ -2321,7 +2321,28 @@ void Decimate(
 	}
 	HairStrandsBuilder::BuildInternalData(OutData);
 }
-	
+
+void GetCurveShuffleIndices(TArray<uint32>& CurveRandomizedIndex, uint32 InCurveCount)
+{
+	FRandomStream Random;
+	Random.Initialize(0xdeedbeed);
+
+	// this is the proof of concept version - which just does a shuffle - TODO: improved voxel based version which caters for both long hair and short hair
+	CurveRandomizedIndex.SetNum(InCurveCount);
+
+	//initialize value
+	for (uint32 CurveIndex = 0; CurveIndex < InCurveCount; CurveIndex++)
+	{
+		CurveRandomizedIndex[CurveIndex] = CurveIndex;
+	}
+	//shuffle
+	for (uint32 CurveIndex = 0; CurveIndex < InCurveCount; CurveIndex++)
+	{
+		uint32 RandIndex = Random.RandRange(0, InCurveCount - 1);
+		CurveRandomizedIndex.Swap(CurveIndex, RandIndex);
+	}
+}
+
 void Decimate(
 	const FHairStrandsDatas& InData, 
 	float CurveDecimationPercentage, 
@@ -2338,28 +2359,14 @@ void Decimate(
 	const uint32 OutCurveCount = FMath::Clamp(uint32(InCurveCount * CurveDecimationPercentage), 1u, InCurveCount);
 	const uint32 InAttributes = InData.GetAttributes();
 
-	FRandomStream Random;
-	Random.Initialize(0xdeedbeed);
-
 	TArray<uint32> CurveRandomizedIndex;
-
-	// this is the proof of concept version - which just does a shuffle - TODO: improved voxel based version which caters for both long hair and short hair
 	if (bContinuousDecimationReordering)
 	{
-		CurveRandomizedIndex.SetNum(InCurveCount);
-
-		//initialize value
-		for (uint32 CurveIndex = 0; CurveIndex < InCurveCount; CurveIndex++)
-		{
-			CurveRandomizedIndex[CurveIndex] = CurveIndex;
-		}
-		//shuffle
-		for (uint32 CurveIndex = 0; CurveIndex < InCurveCount; CurveIndex++)
-		{
-			uint32 RandIndex = Random.RandRange(0, InCurveCount - 1);
-			CurveRandomizedIndex.Swap(CurveIndex, RandIndex);
-		}
+		GetCurveShuffleIndices(CurveRandomizedIndex, InCurveCount);
 	}
+
+	FRandomStream Random;
+	Random.Initialize(0xdeedbeed);
 
 	uint32 OutTotalPointCount = InData.GetNumPoints();
 	TArray<uint32> CurveIndices;
