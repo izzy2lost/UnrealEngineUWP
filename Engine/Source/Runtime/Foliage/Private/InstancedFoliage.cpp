@@ -2631,7 +2631,7 @@ void FFoliageInfo::RecomputeHash()
 void FFoliageInfo::ReallocateClusters(UFoliageType* InSettings)
 {
 	// In case Foliage Type Changed recreate implementation
-	if (Implementation.IsValid())
+	if (Implementation.IsValid() && Implementation->IsInitialized())
 	{
 		Implementation->Uninitialize();
 	}
