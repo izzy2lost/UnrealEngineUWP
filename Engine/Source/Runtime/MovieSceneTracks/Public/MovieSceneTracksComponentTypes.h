@@ -637,7 +637,6 @@ struct FMovieSceneTracksComponentTypes
 		FComponentTypeID BoundMaterialChanged;
 		FComponentTypeID CustomPrimitiveData;
 		FComponentTypeID Slomo;
-		FComponentTypeID Visibility;
 	} Tags;
 
 	TComponentTypeID<FLevelVisibilityComponentData> LevelVisibility;

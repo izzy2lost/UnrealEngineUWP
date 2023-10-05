@@ -17,8 +17,8 @@ class UObject;
 /**
  * A single bool section.
  */
-UCLASS()
-class MOVIESCENE_API UMovieSceneBoolSection 
+UCLASS(MinimalAPI)
+class UMovieSceneBoolSection 
 	: public UMovieSceneSection
 {
 	GENERATED_UCLASS_BODY()
@@ -58,7 +58,7 @@ public:
 	/**
 	 * Set a flag indicating that the actual property that this bool represents is the opposite of the values stored in this section
 	 */
-	void SetIsExternallyInverted(bool bInIsExternallyInverted);
+	MOVIESCENE_API void SetIsExternallyInverted(bool bInIsExternallyInverted);
 
 protected:
 
