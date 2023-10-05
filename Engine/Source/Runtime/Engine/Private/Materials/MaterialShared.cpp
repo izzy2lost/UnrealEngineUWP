@@ -55,7 +55,6 @@
 #include "SubstrateDefinitions.h"
 #include "DataDrivenShaderPlatformInfo.h"
 #include "ProfilingDebugging/CookStats.h"
-#include "Engine/NeuralProfile.h"
 
 #define LOCTEXT_NAMESPACE "MaterialShared"
 
@@ -1726,11 +1725,6 @@ bool FMaterialResource::IsUsedWithVirtualHeightfieldMesh() const
 	return Material->bUsedWithVirtualHeightfieldMesh;
 }
 
-bool FMaterialResource::IsUsedWithNeuralNetworks() const
-{
-	return Material->bUsedWithNeuralNetworks && Material->IsPostProcessMaterial();
-}
-
 bool FMaterialResource::IsUsedWithLandscape() const
 {
 	return false;
@@ -2181,11 +2175,6 @@ bool FMaterialResource::IsStencilTestEnabled() const
 uint32 FMaterialResource::GetStencilRefValue() const
 {
 	return GetMaterialDomain() == MD_PostProcess ? Material->StencilRefValue : 0;
-}
-
-int32 FMaterialResource::GetNeuralProfileId() const
-{ 
-	return GetMaterialDomain() == MD_PostProcess ? Material->NeuralProfileId : INDEX_NONE;
 }
 
 uint32 FMaterialResource::GetStencilCompare() const
@@ -5361,7 +5350,6 @@ FMaterialShaderParameters::FMaterialShaderParameters(const FMaterial* InMaterial
 	bHasRuntimeVirtualTextureOutput = InMaterial->HasRuntimeVirtualTextureOutput();
 	bIsUsedWithLidarPointCloud = InMaterial->IsUsedWithLidarPointCloud();
 	bIsUsedWithVirtualHeightfieldMesh = InMaterial->IsUsedWithVirtualHeightfieldMesh();
-	bIsUsedWithNeuralNetworks = InMaterial->IsUsedWithNeuralNetworks();
 	bIsUsedWithNanite = InMaterial->IsUsedWithNanite();
 	bIsStencilTestEnabled = InMaterial->IsStencilTestEnabled();
 	bIsTranslucencySurface = InMaterial->GetTranslucencyLightingMode() == ETranslucencyLightingMode::TLM_Surface || InMaterial->GetTranslucencyLightingMode() == ETranslucencyLightingMode::TLM_SurfacePerPixelLighting;

@@ -25,7 +25,6 @@ class URuntimeVirtualTexture;
 class USparseVolumeTexture;
 class USubsurfaceProfile;
 class USpecularProfile;
-class UNeuralProfile;
 class UTexture;
 
 struct FMaterialParameterValue;
@@ -214,10 +213,6 @@ public:
 	const USpecularProfile* GetSpecularProfileRT(uint32 Index) const { check(Index<uint32(SpecularProfilesRT.Num())); return SpecularProfilesRT[Index]; }
 	const uint32 NumSpecularProfileRT() const { return SpecularProfilesRT.Num(); }
 
-	// Neural profiles
-	void SetNeuralProfileRT(const UNeuralProfile* Ptr) { NeuralProfileRT = Ptr; }
-	const UNeuralProfile* GetNeuralProfileRT() const { return NeuralProfileRT; }
-
 	static ENGINE_API void UpdateDeferredCachedUniformExpressions();
 	static ENGINE_API void UpdateDeferredCachedUniformExpressions(FRHICommandListBase& RHICmdList, UE::Tasks::FTask* TaskIfAsync = nullptr);
 
@@ -237,7 +232,6 @@ private:
 	/** 0 if not set, game thread pointer, do not dereference, only for comparison */
 	const USubsurfaceProfile* SubsurfaceProfileRT;
 	TArray<const USpecularProfile*> SpecularProfilesRT;
-	const UNeuralProfile* NeuralProfileRT;
 	FString MaterialName;
 
 	/** Incremented each time UniformExpressionCache is modified */

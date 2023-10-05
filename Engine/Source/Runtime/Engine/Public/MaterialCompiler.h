@@ -553,9 +553,6 @@ public:
 	virtual int32 SetLocal(const FName& LocalName, int32 Value) = 0;
 	virtual int32 GetLocal(const FName& LocalName) = 0;
 
-	// Neural network nodes
-	virtual int32 NeuralOutput(int32 ViewportUV, uint32 NeuralIndexType) = 0;
-	
 	// Substrate
 	virtual int32 SubstrateCreateAndRegisterNullMaterial() = 0;
 	virtual int32 SubstrateSlabBSDF(
@@ -1183,11 +1180,6 @@ public:
 	virtual int32 GetLocal(const FName& LocalName) override
 	{
 		return Compiler->GetLocal(LocalName);
-	}
-
-	virtual int32 NeuralOutput(int32 ViewportUV, uint32 NeuralIndexType) override
-	{
-		return Compiler->NeuralOutput(ViewportUV, NeuralIndexType);
 	}
 
 	virtual int32 SubstrateCreateAndRegisterNullMaterial() override

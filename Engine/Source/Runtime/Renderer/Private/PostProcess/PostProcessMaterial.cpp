@@ -27,7 +27,6 @@
 #include "SystemTextures.h"
 #include "Substrate/Substrate.h"
 #include "SingleLayerWaterRendering.h"
-#include "Engine/NeuralProfile.h"
 
 namespace
 {
@@ -291,8 +290,7 @@ public:
 	DECLARE_SHADER_TYPE(FPostProcessMaterialPS, Material);
 
 	class FManualStencilTestDim : SHADER_PERMUTATION_BOOL("MANUAL_STENCIL_TEST");
-	class FNeuralPostProcessPrePass : SHADER_PERMUTATION_BOOL("NEURAL_POSTPROCESS_PREPASS");
-	using FPermutationDomain = TShaderPermutationDomain<FManualStencilTestDim,FNeuralPostProcessPrePass>;
+	using FPermutationDomain = TShaderPermutationDomain<FManualStencilTestDim>;
 
 	FPostProcessMaterialPS() = default;
 	FPostProcessMaterialPS(const ShaderMetaType::CompiledShaderInitializerType& Initializer)
@@ -349,8 +347,7 @@ static void GetMaterialInfo(
 	const FMaterialRenderProxy*& OutMaterialProxy,
 	const FMaterialShaderMap*& OutMaterialShaderMap,
 	TShaderRef<FPostProcessMaterialVS>& OutVertexShader,
-	TShaderRef<FPostProcessMaterialPS>& OutPixelShader,
-	bool bNeuralPostProcessPrepass = false)
+	TShaderRef<FPostProcessMaterialPS>& OutPixelShader)
 {
 	const FMaterialRenderProxy* MaterialProxy = InMaterialInterface->GetRenderProxy();
 	check(MaterialProxy);
@@ -368,7 +365,6 @@ static void GetMaterialInfo(
 
 				FPostProcessMaterialPS::FPermutationDomain PermutationVectorPS;
 				PermutationVectorPS.Set<FPostProcessMaterialPS::FManualStencilTestDim>(bManualStencilTest);
-				PermutationVectorPS.Set<FPostProcessMaterialPS::FNeuralPostProcessPrePass>(bNeuralPostProcessPrepass);
 
 				ShaderTypes.AddShaderType<FPostProcessMaterialVS>();
 				ShaderTypes.AddShaderType<FPostProcessMaterialPS>(PermutationVectorPS.ToDimensionValueId());
@@ -422,262 +418,6 @@ void AddMobileMSAADecodeAndDrawTexturePass(
 	Parameters->RenderTargets[0] = Output.GetRenderTargetBinding();
 
 	AddDrawScreenPass(GraphBuilder, RDG_EVENT_NAME("MobileMSAADecodeAndDrawTexture"), View, OutputViewport, InputViewport, PixelShader, Parameters);
-}
-
-FPostProcessMaterialParameters* GetPostProcessMaterialParameters(
-	FRDGBuilder& GraphBuilder, 
-	const FPostProcessMaterialInputs& Inputs, 
-	const FViewInfo& View,
-	const FScreenPassTextureViewport& OutputViewport,
-	FScreenPassRenderTarget& Output, 
-	FRDGTextureRef DepthStencilTexture, 
-	const uint32 MaterialStencilRef, 
-	const FMaterial* Material, 
-	const FMaterialShaderMap* MaterialShaderMap)
-{
-	FPostProcessMaterialParameters* PostProcessMaterialParameters = GraphBuilder.AllocParameters<FPostProcessMaterialParameters>();
-	PostProcessMaterialParameters->SceneTextures = Inputs.SceneTextures;
-	PostProcessMaterialParameters->View = View.ViewUniformBuffer;
-	PostProcessMaterialParameters->EyeAdaptationBuffer = GraphBuilder.CreateSRV(GetEyeAdaptationBuffer(GraphBuilder, View));
-	PostProcessMaterialParameters->PostProcessOutput = GetScreenPassTextureViewportParameters(OutputViewport);
-	PostProcessMaterialParameters->RenderTargets[0] = Output.GetRenderTargetBinding();
-
-	// The target color will be decoded if bForceIntermediateTarget is true in any case, but we might still need to decode the input color
-	PostProcessMaterialParameters->bMetalMSAAHDRDecode = Inputs.bMetalMSAAHDRDecode ? 1 : 0;
-
-	if (DepthStencilTexture)
-	{
-		PostProcessMaterialParameters->RenderTargets.DepthStencil = FDepthStencilBinding(
-			DepthStencilTexture,
-			ERenderTargetLoadAction::ELoad,
-			ERenderTargetLoadAction::ELoad,
-			FExclusiveDepthStencil::DepthRead_StencilRead);
-	}
-	PostProcessMaterialParameters->ManualStencilReferenceValue = MaterialStencilRef;
-	PostProcessMaterialParameters->ManualStencilTestMask = GetManualStencilTestMask(Material->GetStencilCompare());
-
-	PostProcessMaterialParameters->PostProcessInput_BilinearSampler = TStaticSamplerState<SF_Bilinear, AM_Clamp, AM_Clamp, AM_Clamp>::GetRHI();;
-
-	const FScreenPassTexture BlackDummy(GSystemTextures.GetBlackDummy(GraphBuilder));
-
-	// This gets passed in whether or not it's used.
-	GraphBuilder.RemoveUnusedTextureWarning(BlackDummy.Texture);
-
-	FRHISamplerState* PointClampSampler = TStaticSamplerState<SF_Point, AM_Clamp, AM_Clamp, AM_Clamp>::GetRHI();
-
-	for (uint32 InputIndex = 0; InputIndex < kPostProcessMaterialInputCountMax; ++InputIndex)
-	{
-		FScreenPassTexture Input = Inputs.GetInput((EPostProcessMaterialInput)InputIndex);
-
-		// Need to provide valid textures for when shader compilation doesn't cull unused parameters.
-		if (!Input.Texture || !MaterialShaderMap->UsesSceneTexture(PPI_PostProcessInput0 + InputIndex))
-		{
-			Input = BlackDummy;
-		}
-
-		PostProcessMaterialParameters->PostProcessInput[InputIndex] = GetScreenPassTextureInput(Input, PointClampSampler);
-	}
-
-	// Path tracing buffer textures
-	for (uint32 InputIndex = 0; InputIndex < kPathTracingPostProcessMaterialInputCountMax; ++InputIndex)
-	{
-		FScreenPassTexture Input = Inputs.GetPathTracingInput((EPathTracingPostProcessMaterialInput)InputIndex);
-
-		if (!Input.Texture || !MaterialShaderMap->UsesPathTracingBufferTexture(InputIndex))
-		{
-			Input = BlackDummy;
-		}
-
-		PostProcessMaterialParameters->PathTracingPostProcessInput[InputIndex] = GetScreenPassTextureInput(Input, PointClampSampler);
-	}
-
-	PostProcessMaterialParameters->Substrate = Substrate::BindSubstrateGlobalUniformParameters(View);
-
-	// SceneDepthWithoutWater
-	const bool bHasValidSceneDepthWithoutWater = Inputs.SceneWithoutWaterTextures && Inputs.SceneWithoutWaterTextures->DepthTexture;
-	const bool bShouldUseBilinearSamplerForDepth = bHasValidSceneDepthWithoutWater && ShouldUseBilinearSamplerForDepthWithoutSingleLayerWater(Inputs.SceneWithoutWaterTextures->DepthTexture->Desc.Format);
-	PostProcessMaterialParameters->bSceneDepthWithoutWaterTextureAvailable = bHasValidSceneDepthWithoutWater;
-	PostProcessMaterialParameters->SceneDepthWithoutSingleLayerWaterSampler = bShouldUseBilinearSamplerForDepth ? TStaticSamplerState<SF_Bilinear>::GetRHI() : TStaticSamplerState<SF_Point>::GetRHI();
-	PostProcessMaterialParameters->SceneDepthWithoutSingleLayerWaterTexture = FRDGSystemTextures::Get(GraphBuilder).Black;
-	PostProcessMaterialParameters->SceneWithoutSingleLayerWaterMinMaxUV = FVector4f(0.0f, 0.0f, 1.0f, 1.0f);
-	PostProcessMaterialParameters->SceneWithoutSingleLayerWaterTextureSize = FVector2f(0.0f, 0.0f);
-	PostProcessMaterialParameters->SceneWithoutSingleLayerWaterInvTextureSize = FVector2f(0.0f, 0.0f);
-	if (bHasValidSceneDepthWithoutWater)
-	{
-		const bool bIsInstancedStereoSideBySide = View.bIsInstancedStereoEnabled && !View.bIsMobileMultiViewEnabled && IStereoRendering::IsStereoEyeView(View);
-		int32 WaterViewIndex = INDEX_NONE;
-		if (bIsInstancedStereoSideBySide)
-		{
-			WaterViewIndex = View.PrimaryViewIndex; // The instanced view does not have MinMaxUV initialized, instead the primary view MinMaxUV covers both eyes
-		}
-		else
-		{
-			verify(View.Family->Views.Find(&View, WaterViewIndex));
-		}
-
-		PostProcessMaterialParameters->SceneDepthWithoutSingleLayerWaterTexture = Inputs.SceneWithoutWaterTextures->DepthTexture;
-		PostProcessMaterialParameters->SceneWithoutSingleLayerWaterMinMaxUV = Inputs.SceneWithoutWaterTextures->Views[WaterViewIndex].MinMaxUV;
-
-		const FIntVector DepthTextureSize = Inputs.SceneWithoutWaterTextures->DepthTexture->Desc.GetSize();
-		PostProcessMaterialParameters->SceneWithoutSingleLayerWaterTextureSize = FVector2f(DepthTextureSize.X, DepthTextureSize.Y);
-		PostProcessMaterialParameters->SceneWithoutSingleLayerWaterInvTextureSize = FVector2f(1.0f / DepthTextureSize.X, 1.0f / DepthTextureSize.Y);
-	}
-
-	PostProcessMaterialParameters->NeuralPostProcessParameters = GetDefaultNeuralPostProcessShaderParameters(GraphBuilder);
-
-	return PostProcessMaterialParameters;
-}
-
-void AddNeuralPostProcessPass(
-	FRDGBuilder& GraphBuilder,
-	const FViewInfo& View,
-	const FPostProcessMaterialInputs& Inputs,
-	const UMaterialInterface* MaterialInterface,
-	FNeuralPostProcessResource& NeuralPostProcessResource)
-{
-	Inputs.Validate();
-
-	const FScreenPassTexture SceneColor = Inputs.GetInput(EPostProcessMaterialInput::SceneColor);
-
-	const ERHIFeatureLevel::Type FeatureLevel = View.GetFeatureLevel();
-
-	const FMaterial* Material = nullptr;
-	const FMaterialRenderProxy* MaterialRenderProxy = nullptr;
-	const FMaterialShaderMap* MaterialShaderMap = nullptr;
-	TShaderRef<FPostProcessMaterialVS> NeuralPostProcessPassVertexShader;
-	TShaderRef<FPostProcessMaterialPS> NeuralPostProcessPassPixelShader;
-	GetMaterialInfo(MaterialInterface, FeatureLevel, Inputs, Material, MaterialRenderProxy, MaterialShaderMap, NeuralPostProcessPassVertexShader, NeuralPostProcessPassPixelShader, true);
-	
-	check(NeuralPostProcessPassVertexShader.IsValid());
-	check(NeuralPostProcessPassPixelShader.IsValid());
-
-	int32 NeuralProfileId = Material->GetNeuralProfileId();
-
-	FRHIDepthStencilState* DefaultDepthStencilState = FScreenPassPipelineState::FDefaultDepthStencilState::GetRHI();
-	FRHIDepthStencilState* DepthStencilState = DefaultDepthStencilState;
-
-	FRDGTextureRef DepthStencilTexture = nullptr;
-
-	// Allocate custom depth stencil texture(s) and depth stencil state.
-	const EMaterialCustomDepthPolicy CustomStencilPolicy = GetMaterialCustomDepthPolicy(Material);
-
-	if (CustomStencilPolicy == EMaterialCustomDepthPolicy::Enabled &&
-		!Inputs.bManualStencilTest &&
-		HasBeenProduced(Inputs.CustomDepthTexture))
-	{
-		check(Inputs.CustomDepthTexture);
-		DepthStencilTexture = Inputs.CustomDepthTexture;
-		DepthStencilState = GetMaterialStencilState(Material);
-	}
-
-	FRHIBlendState* DefaultBlendState = FScreenPassPipelineState::FDefaultBlendState::GetRHI();
-	FRHIBlendState* BlendState = DefaultBlendState;
-
-	if (IsMaterialBlendEnabled(Material))
-	{
-		BlendState = GetMaterialBlendState(Material);
-	}
-
-	FScreenPassRenderTarget Output = Inputs.OverrideOutput;
-	// Create a new texture instead of reusing the scene color output in the pre pass. Should not pollute the scene color texture.
-	{
-		// Allocate new transient output texture.
-		{
-			FRDGTextureDesc OutputDesc = SceneColor.Texture->Desc;
-			OutputDesc.Reset();
-			if (Inputs.OutputFormat != PF_Unknown)
-			{
-				OutputDesc.Format = Inputs.OutputFormat;
-			}
-			OutputDesc.ClearValue = FClearValueBinding(FLinearColor::Black);
-			OutputDesc.Flags &= (~ETextureCreateFlags::FastVRAM);
-			OutputDesc.Flags |= GFastVRamConfig.PostProcessMaterial;
-
-			Output = FScreenPassRenderTarget(GraphBuilder.CreateTexture(OutputDesc, TEXT("PostProcessTempOutput")), SceneColor.ViewRect, View.GetOverwriteLoadAction());
-		}
-	}
-
-	const FScreenPassTextureViewport SceneColorViewport(SceneColor);
-	const FScreenPassTextureViewport OutputViewport(Output);
-
-	RDG_EVENT_SCOPE(GraphBuilder, "PostProcessMaterial::NeuralPass");
-
-	const uint32 MaterialStencilRef = Material->GetStencilRefValue();
-
-	const bool bMobilePlatform = IsMobilePlatform(View.GetShaderPlatform());
-
-
-	EScreenPassDrawFlags ScreenPassFlags = EScreenPassDrawFlags::AllowHMDHiddenAreaMask;
-
-	// check if we can skip that draw call in case if all pixels will fail the stencil test of the material
-	bool bSkipPostProcess = false;
-
-	if (Material->IsStencilTestEnabled() && IsPostProcessStencilTestAllowed())
-	{
-		bool bFailStencil = true;
-
-		const uint32 StencilComp = Material->GetStencilCompare();
-
-		// Always check against clear value, since a material might want to perform operations against that value
-		const uint32 StencilClearValue = Inputs.CustomDepthTexture ? Inputs.CustomDepthTexture->Desc.ClearValue.Value.DSValue.Stencil : 0;
-		bFailStencil &= PostProcessStencilTest(StencilClearValue, StencilComp, MaterialStencilRef);
-
-
-		for (const uint32& Value : View.CustomDepthStencilValues)
-		{
-			bFailStencil &= PostProcessStencilTest(Value, StencilComp, MaterialStencilRef);
-
-			if (!bFailStencil)
-			{
-				break;
-			}
-		}
-
-		bSkipPostProcess = bFailStencil;
-	}
-
-	if (!bSkipPostProcess)
-	{
-		NeuralPostProcessResource = AllocateNeuralPostProcessingResourcesIfNeeded(
-			GraphBuilder, OutputViewport, NeuralProfileId, Material->IsUsedWithNeuralNetworks());
-
-		if (NeuralPostProcessResource.IsValid())
-		{ 
-			// Prepass to extract the input to the NNE Engine
-			FPostProcessMaterialParameters* PostProcessMaterialParameters =
-				GetPostProcessMaterialParameters(GraphBuilder, Inputs, View, OutputViewport, Output, DepthStencilTexture, MaterialStencilRef, Material, MaterialShaderMap);
-
-			SetupNeuralPostProcessShaderParametersForWrite(PostProcessMaterialParameters->NeuralPostProcessParameters, GraphBuilder, NeuralPostProcessResource);
-
-			ClearUnusedGraphResources(NeuralPostProcessPassVertexShader, NeuralPostProcessPassPixelShader, PostProcessMaterialParameters);
-
-			//Only call the neural network when the shader resource is actually used.
-			if (IsNeuralPostProcessShaderParameterUsed(PostProcessMaterialParameters->NeuralPostProcessParameters))
-			{
-				AddDrawScreenPass(
-					GraphBuilder,
-#if RDG_EVENTS != RDG_EVENTS_STRING_COPY
-					RDG_EVENT_NAME("PostProcessMaterial(Neural Prepass)"),
-#else
-					FRDGEventName(*Material->GetAssetName()),
-#endif
-					View,
-					OutputViewport,
-					SceneColorViewport,
-					// Uses default depth stencil on mobile since the stencil test is done in pixel shader.
-					FScreenPassPipelineState(NeuralPostProcessPassVertexShader, NeuralPostProcessPassPixelShader, BlendState, DepthStencilState, MaterialStencilRef),
-					PostProcessMaterialParameters,
-					ScreenPassFlags,
-					[&View, NeuralPostProcessPassVertexShader, NeuralPostProcessPassPixelShader, MaterialRenderProxy, Material, PostProcessMaterialParameters](FRHICommandList& RHICmdList)
-					{
-						SetShaderParametersMixedVS(RHICmdList, NeuralPostProcessPassVertexShader, *PostProcessMaterialParameters, View, MaterialRenderProxy, *Material);
-						SetShaderParametersMixedPS(RHICmdList, NeuralPostProcessPassPixelShader, *PostProcessMaterialParameters, View, MaterialRenderProxy, *Material);
-					});
-
-				ApplyNeuralPostProcess(GraphBuilder, View, Output.ViewRect, NeuralPostProcessResource);
-			}
-		}
-	}
 }
 
 FScreenPassTexture AddPostProcessMaterialPass(
@@ -801,6 +541,96 @@ FScreenPassTexture AddPostProcessMaterialPass(
 
 	const bool bMobilePlatform = IsMobilePlatform(View.GetShaderPlatform());
 
+	FPostProcessMaterialParameters* PostProcessMaterialParameters = GraphBuilder.AllocParameters<FPostProcessMaterialParameters>();
+	PostProcessMaterialParameters->SceneTextures = Inputs.SceneTextures;
+	PostProcessMaterialParameters->View = View.ViewUniformBuffer;
+	PostProcessMaterialParameters->EyeAdaptationBuffer = GraphBuilder.CreateSRV(GetEyeAdaptationBuffer(GraphBuilder, View));
+	PostProcessMaterialParameters->PostProcessOutput = GetScreenPassTextureViewportParameters(OutputViewport);
+	PostProcessMaterialParameters->RenderTargets[0] = Output.GetRenderTargetBinding();
+
+	// The target color will be decoded if bForceIntermediateTarget is true in any case, but we might still need to decode the input color
+	PostProcessMaterialParameters->bMetalMSAAHDRDecode = Inputs.bMetalMSAAHDRDecode ? 1 : 0;
+
+	if (DepthStencilTexture)
+	{
+		PostProcessMaterialParameters->RenderTargets.DepthStencil = FDepthStencilBinding(
+			DepthStencilTexture,
+			ERenderTargetLoadAction::ELoad,
+			ERenderTargetLoadAction::ELoad,
+			FExclusiveDepthStencil::DepthRead_StencilRead);
+	}
+	PostProcessMaterialParameters->ManualStencilReferenceValue = MaterialStencilRef;
+	PostProcessMaterialParameters->ManualStencilTestMask = GetManualStencilTestMask(Material->GetStencilCompare());
+
+	PostProcessMaterialParameters->PostProcessInput_BilinearSampler = TStaticSamplerState<SF_Bilinear, AM_Clamp, AM_Clamp, AM_Clamp>::GetRHI();;
+
+	const FScreenPassTexture BlackDummy(GSystemTextures.GetBlackDummy(GraphBuilder));
+
+    // This gets passed in whether or not it's used.
+	GraphBuilder.RemoveUnusedTextureWarning(BlackDummy.Texture);
+
+	FRHISamplerState* PointClampSampler = TStaticSamplerState<SF_Point, AM_Clamp, AM_Clamp, AM_Clamp>::GetRHI();
+
+	for (uint32 InputIndex = 0; InputIndex < kPostProcessMaterialInputCountMax; ++InputIndex)
+	{
+		FScreenPassTexture Input = Inputs.GetInput((EPostProcessMaterialInput)InputIndex);
+
+		// Need to provide valid textures for when shader compilation doesn't cull unused parameters.
+		if (!Input.Texture || !MaterialShaderMap->UsesSceneTexture(PPI_PostProcessInput0 + InputIndex))
+		{
+			Input = BlackDummy;
+		}
+
+		PostProcessMaterialParameters->PostProcessInput[InputIndex] = GetScreenPassTextureInput(Input, PointClampSampler);
+	}
+
+	// Path tracing buffer textures
+	for (uint32 InputIndex = 0; InputIndex < kPathTracingPostProcessMaterialInputCountMax; ++InputIndex)
+	{
+		FScreenPassTexture Input = Inputs.GetPathTracingInput((EPathTracingPostProcessMaterialInput)InputIndex);
+
+		if (!Input.Texture || !MaterialShaderMap->UsesPathTracingBufferTexture(InputIndex))
+		{
+			Input = BlackDummy;
+		}
+
+		PostProcessMaterialParameters->PathTracingPostProcessInput[InputIndex] = GetScreenPassTextureInput(Input, PointClampSampler);
+	}
+
+	PostProcessMaterialParameters->Substrate = Substrate::BindSubstrateGlobalUniformParameters(View);
+
+	// SceneDepthWithoutWater
+	const bool bHasValidSceneDepthWithoutWater = Inputs.SceneWithoutWaterTextures && Inputs.SceneWithoutWaterTextures->DepthTexture;
+	const bool bShouldUseBilinearSamplerForDepth = bHasValidSceneDepthWithoutWater && ShouldUseBilinearSamplerForDepthWithoutSingleLayerWater(Inputs.SceneWithoutWaterTextures->DepthTexture->Desc.Format);
+	PostProcessMaterialParameters->bSceneDepthWithoutWaterTextureAvailable = bHasValidSceneDepthWithoutWater;
+	PostProcessMaterialParameters->SceneDepthWithoutSingleLayerWaterSampler = bShouldUseBilinearSamplerForDepth ? TStaticSamplerState<SF_Bilinear>::GetRHI() : TStaticSamplerState<SF_Point>::GetRHI();
+	PostProcessMaterialParameters->SceneDepthWithoutSingleLayerWaterTexture = FRDGSystemTextures::Get(GraphBuilder).Black;
+	PostProcessMaterialParameters->SceneWithoutSingleLayerWaterMinMaxUV = FVector4f(0.0f, 0.0f, 1.0f, 1.0f);
+	PostProcessMaterialParameters->SceneWithoutSingleLayerWaterTextureSize = FVector2f(0.0f, 0.0f);
+	PostProcessMaterialParameters->SceneWithoutSingleLayerWaterInvTextureSize = FVector2f(0.0f, 0.0f);
+	if (bHasValidSceneDepthWithoutWater)
+	{
+		const bool bIsInstancedStereoSideBySide = View.bIsInstancedStereoEnabled && !View.bIsMobileMultiViewEnabled && IStereoRendering::IsStereoEyeView(View);
+		int32 WaterViewIndex = INDEX_NONE;
+		if (bIsInstancedStereoSideBySide)
+		{
+			WaterViewIndex = View.PrimaryViewIndex; // The instanced view does not have MinMaxUV initialized, instead the primary view MinMaxUV covers both eyes
+		}
+		else
+		{
+			verify(View.Family->Views.Find(&View, WaterViewIndex));
+		}
+
+		PostProcessMaterialParameters->SceneDepthWithoutSingleLayerWaterTexture = Inputs.SceneWithoutWaterTextures->DepthTexture;
+		PostProcessMaterialParameters->SceneWithoutSingleLayerWaterMinMaxUV = Inputs.SceneWithoutWaterTextures->Views[WaterViewIndex].MinMaxUV;
+
+		const FIntVector DepthTextureSize = Inputs.SceneWithoutWaterTextures->DepthTexture->Desc.GetSize();
+		PostProcessMaterialParameters->SceneWithoutSingleLayerWaterTextureSize = FVector2f(DepthTextureSize.X, DepthTextureSize.Y);
+		PostProcessMaterialParameters->SceneWithoutSingleLayerWaterInvTextureSize = FVector2f(1.0f / DepthTextureSize.X, 1.0f / DepthTextureSize.Y);
+	}
+
+	ClearUnusedGraphResources(VertexShader, PixelShader, PostProcessMaterialParameters);
+
 	EScreenPassDrawFlags ScreenPassFlags = EScreenPassDrawFlags::AllowHMDHiddenAreaMask;
 
 	// check if we can skip that draw call in case if all pixels will fail the stencil test of the material
@@ -832,46 +662,25 @@ FScreenPassTexture AddPostProcessMaterialPass(
 
 	if (!bSkipPostProcess)
 	{
-
-		FNeuralPostProcessResource NeuralPostProcessResource;
-		const bool bShouldApplyNeuralPostProcessing = ShouldApplyNeuralPostProcessForMaterial(Material);
-
-		if (bShouldApplyNeuralPostProcessing)
-		{
-			AddNeuralPostProcessPass(GraphBuilder, View, Inputs, MaterialInterface, NeuralPostProcessResource);
-		}
-
-		{
-			FPostProcessMaterialParameters* PostProcessMaterialParameters =
-				GetPostProcessMaterialParameters(GraphBuilder, Inputs, View, OutputViewport, Output, DepthStencilTexture, MaterialStencilRef, Material, MaterialShaderMap);
-
-			if (bShouldApplyNeuralPostProcessing)
-			{
-				SetupNeuralPostProcessShaderParametersForRead(PostProcessMaterialParameters->NeuralPostProcessParameters, GraphBuilder, NeuralPostProcessResource);
-			}
-
-			ClearUnusedGraphResources(VertexShader, PixelShader, PostProcessMaterialParameters);
-
-			AddDrawScreenPass(
-				GraphBuilder,
+		AddDrawScreenPass(
+			GraphBuilder,
 #if RDG_EVENTS != RDG_EVENTS_STRING_COPY
-				RDG_EVENT_NAME("PostProcessMaterial"),
+			RDG_EVENT_NAME("PostProcessMaterial"),
 #else
-				FRDGEventName(*Material->GetAssetName()),
+			FRDGEventName(*Material->GetAssetName()),
 #endif
-				View,
-				OutputViewport,
-				SceneColorViewport,
-				// Uses default depth stencil on mobile since the stencil test is done in pixel shader.
-				FScreenPassPipelineState(VertexShader, PixelShader, BlendState, DepthStencilState, MaterialStencilRef),
-				PostProcessMaterialParameters,
-				ScreenPassFlags,
-				[&View, VertexShader, PixelShader, MaterialRenderProxy, Material, PostProcessMaterialParameters](FRHICommandList& RHICmdList)
-				{
-					SetShaderParametersMixedVS(RHICmdList, VertexShader, *PostProcessMaterialParameters, View, MaterialRenderProxy, *Material);
-					SetShaderParametersMixedPS(RHICmdList, PixelShader, *PostProcessMaterialParameters, View, MaterialRenderProxy, *Material);
-				});
-		}
+			View,
+			OutputViewport,
+			SceneColorViewport,
+			// Uses default depth stencil on mobile since the stencil test is done in pixel shader.
+			FScreenPassPipelineState(VertexShader, PixelShader, BlendState, DepthStencilState, MaterialStencilRef),
+			PostProcessMaterialParameters,
+			ScreenPassFlags,
+			[&View, VertexShader, PixelShader, MaterialRenderProxy, Material, PostProcessMaterialParameters](FRHICommandList& RHICmdList)
+			{
+				SetShaderParametersMixedVS(RHICmdList, VertexShader, *PostProcessMaterialParameters, View, MaterialRenderProxy, *Material);
+				SetShaderParametersMixedPS(RHICmdList, PixelShader, *PostProcessMaterialParameters, View, MaterialRenderProxy, *Material);
+			});
 
 		if (bForceIntermediateTarget && !bCompositeWithInputAndDecode)
 		{

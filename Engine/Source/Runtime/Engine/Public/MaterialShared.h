@@ -717,8 +717,7 @@ public:
 		bUsesVertexInterpolator(false),
 		bHasRuntimeVirtualTextureOutputNode(false),
 		bUsesAnisotropy(false),
-		bUsesDisplacement(false),
-		bUsedWithNeuralNetworks(false)
+		bUsesDisplacement(false)
 	{
 #if WITH_EDITOR
 		FMemory::Memzero(EstimatedLWCFuncUsages);
@@ -840,11 +839,6 @@ public:
 	
 	/** Whether the material uses scalar displacement. */
 	LAYOUT_BITFIELD(uint8, bUsesDisplacement, 1);
-
-	/** Whether the material uses NNE. */
-	LAYOUT_BITFIELD(uint8, bUsedWithNeuralNetworks, 1);
-	
-
 };
 
 struct FDebugShaderPipelineInfo
@@ -1917,7 +1911,6 @@ public:
 	virtual bool IsUsedWithHairStrands() const { return false; }
 	virtual bool IsUsedWithLidarPointCloud() const { return false; }
 	virtual bool IsUsedWithVirtualHeightfieldMesh() const { return false; }
-	virtual bool IsUsedWithNeuralNetworks() const { return false; }
 	virtual bool IsFullyRough() const { return false; }
 	virtual bool UseNormalCurvatureToRoughness() const { return false; }
 	virtual enum EMaterialFloatPrecisionMode GetMaterialFloatPrecisionMode() const { return EMaterialFloatPrecisionMode::MFPM_Default; };
@@ -2002,7 +1995,6 @@ public:
 	virtual bool CastsRayTracedShadows() const { return true; }
 	virtual bool HasRenderTracePhysicalMaterialOutputs() const { return false; }
 	virtual EMaterialShadingRate GetShadingRate() const { return MSR_1x1; }
-	virtual int32 GetNeuralProfileId() const { return INDEX_NONE; }
 	/**
 	 * Should shaders compiled for this material be saved to disk?
 	 */
@@ -2659,7 +2651,6 @@ public:
 	ENGINE_API virtual bool IsUsedWithHairStrands() const override;
 	ENGINE_API virtual bool IsUsedWithLidarPointCloud() const override;
 	ENGINE_API virtual bool IsUsedWithVirtualHeightfieldMesh() const override;
-	ENGINE_API virtual bool IsUsedWithNeuralNetworks() const override;
 	ENGINE_API virtual bool IsUsedWithNanite() const override;
 	ENGINE_API virtual bool IsUsedWithVolumetricCloud() const override;
 	ENGINE_API virtual bool IsUsedWithHeterogeneousVolumes() const override;
@@ -2735,7 +2726,6 @@ public:
 	ENGINE_API virtual bool CastsRayTracedShadows() const override;
 	ENGINE_API virtual bool HasRenderTracePhysicalMaterialOutputs() const override;
 	ENGINE_API virtual UMaterialInterface* GetMaterialInterface() const override;
-	ENGINE_API virtual int32 GetNeuralProfileId() const override;
 	/**
 	 * Should shaders compiled for this material be saved to disk?
 	 */
@@ -3079,7 +3069,6 @@ struct FMaterialShaderParameters
 			uint64 bHasRuntimeVirtualTextureOutput : 1;
 			uint64 bIsUsedWithLidarPointCloud : 1;
 			uint64 bIsUsedWithVirtualHeightfieldMesh : 1;
-			uint64 bIsUsedWithNeuralNetworks : 1;
 			uint64 bIsUsedWithNanite : 1;
 			uint64 bIsStencilTestEnabled : 1;
 			uint64 bIsTranslucencySurface : 1;

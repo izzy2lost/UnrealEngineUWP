@@ -269,7 +269,6 @@ MONOLITHIC_HEADER_BOILERPLATE()
 #include "ThumbnailRendering/ParticleSystemThumbnailRenderer.h"
 #include "ThumbnailRendering/SubsurfaceProfileRenderer.h"
 #include "ThumbnailRendering/SpecularProfileRenderer.h"
-#include "ThumbnailRendering/NeuralProfileRenderer.h"
 #include "Factories/TextureCubeThumbnailRenderer.h"
 #include "Factories/Texture2dArrayThumbnailRenderer.h"
 #include "Editor/TransBuffer.h"

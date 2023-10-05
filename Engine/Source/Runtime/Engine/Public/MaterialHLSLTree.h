@@ -1015,23 +1015,6 @@ public:
 	virtual void EmitValueShader(FEmitContext& Context, FEmitScope& Scope, const FRequestedType& RequestedType, FEmitValueShaderResult& OutResult) const override;
 };
 
-class FExpressionNeuralNetworkOutput : public FExpression
-{
-public:
-	const FExpression* CoordinatesExpression;
-	int32 NeuralIndexType;
-
-	FExpressionNeuralNetworkOutput(
-		const FExpression* InCoordinateExpression,
-		int32 InNeuralIndexType)
-		: CoordinatesExpression(InCoordinateExpression),
-		NeuralIndexType(InNeuralIndexType)
-	{}
-
-	virtual bool PrepareValue(FEmitContext& Context, FEmitScope& Scope, const FRequestedType& RequestedType, FPrepareValueResult& OutResult) const override;
-	virtual void EmitValueShader(FEmitContext& Context, FEmitScope& Scope, const FRequestedType& RequestedType, FEmitValueShaderResult& OutResult) const override;
-};
-
 class FExpressionLightVector : public FExpressionForward
 {
 public:

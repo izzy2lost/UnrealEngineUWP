@@ -972,15 +972,6 @@ public:
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = PostProcessMaterial, meta = (DisplayName = "Output Alpha"))
 	uint8 BlendableOutputAlpha : 1;
 
-	/**
-	* Indicates that the material and its instances can be used with neural network engine.
-	* This will result in the shaders required to support neural network engine being compiled which will increase shader compile time and memory usage.
-	* In addition, an additional pass will run before the postprocess pass for neural network engine, which will increase the rendering cost due to
-	* buffer copy and inference.
-	*/
-	UPROPERTY(EditAnywhere, Category = PostProcessMaterial)
-	uint8 bUsedWithNeuralNetworks : 1;
-
 	/** 
 	 * Selectively execute post process material only for pixels that pass the stencil test against the Custom Depth/Stencil buffer. 
 	 * Pixels that fail the stencil test are filled with the previous post process material output or scene color.
@@ -993,12 +984,6 @@ public:
 
 	UPROPERTY(EditAnywhere, Category = PostProcessMaterial, AdvancedDisplay, meta = (EditCondition = "bEnableStencilTest"))
 	uint8 StencilRefValue = 0;
-
-	/**
-	* Set by reference object cannot be modified.
-	*/
-	UPROPERTY(EditAnywhere, Category = PostProcessMaterial, AdvancedDisplay, meta = (EditCondition = "false"))
-	int8 NeuralProfileId = INDEX_NONE;
 
 	UPROPERTY()
 	TEnumAsByte<ERefractionMode> RefractionMode_DEPRECATED;
@@ -1155,7 +1140,6 @@ public:
 	ENGINE_API virtual USubsurfaceProfile* GetSubsurfaceProfile_Internal() const override;
 	ENGINE_API virtual uint32 NumSpecularProfile_Internal() const override;
 	ENGINE_API virtual USpecularProfile* GetSpecularProfile_Internal(uint32 Index) const override;
-	ENGINE_API virtual UNeuralProfile* GetNeuralProfile_Internal() const override;
 	ENGINE_API virtual bool CastsRayTracedShadows() const override;
 	ENGINE_API virtual FDisplacementScaling GetDisplacementScaling() const override;
 	ENGINE_API virtual float GetMaxWorldPositionOffsetDisplacement() const override;

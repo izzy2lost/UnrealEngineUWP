@@ -2710,37 +2710,6 @@ float4 MaterialExpressionPathTracingBufferTextureLookup(FMaterialPixelParameters
 	return float4(1, 0, 0, 1);
 }
 
-float4 NeuralTextureOutput(FMaterialPixelParameters Parameters, float2 ViewportUV)
-{
-#if POST_PROCESS_MATERIAL && SHADING_PATH_DEFERRED && MATERIAL_NEURAL_POST_PROCESS
-	
-	float2 BufferUV = ViewportUV * PostProcessInput_0_UVViewportSize + PostProcessInput_0_UVViewportMin;
-	float4 TextureValue = Texture2DSampleLevel(NeuralTexture, PostProcessInput_BilinearSampler, BufferUV, 0);
-	return TextureValue;
-#else
-	return float4(0.0f, 0.0f, 0.0f, 1.0f);
-#endif
-
-}
-
-float4 NeuralBufferOutput(FMaterialPixelParameters Parameters, float4 BufferIndices)
-{
-#if POST_PROCESS_MATERIAL && SHADING_PATH_DEFERRED && MATERIAL_NEURAL_POST_PROCESS
-
-	float3 TextureValue = 0;
-	
-	int Batch = (int)BufferIndices.x;
-	int StartChannel = (int)BufferIndices.y;
-	float2 BufferWH = BufferIndices.zw;
-
-	ReadFromNeuralBuffer(Batch, StartChannel, BufferWH, TextureValue);
-
-	return float4(TextureValue, 1.0f);
-#else
-	return float4(0.0f, 0.0f, 0.0f, 1.0f);
-#endif
-}
-
 // DERIV_BASE_VALUE() is a disgusting macro to manage backwards compatibility while changing the generated materials. The existing nodes are not "aware"
 // of partial derivatives, and will use sprintf() to put the same line in both CalcPixelMaterialInputs() and CalcPixelMaterialInputsAnalyticDerivatives().
 // If we have a line like this in CalcPixelMaterialInputs():
