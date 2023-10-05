@@ -78,6 +78,7 @@ struct FOITSceneData
 
 	TArray<FSortedTriangleData> Allocations;
 	TArray<FSortedIndexBuffer*> FreeBuffers;
+	TQueue<FSortedIndexBuffer*> PendingDeletes;
 	TQueue<uint32> FreeSlots;
 	uint32 FrameIndex = 0;
 };
@@ -102,4 +103,7 @@ namespace OIT
 
 	/* Compose all OIT samples into the target color buffer */
 	void AddOITComposePass(FRDGBuilder& GraphBuilder, const FViewInfo& View, FOITData& OITData, FRDGTextureRef SceneColorTexture);
+
+	/* Call on SceneRenderer OnRenderBegin */
+	void OnRenderBegin(FOITSceneData& OITSceneData);
 }

@@ -94,6 +94,7 @@
 #include "GPUDebugCrashUtils.h"
 #include "MeshDrawCommandStats.h"
 #include "LocalFogVolumeRendering.h"
+#include "OIT/OIT.h"
 
 /*-----------------------------------------------------------------------------
 	Globals
@@ -3407,6 +3408,9 @@ IVisibilityTaskData* FSceneRenderer::OnRenderBegin(FRDGBuilder& GraphBuilder)
 
 	// This is called prior to scene update to avoid a race condition with the MDC caching task.
 	FVirtualTextureSystem::Get().CallPendingCallbacks();
+
+	// This is called prior to scene update
+	OIT::OnRenderBegin(Scene->OITSceneData);
 
 	EUpdateAllPrimitiveSceneInfosAsyncOps AsyncOps = EUpdateAllPrimitiveSceneInfosAsyncOps::None;
 

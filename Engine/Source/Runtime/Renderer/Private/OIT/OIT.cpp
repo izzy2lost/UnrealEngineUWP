@@ -296,14 +296,7 @@ public:
 	FUnorderedAccessViewRHIRef SortedIndexUAV = nullptr;
 };
 
-static void RemoveAllocation(FSortedIndexBuffer* InBuffer)
-{
-	InBuffer->ReleaseResource();
-	delete InBuffer;
-	InBuffer = nullptr;
-}
-
-static void TrimSortedIndexBuffers(TArray<FSortedIndexBuffer*>& FreeBuffers, uint32 FrameId)
+static void TrimSortedIndexBuffers(TArray<FSortedIndexBuffer*>& FreeBuffers, TQueue<FSortedIndexBuffer*>& DeleteQueue, uint32 FrameId)
 {
 	uint32 FreeCount = FreeBuffers.Num();
 	for (uint32 FreeIt = 0; FreeIt < FreeCount;)
@@ -315,8 +308,7 @@ static void TrimSortedIndexBuffers(TArray<FSortedIndexBuffer*>& FreeBuffers, uin
 			const int32 ElapsedFrame = FMath::Abs(int32(FrameId) - int32(LastFrameId));
 			if (ElapsedFrame > CVarOIT_SortedTriangles_PoolReleaseThreshold.GetValueOnRenderThread())
 			{
-				FSortedIndexBuffer* Buffer = FreeBuffers[FreeIt];
-				RemoveAllocation(Buffer);
+				DeleteQueue.Enqueue(FreeBuffers[FreeIt]);
 				FreeBuffers[FreeIt] = FreeBuffers[FreeCount - 1];
 				--FreeCount;
 				FreeBuffers.SetNum(FreeCount);
@@ -408,7 +400,7 @@ void FOITSceneData::Deallocate(FIndexBuffer* InIndexBuffer)
 			FSortedTriangleData& In = Allocations[Slot];
 			In.SortedIndexUAV = nullptr;
 			In.SourceIndexSRV = nullptr;
-			RemoveAllocation((FSortedIndexBuffer*)In.SortedIndexBuffer);
+			PendingDeletes.Enqueue((FSortedIndexBuffer*)In.SortedIndexBuffer);
 			In = FSortedTriangleData();
 		}
 		FreeSlots.Enqueue(Slot);
@@ -897,7 +889,7 @@ namespace OIT
 		OITSceneData.FrameIndex = View.Family->FrameNumber;
 		if (CVarOIT_SortedTriangles_Pool.GetValueOnRenderThread() > 0 && CVarOIT_SortedTriangles_PoolReleaseThreshold.GetValueOnRenderThread() > 0)
 		{
-			TrimSortedIndexBuffers(OITSceneData.FreeBuffers, OITSceneData.FrameIndex);
+			TrimSortedIndexBuffers(OITSceneData.FreeBuffers, OITSceneData.PendingDeletes, OITSceneData.FrameIndex);
 		}
 	}
 
@@ -984,5 +976,17 @@ namespace OIT
 	void AddOITComposePass(FRDGBuilder& GraphBuilder, const FViewInfo& View, FOITData& OITData, FRDGTextureRef SceneColorTexture)
 	{
 		AddInternalOITComposePass(GraphBuilder, View, OITData, SceneColorTexture);
+	}
+
+	void OnRenderBegin(FOITSceneData& OITSceneData)
+	{
+		// Delete all enqueue buffer for deletion
+		FSortedIndexBuffer* Buffer = nullptr;
+		while (OITSceneData.PendingDeletes.Dequeue(Buffer))
+		{
+			Buffer->ReleaseResource();
+			delete Buffer;
+			Buffer = nullptr;
+		}
 	}
 }
