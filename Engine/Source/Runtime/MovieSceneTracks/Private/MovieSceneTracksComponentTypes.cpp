@@ -569,9 +569,6 @@ FMovieSceneTracksComponentTypes::FMovieSceneTracksComponentTypes()
 	Tags.Slomo = ComponentRegistry->NewTag(TEXT("Slomo"));
 	ComponentRegistry->Factories.DefineChildComponent(Tags.Slomo, Tags.Slomo);
 
-	Tags.Visibility = ComponentRegistry->NewTag(TEXT("Visibility"));
-	ComponentRegistry->Factories.DefineChildComponent(Tags.Visibility, Tags.Visibility);
-
 	// Used to indicate the ParameterName component for certain parameter types (scalar, vector2d, vector, color)
 	// should be interpreted as an index for custom primitive data.
 	Tags.CustomPrimitiveData = ComponentRegistry->NewTag(TEXT("Custom Primitive Data"));
