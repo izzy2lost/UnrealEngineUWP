@@ -105,7 +105,9 @@ public:
 
 		if (!IsValid(RawNNEModelData))
 		{
+#if WITH_EDITOR
 			UE_LOG(LogNeuralPostProcessing, Error, TEXT("NNEModelData is invalid at Slot %d."), AllocationId);
+#endif
 			return;
 		}
 
@@ -451,7 +453,9 @@ void FNeuralPostProcessingModule::StartupModule()
 	}
 	else
 	{
+#if WITH_EDITOR
 		UE_LOG(LogNeuralPostProcessing, Error, TEXT("Shaders directory not added. Failed to find NeuralPostProcessing plugin"));
+#endif
 	}
 
 	GNeuralProfileManager.Reset(new FNeuralProfileManager());
