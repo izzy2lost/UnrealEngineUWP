@@ -13,6 +13,7 @@
 #include "Delegates/Delegate.h"
 #include "EditorUtilityAssetPrototype.h"
 #include "EditorUtilityBlueprint.h"
+#include "EditorUtilityWidgetProjectSettings.h"
 #include "Framework/MultiBox/MultiBoxExtender.h"
 #include "GameFramework/Actor.h"
 #include "HAL/PlatformCrt.h"
@@ -118,8 +119,13 @@ void FBlutilityLevelEditorExtensions::RegisterMenus()
 					}
 				}
 			}
-			
-			EditorErrors.Notify(LOCTEXT("SomeProblemsWithActorActionUtility", "There were some problems with some ActorActionUtility Blueprints."));
+
+			// Don't warn errors if searching generated classes, since not all utilities may be updated to work with generated classes yet (Must be done piecemeal).
+			const UEditorUtilityWidgetProjectSettings* EditorUtilitySettings = GetDefault<UEditorUtilityWidgetProjectSettings>();
+			if (!EditorUtilitySettings->bSearchGeneratedClassesForScriptedActions)
+			{
+				EditorErrors.Notify(LOCTEXT("SomeProblemsWithActorActionUtility", "There were some problems with some ActorActionUtility Blueprints."));
+			}
 		}
 
 		if (SupportedActors.Num() > 0)
