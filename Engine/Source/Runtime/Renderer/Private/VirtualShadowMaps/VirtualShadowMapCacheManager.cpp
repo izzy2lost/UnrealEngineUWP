@@ -986,12 +986,14 @@ void FVirtualShadowMapArrayCacheManager::ExtractFrameData(
 			// Enqueue readback
 			StaticGPUInvalidationsFeedback.SubmitFeedbackBuffer(GraphBuilder, VirtualShadowMapArray.StaticInvalidatingPrimitivesRDG);
 			
-			// Store but drop any temp references embedded in the uniform parameters this frame.
-			// We'll reestablish them when we reimport the extracted resources next frame
+			// Store but drop any temp references embedded in the uniform parameters this frame
 			PrevUniformParameters = VirtualShadowMapArray.UniformParameters;
 			PrevUniformParameters.ProjectionData = nullptr;
 			PrevUniformParameters.PageTable = nullptr;
-			PrevUniformParameters.PhysicalPagePool = nullptr;
+			PrevUniformParameters.PageRectBounds = nullptr;
+			PrevUniformParameters.PageFlags = nullptr;
+			PrevUniformParameters.LightGridData = nullptr;
+			PrevUniformParameters.NumCulledLightsGrid = nullptr;
 		}
 
 		// propagate current-frame primitive state to cache entry
@@ -1301,8 +1303,10 @@ void FVirtualShadowMapArrayCacheManager::ProcessInvalidations(
 			UniformParameters->PageTable = RegExtCreateSrv(PrevBuffers.PageTable, TEXT("Shadow.Virtual.PrevPageTable"));
 			UniformParameters->PageFlags = RegExtCreateSrv(PrevBuffers.PageFlags, TEXT("Shadow.Virtual.PrevPageFlags"));
 			UniformParameters->PageRectBounds = RegExtCreateSrv(PrevBuffers.PageRectBounds, TEXT("Shadow.Virtual.PrevPageRectBounds"));
-			// Unused in this path
+			// Unused in this path... may be a better way to handle this
 			UniformParameters->PhysicalPagePool = GSystemTextures.GetZeroUIntArrayDummy(GraphBuilder);
+			UniformParameters->LightGridData = GraphBuilder.CreateSRV(GSystemTextures.GetDefaultStructuredBuffer(GraphBuilder, sizeof(uint32)));
+			UniformParameters->NumCulledLightsGrid = GraphBuilder.CreateSRV(GSystemTextures.GetDefaultStructuredBuffer(GraphBuilder, sizeof(uint32)));
 		}
 		PassParameters->VirtualShadowMap = GraphBuilder.CreateUniformBuffer(UniformParameters);
 

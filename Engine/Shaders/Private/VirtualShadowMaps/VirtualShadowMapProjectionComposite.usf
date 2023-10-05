@@ -50,11 +50,11 @@ void VirtualShadowMapCompositeFromMaskBitsPS(
 	const float DeviceZ = SceneTexturesStruct.SceneDepthTexture.Load(int3(PixelPos, 0)).r;
 	const float SceneDepth = ConvertFromDeviceZ(DeviceZ);
 
-	uint EyeIndex = 0; // TODO: Instanced stereo
+	// Possibly needed to do fallback single sample VSM lookup
+	const float3 TranslatedWorldPosition = SvPositionToTranslatedWorld(SvPosition);
+
 	float ShadowMask = GetVirtualShadowMapMaskForLight(
-		ShadowMaskBits, PixelPos, SceneDepth, EyeIndex, CompositeVirtualShadowMapId);;
-	
-	// TODO: Subsurface...?
-		
+		ShadowMaskBits[PixelPos], PixelPos, SceneDepth, CompositeVirtualShadowMapId, TranslatedWorldPosition);
+			
 	OutShadowMask = EncodeLightAttenuation(ShadowMask.xxxx);
 }

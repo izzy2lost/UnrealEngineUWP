@@ -677,7 +677,7 @@ SingleScatteringResult IntegrateSingleScatteredLuminance(
 		#if VIRTUAL_SHADOW_MAP
 			if (VirtualShadowMapId0 != INDEX_NONE)
 			{
-				FVirtualShadowMapSampleResult VirtualShadowMapSample = SampleVirtualShadowMapTranslatedWorld(VirtualShadowMapId0, ShadowSampleWorldPosition0);
+				FVirtualShadowMapSampleResult VirtualShadowMapSample = SampleVirtualShadowMapDirectional(VirtualShadowMapId0, ShadowSampleWorldPosition0);
 				PlanetShadow0 *= VirtualShadowMapSample.ShadowFactor;
 			}
 		#endif // VIRTUALSHADOW_MAP
@@ -713,7 +713,7 @@ SingleScatteringResult IntegrateSingleScatteredLuminance(
 		#if VIRTUAL_SHADOW_MAP
 			if (VirtualShadowMapId1 != INDEX_NONE)
 			{
-				FVirtualShadowMapSampleResult VirtualShadowMapSample = SampleVirtualShadowMapTranslatedWorld(VirtualShadowMapId1, ShadowSampleWorldPosition1);
+				FVirtualShadowMapSampleResult VirtualShadowMapSample = SampleVirtualShadowMapDirectional(VirtualShadowMapId1, ShadowSampleWorldPosition1);
 				PlanetShadow1 *= VirtualShadowMapSample.ShadowFactor;
 			}
 		#endif // VIRTUALSHADOW_MAP

@@ -1177,10 +1177,6 @@ void FSceneRenderer::GatherAndSortLights(FSortedLightSetSceneInfo& OutSortedLigh
 						&& LightSceneInfoCompact.LightType != LightType_Rect
 						&& !bSupportedByLumenDirectLighting;
 
-					// One pass projection is supported for lights with only virtual shadow maps
-					// TODO: Exclude lights that also have non-virtual shadow maps
-					bool bHasVirtualShadowMap = VisibleLightInfos[LightSceneInfo->Id].GetVirtualShadowMapId(&Views[ViewIndex]) != INDEX_NONE;
-					SortedLightInfo->SortKey.Fields.bDoesNotWriteIntoPackedShadowMask = LightSceneInfoCompact.LightType == LightType_Directional || !bHasVirtualShadowMap;
 					SortedLightInfo->SortKey.Fields.bClusteredDeferredNotSupported = !bClusteredDeferredSupported;
 					SortedLightInfo->SortKey.Fields.bHandledByLumen = bSupportedByLumenDirectLighting;
 					break;
@@ -1528,10 +1524,11 @@ void FDeferredShadingSceneRenderer::RenderLights(
 					bElideScreenShadowMask = 
 						CVarOnePassProjectionSkipScreenShadowMask.GetValueOnRenderThread() != 0 &&
 						ShadowSceneRenderer->UsePackedShadowMaskBits() &&
-						!SortedLightInfo.SortKey.Fields.bDoesNotWriteIntoPackedShadowMask &&
 						OcclusionType == FLightOcclusionType::Shadowmap &&
 						!(bDirectLighting && bDrawLightFunction) &&
 						!bDrawPreviewIndicator &&
+						SortedLightInfo.SortKey.Fields.LightType != LightType_Directional &&
+						VisibleLightInfo.VirtualShadowMapId != INDEX_NONE &&	// Not a directional light, so no per-view clipmaps
 						VisibleLightInfo.ContainsOnlyVirtualShadowMaps();
 
 					if (!SharedScreenShadowMaskTexture || !SharedScreenShadowMaskSubPixelTexture)

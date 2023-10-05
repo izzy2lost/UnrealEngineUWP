@@ -317,7 +317,7 @@ FLocalLightData GetLocalLightData(uint GridIndex, uint EyeIndex)
  */
 uint4 InitializePackedShadowMask()
 {
-	return uint(0xffffffff).xxxx;
+	return uint(0U).xxxx;
 }
 
 uint GetPackedShadowMaskMaxLightCount()
@@ -327,22 +327,20 @@ uint GetPackedShadowMaskMaxLightCount()
 
 void PackShadowMask(inout uint4 InOutShadowMask, float InShadowFactor, uint InLightIndex)
 {
-	uint Value = ~uint(round(InShadowFactor * 15.0f)) & 15U;
+	uint Value = uint(round((InShadowFactor) * 15.0f)) & 15U;
 	uint Dword = InLightIndex / 8;
 
-	InOutShadowMask.x ^= (Dword == 0U) ? (Value << (InLightIndex      ) * 4U) : 0U;
-	InOutShadowMask.y ^= (Dword == 1U) ? (Value << (InLightIndex -  8U) * 4U) : 0U;
-	InOutShadowMask.z ^= (Dword == 2U) ? (Value << (InLightIndex - 16U) * 4U) : 0U;
-	InOutShadowMask.w ^= (Dword == 3U) ? (Value << (InLightIndex - 24U) * 4U) : 0U;
-
-	//OutShadowMask ^= (~uint(round(InShadowFactor * 7.0)) & 7u) << (InLightIndex * 3u);
+	InOutShadowMask.x ^= (Dword == 0U) ? (Value << ((InLightIndex      ) * 4U)) : 0U;
+	InOutShadowMask.y ^= (Dword == 1U) ? (Value << ((InLightIndex -  8U) * 4U)) : 0U;
+	InOutShadowMask.z ^= (Dword == 2U) ? (Value << ((InLightIndex - 16U) * 4U)) : 0U;
+	InOutShadowMask.w ^= (Dword == 3U) ? (Value << ((InLightIndex - 24U) * 4U)) : 0U;
 }
 
 float UnpackShadowMask(uint4 InShadowMask, uint InLightIndex)
-{	
+{
 	uint Dword = InLightIndex / 8;
-	return ((InShadowMask[Dword] >> (InLightIndex - Dword*8U) * 4U) & 15U) / 15.0f;	
-	//return ((InShadowMask >> (InLightIndex * 3u)) & 7u) / 7.0;
+	uint MaskBits = (InShadowMask[Dword] >> (InLightIndex - Dword*8U) * 4U) & 15U;
+	return (float(MaskBits) / 15.0f);
 }
 
 // Unpack with dither to hide some of the quantization

@@ -17,6 +17,7 @@
 #include "VirtualShadowMapProjectionDirectional.ush"
 #include "VirtualShadowMapProjectionSpot.ush"
 #include "VirtualShadowMapTransmissionCommon.ush"
+#include "VirtualShadowMapLightGrid.ush"
 #include "/Engine/Shared/VirtualShadowMapDefinitions.h"
 
 #if HAS_HAIR_STRANDS
@@ -268,9 +269,9 @@ FVirtualShadowMapSampleResult ProjectLight(
 			}
 		}
 
+		#if DIRECTIONAL_LIGHT
 		if (SMRTRayCount > 0)
 		{
-		#if DIRECTIONAL_LIGHT
 			Result = TraceDirectional(
 				VirtualShadowMapId,
 				Light,
@@ -283,11 +284,23 @@ FVirtualShadowMapSampleResult ProjectLight(
 				SMRTRayLengthScale,
 				Noise,
 				bBackfaceCull,
-				half3(WorldNormal),
+				WorldNormal,
 				SMRTTexelDitherScale,
 				SMRTExtrapolateSlope,
 				SMRTAdaptiveRayCount);
-		#else
+		}
+		else
+		{
+			FLWCVector3 WorldPosition = LWCSubtract(TranslatedWorldPosition, PrimaryView.PreViewTranslation);
+			Result = SampleVirtualShadowMapDirectional(
+				VirtualShadowMapId,
+				WorldPosition,
+				SMRTRayOffset,
+				WorldNormal);
+		}
+		#else // !DIRECTIONAL_LIGHT
+		if (SMRTRayCount > 0)
+		{
 			Result = TraceLocalLight(
 				VirtualShadowMapId,
 				Light,
@@ -305,16 +318,17 @@ FVirtualShadowMapSampleResult ProjectLight(
 				SMRTExtrapolateSlope,
 				SMRTMaxSlopeBias,
 				SMRTAdaptiveRayCount);
-		#endif // DIRECTIONAL_LIGHT
 		}
 		else
 		{
-			Result = SampleVirtualShadowMapTranslatedWorld(
+			FLWCVector3 WorldPosition = LWCSubtract(TranslatedWorldPosition, PrimaryView.PreViewTranslation);
+			Result = SampleVirtualShadowMapLocal(
 				VirtualShadowMapId,
-				TranslatedWorldPosition,
+				WorldPosition,
 				SMRTRayOffset,
 				WorldNormal);
 		}
+		#endif // DIRECTIONAL_LIGHT
 		
 		// Explanation:
 		//	- If bDataIsOpacity = 1: Data stores the surface's SSS opacity. We compute a transmitted color when the surface is not fully opaque (opacity == 1).
@@ -624,19 +638,16 @@ void VirtualShadowMapProjection(
 	FVirtualShadowMapSampleResult VisualizeResult = InitVirtualShadowMapSampleResult();
 
 #if ONE_PASS_PROJECTION
-	uint EyeIndex = 0; // TODO: Instanced stereo
-	uint GridLinearIndex = ComputeLightGridCellIndex( LocalPixelPos, SceneDepth, EyeIndex );
-	const FCulledLightsGridData CulledLightGridData = GetCulledLightsGrid( GridLinearIndex, EyeIndex );
-
+	const FCulledLightsGridData LightGridData = VirtualShadowMapGetLightsGrid(LocalPixelPos, SceneDepth);	
 	// We can only handle so many lights in our output encoding right now, so no purpose in computing more
-	uint LightCount = min(GetPackedShadowMaskMaxLightCount(), CulledLightGridData.NumLocalLights);
+	uint LightCount = min(GetPackedShadowMaskMaxLightCount(), LightGridData.NumLocalLights);
 
 	uint4 ShadowMask = InitializePackedShadowMask();
 
 	LOOP
 	for (uint Index = 0; Index < LightCount; ++Index)
 	{
-		const FLocalLightData LightData = GetLocalLightData( CulledLightGridData.DataStartIndex + Index, EyeIndex );
+		const FLocalLightData LightData = VirtualShadowMapGetLocalLightData(LightGridData, Index);
 		int VirtualShadowMapId = LightData.VirtualShadowMapId;
 
 		if (VirtualShadowMapId != INDEX_NONE)
@@ -663,7 +674,7 @@ void VirtualShadowMapProjection(
 		}
 	}
 
-	OutShadowMaskBits[ PixelPos ] = ~ShadowMask;
+	OutShadowMaskBits[PixelPos] = ShadowMask;
 
 #else // !ONE_PASS_PROJECTION
 	{

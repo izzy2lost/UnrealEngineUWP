@@ -40,6 +40,7 @@
 #include "DeferredLightingCommon.ush"
 #include "LightData.ush"
 #include "VirtualShadowMaps/VirtualShadowMapTransmissionCommon.ush"
+#include "VirtualShadowMaps/VirtualShadowMapMaskBitsCommon.ush"
 #include "Substrate/SubstrateEvaluation.ush"
 #include "Substrate/SubstrateDeferredLighting.ush"
 
@@ -220,7 +221,8 @@ float4 GetLightGridLocalLighting(
 	const FCulledLightsGridData InLightGridData, 
 	float3 TranslatedWorldPosition, 
 	float3 CameraVector, 
-	float2 ScreenUV, 
+	float2 ScreenUV,
+	float SceneDepth,
 	uint EyeIndex, 
 	float Dither, 
 	uint FirstNonSimpleLightIndex, 
@@ -235,7 +237,7 @@ float4 GetLightGridLocalLighting(
 	const uint NumLocalLights = min(InLightGridData.NumLocalLights, GetMaxLightsPerCell(EyeIndex));
 
 	int2 PixelPos = int2( ScreenUV.xy * View.BufferSizeAndInvSize.xy );
-	uint4 ShadowMask = ~ShadowMaskBits[ PixelPos ];
+	uint4 ShadowMask = ShadowMaskBits[ PixelPos ];
 	
 	LOOP
 	for (uint LocalLightListIndex = FirstNonSimpleLightIndex; LocalLightListIndex < NumLocalLights; LocalLightListIndex++)
@@ -257,22 +259,18 @@ float4 GetLightGridLocalLighting(
 		FDeferredLightData LightData = ConvertToDeferredLight(LocalLight);
 		LightData.ShadowedBits = 1;
 		float4 LightAttenuation = float4(1, 1, 1, 1);
-		if (LocalLightListIndex < GetPackedShadowMaskMaxLightCount())
+
+		// Find packed VSM projection result if present
+		// NOTE: We have to do the search as in the deferred pass again currently as the shadow masks
+		// are packed according to a prune light list that contains only shadow-casting lights.
+		if (LocalLight.VirtualShadowMapId != INDEX_NONE)
 		{
-			LightAttenuation = UnpackShadowMask(ShadowMask, LocalLightListIndex, Dither).xxxx;
-		}
-		else if (LocalLight.VirtualShadowMapId != INDEX_NONE)
-		{
-			// Single sample VSM lookup
-			// TODO: Normal bias? Screen space ray? Etc? Do we need a path that does more of that stuff
-			// unified but without SMRT? For now we'll just keep this as a simple lookup to avoid potential performance tradeoffs
-			// as this is meant to be the fallback path on overflowing tiles.
-			FVirtualShadowMapSampleResult VSMResult = SampleVirtualShadowMapTranslatedWorld(
+			LightAttenuation = GetVirtualShadowMapMaskForLight(
+				ShadowMask,
+				uint2(PixelPos),
+				SceneDepth,
 				LocalLight.VirtualShadowMapId,
-				TranslatedWorldPosition,
-				30.0f // RayStartDistance TODO... maybe at least make this a proportional screen offset like the contact shadow trace
-			);
-			LightAttenuation = VSMResult.ShadowFactor.xxxx;
+				TranslatedWorldPosition).xxxx;
 		}
 
 		#if USE_HAIR_LIGHTING
@@ -380,7 +378,7 @@ float4 GetLightGridLocalLighting(
 		float3 TranslatedWorldPosition = mul(float4(GetScreenPositionForProjectionType(ScreenPosition, SceneDepth), SceneDepth, 1), PrimaryView.ScreenToTranslatedWorld).xyz;	\
 		float3 CameraVector = normalize(TranslatedWorldPosition - PrimaryView.TranslatedWorldCameraOrigin);	\
 		ScreenSpaceData.GBuffer.ShadingModelID = ShadingModelId;	\
-		CompositedLighting += GetLightGridLocalLighting(ScreenSpaceData, LightGridData, TranslatedWorldPosition, CameraVector, ScreenUV, 0, Dither, FirstNonSimpleLightIndex); \
+		CompositedLighting += GetLightGridLocalLighting(ScreenSpaceData, LightGridData, TranslatedWorldPosition, CameraVector, ScreenUV, SceneDepth, 0, Dither, FirstNonSimpleLightIndex); \
 	}	\
 }
 
@@ -434,7 +432,7 @@ void ClusteredShadingPixelShader(
 
 		// Regular lights
 		CompositedLighting += GetLightGridLocalLighting(SubstrateAddressing, SubstratePixelHeader, OpaqueRoughRefractionSceneColor, SubSurfaceSceneColor,
-			CulledLightGridData, TranslatedWorldPosition, CameraVector, ScreenUV, EyeIndex, Dither, FirstNonSimpleLightIndex);
+			CulledLightGridData, TranslatedWorldPosition, CameraVector, ScreenUV, SceneDepth, EyeIndex, Dither, FirstNonSimpleLightIndex);
 	}
 	
 #if !VISUALIZE_LIGHT_CULLING
@@ -502,7 +500,7 @@ void ClusteredShadingPixelShader(
 	GET_LIGHT_GRID_LOCAL_LIGHTING_SINGLE_SM(SHADINGMODELID_SINGLELAYERWATER,	PixelShadingModelID, CompositedLighting, ScreenUV, CulledLightGridData, Dither, FirstNonSimpleLightIndex);
 	// SHADINGMODELID_THIN_TRANSLUCENT - skipping because it can not be opaque
 #else // !USE_PASS_PER_SHADING_MODEL
-	CompositedLighting += GetLightGridLocalLighting(GetScreenSpaceData(ScreenUV), CulledLightGridData, TranslatedWorldPosition, CameraVector, ScreenUV, 0, Dither, FirstNonSimpleLightIndex);
+	CompositedLighting += GetLightGridLocalLighting(GetScreenSpaceData(ScreenUV), CulledLightGridData, TranslatedWorldPosition, CameraVector, ScreenUV, SceneDepth, 0, Dither, FirstNonSimpleLightIndex);
 #endif // USE_PASS_PER_SHADING_MODEL
 	
 #if !VISUALIZE_LIGHT_CULLING
@@ -559,7 +557,7 @@ void ClusteredShadingPixelShader(
 
 	float4 CompositedLighting = 0;
 	uint FirstNonSimpleLightIndex = 0;
-	CompositedLighting += GetLightGridLocalLighting(ScreenSpaceData, CulledLightGridData, TranslatedWorldPosition, CameraVector, ScreenUV, 0, Dither, FirstNonSimpleLightIndex, SampleIndex, TotalSampleCount, PixelCoord);
+	CompositedLighting += GetLightGridLocalLighting(ScreenSpaceData, CulledLightGridData, TranslatedWorldPosition, CameraVector, ScreenUV, SceneDepth, 0, Dither, FirstNonSimpleLightIndex, SampleIndex, TotalSampleCount, PixelCoord);
 #if !VISUALIZE_LIGHT_CULLING
 	CompositedLighting *= View.PreExposure;
 #endif

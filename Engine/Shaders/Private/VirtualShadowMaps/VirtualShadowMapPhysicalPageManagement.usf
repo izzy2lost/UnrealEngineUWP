@@ -280,7 +280,7 @@ void UpdatePhysicalPages(uint3 Index : SV_DispatchThreadID)
 					uint NextPageFlags = VSM_ALLOCATED_FLAG;
 
 					// Distant lights block GPU-GPU invalidations (and all others) as they are round-robin invalidated
-					if (bDynamicPageInvalidation && !Projection.bCurrentDistantLight)
+					if (bDynamicPageInvalidation && !IsSinglePageVirtualShadowMap(VirtualShadowMapId))
 					{
 						uint InvalidationFlags = (PrevPhysicalFlags >> VSM_PHYSICAL_PAGE_INVALIDATION_FLAGS_SHIFT);
 						if (VirtualShadowMapShouldCacheStaticSeparately())

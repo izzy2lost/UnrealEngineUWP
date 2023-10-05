@@ -113,7 +113,7 @@ Texture2D<uint4> ShadowMaskBits;
 int VirtualShadowMapId;
 #endif
 
-float4 GetLightAttenuationFromShadow(in FInputParams InputParams, float SceneDepth)
+float4 GetLightAttenuationFromShadow(in FInputParams InputParams, float SceneDepth, float3 TranslatedWorldPosition)
 {
 	float4 LightAttenuation = float4(1, 1, 1, 1);
 
@@ -121,13 +121,11 @@ float4 GetLightAttenuationFromShadow(in FInputParams InputParams, float SceneDep
 	if (VirtualShadowMapId != INDEX_NONE)
 	{
 		float ShadowMask = GetVirtualShadowMapMaskForLight(
-			ShadowMaskBits,
+			ShadowMaskBits[InputParams.PixelPos],
 			uint2(InputParams.PixelPos),
 			SceneDepth,
-			0,	// TODO: EyeIndex
-			VirtualShadowMapId);
-
-		// TODO: Subsurface...?
+			VirtualShadowMapId,
+			TranslatedWorldPosition);
 		return ShadowMask.xxxx;
 	}
 	else
@@ -280,7 +278,7 @@ void DeferredLightPixelMain(
 		if (LightMask > 0)
 		{
 			FShadowTerms ShadowTerms = { SubstrateGetAO(SubstratePixelHeader), 1.0, 1.0, InitHairTransmittanceData() };
-			float4 LightAttenuation = GetLightAttenuationFromShadow(InputParams, SceneDepth);
+			float4 LightAttenuation = GetLightAttenuationFromShadow(InputParams, SceneDepth, DerivedParams.TranslatedWorldPosition);
 
 			float Dither = InterleavedGradientNoise(InputParams.PixelPos, View.StateFrameIndexMod8);
 			const uint FakeShadingModelID = 0;
@@ -335,7 +333,7 @@ void DeferredLightPixelMain(
 
 		float SurfaceShadow = 1.0f;
 		
-		float4 LightAttenuation = GetLightAttenuationFromShadow(InputParams, SceneDepth);
+		float4 LightAttenuation = GetLightAttenuationFromShadow(InputParams, SceneDepth, DerivedParams.TranslatedWorldPosition);
 		float4 Radiance = GetDynamicLighting(DerivedParams.TranslatedWorldPosition, DerivedParams.CameraVector, ScreenSpaceData.GBuffer, ScreenSpaceData.AmbientOcclusion, ScreenSpaceData.GBuffer.ShadingModelID, LightData, LightAttenuation, Dither, uint2(InputParams.PixelPos), SurfaceShadow);
 
 		OutColor += Radiance;

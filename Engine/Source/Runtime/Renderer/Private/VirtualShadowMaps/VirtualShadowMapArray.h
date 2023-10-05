@@ -152,6 +152,11 @@ BEGIN_GLOBAL_SHADER_PARAMETER_STRUCT(FVirtualShadowMapUniformParameters, )
 	SHADER_PARAMETER_RDG_BUFFER_SRV(StructuredBuffer<uint>, PageFlags)
 	SHADER_PARAMETER_RDG_BUFFER_SRV(StructuredBuffer<uint4>, PageRectBounds)
 	SHADER_PARAMETER_RDG_TEXTURE(Texture2DArray<uint>, PhysicalPagePool)
+
+	// Light grid with only the lights that have VSMs present
+	// Still references the original indices from the global light grid
+	SHADER_PARAMETER_RDG_BUFFER_SRV(StructuredBuffer< uint >, LightGridData)
+	SHADER_PARAMETER_RDG_BUFFER_SRV(StructuredBuffer< uint >, NumCulledLightsGrid)
 END_GLOBAL_SHADER_PARAMETER_STRUCT()
 
 BEGIN_SHADER_PARAMETER_STRUCT(FVirtualShadowMapSamplingParameters, )

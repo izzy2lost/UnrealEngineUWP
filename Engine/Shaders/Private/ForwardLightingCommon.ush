@@ -224,7 +224,7 @@ FDeferredLightingSplit GetForwardDirectLightingSplit(
 				}
 				#else
 				{
-					FVirtualShadowMapSampleResult VirtualShadowMapSample = SampleVirtualShadowMapTranslatedWorld( ForwardLightData.DirectionalLightVSM, TranslatedWorldPosition );
+					FVirtualShadowMapSampleResult VirtualShadowMapSample = SampleVirtualShadowMapDirectional( ForwardLightData.DirectionalLightVSM, TranslatedWorldPosition );
 					DynamicShadowFactor *= VirtualShadowMapSample.ShadowFactor;
 				}
 				#endif

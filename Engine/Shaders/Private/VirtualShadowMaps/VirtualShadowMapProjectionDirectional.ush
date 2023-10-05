@@ -213,7 +213,7 @@ FVirtualShadowMapSampleResult TraceDirectional(
 	float RayLengthScale,
 	const float Noise,
 	bool bCullBackface,
-	half3 WorldNormal,
+	float3 WorldNormal,
 	float TexelDitherScale,
 	float ExtrapolateSlope,
 	uint SMRTAdaptiveRayCount)
