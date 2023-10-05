@@ -34,7 +34,7 @@ using FIoBlockHash = uint32;
 	#define UE_IAS_CUSTOM_INITIALIZATION 0
 #endif
 
-UE_API DECLARE_LOG_CATEGORY_EXTERN(LogIas, VeryVerbose, All);
+UE_API DECLARE_LOG_CATEGORY_EXTERN(LogIas, Log, All);
 
 namespace UE::IO::IAS
 {
