@@ -73,6 +73,12 @@ UShapeComponent::UShapeComponent(const FObjectInitializer& ObjectInitializer)
 	AreaClassOverride = nullptr;
 }
 
+void UShapeComponent::SetLineThickness(float Thickness)
+{
+	LineThickness = Thickness;
+	MarkRenderStateDirty();
+}
+
 FPrimitiveSceneProxy* UShapeComponent::CreateSceneProxy()
 {
 	check( false && "Subclass needs to Implement this" );
