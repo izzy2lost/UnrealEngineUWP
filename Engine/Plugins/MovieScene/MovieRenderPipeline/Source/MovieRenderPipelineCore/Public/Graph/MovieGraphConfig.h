@@ -673,6 +673,16 @@ public:
 	template<class T>
 	T* ConstructRuntimeNode(TSubclassOf<UMovieGraphNode> PipelineGraphNodeClass = T::StaticClass())
 	{
+		if (!PipelineGraphNodeClass)
+		{
+			FFrame::KismetExecutionMessage(
+				*FString::Printf(
+					TEXT("%hs: Invalid PipelineGraphNodeClass. Please specify a valid class."), __FUNCTION__),
+					ELogVerbosity::Display);
+		
+			return nullptr;
+		}
+		
 		// Construct a new object with ourselves as the outer, then keep track of it.
 		T* RuntimeNode = NewObject<T>(this, PipelineGraphNodeClass, NAME_None, RF_Transactional);
 		RuntimeNode->UpdateDynamicProperties();
