@@ -282,7 +282,10 @@ void UEditUVIslandsTool::OnEndDrag(const FRay& Ray)
 	check(false);
 }
 
-
+void UEditUVIslandsTool::OnCancelDrag()
+{
+	check(false);
+}
 
 void UEditUVIslandsTool::OnGizmoTransformBegin(UTransformProxy*)
 {

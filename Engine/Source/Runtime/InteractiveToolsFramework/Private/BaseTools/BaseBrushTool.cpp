@@ -441,6 +441,11 @@ void UBaseBrushTool::OnEndDrag(const FRay& Ray)
 	bInBrushStroke = false;
 }
 
+void UBaseBrushTool::OnCancelDrag()
+{
+	bInBrushStroke = false;
+}
+
 bool UBaseBrushTool::OnUpdateHover(const FInputDeviceRay& DevicePos)
 {
 	if (BrushAdjusterBehavior.IsValid() && BrushAdjusterBehavior->IsBrushBeingAdjusted())

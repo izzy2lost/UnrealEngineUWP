@@ -500,6 +500,15 @@ void UMeshVertexSculptTool::OnEndStroke()
 }
 
 
+void UMeshVertexSculptTool::OnCancelStroke()
+{
+	GetActiveBrushOp()->CancelStroke();
+
+	delete ActiveVertexChange;
+	ActiveVertexChange = nullptr;
+}
+
+
 
 void UMeshVertexSculptTool::UpdateROI(const FVector3d& BrushPos)
 {

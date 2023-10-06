@@ -418,7 +418,12 @@ void UMeshGroupPaintTool::OnEndStroke()
 	EndChange();
 }
 
-
+void UMeshGroupPaintTool::OnCancelStroke()
+{
+	GetActiveBrushOp()->CancelStroke();
+	ActiveGroupEditBuilder.Reset();
+	bDrawGroupsDataValid = false;
+}
 
 
 void UMeshGroupPaintTool::UpdateROI(const FSculptBrushStamp& BrushStamp)

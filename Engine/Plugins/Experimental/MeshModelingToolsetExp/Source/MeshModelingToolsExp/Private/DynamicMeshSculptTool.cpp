@@ -1441,6 +1441,18 @@ void UDynamicMeshSculptTool::OnEndDrag(const FRay& Ray)
 	}
 }
 
+void UDynamicMeshSculptTool::OnCancelDrag()
+{
+	bInDrag = false;
+	bStampPending = false;
+	bRemeshPending = false;
+
+	CancelChange();
+
+	// destroy active remesher
+	ActiveRemesher = nullptr;
+}
+
 
 FInputRayHit UDynamicMeshSculptTool::BeginHoverSequenceHitTest(const FInputDeviceRay& PressPos)
 {
@@ -2438,6 +2450,15 @@ void UDynamicMeshSculptTool::EndChange()
 		delete ActiveMeshChange;
 		ActiveMeshChange = nullptr;
 	}
+}
+
+void UDynamicMeshSculptTool::CancelChange()
+{
+	delete ActiveVertexChange;
+	ActiveVertexChange = nullptr;
+	
+	delete ActiveMeshChange;
+	ActiveMeshChange = nullptr;
 }
 
 void UDynamicMeshSculptTool::SaveActiveROI()

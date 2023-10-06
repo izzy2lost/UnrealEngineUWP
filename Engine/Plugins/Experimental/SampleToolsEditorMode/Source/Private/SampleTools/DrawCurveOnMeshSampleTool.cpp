@@ -101,7 +101,10 @@ void UDrawCurveOnMeshSampleTool::OnEndDrag(const FRay& Ray)
 
 }
 
+void UDrawCurveOnMeshSampleTool::OnCancelDrag()
+{
 
+}
 
 
 

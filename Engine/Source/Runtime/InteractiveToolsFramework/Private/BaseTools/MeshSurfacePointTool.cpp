@@ -184,7 +184,7 @@ void UMeshSurfacePointTool::OnClickRelease(const FInputDeviceRay& ReleasePos)
 
 void UMeshSurfacePointTool::OnTerminateDragSequence()
 {
-	OnEndDrag(LastWorldRay);
+	OnCancelDrag();
 }
 
 

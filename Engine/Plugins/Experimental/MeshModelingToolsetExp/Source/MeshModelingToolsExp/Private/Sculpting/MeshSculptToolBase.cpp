@@ -574,10 +574,17 @@ void UMeshSculptToolBase::OnEndDrag(const FRay& Ray)
 	bIsStampPending = false;
 
 	OnEndStroke();
-
 }
 
+void UMeshSculptToolBase::OnCancelDrag()
+{
+	bInStroke = false;
 
+	// cancel any outstanding stamps
+	bIsStampPending = false;
+
+	OnCancelStroke();
+}
 
 FRay3d UMeshSculptToolBase::GetLocalRay(const FRay& WorldRay) const
 {

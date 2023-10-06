@@ -250,6 +250,7 @@ public:
 	virtual void OnBeginDrag(const FRay& Ray) override;
 	virtual void OnUpdateDrag(const FRay& Ray) override;
 	virtual void OnEndDrag(const FRay& Ray) override;
+	virtual void OnCancelDrag() override;
 	// end UMeshSurfacePointTool API
 
 protected:
@@ -259,6 +260,7 @@ protected:
 	virtual void OnCompleteSetup();
 	virtual void OnBeginStroke(const FRay& WorldRay) { check(false); }
 	virtual void OnEndStroke() { check(false); }
+	virtual void OnCancelStroke() { check(false); }
 
 public:
 	/** Properties that control brush size/etc */

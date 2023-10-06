@@ -267,6 +267,7 @@ protected:
 
 	virtual void OnBeginStroke(const FRay& WorldRay) override;
 	virtual void OnEndStroke() override;
+	virtual void OnCancelStroke() override;
 	// end UMeshSculptToolBase API
 
 protected:

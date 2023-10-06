@@ -1292,6 +1292,20 @@ void UDeformMeshPolygonsTool::OnEndDrag(const FRay& Ray)
 	}
 }
 
+void UDeformMeshPolygonsTool::OnCancelDrag()
+{
+	bInDrag = false;
+	bUpdatePending = false;
+
+	HilightSelection.Clear();
+	TopoSelector.Invalidate(true, false);
+	QuickAxisRotator.Reset();
+	QuickAxisTranslater.Reset();
+
+	delete ActiveVertexChange;
+	ActiveVertexChange = nullptr;
+}
+
 
 bool UDeformMeshPolygonsTool::OnUpdateHover(const FInputDeviceRay& DevicePos)
 {

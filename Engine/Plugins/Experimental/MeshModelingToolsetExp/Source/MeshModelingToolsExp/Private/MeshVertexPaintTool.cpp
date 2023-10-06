@@ -575,6 +575,11 @@ void UMeshVertexPaintTool::OnEndStroke()
 	EndChange();
 }
 
+void UMeshVertexPaintTool::OnCancelStroke()
+{
+	GetActiveBrushOp()->CancelStroke();
+	ActiveChangeBuilder.Reset();
+}
 
 
 

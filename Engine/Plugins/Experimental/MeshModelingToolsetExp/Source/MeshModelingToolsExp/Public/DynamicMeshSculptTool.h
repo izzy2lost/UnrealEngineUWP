@@ -280,6 +280,7 @@ public:
 	virtual void OnBeginDrag(const FRay& Ray) override;
 	virtual void OnUpdateDrag(const FRay& Ray) override;
 	virtual void OnEndDrag(const FRay& Ray) override;
+	virtual void OnCancelDrag() override;
 
 	virtual FInputRayHit BeginHoverSequenceHitTest(const FInputDeviceRay& PressPos) override;
 	virtual bool OnUpdateHover(const FInputDeviceRay& DevicePos) override;
@@ -498,6 +499,7 @@ private:
 	UE::Geometry::FDynamicMeshChangeTracker* ActiveMeshChange = nullptr;
 	void BeginChange(bool bIsVertexChange);
 	void EndChange();
+	void CancelChange();
 	void SaveActiveROI();
 
 	double EstimateIntialSafeTargetLength(const FDynamicMesh3& Mesh, int MinTargetTriCount);
