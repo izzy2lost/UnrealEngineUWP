@@ -14,9 +14,9 @@ namespace Metasound
 {
 	namespace Editor
 	{
-		FGraphConnectionManager::FGraphConnectionManager(const FMetasoundAssetBase& InAssetBase, const UAudioComponent& InAudioComponent, uint64 InTransmitterID, const FOperatorSettings& InOperatorSettings)
+		FGraphConnectionManager::FGraphConnectionManager(const FMetasoundAssetBase& InAssetBase, const UAudioComponent& InAudioComponent, uint64 InTransmitterID, FSampleRate InSampleRate)
 			: AudioComponent(&InAudioComponent)
-			, GraphAnalyzerView(MakeUnique<Frontend::FMetasoundGraphAnalyzerView>(InAssetBase, InTransmitterID, InOperatorSettings))
+			, GraphAnalyzerView(MakeUnique<Frontend::FMetasoundGraphAnalyzerView>(InAssetBase, InTransmitterID, InSampleRate))
 		{
 			using namespace Frontend;
 

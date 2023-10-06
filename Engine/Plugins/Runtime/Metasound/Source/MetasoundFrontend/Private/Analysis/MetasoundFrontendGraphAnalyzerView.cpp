@@ -53,10 +53,10 @@ namespace Metasound
 			}
 		} // namespace GraphAnalyzerViewPrivate
 
-		FMetasoundGraphAnalyzerView::FMetasoundGraphAnalyzerView(const FMetasoundAssetBase& InAssetBase, uint64 InInstanceID, const FOperatorSettings& InOperatorSettings)
+		FMetasoundGraphAnalyzerView::FMetasoundGraphAnalyzerView(const FMetasoundAssetBase& InAssetBase, uint64 InInstanceID, FSampleRate InSampleRate)
 			: InstanceID(InInstanceID)
 			, MetaSoundAsset(&InAssetBase)
-			, OperatorSettings(InOperatorSettings)
+			, OperatorSettings({ InSampleRate, GetDefaultBlockRate() })
 		{
 			// TODO: Mirrored from FMetaSoundParameterTransmitter. Fix here when this is refactored.
 			const float DelayTimeInSeconds = 0.1f;

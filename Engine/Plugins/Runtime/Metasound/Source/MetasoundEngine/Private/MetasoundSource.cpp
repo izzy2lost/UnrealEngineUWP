@@ -421,23 +421,6 @@ void UMetaSoundSource::PostLoadQualitySettings()
 				WeakSource->ResolveQualitySettings(CastChecked<UMetaSoundSettings>(InObj));
 			}
 		});
-
-		// Register for changes from the CVars that control overrides.
-		// We cache the OperatorSettings, so reset when these change.
-		auto ResetOperatorSettings = [WeakSource = MakeWeakObjectPtr(this)](IConsoleVariable* Var)
-		{
-			if (WeakSource.IsValid())
-			{
-				WeakSource->ResolveQualitySettings(GetMutableDefault<UMetaSoundSettings>());
-			
-				WeakSource->OperatorSettings.Reset();
-						
-				// Override SampleRate with the Operator settings version which uses our Quality settings.
-				WeakSource->SampleRate = WeakSource->GetOperatorSettings(WeakSource->SampleRate).GetSampleRate();
-			}
-		};
-		Metasound::Frontend::GetBlockRateOverrideChangedDelegate().AddWeakLambda(this, ResetOperatorSettings);
-		Metasound::Frontend::GetSampleRateOverrideChangedDelegate().AddWeakLambda(this, ResetOperatorSettings);
 	}
 #endif //WITH_EDITORONLY_DATA
 
@@ -1204,49 +1187,22 @@ Metasound::FOperatorSettings UMetaSoundSource::GetOperatorSettings(Metasound::FS
 	{
 		using namespace Metasound;
 		using namespace Metasound::SourcePrivate;
-		
+
 		// Lazy Query and cache on the optional.
 		auto QueryQualitySettings = [&](Metasound::FSampleRate InSampleRate) -> Metasound::FOperatorSettings
 		{
+			static const int32 DefaultSampleRateConstant = 48000;
 			static const float DefaultBlockRateConstant = 100.f;
 			
 			// 1. Sensible defaults.
-			FSampleRate SampleRate = InSampleRate;
+			FSampleRate SampleRate = DefaultSampleRateConstant;
 			float BlockRate = DefaultBlockRateConstant;
 
-			// 2. Query our quality settings.
-			if (const UMetaSoundSettings* Settings = GetDefault<UMetaSoundSettings>())
-			{
-				if (const FMetaSoundQualitySettings* Found = Settings->QualitySettings.FindByPredicate([&QT = QualitySetting](const FMetaSoundQualitySettings& Q) -> bool { return Q.Name == QT; }))
-				{
-					// Allow partial applications of settings, if some are non-zero.
-					if (const float Value = Found->BlockRate.GetValue(); Value > 0.f)
-					{
-						BlockRate = Value;
-					}
-					if (const float Value = Found->SampleRate.GetValue(); Value > 0.f)
-					{
-						SampleRate = Value;
-					}
-				}
-			}
+			// 2. Query CVars. (Override with CVars if they are > 0)
+			const float BlockRateCVar = Metasound::Frontend::GetDefaultBlockRate();
+			const int32 SampleRateCvar = Metasound::Frontend::GetDefaultSampleRate();
 
-			// 3. Do per asset overrides.
-			if (const float SerializedBlockRate = BlockRateOverride.GetValue(); SerializedBlockRate > 0.0f)
-			{
-				BlockRate = SerializedBlockRate;
-			}
-			if (const int32 SerializedSampleRate = SampleRateOverride.GetValue(); SerializedSampleRate > 0)
-			{
-				SampleRate = SerializedSampleRate;
-			}
-
-			// 4. Query CVars. (Override with CVars if they are > 0)
-			using namespace Metasound::Frontend;
-			const float BlockRateCVar = GetBlockRateOverride();
-			const int32 SampleRateCvar = GetSampleRateOverride();
-
-			if (SampleRateCvar > 0)
+			if (SampleRateCvar != INDEX_NONE)
 			{
 				SampleRate = SampleRateCvar;
 			}
@@ -1255,11 +1211,32 @@ Metasound::FOperatorSettings UMetaSoundSource::GetOperatorSettings(Metasound::FS
 				BlockRate = BlockRateCVar;
 			}
 
-			// 5. Sanity clamps.
-			TRange<float> BlockRange = GetBlockRateClampRange();
-			TRange<int32> RateRange = GetSampleRateClampRange();
-			BlockRate = FMath::Clamp(BlockRate, BlockRange.GetLowerBoundValue(), BlockRange.GetUpperBoundValue());
-			SampleRate = FMath::Clamp(SampleRate, RateRange.GetLowerBoundValue(), RateRange.GetUpperBoundValue());
+			// 3. Query our quality settings.
+			if (const UMetaSoundSettings* Settings = GetDefault<UMetaSoundSettings>())
+			{
+				if (const FMetaSoundQualitySettings* Found = Settings->QualitySettings.FindByPredicate([&QT = QualitySetting](const FMetaSoundQualitySettings& Q) -> bool { return Q.Name == QT; }))
+				{
+					// Allow partial applications of settings, if some are non-zero.
+					if (Found->BlockRate > 0.f)
+					{
+						BlockRate = Found->BlockRate;
+					}
+					if (Found->SampleRate > 0.f)
+					{
+						SampleRate = Found->SampleRate;
+					}
+				}
+			}
+
+			// 4. Do per asset overrides.
+			if (const float SerializedBlockRate = BlockRateOverride.GetValue(); SerializedBlockRate > 0.0f)
+			{
+				BlockRate = SerializedBlockRate;
+			}
+			if (const int32 SerializedSampleRate = SampleRateOverride.GetValue(); SerializedSampleRate > 0)
+			{
+				SampleRate = SerializedSampleRate;
+			}
 
 			return Metasound::FOperatorSettings(SampleRate, BlockRate);
 		};

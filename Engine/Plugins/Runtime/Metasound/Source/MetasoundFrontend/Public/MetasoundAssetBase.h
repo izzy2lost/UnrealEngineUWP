@@ -19,8 +19,7 @@
 // Forward Declarations
 class UEdGraph;
 struct FMetaSoundFrontendDocumentBuilder;
-class IConsoleVariable;
-typedef TMulticastDelegate<void(IConsoleVariable*), FDefaultDelegateUserPolicy> FConsoleVariableMulticastDelegate;
+
 
 namespace Metasound
 {
@@ -29,13 +28,9 @@ namespace Metasound
 		// Forward Declarations
 		class IInterfaceRegistryEntry;
 
-		METASOUNDFRONTEND_API TRange<float> GetBlockRateClampRange();
-		METASOUNDFRONTEND_API float GetBlockRateOverride();
-		METASOUNDFRONTEND_API FConsoleVariableMulticastDelegate& GetBlockRateOverrideChangedDelegate();
+		METASOUNDFRONTEND_API float GetDefaultBlockRate();
+		METASOUNDFRONTEND_API int32 GetDefaultSampleRate();
 
-		METASOUNDFRONTEND_API TRange<int32> GetSampleRateClampRange();
-		METASOUNDFRONTEND_API int32 GetSampleRateOverride();
-		METASOUNDFRONTEND_API FConsoleVariableMulticastDelegate& GetSampleRateOverrideChangedDelegate();
 		class FProxyDataCache;
 
 	} // namespace Frontend
