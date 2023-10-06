@@ -8,6 +8,7 @@
 #include "PCGCustomVersion.h"
 #include "Data/PCGPointData.h"
 #include "Data/PCGSpatialData.h"
+#include "Elements/PCGTimeSlicedElementBase.h"
 #include "Helpers/PCGAsync.h"
 #include "Helpers/PCGHelpers.h"
 
@@ -25,41 +26,40 @@ namespace PCGVolumeSamplerConstants
 
 namespace PCGVolumeSampler
 {
-	UPCGPointData* SampleVolume(FPCGContext* InContext, const UPCGSpatialData* InVolume, const FVolumeSamplerSettings& InSamplerSettings)
-	{
-		const FBox Bounds = InVolume->GetBounds();
-		return SampleVolume(InContext, InVolume, nullptr, Bounds, InSamplerSettings);
-	}
-
-	UPCGPointData* SampleVolume(FPCGContext* InContext, const UPCGSpatialData* InVolume, const UPCGSpatialData* InBoundingShape, const FBox& InBounds, const FVolumeSamplerSettings& InSamplerSettings)
+	UPCGPointData* SampleVolume(FPCGContext* Context, const FVolumeSamplerParams& SamplerSettings, const UPCGSpatialData* Volume, const UPCGSpatialData* BoundingShape)
 	{
 		UPCGPointData* Data = NewObject<UPCGPointData>();
-		Data->InitializeFromData(InVolume);
+		Data->InitializeFromData(Volume);
 
-		SampleVolume(InContext, InVolume, InBoundingShape, InBounds, InSamplerSettings, Data);
+		SampleVolume(Context, SamplerSettings, Volume, BoundingShape, Data, Context->TimeSliceIsEnabled());
 
 		return Data;
 	}
 
-	void SampleVolume(FPCGContext* InContext, const UPCGSpatialData* InVolume, const UPCGSpatialData* InBoundingShape, const FBox& InBounds, const FVolumeSamplerSettings& InSamplerSettings, UPCGPointData* OutputData)
+	bool SampleVolume(FPCGContext* Context, const FVolumeSamplerParams& SamplerSettings, const UPCGSpatialData* Volume, const UPCGSpatialData* BoundingShape, UPCGPointData* OutputData, const bool bTimeSlicingIsEnabled)
 	{
-		check(InVolume && OutputData);
+		check(Volume && OutputData);
 
-		// Early out
-		if (!InBounds.IsValid)
+		FBox Bounds(SamplerSettings.Bounds);
+		if (!Bounds.IsValid)
 		{
-			return;
+			Bounds = Volume->GetBounds();
+			// Early out
+			if (!Bounds.IsValid)
+			{
+				return true;
+			}
 		}
 
 		TArray<FPCGPoint>& Points = OutputData->GetMutablePoints();
-		const FVector& VoxelSize = InSamplerSettings.VoxelSize;
+		const FVector& VoxelSize = SamplerSettings.VoxelSize;
 
-		const int32 MinX = FMath::CeilToInt(InBounds.Min.X / VoxelSize.X);
-		const int32 MaxX = FMath::FloorToInt(InBounds.Max.X / VoxelSize.X);
-		const int32 MinY = FMath::CeilToInt(InBounds.Min.Y / VoxelSize.Y);
-		const int32 MaxY = FMath::FloorToInt(InBounds.Max.Y / VoxelSize.Y);
-		const int32 MinZ = FMath::CeilToInt(InBounds.Min.Z / VoxelSize.Z);
-		const int32 MaxZ = FMath::FloorToInt(InBounds.Max.Z / VoxelSize.Z);
+		const int32 MinX = FMath::CeilToInt(Bounds.Min.X / VoxelSize.X);
+		const int32 MaxX = FMath::FloorToInt(Bounds.Max.X / VoxelSize.X);
+		const int32 MinY = FMath::CeilToInt(Bounds.Min.Y / VoxelSize.Y);
+		const int32 MaxY = FMath::FloorToInt(Bounds.Max.Y / VoxelSize.Y);
+		const int32 MinZ = FMath::CeilToInt(Bounds.Min.Z / VoxelSize.Z);
+		const int32 MaxZ = FMath::FloorToInt(Bounds.Max.Z / VoxelSize.Z);
 
 		// Set uninitialized, then carefully initialize step by step with overflow checks
 		int32 NumIterations = -1;
@@ -73,12 +73,12 @@ namespace PCGVolumeSampler
 
 			if (NumX <= 0 || NumY <= 0 || NumZ <= 0)
 			{
-				if (InContext)
+				if (Context)
 				{
-					PCGE_LOG_C(Verbose, LogOnly, InContext, FText::Format(FText::FromString(TEXT("Skipped - invalid cell bounds ({0} x {1} x {2})")), NumX, NumY, NumZ));
+					PCGE_LOG_C(Verbose, LogOnly, Context, FText::Format(FText::FromString(TEXT("Skipped - invalid cell bounds ({0} x {1} x {2})")), NumX, NumY, NumZ));
 				}
 
-				return;
+				return true;
 			}
 
 			if (NumIterationsXY64 > 0 && 
@@ -91,16 +91,16 @@ namespace PCGVolumeSampler
 			}
 			else
 			{
-				if (InContext)
+				if (Context)
 				{
-					PCGE_LOG_C(Error, GraphAndLog, InContext, FText::Format(FText::FromString(TEXT("Skipped - tried to generate too many points ({0} x {1} x {2})")), NumX, NumY, NumZ));
+					PCGE_LOG_C(Error, GraphAndLog, Context, FText::Format(FText::FromString(TEXT("Skipped - tried to generate too many points ({0} x {1} x {2})")), NumX, NumY, NumZ));
 				}
 
-				return;
+				return true;
 			}
 		}
 
-		FPCGAsync::AsyncPointProcessing(InContext, NumIterations, Points, [InVolume, InBoundingShape, PointSteepness = InSamplerSettings.PointSteepness, VoxelSize, MinX, MaxX, MinY, MaxY, MinZ](int32 Index, FPCGPoint& OutPoint)
+		auto AsyncProcessingFunc = [Volume, BoundingShape, PointSteepness = SamplerSettings.PointSteepness, VoxelSize, MinX, MaxX, MinY, MaxY, MinZ](int32 Index, FPCGPoint& OutPoint)
 		{
 			const int X = MinX + (Index % (MaxX - MinX));
 			const int Y = MinY + (Index / (MaxX - MinX) % (MaxY - MinY));
@@ -114,12 +114,12 @@ namespace PCGVolumeSampler
 			// The OutPoint has not been initialized, so do it now
 			OutPoint = FPCGPoint();
 
-			if (InVolume->SamplePoint(SampleTransform, VoxelBox, OutPoint, nullptr))
+			if (Volume->SamplePoint(SampleTransform, VoxelBox, OutPoint, nullptr))
 			{
-				if (InBoundingShape)
+				if (BoundingShape)
 				{
 					FPCGPoint BoundingShapeSample;
-					if (!InBoundingShape->SamplePoint(SampleTransform, VoxelBox, BoundingShapeSample, nullptr))
+					if (!BoundingShape->SamplePoint(SampleTransform, VoxelBox, BoundingShapeSample, nullptr))
 					{
 						return false;
 					}
@@ -133,7 +133,10 @@ namespace PCGVolumeSampler
 			{
 				return false;
 			}
-		});
+		};
+
+		FPCGAsyncState* AsyncState = Context ? &Context->AsyncState : nullptr;
+		return FPCGAsync::AsyncProcessing<FPCGPoint>(AsyncState, NumIterations, Points, AsyncProcessingFunc, /*bEnableTimeSlicing=*/Context && bTimeSlicingIsEnabled);
 	}
 }
 
@@ -164,140 +167,221 @@ FPCGElementPtr UPCGVolumeSamplerSettings::CreateElement() const
 	return MakeShared<FPCGVolumeSamplerElement>();
 }
 
-bool FPCGVolumeSamplerElement::ExecuteInternal(FPCGContext* Context) const
+namespace PCGVolumeSamplerHelpers
 {
-	TRACE_CPUPROFILER_EVENT_SCOPE(FPCGVolumeSamplerElement::Execute);
-	// TODO: time-sliced implementation
-	const UPCGVolumeSamplerSettings* Settings = Context->GetInputSettings<UPCGVolumeSamplerSettings>();
+	using ContextType = FPCGVolumeSamplerElement::ContextType;
+	using ExecStateType = FPCGVolumeSamplerElement::ExecStateType;
+
+	EPCGTimeSliceInitResult InitializePerExecutionData(ContextType* Context, ExecStateType& OutState)
+	{
+		TRACE_CPUPROFILER_EVENT_SCOPE(FPCGVolumeSamplerElement::InitializePerExecutionData);
+
+		check(Context);
+		const UPCGVolumeSamplerSettings* Settings = Context->GetInputSettings<UPCGVolumeSamplerSettings>();
+		check(Settings);
+
+		const FVector& VoxelSize = Settings->VoxelSize;
+		if (VoxelSize.X <= 0 || VoxelSize.Y <= 0 || VoxelSize.Z <= 0)
+		{
+			PCGE_LOG_C(Warning, GraphAndLog, Context, LOCTEXT("InvalidVoxelSize", "Skipped - Invalid voxel size"));
+			return EPCGTimeSliceInitResult::AbortExecution;
+		}
+
+		const TArray<FPCGTaggedData> VolumeInputs = Context->InputData.GetInputsByPin(PCGVolumeSamplerConstants::VolumeLabel);
+		// Grab the Bounding Shape input if there is one.
+		TArray<FPCGTaggedData> BoundingShapeInputs = Context->InputData.GetInputsByPin(PCGVolumeSamplerConstants::BoundingShapeLabel);
+
+		bool bUsedDefaultBoundingShape = false;
+		if (!Settings->bUnbounded)
+		{
+			bool bUnionWasCreated;
+			// Get a union of inputs and if successful, add it to the root. Will be removed and marked for GC in the state destructor
+			OutState.BoundingShape = Context->InputData.GetSpatialUnionOfInputsByPin(PCGVolumeSamplerConstants::BoundingShapeLabel, bUnionWasCreated);
+			if (OutState.BoundingShape && bUnionWasCreated)
+			{
+				Context->RootAndTrackObject(const_cast<UPCGSpatialData*>(OutState.BoundingShape));
+			}
+
+			if (!OutState.BoundingShape && Context->SourceComponent.IsValid())
+			{
+				// Create a bounding shape from the actor data
+				OutState.BoundingShape = Cast<UPCGSpatialData>(Context->SourceComponent->GetActorPCGData());
+				bUsedDefaultBoundingShape = true;
+			}
+		}
+		else if (BoundingShapeInputs.Num() > 0)
+		{
+			PCGE_LOG_C(Verbose, LogOnly, Context, LOCTEXT("BoundsIgnored", "The bounds of the Bounding Shape input pin will be ignored because the Unbounded option is enabled"));
+		}
+
+		FBox& BoundingShapeBounds = OutState.BoundingShapeBounds;
+		// Compute bounds of bounding shape input
+		if (OutState.BoundingShape)
+		{
+			BoundingShapeBounds = OutState.BoundingShape->GetBounds();
+		}
+
+		TArray<FPCGTaggedData>& Outputs = Context->OutputData.TaggedData;
+		// Construct a list of shapes to generate samples from. Prefer to get these directly from the first input pin.
+		TArray<const UPCGSpatialData*>& GeneratingShapes = OutState.GeneratingShapes;
+		GeneratingShapes.Reserve(VolumeInputs.Num());
+		for (const FPCGTaggedData& TaggedData : VolumeInputs)
+		{
+			if (const UPCGSpatialData* SpatialData = Cast<UPCGSpatialData>(TaggedData.Data))
+			{
+				GeneratingShapes.Add(SpatialData);
+				Outputs.Add(TaggedData);
+			}
+		}
+
+		// Warn if something is connected but no spatial data could be obtained for sampling
+		if (GeneratingShapes.IsEmpty() && (BoundingShapeInputs.Num() > 0 || VolumeInputs.Num() > 0))
+		{
+			PCGE_LOG_C(Warning, GraphAndLog, Context, LOCTEXT("NoShapeToSample", "No Spatial data shape was provided for sampling. No points will be sampled."));
+			return EPCGTimeSliceInitResult::NoOperation;
+		}
+
+		return EPCGTimeSliceInitResult::Success;
+	}
+}
+
+bool FPCGVolumeSamplerElement::PrepareDataInternal(FPCGContext* Context) const
+{
+	TRACE_CPUPROFILER_EVENT_SCOPE(FPCGVolumeSamplerElement::PrepareDataInternal);
+	ContextType* TimeSlicedContext = static_cast<ContextType*>(Context);
+	check(TimeSlicedContext);
+
+	const UPCGVolumeSamplerSettings* Settings = TimeSlicedContext->GetInputSettings<UPCGVolumeSamplerSettings>();
 	check(Settings);
 
-	TArray<FPCGTaggedData> VolumeInputs = Context->InputData.GetInputsByPin(PCGVolumeSamplerConstants::VolumeLabel);
-
-	const FVector& VoxelSize = Settings->VoxelSize;
-	if (VoxelSize.X <= 0 || VoxelSize.Y <= 0 || VoxelSize.Z <= 0)
+	if (TimeSlicedContext->InitializePerExecutionState(PCGVolumeSamplerHelpers::InitializePerExecutionData) == EPCGTimeSliceInitResult::AbortExecution)
 	{
-		PCGE_LOG(Warning, GraphAndLog, LOCTEXT("InvalidVoxelSize", "Skipped - Invalid voxel size"));
+		PCGE_LOG(Warning, GraphAndLog, LOCTEXT("CouldNotInitializeExecutionState", "Could not initialize per-execution timeslice state data"));
 		return true;
 	}
 
-	PCGVolumeSampler::FVolumeSamplerSettings SamplerSettings;
-	SamplerSettings.VoxelSize = VoxelSize;
-	SamplerSettings.PointSteepness = Settings->PointSteepness;
-
+	// The generating shapes will be used for the time slicing iterations
+	TArray<const UPCGSpatialData*>& GeneratingShapes = TimeSlicedContext->GetPerExecutionState().GeneratingShapes;
 	TArray<FPCGTaggedData>& Outputs = Context->OutputData.TaggedData;
 
-	// Grab the Bounding Shape input if there is one.
-	TArray<FPCGTaggedData> BoundingShapeInputs = Context->InputData.GetInputsByPin(PCGVolumeSamplerConstants::BoundingShapeLabel);
-	const UPCGSpatialData* BoundingShape = nullptr;
-	bool bUsedDefaultBoundingShape = false;
-
-	if (!Settings->bUnbounded)
-	{
-		// TODO: Once we support time-slicing, put this in the context and root (see FPCGSurfaceSamplerContext)
-		bool bUnionCreated = false;
-		BoundingShape = Context->InputData.GetSpatialUnionOfInputsByPin(PCGVolumeSamplerConstants::BoundingShapeLabel, bUnionCreated);
-		if (!BoundingShape && Context->SourceComponent.IsValid())
+	TimeSlicedContext->InitializePerIterationStates(GeneratingShapes.Num(),
+		[&GeneratingShapes, &Settings, &Outputs, &Context](IterStateType& OutState, const ExecStateType& ExecState, const uint32 IterationIndex)
 		{
-			BoundingShape = Cast<UPCGSpatialData>(Context->SourceComponent->GetActorPCGData());
-			bUsedDefaultBoundingShape = true;
-		}
-	}
-	else if (BoundingShapeInputs.Num() > 0)
-	{
-		PCGE_LOG_C(Verbose, LogOnly, Context, LOCTEXT("BoundsIgnored", "The bounds of the Bounding Shape input pin will be ignored because the Unbounded option is enabled"));
-	}	
+			OutState.Settings.VoxelSize = Settings->VoxelSize;
+			OutState.Settings.PointSteepness = Settings->PointSteepness;
 
-	// Compute bounds of bounding shape input
-	FBox BoundingShapeBounds(EForceInit::ForceInit);
-	if (BoundingShape)
-	{
-		BoundingShapeBounds = BoundingShape->GetBounds();
-	}
+			const UPCGSpatialData* GeneratingShape = GeneratingShapes[IterationIndex];
+			check(GeneratingShape);
 
-	// Construct a list of shapes to generate samples from. Prefer to get these directly from the first input pin.
-	TArray<const UPCGSpatialData*, TInlineAllocator<16>> GeneratingShapes;
-	for (FPCGTaggedData& TaggedData : VolumeInputs)
-	{
-		if (const UPCGSpatialData* SpatialData = Cast<UPCGSpatialData>(TaggedData.Data))
-		{
-			GeneratingShapes.Add(SpatialData);
-			Outputs.Add(TaggedData);
-		}
-	}
+			OutState.Volume = GeneratingShape;
+			OutState.OutputData = NewObject<UPCGPointData>();
+			OutState.OutputData->InitializeFromData(OutState.Volume);
+			Outputs[IterationIndex].Data = OutState.OutputData;
 
-	// If no shapes were obtained from the first input pin, try to find a shape to sample from nodes connected to the second pin.
-	if (GeneratingShapes.Num() == 0 && BoundingShape && !bUsedDefaultBoundingShape)
-	{
-		GeneratingShapes.Add(BoundingShape);
+			FBox& InputBounds = OutState.Settings.Bounds;
 
-		// If there was a bounding shape input, use it as the starting point to get the tags
-		if (BoundingShapeInputs.Num() > 0)
-		{
-			Outputs.Add(BoundingShapeInputs[0]);
-		}
-		else
-		{
-			Outputs.Emplace();
-		}
-	}
+			// Get the bounding shape bounds from the execution state
+			const FBox& BoundingShapeBounds = ExecState.BoundingShapeBounds;
 
-	// Warn if something is connected but no spatial data could be obtained for sampling
-	if (GeneratingShapes.Num() == 0 && (BoundingShapeInputs.Num() > 0 || VolumeInputs.Num() > 0))
-	{
-		PCGE_LOG(Warning, GraphAndLog, LOCTEXT("NoShapeToSample", "No Spatial data shape was provided for sampling, no points will be produced"));
-	}
-
-	// TODO: embarassingly parallel loop
-	for (int GenerationIndex = 0; GenerationIndex < GeneratingShapes.Num(); ++GenerationIndex)
-	{
-		const UPCGSpatialData* GeneratingShape = GeneratingShapes[GenerationIndex];
-		check(GeneratingShape);
-
-		// Calculate the intersection of bounds of the provided inputs
-		FBox InputBounds = FBox(EForceInit::ForceInit);
-		if (GeneratingShape->IsBounded())
-		{
-			InputBounds = GeneratingShape->GetBounds();
-
-			if (BoundingShapeBounds.IsValid)
+			// Calculate the intersection of bounds of the provided inputs
+			if (GeneratingShape->IsBounded())
 			{
-				InputBounds = PCGHelpers::OverlapBounds(InputBounds, BoundingShapeBounds);
-			}
-		}
-		else
-		{
-			InputBounds = BoundingShapeBounds;
-		}
+				InputBounds = GeneratingShape->GetBounds();
 
-		if (!InputBounds.IsValid)
-		{
-			if (!GeneratingShape->IsBounded())
-			{
-				// Some inputs are unable to provide bounds, like the WorldVolumetricQuery, in which case the user must provide bounds.
-				PCGE_LOG(Warning, GraphAndLog, LOCTEXT("CouldNotObtainInputBounds", "Input data is not bounded, so bounds must be provided for sampling. Consider providing a Bounding Shape input."));
+				if (BoundingShapeBounds.IsValid)
+				{
+					InputBounds = PCGHelpers::OverlapBounds(InputBounds, BoundingShapeBounds);
+				}
 			}
 			else
 			{
-				PCGE_LOG(Verbose, LogOnly, LOCTEXT("InvalidSamplingBounds", "Final sampling bounds is invalid/zero-sized."));
+				InputBounds = BoundingShapeBounds;
 			}
 
-			Outputs.RemoveAt(GenerationIndex);
-			GeneratingShapes.RemoveAt(GenerationIndex);
-			--GenerationIndex;
-			continue;
-		}
+			if (!InputBounds.IsValid)
+			{
+				if (!GeneratingShape->IsBounded())
+				{
+					// Some inputs are unable to provide bounds, like the WorldVolumetricQuery, in which case the user must provide bounds.
+					PCGE_LOG_C(Warning, GraphAndLog, Context, LOCTEXT("CouldNotObtainInputBounds", "Input data is not bounded, so bounds must be provided for sampling. Consider providing a Bounding Shape input."));
+				}
+				else
+				{
+					PCGE_LOG_C(Verbose, LogOnly, Context, LOCTEXT("InvalidSamplingBounds", "Final sampling bounds is invalid/zero-sized."));
+				}
 
-		// Sample volume
-		const UPCGPointData* SampledData = PCGVolumeSampler::SampleVolume(Context, GeneratingShape, BoundingShape, InputBounds, SamplerSettings);
-		Outputs[GenerationIndex].Data = SampledData;
+				return EPCGTimeSliceInitResult::NoOperation;
+			}
 
-		if (SampledData)
-		{
-			PCGE_LOG(Verbose, LogOnly, FText::Format(LOCTEXT("GenerationInfo", "Generated {0} points in volume"), SampledData->GetPoints().Num()));
-		}
+			return EPCGTimeSliceInitResult::Success;
+		});
+
+	if (!TimeSlicedContext->DataIsPreparedForExecution())
+	{
+		PCGE_LOG(Warning, GraphAndLog, LOCTEXT("CouldNotInitializeStateData", "Could not initialize timeslice state data"));
+		return true;
 	}
 
 	return true;
+}
+
+bool FPCGVolumeSamplerElement::ExecuteInternal(FPCGContext* Context) const
+{
+	TRACE_CPUPROFILER_EVENT_SCOPE(FPCGVolumeSamplerElement::Execute);
+	ContextType* TimeSlicedContext = static_cast<ContextType*>(Context);
+	check(TimeSlicedContext);
+
+	// Abort execution was called at some point during the state initialization
+	if (!TimeSlicedContext->DataIsPreparedForExecution())
+	{
+		TimeSlicedContext->OutputData.TaggedData.Empty();
+
+		return true;
+	}
+
+	// The execution would have resulted in an empty set of points for all iterations
+	if (TimeSlicedContext->GetExecutionStateResult() == EPCGTimeSliceInitResult::NoOperation)
+	{
+		for (FPCGTaggedData& Input : TimeSlicedContext->InputData.GetInputs())
+		{
+			// TODO: Empty point data (to preserve previous behavior). Eventually, should be replaced with no output at all
+			FPCGTaggedData& Output = TimeSlicedContext->OutputData.TaggedData.Emplace_GetRef();
+			UPCGPointData* PointData = NewObject<UPCGPointData>();
+			PointData->InitializeFromData(Cast<UPCGSpatialData>(Input.Data));
+			Output.Data = PointData;
+		}
+
+		return true;
+	}
+
+	return ExecuteSlice(TimeSlicedContext, [](ContextType* Context, const ExecStateType& ExecState, const IterStateType& IterState, const uint32 IterationIndex)->bool
+	{
+		const EPCGTimeSliceInitResult InitResult = Context->GetIterationStateResult(IterationIndex);
+
+		if (InitResult == EPCGTimeSliceInitResult::NoOperation)
+		{
+			Context->OutputData.TaggedData[IterationIndex].Data = NewObject<UPCGPointData>();
+
+			return true;
+		}
+
+		check(InitResult == EPCGTimeSliceInitResult::Success);
+
+		const bool bAsyncDone = PCGVolumeSampler::SampleVolume(
+				Context,
+				IterState.Settings,
+				ExecState.GeneratingShapes[IterationIndex],
+				ExecState.BoundingShape,
+				IterState.OutputData,
+				Context->TimeSliceIsEnabled());
+
+		if (Context)
+		{
+			PCGE_LOG_C(Verbose, LogOnly, Context, FText::Format(LOCTEXT("GenerationInfo", "Generated {0} points in volume"), IterState.OutputData->GetPoints().Num()));
+		}
+
+		return bAsyncDone;
+	});
 }
 
 #if WITH_EDITOR

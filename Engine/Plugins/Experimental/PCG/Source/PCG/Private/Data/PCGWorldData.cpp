@@ -199,13 +199,14 @@ const UPCGPointData* UPCGWorldVolumetricData::CreatePointData(FPCGContext* Conte
 		
 		return Data;
 	}
-	
-	PCGVolumeSampler::FVolumeSamplerSettings SamplerSettings;
-	SamplerSettings.VoxelSize = VoxelSize;
 
-	PCGVolumeSampler::SampleVolume(Context, this, nullptr, EffectiveBounds, SamplerSettings, Data);
+	PCGVolumeSampler::FVolumeSamplerParams SamplerParams;
+	SamplerParams.VoxelSize = VoxelSize;
+	SamplerParams.Bounds = EffectiveBounds;
+
+	Data = PCGVolumeSampler::SampleVolume(Context, SamplerParams, this);
 	UE_LOG(LogPCG, Verbose, TEXT("Volumetric world extracted %d points"), Data->GetPoints().Num());
-	
+
 	return Data;
 }
 
@@ -399,10 +400,10 @@ const UPCGPointData* UPCGWorldRayHitData::CreatePointData(FPCGContext* Context, 
 		return Data;
 	}
 
-	PCGSurfaceSampler::FSurfaceSamplerExecutionSettings SamplerSettings;
-	if (SamplerSettings.Initialize(nullptr, Context, EffectiveBounds))
+	PCGSurfaceSampler::FSurfaceSamplerParams SamplerParams;
+	if (SamplerParams.Initialize(nullptr, Context, EffectiveBounds))
 	{
-		Data = PCGSurfaceSampler::SampleSurface(Context, this, nullptr, SamplerSettings);
+		Data = PCGSurfaceSampler::SampleSurface(Context, this, nullptr, SamplerParams);
 	}
 
 	return Data;

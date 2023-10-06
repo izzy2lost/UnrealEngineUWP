@@ -61,10 +61,11 @@ const UPCGPointData* UPCGVolumeData::CreatePointData(FPCGContext* Context) const
 {
 	TRACE_CPUPROFILER_EVENT_SCOPE(UPCGVolumeData::CreatePointData);
 
-	PCGVolumeSampler::FVolumeSamplerSettings SamplerSettings;
-	SamplerSettings.VoxelSize = VoxelSize;
+	PCGVolumeSampler::FVolumeSamplerParams SamplerParams;
+	SamplerParams.VoxelSize = VoxelSize;
+	SamplerParams.Bounds = GetBounds();
 
-	UPCGPointData* Data = PCGVolumeSampler::SampleVolume(Context, this, SamplerSettings);
+	const UPCGPointData* Data = PCGVolumeSampler::SampleVolume(Context, SamplerParams, this);
 
 	if (Data)
 	{

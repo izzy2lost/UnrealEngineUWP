@@ -2,8 +2,10 @@
 
 #pragma once
 
-#include "Math/Box.h"
 #include "PCGSettings.h"
+#include "PCGTimeSlicedElementBase.h"
+
+#include "Math/Box.h"
 
 #include "PCGVolumeSampler.generated.h"
 
@@ -12,16 +14,35 @@ class UPCGSpatialData;
 
 namespace PCGVolumeSampler
 {
-	struct FVolumeSamplerSettings
+	const FVector DefaultVoxelSize = FVector(100.0, 100.0, 100.0);
+
+	struct FVolumeSamplerParams
 	{
-		FVector VoxelSize;
+		FVector VoxelSize = DefaultVoxelSize;
 		float PointSteepness = 0.0f;
+		FBox Bounds{EForceInit::ForceInit};
 	};
 
-	UPCGPointData* SampleVolume(FPCGContext* InContext, const UPCGSpatialData* InVolume, const FVolumeSamplerSettings& InSamplerSettings);
-	UPCGPointData* SampleVolume(FPCGContext* InContext, const UPCGSpatialData* InVolume, const UPCGSpatialData* InBoundingShape, const FBox& InBounds, const FVolumeSamplerSettings& InSamplerSettings);
+	struct FVolumeSamplerExecutionState
+	{
+		const UPCGSpatialData* BoundingShape = nullptr;
+		FBox BoundingShapeBounds = FBox(EForceInit::ForceInit);
+		TArray<const UPCGSpatialData*> GeneratingShapes;
+	};
 
-	void SampleVolume(FPCGContext* InContext, const UPCGSpatialData* InVolume, const UPCGSpatialData* InBoundingShape, const FBox& InBounds, const FVolumeSamplerSettings& InSamplerSettings, UPCGPointData* InOutputData);
+	struct FVolumeSamplerIterationState
+	{
+		FVolumeSamplerParams Settings;
+
+		const UPCGSpatialData* Volume = nullptr;
+		UPCGPointData* OutputData = nullptr;
+	};
+
+	/** Sample a volume and returns the resulting point data. */
+	UPCGPointData* SampleVolume(FPCGContext* Context, const FVolumeSamplerParams& SamplerSettings, const UPCGSpatialData* Volume, const UPCGSpatialData* BoundingShape = nullptr);
+
+	/** Sample a volume and write the results in the given point data. Can be timesliced and will return false if the processing is not done, true otherwise. */
+	bool SampleVolume(FPCGContext* Context, const FVolumeSamplerParams& SamplerSettings, const UPCGSpatialData* Volume, const UPCGSpatialData* BoundingShape, UPCGPointData* OutputData, const bool bTimeSlicingIsEnabled = false);
 }
 
 UCLASS(BlueprintType, ClassGroup = (Procedural))
@@ -31,7 +52,7 @@ class PCG_API UPCGVolumeSamplerSettings : public UPCGSettings
 
 public:
 	UPROPERTY(BlueprintReadWrite, EditAnywhere, Category = "Data", meta = (PCG_Overridable))
-	FVector VoxelSize = FVector(100.0, 100.0, 100.0);
+	FVector VoxelSize = PCGVolumeSampler::DefaultVoxelSize;
 
 	/** If no Bounding Shape input is provided, the actor bounds are used to limit the sample generation domain.
 	* This option allows ignoring the actor bounds and generating over the entire volume. Use with caution as this
@@ -67,12 +88,13 @@ protected:
 	//~End UPCGSettings interface
 };
 
-class FPCGVolumeSamplerElement : public IPCGElement
+class FPCGVolumeSamplerElement : public TPCGTimeSlicedElementBase<PCGVolumeSampler::FVolumeSamplerExecutionState, PCGVolumeSampler::FVolumeSamplerIterationState>
 {
 public:
 	// Might be sampling external data like brush, worth computing a full CRC in case we can halt change propagation/re-executions
 	virtual bool ShouldComputeFullOutputDataCrc(FPCGContext* Context) const override { return true; }
 
 protected:
+	virtual bool PrepareDataInternal(FPCGContext* Context) const override;
 	virtual bool ExecuteInternal(FPCGContext* Context) const override;
 };

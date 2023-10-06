@@ -94,12 +94,9 @@ const UPCGPointData* UPCGCollisionShapeData::CreatePointData(FPCGContext* Contex
 {
 	TRACE_CPUPROFILER_EVENT_SCOPE(UPCGShapeData::CreatePointData);
 
-	const FVector DefaultVoxelSize = FVector(100.0, 100.0, 100.0);
+	const PCGVolumeSampler::FVolumeSamplerParams SamplerParams;
 
-	PCGVolumeSampler::FVolumeSamplerSettings SamplerSettings;
-	SamplerSettings.VoxelSize = DefaultVoxelSize;
-
-	const UPCGPointData* Data = PCGVolumeSampler::SampleVolume(Context, this, SamplerSettings);
+	const UPCGPointData* Data = PCGVolumeSampler::SampleVolume(Context, SamplerParams, this);
 
 	if (Data)
 	{

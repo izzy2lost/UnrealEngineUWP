@@ -16,7 +16,8 @@ class UPCGSurfaceSamplerSettings;
 
 namespace PCGSurfaceSampler
 {
-	struct FSurfaceSamplerExecutionSettings
+	// TODO: Factor out "computed values" that shouldn't be exposed to the external user into a more appropriate state
+	struct FSurfaceSamplerParams
 	{
 		float PointsPerSquaredMeter = 1.0f;
 		FVector PointExtents = FVector::One() * 0.5f;
@@ -49,22 +50,22 @@ namespace PCGSurfaceSampler
 
 	struct FSurfaceSamplerExecutionState
 	{
-		FSurfaceSamplerExecutionSettings Settings;
-
 		const UPCGSpatialData* BoundingShape = nullptr;
+		FBox BoundingShapeBounds = FBox(EForceInit::ForceInit);
 		TArray<const UPCGSpatialData*> GeneratingShapes;
 	};
 
 	struct FSurfaceSamplerIterationState
 	{
+		FSurfaceSamplerParams Settings;
 		UPCGPointData* OutputPoints = nullptr;
 	};
 
 	/** Sample a surface and returns the resulting point data. Can't be timesliced. */
-	UPCGPointData* SampleSurface(FPCGContext* Context, const UPCGSpatialData* InSurface, const UPCGSpatialData* InBoundingShape, const FSurfaceSamplerExecutionSettings& ExecutionSettings);
+	UPCGPointData* SampleSurface(FPCGContext* Context, const UPCGSpatialData* InSurface, const UPCGSpatialData* InBoundingShape, const FSurfaceSamplerParams& ExecutionSettings);
 
 	/** Sample a surface and write the results in the given point data. Can be timesliced, and will return false if the processing is not done, true otherwise. */
-	bool SampleSurface(FPCGContext* Context, const FSurfaceSamplerExecutionSettings& Settings, const UPCGSpatialData* InSurface, const UPCGSpatialData* InBoundingShape, UPCGPointData* SampledData, const bool bTimeSlicingIsEnabled = false);
+	bool SampleSurface(FPCGContext* Context, const FSurfaceSamplerParams& Settings, const UPCGSpatialData* InSurface, const UPCGSpatialData* InBoundingShape, UPCGPointData* SampledData, const bool bTimeSlicingIsEnabled = false);
 }
 
 UCLASS(BlueprintType, ClassGroup = (Procedural))

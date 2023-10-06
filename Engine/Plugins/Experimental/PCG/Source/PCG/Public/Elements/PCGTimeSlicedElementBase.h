@@ -59,7 +59,7 @@ struct TPCGTimeSlicedContext : public FPCGContext
 	/** Initializes per execution state data if required. */
 	EPCGTimeSliceInitResult InitializePerExecutionState(TFunctionRef<InitExecSignature> InitFunc = []{ return true; });
 
-	using InitIterSignature = EPCGTimeSliceInitResult(PerIterationStateT& OutState, const uint32 IterationIndex);
+	using InitIterSignature = EPCGTimeSliceInitResult(PerIterationStateT& OutState, const PerExecutionStateT& ExecState, const uint32 IterationIndex);
 
 	/** Initializes per execution state data if required. An array will be created with a state element for every execution iteration in the context. Returns the Init Result for each iteration's initialization. */
 	const TArray<EPCGTimeSliceInitResult>& InitializePerIterationStates(int32 NumIterations = 1, TFunctionRef<InitIterSignature> IterFunc = []{ return true; });
@@ -206,7 +206,7 @@ const TArray<EPCGTimeSliceInitResult>& TPCGTimeSlicedContext<PerExecutionStateT,
 
 	// Should be guaranteed to be uninitialized
 	check(PerIterationStateResultArray.IsEmpty() && PerIterationStateArray.IsEmpty());
-	
+
 	// An empty iteration state is still valid
 	if (NumIterations < 1)
 	{
@@ -218,7 +218,7 @@ const TArray<EPCGTimeSliceInitResult>& TPCGTimeSlicedContext<PerExecutionStateT,
 
 	for (int32 I = 0; I < NumIterations; ++I)
 	{
-		PerIterationStateResultArray[I] = IterFunc(PerIterationStateArray.Emplace_GetRef(), I);
+		PerIterationStateResultArray[I] = IterFunc(PerIterationStateArray.Emplace_GetRef(), PerExecutionStateData, I);
 
 		if (PerIterationStateResultArray[I] == EPCGTimeSliceInitResult::AbortExecution)
 		{

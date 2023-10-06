@@ -30,7 +30,7 @@ namespace PCGSurfaceSamplerConstants
 
 namespace PCGSurfaceSampler
 {
-	bool FSurfaceSamplerExecutionSettings::Initialize(const UPCGSurfaceSamplerSettings* Settings, const FPCGContext* Context, const FBox& InputBounds)
+	bool FSurfaceSamplerParams::Initialize(const UPCGSurfaceSamplerSettings* Settings, const FPCGContext* Context, const FBox& InputBounds)
 	{
 		if (!Context)
 		{
@@ -115,7 +115,7 @@ namespace PCGSurfaceSampler
 		return true;
 	}
 
-	FIntVector2 FSurfaceSamplerExecutionSettings::ComputeCellIndices(int32 Index) const
+	FIntVector2 FSurfaceSamplerParams::ComputeCellIndices(int32 Index) const
 	{
 		check(Index >= 0 && Index < CellCount);
 		const int32 CellCountX = 1 + CellMaxX - CellMinX;
@@ -123,7 +123,7 @@ namespace PCGSurfaceSampler
 		return FIntVector2(CellMinX + (Index % CellCountX), CellMinY + (Index / CellCountX));
 	}
 
-	UPCGPointData* SampleSurface(FPCGContext* Context, const UPCGSpatialData* InSurface, const UPCGSpatialData* InBoundingShape, const FSurfaceSamplerExecutionSettings& ExecutionSettings)
+	UPCGPointData* SampleSurface(FPCGContext* Context, const UPCGSpatialData* InSurface, const UPCGSpatialData* InBoundingShape, const FSurfaceSamplerParams& ExecutionSettings)
 	{
 		UPCGPointData* SampledData = NewObject<UPCGPointData>();
 		SampledData->InitializeFromData(InSurface);
@@ -134,7 +134,7 @@ namespace PCGSurfaceSampler
 		return SampledData;
 	}
 
-	bool SampleSurface(FPCGContext* Context, const FSurfaceSamplerExecutionSettings& Settings, const UPCGSpatialData* InSurface, const UPCGSpatialData* InBoundingShape, UPCGPointData* SampledData, const bool bTimeSlicingIsEnabled)
+	bool SampleSurface(FPCGContext* Context, const FSurfaceSamplerParams& Settings, const UPCGSpatialData* InSurface, const UPCGSpatialData* InBoundingShape, UPCGPointData* SampledData, const bool bTimeSlicingIsEnabled)
 	{
 		check(InSurface && SampledData);
 
@@ -218,8 +218,7 @@ namespace PCGSurfaceSampler
 		};
 
 		FPCGAsyncState* AsyncState = Context ? &Context->AsyncState : nullptr;
-		const bool bEnableTimeSlicing = Context ? bTimeSlicingIsEnabled : false;
-		return FPCGAsync::AsyncProcessing<FPCGPoint>(AsyncState, Settings.CellCount, SampledPoints, AsyncProcessFunc, bEnableTimeSlicing);
+		return FPCGAsync::AsyncProcessing<FPCGPoint>(AsyncState, Settings.CellCount, SampledPoints, AsyncProcessFunc, /*bEnableTimeSlicing=*/Context && bTimeSlicingIsEnabled);
 	}
 
 #if WITH_EDITOR
@@ -347,7 +346,7 @@ namespace PCGSurfaceSamplerHelpers
 
 		// Grab the Bounding Shape input if there is one.
 		const TArray<FPCGTaggedData> BoundingShapeInputs = Context->InputData.GetInputsByPin(PCGSurfaceSamplerConstants::BoundingShapeLabel);
-		FBox BoundingShapeBounds(EForceInit::ForceInit);
+		FBox& BoundingShapeBounds = OutState.BoundingShapeBounds;
 		if (!Settings->bUnbounded)
 		{
 			bool bUnionWasCreated;
@@ -396,16 +395,42 @@ namespace PCGSurfaceSamplerHelpers
 			return EPCGTimeSliceInitResult::AbortExecution;
 		}
 
-		// Iterate over the generating shapes to compute the bounds
-		int32 GeneratingShapeIndex = 0;
-		while (GeneratingShapeIndex < GeneratingShapes.Num())
+		return EPCGTimeSliceInitResult::Success;
+	}
+}
+
+bool FPCGSurfaceSamplerElement::PrepareDataInternal(FPCGContext* InContext) const
+{
+	TRACE_CPUPROFILER_EVENT_SCOPE(FPCGSurfaceSamplerElement::PrepareDataInternal);
+	ContextType* Context = static_cast<ContextType*>(InContext);
+	check(Context);
+
+	const UPCGSurfaceSamplerSettings* Settings = Context->GetInputSettings<UPCGSurfaceSamplerSettings>();
+
+	// Initialize the per-execution state data that won't change over the duration of the time slicing
+	if (Context->InitializePerExecutionState(PCGSurfaceSamplerHelpers::InitializePerExecutionData) == EPCGTimeSliceInitResult::AbortExecution)
+	{
+		PCGE_LOG(Warning, GraphAndLog, LOCTEXT("CouldNotInitializeExecutionState", "Could not initialize per-execution timeslice state data"));
+		return true;
+	}
+
+	TArray<const UPCGSpatialData*>& GeneratingShapes = Context->GetPerExecutionState().GeneratingShapes;
+	TArray<FPCGTaggedData>& Outputs = Context->OutputData.TaggedData;
+
+	// Initialize the per-iteration data, using the generating shapes as the source of iteration
+	Context->InitializePerIterationStates(GeneratingShapes.Num(),
+		[&GeneratingShapes, &Outputs, &Settings, &Context](IterStateType& OutState, const ExecStateType& ExecState, const uint32 IterationIndex)
 		{
 			// If we have generating shape inputs, use them
-			const UPCGSpatialData* GeneratingShape = GeneratingShapes[GeneratingShapeIndex];
+			const UPCGSpatialData* GeneratingShape = GeneratingShapes[IterationIndex];
 			check(GeneratingShape);
+
+			OutState.OutputPoints = NewObject<UPCGPointData>();
+			OutState.OutputPoints->InitializeFromData(GeneratingShape);
 
 			// Calculate the intersection of bounds of the provided inputs
 			FBox InputBounds = FBox(EForceInit::ForceInit);
+			const FBox& BoundingShapeBounds = ExecState.BoundingShapeBounds;
 
 			if (GeneratingShape->IsBounded())
 			{
@@ -430,50 +455,12 @@ namespace PCGSurfaceSamplerHelpers
 				}
 				else if(!InputBounds.IsValid)
 				{
-					// TODO [REVIEWERS]: Should this not be at least a warning, since the generating shape is being culled here?
 					PCGE_LOG_C(Verbose, LogOnly, Context, LOCTEXT("InvalidSamplingBounds", "Final sampling bounds is invalid/zero-sized."));
 				}
 
-				Outputs.RemoveAt(GeneratingShapeIndex);
-				GeneratingShapes.RemoveAt(GeneratingShapeIndex);
-				continue;
+				return EPCGTimeSliceInitResult::NoOperation;
 			}
 
-			++GeneratingShapeIndex;
-		}
-
-		// If there are still no generating shapes
-		if (GeneratingShapes.IsEmpty())
-		{
-			PCGE_LOG_C(Warning, GraphAndLog, Context, LOCTEXT("InvalidSurface", "No surfaces from which to generate are valid"));
-		}
-
-		return EPCGTimeSliceInitResult::Success;
-	}
-}
-
-bool FPCGSurfaceSamplerElement::PrepareDataInternal(FPCGContext* InContext) const
-{
-	TRACE_CPUPROFILER_EVENT_SCOPE(FPCGSurfaceSamplerElement::PrepareDataInternal);
-	ContextType* Context = static_cast<ContextType*>(InContext);
-	check(Context);
-
-	// Initialize the per-execution state data that won't change over the duration of the time slicing
-	if (Context->InitializePerExecutionState(PCGSurfaceSamplerHelpers::InitializePerExecutionData) == EPCGTimeSliceInitResult::AbortExecution)
-	{
-		PCGE_LOG(Warning, GraphAndLog, LOCTEXT("CouldNotInitializeExecutionState", "Could not initialize per-execution timeslice state data"));
-		return true;
-	}
-
-	TArray<const UPCGSpatialData*>& GeneratingShapes = Context->GetPerExecutionState().GeneratingShapes;
-	TArray<FPCGTaggedData>& Outputs = Context->OutputData.TaggedData;
-
-	// Initialize the per-iteration data, using the generating shapes as the source of iteration
-	Context->InitializePerIterationStates(GeneratingShapes.Num(),
-		[&GeneratingShapes, &Outputs](IterStateType& OutState, const uint32 IterationIndex)
-		{
-			OutState.OutputPoints = NewObject<UPCGPointData>();
-			OutState.OutputPoints->InitializeFromData(GeneratingShapes[IterationIndex]);
 			// Assigning this here prevents the need to root
 			Outputs[IterationIndex].Data = OutState.OutputPoints;
 			return EPCGTimeSliceInitResult::Success;
@@ -516,10 +503,11 @@ bool FPCGSurfaceSamplerElement::ExecuteInternal(FPCGContext* InContext) const
 	}
 
 	// The context will iterate over per-iteration states and execute the lambda until it returns true
-	return ExecuteSlice(TimeSlicedContext, [](ContextType* Context, const ExecStateType& ExecutionState, const IterStateType& IterationState, const uint32 IterationIndex)->bool
+	return ExecuteSlice(TimeSlicedContext, [](ContextType* Context, const ExecStateType& ExecState, const IterStateType& IterState, const uint32 IterationIndex)->bool
 	{
-		// This iteration resulted in an early out for no sampling operation. Early out with empty point data.
 		const EPCGTimeSliceInitResult InitResult = Context->GetIterationStateResult(IterationIndex);
+
+		// This iteration resulted in an early out for no sampling operation. Early out with empty point data.
 		if (InitResult == EPCGTimeSliceInitResult::NoOperation)
 		{
 			Context->OutputData.TaggedData[IterationIndex].Data = NewObject<UPCGPointData>();
@@ -531,11 +519,11 @@ bool FPCGSurfaceSamplerElement::ExecuteInternal(FPCGContext* InContext) const
 		check(InitResult == EPCGTimeSliceInitResult::Success);
 
 		// Run the execution until the time slice is finished
-		const bool bAsyncDone = PCGSurfaceSampler::SampleSurface(Context, ExecutionState.Settings, ExecutionState.GeneratingShapes[IterationIndex], ExecutionState.BoundingShape, IterationState.OutputPoints, Context->TimeSliceIsEnabled());
+		const bool bAsyncDone = PCGSurfaceSampler::SampleSurface(Context, IterState.Settings, ExecState.GeneratingShapes[IterationIndex], ExecState.BoundingShape, IterState.OutputPoints, Context->TimeSliceIsEnabled());
 
 		if (Context && bAsyncDone)
 		{
-			PCGE_LOG_C(Verbose, LogOnly, Context, FText::Format(LOCTEXT("GenerationInfo", "Generated {0} points in {1} cells"), IterationState.OutputPoints->GetPoints().Num(), ExecutionState.Settings.CellCount));
+			PCGE_LOG_C(Verbose, LogOnly, Context, FText::Format(LOCTEXT("GenerationInfo", "Generated {0} points in {1} cells"), IterState.OutputPoints->GetPoints().Num(), IterState.Settings.CellCount));
 		}
 
 		return bAsyncDone;
