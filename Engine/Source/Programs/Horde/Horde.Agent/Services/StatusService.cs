@@ -59,7 +59,7 @@ namespace Horde.Agent.Services
 		/// <inheritdoc/>
 		public async Task StopAsync(CancellationToken cancellationToken)
 		{
-			await _task.StopAsync();
+			await _task.StopAsync(cancellationToken);
 		}
 
 		/// <summary>

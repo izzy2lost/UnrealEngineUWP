@@ -639,7 +639,7 @@ namespace EpicGames.Horde.Compute
 				_recvBuffers.Add(channelId, new RecvBuffer(recvBuffer.CreateWriter()));
 
 				// Only start the receive task once we have a buffer to receive data, otherwise we discard data from the remote
-				if (_recvTask.Task.IsCompleted)
+				if (_recvTask.Task == null)
 				{
 					_recvTask.Start();
 				}

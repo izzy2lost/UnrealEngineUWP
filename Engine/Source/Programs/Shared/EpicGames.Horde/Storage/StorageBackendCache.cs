@@ -51,7 +51,7 @@ namespace EpicGames.Horde.Storage
 				}
 			}
 
-			public Task WaitAsync(CancellationToken cancellationToken) => _readTask.Task.WaitAsync(cancellationToken);
+			public Task WaitAsync(CancellationToken cancellationToken) => _readTask.WaitAsync(cancellationToken);
 		}
 
 		sealed class BackendWrapper : IStorageBackend

@@ -262,11 +262,20 @@ namespace Horde.Server.Server
 		readonly Dictionary<string, Task> _collectionUpgradeTasks = new Dictionary<string, Task>(StringComparer.Ordinal);
 		readonly Task<bool> _setSchemaVersionTask;
 
+		static string? s_existingInstance;
+
 		/// <summary>
 		/// Constructor
 		/// </summary>
 		public MongoService(IOptions<ServerSettings> settingsSnapshot, RedisService redisService, Tracer tracer, ILogger<MongoService> logger, ILoggerFactory loggerFactory)
 		{
+			if (s_existingInstance != null)
+			{
+				throw new Exception("Existing instance on MongoService!");
+			}
+
+			s_existingInstance = Environment.StackTrace;
+
 			Settings = settingsSnapshot.Value;
 			_redisService = redisService;
 			_tracer = tracer;
@@ -369,6 +378,7 @@ namespace Horde.Server.Server
 				_mongoProcessGroup = null;
 			}
 			//_upgradeSema.Dispose();
+			s_existingInstance = null;
 		}
 
 		/// <summary>

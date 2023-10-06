@@ -133,7 +133,7 @@ public sealed class AwsAutoScalingLifecycleService : IHostedService, IAsyncDispo
 	{
 		foreach (BackgroundTask bgTask in _lifecycleEventListenerTasks)
 		{
-			await bgTask.StopAsync();
+			await bgTask.StopAsync(cancellationToken);
 		}
 
 		await _updateLifecyclesTicker.StopAsync();

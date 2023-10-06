@@ -307,7 +307,7 @@ namespace Horde.Server.Notifications.Sinks
 		{
 			await _escalateTicker.StopAsync();
 			await _issueQueueTicker.StopAsync();
-			await _backgroundTask.StopAsync();
+			await _backgroundTask.StopAsync(cancellationToken);
 		}
 
 		#region Avatars

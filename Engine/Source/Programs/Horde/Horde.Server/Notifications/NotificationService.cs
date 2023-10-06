@@ -187,7 +187,7 @@ namespace Horde.Server.Notifications
 		public async Task StopAsync(CancellationToken cancellationToken)
 		{
 			await _ticker.StopAsync();
-			await _backgroundTask.StopAsync();
+			await _backgroundTask.StopAsync(cancellationToken);
 		}
 
 		/// <inheritdoc/>

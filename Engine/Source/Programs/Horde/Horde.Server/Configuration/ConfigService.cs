@@ -155,7 +155,7 @@ namespace Horde.Server.Configuration
 		/// <inheritdoc/>
 		public async ValueTask DisposeAsync()
 		{
-			_updateTask.Dispose();
+			await _updateTask.DisposeAsync();
 			await _ticker.DisposeAsync();
 		}
 
@@ -281,7 +281,7 @@ namespace Horde.Server.Configuration
 		/// <inheritdoc/>
 		public async Task StopAsync(CancellationToken cancellationToken)
 		{
-			await _updateTask.StopAsync();
+			await _updateTask.StopAsync(cancellationToken);
 			if (_serverSettings.IsRunModeActive(RunMode.Worker))
 			{
 				await _ticker.StopAsync();

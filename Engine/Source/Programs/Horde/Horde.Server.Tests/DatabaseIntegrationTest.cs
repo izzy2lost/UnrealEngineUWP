@@ -38,7 +38,7 @@ namespace Horde.Server.Tests
             CurrentValue = currentValue;
         }
 
-        public T Get(string name)
+        public T Get(string? name)
         {
             return CurrentValue;
         }

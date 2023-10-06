@@ -72,7 +72,7 @@ public class TestWebApplicationFactory<TStartup> : WebApplicationFactory<TStartu
 	}
 }
 
-public class ControllerIntegrationTest : IDisposable
+public class ControllerIntegrationTest : IAsyncDisposable
 {
 	private readonly Lazy<Task<Fixture>> _fixture;
 
@@ -91,16 +91,12 @@ public class ControllerIntegrationTest : IDisposable
 
 	protected IServiceProvider ServiceProvider => Factory.Services;
 
-	public void Dispose()
+	public virtual async ValueTask DisposeAsync()
 	{
-		Dispose(true);
-		GC.SuppressFinalize(this);
-	}
-
-	protected virtual void Dispose(bool disposing)
-	{
-		Factory.Dispose();
+		await Factory.DisposeAsync();
 		MongoDbInstance.Dispose();
+
+		GC.SuppressFinalize(this);
 	}
 
 	public Task<Fixture> GetFixtureAsync()
