@@ -46,10 +46,9 @@ namespace Metasound
 	{
 		namespace AssetBasePrivate
 		{
-			static float BlockRate = 100.f;
-
-			// Negative value means we use the audio mixer device sample rate
-			static int32 SampleRate = INDEX_NONE;
+			// Zero values means, that these don't do anything.
+			static float BlockRateOverride = 0;
+			static int32 SampleRateOverride = 0;
 
 			TScriptInterface<IMetaSoundDocumentInterface> BuildRegistryDocument(TScriptInterface<IMetaSoundDocumentInterface> DocumentInterface)
 			{
@@ -190,34 +189,67 @@ namespace Metasound
 			TEXT("Disables async registration of MetaSound graphs\n")
 			TEXT("Default: true"),
 			ECVF_Default);
+		FConsoleVariableMulticastDelegate CVarMetaSoundBlockRateChanged;
 
 		FAutoConsoleVariableRef CVarMetaSoundBlockRate(
 			TEXT("au.MetaSound.BlockRate"),
-			AssetBasePrivate::BlockRate,
+			AssetBasePrivate::BlockRateOverride,
 			TEXT("Sets block rate (blocks per second) of MetaSounds.\n")
 			TEXT("Default: 100.0f, Min: 1.0f, Max: 1000.0f"),
+			FConsoleVariableDelegate::CreateLambda([](IConsoleVariable* Var) { CVarMetaSoundBlockRateChanged.Broadcast(Var); }),
 			ECVF_Default);
 
+		FConsoleVariableMulticastDelegate CVarMetaSoundSampleRateChanged;
 		FAutoConsoleVariableRef CVarMetaSoundSampleRate(
 			TEXT("au.MetaSound.SampleRate"),
-			AssetBasePrivate::SampleRate,
+			AssetBasePrivate::SampleRateOverride,
 			TEXT("Overrides the sample rate of metasounds. Negative values default to audio mixer sample rate.\n")
-			TEXT("Default: -1, Min: 8000, Max: 48000"),
+			TEXT("Default: 0, Min: 8000, Max: 48000"),
+			FConsoleVariableDelegate::CreateLambda([](IConsoleVariable* Var) { CVarMetaSoundSampleRateChanged.Broadcast(Var); }),
 			ECVF_Default);
 
-
-		float GetDefaultBlockRate()
+		float GetBlockRateOverride()
 		{
-			return FMath::Clamp(AssetBasePrivate::BlockRate, 1.0f, 1000.0f);
+			if(AssetBasePrivate::BlockRateOverride > 0)
+			{
+				return FMath::Clamp(AssetBasePrivate::BlockRateOverride, 
+					GetBlockRateClampRange().GetLowerBoundValue(), 
+					GetBlockRateClampRange().GetUpperBoundValue()
+				);
+			}
+			return AssetBasePrivate::BlockRateOverride;
 		}
 
-		int32 GetDefaultSampleRate()
+		FConsoleVariableMulticastDelegate& GetBlockRateOverrideChangedDelegate()
 		{
-			if (AssetBasePrivate::SampleRate > 0)
+			return CVarMetaSoundBlockRateChanged;
+		}
+
+		int32 GetSampleRateOverride()
+		{
+			if (AssetBasePrivate::SampleRateOverride > 0)
 			{
-				return FMath::Clamp(AssetBasePrivate::SampleRate, 8000, 48000);
+				return FMath::Clamp(AssetBasePrivate::SampleRateOverride, 
+					GetSampleRateClampRange().GetLowerBoundValue(),
+					GetSampleRateClampRange().GetUpperBoundValue()
+				);
 			}
-			return AssetBasePrivate::SampleRate;
+			return AssetBasePrivate::SampleRateOverride;
+		}
+
+		FConsoleVariableMulticastDelegate& GetSampleRateOverrideChangedDelegate()
+		{
+			return CVarMetaSoundSampleRateChanged;
+		}
+		
+		TRange<float> GetBlockRateClampRange()
+		{
+			return TRange<float>(100.f,1000.f);
+		}
+
+		TRange<int32> GetSampleRateClampRange()
+		{
+			return TRange<int32>(8000, 96000);
 		}
 	} // namespace Frontend
 } // namespace Metasound

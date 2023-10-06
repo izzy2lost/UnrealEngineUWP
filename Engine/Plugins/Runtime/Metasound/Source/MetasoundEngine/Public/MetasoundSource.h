@@ -116,11 +116,11 @@ public:
 #endif //WITH_EDITOR_DATA
 
 	// Override the BlockRate for this Sound (overrides the Platforms Quality Settings for this asset)
-	UPROPERTY(EditAnywhere, BlueprintReadOnly, AdvancedDisplay, Category = Metasound, meta = (UIMin = 1, UIMax = 1000, DisplayAfter="OutputFormat", DisplayName = "Override Block Rate (in Hz)"))
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, AdvancedDisplay, Category = Metasound, meta = (UIMin = 0, UIMax = 1000.0, DisplayAfter="OutputFormat", DisplayName = "Override Block Rate (in Hz)"))
 	FPerPlatformFloat BlockRateOverride = 0.f;
 
-	// Override the SampleRate for this Sound (overrides the 
-	UPROPERTY(EditAnywhere, BlueprintReadOnly, AdvancedDisplay, Category = Metasound, meta = (UIMin = 100, UIMax = 96000, DisplayName = "Override Sample Rate (in Hz)"))
+	// Override the SampleRate for this Sound (overrides the Platforms Quality Settings for this asset)
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, AdvancedDisplay, Category = Metasound, meta = (UIMin = 0, UIMax = 96000, DisplayName = "Override Sample Rate (in Hz)"))
 	FPerPlatformInt SampleRateOverride = 0;
 
 	UPROPERTY(AssetRegistrySearchable)
@@ -249,6 +249,7 @@ public:
 	TWeakPtr<Metasound::FMetasoundGenerator> GetGeneratorForAudioComponent(uint64 ComponentId) const;
 	FOnGeneratorInstanceCreated OnGeneratorInstanceCreated;
 	FOnGeneratorInstanceDestroyed OnGeneratorInstanceDestroyed;
+	Metasound::FOperatorSettings GetOperatorSettings(Metasound::FSampleRate InSampleRate) const;
 
 	virtual const FMetasoundFrontendDocument& GetConstDocument() const override;
 
@@ -279,8 +280,7 @@ private:
 	bool IsParameterValidInternal(const FAudioParameter& InParameter, const FName& InTypeName, Metasound::Frontend::IDataTypeRegistry& InDataTypeRegistry) const;
 
 	static Metasound::SourcePrivate::FParameterRouter& GetParameterRouter();
-
-	Metasound::FOperatorSettings GetOperatorSettings(Metasound::FSampleRate InSampleRate) const;
+	
 	Metasound::FMetasoundEnvironment CreateEnvironment() const;
 	Metasound::FMetasoundEnvironment CreateEnvironment(const FSoundGeneratorInitParams& InParams) const;
 	Metasound::FMetasoundEnvironment CreateEnvironment(const Audio::FParameterTransmitterInitParams& InParams) const;
