@@ -75,6 +75,7 @@ class FWorldPartitionActorDesc
 	friend struct FWorldPartitionActorDescUtils;
 	friend struct FWorldPartitionActorDescUnitTestAcccessor;
 	friend class FAssetRootPackagePatcher;
+	friend class FAssetHeaderPatcherInner;
 	friend class FActorDescArchive;
 	template<class U> friend class TActorDescContainerCollection;
 
