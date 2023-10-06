@@ -20,6 +20,11 @@ public:
 
 	UMovieSceneObjectPropertySection(const FObjectInitializer& ObjInit);
 
+	// ~UObject interface
+	virtual void PostLoad() override;
+
+public:
+
 	UPROPERTY()
 	FMovieSceneObjectPathChannel ObjectChannel;
 };
