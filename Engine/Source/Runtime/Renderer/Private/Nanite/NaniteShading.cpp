@@ -699,7 +699,7 @@ class FRecordShadingCommandsAnyThreadTask : public FRenderTask
 {
 	FRHICommandList& RHICmdList;
 	FRHIBuffer* IndirectArgs = nullptr;
-	const TBitArray<SceneRenderingBitArrayAllocator>* VisibilityData = nullptr;
+	TSharedPtr<TBitArray<SceneRenderingBitArrayAllocator>> VisibilityData;
 	const TConstArrayView<FNaniteShadingCommand> ShadingCommands;
 	TArray<FRHIUnorderedAccessView*, TInlineAllocator<8>> OutputTargets;
 	FRHIUnorderedAccessView* OutputTargetsArray = nullptr;
@@ -715,7 +715,7 @@ public:
 		FRHICommandList& InRHICmdList,
 		FRHIBuffer* InIndirectArgs,
 		uint32 InIndirectArgsStride,
-		const TBitArray<SceneRenderingBitArrayAllocator>* InVisibilityData,
+		TSharedPtr<TBitArray<SceneRenderingBitArrayAllocator>>& InVisibilityData,
 		const TConstArrayView<FNaniteShadingCommand> InShadingCommands,
 		const TConstArrayView<FRHIUnorderedAccessView*> InOutputTargets,
 		FRHIUnorderedAccessView* InOutputTargetsArray,
@@ -758,7 +758,7 @@ public:
 		for (int32 CommandIndex = 0; CommandIndex < NumCommands; ++CommandIndex)
 		{
 			const FNaniteShadingCommand& ShadingCommand = ShadingCommands[StartIndex + CommandIndex];
-			if (VisibilityData == nullptr || VisibilityData->AccessCorrespondingBit(FRelativeBitReference(ShadingCommand.ShadingBin)))
+			if (!VisibilityData.IsValid() || VisibilityData->AccessCorrespondingBit(FRelativeBitReference(ShadingCommand.ShadingBin)))
 			{
 				RecordShadingCommand(
 					RHICmdList,
@@ -1032,7 +1032,7 @@ void DispatchBasePass(
 	(
 		FRDGParallelCommandListSet* ParallelCommandListSet,
 		const FUint32Vector4& ViewRect,
-		const TBitArray<SceneRenderingBitArrayAllocator>* VisibilityData,
+		TSharedPtr<TBitArray<SceneRenderingBitArrayAllocator>> VisibilityData,
 		const TConstArrayView<const FNaniteShadingCommand> ShadingCommands,
 		FShaderBundleRHIRef ShaderBundle,
 		FNaniteShadingPassParameters* ShadingPassParameters,
@@ -1160,7 +1160,7 @@ void DispatchBasePass(
 							FRHIShaderBundleDispatch& Dispatch = Command.Dispatches[ShadingCommand.ShadingBin];
 
 							// TODO: Allow for sending partial dispatch lists, but for now we'll leave the record index invalid so bundle dispatch skips it
-							if (VisibilityData == nullptr || VisibilityData->AccessCorrespondingBit(FRelativeBitReference(ShadingCommand.ShadingBin)))
+							if (!VisibilityData.IsValid() || VisibilityData->AccessCorrespondingBit(FRelativeBitReference(ShadingCommand.ShadingBin)))
 							{
 								// Need to take a thread local copy of this as it is mutated during recording.
 								FUint32Vector4 CommandData = PassData;
@@ -1215,7 +1215,7 @@ void DispatchBasePass(
 							FRHIShaderBundleDispatch& Dispatch = Command.Dispatches[ShadingCommand.ShadingBin];
 
 							// TODO: Allow for sending partial dispatch lists, but for now we'll leave the record index invalid so bundle dispatch skips it
-							if (VisibilityData == nullptr || VisibilityData->AccessCorrespondingBit(FRelativeBitReference(ShadingCommand.ShadingBin)))
+							if (!VisibilityData.IsValid() || VisibilityData->AccessCorrespondingBit(FRelativeBitReference(ShadingCommand.ShadingBin)))
 							{
 								Dispatch.RecordIndex = ShadingCommand.ShadingBin;
 								RecordShadingParameters(PassData, Dispatch.Parameters, ShadingCommand, ViewRect, OutputTargets, OutputTargetsArray);
@@ -1256,7 +1256,7 @@ void DispatchBasePass(
 			{
 				for (const FNaniteShadingCommand& ShadingCommand : ShadingCommands)
 				{
-					if (VisibilityData == nullptr || VisibilityData->AccessCorrespondingBit(FRelativeBitReference(ShadingCommand.ShadingBin)))
+					if (!VisibilityData.IsValid() || VisibilityData->AccessCorrespondingBit(FRelativeBitReference(ShadingCommand.ShadingBin)))
 					{
 						RecordShadingCommand(RHICmdList, PassData, IndirectArgsBuffer, IndirectArgStride, ViewRect, OutputTargets, OutputTargetsArray, ShadingCommand);
 					}
@@ -1265,10 +1265,10 @@ void DispatchBasePass(
 		}
 	};
 
-	TBitArray<SceneRenderingBitArrayAllocator>* VisibilityData = nullptr;
+	TSharedPtr<TBitArray<SceneRenderingBitArrayAllocator>> VisibilityData;
 	if (VisibilityResults.IsShadingTestValid())
 	{
-		VisibilityData = GraphBuilder.AllocObject<TBitArray<SceneRenderingBitArrayAllocator>>(VisibilityResults.GetShadingBinVisibility());
+		VisibilityData = MakeShared<TBitArray<SceneRenderingBitArrayAllocator>>(VisibilityResults.GetShadingBinVisibility());
 	}
 
 	const bool bParallelDispatch = !bBundleShading && GRHICommandList.UseParallelAlgorithms() && CVarParallelBasePassBuild.GetValueOnRenderThread() != 0 &&
