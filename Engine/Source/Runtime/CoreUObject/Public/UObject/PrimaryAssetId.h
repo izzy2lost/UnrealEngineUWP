@@ -113,6 +113,8 @@ struct FPrimaryAssetId
 	/** Static names to represent the AssetRegistry tags for the above data */
 	static COREUOBJECT_API const FName PrimaryAssetTypeTag;
 	static COREUOBJECT_API const FName PrimaryAssetNameTag;
+	/** AssetRegistry tag used to store primary asset display name (optional) */
+	static COREUOBJECT_API const FName PrimaryAssetDisplayNameTag;
 
 	FPrimaryAssetId() = default;
 	FPrimaryAssetId(FPrimaryAssetType InAssetType, FName InAssetName)

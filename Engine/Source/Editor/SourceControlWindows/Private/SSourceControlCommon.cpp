@@ -68,9 +68,14 @@ static FString RetrieveAssetName(const FAssetData& InAssetData)
 
 	if (InAssetData.FindTag(NAME_ActorLabel))
 	{
-		FString ResultAssetName = TEXT("");
-
+		FString ResultAssetName;
 		InAssetData.GetTagValue(NAME_ActorLabel, ResultAssetName);
+		return ResultAssetName;
+	}
+	else if (InAssetData.FindTag(FPrimaryAssetId::PrimaryAssetDisplayNameTag))
+	{
+		FString ResultAssetName;
+		InAssetData.GetTagValue(FPrimaryAssetId::PrimaryAssetDisplayNameTag, ResultAssetName);
 		return ResultAssetName;
 	}
 	else if (InAssetData.AssetClassPath == UActorFolder::StaticClass()->GetClassPathName())

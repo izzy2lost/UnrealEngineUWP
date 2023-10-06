@@ -56,6 +56,10 @@ FString UDataValidationChangelist::GetPrettyPackageName(const FName& InPackageNa
 		{
 			Assets[0].GetTagValue(NAME_ActorLabel, AssetName);
 		}
+		else if (Assets[0].FindTag(FPrimaryAssetId::PrimaryAssetDisplayNameTag))
+		{
+			Assets[0].GetTagValue(FPrimaryAssetId::PrimaryAssetDisplayNameTag, AssetName);
+		}
 		else
 		{
 			AssetName = Assets[0].AssetName.ToString();

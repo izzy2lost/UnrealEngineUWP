@@ -49,6 +49,7 @@
 #include "Engine/CullDistanceVolume.h"
 #include "Engine/Console.h"
 #include "Engine/WorldComposition.h"
+#include "ExternalPackageHelper.h"
 #include "WorldPartition/WorldPartition.h"
 #include "WorldPartition/DataLayer/DataLayerManager.h"
 #include "WorldPartition/DataLayer/WorldDataLayers.h"
@@ -930,14 +931,18 @@ bool UWorld::Rename(const TCHAR* InName, UObject* NewOuter, ERenameFlags Flags)
 			}
 		}
 
+		// Process external objects other than actors
 		if (PersistentLevel->IsUsingExternalObjects())
 		{
-			PersistentLevel->ForEachActorFolder([](UActorFolder* ActorFolder)
+			ForEachObjectWithOuter(PersistentLevel, [this](UObject* Object)
 			{
-				ActorFolder->SetPackageExternal(false);
-				ActorFolder->SetPackageExternal(true);
+				if (Object->IsPackageExternal() && !Object->IsA<AActor>())
+				{
+					FExternalPackageHelper::SetPackagingMode(Object, PersistentLevel, false);
+					FExternalPackageHelper::SetPackagingMode(Object, PersistentLevel, true);
+				}
 				return true;
-			});
+			}, /*bIncludeNestedObjects*/ true);
 		}
 	}
 

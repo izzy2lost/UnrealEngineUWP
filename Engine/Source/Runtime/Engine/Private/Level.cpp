@@ -481,7 +481,7 @@ void ULevel::CleanupLevel(bool bCleanupResources, bool bUnloadFromEditor)
 			{
 				ProcessPackage(ObjectPackage, true);
 			}
-		}, false);
+		}, /*bIncludeNestedObjects*/ true);
 	}
 #endif
 }
@@ -1369,38 +1369,21 @@ void ULevel::PreDuplicate(FObjectDuplicationParameters& DupParams)
 		FString ReplaceTo = FPaths::GetBaseFilename(*DstPackage->GetName());
 		ReplaceTo = FString::Printf(TEXT("%s.%s:"), *ReplaceTo, *ReplaceTo);
 
-		for (AActor* Actor : Actors)
+		ForEachObjectWithOuter(this, [this, &SrcPackage, &DstPackage, &ReplaceFrom, &ReplaceTo, &DupParams](UObject* Object)
 		{
-			if (UPackage* Package = Actor ? Actor->GetExternalPackage() : nullptr)
+			if (UPackage* Package = Object ? Object->GetExternalPackage() : nullptr)
 			{
-				FString Path = Actor->GetPathName();
+				FString Path = Object->GetPathName();
 				if (DstPackage != SrcPackage)
 				{
 					Path = Path.Replace(*ReplaceFrom, *ReplaceTo);
 				}
-				UPackage* DupPackage = CreateActorPackage(DstPackage, GetActorPackagingScheme(), Path);
+				UPackage* DupPackage = Object->IsA<AActor>() ? CreateActorPackage(DstPackage, GetActorPackagingScheme(), Path) : FExternalPackageHelper::CreateExternalPackage(DstPackage, Path);
 				DupPackage->MarkAsFullyLoaded();
 				DupPackage->MarkPackageDirty();
 				DupParams.DuplicationSeed.Add(Package, DupPackage);
 			}
-		}
-
-		ForEachActorFolder([&SrcPackage, &DstPackage, &ReplaceFrom, &ReplaceTo, &DupParams](UActorFolder* ActorFolder)
-		{
-			if (UPackage* Package = ActorFolder ? ActorFolder->GetExternalPackage() : nullptr)
-			{
-				FString Path = ActorFolder->GetPathName();
-				if (DstPackage != SrcPackage)
-				{
-					Path = Path.Replace(*ReplaceFrom, *ReplaceTo);
-				}
-				UPackage* DupPackage = FExternalPackageHelper::CreateExternalPackage(DstPackage, Path, UActorFolder::GetExternalPackageFlags());
-				DupPackage->MarkAsFullyLoaded();
-				DupPackage->MarkPackageDirty();
-				DupParams.DuplicationSeed.Add(Package, DupPackage);
-			}
-			return true;
-		});
+		}, /*bIncludeNestedObjects*/ true);
 	}
 #endif
 }

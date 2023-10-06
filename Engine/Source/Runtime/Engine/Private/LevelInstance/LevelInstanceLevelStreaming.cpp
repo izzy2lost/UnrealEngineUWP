@@ -122,6 +122,13 @@ void ULevelStreamingLevelInstance::OnLoadedActorsAddedToLevelPreEvent(const TArr
 						if (bResetLoadersCalled)
 						{
 							ResetLoaders(Actor->GetExternalPackage());
+							ForEachObjectWithOuter(Actor, [](UObject* InObject)
+							{
+								if (InObject && InObject->IsPackageExternal())
+								{
+									ResetLoaders(InObject->GetExternalPackage());
+								}
+							}, /*bIncludeNestedObjects*/ true);
 						}
 
 						FLevelInstanceLevelStreamingUtils::MarkObjectsInPackageAsTransientAndNonTransactional(Actor->GetExternalPackage());
@@ -194,22 +201,13 @@ void ULevelStreamingLevelInstance::ResetLevelInstanceLoaders()
 			LinkerLoad->DetachLoader();
 		}
 
-		for (AActor* Actor : LoadedLevel->Actors)
+		ForEachObjectWithOuter(LoadedLevel, [](UObject* InObject)
 		{
-			if (Actor && Actor->IsPackageExternal())
+			if (InObject && InObject->IsPackageExternal())
 			{
-				ResetLoaders(Actor->GetExternalPackage());
+				ResetLoaders(InObject->GetExternalPackage());
 			}
-		}
-
-		LoadedLevel->ForEachActorFolder([](UActorFolder* ActorFolder)
-		{
-			if (ActorFolder->IsPackageExternal())
-			{
-				ResetLoaders(ActorFolder->GetExternalPackage());
-			}
-			return true;
-		});
+		}, /*bIncludeNestedObjects*/ true);
 
 		bResetLoadersCalled = true;
 	}
@@ -339,7 +337,7 @@ void ULevelStreamingLevelInstance::UnloadInstance(ULevelStreamingLevelInstance* 
 				return false;
 			}
 			return true;
-		}, true);
+		}, /*bIncludeNestedObjects*/ true);
 
 		LevelStreaming->GetWorld()->GetSubsystem<ULevelInstanceSubsystem>()->RemoveLevelsFromWorld({ LevelStreaming->GetLoadedLevel() }, bResetTrans);
 	}
@@ -362,14 +360,14 @@ void ULevelStreamingLevelInstance::OnLevelLoadedChanged(ULevel* InLevel)
 			check(!InLevel->bAreComponentsCurrentlyRegistered);
 			FLevelInstanceLevelStreamingUtils::MarkObjectsInPackageAsTransientAndNonTransactional(NewLoadedLevel->GetPackage());
 
-			NewLoadedLevel->ForEachActorFolder([](UActorFolder* ActorFolder)
+			ForEachObjectWithOuter(NewLoadedLevel, [](UObject* InObject)
 			{
-				if (ActorFolder->IsPackageExternal())
+				// Skip actors as they are already handled in OnLoadedActorsAddedToLevelPreEvent
+				if (InObject && InObject->IsPackageExternal() && !InObject->IsA<AActor>())
 				{
-					FLevelInstanceLevelStreamingUtils::MarkObjectsInPackageAsTransientAndNonTransactional(ActorFolder->GetPackage());
+					FLevelInstanceLevelStreamingUtils::MarkObjectsInPackageAsTransientAndNonTransactional(InObject->GetPackage());
 				}
-				return true;
-			});
+			}, /*bIncludeNestedObjects*/ true);
 
 			OnLoadedActorsAddedToLevelPreEvent(InLevel->Actors);
 

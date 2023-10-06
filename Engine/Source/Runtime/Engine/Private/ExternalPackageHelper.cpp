@@ -1,15 +1,24 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 
 #include "ExternalPackageHelper.h"
-#include "Misc/ArchiveMD5.h"
 
 #if WITH_EDITOR
 
+#include "Misc/ArchiveMD5.h"
+#include "Misc/Paths.h"
+#include "HAL/PlatformApplicationMisc.h"
+
 FExternalPackageHelper::FOnObjectPackagingModeChanged FExternalPackageHelper::OnObjectPackagingModeChanged;
+
+EPackageFlags FExternalPackageHelper::GetDefaultExternalPackageFlags()
+{
+	return (PKG_EditorOnly | PKG_ContainsMapData | PKG_NewlyCreated);
+}
 
 UPackage* FExternalPackageHelper::CreateExternalPackage(UObject* InObjectOuter, const FString& InObjectPath, EPackageFlags InFlags)
 {
-	UPackage* Package = CreatePackage(*FExternalPackageHelper::GetExternalPackageName(InObjectOuter->GetPackage()->GetName(), InObjectPath));
+	UPackage* OutermostPackage = InObjectOuter->IsA<UPackage>() ? CastChecked<UPackage>(InObjectOuter) : InObjectOuter->GetOutermostObject()->GetPackage();
+	UPackage* Package = CreatePackage(*FExternalPackageHelper::GetExternalPackageName(OutermostPackage->GetName(), InObjectPath));
 	Package->SetPackageFlags(InFlags);
 	return Package;
 }
@@ -138,6 +147,34 @@ void FExternalPackageHelper::GetExternalSaveableObjects(UObject* InOuter, TArray
 				OutObjects.Add(Asset);
 			}
 		}
+	}
+}
+
+TArray<FString> FExternalPackageHelper::GetObjectsExternalPackageFilePath(const TArray<const UObject*>& InObjects)
+{
+	TArray<FString> PackageFilePaths;
+	for (const UObject* Object : InObjects)
+	{
+		if (Object && Object->IsPackageExternal())
+		{
+			const FString LocalFullPath(Object->GetExternalPackage()->GetLoadedPath().GetLocalFullPath());
+			if (!LocalFullPath.IsEmpty())
+			{
+				PackageFilePaths.Add(FPaths::ConvertRelativePathToFull(LocalFullPath));
+			}
+		}
+	}
+	return PackageFilePaths;
+}
+
+void FExternalPackageHelper::CopyObjectsExternalPackageFilePathToClipboard(const TArray<const UObject*>& InObjects)
+{
+	TArray<FString> PackageFilePaths = GetObjectsExternalPackageFilePath(InObjects);
+	if (!PackageFilePaths.IsEmpty())
+	{
+		FString Result = FString::Join(PackageFilePaths, TEXT("\n"));
+		check(Result.Len());
+		FPlatformApplicationMisc::ClipboardCopy(*Result);
 	}
 }
 

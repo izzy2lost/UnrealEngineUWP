@@ -81,7 +81,6 @@
 #include "WorldPartition/LoaderAdapter/LoaderAdapterShape.h"
 #include "LevelInstance/LevelInstanceSubsystem.h"
 #include "PackageSourceControlHelper.h"
-#include "ActorFolder.h"
 #include "InterchangeManager.h"
 #include "SourceControlHelpers.h"
 #include "InterchangeProjectSettings.h"
@@ -3095,19 +3094,10 @@ EAutosaveContentPackagesResult::Type FEditorFileUtils::AutosaveMapEx(const FStri
 						&& FPackageName::IsValidLongPackageName(ExternalPackage->GetName(), /*bIncludeReadOnlyRoots=*/false))
 					{
 						// Don't try to save external packages that will get deleted
-						ForEachObjectWithPackage(ExternalPackage, [ExternalPackage, &ExternalPackagesToSave](UObject* Object)
+						if (IsValid(ExternalPackage->FindAssetInPackage()))
 						{
-							// @todo_ow: Find better way
-							if (Object->IsA<AActor>() || Object->IsA<UActorFolder>())
-							{
-								if (IsValid(Object))
-								{
-									ExternalPackagesToSave.Add(ExternalPackage);
-									return false;
-								}
-							}
-							return true;
-						}, false);
+							ExternalPackagesToSave.Add(ExternalPackage);
+						}
 					}
 				}
 
@@ -5255,20 +5245,7 @@ void FEditorFileUtils::GetDirtyWorldPackages(TArray<UPackage*>& OutDirtyPackages
 							// Skip unsaved packages containing only pending kill actors
 							if (ExternalPackage->HasAnyPackageFlags(PKG_NewlyCreated))
 							{
-								bActorPackageNeedsToSave = false;
-								ForEachObjectWithPackage(ExternalPackage, [&bActorPackageNeedsToSave](UObject* Object)
-								{
-									// @todo_ow: Find better way
-									if (Object->IsA<AActor>() || Object->IsA<UActorFolder>())
-									{
-										if (IsValid(Object))
-										{
-											bActorPackageNeedsToSave = true;
-											return false;
-										}
-									}
-									return true;
-								}, false);
+								bActorPackageNeedsToSave = IsValid(ExternalPackage->FindAssetInPackage());
 							}
 
 							// Filter out Actors that might be unsaved (/Temp folder)

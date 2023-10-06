@@ -28,7 +28,10 @@ public:
 	 * @param InFlags the package flags to apply
 	 * @return the created package
 	 */
-	static ENGINE_API UPackage* CreateExternalPackage(UObject* InObjectOuter, const FString& InObjectPath, EPackageFlags InFlags);
+	static ENGINE_API UPackage* CreateExternalPackage(UObject* InObjectOuter, const FString& InObjectPath, EPackageFlags InFlags = FExternalPackageHelper::GetDefaultExternalPackageFlags());
+
+	/** Returns default external package flags used to create external packages. */
+	static ENGINE_API EPackageFlags GetDefaultExternalPackageFlags();
 
 	/**
 	 * Set the object packaging mode.
@@ -38,7 +41,7 @@ public:
 	 * @param bInShouldDirty should dirty or not the object's outer package
 	 * @param InExternalPackageFlags the flags to apply to the external package if bInIsPackageExternal is true
 	 */
-	static ENGINE_API void SetPackagingMode(UObject* InObject, UObject* InObjectOuter, bool bInIsPackageExternal, bool bInShouldDirty, EPackageFlags InExternalPackageFlags);
+	static ENGINE_API void SetPackagingMode(UObject* InObject, UObject* InObjectOuter, bool bInIsPackageExternal, bool bInShouldDirty = true, EPackageFlags InExternalPackageFlags = FExternalPackageHelper::GetDefaultExternalPackageFlags());
 
 	/**
 	 * Get the path containing the external objects for this path
@@ -77,6 +80,17 @@ public:
 	 * @param OutObjects	The objects that should be saved
 	 */
 	static ENGINE_API void GetExternalSaveableObjects(UObject* InOuter, TArray<UObject*>& OutObjects);
+
+	/**
+	 * Returns an array of external package file paths for the provided objects
+	 * @param InObjects		The objects to process
+	 */
+	static ENGINE_API TArray<FString> GetObjectsExternalPackageFilePath(const TArray<const UObject*>& InObjects);
+
+	/*
+	 * Copies the file path of objects external package to the clipboard
+	 */
+	static ENGINE_API void CopyObjectsExternalPackageFilePathToClipboard(const TArray<const UObject*>& InObjects);
 	
 private:
 	/** Get the external object package instance name. */
@@ -86,7 +100,8 @@ private:
 template<typename T>
 void FExternalPackageHelper::LoadObjectsFromExternalPackages(UObject* InOuter, TFunctionRef<void(T*)> Operation)
 {
-	const FString ExternalObjectsPath = FExternalPackageHelper::GetExternalObjectsPath(InOuter->GetPackage(), FString(), /*bTryUsingPackageLoadedPath*/ true);
+	UPackage* OutermostPackage = InOuter->IsA<UPackage>() ? CastChecked<UPackage>(InOuter) : InOuter->GetOutermostObject()->GetPackage();
+	const FString ExternalObjectsPath = FExternalPackageHelper::GetExternalObjectsPath(OutermostPackage, FString(), /*bTryUsingPackageLoadedPath*/ true);
 	TArray<FString> ObjectPackageNames;
 
 	// Do a synchronous scan of the world external objects path.			
@@ -122,7 +137,20 @@ void FExternalPackageHelper::LoadObjectsFromExternalPackages(UObject* InOuter, T
 			OuterInstancingContext = &OuterLinker->GetInstancingContext();
 		}
 
-		InstancingContext.AddPackageMapping(PackageResourceName, OuterPackage->GetFName());
+		// Add packages of all outers to instancing context
+		TSet<const UPackage*> OuterPackages;
+		UObject* ItObj = InOuter;
+		while (ItObj)
+		{
+			const UPackage* Package = ItObj->GetPackage();
+			bool bIsAlreadyInSet = false;
+			OuterPackages.Add(Package, &bIsAlreadyInSet);
+			if (!bIsAlreadyInSet)
+			{
+				InstancingContext.AddPackageMapping(Package->GetLoadedPath().GetPackageFName(), Package->GetFName());
+			}
+			ItObj = ItObj->GetOuter();
+		}
 
 		for (const FString& ObjectPackageName : ObjectPackageNames)
 		{

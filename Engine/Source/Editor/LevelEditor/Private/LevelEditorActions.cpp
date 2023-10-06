@@ -46,6 +46,7 @@
 #include "WorldPartition/WorldPartitionRuntimeHash.h"
 #include "WorldPartition/IWorldPartitionEditorModule.h"
 #include "WorldBrowserModule.h"
+#include "ExternalPackageHelper.h"
 
 #include "Elements/Framework/TypedElementCommonActions.h"
 #include "Elements/Framework/TypedElementSelectionSet.h"
@@ -2929,21 +2930,12 @@ void FLevelEditorActionCallbacks::SnapObjectToView_Clicked()
 
 void FLevelEditorActionCallbacks::CopyActorFilePathtoClipboard_Clicked()
 {
-	FString Result;
-
+	TArray<const UObject*> Objects;
 	for (FSelectionIterator It(GEditor->GetSelectedActorIterator()); It; ++It)
 	{
-		const AActor* Actor = Cast<AActor>(*It);
-		const UPackage* Package = Actor->GetPackage();
-		const FString LocalFullPath(Package->GetLoadedPath().GetLocalFullPath());
-		Result += FPaths::ConvertRelativePathToFull(LocalFullPath);
-		Result += TEXT("\n");
+		Objects.Add(*It);
 	}
-
-	if (Result.Len())
-	{
-		FPlatformApplicationMisc::ClipboardCopy(*Result);
-	}
+	FExternalPackageHelper::CopyObjectsExternalPackageFilePathToClipboard(Objects);
 }
 
 void FLevelEditorActionCallbacks::SaveActor_Clicked()

@@ -1450,11 +1450,12 @@ void FUnrealEdMisc::OnMessageTokenActivated(const TSharedRef<IMessageToken>& Tok
 FText FUnrealEdMisc::OnGetAssetDataDisplayName(const FAssetData& InObject, const bool bFullPath)
 {
 	static FName NAME_ActorLabel("ActorLabel");
-	FString ActorLabel;
+	FString DisplayName;
 	TStringBuilder<FName::StringBufferSize> Buffer;
-	if (InObject.GetTagValue(NAME_ActorLabel, ActorLabel))
+	if (InObject.GetTagValue(NAME_ActorLabel, DisplayName) || 
+		InObject.GetTagValue(FPrimaryAssetId::PrimaryAssetDisplayNameTag, DisplayName))
 	{
-		Buffer << ActorLabel << TEXT(" (");
+		Buffer << DisplayName << TEXT(" (");
 		InObject.AppendObjectPath(Buffer);
 		Buffer << TEXT(")");
 		return FText::FromStringView(Buffer.ToView());
