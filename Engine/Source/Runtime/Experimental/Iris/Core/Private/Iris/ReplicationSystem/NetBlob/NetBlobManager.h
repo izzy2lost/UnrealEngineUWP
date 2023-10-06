@@ -74,7 +74,36 @@ public:
 private:
 	void RegisterDefaultHandlers();
 
-	bool GetOwnerAndSubObjectIndicesFromHandle(FNetRefHandle RefHandle, FInternalNetRefIndex& OutOwnerIndex, FInternalNetRefIndex& OutSubObjectIndex);
+	struct FRPCOwner
+	{
+		// The replicated object responsible for carrying (sending) the RPC.
+		FNetObjectReference CallerRef;
+
+		// The object the RPC will be applied to.
+		FNetObjectReference TargetRef;
+
+		FInternalNetRefIndex RootObjectIndex = FNetRefHandleManager::InvalidInternalIndex;
+		FInternalNetRefIndex SubObjectIndex = FNetRefHandleManager::InvalidInternalIndex;
+	};
+	bool GetRPCOwner(FRPCOwner& OutOwnerInfo, const UObject* RootObject, const UObject* SubObject, const UFunction* Function) const;
+
+	/** 
+	* Validates that RootObjectRefHandle is a true root object and return it's index
+	* @return True if the root object handle is valid and has been replicated.
+	*/
+	bool GetRootObjectIndicesFromHandle(FNetRefHandle RootObjectRefHandle, FInternalNetRefIndex& OutRootObjectIndex) const;
+
+	/**
+	* Validates that the SubObjectRefHandle is a true subobject and return it's index and the index of it's root object.
+	* @return True if the subobject handle is valid and has been replicated.
+	*/
+	bool GetRootObjectAndSubObjectIndicesFromSubObjectHandle(FNetRefHandle SubObjectRefHandle, FInternalNetRefIndex& OutRootObjectIndex, FInternalNetRefIndex& OutSubObjectIndex) const;
+
+	/**
+	 * Receives the handle of a root object or a sub object and returns the index of the root object and subobject if there is one.
+	 * @return True if the object handle is valid has been replicated.
+	 */
+	bool GetRootObjectAndSubObjectIndicesFromAnyHandle(FNetRefHandle AnyRefHandle, FInternalNetRefIndex& OutRootObjectIndex, FInternalNetRefIndex& OutSubObjectIndex) const;
 
 	class FNetObjectAttachmentSendQueue
 	{
