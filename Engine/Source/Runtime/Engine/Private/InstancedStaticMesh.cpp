@@ -2128,6 +2128,8 @@ void UInstancedStaticMeshComponent::SendRenderInstanceData_Concurrent()
 {
 	Super::SendRenderInstanceData_Concurrent();
 
+	PrimitiveInstanceDataManager.ResetComponentDirtyTracking();
+
 	// If the primitive isn't hidden update its instances.
 	const bool bDetailModeAllowsRendering = DetailMode <= GetCachedScalabilityCVars().DetailMode;
 	// The proxy may not be created, this can happen when a SM is async loading for example.
@@ -2184,6 +2186,8 @@ FPrimitiveSceneProxy* UInstancedStaticMeshComponent::CreateStaticMeshSceneProxy(
 FPrimitiveSceneProxy* UInstancedStaticMeshComponent::CreateSceneProxy()
 {
 	ProxySize = 0;
+
+	PrimitiveInstanceDataManager.ResetComponentDirtyTracking();
 
 	// Verify that the mesh is valid before using it.
 	const bool bMeshIsValid =

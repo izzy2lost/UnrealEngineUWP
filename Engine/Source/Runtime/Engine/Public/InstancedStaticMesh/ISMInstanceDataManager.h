@@ -154,6 +154,9 @@ public:
 	 */
 	ENGINE_API SIZE_T GetAllocatedSize() const;
 
+
+	inline void ResetComponentDirtyTracking() { bComponentMarkedDirty = false; }
+
 private:
 	template <typename TaskLambdaType>
 	static void BeginUpdateTask(FInstanceDataUpdateTaskInfo &InstanceDataUpdateTaskInfo, TaskLambdaType &&TaskLambda, const FInstanceDataBufferHeader &InInstanceDataBufferHeader);
