@@ -171,6 +171,11 @@ struct FIoStoreUploadParams
 	int32 MaxConcurrentUploads = 16;
 	bool bDeleteContainerFiles = true;
 	bool bDeletePakFiles = true;
+
+	/** If we should write out the .iochunktoc to disk as well as uploading it. */
+	bool bWriteTocToDisk = false;
+	/** Where the .iochunktoc file should be written out. */
+	FString TocOutputDir;
 	
 	UE_API static TIoStatusOr<FIoStoreUploadParams> Parse(const TCHAR* CommandLine);
 };

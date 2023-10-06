@@ -17,6 +17,7 @@
 #include "Misc/DateTime.h"
 #include "Misc/FileHelper.h"
 #include "Misc/Parse.h"
+#include "Misc/PathViews.h"
 #include "Modules/ModuleManager.h"
 #include "OnDemandHttpClient.h"
 #include "OnDemandIoDispatcherBackend.h"
@@ -246,6 +247,23 @@ static FIasCacheConfig GetIasCacheConfig(const TCHAR* CommandLine)
 #endif
 
 	return Ret;
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+/** Utility for saving data to disk, similar to FFileHelper::SaveArrayToFile but supporting larger sizes */
+static bool SaveArrayToFile(TArrayView64<uint8> Data, const TCHAR* Filename, uint32 WriteFlags = FILEWRITE_None)
+{
+	TUniquePtr<FArchive> Ar = TUniquePtr<FArchive>(IFileManager::Get().CreateFileWriter(Filename, WriteFlags));
+	if (!Ar)
+	{
+		return false;
+	}
+
+	Ar->Serialize(static_cast<void*>(Data.GetData()), Data.Num());
+	Ar->Close();
+
+	return !Ar->IsError() && !Ar->IsCriticalError();
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -766,6 +784,21 @@ TIoStatusOr<FIoStoreUploadParams> FIoStoreUploadParams::Parse(const TCHAR* Comma
 	FParse::Value(CommandLine, TEXT("TargetPlatform="), Params.TargetPlatform);
 	Params.bDeleteContainerFiles = !FParse::Param(CommandLine, TEXT("KeepContainerFiles"));
 	Params.bDeletePakFiles = !FParse::Param(CommandLine, TEXT("KeepPakFiles"));
+	Params.bWriteTocToDisk = FParse::Param(CommandLine, TEXT("WriteTocToDisk"));
+
+	if (Params.bWriteTocToDisk)
+	{
+		// If we keep this feature we should allow the caller to set this path themselves rather than rely on the config file location
+		FString ConfigFilePath;
+		FParse::Value(FCommandLine::Get(), TEXT("ConfigFilePath="), ConfigFilePath);
+
+		Params.TocOutputDir = FPaths::GetPath(ConfigFilePath);
+
+		if (Params.TocOutputDir.IsEmpty())
+		{
+			return FIoStatus(EIoErrorCode::InvalidParameter, TEXT("Cmdline param 'WriteToDisk' requires a valid 'ConfigFilePath' param aswell"));
+		}
+	}
 
 	if (Params.AccessKey.IsEmpty() &&
 		Params.SecretKey.IsEmpty() &&
@@ -1114,6 +1147,18 @@ TIoStatusOr<FIoStoreUploadResult> UploadContainerFiles(
 		{
 			UE_LOG(LogIas, Warning, TEXT("Failed to upload TOC '%s/%s/%s', StatusCode: %u"), *Client.GetConfig().ServiceUrl, *UploadParams.Bucket, Key.ToString(), Response.StatusCode);
 			return FIoStatus(EIoErrorCode::WriteError, TEXT("Failed to upload TOC"));
+		}
+
+		if (UploadParams.bWriteTocToDisk)
+		{
+			TStringBuilder<512> OnDemandTocFilePath;
+			FPathViews::Append(OnDemandTocFilePath, UploadParams.TocOutputDir, UploadResult.TocHash);
+			OnDemandTocFilePath << TEXT(".iochunktoc");
+
+			if (SaveArrayToFile(TArrayView64<uint8>(Ar.GetData(), Ar.TotalSize()), OnDemandTocFilePath.ToString()) == false)
+			{
+				UE_LOG(LogIoStore, Error, TEXT("Failed to save on demand toc file '%s'"), OnDemandTocFilePath.ToString());
+			}
 		}
 	}
 

@@ -10,13 +10,14 @@
 #include "EncryptionKeyManager.h"
 #include "GenericPlatform/GenericPlatformCrashContext.h"
 #include "HAL/Event.h"
+#include "HAL/FileManagerGeneric.h"
 #include "HAL/LowLevelMemTracker.h"
 #include "HAL/Platform.h"
+#include "HAL/PlatformFileManager.h"
 #include "HAL/PlatformTime.h"
 #include "HAL/PreprocessorHelpers.h"
 #include "HAL/Runnable.h"
 #include "HAL/RunnableThread.h"
-#include "HAL/PlatformFileManager.h"
 #include "HttpManager.h"
 #include "IO/IoAllocators.h"
 #include "IO/IoChunkEncoding.h"
@@ -29,8 +30,8 @@
 #include "Math/NumericLimits.h"
 #include "Misc/CommandLine.h"
 #include "Misc/EnumClassFlags.h"
-#include "Misc/Paths.h"
 #include "Misc/PathViews.h"
+#include "Misc/Paths.h"
 #include "Misc/ScopeLock.h"
 #include "Misc/ScopeRWLock.h"
 #include "OnDemandHttpClient.h"
@@ -186,6 +187,16 @@ static FAutoConsoleVariableRef CVar_IasGenerateOnDemandToc(
 	TEXT("s.IasGenerateOnDemandToc"),
 	GIasGenerateOnDemandToc,
 	TEXT("Enables generating the FOnDemandToc from utoc files on disk rather than downloading them"),
+	ECVF_ReadOnly
+);
+
+// A temp fallback path allowing us to attempt to load the OnDemand toc from disk rather than
+// trying to generate it.
+bool GIasLoadOnDemandToc = false;
+static FAutoConsoleVariableRef CVar_IasLoadOnDemandToc(
+	TEXT("ias.LoadOnDemandToc"),
+	GIasLoadOnDemandToc,
+	TEXT("Attempts to load the OnDemand toc from disk rather than generating it (TEMP)"),
 	ECVF_ReadOnly
 );
 
@@ -901,14 +912,66 @@ static TArray<FString> FindOnDemandUtocFilesOnDisk()
 	return FoundFiles;
 }
 
+/**
+ * Utility to create a FArchive capable of reading from disk using the exact same pathing
+ * rules as FPlatformMisc::LoadTextFileFromPlatformPackage but without forcing the entire
+ * file to be loaded at once.
+ */
+static TUniquePtr<FArchive> CreateReaderFromPlatformPackage(const FString& RelPath)
+{
+	const FString AbsPath = FPaths::Combine(FGenericPlatformMisc::RootDir(), RelPath);
+
+	IFileHandle* File = IPlatformFile::GetPlatformPhysical().OpenRead(*AbsPath);
+	if (File)
+	{
+		return MakeUnique<FArchiveFileReaderGeneric>(File, *AbsPath, File->Size());
+	}
+	else
+	{
+		return TUniquePtr<FArchive>();
+	}	
+}
+
 /** Generate a FOnDemandToc based on utoc files on disk which support the OnDemand feature */
-TIoStatusOr<FOnDemandToc> GenerateOnDemandTocFromDisk()
+static TIoStatusOr<FOnDemandToc> GenerateOnDemandTocFromDisk(FStringView TocHash)
 {
 	TRACE_CPUPROFILER_EVENT_SCOPE(IasBackend::GenerateOnDemandTocFromDisk);
 
-	UE_LOG(LogIas, Log, TEXT("Generating OnDemandToc via utoc files from disk"));
-
 	FOnDemandToc OutToc;
+
+	if (GIasLoadOnDemandToc)
+	{
+		UE_LOG(LogIas, Log, TEXT("Serializing .iochunktoc from disk"));
+
+		FString TocFileName = FString(TocHash);
+		TocFileName .Append(TEXT(".iochunktoc"));
+
+		const FString TocPath = FPaths::Combine(TEXT("Cloud"), TocFileName);
+
+		if (FPlatformMisc::FileExistsInPlatformPackage(TocPath))
+		{	
+			TUniquePtr<FArchive> Ar = CreateReaderFromPlatformPackage(TocPath);
+			*Ar << OutToc;
+
+			Ar->Close();
+
+			if (!Ar->IsError() && !Ar->IsCriticalError())
+			{
+				UE_LOG(LogIas, Log, TEXT("Loaded '%s' from disk"), *TocPath);
+				return OutToc;
+			}
+			else
+			{
+				return FIoStatus(EIoErrorCode::ReadError, WriteToString<256>(TEXT("Failed to open '"), TocPath, TEXT("' from disk")));
+			}
+		}
+		else
+		{
+			UE_LOG(LogIas, Warning, TEXT("Unable to find '%s' on disk, will attempt to generate it as a fallback"), *TocPath);
+		}
+	}
+
+	UE_LOG(LogIas, Log, TEXT("Generating .iochunktoc via utoc files from disk"));
 
 	TArray<FString> UtocFilePaths = FindOnDemandUtocFilesOnDisk();
 	const TMap<FGuid, FAES::FAESKey> EncryptionKeys = FEncryptionKeyManager::Get().GetAllKeys();
@@ -1886,7 +1949,7 @@ FIoStatus FOnDemandIoBackend::ApplyGeneratedOnDemandToc(const FString& CdnUrl, c
 	}
 	else
 	{
-		GeneratedTocResult = GenerateOnDemandTocFromDisk();
+		GeneratedTocResult = GenerateOnDemandTocFromDisk(FPathViews::GetBaseFilename(TocPath));
 	}
 	
 	if (!GeneratedTocResult.IsOk())
@@ -1982,9 +2045,10 @@ void FOnDemandIoBackend::Mount(const FOnDemandEndpoint& Endpoint)
 
 	if (GIasGenerateOnDemandToc && GIasAsyncTocGenerationEnabled)
 	{
-		OnDemandTocTask = UE::Tasks::Launch(UE_SOURCE_LOCATION, [this]() -> TIoStatusOr<FOnDemandToc>
+		FString TocHash = FPaths::GetBaseFilename(Endpoint.TocPath);
+		OnDemandTocTask = UE::Tasks::Launch(UE_SOURCE_LOCATION, [TocHash = MoveTemp(TocHash)]() -> TIoStatusOr<FOnDemandToc>
 			{
-				return GenerateOnDemandTocFromDisk();
+				return GenerateOnDemandTocFromDisk(TocHash);
 			});
 	}
 
