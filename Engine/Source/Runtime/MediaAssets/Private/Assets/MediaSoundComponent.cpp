@@ -609,6 +609,7 @@ int32 FMediaSoundGenerator::OnGenerateAudio(float* OutAudio, int32 NumSamples)
 		Resampler.Flush();
 
 		LastPlaySampleTime = FTimespan::MinValue();
+		FMemory::Memzero(OutAudio, NumSamples * sizeof(float));
 	}
  	return NumSamples;
 
