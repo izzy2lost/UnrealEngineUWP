@@ -34,6 +34,7 @@ namespace UnrealBuildTool.Rules
 				PrivateDependencyModuleNames.Add("EditorFramework");
                 PrivateDependencyModuleNames.Add("UnrealEd");
 				PrivateDependencyModuleNames.Add("InputEditor");
+				PrivateDependencyModuleNames.Add("SourceControl");
 			}
         }
     }

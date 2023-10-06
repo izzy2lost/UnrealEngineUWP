@@ -4,10 +4,12 @@
 #include "XRMotionControllerBase.h"
 #include "PlayerMappableInputConfig.h"
 #include "InputMappingContext.h"
+#include "HAL/FileManager.h"
 
 #if WITH_EDITOR
 #include "Editor.h"
 #include "Features/IModularFeatures.h"
+#include "SourceControlHelpers.h"
 #endif
 
 UOpenXRInputSettings::UOpenXRInputSettings(const FObjectInitializer& ObjectInitializer)
@@ -33,7 +35,14 @@ void UOpenXRInputSettings::PostInitProperties()
 			}
 			MappableInputConfig.Reset();
 
-			TryUpdateDefaultConfigFile();
+			// Check if the file is read only. If it is, then try and check it out with source control
+			const FString ConfigFileName = GetDefaultConfigFilename();
+			bool bCanWriteToFile = !IFileManager::Get().IsReadOnly(*ConfigFileName) || (USourceControlHelpers::IsEnabled() && USourceControlHelpers::CheckOutFile(ConfigFileName));
+
+			if (bCanWriteToFile)
+			{
+				TryUpdateDefaultConfigFile();
+			}			
 		}
 	}
 }
