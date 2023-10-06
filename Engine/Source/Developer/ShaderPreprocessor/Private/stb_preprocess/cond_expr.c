@@ -21,6 +21,14 @@
 #define uintmax_t unsigned long long
 #endif
 
+#if !defined(FORCE_INLINE)
+#if defined(_MSC_VER)
+#define FORCE_INLINE __forceinline
+#else
+#define FORCE_INLINE inline __attribute__((always_inline))
+#endif
+#endif
+
 typedef struct
 {
 	union
@@ -54,7 +62,7 @@ typedef struct
 } ppcexp;  // preprocessor constant expression lexer
 
 // Faster inline version of CRT isspace function
-inline unsigned isspace_inline(unsigned p)
+static FORCE_INLINE unsigned isspace_inline(unsigned p)
 {
 	// Subtract one so ASCII space (32) fits in the last bit of a 32-bit mask.  The null terminator (zero) will wrap around due to
 	// unsigned math, which is good, because it will pass this conditional, avoiding the bit test.
@@ -80,7 +88,7 @@ inline unsigned isspace_inline(unsigned p)
 // digit number (which is very common in the preprocessor -- most values are zero or one), and we can do a trivial digit character
 // to number conversion, rather than calling the expensive strtoull.  This doesn't try to catch all cases, but it catches most
 // cases likely to exist in valid (non syntax error) code.
-inline int is_end_of_number(int p)
+static FORCE_INLINE int is_end_of_number(int p)
 {
 	// Any ASCII less than a decimal character ('.') ends a number, which includes whitespace, parentheses, some operator
 	// characters, and NULL.  Numbers can have hex or binary prefixes (0x, 0b), or unsigned / length suffixes (ull), so we need
@@ -110,7 +118,7 @@ inline int is_end_of_number(int p)
 	return ((p - '.') | (0x19 - (p & 0x1f))) < 0;
 }
 
-inline int is_token_character(unsigned char p)
+static FORCE_INLINE int is_token_character(unsigned char p)
 {
 	// Numbers, letteres, underscore, and '$' are considered valid token characters by the preprocessor.  Mask test to see
 	// if this is one of those.
