@@ -55,13 +55,16 @@ namespace TypedElementDataStorage
 		 */
 		virtual void GetColumnsUnguarded(int32 TypeCount, char** RetrievedAddresses, const TWeakObjectPtr<const UScriptStruct>* ColumnTypes,
 			const EQueryAccessType* AccessTypes) = 0;
-
+		/* Return whether a column matches the requested type or not. */
+		virtual bool HasColumn(const UScriptStruct* ColumnType) const = 0;
 		// Utility functions
 
 		template<typename Column>
 		const Column* GetColumn() const;
 		template<typename Column>
 		Column* GetMutableColumn();
+		template<typename Column>
+		bool HasColumn() const;
 	};
 
 	/**
@@ -219,6 +222,12 @@ namespace TypedElementDataStorage
 	Column* ICommonQueryContext::GetMutableColumn()
 	{
 		return reinterpret_cast<Column*>(GetMutableColumn(Column::StaticStruct()));
+	}
+
+	template <typename Column>
+	bool ICommonQueryContext::HasColumn() const
+	{
+		return HasColumn(Column::StaticStruct());
 	}
 
 	template<typename ColumnType>

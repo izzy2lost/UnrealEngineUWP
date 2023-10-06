@@ -67,6 +67,21 @@ struct FMassContextCommon : public T
 		}
 	}
 
+	bool HasColumn(const UScriptStruct* ColumnType) const override
+	{
+		if (ColumnType->IsChildOf(FMassTag::StaticStruct()))
+		{
+			return Context.DoesArchetypeHaveTag(*ColumnType);
+		}
+		if (ColumnType->IsChildOf(FMassFragment::StaticStruct()))
+		{
+			return Context.DoesArchetypeHaveFragment(*ColumnType);
+		}
+		const bool bIsTagOrFragment = false;
+		checkf(bIsTagOrFragment, TEXT("Attempting to check for a column type that is not a column or tag."))
+		return false;
+	}
+
 protected:
 	explicit FMassContextCommon(FMassExecutionContext& InContext)
 		: Context(InContext)
@@ -140,6 +155,25 @@ struct FMassSingleRowSubqueryContextForwarder final : public ITypedElementDataSt
 	TConstArrayView<TypedElementDataStorage::RowHandle> GetRowHandles() const override
 	{
 		return TConstArrayView<TypedElementDataStorage::RowHandle>(&RowHandle, 1);
+	}
+
+	bool HasColumn(const UScriptStruct* ColumnType) const override
+	{
+		FMassArchetypeHandle Archetype = EntityManager.GetArchetypeForEntity(FMassEntityHandle::FromNumber(RowHandle));
+		FMassArchetypeCompositionDescriptor Composition = EntityManager.GetArchetypeComposition(Archetype);
+		// Tags
+		if (ColumnType->IsChildOf(FMassTag::StaticStruct()))
+		{
+			return Composition.Tags.Contains(*ColumnType);
+		}
+		// Columns
+		if (ColumnType->IsChildOf(FMassFragment::StaticStruct()))
+		{
+			return Composition.Fragments.Contains(*ColumnType);
+		}
+		const bool bIsTagOrFragment = false;
+		checkf(bIsTagOrFragment, TEXT("Attempting to check for a column type that is not a column or tag."))
+		return false;
 	}
 
 private:

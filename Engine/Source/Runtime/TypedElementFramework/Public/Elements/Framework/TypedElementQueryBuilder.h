@@ -365,6 +365,8 @@ namespace TypedElementQueryBuilder
 		inline void GetColumnsUnguarded(int32 TypeCount, char** RetrievedAddresses, const TWeakObjectPtr<const UScriptStruct>* ColumnTypes,
 			const ITypedElementDataStorageInterface::EQueryAccessType* AccessTypes) override;
 
+		inline bool HasColumn(const UScriptStruct* ColumnType) const override;
+		
 		inline UObject* GetMutableDependency(const UClass* DependencyClass) override;
 		inline const UObject* GetDependency(const UClass* DependencyClass) override;
 		inline void GetDependencies(TArrayView<UObject*> RetrievedAddresses, TConstArrayView<TWeakObjectPtr<const UClass>> SubsystemTypes,

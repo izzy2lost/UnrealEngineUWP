@@ -159,6 +159,11 @@ namespace TypedElementQueryBuilder
 	{
 		ParentContext.GetColumnsUnguarded(TypeCount, RetrievedAddresses, ColumnTypes, AccessTypes);
 	}
+	
+	bool FQueryContextForwarder::HasColumn(const UScriptStruct* ColumnType) const
+	{
+		return ParentContext.HasColumn(ColumnType);
+	}
 
 	UObject* FQueryContextForwarder::GetMutableDependency(const UClass* DependencyClass)
 	{
