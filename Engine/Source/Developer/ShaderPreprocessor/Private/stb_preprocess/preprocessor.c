@@ -173,12 +173,33 @@ typedef struct
 	shpair* verify;
 } pphash;
 
+#define MACRO_BLOOM_FILTER_ENABLED 1
+#define MACRO_BLOOM_FILTER_SIZE 128
+
 typedef struct pp_context
 {
 	pphash macro_map;				  // map of macro names to their definitions
 	macro_hash_entry* undef_map;	  // map of macro names to a flag for whether they've ever been undef'd, for more useful error messages
-	uint8 (*macro_name_filter)[256];  // 64KB table indicating whether 1 & 2-character identifiers are macros
 	include_once* once_map;			  // map of which filenames have been #onced
+
+#if MACRO_BLOOM_FILTER_ENABLED
+	// 3KB table by identifier length, with 3 masks indicating whether macros exist with the given key character at a certain location (first,
+	// middle, last).  Functions as a trivially cheap bloom filter with 4 keys (length plus the 3 characters), as it has fixed cost regardless
+	// of identifier length, and the filter table accesses for a given identifier are cache friendly, since character masks for a given length
+	// are adjacent.  Valid identifier characters are in the ASCII range 64-127, so we only need 64 bits of mask.
+	//
+	// In histogram testing, the middle character was actually the most unique, but all three make a contribution to improving effectiveness.
+	// The filter rejects 99.5% of identifiers that aren't macros in HLSL code, and handles 100% of the cases the original 1 or 2 character
+	// macro_name_filter covered in practice, meaning there's no reason to use both.
+	//
+	// The length of the identifier is clamped -- in testing, no identifiers longer than 64 characters were observed.  Using a fixed size
+	// table in the structure avoids a couple memory accesses fetching a pointer and current allocated length, which adds up given how
+	// often maybe_expand_macro is called.
+	uint64 macro_bloom_filter[MACRO_BLOOM_FILTER_SIZE][3];
+#else
+	// 64KB table indicating whether 1 & 2-character identifiers are macros
+	uint8(*macro_name_filter)[256];
+#endif
 
 	int include_nesting_level;	// we stop after a certain number in case of unbounded recursive includes
 	int macro_expansion_level;	// because recursive macros are prevented, we don't need to stop this, but we do in case of bugs in recursive macro processing
@@ -215,7 +236,6 @@ typedef struct parse_state
 	size_t src_length;
 
 	char* dest;
-	char* fast_dest;
 
 	int src_line_number;
 	int dest_line_number;
@@ -402,15 +422,10 @@ static void output_line_directive(parse_state* cs)
 	size_t filename_len = strlen(cs->filename);
 	size_t expansion_length = 6 + 16 + filename_len + 2 + 2 + 1;
 
-	if (cs->fast_dest)
-		q = cs->fast_dest;
-	else
-	{
-		// make sure there's room in the output for the #line directive plus all the remaining text
-		arrsetcap(out, arrlen(out) + (size_t)(cs->src_length - cs->src_offset) + expansion_length);
+	// make sure there's room in the output for the #line directive plus all the remaining text
+	arrsetcap(out, arrlen(out) + (size_t)(cs->src_length - cs->src_offset) + expansion_length);
 
-		q = out + arrlen(out);
-	}
+	q = out + arrlen(out);
 
 	// write the line directive
 	STB_ASSUME(q != NULL);
@@ -435,13 +450,9 @@ static void output_line_directive(parse_state* cs)
 	*q++ = '\n';
 
 	cs->dest_line_number = cs->src_line_number;
-	if (cs->fast_dest)
-		cs->fast_dest = q;
-	else
-	{
-		arrsetlen(out, (q - out));
-		cs->dest = out;
-	}
+
+	arrsetlen(out, (q - out));
+	cs->dest = out;
 }
 
 //////////////////////////////////////////////////////////////////////////////
@@ -1308,28 +1319,20 @@ static int copy_to_action_point(parse_state* cs)
 	int state;
 	const char* p = cs->src + cs->src_offset;
 	char* out;
-	char* q;
+	char* q = NULL;
 
 	out = cs->dest;
 
 	state = cs->in_leading_whitespace ? PP_STATE_in_leading_whitespace : PP_STATE_ready;
 	MDBG();
 
-	if (cs->fast_dest)
-		q = cs->fast_dest;
-	else
-		q = NULL;
-
 	for (;;)
 	{
 		int prev_state;
 
-		if (cs->fast_dest == NULL)
-		{
-			// expand output so there's room to copy entire file unmodified
-			arrsetcap(out, arrlen(out) + (cs->src_length - cs->src_offset) + 1);
-			q = out + arrlen(out);
-		}
+		// expand output so there's room to copy entire file unmodified
+		arrsetcap(out, arrlen(out) + (cs->src_length - cs->src_offset) + 1);
+		q = out + arrlen(out);
 
 		{  // make lifetime of line_count unambiguous
 			const int state_limit = cs->state_limit;
@@ -1339,7 +1342,7 @@ static int copy_to_action_point(parse_state* cs)
 			{
 				uint8 ch = (uint8)*p++;
 				uint8 ch_class;
-				assert(cs->fast_dest != NULL || q < out + arrcap(out));
+				assert(q < out + arrcap(out));
 				STB_ASSUME(q != NULL);
 				*q++ = ch;
 				ch_class = pp_char_class[ch];
@@ -1388,8 +1391,7 @@ static int copy_to_action_point(parse_state* cs)
 				cs->state_limit = PP_STATE_saw_cr;	// line_number mismatches, so need to output match newlines at first opportunity, namely next time we see a
 													// newline not in a comment
 				state = prev_state;					// reset parse state to before the backslash
-				if (cs->fast_dest == NULL)
-					arrsetlen(out, (size_t)(q - out));
+				arrsetlen(out, (size_t)(q - out));
 			}
 		}
 		else
@@ -1407,38 +1409,19 @@ static int copy_to_action_point(parse_state* cs)
 			cs->state_limit = PP_STATE_active_count;
 
 			// output newlines to the output buffer until synchronized again
-			if (cs->fast_dest)
+			arrsetlen(out, (size_t)(q - out));
+			while (cs->dest_line_number < cs->src_line_number)
 			{
-				int n = cs->src_line_number - cs->dest_line_number;
-				while (n > 0)
-				{
-					*q++ = '\n';
-					--n;
-				}
-				cs->dest_line_number = cs->src_line_number;
-			}
-			else
-			{
-				arrsetlen(out, (size_t)(q - out));
-				while (cs->dest_line_number < cs->src_line_number)
-				{
-					arrput(out, '\n');
-					++cs->dest_line_number;
-				}
+				arrput(out, '\n');
+				++cs->dest_line_number;
 			}
 		}
 	}
 
 	// set output to the amount we actually copied... don't count the copy of the last character
-	if (cs->fast_dest)
-	{
-		cs->fast_dest = q - 1;
-	}
-	else
-	{
-		arrsetlen(out, (size_t)(q - 1 - out));
-		cs->dest = out;
-	}
+	arrsetlen(out, (size_t)(q - 1 - out));
+	cs->dest = out;
+
 	cs->src_offset = (size_t)(p - 1 - cs->src);
 	cs->in_leading_whitespace = (state == PP_STATE_saw_leading_hash);
 
@@ -1461,14 +1444,9 @@ static int copy_to_action_point_macro_expansion(parse_state* cs)
 	STB_ASSUME(out != NULL);
 	char* q;
 
-	if (cs->fast_dest)
-		q = cs->fast_dest;
-	else
-	{
-		// expand output so copying entire file unmodified
-		arrsetcap(out, arrlen(out) + (cs->src_length - cs->src_offset) + 1);
-		q = out + arrlen(out);
-	}
+	// expand output so copying entire file unmodified
+	arrsetcap(out, arrlen(out) + (cs->src_length - cs->src_offset) + 1);
+	q = out + arrlen(out);
 
 	STB_ASSUME(q != NULL);
 
@@ -1485,14 +1463,9 @@ static int copy_to_action_point_macro_expansion(parse_state* cs)
 
 	cs->src_offset = (size_t)(p - 1 - cs->src);
 
-	if (cs->fast_dest)
-		cs->fast_dest = q - 1;
-	else
-	{
-		// set output to the amount we actually copied... don't count the copy of the last character
-		arrsetlen(out, (size_t)(q - 1 - out));
-		cs->dest = out;
-	}
+	// set output to the amount we actually copied... don't count the copy of the last character
+	arrsetlen(out, (size_t)(q - 1 - out));
+	cs->dest = out;
 
 	return state;
 }
@@ -2001,22 +1974,10 @@ static void preprocess_string(parse_state* cs, int in_macro_expansion, char* in_
 				if (cs->last_output_filename == cs->filename && cs->dest_line_number < cs->src_line_number && cs->src_line_number < cs->dest_line_number + 12)
 				{
 					int n = cs->src_line_number - cs->dest_line_number;
-					if (cs->fast_dest)
+					while (cs->dest_line_number < cs->src_line_number)
 					{
-						while (n > 0)
-						{
-							*cs->fast_dest++ = '\n';
-							--n;
-						}
-						cs->dest_line_number = cs->src_line_number;
-					}
-					else
-					{
-						while (cs->dest_line_number < cs->src_line_number)
-						{
-							arrput(cs->dest, '\n');
-							++cs->dest_line_number;
-						}
+						arrput(cs->dest, '\n');
+						++cs->dest_line_number;
 					}
 				}
 				else
@@ -2078,16 +2039,8 @@ static void preprocess_string(parse_state* cs, int in_macro_expansion, char* in_
 					// the final macro wasn't copied into the output destination yet, so do it now
 					{
 						size_t len = strlen(md->symbol_name);
-						if (cs->fast_dest)
-						{
-							memcpy(cs->fast_dest, md->symbol_name, len);
-							cs->fast_dest += len;
-						}
-						else
-						{
-							size_t off = arraddnindex(cs->dest, len);
-							memcpy(cs->dest + off, md->symbol_name, len);
-						}
+						size_t off = arraddnindex(cs->dest, len);
+						memcpy(cs->dest + off, md->symbol_name, len);
 					}
 				}
 				break;
@@ -2162,11 +2115,22 @@ static void preprocess_string(parse_state* cs, int in_macro_expansion, char* in_
 
 #define MAX_MACRO_PARAMETER_NAME_LENGTH 256
 
-static void update_macro_filter(pp_context* c, char* identifier)
+static void update_macro_filter(pp_context* c, char* identifier, size_t identifier_length)
 {
-	assert(identifier[0] != 0);
+	assert(identifier[0] != 0 && identifier_length > 0);
+
+#if MACRO_BLOOM_FILTER_ENABLED
+	size_t bloom_filter_offset = identifier_length < MACRO_BLOOM_FILTER_SIZE ? identifier_length : MACRO_BLOOM_FILTER_SIZE - 1;
+
+	// Set bits for three key characters of the macro by length (first, middle, last)
+	c->macro_bloom_filter[bloom_filter_offset][0] |= (1ull << (identifier[0] & 0x3f));
+	c->macro_bloom_filter[bloom_filter_offset][1] |= (1ull << (identifier[identifier_length >> 1] & 0x3f));
+	c->macro_bloom_filter[bloom_filter_offset][2] |= (1ull << (identifier[identifier_length - 1] & 0x3f));
+
+#else
 	if (identifier[1] == 0 || identifier[2] == 0)
 		c->macro_name_filter[(uint8)identifier[0]][(uint8)identifier[1]] = 1;
+#endif
 }
 
 static struct macro_definition* create_macro_definition(parse_state* ps, const char* def)
@@ -2607,7 +2571,7 @@ static const char* copy_argument(const char* text, int* line_number, char** p_ou
 		{
 			++p;
 		}
-		oldlen = arrlen(out);
+		oldlen = arrlennonull(out);
 		addlen = p - q;
 		STB_ASSUME(out != NULL && oldlen > 0);
 		arrsetlen(out, oldlen + addlen);
@@ -2734,12 +2698,10 @@ static void maybe_expand_macro(parse_state* cs, struct macro_definition* pending
 {
 	pp_context* c = cs->context;
 	struct macro_definition* md;
-	char* identifier = cs->fast_dest ? cs->fast_dest : (char*)cs->dest + arrlennonull(cs->dest);
+	char* identifier = (char*)cs->dest + arrlennonull(cs->dest);
 	size_t identifier_length;
 	const char* p = cs->src + cs->src_offset;
 	char* q = identifier;
-	uint8 c0 = (uint8)p[0];
-	uint8 c1 = (uint8)p[1];
 
 	if (pending)
 	{
@@ -2750,7 +2712,10 @@ static void maybe_expand_macro(parse_state* cs, struct macro_definition* pending
 	{
 		const char* start = p;
 
-#ifndef DISABLE_SHORT_MACRO_FILTER
+#if !MACRO_BLOOM_FILTER_ENABLED
+		uint8 c0 = (uint8)p[0];
+		uint8 c1 = (uint8)p[1];
+
 		if (!char_is_pp_identifier(c1))
 		{
 			// 1-character identifier
@@ -2778,19 +2743,31 @@ static void maybe_expand_macro(parse_state* cs, struct macro_definition* pending
 		// copy the rest of the identifier so we can NUL-terminate it
 		// we copy it to the output buffer since we've already allocated space for it,
 		// and that's where we'll need to copy it if it's not a macro
+		// There is always at least 1 identifier character, so copy the first unconditionally
+		char ch_first = *p++;
+		*q++ = ch_first;
 		while (char_is_pp_identifier(*p))
 			*q++ = *p++;
 
 		identifier_length = p - start;
+
+#if MACRO_BLOOM_FILTER_ENABLED
+		// Test bits for three key characters of the macro by length (first, middle, last)
+		size_t bloom_filter_offset = identifier_length < MACRO_BLOOM_FILTER_SIZE ? identifier_length : MACRO_BLOOM_FILTER_SIZE - 1;
+		if (!(c->macro_bloom_filter[bloom_filter_offset][0] & (1ull << ch_first)) ||
+			!(c->macro_bloom_filter[bloom_filter_offset][1] & (1ull << start[identifier_length >> 1])) ||
+			!(c->macro_bloom_filter[bloom_filter_offset][2] & (1ull << start[identifier_length - 1])))
+		{
+			goto not_macro;
+		}
+#endif
+
 		md = (struct macro_definition*)stringhash_get(&c->macro_map, identifier, identifier_length);
 		if (md == NULL || md->disabled)
 		{
 		not_macro:
 			cs->src_offset = p - cs->src;
-			if (cs->fast_dest)
-				cs->fast_dest = q;
-			else
-				arrsetlen(cs->dest, (size_t)(q - cs->dest));  // set the output buffer size to account for the above-copied identifier
+			arrsetlen(cs->dest, (size_t)(q - cs->dest));  // set the output buffer size to account for the above-copied identifier
 			return;
 		}
 
@@ -2813,10 +2790,7 @@ static void maybe_expand_macro(parse_state* cs, struct macro_definition* pending
 					//   command:            cpp -DFOO foo.c
 					//   desired output:     + +x;
 					//   without next line:  ++x;
-					if (cs->fast_dest)
-						*cs->fast_dest++ = ' ';
-					else
-						arrput(cs->dest, ' ');
+					arrput(cs->dest, ' ');
 				else
 				{
 					parse_state ncs = *cs;
@@ -2828,7 +2802,6 @@ static void maybe_expand_macro(parse_state* cs, struct macro_definition* pending
 					preprocess_string(&ncs, IN_MACRO_yes, md->symbol_name, final_function_macro);
 					md->disabled = 0;
 					cs->dest = ncs.dest;
-					cs->fast_dest = ncs.fast_dest;
 				}
 				break;
 			}
@@ -2891,33 +2864,19 @@ static void maybe_expand_macro(parse_state* cs, struct macro_definition* pending
 			{
 				size_t len = strlen(cs->filename);
 				// @TODO: backslash escape filename and cache it in stack, ready for string printing... also use when printing the line number?
-				if (cs->fast_dest)
-				{
-					*cs->fast_dest++ = '"';
-					cs->fast_dest += sprintf(cs->fast_dest, "%s", cs->filename);
-					*cs->fast_dest++ = '"';
-				}
-				else
-				{
-					size_t off = arraddnindex(cs->dest, len + 2);
-					cs->dest[off] = '"';
-					memcpy(cs->dest + off + 1, cs->filename, len);
-					cs->dest[off + 1 + len] = '"';
-				}
+				size_t off = arraddnindex(cs->dest, len + 2);
+				cs->dest[off] = '"';
+				memcpy(cs->dest + off + 1, cs->filename, len);
+				cs->dest[off + 1 + len] = '"';
 				break;
 			}
 			case MACRO_NUM_PARAMETERS_line:
 			{
-				if (cs->fast_dest)
-					cs->fast_dest += sprintf(cs->fast_dest, "%d", cs->src_line_number);
-				else
-				{
-					int len;
-					q = identifier;
-					arrsetcap(cs->dest, arrlen(cs->dest) + 12);
-					len = sprintf(cs->dest + arrlen(cs->dest), "%d", cs->src_line_number);
-					arrsetlen(cs->dest, arrlen(cs->dest) + len);
-				}
+				int len;
+				q = identifier;
+				arrsetcap(cs->dest, arrlen(cs->dest) + 12);
+				len = sprintf(cs->dest + arrlen(cs->dest), "%d", cs->src_line_number);
+				arrsetlen(cs->dest, arrlen(cs->dest) + len);
 				break;
 			}
 			case MACRO_NUM_PARAMETERS_counter:
@@ -2928,16 +2887,11 @@ static void maybe_expand_macro(parse_state* cs, struct macro_definition* pending
 					do_error_code(cs, PP_RESULT_counter_overflowed, "__COUNTER__ was used too many times (%u)", c->counter);
 					return;
 				}
-				if (cs->fast_dest)
-					cs->fast_dest += sprintf(cs->fast_dest, "%d", c->counter);
-				else
-				{
-					int len;
-					q = identifier;
-					arrsetcap(cs->dest, arrlen(cs->dest) + 12);
-					len = sprintf(cs->dest + arrlen(cs->dest), "%d", c->counter);
-					arrsetlen(cs->dest, arrlen(cs->dest) + len);
-				}
+				int len;
+				q = identifier;
+				arrsetcap(cs->dest, arrlen(cs->dest) + 12);
+				len = sprintf(cs->dest + arrlen(cs->dest), "%d", c->counter);
+				arrsetlen(cs->dest, arrlen(cs->dest) + len);
 				++c->counter;
 				break;
 			}
@@ -2990,12 +2944,9 @@ static void maybe_expand_macro(parse_state* cs, struct macro_definition* pending
 		p = s + 1;
 
 #if 0
-    // WHAT?!?
-    // undo '(' from output
-    if (cs->fast_dest)
-      --cs->fast_dest;
-    else
-      arrsetlen(cs->dest, arrlen(cs->dest)-1);
+	// WHAT?!?
+	// undo '(' from output
+	arrsetlen(cs->dest, arrlen(cs->dest)-1);
 #endif
 
 		//////////////////////////////////////////////////////////////////
@@ -3072,7 +3023,7 @@ static void maybe_expand_macro(parse_state* cs, struct macro_definition* pending
 				// the call to arrsetlen below, because downstream code assumes there is a null terminator beyond the official length of the array.  Doing
 				// the sub-allocation first preserves the null terminator -- without this, the sub-allocation will overwrite it.  We only suballocate if
 				// a minimum of 200 characters is available, as copy_argument reserves this.
-				stbds_arrinline_suballoc(argument_buffer, char, 200);
+				stbds_arrinline_suballoc_char(argument_buffer, 200);
 
 				arrsetlen(copy, e - p);
 				arrput(arguments, copy);
@@ -3149,8 +3100,6 @@ static void maybe_expand_macro(parse_state* cs, struct macro_definition* pending
 					e = copy;
 				*e = 0;
 
-				stbds_arrinline_suballoc(argument_buffer, char, 200);
-
 				arrput(arguments, copy);
 				cs->src_line_number += arg_newlines;
 			}
@@ -3177,7 +3126,7 @@ static void maybe_expand_macro(parse_state* cs, struct macro_definition* pending
 
 		// each argument will be parsed using acs, so set that up now
 		acs = *cs;
-		acs.dest = acs.fast_dest = 0;
+		acs.dest = 0;
 
 		// populate temporary buffer
 		char* tmp = 0;
@@ -3243,7 +3192,6 @@ static void maybe_expand_macro(parse_state* cs, struct macro_definition* pending
 				acs.src = arguments[an];
 				acs.src_length = arrlen(arguments[an]);
 				acs.dest = tmp;
-				acs.fast_dest = 0;
 				acs.src_offset = 0;
 				preprocess_string(&acs, in_macro_expansion, identifier, &ffm);
 				tmp = acs.dest;
@@ -3284,7 +3232,6 @@ static void maybe_expand_macro(parse_state* cs, struct macro_definition* pending
 		md->disabled = 1;  // don't disable earlier, because if you CALL foo() WITH foo, it should still get expanded
 		preprocess_string(&ncs, IN_MACRO_yes, identifier, final_function_macro);
 		cs->dest = ncs.dest;
-		cs->fast_dest = ncs.fast_dest;
 		arrfree(ncs.src);
 
 		md->disabled = 0;
@@ -3305,7 +3252,6 @@ static char* macro_expand_directive(parse_state* cs, const char* p, char* direct
 	ncs.src_offset = 0;
 	ncs.parent = cs;
 	ncs.dest = 0;
-	ncs.fast_dest = 0;
 	preprocess_string(&ncs, IN_MACRO_directive, directive, NULL);
 	return ncs.dest;
 }
@@ -3323,7 +3269,6 @@ static int evaluate_if(parse_state* cs, const char* p, int* syntax_error)
 	ncs.src_offset = 0;
 	ncs.parent = cs;
 	ncs.dest = dest;
-	ncs.fast_dest = 0;
 
 	preprocess_string(&ncs, IN_MACRO_if_condition, "#if", NULL);
 
@@ -3471,10 +3416,7 @@ static int process_include(parse_state* cs, const char* start, conditional_state
 				
 				(*freefile_callback)(filename, data, c->custom_context);
 
-				if (cs->fast_dest)
-					cs->fast_dest = result;
-				else
-					cs->dest = result;
+				cs->dest = result;
 				if (c->stop)
 					return RETURN_BEHAVIOR_return;
 			}
@@ -3604,17 +3546,6 @@ static void process_directive(parse_state* cs, conditional_state* cons)
 
 		case HASH_line:
 			// copy line directive through to output... existing code will output the newline, so don't do it here
-			if (cs->fast_dest)
-			{
-				size_t out_length = strlen(p);
-				char* z = cs->fast_dest;
-				memcpy(z, "#line ", 6);
-				z += 6;
-				memcpy(z, p, out_length);
-				z += out_length;
-				cs->fast_dest = z;
-			}
-			else
 			{
 				size_t out_length = strlen(p);
 				size_t s = arraddnindex(cs->dest, 6);
@@ -3713,17 +3644,6 @@ static void process_directive(parse_state* cs, conditional_state* cons)
 			}
 
 			// copy pragma through to output... existing code will output the newline, so don't do it here
-			if (cs->fast_dest)
-			{
-				size_t out_length = strlen(p);
-				char* z = cs->fast_dest;
-				memcpy(z, "#pragma ", 8);
-				z += 8;
-				memcpy(z, p, out_length);
-				z += out_length;
-				cs->fast_dest = z;
-			}
-			else
 			{
 				size_t out_length = strlen(p);
 				size_t s = arraddnindex(cs->dest, 8);
@@ -3757,8 +3677,7 @@ static void process_directive(parse_state* cs, conditional_state* cons)
 					stringhash_delete(&c->macro_map, m->symbol_name, m->symbol_name_length);
 				}
 				stringhash_put(&c->macro_map, m->symbol_name, m->symbol_name_length, m);
-				if (m->symbol_name[1] == 0 || m->symbol_name[2] == 0)
-					c->macro_name_filter[(uint8)m->symbol_name[0]][(uint8)m->symbol_name[1]] = 1;
+				update_macro_filter(c, m->symbol_name, m->symbol_name_length);
 			}
 			if (alloc)
 				arrfree(alloc);
@@ -4287,14 +4206,11 @@ static char* preprocess_string_from_file(parse_state* ps, const char* filename, 
 	cs.src_length = textlen;
 	cs.src_offset = 0;
 	cs.conditional_nesting_depth_at_start = conditional_compilation_nesting;
-	// dest & fast_dest are inherited
+	// dest is inherited
 	preprocess_string(&cs, is_header && preprocessor_automatic_include_guard_detection ? IN_MACRO_include_guard_scan : IN_MACRO_no, 0, 0);
 	cs.context->num_lines += cs.src_line_number;
 	ps->last_output_filename = "";
-	if (cs.fast_dest)
-		return cs.fast_dest;
-	else
-		return cs.dest;
+	return cs.dest;
 }
 
 #define DEFAULT -1
@@ -4588,8 +4504,7 @@ static void define_macro(pphash* map, struct macro_definition* m)
 	stringhash_put(map, m->symbol_name, m->symbol_name_length, m);
 }
 
-char* preprocess_file(char* output_autobuffer,
-	const char* filename,
+char* preprocess_file(const char* filename,
 	void* custom_context,
 	struct macro_definition** predefined_macros,
 	int num_predefined_macros,
@@ -4631,11 +4546,15 @@ char* preprocess_file(char* output_autobuffer,
 	// backfire by slowing down the initialization
 	stringhash_create(&c.macro_map, 4096);
 
+#if MACRO_BLOOM_FILTER_ENABLED
+	memset(c.macro_bloom_filter, 0, sizeof(c.macro_bloom_filter));
+#else
 	c.macro_name_filter = STB_COMMON_MALLOC(65536);
 	if (c.macro_name_filter == NULL)
 		return NULL;
 
 	memset(c.macro_name_filter, 0, 65536);
+#endif
 
 	for (i = 0; i < arrlen(predefined_macros); ++i)
 		define_macro(&c.macro_map, predefined_macros[i]);
@@ -4646,26 +4565,17 @@ char* preprocess_file(char* output_autobuffer,
 	define_macro(&c.macro_map, &predefined_COUNTER);
 
 	for (i = 0; i < arrlen(c.macro_map.pair); ++i)
-		update_macro_filter(&c, c.macro_map.pair[i].key);
+		update_macro_filter(&c, c.macro_map.pair[i].key, c.macro_map.pair[i].key_length);
 
 	{
 		// initial parse_state for preprocess_string_from_file to initialize from
 		parse_state ps = {0};
 		ps.context = &c;
 		ps.dest = output;
-		ps.fast_dest = output_autobuffer;
 		ps.state_limit = PP_STATE_active_count;
 
 		output = preprocess_string_from_file(&ps, filename, main_file, length, 0, 0);
-		if (output_autobuffer)
-		{
-			*output = 0;
-			output = output_autobuffer;
-		}
-		else
-		{
-			arrpush(output, 0);
-		}
+		arrpush(output, 0);
 	}
 
 	(*freefile_callback)(filename, main_file, custom_context);
@@ -4686,7 +4596,9 @@ char* preprocess_file(char* output_autobuffer,
 	shfree(c.undef_map);
 	arrfree(c.ifdef_stack);
 	stringhash_destroy(&c.macro_map);
+#if !MACRO_BLOOM_FILTER_ENABLED
 	STB_COMMON_FREE(c.macro_name_filter);
+#endif
 	stb_arena_free(&c.macro_arena);
 
 	if (c.diagnostics)
@@ -4695,8 +4607,7 @@ char* preprocess_file(char* output_autobuffer,
 		*num_pd = (int)arrlen(*pd);
 		if (c.stop)
 		{
-			if (output_autobuffer == NULL)
-				arrfree(output);
+			arrfree(output);
 			output = NULL;
 		}
 	}

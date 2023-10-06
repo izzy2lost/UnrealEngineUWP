@@ -85,7 +85,6 @@ STB_PP_DEF void init_preprocessor(
 // in the pd array (setting num_pd to the diagnostic count). preprocessor_file_free should be called for 
 // each invocation to free any allocated memory.
 STB_PP_DEF char* preprocess_file(
-	char* output_storage,
 	const char* filename,
 	void* custom_context,
 	struct macro_definition** predefined_macros,

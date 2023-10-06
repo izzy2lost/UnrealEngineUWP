@@ -227,9 +227,14 @@ IMPLEMENT_MODULE(FShaderPreprocessorModule, ShaderPreprocessor);
 
 static void AddStbDefine(stb_arena* MacroArena, macro_definition**& StbDefines, const TCHAR* Name, const TCHAR* Value)
 {
-	FString Define(FString::Printf(TEXT("%s %s"), Name, Value));
-	auto ConvertedDefine = StringCast<ANSICHAR>(*Define);
-	arrput(StbDefines, pp_define(MacroArena, (ANSICHAR*)ConvertedDefine.Get()));
+	TAnsiStringBuilder<256> Define;
+
+	// Define format:  "%s %s"  (Name Value)
+	Define.Append(Name);
+	Define.AppendChar(' ');
+	Define.Append(Value);
+
+	arrput(StbDefines, pp_define(MacroArena, Define.ToString()));
 }
 
 PRAGMA_DISABLE_DEPRECATION_WARNINGS		// FShaderCompilerDefinitions will be made internal in the future, marked deprecated until then
@@ -271,7 +276,7 @@ bool InnerPreprocessShaderStb(
 		ThreadLocalPreprocessBuffer = new char[ClampedPreprocessBufferSize];
 	}
 
-	char* OutPreprocessedAnsi = preprocess_file(nullptr, InFilename.Get(), &Context, StbDefines, arrlen(StbDefines), &Diagnostics, &NumDiagnostics, ThreadLocalPreprocessBuffer, ClampedPreprocessBufferSize);
+	char* OutPreprocessedAnsi = preprocess_file(InFilename.Get(), &Context, StbDefines, arrlen(StbDefines), &Diagnostics, &NumDiagnostics, ThreadLocalPreprocessBuffer, ClampedPreprocessBufferSize);
 
 	bool HasError = false;
 	if (Diagnostics != nullptr)
@@ -303,7 +308,8 @@ bool InnerPreprocessShaderStb(
 
 	if (!HasError)
 	{
-		Output.EditSource().Append(OutPreprocessedAnsi);
+		// "preprocessor_file_size" includes null terminator, so subtract one for Append call -- passing size saves an expensive strlen in Append
+		Output.EditSource().Append(OutPreprocessedAnsi, preprocessor_file_size(OutPreprocessedAnsi) - 1);
 	}
 
 	if (!HasError && !Context.HasIncludedMandatoryHeaders())

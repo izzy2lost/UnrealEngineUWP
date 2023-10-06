@@ -145,16 +145,16 @@ public:
 			switch (Other.ValueTypes[OtherIndex])
 			{
 			case EShaderCompilerDefineVariant::Integer:
-				SetDefine(OtherIt.Key(), Other.Pairs[OtherIndex].ValueInteger);
+				SetDefine(OtherIt.KeyFName(), Other.Pairs[OtherIndex].ValueInteger);
 				break;
 			case EShaderCompilerDefineVariant::Unsigned:
-				SetDefine(OtherIt.Key(), Other.Pairs[OtherIndex].ValueUnsigned);
+				SetDefine(OtherIt.KeyFName(), Other.Pairs[OtherIndex].ValueUnsigned);
 				break;
 			case EShaderCompilerDefineVariant::Float:
-				SetDefine(OtherIt.Key(), Other.Pairs[OtherIndex].ValueFloat);
+				SetDefine(OtherIt.KeyFName(), Other.Pairs[OtherIndex].ValueFloat);
 				break;
 			case EShaderCompilerDefineVariant::String:
-				SetDefine(OtherIt.Key(), OtherIt.Value());
+				SetDefine(OtherIt.KeyFName(), OtherIt.Value());
 				break;
 			}
 		}
@@ -244,6 +244,11 @@ public:
 		{
 			Defines.Pairs[Index].Key.ToString(KeyStringBuffer);
 			return KeyStringBuffer;
+		}
+
+		FORCEINLINE const FName& KeyFName() const
+		{
+			return Defines.Pairs[Index].Key;
 		}
 
 		// Note that the output of Value() is transient, only valid until the iterator is incremented!
