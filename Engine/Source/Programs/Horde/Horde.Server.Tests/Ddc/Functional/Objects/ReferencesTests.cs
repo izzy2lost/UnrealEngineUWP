@@ -859,7 +859,7 @@ namespace Horde.Server.Tests.Ddc.FunctionalTests.References
                     List<IoHash> missingBlobs = needsField.AsArray().Select(field => field.AsHash()).ToList();
                     Assert.AreEqual(1, missingBlobs.Count);
 
-                    Assert.AreNotEqual(blobHash, missingBlobs[0], "Refs should not be returning the mapped blob identifiers as this is unknown to the client attempting to put a new ref");
+                    Assert.AreNotEqual(blobHash.Hash, missingBlobs[0], "Refs should not be returning the mapped blob identifiers as this is unknown to the client attempting to put a new ref");
                     Assert.AreEqual(contentId.AsBlobIdentifier(), BlobId.FromIoHash(missingBlobs[0]));
                 }
             }

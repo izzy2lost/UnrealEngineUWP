@@ -40,7 +40,7 @@ namespace Horde.Agent.Tests
 		{
 			public JobStepOutcome Outcome => JobStepOutcome.Success;
 
-			public IDisposable BeginScope<TState>(TState state) => NullLogger.Instance.BeginScope<TState>(state);
+			public IDisposable? BeginScope<TState>(TState state) where TState : notnull => NullLogger.Instance.BeginScope<TState>(state);
 
 			public ValueTask DisposeAsync() => new ValueTask();
 
