@@ -601,9 +601,9 @@ GetFileAttrib(const FPath& Path, FFileAttributeCache* AttribCache)
 }
 
 bool
-SetFileMtime(const FPath& Path, uint64 Mtime)
+SetFileMtime(const FPath& Path, uint64 Mtime, bool bAllowInDryRun)
 {
-	UNSYNC_ASSERT(!GDryRun);
+	UNSYNC_ASSERT(!GDryRun || bAllowInDryRun);
 
 	FPath ExtendedPath = MakeExtendedAbsolutePath(Path);
 
@@ -809,7 +809,7 @@ SetFileReadOnly(const FPath& path, bool bReadOnly)
 }
 
 bool
-SetFileMtime(const FPath& path, uint64 mtime)
+SetFileMtime(const FPath& path, uint64 mtime, bool bAllowInDryRun)
 {
 	UNSYNC_WARNING(L"SetFileMtime() is not implemented");
 	return false;

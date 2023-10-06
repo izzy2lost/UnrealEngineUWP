@@ -27,7 +27,7 @@ UNSYNC_THIRD_PARTY_INCLUDES_START
 #include <md5-sse2.h>
 UNSYNC_THIRD_PARTY_INCLUDES_END
 
-#define UNSYNC_VERSION_STR "1.0.59"
+#define UNSYNC_VERSION_STR "1.0.60"
 
 namespace unsync {
 
@@ -3015,7 +3015,7 @@ DownloadFileIfNewer(const FRemoteDesc& RemoteDesc, const FPath& Source, const FP
 			return false;
 		}
 
-		SetFileMtime(Target, SourceEntry->Mtime);
+		SetFileMtime(Target, SourceEntry->Mtime, /*allow in dry run*/ true);
 	}
 
 	return true;

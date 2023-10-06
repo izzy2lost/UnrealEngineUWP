@@ -304,33 +304,30 @@ CmdQuerySearch(const FCmdQueryOptions& Options)
 
 		for (const FDirectoryListingEntry& DirEntry : DirectoryListing.Entries)
 		{
-			const std::regex& RequiredPattern = SubdirPatterns[CurrentDepth];
+			FEntry NextEntry;
+			NextEntry.Path	= Path + "\\" + DirEntry.Name;
+			NextEntry.Depth = CurrentDepth + 1;
 
-			if (std::regex_match(DirEntry.Name, RequiredPattern, std::regex_constants::match_any))
+			{
+				std::lock_guard<std::mutex> LockGuard(Context.Mutex);
+
+				FResultEntry ResultEntry;
+				ResultEntry.Path	 = NextEntry.Path;
+				ResultEntry.Depth	 = NextEntry.Depth;
+				ResultEntry.DirEntry = DirEntry;
+
+				Context.FoundEntries.push_back(ResultEntry);
+			}
+
+			if (NextEntry.Depth > SubdirPatterns.size())
+			{
+				continue;
+			}
+
+			if (DirEntry.bDirectory && std::regex_match(DirEntry.Name, SubdirPatterns[CurrentDepth], std::regex_constants::match_any))
 			{
 				UNSYNC_VERBOSE2(L"Matched: '%hs'", DirEntry.Name.c_str());
-
-				FEntry NextEntry;
-				NextEntry.Path	= Path + "\\" + DirEntry.Name;
-				NextEntry.Depth = CurrentDepth + 1;
-
-				if (NextEntry.Depth == SubdirPatterns.size())
-				{
-					std::lock_guard<std::mutex> LockGuard(Context.Mutex);
-
-					FResultEntry ResultEntry;
-					ResultEntry.Path	 = NextEntry.Path;
-					ResultEntry.Depth	 = NextEntry.Depth;
-					ResultEntry.DirEntry = DirEntry;
-
-					Context.FoundEntries.push_back(ResultEntry);
-
-					continue;
-				}
-
-				Tasks.run([ExploreDirectory, NextEntry]() {
-					ExploreDirectory(NextEntry.Path, NextEntry.Depth);
-				});
+				Tasks.run([ExploreDirectory, NextEntry]() { ExploreDirectory(NextEntry.Path, NextEntry.Depth); });
 			}
 		}
 	};
@@ -380,9 +377,30 @@ CmdQueryFile(const FCmdQueryOptions& Options)
 
 	std::unique_ptr<FNativeFile> ResultWriter;
 
-	auto OutputCallback = [&ResultWriter, &Options](uint64 Size) -> FIOWriter& {
+	FPath OutputPath = Options.OutputPath;
+	if (OutputPath.empty())
+	{
+		FPath RequestPath = Options.Args[0];
+		if (RequestPath.has_filename())
+		{
+			OutputPath = RequestPath.filename();
+			OutputPath = GetAbsoluteNormalPath(OutputPath);
+		}
+		else
+		{
+			UNSYNC_ERROR(
+				L"Output could not be derived from the request string. "
+				L"Use `-o <filename>` command line argument to specify it explicitly.");
+			return 1;
+		}
+	}
+
+	UNSYNC_LOG(L"Output file: '%ls'", OutputPath.wstring().c_str());
+
+	auto OutputCallback = [&ResultWriter, &Options, OutputPath](uint64 Size) -> FIOWriter&
+	{
 		UNSYNC_LOG(L"Size: %llu bytes (%.3f MB)", llu(Size), SizeMb(Size));
-		ResultWriter = std::make_unique<FNativeFile>(Options.OutputPath, EFileMode::CreateWriteOnly, Size);
+		ResultWriter = std::make_unique<FNativeFile>(OutputPath, EFileMode::CreateWriteOnly, Size);
 		return *ResultWriter;
 	};
 
@@ -390,7 +408,7 @@ CmdQueryFile(const FCmdQueryOptions& Options)
 
 	if (Response.IsOk())
 	{
-		UNSYNC_LOG(L"Output written to file '%ls'", Options.OutputPath.wstring().c_str());
+		UNSYNC_LOG(L"Output written to file '%ls'", OutputPath.wstring().c_str());
 	}
 	else
 	{

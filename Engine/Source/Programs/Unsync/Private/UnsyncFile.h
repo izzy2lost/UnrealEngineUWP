@@ -445,7 +445,7 @@ struct FFileAttributeCache
 };
 
 FFileAttributes GetFileAttrib(const FPath& Path, FFileAttributeCache* AttribCache = nullptr);
-bool			SetFileMtime(const FPath& Path, uint64 Mtime);
+bool			SetFileMtime(const FPath& Path, uint64 Mtime, bool bAllowInDryRun = false);
 bool			SetFileReadOnly(const FPath& Path, bool ReadOnly);
 bool			IsDirectory(const FPath& Path);
 bool			PathExists(const FPath& Path);
