@@ -300,7 +300,11 @@ private:
 };
 
 FActorTreeItem::FActorTreeItem(AActor* InActor)
-	: IActorBaseTreeItem(Type)
+	// Forward to the other constructor using our type identifier.
+	: FActorTreeItem(Type, InActor) {}
+
+FActorTreeItem::FActorTreeItem(FSceneOutlinerTreeItemType TypeIn, AActor* InActor)
+	: IActorBaseTreeItem(TypeIn)
 	, Actor(InActor)
 	, ID(InActor)
 {
