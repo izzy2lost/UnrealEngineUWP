@@ -26,7 +26,10 @@ struct BLENDSTACK_API FBlendStackAnimPlayer
 	float GetPlayRate() const;
 	
 	float GetBlendInPercentage() const;
-	bool GetBlendInWeights(TArray<float>& Weights) const;
+	
+	int32 GetBlendInWeightsNum() const;
+	void GetBlendInWeights(TArrayView<float> Weights) const;
+
 	EAlphaBlendOption GetBlendOption() const { return BlendOption; }
 	void StorePoseContext(const FPoseContext& PoseContext);
 
@@ -132,6 +135,9 @@ struct BLENDSTACK_API FAnimNode_BlendStack_Standalone : public FAnimNode_AssetPl
 	int32 GetMaxActiveBlends() const { return MaxActiveBlends; }
 
 protected:
+	static void BlendWithPose(FAnimationPoseData& InOutPoseData, const FAnimationPoseData& OtherPoseData, const float InOutPoseWeight);
+	static void BlendWithPosePerBone(FAnimationPoseData& InOutPoseData, const FAnimationPoseData& OtherPoseData, TConstArrayView<float> OtherPoseWeights);
+
 	// Number of max active blending animation in the blend stack. If MaxActiveBlends is zero then blend stack is disabled
 	UPROPERTY(EditAnywhere, Category = Settings, meta = (ClampMin = "0"))
 	int32 MaxActiveBlends = 4;
