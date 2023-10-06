@@ -6,6 +6,7 @@
 
 #include "WorldPartition/WorldPartitionActorDesc.h"
 #include "WorldPartition/DataLayer/DataLayerType.h"
+#include "Misc/Optional.h"
 
 class FDataLayerInstanceDesc
 {
@@ -53,6 +54,7 @@ private:
 	bool bDeprecatedIsRuntime;
 	//~ End UDeprecatedDataLayerInstance
 
+	friend class UDataLayerInstance;
 };
 
 /**
@@ -63,7 +65,7 @@ class FWorldDataLayersActorDesc : public FWorldPartitionActorDesc
 public:
 	ENGINE_API FWorldDataLayersActorDesc();
 	bool IsValid() const { return bIsValid; }
-	const TArray<FDataLayerInstanceDesc>& GetDataLayerInstances() const { return DataLayerInstances; }
+	ENGINE_API const TArray<FDataLayerInstanceDesc>& GetDataLayerInstances() const;
 	ENGINE_API const FDataLayerInstanceDesc* GetDataLayerInstanceFromInstanceName(FName InDataLayerInstanceName) const;
 	ENGINE_API const FDataLayerInstanceDesc* GetDataLayerInstanceFromAssetPath(FName InDataLayerAssetPath) const;
 
@@ -77,7 +79,13 @@ protected:
 	//~ End FWorldPartitionActorDesc Interface.
 
 private:
+
+	void ForEachDataLayerInstanceDesc(TFunctionRef<bool(const FDataLayerInstanceDesc&)> Func) const;
+	const TArray<FDataLayerInstanceDesc>& GetExternalPackageDataLayerInstances() const;
+
 	TArray<FDataLayerInstanceDesc> DataLayerInstances;
+	mutable TOptional<TArray<FDataLayerInstanceDesc>> ExternalPackageDataLayerInstances;
 	bool bIsValid;
+	bool bUseExternalPackageDataLayerInstances;
 };
 #endif

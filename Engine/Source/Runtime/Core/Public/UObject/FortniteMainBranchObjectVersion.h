@@ -381,6 +381,9 @@ struct FFortniteMainBranchObjectVersion
 		// Changed default Local Exposure Contrast from 1.0 to 0.8
 		LocalExposureDefaultChangeFrom1,
 
+		// Added support of external packaging of Data Layer Instances
+		AddDataLayerInstanceExternalPackage,
+
 		// -----<new versions can be added above this line>-------------------------------------------------
 		VersionPlusOne,
 		LatestVersion = VersionPlusOne - 1

@@ -7,8 +7,12 @@
 #include "WorldPartition/WorldPartitionLog.h"
 #include "WorldPartition/WorldPartitionActorLoaderInterface.h"
 #include "WorldPartition/DataLayer/DataLayerUtils.h"
+#include "WorldPartition/DataLayer/DataLayerAsset.h"
 #include "WorldPartition/DataLayer/WorldDataLayers.h"
+#include "WorldPartition/DataLayer/WorldDataLayersActorDesc.h"
 #include "WorldPartition/ErrorHandling/WorldPartitionStreamingGenerationErrorHandler.h"
+#include "AssetRegistry/AssetData.h"
+#include "AssetRegistry/AssetRegistryHelpers.h"
 
 #include UE_INLINE_GENERATED_CPP_BY_NAME(DataLayerInstance)
 
@@ -52,6 +56,100 @@ AWorldDataLayers* UDataLayerInstance::GetOuterWorldDataLayers() const
 }
 
 #if WITH_EDITOR
+bool UDataLayerInstance::IsAsset() const
+{
+	// When using external packaging, Data Layer Instances are considered assets to allow using the asset logic for save dialogs, etc.
+	// Also, they return true even if pending kill, in order to show up as deleted in these dialogs.
+	return IsPackageExternal() && !GetPackage()->HasAnyFlags(RF_Transient) && !HasAnyFlags(RF_Transient | RF_ClassDefaultObject) && !GetPackage()->HasAnyPackageFlags(PKG_PlayInEditor);
+}
+
+namespace DataLayerInstance
+{
+	static const FName NAME_DataLayerInstanceName(TEXT("DataLayerInstanceName"));
+	static const FName NAME_DataLayerInstanceParentName(TEXT("DataLayerInstanceParentName"));
+	static const FName NAME_DataLayerInstanceAssetPath(TEXT("DataLayerInstanceAssetPath"));
+	static const FName NAME_DataLayerInstanceIsPrivate(TEXT("DataLayerInstanceIsPrivate"));
+	static const FName NAME_DataLayerInstanceIsIncludedInActorFilterDefault(TEXT("DataLayerInstanceIsIncludedInActorFilterDefault"));
+	static const FName NAME_DataLayerInstancePrivateDataLayerSupportsActorFilter(TEXT("DataLayerInstancePrivateDataLayerSupportsActorFilter"));
+	static const FName NAME_DataLayerInstancePrivateShortName(TEXT("DataLayerInstancePrivateShortName"));
+};
+
+void UDataLayerInstance::GetAssetRegistryTags(TArray<FAssetRegistryTag>& OutTags) const
+{
+	Super::GetAssetRegistryTags(OutTags);
+
+	if (IsPackageExternal())
+	{
+		// Set generic FPrimaryAssetId::PrimaryAssetDisplayNameTag
+		OutTags.Add(FAssetRegistryTag(FPrimaryAssetId::PrimaryAssetDisplayNameTag, *GetDataLayerShortName(), FAssetRegistryTag::TT_Hidden));
+
+		// Set DataLayerInstance specific tags
+		OutTags.Add(FAssetRegistryTag(DataLayerInstance::NAME_DataLayerInstanceName, *GetDataLayerFName().ToString(), FAssetRegistryTag::TT_Hidden));
+		if (GetParent())
+		{
+			OutTags.Add(FAssetRegistryTag(DataLayerInstance::NAME_DataLayerInstanceParentName, *GetParent()->GetDataLayerFName().ToString(), FAssetRegistryTag::TT_Hidden));
+		}
+		if (const UDataLayerAsset* DataLayerAsset = GetAsset())
+		{
+			OutTags.Add(FAssetRegistryTag(DataLayerInstance::NAME_DataLayerInstanceAssetPath, *DataLayerAsset->GetPathName(), FAssetRegistryTag::TT_Hidden));
+			OutTags.Add(FAssetRegistryTag(DataLayerInstance::NAME_DataLayerInstanceIsPrivate, DataLayerAsset->IsPrivate() ? TEXT("1") : TEXT("0"), FAssetRegistryTag::TT_Hidden));
+		}
+		OutTags.Add(FAssetRegistryTag(DataLayerInstance::NAME_DataLayerInstanceIsIncludedInActorFilterDefault, IsIncludedInActorFilterDefault() ? TEXT("1") : TEXT("0"), FAssetRegistryTag::TT_Hidden));
+		OutTags.Add(FAssetRegistryTag(DataLayerInstance::NAME_DataLayerInstancePrivateDataLayerSupportsActorFilter, SupportsActorFilters() ? TEXT("1") : TEXT("0"), FAssetRegistryTag::TT_Hidden));
+		OutTags.Add(FAssetRegistryTag(DataLayerInstance::NAME_DataLayerInstancePrivateShortName, *GetDataLayerShortName(), FAssetRegistryTag::TT_Hidden));
+	}
+}
+
+bool UDataLayerInstance::GetAssetRegistryInfoFromPackage(FName InDataLayerInstancePackageName, FDataLayerInstanceDesc& OutDataLayerInstanceDesc)
+{
+	IAssetRegistry& AssetRegistry = FModuleManager::LoadModuleChecked<FAssetRegistryModule>(TEXT("AssetRegistry")).Get();
+	OutDataLayerInstanceDesc.bIsUsingAsset = true;
+	TArray<FAssetData> Assets;
+	AssetRegistry.GetAssetsByPackageName(InDataLayerInstancePackageName, Assets, true);
+	check(Assets.Num() <= 1);
+	if (Assets.Num() == 1)
+	{
+		return GetAssetRegistryInfoFromPackage(Assets[0], OutDataLayerInstanceDesc);
+	}
+	return false;
+}
+
+bool UDataLayerInstance::GetAssetRegistryInfoFromPackage(const FAssetData& InAsset, FDataLayerInstanceDesc& OutDataLayerInstanceDesc)
+{
+	FString Value;
+	if (InAsset.GetTagValue(DataLayerInstance::NAME_DataLayerInstanceName, Value))
+	{
+		OutDataLayerInstanceDesc.Name = *Value;
+	}
+	if (InAsset.GetTagValue(DataLayerInstance::NAME_DataLayerInstanceParentName, Value))
+	{
+		OutDataLayerInstanceDesc.ParentName = *Value;
+	}
+	if (InAsset.GetTagValue(DataLayerInstance::NAME_DataLayerInstanceAssetPath, Value))
+	{
+		FName AssetPath = *Value;
+		UAssetRegistryHelpers::FixupRedirectedAssetPath(AssetPath);
+		OutDataLayerInstanceDesc.AssetPath = AssetPath;
+	}
+	if (InAsset.GetTagValue(DataLayerInstance::NAME_DataLayerInstanceIsPrivate, Value))
+	{
+		OutDataLayerInstanceDesc.bIsPrivate = (Value == TEXT("1"));
+	}
+	if (InAsset.GetTagValue(DataLayerInstance::NAME_DataLayerInstanceIsIncludedInActorFilterDefault, Value))
+	{
+		OutDataLayerInstanceDesc.bIsIncludedInActorFilterDefault = (Value == TEXT("1"));
+	}
+	if (InAsset.GetTagValue(DataLayerInstance::NAME_DataLayerInstancePrivateDataLayerSupportsActorFilter, Value))
+	{
+		OutDataLayerInstanceDesc.bPrivateDataLayerSupportsActorFilter = (Value == TEXT("1"));
+	}
+	if (InAsset.GetTagValue(DataLayerInstance::NAME_DataLayerInstancePrivateShortName, Value))
+	{
+		OutDataLayerInstanceDesc.PrivateShortName = Value;
+	}
+	return !OutDataLayerInstanceDesc.Name.IsNone();
+}
+
 void UDataLayerInstance::PreEditUndo()
 {
 	Super::PreEditUndo();
@@ -305,8 +403,6 @@ void UDataLayerInstance::SetChildParent(UDataLayerInstance* InParent)
 	}
 
 	check(!InParent || InParent->CanHaveChildDataLayers());
-
-	Modify();
 	while (Children.Num())
 	{
 		Children[0]->SetParent(InParent);
@@ -315,7 +411,7 @@ void UDataLayerInstance::SetChildParent(UDataLayerInstance* InParent)
 
 void UDataLayerInstance::RemoveChild(UDataLayerInstance* InDataLayer)
 {
-	Modify();
+	Modify(false);
 	check(Children.Contains(InDataLayer));
 	Children.RemoveSingle(InDataLayer);
 }
@@ -407,7 +503,7 @@ void UDataLayerInstance::AddChild(UDataLayerInstance* InDataLayer)
 {
 	check(InDataLayer->GetOuterWorldDataLayers() == GetOuterWorldDataLayers())
 	check(CanHaveChildDataLayers());
-	Modify();
+	Modify(false);
 	checkSlow(!Children.Contains(InDataLayer));
 	Children.Add(InDataLayer);
 }

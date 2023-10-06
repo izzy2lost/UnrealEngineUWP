@@ -1369,6 +1369,7 @@ private:
 	friend struct FLevelActorFoldersHelper;
 	friend class FWorldPartitionLevelHelper;
 	friend class UActorFolder;
+	friend class AWorldDataLayers;
 
 	/** Replace the existing LSA (if set) by spawning a new one based on this level's script blueprint */
 	void RegenerateLevelScriptActor();

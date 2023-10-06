@@ -192,6 +192,9 @@ void UDataLayerManager::Initialize()
 		}
 	}
 
+	// Initialize WorldDataLayers
+	WorldDataLayers->OnDataLayerManagerInitialized();
+
 	// Some levels do not have the WorldDataLayer actor serialized as part of their Actors array. Make sure we add it here if it isn't.
 	// Make sure WorldDataLayers is part of the Actors list so that it gets cooked properly as part of the Persistent Level
 	// This auto-corrects itself when resaving the level.
@@ -228,11 +231,21 @@ void UDataLayerManager::Initialize()
 		check(IsValid(*It));
 		It->FixupDataLayers();
 	}
+#else
+	if (AWorldDataLayers* WorldDataLayers = GetWorldDataLayers())
+	{
+		WorldDataLayers->OnDataLayerManagerInitialized();
+	}
 #endif
 }
 
 void UDataLayerManager::DeInitialize()
 {
+	if (AWorldDataLayers* WorldDataLayers = GetWorldDataLayers())
+	{
+		WorldDataLayers->OnDataLayerManagerDeinitialized();
+	}
+
 #if WITH_EDITOR
 	UActorDescContainer::OnActorDescContainerInitialized.RemoveAll(this);
 

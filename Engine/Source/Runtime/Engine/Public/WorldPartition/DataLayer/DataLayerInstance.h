@@ -17,6 +17,7 @@ class FText;
 class IStreamingGenerationErrorHandler;
 class UWorld;
 class UDataLayerAsset;
+class FDataLayerInstanceDesc;
 
 UENUM(BlueprintType)
 enum class EDataLayerRuntimeState : uint8
@@ -67,8 +68,12 @@ public:
 	ENGINE_API AWorldDataLayers* GetOuterWorldDataLayers() const;
 
 #if WITH_EDITOR
+	//~ Begin UObject
+	ENGINE_API virtual bool IsAsset() const override;
+	ENGINE_API virtual void GetAssetRegistryTags(TArray<FAssetRegistryTag>& OutTags) const;
 	ENGINE_API virtual void PreEditUndo() override;
 	ENGINE_API virtual void PostEditUndo() override;
+	//~ End UObject
 
 	ENGINE_API void SetVisible(bool bIsVisible);
 	ENGINE_API void SetIsInitiallyVisible(bool bIsInitiallyVisible);
@@ -113,6 +118,9 @@ public:
 
 	// Whether the DataLayer was created by a user and can be deleted by a user.
 	virtual bool IsUserManaged() const { return true; }
+
+	static bool GetAssetRegistryInfoFromPackage(FName InDataLayerInstancePackageName, FDataLayerInstanceDesc& OutDataLayerInstanceDesc);
+	static bool GetAssetRegistryInfoFromPackage(const FAssetData& InAsset, FDataLayerInstanceDesc& OutDataLayerInstanceDesc);
 
 	ENGINE_API virtual bool Validate(IStreamingGenerationErrorHandler* ErrorHandler) const;
 
