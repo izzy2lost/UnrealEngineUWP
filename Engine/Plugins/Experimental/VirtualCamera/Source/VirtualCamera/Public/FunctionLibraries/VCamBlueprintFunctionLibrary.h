@@ -191,9 +191,11 @@ public:
 	UFUNCTION(BlueprintCallable, Category = "VirtualCamera|Sequencer")
 	static void SetPlaybackSpeed(float Value=1.0);
 
-private:
-
+	/* Convert 2D screen position to World Space 3D position and direction. Returns false if unable to determine value. */
+	UFUNCTION(BlueprintCallable, Category = "VirtualCamera")
 	static bool DeprojectScreenToWorld(const FVector2D& InScreenPosition, FVector& OutWorldPosition, FVector& OutWorldDirection);
+
+private:
 
 #if WITH_EDITOR
 	/** Returns the current sequencer. */
