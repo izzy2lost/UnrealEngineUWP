@@ -132,14 +132,14 @@ bool USoundSubmixGraphSchema::ConnectionCausesLoop(const UEdGraphPin* InputPin, 
 				return true;
 			}
 
-			if (OutputNode->SoundSubmix->RecurseCheckChild(MasterSubmix))
+			if (SubmixUtils::FindInGraph(MasterSubmix, OutputNode->SoundSubmix, false))
 			{
 				return true;
 			}
 		}
 	}
 
-	return OutputNode->SoundSubmix->RecurseCheckChild(InputNode->SoundSubmix);
+	return SubmixUtils::FindInGraph(OutputNode->SoundSubmix, InputNode->SoundSubmix, false);
 }
 
 void USoundSubmixGraphSchema::GetAssetsGraphHoverMessage(const TArray<FAssetData>& Assets, const UEdGraph* HoverGraph, FString& OutTooltipText, bool& OutOkIcon) const

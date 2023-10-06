@@ -195,6 +195,27 @@ public:
 	// Dynamic Child submixes
 	UPROPERTY(Transient)
 	TMap<uint32, FDynamicChildSubmix> DynamicChildSubmixes;
+		
+	/** Dynamically Connects to a parent submix.
+	* @param	WorldContextObject	UObject that's used to GetWorld
+	* @param	InParent	Parent Submix to connect to
+	**/
+	UFUNCTION(BlueprintCallable, Category = "Submix", meta = (WorldContext = "WorldContextObject", DisplayName = "Connect"))	
+	ENGINE_API virtual bool DynamicConnect(
+		const UObject* WorldContextObject, 
+		UPARAM(DisplayName="Parent") USoundSubmixBase* InParent) 
+	{ 
+		return false; 
+	}
+
+	/** Dynamically Disconnect from a parent.
+	* @param	WorldContextObject	UObject that's used to GetWorld
+	**/
+	UFUNCTION(BlueprintCallable, Category = "Submix", meta = (WorldContext = "WorldContextObject", DisplayName = "Disconnect"))
+	ENGINE_API virtual bool DynamicDisconnect(const UObject* WorldContextObject) 
+	{ 
+		return false; 
+	}
 	
 protected:
 	//~ Begin UObject Interface.
@@ -203,13 +224,9 @@ protected:
 	ENGINE_API virtual void PostLoad() override;
 
 public:
+
 	// Sound Submix Editor functionality
 #if WITH_EDITOR
-
-	/**
-	* @return true if the child sound class exists in the tree
-	*/
-	ENGINE_API bool RecurseCheckChild(const USoundSubmixBase* ChildSoundSubmix) const;
 
 	/**
 	* Add Referenced objects
@@ -255,21 +272,18 @@ public:
 	
 	UPROPERTY(Transient)
 	TMap<uint32, TObjectPtr<USoundSubmixBase>> DynamicParentSubmix;
-
-	UFUNCTION(BlueprintCallable, Category = "Audio", meta = (WorldContext = "WorldContextObject", DisplayName = "Connect"))
-	ENGINE_API bool DynamicConnect(const UObject* WorldContextObject, USoundSubmixBase* InParent);
-	ENGINE_API bool DynamicConnect(const FAudioDeviceHandle& Handle, USoundSubmixBase* InParent);
-
-	UFUNCTION(BlueprintCallable, Category = "Audio", meta = (WorldContext = "WorldContextObject", DisplayName = "Disconnect"))
-	ENGINE_API bool DynamicDisconnect(const UObject* WorldContextObject);
-	ENGINE_API bool DynamicDisconnect(const FAudioDeviceHandle& Handle);
-
+	
 	/**
 	* Set the parent submix of this SoundSubmix, removing it as a child from its previous owner
 	*
 	* @param	InParentSubmix	The New Parent Submix of this
 	*/
 	ENGINE_API void SetParentSubmix(USoundSubmixBase* InParentSubmix);
+
+	ENGINE_API virtual bool DynamicConnect(const UObject* WorldContextObject, USoundSubmixBase* Parent) override;
+	ENGINE_API bool DynamicConnect(FAudioDeviceHandle Handle, USoundSubmixBase* Parent);
+	ENGINE_API virtual bool DynamicDisconnect(const UObject* WorldContextObject) override;
+	ENGINE_API bool DynamicDisconnect(FAudioDeviceHandle Handle);
 
 protected:
 
@@ -588,6 +602,9 @@ protected:
 namespace SubmixUtils
 {
 	ENGINE_API bool AreSubmixFormatsCompatible(const USoundSubmixBase* ChildSubmix, const USoundSubmixBase* ParentSubmix);
+
+	ENGINE_API bool FindInGraph(const USoundSubmixBase* InEntryPoint, const USoundSubmixBase* InToMatch, bool bShouldAcsend, FAudioDeviceHandle InDevice = {});
+	ENGINE_API const USoundSubmixBase* FindRoot(const USoundSubmixBase* InStartingPoint, FAudioDeviceHandle InDevice);
 
 #if WITH_EDITOR
 	ENGINE_API void RefreshEditorForSubmix(const USoundSubmixBase* InSubmix);

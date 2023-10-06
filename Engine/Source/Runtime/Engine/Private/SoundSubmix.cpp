@@ -5,6 +5,7 @@
 #include "Engine/Engine.h"
 #include "Engine/World.h"
 #include "Sound/SampleBufferIO.h"
+#include "Stats/Stats2.h"
 
 #include UE_INLINE_GENERATED_CPP_BY_NAME(SoundSubmix)
 
@@ -621,7 +622,6 @@ void USoundSubmixBase::PostLoad()
 	}
 }
 
-
 TObjectPtr<USoundSubmixBase> USoundSubmixWithParentBase::GetParent(Audio::FDeviceId InDeviceId) const
 {
 	// Dynamic parent?
@@ -650,11 +650,24 @@ bool USoundSubmixWithParentBase::DynamicConnect(const UObject* WorldContextObjec
 	return DynamicConnect(World->GetAudioDevice(), InParent);
 }
 
-bool USoundSubmixWithParentBase::DynamicConnect(const FAudioDeviceHandle& Handle, USoundSubmixBase* InParent)
+bool USoundSubmixWithParentBase::DynamicConnect(FAudioDeviceHandle Handle, USoundSubmixBase* InParent)
 {
 	if (!Handle.IsValid())
 	{
 		UE_LOG(LogAudio, Warning, TEXT("Submix (DynamicConnect): No valid audio device in this world for [%s]"), *GetName());
+		return false;
+	}
+
+	if (InParent && !SubmixUtils::AreSubmixFormatsCompatible(this, InParent))
+	{
+		UE_LOG(LogAudio, Warning, TEXT("Submix (DynamicConnect): Submix connot be connected are they are incompatible [%s] and [%s]"), *GetName(), *GetNameSafe(InParent));
+		return false;
+	}
+
+	// Already part of the graph?
+	if (InParent && SubmixUtils::FindInGraph(InParent, this, true, Handle))
+	{
+		UE_LOG(LogAudio, Warning, TEXT("Submix (DynamicConnect): Submix [%s] is already part of the graph"), *GetName());
 		return false;
 	}
 
@@ -676,18 +689,21 @@ bool USoundSubmixWithParentBase::DynamicConnect(const FAudioDeviceHandle& Handle
 		{
 			CurrentParent->DynamicChildSubmixes.FindOrAdd(Id).ChildSubmixes.AddUnique(this);
 			UE_LOG(LogAudio, Verbose, TEXT("Submix (DynamicConnect): Reparenting [%s] and adding to it's new parent [%s]"), *GetName(), *CurrentParent->GetName());
+
+			// Disable our parents auto disable feature.
+			Handle->SetSubmixAutoDisable(Cast<USoundSubmix>(CurrentParent.Get()), false);
 		}
 
-		if (FAudioDevice* RawDevice = Handle.GetAudioDevice())
-		{
-			RawDevice->RegisterSoundSubmix(this, true);
-			UE_LOG(LogAudio, Verbose, TEXT("Submix (DynamicConnect): Registering [%s] with AudioDevice [%u]"), *GetName(), Id);
+		Handle->RegisterSoundSubmix(this, false);
+		Handle->SetSubmixAutoDisable(Cast<USoundSubmix>(this), CurrentParent != nullptr);
 
-			return CurrentParent != nullptr;
-		}
+		UE_LOG(LogAudio, Verbose, TEXT("Submix (DynamicConnect): Registering [%s] with AudioDevice [%u]"), *GetName(), Id);
+
+		return CurrentParent != nullptr;
 	}
 
-	UE_LOG(LogAudio, Warning, TEXT("Submix (DynamicConnect): Submix [%s] was already connected to [%s]"), *GetName(), *GetNameSafe(CurrentParent));
+	UE_CLOG(InParent, LogAudio, Warning, TEXT("Submix (DynamicConnect): Submix [%s] was already connected to [%s]"), *GetName(), *GetNameSafe(CurrentParent));
+	UE_CLOG(InParent == nullptr, LogAudio, Warning, TEXT("Submix (DynamicConnect): Connecting a [%s] to a null parent, but our parent is already null"), *GetName());
 	return false;
 
 }
@@ -710,7 +726,7 @@ bool USoundSubmixWithParentBase::DynamicDisconnect(const UObject* WorldContextOb
 	return DynamicDisconnect(World->GetAudioDevice());
 }
 
-bool USoundSubmixWithParentBase::DynamicDisconnect(const FAudioDeviceHandle& Handle)
+bool USoundSubmixWithParentBase::DynamicDisconnect(FAudioDeviceHandle Handle)
 {
 	if (!Handle.IsValid())
 	{
@@ -729,13 +745,17 @@ bool USoundSubmixWithParentBase::DynamicDisconnect(const FAudioDeviceHandle& Han
 		CurrentParent->DynamicChildSubmixes.FindOrAdd(Id).ChildSubmixes.Remove(this);
 		CurrentParent = nullptr;
 
-		if (FAudioDevice* RawDevice = Handle.GetAudioDevice())
+		Handle->UnregisterSoundSubmix(this);
+				
+		// If we still have a valid parent static submix? Make sure that's still live and registered.
+		if (ParentSubmix)
 		{
-			RawDevice->UnregisterSoundSubmix(this);
-			UE_LOG(LogAudio, Verbose, TEXT("Submix (DynamicDisconnect): Unregistering [%s] with AudioDevice [%u]"), *GetName(), Id);
-
-			return true;
+			Handle->RegisterSoundSubmix(this, false);
 		}
+		
+		UE_LOG(LogAudio, Verbose, TEXT("Submix (DynamicDisconnect): Unregistering [%s] with AudioDevice [%u]"), *GetName(), Id);
+
+		return true;
 	}
 
 	UE_LOG(LogAudio, Warning, TEXT("Submix (DynamicDisconnect): Submix was not connected to any dynamic parent [%s]"), *GetName());
@@ -777,7 +797,7 @@ void USoundSubmixBase::PostEditChangeProperty(FPropertyChangedEvent& PropertyCha
 			{
 				if (ChildSubmixes[ChildIndex] != nullptr && !BackupChildSubmixes.Contains(ChildSubmixes[ChildIndex]))
 				{
-					if (ChildSubmixes[ChildIndex]->RecurseCheckChild(this))
+					if (SubmixUtils::FindInGraph(this, ChildSubmixes[ChildIndex], false))
 					{
 						// Contains cycle so revert to old layout - launch notification to inform user
 						FNotificationInfo Info(NSLOCTEXT("Engine", "UnableToChangeSoundSubmixChildDueToInfiniteLoopNotification", "Could not change SoundSubmix child as it would create a loop"));
@@ -824,27 +844,6 @@ void USoundSubmixBase::PostEditChangeProperty(FPropertyChangedEvent& PropertyCha
 }
 
 TArray<TObjectPtr<USoundSubmixBase>> USoundSubmixBase::BackupChildSubmixes;
-
-bool USoundSubmixBase::RecurseCheckChild(const USoundSubmixBase* ChildSoundSubmix) const
-{
-	for (int32 Index = 0; Index < ChildSubmixes.Num(); Index++)
-	{
-		if (ChildSubmixes[Index])
-		{
-			if (ChildSubmixes[Index] == ChildSoundSubmix)
-			{
-				return true;
-			}
-
-			if (ChildSubmixes[Index]->RecurseCheckChild(ChildSoundSubmix))
-			{
-				return true;
-			}
-		}
-	}
-
-	return false;
-}
 
 void USoundSubmixWithParentBase::SetParentSubmix(USoundSubmixBase* InParentSubmix)
 {
@@ -1346,6 +1345,68 @@ ENGINE_API bool SubmixUtils::AreSubmixFormatsCompatible(const USoundSubmixBase* 
 
 	// Otherwise, these submixes are compatible.
 	return true;
+}
+
+bool SubmixUtils::FindInGraph(
+	const USoundSubmixBase* InEntryPoint, 
+	const USoundSubmixBase* InToMatch, 
+	const bool bStartFromRoot,
+	FAudioDeviceHandle InDevice /*= {}*/)
+{
+	TSet<const USoundSubmixBase*> Visited;
+	TArray<const USoundSubmixBase*> Stack;
+
+	// Optionally ascend to the root
+	const USoundSubmixBase* StartingPoint = InEntryPoint;
+	if (bStartFromRoot)
+	{
+		StartingPoint = FindRoot(InEntryPoint, InDevice);
+	}
+	
+	Stack.Push(StartingPoint);
+	while (Stack.Num() > 0)
+	{
+		if (const USoundSubmixBase* Vertex = Stack.Pop())
+		{
+			if (Vertex == InToMatch)
+			{
+				return true;
+			}
+			else if (!Visited.Contains(Vertex))
+			{
+				// Unlike parents, submixes can have both dynamic and static children so search both.
+				Stack.Append(Vertex->ChildSubmixes);
+				if (const FDynamicChildSubmix* Dynamics = Vertex->DynamicChildSubmixes.Find(InDevice.GetDeviceID()))
+				{
+					Stack.Append(Dynamics->ChildSubmixes);
+				}
+			}
+		}
+	}
+	return false;
+
+}
+
+const USoundSubmixBase* SubmixUtils::FindRoot(const USoundSubmixBase* InStartingPoint, FAudioDeviceHandle InDevice)
+{	
+	const USoundSubmixBase* HighestPoint = InStartingPoint;
+	while (HighestPoint)
+	{
+		const USoundSubmixWithParentBase* WithParent = Cast<const USoundSubmixWithParentBase>(HighestPoint);
+		if (!WithParent)
+		{
+			break;
+		}
+
+		const USoundSubmixBase* Parent = WithParent->GetParent(InDevice.GetDeviceID());
+		if (!Parent)
+		{
+			break;
+		}
+
+		HighestPoint = Parent;
+	}
+	return HighestPoint;
 }
 
 #if WITH_EDITOR

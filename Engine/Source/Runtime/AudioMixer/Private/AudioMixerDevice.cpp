@@ -198,48 +198,44 @@ namespace Audio
 	);
 
 
-	static void DrawSubmixHeirarchy(USoundSubmixBase* InSubmix, FMixerSubmix* InInstance, const FMixerDevice* InDevice, int32 InIdent, FOutputDevice& Ar);
-	static void DrawSubmixHeirarchy(USoundSubmixBase* InSubmix, FMixerSubmix* InInstance, const FMixerDevice* InDevice, int32 InIdent, FOutputDevice& Ar)
+	
+	static void DrawSubmixHeirarchy(USoundSubmixBase* InSubmix, const TSharedPtr<Audio::FMixerSubmix, ESPMode::ThreadSafe> InInstance, const FMixerDevice* InDevice, int32 InIdent, FOutputDevice& Ar, const TCHAR* GroupingText)
 	{
 		if (!InSubmix)
 		{
 			return;
 		}
-
-		auto SubmixInfo = [](USoundSubmixBase* InUObj, FMixerSubmix* InInst, USoundSubmixBase* InParent, FMixerSubmix* InParentInst) -> FString
-		{
-			FMixerSubmixPtr ParentInstance = InInst->GetParent().Pin();
-			const bool bParentLinkSeemsSane = ParentInstance.IsValid() ? ParentInstance.Get() == InParentInst : false;
-			const int32 NumFxRunning = InInst->GetNumEffects();
-			const int32 NumChildren = InInst->GetChildren().Num();
-			return FString::Printf(TEXT("ParentLinkGood=%s,NumFxRunning=%d,NumChildren=%d"), ToCStr(LexToString(bParentLinkSeemsSane)),NumFxRunning, NumChildren);
-		};
-
-		for (TObjectPtr<USoundSubmixBase> i : InSubmix->ChildSubmixes)
-		{
-			FMixerSubmixPtr ChildInstance = InDevice->GetSubmixInstance(i).Pin();
-			FString Info = SubmixInfo(i.Get(), ChildInstance.Get(), InSubmix, InInstance);
-			Ar.Logf(TEXT("%s [%s](Static)(Instance=0x%p)%s"), FCString::Spc(InIdent * 2), *InSubmix->GetName(), ChildInstance.Get(), *Info);
-			DrawSubmixHeirarchy(i.Get(), ChildInstance.Get(), InDevice, InIdent + 1, Ar);
+		
+		FString Indet = FCString::Spc(InIdent*3);
+		FString FxChain;
+		if (USoundSubmix* Submix = Cast<USoundSubmix>(InSubmix))
+		{		
+			for (const TObjectPtr<USoundEffectSubmixPreset>& i: Submix->SubmixEffectChain)
+			{
+				FxChain += FString::Printf(TEXT("[%s]"), *i->GetName());
+			}
 		}
-		const auto& DynamicChildren = InSubmix->DynamicChildSubmixes.FindOrAdd(InDevice->DeviceID).ChildSubmixes;
-		for (TObjectPtr<USoundSubmixBase> i : DynamicChildren)
+
+		Ar.Logf(TEXT("%sName=%s,Instance=0x%p,Id=%u,Fx=%s,[%s]"), *Indet, *InSubmix->GetName(), InInstance.Get(), InInstance ? InInstance->GetId() : 0, *FxChain, GroupingText);
+		for (const auto& i : InSubmix->ChildSubmixes)
 		{
-			FMixerSubmixPtr ChildInstance = InDevice->GetSubmixInstance(i).Pin();
-			FString Info = SubmixInfo(i.Get(), ChildInstance.Get(), InSubmix, InInstance);
-			Ar.Logf(TEXT("%s [%s](Dynamic)(Instance=0x%p)%s"), FCString::Spc(InIdent * 2), *InSubmix->GetName(), ChildInstance.Get(), *Info);
-			DrawSubmixHeirarchy(i.Get(), ChildInstance.Get(), InDevice,  InIdent + 1, Ar);
+			DrawSubmixHeirarchy(i, InDevice->GetSubmixInstance(i).Pin(), InDevice, InIdent+1, Ar, TEXT("Static"));
+		}
+		const auto& DynamicSubmixes = InSubmix->DynamicChildSubmixes.FindOrAdd(InDevice->DeviceID);
+		for (const auto& i : DynamicSubmixes.ChildSubmixes)
+		{
+			DrawSubmixHeirarchy(i, InDevice->GetSubmixInstance(i).Pin(), InDevice, InIdent+1, Ar, TEXT("Dynamic"));
 		}
 	}
 
 	void FMixerDevice::DrawSubmixes(FOutputDevice& Output) const
 	{
-		Output.Logf(TEXT("Submix Graph for AudioMixerDevice=%u/(0x%p) "), DeviceID, this);
+		Output.Logf(TEXT("AudioDevice=%d, Device Instance=0x%p"), DeviceID, this);		
+
 		for (int32 i = 0; i < RequiredSubmixes.Num(); i++)
 		{
-			FMixerSubmixPtr Instance = GetRequiredSubmixInstance(RequiredSubmixes[i]);
-			Output.Logf(TEXT("Slot=[%s] (Instance=0x%p)"), ToCStr(LexToString((ERequiredSubmixes)i)), Instance.Get());
-			DrawSubmixHeirarchy(RequiredSubmixes[i], Instance.Get(), this, 1, Output);
+			Output.Logf(TEXT("SlotName=[%s]"), ToCStr(LexToString((ERequiredSubmixes)i)));
+			DrawSubmixHeirarchy(RequiredSubmixes[i], RequiredSubmixInstances[i], this, 1, Output, TEXT("In Slot"));
 		}
 	}
 
@@ -2012,7 +2008,7 @@ namespace Audio
 	ISoundfieldFactory* FMixerDevice::GetFactoryForSubmixInstance(FMixerSubmixWeakPtr& SoundSubmixPtr)
 	{
 		FMixerSubmixPtr SubmixPtr = SoundSubmixPtr.Pin();
-		if (ensure(SubmixPtr.IsValid()))
+		if (SubmixPtr.IsValid())
 		{
 			return SubmixPtr->GetSoundfieldFactory();
 		}
