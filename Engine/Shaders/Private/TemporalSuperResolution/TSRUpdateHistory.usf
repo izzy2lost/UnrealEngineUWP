@@ -124,7 +124,7 @@ RWTexture2D<tsr_halfC> SceneColorOutputMip0;
 RWTexture2D<tsr_halfC> SceneColorOutputMip1;
 
 RWTexture2DArray<tsr_halfC> HistoryColorOutput;
-RWTexture2D<tsr_halfM> HistoryMetadataOutput;
+RWTexture2DArray<tsr_halfM> HistoryMetadataOutput;
 
 
 //------------------------------------------------------- LDS
@@ -1086,14 +1086,14 @@ void MainCS(
 			// Output final history lo pixel.
 			{
 				HistoryColorOutput[tsr_short3(dpv_lo(LocalHistoryPixelPos), HistoryArrayIndices_HighFrequency)] = dpv_lo(FinalHighFrequencyColor);
-				HistoryMetadataOutput[dpv_lo(LocalHistoryPixelPos)]  = dpv_lo(FinalMetadata);
+				HistoryMetadataOutput[tsr_short3(dpv_lo(LocalHistoryPixelPos), 0)]  = dpv_lo(FinalMetadata);
 			}
 		
 			// Output final history hi pixel.
 			#if CONFIG_ENABLE_DUAL_PIXEL_VECTORIZATION
 			{
 				HistoryColorOutput[tsr_short3(dpv_hi(LocalHistoryPixelPos), HistoryArrayIndices_HighFrequency)] = dpv_hi(FinalHighFrequencyColor);
-				HistoryMetadataOutput[dpv_hi(LocalHistoryPixelPos)] = dpv_hi(FinalMetadata);
+				HistoryMetadataOutput[tsr_short3(dpv_hi(LocalHistoryPixelPos), 0)] = dpv_hi(FinalMetadata);
 			}
 			#endif // !CONFIG_ENABLE_DUAL_PIXEL_VECTORIZATION
 		}

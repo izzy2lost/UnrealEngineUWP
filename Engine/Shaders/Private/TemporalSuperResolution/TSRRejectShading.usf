@@ -156,7 +156,7 @@ Texture2D<tsr_half2> DecimateMaskTexture;
 Texture2D<tsr_ushort> IsMovingMaskTexture;
 
 RWTexture2DArray<tsr_half4> HistoryGuideOutput;
-RWTexture2D<tsr_half4> HistoryMoireOutput;
+RWTexture2DArray<tsr_half4> HistoryMoireOutput;
 RWTexture2D<tsr_half4> HistoryRejectionOutput;
 RWTexture2D<tsr_halfC> InputSceneColorOutput;
 RWTexture2D<tsr_half> InputSceneColorLdrLumaOutput;
@@ -750,7 +750,7 @@ void MainCS(
 				SimdIndex);
 
 			#if CONFIG_MOIRE_DETECTION
-				HistoryMoireOutput[OutputPixelPos] = MoireHistory.GetElement(SimdIndex);
+				HistoryMoireOutput[tsr_short3(OutputPixelPos, 0)] = MoireHistory.GetElement(SimdIndex);
 			#endif
 		}
 	}
