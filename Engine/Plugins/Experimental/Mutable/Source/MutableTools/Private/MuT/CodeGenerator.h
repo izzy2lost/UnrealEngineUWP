@@ -503,6 +503,10 @@ namespace mu
 			*/
 			TArray<Ptr<const Layout>> OverrideLayouts;			
 
+			/** Optional context to use instead of the node error context.
+			 * Be careful since it is not used everywhere. Check usages before assigning a value to it. */
+			TOptional<const void*> OverrideContext;
+			
 			friend FORCEINLINE uint32 GetTypeHash(const FMeshGenerationOptions& InKey)
 			{
 				uint32 KeyHash = 0;

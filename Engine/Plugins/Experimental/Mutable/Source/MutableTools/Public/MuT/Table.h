@@ -68,11 +68,11 @@ namespace mu
 		void SetNoneOption(bool bAddOption);
 
 		//!
-        void SetCell( int32 Column, uint32 RowId, float );
-        void SetCell( int32 Column, uint32 RowId, const FVector4f& );
-		void SetCell( int32 Column, uint32 RowId, ResourceProxy<Image>* );
-		void SetCell( int32 Column, uint32 RowId, Mesh* );
-        void SetCell( int32 Column, uint32 RowId, const FString& );
+        void SetCell( int32 Column, uint32 RowId, float Value, const void* ErrorContext = nullptr);
+        void SetCell( int32 Column, uint32 RowId, const FVector4f& Value, const void* ErrorContext = nullptr);
+		void SetCell( int32 Column, uint32 RowId, ResourceProxy<Image>* Value, const void* ErrorContext = nullptr);
+		void SetCell( int32 Column, uint32 RowId, Mesh* Value, const void* ErrorContext = nullptr);
+        void SetCell( int32 Column, uint32 RowId, const FString& Value, const void* ErrorContext = nullptr);
 
 
 		//-----------------------------------------------------------------------------------------

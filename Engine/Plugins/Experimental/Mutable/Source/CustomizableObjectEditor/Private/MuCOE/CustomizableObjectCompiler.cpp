@@ -407,7 +407,7 @@ void FCustomizableObjectCompiler::ProcessChildObjectsRecursively(UCustomizableOb
 
 void FCustomizableObjectCompiler::DisplayParameterWarning(FMutableGraphGenerationContext& GenerationContext)
 {
-	for (const TPair<FString, TArray<const UCustomizableObjectNode*>>& It : GenerationContext.ParameterNamesMap)
+	for (const TPair<FString, TArray<const UObject*>>& It : GenerationContext.ParameterNamesMap)
 	{
 		if (It.Key == "")
 		{
@@ -425,7 +425,7 @@ void FCustomizableObjectCompiler::DisplayParameterWarning(FMutableGraphGeneratio
 
 void FCustomizableObjectCompiler::DisplayDuplicatedNodeIdsWarning(FMutableGraphGenerationContext & GenerationContext)
 {
-	for (const TPair<FGuid, TArray<const UCustomizableObjectNode*>>& It : GenerationContext.NodeIdsMap)
+	for (const TPair<FGuid, TArray<const UObject*>>& It : GenerationContext.NodeIdsMap)
 	{
 		if (It.Value.Num() > 1)
 		{
@@ -1424,11 +1424,8 @@ void FCustomizableObjectCompiler::CompileInternal(UCustomizableObject* Object, c
 		}
 	}
 
-	// Get a list of generated nodes, to be able to understand error messages later.
 	for (UCustomizableObjectNode* Node : GenerationContext.GeneratedNodes)
 	{
-		GeneratedNodes.Add(Node, Node);
-
 		Node->ResetAttachedErrorData();
 	}
 
@@ -1682,13 +1679,13 @@ void FCustomizableObjectCompiler::NotifyCompilationErrors() const
 }
 
 
-void FCustomizableObjectCompiler::CompilerLog(const FText& Message, const TArray<const UCustomizableObjectNode*>& ArrayNode, const EMessageSeverity::Type MessageSeverity, const bool bAddBaseObjectInfo, const ELoggerSpamBin SpamBin)
+void FCustomizableObjectCompiler::CompilerLog(const FText& Message, const TArray<const UObject*>& Context, const EMessageSeverity::Type MessageSeverity, const bool bAddBaseObjectInfo, const ELoggerSpamBin SpamBin)
 {
-	if (CompilationLogsContainer.AddMessage(Message, ArrayNode, MessageSeverity, SpamBin)) // Cache the message for later reference
+	if (CompilationLogsContainer.AddMessage(Message, Context, MessageSeverity, SpamBin)) // Cache the message for later reference
 	{
 		FCustomizableObjectEditorLogger::CreateLog(Message)
 			.Severity(MessageSeverity)
-			.Nodes(ArrayNode)
+			.Context(Context)
 			.BaseObject(bAddBaseObjectInfo)
 			.SpamBin(SpamBin)
 			.Log();
@@ -1696,14 +1693,14 @@ void FCustomizableObjectCompiler::CompilerLog(const FText& Message, const TArray
 }
 
 
-void FCustomizableObjectCompiler::CompilerLog(const FText& Message, const UCustomizableObjectNode* Node, const EMessageSeverity::Type MessageSeverity, const bool bAddBaseObjectInfo, const ELoggerSpamBin SpamBin)
+void FCustomizableObjectCompiler::CompilerLog(const FText& Message, const UObject* Context, const EMessageSeverity::Type MessageSeverity, const bool bAddBaseObjectInfo, const ELoggerSpamBin SpamBin)
 {
-	TArray<const UCustomizableObjectNode*> ArrayNode;
-	if (Node)
+	TArray<const UObject*> ContextArray;
+	if (Context)
 	{
-		ArrayNode.Add(Node);
+		ContextArray.Add(Context);
 	}
-	CompilerLog(Message, ArrayNode, MessageSeverity, bAddBaseObjectInfo, SpamBin);
+	CompilerLog(Message, ContextArray, MessageSeverity, bAddBaseObjectInfo, SpamBin);
 }
 
 
@@ -1713,25 +1710,26 @@ void FCustomizableObjectCompiler::UpdateCompilerLogData()
 	MessageLogModule.RegisterLogListing(FName("Mutable"), LOCTEXT("MutableLog", "Mutable"));
 	const TArray<FCustomizableObjectCompileRunnable::FError>& ArrayCompileErrors = CompileTask->GetArrayErrors();
 
-	FText ObjectName = CurrentObject ? FText::FromString(CurrentObject->GetName()) : LOCTEXT("Unknown Object", "Unknown Object");
+	const FText ObjectName = CurrentObject ? FText::FromString(CurrentObject->GetName()) : LOCTEXT("Unknown Object", "Unknown Object");
 
-	int32 i;
-	for (i = 0; i < ArrayCompileErrors.Num(); ++i)
+	for (const FCustomizableObjectCompileRunnable::FError& CompileError : ArrayCompileErrors)
 	{
-		const UCustomizableObjectNode** pNode = GeneratedNodes.Find(ArrayCompileErrors[i].Context);
+		const UObject* Object = static_cast<const UObject*>(CompileError.Context); // Context are always UObjects
 
-		if (ArrayCompileErrors[i].AttachedData && pNode)
+		if (const UCustomizableObjectNode* Node = Cast<UCustomizableObjectNode>(Object))
 		{
-			UCustomizableObjectNode::FAttachedErrorDataView ErrorDataView;
-			ErrorDataView.UnassignedUVs = { ArrayCompileErrors[i].AttachedData->UnassignedUVs.GetData(),
-											ArrayCompileErrors[i].AttachedData->UnassignedUVs.Num() };
+			if (CompileError.AttachedData)
+			{
+				UCustomizableObjectNode::FAttachedErrorDataView ErrorDataView;
+				ErrorDataView.UnassignedUVs = { CompileError.AttachedData->UnassignedUVs.GetData(),
+												CompileError.AttachedData->UnassignedUVs.Num() };
 
-			const UCustomizableObjectNode* Node = Cast<UCustomizableObjectNode>(*pNode);
-			const_cast<UCustomizableObjectNode*>(Node)->AddAttachedErrorData(ErrorDataView);
+				const_cast<UCustomizableObjectNode*>(Node)->AddAttachedErrorData(ErrorDataView);
+			}			
 		}
 
-		FText FullMsg = FText::Format(LOCTEXT("MutableMessage", "{0} : {1}"), ObjectName, ArrayCompileErrors[i].Message);
-		CompilerLog(FullMsg, pNode ? *pNode : nullptr, ArrayCompileErrors[i].Severity, true, ArrayCompileErrors[i].SpamBin);
+		FText FullMsg = FText::Format(LOCTEXT("MutableMessage", "{0} : {1}"), ObjectName, CompileError.Message);
+		CompilerLog(FullMsg, Object, CompileError.Severity, true, CompileError.SpamBin);
 	}
 }
 

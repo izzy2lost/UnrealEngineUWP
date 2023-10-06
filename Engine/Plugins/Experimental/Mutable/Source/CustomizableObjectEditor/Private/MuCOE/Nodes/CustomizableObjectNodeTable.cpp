@@ -334,7 +334,7 @@ void UCustomizableObjectNodeTable::AllocateDefaultPins(UCustomizableObjectNodeRe
 				FCustomizableObjectEditorLogger::CreateLog(Text)
 					.Category(ELoggerCategory::General)
 					.Severity(EMessageSeverity::Warning)
-					.Node(*this)
+					.Context(*this)
 					.Log();
 			}
 		}
@@ -364,7 +364,7 @@ void UCustomizableObjectNodeTable::AllocateDefaultPins(UCustomizableObjectNodeRe
 			FCustomizableObjectEditorLogger::CreateLog(Text)
 				.Category(ELoggerCategory::General)
 				.Severity(EMessageSeverity::Warning)
-				.Node(*this)
+				.Context(*this)
 				.Log();
 		}
 

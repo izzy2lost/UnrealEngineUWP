@@ -287,7 +287,7 @@ void UCustomizableObjectNode::ReconstructNode(UCustomizableObjectNodeRemapPins* 
 		{
 			FCustomizableObjectEditorLogger::CreateLog(LOCTEXT("OrphanPinsWarningReconstruct", "Failed to remap old pins"))
 			.Severity(EMessageSeverity::Warning)
-			.Node(*this)
+			.Context(*this)
 			.Log();
 		}
 

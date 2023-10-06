@@ -161,16 +161,16 @@ FLogParameters& FLogParameters::Severity(const EMessageSeverity::Type Severity)
 }
 
 
-FLogParameters& FLogParameters::Nodes(const TArray<const UCustomizableObjectNode*>& Nodes)
+FLogParameters& FLogParameters::Context(const TArray<const UObject*>& Context)
 {
-	ParamNodes = Nodes;
+	ParamContext = Context;
 	return *this;
 }
 
 
-FLogParameters& FLogParameters::Node(const UCustomizableObjectNode& Node)
+FLogParameters& FLogParameters::Context(const UObject& Context)
 {
-	ParamNodes.Add(&Node);
+	ParamContext.Add(&Context);
 	return *this;
 }
 
@@ -240,20 +240,26 @@ void FCustomizableObjectEditorLogger::Log(FLogParameters& LogParameters)
 	
 	Message->AddToken(FTextToken::Create(MessageText));
 
-	for (const UCustomizableObjectNode* Node : LogParameters.ParamNodes)
+	for (const UObject* Context : LogParameters.ParamContext)
 	{
-		check(Node); // Can not be nullptr.
+		if (const UCustomizableObjectNode* Node = Cast<const UCustomizableObjectNode>(Context))
+		{
+			if (LogParameters.bParamBaseObject)
+			{
+				Message->AddToken(FTextToken::Create(FText::FromString(TEXT(" "))));
+				const UObject* Asset = Node->GetCustomizableObjectGraph()->GetOuter();
+				Message->AddToken(FUObjectToken::Create(Asset)->OnMessageTokenActivated(FOnMessageTokenActivated::CreateStatic(&OnMessageLogLinkActivated)));
+			}
 
-		if (LogParameters.bParamBaseObject)
+			Message->AddToken(FTextToken::Create(FText::FromString(TEXT(" (Node "))));
+			Message->AddToken(FCustomizableObjectToken::Create(Node)->OnMessageTokenActivated(FOnMessageTokenActivated::CreateStatic(&OnMessageLogLinkActivated)));
+			Message->AddToken(FTextToken::Create(FText::FromString(TEXT(")"))));			
+		}
+		else
 		{
 			Message->AddToken(FTextToken::Create(FText::FromString(TEXT(" "))));
-			const UObject* Asset = Node->GetCustomizableObjectGraph()->GetOuter();
-			Message->AddToken(FUObjectToken::Create(Asset)->OnMessageTokenActivated(FOnMessageTokenActivated::CreateStatic(&OnMessageLogLinkActivated)));
+			Message->AddToken(FUObjectToken::Create(Context)->OnMessageTokenActivated(FOnMessageTokenActivated::CreateStatic(&OnMessageLogLinkActivated)));
 		}
-
-		Message->AddToken(FTextToken::Create(FText::FromString(TEXT(" (Node "))));
-		Message->AddToken(FCustomizableObjectToken::Create(Node)->OnMessageTokenActivated(FOnMessageTokenActivated::CreateStatic(&OnMessageLogLinkActivated)));
-		Message->AddToken(FTextToken::Create(FText::FromString(TEXT(")"))));
 	}
 
 	if (LogParameters.bParamNotification)

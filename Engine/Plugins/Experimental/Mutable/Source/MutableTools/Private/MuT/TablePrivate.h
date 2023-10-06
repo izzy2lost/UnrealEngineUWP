@@ -32,6 +32,8 @@ namespace mu
 		Ptr<ResourceProxy<Image>> ProxyImage;
 		Ptr<Mesh> Mesh;
 		FString String;
+
+		const void* ErrorContext;
 	};
 
 

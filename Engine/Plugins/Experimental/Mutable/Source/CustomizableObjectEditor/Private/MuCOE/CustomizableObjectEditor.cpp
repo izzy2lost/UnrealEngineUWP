@@ -2476,7 +2476,7 @@ void FCustomizableObjectEditor::LogSearchResult(UCustomizableObjectNode* Node, F
 	}
 	
 	FCustomizableObjectEditorLogger::CreateLog(FText::FromString(Type + ": " + Result))
-	.Node(*Node)
+	.Context(*Node)
 	.BaseObject()
 	.Notification(false)
 	.Log();

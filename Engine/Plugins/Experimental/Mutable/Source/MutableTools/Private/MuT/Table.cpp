@@ -126,7 +126,7 @@ namespace mu
 	}
 
 
-    void Table::SetCell( int32 Column, uint32 RowId, float Value)
+    void Table::SetCell( int32 Column, uint32 RowId, float Value, const void* ErrorContext)
 	{
 		int32 Row = m_pD->FindRow(RowId);
 		check( Row>=0 );
@@ -135,10 +135,11 @@ namespace mu
 		check( m_pD->Columns[Column].Type == ETableColumnType::Scalar );
 
 		m_pD->Rows[ Row ].Values[Column].Scalar = Value;
+		m_pD->Rows[ Row ].Values[Column].ErrorContext = ErrorContext;
 	}
 
 
-    void Table::SetCell( int32 Column, uint32 RowId, const FVector4f& Value)
+    void Table::SetCell( int32 Column, uint32 RowId, const FVector4f& Value, const void* ErrorContext)
 	{
 		int32 Row = m_pD->FindRow(RowId);
 		check( Row>=0 );
@@ -147,10 +148,11 @@ namespace mu
 		check( m_pD->Columns[Column].Type == ETableColumnType::Color );
 
 		m_pD->Rows[ Row ].Values[Column].Color = Value;
+		m_pD->Rows[ Row ].Values[Column].ErrorContext = ErrorContext;
 	}
 
 
-    void Table::SetCell(int32 Column, uint32 RowId, ResourceProxy<Image>* Value)
+    void Table::SetCell(int32 Column, uint32 RowId, ResourceProxy<Image>* Value, const void* ErrorContext)
 	{
 		int32 Row = m_pD->FindRow(RowId);
 		check( Row>=0 );
@@ -159,10 +161,11 @@ namespace mu
 		check( m_pD->Columns[Column].Type == ETableColumnType::Image );
 
 		m_pD->Rows[ Row ].Values[Column].ProxyImage = Value;
+		m_pD->Rows[ Row ].Values[Column].ErrorContext = ErrorContext;
 	}
 
 
-    void Table::SetCell( int32 Column, uint32 RowId, Mesh* Value )
+    void Table::SetCell( int32 Column, uint32 RowId, Mesh* Value, const void* ErrorContext )
 	{
 		int32 Row = m_pD->FindRow(RowId);
 		check( Row>=0 );
@@ -171,10 +174,11 @@ namespace mu
 		check( m_pD->Columns[Column].Type == ETableColumnType::Mesh );
 
 		m_pD->Rows[ Row ].Values[Column].Mesh = Value;
+		m_pD->Rows[ Row ].Values[Column].ErrorContext = ErrorContext;
 	}
 
 
-    void Table::SetCell( int32 Column, uint32 RowId, const FString& Value )
+    void Table::SetCell( int32 Column, uint32 RowId, const FString& Value, const void* ErrorContext )
 	{
 		int32 Row = m_pD->FindRow(RowId);
 		check( Row>=0 );
@@ -183,6 +187,7 @@ namespace mu
 		check( m_pD->Columns[Column].Type == ETableColumnType::String );
 
 		m_pD->Rows[ Row ].Values[Column].String = Value;
+		m_pD->Rows[ Row ].Values[Column].ErrorContext = ErrorContext;
 	}
 
 

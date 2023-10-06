@@ -285,7 +285,7 @@ bool FillTableColumn(const UCustomizableObjectNodeTable* TableNode,	mu::TablePtr
 					AddTagToMutableMeshUnique(*MutableMesh, MeshTag);
 				}
 
-				MutableTable->SetCell(CurrentColumn, RowIdx, MutableMesh.get());
+				MutableTable->SetCell(CurrentColumn, RowIdx, MutableMesh.get(), SkeletalMesh);
 			}
 			else
 			{
@@ -354,7 +354,7 @@ bool FillTableColumn(const UCustomizableObjectNodeTable* TableNode,	mu::TablePtr
 
 			if (MutableMesh)
 			{
-				MutableTable->SetCell(CurrentColumn, RowIdx, MutableMesh.get());
+				MutableTable->SetCell(CurrentColumn, RowIdx, MutableMesh.get(), StaticMesh);
 			}
 			else
 			{

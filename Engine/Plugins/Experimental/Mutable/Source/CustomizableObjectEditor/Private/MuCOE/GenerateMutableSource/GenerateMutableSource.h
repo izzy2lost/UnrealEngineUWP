@@ -626,7 +626,7 @@ struct FMutableGraphGenerationContext
 	TArray<UMaterialInterface*> ReferencedMaterials;
 	TArray<FName> ReferencedMaterialSlotNames;
 	TArray<FGeneratedImageProperties> ImageProperties;
-	TMap<FString, TArray<const UCustomizableObjectNode*>> ParameterNamesMap;
+	TMap<FString, TArray<const UObject*>> ParameterNamesMap;
 	TArray<const UCustomizableObjectNode*> NoNameNodeObjectArray;
 	TMap<FString, FCustomizableObjectIdPair> GroupNodeMap;
 	TMap<FString, FString> CustomizableObjectPathMap;
@@ -641,7 +641,7 @@ struct FMutableGraphGenerationContext
 	TArray<FName> BoneNames;
 
 	// Used to aviod Nodes with duplicated ids
-	TMap<FGuid, TArray<const UCustomizableObjectNode*>> NodeIdsMap;
+	TMap<FGuid, TArray<const UObject*>> NodeIdsMap;
 	TMultiMap<const UCustomizableObject*, FGroupNodeIdsTempData> DuplicatedGroupNodeIds;
 
 	// For a given material node (the key is node package path + node uid + image index in node) stores images generated for the same node at a higher quality LOD to reuse that image node

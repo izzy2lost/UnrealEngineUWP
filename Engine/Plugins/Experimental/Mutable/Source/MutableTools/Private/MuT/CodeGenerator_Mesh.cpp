@@ -1143,6 +1143,8 @@ class Node;
 						TargetOptions.OverrideLayouts = NewResult.GeneratedLayouts;
 					}
 
+					TargetOptions.OverrideContext = node.m_pTable->GetPrivate()->Rows[row].Values[colIndex].ErrorContext;
+
 					GenerateMesh(TargetOptions, BranchResults, pCell);
 
 					if (t == 0)
@@ -1370,7 +1372,8 @@ class Node;
 						{
 							Ptr<const Layout> SourceLayout = TypedNode->GetPrivate()->m_pLayout;
 							Ptr<const Layout> GeneratedLayout = AddLayout( SourceLayout );
-							PrepareForLayout(GeneratedLayout, pCloned, LayoutIndex, TypedNode->GetPrivate()->m_errorContext, InOptions);
+							const void* Context = InOptions.OverrideContext.Get(node.m_errorContext);
+							PrepareForLayout(GeneratedLayout, pCloned, LayoutIndex, Context, InOptions);
 
 							OutResult.GeneratedLayouts.Add(GeneratedLayout);
 						}
@@ -1382,7 +1385,8 @@ class Node;
 					for (int32 LayoutIndex = 0; LayoutIndex < InOptions.OverrideLayouts.Num(); ++LayoutIndex)
 					{
 						Ptr<const Layout> GeneratedLayout = InOptions.OverrideLayouts[LayoutIndex];
-						PrepareForLayout(GeneratedLayout, pCloned, LayoutIndex, node.m_errorContext, InOptions);
+						const void* Context = InOptions.OverrideContext.Get(node.m_errorContext);
+						PrepareForLayout(GeneratedLayout, pCloned, LayoutIndex, Context, InOptions);
 
 						OutResult.GeneratedLayouts.Add(GeneratedLayout);
 					}

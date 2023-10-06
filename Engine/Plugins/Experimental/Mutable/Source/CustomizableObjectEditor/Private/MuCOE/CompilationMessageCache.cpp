@@ -7,10 +7,10 @@ FCompilationMessageCache::FCompilationMessageCache()
 	ClearMessageCounters();
 }
 
-bool FCompilationMessageCache::AddMessage(const FText& InMessage, const TArray<const UCustomizableObjectNode*>& InArrayNode, EMessageSeverity::Type MessageSeverity /* = EMessageSeverity::Warning */, const ELoggerSpamBin SpamBin /*= ELoggerSpamBin::ShowAll*/)
+bool FCompilationMessageCache::AddMessage(const FText& InMessage, const TArray<const UObject*>& InContext, EMessageSeverity::Type MessageSeverity /* = EMessageSeverity::Warning */, const ELoggerSpamBin SpamBin /*= ELoggerSpamBin::ShowAll*/)
 {
 	// Skip message if an identical one has already been reported
-	const FLoggedMessage Cached = { InMessage, InArrayNode, MessageSeverity };
+	const FLoggedMessage Cached = { InMessage, InContext, MessageSeverity };
 	if (LoggedMessages.Contains(Cached))
 	{
 		return false;

@@ -270,7 +270,7 @@ void UCustomizableObjectNodeObject::PostBackwardsCompatibleFixup()
 	{
 		FCustomizableObjectEditorLogger::CreateLog(LOCTEXT("ResaveNode","Please re-save this Customizable Object to avoid binary differences when packaging"))
 		.Severity(EMessageSeverity::Warning)
-		.Node(*this)
+		.Context(*this)
 		.Log();
 	}
 

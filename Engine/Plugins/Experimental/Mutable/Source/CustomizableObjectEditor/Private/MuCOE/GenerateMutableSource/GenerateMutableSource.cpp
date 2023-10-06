@@ -157,13 +157,13 @@ mu::MeshPtr FMutableGraphGenerationContext::FindGeneratedMesh( const FGeneratedM
 /** Adds to ParameterNamesMap the node Node to the array of elements with name Name */
 void FMutableGraphGenerationContext::AddParameterNameUnique(const UCustomizableObjectNode* Node, FString Name)
 {
-	if (TArray<const UCustomizableObjectNode*>* ArrayResult = ParameterNamesMap.Find(Name))
+	if (TArray<const UObject*>* ArrayResult = ParameterNamesMap.Find(Name))
 	{
 		ArrayResult->AddUnique(Node);
 	}
 	else
 	{
-		TArray<const UCustomizableObjectNode*> ArrayTemp;
+		TArray<const UObject*> ArrayTemp;
 		ArrayTemp.Add(Node);
 		ParameterNamesMap.Add(Name, ArrayTemp);
 	}
@@ -172,11 +172,11 @@ void FMutableGraphGenerationContext::AddParameterNameUnique(const UCustomizableO
 
 const FGuid FMutableGraphGenerationContext::GetNodeIdUnique(const UCustomizableObjectNode* Node)
 {
-	TArray<const UCustomizableObjectNode*>* ArrayResult = NodeIdsMap.Find(Node->NodeGuid);
+	TArray<const UObject*>* ArrayResult = NodeIdsMap.Find(Node->NodeGuid);
 
 	if (ArrayResult == nullptr)
 	{
-		TArray<const UCustomizableObjectNode*> ArrayTemp;
+		TArray<const UObject*> ArrayTemp;
 		ArrayTemp.Add(Node);
 		NodeIdsMap.Add(Node->NodeGuid, ArrayTemp);
 		return Node->NodeGuid;
