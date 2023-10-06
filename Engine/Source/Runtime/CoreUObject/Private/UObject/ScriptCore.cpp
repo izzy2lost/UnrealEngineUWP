@@ -2837,7 +2837,7 @@ DEFINE_FUNCTION(UObject::execLet)
 	{
 		if (LocallyKnownProperty->HasSetter())
 		{
-			check(LocalPropertyContainer != nullptr);
+			checkf(LocalPropertyContainer != nullptr, TEXT("execLet attempted to use Setter to write to property %s but had no container address"), *LocallyKnownProperty->GetPathName());
 			LocallyKnownProperty->SetValue_InContainer(LocalPropertyContainer, LocalTempResult);
 			Stack.MostRecentPropertyAddress = PreviousPropertyAddress;
 		}
