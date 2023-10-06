@@ -106,6 +106,7 @@ private:
 		int32 FrameNumber = 0;							//< Unique ever incrementing frame number
 		TArray<FMeshDrawCommandPassStats*> PassData;	//< Stats for all the MDC passes running during this frame
 		TMap<FRHIBuffer*, FIndirectArgsBufferResult> CustomIndirectArgsBufferResults; //< Custom indirect arg readback result buffer lookup map
+		TArray<FRHIGPUBufferReadback*> RDGIndirectArgsReadbackBuffers; //< All indirect args buffers requested via RDG passes
 		bool bIndirectArgReadbackRequested = false;		
 	};
 
