@@ -60,6 +60,10 @@ struct FRefreshAllScriptsFromExternalChangesArgs
 	UNiagaraParameterDefinitions* OriginatingParameterDefinitions = nullptr;
 };
 
+struct NIAGARAEDITOR_API FNiagaraEditorSharedTexts
+{
+	static const FText DebugDrawUIActionBaseText;
+};
 namespace FNiagaraEditorUtilities
 {
 	/** Determines if the contents of two sets matches */

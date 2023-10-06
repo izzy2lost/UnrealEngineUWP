@@ -88,6 +88,8 @@ static FAutoConsoleVariableRef CVarDeletePythonFilesOnError(
 	ECVF_Default
 );
 
+const FText FNiagaraEditorSharedTexts::DebugDrawUIActionBaseText = LOCTEXT("EnableDebugDrawCheckBoxToolTip", "Enable or disable debug drawing for this item.");
+
 TSet<FName> FNiagaraEditorUtilities::GetSystemConstantNames()
 {
 	TSet<FName> SystemConstantNames;

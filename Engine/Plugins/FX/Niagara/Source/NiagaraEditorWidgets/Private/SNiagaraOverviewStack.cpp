@@ -1029,6 +1029,16 @@ TSharedRef<ITableRow> SNiagaraOverviewStack::OnGenerateRowForEntry(UNiagaraStack
 			// Debug draw 
 			if(StackModuleItem->GetModuleNode().ContainsDebugSwitch())
 			{
+				FText TooltipText = FNiagaraEditorSharedTexts::DebugDrawUIActionBaseText;
+				
+				if(FVersionedNiagaraScriptData* ScriptData = StackModuleItem->GetModuleNode().GetScriptData())
+				{
+					if(ScriptData->DebugDrawMessage.IsEmpty() == false)
+					{
+						TooltipText = ScriptData->DebugDrawMessage;
+					}
+				}
+				
 				OptionsBox->AddSlot()
 					.VAlign(VAlign_Center)
 					.AutoWidth()
@@ -1038,7 +1048,7 @@ TSharedRef<ITableRow> SNiagaraOverviewStack::OnGenerateRowForEntry(UNiagaraStack
 						.HAlign(HAlign_Center)
 						.VAlign(VAlign_Center)
 						.ForegroundColor(FLinearColor::Transparent)
-						.ToolTipText(LOCTEXT("EnableDebugDrawCheckBoxToolTip", "Enable or disable debug drawing for this item."))
+						.ToolTipText(TooltipText)
 						.OnClicked(this, &SNiagaraOverviewStack::ToggleModuleDebugDraw, StackItem)
 						.ContentPadding(FMargin(1.0f))
 						.ButtonStyle(FNiagaraEditorWidgetsStyle::Get(), "NiagaraEditor.Stack.SimpleButton")

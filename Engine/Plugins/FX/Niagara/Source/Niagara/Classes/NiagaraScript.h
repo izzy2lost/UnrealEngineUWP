@@ -739,6 +739,10 @@ public:
 	UPROPERTY(EditAnywhere, Category = Script, meta = (MultiLine = true))
 	FText NoteMessage;
 
+	/** A message to display on UI actions handling debug draw state. */
+	UPROPERTY(EditAnywhere, Category = Script, meta = (MultiLine = true))
+	FText DebugDrawMessage;
+
 	/* Defines if this script is visible to the user when searching for modules to add to an emitter.  */
 	UPROPERTY(AssetRegistrySearchable, EditAnywhere, Category = Script)
 	ENiagaraScriptLibraryVisibility LibraryVisibility;

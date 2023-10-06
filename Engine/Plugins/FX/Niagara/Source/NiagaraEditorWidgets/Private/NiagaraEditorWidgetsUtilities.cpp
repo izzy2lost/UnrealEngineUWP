@@ -382,12 +382,22 @@ bool FNiagaraStackEditorWidgetsUtilities::AddStackItemContextMenuActions(FMenuBu
 				
 				if (ModuleItem->GetModuleNode().ContainsDebugSwitch())
 				{
+					FText TooltipText = FNiagaraEditorSharedTexts::DebugDrawUIActionBaseText;
+
+					if(FVersionedNiagaraScriptData* ScriptData = ModuleItem->GetModuleNode().GetScriptData())
+					{
+						if(ScriptData->DebugDrawMessage.IsEmpty() == false)
+						{
+							TooltipText = ScriptData->DebugDrawMessage;
+						}
+					}
+					
 					FUIAction Action(FExecuteAction::CreateStatic(&ToggleShouldDebugDraw, TWeakObjectPtr<UNiagaraStackItem>(&StackItem)),
 						FCanExecuteAction(),
 						FIsActionChecked::CreateUObject(ModuleItem, &UNiagaraStackModuleItem::IsDebugDrawEnabled));
 					MenuBuilder.AddMenuEntry(
 						LOCTEXT("ShouldDebugDraw", "Enable Debug Draw"),
-						LOCTEXT("ToggleShouldDebugDrawToolTip", "Toggle debug draw enable/disabled"),
+						TooltipText,
 						FSlateIcon(),
 						Action,
 						NAME_None,
