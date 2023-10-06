@@ -1111,12 +1111,17 @@ namespace Horde.Server.Jobs
 			}
 
 			// Update all the references in the job to use references within the new graph
+			List<int> newNodeIndexes = new List<int>();
 			foreach (JobStepBatchDocument batch in job.Batches)
 			{
+				INodeGroup oldGroup = oldGraph.Groups[batch.GroupIdx];
+				newNodeIndexes.Clear();
+
+				// Find the new node indexes for this group
 				int newGroupIdx = -1;
-				foreach (JobStepDocument step in batch.Steps)
+				for (int oldNodeIdx = 0; oldNodeIdx < oldGroup.Nodes.Count; oldNodeIdx++)
 				{
-					INode oldNode = oldGraph.GetNode(new NodeRef(batch.GroupIdx, step.NodeIdx));
+					INode oldNode = oldGroup.Nodes[oldNodeIdx];
 
 					NodeRef newNodeRef;
 					if (!newGraph.TryFindNode(oldNode.Name, out newNodeRef))
@@ -1133,15 +1138,32 @@ namespace Horde.Server.Jobs
 						throw new InvalidOperationException($"Node '{oldNode.Name}' is in different group in graph {oldGraph.Id} than graph {newGraph.Id}");
 					}
 
-					INode newNode = newGraph.GetNode(newNodeRef);
+					newNodeIndexes.Add(newNodeRef.NodeIdx);
+				}
+				if (newGroupIdx == -1)
+				{
+					throw new InvalidOperationException($"Group {batch.GroupIdx} in graph {oldGraph.Id} does not have any nodes");
+				}
+
+				// Update all the steps
+				batch.GroupIdx = newGroupIdx;
+				INodeGroup newGroup = newGraph.Groups[newGroupIdx];
+
+				foreach (JobStepDocument step in batch.Steps)
+				{
+					int oldNodeIdx = step.NodeIdx;
+					int newNodeIdx = newNodeIndexes[oldNodeIdx];
+
+					INode oldNode = oldGroup.Nodes[oldNodeIdx];
+					INode newNode = newGroup.Nodes[newNodeIdx];
+
 					if (!step.IsPending() && !NodesMatch(oldGraph, oldNode, newGraph, newNode))
 					{
 						throw new InvalidOperationException($"Definition for node '{oldNode.Name}' has changed.");
 					}
-					
-					step.NodeIdx = newNodeRef.NodeIdx;
+
+					step.NodeIdx = newNodeIdx;
 				}
-				batch.GroupIdx = newGroupIdx;
 			}
 
 			// Create the update 

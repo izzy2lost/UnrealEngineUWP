@@ -184,6 +184,47 @@ namespace Horde.Server.Tests
 		}
 
 		[TestMethod]
+		public async Task UpdateGraphOnFailedBatchAsync()
+		{
+			// Create the initial graph
+			Mock<ITemplate> templateMock = new Mock<ITemplate>(MockBehavior.Strict);
+			templateMock.SetupGet(x => x.InitialAgentType).Returns((string?)null);
+
+			IGraph baseGraph = await GraphCollection.AddAsync(templateMock.Object, null);
+
+			List<NewGroup> groups = new List<NewGroup>();
+			groups.Add(new NewGroup("Test", new List<NewNode> { new NewNode("Initial Node", outputs: new List<string> { "#InitialOutput" }) }));
+
+			IGraph graph1 = await GraphCollection.AppendAsync(baseGraph, groups);
+
+			CreateJobOptions options = new CreateJobOptions();
+			options.Arguments.Add("-Target=Gather");
+			options.Arguments.Add("-Target=Initial Node");
+
+			IJob job = await JobCollection.AddAsync(JobId.GenerateNewId(), new StreamId("ue4-main"), new TemplateId("test-build"), ContentHash.SHA1("hello"), baseGraph, "Test job", 123, 123, options);
+
+			// Try a batch and fail it
+			job = await StartBatchAsync(job, baseGraph, 0);
+			job = Deref(await JobCollection.TryUpdateBatchAsync(job, baseGraph, job.Batches[0].Id, null, JobStepBatchState.Complete, JobStepBatchError.Incomplete));
+			
+			// Start the replacement batch and update the graph
+			job = await StartBatchAsync(job, baseGraph, 1);
+			job = Deref(await JobCollection.TryUpdateGraphAsync(job, baseGraph, graph1));
+
+			// Validate the new job state
+			Assert.AreEqual(3, job.Batches.Count);
+			Assert.AreEqual(0, job.Batches[0].Steps.Count);
+
+			Assert.AreEqual(0, job.Batches[1].GroupIdx);
+			Assert.AreEqual(1, job.Batches[1].Steps.Count);
+			Assert.AreEqual(0, job.Batches[1].Steps[0].NodeIdx);
+
+			Assert.AreEqual(1, job.Batches[2].GroupIdx);
+			Assert.AreEqual(1, job.Batches[2].Steps.Count);
+			Assert.AreEqual(0, job.Batches[2].Steps[0].NodeIdx);
+		}
+
+		[TestMethod]
 		public async Task TryAssignLeaseTestAsync()
 		{
 			Fixture fixture = await CreateFixtureAsync();
