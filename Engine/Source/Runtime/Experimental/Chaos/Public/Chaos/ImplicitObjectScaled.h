@@ -850,7 +850,7 @@ public:
 		const FVec3 LocalOriginalNormalDenorm = OriginalNormal * MScale;
 		const FReal NormalLengthScale = LocalOriginalNormalDenorm.Size();
 		const FVec3 LocalOriginalNormal
-			= ensure(NormalLengthScale > UE_SMALL_NUMBER)
+			= CHAOS_ENSURE(NormalLengthScale > UE_SMALL_NUMBER)
 			? LocalOriginalNormalDenorm / NormalLengthScale
 			: FVec3(0, 0, 1);
 
