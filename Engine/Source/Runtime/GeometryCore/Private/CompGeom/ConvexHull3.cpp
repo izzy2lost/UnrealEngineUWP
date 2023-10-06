@@ -1250,6 +1250,10 @@ void TConvexHull3<RealType>::GetSimplifiedFaces(TArray<FPolygonFace>& OutPolygon
 				{
 					OutPolygonNormals->Add((TVector<RealType>)PlaneNormals[GroupIdx]);
 				}
+				else
+				{
+					PolygonToGroup.Add(GroupIdx);
+				}
 			}
 			else
 			{
