@@ -153,7 +153,7 @@ bool UTextureRenderTarget2DArray::CanConvertToTexture(ETextureSourceFormat& OutT
 	{
 		if (OutErrorMessage != nullptr)
 		{
-			*OutErrorMessage = FText::Format(NSLOCTEXT("TextureRenderTargetVolume", "InvalidSizeForConversionToTexture", "Invalid size (({0},{1}), {2} slices) for converting {3} to {4}"),
+			*OutErrorMessage = FText::Format(NSLOCTEXT("TextureRenderTarget2DArray", "InvalidSizeForConversionToTexture", "Invalid size (({0},{1}), {2} slices) for converting {3} to {4}"),
 				FText::AsNumber(SizeX),
 				FText::AsNumber(SizeY),
 				FText::AsNumber(Slices),

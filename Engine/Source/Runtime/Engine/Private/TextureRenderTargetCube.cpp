@@ -175,7 +175,7 @@ bool UTextureRenderTargetCube::CanConvertToTexture(ETextureSourceFormat& OutText
 	{
 		if (OutErrorMessage != nullptr)
 		{
-			*OutErrorMessage = FText::Format(NSLOCTEXT("TextureRenderTargetVolume", "InvalidSizeForConversionToTexture", "Invalid size ({0},{0}) for converting {1} to {2}. Needs to be a power of 2."),
+			*OutErrorMessage = FText::Format(NSLOCTEXT("TextureRenderTargetCube", "InvalidSizeForConversionToTexture", "Invalid size ({0},{0}) for converting {1} to {2}. Needs to be a power of 2."),
 				FText::AsNumber(SizeX),
 				FText::FromString(GetClass()->GetName()),
 				FText::FromString(GetTextureUClass()->GetName()));

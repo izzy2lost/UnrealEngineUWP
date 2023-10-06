@@ -165,7 +165,7 @@ bool UTextureRenderTarget::UpdateTexture(UTexture* InTexture, EConstructTextureF
 	{
 		if (OutErrorMessage != nullptr)
 		{
-			*OutErrorMessage = FText::Format(NSLOCTEXT("TextureRenderTarget", "NullRenderTargetResource", "Cannot update texture : render target {0} has been released."), FText::FromString(GetPathNameSafe(this)));
+			*OutErrorMessage = FText::Format(NSLOCTEXT("TextureRenderTarget", "NullRenderTargetResourceForUpdate", "Cannot update texture : render target {0} has been released."), FText::FromString(GetPathNameSafe(this)));
 		}
 		return false;
 	}
@@ -334,7 +334,7 @@ UTexture* UTextureRenderTarget::ConstructTexture(UObject* InOuter, const FString
 	{
 		if (OutErrorMessage != nullptr)
 		{
-			*OutErrorMessage = FText::Format(NSLOCTEXT("TextureRenderTarget", "NullRenderTargetResource", "Cannot construct texture : render target {0} has been released."), FText::FromString(GetPathNameSafe(this)));
+			*OutErrorMessage = FText::Format(NSLOCTEXT("TextureRenderTarget", "NullRenderTargetResourceForConstruct", "Cannot construct texture : render target {0} has been released."), FText::FromString(GetPathNameSafe(this)));
 		}
 		return nullptr;
 	}
