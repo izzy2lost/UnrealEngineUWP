@@ -16,7 +16,7 @@ LLM_DEFINE_TAG(Ias);
 namespace UE::IO::IAS
 {
 
-float GIasStatisticsLogInterval = 60.f;
+float GIasStatisticsLogInterval = 30.f;
 static FAutoConsoleVariableRef CVar_StatisticsLogInterval(
 	TEXT("ias.StatisticsLogInterval"),
 	GIasStatisticsLogInterval,
