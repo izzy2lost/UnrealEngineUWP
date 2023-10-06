@@ -3945,37 +3945,84 @@ struct FAITest_BTCompleteRestartDuringTaskExecute : public FAITest_SimpleBT
 };
 IMPLEMENT_AI_LATENT_TEST(FAITest_BTCompleteRestartDuringTaskExecute, "System.AI.Behavior Trees.Restart: complete during task execute")
 
-struct FAITest_BTTestOberserverAbortLowerPriorityTwoDeep: public FAITest_SimpleBT
+// This test is temporarily turned off until we enable CVarApplyAuxNodesFromFailedSearches again
+//struct FAITest_BTTestOberserverAbortLowerPriorityTwoDeep: public FAITest_SimpleBT
+//{
+//	FAITest_BTTestOberserverAbortLowerPriorityTwoDeep()
+//	{
+//		enum
+//		{
+//			MainTaskExecute = 1,
+//			InteruptingTaskExecute,
+//		};
+//
+//		UBTCompositeNode& RootNode = FBTBuilder::AddSelector(*BTAsset);
+//		UBTCompositeNode& CompNode = FBTBuilder::AddSelector(RootNode);
+//
+//		{
+//			UBTCompositeNode& Comp1Node = FBTBuilder::AddSelector(CompNode);
+//			FBTBuilder::WithDecoratorBlackboard(CompNode, EArithmeticKeyOperation::Equal, 1, EBTFlowAbortMode::LowerPriority, EBTBlackboardRestart::ValueChange, TEXT("Int"));
+//
+//			UBTCompositeNode& Comp2Node = FBTBuilder::AddSelector(Comp1Node);
+//			FBTBuilder::WithDecoratorBlackboard(Comp1Node, EArithmeticKeyOperation::Equal, 1, EBTFlowAbortMode::LowerPriority, EBTBlackboardRestart::ValueChange, TEXT("Int2"));
+//
+//			FBTBuilder::AddTask(Comp2Node, InteruptingTaskExecute, EBTNodeResult::Succeeded);
+//		}
+//
+//		{
+//			FBTBuilder::AddTaskValuesChangedWithLogs(/*ParentNode*/ CompNode, /*LogIndex*/ MainTaskExecute, /*NodeResult*/ EBTNodeResult::Succeeded, /*Value1*/1, /*Value2*/ 1, /*IntKeyName2*/ TEXT("Int"), /* IntKeyName2 */ TEXT("Int2"), /*ExecutionTicks1*/ 5, /*ExecutionTicks2*/ 5);
+//		}
+//
+//		ExpectedResult.Add(MainTaskExecute);
+//		ExpectedResult.Add(InteruptingTaskExecute);
+//	}
+//};
+//IMPLEMENT_AI_LATENT_TEST(FAITest_BTTestOberserverAbortLowerPriorityTwoDeep, "System.AI.Behavior Trees.OberserverAbortLowerPriorityTwoDeep: Two nodes in same branch with observer aborts lower priority")
+
+struct FAITest_BTTestTickAuxNodesDeactivateNodes : public FAITest_SimpleBT
 {
-	FAITest_BTTestOberserverAbortLowerPriorityTwoDeep()
+	FAITest_BTTestTickAuxNodesDeactivateNodes()
 	{
 		enum
 		{
 			MainTaskExecute = 1,
-			InteruptingTaskExecute,
+			StartAbortMainTask,
+			SecondaryTask,
+			IncorrectTaskExecute,
 		};
 
 		UBTCompositeNode& RootNode = FBTBuilder::AddSelector(*BTAsset);
-		UBTCompositeNode& CompNode = FBTBuilder::AddSelector(RootNode);
+		FBTBuilder::WithServiceLog(/*ParentNode*/ RootNode, /*ActivationIndex*/ INDEX_NONE, /*DeactivationIndex*/ INDEX_NONE, /*TickIndex*/ INDEX_NONE, /*TickBoolKeyName*/ TEXT("Bool1"), /*bCallTickOnSearchStart*/ false, /*BecomeRelevantBoolKeyName*/ NAME_None, /*BecomeRelevantBoolKeyName*/ NAME_None, /*bToggleValue*/ false, /*TicksDelaySetKeyNameTick*/ 4);
+		FBTBuilder::WithServiceLog(/*ParentNode*/ RootNode, /*ActivationIndex*/ INDEX_NONE, /*DeactivationIndex*/ INDEX_NONE, /*TickIndex*/ INDEX_NONE, /*TickBoolKeyName*/ TEXT("Bool3"), /*bCallTickOnSearchStart*/ false, /*BecomeRelevantBoolKeyName*/ NAME_None, /*BecomeRelevantBoolKeyName*/ NAME_None, /*bToggleValue*/ false, /*TicksDelaySetKeyNameTick*/ 2);
 
 		{
-			UBTCompositeNode& Comp1Node = FBTBuilder::AddSelector(CompNode);
-			FBTBuilder::WithDecoratorBlackboard(CompNode, EArithmeticKeyOperation::Equal, 1, EBTFlowAbortMode::LowerPriority, EBTBlackboardRestart::ValueChange, TEXT("Int"));
-
-			UBTCompositeNode& Comp2Node = FBTBuilder::AddSelector(Comp1Node);
-			FBTBuilder::WithDecoratorBlackboard(Comp1Node, EArithmeticKeyOperation::Equal, 1, EBTFlowAbortMode::LowerPriority, EBTBlackboardRestart::ValueChange, TEXT("Int2"));
-
-			FBTBuilder::AddTask(Comp2Node, InteruptingTaskExecute, EBTNodeResult::Succeeded);
+			UBTCompositeNode& CompNode = FBTBuilder::AddSelector(RootNode);
+			FBTBuilder::WithDecoratorBlackboard(/*ParentNode*/ RootNode, /*Condition*/ EBasicKeyOperation::NotSet, /*Observer*/ EBTFlowAbortMode::LowerPriority, /*BoolKeyName*/  TEXT("Bool1"));
+			{
+				UBTCompositeNode& CompNode2 = FBTBuilder::AddSelector(CompNode);
+				FBTBuilder::WithDecoratorBlackboard(/*ParentNode*/ RootNode, /*Condition*/ EBasicKeyOperation::Set, /*Observer*/ EBTFlowAbortMode::LowerPriority, /*BoolKeyName*/ TEXT("Bool2"));
+				{
+					FBTBuilder::AddTaskLogFinish(/*ParentNode*/ CompNode2, /*LogIndex*/ IncorrectTaskExecute, /*FinishIndex*/ INDEX_NONE, EBTNodeResult::Succeeded, /*ExecutionTick*/ 0);
+				}
+			}
 		}
 
 		{
-			FBTBuilder::AddTaskValuesChangedWithLogs(/*ParentNode*/ CompNode, /*LogIndex*/ MainTaskExecute, /*NodeResult*/ EBTNodeResult::Succeeded, /*Value1*/1, /*Value2*/ 1, /*IntKeyName2*/ TEXT("Int"), /* IntKeyName2 */ TEXT("Int2"), /*ExecutionTicks1*/ 5, /*ExecutionTicks2*/ 5);
+			UBTCompositeNode& CompNode3 = FBTBuilder::AddSelector(RootNode);
+			FBTBuilder::WithDecoratorBlackboard(/*ParentNode*/ RootNode, /*Condition*/ EBasicKeyOperation::Set, /*Observer*/ EBTFlowAbortMode::LowerPriority, /*BoolKeyName*/ TEXT("Bool3"));
+
+			FBTBuilder::AddTaskLogFinish(/*ParentNode*/ CompNode3, /*LogIndex*/ SecondaryTask, /*FinishIndex*/ INDEX_NONE, EBTNodeResult::Succeeded, /*ExecutionTick*/ 4);
+		}
+
+		{
+			FBTBuilder::AddTaskLatentFlags(RootNode, EBTNodeResult::Succeeded, 3, FName(), MainTaskExecute, INDEX_NONE, 3, NAME_None, 2, INDEX_NONE);
 		}
 
 		ExpectedResult.Add(MainTaskExecute);
-		ExpectedResult.Add(InteruptingTaskExecute);
+		ExpectedResult.Add(StartAbortMainTask);
+		ExpectedResult.Add(SecondaryTask);
 	}
 };
-IMPLEMENT_AI_LATENT_TEST(FAITest_BTTestOberserverAbortLowerPriorityTwoDeep, "System.AI.Behavior Trees.OberserverAbortLowerPriorityTwoDeep: Two nodes in same branch with observer aborts lower priority")
+IMPLEMENT_AI_LATENT_TEST(FAITest_BTTestTickAuxNodesDeactivateNodes, "System.AI.Behavior Trees.AITest_TickAuxNodesDeactivateNodes: Ticking Aux Nodes Deactivates Nodes")
 
 #undef LOCTEXT_NAMESPACE

@@ -33,7 +33,16 @@ double UBehaviorTreeComponent::FrameSearchTime = 0.;
 int32 UBehaviorTreeComponent::NumSearchTimeCalls = 0;
 #endif
 
-static TAutoConsoleVariable<bool> CVarAddAuxNodesFromFailedSearches(TEXT("BehaviorTree.AddAuxNodesFromFailedSearches"), 1, TEXT("Add Aux Nodes From Failed Searches"));
+namespace UE::BehaviorTreeCVars
+{
+	// Note this is defaulted to off for now as it caused a further bug, there is a BT unit test that will fire if this
+	// code is re-enabled, once that is addressed this can be re-enabled by default.
+	static bool bApplyAuxNodesFromFailedSearches = false;
+	static FAutoConsoleVariableRef CVarApplyAuxNodesFromFailedSearches(
+		TEXT("BehaviorTree.ApplyAuxNodesFromFailedSearches"),
+		bApplyAuxNodesFromFailedSearches,
+		TEXT("Apply Aux Nodes From Failed Searches"));
+}
 
 //----------------------------------------------------------------------//
 // UBehaviorTreeComponent
@@ -1638,7 +1647,7 @@ void UBehaviorTreeComponent::ApplySearchData(UBTNode* NewActiveNode)
 
 void UBehaviorTreeComponent::ApplyDiscardedSearch()
 {
-	if (CVarAddAuxNodesFromFailedSearches.GetValueOnGameThread())
+	if (UE::BehaviorTreeCVars::bApplyAuxNodesFromFailedSearches)
 	{
 		// Apply aux nodes from last search with the currently active node as the 'NewNode'
 		int32 NewNodeExecutionIdx = 0;
