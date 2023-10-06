@@ -439,6 +439,26 @@ bool UPrimitiveComponent::IsGravityEnabled() const
 	return false;
 }
 
+void UPrimitiveComponent::SetUpdateKinematicFromSimulation(bool bUpdateKinematicFromSimulation)
+{
+	FBodyInstance* BI = GetBodyInstance();
+	if (BI)
+	{
+		BI->SetUpdateKinematicFromSimulation(bUpdateKinematicFromSimulation);
+	}
+}
+
+bool UPrimitiveComponent::GetUpdateKinematicFromSimulation() const
+{
+	FBodyInstance* BI = GetBodyInstance();
+	if (BI)
+	{
+		return BI->bUpdateKinematicFromSimulation;
+	}
+
+	return false;
+}
+
 void UPrimitiveComponent::SetLinearDamping(float InDamping)
 {
 	FBodyInstance* BI = GetBodyInstance();

@@ -2589,6 +2589,14 @@ public:
 	UFUNCTION(BlueprintPure, Category="Physics")
 	ENGINE_API virtual bool IsGravityEnabled() const;
 
+	/** Enables/disables whether this component should be updated by simulation when it is kinematic. This is needed if (for example) its velocity needs to be accessed. */
+	UFUNCTION(BlueprintCallable, Category="Physics")
+	ENGINE_API virtual void SetUpdateKinematicFromSimulation(bool bUpdateKinematicFromSimulation);
+
+	/** Returns whether this component should be updated by simulation when it is kinematic. */
+	UFUNCTION(BlueprintPure, Category="Physics")
+	ENGINE_API virtual bool GetUpdateKinematicFromSimulation() const;
+
 	/** Sets the linear damping of this component. */
 	UFUNCTION(BlueprintCallable, Category="Physics")
 	ENGINE_API virtual void SetLinearDamping(float InDamping);
