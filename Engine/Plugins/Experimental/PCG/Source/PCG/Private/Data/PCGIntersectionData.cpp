@@ -237,13 +237,19 @@ UPCGPointData* UPCGIntersectionData::CreateAndFilterPointData(FPCGContext* Conte
 		const FPCGPoint& Point = SourcePoints[Index];
 
 		FPCGPoint PointFromY;
-#if WITH_EDITOR
-		if (!Y->SamplePoint(Point.Transform, Point.GetLocalBounds(), PointFromY, TempYMetadata) && !bKeepZeroDensityPoints)
-#else
 		if (!Y->SamplePoint(Point.Transform, Point.GetLocalBounds(), PointFromY, TempYMetadata))
-#endif
 		{
-			return false;
+			if (!bKeepZeroDensityPoints)
+			{
+				return false;
+			}
+			else
+			{
+				// Point is rejected, mark its density to zero
+				PointFromY.Density = 0;
+				PointFromY.MetadataEntry = PCGInvalidEntryKey;
+				PointFromY.Color = FVector4::One();
+			}
 		}
 
 		OutPoint = Point;

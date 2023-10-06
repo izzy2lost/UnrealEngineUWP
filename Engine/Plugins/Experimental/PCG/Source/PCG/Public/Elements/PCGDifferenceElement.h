@@ -52,11 +52,9 @@ public:
 	UPROPERTY(BlueprintReadWrite, EditAnywhere, Category = Settings)
 	bool bDiffMetadata = true;
 
-#if WITH_EDITORONLY_DATA
 	/** If enabled, the output will not automatically filter out points with zero density. */
-	UPROPERTY(Transient, BlueprintReadWrite, EditAnywhere, Category = "Settings|Debug", meta = (PCG_Overridable))
+	UPROPERTY(BlueprintReadWrite, EditAnywhere, Category = Settings, meta = (PCG_Overridable))
 	bool bKeepZeroDensityPoints = false;
-#endif
 };
 
 class FPCGDifferenceElement : public IPCGElement

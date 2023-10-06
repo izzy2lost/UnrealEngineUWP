@@ -35,11 +35,9 @@ public:
 	UPROPERTY(BlueprintReadWrite, EditAnywhere, Category = Settings, meta = (PCG_Overridable))
 	EPCGIntersectionDensityFunction DensityFunction = EPCGIntersectionDensityFunction::Multiply;
 
-#if WITH_EDITORONLY_DATA
-	/** [EDITOR ONLY] If enabled, output points with a density value of 0 will NOT be automatically filtered out. */
-	UPROPERTY(Transient, BlueprintReadWrite, EditAnywhere, Category = "Settings|Debug", meta = (PCG_Overridable))
+	/** If enabled, output points with a density value of 0 will NOT be automatically filtered out. */
+	UPROPERTY(BlueprintReadWrite, EditAnywhere, Category = Settings, meta = (PCG_Overridable))
 	bool bKeepZeroDensityPoints = false;
-#endif
 };
 
 class FPCGInnerIntersectionElement : public IPCGElement

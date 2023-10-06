@@ -62,11 +62,7 @@ bool FPCGProjectionElement::ExecuteInternal(FPCGContext* Context) const
 
 	TArray<FPCGTaggedData>& Outputs = Context->OutputData.TaggedData;
 
-#if WITH_EDITOR
 	const bool bKeepZeroDensityPoints = Settings->bKeepZeroDensityPoints;
-#else
-	const bool bKeepZeroDensityPoints = false;
-#endif
 
 	for (FPCGTaggedData& Source : Sources)
 	{
@@ -79,9 +75,7 @@ bool FPCGProjectionElement::ExecuteInternal(FPCGContext* Context) const
 		}
 
 		UPCGSpatialData* ProjectionData = ProjectionSource->ProjectOn(ProjectionTarget, ProjectionParams);
-#if WITH_EDITOR
 		ProjectionData->bKeepZeroDensityPoints = bKeepZeroDensityPoints;
-#endif
 
 		if (ProjectionData->RequiresCollapseToSample())
 		{

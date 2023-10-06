@@ -181,9 +181,7 @@ bool FPCGDifferenceElement::ExecuteInternal(FPCGContext* Context) const
 
 		DifferenceData->SetDensityFunction(Settings->DensityFunction);
 		DifferenceData->bDiffMetadata = Settings->bDiffMetadata;
-#if WITH_EDITOR
 		DifferenceData->bKeepZeroDensityPoints = Settings->bKeepZeroDensityPoints;
-#endif
 
 		FPCGTaggedData& Output = Outputs.Add_GetRef(Source);
 		Output.Data = DifferenceData;

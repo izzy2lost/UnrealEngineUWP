@@ -234,13 +234,20 @@ const UPCGPointData* UPCGProjectionData::CreatePointData(FPCGContext* Context) c
 		const FPCGPoint& SourcePoint = SourcePoints[Index];
 
 		FPCGPoint PointFromTarget;
-#if WITH_EDITOR
-		if (!Target->ProjectPoint(SourcePoint.Transform, SourcePoint.GetLocalBounds(), ProjectionParams, PointFromTarget, TempTargetMetadata) && !bKeepZeroDensityPoints)
-#else
 		if (!Target->ProjectPoint(SourcePoint.Transform, SourcePoint.GetLocalBounds(), ProjectionParams, PointFromTarget, TempTargetMetadata))
-#endif
 		{
-			return false;
+			if (!bKeepZeroDensityPoints)
+			{
+				return false;
+			}
+			else
+			{
+				// Point is rejected, mark its density to zero, put it in a state where we won't affect the output point
+				PointFromTarget.Transform = SourcePoint.Transform;
+				PointFromTarget.Color = FVector4::One();
+				PointFromTarget.Density = 0;
+				PointFromTarget.MetadataEntry = PCGInvalidEntryKey;
+			}
 		}
 
 		// Merge points into a single point

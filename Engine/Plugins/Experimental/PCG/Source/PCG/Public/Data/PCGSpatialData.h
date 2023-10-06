@@ -139,10 +139,8 @@ public:
 	UPROPERTY(Transient, BlueprintReadWrite, EditAnywhere, Category = Data)
 	TWeakObjectPtr<AActor> TargetActor = nullptr;
 
-#if WITH_EDITORONLY_DATA
-	UPROPERTY(Transient, BlueprintReadWrite, EditAnywhere, Category = Debug)
+	UPROPERTY(BlueprintReadWrite, EditAnywhere, Category = Data)
 	bool bKeepZeroDensityPoints = false;
-#endif
 
 	// Not accessible through blueprint to make sure the constness is preserved
 	UPROPERTY(VisibleAnywhere, Category = Metadata)

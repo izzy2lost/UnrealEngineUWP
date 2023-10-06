@@ -155,9 +155,8 @@ bool FPCGOuterIntersectionElement::ExecuteInternal(FPCGContext* Context) const
 			UPCGIntersectionData* TempIntersectionData = IntersectionData->IntersectWith(SecondarySourceUnionData);
 			// Propagate settings
 			TempIntersectionData->DensityFunction = Settings->DensityFunction;
-#if WITH_EDITOR
 			TempIntersectionData->bKeepZeroDensityPoints = Settings->bKeepZeroDensityPoints;
-#endif // WITH_EDITOR
+
 			IntersectionData = TempIntersectionData;
 		}
 

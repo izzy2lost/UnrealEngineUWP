@@ -55,11 +55,7 @@ bool FPCGInnerIntersectionElement::ExecuteInternal(FPCGContext* Context) const
 	TArray<FPCGTaggedData> Inputs = Context->InputData.GetInputs();
 
 	const EPCGIntersectionDensityFunction DensityFunction = Settings->DensityFunction;
-#if WITH_EDITOR
 	const bool bKeepZeroDensityPoints = Settings->bKeepZeroDensityPoints;
-#else
-	const bool bKeepZeroDensityPoints = false;
-#endif
 
 	TArray<FPCGTaggedData>& Outputs = Context->OutputData.TaggedData;
 
@@ -90,9 +86,7 @@ bool FPCGInnerIntersectionElement::ExecuteInternal(FPCGContext* Context) const
 		IntersectionData = (IntersectionData ? IntersectionData : FirstSpatialData)->IntersectWith(SpatialData);
 		// Propagate settings
 		IntersectionData->DensityFunction = DensityFunction;
-#if WITH_EDITOR
 		IntersectionData->bKeepZeroDensityPoints = bKeepZeroDensityPoints;
-#endif
 
 		// Update tagged data
 		FPCGTaggedData& IntersectionTaggedData = Outputs[IntersectionTaggedDataIndex];

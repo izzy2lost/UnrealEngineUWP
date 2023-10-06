@@ -220,11 +220,7 @@ const UPCGPointData* UPCGBaseTextureData::CreatePointData(FPCGContext* Context) 
 		if (PCGTextureSampling::Sample<FLinearColor>(LocalCoordinate, Surface, this, Width, Height, Color, [this](int32 Index) { return ColorData[Index]; }))
 		{
 			const float Density = ((DensityFunction == EPCGTextureDensityFunction::Ignore) ? 1.0f : PCGTextureSampling::SampleFloatChannel(Color, ColorChannel));
-#if WITH_EDITOR
 			if (Density > 0 || bKeepZeroDensityPoints)
-#else
-			if (Density > 0)
-#endif
 			{
 				FVector LocalPosition(LocalCoordinate, 0);
 				OutPoint = FPCGPoint(FTransform(Transform.TransformPosition(LocalPosition)),
