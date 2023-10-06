@@ -376,7 +376,7 @@ public:
 	* Because this is called either on the CDO or on a flattened instance, there is no need to worry about
 	* resolving the settings of the graph, the node only needs to read its own values.
 	*/
-	virtual void GetFormatResolveArgs(FMovieGraphResolveArgs& OutMergedFormatArgs) const {}
+	virtual void GetFormatResolveArgs(FMovieGraphResolveArgs& OutMergedFormatArgs, const FMovieGraphRenderDataIdentifier& InRenderDataIdentifier) const {}
 };
 
 /**

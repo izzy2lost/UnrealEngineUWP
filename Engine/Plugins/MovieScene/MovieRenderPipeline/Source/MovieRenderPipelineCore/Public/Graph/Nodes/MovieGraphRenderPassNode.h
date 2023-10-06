@@ -1,8 +1,11 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 
 #pragma once
+
 #include "Graph/MovieGraphNode.h"
 #include "Graph/MovieGraphDataTypes.h"
+#include "Styling/AppStyle.h"
+
 #include "MovieGraphRenderPassNode.generated.h"
 
 // Forward Declare
@@ -51,6 +54,18 @@ public:
 	virtual FText GetMenuCategory() const override
 	{
 		return NSLOCTEXT("MovieGraphNodes", "RenderPassGraphNode_Category", "Rendering");
+	}
+
+	virtual FLinearColor GetNodeTitleColor() const override
+	{
+		return FLinearColor(0.572f, 0.274f, 1.f);
+	}
+	
+	virtual FSlateIcon GetIconAndTint(FLinearColor& OutColor) const override
+	{
+		static const FSlateIcon DeferredRendererIcon = FSlateIcon(FAppStyle::GetAppStyleSetName(), "SequenceRecorder.TabIcon");
+		OutColor = FLinearColor::White;
+		return DeferredRendererIcon;
 	}
 #endif
 

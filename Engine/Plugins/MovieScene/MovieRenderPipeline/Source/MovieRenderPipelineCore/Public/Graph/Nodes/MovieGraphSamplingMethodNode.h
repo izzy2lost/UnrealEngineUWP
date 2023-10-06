@@ -16,6 +16,7 @@ public:
 	UMovieGraphSamplingMethodNode();
 
 	virtual EMovieGraphBranchRestriction GetBranchRestriction() const override;
+	virtual void GetFormatResolveArgs(FMovieGraphResolveArgs& OutMergedFormatArgs, const FMovieGraphRenderDataIdentifier& InRenderDataIdentifier) const override;
 
 #if WITH_EDITOR
 	virtual FText GetNodeTitle(const bool bGetDescriptive = false) const override;

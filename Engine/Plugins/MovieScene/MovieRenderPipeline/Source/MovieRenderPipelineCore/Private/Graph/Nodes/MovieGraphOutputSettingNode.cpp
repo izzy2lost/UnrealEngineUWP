@@ -16,7 +16,7 @@ UMovieGraphOutputSettingNode::UMovieGraphOutputSettingNode()
 	OutputDirectory.Path = TEXT("{project_dir}/Saved/MovieRenders/");
 }
 
-void UMovieGraphOutputSettingNode::GetFormatResolveArgs(FMovieGraphResolveArgs& OutMergedFormatArgs) const
+void UMovieGraphOutputSettingNode::GetFormatResolveArgs(FMovieGraphResolveArgs& OutMergedFormatArgs, const FMovieGraphRenderDataIdentifier& InRenderDataIdentifier) const
 {
 	const FString ResolvedProjectDir = FPaths::ConvertRelativePathToFull(FPaths::ProjectDir());
 	OutMergedFormatArgs.FilenameArguments.Add(TEXT("project_dir"), ResolvedProjectDir);

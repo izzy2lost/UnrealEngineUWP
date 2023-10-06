@@ -352,6 +352,9 @@ namespace UE::MovieGraph
 
 		/** Stores the actual pixel data for each render pass. */
 		TMap<FMovieGraphRenderDataIdentifier, TUniquePtr<FImagePixelData>> ImageOutputData;
+
+		/** Additional metadata to be added to the output (if supported by the output container). */
+		TMap<FString, FString> FileMetadata;
 	};
 
 	/**

@@ -1106,8 +1106,15 @@ void UMovieGraphPipeline::ProcessOutstandingFinishedFrames()
 		{
 			TimeStats->EndTime = FDateTime::UtcNow();
 
-			int32 FrameNumber = OutputFrame.TraversalContext.Time.RenderedFrameNumber;
+			// Add render time metadata
+			FString StartTimeStr = TimeStats->StartTime.ToString();
+			FString EndTimeStr = TimeStats->EndTime.ToString();
 			FString DurationTimeStr = (TimeStats->EndTime - TimeStats->StartTime).ToString();
+			OutputFrame.FileMetadata.Add(TEXT("unreal/frameRenderStartTimeUTC"), StartTimeStr);
+			OutputFrame.FileMetadata.Add(TEXT("unreal/frameRenderEndTimeUTC"), EndTimeStr);
+			OutputFrame.FileMetadata.Add(TEXT("unreal/frameRenderDuration"), DurationTimeStr);
+
+			// int32 FrameNumber = OutputFrame.TraversalContext.Time.RenderedFrameNumber;
 			// UE_LOG(LogTemp, Log, TEXT("Frame: %d Duration: %s"), FrameNumber, *DurationTimeStr);
 		}
 

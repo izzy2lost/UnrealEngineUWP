@@ -60,6 +60,7 @@ struct FMovieGraphFilenameResolveParams
 		, Shot(nullptr)
 		, EvaluatedConfig(nullptr)
 		, FrameNumberOffset(0)
+		, DefaultFrameRate(FFrameRate(24, 1))
 	{
 	}
 	
@@ -125,7 +126,7 @@ struct FMovieGraphFilenameResolveParams
 	UPROPERTY(BlueprintReadWrite, EditAnywhere, Category = "Movie Graph")
 	FDateTime InitializationTime;
 	
-	/** When converitng frame numbers to strings, how many digits should we pad them up to? ie: 5 => 0005 with a count of 4. */
+	/** When converting frame numbers to strings, how many digits should we pad them up to? ie: 5 => 0005 with a count of 4. */
 	UPROPERTY(BlueprintReadWrite, EditAnywhere, Category = "Movie Graph")
 	int32 ZeroPadFrameNumberCount;
 

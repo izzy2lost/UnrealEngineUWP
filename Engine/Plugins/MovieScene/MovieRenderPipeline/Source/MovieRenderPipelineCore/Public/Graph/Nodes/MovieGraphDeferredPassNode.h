@@ -15,6 +15,8 @@ class MOVIERENDERPIPELINECORE_API UMovieGraphDeferredRenderPassNode : public UMo
 public:
 	UMovieGraphDeferredRenderPassNode();
 
+	virtual void GetFormatResolveArgs(FMovieGraphResolveArgs& OutMergedFormatArgs, const FMovieGraphRenderDataIdentifier& InRenderDataIdentifier) const override;
+
 #if WITH_EDITOR
 	virtual FText GetNodeTitle(const bool bGetDescriptive = false) const override;
 #endif

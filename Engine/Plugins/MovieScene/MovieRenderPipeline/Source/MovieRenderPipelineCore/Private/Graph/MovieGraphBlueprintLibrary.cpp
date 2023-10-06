@@ -80,10 +80,11 @@ FString UMovieGraphBlueprintLibrary::ResolveFilenameFormatArguments(const FStrin
 		OutMergedFormatArgs.FilenameArguments.Add(TEXT("renderer_sub_name"), InParams.RenderDataIdentifier.SubResourceName);
 		OutMergedFormatArgs.FilenameArguments.Add(TEXT("render_layer"), RenderLayerName);
 
+		// TODO: Some of these are per render layer and need to be stored that way. EXRs will have the metadata for all the layers/cameras/etc. in one file.
 		OutMergedFormatArgs.FileMetadata.Add(TEXT("unreal/cameraName"), InParams.RenderDataIdentifier.CameraName);
 		OutMergedFormatArgs.FileMetadata.Add(TEXT("unreal/rendererName"), InParams.RenderDataIdentifier.RendererName);
-		OutMergedFormatArgs.FileMetadata.Add(TEXT("unreal/rendererSubName"), InParams.RenderDataIdentifier.SubResourceName);
-		OutMergedFormatArgs.FileMetadata.Add(TEXT("unreal/renderLayer"), RenderLayerName);
+		OutMergedFormatArgs.FileMetadata.Add(TEXT("unreal/subResourceName"), InParams.RenderDataIdentifier.SubResourceName);
+		OutMergedFormatArgs.FileMetadata.Add(TEXT("unreal/layerName"), RenderLayerName);
 	}
 
 
@@ -103,12 +104,16 @@ FString UMovieGraphBlueprintLibrary::ResolveFilenameFormatArguments(const FStrin
 
 		if (InParams.Job)
 		{
+			FString LevelName = InParams.Job->Map.GetAssetName();
 			FString SequenceName = InParams.Job->Sequence.GetAssetName();
+			
+			OutMergedFormatArgs.FilenameArguments.Add(TEXT("level_name"), SequenceName);
 			OutMergedFormatArgs.FilenameArguments.Add(TEXT("sequence_name"), SequenceName);
+			
+			OutMergedFormatArgs.FileMetadata.Add(TEXT("unreal/levelName"), LevelName);
 			OutMergedFormatArgs.FileMetadata.Add(TEXT("unreal/sequenceName"), SequenceName);
 		}
-
-
+		
 		// Add KVP data from the job (date, time, job name, job author, job comment)
 		UE::MoviePipeline::GetSharedFormatArguments(OutMergedFormatArgs.FilenameArguments, OutMergedFormatArgs.FileMetadata, InParams.InitializationTime, InParams.Version, InParams.Job);
 	}
@@ -133,7 +138,7 @@ FString UMovieGraphBlueprintLibrary::ResolveFilenameFormatArguments(const FStrin
 
 		if (SettingInstance)
 		{
-			SettingInstance->GetFormatResolveArgs(OutMergedFormatArgs);
+			SettingInstance->GetFormatResolveArgs(OutMergedFormatArgs, InParams.RenderDataIdentifier);
 		}
 	}
 
