@@ -730,7 +730,7 @@ namespace LowLevelTests
 				CachedConfig.Platform = Platform;
 				CachedConfig.Configuration = UnrealTargetConfiguration.Development;
 				CachedConfig.Build = DiscoveredBuild;
-				CachedConfig.Sandbox = "LowLevelTests";
+				CachedConfig.Sandbox = $"LowLevelTests-{TestApp}";
 				CachedConfig.FilesToCopy = new List<UnrealFileToCopy>();
 				if (InContainerized)
 				{
