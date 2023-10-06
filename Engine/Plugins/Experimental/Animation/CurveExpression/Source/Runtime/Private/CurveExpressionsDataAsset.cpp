@@ -13,24 +13,34 @@
 
 TArray<FCurveExpressionAssignment> FCurveExpressionList::GetAssignments() const
 {
+	// A helper string to mark an expression as returning an undefined value (for curve removal).
+	static FString UndefExpr(TEXT("undef()"));
+	
 	TArray<FCurveExpressionAssignment> ExpressionAssignments;
 	int32 LineIndex = 0;
 	
 	UE::String::ParseLines(AssignmentExpressions,
 		[&ExpressionAssignments, &LineIndex](FStringView InLine)
-	{
-		int32 AssignmentPos;
-		if (InLine.FindChar('=', AssignmentPos))
 		{
-			const FStringView AssignmentTarget = InLine.Left(AssignmentPos).TrimStartAndEnd();
-			const FStringView SourceExpression = InLine.Mid(AssignmentPos + 1).TrimStartAndEnd();
-			if (!AssignmentTarget.IsEmpty() && !SourceExpression.IsEmpty())
+			InLine.TrimStartAndEndInline();
+			
+			int32 AssignmentPos;
+			if (InLine.FindChar('=', AssignmentPos))
 			{
-				ExpressionAssignments.Add({LineIndex, FName(AssignmentTarget), SourceExpression});
+				const FStringView AssignmentTarget = InLine.Left(AssignmentPos).TrimStartAndEnd();
+				const FStringView SourceExpression = InLine.Mid(AssignmentPos + 1).TrimStartAndEnd();
+				if (!AssignmentTarget.IsEmpty() && !SourceExpression.IsEmpty())
+				{
+					ExpressionAssignments.Add({LineIndex, FName(AssignmentTarget), SourceExpression});
+				}
 			}
-		}
-		LineIndex++;
-	});
+			else if (InLine.StartsWith('-'))
+			{
+				const FStringView AssignmentTarget = InLine.Mid(1).TrimStartAndEnd();
+				ExpressionAssignments.Add({LineIndex, FName(AssignmentTarget), UndefExpr});
+			}
+			LineIndex++;
+		});
 	return ExpressionAssignments;
 }
 

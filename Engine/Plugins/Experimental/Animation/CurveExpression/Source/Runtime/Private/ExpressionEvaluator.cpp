@@ -62,8 +62,11 @@ struct FInitializeBuiltinFunctions
 		/** pi() */
 		CE_EXPR(pi, 0, UE_PI)
 		
-		/** pi() */
+		/** e() */
 		CE_EXPR(e, 0, UE_EULERS_NUMBER)
+
+		/** undef() */
+		CE_EXPR(undef, 0, std::numeric_limits<float>::signaling_NaN());
 	}
 } GInitializeBuiltinFunctions;
 #undef CE_EXPR
