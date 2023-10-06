@@ -1150,11 +1150,19 @@ void UClusterUnionComponent::ForceSetChildToParent(UPrimitiveComponent* InCompon
 	for (int32 Index = 0; Index < BoneIds.Num(); ++Index)
 	{
 		Chaos::FPhysicsObjectHandle Handle = InComponent->GetPhysicsObjectById(BoneIds[Index]);
-		Objects.Add(Handle);
+		const bool bIsValidHandle = ensureMsgf(Handle != nullptr, TEXT("UClusterUnionComponent::ForceSetChildToParent invalid BoneID %d on %s"), BoneIds[Index], *InComponent->GetFullName());
+
+		if (bIsValidHandle)
+		{
+			Objects.Add(Handle);
+		}
 	}
 
 	// Need to lock the ChildToParent to prevent the PT from trying to compute it.
-	PhysicsProxy->BulkSetChildToParent_External(Objects, ChildToParent, true);
+	if (!Objects.IsEmpty())
+	{
+		PhysicsProxy->BulkSetChildToParent_External(Objects, ChildToParent, true);
+	}
 }
 
 void UClusterUnionComponent::SetSimulatePhysics(bool bSimulate)

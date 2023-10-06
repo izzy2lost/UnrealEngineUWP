@@ -700,7 +700,10 @@ namespace Chaos
 
 	void FClusterUnionPhysicsProxy::SetChildToParent_External(FPhysicsObjectHandle Child, const FTransform& RelativeTransform, bool bLock)
 	{
-		BulkSetChildToParent_External({ Child }, { RelativeTransform }, bLock);
+		if (ensure(Child != nullptr))
+		{
+			BulkSetChildToParent_External({ Child }, { RelativeTransform }, bLock);
+		}
 	}
 
 	void FClusterUnionPhysicsProxy::BulkSetChildToParent_External(const TArray<FPhysicsObjectHandle>& Objects, const TArray<FTransform>& Transforms, bool bLock)
