@@ -1212,56 +1212,37 @@ void FMassEntityManager::BatchSetEntityFragmentsValues(const FMassArchetypeEntit
 void* FMassEntityManager::InternalGetFragmentDataChecked(FMassEntityHandle Entity, const UScriptStruct* FragmentType) const
 {
 	CheckIfEntityIsActive(Entity);
-
-	checkf((FragmentType != nullptr) && FragmentType->IsChildOf(FMassFragment::StaticStruct()), TEXT("InternalGetFragmentDataChecked called with an invalid fragment type '%s'"), *GetPathNameSafe(FragmentType));
 	const FEntityData& EntityData = Entities[Entity.Index];
 	return EntityData.CurrentArchetype->GetFragmentDataForEntityChecked(FragmentType, Entity.Index);
 }
 
 void* FMassEntityManager::InternalGetFragmentDataPtr(FMassEntityHandle Entity, const UScriptStruct* FragmentType) const
 {
+	// note that FragmentType is guaranteed to be of valid type - it's either statically checked by the template versions
+	// or `checkf`ed by the non-template one
 	CheckIfEntityIsActive(Entity);
-	checkf((FragmentType != nullptr) && FragmentType->IsChildOf(FMassFragment::StaticStruct()), TEXT("InternalGetFragmentData called with an invalid fragment type '%s'"), *GetPathNameSafe(FragmentType));
 	const FEntityData& EntityData = Entities[Entity.Index];
 	return EntityData.CurrentArchetype->GetFragmentDataForEntity(FragmentType, Entity.Index);
 }
 
-const void* FMassEntityManager::InternalGetConstSharedFragmentDataChecked(FMassEntityHandle Entity, const UScriptStruct* ConstSharedFragmentType) const
+const FConstSharedStruct* FMassEntityManager::InternalGetConstSharedFragmentPtr(FMassEntityHandle Entity, const UScriptStruct* ConstSharedFragmentType) const
 {
+	// note that ConstSharedFragmentType is guaranteed to be of valid type - it's either statically checked by the template versions
+	// or `checkf`ed by the non-template one
 	CheckIfEntityIsActive(Entity);
-	checkf((ConstSharedFragmentType != nullptr) && ConstSharedFragmentType->IsChildOf(FMassSharedFragment::StaticStruct()), TEXT("InternalGetConstSharedFragmentDataChecked called with an invalid fragment type '%s'"), *GetPathNameSafe(ConstSharedFragmentType));
 	const FEntityData& EntityData = Entities[Entity.Index];
 	const FConstSharedStruct* SharedFragment = EntityData.CurrentArchetype->GetSharedFragmentValues(Entity).GetConstSharedFragments().FindByPredicate(FStructTypeEqualOperator(ConstSharedFragmentType));
-	check(SharedFragment != nullptr);
-	return SharedFragment->GetMemory();
+	return SharedFragment;
 }
 
-const void* FMassEntityManager::InternalGetConstSharedFragmentDataPtr(FMassEntityHandle Entity, const UScriptStruct* ConstSharedFragmentType) const
+const FSharedStruct* FMassEntityManager::InternalGetSharedFragmentPtr(FMassEntityHandle Entity, const UScriptStruct* SharedFragmentType) const
 {
+	// note that SharedFragmentType is guaranteed to be of valid type - it's either statically checked by the template versions
+	// or `checkf`ed by the non-template one
 	CheckIfEntityIsActive(Entity);
-	checkf((ConstSharedFragmentType != nullptr) && ConstSharedFragmentType->IsChildOf(FMassSharedFragment::StaticStruct()), TEXT("InternalGetConstSharedFragmentData called with an invalid fragment type '%s'"), *GetPathNameSafe(ConstSharedFragmentType));
-	const FEntityData& EntityData = Entities[Entity.Index];
-	const FConstSharedStruct* SharedFragment = EntityData.CurrentArchetype->GetSharedFragmentValues(Entity).GetConstSharedFragments().FindByPredicate(FStructTypeEqualOperator(ConstSharedFragmentType));
-	return (SharedFragment != nullptr) ? SharedFragment->GetMemory() : nullptr;
-}
-
-void* FMassEntityManager::InternalGetSharedFragmentDataChecked(FMassEntityHandle Entity, const UScriptStruct* SharedFragmentType) const
-{
-	CheckIfEntityIsActive(Entity);
-	checkf((SharedFragmentType != nullptr) && SharedFragmentType->IsChildOf(FMassSharedFragment::StaticStruct()), TEXT("InternalGetSharedFragmentDataChecked called with an invalid fragment type '%s'"), *GetPathNameSafe(SharedFragmentType));
 	const FEntityData& EntityData = Entities[Entity.Index];
 	const FSharedStruct* SharedFragment = EntityData.CurrentArchetype->GetSharedFragmentValues(Entity).GetSharedFragments().FindByPredicate(FStructTypeEqualOperator(SharedFragmentType));
-	check(SharedFragment != nullptr);
-	return SharedFragment->GetMemory();
-}
-
-void* FMassEntityManager::InternalGetSharedFragmentDataPtr(FMassEntityHandle Entity, const UScriptStruct* SharedFragmentType) const
-{
-	CheckIfEntityIsActive(Entity);
-	checkf((SharedFragmentType != nullptr) && SharedFragmentType->IsChildOf(FMassSharedFragment::StaticStruct()), TEXT("InternalGetSharedFragmentData called with an invalid fragment type '%s'"), *GetPathNameSafe(SharedFragmentType));
-	const FEntityData& EntityData = Entities[Entity.Index];
-	const FSharedStruct* SharedFragment = EntityData.CurrentArchetype->GetSharedFragmentValues(Entity).GetSharedFragments().FindByPredicate(FStructTypeEqualOperator(SharedFragmentType));
-	return (SharedFragment != nullptr) ? SharedFragment->GetMemory() : nullptr;
+	return SharedFragment;
 }
 
 bool FMassEntityManager::IsEntityValid(FMassEntityHandle Entity) const

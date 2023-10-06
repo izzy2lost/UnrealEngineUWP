@@ -317,55 +317,80 @@ public:
 	// Asserts that IsEntityBuilt
 	void CheckIfEntityIsActive(FMassEntityHandle Entity) const;
 
-	template <typename FragmentType>
+	template<typename FragmentType>
 	FragmentType& GetFragmentDataChecked(FMassEntityHandle Entity) const
 	{
+		static_assert(TIsDerivedFrom<FragmentType, FMassFragment>::IsDerived
+			, "Given struct doesn't represent a valid fragment type. Make sure to inherit from FMassFragment or one of its child-types.");
 		return *((FragmentType*)InternalGetFragmentDataChecked(Entity, FragmentType::StaticStruct()));
 	}
 
-	template <typename FragmentType>
+	template<typename FragmentType>
 	FragmentType* GetFragmentDataPtr(FMassEntityHandle Entity) const
 	{
+		static_assert(TIsDerivedFrom<FragmentType, FMassFragment>::IsDerived
+			, "Given struct doesn't represent a valid fragment type. Make sure to inherit from FMassFragment or one of its child-types.");
 		return (FragmentType*)InternalGetFragmentDataPtr(Entity, FragmentType::StaticStruct());
 	}
 
 	FStructView GetFragmentDataStruct(FMassEntityHandle Entity, const UScriptStruct* FragmentType) const
 	{
+		checkf((FragmentType != nullptr) && FragmentType->IsChildOf(FMassFragment::StaticStruct())
+			, TEXT("GetFragmentDataStruct called with an invalid fragment type '%s'"), *GetPathNameSafe(FragmentType));
 		return FStructView(FragmentType, static_cast<uint8*>(InternalGetFragmentDataPtr(Entity, FragmentType)));
 	}
 
-	template <typename ConstSharedFragmentType>
-	ConstSharedFragmentType& GetConstSharedFragmentDataChecked(FMassEntityHandle Entity) const
-	{
-		return *((ConstSharedFragmentType*)InternalGetConstSharedFragmentDataChecked(Entity, ConstSharedFragmentType::StaticStruct()));
-	}
-
-	template <typename ConstSharedFragmentType>
+	template<typename ConstSharedFragmentType>
 	ConstSharedFragmentType* GetConstSharedFragmentDataPtr(FMassEntityHandle Entity) const
 	{
-		return (ConstSharedFragmentType*)InternalGetConstSharedFragmentDataPtr(Entity, ConstSharedFragmentType::StaticStruct());
+		static_assert(TIsDerivedFrom<ConstSharedFragmentType, FMassSharedFragment>::IsDerived, "Given struct doesn't represent a valid shared fragment type. Make sure to inherit from FMassSharedFragment or one of its child-types.");
+		const FConstSharedStruct* ConstSharedStruct = InternalGetConstSharedFragmentPtr(Entity, ConstSharedFragmentType::StaticStruct());
+		return (ConstSharedFragmentType*)(ConstSharedStruct ? ConstSharedStruct->GetMemory() : nullptr);
+	}
+
+	template<typename ConstSharedFragmentType>
+	ConstSharedFragmentType& GetConstSharedFragmentDataChecked(FMassEntityHandle Entity) const
+	{
+		ConstSharedFragmentType* TypePtr = GetConstSharedFragmentDataPtr<ConstSharedFragmentType>(Entity);
+		check(TypePtr);
+		return *TypePtr;
 	}
 
 	FConstStructView GetConstSharedFragmentDataStruct(FMassEntityHandle Entity, const UScriptStruct* ConstSharedFragmentType) const
 	{
-		return FConstStructView(ConstSharedFragmentType, static_cast<const uint8*>(InternalGetConstSharedFragmentDataPtr(Entity, ConstSharedFragmentType)));
+		checkf((ConstSharedFragmentType != nullptr) && ConstSharedFragmentType->IsChildOf(FMassSharedFragment::StaticStruct())
+			, TEXT("GetConstSharedFragmentDataStruct called with an invalid fragment type '%s'"), *GetPathNameSafe(ConstSharedFragmentType));
+		const FConstSharedStruct* ConstSharedStruct = InternalGetConstSharedFragmentPtr(Entity, ConstSharedFragmentType);
+		return ConstSharedStruct
+			? FConstStructView(*ConstSharedStruct)
+			: FConstStructView();
 	}
 
-	template <typename SharedFragmentType>
-	SharedFragmentType& GetSharedFragmentDataChecked(FMassEntityHandle Entity) const
-	{
-		return *((SharedFragmentType*)InternalGetSharedFragmentDataChecked(Entity, SharedFragmentType::StaticStruct()));
-	}
-
-	template <typename SharedFragmentType>
+	template<typename SharedFragmentType>
 	SharedFragmentType* GetSharedFragmentDataPtr(FMassEntityHandle Entity) const
 	{
-		return (SharedFragmentType*)InternalGetSharedFragmentDataPtr(Entity, SharedFragmentType::StaticStruct());
+		static_assert(TIsDerivedFrom<SharedFragmentType, FMassSharedFragment>::IsDerived
+			, "Given struct doesn't represent a valid shared fragment type. Make sure to inherit from FMassSharedFragment or one of its child-types.");
+		const FSharedStruct* FragmentPtr = InternalGetSharedFragmentPtr(Entity, SharedFragmentType::StaticStruct());
+		return (SharedFragmentType*)(FragmentPtr ? FragmentPtr->GetMemory() : nullptr);
+	}
+
+	template<typename SharedFragmentType>
+	SharedFragmentType& GetSharedFragmentDataChecked(FMassEntityHandle Entity) const
+	{
+		SharedFragmentType* TypePtr = GetSharedFragmentDataPtr<SharedFragmentType>(Entity);
+		check(TypePtr);
+		return *TypePtr;
 	}
 
 	FConstStructView GetSharedFragmentDataStruct(FMassEntityHandle Entity, const UScriptStruct* SharedFragmentType) const
 	{
-		return FConstStructView(SharedFragmentType, static_cast<uint8*>(InternalGetSharedFragmentDataPtr(Entity, SharedFragmentType)));
+		checkf((SharedFragmentType != nullptr) && SharedFragmentType->IsChildOf(FMassSharedFragment::StaticStruct())
+			, TEXT("GetSharedFragmentDataStruct called with an invalid fragment type '%s'"), *GetPathNameSafe(SharedFragmentType));
+		const FSharedStruct* FragmentPtr = InternalGetSharedFragmentPtr(Entity, SharedFragmentType);
+		return FragmentPtr
+			? FConstStructView(*FragmentPtr)
+			: FConstStructView();
 	}
 
 	uint32 GetArchetypeDataVersion() const { return ArchetypeDataVersion; }
@@ -498,12 +523,14 @@ private:
 	 *  fragment list. It's callers responsibility to ensure that's true. Failing this will cause a `check` fail.
 	 */
 	void InternalAddFragmentListToEntity(FMassEntityHandle Entity, const FMassFragmentBitSet& InFragments);
+	/** Note that it's the caller's responsibility to ensure `FragmentType` is a kind of FMassFragment */
 	void* InternalGetFragmentDataChecked(FMassEntityHandle Entity, const UScriptStruct* FragmentType) const;
+	/** Note that it's the caller's responsibility to ensure `FragmentType` is a kind of FMassFragment */
 	void* InternalGetFragmentDataPtr(FMassEntityHandle Entity, const UScriptStruct* FragmentType) const;
-	const void* InternalGetConstSharedFragmentDataChecked(FMassEntityHandle Entity, const UScriptStruct* ConstSharedFragmentType) const;
-	const void* InternalGetConstSharedFragmentDataPtr(FMassEntityHandle Entity, const UScriptStruct* ConstSharedFragmentType) const;
-	void* InternalGetSharedFragmentDataChecked(FMassEntityHandle Entity, const UScriptStruct* SharedFragmentType) const;
-	void* InternalGetSharedFragmentDataPtr(FMassEntityHandle Entity, const UScriptStruct* SharedFragmentType) const;
+	/** Note that it's the caller's responsibility to ensure `ConstSharedFragmentType` is a kind of FMassSharedFragment */
+	const FConstSharedStruct* InternalGetConstSharedFragmentPtr(FMassEntityHandle Entity, const UScriptStruct* ConstSharedFragmentType) const;
+	/** Note that it's the caller's responsibility to ensure `SharedFragmentType` is a kind of FMassSharedFragment */
+	const FSharedStruct* InternalGetSharedFragmentPtr(FMassEntityHandle Entity, const UScriptStruct* SharedFragmentType) const;
 
 	TSharedRef<FEntityCreationContext> InternalBatchCreateReservedEntities(const FMassArchetypeHandle& ArchetypeHandle,
 		const FMassArchetypeSharedFragmentValues& SharedFragmentValues, TConstArrayView<FMassEntityHandle> ReservedEntities);
