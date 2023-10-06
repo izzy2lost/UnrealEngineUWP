@@ -28,7 +28,25 @@ public:
 		CreateAndStorePSO,	// Create and store the PSO in the cache.
 	};
 
+
 	template<class TPipelineState>
-	VkResult CreatePSO(TPipelineState* GraphicsPipelineState, bool bIsPrecompileJob, TUniqueFunction<VkResult(TPipelineState*, VkPipelineCache, EPSOOperation)> PSOCreateFunc);
+	struct FPSOCreateFuncParams
+	{
+		FPSOCreateFuncParams(TPipelineState* PSOIn, VkPipelineCache DestPipelineCacheIn, FVulkanChunkedPipelineCacheManager::EPSOOperation PSOOperationIn, FRWLock& DestPipelineCacheLockIn)
+			: PSO(PSOIn), DestPipelineCache(DestPipelineCacheIn), PSOOperation(PSOOperationIn), DestPipelineCacheLock(DestPipelineCacheLockIn)
+		{}
+
+		TPipelineState* PSO;
+		VkPipelineCache DestPipelineCache;
+		FVulkanChunkedPipelineCacheManager::EPSOOperation PSOOperation;
+		FRWLock& DestPipelineCacheLock; // ensure lock is acquired before use of DestPipelineCache.
+	};
+
+	template<class TPipelineState>
+	using FPSOCreateCallbackFunc = TUniqueFunction<VkResult(FPSOCreateFuncParams<TPipelineState>& Params)>;
+
+	template<class TPipelineState>
+	VkResult CreatePSO(TPipelineState* GraphicsPipelineState, bool bIsPrecompileJob, FPSOCreateCallbackFunc<TPipelineState> PSOCreateFunc);
+
 	void Tick();
 };

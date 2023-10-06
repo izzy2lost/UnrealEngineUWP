@@ -1399,9 +1399,8 @@ bool FVulkanPipelineStateCacheManager::CreateGfxPipelineFromEntry(FVulkanRHIGrap
 }
 
 #if PLATFORM_ANDROID
-static FCriticalSection ExternalService;
 
-VkResult CreatePSOWithExternalService(FVulkanDevice* Device, FVulkanRHIGraphicsPipelineState* PSO, FVulkanShader* Shaders[ShaderStage::NumStages], const VkGraphicsPipelineCreateInfo& PipelineInfo, VkPipelineCache DestPipelineCache)
+VkResult CreatePSOWithExternalService(FVulkanDevice* Device, FVulkanRHIGraphicsPipelineState* PSO, FVulkanShader* Shaders[ShaderStage::NumStages], const VkGraphicsPipelineCreateInfo& PipelineInfo, VkPipelineCache DestPipelineCache, FRWLock& PipelineLock)
 {
 	VkResult Result = VK_ERROR_INITIALIZATION_FAILED;
 	FVulkanShader::FSpirvCode VS = PSO->GetPatchedSpirvCode(Shaders[ShaderStage::Vertex]);
@@ -1415,7 +1414,8 @@ VkResult CreatePSOWithExternalService(FVulkanDevice* Device, FVulkanRHIGraphicsP
 
 	TArray<uint8> InitialCacheData;
 	{
-		FScopeLock Lock(&ExternalService);
+		QUICK_SCOPE_CYCLE_COUNTER(STAT_Vulkan_RHICreateGraphicsPipelineState_ExternalInitialCache);
+		FRWScopeLock Lock(PipelineLock, SLT_Write);
 		size_t InitialCacheSize = 0;
 		VulkanRHI::vkGetPipelineCacheData(Device->GetInstanceHandle(), DestPipelineCache, &InitialCacheSize, nullptr);
 		InitialCacheData.SetNumUninitialized(InitialCacheSize);
@@ -1426,9 +1426,12 @@ VkResult CreatePSOWithExternalService(FVulkanDevice* Device, FVulkanRHIGraphicsP
 
 	if (ensure(LocalPipelineCache != VK_NULL_HANDLE))
 	{
-		Result = VK_SUCCESS;
-		FScopeLock Lock(&ExternalService);
-		VERIFYVULKANRESULT(VulkanRHI::vkMergePipelineCaches(Device->GetInstanceHandle(), DestPipelineCache, 1, &LocalPipelineCache));
+		{
+			QUICK_SCOPE_CYCLE_COUNTER(STAT_Vulkan_RHICreateGraphicsPipelineState_ExternalMergeResult);
+			FRWScopeLock Lock(PipelineLock, SLT_Write);
+			Result = VK_SUCCESS;
+			VERIFYVULKANRESULT(VulkanRHI::vkMergePipelineCaches(Device->GetInstanceHandle(), DestPipelineCache, 1, &LocalPipelineCache));
+		}
 		VulkanRHI::vkDestroyPipelineCache(Device->GetInstanceHandle(), LocalPipelineCache, VULKAN_CPU_ALLOCATOR);
 	}
 	else
@@ -1448,31 +1451,33 @@ VkResult FVulkanPipelineStateCacheManager::CreateVKPipeline(FVulkanRHIGraphicsPi
 		// Use chunk caching and bypass FVulkanPipelineStateCacheManager's PSO caching
 		// Placeholder PSO size - TODO: remove pipeline cache size stuff.	
 		PSO->PipelineCacheSize = 20 * 1024; // This is only required bUseLRU == true.
-		return FVulkanChunkedPipelineCacheManager::Get().CreatePSO(PSO, bIsPrecompileJob, TUniqueFunction< VkResult(FVulkanRHIGraphicsPipelineState*, VkPipelineCache, FVulkanChunkedPipelineCacheManager::EPSOOperation)>(
-			[&](FVulkanRHIGraphicsPipelineState* PSO, VkPipelineCache PipelineCache, FVulkanChunkedPipelineCacheManager::EPSOOperation PSOOperation)
+		return FVulkanChunkedPipelineCacheManager::Get().CreatePSO(PSO, bIsPrecompileJob, FVulkanChunkedPipelineCacheManager::FPSOCreateCallbackFunc<FVulkanRHIGraphicsPipelineState>(
+				[&](FVulkanChunkedPipelineCacheManager::FPSOCreateFuncParams<FVulkanRHIGraphicsPipelineState>& Params)
 			{
+				FVulkanRHIGraphicsPipelineState* PSO = Params.PSO;
+				VkPipelineCache& PipelineCache = Params.DestPipelineCache;
+				FVulkanChunkedPipelineCacheManager::EPSOOperation PSOOperation = Params.PSOOperation;
+				
 				check(PSO->VulkanPipeline == 0);
 				check(PSOOperation == FVulkanChunkedPipelineCacheManager::EPSOOperation::CreateAndStorePSO || PSOOperation == FVulkanChunkedPipelineCacheManager::EPSOOperation::CreateIfPresent);
-				VkResult Result = VK_ERROR_INITIALIZATION_FAILED;
+				VkResult Result;
 
-				const bool bCanTestForExistence = Device->GetOptionalExtensions().HasEXTPipelineCreationCacheControl;				
-
-				if (bCanTestForExistence)
+				if(PSOOperation == FVulkanChunkedPipelineCacheManager::EPSOOperation::CreateIfPresent)
 				{
-					VkGraphicsPipelineCreateInfo TestPipelineInfo = PipelineInfo;
-					TestPipelineInfo.flags |= VK_PIPELINE_CREATE_FAIL_ON_PIPELINE_COMPILE_REQUIRED_BIT_EXT;
-					Result = VulkanRHI::vkCreateGraphicsPipelines(Device->GetInstanceHandle(), PipelineCache, 1, &TestPipelineInfo, VULKAN_CPU_ALLOCATOR, &PSO->VulkanPipeline);
-				}
-
-				if (PSOOperation == FVulkanChunkedPipelineCacheManager::EPSOOperation::CreateIfPresent)
-				{
-					// Do not do a full create, we're only testing for existence here.
-					return bCanTestForExistence ? Result : VK_PIPELINE_COMPILE_REQUIRED_EXT;
-				}
-
-				if (Result == VK_SUCCESS)
-				{
-					UE_CLOG(bIsPrecompileJob, LogVulkanRHI, Log, TEXT("redundant precompile PSO request"));
+					const bool bCanTestForExistence = Device->GetOptionalExtensions().HasEXTPipelineCreationCacheControl;
+					if (bCanTestForExistence)
+					{
+						QUICK_SCOPE_CYCLE_COUNTER(STAT_Vulkan_RHICreateGraphicsPipelineState_TestCreate);
+						FRWScopeLock Lock(Params.DestPipelineCacheLock, SLT_ReadOnly);
+						VkGraphicsPipelineCreateInfo TestPipelineInfo = PipelineInfo;
+						TestPipelineInfo.flags |= VK_PIPELINE_CREATE_FAIL_ON_PIPELINE_COMPILE_REQUIRED_BIT_EXT;
+						Result = VulkanRHI::vkCreateGraphicsPipelines(Device->GetInstanceHandle(), PipelineCache, 1, &TestPipelineInfo, VULKAN_CPU_ALLOCATOR, &PSO->VulkanPipeline);
+					}
+					else
+					{
+						// if we cant test we must create.
+						Result = VK_PIPELINE_COMPILE_REQUIRED_EXT;
+					}
 					return Result;
 				}
 
@@ -1480,15 +1485,16 @@ VkResult FVulkanPipelineStateCacheManager::CreateVKPipeline(FVulkanRHIGraphicsPi
 #if PLATFORM_ANDROID
 				if( !FVulkanAndroidPlatform::AreRemoteCompileServicesActive() || !bIsPrecompileJob)
 				{
-					// enabled this to detect PSOs that the driver had to compile. (useful for PSO precaching analysis)
-					//UE_CLOG(Result == VK_PIPELINE_COMPILE_REQUIRED_EXT && !bIsPrecompileJob, LogVulkanRHI, Log, TEXT("missed PSO create.."));
 #endif
+					QUICK_SCOPE_CYCLE_COUNTER(STAT_Vulkan_RHICreateGraphicsPipelineState_vkCreate);
+					FRWScopeLock Lock(Params.DestPipelineCacheLock, SLT_ReadOnly);
 					Result = VulkanRHI::vkCreateGraphicsPipelines(Device->GetInstanceHandle(), PipelineCache, 1, &PipelineInfo, VULKAN_CPU_ALLOCATOR, &PSO->VulkanPipeline);
 #if PLATFORM_ANDROID
 				}
 				else
 				{
-					Result = CreatePSOWithExternalService(Device, PSO, Shaders, PipelineInfo, PipelineCache);
+					QUICK_SCOPE_CYCLE_COUNTER(STAT_Vulkan_RHICreateGraphicsPipelineState_ExternalCreate);
+					Result = CreatePSOWithExternalService(Device, PSO, Shaders, PipelineInfo, PipelineCache, Params.DestPipelineCacheLock);
 				}
 #endif
 				return Result;
