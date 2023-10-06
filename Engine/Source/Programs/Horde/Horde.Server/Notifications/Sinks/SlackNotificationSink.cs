@@ -1097,7 +1097,7 @@ namespace Horde.Server.Notifications.Sinks
 							}
 							else
 							{
-								context = $"Acknowledged by {user}.";
+								context = $"Acknowledged by {user} at {FormatSlackTime(issue.AcknowledgedAt.Value)}.";
 							}
 						}
 						else if (suspects.Any(x => x.DeclinedAt != null))
