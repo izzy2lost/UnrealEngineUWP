@@ -101,6 +101,8 @@ struct CUSTOMIZABLEOBJECT_API FCustomizableObjectCustomVersion
 		NodeVariationSerializationIssue, // The parent class and child classes had a member with the same name. Unreal was serialized the member from the child class but deserialized it to the parent class.
 
 		RegenerateNodeObjectsIds,
+		
+		NodeMaterialPinDataImageDetails,
 
 		// -----<new versions can be added above this line>-------------------------------------------------
 		VersionPlusOne,

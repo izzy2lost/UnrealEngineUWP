@@ -16,8 +16,10 @@
 #include "MuCOE/Nodes/CustomizableObjectNodeStaticMesh.h"
 #include "MuCOE/Nodes/CustomizableObjectNodeTable.h"
 #include "MuCOE/Nodes/SCustomizableObjectNodeMaterial.h"
-#include "MuCOE/Nodes/SPinViewerNodeMaterialPinImageDetails.h"
 #include "ObjectEditorUtils.h"
+#include "PropertyCustomizationHelpers.h"
+#include "Modules/ModuleManager.h"
+
 
 class SGraphNode;
 class SWidget;
@@ -89,9 +91,11 @@ bool UCustomizableObjectNodeMaterialRemapPinsByName::HasSavedPinData(const UCust
 
 bool UCustomizableObjectNodeMaterialPinDataImage::IsDefault() const
 {
-	return PinMode == EPinMode::Default &&
-		UVLayout == UV_LAYOUT_DEFAULT &&
-		!ReferenceTexture;
+	const UCustomizableObjectNodeMaterialPinDataImage* Default = Cast<UCustomizableObjectNodeMaterialPinDataImage>(GetClass()->ClassDefaultObject);
+
+	return PinMode == Default->PinMode &&
+		UVLayoutMode == Default->UVLayoutMode &&
+		ReferenceTexture == Default->ReferenceTexture;
 }
 
 
@@ -239,6 +243,29 @@ void UCustomizableObjectNodeMaterialPinDataImage::PostEditChangeProperty(FProper
 		}
 	}
 }
+
+
+void UCustomizableObjectNodeMaterialPinDataImage::PostLoad()
+{
+	Super::PostLoad();
+
+	const int32 CustomizableObjectCustomVersion = GetLinkerCustomVersion(FCustomizableObjectCustomVersion::GUID);
+	
+	if (CustomizableObjectCustomVersion < FCustomizableObjectCustomVersion::NodeMaterialPinDataImageDetails)
+	{
+		if (UVLayout == UV_LAYOUT_IGNORE)
+		{
+			UVLayoutMode = EUVLayoutMode::Ignore;
+			UVLayout = 0;
+		}
+		else if (UVLayout == -2) // UV_LAYOUT_DEFAULT
+		{
+			UVLayoutMode = EUVLayoutMode::FromMaterial;
+			UVLayout = 0;
+		}
+	}
+}
+
 
 void UCustomizableObjectNodeMaterial::AllocateDefaultPins(UCustomizableObjectNodeRemapPins* RemapPins)
 {
@@ -775,9 +802,16 @@ int32 UCustomizableObjectNodeMaterial::GetImageUVLayout(const int32 ImageIndex) 
 	if (const UEdGraphPin* Pin = GetParameterPin(EMaterialParameterType::Texture, ImageIndex))
 	{
 		const UCustomizableObjectNodeMaterialPinDataImage& PinData = GetPinData<UCustomizableObjectNodeMaterialPinDataImage>(*Pin);
-		if (PinData.UVLayout != UCustomizableObjectNodeMaterialPinDataImage::UV_LAYOUT_DEFAULT)
+		switch(PinData.UVLayoutMode)
 		{
+		case EUVLayoutMode::FromMaterial:
+			break;
+		case EUVLayoutMode::Ignore:
+			return UCustomizableObjectNodeMaterialPinDataImage::UV_LAYOUT_IGNORE;
+		case EUVLayoutMode::Index:
 			return PinData.UVLayout;
+		default:
+			unimplemented();
 		}
 	}
 
@@ -1056,7 +1090,16 @@ TSharedPtr<SWidget> UCustomizableObjectNodeMaterial::CustomizePinDetails(UEdGrap
 {
 	if (UCustomizableObjectNodeMaterialPinDataImage* PinData = Cast<UCustomizableObjectNodeMaterialPinDataImage>(GetPinData(Pin)))
 	{
-		return SNew(SPinViewerNodeMaterialPinImageDetails).Pin(&Pin).PinData(PinData);
+		FPropertyEditorModule& EditModule = FModuleManager::Get().GetModuleChecked<FPropertyEditorModule>("PropertyEditor");
+
+		FDetailsViewArgs DetailsViewArgs;
+		DetailsViewArgs.bAllowSearch = false;
+		DetailsViewArgs.bHideSelectionTip = true;
+		
+		const TSharedRef<IDetailsView> SettingsView = EditModule.CreateDetailView(DetailsViewArgs);
+		SettingsView->SetObject(PinData);
+		
+		return SettingsView;
 	}
 	else
 	{
