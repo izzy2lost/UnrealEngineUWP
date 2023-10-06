@@ -280,6 +280,7 @@ namespace UE::MovieGraph
 			, bRequiresAccumulator(false)
 			, bFetchFromAccumulator(false)
 			, bCompositeOnOtherRenders(false)
+			, OverscanFraction(0.f)
 			, CompositingSortOrder(0)
 		{}
 
@@ -315,6 +316,9 @@ namespace UE::MovieGraph
 
 		/** When using spatial jitters, how much do we need to shift the output data during accumulation to counter-act the jitter. */
 		FVector2D OverlappedSubpixelShift;
+
+		/** When using camera overscan, what fraction (0-1) did this render use? Needed so that exrs can take a center-out crop of the data. */
+		float OverscanFraction;
 
 		/**
 		* If multiple passes are composited on top of a render, the sort order determines the order in which they're composited.

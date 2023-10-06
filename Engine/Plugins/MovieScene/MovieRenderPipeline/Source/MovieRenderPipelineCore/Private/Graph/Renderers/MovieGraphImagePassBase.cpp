@@ -324,9 +324,6 @@ FMatrix FMovieGraphImagePassBase::CalculateProjectionMatrix(const UE::MovieGraph
 	// Calculate a Projection Matrix. This code unfortunately ends up similar to, but not quite the same as FMinimalViewInfo::CalculateProjectionMatrixGivenView
 	FMatrix BaseProjMatrix;
 	
-	// Potentially modified when we modify projection matrix for tiling.
-	float DofSensorScale = 1.0f;
-
 	// TileSize should respect the actual backbuffer size being used by the render.
 	float ViewRectWidth = InCameraInfo.TilingParams.TileSize.X;
 	float ViewRectHeight = InCameraInfo.TilingParams.TileSize.Y;

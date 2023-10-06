@@ -390,8 +390,7 @@ void UMovieGraphImageSequenceOutputNode_EXR::OnReceiveImageDataImpl(UMovieGraphP
 				MultiLayerImageTask->Width = Resolution.X;
 				MultiLayerImageTask->Height = Resolution.Y;
 				
-				// TODO: Overscan not available in the graph yet
-				// MultiLayerImageTask->OverscanPercentage = Payload->SampleState.OverscanPercentage;
+				MultiLayerImageTask->OverscanPercentage = Payload->OverscanFraction;
 			}
 			else
 			{

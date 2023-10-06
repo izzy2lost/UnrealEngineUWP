@@ -317,7 +317,7 @@ FIntPoint UMovieGraphBlueprintLibrary::GetEffectiveOutputResolution(UMovieGraphE
 	if (UMovieGraphCameraSettingNode* CameraSetting = InEvaluatedGraph->GetSettingForBranch<UMovieGraphCameraSettingNode>(UMovieGraphNode::GlobalsPinName, bIncludeCDOs))
 	{
 		// The old system used [0-1] range for floats, the new system will use [0-100], so we rescale down before calling through.
-		RescaledOverscan = CameraSetting->OverscanPercentage / 100.f;
+		RescaledOverscan = FMath::Clamp(CameraSetting->OverscanPercentage / 100.f, 0.f, 1.f);
 	}
 
 	return UMoviePipelineBlueprintLibrary::Utility_GetEffectiveOutputResolution(RescaledOverscan, OutputSetting->OutputResolution);

@@ -98,14 +98,14 @@ void FMovieGraphDeferredPass::Render(const FMovieGraphTraversalContext& InFrameT
 	int32 NumSpatialSamples = FMath::Max(1, ParentNode->SpatialSampleCount);
 	const bool bDisableToneCurve = ParentNode->bDisableToneCurve;
 	const EAntiAliasingMethod AntiAliasingMethod = ParentNode->AntiAliasingMethod;
-	float OverscanPercentage = 0.f;
+	float OverscanFraction = 0.f;
 	const float TileOverlapPadRatio = 0.0f; // No tiling support right now
 
 	// Camera nodes are optional
 	const UMovieGraphCameraSettingNode* CameraNode = InTimeData.EvaluatedConfig->GetSettingForBranch<UMovieGraphCameraSettingNode>(LayerData.BranchName, bIncludeCDOs);
 	if (CameraNode)
 	{
-		OverscanPercentage = FMath::Clamp(0.f, 1.f, CameraNode->OverscanPercentage / 100.f);
+		OverscanFraction = FMath::Clamp(CameraNode->OverscanPercentage / 100.f, 0.f, 1.f);
 	}
 	
 	FIntPoint AccumulatorResolution = UMovieGraphBlueprintLibrary::GetEffectiveOutputResolution(InTimeData.EvaluatedConfig, LayerData.BranchName);
@@ -165,7 +165,7 @@ void FMovieGraphDeferredPass::Render(const FMovieGraphTraversalContext& InFrameT
 		CameraInfo.TilingParams.OverlapPad = FVector2f(0.f, 0.f); // No tile support
 		CameraInfo.TilingParams.TileCount = FIntPoint(1, 1); // No tile support
 		CameraInfo.TilingParams.TileIndexes = FIntPoint(0, 0); // No tile support
-		CameraInfo.OverscanFraction = OverscanPercentage;
+		CameraInfo.OverscanFraction = OverscanFraction;
 		CameraInfo.ProjectionMatrixJitterAmount = FVector2D((SpatialShiftAmount.X) * 2.0f / (float)BackbufferResolution.X, SpatialShiftAmount.Y * -2.0f / (float)BackbufferResolution.Y);
 
 		// For this particular tile, what is the offset into the output image
@@ -232,7 +232,7 @@ void FMovieGraphDeferredPass::Render(const FMovieGraphTraversalContext& InFrameT
 			SampleState.OverlappedPad = OverlappedPad;
 			SampleState.OverlappedOffset = OverlappedOffset;
 			SampleState.OverlappedSubpixelShift = OverlappedSubpixelShift;
-
+			SampleState.OverscanFraction = OverscanFraction;
 		}
 
 		// If this was just to contribute to the history buffer, no need to go any further.
