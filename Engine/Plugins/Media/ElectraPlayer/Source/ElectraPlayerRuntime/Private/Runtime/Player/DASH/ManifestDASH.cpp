@@ -39,9 +39,9 @@ namespace DashUtils
 	#define GETPLAYEROPTION(Type, Getter)																						\
 		bool GetPlayerOption(IPlayerSessionServices* InPlayerSessionServices, Type& OutValue, const FName& Key, Type Default)	\
 		{																														\
-			if (InPlayerSessionServices->GetOptions().HaveKey(Key))																\
+			if (InPlayerSessionServices->HaveOptionValue(Key))																	\
 			{																													\
-				OutValue = InPlayerSessionServices->GetOptions().GetValue(Key).Getter(Default);									\
+				OutValue = InPlayerSessionServices->GetOptionValue(Key).Getter(Default);										\
 				return true;																									\
 			}																													\
 			OutValue = Default;																									\
@@ -998,7 +998,7 @@ void FDASHPlayPeriod::PrepareForPlay()
 		if (VideoAS.IsValid())
 		{
 			// Get the current average video bitrate with some sensible default if it is not set.
-			int64 StartingBitrate = PlayerSessionServices->GetOptions().GetValue(OptionKeyCurrentAvgStartingVideoBitrate).SafeGetInt64(2*1000*1000);
+			int64 StartingBitrate = PlayerSessionServices->GetOptionValue(OptionKeyCurrentAvgStartingVideoBitrate).SafeGetInt64(2*1000*1000);
 
 			TSharedPtrTS<IPlaybackAssetRepresentation> VideoRepr = GetRepresentationFromAdaptationByMaxBandwidth(VideoAS, (int32) StartingBitrate);
 			if (VideoRepr.IsValid())
@@ -1040,11 +1040,11 @@ void FDASHPlayPeriod::PrepareForPlay()
 		{
 			if (llDesc->Latency.ReferenceID >= 0)
 			{
-				PlayerSessionServices->GetOptions().Set(DASH::OptionKey_LatencyReferenceId, FVariantValue(llDesc->Latency.ReferenceID));
+				PlayerSessionServices->GetMutableOptions().Set(DASH::OptionKey_LatencyReferenceId, FVariantValue(llDesc->Latency.ReferenceID));
 			}
 			else
 			{
-				PlayerSessionServices->GetOptions().Remove(DASH::OptionKey_LatencyReferenceId);
+				PlayerSessionServices->GetMutableOptions().Remove(DASH::OptionKey_LatencyReferenceId);
 			}
 		}
 

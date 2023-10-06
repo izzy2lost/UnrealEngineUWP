@@ -328,7 +328,6 @@ public:
 
 	IPlayerSessionServices* 			PlayerSessionServices;
 	TSharedPtrTS<FTimelineAssetMP4>		MediaAsset;
-	HTTP::FConnectionInfo				ConnectionInfo;
 	// The MPD URL fragment components
 	TArray<FURL_RFC3986::FQueryParam>	URLFragmentComponents;
 	FTimeValue							DefaultStartTime;

@@ -411,10 +411,6 @@ const TArray<uint8>& FVariantValue::SafeGetArray() const
 
 
 
-FParamDict::FParamDict()
-{
-}
-
 FParamDict::FParamDict(const FParamDict& Other)
 {
 	InternalCopy(Other);
@@ -424,72 +420,47 @@ FParamDict& FParamDict::operator=(const FParamDict& Other)
 {
 	if (&Other != this)
 	{
-		FScopeLock lock(&Lock);
 		InternalCopy(Other);
 	}
 	return *this;
 }
 
-FParamDict::~FParamDict()
-{
-}
-
 void FParamDict::InternalCopy(const FParamDict& Other)
 {
-	FScopeLock lock(&Other.Lock);
 	Dictionary = Other.Dictionary;
 }
 
 void FParamDict::Clear()
 {
-	FScopeLock lock(&Lock);
 	Dictionary.Empty();
 }
 
 bool FParamDict::HaveKey(const FName& Key) const
 {
-	FScopeLock lock(&Lock);
 	return Dictionary.Find(Key) != nullptr;
 }
 
 FVariantValue FParamDict::GetValue(const FName& Key) const
 {
 	static FVariantValue Empty;
-	FScopeLock lock(&Lock);
 	const FVariantValue* VariantValue = Dictionary.Find(Key);
 	return VariantValue ? *VariantValue : Empty;
 }
 
 void FParamDict::Remove(const FName& Key)
 {
-	FScopeLock lock(&Lock);
 	Dictionary.Remove(Key); 
 }
 
 void FParamDict::Set(const FName& Key, const FVariantValue& Value)
 { 
-	FScopeLock lock(&Lock);
 	Dictionary.Emplace(Key, Value); 
 }
 
-void FParamDict::GetKeysStartingWith(const FString& StartsWith, TArray<FName>& OutKeys) const
+void FParamDict::GetKeys(TArray<FName>& OutKeys) const
 {
 	OutKeys.Empty();
-	FScopeLock lock(&Lock);
-	if (StartsWith.IsEmpty())
-	{
-		Dictionary.GenerateKeyArray(OutKeys);
-	}
-	else
-	{
-		for(const TPair<FName, FVariantValue>& Pair : Dictionary)
-		{
-			if (Pair.Key.ToString().StartsWith(StartsWith, ESearchCase::CaseSensitive))
-			{
-				OutKeys.Emplace(Pair.Key);
-			}
-		}
-	}
+	Dictionary.GenerateKeyArray(OutKeys);
 }
 
 void FParamDict::ConvertKeysStartingWithTo(TMap<FString, FVariant>& OutVariantMap, const FString& InKeyStartsWith, const FString& InAddPrefixToKey) const
@@ -497,7 +468,6 @@ void FParamDict::ConvertKeysStartingWithTo(TMap<FString, FVariant>& OutVariantMa
 	OutVariantMap.Reserve(Dictionary.Num());
 	FString NewKey;
 	NewKey.Reserve(64);
-	FScopeLock lock(&Lock);
 	for(const TPair<FName, FVariantValue>& Pair : Dictionary)
 	{
 		FString s(Pair.Key.ToString());

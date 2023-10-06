@@ -131,7 +131,7 @@ namespace Electra
 		 *
 		 * @return Should be UEMEDIA_ERROR_OK only. Anything else will cause a playback error (like UEMEDIA_ERROR_BAD_ARGUMENTS for bad properties)
 		 */
-		virtual UEMediaError ReturnBuffer(IBuffer* Buffer, bool bRender, const FParamDict& InSampleProperties) = 0;
+		virtual UEMediaError ReturnBuffer(IBuffer* Buffer, bool bRender, FParamDict& InOutSampleProperties) = 0;
 
 		/**
 		 * Informs that the decoder is done with this pool. This only indicates no calls to

@@ -46,6 +46,14 @@ namespace Electra
 
 	const FName OptionKeyCurrentAvgStartingVideoBitrate(TEXT("current:avg_video_bitrate"));
 
+	const FName OptionKeyExcludedCodecsVideo(TEXT("excluded_codecs_video"));
+	const FName OptionKeyExcludedCodecsAudio(TEXT("excluded_codecs_audio"));
+	const FName OptionKeyExcludedCodecsSubtitles(TEXT("excluded_codecs_subtitles"));
+	
+	const FName OptionKeyPreferredCodecsVideo(TEXT("preferred_codecs_video"));
+	const FName OptionKeyPreferredCodecsAudio(TEXT("preferred_codecs_audio"));
+	const FName OptionKeyPreferredCodecsSubtitles(TEXT("preferred_codecs_subtitles"));
+
 } // namespace Electra
 
 

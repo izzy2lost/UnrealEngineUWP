@@ -659,23 +659,22 @@ void FPlaylistReaderHLS::FPlaylistRequest::Execute(TSharedPtrTS<IElectraHttpMana
 	HTTPRequest->ConnectionInfo.RetryInfo = RetryInfo;
 
 	// Set connection timeouts for master and variant playlist retrieval.
-	const FParamDict& Options =	InPlayerSessionServices->GetOptions();
 	if (bIsMasterPlaylist)
 	{
-		HTTPRequest->Parameters.ConnectTimeout = Options.GetValue(IPlaylistReaderHLS::OptionKeyMasterPlaylistLoadConnectTimeout).SafeGetTimeValue(FTimeValue().SetFromMilliseconds(1000 * 8));
-		HTTPRequest->Parameters.NoDataTimeout  = Options.GetValue(IPlaylistReaderHLS::OptionKeyMasterPlaylistLoadNoDataTimeout).SafeGetTimeValue(FTimeValue().SetFromMilliseconds(1000 * 5));
+		HTTPRequest->Parameters.ConnectTimeout = InPlayerSessionServices->GetOptionValue(IPlaylistReaderHLS::OptionKeyMasterPlaylistLoadConnectTimeout).SafeGetTimeValue(FTimeValue().SetFromMilliseconds(1000 * 8));
+		HTTPRequest->Parameters.NoDataTimeout  = InPlayerSessionServices->GetOptionValue(IPlaylistReaderHLS::OptionKeyMasterPlaylistLoadNoDataTimeout).SafeGetTimeValue(FTimeValue().SetFromMilliseconds(1000 * 5));
 	}
 	else
 	{
 		if (PlaylistLoadRequest.LoadType == FPlaylistLoadRequestHLS::ELoadType::Update)
 		{
-			HTTPRequest->Parameters.ConnectTimeout = Options.GetValue(IPlaylistReaderHLS::OptionKeyUpdatePlaylistLoadConnectTimeout).SafeGetTimeValue(FTimeValue().SetFromMilliseconds(1000 * 2));
-			HTTPRequest->Parameters.NoDataTimeout  = Options.GetValue(IPlaylistReaderHLS::OptionKeyUpdatePlaylistLoadNoDataTimeout).SafeGetTimeValue(FTimeValue().SetFromMilliseconds(1000 * 2));
+			HTTPRequest->Parameters.ConnectTimeout = InPlayerSessionServices->GetOptionValue(IPlaylistReaderHLS::OptionKeyUpdatePlaylistLoadConnectTimeout).SafeGetTimeValue(FTimeValue().SetFromMilliseconds(1000 * 2));
+			HTTPRequest->Parameters.NoDataTimeout  = InPlayerSessionServices->GetOptionValue(IPlaylistReaderHLS::OptionKeyUpdatePlaylistLoadNoDataTimeout).SafeGetTimeValue(FTimeValue().SetFromMilliseconds(1000 * 2));
 		}
 		else
 		{
-			HTTPRequest->Parameters.ConnectTimeout = Options.GetValue(IPlaylistReaderHLS::OptionKeyVariantPlaylistLoadConnectTimeout).SafeGetTimeValue(FTimeValue().SetFromMilliseconds(1000 * 5));
-			HTTPRequest->Parameters.NoDataTimeout  = Options.GetValue(IPlaylistReaderHLS::OptionKeyVariantPlaylistLoadNoDataTimeout).SafeGetTimeValue(FTimeValue().SetFromMilliseconds(1000 * 2));
+			HTTPRequest->Parameters.ConnectTimeout = InPlayerSessionServices->GetOptionValue(IPlaylistReaderHLS::OptionKeyVariantPlaylistLoadConnectTimeout).SafeGetTimeValue(FTimeValue().SetFromMilliseconds(1000 * 5));
+			HTTPRequest->Parameters.NoDataTimeout  = InPlayerSessionServices->GetOptionValue(IPlaylistReaderHLS::OptionKeyVariantPlaylistLoadNoDataTimeout).SafeGetTimeValue(FTimeValue().SetFromMilliseconds(1000 * 2));
 		}
 	}
 

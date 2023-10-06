@@ -843,7 +843,7 @@ public:
 	{ return BufferPoolProperties; }
 	UEMediaError CreateBufferPool(const FParamDict& Parameters) override;
 	UEMediaError AcquireBuffer(IBuffer*& OutBuffer, int32 TimeoutInMicroseconds, const FParamDict& InParameters) override;
-	UEMediaError ReturnBuffer(IBuffer* Buffer, bool bRender, const FParamDict& InSampleProperties) override;
+	UEMediaError ReturnBuffer(IBuffer* Buffer, bool bRender, FParamDict& InOutSampleProperties) override;
 	UEMediaError ReleaseBufferPool() override;
 	bool CanReceiveOutputFrames(uint64 NumFrames) const override;
 	bool GetEnqueuedFrameInfo(int32& OutNumberOfEnqueuedFrames, FTimeValue& OutDurationOfEnqueuedFrames) const override;
@@ -1947,7 +1947,7 @@ UEMediaError FSimpleElectraAudioPlayerRenderer::AcquireBuffer(IBuffer*& OutBuffe
 	return UEMEDIA_ERROR_OK;
 }
 
-UEMediaError FSimpleElectraAudioPlayerRenderer::ReturnBuffer(IBuffer* Buffer, bool bRender, const FParamDict& InSampleProperties)
+UEMediaError FSimpleElectraAudioPlayerRenderer::ReturnBuffer(IBuffer* Buffer, bool bRender, FParamDict& InOutSampleProperties)
 {
 	if (Buffer == nullptr)
 	{
@@ -1956,14 +1956,14 @@ UEMediaError FSimpleElectraAudioPlayerRenderer::ReturnBuffer(IBuffer* Buffer, bo
 	FMediaBufferSharedPtrWrapper* MediaBufferSharedPtrWrapper = static_cast<FMediaBufferSharedPtrWrapper*>(Buffer);
 	if (bRender)
 	{
-		int32 NumChannels = (int32)InSampleProperties.GetValue(RenderOptionKeys::NumChannels).SafeGetInt64(-1);
-		int32 SampleRate = (int32)InSampleProperties.GetValue(RenderOptionKeys::SampleRate).SafeGetInt64(-1);
-		int32 UsedBufferBytes = (int32)InSampleProperties.GetValue(RenderOptionKeys::UsedByteSize).SafeGetInt64(-1);
-		FTimeValue decPTS = InSampleProperties.GetValue(RenderOptionKeys::PTS).SafeGetTimeValue();
+		int32 NumChannels = (int32)InOutSampleProperties.GetValue(RenderOptionKeys::NumChannels).SafeGetInt64(-1);
+		int32 SampleRate = (int32)InOutSampleProperties.GetValue(RenderOptionKeys::SampleRate).SafeGetInt64(-1);
+		int32 UsedBufferBytes = (int32)InOutSampleProperties.GetValue(RenderOptionKeys::UsedByteSize).SafeGetInt64(-1);
+		FTimeValue decPTS = InOutSampleProperties.GetValue(RenderOptionKeys::PTS).SafeGetTimeValue();
 		FTimespan PTS = decPTS.GetAsTimespan();
 		int64 InSequenceIndex = decPTS.GetSequenceIndex();
 
-		FTimespan Duration = InSampleProperties.GetValue(RenderOptionKeys::Duration).SafeGetTimeValue().GetAsTimespan();
+		FTimespan Duration = InOutSampleProperties.GetValue(RenderOptionKeys::Duration).SafeGetTimeValue().GetAsTimespan();
 		const void* BufferAddr = MediaBufferSharedPtrWrapper->BufferProperties.GetValue(RenderOptionKeys::AllocatedAddress).SafeGetPointer();
 		if (NumChannels <= 0 || SampleRate <= 0 || UsedBufferBytes <= 0)
 		{
@@ -1971,7 +1971,7 @@ UEMediaError FSimpleElectraAudioPlayerRenderer::ReturnBuffer(IBuffer* Buffer, bo
 		}
 
 		IAudioDecoderOutputPtr DecoderOutput = MediaBufferSharedPtrWrapper->DecoderOutput;
-		DecoderOutput->GetMutablePropertyDictionary() = InSampleProperties;
+		DecoderOutput->GetMutablePropertyDictionary() = InOutSampleProperties;
 		DecoderOutput->Initialize(IAudioDecoderOutput::ESampleFormat::Float, NumChannels, SampleRate, Duration, FDecoderTimeStamp(PTS, InSequenceIndex), UsedBufferBytes);
 
 		TSharedPtr<FSimpleElectraAudioPlayer, ESPMode::ThreadSafe> PinnedPlayer = Player.Pin();
@@ -1982,7 +1982,7 @@ UEMediaError FSimpleElectraAudioPlayerRenderer::ReturnBuffer(IBuffer* Buffer, bo
 	}
 	else
 	{
-		if (InSampleProperties.GetValue(RenderOptionKeys::EOSFlag).SafeGetBool(false))
+		if (InOutSampleProperties.GetValue(RenderOptionKeys::EOSFlag).SafeGetBool(false))
 		{
 			TSharedPtr<FSimpleElectraAudioPlayer, ESPMode::ThreadSafe> PinnedPlayer = Player.Pin();
 			if (PinnedPlayer.IsValid())

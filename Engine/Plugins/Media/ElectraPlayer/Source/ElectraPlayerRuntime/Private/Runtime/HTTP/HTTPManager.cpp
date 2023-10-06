@@ -1026,7 +1026,7 @@ namespace Electra
 
 		FParamDict HttpOptions;
 		#ifdef ELECTRA_HTTPMANAGER_DEBUG_PROXY_ADDRESS
-			HttpOptions.Set(FString(TEXT("proxy")), FVariantValue(FString(ELECTRA_HTTPMANAGER_DEBUG_PROXY_ADDRESS)));
+			HttpOptions.Set(FName(TEXT("proxy")), FVariantValue(FString(ELECTRA_HTTPMANAGER_DEBUG_PROXY_ADDRESS)));
 		#endif
 		HTTPStreamHandler = IElectraHTTPStream::Create(HttpOptions);
 		if (HTTPStreamHandler.IsValid())

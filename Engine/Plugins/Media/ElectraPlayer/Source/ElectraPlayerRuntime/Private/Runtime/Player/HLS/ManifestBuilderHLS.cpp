@@ -1020,7 +1020,7 @@ FErrorDetail FManifestBuilderHLS::GetInitialPlaylistLoadRequests(TArray<FPlaylis
 	}
 
 	TSharedPtrTS<FManifestHLSInternal::FVariantStream> StartingVariantStream;
-	int32 InitialBitrate = (int32) PlayerSessionServices->GetOptions().GetValue(OptionKeyInitialBitrate).SafeGetInt64(0);
+	int32 InitialBitrate = (int32) PlayerSessionServices->GetOptionValue(OptionKeyInitialBitrate).SafeGetInt64(0);
 	bool bIsAudioOnlyVariant = false;
 
 	if (Manifest->VariantStreams.Num())
@@ -1754,7 +1754,6 @@ void FManifestBuilderHLS::UpdateManifestMetadataFromStream(FManifestHLSInternal*
 	bool bIsAudioOnly = Manifest->AudioOnlyStreams.Num() && Manifest->VariantStreams.Num() == 0;
 	const TArray<FManifestHLSInternal::FMediaStream::FMediaSegment>& SegmentList = Stream->SegmentList;
 	check(SegmentList.Num());
-	const FParamDict& Options = PlayerSessionServices->GetOptions();
 	if (SegmentList.Num())
 	{
 		EarliestTimeline = SegmentList[0].AbsoluteDateTime;
@@ -1769,7 +1768,7 @@ void FManifestBuilderHLS::UpdateManifestMetadataFromStream(FManifestHLSInternal*
 		}
 		else
 		{
-			FTimeValue FirstOffset = Options.GetValue(IPlaylistReaderHLS::OptionKeyLiveSeekableStartOffset).SafeGetTimeValue(FTimeValue::GetZero());
+			FTimeValue FirstOffset = PlayerSessionServices->GetOptionValue(IPlaylistReaderHLS::OptionKeyLiveSeekableStartOffset).SafeGetTimeValue(FTimeValue::GetZero());
 			for(int32 i=0, iMax=SegmentList.Num(); i<iMax; ++i)
 			{
 				if (SegmentList[i].AbsoluteDateTime >= FirstOffset)
@@ -1798,15 +1797,15 @@ void FManifestBuilderHLS::UpdateManifestMetadataFromStream(FManifestHLSInternal*
 			if (bIsAudioOnly)
 			{
 				// First try the audio-only config.
-				if (Options.HaveKey(IPlaylistReaderHLS::OptionKeyLiveSeekableEndOffsetAudioOnly))
+				if (PlayerSessionServices->HaveOptionValue(IPlaylistReaderHLS::OptionKeyLiveSeekableEndOffsetAudioOnly))
 				{
-					LastOffset = Options.GetValue(IPlaylistReaderHLS::OptionKeyLiveSeekableEndOffsetAudioOnly).SafeGetTimeValue(ThreeTargetDurations);
+					LastOffset = PlayerSessionServices->GetOptionValue(IPlaylistReaderHLS::OptionKeyLiveSeekableEndOffsetAudioOnly).SafeGetTimeValue(ThreeTargetDurations);
 				}
 			}
 			// Try the video config value regardless of presentation type.
-			if (!LastOffset.IsValid() && Options.HaveKey(OptionKeyLiveSeekableEndOffset))
+			if (!LastOffset.IsValid() && PlayerSessionServices->HaveOptionValue(OptionKeyLiveSeekableEndOffset))
 			{
-				LastOffset = Options.GetValue(OptionKeyLiveSeekableEndOffset).SafeGetTimeValue(ThreeTargetDurations);
+				LastOffset = PlayerSessionServices->GetOptionValue(OptionKeyLiveSeekableEndOffset).SafeGetTimeValue(ThreeTargetDurations);
 			}
 			// If still not valid use the default from the HLS specification.
 			if (!LastOffset.IsValid())
@@ -1817,7 +1816,7 @@ void FManifestBuilderHLS::UpdateManifestMetadataFromStream(FManifestHLSInternal*
 			// Now back off from the end until we have reached at least the required offset.
 			FTimeValue BackedOff(FTimeValue::GetZero());
 			FTimeValue PrevBackedOff;
-			bool bUseConservativeDistance = Options.GetValue(IPlaylistReaderHLS::OptionKeyLiveSeekableEndOffsetBeConservative).SafeGetBool(false);
+			bool bUseConservativeDistance = PlayerSessionServices->GetOptionValue(IPlaylistReaderHLS::OptionKeyLiveSeekableEndOffsetBeConservative).SafeGetBool(false);
 			for(int32 i=SegmentList.Num()-1; i>=0; --i)
 			{
 				BackedOff += SegmentList[i].Duration;

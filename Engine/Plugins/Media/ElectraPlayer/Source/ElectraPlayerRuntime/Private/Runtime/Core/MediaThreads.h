@@ -77,17 +77,17 @@ public:
 
 	static void SleepSeconds(uint32 Seconds)
 	{
-		FPlatformProcess::SleepNoStats((float)Seconds);
+		FPlatformProcess::Sleep((float)Seconds);
 	}
 
 	static void SleepMilliseconds(uint32 Milliseconds)
 	{
-		FPlatformProcess::SleepNoStats(Milliseconds / 1000.0f);
+		FPlatformProcess::Sleep(Milliseconds / 1000.0f);
 	}
 
 	static void SleepMicroseconds(uint32 Microseconds)
 	{
-		FPlatformProcess::SleepNoStats(Microseconds / 1000000.0f);
+		FPlatformProcess::Sleep(Microseconds / 1000000.0f);
 	}
 
 private:

@@ -186,7 +186,7 @@ UEMediaError FElectraRendererVideo::AcquireBuffer(IBuffer*& OutBuffer, int32 Tim
 /**
  * Releases the buffer for rendering and subsequent return to the buffer pool
  */
-UEMediaError FElectraRendererVideo::ReturnBuffer(IBuffer* Buffer, bool bRender, const FParamDict& InSampleProperties)
+UEMediaError FElectraRendererVideo::ReturnBuffer(IBuffer* Buffer, bool bRender, FParamDict& InOutSampleProperties)
 {
 	if (Buffer == nullptr)
 	{
@@ -194,12 +194,12 @@ UEMediaError FElectraRendererVideo::ReturnBuffer(IBuffer* Buffer, bool bRender, 
 	}
 
 	FMediaBufferSharedPtrWrapper* MediaBufferSharedPtrWrapper = static_cast<FMediaBufferSharedPtrWrapper*>(Buffer);
-	MediaBufferSharedPtrWrapper->DecoderOutput->GetMutablePropertyDictionary() = InSampleProperties;
+	MediaBufferSharedPtrWrapper->DecoderOutput->GetMutablePropertyDictionary() = InOutSampleProperties;
 
 	if (bRender)
 	{
-		//OPT/CHANGE: Note that "MediaBufferSharedPtrWrapper->DecoderOutput->GetDict()" is the very same as InSampleProperties!
-		bool bIsDummyBuffer = InSampleProperties.GetValue(RenderOptionKeys::DummyBufferFlag).SafeGetBool(false);
+		//OPT/CHANGE: Note that "MediaBufferSharedPtrWrapper->DecoderOutput->GetDict()" is the very same as InOutSampleProperties!
+		bool bIsDummyBuffer = InOutSampleProperties.GetValue(RenderOptionKeys::DummyBufferFlag).SafeGetBool(false);
 
 		// Put frame into output queue...
 		if (TSharedPtr<FElectraPlayer, ESPMode::ThreadSafe> PinnedPlayer = Player.Pin())

@@ -31,6 +31,8 @@
 
 #include "InfoLog.h"
 
+#include "Misc/TVariant.h"
+
 #define INTERR_ALL_STREAMS_HAVE_FAILED			1
 #define INTERR_UNSUPPORTED_FORMAT				2
 #define INTERR_COULD_NOT_LOCATE_START_SEGMENT	3
@@ -1063,7 +1065,10 @@ private:
 	TSharedPtrTS<IPlayerEntityCache> GetEntityCache() override;
 	TSharedPtrTS<IHTTPResponseCache> GetHTTPResponseCache() override;
 	IAdaptiveStreamingPlayerAEMSHandler* GetAEMSEventHandler() override;
-	FParamDict& GetOptions() override;
+	FParamDictTS& GetMutableOptions() override;
+	bool HaveOptionValue(const FName& InOption) override;
+	const FVariantValue GetOptionValue(const FName& InOption) override;
+
 	TSharedPtrTS<FDRMManager> GetDRMManager() override;
 	void SetPlaybackEnd(const FTimeValue& InEndAtTime, IPlayerSessionServices::EPlayEndReason InEndingReason, TSharedPtrTS<IPlayerSessionServices::IPlayEndReason> InCustomManifestObject) override;
 
@@ -1422,6 +1427,7 @@ private:
 			{
 				// Commands
 				Initialize,
+				ChangeOptions,
 				LoadManifest,
 				LoadBlob,
 				Pause,
@@ -1444,110 +1450,91 @@ private:
 				BufferUnderrun,
 			};
 
-			struct FData
+			struct FLoadManifest
 			{
-				struct FLoadManifest
-				{
-					FString											URL;
-					FString											MimeType;
-				};
-				struct FLoadBlob
-				{
-					TSharedPtrTS<FHTTPResourceRequest>				BlobLoadRequest;
-				};
-				struct FStreamReader
-				{
-					FStreamReader()
-						: AUType(EStreamType::Video), AUSize(0)
-					{
-					}
-					TSharedPtrTS<IStreamSegment>					Request;
-					EStreamType										AUType;
-					SIZE_T											AUSize;
-				};
-				struct FEvent
-				{
-					FEvent()
-						: Event(nullptr)
-					{
-					}
-					FMediaEvent*									Event;
-				};
-				struct FLoop
-				{
-					FLoop()
-						: Signal(nullptr)
-					{
-					}
-					FLoopParam										Loop;
-					FMediaEvent*									Signal;
-				};
-				struct FBitrate
-				{
-					int32											Value;
-				};
-				struct FSession
-				{
-					TSharedPtrTS<IPlayerMessage>					PlayerMessage;
-				};
-				struct FResolution
-				{
-					FResolution() : Width(0), Height(0) { }
-					int32											Width;
-					int32											Height;
-				};
-				struct FInitialStreamSelect
-				{
-					EStreamType										StreamType;
-					FStreamSelectionAttributes						InitialSelection;
-				};
-				struct FMetadataTrackSelection
-				{
-					EStreamType										StreamType;
-					FTrackMetadata									TrackMetadata;
-					FStreamSelectionAttributes						TrackAttributes;
-				};
-				struct FEndPlaybackAt
-				{
-					FTimeValue											EndAtTime;
-					IPlayerSessionServices::EPlayEndReason				EndingReason;
-					TSharedPtrTS<IPlayerSessionServices::IPlayEndReason> CustomManifestObject;
-				};
-
-				FLoadManifest				ManifestToLoad;
-				FLoadBlob					BlobToLoad;
-				FStreamReader				StreamReader;
-				FEvent						MediaEvent;
-				FLoop						Looping;
-				FBitrate					Bitrate;
-				FSession					Session;
-				FResolution					Resolution;
-				FInitialStreamSelect		InitialStreamAttribute;
-				FMetadataTrackSelection		TrackSelection;
-				FEndPlaybackAt				EndPlaybackAt;
+				FString											URL;
+				FString											MimeType;
 			};
-			EType					Type;
-			FData   				Data;
+			struct FLoadBlob
+			{
+				TSharedPtrTS<FHTTPResourceRequest>				BlobLoadRequest;
+			};
+			struct FOptionChange
+			{
+				FParamDict										OptionsToSetOrChange;
+				FParamDict										OptionsToClear;
+			};
+			struct FStreamReader
+			{
+				TSharedPtrTS<IStreamSegment>					Request;
+				EStreamType										AUType = EStreamType::Unsupported;
+				SIZE_T											AUSize = 0;
+			};
+			struct FEvent
+			{
+				FMediaEvent*									Event = nullptr;
+			};
+			struct FLoop
+			{
+				FLoopParam										Loop;
+				//FMediaEvent*									Signal = nullptr;
+			};
+			struct FBitrate
+			{
+				int32											Value = 0;
+			};
+			struct FSession
+			{
+				TSharedPtrTS<IPlayerMessage>					PlayerMessage;
+			};
+			struct FResolution
+			{
+				int32											Width = 0;
+				int32											Height = 0;
+			};
+			struct FInitialStreamSelect
+			{
+				EStreamType										StreamType = EStreamType::Unsupported;;
+				FStreamSelectionAttributes						InitialSelection;
+			};
+			struct FMetadataTrackSelection
+			{
+				EStreamType										StreamType = EStreamType::Unsupported;;
+				FTrackMetadata									TrackMetadata;
+				FStreamSelectionAttributes						TrackAttributes;
+			};
+			struct FEndPlaybackAt
+			{
+				FTimeValue											EndAtTime;
+				IPlayerSessionServices::EPlayEndReason				EndingReason = IPlayerSessionServices::EPlayEndReason::EndAll;
+				TSharedPtrTS<IPlayerSessionServices::IPlayEndReason> CustomManifestObject;
+			};
+
+			EType Type;
+			TVariant<FLoadManifest, FLoadBlob, FOptionChange, FStreamReader, FEvent, FLoop, FBitrate, FSession, FResolution, FInitialStreamSelect, FMetadataTrackSelection, FEndPlaybackAt> Data;
 		};
 
-		void Enqueue(FMessage::EType type)
+		void Enqueue(FMessage::EType type, const TSharedPtrTS<IStreamSegment>& InRequest)
 		{
+			FMessage::FStreamReader sr { InRequest };
 			FMessage Msg;
 			Msg.Type = type;
+			Msg.Data.Emplace<FMessage::FStreamReader>(MoveTemp(sr));
 			TriggerSharedWorkerThread(MoveTemp(Msg));
 		}
-		void Enqueue(FMessage::EType type, TSharedPtrTS<IStreamSegment> pRequest)
+		void Enqueue(FMessage::EType type, FMediaEvent* InEventSignal)
 		{
+			check(InEventSignal);
+			FMessage::FEvent ev { InEventSignal };
 			FMessage Msg;
 			Msg.Type = type;
-			Msg.Data.StreamReader.Request = pRequest;
+			Msg.Data.Emplace<FMessage::FEvent>(MoveTemp(ev));
 			TriggerSharedWorkerThread(MoveTemp(Msg));
 		}
-		void Enqueue(FMessage::EType type, FMediaEvent* pEventSignal)
+		void EnqueueBufferUnderrun()
 		{
 			FMessage Msg;
-			Msg.Type = type;
-			Msg.Data.MediaEvent.Event = pEventSignal;
+			Msg.Type = FMessage::EType::BufferUnderrun;
 			TriggerSharedWorkerThread(MoveTemp(Msg));
 		}
 		void SendInitializeMessage()
@@ -1556,19 +1543,28 @@ private:
 			Msg.Type = FMessage::EType::Initialize;
 			TriggerSharedWorkerThread(MoveTemp(Msg));
 		}
-		void SendLoadManifestMessage(const FString& URL, const FString& MimeType)
+		void SendOptionChangeMessage(const FParamDict& InOptionsToSetOrChange, const FParamDict& InOptionsToClear)
 		{
+			FMessage::FOptionChange oc { InOptionsToSetOrChange, InOptionsToClear };
 			FMessage Msg;
-			Msg.Type = FMessage::EType::LoadManifest;
-			Msg.Data.ManifestToLoad.URL = URL;
-			Msg.Data.ManifestToLoad.MimeType = MimeType;
+			Msg.Type = FMessage::EType::ChangeOptions;
+			Msg.Data.Emplace<FMessage::FOptionChange>(MoveTemp(oc));
 			TriggerSharedWorkerThread(MoveTemp(Msg));
 		}
-		void SendLoadBlobMessage(TSharedPtr<FHTTPResourceRequest, ESPMode::ThreadSafe> InBlobLoadRequest)
+		void SendLoadManifestMessage(const FString& InURL, const FString& InMimeType)
 		{
+			FMessage::FLoadManifest lm { InURL, InMimeType };
+			FMessage Msg;
+			Msg.Type = FMessage::EType::LoadManifest;
+			Msg.Data.Emplace<FMessage::FLoadManifest>(MoveTemp(lm));
+			TriggerSharedWorkerThread(MoveTemp(Msg));
+		}
+		void SendLoadBlobMessage(const TSharedPtr<FHTTPResourceRequest, ESPMode::ThreadSafe>& InBlobLoadRequest)
+		{
+			FMessage::FLoadBlob lb { InBlobLoadRequest };
 			FMessage Msg;
 			Msg.Type = FMessage::EType::LoadBlob;
-			Msg.Data.BlobToLoad.BlobLoadRequest = MoveTemp(InBlobLoadRequest);
+			Msg.Data.Emplace<FMessage::FLoadBlob>(MoveTemp(lb));
 			TriggerSharedWorkerThread(MoveTemp(Msg));
 		}
 		void SendPauseMessage()
@@ -1585,79 +1581,84 @@ private:
 		}
 		void SendLoopMessage(const FLoopParam& InLoopParams)
 		{
+			FMessage::FLoop loop { InLoopParams };
 			FMessage Msg;
 			Msg.Type = FMessage::EType::Loop;
-			Msg.Data.Looping.Loop = InLoopParams;
+			Msg.Data.Emplace<FMessage::FLoop>(MoveTemp(loop));
 			TriggerSharedWorkerThread(MoveTemp(Msg));
 		}
-		void SendCloseMessage(FMediaEvent* pEventSignal)
+		void SendCloseMessage(FMediaEvent* InEventSignal)
 		{
+			check(InEventSignal);
+			FMessage::FEvent ev { InEventSignal };
 			FMessage Msg;
 			Msg.Type = FMessage::EType::Close;
-			Msg.Data.MediaEvent.Event = pEventSignal;
+			Msg.Data.Emplace<FMessage::FEvent>(MoveTemp(ev));
 			TriggerSharedWorkerThread(MoveTemp(Msg));
 		}
-		void SendBitrateMessage(EStreamType type, int32 value, int32 which)
+		void SendBitrateMessage(EStreamType /*InType*/, int32 InValue, int32 /*InWhich*/)
 		{
+			FMessage::FBitrate br { InValue };
 			FMessage Msg;
 			Msg.Type = FMessage::EType::ChangeBitrate;
-			Msg.Data.Bitrate.Value = value;
+			Msg.Data.Emplace<FMessage::FBitrate>(MoveTemp(br));
 			TriggerSharedWorkerThread(MoveTemp(Msg));
 		}
-		void SendPlayerSessionMessage(const TSharedPtrTS<IPlayerMessage>& message)
+		void SendPlayerSessionMessage(const TSharedPtrTS<IPlayerMessage>& InMessage)
 		{
+			FMessage::FSession sess { InMessage };
 			FMessage Msg;
 			Msg.Type = FMessage::EType::PlayerSession;
-			Msg.Data.Session.PlayerMessage = message;
+			Msg.Data.Emplace<FMessage::FSession>(MoveTemp(sess));
 			TriggerSharedWorkerThread(MoveTemp(Msg));
 		}
-		void SendResolutionMessage(int32 Width, int32 Height)
+		void SendResolutionMessage(int32 InWidth, int32 InHeight)
 		{
+			FMessage::FResolution reso { InWidth, InHeight };
 			FMessage Msg;
 			Msg.Type = FMessage::EType::LimitResolution;
-			Msg.Data.Resolution.Width = Width;
-			Msg.Data.Resolution.Height = Height;
+			Msg.Data.Emplace<FMessage::FResolution>(MoveTemp(reso));
 			TriggerSharedWorkerThread(MoveTemp(Msg));
 		}
-		void SendInitialStreamAttributeMessage(EStreamType StreamType, const FStreamSelectionAttributes& InitialSelection)
+		void SendInitialStreamAttributeMessage(EStreamType InStreamType, const FStreamSelectionAttributes& InInitialSelection)
 		{
+			FMessage::FInitialStreamSelect iss { InStreamType, InInitialSelection };
 			FMessage Msg;
 			Msg.Type = FMessage::EType::InitialStreamAttributes;
-			Msg.Data.InitialStreamAttribute.StreamType = StreamType;
-			Msg.Data.InitialStreamAttribute.InitialSelection = InitialSelection;
+			Msg.Data.Emplace<FMessage::FInitialStreamSelect>(MoveTemp(iss));
 			TriggerSharedWorkerThread(MoveTemp(Msg));
 		}
-		void SendTrackSelectByMetadataMessage(EStreamType StreamType, const FTrackMetadata& TrackMetadata)
+		void SendTrackSelectByMetadataMessage(EStreamType InStreamType, const FTrackMetadata& InTrackMetadata)
 		{
+			FMessage::FMetadataTrackSelection mts { InStreamType, InTrackMetadata };
 			FMessage Msg;
 			Msg.Type = FMessage::EType::SelectTrackByMetadata;
-			Msg.Data.TrackSelection.StreamType = StreamType;
-			Msg.Data.TrackSelection.TrackMetadata = TrackMetadata;
+			Msg.Data.Emplace<FMessage::FMetadataTrackSelection>(MoveTemp(mts));
 			TriggerSharedWorkerThread(MoveTemp(Msg));
 		}
-		void SendTrackSelectByAttributeMessage(EStreamType StreamType, const FStreamSelectionAttributes& TrackAttributes)
+		void SendTrackSelectByAttributeMessage(EStreamType InStreamType, const FStreamSelectionAttributes& InTrackAttributes)
 		{
+			FMessage::FMetadataTrackSelection mts { InStreamType };
+			mts.TrackAttributes = InTrackAttributes;
 			FMessage Msg;
 			Msg.Type = FMessage::EType::SelectTrackByAttributes;
-			Msg.Data.TrackSelection.StreamType = StreamType;
-			Msg.Data.TrackSelection.TrackAttributes = TrackAttributes;
+			Msg.Data.Emplace<FMessage::FMetadataTrackSelection>(MoveTemp(mts));
 			TriggerSharedWorkerThread(MoveTemp(Msg));
 		}
-		void SendTrackDeselectMessage(EStreamType StreamType)
+		void SendTrackDeselectMessage(EStreamType InStreamType)
 		{
+			FMessage::FMetadataTrackSelection mts { InStreamType };
 			FMessage Msg;
 			Msg.Type = FMessage::EType::DeselectTrack;
-			Msg.Data.TrackSelection.StreamType = StreamType;
+			Msg.Data.Emplace<FMessage::FMetadataTrackSelection>(MoveTemp(mts));
 			TriggerSharedWorkerThread(MoveTemp(Msg));
 		}
-
-		void SendPlaybackEndMessage(const FTimeValue& InEndAtTime, IPlayerSessionServices::EPlayEndReason InEndingReason, TSharedPtrTS<IPlayerSessionServices::IPlayEndReason> InCustomManifestObject)
+		void SendPlaybackEndMessage(const FTimeValue& InEndAtTime, IPlayerSessionServices::EPlayEndReason InEndingReason, const TSharedPtrTS<IPlayerSessionServices::IPlayEndReason>& InCustomManifestObject)
 		{
+			FMessage::FEndPlaybackAt epa { InEndAtTime, InEndingReason, InCustomManifestObject };
 			FMessage Msg;
 			Msg.Type = FMessage::EType::EndPlaybackAt;
-			Msg.Data.EndPlaybackAt.EndAtTime = InEndAtTime;
-			Msg.Data.EndPlaybackAt.EndingReason = InEndingReason;
-			Msg.Data.EndPlaybackAt.CustomManifestObject = InCustomManifestObject;
+			Msg.Data.Emplace<FMessage::FEndPlaybackAt>(MoveTemp(epa));
 			TriggerSharedWorkerThread(MoveTemp(Msg));
 		}
 
@@ -2158,7 +2159,7 @@ private:
 	FWorkerThreadMessages												WorkerThread;
 	bool																bUseSharedWorkerThread;
 
-	FParamDict															PlayerOptions;
+	FParamDictTS														PlayerOptions;
 	FPlaybackState														PlaybackState;
 	ISynchronizedUTCTime*												SynchronizedUTCTime;
 	IAdaptiveStreamingPlayerAEMSHandler*								AEMSEventHandler;

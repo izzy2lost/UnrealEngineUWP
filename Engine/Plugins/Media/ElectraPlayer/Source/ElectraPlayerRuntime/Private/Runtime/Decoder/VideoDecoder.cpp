@@ -54,7 +54,7 @@ public:
 	static TSharedPtr<IElectraCodecFactory, ESPMode::ThreadSafe> GetDecoderFactory(FString& OutFormat, TMap<FString, FVariant>& OutAddtlCfg, const FStreamCodecInformation& InCodecInfo, TSharedPtrTS<FAccessUnit::CodecData> InCodecData);
 
 	void SetPlayerSessionServices(IPlayerSessionServices* SessionServices) override;
-	void Open(TSharedPtrTS<FAccessUnit::CodecData> InCodecData, const FParamDict& InAdditionalOptions, const FStreamCodecInformation* InMaxStreamConfiguration) override;
+	void Open(TSharedPtrTS<FAccessUnit::CodecData> InCodecData, FParamDict&& InAdditionalOptions, const FStreamCodecInformation* InMaxStreamConfiguration) override;
 	void Close() override;
 	void DrainForCodecChange() override;
 	void SetVideoResourceDelegate(TWeakPtr<IVideoDecoderResourceDelegate, ESPMode::ThreadSafe> InVideoResourceDelegate) override;
@@ -294,10 +294,10 @@ void FVideoDecoderImpl::SetPlayerSessionServices(IPlayerSessionServices* InSessi
 	SessionServices = InSessionServices;
 }
 
-void FVideoDecoderImpl::Open(TSharedPtrTS<FAccessUnit::CodecData> InCodecData, const FParamDict& InAdditionalOptions, const FStreamCodecInformation* InMaxStreamConfiguration)
+void FVideoDecoderImpl::Open(TSharedPtrTS<FAccessUnit::CodecData> InCodecData, FParamDict&& InAdditionalOptions, const FStreamCodecInformation* InMaxStreamConfiguration)
 {
 	InitialCodecSpecificData = InCodecData;
-	InitialAdditionalOptions = InAdditionalOptions;
+	InitialAdditionalOptions = MoveTemp(InAdditionalOptions);
 	if (InMaxStreamConfiguration)
 	{
 		InitialMaxStreamProperties = *InMaxStreamConfiguration;

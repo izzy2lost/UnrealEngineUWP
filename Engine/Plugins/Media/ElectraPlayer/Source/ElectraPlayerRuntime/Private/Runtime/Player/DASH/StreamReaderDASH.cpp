@@ -439,9 +439,9 @@ void FStreamReaderDASH::FStreamHandler::HTTPUpdateStats(const FTimeValue& Curren
 	TSharedPtrTS<FStreamSegmentRequestDASH> SegmentRequest = CurrentRequest;
 	if (SegmentRequest.IsValid())
 	{
+		// Only update elements that are needed by the ABR here.
 		FMediaCriticalSection::ScopedLock lock(MetricUpdateLock);
-		SegmentRequest->ConnectionInfo = Request->ConnectionInfo;
-		// Update the current download stats which we report periodically to the ABR.
+		SegmentRequest->ConnectionInfo.RequestStartTime = Request->ConnectionInfo.RequestStartTime;
 		Metrics::FSegmentDownloadStats& ds = SegmentRequest->DownloadStats;
 		if (Request->ConnectionInfo.EffectiveURL.Len())
 		{
@@ -1011,8 +1011,7 @@ void FStreamReaderDASH::FStreamHandler::HandleRequestMP4()
 	FTimeValue LastKnownAUDuration;
 	FTimeValue TimeOffset = Request->PeriodStart + Request->AST + Request->AdditionalAdjustmentTime;
 
-	const FParamDict& Options = PlayerSessionService->GetOptions();
-	bool bDoNotTruncateAtPresentationEnd = Options.GetValue(OptionKeyDoNotTruncateAtPresentationEnd).SafeGetBool(false);
+	bool bDoNotTruncateAtPresentationEnd = PlayerSessionService->GetOptionValue(OptionKeyDoNotTruncateAtPresentationEnd).SafeGetBool(false);
 
 	// Get the init segment if there is one. Either gets it from the entity cache or requests it now and adds it to the cache.
 	InitSegmentError = GetInitSegment(MP4InitSegment, Request);
@@ -1116,8 +1115,8 @@ void FStreamReaderDASH::FStreamHandler::HandleRequestMP4()
 			}
 			HTTP->Parameters.bCollectTimingTraces = Request->Segment.bLowLatencyChunkedEncodingExpected;
 			// Set timeouts for media segment retrieval
-			HTTP->Parameters.ConnectTimeout = Options.GetValue(DASH::OptionKeyMediaSegmentConnectTimeout).SafeGetTimeValue(FTimeValue().SetFromMilliseconds(1000 * 4));
-			HTTP->Parameters.NoDataTimeout = Options.GetValue(DASH::OptionKeyMediaSegmentNoDataTimeout).SafeGetTimeValue(FTimeValue().SetFromMilliseconds(1000 * 4));
+			HTTP->Parameters.ConnectTimeout = PlayerSessionService->GetOptionValue(DASH::OptionKeyMediaSegmentConnectTimeout).SafeGetTimeValue(FTimeValue().SetFromMilliseconds(1000 * 4));
+			HTTP->Parameters.NoDataTimeout = PlayerSessionService->GetOptionValue(DASH::OptionKeyMediaSegmentNoDataTimeout).SafeGetTimeValue(FTimeValue().SetFromMilliseconds(1000 * 4));
 
 			ProgressReportCount = 0;
 			DownloadCompleteSignal.Reset();
@@ -1873,8 +1872,7 @@ void FStreamReaderDASH::FStreamHandler::HandleRequestMKV()
 	bFillRemainingDuration = false;
 	ABRAbortReason.Empty();
 
-	const FParamDict& Options = PlayerSessionService->GetOptions();
-	bool bDoNotTruncateAtPresentationEnd = Options.GetValue(OptionKeyDoNotTruncateAtPresentationEnd).SafeGetBool(false);
+	bool bDoNotTruncateAtPresentationEnd = PlayerSessionService->GetOptionValue(OptionKeyDoNotTruncateAtPresentationEnd).SafeGetBool(false);
 
 	// Get the init segment if there is one. Either gets it from the entity cache or requests it now and adds it to the cache.
 	InitSegmentError = GetInitSegment(MKVParser, Request);
@@ -1952,8 +1950,8 @@ void FStreamReaderDASH::FStreamHandler::HandleRequestMKV()
 			}
 			HTTP->Parameters.bCollectTimingTraces = Request->Segment.bLowLatencyChunkedEncodingExpected;
 			// Set timeouts for media segment retrieval
-			HTTP->Parameters.ConnectTimeout = Options.GetValue(DASH::OptionKeyMediaSegmentConnectTimeout).SafeGetTimeValue(FTimeValue().SetFromMilliseconds(1000 * 4));
-			HTTP->Parameters.NoDataTimeout = Options.GetValue(DASH::OptionKeyMediaSegmentNoDataTimeout).SafeGetTimeValue(FTimeValue().SetFromMilliseconds(1000 * 4));
+			HTTP->Parameters.ConnectTimeout = PlayerSessionService->GetOptionValue(DASH::OptionKeyMediaSegmentConnectTimeout).SafeGetTimeValue(FTimeValue().SetFromMilliseconds(1000 * 4));
+			HTTP->Parameters.NoDataTimeout = PlayerSessionService->GetOptionValue(DASH::OptionKeyMediaSegmentNoDataTimeout).SafeGetTimeValue(FTimeValue().SetFromMilliseconds(1000 * 4));
 
 			ProgressReportCount = 0;
 			DownloadCompleteSignal.Reset();
@@ -2606,14 +2604,13 @@ int64 FStreamReaderDASH::FStreamHandler::ReadData(void* IntoBuffer, int64 NumByt
 			if (CurrentRequest.IsValid())
 			{
 				MetricUpdateLock.Lock();
-				Metrics::FSegmentDownloadStats currentDownloadStats = CurrentRequest->DownloadStats;
+				Metrics::FSegmentDownloadStats& currentDownloadStats = CurrentRequest->DownloadStats;
 				currentDownloadStats.DurationDelivered = ActiveTrackData.DurationSuccessfullyDelivered.GetAsSeconds();
 				currentDownloadStats.DurationDownloaded = ActiveTrackData.DurationSuccessfullyRead.GetAsSeconds();
 				currentDownloadStats.TimeToDownload = (MEDIAutcTime::Current() - CurrentRequest->ConnectionInfo.RequestStartTime).GetAsSeconds();
+				FABRDownloadProgressDecision StreamSelectorDecision = StreamSelector->ReportDownloadProgress(currentDownloadStats);
 				MetricUpdateLock.Unlock();
 
-				Metrics::FSegmentDownloadStats& ds = CurrentRequest->DownloadStats;
-				FABRDownloadProgressDecision StreamSelectorDecision = StreamSelector->ReportDownloadProgress(currentDownloadStats);
 				if ((StreamSelectorDecision.Flags & FABRDownloadProgressDecision::EDecisionFlags::eABR_EmitPartialData) != 0)
 				{
 					SCOPE_CYCLE_COUNTER(STAT_ElectraPlayer_DASH_StreamReader);

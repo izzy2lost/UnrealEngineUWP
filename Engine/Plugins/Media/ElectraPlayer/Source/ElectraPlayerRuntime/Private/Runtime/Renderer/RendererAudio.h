@@ -66,7 +66,7 @@ public:
 	UEMediaError AcquireBuffer(IBuffer*& OutBuffer, int32 TimeoutInMicroseconds, const Electra::FParamDict& InParameters) override;
 
 	// Releases the buffer for rendering and subsequent return to the buffer pool
-	UEMediaError ReturnBuffer(IBuffer* Buffer, bool bRender, const Electra::FParamDict& InSampleProperties) override;
+	UEMediaError ReturnBuffer(IBuffer* Buffer, bool bRender, Electra::FParamDict& InOutSampleProperties) override;
 
 	// Informs that the decoder is done with this pool. NO FREE!!!
 	UEMediaError ReleaseBufferPool() override;

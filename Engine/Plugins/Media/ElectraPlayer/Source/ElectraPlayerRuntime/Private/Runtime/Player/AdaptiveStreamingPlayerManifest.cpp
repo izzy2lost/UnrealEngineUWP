@@ -186,9 +186,9 @@ void FAdaptiveStreamingPlayer::InternalLoadManifest(const FString& InURL, const 
 	if (CurrentState == EPlayerState::eState_Idle)
 	{
 		FString mimeType = MimeType;
-		if (GetOptions().HaveKey(OptionKeyMimeType))
+		if (PlayerOptions.HaveKey(OptionKeyMimeType))
 		{
-			mimeType = GetOptions().GetValue(OptionKeyMimeType).GetFString();
+			mimeType = PlayerOptions.GetValue(OptionKeyMimeType).GetFString();
 		}
 		else if (mimeType.IsEmpty())
 		{

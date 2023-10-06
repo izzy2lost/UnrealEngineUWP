@@ -126,7 +126,7 @@ UEMediaError FElectraRendererAudio::AcquireBuffer(IBuffer*& OutBuffer, int32 Tim
 
 
 
-UEMediaError FElectraRendererAudio::ReturnBuffer(IBuffer* Buffer, bool bRender, const FParamDict& InSampleProperties)
+UEMediaError FElectraRendererAudio::ReturnBuffer(IBuffer* Buffer, bool bRender, FParamDict& InOutSampleProperties)
 {
 	if (Buffer == nullptr)
 	{
@@ -137,31 +137,31 @@ UEMediaError FElectraRendererAudio::ReturnBuffer(IBuffer* Buffer, bool bRender, 
 
 	if (bRender)
 	{
-		const FVariantValue& variantNumChannels = InSampleProperties.GetValue(RenderOptionKeys::NumChannels);
+		const FVariantValue& variantNumChannels = InOutSampleProperties.GetValue(RenderOptionKeys::NumChannels);
 		if (!variantNumChannels.IsType(FVariantValue::EDataType::TypeInt64))
 		{
 			return UEMEDIA_ERROR_BAD_ARGUMENTS;
 		}
 
-		const FVariantValue& variantSampleRate = InSampleProperties.GetValue(RenderOptionKeys::SampleRate);
+		const FVariantValue& variantSampleRate = InOutSampleProperties.GetValue(RenderOptionKeys::SampleRate);
 		if (!variantSampleRate.IsType(FVariantValue::EDataType::TypeInt64))
 		{
 			return UEMEDIA_ERROR_BAD_ARGUMENTS;
 		}
 
-		const FVariantValue& variantBufferUsedBytes = InSampleProperties.GetValue(RenderOptionKeys::UsedByteSize);
+		const FVariantValue& variantBufferUsedBytes = InOutSampleProperties.GetValue(RenderOptionKeys::UsedByteSize);
 		if (!variantBufferUsedBytes.IsType(FVariantValue::EDataType::TypeInt64))
 		{
 			return UEMEDIA_ERROR_BAD_ARGUMENTS;
 		}
 
-		const FVariantValue& variantPts = InSampleProperties.GetValue(RenderOptionKeys::PTS);
+		const FVariantValue& variantPts = InOutSampleProperties.GetValue(RenderOptionKeys::PTS);
 		if (!variantPts.IsType(FVariantValue::EDataType::TypeTimeValue))
 		{
 			return UEMEDIA_ERROR_BAD_ARGUMENTS;
 		}
 
-		const FVariantValue& variantDuration = InSampleProperties.GetValue(RenderOptionKeys::Duration);
+		const FVariantValue& variantDuration = InOutSampleProperties.GetValue(RenderOptionKeys::Duration);
 		if (!variantDuration.IsType(FVariantValue::EDataType::TypeTimeValue))
 		{
 			return UEMEDIA_ERROR_BAD_ARGUMENTS;
@@ -179,7 +179,7 @@ UEMediaError FElectraRendererAudio::ReturnBuffer(IBuffer* Buffer, bool bRender, 
 
 		//UE_LOG(LogElectraPlayer, VeryVerbose, TEXT("-- FElectraRendererAudio::ReturnBuffer: Audio sample for time %s"), *InPts.ToString(TEXT("%h:%m:%s.%f")));
 
-		DecoderOutput->GetMutablePropertyDictionary() = InSampleProperties;
+		DecoderOutput->GetMutablePropertyDictionary() = InOutSampleProperties;
 		DecoderOutput->Initialize(IAudioDecoderOutput::ESampleFormat::Float, InNumChannels, InSampleRate, InDuration, FDecoderTimeStamp(InPts, InSequenceIndex), InUsedBufferBytes);
 
 		// Push buffer to output queue...

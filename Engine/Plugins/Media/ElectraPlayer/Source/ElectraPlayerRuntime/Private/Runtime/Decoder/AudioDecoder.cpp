@@ -168,6 +168,7 @@ private:
 
 	TSharedPtrTS<FAccessUnit::CodecData>									CurrentCodecData;
 	FCurrentOutputFormat													CurrentOutputFormat;
+	TMap<FString, FVariant>													CSDOptions;
 	bool																	bIsFirstAccessUnit = true;
 	bool																	bInDummyDecodeMode = false;
 	bool																	bDrainForCodecChange = false;
@@ -648,6 +649,9 @@ FAudioDecoderImpl::EAUChangeFlags FAudioDecoderImpl::GetAndPrepareInputAU()
 				if (CurrentCodecData != CurrentAccessUnit->AccessUnit->AUCodecData && CurrentAccessUnit->AccessUnit->AUCodecData.IsValid())
 				{
 					CurrentCodecData = CurrentAccessUnit->AccessUnit->AUCodecData;
+					CSDOptions.Empty();
+					CSDOptions.Emplace(TEXT("csd"), FVariant(CurrentCodecData->CodecSpecificData));
+					CurrentCodecData->ParsedInfo.GetExtras().ConvertTo(CSDOptions, TEXT("$"));
 				}
 
 				// The very first access unit can't have differences to the one before so we clear the flags.
@@ -667,13 +671,13 @@ IElectraDecoder::ECSDCompatibility FAudioDecoderImpl::IsCompatibleWith()
 	IElectraDecoder::ECSDCompatibility Compatibility = IElectraDecoder::ECSDCompatibility::Compatible;
 	if (DecoderInstance.IsValid() && CurrentAccessUnit.IsValid())
 	{
-		TMap<FString, FVariant> CSDOptions;
+		TMap<FString, FVariant> TestCSDOptions;
 		if (CurrentAccessUnit->AccessUnit->AUCodecData.IsValid())
 		{
-			CSDOptions.Emplace(TEXT("csd"), FVariant(CurrentAccessUnit->AccessUnit->AUCodecData->CodecSpecificData));
-			CSDOptions.Emplace(TEXT("dcr"), FVariant(CurrentAccessUnit->AccessUnit->AUCodecData->RawCSD));
-			CurrentAccessUnit->AccessUnit->AUCodecData->ParsedInfo.GetExtras().ConvertTo(CSDOptions, TEXT("$"));
-			Compatibility = DecoderInstance->IsCompatibleWith(CSDOptions);
+			TestCSDOptions.Emplace(TEXT("csd"), FVariant(CurrentAccessUnit->AccessUnit->AUCodecData->CodecSpecificData));
+			TestCSDOptions.Emplace(TEXT("dcr"), FVariant(CurrentAccessUnit->AccessUnit->AUCodecData->RawCSD));
+			CurrentAccessUnit->AccessUnit->AUCodecData->ParsedInfo.GetExtras().ConvertTo(TestCSDOptions, TEXT("$"));
+			Compatibility = DecoderInstance->IsCompatibleWith(TestCSDOptions);
 		}
 	}
 	return Compatibility;
@@ -903,12 +907,6 @@ bool FAudioDecoderImpl::HandleDecoding()
 			DecAU.Duration = CurrentAccessUnit->AccessUnit->Duration.GetAsTimespan();
 			DecAU.UserValue = CurrentAccessUnit->PTS;
 			DecAU.Flags = CurrentAccessUnit->AccessUnit->bIsSyncSample ? EElectraDecoderFlags::IsSyncSample : EElectraDecoderFlags::None;
-			TMap<FString, FVariant> CSDOptions;
-			if (CurrentCodecData.IsValid())
-			{
-				CSDOptions.Emplace(TEXT("csd"), FVariant(CurrentCodecData->CodecSpecificData));
-				CurrentCodecData->ParsedInfo.GetExtras().ConvertTo(CSDOptions, TEXT("$"));
-			}
 
 			IElectraDecoder::EDecoderError DecErr = DecoderInstance->DecodeAccessUnit(DecAU, CSDOptions);
 			if (DecErr == IElectraDecoder::EDecoderError::None)

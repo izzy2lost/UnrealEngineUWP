@@ -2378,7 +2378,7 @@ FTimeValue FManifestDASHInternal::CalculateDistanceToLiveEdge() const
 	}
 
 	// Check if there is a user provided value. If there is it takes precedence over everything else.
-	FTimeValue Distance = PlayerSessionServices->GetOptions().GetValue(OptionKeyLiveSeekableEndOffset).SafeGetTimeValue(FTimeValue());
+	FTimeValue Distance = PlayerSessionServices->GetOptionValue(OptionKeyLiveSeekableEndOffset).SafeGetTimeValue(FTimeValue());
 
 	// If there is a low latency descriptor we use the target latency from it.
 	if (LowLatencyDescriptor.IsValid())

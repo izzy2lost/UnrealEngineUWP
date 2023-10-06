@@ -1471,9 +1471,9 @@ private:
 			return Timescale;
 		}
 
-		FString GetLanguage() const
+		const FString& GetLanguage() const
 		{
-			return FString(FMEDIA_STATIC_ARRAY_COUNT(Language), Language);
+			return Lang639_1;
 		}
 
 	private:
@@ -1509,6 +1509,8 @@ private:
 			Language[0] = (char)(0x60 + ((Value16 & 0x7c00) >> 10));
 			Language[1] = (char)(0x60 + ((Value16 & 0x03e0) >> 5));
 			Language[2] = (char)(0x60 + (Value16 & 0x001f));
+			// Try to map the ISO-639-2T language code to the shorter ISO-639-1 code if possible.
+			Lang639_1 = ISO639::MapTo639_1(FString(FMEDIA_STATIC_ARRAY_COUNT(Language), Language));
 			RETURN_IF_ERROR(ParseInfo->Reader()->Read(Value16));				// pre_defined (in QuickTime this held 'Quality')
 			return Error;
 		}
@@ -1517,6 +1519,7 @@ private:
 		uint64		Duration;
 		uint32		Timescale;
 		char		Language[3];
+		FString		Lang639_1;
 	};
 
 
@@ -5851,7 +5854,7 @@ private:
 			const TArray<uint8> GetCodecSpecificDataRAW() const override;
 			const FStreamCodecInformation GetCodecInformation() const override;
 			const FBitrateInfo GetBitrateInfo() const override;
-			const FString GetLanguage() const override;
+			const FString& GetLanguage() const override;
 			bool GetEncryptionInfo(FEncryptionInfo& OutEncryptionInfo) const override;
 			void GetPSSHBoxes(TArray<TArray<uint8>>& OutBoxes, bool bFromMOOV, bool bFromMOOF) const override;
 			void GetPRFTBoxes(TArray<ITrack::FProducerReferenceTime>& OutBoxes) const override;
@@ -6172,11 +6175,10 @@ private:
 		return BitrateInfo;
 	}
 
-	const FString FParserISO14496_12::FTrack::GetLanguage() const
+	const FString& FParserISO14496_12::FTrack::GetLanguage() const
 	{
-		FString Language = MDHDBox ? MDHDBox->GetLanguage() : FString(TEXT("und"));
-		// Try to map the ISO-639-2T language code to the shorter ISO-639-1 code if possible.
-		return ISO639::MapTo639_1(Language);
+		static FString Undefined(TEXT("und"));
+		return MDHDBox ? MDHDBox->GetLanguage() : Undefined;
 	}
 
 	bool FParserISO14496_12::FTrack::GetEncryptionInfo(FEncryptionInfo& OutEncryptionInfo) const

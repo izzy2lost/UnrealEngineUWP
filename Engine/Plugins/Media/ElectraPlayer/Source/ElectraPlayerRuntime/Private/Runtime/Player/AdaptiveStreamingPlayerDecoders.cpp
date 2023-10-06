@@ -282,16 +282,6 @@ int32 FAdaptiveStreamingPlayer::CreateDecoder(EStreamType type)
 				{
 					VideoDecoder.Parent = this;
 					VideoDecoder.Decoder->SetPlayerSessionServices(this);
-
-					// Add in any player options that are for decoder use
-					FParamDict AdditionalOptions;
-					TArray<FName> DecoderOptionKeys;
-					PlayerOptions.GetKeysStartingWith(TEXT("videoDecoder"), DecoderOptionKeys);
-					for (const FName& Key : DecoderOptionKeys)
-					{
-						AdditionalOptions.Set(Key, PlayerOptions.GetValue(Key));
-					}
-
 					// Attach video decoder buffer monitor.
 					VideoDecoder.Decoder->SetAUInputBufferListener(&VideoDecoder);
 					VideoDecoder.Decoder->SetReadyBufferListener(&VideoDecoder);
@@ -300,7 +290,7 @@ int32 FAdaptiveStreamingPlayer::CreateDecoder(EStreamType type)
 					// Hand it (may be nullptr) a delegate for platform for resource queries
 					VideoDecoder.Decoder->SetVideoResourceDelegate(VideoDecoderResourceDelegate);
 					// Open the decoder after having set all listeners.
-					VideoDecoder.Decoder->Open(VideoDecoder.LastSentAUCodecData, AdditionalOptions, &HighestStream);
+					VideoDecoder.Decoder->Open(VideoDecoder.LastSentAUCodecData, PlayerOptions.GetDictionary(), &HighestStream);
 				}
 
 				VideoDecoder.CheckIfNewDecoderMustBeSuspendedImmediately();
@@ -651,7 +641,7 @@ void FAdaptiveStreamingPlayer::FeedDecoder(EStreamType Type, IAccessUnitBufferIn
 					{
 						RebufferDetectedAtPlayPos = LastKnownPTS;
 					}
-					WorkerThread.Enqueue(FWorkerThreadMessages::FMessage::EType::BufferUnderrun);
+					WorkerThread.EnqueueBufferUnderrun();
 				}
 			}
 		}

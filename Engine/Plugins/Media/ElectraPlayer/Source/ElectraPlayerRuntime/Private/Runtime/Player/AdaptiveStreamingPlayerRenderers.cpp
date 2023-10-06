@@ -107,7 +107,7 @@ namespace Electra
 		const FParamDict& GetBufferPoolProperties() const override;
 		UEMediaError CreateBufferPool(const FParamDict& Parameters) override;
 		UEMediaError AcquireBuffer(IBuffer*& OutBuffer, int32 TimeoutInMicroseconds, const FParamDict& InParameters) override;
-		UEMediaError ReturnBuffer(IBuffer* Buffer, bool bRender, const FParamDict& InSampleProperties) override;
+		UEMediaError ReturnBuffer(IBuffer* Buffer, bool bRender, FParamDict& InOutSampleProperties) override;
 		UEMediaError ReleaseBufferPool() override;
 		bool CanReceiveOutputFrames(uint64 NumFrames) const override;
 		bool GetEnqueuedFrameInfo(int32& OutNumberOfEnqueuedFrames, FTimeValue& OutDurationOfEnqueuedFrames) const override;
@@ -372,21 +372,20 @@ UEMediaError FAdaptiveStreamingWrappedRenderer::AcquireBuffer(IBuffer*& OutBuffe
 	}
 }
 
-UEMediaError FAdaptiveStreamingWrappedRenderer::ReturnBuffer(IBuffer* Buffer, bool bRender, const FParamDict& InSampleProperties)
+UEMediaError FAdaptiveStreamingWrappedRenderer::ReturnBuffer(IBuffer* Buffer, bool bRender, FParamDict& InOutSampleProperties)
 {
 	LLM_SCOPE(ELLMTag::ElectraPlayer);
 
-	FParamDict SampleProperties(InSampleProperties);
 	Lock.Lock();
-	SampleProperties.Set(RenderOptionKeys::ValidityValue, FVariantValue(CurrentValidityValue));
+	InOutSampleProperties.Set(RenderOptionKeys::ValidityValue, FVariantValue(CurrentValidityValue));
 	Lock.Unlock();
 	if (Type == EStreamType::Video)
 	{
-		return ReturnVideoBuffer(Buffer, bRender, SampleProperties);
+		return ReturnVideoBuffer(Buffer, bRender, InOutSampleProperties);
 	}
 	else if (Type == EStreamType::Audio)
 	{
-		return ReturnAudioBuffer(Buffer, bRender, SampleProperties);
+		return ReturnAudioBuffer(Buffer, bRender, InOutSampleProperties);
 	}
 	else
 	{
