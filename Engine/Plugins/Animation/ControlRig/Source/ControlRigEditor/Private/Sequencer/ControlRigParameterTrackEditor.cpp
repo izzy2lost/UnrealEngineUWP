@@ -92,6 +92,8 @@
 #include "Editor/UnrealEd/Private/FbxExporter.h"
 #include "Sequencer/ControlRigSequencerHelpers.h"
 #include "Widgets/Layout/SSpacer.h"
+#include "ControlRigSequencerEditorLibrary.h"
+#include "LevelSequence.h"
 
 #define LOCTEXT_NAMESPACE "FControlRigParameterTrackEditor"
 
@@ -1264,8 +1266,8 @@ void FControlRigParameterTrackEditor::HandleAddTrackSubMenu(FMenuBuilder& MenuBu
 		EUserInterfaceActionType::ToggleButton);
 
 	MenuBuilder.AddSubMenu(
-		LOCTEXT("AddAssetControlRig", "Asset-Based Control Rig"),
-		LOCTEXT("AddAsetControlRigTooltip", "Adds an asset based Control Rig track"),
+		LOCTEXT("AddControlRigClass", "Control Rig Classes"),
+		LOCTEXT("AddControlRigClassTooltip", "Adds a Control Rig track based on selected class"),
 		FNewMenuDelegate::CreateRaw(this, &FControlRigParameterTrackEditor::HandleAddControlRigSubMenu, ObjectBindings, Track)
 	);
 }
@@ -1427,96 +1429,15 @@ void FControlRigParameterTrackEditor::OnControlRigAssetSelected(const FAssetData
 	}
 */
 
-void FControlRigParameterTrackEditor::AddControlRig(UClass* InClass, UObject* BoundActor, FGuid ObjectBinding, UControlRig* InExistingControlRig)
+void FControlRigParameterTrackEditor::AddControlRig(const UClass* InClass, UObject* BoundActor, FGuid ObjectBinding, UControlRig* InExistingControlRig)
 {
-	FSlateApplication::Get().DismissAllMenus();
-	const TSharedPtr<ISequencer> SequencerParent = GetSequencer();
-
-	if (InClass && InClass->IsChildOf(UControlRig::StaticClass()) && SequencerParent.IsValid())
+	UWorld* World = GCurrentLevelEditingViewportClient ? GCurrentLevelEditingViewportClient->GetWorld() : nullptr;
+	ULevelSequence* LevelSequence = Cast<ULevelSequence>(GetSequencer()->GetFocusedMovieSceneSequence());
+	UMovieSceneSequence* Sequence = GetSequencer()->GetFocusedMovieSceneSequence();
+	FMovieSceneBindingProxy BindingProxy(ObjectBinding, Sequence);
+	if (UMovieSceneTrack* Track = UControlRigSequencerEditorLibrary::FindOrCreateControlRigTrack(World, LevelSequence, InClass, BindingProxy, bIsAdditiveControlRig))
 	{
-		if (bIsAdditiveControlRig && InClass != UFKControlRig::StaticClass() && !InClass->GetDefaultObject<UControlRig>()->SupportsEvent(FRigUnit_InverseExecution::EventName))
-		{
-			UE_LOG(LogControlRigEditor, Error, TEXT("Cannot add an additive control rig which does not contain a backwards solve event."));
-			return;
-		}
-		
-		UMovieSceneSequence* OwnerSequence = GetSequencer()->GetFocusedMovieSceneSequence();
-		UMovieScene* OwnerMovieScene = OwnerSequence->GetMovieScene();
-		FScopedTransaction AddControlRigTrackTransaction(LOCTEXT("AddControlRigTrack", "Add Control Rig Track"));
-
-		OwnerSequence->Modify();
-		OwnerMovieScene->Modify();
-		UMovieSceneControlRigParameterTrack* Track = Cast<UMovieSceneControlRigParameterTrack>(AddTrack(OwnerMovieScene, ObjectBinding, UMovieSceneControlRigParameterTrack::StaticClass(), NAME_None));
-		if (Track)
-		{
-			FString ObjectName = InClass->GetName(); //GetDisplayNameText().ToString();
-			ObjectName.RemoveFromEnd(TEXT("_C"));
-
-			bool bSequencerOwnsControlRig = false;
-			UControlRig* ControlRig = InExistingControlRig;
-			if (ControlRig == nullptr)
-			{
-				ControlRig = NewObject<UControlRig>(Track, InClass, FName(*ObjectName), RF_Transactional);
-				bSequencerOwnsControlRig = true;
-			}
-
-			ControlRig->Modify();
-			if (UFKControlRig* FKControlRig = Cast<UFKControlRig>(ControlRig))
-			{
-				if (bIsAdditiveControlRig)
-				{
-					FKControlRig->SetApplyMode(EControlRigFKRigExecuteMode::Additive);
-				}
-			}
-			else
-			{
-				ControlRig->SetIsAdditive(bIsAdditiveControlRig);
-			}
-			ControlRig->SetObjectBinding(MakeShared<FControlRigObjectBinding>());
-			ControlRig->GetObjectBinding()->BindToObject(BoundActor);
-			ControlRig->GetDataSourceRegistry()->RegisterDataSource(UControlRig::OwnerComponent, ControlRig->GetObjectBinding()->GetBoundObject());
-			// Do not re-initialize existing control rig
-			if (!InExistingControlRig)
-			{
-				ControlRig->Initialize();
-			}
-			ControlRig->Evaluate_AnyThread();
-
-			SequencerParent->NotifyMovieSceneDataChanged(EMovieSceneDataChangeType::MovieSceneStructureItemsChanged);
-
-			Track->Modify();
-			UMovieSceneSection* NewSection = Track->CreateControlRigSection(0, ControlRig, bSequencerOwnsControlRig);
-			NewSection->Modify();
-
-			if (bIsAdditiveControlRig)
-			{
-				const FString AdditiveObjectName = ObjectName + TEXT(" (Additive)");
-				Track->SetTrackName(FName(*ObjectName));
-				Track->SetDisplayName(FText::FromString(AdditiveObjectName));
-				Track->SetColorTint(UMovieSceneControlRigParameterTrack::AdditiveRigTrackColor);
-			}
-			else
-			{
-				//mz todo need to have multiple rigs with same class
-				Track->SetTrackName(FName(*ObjectName));
-				Track->SetDisplayName(FText::FromString(ObjectName));
-				Track->SetColorTint(UMovieSceneControlRigParameterTrack::AbsoluteRigTrackColor);
-			}
-
-			GetSequencer()->EmptySelection();
-			GetSequencer()->SelectSection(NewSection);
-			GetSequencer()->ThrobSectionSelection();
-			GetSequencer()->NotifyMovieSceneDataChanged(EMovieSceneDataChangeType::MovieSceneStructureItemAdded);
-
-			FControlRigEditMode* ControlRigEditMode = GetEditMode(true);
-
-			if (ControlRigEditMode)
-			{
-				ControlRigEditMode->AddControlRigObject(ControlRig, GetSequencer());
-			}
-			BindControlRig(ControlRig);
-
-		}
+		BindControlRig(CastChecked<UMovieSceneControlRigParameterTrack>(Track)->GetControlRig());
 	}
 }
 

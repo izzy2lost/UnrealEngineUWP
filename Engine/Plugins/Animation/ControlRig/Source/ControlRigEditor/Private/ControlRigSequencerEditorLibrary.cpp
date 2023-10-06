@@ -199,79 +199,116 @@ static TSharedPtr<ISequencer> GetSequencerFromAsset()
 	return Sequencer;
 }
 
-static UMovieSceneControlRigParameterTrack* AddControlRig(ULevelSequence* LevelSequence,const UClass* InClass, UObject* BoundActor, FGuid ObjectBinding, UControlRig* InExistingControlRig)
+static UMovieSceneControlRigParameterTrack* AddControlRig(ULevelSequence* LevelSequence,const UClass* InClass, UObject* BoundActor, FGuid ObjectBinding, UControlRig* InExistingControlRig, bool bIsAdditiveControlRig)
 {
 	FSlateApplication::Get().DismissAllMenus();
-
-	if (InClass && InClass->IsChildOf(UControlRig::StaticClass()) && LevelSequence && LevelSequence->GetMovieScene())
+	if (!InClass || !InClass->IsChildOf(UControlRig::StaticClass()) ||
+		!LevelSequence || !LevelSequence->GetMovieScene())
 	{
-		UMovieScene* OwnerMovieScene = LevelSequence->GetMovieScene();
-		TSharedPtr<ISequencer> SharedSequencer = GetSequencerFromAsset();
-		ISequencer* Sequencer = nullptr; // will be valid  if we have a ISequencer AND it's focused.
-		if (SharedSequencer.IsValid() && SharedSequencer->GetFocusedMovieSceneSequence() == LevelSequence)
+		return nullptr;
+	}
+	
+	UMovieScene* OwnerMovieScene = LevelSequence->GetMovieScene();
+	TSharedPtr<ISequencer> SharedSequencer = GetSequencerFromAsset();
+	ISequencer* Sequencer = nullptr; // will be valid  if we have a ISequencer AND it's focused.
+	if (SharedSequencer.IsValid() && SharedSequencer->GetFocusedMovieSceneSequence() == LevelSequence)
+	{
+		Sequencer = SharedSequencer.Get();
+	}
+	LevelSequence->Modify();
+	OwnerMovieScene->Modify();
+	
+	if (bIsAdditiveControlRig && InClass != UFKControlRig::StaticClass() && !InClass->GetDefaultObject<UControlRig>()->SupportsEvent(FRigUnit_InverseExecution::EventName))
+	{
+		UE_LOG(LogControlRigEditor, Error, TEXT("Cannot add an additive control rig which does not contain a backwards solve event."));
+		return nullptr;
+	}
+	
+	FScopedTransaction AddControlRigTrackTransaction(LOCTEXT("AddControlRigTrack", "Add Control Rig Track"));
+
+	UMovieSceneControlRigParameterTrack* Track = Cast<UMovieSceneControlRigParameterTrack>(OwnerMovieScene->AddTrack(UMovieSceneControlRigParameterTrack::StaticClass(), ObjectBinding));
+	if (Track)
+	{
+		FString ObjectName = InClass->GetName(); //GetDisplayNameText().ToString();
+		ObjectName.RemoveFromEnd(TEXT("_C"));
+
+		bool bSequencerOwnsControlRig = false;
+		UControlRig* ControlRig = InExistingControlRig;
+		if (ControlRig == nullptr)
 		{
-			Sequencer = SharedSequencer.Get();
+			ControlRig = NewObject<UControlRig>(Track, InClass, FName(*ObjectName), RF_Transactional);
+			bSequencerOwnsControlRig = true;
 		}
-		LevelSequence->Modify();
-		OwnerMovieScene->Modify();
-		UMovieSceneControlRigParameterTrack* Track = Cast<UMovieSceneControlRigParameterTrack>(OwnerMovieScene->AddTrack(UMovieSceneControlRigParameterTrack::StaticClass(), ObjectBinding));
-		if (Track)
+
+		ControlRig->Modify();
+		if (UFKControlRig* FKControlRig = Cast<UFKControlRig>(ControlRig))
 		{
-			FString ObjectName = InClass->GetName(); //GetDisplayNameText().ToString();
-			ObjectName.RemoveFromEnd(TEXT("_C"));
-
-			bool bSequencerOwnsControlRig = false;
-			UControlRig* ControlRig = InExistingControlRig;
-			if (ControlRig == nullptr)
+			if (bIsAdditiveControlRig)
 			{
-				ControlRig = NewObject<UControlRig>(Track, InClass, FName(*ObjectName), RF_Transactional);
-				bSequencerOwnsControlRig = true;
+				FKControlRig->SetApplyMode(EControlRigFKRigExecuteMode::Additive);
 			}
-
-			ControlRig->Modify();
-			ControlRig->SetObjectBinding(MakeShared<FControlRigObjectBinding>());
-			ControlRig->GetObjectBinding()->BindToObject(BoundActor);
-			ControlRig->GetDataSourceRegistry()->RegisterDataSource(UControlRig::OwnerComponent, ControlRig->GetObjectBinding()->GetBoundObject());
+		}
+		else
+		{
+			ControlRig->SetIsAdditive(bIsAdditiveControlRig);
+		}
+		ControlRig->SetObjectBinding(MakeShared<FControlRigObjectBinding>());
+		ControlRig->GetObjectBinding()->BindToObject(BoundActor);
+		ControlRig->GetDataSourceRegistry()->RegisterDataSource(UControlRig::OwnerComponent, ControlRig->GetObjectBinding()->GetBoundObject());
+		// Do not re-initialize existing control rig
+		if (!InExistingControlRig)
+		{
 			ControlRig->Initialize();
-			ControlRig->Evaluate_AnyThread();
+		}
+		ControlRig->Evaluate_AnyThread();
 
+		SharedSequencer->NotifyMovieSceneDataChanged(EMovieSceneDataChangeType::MovieSceneStructureItemsChanged);
 
-			Track->Modify();
-			UMovieSceneSection* NewSection = Track->CreateControlRigSection(0, ControlRig, bSequencerOwnsControlRig);
-			NewSection->Modify();
+		Track->Modify();
+		UMovieSceneSection* NewSection = Track->CreateControlRigSection(0, ControlRig, bSequencerOwnsControlRig);
+		NewSection->Modify();
 
+		if (bIsAdditiveControlRig)
+		{
+			const FString AdditiveObjectName = ObjectName + TEXT(" (Additive)");
+			Track->SetTrackName(FName(*ObjectName));
+			Track->SetDisplayName(FText::FromString(AdditiveObjectName));
+			Track->SetColorTint(UMovieSceneControlRigParameterTrack::AdditiveRigTrackColor);
+		}
+		else
+		{
 			//mz todo need to have multiple rigs with same class
 			Track->SetTrackName(FName(*ObjectName));
 			Track->SetDisplayName(FText::FromString(ObjectName));
-
-			if (Sequencer)
-			{
-				Sequencer->NotifyMovieSceneDataChanged(EMovieSceneDataChangeType::MovieSceneStructureItemsChanged);
-				Sequencer->EmptySelection();
-				Sequencer->SelectSection(NewSection);
-				Sequencer->ThrobSectionSelection();
-				Sequencer->NotifyMovieSceneDataChanged(EMovieSceneDataChangeType::MovieSceneStructureItemAdded);
-				Sequencer->ObjectImplicitlyAdded(ControlRig);
-			}
-
-			FControlRigEditMode* ControlRigEditMode = static_cast<FControlRigEditMode*>(GLevelEditorModeTools().GetActiveMode(FControlRigEditMode::ModeName));
-			if (!ControlRigEditMode)
-			{
-				GLevelEditorModeTools().ActivateMode(FControlRigEditMode::ModeName);
-				ControlRigEditMode = static_cast<FControlRigEditMode*>(GLevelEditorModeTools().GetActiveMode(FControlRigEditMode::ModeName));
-
-			}
-			if (ControlRigEditMode)
-			{
-				ControlRigEditMode->AddControlRigObject(ControlRig, SharedSequencer);
-			}
-			return Track;
+			Track->SetColorTint(UMovieSceneControlRigParameterTrack::AbsoluteRigTrackColor);
 		}
+
+		if (SharedSequencer.IsValid())
+		{
+			SharedSequencer->EmptySelection();
+			SharedSequencer->SelectSection(NewSection);
+			SharedSequencer->ThrobSectionSelection();
+			SharedSequencer->NotifyMovieSceneDataChanged(EMovieSceneDataChangeType::MovieSceneStructureItemAdded);
+			SharedSequencer->ObjectImplicitlyAdded(ControlRig);
+		}
+
+		FControlRigEditMode* ControlRigEditMode = static_cast<FControlRigEditMode*>(GLevelEditorModeTools().GetActiveMode(FControlRigEditMode::ModeName));
+		if (!ControlRigEditMode)
+		{
+			GLevelEditorModeTools().ActivateMode(FControlRigEditMode::ModeName);
+			ControlRigEditMode = static_cast<FControlRigEditMode*>(GLevelEditorModeTools().GetActiveMode(FControlRigEditMode::ModeName));
+
+		}
+		if (ControlRigEditMode)
+		{
+			ControlRigEditMode->AddControlRigObject(ControlRig, SharedSequencer);
+		}
+		return Track;
 	}
 	return nullptr;
 }
 
-UMovieSceneTrack* UControlRigSequencerEditorLibrary::FindOrCreateControlRigTrack(UWorld* World, ULevelSequence* LevelSequence, const UClass* ControlRigClass, const FMovieSceneBindingProxy& InBinding)
+UMovieSceneTrack* UControlRigSequencerEditorLibrary::FindOrCreateControlRigTrack(UWorld* World, ULevelSequence* LevelSequence, const UClass* ControlRigClass, const FMovieSceneBindingProxy& InBinding, bool bIsAdditiveControlRig)
 {
 	UMovieScene* MovieScene = InBinding.Sequence ? InBinding.Sequence->GetMovieScene() : nullptr;
 	UMovieSceneTrack* BaseTrack = nullptr;
@@ -304,11 +341,11 @@ UMovieSceneTrack* UControlRigSequencerEditorLibrary::FindOrCreateControlRigTrack
 				UControlRig* ControlRig = nullptr;
 				if (Skeleton && SkeletalMeshComponent)
 				{
-					UMovieSceneControlRigParameterTrack* Track = AddControlRig(LevelSequence, ControlRigClass, SkeletalMeshComponent, InBinding.BindingID, nullptr);
+					UMovieSceneControlRigParameterTrack* Track = AddControlRig(LevelSequence, ControlRigClass, SkeletalMeshComponent, InBinding.BindingID, nullptr, bIsAdditiveControlRig);
 
 					if (Track)
 					{
-						BaseTrack = Track;								
+						BaseTrack = Track;
 					}
 				}
 			}
@@ -370,7 +407,7 @@ TArray<UMovieSceneTrack*> UControlRigSequencerEditorLibrary::FindOrCreateControl
 
 					if (GoodTrack == nullptr)
 					{
-						GoodTrack = AddControlRig(LevelSequence, CR->GetClass(), BoundActor, InBinding.BindingID, CR);
+						GoodTrack = AddControlRig(LevelSequence, CR->GetClass(), BoundActor, InBinding.BindingID, CR, false);
 					}
 					Tracks.Add(GoodTrack);
 				}
@@ -3009,6 +3046,11 @@ void UControlRigSequencerEditorLibrary::HideAllControls(UMovieSceneSection* InSe
 bool UControlRigSequencerEditorLibrary::IsFKControlRig(UControlRig* InControlRig)
 {
 	return (InControlRig && InControlRig->IsA<UFKControlRig>());
+}
+
+bool UControlRigSequencerEditorLibrary::IsAdditiveControlRig(UControlRig* InControlRig)
+{
+	return (InControlRig && InControlRig->IsAdditive());
 }
 
 EControlRigFKRigExecuteMode UControlRigSequencerEditorLibrary::GetFKControlRigApplyMode(UControlRig* InControlRig)

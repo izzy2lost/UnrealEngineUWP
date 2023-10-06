@@ -96,7 +96,7 @@ public:
 	* @return returns Return the found or created track
 	*/
 	UFUNCTION(BlueprintCallable, Category = "Editor Scripting | Sequencer Tools | Control Rig")
-	static UMovieSceneTrack* FindOrCreateControlRigTrack(UWorld* World, ULevelSequence* LevelSequence, const UClass* ControlRigClass, const FMovieSceneBindingProxy& InBinding);
+	static UMovieSceneTrack* FindOrCreateControlRigTrack(UWorld* World, ULevelSequence* LevelSequence, const UClass* ControlRigClass, const FMovieSceneBindingProxy& InBinding, bool bIsAdditiveControlRig = false);
 
 	/**
 	* Find or create a Control Rig Component
@@ -1045,6 +1045,12 @@ public:
 	**/
 	UFUNCTION(BlueprintCallable, Category = "Editor Scripting | Sequencer Tools | Control Rig")
 	static bool IsFKControlRig(UControlRig* InControlRig);
+
+	/**	Whether or not the control rig is an Additive Control Rig.
+	@param InControlRig Rig to test to see if Additive Control Rig
+	**/
+	UFUNCTION(BlueprintCallable, Category = "Editor Scripting | Sequencer Tools | Control Rig")
+	static bool IsAdditiveControlRig(UControlRig* InControlRig);
 
 	/**	Get FKControlRig Apply Mode.
 	@param InControlRig Rig to test
