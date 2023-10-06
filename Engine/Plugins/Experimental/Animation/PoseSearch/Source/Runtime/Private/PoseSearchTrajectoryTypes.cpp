@@ -60,22 +60,24 @@ FPoseSearchQueryTrajectorySample FPoseSearchQueryTrajectory::GetSampleAtTime(flo
 }
 
 #if ENABLE_ANIM_DEBUG
-void FPoseSearchQueryTrajectory::DebugDrawTrajectory(const UWorld* World) const
+void FPoseSearchQueryTrajectory::DebugDrawTrajectory(const UWorld* World, float HeightOffset) const
 {
+	FVector OffsetVector = FVector::UpVector * HeightOffset;
+
 	const int32 LastIndex = Samples.Num() - 1;
 	if (LastIndex >= 0)
 	{
 		for (int32 Index = 0; ; ++Index)
 		{
-			DrawDebugSphere(World, Samples[Index].Position, 2.f /*Radius*/, 4 /*Segments*/, FColor::Black);
-			DrawDebugCoordinateSystem(World, Samples[Index].Position, FRotator(Samples[Index].Facing), 12.f /*Scale*/);
+			DrawDebugSphere(World, Samples[Index].Position + OffsetVector, 2.f /*Radius*/, 4 /*Segments*/, FColor::Black);
+			DrawDebugCoordinateSystem(World, Samples[Index].Position + OffsetVector, FRotator(Samples[Index].Facing), 12.f /*Scale*/);
 
 			if (Index == LastIndex)
 			{
 				break;
 			}
 			
-			DrawDebugLine(World, Samples[Index].Position, Samples[Index + 1].Position, FColor::Black);
+			DrawDebugLine(World, Samples[Index].Position + OffsetVector, Samples[Index + 1].Position + OffsetVector, FColor::Black);
 		}
 	}
 }

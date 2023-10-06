@@ -44,16 +44,18 @@ struct MOTIONTRAJECTORY_API FTrajectorySamplingData
 USTRUCT(BlueprintType)
 struct MOTIONTRAJECTORY_API FCharacterTrajectoryData
 {
+public:
 	GENERATED_BODY()
 
 	void Init(const AActor* Actor);
+	void Update(float DeltaSeconds);
 
 	bool IsValid() const;
 
 	// If the character is forward facing (i.e. bOrientRotationToMovement is true), this controls how quickly the trajectory will rotate
 	// to face acceleration. It's common for this to differ from the rotation rate of the character, because animations are often authored 
 	// with different rotation speeds than the character. This is especially true in cases where the character rotation snaps to movement.
-	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "Trajectory Settings")
+	UPROPERTY(EditDefaultsOnly, Category = "Trajectory Settings")
 	float RotateTowardsMovementSpeed = 10.f;
 
 	// Maximum controller rotation rate in degrees per second used to clamp the character owner controller desired rotation to generate the prediction trajectory.
@@ -82,6 +84,11 @@ struct MOTIONTRAJECTORY_API FCharacterTrajectoryData
 	UPROPERTY(Transient)
 	TObjectPtr<const UCharacterMovementComponent> CharacterMovementComponent = nullptr;
 
+	FRotator ControllerRotationRate = FRotator::ZeroRotator;
+
+private:
+	void UpdateControllerRotationRate(float DeltaSeconds);
+
 	FRotator DesiredControllerRotationLastUpdate = FRotator::ZeroRotator;
 };
 
@@ -100,12 +107,16 @@ public:
 	static void UpdateHistory_ShiftInWorldSpace(FPoseSearchQueryTrajectory& Trajectory,
 		const FTrajectorySamplingData& SamplingData, float DeltaSeconds);
 
+	// Update history by tracking offsets that result from character intent (e.g. movement component velocity) and applying
+	// that to the current world transform. This works well on moving platforms as it only stores a history of movement
+	// that results from character intent.
+	static void UpdateHistory_TransformHistory(FPoseSearchQueryTrajectory& Trajectory, TArrayView<FVector> TranslationHistory,
+		const FCharacterTrajectoryData& CharacterTrajectoryData, const FTrajectorySamplingData& SamplingData, float DeltaSeconds);
+
 	// Update prediction by simulating the movement math for ground locomotion in UCharacterMovementComponent.
-	static void UpdatePrediction_SimulateCharacterMovement(FPoseSearchQueryTrajectory& Trajectory, FCharacterTrajectoryData& CharacterTrajectoryData,
-		const FTrajectorySamplingData& SamplingData, float DeltaSeconds);
+	static void UpdatePrediction_SimulateCharacterMovement(FPoseSearchQueryTrajectory& Trajectory,
+		const FCharacterTrajectoryData& CharacterTrajectoryData, const FTrajectorySamplingData& SamplingData, float DeltaSeconds);
 
 private:
 	static FVector RemapVectorMagnitudeWithCurve(const FVector& Vector, bool bUseCurve, const FRuntimeFloatCurve& Curve);
-
-	static FRotator CalculateControllerRotationRate(float DeltaSeconds, FCharacterTrajectoryData& CharacterTrajectoryData);
 };

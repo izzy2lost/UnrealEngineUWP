@@ -69,6 +69,8 @@ void UCharacterTrajectoryComponent::OnMovementUpdated(float DeltaSeconds, FVecto
 		return;
 	}
 
+	CharacterTrajectoryData.Update(DeltaSeconds);
+
 	FMotionTrajectoryLibrary::UpdateHistory_ShiftInWorldSpace(Trajectory, SamplingData, DeltaSeconds);
 
 	FMotionTrajectoryLibrary::UpdatePrediction_SimulateCharacterMovement(Trajectory, CharacterTrajectoryData, SamplingData, DeltaSeconds);

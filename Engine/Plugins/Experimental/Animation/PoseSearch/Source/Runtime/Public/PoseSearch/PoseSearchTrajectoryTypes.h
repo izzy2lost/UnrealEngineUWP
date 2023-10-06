@@ -39,7 +39,7 @@ struct POSESEARCH_API FPoseSearchQueryTrajectory
 	FPoseSearchQueryTrajectorySample GetSampleAtTime(float Time, bool bExtrapolate = true) const;
 	
 #if ENABLE_ANIM_DEBUG
-	void DebugDrawTrajectory(const UWorld* World) const;
+	void DebugDrawTrajectory(const UWorld* World, float HeightOffset = 0.f) const;
 #endif // ENABLE_ANIM_DEBUG
 };
 POSESEARCH_API FArchive& operator<<(FArchive& Ar, FPoseSearchQueryTrajectory& Trajectory);
