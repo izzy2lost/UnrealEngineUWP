@@ -21,6 +21,7 @@ struct FHttpClientConfig
 	int32 PipelineLength = 1;
 	int32 MaxRetryCount = 1;
 	int32 ReceiveBufferSize = -1;
+	int32 FailTimeoutMs = 0;
 	bool bChangeEndpointAfterSuccessfulRetry = true;
 };
 
@@ -35,7 +36,7 @@ public:
 	void Get(FAnsiStringView Url, const FIoOffsetAndLength& Range, FGetCallback&& Callback);
 	void Get(FAnsiStringView Url, FGetCallback&& Callback);
 
-	bool Tick(uint32 WaitTimeMs, uint32 MaxKiBPerSecond);
+	bool Tick(int32 WaitTimeMs, uint32 MaxKiBPerSecond);
 	bool Tick() { return Tick(-1, 0); }
 
 	int32 GetEndpoint() const { return CurrentEndpoint; }

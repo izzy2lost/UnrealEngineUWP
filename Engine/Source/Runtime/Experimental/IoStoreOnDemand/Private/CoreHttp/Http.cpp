@@ -2765,7 +2765,7 @@ struct FTickState
 	FActivity*					DoneList;
 	uint64						Cancels;
 	int32&						RecvAllowance;
-	uint32						PollTimeoutMs;
+	int32						PollTimeoutMs;
 	TArray<FSocket::FWaiter>*	Waiters;
 };
 
@@ -3090,7 +3090,7 @@ private:
 	using FSocketGroupPtr = TUniquePtr<FSocketGroup>;
 	using FSocketGroups = TArray<FSocketGroupPtr>;
 	void						ScatterPendings();
-	int32						Wait(uint32 PollTimeoutMs);
+	int32						Wait(int32 PollTimeoutMs);
 	TArray<FSocket::FWaiter>	Waiters;
 	FSocketGroups				SocketGroups;
 	FHost&						Host;
@@ -3101,17 +3101,29 @@ private:
 };
 
 ////////////////////////////////////////////////////////////////////////////////
-int32 FHostGroup::Wait(uint32 PollTimeoutMs)
+int32 FHostGroup::Wait(int32 PollTimeoutMs)
 {
 	if (Waiters.Num() == 0)
 	{
 		return 0;
 	}
 
+	// If the poll timeout is negative then treat that as a fatal timeout
+	bool bFailOnTimeout = false;
+	if (PollTimeoutMs < -1)
+	{
+		PollTimeoutMs = -PollTimeoutMs;
+		bFailOnTimeout = true;
+	}
+
 	// Actually do the wait
 	int32 Result = FSocket::Wait(Waiters, PollTimeoutMs);
 	if (Result <= 0)
 	{
+		if (bFailOnTimeout && Result == 0)
+		{
+			return MIN_int32;
+		}
 		return Result;
 	}
 
@@ -3146,9 +3158,13 @@ void FHostGroup::Tick(FTickState& State)
 	// Do any waits left over from the last pass through
 	if (int32 Result = Wait(State.PollTimeoutMs); Result < 0)
 	{
+		const char* Reason = (Result == MIN_int32)
+			? "FailTimeout hit"
+			: "poll() returned an unexpected error";
+
 		for (FSocketGroupPtr& Group : SocketGroups)
 		{
-			Group->Fail(State, "poll() returned an unexpected error");
+			Group->Fail(State, Reason);
 		}
 	}
 
@@ -3254,9 +3270,10 @@ class FEventLoop::FImpl
 {
 public:
 							~FImpl();
-	uint32					Tick(uint32 PollTimeoutMs=0);
+	uint32					Tick(int32 PollTimeoutMs=0);
 	bool					IsIdle() const;
 	void					Throttle(uint32 KiBPerSec);
+	void					SetFailTimeout(int32 TimeoutMs);
 	void					Cancel(FTicket Ticket);
 	FRequest				Request(FAnsiStringView Method, FAnsiStringView Path, FActivity* Activity);
 	FTicket					Send(FActivity* Activity);
@@ -3270,6 +3287,7 @@ private:
 	FActivity*				Pending			= nullptr;
 	FThrottler				Throttler;
 	TArray<FHostGroup>		Groups;
+	int32					FailTimeoutMs	= 0;
 	uint32					BusyCount		= 0;
 };
 
@@ -3358,6 +3376,14 @@ bool FEventLoop::FImpl::IsIdle() const
 void FEventLoop::FImpl::Throttle(uint32 KiBPerSec)
 {
 	Throttler.SetLimit(KiBPerSec);
+}
+
+////////////////////////////////////////////////////////////////////////////////
+void FEventLoop::FImpl::SetFailTimeout(int32 TimeoutMs)
+{
+	// While TimeoutMs must be >=0, it is signed so that MAX_uint32 can't be used
+	check(TimeoutMs >= 0);
+	FailTimeoutMs = TimeoutMs;
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -3554,7 +3580,7 @@ uint32 FEventLoop::FImpl::Tick(uint32 PollTimeoutMs)
 #endif // 0
 
 ////////////////////////////////////////////////////////////////////////////////
-uint32 FEventLoop::FImpl::Tick(uint32 PollTimeoutMs)
+uint32 FEventLoop::FImpl::Tick(int32 PollTimeoutMs)
 {
 	TRACE_CPUPROFILER_EVENT_SCOPE(IasHttp::Tick);
 
@@ -3562,6 +3588,14 @@ uint32 FEventLoop::FImpl::Tick(uint32 PollTimeoutMs)
 
 	int32 RecvAllowance = Throttler.GetAllowance();
 	uint64 CancelsLoad = Cancels.load(std::memory_order_relaxed);
+
+	// There is a special internal meaning to the poll time out. If a infinite
+	// timeout is given and a fail one is set on the loop, we use a <-1 value
+	// that Wait() knows what to do with.
+	if (PollTimeoutMs < 0 && FailTimeoutMs)
+	{
+		PollTimeoutMs = -(FailTimeoutMs + 1);
+	}
 
 	// Tick groups and then remove ones that are idle
 	FTickState TickState = {
@@ -3618,10 +3652,11 @@ uint32 FEventLoop::FImpl::Tick(uint32 PollTimeoutMs)
 ////////////////////////////////////////////////////////////////////////////////
 FEventLoop::FEventLoop()						{ Impl = new FEventLoop::FImpl(); Trace(Impl, ETrace::LoopCreate); }
 FEventLoop::~FEventLoop()						{ delete Impl; Trace(Impl, ETrace::LoopDestroy); }
-uint32 FEventLoop::Tick(uint32 PollTimeoutMs)	{ return Impl->Tick(PollTimeoutMs); }
+uint32 FEventLoop::Tick(int32 PollTimeoutMs)	{ return Impl->Tick(PollTimeoutMs); }
 bool FEventLoop::IsIdle() const					{ return Impl->IsIdle(); }
 void FEventLoop::Cancel(FTicket Ticket)			{ return Impl->Cancel(Ticket); }
 void FEventLoop::Throttle(uint32 KiBPerSec)		{ return Impl->Throttle(KiBPerSec); }
+void FEventLoop::SetFailTimeout(int32 Ms)		{ return Impl->SetFailTimeout(Ms); }
 
 ////////////////////////////////////////////////////////////////////////////////
 FRequest FEventLoop::Request(
@@ -4100,6 +4135,37 @@ IOSTOREONDEMAND_API void IasHttpTest(const ANSICHAR* TestHost="localhost")
 		FRequest Request = Loop.Get(BuildUrl("/data")).Accept(EMimeType::Json);
 		FTicket Ticket = Loop.Send(MoveTemp(Request), HashSink);
 		WaitForLoopIdle();
+	}
+
+	// fatal timeout
+	for (int32 i = 0; i < 14; ++i)
+	{
+		bool bExpectFailTimeout = !!(i & 1);
+		FEventLoop Loop2;
+		Loop2.Send(
+			Loop2.Get(BuildUrl("/data?stall", 9494)),
+			[bExpectFailTimeout, Dest=FIoBuffer()] (const FTicketStatus& Status) mutable
+			{
+				if (Status.GetId() == FTicketStatus::EId::Response)
+				{
+					FResponse& Response = Status.GetResponse();
+					Response.SetDestination(&Dest);
+					return;
+				}
+
+				check(Status.GetId() == FTicketStatus::EId::Error);
+
+				const char* Reason = Status.GetErrorReason();
+				bool IsFailTimeout = (FCStringAnsi::Strstr(Reason, "FailTimeout") != nullptr);
+				check(IsFailTimeout == bExpectFailTimeout);
+			}
+		);
+
+		if (bExpectFailTimeout)
+		{
+			Loop2.SetFailTimeout(1000);
+		}
+		while (Loop2.Tick(-1));
 	}
 
 	// no connect

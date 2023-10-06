@@ -34,7 +34,7 @@ void FHttpClient::Get(FAnsiStringView Url, FGetCallback&& Callback)
 	Get(Url, FIoOffsetAndLength(), MoveTemp(Callback));
 }
 
-bool FHttpClient::Tick(uint32 WaitTimeMs, uint32 MaxKiBPerSecond)
+bool FHttpClient::Tick(int32 WaitTimeMs, uint32 MaxKiBPerSecond)
 {
 	EventLoop.Throttle(MaxKiBPerSecond);
 	const uint32 TicketCount = EventLoop.Tick(WaitTimeMs);
@@ -81,6 +81,8 @@ FHttpClient::FHttpClient(FHttpClientConfig&& ClientConfig)
 	check(Config.Endpoints.IsEmpty() == false);
 	Connections.SetNum(Config.Endpoints.Num());
 	SetEndpoint(Config.PrimaryEndpoint);
+
+	EventLoop.SetFailTimeout(Config.FailTimeoutMs);
 }
 
 TUniquePtr<FHttpClient> FHttpClient::Create(FHttpClientConfig&& ClientConfig)

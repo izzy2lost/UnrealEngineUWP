@@ -194,8 +194,9 @@ public:
 
 							FEventLoop();
 							~FEventLoop();
-	uint32					Tick(uint32 PollTimeoutMs=0);
+	uint32					Tick(int32 PollTimeoutMs=0);
 	void					Throttle(uint32 KiBPerSec);
+	void					SetFailTimeout(int32 TimeoutMs);
 	bool					IsIdle() const;
 	void					Cancel(FTicket Ticket);
 	[[nodiscard]] FRequest	Request(FAnsiStringView Method, FAnsiStringView Url, const FRequestParams* Params=nullptr);
