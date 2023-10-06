@@ -669,10 +669,16 @@ bool UMovieSceneCompiledDataManager::IsDirty(UMovieSceneSequence* Sequence) cons
 
 void UMovieSceneCompiledDataManager::Compile(FMovieSceneCompiledDataID DataID)
 {
+	Compile(DataID, NetworkMask);
+}
+
+
+void UMovieSceneCompiledDataManager::Compile(FMovieSceneCompiledDataID DataID, EMovieSceneServerClientMask InNetworkMask)
+{
 	check(DataID.IsValid() && CompiledDataEntries.IsValidIndex(DataID.Value));
 	UMovieSceneSequence* Sequence = CompiledDataEntries[DataID.Value].GetSequence();
 	check(Sequence);
-	Compile(DataID, Sequence);
+	Compile(DataID, Sequence, InNetworkMask);
 }
 
 FMovieSceneCompiledDataID UMovieSceneCompiledDataManager::Compile(UMovieSceneSequence* Sequence)
@@ -683,6 +689,11 @@ FMovieSceneCompiledDataID UMovieSceneCompiledDataManager::Compile(UMovieSceneSeq
 }
 
 void UMovieSceneCompiledDataManager::Compile(FMovieSceneCompiledDataID DataID, UMovieSceneSequence* Sequence)
+{
+	Compile(DataID, Sequence, NetworkMask);
+}
+
+void UMovieSceneCompiledDataManager::Compile(FMovieSceneCompiledDataID DataID, UMovieSceneSequence* Sequence, EMovieSceneServerClientMask InNetworkMask)
 {
 	check(DataID.IsValid() && CompiledDataEntries.IsValidIndex(DataID.Value));
 	FMovieSceneCompiledDataEntry Entry = CompiledDataEntries[DataID.Value];
@@ -697,12 +708,19 @@ void UMovieSceneCompiledDataManager::Compile(FMovieSceneCompiledDataID DataID, U
 	Entry.DeterminismFences.Empty();
 	Entry.AccumulatedFlags = Sequence->GetFlags();
 	Params.TemplateGenerator.Reset(&Entry);
-	Params.NetworkMask = NetworkMask;
+	Params.NetworkMask = InNetworkMask;
 
 	// ---------------------------------------------------------------------------------------------------
 	// Step 1 - Always ensure the hierarchy information is completely up to date first
 	FMovieSceneSequenceHierarchy NewHierarchy;
 	const bool bHasHierarchy = CompileHierarchy(Sequence, Params, &NewHierarchy);
+
+	// If the network mask of the compiled data manager is 'all', but the sequence has been created with client-only and/or server-only subsections,
+	// then we mark the sequence volatile as we may need to recompile it at runtime in order to exclude these subsections depending on the net mode at runtime.
+	if (Params.NetworkMask == EMovieSceneServerClientMask::All && NewHierarchy.GetAccumulatedNetworkMask() != EMovieSceneServerClientMask::All)
+	{
+		Entry.AccumulatedFlags |= EMovieSceneSequenceFlags::Volatile;
+	}
 
 	if (IMovieSceneDeterminismSource* DeterminismSource = Cast<IMovieSceneDeterminismSource>(Sequence))
 	{
@@ -1568,6 +1586,9 @@ void UMovieSceneCompiledDataManager::PopulateSubSequenceTree(UMovieSceneSubTrack
 		{
 			continue;
 		}
+
+		InOutHierarchy->AccumulateNetworkMask(SubSection->GetNetworkMask());
+		
 
 		const FMovieSceneSequenceTransform SequenceToRootTransform = Params.RootToSequenceTransform.InverseFromLoop(Params.RootToSequenceWarpCounter);
 

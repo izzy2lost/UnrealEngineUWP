@@ -88,7 +88,30 @@ bool FCompiledDataVolatilityManager::ConditionalRecompile(IMovieScenePlayer& Pla
 
 	if (CompiledDataManager->IsDirty(RootDataID))
 	{
-		CompiledDataManager->Compile(RootDataID);
+		// We override the network mask from the compiled data manager here simply because it may not be correct.
+		// In a non-editor/PIE executable, we have a single global compiled data manager, and in its current 'global static' implementation,
+		// it may not have been created at a time with enough context to determine the net mode.
+		// In certain edge cases, such as networked games where both server and client are compiled using a single target executable of TargetType.Game,
+		// we may not have the context at Sequence cook/compile time to determine which subsections may be included/excluded at runtime based on NetworkMask,
+		// and so these Sequences are marked as volatile on compile time. Therefore, it's here, upon conditional recompile, when we need to know the correct
+		// network mask to use, which we override and apply here.
+		EMovieSceneServerClientMask NetworkMask = CompiledDataManager->GetNetworkMask();
+		UObject* PlaybackContext = Player.GetPlaybackContext();
+		UWorld* World = PlaybackContext ? PlaybackContext->GetWorld() : nullptr;
+
+		if (World)
+		{
+			ENetMode NetMode = World->GetNetMode();
+			if (NetMode == ENetMode::NM_DedicatedServer)
+			{
+				NetworkMask = EMovieSceneServerClientMask::Server;
+			}
+			else if (NetMode == ENetMode::NM_Client)
+			{
+				NetworkMask = EMovieSceneServerClientMask::Client;
+			}
+		}
+		CompiledDataManager->Compile(RootDataID, NetworkMask);
 		bRecompiled = true;
 	}
 	else

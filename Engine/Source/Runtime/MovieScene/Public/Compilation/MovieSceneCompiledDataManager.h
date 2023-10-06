@@ -228,6 +228,8 @@ public:
 
 	MOVIESCENE_API UMovieSceneCompiledData* MakeCompiledData(UMovieSceneSequence* Sequence) const;
 
+	MOVIESCENE_API EMovieSceneServerClientMask GetNetworkMask() const { return NetworkMask; }
+
 	MOVIESCENE_API void SetEmulatedNetworkMask(EMovieSceneServerClientMask NewMask);
 
 	MOVIESCENE_API void Reset(UMovieSceneSequence* Sequence);
@@ -275,9 +277,13 @@ public:
 
 	MOVIESCENE_API void Compile(FMovieSceneCompiledDataID DataID);
 
+	MOVIESCENE_API void Compile(FMovieSceneCompiledDataID DataID, EMovieSceneServerClientMask InNetworkMask);
+
 	MOVIESCENE_API FMovieSceneCompiledDataID Compile(UMovieSceneSequence* Sequence);
 
 	MOVIESCENE_API void Compile(FMovieSceneCompiledDataID DataID, UMovieSceneSequence* Sequence);
+
+	MOVIESCENE_API void Compile(FMovieSceneCompiledDataID DataID, UMovieSceneSequence* Sequence, EMovieSceneServerClientMask InNetworkMask);
 
 	static MOVIESCENE_API bool CompileHierarchy(UMovieSceneSequence* Sequence, FMovieSceneSequenceHierarchy* InOutHierarchy, EMovieSceneServerClientMask NetworkMask);
 
