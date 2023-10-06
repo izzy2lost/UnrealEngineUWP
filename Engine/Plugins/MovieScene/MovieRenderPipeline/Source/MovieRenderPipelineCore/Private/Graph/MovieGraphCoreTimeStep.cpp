@@ -5,6 +5,7 @@
 #include "Graph/MovieGraphPipeline.h"
 #include "Graph/MovieGraphBlueprintLibrary.h"
 #include "Graph/Nodes/MovieGraphOutputSettingNode.h"
+#include "Graph/Nodes/MovieGraphCameraNode.h"
 #include "MoviePipelineQueue.h"
 #include "MovieRenderPipelineCoreModule.h"
 #include "LevelSequence.h"
@@ -593,21 +594,32 @@ void UMovieGraphCoreTimeStep::UpdateFrameMetrics()
 	// Shutter timing is a bias applied to the final evaluation time to let us change what we consider a frame
 	// ie: Do we consider a frame the start of the timespan we captured? Or is the frame the end of the timespan?
 	// We default to Centered so that the center of your evaluated time is what you see in Level Sequences.
-	// ToDo: Shutter Timing Offset
-	//switch (CameraSettings->ShutterTiming)
-	//{
-	//	// Subtract the entire time the shutter is open.
-	//case EMoviePipelineShutterTiming::FrameClose:
-	//	Output.ShutterOffsetTicks = -Output.TicksWhileShutterOpen;
-	//	break;
-	//	// Only subtract half the time the shutter is open.
-	//case EMoviePipelineShutterTiming::FrameCenter:
-	FrameData.ShutterOffsetFrameTime = -FrameData.FrameTimeWhileShutterOpen / 2.0;
-	//	break;
-	//	// No offset needed
-	//case EMoviePipelineShutterTiming::FrameOpen:
-	//	break;
-	//}
+	EMoviePipelineShutterTiming ShutterTiming = EMoviePipelineShutterTiming::FrameCenter;
+	
+	// We don't always have a config set up when this function is called.
+	if (CurrentTimeStepData.EvaluatedConfig)
+	{
+		if (UMovieGraphCameraSettingNode* CameraSetting = CurrentTimeStepData.EvaluatedConfig->GetSettingForBranch< UMovieGraphCameraSettingNode>(UMovieGraphNode::GlobalsPinName))
+		{
+			ShutterTiming = CameraSetting->ShutterTiming;
+		}
+	}
+	
+	switch (ShutterTiming)
+	{
+	// Subtract the entire time the shutter is open.
+	case EMoviePipelineShutterTiming::FrameClose:
+		FrameData.ShutterOffsetFrameTime = -FrameData.FrameTimeWhileShutterOpen;
+		break;
+	// Only subtract half the time the shutter is open.
+	case EMoviePipelineShutterTiming::FrameCenter:
+		FrameData.ShutterOffsetFrameTime = -FrameData.FrameTimeWhileShutterOpen / 2.0;
+		break;
+	// No offset needed
+	case EMoviePipelineShutterTiming::FrameOpen:
+		FrameData.ShutterOffsetFrameTime = FFrameTime(0);
+		break;
+	}
 
 	// Then, calculate our motion blur offset. Motion Blur in the engine is always
 	// centered around the object so we offset our time sampling by half of the

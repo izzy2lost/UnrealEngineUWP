@@ -13,7 +13,10 @@ class MOVIERENDERPIPELINECORE_API UMovieGraphCameraSettingNode : public UMovieGr
 	GENERATED_BODY()
 
 public:
-	UMovieGraphCameraSettingNode() = default;
+	UMovieGraphCameraSettingNode()
+		: ShutterTiming(EMoviePipelineShutterTiming::FrameCenter)
+		, OverscanPercentage(0.f)
+	{}
 
 	virtual EMovieGraphBranchRestriction GetBranchRestriction() const override { return EMovieGraphBranchRestriction::Globals; }
 	virtual void GetFormatResolveArgs(FMovieGraphResolveArgs& OutMergedFormatArgs, const FMovieGraphRenderDataIdentifier& InRenderDataIdentifier) const override;
