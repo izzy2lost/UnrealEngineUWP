@@ -694,7 +694,7 @@ void FPixelStreamingSignallingConnection::OnStreamerList(const FJsonObjectPtr& J
 {
 	TArray<FString> ResultList;
 	const TArray<TSharedPtr<FJsonValue>>* JsonStreamerIds = nullptr;
-	if (Json->TryGetArrayField("ids", JsonStreamerIds))
+	if (Json->TryGetArrayField(TEXT("ids"), JsonStreamerIds))
 	{
 		for (auto& JsonId : *JsonStreamerIds)
 		{

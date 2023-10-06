@@ -1262,7 +1262,7 @@ void UFbxImportUI::ParseFromJson(TSharedRef<class FJsonObject> ImportSettingsJso
 	FJsonObjectConverter::JsonObjectToUStruct(ImportSettingsJson, GetClass(), this, 0, SkipFlags);
 
 	bAutomatedImportShouldDetectType = true;
-	if(ImportSettingsJson->TryGetField("MeshTypeToImport").IsValid())
+	if(ImportSettingsJson->TryGetField(TEXT("MeshTypeToImport")).IsValid())
 	{
 		// Import type was specified by the user if MeshTypeToImport exists
 		bAutomatedImportShouldDetectType = false;

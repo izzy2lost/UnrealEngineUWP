@@ -803,8 +803,8 @@ namespace
 
 			It("should reply to an identity request", [this]() {
 				SignallingServerConnection->WebSocket->MockSend(R"({"type" : "identify"})");
-				TestEqual("Type", LastJsonMsg->GetStringField("type"), "endpointId");
-				TestEqual("Id", LastJsonMsg->GetStringField("id"), ServerID);
+				TestEqual("Type", LastJsonMsg->GetStringField(TEXT("type")), "endpointId");
+				TestEqual("Id", LastJsonMsg->GetStringField(TEXT("id")), ServerID);
 			});
 
 			It("should receive configurations", [this]() {

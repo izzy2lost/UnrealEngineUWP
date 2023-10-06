@@ -74,8 +74,8 @@ namespace UE::MetaHumanVersionService
 				VersionMapping.Reset();
 				for (const TSharedPtr<FJsonValue>& VersionInfoEntry : Data->AsArray())
 				{
-					FString UEVersion = VersionInfoEntry->AsObject()->GetStringField("ueVersion");
-					const TArray<TSharedPtr<FJsonValue>>& MHCVersions = VersionInfoEntry->AsObject()->GetArrayField("all");
+					FString UEVersion = VersionInfoEntry->AsObject()->GetStringField(TEXT("ueVersion"));
+					const TArray<TSharedPtr<FJsonValue>>& MHCVersions = VersionInfoEntry->AsObject()->GetArrayField(TEXT("all"));
 					for (const auto& Version : MHCVersions)
 					{
 						// Values are ordered from most recent UE to least recent. This will mean that newer entries

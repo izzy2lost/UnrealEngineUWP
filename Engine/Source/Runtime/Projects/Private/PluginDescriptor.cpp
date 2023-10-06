@@ -254,7 +254,7 @@ bool FPluginDescriptor::Read(const FJsonObject& Object, FText* OutFailReason /*=
 	Object.TryGetBoolField(TEXT("HasExplicitPlatforms"), bHasExplicitPlatforms);
 
 	bool bCanBeUsedWithUnrealHeaderTool;
-	if(Object.TryGetBoolField("CanBeUsedWithUnrealHeaderTool", bCanBeUsedWithUnrealHeaderTool) && bCanBeUsedWithUnrealHeaderTool)
+	if(Object.TryGetBoolField(TEXT("CanBeUsedWithUnrealHeaderTool"), bCanBeUsedWithUnrealHeaderTool) && bCanBeUsedWithUnrealHeaderTool)
 	{
 		SupportedPrograms.Add(TEXT("UnrealHeaderTool"));
 	}
@@ -483,7 +483,7 @@ void FPluginDescriptor::UpdateJson(FJsonObject& JsonObject) const
 	}
 	else
 	{
-		JsonObject.RemoveField("HasExplicitPlatforms");
+		JsonObject.RemoveField(TEXT("HasExplicitPlatforms"));
 	}
 
 	PreBuildSteps.UpdateJson(JsonObject, TEXT("PreBuildSteps"));

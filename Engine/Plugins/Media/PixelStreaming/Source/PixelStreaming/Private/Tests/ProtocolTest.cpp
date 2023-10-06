@@ -53,7 +53,7 @@ namespace UE::PixelStreaming
 				TSharedRef<TJsonReader<TCHAR>> JsonReader = TJsonReaderFactory<TCHAR>::Create(JsonRaw);
 				if (FJsonSerializer::Deserialize(JsonReader, JsonParsed))
 				{
-					double Direction = JsonParsed->GetNumberField("Direction");
+					double Direction = JsonParsed->GetNumberField(TEXT("Direction"));
 					if (!(Direction == static_cast<double>(EPixelStreamingMessageDirection::ToStreamer)))
 					{
 						return;

@@ -85,10 +85,10 @@ TOptional<FAssetImportInfo> FAssetImportInfo::FromJson(FString InJsonString)
 		}
 
 		FString RelativeFilename, TimestampString, MD5String, DisplayLabelName;
-		SourceFile->TryGetStringField("RelativeFilename", RelativeFilename);
-		SourceFile->TryGetStringField("Timestamp", TimestampString);
-		SourceFile->TryGetStringField("FileMD5", MD5String);
-		SourceFile->TryGetStringField("DisplayLabelName", DisplayLabelName);
+		SourceFile->TryGetStringField(TEXT("RelativeFilename"), RelativeFilename);
+		SourceFile->TryGetStringField(TEXT("Timestamp"), TimestampString);
+		SourceFile->TryGetStringField(TEXT("FileMD5"), MD5String);
+		SourceFile->TryGetStringField(TEXT("DisplayLabelName"), DisplayLabelName);
 
 		if (RelativeFilename.IsEmpty())
 		{

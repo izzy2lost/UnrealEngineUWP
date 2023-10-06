@@ -260,11 +260,11 @@ namespace GLTF
 			const uint64                    ByteOffset = GetUnsignedInt64(Object, TEXT("byteOffset"), 0);
 			const FAccessor::EComponentType CompType   = ComponentTypeFromNumber(GetUnsignedInt(Object, TEXT("componentType"), 0));
 			const uint32                    Count      = GetUnsignedInt(Object, TEXT("count"), 0);
-			const FAccessor::EType          Type       = AccessorTypeFromString(Object.GetStringField("type"));
+			const FAccessor::EType          Type       = AccessorTypeFromString(Object.GetStringField(TEXT("type")));
 			const bool                      Normalized = GetBool(Object, TEXT("normalized"));
 
 			//Sparse:
-			if (Object.HasField("sparse"))
+			if (Object.HasField(TEXT("sparse")))
 			{
 				const FJsonObject& SparseObject = *Object.GetObjectField(TEXT("sparse"));
 
@@ -326,7 +326,7 @@ namespace GLTF
 		const FAccessor& Indices = AccessorAtIndex(A, GetIndex(Object, TEXT("indices")));
 
 		// the only required attribute is POSITION
-		const FJsonObject& Attributes = *Object.GetObjectField("attributes");
+		const FJsonObject& Attributes = *Object.GetObjectField(TEXT("attributes"));
 		FAccessor&   Position   = AccessorAtIndex(Asset->Accessors, GetIndex(Attributes, TEXT("POSITION")));
 		FAccessor&   Normal     = AccessorAtIndex(Asset->Accessors, GetIndex(Attributes, TEXT("NORMAL")));
 		FAccessor&   Tangent    = AccessorAtIndex(Asset->Accessors, GetIndex(Attributes, TEXT("TANGENT")));

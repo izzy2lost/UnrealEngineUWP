@@ -13,7 +13,7 @@ namespace UE::PixelStreamingServers
 		UE_LOG(LogPixelStreamingServers, Log, TEXT("Sending to player id=%d: %s"), PlayerId, *MessageString);
 
 		FString MessageType;
-		if (!JSONObj->TryGetStringField("type", MessageType))
+		if (!JSONObj->TryGetStringField(TEXT("type"), MessageType))
 		{
 			UE_LOG(LogPixelStreamingServers, Error, TEXT("No message type on message sent to player %d"), PlayerId);
 			return;
@@ -52,7 +52,7 @@ namespace UE::PixelStreamingServers
 		UE_LOG(LogPixelStreamingServers, Log, TEXT("Sending to streamer id=%d: %s"), StreamerId, *MessageString);
 
 		FString MessageType;
-		if (!JSONObj->TryGetStringField("type", MessageType))
+		if (!JSONObj->TryGetStringField(TEXT("type"), MessageType))
 		{
 			UE_LOG(LogPixelStreamingServers, Error, TEXT("No message type on message sent to streamer %d"), StreamerId);
 			return;

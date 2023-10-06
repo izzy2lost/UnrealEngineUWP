@@ -891,7 +891,7 @@ struct FS3CacheStore::FRootManifest
 		for (const TSharedPtr<FJsonValue>& Value : *RootEntriesArray)
 		{
 			const TSharedPtr<FJsonObject>& LastRootManifestEntry = (*RootEntriesArray)[RootEntriesArray->Num() - 1]->AsObject();
-			Keys.Add(LastRootManifestEntry->GetStringField("Key"));
+			Keys.Add(LastRootManifestEntry->GetStringField(TEXT("Key")));
 		}
 
 		return true;

@@ -80,10 +80,10 @@ FVersion FRiderPathLocator::GetLastBuildVersion(const FString& HistoryJsonPath)
 	if(!HistoryField->Last()->TryGetObject(LastItemObject)) return {};
 
 	const TSharedPtr<FJsonObject>* ItemObject;
-	if(!LastItemObject->Get()->TryGetObjectField("item", ItemObject)) return {};
+	if(!LastItemObject->Get()->TryGetObjectField(TEXT("item"), ItemObject)) return {};
 
 	FString Build;
-	if(!ItemObject->Get()->TryGetStringField("build", Build)) return {};
+	if(!ItemObject->Get()->TryGetStringField(TEXT("build"), Build)) return {};
 
 	return FVersion(Build);
 }

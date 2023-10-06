@@ -1408,7 +1408,7 @@ void FDesktopPlatformBase::CheckForLauncherEngineInstallation(const FString &App
 			TSharedPtr<FJsonObject> CustomFieldsObject = RootObject->GetObjectField(TEXT("CustomFields"));
 			if (CustomFieldsObject.IsValid())
 			{
-				FString InstallLocation = CustomFieldsObject->GetStringField("InstallLocation");
+				FString InstallLocation = CustomFieldsObject->GetStringField(TEXT("InstallLocation"));
 				if (InstallLocation.Len() > 0)
 				{
 					OutInstallations.Add(Identifier, InstallLocation);

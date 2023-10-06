@@ -2933,14 +2933,14 @@ void SBlendSpaceGridWidget::OnBlendSamplePaste()
 		NewSampleIndex = OnSampleAdded.Execute(nullptr, SampleValue, false);
 		DestinationGraph = CastChecked<UAnimationBlendSpaceSampleGraph>(BlendSpaceNode->GetGraphs()[NewSampleIndex]);
 
-		FString NodesSetString = RootJsonObject->GetStringField("Nodes");
+		FString NodesSetString = RootJsonObject->GetStringField(TEXT("Nodes"));
 		TSet<UEdGraphNode*> ImportedNodes;
 		FEdGraphUtilities::ImportNodesFromText(DestinationGraph, NodesSetString, ImportedNodes);
 
 		// Reconstruct link to output, if exists
 		if (RootJsonObject->HasField(TEXT("NodeConnectedToResult")))
 		{
-			FString NodeConnectedToResult = RootJsonObject->GetStringField("NodeConnectedToResult");
+			FString NodeConnectedToResult = RootJsonObject->GetStringField(TEXT("NodeConnectedToResult"));
 			FGuid ResultNodeGuid(NodeConnectedToResult);
 			
 			UEdGraphPin* ResultNodePosePin = DestinationGraph->ResultNode->FindPinChecked(TEXT("Result"), EEdGraphPinDirection::EGPD_Input);
