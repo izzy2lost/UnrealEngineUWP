@@ -205,6 +205,12 @@ bool UTransformableControlHandle::HasDirectDependencyWith(const UTransformableHa
 	// check whether the other handle is one of the skeletal mesh parent
 	if (const USkeletalMeshComponent* SkeletalMeshComponent = GetSkeletalMesh())
 	{
+		if (GetTypeHash(SkeletalMeshComponent) == OtherHash)
+		{
+			// we cannot constrain the skeletal mesh component to one of ControlRig's controls
+			return true;
+		}
+		
 		for (const USceneComponent* Comp=SkeletalMeshComponent->GetAttachParent(); Comp!=nullptr; Comp=Comp->GetAttachParent() )
 		{
 			const uint32 AttachParentHash = GetTypeHash(Comp);
