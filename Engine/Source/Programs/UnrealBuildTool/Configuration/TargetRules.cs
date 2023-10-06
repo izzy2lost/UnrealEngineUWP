@@ -292,6 +292,55 @@ namespace UnrealBuildTool
 	}
 
 	/// <summary>
+	/// Debug info mode for compiler settings to determine how much debug info is available
+	/// </summary>
+	[Flags]
+	public enum DebugInfoMode
+	{
+		/// <summary>
+		/// Disable all debugging info.
+		/// MSVC: object files will be compiled without /Z7 or /Zi but pdbs will still be created
+		///       callstacks should be available in this mode but there have been reports with them being incorrect
+		/// </summary>
+		None = 0,
+
+		/// <summary>
+		/// Enable debug info for engine modules
+		/// </summary>
+		Engine = 1 << 0,
+
+		/// <summary>
+		/// Enable debug info for engine plugins
+		/// </summary>
+		EnginePlugins = 1 << 1,
+
+		/// <summary>
+		/// Enable debug info for project modules
+		/// </summary>
+		Project = 1 << 2,
+
+		/// <summary>
+		/// Enable debug info for project plugins
+		/// </summary>
+		ProjectPlugins = 1 << 3,
+
+		/// <summary>
+		/// Only include debug info for engine modules and plugins
+		/// </summary>
+		EngineOnly = Engine | EnginePlugins,
+
+		/// <summary>
+		/// Only include debug info for project modules and project plugins
+		/// </summary>
+		ProjectOnly = Project | ProjectPlugins,
+
+		/// <summary>
+		/// Include full debugging information for all modules
+		/// </summary>
+		Full = Engine | EnginePlugins | Project | ProjectPlugins,
+	}
+
+	/// <summary>
 	/// Floating point math semantics
 	/// </summary>
 	public enum FPSemanticsMode
@@ -1786,14 +1835,38 @@ namespace UnrealBuildTool
 		public bool bForceDebugInfo = false;
 
 		/// <summary>
-		/// Whether to globally disable debug info generation; see DebugInfoHeuristics.cs for per-config and per-platform options.
+		/// Whether to globally disable debug info generation; Obsolete, please use TargetRules.DebugInfoMode instead
 		/// </summary>
-		[CommandLine("-NoDebugInfo")]
 		[XmlConfigFile(Category = "BuildConfiguration")]
-		public bool bDisableDebugInfo = false;
+		[Obsolete("Deprecated in UE5.4 - Replace with TargetRules.DebugInfo")]
+		public bool bDisableDebugInfo
+		{
+			get => DebugInfo == DebugInfoMode.None;
+			set => DebugInfo = value ? DebugInfo = DebugInfoMode.None : DebugInfo = DebugInfoMode.Full;
+		}
 
 		/// <summary>
-		/// Whether to disable debug info generation for generated files. This improves link times for modules that have a lot of generated glue code.
+		/// How much debug info should be generated. See DebugInfoMode enum for more details
+		/// </summary>
+		[CommandLine("-NoDebugInfo", Value = "None")]
+		[CommandLine("-DebugInfo=")]
+		[XmlConfigFile(Category = "BuildConfiguration")]
+		public DebugInfoMode DebugInfo { get; set; } = DebugInfoMode.Full;
+
+		/// <summary>
+		/// Modules that should have debug info disabled
+		/// </summary>
+		[CommandLine("-DisableDebugInfoModules=", ListSeparator = '+')]
+		public HashSet<string> DisableDebugInfoModules { get; } = new();
+
+		/// <summary>
+		/// Plugins that should have debug info disabled
+		/// </summary>
+		[CommandLine("-DisableDebugInfoPlugins=", ListSeparator = '+')]
+		public HashSet<string> DisableDebugInfoPlugins { get; } = new();
+
+		/// <summary>
+		/// Whether to disable debug info generation for generated files. This improves link times and reduces pdb size for modules that have a lot of generated glue code.
 		/// </summary>
 		[XmlConfigFile(Category = "BuildConfiguration")]
 		public bool bDisableDebugInfoForGeneratedCode = false;
@@ -3320,7 +3393,14 @@ namespace UnrealBuildTool
 
 		public bool bDetailedUnityFiles => Inner.bDetailedUnityFiles;
 
+		[Obsolete("Deprecated in UE5.4 - Replace with ReadOnlyTargetRules.DebugInfo")]
 		public bool bDisableDebugInfo => Inner.bDisableDebugInfo;
+
+		public DebugInfoMode DebugInfo => Inner.DebugInfo;
+
+		public IReadOnlySet<string> DisableDebugInfoModules => Inner.DisableDebugInfoModules;
+
+		public IReadOnlySet<string> DisableDebugInfoPlugins => Inner.DisableDebugInfoPlugins;
 
 		public bool bDisableDebugInfoForGeneratedCode => Inner.bDisableDebugInfoForGeneratedCode;
 

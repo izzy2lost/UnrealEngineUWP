@@ -18,7 +18,7 @@ namespace UnrealBuildTool
 
 		public static void ValidateTarget(TargetRules Target)
 		{
-			Target.bDisableDebugInfo = true;
+			Target.DebugInfo = DebugInfoMode.None;
 			Target.bDisableLinking = true;
 			Target.bUsePCHFiles = false;
 			Target.bUseSharedPCHs = false;

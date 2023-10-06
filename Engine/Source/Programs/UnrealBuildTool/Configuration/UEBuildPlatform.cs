@@ -1265,7 +1265,7 @@ namespace UnrealBuildTool
 
 			// Create debug info based on the heuristics specified by the user.
 			GlobalCompileEnvironment.bCreateDebugInfo =
-				!Target.bDisableDebugInfo && ShouldCreateDebugInfo(Target);
+				Target.DebugInfo != DebugInfoMode.None && ShouldCreateDebugInfo(Target);
 			GlobalLinkEnvironment.bCreateDebugInfo = GlobalCompileEnvironment.bCreateDebugInfo;
 		}
 

@@ -35,7 +35,7 @@ public class DatasmithSDKTarget : TargetRules
 		bCompileAgainstCoreUObject = true;
 		bCompileICU = false;
 		bUsesSlate = false;
-		bDisableDebugInfo = false;
+		DebugInfo = DebugInfoMode.Full;
 		bUsePDBFiles = true;
 		bHasExports = true;
 		bIsBuildingConsoleApplication = true;

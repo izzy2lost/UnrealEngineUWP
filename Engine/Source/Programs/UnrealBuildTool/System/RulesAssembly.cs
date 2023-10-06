@@ -648,7 +648,7 @@ namespace UnrealBuildTool
 			// Apply the override to force debug info to be enabled
 			if (Rules.bForceDebugInfo)
 			{
-				Rules.bDisableDebugInfo = false;
+				Rules.DebugInfo = DebugInfoMode.Full;
 				Rules.bOmitPCDebugInfoInDevelopment = false;
 			}
 
