@@ -24,6 +24,8 @@ using Microsoft.Extensions.Options;
 using OpenTracing.Util;
 using Polly;
 using Polly.Extensions.Http;
+using Polly.Retry;
+using Polly.Timeout;
 
 namespace Horde.Agent
 {
@@ -173,32 +175,13 @@ namespace Horde.Agent
 				return builder.WaitAndRetryAsync(new[] { TimeSpan.FromSeconds(1), TimeSpan.FromSeconds(5), TimeSpan.FromSeconds(10) });
 			});
 
-			services.AddHttpClient(HordeHttpClient.HttpClientName, builder => 
-				{
-					builder.BaseAddress = serverProfile.Url;
-					builder.Timeout = TimeSpan.FromSeconds(240); // Global timeout
-				})
+			services.AddHordeHttpClient(client => client.BaseAddress = serverProfile.Url, useAuthChallenge: false)
 				.ConfigurePrimaryHttpMessageHandler(() => new SocketsHttpHandler
-					{
-						MaxConnectionsPerServer = 16,
-						PooledConnectionIdleTimeout = TimeSpan.FromMinutes(15),
-					})
-				.AddPolicyHandler((serviceProvider, request) => Policy.TimeoutAsync<HttpResponseMessage>(30,
-					(outcome, timespan, context) => { 
-						serviceProvider.GetRequiredService<ILogger<HttpStorageClient>>().LogWarning("Http request timed out after {Time}s.", (int)timespan.TotalSeconds); 
-						return Task.CompletedTask; 
-					}))
-				.AddPolicyHandler((serviceProvider, request) => HttpPolicyExtensions.HandleTransientHttpError()
-					.WaitAndRetryAsync(new[]
-						{
-							TimeSpan.FromSeconds(1),
-							TimeSpan.FromSeconds(5),
-							TimeSpan.FromSeconds(10),
-							TimeSpan.FromSeconds(30),
-							TimeSpan.FromSeconds(30),
-						},
-						(outcome, timespan, retryAttempt, context) => serviceProvider.GetRequiredService<ILogger<HttpStorageClient>>().LogWarning("Http request failed. Delaying for {DelayMs}ms (attempt #{RetryNum}).", timespan.TotalMilliseconds, retryAttempt)
-					));
+				{
+					MaxConnectionsPerServer = 16,
+					PooledConnectionIdleTimeout = TimeSpan.FromMinutes(15),
+				});
+
 			services.AddHttpClient(AwsInstanceLifecycleService.HttpClientName);
 			services.AddSingleton<AwsInstanceLifecycleService>();
 			if (settings.EnableAwsEc2Support)
