@@ -931,6 +931,17 @@ public:
 	 */
 	ENGINE_API bool CheckPSOPrecachingAndBoostPriority();
 
+protected:
+
+	/**
+	 * Returns true if this component opts in to participate in the render proxy delay mechanism that kicks in
+	 * if PSO precaching hasn't finished. Otherwise, PSO precaching will still be active but the render proxy
+	 * will be created as normal.
+	 */
+	ENGINE_API virtual bool UsePSOPrecacheRenderProxyDelay() const;
+
+public:
+
 	/**
 	 * Set of actors to ignore during component sweeps in MoveComponent().
 	 * All components owned by these actors will be ignored when this component moves or updates overlaps.

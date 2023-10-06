@@ -28,6 +28,12 @@ public:
 	// For every water body, there is a dilated and non-dilated mesh. Both are needed for generating the water info texture.
 	UPROPERTY()
 	bool bIsDilatedMesh = false;
+
+protected:
+	// Even though we may be still precaching PSOs, we don't want to delay render proxy creation
+	// or fallback to the default material. We're always returning false here so that we decline
+	// those optimizations.
+	virtual bool UsePSOPrecacheRenderProxyDelay() const override { return false; }
 };
 
 struct FWaterBodyInfoMeshSceneProxy : public FStaticMeshSceneProxy
