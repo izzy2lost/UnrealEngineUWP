@@ -150,14 +150,23 @@ struct FGameplayTag
 		return (TagName != NAME_None);
 	}
 
-	/** Returns reference to a GameplayTagContainer containing only this tag */
-	GAMEPLAYTAGS_API const FGameplayTagContainer& GetSingleTagContainer() const;
+	/** Returns a GameplayTagContainer containing only this tag */
+	GAMEPLAYTAGS_API FGameplayTagContainer GetSingleTagContainer() const;
 
 	/** Returns direct parent GameplayTag of this GameplayTag, calling on x.y will return x */
 	GAMEPLAYTAGS_API FGameplayTag RequestDirectParent() const;
 
-	/** Returns a new container explicitly containing the tags of this tag */
+	/** 
+	 * Returns a new tag container that includes this tag and all parent tags as explicitly added tags. 
+	 * For example, calling this on x.y.z would return a tag container with x.y.z, x.y, and x
+	 */
 	GAMEPLAYTAGS_API FGameplayTagContainer GetGameplayTagParents() const;
+
+	/** 
+	 * Parses the tag name and fills in UniqueParentTags with raw parent tags, without validating with the tag manager.
+	 * For example, calling this on x.y.z would add x.y and x to UniqueParentTags if they were not already in the array
+	 */
+	GAMEPLAYTAGS_API void ParseParentTags(TArray<FGameplayTag>& UniqueParentTags) const;
 
 	/** Used so we can have a TMap of this struct */
 	FORCEINLINE friend uint32 GetTypeHash(const FGameplayTag& Tag)
@@ -665,7 +674,7 @@ protected:
 	 */
 	bool RemoveTagByExplicitName(const FName& TagName);
 
-	/** Adds parent tags for a single tag */
+	UE_DEPRECATED(5.4, "Use ParseParentTags or ExtractParentTags instead")
 	GAMEPLAYTAGS_API void AddParentsForTag(const FGameplayTag& Tag);
 
 	/** Array of gameplay tags */

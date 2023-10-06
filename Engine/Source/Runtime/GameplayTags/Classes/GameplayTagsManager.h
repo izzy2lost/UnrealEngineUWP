@@ -381,13 +381,27 @@ public:
 	GAMEPLAYTAGS_API void CallOrRegister_OnDoneAddingNativeTagsDelegate(FSimpleMulticastDelegate::FDelegate Delegate);
 
 	/**
-	 * Gets a Tag Container containing the supplied tag and all of it's parents as explicit tags
+	 * Gets a Tag Container containing the supplied tag and all of its parents as explicit tags.
+	 * For example, passing in x.y.z would return a tag container with x.y.z, x.y, and x.
+	 * This will only work for tags that have been properly registered.
 	 *
-	 * @param GameplayTag The Tag to use at the child most tag for this container
+	 * @param GameplayTag The tag to use at the child most tag for this container
 	 * 
-	 * @return A Tag Container with the supplied tag and all its parents added explicitly
+	 * @return A tag container with the supplied tag and all its parents added explicitly, or an empty container if that failed
 	 */
 	GAMEPLAYTAGS_API FGameplayTagContainer RequestGameplayTagParents(const FGameplayTag& GameplayTag) const;
+
+	/**
+	 * Fills in an array of gameplay tags with all of tags that are the parents of the passed in tag.
+	 * For example, passing in x.y.z would add x.y and x to UniqueParentTags if they was not already there.
+	 * This is used by the GameplayTagContainer code and may work for unregistered tags depending on serialization settings.
+	 *
+	 * @param GameplayTag The gameplay tag to extract parent tags from
+	 * @param UniqueParentTags A list of parent tags that will be added to if necessary
+	 *
+	 * @return true if any tags were added to UniqueParentTags
+	 */
+	GAMEPLAYTAGS_API bool ExtractParentTags(const FGameplayTag& GameplayTag, TArray<FGameplayTag>& UniqueParentTags) const;
 
 	/**
 	 * Gets a Tag Container containing the all tags in the hierarchy that are children of this tag. Does not return the original tag
@@ -401,37 +415,10 @@ public:
 	/** Returns direct parent GameplayTag of this GameplayTag, calling on x.y will return x */
 	GAMEPLAYTAGS_API FGameplayTag RequestGameplayTagDirectParent(const FGameplayTag& GameplayTag) const;
 
-	/**
-	 * Helper function to get the stored TagContainer containing only this tag, which has searchable ParentTags
-	 * @param GameplayTag		Tag to get single container of
-	 * @return					Pointer to container with this tag
-	 */
+	UE_DEPRECATED(5.4, "This function is not threadsafe, use FindTagNode or FGameplayTag::GetSingleTagContainer")
 	FORCEINLINE_DEBUGGABLE const FGameplayTagContainer* GetSingleTagContainer(const FGameplayTag& GameplayTag) const
 	{
-		// Doing this with pointers to avoid a shared ptr reference count change
-		const TSharedPtr<FGameplayTagNode>* Node = GameplayTagNodeMap.Find(GameplayTag);
-
-		if (Node)
-		{
-			return &(*Node)->GetSingleTagContainer();
-		}
-#if WITH_EDITOR
-		// Check redirector
-		if (GIsEditor && GameplayTag.IsValid())
-		{
-			FGameplayTag RedirectedTag = GameplayTag;
-
-			RedirectSingleGameplayTag(RedirectedTag, nullptr);
-
-			Node = GameplayTagNodeMap.Find(RedirectedTag);
-
-			if (Node)
-			{
-				return &(*Node)->GetSingleTagContainer();
-			}
-		}
-#endif
-		return nullptr;
+		return GetSingleTagContainerPtr(GameplayTag);
 	}
 
 	/**
@@ -443,6 +430,8 @@ public:
 	 */
 	FORCEINLINE_DEBUGGABLE TSharedPtr<FGameplayTagNode> FindTagNode(const FGameplayTag& GameplayTag) const
 	{
+		FScopeLock Lock(&GameplayTagMapCritical);
+
 		const TSharedPtr<FGameplayTagNode>* Node = GameplayTagNodeMap.Find(GameplayTag);
 
 		if (Node)
@@ -505,7 +494,7 @@ public:
 	/** Splits a tag such as x.y.z into an array of names {x,y,z} */
 	GAMEPLAYTAGS_API void SplitGameplayTagFName(const FGameplayTag& Tag, TArray<FName>& OutNames) const;
 
-	/** Gets the list of all tags in the dictionary */
+	/** Gets the list of all registered tags, setting OnlyIncludeDictionaryTags will exclude implicitly added tags if possible */
 	GAMEPLAYTAGS_API void RequestAllGameplayTags(FGameplayTagContainer& TagContainer, bool OnlyIncludeDictionaryTags) const;
 
 	/** Returns true if if the passed in name is in the tag dictionary and can be created */
@@ -657,7 +646,7 @@ public:
 	/** Gets a list of all gameplay tag nodes added by the specific source */
 	GAMEPLAYTAGS_API void GetAllTagsFromSource(FName TagSource, TArray< TSharedPtr<FGameplayTagNode> >& OutTagArray) const;
 
-	/** Returns true if this tag is directly in the dictionary already */
+	/** Returns true if this tag was explicitly registered, this is false for implictly added parent tags */
 	GAMEPLAYTAGS_API bool IsDictionaryTag(FName TagName) const;
 
 	/** Returns information about tag. If not found return false */
@@ -755,6 +744,41 @@ private:
 	friend class UGameplayTagsSettings;
 	friend class SAddNewGameplayTagSourceWidget;
 	friend class FNativeGameplayTag;
+
+	/**
+	 * Helper function to get the stored TagContainer containing only this tag, which has searchable ParentTags
+	 * NOTE: This function is not threadsafe and should only be used in code that locks the tag map critical section
+	 * @param GameplayTag		Tag to get single container of
+	 * @return					Pointer to container with this tag
+	 */
+	FORCEINLINE_DEBUGGABLE const FGameplayTagContainer* GetSingleTagContainerPtr(const FGameplayTag& GameplayTag) const
+	{
+		// Doing this with pointers to avoid a shared ptr reference count change
+		const TSharedPtr<FGameplayTagNode>* Node = GameplayTagNodeMap.Find(GameplayTag);
+
+		if (Node)
+		{
+			return &(*Node)->GetSingleTagContainer();
+		}
+#if WITH_EDITOR
+		// Check redirector
+		if (GIsEditor && GameplayTag.IsValid())
+		{
+			FGameplayTag RedirectedTag = GameplayTag;
+
+			RedirectSingleGameplayTag(RedirectedTag, nullptr);
+
+			Node = GameplayTagNodeMap.Find(RedirectedTag);
+
+			if (Node)
+			{
+				return &(*Node)->GetSingleTagContainer();
+			}
+		}
+#endif
+		return nullptr;
+	}
+
 
 	/**
 	 * Helper function to insert a tag into a tag node array

@@ -588,6 +588,8 @@ int32 PrintNetIndiceAssignment = 0;
 static FAutoConsoleVariableRef CVarPrintNetIndiceAssignment(TEXT("GameplayTags.PrintNetIndiceAssignment"), PrintNetIndiceAssignment, TEXT("Logs GameplayTag NetIndice assignment"), ECVF_Default );
 void UGameplayTagsManager::ConstructNetIndex()
 {
+	FScopeLock Lock(&GameplayTagMapCritical);
+
 	bNetworkIndexInvalidated = false;
 
 	NetworkGameplayTagNodeIndex.Empty();
@@ -1197,6 +1199,8 @@ UGameplayTagsManager::~UGameplayTagsManager()
 
 void UGameplayTagsManager::DestroyGameplayTagTree()
 {
+	FScopeLock Lock(&GameplayTagMapCritical);
+
 	if (GameplayRootTag.IsValid())
 	{
 		GameplayRootTag->ResetNode();
@@ -1304,6 +1308,8 @@ void UGameplayTagsManager::PrintReplicationIndices()
 	VerifyNetworkIndex();
 
 	UE_LOG(LogGameplayTags, Display, TEXT("::PrintReplicationIndices (TOTAL %d)"), GameplayTagNodeMap.Num());
+
+	FScopeLock Lock(&GameplayTagMapCritical);
 
 	for (auto It : GameplayTagNodeMap)
 	{
@@ -1611,6 +1617,8 @@ FString UGameplayTagsManager::GetCategoriesMetaFromFunction(const UFunction* Thi
 
 void UGameplayTagsManager::GetAllTagsFromSource(FName TagSource, TArray< TSharedPtr<FGameplayTagNode> >& OutTagArray) const
 {
+	FScopeLock Lock(&GameplayTagMapCritical);
+
 	for (const TPair<FGameplayTag, TSharedPtr<FGameplayTagNode>>& NodePair : GameplayTagNodeMap)
 	{
 		if (NodePair.Value->SourceNames.Contains(TagSource))
@@ -2183,7 +2191,9 @@ void UGameplayTagsManager::DoneAddingNativeTags()
 
 FGameplayTagContainer UGameplayTagsManager::RequestGameplayTagParents(const FGameplayTag& GameplayTag) const
 {
-	const FGameplayTagContainer* ParentTags = GetSingleTagContainer(GameplayTag);
+	FScopeLock Lock(&GameplayTagMapCritical);
+
+	const FGameplayTagContainer* ParentTags = GetSingleTagContainerPtr(GameplayTag);
 
 	if (ParentTags)
 	{
@@ -2192,22 +2202,62 @@ FGameplayTagContainer UGameplayTagsManager::RequestGameplayTagParents(const FGam
 	return FGameplayTagContainer();
 }
 
+// If true, verify that the node lookup and manual methods give identical results
+#define VALIDATE_EXTRACT_PARENT_TAGS 0
+
+bool UGameplayTagsManager::ExtractParentTags(const FGameplayTag& GameplayTag, TArray<FGameplayTag>& UniqueParentTags) const
+{
+	// This gets called during GameplayTagContainer serialization so needs to be efficient
+	if (!GameplayTag.IsValid())
+	{
+		return false;
+	}
+
+#if VALIDATE_EXTRACT_PARENT_TAGS
+	TArray<FGameplayTag> ValidationCopy = UniqueParentTags;
+#endif
+
+	FScopeLock Lock(&GameplayTagMapCritical);
+
+	int32 OldSize = UniqueParentTags.Num();
+	FName RawTag = GameplayTag.GetTagName();
+
+	// This code does not check redirectors because that was already handled by GameplayTagContainerLoaded
+	const TSharedPtr<FGameplayTagNode>* Node = GameplayTagNodeMap.Find(GameplayTag);
+	if (Node)
+	{
+		// Use the registered tag container if it exists
+		const FGameplayTagContainer& SingleContainer = (*Node)->GetSingleTagContainer();
+		for (const FGameplayTag& ParentTag : SingleContainer.ParentTags)
+		{
+			UniqueParentTags.AddUnique(ParentTag);
+		}
+
+#if VALIDATE_EXTRACT_PARENT_TAGS
+		GameplayTag.ParseParentTags(ValidationCopy);
+
+		ensureAlwaysMsgf(ValidationCopy == UniqueParentTags, TEXT("ExtractParentTags results are inconsistent for tag %s"), *GameplayTag.ToString());
+#endif
+	}
+	else if (!ShouldClearInvalidTags())
+	{
+		// If we don't clear invalid tags, we need to extract the parents now in case they get registered later
+		GameplayTag.ParseParentTags(UniqueParentTags);
+	}
+
+	return UniqueParentTags.Num() != OldSize;
+}
+
 void UGameplayTagsManager::RequestAllGameplayTags(FGameplayTagContainer& TagContainer, bool OnlyIncludeDictionaryTags) const
 {
-	TArray<TSharedPtr<FGameplayTagNode>> ValueArray;
-	GameplayTagNodeMap.GenerateValueArray(ValueArray);
-	for (const TSharedPtr<FGameplayTagNode>& TagNode : ValueArray)
+	FScopeLock Lock(&GameplayTagMapCritical);
+
+	for (const TPair<FGameplayTag, TSharedPtr<FGameplayTagNode>>& NodePair : GameplayTagNodeMap)
 	{
-#if WITH_EDITOR
-		bool DictTag = IsDictionaryTag(TagNode->GetCompleteTagName());
-#else
-		bool DictTag = false;
-#endif 
-		if (!OnlyIncludeDictionaryTags || DictTag)
+		const TSharedPtr<FGameplayTagNode>& TagNode = NodePair.Value;
+		if (!OnlyIncludeDictionaryTags || TagNode->IsExplicitTag())
 		{
-			const FGameplayTag* Tag = GameplayTagNodeMap.FindKey(TagNode);
-			check(Tag);
-			TagContainer.AddTagFast(*Tag);
+			TagContainer.AddTagFast(TagNode->GetCompleteTag());
 		}
 	}
 }
