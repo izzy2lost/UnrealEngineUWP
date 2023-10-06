@@ -200,7 +200,7 @@ bool FEXRImageWriteTask::WriteToDisk()
 					continue;
 				}
 
-				void const* RawDataPtr;
+				void const* RawDataPtr = nullptr;
 				int64 RawDataSize;
 				bSuccess = Layer->GetRawData(RawDataPtr, RawDataSize);
 				if (!bSuccess)
