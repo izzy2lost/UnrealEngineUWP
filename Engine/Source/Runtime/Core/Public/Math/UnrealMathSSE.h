@@ -648,6 +648,11 @@ FORCEINLINE VectorRegister4Double VectorLoadDouble1(const double* Ptr)
 	return Result;
 }
 
+FORCEINLINE VectorRegister4i VectorLoad64Bits(const VectorRegister4i *Ptr)
+{
+	return _mm_loadu_si64((__m128i *)Ptr);
+}
+
 /**
  * Loads 2 floats from unaligned memory into X and Y and duplicates them in Z and W.
  *
@@ -3456,7 +3461,7 @@ FORCEINLINE VectorRegister4Int VectorFloatToInt(const VectorRegister4Double& A)
 * @return		VectorRegister4Int(Ptr[0], Ptr[1], Ptr[2], Ptr[3])
 */
 #define VectorIntLoad( Ptr )				_mm_loadu_si128( (VectorRegister4Int*)(Ptr) )
-
+#define VectorIntLoad_16( Ptr )             _mm_loadu_si64 ( (VectorRegister4Int*)(Ptr) )
 /**
 * Stores a vector to memory (aligned).
 *

@@ -587,6 +587,11 @@ FORCEINLINE VectorRegister4Double VectorLoadDouble1(const double* Ptr)
 	return Result;
 }
 
+FORCEINLINE VectorRegister4i VectorLoad64Bits(const void *Ptr)
+{
+	return vcombine_s64(vld1_s64((const int64_t *)Ptr), vdup_n_s64(0));
+}
+
 /**
  * Loads 4 unaligned floats - 2 from the first pointer, 2 from the second, and packs
  * them in to 1 vector.
@@ -2837,6 +2842,7 @@ FORCEINLINE VectorRegister4Int VectorFloatToInt(const VectorRegister4Double& A)
 * @return		VectorRegister4Int(Ptr[0], Ptr[1], Ptr[2], Ptr[3])
 */
 #define VectorIntLoad( Ptr )				vld1q_s32( (int32*)((void*)(Ptr)) )
+#define VectorIntLoad_16( Ptr )				vld1q_s16( (int16*)((void*)(Ptr)) )
 
 /**
 * Stores a vector to memory (aligned).

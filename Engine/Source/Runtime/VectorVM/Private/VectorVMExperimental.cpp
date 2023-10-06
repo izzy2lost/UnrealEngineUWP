@@ -5,7 +5,6 @@
 #include "VectorVM.h"
 #include "HAL/ConsoleManager.h"
 
-
 //prototypes for internal functions to the VVM
 #if VECTORVM_SUPPORTS_SERIALIZATION
 void VVMSer_serializeInstruction(FVectorVMSerializeState *SerializeState, FVectorVMSerializeState *CmpSerializeState, 
@@ -16,6 +15,25 @@ void VVMSer_serializeInstruction(FVectorVMSerializeState *SerializeState, FVecto
 uint32 VVMSer_initSerializationState_(FVectorVMSerializeState *SerializeState, FVectorVMExecContext *ExecCtx, const FVectorVMOptimizeContext *OptimizeContext, uint32 Flags);
 int VVMGetRegisterType(FVectorVMState *VVMState, uint16 RegIdx, uint16 *OutAbsReg);
 uint32 *VVMSer_getRegPtrTablePtrFromIns(FVectorVMSerializeState *SerializeState, FVectorVMSerializeInstruction *Ins, uint16 RegIdx);
+#endif
+
+#if VECTORVM_DEBUG_PRINTF
+
+#define VECTORVM_PRINTF(fmt, ...)	                    \
+	{                                                   \
+		char buff[1024];                                \
+		snprintf(buff, sizeof(buff), fmt, __VA_ARGS__); \
+		wchar_t buff16[1024];                           \
+		char *p = buff;                                 \
+		wchar_t *p16 = buff16;                          \
+		while (*p) *p16++ = *p++;                       \
+		*p16 = 0;                                       \
+		UE_LOG(LogVectorVM, Warning, TEXT("%s"), (TCHAR *)buff16);  \
+	}
+
+#define VECTORVM_PRINT_NEW_LINE()
+
+int VVMGetRegisterType(FVectorVMState *VVMState, uint16 RegIdx, uint16 *OutAbsReg);
 #endif
 
 void *VVMDefaultRealloc(void *Ptr, size_t NumBytes, const char *Filename, int LineNumber)
@@ -230,7 +248,7 @@ void VVMMemSet32(void *dst, uint32 val, size_t num_vals)
 		char *RESTRICT end_ptr = ptr + num_vals * 4 - 16;
 		while (ptr < end_ptr) {
 			VectorIntStore(v4, ptr);
-			ptr += 16;
+			ptr += sizeof(v4);
 		}
 		VectorIntStore(v4, end_ptr);
 	}
@@ -269,11 +287,12 @@ void VVMMemSet16(void *dst, uint16 val, size_t num_vals)
 		char *RESTRICT end_ptr = ptr + num_vals * 4 - 16;
 		while (ptr < end_ptr) {
 			VectorIntStore(Val4, ptr);
-			ptr += 16;
+			ptr += sizeof(Val4);
 		}
 		VectorIntStore(Val4, end_ptr);
 	}
 }
+
 
 #if PLATFORM_CPU_X86_FAMILY
 #define VVM_pshufb(Src, Mask) _mm_shuffle_epi8(Src, Mask)
@@ -748,26 +767,133 @@ static void VVMBuildMapTableCaches(FVectorVMExecContext *ExecCtx)
 	}
 }
 
-static const uint8 *VVM_Output16(const bool CT_MultipleLoops, const uint8 *InsPtr, FVectorVMBatchState *BatchState, FVectorVMExecContext *ExecCtx)
-{
-	uint32 *NumOutputPerDataSet         = BatchState->ChunkLocalData.NumOutputPerDataSet;
-	uint32 *StartingOutputIdxPerDataSet = BatchState->ChunkLocalData.StartingOutputIdxPerDataSet;
-	uint8 **RegPtrTable                 = BatchState->RegPtrTable;
-	uint8 *RegIncTable                  = BatchState->RegIncTable;
-	uint8 **OutputMaskIdx               = BatchState->ChunkLocalData.OutputMaskIdx;
-	TArrayView<FDataSetMeta> DataSets   = ExecCtx->DataSets;
-
-	uint8  RegType            = InsPtr[-1] - (uint8)EVectorVMOp::outputdata_float;
-	int NumOutputLoops        = InsPtr[0];
-	uint8 DataSetIdx          = InsPtr[1];
-	uint32 NumOutputInstances = NumOutputPerDataSet[DataSetIdx];
-	uint32 InstanceOffset     = 0;
-	uint32 RegTypeOffset      = DataSets[DataSetIdx].OutputRegisterTypeOffsets[RegType];
-
-	const uint16 * RESTRICT SrcIndices       = (uint16 *)(InsPtr + 2);
-	const uint16 * RESTRICT DstIndices       = SrcIndices + NumOutputLoops;
+#define VVM_OUTPUT_FUNCTION_HEADER(CT_InputInsOutputTypeOpCode)                                              \
+	uint32 *NumOutputPerDataSet         = BatchState->ChunkLocalData.NumOutputPerDataSet;                    \
+	uint32 *StartingOutputIdxPerDataSet = BatchState->ChunkLocalData.StartingOutputIdxPerDataSet;            \
+	uint8 **RegPtrTable                 = BatchState->RegPtrTable;                                           \
+	uint8 *RegIncTable                  = BatchState->RegIncTable;                                           \
+	uint8 **OutputMaskIdx               = BatchState->ChunkLocalData.OutputMaskIdx;                          \
+	TArrayView<FDataSetMeta> DataSets   = ExecCtx->DataSets;                                                 \
+	uint8  RegType            = (uint8)(CT_InputInsOutputTypeOpCode) - (uint8)EVectorVMOp::outputdata_float; \
+	int NumOutputLoops        = InsPtr[0];                                                                   \
+	uint8 DataSetIdx          = InsPtr[1];                                                                   \
+	uint32 NumOutputInstances = NumOutputPerDataSet[DataSetIdx];                                             \
+	uint32 InstanceOffset     = 0;                                                                           \
+	uint32 RegTypeOffset      = DataSets[DataSetIdx].OutputRegisterTypeOffsets[RegType];                     \
+	const uint16 * RESTRICT SrcIndices       = (uint16 *)(InsPtr + 2);                                       \
+	const uint16 * RESTRICT DstIndices       = SrcIndices + NumOutputLoops;                                  \
 	InsPtr += 3 + 4 * NumOutputLoops;
 
+
+#if VECTORVM_DEBUG_PRINTF
+
+#	define VVM_OUTPUT_FUNCTION_FOOTER                                                                             \
+		VECTORVM_PRINTF("\tNum Loops: %d, DataSetIndex: %d\n", NumOutputLoops, DataSetIdx);                       \
+		for (int j = 0; j < NumOutputLoops; ++j)                                                                  \
+		{                                                                                                         \
+			uint16 AbsRegIdx;                                                                                     \
+			int ThisRegType = VVMGetRegisterType(ExecCtx->VVMState, SrcIndices[j], &AbsRegIdx);                   \
+			uint32 *DstReg = (uint32 *)RegPtrTable[DstIndices[j]] + InstanceOffset;                               \
+			VECTORVM_PRINTF("\t%c%d -> %d [0x%p]\n", VVM_RT_CHAR[ThisRegType], AbsRegIdx, DstIndices[j], DstReg); \
+		}                                                                                                         \
+		return InsPtr
+
+#else //VECTORVM_DEBUG_PRINTF
+
+#	define VVM_OUTPUT_FUNCTION_FOOTER return InsPtr
+
+#endif //VECTORVM_DEBUG_PRINTF
+
+static const uint8 *VVM_Output32_from_16(const bool CT_MultipleLoops, const uint8 *InsPtr, FVectorVMBatchState *BatchState, FVectorVMExecContext *ExecCtx)
+{
+	VVM_OUTPUT_FUNCTION_HEADER(EVectorVMOp::outputdata_float);
+	VVM_OUTPUT_FUNCTION_FOOTER;
+}
+
+static const uint8 *VVM_Output16_from_16(const bool CT_MultipleLoops, const uint8 *InsPtr, FVectorVMBatchState *BatchState, FVectorVMExecContext *ExecCtx)
+{
+	VVM_OUTPUT_FUNCTION_HEADER(EVectorVMOp::outputdata_half);
+	if (CT_MultipleLoops)
+	{
+		if (NumOutputInstances == BatchState->ChunkLocalData.NumInstancesThisChunk) //all outputs written
+		{ 
+			for (int j = 0; j < NumOutputLoops; ++j)
+			{
+				int      SrcInc = RegIncTable[SrcIndices[j]];
+				uint32 * SrcReg = (uint32 *)RegPtrTable[SrcIndices[j]];
+				uint32 * DstReg = (uint32 *)RegPtrTable[DstIndices[j]] + InstanceOffset;
+				if (SrcReg != DstReg)
+				{ //temp registers can be aliased to outputs
+					if (SrcInc == 0) //setting from a constant
+					{ 
+						VVMMemSet16(DstReg, *SrcReg, NumOutputInstances);
+					}
+					else
+					{
+						VVMMemCpy(DstReg, SrcReg, sizeof(uint16) * NumOutputInstances);
+					}
+				}
+			}
+		}
+		else if (NumOutputInstances > 0) //not all outputs are being written
+		{
+			for (int j = 0; j < NumOutputLoops; ++j)
+			{
+				int     SrcInc = RegIncTable[SrcIndices[j]];
+				uint64 *DstReg = (uint64 *)RegPtrTable[DstIndices[j]] + InstanceOffset;
+
+				if (SrcInc == 0) //setting from a constant
+				{ 
+					uint64 Val              = *(uint64 *)RegPtrTable[SrcIndices[j]];
+					uint64 *RESTRICT DstEnd = DstReg + NumOutputInstances;
+					uint64 *RESTRICT Ptr    = DstReg;
+					while (Ptr < DstEnd) {
+						*Ptr = Val;
+						Ptr++;
+					}
+				}
+				else
+				{
+					int NumLoops = (int)((BatchState->ChunkLocalData.NumInstancesThisChunk + 3) & ~3) >> 2; //assumes 4-wide ops
+					char * SrcPtr                 = (char *)RegPtrTable[SrcIndices[j]]; //src and dst can alias
+					char * DstPtr                 = (char *)DstReg;
+					uint8 * RESTRICT TblIdxPtr    = OutputMaskIdx[DataSetIdx];
+					uint8 * RESTRICT TblIdxEndPtr = TblIdxPtr + NumLoops;
+					while (TblIdxPtr < TblIdxEndPtr)
+					{
+						
+						uint8 TblIdx = *TblIdxPtr++;
+						VectorRegister4i Mask = ((VectorRegister4i *)VVM_PSHUFB_OUTPUT_TABLE16)[TblIdx];
+						VectorRegister4i Src  = VectorIntLoad_16(SrcPtr);
+						VectorRegister4i Val  = VVM_pshufb(Src, Mask);
+						VectorIntStore_16(Val, DstPtr);
+						SrcPtr += sizeof(uint16) * 4;
+						DstPtr += VVM_OUTPUT_ADVANCE_TABLE16[TblIdx];
+					}
+				}
+			}
+		}
+	}
+	else
+	{
+		uint8 OutputMask = OutputMaskIdx[DataSetIdx][0];
+		for (int j = 0; j < NumOutputLoops; ++j)
+		{
+			uint32 *SrcReg = (uint32 *)RegPtrTable[SrcIndices[j]];
+			uint32 *DstReg = (uint32 *)RegPtrTable[DstIndices[j]] + InstanceOffset;
+			VectorRegister4i Mask = ((VectorRegister4i *)VVM_PSHUFB_OUTPUT_TABLE16)[OutputMask];
+			VectorRegister4i Src  = VectorIntLoad(SrcReg);
+			VectorRegister4i Val  = VVM_pshufb(Src, Mask);
+			VectorIntStore_16(Val, DstReg);
+		}
+	}
+	VVM_OUTPUT_FUNCTION_FOOTER;
+}
+
+static const uint8 *VVM_Output16(const bool CT_MultipleLoops, const uint8 *InsPtr, FVectorVMBatchState *BatchState, FVectorVMExecContext *ExecCtx)
+{
+	VVM_OUTPUT_FUNCTION_HEADER(EVectorVMOp::outputdata_half);
+	
 	if (CT_MultipleLoops)
 	{
 		if (NumOutputInstances == BatchState->ChunkLocalData.NumInstancesThisChunk) //all outputs written
@@ -802,7 +928,7 @@ static const uint8 *VVM_Output16(const bool CT_MultipleLoops, const uint8 *InsPt
 			for (int j = 0; j < NumOutputLoops; ++j)
 			{
 				int   SrcInc = RegIncTable[SrcIndices[j]];
-				char *DstReg = (char *)RegPtrTable[DstIndices[j]] + InstanceOffset;
+				char *DstReg = (char *)RegPtrTable[DstIndices[j]] + (InstanceOffset * sizeof(uint16));
 				if (SrcInc == 0) //setting from a constant
 				{ 
 					uint16 Val;
@@ -839,48 +965,17 @@ static const uint8 *VVM_Output16(const bool CT_MultipleLoops, const uint8 *InsPt
 			uint16 *DstReg = (uint16 *)RegPtrTable[DstIndices[j]] + InstanceOffset;
 			//convert 4 values at once then shift them in place
 			VectorRegister4i Mask = ((VectorRegister4i *)VVM_PSHUFB_OUTPUT_TABLE16)[OutputMask];
-			//VectorRegister4i Src4 = _mm_cvtps_ph(_mm_loadu_ps((float *)SrcReg), _MM_FROUND_TO_NEAREST_INT);
-			//_mm_storeu_si64(DstReg, _mm_shuffle_epi8(Src4, Mask));
-			
 			VectorRegister4i HalfVals;
 			VVM_floatToHalf(&HalfVals, SrcReg);
 			VectorIntStore_16(VVM_pshufb(HalfVals, Mask), DstReg);
 		}
 	}
-#	if VECTORVM_DEBUG_PRINTF
-	printf("\tNum Loops: %d, DataSetIndex: %d\n", NumOutputLoops, DataSetIdx);
-	for (int j = 0; j < NumOutputLoops; ++j)
-	{
-		uint16 AbsRegIdx;
-		int RegType = VVMGetRegisterType(ExecCtx->VVMState, SrcIndices[j], &AbsRegIdx);
-		uint32 *DstReg = (uint32 *)RegPtrTable[DstIndices[j]] + InstanceOffset;
-		printf("\t%c%d -> %d [0x%p]\n", VVM_RT_CHAR[RegType], AbsRegIdx, DstIndices[j], DstReg);
-	}
-	fflush(stdout);
-#	endif //VECTORVM_DEBUG_PRINTF
-	return InsPtr;
+	VVM_OUTPUT_FUNCTION_FOOTER;
 }
 
 static const uint8 *VVM_Output32(const bool CT_MultipleLoops, const uint8 *InsPtr, FVectorVMBatchState *BatchState, FVectorVMExecContext *ExecCtx)
 {
-	uint32 *NumOutputPerDataSet         = BatchState->ChunkLocalData.NumOutputPerDataSet;
-	uint32 *StartingOutputIdxPerDataSet = BatchState->ChunkLocalData.StartingOutputIdxPerDataSet;
-	uint8 **RegPtrTable                 = BatchState->RegPtrTable;
-	uint8 *RegIncTable                  = BatchState->RegIncTable;
-	uint8 **OutputMaskIdx               = BatchState->ChunkLocalData.OutputMaskIdx;
-	TArrayView<FDataSetMeta> DataSets   = ExecCtx->DataSets;
-
-	uint8  RegType            = InsPtr[-1] - (uint8)EVectorVMOp::outputdata_float;
-	int NumOutputLoops        = InsPtr[0];
-	uint8 DataSetIdx          = InsPtr[1];
-	uint32 NumOutputInstances = NumOutputPerDataSet[DataSetIdx];
-	uint32 InstanceOffset     = 0;
-	uint32 RegTypeOffset      = DataSets[DataSetIdx].OutputRegisterTypeOffsets[RegType];
-
-	const uint16 * RESTRICT SrcIndices       = (uint16 *)(InsPtr + 2);
-	const uint16 * RESTRICT DstIndices       = SrcIndices + NumOutputLoops;
-	InsPtr += 3 + 4 * NumOutputLoops;
-
+	VVM_OUTPUT_FUNCTION_HEADER(InsPtr[-1]);
 	if (CT_MultipleLoops)
 	{
 		if (NumOutputInstances == BatchState->ChunkLocalData.NumInstancesThisChunk) //all outputs written
@@ -956,19 +1051,7 @@ static const uint8 *VVM_Output32(const bool CT_MultipleLoops, const uint8 *InsPt
 			VectorIntStore(Val, DstReg);
 		}
 	}
-#	if VECTORVM_DEBUG_PRINTF
-	printf("\tNum Loops: %d, DataSetIndex: %d\n", NumOutputLoops, DataSetIdx);
-	for (int j = 0; j < NumOutputLoops; ++j)
-	{
-		uint16 AbsSrcRegIdx;
-		uint16 AbsDstRegIdx;
-		int RegType = VVMGetRegisterType(ExecCtx->VVMState, SrcIndices[j], &AbsSrcRegIdx);
-		VVMGetRegisterType(ExecCtx->VVMState, DstIndices[j], &AbsDstRegIdx);
-		uint32 *DstReg = (uint32 *)RegPtrTable[DstIndices[j]] + InstanceOffset;
-		printf("\t%c%d -> O%d (%d) [0x%p]\n", VVM_RT_CHAR[RegType], AbsSrcRegIdx, AbsDstRegIdx, DstIndices[j], DstReg);
-	}
-#	endif //VECTORVM_DEBUG_PRINTF
-	return InsPtr;
+	VVM_OUTPUT_FUNCTION_FOOTER;
 }
 
 static const uint8 *VVM_acquireindex(const bool CT_MultipleLoops, const uint8 *InsPtr, FVectorVMBatchState *BatchState, FVectorVMExecContext *ExecCtx)
@@ -1656,7 +1739,7 @@ static const uint8 *VVM_acquire_id(const bool CT_MultipleLoops, const uint8 *Ins
 	return InsPtr + 6;
 }
 
-FORCEINLINE const uint8 *VVM_external_func_call(const bool CT_MultipleLoops, const uint8 *InsPtr, FVectorVMBatchState *BatchState, FVectorVMExecContext *ExecCtx, FVectorVMSerializeState *SerializeState, FVectorVMSerializeState *CmpSerializeState, int NumLoops)
+const uint8 *VVM_external_func_call(const bool CT_MultipleLoops, const uint8 *InsPtr, FVectorVMBatchState *BatchState, FVectorVMExecContext *ExecCtx, FVectorVMSerializeState *SerializeState, FVectorVMSerializeState *CmpSerializeState, int NumLoops)
 {
 	int FnIdx = (int)*(uint16 *)(InsPtr);
 	FVectorVMExtFunctionData *ExtFnData = ExecCtx->VVMState->ExtFunctionTable + FnIdx;
@@ -1665,9 +1748,10 @@ FORCEINLINE const uint8 *VVM_external_func_call(const bool CT_MultipleLoops, con
 	for (int i = 0; i < ExtFnData->NumInputs + ExtFnData->NumOutputs; ++i) {
 		uint16 AbsRegIdx;
 		int RegType = VVMGetRegisterType(ExecCtx->VVMState, (((uint16 *)InsPtr) + 1)[i], &AbsRegIdx);
-		printf("%c%d, ", VVM_RT_CHAR[RegType], AbsRegIdx);
+		VECTORVM_PRINTF("%c%d, ", VVM_RT_CHAR[RegType], AbsRegIdx);
 	}
-	printf("\n");
+	VECTORVM_PRINT_NEW_LINE();
+	
 #endif //VECTORVM_DEBUG_PRINTF
 #if	VECTORVM_SUPPORTS_SERIALIZATION && !defined(VVM_SERIALIZE_NO_WRITE)
 	if (SerializeState && (SerializeState->Flags & VVMSer_SyncExtFns) && CmpSerializeState && SerializeState->NumInstances == CmpSerializeState->NumInstances && (CmpSerializeState->NumInstructions > SerializeState->NumInstructions))
@@ -1847,7 +1931,7 @@ FORCEINLINE const uint8 *VVM_external_func_call(const bool CT_MultipleLoops, con
 		ExtFnData->Function->Execute(ExtFnCtx);
 #		endif //VECTORVM_SUPPORTS_LEGACY
 	}
-	return InsPtr + 3 + 2 * (ExtFnData->NumInputs + ExtFnData->NumOutputs);;
+	return InsPtr + 3 + 2 * (ExtFnData->NumInputs + ExtFnData->NumOutputs);
 }
 
 static VM_FORCEINLINE const uint8 *VVM_sincos(const bool CT_MultipleLoops, const uint8 *InsPtr, FVectorVMBatchState *BatchState, int NumLoops)
@@ -2265,182 +2349,184 @@ VM_FORCEINLINE const uint8 *VVM_Dispatch_execFn1i_2i(const bool CT_MultipleLoops
 	return InsPtr + 7;
 }
 
-VM_FORCEINLINE VectorRegister4f VVM_Exec2f_add                         (FVectorVMBatchState *BatchState, VectorRegister4f a, VectorRegister4f b)                                                            { return VectorAdd(a, b); }
-VM_FORCEINLINE VectorRegister4f VVM_Exec2f_sub                         (FVectorVMBatchState *BatchState, VectorRegister4f a, VectorRegister4f b)                                                            { return VectorSubtract(a, b); }
-VM_FORCEINLINE VectorRegister4f VVM_Exec2f_mul                         (FVectorVMBatchState *BatchState, VectorRegister4f a, VectorRegister4f b)                                                            { return VectorMultiply(a, b); }
-VM_FORCEINLINE VectorRegister4f VVM_Exec2f_div                         (FVectorVMBatchState *BatchState, VectorRegister4f a, VectorRegister4f b)                                                            { return VectorSelect(VectorCompareGT(VectorAbs(b), VVM_m128Const(Epsilon)), VectorDivide(a, b), VectorZeroFloat()); }
-VM_FORCEINLINE VectorRegister4f VVM_Exec3f_mad                         (FVectorVMBatchState *BatchState, VectorRegister4f a, VectorRegister4f b, VectorRegister4f c)                                        { return VectorMultiplyAdd(a, b, c); }
-VM_FORCEINLINE VectorRegister4f VVM_Exec3f_lerp                        (FVectorVMBatchState *BatchState, VectorRegister4f a, VectorRegister4f b, VectorRegister4f c)                                        { return VectorLerp(a, b, c); }
-VM_FORCEINLINE VectorRegister4f VVM_Exec1f_rcp                         (FVectorVMBatchState *BatchState, VectorRegister4f a)                                                                                { return VectorSelect(VectorCompareGT(VectorAbs(a) , VVM_m128Const(Epsilon)), VectorReciprocalEstimate(a), VectorZeroFloat()); }
-VM_FORCEINLINE VectorRegister4f VVM_Exec1f_rsq                         (FVectorVMBatchState *BatchState, VectorRegister4f a)                                                                                { return VectorSelect(VectorCompareGT(a, VVM_m128Const(Epsilon)), VectorReciprocalSqrt(a), VectorZeroFloat()); }
-VM_FORCEINLINE VectorRegister4f VVM_Exec1f_sqrt                        (FVectorVMBatchState *BatchState, VectorRegister4f a)                                                                                { return VectorSelect(VectorCompareGT(a, VVM_m128Const(Epsilon)), VectorSqrt(a), VectorZeroFloat()); }
-VM_FORCEINLINE VectorRegister4f VVM_Exec1f_neg                         (FVectorVMBatchState *BatchState, VectorRegister4f a)                                                                                { return VectorNegate(a); }
-VM_FORCEINLINE VectorRegister4f VVM_Exec1f_abs                         (FVectorVMBatchState *BatchState, VectorRegister4f a)                                                                                { return VectorAbs(a); }
-VM_FORCEINLINE VectorRegister4f VVM_Exec1f_exp                         (FVectorVMBatchState *BatchState, VectorRegister4f a)                                                                                { return VectorExp(a); }
-VM_FORCEINLINE VectorRegister4f VVM_Exec1f_exp2                        (FVectorVMBatchState *BatchState, VectorRegister4f a)                                                                                { return VectorExp2(a); }
-VM_FORCEINLINE VectorRegister4f VVM_Exec1f_log                         (FVectorVMBatchState *BatchState, VectorRegister4f a)                                                                                { return VectorSelect(VectorCompareGT(a, VectorZeroFloat()), VectorLog(a), VectorZeroFloat()); }
-VM_FORCEINLINE VectorRegister4f VVM_Exec1f_log2                        (FVectorVMBatchState *BatchState, VectorRegister4f a)                                                                                { return VectorLog2(a); }
-VM_FORCEINLINE VectorRegister4f VVM_Exec1f_sin                         (FVectorVMBatchState *BatchState, VectorRegister4f a)                                                                                { return VectorSin(a); }
-VM_FORCEINLINE VectorRegister4f VVM_Exec1f_cos                         (FVectorVMBatchState *BatchState, VectorRegister4f a)                                                                                { return VectorCos(a); }
-VM_FORCEINLINE VectorRegister4f VVM_Exec1f_tan                         (FVectorVMBatchState *BatchState, VectorRegister4f a)                                                                                { return VectorTan(a); }
-VM_FORCEINLINE VectorRegister4f VVM_Exec1f_acos                        (FVectorVMBatchState *BatchState, VectorRegister4f a)                                                                                { return VectorATan2(VVM_Exec1f_sqrt(BatchState, VectorMultiply(VectorSubtract(VVM_m128Const(One), a), VectorAdd(VVM_m128Const(One), a))), a); }
-VM_FORCEINLINE VectorRegister4f VVM_Exec1f_asin                        (FVectorVMBatchState *BatchState, VectorRegister4f a)                                                                                { return VectorSubtract(VVM_m128Const(QuarterPi), VVM_Exec1f_acos(BatchState, a)); }
-VM_FORCEINLINE VectorRegister4f VVM_Exec1f_atan                        (FVectorVMBatchState *BatchState, VectorRegister4f a)                                                                                { return VectorATan(a); }
-VM_FORCEINLINE VectorRegister4f VVM_Exec2f_atan2                       (FVectorVMBatchState *BatchState, VectorRegister4f a, VectorRegister4f b)                                                            { return VectorATan2(a, b); }
-VM_FORCEINLINE VectorRegister4f VVM_Exec1f_ceil                        (FVectorVMBatchState *BatchState, VectorRegister4f a)                                                                                { return VectorCeil(a); }
-VM_FORCEINLINE VectorRegister4f VVM_Exec1f_floor                       (FVectorVMBatchState *BatchState, VectorRegister4f a)                                                                                { return VectorFloor(a); }
-VM_FORCEINLINE VectorRegister4f VVM_Exec2f_fmod                        (FVectorVMBatchState *BatchState, VectorRegister4f a, VectorRegister4f b)                                                            { return VectorMod(a, b); }
-VM_FORCEINLINE VectorRegister4f VVM_Exec1f_frac                        (FVectorVMBatchState *BatchState, VectorRegister4f a)                                                                                { return VectorFractional(a); }
-VM_FORCEINLINE VectorRegister4f VVM_Exec1f_trunc                       (FVectorVMBatchState *BatchState, VectorRegister4f a)                                                                                { return VectorTruncate(a); }
-VM_FORCEINLINE VectorRegister4f VVM_Exec3f_clamp                       (FVectorVMBatchState *BatchState, VectorRegister4f a, VectorRegister4f b, VectorRegister4f c)                                        { return VectorClamp(a, b, c); }
-VM_FORCEINLINE VectorRegister4f VVM_Exec2f_min                         (FVectorVMBatchState *BatchState, VectorRegister4f a, VectorRegister4f b)                                                            { return VectorMin(a, b); }
-VM_FORCEINLINE VectorRegister4f VVM_Exec2f_max                         (FVectorVMBatchState *BatchState, VectorRegister4f a, VectorRegister4f b)                                                            { return VectorMax(a, b); }
-VM_FORCEINLINE VectorRegister4f VVM_Exec2f_pow                         (FVectorVMBatchState *BatchState, VectorRegister4f a, VectorRegister4f b)                                                            { return VectorSelect(VectorCompareGT(a, VVM_m128Const(Epsilon)), VectorPow(a, b), VectorZeroFloat()); }
-VM_FORCEINLINE VectorRegister4f VVM_Exec1f_round                       (FVectorVMBatchState *BatchState, VectorRegister4f a)                                                                                { return VectorRound(a); }
-VM_FORCEINLINE VectorRegister4f VVM_Exec1f_sign                        (FVectorVMBatchState *BatchState, VectorRegister4f a)                                                                                { return VectorSign(a); }
-VM_FORCEINLINE VectorRegister4f VVM_Exec2f_step                        (FVectorVMBatchState *BatchState, VectorRegister4f a, VectorRegister4f b)                                                            { return VectorStep(VectorSubtract(a, b)); }
-VM_FORCEINLINE const uint8 *    VVM_Exec1null_random                   (VVM_NULL_FN_ARGS)                                                                                                                   { return VVM_random(CT_MultipleLoops, InsPtr, BatchState, ExecCtx, SerializeState, CmpSerializeState, NumLoops); }
-VM_FORCEINLINE const uint8 *    VVM_Exec0null_noise                    (VVM_NULL_FN_ARGS)                                                                                                                   { return InsPtr; }
-VM_FORCEINLINE VectorRegister4f VVM_Exec2f_cmplt                       (FVectorVMBatchState *BatchState, VectorRegister4f a, VectorRegister4f b)                                                            { return VectorCompareLT(a, b); }
-VM_FORCEINLINE VectorRegister4f VVM_Exec2f_cmple                       (FVectorVMBatchState *BatchState, VectorRegister4f a, VectorRegister4f b)                                                            { return VectorCompareLE(a, b); }
-VM_FORCEINLINE VectorRegister4f VVM_Exec2f_cmpgt                       (FVectorVMBatchState *BatchState, VectorRegister4f a, VectorRegister4f b)                                                            { return VectorCompareGT(a, b); }
-VM_FORCEINLINE VectorRegister4f VVM_Exec2f_cmpge                       (FVectorVMBatchState *BatchState, VectorRegister4f a, VectorRegister4f b)                                                            { return VectorCompareGE(a, b); }
-VM_FORCEINLINE VectorRegister4f VVM_Exec2f_cmpeq                       (FVectorVMBatchState *BatchState, VectorRegister4f a, VectorRegister4f b)                                                            { return VectorCompareEQ(a, b); }
-VM_FORCEINLINE VectorRegister4f VVM_Exec2f_cmpneq                      (FVectorVMBatchState *BatchState, VectorRegister4f a, VectorRegister4f b)                                                            { return VectorCompareNE(a, b); }
-VM_FORCEINLINE VectorRegister4f VVM_Exec3f_select                      (FVectorVMBatchState *BatchState, VectorRegister4f a, VectorRegister4f b, VectorRegister4f c)                                        { return VectorSelect(a, b, c); }
-VM_FORCEINLINE VectorRegister4i VVM_Exec2i_addi                        (FVectorVMBatchState *BatchState, VectorRegister4i a, VectorRegister4i b)                                                            { return VectorIntAdd(a, b); }
-VM_FORCEINLINE VectorRegister4i VVM_Exec2i_subi                        (FVectorVMBatchState *BatchState, VectorRegister4i a, VectorRegister4i b)                                                            { return VectorIntSubtract(a, b); }
-VM_FORCEINLINE VectorRegister4i VVM_Exec2i_muli                        (FVectorVMBatchState *BatchState, VectorRegister4i a, VectorRegister4i b)                                                            { return VectorIntMultiply(a, b); }
-VM_FORCEINLINE VectorRegister4i VVM_Exec2i_divi                        (FVectorVMBatchState *BatchState, VectorRegister4i a, VectorRegister4i b)                                                            { return VVMIntDiv(a, b); }
-VM_FORCEINLINE VectorRegister4i VVM_Exec3i_clampi                      (FVectorVMBatchState *BatchState, VectorRegister4i a, VectorRegister4i b, VectorRegister4i c)                                        { return VectorIntClamp(a, b, c); }
-VM_FORCEINLINE VectorRegister4i VVM_Exec2i_mini                        (FVectorVMBatchState *BatchState, VectorRegister4i a, VectorRegister4i b)                                                            { return VectorIntMin(a, b); }
-VM_FORCEINLINE VectorRegister4i VVM_Exec2i_maxi                        (FVectorVMBatchState *BatchState, VectorRegister4i a, VectorRegister4i b)                                                            { return VectorIntMax(a, b); }
-VM_FORCEINLINE VectorRegister4i VVM_Exec1i_absi                        (FVectorVMBatchState *BatchState, VectorRegister4i a)                                                                                { return VectorIntAbs(a); }
-VM_FORCEINLINE VectorRegister4i VVM_Exec1i_negi                        (FVectorVMBatchState *BatchState, VectorRegister4i a)                                                                                { return VectorIntNegate(a); }
-VM_FORCEINLINE VectorRegister4i VVM_Exec1i_signi                       (FVectorVMBatchState *BatchState, VectorRegister4i a)                                                                                { return VectorIntSign(a); }
-VM_FORCEINLINE const uint8 *    VVM_Exec1null_randomi                  (VVM_NULL_FN_ARGS)                                                                                                                   { return VVM_randomi(CT_MultipleLoops, InsPtr, BatchState, ExecCtx, SerializeState, CmpSerializeState, NumLoops); }
-VM_FORCEINLINE VectorRegister4i VVM_Exec2i_cmplti                      (FVectorVMBatchState *BatchState, VectorRegister4i a, VectorRegister4i b)                                                            { return VectorIntCompareLT(a, b); }
-VM_FORCEINLINE VectorRegister4i VVM_Exec2i_cmplei                      (FVectorVMBatchState *BatchState, VectorRegister4i a, VectorRegister4i b)                                                            { return VectorIntCompareLE(a, b); }
-VM_FORCEINLINE VectorRegister4i VVM_Exec2i_cmpgti                      (FVectorVMBatchState *BatchState, VectorRegister4i a, VectorRegister4i b)                                                            { return VectorIntCompareGT(a, b); }
-VM_FORCEINLINE VectorRegister4i VVM_Exec2i_cmpgei                      (FVectorVMBatchState *BatchState, VectorRegister4i a, VectorRegister4i b)                                                            { return VectorIntCompareGE(a, b); }
-VM_FORCEINLINE VectorRegister4i VVM_Exec2i_cmpeqi                      (FVectorVMBatchState *BatchState, VectorRegister4i a, VectorRegister4i b)                                                            { return VectorIntCompareEQ(a, b); }
-VM_FORCEINLINE VectorRegister4i VVM_Exec2i_cmpneqi                     (FVectorVMBatchState *BatchState, VectorRegister4i a, VectorRegister4i b)                                                            { return VectorIntCompareNEQ(a, b); }
-VM_FORCEINLINE VectorRegister4i VVM_Exec2i_bit_and                     (FVectorVMBatchState *BatchState, VectorRegister4i a, VectorRegister4i b)                                                            { return VectorIntAnd(a, b); }
-VM_FORCEINLINE VectorRegister4i VVM_Exec2i_bit_or                      (FVectorVMBatchState *BatchState, VectorRegister4i a, VectorRegister4i b)                                                            { return VectorIntOr(a, b); }
-VM_FORCEINLINE VectorRegister4i VVM_Exec2i_bit_xor                     (FVectorVMBatchState *BatchState, VectorRegister4i a, VectorRegister4i b)                                                            { return VectorIntXor(a, b); }
-VM_FORCEINLINE VectorRegister4i VVM_Exec1i_bit_not                     (FVectorVMBatchState *BatchState, VectorRegister4i a)                                                                                { return VectorIntNot(a); }
-VM_FORCEINLINE VectorRegister4i VVM_Exec2i_bit_lshift                  (FVectorVMBatchState *BatchState, VectorRegister4i a, VectorRegister4i b)                                                            { return VVMIntLShift(a, b); }
-VM_FORCEINLINE VectorRegister4i VVM_Exec2i_bit_rshift                  (FVectorVMBatchState *BatchState, VectorRegister4i a, VectorRegister4i b)                                                            { return VVMIntRShift(a, b); }
-VM_FORCEINLINE VectorRegister4i VVM_Exec2i_logic_and                   (FVectorVMBatchState *BatchState, VectorRegister4i a, VectorRegister4i b)                                                            { return VectorIntAnd(a, b); }
-VM_FORCEINLINE VectorRegister4i VVM_Exec2i_logic_or                    (FVectorVMBatchState *BatchState, VectorRegister4i a, VectorRegister4i b)                                                            { return VectorIntOr(a, b); }
-VM_FORCEINLINE VectorRegister4i VVM_Exec2i_logic_xor                   (FVectorVMBatchState *BatchState, VectorRegister4i a, VectorRegister4i b)                                                            { return VectorIntXor(a, b); }
-VM_FORCEINLINE VectorRegister4i VVM_Exec1i_logic_not                   (FVectorVMBatchState *BatchState, VectorRegister4i a)                                                                                { return VectorIntNot(a); }
-VM_FORCEINLINE VectorRegister4i VVM_Exec1i_f2i                         (FVectorVMBatchState *BatchState, VectorRegister4i a)                                                                                { return VVMf2i(a); }
-VM_FORCEINLINE VectorRegister4f VVM_Exec1f_i2f                         (FVectorVMBatchState *BatchState, VectorRegister4f a)                                                                                { return VVMi2f(a); }
-VM_FORCEINLINE VectorRegister4f VVM_Exec1f_f2b                         (FVectorVMBatchState *BatchState, VectorRegister4f a)                                                                                { return VectorCompareGT(a, VectorZeroFloat()); }
-VM_FORCEINLINE VectorRegister4f VVM_Exec1f_b2f                         (FVectorVMBatchState *BatchState, VectorRegister4f a)                                                                                { return VectorSelect(a, VVM_m128Const(One), VectorZeroFloat()); }
-VM_FORCEINLINE VectorRegister4i VVM_Exec1i_i2b                         (FVectorVMBatchState *BatchState, VectorRegister4i a)                                                                                { return VectorIntCompareGT(a, VectorSetZero()); }
-VM_FORCEINLINE VectorRegister4i VVM_Exec1i_b2i                         (FVectorVMBatchState *BatchState, VectorRegister4i a)                                                                                { return VectorIntSelect(a, VectorIntSet1(1), VectorSetZero()); }
-VM_FORCEINLINE const uint8 *    VVM_Exec0null_outputdata_float         (VVM_NULL_FN_ARGS)                                                                                                                   { return VVM_Output32(CT_MultipleLoops, InsPtr, BatchState, ExecCtx); }
-VM_FORCEINLINE const uint8 *    VVM_Exec0null_outputdata_int32         (VVM_NULL_FN_ARGS)                                                                                                                   { return VVM_Output32(CT_MultipleLoops, InsPtr, BatchState, ExecCtx); }
-VM_FORCEINLINE const uint8 *    VVM_Exec0null_outputdata_half          (VVM_NULL_FN_ARGS)                                                                                                                   { return VVM_Output16(CT_MultipleLoops, InsPtr, BatchState, ExecCtx); }
-VM_FORCEINLINE const uint8 *    VVM_Exec1null_acquireindex             (VVM_NULL_FN_ARGS)                                                                                                                   { return VVM_acquireindex(CT_MultipleLoops, InsPtr, BatchState, ExecCtx); }
-VM_FORCEINLINE const uint8 *    VVM_Exec0null_external_func_call       (VVM_NULL_FN_ARGS)                                                                                                                   { return VVM_external_func_call(CT_MultipleLoops, InsPtr, BatchState, ExecCtx, SerializeState, CmpSerializeState, NumLoops); }
-VM_FORCEINLINE const uint8 *    VVM_Exec1null_exec_index               (VVM_NULL_FN_ARGS)                                                                                                                   { return VVM_exec_index(CT_MultipleLoops, InsPtr, BatchState, NumLoops); }
-VM_FORCEINLINE const uint8 *    VVM_Exec0null_noise2D                  (VVM_NULL_FN_ARGS)                                                                                                                   { return InsPtr; }
-VM_FORCEINLINE const uint8 *    VVM_Exec0null_noise3D                  (VVM_NULL_FN_ARGS)                                                                                                                   { return InsPtr; }
-VM_FORCEINLINE const uint8 *    VVM_Exec1null_enter_stat_scope         (VVM_NULL_FN_ARGS)                                                                                                                   { return InsPtr + 2; }
-VM_FORCEINLINE const uint8 *    VVM_Exec0null_exit_stat_scope          (VVM_NULL_FN_ARGS)                                                                                                                   { return InsPtr; }
-VM_FORCEINLINE const uint8 *    VVM_Exec0null_update_id                (VVM_NULL_FN_ARGS)                                                                                                                   { return VVM_update_id(CT_MultipleLoops, InsPtr, BatchState, ExecCtx, NumLoops); }
-VM_FORCEINLINE const uint8 *    VVM_Exec1null_acquire_id               (VVM_NULL_FN_ARGS)                                                                                                                   { return VVM_acquire_id(CT_MultipleLoops, InsPtr, BatchState, ExecCtx, NumLoops); }
-VM_FORCEINLINE const uint8 *    VVM_Exec1null_half_to_float            (VVM_NULL_FN_ARGS)                                                                                                                   { return VVM_half_to_float(CT_MultipleLoops, InsPtr, BatchState, NumLoops); }
-VM_FORCEINLINE const uint8 *    VVM_Exec1null_fasi                     (VVM_NULL_FN_ARGS)                                                                                                                   { return InsPtr; }
-VM_FORCEINLINE const uint8 *    VVM_Exec1null_iasf                     (VVM_NULL_FN_ARGS)                                                                                                                   { return InsPtr; }
-VM_FORCEINLINE const uint8 *    VVM_Exec1null_exec_indexf              (VVM_NULL_FN_ARGS)                                                                                                                   { return VVM_exec_indexf(CT_MultipleLoops, InsPtr, BatchState, NumLoops); }
-VM_FORCEINLINE const uint8 *    VVM_Exec1null_exec_index_addi          (VVM_NULL_FN_ARGS)                                                                                                                   { return VVM_exec_index_addi(CT_MultipleLoops, InsPtr, BatchState, NumLoops); }
-VM_FORCEINLINE VectorRegister4f VVM_Exec4f_cmplt_select                (FVectorVMBatchState *BatchState, VectorRegister4f a, VectorRegister4f b, VectorRegister4f c, VectorRegister4f d)                    { return VectorSelect(VectorCompareLT(a, b), c, d); }
-VM_FORCEINLINE VectorRegister4f VVM_Exec4f_cmple_select                (FVectorVMBatchState *BatchState, VectorRegister4f a, VectorRegister4f b, VectorRegister4f c, VectorRegister4f d)                    { return VectorSelect(VectorCompareLE(a, b), c, d); }
-VM_FORCEINLINE VectorRegister4f VVM_Exec4f_cmpeq_select                (FVectorVMBatchState *BatchState, VectorRegister4f a, VectorRegister4f b, VectorRegister4f c, VectorRegister4f d)                    { return VectorSelect(VectorCompareEQ(a, b), c, d); }
-VM_FORCEINLINE VectorRegister4f VVM_Exec4f_cmplti_select               (FVectorVMBatchState *BatchState, VectorRegister4f a, VectorRegister4f b, VectorRegister4f c, VectorRegister4f d)                    { return VectorSelect(VectorCastIntToFloat(VectorIntCompareLT(*(VectorRegister4i *)&a, *(VectorRegister4i *)&b)), c, d); }
-VM_FORCEINLINE VectorRegister4f VVM_Exec4f_cmplei_select               (FVectorVMBatchState *BatchState, VectorRegister4f a, VectorRegister4f b, VectorRegister4f c, VectorRegister4f d)                    { return VectorSelect(VectorCastIntToFloat(VectorIntCompareLE(*(VectorRegister4i *)&a, *(VectorRegister4i *)&b)), c, d); }
-VM_FORCEINLINE VectorRegister4f VVM_Exec4f_cmpeqi_select               (FVectorVMBatchState *BatchState, VectorRegister4f a, VectorRegister4f b, VectorRegister4f c, VectorRegister4f d)                    { return VectorSelect(VectorCastIntToFloat(VectorIntCompareEQ(*(VectorRegister4i *)&a, *(VectorRegister4i *)&b)), c, d); }
-VM_FORCEINLINE VectorRegister4f VVM_Exec3f_cmplt_logic_and             (FVectorVMBatchState *BatchState, VectorRegister4f a, VectorRegister4f b, VectorRegister4f c)                                        { return VectorCastIntToFloat(VectorIntAnd(VectorCastFloatToInt(VectorCompareLT(a, b)), *(VectorRegister4i *)&c)); }
-VM_FORCEINLINE VectorRegister4f VVM_Exec3f_cmple_logic_and             (FVectorVMBatchState *BatchState, VectorRegister4f a, VectorRegister4f b, VectorRegister4f c)                                        { return VectorCastIntToFloat(VectorIntAnd(VectorCastFloatToInt(VectorCompareLE(a, b)), *(VectorRegister4i *)&c)); }
-VM_FORCEINLINE VectorRegister4f VVM_Exec3f_cmpgt_logic_and             (FVectorVMBatchState *BatchState, VectorRegister4f a, VectorRegister4f b, VectorRegister4f c)                                        { return VectorCastIntToFloat(VectorIntAnd(VectorCastFloatToInt(VectorCompareGT(a, b)), *(VectorRegister4i *)&c)); }
-VM_FORCEINLINE VectorRegister4f VVM_Exec3f_cmpge_logic_and             (FVectorVMBatchState *BatchState, VectorRegister4f a, VectorRegister4f b, VectorRegister4f c)                                        { return VectorCastIntToFloat(VectorIntAnd(VectorCastFloatToInt(VectorCompareGE(a, b)), *(VectorRegister4i *)&c)); }
-VM_FORCEINLINE VectorRegister4f VVM_Exec3f_cmpeq_logic_and             (FVectorVMBatchState *BatchState, VectorRegister4f a, VectorRegister4f b, VectorRegister4f c)                                        { return VectorCastIntToFloat(VectorIntAnd(VectorCastFloatToInt(VectorCompareEQ(a, b)), *(VectorRegister4i *)&c)); }
-VM_FORCEINLINE VectorRegister4f VVM_Exec3f_cmpne_logic_and             (FVectorVMBatchState *BatchState, VectorRegister4f a, VectorRegister4f b, VectorRegister4f c)                                        { return VectorCastIntToFloat(VectorIntAnd(VectorCastFloatToInt(VectorCompareNE(a, b)), *(VectorRegister4i *)&c)); }
-VM_FORCEINLINE VectorRegister4i VVM_Exec3i_cmplti_logic_and            (FVectorVMBatchState *BatchState, VectorRegister4i a, VectorRegister4i b, VectorRegister4i c)                                        { return VectorIntAnd(VectorIntCompareLT(a, b), c); }
-VM_FORCEINLINE VectorRegister4i VVM_Exec3i_cmplei_logic_and            (FVectorVMBatchState *BatchState, VectorRegister4i a, VectorRegister4i b, VectorRegister4i c)                                        { return VectorIntAnd(VectorIntCompareLE(a, b), c); }
-VM_FORCEINLINE VectorRegister4i VVM_Exec3i_cmpgti_logic_and            (FVectorVMBatchState *BatchState, VectorRegister4i a, VectorRegister4i b, VectorRegister4i c)                                        { return VectorIntAnd(VectorIntCompareGT(a, b), c); }
-VM_FORCEINLINE VectorRegister4i VVM_Exec3i_cmpgei_logic_and            (FVectorVMBatchState *BatchState, VectorRegister4i a, VectorRegister4i b, VectorRegister4i c)                                        { return VectorIntAnd(VectorIntCompareGE(a, b), c); }
-VM_FORCEINLINE VectorRegister4i VVM_Exec3i_cmpeqi_logic_and            (FVectorVMBatchState *BatchState, VectorRegister4i a, VectorRegister4i b, VectorRegister4i c)                                        { return VectorIntAnd(VectorIntCompareEQ(a, b), c); }
-VM_FORCEINLINE VectorRegister4i VVM_Exec3i_cmpnei_logic_and            (FVectorVMBatchState *BatchState, VectorRegister4i a, VectorRegister4i b, VectorRegister4i c)                                        { return VectorIntAnd(VectorIntCompareNEQ(a, b), c); }
-VM_FORCEINLINE VectorRegister4f VVM_Exec3f_cmplt_logic_or              (FVectorVMBatchState *BatchState, VectorRegister4f a, VectorRegister4f b, VectorRegister4f c)                                        { return VectorCastIntToFloat(VectorIntOr(VectorCastFloatToInt(VectorCompareLT(a, b)), *(VectorRegister4i *)&c)); }
-VM_FORCEINLINE VectorRegister4f VVM_Exec3f_cmple_logic_or              (FVectorVMBatchState *BatchState, VectorRegister4f a, VectorRegister4f b, VectorRegister4f c)                                        { return VectorCastIntToFloat(VectorIntOr(VectorCastFloatToInt(VectorCompareLE(a, b)), *(VectorRegister4i *)&c)); }
-VM_FORCEINLINE VectorRegister4f VVM_Exec3f_cmpgt_logic_or              (FVectorVMBatchState *BatchState, VectorRegister4f a, VectorRegister4f b, VectorRegister4f c)                                        { return VectorCastIntToFloat(VectorIntOr(VectorCastFloatToInt(VectorCompareGT(a, b)), *(VectorRegister4i *)&c)); }
-VM_FORCEINLINE VectorRegister4f VVM_Exec3f_cmpge_logic_or              (FVectorVMBatchState *BatchState, VectorRegister4f a, VectorRegister4f b, VectorRegister4f c)                                        { return VectorCastIntToFloat(VectorIntOr(VectorCastFloatToInt(VectorCompareGE(a, b)), *(VectorRegister4i *)&c)); }
-VM_FORCEINLINE VectorRegister4f VVM_Exec3f_cmpeq_logic_or              (FVectorVMBatchState *BatchState, VectorRegister4f a, VectorRegister4f b, VectorRegister4f c)                                        { return VectorCastIntToFloat(VectorIntOr(VectorCastFloatToInt(VectorCompareEQ(a, b)), *(VectorRegister4i *)&c)); }
-VM_FORCEINLINE VectorRegister4f VVM_Exec3f_cmpne_logic_or              (FVectorVMBatchState *BatchState, VectorRegister4f a, VectorRegister4f b, VectorRegister4f c)                                        { return VectorCastIntToFloat(VectorIntOr(VectorCastFloatToInt(VectorCompareNE(a, b)), *(VectorRegister4i *)&c)); }
-VM_FORCEINLINE VectorRegister4i VVM_Exec3i_cmplti_logic_or             (FVectorVMBatchState *BatchState, VectorRegister4i a, VectorRegister4i b, VectorRegister4i c)                                        { return VectorIntOr(VectorIntCompareLT(a, b), c); }
-VM_FORCEINLINE VectorRegister4i VVM_Exec3i_cmplei_logic_or             (FVectorVMBatchState *BatchState, VectorRegister4i a, VectorRegister4i b, VectorRegister4i c)                                        { return VectorIntOr(VectorIntCompareLE(a, b), c); }
-VM_FORCEINLINE VectorRegister4i VVM_Exec3i_cmpgti_logic_or             (FVectorVMBatchState *BatchState, VectorRegister4i a, VectorRegister4i b, VectorRegister4i c)                                        { return VectorIntOr(VectorIntCompareGT(a, b), c); }
-VM_FORCEINLINE VectorRegister4i VVM_Exec3i_cmpgei_logic_or             (FVectorVMBatchState *BatchState, VectorRegister4i a, VectorRegister4i b, VectorRegister4i c)                                        { return VectorIntOr(VectorIntCompareGE(a, b), c); }
-VM_FORCEINLINE VectorRegister4i VVM_Exec3i_cmpeqi_logic_or             (FVectorVMBatchState *BatchState, VectorRegister4i a, VectorRegister4i b, VectorRegister4i c)                                        { return VectorIntOr(VectorIntCompareEQ(a, b), c); }
-VM_FORCEINLINE VectorRegister4i VVM_Exec3i_cmpnei_logic_or             (FVectorVMBatchState *BatchState, VectorRegister4i a, VectorRegister4i b, VectorRegister4i c)                                        { return VectorIntOr(VectorIntCompareNEQ(a, b), c); }
-VM_FORCEINLINE VectorRegister4f VVM_Exec4f_mad_add                     (FVectorVMBatchState *BatchState, VectorRegister4f a, VectorRegister4f b, VectorRegister4f c, VectorRegister4f d)                    { return VectorAdd(VectorMultiplyAdd(a, b, c), d); }
-VM_FORCEINLINE VectorRegister4f VVM_Exec4f_mad_sub0                    (FVectorVMBatchState *BatchState, VectorRegister4f a, VectorRegister4f b, VectorRegister4f c, VectorRegister4f d)                    { return VectorSubtract(VectorMultiplyAdd(a, b, c), d); }
-VM_FORCEINLINE VectorRegister4f VVM_Exec4f_mad_sub1                    (FVectorVMBatchState *BatchState, VectorRegister4f a, VectorRegister4f b, VectorRegister4f c, VectorRegister4f d)                    { return VectorSubtract(d, VectorMultiplyAdd(a, b, c)); }
-VM_FORCEINLINE VectorRegister4f VVM_Exec4f_mad_mul                     (FVectorVMBatchState *BatchState, VectorRegister4f a, VectorRegister4f b, VectorRegister4f c, VectorRegister4f d)                    { return VectorMultiply(VectorMultiplyAdd(a, b, c), d); }
-VM_FORCEINLINE VectorRegister4f VVM_Exec3f_mad_sqrt                    (FVectorVMBatchState *BatchState, VectorRegister4f a, VectorRegister4f b, VectorRegister4f c)                                        { return VectorSqrt(VectorMultiplyAdd(a, b, c)); }
-VM_FORCEINLINE VectorRegister4f VVM_Exec5f_mad_mad0                    (FVectorVMBatchState *BatchState, VectorRegister4f a, VectorRegister4f b, VectorRegister4f c, VectorRegister4f d, VectorRegister4f e){ return VectorMultiplyAdd(d, e, VectorMultiplyAdd(a, b, c)); }
-VM_FORCEINLINE VectorRegister4f VVM_Exec5f_mad_mad1                    (FVectorVMBatchState *BatchState, VectorRegister4f a, VectorRegister4f b, VectorRegister4f c, VectorRegister4f d, VectorRegister4f e){ return VectorMultiplyAdd(VectorMultiplyAdd(a, b, c), d, e); }
-VM_FORCEINLINE VectorRegister4f VVM_Exec4f_mul_mad0                    (FVectorVMBatchState *BatchState, VectorRegister4f a, VectorRegister4f b, VectorRegister4f c, VectorRegister4f d)                    { return VectorMultiplyAdd(VectorMultiply(a, b), c, d); }
-VM_FORCEINLINE VectorRegister4f VVM_Exec4f_mul_mad1                    (FVectorVMBatchState *BatchState, VectorRegister4f a, VectorRegister4f b, VectorRegister4f c, VectorRegister4f d)                    { return VectorMultiplyAdd(c, d, VectorMultiply(a, b)); }
-VM_FORCEINLINE VectorRegister4f VVM_Exec3f_mul_add                     (FVectorVMBatchState *BatchState, VectorRegister4f a, VectorRegister4f b, VectorRegister4f c)                                        { return VectorAdd(VectorMultiply(a, b), c); }
-VM_FORCEINLINE VectorRegister4f VVM_Exec3f_mul_sub0                    (FVectorVMBatchState *BatchState, VectorRegister4f a, VectorRegister4f b, VectorRegister4f c)                                        { return VectorSubtract(VectorMultiply(a, b), c); }
-VM_FORCEINLINE VectorRegister4f VVM_Exec3f_mul_sub1                    (FVectorVMBatchState *BatchState, VectorRegister4f a, VectorRegister4f b, VectorRegister4f c)                                        { return VectorSubtract(c, VectorMultiply(a, b)); }
-VM_FORCEINLINE VectorRegister4f VVM_Exec3f_mul_mul                     (FVectorVMBatchState *BatchState, VectorRegister4f a, VectorRegister4f b, VectorRegister4f c)                                        { return VectorMultiply(VectorMultiply(a, b), c); }
-VM_FORCEINLINE VectorRegister4f VVM_Exec3f_mul_max                     (FVectorVMBatchState *BatchState, VectorRegister4f a, VectorRegister4f b, VectorRegister4f c)                                        { return VectorMax(VectorMultiply(a, b), c); }
-VM_FORCEINLINE VectorRegister4f VVM_Exec2f_mul_2x                      (FVectorVMBatchState *BatchState, VectorRegister4f a, VectorRegister4f b)                                                            { return VectorMultiply(a, b); }
-VM_FORCEINLINE VectorRegister4f VVM_Exec4f_add_mad1                    (FVectorVMBatchState *BatchState, VectorRegister4f a, VectorRegister4f b, VectorRegister4f c, VectorRegister4f d)                    { return VectorMultiplyAdd(c, d, VectorAdd(a, b)); }
-VM_FORCEINLINE VectorRegister4f VVM_Exec3f_add_add                     (FVectorVMBatchState *BatchState, VectorRegister4f a, VectorRegister4f b, VectorRegister4f c)                                        { return VectorAdd(VectorAdd(a, b), c); }
-VM_FORCEINLINE VectorRegister4f VVM_Exec3f_sub_cmplt1                  (FVectorVMBatchState *BatchState, VectorRegister4f a, VectorRegister4f b, VectorRegister4f c)                                        { return VectorCompareLT(c, VectorSubtract(a, b)); }
-VM_FORCEINLINE VectorRegister4f VVM_Exec2f_sub_neg                     (FVectorVMBatchState *BatchState, VectorRegister4f a, VectorRegister4f b)                                                            { return VectorNegate(VectorSubtract(a, b)); }
-VM_FORCEINLINE VectorRegister4f VVM_Exec3f_sub_mul                     (FVectorVMBatchState *BatchState, VectorRegister4f a, VectorRegister4f b, VectorRegister4f c)                                        { return VectorMultiply(VectorSubtract(a, b), c); }
-VM_FORCEINLINE VectorRegister4f VVM_Exec4f_div_mad0                    (FVectorVMBatchState *BatchState, VectorRegister4f a, VectorRegister4f b, VectorRegister4f c, VectorRegister4f d)                    { return VectorMultiplyAdd(VVM_Exec2f_div(BatchState, a, b), c, d); }
-VM_FORCEINLINE VectorRegister4i VVM_Exec2i_div_f2i                     (FVectorVMBatchState *BatchState, VectorRegister4i a, VectorRegister4i b)                                                            { return VectorFloatToInt(VVM_Exec2f_div(BatchState, VectorCastIntToFloat(a), VectorCastIntToFloat(b))); }
-VM_FORCEINLINE VectorRegister4f VVM_Exec3f_div_mul                     (FVectorVMBatchState *BatchState, VectorRegister4f a, VectorRegister4f b, VectorRegister4f c)                                        { return VectorMultiply(VVM_Exec2f_div(BatchState, a, b), c); }
-VM_FORCEINLINE VectorRegister4i VVM_Exec3i_muli_addi                   (FVectorVMBatchState *BatchState, VectorRegister4i a, VectorRegister4i b, VectorRegister4i c)                                        { return VectorIntAdd(VectorIntMultiply(a, b), c); }
-VM_FORCEINLINE VectorRegister4i VVM_Exec3i_addi_bit_rshift             (FVectorVMBatchState *BatchState, VectorRegister4i a, VectorRegister4i b, VectorRegister4i c)                                        { return VVMIntRShift(VectorIntAdd(a, b), c); }
-VM_FORCEINLINE VectorRegister4i VVM_Exec3i_addi_muli                   (FVectorVMBatchState *BatchState, VectorRegister4i a, VectorRegister4i b, VectorRegister4i c)                                        { return VectorIntMultiply(VectorIntAdd(a, b), c); }
-VM_FORCEINLINE VectorRegister4i VVM_Exec1i_b2i_2x                      (FVectorVMBatchState *BatchState, VectorRegister4i a)                                                                                { return VectorIntSelect(a, VectorIntSet1(1), VectorSetZero()); }
-VM_FORCEINLINE VectorRegister4f VVM_Exec2f_i2f_div0                    (FVectorVMBatchState *BatchState, VectorRegister4f a, VectorRegister4f b)                                                            { return VVM_Exec2f_div(BatchState, VectorIntToFloat(VectorCastFloatToInt(a)), b); }
-VM_FORCEINLINE VectorRegister4f VVM_Exec2f_i2f_div1                    (FVectorVMBatchState *BatchState, VectorRegister4f a, VectorRegister4f b)                                                            { return VVM_Exec2f_div(BatchState, b, VectorIntToFloat(VectorCastFloatToInt(a))); }
-VM_FORCEINLINE VectorRegister4f VVM_Exec2f_i2f_mul                     (FVectorVMBatchState *BatchState, VectorRegister4f a, VectorRegister4f b)                                                            { return VectorMultiply(VectorIntToFloat(VectorCastFloatToInt(a)), b); }
-VM_FORCEINLINE VectorRegister4f VVM_Exec3f_i2f_mad0                    (FVectorVMBatchState *BatchState, VectorRegister4f a, VectorRegister4f b, VectorRegister4f c)                                        { return VectorMultiplyAdd(VectorIntToFloat(VectorCastFloatToInt(a)), b, c); }
-VM_FORCEINLINE VectorRegister4f VVM_Exec3f_i2f_mad1                    (FVectorVMBatchState *BatchState, VectorRegister4f a, VectorRegister4f b, VectorRegister4f c)                                        { return VectorMultiplyAdd(a, b, VectorIntToFloat(VectorCastFloatToInt(c))); }
-VM_FORCEINLINE VectorRegister4i VVM_Exec3i_f2i_select1                 (FVectorVMBatchState *BatchState, VectorRegister4i a, VectorRegister4i b, VectorRegister4i c)                                        { return VectorIntSelect(a, VectorFloatToInt(VectorCastIntToFloat(b)), c); }
-VM_FORCEINLINE VectorRegister4i VVM_Exec2i_f2i_maxi                    (FVectorVMBatchState *BatchState, VectorRegister4i a, VectorRegister4i b)                                                            { return VectorIntMax(VectorFloatToInt(VectorCastIntToFloat(a)), b); }
-VM_FORCEINLINE VectorRegister4i VVM_Exec2i_f2i_addi                    (FVectorVMBatchState *BatchState, VectorRegister4i a, VectorRegister4i b)                                                            { return VectorIntAdd(VectorFloatToInt(VectorCastIntToFloat(a)), b); }
-VM_FORCEINLINE VectorRegister4f VVM_Exec3f_fmod_add                    (FVectorVMBatchState *BatchState, VectorRegister4f a, VectorRegister4f b, VectorRegister4f c)                                        { return VectorAdd(VectorMod(a, b), c); }
-VM_FORCEINLINE VectorRegister4f VVM_Exec2f_bit_and_i2f                 (FVectorVMBatchState *BatchState, VectorRegister4f a, VectorRegister4f b)                                                            { return VectorIntToFloat(VectorIntAnd(VectorCastFloatToInt(a), VectorCastFloatToInt(b))); }
-VM_FORCEINLINE VectorRegister4i VVM_Exec3i_bit_rshift_bit_and          (FVectorVMBatchState *BatchState, VectorRegister4i a, VectorRegister4i b, VectorRegister4i c)                                        { return VectorIntAnd(VVMIntRShift(a, b), c); }
-VM_FORCEINLINE VectorRegister4f VVM_Exec2f_neg_cmplt                   (FVectorVMBatchState *BatchState, VectorRegister4f a, VectorRegister4f b)                                                            { return VectorCompareLT(VectorNegate(a), b); }
-VM_FORCEINLINE VectorRegister4i VVM_Exec3i_bit_or_muli                 (FVectorVMBatchState *BatchState, VectorRegister4i a, VectorRegister4i b, VectorRegister4i c)                                        { return VectorIntMultiply(VectorIntOr(a, b), c); }
-VM_FORCEINLINE VectorRegister4i VVM_Exec3i_bit_lshift_bit_or           (FVectorVMBatchState *BatchState, VectorRegister4i a, VectorRegister4i b, VectorRegister4i c)                                        { return VectorIntOr(VVMIntLShift(a, b), c); }
-VM_FORCEINLINE const uint8 *    VVM_Exec2null_random_add               (VVM_NULL_FN_ARGS)                                                                                                                   { return VVM_random_add(CT_MultipleLoops, InsPtr, BatchState, ExecCtx, SerializeState, CmpSerializeState, NumLoops); }
-VM_FORCEINLINE const uint8 *    VVM_Exec1null_random_2x                (VVM_NULL_FN_ARGS)                                                                                                                   { return VVM_random_2x(CT_MultipleLoops, InsPtr, BatchState, ExecCtx, SerializeState, CmpSerializeState, NumLoops); }
-VM_FORCEINLINE VectorRegister4i VVM_Exec2i_max_f2i                     (FVectorVMBatchState *BatchState, VectorRegister4i a, VectorRegister4i b)                                                            { return VectorFloatToInt(VectorMax(VectorCastIntToFloat(a), VectorCastIntToFloat(b))); }
-VM_FORCEINLINE VectorRegister4f VVM_Exec4f_select_mul                  (FVectorVMBatchState *BatchState, VectorRegister4f a, VectorRegister4f b, VectorRegister4f c, VectorRegister4f d)                    { return VectorMultiply(VectorSelect(a, b, c), d); }
-VM_FORCEINLINE VectorRegister4f VVM_Exec4f_select_add                  (FVectorVMBatchState *BatchState, VectorRegister4f a, VectorRegister4f b, VectorRegister4f c, VectorRegister4f d)                    { return VectorAdd(VectorSelect(a, b, c), d); }
-VM_FORCEINLINE const uint8 *    VVM_Exec1null_sin_cos                  (VVM_NULL_FN_ARGS)                                                                                                                   { return VVM_sincos(CT_MultipleLoops, InsPtr, BatchState, NumLoops); }
-VM_FORCEINLINE const uint8 *    VVM_Exec0null_inputdata_float          (VVM_NULL_FN_ARGS)                                                                                                                   { return InsPtr; }
-VM_FORCEINLINE const uint8 *    VVM_Exec0null_inputdata_int32          (VVM_NULL_FN_ARGS)                                                                                                                   { return InsPtr; }
-VM_FORCEINLINE const uint8 *    VVM_Exec0null_inputdata_half           (VVM_NULL_FN_ARGS)                                                                                                                   { return InsPtr; }
-VM_FORCEINLINE const uint8 *    VVM_Exec0null_inputdata_noadvance_float(VVM_NULL_FN_ARGS)                                                                                                                   { return InsPtr; }
-VM_FORCEINLINE const uint8 *    VVM_Exec0null_inputdata_noadvance_int32(VVM_NULL_FN_ARGS)                                                                                                                   { return InsPtr; }
-VM_FORCEINLINE const uint8 *    VVM_Exec0null_inputdata_noadvance_half (VVM_NULL_FN_ARGS)                                                                                                                   { return InsPtr; }
+VM_FORCEINLINE VectorRegister4f VVM_Exec2f_add                             (FVectorVMBatchState *BatchState, VectorRegister4f a, VectorRegister4f b)                                                            { return VectorAdd(a, b); }
+VM_FORCEINLINE VectorRegister4f VVM_Exec2f_sub                             (FVectorVMBatchState *BatchState, VectorRegister4f a, VectorRegister4f b)                                                            { return VectorSubtract(a, b); }
+VM_FORCEINLINE VectorRegister4f VVM_Exec2f_mul                             (FVectorVMBatchState *BatchState, VectorRegister4f a, VectorRegister4f b)                                                            { return VectorMultiply(a, b); }
+VM_FORCEINLINE VectorRegister4f VVM_Exec2f_div                             (FVectorVMBatchState *BatchState, VectorRegister4f a, VectorRegister4f b)                                                            { return VectorSelect(VectorCompareGT(VectorAbs(b), VVM_m128Const(Epsilon)), VectorDivide(a, b), VectorZeroFloat()); }
+VM_FORCEINLINE VectorRegister4f VVM_Exec3f_mad                             (FVectorVMBatchState *BatchState, VectorRegister4f a, VectorRegister4f b, VectorRegister4f c)                                        { return VectorMultiplyAdd(a, b, c); }
+VM_FORCEINLINE VectorRegister4f VVM_Exec3f_lerp                            (FVectorVMBatchState *BatchState, VectorRegister4f a, VectorRegister4f b, VectorRegister4f c)                                        { return VectorLerp(a, b, c); }
+VM_FORCEINLINE VectorRegister4f VVM_Exec1f_rcp                             (FVectorVMBatchState *BatchState, VectorRegister4f a)                                                                                { return VectorSelect(VectorCompareGT(VectorAbs(a) , VVM_m128Const(Epsilon)), VectorReciprocalEstimate(a), VectorZeroFloat()); }
+VM_FORCEINLINE VectorRegister4f VVM_Exec1f_rsq                             (FVectorVMBatchState *BatchState, VectorRegister4f a)                                                                                { return VectorSelect(VectorCompareGT(a, VVM_m128Const(Epsilon)), VectorReciprocalSqrt(a), VectorZeroFloat()); }
+VM_FORCEINLINE VectorRegister4f VVM_Exec1f_sqrt                            (FVectorVMBatchState *BatchState, VectorRegister4f a)                                                                                { return VectorSelect(VectorCompareGT(a, VVM_m128Const(Epsilon)), VectorSqrt(a), VectorZeroFloat()); }
+VM_FORCEINLINE VectorRegister4f VVM_Exec1f_neg                             (FVectorVMBatchState *BatchState, VectorRegister4f a)                                                                                { return VectorNegate(a); }
+VM_FORCEINLINE VectorRegister4f VVM_Exec1f_abs                             (FVectorVMBatchState *BatchState, VectorRegister4f a)                                                                                { return VectorAbs(a); }
+VM_FORCEINLINE VectorRegister4f VVM_Exec1f_exp                             (FVectorVMBatchState *BatchState, VectorRegister4f a)                                                                                { return VectorExp(a); }
+VM_FORCEINLINE VectorRegister4f VVM_Exec1f_exp2                            (FVectorVMBatchState *BatchState, VectorRegister4f a)                                                                                { return VectorExp2(a); }
+VM_FORCEINLINE VectorRegister4f VVM_Exec1f_log                             (FVectorVMBatchState *BatchState, VectorRegister4f a)                                                                                { return VectorSelect(VectorCompareGT(a, VectorZeroFloat()), VectorLog(a), VectorZeroFloat()); }
+VM_FORCEINLINE VectorRegister4f VVM_Exec1f_log2                            (FVectorVMBatchState *BatchState, VectorRegister4f a)                                                                                { return VectorLog2(a); }
+VM_FORCEINLINE VectorRegister4f VVM_Exec1f_sin                             (FVectorVMBatchState *BatchState, VectorRegister4f a)                                                                                { return VectorSin(a); }
+VM_FORCEINLINE VectorRegister4f VVM_Exec1f_cos                             (FVectorVMBatchState *BatchState, VectorRegister4f a)                                                                                { return VectorCos(a); }
+VM_FORCEINLINE VectorRegister4f VVM_Exec1f_tan                             (FVectorVMBatchState *BatchState, VectorRegister4f a)                                                                                { return VectorTan(a); }
+VM_FORCEINLINE VectorRegister4f VVM_Exec1f_acos                            (FVectorVMBatchState *BatchState, VectorRegister4f a)                                                                                { return VectorATan2(VVM_Exec1f_sqrt(BatchState, VectorMultiply(VectorSubtract(VVM_m128Const(One), a), VectorAdd(VVM_m128Const(One), a))), a); }
+VM_FORCEINLINE VectorRegister4f VVM_Exec1f_asin                            (FVectorVMBatchState *BatchState, VectorRegister4f a)                                                                                { return VectorSubtract(VVM_m128Const(QuarterPi), VVM_Exec1f_acos(BatchState, a)); }
+VM_FORCEINLINE VectorRegister4f VVM_Exec1f_atan                            (FVectorVMBatchState *BatchState, VectorRegister4f a)                                                                                { return VectorATan(a); }
+VM_FORCEINLINE VectorRegister4f VVM_Exec2f_atan2                           (FVectorVMBatchState *BatchState, VectorRegister4f a, VectorRegister4f b)                                                            { return VectorATan2(a, b); }
+VM_FORCEINLINE VectorRegister4f VVM_Exec1f_ceil                            (FVectorVMBatchState *BatchState, VectorRegister4f a)                                                                                { return VectorCeil(a); }
+VM_FORCEINLINE VectorRegister4f VVM_Exec1f_floor                           (FVectorVMBatchState *BatchState, VectorRegister4f a)                                                                                { return VectorFloor(a); }
+VM_FORCEINLINE VectorRegister4f VVM_Exec2f_fmod                            (FVectorVMBatchState *BatchState, VectorRegister4f a, VectorRegister4f b)                                                            { return VectorMod(a, b); }
+VM_FORCEINLINE VectorRegister4f VVM_Exec1f_frac                            (FVectorVMBatchState *BatchState, VectorRegister4f a)                                                                                { return VectorFractional(a); }
+VM_FORCEINLINE VectorRegister4f VVM_Exec1f_trunc                           (FVectorVMBatchState *BatchState, VectorRegister4f a)                                                                                { return VectorTruncate(a); }
+VM_FORCEINLINE VectorRegister4f VVM_Exec3f_clamp                           (FVectorVMBatchState *BatchState, VectorRegister4f a, VectorRegister4f b, VectorRegister4f c)                                        { return VectorClamp(a, b, c); }
+VM_FORCEINLINE VectorRegister4f VVM_Exec2f_min                             (FVectorVMBatchState *BatchState, VectorRegister4f a, VectorRegister4f b)                                                            { return VectorMin(a, b); }
+VM_FORCEINLINE VectorRegister4f VVM_Exec2f_max                             (FVectorVMBatchState *BatchState, VectorRegister4f a, VectorRegister4f b)                                                            { return VectorMax(a, b); }
+VM_FORCEINLINE VectorRegister4f VVM_Exec2f_pow                             (FVectorVMBatchState *BatchState, VectorRegister4f a, VectorRegister4f b)                                                            { return VectorSelect(VectorCompareGT(a, VVM_m128Const(Epsilon)), VectorPow(a, b), VectorZeroFloat()); }
+VM_FORCEINLINE VectorRegister4f VVM_Exec1f_round                           (FVectorVMBatchState *BatchState, VectorRegister4f a)                                                                                { return VectorRound(a); }
+VM_FORCEINLINE VectorRegister4f VVM_Exec1f_sign                            (FVectorVMBatchState *BatchState, VectorRegister4f a)                                                                                { return VectorSign(a); }
+VM_FORCEINLINE VectorRegister4f VVM_Exec2f_step                            (FVectorVMBatchState *BatchState, VectorRegister4f a, VectorRegister4f b)                                                            { return VectorStep(VectorSubtract(a, b)); }
+VM_FORCEINLINE const uint8 *    VVM_Exec1null_random                       (VVM_NULL_FN_ARGS)                                                                                                                   { return VVM_random(CT_MultipleLoops, InsPtr, BatchState, ExecCtx, SerializeState, CmpSerializeState, NumLoops); }
+VM_FORCEINLINE const uint8 *    VVM_Exec0null_noise                        (VVM_NULL_FN_ARGS)                                                                                                                   { return InsPtr; }
+VM_FORCEINLINE VectorRegister4f VVM_Exec2f_cmplt                           (FVectorVMBatchState *BatchState, VectorRegister4f a, VectorRegister4f b)                                                            { return VectorCompareLT(a, b); }
+VM_FORCEINLINE VectorRegister4f VVM_Exec2f_cmple                           (FVectorVMBatchState *BatchState, VectorRegister4f a, VectorRegister4f b)                                                            { return VectorCompareLE(a, b); }
+VM_FORCEINLINE VectorRegister4f VVM_Exec2f_cmpgt                           (FVectorVMBatchState *BatchState, VectorRegister4f a, VectorRegister4f b)                                                            { return VectorCompareGT(a, b); }
+VM_FORCEINLINE VectorRegister4f VVM_Exec2f_cmpge                           (FVectorVMBatchState *BatchState, VectorRegister4f a, VectorRegister4f b)                                                            { return VectorCompareGE(a, b); }
+VM_FORCEINLINE VectorRegister4f VVM_Exec2f_cmpeq                           (FVectorVMBatchState *BatchState, VectorRegister4f a, VectorRegister4f b)                                                            { return VectorCompareEQ(a, b); }
+VM_FORCEINLINE VectorRegister4f VVM_Exec2f_cmpneq                          (FVectorVMBatchState *BatchState, VectorRegister4f a, VectorRegister4f b)                                                            { return VectorCompareNE(a, b); }
+VM_FORCEINLINE VectorRegister4f VVM_Exec3f_select                          (FVectorVMBatchState *BatchState, VectorRegister4f a, VectorRegister4f b, VectorRegister4f c)                                        { return VectorSelect(a, b, c); }
+VM_FORCEINLINE VectorRegister4i VVM_Exec2i_addi                            (FVectorVMBatchState *BatchState, VectorRegister4i a, VectorRegister4i b)                                                            { return VectorIntAdd(a, b); }
+VM_FORCEINLINE VectorRegister4i VVM_Exec2i_subi                            (FVectorVMBatchState *BatchState, VectorRegister4i a, VectorRegister4i b)                                                            { return VectorIntSubtract(a, b); }
+VM_FORCEINLINE VectorRegister4i VVM_Exec2i_muli                            (FVectorVMBatchState *BatchState, VectorRegister4i a, VectorRegister4i b)                                                            { return VectorIntMultiply(a, b); }
+VM_FORCEINLINE VectorRegister4i VVM_Exec2i_divi                            (FVectorVMBatchState *BatchState, VectorRegister4i a, VectorRegister4i b)                                                            { return VVMIntDiv(a, b); }
+VM_FORCEINLINE VectorRegister4i VVM_Exec3i_clampi                          (FVectorVMBatchState *BatchState, VectorRegister4i a, VectorRegister4i b, VectorRegister4i c)                                        { return VectorIntClamp(a, b, c); }
+VM_FORCEINLINE VectorRegister4i VVM_Exec2i_mini                            (FVectorVMBatchState *BatchState, VectorRegister4i a, VectorRegister4i b)                                                            { return VectorIntMin(a, b); }
+VM_FORCEINLINE VectorRegister4i VVM_Exec2i_maxi                            (FVectorVMBatchState *BatchState, VectorRegister4i a, VectorRegister4i b)                                                            { return VectorIntMax(a, b); }
+VM_FORCEINLINE VectorRegister4i VVM_Exec1i_absi                            (FVectorVMBatchState *BatchState, VectorRegister4i a)                                                                                { return VectorIntAbs(a); }
+VM_FORCEINLINE VectorRegister4i VVM_Exec1i_negi                            (FVectorVMBatchState *BatchState, VectorRegister4i a)                                                                                { return VectorIntNegate(a); }
+VM_FORCEINLINE VectorRegister4i VVM_Exec1i_signi                           (FVectorVMBatchState *BatchState, VectorRegister4i a)                                                                                { return VectorIntSign(a); }
+VM_FORCEINLINE const uint8 *    VVM_Exec1null_randomi                      (VVM_NULL_FN_ARGS)                                                                                                                   { return VVM_randomi(CT_MultipleLoops, InsPtr, BatchState, ExecCtx, SerializeState, CmpSerializeState, NumLoops); }
+VM_FORCEINLINE VectorRegister4i VVM_Exec2i_cmplti                          (FVectorVMBatchState *BatchState, VectorRegister4i a, VectorRegister4i b)                                                            { return VectorIntCompareLT(a, b); }
+VM_FORCEINLINE VectorRegister4i VVM_Exec2i_cmplei                          (FVectorVMBatchState *BatchState, VectorRegister4i a, VectorRegister4i b)                                                            { return VectorIntCompareLE(a, b); }
+VM_FORCEINLINE VectorRegister4i VVM_Exec2i_cmpgti                          (FVectorVMBatchState *BatchState, VectorRegister4i a, VectorRegister4i b)                                                            { return VectorIntCompareGT(a, b); }
+VM_FORCEINLINE VectorRegister4i VVM_Exec2i_cmpgei                          (FVectorVMBatchState *BatchState, VectorRegister4i a, VectorRegister4i b)                                                            { return VectorIntCompareGE(a, b); }
+VM_FORCEINLINE VectorRegister4i VVM_Exec2i_cmpeqi                          (FVectorVMBatchState *BatchState, VectorRegister4i a, VectorRegister4i b)                                                            { return VectorIntCompareEQ(a, b); }
+VM_FORCEINLINE VectorRegister4i VVM_Exec2i_cmpneqi                         (FVectorVMBatchState *BatchState, VectorRegister4i a, VectorRegister4i b)                                                            { return VectorIntCompareNEQ(a, b); }
+VM_FORCEINLINE VectorRegister4i VVM_Exec2i_bit_and                         (FVectorVMBatchState *BatchState, VectorRegister4i a, VectorRegister4i b)                                                            { return VectorIntAnd(a, b); }
+VM_FORCEINLINE VectorRegister4i VVM_Exec2i_bit_or                          (FVectorVMBatchState *BatchState, VectorRegister4i a, VectorRegister4i b)                                                            { return VectorIntOr(a, b); }
+VM_FORCEINLINE VectorRegister4i VVM_Exec2i_bit_xor                         (FVectorVMBatchState *BatchState, VectorRegister4i a, VectorRegister4i b)                                                            { return VectorIntXor(a, b); }
+VM_FORCEINLINE VectorRegister4i VVM_Exec1i_bit_not                         (FVectorVMBatchState *BatchState, VectorRegister4i a)                                                                                { return VectorIntNot(a); }
+VM_FORCEINLINE VectorRegister4i VVM_Exec2i_bit_lshift                      (FVectorVMBatchState *BatchState, VectorRegister4i a, VectorRegister4i b)                                                            { return VVMIntLShift(a, b); }
+VM_FORCEINLINE VectorRegister4i VVM_Exec2i_bit_rshift                      (FVectorVMBatchState *BatchState, VectorRegister4i a, VectorRegister4i b)                                                            { return VVMIntRShift(a, b); }
+VM_FORCEINLINE VectorRegister4i VVM_Exec2i_logic_and                       (FVectorVMBatchState *BatchState, VectorRegister4i a, VectorRegister4i b)                                                            { return VectorIntAnd(a, b); }
+VM_FORCEINLINE VectorRegister4i VVM_Exec2i_logic_or                        (FVectorVMBatchState *BatchState, VectorRegister4i a, VectorRegister4i b)                                                            { return VectorIntOr(a, b); }
+VM_FORCEINLINE VectorRegister4i VVM_Exec2i_logic_xor                       (FVectorVMBatchState *BatchState, VectorRegister4i a, VectorRegister4i b)                                                            { return VectorIntXor(a, b); }
+VM_FORCEINLINE VectorRegister4i VVM_Exec1i_logic_not                       (FVectorVMBatchState *BatchState, VectorRegister4i a)                                                                                { return VectorIntNot(a); }
+VM_FORCEINLINE VectorRegister4i VVM_Exec1i_f2i                             (FVectorVMBatchState *BatchState, VectorRegister4i a)                                                                                { return VVMf2i(a); }
+VM_FORCEINLINE VectorRegister4f VVM_Exec1f_i2f                             (FVectorVMBatchState *BatchState, VectorRegister4f a)                                                                                { return VVMi2f(a); }
+VM_FORCEINLINE VectorRegister4f VVM_Exec1f_f2b                             (FVectorVMBatchState *BatchState, VectorRegister4f a)                                                                                { return VectorCompareGT(a, VectorZeroFloat()); }
+VM_FORCEINLINE VectorRegister4f VVM_Exec1f_b2f                             (FVectorVMBatchState *BatchState, VectorRegister4f a)                                                                                { return VectorSelect(a, VVM_m128Const(One), VectorZeroFloat()); }
+VM_FORCEINLINE VectorRegister4i VVM_Exec1i_i2b                             (FVectorVMBatchState *BatchState, VectorRegister4i a)                                                                                { return VectorIntCompareGT(a, VectorSetZero()); }
+VM_FORCEINLINE VectorRegister4i VVM_Exec1i_b2i                             (FVectorVMBatchState *BatchState, VectorRegister4i a)                                                                                { return VectorIntSelect(a, VectorIntSet1(1), VectorSetZero()); }
+VM_FORCEINLINE const uint8 *    VVM_Exec0null_outputdata_float             (VVM_NULL_FN_ARGS)                                                                                                                   { return VVM_Output32(CT_MultipleLoops, InsPtr, BatchState, ExecCtx); }
+VM_FORCEINLINE const uint8 *    VVM_Exec0null_outputdata_int32             (VVM_NULL_FN_ARGS)                                                                                                                   { return VVM_Output32(CT_MultipleLoops, InsPtr, BatchState, ExecCtx); }
+VM_FORCEINLINE const uint8 *    VVM_Exec0null_outputdata_half              (VVM_NULL_FN_ARGS)                                                                                                                   { return VVM_Output16(CT_MultipleLoops, InsPtr, BatchState, ExecCtx); }
+VM_FORCEINLINE const uint8 *    VVM_Exec1null_acquireindex                 (VVM_NULL_FN_ARGS)                                                                                                                   { return VVM_acquireindex(CT_MultipleLoops, InsPtr, BatchState, ExecCtx); }
+VM_FORCEINLINE const uint8 *    VVM_Exec0null_external_func_call           (VVM_NULL_FN_ARGS)                                                                                                                   { return VVM_external_func_call(CT_MultipleLoops, InsPtr, BatchState, ExecCtx, SerializeState, CmpSerializeState, NumLoops); }
+VM_FORCEINLINE const uint8 *    VVM_Exec1null_exec_index                   (VVM_NULL_FN_ARGS)                                                                                                                   { return VVM_exec_index(CT_MultipleLoops, InsPtr, BatchState, NumLoops); }
+VM_FORCEINLINE const uint8 *    VVM_Exec0null_noise2D                      (VVM_NULL_FN_ARGS)                                                                                                                   { return InsPtr; }
+VM_FORCEINLINE const uint8 *    VVM_Exec0null_noise3D                      (VVM_NULL_FN_ARGS)                                                                                                                   { return InsPtr; }
+VM_FORCEINLINE const uint8 *    VVM_Exec1null_enter_stat_scope             (VVM_NULL_FN_ARGS)                                                                                                                   { return InsPtr + 2; }
+VM_FORCEINLINE const uint8 *    VVM_Exec0null_exit_stat_scope              (VVM_NULL_FN_ARGS)                                                                                                                   { return InsPtr; }
+VM_FORCEINLINE const uint8 *    VVM_Exec0null_update_id                    (VVM_NULL_FN_ARGS)                                                                                                                   { return VVM_update_id(CT_MultipleLoops, InsPtr, BatchState, ExecCtx, NumLoops); }
+VM_FORCEINLINE const uint8 *    VVM_Exec1null_acquire_id                   (VVM_NULL_FN_ARGS)                                                                                                                   { return VVM_acquire_id(CT_MultipleLoops, InsPtr, BatchState, ExecCtx, NumLoops); }
+VM_FORCEINLINE const uint8 *    VVM_Exec1null_half_to_float                (VVM_NULL_FN_ARGS)                                                                                                                   { return VVM_half_to_float(CT_MultipleLoops, InsPtr, BatchState, NumLoops); }
+VM_FORCEINLINE const uint8 *    VVM_Exec1null_fasi                         (VVM_NULL_FN_ARGS)                                                                                                                   { return InsPtr; }
+VM_FORCEINLINE const uint8 *    VVM_Exec1null_iasf                         (VVM_NULL_FN_ARGS)                                                                                                                   { return InsPtr; }
+VM_FORCEINLINE const uint8 *    VVM_Exec1null_exec_indexf                  (VVM_NULL_FN_ARGS)                                                                                                                   { return VVM_exec_indexf(CT_MultipleLoops, InsPtr, BatchState, NumLoops); }
+VM_FORCEINLINE const uint8 *    VVM_Exec1null_exec_index_addi              (VVM_NULL_FN_ARGS)                                                                                                                   { return VVM_exec_index_addi(CT_MultipleLoops, InsPtr, BatchState, NumLoops); }
+VM_FORCEINLINE VectorRegister4f VVM_Exec4f_cmplt_select                    (FVectorVMBatchState *BatchState, VectorRegister4f a, VectorRegister4f b, VectorRegister4f c, VectorRegister4f d)                    { return VectorSelect(VectorCompareLT(a, b), c, d); }
+VM_FORCEINLINE VectorRegister4f VVM_Exec4f_cmple_select                    (FVectorVMBatchState *BatchState, VectorRegister4f a, VectorRegister4f b, VectorRegister4f c, VectorRegister4f d)                    { return VectorSelect(VectorCompareLE(a, b), c, d); }
+VM_FORCEINLINE VectorRegister4f VVM_Exec4f_cmpeq_select                    (FVectorVMBatchState *BatchState, VectorRegister4f a, VectorRegister4f b, VectorRegister4f c, VectorRegister4f d)                    { return VectorSelect(VectorCompareEQ(a, b), c, d); }
+VM_FORCEINLINE VectorRegister4f VVM_Exec4f_cmplti_select                   (FVectorVMBatchState *BatchState, VectorRegister4f a, VectorRegister4f b, VectorRegister4f c, VectorRegister4f d)                    { return VectorSelect(VectorCastIntToFloat(VectorIntCompareLT(*(VectorRegister4i *)&a, *(VectorRegister4i *)&b)), c, d); }
+VM_FORCEINLINE VectorRegister4f VVM_Exec4f_cmplei_select                   (FVectorVMBatchState *BatchState, VectorRegister4f a, VectorRegister4f b, VectorRegister4f c, VectorRegister4f d)                    { return VectorSelect(VectorCastIntToFloat(VectorIntCompareLE(*(VectorRegister4i *)&a, *(VectorRegister4i *)&b)), c, d); }
+VM_FORCEINLINE VectorRegister4f VVM_Exec4f_cmpeqi_select                   (FVectorVMBatchState *BatchState, VectorRegister4f a, VectorRegister4f b, VectorRegister4f c, VectorRegister4f d)                    { return VectorSelect(VectorCastIntToFloat(VectorIntCompareEQ(*(VectorRegister4i *)&a, *(VectorRegister4i *)&b)), c, d); }
+VM_FORCEINLINE VectorRegister4f VVM_Exec3f_cmplt_logic_and                 (FVectorVMBatchState *BatchState, VectorRegister4f a, VectorRegister4f b, VectorRegister4f c)                                        { return VectorCastIntToFloat(VectorIntAnd(VectorCastFloatToInt(VectorCompareLT(a, b)), *(VectorRegister4i *)&c)); }
+VM_FORCEINLINE VectorRegister4f VVM_Exec3f_cmple_logic_and                 (FVectorVMBatchState *BatchState, VectorRegister4f a, VectorRegister4f b, VectorRegister4f c)                                        { return VectorCastIntToFloat(VectorIntAnd(VectorCastFloatToInt(VectorCompareLE(a, b)), *(VectorRegister4i *)&c)); }
+VM_FORCEINLINE VectorRegister4f VVM_Exec3f_cmpgt_logic_and                 (FVectorVMBatchState *BatchState, VectorRegister4f a, VectorRegister4f b, VectorRegister4f c)                                        { return VectorCastIntToFloat(VectorIntAnd(VectorCastFloatToInt(VectorCompareGT(a, b)), *(VectorRegister4i *)&c)); }
+VM_FORCEINLINE VectorRegister4f VVM_Exec3f_cmpge_logic_and                 (FVectorVMBatchState *BatchState, VectorRegister4f a, VectorRegister4f b, VectorRegister4f c)                                        { return VectorCastIntToFloat(VectorIntAnd(VectorCastFloatToInt(VectorCompareGE(a, b)), *(VectorRegister4i *)&c)); }
+VM_FORCEINLINE VectorRegister4f VVM_Exec3f_cmpeq_logic_and                 (FVectorVMBatchState *BatchState, VectorRegister4f a, VectorRegister4f b, VectorRegister4f c)                                        { return VectorCastIntToFloat(VectorIntAnd(VectorCastFloatToInt(VectorCompareEQ(a, b)), *(VectorRegister4i *)&c)); }
+VM_FORCEINLINE VectorRegister4f VVM_Exec3f_cmpne_logic_and                 (FVectorVMBatchState *BatchState, VectorRegister4f a, VectorRegister4f b, VectorRegister4f c)                                        { return VectorCastIntToFloat(VectorIntAnd(VectorCastFloatToInt(VectorCompareNE(a, b)), *(VectorRegister4i *)&c)); }
+VM_FORCEINLINE VectorRegister4i VVM_Exec3i_cmplti_logic_and                (FVectorVMBatchState *BatchState, VectorRegister4i a, VectorRegister4i b, VectorRegister4i c)                                        { return VectorIntAnd(VectorIntCompareLT(a, b), c); }
+VM_FORCEINLINE VectorRegister4i VVM_Exec3i_cmplei_logic_and                (FVectorVMBatchState *BatchState, VectorRegister4i a, VectorRegister4i b, VectorRegister4i c)                                        { return VectorIntAnd(VectorIntCompareLE(a, b), c); }
+VM_FORCEINLINE VectorRegister4i VVM_Exec3i_cmpgti_logic_and                (FVectorVMBatchState *BatchState, VectorRegister4i a, VectorRegister4i b, VectorRegister4i c)                                        { return VectorIntAnd(VectorIntCompareGT(a, b), c); }
+VM_FORCEINLINE VectorRegister4i VVM_Exec3i_cmpgei_logic_and                (FVectorVMBatchState *BatchState, VectorRegister4i a, VectorRegister4i b, VectorRegister4i c)                                        { return VectorIntAnd(VectorIntCompareGE(a, b), c); }
+VM_FORCEINLINE VectorRegister4i VVM_Exec3i_cmpeqi_logic_and                (FVectorVMBatchState *BatchState, VectorRegister4i a, VectorRegister4i b, VectorRegister4i c)                                        { return VectorIntAnd(VectorIntCompareEQ(a, b), c); }
+VM_FORCEINLINE VectorRegister4i VVM_Exec3i_cmpnei_logic_and                (FVectorVMBatchState *BatchState, VectorRegister4i a, VectorRegister4i b, VectorRegister4i c)                                        { return VectorIntAnd(VectorIntCompareNEQ(a, b), c); }
+VM_FORCEINLINE VectorRegister4f VVM_Exec3f_cmplt_logic_or                  (FVectorVMBatchState *BatchState, VectorRegister4f a, VectorRegister4f b, VectorRegister4f c)                                        { return VectorCastIntToFloat(VectorIntOr(VectorCastFloatToInt(VectorCompareLT(a, b)), *(VectorRegister4i *)&c)); }
+VM_FORCEINLINE VectorRegister4f VVM_Exec3f_cmple_logic_or                  (FVectorVMBatchState *BatchState, VectorRegister4f a, VectorRegister4f b, VectorRegister4f c)                                        { return VectorCastIntToFloat(VectorIntOr(VectorCastFloatToInt(VectorCompareLE(a, b)), *(VectorRegister4i *)&c)); }
+VM_FORCEINLINE VectorRegister4f VVM_Exec3f_cmpgt_logic_or                  (FVectorVMBatchState *BatchState, VectorRegister4f a, VectorRegister4f b, VectorRegister4f c)                                        { return VectorCastIntToFloat(VectorIntOr(VectorCastFloatToInt(VectorCompareGT(a, b)), *(VectorRegister4i *)&c)); }
+VM_FORCEINLINE VectorRegister4f VVM_Exec3f_cmpge_logic_or                  (FVectorVMBatchState *BatchState, VectorRegister4f a, VectorRegister4f b, VectorRegister4f c)                                        { return VectorCastIntToFloat(VectorIntOr(VectorCastFloatToInt(VectorCompareGE(a, b)), *(VectorRegister4i *)&c)); }
+VM_FORCEINLINE VectorRegister4f VVM_Exec3f_cmpeq_logic_or                  (FVectorVMBatchState *BatchState, VectorRegister4f a, VectorRegister4f b, VectorRegister4f c)                                        { return VectorCastIntToFloat(VectorIntOr(VectorCastFloatToInt(VectorCompareEQ(a, b)), *(VectorRegister4i *)&c)); }
+VM_FORCEINLINE VectorRegister4f VVM_Exec3f_cmpne_logic_or                  (FVectorVMBatchState *BatchState, VectorRegister4f a, VectorRegister4f b, VectorRegister4f c)                                        { return VectorCastIntToFloat(VectorIntOr(VectorCastFloatToInt(VectorCompareNE(a, b)), *(VectorRegister4i *)&c)); }
+VM_FORCEINLINE VectorRegister4i VVM_Exec3i_cmplti_logic_or                 (FVectorVMBatchState *BatchState, VectorRegister4i a, VectorRegister4i b, VectorRegister4i c)                                        { return VectorIntOr(VectorIntCompareLT(a, b), c); }
+VM_FORCEINLINE VectorRegister4i VVM_Exec3i_cmplei_logic_or                 (FVectorVMBatchState *BatchState, VectorRegister4i a, VectorRegister4i b, VectorRegister4i c)                                        { return VectorIntOr(VectorIntCompareLE(a, b), c); }
+VM_FORCEINLINE VectorRegister4i VVM_Exec3i_cmpgti_logic_or                 (FVectorVMBatchState *BatchState, VectorRegister4i a, VectorRegister4i b, VectorRegister4i c)                                        { return VectorIntOr(VectorIntCompareGT(a, b), c); }
+VM_FORCEINLINE VectorRegister4i VVM_Exec3i_cmpgei_logic_or                 (FVectorVMBatchState *BatchState, VectorRegister4i a, VectorRegister4i b, VectorRegister4i c)                                        { return VectorIntOr(VectorIntCompareGE(a, b), c); }
+VM_FORCEINLINE VectorRegister4i VVM_Exec3i_cmpeqi_logic_or                 (FVectorVMBatchState *BatchState, VectorRegister4i a, VectorRegister4i b, VectorRegister4i c)                                        { return VectorIntOr(VectorIntCompareEQ(a, b), c); }
+VM_FORCEINLINE VectorRegister4i VVM_Exec3i_cmpnei_logic_or                 (FVectorVMBatchState *BatchState, VectorRegister4i a, VectorRegister4i b, VectorRegister4i c)                                        { return VectorIntOr(VectorIntCompareNEQ(a, b), c); }
+VM_FORCEINLINE VectorRegister4f VVM_Exec4f_mad_add                         (FVectorVMBatchState *BatchState, VectorRegister4f a, VectorRegister4f b, VectorRegister4f c, VectorRegister4f d)                    { return VectorAdd(VectorMultiplyAdd(a, b, c), d); }
+VM_FORCEINLINE VectorRegister4f VVM_Exec4f_mad_sub0                        (FVectorVMBatchState *BatchState, VectorRegister4f a, VectorRegister4f b, VectorRegister4f c, VectorRegister4f d)                    { return VectorSubtract(VectorMultiplyAdd(a, b, c), d); }
+VM_FORCEINLINE VectorRegister4f VVM_Exec4f_mad_sub1                        (FVectorVMBatchState *BatchState, VectorRegister4f a, VectorRegister4f b, VectorRegister4f c, VectorRegister4f d)                    { return VectorSubtract(d, VectorMultiplyAdd(a, b, c)); }
+VM_FORCEINLINE VectorRegister4f VVM_Exec4f_mad_mul                         (FVectorVMBatchState *BatchState, VectorRegister4f a, VectorRegister4f b, VectorRegister4f c, VectorRegister4f d)                    { return VectorMultiply(VectorMultiplyAdd(a, b, c), d); }
+VM_FORCEINLINE VectorRegister4f VVM_Exec3f_mad_sqrt                        (FVectorVMBatchState *BatchState, VectorRegister4f a, VectorRegister4f b, VectorRegister4f c)                                        { return VectorSqrt(VectorMultiplyAdd(a, b, c)); }
+VM_FORCEINLINE VectorRegister4f VVM_Exec5f_mad_mad0                        (FVectorVMBatchState *BatchState, VectorRegister4f a, VectorRegister4f b, VectorRegister4f c, VectorRegister4f d, VectorRegister4f e){ return VectorMultiplyAdd(d, e, VectorMultiplyAdd(a, b, c)); }
+VM_FORCEINLINE VectorRegister4f VVM_Exec5f_mad_mad1                        (FVectorVMBatchState *BatchState, VectorRegister4f a, VectorRegister4f b, VectorRegister4f c, VectorRegister4f d, VectorRegister4f e){ return VectorMultiplyAdd(VectorMultiplyAdd(a, b, c), d, e); }
+VM_FORCEINLINE VectorRegister4f VVM_Exec4f_mul_mad0                        (FVectorVMBatchState *BatchState, VectorRegister4f a, VectorRegister4f b, VectorRegister4f c, VectorRegister4f d)                    { return VectorMultiplyAdd(VectorMultiply(a, b), c, d); }
+VM_FORCEINLINE VectorRegister4f VVM_Exec4f_mul_mad1                        (FVectorVMBatchState *BatchState, VectorRegister4f a, VectorRegister4f b, VectorRegister4f c, VectorRegister4f d)                    { return VectorMultiplyAdd(c, d, VectorMultiply(a, b)); }
+VM_FORCEINLINE VectorRegister4f VVM_Exec3f_mul_add                         (FVectorVMBatchState *BatchState, VectorRegister4f a, VectorRegister4f b, VectorRegister4f c)                                        { return VectorAdd(VectorMultiply(a, b), c); }
+VM_FORCEINLINE VectorRegister4f VVM_Exec3f_mul_sub0                        (FVectorVMBatchState *BatchState, VectorRegister4f a, VectorRegister4f b, VectorRegister4f c)                                        { return VectorSubtract(VectorMultiply(a, b), c); }
+VM_FORCEINLINE VectorRegister4f VVM_Exec3f_mul_sub1                        (FVectorVMBatchState *BatchState, VectorRegister4f a, VectorRegister4f b, VectorRegister4f c)                                        { return VectorSubtract(c, VectorMultiply(a, b)); }
+VM_FORCEINLINE VectorRegister4f VVM_Exec3f_mul_mul                         (FVectorVMBatchState *BatchState, VectorRegister4f a, VectorRegister4f b, VectorRegister4f c)                                        { return VectorMultiply(VectorMultiply(a, b), c); }
+VM_FORCEINLINE VectorRegister4f VVM_Exec3f_mul_max                         (FVectorVMBatchState *BatchState, VectorRegister4f a, VectorRegister4f b, VectorRegister4f c)                                        { return VectorMax(VectorMultiply(a, b), c); }
+VM_FORCEINLINE VectorRegister4f VVM_Exec2f_mul_2x                          (FVectorVMBatchState *BatchState, VectorRegister4f a, VectorRegister4f b)                                                            { return VectorMultiply(a, b); }
+VM_FORCEINLINE VectorRegister4f VVM_Exec4f_add_mad1                        (FVectorVMBatchState *BatchState, VectorRegister4f a, VectorRegister4f b, VectorRegister4f c, VectorRegister4f d)                    { return VectorMultiplyAdd(c, d, VectorAdd(a, b)); }
+VM_FORCEINLINE VectorRegister4f VVM_Exec3f_add_add                         (FVectorVMBatchState *BatchState, VectorRegister4f a, VectorRegister4f b, VectorRegister4f c)                                        { return VectorAdd(VectorAdd(a, b), c); }
+VM_FORCEINLINE VectorRegister4f VVM_Exec3f_sub_cmplt1                      (FVectorVMBatchState *BatchState, VectorRegister4f a, VectorRegister4f b, VectorRegister4f c)                                        { return VectorCompareLT(c, VectorSubtract(a, b)); }
+VM_FORCEINLINE VectorRegister4f VVM_Exec2f_sub_neg                         (FVectorVMBatchState *BatchState, VectorRegister4f a, VectorRegister4f b)                                                            { return VectorNegate(VectorSubtract(a, b)); }
+VM_FORCEINLINE VectorRegister4f VVM_Exec3f_sub_mul                         (FVectorVMBatchState *BatchState, VectorRegister4f a, VectorRegister4f b, VectorRegister4f c)                                        { return VectorMultiply(VectorSubtract(a, b), c); }
+VM_FORCEINLINE VectorRegister4f VVM_Exec4f_div_mad0                        (FVectorVMBatchState *BatchState, VectorRegister4f a, VectorRegister4f b, VectorRegister4f c, VectorRegister4f d)                    { return VectorMultiplyAdd(VVM_Exec2f_div(BatchState, a, b), c, d); }
+VM_FORCEINLINE VectorRegister4i VVM_Exec2i_div_f2i                         (FVectorVMBatchState *BatchState, VectorRegister4i a, VectorRegister4i b)                                                            { return VectorFloatToInt(VVM_Exec2f_div(BatchState, VectorCastIntToFloat(a), VectorCastIntToFloat(b))); }
+VM_FORCEINLINE VectorRegister4f VVM_Exec3f_div_mul                         (FVectorVMBatchState *BatchState, VectorRegister4f a, VectorRegister4f b, VectorRegister4f c)                                        { return VectorMultiply(VVM_Exec2f_div(BatchState, a, b), c); }
+VM_FORCEINLINE VectorRegister4i VVM_Exec3i_muli_addi                       (FVectorVMBatchState *BatchState, VectorRegister4i a, VectorRegister4i b, VectorRegister4i c)                                        { return VectorIntAdd(VectorIntMultiply(a, b), c); }
+VM_FORCEINLINE VectorRegister4i VVM_Exec3i_addi_bit_rshift                 (FVectorVMBatchState *BatchState, VectorRegister4i a, VectorRegister4i b, VectorRegister4i c)                                        { return VVMIntRShift(VectorIntAdd(a, b), c); }
+VM_FORCEINLINE VectorRegister4i VVM_Exec3i_addi_muli                       (FVectorVMBatchState *BatchState, VectorRegister4i a, VectorRegister4i b, VectorRegister4i c)                                        { return VectorIntMultiply(VectorIntAdd(a, b), c); }
+VM_FORCEINLINE VectorRegister4i VVM_Exec1i_b2i_2x                          (FVectorVMBatchState *BatchState, VectorRegister4i a)                                                                                { return VectorIntSelect(a, VectorIntSet1(1), VectorSetZero()); }
+VM_FORCEINLINE VectorRegister4f VVM_Exec2f_i2f_div0                        (FVectorVMBatchState *BatchState, VectorRegister4f a, VectorRegister4f b)                                                            { return VVM_Exec2f_div(BatchState, VectorIntToFloat(VectorCastFloatToInt(a)), b); }
+VM_FORCEINLINE VectorRegister4f VVM_Exec2f_i2f_div1                        (FVectorVMBatchState *BatchState, VectorRegister4f a, VectorRegister4f b)                                                            { return VVM_Exec2f_div(BatchState, b, VectorIntToFloat(VectorCastFloatToInt(a))); }
+VM_FORCEINLINE VectorRegister4f VVM_Exec2f_i2f_mul                         (FVectorVMBatchState *BatchState, VectorRegister4f a, VectorRegister4f b)                                                            { return VectorMultiply(VectorIntToFloat(VectorCastFloatToInt(a)), b); }
+VM_FORCEINLINE VectorRegister4f VVM_Exec3f_i2f_mad0                        (FVectorVMBatchState *BatchState, VectorRegister4f a, VectorRegister4f b, VectorRegister4f c)                                        { return VectorMultiplyAdd(VectorIntToFloat(VectorCastFloatToInt(a)), b, c); }
+VM_FORCEINLINE VectorRegister4f VVM_Exec3f_i2f_mad1                        (FVectorVMBatchState *BatchState, VectorRegister4f a, VectorRegister4f b, VectorRegister4f c)                                        { return VectorMultiplyAdd(a, b, VectorIntToFloat(VectorCastFloatToInt(c))); }
+VM_FORCEINLINE VectorRegister4i VVM_Exec3i_f2i_select1                     (FVectorVMBatchState *BatchState, VectorRegister4i a, VectorRegister4i b, VectorRegister4i c)                                        { return VectorIntSelect(a, VectorFloatToInt(VectorCastIntToFloat(b)), c); }
+VM_FORCEINLINE VectorRegister4i VVM_Exec2i_f2i_maxi                        (FVectorVMBatchState *BatchState, VectorRegister4i a, VectorRegister4i b)                                                            { return VectorIntMax(VectorFloatToInt(VectorCastIntToFloat(a)), b); }
+VM_FORCEINLINE VectorRegister4i VVM_Exec2i_f2i_addi                        (FVectorVMBatchState *BatchState, VectorRegister4i a, VectorRegister4i b)                                                            { return VectorIntAdd(VectorFloatToInt(VectorCastIntToFloat(a)), b); }
+VM_FORCEINLINE VectorRegister4f VVM_Exec3f_fmod_add                        (FVectorVMBatchState *BatchState, VectorRegister4f a, VectorRegister4f b, VectorRegister4f c)                                        { return VectorAdd(VectorMod(a, b), c); }
+VM_FORCEINLINE VectorRegister4f VVM_Exec2f_bit_and_i2f                     (FVectorVMBatchState *BatchState, VectorRegister4f a, VectorRegister4f b)                                                            { return VectorIntToFloat(VectorIntAnd(VectorCastFloatToInt(a), VectorCastFloatToInt(b))); }
+VM_FORCEINLINE VectorRegister4i VVM_Exec3i_bit_rshift_bit_and              (FVectorVMBatchState *BatchState, VectorRegister4i a, VectorRegister4i b, VectorRegister4i c)                                        { return VectorIntAnd(VVMIntRShift(a, b), c); }
+VM_FORCEINLINE VectorRegister4f VVM_Exec2f_neg_cmplt                       (FVectorVMBatchState *BatchState, VectorRegister4f a, VectorRegister4f b)                                                            { return VectorCompareLT(VectorNegate(a), b); }
+VM_FORCEINLINE VectorRegister4i VVM_Exec3i_bit_or_muli                     (FVectorVMBatchState *BatchState, VectorRegister4i a, VectorRegister4i b, VectorRegister4i c)                                        { return VectorIntMultiply(VectorIntOr(a, b), c); }
+VM_FORCEINLINE VectorRegister4i VVM_Exec3i_bit_lshift_bit_or               (FVectorVMBatchState *BatchState, VectorRegister4i a, VectorRegister4i b, VectorRegister4i c)                                        { return VectorIntOr(VVMIntLShift(a, b), c); }
+VM_FORCEINLINE const uint8 *    VVM_Exec2null_random_add                   (VVM_NULL_FN_ARGS)                                                                                                                   { return VVM_random_add(CT_MultipleLoops, InsPtr, BatchState, ExecCtx, SerializeState, CmpSerializeState, NumLoops); }
+VM_FORCEINLINE const uint8 *    VVM_Exec1null_random_2x                    (VVM_NULL_FN_ARGS)                                                                                                                   { return VVM_random_2x(CT_MultipleLoops, InsPtr, BatchState, ExecCtx, SerializeState, CmpSerializeState, NumLoops); }
+VM_FORCEINLINE VectorRegister4i VVM_Exec2i_max_f2i                         (FVectorVMBatchState *BatchState, VectorRegister4i a, VectorRegister4i b)                                                            { return VectorFloatToInt(VectorMax(VectorCastIntToFloat(a), VectorCastIntToFloat(b))); }
+VM_FORCEINLINE VectorRegister4f VVM_Exec4f_select_mul                      (FVectorVMBatchState *BatchState, VectorRegister4f a, VectorRegister4f b, VectorRegister4f c, VectorRegister4f d)                    { return VectorMultiply(VectorSelect(a, b, c), d); }
+VM_FORCEINLINE VectorRegister4f VVM_Exec4f_select_add                      (FVectorVMBatchState *BatchState, VectorRegister4f a, VectorRegister4f b, VectorRegister4f c, VectorRegister4f d)                    { return VectorAdd(VectorSelect(a, b, c), d); }
+VM_FORCEINLINE const uint8 *    VVM_Exec1null_sin_cos                      (VVM_NULL_FN_ARGS)                                                                                                                   { return VVM_sincos(CT_MultipleLoops, InsPtr, BatchState, NumLoops); }
+VM_FORCEINLINE const uint8 *    VVM_Exec0null_inputdata_float              (VVM_NULL_FN_ARGS)                                                                                                                   { return InsPtr; }
+VM_FORCEINLINE const uint8 *    VVM_Exec0null_inputdata_int32              (VVM_NULL_FN_ARGS)                                                                                                                   { return InsPtr; }
+VM_FORCEINLINE const uint8 *    VVM_Exec0null_inputdata_half               (VVM_NULL_FN_ARGS)                                                                                                                   { return InsPtr; }
+VM_FORCEINLINE const uint8 *    VVM_Exec0null_inputdata_noadvance_float    (VVM_NULL_FN_ARGS)                                                                                                                   { return InsPtr; }
+VM_FORCEINLINE const uint8 *    VVM_Exec0null_inputdata_noadvance_int32    (VVM_NULL_FN_ARGS)                                                                                                                   { return InsPtr; }
+VM_FORCEINLINE const uint8 *    VVM_Exec0null_inputdata_noadvance_half     (VVM_NULL_FN_ARGS)                                                                                                                   { return InsPtr; }
+VM_FORCEINLINE const uint8 *    VVM_Exec0null_outputdata_float_from_half   (VVM_NULL_FN_ARGS)                                                                                                                   { return VVM_Output32_from_16(CT_MultipleLoops, InsPtr, BatchState, ExecCtx); }
+VM_FORCEINLINE const uint8 *    VVM_Exec0null_outputdata_half_from_half    (VVM_NULL_FN_ARGS)                                                                                                                   { return VVM_Output16_from_16(CT_MultipleLoops, InsPtr, BatchState, ExecCtx); }
 //this is the macro required to exit the infinite loop running over the bytecode most efficiently
 #define VVM_Dispatch_execFn0done_0done(...) NULL; goto done_loop;
 
@@ -2457,7 +2543,7 @@ static const void* jmp_tbl[] = {
 #else
 #define VVM_OP_START    switch ((EVectorVMOp)InsPtr[-1])
 #if VECTORVM_DEBUG_PRINTF
-#define VVM_OP_CASE(op)	case EVectorVMOp::op: printf("%d, %s", DbgPfInsCount++, VVM_OP_NAMES[InsPtr[-1]]);
+#define VVM_OP_CASE(op)	case EVectorVMOp::op: VECTORVM_PRINTF("%d, %s", DbgPfInsCount++, VVM_OP_NAMES_EXP[InsPtr[-1]]);
 #else
 #define VVM_OP_CASE(op)	case EVectorVMOp::op:
 #endif
@@ -2465,7 +2551,7 @@ static const void* jmp_tbl[] = {
 #endif
 
 #if VECTORVM_DEBUG_PRINTF
-static const char *VVM_OP_NAMES[] = {
+static const char *VVM_OP_NAMES_EXP[] = {
 #	define VVM_OP_XM(OpCode, ...) #OpCode,
 	VVM_OP_XM_LIST
 #	undef VVM_OP_XM
@@ -2775,4 +2861,3 @@ void ExecVectorVMState(struct FVectorVMState *VVMState, struct FVectorVMSerializ
 }
 
 #endif //NIAGARA_EXP_VM
-

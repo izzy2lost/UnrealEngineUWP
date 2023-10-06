@@ -763,6 +763,7 @@ static bool VVMDoesInstructionHaveDependencies(FVectorVMOptimizeContext *OptCont
 	}
 	return false;
 }
+
 #	define VVMPushRegUsage(RegIdx, Type, IOFlag)	          do { uint32 Res = VVMPushRegUsage_(OptContext, Instruction, RegIdx, Type, IOFlag, &NumRegisterUsageAlloced);                              if (Res != 0) { return Res; } } while(0);
 
 
@@ -1309,8 +1310,40 @@ uint32 OptimizeVectorVMScript(const uint8 *InBytecode, int InBytecodeLen, FVecto
 		}
 	}
 
+	//Step 7: remove cast instructions and re-map the inputs of instructions that the casts feed into
+	//to the inputs of the cast instructions.
+	for (uint32 CastInsIdx = 0; CastInsIdx < OptContext->Intermediate.NumInstructions; ++CastInsIdx) {
+		FVectorVMOptimizeInstruction *CastIns = OptContext->Intermediate.Instructions + CastInsIdx;
+		if (CastIns->OpCode == EVectorVMOp::iasf || CastIns->OpCode == EVectorVMOp::fasi) {
+			uint16 CastInputSSAReg   = OptContext->Intermediate.SSARegisterUsageBuffer[CastIns->RegPtrOffset + 0];
+			uint16 CastOutputSSAReg  = OptContext->Intermediate.SSARegisterUsageBuffer[CastIns->RegPtrOffset + 1];
+			uint16 CastInputReg      = OptContext->Intermediate.RegisterUsageBuffer[CastIns->RegPtrOffset + 0];
+			uint16 CastOutputReg     = OptContext->Intermediate.RegisterUsageBuffer[CastIns->RegPtrOffset + 1];
+			uint8  CastInputRegType  = OptContext->Intermediate.RegisterUsageType[CastIns->RegPtrOffset + 0];
+			uint8  CastOutputRegType = OptContext->Intermediate.RegisterUsageType[CastIns->RegPtrOffset + 1];
+			for (uint32 InsIdx = CastInsIdx + 1; InsIdx < OptContext->Intermediate.NumInstructions; ++InsIdx) {
+				FVectorVMOptimizeInstruction *Ins = OptContext->Intermediate.Instructions + InsIdx;
+				for (int i = 0; i < Ins->NumInputRegisters; ++i) {
+					uint16 SSAReg  = OptContext->Intermediate.SSARegisterUsageBuffer[Ins->RegPtrOffset + i];
+					uint16 Reg     = OptContext->Intermediate.RegisterUsageBuffer   [Ins->RegPtrOffset + i];
+					uint8  RegType = OptContext->Intermediate.RegisterUsageType     [Ins->RegPtrOffset + i];
+					if (SSAReg == CastOutputSSAReg && RegType == CastOutputRegType) {
+						check(RegType == VVM_RT_TEMPREG);
+						OptContext->Intermediate.SSARegisterUsageBuffer[Ins->RegPtrOffset + i] = CastInputSSAReg;
+						OptContext->Intermediate.RegisterUsageBuffer   [Ins->RegPtrOffset + i] = CastInputReg;
+						OptContext->Intermediate.RegisterUsageType     [Ins->RegPtrOffset + i] = CastInputRegType;
+					}
+				}
+			}
+			//remove this cast instruction
+			FMemory::Memmove(OptContext->Intermediate.Instructions + CastInsIdx, OptContext->Intermediate.Instructions + CastInsIdx + 1, sizeof(FVectorVMOptimizeInstruction) * (OptContext->Intermediate.NumInstructions - CastInsIdx - 1));
+			--OptContext->Intermediate.NumInstructions;
+			--CastInsIdx;
+		}
+	}
+
 	int OnePastLastInputIdx = -1;
-	{ //Step 7: change temp registers that come directly from inputs to the input index
+	{ //Step 8: change temp registers that come directly from inputs to the input index
 		for (uint32 i = 0; i < OptContext->Intermediate.NumInstructions; ++i)
 		{
 			FVectorVMOptimizeInstruction *InputIns = OptContext->Intermediate.Instructions + i;
@@ -1336,6 +1369,16 @@ uint32 OptimizeVectorVMScript(const uint8 *InBytecode, int InBytecodeLen, FVecto
 							check(InputIns->Index == i); //make sure the instruction is in its correct place.  Instructions could have moved, but this should have been corrected above.
 							OptContext->Intermediate.SSARegisterUsageBuffer[Ins->RegPtrOffset + 1] = InputIns->Index;
 							OptContext->Intermediate.RegisterUsageType[Ins->RegPtrOffset + 1]      = VVM_RT_INPUT;
+
+							//deal with output instructions that read directly from inputs where there's a required half/float conversion
+							if (InputIns->OpCode == EVectorVMOp::inputdata_half && Ins->OpCode == EVectorVMOp::outputdata_float)
+							{ //input half, output 32 bit
+								Ins->OpCode = EVectorVMOp::outputdata_float_from_half;
+							}
+							else if (InputIns->OpCode == EVectorVMOp::inputdata_half && Ins->OpCode == EVectorVMOp::outputdata_half)
+							{
+								Ins->OpCode = EVectorVMOp::outputdata_half_from_half;
+							}
 						}
 					break;
 					default:
@@ -1419,7 +1462,7 @@ uint32 OptimizeVectorVMScript(const uint8 *InBytecode, int InBytecodeLen, FVecto
 
 		int LowestInstructionIdxForAcquireIdx = OnePastLastInputIdx; //acquire index instructions will be sorted by whichever comes first in the IR... possibly worth checking if re-ordering is more efficient
 
-		{ //Step 8: Find all the acquireindex instructions and re-order them to be executed ASAP
+		{ //Step 9: Find all the acquireindex instructions and re-order them to be executed ASAP
 			int NumAcquireIndexInstructions = 0;
 			for (uint32 i = 0; i < OptContext->Intermediate.NumInstructions; ++i)
 			{
@@ -1463,7 +1506,7 @@ uint32 OptimizeVectorVMScript(const uint8 *InBytecode, int InBytecodeLen, FVecto
 			}
 		}
 
-		{ //Step 9: re-order the outputs to be done as early as possible: after the SSA's register's last usage
+		{ //Step 10: re-order the outputs to be done as early as possible: after the SSA's register's last usage
 			for (uint32 OutputInsIdx = 0; OutputInsIdx < OptContext->Intermediate.NumInstructions; ++OutputInsIdx)
 			{
 				FVectorVMOptimizeInstruction *OutputIns = OptContext->Intermediate.Instructions + OutputInsIdx;
@@ -1502,7 +1545,7 @@ uint32 OptimizeVectorVMScript(const uint8 *InBytecode, int InBytecodeLen, FVecto
 			}
 		}
 
-		{ //Step 10: re-order all dependent-less instructions to right before their output is used
+		{ //Step 11: re-order all dependent-less instructions to right before their output is used
 			uint16 LastSwapInstructionIdx = 0xFFFF; //to prevent an infinite loop when one instruction has two or more dependencies and they keep swapping back and forth
 			for (uint32 i = 0; i < OptContext->Intermediate.NumInstructions; ++i)
 			{
@@ -1535,8 +1578,8 @@ uint32 OptimizeVectorVMScript(const uint8 *InBytecode, int InBytecodeLen, FVecto
 			}
 		}
 	}
-	
-	{ //Step 11: group and sort all output instructions
+
+	{ //Step 12: group and sort all output instructions
 		for (uint32 i = 0; i < OptContext->Intermediate.NumInstructions; ++i)
 		{
 			FVectorVMOptimizeInstruction *InsStart = OptContext->Intermediate.Instructions + i;
@@ -1584,7 +1627,7 @@ uint32 OptimizeVectorVMScript(const uint8 *InBytecode, int InBytecodeLen, FVecto
 	
 	bool ChangedMergedIns = false;
 
-	{ //Step 12: figure out which instructions can be merged
+	{ //Step 13: figure out which instructions can be merged
 		struct FMergableOp
 		{
 			uint32		InsIdx0;
@@ -1787,7 +1830,7 @@ uint32 OptimizeVectorVMScript(const uint8 *InBytecode, int InBytecodeLen, FVecto
 		}
 		
 		
-		//Step 13: Merge all the statistically common pairs of instructions
+		//Step 14: Merge all the statistically common pairs of instructions
 #		define VVMCreateNewRegVars(NumNewRegs)	VVMEnsureRegAlloced(OptContext, true, &NumRegisterUsageAlloced, (NumNewRegs));                                        \
 												uint16 *Ins0Regs       = OptContext->Intermediate.RegisterUsageBuffer + Ins0->RegPtrOffset;                           \
 												uint16 *Ins1Regs       = OptContext->Intermediate.RegisterUsageBuffer + Ins1->RegPtrOffset;                           \
@@ -2509,7 +2552,7 @@ uint32 OptimizeVectorVMScript(const uint8 *InBytecode, int InBytecodeLen, FVecto
 	int NumInputRegisters  = 0;
 	int NumOutputRegisters = 0;
 
-	{ //Step 14: generate input remap table and output remaps
+	{ //Step 15: generate input remap table and output remaps
 		int NumInputRegistersAlloced  = 256;
 		int NumOutputRegistersAlloced = 256;
 
@@ -2727,7 +2770,7 @@ uint32 OptimizeVectorVMScript(const uint8 *InBytecode, int InBytecodeLen, FVecto
 		}
 	}
 	
-	{ //Step 15: use the SSA registers to compute the minimized registers required and write them back into the register usage buffer		
+	{ //Step 16: use the SSA registers to compute the minimized registers required and write them back into the register usage buffer		
 		uint16 *SSAUseMap2    = (uint16 *)OptContext->Init.ReallocFn(nullptr, sizeof(uint16) * NumSSARegistersUsed * 2, __FILE__, __LINE__);
 		if (SSAUseMap2 == nullptr)
 		{
@@ -2804,7 +2847,7 @@ uint32 OptimizeVectorVMScript(const uint8 *InBytecode, int InBytecodeLen, FVecto
 		OptContext->Init.FreeFn(SSAUseMap2, __FILE__, __LINE__);
 	}
 	
-	//Step 16 alias temp registers to output registers 
+	//Step 17 alias temp registers to output registers 
 	int NumRemappedOutputRegs   = FMath::Max(OptContext->NumOutputsRemapped, (uint16)OptContext->NumTempRegisters);
 	uint16 *FinalTempRegRemap = (uint16 *)OptContext->Init.ReallocFn(nullptr, sizeof(uint16) * NumRemappedOutputRegs, __FILE__, __LINE__);
 	for (int i = 0; i < NumRemappedOutputRegs; ++i)
@@ -2927,7 +2970,7 @@ uint32 OptimizeVectorVMScript(const uint8 *InBytecode, int InBytecodeLen, FVecto
 		OptContext->Init.FreeFn(AvailableOutputs, __FILE__, __LINE__);
 	}
 		
-	{ //Step 17: write the final optimized bytecode
+	{ //Step 18: write the final optimized bytecode
 		//this goes over the instruction list twice.  The first time to figure out how many bytes are required for the bytecode, the second to write the bytecode.
 		uint8 *OptimizedBytecode = nullptr;		
 		int NumOptimizedBytesRequired = 0;
