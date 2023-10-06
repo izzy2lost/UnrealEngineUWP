@@ -46,8 +46,10 @@
 #include UE_INLINE_GENERATED_CPP_BY_NAME(PCGComponent)
 
 #if WITH_EDITOR
+#include "Editor.h"
 #include "EditorActorFolders.h"
 #include "ScopedTransaction.h"
+#include "Editor/Transactor.h"
 #endif
 
 #define LOCTEXT_NAMESPACE "UPCGComponent"
@@ -225,7 +227,7 @@ void UPCGComponent::SetPropertiesFromOriginal(const UPCGComponent* Original)
 	// Note that while we dirty here, we won't trigger a refresh since we don't have the required context
 	if (bIsDirty)
 	{
-		Modify();
+		Modify(!IsInPreviewMode());
 		DirtyGenerated(bHasDirtyInput ? EPCGComponentDirtyFlag::Input : EPCGComponentDirtyFlag::None);
 	}
 #endif
@@ -267,7 +269,7 @@ FPCGTaskId UPCGComponent::GenerateInternal(bool bForce, EPCGComponentGenerationT
 		return InvalidPCGTaskId;
 	}
 
-	Modify();
+	Modify(!IsInPreviewMode());
 
 	CurrentGenerationTask = GetSubsystem()->ScheduleComponent(this, /*bSave=*/bForce, Dependencies);
 
@@ -528,7 +530,7 @@ FPCGTaskId UPCGComponent::CleanupInternal(bool bRemoveComponents, bool bSave, co
 
 	PCGGeneratedResourcesLogging::LogCleanupInternal(bRemoveComponents);
 
-	Modify();
+	Modify(!IsInPreviewMode());
 
 #if WITH_EDITOR
 	ExtraCapture.ResetTimers();
@@ -684,7 +686,7 @@ bool UPCGComponent::MoveResourcesToNewActor(AActor* InNewActor, bool bCreateChil
 
 	bool bHasMovedResources = false;
 
-	Modify();
+	Modify(!IsInPreviewMode());
 
 	if (bCreateChild)
 	{
@@ -750,7 +752,16 @@ void UPCGComponent::CleanupLocalImmediate(bool bRemoveComponents)
 			{
 				if (Resource)
 				{
-					Resource->Rename(nullptr, nullptr, REN_ForceNoResetLoaders | REN_DoNotDirty | REN_DontCreateRedirectors | REN_NonTransactional);
+#if WITH_EDITOR
+					if (Resource->IsMarkedTransientOnLoad())
+					{
+						LoadedPreviewResources.Add(Resource);
+					}
+					else
+#endif
+					{
+						Resource->Rename(nullptr, nullptr, REN_ForceNoResetLoaders | REN_DoNotDirty | REN_DontCreateRedirectors | REN_NonTransactional);
+					}
 				}
 
 				GeneratedResources.RemoveAtSwap(ResourceIndex);
@@ -843,7 +854,16 @@ FPCGTaskId UPCGComponent::CreateCleanupTask(bool bRemoveComponents, const TArray
 				{
 					if (Resource)
 					{
-						Resource->Rename(nullptr, nullptr, REN_ForceNoResetLoaders | REN_DoNotDirty | REN_DontCreateRedirectors | REN_NonTransactional);
+#if WITH_EDITOR
+						if (Resource->IsMarkedTransientOnLoad())
+						{
+							ThisComponent->LoadedPreviewResources.Add(Resource);
+						}
+						else
+#endif
+						{
+							Resource->Rename(nullptr, nullptr, REN_ForceNoResetLoaders | REN_DoNotDirty | REN_DontCreateRedirectors | REN_NonTransactional);
+						}
 					}
 
 					ThisComponent->GeneratedResources.RemoveAtSwap(Context->ResourceIndex);
@@ -957,7 +977,16 @@ void UPCGComponent::CleanupUnusedManagedResources()
 			{
 				if (Resource)
 				{
-					Resource->Rename(nullptr, nullptr, REN_ForceNoResetLoaders | REN_DoNotDirty | REN_DontCreateRedirectors | REN_NonTransactional);
+#if WITH_EDITOR
+					if (Resource->IsMarkedTransientOnLoad())
+					{
+						LoadedPreviewResources.Add(Resource);
+					}
+					else
+#endif
+					{
+						Resource->Rename(nullptr, nullptr, REN_ForceNoResetLoaders | REN_DoNotDirty | REN_DontCreateRedirectors | REN_NonTransactional);
+					}
 				}
 
 				GeneratedResources.RemoveAtSwap(ResourceIndex);
@@ -1072,6 +1101,28 @@ void UPCGComponent::OnComponentDestroyed(bool bDestroyingHierarchy)
 	Super::OnComponentDestroyed(bDestroyingHierarchy);
 }
 
+void UPCGComponent::Serialize(FArchive& Ar)
+{
+#if WITH_EDITOR
+	TArray<TObjectPtr<UPCGManagedResource>> GeneratedResourcesCopy;
+
+	if (Ar.IsSaving() && CurrentEditingMode == EPCGEditorDirtyMode::Preview)
+	{
+		GeneratedResourcesCopy = GeneratedResources;
+		GeneratedResources = LoadedPreviewResources;
+	}
+#endif // WITH_EDITOR
+
+	Super::Serialize(Ar);
+
+#if WITH_EDITOR
+	if (Ar.IsSaving() && CurrentEditingMode == EPCGEditorDirtyMode::Preview)
+	{
+		GeneratedResources = GeneratedResourcesCopy;
+	}
+#endif // WITH_EDITOR
+}
+
 void UPCGComponent::PostLoad()
 {
 	Super::PostLoad();
@@ -1121,6 +1172,19 @@ void UPCGComponent::PostLoad()
 	}
 
 	SetupCallbacksOnCreation();
+
+	CurrentEditingMode = SerializedEditingMode;
+
+	if (CurrentEditingMode == EPCGEditorDirtyMode::Preview)
+	{
+		bGenerated = false;
+	}
+	else if (CurrentEditingMode == EPCGEditorDirtyMode::LoadAsPreview && !PCGHelpers::IsRuntimeOrPIE())
+	{
+		CurrentEditingMode = EPCGEditorDirtyMode::Preview;
+		MarkResourcesAsTransientOnLoad();
+		bDirtyGenerated = true;
+	}
 #endif
 }
 
@@ -1282,14 +1346,29 @@ void UPCGComponent::RefreshAfterGraphChanged(UPCGGraphInterface* InGraph, bool b
 #if WITH_EDITOR
 void UPCGComponent::PostEditChangeProperty(FPropertyChangedEvent& PropertyChangedEvent)
 {
-	Super::PostEditChangeProperty(PropertyChangedEvent);
-
 	if (!PropertyChangedEvent.Property || !IsValid(this))
 	{
 		return;
 	}
 
 	const FName PropName = PropertyChangedEvent.Property->GetFName();
+
+	// Implementation note:
+	// Since the current editing mode is a transient variable, if we do not do this transition here before going in the Super call,
+	//  we can end up in a situation where BP actors are reconstructed (... this component included ...) which makes this fall into the !IsValid case just after
+	if (PropName == GET_MEMBER_NAME_CHECKED(UPCGComponent, CurrentEditingMode))
+	{
+		// When affecting the editing mode from the user's point of view, we need to change both the current & serialized values
+		SetEditingMode(CurrentEditingMode, CurrentEditingMode);
+		ChangeTransientState(CurrentEditingMode);
+	}
+
+	Super::PostEditChangeProperty(PropertyChangedEvent);
+
+	if (!IsValid(this))
+	{
+		return;
+	}
 
 	// Important note: all property changes already go through the OnObjectPropertyChanged, and will be dirtied here.
 	// So where only a Refresh is needed, it goes through the "capture all" else case.
@@ -2374,6 +2453,122 @@ void UPCGComponent::GetManagedResources(TArray<TObjectPtr<UPCGManagedResource>>&
 	Resources = GeneratedResources;
 }
 
+void UPCGComponent::SetEditingMode(EPCGEditorDirtyMode InEditingMode, EPCGEditorDirtyMode InSerializedEditingMode)
+{
+	CurrentEditingMode = InEditingMode;
+	SerializedEditingMode = InSerializedEditingMode;
+}
+
+#if WITH_EDITOR
+bool UPCGComponent::DeletePreviewResources()
+{
+	bool bDeletedSomething = false;
+
+	TSet<TSoftObjectPtr<AActor>> ActorsToDelete;
+	// Make sure to release fully the resources that were loaded
+	for (TObjectPtr<UPCGManagedResource> ResourceToRelease : LoadedPreviewResources)
+	{
+		// Changing the transient state will clear the "marked transient on load" flag
+		ResourceToRelease->ChangeTransientState(/*bNowTransient=*/false);
+		ResourceToRelease->Release(/*bHardRelease=*/true, ActorsToDelete);
+		bDeletedSomething = true;
+	}
+
+	LoadedPreviewResources.Empty();
+
+	if (!ActorsToDelete.IsEmpty())
+	{
+		UPCGActorHelpers::DeleteActors(GetWorld(), ActorsToDelete.Array());
+	}
+
+	return bDeletedSomething;
+}
+
+void UPCGComponent::MarkResourcesAsTransientOnLoad()
+{
+	for (TObjectPtr<UPCGManagedResource>& GeneratedResource : GeneratedResources)
+	{
+		if (GeneratedResource)
+		{
+			GeneratedResource->MarkTransientOnLoad();
+		}
+	}
+}
+
+void UPCGComponent::ChangeTransientState(EPCGEditorDirtyMode NewEditingMode)
+{
+	bool bShouldMarkDirty = false;
+
+	// Affect all resources
+	{
+		FScopeLock ResourcesLock(&GeneratedResourcesLock);
+		check(!GeneratedResourcesInaccessible);
+
+		for (TObjectPtr<UPCGManagedResource>& GeneratedResource : GeneratedResources)
+		{
+			if (GeneratedResource)
+			{
+				GeneratedResource->ChangeTransientState(NewEditingMode == EPCGEditorDirtyMode::Preview);
+				bShouldMarkDirty = true;
+			}
+		}
+
+		// If switching from preview mode to normal or preview-on-load,
+		// we must materialize any kind of change we've done on the packages that had a different behavior on load (e.g. actor packages)
+		if (NewEditingMode != EPCGEditorDirtyMode::Preview)
+		{
+			bShouldMarkDirty |= DeletePreviewResources();
+		}
+	}
+
+	if (IsLocalComponent())
+	{
+		bShouldMarkDirty = true;
+
+		if (NewEditingMode == EPCGEditorDirtyMode::Preview)
+		{
+			SetFlags(RF_Transient);
+		}
+		else
+		{
+			ClearFlags(RF_Transient);
+		}
+
+		ForEachObjectWithOuter(this, [NewEditingMode](UObject* Object)
+		{
+			if (NewEditingMode == EPCGEditorDirtyMode::Preview)
+			{
+				Object->SetFlags(RF_Transient);
+			}
+			else
+			{
+				Object->ClearFlags(RF_Transient);
+			}
+		});
+	}
+
+	if (bShouldMarkDirty)
+	{
+		MarkPackageDirty();
+	}
+
+	// Un-transient PAs if needed and propagate the call
+	if (IsPartitioned())
+	{
+		if (UPCGSubsystem* Subsystem = GetSubsystem())
+		{
+			Subsystem->PropagateEditingModeToLocalComponents(this, NewEditingMode);
+		}
+	}
+
+	// Changing the transient state can and will play with packages and is not meant to be undoable
+	if (GEditor->Trans)
+	{
+		GEditor->Trans->Reset(LOCTEXT("ChangeEditingMode", "Changing Editing Mode"));
+	}
+}
+#endif // WITH_EDITOR
+
 FPCGComponentInstanceData::FPCGComponentInstanceData(const UPCGComponent* InSourceComponent)
 	: FActorComponentInstanceData(InSourceComponent)
 	, SourceComponent(InSourceComponent)
@@ -2381,6 +2576,9 @@ FPCGComponentInstanceData::FPCGComponentInstanceData(const UPCGComponent* InSour
 	if (SourceComponent)
 	{
 		SourceComponent->GetManagedResources(GeneratedResources);
+#if WITH_EDITOR
+		LoadedPreviewResources = SourceComponent->LoadedPreviewResources;
+#endif
 	}
 }
 
@@ -2421,6 +2619,8 @@ void FPCGComponentInstanceData::ApplyToComponent(UActorComponent* Component, con
 
 			// While this is serialized, it is not properly copied because it is not visible. This is needed otherwise a refresh can retoggle from not generated to generated
 			PCGComponent->bForceGenerateOnBPAddedToWorld = SourceComponent->bForceGenerateOnBPAddedToWorld;
+
+			PCGComponent->CurrentEditingMode = SourceComponent->CurrentEditingMode;
 #endif // WITH_EDITOR
 
 			// Non-critical but should be done: transient data, tracked actors cache, landscape tracking
@@ -2445,6 +2645,22 @@ void FPCGComponentInstanceData::ApplyToComponent(UActorComponent* Component, con
 		}
 
 #if WITH_EDITOR
+		TArray<TObjectPtr<UPCGManagedResource>> DuplicateLoadedPreviewResources;
+		for (const TObjectPtr<UPCGManagedResource>& Resource : LoadedPreviewResources)
+		{
+			if (Resource)
+			{
+				UPCGManagedResource* DuplicatedResource = CastChecked<UPCGManagedResource>(StaticDuplicateObject(Resource, PCGComponent, FName()));
+				DuplicatedResource->PostApplyToComponent();
+				DuplicateLoadedPreviewResources.Add(DuplicatedResource);
+			}
+		}
+
+		if (DuplicateLoadedPreviewResources.Num() > 0)
+		{
+			PCGComponent->LoadedPreviewResources = DuplicateLoadedPreviewResources;
+		}
+
 		// Reconnect callbacks
 		if (PCGComponent->GraphInstance)
 		{

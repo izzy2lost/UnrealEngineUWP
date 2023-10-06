@@ -2,6 +2,7 @@
 
 #pragma once
 
+#include "PCGCommon.h"
 #include "PCGCrc.h"
 
 #include "ISMPartition/ISMComponentDescriptor.h"
@@ -31,7 +32,12 @@ public:
 	/** Releases resource if empty or unused. Returns true if the resource can be removed from the PCG component */
 	virtual bool ReleaseIfUnused(TSet<TSoftObjectPtr<AActor>>& OutActorsToDelete);
 
-	virtual void MarkAsUsed() { bIsMarkedUnused = false; }
+	/** Returns whether a resource can be used - generally true except for resources marked as transient (from loading) */
+	virtual bool CanBeUsed() const;
+
+	/** Marks the resources as being kept and changed through generation */
+	virtual void MarkAsUsed() { ensure(CanBeUsed()); bIsMarkedUnused = false; }
+	/** Marks the resource as being reused as-is during the generation */
 	// Ensure may fire if multiple executions of the graph are happening in parallel/overlapping
 	virtual void MarkAsReused() { ensure(bIsMarkedUnused); bIsMarkedUnused = false; }
 	bool IsMarkedUnused() const { return bIsMarkedUnused; }
@@ -45,12 +51,28 @@ public:
 	const FPCGCrc& GetCrc() const { return Crc; }
 	void SetCrc(const FPCGCrc& InCrc) { Crc = InCrc; }
 
+#if WITH_EDITOR
+	virtual void ChangeTransientState(bool bNowTransient);
+	virtual void MarkTransientOnLoad() { bMarkedTransientOnLoad = true; }
+
+	bool IsMarkedTransientOnLoad() const { return bMarkedTransientOnLoad; }
+#endif // WITH_EDITOR
+
 protected:
 	UPROPERTY(VisibleAnywhere, Category = GeneratedData)
 	FPCGCrc Crc;
 
 	UPROPERTY(Transient, VisibleAnywhere, Category = GeneratedData)
 	bool bIsMarkedUnused = false;
+
+#if WITH_EDITORONLY_DATA
+	// Resources on a Load-as-preview component are marked as 'transient on load'; these resources must not be affected in any
+	//  permanent way in order to make sure they are not serialized in a different state if their outer is saved.
+	// These resources will generally have a different Release path, and will be managed differently from the PCG component as well.
+	// Note that this flag will be reset if there is a transient state change originating from the component, which might trigger resource deletion, flags change, etc.
+	UPROPERTY(VisibleAnywhere, Category = GeneratedData, meta = (NoResetToDefault))
+	bool bMarkedTransientOnLoad = false;
+#endif
 };
 
 UCLASS(BlueprintType)
@@ -70,6 +92,10 @@ public:
 	virtual bool MoveResourceToNewActor(AActor* NewActor) override;
 	virtual void MarkAsUsed() override;
 	virtual void MarkAsReused() override;
+
+#if WITH_EDITOR
+	virtual void ChangeTransientState(bool bNowTransient) override;
+#endif
 	//~End UPCGManagedResource interface
 
 	UPROPERTY(BlueprintReadWrite, EditAnywhere, Category = GeneratedData)
@@ -90,6 +116,12 @@ public:
 	virtual bool Release(bool bHardRelease, TSet<TSoftObjectPtr<AActor>>& OutActorsToDelete) override;
 	virtual bool ReleaseIfUnused(TSet<TSoftObjectPtr<AActor>>& OutActorsToDelete) override;
 	virtual bool MoveResourceToNewActor(AActor* NewActor, const AActor* ExpectedPreviousOwner) override;
+
+#if WITH_EDITOR
+	virtual void ChangeTransientState(bool bNowTransient) override;
+	/** Hides the content of the component in a transient way (such as unregistering) */
+	virtual void HideComponent();
+#endif
 	//~End UPCGManagedResource interface
 
 	virtual void ResetComponent() { check(0); }

@@ -183,3 +183,11 @@ enum class EPCGAttachOptions : uint32
 	Attached UMETA(Tooltip="Actor will be attached to the target actor in the given node"),
 	InFolder UMETA(Tooltip="Actor will be placed in an actor folder containing the name of the target actor.")
 };
+
+UENUM()
+enum class EPCGEditorDirtyMode : uint8
+{
+	Normal UMETA(Tooltip="Normal editing mode where generation changes (generation, cleanup) dirty the component and its resources."),
+	Preview UMETA(Tooltip="Editing mode where generation changes (generation, cleanup, resources) on the component will not trigger any dirty state, but will also not save any of the generated resources."),
+	LoadAsPreview UMETA(Tooltip="Acts as the normal editing mode until the next load of the component, at which state it acts as-if-transient, namely that any further generation changes will not dirty the component.")
+};

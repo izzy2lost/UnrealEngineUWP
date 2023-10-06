@@ -4,6 +4,8 @@
 
 #include "ActorPartition/PartitionActor.h"
 
+#include "PCGCommon.h"
+
 #include "PCGPartitionActor.generated.h"
 
 namespace EEndPlayReason { enum Type : int; }
@@ -27,6 +29,7 @@ public:
 	//~Begin UObject Interface
 	virtual void PostLoad() override;
 	virtual void BeginDestroy() override;
+	virtual void Serialize(FArchive& Ar) override;
 	//~End UObject Interface
 
 	//~Begin AActor Interface
@@ -75,6 +78,9 @@ public:
 
 	/** Return a set of all the PCGComponents linked to this actor */
 	TSet<TObjectPtr<UPCGComponent>> GetAllOriginalPCGComponents() const;
+
+	/** Changes transient state for the local component matching the given original component. Returns true if PA becomes empty */
+	bool ChangeTransientState(UPCGComponent* OriginalComponent, EPCGEditorDirtyMode EditingMode);
 #endif
 
 	// TODO: Make this in-editor only; during runtime, we should keep a map of component to bounds/volume only
@@ -96,6 +102,10 @@ private:
 
 	UPROPERTY()
 	TMap<TObjectPtr<UPCGComponent>, TSoftObjectPtr<UPCGComponent>> LocalToOriginal;
+
+	// PCG components that are cleared when in preview-on-load mode are kept aside and put back when serializing to prevent changes
+	UPROPERTY(Transient)
+	TMap<TObjectPtr<UPCGComponent>, TSoftObjectPtr<UPCGComponent>> LoadedPreviewComponents;
 
 #if WITH_EDITORONLY_DATA
 	UPROPERTY()

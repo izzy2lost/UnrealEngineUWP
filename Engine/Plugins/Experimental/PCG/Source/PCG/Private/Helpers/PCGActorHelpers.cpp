@@ -55,7 +55,7 @@ UPCGManagedISMComponent* UPCGActorHelpers::GetOrCreateManagedISMC(AActor* InTarg
 
 			if (UPCGManagedISMComponent* Resource = Cast<UPCGManagedISMComponent>(InResource))
 			{
-				if (Resource->GetSettingsUID() != SettingsUID)
+				if (Resource->GetSettingsUID() != SettingsUID || !Resource->CanBeUsed())
 				{
 					return;
 				}
@@ -83,7 +83,7 @@ UPCGManagedISMComponent* UPCGActorHelpers::GetOrCreateManagedISMC(AActor* InTarg
 	}
 
 	// No matching ISM component found, let's create a new one
-	InTargetActor->Modify();
+	InTargetActor->Modify(!InSourceComponent->IsInPreviewMode());
 
 	// Done as in InstancedStaticMesh.cpp
 #if WITH_EDITOR
@@ -122,7 +122,8 @@ UPCGManagedISMComponent* UPCGActorHelpers::GetOrCreateManagedISMC(AActor* InTarg
 
 	ComponentName += StaticMesh->GetName();
 
-	UInstancedStaticMeshComponent* ISMC = NewObject<UInstancedStaticMeshComponent>(InTargetActor, ComponentClass, MakeUniqueObjectName(InTargetActor, ComponentClass, FName(ComponentName)));
+	const EObjectFlags ObjectFlags = (InSourceComponent->IsInPreviewMode() ? RF_Transient : RF_NoFlags);
+	UInstancedStaticMeshComponent* ISMC = NewObject<UInstancedStaticMeshComponent>(InTargetActor, ComponentClass, MakeUniqueObjectName(InTargetActor, ComponentClass, FName(ComponentName)), ObjectFlags);
 	InParams.Descriptor.InitComponent(ISMC);
 	ISMC->NumCustomDataFloats = InParams.NumCustomDataFloats;
 

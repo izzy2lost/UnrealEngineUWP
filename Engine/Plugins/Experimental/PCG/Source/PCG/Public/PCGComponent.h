@@ -2,6 +2,7 @@
 
 #pragma once
 
+#include "PCGCommon.h"
 #include "PCGNode.h"
 #include "PCGSettings.h"
 #include "Graph/PCGStackContext.h"
@@ -76,6 +77,7 @@ class PCG_API UPCGComponent : public UActorComponent
 
 public:
 	/** ~Begin UObject interface */
+	virtual void Serialize(FArchive& Ar) override;
 	virtual void PostLoad() override;
 	virtual void PostInitProperties() override;
 	virtual void BeginDestroy() override;
@@ -262,6 +264,9 @@ public:
 
 	/** Know if we need to force a generation, in case of BP added to the world in editor */
 	bool ShouldGenerateBPPCGAddedToWorld() const;
+
+	/** Changes the transient state (preview, normal, load on preview) - public only because it needs to be accessed by APCGPartitionActor */
+	void ChangeTransientState(EPCGEditorDirtyMode NewEditingMode);
 #endif
 
 	/** Utility function (mostly for tests) to properly set the value of bIsComponentPartitioned.
@@ -278,6 +283,19 @@ public:
 
 	/** Updates internal properties from other component, dirties as required but does not trigger Refresh */
 	void SetPropertiesFromOriginal(const UPCGComponent* Original);
+
+	/** Returns whether the component (or resources) should be marked as dirty following interaction/refresh based on the current editing mode */
+	bool IsInPreviewMode() const { return CurrentEditingMode == EPCGEditorDirtyMode::Preview; }
+
+	UFUNCTION(BlueprintCallable, Category="PCG|Advanced")
+	void SetEditingMode(EPCGEditorDirtyMode InEditingMode, EPCGEditorDirtyMode InSerializedEditingMode);
+
+	/** Returns the current editing mode */
+	UFUNCTION(BlueprintCallable, Category="PCG|Advanced")
+	EPCGEditorDirtyMode GetEditingMode() const { return CurrentEditingMode; }
+
+	UFUNCTION(BlueprintCallable, Category = "PCG|Advanced")
+	EPCGEditorDirtyMode GetSerializedEditingMode() const { return SerializedEditingMode; }
 
 	UPCGSubsystem* GetSubsystem() const;
 
@@ -296,6 +314,13 @@ protected:
 
 	UPROPERTY(Transient, VisibleAnywhere, AdvancedDisplay, Category = Properties)
 	uint32 GenerationGridSize = PCGHiGenGrid::UnboundedGridSize();
+
+	// Current editing mode that depends on the serialized editing mode and loading
+	UPROPERTY(Transient, EditAnywhere, AdvancedDisplay, Category = Properties, meta = (DisplayName = "Editing Mode", EditCondition = "!bIsComponentLocal"))
+	EPCGEditorDirtyMode CurrentEditingMode = EPCGEditorDirtyMode::Normal;
+
+	UPROPERTY(VisibleAnywhere, AdvancedDisplay, Category = Properties, meta = (NoResetToDefault))
+	EPCGEditorDirtyMode SerializedEditingMode = EPCGEditorDirtyMode::Normal;
 
 #if WITH_EDITORONLY_DATA
 	UPROPERTY()
@@ -362,6 +387,9 @@ private:
 	TArray<const UPCGSettings*> GatherSettingsTrackingActor(const AActor* InActor, const bool bIntersect, const TSet<FName>& InRemovedTags, const UObject* InOriginatingChangeObject) const;
 
 	bool ShouldTrackLandscape() const;
+
+	void MarkResourcesAsTransientOnLoad();
+	bool DeletePreviewResources();
 #endif
 
 	FBox GetGridBounds(const AActor* InActor) const;
@@ -388,6 +416,11 @@ private:
 
 	UPROPERTY()
 	TArray<TObjectPtr<UPCGManagedResource>> GeneratedResources;
+
+#if WITH_EDITORONLY_DATA
+	UPROPERTY(Transient)
+	TArray<TObjectPtr<UPCGManagedResource>> LoadedPreviewResources;
+#endif
 
 	// When doing a cleanup, locking resource modification. Used as sentinel.
 	bool GeneratedResourcesInaccessible = false;
@@ -458,6 +491,11 @@ protected:
 
 	UPROPERTY()
 	TArray<TObjectPtr<UPCGManagedResource>> GeneratedResources;
+
+#if WITH_EDITORONLY_DATA
+	UPROPERTY()
+	TArray<TObjectPtr<UPCGManagedResource>> LoadedPreviewResources;
+#endif
 
 	UPROPERTY()
 	TObjectPtr<const UPCGComponent> SourceComponent;

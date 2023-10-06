@@ -1338,6 +1338,23 @@ void UPCGSubsystem::NotifyGraphChanged(UPCGGraph* InGraph)
 	}
 }
 
+void UPCGSubsystem::PropagateEditingModeToLocalComponents(UPCGComponent* InComponent, EPCGEditorDirtyMode EditingMode)
+{
+	if (ensure(InComponent && InComponent->IsPartitioned()))
+	{
+		FBox Bounds = ActorAndComponentMapping.PartitionedOctree.GetBounds(InComponent);
+		if (!Bounds.IsValid)
+		{
+			return;
+		}
+
+		ActorAndComponentMapping.ForAllIntersectingPartitionActors(Bounds, [InComponent, EditingMode](APCGPartitionActor* Actor)
+		{
+			Actor->ChangeTransientState(InComponent, EditingMode);
+		});
+	}
+}
+
 void UPCGSubsystem::CleanFromCache(const IPCGElement* InElement, const UPCGSettings* InSettings/*= nullptr*/)
 {
 	if (GraphExecutor)

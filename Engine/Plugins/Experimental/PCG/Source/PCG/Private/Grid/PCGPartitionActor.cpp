@@ -93,6 +93,50 @@ void APCGPartitionActor::BeginDestroy()
 	Super::BeginDestroy();
 }
 
+void APCGPartitionActor::Serialize(FArchive& Ar)
+{
+#if WITH_EDITOR
+	TMap<TObjectPtr<UPCGComponent>, TSoftObjectPtr<UPCGComponent>> LocalToOriginalCopy;
+
+	if (Ar.IsSaving())
+	{
+		LocalToOriginalCopy = MoveTemp(LocalToOriginal);
+
+		LocalToOriginal.Reset();
+		for (const auto& It : LocalToOriginalCopy)
+		{
+			if (!It.Key->HasAnyFlags(RF_Transient))
+			{
+				LocalToOriginal.Add(It);
+			}
+		}
+
+		// For components that were cleared but marked as load-as-preview
+		// we need to keep those around only if the original is still in its original state,
+		// i.e. the serialization mode is load on preview and the current mode is preview.
+		for (const auto& It : LoadedPreviewComponents)
+		{
+			if (UPCGComponent* OriginalComponent = It.Value.Get())
+			{
+				if (OriginalComponent->GetSerializedEditingMode() == EPCGEditorDirtyMode::LoadAsPreview && OriginalComponent->GetSerializedEditingMode() == EPCGEditorDirtyMode::Preview)
+				{
+					LocalToOriginal.Add(It);
+				}
+			}
+		}
+	}
+#endif
+
+	Super::Serialize(Ar);
+
+#if WITH_EDITOR
+	if (Ar.IsSaving())
+	{
+		LocalToOriginal = MoveTemp(LocalToOriginalCopy);
+	}
+#endif
+}
+
 void APCGPartitionActor::Destroyed()
 {
 #if WITH_EDITOR
@@ -303,16 +347,17 @@ void APCGPartitionActor::AddGraphInstance(UPCGComponent* OriginalComponent)
 	if (LocalComponent)
 	{
 		// Update properties as needed and early out
+		LocalComponent->SetEditingMode(OriginalComponent->GetEditingMode(), OriginalComponent->GetSerializedEditingMode());
 		LocalComponent->SetPropertiesFromOriginal(OriginalComponent);
 		LocalComponent->MarkAsLocalComponent();
 		LocalComponent->SetGenerationGridSize(PCGGridSize);
 		return;
 	}
 
-	Modify();
+	Modify(!OriginalComponent->IsInPreviewMode());
 
 	// Create a new local component
-	LocalComponent = NewObject<UPCGComponent>(this);
+	LocalComponent = NewObject<UPCGComponent>(this, NAME_None, OriginalComponent->IsInPreviewMode() ? RF_Transient : RF_NoFlags);
 	LocalComponent->MarkAsLocalComponent();
 	LocalComponent->SetGenerationGridSize(PCGGridSize);
 
@@ -320,6 +365,8 @@ void APCGPartitionActor::AddGraphInstance(UPCGComponent* OriginalComponent)
 	OriginalToLocal.Emplace(OriginalComponent, LocalComponent);
 	LocalToOriginal.Emplace(LocalComponent, OriginalComponent);
 
+	// Implementation note: since this is a new component, we need to use the current editing mode only for both the current & serialized editing modes
+	LocalComponent->SetEditingMode(/*InEditingMode=*/OriginalComponent->GetEditingMode(), /*InSerializedEditingMode=*/OriginalComponent->GetEditingMode());
 	LocalComponent->SetPropertiesFromOriginal(OriginalComponent);
 
 	LocalComponent->RegisterComponent();
@@ -345,12 +392,13 @@ void APCGPartitionActor::RemapGraphInstance(const UPCGComponent* OldOriginalComp
 
 	if (!bIsLoading)
 	{
-		Modify();
+		Modify(!LocalComponent->IsInPreviewMode());
 	}
 
 	OriginalToLocal.Remove(OldOriginalComponent);
 	LocalToOriginal.Remove(LocalComponent);
 
+	LocalComponent->SetEditingMode(NewOriginalComponent->GetEditingMode(), NewOriginalComponent->GetSerializedEditingMode());
 	LocalComponent->SetPropertiesFromOriginal(NewOriginalComponent);
 	OriginalToLocal.Emplace(NewOriginalComponent, LocalComponent);
 	LocalToOriginal.Emplace(LocalComponent, NewOriginalComponent);
@@ -376,16 +424,26 @@ bool APCGPartitionActor::RemoveGraphInstance(UPCGComponent* OriginalComponent)
 		return false;
 	}
 
-	Modify();
+	Modify(!LocalComponent->IsInPreviewMode());
 
 	OriginalToLocal.Remove(OriginalComponent);
 	LocalToOriginal.Remove(LocalComponent);
 
 	// TODO Add option to not cleanup?
 	LocalComponent->CleanupLocalImmediate(/*bRemoveComponents=*/true);
-	LocalComponent->DestroyComponent();
 
-	return OriginalToLocal.IsEmpty();
+	// If the component is tagged as "preview-on-load" we shouldn't actually remove it, otherwise we'll cause a change on the actor.
+	if (LocalComponent->GetEditingMode() == EPCGEditorDirtyMode::Preview && LocalComponent->GetSerializedEditingMode() == EPCGEditorDirtyMode::LoadAsPreview)
+	{
+		LocalComponent->UnregisterComponent();
+		LoadedPreviewComponents.Emplace(LocalComponent, OriginalComponent);
+	}
+	else
+	{
+		LocalComponent->DestroyComponent();
+	}
+
+	return OriginalToLocal.IsEmpty() && LoadedPreviewComponents.IsEmpty();
 }
 
 void APCGPartitionActor::RemoveLocalComponent(UPCGComponent* LocalComponent)
@@ -482,6 +540,45 @@ TSet<TObjectPtr<UPCGComponent>> APCGPartitionActor::GetAllOriginalPCGComponents(
 	}
 
 	return ResultComponents;
+}
+
+bool APCGPartitionActor::ChangeTransientState(UPCGComponent* OriginalComponent, EPCGEditorDirtyMode EditingMode)
+{
+	check(OriginalComponent);
+
+	// First, propagate the transient state to the matching local component if any
+	if (UPCGComponent* LocalComponent = GetLocalComponent(OriginalComponent))
+	{
+		LocalComponent->SetEditingMode(/*CurrentEditingMode=*/EditingMode, /*SerializedEditingMode=*/EditingMode);
+		LocalComponent->ChangeTransientState(EditingMode);
+	}
+
+	// Then, when switching to anything but preview, we must get rid of any still-loaded components that would have been removed otherwise
+	if (EditingMode != EPCGEditorDirtyMode::Preview)
+	{
+		TArray<UPCGComponent*> LocalComponentsToDelete;
+
+		for (const auto& LoadedPreviewLocalToOriginal : LoadedPreviewComponents)
+		{
+			if (LoadedPreviewLocalToOriginal.Value == OriginalComponent)
+			{
+				LocalComponentsToDelete.Add(LoadedPreviewLocalToOriginal.Key);
+			}
+		}
+
+		// Streamlined version of RemoveGraphInstance
+		Modify(!LocalComponentsToDelete.IsEmpty());
+
+		for (UPCGComponent* LocalComponent : LocalComponentsToDelete)
+		{
+			LoadedPreviewComponents.Remove(LocalComponent);
+			LocalComponent->ChangeTransientState(EditingMode);
+			LocalComponent->CleanupLocalImmediate(/*bRemoveComponents=*/true);
+			LocalComponent->DestroyComponent();
+		}
+	}
+
+	return OriginalToLocal.IsEmpty() && LoadedPreviewComponents.IsEmpty();
 }
 
 #endif // WITH_EDITOR

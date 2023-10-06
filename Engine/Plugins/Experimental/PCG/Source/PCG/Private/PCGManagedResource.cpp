@@ -7,7 +7,12 @@
 #include "Helpers/PCGHelpers.h"
 
 #include "Components/InstancedStaticMeshComponent.h"
+#include "Engine/Level.h"
 #include "Utils/PCGGeneratedResourcesLogging.h"
+
+#if WITH_EDITOR
+#include "ObjectTools.h"
+#endif
 
 #include UE_INLINE_GENERATED_CPP_BY_NAME(PCGManagedResource)
 
@@ -45,10 +50,27 @@ bool UPCGManagedResource::ReleaseIfUnused(TSet<TSoftObjectPtr<AActor>>& OutActor
 	return false;
 }
 
+bool UPCGManagedResource::CanBeUsed() const
+{
+#if WITH_EDITOR
+	return !bMarkedTransientOnLoad;
+#else
+	return true;
+#endif
+}
+
 bool UPCGManagedResource::DebugForcePurgeAllResourcesOnGenerate()
 {
 	return CVarForceReleaseResourcesOnGenerate.GetValueOnAnyThread();
 }
+
+#if WITH_EDITOR
+void UPCGManagedResource::ChangeTransientState(bool /*bNowTransient*/)
+{
+	// Any change in the transient state resets the transient state that was set on load, regardless of the bNowTransient flag
+	bMarkedTransientOnLoad = false;
+}
+#endif // WITH_EDITOR
 
 void UPCGManagedActors::PostEditImport()
 {
@@ -83,7 +105,26 @@ bool UPCGManagedActors::Release(bool bHardRelease, TSet<TSoftObjectPtr<AActor>>&
 		return false;
 	}
 
-	OutActorsToDelete.Append(GeneratedActors);
+#if WITH_EDITOR
+	if (bMarkedTransientOnLoad)
+	{
+		// Here, instead of adding the actors to be deleted (which has the side effect of potentially emptying the package, which leads to its deletion, we will hide the actors instead
+		for (TSoftObjectPtr<AActor> GeneratedActor : GeneratedActors)
+		{
+			// In rare cases where the actor wouldn't be currently loaded (in WP) we must make sure it is done here
+			if (AActor* Actor = GeneratedActor.LoadSynchronous())
+			{
+				Actor->SetIsTemporarilyHiddenInEditor(true);
+				Actor->SetHidden(true);
+				Actor->SetActorEnableCollision(false);
+			}
+		}
+	}
+	else
+#endif // WITH_EDITOR
+	{
+		OutActorsToDelete.Append(GeneratedActors);
+	}
 
 	PCGGeneratedResourcesLogging::LogManagedActorsHardRelease(GeneratedActors);
 
@@ -107,7 +148,13 @@ bool UPCGManagedActors::Release(bool bHardRelease, TSet<TSoftObjectPtr<AActor>>&
 		}
 	}
 
-	GeneratedActors.Reset();
+#if WITH_EDITOR
+	if (!bMarkedTransientOnLoad)
+#endif
+	{
+		GeneratedActors.Reset();
+	}
+	
 	return true;
 }
 
@@ -162,6 +209,66 @@ void UPCGManagedActors::MarkAsReused()
 	}
 }
 
+#if WITH_EDITOR
+void UPCGManagedActors::ChangeTransientState(bool bNowTransient)
+{
+	TSet<UPackage*> PackagesToCleanup;
+
+	for (TSoftObjectPtr<AActor> GeneratedActor : GeneratedActors)
+	{
+		// Make sure to load if needed because we need to affect the actors regardless of the current WP state
+		if (GeneratedActor.LoadSynchronous() != nullptr)
+		{
+			// If this is changed during loading, we shouldn't set the actor to be transient if we're using external packages,
+			// otherwise the package will get deleted spuriously.
+			if (bNowTransient)
+			{
+				if (!GeneratedActor->IsPackageExternal())
+				{
+					GeneratedActor->SetFlags(RF_Transient);
+				}
+			}
+			else
+			{
+				GeneratedActor->ClearFlags(RF_Transient);
+			}
+
+			if (GeneratedActor->GetLevel() && GeneratedActor->GetLevel()->IsUsingExternalActors())
+			{
+				if (bNowTransient)
+				{
+					PackagesToCleanup.Add(GeneratedActor->GetExternalPackage());
+				}
+
+				GeneratedActor->SetPackageExternal(/*bExternal=*/!bNowTransient, /*bShouldDirty=*/false);
+			}
+
+			if (!bNowTransient || GeneratedActor->IsPackageExternal())
+			{
+				ForEachObjectWithOuter(GeneratedActor.Get(), [bNowTransient](UObject* Object)
+				{
+					if (bNowTransient)
+					{
+						Object->SetFlags(RF_Transient);
+					}
+					else
+					{
+						Object->ClearFlags(RF_Transient);
+					}
+				});
+			}
+		}
+	}
+
+	if (!PackagesToCleanup.IsEmpty())
+	{
+		ObjectTools::CleanupAfterSuccessfulDelete(PackagesToCleanup.Array(), /*bPerformanceReferenceCheck=*/true);
+	}
+
+	Super::ChangeTransientState(bNowTransient);
+}
+#endif // WITH_EDITOR
+
 void UPCGManagedComponent::PostEditImport()
 {
 	Super::PostEditImport();
@@ -201,6 +308,16 @@ void UPCGManagedComponent::PostEditImport()
 	}
 }
 
+#if WITH_EDITOR
+void UPCGManagedComponent::HideComponent()
+{
+	if (GeneratedComponent.IsValid())
+	{
+		GeneratedComponent->UnregisterComponent();
+	}
+}
+#endif // WITH_EDITOR
+
 bool UPCGManagedComponent::Release(bool bHardRelease, TSet<TSoftObjectPtr<AActor>>& /*OutActorsToDelete*/)
 {
 	TRACE_CPUPROFILER_EVENT_SCOPE(UPCGManagedComponent::Release);
@@ -210,16 +327,26 @@ bool UPCGManagedComponent::Release(bool bHardRelease, TSet<TSoftObjectPtr<AActor
 
 	if (GeneratedComponent.IsValid())
 	{
-		if (bDeleteComponent)
+#if WITH_EDITOR
+		if (bMarkedTransientOnLoad)
 		{
-			GeneratedComponent->DestroyComponent();
-			ForgetComponent();
+			HideComponent();
+			bIsMarkedUnused = true;
 		}
 		else
+#endif // WITH_EDITOR
 		{
-			// We can only mark it unused if we can reset the component.
-			bIsMarkedUnused = true;
-			GeneratedComponent->ComponentTags.Add(PCGHelpers::MarkedForCleanupPCGTag);
+			if (bDeleteComponent)
+			{
+				GeneratedComponent->DestroyComponent();
+				ForgetComponent();
+			}
+			else
+			{
+				// We can only mark it unused if we can reset the component.
+				bIsMarkedUnused = true;
+				GeneratedComponent->ComponentTags.Add(PCGHelpers::MarkedForCleanupPCGTag);
+			}
 		}
 	}
 	else
@@ -317,6 +444,44 @@ void UPCGManagedComponent::MarkAsReused()
 		GeneratedComponent->ComponentTags.Remove(PCGHelpers::MarkedForCleanupPCGTag);
 	}
 }
+
+#if WITH_EDITOR
+void UPCGManagedComponent::ChangeTransientState(bool bNowTransient)
+{
+	if (GeneratedComponent.Get())
+	{
+		const bool bWasTransient = GeneratedComponent->HasAnyFlags(RF_Transient);
+
+		if (bWasTransient != bNowTransient)
+		{
+			if (bNowTransient)
+			{
+				GeneratedComponent->SetFlags(RF_Transient);
+			}
+			else
+			{
+				GeneratedComponent->ClearFlags(RF_Transient);
+			}
+
+			ForEachObjectWithOuter(GeneratedComponent.Get(), [bNowTransient](UObject* Object)
+			{
+				if (bNowTransient)
+				{
+					Object->SetFlags(RF_Transient);
+				}
+				else
+				{
+					Object->ClearFlags(RF_Transient);
+				}
+			});
+
+			GeneratedComponent->MarkPackageDirty(); // should dirty actor this component is attached to
+		}
+	}
+
+	Super::ChangeTransientState(bNowTransient);
+}
+#endif // WITH_EDITOR
 
 void UPCGManagedISMComponent::PostLoad()
 {
