@@ -55,6 +55,38 @@ void VProcedure::MarkReferencedCellsImpl(VCell* ThisCell, FMarkStack& MarkStack)
 	{
 		This.Constants[Index].Mark(MarkStack);
 	}
+
+	// We also need to mark the immediate operands for each opcode to make sure that the GC doesn't sweep them.
+	for (FOp* CurrentOp = This.GetOpsBegin(); CurrentOp != This.GetOpsEnd();)
+	{
+		checkf(CurrentOp != nullptr, TEXT("The current opcode was invalid!"));
+		switch (CurrentOp->Opcode)
+		{
+#define VISIT_OP(Name)                                                                                               \
+	case EOpcode::Name:                                                                                              \
+	{                                                                                                                \
+		FOp##Name* CurrentDerivedOp = static_cast<FOp##Name*>(CurrentOp);                                            \
+		CurrentDerivedOp->ForEachOperand([&MarkStack](EOperandRole Role, auto& Operand) {                            \
+			using DecayedType = std::decay_t<decltype(Operand)>;                                                     \
+			if constexpr (std::is_same_v<DecayedType, FValueOperand> || std::is_same_v<DecayedType, FRegisterIndex>) \
+			{                                                                                                        \
+				return;                                                                                              \
+			}                                                                                                        \
+			else if (Role == EOperandRole::Immediate)                                                                \
+			{                                                                                                        \
+				Operand.Mark(MarkStack);                                                                             \
+			}                                                                                                        \
+		});                                                                                                          \
+		CurrentOp = BitCast<FOp*>(CurrentDerivedOp + 1);                                                             \
+		break;                                                                                                       \
+	}
+			VERSE_ENUM_OPS(VISIT_OP)
+#undef VISIT_OP
+			default:
+				V_DIE("Invalid opcode encountered: %u during marking!", static_cast<FOpcodeInt>(CurrentOp->Opcode));
+				break;
+		}
+	}
 }
 
 } // namespace Verse

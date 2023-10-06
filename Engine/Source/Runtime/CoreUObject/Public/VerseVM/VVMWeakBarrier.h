@@ -64,6 +64,11 @@ struct TWeakBarrier
 	{
 	}
 
+	bool operator==(const TWeakBarrier& Other) const
+	{
+		return Value == Other.Value;
+	}
+
 	template <typename TResult = void>
 	std::enable_if_t<!bIsVValue, TResult> Set(T& NewValue)
 	{

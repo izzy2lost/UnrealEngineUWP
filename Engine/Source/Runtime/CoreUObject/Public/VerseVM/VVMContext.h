@@ -307,7 +307,7 @@ struct FAccessContext : FContext
 		GetImpl()->RunWriteBarrier(Cell);
 	}
 
-	void RunWriteBarrierNonNull(VCell* Cell) const
+	void RunWriteBarrierNonNull(const VCell* Cell) const
 	{
 		GetImpl()->RunWriteBarrierNonNull(Cell);
 	}

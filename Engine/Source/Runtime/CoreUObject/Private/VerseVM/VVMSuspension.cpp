@@ -30,8 +30,8 @@ void VBytecodeSuspension::MarkReferencedCellsImpl(VCell* ThisCell, FMarkStack& M
 	VSuspension::MarkReferencedCellsImpl(&This, MarkStack);
 	This.Procedure.Mark(MarkStack);
 	This.CaptureSwitch([&MarkStack](auto& Captures) {
-		Captures.ForEachOperand([&MarkStack](EOperandRole, VValue Value) {
-			Value.Mark(MarkStack);
+		Captures.ForEachOperand([&MarkStack](EOperandRole, auto Value) {
+			Value.Mark(MarkStack); // Whether or not this is a `VValue` or `TWriteBarrier<T>`, just mark it.
 		});
 	});
 }

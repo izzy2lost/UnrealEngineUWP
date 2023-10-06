@@ -132,7 +132,7 @@ public:
 		return Word->load(std::memory_order_relaxed) & Mask;
 	}
 
-	static uint32 EmergentTypePtrToOffset(VEmergentType* EmergentType)
+	static uint32 EmergentTypePtrToOffset(const VEmergentType* EmergentType)
 	{
 		uint32 Offset = (BitCast<uint8*>(EmergentType) - BitCast<uint8*>(FHeap::EmergentTypeBase)) / FHeap::EmergentAlignment;
 		checkf(EmergentType == EmergentTypeOffsetToPtr(Offset),

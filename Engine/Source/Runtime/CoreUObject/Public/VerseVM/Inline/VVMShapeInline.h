@@ -14,10 +14,120 @@
 
 namespace Verse
 {
-
-inline const VShape::VEntry* VShape::GetField(FAllocationContext Context, VUniqueString& Name) const
+inline bool VFields::FFieldsMapKeyFuncs::Matches(KeyInitType A, KeyInitType B)
 {
-	if (const VShape::VEntry* Field = Fields.Find({Context, Name}))
+	return A == B;
+}
+
+inline bool VFields::FFieldsMapKeyFuncs::Matches(KeyInitType A, const VUniqueString& B)
+{
+	return *(A.Get()) == B;
+}
+
+inline uint32 VFields::FFieldsMapKeyFuncs::GetKeyHash(KeyInitType Key)
+{
+	return GetTypeHash(Key);
+}
+
+inline uint32 VFields::FFieldsMapKeyFuncs::GetKeyHash(const VUniqueString& Key)
+{
+	return GetTypeHash(Key);
+}
+
+inline VFields::VEntry::VEntry(const VFields::VEntry& Other)
+	: Index(Other.Index)
+	, Type(Other.Type)
+{
+	new (&Constant) TWriteBarrier<VValue>(Other.Constant);
+}
+
+inline VFields::VEntry::VEntry(VFields::VEntry&& Other)
+	: Index(Other.Index)
+	, Type(Other.Type)
+{
+	new (&Constant) TWriteBarrier<VValue>(MoveTemp(Other.Constant));
+}
+
+inline VFields::VEntry::VEntry(const uint64 InIndex, const bool bIsMutable)
+	: Index(InIndex)
+	, Constant({})
+	, Type(bIsMutable ? EFieldType::Mutable : EFieldType::Offset) {}
+
+inline VFields::VEntry::VEntry(FAccessContext Context, VValue InConstant, const EFieldType FieldType)
+	: Index(0)
+	, Constant(TWriteBarrier<VValue>{Context, InConstant})
+	, Type(FieldType)
+{
+}
+
+inline VFields::VEntry::VEntry(FAccessContext Context, VValue InConstant)
+	: VFields::VEntry::VEntry(Context, InConstant, EFieldType::Constant) {}
+
+inline bool VFields::VEntry::operator==(const VFields::VEntry& Other) const
+{
+	if (Type != Other.Type || Index != Other.Index)
+	{
+		return false;
+	}
+	return VValue::Equal(
+		FRunningContextPromise(),
+		Constant.Get(),
+		Other.Constant.Get(),
+		[](VValue Left, VValue Right) {
+			checkSlow(!Left.IsPlaceholder());
+			checkSlow(!Right.IsPlaceholder());
+		});
+}
+
+inline VFields::VFields(FAllocationContext Context, VFields::FieldsMap&& InFields)
+	: VCell(Context, &GlobalTrivialEmergentType.Get(Context))
+	, Fields(MoveTemp(InFields))
+{
+}
+
+inline void VFields::MarkFields(VFields::FieldsMap& Fields, FMarkStack& MarkStack)
+{
+	for (auto It = Fields.CreateIterator(); It; ++It)
+	{
+		switch (It->Value.Type)
+		{
+			case EFieldType::Constant:
+				It->Value.Constant.Mark(MarkStack);
+				break;
+			case EFieldType::Offset:
+			case EFieldType::Mutable:
+				break;
+			default:
+				VERSE_UNREACHABLE();
+		}
+		It->Key.Mark(MarkStack);
+	}
+}
+
+inline void VFields::MarkReferencedCellsImpl(VCell* ThisCell, FMarkStack& MarkStack)
+{
+	VHeapValue::MarkReferencedCellsImpl(ThisCell, MarkStack);
+	VFields* This = static_cast<VFields*>(ThisCell);
+	VFields::MarkFields(This->Fields, MarkStack);
+}
+
+inline VFields& VFields::VFields::New(FAllocationContext Context, VFields::FieldsMap&& InFields)
+{
+	// We allocate in the destructor space here since we're making `VFields` destructible so that it can
+	// destruct its `TMap` member of fields.
+	return *new (Context.Allocate(FHeap::DestructorSpace, sizeof(VFields))) VFields(Context, MoveTemp(InFields));
+}
+
+inline VFields::FieldsMap& VFields::GetFields()
+{
+	return Fields;
+}
+
+inline const VFields::VEntry* VShape::GetField(FAllocationContext Context, const VUniqueString& Name) const
+{
+	// NOTE: It should be safe to `const_cast` here because we're really just constructing a `TWriteBarrier`
+	// around the string for the sake of lookup; it doesn't need to mutate the actual string itself.
+	if (const VFields::VEntry* Field = Fields.FindByHash(GetTypeHash(Name), Name))
 	{
 		return Field;
 	}
@@ -25,6 +135,19 @@ inline const VShape::VEntry* VShape::GetField(FAllocationContext Context, VUniqu
 	{
 		return nullptr;
 	}
+}
+
+inline void VFields::RunDestructorImpl(VCell* This)
+{
+	VFields& ThisFields = *static_cast<VFields*>(This);
+	ThisFields.~VFields();
+}
+
+inline void VShape::MarkReferencedCellsImpl(VCell* ThisCell, FMarkStack& MarkStack)
+{
+	VHeapValue::MarkReferencedCellsImpl(ThisCell, MarkStack);
+	VShape& This = ThisCell->StaticCast<VShape>();
+	VFields::MarkFields(This.Fields, MarkStack);
 }
 
 inline uint64 VShape::GetNumFields() const
@@ -37,10 +160,11 @@ inline bool VShape::operator==(const VShape& Other) const
 	return Fields.OrderIndependentCompareEqual(Other.Fields);
 }
 
-inline uint32 GetTypeHash(const VShape::VEntry& Field)
+inline uint32 GetTypeHash(const VFields::VEntry& Field)
 {
 	switch (Field.Type)
 	{
+		case Verse::EFieldType::Mutable:
 		case Verse::EFieldType::Offset:
 			return HashCombineFast(::GetTypeHash(static_cast<int8>(Field.Type)), ::GetTypeHash(Field.Index));
 		case Verse::EFieldType::Constant:
@@ -61,4 +185,29 @@ inline uint32 GetTypeHash(const VShape& Shape)
 	}
 	return Hash;
 }
+
+inline const VFields::FieldsMap& VShape::GetFields() const
+{
+	return Fields;
+}
+
+inline uint64 VShape::GetNumIndexedFields() const
+{
+	uint64 Result = 0;
+	for (const auto& Pair : Fields)
+	{
+		switch (Pair.Value.Type)
+		{
+			case EFieldType::Offset:
+			case EFieldType::Mutable:
+				++Result;
+				break;
+			case EFieldType::Constant:
+			default:
+				break;
+		}
+	}
+	return Result;
+}
+
 } // namespace Verse

@@ -4,11 +4,11 @@
 #include "VerseVM/VVMBytecodePrinting.h"
 #include "Containers/Map.h"
 #include "Containers/UnrealString.h"
+#include "VerseVM/Inline/VVMValueInline.h"
 #include "VerseVM/VVMBytecode.h"
 #include "VerseVM/VVMBytecodeDispatcher.h"
 #include "VerseVM/VVMLog.h"
 #include "VerseVM/VVMProcedure.h"
-#include "VerseVM/VVMValue.h"
 #include "VerseVM/VVMValuePrinting.h"
 #include <inttypes.h>
 
@@ -169,23 +169,39 @@ private:
 
 		// Right now we just assume that Defs come before Uses, but we could rework this
 		// if this ever breaks printing.
-		Op.ForEachOperandWithName([&](EOperandRole Role, FValueOperand Operand, const char* Name) {
-			switch (Role)
+		Op.ForEachOperandWithName([&](EOperandRole Role, auto& Operand, const char* Name) {
+			using DecayedType = std::decay_t<decltype(Operand)>;
+			if constexpr (std::is_same_v<DecayedType, FValueOperand> || std::is_same_v<DecayedType, FRegisterIndex>)
 			{
-				case EOperandRole::ClobberDef:
-					PrintValueOperand(Operand);
-					String += TEXT(" <- ");
-					break;
-				case EOperandRole::UnifyDef:
-					PrintValueOperand(Operand);
-					String += TEXT(" = ");
-					break;
-				case EOperandRole::Use:
-					PrintOp();
-					String += ArgSeparator();
-					String += FString::Printf(TEXT("%s: "), *FString(Name));
-					PrintValueOperand(Operand);
-					break;
+				switch (Role)
+				{
+					case EOperandRole::ClobberDef:
+						PrintValueOperand(Operand);
+						String += TEXT(" <- ");
+						break;
+					case EOperandRole::UnifyDef:
+						PrintValueOperand(Operand);
+						String += TEXT(" = ");
+						break;
+					case EOperandRole::Use:
+						PrintOp();
+						String += ArgSeparator();
+						String += FString::Printf(TEXT("%s: "), *FString(Name));
+						PrintValueOperand(Operand);
+						break;
+					case EOperandRole::Immediate:
+					default:
+						VERSE_UNREACHABLE();
+				}
+			}
+			else
+			{
+				V_DIE_IF(Role != EOperandRole::Immediate);
+				PrintOp();
+				String += ArgSeparator();
+				String += FString::Printf(TEXT("%s: "), *FString(Name));
+				// We can safely assume that all immediates are wrapped in a `TWriteBarrier`.
+				String += ToString(Context, *Operand.Get());
 			}
 		});
 

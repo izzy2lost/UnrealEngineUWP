@@ -42,7 +42,7 @@ struct VCell
 	VCell(const VCell&) = delete;
 	VCell& operator=(const VCell&) = delete;
 
-	COREUOBJECT_API VCell(FAccessContext, VEmergentType* EmergentType);
+	COREUOBJECT_API VCell(FAccessContext, const VEmergentType* EmergentType);
 
 	const VEmergentType* GetEmergentType() const;
 	const VCppClassInfo* GetCppClassInfo() const;
@@ -154,7 +154,7 @@ struct VHeapValue : VCell
 {
 	COREUOBJECT_API static VCppClassInfo StaticCppClassInfo;
 
-	VHeapValue(FAccessContext Context, VEmergentType* EmergentType)
+	VHeapValue(FAccessContext Context, const VEmergentType* EmergentType)
 		: VCell(Context, EmergentType)
 	{
 	}

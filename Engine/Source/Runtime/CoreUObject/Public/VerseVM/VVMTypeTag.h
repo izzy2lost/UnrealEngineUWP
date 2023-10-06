@@ -13,7 +13,8 @@ class FString;
 #define VERSE_TYPE_TAGS(v) \
 	v(Trivial, "trivial")  \
 	v(Tuple, "tuple")      \
-	v(Object, "object")
+	v(Object, "object")    \
+	v(Class, "class")
 
 namespace Verse
 {

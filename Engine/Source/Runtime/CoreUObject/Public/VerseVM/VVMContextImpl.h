@@ -156,7 +156,7 @@ struct FContextImpl
 		return State.load(std::memory_order_relaxed) & StopRequestedBit;
 	}
 
-	void RunWriteBarrierNonNull(VCell* Cell)
+	void RunWriteBarrierNonNull(const VCell* Cell)
 	{
 		if (FHeap::IsMarking())
 		{

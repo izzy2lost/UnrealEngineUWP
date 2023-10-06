@@ -9,34 +9,46 @@
 #include "Containers/Set.h"
 #include "Containers/StringView.h"
 #include "Templates/UnrealTemplate.h"
-#include "VVMCell.h"
-#include "VVMContext.h"
-#include "VVMGlobalHeapCensusRoot.h"
-#include "VVMGlobalTrivialEmergentTypePtr.h"
-#include "VVMWeakBarrier.h"
+#include "VerseVM/VVMCell.h"
+#include "VerseVM/VVMContext.h"
+#include "VerseVM/VVMGlobalHeapCensusRoot.h"
+#include "VerseVM/VVMGlobalTrivialEmergentTypePtr.h"
+#include "VerseVM/VVMWeakBarrier.h"
 
 namespace Verse
 {
 struct VUTF8String;
 struct VUniqueString;
+class VUniqueStringSetInternPool;
 
-struct FUniqueStringSetKeyFuncs : BaseKeyFuncs<TWeakBarrier<VUniqueString>, TWeakBarrier<VUniqueString>, false>
+template <typename T>
+struct FUniqueStringSetKeyFuncs;
+
+/// We're providing this so that we can avoid constructing `TWriteBarrier`/`TWeakBarrier`s to perform lookups in
+/// the string pool, which are expensive given that they involve a TLS lookup.
+template <typename T>
+struct FUniqueStringSetKeyFuncsBase : BaseKeyFuncs<T, T, false>
 {
 	typedef FUtf8StringView KeyInitType;
 	typedef VUniqueString& ElementInitType;
 
 	static FUtf8StringView GetSetKey(VUniqueString& Element);
-	static FUtf8StringView GetSetKey(const TWeakBarrier<VUniqueString>& Element);
 
-	static FORCEINLINE bool Matches(FUtf8StringView A, FUtf8StringView B)
-	{
-		return A.Equals(B, ESearchCase::CaseSensitive);
-	}
+	static FUtf8StringView GetSetKey(const T& Element);
 
-	static FORCEINLINE uint32 GetKeyHash(FUtf8StringView Key)
-	{
-		return GetTypeHash(Key);
-	}
+	static bool Matches(FUtf8StringView A, FUtf8StringView B);
+
+	static uint32 GetKeyHash(FUtf8StringView Key);
+};
+
+template <>
+struct FUniqueStringSetKeyFuncs<TWeakBarrier<VUniqueString>> : FUniqueStringSetKeyFuncsBase<TWeakBarrier<VUniqueString>>
+{
+};
+
+template <>
+struct FUniqueStringSetKeyFuncs<TWriteBarrier<VUniqueString>> : FUniqueStringSetKeyFuncsBase<TWriteBarrier<VUniqueString>>
+{
 };
 
 class VStringInternPool final : FGlobalHeapCensusRoot
@@ -53,7 +65,7 @@ private:
 
 	// The pool doesn't own the string data, the context does. So these strings are stored as weakrefs.
 	// When the GC conducts a census, this string pool is also cleared of the strings that are marked.
-	TSet<TWeakBarrier<VUniqueString>, FUniqueStringSetKeyFuncs> UniqueStrings;
+	TSet<TWeakBarrier<VUniqueString>, FUniqueStringSetKeyFuncs<TWeakBarrier<VUniqueString>>> UniqueStrings;
 	static UE::FMutex Mutex;
 
 	friend struct VUniqueString;
@@ -202,23 +214,6 @@ private:
 	friend class VStringInternPool;
 };
 
-inline FUtf8StringView FUniqueStringSetKeyFuncs::GetSetKey(VUniqueString& Element)
-{
-	return Element.AsStringView();
-}
-
-inline FUtf8StringView FUniqueStringSetKeyFuncs::GetSetKey(const TWeakBarrier<VUniqueString>& Element)
-{
-	if (const VUniqueString* String = Element.Get())
-	{
-		return String->AsStringView();
-	}
-	else
-	{
-		return FUtf8StringView();
-	}
-}
-
 /// Allows for `VUniqueString` to be used with Unreal hashtable containers like `TMap`/`TSet`.
 inline uint32 GetTypeHash(const VUniqueString& String)
 {
@@ -230,4 +225,104 @@ inline uint32 GetTypeHash(const VUTF8String& String)
 {
 	return GetTypeHash(String.AsStringView());
 }
+
+/// A unique string set. This makes use of a pool so that multiple requests for the same set of unique strings
+/// returns the exact same set object in memory.
+struct VUniqueStringSet : VCell
+{
+	using SetType = TSet<TWriteBarrier<VUniqueString>, FUniqueStringSetKeyFuncs<TWriteBarrier<VUniqueString>>>;
+	COREUOBJECT_API static VCppClassInfo StaticCppClassInfo;
+	COREUOBJECT_API static TGlobalTrivialEmergentTypePtr<&StaticCppClassInfo> GlobalTrivialEmergentType;
+
+	// This allows for this type to be used in range-based loops.
+	class FConstIterator
+	{
+	public:
+		const TWriteBarrier<VUniqueString>& operator*() const;
+		bool operator==(const FConstIterator& Rhs) const;
+		bool operator!=(const FConstIterator& Rhs) const;
+		FConstIterator& operator++();
+
+	private:
+		friend struct VUniqueStringSet;
+		FConstIterator(SetType::TRangedForConstIterator InCurrentIteration);
+		SetType::TRangedForConstIterator CurrentIteration;
+	};
+	FConstIterator begin() const;
+	FConstIterator end() const;
+
+	static VUniqueStringSet& New(FAllocationContext Context, const TSet<VUniqueString*> InSet);
+	static VUniqueStringSet& New(FAllocationContext Context, const std::initializer_list<FUtf8StringView>& InStrings);
+
+	bool operator==(const VUniqueStringSet& Other) const;
+
+	uint32 Num() const;
+
+	FSetElementId FindId(const FUtf8StringView& String) const;
+
+	bool IsValidId(const FSetElementId& Id) const;
+
+private:
+	static SetType FormSet(FAllocationContext Context, const TSet<VUniqueString*>& InSet);
+	VUniqueStringSet(FAllocationContext Context, const TSet<VUniqueString*>& InSet);
+	~VUniqueStringSet() = default;
+
+	static VUniqueStringSet& Make(FAllocationContext Context, const TSet<VUniqueString*>& InSet);
+	static void RunDestructorImpl(VCell* This);
+	static void MarkReferencedCellsImpl(VCell* This, FMarkStack& MarkStack);
+	static bool Equals(const TSet<VUniqueString*>& A, const TSet<VUniqueString*>& B);
+
+	/// Global unique string set pool. This has to be wrapped in a `TLazyInitialized` so that the Verse heap is first
+	/// initialized before this attempts to be initialized.
+	static TLazyInitialized<VUniqueStringSetInternPool> Pool;
+
+	/// The storage for the actual strings in this given set.
+	SetType Strings;
+
+	friend class VUniqueStringSetInternPool;
+	friend struct FHashableUniqueStringSetKeyFuncs;
+};
+
+uint32 GetTypeHash(const TSet<VUniqueString*>& Set);
+uint32 GetTypeHash(const VUniqueStringSet& Set);
+
+/// Allows for lookup into the unique string set pool without unnecessary construction of barriers.
+struct FHashableUniqueStringSetKeyFuncs : BaseKeyFuncs<TWeakBarrier<VUniqueStringSet>, TWeakBarrier<VUniqueStringSet>, /*bAllowDuplicateKeys*/ false>
+{
+	typedef TSet<VUniqueString*> KeyInitType;
+	typedef VUniqueStringSet& ElementInitType;
+
+	// static KeyInitType GetSetKey(KeyInitType& Element);
+
+	static KeyInitType GetSetKey(const TWeakBarrier<VUniqueStringSet>& Element);
+
+	static bool Matches(KeyInitType A, KeyInitType B);
+
+	static uint32 GetKeyHash(KeyInitType Key);
+};
+
+/// A unique set string pool.
+class VUniqueStringSetInternPool final : FGlobalHeapCensusRoot
+{
+private:
+	/// Private constructor since there should only ever be one global instance of this.
+	/// There's no virtual destructor since `TLazyInitialized` is never destroyed and this is meant to be a global string pool.
+	VUniqueStringSetInternPool() = default;
+
+	/// Retrieves an existing string set from the set pool if it exists or creates a new one and returns it.
+	VUniqueStringSet& Intern(FAllocationContext Context, const TSet<VUniqueString*>& InSet);
+
+	/// This gives the pool the ability to conduct census on its own to clear references to the sets.
+	virtual void ConductCensus() override;
+
+	// The pool doesn't own the string data, the context does. So these strings are stored as weakrefs.
+	// When the GC conducts a census, this string pool is also cleared of the strings that are marked.
+	TSet<TWeakBarrier<VUniqueStringSet>, FHashableUniqueStringSetKeyFuncs> Sets;
+
+	static UE::FMutex Mutex;
+
+	friend struct VUniqueStringSet;
+	friend struct TLazyInitialized<VUniqueStringSetInternPool>;
+};
+
 } // namespace Verse

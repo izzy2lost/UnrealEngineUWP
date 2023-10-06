@@ -13,7 +13,7 @@ namespace Verse
 DEFINE_VCPPCLASSINFO_IMPL(VCell, nullptr, TEXT("Cell"));
 DEFINE_VCPPCLASSINFO(VHeapValue, VCell, TEXT("HeapValue"));
 
-VCell::VCell(FAccessContext Context, VEmergentType* EmergentType)
+VCell::VCell(FAccessContext Context, const VEmergentType* EmergentType)
 	: EmergentTypeOffset(FHeap::EmergentTypePtrToOffset(EmergentType))
 {
 	checkSlow(FHeap::OwnsAddress(this));

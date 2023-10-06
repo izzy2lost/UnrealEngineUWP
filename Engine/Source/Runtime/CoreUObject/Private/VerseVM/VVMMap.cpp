@@ -27,7 +27,7 @@ TGlobalTrivialEmergentTypePtr<&VMap::StaticCppClassInfo> VMap::GlobalTrivialEmer
 void VMap::Add(const TWriteBarrier<VValue>& Key, const TWriteBarrier<VValue>& Value)
 {
 	UE::TUniqueLock Lock(MapMutex);
-	size_t PreviousAllocatedSize = GetAllocatedSize();
+	const size_t PreviousAllocatedSize = GetAllocatedSize();
 	InternalMap.Add(Key, Value);
 	FHeap::ReportAllocatedNativeBytes((GetAllocatedSize() - PreviousAllocatedSize));
 }

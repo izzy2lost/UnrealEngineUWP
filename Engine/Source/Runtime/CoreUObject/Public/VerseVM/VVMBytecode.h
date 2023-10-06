@@ -26,9 +26,11 @@ enum class EOpcode : FOpcodeInt
 
 COREUOBJECT_API const char* ToString(EOpcode Opcode);
 
+/// This _must_ match up with the codegen in `VerseVMBytecodeGenerator.cs`.
 enum class EOperandRole : uint8
 {
 	Use,
+	Immediate,
 	ClobberDef,
 	UnifyDef,
 };

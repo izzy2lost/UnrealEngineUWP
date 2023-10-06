@@ -5,9 +5,12 @@
 #include "HAL/Platform.h"
 #include "HAL/PlatformMisc.h"
 #include "VerseVM/Inline/VVMArrayInline.h"
+#include "VerseVM/Inline/VVMClassInline.h"
 #include "VerseVM/Inline/VVMEqualInline.h"
 #include "VerseVM/Inline/VVMIntInline.h"
+#include "VerseVM/Inline/VVMObjectInline.h"
 #include "VerseVM/Inline/VVMTupleInline.h"
+#include "VerseVM/Inline/VVMUTF8StringInline.h"
 #include "VerseVM/Inline/VVMValueInline.h"
 #include "VerseVM/Inline/VVMVarInline.h"
 #include "VerseVM/VVMArray.h"
@@ -239,6 +242,18 @@ class FInterpreter
 		}
 	}
 
+	template <typename T>
+	FString StringifyOperandOrValue(TWriteBarrier<T> Operand)
+	{
+		if constexpr (std::is_same_v<T, VValue>)
+		{
+			return ToString(Context, Operand.Get());
+		}
+		else
+		{
+			return ToString(Context, *Operand.Get());
+		}
+	}
 	FString StringifyOperandOrValue(VValue Value) { return ToString(Context, Value); }
 	FString StringifyOperandOrValue(FValueOperand Operand) { return TraceOperand(Operand); }
 	FString StringifyOperandOrValue(const TArray<FValueOperand>& Operands)
@@ -937,16 +952,6 @@ class FInterpreter
 	}
 
 	template <typename OpType>
-	FOpResult NewOptionImpl(OpType& Op)
-	{
-		VValue Value = GetOperand(Op.Value);
-
-		DEF(Op.Dest, VOption::New(Context, Value));
-
-		return {FOpResult::Normal};
-	}
-
-	template <typename OpType>
 	FOpResult NewTupleImpl(OpType& Op)
 	{
 		const uint32 NumValues = Op.Values.Num();
@@ -957,24 +962,6 @@ class FInterpreter
 			NewTuple.SetValue(Context, Index, VarArgValue);
 		}
 		DEF(Op.Dest, NewTuple);
-
-		return {FOpResult::Normal};
-	}
-
-	template <typename OpType>
-	FOpResult NewMapImpl(OpType& Op)
-	{
-		const uint32 NumKeys = Op.Keys.Num();
-		V_DIE_UNLESS(NumKeys == Op.Values.Num());
-
-		VMap& NewMap = VMap::New(Context);
-		for (uint32 Index = 0; Index < NumKeys; ++Index)
-		{
-			VValue NewKey = GetOperand(Op.Keys[Index]);
-			VValue NewValue = GetOperand(Op.Values[Index]);
-			NewMap.Add(Context, NewKey, NewValue);
-		}
-		DEF(Op.Dest, NewMap);
 
 		return {FOpResult::Normal};
 	}
@@ -1215,6 +1202,143 @@ class FInterpreter
 		}
 
 		return {FOpResult::Normal};
+	}
+
+	template <typename OpType>
+	FOpResult NewOptionImpl(OpType& Op)
+	{
+		VValue Value = GetOperand(Op.Value);
+
+		DEF(Op.Dest, VOption::New(Context, Value));
+
+		return {FOpResult::Normal};
+	}
+
+	template <typename OpType>
+	FOpResult NewMapImpl(OpType& Op)
+	{
+		const uint32 NumKeys = Op.Keys.Num();
+		V_DIE_UNLESS(NumKeys == static_cast<uint32>(Op.Values.Num()));
+
+		VMap& NewMap = VMap::New(Context);
+		for (uint32 Index = 0; Index < NumKeys; ++Index)
+		{
+			VValue NewKey = GetOperand(Op.Keys[Index]);
+			VValue NewValue = GetOperand(Op.Values[Index]);
+			NewMap.Add(Context, NewKey, NewValue);
+		}
+		DEF(Op.Dest, NewMap);
+
+		return {FOpResult::Normal};
+	}
+
+	template <typename OpType>
+	FOpResult NewClassImpl(OpType& Op)
+	{
+		VFields* Fields = Op.Fields.Get();
+
+		TArray<VClass*> InheritedClasses = {};
+		const uint32 NumInherited = Op.Inherited.Num();
+		InheritedClasses.Reserve(NumInherited);
+		for (uint32 Index = 0; Index < NumInherited; ++Index)
+		{
+			const VValue CurrentArg = GetOperand(Op.Inherited[Index]);
+			REQUIRE_CONCRETE(CurrentArg);
+			VClass& InheritedClass = CurrentArg.StaticCast<VClass>();
+			InheritedClasses.Add(&InheritedClass);
+		}
+
+		// We explicitly copy here because we don't want to move the value out of the register, since
+		// subsequent bytecode might be relying on it!
+		VFields::FieldsMap FieldsCopy(Fields->GetFields());
+		VClass& NewClass = VClass::New(Context, MoveTemp(FieldsCopy), InheritedClasses);
+		DEF(Op.Dest, NewClass);
+
+		return {FOpResult::Normal};
+	}
+
+	template <typename OpType>
+	FOpResult NewObjectImpl(OpType& Op)
+	{
+		const VValue& ClassOperand = GetOperand(Op.Class);
+		REQUIRE_CONCRETE(ClassOperand);
+		VClass& Class = ClassOperand.StaticCast<VClass>();
+
+		const uint32 NumFields = Op.Fields->Num();
+		const uint32 NumValues = Op.Values.Num();
+
+		V_DIE_UNLESS(NumFields == NumValues);
+
+		TArray<VFields::VEntry> Values;
+		Values.Reserve(NumValues);
+		for (uint32 Index = 0; Index < NumValues; ++Index)
+		{
+			const VValue& CurrentValue = GetOperand(Op.Values[Index]);
+			REQUIRE_CONCRETE(CurrentValue);
+			Values.Add({Context, CurrentValue});
+		}
+		VObject& NewObject = VObject::New(Context, Class, *Op.Fields.Get(), Values);
+		DEF(Op.Dest, NewObject);
+
+		return {FOpResult::Normal};
+	}
+
+	template <typename OpType>
+	FOpResult LoadFieldImpl(OpType& Op)
+	{
+		const VValue& ObjectOperand = GetOperand(Op.Object);
+		REQUIRE_CONCRETE(ObjectOperand);
+		VObject& Object = ObjectOperand.StaticCast<VObject>();
+		const VValue FieldValue = Object.LoadField(Context, *Op.Name.Get());
+		DEF(Op.Dest, FieldValue);
+		return {FOpResult::Normal};
+	}
+
+	template <typename OpType>
+	FOpResult UnifyFieldImpl(OpType& Op)
+	{
+		const VValue& ObjectOperand = GetOperand(Op.Object);
+		REQUIRE_CONCRETE(ObjectOperand);
+		VObject& Object = ObjectOperand.StaticCast<VObject>();
+
+		VValue ValueOperand = GetOperand(Op.Value);
+		REQUIRE_CONCRETE(ValueOperand);
+
+		const VEmergentType* EmergentType = Object.GetEmergentType();
+		V_DIE_IF(EmergentType == nullptr);
+		const VShape* Shape = EmergentType->Shape.Get();
+		V_DIE_IF(Shape == nullptr);
+		const VFields::VEntry* Field = Shape->GetField(Context, *Op.Name.Get());
+		V_DIE_IF(Field == nullptr);
+		bool bSucceeded = false;
+		switch (Field->Type)
+		{
+			case EFieldType::Constant:
+			{
+				// If the field's data lives on the shape, we effectively just need to `Def` which will handle unification for us.
+				bSucceeded = Def(Field->Constant.Get(), ValueOperand);
+				break;
+			}
+			// If the field's data in question lives on the object, just set it.
+			case EFieldType::Mutable:
+			case EFieldType::Offset:
+			{
+				VRestValue& Slot = Object.GetFieldSlot(Context, *Op.Name.Get());
+				bSucceeded = Def(Slot, ValueOperand);
+				break;
+			}
+			default:
+				V_DIE("Field: %hs has an unsupported type; cannot unify!", Op.Name.Get()->AsCString());
+				break;
+		}
+		if (bSucceeded)
+		{
+			return {FOpResult::Normal};
+		}
+		else
+		{
+			return {FOpResult::Failed};
+		}
 	}
 
 	FOpResult NeqImplHelper(VValue LeftSource, VValue RightSource)
@@ -1553,6 +1677,10 @@ class FInterpreter
 				OP_IMPL(NewMap)
 				OP_IMPL(MapKey)
 				OP_IMPL(MapValue)
+				OP_IMPL(NewClass)
+				OP_IMPL(NewObject)
+				OP_IMPL(LoadField)
+				OP_IMPL(UnifyField)
 
 				BEGIN_OP_CASE(Err)
 				{

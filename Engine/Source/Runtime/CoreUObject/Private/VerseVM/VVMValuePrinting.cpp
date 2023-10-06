@@ -14,6 +14,7 @@
 #include "VerseVM/VVMProcedure.h"
 #include "VerseVM/VVMRational.h"
 #include "VerseVM/VVMRestValue.h"
+#include "VerseVM/VVMShape.h"
 #include "VerseVM/VVMTuple.h"
 #include "VerseVM/VVMUTF8String.h"
 #include "VerseVM/VVMVar.h"
@@ -21,6 +22,21 @@
 
 namespace Verse
 {
+FString ToString(const EFieldType FieldType)
+{
+	switch (FieldType)
+	{
+#define VERSE_VISIT_FIELDTYPE(Name) \
+	case EFieldType::Name:          \
+		return #Name;
+		VERSE_ENUM_FIELDTYPES(VERSE_VISIT_FIELDTYPE)
+#undef VERSE_VISIT_FIELDTYPE
+		default:
+			VERSE_UNREACHABLE();
+	}
+	return "";
+}
+
 FString FDefaultCellFormatter::ToString(FAllocationContext Context, VCell& Cell) const
 {
 	if (Cell.IsA<VTuple>())
@@ -50,9 +66,21 @@ FString FDefaultCellFormatter::ToString(FAllocationContext Context, VCell& Cell)
 			*Rational->Denominator.Get().ToString(Context, *this));
 	}
 
-	if (const ::Verse::VUTF8String* String = Cell.DynamicCast<VUTF8String>())
+	if (const ::Verse::VUniqueString* UniqueString = Cell.DynamicCast<VUniqueString>())
+	{
+		return FString::Printf(TEXT("UniqueString(\"%hs\"), address: %p"), UniqueString->AsCString(), &UniqueString);
+	}
+	else if (const ::Verse::VUTF8String* String = Cell.DynamicCast<VUTF8String>())
 	{
 		return FString::Printf(TEXT("String(\"%hs\")"), String->AsCString());
+	}
+	else if (const ::Verse::VUniqueStringSet* UniqueStringSet = Cell.DynamicCast<VUniqueStringSet>())
+	{
+		return Verse::ToString(Context, *UniqueStringSet);
+	}
+	else if (::Verse::VFields* Fields = Cell.DynamicCast<VFields>())
+	{
+		return Verse::ToString(Context, *Fields, *this);
 	}
 
 	if (VValue Logic(Cell); Logic.IsLogic())
@@ -169,6 +197,34 @@ FString VValue::ToString(FAllocationContext Context, const FCellFormatter& Forma
 FString ToString(FAllocationContext Context, const VRestValue& Value, const FCellFormatter& CellFormatter)
 {
 	return Value.ToString(Context, CellFormatter);
+}
+
+FString ToString(FAllocationContext Context, const VUniqueString& String)
+{
+	return FString::Printf(TEXT("UniqueString(\"%hs\"), address 0x%p"), String.AsCString(), &String);
+}
+
+FString ToString(FAllocationContext Context, const VUniqueStringSet& UniqueStringSet)
+{
+	FString Result = "UniqueStringSet( ";
+	for (auto& CurrentString : UniqueStringSet)
+	{
+		Result += FString::Printf(TEXT("(\"%s\"), "), *ToString(Context, *CurrentString.Get()));
+	}
+	Result += FString::Printf(TEXT("), address 0x%p"), &UniqueStringSet);
+	return Result;
+}
+
+FString ToString(FAllocationContext Context, VFields& Fields, const FCellFormatter& CellFormatter)
+{
+	FString Result = "Fields(\n";
+	for (auto& Entry : Fields.GetFields())
+	{
+		const FString ConstantStringRepresentation = Entry.Value.Constant.Get().ToString(Context, CellFormatter);
+		Result += FString::Printf(TEXT("\t%s : Entry(Index: %d, Constant: %s, Type: %s))\n"), *ToString(Context, *Entry.Key), Entry.Value.Index, *ConstantStringRepresentation, *Verse::ToString(Entry.Value.Type));
+	}
+	Result += FString::Printf(TEXT(")"));
+	return Result;
 }
 
 FString VRestValue::ToString(FAllocationContext Context, const FCellFormatter& CellFormatter) const

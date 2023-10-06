@@ -5,12 +5,14 @@
 #error In order to use VerseVM, WITH_VERSE_VM must be set
 #endif
 
-#include "VVMRestValue.h"
+#include "VerseVM/VVMRestValue.h"
+#include "VerseVM/VVMShape.h"
 
 namespace Verse
 {
 struct VEntry;
 struct VUniqueString;
+struct VClass;
 
 /// A Verse object that may store fields and associated values for those fields on it.
 /// An object points to an emergent type, which in turn points to a "shape".
@@ -18,9 +20,14 @@ struct VUniqueString;
 struct VObject : VHeapValue
 {
 	COREUOBJECT_API static VCppClassInfo StaticCppClassInfo;
+	COREUOBJECT_API static TGlobalTrivialEmergentTypePtr<&StaticCppClassInfo> GlobalTrivialEmergentType;
+
 	static VObject& New(FAllocationContext Context, VEmergentType& InEmergentType);
 
-	const VValue LoadField(FAllocationContext Context, VUniqueString& Name);
+	/// `InValues` should match the order of fields in `InFields` before this is called.
+	static VObject& New(FAllocationContext Context, VClass& InClass, VUniqueStringSet& InFields, const TArray<VFields::VEntry>& InValues);
+
+	const VValue LoadField(FAllocationContext Context, const VUniqueString& Name);
 
 	/// Use this when you are retrieving a `var` from an object and not what the `var` points to.
 	/// The data is retrieved from the object, rather than the shape.
@@ -29,7 +36,10 @@ struct VObject : VHeapValue
 	void SetField(FAllocationContext Context, VUniqueString& Name, VValue Value);
 
 private:
+	static uint64 AllocationSize(const uint64 NumIndexedFields);
+
 	VObject(FAllocationContext Context, VEmergentType& InEmergentType);
+	VObject(FAllocationContext Context, VClass& InClass, VUniqueStringSet& InFields, const TArray<VFields::VEntry>& InValues);
 
 	/*
 	 * Mutable variables store their data as a `VRestValue`.

@@ -64,7 +64,7 @@ struct VType : VCell
 	}
 
 protected:
-	COREUOBJECT_API explicit VType(FAllocationContext Context, EVerseTypeTag T);
+	COREUOBJECT_API explicit VType(FAllocationContext Context, const EVerseTypeTag T);
 };
 
 struct VTrivialType : VType
