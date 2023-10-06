@@ -816,14 +816,6 @@ TSharedRef<SWidget> SAssetViewItem::CreateToolTipWidget() const
 				AddToToolTipInfoBox(InfoBox, LOCTEXT("TileViewTooltipPath", "Path"), FText::FromName(AssetItem->GetItem().GetVirtualPath()), false);
 			}
 
-			{
-				FString VersePath;
-				if (ItemAssetData.GetTagValue(UObject::AssetVersePathTagName(), VersePath))
-				{
-					AddToToolTipInfoBox( InfoBox, LOCTEXT( "TileViewTooltipVersePath", "Asset Verse Path" ), FText::FromString(VersePath), false);
-				}
-			}
-
 			if (ItemAssetData.IsValid() && ItemAssetData.PackageName != NAME_None)
 			{
 				const FString PackagePathWithinRoot = ContentBrowserUtils::GetPackagePathWithinRoot(ItemAssetData.PackageName.ToString());

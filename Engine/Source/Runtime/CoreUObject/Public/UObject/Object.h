@@ -893,9 +893,6 @@ public:
 	/** Get the common tag name used for all asset source file import paths */
 	static COREUOBJECT_API const FName& SourceFileTagName();
 
-	/** Get the common tag name used for all asset verse paths */
-	static COREUOBJECT_API const FName& AssetVersePathTagName();
-
 #if WITH_EDITOR
 
 	/**
