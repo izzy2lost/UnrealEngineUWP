@@ -5,6 +5,7 @@
 #include "AssetViewUtils.h"
 #include "FileHelpers.h"
 #include "ISourceControlModule.h"
+#include "ISourceControlWindowsModule.h"
 #include "SourceControlHelpers.h"
 #include "SourceControlOperations.h"
 #include "Framework/Application/SlateApplication.h"
@@ -405,6 +406,40 @@ bool FSourceControlWindows::PromptForCheckin(FCheckinResultInfo& OutResultInfo, 
 		}
 
 		return bSuccess;
+	}
+
+	// first check if there is a submit override bound
+	if (ISourceControlWindowsModule::Get().SubmitOverrideDelegate.IsBound())
+	{
+		SSubmitOverrideParameters SubmitOverrideParameters;
+		SubmitOverrideParameters.Description = Description.Description.ToString();
+		SubmitOverrideParameters.ToSubmit.SetSubtype<TArray<FString>>(CombinedFileList);
+
+		FSubmitOverrideReply SubmitOverrideReply = ISourceControlWindowsModule::Get().SubmitOverrideDelegate.Execute(SubmitOverrideParameters);
+		switch (SubmitOverrideReply)
+		{
+			//////////////////////////////////////////////////////////
+			case FSubmitOverrideReply::Handled:
+			{
+				OutResultInfo.Result = ECommandResult::Succeeded;
+				OutResultInfo.Description = LOCTEXT("SCC_Checkin_SubmitOverride_Succeeded", "Successfully invoked the submit override!");
+				return true;
+			}
+
+			//////////////////////////////////////////////////////////
+			case FSubmitOverrideReply::Error:
+			{
+				OutResultInfo.Result = ECommandResult::Failed;
+				OutResultInfo.Description = LOCTEXT("SCC_Checkin_SubmitOverride_Failed", "Failed to invoke the submit override!");
+				return false;
+			}
+			
+			//////////////////////////////////////////////////////////
+			case FSubmitOverrideReply::ProviderNotSupported:
+			default:
+				// continue default flow
+				break;
+		}
 	}
 
 	FText VirtualizationFailureMsg;

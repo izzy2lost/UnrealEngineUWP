@@ -2354,6 +2354,58 @@ void SSourceControlChangelistsWidget::OnSubmitChangelist()
 	// The description once edited by the user in the Submit window.
 	FText UserEditChangelistDescription = ChangelistDescriptionToSubmit;
 
+	// first check if there is a submit override bound
+	if (ISourceControlWindowsModule::Get().SubmitOverrideDelegate.IsBound())
+	{
+		// save the changelist description from the widget to perforce
+		const FString Identifier = ChangelistState->GetChangelist()->GetIdentifier();
+
+		SSubmitOverrideParameters SubmitOverrideParameters;
+		SubmitOverrideParameters.Description = UserEditChangelistDescription.ToString();
+		SubmitOverrideParameters.ToSubmit.SetSubtype<FString>(Identifier);
+
+		FSubmitOverrideReply SubmitOverrideReply = ISourceControlWindowsModule::Get().SubmitOverrideDelegate.Execute(SubmitOverrideParameters);
+
+		switch (SubmitOverrideReply)
+		{
+			//////////////////////////////////////////////////////////
+			case FSubmitOverrideReply::Handled:
+			{
+				FNotificationInfo Info(LOCTEXT("SCC_Checkin_SubmitOverride_Succeeded", "Successfully invoke the submit override!"));
+
+				Info.Text = LOCTEXT("SCC_Checkin_SubmitOverride_Succeeded", "Successfully invoked the submit override!");
+				Info.ExpireDuration = 8.0f;
+				Info.HyperlinkText = LOCTEXT("SCC_Checkin_ShowLog", "Show Message Log");
+				Info.Hyperlink = FSimpleDelegate::CreateLambda([]() { FMessageLog("SourceControl").Open(EMessageSeverity::Warning, true); });
+
+				TSharedPtr<SNotificationItem> Notification = FSlateNotificationManager::Get().AddNotification(Info);
+				Notification->SetCompletionState(SNotificationItem::CS_Success);
+				return;
+			}
+			
+			//////////////////////////////////////////////////////////
+			case FSubmitOverrideReply::Error:
+			{
+				FNotificationInfo Info(LOCTEXT("SCC_Checkin_SubmitOverride_Failed", "Failed to invoke the submit override!"));
+
+				Info.Text = LOCTEXT("SCC_Checkin_SubmitOverride_Failed", "Failed to invoke the submit override!");
+				Info.ExpireDuration = 8.0f;
+				Info.HyperlinkText = LOCTEXT("SCC_Checkin_ShowLog", "Show Message Log");
+				Info.Hyperlink = FSimpleDelegate::CreateLambda([]() { FMessageLog("SourceControl").Open(EMessageSeverity::Error, true); });
+
+				TSharedPtr<SNotificationItem> Notification = FSlateNotificationManager::Get().AddNotification(Info);
+				Notification->SetCompletionState(SNotificationItem::CS_Fail);
+				return;
+			}
+
+			//////////////////////////////////////////////////////////
+			case FSubmitOverrideReply::ProviderNotSupported:
+			default:
+				// continue default flow
+				break;
+		}
+	}
+
 	TSharedRef<SWindow> NewWindow = SNew(SWindow)
 		.Title(NSLOCTEXT("SourceControl.ConfirmSubmit", "Title", "Confirm changelist submit"))
 		.SizingRule(ESizingRule::UserSized)
