@@ -92,6 +92,13 @@ public:
 	UPROPERTY( EditAnywhere, BlueprintReadOnly, Category = "USD", config )
 	EUsdRootMotionHandling RootMotionHandling = EUsdRootMotionHandling::NoAdditionalRootMotion;
 
+	/**
+	 * Subdivision level to use for all subdivision meshes on the opened stage. 0 means "don't subdivide".
+	 * The maximum level of subdivision allowed can be configured via the 'USD.Subdiv.MaxSubdivLevel' cvar.
+	 */
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "USD", config)
+	int32 SubdivisionLevel;
+
 public:
 	DECLARE_EVENT_OneParam(AUsdStageActor, FOnActorLoaded, AUsdStageActor*);
 	USDSTAGE_API static FOnActorLoaded OnActorLoaded;
@@ -149,6 +156,9 @@ public:
 
 	UFUNCTION( BlueprintCallable, Category = "USD", meta = ( CallInEditor = "true" ) )
 	USDSTAGE_API void SetRootMotionHandling( EUsdRootMotionHandling NewHandlingStrategy );
+
+	UFUNCTION(BlueprintCallable, Category = "USD", meta = (CallInEditor = "true"))
+	USDSTAGE_API void SetSubdivisionLevel(int32 NewLevel);
 
 	UFUNCTION(BlueprintCallable, Category = "USD", meta = (CallInEditor = "true"))
 	USDSTAGE_API float GetTime() const;

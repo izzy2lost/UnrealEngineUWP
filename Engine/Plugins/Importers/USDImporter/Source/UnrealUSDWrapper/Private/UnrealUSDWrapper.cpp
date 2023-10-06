@@ -144,6 +144,8 @@ namespace UnrealIdentifiers
 	const TfToken UsdUVTexture = TfToken( "UsdUVTexture" );
 
 	const TfToken WorldSpaceNormals = TfToken( "worldSpaceNormals" );
+	const TfToken PrimvarsNormals = TfToken("primvars:normals");
+	const TfToken PrimvarsPoints = TfToken("primvars:points");
 
 	const TfToken GroomAPI = TfToken( "GroomAPI" );
 	const TfToken GroomBindingAPI = TfToken( "GroomBindingAPI" );

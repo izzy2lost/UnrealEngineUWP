@@ -1,6 +1,9 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 
 #include "GeometryCacheUSDStream.h"
+
+#include "USDGeomMeshConversion.h"
+
 #include "DerivedDataCacheInterface.h"
 #include "GeometryCacheMeshData.h"
 #include "GeometryCacheTrackUSD.h"
@@ -8,7 +11,6 @@
 #include "Misc/CoreMisc.h"
 #include "Serialization/MemoryReader.h"
 #include "Serialization/MemoryWriter.h"
-#include "USDGeomMeshConversion.h"
 
 static bool GUsdStreamCacheInDDC = true;
 static FAutoConsoleVariableRef CVarUsdStreamCacheInDDC(
@@ -22,7 +24,7 @@ static int32 kUsdReadConcurrency = 10;
 // differences, etc.) replace the version GUID below with a new one.
 // In case of merge conflicts with DDC versions, you MUST generate a new GUID
 // and set this new GUID as the version.
-#define USDSTREAM_DERIVED_DATA_VERSION TEXT("AB2B7CC003C54AEBBCC5ABDC1B0BFFD8")
+#define USDSTREAM_DERIVED_DATA_VERSION TEXT("BB2B7CC023C54AEBBCC5ABDC1B0BFFD2")
 
 class FUsdStreamDDCUtils
 {
@@ -39,18 +41,41 @@ private:
 	}
 
 public:
-	static FString GetUsdStreamDDCKey(const UE::FUsdStage& Stage, const FString& PrimPath, int32 FrameIndex)
-	{
 #if USE_USD_SDK
-		FString PrimHash = UsdUtils::HashGeomMeshPrim(Stage, PrimPath, FrameIndex);
-
-		if (!PrimHash.IsEmpty())
+	static FString GetUsdStreamDDCKey(
+		const UE::FUsdStage& Stage,
+		const FString& PrimPath,
+		int32 FrameIndex,
+		const UsdToUnreal::FUsdMeshConversionOptions& MeshConversionOptions
+	)
+	{
+		FString Hash;
 		{
-			return BuildDerivedDataKey(PrimHash);
+			FMD5 MD5;
+
+			UsdUtils::HashGeomMeshPrim(Stage, PrimPath, FrameIndex, MD5);
+
+			// Also hash these options because they may affect how the mesh conversion functions end up parsing
+			// the mesh data. This may seem a bit awkward, but it would be weirder still to provide MeshConversionOptions
+			// to HashGeomMeshPrim directly, as it already has a TimeCode parameter.
+			// To remove that and just use the TimeCode within the FUsdMeshConversionOptions instead would mean we would
+			// need to take a local copy of MeshConversionOptions to set FrameIndex as its TimeCode in here (as we can't
+			// modify MeshConversionOptions directly as it's owned by the UsdTrack and we may be called from a thread)
+			MD5.Update((uint8*)&MeshConversionOptions.SubdivisionLevel, sizeof(MeshConversionOptions.SubdivisionLevel));
+			MD5.Update((uint8*)&MeshConversionOptions.PurposesToLoad, sizeof(MeshConversionOptions.PurposesToLoad));
+
+			uint8 Digest[16];
+			MD5.Final(Digest);
+
+			for (int32 i = 0; i < 16; ++i)
+			{
+				Hash += FString::Printf(TEXT("%02x"), Digest[i]);
+			}
 		}
-#endif
-		return {};
+
+		return BuildDerivedDataKey(Hash);
 	}
+#endif
 };
 
 FGeometryCacheUsdStream::FGeometryCacheUsdStream(UGeometryCacheTrackUsd* InUsdTrack, FReadUsdMeshFunction InReadFunc)
@@ -127,7 +152,12 @@ void FGeometryCacheUsdStream::GetMeshData(int32 FrameIndex, int32 ConcurrencyInd
 	if (GUsdStreamCacheInDDC)
 	{
 		const FString& UsdPrimPath = UsdTrack->PrimPath;
-		const FString DerivedDataKey = FUsdStreamDDCUtils::GetUsdStreamDDCKey(UsdTrack->CurrentStagePinned, UsdPrimPath, FrameIndex);
+		const FString DerivedDataKey = FUsdStreamDDCUtils::GetUsdStreamDDCKey(
+			UsdTrack->CurrentStagePinned,
+			UsdPrimPath,
+			FrameIndex,
+			UsdTrack->MeshConversionOptions
+		);
 
 		if (!DerivedDataKey.IsEmpty())
 		{

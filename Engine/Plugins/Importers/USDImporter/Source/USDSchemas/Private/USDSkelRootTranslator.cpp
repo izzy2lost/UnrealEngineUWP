@@ -1309,6 +1309,7 @@ namespace UsdSkelRootTranslatorImpl
 				Options.TimeCode = Context->Time;
 				Options.RenderContext = RenderContextToken;
 				Options.MaterialPurpose = MaterialPurposeToken;
+				Options.SubdivisionLevel = Context->SubdivisionLevel;
 
 				bool bContinueTaskChain = UsdSkelRootTranslatorImpl::LoadAllSkeletalData(
 					SkeletonCache.Get(),

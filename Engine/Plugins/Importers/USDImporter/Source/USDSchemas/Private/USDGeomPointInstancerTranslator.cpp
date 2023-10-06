@@ -133,6 +133,7 @@ void FUsdGeomPointInstancerCreateAssetsTaskChain::SetupTasks()
 			Options.RenderContext = RenderContextToken;
 			Options.MaterialPurpose = MaterialPurposeToken;
 			Options.bMergeIdenticalMaterialSlots = Context->bMergeIdenticalMaterialSlots;
+			Options.SubdivisionLevel = Context->SubdivisionLevel;
 
 			UsdToUnreal::ConvertGeomMeshHierarchy(
 				GetPrim(),

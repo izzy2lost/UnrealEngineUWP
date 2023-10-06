@@ -526,7 +526,7 @@ namespace UsdGeomMeshTranslatorImpl
 		if (InvalidNormalFraction >= GMeshNormalRepairThreshold)
 		{
 			Options |= EComputeNTBsFlags::Normals;
-			UE_LOG(LogUsd, Warning, TEXT("%f%% of the normals from Mesh prim '%s' are invalid. This is at or above the threshold of '%f%%' (configurable via the cvar '%s'), so normals will be discarded and fully recomputed."),
+			UE_LOG(LogUsd, Log, TEXT("%f%% of the normals from Mesh prim '%s' are invalid or unusable. This is at or above the threshold of '%f%%' (configurable via the cvar '%s'), so normals will be discarded and fully recomputed. Note that when the cvar 'USD.Subdiv.IgnoreNormalsWhenSubdividing' is true it is expected for subdivision meshes to have their normals discarded."),
 				InvalidNormalFraction * 100.0f,
 				*PrimPath,
 				GMeshNormalRepairThreshold * 100.0f,
@@ -535,7 +535,7 @@ namespace UsdGeomMeshTranslatorImpl
 		}
 		else if (InvalidNormalFraction > 0)
 		{
-			UE_LOG(LogUsd, Warning, TEXT("%f%% of the normals from Mesh prim '%s' are invalid. This is below the threshold of '%f%%' (configurable via the cvar '%s'), so the invalid normals will be repaired."),
+			UE_LOG(LogUsd, Log, TEXT("%f%% of the normals from Mesh prim '%s' are invalid or unusable. This is below the threshold of '%f%%' (configurable via the cvar '%s'), so the invalid normals will be repaired."),
 				InvalidNormalFraction * 100.0f,
 				*PrimPath,
 				GMeshNormalRepairThreshold * 100.0f,
@@ -967,6 +967,7 @@ void FGeomMeshCreateAssetsTaskChain::SetupTasks()
 			Options.MaterialPurpose = MaterialPurposeToken;
 			Options.bMergeIdenticalMaterialSlots = Context->bMergeIdenticalMaterialSlots;
 			Options.AdditionalTransform = AdditionalTransform;
+			Options.SubdivisionLevel = Context->SubdivisionLevel;
 
 			UsdGeomMeshTranslatorImpl::LoadMeshDescriptions(
 				GetPrim(),

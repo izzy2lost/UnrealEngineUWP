@@ -56,6 +56,12 @@ static FAutoConsoleVariableRef CVarUsdGeometryCacheParallelFrameReads(
 	GUsdGeometryCacheParallelFrameReads,
 	TEXT("Maximum number of mesh frames to read in parallel"));
 
+static bool GEnableSubdiv = false;
+static FAutoConsoleVariableRef CVarEnableSubdiv(
+	TEXT("USD.GeometryCache.EnableSubdiv"),
+	GEnableSubdiv,
+	TEXT("Whether to subdivide Mesh prim data when parsing GeometryCaches via OpenSubdiv, the same way we subdivide the Mesh data that ends up in StaticMeshes"));
+
 namespace UsdGeometryCacheTranslatorImpl
 {
 	bool ProcessGeometryCacheMaterials(const pxr::UsdPrim& UsdPrim, const TArray<UsdUtils::FUsdPrimMaterialAssignmentInfo>& LODIndexToMaterialInfo,
@@ -226,6 +232,7 @@ namespace UsdGeometryCacheTranslatorImpl
 		Args.Options.RenderContext = RenderContextToken;
 		Args.Options.MaterialPurpose = MaterialPurposeToken;
 		Args.Options.bMergeIdenticalMaterialSlots = false; // Don't merge because the GeometryCache is processed as unflattened (ie. one track per mesh)
+		Args.Options.SubdivisionLevel = GEnableSubdiv ? Context->SubdivisionLevel : 0;
 
 		return Args;
 	}
@@ -275,6 +282,7 @@ namespace UsdGeometryCacheTranslatorImpl
 	{
 		// Create and configure a new USDTrack to be added to the GeometryCache
 		UGeometryCacheTrackUsd* UsdTrack = NewObject<UGeometryCacheTrackUsd>(GeometryCache);
+		UsdTrack->MeshConversionOptions = Args.Options;  // Also pass along the options we'll use for mesh conversion so that we can properly hash the prim
 		UsdTrack->Initialize(
 			Args.Stage,
 			PrimPath,
@@ -687,6 +695,7 @@ void FGeometryCacheCreateAssetsTaskChain::SetupTasks()
 			Options.RenderContext = RenderContextToken;
 			Options.MaterialPurpose = MaterialPurposeToken;
 			Options.bMergeIdenticalMaterialSlots = false; // Don't merge because the GeometryCache is processed as unflattened (ie. one track per mesh)
+			Options.SubdivisionLevel = GEnableSubdiv ? Context->SubdivisionLevel : 0;
 
 			// GeometryCache has only one LOD so add just one MeshDescription and MaterialAssignmentInfo
 			FMeshDescription& AddedMeshDescription = LODIndexToMeshDescription.Emplace_GetRef();

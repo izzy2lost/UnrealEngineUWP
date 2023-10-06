@@ -5,10 +5,8 @@
 #include "USDGeomMeshConversion.h"
 
 #include "UnrealUSDWrapper.h"
-#include "USDAssetImportData.h"
 #include "USDAttributeUtils.h"
 #include "USDConversionUtils.h"
-#include "USDErrorUtils.h"
 #include "USDLog.h"
 #include "USDMemory.h"
 #include "USDPrimConversion.h"
@@ -16,20 +14,15 @@
 #include "USDShadeConversion.h"
 #include "USDTypesConversion.h"
 
-#include "UsdWrappers/SdfLayer.h"
 #include "UsdWrappers/SdfPath.h"
-#include "UsdWrappers/UsdAttribute.h"
 #include "UsdWrappers/UsdPrim.h"
 #include "UsdWrappers/UsdStage.h"
 
-#include "AssetRegistry/AssetData.h"
-#include "AssetRegistry/AssetRegistryModule.h"
 #include "Engine/StaticMesh.h"
 #include "Materials/MaterialInstanceConstant.h"
 #include "Materials/MaterialInstanceDynamic.h"
 #include "MeshDescription.h"
 #include "Misc/Paths.h"
-#include "Modules/ModuleManager.h"
 #include "StaticMeshAttributes.h"
 #include "StaticMeshOperations.h"
 #include "StaticMeshResources.h"
@@ -39,9 +32,10 @@
 #endif // WITH_EDITOR
 
 #include "USDIncludesStart.h"
+	#include "opensubdiv/far/primvarRefiner.h"
+	#include "opensubdiv/far/topologyRefiner.h"
 	#include "pxr/imaging/pxOsd/meshTopology.h"
-	#include "pxr/usd/ar/resolver.h"
-	#include "pxr/usd/ar/resolverScopedCache.h"
+	#include "pxr/imaging/pxOsd/refinerFactory.h"
 	#include "pxr/usd/sdf/layer.h"
 	#include "pxr/usd/sdf/layerUtils.h"
 	#include "pxr/usd/sdf/types.h"
@@ -73,6 +67,21 @@ static FAutoConsoleVariableRef CVarMaxInstancesPerPointInstancer(
 	TEXT( "USD.MaxInstancesPerPointInstancer" ),
 	GMaxInstancesPerPointInstancer,
 	TEXT( "We will only parse up to this many instances from any point instancer when reading from USD to UE. Set this to -1 to disable this limit." ) );
+
+static bool GIgnoreNormalsWhenSubdividing = true;
+static FAutoConsoleVariableRef CVarIgnoreNormalsWhenSubdividing(
+	TEXT("USD.Subdiv.IgnoreNormalsWhenSubdividing"),
+	GIgnoreNormalsWhenSubdividing,
+	TEXT("This being true means that whenever we subdivide a mesh we fully ignore the authored normals (if any) and recompute new normals. If this is false we will try interpolating the normals during subdivision like a regular primvar")
+);
+
+static const FString MaxUsdSubdivLevelCvarName = TEXT("USD.Subdiv.MaxSubdivLevel");
+static int32 GMaxSubdivLevel = 6;
+static FAutoConsoleVariableRef CVarMaxSubdivLevel(
+	*MaxUsdSubdivLevelCvarName,
+	GMaxSubdivLevel,
+	TEXT("Maximum allowed level of subdivision (1 means a single iteration of subdivision)")
+);
 
 const FName MeshAttribute::VertexInstance::Velocity("Velocity");
 
@@ -110,11 +119,47 @@ namespace UE::UsdGeomMeshConversion::Private
 
 	pxr::TfToken GetAttrInterpolation(const pxr::UsdAttribute& Attr, const pxr::TfToken& DefaultValue = pxr::UsdGeomTokens->constant)
 	{
+		if (!Attr)
+		{
+			return DefaultValue;
+		}
+
 		pxr::TfToken RetrievedValue;
-		if (Attr && Attr.GetMetadata(pxr::UsdGeomTokens->interpolation, &RetrievedValue))
+		const bool bGotInterpolationValue = Attr.GetMetadata(pxr::UsdGeomTokens->interpolation, &RetrievedValue);
+
+		// If we have an authored value just go ahead and use that
+		if (Attr.HasAuthoredMetadata(pxr::UsdGeomTokens->interpolation) && bGotInterpolationValue)
 		{
 			return RetrievedValue;
 		}
+
+		// Otherwise if our attribute describes an array with a single element and has no authored interpolation assume "constant", as
+		// it's impossible for any other interpolation type to be valid. usdview does this too.
+		// Note we try our best to get anything here and also check timeSampled values in case our default time Get() fails
+		pxr::VtValue TypeErasedValue;
+		if (Attr.Get(&TypeErasedValue) || Attr.Get(&TypeErasedValue, pxr::UsdTimeCode::EarliestTime()))
+		{
+			if (TypeErasedValue.IsArrayValued() && TypeErasedValue.GetArraySize() == 1)
+			{
+				return pxr::UsdGeomTokens->constant;
+			}
+		}
+		// If we couldn't get any actual value for the attribute whatsoever then pretend it doesn't have a valid value for interpolation
+		// either. We need use this because if SubdivideMeshData sees that an attribute has e.g. "vertex" interpolation, it will allocate
+		// and try generating one value for it for every vertex... if we don't have any value to begin with we'll just end up with a zero
+		// value for each instead
+		else
+		{
+			return {};
+		}
+
+		// Otherwise if we don't have an authored value but did manage to get value for interpolation somehow
+		// (maybe as a fallback?) then return that
+		if (bGotInterpolationValue)
+		{
+			return RetrievedValue;
+		}
+
 		return DefaultValue;
 	}
 
@@ -954,26 +999,992 @@ namespace UE::UsdGeomMeshConversion::Private
 		// So that we can reference the prim on error messages
 		FString SourcePrimPath;
 
+		pxr::TfToken Orientation = pxr::UsdGeomTokens->rightHanded;
+
 		pxr::VtArray<int> FaceVertexCounts;
-		pxr::VtArray<int> FaceIndices;
+		pxr::VtArray<int> FaceVertexIndices;
+
+		// Main attributes, which could have come from primvars
 		pxr::VtArray<pxr::GfVec3f> Points;
 		pxr::VtArray<pxr::GfVec3f> Normals;
 		pxr::VtArray<pxr::GfVec3f> Velocities;
 		pxr::VtArray<pxr::GfVec3f> DisplayColors;
 		pxr::VtArray<float> DisplayOpacities;
+		TArray<pxr::VtArray<pxr::GfVec2f>> UVSets;
 
-		pxr::TfToken Orientation = pxr::UsdGeomTokens->rightHanded;
-		pxr::TfToken NormalInterpolation = pxr::UsdGeomTokens->vertex;
-		pxr::TfToken VelocityInterpolation = pxr::UsdGeomTokens->vertex;
-		pxr::TfToken DisplayColorInterpolation = pxr::UsdGeomTokens->constant;
-		pxr::TfToken DisplayOpacityInterpolation = pxr::UsdGeomTokens->constant;
+		pxr::TfToken PointInterpolation;
+		pxr::TfToken NormalInterpolation;
+		pxr::TfToken VelocityInterpolation;
+		pxr::TfToken DisplayColorInterpolation;
+		pxr::TfToken DisplayOpacityInterpolation;
+		TArray<pxr::TfToken> UVSetInterpolations;
+
+		// In case those are indexed primvars, these will contain the indices
+		// Note: Velocities is not a primvar, so it can't have indices
+		pxr::VtArray<int> PointIndices;
+		pxr::VtArray<int> NormalIndices;
+		pxr::VtArray<int> DisplayColorIndices;
+		pxr::VtArray<int> DisplayOpacityIndices;
+		TArray<pxr::VtArray<int>> UVSetIndices;
+
+		// Attributes used for subdivision
+		pxr::TfToken SubdivScheme;
+		pxr::TfToken InterpolateBoundary;
+		pxr::TfToken FaceVaryingInterpolation;
+		pxr::TfToken TriangleSubdivision;
+		pxr::VtArray<int> CornerIndices;
+		pxr::VtArray<float> CornerSharpnesses;
+		pxr::VtArray<int> CreaseIndices;
+		pxr::VtArray<int> CreaseLengths;
+		pxr::VtArray<float> CreaseSharpnesses;
+		pxr::TfToken CreaseMethod = pxr::PxOsdOpenSubdivTokens->uniform;
+		pxr::VtArray<int> HoleIndices;
+
+		UsdUtils::FUsdPrimMaterialAssignmentInfo LocalMaterialInfo;
 
 		TOptional<int32> ProvidedNumUVSets;
-		TArray<TUsdStore<pxr::UsdGeomPrimvar>> PrimvarsByUVIndex;
-
 		int32 MaterialIndexOffset = 0;
-		UsdUtils::FUsdPrimMaterialAssignmentInfo LocalMaterialInfo;
 	};
+
+	bool CollectMeshData(
+		const pxr::UsdPrim& Prim,
+		const UsdToUnreal::FUsdMeshConversionOptions& Options,
+		FUsdMeshData& InOutMeshData,
+		UsdUtils::FUsdPrimMaterialAssignmentInfo& InOutCombinedMaterialAssignments
+	)
+	{
+		FScopedUsdAllocs Allocs;
+
+		pxr::UsdGeomGprim Gprim{Prim};
+		if (!Gprim)
+		{
+			return false;
+		}
+
+		// All pointsBased/Gprim attributes we'll retrieve happen to have default varying interpolation
+		const pxr::TfToken DefaultInterpolation = pxr::UsdGeomTokens->varying;
+
+		InOutMeshData.SourcePrimPath = UsdToUnreal::ConvertPath(Prim.GetPrimPath());
+
+		InOutMeshData.Orientation = GetGprimOrientation(Gprim, Options.TimeCode);
+
+		// DisplayColors
+		if (pxr::UsdGeomPrimvar DisplayColorsPrimvar = Gprim.GetDisplayColorPrimvar())
+		{
+			DisplayColorsPrimvar.Get(&InOutMeshData.DisplayColors, Options.TimeCode);
+			InOutMeshData.DisplayColorInterpolation = GetAttrInterpolation(DisplayColorsPrimvar, DefaultInterpolation);
+			DisplayColorsPrimvar.GetIndices(&InOutMeshData.DisplayColorIndices, Options.TimeCode);
+		}
+
+		// DisplayOpacities
+		if (pxr::UsdGeomPrimvar DisplayOpacitiesPrimvar = Gprim.GetDisplayOpacityPrimvar())
+		{
+			DisplayOpacitiesPrimvar.Get(&InOutMeshData.DisplayOpacities, Options.TimeCode);
+			InOutMeshData.DisplayOpacityInterpolation = GetAttrInterpolation(DisplayOpacitiesPrimvar, DefaultInterpolation);
+			DisplayOpacitiesPrimvar.GetIndices(&InOutMeshData.DisplayOpacityIndices, Options.TimeCode);
+		}
+
+		if (pxr::UsdGeomMesh UsdMesh{Prim})
+		{
+			// Faces
+			if (pxr::UsdAttribute FaceVertexCountsAttr = UsdMesh.GetFaceVertexCountsAttr())
+			{
+				FaceVertexCountsAttr.Get(&InOutMeshData.FaceVertexCounts, Options.TimeCode);
+			}
+
+			// Vertex indices
+			if (pxr::UsdAttribute FaceVertexIndicesAttr = UsdMesh.GetFaceVertexIndicesAttr())
+			{
+				FaceVertexIndicesAttr.Get(&InOutMeshData.FaceVertexIndices, Options.TimeCode);
+			}
+
+			// Points
+			if (pxr::UsdGeomPrimvar PointsPrimvar = pxr::UsdGeomPrimvar(Prim.GetAttribute(UnrealIdentifiers::PrimvarsPoints)))
+			{
+				// Should points always have "vertex" interpolation? Having "varying" forces it to just tessellate instead,
+				// and all OpenSubdiv tutorials use the vertex interpolation type for it
+				PointsPrimvar.Get(&InOutMeshData.Points, Options.TimeCode);
+				InOutMeshData.PointInterpolation = GetAttrInterpolation(PointsPrimvar, pxr::UsdGeomTokens->vertex);
+				PointsPrimvar.GetIndices(&InOutMeshData.PointIndices, Options.TimeCode);
+			}
+			else if (pxr::UsdAttribute PointsAttr = UsdMesh.GetPointsAttr())
+			{
+				PointsAttr.Get(&InOutMeshData.Points, Options.TimeCode);
+				InOutMeshData.PointInterpolation = GetAttrInterpolation(PointsAttr, pxr::UsdGeomTokens->vertex);
+			}
+
+			// Normals
+			if (pxr::UsdGeomPrimvar NormalsPrimvar = pxr::UsdGeomPrimvar(Prim.GetAttribute(UnrealIdentifiers::PrimvarsNormals)))
+			{
+				NormalsPrimvar.Get(&InOutMeshData.Normals, Options.TimeCode);
+				InOutMeshData.NormalInterpolation = GetAttrInterpolation(NormalsPrimvar, DefaultInterpolation);
+				NormalsPrimvar.GetIndices(&InOutMeshData.NormalIndices, Options.TimeCode);
+			}
+			else if (pxr::UsdAttribute NormalsAttr = UsdMesh.GetNormalsAttr())
+			{
+				NormalsAttr.Get(&InOutMeshData.Normals, Options.TimeCode);
+				InOutMeshData.NormalInterpolation = GetAttrInterpolation(NormalsAttr, DefaultInterpolation);
+			}
+
+			// Velocities
+			if (pxr::UsdAttribute VelocitiesAttr = UsdMesh.GetVelocitiesAttr())
+			{
+				VelocitiesAttr.Get(&InOutMeshData.Velocities, Options.TimeCode);
+				InOutMeshData.VelocityInterpolation = GetAttrInterpolation(VelocitiesAttr, DefaultInterpolation);
+			}
+
+			// Collect the subdivision attributes only if we plan on subdividing
+			if (Options.SubdivisionLevel > 0)
+			{
+				if (pxr::UsdAttribute SubdivSchemeAttr = UsdMesh.GetSubdivisionSchemeAttr())
+				{
+					SubdivSchemeAttr.Get(&InOutMeshData.SubdivScheme, Options.TimeCode);
+				}
+
+				if (InOutMeshData.SubdivScheme != pxr::UsdGeomTokens->none)
+				{
+					if (pxr::UsdAttribute InterpolateBoundaryAttr = UsdMesh.GetInterpolateBoundaryAttr())
+					{
+						InterpolateBoundaryAttr.Get(&InOutMeshData.InterpolateBoundary, Options.TimeCode);
+					}
+
+					if (pxr::UsdAttribute FaceVaryingInterpolationAttr = UsdMesh.GetFaceVaryingLinearInterpolationAttr())
+					{
+						FaceVaryingInterpolationAttr.Get(&InOutMeshData.FaceVaryingInterpolation, Options.TimeCode);
+					}
+
+					if (pxr::UsdAttribute TriangleSubdivisionAttr = UsdMesh.GetTriangleSubdivisionRuleAttr())
+					{
+						TriangleSubdivisionAttr.Get(&InOutMeshData.TriangleSubdivision, Options.TimeCode);
+					}
+
+					if (pxr::UsdAttribute CornerIndicesAttr = UsdMesh.GetCornerIndicesAttr())
+					{
+						CornerIndicesAttr.Get(&InOutMeshData.CornerIndices, Options.TimeCode);
+					}
+
+					if (pxr::UsdAttribute CornerSharpnessesAttr = UsdMesh.GetCornerSharpnessesAttr())
+					{
+						CornerSharpnessesAttr.Get(&InOutMeshData.CornerSharpnesses, Options.TimeCode);
+					}
+
+					if (pxr::UsdAttribute CreaseIndicesAttr = UsdMesh.GetCreaseIndicesAttr())
+					{
+						CreaseIndicesAttr.Get(&InOutMeshData.CreaseIndices, Options.TimeCode);
+					}
+
+					if (pxr::UsdAttribute CreaseLengthsAttr = UsdMesh.GetCreaseLengthsAttr())
+					{
+						CreaseLengthsAttr.Get(&InOutMeshData.CreaseLengths, Options.TimeCode);
+					}
+
+					if (pxr::UsdAttribute CreaseSharpnessesAttr = UsdMesh.GetCreaseSharpnessesAttr())
+					{
+						CreaseSharpnessesAttr.Get(&InOutMeshData.CreaseSharpnesses, Options.TimeCode);
+					}
+
+					if (pxr::UsdAttribute HoleIndicesAttr = UsdMesh.GetHoleIndicesAttr())
+					{
+						HoleIndicesAttr.Get(&InOutMeshData.HoleIndices, Options.TimeCode);
+					}
+
+					// For some reason this is not part of the USD schema so just pick the first valid token.
+					// See UsdImagingMeshAdapter::GetSubdivTags
+					InOutMeshData.CreaseMethod = pxr::PxOsdOpenSubdivTokens->uniform;
+				}
+			}
+		}
+
+		// UVs
+		{
+			TArray<TUsdStore<pxr::UsdGeomPrimvar>> PrimvarsToUse;
+
+			// If we already have a primvar to UV index assignment, let's just use that.
+			// When collapsing, we'll do a pre-pass on all meshes to translate and determine this beforehand.
+			if (InOutCombinedMaterialAssignments.PrimvarToUVIndex.Num() > 0)
+			{
+				int32 HighestProvidedUVIndex = 0;
+				for (const TPair<FString, int32>& Pair : InOutCombinedMaterialAssignments.PrimvarToUVIndex)
+				{
+					HighestProvidedUVIndex = FMath::Max(HighestProvidedUVIndex, Pair.Value);
+				}
+				InOutMeshData.ProvidedNumUVSets = HighestProvidedUVIndex + 1;
+
+				TArray<TUsdStore<pxr::UsdGeomPrimvar>> AllMeshUVPrimvars = UsdUtils::GetUVSetPrimvars(Prim, TNumericLimits<int32>::Max());
+				PrimvarsToUse = UsdUtils::AssemblePrimvarsIntoUVSets(AllMeshUVPrimvars, InOutCombinedMaterialAssignments.PrimvarToUVIndex);
+			}
+			// Let's use the best primvar assignment for this particular mesh instead
+			else
+			{
+				PrimvarsToUse = UsdUtils::GetUVSetPrimvars(Prim);
+				InOutCombinedMaterialAssignments.PrimvarToUVIndex = UsdUtils::AssemblePrimvarsIntoPrimvarToUVIndexMap(PrimvarsToUse);
+			}
+
+			// Unpack the primvars we'll be using into simple arrays so that if we want to subdivide this mesh
+			// we can just update those arrays with new data
+			InOutMeshData.UVSets.Reset(PrimvarsToUse.Num());
+			InOutMeshData.UVSetIndices.Reset(PrimvarsToUse.Num());
+			InOutMeshData.UVSetInterpolations.Reset(PrimvarsToUse.Num());
+			for (const TUsdStore<pxr::UsdGeomPrimvar>& PrimvarPtr : PrimvarsToUse)
+			{
+				pxr::VtArray<pxr::GfVec2f>& UVs = InOutMeshData.UVSets.Emplace_GetRef();
+				pxr::VtArray<int>& Indices = InOutMeshData.UVSetIndices.Emplace_GetRef();
+				pxr::TfToken& Interpolation = InOutMeshData.UVSetInterpolations.Emplace_GetRef();
+
+				// There are some code paths where it's OK to end up with an invalid primvar here:
+				// For example when collapsing two cubes and only one of them has the e.g. "st1" primvar:
+				// We will allocate a UV index for it and try reading it on both cubes, and end up with
+				// an invalid primvar in one of them, although it is important to retain the UV set
+				// ordering between the cubes
+				if (pxr::UsdGeomPrimvar Primvar = PrimvarPtr.Get())
+				{
+					ensure(Primvar.Get(&UVs, Options.TimeCode));
+					ensure(Primvar.GetIndices(&Indices, Options.TimeCode) || !Primvar.IsIndexed());
+					Interpolation = GetAttrInterpolation(Primvar, DefaultInterpolation);
+				}
+			}
+		}
+
+		// Material assignments
+		{
+			const bool bProvideMaterialIndices = true;
+			InOutMeshData.LocalMaterialInfo = UsdUtils::GetPrimMaterialAssignments(
+				Prim,
+				Options.TimeCode,
+				bProvideMaterialIndices,
+				Options.RenderContext,
+				Options.MaterialPurpose
+			);
+
+			InOutMeshData.MaterialIndexOffset = InOutCombinedMaterialAssignments.Slots.Num();
+		}
+
+		return true;
+	}
+
+
+	// OpenSubdiv expects the data elements of its buffers to implement a simple interface,
+	// so here we wrap the datatypes we'll be interpolating with that interface
+	struct FSubdivVec2f
+	{
+		pxr::GfVec2f Data;
+
+		void Clear()
+		{
+			Data = {0, 0};
+		}
+
+		void AddWithWeight(const pxr::GfVec2f& Src, float Weight)
+		{
+			Data += Src * Weight;
+		}
+		void AddWithWeight(const FSubdivVec2f& Src, float Weight)
+		{
+			Data += Src.Data * Weight;
+		}
+	};
+
+	struct FSubdivVec3f
+	{
+		pxr::GfVec3f Data;
+
+		void Clear()
+		{
+			Data = {0, 0, 0};
+		}
+
+		void AddWithWeight(const pxr::GfVec3f& Src, float Weight)
+		{
+			Data += Src * Weight;
+		}
+		void AddWithWeight(const FSubdivVec3f& Src, float Weight)
+		{
+			Data += Src.Data * Weight;
+		}
+	};
+
+	struct FSubdivInt
+	{
+		int Data;
+
+		void Clear()
+		{
+			Data = 0;
+		}
+
+		void AddWithWeight(const int& Src, float Weight)
+		{
+			Data += Src * Weight;
+		}
+		void AddWithWeight(const FSubdivInt& Src, float Weight)
+		{
+			Data += Src.Data * Weight;
+		}
+	};
+
+	struct FSubdivFloat
+	{
+		float Data;
+
+		void Clear()
+		{
+			Data = 0;
+		}
+
+		void AddWithWeight(const float& Src, float Weight)
+		{
+			Data += Src * Weight;
+		}
+		void AddWithWeight(const FSubdivFloat& Src, float Weight)
+		{
+			Data += Src.Data * Weight;
+		}
+	};
+
+	// We're going to be doing some reinterpret casting between these, so let's try our best to make sure we're safe
+	static_assert(sizeof(FSubdivVec3f) == sizeof(pxr::GfVec3f) && alignof(FSubdivVec3f) == alignof(pxr::GfVec3f));
+	static_assert(sizeof(FSubdivInt) == sizeof(int) && alignof(FSubdivInt) == alignof(int));
+	static_assert(sizeof(FSubdivFloat) == sizeof(float) && alignof(FSubdivFloat) == alignof(float));
+
+	template<typename T>
+	pxr::VtArray<T> ComputeFlattened(const pxr::VtArray<T>& Values, const pxr::VtArray<int>& Indices)
+	{
+		// Adapted from USD's _ComputeFlattened within pxr\imaging\hd\primvarSchema.cpp
+
+		FScopedUsdAllocs Allocs;
+
+		if (Indices.empty())
+		{
+			return Values;
+		}
+
+		pxr::VtArray<T> Result = pxr::VtArray<T>(Indices.size());
+
+		bool bInvalidIndices = false;
+		for (size_t Index = 0; Index < Indices.size(); ++Index)
+		{
+			int ValueIndex = Indices[Index];
+			if (ValueIndex >= 0 && (size_t)ValueIndex < Values.size())
+			{
+				Result[Index] = Values[ValueIndex];
+			}
+			else
+			{
+				Result[Index] = T();
+				bInvalidIndices = true;
+			}
+		}
+
+		if (bInvalidIndices)
+		{
+			UE_LOG(LogUsd, Warning, TEXT("Invalid primvar indices encountered in ComputeFlattened"));
+		}
+
+		return Result;
+	};
+
+	// In-place converts SharedValuesArray from an array of values that are shared according to the topology described in
+	// 'Level' into a flattened array that has a single value for each face vertex.
+	template<typename T>
+	void FlattenFaceVaryingValues(T& SharedValuesArray, int32 FaceVaryingChannel, const OpenSubdiv::Far::TopologyLevel& Level)
+	{
+		if (SharedValuesArray.size() == 0)
+		{
+			return;
+		}
+
+		T FlattenedValues;
+		FlattenedValues.reserve(Level.GetNumFaceVertices());
+		for (int32 FaceIndex = 0; FaceIndex < Level.GetNumFaces(); ++FaceIndex)
+		{
+			OpenSubdiv::Far::ConstIndexArray Face = Level.GetFaceVertices(FaceIndex);
+			OpenSubdiv::Far::ConstIndexArray FaceNormalsFaceVaryingIndices = Level.GetFaceFVarValues(FaceIndex, FaceVaryingChannel);
+
+			for (int32 FaceVertexIndex = 0; FaceVertexIndex < Face.size(); ++FaceVertexIndex)
+			{
+				int32 FaceVertexNormalsIndex = FaceNormalsFaceVaryingIndices[FaceVertexIndex];
+				FlattenedValues.push_back(SharedValuesArray[FaceVertexNormalsIndex]);
+			}
+		}
+		Swap(FlattenedValues, SharedValuesArray);
+	};
+
+	bool SubdivideMeshData(
+		const pxr::UsdPrim& Prim,
+		const UsdToUnreal::FUsdMeshConversionOptions& Options,
+		FUsdMeshData& InOutMeshData
+	)
+	{
+		// References:
+		// - USD's HdSt_OsdTopologyComputation::Resolve
+		// - UE's FSubdividePoly::ComputeTopologySubdivision
+		// - OpenSubdiv's https://github.com/PixarAnimationStudios/OpenSubdiv/blob/release/tutorials/far/tutorial_2_2/far_tutorial_2_2.cpp
+
+		FScopedUsdAllocs Allocs;
+
+		pxr::UsdGeomMesh UsdMesh{Prim};
+		if (!UsdMesh)
+		{
+			return false;
+		}
+
+		int32 TargetSubdivLevel = FMath::Max(0, FMath::Min(GMaxSubdivLevel, Options.SubdivisionLevel));
+		if (TargetSubdivLevel < Options.SubdivisionLevel)
+		{
+			UE_LOG(
+				LogUsd,
+				Warning,
+				TEXT("Max subdivision level was clamped to %d (controlled by the cvar '%s')"),
+				GMaxSubdivLevel,
+				*MaxUsdSubdivLevelCvarName
+			);
+		}
+		if (TargetSubdivLevel < 1)
+		{
+			UE_LOG(
+				LogUsd,
+				Log,
+				TEXT("Cancelling out of subdividing mesh '%s' due to target subdivision level being %d after clamping (it needs to be at least 1 for a round of subdivision)"),
+				*InOutMeshData.SourcePrimPath,
+				TargetSubdivLevel
+			);
+			return false;
+		}
+
+		UE_LOG(LogUsd, Log, TEXT("Subdividing mesh '%s' to subdivision level %d"), *InOutMeshData.SourcePrimPath, TargetSubdivLevel);
+
+		// We need to track our faceVarying attributes when subdividing, so we'll give each one an unique
+		// index into that FaceVaryingTopologies array down below. We'll use this to track how many entries that array
+		// will need, and which attribute has which index
+		int32 FaceVaryingChannelCounter = 0;
+
+		// It is very likely that if a primvar is faceVarying it will be indexed, and we should use those indices as the
+		// FaceVarying topology (https://openusd.org/release/api/class_usd_geom_primvar.html#UsdGeomPrimvar_Indexed_primvars).
+		// In case the user provided a faceVarying attribute/primvar *without* indexing however, it means each
+		// face vertex gets its own dedicated value and the topology is for them to be all "disconnected" and never share
+		// vertices, which we can represent with an index array with increasing values. We can reuse that array for all un-indexed
+		// attributes and primvars though, which is what we'll track here
+		int32 IotaFaceVaryingChannel = INDEX_NONE;
+		pxr::VtArray<int> IotaIndices;
+		const int NumFaceVertices = InOutMeshData.FaceVertexIndices.size();
+		TFunction<void()> CreateIotaIndicesIfNeeded = [&IotaIndices, &IotaFaceVaryingChannel, &FaceVaryingChannelCounter, NumFaceVertices]()
+		{
+			if (IotaFaceVaryingChannel != INDEX_NONE)
+			{
+				return;
+			}
+			IotaFaceVaryingChannel = FaceVaryingChannelCounter++;
+
+			IotaIndices.resize(NumFaceVertices);
+			for (uint32 Index = 0; Index < IotaIndices.size(); ++Index)
+			{
+				IotaIndices[Index] = Index;
+			}
+		};
+
+		// All pointsBased/Gprim attributes we'll retrieve happen to have varying default interpolation
+		const pxr::TfToken DefaultInterpolation = pxr::UsdGeomTokens->varying;
+
+		// Points
+		int32 PointsFaceVaryingChannel = INDEX_NONE;
+		if (InOutMeshData.PointIndices.size() > 0)
+		{
+			// faceVarying indices are important for the topology and OpenSubdiv needs them, so we need to keep our
+			// array indexed and flatten only after refining the mesh
+			if (InOutMeshData.PointInterpolation == pxr::UsdGeomTokens->faceVarying)
+			{
+				PointsFaceVaryingChannel = FaceVaryingChannelCounter++;
+			}
+			// Indexing on vertex, varying and uniform interpolation are just to allow reusing of the values.
+			// As far as I know there is no way to get these indices handled by OpenSubdiv (at least not through the pxOsd
+			// wrapper), and we'll end up flattening all indexing later anyway, so we might as well flatten now
+			else
+			{
+				InOutMeshData.Points = ComputeFlattened(InOutMeshData.Points, InOutMeshData.PointIndices);
+				InOutMeshData.PointIndices = {};
+			}
+		}
+		if (InOutMeshData.PointInterpolation == pxr::UsdGeomTokens->faceVarying && PointsFaceVaryingChannel == INDEX_NONE)
+		{
+			// If we're faceVarying we will need *some* indices, so create the iota indices here and use that
+			CreateIotaIndicesIfNeeded();
+			PointsFaceVaryingChannel = IotaFaceVaryingChannel;
+		}
+
+		// Normals
+		int32 NormalsFaceVaryingChannel = INDEX_NONE;
+		if (GIgnoreNormalsWhenSubdividing)
+		{
+			// According to https://openusd.org/release/api/class_usd_geom_mesh.html#UsdGeom_Mesh_Primvars,
+			// "Normals should not be authored on a subdivision mesh, since subdivision algorithms define their own normals.
+			// They should only be authored for polygonal meshes (subdivisionScheme = "none")."
+			// There is no free normal computation to be had from OpenSubdiv subdivision algoriths as far as I can tell however.
+			// We'd have to compute them manually as in https://github.com/PixarAnimationStudios/OpenSubdiv/blob/release/tutorials/far/tutorial_2_3/far_tutorial_2_3.cpp
+			// If that is the case, we may as well just ignore normals here and let RepairNormalsAndTangents fix it,
+			// since it will need to run it to compute tangents anyway
+
+			InOutMeshData.Normals = {};
+			InOutMeshData.NormalIndices = {};
+			InOutMeshData.NormalInterpolation = {};
+		}
+		else
+		{
+			if (InOutMeshData.NormalIndices.size() > 0)
+			{
+				if (InOutMeshData.NormalInterpolation == pxr::UsdGeomTokens->faceVarying)
+				{
+					NormalsFaceVaryingChannel = FaceVaryingChannelCounter++;
+				}
+				else
+				{
+					InOutMeshData.Normals = ComputeFlattened(InOutMeshData.Normals, InOutMeshData.NormalIndices);
+					InOutMeshData.NormalIndices = {};
+				}
+			}
+			if (InOutMeshData.NormalInterpolation == pxr::UsdGeomTokens->faceVarying && NormalsFaceVaryingChannel == INDEX_NONE)
+			{
+				CreateIotaIndicesIfNeeded();
+				NormalsFaceVaryingChannel = IotaFaceVaryingChannel;
+			}
+		}
+
+		// Velocities
+		int32 VelocitiesFaceVaryingChannel = INDEX_NONE;
+		if (InOutMeshData.VelocityInterpolation == pxr::UsdGeomTokens->faceVarying)
+		{
+			// Simple attributes can't be indexed, so if this is faceVarying then we know we need the iota indices
+			CreateIotaIndicesIfNeeded();
+			VelocitiesFaceVaryingChannel = IotaFaceVaryingChannel;
+		}
+
+		// DisplayColors
+		int32 DisplayColorsFaceVaryingChannel = INDEX_NONE;
+		if (InOutMeshData.DisplayColorIndices.size() > 0)
+		{
+			if (InOutMeshData.DisplayColorInterpolation == pxr::UsdGeomTokens->faceVarying)
+			{
+				DisplayColorsFaceVaryingChannel = FaceVaryingChannelCounter++;
+			}
+			else
+			{
+				InOutMeshData.DisplayColors = ComputeFlattened(InOutMeshData.DisplayColors, InOutMeshData.DisplayColorIndices);
+				InOutMeshData.DisplayColorIndices = {};
+			}
+		}
+		if (InOutMeshData.DisplayColorInterpolation == pxr::UsdGeomTokens->faceVarying && DisplayColorsFaceVaryingChannel == INDEX_NONE)
+		{
+			CreateIotaIndicesIfNeeded();
+			DisplayColorsFaceVaryingChannel = IotaFaceVaryingChannel;
+		}
+
+		// DisplayOpacities
+		int32 DisplayOpacitiesFaceVaryingChannel = INDEX_NONE;
+		if (InOutMeshData.DisplayOpacityIndices.size() > 0)
+		{
+			if (InOutMeshData.DisplayOpacityInterpolation == pxr::UsdGeomTokens->faceVarying)
+			{
+				DisplayOpacitiesFaceVaryingChannel = FaceVaryingChannelCounter++;
+			}
+			else
+			{
+				InOutMeshData.DisplayOpacities = ComputeFlattened(InOutMeshData.DisplayOpacities, InOutMeshData.DisplayOpacityIndices);
+				InOutMeshData.DisplayOpacityIndices = {};
+			}
+		}
+		if (InOutMeshData.DisplayOpacityInterpolation == pxr::UsdGeomTokens->faceVarying && DisplayOpacitiesFaceVaryingChannel == INDEX_NONE)
+		{
+			CreateIotaIndicesIfNeeded();
+			DisplayOpacitiesFaceVaryingChannel = IotaFaceVaryingChannel;
+		}
+
+		// UVs
+		const int32 NumUVSets = InOutMeshData.UVSets.Num();
+		if (!ensure(InOutMeshData.UVSetIndices.Num() == NumUVSets && InOutMeshData.UVSetInterpolations.Num() == NumUVSets))
+		{
+			return false;
+		}
+		TArray<int32> UVFaceVaryingChannels;
+		UVFaceVaryingChannels.SetNumUninitialized(NumUVSets);
+		for (int32 UVSetIndex = 0; UVSetIndex < NumUVSets; ++UVSetIndex)
+		{
+			int32& UVFaceVaryingChannel = UVFaceVaryingChannels[UVSetIndex];
+			pxr::VtArray<pxr::GfVec2f>& UVSet = InOutMeshData.UVSets[UVSetIndex];
+			pxr::TfToken& UVSetInterpolation = InOutMeshData.UVSetInterpolations[UVSetIndex];
+			pxr::VtArray<int>& UVSetIndices = InOutMeshData.UVSetIndices[UVSetIndex];
+
+			UVFaceVaryingChannel = INDEX_NONE;
+			if (UVSetIndices.size() > 0)
+			{
+				if (UVSetInterpolation == pxr::UsdGeomTokens->faceVarying)
+				{
+					UVFaceVaryingChannel = FaceVaryingChannelCounter++;
+				}
+				else
+				{
+					UVSet = ComputeFlattened(UVSet, UVSetIndices);
+					UVSetIndices = {};
+				}
+			}
+			if (UVSetInterpolation == pxr::UsdGeomTokens->faceVarying && UVFaceVaryingChannel == INDEX_NONE)
+			{
+				CreateIotaIndicesIfNeeded();
+				UVFaceVaryingChannel = IotaFaceVaryingChannel;
+			}
+		}
+
+		pxr::TfToken MaterialIndicesInterpolation = pxr::UsdGeomTokens->uniform;
+
+		pxr::PxOsdSubdivTags SubdivTags{
+			InOutMeshData.InterpolateBoundary,
+			InOutMeshData.FaceVaryingInterpolation,
+			InOutMeshData.CreaseMethod,
+			InOutMeshData.TriangleSubdivision,
+			InOutMeshData.CreaseIndices,
+			InOutMeshData.CreaseLengths,
+			InOutMeshData.CreaseSharpnesses,
+			InOutMeshData.CornerIndices,
+			InOutMeshData.CornerSharpnesses};
+
+		pxr::PxOsdMeshTopology Topology{
+			InOutMeshData.SubdivScheme,
+			InOutMeshData.Orientation,
+			InOutMeshData.FaceVertexCounts,
+			InOutMeshData.FaceVertexIndices,
+			InOutMeshData.HoleIndices,
+			SubdivTags};
+
+		std::vector<pxr::VtArray<int>> FaceVaryingTopologies;
+		FaceVaryingTopologies.resize(FaceVaryingChannelCounter);
+		if (PointsFaceVaryingChannel != INDEX_NONE)
+		{
+			FaceVaryingTopologies[PointsFaceVaryingChannel] = InOutMeshData.PointIndices;
+		}
+		if (NormalsFaceVaryingChannel != INDEX_NONE)
+		{
+			FaceVaryingTopologies[NormalsFaceVaryingChannel] = InOutMeshData.NormalIndices;
+		}
+		// No need to check Velocities here as there's no way it has custom indices
+		if (DisplayColorsFaceVaryingChannel != INDEX_NONE)
+		{
+			FaceVaryingTopologies[DisplayColorsFaceVaryingChannel] = InOutMeshData.DisplayColorIndices;
+		}
+		if (DisplayOpacitiesFaceVaryingChannel != INDEX_NONE)
+		{
+			FaceVaryingTopologies[DisplayOpacitiesFaceVaryingChannel] = InOutMeshData.DisplayOpacityIndices;
+		}
+		for (int32 UVSetIndex = 0; UVSetIndex < NumUVSets; ++UVSetIndex)
+		{
+			int32 UVFaceVaryingChannel = UVFaceVaryingChannels[UVSetIndex];
+			if (UVFaceVaryingChannel != INDEX_NONE)
+			{
+				FaceVaryingTopologies[UVFaceVaryingChannel] = InOutMeshData.UVSetIndices[UVSetIndex];
+			}
+		}
+		// Iota being last means we replace whatever else may have been placed at the iota channel with the actual indices
+		if (IotaFaceVaryingChannel != INDEX_NONE)
+		{
+			FaceVaryingTopologies[IotaFaceVaryingChannel] = IotaIndices;
+		}
+
+		std::shared_ptr<OpenSubdiv::Far::TopologyRefiner> TopologyRefiner = pxr::PxOsdRefinerFactory::Create(Topology, FaceVaryingTopologies);
+		if (!TopologyRefiner)
+		{
+			return false;
+		}
+
+		// Refine our topology (we only use uniform subdivision for now)
+		OpenSubdiv::Far::TopologyRefiner::UniformOptions UniformOptions{TargetSubdivLevel};
+		// From tutorial_2_2: "fullTopologyInLastLevel must be true to work with faceVarying data"
+		UniformOptions.fullTopologyInLastLevel = true;
+		TopologyRefiner->RefineUniform(UniformOptions);
+
+		// We're using primvar refiners here as that is the simplest method of getting our primvars
+		// subdivided, but if performance becomes an issue we could try using stencil/patch tables instead
+		OpenSubdiv::Far::PrimvarRefiner PrimvarRefiner{*TopologyRefiner};
+
+		// Temp buffers where we'll store the iterative subdivision values
+		pxr::VtArray<int> TempFaceVertexCounts;
+		pxr::VtArray<int> TempFaceVertexIndices;
+		pxr::VtArray<pxr::GfVec3f> TempPoints;
+		pxr::VtArray<pxr::GfVec3f> TempNormals;
+		pxr::VtArray<pxr::GfVec3f> TempVelocities;
+		pxr::VtArray<pxr::GfVec3f> TempDisplayColors;
+		pxr::VtArray<float> TempDisplayOpacities;
+		TArray<int32> TempMaterialIndices; // Using a TArray saves us a memcpy when outputting results
+		TArray<pxr::VtArray<pxr::GfVec2f>> TempUVSets;
+
+		// Resize the target buffers to be large enough to hold all refinements *simultaneously* (one next to the other).
+		// This is great because we can just read/write to the same buffer as we iteratively refine
+		TFunction<size_t(pxr::TfToken, int32)> GetTotalNumElements = [&TopologyRefiner](pxr::TfToken InterpolationType, int32 FaceVaryingChannel) -> size_t
+		{
+			// The "GetNumXTotal()" functions also include space for the source data as well.
+			// In our case we'll keep the source data on the actual source arrays so we don't have to
+			// copy them over, meaning our buffers can be a bit smaller too
+			const OpenSubdiv::Far::TopologyLevel& UnsubdividedLevel = TopologyRefiner->GetLevel(0);
+
+			if (InterpolationType == pxr::UsdGeomTokens->vertex)
+			{
+				return TopologyRefiner->GetNumVerticesTotal() - UnsubdividedLevel.GetNumVertices();
+			}
+			else if (InterpolationType == pxr::UsdGeomTokens->varying)
+			{
+				return TopologyRefiner->GetNumVerticesTotal() - UnsubdividedLevel.GetNumVertices();
+			}
+			else if (InterpolationType == pxr::UsdGeomTokens->faceVarying)
+			{
+				return TopologyRefiner->GetNumFVarValuesTotal(FaceVaryingChannel) - UnsubdividedLevel.GetNumFVarValues(FaceVaryingChannel);
+			}
+			else if (InterpolationType == pxr::UsdGeomTokens->uniform)
+			{
+				return TopologyRefiner->GetNumFacesTotal() - UnsubdividedLevel.GetNumFaces();
+			}
+			else if (InterpolationType == pxr::UsdGeomTokens->constant)
+			{
+				return 1;
+			}
+			else
+			{
+				return 0;
+			}
+		};
+		TempPoints.resize(GetTotalNumElements(InOutMeshData.PointInterpolation, PointsFaceVaryingChannel));
+		TempNormals.resize(GetTotalNumElements(InOutMeshData.NormalInterpolation, NormalsFaceVaryingChannel));
+		TempVelocities.resize(GetTotalNumElements(InOutMeshData.VelocityInterpolation, VelocitiesFaceVaryingChannel));
+		TempDisplayColors.resize(GetTotalNumElements(InOutMeshData.DisplayColorInterpolation, DisplayColorsFaceVaryingChannel));
+		TempDisplayOpacities.resize(GetTotalNumElements(InOutMeshData.DisplayOpacityInterpolation, DisplayOpacitiesFaceVaryingChannel));
+		TempMaterialIndices.SetNum(GetTotalNumElements(MaterialIndicesInterpolation, /*FaceVaryingChannel*/ 0));	 // Always 'uniform'
+		TempUVSets.SetNum(NumUVSets);
+		for (int32 UVSetIndex = 0; UVSetIndex < NumUVSets; ++UVSetIndex)
+		{
+			pxr::VtArray<pxr::GfVec2f>& UVSet = TempUVSets[UVSetIndex];
+			UVSet.resize(GetTotalNumElements(InOutMeshData.UVSetInterpolations[UVSetIndex], UVFaceVaryingChannels[UVSetIndex]));
+		}
+
+		// Use the right function from PrimvarRefiner depending on InterpolationType.
+		// Has to be auto as we reuse this for FSubdivVec3f*, FSubdivFloat* and FSubdivInt* SrcPtr and DstPtr
+		auto InterpolateAttribute =
+			[&PrimvarRefiner](auto SrcPtr, auto DstPtr, pxr::TfToken InterpolationType, int32 CurrentRefinementLevel, int32 FaceVaryingChannel)
+		{
+			// If the mesh doesn't have any values for an attribute, its SrcPtr will be nullptr
+			if (!SrcPtr || !DstPtr)
+			{
+				return;
+			}
+
+			if (InterpolationType == pxr::UsdGeomTokens->vertex)
+			{
+				PrimvarRefiner.Interpolate(CurrentRefinementLevel, SrcPtr, DstPtr);
+			}
+			else if (InterpolationType == pxr::UsdGeomTokens->varying)
+			{
+				PrimvarRefiner.InterpolateVarying(CurrentRefinementLevel, SrcPtr, DstPtr);
+			}
+			else if (InterpolationType == pxr::UsdGeomTokens->faceVarying)
+			{
+				PrimvarRefiner.InterpolateFaceVarying(CurrentRefinementLevel, SrcPtr, DstPtr, FaceVaryingChannel);
+			}
+			else if (InterpolationType == pxr::UsdGeomTokens->uniform)
+			{
+				PrimvarRefiner.InterpolateFaceUniform(CurrentRefinementLevel, SrcPtr, DstPtr);
+			}
+			else if (InterpolationType == pxr::UsdGeomTokens->constant)
+			{
+				// We need to move this because for the very first refinement we rely on InterpolateAttribute to
+				// move the value from the source array to the dest array
+				*DstPtr = *SrcPtr;
+			}
+		};
+
+		// Note how these start by pointing at the actual source data. After the first refinement iteration
+		// these (as well as the dst pointers) will all point at different locations within the Temp buffers
+		FSubdivVec3f* SrcPointsPtr = reinterpret_cast<FSubdivVec3f*>(InOutMeshData.Points.data());
+		FSubdivVec3f* SrcNormalsPtr = reinterpret_cast<FSubdivVec3f*>(InOutMeshData.Normals.data());
+		FSubdivVec3f* SrcVelocitiesPtr = reinterpret_cast<FSubdivVec3f*>(InOutMeshData.Velocities.data());
+		FSubdivVec3f* SrcDisplayColorsPtr = reinterpret_cast<FSubdivVec3f*>(InOutMeshData.DisplayColors.data());
+		FSubdivFloat* SrcDisplayOpacitiesPtr = reinterpret_cast<FSubdivFloat*>(InOutMeshData.DisplayOpacities.data());
+		FSubdivInt* SrcMaterialIndicesPtr = reinterpret_cast<FSubdivInt*>(InOutMeshData.LocalMaterialInfo.MaterialIndices.GetData());
+		TArray<FSubdivVec2f*> SrcUVSetPtrs;
+		SrcUVSetPtrs.SetNum(NumUVSets);
+		for (int32 UVSetIndex = 0; UVSetIndex < NumUVSets; ++UVSetIndex)
+		{
+			SrcUVSetPtrs[UVSetIndex] = reinterpret_cast<FSubdivVec2f*>(InOutMeshData.UVSets[UVSetIndex].data());
+		}
+
+		FSubdivVec3f* DstPointsPtr = reinterpret_cast<FSubdivVec3f*>(TempPoints.data());
+		FSubdivVec3f* DstNormalsPtr = reinterpret_cast<FSubdivVec3f*>(TempNormals.data());
+		FSubdivVec3f* DstVelocitiesPtr = reinterpret_cast<FSubdivVec3f*>(TempVelocities.data());
+		FSubdivVec3f* DstDisplayColorsPtr = reinterpret_cast<FSubdivVec3f*>(TempDisplayColors.data());
+		FSubdivFloat* DstDisplayOpacitiesPtr = reinterpret_cast<FSubdivFloat*>(TempDisplayOpacities.data());
+		FSubdivInt* DstMaterialIndicesPtr = reinterpret_cast<FSubdivInt*>(TempMaterialIndices.GetData());
+		TArray<FSubdivVec2f*> DstUVSetPtrs;
+		DstUVSetPtrs.SetNum(NumUVSets);
+		for (int32 UVSetIndex = 0; UVSetIndex < NumUVSets; ++UVSetIndex)
+		{
+			DstUVSetPtrs[UVSetIndex] = reinterpret_cast<FSubdivVec2f*>(TempUVSets[UVSetIndex].data());
+		}
+
+		TFunction<int(const OpenSubdiv::Far::TopologyLevel&, pxr::TfToken, int32)> GetPtrIncrement =
+			[](const OpenSubdiv::Far::TopologyLevel& Level, pxr::TfToken InterpolationType, int32 FaceVaryingChannel) -> int
+		{
+			if (InterpolationType == pxr::UsdGeomTokens->vertex)
+			{
+				return Level.GetNumVertices();
+			}
+			else if (InterpolationType == pxr::UsdGeomTokens->varying)
+			{
+				return Level.GetNumVertices();
+			}
+			else if (InterpolationType == pxr::UsdGeomTokens->faceVarying)
+			{
+				return Level.GetNumFVarValues(FaceVaryingChannel);
+			}
+			else if (InterpolationType == pxr::UsdGeomTokens->uniform)
+			{
+				return Level.GetNumFaces();
+			}
+			else
+			{
+				// For pxr::UsdGeomTokens->constant don't increment anything as we'll really just have a single value throughout
+				return 0;
+			}
+		};
+
+		// Actually refine all of our attributes/primvars
+		// Inspired by https://github.com/PixarAnimationStudios/OpenSubdiv/blob/7d0ab5530feef693ac0a920585b5c663b80773b3/tutorials/far/tutorial_2_2/far_tutorial_2_2.cpp#L293
+		// but avoiding the initial copy from the source data arrays
+		for (int32 CurrentLevel = 1; CurrentLevel <= TargetSubdivLevel; ++CurrentLevel)
+		{
+			InterpolateAttribute(SrcPointsPtr, DstPointsPtr, InOutMeshData.PointInterpolation, CurrentLevel, PointsFaceVaryingChannel);
+			InterpolateAttribute(SrcNormalsPtr, DstNormalsPtr, InOutMeshData.NormalInterpolation, CurrentLevel, NormalsFaceVaryingChannel);
+			InterpolateAttribute(SrcVelocitiesPtr, DstVelocitiesPtr, InOutMeshData.VelocityInterpolation, CurrentLevel, VelocitiesFaceVaryingChannel);
+			InterpolateAttribute(SrcDisplayColorsPtr, DstDisplayColorsPtr, InOutMeshData.DisplayColorInterpolation, CurrentLevel, DisplayColorsFaceVaryingChannel);
+			InterpolateAttribute(SrcDisplayOpacitiesPtr, DstDisplayOpacitiesPtr, InOutMeshData.DisplayOpacityInterpolation, CurrentLevel, DisplayOpacitiesFaceVaryingChannel);
+			InterpolateAttribute(SrcMaterialIndicesPtr, DstMaterialIndicesPtr, MaterialIndicesInterpolation, CurrentLevel, /*FaceVaryingChannel*/ 0); // Always 'uniform'
+			for (int32 UVSetIndex = 0; UVSetIndex < NumUVSets; ++UVSetIndex)
+			{
+				InterpolateAttribute(
+					SrcUVSetPtrs[UVSetIndex],
+					DstUVSetPtrs[UVSetIndex],
+					InOutMeshData.UVSetInterpolations[UVSetIndex],
+					CurrentLevel,
+					UVFaceVaryingChannels[UVSetIndex]
+				);
+			}
+
+			SrcPointsPtr = DstPointsPtr;
+			SrcNormalsPtr = DstNormalsPtr;
+			SrcVelocitiesPtr = DstVelocitiesPtr;
+			SrcDisplayColorsPtr = DstDisplayColorsPtr;
+			SrcDisplayOpacitiesPtr = DstDisplayOpacitiesPtr;
+			SrcMaterialIndicesPtr = DstMaterialIndicesPtr;
+			SrcUVSetPtrs = DstUVSetPtrs;
+
+			const OpenSubdiv::Far::TopologyLevel& AfterSubdiv = TopologyRefiner->GetLevel(CurrentLevel);
+			DstPointsPtr += GetPtrIncrement(AfterSubdiv, InOutMeshData.PointInterpolation, PointsFaceVaryingChannel);
+			DstNormalsPtr += GetPtrIncrement(AfterSubdiv, InOutMeshData.NormalInterpolation, NormalsFaceVaryingChannel);
+			DstVelocitiesPtr += GetPtrIncrement(AfterSubdiv, InOutMeshData.VelocityInterpolation, VelocitiesFaceVaryingChannel);
+			DstDisplayColorsPtr += GetPtrIncrement(AfterSubdiv, InOutMeshData.DisplayColorInterpolation, DisplayColorsFaceVaryingChannel);
+			DstDisplayOpacitiesPtr += GetPtrIncrement(AfterSubdiv, InOutMeshData.DisplayOpacityInterpolation, DisplayOpacitiesFaceVaryingChannel);
+			DstMaterialIndicesPtr += GetPtrIncrement(AfterSubdiv, MaterialIndicesInterpolation, /*FaceVaryingChannel*/ 0);
+			for (int32 UVSetIndex = 0; UVSetIndex < NumUVSets; ++UVSetIndex)
+			{
+				DstUVSetPtrs[UVSetIndex] += GetPtrIncrement(
+					AfterSubdiv,
+					InOutMeshData.UVSetInterpolations[UVSetIndex],
+					UVFaceVaryingChannels[UVSetIndex]
+				);
+			}
+		}
+
+		// Shrink down the Result buffers to just contain the values from the last refinement.
+		// We use SrcPtrs here because they were left at the start of the last refinement section of each array
+		TempPoints.erase(TempPoints.begin(), reinterpret_cast<pxr::GfVec3f*>(SrcPointsPtr));
+		TempNormals.erase(TempNormals.begin(), reinterpret_cast<pxr::GfVec3f*>(SrcNormalsPtr));
+		TempVelocities.erase(TempVelocities.begin(), reinterpret_cast<pxr::GfVec3f*>(SrcVelocitiesPtr));
+		TempDisplayColors.erase(TempDisplayColors.begin(), reinterpret_cast<pxr::GfVec3f*>(SrcDisplayColorsPtr));
+		TempDisplayOpacities.erase(TempDisplayOpacities.begin(), reinterpret_cast<float*>(SrcDisplayOpacitiesPtr));
+		TempMaterialIndices.RemoveAt(0, reinterpret_cast<int32*>(SrcMaterialIndicesPtr) - &TempMaterialIndices[0]);
+		for (int32 UVSetIndex = 0; UVSetIndex < NumUVSets; ++UVSetIndex)
+		{
+			pxr::VtArray<pxr::GfVec2f>& TempUVSet = TempUVSets[UVSetIndex];
+			TempUVSet.erase(TempUVSet.begin(), reinterpret_cast<pxr::GfVec2f*>(SrcUVSetPtrs[UVSetIndex]));
+		}
+
+		// If we're interpolating normals we have to take a pass to actually normalize them, as the primvar interpolation won't ensure that
+		if (!GIgnoreNormalsWhenSubdividing)
+		{
+			for (pxr::GfVec3f& Normal : TempNormals)
+			{
+				Normal.Normalize();
+			}
+		}
+
+		// Face vertex counts and indices
+		const OpenSubdiv::Far::TopologyLevel& FinalLevel = TopologyRefiner->GetLevel(TargetSubdivLevel);
+		TempFaceVertexCounts.resize(FinalLevel.GetNumFaces());
+		TempFaceVertexIndices.reserve(FinalLevel.GetNumFaceVertices());
+		for (int32 FaceIndex = 0; FaceIndex < FinalLevel.GetNumFaces(); ++FaceIndex)
+		{
+			OpenSubdiv::Far::ConstIndexArray Face = FinalLevel.GetFaceVertices(FaceIndex);
+			TempFaceVertexCounts[FaceIndex] = Face.size();
+
+			for(int32 FaceVertexIndex = 0; FaceVertexIndex < Face.size(); ++FaceVertexIndex)
+			{
+				TempFaceVertexIndices.push_back(Face[FaceVertexIndex]);
+			}
+		}
+
+		// All faceVarying primvars can be arbitrarily indexed after subdivision (e.g. we may have 96 face vertices but end up
+		// with only 54 values for a particular primvar, because the topology allowed them to be shared). Our downstream code
+		// can't generally consume indexed stuff though, so here we flatten those primvar values to always be one per face vertex.
+		// The other interpolation types never have this issue however (e.g. 'vertex' interpolation will always output one
+		// value for each vertex)
+		if (InOutMeshData.PointInterpolation == pxr::UsdGeomTokens->faceVarying)
+		{
+			FlattenFaceVaryingValues(TempPoints, PointsFaceVaryingChannel, FinalLevel);
+		}
+		if (InOutMeshData.NormalInterpolation == pxr::UsdGeomTokens->faceVarying)
+		{
+			FlattenFaceVaryingValues(TempNormals, NormalsFaceVaryingChannel, FinalLevel);
+		}
+		if (InOutMeshData.DisplayColorInterpolation == pxr::UsdGeomTokens->faceVarying)
+		{
+			FlattenFaceVaryingValues(TempDisplayColors, DisplayColorsFaceVaryingChannel, FinalLevel);
+		}
+		if (InOutMeshData.DisplayOpacityInterpolation == pxr::UsdGeomTokens->faceVarying)
+		{
+			FlattenFaceVaryingValues(TempDisplayOpacities, DisplayOpacitiesFaceVaryingChannel, FinalLevel);
+		}
+		for (int32 UVSetIndex = 0; UVSetIndex < NumUVSets; ++UVSetIndex)
+		{
+			if (InOutMeshData.UVSetInterpolations[UVSetIndex] == pxr::UsdGeomTokens->faceVarying)
+			{
+				// Note: Our downstream ConvertMeshData code *can* handle indexed UV sets, but it's simpler
+				// to just flatten discard them here. We could revisit this later and evaluate the impact on
+				// performance of keeping indices around though
+				FlattenFaceVaryingValues(TempUVSets[UVSetIndex], UVFaceVaryingChannels[UVSetIndex], FinalLevel);
+			}
+
+			InOutMeshData.UVSetIndices[UVSetIndex] = {};
+		}
+		InOutMeshData.PointIndices = {};
+		InOutMeshData.NormalIndices = {};
+		InOutMeshData.DisplayColorIndices = {};
+		InOutMeshData.DisplayOpacityIndices = {};
+
+		// Output results
+		Swap(TempFaceVertexCounts, InOutMeshData.FaceVertexCounts);
+		Swap(TempFaceVertexIndices, InOutMeshData.FaceVertexIndices);
+		Swap(TempPoints, InOutMeshData.Points);
+		Swap(TempNormals, InOutMeshData.Normals);
+		Swap(TempVelocities, InOutMeshData.Velocities);
+		Swap(TempDisplayColors, InOutMeshData.DisplayColors);
+		Swap(TempDisplayOpacities, InOutMeshData.DisplayOpacities);
+		Swap(TempMaterialIndices, InOutMeshData.LocalMaterialInfo.MaterialIndices);
+		Swap(TempUVSets, InOutMeshData.UVSets);
+
+		return true;
+	}
 
 	bool ConvertMeshData(
 		const FUsdMeshData& InMeshData,
@@ -1089,7 +2100,7 @@ namespace UE::UsdGeomMeshConversion::Private
 		{
 			return false;
 		}
-		if (InMeshData.FaceIndices.size() < 1)
+		if (InMeshData.FaceVertexIndices.size() < 1)
 		{
 			return false;
 		}
@@ -1159,40 +2170,30 @@ namespace UE::UsdGeomMeshConversion::Private
 			TArray<FUVSet> UVSets;
 
 			int32 HighestAddedUVChannel = 0;
-			for (int32 UVChannelIndex = 0; UVChannelIndex < InMeshData.PrimvarsByUVIndex.Num(); ++UVChannelIndex)
+			for (int32 UVChannelIndex = 0; UVChannelIndex < InMeshData.UVSets.Num(); ++UVChannelIndex)
 			{
-				const pxr::UsdGeomPrimvar& Primvar = InMeshData.PrimvarsByUVIndex[UVChannelIndex].Get();
-				if (!Primvar)
-				{
-					continue;
-				}
-
 				FUVSet UVSet;
-				UVSet.InterpType = Primvar.GetInterpolation();
+				UVSet.InterpType = InMeshData.UVSetInterpolations[UVChannelIndex];
 				UVSet.UVSetIndexUE = UVChannelIndex;
 
-				if (Primvar.IsIndexed())
+				if (InMeshData.UVSetIndices[UVChannelIndex].size() > 0)
 				{
-					UVSet.UVIndices.Emplace();
+					UVSet.UVIndices = InMeshData.UVSetIndices[UVChannelIndex];
+					UVSet.UVs = InMeshData.UVSets[UVChannelIndex];
 
-					if (Primvar.GetIndices(&UVSet.UVIndices.GetValue(), InOptions.TimeCode) && Primvar.Get(&UVSet.UVs, InOptions.TimeCode))
+					if (UVSet.UVs.size() > 0)
 					{
-						if (UVSet.UVs.size() > 0)
-						{
-							UVSets.Add(MoveTemp(UVSet));
-							HighestAddedUVChannel = UVSet.UVSetIndexUE;
-						}
+						UVSets.Add(MoveTemp(UVSet));
+						HighestAddedUVChannel = UVSet.UVSetIndexUE;
 					}
 				}
 				else
 				{
-					if (Primvar.Get(&UVSet.UVs))
+					UVSet.UVs = InMeshData.UVSets[UVChannelIndex];
+					if (UVSet.UVs.size() > 0)
 					{
-						if (UVSet.UVs.size() > 0)
-						{
-							UVSets.Add(MoveTemp(UVSet));
-							HighestAddedUVChannel = UVSet.UVSetIndexUE;
-						}
+						UVSets.Add(MoveTemp(UVSet));
+						HighestAddedUVChannel = UVSet.UVSetIndexUE;
 					}
 				}
 			}
@@ -1244,7 +2245,7 @@ namespace UE::UsdGeomMeshConversion::Private
 				{
 					int32 VertexInstanceIndex = VertexInstanceOffset + CurrentVertexInstanceIndex;
 					const FVertexInstanceID VertexInstanceID(VertexInstanceIndex);
-					const int32 ControlPointIndex = InMeshData.FaceIndices.cdata()[CurrentVertexInstanceIndex];
+					const int32 ControlPointIndex = InMeshData.FaceVertexIndices.cdata()[CurrentVertexInstanceIndex];
 					const FVertexID VertexID(VertexOffset + ControlPointIndex);
 
 					// This data is read straight from USD so there's nothing guaranteeing we have as many positions as we need
@@ -1432,6 +2433,7 @@ namespace UsdToUnreal
 		, MaterialPurpose( pxr::UsdShadeTokens->allPurpose )
 		, TimeCode( pxr::UsdTimeCode::EarliestTime() )
 		, bMergeIdenticalMaterialSlots( true )
+		, SubdivisionLevel(0)
 	{
 	}
 }
@@ -1443,9 +2445,9 @@ bool UsdToUnreal::ConvertGeomMesh(
 	const FUsdMeshConversionOptions& Options
 )
 {
-	TRACE_CPUPROFILER_EVENT_SCOPE( UsdToUnreal::ConvertGeomMesh );
+	TRACE_CPUPROFILER_EVENT_SCOPE(UsdToUnreal::ConvertGeomMesh);
 
-	if ( !UsdMesh )
+	if (!UsdMesh)
 	{
 		return false;
 	}
@@ -1453,99 +2455,18 @@ bool UsdToUnreal::ConvertGeomMesh(
 	FScopedUsdAllocs Allocs;
 
 	pxr::UsdPrim UsdPrim = UsdMesh.GetPrim();
-	pxr::UsdStageRefPtr Stage = UsdPrim.GetStage();
-	const FUsdStageInfo StageInfo(Stage);
 
 	UsdGeomMeshImpl::FUsdMeshData MeshData;
-	MeshData.SourcePrimPath = UsdToUnreal::ConvertPath(UsdPrim.GetPrimPath());
 
-	// Face counts
-	if (pxr::UsdAttribute Attr = UsdMesh.GetFaceVertexCountsAttr())
+	UsdGeomMeshImpl::CollectMeshData(UsdPrim, Options, MeshData, OutMaterialAssignments);
+
+	if (Options.SubdivisionLevel > 0 && MeshData.SubdivScheme != pxr::UsdGeomTokens->none)
 	{
-		Attr.Get(&MeshData.FaceVertexCounts, Options.TimeCode);
+		UsdGeomMeshImpl::SubdivideMeshData(UsdPrim, Options, MeshData);
 	}
 
-	// Face indices
-	if (pxr::UsdAttribute Attr = UsdMesh.GetFaceVertexIndicesAttr())
-	{
-		Attr.Get(&MeshData.FaceIndices, Options.TimeCode);
-	}
-
-	// Points
-	if (pxr::UsdAttribute Attr = UsdMesh.GetPointsAttr())
-	{
-		Attr.Get(&MeshData.Points, Options.TimeCode);
-	}
-
-	// Normals
-	if (pxr::UsdAttribute Attr = UsdMesh.GetNormalsAttr())
-	{
-		Attr.Get(&MeshData.Normals, Options.TimeCode);
-		MeshData.NormalInterpolation = UsdGeomMeshImpl::GetAttrInterpolation(Attr, pxr::UsdGeomTokens->vertex);
-	}
-
-	// Velocities
-	if (pxr::UsdAttribute Attr = UsdMesh.GetVelocitiesAttr())
-	{
-		Attr.Get(&MeshData.Velocities, Options.TimeCode);
-		MeshData.VelocityInterpolation = UsdGeomMeshImpl::GetAttrInterpolation(Attr, pxr::UsdGeomTokens->vertex);
-	}
-
-	// Vertex colors
-	if (pxr::UsdGeomPrimvar Primvar = pxr::UsdGeomPrimvar(UsdPrim.GetAttribute(pxr::UsdGeomTokens->primvarsDisplayColor)))
-	{
-		Primvar.ComputeFlattened(&MeshData.DisplayColors, Options.TimeCode);
-		MeshData.DisplayColorInterpolation = UsdGeomMeshImpl::GetAttrInterpolation(Primvar);
-	}
-
-	// Vertex opacity
-	if (pxr::UsdGeomPrimvar Primvar = pxr::UsdGeomPrimvar(UsdPrim.GetAttribute(pxr::UsdGeomTokens->primvarsDisplayOpacity)))
-	{
-		Primvar.ComputeFlattened(&MeshData.DisplayOpacities, Options.TimeCode);
-		MeshData.DisplayOpacityInterpolation = UsdGeomMeshImpl::GetAttrInterpolation(Primvar);
-	}
-
-	// UVs
-	{
-		// If we already have a primvar to UV index assignment, let's just use that.
-		// When collapsing, we'll do a pre-pass on all meshes to translate and determine this beforehand.
-		if (OutMaterialAssignments.PrimvarToUVIndex.Num() > 0)
-		{
-			int32 HighestProvidedUVIndex = 0;
-			for (const TPair<FString, int32>& Pair : OutMaterialAssignments.PrimvarToUVIndex)
-			{
-				HighestProvidedUVIndex = FMath::Max(HighestProvidedUVIndex, Pair.Value);
-			}
-			MeshData.ProvidedNumUVSets = HighestProvidedUVIndex + 1;
-
-			TArray<TUsdStore<pxr::UsdGeomPrimvar>> AllMeshUVPrimvars = UsdUtils::GetUVSetPrimvars(UsdPrim, TNumericLimits<int32>::Max());
-			MeshData.PrimvarsByUVIndex = UsdUtils::AssemblePrimvarsIntoUVSets(AllMeshUVPrimvars, OutMaterialAssignments.PrimvarToUVIndex);
-		}
-		// Let's use the best primvar assignment for this particular mesh instead
-		else
-		{
-			MeshData.PrimvarsByUVIndex = UsdUtils::GetUVSetPrimvars(UsdPrim);
-			OutMaterialAssignments.PrimvarToUVIndex = UsdUtils::AssemblePrimvarsIntoPrimvarToUVIndexMap(MeshData.PrimvarsByUVIndex);
-		}
-	}
-
-	// Orientation
-	MeshData.Orientation = UsdGeomMeshImpl::GetGprimOrientation(UsdMesh, Options.TimeCode);
-
-	// Material assignments
-	{
-		const bool bProvideMaterialIndices = true;
-		MeshData.LocalMaterialInfo = UsdUtils::GetPrimMaterialAssignments(
-			UsdPrim,
-			Options.TimeCode,
-			bProvideMaterialIndices,
-			Options.RenderContext,
-			Options.MaterialPurpose
-		);
-
-		MeshData.MaterialIndexOffset = OutMaterialAssignments.Slots.Num();
-	}
-
+	pxr::UsdStageRefPtr Stage = UsdPrim.GetStage();
+	const FUsdStageInfo StageInfo(Stage);
 	return UsdGeomMeshImpl::ConvertMeshData(MeshData, StageInfo, Options, OutMeshDescription, OutMaterialAssignments);
 }
 
@@ -1803,159 +2724,93 @@ bool UsdToUnreal::ConvertGeomPrimitive(
 
 	FScopedUsdAllocs UsdAllocs;
 
+	UsdGeomMeshImpl::FUsdMeshData MeshData;
+
+	// Collect all attributes authored as usual
+	UsdGeomMeshImpl::CollectMeshData(InPrim, InOptions, MeshData, InOutMaterialAssignments);
+
+	// Generate primitive points and topology on-demand
+	{
+		// Remember that USD arrays are copy-on-write, so these are both "pointers", as long as we
+		// don't try writing (or using non-const operator[]) from PrimitivePoints
+		pxr::VtVec3fArray PrimitivePoints;
+		const pxr::PxOsdMeshTopology* PrimitiveTopology = nullptr;
+
+		if (pxr::UsdGeomCapsule Capsule = pxr::UsdGeomCapsule{InPrim})
+		{
+			pxr::TfToken Axis = pxr::UsdGeomTokens->z;
+			if (pxr::UsdAttribute Attr = Capsule.GetAxisAttr())
+			{
+				Axis = UsdUtils::GetUsdValue<pxr::TfToken>(Attr, pxr::UsdTimeCode::Default());
+			}
+
+			PrimitivePoints = pxr::UsdImagingGenerateCapsuleMeshPoints(
+				UsdGeomMeshImpl::DefaultCapsuleMeshHeight,
+				UsdGeomMeshImpl::DefaultCapsuleMeshRadius,
+				Axis
+			);
+			PrimitiveTopology = &pxr::UsdImagingGetCapsuleMeshTopology();
+		}
+		else if (pxr::UsdGeomCone Cone = pxr::UsdGeomCone{InPrim})
+		{
+			pxr::TfToken Axis = pxr::UsdGeomTokens->z;
+			if (pxr::UsdAttribute Attr = Capsule.GetAxisAttr())
+			{
+				Axis = UsdUtils::GetUsdValue<pxr::TfToken>(Attr, pxr::UsdTimeCode::Default());
+			}
+
+			PrimitivePoints = UsdGeomMeshImpl::GetUnitConeMeshPoints(Axis);
+			PrimitiveTopology = &pxr::UsdImagingGetUnitConeMeshTopology();
+		}
+		else if (pxr::UsdGeomCube Cube = pxr::UsdGeomCube{InPrim})
+		{
+			PrimitivePoints = pxr::UsdImagingGetUnitCubeMeshPoints();
+			PrimitiveTopology = &pxr::UsdImagingGetUnitCubeMeshTopology();
+		}
+		else if (pxr::UsdGeomCylinder Cylinder = pxr::UsdGeomCylinder{InPrim})
+		{
+			pxr::TfToken Axis = pxr::UsdGeomTokens->z;
+			if (pxr::UsdAttribute Attr = Capsule.GetAxisAttr())
+			{
+				Axis = UsdUtils::GetUsdValue<pxr::TfToken>(Attr, pxr::UsdTimeCode::Default());
+			}
+
+			PrimitivePoints = UsdGeomMeshImpl::GetUnitCylinderMeshPoints(Axis);
+			PrimitiveTopology = &pxr::UsdImagingGetUnitCylinderMeshTopology();
+		}
+		else if (pxr::UsdGeomPlane Plane = pxr::UsdGeomPlane{InPrim})
+		{
+			const double Width = 1.0f;
+			const double Length = 1.0f;
+
+			pxr::TfToken Axis = pxr::UsdGeomTokens->z;
+			if (pxr::UsdAttribute Attr = Capsule.GetAxisAttr())
+			{
+				Axis = UsdUtils::GetUsdValue<pxr::TfToken>(Attr, pxr::UsdTimeCode::Default());
+			}
+
+			PrimitivePoints = pxr::UsdImagingGeneratePlaneMeshPoints(Width, Length, Axis);
+			PrimitiveTopology = &pxr::UsdImagingGetPlaneTopology();
+		}
+		else if (pxr::UsdGeomSphere Sphere = pxr::UsdGeomSphere{InPrim})
+		{
+			PrimitivePoints = pxr::UsdImagingGetUnitSphereMeshPoints();
+			PrimitiveTopology = &pxr::UsdImagingGetUnitSphereMeshTopology();
+		}
+
+		if (!PrimitiveTopology || PrimitivePoints.empty())
+		{
+			return false;
+		}
+
+		MeshData.FaceVertexCounts = PrimitiveTopology->GetFaceVertexCounts();
+		MeshData.FaceVertexIndices = PrimitiveTopology->GetFaceVertexIndices();
+		MeshData.Points = PrimitivePoints;
+		MeshData.PointInterpolation = pxr::UsdGeomTokens->vertex;
+	}
+
 	pxr::UsdStageRefPtr Stage = InPrim.GetStage();
 	const FUsdStageInfo StageInfo(Stage);
-
-	// Remember that USD arrays are copy-on-write, so these are both "pointers", as long as we
-	// don't try writing (or using non-const operator[]) from PrimitivePoints
-	pxr::VtVec3fArray PrimitivePoints;
-	const pxr::PxOsdMeshTopology* PrimitiveTopology = nullptr;
-
-	if (pxr::UsdGeomCapsule Capsule = pxr::UsdGeomCapsule{InPrim})
-	{
-		pxr::TfToken Axis = pxr::UsdGeomTokens->z;
-		if (pxr::UsdAttribute Attr = Capsule.GetAxisAttr())
-		{
-			Axis = UsdUtils::GetUsdValue<pxr::TfToken>(Attr, pxr::UsdTimeCode::Default());
-		}
-
-		PrimitivePoints = pxr::UsdImagingGenerateCapsuleMeshPoints(
-			UsdGeomMeshImpl::DefaultCapsuleMeshHeight,
-			UsdGeomMeshImpl::DefaultCapsuleMeshRadius,
-			Axis
-		);
-		PrimitiveTopology = &pxr::UsdImagingGetCapsuleMeshTopology();
-	}
-	else if (pxr::UsdGeomCone Cone = pxr::UsdGeomCone{InPrim})
-	{
-		pxr::TfToken Axis = pxr::UsdGeomTokens->z;
-		if (pxr::UsdAttribute Attr = Capsule.GetAxisAttr())
-		{
-			Axis = UsdUtils::GetUsdValue<pxr::TfToken>(Attr, pxr::UsdTimeCode::Default());
-		}
-
-		PrimitivePoints = UsdGeomMeshImpl::GetUnitConeMeshPoints(Axis);
-		PrimitiveTopology = &pxr::UsdImagingGetUnitConeMeshTopology();
-	}
-	else if (pxr::UsdGeomCube Cube = pxr::UsdGeomCube{InPrim})
-	{
-		PrimitivePoints = pxr::UsdImagingGetUnitCubeMeshPoints();
-		PrimitiveTopology = &pxr::UsdImagingGetUnitCubeMeshTopology();
-	}
-	else if (pxr::UsdGeomCylinder Cylinder = pxr::UsdGeomCylinder{InPrim})
-	{
-		pxr::TfToken Axis = pxr::UsdGeomTokens->z;
-		if (pxr::UsdAttribute Attr = Capsule.GetAxisAttr())
-		{
-			Axis = UsdUtils::GetUsdValue<pxr::TfToken>(Attr, pxr::UsdTimeCode::Default());
-		}
-
-		PrimitivePoints = UsdGeomMeshImpl::GetUnitCylinderMeshPoints(Axis);
-		PrimitiveTopology = &pxr::UsdImagingGetUnitCylinderMeshTopology();
-	}
-	else if (pxr::UsdGeomPlane Plane = pxr::UsdGeomPlane{InPrim})
-	{
-		const double Width = 1.0f;
-		const double Length = 1.0f;
-
-		pxr::TfToken Axis = pxr::UsdGeomTokens->z;
-		if (pxr::UsdAttribute Attr = Capsule.GetAxisAttr())
-		{
-			Axis = UsdUtils::GetUsdValue<pxr::TfToken>(Attr, pxr::UsdTimeCode::Default());
-		}
-
-		PrimitivePoints = pxr::UsdImagingGeneratePlaneMeshPoints(Width, Length, Axis);
-		PrimitiveTopology = &pxr::UsdImagingGetPlaneTopology();
-	}
-	else if (pxr::UsdGeomSphere Sphere = pxr::UsdGeomSphere{InPrim})
-	{
-		PrimitivePoints = pxr::UsdImagingGetUnitSphereMeshPoints();
-		PrimitiveTopology = &pxr::UsdImagingGetUnitSphereMeshTopology();
-	}
-
-	if (!PrimitiveTopology || PrimitivePoints.empty())
-	{
-		return false;
-	}
-
-	UsdGeomMeshImpl::FUsdMeshData MeshData;
-	MeshData.SourcePrimPath = UsdToUnreal::ConvertPath(InPrim.GetPrimPath());
-	MeshData.FaceVertexCounts = PrimitiveTopology->GetFaceVertexCounts();
-	MeshData.FaceIndices = PrimitiveTopology->GetFaceVertexIndices();
-	MeshData.Points = PrimitivePoints;
-
-	// Normals
-	if (pxr::UsdAttribute Attr = InPrim.GetAttribute(pxr::UsdGeomTokens->normals))
-	{
-		Attr.Get(&MeshData.Normals, InOptions.TimeCode);
-		MeshData.NormalInterpolation = UsdGeomMeshImpl::GetAttrInterpolation(Attr, pxr::UsdGeomTokens->vertex);
-	}
-
-	// Velocities
-	if (pxr::UsdGeomPointBased PointBased{InPrim})
-	{
-		if (pxr::UsdAttribute Attr = PointBased.GetVelocitiesAttr())
-		{
-			Attr.Get(&MeshData.Velocities, InOptions.TimeCode);
-			MeshData.VelocityInterpolation = UsdGeomMeshImpl::GetAttrInterpolation(Attr, pxr::UsdGeomTokens->vertex);
-		}
-	}
-
-	// Vertex colors
-	if (pxr::UsdGeomPrimvar Primvar = pxr::UsdGeomPrimvar(InPrim.GetAttribute(pxr::UsdGeomTokens->primvarsDisplayColor)))
-	{
-		Primvar.ComputeFlattened(&MeshData.DisplayColors, InOptions.TimeCode);
-		MeshData.DisplayColorInterpolation = UsdGeomMeshImpl::GetAttrInterpolation(Primvar);
-	}
-
-	// Vertex opacity
-	if (pxr::UsdGeomPrimvar Primvar = pxr::UsdGeomPrimvar(InPrim.GetAttribute(pxr::UsdGeomTokens->primvarsDisplayOpacity)))
-	{
-		Primvar.ComputeFlattened(&MeshData.DisplayOpacities, InOptions.TimeCode);
-		MeshData.DisplayOpacityInterpolation = UsdGeomMeshImpl::GetAttrInterpolation(Primvar);
-	}
-
-	// UVs
-	{
-		// If we already have a primvar to UV index assignment, let's just use that.
-		// When collapsing, we'll do a pre-pass on all meshes to translate and determine this beforehand.
-		if (InOutMaterialAssignments.PrimvarToUVIndex.Num() > 0)
-		{
-			int32 HighestProvidedUVIndex = 0;
-			for (const TPair<FString, int32>& Pair : InOutMaterialAssignments.PrimvarToUVIndex)
-			{
-				HighestProvidedUVIndex = FMath::Max(HighestProvidedUVIndex, Pair.Value);
-			}
-			MeshData.ProvidedNumUVSets = HighestProvidedUVIndex + 1;
-
-			TArray<TUsdStore<pxr::UsdGeomPrimvar>> AllMeshUVPrimvars = UsdUtils::GetUVSetPrimvars(InPrim, TNumericLimits<int32>::Max());
-			MeshData.PrimvarsByUVIndex = UsdUtils::AssemblePrimvarsIntoUVSets(AllMeshUVPrimvars, InOutMaterialAssignments.PrimvarToUVIndex);
-		}
-		// Let's use the best primvar assignment for this particular mesh instead
-		else
-		{
-			MeshData.PrimvarsByUVIndex = UsdUtils::GetUVSetPrimvars(InPrim);
-			InOutMaterialAssignments.PrimvarToUVIndex = UsdUtils::AssemblePrimvarsIntoPrimvarToUVIndexMap(MeshData.PrimvarsByUVIndex);
-		}
-	}
-
-	// Orientation
-	MeshData.Orientation = UsdGeomMeshImpl::GetGprimOrientation(pxr::UsdGeomGprim{InPrim}, InOptions.TimeCode);
-
-	// Material assignments
-	{
-		const bool bProvideMaterialIndices = true;
-		MeshData.LocalMaterialInfo = UsdUtils::GetPrimMaterialAssignments(
-			InPrim,
-			InOptions.TimeCode,
-			bProvideMaterialIndices,
-			InOptions.RenderContext,
-			InOptions.MaterialPurpose
-		);
-
-		MeshData.MaterialIndexOffset = InOutMaterialAssignments.Slots.Num();
-	}
-
 	return ConvertMeshData(MeshData, StageInfo, InOptions, InOutMeshDescription, InOutMaterialAssignments);
 }
 
@@ -3506,54 +4361,110 @@ void UsdUtils::ReplaceUnrealMaterialsWithBaked(
 	);
 }
 
-FString UsdUtils::HashGeomMeshPrim( const UE::FUsdStage& Stage, const FString& PrimPath, double TimeCode )
+namespace UE::UsdGeomMeshConversion::Private
 {
-	TRACE_CPUPROFILER_EVENT_SCOPE( UsdUtils::HashGeomMeshPrim );
+	template<typename T>
+	inline void HashArrayAttribute(FMD5& MD5, const pxr::UsdAttribute& Attribute, double TimeCode)
+	{
+		if (Attribute)
+		{
+			pxr::VtArray<T> Value;
+			Attribute.Get(&Value, TimeCode);
+			MD5.Update((uint8*)Value.cdata(), Value.size() * sizeof(T));
+		}
+	}
+
+	template<typename T>
+	inline void HashArrayPrimvar(FMD5& MD5, const pxr::UsdGeomPrimvar& Primvar, double TimeCode)
+	{
+		if (Primvar)
+		{
+			pxr::VtArray<T> Value;
+			Primvar.Get(&Value, TimeCode);
+			MD5.Update((uint8*)Value.cdata(), Value.size() * sizeof(T));
+
+			pxr::VtArray<int> Indices;
+			if (Primvar.GetIndices(&Indices, TimeCode))
+			{
+				MD5.Update((uint8*)Indices.cdata(), Indices.size() * sizeof(int));
+			}
+		}
+	}
+
+	inline void HashTokenAttribute(FMD5& MD5, const pxr::UsdAttribute& Attribute, double TimeCode)
+	{
+		if (Attribute)
+		{
+			pxr::TfToken Token;
+			Attribute.Get(&Token, TimeCode);
+			MD5.Update(reinterpret_cast<const uint8*>(Token.data()), Token.size());
+		}
+	}
+}
+
+FString UsdUtils::HashGeomMeshPrim(const UE::FUsdStage& Stage, const FString& PrimPath, double TimeCode)
+{
+	TRACE_CPUPROFILER_EVENT_SCOPE(UsdUtils::HashGeomMeshPrim);
+
+	FMD5 MD5;
+
+	HashGeomMeshPrim(Stage, PrimPath, TimeCode, MD5);
+
+	uint8 Digest[16];
+	MD5.Final(Digest);
+
+	FString Hash;
+	for (int32 i = 0; i < 16; ++i)
+	{
+		Hash += FString::Printf(TEXT("%02x"), Digest[i]);
+	}
+	return Hash;
+}
+
+void UsdUtils::HashGeomMeshPrim(const UE::FUsdStage& Stage, const FString& PrimPath, double TimeCode, FMD5& InOutHashState)
+{
+	TRACE_CPUPROFILER_EVENT_SCOPE(UsdUtils::HashGeomMeshPrim);
 
 	using namespace pxr;
+	using namespace UsdGeomMeshImpl;
 
 	FScopedUsdAllocs Allocs;
 
 	UsdPrim UsdPrim = pxr::UsdPrim( Stage.GetPrimAtPath( UE::FSdfPath( *PrimPath ) ) );
 	if ( !UsdPrim )
 	{
-		return {};
+		return;
 	}
 
 	UsdGeomMesh UsdMesh( UsdPrim );
 	if ( !UsdMesh )
 	{
-		return {};
+		return;
 	}
 
-	FMD5 MD5;
+	HashArrayAttribute<GfVec3f>(InOutHashState, UsdMesh.GetPointsAttr(), TimeCode);
+	HashArrayAttribute<GfVec3f>(InOutHashState, UsdMesh.GetNormalsAttr(), TimeCode);
+	HashArrayPrimvar<GfVec3f>(InOutHashState, UsdMesh.GetDisplayColorPrimvar(), TimeCode);
+	HashArrayPrimvar<float>(InOutHashState, UsdMesh.GetDisplayOpacityPrimvar(), TimeCode);
 
-	if ( UsdAttribute Points = UsdMesh.GetPointsAttr() )
-	{
-		VtArray< GfVec3f > PointsArray;
-		Points.Get( &PointsArray, TimeCode );
-		MD5.Update( ( uint8* ) PointsArray.cdata(), PointsArray.size() * sizeof( GfVec3f ) );
-	}
+	// Note: The actual subdivision level used is not factored in here because currently the single caller of this function is
+	// GetUsdStreamDDCKey, which hashes it directly. The Static/Skeletal mesh code paths won't need to currently hash it directly
+	// because the generated FMeshDescription or FSkeletalMeshImportData is hashed directly, and by then we already have subdivided
+	// the mesh data, and what we end up with will naturally depend on the level of subdivision
 
-	if ( UsdAttribute NormalsAttribute = UsdMesh.GetNormalsAttr() )
+	pxr::UsdAttribute SubdivSchemeAttr = UsdMesh.GetSubdivisionSchemeAttr();
+	pxr::TfToken SubdivScheme;
+	if (SubdivSchemeAttr && SubdivSchemeAttr.Get(&SubdivScheme, TimeCode) && SubdivScheme != pxr::UsdGeomTokens->none)
 	{
-		VtArray< GfVec3f > Normals;
-		NormalsAttribute.Get( &Normals, TimeCode );
-		MD5.Update( ( uint8* ) Normals.cdata(), Normals.size() * sizeof( GfVec3f ) );
-	}
-
-	if ( UsdGeomPrimvar ColorPrimvar = UsdMesh.GetDisplayColorPrimvar() )
-	{
-		VtArray< GfVec3f > UsdColors;
-		ColorPrimvar.ComputeFlattened( &UsdColors, TimeCode );
-		MD5.Update( ( uint8* ) UsdColors.cdata(), UsdColors.size() * sizeof( GfVec3f ) );
-	}
-
-	if ( UsdGeomPrimvar OpacityPrimvar = UsdMesh.GetDisplayOpacityPrimvar() )
-	{
-		VtArray< float > UsdOpacities;
-		OpacityPrimvar.ComputeFlattened( &UsdOpacities );
-		MD5.Update( ( uint8* ) UsdOpacities.cdata(), UsdOpacities.size() * sizeof( float ) );
+		HashTokenAttribute(InOutHashState, UsdMesh.GetSubdivisionSchemeAttr(), TimeCode);
+		HashTokenAttribute(InOutHashState, UsdMesh.GetFaceVaryingLinearInterpolationAttr(), TimeCode);
+		HashTokenAttribute(InOutHashState, UsdMesh.GetTriangleSubdivisionRuleAttr(), TimeCode);
+		HashArrayAttribute<int>(InOutHashState, UsdMesh.GetCornerIndicesAttr(), TimeCode);
+		HashArrayAttribute<float>(InOutHashState, UsdMesh.GetCornerSharpnessesAttr(), TimeCode);
+		HashArrayAttribute<int>(InOutHashState, UsdMesh.GetCreaseIndicesAttr(), TimeCode);
+		HashArrayAttribute<int>(InOutHashState, UsdMesh.GetCreaseLengthsAttr(), TimeCode);
+		HashArrayAttribute<float>(InOutHashState, UsdMesh.GetCreaseSharpnessesAttr(), TimeCode);
+		HashArrayAttribute<int>(InOutHashState, UsdMesh.GetHoleIndicesAttr(), TimeCode);
 	}
 
 	// TODO: This is not providing render context or material purpose, so it will never consider float2f primvars
@@ -3566,26 +4477,8 @@ FString UsdUtils::HashGeomMeshPrim( const UE::FUsdStage& Stage, const FString& P
 			break;
 		}
 
-		UsdGeomPrimvar& Primvar = PrimvarsByUVIndex[ UVChannelIndex ].Get();
-		if ( !Primvar )
-		{
-			continue;
-		}
-
-		VtArray< GfVec2f > UsdUVs;
-		Primvar.Get( &UsdUVs, TimeCode );
-		MD5.Update( ( uint8* ) UsdUVs.cdata(), UsdUVs.size() * sizeof( GfVec2f ) );
+		HashArrayPrimvar<GfVec2f>(InOutHashState, PrimvarsByUVIndex[UVChannelIndex].Get(), TimeCode);
 	}
-
-	uint8 Digest[ 16 ];
-	MD5.Final( Digest );
-
-	FString Hash;
-	for ( int32 i = 0; i < 16; ++i )
-	{
-		Hash += FString::Printf( TEXT( "%02x" ), Digest[ i ] );
-	}
-	return Hash;
 }
 
 bool UsdUtils::GetPointInstancerTransforms(const FUsdStageInfo& StageInfo, const pxr::UsdGeomPointInstancer& PointInstancer, const int32 ProtoIndex, pxr::UsdTimeCode EvalTime, TArray<FTransform>& OutInstanceTransforms)

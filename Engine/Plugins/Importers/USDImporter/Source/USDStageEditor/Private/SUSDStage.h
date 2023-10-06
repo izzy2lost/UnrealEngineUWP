@@ -88,6 +88,7 @@ protected:
 	void FillRenderContextSubMenu( FMenuBuilder& MenuBuilder );
 	void FillMaterialPurposeSubMenu( FMenuBuilder& MenuBuilder );
 	void FillRootMotionSubMenu( FMenuBuilder& MenuBuilder );
+	void FillSubdivisionLevelSubMenu(FMenuBuilder& MenuBuilder);
 	void FillCollapsingSubMenu( FMenuBuilder& MenuBuilder );
 	void FillInterpolationTypeSubMenu( FMenuBuilder& MenuBuilder );
 	void FillSelectionSubMenu( FMenuBuilder& MenuBuilder );
@@ -111,6 +112,10 @@ protected:
 	int32 GetNaniteTriangleThresholdValue() const;
 	void OnNaniteTriangleThresholdValueChanged( int32 InValue );
 	void OnNaniteTriangleThresholdValueCommitted( int32 InValue, ETextCommit::Type InCommitType );
+
+	int32 GetSubdivisionLevelValue() const;
+	void OnSubdivisionLevelValueChanged(int32 InValue);
+	void OnSubdivisionLevelValueCommitted(int32 InValue, ETextCommit::Type InCommitType);
 
 	UE::FUsdStageWeak GetCurrentStage() const;
 
@@ -151,6 +156,8 @@ protected:
 	TSharedPtr<ISceneOutliner> ActorPickerMenu;
 
 	int32 CurrentNaniteThreshold = INT32_MAX;
+
+	int32 CurrentSubdivisionLevel = 0;
 
 	TArray<TSharedPtr<FString>> MaterialPurposes;
 

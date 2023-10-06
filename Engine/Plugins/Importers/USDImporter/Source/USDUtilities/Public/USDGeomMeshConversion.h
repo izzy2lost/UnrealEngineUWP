@@ -85,6 +85,10 @@ namespace UsdToUnreal
 		// Whether to try reusing material slots (both local and the ones already in MaterialAssignments) when
 		// converting the material assignments from the mesh
 		bool bMergeIdenticalMaterialSlots;
+
+		// What subdivision level to subdivide to, if the converted mesh is a subdivision mesh.
+		// 0 means no subdivision should take place (default).
+		int32 SubdivisionLevel;
 	};
 
 	/**
@@ -380,7 +384,8 @@ namespace UsdUtils
 	 * Hashes the attributes of the GeomMesh at the given prim path on the Stage at TimeCode
 	 * If the prim path is invalid or not a GeomMesh, it will return an empty hash
 	 */
-	USDUTILITIES_API FString HashGeomMeshPrim( const UE::FUsdStage& Stage, const FString& PrimPath, double TimeCode );
+	USDUTILITIES_API FString HashGeomMeshPrim(const UE::FUsdStage& Stage, const FString& PrimPath, double TimeCode);
+	USDUTILITIES_API void HashGeomMeshPrim(const UE::FUsdStage& Stage, const FString& PrimPath, double TimeCode, FMD5& InOutHashState);
 
 	/**
 	 * Places in OutInstanceTransforms the UE-space instance transforms for a given point instancer prototype index.

@@ -140,6 +140,7 @@ struct FUsdStageActorImpl
 		TranslationContext->RenderContext = StageActor->RenderContext;
 		TranslationContext->MaterialPurpose = StageActor->MaterialPurpose;
 		TranslationContext->RootMotionHandling = StageActor->RootMotionHandling;
+		TranslationContext->SubdivisionLevel = StageActor->SubdivisionLevel;
 		TranslationContext->BlendShapesByPath = &StageActor->BlendShapesByPath;
 		TranslationContext->InfoCache = StageActor->InfoCache;
 		TranslationContext->bTranslateOnlyUsedMaterials = GTranslateOnlyUsedMaterialsWhenOpeningStage;
@@ -571,6 +572,7 @@ struct FUsdStageActorImpl
 			EventAttributes.Emplace(TEXT("RenderContext"), StageActor->RenderContext.ToString());
 			EventAttributes.Emplace(TEXT("MaterialPurpose"), StageActor->MaterialPurpose.ToString());
 			EventAttributes.Emplace(TEXT("RootMotionHandling"), LexToString((uint8)StageActor->RootMotionHandling));
+			EventAttributes.Emplace(TEXT("SubdivisionLevel"), LexToString(StageActor->SubdivisionLevel));
 
 			const bool bAutomated = false;
 			IUsdClassesModule::SendAnalytics(MoveTemp(EventAttributes), TEXT("Open"), bAutomated, ElapsedSeconds, NumberOfFrames, Extension);
@@ -966,6 +968,7 @@ AUsdStageActor::AUsdStageActor()
 	, NaniteTriangleThreshold((uint64)1000000)
 	, MaterialPurpose(*UnrealIdentifiers::MaterialPreviewPurpose)
 	, RootMotionHandling(EUsdRootMotionHandling::NoAdditionalRootMotion)
+	, SubdivisionLevel(0)
 	, Time(0.0f)
 	, bIsTransitioningIntoPIE(false)
 	, bIsModifyingAProperty(false)
@@ -2317,6 +2320,15 @@ void AUsdStageActor::SetRootMotionHandling( EUsdRootMotionHandling NewHandlingSt
 	Modify(bMarkDirty);
 
 	RootMotionHandling = NewHandlingStrategy;
+	LoadUsdStage();
+}
+
+void AUsdStageActor::SetSubdivisionLevel(int32 NewSubdivisionLevel)
+{
+	const bool bMarkDirty = false;
+	Modify(bMarkDirty);
+
+	SubdivisionLevel = NewSubdivisionLevel;
 	LoadUsdStage();
 }
 
@@ -4140,6 +4152,10 @@ void AUsdStageActor::HandlePropertyChangedEvent(FPropertyChangedEvent& PropertyC
 	else if (PropertyName == GET_MEMBER_NAME_CHECKED(AUsdStageActor, RootMotionHandling))
 	{
 		SetRootMotionHandling(RootMotionHandling);
+	}
+	else if (PropertyName == GET_MEMBER_NAME_CHECKED(AUsdStageActor, SubdivisionLevel))
+	{
+		SetSubdivisionLevel(SubdivisionLevel);
 	}
 	else if (PropertyName == GET_MEMBER_NAME_CHECKED(AUsdStageActor, UsdAssetCache))
 	{

@@ -1031,6 +1031,11 @@ void SUsdStage::FillOptionsMenu(FMenuBuilder& MenuBuilder)
 			FNewMenuDelegate::CreateSP( this, &SUsdStage::FillRootMotionSubMenu ) );
 
 		MenuBuilder.AddSubMenu(
+			LOCTEXT("SubdivLevel", "Subdivision level"),
+			LOCTEXT("SubdivLevel_ToolTip", "Subdivision level to use for all subdivision meshes on the opened stage. 0 means 'don't subdivide'"),
+			FNewMenuDelegate::CreateSP(this, &SUsdStage::FillSubdivisionLevelSubMenu));
+
+		MenuBuilder.AddSubMenu(
 			LOCTEXT( "Collapsing", "Collapsing" ),
 			LOCTEXT( "Collapsing_ToolTip", "Whether to try to combine individual assets and components of the same type on a Kind-per-Kind basis, like multiple Mesh prims into a single Static Mesh" ),
 			FNewMenuDelegate::CreateSP( this, &SUsdStage::FillCollapsingSubMenu ) );
@@ -1502,6 +1507,32 @@ void SUsdStage::FillRootMotionSubMenu( FMenuBuilder& MenuBuilder )
 	AddRootMotionEntry( EUsdRootMotionHandling::NoAdditionalRootMotion, LOCTEXT("NoAdditionalRootMotionText", "No additional root motion"));
 	AddRootMotionEntry( EUsdRootMotionHandling::UseMotionFromSkelRoot, LOCTEXT("UseMotionFromSkelRootText", "Use motion from SkelRoot"));
 	AddRootMotionEntry( EUsdRootMotionHandling::UseMotionFromSkeleton, LOCTEXT("UseMotionFromSkeletonText", "Use motion from Skeleton"));
+}
+
+void SUsdStage::FillSubdivisionLevelSubMenu(FMenuBuilder& MenuBuilder)
+{
+	if (AUsdStageActor* StageActor = GetStageActorOrCDO())
+	{
+		CurrentSubdivisionLevel = StageActor->SubdivisionLevel;
+	}
+
+	static IConsoleVariable* MaxSubdivCvar = IConsoleManager::Get().FindConsoleVariable(TEXT("USD.Subdiv.MaxSubdivLevel"));
+	const int32 MaxSubdivLevel = MaxSubdivCvar ? MaxSubdivCvar->GetInt() : 0;
+
+	TSharedRef<SSpinBox<int32>> Slider = SNew(SSpinBox<int32>)
+		.MinValue(0)
+		.MaxValue(MaxSubdivLevel)
+		.ToolTipText(LOCTEXT(
+			"SubdivLevelSliderTooltip",
+			"Subdivision level to use for all subdivision meshes on the opened stage. 0 means 'don't subdivide'. The maximum level of subdivision allowed can be configured via the 'USD.Subdiv.MaxSubdivLevel' cvar."
+		))
+		.Value(this, &SUsdStage::GetSubdivisionLevelValue)
+		.OnValueChanged(this, &SUsdStage::OnSubdivisionLevelValueChanged)
+		.SupportDynamicSliderMaxValue(true)
+		.OnValueCommitted(this, &SUsdStage::OnSubdivisionLevelValueCommitted);
+
+	const bool bNoIndent = true;
+	MenuBuilder.AddWidget(Slider, FText::FromString(TEXT("Subdivision level: ")), bNoIndent);
 }
 
 void SUsdStage::FillCollapsingSubMenu( FMenuBuilder& MenuBuilder )
@@ -2553,6 +2584,41 @@ void SUsdStage::OnNaniteTriangleThresholdValueCommitted( int32 InValue, ETextCom
 	CurrentNaniteThreshold = InValue;
 
 	if ( StageActor->IsTemplate() )
+	{
+		StageActor->SaveConfig();
+	}
+}
+
+int32 SUsdStage::GetSubdivisionLevelValue() const
+{
+	return CurrentSubdivisionLevel;
+}
+
+void SUsdStage::OnSubdivisionLevelValueChanged(int32 InValue)
+{
+	CurrentSubdivisionLevel = InValue;
+}
+
+void SUsdStage::OnSubdivisionLevelValueCommitted(int32 InValue, ETextCommit::Type InCommitType)
+{
+	AUsdStageActor* StageActor = GetStageActorOrCDO();
+	if (!StageActor)
+	{
+		return;
+	}
+
+	FScopedTransaction Transaction(FText::Format(
+		LOCTEXT("SubdivisionLevelCommittedTransaction", "Change Subdivision level for USD stage actor '{0}'"),
+		FText::FromString(StageActor->GetActorLabel())
+	));
+
+	// c.f. comment in SUsdStage::FillCollapsingSubMenu
+	TGuardValue<bool> MaintainSelectionGuard(bUpdatingViewportSelection, true);
+
+	StageActor->SetSubdivisionLevel(InValue);
+	CurrentSubdivisionLevel = InValue;
+
+	if (StageActor->IsTemplate())
 	{
 		StageActor->SaveConfig();
 	}

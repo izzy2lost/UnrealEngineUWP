@@ -2,12 +2,15 @@
 
 #pragma once
 
+#include "USDGeomMeshConversion.h"
+
+#include "UsdWrappers/UsdStage.h"
+
 #include "CoreMinimal.h"
 #include "GeometryCacheTrack.h"
 #include "GeometryCacheMeshData.h"
 #include "GeometryCacheTrackUSDTypes.h"
 #include "GeometryCacheUSDStream.h"
-#include "UsdWrappers/UsdStage.h"
 
 #include "GeometryCacheTrackUSD.generated.h"
 
@@ -74,6 +77,10 @@ public:
 	int32 EndFrameIndex;
 
 	FString PrimPath;
+
+#if USE_USD_SDK
+	UsdToUnreal::FUsdMeshConversionOptions MeshConversionOptions;
+#endif
 
 	UE::FUsdStage CurrentStagePinned;
 	UE::FUsdStageWeak CurrentStageWeak;

@@ -44,6 +44,7 @@ namespace UnrealBuildTool.Rules
 					"MeshDescription",
 					"MovieScene",
 					"MovieSceneTracks",
+					"OpenSubdiv",
 					"RenderCore",
 					"RHI", // So that we can use GMaxRHIFeatureLevel when force-loading textures before baking materials
 					"Slate",

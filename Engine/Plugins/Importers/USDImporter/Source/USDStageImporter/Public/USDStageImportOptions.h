@@ -105,6 +105,10 @@ public:
 	UPROPERTY( BlueprintReadWrite, config, EditAnywhere, Category = "USD options", meta = ( EditCondition = bImportSkeletalAnimations ) )
 	EUsdRootMotionHandling RootMotionHandling = EUsdRootMotionHandling::NoAdditionalRootMotion;
 
+	/** Subdivision level to use for all subdivision meshes on the opened stage. 0 means "don't subdivide" */
+	UPROPERTY(BlueprintReadWrite, config, EditAnywhere, Category = "USD options")
+	int32 SubdivisionLevel;
+
 	/** Whether to use the specified StageOptions instead of the stage's own settings */
 	UPROPERTY( BlueprintReadWrite, config, EditAnywhere, Category = "USD options" )
 	bool bOverrideStageOptions;
