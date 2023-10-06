@@ -4609,8 +4609,7 @@ bool UMaterialInstance::ShouldAlwaysEvaluateWorldPositionOffset() const
 
 bool UMaterialInstance::HasPixelAnimation() const
 {
-	const UMaterial* Material = GetMaterial();
-	return Material ? bHasPixelAnimation && GetMaterial()->MaterialDomain == MD_Surface : false;
+	return bHasPixelAnimation;
 }
 
 bool UMaterialInstance::IsMasked() const

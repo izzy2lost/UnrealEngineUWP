@@ -6759,7 +6759,7 @@ bool UMaterial::ShouldAlwaysEvaluateWorldPositionOffset() const
 
 bool UMaterial::HasPixelAnimation() const
 {
-	return bHasPixelAnimation && MaterialDomain == MD_Surface;
+	return bHasPixelAnimation;
 }
 
 void UMaterial::SetShadingModel(EMaterialShadingModel NewModel)
