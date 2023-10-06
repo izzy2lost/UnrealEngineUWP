@@ -801,6 +801,12 @@ namespace UnrealBuildTool
 					Arguments.Add("/Z7");
 				}
 
+				// https://clang.llvm.org/docs/UsersManual.html#cmdoption-gline-tables-only
+				if (Target.WindowsPlatform.Compiler.IsClang() && CompileEnvironment.bDebugLineTablesOnly)
+				{
+					Arguments.Add("-gline-tables-only");
+				}
+
 				// https://clang.llvm.org/docs/UsersManual.html#cmdoption-fstandalone-debug
 				if (Target.WindowsPlatform.Compiler.IsClang() && Target.WindowsPlatform.bClangStandaloneDebug)
 				{

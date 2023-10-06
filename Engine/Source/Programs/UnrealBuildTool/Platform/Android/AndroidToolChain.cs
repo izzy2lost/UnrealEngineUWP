@@ -558,6 +558,11 @@ namespace UnrealBuildTool
 			{
 				Arguments.Add("-g2");
 				Arguments.Add("-gdwarf-4");
+
+				if (CompileEnvironment.bDebugLineTablesOnly)
+				{
+					Arguments.Add("-gline-tables-only");
+				}
 			}
 
 			if (!DisableStackProtector())

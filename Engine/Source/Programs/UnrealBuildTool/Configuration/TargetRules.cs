@@ -1866,6 +1866,26 @@ namespace UnrealBuildTool
 		public HashSet<string> DisableDebugInfoPlugins { get; } = new();
 
 		/// <summary>
+		/// True if only debug line number tables should be emitted in debug information for compilers that support doing so. Overrides TargetRules.DebugInfo
+		/// See https://clang.llvm.org/docs/UsersManual.html#cmdoption-gline-tables-only for more information
+		/// </summary>
+		[XmlConfigFile(Category = "BuildConfiguration")]
+		[CommandLine("-DebugInfoLineTablesOnly=")]
+		public DebugInfoMode DebugInfoLineTablesOnly { get; set; } = DebugInfoMode.None;
+
+		/// <summary>
+		/// Modules that should emit line number tables instead of full debug information for compilers that support doing so. Overrides DisableDebugInfoModules
+		/// </summary>
+		[CommandLine("-DebugInfoLineTablesOnlyModules=", ListSeparator = '+')]
+		public HashSet<string> DebugInfoLineTablesOnlyModules { get; } = new();
+
+		/// <summary>
+		/// Plugins that should emit line number tables instead of full debug information for compilers that support doing so. Overrides DisableDebugInfoPlugins
+		/// </summary>
+		[CommandLine("-DebugInfoLineTablesOnlyPlugins=", ListSeparator = '+')]
+		public HashSet<string> DebugInfoLineTablesOnlyPlugins { get; } = new();
+
+		/// <summary>
 		/// Whether to disable debug info generation for generated files. This improves link times and reduces pdb size for modules that have a lot of generated glue code.
 		/// </summary>
 		[XmlConfigFile(Category = "BuildConfiguration")]
@@ -3401,6 +3421,12 @@ namespace UnrealBuildTool
 		public IReadOnlySet<string> DisableDebugInfoModules => Inner.DisableDebugInfoModules;
 
 		public IReadOnlySet<string> DisableDebugInfoPlugins => Inner.DisableDebugInfoPlugins;
+
+		public DebugInfoMode DebugInfoLineTablesOnly => Inner.DebugInfoLineTablesOnly;
+
+		public IReadOnlySet<string> DebugInfoLineTablesOnlyModules => Inner.DebugInfoLineTablesOnlyModules;
+
+		public IReadOnlySet<string> DebugInfoLineTablesOnlyPlugins => Inner.DebugInfoLineTablesOnlyPlugins;
 
 		public bool bDisableDebugInfoForGeneratedCode => Inner.bDisableDebugInfoForGeneratedCode;
 

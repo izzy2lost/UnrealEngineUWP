@@ -1823,6 +1823,89 @@ namespace UnrealBuildTool
 			return false;
 		}
 
+		private void CompileEnvironmentDebugInfoSettings(ReadOnlyTargetRules Target, CppCompileEnvironment Result)
+		{
+			// If bCreateDebugInfo is disabled for the whole target do not adjust any settings
+			if (!Result.bCreateDebugInfo)
+			{
+				return;
+			}
+
+			if (Rules.Target.ProjectFile != null && Rules.File.IsUnderDirectory(Rules.Target.ProjectFile.Directory))
+			{
+				if (Target.DebugInfoLineTablesOnly.HasFlag(DebugInfoMode.ProjectPlugins) && Rules.Plugin != null)
+				{
+					Result.bDebugLineTablesOnly = true;
+				}
+				else if (Target.DebugInfoLineTablesOnly.HasFlag(DebugInfoMode.Project) && Rules.Plugin == null)
+				{
+					Result.bDebugLineTablesOnly = true;
+				}
+			}
+			else
+			{
+				if (Target.DebugInfoLineTablesOnly.HasFlag(DebugInfoMode.EnginePlugins) && Rules.Plugin != null)
+				{
+					Result.bDebugLineTablesOnly = true;
+				}
+				else if (Target.DebugInfoLineTablesOnly.HasFlag(DebugInfoMode.Engine) && Rules.Plugin == null)
+				{
+					Result.bDebugLineTablesOnly = true;
+				}
+			}
+
+			if (Rules.Plugin != null && Rules.Target.DebugInfoLineTablesOnlyPlugins.Contains(Rules.Plugin.Name))
+			{
+				Result.bDebugLineTablesOnly = true;
+			}
+			else if (Rules.Target.DebugInfoLineTablesOnlyModules.Contains(Name))
+			{
+				Result.bDebugLineTablesOnly = true;
+			}
+
+			if (Result.bDebugLineTablesOnly)
+			{
+				// Don't disable debug info if only line tables are requested
+				return;
+			}
+
+			// Disable debug info for modules if requested
+			if (!Target.bUsePDBFiles || !Target.Platform.IsInGroup("Microsoft"))
+			{
+				if (Rules.Target.ProjectFile != null && Rules.File.IsUnderDirectory(Rules.Target.ProjectFile.Directory))
+				{
+					if (!Target.DebugInfo.HasFlag(DebugInfoMode.ProjectPlugins) && Rules.Plugin != null)
+					{
+						Result.bCreateDebugInfo = false;
+					}
+					else if (!Target.DebugInfo.HasFlag(DebugInfoMode.Project) && Rules.Plugin == null)
+					{
+						Result.bCreateDebugInfo = false;
+					}
+				}
+				else
+				{
+					if (!Target.DebugInfo.HasFlag(DebugInfoMode.EnginePlugins) && Rules.Plugin != null)
+					{
+						Result.bCreateDebugInfo = false;
+					}
+					else if (!Target.DebugInfo.HasFlag(DebugInfoMode.Engine) && Rules.Plugin == null)
+					{
+						Result.bCreateDebugInfo = false;
+					}
+				}
+
+				if (Rules.Plugin != null && Rules.Target.DisableDebugInfoPlugins.Contains(Rules.Plugin.Name))
+				{
+					Result.bCreateDebugInfo = false;
+				}
+				else if (Rules.Target.DisableDebugInfoModules.Contains(Name))
+				{
+					Result.bCreateDebugInfo = false;
+				}
+			}
+		}
+
 		/// <summary>
 		/// Determine whether optimization should be enabled for a given target
 		/// </summary>
@@ -1896,41 +1979,7 @@ namespace UnrealBuildTool
 			Result.bValidateFormatStrings = Rules.bValidateFormatStrings;
 			Result.bUseAutoRTFMCompiler = Target.bUseAutoRTFMCompiler;
 
-			// Disable debug info for modules if requested
-			if (!Target.bUsePDBFiles || !Target.Platform.IsInGroup("Microsoft"))
-			{
-				if (Rules.Target.ProjectFile != null && Rules.File.IsUnderDirectory(Rules.Target.ProjectFile.Directory))
-				{
-					if (!Target.DebugInfo.HasFlag(DebugInfoMode.ProjectPlugins) && Rules.Plugin != null)
-					{
-						Result.bCreateDebugInfo = false;
-					}
-					else if (!Target.DebugInfo.HasFlag(DebugInfoMode.Project) && Rules.Plugin == null)
-					{
-						Result.bCreateDebugInfo = false;
-					}
-				}
-				else
-				{
-					if (!Target.DebugInfo.HasFlag(DebugInfoMode.EnginePlugins) && Rules.Plugin != null)
-					{
-						Result.bCreateDebugInfo = false;
-					}
-					else if (!Target.DebugInfo.HasFlag(DebugInfoMode.Engine) && Rules.Plugin == null)
-					{
-						Result.bCreateDebugInfo = false;
-					}
-				}
-
-				if (Rules.Plugin != null && Rules.Target.DisableDebugInfoPlugins.Contains(Rules.Plugin.Name))
-				{
-					Result.bCreateDebugInfo = false;
-				}
-				else if (Rules.Target.DisableDebugInfoModules.Contains(Name))
-				{
-					Result.bCreateDebugInfo = false;
-				}
-			}
+			CompileEnvironmentDebugInfoSettings(Target, Result);
 
 			// Only enable the AutoRTFM flag if we are using the AutoRTFM compiler
 			if (Target.bUseAutoRTFMCompiler)

@@ -417,6 +417,11 @@ namespace UnrealBuildTool
 		public bool bCreateDebugInfo = true;
 
 		/// <summary>
+		/// True if debug info should only generate line number tables (clang)
+		/// </summary>
+		public bool bDebugLineTablesOnly = false;
+
+		/// <summary>
 		/// True if we're compiling .cpp files that will go into a library (.lib file)
 		/// </summary>
 		public bool bIsBuildingLibrary = false;
@@ -744,6 +749,7 @@ namespace UnrealBuildTool
 			OptimizationLevel = Other.OptimizationLevel;
 			FPSemantics = Other.FPSemantics;
 			bCreateDebugInfo = Other.bCreateDebugInfo;
+			bDebugLineTablesOnly = Other.bDebugLineTablesOnly;
 			bIsBuildingLibrary = Other.bIsBuildingLibrary;
 			bIsBuildingDLL = Other.bIsBuildingDLL;
 			bUseStaticCRT = Other.bUseStaticCRT;

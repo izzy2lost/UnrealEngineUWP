@@ -529,6 +529,11 @@ namespace UnrealBuildTool
 			if (CompileEnvironment.bCreateDebugInfo)
 			{
 				Arguments.Add("-gdwarf-4");
+
+				if (CompileEnvironment.bDebugLineTablesOnly)
+				{
+					Arguments.Add("-gline-tables-only");
+				}
 			}
 		}
 

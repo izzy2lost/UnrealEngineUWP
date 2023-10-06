@@ -476,6 +476,11 @@ namespace UnrealBuildTool
 				{
 					Arguments.Add("-glldb");
 				}
+
+				if (CompileEnvironment.bDebugLineTablesOnly)
+				{
+					Arguments.Add("-gline-tables-only");
+				}
 			}
 
 			if (CompileEnvironment.bHideSymbolsByDefault)
