@@ -31,47 +31,15 @@ void FAnimNode_AssetPlayerBase::CreateTickRecordForNode(const FAnimationUpdateCo
 
 	UE::Anim::FAnimSyncGroupScope& SyncScope = Context.GetMessageChecked<UE::Anim::FAnimSyncGroupScope>();
 
-	const EAnimGroupRole::Type SyncGroupRole = GetGroupRole();
-	const FName SyncGroupName = GetGroupName();
-	FName GroupNameToUse = SyncGroupName;
-	EAnimSyncMethod MethodToUse = GetGroupMethod();
-	const bool bRequestedInertialization = Context.GetMessage<UE::Anim::FAnimInertializationSyncScope>() != nullptr;
-	
-	// Skip sync based on roles.
-	{
-		// Only allow transition leader/follower part of a sync group once after inertialization request. (Inertilization)
-		if (bRequestedInertialization)
-		{
-			if (SyncGroupRole == EAnimGroupRole::TransitionLeader || SyncGroupRole == EAnimGroupRole::TransitionFollower)
-			{
-				GroupNameToUse = NAME_None;
-			}
-		}
-		// Only allow transition leader/follower part of a sync group once it has full weight (Standard blend).
-		else if ((SyncGroupRole == EAnimGroupRole::TransitionLeader || SyncGroupRole == EAnimGroupRole::TransitionFollower) && !bHasBeenFullWeight)
-		{
-			GroupNameToUse = NAME_None;
-		}
-
-		// Do not use sync groups.
-		if (GroupNameToUse == NAME_None && MethodToUse == EAnimSyncMethod::SyncGroup)
-		{
-			MethodToUse = EAnimSyncMethod::DoNotSync;
-		}
-	}
-
-	// Setup parameters for synchronizer
-	const UE::Anim::FAnimSyncParams SyncParams(GroupNameToUse, SyncGroupRole, MethodToUse);
-
 	// Active asset player's tick record
 	FAnimTickRecord TickRecord(Sequence, bLooping, PlayRate, bIsEvaluator, FinalBlendWeight, /*inout*/ InternalTimeAccumulator, MarkerTickRecord);
 	TickRecord.GatherContextData(Context);
 	TickRecord.RootMotionWeightModifier = Context.GetRootMotionWeightModifier();
 	TickRecord.DeltaTimeRecord = &DeltaTimeRecord;
-	TickRecord.bRequestedInertialization = bRequestedInertialization;
+	TickRecord.bRequestedInertialization = Context.GetMessage<UE::Anim::FAnimInertializationSyncScope>() != nullptr;;
 
 	// Add asset player to synchronizer
-	SyncScope.AddTickRecord(TickRecord, SyncParams, UE::Anim::FAnimSyncDebugInfo(Context));
+	SyncScope.AddTickRecord(TickRecord, GetSyncParams(TickRecord.bRequestedInertialization), UE::Anim::FAnimSyncDebugInfo(Context));
 
 	TRACE_ANIM_TICK_RECORD(Context, TickRecord);
 }
@@ -104,4 +72,37 @@ float FAnimNode_AssetPlayerBase::GetCurrentAssetTimePlayRateAdjusted() const
 const FDeltaTimeRecord* FAnimNode_AssetPlayerBase::GetDeltaTimeRecord() const
 {
 	return &DeltaTimeRecord;
+}
+
+UE::Anim::FAnimSyncParams FAnimNode_AssetPlayerBase::GetSyncParams(bool bRequestedInertialization) const
+{
+	const EAnimGroupRole::Type SyncGroupRole = GetGroupRole();
+	const FName SyncGroupName = GetGroupName();
+	FName GroupNameToUse = SyncGroupName;
+	EAnimSyncMethod MethodToUse = GetGroupMethod();
+	
+	// Skip sync based on roles.
+	{
+		// Only allow transition leader/follower part of a sync group once after inertialization request. (Inertilization)
+		if (bRequestedInertialization)
+		{
+			if (SyncGroupRole == EAnimGroupRole::TransitionLeader || SyncGroupRole == EAnimGroupRole::TransitionFollower)
+			{
+				GroupNameToUse = NAME_None;
+			}
+		}
+		// Only allow transition leader/follower part of a sync group once it has full weight (Standard blend).
+		else if ((SyncGroupRole == EAnimGroupRole::TransitionLeader || SyncGroupRole == EAnimGroupRole::TransitionFollower) && !bHasBeenFullWeight)
+		{
+			GroupNameToUse = NAME_None;
+		}
+
+		// Do not use sync groups.
+		if (GroupNameToUse == NAME_None && MethodToUse == EAnimSyncMethod::SyncGroup)
+		{
+			MethodToUse = EAnimSyncMethod::DoNotSync;
+		}
+	}
+
+	return UE::Anim::FAnimSyncParams(GroupNameToUse, SyncGroupRole, MethodToUse);
 }
