@@ -346,8 +346,13 @@ void GetLocalFogVolumeSortingData(const FScene* Scene, FRDGBuilder& GraphBuilder
 		FMatrix44f InvTransform = Transform.Inverse();
 		ConvertFromMatrix44fTo4x3Array(InvTransform, LocalFogVolumeGPUInstanceDataIt->InvTransform);
 
+		// Falloff needs to be made safe in order to avoid artifact when the camera is looking toward the horizon at the level of the offset.
+		const float SafeFalloffThreshold = 1.0f;
+		const float FalloffScaleUI = 0.01f;
+		const float SafeFallOff = FMath::Max(LHF->HeightFogFalloff, SafeFalloffThreshold) * FalloffScaleUI;
+
 		FVector2DHalf Data0X = FVector2DHalf(LHF->RadialFogExtinction,			LHF->HeightFogExtinction);
-		FVector2DHalf Data0Y = FVector2DHalf(LHF->HeightFogFalloff * 0.01f,		LHF->HeightFogOffset);
+		FVector2DHalf Data0Y = FVector2DHalf(SafeFallOff,						LHF->HeightFogOffset);
 		FVector2DHalf Data0Z = FVector2DHalf(LHF->FogEmissive.R,				LHF->FogEmissive.G);
 		FVector2DHalf Data0W = FVector2DHalf(LHF->FogEmissive.B,				0.0f);
 

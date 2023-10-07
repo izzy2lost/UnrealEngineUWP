@@ -24,8 +24,8 @@ class ULocalFogVolumeComponent : public USceneComponent
 	UPROPERTY(EditAnywhere, BlueprintReadOnly, interp, Category = "Height Fog Distribution", meta = (DisplayName = "Height Fog Density", UIMin = "0", UIMax = "2.0", SliderExponent = 2.0, ClampMin = 0.0))
 	float HeightFogExtinction = 0.0f;
 
-	/** Controls how the density decreases as height increases. Smaller values make the visible transition larger. */
-	UPROPERTY(EditAnywhere, BlueprintReadOnly, interp, Category = "Height Fog Distribution", meta = (UIMin = "0.001", UIMax = "5000", SliderExponent = 2.0, ClampMin = 0.001))
+	/** Controls how the density decreases as height increases. Smaller values make the visible transition larger. 1.0 is the lowest value before visual artifact are visible at the horizon. */
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, interp, Category = "Height Fog Distribution", meta = (UIMin = "1.0", UIMax = "5000", SliderExponent = 2.0, ClampMin = 1.0))
 	float HeightFogFalloff = 1000.0f;
 
 	/** Height offset, relative to the actor Z position. */
