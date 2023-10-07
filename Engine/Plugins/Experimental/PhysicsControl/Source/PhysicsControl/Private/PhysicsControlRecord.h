@@ -36,6 +36,11 @@ struct FPhysicsControlRecord
 	 */
 	FConstraintInstance* CreateConstraint(UObject* ConstraintDebugOwner, FName ControlName);
 
+	/** 
+	 * Initialises the constraint with the bodies assigned to us. Requires that the constraint itself 
+	 * has been made. Returns true/false on success/failure */
+	bool InitConstraint(UObject* ConstraintDebugOwner, FName ControlName);
+
 	/** Ensures the constraint frame matches the control point in the record. */
 	void UpdateConstraintControlPoint();
 

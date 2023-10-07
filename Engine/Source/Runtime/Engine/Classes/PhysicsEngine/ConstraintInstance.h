@@ -970,6 +970,7 @@ public:
 	/** Enable/Disable parent dominates (meaning the parent body cannot be be affected at all by a child) */
 	ENGINE_API void EnableParentDominates();
 	ENGINE_API void DisableParentDominates();
+	ENGINE_API void SetParentDominates(bool bParentDominates);
 
 	/** Whether mass conditioning is enabled. @see FConstraintProfileProperties::bEnableMassConditioning */
 	bool IsMassConditioningEnabled() const

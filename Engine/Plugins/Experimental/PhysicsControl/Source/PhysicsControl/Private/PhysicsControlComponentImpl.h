@@ -156,7 +156,7 @@ public:
 		const EDestroyBehavior DestroyBehavior = EDestroyBehavior::RemoveRecord);
 
 	/** Calculates and returns a unique name based on the bone names and any existing records */
-	FName GetUniqueControlName(const FName ParentBoneName, const FName ChildBoneName) const;
+	FName GetUniqueControlName(const FName ParentBoneName, const FName ChildBoneName, const FString& NamePrefix) const;
 
 	/** Calculates and returns a unique name based on the bone name and any existing records */
 	FName GetUniqueBodyModifierName(const FName BoneName) const;

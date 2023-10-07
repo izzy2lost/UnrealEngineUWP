@@ -1343,22 +1343,22 @@ void FConstraintInstance::DisableProjection()
 
 void FConstraintInstance::EnableParentDominates()
 {
-	ProfileInstance.bParentDominates = true;
-	
-	FPhysicsCommand::ExecuteWrite(ConstraintHandle, [&](const FPhysicsConstraintHandle& Constraint)
-	{
-		FPhysicsInterface::SetParentDominates_AssumesLocked(Constraint, true);
-	});
+	SetParentDominates(true);
 }
 
 void FConstraintInstance::DisableParentDominates()
 {
-	ProfileInstance.bParentDominates = false;
-	
-	FPhysicsCommand::ExecuteWrite(ConstraintHandle, [&](const FPhysicsConstraintHandle& Constraint)
-	{
-		FPhysicsInterface::SetParentDominates_AssumesLocked(Constraint, false);
-	});
+	SetParentDominates(false);
+}
+
+void FConstraintInstance::SetParentDominates(bool bParentDominates)
+{
+	ProfileInstance.bParentDominates = bParentDominates;
+
+	FPhysicsCommand::ExecuteWrite(ConstraintHandle, [this, bParentDominates](const FPhysicsConstraintHandle& Constraint)
+		{
+			FPhysicsInterface::SetParentDominates_AssumesLocked(Constraint, bParentDominates);
+		});
 }
 
 void FConstraintInstance::EnableMassConditioning()

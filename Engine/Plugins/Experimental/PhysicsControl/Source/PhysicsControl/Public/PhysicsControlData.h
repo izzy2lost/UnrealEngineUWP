@@ -529,6 +529,7 @@ struct PHYSICSCONTROL_API FPhysicsControlSettings
 		, bUseSkeletalAnimation(true)
 		, SkeletalAnimationVelocityMultiplier(1.0f)
 		, bDisableCollision(false)
+		, bOnlyControlChildObject(false)
 	{
 	}
 
@@ -553,6 +554,12 @@ struct PHYSICSCONTROL_API FPhysicsControlSettings
 	 */
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = PhysicsControl)
 	bool bDisableCollision;
+
+	/**
+	 * If set to true, then the control will only affect the child object, not the parent
+	 */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = PhysicsControl)
+	bool bOnlyControlChildObject;
 };
 
 /**

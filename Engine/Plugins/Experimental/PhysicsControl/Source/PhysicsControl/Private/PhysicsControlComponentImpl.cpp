@@ -423,9 +423,10 @@ bool FPhysicsControlComponentImpl::RemoveSkeletalMeshReferenceForModifier(
 }
 
 //======================================================================================================================
-FName FPhysicsControlComponentImpl::GetUniqueControlName(const FName ParentBoneName, const FName ChildBoneName) const
+FName FPhysicsControlComponentImpl::GetUniqueControlName(
+	const FName ParentBoneName, const FName ChildBoneName, const FString& NamePrefix) const
 {
-	FString NameBase = TEXT("");
+	FString NameBase = NamePrefix;
 	if (!ParentBoneName.IsNone())
 	{
 		NameBase += ParentBoneName.ToString() + TEXT("_");
@@ -520,6 +521,16 @@ void FPhysicsControlComponentImpl::CalculateControlTargetData(
 		{
 			bHaveParentBoneData = GetBoneData(
 				ParentBoneData, ParentSkeletalMeshComponent, Record.PhysicsControl.ParentBoneName);
+		}
+		else if (Record.PhysicsControl.ParentMeshComponent)
+		{
+			FTransform ParentTM = Record.PhysicsControl.ParentMeshComponent->GetComponentTransform();
+			ParentBoneData.Position = ParentTM.GetLocation();
+			ParentBoneData.Orientation = ParentTM.GetRotation();
+			ParentBoneData.Velocity = Record.PhysicsControl.ParentMeshComponent->GetPhysicsLinearVelocity();
+			ParentBoneData.AngularVelocity = Record.PhysicsControl.ParentMeshComponent->GetPhysicsAngularVelocityInRadians();
+			bHaveParentBoneData = true;
+			bCalculateVelocity = false;
 		}
 
 		// Note that the TargetTM/velocity calculated so far are supposed to be interpreted as
@@ -723,6 +734,8 @@ void FPhysicsControlComponentImpl::ApplyControl(FPhysicsControlRecord& Record)
 		return;
 	}
 
+	// TODO UE-197351 disable constraint features fully when strengths/damping are zero
+
 	// Set strengths etc
 	if (ApplyControlStrengths(Record, ConstraintInstance))
 	{
@@ -735,6 +748,7 @@ void FPhysicsControlComponentImpl::ApplyControl(FPhysicsControlRecord& Record)
 		ConstraintInstance->SetAngularOrientationTarget(TargetTM.GetRotation());
 		ConstraintInstance->SetLinearVelocityTarget(TargetVelocity);
 		ConstraintInstance->SetAngularVelocityTarget(TargetAngularVelocity / UE_TWO_PI); // In rev/sec
+		ConstraintInstance->SetParentDominates(Record.PhysicsControl.ControlSettings.bOnlyControlChildObject);
 
 		if (ParentBodyInstance)
 		{

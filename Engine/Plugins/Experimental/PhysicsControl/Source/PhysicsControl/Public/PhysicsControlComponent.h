@@ -93,6 +93,7 @@ public:
 	 *        gets added to the set "All"
 	 * @param bEnabled If true then the control will be enabled immediately. If false you will need to call
 	 *        SetControlEnabled(true) in order to activate it.
+	 * @param NamePrefix Optional string that is prefixed to the control that is created.
 	 * @return The name of the new control
 	 */
 	UFUNCTION(BlueprintCallable, Category = PhysicsControl)
@@ -104,7 +105,8 @@ public:
 		const FPhysicsControlData     ControlData,
 		const FPhysicsControlTarget   ControlTarget, 
 		const FPhysicsControlSettings ControlSettings,
-		FName                         Set
+		FName                         Set,
+		FString                       NamePrefix = TEXT("")
 	);
 
 	/**
@@ -263,12 +265,15 @@ public:
 	 *
 	 * @param AllControls A single container for all the controls that have been created
 	 * @param LimbBones A map relating the limbs and the bones that they contain. Typically create this 
-	 *                  using GetLimbBonesFromSkeletalMesh
+	 *        using GetLimbBonesFromSkeletalMesh
 	 * @param ControlType What type of control to create. This determines what the parent will be for each control
 	 * @param ControlData Describes the initial strength etc of the new control
 	 * @param ControlSettings General settings for the control
-	 * @param bEnabled If true then the control will be enabled immediately. If false you will need to call
-	 *                 SetControlEnabled(true) in order to enable it.
+	 * @param WorldComponent Optional component to use as the parent object for any "world-space" controls 
+	 *        that are created. Will be ignored if the controls being created are not world-space.
+	 * @param WorldBoneName Additional bone name to identify the world object if the WorldComponent is actually 
+	 *        a skeletal mesh component.
+	 * @param NamePrefix Optional string that is prefixed to each control that is created. 
 	 * @return A map containing the controls for each limb
 	 */
 	UFUNCTION(BlueprintCallable, Category = PhysicsControl)
@@ -277,7 +282,10 @@ public:
 		const TMap<FName, FPhysicsControlLimbBones>& LimbBones,
 		const EPhysicsControlType                    ControlType,
 		const FPhysicsControlData                    ControlData,
-		const FPhysicsControlSettings                ControlSettings);
+		const FPhysicsControlSettings                ControlSettings,
+		UMeshComponent*                              WorldComponent = nullptr,
+		FName                                        WorldBoneName = NAME_None,
+		FString                                      NamePrefix = TEXT(""));
 
 	/**
 	 * Creates a collection of ParentSpace controls controlling a skeletal mesh, grouped together in limbs, initializing
@@ -333,6 +341,32 @@ public:
 	 */
 	UFUNCTION(BlueprintCallable, Category = PhysicsControl)
 	void DestroyControlsInSet(const FName Set);
+
+	/**
+	 * Updates the parent object part of a control. Note that this won't change the name of the control (which may
+	 * subsequently be misleading), or any set it is included in, etc.
+	 */
+	UFUNCTION(BlueprintCallable, Category = PhysicsControl)
+	bool SetControlParent(
+		const FName     Name, 
+		UMeshComponent* ParentMeshComponent,
+		const FName     ParentBoneName);
+
+	/**
+	 * Updates the parent object part of controls. Note that this won't change the name of the controls (which may
+	 * subsequently be misleading), or any set they are included in, etc.
+	 */
+	UFUNCTION(BlueprintCallable, Category = PhysicsControl)
+	void SetControlParents(
+		const TArray<FName>& Names,
+		UMeshComponent*      ParentMeshComponent,
+		const FName          ParentBoneName);
+
+	UFUNCTION(BlueprintCallable, Category = PhysicsControl)
+	void SetControlParentsInSet(
+		const FName     Set,
+		UMeshComponent* ParentMeshComponent,
+		const FName     ParentBoneName);
 
 	/**
 	 * Modifies an existing control data - i.e. the strengths etc of the control driving towards the target
@@ -1284,8 +1318,9 @@ public:
 		const FPhysicsControlSettings               ParentSpaceControlSettings,
 		const EPhysicsMovementType                  PhysicsMovementType = EPhysicsMovementType::Static,
 		const float                                 GravityMultiplier = 1.0f,
-		const float                                 PhysicsBlendWeight = 1.0f
-		);
+		const float                                 PhysicsBlendWeight = 1.0f,
+		UMeshComponent*                             WorldComponent = nullptr,
+		FName                                       WorldBoneName = NAME_None);
 
 	/**
 	 * Adds a Control to a Set. This will add a new set if necessary. For example, you might

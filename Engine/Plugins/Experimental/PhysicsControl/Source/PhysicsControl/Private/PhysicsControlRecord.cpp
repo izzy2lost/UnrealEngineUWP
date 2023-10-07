@@ -18,6 +18,60 @@ void FPhysicsControlState::Reset()
 }
 
 //======================================================================================================================
+bool FPhysicsControlRecord::InitConstraint(UObject* ConstraintDebugOwner, FName ControlName)
+{
+	if (!PhysicsControlState.ConstraintInstance)
+	{
+		return false;
+	}
+
+	FConstraintInstance* ConstraintInstance = PhysicsControlState.ConstraintInstance.Get();
+
+	FBodyInstance* ParentBody = UE::PhysicsControlComponent::GetBodyInstance(
+		PhysicsControl.ParentMeshComponent, PhysicsControl.ParentBoneName);
+	FBodyInstance* ChildBody = UE::PhysicsControlComponent::GetBodyInstance(
+		PhysicsControl.ChildMeshComponent, PhysicsControl.ChildBoneName);
+
+	if (PhysicsControl.ParentMeshComponent && !PhysicsControl.ParentBoneName.IsNone() && !ParentBody)
+	{
+		UE_LOG(LogPhysicsControlComponent, Warning,
+			TEXT("Failed to find expected parent body %s when making constraint for control %s"),
+			*PhysicsControl.ParentBoneName.ToString(),
+			*ControlName.ToString());
+		return false;
+	}
+	if (PhysicsControl.ChildMeshComponent && !PhysicsControl.ChildBoneName.IsNone() && !ChildBody)
+	{
+		UE_LOG(LogPhysicsControlComponent, Warning,
+			TEXT("Failed to find expected child body %s when making constraint for control %s"),
+			*PhysicsControl.ChildBoneName.ToString(),
+			*ControlName.ToString());
+		return false;
+	}
+
+	ConstraintInstance->InitConstraint(ChildBody, ParentBody, 1.0f, ConstraintDebugOwner);
+	ConstraintInstance->SetDisableCollision(PhysicsControl.ControlSettings.bDisableCollision);
+	// These things won't change so set them once here
+	ConstraintInstance->SetLinearXMotion(ELinearConstraintMotion::LCM_Free);
+	ConstraintInstance->SetLinearYMotion(ELinearConstraintMotion::LCM_Free);
+	ConstraintInstance->SetLinearZMotion(ELinearConstraintMotion::LCM_Free);
+	ConstraintInstance->SetAngularSwing1Motion(EAngularConstraintMotion::ACM_Free);
+	ConstraintInstance->SetAngularSwing2Motion(EAngularConstraintMotion::ACM_Free);
+	ConstraintInstance->SetAngularTwistMotion(EAngularConstraintMotion::ACM_Free);
+	ConstraintInstance->SetAngularDriveMode(EAngularDriveMode::SLERP);
+
+	ConstraintInstance->SetOrientationDriveSLERP(true);
+	ConstraintInstance->SetAngularVelocityDriveSLERP(true);
+	ConstraintInstance->SetLinearPositionDrive(true, true, true);
+	ConstraintInstance->SetLinearVelocityDrive(true, true, true);
+
+	// Ensure the control point is set
+	UpdateConstraintControlPoint();
+
+	return true;
+}
+
+//======================================================================================================================
 // A constraint created with identity frames will just have the child frame at the mesh origin,
 // which is not necessarily where the center of gravity is.
 FConstraintInstance* FPhysicsControlRecord::CreateConstraint(UObject* ConstraintDebugOwner, FName ControlName)
@@ -28,47 +82,7 @@ FConstraintInstance* FPhysicsControlRecord::CreateConstraint(UObject* Constraint
 	}
 	FConstraintInstance* ConstraintInstance = PhysicsControlState.ConstraintInstance.Get();
 
-	FBodyInstance* ParentBody = UE::PhysicsControlComponent::GetBodyInstance(
-		PhysicsControl.ParentMeshComponent, PhysicsControl.ParentBoneName);
-	FBodyInstance* ChildBody = UE::PhysicsControlComponent::GetBodyInstance(
-		PhysicsControl.ChildMeshComponent, PhysicsControl.ChildBoneName);
-
-	if (PhysicsControl.ParentMeshComponent && !PhysicsControl.ParentBoneName.IsNone() && !ParentBody)
-	{
-		UE_LOG(LogPhysicsControlComponent, Warning, 
-			TEXT("Failed to find expected parent body %s when making constraint for control %s"), 
-			*PhysicsControl.ParentBoneName.ToString(),
-			*ControlName.ToString());
-		return nullptr;
-	}
-	if (PhysicsControl.ChildMeshComponent && !PhysicsControl.ChildBoneName.IsNone() && !ChildBody)
-	{
-		UE_LOG(LogPhysicsControlComponent, Warning, 
-			TEXT("Failed to find expected child body %s when making constraint for control %s"), 
-			*PhysicsControl.ChildBoneName.ToString(),
-			*ControlName.ToString());
-		return nullptr;
-	}
-
-	ConstraintInstance->InitConstraint(ChildBody, ParentBody, 1.0f, ConstraintDebugOwner);
-
-	// Ensure the control point is set
-	UpdateConstraintControlPoint();
-
-	ConstraintInstance->SetLinearXMotion(ELinearConstraintMotion::LCM_Free);
-	ConstraintInstance->SetLinearYMotion(ELinearConstraintMotion::LCM_Free);
-	ConstraintInstance->SetLinearZMotion(ELinearConstraintMotion::LCM_Free);
-	ConstraintInstance->SetAngularSwing1Motion(EAngularConstraintMotion::ACM_Free);
-	ConstraintInstance->SetAngularSwing2Motion(EAngularConstraintMotion::ACM_Free);
-	ConstraintInstance->SetAngularTwistMotion(EAngularConstraintMotion::ACM_Free);
-
-	ConstraintInstance->SetLinearPositionDrive(true, true, true);
-	ConstraintInstance->SetLinearVelocityDrive(true, true, true);
-	ConstraintInstance->SetAngularDriveMode(EAngularDriveMode::SLERP);
-	ConstraintInstance->SetOrientationDriveSLERP(true);
-	ConstraintInstance->SetAngularVelocityDriveSLERP(true);
-
-	ConstraintInstance->SetDisableCollision(PhysicsControl.ControlSettings.bDisableCollision);
+	InitConstraint(ConstraintDebugOwner, ControlName);
 
 	return ConstraintInstance;
 }
