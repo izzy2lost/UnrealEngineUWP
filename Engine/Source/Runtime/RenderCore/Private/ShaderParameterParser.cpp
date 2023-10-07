@@ -1022,6 +1022,8 @@ void FShaderParameterParser::ApplyBindlessModifications(FString& PreprocessedSha
 
 			// Commit all modifications to caller
 			PreprocessedShaderSource = NewShaderCode;
+
+			bModifiedShader = true;
 		}
 	}
 }
@@ -1122,6 +1124,7 @@ bool FShaderParameterParser::MoveShaderParametersToRootConstantBuffer(
 		PreprocessedShaderSource = MoveTemp(NewShaderCode);
 
 		bMovedLoosedParametersToRootConstantBuffer = true;
+		bModifiedShader = true;
 	} // if (CompilerInput.RootParametersStructure && bNeedToMoveToRootConstantBuffer)
 
 	return bSuccess;
@@ -1167,10 +1170,26 @@ bool FShaderParameterParser::ParseAndModify(
 	RemoveMovingParametersFromSource(PreprocessedShaderSource);
 	ApplyBindlessModifications(PreprocessedShaderSource);
 
+	bool bResult = true;
+
 	if (bNeedToMoveToRootConstantBuffer)
 	{
-		return MoveShaderParametersToRootConstantBuffer(CompilerInput.RootParametersStructure, PreprocessedShaderSource);
+		bResult = MoveShaderParametersToRootConstantBuffer(CompilerInput.RootParametersStructure, PreprocessedShaderSource);
 	}
+
+#if DO_GUARD_SLOW
+	if (bResult)
+	{
+		if (DidModifyShader())
+		{
+			checkSlow(PreprocessedShaderSource != OriginalParsedShader);
+		}
+		else
+		{
+			checkSlow(PreprocessedShaderSource == OriginalParsedShader);
+		}
+	}
+#endif
 	
 	return true;
 }
@@ -1408,6 +1427,7 @@ void SerializeParam(FArchive& Ar, FShaderParameterParser::FParsedShaderParameter
 FArchive& operator<<(FArchive& Ar, FShaderParameterParser& Parser)
 {
 	Ar << Parser.bMovedLoosedParametersToRootConstantBuffer;
+	Ar << Parser.bModifiedShader;
 	Ar << Parser.OriginalParsedShader;
 	if (Ar.IsSaving())
 	{

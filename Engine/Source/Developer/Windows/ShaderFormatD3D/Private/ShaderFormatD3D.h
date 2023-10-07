@@ -31,32 +31,34 @@ inline bool IsUsingSM66(const FShaderCompilerInput& Input, ELanguage Language)
 }
 
 bool PreprocessD3DShader(
-	const struct FShaderCompilerInput& Input,
-	const struct FShaderCompilerEnvironment& MergedEnvironment,
-	class FShaderPreprocessOutput& PreprocessOutput,
+	const FShaderCompilerInput& Input,
+	const FShaderCompilerEnvironment& MergedEnvironment,
+	FShaderPreprocessOutput& PreprocessOutput,
 	ELanguage Language);
 
 void CompileD3DShader(
-	const struct FShaderCompilerInput& Input,
-	const class FShaderPreprocessOutput& PreprocessOutput,
-	struct FShaderCompilerOutput& Output,
-	const class FString& WorkingDirectory,
+	const FShaderCompilerInput& Input,
+	const FString& InPreprocessedSource,
+	FShaderCompilerOutput& Output,
+	const FString& WorkingDirectory,
 	ELanguage Language);
 
 /**
  * @param bSecondPassAferUnusedInputRemoval whether we're compiling the shader second time, after having removed the unused inputs discovered in the first pass
  */
 bool CompileAndProcessD3DShaderFXC(
-	const FShaderPreprocessOutput& PreprocessOutput,
 	const FShaderCompilerInput& Input,
+	const FString& InPreprocessedSource,
+	const FString& InEntryPointName,
 	const FShaderParameterParser& ShaderParameterParser,
 	const TCHAR* ShaderProfile,
 	bool bSecondPassAferUnusedInputRemoval,
 	FShaderCompilerOutput& Output);
 
 bool CompileAndProcessD3DShaderDXC(
-	const FShaderPreprocessOutput& PreprocessOutput,
 	const FShaderCompilerInput& Input,
+	const FString& InPreprocessedSource,
+	const FString& InEntryPointName,
 	const FShaderParameterParser& ShaderParameterParser,
 	const TCHAR* ShaderProfile,
 	ELanguage Language,

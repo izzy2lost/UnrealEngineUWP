@@ -182,6 +182,8 @@ public:
 		return ExtractFileAndLine(ParsedParameter.ParsedPragmaLineOffset, ParsedParameter.ParsedLineOffset, OutFile, OutLine);
 	}
 
+	bool DidModifyShader() const { return bModifiedShader; }
+
 	friend FArchive& operator<<(FArchive& Ar, FShaderParameterParser& Parser);
 
 protected:
@@ -232,4 +234,7 @@ protected:
 
 	/** Indicates that parameters were actually moved to the root constant buffer. */
 	bool bMovedLoosedParametersToRootConstantBuffer = false;
+
+	/** Indicates that the shader source was actually modified. */
+	bool bModifiedShader = false;
 };

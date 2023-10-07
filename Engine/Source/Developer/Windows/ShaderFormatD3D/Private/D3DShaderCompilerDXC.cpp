@@ -922,8 +922,10 @@ static bool DXCRewriteWrapper(
 }
 
 // Generate the dumped usf file; call the D3D compiler, gather reflection information and generate the output data
-bool CompileAndProcessD3DShaderDXC(const FShaderPreprocessOutput& PreprocessOutput,
+bool CompileAndProcessD3DShaderDXC(
 	const FShaderCompilerInput& Input,
+	const FString& PreprocessedShaderSource,
+	const FString& EntryPointName,
 	const FShaderParameterParser& ShaderParameterParser,
 	const TCHAR* ShaderProfile,
 	ELanguage Language,
@@ -931,9 +933,6 @@ bool CompileAndProcessD3DShaderDXC(const FShaderPreprocessOutput& PreprocessOutp
 	FShaderCompilerOutput& Output)
 {
 	TRACE_CPUPROFILER_EVENT_SCOPE(CompileAndProcessD3DShaderDXC);
-
-	const FString& PreprocessedShaderSource = Output.ModifiedShaderSource.IsEmpty() ? PreprocessOutput.GetSource() : Output.ModifiedShaderSource;
-	const FString& EntryPointName = Output.ModifiedEntryPointName.IsEmpty() ? Input.EntryPointName : Output.ModifiedEntryPointName;
 
 	auto AnsiSourceFile = StringCast<ANSICHAR>(*PreprocessedShaderSource);
 

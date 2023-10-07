@@ -110,7 +110,9 @@ public:
 		struct FShaderCompilerOutput& Output,
 		const FString& WorkingDirectory) const
 	{
-		CompileD3DShader(Input, PreprocessOutput, Output, WorkingDirectory, FormatToLanguage(Input.ShaderFormat));
+		CompileD3DShader(Input, PreprocessOutput.GetSource(), Output, WorkingDirectory, FormatToLanguage(Input.ShaderFormat));
+
+		Output.ShaderDiagnosticDatas = PreprocessOutput.GetDiagnosticDatas();
 	}
 
 	virtual bool SupportsIndependentPreprocessing() const
