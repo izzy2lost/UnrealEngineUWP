@@ -4431,7 +4431,9 @@ bool UMaterial::CanEditChange(const FProperty* InProperty) const
 			PropertyName == GET_MEMBER_NAME_STRING_CHECKED(UMaterial, bIsBlendable) ||
 			PropertyName == GET_MEMBER_NAME_STRING_CHECKED(UMaterial, bEnableStencilTest) ||
 			PropertyName == GET_MEMBER_NAME_STRING_CHECKED(UMaterial, StencilCompare) ||
-			PropertyName == GET_MEMBER_NAME_STRING_CHECKED(UMaterial, StencilRefValue)
+			PropertyName == GET_MEMBER_NAME_STRING_CHECKED(UMaterial, StencilRefValue) ||
+			PropertyName == GET_MEMBER_NAME_STRING_CHECKED(UMaterial, NeuralProfileId) ||
+			PropertyName == GET_MEMBER_NAME_STRING_CHECKED(UMaterial, bUsedWithNeuralNetworks)
 			)
 		{
 			return MaterialDomain == MD_PostProcess;
@@ -6735,6 +6737,12 @@ USpecularProfile* UMaterial::GetSpecularProfile_Internal(uint32 Index) const
 	checkSlow(IsInGameThread());
 	check(Index<uint32(SpecularProfiles.Num()));
 	return SpecularProfiles[Index];
+}
+
+UNeuralProfile* UMaterial::GetNeuralProfile_Internal() const
+{
+	checkSlow(IsInGameThread());
+	return NeuralProfile;
 }
 
 bool UMaterial::CastsRayTracedShadows() const

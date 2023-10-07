@@ -119,6 +119,7 @@
 #include "Materials/MaterialExpressionNaniteReplace.h"
 #include "Materials/MaterialExpressionNoise.h"
 #include "Materials/MaterialExpressionNormalize.h"
+#include "Materials/MaterialExpressionNeuralPostProcessNode.h"
 #include "Materials/MaterialExpressionObjectBounds.h"
 #include "Materials/MaterialExpressionObjectOrientation.h"
 #include "Materials/MaterialExpressionObjectPositionWS.h"
@@ -4536,6 +4537,137 @@ bool GenerateStaticTerrainLayerWeightExpression(FName LayerName, float PreviewWe
 	using namespace UE::HLSLTree;
 	const FExpression* TexCoordExpression = Generator.NewExternalInput(Material::EExternalInput::TexCoord3);
 	OutExpression = Generator.GetTree().NewExpression<Material::FExpressionStaticTerrainLayerWeight>(Generator.GetParameterInfo(LayerName), TexCoordExpression, PreviewWeight);
+	return true;
+}
+
+UE::Shader::EValueType UMaterialExpressionNeuralNetworkInput::GetCustomOutputType(int32 OutputIndex) const
+{
+	using namespace UE::Shader;
+
+	if (OutputIndex == 0)
+	{
+		return EValueType::Float4;
+	}
+	else if (OutputIndex == 1)
+	{
+		return EValueType::Float3;
+	}
+	else if (OutputIndex == 2)
+	{
+		return EValueType::Float1;
+	}
+	else
+	{
+		return EValueType::Void;
+	}
+}
+
+bool UMaterialExpressionNeuralNetworkInput::GenerateHLSLExpression(FMaterialHLSLGenerator& Generator, UE::HLSLTree::FScope& Scope, int32 OutputIndex, UE::HLSLTree::FExpression const*& OutExpression) const
+{
+	using namespace UE::HLSLTree;
+
+	const UMaterial* BaseMaterial = Generator.GetTargetMaterial();
+	if (BaseMaterial)
+	{
+		const EMaterialDomain MaterialDomain = BaseMaterial->MaterialDomain;
+		if (MaterialDomain != MD_PostProcess)
+		{
+			return Generator.Error(TEXT("Neural Output is only available in post process material."));
+		}
+	}
+
+	const bool bUseTextureAsInput = NeuralIndexType == ENeuralIndexType::NIT_TextureIndex;
+	FTree& Tree = Generator.GetTree();
+	
+	if (OutputIndex == 0)
+	{
+		if (Coordinates.IsConnected())
+		{
+			const FExpression* TracedCoordinates = Coordinates.AcquireHLSLExpression(Generator, Scope);
+			if (bUseTextureAsInput)
+			{
+				const FExpression* R = Tree.NewSwizzle(FSwizzleParameters(0), TracedCoordinates);
+				const FExpression* G = Tree.NewSwizzle(FSwizzleParameters(1), TracedCoordinates);
+				const FExpression* B = Tree.NewSwizzle(FSwizzleParameters(2), TracedCoordinates);
+				const FExpression* A = Tree.NewSwizzle(FSwizzleParameters(3), TracedCoordinates);
+				OutExpression = Tree.NewAppend(Tree.NewConstant(-1.0f), G, B, A);
+			}
+			else
+			{
+				OutExpression = TracedCoordinates;
+			}
+		}
+		else
+		{
+			const FExpression* ViewportUV = Tree.NewExpression<Material::FExpressionExternalInput>(Material::EExternalInput::ViewportUV);
+			int32 BatchIndex = bUseTextureAsInput ? -1.0f : 0.0f;
+			OutExpression = Tree.NewAppend(Generator.GetTree().NewConstant(FVector2f(BatchIndex, 0.0f)), ViewportUV);
+		}
+	}
+	else if (OutputIndex == 1)
+	{
+		OutExpression = Input0.AcquireHLSLExpressionOrConstant(Generator, Scope, FVector3f(0.5f));
+	}
+	else if (OutputIndex == 2)
+	{
+		OutExpression = Mask.AcquireHLSLExpressionOrConstant(Generator, Scope, 1.0f);
+	}
+
+	return OutExpression != nullptr;
+}
+
+bool UMaterialExpressionNeuralNetworkOutput::GenerateHLSLExpression(FMaterialHLSLGenerator& Generator, UE::HLSLTree::FScope& Scope, int32 OutputIndex, UE::HLSLTree::FExpression const*& OutExpression) const
+{
+	using namespace UE::HLSLTree;
+
+	const UMaterial* BaseMaterial = Generator.GetTargetMaterial();
+	if (BaseMaterial)
+	{
+		const EMaterialDomain MaterialDomain = BaseMaterial->MaterialDomain;
+		if (MaterialDomain != MD_PostProcess)
+		{
+			return Generator.Error(TEXT("Neural Output is only available in post process material."));
+		}
+	}
+	FTree& Tree = Generator.GetTree();
+
+	if (OutputIndex == 0)
+	{
+		auto GetCoordinateByNeuralIndexType = [&]()-> const FExpression* {
+
+			if (NeuralIndexType == ENeuralIndexType::NIT_TextureIndex)
+			{
+				return Coordinates.GetTracedInput().Expression ?
+					Coordinates.AcquireHLSLExpression(Generator, Scope) :
+					Tree.NewExpression<Material::FExpressionExternalInput>(Material::EExternalInput::ViewportUV);
+			}
+			else if (NeuralIndexType == ENeuralIndexType::NIT_BufferIndex)
+			{
+				if (Coordinates.GetTracedInput().Expression)
+				{
+					return Coordinates.AcquireHLSLExpression(Generator, Scope);
+				}
+				else
+				{
+					const FExpression* ViewportUV = Tree.NewExpression<Material::FExpressionExternalInput>(Material::EExternalInput::ViewportUV);
+					return Tree.NewAppend(Tree.NewConstant(FVector2f(0.0f)), ViewportUV);
+				}
+			}
+			else
+			{
+				return nullptr;
+			}
+		};
+
+		const FExpression* TracedCoordinates = GetCoordinateByNeuralIndexType();
+		if (TracedCoordinates)
+		{
+			OutExpression = Generator.GetTree().NewExpression<Material::FExpressionNeuralNetworkOutput>(TracedCoordinates, NeuralIndexType);
+		}
+
+		return TracedCoordinates != nullptr;
+	}
+
 	return true;
 }
 

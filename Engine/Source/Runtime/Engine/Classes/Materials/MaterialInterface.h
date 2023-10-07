@@ -51,6 +51,7 @@ class UPhysicalMaterial;
 class UPhysicalMaterialMask;
 class USubsurfaceProfile;
 class USpecularProfile;
+class UNeuralProfile;
 class UTexture;
 class UMaterialInstance;
 struct FDebugShaderTypeInfo;
@@ -280,6 +281,10 @@ public:
 	/** Specular Profile. For internal usage, not editable/visible */
 	UPROPERTY()
 	TArray<TObjectPtr<class USpecularProfile>> SpecularProfiles;
+
+	/** Neural network profile. For internal usage, not editable/visible */
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = PostProcessMaterial, meta = (DisplayName = "Neural Profile"))
+	TObjectPtr<class UNeuralProfile> NeuralProfile;
 
 	/** Whether this material interface is included in the base game (and not in a DLC) */
 	UPROPERTY()
@@ -918,6 +923,7 @@ public:
 	ENGINE_API virtual USubsurfaceProfile* GetSubsurfaceProfile_Internal() const;
 	ENGINE_API virtual uint32 NumSpecularProfile_Internal() const;
 	ENGINE_API virtual USpecularProfile* GetSpecularProfile_Internal(uint32 Index) const;
+	ENGINE_API virtual UNeuralProfile* GetNeuralProfile_Internal() const;
 	ENGINE_API virtual bool CastsRayTracedShadows() const;
 
 	/**

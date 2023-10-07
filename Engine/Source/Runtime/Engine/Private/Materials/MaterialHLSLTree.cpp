@@ -3000,6 +3000,57 @@ void FExpressionAtmosphericFogColorFunction::EmitValueShader(FEmitContext& Conte
 		EmitPosition);
 }
 
+bool FExpressionNeuralNetworkOutput::PrepareValue(FEmitContext& Context, FEmitScope& Scope, const FRequestedType& RequestedType, FPrepareValueResult& OutResult) const
+{
+	if (NeuralIndexType == 0)
+	{
+		const FPreparedType& TextureIndexType = Context.PrepareExpression(CoordinatesExpression, Scope, Shader::EValueType::Float2);
+		if (TextureIndexType.IsVoid())
+		{
+			return false;
+		}
+	}
+	else if (NeuralIndexType == 1)
+	{
+		const FPreparedType& BufferIndexType = Context.PrepareExpression(CoordinatesExpression, Scope, Shader::EValueType::Float4);
+		if (BufferIndexType.IsVoid())
+		{
+			return false;
+		}
+	}
+
+	if (Context.bMarkLiveValues && Context.MaterialCompilationOutput)
+	{
+		Context.MaterialCompilationOutput->bUsedWithNeuralNetworks = true;
+	}
+
+	return OutResult.SetType(Context, RequestedType, EExpressionEvaluation::Shader, Shader::EValueType::Float4);
+}
+
+void FExpressionNeuralNetworkOutput::EmitValueShader(FEmitContext& Context, FEmitScope& Scope, const FRequestedType& RequestedType, FEmitValueShaderResult& OutResult) const
+{
+	if (NeuralIndexType == 0)
+	{
+		FEmitShaderExpression* EmitTextureIndex = CoordinatesExpression->GetValueShader(Context, Scope, Shader::EValueType::Float2);
+		if (EmitTextureIndex)
+		{
+			OutResult.Code = Context.EmitInlineExpression(Scope, Shader::EValueType::Float4,
+				TEXT("NeuralTextureOutput(Parameters, %)"),
+				EmitTextureIndex);
+		}
+	}
+	else if (NeuralIndexType == 1)
+	{
+		FEmitShaderExpression* EmitBufferIndex = CoordinatesExpression->GetValueShader(Context, Scope, Shader::EValueType::Float4);
+		if (EmitBufferIndex)
+		{
+			OutResult.Code = Context.EmitInlineExpression(Scope, Shader::EValueType::Float4,
+				TEXT("NeuralBufferOutput(Parameters, %)"),
+				EmitBufferIndex);
+		}
+	}
+}
+
 int32 FEmitData::FindInterpolatorIndex(const FExpression* Expression) const
 {
 	for (int32 Index = 0; Index < VertexInterpolators.Num(); ++Index)

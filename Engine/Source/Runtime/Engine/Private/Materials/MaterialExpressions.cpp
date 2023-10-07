@@ -142,6 +142,7 @@
 #include "Materials/MaterialExpressionNaniteReplace.h"
 #include "Materials/MaterialExpressionNoise.h"
 #include "Materials/MaterialExpressionNormalize.h"
+#include "Materials/MaterialExpressionNeuralPostProcessNode.h"
 #include "Materials/MaterialExpressionObjectBounds.h"
 #include "Materials/MaterialExpressionObjectLocalBounds.h"
 #include "Materials/MaterialExpressionObjectOrientation.h"
@@ -27839,5 +27840,178 @@ FString UMaterialExpressionSubsurfaceMediumMaterialOutput::GetDisplayName() cons
 {
 	return TEXT("Subsurface Medium");
 }
+
+
+///////////////////////////Neural network nodes
+
+UMaterialExpressionNeuralNetworkInput::UMaterialExpressionNeuralNetworkInput(const FObjectInitializer& ObjectInitializer)
+	: Super(ObjectInitializer)
+{
+	// Structure to hold one-time initialization
+	struct FConstructorStatics
+	{
+		FText NAME_NeuralNetwork;
+		FConstructorStatics()
+			: NAME_NeuralNetwork(LOCTEXT("NeuralNetwork", "NeuralNetwork"))
+		{
+		}
+	};
+	static FConstructorStatics ConstructorStatics;
+
+#if WITH_EDITORONLY_DATA
+	MenuCategories.Add(ConstructorStatics.NAME_NeuralNetwork);
+#endif
+
+#if WITH_EDITOR
+	Outputs.Reset();
+#endif
+}
+
+#if WITH_EDITOR
+
+int32 UMaterialExpressionNeuralNetworkInput::Compile(class FMaterialCompiler* Compiler, int32 OutputIndex)
+{
+	int32 CodeInput = INDEX_NONE;
+	const bool bUseTextureAsInput = NeuralIndexType == ENeuralIndexType::NIT_TextureIndex;
+
+	if (OutputIndex == 0)
+	{
+		if (Coordinates.IsConnected())
+		{
+			CodeInput = Coordinates.Compile(Compiler);
+			if (bUseTextureAsInput)
+			{
+				CodeInput = Compiler->ComponentMask(CodeInput, false, true, true, true);
+				CodeInput = Compiler->AppendVector(Compiler->Constant(-1.0f), CodeInput);
+			}
+		}
+		else
+		{
+			int32 ViewportUV = Compiler->GetViewportUV();
+			int32 BatchIndex = bUseTextureAsInput ? -1.0f : 0.0f;
+				
+			CodeInput = Compiler->AppendVector(Compiler->Constant2(BatchIndex, 0.0f), ViewportUV);
+		}
+	}
+	else if (OutputIndex == 1)
+	{
+		CodeInput = Input0.IsConnected() ? Input0.Compile(Compiler) : Compiler->Constant3(0.5f, 0.5f, 0.5f);
+	}
+	else if (OutputIndex == 2)
+	{
+		CodeInput = Mask.IsConnected() ? Mask.Compile(Compiler) : Compiler->Constant(1.0f);
+	}
+
+	return Compiler->CustomOutput(this, OutputIndex, CodeInput);
+}
+
+void UMaterialExpressionNeuralNetworkInput::GetCaption(TArray<FString>& OutCaptions) const
+{
+	if (NeuralIndexType == ENeuralIndexType::NIT_TextureIndex)
+	{
+		OutCaptions.Add(TEXT("Neural Input (Texture)"));
+	}
+	else if (NeuralIndexType == ENeuralIndexType::NIT_BufferIndex)
+	{
+		OutCaptions.Add(TEXT("Neural Input (Buffer)"));
+	}
+}
+
+uint32 UMaterialExpressionNeuralNetworkInput::GetInputType(int32 InputIndex)
+{
+
+	switch (InputIndex)
+	{
+	case 0:return MCT_Float4;break;
+	case 1:return MCT_Float3;break;
+	case 2:return MCT_Float1;break;
+	default: checkNoEntry(); break;
+	}
+
+	return MCT_Float1;
+}
+
+#endif // WITH_EDITOR
+
+int32 UMaterialExpressionNeuralNetworkInput::GetNumOutputs() const
+{
+	return 3;
+}
+
+FString UMaterialExpressionNeuralNetworkInput::GetFunctionName() const
+{
+	return TEXT("GetNeuralInput");
+}
+
+///////////////////////////////////////////////////////////////////////////////
+// UMaterialExpressionNeuralNetworkOutput
+///////////////////////////////////////////////////////////////////////////////
+UMaterialExpressionNeuralNetworkOutput::UMaterialExpressionNeuralNetworkOutput(const FObjectInitializer& ObjectInitializer)
+	: Super(ObjectInitializer)
+{
+
+	// Structure to hold one-time initialization
+	struct FConstructorStatics
+	{
+		FText NAME_NeuralNetwork;
+		FConstructorStatics()
+			: NAME_NeuralNetwork(LOCTEXT("NeuralNetwork", "NeuralNetwork"))
+		{
+		}
+	};
+	static FConstructorStatics ConstructorStatics;
+
+#if WITH_EDITORONLY_DATA
+	MenuCategories.Add(ConstructorStatics.NAME_NeuralNetwork);
+
+	bShaderInputData = true;
+	bShowOutputNameOnPin = true;
+#endif
+
+#if WITH_EDITOR
+	Outputs.Reset();
+	Outputs.Add(FExpressionOutput(TEXT("RGBA"), 1, 1, 1, 1, 1));
+#endif
+}
+
+#if WITH_EDITOR
+int32 UMaterialExpressionNeuralNetworkOutput::Compile(class FMaterialCompiler* Compiler, int32 OutputIndex)
+{
+	int32 ViewportUV = INDEX_NONE;
+
+	if (Coordinates.GetTracedInput().Expression)
+	{
+		ViewportUV = Coordinates.Compile(Compiler);
+	}
+
+	return Compiler->NeuralOutput(ViewportUV, NeuralIndexType);
+}
+
+void UMaterialExpressionNeuralNetworkOutput::GetCaption(TArray<FString>& OutCaptions) const
+{
+	if (NeuralIndexType == ENeuralIndexType::NIT_TextureIndex)
+	{
+		OutCaptions.Add(TEXT("Neural Output (Texture)"));
+	}
+	else if (NeuralIndexType == ENeuralIndexType::NIT_BufferIndex)
+	{
+		OutCaptions.Add(TEXT("Neural Output (Buffer)"));
+	}
+}
+uint32 UMaterialExpressionNeuralNetworkOutput::GetInputType(int32 InputIndex)
+{
+	if (NeuralIndexType == ENeuralIndexType::NIT_TextureIndex)
+	{
+		return MCT_Float2;
+	}
+	else if (NeuralIndexType == ENeuralIndexType::NIT_BufferIndex)
+	{
+		return MCT_Float4;
+	}
+
+	checkNoEntry();
+	return MCT_Float2;
+}
+#endif // WITH_EDITOR
 
 #undef LOCTEXT_NAMESPACE
