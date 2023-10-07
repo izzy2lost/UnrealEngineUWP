@@ -37,19 +37,17 @@ struct FWorldPartitionRuntimeCellObjectMapping
 
 	FWorldPartitionRuntimeCellObjectMapping()
 #if WITH_EDITORONLY_DATA
-		: Package(NAME_None)
-		, Path(NAME_None)
-		, ContainerTransform(FTransform::Identity)
-		, ContainerPackage(NAME_None)
-		, LoadedPath(NAME_None)
+		: ContainerTransform(FTransform::Identity)
 		, bIsEditorOnly(false)
 #endif
 	{}
 
-	FWorldPartitionRuntimeCellObjectMapping(FName InPackage, FName InPath, const FActorContainerID& InContainerID, const FTransform& InContainerTransform, FName InContainerPackage, FName InWorldPackage, const FGuid& InActorInstanceGuid, bool bInIsEditorOnly)
+	FWorldPartitionRuntimeCellObjectMapping(FName InPackage, FName InPath, const FTopLevelAssetPath& InBaseClass, const FTopLevelAssetPath& InNativeClass, const FActorContainerID& InContainerID, const FTransform& InContainerTransform, FName InContainerPackage, FName InWorldPackage, const FGuid& InActorInstanceGuid, bool bInIsEditorOnly)
 #if WITH_EDITORONLY_DATA
 		: Package(InPackage)
 		, Path(InPath)
+		, BaseClass(InBaseClass)
+		, NativeClass(InNativeClass)
 		, ContainerID(InContainerID)
 		, ContainerTransform(InContainerTransform)
 		, ContainerPackage(InContainerPackage)
@@ -72,6 +70,18 @@ struct FWorldPartitionRuntimeCellObjectMapping
 	 */
 	UPROPERTY()
 	FName Path;
+
+	/** 
+	 * The actor's base class
+	 */
+	UPROPERTY()
+	FTopLevelAssetPath BaseClass;
+
+	/** 
+	 * The actor's native base class
+	 */
+	UPROPERTY()
+	FTopLevelAssetPath NativeClass;
 
 	/**
 	 * ID of the owning container instance

@@ -240,6 +240,8 @@ void UWorldPartitionRuntimeLevelStreamingCell::AddActorToCell(const FWorldPartit
 		Packages.Emplace(
 			ReferenceActorDesc.GetActorPackage(), 
 			*ReferenceActorDesc.GetActorSoftPath().ToString(), 
+			ActorDescView.GetBaseClass(),
+			ActorDescView.GetNativeClass(),
 			InContainerID, 
 			InContainerTransform, 
 			InContainer->GetContainerPackage(), 
@@ -252,6 +254,8 @@ void UWorldPartitionRuntimeLevelStreamingCell::AddActorToCell(const FWorldPartit
 	Packages.Emplace(
 		ActorDescView.GetActorPackage(), 
 		*ActorDescView.GetActorSoftPath().ToString(), 
+		ActorDescView.GetBaseClass(),
+		ActorDescView.GetNativeClass(),
 		InContainerID, 
 		InContainerTransform, 
 		InContainer->GetContainerPackage(), 

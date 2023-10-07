@@ -41,14 +41,17 @@ ULevelStreaming* UWorldPartitionHLODSourceActorsFromCell::LoadSourceActors(bool&
 	UWorldPartition* WorldPartition = World->GetWorldPartition();
 	check(WorldPartition);
 
+	const FTopLevelAssetPath WorldPartitionHLODNativeClass(AWorldPartitionHLOD::StaticClass()->GetPathName());
 	const FName LevelStreamingName = FName(*FString::Printf(TEXT("HLODLevelStreaming_%s"), *HLODActor->GetName()));
 	TArray<FWorldPartitionRuntimeCellObjectMapping> Mappings;
 	Mappings.Reserve(Actors.Num());
-	Algo::Transform(Actors, Mappings, [World, HLODActor](const FHLODSubActor& SubActor)
-	{
+	Algo::Transform(Actors, Mappings, [World, HLODActor, &WorldPartitionHLODNativeClass](const FHLODSubActor& SubActor)
+	{		
 		return FWorldPartitionRuntimeCellObjectMapping(
 			SubActor.ActorPackage,
 			SubActor.ActorPath,
+			FTopLevelAssetPath(),
+			WorldPartitionHLODNativeClass,
 			SubActor.ContainerID,
 			SubActor.ContainerTransform,
 			SubActor.ContainerPackage,
