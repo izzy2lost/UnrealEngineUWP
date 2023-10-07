@@ -5,6 +5,7 @@
 #include "ScenePrivate.h"
 #include "SceneUtils.h"
 #include "NaniteSceneProxy.h"
+#include "NaniteVertexFactory.h"
 #include "StaticMeshBatch.h"
 #include "MeshPassProcessor.inl"
 #include "MeshCardRepresentation.h"
@@ -97,6 +98,86 @@ public:
 
 IMPLEMENT_MATERIAL_SHADER_TYPE(template<>, FLumenCardPS<false>, TEXT("/Engine/Private/Lumen/LumenCardPixelShader.usf"), TEXT("Main"), SF_Pixel);
 IMPLEMENT_MATERIAL_SHADER_TYPE(template<>, FLumenCardPS<true>, TEXT("/Engine/Private/Lumen/LumenCardPixelShader.usf"), TEXT("Main"), SF_Pixel);
+
+class FLumenCardCS : public FMeshMaterialShader
+{
+	DECLARE_SHADER_TYPE(FLumenCardCS, MeshMaterial);
+
+public:
+	static bool ShouldCompilePermutation(const FMeshMaterialShaderPermutationParameters& Parameters)
+	{
+		return false; // TODO: Work in progress
+
+		if (!Parameters.VertexFactoryType->SupportsNaniteRendering())
+		{
+			return false;
+		}
+
+		if (!Parameters.VertexFactoryType->SupportsLumenMeshCards())
+		{
+			return false;
+		}
+
+		if (!Parameters.VertexFactoryType->SupportsComputeShading())
+		{
+			return false;
+		}
+
+		return Parameters.MaterialParameters.MaterialDomain == MD_Surface
+			&& IsOpaqueOrMaskedBlendMode(Parameters.MaterialParameters.BlendMode)
+			&& DoesPlatformSupportLumenGI(Parameters.Platform);
+	}
+
+	FLumenCardCS(const ShaderMetaType::CompiledShaderInitializerType& Initializer)
+	: FMeshMaterialShader(Initializer)
+	{
+		PassDataParam.Bind(Initializer.ParameterMap, TEXT("PassData"));
+
+		Target0.Bind(Initializer.ParameterMap, TEXT("OutTarget0"), SPF_Mandatory);
+		Target1.Bind(Initializer.ParameterMap, TEXT("OutTarget1"), SPF_Mandatory);
+		Target2.Bind(Initializer.ParameterMap, TEXT("OutTarget2"), SPF_Mandatory);
+	}
+
+	FLumenCardCS() = default;
+
+	static void ModifyCompilationEnvironment(const FMeshMaterialShaderPermutationParameters& Parameters, FShaderCompilerEnvironment& OutEnvironment)
+	{
+		FMeshMaterialShader::ModifyCompilationEnvironment(Parameters, OutEnvironment);
+
+		OutEnvironment.SetDefine(TEXT("LUMEN_MULTI_VIEW_CAPTURE"), 1);
+		OutEnvironment.SetDefine(TEXT("SUBSTRATE_INLINE_SHADING"), 1);
+
+		// Use fully simplified material for less complex shaders when multiple slabs are used.
+		OutEnvironment.SetDefine(TEXT("SUBSTRATE_USE_FULLYSIMPLIFIED_MATERIAL"), 1);
+
+		// Force shader model 6.0+
+		OutEnvironment.CompilerFlags.Add(CFLAG_ForceDXC);
+		OutEnvironment.CompilerFlags.Add(CFLAG_HLSL2021);
+	}
+
+	inline void SetPassParameters(
+		FRHIBatchedShaderParameters& BatchedParameters,
+		const FUintVector4& PassData,
+		FRHIUnorderedAccessView* Target0UAV,
+		FRHIUnorderedAccessView* Target1UAV,
+		FRHIUnorderedAccessView* Target2UAV
+	)
+	{
+		SetShaderValue(BatchedParameters, PassDataParam, PassData);
+
+		SetUAVParameter(BatchedParameters, Target0, Target0UAV);
+		SetUAVParameter(BatchedParameters, Target1, Target1UAV);
+		SetUAVParameter(BatchedParameters, Target2, Target2UAV);
+	}
+
+private:
+	LAYOUT_FIELD(FShaderParameter, PassDataParam);
+	LAYOUT_FIELD(FShaderResourceParameter, Target0);
+	LAYOUT_FIELD(FShaderResourceParameter, Target1);
+	LAYOUT_FIELD(FShaderResourceParameter, Target2);
+};
+
+IMPLEMENT_MATERIAL_SHADER_TYPE(, FLumenCardCS, TEXT("/Engine/Private/Lumen/LumenCardComputeShader.usf"), TEXT("Main"), SF_Compute);
 
 class FLumenCardMeshProcessor : public FSceneRenderingAllocatorObject<FLumenCardMeshProcessor>, public FMeshPassProcessor
 {
