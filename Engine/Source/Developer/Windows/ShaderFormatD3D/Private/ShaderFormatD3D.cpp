@@ -2,6 +2,7 @@
 
 #include "ShaderFormatD3D.h"
 #include "ShaderCompilerCommon.h"
+#include "ShaderPreprocessTypes.h"
 #include "Modules/ModuleInterface.h"
 #include "Modules/ModuleManager.h"
 #include "Interfaces/IShaderFormat.h"
