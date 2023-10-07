@@ -118,7 +118,7 @@ void APCGPartitionActor::Serialize(FArchive& Ar)
 		{
 			if (UPCGComponent* OriginalComponent = It.Value.Get())
 			{
-				if (OriginalComponent->GetSerializedEditingMode() == EPCGEditorDirtyMode::LoadAsPreview && OriginalComponent->GetSerializedEditingMode() == EPCGEditorDirtyMode::Preview)
+				if (OriginalComponent->GetSerializedEditingMode() == EPCGEditorDirtyMode::LoadAsPreview && OriginalComponent->GetEditingMode() == EPCGEditorDirtyMode::Preview)
 				{
 					LocalToOriginal.Add(It);
 				}
