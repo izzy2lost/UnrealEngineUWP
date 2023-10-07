@@ -20,6 +20,11 @@
 #define CHAOS_CHECK_BROADPHASE 0
 #endif
 
+namespace Chaos::CVars
+{
+	extern bool bChaosMidPhaseRedistributionEnabled;
+}
+
 namespace Chaos
 {
 	template <typename TPayloadType, typename T, int d>
@@ -379,7 +384,14 @@ namespace Chaos
 
 			FChaosVDContextWrapper CVDContext;
 			CVD_GET_WRAPPED_CURRENT_CONTEXT(CVDContext);
-	
+
+			// The broadphase overlaps probably resulted in a very different number of MidPhases 
+			// (overlaps) on each thread. Redistribute the MidPhases so that we get more even 
+			// processing. NOTE: This does not take into account that some MidPhases may be expensive. 
+			// For that we would need to queue and redistribute the NarrowPhases, but currently each
+			// MidPhase runs the NarrowPhase in ProcessMidPhase
+			RedistributeMidPhasesInContexts();
+
 			const auto& ProcessMidPhasesWorker = [this, Dt, &CVDContext](const int32 ContextIndex)
 			{
 				CVD_SCOPE_CONTEXT(CVDContext.Context);
@@ -387,8 +399,7 @@ namespace Chaos
 			};
 			PhysicsParallelFor(NumActiveBroadphaseContexts, ProcessMidPhasesWorker, bDisableCollisionParallelFor);
 		}
-	
-		
+
 		/** @brief This function is the outer loop of collision detection. It loops over the
 		 * particles view and do the broadphase + narrowphase collision detection
 		 * @param OverlapView View to consider for the outer loop
@@ -572,6 +583,56 @@ namespace Chaos
 					if (Particle1 != Elem.Payload.GetGeometryParticleHandle_PhysicsThread())
 					{
 						Context.Overlaps.Emplace(Particle1, Elem.Payload.GetGeometryParticleHandle_PhysicsThread(), 1);
+					}
+				}
+			}
+		}
+
+		// Redistribute the midphases among the contects to even out the per-core work a bit
+		void RedistributeMidPhasesInContexts()
+		{
+			QUICK_SCOPE_CYCLE_COUNTER(STAT_Collisions_RedistributeMidPhases);
+
+			if ((NumActiveBroadphaseContexts > 1) && CVars::bChaosMidPhaseRedistributionEnabled)
+			{
+				// We want this many midphases per worker
+				const int32 NumMidPhasesPerContext = FMath::DivideAndRoundUp(NumMidPhases, NumActiveBroadphaseContexts);
+
+				// Reserve array space
+				for (int32 ContextIndex = 0; ContextIndex < NumActiveBroadphaseContexts; ++ContextIndex)
+				{
+					BroadphaseContexts[ContextIndex].MidPhases.Reserve(NumMidPhasesPerContext);
+				}
+
+				// Find the over-filled arrays and move elements to the under-filled arrays
+				for (int32 SrcContextIndex = 0; SrcContextIndex < NumActiveBroadphaseContexts; ++SrcContextIndex)
+				{
+					TArray<FParticlePairMidPhase*>& SrcMidPhases = BroadphaseContexts[SrcContextIndex].MidPhases;
+					int32 SrcNum = SrcMidPhases.Num();
+					if (SrcNum > NumMidPhasesPerContext)
+					{
+						// SrcMidPhases is over-filled
+						for (int32 DstContextIndex = 0; DstContextIndex < NumActiveBroadphaseContexts; ++DstContextIndex)
+						{
+							TArray<FParticlePairMidPhase*>& DstMidPhases = BroadphaseContexts[DstContextIndex].MidPhases;
+							if ((DstContextIndex != SrcContextIndex) && (DstMidPhases.Num() < NumMidPhasesPerContext))
+							{
+								// DstMidPhases is under-filled, see how many elements we can move into it
+								const int32 NumToMove = FMath::Min(SrcNum - NumMidPhasesPerContext, NumMidPhasesPerContext - DstMidPhases.Num());
+								
+								// Copy the elements from the end or Src to end of Dst (we will resize SrcMidPhases at the end)
+								SrcNum -= NumToMove;
+								DstMidPhases.Append(&SrcMidPhases[SrcNum], NumToMove);
+
+								if (SrcNum == NumMidPhasesPerContext)
+								{
+									break;
+								}
+							}
+						}
+
+						check(SrcNum == NumMidPhasesPerContext);
+						SrcMidPhases.SetNum(SrcNum);
 					}
 				}
 			}

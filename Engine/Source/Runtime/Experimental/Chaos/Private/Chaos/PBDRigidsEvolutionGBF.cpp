@@ -168,6 +168,10 @@ namespace Chaos
 		bool bChaosSolverCheckParticleViews = false;
 		FAutoConsoleVariableRef CVarChaosSolverCheckParticleViews(TEXT("p.Chaos.Solver.CheckParticleViews"), bChaosSolverCheckParticleViews, TEXT(""));
 
+		// Enable improved midphase distribution among worker threads. Without this the midphase and narrowphase run on whatever thread the
+		// broadphas eoverlap was detected on which tends to give poor distribution.
+		bool bChaosMidPhaseRedistributionEnabled = true;
+		FAutoConsoleVariableRef CVarChaosSolverMidPhaseRedistributionEnabled(TEXT("p.Chaos.BroadPhase.MidPhaseRedistributionEnabled"), bChaosMidPhaseRedistributionEnabled, TEXT(""));
 	}
 	using namespace CVars;
 
