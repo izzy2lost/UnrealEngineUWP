@@ -33,6 +33,10 @@ public:
 	UPROPERTY(EditAnywhere, Category = Settings)
 	bool bResetOnBecomingRelevant = true;
 
+	// if true pose scales will be cached, otherwise implied to be unitary scales
+	UPROPERTY(EditAnywhere, Category = Settings)
+	bool bStoreScales = true;
+
 	// Update Counter for detecting being relevant
 	FGraphTraversalCounter UpdateCounter;
 

@@ -40,10 +40,18 @@ struct POSESEARCH_API IPoseHistory
 struct FPoseHistoryEntry
 {
 	// collected bones transforms in component space
-	TArray<FTransform> ComponentSpaceTransforms;
+	TArray<FQuat4f> ComponentSpaceRotations;
+	TArray<FVector> ComponentSpacePositions;
+	TArray<FVector3f> ComponentSpaceScales;
 	float Time = 0.f;
 
-	void Update(float InTime, FCSPose<FCompactPose>& ComponentSpacePose, const FBoneToTransformMap& BoneToTransformMap);
+	void Update(float InTime, FCSPose<FCompactPose>& ComponentSpacePose, const FBoneToTransformMap& BoneToTransformMap, bool bStoreScales);
+
+	void SetNum(int32 Num, bool bStoreScales);
+	int32 Num() const;
+
+	void SetComponentSpaceTransform(int32 Index, const FTransform& Transform);
+	FTransform GetComponentSpaceTransform(int32 Index) const;
 };
 
 typedef TRingBuffer<FPoseHistoryEntry> FPoseHistoryEntries;
@@ -52,7 +60,7 @@ typedef TArray<FPoseHistoryEntry> FPoseHistoryFutureEntries;
 struct FPoseHistory : public IPoseHistory
 {
 	void Init(int32 InNumPoses, float InTimeHorizon, const TArray<FBoneIndexType>& RequiredBones);
-	void Update(float SecondsElapsed, FCSPose<FCompactPose>& ComponentSpacePose);
+	void Update(float SecondsElapsed, FCSPose<FCompactPose>& ComponentSpacePose, bool bStoreScales);
 	float GetTimeHorizon() const { return TimeHorizon; }
 
 	const FBoneToTransformMap& GetBoneToTransformMap() const { return BoneToTransformMap; }

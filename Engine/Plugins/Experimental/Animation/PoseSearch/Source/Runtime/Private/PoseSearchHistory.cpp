@@ -67,7 +67,7 @@ FORCEINLINE auto LowerBound(IteratorType First, IteratorType Last, const ValueTy
 
 //////////////////////////////////////////////////////////////////////////
 // FPoseHistoryEntry
-void FPoseHistoryEntry::Update(float InTime, FCSPose<FCompactPose>& ComponentSpacePose, const FBoneToTransformMap& BoneToTransformMap)
+void FPoseHistoryEntry::Update(float InTime, FCSPose<FCompactPose>& ComponentSpacePose, const FBoneToTransformMap& BoneToTransformMap, bool bStoreScales)
 {
 	Time = InTime;
 
@@ -81,23 +81,53 @@ void FPoseHistoryEntry::Update(float InTime, FCSPose<FCompactPose>& ComponentSpa
 	if (BoneToTransformMap.IsEmpty())
 	{
 		// no mapping: we add all the transforms
-		ComponentSpaceTransforms.SetNum(NumSkeletonBones);
+		SetNum(NumSkeletonBones, bStoreScales);
 		for (FSkeletonPoseBoneIndex SkeletonBoneIdx(0); SkeletonBoneIdx != NumSkeletonBones; ++SkeletonBoneIdx)
 		{
 			const FCompactPoseBoneIndex CompactBoneIdx = BoneContainer.GetCompactPoseIndexFromSkeletonPoseIndex(SkeletonBoneIdx);
-			ComponentSpaceTransforms[SkeletonBoneIdx.GetInt()] = (CompactBoneIdx.IsValid() ? ComponentSpacePose.GetComponentSpaceTransform(CompactBoneIdx) : RefBonePose[SkeletonBoneIdx.GetInt()]);
+			SetComponentSpaceTransform(SkeletonBoneIdx.GetInt(), (CompactBoneIdx.IsValid() ? ComponentSpacePose.GetComponentSpaceTransform(CompactBoneIdx) : RefBonePose[SkeletonBoneIdx.GetInt()]));
 		}
 	}
 	else
 	{
-		ComponentSpaceTransforms.SetNum(BoneToTransformMap.Num());
+		SetNum(BoneToTransformMap.Num(), true);
 		for (const FBoneToTransformPair& BoneToTransformPair : BoneToTransformMap)
 		{
 			const FSkeletonPoseBoneIndex SkeletonBoneIdx(BoneToTransformPair.Key);
 			const FCompactPoseBoneIndex CompactBoneIdx = BoneContainer.GetCompactPoseIndexFromSkeletonPoseIndex(SkeletonBoneIdx);
-			ComponentSpaceTransforms[BoneToTransformPair.Value] = (CompactBoneIdx.IsValid() ? ComponentSpacePose.GetComponentSpaceTransform(CompactBoneIdx) : RefBonePose[SkeletonBoneIdx.GetInt()]);
+			SetComponentSpaceTransform(BoneToTransformPair.Value, (CompactBoneIdx.IsValid() ? ComponentSpacePose.GetComponentSpaceTransform(CompactBoneIdx) : RefBonePose[SkeletonBoneIdx.GetInt()]));
 		}
 	}
+}
+
+void FPoseHistoryEntry::SetNum(int32 Num, bool bStoreScales)
+{
+	ComponentSpaceRotations.SetNum(Num);
+	ComponentSpacePositions.SetNum(Num);
+	ComponentSpaceScales.SetNum(bStoreScales ? Num : 0);
+}
+
+int32 FPoseHistoryEntry::Num() const
+{
+	return ComponentSpaceRotations.Num();
+}
+
+void FPoseHistoryEntry::SetComponentSpaceTransform(int32 Index, const FTransform& Transform)
+{
+	ComponentSpaceRotations[Index] = FQuat4f(Transform.GetRotation());
+	ComponentSpacePositions[Index] = Transform.GetTranslation();
+	
+	if (!ComponentSpaceScales.IsEmpty())
+	{
+		ComponentSpaceScales[Index] = FVector3f(Transform.GetScale3D());
+	}
+}
+
+FTransform FPoseHistoryEntry::GetComponentSpaceTransform(int32 Index) const
+{
+	const FQuat Quat(ComponentSpaceRotations[Index]);
+	const FVector Scale(ComponentSpaceScales.IsEmpty() ? FVector3f::OneVector : ComponentSpaceScales[Index]);
+	return FTransform(Quat, ComponentSpacePositions[Index], Scale);
 }
 
 //////////////////////////////////////////////////////////////////////////
@@ -187,15 +217,15 @@ bool FPoseHistory::LerpEntries(float Time, bool bExtrapolate, const FPoseHistory
 		if (ReferenceBoneTransformIndex == ComponentSpaceIndexType)
 		{
 			OutBoneTransform.Blend(
-				PrevEntry.ComponentSpaceTransforms[BoneTransformIndex],
-				NextEntry.ComponentSpaceTransforms[BoneTransformIndex],
+				PrevEntry.GetComponentSpaceTransform(BoneTransformIndex),
+				NextEntry.GetComponentSpaceTransform(BoneTransformIndex),
 				LerpValue);
 		}
 		else
 		{
 			OutBoneTransform.Blend(
-				PrevEntry.ComponentSpaceTransforms[BoneTransformIndex] * PrevEntry.ComponentSpaceTransforms[ReferenceBoneTransformIndex].Inverse(),
-				NextEntry.ComponentSpaceTransforms[BoneTransformIndex] * NextEntry.ComponentSpaceTransforms[ReferenceBoneTransformIndex].Inverse(),
+				PrevEntry.GetComponentSpaceTransform(BoneTransformIndex) * PrevEntry.GetComponentSpaceTransform(ReferenceBoneTransformIndex).Inverse(),
+				NextEntry.GetComponentSpaceTransform(BoneTransformIndex) * NextEntry.GetComponentSpaceTransform(ReferenceBoneTransformIndex).Inverse(),
 				LerpValue);
 		}
 	}
@@ -251,7 +281,7 @@ void FPoseHistory::ClearHistory()
 	Entries.Reset();
 }
 
-void FPoseHistory::Update(float SecondsElapsed, FCSPose<FCompactPose>& ComponentSpacePose)
+void FPoseHistory::Update(float SecondsElapsed, FCSPose<FCompactPose>& ComponentSpacePose, bool bStoreScales)
 {
 	const USkeleton* Skeleton = ComponentSpacePose.GetPose().GetBoneContainer().GetSkeletonAsset();
 	if (LastUpdateSkeleton != Skeleton)
@@ -296,7 +326,7 @@ void FPoseHistory::Update(float SecondsElapsed, FCSPose<FCompactPose>& Component
 	}
 
 	// Regardless of the retention policy, we always update the most recent Entry
-	Entries.Last().Update(0.f, ComponentSpacePose, BoneToTransformMap);
+	Entries.Last().Update(0.f, ComponentSpacePose, BoneToTransformMap, bStoreScales);
 }
 
 #if ENABLE_DRAW_DEBUG && ENABLE_ANIM_DEBUG
@@ -308,25 +338,25 @@ void FPoseHistory::DebugDraw(FAnimInstanceProxy& AnimInstanceProxy, FColor Color
 	for (int32 EntryIndex = 0; EntryIndex < Entries.Num(); ++EntryIndex)
 	{
 		const FPoseHistoryEntry& Entry = Entries[EntryIndex];
-		if (Entry.ComponentSpaceTransforms.IsEmpty())
+		if (Entry.Num() == 0)
 		{
 			PrevGlobalTransforms.Reset();
 		}
-		else if (PrevGlobalTransforms.Num() != Entry.ComponentSpaceTransforms.Num())
+		else if (PrevGlobalTransforms.Num() != Entry.Num())
 		{
-			PrevGlobalTransforms.SetNum(Entry.ComponentSpaceTransforms.Num());
-			for (int32 i = 0; i < Entry.ComponentSpaceTransforms.Num(); ++i)
+			PrevGlobalTransforms.SetNum(Entry.Num());
+			for (int32 i = 0; i < Entry.Num(); ++i)
 			{
 				const FTransform RootTransform = bValidTrajectory ? Trajectory->GetSampleAtTime(-Entry.Time).GetTransform() : AnimInstanceProxy.GetComponentTransform();
-				PrevGlobalTransforms[i] = Entry.ComponentSpaceTransforms[i] * RootTransform;
+				PrevGlobalTransforms[i] = Entry.GetComponentSpaceTransform(i) * RootTransform;
 			}
 		}
 		else
 		{
-			for (int32 i = 0; i < Entry.ComponentSpaceTransforms.Num(); ++i)
+			for (int32 i = 0; i < Entry.Num(); ++i)
 			{
 				const FTransform RootTransform = bValidTrajectory ? Trajectory->GetSampleAtTime(-Entry.Time).GetTransform() : AnimInstanceProxy.GetComponentTransform();
-				const FTransform GlobalTransforms = Entry.ComponentSpaceTransforms[i] * RootTransform;
+				const FTransform GlobalTransforms = Entry.GetComponentSpaceTransform(i) * RootTransform;
 
 				AnimInstanceProxy.AnimDrawDebugLine(PrevGlobalTransforms[i].GetTranslation(), GlobalTransforms.GetTranslation(), Color, false, 0.f, ESceneDepthPriorityGroup::SDPG_Foreground);
 
@@ -390,7 +420,7 @@ void FExtendedPoseHistory::AddFuturePose(float SecondsInTheFuture, FCSPose<FComp
 	check(PoseHistory);	
 	const float SecondsAgo = -SecondsInTheFuture;
 	const int32 LowerBoundIdx = Algo::LowerBound(FutureEntries, SecondsAgo, [](const FPoseHistoryEntry& Entry, float Value) { return Value < Entry.Time; });
-	FutureEntries.InsertDefaulted_GetRef(LowerBoundIdx).Update(SecondsAgo, ComponentSpacePose, PoseHistory->GetBoneToTransformMap());
+	FutureEntries.InsertDefaulted_GetRef(LowerBoundIdx).Update(SecondsAgo, ComponentSpacePose, PoseHistory->GetBoneToTransformMap(), true);
 }
 
 #if ENABLE_DRAW_DEBUG && ENABLE_ANIM_DEBUG
@@ -404,25 +434,25 @@ void FExtendedPoseHistory::DebugDraw(FAnimInstanceProxy& AnimInstanceProxy, FCol
 	for (int32 EntryIndex = 0; EntryIndex < FutureEntries.Num(); ++EntryIndex)
 	{
 		const FPoseHistoryEntry& Entry = FutureEntries[EntryIndex];
-		if (Entry.ComponentSpaceTransforms.IsEmpty())
+		if (Entry.Num() == 0)
 		{
 			PrevGlobalTransforms.Reset();
 		}
-		else if (PrevGlobalTransforms.Num() != Entry.ComponentSpaceTransforms.Num())
+		else if (PrevGlobalTransforms.Num() != Entry.Num())
 		{
-			PrevGlobalTransforms.SetNum(Entry.ComponentSpaceTransforms.Num());
-			for (int32 i = 0; i < Entry.ComponentSpaceTransforms.Num(); ++i)
+			PrevGlobalTransforms.SetNum(Entry.Num());
+			for (int32 i = 0; i < Entry.Num(); ++i)
 			{
 				const FTransform RootTransform = bValidTrajectory ? Trajectory->GetSampleAtTime(-Entry.Time).GetTransform() : AnimInstanceProxy.GetComponentTransform();
-				PrevGlobalTransforms[i] = Entry.ComponentSpaceTransforms[i] * RootTransform;
+				PrevGlobalTransforms[i] = Entry.GetComponentSpaceTransform(i) * RootTransform;
 			}
 		}
 		else
 		{
-			for (int32 i = 0; i < Entry.ComponentSpaceTransforms.Num(); ++i)
+			for (int32 i = 0; i < Entry.Num(); ++i)
 			{
 				const FTransform RootTransform = bValidTrajectory ? Trajectory->GetSampleAtTime(-Entry.Time).GetTransform() : AnimInstanceProxy.GetComponentTransform();
-				const FTransform GlobalTransforms = Entry.ComponentSpaceTransforms[i] * RootTransform;
+				const FTransform GlobalTransforms = Entry.GetComponentSpaceTransform(i) * RootTransform;
 
 				AnimInstanceProxy.AnimDrawDebugLine(PrevGlobalTransforms[i].GetTranslation(), GlobalTransforms.GetTranslation(), Color, false, 0.f, ESceneDepthPriorityGroup::SDPG_Foreground);
 
