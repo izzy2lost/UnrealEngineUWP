@@ -724,7 +724,7 @@ void MainCS(
 	}
 	#endif
 	
-	#if POST_PROCESS_ALPHA
+	#if CONFIG_SCENE_COLOR_ALPHA
 		OriginalInput = min(OriginalInput, tsr_simd_halfC::Const(LargestSceneColorRGBA));
 	#else
 		OriginalInput = min(OriginalInput, tsr_simd_halfC::Const(LargestSceneColorRGB));
