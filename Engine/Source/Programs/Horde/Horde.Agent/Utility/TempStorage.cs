@@ -672,8 +672,8 @@ namespace Horde.Storage.Utility
 			// Create the file tree
 			DirectoryNode rootNode = new DirectoryNode();
 			await rootNode.AddFilesAsync(workspaceDir, archiveFiles, new ChunkingOptions(), writer, new CopyStatsLogger(logger), cancellationToken);
-			
-			NodeRef<DirectoryNode> rootNodeRef = await writer.WriteNodeAsync(rootNode, cancellationToken);
+
+			HashedNodeRef<DirectoryNode> rootNodeRef = await writer.WriteHashedNodeAsync(rootNode, cancellationToken);
 			return new DirectoryEntry(blockDirectoryName, rootNode.Length, rootNodeRef);
 		}
 

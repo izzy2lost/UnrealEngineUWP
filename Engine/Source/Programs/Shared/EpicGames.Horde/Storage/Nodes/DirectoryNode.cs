@@ -214,13 +214,13 @@ namespace EpicGames.Horde.Storage.Nodes
 			writer.WriteUnsignedVarInt(Files.Count);
 			foreach (FileEntry fileEntry in _nameToFileEntry.Values)
 			{
-				writer.WriteNodeRef(fileEntry);
+				writer.WriteHashedNodeRef(fileEntry);
 			}
 
 			writer.WriteUnsignedVarInt(Directories.Count);
 			foreach (DirectoryEntry directoryEntry in _nameToDirectoryEntry.Values)
 			{
-				writer.WriteNodeRef(directoryEntry);
+				writer.WriteHashedNodeRef(directoryEntry);
 			}
 		}
 
@@ -689,7 +689,7 @@ namespace EpicGames.Horde.Storage.Nodes
 					DirectoryNode? childNode = await TryOpenDirectoryAsync(name, cancellationToken);
 					childNode ??= new DirectoryNode();
 					await childNode.UpdateAsync(directory, writer, cancellationToken);
-					NodeRef<DirectoryNode> nodeRef = await writer.WriteNodeAsync(childNode, cancellationToken);
+					HashedNodeRef<DirectoryNode> nodeRef = await writer.WriteHashedNodeAsync(childNode, cancellationToken);
 					_nameToDirectoryEntry[name] = new DirectoryEntry(name, childNode.Length, nodeRef);
 				}
 			}

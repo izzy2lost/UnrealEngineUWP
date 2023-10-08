@@ -78,7 +78,7 @@ namespace EpicGames.Horde.Tests
 			types.Add(new BlobType(Guid.Parse("F63606D4-5DBB-4061-A655-6F444F65229E"), 1));
 
 			List<BundleExport> exports = new List<BundleExport>();
-			exports.Add(new BundleExport(0, IoHash.Compute(payload), 0, 0, payload.Length, Array.Empty<BundleExportRef>()));
+			exports.Add(new BundleExport(0, 0, 0, payload.Length, Array.Empty<BundleExportRef>()));
 
 			List<BundlePacket> packets = new List<BundlePacket>();
 			packets.Add(new BundlePacket(BundleCompressionFormat.None, 0, payload.Length, payload.Length));
@@ -115,9 +115,9 @@ namespace EpicGames.Horde.Tests
 		class SimpleNode : Node
 		{
 			public ReadOnlySequence<byte> Data { get; }
-			public IReadOnlyList<NodeRef<SimpleNode>> Refs { get; }
+			public IReadOnlyList<HashedNodeRef<SimpleNode>> Refs { get; }
 
-			public SimpleNode(ReadOnlySequence<byte> data, IReadOnlyList<NodeRef<SimpleNode>> refs)
+			public SimpleNode(ReadOnlySequence<byte> data, IReadOnlyList<HashedNodeRef<SimpleNode>> refs)
 			{
 				Data = data;
 				Refs = refs;
@@ -126,13 +126,13 @@ namespace EpicGames.Horde.Tests
 			public SimpleNode(NodeReader reader)
 			{
 				Data = new ReadOnlySequence<byte>(reader.ReadVariableLengthBytes());
-				Refs = reader.ReadVariableLengthArray(() => reader.ReadNodeRef<SimpleNode>());
+				Refs = reader.ReadVariableLengthArray(() => reader.ReadHashedNodeRef<SimpleNode>());
 			}
 
 			public override void Serialize(NodeWriter writer)
 			{
 				writer.WriteVariableLengthBytes(Data);
-				writer.WriteVariableLengthArray(Refs, x => writer.WriteNodeRef(x));
+				writer.WriteVariableLengthArray(Refs, x => writer.WriteHashedNodeRef(x));
 			}
 		}
 
@@ -142,14 +142,14 @@ namespace EpicGames.Horde.Tests
 			{
 				await using IStorageWriter writer = store.CreateWriter(new RefName("test"), options);
 
-				SimpleNode node1 = new SimpleNode(new ReadOnlySequence<byte>(new byte[] { 1 }), Array.Empty<NodeRef<SimpleNode>>());
-				SimpleNode node2 = new SimpleNode(new ReadOnlySequence<byte>(new byte[] { 2 }), new[] { await writer.WriteNodeAsync(node1) });
-				SimpleNode node3 = new SimpleNode(new ReadOnlySequence<byte>(new byte[] { 3 }), new[] { await writer.WriteNodeAsync(node2) });
-				SimpleNode node4 = new SimpleNode(new ReadOnlySequence<byte>(new byte[] { 4 }), Array.Empty<NodeRef<SimpleNode>>());
+				SimpleNode node1 = new SimpleNode(new ReadOnlySequence<byte>(new byte[] { 1 }), Array.Empty<HashedNodeRef<SimpleNode>>());
+				SimpleNode node2 = new SimpleNode(new ReadOnlySequence<byte>(new byte[] { 2 }), new[] { await writer.WriteHashedNodeAsync(node1) });
+				SimpleNode node3 = new SimpleNode(new ReadOnlySequence<byte>(new byte[] { 3 }), new[] { await writer.WriteHashedNodeAsync(node2) });
+				SimpleNode node4 = new SimpleNode(new ReadOnlySequence<byte>(new byte[] { 4 }), Array.Empty<HashedNodeRef<SimpleNode>>());
 
-				SimpleNode root = new SimpleNode(new ReadOnlySequence<byte>(new byte[] { 5 }), new[] { await writer.WriteNodeAsync(node4), await writer.WriteNodeAsync(node3) });
+				SimpleNode root = new SimpleNode(new ReadOnlySequence<byte>(new byte[] { 5 }), new[] { await writer.WriteHashedNodeAsync(node4), await writer.WriteHashedNodeAsync(node3) });
 
-				await store.WriteRefTargetAsync(new RefName("test"), await writer.WriteNodeAsync(root));
+				await store.WriteRefTargetAsync(new RefName("test"), await writer.WriteHashedNodeAsync(root));
 
 				BundleReader reader = new BundleReader(store, BundleReaderCache.None, NullLogger.Instance);
 				await CheckTreeAsync(root);
@@ -167,31 +167,31 @@ namespace EpicGames.Horde.Tests
 			SimpleNode node5 = root;
 			byte[] data5 = node5.Data.ToArray();
 			Assert.IsTrue(data5.SequenceEqual(new byte[] { 5 }));
-			IReadOnlyList<NodeRef<SimpleNode>> refs5 = node5.Refs;
+			IReadOnlyList<HashedNodeRef<SimpleNode>> refs5 = node5.Refs;
 			Assert.AreEqual(2, refs5.Count);
 
 			SimpleNode node4 = await refs5[0].ExpandAsync();
 			byte[] data4 = node4.Data.ToArray();
 			Assert.IsTrue(data4.SequenceEqual(new byte[] { 4 }));
-			IReadOnlyList<NodeRef<SimpleNode>> refs4 = node4.Refs;
+			IReadOnlyList<HashedNodeRef<SimpleNode>> refs4 = node4.Refs;
 			Assert.AreEqual(0, refs4.Count);
 
 			SimpleNode node3 = await refs5[1].ExpandAsync();
 			byte[] data3 = node3.Data.ToArray();
 			Assert.IsTrue(data3.SequenceEqual(new byte[] { 3 }));
-			IReadOnlyList<NodeRef<SimpleNode>> refs3 = node3.Refs;
+			IReadOnlyList<HashedNodeRef<SimpleNode>> refs3 = node3.Refs;
 			Assert.AreEqual(1, refs3.Count);
 
 			SimpleNode node2 = await refs3[0].ExpandAsync();
 			byte[] data2 = node2.Data.ToArray();
 			Assert.IsTrue(data2.SequenceEqual(new byte[] { 2 }));
-			IReadOnlyList<NodeRef<SimpleNode>> refs2 = node2.Refs;
+			IReadOnlyList<HashedNodeRef<SimpleNode>> refs2 = node2.Refs;
 			Assert.AreEqual(1, refs2.Count);
 
 			SimpleNode node1 = await refs2[0].ExpandAsync();
 			byte[] data1 = node1.Data.ToArray();
 			Assert.IsTrue(data1.SequenceEqual(new byte[] { 1 }));
-			IReadOnlyList<NodeRef<SimpleNode>> refs1 = node1.Refs;
+			IReadOnlyList<HashedNodeRef<SimpleNode>> refs1 = node1.Refs;
 			Assert.AreEqual(0, refs1.Count);
 		}
 
@@ -201,7 +201,7 @@ namespace EpicGames.Horde.Tests
 			using MemoryStorageClient store = new MemoryStorageClient();
 
 			RefName refName = new RefName("test");
-			await store.WriteRefAsync(refName, new SimpleNode(new ReadOnlySequence<byte>(new byte[] { (byte)123 }), Array.Empty<NodeRef<SimpleNode>>()));
+			await store.WriteRefAsync(refName, new SimpleNode(new ReadOnlySequence<byte>(new byte[] { (byte)123 }), Array.Empty<HashedNodeRef<SimpleNode>>()));
 
 			SimpleNode node = await store.ReadRefAsync<SimpleNode>(refName);
 
@@ -218,15 +218,15 @@ namespace EpicGames.Horde.Tests
 				await using (IStorageWriter writer = store.CreateWriter(new RefName("test")))
 				{
 					DirectoryNode world = new DirectoryNode();
-					NodeRef<DirectoryNode> worldRef = await writer.WriteNodeAsync(world);
+					HashedNodeRef<DirectoryNode> worldRef = await writer.WriteHashedNodeAsync(world);
 
 					DirectoryNode hello = new DirectoryNode();
 					hello.AddDirectory(new DirectoryEntry("world", 0, worldRef));
-					NodeRef<DirectoryNode> helloRef = await writer.WriteNodeAsync(hello);
+					HashedNodeRef<DirectoryNode> helloRef = await writer.WriteHashedNodeAsync(hello);
 
 					DirectoryNode root = new DirectoryNode(DirectoryFlags.None);
 					root.AddDirectory(new DirectoryEntry("hello", 0, helloRef));
-					NodeRef<DirectoryNode> rootRef = await writer.WriteNodeAsync(root);
+					HashedNodeRef<DirectoryNode> rootRef = await writer.WriteHashedNodeAsync(root);
 
 					await writer.FlushAsync();
 
@@ -274,7 +274,7 @@ namespace EpicGames.Horde.Tests
 				DirectoryNode root = new DirectoryNode();
 				await root.UpdateAsync(fileUpdates, writer);
 
-				NodeRef<DirectoryNode> rootRef = await writer.WriteNodeAsync(root);
+				HashedNodeRef<DirectoryNode> rootRef = await writer.WriteHashedNodeAsync(root);
 				await store.WriteRefTargetAsync(new RefName("test"), rootRef);
 
 				await CheckFileTreeAsync(root);
@@ -314,7 +314,7 @@ namespace EpicGames.Horde.Tests
 			new Random(0).NextBytes(chunk);
 
 			// Generate a tree
-			NodeRef<ChunkedDataNode> nodeRef;
+			HashedNodeRef<ChunkedDataNode> nodeRef;
 			{
 				await using IStorageWriter writer = store.CreateWriter(options: new BundleOptions { MaxBlobSize = 1024 });
 
@@ -363,7 +363,7 @@ namespace EpicGames.Horde.Tests
 			// Generate a tree
 			DirectoryNode root;
 			{
-				await using IStorageWriter writer = store.CreateWriter(options: new BundleOptions { MaxBlobSize = 1024 });
+				await using DedupeStorageWriter writer = new DedupeStorageWriter(store.CreateWriter(options: new BundleOptions { MaxBlobSize = 1024 }));
 
 				ChunkingOptions options = new ChunkingOptions();
 				options.LeafOptions = new LeafChunkedDataNodeOptions(128, 256, 64 * 1024);
@@ -374,7 +374,7 @@ namespace EpicGames.Horde.Tests
 				root = new DirectoryNode(DirectoryFlags.None);
 				root.AddFile("test", FileEntryFlags.None, fileWriter.Length, chunkedData);
 
-				NodeRef<DirectoryNode> rootRef = await writer.WriteNodeAsync(root);
+				HashedNodeRef<DirectoryNode> rootRef = await writer.WriteHashedNodeAsync(root);
 				await store.WriteRefTargetAsync(new RefName("test"), rootRef);
 
 				await CheckLargeFileTreeAsync(root, data);
@@ -386,7 +386,7 @@ namespace EpicGames.Horde.Tests
 				await CompareTreesAsync(root, newRoot);
 				await CheckLargeFileTreeAsync(root, data);
 
-				NodeRef<ChunkedDataNode> file = root.GetFileEntry("test");
+				HashedNodeRef<ChunkedDataNode> file = root.GetFileEntry("test");
 
 				long uniqueSize = store.Blobs.Values.Select(x => Bundle.FromMemory(x)).SelectMany(x => x.Header.Packets).Sum(x => x.DecodedLength);
 				Assert.IsTrue(uniqueSize < data.Length / 3); // random fraction meaning "lots of dedupe happened"
@@ -415,7 +415,7 @@ namespace EpicGames.Horde.Tests
 				Assert.AreEqual(oldInteriorNode.Children.Count, newInteriorNode.Children.Count);
 
 				int index = 0;
-				foreach ((NodeRef<ChunkedDataNode> oldFileRef, NodeRef<ChunkedDataNode> newFileRef) in oldInteriorNode.Children.Zip(newInteriorNode.Children))
+				foreach ((HashedNodeRef<ChunkedDataNode> oldFileRef, HashedNodeRef<ChunkedDataNode> newFileRef) in oldInteriorNode.Children.Zip(newInteriorNode.Children))
 				{
 					ChunkedDataNode oldFile = await oldFileRef.ExpandAsync();
 					ChunkedDataNode newFile = await newFileRef.ExpandAsync();
@@ -455,7 +455,7 @@ namespace EpicGames.Horde.Tests
 			}
 			else if (fileNode is InteriorChunkedDataNode interiorFileNode)
 			{
-				foreach (NodeRef<ChunkedDataNode> childRef in interiorFileNode.Children)
+				foreach (HashedNodeRef<ChunkedDataNode> childRef in interiorFileNode.Children)
 				{
 					ChunkedDataNode child = await childRef.ExpandAsync();
 					offset += await CheckFileDataAsync(child, data.Slice(offset));

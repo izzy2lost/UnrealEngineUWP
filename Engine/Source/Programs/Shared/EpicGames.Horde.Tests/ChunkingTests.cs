@@ -64,7 +64,7 @@ namespace EpicGames.Horde.Tests
 				DirectoryNode directory = new DirectoryNode();
 				directory.AddFile("test.foo", FileEntryFlags.None, 0, chunkedData);
 
-				NodeRef<DirectoryNode> directoryRef = await writer.WriteNodeAsync(directory);
+				HashedNodeRef<DirectoryNode> directoryRef = await writer.WriteHashedNodeAsync(directory);
 				await writer.WriteRefAsync(directoryRef.Handle);
 			}
 		}
@@ -105,7 +105,7 @@ namespace EpicGames.Horde.Tests
 				data[idx] = (byte)idx;
 			}
 
-			NodeRef<ChunkedDataNode> handle;
+			HashedNodeRef<ChunkedDataNode> handle;
 
 			const int NumIterations = 100;
 			{

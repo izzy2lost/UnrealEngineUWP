@@ -107,7 +107,7 @@ namespace EpicGames.Horde.Logs
 			writer.WriteUnsignedVarInt(CurrentVersion);
 			writer.WriteNgramSet(_ngramSet);
 			writer.WriteUnsignedVarInt(_numChunkBits);
-			writer.WriteVariableLengthArray(_plainTextChunkRefs, x => writer.WriteNodeRef(x));
+			writer.WriteVariableLengthArray(_plainTextChunkRefs, x => writer.WriteHashedNodeRef(x));
 		}
 
 		/// <summary>
@@ -133,7 +133,7 @@ namespace EpicGames.Horde.Logs
 			for (int idx = 0; idx < appendPlainTextChunks.Count; idx++)
 			{
 				LogChunkNode newChunk = appendPlainTextChunks[idx];
-				NodeRef<LogChunkNode> newChunkRef = await writer.WriteNodeAsync(newChunk, cancellationToken);
+				HashedNodeRef<LogChunkNode> newChunkRef = await writer.WriteHashedNodeAsync(newChunk, cancellationToken);
 				newChunks[_plainTextChunkRefs.Length + idx] = new LogChunkRef(lineIndex, newChunk.LineCount, offset, newChunk.Length, newChunkRef);
 				lineIndex += newChunk.LineCount;
 				offset += newChunk.Length;

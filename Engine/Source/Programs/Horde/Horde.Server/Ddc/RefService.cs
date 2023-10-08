@@ -77,8 +77,8 @@ namespace Horde.Server.Ddc
 			if (missingReferences.Length == 0 && missingBlobs.Length == 0)
 			{
 				// TODO: We resolved all these blobs above... Need to just have GetReferencedBlobs just return the appropriate handles directly.
-				DdcRefNode refNode = new DdcRefNode(blobHandle.Hash);
-				refNode.References.Add((blobHandle.Hash, blobHandle));
+				DdcRefNode refNode = new DdcRefNode(blobHash.Hash);
+				refNode.References.Add((blobHash.Hash, blobHandle));
 				foreach (BlobId referencedBlob in referencedBlobs)
 				{
 					BlobAlias? alias = await storageClient.FindAliasAsync(BlobService.GetAlias(referencedBlob), cancellationToken);

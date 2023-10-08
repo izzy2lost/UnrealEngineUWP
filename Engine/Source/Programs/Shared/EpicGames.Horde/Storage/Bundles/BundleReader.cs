@@ -557,7 +557,7 @@ namespace EpicGames.Horde.Storage.Bundles
 					importBlob = header.Imports[reference.ImportIdx];
 				}
 				Debug.Assert(importBlob.IsValid());
-				refs.Add(new FlushedNodeHandle(this, new BundleNodeLocator(reference.Hash, importBlob, reference.NodeIdx)));
+				refs.Add(new FlushedNodeHandle(this, new BundleNodeLocator(importBlob, reference.NodeIdx)));
 			}
 
 			ReadOnlyMemory<byte> nodeData = ReadOnlyMemory<byte>.Empty;
@@ -568,7 +568,7 @@ namespace EpicGames.Horde.Storage.Bundles
 			}
 
 			BlobType nodeType = header.Types[export.TypeIdx];
-			return new BlobData(nodeType, export.Hash, nodeData, refs);
+			return new BlobData(nodeType, nodeData, refs);
 		}
 
 		/// <summary>

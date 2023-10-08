@@ -4,7 +4,6 @@ using System;
 using System.Collections.Generic;
 using System.Threading;
 using System.Threading.Tasks;
-using EpicGames.Core;
 
 namespace EpicGames.Horde.Storage
 {
@@ -13,17 +12,6 @@ namespace EpicGames.Horde.Storage
 	/// </summary>
 	public abstract class BlobHandle
 	{
-		/// <summary>
-		/// Hash of the target node
-		/// </summary>
-		public IoHash Hash { get; }
-
-		/// <summary>
-		/// Constructor
-		/// </summary>
-		/// <param name="hash">Hash of the target node</param>
-		protected BlobHandle(IoHash hash) => Hash = hash;
-
 		/// <summary>
 		/// Gets the type of this blob
 		/// </summary>
@@ -74,5 +62,15 @@ namespace EpicGames.Horde.Storage
 			data.Data.Slice(offset, length).CopyTo(buffer);
 			return length;
 		}
+
+		/// <summary>
+		/// If this handle is wrapper for another handle type, return the inner handle.
+		/// </summary>
+		public virtual BlobHandle Unwrap() => this;
+
+		/// <summary>
+		/// Flush the referenced not to underlying storage
+		/// </summary>
+		public virtual ValueTask FlushAsync(CancellationToken cancellationToken) => new ValueTask();
 	}
 }

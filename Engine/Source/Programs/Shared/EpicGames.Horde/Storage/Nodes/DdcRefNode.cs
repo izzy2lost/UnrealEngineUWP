@@ -37,7 +37,7 @@ namespace Horde.Server.Ddc
 		public DdcRefNode(NodeReader reader)
 		{
 			RootHash = reader.ReadIoHash();
-			References = reader.ReadList(x => (reader.ReadIoHash(), reader.ReadBlobHandle()));
+			References = reader.ReadList(x => (reader.ReadIoHash(), reader.ReadBlobReference()));
 		}
 
 		/// <inheritdoc/>
@@ -50,7 +50,7 @@ namespace Horde.Server.Ddc
 		static void WriteReference(NodeWriter writer, IoHash hash, BlobHandle handle)
 		{
 			writer.WriteIoHash(hash);
-			writer.WriteNodeHandle(handle);
+			writer.WriteBlobReference(handle);
 		}
 	}
 }

@@ -2,7 +2,6 @@
 
 using System;
 using System.Collections.Generic;
-using EpicGames.Core;
 
 namespace EpicGames.Horde.Storage
 {
@@ -17,11 +16,6 @@ namespace EpicGames.Horde.Storage
 		public BlobType Type { get; }
 
 		/// <summary>
-		/// Hash of the node data
-		/// </summary>
-		public IoHash Hash { get; }
-
-		/// <summary>
 		/// Raw data for the blob. Lifetime of this data is tied to the lifetime of the <see cref="BlobData"/> object; consumers must not retain references to it.
 		/// </summary>
 		public ReadOnlyMemory<byte> Data { get; }
@@ -34,10 +28,9 @@ namespace EpicGames.Horde.Storage
 		/// <summary>
 		/// Constructor
 		/// </summary>
-		public BlobData(BlobType type, IoHash hash, ReadOnlyMemory<byte> data, IReadOnlyList<BlobHandle> refs)
+		public BlobData(BlobType type, ReadOnlyMemory<byte> data, IReadOnlyList<BlobHandle> refs)
 		{
 			Type = type;
-			Hash = hash;
 			Data = data;
 			Refs = refs;
 		}

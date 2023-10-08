@@ -356,9 +356,6 @@ namespace Horde.Server.Storage
 			[BsonElement("alias")]
 			public string Alias { get; set; } = String.Empty;
 
-			[BsonElement("hash")]
-			public IoHash Hash { get; set; }
-
 			[BsonElement("rank"), BsonIgnoreIfDefault]
 			public int Rank { get; set; }
 
@@ -372,10 +369,9 @@ namespace Horde.Server.Storage
 			{
 			}
 
-			public AliasInfo(string alias, IoHash hash, int index, byte[]? data, int rank)
+			public AliasInfo(string alias, int index, byte[]? data, int rank)
 			{
 				Alias = alias;
-				Hash = hash;
 				Index = index;
 				Rank = rank;
 				Data = (data == null || data.Length == 0) ? null : data;
@@ -425,9 +421,6 @@ namespace Horde.Server.Storage
 			[BsonElement("name")]
 			public RefName Name { get; set; }
 
-			[BsonElement("hash")]
-			public IoHash Hash { get; set; }
-
 			[BsonElement("blob")]
 			public BundleLocator BlobLocator { get; set; }
 
@@ -444,7 +437,7 @@ namespace Horde.Server.Storage
 			public TimeSpan? Lifetime { get; set; }
 
 			[BsonIgnore]
-			public BundleNodeLocator Target => new BundleNodeLocator(Hash, BlobLocator, ExportIdx);
+			public BundleNodeLocator Target => new BundleNodeLocator(BlobLocator, ExportIdx);
 
 			public RefInfo()
 			{
@@ -456,7 +449,6 @@ namespace Horde.Server.Storage
 			{
 				NamespaceId = namespaceId;
 				Name = name;
-				Hash = target.Hash;
 				BlobLocator = target.Blob;
 				BlobInfoId = blobInfoId;
 				ExportIdx = target.ExportIdx;
@@ -778,7 +770,7 @@ namespace Horde.Server.Storage
 			}
 
 			FilterDefinition<BlobInfo> filter = Builders<BlobInfo>.Filter.Expr(x => x.NamespaceId == blobInfo.NamespaceId && x.Path == target.Blob.Path.ToString());
-			UpdateDefinition<BlobInfo> update = Builders<BlobInfo>.Update.Push(x => x.Aliases, new AliasInfo(alias.ToString(), target.Hash, target.ExportIdx, data.ToArray(), rank));
+			UpdateDefinition<BlobInfo> update = Builders<BlobInfo>.Update.Push(x => x.Aliases, new AliasInfo(alias.ToString(), target.ExportIdx, data.ToArray(), rank));
 			await _blobCollection.UpdateOneAsync(filter, update, cancellationToken: cancellationToken);
 		}
 
@@ -815,7 +807,7 @@ namespace Horde.Server.Storage
 					{
 						if (String.Equals(aliasInfo.Alias, alias, StringComparison.Ordinal))
 						{
-							BundleNodeLocator locator = new BundleNodeLocator(aliasInfo.Hash, blobInfo.Locator, aliasInfo.Index);
+							BundleNodeLocator locator = new BundleNodeLocator(blobInfo.Locator, aliasInfo.Index);
 							results.Add((locator, aliasInfo));
 						}
 					}

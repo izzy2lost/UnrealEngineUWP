@@ -34,28 +34,28 @@ namespace Horde.Server.Tests
 
 			List<BundleExport> exports = new List<BundleExport>();
 
-			exports.Add(new BundleExport(0, hash1, 0, 0, data1.Length, Array.Empty<BundleExportRef>()));
-			exports.Add(new BundleExport(0, hash1, 0, 0, data1.Length, Array.Empty<BundleExportRef>()));
-			exports.Add(new BundleExport(0, hash2, 0, data1.Length, data2.Length, Array.Empty<BundleExportRef>()));
+			exports.Add(new BundleExport(0, 0, 0, data1.Length, Array.Empty<BundleExportRef>()));
+			exports.Add(new BundleExport(0, 0, 0, data1.Length, Array.Empty<BundleExportRef>()));
+			exports.Add(new BundleExport(0, 0, data1.Length, data2.Length, Array.Empty<BundleExportRef>()));
 
 			BundleHeader header = new BundleHeader(types.ToArray(), Array.Empty<BundleLocator>(), exports.ToArray(), new BundlePacket[1]);
 			Bundle bundle = new Bundle(header, Array.Empty<ReadOnlyMemory<byte>>());
 			BundleLocator locator = await client.WriteBundleAsync(bundle);
 
-			await client.AddAliasAsync("foo", new BundleNodeLocator(hash1, locator, 0));
-			await client.AddAliasAsync("foo", new BundleNodeLocator(hash1, locator, 1));
-			await client.AddAliasAsync("bar", new BundleNodeLocator(hash2, locator, 2));
+			await client.AddAliasAsync("foo", new BundleNodeLocator(locator, 0));
+			await client.AddAliasAsync("foo", new BundleNodeLocator(locator, 1));
+			await client.AddAliasAsync("bar", new BundleNodeLocator(locator, 2));
 
 			BlobAlias[] aliases;
 
 			aliases = await client.FindAliasesAsync("foo");
 			Assert.AreEqual(2, aliases.Length);
-			Assert.AreEqual(new BundleNodeLocator(hash1, locator, 0), ((BundleNodeHandle)aliases[0].Target).GetLocator());
-			Assert.AreEqual(new BundleNodeLocator(hash1, locator, 1), ((BundleNodeHandle)aliases[1].Target).GetLocator());
+			Assert.AreEqual(new BundleNodeLocator(locator, 0), ((BundleNodeHandle)aliases[0].Target).GetLocator());
+			Assert.AreEqual(new BundleNodeLocator(locator, 1), ((BundleNodeHandle)aliases[1].Target).GetLocator());
 
 			aliases = await client.FindAliasesAsync("bar");
 			Assert.AreEqual(1, aliases.Length);
-			Assert.AreEqual(new BundleNodeLocator(hash2, locator, 2), ((BundleNodeHandle)aliases[0].Target).GetLocator());
+			Assert.AreEqual(new BundleNodeLocator(locator, 2), ((BundleNodeHandle)aliases[0].Target).GetLocator());
 		}
 	}
 }

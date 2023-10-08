@@ -50,7 +50,7 @@ namespace EpicGames.Horde.Storage.Nodes
 	/// <summary>
 	/// Entry for a file within a directory node
 	/// </summary>
-	public sealed class FileEntry : NodeRef<ChunkedDataNode>
+	public sealed class FileEntry : HashedNodeRef<ChunkedDataNode>
 	{
 		/// <summary>
 		/// Name of this file
@@ -70,7 +70,7 @@ namespace EpicGames.Horde.Storage.Nodes
 		/// <summary>
 		/// Hash of the target node
 		/// </summary>
-		public IoHash Hash { get; }
+		public new IoHash Hash { get; }
 
 		/// <summary>
 		/// Custom user data for this file entry

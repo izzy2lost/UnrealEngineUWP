@@ -60,10 +60,10 @@ namespace EpicGames.Horde.Storage.Clients
 
 		#region Aliases
 
-		/// <inheritdoc cref="IStorageClient.AddAliasAsync(string, BlobHandle, Int32, ReadOnlyMemory{Byte}, CancellationToken)"/>
+		/// <inheritdoc cref="IStorageClient.AddAliasAsync(String, BlobHandle, Int32, ReadOnlyMemory{Byte}, CancellationToken)"/>
 		Task AddAliasAsync(string name, BundleNodeLocator locator, int rank = 0, ReadOnlyMemory<byte> data = default, CancellationToken cancellationToken = default);
 
-		/// <inheritdoc cref="IStorageClient.RemoveAliasAsync(string, BlobHandle, CancellationToken)"/>
+		/// <inheritdoc cref="IStorageClient.RemoveAliasAsync(String, BlobHandle, CancellationToken)"/>
 		Task RemoveAliasAsync(string name, BundleNodeLocator locator, CancellationToken cancellationToken = default);
 
 		#endregion
@@ -237,7 +237,11 @@ namespace EpicGames.Horde.Storage.Clients
 		async Task<BlobHandle?> IStorageClient.TryReadRefTargetAsync(RefName name, RefCacheTime cacheTime, CancellationToken cancellationToken) => await TryReadRefTargetAsync(name, cacheTime, cancellationToken);
 
 		/// <inheritdoc/>
-		async Task IStorageClient.WriteRefTargetAsync(RefName name, BlobHandle target, RefOptions? options, CancellationToken cancellationToken) => await WriteRefTargetAsync(name, await ((BundleNodeHandle)target).FlushAsync(cancellationToken), options, cancellationToken);
+		async Task IStorageClient.WriteRefTargetAsync(RefName name, BlobHandle target, RefOptions? options, CancellationToken cancellationToken)
+		{
+			await target.FlushAsync(cancellationToken);
+			await WriteRefTargetAsync(name, ((BundleNodeHandle)target.Unwrap()).GetLocator(), options, cancellationToken);
+		}
 
 		/// <inheritdoc/>
 		public abstract Task WriteRefTargetAsync(RefName name, BundleNodeLocator target, RefOptions? options = null, CancellationToken cancellationToken = default);

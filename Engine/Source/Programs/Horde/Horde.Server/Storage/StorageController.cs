@@ -52,11 +52,6 @@ namespace Horde.Server.Storage
 	public class FindNodeResponse
 	{
 		/// <summary>
-		/// Hash of the target node
-		/// </summary>
-		public IoHash Hash { get; set; }
-
-		/// <summary>
 		/// Locator for the target blob
 		/// </summary>
 		public BundleLocator Blob { get; set; }
@@ -78,7 +73,6 @@ namespace Horde.Server.Storage
 		{
 			BundleNodeLocator locator = ((BundleNodeHandle)alias.Target).GetLocator();
 
-			Hash = alias.Target.Hash;
 			Blob = locator.Blob;
 			ExportIdx = locator.ExportIdx;
 			Data = alias.Data.ToArray();
@@ -101,11 +95,6 @@ namespace Horde.Server.Storage
 	public class WriteRefRequest
 	{
 		/// <summary>
-		/// Hash of the target node
-		/// </summary>
-		public IoHash Hash { get; set; }
-
-		/// <summary>
 		/// Locator for the target blob
 		/// </summary>
 		public BundleLocator Blob { get; set; }
@@ -127,11 +116,6 @@ namespace Horde.Server.Storage
 	public class ReadRefResponse
 	{
 		/// <summary>
-		/// Hash of the target node
-		/// </summary>
-		public IoHash Hash { get; set; }
-
-		/// <summary>
 		/// Locator for the target blob
 		/// </summary>
 		public BundleLocator Blob { get; set; }
@@ -151,7 +135,6 @@ namespace Horde.Server.Storage
 		/// </summary>
 		public ReadRefResponse(BundleNodeHandle target, string link)
 		{
-			Hash = target.Hash;
 			Blob = target.GetLocator().Blob;
 			ExportIdx = target.GetLocator().ExportIdx;
 			Link = link;
@@ -375,7 +358,7 @@ namespace Horde.Server.Storage
 				return Forbid(StorageAclAction.WriteRefs, namespaceId);
 			}
 
-			BundleNodeLocator target = new BundleNodeLocator(request.Hash, request.Blob, request.ExportIdx);
+			BundleNodeLocator target = new BundleNodeLocator(request.Blob, request.ExportIdx);
 			await client.WriteRefTargetAsync(refName, target, request.Options, cancellationToken);
 
 			return Ok();
@@ -580,7 +563,7 @@ namespace Horde.Server.Storage
 
 			object content;
 
-			using BlobData nodeData = await storageClient.ReadNodeDataAsync(new BundleNodeLocator(export.Hash, locator, exportIdx), cancellationToken);
+			using BlobData nodeData = await storageClient.ReadNodeDataAsync(new BundleNodeLocator(locator, exportIdx), cancellationToken);
 
 			Node node = Node.Deserialize(nodeData);
 			switch (node)
@@ -590,7 +573,7 @@ namespace Horde.Server.Storage
 						List<object> directories = new List<object>();
 						foreach ((string name, DirectoryEntry entry) in directoryNode.NameToDirectory)
 						{
-							directories.Add(new { name = name.ToString(), length = entry.Length, hash = entry.Handle.Hash, link = GetNodeLink(linkBase, (BundleNodeHandle)entry.Handle) });
+							directories.Add(new { name = name.ToString(), length = entry.Length, hash = entry.Hash, link = GetNodeLink(linkBase, (BundleNodeHandle)entry.Handle) });
 						}
 
 						List<object> files = new List<object>();

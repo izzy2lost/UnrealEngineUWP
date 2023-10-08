@@ -231,7 +231,7 @@ namespace Horde.Agent.Utility
 
 			if (request.Flush || _bufferLength > FlushLength)
 			{
-				NodeRef<LogNode> target = await _builder.FlushAsync(_writer, request.Flush, cancellationToken);
+				HashedNodeRef<LogNode> target = await _builder.FlushAsync(_writer, request.Flush, cancellationToken);
 				await UpdateLogAsync((BundleNodeHandle)target.Handle, _builder.LineCount, request.Flush, cancellationToken);
 				_bufferLength = 0;
 			}

@@ -509,7 +509,7 @@ namespace Horde.Agent.Execution
 					{
 						DirectoryNode buildGraphNode = new DirectoryNode();
 						await buildGraphNode.AddFilesAsync(workspaceDir, buildGraphFiles, new ChunkingOptions(), treeWriter, null, cancellationToken);
-						NodeRef<DirectoryNode> outputNodeRef = await treeWriter.WriteNodeAsync(buildGraphNode, cancellationToken);
+						HashedNodeRef<DirectoryNode> outputNodeRef = await treeWriter.WriteHashedNodeAsync(buildGraphNode, cancellationToken);
 
 						DirectoryNode rootNode = new DirectoryNode();
 						rootNode.AddDirectory(new DirectoryEntry(BuildGraphTempStorageDir, buildGraphNode.Length, outputNodeRef));

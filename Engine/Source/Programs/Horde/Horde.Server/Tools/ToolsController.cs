@@ -122,11 +122,6 @@ namespace Horde.Server.Tools
 		public RefName RefName => _deployment.RefName;
 
 		/// <summary>
-		/// Hash of the root node
-		/// </summary>
-		public IoHash Hash { get; }
-
-		/// <summary>
 		/// Node for downloading this deployment
 		/// </summary>
 		public BundleNodeLocator Locator { get; }
@@ -137,7 +132,6 @@ namespace Horde.Server.Tools
 		public GetToolDeploymentResponse(IToolDeployment deployment, BundleNodeHandle handle)
 		{
 			_deployment = deployment;
-			Hash = handle.Hash;
 			Locator = handle.GetLocator();
 		}
 	}

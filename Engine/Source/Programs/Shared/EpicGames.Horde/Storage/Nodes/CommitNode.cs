@@ -60,7 +60,7 @@ namespace EpicGames.Horde.Storage.Nodes
 		/// <summary>
 		/// Metadata for this commit, keyed by arbitrary GUID
 		/// </summary>
-		public Dictionary<Guid, NodeRef> Metadata { get; } = new Dictionary<Guid, NodeRef>();
+		public Dictionary<Guid, HashedNodeRef> Metadata { get; } = new Dictionary<Guid, HashedNodeRef>();
 
 		/// <summary>
 		/// Constructor
@@ -96,7 +96,7 @@ namespace EpicGames.Horde.Storage.Nodes
 			Message = reader.ReadString();
 			Time = reader.ReadDateTime();
 			Contents = new DirectoryNodeRef(reader);
-			Metadata = reader.ReadDictionary(() => reader.ReadGuid(), () => reader.ReadNodeRef());
+			Metadata = reader.ReadDictionary(() => reader.ReadGuid(), () => reader.ReadHashedNodeRef());
 		}
 
 		/// <inheritdoc/>
@@ -110,8 +110,8 @@ namespace EpicGames.Horde.Storage.Nodes
 			writer.WriteOptionalString(CommitterId);
 			writer.WriteString(Message);
 			writer.WriteDateTime(Time);
-			writer.WriteNodeRef(Contents);
-			writer.WriteDictionary(Metadata, key => writer.WriteGuid(key), value => writer.WriteNodeRef(value));
+			writer.WriteHashedNodeRef(Contents);
+			writer.WriteDictionary(Metadata, key => writer.WriteGuid(key), value => writer.WriteHashedNodeRef(value));
 		}
 	}
 }

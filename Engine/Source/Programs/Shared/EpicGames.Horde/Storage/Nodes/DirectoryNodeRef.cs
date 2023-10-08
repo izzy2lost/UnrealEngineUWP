@@ -7,7 +7,7 @@ namespace EpicGames.Horde.Storage.Nodes
 	/// <summary>
 	/// Reference to a directory node, including the target hash and length
 	/// </summary>
-	public class DirectoryNodeRef : NodeRef<DirectoryNode>
+	public class DirectoryNodeRef : HashedNodeRef<DirectoryNode>
 	{
 		/// <summary>
 		/// Length of this directory tree
@@ -17,8 +17,8 @@ namespace EpicGames.Horde.Storage.Nodes
 		/// <summary>
 		/// Constructor
 		/// </summary>
-		public DirectoryNodeRef(long length, NodeRef<DirectoryNode> nodeRef)
-			: base(nodeRef.Handle)
+		public DirectoryNodeRef(long length, HashedNodeRef<DirectoryNode> nodeRef)
+			: base(nodeRef)
 		{
 			Length = length;
 		}

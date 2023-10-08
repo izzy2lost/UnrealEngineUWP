@@ -1,7 +1,6 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 
 using System;
-using System.Diagnostics;
 using System.Threading;
 using System.Threading.Tasks;
 using EpicGames.Core;
@@ -22,28 +21,25 @@ namespace EpicGames.Horde.Storage
 		/// Creates a reference to a node in storage.
 		/// </summary>
 		/// <param name="handle">Handle to the referenced node</param>
-		public NodeRef(BlobHandle handle)
-		{
-			Handle = handle;
-		}
+		public NodeRef(BlobHandle handle) => Handle = handle;
+
+		/// <summary>
+		/// Creates a reference to a node in storage.
+		/// </summary>
+		/// <param name="other">Other noderef to copy from</param>
+		public NodeRef(NodeRef other) => Handle = other.Handle;
 
 		/// <summary>
 		/// Deserialization constructor
 		/// </summary>
 		/// <param name="reader"></param>
-		public NodeRef(NodeReader reader) : this(reader.ReadBlobHandle())
-		{
-		}
+		public NodeRef(NodeReader reader) => Handle = reader.ReadBlobReference();
 
 		/// <summary>
 		/// Serialize the node to the given writer
 		/// </summary>
 		/// <param name="writer"></param>
-		public virtual void Serialize(NodeWriter writer)
-		{
-			Debug.Assert(Handle != null);
-			writer.WriteNodeHandle(Handle);
-		}
+		public virtual void Serialize(NodeWriter writer) => writer.WriteBlobReference(Handle);
 
 		/// <summary>
 		/// Resolve this reference to a concrete node
@@ -67,20 +63,87 @@ namespace EpicGames.Horde.Storage
 		/// Constructor
 		/// </summary>
 		public NodeRef(BlobHandle handle) : base(handle)
+		{ }
+
+		/// <summary>
+		/// Constructor
+		/// </summary>
+		public NodeRef(NodeRef<T> other) : base(other)
+		{ }
+
+		/// <summary>
+		/// Constructor
+		/// </summary>
+		public NodeRef(NodeReader reader) : base(reader)
+		{ }
+
+		/// <summary>
+		/// Resolve this reference to a concrete node
+		/// </summary>
+		/// <param name="cancellationToken">Cancellation token for the operation</param>
+		/// <returns></returns>
+		public new async ValueTask<T> ExpandAsync(CancellationToken cancellationToken = default) => (T)await base.ExpandAsync(cancellationToken);
+	}
+
+	/// <summary>
+	/// Stores a reference to a <see cref="Node"/> object in the storage system.
+	/// </summary>
+	public class HashedNodeRef : NodeRef
+	{
+		/// <summary>
+		/// Hash of the referenced node
+		/// </summary>
+		public IoHash Hash { get; }
+
+		/// <summary>
+		/// Creates a reference to a node in storage.
+		/// </summary>
+		/// <param name="hash">Hash of the target node</param>
+		/// <param name="handle">Handle to the referenced node</param>
+		public HashedNodeRef(IoHash hash, BlobHandle handle) : base(handle) => Hash = hash;
+
+		/// <summary>
+		/// Deserialization constructor
+		/// </summary>
+		/// <param name="reader"></param>
+		public HashedNodeRef(NodeReader reader) : this(reader.ReadIoHash(), reader.ReadBlobReference())
+		{ }
+
+		/// <summary>
+		/// Serialize the node to the given writer
+		/// </summary>
+		/// <param name="writer"></param>
+		public override void Serialize(NodeWriter writer)
+		{
+			base.Serialize(writer);
+			writer.WriteIoHash(Hash);
+		}
+	}
+
+	/// <summary>
+	/// Strongly typed reference to a <see cref="Node"/>
+	/// </summary>
+	/// <typeparam name="T">Type of the node</typeparam>
+	public class HashedNodeRef<T> : HashedNodeRef where T : Node
+	{
+		/// <summary>
+		/// Constructor
+		/// </summary>
+		public HashedNodeRef(IoHash hash, BlobHandle handle) : base(hash, handle)
 		{
 		}
 
 		/// <summary>
 		/// Constructor
 		/// </summary>
-		public NodeRef(NodeRef<T> other) : base(other.Handle)
+		public HashedNodeRef(HashedNodeRef<T> other) : base(other.Hash, other.Handle)
 		{
 		}
 
 		/// <summary>
 		/// Constructor
 		/// </summary>
-		public NodeRef(NodeReader reader) : base(reader.ReadBlobHandle())
+		public HashedNodeRef(NodeReader reader) : base(reader)
 		{
 		}
 
@@ -119,6 +182,27 @@ namespace EpicGames.Horde.Storage
 		public static NodeRef<T> ReadNodeRef<T>(this NodeReader reader) where T : Node
 		{
 			return new NodeRef<T>(reader);
+		}
+
+		/// <summary>
+		/// Read an untyped ref from the reader
+		/// </summary>
+		/// <param name="reader">Reader to deserialize from</param>
+		/// <returns>New untyped ref</returns>
+		public static HashedNodeRef ReadHashedNodeRef(this NodeReader reader)
+		{
+			return new HashedNodeRef(reader);
+		}
+
+		/// <summary>
+		/// Read a strongly typed ref from the reader
+		/// </summary>
+		/// <typeparam name="T">Type of the referenced node</typeparam>
+		/// <param name="reader">Reader to deserialize from</param>
+		/// <returns>New strongly typed ref</returns>
+		public static HashedNodeRef<T> ReadHashedNodeRef<T>(this NodeReader reader) where T : Node
+		{
+			return new HashedNodeRef<T>(reader);
 		}
 
 		/// <summary>
@@ -166,6 +250,16 @@ namespace EpicGames.Horde.Storage
 		}
 
 		/// <summary>
+		/// Writes a ref to storage
+		/// </summary>
+		/// <param name="writer">Writer to serialize to</param>
+		/// <param name="nodeRef">Value to write</param>
+		public static void WriteHashedNodeRef(this NodeWriter writer, HashedNodeRef nodeRef)
+		{
+			nodeRef.Serialize(writer);
+		}
+
+		/// <summary>
 		/// Writes an optional ref value to storage
 		/// </summary>
 		/// <param name="writer">Writer to serialize to</param>
@@ -190,15 +284,16 @@ namespace EpicGames.Horde.Storage
 		/// <param name="node">Node to write</param>
 		/// <param name="cancellationToken">Cancellation token for the operation</param>
 		/// <returns>A flag indicating whether the node is dirty, and if it is, an optional bundle that contains it</returns>
-		public static async ValueTask<NodeRef<TNode>> WriteNodeAsync<TNode>(this IStorageWriter writer, TNode node, CancellationToken cancellationToken = default) where TNode : Node
+		public static async ValueTask<HashedNodeRef<TNode>> WriteHashedNodeAsync<TNode>(this IStorageWriter writer, TNode node, CancellationToken cancellationToken = default) where TNode : Node
 		{
 			// Serialize the node
 			NodeWriter nodeWriter = new NodeWriter(writer);
 			node.Serialize(nodeWriter);
+			IoHash hash = nodeWriter.ComputeHash();
 
 			// Write the final data
 			BlobHandle handle = await writer.WriteBlobAsync(nodeWriter.Length, nodeWriter.References, node.NodeType, cancellationToken);
-			return new NodeRef<TNode>(handle);
+			return new HashedNodeRef<TNode>(hash, handle);
 		}
 
 		/// <summary>
@@ -243,7 +338,7 @@ namespace EpicGames.Horde.Storage
 		/// <param name="node"></param>
 		/// <param name="refOptions"></param>
 		/// <param name="cancellationToken"></param>
-		public static async ValueTask WriteRefTargetAsync<TNode>(this IStorageClient storageClient, RefName refName, NodeRef<TNode> node, RefOptions? refOptions = null, CancellationToken cancellationToken = default) where TNode : Node
+		public static async ValueTask WriteRefTargetAsync<TNode>(this IStorageClient storageClient, RefName refName, HashedNodeRef<TNode> node, RefOptions? refOptions = null, CancellationToken cancellationToken = default) where TNode : Node
 		{
 			await storageClient.WriteRefTargetAsync(refName, node.Handle, refOptions, cancellationToken);
 		}
@@ -257,7 +352,7 @@ namespace EpicGames.Horde.Storage
 		/// <returns></returns>
 		public static async Task<BlobHandle> FlushAsync(this IStorageWriter writer, Node root, CancellationToken cancellationToken = default)
 		{
-			NodeRef<Node> rootRef = await writer.WriteNodeAsync(root, cancellationToken);
+			HashedNodeRef<Node> rootRef = await writer.WriteHashedNodeAsync(root, cancellationToken);
 			await writer.FlushAsync(cancellationToken);
 			return rootRef.Handle!;
 		}

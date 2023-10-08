@@ -1,8 +1,6 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 
-using System.Threading;
-using System.Threading.Tasks;
-using EpicGames.Core;
+using System;
 
 namespace EpicGames.Horde.Storage.Bundles
 {
@@ -11,14 +9,6 @@ namespace EpicGames.Horde.Storage.Bundles
 	/// </summary>
 	public abstract class BundleNodeHandle : BlobHandle
 	{
-		/// <summary>
-		/// Constructor
-		/// </summary>
-		/// <param name="hash">Hash of the node</param>
-		protected BundleNodeHandle(IoHash hash) : base(hash)
-		{
-		}
-
 		/// <summary>
 		/// Determines if the node has been written to storage
 		/// </summary>
@@ -36,14 +26,8 @@ namespace EpicGames.Horde.Storage.Bundles
 		/// <param name="callback">Action to be executed after the write</param>
 		public abstract void AddWriteCallback(BlobWriteCallback callback);
 
-		/// <summary>
-		/// Flush the node to storage and retrieve its locator
-		/// </summary>
-		/// <param name="cancellationToken">Cancellation token for the operation</param>
-		public abstract ValueTask<BundleNodeLocator> FlushAsync(CancellationToken cancellationToken = default);
-
 		/// <inheritdoc/>
-		public override string ToString() => HasLocator() ? GetLocator().ToString() : Hash.ToString();
+		public override string ToString() => HasLocator() ? GetLocator().ToString() : base.ToString() ?? String.Empty;
 	}
 
 	/// <summary>

@@ -4,7 +4,6 @@ using System;
 using System.ComponentModel;
 using System.Diagnostics.CodeAnalysis;
 using System.Globalization;
-using System.Text;
 using System.Text.Json;
 using System.Text.Json.Serialization;
 using EpicGames.Core;
@@ -21,11 +20,6 @@ namespace EpicGames.Horde.Storage.Bundles
 	public struct BundleNodeLocator : IEquatable<BundleNodeLocator>
 	{
 		/// <summary>
-		/// Hash of the referenced node
-		/// </summary>
-		public IoHash Hash { get; }
-
-		/// <summary>
 		/// Location of the blob containing this node
 		/// </summary>
 		public BundleLocator Blob { get; }
@@ -38,9 +32,8 @@ namespace EpicGames.Horde.Storage.Bundles
 		/// <summary>
 		/// Constructor
 		/// </summary>
-		public BundleNodeLocator(IoHash hash, BundleLocator blob, int exportIdx)
+		public BundleNodeLocator(BundleLocator blob, int exportIdx)
 		{
-			Hash = hash;
 			Blob = blob;
 			ExportIdx = exportIdx;
 		}
@@ -58,22 +51,9 @@ namespace EpicGames.Horde.Storage.Bundles
 		public static BundleNodeLocator Parse(ReadOnlySpan<char> text)
 		{
 			int hashLength = IoHash.NumBytes * 2;
-
-			IoHash hash;
-			if (text.Length == hashLength && IoHash.TryParse(text, out hash))
+			if (text.Length > hashLength && text[hashLength] == '@')
 			{
-				return new BundleNodeLocator(hash, default, 0);
-			}
-
-			if (text[hashLength] == '@')
-			{
-				hash = IoHash.Parse(text.Slice(0, hashLength));
 				text = text.Slice(hashLength + 1);
-			}
-			else
-			{
-				// For legacy locators that don't have a hash, hash the path instead. This is obviously incorrect, but we never validate hashes and will serve as a stable id during migration.
-				hash = IoHash.Compute(Encoding.UTF8.GetBytes(text.ToString()));
 			}
 
 			int hashIdx = text.IndexOf('#');
@@ -84,7 +64,7 @@ namespace EpicGames.Horde.Storage.Bundles
 
 			int exportIdx = Int32.Parse(text.Slice(hashIdx + 1), NumberStyles.None, CultureInfo.InvariantCulture);
 			BundleLocator blobLocator = new BundleLocator(new Utf8String(text.Slice(0, hashIdx)));
-			return new BundleNodeLocator(hash, blobLocator, exportIdx);
+			return new BundleNodeLocator(blobLocator, exportIdx);
 		}
 
 		/// <inheritdoc/>
@@ -97,7 +77,7 @@ namespace EpicGames.Horde.Storage.Bundles
 		public override int GetHashCode() => HashCode.Combine(Blob, ExportIdx);
 
 		/// <inheritdoc/>
-		public override string ToString() => $"{Hash}@{Blob}#{ExportIdx}";
+		public override string ToString() => $"{Blob}#{ExportIdx}";
 
 		/// <inheritdoc/>
 		public static bool operator ==(BundleNodeLocator left, BundleNodeLocator right) => left.Equals(right);

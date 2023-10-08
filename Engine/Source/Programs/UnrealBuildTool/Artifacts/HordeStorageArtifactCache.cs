@@ -30,7 +30,7 @@ namespace UnrealBuildTool.Artifacts
 		/// Collection of output file references.  There should be exactly the same number
 		/// of file references as outputs in the action
 		/// </summary>
-		public readonly NodeRef<ChunkedDataNode>[] OutputRefs;
+		public readonly HashedNodeRef<ChunkedDataNode>[] OutputRefs;
 
 		/// <summary>
 		/// Construct a new horde artifact number
@@ -40,7 +40,7 @@ namespace UnrealBuildTool.Artifacts
 		public HordeArtifactAction(ArtifactAction artifactAction)
 		{
 			ArtifactAction = artifactAction;
-			OutputRefs = new NodeRef<ChunkedDataNode>[ArtifactAction.Outputs.Length];
+			OutputRefs = new HashedNodeRef<ChunkedDataNode>[ArtifactAction.Outputs.Length];
 		}
 
 		/// <summary>
@@ -50,7 +50,7 @@ namespace UnrealBuildTool.Artifacts
 		public HordeArtifactAction(NodeReader reader)
 		{
 			ArtifactAction = reader.ReadArtifactAction();
-			OutputRefs = reader.ReadVariableLengthArray(() => new NodeRef<ChunkedDataNode>(reader));
+			OutputRefs = reader.ReadVariableLengthArray(() => new HashedNodeRef<ChunkedDataNode>(reader));
 		}
 
 		/// <summary>
@@ -88,7 +88,7 @@ namespace UnrealBuildTool.Artifacts
 				string outputName = artifact.GetFullPath(ArtifactAction.DirectoryMapping);
 				using FileStream stream = new(outputName, FileMode.Open, FileAccess.Read, FileShare.Read);
 				ChunkedData chunkedData = await fileWriter.CreateAsync(stream, leafOptions.TargetSize, cancellationToken);
-				OutputRefs[index++] = new NodeRef<ChunkedDataNode>(chunkedData.Root);
+				OutputRefs[index++] = new HashedNodeRef<ChunkedDataNode>(chunkedData.Root);
 			}
 		}
 	}
@@ -325,7 +325,7 @@ namespace UnrealBuildTool.Artifacts
 						output[index] = true;
 
 						int refIndex = 0;
-						foreach (NodeRef<ChunkedDataNode> artifactRef in hordeArtifactAction.OutputRefs)
+						foreach (HashedNodeRef<ChunkedDataNode> artifactRef in hordeArtifactAction.OutputRefs)
 						{
 							if (artifactRef.Handle == null)
 							{

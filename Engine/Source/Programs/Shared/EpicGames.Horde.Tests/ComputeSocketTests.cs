@@ -158,7 +158,7 @@ namespace EpicGames.Horde.Tests
 						DirectoryNode directory = new DirectoryNode();
 						directory.AddFile("hello.txt", FileEntryFlags.None, data.Length, chunkedData);
 
-						NodeRef<DirectoryNode> directoryRef = await treeWriter.WriteNodeAsync(directory);
+						HashedNodeRef<DirectoryNode> directoryRef = await treeWriter.WriteHashedNodeAsync(directory);
 
 						DirectoryNode root = new DirectoryNode();
 						root.AddDirectory(new DirectoryEntry("subdir", directory.Length, directoryRef));

@@ -185,7 +185,7 @@ namespace EpicGames.Horde.Logs
 	/// <summary>
 	/// Reference to a chunk of text, with information about its placement in the larger log file
 	/// </summary>
-	public class LogChunkRef : NodeRef<LogChunkNode>
+	public class LogChunkRef : HashedNodeRef<LogChunkNode>
 	{
 		/// <summary>
 		/// First line within the file
@@ -215,7 +215,7 @@ namespace EpicGames.Horde.Logs
 		/// <param name="offset">Offset within the log file</param>
 		/// <param name="length">Length of the chunk</param>
 		/// <param name="target">Referenced log text</param>
-		public LogChunkRef(int lineIndex, int lineCount, long offset, int length, NodeRef<LogChunkNode> target)
+		public LogChunkRef(int lineIndex, int lineCount, long offset, int length, HashedNodeRef<LogChunkNode> target)
 			: base(target)
 		{
 			LineIndex = lineIndex;

@@ -721,7 +721,7 @@ namespace EpicGames.Horde.Storage
 			}
 		}
 
-		async Task ExtractDataAsync(NodeRef<ChunkedDataNode> nodeRef, Stream outputStream, CancellationToken cancellationToken)
+		async Task ExtractDataAsync(HashedNodeRef<ChunkedDataNode> nodeRef, Stream outputStream, CancellationToken cancellationToken)
 		{
 			BlobType blobType = await nodeRef.Handle.GetTypeAsync(cancellationToken);
 			if (blobType.Guid == LeafChunkedDataNode.BlobType.Guid)
@@ -731,7 +731,7 @@ namespace EpicGames.Horde.Storage
 			else if (blobType.Guid == InteriorChunkedDataNode.BlobType.Guid)
 			{
 				InteriorChunkedDataNode interiorNode = (InteriorChunkedDataNode)await nodeRef.ExpandAsync(cancellationToken);
-				foreach (NodeRef<ChunkedDataNode> childNodeRef in interiorNode.Children)
+				foreach (HashedNodeRef<ChunkedDataNode> childNodeRef in interiorNode.Children)
 				{
 					await ExtractDataAsync(childNodeRef, outputStream, cancellationToken);
 				}
@@ -742,11 +742,11 @@ namespace EpicGames.Horde.Storage
 			}
 		}
 
-		async Task ExtractLeafDataAsync(NodeRef<ChunkedDataNode> nodeRef, Stream outputStream, CancellationToken cancellationToken)
+		async Task ExtractLeafDataAsync(HashedNodeRef<ChunkedDataNode> nodeRef, Stream outputStream, CancellationToken cancellationToken)
 		{
 			// Try to copy cached data for this node
 			HashInfo? hashInfo;
-			if (_hashes.TryGetValue(nodeRef.Handle.Hash, out hashInfo))
+			if (_hashes.TryGetValue(nodeRef.Hash, out hashInfo))
 			{
 				if (await TryCopyCachedDataAsync(hashInfo, 0, hashInfo.Length, outputStream, cancellationToken))
 				{

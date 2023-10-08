@@ -15,9 +15,9 @@ namespace EpicGames.Horde.Storage.Nodes
 		class HandleMapper
 		{
 			readonly NodeReader _reader;
-			readonly List<NodeRef> _refs;
+			readonly List<HashedNodeRef> _refs;
 
-			public HandleMapper(NodeReader reader, List<NodeRef> refs)
+			public HandleMapper(NodeReader reader, List<HashedNodeRef> refs)
 			{
 				_reader = reader;
 				_refs = refs;
@@ -27,8 +27,8 @@ namespace EpicGames.Horde.Storage.Nodes
 			{
 				if (field.IsAttachment())
 				{
-					BlobHandle handle = _reader.GetBlobHandle(_refs.Count, field.AsAttachment());
-					_refs.Add(new NodeRef(handle));
+					BlobHandle handle = _reader.ReadBlobReference();
+					_refs.Add(new HashedNodeRef(field.AsAttachment(), handle));
 				}
 				else if (field.IsArray())
 				{
@@ -51,14 +51,14 @@ namespace EpicGames.Horde.Storage.Nodes
 		/// <summary>
 		/// Imported nodes
 		/// </summary>
-		public IReadOnlyList<NodeRef> References { get; }
+		public IReadOnlyList<HashedNodeRef> References { get; }
 
 		/// <summary>
 		/// Constructor
 		/// </summary>
 		/// <param name="obj">The compact binary object</param>
 		/// <param name="references">List of references to attachments</param>
-		public CbNode(CbObject obj, IReadOnlyList<NodeRef> references)
+		public CbNode(CbObject obj, IReadOnlyList<HashedNodeRef> references)
 		{
 			Object = obj;
 			References = references;
@@ -72,7 +72,7 @@ namespace EpicGames.Horde.Storage.Nodes
 		{
 			Object = new CbObject(reader.ReadFixedLengthBytes(reader.Length));
 
-			List<NodeRef> references = new List<NodeRef>();
+			List<HashedNodeRef> references = new List<HashedNodeRef>();
 			Object.IterateAttachments(new HandleMapper(reader, references).IterateField);
 
 			References = references;

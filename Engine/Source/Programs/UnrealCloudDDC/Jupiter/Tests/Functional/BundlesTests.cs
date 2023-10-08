@@ -365,7 +365,7 @@ public abstract class BundlesTests
 		types.Add(new BlobType(Guid.Parse("F63606D4-5DBB-4061-A655-6F444F65229E"), 1));
 
 		List<BundleExport> exports = new List<BundleExport>();
-		exports.Add(new BundleExport(0, IoHash.Compute(payload), 0, 0, payload.Length, Array.Empty<BundleExportRef>()));
+		exports.Add(new BundleExport(0, 0, 0, payload.Length, Array.Empty<BundleExportRef>()));
 
 		List<BundlePacket> packets = new List<BundlePacket>();
 		packets.Add(new BundlePacket(BundleCompressionFormat.None, 0, payload.Length, payload.Length));
@@ -378,9 +378,9 @@ public abstract class BundlesTests
 	class SimpleNode : Node
 	{
 		public ReadOnlySequence<byte> Data { get; }
-		public IReadOnlyList<NodeRef<SimpleNode>> Refs { get; }
+		public IReadOnlyList<HashedNodeRef<SimpleNode>> Refs { get; }
 
-		public SimpleNode(ReadOnlySequence<byte> data, IReadOnlyList<NodeRef<SimpleNode>> refs)
+		public SimpleNode(ReadOnlySequence<byte> data, IReadOnlyList<HashedNodeRef<SimpleNode>> refs)
 		{
 			Data = data;
 			Refs = refs;
@@ -389,7 +389,7 @@ public abstract class BundlesTests
 		public SimpleNode(NodeReader reader)
 		{
 			Data = new ReadOnlySequence<byte>(reader.ReadVariableLengthBytes());
-			Refs = reader.ReadVariableLengthArray(() => reader.ReadNodeRef<SimpleNode>());
+			Refs = reader.ReadVariableLengthArray(() => reader.ReadHashedNodeRef<SimpleNode>());
 		}
 
 		public override void Serialize(NodeWriter writer)

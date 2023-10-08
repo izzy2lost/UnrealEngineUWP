@@ -49,11 +49,6 @@ namespace Jupiter.Controllers
 	public class FindNodeResponse
 	{
 		/// <summary>
-		/// Hash of the target node
-		/// </summary>
-		public IoHash Hash { get; set; }
-
-		/// <summary>
 		/// Locator for the target blob
 		/// </summary>
 		public BundleLocator Blob { get; set; }
@@ -68,7 +63,6 @@ namespace Jupiter.Controllers
 		/// </summary>
 		public FindNodeResponse(BundleNodeHandle target)
 		{
-			Hash = target.Hash;
 			Blob = target.GetLocator().Blob;
 			ExportIdx = target.GetLocator().ExportIdx;
 		}
@@ -92,11 +86,6 @@ namespace Jupiter.Controllers
 	public class WriteRefRequest
 	{
 		/// <summary>
-		/// Hash of the target node
-		/// </summary>
-		public IoHash Hash { get; set; }
-
-		/// <summary>
 		/// Locator for the target blob
 		/// </summary>
 		public BundleLocator Blob { get; set; }
@@ -118,11 +107,6 @@ namespace Jupiter.Controllers
 	public class ReadRefResponse
 	{
 		/// <summary>
-		/// Hash of the target node
-		/// </summary>
-		public IoHash Hash { get; set; }
-
-		/// <summary>
 		/// Locator for the target blob
 		/// </summary>
 		public BundleLocator Blob { get; set; }
@@ -142,16 +126,14 @@ namespace Jupiter.Controllers
 		/// </summary>
 		public ReadRefResponse(BundleNodeHandle target, string link)
 		{
-			Hash = target.Hash;
 			Blob = target.GetLocator().Blob;
 			ExportIdx = target.GetLocator().ExportIdx;
 			Link = link;
 		}
 
 		[JsonConstructor]
-		public ReadRefResponse(IoHash hash, BundleLocator blob, int exportIdx, string link)
+		public ReadRefResponse(BundleLocator blob, int exportIdx, string link)
 		{
-			Hash = hash;
 			Blob = blob;
 			ExportIdx = exportIdx;
 			Link = link;
@@ -325,7 +307,7 @@ namespace Jupiter.Controllers
 				return result;
 			}
 			StorageClient client = await _storageService.GetClientAsync(namespaceId, cancellationToken);
-			BundleNodeLocator target = new BundleNodeLocator(request.Hash, request.Blob, request.ExportIdx);
+			BundleNodeLocator target = new BundleNodeLocator(request.Blob, request.ExportIdx);
 			await client.WriteRefTargetAsync(refName, target, request.Options, cancellationToken);
 
 			return Ok();
@@ -463,7 +445,7 @@ namespace Jupiter.Controllers
 
 			object content;
 
-			BlobData nodeData = await reader.ReadNodeDataAsync(new BundleNodeLocator(IoHash.Zero, locator, exportIdx), cancellationToken);
+			BlobData nodeData = await reader.ReadNodeDataAsync(new BundleNodeLocator(locator, exportIdx), cancellationToken);
 
 			Node node = Node.Deserialize(nodeData);
 			switch (node)
@@ -473,7 +455,7 @@ namespace Jupiter.Controllers
 						List<object> directories = new List<object>();
 						foreach ((string name, DirectoryEntry entry) in directoryNode.NameToDirectory)
 						{
-							directories.Add(new { name = name, length = entry.Length, hash = entry.Handle.Hash, link = Url.Action("GetNode", new { namespaceId = namespaceId, locator = ((BundleNodeHandle)entry.Handle)!.GetLocator().Blob, export = ((BundleNodeHandle)entry.Handle)!.GetLocator().ExportIdx})! });
+							directories.Add(new { name = name, length = entry.Length, link = Url.Action("GetNode", new { namespaceId = namespaceId, locator = ((BundleNodeHandle)entry.Handle)!.GetLocator().Blob, export = ((BundleNodeHandle)entry.Handle)!.GetLocator().ExportIdx})! });
 						}
 
 						List<object> files = new List<object>();

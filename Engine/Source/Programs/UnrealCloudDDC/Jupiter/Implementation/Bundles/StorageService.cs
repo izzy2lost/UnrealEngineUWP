@@ -215,7 +215,7 @@ public class StorageClient : BundleStorageClient
 	public async Task<BlobHandle> WriteRefAsync(RefName name, Bundle bundle, int exportIdx, Utf8String prefix = default, RefOptions? options = null, CancellationToken cancellationToken = default)
 	{
 		BundleLocator locator = await this.WriteBundleAsync(bundle, prefix, cancellationToken);
-		BundleNodeLocator nodeLocator = new BundleNodeLocator(bundle.Header.Exports[exportIdx].Hash, locator, exportIdx);
+		BundleNodeLocator nodeLocator = new BundleNodeLocator(locator, exportIdx);
 		await WriteRefTargetAsync(name, nodeLocator, options, cancellationToken);
 
 		return CreateNodeHandle(nodeLocator);
@@ -229,7 +229,7 @@ public class StorageClient : BundleStorageClient
 		RefId refKey = RefId.FromName(refName.ToString());
 		RefInlinePayload inlinePayload = new RefInlinePayload()
 		{
-			BlobHash = target.Hash, BlobLocator = target.Blob.ToString(), ExportId = target.ExportIdx
+			BlobLocator = target.Blob.ToString(), ExportId = target.ExportIdx
 		};
 		byte[] payload = CbSerializer.SerializeToByteArray(inlinePayload);
 		BlobId blobIdentifier = BlobId.FromBlob(payload);

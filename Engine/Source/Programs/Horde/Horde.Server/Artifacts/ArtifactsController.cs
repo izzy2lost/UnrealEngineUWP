@@ -182,7 +182,7 @@ namespace Horde.Server.Artifacts
 				{
 					DirectoryNode subDirectoryNode = await subDirectoryEntry.ExpandAsync(cancellationToken);
 
-					GetArtifactDirectoryEntryResponse subDirectoryEntryResponse = new GetArtifactDirectoryEntryResponse(subDirectoryEntry.Name.ToString(), subDirectoryEntry.Length, subDirectoryEntry.Handle.Hash);
+					GetArtifactDirectoryEntryResponse subDirectoryEntryResponse = new GetArtifactDirectoryEntryResponse(subDirectoryEntry.Name.ToString(), subDirectoryEntry.Length, subDirectoryEntry.Hash);
 					if (depth == 0)
 					{
 						if (subDirectoryNode.Directories.Count + subDirectoryNode.Files.Count < 16)
@@ -210,7 +210,7 @@ namespace Horde.Server.Artifacts
 
 			if (directoryNode.Files.Count > 0)
 			{
-				response.Files = directoryNode.Files.Select(x => new GetArtifactFileEntryResponse(x.Name.ToString(), x.Length, x.Handle.Hash)).ToList();
+				response.Files = directoryNode.Files.Select(x => new GetArtifactFileEntryResponse(x.Name.ToString(), x.Length, x.Hash)).ToList();
 			}
 		}
 

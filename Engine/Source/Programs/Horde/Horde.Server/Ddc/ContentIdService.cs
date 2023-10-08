@@ -1,5 +1,6 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 
+using EpicGames.Core;
 using EpicGames.Horde.Storage;
 using Horde.Server.Storage;
 using System.Threading;
@@ -35,7 +36,8 @@ namespace Horde.Server.Ddc
 				return null;
 			}
 
-			return new[] { BlobId.FromIoHash(blobAlias.Target.Hash) };
+			IoHash hash = new IoHash(blobAlias.Data.Span);
+			return new[] { BlobId.FromIoHash(hash) };
 		}
 
 		public async Task PutAsync(NamespaceId ns, ContentId contentId, BlobId blobId, int contentWeight)
@@ -50,7 +52,7 @@ namespace Horde.Server.Ddc
 				throw new BlobNotFoundException(ns, blobId);
 			}
 
-			await storageClient.AddAliasAsync(GetAlias(contentId), blobAlias.Target, -contentWeight, cancellationToken: cancellationToken);
+			await storageClient.AddAliasAsync(GetAlias(contentId), blobAlias.Target, -contentWeight, blobAlias.Data, cancellationToken: cancellationToken);
 		}
 	}
 }

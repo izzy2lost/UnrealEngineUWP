@@ -58,7 +58,7 @@ namespace EpicGames.Horde.Logs
 		/// <summary>
 		/// Index for this log
 		/// </summary>
-		public NodeRef<LogIndexNode> IndexRef { get; }
+		public HashedNodeRef<LogIndexNode> IndexRef { get; }
 
 		/// <summary>
 		/// Whether this log is complete
@@ -68,7 +68,7 @@ namespace EpicGames.Horde.Logs
 		/// <summary>
 		/// Deserializing constructor
 		/// </summary>
-		public LogNode(LogFormat format, int lineCount, long length, IReadOnlyList<LogChunkRef> textChunkRefs, NodeRef<LogIndexNode> indexRef, bool complete)
+		public LogNode(LogFormat format, int lineCount, long length, IReadOnlyList<LogChunkRef> textChunkRefs, HashedNodeRef<LogIndexNode> indexRef, bool complete)
 		{
 			Format = format;
 			LineCount = lineCount;
@@ -87,7 +87,7 @@ namespace EpicGames.Horde.Logs
 			Format = (LogFormat)reader.ReadUInt8();
 			LineCount = (int)reader.ReadUnsignedVarInt();
 			Length = (long)reader.ReadUnsignedVarInt();
-			IndexRef = reader.ReadNodeRef<LogIndexNode>();
+			IndexRef = reader.ReadHashedNodeRef<LogIndexNode>();
 			TextChunkRefs = reader.ReadList(() => new LogChunkRef(reader));
 			Complete = reader.ReadBoolean();
 		}
@@ -98,8 +98,8 @@ namespace EpicGames.Horde.Logs
 			writer.WriteUInt8((byte)Format);
 			writer.WriteUnsignedVarInt(LineCount);
 			writer.WriteUnsignedVarInt((ulong)Length);
-			writer.WriteNodeRef(IndexRef);
-			writer.WriteList(TextChunkRefs, x => writer.WriteNodeRef(x));
+			writer.WriteHashedNodeRef(IndexRef);
+			writer.WriteList(TextChunkRefs, x => writer.WriteHashedNodeRef(x));
 			writer.WriteBoolean(Complete);
 		}
 	}
@@ -250,7 +250,7 @@ namespace EpicGames.Horde.Logs
 		/// <param name="writer">Writer for the output nodes</param>
 		/// <param name="complete">Whether the log is complete</param>
 		/// <param name="cancellationToken">Cancellation token for the operation</param>
-		public async Task<NodeRef<LogNode>> FlushAsync(IStorageWriter writer, bool complete, CancellationToken cancellationToken)
+		public async Task<HashedNodeRef<LogNode>> FlushAsync(IStorageWriter writer, bool complete, CancellationToken cancellationToken)
 		{
 			// Capture the new data that needs to be written
 			IReadOnlyList<LogChunkNode> writeTextChunks;
@@ -267,21 +267,21 @@ namespace EpicGames.Horde.Logs
 
 			// Flush any complete chunks to storage
 			LogIndexNode newIndex = await _index.AppendAsync(writer, writeIndexTextChunks, cancellationToken);
-			NodeRef<LogIndexNode> newIndexRef = await writer.WriteNodeAsync(newIndex, cancellationToken);
+			HashedNodeRef<LogIndexNode> newIndexRef = await writer.WriteHashedNodeAsync(newIndex, cancellationToken);
 
 			List<LogChunkRef> newJsonChunkRefs = new List<LogChunkRef>(_root?.TextChunkRefs ?? Array.Empty<LogChunkRef>());
 			int lineCount = _root?.LineCount ?? 0;
 			long length = _root?.Length ?? 0;
 			foreach (LogChunkNode writeTextChunk in writeTextChunks)
 			{
-				NodeRef<LogChunkNode> writeTextChunkRef = await writer.WriteNodeAsync(writeTextChunk, cancellationToken);
+				HashedNodeRef<LogChunkNode> writeTextChunkRef = await writer.WriteHashedNodeAsync(writeTextChunk, cancellationToken);
 				newJsonChunkRefs.Add(new LogChunkRef(lineCount, writeTextChunk.LineCount, length, writeTextChunk.Length, writeTextChunkRef));
 				lineCount += writeTextChunk.LineCount;
 				length += writeTextChunk.Length;
 			}
 
 			LogNode newRoot = new LogNode(_format, lineCount, length, newJsonChunkRefs, newIndexRef, complete);
-			NodeRef<LogNode> newRootRef = await writer.WriteNodeAsync(newRoot, cancellationToken);
+			HashedNodeRef<LogNode> newRootRef = await writer.WriteHashedNodeAsync(newRoot, cancellationToken);
 
 			await writer.FlushAsync(cancellationToken);
 

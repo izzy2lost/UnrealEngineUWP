@@ -11,7 +11,6 @@ using System;
 using System.Collections.Generic;
 using System.IO;
 using System.Linq;
-using System.Text;
 using System.Threading;
 using System.Threading.Tasks;
 
@@ -76,7 +75,7 @@ namespace EpicGames.Horde.Tests
 			using ChunkedDataWriter fileNodeWriter = new ChunkedDataWriter(writer, options);
 
 			ChunkedDataNode node;
-			NodeRef<ChunkedDataNode> nodeRef;
+			HashedNodeRef<ChunkedDataNode> nodeRef;
 			byte[] data = CreateBuffer(1024);
 
 			nodeRef = (await fileNodeWriter.CreateAsync(data.AsMemory(0, 7), CancellationToken.None)).Root;
@@ -123,7 +122,7 @@ namespace EpicGames.Horde.Tests
 			return output;
 		}
 
-		private static async Task TestBufferlessReadsAsync(NodeRef<ChunkedDataNode> nodeRef, ReadOnlyMemory<byte> expected)
+		private static async Task TestBufferlessReadsAsync(HashedNodeRef<ChunkedDataNode> nodeRef, ReadOnlyMemory<byte> expected)
 		{
 			using MemoryStream memoryStream = new MemoryStream();
 			await ChunkedDataNode.CopyToStreamAsync(nodeRef.Handle, memoryStream, default);
@@ -144,8 +143,8 @@ namespace EpicGames.Horde.Tests
 				imports.Add(new BundleLocator("import2"));
 
 				List<BundleExport> exports = new List<BundleExport>();
-				exports.Add(new BundleExport(0, IoHash.Compute(Encoding.UTF8.GetBytes("export1")), 0, 0, 2, new BundleExportRef[] { new BundleExportRef(0, 5, IoHash.Zero), new BundleExportRef(0, 6, IoHash.Zero) }));
-				exports.Add(new BundleExport(0, IoHash.Compute(Encoding.UTF8.GetBytes("export2")), 1, 0, 3, new BundleExportRef[] { new BundleExportRef(-1, 0, IoHash.Zero) }));
+				exports.Add(new BundleExport(0, 0, 0, 2, new BundleExportRef[] { new BundleExportRef(0, 5), new BundleExportRef(0, 6) }));
+				exports.Add(new BundleExport(0, 1, 0, 3, new BundleExportRef[] { new BundleExportRef(-1, 0) }));
 
 				List<BundlePacket> packets = new List<BundlePacket>();
 				packets.Add(new BundlePacket(BundleCompressionFormat.LZ4, 0, 20, 40));
@@ -190,19 +189,19 @@ namespace EpicGames.Horde.Tests
 		{
 			MemoryStorageClient store = _storage;
 
-			NodeRef<DirectoryNode> rootRef;
+			HashedNodeRef<DirectoryNode> rootRef;
 			await using (IStorageWriter writer = store.CreateWriter())
 			{
 				DirectoryNode world = new DirectoryNode();
-				NodeRef<DirectoryNode> worldRef = await writer.WriteNodeAsync(world);
+				HashedNodeRef<DirectoryNode> worldRef = await writer.WriteHashedNodeAsync(world);
 
 				DirectoryNode hello = new DirectoryNode();
 				hello.AddDirectory(new DirectoryEntry("world", 0, worldRef));
-				NodeRef<DirectoryNode> helloRef = await writer.WriteNodeAsync(hello);
+				HashedNodeRef<DirectoryNode> helloRef = await writer.WriteHashedNodeAsync(hello);
 
 				DirectoryNode root = new DirectoryNode();
 				root.AddDirectory(new DirectoryEntry("hello", 0, helloRef));
-				rootRef = await writer.WriteNodeAsync(root);
+				rootRef = await writer.WriteHashedNodeAsync(root);
 
 				await writer.FlushAsync();
 			}
@@ -246,18 +245,18 @@ namespace EpicGames.Horde.Tests
 			BundleOptions options = new BundleOptions();
 			options.MaxBlobSize = 1;
 
-			await using (BundleWriter writer = _storage.CreateWriter(options: options))
+			await using (IStorageWriter writer = new DedupeStorageWriter(_storage.CreateWriter(options: options)))
 			{
 				DirectoryNode root = new DirectoryNode();
 				for (int idx = 1; idx <= 3; idx++)
 				{
 					DirectoryNode node = new DirectoryNode();
-					NodeRef<DirectoryNode> nodeRef = await writer.WriteNodeAsync(node);
+					HashedNodeRef<DirectoryNode> nodeRef = await writer.WriteHashedNodeAsync(node);
 					root.AddDirectory(new DirectoryEntry($"node{idx}", 0, nodeRef));
 				}
 
 				RefName refName = new RefName("ref");
-				NodeRef<DirectoryNode> rootRef = await writer.WriteNodeAsync(root);
+				HashedNodeRef<DirectoryNode> rootRef = await writer.WriteHashedNodeAsync(root);
 				await _storage.WriteRefTargetAsync(refName, rootRef);
 			}
 
@@ -276,12 +275,12 @@ namespace EpicGames.Horde.Tests
 			{
 				await using (IStorageWriter writer = _storage.CreateWriter(options: options))
 				{
-					NodeRef<DirectoryNode> rootRef = await writer.WriteNodeAsync(new DirectoryNode());
+					HashedNodeRef<DirectoryNode> rootRef = await writer.WriteHashedNodeAsync(new DirectoryNode());
 					for (int idx = 4; idx >= 1; idx--)
 					{
 						DirectoryNode next = new DirectoryNode();
 						next.AddDirectory(new DirectoryEntry($"node{idx}", 0, rootRef));
-						rootRef = await writer.WriteNodeAsync(next);
+						rootRef = await writer.WriteHashedNodeAsync(next);
 					}
 					await _storage.WriteRefTargetAsync(refName, rootRef);
 				}

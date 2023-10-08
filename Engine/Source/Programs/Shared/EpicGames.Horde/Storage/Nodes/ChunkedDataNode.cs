@@ -109,7 +109,7 @@ namespace EpicGames.Horde.Storage.Nodes
 	/// <summary>
 	/// Reference to a chunked data node
 	/// </summary>
-	public class ChunkedDataNodeRef : NodeRef<ChunkedDataNode>
+	public class ChunkedDataNodeRef : HashedNodeRef<ChunkedDataNode>
 	{
 		/// <summary>
 		/// Type of the referenced node
@@ -128,8 +128,17 @@ namespace EpicGames.Horde.Storage.Nodes
 		/// <summary>
 		/// Constructor
 		/// </summary>
-		public ChunkedDataNodeRef(ChunkedDataNodeType type, BlobHandle handle)
-			: base(handle)
+		public ChunkedDataNodeRef(ChunkedDataNodeType type, NodeReader reader)
+			: base(reader)
+		{
+			Type = type;
+		}
+
+		/// <summary>
+		/// Constructor
+		/// </summary>
+		public ChunkedDataNodeRef(ChunkedDataNodeType type, HashedNodeRef<ChunkedDataNode> target)
+			: base(target)
 		{
 			Type = type;
 		}
@@ -290,8 +299,8 @@ namespace EpicGames.Horde.Storage.Nodes
 					sizeSinceProgressUpdate = 0;
 				}
 
-				BlobHandle handle = await writer.WriteBlobAsync(nextLength, Array.Empty<BlobHandle>(), GetNodeType<LeafChunkedDataNode>(), cancellationToken);
-				leafNodeRefs.Add(new ChunkedDataNodeRef(ChunkedDataNodeType.Leaf, handle));
+				HashedNodeRef<ChunkedDataNode> nodeRef = await writer.WriteHashedNodeRefAsync<ChunkedDataNode>(nextLength, Array.Empty<BlobHandle>(), GetNodeType<LeafChunkedDataNode>(), cancellationToken);
+				leafNodeRefs.Add(new ChunkedDataNodeRef(ChunkedDataNodeType.Leaf, nodeRef));
 
 				readBuffer.Memory.Slice(nextLength, size - nextLength).CopyTo(readBuffer.Memory);
 				size -= nextLength;
@@ -413,7 +422,7 @@ namespace EpicGames.Horde.Storage.Nodes
 				}
 				else
 				{
-					children.Add(new ChunkedDataNodeRef(ChunkedDataNodeType.Unknown, reader.ReadBlobHandle()));
+					children.Add(new ChunkedDataNodeRef(ChunkedDataNodeType.Unknown, reader.ReadHashedNodeRef<ChunkedDataNode>()));
 				}
 			}
 			Children = children;
@@ -424,7 +433,7 @@ namespace EpicGames.Horde.Storage.Nodes
 		{
 			foreach (ChunkedDataNodeRef child in Children)
 			{
-				writer.WriteNodeRef(child);
+				writer.WriteHashedNodeRef(child);
 			}
 		}
 
@@ -438,7 +447,7 @@ namespace EpicGames.Horde.Storage.Nodes
 		/// <returns>Handle to the root node of the tree</returns>
 		public static async Task<ChunkedData> CreateTreeAsync(LeafChunkedData leafChunkedData, InteriorChunkedDataNodeOptions options, IStorageWriter writer, CancellationToken cancellationToken)
 		{
-			NodeRef<ChunkedDataNode> rootRef = await CreateTreeAsync(leafChunkedData.LeafHandles, options, writer, cancellationToken);
+			HashedNodeRef<ChunkedDataNode> rootRef = await CreateTreeAsync(leafChunkedData.LeafHandles, options, writer, cancellationToken);
 			return new ChunkedData(leafChunkedData.Hash, rootRef);
 		}
 
@@ -450,7 +459,7 @@ namespace EpicGames.Horde.Storage.Nodes
 		/// <param name="writer">Output writer for new interior nodes</param>
 		/// <param name="cancellationToken">Cancellation token for the operation</param>
 		/// <returns>Handle to the root node of the tree</returns>
-		public static async Task<NodeRef<ChunkedDataNode>> CreateTreeAsync(List<ChunkedDataNodeRef> nodeRefs, InteriorChunkedDataNodeOptions options, IStorageWriter writer, CancellationToken cancellationToken)
+		public static async Task<HashedNodeRef<ChunkedDataNode>> CreateTreeAsync(List<ChunkedDataNodeRef> nodeRefs, InteriorChunkedDataNodeOptions options, IStorageWriter writer, CancellationToken cancellationToken)
 		{
 			List<ChunkedDataNodeRef> handleBuffer = new List<ChunkedDataNodeRef>();
 
@@ -463,8 +472,8 @@ namespace EpicGames.Horde.Storage.Nodes
 				handleBuffer.Clear();
 				foreach (InteriorChunkedDataNode interiorNode in interiorNodes)
 				{
-					NodeRef<ChunkedDataNode> newNodeRef = await writer.WriteNodeAsync<ChunkedDataNode>(interiorNode, cancellationToken);
-					handleBuffer.Add(new ChunkedDataNodeRef(ChunkedDataNodeType.Interior, newNodeRef.Handle));
+					HashedNodeRef<ChunkedDataNode> newNodeRef = await writer.WriteHashedNodeAsync<ChunkedDataNode>(interiorNode, cancellationToken);
+					handleBuffer.Add(new ChunkedDataNodeRef(ChunkedDataNodeType.Interior, newNodeRef));
 				}
 
 				nodeRefs = handleBuffer;
@@ -488,7 +497,7 @@ namespace EpicGames.Horde.Storage.Nodes
 				index = Math.Min(index + options.MinChildCount, nodeRefs.Count);
 				for (; index < maxIndex; index++)
 				{
-					nodeRefs[index].Handle.Hash.CopyTo(buffer);
+					nodeRefs[index].Hash.CopyTo(buffer);
 
 					uint value = BinaryPrimitives.ReadUInt32LittleEndian(buffer);
 					if (value < options.SliceThreshold)
@@ -510,7 +519,7 @@ namespace EpicGames.Horde.Storage.Nodes
 		/// <inheritdoc/>
 		public override async Task CopyToStreamAsync(Stream outputStream, CancellationToken cancellationToken)
 		{
-			foreach (NodeRef<ChunkedDataNode> childNodeRef in Children)
+			foreach (HashedNodeRef<ChunkedDataNode> childNodeRef in Children)
 			{
 				ChunkedDataNode childNode = await childNodeRef.ExpandAsync(cancellationToken);
 				await childNode.CopyToStreamAsync(outputStream, cancellationToken);
@@ -528,7 +537,8 @@ namespace EpicGames.Horde.Storage.Nodes
 			NodeReader nodeReader = new NodeReader(nodeData);
 			while (nodeReader.GetMemory(0).Length > 0)
 			{
-				BlobHandle handle = nodeReader.ReadBlobHandle();
+				_ = nodeReader.ReadIoHash();
+				BlobHandle handle = nodeReader.ReadBlobReference();
 				if (nodeReader.Version >= 2)
 				{
 					_ = nodeReader.ReadUnsignedVarInt();

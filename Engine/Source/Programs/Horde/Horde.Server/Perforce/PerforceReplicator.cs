@@ -42,10 +42,10 @@ namespace Horde.Server.Perforce
 		{
 			public int Change { get; }
 			public int ParentChange { get; }
-			public NodeRef<DirectoryNode> Contents { get; set; }
+			public HashedNodeRef<DirectoryNode> Contents { get; set; }
 			public List<string> Paths { get; }
 
-			public SyncNode(int number, int parentNumber, NodeRef<DirectoryNode> contents)
+			public SyncNode(int number, int parentNumber, HashedNodeRef<DirectoryNode> contents)
 			{
 				Change = number;
 				ParentChange = parentNumber;
@@ -57,7 +57,7 @@ namespace Horde.Server.Perforce
 			{
 				Change = (int)reader.ReadUnsignedVarInt();
 				ParentChange = (int)reader.ReadUnsignedVarInt();
-				Contents = reader.ReadNodeRef<DirectoryNode>();
+				Contents = reader.ReadHashedNodeRef<DirectoryNode>();
 				Paths = reader.ReadList(() => reader.ReadString());
 			}
 
@@ -66,7 +66,7 @@ namespace Horde.Server.Perforce
 			{
 				writer.WriteUnsignedVarInt(Change);
 				writer.WriteUnsignedVarInt(ParentChange);
-				writer.WriteNodeRef(Contents);
+				writer.WriteHashedNodeRef(Contents);
 				writer.WriteList(Paths, x => writer.WriteString(x));
 			}
 		}
@@ -376,8 +376,8 @@ namespace Horde.Server.Perforce
 					Stopwatch flushTimer = Stopwatch.StartNew();
 
 					await root.UpdateAsync(rootUpdate, writer, cancellationToken);
-					syncNode.Contents = await writer.WriteNodeAsync(root, cancellationToken);
-					NodeRef<SyncNode> syncNodeRef = await writer.WriteNodeAsync(syncNode, cancellationToken);
+					syncNode.Contents = await writer.WriteHashedNodeAsync(root, cancellationToken);
+					HashedNodeRef<SyncNode> syncNodeRef = await writer.WriteHashedNodeAsync(syncNode, cancellationToken);
 					await store.WriteRefTargetAsync(incRefName, syncNodeRef, cancellationToken: cancellationToken);
 					rootUpdate.Clear();
 
@@ -545,7 +545,7 @@ namespace Horde.Server.Perforce
 
 			// Create the commit node
 			ChangeRecord changeRecord = await perforce.GetChangeAsync(GetChangeOptions.None, change, cancellationToken);
-			DirectoryNodeRef rootRef = new DirectoryNodeRef(root.Length, await writer.WriteNodeAsync(root, cancellationToken));
+			DirectoryNodeRef rootRef = new DirectoryNodeRef(root.Length, await writer.WriteHashedNodeAsync(root, cancellationToken));
 			CommitNode commitNode = new CommitNode(change, parentRef, changeRecord.User ?? "Unknown", changeRecord.Description ?? String.Empty, changeRecord.Date, rootRef);
 			BlobHandle commitHandle = await store.WriteRefAsync(refName, commitNode, refOptions: options.RefOptions, cancellationToken: cancellationToken);
 

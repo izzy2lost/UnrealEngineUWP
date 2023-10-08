@@ -3,7 +3,6 @@
 using System;
 using System.Collections.Concurrent;
 using System.Collections.Generic;
-using System.Diagnostics;
 using System.Diagnostics.CodeAnalysis;
 using System.Reflection;
 using System.Reflection.Emit;
@@ -51,37 +50,15 @@ namespace EpicGames.Horde.Storage
 		public uint Revision { get; private set; }
 
 		/// <summary>
-		/// Hash when deserialized
-		/// </summary>
-		public IoHash Hash { get; internal set; }
-
-		/// <summary>
 		/// Accessor for the bundle type definition associated with this node
 		/// </summary>
 		public BlobType NodeType => GetNodeType(GetType());
-
-		/// <summary>
-		/// Default constructor
-		/// </summary>
-		protected Node()
-		{
-		}
-
-		/// <summary>
-		/// Serialization constructor. Leaves the revision number zeroed by default.
-		/// </summary>
-		/// <param name="reader"></param>
-		protected Node(NodeReader reader)
-		{
-			Hash = reader.Hash;
-		}
 
 		/// <summary>
 		/// Mark this node as dirty
 		/// </summary>
 		protected void MarkAsDirty()
 		{
-			Hash = IoHash.Zero;
 			Revision++;
 		}
 
@@ -283,12 +260,7 @@ namespace EpicGames.Horde.Storage
 		public int Length => _blobData.Data.Length;
 
 		/// <summary>
-		/// Hash of the node being deserialized
-		/// </summary>
-		public IoHash Hash => _blobData.Hash;
-
-		/// <summary>
-		/// 
+		/// Raw data for this blob
 		/// </summary>
 		public ReadOnlyMemory<byte> Data => _blobData.Data;
 
@@ -310,25 +282,9 @@ namespace EpicGames.Horde.Storage
 		}
 
 		/// <summary>
-		/// Reads the next reference to another node
+		/// Gets the next serialized blob handle
 		/// </summary>
-		public BlobHandle ReadBlobHandle()
-		{
-			IoHash hash = this.ReadIoHash();
-			return GetBlobHandle(_refIdx++, hash);
-		}
-
-		/// <summary>
-		/// Gets a node handle with the given index and hash
-		/// </summary>
-		/// <param name="index"></param>
-		/// <param name="hash"></param>
-		/// <returns></returns>
-		public BlobHandle GetBlobHandle(int index, IoHash hash)
-		{
-			Debug.Assert(_blobData.Refs[index].Hash == hash);
-			return _blobData.Refs[index];
-		}
+		public BlobHandle ReadBlobReference() => _blobData.Refs[_refIdx++];
 	}
 
 	/// <summary>
@@ -361,12 +317,23 @@ namespace EpicGames.Horde.Storage
 		}
 
 		/// <summary>
+		/// Adds a reference to another blob. This reference is stored out of band, and will not result in any bytes written to the output.
+		/// </summary>
+		/// <param name="reference">Referenced blob</param>
+		public void WriteBlobReference(BlobHandle reference) => _refs.Add(reference);
+
+		/// <summary>
+		/// Computes the hash of the written data
+		/// </summary>
+		public IoHash ComputeHash() => IoHash.Compute(_memory.Span.Slice(0, _length));
+
+		/// <summary>
 		/// Writes a handle to another node
 		/// </summary>
-		public void WriteNodeHandle(BlobHandle target)
+		public void WriteHashedBlobHandle(IoHash hash, BlobHandle target)
 		{
-			this.WriteIoHash(target.Hash);
-			_refs.Add(target);
+			this.WriteIoHash(hash);
+			WriteBlobReference(target);
 		}
 
 		/// <inheritdoc/>
@@ -418,7 +385,7 @@ namespace EpicGames.Horde.Storage
 		public static async Task<BlobHandle> WriteRefAsync(this IStorageClient store, RefName name, Node node, RefOptions? refOptions = null, CancellationToken cancellationToken = default)
 		{
 			await using IStorageWriter writer = store.CreateWriter(name);
-			NodeRef<Node> nodeRef = await writer.WriteNodeAsync(node, cancellationToken);
+			HashedNodeRef<Node> nodeRef = await writer.WriteHashedNodeAsync(node, cancellationToken);
 			await writer.WriteRefAsync(nodeRef.Handle, refOptions, cancellationToken);
 			return nodeRef.Handle;
 		}
