@@ -835,6 +835,10 @@ void URigVMBlueprint::PreSave(FObjectPreSaveContext ObjectSaveContext)
 			}
 		}
 	}
+
+#if WITH_EDITORONLY_DATA
+	OldMemoryStorageGeneratorClasses.Reset();
+#endif
 }
 
 void URigVMBlueprint::PostSaveRoot(FObjectPostSaveRootContext ObjectSaveContext)
@@ -1121,18 +1125,22 @@ void URigVMBlueprint::BroadcastRigVMPackageDone()
 	}
 }
 
-void URigVMBlueprint::RemoveDeprecatedVMMemoryClass() const
+void URigVMBlueprint::RemoveDeprecatedVMMemoryClass() 
 {
 	TArray<UObject*> Objects;
 	GetObjectsWithOuter(this, Objects, false);
 
+#if WITH_EDITORONLY_DATA
+	OldMemoryStorageGeneratorClasses.Reserve(Objects.Num());
 	for (UObject* Object : Objects)
 	{
 		if (URigVMMemoryStorageGeneratorClass* DeprecatedClass = Cast<URigVMMemoryStorageGeneratorClass>(Object))
 		{
 			DeprecatedClass->Rename(nullptr, GetTransientPackage(), REN_ForceNoResetLoaders | REN_DoNotDirty | REN_DontCreateRedirectors | REN_NonTransactional);
+			OldMemoryStorageGeneratorClasses.Add(DeprecatedClass);
 		}
 	}
+#endif
 }
 #endif
 

@@ -623,9 +623,18 @@ private:
 	// this function removes those deprecated class.
 	// new classes should be created by RecompileVM and parented to the Package
 	// during PostLoad
-	void RemoveDeprecatedVMMemoryClass() const;
+	void RemoveDeprecatedVMMemoryClass();
+
+#if WITH_EDITORONLY_DATA
+	// During load, we do not want the GC to destroy the generator classes until all URigVMMemoryStorage objects
+	// are loaded, so we need to keep a pointer to the classes. These pointers will be removed on PreSave so that the
+	// GC can do its work.
+	UPROPERTY(Transient)
+	TArray<TObjectPtr<URigVMMemoryStorageGeneratorClass>> OldMemoryStorageGeneratorClasses;
+
 #endif
 
+#endif
 #if WITH_EDITOR
 
 public:
