@@ -68,14 +68,14 @@ public:
 
 	VFloat ConvertToFloat() const;
 
-	static bool Equals(VHeapInt*, VHeapInt*);
+	static bool Equals(VHeapInt& X, VHeapInt& Y);
 
 	static VHeapInt* CreateZero(FAllocationContext Context);
 
 	static VHeapInt* Add(FRunningContext, VHeapInt& X, VHeapInt& Y);
 	static VHeapInt* Sub(FRunningContext, VHeapInt& X, VHeapInt& Y);
 	static VHeapInt* Multiply(FRunningContext, VHeapInt& X, VHeapInt& Y);
-	static VHeapInt* Divide(FRunningContext, VHeapInt& X, VHeapInt& Y);
+	static VHeapInt* Divide(FRunningContext, VHeapInt& X, VHeapInt& Y, bool* bOutHasNonZeroRemainder = nullptr);
 	static VHeapInt* Modulo(FRunningContext, VHeapInt& X, VHeapInt& Y);
 	static VHeapInt* UnaryMinus(FRunningContext, VHeapInt& X);
 
@@ -95,6 +95,7 @@ public:
 		return GetLength() == 0;
 	}
 
+	// false means positive, true means negative
 	bool GetSign() const { return static_cast<bool>(Sign); }
 	Digit GetDigit(const uint32 Index) const;
 	unsigned int GetLength() const { return Length; }
@@ -138,24 +139,24 @@ private:
 	static_assert(MaxLengthBits % DigitBits == 0);
 
 	static ComparisonResult AbsoluteCompare(const VHeapInt& X, const VHeapInt& Y);
-	static void MultiplyAccumulate(VHeapInt& Multiplicand, Digit Multiplier, VHeapInt* Accumulator, uint32 AccumulatorIndex);
+	static void MultiplyAccumulate(const VHeapInt& Multiplicand, Digit Multiplier, VHeapInt* Accumulator, uint32 AccumulatorIndex);
 
 	// Digit arithmetic helpers.
 	static Digit DigitAdd(Digit A, Digit B, Digit& Carry);
 	static Digit DigitSub(Digit A, Digit B, Digit& Borrow);
 	static Digit DigitMul(Digit A, Digit B, Digit& High);
 
-	static VHeapInt* Copy(FRunningContext, VHeapInt& X);
+	static VHeapInt* Copy(FRunningContext, const VHeapInt& X);
 
 	static VHeapInt* AbsoluteAdd(FRunningContext, VHeapInt& X, VHeapInt& Y, bool ResultSign);
 	static VHeapInt* AbsoluteSub(FRunningContext, VHeapInt& X, VHeapInt& Y, bool ResultSign);
 
-	Digit AbsoluteInplaceAdd(VHeapInt* Summand, uint32 StartIndex);
-	Digit AbsoluteInplaceSub(VHeapInt* Subtrahend, uint32 StartIndex);
+	Digit AbsoluteInplaceAdd(const VHeapInt& Summand, uint32 StartIndex);
+	Digit AbsoluteInplaceSub(const VHeapInt& Subtrahend, uint32 StartIndex);
 	void InplaceRightShift(uint32 Shift);
 
-	static bool AbsoluteDivWithDigitDivisor(FRunningContext Context, VHeapInt& X, Digit Divisor, VHeapInt** Quotient, Digit& Remainder);
-	static void AbsoluteDivWithHeapIntDivisor(FRunningContext Context, VHeapInt& Dividend, VHeapInt* Divisor, VHeapInt** Quotient, VHeapInt** Remainder);
+	static bool AbsoluteDivWithDigitDivisor(FRunningContext Context, const VHeapInt& X, Digit Divisor, VHeapInt** Quotient, Digit& Remainder);
+	static void AbsoluteDivWithHeapIntDivisor(FRunningContext Context, const VHeapInt& Dividend, const VHeapInt& Divisor, VHeapInt** Quotient, VHeapInt** Remainder, bool* bOutHasNonZeroRemainder = nullptr);
 	inline static Digit DigitDiv(Digit high, Digit low, Digit divisor, Digit& remainder);
 
 	enum class LeftShiftMode
@@ -164,10 +165,10 @@ private:
 		AlwaysAddOneDigit
 	};
 
-	static VHeapInt* AbsoluteLeftShiftAlwaysCopy(FRunningContext Context, VHeapInt& X, uint32 Shift, LeftShiftMode Mode);
+	static VHeapInt* AbsoluteLeftShiftAlwaysCopy(FRunningContext Context, const VHeapInt& X, uint32 Shift, LeftShiftMode Mode);
 	inline static bool ProductGreaterThan(Digit Factor1, Digit Factor2, Digit High, Digit Low);
 
-	static void InternalMultiplyAdd(VHeapInt& Source, Digit Factor, Digit Summand, uint32 N, VHeapInt* Result);
+	static void InternalMultiplyAdd(const VHeapInt& Source, Digit Factor, Digit Summand, uint32 N, VHeapInt* Result);
 
 	inline Digit* DataStorage()
 	{

@@ -126,6 +126,32 @@ bool VRational::Lte(FRunningContext Context, VRational& Lhs, VRational& Rhs)
 		VInt::Mul(Context, Rhs.Numerator.Get().AsInt(), Lhs.Denominator.Get().AsInt()));
 }
 
+VInt VRational::Floor(FRunningContext Context) const
+{
+	VInt IntNumerator(Numerator.Get());
+	VInt IntDenominator(Denominator.Get());
+	bool bHasNonZeroRemainder = false;
+	VInt IntQuotient = VInt::Div(Context, IntNumerator, IntDenominator, &bHasNonZeroRemainder);
+	if (bHasNonZeroRemainder && (IntNumerator.IsNegative() != IntDenominator.IsNegative()))
+	{
+		IntQuotient = VInt::Sub(Context, IntQuotient, VInt(1));
+	}
+	return IntQuotient;
+}
+
+VInt VRational::Ceil(FRunningContext Context) const
+{
+	VInt IntNumerator(Numerator.Get());
+	VInt IntDenominator(Denominator.Get());
+	bool bHasNonZeroRemainder = false;
+	VInt IntQuotient = VInt::Div(Context, IntNumerator, IntDenominator, &bHasNonZeroRemainder);
+	if (bHasNonZeroRemainder && (IntNumerator.IsNegative() == IntDenominator.IsNegative()))
+	{
+		IntQuotient = VInt::Add(Context, IntQuotient, VInt(1));
+	}
+	return IntQuotient;
+}
+
 void VRational::Reduce(FRunningContext Context)
 {
 	if (bIsReduced)

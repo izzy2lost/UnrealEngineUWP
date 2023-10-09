@@ -25,18 +25,21 @@ struct VRational : VHeapValue
 	TWriteBarrier<VValue> Numerator;
 	TWriteBarrier<VValue> Denominator;
 
-	static VRational& Add(FRunningContext, VRational& Lhs, VRational& Rhs);
-	static VRational& Sub(FRunningContext, VRational& Lhs, VRational& Rhs);
-	static VRational& Mul(FRunningContext, VRational& Lhs, VRational& Rhs);
-	static VRational& Div(FRunningContext, VRational& Lhs, VRational& Rhs);
-	static VRational& Neg(FRunningContext, VRational& N);
-	static bool Eq(FRunningContext, VRational& Lhs, VRational& Rhs);
-	static bool Gt(FRunningContext, VRational& Lhs, VRational& Rhs);
-	static bool Lt(FRunningContext, VRational& Lhs, VRational& Rhs);
-	static bool Gte(FRunningContext, VRational& Lhs, VRational& Rhs);
-	static bool Lte(FRunningContext, VRational& Lhs, VRational& Rhs);
+	static VRational& Add(FRunningContext Context, VRational& Lhs, VRational& Rhs);
+	static VRational& Sub(FRunningContext Context, VRational& Lhs, VRational& Rhs);
+	static VRational& Mul(FRunningContext Context, VRational& Lhs, VRational& Rhs);
+	static VRational& Div(FRunningContext Context, VRational& Lhs, VRational& Rhs);
+	static VRational& Neg(FRunningContext Context, VRational& N);
+	static bool Eq(FRunningContext Context, VRational& Lhs, VRational& Rhs);
+	static bool Gt(FRunningContext Context, VRational& Lhs, VRational& Rhs);
+	static bool Lt(FRunningContext Context, VRational& Lhs, VRational& Rhs);
+	static bool Gte(FRunningContext Context, VRational& Lhs, VRational& Rhs);
+	static bool Lte(FRunningContext Context, VRational& Lhs, VRational& Rhs);
 
-	void Reduce(FRunningContext);
+	VInt Floor(FRunningContext Context) const;
+	VInt Ceil(FRunningContext Context) const;
+
+	void Reduce(FRunningContext Context);
 	void NormalizeSigns(FRunningContext Context);
 	bool IsZero() const { return Numerator.Get().AsInt().IsZero(); }
 	bool IsReduced() const { return bIsReduced; }

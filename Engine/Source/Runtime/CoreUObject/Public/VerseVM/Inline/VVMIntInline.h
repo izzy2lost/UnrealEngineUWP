@@ -70,21 +70,31 @@ inline VInt VInt::Mul(FRunningContext Context, VInt Lhs, VInt Rhs)
 		return VInt::MulSlowPath(Context, Lhs, Rhs);
 	}
 }
-inline VInt VInt::Div(FRunningContext Context, VInt Lhs, VInt Rhs)
+inline VInt VInt::Div(FRunningContext Context, VInt Lhs, VInt Rhs, bool* bOutHasNonZeroRemainder /*= nullptr*/)
 {
 	checkf(!Rhs.IsZero(), TEXT("Division by 0 is undefined!"));
 	if (Lhs.Value.IsInt32() && Rhs.Value.IsInt32())
 	{
 		if (Rhs.Value.AsInt32() == -1 && Lhs.Value.AsInt32() == INT32_MIN)
 		{
+			if (bOutHasNonZeroRemainder)
+			{
+				*bOutHasNonZeroRemainder = false;
+			}
 			return VInt(Context, int64(INT32_MAX) + 1);
 		}
-		const int32 Result32 = Lhs.Value.AsInt32() / Rhs.Value.AsInt32();
+		const int32 Lhs32 = Lhs.Value.AsInt32();
+		const int32 Rhs32 = Rhs.Value.AsInt32();
+		const int32 Result32 = Lhs32 / Rhs32;
+		if (bOutHasNonZeroRemainder)
+		{
+			*bOutHasNonZeroRemainder = (Lhs32 != Rhs32 * Result32);
+		}
 		return VInt(Result32);
 	}
 	else
 	{
-		return VInt::DivSlowPath(Context, Lhs, Rhs);
+		return VInt::DivSlowPath(Context, Lhs, Rhs, bOutHasNonZeroRemainder);
 	}
 }
 inline VInt VInt::Mod(FRunningContext Context, VInt Lhs, VInt Rhs)
@@ -224,7 +234,7 @@ inline VInt VInt::MulSlowPath(FRunningContext Context, VInt Lhs, VInt Rhs)
 	return VInt(*VHeapInt::Multiply(Context, LhsHeapInt, RhsHeapInt));
 }
 
-inline VInt VInt::DivSlowPath(FRunningContext Context, VInt Lhs, VInt Rhs)
+inline VInt VInt::DivSlowPath(FRunningContext Context, VInt Lhs, VInt Rhs, bool* bOutHasNonZeroRemainder)
 {
 	if (Lhs.IsInt64() && Rhs.IsInt64())
 	{
@@ -233,12 +243,16 @@ inline VInt VInt::DivSlowPath(FRunningContext Context, VInt Lhs, VInt Rhs)
 		FGuardedInt64 Result = FGuardedInt64(Lhs64) / FGuardedInt64(Rhs64);
 		if (Result.IsValid())
 		{
+			if (bOutHasNonZeroRemainder)
+			{
+				*bOutHasNonZeroRemainder = (Lhs64 != Rhs64 * Result.GetChecked());
+			}
 			return VInt(Context, Result.GetChecked());
 		}
 	}
 	VHeapInt& LhsHeapInt = VInt::AsHeapInt(Context, Lhs);
 	VHeapInt& RhsHeapInt = VInt::AsHeapInt(Context, Rhs);
-	return VInt(*VHeapInt::Divide(Context, LhsHeapInt, RhsHeapInt));
+	return VInt(*VHeapInt::Divide(Context, LhsHeapInt, RhsHeapInt, bOutHasNonZeroRemainder));
 }
 
 inline VInt VInt::ModSlowPath(FRunningContext Context, VInt Lhs, VInt Rhs)
@@ -269,7 +283,7 @@ inline bool VInt::EqSlowPath(ContextType Context, VInt Lhs, VInt Rhs)
 	// TODO: To compare an inline int to a heap int, we have to allocate a heap int... this should be fixed somehow
 	VHeapInt& LhsHeapInt = VInt::AsHeapInt(FRunningContext(Context), Lhs);
 	VHeapInt& RhsHeapInt = VInt::AsHeapInt(FRunningContext(Context), Rhs);
-	return VHeapInt::Equals(&LhsHeapInt, &RhsHeapInt);
+	return VHeapInt::Equals(LhsHeapInt, RhsHeapInt);
 }
 
 inline VInt VInt::NegSlowPath(FRunningContext Context, VInt N)

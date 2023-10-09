@@ -1,0 +1,46 @@
+// Copyright Epic Games, Inc. All Rights Reserved.
+
+#if WITH_VERSE_VM
+#include "VerseVM/VVMIntrinsics.h"
+#include "VerseVM/Inline/VVMIntInline.h"
+#include "VerseVM/Inline/VVMValueInline.h"
+#include "VerseVM/VVMCppClassInfo.h"
+#include "VerseVM/VVMFloat.h"
+#include "VerseVM/VVMInt.h"
+#include "VerseVM/VVMOpResult.h"
+#include "VerseVM/VVMRational.h"
+#include "VerseVM/VVMValue.h"
+
+namespace Verse
+{
+
+DEFINE_VCPPCLASSINFO(VIntrinsics, VHeapValue, TEXT("Intrinsics"));
+TGlobalTrivialEmergentTypePtr<&VIntrinsics::StaticCppClassInfo> VIntrinsics::GlobalTrivialEmergentType;
+
+FNativeCallResult VIntrinsics::AbsImpl(FRunningContext Context, VNativeFunction::Args Arguments)
+{
+	checkSlow(Arguments.Num() == 1); // The interpreter already checks this
+	V_REQUIRE_CONCRETE(Arguments[0]);
+	V_RETURN(Arguments[0].IsFloat()
+				 ? VValue(VFloat(FMath::Abs(Arguments[0].AsFloat().AsDouble())))
+				 : VValue(VInt::Abs(Context, VInt(Arguments[0]))));
+}
+
+FNativeCallResult VIntrinsics::CeilImpl(FRunningContext Context, VNativeFunction::Args Arguments)
+{
+	checkSlow(Arguments.Num() == 1); // The interpreter already checks this
+	V_REQUIRE_CONCRETE(Arguments[0]);
+	VRational& Argument = Arguments[0].StaticCast<VRational>();
+	V_RETURN(Argument.Ceil(Context));
+}
+
+FNativeCallResult VIntrinsics::FloorImpl(FRunningContext Context, VNativeFunction::Args Arguments)
+{
+	checkSlow(Arguments.Num() == 1); // The interpreter already checks this
+	V_REQUIRE_CONCRETE(Arguments[0]);
+	VRational& Argument = Arguments[0].StaticCast<VRational>();
+	V_RETURN(Argument.Floor(Context));
+}
+
+} // namespace Verse
+#endif

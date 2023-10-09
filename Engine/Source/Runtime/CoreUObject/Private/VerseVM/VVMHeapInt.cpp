@@ -345,17 +345,25 @@ VHeapInt* VHeapInt::Multiply(FRunningContext Context, VHeapInt& X, VHeapInt& Y)
 	return Result->RightTrim(Context);
 }
 
-VHeapInt* VHeapInt::Divide(FRunningContext Context, VHeapInt& X, VHeapInt& Y)
+VHeapInt* VHeapInt::Divide(FRunningContext Context, VHeapInt& X, VHeapInt& Y, bool* bOutHasNonZeroRemainder /*= nullptr*/)
 {
 	// Division by 0 is a failure
 	if (Y.IsZero())
 	{
 		// Should be unreachable from Verse as the divide by zero is handled as explicit failure
+		if (bOutHasNonZeroRemainder)
+		{
+			*bOutHasNonZeroRemainder = false; // Set to _some_ consistent value
+		}
 		return nullptr;
 	}
 
 	if (VHeapInt::AbsoluteCompare(X, Y) == ComparisonResult::LessThan)
 	{
+		if (bOutHasNonZeroRemainder)
+		{
+			*bOutHasNonZeroRemainder = !X.IsZero();
+		}
 		return CreateZero(Context);
 	}
 
@@ -366,6 +374,10 @@ VHeapInt* VHeapInt::Divide(FRunningContext Context, VHeapInt& X, VHeapInt& Y)
 		Digit Divisor = Y.GetDigit(0);
 		if (Divisor == 1)
 		{
+			if (bOutHasNonZeroRemainder)
+			{
+				*bOutHasNonZeroRemainder = false; // Division by +/-1 is always exact
+			}
 			if (ResultSign == X.GetSign())
 			{
 				return Copy(Context, X);
@@ -375,11 +387,14 @@ VHeapInt* VHeapInt::Divide(FRunningContext Context, VHeapInt& X, VHeapInt& Y)
 
 		Digit Remainder;
 		AbsoluteDivWithDigitDivisor(Context, X, Divisor, &Result, Remainder);
+		if (bOutHasNonZeroRemainder)
+		{
+			*bOutHasNonZeroRemainder = (Remainder != 0);
+		}
 	}
 	else
 	{
-		VHeapInt* YBigInt = Copy(Context, Y); // (jcotton) Possibly not necessary to copy here
-		AbsoluteDivWithHeapIntDivisor(Context, X, YBigInt, &Result, nullptr);
+		AbsoluteDivWithHeapIntDivisor(Context, X, Y, &Result, nullptr, bOutHasNonZeroRemainder);
 	}
 
 	Result->SetSign(ResultSign);
@@ -395,7 +410,7 @@ VHeapInt* VHeapInt::Divide(FRunningContext Context, VHeapInt& X, VHeapInt& Y)
 // allocated for it; otherwise the caller must ensure that it is big enough.
 // {quotient} can be the same as {x} for an in-place division. {quotient} can
 // also be nullptr if the caller is only interested in the remainder.
-bool VHeapInt::AbsoluteDivWithDigitDivisor(FRunningContext Context, VHeapInt& X, Digit Divisor, VHeapInt** Quotient, Digit& Remainder)
+bool VHeapInt::AbsoluteDivWithDigitDivisor(FRunningContext Context, const VHeapInt& X, Digit Divisor, VHeapInt** Quotient, Digit& Remainder)
 {
 	Remainder = 0;
 	if (Divisor == 1)
@@ -441,16 +456,16 @@ bool VHeapInt::AbsoluteDivWithDigitDivisor(FRunningContext Context, VHeapInt& X,
 // Both {quotient} and {remainder} are optional, for callers that are only
 // interested in one of them.
 // See Knuth, Volume 2, section 4.3.1, Algorithm D.
-void VHeapInt::AbsoluteDivWithHeapIntDivisor(FRunningContext Context, VHeapInt& Dividend, VHeapInt* Divisor, VHeapInt** Quotient, VHeapInt** Remainder)
+void VHeapInt::AbsoluteDivWithHeapIntDivisor(FRunningContext Context, const VHeapInt& Dividend, const VHeapInt& Divisor, VHeapInt** Quotient, VHeapInt** Remainder, bool* bOutHasNonZeroRemainder /*= nullptr*/)
 {
-	check(Divisor->GetLength() >= 2);
-	check(Dividend.GetLength() >= Divisor->GetLength());
+	check(Divisor.GetLength() >= 2);
+	check(Dividend.GetLength() >= Divisor.GetLength());
 
 	// The unusual variable names inside this function are consistent with
 	// Knuth'S book, as well as with Go'S implementation of this algorithm.
 	// Maintaining this consistency is probably more useful than trying to
 	// come up with more descriptive names for them.
-	uint32 N = Divisor->GetLength();
+	uint32 N = Divisor.GetLength();
 	uint32 M = Dividend.GetLength() - N;
 
 	// The quotient to be computed.
@@ -468,12 +483,12 @@ void VHeapInt::AbsoluteDivWithHeapIntDivisor(FRunningContext Context, VHeapInt& 
 	// to prevent the digit-wise divisions (see digit_div call below) from
 	// overflowing (they take a two digits wide input, and return a one digit
 	// result).
-	Digit LastDigit = Divisor->GetDigit(N - 1);
+	Digit LastDigit = Divisor.GetDigit(N - 1);
 	uint32 Shift = FMath::CountLeadingZeros(LastDigit);
-
+	const VHeapInt* ShiftedDivisor = &Divisor;
 	if (Shift > 0)
 	{
-		Divisor = AbsoluteLeftShiftAlwaysCopy(Context, *Divisor, Shift, LeftShiftMode::SameSizeResult);
+		ShiftedDivisor = AbsoluteLeftShiftAlwaysCopy(Context, Divisor, Shift, LeftShiftMode::SameSizeResult);
 	}
 
 	// Holds the (continuously updated) remaining part of the dividend, which
@@ -482,7 +497,7 @@ void VHeapInt::AbsoluteDivWithHeapIntDivisor(FRunningContext Context, VHeapInt& 
 
 	// Iterate over the dividend'S digit (like the "grad school" algorithm).
 	// {VN1} is the divisor'S most significant digit.
-	Digit Vn1 = Divisor->GetDigit(N - 1);
+	Digit Vn1 = ShiftedDivisor->GetDigit(N - 1);
 	for (int J = M; J >= 0; J--)
 	{
 		// Estimate the current iteration'S quotient digit (see Knuth for details).
@@ -504,7 +519,7 @@ void VHeapInt::AbsoluteDivWithHeapIntDivisor(FRunningContext Context, VHeapInt& 
 			// Decrement the quotient estimate as needed by looking at the next
 			// Digit, i.e. by testing whether
 			// QHat * V_{n-2} > (Rhat << DigitBits) + u_{j+n-2}.
-			Digit Vn2 = Divisor->GetDigit(N - 2);
+			Digit Vn2 = ShiftedDivisor->GetDigit(N - 2);
 			Digit Ujn2 = U->GetDigit(J + N - 2);
 			while (ProductGreaterThan(QHat, Vn2, Rhat, Ujn2))
 			{
@@ -513,7 +528,9 @@ void VHeapInt::AbsoluteDivWithHeapIntDivisor(FRunningContext Context, VHeapInt& 
 				Rhat += Vn1;
 				// V[N-1] >= 0, so this tests for overflow.
 				if (Rhat < PrevRhat)
+				{
 					break;
+				}
 			}
 		}
 
@@ -521,17 +538,19 @@ void VHeapInt::AbsoluteDivWithHeapIntDivisor(FRunningContext Context, VHeapInt& 
 		// it from the dividend. If there was "borrow", then the quotient digit
 		// was one too high, so we must correct it and undo one subtraction of
 		// the (shifted) divisor.
-		InternalMultiplyAdd(*Divisor, QHat, 0, N, QHatV);
-		Digit C = U->AbsoluteInplaceSub(QHatV, J);
+		InternalMultiplyAdd(*ShiftedDivisor, QHat, 0, N, QHatV);
+		Digit C = U->AbsoluteInplaceSub(*QHatV, J);
 		if (C)
 		{
-			C = U->AbsoluteInplaceAdd(Divisor, J);
+			C = U->AbsoluteInplaceAdd(*ShiftedDivisor, J);
 			U->SetDigit(J + N, U->GetDigit(J + N) + C);
 			QHat--;
 		}
 
 		if (Quotient != nullptr)
+		{
 			Q->SetDigit(J, QHat);
+		}
 	}
 
 	if (Quotient != nullptr)
@@ -545,6 +564,11 @@ void VHeapInt::AbsoluteDivWithHeapIntDivisor(FRunningContext Context, VHeapInt& 
 		U->InplaceRightShift(Shift);
 		*Remainder = U;
 	}
+
+	if (bOutHasNonZeroRemainder != nullptr)
+	{
+		*bOutHasNonZeroRemainder = !U->IsZero();
+	}
 }
 
 VHeapInt* VHeapInt::Modulo(FRunningContext Context, VHeapInt& X, VHeapInt& Y)
@@ -555,7 +579,9 @@ VHeapInt* VHeapInt::Modulo(FRunningContext Context, VHeapInt& X, VHeapInt& Y)
 	}
 
 	if (VHeapInt::AbsoluteCompare(X, Y) == ComparisonResult::LessThan)
+	{
 		return CreateZero(Context);
+	}
 
 	VHeapInt* Remainder = nullptr;
 	VHeapInt* Result = nullptr;
@@ -563,7 +589,9 @@ VHeapInt* VHeapInt::Modulo(FRunningContext Context, VHeapInt& X, VHeapInt& Y)
 	{
 		Digit Divisor = Y.GetDigit(0);
 		if (Divisor == 1)
+		{
 			return CreateZero(Context);
+		}
 
 		Digit RemainderDigit;
 		AbsoluteDivWithDigitDivisor(Context, X, Divisor, &Result, RemainderDigit);
@@ -572,8 +600,7 @@ VHeapInt* VHeapInt::Modulo(FRunningContext Context, VHeapInt& X, VHeapInt& Y)
 	}
 	else
 	{
-		VHeapInt* YBigInt = Copy(Context, Y); // (jcotton) Possibly not necessary to copy here
-		AbsoluteDivWithHeapIntDivisor(Context, X, YBigInt, &Result, &Remainder);
+		AbsoluteDivWithHeapIntDivisor(Context, X, Y, &Result, &Remainder);
 	}
 
 	Remainder->SetSign(X.GetSign());
@@ -590,15 +617,15 @@ bool VHeapInt::ProductGreaterThan(Digit Factor1, Digit Factor2, Digit High, Digi
 
 // Adds {summand} onto {this}, starting with {summand}'S 0th digit
 // at {this}'S {startIndex}'th digit. Returns the "carry" (0 or 1).
-VHeapInt::Digit VHeapInt::AbsoluteInplaceAdd(VHeapInt* Summand, uint32 StartIndex)
+VHeapInt::Digit VHeapInt::AbsoluteInplaceAdd(const VHeapInt& Summand, uint32 StartIndex)
 {
 	Digit Carry = 0;
-	uint32 N = Summand->GetLength();
+	uint32 N = Summand.GetLength();
 	check(GetLength() >= StartIndex + N);
 	for (uint32 I = 0; I < N; I++)
 	{
 		Digit NewCarry = 0;
-		Digit Sum = DigitAdd(GetDigit(StartIndex + I), Summand->GetDigit(I), NewCarry);
+		Digit Sum = DigitAdd(GetDigit(StartIndex + I), Summand.GetDigit(I), NewCarry);
 		Sum = DigitAdd(Sum, Carry, NewCarry);
 		SetDigit(StartIndex + I, Sum);
 		Carry = NewCarry;
@@ -609,15 +636,15 @@ VHeapInt::Digit VHeapInt::AbsoluteInplaceAdd(VHeapInt* Summand, uint32 StartInde
 
 // Subtracts {subtrahend} from {this}, starting with {subtrahend}'S 0th digit
 // at {this}'S {startIndex}-th digit. Returns the "borrow" (0 or 1).
-VHeapInt::Digit VHeapInt::AbsoluteInplaceSub(VHeapInt* Subtrahend, uint32 StartIndex)
+VHeapInt::Digit VHeapInt::AbsoluteInplaceSub(const VHeapInt& Subtrahend, uint32 StartIndex)
 {
 	Digit Borrow = 0;
-	uint32 N = Subtrahend->GetLength();
+	uint32 N = Subtrahend.GetLength();
 	check(GetLength() >= StartIndex + N);
 	for (uint32 I = 0; I < N; I++)
 	{
 		Digit NewBorrow = 0;
-		Digit Difference = DigitSub(GetDigit(StartIndex + I), Subtrahend->GetDigit(I), NewBorrow);
+		Digit Difference = DigitSub(GetDigit(StartIndex + I), Subtrahend.GetDigit(I), NewBorrow);
 		Difference = DigitSub(Difference, Borrow, NewBorrow);
 		SetDigit(StartIndex + I, Difference);
 		Borrow = NewBorrow;
@@ -647,7 +674,7 @@ void VHeapInt::InplaceRightShift(uint32 Shift)
 
 // Multiplies {source} with {factor} and adds {summand} to the result.
 // {result} and {source} may be the same BigInt for inplace modification.
-void VHeapInt::InternalMultiplyAdd(VHeapInt& Source, Digit Factor, Digit Summand, uint32 N, VHeapInt* Result)
+void VHeapInt::InternalMultiplyAdd(const VHeapInt& Source, Digit Factor, Digit Summand, uint32 N, VHeapInt* Result)
 {
 	check(Source.GetLength() >= N);
 	check(Result->GetLength() >= N);
@@ -688,7 +715,7 @@ void VHeapInt::InternalMultiplyAdd(VHeapInt& Source, Digit Factor, Digit Summand
 }
 
 // Always copies the input, even when {shift} == 0.
-VHeapInt* VHeapInt::AbsoluteLeftShiftAlwaysCopy(FRunningContext Context, VHeapInt& X, uint32 Shift, LeftShiftMode Mode)
+VHeapInt* VHeapInt::AbsoluteLeftShiftAlwaysCopy(FRunningContext Context, const VHeapInt& X, uint32 Shift, LeftShiftMode Mode)
 {
 	check(Shift < DigitBits);
 	check(!X.IsZero());
@@ -785,7 +812,7 @@ VHeapInt::Digit VHeapInt::DigitDiv(Digit High, Digit Low, Digit Divisor, Digit& 
 	return Q1 * HalfDigitBase + Q0;
 }
 
-VHeapInt* VHeapInt::Copy(FRunningContext Context, VHeapInt& X)
+VHeapInt* VHeapInt::Copy(FRunningContext Context, const VHeapInt& X)
 {
 	check(!X.IsZero());
 
@@ -882,7 +909,7 @@ VHeapInt::Digit VHeapInt::DigitMul(Digit A, Digit B, Digit& High)
 	return static_cast<Digit>(Result);
 }
 
-void VHeapInt::MultiplyAccumulate(VHeapInt& Multiplicand, Digit Multiplier, VHeapInt* Accumulator, uint32 AccumulatorIndex)
+void VHeapInt::MultiplyAccumulate(const VHeapInt& Multiplicand, Digit Multiplier, VHeapInt* Accumulator, uint32 AccumulatorIndex)
 {
 	check(Accumulator->GetLength() > Multiplicand.GetLength() + AccumulatorIndex);
 	if (!Multiplier)
@@ -925,21 +952,21 @@ void VHeapInt::MultiplyAccumulate(VHeapInt& Multiplicand, Digit Multiplier, VHea
 	}
 }
 
-bool VHeapInt::Equals(VHeapInt* X, VHeapInt* Y)
+bool VHeapInt::Equals(VHeapInt& X, VHeapInt& Y)
 {
-	if (X->GetSign() != Y->GetSign())
+	if (X.GetSign() != Y.GetSign())
 	{
 		return false;
 	}
 
-	if (X->GetLength() != Y->GetLength())
+	if (X.GetLength() != Y.GetLength())
 	{
 		return false;
 	}
 
-	for (uint32 I = 0; I < X->GetLength(); I++)
+	for (uint32 I = 0; I < X.GetLength(); I++)
 	{
-		if (X->GetDigit(I) != Y->GetDigit(I))
+		if (X.GetDigit(I) != Y.GetDigit(I))
 		{
 			return false;
 		}

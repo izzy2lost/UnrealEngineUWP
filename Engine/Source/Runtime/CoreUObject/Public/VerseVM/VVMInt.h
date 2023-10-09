@@ -54,6 +54,16 @@ struct VInt
 		return HeapInt.IsZero();
 	}
 
+	bool IsNegative() const
+	{
+		if (Value.IsInt32())
+		{
+			return Value.AsInt32() < 0;
+		}
+		VHeapInt& HeapInt = Value.StaticCast<VHeapInt>();
+		return HeapInt.GetSign();
+	}
+
 	bool IsInt64() const;
 	int64 AsInt64() const;
 
@@ -62,7 +72,7 @@ struct VInt
 	static VInt Add(FRunningContext Context, VInt Lhs, VInt Rhs);
 	static VInt Sub(FRunningContext Context, VInt Lhs, VInt Rhs);
 	static VInt Mul(FRunningContext Context, VInt Lhs, VInt Rhs);
-	static VInt Div(FRunningContext Context, VInt Lhs, VInt Rhs);
+	static VInt Div(FRunningContext Context, VInt Lhs, VInt Rhs, bool* bOutHasNonZeroRemainder = nullptr);
 	static VInt Mod(FRunningContext Context, VInt Lhs, VInt Rhs);
 	static VInt Neg(FRunningContext Context, VInt N);
 	static VInt Abs(FRunningContext Context, VInt N);
@@ -85,7 +95,7 @@ private:
 	static VInt AddSlowPath(FRunningContext Context, VInt Lhs, VInt Rhs);
 	static VInt SubSlowPath(FRunningContext Context, VInt Lhs, VInt Rhs);
 	static VInt MulSlowPath(FRunningContext Context, VInt Lhs, VInt Rhs);
-	static VInt DivSlowPath(FRunningContext Context, VInt Lhs, VInt Rhs);
+	static VInt DivSlowPath(FRunningContext Context, VInt Lhs, VInt Rhs, bool* bOutHasNonZeroRemainder);
 	static VInt ModSlowPath(FRunningContext Context, VInt Lhs, VInt Rhs);
 	static VInt NegSlowPath(FRunningContext Context, VInt N);
 	static VInt AbsSlowPath(FRunningContext Context, VInt N);

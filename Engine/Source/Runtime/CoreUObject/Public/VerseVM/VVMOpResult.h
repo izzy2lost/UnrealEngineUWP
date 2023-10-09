@@ -9,6 +9,33 @@
 #include "CoreTypes.h"
 #include "VVMValue.h"
 
+// Helper macros for converting/marshaling VM arguments
+#define V_REQUIRE_CONCRETE(Value)                        \
+	if ((Value).IsPlaceholder())                         \
+	{                                                    \
+		return {Verse::FOpResult::ShouldSuspend, Value}; \
+	}
+#define V_FAIL_IF(Condition)               \
+	if (Condition)                         \
+	{                                      \
+		return {Verse::FOpResult::Failed}; \
+	}
+#define V_RETURN(Value)                 \
+	return                              \
+	{                                   \
+		Verse::FOpResult::Normal, Value \
+	}
+#define V_RUNTIME_ERROR(Context, Message)                                         \
+	return                                                                        \
+	{                                                                             \
+		Verse::FOpResult::RuntimeError, Verse::VUTF8String::New(Context, Message) \
+	}
+#define V_RUNTIME_ERROR_IF(Condition, Context, Message) \
+	if (Condition)                                      \
+	{                                                   \
+		V_RUNTIME_ERROR(Context, Message);              \
+	}
+
 namespace Verse
 {
 
