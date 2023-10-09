@@ -5335,14 +5335,23 @@ void FNaniteSettingsLayout::AddToDetailsPanel(IDetailLayoutBuilder& DetailBuilde
 		];
 	}
 
-	NANITE_ADD_DEFAULT_ROW( bPreserveArea );
-	NANITE_ADD_DEFAULT_ROW( bExplicitTangents );
-	NANITE_ADD_DEFAULT_ROW( bLerpUVs );
+	TAttribute<bool> NaniteEnabledAttr = TAttribute<bool>::Create(TAttribute<bool>::FGetter::CreateLambda([NaniteEnabledCheck]() -> bool { return NaniteEnabledCheck->IsChecked(); }));
+	TAttribute<bool> NaniteEnabledAndNoHiResDataAttr = TAttribute<bool>::Create(TAttribute<bool>::FGetter::CreateLambda([this, NaniteEnabledCheck]() -> bool {return NaniteEnabledCheck->IsChecked() && IsHiResDataEmpty(); }));
+
+	NANITE_ADD_DEFAULT_ROW( bPreserveArea )
+	.IsEnabled( NaniteEnabledAttr );
+
+	NANITE_ADD_DEFAULT_ROW( bExplicitTangents )
+	.IsEnabled( NaniteEnabledAttr );
+
+	NANITE_ADD_DEFAULT_ROW( bLerpUVs )
+	.IsEnabled( NaniteEnabledAttr );
 
 	{
 		TSharedPtr<STextComboBox> ComboBox;
 		NaniteSettingsCategory.AddCustomRow(LOCTEXT("PositionPrecision", "Position Precision"))
 		.RowTag("PositionPrecision")
+		.IsEnabled( NaniteEnabledAttr )
 		.NameContent()
 		[
 			SNew(STextBlock)
@@ -5364,6 +5373,7 @@ void FNaniteSettingsLayout::AddToDetailsPanel(IDetailLayoutBuilder& DetailBuilde
 	{
 		TSharedPtr<STextComboBox> ComboBox;
 		NaniteSettingsCategory.AddCustomRow(LOCTEXT("NormalPrecision", "Normal Precision"))
+		.IsEnabled( NaniteEnabledAttr )
 		.NameContent()
 		[
 			SNew(STextBlock)
@@ -5384,16 +5394,16 @@ void FNaniteSettingsLayout::AddToDetailsPanel(IDetailLayoutBuilder& DetailBuilde
 
 	{
 		TSharedPtr<STextComboBox> ComboBox;
-		FDetailWidgetRow& Row = NaniteSettingsCategory.AddCustomRow(LOCTEXT("TangentPrecision", "Tangent Precision"));
-		Row.NameContent()
-			[
-				SNew(STextBlock)
-				.Font(IDetailLayoutBuilder::GetDetailFont())
+		NaniteSettingsCategory.AddCustomRow(LOCTEXT("TangentPrecision", "Tangent Precision"))
+		.IsEnabled( NaniteEnabledAttr )
+		.NameContent()
+		[
+			SNew(STextBlock)
+			.Font(IDetailLayoutBuilder::GetDetailFont())
 			.Text(LOCTEXT("TangentPrecision", "Tangent Precision"))
 			.ToolTipText(LOCTEXT("TangentPrecisionTooltip", "Precision of vertex tangents."))
-			];
-		
-		Row.ValueContent()
+		]
+		.ValueContent()
 		.VAlign(VAlign_Center)
 		[
 			SAssignNew(ComboBox, STextComboBox)
@@ -5412,6 +5422,7 @@ void FNaniteSettingsLayout::AddToDetailsPanel(IDetailLayoutBuilder& DetailBuilde
 		TSharedPtr<STextComboBox> ComboBox;
 		NaniteSettingsCategory.AddCustomRow(LOCTEXT("MinimumResidency", "Minimum Residency"))
 		.RowTag("MinimumResidency")
+		.IsEnabled( NaniteEnabledAttr )
 		.NameContent()
 		[
 			SNew(STextBlock)
@@ -5432,7 +5443,7 @@ void FNaniteSettingsLayout::AddToDetailsPanel(IDetailLayoutBuilder& DetailBuilde
 	{
 		NaniteSettingsCategory.AddCustomRow( LOCTEXT("KeepTrianglePercent", "Keep Triangle Percent") )
 		.RowTag("KeepTrianglePercent")
-		.IsEnabled(TAttribute<bool>::Create(TAttribute<bool>::FGetter::CreateLambda([NaniteEnabledCheck]() -> bool {return NaniteEnabledCheck->IsChecked(); } )))
+		.IsEnabled( NaniteEnabledAttr )
 		.NameContent()
 		[
 			SNew(STextBlock)
@@ -5456,7 +5467,7 @@ void FNaniteSettingsLayout::AddToDetailsPanel(IDetailLayoutBuilder& DetailBuilde
 	{
 		NaniteSettingsCategory.AddCustomRow( LOCTEXT("TrimRelativeError", "Trim Relative Error") )
 		.RowTag("TrimRelativeError")
-		.IsEnabled(TAttribute<bool>::Create(TAttribute<bool>::FGetter::CreateLambda([NaniteEnabledCheck]() -> bool {return NaniteEnabledCheck->IsChecked(); } )))
+		.IsEnabled( NaniteEnabledAttr )
 		.NameContent()
 		[
 			SNew(STextBlock)
@@ -5476,12 +5487,12 @@ void FNaniteSettingsLayout::AddToDetailsPanel(IDetailLayoutBuilder& DetailBuilde
 	}
 
 	NANITE_ADD_DEFAULT_ROW( FallbackTarget )
-	.IsEnabled(TAttribute<bool>::Create(TAttribute<bool>::FGetter::CreateLambda([this, NaniteEnabledCheck]() -> bool {return NaniteEnabledCheck->IsChecked() && IsHiResDataEmpty(); })));
+	.IsEnabled( NaniteEnabledAndNoHiResDataAttr );
 
 	{
 		NaniteSettingsCategory.AddCustomRow( LOCTEXT("FallbackTrianglePercent", "Fallback Triangle Percent") )
 		.RowTag("FallbackTrianglePercent")
-		.IsEnabled(TAttribute<bool>::Create(TAttribute<bool>::FGetter::CreateLambda([this, NaniteEnabledCheck]() -> bool {return NaniteEnabledCheck->IsChecked() && IsHiResDataEmpty(); })))
+		.IsEnabled( NaniteEnabledAndNoHiResDataAttr )
 		.NameContent()
 		[
 			SNew(STextBlock)
@@ -5509,7 +5520,7 @@ void FNaniteSettingsLayout::AddToDetailsPanel(IDetailLayoutBuilder& DetailBuilde
 	{
 		NaniteSettingsCategory.AddCustomRow( LOCTEXT("FallbackRelativeError", "Fallback Relative Error") )
 		.RowTag("FallbackRelativeError")
-		.IsEnabled(TAttribute<bool>::Create(TAttribute<bool>::FGetter::CreateLambda([this, NaniteEnabledCheck]() -> bool {return NaniteEnabledCheck->IsChecked() && IsHiResDataEmpty(); } )))
+		.IsEnabled( NaniteEnabledAndNoHiResDataAttr )
 		.NameContent()
 		[
 			SNew(STextBlock)
@@ -5537,7 +5548,7 @@ void FNaniteSettingsLayout::AddToDetailsPanel(IDetailLayoutBuilder& DetailBuilde
 		FString FileFilterText = TEXT("Filmbox (*.fbx)|*.fbx|All files (*.*)|*.*");
 		NaniteSettingsCategory.AddCustomRow( LOCTEXT("NANITE_SourceImportFilename", "Source Import Filename") )
 		.RowTag("NANITE_SourceImportFilename")
-		.IsEnabled(TAttribute<bool>::Create(TAttribute<bool>::FGetter::CreateLambda([NaniteEnabledCheck]() -> bool {return NaniteEnabledCheck->IsChecked(); } )))
+		.IsEnabled( NaniteEnabledAttr )
 		.NameContent()
 		[
 			SNew(STextBlock)
@@ -5562,8 +5573,7 @@ void FNaniteSettingsLayout::AddToDetailsPanel(IDetailLayoutBuilder& DetailBuilde
 
 	{
 		NaniteSettingsCategory.AddCustomRow( LOCTEXT("DisplacementUVChannel", "Displacement UV Channel") )
-
-		.IsEnabled(TAttribute<bool>::Create(TAttribute<bool>::FGetter::CreateLambda([this, NaniteEnabledCheck]() -> bool {return NaniteEnabledCheck->IsChecked() && IsHiResDataEmpty(); })))
+		.IsEnabled( NaniteEnabledAttr )
 		.NameContent()
 		[
 			SNew(STextBlock)
@@ -5583,7 +5593,11 @@ void FNaniteSettingsLayout::AddToDetailsPanel(IDetailLayoutBuilder& DetailBuilde
 		];
 	}
 
-	NANITE_ADD_DEFAULT_ROW( DisplacementMaps );
+	NANITE_ADD_DEFAULT_ROW( DisplacementMaps )
+	.IsEnabled( NaniteEnabledAttr );
+
+	NANITE_ADD_DEFAULT_ROW( MaxEdgeLengthFactor )
+	.IsEnabled( NaniteEnabledAttr );
 
 	//Nanite import button
 	{

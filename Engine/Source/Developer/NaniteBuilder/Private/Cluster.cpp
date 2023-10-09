@@ -395,6 +395,7 @@ float FCluster::Simplify( uint32 TargetNumTris, float TargetError, uint32 LimitN
 	Simplifier.SetAttributeWeights( AttributeWeights );
 	Simplifier.SetCorrectAttributes( CorrectAttributesFunctions[ Settings.bHasTangents ][ Settings.bHasColors ] );
 	Simplifier.SetEdgeWeight( 2.0f );
+	Simplifier.SetMaxEdgeLengthFactor( Settings.MaxEdgeLengthFactor );
 
 	float MaxErrorSqr = Simplifier.Simplify(
 		NumVerts, TargetNumTris, FMath::Square( TargetError ),

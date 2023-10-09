@@ -15,11 +15,12 @@ namespace Nanite
 
 struct FBuilderSettings
 {
-	uint32	NumTexCoords	= 0;
-	bool	bHasTangents	: 1 = false;
-	bool	bHasColors		: 1 = false;
-	bool	bPreserveArea	: 1 = false;
-	bool	bLerpUVs		: 1 = true;
+	uint32	NumTexCoords		= 0;
+	float	MaxEdgeLengthFactor	= 0.0f;
+	bool	bHasTangents		: 1 = false;
+	bool	bHasColors			: 1 = false;
+	bool	bPreserveArea		: 1 = false;
+	bool	bLerpUVs			: 1 = true;
 
 	FORCEINLINE uint32 GetVertSize() const
 	{

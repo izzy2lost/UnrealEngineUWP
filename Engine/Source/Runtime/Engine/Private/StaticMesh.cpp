@@ -2560,6 +2560,7 @@ static void SerializeNaniteSettingsForDDC(FArchive& Ar, FMeshNaniteSettings& Nan
 	Ar << NaniteSettings.FallbackTarget;
 	Ar << NaniteSettings.FallbackPercentTriangles;
 	Ar << NaniteSettings.FallbackRelativeError;
+	Ar << NaniteSettings.MaxEdgeLengthFactor;
 	Ar << NaniteSettings.DisplacementUVChannel;
 
 	for( auto& DisplacementMap : NaniteSettings.DisplacementMaps )

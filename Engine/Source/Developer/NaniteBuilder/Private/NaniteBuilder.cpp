@@ -570,11 +570,12 @@ bool FBuilderModule::Build(
 #endif
 
 	FBuilderSettings BuilderSettings;
-	BuilderSettings.NumTexCoords	= InputMeshData.NumTexCoords;
-	BuilderSettings.bHasTangents	= Settings.bExplicitTangents;
-	BuilderSettings.bHasColors		= bHasVertexColor;
-	BuilderSettings.bPreserveArea	= Settings.bPreserveArea;
-	BuilderSettings.bLerpUVs		= Settings.bLerpUVs;
+	BuilderSettings.NumTexCoords		= InputMeshData.NumTexCoords;
+	BuilderSettings.MaxEdgeLengthFactor	= Settings.MaxEdgeLengthFactor;
+	BuilderSettings.bHasTangents		= Settings.bExplicitTangents;
+	BuilderSettings.bHasColors			= bHasVertexColor;
+	BuilderSettings.bPreserveArea		= Settings.bPreserveArea;
+	BuilderSettings.bLerpUVs			= Settings.bLerpUVs;
 
 	TArray< uint32 > ClusterCountPerMesh;
 	TArray< FCluster > Clusters;

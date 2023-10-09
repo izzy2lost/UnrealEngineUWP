@@ -549,6 +549,26 @@ float FMeshSimplifier::EvaluateMerge( const FVector3f& Position0, const FVector3
 			Error = SurfaceArea;
 	}
 
+	// Check to set error based on edge length
+	if( MaxEdgeLengthFactor > 0.0f )
+	{
+		for( uint32 TriIndex : AdjTris )
+		{
+			uint32 IndexMoved = CornerIndexMoved( TriIndex );
+
+			if( IndexMoved < 3 )
+			{
+				uint32 Corner = TriIndex * 3 + IndexMoved;
+
+				const FVector3f& p1 = GetPosition( Indexes[ Cycle3( Corner ) ] );
+				const FVector3f& p2 = GetPosition( Indexes[ Cycle3( Corner, 2 ) ] );
+
+				Error = FMath::Max( Error, ( NewPosition - p1 ).SizeSquared() / ( MaxEdgeLengthFactor * MaxEdgeLengthFactor ) );
+				Error = FMath::Max( Error, ( NewPosition - p2 ).SizeSquared() / ( MaxEdgeLengthFactor * MaxEdgeLengthFactor ) );
+			}
+		}
+	}
+
 	if( bMoveVerts )
 	{
 		BeginMovePosition( Position0 );

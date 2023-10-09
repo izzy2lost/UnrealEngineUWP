@@ -2903,6 +2903,12 @@ struct FMeshNaniteSettings
 	UPROPERTY(BlueprintReadWrite, EditAnywhere, Category = NaniteSettings)
 	float FallbackRelativeError = 1.0f;
 
+	/** Controls the maximum distance allowed between each vertex of the mesh on screen. Can be used to prevent oversimplification
+	 * of meshes that are intended to be deformed (e.g. animation using World Position Offset, Spline Mesh Component, etc.).
+	 * Should be left at default of 0 unless explicitly needed to fix oversimplification issues. */
+	UPROPERTY(BlueprintReadWrite, EditAnywhere, Category = NaniteSettings)
+	float MaxEdgeLengthFactor = 0.0f;
+
 	/** UV channel used to sample displacement maps  */
 	UPROPERTY(BlueprintReadWrite, EditAnywhere, Category = NaniteSettings)
 	int32 DisplacementUVChannel = 0;
@@ -2943,6 +2949,7 @@ struct FMeshNaniteSettings
 			&& FallbackTarget == Other.FallbackTarget
 			&& FallbackPercentTriangles == Other.FallbackPercentTriangles
 			&& FallbackRelativeError == Other.FallbackRelativeError
+			&& MaxEdgeLengthFactor == Other.MaxEdgeLengthFactor
 			&& DisplacementUVChannel == Other.DisplacementUVChannel;
 	}
 

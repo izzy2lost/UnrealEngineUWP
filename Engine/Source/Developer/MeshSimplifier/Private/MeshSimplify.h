@@ -50,6 +50,7 @@ public:
 
 	void		SetAttributeWeights( const float* Weights )			{ AttributeWeights = Weights; }
 	void		SetEdgeWeight( float Weight )						{ EdgeWeight = Weight; }
+	void		SetMaxEdgeLengthFactor( float Factor )				{ MaxEdgeLengthFactor = Factor; }
 	void		SetCorrectAttributes( void (*Function)( float* ) )	{ CorrectAttributes = Function; }
 	void		SetLimitErrorToSurfaceArea( bool Value )			{ bLimitErrorToSurfaceArea = Value; }
 
@@ -85,6 +86,7 @@ protected:
 
 	const float*	AttributeWeights = nullptr;
 	float			EdgeWeight = 8.0f;
+	float			MaxEdgeLengthFactor = 0.0f;
 	void			(*CorrectAttributes)( float* ) = nullptr;
 	bool			bLimitErrorToSurfaceArea = true;
 	bool			bZeroWeights = false;
