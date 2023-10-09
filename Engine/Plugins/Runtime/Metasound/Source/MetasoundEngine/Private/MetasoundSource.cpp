@@ -510,6 +510,7 @@ void UMetaSoundSource::InitResources()
 
 	METASOUND_LLM_SCOPE;
 	METASOUND_TRACE_CPUPROFILER_EVENT_SCOPE(UMetaSoundSource::InitResources); 
+	ensureMsgf(!IsRunningCookCommandlet(), TEXT("UMetaSoundSource::InitResources should not be called during cook."));
 
 	if (IsInGameThread())
 	{
