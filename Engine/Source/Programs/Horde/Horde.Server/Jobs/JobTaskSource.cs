@@ -35,6 +35,7 @@ using MongoDB.Driver;
 using EpicGames.Horde.Agents.Leases;
 using Horde.Server.Jobs.Bisect;
 using EpicGames.Horde.Agents;
+using EpicGames.Horde.Storage;
 
 namespace Horde.Server.Jobs
 {
@@ -841,6 +842,7 @@ namespace Horde.Server.Jobs
 
 			// Get the global settings
 			GlobalConfig globalConfig = _globalConfig.CurrentValue;
+			NamespaceId namespaceId = Namespace.Artifacts;
 
 			// Create a bearer token for the job executor
 			List<AclClaimConfig> claims = new List<AclClaimConfig>();
@@ -848,8 +850,8 @@ namespace Horde.Server.Jobs
 			claims.Add(new AclClaimConfig(HordeClaimTypes.Lease, leaseId.ToString()));
 
 			string storagePrefix = $"{job.StreamId}/{job.Change}-{job.Id}";
-			claims.Add(new AclClaimConfig(HordeClaimTypes.ReadNamespace, $"{Namespace.Artifacts}:{storagePrefix}"));
-			claims.Add(new AclClaimConfig(HordeClaimTypes.WriteNamespace, $"{Namespace.Artifacts}:{storagePrefix}"));
+			claims.Add(new AclClaimConfig(HordeClaimTypes.ReadNamespace, $"{namespaceId}:{storagePrefix}"));
+			claims.Add(new AclClaimConfig(HordeClaimTypes.WriteNamespace, $"{namespaceId}:{storagePrefix}"));
 
 			claims.AddRange(job.Claims);
 
@@ -860,7 +862,7 @@ namespace Horde.Server.Jobs
 			task.LogId = logId.ToString();
 			task.JobName = leaseName.ToString();
 			task.JobOptions = job.JobOptions;
-			task.NamespaceId = Namespace.Artifacts.ToString();
+			task.NamespaceId = namespaceId.ToString();
 			task.StoragePrefix = storagePrefix;
 			task.Token = await _aclService.IssueBearerTokenAsync(claims, null);
 

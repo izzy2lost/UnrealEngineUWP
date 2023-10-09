@@ -90,6 +90,11 @@ namespace Horde.Server.Tools
 		TimeSpan Duration { get; }
 
 		/// <summary>
+		/// Namespace containing the tool
+		/// </summary>
+		NamespaceId NamespaceId { get; }
+
+		/// <summary>
 		/// Reference to this tool in Horde Storage.
 		/// </summary>
 		RefName RefName { get; }

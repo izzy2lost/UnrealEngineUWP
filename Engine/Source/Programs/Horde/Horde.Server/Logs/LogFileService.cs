@@ -648,7 +648,7 @@ namespace Horde.Server.Logs
 
 			if (logFile.UseNewStorageBackend)
 			{
-				using IStorageClient storageClient = await CreateStorageClientAsync(cancellationToken);
+				using IStorageClient storageClient = _storageService.CreateClient(logFile.NamespaceId);
 
 				int maxIndex = index + count;
 
@@ -1041,7 +1041,7 @@ namespace Horde.Server.Logs
 		{
 			if (logFile.UseNewStorageBackend)
 			{
-				using IStorageClient storageClient = await CreateStorageClientAsync(cancellationToken);
+				using IStorageClient storageClient = _storageService.CreateClient(logFile.NamespaceId);
 
 				LogNode? root = await storageClient.TryReadRefAsync<LogNode>(logFile.RefName, cancellationToken: cancellationToken);
 				if (root == null || root.TextChunkRefs.Count == 0)
@@ -1180,18 +1180,12 @@ namespace Horde.Server.Logs
 			}
 		}
 
-		Task<IStorageClient> CreateStorageClientAsync(CancellationToken cancellationToken)
-		{
-			_ = cancellationToken;
-			return Task.FromResult<IStorageClient>(_storageService.CreateClient(Namespace.Logs));
-		}
-
 		/// <inheritdoc/>
 		public async Task<(int, long)> GetLineOffsetAsync(ILogFile logFile, int lineIdx, CancellationToken cancellationToken)
 		{
 			if (logFile.UseNewStorageBackend)
 			{
-				using IStorageClient storageClient = await CreateStorageClientAsync(cancellationToken);
+				using IStorageClient storageClient = _storageService.CreateClient(logFile.NamespaceId);
 
 				LogNode? root = await storageClient.TryReadRefAsync<LogNode>(logFile.RefName, cancellationToken: cancellationToken);
 				if (root == null)
@@ -1852,7 +1846,7 @@ namespace Horde.Server.Logs
 		async IAsyncEnumerable<int> SearchLogDataInternalNewAsync(ILogFile logFile, string text, int firstLine, SearchStats searchStats, [EnumeratorCancellation] CancellationToken cancellationToken)
 		{
 			SearchTerm searchText = new SearchTerm(text);
-			using IStorageClient storageClient = await CreateStorageClientAsync(cancellationToken);
+			using IStorageClient storageClient = _storageService.CreateClient(logFile.NamespaceId);
 
 			// Search the index
 			if (logFile.LineCount > 0)

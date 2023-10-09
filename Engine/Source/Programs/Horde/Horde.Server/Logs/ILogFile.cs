@@ -87,6 +87,11 @@ namespace Horde.Server.Logs
 		public IReadOnlyList<ILogChunk> Chunks { get; }
 
 		/// <summary>
+		/// Namespace containing the log data
+		/// </summary>
+		public NamespaceId NamespaceId { get; }
+
+		/// <summary>
 		/// Name of the ref used to store data for this log
 		/// </summary>
 		public RefName RefName { get; }

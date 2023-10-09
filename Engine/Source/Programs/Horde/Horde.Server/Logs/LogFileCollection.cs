@@ -10,6 +10,7 @@ using EpicGames.Horde.Storage;
 using Horde.Server.Agents.Sessions;
 using Horde.Server.Jobs;
 using Horde.Server.Server;
+using Horde.Server.Storage;
 using Horde.Server.Utilities;
 using MongoDB.Bson.Serialization.Attributes;
 using MongoDB.Driver;
@@ -75,6 +76,8 @@ namespace Horde.Server.Logs
 			public List<LogChunkDocument> Chunks { get; set; } = new List<LogChunkDocument>();
 
 			public int LineCount { get; set; }
+
+			public NamespaceId NamespaceId { get; set; } = Namespace.Logs;
 			public RefName RefName { get; set; }
 
 			[BsonIgnoreIfDefault]
@@ -90,7 +93,7 @@ namespace Horde.Server.Logs
 			{
 			}
 
-			public LogFileDocument(JobId jobId, LeaseId? leaseId, SessionId? sessionId, LogType type, bool newStorageBackend, LogId? logId)
+			public LogFileDocument(JobId jobId, LeaseId? leaseId, SessionId? sessionId, LogType type, bool newStorageBackend, LogId? logId, NamespaceId namespaceId)
 			{
 				Id = logId ?? LogId.GenerateNewId();
 				JobId = jobId;
@@ -99,6 +102,7 @@ namespace Horde.Server.Logs
 				Type = type;
 				UseNewStorageBackend = newStorageBackend;
 				MaxLineIndex = 0;
+				NamespaceId = namespaceId;
 				RefName = new RefName(Id.ToString());
 			}
 
@@ -133,7 +137,7 @@ namespace Horde.Server.Logs
 		/// <inheritdoc/>
 		public async Task<ILogFile> CreateLogFileAsync(JobId jobId, LeaseId? leaseId, SessionId? sessionId, LogType type, bool newStorageBackend, LogId? logId, CancellationToken cancellationToken)
 		{
-			LogFileDocument newLogFile = new (jobId, leaseId, sessionId, type, newStorageBackend, logId);
+			LogFileDocument newLogFile = new LogFileDocument(jobId, leaseId, sessionId, type, newStorageBackend, logId, Namespace.Logs);
 			await _logFiles.InsertOneAsync(newLogFile, null, cancellationToken);
 			return newLogFile;
 		}

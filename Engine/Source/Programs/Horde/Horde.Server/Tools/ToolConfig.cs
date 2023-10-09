@@ -5,8 +5,10 @@ using System.ComponentModel.DataAnnotations;
 using System.Diagnostics;
 using System.Security.Claims;
 using System.Text.Json.Serialization;
+using EpicGames.Horde.Storage;
 using Horde.Server.Acls;
 using Horde.Server.Server;
+using Horde.Server.Storage;
 
 namespace Horde.Server.Tools
 {
@@ -43,6 +45,11 @@ namespace Horde.Server.Tools
 		/// Whether this tool should be exposed for download on a public endpoint without authentication
 		/// </summary>
 		public bool Public { get; set; }
+
+		/// <summary>
+		/// Default namespace for new deployments of this tool
+		/// </summary>
+		public NamespaceId NamespaceId { get; set; } = Namespace.Tools;
 
 		/// <summary>
 		/// Permissions for the tool

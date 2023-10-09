@@ -89,6 +89,9 @@ namespace Horde.Server.Tools
 			[BsonElement("dur")]
 			public TimeSpan Duration { get; set; }
 
+			[BsonElement("ns")]
+			public NamespaceId NamespaceId { get; set; } = Namespace.Tools;
+
 			[BsonElement("ref")]
 			public RefName RefName { get; set; }
 
@@ -98,11 +101,12 @@ namespace Horde.Server.Tools
 				Version = String.Empty;
 			}
 
-			public ToolDeployment(ToolDeploymentId id, ToolDeploymentConfig options, RefName refName)
+			public ToolDeployment(ToolDeploymentId id, ToolDeploymentConfig options, NamespaceId namespaceId, RefName refName)
 			{
 				Id = id;
 				Version = options.Version;
 				Duration = options.Duration;
+				NamespaceId = namespaceId;
 				RefName = refName;
 			}
 
@@ -251,7 +255,7 @@ namespace Horde.Server.Tools
 			ToolDeploymentId deploymentId = ToolDeploymentId.GenerateNewId();
 			RefName refName = new RefName($"{tool.Id}/{deploymentId}");
 
-			using IServerStorageClient client = _storageService.CreateClient(Namespace.Tools);
+			using IServerStorageClient client = _storageService.CreateClient(tool.Config.NamespaceId);
 
 			HashedNodeRef<DirectoryNode> nodeRef;
 			await using (IStorageWriter writer = client.CreateWriter(refName))
@@ -279,15 +283,17 @@ namespace Horde.Server.Tools
 		public async Task<ITool?> CreateDeploymentAsync(ITool tool, ToolDeploymentConfig options, BundleNodeLocator locator, GlobalConfig globalConfig, CancellationToken cancellationToken)
 		{
 			ToolDeploymentId deploymentId = ToolDeploymentId.GenerateNewId();
+
+			NamespaceId namespaceId = tool.Config.NamespaceId;
 			RefName refName = new RefName($"{tool.Id}/{deploymentId}");
 
-			using IServerStorageClient client = _storageService.CreateClient(Namespace.Tools);
+			using IServerStorageClient client = _storageService.CreateClient(namespaceId);
 			await client.WriteRefTargetAsync(refName, locator, cancellationToken: cancellationToken);
 
-			return await CreateDeploymentInternalAsync(tool, deploymentId, options, refName, globalConfig, cancellationToken);
+			return await CreateDeploymentInternalAsync(tool, deploymentId, options, namespaceId, refName, globalConfig, cancellationToken);
 		}
 
-		async Task<ITool?> CreateDeploymentInternalAsync(ITool tool, ToolDeploymentId deploymentId, ToolDeploymentConfig options, RefName refName, GlobalConfig globalConfig, CancellationToken cancellationToken)
+		async Task<ITool?> CreateDeploymentInternalAsync(ITool tool, ToolDeploymentId deploymentId, ToolDeploymentConfig options, NamespaceId namespaceId, RefName refName, GlobalConfig globalConfig, CancellationToken cancellationToken)
 		{
 			if (tool.Config is BundledToolConfig)
 			{
@@ -295,7 +301,7 @@ namespace Horde.Server.Tools
 			}
 
 			// Create the new deployment object
-			ToolDeployment deployment = new ToolDeployment(deploymentId, options, refName);
+			ToolDeployment deployment = new ToolDeployment(deploymentId, options, namespaceId, refName);
 
 			// Start the deployment
 			DateTime utcNow = _clock.UtcNow;
@@ -340,8 +346,9 @@ namespace Horde.Server.Tools
 					return null;
 				}
 
-				using IStorageClient client = _storageService.CreateClient(Namespace.Tools);
-				await client.DeleteRefAsync(tool.Deployments[0].RefName, cancellationToken);
+				ToolDeployment removeDeployment = tool.Deployments[0];
+				using IStorageClient client = _storageService.CreateClient(removeDeployment.NamespaceId);
+				await client.DeleteRefAsync(removeDeployment.RefName, cancellationToken);
 			}
 
 			// Add the new deployment
