@@ -1229,6 +1229,7 @@ namespace Chaos
 					{
 						DisabledParticleCount++;
 						MEvolution.DisableParticle(Child);
+						MEvolution.GetParticles().MarkTransientDirtyParticle(Child);
 						ChildIt.RemoveCurrent();
 					}
 					if (DisabledParticleCount >= NumberOfParticlesToDisable)
