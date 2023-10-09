@@ -2,7 +2,6 @@
 
 using EpicGames.Core;
 using EpicGames.Horde.Storage;
-using EpicGames.Horde.Storage.Bundles;
 using EpicGames.Horde.Storage.Clients;
 using EpicGames.Horde.Storage.Nodes;
 using EpicGames.Serialization;
@@ -266,10 +265,10 @@ namespace Horde.Server.Tools
 				nodeRef = await writer.WriteHashedNodeAsync(directoryNode, cancellationToken);
 			}
 
-			BundleNodeHandle handle = (BundleNodeHandle)nodeRef.Handle;
-			await client.WriteRefTargetAsync(refName, handle, cancellationToken: cancellationToken);
+			BlobHandle target = nodeRef.Handle;
+			await client.WriteRefTargetAsync(refName, target, cancellationToken: cancellationToken);
 
-			return await CreateDeploymentAsync(tool, options, handle.GetLocator(), globalConfig, cancellationToken);
+			return await CreateDeploymentAsync(tool, options, target.GetLocator(), globalConfig, cancellationToken);
 		}
 
 		/// <summary>
@@ -277,11 +276,11 @@ namespace Horde.Server.Tools
 		/// </summary>
 		/// <param name="tool">The tool to update</param>
 		/// <param name="options">Options for the new deployment</param>
-		/// <param name="locator">Locator for the tool data</param>
+		/// <param name="target">Path to the tool data</param>
 		/// <param name="globalConfig">The current configuration</param>
 		/// <param name="cancellationToken">Cancellation token for the operation</param>
 		/// <returns>Updated tool document, or null if it does not exist</returns>
-		public async Task<ITool?> CreateDeploymentAsync(ITool tool, ToolDeploymentConfig options, BundleNodeLocator locator, GlobalConfig globalConfig, CancellationToken cancellationToken)
+		public async Task<ITool?> CreateDeploymentAsync(ITool tool, ToolDeploymentConfig options, BlobLocator target, GlobalConfig globalConfig, CancellationToken cancellationToken)
 		{
 			ToolDeploymentId deploymentId = ToolDeploymentId.GenerateNewId();
 
@@ -289,7 +288,8 @@ namespace Horde.Server.Tools
 			RefName refName = new RefName($"{tool.Id}/{deploymentId}");
 
 			using IServerStorageClient client = _storageService.CreateClient(namespaceId);
-			await client.WriteRefTargetAsync(refName, locator, cancellationToken: cancellationToken);
+			BlobHandle targetHandle = client.CreateBlobHandle(target);
+			await client.WriteRefTargetAsync(refName, targetHandle, cancellationToken: cancellationToken);
 
 			return await CreateDeploymentInternalAsync(tool, deploymentId, options, namespaceId, refName, globalConfig, cancellationToken);
 		}

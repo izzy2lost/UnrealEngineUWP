@@ -81,44 +81,51 @@ namespace EpicGames.Horde.Storage
 	/// </summary>
 	public interface IStorageClient : IDisposable
 	{
-		#region Nodes
+		#region Blobs
 
 		/// <summary>
-		/// Creates a new writer for storage nodes
+		/// Creates a new writer for storage blobs
 		/// </summary>
 		/// <param name="refName">Name of the ref being written.</param>
 		/// <returns>New writer instance. Must be disposed after use.</returns>
 		IStorageWriter CreateWriter(RefName refName = default);
+
+		/// <summary>
+		/// Creates a new blob handle by parsing a blob id
+		/// </summary>
+		/// <param name="blobId">Path to the blob</param>
+		/// <returns>New handle to the blob</returns>
+		BlobHandle CreateBlobHandle(BlobLocator blobId);
 
 		#endregion
 
 		#region Aliases
 
 		/// <summary>
-		/// Adds an alias to a given node
+		/// Adds an alias to a given blob
 		/// </summary>
-		/// <param name="name">Alias for the node</param>
-		/// <param name="handle">Locator for the node</param>
+		/// <param name="name">Alias for the blob</param>
+		/// <param name="handle">Locator for the blob</param>
 		/// <param name="rank">Rank for this alias. In situations where an alias has multiple mappings, the alias with the highest rank will be returned by default.</param>
 		/// <param name="data">Additional data to be stored inline with the alias</param>
 		/// <param name="cancellationToken">Cancellation token for the operation</param>
 		Task AddAliasAsync(string name, BlobHandle handle, int rank = 0, ReadOnlyMemory<byte> data = default, CancellationToken cancellationToken = default);
 
 		/// <summary>
-		/// Removes an alias from a node
+		/// Removes an alias from a blob
 		/// </summary>
 		/// <param name="name">Name of the alias</param>
-		/// <param name="handle">Locator for the node</param>
+		/// <param name="handle">Locator for the blob</param>
 		/// <param name="cancellationToken">Cancellation token for the operation</param>
 		Task RemoveAliasAsync(string name, BlobHandle handle, CancellationToken cancellationToken = default);
 
 		/// <summary>
-		/// Finds nodes with the given alias. Unlike refs, aliases do not serve as GC roots.
+		/// Finds blobs with the given alias. Unlike refs, aliases do not serve as GC roots.
 		/// </summary>
-		/// <param name="name">Alias for the node</param>
+		/// <param name="name">Alias for the blob</param>
 		/// <param name="maxResults">Maximum number of aliases to return</param>
 		/// <param name="cancellationToken">Cancellation token for the operation</param>
-		/// <returns>Nodes matching the given handle</returns>
+		/// <returns>Blobs matching the given handle</returns>
 		Task<BlobAlias[]> FindAliasesAsync(string name, int? maxResults = null, CancellationToken cancellationToken = default);
 
 		#endregion
@@ -131,14 +138,14 @@ namespace EpicGames.Horde.Storage
 		/// <param name="name">The ref name</param>
 		/// <param name="cacheTime">Minimum coherency for any cached value to be returned</param>
 		/// <param name="cancellationToken">Cancellation token for the operation</param>
-		/// <returns>Node pointed to by the ref</returns>
+		/// <returns>Blob pointed to by the ref</returns>
 		Task<BlobHandle?> TryReadRefTargetAsync(RefName name, RefCacheTime cacheTime = default, CancellationToken cancellationToken = default);
 
 		/// <summary>
 		/// Writes a new ref to the store
 		/// </summary>
 		/// <param name="name">Ref to write</param>
-		/// <param name="handle">Handle to the target node</param>
+		/// <param name="handle">Handle to the target blob</param>
 		/// <param name="options">Options for the new ref</param>
 		/// <param name="cancellationToken">Cancellation token for the operation</param>
 		/// <returns>Unique identifier for the blob</returns>
@@ -264,12 +271,12 @@ namespace EpicGames.Horde.Storage
 		#region Aliases
 
 		/// <summary>
-		/// Finds nodes with the given alias. Unlike refs, aliases do not serve as GC roots.
+		/// Finds blobs with the given alias. Unlike refs, aliases do not serve as GC roots.
 		/// </summary>
 		/// <param name="store">The store instance to read from</param>
-		/// <param name="name">Alias for the node</param>
+		/// <param name="name">Alias for the blob</param>
 		/// <param name="cancellationToken">Cancellation token for the operation</param>
-		/// <returns>Nodes matching the given handle</returns>
+		/// <returns>Blobs matching the given handle</returns>
 		public static async Task<BlobAlias?> FindAliasAsync(this IStorageClient store, string name, CancellationToken cancellationToken = default)
 		{
 			BlobAlias[] aliases = await store.FindAliasesAsync(name, 1, cancellationToken);

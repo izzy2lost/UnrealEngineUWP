@@ -124,12 +124,12 @@ namespace Horde.Server.Tools
 		/// <summary>
 		/// Node for downloading this deployment
 		/// </summary>
-		public BundleNodeLocator Locator { get; }
+		public BlobLocator Locator { get; }
 
 		/// <summary>
 		/// Constructor
 		/// </summary>
-		public GetToolDeploymentResponse(IToolDeployment deployment, BundleNodeHandle handle)
+		public GetToolDeploymentResponse(IToolDeployment deployment, BlobHandle handle)
 		{
 			_deployment = deployment;
 			Locator = handle.GetLocator();
@@ -157,7 +157,7 @@ namespace Horde.Server.Tools
 		/// <summary>
 		/// Handle to the root node
 		/// </summary>
-		public string Node { get; set; } = null!;
+		public BlobLocator Node { get; set; }
 	}
 
 	/// <summary>
@@ -298,7 +298,7 @@ namespace Horde.Server.Tools
 
 			ToolDeploymentConfig options = new ToolDeploymentConfig { Version = request.Version, Duration = TimeSpan.FromMinutes(request.Duration ?? 0.0), CreatePaused = request.CreatePaused ?? false };
 
-			tool = await _toolCollection.CreateDeploymentAsync(tool, options, BundleNodeLocator.Parse(request.Node), _globalConfig.Value, cancellationToken);
+			tool = await _toolCollection.CreateDeploymentAsync(tool, options, request.Node, _globalConfig.Value, cancellationToken);
 			if (tool == null)
 			{
 				return NotFound(id);
@@ -521,7 +521,7 @@ namespace Horde.Server.Tools
 		private async Task<GetToolDeploymentResponse> GetDeploymentInfoResponseAsync(ITool tool, IToolDeployment deployment, CancellationToken cancellationToken)
 		{
 			using IBundleStorageClient client = _toolCollection.CreateStorageClient(tool);
-			BundleNodeHandle rootHandle = await client.ReadRefTargetAsync(deployment.RefName, cancellationToken: cancellationToken);
+			BlobHandle rootHandle = await client.ReadRefTargetAsync(deployment.RefName, cancellationToken: cancellationToken);
 
 			return new GetToolDeploymentResponse(deployment, rootHandle);
 		}

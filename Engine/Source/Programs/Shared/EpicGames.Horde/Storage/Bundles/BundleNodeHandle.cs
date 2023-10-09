@@ -1,7 +1,5 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 
-using System;
-
 namespace EpicGames.Horde.Storage.Bundles
 {
 	/// <summary>
@@ -18,16 +16,13 @@ namespace EpicGames.Horde.Storage.Bundles
 		/// Gets the node locator. May throw if the node has not been written to storage yet.
 		/// </summary>
 		/// <returns>Locator for the node</returns>
-		public abstract BundleNodeLocator GetLocator();
+		public new abstract BundleNodeLocator GetLocator();
 
 		/// <summary>
 		/// Adds a callback to be executed once the node has been written. Triggers immediately if the node has already been written.
 		/// </summary>
 		/// <param name="callback">Action to be executed after the write</param>
 		public abstract void AddWriteCallback(BlobWriteCallback callback);
-
-		/// <inheritdoc/>
-		public override string ToString() => HasLocator() ? GetLocator().ToString() : base.ToString() ?? String.Empty;
 	}
 
 	/// <summary>

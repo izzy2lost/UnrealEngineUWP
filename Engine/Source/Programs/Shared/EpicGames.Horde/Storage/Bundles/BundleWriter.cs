@@ -4,6 +4,7 @@ using System;
 using System.Buffers;
 using System.Collections.Generic;
 using System.Diagnostics;
+using System.Diagnostics.CodeAnalysis;
 using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
@@ -62,6 +63,13 @@ namespace EpicGames.Horde.Storage.Bundles
 		}
 
 		/// <inheritdoc/>
+		public override bool TryGetLocator([NotNullWhen(true)] out BlobLocator blobId)
+		{
+			blobId = _locator.ToBlobLocator();
+			return true;
+		}
+
+		/// <inheritdoc/>
 		public override bool HasLocator() => true;
 
 		/// <inheritdoc/>
@@ -114,6 +122,21 @@ namespace EpicGames.Horde.Storage.Bundles
 				Aliases = aliases.ToArray();
 
 				_pendingBundle = pendingBundle;
+			}
+
+			/// <inheritdoc/>
+			public override bool TryGetLocator([NotNullWhen(true)] out BlobLocator blobId)
+			{
+				if (_locator.IsValid())
+				{
+					blobId = _locator.ToBlobLocator();
+					return true;
+				}
+				else
+				{
+					blobId = default;
+					return false;
+				}
 			}
 
 			/// <inheritdoc/>
@@ -519,7 +542,7 @@ namespace EpicGames.Horde.Storage.Bundles
 					int typeIdx = FindOrAddItemIndex(nodeInfo.BlobType, types, typeToIndex);
 
 					List<BundleExportRef> exportRefs = new List<BundleExportRef>();
-					foreach (BundleNodeHandle handle in nodeInfo.Refs.Select(x => x.Unwrap()))
+					foreach (BundleNodeHandle handle in nodeInfo.Refs)
 					{
 						BundleExportRef exportRef;
 						if (!nodeHandleToExportRef.TryGetValue(handle, out exportRef))

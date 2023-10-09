@@ -95,14 +95,9 @@ namespace Horde.Server.Storage
 	public class WriteRefRequest
 	{
 		/// <summary>
-		/// Locator for the target blob
+		/// Path to the target blob
 		/// </summary>
-		public BundleLocator Blob { get; set; }
-
-		/// <summary>
-		/// Export index for the ref
-		/// </summary>
-		public int ExportIdx { get; set; }
+		public BlobLocator Target { get; set; } 
 
 		/// <summary>
 		/// Options for the ref
@@ -116,14 +111,9 @@ namespace Horde.Server.Storage
 	public class ReadRefResponse
 	{
 		/// <summary>
-		/// Locator for the target blob
+		/// The target blob
 		/// </summary>
-		public BundleLocator Blob { get; set; }
-
-		/// <summary>
-		/// Export index for the ref
-		/// </summary>
-		public int ExportIdx { get; set; }
+		public BlobLocator Target { get; set; }
 
 		/// <summary>
 		/// Link to information about the target node
@@ -133,10 +123,9 @@ namespace Horde.Server.Storage
 		/// <summary>
 		/// Constructor
 		/// </summary>
-		public ReadRefResponse(BundleNodeHandle target, string link)
+		public ReadRefResponse(BlobLocator target, string link)
 		{
-			Blob = target.GetLocator().Blob;
-			ExportIdx = target.GetLocator().ExportIdx;
+			Target = target;
 			Link = link;
 		}
 	}
@@ -358,7 +347,7 @@ namespace Horde.Server.Storage
 				return Forbid(StorageAclAction.WriteRefs, namespaceId);
 			}
 
-			BundleNodeLocator target = new BundleNodeLocator(request.Blob, request.ExportIdx);
+			BlobHandle target = client.CreateBlobHandle(request.Target);
 			await client.WriteRefTargetAsync(refName, target, request.Options, cancellationToken);
 
 			return Ok();
@@ -403,15 +392,14 @@ namespace Horde.Server.Storage
 				}
 			}
 
-			BundleNodeHandle? target = await client.TryReadRefTargetAsync(refName, cacheTime, cancellationToken: cancellationToken);
+			BlobHandle? target = await client.TryReadRefTargetAsync(refName, cacheTime, cancellationToken: cancellationToken);
 			if (target == null)
 			{
 				return new NotFoundResult();
 			}
 
-			BundleNodeLocator locator = target.GetLocator();
-			string link = $"/api/v1/storage/{namespaceId}/nodes/{locator.Blob}?export={locator.ExportIdx}";
-			return new ReadRefResponse(target, link);
+			string link = $"/api/v1/storage/{namespaceId}/nodes/{target.GetLocator()}";
+			return new ReadRefResponse(target.GetLocator(), link);
 		}
 
 		/// <summary>
@@ -457,92 +445,12 @@ namespace Horde.Server.Storage
 		/// Gets information about a particular bundle in storage
 		/// </summary>
 		/// <param name="namespaceId">Namespace containing the blob</param>
-		/// <param name="locator">Blob locator</param>
-		/// <param name="includeImports">Whether to include imports for the bundle</param>
-		/// <param name="includeExports">Whether to include exports for the bundle</param>
-		/// <param name="includePackets">Whether to include packets for the bundle</param>
-		/// <param name="cancellationToken">Cancellation token for the operation</param>
-		/// <returns></returns>
-		[HttpGet]
-		[Route("/api/v1/storage/{namespaceId}/bundleinfo/{*locator}")]
-		public async Task<ActionResult<object>> GetBundleAsync(NamespaceId namespaceId, BundleLocator locator, [FromQuery(Name = "imports")] bool includeImports = false, [FromQuery(Name = "exports")] bool includeExports = true, [FromQuery(Name = "packets")] bool includePackets = false, CancellationToken cancellationToken = default)
-		{
-			using IServerStorageClient? storageClient = _storageService.TryCreateClient(namespaceId);
-			if (storageClient == null)
-			{
-				return NotFound(namespaceId);
-			}
-			if (!storageClient.Authorize(StorageAclAction.ReadBlobs, User))
-			{
-				return Forbid(StorageAclAction.ReadBlobs, namespaceId);
-			}
-
-			BundleHeader header = await storageClient.ReadHeaderAsync(locator, cancellationToken);
-
-			string linkBase = $"/api/v1/storage/{namespaceId}";
-
-			List<object>? responseImports = null;
-			if (includeImports)
-			{
-				responseImports = new List<object>();
-				foreach (BundleLocator import in header.Imports)
-				{
-					responseImports.Add($"{linkBase}/bundles/{import}");
-				}
-			}
-
-			List<object>? responseExports = null;
-			if (includeExports)
-			{
-				responseExports = new List<object>();
-				for (int exportIdx = 0; exportIdx < header.Exports.Count; exportIdx++)
-				{
-					BundleExport export = header.Exports[exportIdx];
-
-					string details = $"{linkBase}/nodes/{locator}?export={exportIdx}";
-					BlobType type = header.Types[export.TypeIdx];
-					string typeName = GetNodeType(type.Guid)?.Name ?? type.Guid.ToString();
-
-					responseExports.Add(new { export.Hash, export.Length, details, type = typeName });
-				}
-			}
-
-			List<object>? responsePackets = null;
-			if (includePackets)
-			{
-				responsePackets = new List<object>();
-				for (int packetIdx = 0, exportIdx = 0; packetIdx < header.Packets.Count; packetIdx++)
-				{
-					BundlePacket packet = header.Packets[packetIdx];
-
-					List<string> packetExports = new List<string>();
-
-					int length = 0;
-					for (; exportIdx < header.Exports.Count && length + header.Exports[exportIdx].Length <= packet.DecodedLength; exportIdx++)
-					{
-						BundleExport export = header.Exports[exportIdx];
-						packetExports.Add($"{linkBase}/{locator}?export={exportIdx}");
-						length += export.Length;
-					}
-
-					responsePackets.Add(new { packetIdx, packet.EncodedLength, packet.DecodedLength, exports = packetExports });
-				}
-			}
-
-			return new { imports = responseImports, exports = responseExports, packets = responsePackets };
-		}
-
-		/// <summary>
-		/// Gets information about a particular bundle in storage
-		/// </summary>
-		/// <param name="namespaceId">Namespace containing the blob</param>
-		/// <param name="locator">Blob locator</param>
-		/// <param name="exportIdx">Index of the export</param>
+		/// <param name="locator">Blob identifier</param>
 		/// <param name="cancellationToken">Cancellation token for the operation</param>
 		/// <returns></returns>
 		[HttpGet]
 		[Route("/api/v1/storage/{namespaceId}/nodes/{*locator}")]
-		public async Task<ActionResult<object>> GetNodeAsync(NamespaceId namespaceId, BundleLocator locator, [FromQuery(Name = "export")] int exportIdx, CancellationToken cancellationToken = default)
+		public async Task<ActionResult<object>> GetNodeAsync(NamespaceId namespaceId, BlobLocator locator, CancellationToken cancellationToken = default)
 		{
 			NamespaceConfig? namespaceConfig;
 			if (!_globalConfig.Value.Storage.TryGetNamespace(namespaceId, out namespaceConfig))
@@ -556,16 +464,13 @@ namespace Horde.Server.Storage
 
 			using IServerStorageClient storageClient = _storageService.CreateClient(namespaceId);
 
-			BundleHeader header = await storageClient.ReadHeaderAsync(locator, cancellationToken);
-			BundleExport export = header.Exports[exportIdx];
-
 			string linkBase = $"/api/v1/storage/{namespaceId}";
 
 			object content;
 
-			using BlobData nodeData = await storageClient.ReadNodeDataAsync(new BundleNodeLocator(locator, exportIdx), cancellationToken);
+			using BlobData blobData = await storageClient.CreateBlobHandle(locator).ReadAsync(cancellationToken);
 
-			Node node = Node.Deserialize(nodeData);
+			Node node = Node.Deserialize(blobData);
 			switch (node)
 			{
 				case DirectoryNode directoryNode:
@@ -586,21 +491,15 @@ namespace Horde.Server.Storage
 					}
 					break;
 				default:
-					content = new { references = nodeData.Refs.Select(x => GetNodeLink(linkBase, (BundleNodeHandle)x)) };
+					content = new { references = blobData.Refs.Select(x => GetNodeLink(linkBase, (BundleNodeHandle)x)) };
 					break;
 			}
 
-			return new { bundle = $"{linkBase}/bundles/{locator}", export.Hash, export.Length, guid = header.Types[export.TypeIdx].Guid, type = node.GetType().Name, content = content };
+			return new { type = blobData.Type.Guid, @class = node.GetType().Name, content = content };
 		}
 
 		static string GetNodeLink(string linkBase, BundleNodeHandle handle) => GetNodeLink(linkBase, handle.GetLocator());
 		
 		static string GetNodeLink(string linkBase, BundleNodeLocator locator) => $"{linkBase}/nodes/{locator.Blob}?export={locator.ExportIdx}";
-
-		static Type? GetNodeType(Guid typeGuid)
-		{
-			Node.TryGetConcreteType(typeGuid, out Type? type);
-			return type;
-		}
 	}
 }

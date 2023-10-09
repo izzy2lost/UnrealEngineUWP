@@ -92,6 +92,22 @@ namespace EpicGames.Horde.Storage
 			public object _lockObject = new object();
 			public BlobHandle? _inner;
 
+			/// <inheritdoc/>
+			public override bool TryGetLocator([NotNullWhen(true)] out BlobLocator blobId)
+			{
+				BlobLocator innerBlobId;
+				if (_inner != null && _inner.TryGetLocator(out innerBlobId))
+				{
+					blobId = innerBlobId;
+					return true;
+				}
+				else
+				{
+					blobId = default;
+					return false;
+				}
+			}
+
 			public override ValueTask FlushAsync(CancellationToken cancellationToken)
 			{
 				if (_inner == null)
@@ -102,11 +118,6 @@ namespace EpicGames.Horde.Storage
 				{
 					return _inner.FlushAsync(cancellationToken);
 				}
-			}
-
-			public override BlobHandle Unwrap()
-			{
-				return _inner?.Unwrap() ?? this;
 			}
 
 			public override ValueTask<BlobData> ReadAsync(CancellationToken cancellationToken = default)
@@ -179,7 +190,7 @@ namespace EpicGames.Horde.Storage
 				_cache.Add(key, wrappedHandle);
 			}
 
-			wrappedHandle._inner = await _inner.WriteBlobAsync(size, references, type, aliases, cancellationToken);
+			wrappedHandle._inner = await _inner.WriteBlobAsync(size, references.ConvertAll(x => ((WrappedHandle)x)._inner!), type, aliases, cancellationToken);
 			return wrappedHandle;
 		}
 

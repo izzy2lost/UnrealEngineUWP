@@ -76,8 +76,18 @@ namespace EpicGames.Horde.Storage.Bundles
 		/// <inheritdoc/>
 		public override int GetHashCode() => HashCode.Combine(Blob, ExportIdx);
 
+		/// <summary>
+		/// Creates a locator from a blob id
+		/// </summary>
+		public static BundleNodeLocator FromBlobLocator(BlobLocator id) => Parse(id.ToString());
+
+		/// <summary>
+		/// Creates a blob id from this locator
+		/// </summary>
+		public BlobLocator ToBlobLocator() => new BlobLocator($"{Blob}#{ExportIdx}");
+
 		/// <inheritdoc/>
-		public override string ToString() => $"{Blob}#{ExportIdx}";
+		public override string ToString() => ToBlobLocator().ToString();
 
 		/// <inheritdoc/>
 		public static bool operator ==(BundleNodeLocator left, BundleNodeLocator right) => left.Equals(right);

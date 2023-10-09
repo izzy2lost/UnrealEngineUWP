@@ -2,6 +2,7 @@
 
 using System;
 using System.Collections.Generic;
+using System.Diagnostics.CodeAnalysis;
 using System.Threading;
 using System.Threading.Tasks;
 
@@ -12,6 +13,26 @@ namespace EpicGames.Horde.Storage
 	/// </summary>
 	public abstract class BlobHandle
 	{
+		/// <summary>
+		/// Gets a path to this blob that can be used to describe blob references over the wire.
+		/// </summary>
+		public BlobLocator GetLocator()
+		{
+			BlobLocator locator;
+			if (!TryGetLocator(out locator))
+			{
+				throw new InvalidOperationException("Blob has not yet been written to storage");
+			}
+			return locator;
+		}
+
+		/// <summary>
+		/// Attempt to get a path for this blob.
+		/// </summary>
+		/// <param name="locator">Receives the blob path on success.</param>
+		/// <returns>True if a path was available, false if the blob has not yet been flushed to storage.</returns>
+		public abstract bool TryGetLocator([NotNullWhen(true)] out BlobLocator locator);
+
 		/// <summary>
 		/// Gets the type of this blob
 		/// </summary>
@@ -64,13 +85,19 @@ namespace EpicGames.Horde.Storage
 		}
 
 		/// <summary>
-		/// If this handle is wrapper for another handle type, return the inner handle.
-		/// </summary>
-		public virtual BlobHandle Unwrap() => this;
-
-		/// <summary>
 		/// Flush the referenced not to underlying storage
 		/// </summary>
 		public virtual ValueTask FlushAsync(CancellationToken cancellationToken) => new ValueTask();
+
+		/// <inheritdoc/>
+		public override string ToString()
+		{
+			BlobLocator blobId;
+			if (TryGetLocator(out blobId))
+			{
+				return blobId.ToString();
+			}
+			return base.ToString() ?? "Unknown";
+		}
 	}
 }

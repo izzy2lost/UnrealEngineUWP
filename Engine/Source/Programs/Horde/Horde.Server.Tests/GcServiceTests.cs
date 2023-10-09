@@ -43,7 +43,9 @@ namespace Horde.Server.Tests
 				int blobIdx = (int)(random.NextDouble() * blobs.Length);
 				if (roots.Add(blobs[blobIdx]))
 				{
-					await store.WriteRefTargetAsync(new RefName($"ref-{idx}"), new BundleNodeLocator(blobs[blobIdx], 0));
+					BundleNodeLocator locator = new BundleNodeLocator(blobs[blobIdx], 0);
+					BlobHandle handle = store.CreateBlobHandle(locator.ToBlobLocator());
+					await store.WriteRefTargetAsync(new RefName($"ref-{idx}"), handle);
 				}
 			}
 

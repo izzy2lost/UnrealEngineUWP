@@ -3,7 +3,7 @@
 using System.IO;
 using System.Threading;
 using System.Threading.Tasks;
-using EpicGames.Horde.Storage.Bundles;
+using EpicGames.Horde.Storage;
 using EpicGames.Horde.Storage.Clients;
 using Horde.Server.Server;
 
@@ -38,11 +38,11 @@ namespace Horde.Server.Tools
 		/// </summary>
 		/// <param name="tool">The tool to update</param>
 		/// <param name="options">Options for the new deployment</param>
-		/// <param name="locator">Handle to the root node containing the tool data</param>
+		/// <param name="target">Path to the root node containing the tool data</param>
 		/// <param name="globalConfig">The current configuration</param>
 		/// <param name="cancellationToken">Cancellation token for the operation</param>
 		/// <returns>Updated tool document, or null if it does not exist</returns>
-		Task<ITool?> CreateDeploymentAsync(ITool tool, ToolDeploymentConfig options, BundleNodeLocator locator, GlobalConfig globalConfig, CancellationToken cancellationToken);
+		Task<ITool?> CreateDeploymentAsync(ITool tool, ToolDeploymentConfig options, BlobLocator target, GlobalConfig globalConfig, CancellationToken cancellationToken);
 
 		/// <summary>
 		/// Updates the state of the current deployment

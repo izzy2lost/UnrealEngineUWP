@@ -36,46 +36,6 @@ namespace EpicGames.Horde.Storage.Clients
 		/// <param name="cancellationToken">Cancellation token for the operation</param>
 		Task<BundleHeader> ReadHeaderAsync(BundleLocator locator, CancellationToken cancellationToken);
 
-		/// <summary>
-		/// Reads a node from a bundle
-		/// </summary>
-		/// <param name="locator">Locator for the bundle</param>
-		/// <param name="cancellationToken">Cancellation token for the operation</param>
-		Task<BlobData> ReadNodeDataAsync(BundleNodeLocator locator, CancellationToken cancellationToken);
-
-		#endregion
-
-		#region Nodes
-
-		/// <summary>
-		/// Creates a handle to a node from its locator
-		/// </summary>
-		/// <param name="locator">Locator for the node</param>
-		BundleNodeHandle CreateNodeHandle(BundleNodeLocator locator);
-
-		/// <inheritdoc cref="IStorageClient.CreateWriter(RefName)"/>
-		BundleWriter CreateWriter(RefName refName = default, BundleOptions? options = null);
-
-		#endregion
-
-		#region Aliases
-
-		/// <inheritdoc cref="IStorageClient.AddAliasAsync(String, BlobHandle, Int32, ReadOnlyMemory{Byte}, CancellationToken)"/>
-		Task AddAliasAsync(string name, BundleNodeLocator locator, int rank = 0, ReadOnlyMemory<byte> data = default, CancellationToken cancellationToken = default);
-
-		/// <inheritdoc cref="IStorageClient.RemoveAliasAsync(String, BlobHandle, CancellationToken)"/>
-		Task RemoveAliasAsync(string name, BundleNodeLocator locator, CancellationToken cancellationToken = default);
-
-		#endregion
-
-		#region Refs
-
-		/// <inheritdoc/>
-		new Task<BundleNodeHandle?> TryReadRefTargetAsync(RefName name, RefCacheTime cacheTime = default, CancellationToken cancellationToken = default);
-
-		/// <inheritdoc/>
-		Task WriteRefTargetAsync(RefName name, BundleNodeLocator target, RefOptions? options = null, CancellationToken cancellationToken = default);
-
 		#endregion
 	}
 
@@ -119,20 +79,6 @@ namespace EpicGames.Horde.Storage.Clients
 			using ReadOnlySequenceStream stream = new ReadOnlySequenceStream(bundle.AsSequence());
 			string path = await storageClient.Backend.WriteAsync(stream, prefix.IsEmpty ? null : prefix.ToString(), cancellationToken);
 			return new BundleLocator(path);
-		}
-
-		/// <summary>
-		/// Reads a ref from the store, throwing an exception if it does not exist
-		/// </summary>
-		/// <param name="store">The store instance to read from</param>
-		/// <param name="name">Id for the ref</param>
-		/// <param name="cacheTime">Minimum coherency of any cached result</param>
-		/// <param name="cancellationToken">Cancellation token for the operation</param>
-		/// <returns>The ref target</returns>
-		public static async Task<BundleNodeHandle> ReadRefTargetAsync(this IBundleStorageClient store, RefName name, RefCacheTime cacheTime = default, CancellationToken cancellationToken = default)
-		{
-			BundleNodeHandle? refTarget = await store.TryReadRefTargetAsync(name, cacheTime, cancellationToken);
-			return refTarget ?? throw new RefNameNotFoundException(name);
 		}
 	}
 
@@ -193,6 +139,9 @@ namespace EpicGames.Horde.Storage.Clients
 
 		#region Nodes
 
+		/// <inheritdoc/>
+		public BlobHandle CreateBlobHandle(BlobLocator blobId) => CreateNodeHandle(BundleNodeLocator.FromBlobLocator(blobId));
+
 		/// <summary>
 		/// Creates a handle to a node from its locator
 		/// </summary>
@@ -240,7 +189,7 @@ namespace EpicGames.Horde.Storage.Clients
 		async Task IStorageClient.WriteRefTargetAsync(RefName name, BlobHandle target, RefOptions? options, CancellationToken cancellationToken)
 		{
 			await target.FlushAsync(cancellationToken);
-			await WriteRefTargetAsync(name, ((BundleNodeHandle)target.Unwrap()).GetLocator(), options, cancellationToken);
+			await WriteRefTargetAsync(name, BundleNodeLocator.FromBlobLocator(target.GetLocator()), options, cancellationToken);
 		}
 
 		/// <inheritdoc/>

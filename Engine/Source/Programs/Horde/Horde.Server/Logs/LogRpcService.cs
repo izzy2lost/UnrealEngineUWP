@@ -6,7 +6,6 @@ using System.Threading.Tasks;
 using Grpc.Core;
 using Horde.Server.Utilities;
 using EpicGames.Horde.Storage;
-using EpicGames.Horde.Storage.Bundles;
 using Horde.Server.Storage;
 using Microsoft.Extensions.Logging;
 using System.Threading;
@@ -53,7 +52,7 @@ namespace Horde.Server.Logs
 
 			using IServerStorageClient store = _storageService.CreateClient(Namespace.Logs);
 			_logger.LogInformation("Updating {LogId} to node {RefTarget} (lines: {LineCount}, complete: {Complete})", request.LogId, request.Target, request.LineCount, request.Complete);
-			await store.WriteRefTargetAsync(new RefName(request.LogId), BundleNodeLocator.Parse(request.Target));
+			await store.WriteRefTargetAsync(new RefName(request.LogId), store.CreateBlobHandle(new BlobLocator(request.Target)));
 
 			await _logFileCollection.UpdateLineCountAsync(logFile, request.LineCount, request.Complete, CancellationToken.None);
 

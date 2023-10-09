@@ -118,9 +118,9 @@ namespace Horde.Server.Tests
 			for(int idx = 0; idx < 2; idx++)
 			{
 				RefName refName = new RefName("hello");
-				await store.WriteRefTargetAsync(refName, new BundleNodeLocator(locator3, 0));
-				BundleNodeHandle refTarget = await store.ReadRefTargetAsync(refName);
-				Assert.AreEqual(locator3, refTarget.GetLocator().Blob);
+				await store.WriteRefTargetAsync(refName, store.CreateBlobHandle(new BundleNodeLocator(locator3, 0).ToBlobLocator()));
+				BlobHandle refTarget = await store.ReadRefTargetAsync(refName);
+				Assert.AreEqual(locator3, BundleNodeLocator.FromBlobLocator(refTarget.GetLocator()).Blob);
 			}
 		}
 
@@ -133,9 +133,9 @@ namespace Horde.Server.Tests
 			BundleLocator locator1 = await store.WriteBundleAsync(bundle1);
 			BundleNodeLocator target = new BundleNodeLocator(locator1, 0);
 
-			await store.WriteRefTargetAsync("test-ref-1", target);
-			await store.WriteRefTargetAsync("test-ref-2", target, new RefOptions { Lifetime = TimeSpan.FromMinutes(30.0), Extend = true });
-			await store.WriteRefTargetAsync("test-ref-3", target, new RefOptions { Lifetime = TimeSpan.FromMinutes(30.0), Extend = false });
+			await store.WriteRefTargetAsync("test-ref-1", store.CreateBlobHandle(target.ToBlobLocator()));
+			await store.WriteRefTargetAsync("test-ref-2", store.CreateBlobHandle(target.ToBlobLocator()), new RefOptions { Lifetime = TimeSpan.FromMinutes(30.0), Extend = true });
+			await store.WriteRefTargetAsync("test-ref-3", store.CreateBlobHandle(target.ToBlobLocator()), new RefOptions { Lifetime = TimeSpan.FromMinutes(30.0), Extend = false });
 
 			Assert.AreEqual(target, await TryReadRefTargetAsync(store, "test-ref-1"));
 			Assert.AreEqual(target, await TryReadRefTargetAsync(store, "test-ref-2"));
@@ -162,7 +162,7 @@ namespace Horde.Server.Tests
 
 		static async Task<BundleNodeLocator> TryReadRefTargetAsync(IBundleStorageClient store, RefName name)
 		{
-			BundleNodeHandle? handle = await store.TryReadRefTargetAsync(name);
+			BundleNodeHandle? handle = (BundleNodeHandle?)await store.TryReadRefTargetAsync(name);
 			if (handle == null)
 			{
 				return default;

@@ -42,9 +42,9 @@ namespace Horde.Server.Tests
 			Bundle bundle = new Bundle(header, Array.Empty<ReadOnlyMemory<byte>>());
 			BundleLocator locator = await client.WriteBundleAsync(bundle);
 
-			await client.AddAliasAsync("foo", new BundleNodeLocator(locator, 0));
-			await client.AddAliasAsync("foo", new BundleNodeLocator(locator, 1));
-			await client.AddAliasAsync("bar", new BundleNodeLocator(locator, 2));
+			await client.AddAliasAsync("foo", client.CreateBlobHandle(new BundleNodeLocator(locator, 0).ToBlobLocator()));
+			await client.AddAliasAsync("foo", client.CreateBlobHandle(new BundleNodeLocator(locator, 1).ToBlobLocator()));
+			await client.AddAliasAsync("bar", client.CreateBlobHandle(new BundleNodeLocator(locator, 2).ToBlobLocator()));
 
 			BlobAlias[] aliases;
 
