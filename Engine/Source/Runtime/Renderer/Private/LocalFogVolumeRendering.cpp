@@ -167,6 +167,14 @@ void SetDummyLocalFogVolumeForView(FRDGBuilder& GraphBuilder, FViewInfo& View)
 	View.LocalFogVolumeViewData.GPUTileDrawIndirectBufferUAV= nullptr;
 }
 
+void SetDummyLocalFogVolumeForViews(FRDGBuilder& GraphBuilder, TArray<FViewInfo>& Views)
+{
+	for (FViewInfo& View : Views)
+	{
+		SetDummyLocalFogVolumeForView(GraphBuilder, View);
+	}
+}
+
 
 /*=============================================================================
 	FScene functions
@@ -526,10 +534,7 @@ void InitLocalFogVolumesForViews(
 	}
 	else
 	{
-		for (FViewInfo& View : Views)
-		{
-			SetDummyLocalFogVolumeForView(GraphBuilder, View);
-		}
+		SetDummyLocalFogVolumeForViews(GraphBuilder, Views);
 	}
 }
 
