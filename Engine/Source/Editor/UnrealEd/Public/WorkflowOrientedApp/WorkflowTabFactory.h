@@ -123,6 +123,9 @@ public:
 	// Creates the label for the tab
 	UNREALED_API virtual TAttribute<FText> ConstructTabName(const FWorkflowTabSpawnInfo& Info) const;
 
+	// Creates the label suffix for the tab
+	UNREALED_API virtual TAttribute<FText> ConstructTabLabelSuffix(const FWorkflowTabSpawnInfo& Info) const;
+
 	/** Returns TRUE if the payload is valid */
 	virtual bool IsPayloadValid(TSharedRef<FTabPayload> Payload) const { return false; }
 

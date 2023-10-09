@@ -413,7 +413,8 @@ void FDocumentTracker::RegisterDocumentFactory(TSharedPtr<class FDocumentTabFact
 	PotentialTabFactories.Add(NewIdentifier, Factory);
 }
 
-FDocumentTracker::FDocumentTracker()
+FDocumentTracker::FDocumentTracker(FName InDefaultDocumentId)
+	: DefaultDocumentId(InDefaultDocumentId)
 {
 	// Make sure we know when tabs become active
 	OnActiveTabChangedDelegateHandle = FGlobalTabmanager::Get()->OnActiveTabChanged_Subscribe( FOnActiveTabChanged::FDelegate::CreateRaw( this, &FDocumentTracker::OnActiveTabChanged ) );
@@ -768,13 +769,15 @@ TSharedPtr<SDockTab> FDocumentTracker::OpenNewTab(TSharedPtr<FGenericTabHistory>
 			NewTabInfo->AddTabHistory(InTabHistory);
 		}
 
+		const FName DocumentId = DefaultDocumentId != NAME_None ? DefaultDocumentId : Factory->GetIdentifier();
+
 		if (InOpenCause == ForceOpenNewDocument  || InOpenCause == OpenNewDocument)
 		{
-			TabManager->InsertNewDocumentTab( "Document", FTabManager::ESearchPreference::RequireClosedTab, NewTab.ToSharedRef() );
+			TabManager->InsertNewDocumentTab( DocumentId, FTabManager::ESearchPreference::RequireClosedTab, NewTab.ToSharedRef() );
 		}
 		else if (InOpenCause == RestorePreviousDocument)
 		{
-			TabManager->RestoreDocumentTab( "Document", FTabManager::ESearchPreference::RequireClosedTab, NewTab.ToSharedRef() );
+			TabManager->RestoreDocumentTab( DocumentId, FTabManager::ESearchPreference::RequireClosedTab, NewTab.ToSharedRef() );
 
 			// Clear tab history before this so previous restores don't show up
 			History.RemoveAt(0, History.Num() - 1, true);
