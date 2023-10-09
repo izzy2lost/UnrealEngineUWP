@@ -238,9 +238,10 @@ public:
 	 * @param ImageIndex Have to be valid. */
 	UTexture2D* GetImageValue(int32 ImageIndex) const;
 	
-	/** Get the Material Texture Parameter UV index.
+	/** Get the Material Texture Parameter UV Index.
 	 *
-	 * @param ImageIndex Have to be valid. */
+	 * @param ImageIndex Have to be valid.
+	 * @return Return -1 if the UV Index is set to Ignore. Return >= 0 for a valid UV Index.  */
 	int32 GetImageUVLayout(int32 ImageIndex) const;
 
 	/** Delegate called when a Texture Parameter Pin Mode changes. */
@@ -286,6 +287,9 @@ private:
 	/** Returns the Image Pin Mode the pin should be at. It does not update its mode, to update it call UpdateImagePinMode. */
 	EPinMode GetImagePinMode(const UEdGraphPin& Pin) const;
 
+	/** Get the UV Layout Index defined in the Material. */
+	int32 GetImageUVLayoutFromMaterial(int32 ImageIndex) const;
+	
 	// Deprecated properties
 	/** Set all pins to Mutable mode. Even so, each pin can override its behaviour. */
 	UPROPERTY()
