@@ -1177,6 +1177,28 @@ void UClusterUnionComponent::SetSimulatePhysics(bool bSimulate)
 	PhysicsProxy->SetObjectState_External(bSimulate ? Chaos::EObjectStateType::Dynamic : Chaos::EObjectStateType::Kinematic);
 }
 
+void UClusterUnionComponent::WakeAllRigidBodies()
+{
+	if (!PhysicsProxy)
+	{
+		return;
+	}
+
+	Chaos::EObjectStateType State = PhysicsProxy->GetObjectState_External();
+	if (State == Chaos::EObjectStateType::Sleeping)
+	{
+		PhysicsProxy->SetObjectState_External(Chaos::EObjectStateType::Dynamic);
+	}
+}
+
+bool UClusterUnionComponent::IsAnyRigidBodyAwake()
+{
+	TArray<Chaos::FPhysicsObject*> PhysicsObjects = GetAllPhysicsObjects();
+	FLockedReadPhysicsObjectExternalInterface Interface = FPhysicsObjectExternalInterface::LockRead(PhysicsObjects);
+
+	return !Interface->AreAllSleeping(PhysicsObjects);
+}
+
 DECLARE_CYCLE_STAT(TEXT("UClusterUnionComponent::LineTraceComponentMulti"), STAT_ClusterUnionComponentLineTraceComponentMulti, STATGROUP_Chaos);
 bool UClusterUnionComponent::LineTraceComponent(TArray<FHitResult>& OutHit, const FVector Start, const FVector End, ECollisionChannel TraceChannel, const struct FCollisionQueryParams& Params, const struct FCollisionResponseParams& ResponseParams, const struct FCollisionObjectQueryParams& ObjectParams)
 {
