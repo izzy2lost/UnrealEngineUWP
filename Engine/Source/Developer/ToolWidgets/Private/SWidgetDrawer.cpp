@@ -470,6 +470,12 @@ TSharedRef<SWidget> SWidgetDrawer::MakeStatusBarDrawerButton(const FWidgetDrawer
 					.TextStyle(&FAppStyle::Get().GetWidgetStyle<FTextBlockStyle>("NormalText"))
 					.Text(Drawer.ButtonText)
 				]
+				+ SHorizontalBox::Slot()
+				.VAlign(VAlign_Center)
+				.AutoWidth()
+				[
+					Drawer.CustomButtonWidgets
+				]
 			]
 		];
 

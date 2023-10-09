@@ -455,6 +455,11 @@ TSharedRef<SWidget> UStatusBarSubsystem::MakeStatusBarWidget(FName StatusBarName
 	ContentBrowserDrawer.ToolTipText = FText::Format(LOCTEXT("StatusBar_ContentBrowserDrawerToolTip", "Opens a temporary content browser above this status which will dismiss when it loses focus ({0})"), FGlobalEditorCommonCommands::Get().OpenContentBrowserDrawer->GetInputText());
 	ContentBrowserDrawer.Icon = FAppStyle::Get().GetBrush("ContentBrowser.TabIcon");
 
+	for (const TUniquePtr<IGlobalStatusBarExtension>& Extension : GlobalStatusBarExtensions)
+	{
+		Extension->ExtendContentBrowserDrawer(ContentBrowserDrawer);
+	}
+
 	StatusBar->RegisterDrawer(MoveTemp(ContentBrowserDrawer));
 
 	FOutputLogModule& OutputLogModule = FModuleManager::Get().LoadModuleChecked<FOutputLogModule>("OutputLog");
@@ -506,6 +511,12 @@ TSharedRef<SWidget> UStatusBarSubsystem::MakeStatusBarWidget(FName StatusBarName
 	OutputLogDrawer.ButtonText = LOCTEXT("StatusBar_OutputLogButton", "Output Log");
 	OutputLogDrawer.ToolTipText = FText::Format(LOCTEXT("StatusBar_OutputLogButtonTip", "Opens the output log drawer. ({0}) cycles between focusing the console command box, opening the output log drawer, and closing it.\nThe output log drawer may also be toggled directly with ({1})"), FGlobalEditorCommonCommands::Get().OpenConsoleCommandBox->GetInputText(), FGlobalEditorCommonCommands::Get().OpenOutputLogDrawer->GetInputText());
 	OutputLogDrawer.Icon = FAppStyle::Get().GetBrush("Log.TabIcon");
+
+	for (const TUniquePtr<IGlobalStatusBarExtension>& Extension : GlobalStatusBarExtensions)
+	{
+		Extension->ExtendOutputLogDrawer(OutputLogDrawer);
+	}
+
 	StatusBar->RegisterDrawer(MoveTemp(OutputLogDrawer));
 
 	// Clean up stale status bars
@@ -622,6 +633,25 @@ void UStatusBarSubsystem::ClearStatusBarMessages(FName StatusBarName)
 	{
 		StatusBar->ClearAllMessages();
 	}
+}
+
+IGlobalStatusBarExtension& UStatusBarSubsystem::RegisterGlobalStatusBarExtension(TUniquePtr<IGlobalStatusBarExtension>&& Extension)
+{
+	int32 Index = GlobalStatusBarExtensions.Add(MoveTemp(Extension));
+	// NOTE: It is safe to return this reference because it's stored in a TUniquePtr which is
+	// guaranteed not to change its address if the array reallocates.
+	return *GlobalStatusBarExtensions[Index];
+}
+
+TUniquePtr<IGlobalStatusBarExtension> UStatusBarSubsystem::UnregisterGlobalStatusBarExtension(IGlobalStatusBarExtension* Extension)
+{
+	int32 Index = GlobalStatusBarExtensions.IndexOfByPredicate([Extension](const TUniquePtr<IGlobalStatusBarExtension>& Other)
+	{
+		return &*Other == Extension;
+	});
+	TUniquePtr<IGlobalStatusBarExtension> RemovedExtension = MoveTemp(GlobalStatusBarExtensions[Index]);
+	GlobalStatusBarExtensions.RemoveAtSwap(Index);
+	return RemovedExtension;
 }
 
 void UStatusBarSubsystem::StartProgressNotification(FProgressNotificationHandle Handle, FText DisplayText, int32 TotalWorkToDo)
