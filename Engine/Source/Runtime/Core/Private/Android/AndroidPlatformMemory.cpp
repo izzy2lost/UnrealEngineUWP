@@ -117,7 +117,20 @@ static void OnCVarAndroidUseMemoryAdvisorChanged(IConsoleVariable* Var)
 		UE_LOG(LogInit, Warning, TEXT("Cannot disable memory advisor once it has been initialized."));
 	}
 }
+
 #endif
+
+FAndroidPlatformMemory::FMemAdviceStats FAndroidPlatformMemory::GetDeviceMemAdviceStats()
+{
+	FAndroidPlatformMemory::FMemAdviceStats ret;
+#if HAS_ANDROID_MEMORY_ADVICE
+	ret.MemFree = TEMPMemoryAdvice_getAvailableMemory();
+	ret.TotalMem = MemoryAdvice_getTotalMemory();
+	ret.MemUsed = ret.TotalMem - ret.MemFree;
+#endif
+	return ret;
+}
+
 
 static int32 GAndroidAddSwapToTotalPhysical = 1;
 static FAutoConsoleVariableRef CVarAddSwapToTotalPhysical(
