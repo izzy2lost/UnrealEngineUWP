@@ -502,6 +502,9 @@ private:
 	void EnableAutoConnect();
 	void DisableAutoConnect();
 
+	void AutoStartPlatformFilterBox_OnValueCommitted(const FText& InText, ETextCommit::Type InCommitType);
+	void AutoStartAppNameFilterBox_OnValueCommitted(const FText& InText, ETextCommit::Type InCommitType);
+
 public:
 	/** Parameter that controls the visibility of the confirmation window in case the trace is deleted. */
 	bool bIsDeleteTraceConfirmWindowVisible = true;
@@ -567,7 +570,6 @@ private:
 	//////////////////////////////////////////////////
 	// Auto-start functionality
 
-	bool bAutoStartAnalysisForLiveSessions;
 	TArray<uint32> AutoStartedSessions; // tracks sessions that were auto started (in order to not start them again)
 
 	TSharedPtr<SSearchBox> AutoStartPlatformFilter;

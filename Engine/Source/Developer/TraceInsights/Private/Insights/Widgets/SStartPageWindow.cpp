@@ -923,7 +923,6 @@ STraceStoreWindow::STraceStoreWindow()
 	, FilterStatsText()
 	, SortColumn(TraceStoreColumns::Date)
 	, SortMode(EColumnSortMode::Ascending)
-	, bAutoStartAnalysisForLiveSessions(false)
 	, AutoStartedSessions()
 	, AutoStartPlatformFilter()
 	, AutoStartAppNameFilter()
@@ -1870,6 +1869,8 @@ TSharedRef<SWidget> STraceStoreWindow::ConstructAutoStartPanel()
 		.MaxDesiredWidth(200.0f)
 		[
 			SAssignNew(AutoStartPlatformFilter, SSearchBox)
+			.InitialText(FText::FromString(FInsightsManager::Get()->GetSessionBrowserSettings().GetAutoStartAnalysisPlatform()))
+			.OnTextCommitted(this, &STraceStoreWindow::AutoStartPlatformFilterBox_OnValueCommitted)
 			.HintText(LOCTEXT("AutoStartPlatformFilter_Hint", "Platform"))
 			.ToolTipText(LOCTEXT("AutoStartPlatformFilter_Tooltip", "Type here to specify the Platform filter.\nAuto-start analysis will be enabled only for live trace sessions with this specified Platform."))
 		]
@@ -1885,6 +1886,8 @@ TSharedRef<SWidget> STraceStoreWindow::ConstructAutoStartPanel()
 		.MaxDesiredWidth(200.0f)
 		[
 			SAssignNew(AutoStartAppNameFilter, SSearchBox)
+			.InitialText(FText::FromString(FInsightsManager::Get()->GetSessionBrowserSettings().GetAutoStartAnalysisAppName()))
+			.OnTextCommitted(this, &STraceStoreWindow::AutoStartAppNameFilterBox_OnValueCommitted)
 			.HintText(LOCTEXT("AutoStartAppNameFilter_Hint", "AppName"))
 			.ToolTipText(LOCTEXT("AutoStartAppNameFilter_Tooltip", "Type here to specify the AppName filter.\nAuto-start analysis will be enabled only for live trace sessions with this specified AppName."))
 		]
@@ -2398,14 +2401,16 @@ void STraceStoreWindow::UpdateTrace(FTraceViewModel& InOutTrace, const Insights:
 		InOutTrace.TargetType = InSourceTrace.TargetType;
 	}
 
+	const FInsightsSessionBrowserSettings& Settings = FInsightsManager::Get()->GetSessionBrowserSettings();
+
 	// Auto start analysis for a live trace session.
 	if (InOutTrace.bIsLive &&
 		InOutTrace.bIsMetadataUpdated &&
-		bAutoStartAnalysisForLiveSessions && // is auto start enabled?
+		Settings.IsAutoStartAnalysisEnabled() && // is auto start enabled?
 		!AutoStartedSessions.Contains(InOutTrace.TraceId)) // is not already auto-started?
 	{
-		const FString AutoStartPlatformFilterStr = AutoStartPlatformFilter->GetText().ToString();
-		const FString AutoStartAppNameFilterStr = AutoStartAppNameFilter->GetText().ToString();
+		const FString& AutoStartPlatformFilterStr = Settings.GetAutoStartAnalysisPlatform();
+		const FString& AutoStartAppNameFilterStr = Settings.GetAutoStartAnalysisAppName();
 
 		// matches filter?
 		if ((AutoStartPlatformFilterStr.IsEmpty() || FCString::Strcmp(*AutoStartPlatformFilterStr, *InOutTrace.Platform.ToString()) == 0) &&
@@ -2521,14 +2526,19 @@ void STraceStoreWindow::TraceList_OnMouseButtonDoubleClick(TSharedPtr<FTraceView
 
 ECheckBoxState STraceStoreWindow::AutoStart_IsChecked() const
 {
-	return bAutoStartAnalysisForLiveSessions ? ECheckBoxState::Checked : ECheckBoxState::Unchecked;
+	return FInsightsManager::Get()->GetSessionBrowserSettings().IsAutoStartAnalysisEnabled() ? ECheckBoxState::Checked : ECheckBoxState::Unchecked;
 }
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////
 
 void STraceStoreWindow::AutoStart_OnCheckStateChanged(ECheckBoxState NewState)
 {
-	bAutoStartAnalysisForLiveSessions = (NewState == ECheckBoxState::Checked);
+	if (AutoStart_IsChecked() == NewState)
+	{
+		return;
+	}
+
+	FInsightsManager::Get()->GetSessionBrowserSettings().SetAndSaveAutoStartAnalysis(!FInsightsManager::Get()->GetSessionBrowserSettings().IsAutoStartAnalysisEnabled());
 }
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////
@@ -3780,6 +3790,20 @@ void STraceStoreWindow::ShowFailMessage(FText& InMessage)
 	SNotificationItemRef NotificationItem = NotificationList->AddNotification(NotificationInfo);
 	NotificationItem->SetCompletionState(SNotificationItem::CS_Fail);
 	NotificationItem->ExpireAndFadeout();
+}
+
+////////////////////////////////////////////////////////////////////////////////////////////////////
+
+void STraceStoreWindow::AutoStartPlatformFilterBox_OnValueCommitted(const FText& InText, ETextCommit::Type InCommitType)
+{
+	FInsightsManager::Get()->GetSessionBrowserSettings().SetAndSaveAutoStartAnalysisPlatform(InText.ToString());
+}
+
+////////////////////////////////////////////////////////////////////////////////////////////////////
+
+void STraceStoreWindow::AutoStartAppNameFilterBox_OnValueCommitted(const FText& InText, ETextCommit::Type InCommitType)
+{
+	FInsightsManager::Get()->GetSessionBrowserSettings().SetAndSaveAutoStartAnalysisAppName(InText.ToString());
 }
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////
