@@ -3,13 +3,8 @@
 #include "SReplicationJoinedView.h"
 
 #include "ConcertLogGlobal.h"
-#include "Replication/Editor/Model/Object/EditorObjectSelectionSourceModel.h"
-#include "Replication/Editor/Model/Property/SelectPropertyFromUClassModel.h"
-#include "Replication/Editor/View/IReplicationEditorView.h"
+#include "SReplicationClientView.h"
 #include "Replication/MultiUserReplicationManager.h"
-#include "Replication/ReplicationWidgetFactories.h"
-#include "Replication/Stream/ClientStreamRepository.h"
-#include "SReplicationJoinedToolbar.h"
 
 #include "Framework/Notifications/NotificationManager.h"
 #include "Widgets/Layout/SBox.h"
@@ -23,51 +18,16 @@ namespace UE::MultiUserClient
 	void SReplicationJoinedView::Construct(const FArguments& InArgs, TSharedRef<FMultiUserReplicationManager> InReplicationManager)
 	{
 		ReplicationManager = InReplicationManager;
-		
-		using namespace ConcertClientSharedSlate;
-		const FCreateEditorParams ReplicationEditorCreationParams
-		{
-			ReplicationManager->GetStreamSynchronizer()->GetLocalClientEditModel(),
-			MakeShared<FEditorObjectSelectionSourceModel>(),
-			MakeShared<FSelectPropertyFromUClassModel>()
-		};
 
-		const TSharedRef<IReplicationEditorView> NewEditorView = CreateEditorForUnrealEditor(ReplicationEditorCreationParams);
-		WeakEditorView = NewEditorView;
 		ChildSlot
 		[
-			SNew(SVerticalBox)
-
-			// Toolbar
-			+SVerticalBox::Slot()
-			.AutoHeight()
-			.Padding(2.f)
-			[
-				SNew(SReplicationJoinedToolbar, InReplicationManager)
-			]
-
-			// Editor
-			+SVerticalBox::Slot()
-			.FillHeight(1.f)
-			[
-				NewEditorView
-			]
+			SNew(SReplicationClientView)
+			.GetReplicationClient_Lambda([this](){ return &ReplicationManager->GetClientManager()->GetLocalClient(); })
 		];
-		
-		// Refresh UI if streams change externally, e.g. a remote client changed what they sent
-		ReplicationManager->GetStreamSynchronizer()->OnModelChanged_GameThread().AddSP(this, &SReplicationJoinedView::OnModelChanged);
 
 		// Show notifications about changing authority
 		ReplicationManager->GetAuthorityPolicy()->OnAuthorityRequestSent_AnyThread().AddSP(this, &SReplicationJoinedView::OnAuthorityRequestSent_AnyThread);
 		ReplicationManager->GetAuthorityPolicy()->OnAuthorityResponseReceived_AnyThread().AddSP(this, &SReplicationJoinedView::OnAuthorityResponseReceived_AnyThread);
-	}
-
-	void SReplicationJoinedView::OnModelChanged() const
-	{
-		if (const TSharedPtr<ConcertClientSharedSlate::IReplicationEditorView> EditorView = WeakEditorView.Pin())
-		{
-			EditorView->Refresh();
-		}
 	}
 
 	void SReplicationJoinedView::OnAuthorityRequestSent_AnyThread(

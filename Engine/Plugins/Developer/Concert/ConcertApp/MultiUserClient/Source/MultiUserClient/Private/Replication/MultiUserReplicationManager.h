@@ -3,8 +3,9 @@
 #pragma once
 
 #include "Replication/Authority/AuthorityPolicy.h"
-#include "Replication/Stream/ClientStreamRepository.h"
+
 #include "IConcertSession.h"
+#include "Client/ReplicationClientManager.h"
 
 #include "Misc/Optional.h"
 #include "Templates/SharedPointer.h"
@@ -18,6 +19,7 @@ namespace UE::ConcertSyncClient::Replication
 {
 	struct FJoinReplicatedSessionResult;
 }
+
 namespace UE::ConcertClientSharedSlate
 {
 	class IEditableObjectToPropertiesModel;
@@ -61,9 +63,9 @@ namespace UE::MultiUserClient
 		 */
 		void JoinReplicationSession();
 
-		/** @note You're not supposed to keep any reference to StreamSynchronizer since it can become invalid depending on connection state. */
-		FClientStreamRepository* GetStreamSynchronizer() { return ConnectedState ? &ConnectedState->StreamSynchronizer : nullptr; }
-		const FClientStreamRepository* GetStreamSynchronizer() const { return ConnectedState ? &ConnectedState->StreamSynchronizer : nullptr; }
+		/** @note You're not supposed to keep any reference to the ClientManager since it can become invalid depending on connection state. */
+		FReplicationClientManager* GetClientManager() { return ConnectedState ? &ConnectedState->ClientManager : nullptr; }
+		const FReplicationClientManager* GetClientManager() const { return ConnectedState ? &ConnectedState->ClientManager : nullptr; }
 
 		/** @note You're not supposed to keep any reference to AuthorityPolicy since it can become invalid depending on connection state. */
 		FAuthorityPolicy* GetAuthorityPolicy() { return ConnectedState ? & ConnectedState->AuthorityPolicy : nullptr; }
@@ -93,7 +95,7 @@ namespace UE::MultiUserClient
 			 *
 			 * Only valid when ConnectionState == EMultiUserReplicationConnectionState::Connected.
 			 */
-			FClientStreamRepository StreamSynchronizer;
+			FReplicationClientManager ClientManager;
 
 			/** Manages the client's authority like automatically taking ownership over newly submitted objects. */
 			FAuthorityPolicy AuthorityPolicy;

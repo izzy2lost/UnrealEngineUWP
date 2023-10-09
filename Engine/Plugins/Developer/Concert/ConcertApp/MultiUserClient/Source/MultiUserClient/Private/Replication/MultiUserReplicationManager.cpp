@@ -100,7 +100,7 @@ namespace UE::MultiUserClient
 	}
 
 	FMultiUserReplicationManager::FConnectedState::FConnectedState(TSharedRef<IConcertSyncClient> InClient)
-		: StreamSynchronizer(InClient)
-		, AuthorityPolicy(StreamSynchronizer.GetDiffer(), InClient)
+		: ClientManager(InClient)
+		, AuthorityPolicy(InClient, ClientManager.GetLocalClient().GetStreamSynchronizer())
 	{}
 }

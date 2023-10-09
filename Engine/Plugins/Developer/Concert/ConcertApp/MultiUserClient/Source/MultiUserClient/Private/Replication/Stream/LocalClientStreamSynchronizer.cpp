@@ -14,45 +14,29 @@ namespace UE::MultiUserClient
 {
 	FLocalClientStreamSynchronizer::FLocalClientStreamSynchronizer(
 		TSharedRef<IConcertSyncClient> InLocalClient,
-		const FGuid& InLocalClientStreamId,
-		TAttribute<FObjectReplicationMap*> InStreamWithInProgressChangesAttribute,
-		FOnModifyReplicationMap InOnModifyReplicationMapDelegate
+		const FGuid& InLocalClientStreamId
 		)
 		: LocalClient(MoveTemp(InLocalClient))
 		, LocalClientStreamId(InLocalClientStreamId)
-		, StreamWithInProgressChangesAttribute(MoveTemp(InStreamWithInProgressChangesAttribute))
-		, OnModifyReplicationMapDelegate(MoveTemp(InOnModifyReplicationMapDelegate))
-	{
-		check(InStreamWithInProgressChangesAttribute.IsBound() || InStreamWithInProgressChangesAttribute.IsSet());
-	}
+	{}
 
-	void FLocalClientStreamSynchronizer::RefreshChangesCache()
-	{
-		CachedDeltaChange = DiffChanges();
-		RefreshWarnings();
-	}
-
-	TFuture<FLocalClientStreamSynchronizer::FSubmissionResult> FLocalClientStreamSynchronizer::SubmitChanges(bool bRefreshChanges)
+	TFuture<FSubmitChangesResult> FLocalClientStreamSynchronizer::SubmitChanges(const FStreamChangelist& Changelist)
 	{
 		using namespace ConcertSyncClient::Replication;
 
 		IConcertClientReplicationManager* ReplicationManager = LocalClient->GetReplicationManager();
-		if (!ensure(ReplicationManager) || !CanSubmitChanges())
+		if (!ensure(ReplicationManager) || !CanMakeSubmitRequest())
 		{
-			return MakeFulfilledPromise<FSubmissionResult>(FSubmissionResult{}).GetFuture();
+			return MakeFulfilledPromise<FSubmitChangesResult>(FSubmitChangesResult{ ESubmitChangesErrorCode::CannotSendRequest }).GetFuture();
 		}
-
-		if (bRefreshChanges)
-		{
-			RefreshChangesCache();
-		}
-		ChangeInTransit = CachedDeltaChange;
-		FChangeStreamRequest Request = BuildChangeRequest();
+		
+		ChangeInTransit = Changelist;
+		FChangeStreamRequest Request = BuildChangeRequest(Changelist);
 		
 		return ReplicationManager->ChangeStream(Request)
 			.Next([this, DestructionDetection = LifetimeToken->AsWeak(), Request](FChangeStreamResponse&& Response)
 			{
-				const FSubmissionResult SubmissionResult { Request, Response };
+				const FSubmitChangesResult SubmissionResult { ESubmitChangesErrorCode::Success, { FCompletedChangeSubmission{Request, Response } } };
 				// The request might execute after we're destroyed, e.g. by leaving session while request is on the way.
 				// In that case, the Concert session triggers the OnSessionConnectionChanged which destroys us. Only after that, all the requests are timed out.
 				if (!DestructionDetection.IsValid())
@@ -60,7 +44,7 @@ namespace UE::MultiUserClient
 					return SubmissionResult;
 				}
 
-				const FChangelist ChangeThatWasInTransit = MoveTemp(ChangeInTransit.GetValue());
+				const FStreamChangelist ChangeThatWasInTransit = MoveTemp(ChangeInTransit.GetValue());
 				ChangeInTransit.Reset();
 				
 				if (Response.IsSuccess())
@@ -74,111 +58,17 @@ namespace UE::MultiUserClient
 			});
 	}
 
-	void FLocalClientStreamSynchronizer::RevertCachedChanges()
-	{
-		if (HasRevertableLocalChanges())
-		{
-			FScopedTransaction Transaction(LOCTEXT("RevertCachedChanges", "Revert replication changes"));
-			OnModifyReplicationMapDelegate.ExecuteIfBound();
-			
-			*StreamWithInProgressChangesAttribute.Get() = ConfirmedServerState;
-			CachedDeltaChange = {};
-
-			check(IsInGameThread());
-			OnChangesRevertedDelegate.Broadcast();
-			RefreshChangesCache();
-		}
-	}
-
-	bool FLocalClientStreamSynchronizer::HasSubmittableLocalChanges() const
-	{
-		return !CachedDeltaChange.ObjectsToPut.IsEmpty() || !CachedDeltaChange.ObjectsToRemove.IsEmpty();
-	}
-
-	bool FLocalClientStreamSynchronizer::HasRevertableLocalChanges() const
-	{
-		return HasSubmittableLocalChanges() || HasAnyWarnings();
-	}
-
-	bool FLocalClientStreamSynchronizer::IsChangeRequestInTransit() const
-	{
-		return ChangeInTransit.IsSet();
-	}
-
-	EObjectWarningFlags FLocalClientStreamSynchronizer::GetObjectWarningFlags(const FSoftObjectPath& ObjectPath)
-	{
-		const EObjectWarningFlags* Flags = ObjectsWithWarnings.Find(ObjectPath);
-		return Flags ? *Flags : EObjectWarningFlags::Ok;
-	}
-
-	bool FLocalClientStreamSynchronizer::HasAnyWarnings() const
-	{
-		return !ObjectsWithWarnings.IsEmpty();
-	}
-
-	FLocalClientStreamSynchronizer::EObjectChangeType FLocalClientStreamSynchronizer::GetObjectChanges(const FSoftObjectPath& Object) const
-	{
-		// TODO DP:
-		return EObjectChangeType::NoChange;
-	}
-
-	FLocalClientStreamSynchronizer::EPropertyChangeType FLocalClientStreamSynchronizer::GetPropertyChanges(const FSoftObjectPath& Object, const FConcertPropertyChain& PropertyChain) const
-	{
-		// TODO DP:
-		return EPropertyChangeType::NoChange;
-	}
-	
-	FLocalClientStreamSynchronizer::FChangelist FLocalClientStreamSynchronizer::DiffChanges(
-		const FGuid& StreamId,
-		const FObjectReplicationMap& Base,
-		const FObjectReplicationMap& Changed
-		)
-	{
-		// BuildRequestFromDiff does not tolerate any invalid entries (like empty properties, which the UI generates right after you add an object to the list)
-		FObjectReplicationMap Cleansed = Changed;
-		ConcertSyncCore::Replication::ChangeStreamUtils::IterateInvalidEntries(Changed, [&Cleansed](const FSoftObjectPath& InvalidObject, const FReplicatedObjectInfo&)
-		{
-			Cleansed.ReplicatedObjects.Remove(InvalidObject);
-			return EBreakBehavior::Continue;
-		});
-
-		FConcertReplication_ChangeStream_Request Request = ConcertSyncCore::Replication::ChangeStreamUtils::BuildRequestFromDiff(StreamId, Base, Cleansed);
-		return { MoveTemp(Request.ObjectsToRemove), MoveTemp(Request.ObjectsToPut) };
-	}
-
-	void FLocalClientStreamSynchronizer::RefreshWarnings()
-	{
-		ObjectsWithWarnings.Empty();
-		const FObjectReplicationMap* Map = StreamWithInProgressChangesAttribute.Get();
-		if (!Map)
-		{
-			return;
-		}
-		
-		ConcertSyncCore::Replication::ChangeStreamUtils::IterateInvalidEntries(*Map, [this](const FSoftObjectPath& InvalidObject, const FReplicatedObjectInfo& Info)
-		{
-			EObjectWarningFlags Flags = EObjectWarningFlags::Ok;
-			if (Info.PropertySelection.ReplicatedProperties.IsEmpty())
-			{
-				Flags |= EObjectWarningFlags::MissingProperties;
-			}
-			
-			ObjectsWithWarnings.Add(InvalidObject, Flags);
-			return EBreakBehavior::Continue;
-		});
-	}
-
-	ConcertSyncClient::Replication::FChangeStreamRequest FLocalClientStreamSynchronizer::BuildChangeRequest() const
+	ConcertSyncClient::Replication::FChangeStreamRequest FLocalClientStreamSynchronizer::BuildChangeRequest(const FStreamChangelist& Changelist) const
 	{
 		switch (ComputeNextRequestType())
 		{
-		case EChangeRequestType::CreateNewStream: return BuildChangeRequest_CreateNewStream(LocalClientStreamId, CachedDeltaChange);
-		case EChangeRequestType::UpdateExistingStream: return BuildChangeRequest_UpdateExistingStream(CachedDeltaChange);
+		case EChangeRequestType::CreateNewStream: return BuildChangeRequest_CreateNewStream(LocalClientStreamId, Changelist);
+		case EChangeRequestType::UpdateExistingStream: return BuildChangeRequest_UpdateExistingStream(Changelist);
 		default: checkNoEntry(); return {};
 		}
 	}
 
-	ConcertSyncClient::Replication::FChangeStreamRequest FLocalClientStreamSynchronizer::BuildChangeRequest_CreateNewStream(const FGuid& StreamId, const FChangelist& FromChangelist)
+	ConcertSyncClient::Replication::FChangeStreamRequest FLocalClientStreamSynchronizer::BuildChangeRequest_CreateNewStream(const FGuid& StreamId, const FStreamChangelist& FromChangelist)
 	{
 		const TMap<FObjectInStreamID, FConcertReplication_ChangeStream_PutObject>& ObjectsToPut = FromChangelist.ObjectsToPut;
 		
@@ -206,7 +96,7 @@ namespace UE::MultiUserClient
 		return Request;
 	}
 
-	ConcertSyncClient::Replication::FChangeStreamRequest FLocalClientStreamSynchronizer::BuildChangeRequest_UpdateExistingStream(FChangelist FromChangelist)
+	ConcertSyncClient::Replication::FChangeStreamRequest FLocalClientStreamSynchronizer::BuildChangeRequest_UpdateExistingStream(FStreamChangelist FromChangelist)
 	{
 		return { MoveTemp(FromChangelist.ObjectsToRemove), MoveTemp(FromChangelist.ObjectsToPut) };
 	}
@@ -220,7 +110,7 @@ namespace UE::MultiUserClient
 
 	void FLocalClientStreamSynchronizer::UpdateConfirmedServerState(
 		const ConcertSyncClient::Replication::FChangeStreamRequest& Request,
-		const FChangelist& ChangeThatWasInTransit
+		const FStreamChangelist& ChangeThatWasInTransit
 		)
 	{
 		const bool bCreatedNewStream = !Request.StreamsToAdd.IsEmpty(); 
@@ -251,7 +141,7 @@ namespace UE::MultiUserClient
 			ConfirmedServerState = MoveTemp(NewServerState);
 		}
 					
-		RefreshChangesCache();
+		OnServerStateSynchedDelegate.Broadcast();
 	}
 }
 

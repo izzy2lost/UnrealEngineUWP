@@ -6,6 +6,11 @@
 #include "Widgets/DeclarativeSyntaxSupport.h"
 #include "Widgets/SCompoundWidget.h"
 
+namespace UE::MultiUserClient
+{
+	class SReplicationClientView;
+}
+
 class SNotificationItem;
 
 namespace UE::ConcertClientSharedSlate
@@ -34,17 +39,14 @@ namespace UE::MultiUserClient
 		TSharedPtr<FMultiUserReplicationManager> ReplicationManager;
 		
 		/**
-		 * The editor view if one is being displayed.
+		 * The local client's view if one is being displayed.
 		 * ChildSlot keeps the reference alive if we're in state EMultiUserReplicationConnectionState::Connected.
 		 * @see ShowWidget_Connected
 		 */
-		TWeakPtr<ConcertClientSharedSlate::IReplicationEditorView> WeakEditorView;
+		TWeakPtr<SReplicationClientView> WeakLocalClientView;
 
 		/** Notification about in progress authority change, if any. */
 		TSharedPtr<SNotificationItem> AuthorityChangeNotification;
-		
-		/** Called when any of the streams change. */
-		void OnModelChanged() const;
 
 		void OnAuthorityRequestSent_AnyThread(const ConcertSyncClient::Replication::FAuthorityChangeRequest& Request);
 		void OnAuthorityResponseReceived_AnyThread(

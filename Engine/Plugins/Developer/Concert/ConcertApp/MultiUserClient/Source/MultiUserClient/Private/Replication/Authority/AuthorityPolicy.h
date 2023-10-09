@@ -16,7 +16,8 @@ namespace UE::ConcertSyncClient::Replication
 }
 namespace UE::MultiUserClient
 {
-	class FLocalClientStreamSynchronizer;
+	class IClientStreamSynchronizer;
+	class FLocalStreamChangeTracker;
 }
 
 namespace UE::MultiUserClient
@@ -32,7 +33,7 @@ namespace UE::MultiUserClient
 	{
 	public:
 		
-		FAuthorityPolicy(FLocalClientStreamSynchronizer& InLocalClientManager, TSharedRef<IConcertSyncClient> InClient);
+		FAuthorityPolicy(TSharedRef<IConcertSyncClient> InClient, TSharedRef<IClientStreamSynchronizer> InStreamSynchronizer);
 		~FAuthorityPolicy();
 
 		DECLARE_MULTICAST_DELEGATE_OneParam(FOnAuthorityRequestSent,
@@ -53,11 +54,10 @@ namespace UE::MultiUserClient
 		/** Referenced by the authority requests to detect destruction of FAuthorityPolicy */
 		const TSharedRef<FToken> LifetimeToken = FToken::Make();
 
-		/** Informs us when changes have been successfully submitted to the server. */
-		FLocalClientStreamSynchronizer& LocalClientManager;
-
 		/** Used to send authority requests to the server. */
 		const TSharedRef<IConcertSyncClient> Client;
+		/** Informs us when changes have been successfully submitted to the server. */
+		TSharedRef<IClientStreamSynchronizer> StreamSynchronizer;
 
 		FOnAuthorityRequestSent OnAuthorityRequestSentDelegate;
 		FOnAuthorityResponseReceived OnAuthorityResponseReceivedDelegate;

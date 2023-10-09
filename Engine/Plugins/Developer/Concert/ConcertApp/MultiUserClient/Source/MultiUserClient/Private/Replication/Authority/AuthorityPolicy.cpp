@@ -2,7 +2,7 @@
 
 #include "AuthorityPolicy.h"
 
-#include "Replication/Stream/LocalClientStreamSynchronizer.h"
+#include "Replication/Stream/LocalStreamChangeTracker.h"
 
 #include "IConcertSyncClient.h"
 
@@ -39,17 +39,17 @@ namespace UE::MultiUserClient
 		}
 	}
 	
-	FAuthorityPolicy::FAuthorityPolicy(FLocalClientStreamSynchronizer& InLocalClientManager, TSharedRef<IConcertSyncClient> InClient)
-		: LocalClientManager(InLocalClientManager)
-		, Client(MoveTemp(InClient))
+	FAuthorityPolicy::FAuthorityPolicy(TSharedRef<IConcertSyncClient> InClient, TSharedRef<IClientStreamSynchronizer> InStreamSynchronizer)
+		: Client(MoveTemp(InClient))
+		, StreamSynchronizer(MoveTemp(InStreamSynchronizer))
 	{
 		// After submitting new objects, immediately request authority over it.
-		LocalClientManager.OnChangesAccepted_AnyThread().AddRaw(this, &FAuthorityPolicy::OnChangesAccepted_AnyThread);
+		StreamSynchronizer->OnChangesAccepted_AnyThread().AddRaw(this, &FAuthorityPolicy::OnChangesAccepted_AnyThread);
 	}
 
 	FAuthorityPolicy::~FAuthorityPolicy()
 	{
-		LocalClientManager.OnChangesAccepted_AnyThread().RemoveAll(this);
+		StreamSynchronizer->OnChangesAccepted_AnyThread().RemoveAll(this);
 	}
 
 	void FAuthorityPolicy::OnChangesAccepted_AnyThread(

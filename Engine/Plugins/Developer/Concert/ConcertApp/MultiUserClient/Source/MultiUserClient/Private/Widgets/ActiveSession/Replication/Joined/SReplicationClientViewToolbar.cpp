@@ -1,12 +1,11 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 
-#include "SReplicationJoinedToolbar.h"
+#include "SReplicationClientViewToolbar.h"
 
 #include "ConcertLogGlobal.h"
 #include "Replication/IConcertClientReplicationManager.h"
 #include "Replication/MultiUserReplicationManager.h"
-#include "Replication/Stream/ClientStreamRepository.h"
-#include "Replication/Stream/LocalClientStreamSynchronizer.h"
+#include "Replication/Stream/LocalStreamChangeTracker.h"
 
 #include "Framework/Notifications/NotificationManager.h"
 #include "SNegativeActionButton.h"
@@ -24,9 +23,10 @@
 
 namespace UE::MultiUserClient
 {
-	void SReplicationJoinedToolbar::Construct(const FArguments& InArgs, TSharedRef<FMultiUserReplicationManager> InReplicationManager)
+	void SReplicationClientViewToolbar::Construct(const FArguments& InArgs)
 	{
-		ReplicationManager = InReplicationManager;
+		GetChangeTrackerAttribute = InArgs._GetChangeTrackerAttribute;
+		check(GetChangeTrackerAttribute.IsBound() || GetChangeTrackerAttribute.IsSet());
 		
 		ChildSlot
 		[
@@ -54,15 +54,22 @@ namespace UE::MultiUserClient
 		];
 	}
 
-	TSharedRef<SWidget> SReplicationJoinedToolbar::BuildUploadButton()
+	FLocalStreamChangeTracker& SReplicationClientViewToolbar::GetChangeTracker() const
+	{
+		FLocalStreamChangeTracker* ChangeTracker = GetChangeTrackerAttribute.Get();
+		checkf(ChangeTracker, TEXT("You were supposed to destroy this widget."));
+		return *ChangeTracker;
+	}
+
+	TSharedRef<SWidget> SReplicationClientViewToolbar::BuildUploadButton()
 	{
 		return SNew(SButton)
 			.ForegroundColor(FSlateColor::UseStyle())
-			.IsEnabled_Lambda([this](){ return ReplicationManager->GetStreamSynchronizer()->GetDiffer().CanSubmitChanges(); })
-			.ToolTipText(this, &SReplicationJoinedToolbar::GetUploadButtonToolTipText)
+			.IsEnabled_Lambda([this](){ return GetChangeTracker().CanSubmitChanges(); })
+			.ToolTipText(this, &SReplicationClientViewToolbar::GetUploadButtonToolTipText)
 			.HAlign(HAlign_Center)
 			.VAlign(VAlign_Center)
-			.OnClicked(this, &SReplicationJoinedToolbar::OnUploadButtonClicked)
+			.OnClicked(this, &SReplicationClientViewToolbar::OnUploadButtonClicked)
 			[
 				SNew(SHorizontalBox)
 				+ SHorizontalBox::Slot()
@@ -73,14 +80,14 @@ namespace UE::MultiUserClient
 					SNew(SImage)
 					.Image_Lambda([this]()
 					{
-						const FLocalClientStreamSynchronizer& Differ = ReplicationManager->GetStreamSynchronizer()->GetDiffer();
+						const FLocalStreamChangeTracker& Differ = GetChangeTracker();
 						return Differ.HasAnyWarnings()
 							? FAppStyle::Get().GetBrush("Icons.Warning")
 							: FAppStyle::Get().GetBrush("Icons.Plus");
 					})
 					.ColorAndOpacity_Lambda([this]()
 					{
-						const FLocalClientStreamSynchronizer& Differ = ReplicationManager->GetStreamSynchronizer()->GetDiffer();
+						const FLocalStreamChangeTracker& Differ = GetChangeTracker();
 						return Differ.HasAnyWarnings()
 							? FStyleColors::AccentYellow
 							: FStyleColors::AccentGreen;
@@ -98,16 +105,16 @@ namespace UE::MultiUserClient
 			];
 	}
 
-	FText SReplicationJoinedToolbar::GetUploadButtonToolTipText() const
+	FText SReplicationClientViewToolbar::GetUploadButtonToolTipText() const
 	{
-		const FLocalClientStreamSynchronizer& Differ = ReplicationManager->GetStreamSynchronizer()->GetDiffer();
+		const FLocalStreamChangeTracker& Differ = GetChangeTracker();
 		const FText BaseToolTipText = [this, &Differ]()
 		{
-			if (Differ.HasSubmittableLocalChanges() && !Differ.IsChangeRequestInTransit())
+			if (Differ.HasSubmittableLocalChanges() && !Differ.CanMakeSubmitNetworkRequest())
 			{
 				return LOCTEXT("UploadChanges.ToolTip.Upload", "Upload your local changes to the server.");
 			}
-			if (Differ.IsChangeRequestInTransit())
+			if (Differ.CanMakeSubmitNetworkRequest())
 			{
 				return LOCTEXT("UploadChanges.ToolTip.InTransit", "Awaiting server response.");
 			}
@@ -124,9 +131,9 @@ namespace UE::MultiUserClient
 			);
 	}
 
-	FReply SReplicationJoinedToolbar::OnUploadButtonClicked() const
+	FReply SReplicationClientViewToolbar::OnUploadButtonClicked() const
 	{
-		FLocalClientStreamSynchronizer& Differ = ReplicationManager->GetStreamSynchronizer()->GetDiffer();
+		FLocalStreamChangeTracker& Differ = GetChangeTracker();
 		if (Differ.CanSubmitChanges())
 		{
 			FNotificationInfo NotificationInfo(LOCTEXT("Uploading.InProgress", "Uploading stream changes."));
@@ -135,15 +142,15 @@ namespace UE::MultiUserClient
 			NotificationInfo.bFireAndForget = false;
 			const TSharedPtr<SNotificationItem> Notification = FSlateNotificationManager::Get().AddNotification(NotificationInfo);
 			Differ.SubmitChanges()
-				.Next([Notification](FLocalClientStreamSynchronizer::FSubmissionResult&& Result)
+				.Next([Notification](FSubmitChangesResult&& SubmitChangesResult)
 				{
-					const ConcertSyncClient::Replication::FChangeStreamResponse& Response = Result.Value;
-					if (Response.IsSuccess())
+					TOptional<FCompletedChangeSubmission> SubmissionInfo = SubmitChangesResult.SubmissionInfo;
+					if (SubmissionInfo.IsSet() && SubmissionInfo->Response.IsSuccess())
 					{
 						Notification->SetCompletionState(SNotificationItem::CS_Success);
 						Notification->SetText(LOCTEXT("Uploading.Success", "Changes accepted."));
 									
-						const ConcertSyncClient::Replication::FChangeStreamRequest& Request = Result.Key;
+						const ConcertSyncClient::Replication::FChangeStreamRequest& Request = SubmissionInfo->Request;
 						// Multi-User adds only one stream so we only need to look at index 0
 						const int32 NumAdditions = Request.StreamsToAdd.IsEmpty() ? 0 : Request.StreamsToAdd[0].BaseDescription.ReplicationMap.ReplicatedObjects.Num();
 						const int32 NumPuts = Request.ObjectsToPut.Num() + NumAdditions;
@@ -158,9 +165,16 @@ namespace UE::MultiUserClient
 						Notification->SetText(LOCTEXT("Uploading.Failure", "Changes rejected."));
 						Notification->SetSubText(LOCTEXT("Uploading.Failure.SubText", "See log for details."));
 
-						FStringOutputDevice Errors;
-						Response.LogErrors(Errors);
-						UE_LOG(LogConcert, Error, TEXT("Errors uploading stream changes:\n%s"), *Errors);
+						if (SubmissionInfo.IsSet())
+						{
+							FStringOutputDevice Errors;
+							SubmissionInfo->Response.LogErrors(Errors);
+							UE_LOG(LogConcert, Error, TEXT("Errors uploading stream changes:\n%s"), *Errors);
+						}
+						else
+						{
+							UE_LOG(LogConcert, Error, TEXT("Failed to submit changes. ESubmitChangesErrorCode: %d"), SubmitChangesResult.ErrorCode);
+						}
 					}
 								
 					Notification->ExpireAndFadeout();
@@ -169,21 +183,21 @@ namespace UE::MultiUserClient
 		return FReply::Handled();
 	}
 
-	TSharedRef<SWidget> SReplicationJoinedToolbar::BuildRevertButton()
+	TSharedRef<SWidget> SReplicationClientViewToolbar::BuildRevertButton()
 	{
 		return SNew(SNegativeActionButton)
 			.Text(LOCTEXT("RevertChanges.Label", "Revert"))
 			.ToolTipText_Lambda([this]()
 			{
-				const FLocalClientStreamSynchronizer& Differ = ReplicationManager->GetStreamSynchronizer()->GetDiffer();
+				const FLocalStreamChangeTracker& Differ = GetChangeTracker();
 				return Differ.HasRevertableLocalChanges()
 					? LOCTEXT("RevertChanges.ToolTip.Revert", "Reverts all local changes you've made to the state that's on the server.")
 					: LOCTEXT("RevertChanges.ToolTip.NothingToUpload", "Once you make changes to the stream, you can use this button to revert them.");
 			})
-			.IsEnabled_Lambda([this](){ return ReplicationManager->GetStreamSynchronizer()->GetDiffer().HasRevertableLocalChanges(); })
+			.IsEnabled_Lambda([this](){ return GetChangeTracker().HasRevertableLocalChanges(); })
 			.OnClicked_Lambda([this]()
 			{
-				FLocalClientStreamSynchronizer& Differ = ReplicationManager->GetStreamSynchronizer()->GetDiffer();
+				FLocalStreamChangeTracker& Differ = GetChangeTracker();
 				Differ.RevertCachedChanges();
 				return FReply::Handled();
 			});
