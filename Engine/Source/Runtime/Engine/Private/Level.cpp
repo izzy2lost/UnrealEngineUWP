@@ -4092,7 +4092,7 @@ void ULevel::DetachAttachAllActorsPackages(bool bReattach)
 		}
 
 		// Reouter objects previously found in the actors packages to their original packages
-		for (const TPair<TObjectPtr<UObject>, TObjectPtr<UPackage>> ObjectToPackage : ObjectsToExternalPackages)
+		for (const TPair<TObjectPtr<UObject>, TObjectPtr<UPackage>>& ObjectToPackage : ObjectsToExternalPackages)
 		{
 			UObject* Object = ObjectToPackage.Key;
 			UPackage* Package = ObjectToPackage.Value;
