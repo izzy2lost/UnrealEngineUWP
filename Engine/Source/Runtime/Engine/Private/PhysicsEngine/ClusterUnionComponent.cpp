@@ -837,6 +837,7 @@ void UClusterUnionComponent::SyncClusterUnionFromProxy()
 
 	TArray<Chaos::FPBDRigidParticle*> ChildParticles;
 	ChildParticles.Reserve(FullData.ChildParticles.Num());
+	PerShapeComponentBone.Reset(FullData.ChildParticles.Num());
 
 	// Note that at the UClusterUnionComponent level we really only want to be dealing with components.
 	// Hence why we need to modify each of the particles that we synced from the game thread into a
@@ -854,10 +855,12 @@ void UClusterUnionComponent::SyncClusterUnionFromProxy()
 	
 				Chaos::FPhysicsObjectHandle Handle = Component->GetPhysicsObjectById(ChildData.BoneId);
 				ChildParticles.Add(Interface->GetRigidParticle(Handle));
+				PerShapeComponentBone.Add({Component, ChildData.BoneId});
 			}
 			else
 			{
 				ChildParticles.Add(nullptr);
+				PerShapeComponentBone.Add({});
 			}
 		}
 	}
@@ -1595,4 +1598,13 @@ void UClusterUnionComponent::ChangeIfComponentBonesAreMainParticle(UPrimitiveCom
 	}
 
 	PhysicsProxy->ChangeMainParticleStatus_External(PhysicsObjects, bIsMain);
+}
+
+Chaos::FPhysicsObjectHandle UClusterUnionComponent::FindChildPhysicsObjectByShapeIndex(int32 Index) const
+{
+	if (!PerShapeComponentBone.IsValidIndex(Index))
+	{
+		return nullptr;
+	}
+	return PerShapeComponentBone[Index].Get();
 }

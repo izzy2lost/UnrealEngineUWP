@@ -10,6 +10,7 @@
 #include "Engine/EngineTypes.h"
 #include "Logging/LogMacros.h"
 #include "PhysicsEngine/ExternalSpatialAccelerationPayload.h"
+#include "PhysicsEngine/SafePhysicsObjectHandle.h"
 #include "PhysicsInterfaceTypesCore.h"
 #include "PhysicsProxy/ClusterUnionPhysicsProxy.h"
 #include "UObject/ObjectKey.h"
@@ -192,6 +193,11 @@ public:
 	ENGINE_API TArray<int32> GetAddedBoneIdsForComponent(UPrimitiveComponent* Component) const;
 	ENGINE_API void ChangeIfComponentBonesAreMainParticle(UPrimitiveComponent* Component, const TArray<int32>& BoneIds, bool bIsMain);
 
+	// This function will return information from the latest physics sync. Thus adding a new bones
+	// to a cluster union will not allow those indices to be valid for use in this function
+	// until the next time we sync from the PT.
+	ENGINE_API Chaos::FPhysicsObjectHandle FindChildPhysicsObjectByShapeIndex(int32 Index) const;
+
 	friend class UClusterUnionReplicatedProxyComponent;
 	friend class UModularVehicleBaseComponent;
 protected:
@@ -237,6 +243,9 @@ private:
 	// Before that happens, we need to perform operations on the GT assuming that the component was added already otherwise there'll be a few frames
 	// where the component hasn't been added to the cluster union on the GT causing a mismatch in behavior.
 	TMap<TObjectKey<UPrimitiveComponent>, FClusterUnionPendingAddData> PendingComponentSync;
+
+	// At every physics sync, we keep track of which shape index matches which child primitive component and bone.
+	TArray<FSafePhysicsObjectHandle> PerShapeComponentBone;
 
 	// Data that can be changed at runtime to keep state about the cluster union consistent between the server and client.
 	UPROPERTY(ReplicatedUsing=OnRep_RigidState)
