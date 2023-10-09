@@ -143,6 +143,8 @@ namespace UnrealBuildTool
 		/// </summary>
 		public CompilationResult Result { get; }
 
+		readonly bool HasMessage = true;
+
 		/// <summary>
 		/// Constructor
 		/// </summary>
@@ -150,6 +152,7 @@ namespace UnrealBuildTool
 		public CompilationResultException(CompilationResult Result)
 			: base(LogEvent.Create(LogLevel.Error, "{CompilationResult}", Result))
 		{
+			HasMessage = false;
 			this.Result = Result;
 		}
 
@@ -213,6 +216,16 @@ namespace UnrealBuildTool
 			: base(InnerException, LogEvent.Create(LogLevel.Error, EventId, InnerException, Format, Arguments))
 		{
 			this.Result = Result;
+		}
+
+		/// <inheritdoc/>
+		public override void LogException(ILogger Logger)
+		{
+			if (HasMessage)
+			{
+				Logger.Log(Event.Level, Event.Id, Event, this, (s, e) => s.ToString());
+			}
+			Logger.LogDebug(this, "{Ex}", ExceptionUtils.FormatExceptionDetails(this));
 		}
 	}
 }
