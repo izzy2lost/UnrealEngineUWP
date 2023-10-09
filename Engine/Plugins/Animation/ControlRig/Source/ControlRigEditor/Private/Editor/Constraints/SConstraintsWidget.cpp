@@ -760,7 +760,7 @@ void FBaseConstraintListWidget::RegisterSelectionChanged()
 	}
 
 	// register
-	ActorSelectionChangedEvent.AddRaw(this, &FBaseConstraintListWidget::OnActorSelectionChanged);
+	OnSelectionChangedHandle = ActorSelectionChangedEvent.AddRaw(this, &FBaseConstraintListWidget::OnActorSelectionChanged);
 }
 
 void FBaseConstraintListWidget::UnregisterSelectionChanged()
