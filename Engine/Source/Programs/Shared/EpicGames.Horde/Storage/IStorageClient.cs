@@ -161,51 +161,6 @@ namespace EpicGames.Horde.Storage
 	}
 
 	/// <summary>
-	/// Interface for writing new nodes to the store
-	/// </summary>
-	public interface IStorageWriter : IAsyncDisposable
-	{
-		/// <summary>
-		/// Create another writer instance, allowing multiple threads to write in parallel.
-		/// </summary>
-		/// <returns>New writer instance</returns>
-		IStorageWriter Fork();
-
-		/// <summary>
-		/// Flush any pending nodes to storage
-		/// </summary>
-		/// <param name="cancellationToken">Cancellation token for the operation</param>
-		Task FlushAsync(CancellationToken cancellationToken = default);
-
-		/// <summary>
-		/// Gets an output buffer for writing.
-		/// </summary>
-		/// <param name="usedSize">Current size in the existing buffer that has been written to</param>
-		/// <param name="desiredSize">Desired size of the returned buffer</param>
-		/// <returns>Buffer to be written into.</returns>
-		Memory<byte> GetOutputBuffer(int usedSize, int desiredSize);
-
-		/// <summary>
-		/// Finish writing a node.
-		/// </summary>
-		/// <param name="size">Used size of the buffer</param>
-		/// <param name="references">References to other nodes</param>
-		/// <param name="type">Type of the node that was written</param>
-		/// <param name="aliases">Aliases for this node</param>
-		/// <param name="cancellationToken">Cancellation token for the operation</param>
-		/// <returns>Handle to the written node</returns>
-		ValueTask<BlobHandle> WriteBlobAsync(int size, IReadOnlyList<BlobHandle> references, BlobType type, IReadOnlyList<AliasInfo> aliases, CancellationToken cancellationToken = default);
-
-		/// <summary>
-		/// Writes the reference using the given target node
-		/// </summary>
-		/// <param name="target">The target node</param>
-		/// <param name="options">Options for the new ref</param>
-		/// <param name="cancellationToken">Cancellation token for the operation</param>
-		ValueTask WriteRefAsync(BlobHandle target, RefOptions? options = null, CancellationToken cancellationToken = default);
-	}
-
-	/// <summary>
 	/// Allows creating storage clients for different namespaces
 	/// </summary>
 	public interface IStorageClientFactory
