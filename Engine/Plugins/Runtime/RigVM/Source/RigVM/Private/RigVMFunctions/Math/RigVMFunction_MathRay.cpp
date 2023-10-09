@@ -31,7 +31,15 @@ FRigVMFunction_MathRayIntersectRay_Execute()
 
 FRigVMFunction_MathRayIntersectPlane_Execute()
 {
-	Ratio = FMath::RayPlaneIntersectionParam(Ray.Origin, Ray.Direction, FPlane(PlanePoint, PlaneNormal));
+	const FVector NormalizedPlaneNormal = PlaneNormal.GetSafeNormal(UE_SMALL_NUMBER, FVector::UpVector);
+	if (FMath::IsNearlyZero(FVector::DotProduct(NormalizedPlaneNormal, Ray.Direction)))
+	{
+		Result = FVector::ZeroVector;
+		Distance = Ratio = 0.f;
+		return;
+	}
+	
+	Ratio = FMath::RayPlaneIntersectionParam(Ray.Origin, Ray.Direction, FPlane(PlanePoint, NormalizedPlaneNormal));
 	Result = Ray.PointAt(Ratio);
 	Distance = 0;
 	if(!Ray.Origin.Equals(Result))

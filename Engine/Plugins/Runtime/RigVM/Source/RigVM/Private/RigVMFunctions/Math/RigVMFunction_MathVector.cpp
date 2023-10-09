@@ -693,7 +693,15 @@ FRigVMFunction_MathVectorClampSpatially_Execute()
 
 FRigVMFunction_MathIntersectPlane_Execute()
 {
-	FPlane Plane(PlanePoint, PlaneNormal);
+	const FVector NormalizedPlaneNormal = PlaneNormal.GetSafeNormal(UE_SMALL_NUMBER, FVector(0.f, 0.f, 1.f));
+	if (FMath::IsNearlyZero(FVector::DotProduct(NormalizedPlaneNormal, Direction)))
+	{
+		Result = FVector::ZeroVector;
+		Distance = 0.f;
+		return;
+	}
+	
+	FPlane Plane(PlanePoint, NormalizedPlaneNormal);
 
 	Result = FMath::RayPlaneIntersection(Start, Direction, Plane);
 	Distance = (Start - Result).Size();
