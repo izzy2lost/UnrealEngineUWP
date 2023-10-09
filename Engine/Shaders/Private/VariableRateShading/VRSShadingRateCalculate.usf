@@ -125,7 +125,6 @@ void CalculateShadingRateImageInner(
 	}
 
 	const float2 VRSTileSize = float2(THREADGROUP_SIZEX, THREADGROUP_SIZEY);
-	uint2 GroupOffset = ceil(ViewRect.xy / VRSTileSize);
 #if USE_WAVE_OP
 	if (InvalidThread)
 	{
@@ -135,7 +134,8 @@ void CalculateShadingRateImageInner(
 	int WaveSupportedShadingRate = WaveActiveBitAnd(~UnsupportedShadingRate);
 	if (GroupThreadId.x == 1 && GroupThreadId.y == 1)
 	{
-		VariableRateShadingTexture[GroupId.xy + GroupOffset] = VRSBitMask & WaveSupportedShadingRate;
+		// Generation is always done in one pass for a view family, so no need to account for stereo offsets
+		VariableRateShadingTexture[GroupId.xy] = VRSBitMask & WaveSupportedShadingRate;
 	}
 #else
 	uint unused;
@@ -147,7 +147,7 @@ void CalculateShadingRateImageInner(
 	GroupMemoryBarrierWithGroupSync();
 	if (GroupThreadId.x == 1 && GroupThreadId.y == 1)
 	{
-		VariableRateShadingTexture[GroupId.xy + GroupOffset] = GroupShadingRate;
+		VariableRateShadingTexture[GroupId.xy] = GroupShadingRate;
 	}
 #endif
 }

@@ -194,7 +194,7 @@ void FFoveatedImageGenerator::PrepareImages(FRDGBuilder& GraphBuilder, const FSc
 	check(GRHIVariableRateShadingImageTileMinWidth >= 8 && GRHIVariableRateShadingImageTileMinWidth <= 64 && GRHIVariableRateShadingImageTileMinHeight >= 8 && GRHIVariableRateShadingImageTileMinHeight <= 64);
 
 	// Create texture to hold shading rate image
-	FRDGTextureDesc Desc = FVariableRateShadingImageManager::GetSRIDesc();
+	FRDGTextureDesc Desc = FVariableRateShadingImageManager::GetSRIDesc(ViewFamily);
 	FRDGTextureRef ShadingRateTexture = GraphBuilder.CreateTexture(Desc, TEXT("FoveatedShadingRateTexture"));
 
 	// Setup shader parameters and flags

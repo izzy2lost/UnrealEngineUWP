@@ -108,7 +108,7 @@ public:
 	static bool IsVRSCompatibleWithOutputType(const EDisplayOutputFormat& DisplayOutputFormat);
 
 	static FIntPoint GetSRITileSize();
-	static FRDGTextureDesc GetSRIDesc();
+	static FRDGTextureDesc GetSRIDesc(const FSceneViewFamily& ViewFamily);
 	static int32 GetNumberOfSupportedRates();
 
 	void DrawDebugPreview(FRDGBuilder& GraphBuilder, const FSceneViewFamily& ViewFamily, FRDGTextureRef OutputSceneColor);
@@ -124,8 +124,8 @@ private:
 	// Register/UnregisterExternalImageGenerator could come from the game thread.
 	FRWLock	GeneratorsMutex;
 
-	FRDGTextureRef CombineShadingRateImages(FRDGBuilder& GraphBuilder, const FViewInfo& ViewInfo, TArray<FRDGTextureRef> Sources);
-	FRDGTextureRef GetForceRateImage(FRDGBuilder& GraphBuilder, int RateIndex = 0, EVRSImageType ImageType = EVRSImageType::Full);
+	FRDGTextureRef CombineShadingRateImages(FRDGBuilder& GraphBuilder, const FSceneViewFamily& ViewFamily, TArray<FRDGTextureRef> Sources);
+	FRDGTextureRef GetForceRateImage(FRDGBuilder& GraphBuilder, const FSceneViewFamily& ViewFamily, int RateIndex = 0, EVRSImageType ImageType = EVRSImageType::Full);
 
 	EVRSImageType GetImageTypeFromPassType(EVRSPassType PassType);
 

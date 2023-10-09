@@ -1139,6 +1139,9 @@ struct FPreviousViewInfo
 	// History for the final back buffer luminance
 	TRefCountPtr<IPooledRenderTarget> LuminanceHistory;
 
+	// History for the final back buffer luminance view rect
+	FIntRect LuminanceViewRectHistory;
+
 	// Mobile bloom setup eye adaptation surface.
 	TRefCountPtr<IPooledRenderTarget> MobileBloomSetup_EyeAdaptation;
 
