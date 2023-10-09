@@ -31,7 +31,8 @@ namespace PCGVolumeSampler
 		UPCGPointData* Data = NewObject<UPCGPointData>();
 		Data->InitializeFromData(Volume);
 
-		SampleVolume(Context, SamplerSettings, Volume, BoundingShape, Data, Context->TimeSliceIsEnabled());
+		const bool bTimeSliceIsEnabled = Context ? Context->TimeSliceIsEnabled() : false;
+		SampleVolume(Context, SamplerSettings, Volume, BoundingShape, Data, bTimeSliceIsEnabled);
 
 		return Data;
 	}
