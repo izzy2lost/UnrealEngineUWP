@@ -74,6 +74,11 @@ void FMovieGraphDeferredPass::AddReferencedObjects(FReferenceCollector& Collecto
 	}
 }
 
+FName FMovieGraphDeferredPass::GetBranchName() const
+{
+	return LayerData.BranchName;
+}
+
 void FMovieGraphDeferredPass::Render(const FMovieGraphTraversalContext& InFrameTraversalContext, const FMovieGraphTimeStepData& InTimeData)
 {
 	// ToDo: InFrameTraversalContext includes a copy of TimeData, but may be the one cached at the first temporal sample,

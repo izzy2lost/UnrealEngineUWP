@@ -4,6 +4,7 @@
 
 #include "CoreMinimal.h"
 #include "Subsystems/WorldSubsystem.h"
+#include "Textures/SlateIcon.h"
 
 #include "MoviePipelineRenderLayerSubsystem.generated.h"
 
@@ -40,6 +41,311 @@ private:
 	TArray<TObjectPtr<UMoviePipelineCollectionQuery>> Queries;
 };
 
+/** Operation types available on condition groups. */
+UENUM(BlueprintType)
+enum class EMovieGraphConditionGroupOpType : uint8
+{
+	/** Adds the contents of the condition group to the results from the previous condition group (if any). */
+	Union,
+
+	/** Removes the contents of the condition group from the result of the previous condition group (if any). Any items in this condition group that aren't also found in the previous condition group will be ignored. */
+	Subtract,
+
+	/** Replaces the results of the previous condition group(s) with only the elements that exist in both that group, and this group. Intersecting with an empty condition group will result in an empty condition group. */
+	Intersect
+};
+
+/** Operation types available on condition group queries. */
+UENUM(BlueprintType)
+enum class EMovieGraphConditionGroupQueryOpType : uint8
+{
+	/** Adds the results of the query to the results from the previous query (if any). */
+	Union,
+
+	/** Removes the results of the query from the results of the previous query (if any). Any items in this query result that aren't also found in the previous query result will be ignored. */
+	Subtract,
+	
+	/** Replaces the results of the previous queries with only the items that exist in both those queries, and this query result. Intersecting with a query which returns nothing will create an empty query result. */
+	Intersect
+};
+
+/** Base class that all condition group queries must inherit from. */
+UCLASS(Abstract, EditInlineNew)
+class UMovieGraphConditionGroupQueryBase : public UObject
+{
+	GENERATED_BODY()
+
+public:
+	UMovieGraphConditionGroupQueryBase();
+
+	/**
+	 * Sets how the condition group query interacts with the condition group. This call is ignored for the first query
+	 * in the condition group (the first is always Union).
+	 */
+	UFUNCTION(BlueprintCallable, Category = "Settings")
+	void SetOperationType(const EMovieGraphConditionGroupQueryOpType OperationType);
+
+	/** Gets the condition group query operation type. */
+	UFUNCTION(BlueprintCallable, Category = "Settings")
+	EMovieGraphConditionGroupQueryOpType GetOperationType() const;
+
+	/** Determines which of the provided actors match the query. Matches are added to OutMatchingActors.  */
+	UFUNCTION(BlueprintCallable, Category = "Settings")
+	virtual void Evaluate(const TArray<AActor*>& InActorsToQuery, TSet<AActor*>& OutMatchingActors) const;
+
+	/**
+	 * Determines if the public properties on the query class will have their names hidden in the details panel. Returns
+	 * false by default. Most query subclasses will only have one property and do not need to clutter the UI with the
+	 * property name (eg, the "Actor Name" query only shows one text box with entries for the actor names, no need to
+	 * show the property name).
+	 */
+	UFUNCTION(BlueprintCallable, Category = "Settings")
+	virtual bool ShouldHidePropertyNames() const;
+
+	/** Gets the icon that represents this query class in the UI. */
+	virtual const FSlateIcon& GetIcon() const;
+
+	/** Determines if this query is only respected when run within the editor. Used for providing a UI hint. */
+	UFUNCTION(BlueprintCallable, Category = "Settings")
+	virtual bool IsEditorOnlyQuery() const;
+
+	/** Sets whether this query is enabled. */
+	UFUNCTION(BlueprintCallable, Category = "Settings")
+	void SetEnabled(const bool bEnabled);
+
+	/** Determines if this query is enabled. */
+	UFUNCTION(BlueprintCallable, Category = "Settings")
+	bool IsEnabled() const;
+
+private:
+	/** The operation type that the query is using. */
+	UPROPERTY(EditAnywhere, Category="General")
+	EMovieGraphConditionGroupQueryOpType OpType;
+
+	/** Whether this query is currently enabled within the condition group. */
+	UPROPERTY(EditAnywhere, Category="General")
+	bool bIsEnabled;
+};
+
+UCLASS(BlueprintType, EditInlineNew, meta = (DisplayName = "Actor Tag"))
+class UMovieGraphConditionGroupQuery_ActorTag final : public UMovieGraphConditionGroupQueryBase
+{
+	GENERATED_BODY()
+
+public:
+	virtual void Evaluate(const TArray<AActor*>& InActorsToQuery, TSet<AActor*>& OutMatchingActors) const override;
+	virtual const FSlateIcon& GetIcon() const override;
+
+public:
+	/** The tag that the actor needs to have in order to be a match. */
+	UPROPERTY(EditAnywhere, Category="General")
+	FName TagToMatch;
+};
+
+UCLASS(BlueprintType, EditInlineNew, meta = (DisplayName = "Actor Name"))
+class UMovieGraphConditionGroupQuery_ActorName final : public UMovieGraphConditionGroupQueryBase
+{
+	GENERATED_BODY()
+
+public:
+	virtual void Evaluate(const TArray<AActor*>& InActorsToQuery, TSet<AActor*>& OutMatchingActors) const override;
+	virtual const FSlateIcon& GetIcon() const override;
+	virtual bool IsEditorOnly() const override;
+
+public:
+	/**
+	 * The name that the actor needs to have in order to be a match. Not case sensitive. Wildcards ("?" and "*") are supported but not required.
+	 * The "*" wildcard matches zero or more characters, and "?" matches exactly one character (and that character must be present).
+	 * 
+	 * Wildcard examples:
+	 * Foo* would match Foo, FooBar, and FooBaz, but not BarFoo.
+	 * *Foo* would match the above in addition to BarFoo.
+	 * Foo?Bar would match Foo.Bar and Foo_Bar, but not FooBar.
+	 * Foo? would match Food, but not FooBar or BarFoo.
+	 * Foo??? would match FooBar and FooBaz, but not Foo or Food.
+	 * ?oo? would match Food, but not Foo.
+	 * ?Foo* would match AFooBar, but not FooBar 
+	 */
+	UPROPERTY(EditAnywhere, Category="General", meta=(MultiLine=true))
+	FString WildcardSearch;
+};
+
+UCLASS(BlueprintType, EditInlineNew, meta = (DisplayName = "Actor Type"))
+class UMovieGraphConditionGroupQuery_ActorType final : public UMovieGraphConditionGroupQueryBase
+{
+	GENERATED_BODY()
+
+public:
+	virtual void Evaluate(const TArray<AActor*>& InActorsToQuery, TSet<AActor*>& OutMatchingActors) const override;
+	virtual const FSlateIcon& GetIcon() const override;
+
+public:
+	/** The type (class) that the actor needs to have in order to be a match. */
+	UPROPERTY(EditAnywhere, Category="General")
+	TSubclassOf<AActor> ActorType;
+};
+
+UCLASS(BlueprintType, EditInlineNew, meta = (DisplayName = "Component Tag"))
+class UMovieGraphConditionGroupQuery_ComponentTag final : public UMovieGraphConditionGroupQueryBase
+{
+	GENERATED_BODY()
+
+public:
+	virtual void Evaluate(const TArray<AActor*>& InActorsToQuery, TSet<AActor*>& OutMatchingActors) const override;
+	virtual const FSlateIcon& GetIcon() const override;
+
+public:
+	/** The tag that a component on the actor needs to have in order to be a match. */
+	UPROPERTY(EditAnywhere, Category="General")
+	FName TagToMatch;
+};
+
+UCLASS(BlueprintType, EditInlineNew, meta = (DisplayName = "Component Type"))
+class UMovieGraphConditionGroupQuery_ComponentType final : public UMovieGraphConditionGroupQueryBase
+{
+	GENERATED_BODY()
+
+public:
+	virtual void Evaluate(const TArray<AActor*>& InActorsToQuery, TSet<AActor*>& OutMatchingActors) const override;
+	virtual const FSlateIcon& GetIcon() const override;
+
+public:
+	/** The type that a component on the actor needs to have in order to be a match. */
+	UPROPERTY(EditAnywhere, Category="General")
+	TSubclassOf<UActorComponent> ComponentType;
+};
+
+/** A group of queries which can be added to a collection. */
+UCLASS(BlueprintType, EditInlineNew)
+class UMovieGraphConditionGroup : public UObject
+{
+	GENERATED_BODY()
+
+public:
+	UMovieGraphConditionGroup();
+
+	/**
+	 * Sets how the condition group interacts with the collection. This call is ignored for the first condition group
+	 * in the collection (the first is always Union).
+	 */
+	UFUNCTION(BlueprintCallable, Category = "Settings")
+	void SetOperationType(const EMovieGraphConditionGroupOpType OperationType);
+
+	/** Gets the condition group operation type. */
+	UFUNCTION(BlueprintCallable, Category = "Settings")
+	EMovieGraphConditionGroupOpType GetOperationType() const;
+
+	/** Determines the actors that match the condition group by running the queries contained in it. */
+	UFUNCTION(BlueprintCallable, Category = "Settings")
+	TSet<AActor*> Evaluate(const UWorld* InWorld) const;
+
+	/**
+	 * Adds a new condition group query to the condition group and returns a ptr to it. The condition group owns the
+	 * created query.
+	 */
+	UFUNCTION(BlueprintCallable, Category = "Settings")
+	UMovieGraphConditionGroupQueryBase* AddQuery(const TSubclassOf<UMovieGraphConditionGroupQueryBase>& InQueryType);
+
+	/** Gets all queries currently contained in the condition group. */
+	UFUNCTION(BlueprintCallable, Category = "Settings")
+	const TArray<UMovieGraphConditionGroupQueryBase*>& GetQueries() const;
+
+	/** Removes the specified query from the condition group if it exists. Returns true on success, else false. */
+	UFUNCTION(BlueprintCallable, Category = "Settings")
+	bool RemoveQuery(UMovieGraphConditionGroupQueryBase* InQuery);
+
+	/** TODO: API around reordering queries, pending research on how Slate provides this information. */
+	UFUNCTION(BlueprintCallable, Category = "Settings")
+	void SetQueryOrder(TArray<UMovieGraphConditionGroupQueryBase*>& InQueryOrder);
+
+	// TODO: May not exist in the final API if the design does not call for enabling/disabling condition groups.
+	/** Sets whether this condition group is enabled. */
+	UFUNCTION(BlueprintCallable, Category = "Settings")
+	void SetEnabled(const bool bEnabled);
+
+	// TODO: May not exist in the final API if the design does not call for enabling/disabling condition groups.
+	/** Determines if this condition group is enabled */
+	UFUNCTION(BlueprintCallable, Category = "Settings")
+	bool IsEnabled() const;
+
+private:
+	/** The operation type that the condition group is using. */
+	UPROPERTY(EditAnywhere, Category="General")
+	EMovieGraphConditionGroupOpType OpType;
+
+	/** Whether this condition group is currently enabled within the collection. */
+	UPROPERTY(EditAnywhere, Category="General")
+	bool bIsEnabled;
+
+	/** The queries that are contained within the condition group. */
+	UPROPERTY(EditAnywhere, Category="General", Instanced, meta=(EditInline))
+	TArray<TObjectPtr<UMovieGraphConditionGroupQueryBase>> Queries;
+
+	/** Persisted actor set which can be re-used for query evaluations across frames to prevent constantly re-allocating it. */
+	UPROPERTY(Transient)
+	mutable TSet<AActor*> QueryResult;
+
+	/** Persisted actor set which can be re-used for condition group evaluations across frames to prevent constantly re-allocating it. */
+	UPROPERTY(Transient)
+	mutable TSet<AActor*> EvaluationResult;
+};
+
+/** A group of actors generated by actor queries. */
+UCLASS(BlueprintType, EditInlineNew)
+class MOVIERENDERPIPELINECORE_API UMovieGraphCollection : public UObject
+{
+	GENERATED_BODY()
+
+public:
+	UMovieGraphCollection() = default;
+
+	/** Sets the name of the collection as seen in the UI. */
+	UFUNCTION(BlueprintCallable, Category = "Settings")
+	void SetCollectionName(const FString& InName);
+
+	/** Gets the name of the collection as seen in the UI. */
+	UFUNCTION(BlueprintCallable, Category = "Settings")
+	const FString& GetCollectionName() const;
+
+	/**
+	 * Gets matching actors by having condition groups evaluate themselves, and performing set operations on the
+	 * condition group results (eg, union'ing condition group A and B).
+	 */
+	UFUNCTION(BlueprintCallable, Category = "Settings")
+	TSet<AActor*> Evaluate(const UWorld* InWorld) const;
+
+	/**
+	 * Adds a new condition group to the collection and returns a ptr to it. The collection owns the created
+	 * condition group.
+	 */
+	UFUNCTION(BlueprintCallable, Category = "Settings")
+	UMovieGraphConditionGroup* AddConditionGroup();
+
+	/** Gets all condition groups currently contained in the collection. */
+	UFUNCTION(BlueprintCallable, Category = "Settings")
+	const TArray<UMovieGraphConditionGroup*>& GetConditionGroups() const;
+
+	/**
+	 * Removes the specified condition group from the collection if it exists. Returns true on success, else false.
+	 * Removes all child queries that belong to this group at the same time.
+	 */
+	UFUNCTION(BlueprintCallable, Category = "Settings")
+	bool RemoveConditionGroup(UMovieGraphConditionGroup* InConditionGroup);
+
+	/** TODO: API around reordering condition groups, pending research on how Slate provides this information. */
+	UFUNCTION(BlueprintCallable, Category = "Settings")
+	void SetConditionGroupOrder(TArray<UMovieGraphConditionGroup*>& InConditionGroupOrder);
+
+private:
+	/** The display name of the collection, shown in the UI. Does not need to be unique across collections. */
+	UPROPERTY(EditAnywhere, Category="General")
+	FString CollectionName;
+	
+	/** The condition groups that are contained within the collection. */
+	UPROPERTY(EditAnywhere, Category="General", Instanced, meta=(EditInline))
+	TArray<TObjectPtr<UMovieGraphConditionGroup>> ConditionGroups;
+};
+
 /**
  * Base class for providing actor modification functionality via collections.
  */
@@ -51,14 +357,14 @@ class UMoviePipelineCollectionModifier : public UObject
 public:
 	/** Adds a collection to the existing set of collections in this modifier. */
 	UFUNCTION(BlueprintCallable, Category = "Settings")
-	void AddCollection(UMoviePipelineCollection* Collection);
+	void AddCollection(UMovieGraphCollection* Collection);
 
 	/** Overwrites the existing collections with the provided array of collections. */
 	UFUNCTION(BlueprintCallable, Category = "Settings")
-	void SetCollections(const TArray<UMoviePipelineCollection*> InCollections) { Collections = InCollections; }
+	void SetCollections(const TArray<UMovieGraphCollection*> InCollections) { Collections = InCollections; }
 	
 	UFUNCTION(BlueprintCallable, Category = "Settings")
-	TArray<UMoviePipelineCollection*> GetCollections() const { return Collections; }
+	TArray<UMovieGraphCollection*> GetCollections() const { return Collections; }
 
 	virtual void ApplyModifier(const UWorld* World) PURE_VIRTUAL(UMoviePipelineCollectionModifier::ApplyModifier, );
 	virtual void UndoModifier() PURE_VIRTUAL(UMoviePipelineCollectionModifier::UndoModifier, );
@@ -71,7 +377,7 @@ public:
 protected:
 	/** The collections which this modifier will operate on. */
 	UPROPERTY()
-	TArray<TObjectPtr<UMoviePipelineCollection>> Collections;
+	TArray<TObjectPtr<UMovieGraphCollection>> Collections;
 };
 
 /**
@@ -262,7 +568,7 @@ public:
 	void SetRenderLayerName(const FName& NewName) { RenderLayerName = NewName; }
 
 	UFUNCTION(BlueprintCallable, Category = "Settings")
-	UMoviePipelineCollection* GetCollectionByName(const FString& Name) const;
+	UMovieGraphCollection* GetCollectionByName(const FString& Name) const;
 
 	UFUNCTION(BlueprintCallable, Category = "Settings")
 	void AddModifier(UMoviePipelineCollectionModifier* Modifier);
@@ -344,7 +650,7 @@ public:
 	void ClearActiveRenderLayer();
 
 	UFUNCTION(BlueprintCallable, Category = "Settings")
-	void PreviewCollection(UMoviePipelineCollection* Collection);
+	void PreviewCollection(UMovieGraphCollection* Collection);
 
 	UFUNCTION(BlueprintCallable, Category = "Settings")
 	void ClearCollectionPreview();
@@ -373,7 +679,7 @@ private:
 
 	/** The collection that is currently being viewed/previewed. */
 	UPROPERTY(Transient)
-	TObjectPtr<UMoviePipelineCollection> ActiveCollection = nullptr;
+	TObjectPtr<UMovieGraphCollection> ActiveCollection = nullptr;
 
 	/** The modifier that is currently being viewed/previewed. */
 	UPROPERTY(Transient)
@@ -385,7 +691,7 @@ private:
 
 	/** Empty collection used for visualization purposes (in conjunction w/ the viz render layer). */
 	UPROPERTY(Transient)
-	TObjectPtr<UMoviePipelineCollection> VisualizationEmptyCollection = nullptr;
+	TObjectPtr<UMovieGraphCollection> VisualizationEmptyCollection = nullptr;
 
 	/** A modifier used for visualization purposes (to hide the entire world). */
 	UPROPERTY(Transient)

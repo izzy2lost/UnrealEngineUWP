@@ -233,13 +233,14 @@ void UMovieGraphPipeline::UpdateLayerContentsInRenderLayerSubsystem(const UMovie
 			// Find the collection that this modifier is modifying
 			for (const UMovieGraphCollectionNode* CollectionNode : CollectionNodes)
 			{
-				if (CollectionNode && (CollectionNode->CollectionName == ModifierNode->ModifiedCollectionName))
+				if (!CollectionNode || !CollectionNode->Collection)
 				{
-					UMoviePipelineCollection* NewCollection = NewObject<UMoviePipelineCollection>();
-					NewCollection->AddQuery(CollectionNode->QueryClass);
-					NewCollection->SetCollectionName(CollectionNode->CollectionName);
-					
-					ModifierNode->ModifierClass->SetCollections({NewCollection});
+					continue;
+				}
+				
+				if (CollectionNode->Collection->GetCollectionName() == ModifierNode->ModifiedCollectionName)
+				{
+					ModifierNode->ModifierClass->SetCollections({CollectionNode->Collection});
 					break;
 				}
 			}

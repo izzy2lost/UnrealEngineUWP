@@ -7,7 +7,7 @@
 #include "MovieGraphCollectionNode.generated.h"
 
 // Forward Declare
-class UMoviePipelineCollectionQuery;
+class UMovieGraphCollection;
 
 /** 
 * A collection node specifies an interface for doing dynamic scene queries for actors in the world. Collections work in tandem with
@@ -19,6 +19,8 @@ class MOVIERENDERPIPELINECORE_API UMovieGraphCollectionNode : public UMovieGraph
 	GENERATED_BODY()
 
 public:
+	UMovieGraphCollectionNode();
+
 #if WITH_EDITOR
 	virtual FText GetNodeTitle(const bool bGetDescriptive = false) const override;
 	virtual FText GetMenuCategory() const override;
@@ -30,20 +32,12 @@ public:
 	//~ End UObject interface
 #endif
 
-	virtual FString GetNodeInstanceName() const override { return CollectionName; }
+	virtual FString GetNodeInstanceName() const override;
 
 public:
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = Overrides, meta = (InlineEditConditionToggle))
-	uint8 bOverride_CollectionName : 1;
-	
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = Overrides, meta = (InlineEditConditionToggle))
-	uint8 bOverride_QueryClass : 1;
+	uint8 bOverride_Collection : 1;
 
-	/** The name of this collection, which is used to reference this collection in the graph. */
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "General", meta=(EditCondition="bOverride_CollectionName"))
-	FString CollectionName;
-	
-	/** The type of query this node should run. */
-	UPROPERTY(BlueprintReadWrite, EditAnywhere, Instanced, Category = "General", meta=(EditCondition="bOverride_QueryClass", EditInline))
-	TObjectPtr<UMoviePipelineCollectionQuery> QueryClass;
+	UPROPERTY(BlueprintReadWrite, EditAnywhere, Instanced, Category = "General", meta=(EditCondition="bOverride_Collection", EditInline))
+	TObjectPtr<UMovieGraphCollection> Collection;
 };
