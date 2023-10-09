@@ -346,8 +346,8 @@ private:
 		FNodeInfo NodeInfo;
 	};
 
-	using FMessageStackEntry = TArray<FMessageEntry, TInlineAllocator<4>>;
-	using FMessageMap = TMap<FName, FMessageStackEntry, TInlineSetAllocator<4>>;
+	using FMessageStackEntry = TArray<FMessageEntry, TInlineAllocator<8>>;
+	using FMessageMap = TMap<FName, FMessageStackEntry, TInlineSetAllocator<8>>;
 
 	// Message stack
 	FMessageMap MessageStacks;
