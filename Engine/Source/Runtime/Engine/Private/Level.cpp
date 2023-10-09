@@ -4090,14 +4090,49 @@ void ULevel::DetachAttachAllActorsPackages(bool bReattach)
 				Actor->ReattachExternalPackage();
 			}
 		}
+
+		// Reouter objects previously found in the actors packages to their original packages
+		for (const TPair<TObjectPtr<UObject>, TObjectPtr<UPackage>> ObjectToPackage : ObjectsToExternalPackages)
+		{
+			UObject* Object = ObjectToPackage.Key;
+			UPackage* Package = ObjectToPackage.Value;
+
+			Object->Rename(nullptr, Package, REN_ForceNoResetLoaders);
+		}
+
+		ObjectsToExternalPackages.Empty();
 	}
 	else
 	{
+		UPackage* LevelPackage = GetPackage();
+
+		check(ObjectsToExternalPackages.IsEmpty());
+
 		for (AActor* Actor : Actors)
 		{
 			if (Actor)
 			{
-				Actor->DetachExternalPackage();
+				if (UPackage* ActorExternalPackage = Actor->GetExternalPackage())
+				{
+					Actor->DetachExternalPackage();
+
+					// Process objects found in the source actor package
+					TArray<UObject*> Objects;
+					const bool bIncludeNestedSubobjects = false;
+
+					GetObjectsWithPackage(ActorExternalPackage, Objects, bIncludeNestedSubobjects, RF_NoFlags, EInternalObjectFlags::Garbage);
+					for (UObject* Object : Objects)
+					{
+						if (Object != Actor && Object->GetFName() != NAME_PackageMetaData)
+						{
+							// Move objects in the destination level package
+							Object->Rename(nullptr, LevelPackage, REN_ForceNoResetLoaders);
+
+							// Keep track of which package this object really belongs to
+							ObjectsToExternalPackages.Emplace(Object, ActorExternalPackage);
+						}
+					}
+				}
 			}
 		}
 	}

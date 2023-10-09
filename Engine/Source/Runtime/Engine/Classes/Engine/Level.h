@@ -791,6 +791,10 @@ private:
 
 	UPROPERTY(Transient)
 	TWeakObjectPtr<UObject> EditorPathOwner;
+
+	/** Temporary map of objects to their associated external packages. Used when detaching/attaching external actors packages during cook. */
+	UPROPERTY(Transient)
+	TMap<TObjectPtr<UObject>, TObjectPtr<UPackage>> ObjectsToExternalPackages;
 #endif // #if WITH_EDITORONLY_DATA
 
 	enum class ERouteActorInitializationState : uint8
