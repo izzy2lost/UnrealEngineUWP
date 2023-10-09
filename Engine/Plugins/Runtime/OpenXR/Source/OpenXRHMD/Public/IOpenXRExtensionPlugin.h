@@ -207,6 +207,16 @@ public:
 	}
 
 	/**
+	 * Set the output parameter to add suggested bindings to the given interaction profile.
+	 * This function gets called once for each interaction profile.
+	 * If false is returned the bindings will be ignored.
+	 */
+	virtual bool GetSuggestedBindings(XrPath InInteractionProfile, TArray<XrActionSuggestedBinding>& OutBindings)
+	{
+		return false;
+	}
+
+	/**
 	 * Set the output parameters to provide a path to an asset in the plugin content folder that visualizes
 	 * the controller in the hand represented by the user path.
 	 * While it's possible to provide controller models for other interaction profiles, you should only provide

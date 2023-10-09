@@ -406,6 +406,16 @@ bool FOpenXRInputPlugin::FOpenXRInput::BuildActions(XrSession Session)
 		// An exception is made for the Simple Controller Profile which is always bound as a fallback
 		if (Profile.Bindings.Num() > 0)
 		{
+			// Add bindings from the extension plugins
+			for (IOpenXRExtensionPlugin* Plugin : OpenXRHMD->GetExtensionPlugins())
+			{
+				TArray<XrActionSuggestedBinding> PluginBindings;
+				if (Plugin->GetSuggestedBindings(Profile.Path, PluginBindings))
+				{
+					Profile.Bindings.Append(PluginBindings);
+				}
+			}
+
 			// Add the bindings for the controller pose and haptics
 			Profile.Bindings.Add(XrActionSuggestedBinding{
 				Controllers[EControllerHand::Left].GripAction, FOpenXRPath("/user/hand/left/input/grip/pose")
