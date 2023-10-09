@@ -1733,7 +1733,7 @@ void SRCPanelExposedEntitiesList::ProcessRefresh()
 	if (Preset.IsValid())
 	{
 		//Refresh during PostUndo/Redo to keep the action updated.
-		Preset->GetPropertyIdRegistry()->Initialize(Preset.Get());
+		Preset->GetPropertyIdRegistry()->Initialize();
 		Preset->GetPropertyIdRegistry()->OnPropertyIdUpdated().Broadcast();
 
 		constexpr bool bForceMouseClick = true;

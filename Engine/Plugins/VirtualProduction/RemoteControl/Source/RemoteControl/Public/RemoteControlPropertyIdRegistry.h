@@ -118,9 +118,10 @@ class REMOTECONTROL_API URemoteControlPropertyIdRegistry : public UObject
 public:
 	/**
 	 * Initialize the Registry with the given Preset.
-	 * @param InSourcePreset Preset to get the data from.
 	 */
-	void Initialize(URemoteControlPreset* InSourcePreset);
+	void Initialize();
+
+	URemoteControlPreset* GetSourcePreset() const;
 
 	/**
 	 * Update the value(s) of the property(ies) that are bound to a PropertyIdAction.
@@ -204,10 +205,6 @@ private:
 	/** Holds the identified fields. */
 	UPROPERTY()
 	TSet<FRCPropertyIdWrapper> IdentifiedFields;
-
-	/** Holds the source remote control preset asset. */
-	UPROPERTY()
-	TObjectPtr<URemoteControlPreset> SourcePreset;
 
 	/** Delegate triggered when a property has its field Id changed. */
 	FOnPropertyIdUpdated OnPropertyIdUpdatedDelegate;

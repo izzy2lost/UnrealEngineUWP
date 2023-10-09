@@ -203,9 +203,14 @@ void FRCPropertyIdWrapper::UpdateTypes(const TSharedRef<FRemoteControlProperty>&
 	}
 }
 
-void URemoteControlPropertyIdRegistry::Initialize(URemoteControlPreset* InSourcePreset)
+void URemoteControlPropertyIdRegistry::Initialize()
 {
-	SourcePreset = InSourcePreset;
+	URemoteControlPreset* SourcePreset = GetSourcePreset();
+	if (!SourcePreset)
+	{
+		return;
+	}
+
 	IdentifiedFields.Reset();
 	for (TWeakPtr<FRemoteControlEntity> RCEntity : SourcePreset->GetExposedEntities())
 	{
@@ -216,169 +221,179 @@ void URemoteControlPropertyIdRegistry::Initialize(URemoteControlPreset* InSource
 	}
 }
 
+URemoteControlPreset* URemoteControlPropertyIdRegistry::GetSourcePreset() const
+{
+	return GetTypedOuter<URemoteControlPreset>();
+}
+
 void URemoteControlPropertyIdRegistry::PerformChainReaction(const FRemoteControlPropertyIdArgs& InArgs)
 {
+	URemoteControlPreset* SourcePreset = GetSourcePreset();
+	if (!IsValid(SourcePreset))
+	{
+		return;
+	}
+
 	TSet<FGuid> TargetProperties;
+
 	Algo::TransformIf(IdentifiedFields, TargetProperties,
-		[&](const FRCPropertyIdWrapper& Wrapper)
+		[InArgs](const FRCPropertyIdWrapper& Wrapper)
 		{
 			return Wrapper.IsValid()
 			&& Wrapper.GetPropertyId() == InArgs.PropertyId
 			&& Wrapper.GetSuperType() == InArgs.SuperType
 			&& Wrapper.GetSubType() == InArgs.SubType;
 		},
-		[&](const FRCPropertyIdWrapper& Wrapper)
+		[](const FRCPropertyIdWrapper& Wrapper)
 		{
 			return Wrapper.GetEntityId();
 		}
 		);
-	if (!TargetProperties.IsEmpty() && IsValid(SourcePreset))
-	{
-		for (const FGuid& TargetProperty : TargetProperties)
-		{
-			if (TSharedPtr<FRemoteControlProperty> TargetRCProperty = SourcePreset->GetExposedEntity<FRemoteControlProperty>(TargetProperty).Pin())
-			{
-				if (UObject* BoundObject = TargetRCProperty->GetBoundObject())
-				{
-					bool bCopyComplete = false;
 
-					if (FProperty* Property = TargetRCProperty->GetProperty())
-					{
+	for (const FGuid& TargetProperty : TargetProperties)
+	{
+		if (TSharedPtr<FRemoteControlProperty> TargetRCProperty = SourcePreset->GetExposedEntity<FRemoteControlProperty>(TargetProperty).Pin())
+		{
+			if (UObject* BoundObject = TargetRCProperty->GetBoundObject())
+			{
+				bool bCopyComplete = false;
+
+				if (FProperty* Property = TargetRCProperty->GetProperty())
+				{
 #if WITH_EDITOR
-						BoundObject->PreEditChange(Property);
-						
-						BoundObject->Modify();
+					BoundObject->PreEditChange(Property);
+					
+					BoundObject->Modify();
 #endif // WITH_EDITOR
-						// Note : For all other object types except materials.
-						if (FObjectProperty* ObjectProperty = CastField<FObjectProperty>(Property))
+					// Note : For all other object types except materials.
+					if (FObjectProperty* ObjectProperty = CastField<FObjectProperty>(Property))
+					{
+						if (uint8* PropertyValuePtr = ObjectProperty->ContainerPtrToValuePtr<uint8>(BoundObject))
 						{
-							if (uint8* PropertyValuePtr = ObjectProperty->ContainerPtrToValuePtr<uint8>(BoundObject))
+							UObject* CurrentObject = ObjectProperty->GetObjectPropertyValue(PropertyValuePtr);
+							if (CurrentObject && CurrentObject->IsA(InArgs.SourceClass))
 							{
-								UObject* CurrentObject = ObjectProperty->GetObjectPropertyValue(PropertyValuePtr);
-								if (CurrentObject && CurrentObject->IsA(InArgs.SourceClass))
-								{
-									ObjectProperty->SetObjectPropertyValue(PropertyValuePtr, InArgs.SourceObject);
-									bCopyComplete = true;
-								}
+								ObjectProperty->SetObjectPropertyValue(PropertyValuePtr, InArgs.SourceObject);
+								bCopyComplete = true;
 							}
 						}
-						// Note : Specialization for Materials.
-						else if (FArrayProperty* ArrayProperty = CastField<FArrayProperty>(Property))
+					}
+					// Note : Specialization for Materials.
+					else if (FArrayProperty* ArrayProperty = CastField<FArrayProperty>(Property))
+					{
+						if (uint8* PropertyValuePtr = ArrayProperty->ContainerPtrToValuePtr<uint8>(BoundObject))
 						{
-							if (uint8* PropertyValuePtr = ArrayProperty->ContainerPtrToValuePtr<uint8>(BoundObject))
+							if (FObjectProperty* InnerObjectProperty = CastField<FObjectProperty>(ArrayProperty->Inner))
 							{
-								if (FObjectProperty* InnerObjectProperty = CastField<FObjectProperty>(ArrayProperty->Inner))
+								FScriptArrayHelper ArrayHelper(ArrayProperty, PropertyValuePtr);
+								if (TSharedPtr<FRemoteControlField> TargetRCField = StaticCastSharedPtr<FRemoteControlField>(TargetRCProperty); !TargetRCField->FieldPathInfo.Segments.IsEmpty())
 								{
-									FScriptArrayHelper ArrayHelper(ArrayProperty, PropertyValuePtr);
-									if (TSharedPtr<FRemoteControlField> TargetRCField = StaticCastSharedPtr<FRemoteControlField>(TargetRCProperty); !TargetRCField->FieldPathInfo.Segments.IsEmpty())
+									const int32 MaterialIndex = TargetRCField->FieldPathInfo.Segments[0].ArrayIndex;
+									uint8* ObjPtrContainer = ArrayHelper.GetRawPtr(MaterialIndex);
+									UObject* CurrentObject = InnerObjectProperty->GetObjectPropertyValue(ObjPtrContainer);
+									if (CurrentObject && CurrentObject->IsA(InArgs.SourceClass))
 									{
-										const int32 MaterialIndex = TargetRCField->FieldPathInfo.Segments[0].ArrayIndex;
-										uint8* ObjPtrContainer = ArrayHelper.GetRawPtr(MaterialIndex);
-										UObject* CurrentObject = InnerObjectProperty->GetObjectPropertyValue(ObjPtrContainer);
-										if (CurrentObject && CurrentObject->IsA(InArgs.SourceClass))
-										{
-											InnerObjectProperty->SetObjectPropertyValue(ObjPtrContainer, InArgs.SourceObject);
-											bCopyComplete = true;
-										}
-									}
-								}
-							}
-						}
-						// Note : For primitive types not in container and that has a valid UClass Owner.
-						// ContainerPtrToValuePtr will crash if the GetOwner<UClass> is nullptr so we check before.
-						if (!bCopyComplete && Property->GetOwner<UClass>() != nullptr &&
-							!Property->IsA<FArrayProperty>() && !Property->IsA<FSetProperty>() && !Property->IsA<FMapProperty>())
-						{
-							if (uint8* PropertyValuePtr = Property->ContainerPtrToValuePtr<uint8>(BoundObject))
-							{
-								if (const FStructProperty* StructProperty = CastField<FStructProperty>(Property))
-								{
-									// FLinearColor are treated as FColor to avoid creating 2 different widget for them and avoid confusion
-									// Instead of the normal CopyCompleteValue we use this for FLinearColor
-									if (StructProperty->Struct->GetFName() == NAME_LinearColor)
-									{
-										FColor ColorValue;
-										InArgs.VirtualProperty->GetValueColor(ColorValue);
-										const FLinearColor RealValue(ColorValue);
-										Property->CopyCompleteValue(PropertyValuePtr, &RealValue);
+										InnerObjectProperty->SetObjectPropertyValue(ObjPtrContainer, InArgs.SourceObject);
 										bCopyComplete = true;
 									}
 								}
-								// We do this to avoid copying it above and here
-								if (bCopyComplete == false)
-								{
-									bCopyComplete = InArgs.VirtualProperty->CopyCompleteValue(Property, PropertyValuePtr, true);
-								}
 							}
 						}
-						//Note : For all the other cases, Container and UStruct Owner.
-						else if (!bCopyComplete)
+					}
+					// Note : For primitive types not in container and that has a valid UClass Owner.
+					// ContainerPtrToValuePtr will crash if the GetOwner<UClass> is nullptr so we check before.
+					if (!bCopyComplete && Property->GetOwner<UClass>() != nullptr &&
+						!Property->IsA<FArrayProperty>() && !Property->IsA<FSetProperty>() && !Property->IsA<FMapProperty>())
+					{
+						if (uint8* PropertyValuePtr = Property->ContainerPtrToValuePtr<uint8>(BoundObject))
 						{
+							if (const FStructProperty* StructProperty = CastField<FStructProperty>(Property))
+							{
+								// FLinearColor are treated as FColor to avoid creating 2 different widget for them and avoid confusion
+								// Instead of the normal CopyCompleteValue we use this for FLinearColor
+								if (StructProperty->Struct->GetFName() == NAME_LinearColor)
+								{
+									FColor ColorValue;
+									InArgs.VirtualProperty->GetValueColor(ColorValue);
+									const FLinearColor RealValue(ColorValue);
+									Property->CopyCompleteValue(PropertyValuePtr, &RealValue);
+									bCopyComplete = true;
+								}
+							}
+							// We do this to avoid copying it above and here
+							if (bCopyComplete == false)
+							{
+								bCopyComplete = InArgs.VirtualProperty->CopyCompleteValue(Property, PropertyValuePtr, true);
+							}
+						}
+					}
+					//Note : For all the other cases, Container and UStruct Owner.
+					else if (!bCopyComplete)
+					{
 #if !WITH_EDITOR
-							StructMemoryContainer = nullptr;
+						StructMemoryContainer = nullptr;
 #endif // !WITH_EDITOR
-							bCopyComplete = CopyNonUClassOwnerProperty(InArgs, TargetRCProperty, Property, BoundObject);
-						}
-						if (bCopyComplete)
-						{
+						bCopyComplete = CopyNonUClassOwnerProperty(InArgs, TargetRCProperty, Property, BoundObject);
+					}
+					if (bCopyComplete)
+					{
 #if WITH_EDITOR
-							TargetRCProperty->FieldPathInfo.Resolve(BoundObject);
-							FPropertyChangedEvent PropertyEvent = TargetRCProperty->FieldPathInfo.ToPropertyChangedEvent(EPropertyChangeType::ValueSet);
-							FEditPropertyChain EditPropertyChain;
-							TargetRCProperty->FieldPathInfo.ToEditPropertyChain(EditPropertyChain);
-							if (EditPropertyChain.IsEmpty())
-							{
-								BoundObject->PostEditChangeProperty(PropertyEvent);
-							}
-							else
-							{
-								FPropertyChangedChainEvent ChainEvent(EditPropertyChain, PropertyEvent);
-								TArray<TMap<FString, int32>> ArrayIndicesPerObject;
-								{
-									TMap<FString, int32> ArrayIndices;
-									ArrayIndices.Reserve(TargetRCProperty->FieldPathInfo.Segments.Num());
-									for (const FRCFieldPathSegment& Segment : TargetRCProperty->FieldPathInfo.Segments)
-									{
-										ArrayIndices.Add(Segment.Name.ToString(), Segment.ArrayIndex);
-									}
-									ArrayIndicesPerObject.Add(MoveTemp(ArrayIndices));
-								}
-								ChainEvent.ObjectIteratorIndex = 0;
-								ChainEvent.SetArrayIndexPerObject(ArrayIndicesPerObject);
-								BoundObject->PostEditChangeChainProperty(ChainEvent);
-							}
-							
-#else // NOTE: During runtime use Serialization API to update the property properly.
-							TArray<uint8> Buffer;
-							FMemoryWriter Writer(Buffer);
-							FCborStructSerializerBackend WriterBackend(Writer, EStructSerializerBackendFlags::Default);
-							FStructSerializerPolicies Policies;
-							Policies.MapSerialization = EStructSerializerMapPolicies::Array;
-
-							// We do this at runtime because otherwise Property Owned by UStruct won't update.
-							// So during the copy we take the StructContainer and use that to serialize the property.
-							if (StructMemoryContainer != nullptr)
-							{
-								FStructSerializer::SerializeElement(StructMemoryContainer, Property, INDEX_NONE, WriterBackend, Policies);
-							}
-							else
-							{
-								FStructSerializer::SerializeElement(BoundObject, Property, INDEX_NONE, WriterBackend, Policies);
-							}
-							// Deserialization
-							FMemoryReader Reader(Buffer);
-							FCborStructDeserializerBackend ReaderBackend(Reader);
-							FRCObjectReference TargetObjectRef;
-							if (!GetObjectRef(TargetRCProperty, ERCAccess::WRITE_ACCESS, TargetObjectRef))
-							{
-								continue;
-							}
-							if (!IRemoteControlModule::Get().SetObjectProperties(TargetObjectRef, ReaderBackend, ERCPayloadType::Cbor, Buffer))
-							{
-								continue;
-							}
-#endif // WITH_EDITOR
+						TargetRCProperty->FieldPathInfo.Resolve(BoundObject);
+						FPropertyChangedEvent PropertyEvent = TargetRCProperty->FieldPathInfo.ToPropertyChangedEvent(EPropertyChangeType::ValueSet);
+						FEditPropertyChain EditPropertyChain;
+						TargetRCProperty->FieldPathInfo.ToEditPropertyChain(EditPropertyChain);
+						if (EditPropertyChain.IsEmpty())
+						{
+							BoundObject->PostEditChangeProperty(PropertyEvent);
 						}
+						else
+						{
+							FPropertyChangedChainEvent ChainEvent(EditPropertyChain, PropertyEvent);
+							TArray<TMap<FString, int32>> ArrayIndicesPerObject;
+							{
+								TMap<FString, int32> ArrayIndices;
+								ArrayIndices.Reserve(TargetRCProperty->FieldPathInfo.Segments.Num());
+								for (const FRCFieldPathSegment& Segment : TargetRCProperty->FieldPathInfo.Segments)
+								{
+									ArrayIndices.Add(Segment.Name.ToString(), Segment.ArrayIndex);
+								}
+								ArrayIndicesPerObject.Add(MoveTemp(ArrayIndices));
+							}
+							ChainEvent.ObjectIteratorIndex = 0;
+							ChainEvent.SetArrayIndexPerObject(ArrayIndicesPerObject);
+							BoundObject->PostEditChangeChainProperty(ChainEvent);
+						}
+						
+#else // NOTE: During runtime use Serialization API to update the property properly.
+						TArray<uint8> Buffer;
+						FMemoryWriter Writer(Buffer);
+						FCborStructSerializerBackend WriterBackend(Writer, EStructSerializerBackendFlags::Default);
+						FStructSerializerPolicies Policies;
+						Policies.MapSerialization = EStructSerializerMapPolicies::Array;
+
+						// We do this at runtime because otherwise Property Owned by UStruct won't update.
+						// So during the copy we take the StructContainer and use that to serialize the property.
+						if (StructMemoryContainer != nullptr)
+						{
+							FStructSerializer::SerializeElement(StructMemoryContainer, Property, INDEX_NONE, WriterBackend, Policies);
+						}
+						else
+						{
+							FStructSerializer::SerializeElement(BoundObject, Property, INDEX_NONE, WriterBackend, Policies);
+						}
+						// Deserialization
+						FMemoryReader Reader(Buffer);
+						FCborStructDeserializerBackend ReaderBackend(Reader);
+						FRCObjectReference TargetObjectRef;
+						if (!GetObjectRef(TargetRCProperty, ERCAccess::WRITE_ACCESS, TargetObjectRef))
+						{
+							continue;
+						}
+						if (!IRemoteControlModule::Get().SetObjectProperties(TargetObjectRef, ReaderBackend, ERCPayloadType::Cbor, Buffer))
+						{
+							continue;
+						}
+#endif // WITH_EDITOR
 					}
 				}
 			}
@@ -414,9 +429,10 @@ void URemoteControlPropertyIdRegistry::UpdateIdentifiedField(const TSharedRef<FR
 		if (FRCPropertyIdWrapper* Wrapper = IdentifiedFields.FindByHash(Hash, InFieldToIdentify->GetId()))
 		{
 			Wrapper->SetPropertyId(InFieldToIdentify->PropertyId);
-			if (IsValid(SourcePreset))
+
+			if (URemoteControlPreset* SourcePreset = GetSourcePreset())
 			{
-				SourcePreset.Get()->GetPropertyIdRegistry()->OnPropertyIdUpdated().Broadcast();
+				SourcePreset->GetPropertyIdRegistry()->OnPropertyIdUpdated().Broadcast();
 			}
 		}
 	}

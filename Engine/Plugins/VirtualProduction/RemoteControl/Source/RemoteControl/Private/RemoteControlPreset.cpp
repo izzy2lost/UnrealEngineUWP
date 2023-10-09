@@ -520,7 +520,7 @@ URemoteControlPreset::URemoteControlPreset()
 	Registry = CreateDefaultSubobject<URemoteControlExposeRegistry>(FName("ExposeRegistry"));
 
 	PropertyIdRegistry = CreateDefaultSubobject<URemoteControlPropertyIdRegistry>(FName("PropertyIdRegistry"));
-	PropertyIdRegistry->Initialize(this);
+	PropertyIdRegistry->Initialize();
 }
 
 void URemoteControlPreset::PostInitProperties()
@@ -565,7 +565,7 @@ void URemoteControlPreset::PostLoad()
 
 	RemoveUnusedBindings();
 
-	PropertyIdRegistry->Initialize(this);
+	PropertyIdRegistry->Initialize();
 }
 
 void URemoteControlPreset::PostDuplicate(bool bDuplicateForPIE)
@@ -1609,7 +1609,7 @@ void URemoteControlPreset::RebindUnboundEntities()
 	Modify();
 	RebindingManager->Rebind(this);
 	Algo::Transform(Registry->GetExposedEntities(), PerFrameUpdatedEntities, [](const TSharedPtr<FRemoteControlEntity>& Entity) { return Entity->GetId(); });
-	PropertyIdRegistry->Initialize(this);
+	PropertyIdRegistry->Initialize();
 }
 
 void URemoteControlPreset::RebindAllEntitiesUnderSameActor(const FGuid& EntityId, AActor* NewActor, bool bUseRebindingContext)
