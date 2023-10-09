@@ -13,6 +13,7 @@ struct FRigControlElement;
 
 class UControlRig;
 class USkeletalMeshComponent;
+class UControlRigComponent;
 class URigHierarchy;
 
 /**
@@ -74,9 +75,6 @@ public:
 	/** tick things when baking*/ 
 	virtual void TickForBaking() const override;
 
-	/** Returns the skeletal mesh bound to ControlRig. */
-	USkeletalMeshComponent* GetSkeletalMesh() const;
-
 	/** Registers/Unregisters useful delegates to track changes in the control's transform. */
 	void UnregisterDelegates() const;
 	void RegisterDelegates();
@@ -109,7 +107,12 @@ public:
 	
 private:
 
-	/** @todo document */
+	/** Returns the component bounded to ControlRig. */
+	USceneComponent* GetBoundComponent() const;
+	USkeletalMeshComponent* GetSkeletalMesh() const;
+	UControlRigComponent* GetControlRigComponent() const;
+	
+	/** Handles notifications coming from the ControlRig's hierarchy */
 	void OnHierarchyModified(
 		ERigHierarchyNotification InNotif,
 		URigHierarchy* InHierarchy,
