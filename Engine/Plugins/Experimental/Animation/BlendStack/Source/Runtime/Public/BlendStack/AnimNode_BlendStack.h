@@ -16,7 +16,7 @@ struct BLENDSTACK_API FBlendStackAnimPlayer
 	
 	void Initialize(const FAnimationInitializeContext& Context, UAnimationAsset* AnimationAsset, float AccumulatedTime, bool bLoop,
 		bool bMirrored, UMirrorDataTable* MirrorDataTable, float BlendTime, float RootBoneBlendTime, float MaxTimeBeforeFreezingInnerBlends,
-		const UBlendProfile* BlendProfile, EAlphaBlendOption InBlendOption, FVector BlendParameters, float PlayRate, int32 InPoseLinkIdx,
+		const UBlendProfile* BlendProfile, EAlphaBlendOption InBlendOption, const FVector& BlendParameters, float PlayRate, int32 InPoseLinkIdx,
 		FName GroupName, EAnimGroupRole::Type GroupRole, EAnimSyncMethod Method);
 	
 	void UpdatePlayRate(float PlayRate);
@@ -32,22 +32,29 @@ struct BLENDSTACK_API FBlendStackAnimPlayer
 
 	EAlphaBlendOption GetBlendOption() const { return BlendOption; }
 	void StorePoseContext(const FPoseContext& PoseContext);
+	bool HasValidPoseContext() const;
+	void MovePoseContextTo(FBlendStackAnimPlayer& Other);
 
 	float GetTotalBlendInTime() const { return TotalBlendInTime; }
 	float GetCurrentBlendInTime() const { return CurrentBlendInTimeAsMainPlayer + CurrentBlendInTimeAsSecondaryPlayer; }
 	void AdvanceBlendInTime(const float DeltaTime, bool bIsMainPlayer);
 	bool GetMirror() const { return MirrorNode.GetMirror(); }
 	FVector GetBlendParameters() const;
+	void SetBlendParameters(const FVector& BlendParameters);
 	FString GetAnimationName() const;
 	UAnimationAsset* GetAnimationAsset() const;
 
 	FAnimNode_Mirror_Standalone& GetMirrorNode() { return MirrorNode; }
 	int32 GetPoseLinkIndex() const { return PoseLinkIndex; }
 
-public:
 	void RestorePoseContext(FPoseContext& PoseContext) const;
 	void UpdateSourceLinkNode();
+	bool IsLooping() const;
+	
+	// Curves to add to the pose after the player evaluates
+	TBaseBlendedCurve<FDefaultAllocator, UE::Anim::FCurveElement> OverrideCurve;
 
+private:
 	// Embedded standalone player to play sequence
 	FAnimNode_SequencePlayer_Standalone SequencePlayerNode;
 
@@ -62,10 +69,6 @@ public:
 	// the output FPoseContext will be from StoredPose, StoredCurve, StoredAttributes
 	FCompactHeapPose StoredPose;
 	FBlendedHeapCurve StoredCurve;
-
-	// Curves to add to the pose after the player evaluates
-	TBaseBlendedCurve<FDefaultAllocator, UE::Anim::FCurveElement> OverrideCurve;
-	
 	UE::Anim::FHeapAttributeContainer StoredAttributes;
 	// We need to store the bone container, in case we have a LOD swap during a blend that uses the stored pose.
 	FBoneContainer StoredBoneContainer;
@@ -119,7 +122,7 @@ struct BLENDSTACK_API FAnimNode_BlendStack_Standalone : public FAnimNode_AssetPl
 		bool bMirrored = false, UMirrorDataTable* MirrorDataTable = nullptr,
 		float BlendTime = 0.2f, float RootBoneBlendTime = -1.f, float MaxTimeBeforeFreezingInnerBlends = -1.f,
 		const UBlendProfile* BlendProfile = nullptr, EAlphaBlendOption BlendOption = EAlphaBlendOption::Linear, 
-		bool bUseInertialBlend = false, FVector BlendParameters = FVector::Zero(), float PlayRate = 1.f,
+		bool bUseInertialBlend = false, const FVector& BlendParameters = FVector::Zero(), float PlayRate = 1.f,
 		FName GroupName = NAME_None, EAnimGroupRole::Type GroupRole = EAnimGroupRole::CanBeLeader, EAnimSyncMethod Method = EAnimSyncMethod::DoNotSync);
 	void UpdatePlayRate(float PlayRate);
 	void Reset();
@@ -142,8 +145,14 @@ protected:
 	UPROPERTY(EditAnywhere, Category = Settings, meta = (ClampMin = "0"))
 	int32 MaxActiveBlends = 4;
 
-private:
+	// if the number of requested blends is higher than MaxActiveBlends, blend stack will blend and accumulate 
+	// into a stored pose all the overflowing animations. if bStoreBlendedPose is false, the memory to store the pose will be saved,
+	// but once reached the MaxActiveBlends, blendstack will start discarding animations, potentially resulting in animation pops
+	UPROPERTY(EditAnywhere, Category = Settings)
+	bool bStoreBlendedPose = true;
 
+private:
+	void PopLastAnimPlayer();
 	void InitializeSample(const FAnimationInitializeContext& Context, FBlendStackAnimPlayer& SamplePlayer);
 	void EvaluateSample(FPoseContext& Output, const int32 PlayerIndex);
 	void UpdateSample(const FAnimationUpdateContext& Context, const int32 PlayerIndex);

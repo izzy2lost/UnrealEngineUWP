@@ -161,15 +161,13 @@ void FAnimNode_ChooserPlayer::UpdateAssetPlayer(const FAnimationUpdateContext& C
 	}
 
 	// Update blend space parameters
+	const FVector BlendParameters(BlendSpaceX, BlendSpaceY, 0);
 	if (bUpdateAllActiveBlendSpaces)
 	{
 		// apply blend space parameters to all blendspaces that are playing, including ones that are blending out
-		for(FBlendStackAnimPlayer& Player : AnimPlayers)
+		for (FBlendStackAnimPlayer& Player : AnimPlayers)
 		{
-			if (Cast<UBlendSpace>(Player.GetAnimationAsset()))
-			{
-				Player.BlendSpacePlayerNode.SetPosition(FVector(BlendSpaceX,BlendSpaceY,0));
-			}
+			Player.SetBlendParameters(BlendParameters);
 		}
 	}
 	else
@@ -177,11 +175,7 @@ void FAnimNode_ChooserPlayer::UpdateAssetPlayer(const FAnimationUpdateContext& C
 		// apply blend space parameters only to the blendspace that is playing/blending in
 		if (!AnimPlayers.IsEmpty())
 		{
-			FBlendStackAnimPlayer& Player = AnimPlayers.First();
-			if (Cast<UBlendSpace>(Player.GetAnimationAsset()))
-			{
-				Player.BlendSpacePlayerNode.SetPosition(FVector(BlendSpaceX,BlendSpaceY,0));
-			}
+			AnimPlayers.First().SetBlendParameters(BlendParameters);
 		}
 	}
 
@@ -273,15 +267,7 @@ bool FAnimNode_ChooserPlayer::IsLooping() const
 {
 	if (!AnimPlayers.IsEmpty())
 	{
-		const FBlendStackAnimPlayer& AnimPlayer = AnimPlayers.First();
-		if (Cast<UBlendSpace>(AnimPlayer.GetAnimationAsset()))
-		{
-			return AnimPlayer.BlendSpacePlayerNode.IsLooping();
-		}
-		else
-		{
-			return AnimPlayer.SequencePlayerNode.IsLooping();
-		}
+		return AnimPlayers.First().IsLooping();
 	}
 	return false;
 }

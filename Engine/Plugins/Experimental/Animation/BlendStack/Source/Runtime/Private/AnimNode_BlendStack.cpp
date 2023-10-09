@@ -26,7 +26,7 @@ static constexpr FBoneIndexType RootBoneIndexType = 0;
 // FBlendStackAnimPlayer
 void FBlendStackAnimPlayer::Initialize(const FAnimationInitializeContext& Context, UAnimationAsset* AnimationAsset, float AccumulatedTime, bool bLoop,
 	bool bMirrored, UMirrorDataTable* MirrorDataTable, float BlendTime, float RootBoneBlendTime, float MaxTimeBeforeFreezingInnerBlends, 
-	const UBlendProfile* BlendProfile, EAlphaBlendOption InBlendOption, FVector BlendParameters, float PlayRate, int32 InPoseLinkIdx,
+	const UBlendProfile* BlendProfile, EAlphaBlendOption InBlendOption, const FVector& BlendParameters, float PlayRate, int32 InPoseLinkIdx,
 	FName GroupName, EAnimGroupRole::Type GroupRole, EAnimSyncMethod GroupMethod)
 {
 	if (bMirrored && !MirrorDataTable)
@@ -160,6 +160,19 @@ void FBlendStackAnimPlayer::StorePoseContext(const FPoseContext& PoseContext)
 	StoredAttributes.CopyFrom(PoseContext.CustomAttributes);
 }
 
+bool FBlendStackAnimPlayer::HasValidPoseContext() const
+{
+	return StoredPose.IsValid();
+}
+
+void FBlendStackAnimPlayer::MovePoseContextTo(FBlendStackAnimPlayer& Other)
+{
+	Other.StoredPose = MoveTemp(StoredPose);
+	Other.StoredCurve = MoveTemp(StoredCurve);
+	Other.StoredAttributes = MoveTemp(StoredAttributes);
+	Other.StoredBoneContainer = MoveTemp(StoredBoneContainer);
+}
+
 void FBlendStackAnimPlayer::RestorePoseContext(FPoseContext& PoseContext) const
 {
 	check(!SequencePlayerNode.GetSequence() && !BlendSpacePlayerNode.GetBlendSpace());
@@ -218,6 +231,21 @@ void FBlendStackAnimPlayer::UpdateSourceLinkNode()
 	{
 		MirrorNode.SetSourceLinkNode(nullptr);
 	}
+}
+
+bool FBlendStackAnimPlayer::IsLooping() const
+{
+	if (SequencePlayerNode.GetSequence())
+	{
+		return SequencePlayerNode.IsLooping();
+	}
+
+	if (BlendSpacePlayerNode.GetBlendSpace())
+	{
+		return BlendSpacePlayerNode.IsLooping();
+	}
+
+	return false;
 }
 
 void FBlendStackAnimPlayer::Evaluate_AnyThread(FPoseContext& Output)
@@ -298,6 +326,14 @@ FVector FBlendStackAnimPlayer::GetBlendParameters() const
 	return FVector::ZeroVector;
 }
 
+void FBlendStackAnimPlayer::SetBlendParameters(const FVector& BlendParameters)
+{
+	if (BlendSpacePlayerNode.GetBlendSpace())
+	{
+		BlendSpacePlayerNode.SetPosition(BlendParameters);
+	}
+}
+
 FString FBlendStackAnimPlayer::GetAnimationName() const
 {
 	if (SequencePlayerNode.GetSequence())
@@ -366,6 +402,26 @@ void FBlendStackAnimPlayer::GetBlendInWeights(TArrayView<float> Weights) const
 
 /////////////////////////////////////////////////////
 // FAnimNode_BlendStack_Standalone
+void FAnimNode_BlendStack_Standalone::PopLastAnimPlayer()
+{
+	const int32 LastAnimPlayerIndex = AnimPlayers.Num() - 1;
+
+#if DO_CHECK
+	for (int32 AnimPlayerIndex = 0; AnimPlayerIndex < LastAnimPlayerIndex; ++AnimPlayerIndex)
+	{
+		// making sure only the last AnimPlayer can have a valid pose
+		check(!AnimPlayers[AnimPlayerIndex].HasValidPoseContext());
+	}
+#endif // DO_CHECK
+
+	if (LastAnimPlayerIndex > 0 && AnimPlayers[LastAnimPlayerIndex].HasValidPoseContext())
+	{
+		AnimPlayers[LastAnimPlayerIndex].MovePoseContextTo(AnimPlayers[LastAnimPlayerIndex - 1]);
+	}
+
+	AnimPlayers.PopLast();
+}
+
 void FAnimNode_BlendStack_Standalone::Evaluate_AnyThread(FPoseContext& Output)
 {
 	DECLARE_SCOPE_HIERARCHICAL_COUNTER_ANIMNODE(Evaluate_AnyThread);
@@ -391,7 +447,7 @@ void FAnimNode_BlendStack_Standalone::Evaluate_AnyThread(FPoseContext& Output)
 		// Disable blend stack if requested (for testing / debugging) by removing all the AnimPlayers except the first
 		while (AnimPlayers.Num() > 1)
 		{
-			AnimPlayers.PopLast();
+			PopLastAnimPlayer();
 		}
 		EvaluateSample(Output, 0);
 	}
@@ -436,7 +492,9 @@ void FAnimNode_BlendStack_Standalone::Evaluate_AnyThread(FPoseContext& Output)
 		const bool bEnablePruning = true;
 #endif // ENABLE_ANIM_DEBUG
 
-		// Evaluate our players from the second last to the first.
+		// ...continuing with the valuation and accumulation on the Output FPoseContext
+		// of AnimPlayer(s) from the second last to the AnimPlayer[MaxActiveBlends].
+		// Popping them if bEnablePruning
 		int32 PlayerIndex = BlendStackSize - 2;
 		// Start evaluating with our least significant players.
 		for (; PlayerIndex >= MaxActiveBlends; --PlayerIndex)
@@ -446,30 +504,34 @@ void FAnimNode_BlendStack_Standalone::Evaluate_AnyThread(FPoseContext& Output)
 			if (bEnablePruning)
 			{
 				// too many AnimPlayers! we don't have enough available blends to hold them all, so we accumulate the blended poses into Output / BlendedPoseContext.
-				AnimPlayers.PopLast();
+				PopLastAnimPlayer();
 			}
 		}
 
-		// Even if we're not pruning, we must use the stored pose if we have a limited number of graphs to execute.
-		const bool bNeedsStoredPose = (bEnablePruning || !SampleGraphPoseLinks.IsEmpty()) && (PlayerIndex == (MaxActiveBlends - 1));
-		if (bNeedsStoredPose)
+		// At this point Output FPoseContext contains all the weighted accumulated poses of the from AnimPlayer[MaxActiveBlends] to AnimPlayer[AnimPlayer.Num()-1]
+		if (PlayerIndex == (MaxActiveBlends - 1))
 		{
 			check(AnimPlayers.Num() == MaxActiveBlends + 1);
 
-			// We store Output / BlendedPoseContext into the last AnimPlayer, that will hold a static pose, no longer an animation playing.
-			AnimPlayers.Last().StorePoseContext(Output);
+			if (bEnablePruning && bStoreBlendedPose)
+			{
+				// We store Output / BlendedPoseContext into the last AnimPlayer, that will hold a static pose, no longer an animation playing.
+				AnimPlayers.Last().StorePoseContext(Output);
+			}
 
+			// we execute the associated graph on the Output
 			if (!SampleGraphPoseLinks.IsEmpty())
 			{
 				const int32 PoseLinkIdx = AnimPlayers[MaxActiveBlends].GetPoseLinkIndex();
 				FBlendStack_SampleGraphPoseLink& PoseLink = SampleGraphPoseLinks[PoseLinkIdx];
+
 				// No players should have evaluated a graph before this point.
 				// Evaluate the graph on the blended result.
 				PoseLink.EvaluatePlayer(Output, AnimPlayers[MaxActiveBlends]);
 			}
 		}
 
-		// Continue with our most significant players.
+		// Continue with the evaluation of the most significant AnimPlayer(s) with the associated graphs
 		for (; PlayerIndex >= 0; --PlayerIndex)
 		{
 			EvaluateAndBlendPlayerByIndex(PlayerIndex);
@@ -553,7 +615,7 @@ void FAnimNode_BlendStack_Standalone::UpdateAssetPlayer(const FAnimationUpdateCo
 	const int32 WantedAnimPlayersNum = FMath::Max(1, AnimPlayerIndex); // we save at least one FBlendStackAnimPlayer
 	while (AnimPlayers.Num() > WantedAnimPlayersNum)
 	{
-		AnimPlayers.PopLast();
+		PopLastAnimPlayer();
 	}
 }
 
@@ -694,7 +756,7 @@ static void RequestInertialBlend(const FAnimationUpdateContext& Context, float B
 void FAnimNode_BlendStack_Standalone::BlendTo(const FAnimationUpdateContext& Context, UAnimationAsset* AnimationAsset, float AccumulatedTime, bool bLoop,
 	bool bMirrored, UMirrorDataTable* MirrorDataTable,
 	float BlendTime, float RootBoneBlendTime, float MaxTimeBeforeFreezingInnerBlends, const UBlendProfile* BlendProfile, EAlphaBlendOption BlendOption,
-	bool bUseInertialBlend, FVector BlendParameters, float PlayRate,
+	bool bUseInertialBlend, const FVector& BlendParameters, float PlayRate,
 	FName GroupName, EAnimGroupRole::Type GroupRole, EAnimSyncMethod GroupMethod)
 {
 	if (bUseInertialBlend)
