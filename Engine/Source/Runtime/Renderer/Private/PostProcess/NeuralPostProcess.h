@@ -5,6 +5,7 @@
 #include "ScreenPass.h"
 #include "OverridePassSequence.h"
 #include "PostProcess/PostProcessMaterialInputs.h"
+#include "PostProcess/NeuralPostProcessInterface.h"
 
 BEGIN_SHADER_PARAMETER_STRUCT(FNeuralPostProcessShaderParameters, )
 	SHADER_PARAMETER_RDG_TEXTURE_UAV(RWTexture2D<float4>, RWNeuralTexture)
@@ -64,19 +65,3 @@ void ApplyNeuralPostProcess(
 bool IsNeuralPostProcessEnabled();
 bool ShouldApplyNeuralPostProcessForMaterial(const class FMaterial* Material);
 bool IsNeuralPostProcessShaderParameterUsed(FNeuralPostProcessShaderParameters& NeuralPostProcessShaderParameters);
-
-class INeuralPostProcessInterface
-{
-public:
-
-	virtual ~INeuralPostProcessInterface() {}
-
-	virtual void Apply(FRDGBuilder& GraphBuilder, const FViewInfo& View, int32 NeuralProfileId,
-		FRDGTexture* NeuralTexture, FIntRect ViewRect, FRDGBufferRef InputSourceType,
-		FRDGBufferRef& OutputNeuralBuffer, FVector4f& BufferDimension) = 0;
-
-	virtual void AllocateBuffer(FRDGBuilder& GraphBuilder, const FScreenPassTextureViewport& Viewport,
-		int32 NeuralProfileId, FRDGBufferRef& InputNeuralBuffer, FVector4f& InputBufferDimension) = 0;
-};
-
-extern RENDERER_API TUniquePtr<INeuralPostProcessInterface> GNeuralPostProcess;

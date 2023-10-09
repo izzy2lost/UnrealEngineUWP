@@ -6,6 +6,7 @@ public class NeuralPostProcessing : ModuleRules
 {
 	public NeuralPostProcessing(ReadOnlyTargetRules Target) : base(Target)
 	{
+		bTreatAsEngineModule = true;
 		PCHUsage = ModuleRules.PCHUsageMode.UseExplicitOrSharedPCHs;
 		
 		PublicIncludePaths.AddRange(
@@ -18,7 +19,6 @@ public class NeuralPostProcessing : ModuleRules
 		PrivateIncludePaths.AddRange(
 			new string[] {
 				// ... add other private include paths required here ...
-				System.IO.Path.Combine(EngineDirectory, "Source/Runtime/Renderer/Private")
 			}
 			);
 			

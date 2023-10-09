@@ -8,8 +8,7 @@
 #include "Engine/NeuralProfile.h"
 #include "NeuralPostProcessModelInstance.h"
 #include "NeuralPostProcessingCS.h"
-#include "PostProcess/PostProcessing.h"
-#include "PostProcess/NeuralPostProcess.h"
+#include "PostProcess/NeuralPostProcessInterface.h"
 #include "PixelShaderUtils.h"
 #include "RenderGraphEvent.h"
 
@@ -275,7 +274,6 @@ static void AllocateInputBuffer_RenderingThread(
 
 static void	ApplyNeuralNetworks_RenderingThread(
 	FRDGBuilder& GraphBuilder,
-	const FViewInfo& View,
 	int32 ProfileId,
 	FRDGTextureRef NeuralTexture,
 	FIntRect ViewRect,
@@ -319,7 +317,7 @@ static void	ApplyNeuralNetworks_RenderingThread(
 			PassParameters->NetworkTextureSize = NeuralNetworkInputSize;
 			PassParameters->SourceType = GraphBuilder.CreateSRV(InputSourceType, EPixelFormat::PF_R32_UINT);
 			PassParameters->RWIndirectDispatchArgsBuffer = GraphBuilder.CreateUAV(IndirectDispatchBuffer, EPixelFormat::PF_R32_UINT);
-			TShaderMapRef<ARGSETUPSHADER> ComputeShader(View.ShaderMap);
+			TShaderMapRef<ARGSETUPSHADER> ComputeShader(GlobalShaderMap);
 			FComputeShaderUtils::AddPass(GraphBuilder, FRDGEventName(TEXT("NeuralPostProcessing::BuildIndirectArgs(Dispatch)")), ComputeShader, PassParameters, FIntVector(1,1,1));
 		}
 
@@ -412,13 +410,12 @@ static void	ApplyNeuralNetworks_RenderingThread(
 class FNeuralPostProcess : public INeuralPostProcessInterface
 {
 public:
-	virtual void Apply(FRDGBuilder& GraphBuilder, const FViewInfo& View, int32 NeuralProfileId,
+	virtual void Apply(FRDGBuilder& GraphBuilder, int32 NeuralProfileId,
 		FRDGTexture* NeuralTexture, FIntRect ViewRect, FRDGBufferRef InputSourceType,
 		FRDGBufferRef& OutputNeuralBuffer, FVector4f& BufferDimension) override
 	{
 		ApplyNeuralNetworks_RenderingThread(
 			GraphBuilder,
-			View,
 			NeuralProfileId,
 			NeuralTexture,
 			ViewRect,

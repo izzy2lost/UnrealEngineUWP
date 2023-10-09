@@ -148,7 +148,6 @@ void ApplyNeuralPostProcess(
 	{
 		GNeuralPostProcess->Apply(
 			GraphBuilder,
-			View,
 			NeuralPostProcessResource.NeuralProfileId,
 			NeuralPostProcessResource.Texture,
 			Rect,
