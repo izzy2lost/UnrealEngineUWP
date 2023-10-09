@@ -158,7 +158,7 @@ namespace mu
 		{   0,   0,   0,   0 },	// IM_RESIZELIKE	(to be deprecated?)
 		{   0,   0,   0,   0 },	// IM_RESIZEREL		(special case)
 		{   0,  20,   0,   0 },	// IM_BLANKLAYOUT
-		{   0,   0, -20,   0 },	// IM_COMPOSE
+		{   0, -20, -20,   0 },	// IM_COMPOSE
 		{   0,   0, -20,   0 },	// IM_INTERPOLATE
 		{   0,   0,   0,   0 },	// IM_SATURATE
 		{   0,   0,   0,   0 },	// IM_LUMINANCE
@@ -2693,7 +2693,8 @@ namespace mu
 
 		case OP_TYPE::IM_COMPOSE:
 		{
-			if (item.Stage == 2)
+			if ((ExecutionStrategy == EExecutionStrategy::MinimizeMemory && item.Stage == 3) ||
+				(ExecutionStrategy != EExecutionStrategy::MinimizeMemory && item.Stage == 2))
 			{
 				OP::ImageComposeArgs Args = program.GetOpArgs<OP::ImageComposeArgs>(item.At);
 				Ptr<const Layout> ComposeLayout = static_cast<const Layout*>( m_heapData[item.CustomState].Resource.get());
