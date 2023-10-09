@@ -58,7 +58,11 @@ bool UActorElementEditorSelectionInterface::SelectElement(const FTypedElementHan
 		{
 			if (ITypedElementDataStorageInterface* DataStorage = UTypedElementRegistry::GetInstance()->GetMutableDataStorage())
 			{
-				DataStorage->AddColumn(Row, FTypedElementSelectionColumn::StaticStruct());
+				// TODO: We currently don't have a way to add the selection set if the column add is deferred
+				if(FTypedElementSelectionColumn* SelectionColumn = DataStorage->AddOrGetColumn<FTypedElementSelectionColumn>(Row))
+				{
+					SelectionColumn->SelectionSet = InSelectionOptions.GetNameForTEDSIntegration();
+				}
 			}
 		}
 	}
