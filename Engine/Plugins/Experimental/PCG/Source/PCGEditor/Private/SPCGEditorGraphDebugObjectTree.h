@@ -26,12 +26,13 @@ public:
 	void AddChild(TSharedRef<FPCGEditorGraphDebugObjectItem> InChild);
 	const TSet<TSharedPtr<FPCGEditorGraphDebugObjectItem>>& GetChildren() const;
 	FPCGEditorGraphDebugObjectItemPtr GetParent() const;
+	void SortChildren(bool bIsAscending, bool bIsRecursive);
 
-	virtual FString GetLabel() const = 0;	
+	virtual FString GetLabel() const = 0;
 	virtual UPCGComponent* GetPCGComponent() const = 0;
 	virtual const FPCGStack* GetPCGStack() const { return nullptr; }
 	virtual const UObject* GetObject() const  = 0;
-	
+
 protected:
 	TWeakPtr<FPCGEditorGraphDebugObjectItem> Parent;
 	TSet<TSharedPtr<FPCGEditorGraphDebugObjectItem>> Children;
@@ -47,7 +48,7 @@ public:
 	virtual FString GetLabel() const override;
 	virtual UPCGComponent* GetPCGComponent() const override { return nullptr; }
 	virtual const UObject* GetObject() const override { return Actor.Get(); };
-	
+
 protected:
 	TWeakObjectPtr<AActor> Actor = nullptr;
 };
@@ -62,7 +63,7 @@ public:
 	virtual FString GetLabel() const override;
 	virtual UPCGComponent* GetPCGComponent() const override { return PCGComponent.Get(); }
 	virtual const UObject* GetObject() const override { return PCGComponent.Get(); };
-	
+
 protected:
 	TWeakObjectPtr<UPCGComponent> PCGComponent = nullptr;
 };
@@ -79,7 +80,7 @@ public:
 	virtual UPCGComponent* GetPCGComponent() const override { return GetParent() ? GetParent()->GetPCGComponent() : nullptr; }
 	virtual const UObject* GetObject() const override { return PCGGraph.Get(); };
 	virtual const FPCGStack* GetPCGStack() const override { return &PCGStack; }
-	
+
 protected:
 	TWeakObjectPtr<const UPCGGraph> PCGGraph = nullptr;
 	FPCGStack PCGStack;
@@ -98,7 +99,7 @@ public:
 	virtual UPCGComponent* GetPCGComponent() const override { return GetParent() ? GetParent()->GetPCGComponent() : nullptr; }
 	virtual const UObject* GetObject() const override { return PCGNode.Get(); };
 	virtual const FPCGStack* GetPCGStack() const override { return &PCGStack; }
-	
+
 protected:
 	TWeakObjectPtr<const UPCGNode> PCGNode = nullptr;
 	TWeakObjectPtr<const UPCGGraph> PCGGraph = nullptr;
@@ -119,7 +120,7 @@ public:
 	virtual const UObject* GetObject() const override { return PCGNode.Get(); };
 	virtual const FPCGStack* GetPCGStack() const override { return &PCGStack; }
 	virtual int32 GetLoopIndex() const { return LoopIndex; }
-	
+
 protected:
 	TWeakObjectPtr<const UPCGNode> PCGNode = nullptr;
 	int32 LoopIndex = INDEX_NONE;
@@ -133,7 +134,7 @@ public:
 	SLATE_END_ARGS()
 
 	void Construct(const FArguments& InArgs, const TSharedRef<STableViewBase>& InOwnerTableView, FPCGEditorGraphDebugObjectItemPtr InItem);
-	
+
 private:
 	FPCGEditorGraphDebugObjectItemPtr Item;
 };
@@ -145,35 +146,36 @@ public:
 	SLATE_END_ARGS()
 
 	virtual ~SPCGEditorGraphDebugObjectTree();
-	
+
 	void Construct(const FArguments& InArgs, TSharedPtr<FPCGEditor> InPCGEditor);
 
 	virtual void Tick(const FGeometry& AllottedGeometry, const double InCurrentTime, const float InDeltaTime) override;
-	
+
 	void RequestRefresh() { bNeedsRefresh = true; }
 
 	void AddDynamicStack(TWeakObjectPtr<UPCGComponent> InComponent, const FPCGStack& InvocationStack);
-	
+
 private:
 	void SelectedDebugObject_OnClicked() const;
 	bool IsSelectDebugObjectButtonEnabled() const;
-	
+
 	void SetDebugObjectFromSelection_OnClicked();
 	bool IsSetDebugObjectFromSelectionButtonEnabled() const;
-	
+
 	void RefreshTree();
-	
+	void SortTreeItems(bool bIsAscending = true, bool bIsRecursive = true);
+
 	void OnPreObjectPropertyChanged(UObject* InObject, const FEditPropertyChain& InPropertyChain);
 	void OnObjectPropertyChanged(UObject* InObject, FPropertyChangedEvent& InPropertyChangedEvent);
 	void OnObjectConstructed(UObject* InObject);
 
 	UPCGGraph* GetPCGGraph() const;
-	
+
 	TSharedRef<ITableRow> MakeTreeRowWidget(FPCGEditorGraphDebugObjectItemPtr InItem, const TSharedRef<STableViewBase>& InOwnerTable) const;
 	void OnGetChildren(FPCGEditorGraphDebugObjectItemPtr InItem, TArray<FPCGEditorGraphDebugObjectItemPtr>& OutChildren) const;
 	void OnSelectionChanged(FPCGEditorGraphDebugObjectItemPtr InItem, ESelectInfo::Type InSelectInfo) const;
 	void OnSetExpansionRecursive(FPCGEditorGraphDebugObjectItemPtr InItem, bool bInExpand);
-	
+
 	TWeakPtr<FPCGEditor> PCGEditor;
 
 	TSharedPtr<STreeView<FPCGEditorGraphDebugObjectItemPtr>> DebugObjectTreeView;
