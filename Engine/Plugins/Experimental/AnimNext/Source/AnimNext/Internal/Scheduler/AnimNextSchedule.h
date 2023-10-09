@@ -44,10 +44,10 @@ class UAnimNextScheduleEntry_AnimNextGraph : public UAnimNextScheduleEntry
 private:
 	friend class UAnimNextSchedule;
 
-	UPROPERTY(EditAnywhere, Category = "Graph", meta = (CustomWidget = "ParamName", ParamType = "FAnimNextScope"))
+	UPROPERTY(EditAnywhere, Category = "Graph", meta = (CustomWidget = "ParamName", AllowedParamType = "FAnimNextScope"))
 	FName Name;
 
-	UPROPERTY(EditAnywhere, Category = "Graph")
+	UPROPERTY(EditAnywhere, Category = "Graph", meta = (CustomWidget = "ParamName", AllowedParamType = "FName"))
 	FName EntryPoint;
 
 	UPROPERTY(EditAnywhere, Category = "Graph")
@@ -65,7 +65,7 @@ class UAnimNextScheduleEntry_Port : public UAnimNextScheduleEntry
 private:
 	friend class UAnimNextSchedule;
 
-	UPROPERTY(EditAnywhere, Category = "Port", meta = (CustomWidget = "ParamName", ParamType = "FAnimNextPort"))
+	UPROPERTY(EditAnywhere, Category = "Port", meta = (CustomWidget = "ParamName", AllowedParamType = "FAnimNextPort"))
 	FName Name;
 };
 
@@ -77,10 +77,10 @@ class UAnimNextScheduleEntry_ExternalTask : public UAnimNextScheduleEntry
 private:
 	friend class UAnimNextSchedule;
 
-	UPROPERTY(EditAnywhere, Category = "External Task", meta = (CustomWidget = "ParamName", ParamType = "FAnimNextTickFunction"))
+	UPROPERTY(EditAnywhere, Category = "External Task", meta = (CustomWidget = "ParamName", AllowedParamType = "FTickFunction"))
 	FName Name;
 
-	UPROPERTY(EditAnywhere, Category = "External Task", meta = (CustomWidget = "ParamName", ParamType = "TObjectPtr<UObject>"))
+	UPROPERTY(EditAnywhere, Category = "External Task", meta = (CustomWidget = "ParamName", AllowedParamType = "FName"))
 	FName ObjectName;
 };
 
@@ -92,7 +92,7 @@ class UAnimNextScheduleEntry_ParamScope : public UAnimNextScheduleEntry
 private:
 	friend class UAnimNextSchedule;
 
-	UPROPERTY(EditAnywhere, Category = "Parameters", meta = (CustomWidget = "ParamName", ParamType = "FAnimNextScope"))
+	UPROPERTY(EditAnywhere, Category = "Parameters", meta = (CustomWidget = "ParamName", AllowedParamType = "FAnimNextScope"))
 	FName Name;
 
 	// Parameters to apply in this scope
