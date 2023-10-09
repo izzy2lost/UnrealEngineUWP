@@ -125,6 +125,9 @@ protected:
 
 	static PRELOADSCREEN_API FCriticalSection AcquireCriticalSection;
 	static PRELOADSCREEN_API TAtomic<bool> bRenderingEnabled;
+	static PRELOADSCREEN_API TAtomic<bool> bIsLocked;
+	static PRELOADSCREEN_API TAtomic<bool> bIsLockedByGameThread;
+	static PRELOADSCREEN_API TAtomic<bool> bIsLockedByRenderThread;
 
 	TArray<TSharedPtr<IPreLoadScreen>> PreLoadScreens;
 
