@@ -160,8 +160,7 @@ namespace Jupiter.Implementation
 
 						try
 						{
-							(RefRecord, BlobContents?) _ = await _refService.GetAsync(blobNamespace, bucket, key, new string[] { "name" }, doLastAccessTracking: false);
-							found = true;
+							found = await _refService.ExistsAsync(blobNamespace, bucket, key);
 							break;
 						}
 						catch (RefNotFoundException)
