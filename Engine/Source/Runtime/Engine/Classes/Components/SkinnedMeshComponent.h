@@ -821,8 +821,17 @@ public:
 	 *
 	 * @param	InNewMinLOD	Set new MinLodModel that make sure the LOD does not go below of this value. Range from [0, Max Number of LOD - 1]. This will affect in the next tick update. 
 	 */
-	UFUNCTION(BlueprintCallable, Category="Components|SkinnedMesh")
+	UE_DEPRECATED(5.5, "Use USkinnedMeshComponent::OverrideMinLOD() instead.")
+	UFUNCTION(BlueprintCallable, Category="Components|SkinnedMesh", meta = (DeprecatedFunction, DeprecationMessage = "Use USkinnedMeshComponent::OverrideMinLOD() instead."))
 	ENGINE_API void SetMinLOD(int32 InNewMinLOD);
+
+	/**
+	 * Override the Min LOD of the mesh component
+	 *
+	 * @param	InNewMinLOD	Override new MinLodModel that make sure the LOD does not go below of this value. Range from [0, Max Number of LOD - 1]. This will affect in the next tick update.
+	 */
+	UFUNCTION(BlueprintCallable, Category = "Components|SkinnedMesh")
+	ENGINE_API void OverrideMinLOD(int32 InNewMinLOD);
 
 	/**
 	 * Set ForcedLodModel of the mesh component

@@ -3678,6 +3678,13 @@ void USkinnedMeshComponent::SetMinLOD(int32 InNewMinLOD)
 	MinLodModel = FMath::Clamp(InNewMinLOD, 0, MaxLODIndex);
 }
 
+void USkinnedMeshComponent::OverrideMinLOD(int32 InNewMinLOD)
+{
+	int32 MaxLODIndex = GetNumLODs() - 1;
+	MinLodModel = FMath::Clamp(InNewMinLOD, 0, MaxLODIndex);
+	bOverrideMinLod = true;
+}
+
 int32 USkinnedMeshComponent::ComputeMinLOD() const
 {
 	int32 MinLodIndex = bOverrideMinLod ? MinLodModel : GetSkinnedAsset()->GetMinLodIdx();
