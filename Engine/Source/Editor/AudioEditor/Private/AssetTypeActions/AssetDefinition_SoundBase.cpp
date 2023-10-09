@@ -91,7 +91,7 @@ EAssetCommandResult UAssetDefinition_SoundBase::ActivateSoundBase(const FAssetAc
 	return EAssetCommandResult::Unhandled;
 }
 
-TSharedPtr<SWidget> UAssetDefinition_SoundBase::GetSoundBaseThumbnailOverlay(const FAssetData& InAssetData)
+TSharedPtr<SWidget> UAssetDefinition_SoundBase::GetSoundBaseThumbnailOverlay(const FAssetData& InAssetData, TUniqueFunction<FReply()>&& OnClickedLambdaOverride)
 {
 	auto OnGetDisplayBrushLambda = [InAssetData]() -> const FSlateBrush*
 	{
@@ -175,7 +175,20 @@ EAssetCommandResult UAssetDefinition_SoundBase::ActivateAssets(const FAssetActiv
 
 TSharedPtr<SWidget> UAssetDefinition_SoundBase::GetThumbnailOverlay(const FAssetData& InAssetData) const
 {
-	return GetSoundBaseThumbnailOverlay(InAssetData);
+	auto OnClickedLambda = [InAssetData]() -> FReply
+	{
+		if (UE::AudioEditor::IsSoundPlaying(InAssetData))
+		{
+			UE::AudioEditor::StopSound();
+		}
+		else
+		{
+			// Load and play sound
+			UE::AudioEditor::PlaySound(Cast<USoundBase>(InAssetData.GetAsset()));
+		}
+		return FReply::Handled();
+	};
+	return GetSoundBaseThumbnailOverlay(InAssetData, MoveTemp(OnClickedLambda));
 }
 
 // Menu Extensions

@@ -119,24 +119,26 @@ namespace Metasound
 				using namespace Frontend;
 
 				const Frontend::FMetasoundGraphAnalyzerView* GraphView = GraphAnalyzerView.Get();
-				TArray<const FMetasoundAnalyzerView*> Views = GraphView->GetAnalyzerViewsForOutput(InNodeID, InOutputName, ForwardValueAnalyzerClass::GetAnalyzerName());
-				if (!Views.IsEmpty())
+				if (GraphView)
 				{
-					const FMetasoundAnalyzerView** View = Views.FindByPredicate([](const FMetasoundAnalyzerView* Candidate)
+					TArray<const FMetasoundAnalyzerView*> Views = GraphView->GetAnalyzerViewsForOutput(InNodeID, InOutputName, ForwardValueAnalyzerClass::GetAnalyzerName());
+					if (!Views.IsEmpty())
 					{
-						check(Candidate);
-						return Candidate->AnalyzerAddress.AnalyzerMemberName == ForwardValueAnalyzerClass::FOutputs::GetValue().Name;
-					});
+						const FMetasoundAnalyzerView** View = Views.FindByPredicate([](const FMetasoundAnalyzerView* Candidate)
+						{
+							check(Candidate);
+							return Candidate->AnalyzerAddress.AnalyzerMemberName == ForwardValueAnalyzerClass::FOutputs::GetValue().Name;
+						});
 
-					if (View)
-					{
-						check(*View);
-						const FAnalyzerAddress& Address = (*View)->AnalyzerAddress;
-						const FString AnalyzerKey = Address.ToString();
-						return AnalyzerKey;
+						if (View)
+						{
+							check(*View);
+							const FAnalyzerAddress& Address = (*View)->AnalyzerAddress;
+							const FString AnalyzerKey = Address.ToString();
+							return AnalyzerKey;
+						}
 					}
 				}
-
 				return { };
 			}
 

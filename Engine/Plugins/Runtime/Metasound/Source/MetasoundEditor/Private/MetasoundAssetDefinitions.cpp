@@ -255,7 +255,35 @@ bool UAssetDefinition_MetaSoundSource::CanExecuteSoloCommand(const FToolMenuCont
 
 TSharedPtr<SWidget> UAssetDefinition_MetaSoundSource::GetThumbnailOverlay(const FAssetData& InAssetData) const
 {
-	return UAssetDefinition_SoundBase::GetSoundBaseThumbnailOverlay(InAssetData);
+	auto OnClickedLambdaOverride = [InAssetData]() -> FReply
+	{
+		TSharedPtr<Metasound::Editor::FEditor> Editor = Metasound::Editor::FGraphBuilder::GetEditorForMetasound(*InAssetData.GetAsset());
+		if (UE::AudioEditor::IsSoundPlaying(InAssetData))
+		{
+			if (Editor.IsValid())
+			{
+				Editor->Stop();
+			}
+			else
+			{
+				UE::AudioEditor::StopSound();
+			}
+		}
+		else
+		{
+			if (Editor.IsValid())
+			{
+				Editor->Play();
+			}
+			else
+			{
+				// Load and play sound
+				UE::AudioEditor::PlaySound(Cast<USoundBase>(InAssetData.GetAsset()));
+			}
+		}
+		return FReply::Handled();
+	};
+	return UAssetDefinition_SoundBase::GetSoundBaseThumbnailOverlay(InAssetData, MoveTemp(OnClickedLambdaOverride));
 }
 
 EAssetCommandResult UAssetDefinition_MetaSoundSource::ActivateAssets(const FAssetActivateArgs& ActivateArgs) const

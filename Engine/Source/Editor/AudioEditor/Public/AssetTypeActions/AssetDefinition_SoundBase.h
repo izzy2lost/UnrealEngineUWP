@@ -50,7 +50,6 @@ public:
 	static bool CanExecuteSoloCommand(const FToolMenuContext& InContext);
 
 	// Asset definition static utilities
-	static TSharedPtr<SWidget> GetSoundBaseThumbnailOverlay(const FAssetData& InAssetData);
+	static TSharedPtr<SWidget> GetSoundBaseThumbnailOverlay(const FAssetData& InAssetData, TUniqueFunction<FReply()>&& OnClickedLambda);
 	static EAssetCommandResult ActivateSoundBase(const FAssetActivateArgs& ActivateArgs);
-
 };
