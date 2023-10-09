@@ -104,6 +104,8 @@ public:
 		return !FAndroidMisc::ShouldUseDesktopVulkan();
 	}
 
+	static bool HasCustomFrameTiming();
+
 	static bool SupportsVolumeTextureRendering() { return false; }
 
 	static void OverridePlatformHandlers(bool bInit);

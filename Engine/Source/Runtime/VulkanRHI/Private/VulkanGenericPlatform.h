@@ -57,6 +57,8 @@ public:
 
 	static bool SupportsTimestampRenderQueries() { return true; }
 
+	static bool HasCustomFrameTiming() { return false; }
+
 	static bool RequiresMobileRenderer() { return false; }
 
 	// bInit=1 called at RHI init time, bInit=0 at RHI deinit time
