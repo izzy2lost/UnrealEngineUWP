@@ -194,10 +194,11 @@ namespace UE::PixelStreaming
 
 				// Decrease this value to make expected frame delivery more precise, however may result in more old frames being sent
 				const double PrecisionFactor = 0.1;
+				const double WaitFactor = UE::PixelStreaming::Settings::CVarPixelStreamingDecoupleWaitFactor.GetValueOnAnyThread();
 
 				// In "auto" mode vary this value based on historical average
 				const double TargetSubmitMs = 1000.0 / VideoSourceGroup->FramesPerSecond;
-				const double TargetSubmitMsWithPadding = TargetSubmitMs * (1.0 + PrecisionFactor);
+				const double TargetSubmitMsWithPadding = TargetSubmitMs * WaitFactor;
 				const double CloseEnoughMs = TargetSubmitMs * PrecisionFactor;
 				const bool bFrameOverdue = TimeSinceLastSubmitMs >= TargetSubmitMsWithPadding;
 
@@ -205,7 +206,7 @@ namespace UE::PixelStreaming
 				if(!bFrameOverdue)
 				{
 					// Frame arrived in a timely fashion, but is it too soon to maintain our target rate? If so, sleep.
-					double WaitTimeRemainingMs = TargetSubmitMs - TimeSinceLastSubmitMs;
+					double WaitTimeRemainingMs = TargetSubmitMsWithPadding - TimeSinceLastSubmitMs;
 					if(WaitTimeRemainingMs > CloseEnoughMs)
 					{
 						bool bGotNewFrame = FrameEvent.Get()->Wait(WaitTimeRemainingMs);

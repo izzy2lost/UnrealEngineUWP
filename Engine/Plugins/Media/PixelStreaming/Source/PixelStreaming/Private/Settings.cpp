@@ -291,6 +291,12 @@ namespace UE::PixelStreaming::Settings
 		TEXT("Whether we should only stream as fast as we render or at some fixed interval. Coupled means only stream what we render."),
 		ECVF_Default);
 
+	TAutoConsoleVariable<float> CVarPixelStreamingDecoupleWaitFactor(
+		TEXT("PixelStreaming.DecoupleWaitFactor"),
+		1.25f,
+		TEXT("Frame rate factor to wait for a captured frame when streaming in decoupled mode. Higher factor waits longer but may also result in higher latency."),
+		ECVF_Default);
+
 	TAutoConsoleVariable<float> CVarPixelStreamingSignalingReconnectInterval(
 		TEXT("PixelStreaming.SignalingReconnectInterval"),
 		2.0f,
@@ -678,6 +684,7 @@ namespace UE::PixelStreaming::Settings
 		CommandLineParseValue(TEXT("PixelStreamingFreezeFrameQuality"), CVarPixelStreamingFreezeFrameQuality);
 		CommandLineParseValue(TEXT("PixelStreamingInputController="), CVarPixelStreamingInputController);
 		CommandLineParseValue(TEXT("PixelStreamingSignalingReconnectInterval="), CVarPixelStreamingSignalingReconnectInterval);
+		CommandLineParseValue(TEXT("PixelStreamingDecoupleWaitFactor="), CVarPixelStreamingDecoupleWaitFactor);
 
 		// Options parse (if these exist they are set to true)
 		CommandLineParseOption(TEXT("PixelStreamingOnScreenStats"), CVarPixelStreamingOnScreenStats);
