@@ -594,6 +594,20 @@ struct FMutableGraphGenerationContext
 	};
 	TArray<FGeneratedMeshData> GeneratedMeshes;
 
+	struct FGeneratedTableImageData
+	{
+		FString PinName;
+		FName PinType;
+		const mu::Ptr<mu::Table> Table;
+		const UCustomizableObjectNodeTable* TableNode;
+
+		bool operator==(const FGeneratedTableImageData& Other) const
+		{
+			return PinName == Other.PinName && Table == Other.Table;
+		}
+	};
+	TArray<FGeneratedTableImageData> GeneratedTableImages;
+
 	// Stack of mesh generation flags. The last one is the currently valid.
 	// The value is a bit mask of EMutableMeshConversionFlags
 	TArray<EMutableMeshConversionFlags> MeshGenerationFlags;

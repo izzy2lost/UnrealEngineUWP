@@ -393,9 +393,11 @@ bool FillTableColumn(const UCustomizableObjectNodeTable* TableNode,	mu::TablePtr
 				CurrentColumn = MutableTable->AddColumn(StringCast<ANSICHAR>(*ColumnName).Get(), mu::ETableColumnType::Image);
 			}
 
-			if (TableNode->GetColumnImageMode(ColumnName) == ETableTextureType::PASSTHROUGH_TEXTURE)
-			{
+			// Removing encoding part
+			const FString PinName = ColumnName.Replace(TEXT("--PassThrough"),TEXT(""), ESearchCase::CaseSensitive);
 
+			if (TableNode->GetColumnImageMode(PinName) == ETableTextureType::PASSTHROUGH_TEXTURE)
+			{
 				FMutableGraphGenerationContext::FGeneratedPassThroughTexture* FoundIndex = GenerationContext.PassThroughTextureMap.Find(Texture);
 				FMutableGraphGenerationContext::FGeneratedPassThroughTexture NewEntry;
 

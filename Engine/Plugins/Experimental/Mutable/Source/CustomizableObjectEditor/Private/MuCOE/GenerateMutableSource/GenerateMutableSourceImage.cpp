@@ -1063,6 +1063,34 @@ mu::NodeImagePtr GenerateMutableSourceImage(const UEdGraphPin* Pin, FMutableGrap
 							// Material parameters use the Data Table Column Name + Parameter id as mutable column Name to aboid duplicated names (i.e. two MI columns with the same parents but different values).
 							ColumnName = Property->GetDisplayNameText().ToString() + GenerationContext.CurrentMaterialTableParameterId;
 						}
+						else
+						{
+							// Checking if this pin texture has been used in another table node but with a different texture mode
+							const int32 ImageDataIndex = GenerationContext.GeneratedTableImages.Find({ ColumnName, Pin->PinType.PinCategory, Table });
+
+							if (ImageDataIndex != INDEX_NONE )
+							{
+								if (GenerationContext.GeneratedTableImages[ImageDataIndex].PinType != Pin->PinType.PinCategory)
+								{
+									TArray<const UObject*> Nodes;
+									Nodes.Add(TypedNodeTable);
+									Nodes.Add(GenerationContext.GeneratedTableImages[ImageDataIndex].TableNode);
+
+									FString Msg = FString::Printf(TEXT("Texture pin [%s] with different texture modes found in more than one table node. This will add multiple times the texture reseource in the final cook."), *ColumnName);
+									GenerationContext.Compiler->CompilerLog(FText::FromString(Msg), Nodes);
+								}
+							}
+							else
+							{
+								GenerationContext.GeneratedTableImages.Add({ ColumnName, Pin->PinType.PinCategory, Table, TypedNodeTable });
+							}
+
+							// Encoding the texture mode of the type to allow different texture modes from the same pin
+							if (Pin->PinType.PinCategory == Schema->PC_PassThroughImage)
+							{
+								ColumnName += "--PassThrough";
+							}
+						}
 
 						// Generating a new Texture column if not exists
 						if (Table->FindColumn(StringCast<ANSICHAR>(*ColumnName).Get()) == INDEX_NONE)
