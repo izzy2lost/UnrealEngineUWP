@@ -30,7 +30,7 @@ namespace AudioModulation
 		FModulationGeneratorSettings() = default;
 
 		FModulationGeneratorSettings(const USoundModulationGenerator& InGenerator)
-			: TModulatorBase<FGeneratorId>(InGenerator.GetName(), InGenerator.GetUniqueID())
+			: TModulatorBase<FGeneratorId>(InGenerator.GetFName(), InGenerator.GetUniqueID())
 			, Generator(InGenerator.CreateInstance())
 		{
 		}

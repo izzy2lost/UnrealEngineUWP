@@ -246,13 +246,21 @@ namespace AudioModulation
 		{
 		}
 
-		TModulatorBase(const FString& InName, const uint32 InId)
+		TModulatorBase(const FName InName, const uint32 InId)
 			: Id(static_cast<IdType>(InId))
 #if !UE_BUILD_SHIPPING
-			, Name(InName)
+			, Name(InName.ToString())
 #endif // !UE_BUILD_SHIPPING
 		{
 		}
+		
+		TModulatorBase(const FString& InName, const uint32 InId)
+        			: Id(static_cast<IdType>(InId))
+        #if !UE_BUILD_SHIPPING
+        			, Name(InName)
+        #endif // !UE_BUILD_SHIPPING
+        {
+        }
 
 		virtual ~TModulatorBase() = default;
 
