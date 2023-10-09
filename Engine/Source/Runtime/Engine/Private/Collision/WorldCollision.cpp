@@ -409,8 +409,7 @@ bool UWorld::ComponentSweepMulti(TArray<struct FHitResult>& OutHits, class UPrim
 {
 	if (PrimComp)
 	{
-		ComponentSweepMultiByChannel(OutHits, PrimComp, Start, End, Quat, PrimComp->GetCollisionObjectType(), Params);
-		return (OutHits.Num() > 0);
+		return ComponentSweepMultiByChannel(OutHits, PrimComp, Start, End, Quat, PrimComp->GetCollisionObjectType(), Params);
 	}
 	else
 	{
