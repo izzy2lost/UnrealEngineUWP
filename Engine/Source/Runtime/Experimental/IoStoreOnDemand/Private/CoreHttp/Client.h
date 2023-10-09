@@ -82,7 +82,7 @@ public:
 
 private:
 	friend					class FEventLoop;
-	class FSocketPool*		Ptr = nullptr;
+	class FHost*			Ptr = nullptr;
 
 private:
 							FConnectionPool(const FConnectionPool&) = delete;
