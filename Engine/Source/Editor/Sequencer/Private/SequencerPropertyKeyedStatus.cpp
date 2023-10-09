@@ -26,7 +26,10 @@ FPropertyPath FSequencerPropertyKeyedStatusHandler::FPropertyParameters::BuildPr
 	TSharedPtr<const IPropertyHandle> ParentHandle = ActualProperty.GetParentHandle();
 
 	TArray<FPropertyInfo> PropertyInfos;
-	PropertyInfos.Emplace(CurrentHandle->GetProperty(), CurrentHandle->GetArrayIndex());
+	if (CurrentHandle->GetProperty())
+	{
+		PropertyInfos.Emplace(CurrentHandle->GetProperty(), CurrentHandle->GetArrayIndex());
+	}
 
 	while (ParentHandle.IsValid() && ParentHandle->GetProperty())
 	{
