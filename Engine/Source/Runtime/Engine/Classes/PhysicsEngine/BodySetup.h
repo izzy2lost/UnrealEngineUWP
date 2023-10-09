@@ -222,14 +222,6 @@ class UBodySetup : public UBodySetupCore
 
 	/** GUID used to uniquely identify this setup so it can be found in the DDC */
 	FGuid BodySetupGuid;
-
-private:
-#if WITH_EDITOR
-	/** Cooked physics data with runtime only optimizations. This allows us to remove editor only data (like face index remap) assuming the project doesn't use it at runtime. At runtime we load this into CookedFormatData */
-	FFormatContainer CookedFormatDataRuntimeOnlyOptimization;
-#endif
-
-public:
 	
 	/** list of chaos trimesh objects */
 	TArray<Chaos::FTriangleMeshImplicitObjectPtr> TriMeshGeometries;
@@ -324,10 +316,9 @@ private:
 	* Given a format name returns its cooked data.
 	*
 	* @param Format Physics format name.
-	* @param bRuntimeOnlyOptimizedVersion whether we want the data that has runtime only optimizations. At runtime this flag is ignored and we use the runtime only optimized data regardless.
 	* @return Cooked data or NULL of the data was not found.
 	*/
-	FByteBulkData* GetCookedData(FName Format, bool bRuntimeOnlyOptimizedVersion = false);
+	FByteBulkData* GetCookedData(FName Format);
 
 public:
 

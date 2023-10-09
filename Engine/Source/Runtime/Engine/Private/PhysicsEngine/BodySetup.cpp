@@ -797,9 +797,6 @@ void UBodySetup::InvalidatePhysicsData()
 	{
 		CookedFormatData.FlushData();
 	}
-#if WITH_EDITOR
-	CookedFormatDataRuntimeOnlyOptimization.FlushData();
-#endif
 }
 
 void UBodySetup::BeginDestroy()
@@ -849,16 +846,14 @@ void UBodySetup::Serialize(FArchive& Ar)
 			// Make sure to reset bHasCookedCollision data to true before calling GetCookedData for cooking
 			bHasCookedCollisionData = true;
 			FName Format = Ar.CookingTarget()->GetPhysicsFormat(this);
-			bool bUseRuntimeOnlyCookedData = !bSharedCookedData;	//For shared cook data we do not optimize for runtime only flags. This is only used by per poly skeletal mesh component at the moment. Might want to add support in future
-			bHasCookedCollisionData = GetCookedData(Format, bUseRuntimeOnlyCookedData) != NULL; // Get the data from the DDC or build it
+			bHasCookedCollisionData = GetCookedData(Format) != NULL; // Get the data from the DDC or build it
 
 			TArray<FName> ActualFormatsToSave;
 			ActualFormatsToSave.Add(Format);
 
 			FArchive_Serialize_BitfieldBool(Ar, bHasCookedCollisionData);
-
-			FFormatContainer* UseCookedFormatData = bUseRuntimeOnlyCookedData ? &CookedFormatDataRuntimeOnlyOptimization : &CookedFormatData;
-			UseCookedFormatData->Serialize(Ar, this, &ActualFormatsToSave, !bSharedCookedData);
+			
+			CookedFormatData.Serialize(Ar, this, &ActualFormatsToSave, !bSharedCookedData);
 
 #if VERIFY_COOKED_PHYS_DATA
 			// Verify that the cooked data matches the uncooked data
@@ -1211,13 +1206,13 @@ bool UBodySetup::IsCachedCookedPlatformDataLoaded(const ITargetPlatform* TargetP
 			return false;
 		}
 	}
-	GetCookedData(TargetPlatform->GetPhysicsFormat(this), true);
+	GetCookedData(TargetPlatform->GetPhysicsFormat(this));
 	return true;
 }
 
 void UBodySetup::ClearCachedCookedPlatformData( const ITargetPlatform* TargetPlatform )
 {
-	CookedFormatDataRuntimeOnlyOptimization.FlushData();
+
 }
 #endif
 
@@ -1366,7 +1361,7 @@ void GetDDCBuiltData(FByteBulkData* OutResult, DDCBuilderType& InBuilder, UBodyS
 
 #endif //#if WITH_EDITOR
 
-FByteBulkData* UBodySetup::GetCookedData(FName Format, bool bRuntimeOnlyOptimizedVersion)
+FByteBulkData* UBodySetup::GetCookedData(FName Format)
 {
 	if (IsTemplate())
 	{
@@ -1390,7 +1385,7 @@ FByteBulkData* UBodySetup::GetCookedData(FName Format, bool bRuntimeOnlyOptimize
 
 #if WITH_EDITOR
 	//We don't support runtime cook optimization for per poly skeletal mesh. This is an edge case we may want to support (only helps memory savings)
-	FFormatContainer* UseCookedData = CookedFormatDataOverride ? CookedFormatDataOverride : (bRuntimeOnlyOptimizedVersion ? &CookedFormatDataRuntimeOnlyOptimization : &CookedFormatData);
+	FFormatContainer* UseCookedData = CookedFormatDataOverride ? CookedFormatDataOverride : &CookedFormatData;
 #else
 	FFormatContainer* UseCookedData = CookedFormatDataOverride ? CookedFormatDataOverride : &CookedFormatData;
 #endif
