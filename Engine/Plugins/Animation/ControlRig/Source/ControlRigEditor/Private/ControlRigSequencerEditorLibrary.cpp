@@ -480,6 +480,27 @@ bool UControlRigSequencerEditorLibrary::BlendValuesOnSelected(ULevelSequence* Le
 					BlendTool.Blend(WeakSequencer, BlendValue);
 					return true;
 				}
+			case EAnimToolBlendOperation::BlendRelative:
+				{
+					FBlendRelativeSlider BlendTool;
+					BlendTool.Setup(WeakSequencer, WeakMode);
+					BlendTool.Blend(WeakSequencer, BlendValue);
+					return true;
+				}
+			case EAnimToolBlendOperation::BlendToEase:
+				{
+					FBlendToEaseSlider BlendTool;
+					BlendTool.Setup(WeakSequencer, WeakMode);
+					BlendTool.Blend(WeakSequencer, BlendValue);
+					return true;
+				}
+			case EAnimToolBlendOperation::SmoothRough:
+				{
+					FSmoothRoughSlider BlendTool;
+					BlendTool.Setup(WeakSequencer, WeakMode);
+					BlendTool.Blend(WeakSequencer, BlendValue);
+					return true;
+				}
 			}
 		}
 	}

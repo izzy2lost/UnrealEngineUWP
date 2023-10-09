@@ -93,7 +93,7 @@ private:
 
 	TWeakPtr<ISequencer> WeakSequencer;
 	TWeakPtr<FControlRigEditModeToolkit> OwningToolkit;
-	FAnimBlendTooLManager  AnimBlendTools;
+	FAnimBlendToolManager  AnimBlendTools;
 
 	TWeakPtr<FControlRigEditMode> OwningEditMode;
 

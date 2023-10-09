@@ -252,6 +252,12 @@ void SControlRigTweenWidget::Construct(const FArguments& InArgs)
 	
 	TSharedPtr<FBaseAnimSlider> TweenPtr = MakeShareable(new FControlsToTween());
 	AnimBlendTools.RegisterAnimSlider(TweenPtr);
+	TSharedPtr<FBaseAnimSlider> BlendRelativePtr = MakeShareable(new FBlendRelativeSlider());
+	AnimBlendTools.RegisterAnimSlider(BlendRelativePtr);
+	TSharedPtr<FBaseAnimSlider> BlendToEasePtr = MakeShareable(new FBlendToEaseSlider());
+	AnimBlendTools.RegisterAnimSlider(BlendToEasePtr);
+	TSharedPtr<FBaseAnimSlider> SmoothRoughPtr = MakeShareable(new FSmoothRoughSlider());
+	AnimBlendTools.RegisterAnimSlider(SmoothRoughPtr);
 
 	// Combo Button to swap sliders 
 	TSharedRef<SComboButton> SliderComoboBtn = SNew(SComboButton)

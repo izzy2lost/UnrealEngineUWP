@@ -57,7 +57,10 @@ enum class EAnimToolBlendOperation : uint8
 {
 	Tween,
 	BlendToNeighbor,
-	PushPull
+	PushPull,
+	BlendRelative,
+	BlendToEase,
+	SmoothRough,
 };
 
 /**
