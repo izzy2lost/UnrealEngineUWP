@@ -101,6 +101,8 @@ protected:
 	TSharedRef<SWidget> MakeSplitRow(TSharedRef<SWidget> LeftColumn, TSharedRef<SWidget> RightColumn);
 	/** Create a widget that represents a node in the panel tree hierarchy. */
 	TSharedRef<SWidget> MakeNodeWidget(const FMakeNodeWidgetArgs& Args);
+	/** Create a widget that represents a node for the drag and drop. */
+	TSharedRef<SWidget> MakeDragAndDropWidget(const FMakeNodeWidgetArgs& Args);
 	/** Creates cached copies of underlying widgets. */
 	void MakeNodeWidgets(const FMakeNodeWidgetArgs& Args);
 

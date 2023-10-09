@@ -589,7 +589,7 @@ TSharedRef<SWidget> SRCPanelExposedEntity::CreateEntityWidget(TSharedPtr<SWidget
 
 	Args.ResetButton = ResetWidget;
 
-	Widget->SetContent(MakeNodeWidget(Args));
+	Widget->SetContent(MakeDragAndDropWidget(Args));
 	return Widget;
 }
 

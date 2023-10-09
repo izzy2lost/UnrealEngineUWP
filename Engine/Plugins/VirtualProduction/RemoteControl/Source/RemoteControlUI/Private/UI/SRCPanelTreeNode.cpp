@@ -175,6 +175,37 @@ TSharedRef<SWidget> SRCPanelTreeNode::MakeNodeWidget(const FMakeNodeWidgetArgs& 
 	return MakeSplitRow(LeftColumn, RightColumn);
 }
 
+TSharedRef<SWidget> SRCPanelTreeNode::MakeDragAndDropWidget(const FMakeNodeWidgetArgs& Args)
+{
+	MakeNodeWidgets(Args);
+
+	const TSharedRef<SWidget> LeftColumn = SNew(SHorizontalBox)
+		.Clipping(EWidgetClipping::OnDemand)
+		// Field name
+		+ SHorizontalBox::Slot()
+		.VAlign(VAlign_Center)
+		.AutoWidth()
+		[
+			NodeNameWidget.ToSharedRef()
+		];
+
+	const TSharedRef<SWidget> RightColumn = SNew(SHorizontalBox)
+		.Clipping(EWidgetClipping::OnDemand)
+		// Node Value
+		+ SHorizontalBox::Slot()
+		.HAlign(HAlign_Fill)
+		[
+			SNew(SBox)
+			.HAlign(HAlign_Left)
+			.VAlign(VAlign_Center)
+			[
+				NodeValueWidget.ToSharedRef()
+			]
+		];
+
+	return MakeSplitRow(LeftColumn, RightColumn);
+}
+
 void SRCPanelTreeNode::MakeNodeWidgets(const FMakeNodeWidgetArgs& Args)
 {
 	auto WidgetOrNull = [](const TSharedPtr<SWidget>& Widget) {return Widget ? Widget.ToSharedRef() : SNullWidget::NullWidget; };
