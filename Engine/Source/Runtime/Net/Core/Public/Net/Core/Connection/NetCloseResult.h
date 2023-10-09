@@ -330,6 +330,8 @@ enum class ENetCloseResult : uint32
 	/** Field payload serialization failed */
 	FieldPayloadFail,
 
+	/** Replication Channel Count was exceeded and channel creation failed */
+	ReplicationChannelCountMaxedOut,
 
 	/** Beacon Error result types */
 

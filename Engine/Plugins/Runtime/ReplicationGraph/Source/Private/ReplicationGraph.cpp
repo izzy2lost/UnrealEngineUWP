@@ -2409,6 +2409,21 @@ bool UReplicationGraph::ProcessRemoteFunction(class AActor* Actor, UFunction* Fu
 			}
 
 			Ch = (UActorChannel *)Connection->CreateChannelByName( NAME_Actor, EChannelCreateFlags::OpenedLocally );
+			if (!Ch)
+			{
+				if (!(Function->FunctionFlags & FUNC_NetReliable))
+				{
+					// Should we run out of channels then it should be ok to fail out for non-reliable functions
+					return true;
+				}
+				else
+				{
+					// if reliable we want to give user feedback before exiting to allow further hosting
+					Connection->Close(ENetCloseResult::ReplicationChannelCountMaxedOut);
+					return true;
+				}
+			}
+
 			Ch->SetChannelActor(Actor, ESetChannelActorFlags::None);
 			
 			if (UNetReplicationGraphConnection* ConnectionManager = Cast<UNetReplicationGraphConnection>(Connection->GetReplicationConnectionDriver()))
