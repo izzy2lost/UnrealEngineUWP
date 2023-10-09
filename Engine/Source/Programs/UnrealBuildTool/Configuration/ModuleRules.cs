@@ -625,7 +625,7 @@ namespace UnrealBuildTool
 				}
 				else
 				{
-					throw new BuildException("Module '{0}' cannot override package type because it is part of a plugin!", Name);
+					throw new CompilationResultException(CompilationResult.RulesError, "Module '{ModuleName}' cannot override package type because it is part of a plugin!", Name);
 				}
 			}
 		}
@@ -1208,7 +1208,7 @@ namespace UnrealBuildTool
 			FileReference? ModuleFileReference = RulesAssembly.GetModuleFileName(ModuleName);
 			if (ModuleFileReference == null)
 			{
-				throw new BuildException("Could not find a module named '{0}'.", ModuleName);
+				throw new CompilationResultException(CompilationResult.RulesError, "Could not find a module named '{ModuleName}'.", ModuleName);
 			}
 			return ModuleFileReference.Directory.FullName;
 		}
@@ -1407,7 +1407,7 @@ namespace UnrealBuildTool
 			{
 				if (Plugin == null)
 				{
-					throw new BuildException("Module '{0}' does not belong to a plugin; PluginDirectory property is invalid.", Name);
+					throw new CompilationResultException(CompilationResult.RulesError, "Module '{ModuleName}' does not belong to a plugin; PluginDirectory property is invalid.", Name);
 				}
 				else
 				{

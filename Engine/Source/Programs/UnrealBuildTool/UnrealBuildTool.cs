@@ -674,22 +674,20 @@ namespace UnrealBuildTool
 			}
 			catch (CompilationResultException Ex)
 			{
-				// Used to return a propagate a specific exit code after an error has occurred. Does not log any message.
-				Logger.LogDebug(Ex, "{Ex}", ExceptionUtils.FormatExceptionDetails(Ex));
+				// Used to return a propagate a specific exit code after an error has occurred.
+				Ex.LogException(Logger);
 				return (int)Ex.Result;
 			}
 			catch (BuildLogEventException Ex)
 			{
-				// BuildExceptions should have nicely formatted messages. We can log these directly.
-				Logger.Log(Ex.Event.Level, Ex.Event.Id, Ex.Event, Ex, (s, e) => s.ToString());
-				Logger.LogDebug(Ex, "{Ex}", ExceptionUtils.FormatExceptionDetails(Ex));
+				// BuildExceptions should have nicely formatted messages.
+				Ex.LogException(Logger);
 				return (int)CompilationResult.OtherCompilationError;
 			}
 			catch (BuildException Ex)
 			{
-				// BuildExceptions should have nicely formatted messages. We can log these directly.
-				Logger.LogError(Ex, "{Ex}", ExceptionUtils.FormatException(Ex));
-				Logger.LogDebug(Ex, "{Ex}", ExceptionUtils.FormatExceptionDetails(Ex));
+				// BuildExceptions should have nicely formatted messages.
+				Ex.LogException(Logger);
 				return (int)CompilationResult.OtherCompilationError;
 			}
 			catch (Exception Ex)

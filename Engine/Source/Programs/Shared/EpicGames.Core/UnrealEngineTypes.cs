@@ -17,7 +17,7 @@ namespace EpicGames.Core
 	/// Standard return codes used by UBT and UHT
 	/// 
 	/// This MUST be kept in sync with EGeneratedBodyVersion defined in 
-	/// Engine\Source\Runtime\Core\Public\Misc\ComplilationResult.h.
+	/// Engine\Source\Runtime\Core\Public\Misc\CompilationResult.h
 	/// </summary>
 	public enum CompilationResult
 	{
@@ -57,9 +57,19 @@ namespace EpicGames.Core
 		OtherCompilationError = 6,
 
 		/// <summary>
-		/// Compilation failed due to live coding action limit being exceeded.
+		/// Compilation failed due to live coding action limit being exceeded
 		/// </summary>
 		LiveCodingLimitError = 7,
+
+		/// <summary>
+		/// Compilation failed due to TargetRules or ModuleRules errors
+		/// </summary>
+		RulesError = 8,
+
+		/// <summary>
+		/// Compilation failed due to invalid action graph
+		/// </summary>
+		ActionGraphInvalid = 9,
 
 		/// <summary>
 		/// Compilation is not supported in the current build

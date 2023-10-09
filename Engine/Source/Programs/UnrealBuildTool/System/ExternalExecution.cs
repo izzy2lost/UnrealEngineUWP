@@ -20,18 +20,6 @@ using UnrealBuildTool.Modes;
 
 namespace UnrealBuildTool
 {
-
-	class CompilationResultException : BuildException
-	{
-		public readonly CompilationResult Result;
-
-		public CompilationResultException(CompilationResult Result)
-			: base("Error: {0}", Result)
-		{
-			this.Result = Result;
-		}
-	}
-
 	static class UHTModuleTypeExtensions
 	{
 		public static UHTModuleType? EngineModuleTypeFromHostType(ModuleHostType ModuleType)

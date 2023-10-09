@@ -111,7 +111,7 @@ namespace UnrealBuildTool
 
 			if (!bResult)
 			{
-				throw new BuildException("Action graph is invalid; unable to continue. See log for additional details.");
+				throw new CompilationResultException(CompilationResult.ActionGraphInvalid, "Action graph is invalid; unable to continue. See log for additional details.");
 			}
 		}
 
@@ -609,7 +609,7 @@ namespace UnrealBuildTool
 					}
 				}
 
-				throw new BuildException($"Action graph contains cycle!");
+				throw new CompilationResultException(CompilationResult.ActionGraphInvalid, "Action graph contains cycle!");
 			}
 		}
 
