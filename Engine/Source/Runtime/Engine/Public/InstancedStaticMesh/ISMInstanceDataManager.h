@@ -25,6 +25,8 @@ struct FInstanceUpdateComponentDesc
 	int32 NumProxyInstances = -1;
 	// Number of instances in the source (e.g., the component)
 	int32 NumSourceInstances = -1;
+	// 
+	int32 NumCustomDataFloats = 0;
 
 	// Callback to fill in the required change set use with delta-update capable onwing components.
 	// TODO: move elsewhere?
@@ -134,21 +136,10 @@ public:
 	
 	void ValidateMapping() const;
 
-	struct FExternalUpdateData
-	{
-		int32 NumCustomDataFloats = 0; 
-		int32 NumInstances = -1;
-		TUniqueFunction<void(FISMCInstanceDataSceneProxy &Proxy, const FRenderBounds &InstanceLocalBounds)> UpdateProxy;
-	};
 	/**
 	 * Call to mark the manager as needing a full rebuild & having an external driver for this.
-	 * The BuildUpdateData function may not be called, as this only happens if the proxy is actually created.
-	 * BuildUpdateData shares lifetime with the component so can safely capture the this pointer.
-	 * The FExternalUpdateData produced by BuildUpdateData is responsible for capturing data needed to update the Proxy, 
-	 * This will be moved through to the updater task and executed there, should thus not reference the component.
-	 * Calling this also invalidates any ID/Index mapping as the instance data management is completely up to the external source.
 	 */
-	ENGINE_API void MarkForRebuildFromExternal(int32 InNumInstances, TUniqueFunction<FExternalUpdateData(TArray<TRefCountPtr<HHitProxy>> &OutHitProxies)> &&BuildUpdateData);
+	ENGINE_API void MarkForRebuildFromLegacy(TUniquePtr<FStaticMeshInstanceData> &&LegacyInstanceData, const TArray<int32> &InstanceReorderTable, const TArray<TRefCountPtr<HHitProxy>> &HitProxies);
 
 	/**
 	 */
@@ -207,7 +198,7 @@ private:
 	bool bComponentMarkedDirty = false;
 	bool bEnableTracking = false;
 
-	TUniqueFunction<FExternalUpdateData(TArray<TRefCountPtr<HHitProxy>> &OutHitProxies)> ExternalBuildUpdateData;
+	TPimplPtr<struct FLegacyBuildData> LegacyBuildData;
 
 	// Used for serialized legacy data to drive the non-GPU scene rendering path.
 	TUniquePtr<FStaticMeshInstanceData> LegacyStaticMeshInstanceData;

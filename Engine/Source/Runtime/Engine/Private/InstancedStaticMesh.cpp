@@ -2058,6 +2058,14 @@ void UInstancedStaticMeshComponent::GetComponentChildElements(TArray<FTypedEleme
 #endif	// WITH_EDITOR
 }
 
+void UInstancedStaticMeshComponent::PreApplyComponentInstanceData(struct FInstancedStaticMeshComponentInstanceData* InstancedMeshData)
+{
+#if WITH_EDITOR
+	// Prevent proxy recreate while traversing the ::ApplyToComponent stack
+	bIsInstanceDataApplyCompleted = false;
+#endif
+}
+
 void UInstancedStaticMeshComponent::ApplyComponentInstanceData(FInstancedStaticMeshComponentInstanceData* InstancedMeshData)
 {
 #if WITH_EDITOR
@@ -2105,7 +2113,9 @@ void UInstancedStaticMeshComponent::ApplyComponentInstanceData(FInstancedStaticM
 
 	bHasPerInstanceHitProxies = InstancedMeshData->bHasPerInstanceHitProxies;
 
-	// Force recreation of the render data & reset all tracking and mapping in of ID's
+	bIsInstanceDataApplyCompleted = true;
+
+	// TODO: restore ID mapping either from the serialized stuff, or the InstancedMeshData
 	PrimitiveInstanceDataManager.Invalidate(PerInstanceSMData.Num());
 #endif
 }
@@ -2187,10 +2197,11 @@ FPrimitiveSceneProxy* UInstancedStaticMeshComponent::CreateSceneProxy()
 {
 	ProxySize = 0;
 
-	PrimitiveInstanceDataManager.ResetComponentDirtyTracking();
-
-	// Verify that the mesh is valid before using it.
-	const bool bMeshIsValid =
+	// Verify that both mesh and instance data is valid before using it.
+	const bool bIsMeshAndInstanceDataValid =
+#if WITH_EDITOR
+		bIsInstanceDataApplyCompleted && 
+#endif
 		// make sure we have instances
 		PerInstanceSMData.Num() > 0 &&
 		// make sure we have an actual static mesh
@@ -2198,7 +2209,7 @@ FPrimitiveSceneProxy* UInstancedStaticMeshComponent::CreateSceneProxy()
 		GetStaticMesh()->IsCompiling() == false &&
 		GetStaticMesh()->HasValidRenderData();
 
-	if (!bMeshIsValid)
+	if (!bIsMeshAndInstanceDataValid)
 	{
 		return nullptr;
 	}
@@ -2392,6 +2403,7 @@ void UInstancedStaticMeshComponent::BuildComponentInstanceData(FInstanceUpdateCo
 	OutData.StaticMeshBounds = GetStaticMesh()->GetBounds();
 	OutData.NumProxyInstances = PerInstanceSMData.Num();
 	OutData.NumSourceInstances = PerInstanceSMData.Num();
+	OutData.NumCustomDataFloats = NumCustomDataFloats;
 
 	// Function that only gets called if we actually need to flush any changes.
 	OutData.BuildChangeSet = [&](FISMInstanceUpdateChangeSet &ChangeSet)
@@ -4571,13 +4583,14 @@ void UInstancedStaticMeshComponent::PostLoad()
 		}
 	}
 
-	// Has different implementation in HISMC
-	OnPostLoadPerInstanceData();
-
 	if (!HasAnyFlags(RF_ClassDefaultObject|RF_ArchetypeObject))
 	{
 		PrimitiveInstanceDataManager.PostLoad(PerInstanceSMData.Num(), MoveTemp(InstanceDataBufferSerializationTmp));
 	}
+
+	// Has different implementation in HISMC
+	OnPostLoadPerInstanceData();
+
 
 	// release InstanceDataBuffers
 	InstanceDataBufferSerializationTmp.Reset();

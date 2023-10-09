@@ -2573,6 +2573,7 @@ void UHierarchicalInstancedStaticMeshComponent::BuildComponentInstanceData(FInst
 	OutData.StaticMeshBounds = GetStaticMesh()->GetBounds();
 	OutData.NumProxyInstances = InstanceCountToRender;
 	OutData.NumSourceInstances = PerInstanceSMData.Num();
+	OutData.NumCustomDataFloats = NumCustomDataFloats;
 
 	OutData.BuildChangeSet = [&](FISMInstanceUpdateChangeSet &ChangeSet)
 	{
@@ -2702,25 +2703,7 @@ void UHierarchicalInstancedStaticMeshComponent::ApplyBuildTree(FClusterBuilder& 
 	// Make sure it gets rebuilt from scratch to reflect the new instance ordering
 	// we could actually do it incrementally since no data needs to be uploaded (the instances are the same as before, just need to mark changed Indexes for all & implement the general swap functionality)
 	// BUT: the hitproxy data was rebuilt right here & the per instance random is handled differently inside the tree builder so, nope.
-	PrimitiveInstanceDataManager.MarkForRebuildFromExternal(NumBuiltRenderInstances, [
-		HitProxies, 
-		LegacyInstanceData = MoveTemp(BuiltInstanceData),
-		LegacyInstanceReorderTable = InstanceReorderTable]
-		(TArray<TRefCountPtr<HHitProxy>> &OutHitProxies) mutable
-	{
-		OutHitProxies = HitProxies;
-		FPrimitiveInstanceDataManager::FExternalUpdateData ExternalUpdateData;
-		ExternalUpdateData.NumCustomDataFloats = LegacyInstanceData ? LegacyInstanceData->GetNumCustomDataFloats() : 0;
-		ExternalUpdateData.NumInstances = LegacyInstanceData ? LegacyInstanceData->GetNumInstances() : 0;
-		ExternalUpdateData.UpdateProxy = [
-			LegacyInstanceDataInner = MoveTemp(LegacyInstanceData), 
-			LegacyInstanceReorderTableInner = MoveTemp(LegacyInstanceReorderTable)]
-			(FISMCInstanceDataSceneProxy &InstanceDataSceneProxy, const FRenderBounds &LocalBounds) mutable
-		{
-			InstanceDataSceneProxy.BuildFromLegacyData(MoveTemp(LegacyInstanceDataInner), LocalBounds, MoveTemp(LegacyInstanceReorderTableInner));
-		};
-		return ExternalUpdateData;
-	});
+	PrimitiveInstanceDataManager.MarkForRebuildFromLegacy(MoveTemp(BuiltInstanceData), InstanceReorderTable, HitProxies);
 
 	FlushAccumulatedNavigationUpdates();
 	PostBuildStats();
@@ -2972,14 +2955,16 @@ FPrimitiveSceneProxy* UHierarchicalInstancedStaticMeshComponent::CreateSceneProx
 		return nullptr;
 	}
 
-	// Verify that the mesh is valid before using it.
-	const bool bMeshIsValid =
+	// Verify that the mesh is valid & that we have instances before creating a proxy.
+	const bool bAreMeshAndInstancesValid =
+		// Make sure we have instances, or an update with instances on the way (for the external data (landscape grass) mode).
+		(GetNumInstances() > 0 ||  PrimitiveInstanceDataManager.GetMaxInstanceIndex() > 0) &&
 		// Make sure we have an actual static mesh.
 		GetStaticMesh() &&
 		!GetStaticMesh()->IsCompiling() &&
 		GetStaticMesh()->HasValidRenderData(false);
 
-	if (!bMeshIsValid)
+	if (!bAreMeshAndInstancesValid)
 	{
 		return nullptr;
 	}

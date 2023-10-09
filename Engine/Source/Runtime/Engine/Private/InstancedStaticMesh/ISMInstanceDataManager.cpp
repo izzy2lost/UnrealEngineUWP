@@ -396,17 +396,35 @@ void FPrimitiveInstanceDataManager::DispatchUpdateTask(bool bIsUnattached, const
 	}
 }
 
-struct FExternalGenericChangeSet
+/**
+ * Data captured that may be flushed to rebuild the proxy from legacy data AKA FStaticMeshInstanceData.
+ * Is marshalled across via the FLegacyRebuildChangeSet.
+ */
+struct FLegacyBuildData
+{
+	TUniquePtr<FStaticMeshInstanceData> LegacyStaticMeshInstanceData;
+	TArray<int32> LegacyInstanceReorderTable;
+	FInstanceIdIndexMap InstanceIdIndexMap;
+#if WITH_EDITOR
+	TArray<TRefCountPtr<HHitProxy>> HitProxies;
+#endif
+};
+
+struct FLegacyRebuildChangeSet
 {
 	FRenderBounds InstanceLocalBounds;
 	FVector PrimitiveWorldSpaceOffset;
 	FRenderTransform PrimitiveToRelativeWorld;
 	FInstanceDataFlags Flags;
 	float AbsMaxDisplacement = 0.0f;
+	TUniquePtr<FStaticMeshInstanceData> LegacyStaticMeshInstanceData;
+	TArray<int32> LegacyInstanceReorderTable;
+	FInstanceIdIndexMap InstanceIdIndexMap;
+
 #if WITH_EDITOR
 	TPimplPtr<FOpaqueHitProxyContainer> HitProxyContainer;
 #endif
-	FPrimitiveInstanceDataManager::FExternalUpdateData ExternalUpdateData;
+	int32 NumCustomDataFloats = 0; 
 };
 
 void FPrimitiveInstanceDataManager::InitChangeSet(const FChangeDesc &ChangeDesc, const FInstanceUpdateComponentDesc &ComponentData, FISMInstanceUpdateChangeSet &ChangeSet)
@@ -414,13 +432,14 @@ void FPrimitiveInstanceDataManager::InitChangeSet(const FChangeDesc &ChangeDesc,
 	if (ChangeSet.IsFullUpdate())
 	{
 		// Initialize to full update collection
+		// TODO: Initialize to empty conditionally using the Flags
 		ChangeSet.CustomDataDelta 
 #if WITH_EDITOR
 			= ChangeSet.InstanceEditorDataDelta 
 #endif
 			= ChangeSet.InstanceLightShadowUVBiasDelta 
 			= ChangeSet.TransformsDelta 
-			= FArrayIndexDelta(GetMaxInstanceIndex());
+			= FArrayIndexDelta(ComponentData.NumSourceInstances);
 	}
 	else
 	{
@@ -437,12 +456,12 @@ void FPrimitiveInstanceDataManager::InitChangeSet(const FChangeDesc &ChangeDesc,
 			{
 				int32 Index = IdToIndex(FPrimitiveInstanceId{BitIt.GetIndex()});
 				check(Index != INDEX_NONE);
-				if (!ChangeDesc.bPrimitiveTransformChanged)
+				if (!bSendAllTransforms)
 				{
 					ChangeSet.TransformsDelta.AddIndex(Index);
 				}
 
-				if (!bNumCustomDataChanged)
+				if (!bNumCustomDataChanged && Flags.bHasPerInstanceCustomData)
 				{
 					ChangeSet.CustomDataDelta.AddIndex(Index);
 				}
@@ -456,7 +475,7 @@ void FPrimitiveInstanceDataManager::InitChangeSet(const FChangeDesc &ChangeDesc,
 		}
 #if WITH_EDITOR
 		// Bulk update editor data - the hit-proxies are recreated all the time.
-		ChangeSet.InstanceEditorDataDelta = FArrayIndexDelta(GetMaxInstanceIndex());
+		ChangeSet.InstanceEditorDataDelta = FArrayIndexDelta(ComponentData.NumSourceInstances);
 #endif
 		if (bSendAllTransforms)
 		{
@@ -477,27 +496,34 @@ void FPrimitiveInstanceDataManager::InitChangeSet(const FChangeDesc &ChangeDesc,
 		}
 
 		// Update all the custom data if there was a change in number of floats (this resets the whole thing).
-		if (bNumCustomDataChanged)
+		if (Flags.bHasPerInstanceCustomData)
 		{
-			ChangeSet.CustomDataDelta = FArrayIndexDelta(GetMaxInstanceIndex());
+			if (bNumCustomDataChanged)
+			{
+				ChangeSet.CustomDataDelta = FArrayIndexDelta(ComponentData.NumSourceInstances);
+			}
+			else
+			{
+				for (TConstSetBitIterator<> BitIt(CustomDataChangedInstances); BitIt; ++BitIt)
+				{
+					FPrimitiveInstanceId Id{BitIt.GetIndex()};
+					if (!AddedInstances[Id] && !RemovedInstances[Id])
+					{
+						int32 Index = IdToIndex(Id);
+						check(Index != INDEX_NONE);
+						ChangeSet.CustomDataDelta.AddIndex(Index);
+					}
+				}
+			}
 		}
 		else
 		{
-			for (TConstSetBitIterator<> BitIt(CustomDataChangedInstances); BitIt; ++BitIt)
-			{
-				FPrimitiveInstanceId Id{BitIt.GetIndex()};
-				if (!AddedInstances[Id] && !RemovedInstances[Id])
-				{
-					int32 Index = IdToIndex(Id);
-					check(Index != INDEX_NONE);
-					ChangeSet.CustomDataDelta.AddIndex(Index);
-				}
-			}
+			ChangeSet.CustomDataDelta = FArrayIndexDelta();
 		}
 
 		if (bBakedLightingDataChanged)
 		{
-			ChangeSet.InstanceLightShadowUVBiasDelta = FArrayIndexDelta(GetMaxInstanceIndex());
+			ChangeSet.InstanceLightShadowUVBiasDelta = FArrayIndexDelta(ComponentData.NumSourceInstances);
 		}
 		else
 		{
@@ -536,9 +562,9 @@ void FPrimitiveInstanceDataManager::InitChangeSet(const FChangeDesc &ChangeDesc,
 	ChangeSet.PrimitiveToRelativeWorld = FLargeWorldRenderScalar::MakeToRelativeWorldMatrix(ChangeSet.PrimitiveWorldSpaceOffset, PrimitiveLocalToWorld);
 	ChangeSet.Flags = Flags;
 	ChangeSet.AbsMaxDisplacement = AbsMaxDisplacement;
+	ChangeSet.NumCustomDataFloats = NumCustomDataFloats;
 	if (!ChangeSet.Flags.bHasPerInstanceCustomData)
 	{
-		ChangeSet.NumCustomDataFloats = 0;
 		ChangeSet.CustomDataDelta = FArrayIndexDelta();
 	}
 	ChangeSet.InstanceIdIndexMap = FInstanceIdIndexMap(*this);
@@ -573,47 +599,50 @@ bool FPrimitiveInstanceDataManager::FlushChanges(FInstanceUpdateComponentDesc &&
 	ERHIFeatureLevel::Type FeatureLevel = ComponentData.PrimitiveSceneProxy->GetScene().GetFeatureLevel();
 	check(Proxy->CheckPlatformFeatureLevel(ShaderPlatform, FeatureLevel));
 
+
+	bool bWasUpdateQueued = false;
 	// Marked for externally managed update, this may be combined with tracked changes (which results in double updates)
-	if (ExternalBuildUpdateData)
+	if (LegacyBuildData)
 	{
 		LOG_INST_DATA(TEXT("Rebuild with EState::External %s"), TEXT(""));
 
-		FExternalGenericChangeSet ExternalChangeSet;
+		check(LegacyBuildData->InstanceIdIndexMap.GetMaxInstanceIndex() == LegacyBuildData->LegacyStaticMeshInstanceData->GetNumInstances());
+
+		// An "external build" is responsible for setting everything up in the right space.
+		bPrimitiveTransformChanged = false;
+		PrimitiveLocalToWorld = ComponentData.PrimitiveLocalToWorld;
+		Flags = ComponentData.Flags;
+		StaticMeshBounds = ComponentData.StaticMeshBounds;
+		NumCustomDataFloats = ComponentData.NumCustomDataFloats;
+
+		FLegacyRebuildChangeSet ExternalChangeSet;
 		ExternalChangeSet.PrimitiveWorldSpaceOffset = FLargeWorldRenderPosition(PrimitiveLocalToWorld.GetOrigin()).GetTileOffset();
 		ExternalChangeSet.PrimitiveToRelativeWorld = FLargeWorldRenderScalar::MakeToRelativeWorldMatrix(ExternalChangeSet.PrimitiveWorldSpaceOffset, PrimitiveLocalToWorld);
 		ExternalChangeSet.InstanceLocalBounds = ComponentData.StaticMeshBounds;
-		ExternalChangeSet.Flags = ComponentData.Flags;
+		ExternalChangeSet.Flags = Flags;
 
-		TArray<TRefCountPtr<HHitProxy>> HitProxies;
-		ExternalChangeSet.ExternalUpdateData = ExternalBuildUpdateData(HitProxies);
+		ExternalChangeSet.LegacyStaticMeshInstanceData = MoveTemp(LegacyBuildData->LegacyStaticMeshInstanceData);
+		ExternalChangeSet.LegacyInstanceReorderTable = MoveTemp(LegacyBuildData->LegacyInstanceReorderTable);
+		ExternalChangeSet.InstanceIdIndexMap = MoveTemp(LegacyBuildData->InstanceIdIndexMap);
 #if WITH_EDITOR
-		ExternalChangeSet.HitProxyContainer = MakeOpaqueHitProxyContainer(HitProxies);
+		ExternalChangeSet.HitProxyContainer = MakeOpaqueHitProxyContainer(LegacyBuildData->HitProxies);
 #endif
 
 		ExternalChangeSet.AbsMaxDisplacement = AbsMaxDisplacement;
-		
-		// Make sure we have a tracking state that matches the number of instances, but doesn't retain any history
-		ClearIdTracking(ExternalChangeSet.ExternalUpdateData.NumInstances);
-
-		// Need to store this off for tracking purposes
-		NumCustomDataFloats = ExternalChangeSet.ExternalUpdateData.NumCustomDataFloats;
 
 		// Assemble header info to enable nonblocking primitive update.
 		FInstanceDataBufferHeader InstanceDataBufferHeader;
-		InstanceDataBufferHeader.NumInstances = NumInstances;
-		InstanceDataBufferHeader.PayloadDataStride = FInstanceSceneDataBuffers::CalcPayloadDataStride(ExternalChangeSet.Flags, ExternalChangeSet.ExternalUpdateData.NumCustomDataFloats, 0);
+		InstanceDataBufferHeader.NumInstances = ExternalChangeSet.InstanceIdIndexMap.GetMaxInstanceIndex();
+		InstanceDataBufferHeader.PayloadDataStride = FInstanceSceneDataBuffers::CalcPayloadDataStride(ExternalChangeSet.Flags, NumCustomDataFloats, 0);
 		InstanceDataBufferHeader.Flags = ExternalChangeSet.Flags;
 
-		DispatchUpdateTask(bIsUnattached, InstanceDataBufferHeader,
-			[ExternalChangeSet = MoveTemp(ExternalChangeSet), 
-			Proxy = Proxy,
-			InstanceIdIndexMap = FInstanceIdIndexMap(*this)] () mutable 
+		DispatchUpdateTask(bIsUnattached, InstanceDataBufferHeader, [ExternalChangeSet = MoveTemp(ExternalChangeSet), Proxy = Proxy] () mutable 
 		{
 			FISMCInstanceDataSceneProxy &ProxyRef = *Proxy;
 			
 			// Forcibly destroy any tracking state, if the external entity manages this it can track the data on its own.
 			ProxyRef.ChangeMask.Reset();
-			ProxyRef.InstanceIdIndexMap = MoveTemp(InstanceIdIndexMap);
+			ProxyRef.InstanceIdIndexMap = MoveTemp(ExternalChangeSet.InstanceIdIndexMap);
 #if WITH_EDITOR
 			ProxyRef.HitProxyContainer = MoveTemp(ExternalChangeSet.HitProxyContainer);
 #endif
@@ -629,12 +658,15 @@ bool FPrimitiveInstanceDataManager::FlushChanges(FInstanceUpdateComponentDesc &&
 			ExternalChangeSet.InstanceLocalBounds.Min -= PadExtent;
 			ExternalChangeSet.InstanceLocalBounds.Max += PadExtent;
 
-			ExternalChangeSet.ExternalUpdateData.UpdateProxy(ProxyRef, ExternalChangeSet.InstanceLocalBounds);
+			ProxyRef.BuildFromLegacyData(MoveTemp(ExternalChangeSet.LegacyStaticMeshInstanceData), ExternalChangeSet.InstanceLocalBounds, MoveTemp(ExternalChangeSet.LegacyInstanceReorderTable));
 
-			check(ProxyRef.GetData().GetNumInstances() == InstanceIdIndexMap.GetMaxInstanceIndex());
-			check(ProxyRef.GetUpdateTaskInfo()->GetHeader().NumInstances == InstanceIdIndexMap.GetMaxInstanceIndex());
+			check(ProxyRef.GetData().GetNumInstances() == ProxyRef.InstanceIdIndexMap.GetMaxInstanceIndex());
+			check(ProxyRef.GetUpdateTaskInfo()->GetHeader().NumInstances == ProxyRef.InstanceIdIndexMap.GetMaxInstanceIndex());
 			check(ProxyRef.GetUpdateTaskInfo()->GetHeader().Flags == ProxyRef.InstanceSceneDataBuffers.GetFlags());
 		});
+
+		LegacyBuildData.Reset();
+		bWasUpdateQueued = true;
 	}
 
 	FChangeDesc ChangeDesc;
@@ -658,6 +690,12 @@ bool FPrimitiveInstanceDataManager::FlushChanges(FInstanceUpdateComponentDesc &&
 		ChangeDesc.bMaxDisplacementChanged = AbsMaxDisplacement != NewAbsMaxDisplacement;
 		ChangeDesc.bStaticMeshBoundsChanged = !StaticMeshBounds.Equals(ComponentData.StaticMeshBounds);
 	}
+	
+	// Yet another special case to handle externally managed data from landscape grass
+	if (Mode == EMode::ExternalLegacyData && (bPrimitiveTransformChanged || !ComponentData.PrimitiveLocalToWorld.Equals(PrimitiveLocalToWorld)))
+	{
+		ChangeDesc.bPrimitiveTransformChanged = true;
+	}
 
 	FMatrix PrevPrimitiveLocalToWorld = PrimitiveLocalToWorld;
 	// Update the tracked state
@@ -665,27 +703,29 @@ bool FPrimitiveInstanceDataManager::FlushChanges(FInstanceUpdateComponentDesc &&
 	AbsMaxDisplacement = NewAbsMaxDisplacement;
 	StaticMeshBounds = ComponentData.StaticMeshBounds;
 	Flags = ComponentData.Flags;
+	NumCustomDataFloats = ComponentData.NumCustomDataFloats;
 
 	const bool bAnyChange = ChangeDesc.Packed != 0;
 
 	if (!bAnyChange)
 	{
-		return false;
+		return bWasUpdateQueued;
 	}
 	
+	// No need to send an update for an ISM with zero source instances && no instance updates 
+	// except if the primitive transform changed, in which case we need to pipe that through if there are instances in the proxy.
+	if (ComponentData.NumSourceInstances == 0 && !ChangeDesc.bInstancesChanged 
+		&& !(ChangeDesc.bPrimitiveTransformChanged && ComponentData.NumProxyInstances != 0))
+	{
+		ClearChangeTracking();
+		return bWasUpdateQueued;
+	}
+
 	// 
 	{
 		// TODO: Maybe specialize for only bPrimitiveTransformChanged (no need to send/modify anything _other_ than the transform data)
 		// TODO: The states other than bCreateNewProxy _can_ be handled through delta updates (e.g., add instance + offset all the rest).
 		bool bNeedFullUpdate = ChangeDesc.bUntrackedState || ChangeDesc.bMaterialUsageFlagsChanged;
-
-		// TODO: fix this up somehow: can probably remove now since we now propagate the count with invalidations & just leave a check
-		// In this case, here's where we found out the true count of instances, since before it's not been tracked.
-		if (ChangeDesc.bUntrackedState)
-		{
-			check(ComponentData.NumSourceInstances >= 0);
-			NumInstances = ComponentData.NumSourceInstances;
-		}
 
 		FISMInstanceUpdateChangeSet ChangeSet(bNeedFullUpdate);
 
@@ -696,8 +736,7 @@ bool FPrimitiveInstanceDataManager::FlushChanges(FInstanceUpdateComponentDesc &&
 		ComponentData.BuildChangeSet(ChangeSet);
 		
 		// make sure the custom data change is correctly tracked
-		check(bNeedFullUpdate || bNumCustomDataChanged || NumCustomDataFloats == ChangeSet.NumCustomDataFloats);
-		NumCustomDataFloats = ChangeSet.NumCustomDataFloats;
+		check(!ChangeSet.Flags.bHasPerInstanceCustomData || NumCustomDataFloats == ChangeSet.NumCustomDataFloats);
 		check(ChangeSet.Flags.bHasPerInstanceCustomData || ChangeSet.CustomDataDelta.IsEmpty() && ChangeSet.PerInstanceCustomData.IsEmpty());
 
 		// If we have per-instance previous local to world, they are expected to be in the local space of the _previous_ local to world. If they are in fact not (e.g., if someone sets them explicitly from world space) then, well, this won't be correct
@@ -732,9 +771,7 @@ bool FPrimitiveInstanceDataManager::FlushChanges(FInstanceUpdateComponentDesc &&
 
 
 		// Special handling for the case of external data & transform change, may want to extend this to others (but need to send data in that case)
-		FChangeDesc OnlyPrimitiveTransformChangeDesc;
-		OnlyPrimitiveTransformChangeDesc.bPrimitiveTransformChanged = true;
-		if (Mode == EMode::ExternalLegacyData && ChangeDesc.Packed == OnlyPrimitiveTransformChangeDesc.Packed)
+		if (Mode == EMode::ExternalLegacyData && ChangeDesc.bPrimitiveTransformChanged)
 		{
 			LOG_INST_DATA(TEXT("Primitive Transform Update %s"), TEXT(""));
 			DispatchUpdateTask(bIsUnattached, InstanceDataBufferHeader, [ChangeSet = MoveTemp(ChangeSet), Proxy = Proxy] () mutable 
@@ -815,7 +852,7 @@ void FPrimitiveInstanceDataManager::ClearChangeTracking()
 	// When tracking data is cleared, we loose connection to previously tracked state until the next update is sent.
 	TrackingState = ETrackingState::Initial;
 
-	ExternalBuildUpdateData.Reset();
+	LegacyBuildData.Reset();
 
 	AddedInstances.Empty();
 	RemovedInstances.Empty();
@@ -1034,13 +1071,35 @@ void FPrimitiveInstanceDataManager::ValidateMapping() const
 #endif
 }
 
-void FPrimitiveInstanceDataManager::MarkForRebuildFromExternal(int32 InNumInstances, TUniqueFunction<FExternalUpdateData(TArray<TRefCountPtr<HHitProxy>> &OutHitProxies)> &&BuildUpdateData)
+void FPrimitiveInstanceDataManager::MarkForRebuildFromLegacy(TUniquePtr<FStaticMeshInstanceData> &&InLegacyInstanceData, const TArray<int32> &InstanceReorderTable, const TArray<TRefCountPtr<HHitProxy>> &HitProxies)
 {
-	// Forget any tracked changes that happened before (and ID-mapping)
-	ClearIdTracking(InNumInstances);
-	ExternalBuildUpdateData = MoveTemp(BuildUpdateData);
-	// Must actually track the changes because we may see incremental changes in the same frame,
-	TrackingState = ETrackingState::Tracked;
+	check(InLegacyInstanceData);
+	// TODO: restore the ID tracking when not in external mode
+	//if (Mode == EMode::ExternalLegacyData)
+	{
+		ClearIdTracking(InLegacyInstanceData->GetNumInstances());
+	}
+	//else
+	//{
+	//	ClearChangeTracking();
+	//}
+	check(GetMaxInstanceIndex() == InLegacyInstanceData->GetNumInstances());
+
+	LegacyBuildData = MakePimpl<FLegacyBuildData>();
+	
+	// Need to capture the InstanceIdIndexMap map here, as there may be further changes before the next flush is called.
+	LegacyBuildData->LegacyStaticMeshInstanceData = MoveTemp(InLegacyInstanceData);
+	LegacyBuildData->LegacyInstanceReorderTable = InstanceReorderTable;
+	LegacyBuildData->InstanceIdIndexMap = FInstanceIdIndexMap(*this);
+#if WITH_EDITOR
+	LegacyBuildData->HitProxies = HitProxies; 
+#endif
+
+	if (Mode != EMode::ExternalLegacyData)
+	{
+		// Must actually track the changes because we may see incremental changes in the same frame,
+		TrackingState = ETrackingState::Tracked;
+	}
 	MarkComponentRenderInstancesDirty();
 }
 

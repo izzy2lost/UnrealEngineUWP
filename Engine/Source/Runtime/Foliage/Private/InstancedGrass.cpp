@@ -90,19 +90,8 @@ void UGrassInstancedStaticMeshComponent::AcceptPrebuiltTree(TArray<FClusterNode>
 	TUniquePtr<FStaticMeshInstanceData> BuiltInstanceData = MakeUnique<FStaticMeshInstanceData>();
 	// TODO: Implement move semantics for FStaticMeshInstanceData!
 	Swap(*BuiltInstanceData, *InSharedInstanceBufferData);
+	PrimitiveInstanceDataManager.MarkForRebuildFromLegacy(MoveTemp(BuiltInstanceData), InstanceReorderTable, TArray<TRefCountPtr<HHitProxy>>());
 
-	PrimitiveInstanceDataManager.MarkForRebuildFromExternal(NumBuiltRenderInstances, [LegacyInstanceData = MoveTemp(BuiltInstanceData)] (TArray<TRefCountPtr<HHitProxy>> &OutHitProxies) mutable
-	{
-		OutHitProxies.Reset(); 
-		FPrimitiveInstanceDataManager::FExternalUpdateData ExternalUpdateData;
-		ExternalUpdateData.NumInstances = LegacyInstanceData ? LegacyInstanceData->GetNumInstances() : 0;
-		ExternalUpdateData.UpdateProxy = [LegacyInstanceDataInner = MoveTemp(LegacyInstanceData)](FISMCInstanceDataSceneProxy &InstanceDataSceneProxy, const FRenderBounds &InstanceLocalBounds) mutable
-		{
-			// No reorder table needed since we never perform delta updates.
-			InstanceDataSceneProxy.BuildFromLegacyData(MoveTemp(LegacyInstanceDataInner), InstanceLocalBounds, TArray<int32>());
-		};
-		return ExternalUpdateData;
-	});
 	MarkRenderStateDirty();
 }
 
@@ -115,13 +104,17 @@ void UGrassInstancedStaticMeshComponent::BuildComponentInstanceData(FInstanceUpd
 	OutData.StaticMeshBounds = GetStaticMesh()->GetBounds();
 	OutData.NumProxyInstances = InstanceCountToRender;
 	OutData.NumSourceInstances = 0;
+	OutData.NumCustomDataFloats = NumCustomDataFloats;
+
 #if WITH_EDITOR
 	// TODO: Do we want these for this path?
 	OutData.Flags.bHasPerInstanceEditorData = false;
 #endif
 	OutData.BuildChangeSet = [&](FISMInstanceUpdateChangeSet &ChangeSet)
 	{
-		// Cancel any update that is not transforms, because that is the only data this primitive stores for this very special use-case
+		// Cancel update as there is no source data
+		check(ChangeSet.TransformsDelta.IsEmpty());
+		ChangeSet.TransformsDelta = FArrayIndexDelta();
 		ChangeSet.InstanceLightShadowUVBiasDelta = FArrayIndexDelta();
 		ChangeSet.CustomDataDelta = FArrayIndexDelta();
 #if WITH_EDITOR
@@ -129,8 +122,8 @@ void UGrassInstancedStaticMeshComponent::BuildComponentInstanceData(FInstanceUpd
 #endif
 		BuildInstanceDataDeltaChangeSetCommon(ChangeSet);
 		check(GetTranslatedInstanceSpaceOrigin().IsNearlyZero());
-		ChangeSet.SetInstanceTransforms(MakeStridedView(PerInstanceSMData, &FInstancedStaticMeshInstanceData::Transform));
-		ChangeSet.SetInstancePrevTransforms(MakeArrayView(PerInstancePrevTransform));
+		check(PerInstanceSMData.IsEmpty());
+		check(PerInstancePrevTransform.IsEmpty());
 		// The reorder table is always empty in this path because the HISM is populated in AcceptPrebuiltTree using instances in the already sorted order.
 		check(InstanceReorderTable.IsEmpty());
 		check(ChangeSet.LegacyInstanceReorderTable.IsEmpty());

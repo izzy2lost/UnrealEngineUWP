@@ -481,6 +481,9 @@ public:
 	 */
 	virtual FVector GetTranslatedInstanceSpaceOrigin() const { return FVector::Zero(); }
 
+	/** Handle changes that must happen before the proxy is recreated. */
+	ENGINE_API void PreApplyComponentInstanceData(struct FInstancedStaticMeshComponentInstanceData* ComponentInstanceData);
+
 	/** Applies the cached component instance data to a newly blueprint constructed component. */
 	ENGINE_API virtual void ApplyComponentInstanceData(struct FInstancedStaticMeshComponentInstanceData* ComponentInstanceData);
 
@@ -560,6 +563,7 @@ private:
 	ENGINE_API bool BatchUpdateInstancesTransformsInternal(int32 StartInstanceIndex, TArrayView<const FTransform> NewInstancesTransforms, bool bWorldSpace, bool bMarkRenderStateDirty, bool bTeleport);
 
 protected:
+	bool bIsInstanceDataApplyCompleted = true;
 
 	FPrimitiveInstanceDataManager PrimitiveInstanceDataManager;
 
@@ -698,6 +702,8 @@ public:
 
 	virtual void ApplyToComponent(UActorComponent* Component, const ECacheApplyPhase CacheApplyPhase) override
 	{
+		// The Super::ApplyToComponent will cause the scene proxy to be recreated, so we must do what we can to make sure the state is ok before that.
+		CastChecked<UInstancedStaticMeshComponent>(Component)->PreApplyComponentInstanceData(this);
 		Super::ApplyToComponent(Component, CacheApplyPhase);
 		CastChecked<UInstancedStaticMeshComponent>(Component)->ApplyComponentInstanceData(this);
 	}

@@ -94,24 +94,15 @@ void FISMInstanceUpdateChangeSet::SetCustomData(const TArrayView<const float> &I
 {
 	if (Flags.bHasPerInstanceCustomData)
 	{
-		// Switch over to not having any if count is zero
-		if (InNumCustomDataFloats == 0)
-		{
-			CustomDataDelta = FArrayIndexDelta();
-			Flags.bHasPerInstanceCustomData = false;
-			return;
-		}
+		check(InNumCustomDataFloats == NumCustomDataFloats);
+		check(NumCustomDataFloats > 0);
+		check(InPerInstanceCustomData.Num() == InstanceIdIndexMap.GetMaxInstanceIndex() * NumCustomDataFloats);
 
-		check(InPerInstanceCustomData.Num() == InstanceIdIndexMap.GetMaxInstanceIndex() * InNumCustomDataFloats);
-
-		// If the count changed, we must update everything
-		if (NumCustomDataFloats != InNumCustomDataFloats)
-		{
-			// No delta state (copy everything)
-			CustomDataDelta = FArrayIndexDelta(InstanceIdIndexMap.GetMaxInstanceIndex());
-		}
-		NumCustomDataFloats = InNumCustomDataFloats;
 		CustomDataDelta.Gather(PerInstanceCustomData, InPerInstanceCustomData, InNumCustomDataFloats);
+	}
+	else
+	{
+		check(CustomDataDelta.IsEmpty());
 	}
 }
 

@@ -209,11 +209,11 @@ public:
 		return bNeedFullUpdate;
 	}
 
-	bool bNeedFullUpdate;
+	bool bNeedFullUpdate = false;
 	FChangeMask ChangeMask;
 
 	FInstanceIdIndexMap InstanceIdIndexMap;
-	int32 NumCustomDataFloats;
+	int32 NumCustomDataFloats = 0;
 
 	// TODO: Make it possible to share the deltas such that we don't have to produce an unique index array for each attribute
 	//       e.g., if the only thing that happened was somethis was added and we therefore need all attributes for one instance.

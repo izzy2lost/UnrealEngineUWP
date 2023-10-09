@@ -361,7 +361,7 @@ void ValidateInstanceUploadInfo(const FInstanceUploadInfo& UploadInfo, FRDGBuffe
 
 	if (UploadInfo.InstanceSceneDataBuffers != nullptr)
 	{
-		if (!ensure(UploadInfo.InstanceSceneDataBuffers->GetPrimitiveToRelativeWorld().Equals(UploadInfo.PrimitiveToWorld)))
+		if (UploadInfo.InstanceSceneDataBuffers->GetNumInstances() > 0 && !ensure(UploadInfo.InstanceSceneDataBuffers->GetPrimitiveToRelativeWorld().Equals(UploadInfo.PrimitiveToWorld)))
 		{
 			UE_LOG(LogTemp, Warning, TEXT("Mismatched Primitive transform! primitive ID %d"), UploadInfo.PrimitiveID);
 		}

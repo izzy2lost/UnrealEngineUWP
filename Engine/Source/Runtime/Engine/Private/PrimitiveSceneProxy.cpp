@@ -872,7 +872,10 @@ void FPrimitiveSceneProxy::BuildUniformShaderParameters(FPrimitiveUniformShaderP
 	if (HasInstanceDataBuffers())
 	{
 		const FInstanceSceneDataBuffers* InstanceSceneDataBuffers = GetInstanceSceneDataBuffers();
-		Builder.InstanceLocalBounds(InstanceSceneDataBuffers->GetInstanceLocalBounds(0));
+		if (GetInstanceDataHeader().NumInstances > 0)
+		{
+			Builder.InstanceLocalBounds(InstanceSceneDataBuffers->GetInstanceLocalBounds(0));
+		}
 	}
 
 	if (ShouldRenderCustomDepth())
