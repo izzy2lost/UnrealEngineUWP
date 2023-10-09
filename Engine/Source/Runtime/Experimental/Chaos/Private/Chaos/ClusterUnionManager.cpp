@@ -618,7 +618,6 @@ namespace Chaos
 		// For all the particles that have been added to the cluster we need to set their parent proxy to the
 		// cluster's proxy if it exists. We need the proxy type check because for non-cluster union proxy backed unions,
 		// the cluster union's proxy will be the proxy of the most recently added particle.
-		FMaterialHandle MatHandle;
 		if (OldProxy && OldProxyType == EPhysicsProxyType::ClusterUnionProxy)
 		{
 			for (FPBDRigidParticleHandle* Particle : FinalParticlesToAdd)
@@ -626,20 +625,6 @@ namespace Chaos
 				if (Particle && Particle->PhysicsProxy())
 				{
 					Particle->PhysicsProxy()->SetParentProxy(OldProxy);
-
-					if(!MatHandle.InnerHandle.IsValid())
-					{
-						const FShapesArray& Shapes = Particle->ShapesArray();
-						for(const TUniquePtr<FPerShapeData>& ShapeData : Shapes)
-						{
-							const int32 NumShapeMaterials = ShapeData->NumMaterials();
-							if(NumShapeMaterials > 0)
-							{
-								MatHandle = ShapeData->GetMaterial(0);
-								break;
-							}
-						}
-					}
 				}
 			}
 		}
@@ -664,14 +649,6 @@ namespace Chaos
 			if (bIsSleeping)
 			{
 				MEvolution.SetParticleObjectState(Cluster->InternalCluster, Chaos::EObjectStateType::Sleeping);
-			}
-
-			if(MatHandle.InnerHandle.IsValid())
-			{
-				for(const TUniquePtr<FPerShapeData>& ShapeData : Cluster->InternalCluster->ShapesArray())
-				{
-					ShapeData->SetMaterial(MatHandle);
-				}
 			}
 
 			if (!Cluster->IsGravityOverrideSet() && !FinalParticlesToAdd.IsEmpty())
