@@ -49,7 +49,7 @@ private:
 	FInstancedStruct AuxData;
 	float DeltaTimeSeconds = 0.0f;
 	int32 ChunkSerialModificationNumber = -1;
-	FMassTagBitSet CurrentArchetypesTagBitSet;
+	FMassArchetypeCompositionDescriptor CurrentArchetypeCompositionDescriptor;
 
 	TSharedRef<FMassEntityManager> EntityManager;
 
@@ -121,30 +121,26 @@ public:
 
 	bool DoesArchetypeHaveFragment(const UScriptStruct& FragmentType) const
 	{
-		return FragmentViews.FindByPredicate(
-			[&FragmentType](const FFragmentView& Element) 
-			{ 
-				return Element.Requirement.StructType == &FragmentType; 
-			}) != nullptr;
+		return CurrentArchetypeCompositionDescriptor.Fragments.Contains(FragmentType);
 	}
 
 	template<typename T>
 	bool DoesArchetypeHaveFragment() const
 	{
 		static_assert(TIsDerivedFrom<T, FMassFragment>::IsDerived, "Given struct is not of a valid fragment type.");
-		return DoesArchetypeHaveFragment(T::StaticStruct());
+		return CurrentArchetypeCompositionDescriptor.Fragments.Contains<T>();
 	}
 
 	bool DoesArchetypeHaveTag(const UScriptStruct& TagType) const
 	{
-		return CurrentArchetypesTagBitSet.Contains(TagType);
+		return CurrentArchetypeCompositionDescriptor.Tags.Contains(TagType);
 	}
 
 	template<typename T>
 	bool DoesArchetypeHaveTag() const
 	{
 		static_assert(TIsDerivedFrom<T, FMassTag>::IsDerived, "Given struct is not of a valid tag type.");
-		return CurrentArchetypesTagBitSet.Contains<T>();
+		return CurrentArchetypeCompositionDescriptor.Tags.Contains<T>();
 	}
 
 	/** Chunk related operations */
@@ -338,9 +334,9 @@ public:
 	void FlushDeferred();
 
 	void ClearExecutionData();
-	void SetCurrentArchetypesTagBitSet(const FMassTagBitSet& BitSet)
+	void SetCurrentArchetypeCompositionDescriptor(const FMassArchetypeCompositionDescriptor& Descriptor)
 	{
-		CurrentArchetypesTagBitSet = BitSet;
+		CurrentArchetypeCompositionDescriptor = Descriptor;
 	}
 
 	/** 
@@ -447,4 +443,7 @@ public:
 	{
 		return CacheSubsystemRequirements(SubsystemRequirements);
 	}
+
+	UE_DEPRECATED(5.4, "Deprecated in favor of 'SetCurrentArchetypeCompositionDescriptor' as this provides information on the entire archetype.")
+	void SetCurrentArchetypesTagBitSet(const FMassTagBitSet&) {}
 };

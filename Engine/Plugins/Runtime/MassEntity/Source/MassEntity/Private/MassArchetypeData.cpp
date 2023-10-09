@@ -416,7 +416,7 @@ void FMassArchetypeData::ExecuteFunction(FMassExecutionContext& RunContext, cons
 	}
 
 	// mz@todo to be removed
-	RunContext.SetCurrentArchetypesTagBitSet(GetTagBitSet());
+	RunContext.SetCurrentArchetypeCompositionDescriptor(GetCompositionDescriptor());
 
 	uint32 PrevSharedFragmentValuesHash = UINT32_MAX;
 	for (FMassArchetypeChunkIterator ChunkIterator(EntityRangeContainer); ChunkIterator; ++ChunkIterator)
@@ -456,7 +456,7 @@ void FMassArchetypeData::ExecuteFunction(FMassExecutionContext& RunContext, cons
 	}
 
 	// mz@todo to be removed
-	RunContext.SetCurrentArchetypesTagBitSet(GetTagBitSet());
+	RunContext.SetCurrentArchetypeCompositionDescriptor(GetCompositionDescriptor());
 
 	uint32 PrevSharedFragmentValuesHash = UINT32_MAX;
 	for (FMassArchetypeChunk& Chunk : Chunks)
@@ -493,7 +493,7 @@ void FMassArchetypeData::ExecutionFunctionForChunk(FMassExecutionContext RunCont
 		BindConstSharedFragmentRequirements(RunContext, Chunk.GetSharedFragmentValues(), RequirementMapping.ConstSharedFragments);
 		BindSharedFragmentRequirements(RunContext, Chunk.GetMutableSharedFragmentValues(), RequirementMapping.SharedFragments);
 
-		RunContext.SetCurrentArchetypesTagBitSet(GetTagBitSet());
+		RunContext.SetCurrentArchetypeCompositionDescriptor(GetCompositionDescriptor());
 		RunContext.SetCurrentChunkSerialModificationNumber(Chunk.GetSerialModificationNumber());
 		BindChunkFragmentRequirements(RunContext, RequirementMapping.ChunkFragments, Chunk);
 
