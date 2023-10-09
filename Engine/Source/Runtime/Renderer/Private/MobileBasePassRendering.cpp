@@ -217,6 +217,8 @@ void SetupMobileBasePassUniformParameters(
 	{
 		AmbientOcclusionTexture = MobileBasePassTextures.ScreenSpaceAO;
 	}
+	
+	BasePassParameters.DBuffer = GetDBufferParameters(GraphBuilder, MobileBasePassTextures.DBufferTextures, View.GetShaderPlatform());
 
 	BasePassParameters.AmbientOcclusionTexture = AmbientOcclusionTexture;
 	BasePassParameters.AmbientOcclusionSampler = TStaticSamplerState<SF_Bilinear, AM_Clamp, AM_Clamp, AM_Clamp>::GetRHI();

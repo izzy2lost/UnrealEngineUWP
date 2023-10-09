@@ -11,19 +11,26 @@
 #endif
 
 #if DBUFFER_BASEPASS_RESOURCE
-#define OpaqueBasePassDBufferATexture OpaqueBasePass.DBufferATexture
-#define OpaqueBasePassDBufferBTexture OpaqueBasePass.DBufferBTexture
-#define OpaqueBasePassDBufferCTexture OpaqueBasePass.DBufferCTexture
-#define OpaqueBasePassDBufferRenderMask OpaqueBasePass.DBufferRenderMask
+
+#if SHADING_PATH_MOBILE
+#define DBufferBasePass MobileBasePass
+#else
+#define DBufferBasePass OpaqueBasePass
+#endif
+
+#define OpaqueBasePassDBufferATexture DBufferBasePass.DBufferATexture
+#define OpaqueBasePassDBufferBTexture DBufferBasePass.DBufferBTexture
+#define OpaqueBasePassDBufferCTexture DBufferBasePass.DBufferCTexture
+#define OpaqueBasePassDBufferRenderMask DBufferBasePass.DBufferRenderMask
 
 #if SUPPORTS_INDEPENDENT_SAMPLERS
-#define OpaqueBasePassDBufferATextureSampler OpaqueBasePass.DBufferATextureSampler
-#define OpaqueBasePassDBufferBTextureSampler OpaqueBasePass.DBufferATextureSampler
-#define OpaqueBasePassDBufferCTextureSampler OpaqueBasePass.DBufferATextureSampler
+#define OpaqueBasePassDBufferATextureSampler DBufferBasePass.DBufferATextureSampler
+#define OpaqueBasePassDBufferBTextureSampler DBufferBasePass.DBufferATextureSampler
+#define OpaqueBasePassDBufferCTextureSampler DBufferBasePass.DBufferATextureSampler
 #else
-#define OpaqueBasePassDBufferATextureSampler OpaqueBasePass.DBufferATextureSampler
-#define OpaqueBasePassDBufferBTextureSampler OpaqueBasePass.DBufferBTextureSampler
-#define OpaqueBasePassDBufferCTextureSampler OpaqueBasePass.DBufferCTextureSampler
+#define OpaqueBasePassDBufferATextureSampler DBufferBasePass.DBufferATextureSampler
+#define OpaqueBasePassDBufferBTextureSampler DBufferBasePass.DBufferBTextureSampler
+#define OpaqueBasePassDBufferCTextureSampler DBufferBasePass.DBufferCTextureSampler
 #endif
 
 #endif // DBUFFER_BASEPASS_RESOURCE
@@ -413,19 +420,19 @@ FDBufferData GetDBufferData(float2 BufferUV, uint RTMaskBit)
 	BRANCH
 	if (RTMaskBit & 0x1)
 	{
-		DBufferA = Texture2DSampleLevel(OpaqueBasePass.DBufferATexture, OpaqueBasePassDBufferATextureSampler, BufferUV, 0);
+		DBufferA = Texture2DSampleLevel(OpaqueBasePassDBufferATexture, OpaqueBasePassDBufferATextureSampler, BufferUV, 0);
 	}
 
 	BRANCH
 	if (RTMaskBit & 0x2)
 	{
-		DBufferB = Texture2DSampleLevel(OpaqueBasePass.DBufferBTexture, OpaqueBasePassDBufferBTextureSampler, BufferUV, 0);
+		DBufferB = Texture2DSampleLevel(OpaqueBasePassDBufferBTexture, OpaqueBasePassDBufferBTextureSampler, BufferUV, 0);
 	}
 
 	BRANCH
 	if (RTMaskBit & 0x4)
 	{
-		DBufferC = Texture2DSampleLevel(OpaqueBasePass.DBufferCTexture, OpaqueBasePassDBufferCTextureSampler, BufferUV, 0);
+		DBufferC = Texture2DSampleLevel(OpaqueBasePassDBufferCTexture, OpaqueBasePassDBufferCTextureSampler, BufferUV, 0);
 	}
 #elif USE_DBUFFER && RAYHITGROUPSHADER
 	BRANCH

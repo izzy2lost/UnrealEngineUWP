@@ -89,6 +89,12 @@ bool FTargetPlatformBase::UsesMobileAmbientOcclusion() const
 	return CVar ? (CVar->GetInt() != 0) : false;
 }
 
+bool FTargetPlatformBase::UsesMobileDBuffer() const
+{
+	static IConsoleVariable* CVar = IConsoleManager::Get().FindConsoleVariable(TEXT("r.Mobile.DBuffer"));
+	return CVar ? (CVar->GetInt() != 0) : false;
+}
+
 int32 GASTCHDRProfile = 0;
 static FAutoConsoleVariableRef CVarAllowASTCHDRProfile(
 	TEXT("cook.AllowASTCHDRProfile"),

@@ -538,6 +538,11 @@ public:
 	 * Gets whether the platform uses Mobile AO
 	 */
 	virtual bool UsesMobileAmbientOcclusion() const = 0;
+
+	/**
+	 * Gets whether the platform should use DBuffer for decals when using the mobile renderer.
+	 */
+	virtual bool UsesMobileDBuffer() const = 0;
 	
 	/**
 	 * Gets whether the platform uses ASTC HDR

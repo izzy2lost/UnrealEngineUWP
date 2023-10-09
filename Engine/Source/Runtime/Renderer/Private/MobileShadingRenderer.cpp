@@ -268,6 +268,7 @@ FMobileSceneRenderer::FMobileSceneRenderer(const FSceneViewFamily* InViewFamily,
 	: FSceneRenderer(InViewFamily, HitProxyConsumer)
 	, bGammaSpace(!IsMobileHDR())
 	, bDeferredShading(IsMobileDeferredShadingEnabled(ShaderPlatform))
+	, bRequiresDBufferDecals(bDeferredShading ? false : IsUsingDBuffers(ShaderPlatform))
 	, bUseVirtualTexturing(UseVirtualTexturing(ShaderPlatform) && GetRendererOutput() == FSceneRenderer::ERendererOutput::FinalSceneColor)
 {
 	bRenderToSceneColor = false;
@@ -1059,6 +1060,7 @@ void FMobileSceneRenderer::Render(FRDGBuilder& GraphBuilder)
 		CopySceneCaptureComponentToTarget(GraphBuilder, SceneTextures, nullptr, ViewFamily, PassInfo.Views);
 	}
 
+	FDBufferTextures DBufferTextures{};
 	if (bIsFullDepthPrepassEnabled)
 	{
 		RenderFullDepthPrepass(GraphBuilder, Views, SceneTextures);
@@ -1097,6 +1099,15 @@ void FMobileSceneRenderer::Render(FRDGBuilder& GraphBuilder)
 		{
 			RenderMobileLocalLightsBuffer(GraphBuilder, SceneTextures, true, SortedLightSet);
 		}
+
+		if (bRendererOutputFinalSceneColor)
+		{
+			if (bRequiresDBufferDecals)
+			{
+				DBufferTextures = CreateDBufferTextures(GraphBuilder, SceneTextures.Config.Extent, ShaderPlatform);
+				RenderDBuffer(GraphBuilder, SceneTextures, DBufferTextures);
+			}
+		}
 	}
 
 	if (bRendererOutputFinalSceneColor)
@@ -1107,7 +1118,7 @@ void FMobileSceneRenderer::Render(FRDGBuilder& GraphBuilder)
 		}
 		else
 		{
-			RenderForward(GraphBuilder, ViewFamilyTexture, SceneTextures);
+			RenderForward(GraphBuilder, ViewFamilyTexture, SceneTextures, DBufferTextures);
 		}
 
 		EndOcclusionScope(GraphBuilder, Views);
@@ -1229,7 +1240,7 @@ void FMobileSceneRenderer::BuildInstanceCullingDrawParams(FRDGBuilder& GraphBuil
 	}
 }
 
-void FMobileSceneRenderer::RenderForward(FRDGBuilder& GraphBuilder, FRDGTextureRef ViewFamilyTexture, FSceneTextures& SceneTextures)
+void FMobileSceneRenderer::RenderForward(FRDGBuilder& GraphBuilder, FRDGTextureRef ViewFamilyTexture, FSceneTextures& SceneTextures, FDBufferTextures& DBufferTextures)
 {
 	const FViewInfo& MainView = Views[0];
 
@@ -1314,6 +1325,7 @@ void FMobileSceneRenderer::RenderForward(FRDGBuilder& GraphBuilder, FRDGTextureR
 
 		FMobileBasePassTextures MobileBasePassTextures{};
 		MobileBasePassTextures.ScreenSpaceAO = bRequiresAmbientOcclusionPass ? SceneTextures.ScreenSpaceAO : SystemTextures.White;
+		MobileBasePassTextures.DBufferTextures = DBufferTextures;
 
 		EMobileSceneTextureSetupMode SetupMode = (bIsFullDepthPrepassEnabled ? EMobileSceneTextureSetupMode::SceneDepth : EMobileSceneTextureSetupMode::None) | EMobileSceneTextureSetupMode::CustomDepth;
 		FMobileRenderPassParameters* PassParameters = GraphBuilder.AllocParameters<FMobileRenderPassParameters>();

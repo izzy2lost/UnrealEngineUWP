@@ -7,9 +7,14 @@
 #include "Common.ush"
 
 #if SHADING_PATH_MOBILE
-// Reroute MobileSceneTextures uniform buffer references to the base pass uniform buffer 
-#define MobileSceneTextures MobileBasePass.SceneTextures
-#define EyeAdaptationStruct MobileBasePass
+#if DECAL_RENDERTARGETMODE == DECAL_RENDERTARGETMODE_DBUFFER
+	#define MobileSceneTextures DecalPass.MobileSceneTextures
+	#define EyeAdaptationStruct DecalPass
+#else
+	// Reroute MobileSceneTextures uniform buffer references to the base pass uniform buffer
+	#define MobileSceneTextures MobileBasePass.SceneTextures
+	#define EyeAdaptationStruct MobileBasePass
+#endif
 #else
 #define SceneTexturesStruct DecalPass.SceneTextures
 #define EyeAdaptationStruct DecalPass

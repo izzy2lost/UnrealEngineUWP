@@ -69,17 +69,36 @@ FDeferredDecalPassTextures GetDeferredDecalPassTextures(
 	FDeferredDecalPassTextures PassTextures;
 
 	auto* Parameters = GraphBuilder.AllocParameters<FDecalPassUniformParameters>();
-	const ESceneTextureSetupMode TextureReadAccess = ESceneTextureSetupMode::GBufferA | ESceneTextureSetupMode::SceneDepth | ESceneTextureSetupMode::CustomDepth;
+	
+	const bool bIsMobile = (View.GetFeatureLevel() == ERHIFeatureLevel::ES3_1);
+	ESceneTextureSetupMode TextureReadAccess = ESceneTextureSetupMode::None;
+	EMobileSceneTextureSetupMode MobileTextureReadAccess = EMobileSceneTextureSetupMode::None;
+	if (bIsMobile)
+	{
+		MobileTextureReadAccess = EMobileSceneTextureSetupMode::SceneDepth | EMobileSceneTextureSetupMode::CustomDepth;
+	}
+	else
+	{
+		TextureReadAccess = ESceneTextureSetupMode::GBufferA | ESceneTextureSetupMode::SceneDepth | ESceneTextureSetupMode::CustomDepth;
+	}
+
 	SetupSceneTextureUniformParameters(GraphBuilder, &SceneTextures, View.FeatureLevel, TextureReadAccess, Parameters->SceneTextures);
+	SetupMobileSceneTextureUniformParameters(GraphBuilder, &SceneTextures, MobileTextureReadAccess, Parameters->MobileSceneTextures);
 	Parameters->EyeAdaptationBuffer = GraphBuilder.CreateSRV(GetEyeAdaptationBuffer(GraphBuilder, View));
 	PassTextures.DecalPassUniformBuffer = GraphBuilder.CreateUniformBuffer(Parameters);
 
 	PassTextures.Depth = SceneTextures.Depth;
 	PassTextures.Color = SceneTextures.Color.Target;
-	PassTextures.GBufferA = (*SceneTextures.UniformBuffer)->GBufferATexture;
-	PassTextures.GBufferB = (*SceneTextures.UniformBuffer)->GBufferBTexture;
-	PassTextures.GBufferC = (*SceneTextures.UniformBuffer)->GBufferCTexture;
-	PassTextures.GBufferE = (*SceneTextures.UniformBuffer)->GBufferETexture;
+
+	// Mobile deferred renderer does not use dbuffer 
+	if (!bIsMobile)
+	{
+		PassTextures.GBufferA = (*SceneTextures.UniformBuffer)->GBufferATexture;
+		PassTextures.GBufferB = (*SceneTextures.UniformBuffer)->GBufferBTexture;
+		PassTextures.GBufferC = (*SceneTextures.UniformBuffer)->GBufferCTexture;
+		PassTextures.GBufferE = (*SceneTextures.UniformBuffer)->GBufferETexture;
+	}
+
 	PassTextures.DBufferTextures = DBufferTextures;
 
 	return PassTextures;

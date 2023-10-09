@@ -437,6 +437,34 @@ void Main(
 	float SubsurfaceProfile = 0;
 #endif
 
+	float DBufferOpacity = 1.0f;
+#if USE_DBUFFER && MATERIALDECALRESPONSEMASK && !MATERIALBLENDING_ANY_TRANSLUCENT && !MATERIAL_SHADINGMODEL_SINGLELAYERWATER
+	// apply decals from the DBuffer
+	BRANCH
+	if ((GetPrimitiveData(MaterialParameters).Flags & PRIMITIVE_SCENE_DATA_FLAG_DECAL_RECEIVER) != 0 && View.ShowDecalsMask > 0)
+	{
+		uint ValidDBufferTargetMask = GetDBufferTargetMask(uint2(SvPosition.xy)) & MATERIALDECALRESPONSEMASK;
+
+		BRANCH
+		if (ValidDBufferTargetMask)
+		{
+			float2 BufferUV = SvPositionToBufferUV(SvPosition);
+		#if SUBSTRATE_ENABLED 
+			#if SUBSTRATE_INLINE_SHADING && !SUBSTRATE_OPTIMIZED_UNLIT
+			const FSubstrateDBuffer SubstrateBufferData = GetDBufferData(BufferUV, ValidDBufferTargetMask);
+			ApplyDBufferData(SubstrateBufferData, SubstratePixelHeader, SubstrateData);
+			DBufferOpacity = SubstrateBufferData.Coverage;
+			#endif
+		#else
+			FDBufferData DBufferData = GetDBufferData(BufferUV, ValidDBufferTargetMask);
+			ApplyDBufferData(DBufferData, MaterialParameters.WorldNormal, SubsurfaceColor, Roughness, BaseColor, Metallic, Specular);
+			DBufferOpacity = (DBufferData.ColorOpacity + DBufferData.NormalOpacity + DBufferData.RoughnessOpacity) * (1.0f / 3.0f);
+		#endif // SUBSTRATE_ENABLED
+		}
+	}
+#endif
+
+
 #if !SUBSTRATE_ENABLED || SUBSTRATE_INLINE_SINGLELAYERWATER
 	const half BaseMaterialCoverageOverWater = Opacity;
 	const half WaterVisibility = 1.0 - BaseMaterialCoverageOverWater;
@@ -1016,7 +1044,7 @@ void Main(
 	FinalizeVirtualTextureFeedback(
 		MaterialParameters.VirtualTextureFeedback,
 		MaterialParameters.SvPosition,
-		Opacity,
+		Opacity * DBufferOpacity,
 		View.FrameNumber,
 		View.VTFeedbackBuffer
 	);
