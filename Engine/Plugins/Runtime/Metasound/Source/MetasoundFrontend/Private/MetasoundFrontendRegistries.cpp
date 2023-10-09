@@ -184,7 +184,7 @@ namespace Metasound
 			class FDocumentNodeRegistryEntry : public INodeRegistryEntry
 			{
 			public:
-				FDocumentNodeRegistryEntry(const FMetasoundFrontendGraphClass& InGraphClass, const TSet<FMetasoundFrontendVersion>& InInterfaces, const FNodeClassInfo& InNodeClassInfo, TSharedRef<const IGraph> InGraph)
+				FDocumentNodeRegistryEntry(const FMetasoundFrontendGraphClass& InGraphClass, const TSet<FMetasoundFrontendVersion>& InInterfaces, const FNodeClassInfo& InNodeClassInfo, TSharedPtr<const IGraph> InGraph)
 				: FrontendClass(InGraphClass)
 				, Interfaces(InInterfaces)
 				, ClassInfo(InNodeClassInfo)
@@ -206,7 +206,15 @@ namespace Metasound
 
 				virtual TUniquePtr<INode> CreateNode(const FNodeInitData& InNodeInitData) const override
 				{
-					return MakeUnique<FGraphNode>(InNodeInitData, Graph);
+					if (Graph.IsValid())
+					{
+						return MakeUnique<FGraphNode>(InNodeInitData, Graph.ToSharedRef());
+					}
+					else
+					{
+						UE_LOG(LogMetaSound, Error, TEXT("Cannot create MetaSound node from asset %s due to prior failure to build graph"), *ClassInfo.AssetPath.ToString());
+						return TUniquePtr<INode>();
+					}
 				}
 
 				virtual TUniquePtr<INode> CreateNode(FDefaultLiteralNodeConstructorParams&&) const override { return nullptr; }
@@ -238,7 +246,7 @@ namespace Metasound
 				FMetasoundFrontendClass FrontendClass;
 				TSet<FMetasoundFrontendVersion> Interfaces;
 				FNodeClassInfo ClassInfo;
-				TSharedRef<const IGraph> Graph;
+				TSharedPtr<const IGraph> Graph;
 			};
 
 			// Builds an IGraph from a FMetasoundFrontendDocument and registers it in the node registry.
@@ -250,10 +258,9 @@ namespace Metasound
 				if (!FrontendGraph.IsValid())
 				{
 					UE_LOG(LogMetaSound, Error, TEXT("Failed to build MetaSound graph in asset '%s'"), *InNodeClassInfo.AssetPath.ToString());
-					return;
 				}
 
-				TSharedRef<const FGraph> GraphToRegister = MakeShareable<const FGraph>(FrontendGraph.Release());
+				TSharedPtr<const FGraph> GraphToRegister = MakeShareable<const FGraph>(FrontendGraph.Release());
 
 				TUniquePtr<INodeRegistryEntry> RegistryEntry = MakeUnique<FDocumentNodeRegistryEntry>(
 						InDocument.RootGraph, 
@@ -404,6 +411,7 @@ namespace Metasound
 			using namespace UE;
 
 			check(InDocumentInterface);
+			check(IsInGameThread());
 
 			const FMetasoundFrontendDocument& Document = InDocumentInterface->GetConstDocument();
 			FNodeRegistryKey RegistryKey = NodeRegistryKey::CreateKey(Document.RootGraph);
@@ -415,7 +423,7 @@ namespace Metasound
 
 			if (bAsync)
 			{	
-				// Wait for any async tasks that are inflight which correspond to the same graph
+				// Wait for any async tasks that are in flight which correspond to the same graph
 				FScopeLock LockActiveReg(&ActiveRegistrationTasksCriticalSection);
 				if (const FActiveRegistrationTaskInfo* ActiveTaskInfo = ActiveRegistrationTasks.Find(RegistryKey))
 				{
@@ -465,11 +473,11 @@ namespace Metasound
 			return RegistryKey;
 		}
 
-		void FRegistryContainerImpl::RegisterGraph(const FNodeRegistryKey& InKey, TSharedRef<const FGraph> InGraph)
+		void FRegistryContainerImpl::RegisterGraph(const FNodeRegistryKey& InKey, TSharedPtr<const FGraph> InGraph)
 		{
 			FScopeLock Lock(&RegistryMapsCriticalSection);
 
-			if (const TSharedRef<const FGraph>* ExistingGraph = RegisteredGraphs.Find(InKey))
+			if (const TSharedPtr<const FGraph>* ExistingGraph = RegisteredGraphs.Find(InKey))
 			{
 				UE_LOG(LogMetaSound, Error, TEXT("Multiple graphs are registered with the same registry key (%s). The existing registered graph (%s) will be replaced with the new graph (%s)."),  *InKey, *((*ExistingGraph)->GetInstanceName().ToString()), *(InGraph->GetInstanceName().ToString()));
 			}
@@ -484,7 +492,7 @@ namespace Metasound
 			TSharedPtr<const FGraph> Graph;
 			{
 				FScopeLock Lock(&RegistryMapsCriticalSection);
-				if (const TSharedRef<const FGraph>* RegisteredGraph = RegisteredGraphs.Find(InRegistryKey))
+				if (const TSharedPtr<const FGraph>* RegisteredGraph = RegisteredGraphs.Find(InRegistryKey))
 				{
 					Graph = *RegisteredGraph;
 				}
@@ -577,7 +585,8 @@ namespace Metasound
 		bool FRegistryContainerImpl::UnregisterNode(const FNodeRegistryKey& InKey)
 		{
 			METASOUND_LLM_SCOPE;
-
+			
+			check(IsInGameThread());
 			if (NodeRegistryKey::IsValid(InKey))
 			{
 				if (const INodeRegistryEntry* Entry = FindNodeEntry(InKey))

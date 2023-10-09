@@ -378,6 +378,7 @@ void FMetasoundAssetBase::UnregisterGraphWithFrontend()
 	using namespace Metasound::Frontend;
 	METASOUND_TRACE_CPUPROFILER_EVENT_SCOPE(MetaSoundAssetBase::UnregisterGraphWithFrontend);
 
+	check(IsInGameThread());
 	if (!NodeRegistryKey::IsValid(RegistryKey))
 	{
 		return;
@@ -389,7 +390,12 @@ void FMetasoundAssetBase::UnregisterGraphWithFrontend()
 		return;
 	}
 
-	ensureAlways(FMetasoundFrontendRegistryContainer::Get()->UnregisterNode(RegistryKey));
+	const bool bSuccess = FMetasoundFrontendRegistryContainer::Get()->UnregisterNode(RegistryKey);
+	if (!bSuccess)
+	{
+		UE_LOG(LogMetaSound, Warning, TEXT("Failed to unregister node with key %s for asset %s. No registry entry exists with that key."), *RegistryKey, *GetOwningAssetName());
+	}
+
 	RegistryKey = FNodeRegistryKey();
 }
 
@@ -648,6 +654,7 @@ const FMetasoundFrontendDocumentModifyContext& FMetasoundAssetBase::GetModifyCon
 bool FMetasoundAssetBase::IsRegistered() const
 {
 	using namespace Metasound::Frontend;
+	check(IsInGameThread());
 
 	return NodeRegistryKey::IsValid(RegistryKey);
 }
@@ -828,6 +835,7 @@ const FMetasoundFrontendDocument& FMetasoundAssetBase::GetDocumentChecked() cons
 
 const Metasound::Frontend::FNodeRegistryKey& FMetasoundAssetBase::GetRegistryKey() const
 {
+	check(IsInGameThread());
 	return RegistryKey;
 }
 
@@ -952,6 +960,7 @@ Metasound::Frontend::FNodeRegistryKey FMetasoundAssetBase::CacheRuntimeData(cons
 
 void FMetasoundAssetBase::WaitForAsyncGraphRegistration()
 {
+	check(IsInGameThread());
 	using namespace Metasound::Frontend;
 	if (NodeRegistryKey::IsValid(RegistryKey))
 	{

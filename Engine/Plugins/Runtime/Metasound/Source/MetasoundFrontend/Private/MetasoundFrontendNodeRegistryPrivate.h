@@ -141,7 +141,7 @@ namespace Metasound
 
 			static FRegistryContainerImpl* LazySingleton;
 
-			void RegisterGraph(const FNodeRegistryKey& InKey, TSharedRef<const FGraph> InGraph);
+			void RegisterGraph(const FNodeRegistryKey& InKey, TSharedPtr<const FGraph> InGraph);
 			const INodeRegistryEntry* FindNodeEntry(const FNodeRegistryKey& InKey) const;
 
 			const INodeRegistryTemplateEntry* FindNodeTemplateEntry(const FNodeRegistryKey& InKey) const;
@@ -162,7 +162,7 @@ namespace Metasound
 			// Registry in which we keep all information about dynamically-generated templated nodes via in C++.
 			TMap<FNodeRegistryKey, TSharedRef<INodeRegistryTemplateEntry, ESPMode::ThreadSafe>> RegisteredNodeTemplates;
 
-			TMap<FNodeRegistryKey, TSharedRef<const FGraph>> RegisteredGraphs;
+			TMap<FNodeRegistryKey, TSharedPtr<const FGraph>> RegisteredGraphs;
 
 			// Registry in which we keep lists of possible nodes to use to convert between two datatypes
 			TMap<FConverterNodeRegistryKey, FConverterNodeRegistryValue> ConverterNodeRegistry;
