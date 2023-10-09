@@ -1548,7 +1548,10 @@ namespace PCGGraphExecutor
 				{
 					// Get grid coords using the parent grid (FromGridSize).
 					const FIntVector CellCoords = UPCGActorHelpers::GetCellCoord(ComponentActor->GetActorLocation(), FromGridSize, PCGWorldActor->bUse2DGrid);
-					ComponentWithData = Subsystem->GetLocalComponent(FromGridSize, CellCoords, InContext->SourceComponent->GetOriginalComponent());
+
+					// Search for a transient local component if the source component is runtime managed.
+					const bool bTransientComponent = InContext->SourceComponent->GenerationTrigger == EPCGComponentGenerationTrigger::GenerateAtRuntime;
+					ComponentWithData = Subsystem->GetLocalComponent(FromGridSize, CellCoords, InContext->SourceComponent->GetOriginalComponent(), bTransientComponent);
 				}
 			}
 
@@ -1607,8 +1610,11 @@ namespace PCGGraphExecutor
 			{
 				PCGGraphExecutionLogging::LogGridLinkageTaskExecuteRetrieveScheduleGraph(InContext, ComponentWithData, InResourceKey);
 
+				EPCGComponentGenerationTrigger GenTrigger = (InContext->SourceComponent->GenerationTrigger == EPCGComponentGenerationTrigger::GenerateAtRuntime) ?
+					EPCGComponentGenerationTrigger::GenerateAtRuntime : EPCGComponentGenerationTrigger::GenerateOnDemand;
+
 				// Wake up this task after graph has generated.
-				const FPCGTaskId GraphTaskId = ComponentWithData->GenerateLocalGetTaskId(/*bForce=*/true);
+				const FPCGTaskId GraphTaskId = ComponentWithData->GenerateLocalGetTaskId(GenTrigger, /*bForce=*/true);
 				Subsystem->ScheduleGeneric(WakeUpLambda, InContext->SourceComponent.Get(), { GraphTaskId });
 
 				// Update state and go to sleep.

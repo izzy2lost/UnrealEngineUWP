@@ -5,6 +5,7 @@
 #include "PCGCommon.h"
 #include "Elements/PCGActorSelector.h"
 #include "Grid/PCGComponentOctree.h"
+#include "RuntimeGen/PCGRuntimeGenScheduler.h"
 
 #include "Containers/Array.h"
 #include "Containers/Map.h"
@@ -36,6 +37,7 @@ class FPCGActorAndComponentMapping
 {
 public:
 	friend UPCGSubsystem;
+	friend FPCGRuntimeGenScheduler;
 
 	~FPCGActorAndComponentMapping() = default;
 	
@@ -79,8 +81,11 @@ public:
 	/** Return a copy of all the registered components. Thread safe */
 	TSet<UPCGComponent*> GetAllRegisteredComponents() const;
 
-	/** Retrieves a local component using grid size and grid coordinates, returns nullptr if no such component found. */
-	UPCGComponent* GetLocalComponent(uint32 GridSize, const FIntVector& CellCoords, const UPCGComponent* InOriginalComponent);
+	/** Retrieves a local component using grid size and grid coordinates, returns nullptr if no such component is found. */
+	UPCGComponent* GetLocalComponent(uint32 GridSize, const FIntVector& CellCoords, const UPCGComponent* InOriginalComponent, bool bRuntimeGenerated = false);
+
+	/** Retrieves a partition actor using grid size and grid coordinates, returns nullptr if no such partition actor is found. */
+	APCGPartitionActor* GetPartitionActor(uint32 GridSize, const FIntVector& CellCoords, bool bRuntimeGenerated = false) const;
 
 private:
 	// This class is only meant to be used as part of the PCG Subsytem and owned by it.
@@ -174,9 +179,17 @@ private:
 	TMap<uint32, TMap<FIntVector, TObjectPtr<APCGPartitionActor>>> PartitionActorsMap;
 	mutable FRWLock PartitionActorsMapLock;
 
+	/** Mapping from grid size and grid coords to RuntimeGen partition actor. We can only have 1 RuntimeGen partition actor per grid cell. */
+	TMap<uint32, TMap<FIntVector, TObjectPtr<APCGPartitionActor>>> RuntimeGenPartitionActorsMap;
+	mutable FRWLock RuntimeGenPartitionActorsMapLock;
+
 	/** Mapping between original components and its overlapping partition actors. */
 	TMap<const UPCGComponent*, TSet<TObjectPtr<APCGPartitionActor>>> ComponentToPartitionActorsMap;
 	mutable FRWLock ComponentToPartitionActorsMapLock;
+
+	/** Mapping between original components and its overlapping RuntimeGen partition actors. */
+	TMap<const UPCGComponent*, TSet<TObjectPtr<APCGPartitionActor>>> ComponentToRuntimeGenPartitionActorsMap;
+	mutable FRWLock ComponentToRuntimeGenPartitionActorsMapLock;
 
 	/** Components to be unregister at the next frame. cf. UnregisterComponent for a better understanding on why it is needed. */
 	TSet<UPCGComponent*> DelayedComponentToUnregister;

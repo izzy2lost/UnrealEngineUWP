@@ -14,6 +14,8 @@
 #include "Grid/PCGPartitionActor.h"
 #include "Helpers/PCGActorHelpers.h"
 #include "Helpers/PCGHelpers.h"
+#include "RuntimeGen/PCGGenSourceManager.h"
+#include "RuntimeGen/PCGRuntimeGenScheduler.h"
 
 #include "Engine/Level.h"
 
@@ -149,6 +151,9 @@ void UPCGSubsystem::Deinitialize()
 	delete GraphExecutor;
 	GraphExecutor = nullptr;
 
+	delete RuntimeGenScheduler;
+	RuntimeGenScheduler = nullptr;
+
 	PCGWorldActor = nullptr;
 	bHasTickedOnce = false;
 
@@ -166,7 +171,11 @@ void UPCGSubsystem::PostInitialize()
 	// Initialize graph executor
 	check(!GraphExecutor);
 	GraphExecutor = new FPCGGraphExecutor(this);
-	
+
+	// Initialize runtime generation scheduler
+	check(!RuntimeGenScheduler);
+	RuntimeGenScheduler = new FPCGRuntimeGenScheduler(GetWorld(), &ActorAndComponentMapping);
+
 	// Gather world pcg actor if it exists
 	if (!PCGWorldActor)
 	{
@@ -232,6 +241,11 @@ void UPCGSubsystem::Tick(float DeltaSeconds)
 	}
 
 	ActorAndComponentMapping.Tick();
+
+	if (PCGWorldActor)
+	{
+		RuntimeGenScheduler->Tick(PCGWorldActor);
+	}
 }
 
 APCGWorldActor* UPCGSubsystem::GetPCGWorldActor()
@@ -314,13 +328,21 @@ void UPCGSubsystem::UnregisterPCGWorldActor(APCGWorldActor* InActor)
 	}
 }
 
+void UPCGSubsystem::OnOriginalComponentUnregistered(UPCGComponent* InComponent)
+{
+	if (RuntimeGenScheduler)
+	{
+		RuntimeGenScheduler->OnOriginalComponentUnregistered(InComponent);
+	}
+}
+
 UPCGLandscapeCache* UPCGSubsystem::GetLandscapeCache()
 {
 	APCGWorldActor* LandscapeCacheOwner = GetPCGWorldActor();
 	return LandscapeCacheOwner ? LandscapeCacheOwner->LandscapeCacheObject.Get() : nullptr;
 }
 
-FPCGTaskId UPCGSubsystem::ScheduleComponent(UPCGComponent* PCGComponent, bool bSave, const TArray<FPCGTaskId>& InDependencies)
+FPCGTaskId UPCGSubsystem::ScheduleComponent(UPCGComponent* PCGComponent, EPCGHiGenGrid Grid, bool bSave, const TArray<FPCGTaskId>& InDependencies)
 {
 	check(GraphExecutor);
 
@@ -334,7 +356,8 @@ FPCGTaskId UPCGSubsystem::ScheduleComponent(UPCGComponent* PCGComponent, bool bS
 	ensure(PCGHelpers::GetGenerationGridSizes(PCGComponent->GetGraph(), GetPCGWorldActor(), GridSizes, bHasUnbounded));
 
 #if WITH_EDITOR
-	if (PCGComponent->IsPartitioned() && !PCGHelpers::IsRuntimeOrPIE())
+	// Create the PartitionActors if necessary. Skip if this is a runtime managed component, PAs are handled manually by the RuntimeGenScheduler.
+	if (PCGComponent->IsPartitioned() && !PCGHelpers::IsRuntimeOrPIE() && PCGComponent->GenerationTrigger != EPCGComponentGenerationTrigger::GenerateAtRuntime)
 	{
 		if (!GridSizes.IsEmpty())
 		{
@@ -353,7 +376,20 @@ FPCGTaskId UPCGSubsystem::ScheduleComponent(UPCGComponent* PCGComponent, bool bS
 
 	// Schedule generation of original component if is is non-partitioned, or if it has nodes that will execute at the Unbounded level.
 	FPCGTaskId OriginalComponentTask = InvalidPCGTaskId;
-	if (!PCGComponent->IsPartitioned() || bHasUnbounded)
+
+	bool bGeneratePCGComponent = false;
+	if (!PCGComponent->IsPartitioned())
+	{
+		// This component is either an unpartitioned original component or a local component. Generate if grid size matches preference (if provided).
+		bGeneratePCGComponent = (Grid == EPCGHiGenGrid::Uninitialized) || !!(Grid & PCGComponent->GetGenerationGrid());
+	}
+	else
+	{
+		// This component is a partitioned original component. Generate if the graph has unbounded nodes and if this grid matches preference (if provided).
+		bGeneratePCGComponent = bHasUnbounded && (!!(Grid & EPCGHiGenGrid::Unbounded) || Grid == EPCGHiGenGrid::Uninitialized);
+	}
+
+	if (bGeneratePCGComponent)
 	{
 		OriginalComponentTask = PCGComponent->CreateGenerateTask(/*bForce=*/bSave, InDependencies);
 		if (OriginalComponentTask != InvalidPCGTaskId)
@@ -363,7 +399,7 @@ FPCGTaskId UPCGSubsystem::ScheduleComponent(UPCGComponent* PCGComponent, bool bS
 	}
 
 	// If the component is partitioned, we will forward the calls to its registered PCG Partition actors
-	if (PCGComponent->IsPartitioned())
+	if (PCGComponent->IsPartitioned() && PCGHiGenGrid::IsValidGridOrUninitialized(Grid))
 	{
 		// Local components depend on the original component (to ensure any data is available).
 		TArray<FPCGTaskId> Dependencies = InDependencies;
@@ -372,9 +408,14 @@ FPCGTaskId UPCGSubsystem::ScheduleComponent(UPCGComponent* PCGComponent, bool bS
 			Dependencies.Add(OriginalComponentTask);
 		}
 
-		auto LocalGenerateTask = [OriginalComponent = PCGComponent, &Dependencies, bSave, &GridSizes](UPCGComponent* LocalComponent)
+		auto LocalGenerateTask = [OriginalComponent = PCGComponent, Grid, &Dependencies, bSave, &GridSizes](UPCGComponent* LocalComponent)
 		{
-			if (!GridSizes.Contains(LocalComponent->GetGenerationGridSize()))
+			const uint32 LocalComponentGridSize = LocalComponent->GetGenerationGridSize();
+			if (!GridSizes.Contains(LocalComponentGridSize))
+			{
+				return InvalidPCGTaskId;
+			}
+			else if (Grid != EPCGHiGenGrid::Uninitialized && !(Grid & LocalComponent->GetGenerationGrid()))
 			{
 				return InvalidPCGTaskId;
 			}
@@ -396,7 +437,7 @@ FPCGTaskId UPCGSubsystem::ScheduleComponent(UPCGComponent* PCGComponent, bool bS
 				LocalComponent->CleanupLocalImmediate(true);
 			}
 
-			return LocalComponent->GenerateInternal(/*bForce=*/bSave, EPCGComponentGenerationTrigger::GenerateOnDemand, Dependencies);
+			return LocalComponent->GenerateInternal(/*bForce=*/bSave, LocalComponent->GetGenerationGrid(), EPCGComponentGenerationTrigger::GenerateOnDemand, Dependencies);
 		};
 
 		AllTasks.Append(ActorAndComponentMapping.DispatchToRegisteredLocalComponents(PCGComponent, LocalGenerateTask));
@@ -658,14 +699,19 @@ void UPCGSubsystem::ForAllOverlappingComponentsInHierarchy(UPCGComponent* InComp
 	});
 }
 
-UPCGComponent* UPCGSubsystem::GetLocalComponent(uint32 GridSize, const FIntVector& CellCoords, const UPCGComponent* InOriginalComponent)
+UPCGComponent* UPCGSubsystem::GetLocalComponent(uint32 GridSize, const FIntVector& CellCoords, const UPCGComponent* InOriginalComponent, bool bTransient)
 {
-	return ActorAndComponentMapping.GetLocalComponent(GridSize, CellCoords, InOriginalComponent);
+	return ActorAndComponentMapping.GetLocalComponent(GridSize, CellCoords, InOriginalComponent, bTransient);
 }
 
 bool UPCGSubsystem::IsGraphCacheDebuggingEnabled() const
 {
 	return GraphExecutor && GraphExecutor->IsGraphCacheDebuggingEnabled();
+}
+
+FPCGGenSourceManager* UPCGSubsystem::GetGenSourceManager() const
+{
+	return RuntimeGenScheduler ? RuntimeGenScheduler->GenSourceManager : nullptr;
 }
 
 bool UPCGSubsystem::GetOutputData(FPCGTaskId TaskId, FPCGDataCollection& OutData)
@@ -949,7 +995,7 @@ FPCGTaskId UPCGSubsystem::ProcessGraph(UPCGComponent* Component, const FBox& InP
 						return InvalidPCGTaskId;
 					}
 
-					return LocalComponent->GenerateInternal(bSave, EPCGComponentGenerationTrigger::GenerateOnDemand, TaskDependencies);
+					return LocalComponent->GenerateInternal(bSave, EPCGHiGenGrid::Uninitialized, EPCGComponentGenerationTrigger::GenerateOnDemand, TaskDependencies);
 				}
 				else
 				{
@@ -1015,6 +1061,8 @@ FPCGTaskId UPCGSubsystem::ProcessGraph(UPCGComponent* Component, const FBox& InP
 
 FPCGTaskId UPCGSubsystem::ScheduleRefresh(UPCGComponent* Component, bool bForceRegen)
 {
+	check(Component && Component->GenerationTrigger != EPCGComponentGenerationTrigger::GenerateAtRuntime);
+
 	TWeakObjectPtr<UPCGComponent> ComponentPtr(Component);
 
 	auto RefreshTask = [ComponentPtr, bForceRegen]() {
