@@ -719,7 +719,7 @@ protected:
 	/**
 	 * All of the known Key Profiles for this user, including the currently active profile.
 	 */
-	UPROPERTY(SaveGame)
+	UPROPERTY(Transient)
 	TMap<FGameplayTag, TObjectPtr<UEnhancedPlayerMappableKeyProfile>> SavedKeyProfiles;
 	
 	/** The owning Local Player object of these settings */
