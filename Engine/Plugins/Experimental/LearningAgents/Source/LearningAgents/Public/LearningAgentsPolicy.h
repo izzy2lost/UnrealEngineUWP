@@ -63,7 +63,7 @@ public:
 };
 
 /** A policy that maps from observations to actions for the managed agents. */
-UCLASS(BlueprintType, Blueprintable)
+UCLASS(BlueprintType, Blueprintable, meta = (BlueprintSpawnableComponent))
 class LEARNINGAGENTS_API ULearningAgentsPolicy : public ULearningAgentsManagerComponent
 {
 	GENERATED_BODY()

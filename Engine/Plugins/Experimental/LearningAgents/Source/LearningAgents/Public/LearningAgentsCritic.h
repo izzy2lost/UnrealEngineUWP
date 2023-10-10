@@ -44,7 +44,7 @@ public:
 };
 
 /** A critic used by some algorithms for training the managed agents. */
-UCLASS(BlueprintType, Blueprintable)
+UCLASS(BlueprintType, Blueprintable, meta = (BlueprintSpawnableComponent))
 class LEARNINGAGENTS_API ULearningAgentsCritic : public ULearningAgentsManagerComponent
 {
 	GENERATED_BODY()
