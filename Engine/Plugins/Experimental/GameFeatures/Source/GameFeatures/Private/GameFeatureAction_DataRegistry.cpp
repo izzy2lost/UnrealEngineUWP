@@ -139,8 +139,14 @@ void UGameFeatureAction_DataRegistry::OnGameFeatureDeactivating(FGameFeatureDeac
 
 bool UGameFeatureAction_DataRegistry::ShouldPreloadAtRegistration()
 {
-	// We want to preload in interactive editor sessions only
-	return (GIsEditor && !IsRunningCommandlet() && bPreloadInEditor);
+	if (IsRunningCommandlet())
+	{
+		return bPreloadInCommandlets;
+	}
+	else
+	{
+		return GIsEditor && bPreloadInEditor;
+	}
 }
 
 #if WITH_EDITORONLY_DATA

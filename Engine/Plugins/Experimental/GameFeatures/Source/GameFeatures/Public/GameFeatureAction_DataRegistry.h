@@ -40,6 +40,10 @@ private:
 	/** If true, this will preload the registries when the feature is registered in the editor to support the editor pickers */
 	UPROPERTY(EditAnywhere, Category = "Registry Data")
 	bool bPreloadInEditor;
+
+	/** If true, this will preload the registries when the feature is registered whilst a commandlet is running */
+	UPROPERTY(EditAnywhere, Category = "Registry Data")
+	bool bPreloadInCommandlets;
 };
 
 #if UE_ENABLE_INCLUDE_ORDER_DEPRECATED_IN_5_2
