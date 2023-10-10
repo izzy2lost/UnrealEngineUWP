@@ -3006,7 +3006,9 @@ bool FShaderCompilerError::ExtractSourceLocation()
 
 FString FShaderCompilerError::GetShaderSourceFilePath() const
 {
-	if (IFileManager::Get().FileExists(*ErrorVirtualFilePath))
+	// Always return error file path as-is if it doesn't denote a virtual path.
+	// We don't wont to report errors when accessing a compile error's message.
+	if (ErrorVirtualFilePath.IsEmpty() || ErrorVirtualFilePath[0] != TEXT('/'))
 	{
 		return ErrorVirtualFilePath;
 	}
