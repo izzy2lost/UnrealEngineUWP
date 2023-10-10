@@ -408,7 +408,8 @@ struct FCSPose
 {
 	// Set up our index type based on the type of pose we are manipulating
 	typedef typename PoseType::BoneIndexType BoneIndexType;
-
+	typedef typename PoseType::Allocator AllocatorType;
+	
 	// Init Pose
 	void InitPose(const FBoneContainer* InBoneContainer)
 	{
@@ -458,7 +459,7 @@ struct FCSPose
 	}
 
 	const PoseType& GetPose() const { return Pose; }
-	const TCustomBoneIndexArray<uint8, BoneIndexType>& GetComponentSpaceFlags() const { return ComponentSpaceFlags; }
+	const TCustomBoneIndexArray<uint8, BoneIndexType, AllocatorType>& GetComponentSpaceFlags() const { return ComponentSpaceFlags; }
 
 	// Get transform for supplied bone in local space
 	FTransform GetLocalSpaceTransform(BoneIndexType BoneIndex);
@@ -529,13 +530,13 @@ protected:
 	PoseType Pose;
 
 	// Flags to track each bones current state (0 means local pose, 1 means component space pose)
-	TCustomBoneIndexArray<uint8, BoneIndexType> ComponentSpaceFlags;
+	TCustomBoneIndexArray<uint8, BoneIndexType, AllocatorType> ComponentSpaceFlags;
 
 	// Cached bone mask array to avoid reallocations
-	TCustomBoneIndexArray<uint8, BoneIndexType> BoneMask;
+	TCustomBoneIndexArray<uint8, BoneIndexType, AllocatorType> BoneMask;
 
 	// Cached conversion array for this pose, to save on allocations each frame
-	TArray<FCompactPoseBoneIndex> BonesToConvert;
+	TArray<FCompactPoseBoneIndex, AllocatorType> BonesToConvert;
 };
 
 template<class PoseType>
