@@ -595,6 +595,10 @@ FRDGBuilder::FRDGBuilder(FRHICommandListImmediate& InRHICmdList, FRDGEventName I
 		BreadcrumbState = FRDGBreadcrumbState::Create(Allocator);
 	}
 #endif
+
+#if RDG_DUMP_RESOURCES
+	DumpNewGraphBuilder();
+#endif
 }
 
 FRDGBuilder::~FRDGBuilder()

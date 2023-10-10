@@ -828,6 +828,7 @@ private:
 	RENDERCORE_API FRDGSubresourceState* AllocSubresource(const FRDGSubresourceState& Other);
 
 #if RDG_DUMP_RESOURCES
+	RENDERCORE_API void DumpNewGraphBuilder();
 	RENDERCORE_API void DumpResourcePassOutputs(const FRDGPass* Pass);
 
 #if RDG_DUMP_RESOURCES_AT_EACH_DRAW
