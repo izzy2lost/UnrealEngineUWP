@@ -12,6 +12,11 @@ using EpicGames.Horde.Storage.Backends;
 namespace EpicGames.Horde.Storage.Clients
 {
 	/// <summary>
+	/// Stores a RefValue in the <see cref="MemoryStorageClient"/>
+	/// </summary>
+	public record class RefData(BundleNodeLocator Locator, ReadOnlyMemory<byte> Data);
+
+	/// <summary>
 	/// Implementation of <see cref="IStorageClient"/> which stores data in memory. Not intended for production use.
 	/// </summary>
 	public class MemoryStorageClient : BundleStorageClient
@@ -26,7 +31,7 @@ namespace EpicGames.Horde.Storage.Clients
 		/// <summary>
 		/// Map of ref name to ref data
 		/// </summary>
-		readonly ConcurrentDictionary<RefName, BundleNodeLocator> _refs = new ConcurrentDictionary<RefName, BundleNodeLocator>();
+		readonly ConcurrentDictionary<RefName, RefData> _refs = new ConcurrentDictionary<RefName, RefData>();
 
 		/// <summary>
 		/// Content addressed data lookup
@@ -38,8 +43,10 @@ namespace EpicGames.Horde.Storage.Clients
 		/// </summary>
 		public IReadOnlyDictionary<string, byte[]> Blobs => _backend.Blobs;
 
-		/// <inheritdoc cref="_refs"/>
-		public IReadOnlyDictionary<RefName, BundleNodeLocator> Refs => _refs;
+		/// <summary>
+		/// All refs stored by the client
+		/// </summary>
+		public IReadOnlyDictionary<RefName, RefData> Refs => _refs;
 
 		/// <summary>
 		/// Constructor
@@ -96,23 +103,23 @@ namespace EpicGames.Horde.Storage.Clients
 		public override Task<bool> DeleteRefAsync(RefName name, CancellationToken cancellationToken) => Task.FromResult(_refs.TryRemove(name, out _));
 
 		/// <inheritdoc/>
-		public override Task<BlobHandle?> TryReadRefTargetAsync(RefName name, RefCacheTime cacheTime = default, CancellationToken cancellationToken = default)
+		public override Task<RefValue?> TryReadRefAsync(RefName name, RefCacheTime cacheTime = default, CancellationToken cancellationToken = default)
 		{
-			BundleNodeLocator hashedLocator;
-			if (_refs.TryGetValue(name, out hashedLocator))
+			RefData? refData;
+			if (_refs.TryGetValue(name, out refData))
 			{
-				return Task.FromResult<BlobHandle?>(CreateNodeHandle(hashedLocator)); 
+				return Task.FromResult<RefValue?>(new RefValue(CreateNodeHandle(refData.Locator), refData.Data)); 
 			}
 			else
 			{
-				return Task.FromResult<BlobHandle?>(null);
+				return Task.FromResult<RefValue?>(null);
 			}
 		}
 
 		/// <inheritdoc/>
-		public override Task WriteRefTargetAsync(RefName name, BundleNodeLocator target, RefOptions? options = null, CancellationToken cancellationToken = default)
+		public override Task WriteRefAsync(RefName name, BundleNodeLocator target, ReadOnlyMemory<byte> data = default, RefOptions? options = null, CancellationToken cancellationToken = default)
 		{
-			_refs[name] = target;
+			_refs[name] = new RefData(target, data);
 			return Task.CompletedTask;
 		}
 

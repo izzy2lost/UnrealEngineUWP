@@ -89,6 +89,11 @@ namespace EpicGames.Horde.Storage
 		public BlobLocator Target { get; set; }
 
 		/// <summary>
+		/// Inline data associated with the ref
+		/// </summary>
+		public byte[] Data { get; set; } = Array.Empty<byte>();
+
+		/// <summary>
 		/// Options for the ref
 		/// </summary>
 		public RefOptions? Options { get; set; }
@@ -105,17 +110,13 @@ namespace EpicGames.Horde.Storage
 		public BlobLocator Target { get; set; }
 
 		/// <summary>
-		/// Link to information about the target node
+		/// Inline data stored with the ref
 		/// </summary>
-		public string Link { get; set; }
+		public byte[] Data { get; set; } = Array.Empty<byte>();
 
 		/// <summary>
-		/// Constructor
+		/// Link to information about the target node
 		/// </summary>
-		public ReadRefResponse(BlobLocator target, string link)
-		{
-			Target = target;
-			Link = link;
-		}
+		public string Link { get; set; } = String.Empty;
 	}
 }

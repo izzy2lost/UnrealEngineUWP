@@ -69,12 +69,11 @@ namespace EpicGames.Horde.Storage
 	}
 
 	/// <summary>
-	/// Information about an alias
+	/// Stored value for a ref
 	/// </summary>
-	/// <param name="Name">Name of the alias</param>
-	/// <param name="Rank">Rank of the alias</param>
-	/// <param name="Data">Inline data to be stored for the alias</param>
-	public record class AliasInfo(string Name, int Rank, ReadOnlyMemory<byte> Data);
+	/// <param name="Target">Target blob</param>
+	/// <param name="Data">Inline data stored with the ref</param>
+	public record class RefValue(BlobHandle Target, ReadOnlyMemory<byte> Data);
 
 	/// <summary>
 	/// Interface for the storage system.
@@ -139,17 +138,18 @@ namespace EpicGames.Horde.Storage
 		/// <param name="cacheTime">Minimum coherency for any cached value to be returned</param>
 		/// <param name="cancellationToken">Cancellation token for the operation</param>
 		/// <returns>Blob pointed to by the ref</returns>
-		Task<BlobHandle?> TryReadRefTargetAsync(RefName name, RefCacheTime cacheTime = default, CancellationToken cancellationToken = default);
+		Task<RefValue?> TryReadRefAsync(RefName name, RefCacheTime cacheTime = default, CancellationToken cancellationToken = default);
 
 		/// <summary>
 		/// Writes a new ref to the store
 		/// </summary>
 		/// <param name="name">Ref to write</param>
 		/// <param name="handle">Handle to the target blob</param>
+		/// <param name="data">Inline data to store with the ref</param>
 		/// <param name="options">Options for the new ref</param>
 		/// <param name="cancellationToken">Cancellation token for the operation</param>
 		/// <returns>Unique identifier for the blob</returns>
-		Task WriteRefTargetAsync(RefName name, BlobHandle handle, RefOptions? options = null, CancellationToken cancellationToken = default);
+		Task WriteRefAsync(RefName name, BlobHandle handle, ReadOnlyMemory<byte> data = default, RefOptions? options = null, CancellationToken cancellationToken = default);
 
 		/// <summary>
 		/// Reads data for a ref from the store
@@ -297,8 +297,22 @@ namespace EpicGames.Horde.Storage
 		/// <returns>True if the ref exists, false if it did not exist</returns>
 		public static async Task<bool> HasRefAsync(this IStorageClient store, RefName name, RefCacheTime cacheTime = default, CancellationToken cancellationToken = default)
 		{
-			BlobHandle? target = await store.TryReadRefTargetAsync(name, cacheTime, cancellationToken);
+			RefValue? target = await store.TryReadRefAsync(name, cacheTime, cancellationToken);
 			return target != null;
+		}
+
+		/// <summary>
+		/// Reads data for a ref from the store
+		/// </summary>
+		/// <param name="store">The store instance to read from</param>
+		/// <param name="name">The ref name</param>
+		/// <param name="cacheTime">Minimum coherency for any cached value to be returned</param>
+		/// <param name="cancellationToken">Cancellation token for the operation</param>
+		/// <returns>Blob pointed to by the ref</returns>
+		public static async Task<BlobHandle?> TryReadRefTargetAsync(this IStorageClient store, RefName name, RefCacheTime cacheTime = default, CancellationToken cancellationToken = default)
+		{
+			RefValue? refValue = await store.TryReadRefAsync(name, cacheTime, cancellationToken);
+			return refValue?.Target;
 		}
 
 		/// <summary>
@@ -313,6 +327,20 @@ namespace EpicGames.Horde.Storage
 		{
 			BlobHandle? refTarget = await store.TryReadRefTargetAsync(name, cacheTime, cancellationToken);
 			return refTarget ?? throw new RefNameNotFoundException(name);
+		}
+
+		/// <summary>
+		/// Writes a new ref to the store
+		/// </summary>
+		/// <param name="store">The store instance to read from</param>
+		/// <param name="name">Ref to write</param>
+		/// <param name="handle">Handle to the target blob</param>
+		/// <param name="options">Options for the new ref</param>
+		/// <param name="cancellationToken">Cancellation token for the operation</param>
+		/// <returns>Unique identifier for the blob</returns>
+		public static Task WriteRefTargetAsync(this IStorageClient store, RefName name, BlobHandle handle, RefOptions? options = null, CancellationToken cancellationToken = default)
+		{
+			return store.WriteRefAsync(name, handle, options: options, cancellationToken: cancellationToken);
 		}
 
 		#endregion

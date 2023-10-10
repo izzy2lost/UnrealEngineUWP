@@ -209,6 +209,24 @@ namespace EpicGames.Horde.Tests
 		}
 
 		[TestMethod]
+		public async Task SimpleNodeWithRefDataAsync()
+		{
+			using MemoryStorageClient store = new MemoryStorageClient();
+
+			RefName refName = new RefName("test");
+			await using (IStorageWriter writer = store.CreateWriter(refName))
+			{
+				BlobHandle target = await writer.WriteBlobAsync(0, Array.Empty<BlobHandle>(), new BlobType(Guid.NewGuid(), 0));
+				await writer.WriteRefAsync(target, new byte[] { 4, 5, 6 });
+			}
+
+			RefValue? value = await ((IStorageClient)store).TryReadRefAsync(refName);
+
+			Assert.IsNotNull(value);
+			Assert.IsTrue(value.Data.Span.SequenceEqual(new byte[] { 4, 5, 6 }));			
+		}
+
+		[TestMethod]
 		public async Task DirectoryNodesAsync()
 		{
 			using MemoryStorageClient store = new MemoryStorageClient();

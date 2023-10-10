@@ -193,7 +193,7 @@ namespace Jupiter.Controllers
 			}
 			StorageClient client = await _storageService.GetClientAsync(namespaceId, cancellationToken);
 			BundleNodeLocator target = BundleNodeLocator.FromBlobLocator(request.Target);
-			await client.WriteRefTargetAsync(refName, target, request.Options, cancellationToken);
+			await client.WriteRefAsync(refName, target, ReadOnlyMemory<byte>.Empty, request.Options, cancellationToken);
 
 			return Ok();
 		}
@@ -223,7 +223,7 @@ namespace Jupiter.Controllers
 			}
 
 			string link = Url.Action("GetNode", new { namespaceId = namespaceId, locator = target.GetLocator() })!;
-			return new ReadRefResponse(target.GetLocator(), WebUtility.UrlDecode(link));
+			return new ReadRefResponse { Target = target.GetLocator(), Link = WebUtility.UrlDecode(link) };
 		}
 
 		/// <summary>

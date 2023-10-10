@@ -10,6 +10,14 @@ using EpicGames.Core;
 namespace EpicGames.Horde.Storage
 {
 	/// <summary>
+	/// Information about an alias to be added alongside a blob
+	/// </summary>
+	/// <param name="Name">Name of the alias</param>
+	/// <param name="Rank">Rank of the alias</param>
+	/// <param name="Data">Inline data to be stored for the alias</param>
+	public record class AliasInfo(string Name, int Rank, ReadOnlyMemory<byte> Data);
+
+	/// <summary>
 	/// Interface for writing new nodes to the store
 	/// </summary>
 	public interface IStorageWriter : IAsyncDisposable
@@ -49,9 +57,10 @@ namespace EpicGames.Horde.Storage
 		/// Writes the reference using the given target node
 		/// </summary>
 		/// <param name="target">The target node</param>
+		/// <param name="data">Inline data for the node</param>
 		/// <param name="options">Options for the new ref</param>
 		/// <param name="cancellationToken">Cancellation token for the operation</param>
-		ValueTask WriteRefAsync(BlobHandle target, RefOptions? options = null, CancellationToken cancellationToken = default);
+		ValueTask WriteRefAsync(BlobHandle target, ReadOnlyMemory<byte> data = default, RefOptions? options = null, CancellationToken cancellationToken = default);
 	}
 
 	/// <summary>
@@ -195,7 +204,7 @@ namespace EpicGames.Horde.Storage
 		}
 
 		/// <inheritdoc/>
-		public ValueTask WriteRefAsync(BlobHandle target, RefOptions? options = null, CancellationToken cancellationToken = default) => _inner.WriteRefAsync(target, options, cancellationToken);
+		public ValueTask WriteRefAsync(BlobHandle target, ReadOnlyMemory<byte> data, RefOptions? options = null, CancellationToken cancellationToken = default) => _inner.WriteRefAsync(target, data, options, cancellationToken);
 	}
 
 	/// <summary>

@@ -386,7 +386,7 @@ namespace EpicGames.Horde.Storage
 		{
 			await using IStorageWriter writer = store.CreateWriter(name);
 			HashedNodeRef<Node> nodeRef = await writer.WriteHashedNodeAsync(node, cancellationToken);
-			await writer.WriteRefAsync(nodeRef.Handle, refOptions, cancellationToken);
+			await writer.WriteRefAsync(nodeRef.Handle, ReadOnlyMemory<byte>.Empty, refOptions, cancellationToken);
 			return nodeRef.Handle;
 		}
 

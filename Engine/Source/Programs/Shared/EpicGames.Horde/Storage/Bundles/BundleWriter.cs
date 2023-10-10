@@ -849,14 +849,14 @@ namespace EpicGames.Horde.Storage.Bundles
 		}
 
 		/// <inheritdoc/>
-		ValueTask IStorageWriter.WriteRefAsync(BlobHandle target, RefOptions? options, CancellationToken cancellationToken) => WriteRefAsync((BundleNodeHandle)target, options, cancellationToken);
+		ValueTask IStorageWriter.WriteRefAsync(BlobHandle target, ReadOnlyMemory<byte> data, RefOptions? options, CancellationToken cancellationToken) => WriteRefAsync((BundleNodeHandle)target, data, options, cancellationToken);
 
 		/// <inheritdoc/>
-		public async ValueTask WriteRefAsync(BundleNodeHandle target, RefOptions? options = null, CancellationToken cancellationToken = default)
+		public async ValueTask WriteRefAsync(BundleNodeHandle target, ReadOnlyMemory<byte> data, RefOptions? options = null, CancellationToken cancellationToken = default)
 		{
 			await target.FlushAsync(cancellationToken);
 			BundleNodeLocator locator = target.GetLocator();
-			await _store.WriteRefTargetAsync(_refName, locator, options, cancellationToken);
+			await _store.WriteRefAsync(_refName, locator, data, options, cancellationToken);
 		}
 	}
 }

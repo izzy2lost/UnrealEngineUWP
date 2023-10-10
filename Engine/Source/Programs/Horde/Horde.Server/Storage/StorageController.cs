@@ -243,7 +243,7 @@ namespace Horde.Server.Storage
 			}
 
 			BlobHandle target = client.CreateBlobHandle(request.Target);
-			await client.WriteRefTargetAsync(refName, target, request.Options, cancellationToken);
+			await client.WriteRefAsync(refName, target, request.Data, request.Options, cancellationToken);
 
 			return Ok();
 		}
@@ -287,14 +287,14 @@ namespace Horde.Server.Storage
 				}
 			}
 
-			BlobHandle? target = await client.TryReadRefTargetAsync(refName, cacheTime, cancellationToken: cancellationToken);
+			RefValue? target = await client.TryReadRefAsync(refName, cacheTime, cancellationToken: cancellationToken);
 			if (target == null)
 			{
 				return new NotFoundResult();
 			}
 
-			string link = $"/api/v1/storage/{namespaceId}/nodes/{target.GetLocator()}";
-			return new ReadRefResponse(target.GetLocator(), link);
+			string link = $"/api/v1/storage/{namespaceId}/nodes/{target.Target.GetLocator()}";
+			return new ReadRefResponse { Target = target.Target.GetLocator(), Data = target.Data.ToArray(), Link = link };
 		}
 
 		/// <summary>

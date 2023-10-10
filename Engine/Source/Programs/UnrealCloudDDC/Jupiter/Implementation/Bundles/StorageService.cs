@@ -185,7 +185,7 @@ public class StorageClient : BundleStorageClient
 		throw new NotImplementedException();
 	}
 
-	public override async Task<BlobHandle?> TryReadRefTargetAsync(RefName name, RefCacheTime cacheTime = default, CancellationToken cancellationToken = default)
+	public override async Task<RefValue?> TryReadRefAsync(RefName name, RefCacheTime cacheTime = default, CancellationToken cancellationToken = default)
 	{
 		// TODO: Cache time is ignored
 		try
@@ -216,13 +216,13 @@ public class StorageClient : BundleStorageClient
 	{
 		BundleLocator locator = await this.WriteBundleAsync(bundle, prefix, cancellationToken);
 		BundleNodeLocator nodeLocator = new BundleNodeLocator(locator, exportIdx);
-		await WriteRefTargetAsync(name, nodeLocator, options, cancellationToken);
+		await WriteRefAsync(name, nodeLocator, ReadOnlyMemory<byte>.Empty, options, cancellationToken);
 
 		return CreateNodeHandle(nodeLocator);
 	}
 
 #pragma warning disable IDE0060
-	public override async Task WriteRefTargetAsync(RefName refName, BundleNodeLocator target, RefOptions? requestOptions, CancellationToken cancellationToken)
+	public override async Task WriteRefAsync(RefName refName, BundleNodeLocator target, ReadOnlyMemory<byte> data, RefOptions? requestOptions, CancellationToken cancellationToken)
 #pragma warning restore IDE0060
 	{
 		BlobId bundleBlob = BlobId.FromBlobLocator(target.Blob);
