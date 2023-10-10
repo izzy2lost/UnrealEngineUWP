@@ -371,9 +371,9 @@ namespace Jupiter.FunctionalTests.Storage
 
 			//foreach (NamespaceId ns in new [] { TestNamespaceName, TestListNamespaceName})
 			{
-			// Seed storage
-			await Seed(Server.Services);
-		}
+				// Seed storage
+				await Seed(Server.Services);
+			}
 		}
 
 		protected abstract IEnumerable<KeyValuePair<string, string>> GetSettings();
