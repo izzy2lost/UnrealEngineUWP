@@ -263,7 +263,13 @@ void FGCObject::RegisterGCObject()
 		StaticInit();
 
 		// Add this instance to the referencer's list
-		GGCObjectReferencer->AddObject(this);
+		UE_AUTORTFM_OPEN({
+			GGCObjectReferencer->AddObject(this);
+		});
+		UE_AUTORTFM_OPENABORT({
+			GGCObjectReferencer->RemoveObject(this);
+		});
+
 		bReferenceAdded = true;
 	}
 }
