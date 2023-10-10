@@ -152,8 +152,8 @@ void FBlendStackAnimPlayer::StorePoseContext(const FPoseContext& PoseContext)
 
 	if (PoseContext.Pose.IsValid())
 	{
-		StoredPose.CopyBonesFrom(PoseContext.Pose);
-		StoredPose.CopyAndAssignBoneContainer(StoredBoneContainer);
+		StoredBones = PoseContext.Pose.GetBones();
+		StoredBoneContainer = PoseContext.Pose.GetBoneContainer();
 	}
 
 	StoredCurve.CopyFrom(PoseContext.Curve);
@@ -162,12 +162,12 @@ void FBlendStackAnimPlayer::StorePoseContext(const FPoseContext& PoseContext)
 
 bool FBlendStackAnimPlayer::HasValidPoseContext() const
 {
-	return StoredPose.IsValid();
+	return StoredBoneContainer.IsValid();
 }
 
 void FBlendStackAnimPlayer::MovePoseContextTo(FBlendStackAnimPlayer& Other)
 {
-	Other.StoredPose = MoveTemp(StoredPose);
+	Other.StoredBones = MoveTemp(StoredBones);
 	Other.StoredCurve = MoveTemp(StoredCurve);
 	Other.StoredAttributes = MoveTemp(StoredAttributes);
 	Other.StoredBoneContainer = MoveTemp(StoredBoneContainer);
@@ -183,7 +183,8 @@ void FBlendStackAnimPlayer::RestorePoseContext(FPoseContext& PoseContext) const
 		// Remap the pose manually in those cases.
 		if (PoseContext.Pose.GetBoneContainer().GetSerialNumber() == StoredBoneContainer.GetSerialNumber())
 		{
-			PoseContext.Pose.CopyBonesFrom(StoredPose.GetBones());
+			check(PoseContext.Pose.GetNumBones() == StoredBones.Num());
+			FMemory::Memcpy(PoseContext.Pose.GetMutableBones().GetData(), StoredBones.GetData(), sizeof(FTransform) * PoseContext.Pose.GetNumBones());
 		}
 		else
 		{
@@ -200,7 +201,7 @@ void FBlendStackAnimPlayer::RestorePoseContext(FPoseContext& PoseContext) const
 				}
 				else
 				{
-					PoseContext.Pose[CompactPoseIndex] = StoredPose[StoredCompactPoseIndex];
+					PoseContext.Pose[CompactPoseIndex] = StoredBones[StoredCompactPoseIndex.GetInt()];
 				}
 			}
 		}

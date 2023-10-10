@@ -66,8 +66,9 @@ private:
 
 	// if SequencePlayerNode.GetSequence() and BlendSpacePlayerNode.GetBlendSpace() are nullptr, 
 	// instead of using SequencePlayerNode or BlendSpacePlayerNode (wrapped in MirrorNode),
-	// the output FPoseContext will be from StoredPose, StoredCurve, StoredAttributes
-	FCompactHeapPose StoredPose;
+	// the output FPoseContext will be from StoredBones, StoredCurve, StoredAttributes
+	// NoTe: we don't need a full FCompactHeapPose, since we use StoredBoneContainer to cache the bone container
+	TArray<FTransform> StoredBones;
 	FBlendedHeapCurve StoredCurve;
 	UE::Anim::FHeapAttributeContainer StoredAttributes;
 	// We need to store the bone container, in case we have a LOD swap during a blend that uses the stored pose.
