@@ -5,6 +5,7 @@ using System.Collections.Generic;
 using System.IO;
 using System.Linq;
 using System.Text;
+using System.Xml.Linq;
 using EpicGames.Core;
 using Microsoft.CodeAnalysis;
 using Microsoft.Extensions.Logging;
@@ -1412,11 +1413,22 @@ namespace UnrealBuildTool.XcodeProjectXcconfig
 					});
 				}
 
+				// when we bring stated data into the .app, we have to skip some temp stuff that went into it
+				string[] Exclusions =
+				{
+					"-/Info.plist",
+					"-/Manifest_*",
+					$"/*.app", // remove the staged .app from the root dir, it's hard to do by name due to ProjectName in staging, and TargetName, etc here
+				};
+
+				// make a string like --exclude=/Info.plist --exclude=/Manifest_* ...
+				string ExcludeString = string.Join(" ", Exclusions.Select(x => (x[0] == '+' ? "--include" : "--exclude") + $"=\\\"{x.Substring(1)}\\\""));
+
 				CopyScript.AddRange(new string[]
 				{
 					"",
 					$"echo \\\"Syncing ${{STAGED_DIR}}{SyncSourceSubdir} to ${{CONFIGURATION_BUILD_DIR}}/${{CONTENTS_FOLDER_PATH}}{SyncDestSubdir}\\\"",
-					$"rsync -a --delete --exclude=/Info.plist --exclude=/Manifest_* --exclude=${{{ExecutableKey}}}.app --exclude=${{PRODUCT_NAME}} --exclude=${{{ExecutableKey}}} --exclude=${{PRODUCT_NAME}}.app \\\"${{STAGED_DIR}}{SyncSourceSubdir}/\\\" \\\"${{CONFIGURATION_BUILD_DIR}}/${{CONTENTS_FOLDER_PATH}}{SyncDestSubdir}\\\"",
+					$"rsync -a --delete {ExcludeString} \\\"${{STAGED_DIR}}{SyncSourceSubdir}/\\\" \\\"${{CONFIGURATION_BUILD_DIR}}/${{CONTENTS_FOLDER_PATH}}{SyncDestSubdir}\\\"",
 				});
 			}
 
@@ -1699,6 +1711,7 @@ namespace UnrealBuildTool.XcodeProjectXcconfig
 			string? SupportedDevices = null;
 			string? MarketingVersion = null;
 			string? BundleIdentifier;
+			string? ApplicationDisplayName = null;
 			List<string> ExtraConfigLines = new();
 
 			// get signing settings
@@ -1710,6 +1723,7 @@ namespace UnrealBuildTool.XcodeProjectXcconfig
 			PlatformIni.TryGetValue("/Script/MacTargetPlatform.XcodeProjectSettings", $"{Platform}ProvisioningProfile", out ProvisioningProfile);
 			PlatformIni.TryGetValue("/Script/MacTargetPlatform.XcodeProjectSettings", $"{Platform}SigningIdentity", out SigningIdentity);
 			PlatformIni.TryGetValue("/Script/MacTargetPlatform.XcodeProjectSettings", "AppCategory", out AppCategory);
+			PlatformIni.TryGetValue("/Script/MacTargetPlatform.XcodeProjectSettings", "ApplicationDisplayName", out ApplicationDisplayName);
 
 
 			if (Platform == UnrealTargetPlatform.Mac)
@@ -1984,7 +1998,20 @@ namespace UnrealBuildTool.XcodeProjectXcconfig
 				ConfigXcconfig.AppendLine($"UE_TARGET_CONFIG = {Config.BuildConfig}");
 				ConfigXcconfig.AppendLine($"UE_UBT_BINARY_SUBPATH = {ExetuableSubPath}");
 				ConfigXcconfig.AppendLine($"{ExecutableKey} = {ExecutableName}");
-				ConfigXcconfig.AppendLine($"PRODUCT_NAME = {ProductName}");
+				if (Platform == UnrealTargetPlatform.Mac)
+				{
+					// on Mac, we need to name the .app nicely before pushing to App store, otherwise distributing, so use the ini setting if it's there ("Unreal Match 3"), otherwise use the uproject name (ie "Lyra" instead of "LyraGame")
+					ConfigXcconfig.AppendLine($"PRODUCT_NAME_build = {ProductName}");
+					string ArchivedName = ApplicationDisplayName ?? (UnrealData.UProjectFileLocation == null ? ProductName : UnrealData.UProjectFileLocation!.GetFileNameWithoutAnyExtensions());
+					ConfigXcconfig.AppendLine($"PRODUCT_NAME_install = {ArchivedName}");
+
+					// this will choose the proper PRODUCT_NAME when archiving vs normal building
+					ConfigXcconfig.AppendLine("PRODUCT_NAME = $(PRODUCT_NAME_$(ACTION))");
+				}
+				else
+				{
+					ConfigXcconfig.AppendLine($"PRODUCT_NAME = {ProductName}");
+				}
 				if (EntitlementsMetadata != null && EntitlementsMetadata.Mode == MetadataMode.UsePremade)
 				{
 					ConfigXcconfig.AppendLine($"CODE_SIGN_ENTITLEMENTS = {EntitlementsMetadata.XcodeProjectRelative}");

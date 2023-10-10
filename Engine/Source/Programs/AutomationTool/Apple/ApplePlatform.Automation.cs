@@ -92,6 +92,14 @@ public abstract class ApplePlatform : Platform
 
 	public override void PostStagingFileCopy(ProjectParams Params, DeploymentContext SC)
 	{
+		// staging will put binaries into Staged/<game>/Binaries/<platform> and they aren't needed, and when we pull this into a .app, it 
+		// messes with the resulting .app. So, we remove the game binary now (leaving in helper .app's and raw .dylibs, etc)
+		// they come from BuildProducts, and we could maybe remove from that list, but it could cause issues with Horde/buildmachines
+		FileReference BinaryPath = FileReference.Combine(SC.StageDirectory, Params.IsCodeBasedProject ? SC.ShortProjectName : "Engine", "Binaries", SC.PlatformDir, SC.StageExecutables[0]);
+		DirectoryReference AppPath = new DirectoryReference(BinaryPath.FullName + ".app");
+		InternalUtils.SafeDeleteFile(BinaryPath.FullName, true);
+		InternalUtils.SafeDeleteDirectory(AppPath.FullName, true);
+
 		if (AppleExports.UseModernXcode(Params.RawProjectPath))
 		{
 			// now reset the envvar so the following build will process the staged data
