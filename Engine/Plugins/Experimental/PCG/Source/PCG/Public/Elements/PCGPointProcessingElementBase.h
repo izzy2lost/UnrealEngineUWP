@@ -8,6 +8,8 @@
 struct FPCGPoint;
 struct FPCGTaggedData;
 
+// TODO: Deprecate this class once all of the internal inheritors have been cleaned up
+// class UE_DEPRECATED(5.4, "FPCGPointProcessingElementBase is deprecated. Please use 'FPCGPointOperationElementBase' instead.") PCG_API FPCGPointProcessingElementBase : public IPCGElement
 class PCG_API FPCGPointProcessingElementBase : public IPCGElement
 {
 protected:

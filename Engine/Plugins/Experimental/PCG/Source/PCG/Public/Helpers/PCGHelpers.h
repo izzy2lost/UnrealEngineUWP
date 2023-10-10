@@ -25,6 +25,7 @@ namespace PCGHelpers
 	PCG_API int ComputeSeed(int A);
 	PCG_API int ComputeSeed(int A, int B);
 	PCG_API int ComputeSeed(int A, int B, int C);
+	PCG_API int ComputeSeedFromPosition(const FVector& InPosition);
 
 	PCG_API bool IsInsideBounds(const FBox& InBox, const FVector& InPosition);
 	PCG_API bool IsInsideBoundsXY(const FBox& InBox, const FVector& InPosition);

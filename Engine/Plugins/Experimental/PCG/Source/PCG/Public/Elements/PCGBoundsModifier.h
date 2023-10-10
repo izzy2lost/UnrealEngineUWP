@@ -2,9 +2,8 @@
 
 #pragma once
 
+#include "PCGPointOperationElementBase.h"
 #include "PCGSettings.h"
-
-#include "Elements/PCGPointProcessingElementBase.h"
 
 #include "PCGBoundsModifier.generated.h"
 
@@ -59,8 +58,8 @@ public:
 	float Steepness = 1.0f;
 };
 
-class FPCGBoundsModifier : public FPCGPointProcessingElementBase
+class FPCGBoundsModifier : public FPCGPointOperationElementBase
 {
 protected:
-	virtual bool ExecuteInternal(FPCGContext* Context) const;
+	virtual bool ExecuteInternal(FPCGContext* Context) const override;
 };

@@ -57,12 +57,12 @@ struct TPCGTimeSlicedContext : public FPCGContext
 	using InitExecSignature = EPCGTimeSliceInitResult(TPCGTimeSlicedContext* Context, PerExecutionStateT& OutState);
 
 	/** Initializes per execution state data if required. */
-	EPCGTimeSliceInitResult InitializePerExecutionState(TFunctionRef<InitExecSignature> InitFunc = []{ return true; });
+	EPCGTimeSliceInitResult InitializePerExecutionState(TFunctionRef<InitExecSignature> InitFunc = [](TPCGTimeSlicedContext*, PerExecutionStateT&) -> EPCGTimeSliceInitResult { return EPCGTimeSliceInitResult::Success; });
 
 	using InitIterSignature = EPCGTimeSliceInitResult(PerIterationStateT& OutState, const PerExecutionStateT& ExecState, const uint32 IterationIndex);
 
 	/** Initializes per execution state data if required. An array will be created with a state element for every execution iteration in the context. Returns the Init Result for each iteration's initialization. */
-	const TArray<EPCGTimeSliceInitResult>& InitializePerIterationStates(int32 NumIterations = 1, TFunctionRef<InitIterSignature> IterFunc = []{ return true; });
+	const TArray<EPCGTimeSliceInitResult>& InitializePerIterationStates(int32 NumIterations = 1, TFunctionRef<InitIterSignature> IterFunc = [](PerIterationStateT&, const uint32){ return TArray({EPCGTimeSliceInitResult::Success}); });
 
 	/** Will return the result of the attempt to initialize the per execution state */
 	EPCGTimeSliceInitResult GetExecutionStateResult() const { return ExecutionStateResult; }

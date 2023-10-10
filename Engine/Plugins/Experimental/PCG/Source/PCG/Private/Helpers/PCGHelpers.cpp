@@ -36,6 +36,11 @@ namespace PCGHelpers
 		return ((A * 196314165U) + 907633515U) ^ ((B * 73148459U) + 453816763U) ^ ((C * 34731343U) + 453816743U);
 	}
 
+	int ComputeSeedFromPosition(const FVector& InPosition)
+	{
+		return ComputeSeed(static_cast<int>(InPosition.X), static_cast<int>(InPosition.Y), static_cast<int>(InPosition.Z));
+	}
+
 	bool IsInsideBounds(const FBox& InBox, const FVector& InPosition)
 	{
 		return (InPosition.X >= InBox.Min.X) && (InPosition.X < InBox.Max.X) &&

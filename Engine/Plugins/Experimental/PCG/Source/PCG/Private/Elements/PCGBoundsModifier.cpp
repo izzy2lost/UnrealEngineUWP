@@ -9,6 +9,13 @@
 
 #define LOCTEXT_NAMESPACE "PCGBoundsModifier"
 
+namespace PCGBoundsModifier
+{
+	// TODO: Evaluate this value for optimization
+	// An evolving best guess for the most optimized number of points to operate per thread per slice
+	static constexpr int32 PointsPerChunk = 65536;
+}
+
 FPCGElementPtr UPCGBoundsModifierSettings::CreateElement() const
 {
 	return MakeShared<FPCGBoundsModifier>();
@@ -25,96 +32,90 @@ bool FPCGBoundsModifier::ExecuteInternal(FPCGContext* Context) const
 {
 	TRACE_CPUPROFILER_EVENT_SCOPE(FPCGBoundsModifier::Execute);
 
+	check(Context);
+	FPCGBoundsModifier::ContextType* BoundsModifierContext = static_cast<FPCGBoundsModifier::ContextType*>(Context);
+
 	const UPCGBoundsModifierSettings* Settings = Context->GetInputSettings<UPCGBoundsModifierSettings>();
 	check(Settings);
 
-	TArray<FPCGTaggedData> Inputs = Context->InputData.GetInputsByPin(PCGPinConstants::DefaultInputLabel);
-	TArray<FPCGTaggedData>& Outputs = Context->OutputData.TaggedData;
-
-	const EPCGBoundsModifierMode Mode = Settings->Mode;
-	const FVector& BoundsMin = Settings->BoundsMin;
-	const FVector& BoundsMax = Settings->BoundsMax;
-	const bool bAffectSteepness = Settings->bAffectSteepness;
-	const float Steepness = Settings->Steepness;
-
-	const FBox Bounds(BoundsMin, BoundsMax);
-
-	switch (Mode)
+	switch (Settings->Mode)
 	{
-	case EPCGBoundsModifierMode::Intersect:
-		ProcessPoints(Context, Inputs, Outputs, [&Bounds, bAffectSteepness, Steepness](const FPCGPoint& InPoint, FPCGPoint& OutPoint){
+		case EPCGBoundsModifierMode::Intersect:
+		return ExecutePointOperation(BoundsModifierContext, [Settings](const FPCGPoint& InPoint, FPCGPoint& OutPoint)
+		{
 			OutPoint = InPoint;
-			OutPoint.SetLocalBounds(InPoint.GetLocalBounds().Overlap(Bounds));
-			
-			if (bAffectSteepness)
+			OutPoint.SetLocalBounds(InPoint.GetLocalBounds().Overlap(FBox(Settings->BoundsMin, Settings->BoundsMax)));
+
+			if (Settings->bAffectSteepness)
 			{
-				OutPoint.Steepness = FMath::Min(InPoint.Steepness, Steepness);
+				OutPoint.Steepness = FMath::Min(InPoint.Steepness, Settings->Steepness);
 			}
 
 			return true;
-		});
-		break;
+		}, PCGBoundsModifier::PointsPerChunk);
 
 	case EPCGBoundsModifierMode::Include:
-		ProcessPoints(Context, Inputs, Outputs, [&Bounds, bAffectSteepness, Steepness](const FPCGPoint& InPoint, FPCGPoint& OutPoint){
+		return ExecutePointOperation(BoundsModifierContext, [Settings](const FPCGPoint& InPoint, FPCGPoint& OutPoint)
+		{
 			OutPoint = InPoint;
-			OutPoint.SetLocalBounds(InPoint.GetLocalBounds() + Bounds);
+			OutPoint.SetLocalBounds(InPoint.GetLocalBounds() + FBox(Settings->BoundsMin, Settings->BoundsMax));
 
-			if (bAffectSteepness)
+			if (Settings->bAffectSteepness)
 			{
-				OutPoint.Steepness = FMath::Max(InPoint.Steepness, Steepness);
+				OutPoint.Steepness = FMath::Max(InPoint.Steepness, Settings->Steepness);
 			}
 
 			return true;
-		});
-		break;
+		}, PCGBoundsModifier::PointsPerChunk);
 
 	case EPCGBoundsModifierMode::Translate:
-		ProcessPoints(Context, Inputs, Outputs, [&BoundsMin, &BoundsMax, bAffectSteepness, Steepness](const FPCGPoint& InPoint, FPCGPoint& OutPoint){
+		return ExecutePointOperation(BoundsModifierContext, [Settings](const FPCGPoint& InPoint, FPCGPoint& OutPoint)
+		{
 			OutPoint = InPoint;
-			OutPoint.BoundsMin += BoundsMin;
-			OutPoint.BoundsMax += BoundsMax;
+			OutPoint.BoundsMin += Settings->BoundsMin;
+			OutPoint.BoundsMax += Settings->BoundsMax;
 
-			if (bAffectSteepness)
+			if (Settings->bAffectSteepness)
 			{
-				OutPoint.Steepness = FMath::Clamp(InPoint.Steepness + Steepness, 0.0f, 1.0f);
+				OutPoint.Steepness = FMath::Clamp(InPoint.Steepness + Settings->Steepness, 0.0f, 1.0f);
 			}
 
 			return true;
-		});
-		break;
+		}, PCGBoundsModifier::PointsPerChunk);
 
 	case EPCGBoundsModifierMode::Scale:
-		ProcessPoints(Context, Inputs, Outputs, [&BoundsMin, &BoundsMax, bAffectSteepness, Steepness](const FPCGPoint& InPoint, FPCGPoint& OutPoint){
+		return ExecutePointOperation(BoundsModifierContext, [Settings](const FPCGPoint& InPoint, FPCGPoint& OutPoint)
+		{
 			OutPoint = InPoint;
-			OutPoint.BoundsMin *= BoundsMin;
-			OutPoint.BoundsMax *= BoundsMax;
+			OutPoint.BoundsMin *= Settings->BoundsMin;
+			OutPoint.BoundsMax *= Settings->BoundsMax;
 
-			if (bAffectSteepness)
+			if (Settings->bAffectSteepness)
 			{
-				OutPoint.Steepness = FMath::Clamp(InPoint.Steepness * Steepness, 0.0f, 1.0f);
+				OutPoint.Steepness = FMath::Clamp(InPoint.Steepness * Settings->Steepness, 0.0f, 1.0f);
 			}
 
 			return true;
-		});
-		break;
+		}, PCGBoundsModifier::PointsPerChunk);
 
 	case EPCGBoundsModifierMode::Set:
-		ProcessPoints(Context, Inputs, Outputs, [&Bounds, bAffectSteepness, Steepness](const FPCGPoint& InPoint, FPCGPoint& OutPoint){
+		return ExecutePointOperation(BoundsModifierContext, [Settings](const FPCGPoint& InPoint, FPCGPoint& OutPoint)
+		{
 			OutPoint = InPoint;
-			OutPoint.SetLocalBounds(Bounds);
+			OutPoint.SetLocalBounds(FBox(Settings->BoundsMin, Settings->BoundsMax));
 
-			if (bAffectSteepness)
+			if (Settings->bAffectSteepness)
 			{
-				OutPoint.Steepness = Steepness;
+				OutPoint.Steepness = Settings->Steepness;
 			}
 
 			return true;
-		});
-		break;
-	}
+		}, PCGBoundsModifier::PointsPerChunk);
 
-	return true;
+		default:
+			checkNoEntry();
+			return true;
+	}
 }
 
 #undef LOCTEXT_NAMESPACE

@@ -19,8 +19,7 @@
 
 int UPCGBlueprintHelpers::ComputeSeedFromPosition(const FVector& InPosition)
 {
-	// TODO: should have a config to drive this
-	return PCGHelpers::ComputeSeed((int)InPosition.X, (int)InPosition.Y, (int)InPosition.Z);
+	return PCGHelpers::ComputeSeedFromPosition(InPosition);
 }
 
 void UPCGBlueprintHelpers::SetSeedFromPosition(FPCGPoint& InPoint)
