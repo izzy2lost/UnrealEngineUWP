@@ -383,7 +383,7 @@ namespace EpicGames.Horde.Compute
 			using (IAgentMessageBuilder request = await channel.CreateMessageAsync(AgentMessageType.WriteFiles, cancellationToken))
 			{
 				request.WriteString(path);
-				request.WriteBlobLocator(locator);
+				request.WriteString($"{IoHash.Zero}@{locator}"); // HACK: Currently deployed agents have a hash check in BundleNodeLocator.Parse() which does not check length before checking for the '@' character separating the hash from locator.
 				request.Send();
 			}
 
