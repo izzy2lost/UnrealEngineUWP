@@ -176,6 +176,9 @@ void UAnimBoneCompressionCodec_ACLDatabase::GetCompressionSettings(const class I
 
 	OutSettings.level = GetCompressionLevel(CompressionLevel);
 	OutSettings.enable_database_support = true;
+
+	// Disable keyframe stripping, even the trivial one as it currently isn't supported
+	OutSettings.keyframe_stripping.strip_trivial = false;
 }
 
 // @third party code - Epic Games Begin
