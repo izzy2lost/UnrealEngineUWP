@@ -1363,7 +1363,7 @@ void FDataLayerMode::RegisterContextMenu()
 				const AWorldDataLayers* WorldDataLayers = Mode->GetOwningWorld() ? Mode->GetOwningWorld()->GetWorldDataLayers() : nullptr;
 				if (WorldDataLayers && !WorldDataLayers->HasDeprecatedDataLayers())
 				{
-					Section.AddSubMenu("CreateNewDataLayerWithAsset", LOCTEXT("CreateNewDataLayerWithAssetSubMenu", "Create New DataLayer With Asset"), LOCTEXT("CreateNewDataLayerWithAssetSubMenu_ToolTip", "Create New DataLayer With Asset"),
+					Section.AddSubMenu("CreateNewDataLayerWithAsset", LOCTEXT("CreateNewDataLayerWithAssetSubMenu", "Create New Data Layer With Asset"), LOCTEXT("CreateNewDataLayerWithAssetSubMenu_ToolTip", "Create New Data Layer With Asset"),
 						FNewToolMenuDelegate::CreateLambda([CreateNewDataLayer, WorldDataLayers](UToolMenu* InSubMenu)
 						{
 							const bool bAllowClear = false;
