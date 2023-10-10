@@ -352,7 +352,7 @@ void UMassVisualizationComponent::HandleChangesWithExternalIDTracking(UInstanced
 
 	// removing instances first, since this operation is more resilient to duplicates. Plus we make an arbitrary decision 
 	// that it's better to have redundant things visible than not seeing required things
-	ProcessRemoves(ISMComponent, SharedData);
+	ProcessRemoves(ISMComponent, SharedData, /*bUpdateNavigation=*/false);
 
 	// NOTE: This code path is designed to only perform Adds, never updates so updates are filtered out along with duplicates.
 	TArray<int32>& MassInstanceIds = SharedData.UpdateInstanceIds;
@@ -394,13 +394,14 @@ void UMassVisualizationComponent::HandleChangesWithExternalIDTracking(UInstanced
 			// if these are the first entities we're adding we need to set NumCustomDataFloats so that the PerInstanceSMCustomData
 			// gets populated properly by the AddInstancesInternal call below
 			const int32 StartingCount = ISMComponent.GetNumInstances();
+			const bool bInitiallyEmpty = (StartingCount == 0); 
 			if (StartingCount == 0 && CustomFloatData.Num() && ISMComponent.Mobility != EComponentMobility::Static)
 			{
 				ISMComponent.SetNumCustomDataFloats(InNumCustomDataFloats);
 			}
 
 			check(MassInstanceIds.Num() == InstanceTransforms.Num());
-			TArray<FPrimitiveInstanceId> NewIds = ISMComponent.AddInstancesById(InstanceTransforms, true);
+			TArray<FPrimitiveInstanceId> NewIds = ISMComponent.AddInstancesById(InstanceTransforms, /*bWorldSpace=*/true, /*bUpdateNavigation =*/bInitiallyEmpty);
 			check(MassInstanceIds.Num() == NewIds.Num());
 			for (int32 i = 0; i < MassInstanceIds.Num(); ++i)
 			{
@@ -417,7 +418,7 @@ void UMassVisualizationComponent::HandleChangesWithExternalIDTracking(UInstanced
 }
 
 
-void UMassVisualizationComponent::ProcessRemoves(UInstancedStaticMeshComponent& ISMComponent, FMassISMCSharedData& SharedData)
+void UMassVisualizationComponent::ProcessRemoves(UInstancedStaticMeshComponent& ISMComponent, FMassISMCSharedData& SharedData, const bool bUpdateNavigation /*= true*/)
 {
 	if (!SharedData.GetRemoveInstanceIds().IsEmpty())
 	{
@@ -443,7 +444,7 @@ void UMassVisualizationComponent::ProcessRemoves(UInstancedStaticMeshComponent& 
 			}
 		}
 
-		ISMComponent.RemoveInstancesById(ISMInstanceIds);
+		ISMComponent.RemoveInstancesById(ISMInstanceIds, bUpdateNavigation);
 	}
 }
 

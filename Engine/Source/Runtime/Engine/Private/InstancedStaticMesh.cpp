@@ -3163,11 +3163,11 @@ TArray<int32> UInstancedStaticMeshComponent::AddInstances(const TArray<FTransfor
 	return AddInstancesInternal(InstanceTransforms, bShouldReturnIndices, bWorldSpace, bUpdateNavigation);
 }
 
-TArray<FPrimitiveInstanceId> UInstancedStaticMeshComponent::AddInstancesById(const TArrayView<const FTransform>& InstanceTransforms, bool bWorldSpace)
+TArray<FPrimitiveInstanceId> UInstancedStaticMeshComponent::AddInstancesById(const TArrayView<const FTransform>& InstanceTransforms, bool bWorldSpace, const bool bUpdateNavigation)
 {
 	check(PrimitiveInstanceDataManager.GetMode() != FPrimitiveInstanceDataManager::EMode::ExternalLegacyData);
 	TArray<FPrimitiveInstanceId> Ids;
-	TArray<int32> Indices = AddInstancesInternal(InstanceTransforms, true, bWorldSpace);
+	TArray<int32> Indices = AddInstancesInternal(InstanceTransforms, true, bWorldSpace, bUpdateNavigation);
 	Algo::Transform(Indices, Ids, [&](int32 Index) { return FPrimitiveInstanceId{PrimitiveInstanceDataManager.IndexToId(Index) }; } );
 	return Ids;
 }
@@ -3190,12 +3190,12 @@ void UInstancedStaticMeshComponent::SetCustomDataById(const TArrayView<const FPr
 	}
 }
 
-void UInstancedStaticMeshComponent::RemoveInstancesById(const TArrayView<const FPrimitiveInstanceId>& InstanceIds)
+void UInstancedStaticMeshComponent::RemoveInstancesById(const TArrayView<const FPrimitiveInstanceId>& InstanceIds, const bool bUpdateNavigation)
 {
 	check(PrimitiveInstanceDataManager.GetMode() != FPrimitiveInstanceDataManager::EMode::ExternalLegacyData);
 	for (FPrimitiveInstanceId Id : InstanceIds)
 	{
-		RemoveInstanceInternal(PrimitiveInstanceDataManager.IdToIndex(Id), false, true);
+		RemoveInstanceInternal(PrimitiveInstanceDataManager.IdToIndex(Id), false, true, bUpdateNavigation);
 	}
 }
 
@@ -3308,7 +3308,7 @@ bool UInstancedStaticMeshComponent::SupportsRemoveSwap() const
 	return bSupportRemoveAtSwap || CVarISMForceRemoveAtSwap.GetValueOnGameThread() != 0;
 }
 
-bool UInstancedStaticMeshComponent::RemoveInstanceInternal(int32 InstanceIndex, bool InstanceAlreadyRemoved, bool bForceRemoveAtSwap)
+bool UInstancedStaticMeshComponent::RemoveInstanceInternal(int32 InstanceIndex, bool InstanceAlreadyRemoved, bool bForceRemoveAtSwap, const bool bUpdateNavigation)
 {
 #if WITH_EDITOR
 	DeletionState = InstanceAlreadyRemoved ? EInstanceDeletionReason::EntryAlreadyRemoved : EInstanceDeletionReason::EntryRemoval;
@@ -3330,9 +3330,11 @@ bool UInstancedStaticMeshComponent::RemoveInstanceInternal(int32 InstanceIndex, 
 	if (!InstanceAlreadyRemoved && PerInstanceSMData.IsValidIndex(InstanceIndex))
 	{
 		const bool bWasNavRelevant = bNavigationRelevant;
-		
-		// Request navigation update
-		PartialNavigationUpdate(InstanceIndex);
+
+		if (bUpdateNavigation)
+		{
+			PartialNavigationUpdate(InstanceIndex);
+		}
 
 		if (bUseRemoveAtSwap)
 		{

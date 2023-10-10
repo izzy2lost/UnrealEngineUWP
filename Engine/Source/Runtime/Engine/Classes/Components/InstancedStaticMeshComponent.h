@@ -184,7 +184,7 @@ class UInstancedStaticMeshComponent : public UStaticMeshComponent, public ISMIns
 
 	/**
 	 */
-	ENGINE_API TArray<FPrimitiveInstanceId> AddInstancesById(const TArrayView<const FTransform>& InstanceTransforms, bool bWorldSpace = false);
+	ENGINE_API TArray<FPrimitiveInstanceId> AddInstancesById(const TArrayView<const FTransform>& InstanceTransforms, bool bWorldSpace = false, bool bUpdateNavigation = true);
 	ENGINE_API FPrimitiveInstanceId AddInstanceById(const FTransform& InstanceTransforms, bool bWorldSpace = false);
 	/**
 	 */
@@ -192,7 +192,7 @@ class UInstancedStaticMeshComponent : public UStaticMeshComponent, public ISMIns
 	inline void SetCustomDataById(FPrimitiveInstanceId InstanceId, TArrayView<const float> CustomDataFloats) { SetCustomDataById(MakeArrayView(&InstanceId, 1), CustomDataFloats); }
 	/**
 	 */
-	ENGINE_API virtual void RemoveInstancesById(const TArrayView<const FPrimitiveInstanceId> &InstanceIds);
+	ENGINE_API virtual void RemoveInstancesById(const TArrayView<const FPrimitiveInstanceId> &InstanceIds, bool bUpdateNavigation = true);
 	inline void RemoveInstanceById(FPrimitiveInstanceId InstanceId) { RemoveInstancesById(MakeArrayView(&InstanceId, 1)); }
 	/**
 	 */
@@ -592,7 +592,7 @@ protected:
 	ENGINE_API TArray<int32> AddInstancesInternal(TConstArrayView<FTransform> InstanceTransforms, bool bShouldReturnIndices, bool bWorldSpace, bool bUpdateNavigation = true);
 
 	/** Internal version of RemoveInstance */	
-	ENGINE_API bool RemoveInstanceInternal(int32 InstanceIndex, bool InstanceAlreadyRemoved, bool bForceRemoveAtSwap = false);
+	ENGINE_API bool RemoveInstanceInternal(int32 InstanceIndex, bool InstanceAlreadyRemoved, bool bForceRemoveAtSwap = false, bool bUpdateNavigation = true);
 
 	/**
 	 * Returns the bounds of a single instance in local space. It uses the NavCollision if available,

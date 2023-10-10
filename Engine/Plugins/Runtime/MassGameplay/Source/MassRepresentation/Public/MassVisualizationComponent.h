@@ -80,7 +80,7 @@ protected:
 	/**
 	 * Process all removed IDs in FMassISMCSharedData and apply to the ISM component.
 	 */
-	void ProcessRemoves(UInstancedStaticMeshComponent& ISMComponent, FMassISMCSharedData& SharedData);
+	void ProcessRemoves(UInstancedStaticMeshComponent& ISMComponent, FMassISMCSharedData& SharedData, bool bUpdateNavigation = true);
 	
 	/** 
 	 * Applies changes accumulated in SharedData while manually updating the Instance ID mapping. This approach is done in preparation 
