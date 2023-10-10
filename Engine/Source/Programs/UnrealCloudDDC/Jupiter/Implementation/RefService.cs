@@ -255,7 +255,7 @@ namespace Jupiter.Implementation
 		{
 			try
 			{
-				(RefRecord, BlobContents?) _ = await GetAsync(ns, bucket, key, new string[] {"name"}, doLastAccessTracking: false, skipCache: false);
+				(RefRecord, BlobContents?) _ = await GetAsync(ns, bucket, key, new string[] {"name"}, doLastAccessTracking: false, skipCache: true);
 			}
 			catch (NamespaceNotFoundException)
 			{
