@@ -1998,20 +1998,6 @@ namespace UnrealBuildTool.XcodeProjectXcconfig
 				ConfigXcconfig.AppendLine($"UE_TARGET_CONFIG = {Config.BuildConfig}");
 				ConfigXcconfig.AppendLine($"UE_UBT_BINARY_SUBPATH = {ExetuableSubPath}");
 				ConfigXcconfig.AppendLine($"{ExecutableKey} = {ExecutableName}");
-				if (Platform == UnrealTargetPlatform.Mac)
-				{
-					// on Mac, we need to name the .app nicely before pushing to App store, otherwise distributing, so use the ini setting if it's there ("Unreal Match 3"), otherwise use the uproject name (ie "Lyra" instead of "LyraGame")
-					ConfigXcconfig.AppendLine($"PRODUCT_NAME_build = {ProductName}");
-					string ArchivedName = ApplicationDisplayName ?? (UnrealData.UProjectFileLocation == null ? ProductName : UnrealData.UProjectFileLocation!.GetFileNameWithoutAnyExtensions());
-					ConfigXcconfig.AppendLine($"PRODUCT_NAME_install = {ArchivedName}");
-
-					// this will choose the proper PRODUCT_NAME when archiving vs normal building
-					ConfigXcconfig.AppendLine("PRODUCT_NAME = $(PRODUCT_NAME_$(ACTION))");
-				}
-				else
-				{
-					ConfigXcconfig.AppendLine($"PRODUCT_NAME = {ProductName}");
-				}
 				if (EntitlementsMetadata != null && EntitlementsMetadata.Mode == MetadataMode.UsePremade)
 				{
 					ConfigXcconfig.AppendLine($"CODE_SIGN_ENTITLEMENTS = {EntitlementsMetadata.XcodeProjectRelative}");
@@ -2021,6 +2007,27 @@ namespace UnrealBuildTool.XcodeProjectXcconfig
 				if (Config.BuildConfig == UnrealTargetConfiguration.Debug)
 				{
 					ConfigXcconfig.AppendLine("ENABLE_TESTABILITY = YES");
+				}
+
+				if (Platform == UnrealTargetPlatform.Mac)
+				{
+					// on Mac, we need to name the .app nicely before pushing to App store, otherwise distributing, so use the ini setting if it's there ("Unreal Match 3"), otherwise use the uproject name (ie "Lyra" instead of "LyraGame")
+					ConfigXcconfig.AppendLine("");
+					ConfigXcconfig.AppendLine($"// this variable trickery will set the proper name for debugging, building, and archiving,");
+					ConfigXcconfig.AppendLine($"// where archiving (the '_install' action type) may need a differnet name so it shows up nicely");
+					ConfigXcconfig.AppendLine($"// on end-users machines in Finder, Spotlight, etc. The trailing _ on the next line is correct.");
+
+					ConfigXcconfig.AppendLine($"PRODUCT_NAME_ = {ProductName}");
+					ConfigXcconfig.AppendLine($"PRODUCT_NAME_build = $(PRODUCT_NAME_)");
+					string ArchivedName = ApplicationDisplayName ?? (UnrealData.UProjectFileLocation == null ? ProductName : UnrealData.UProjectFileLocation!.GetFileNameWithoutAnyExtensions());
+					ConfigXcconfig.AppendLine($"PRODUCT_NAME_install = {ArchivedName}");
+
+					// this will choose the proper PRODUCT_NAME when archiving vs normal building
+					ConfigXcconfig.AppendLine("PRODUCT_NAME = $(PRODUCT_NAME_$(ACTION))");
+				}
+				else
+				{
+					ConfigXcconfig.AppendLine($"PRODUCT_NAME = {ProductName}");
 				}
 
 				ConfigXcconfig.Write();
