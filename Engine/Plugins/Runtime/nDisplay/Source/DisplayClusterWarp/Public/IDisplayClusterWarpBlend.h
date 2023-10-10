@@ -21,6 +21,21 @@ public:
 	virtual TSharedPtr<IDisplayClusterWarpBlend, ESPMode::ThreadSafe> ToSharedPtr() = 0;
 	virtual TSharedPtr<const IDisplayClusterWarpBlend, ESPMode::ThreadSafe> ToSharedPtr() const = 0;
 
+	/**
+	* Called each time a new game level starts
+	*
+	* @param InViewport - a owner viewport
+	*/
+	virtual bool HandleStartScene(IDisplayClusterViewport* InViewport) = 0;
+
+	/**
+	* Called when current level is going to be closed (i.e. before loading a new map)
+	*
+	* @param InViewport - a owner viewport
+	*/
+	virtual void HandleEndScene(IDisplayClusterViewport* InViewport) = 0;
+
+
 	/** Update internal geometry cached data
 	 */
 	virtual bool UpdateGeometryContext(const float InWorldScale) = 0;
@@ -105,10 +120,10 @@ public:
 	virtual UMeshComponent* GetOrCreatePreviewMeshComponent(IDisplayClusterViewport* InViewport, bool& bExistingComponent) const = 0;
 
 	/**
-	* Build preview movable mesh
+	* Build preview editable mesh
 	* This MeshComponent is a copy of the preview mesh and can be moved freely with the UI visualization.
 	*
 	* @param InViewport - Projection specific parameters.
 	*/
-	virtual UMeshComponent* GetOrCreatePreviewMovableMeshComponent(IDisplayClusterViewport* InViewport) const = 0;
+	virtual UMeshComponent* GetOrCreatePreviewEditableMeshComponent(IDisplayClusterViewport* InViewport) const = 0;
 };

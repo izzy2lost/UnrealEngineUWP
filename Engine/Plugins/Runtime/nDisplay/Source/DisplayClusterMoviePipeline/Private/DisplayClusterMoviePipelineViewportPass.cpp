@@ -485,9 +485,11 @@ bool UDisplayClusterMoviePipelineViewportPassBase::InitializeDisplayCluster()
 
 			if (IDisplayClusterViewportManager* ViewportManager = DCRootActor->GetOrCreateViewportManager())
 			{
+				// Don't use preview settings for MRQ rendering (same as for game)
+				ViewportManager->GetConfiguration().SetPreviewSettings(FDisplayClusterViewport_PreviewSettings());
+
 				// Update local node viewports (update\create\delete) and build new render frame
-				const EDisplayClusterRenderFrameMode RenderFrameMode = EDisplayClusterRenderFrameMode::Mono;
-				if (ViewportManager->GetConfiguration().UpdateConfigurationForViewportsList(RenderFrameMode, DisplayClusterViewports))
+				if (ViewportManager->GetConfiguration().UpdateConfigurationForViewportsList(EDisplayClusterRenderFrameMode::MRQ_Mono, GetWorld(), DisplayClusterViewports))
 				{
 					return true;
 				}
@@ -500,7 +502,6 @@ bool UDisplayClusterMoviePipelineViewportPassBase::InitializeDisplayCluster()
 
 	return false;
 }
-
 
 bool UDisplayClusterMoviePipelineViewportPassBase::GetViewportId(int32 InViewportIndex, FString& OutViewportId) const
 {
@@ -554,8 +555,6 @@ IDisplayClusterViewport* UDisplayClusterMoviePipelineViewportPassBase::GetAndCal
 			DCViewport->SetRenderSettings(RenderSettings);
 		}
 
-		ViewportManager->GetConfiguration().SetCurrentWorld(CurrentWorld);
-
 		FDisplayClusterRenderFrame RenderFrame;
 		if (ViewportManager->BeginNewFrame(GameViewportClient->Viewport, RenderFrame))
 		{
@@ -569,13 +568,10 @@ IDisplayClusterViewport* UDisplayClusterMoviePipelineViewportPassBase::GetAndCal
 			OutView.ViewRotation = ViewInfo.Rotation;
 			OutView.ViewLocation = ViewInfo.Location;
 			
-			const AWorldSettings* WorldSettings = CurrentWorld->GetWorldSettings();
-			const float InWorldToMeters = (WorldSettings) ? WorldSettings->WorldToMeters : 100.f;
-
 			bool bResult = false;
 			// Obtaining the offset of the stereo eye and the values of the projection clipping plane for the given viewport was moved inside CalculateView().
 			// Perform view calculations on a policy side
-			if (DCViewport->CalculateView(InContextNum, OutView.ViewLocation, OutView.ViewRotation, InWorldToMeters))
+			if (DCViewport->CalculateView(InContextNum, OutView.ViewLocation, OutView.ViewRotation, ViewportManager->GetConfiguration().GetWorldToMeters()))
 			{
 				OutView.ProjectionMatrix = FMatrix::Identity;
 

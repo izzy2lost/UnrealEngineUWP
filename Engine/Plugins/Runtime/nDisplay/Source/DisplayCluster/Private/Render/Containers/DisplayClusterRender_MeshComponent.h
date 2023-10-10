@@ -61,5 +61,5 @@ private:
 	TWeakObjectPtr<const UStaticMesh> StaticMeshRef;
 
 private:
-	FDisplayClusterRender_MeshComponentProxy* MeshComponentProxy = nullptr;
+	TSharedPtr<FDisplayClusterRender_MeshComponentProxy, ESPMode::ThreadSafe> MeshComponentProxyPtr;
 };

@@ -1,7 +1,6 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 
 #include "DisplayClusterRootActor.h"
-#include "DisplayClusterRootActorPreviewRenderingManager.h"
 
 #include "Async/ParallelFor.h"
 #include "Components/SceneComponent.h"
@@ -9,10 +8,11 @@
 #include "Components/DisplayClusterCameraComponent.h"
 #include "Components/DisplayClusterScreenComponent.h"
 #include "Components/DisplayClusterSceneComponentSyncParent.h"
-#include "Components/DisplayClusterPreviewComponent.h"
 #include "Components/DisplayClusterSyncTickComponent.h"
 #include "Components/DisplayClusterICVFXCameraComponent.h"
 #include "Components/DisplayClusterSceneComponentSyncThis.h"
+#include "Render/DisplayDevice/Components/DisplayClusterDisplayDeviceBaseComponent.h"
+#include "Render/DisplayDevice/Components/DisplayClusterDisplayDeviceComponent.h"
 #include "CineCameraComponent.h"
 #include "DisplayClusterChromakeyCardActor.h"
 #include "ProceduralMeshComponent.h"
@@ -48,6 +48,7 @@
 #include "Components/DisplayClusterChromakeyCardStageActorComponent.h"
 #include "Components/DisplayClusterStageActorComponent.h"
 #include "Components/DisplayClusterStageGeometryComponent.h"
+#include "Components/LineBatchComponent.h"
 #include "UObject/Package.h"
 
 
@@ -58,6 +59,40 @@
 
 #include "AssetToolsModule.h"
 #endif
+
+namespace UE::DisplayCluster::RootActor
+{
+	template <typename TComp>
+	void CollectPrimitiveComponentsImpl(TSet<FPrimitiveComponentId>& OutPrimitives, TComp* pComp, bool bForceHide = false, const bool bCollectChildrenVisualizationComponent = true)
+	{
+		if (UPrimitiveComponent* PrimComp = Cast<UPrimitiveComponent>(pComp))
+		{
+			if (PrimComp->bHiddenInGame
+			|| bForceHide
+#if WITH_EDITOR
+			|| (GIsEditor && PrimComp->bHiddenInSceneCapture /* We are running as a scene capture for preview */)
+#endif
+				)
+			{
+				OutPrimitives.Add(PrimComp->GetPrimitiveSceneId());
+			}
+		}
+
+		if (bCollectChildrenVisualizationComponent)
+		{
+			if (USceneComponent* SceneComp = Cast<USceneComponent>(pComp))
+			{
+				TArray<USceneComponent*> ChildrenComponents;
+				SceneComp->GetChildrenComponents(false, ChildrenComponents);
+
+				for (USceneComponent* CompIt : ChildrenComponents)
+				{
+					CollectPrimitiveComponentsImpl(OutPrimitives, CompIt, bForceHide, bCollectChildrenVisualizationComponent);
+				}
+			}
+		}
+	}
+};
 
 //////////////////////////////////////////////////////////////////////////////////////////////
 // ADisplayClusterRootActor
@@ -107,6 +142,14 @@ ADisplayClusterRootActor::ADisplayClusterRootActor(const FObjectInitializer& Obj
 	bIsSpatiallyLoaded = false;
 #endif
 
+	// Set to internal default, user may change
+	DefaultDisplayDeviceName = GetInternalDisplayDeviceName();
+
+	// Our internal display device which always exists
+	BasicDisplayDeviceComponent = CreateDefaultSubobject<UDisplayClusterDisplayDeviceComponent>(GetInternalDisplayDeviceName());
+	LineBatcherComponent = CreateDefaultSubobject<ULineBatchComponent>(TEXT("LineBatcher"));
+
+	ResetEntireClusterPreviewRendering();
 
 #if WITH_EDITOR
 	Constructor_Editor();
@@ -120,6 +163,16 @@ ADisplayClusterRootActor::~ADisplayClusterRootActor()
 #endif
 }
 
+void ADisplayClusterRootActor::ResetEntireClusterPreviewRendering()
+{
+	if (IDisplayClusterViewportManager* ViewportManager = GetViewportManager())
+	{
+		// Update the preview settings as is from this DCRA
+		ViewportManager->GetViewportManagerPreview().ResetEntireClusterPreviewRendering();
+
+	}
+}
+
 IDisplayClusterViewportManager* ADisplayClusterRootActor::GetViewportManager() const
 {
 	return GetViewportManagerImpl();
@@ -131,16 +184,10 @@ IDisplayClusterViewportManager* ADisplayClusterRootActor::GetOrCreateViewportMan
 
 	if (!ViewportManagerPtr.IsValid())
 	{
-		ViewportManagerPtr = MakeShared<FDisplayClusterViewportManager, ESPMode::ThreadSafe>();
-
-		// After the constructor, we should always call this function to initialize internal references.
-		ViewportManagerPtr->Initialize();
+		ViewportManagerPtr = IDisplayClusterViewportManager::CreateViewportManager()->ToSharedRef();
 
 		// Set the owner's DCRA to the newly created viewport manager.
-		ViewportManagerPtr->GetConfiguration().SetRootActor(this, EDisplayClusterRootActorType::Any);
-
-		// Preview rendering depends on the DC VM
-		FDisplayClusterRootActorPreviewRenderingManager::HandleEvent(EDisplayClusterRootActorPreviewEvent::Create, this);
+		ViewportManagerPtr->GetConfiguration().SetRootActor(EDisplayClusterRootActorType::Any, this);
 	}
 
 	return GetViewportManagerImpl();
@@ -148,7 +195,7 @@ IDisplayClusterViewportManager* ADisplayClusterRootActor::GetOrCreateViewportMan
 
 FDisplayClusterViewportManager* ADisplayClusterRootActor::GetViewportManagerImpl() const
 {
-	return ViewportManagerPtr.IsValid() ? ViewportManagerPtr.Get() : nullptr;
+	return ViewportManagerPtr.Get();
 }
 
 IDisplayClusterViewportConfiguration* ADisplayClusterRootActor::GetViewportConfiguration() const
@@ -160,30 +207,59 @@ void ADisplayClusterRootActor::RemoveViewportManager()
 {
 	if (ViewportManagerPtr.IsValid())
 	{
-		// Preview rendering depends on the  DC VM
-		FDisplayClusterRootActorPreviewRenderingManager::HandleEvent(EDisplayClusterRootActorPreviewEvent::Remove, this);
-
 		// Reset all DCRA references
-		ViewportManagerPtr->GetConfiguration().SetRootActor(nullptr, EDisplayClusterRootActorType::Any);
+		ViewportManagerPtr->GetConfiguration().SetRootActor(EDisplayClusterRootActorType::Any, nullptr);
 
 		// Immediately release the viewport manager with resources
 		ViewportManagerPtr.Reset();
 	}
 }
 
-bool ADisplayClusterRootActor::IsRunningGameOrPIE() const
+bool ADisplayClusterRootActor::IsPrimaryRootActor() const
 {
-	if (!IsRunningGame())
+	if (IDisplayCluster::Get().GetGameMgr()->GetRootActor() == this)
+	{
+		return true;
+	}
+
+	return false;
+}
+
+bool ADisplayClusterRootActor::IsPrimaryRootActorForPIE() const
+{
+#if WITH_EDITOR
+	// A preview node must be selected in DCRA so that it can be used in PIE mode
+	if (PreviewNodeId == DisplayClusterConfigurationStrings::gui::preview::PreviewNodeAll || PreviewNodeId == DisplayClusterConfigurationStrings::gui::preview::PreviewNodeNone)
+	{
+		return false;
+	}
+
+	// Only PIE is currently supported
+	return IsPrimaryRootActor();
+#endif
+
+	return false;
+}
+
+bool ADisplayClusterRootActor::IsRunningPIE() const
 	{
 #if WITH_EDITOR
 		const UWorld* World = GetWorld();
 		return World && World->IsPlayInEditor();
 #else
-		return true;
+		// Without editor return false
+		return false;
 #endif
 	}
 
+bool ADisplayClusterRootActor::IsRunningDisplayCluster() const
+{
+	if (OperationMode == EDisplayClusterOperationMode::Cluster || OperationMode == EDisplayClusterOperationMode::Editor)
+	{
 	return true;
+}
+
+	return false;
 }
 
 const FDisplayClusterConfigurationICVFX_StageSettings& ADisplayClusterRootActor::GetStageSettings() const
@@ -208,13 +284,6 @@ void ADisplayClusterRootActor::InitializeFromConfig(UDisplayClusterConfiguration
 		UpdateConfigDataInstance(ConfigData, true);
 
 		BuildHierarchy();
-
-#if WITH_EDITOR
-		if (GIsEditor && GetWorld())
-		{
-			UpdatePreviewComponents();
-		}
-#endif
 	}
 }
 
@@ -349,14 +418,6 @@ void ADisplayClusterRootActor::OverrideFromConfig(UDisplayClusterConfigurationDa
 
 	// There is no sense to call BuildHierarchy because it works for non-BP root actors.
 	// On the other hand, OverwriteFromConfig method is called for BP root actors only by nature.
-
-	// And update preview stuff in Editor
-#if WITH_EDITOR
-	if (GIsEditor && GetWorld())
-	{
-		UpdatePreviewComponents();
-	}
-#endif
 }
 
 void ADisplayClusterRootActor::UpdateConfigDataInstance(UDisplayClusterConfigurationData* ConfigDataTemplate, bool bForceRecreate)
@@ -466,33 +527,10 @@ int ADisplayClusterRootActor::GetInnerFrustumPriority(const FString& InnerFrustu
 }
 
 template <typename TComp>
-void ImplCollectChildHiddenComponents(TSet<FPrimitiveComponentId>& OutPrimitives, TComp* pComp)
-{
-#if WITH_EDITOR
-
-	USceneComponent* SceneComp = Cast<USceneComponent>(pComp);
-	if (SceneComp)
-	{
-		TArray<USceneComponent*> Childrens;
-		SceneComp->GetChildrenComponents(false, Childrens);
-		for (USceneComponent* ChildIt : Childrens)
-		{
-			if (ChildIt->bHiddenInGame)
-			{
-				UPrimitiveComponent* PrimComp = Cast<UPrimitiveComponent>(ChildIt);
-				if (PrimComp)
-				{
-					OutPrimitives.Add(PrimComp->GetPrimitiveSceneId());
-				}
-			}
-		}
-	}
-#endif
-}
-
-template <typename TComp>
 void ADisplayClusterRootActor::GetTypedPrimitives(TSet<FPrimitiveComponentId>& OutPrimitives, const TArray<FString>* InCompNames, bool bCollectChildrenVisualizationComponent) const
 {
+	using namespace UE::DisplayCluster::RootActor;
+
 	TArray<TComp*> TypedComponents;
 	GetComponents<TComp>(TypedComponents, true);
 
@@ -502,39 +540,16 @@ void ADisplayClusterRootActor::GetTypedPrimitives(TSet<FPrimitiveComponentId>& O
 		{
 			if (InCompNames != nullptr)
 			{
-				// add only comp from names list
-				for (const FString& NameIt : (*InCompNames))
+				if(InCompNames->Find(CompIt->GetName()) != INDEX_NONE)
 				{
-					if (CompIt->GetName() == NameIt)
-					{
-						UPrimitiveComponent* PrimComp = Cast<UPrimitiveComponent>(CompIt);
-						if (PrimComp)
-						{
-							OutPrimitives.Add(PrimComp->GetPrimitiveSceneId());
-						}
-
-						if (bCollectChildrenVisualizationComponent)
-						{
-							ImplCollectChildHiddenComponents(OutPrimitives, CompIt);
-						}
-						break;
-					}
+					// add only comp from names list
+					CollectPrimitiveComponentsImpl(OutPrimitives, CompIt, bCollectChildrenVisualizationComponent);
 				}
 			}
 			else
 			{
-				UPrimitiveComponent* PrimComp = Cast<UPrimitiveComponent>(CompIt);
-				if (PrimComp)
-				{
-					OutPrimitives.Add(PrimComp->GetPrimitiveSceneId());
-				}
-
-				if (bCollectChildrenVisualizationComponent)
-				{
-					ImplCollectChildHiddenComponents(OutPrimitives, CompIt);
-				}
+				CollectPrimitiveComponentsImpl(OutPrimitives, CompIt, bCollectChildrenVisualizationComponent);
 			}
-
 		}
 	}
 }
@@ -549,6 +564,8 @@ bool ADisplayClusterRootActor::FindPrimitivesByName(const TArray<FString>& InNam
 // Gather components not rendered in game
 bool ADisplayClusterRootActor::GetHiddenInGamePrimitives(TSet<FPrimitiveComponentId>& OutPrimitives)
 {
+	using namespace UE::DisplayCluster::RootActor;
+
 	TRACE_CPUPROFILER_EVENT_SCOPE(DCRootActor_GetHiddenInGamePrimitives);
 
 	check(IsInGameThread());
@@ -570,23 +587,33 @@ bool ADisplayClusterRootActor::GetHiddenInGamePrimitives(TSet<FPrimitiveComponen
 	// Always hide DC Screen component in game
 	GetTypedPrimitives<UDisplayClusterScreenComponent>(OutPrimitives);
 
-#if WITH_EDITOR
-	// Always hide preview meshes for preview
+	if (FDisplayClusterViewportManager* ViewportManager = GetViewportManagerImpl())
 	{
-		TArray<UDisplayClusterPreviewComponent*> CurrentPreviewComponents;
-		GetComponents(CurrentPreviewComponents);
-		for (UDisplayClusterPreviewComponent* PreviewComponentIt : CurrentPreviewComponents)
+		// Always hide preview meshes for preview
+		for (TSharedPtr<IDisplayClusterViewport, ESPMode::ThreadSafe>& ViewportIt : ViewportManager->GetEntireClusterViewports())
 		{
-			if (UMeshComponent* PreviewMesh = PreviewComponentIt->GetPreviewMesh())
+			if (ViewportIt.IsValid())
 			{
-				if(UPrimitiveComponent* PrimComp = Cast<UPrimitiveComponent>(PreviewMesh))
+				if (UMeshComponent* PreviewMesh = ViewportIt->GetViewportPreview().GetPreviewMeshComponent())
 				{
-					OutPrimitives.Add(PrimComp->GetPrimitiveSceneId());
+					if (UPrimitiveComponent* PrimComp = Cast<UPrimitiveComponent>(PreviewMesh))
+					{
+						OutPrimitives.Add(PrimComp->GetPrimitiveSceneId());
+					}
+				}
+
+				if (UMeshComponent* PreviewEditableMesh = ViewportIt->GetViewportPreview().GetPreviewEditableMeshComponent())
+				{
+					if (UPrimitiveComponent* PrimComp = Cast<UPrimitiveComponent>(PreviewEditableMesh))
+					{
+						OutPrimitives.Add(PrimComp->GetPrimitiveSceneId());
+					}
 				}
 			}
 		}
 	}
 
+#if WITH_EDITOR
 	// Hide visualization and hidden components from RootActor
 	{
 		TArray<UPrimitiveComponent*> PrimitiveComponents;
@@ -594,12 +621,7 @@ bool ADisplayClusterRootActor::GetHiddenInGamePrimitives(TSet<FPrimitiveComponen
 
 		for (UPrimitiveComponent* CompIt : PrimitiveComponents)
 		{
-			if (CompIt->bHiddenInGame)
-			{
-				OutPrimitives.Add(CompIt->GetPrimitiveSceneId());
-			}
-
-			ImplCollectChildHiddenComponents(OutPrimitives, CompIt);
+			CollectPrimitiveComponentsImpl(OutPrimitives, CompIt);
 		}
 	}
 
@@ -671,19 +693,9 @@ bool ADisplayClusterRootActor::GetHiddenInGamePrimitives(TSet<FPrimitiveComponen
 					if (IsValid(Actor))
 					{
 						Actor->GetComponents(PrimitiveComponents);
-
 						for (UPrimitiveComponent* PrimComp : PrimitiveComponents)
 						{
-							if (((Actor->IsHidden() || PrimComp->bHiddenInGame) && !PrimComp->bCastHiddenShadow)
-#if WITH_EDITOR
-								|| (GIsEditor && PrimComp->bHiddenInSceneCapture /* We are running as a scene capture for preview */)
-#endif
-								)
-							{
-								PrimitiveComponentsArray[Index].Add(PrimComp->GetPrimitiveSceneId());
-							}
-
-							ImplCollectChildHiddenComponents(PrimitiveComponentsArray[Index], PrimComp);
+							CollectPrimitiveComponentsImpl(PrimitiveComponentsArray[Index], PrimComp, Actor->IsHidden());
 						}
 
 						// Empty w/o ever shrinking, for efficiency
@@ -703,6 +715,12 @@ bool ADisplayClusterRootActor::GetHiddenInGamePrimitives(TSet<FPrimitiveComponen
 	}
 
 #endif
+
+	if (ULineBatchComponent* LineBatch = GetLineBatchComponent())
+	{
+		// Always hide RootActor batches on viewports
+		CollectPrimitiveComponentsImpl(OutPrimitives, LineBatch, true);
+	}
 
 	return OutPrimitives.Num() > 0;
 }
@@ -727,15 +745,12 @@ void ADisplayClusterRootActor::InitializeRootActor()
 	StageGeometryComponent->Invalidate();
 
 	// Packaged, PIE and -game runtime
-	if (IsRunningGameOrPIE())
+	if (IsRunningGame() || IsRunningPIE())
 	{
 		if (CurrentConfigData)
 		{
 			BuildHierarchy();
 
-#if WITH_EDITOR
-			UpdatePreviewComponents();
-#endif
 			return;
 		}
 	}
@@ -746,7 +761,6 @@ void ADisplayClusterRootActor::InitializeRootActor()
 		if (CurrentConfigData)
 		{
 			BuildHierarchy();
-			UpdatePreviewComponents();
 			return;
 		}
 	}
@@ -773,8 +787,7 @@ void ADisplayClusterRootActor::SetPreviewEnablePostProcess(const bool bNewPrevie
 	{
 		bPreviewEnablePostProcess = bNewPreviewEnablePostProcess;
 
-		ResetPreviewComponents_Editor(true);
-		PreviewRenderFrame.Reset();
+		ResetEntireClusterPreviewRendering();
 	}
 #endif // WITH_EDITOR
 }
@@ -987,8 +1000,16 @@ void ADisplayClusterRootActor::Tick(float DeltaSeconds)
 	// Update saved DeltaSeconds for root actor
 	LastDeltaSecondsValue = DeltaSeconds;
 
-	if (OperationMode == EDisplayClusterOperationMode::Cluster ||
-		OperationMode == EDisplayClusterOperationMode::Editor)
+	if (ULineBatchComponent* LineBatch = GetLineBatchComponent())
+	{
+		LineBatch->Flush();
+	}
+	
+	// Support for DCRA preview in the scene for standalone\package
+	// Use settings only from active DCRA
+	const bool bIsPrimaryRootActor = IsPrimaryRootActor();
+	const bool bIsRunningDisplayCluster = IsRunningDisplayCluster();
+	if (bIsRunningDisplayCluster && bIsPrimaryRootActor)
 	{
 		UWorld* const CurWorld = GetWorld();
 		if (CurWorld && CurrentConfigData)
@@ -1018,7 +1039,7 @@ void ADisplayClusterRootActor::Tick(float DeltaSeconds)
 	}
 
 	// Show 'not supported' warning if instanced stereo is used
-	if (OperationMode != EDisplayClusterOperationMode::Disabled)
+	if (OperationMode != EDisplayClusterOperationMode::Disabled && bIsPrimaryRootActor)
 	{
 		static const TConsoleVariableData<int32>* const InstancedStereoCVar = IConsoleManager::Get().FindTConsoleVariableDataInt(TEXT("vr.InstancedStereo"));
 		if (InstancedStereoCVar)
@@ -1032,21 +1053,148 @@ void ADisplayClusterRootActor::Tick(float DeltaSeconds)
 		}
 	}
 
-#if WITH_EDITOR
-	// Tick editor preview
-	if (!IsPreviewEnabled())
+	// Update Preview settings
+	FDisplayClusterViewport_PreviewSettings NewPreviewSettings = GetPreviewSettings();
+
+	const bool bIsRunningPIE = IsRunningPIE();
+	const bool bIsRunningGame = IsRunningGame();
+	
+	// RootActor can have a preview in the scene
+	bool bEnablePreviewInScene = NewPreviewSettings.bPreviewEnable;
+	bool bPreviewInGame = false;
+
+	if (bIsRunningPIE)
 	{
-		ResetPreviewInternals_Editor();
+		bPreviewInGame = true;
+
+		if (IsPrimaryRootActorForPIE())
+		{
+			bEnablePreviewInScene = false;
+		}
+		else
+		{
+			// When running in a game or PIE, a special flag is required to show a preview for PIE/Standalone/Package
+			bEnablePreviewInScene = NewPreviewSettings.bPreviewEnable && NewPreviewSettings.bPreviewInGameEnable;
+		}
 	}
-	else
+	else if (bIsRunningGame || bIsRunningDisplayCluster)
 	{
-		FDisplayClusterRootActorPreviewRenderingManager::HandleEvent(EDisplayClusterRootActorPreviewEvent::Render, this);
+		bPreviewInGame = true;
+
+		// If RootActor is used in a cluster/game , special rules must be used for previewing in the scene:
+		if (bIsPrimaryRootActor)
+		{
+			// Disable preview in scene rendering for the primary RootActor in the game
+			bEnablePreviewInScene = false;
+		}
+		else
+		{
+			// When running in a game or PIE, a special flag is required to show a preview for PIE/Standalone/Package
+			bEnablePreviewInScene = NewPreviewSettings.bPreviewEnable && NewPreviewSettings.bPreviewInGameEnable;
+		}
+	}
+
+#if WITH_EDITOR
+	if (bMoviePipelineRenderPass)
+	{
+		// Disable preview rendering for RootActor used in MRQ
+		bEnablePreviewInScene = false;
 	}
 #endif
+
+	if (GetGameInstance() && GetGameInstance()->IsDedicatedServerInstance())
+	{
+		// Skip rendering on dedicated server
+		bEnablePreviewInScene = false;
+	}
+
+	if (bPreviewInGame && !NewPreviewSettings.bPreviewInGameRenderFrustum)
+	{
+		// Disable frustum preview rendering in game
+		NewPreviewSettings.bPreviewICVFXFrustums = false;
+	}
+
+	if (!bEnablePreviewInScene)
+	{
+		// Disable preview rendering
+		NewPreviewSettings.bPreviewEnable = false;
+	}
+
+	// Preview in scene is a special render:
+	if (!bEnablePreviewInScene)
+	{
+		// Hide invisible DCRA
+		SetActorHiddenInGame(true);
+
+		// Stop preview rendering.
+		if (IDisplayClusterViewportManager* ViewportManager = GetViewportManager())
+		{
+			// Update preview settings to new
+			ViewportManager->GetConfiguration().SetPreviewSettings(NewPreviewSettings);
+
+			// Stop preview rendering
+			ViewportManager->GetViewportManagerPreview().UpdateEntireClusterPreviewRender(false);
+		}
+	}
+	// When the preview is used by this DCRA, we must create a new ViewportManager
+	else
+	{
+		// Show DCRA preview in the scene for standalone\package
+		SetActorHiddenInGame(false);
+
+		if (IDisplayClusterViewportManager* ViewportManager = GetOrCreateViewportManager())
+		{
+			// Update preview settings to new
+			ViewportManager->GetConfiguration().SetPreviewSettings(NewPreviewSettings);
+
+			// Request rendering
+			ViewportManager->GetViewportManagerPreview().UpdateEntireClusterPreviewRender(true);
+		}
+	}
 
 	SetLightCardOwnership();
 
 	Super::Tick(DeltaSeconds);
+}
+
+FDisplayClusterViewport_PreviewSettings ADisplayClusterRootActor::GetPreviewSettings() const
+{
+	if (IDisplayClusterViewportManager* ViewportManager = GetViewportManager())
+	{
+		if (!bUseLocalPreviewSetttings)
+		{
+			return ViewportManager->GetConfiguration().GetPreviewSettings();
+		}
+	}
+
+	FDisplayClusterViewport_PreviewSettings OutPreviewSettings;
+
+	// By default RootActor renders in scene colors
+	// but
+	OutPreviewSettings.EntireClusterPreviewRenderMode = EDisplayClusterRenderFrameMode::PreviewInScene;
+
+	OutPreviewSettings.bPreviewEnable       = bPreviewEnable;
+	OutPreviewSettings.bFreezePreviewRender = bFreezePreviewRender;
+
+	OutPreviewSettings.bEnablePreviewTechvis     = bEnablePreviewTechvis;
+	OutPreviewSettings.bPreviewEnablePostProcess = bPreviewEnablePostProcess;
+
+	OutPreviewSettings.bPreviewICVFXFrustums = bPreviewICVFXFrustums;
+	OutPreviewSettings.PreviewICVFXFrustumsFarDistance = PreviewICVFXFrustumsFarDistance;
+
+	OutPreviewSettings.bEnablePreviewMesh        = bEnablePreviewMesh;
+	OutPreviewSettings.bEnablePreviewEditableMesh = bEnablePreviewEditableMesh;
+
+	OutPreviewSettings.PreviewRenderTargetRatioMult = PreviewRenderTargetRatioMult;
+	OutPreviewSettings.PreviewMaxTextureDimension   = PreviewMaxTextureDimension;
+
+	OutPreviewSettings.TickPerFrame      = TickPerFrame;
+	OutPreviewSettings.ViewportsPerFrame = ViewportsPerFrame;
+
+	OutPreviewSettings.bPreviewInGameEnable        = bPreviewInGameEnable;
+	OutPreviewSettings.bPreviewInGameRenderFrustum = bPreviewInGameRenderFrustum;
+
+	return OutPreviewSettings;
 }
 
 void ADisplayClusterRootActor::PostLoad()
@@ -1327,6 +1475,49 @@ void ADisplayClusterRootActor::RerunConstructionScripts()
 UDisplayClusterCameraComponent* ADisplayClusterRootActor::GetDefaultCamera() const
 {
 	return DefaultViewPoint;
+}
+
+FName ADisplayClusterRootActor::GetInternalDisplayDeviceName() const
+{
+	return FName("BasicDisplayDevice");
+}
+
+UDisplayClusterDisplayDeviceBaseComponent* ADisplayClusterRootActor::GetDefaultDisplayDevice() const
+{
+	if (DefaultDisplayDeviceComponent)
+	{
+		// Check already assigned/created
+		if (DefaultDisplayDeviceComponent->GetFName() == DefaultDisplayDeviceName)
+		{
+			return DefaultDisplayDeviceComponent;
+		}
+	}
+
+	DefaultDisplayDeviceComponent = nullptr;
+
+	// User assigned default
+	if (!DefaultDisplayDeviceName.IsNone() && DefaultDisplayDeviceName != GetInternalDisplayDeviceName())
+	{
+		DefaultDisplayDeviceComponent = GetComponentByName<UDisplayClusterDisplayDeviceBaseComponent>(DefaultDisplayDeviceName.ToString());
+
+		if (!DefaultDisplayDeviceComponent)
+		{
+			UE_LOG(LogDisplayClusterGame, Warning, TEXT("Invalid default display device. Using internal nDisplay default device."));
+		}
+	}
+
+	// Fallback to our internal default
+	if (!DefaultDisplayDeviceComponent)
+	{
+		DefaultDisplayDeviceComponent = BasicDisplayDeviceComponent;
+	}
+
+	return DefaultDisplayDeviceComponent;
+}
+
+ULineBatchComponent* ADisplayClusterRootActor::GetLineBatchComponent() const
+{
+	return LineBatcherComponent;
 }
 
 USceneComponent* ADisplayClusterRootActor::GetCommonViewPoint() const

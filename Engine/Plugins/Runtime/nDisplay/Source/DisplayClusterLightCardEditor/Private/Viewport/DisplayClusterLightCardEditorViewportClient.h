@@ -300,12 +300,6 @@ private:
 	/** Update the transforms for the specific proxy */
 	void UpdateProxyTransforms(const FActorProxy& InActorProxy);
 
-	/** Subscribe post process and preview hooks to the root actor */
-	void SubscribeToRootActor();
-	
-	/** Unsubscribe post process and preview hooks from the root actor */
-	void UnsubscribeFromRootActor();
-
 	/** When the time in a sequencer has changed */
 	void OnSequencerTimeChanged(TWeakPtr<class ISequencer> InSequencer);
 	

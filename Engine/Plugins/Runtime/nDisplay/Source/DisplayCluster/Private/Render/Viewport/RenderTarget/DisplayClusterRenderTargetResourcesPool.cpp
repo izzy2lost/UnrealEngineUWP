@@ -42,12 +42,12 @@ void FDisplayClusterRenderTargetResourcesPool::ImplUpdateResources(TArray<TShare
 			switch (InUpdateMode)
 			{
 			case EResourceUpdateMode::Release:
-				EnumRemoveFlags(ResourceIt->GetResourceState(), EDisplayClusterViewportResourceState::Initialized);
+				ResourceIt->ReleaseViewportResource();
 				break;
 
 			default:
 			case EResourceUpdateMode::Initialize:
-				EnumAddFlags(ResourceIt->GetResourceState(), EDisplayClusterViewportResourceState::Initialized);
+				ResourceIt->InitializeViewportResource();
 				break;
 			}
 		}
@@ -158,11 +158,11 @@ void FDisplayClusterRenderTargetResourcesPool::EndReallocateResources()
 	ResourceSettings = nullptr;
 }
 
-TSharedPtr<FDisplayClusterViewportResource, ESPMode::ThreadSafe> FDisplayClusterRenderTargetResourcesPool::AllocateResource(const FIntPoint& InSize, EPixelFormat CustomPixelFormat, const EDisplayClusterViewportResourceSettingsFlags InResourceFlags, int32 InNumMips)
+TSharedPtr<FDisplayClusterViewportResource, ESPMode::ThreadSafe> FDisplayClusterRenderTargetResourcesPool::AllocateResource(const FString InViewportId, const FIntPoint& InSize, EPixelFormat CustomPixelFormat, const EDisplayClusterViewportResourceSettingsFlags InResourceFlags, int32 InNumMips)
 {
 	check(ResourceSettings != nullptr);
 
-	FDisplayClusterViewportResourceSettings InSettings(*ResourceSettings, InSize, CustomPixelFormat, InResourceFlags, InNumMips);
+	FDisplayClusterViewportResourceSettings InSettings(*ResourceSettings, InViewportId, InSize, CustomPixelFormat, InResourceFlags, InNumMips);
 
 	if (!FDisplayClusterViewportHelpers::IsValidTextureSize(InSettings.GetSizeXY()))
 	{

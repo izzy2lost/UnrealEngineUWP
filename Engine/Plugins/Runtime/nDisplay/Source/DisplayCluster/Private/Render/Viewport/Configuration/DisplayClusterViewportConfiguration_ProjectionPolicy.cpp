@@ -80,28 +80,41 @@ bool FDisplayClusterViewportConfiguration_ProjectionPolicy::UpdateCameraPolicy(F
 	if (!DisplayClusterHelpers::map::template ExtractValue(CameraPolicyParameters, DisplayClusterProjectionStrings::cfg::camera::Component, CameraComponentId))
 	{
 		// use default cameras
+		DstViewport.ResetShowLogMsgOnce(EDisplayClusterViewportShowLogMsgOnce::UpdateCameraPolicy);
+
 		return true;
 	}
 
 	if (CameraComponentId.IsEmpty())
 	{
-		UE_LOG(LogDisplayClusterViewport, Verbose, TEXT("Viewport '%s': referenced camera '' (empty name)."), *DstViewport.GetId());
+		if (DstViewport.CanShowLogMsgOnce(EDisplayClusterViewportShowLogMsgOnce::UpdateCameraPolicy_ReferencedCameraNameIsEmpty))
+		{
+			UE_LOG(LogDisplayClusterViewport, Verbose, TEXT("Viewport '%s': referenced camera '' (empty name)."), *DstViewport.GetId());
+		}
+
 		return false;
 	}
 
 	// Get ICVFX camera component
 	if (UpdateCameraPolicy_ICVFX(DstViewport, CameraComponentId))
 	{
+		DstViewport.ResetShowLogMsgOnce(EDisplayClusterViewportShowLogMsgOnce::UpdateCameraPolicy);
+
 		return true;
 	}
 
 	// Get camera component
 	if (UpdateCameraPolicy_Base(DstViewport, CameraComponentId))
 	{
+		DstViewport.ResetShowLogMsgOnce(EDisplayClusterViewportShowLogMsgOnce::UpdateCameraPolicy);
+
 		return true;
 	}
 
-	UE_LOG(LogDisplayClusterViewport, Error, TEXT("Viewport '%s': referenced camera '%s' not found."), *DstViewport.GetId(), *CameraComponentId);
+	if (DstViewport.CanShowLogMsgOnce(EDisplayClusterViewportShowLogMsgOnce::UpdateCameraPolicy_ReferencedCameraNotFound))
+	{
+		UE_LOG(LogDisplayClusterViewport, Error, TEXT("Viewport '%s': referenced camera '%s' not found."), *DstViewport.GetId(), *CameraComponentId);
+	}
 
 	return false;
 }

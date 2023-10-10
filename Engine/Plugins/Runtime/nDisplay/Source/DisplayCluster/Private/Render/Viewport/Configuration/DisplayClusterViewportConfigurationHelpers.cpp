@@ -60,6 +60,8 @@ void FDisplayClusterViewportConfigurationHelpers::UpdateBaseViewportSetting(FDis
 			InOutRenderSettings.bEnable = false;
 		}
 
+		InOutRenderSettings.DisplayDeviceId = InConfigurationViewport.DisplayDeviceName;
+
 		InOutRenderSettings.CameraId = InConfigurationViewport.Camera;
 		InOutRenderSettings.Rect = FDisplayClusterViewportHelpers::GetValidViewportRect(InConfigurationViewport.Region.ToRect(), DstViewport.GetId(), TEXT("Configuration Region"));
 

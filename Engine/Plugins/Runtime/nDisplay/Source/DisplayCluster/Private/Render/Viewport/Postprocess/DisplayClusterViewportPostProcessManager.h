@@ -22,7 +22,7 @@ public:
 	FDisplayClusterViewportPostProcessManager(const TSharedRef<const FDisplayClusterViewportConfiguration, ESPMode::ThreadSafe>& InConfiguration);
 	virtual ~FDisplayClusterViewportPostProcessManager();
 
-	void Release();
+	void Release_GameThread();
 
 public:
 	bool IsPostProcessViewBeforeWarpBlendRequired(const TSharedPtr<IDisplayClusterPostProcess, ESPMode::ThreadSafe>& PostprocessInstance) const;
@@ -40,8 +40,8 @@ public:
 
 	void Tick();
 
-	bool HandleStartScene();
-	void HandleEndScene();
+	bool OnHandleStartScene();
+	void OnHandleEndScene();
 
 	void HandleSetupNewFrame();
 	void HandleBeginNewFrame(FDisplayClusterRenderFrame& InOutRenderFrame);

@@ -10,6 +10,7 @@
 #include "Templates/SharedPointer.h"
 
 class FRenderTarget;
+class UTextureRenderTarget2D;
 
 /**
  * Runtime state of the viewport resource
@@ -68,13 +69,18 @@ public:
 	{ }
 
 	/** Get current RHI resource. */
-	virtual FRHITexture2D* GetViewportResourceRHI() const
+	virtual FRHITexture2D* GetViewportResourceRHI_RenderThread() const
 	{
 		return nullptr;
 	}
 
 	/** Get RenderTarget resource. */
 	virtual FRenderTarget* GetViewportResourceRenderTarget()
+	{
+		return nullptr;
+	}
+
+	virtual UTextureRenderTarget2D* GetTextureRenderTarget2D() const
 	{
 		return nullptr;
 	}
@@ -88,6 +94,18 @@ public:
 	/** Settings the viewport rect offset in the backbuffer. */
 	virtual void SetBackbufferFrameOffset(const FIntPoint& InBackbufferFrameOffset)
 	{ }
+
+	/** Initialize this resource in the game thread. */
+	virtual void InitializeViewportResource()
+	{
+		EnumAddFlags(ResourceState, EDisplayClusterViewportResourceState::Initialized);
+	}
+
+	/** Release this resource in the game thread*/
+	virtual void ReleaseViewportResource()
+	{
+		EnumRemoveFlags(ResourceState, EDisplayClusterViewportResourceState::Initialized);
+	}
 
 	/** RHI initialization for this resource in the rendering thread. */
 	virtual void InitializeViewportResource_RenderThread(FRHICommandListBase& RHICmdList)
@@ -104,7 +122,7 @@ protected:
 	/** Helper function: create 2D texture. */
 	void ImplInitDynamicRHI_TextureResource2D(FTexture2DRHIRef& OutTextureRHI);
 
-private:
+protected:
 	// Settings used by this resource
 	const FDisplayClusterViewportResourceSettings ResourceSettings;
 

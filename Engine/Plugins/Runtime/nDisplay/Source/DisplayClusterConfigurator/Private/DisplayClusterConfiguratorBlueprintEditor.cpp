@@ -18,7 +18,6 @@
 #include "Blueprints/DisplayClusterBlueprint.h"
 #include "Components/DisplayClusterCameraComponent.h"
 #include "Components/DisplayClusterOriginComponent.h"
-#include "Components/DisplayClusterPreviewComponent.h"
 #include "Components/DisplayClusterScreenComponent.h"
 #include "Components/DisplayClusterXformComponent.h"
 
@@ -161,12 +160,6 @@ FDisplayClusterConfiguratorBlueprintEditor::~FDisplayClusterConfiguratorBlueprin
 		}
 	}
 
-	if (ADisplayClusterRootActor* RootActor = Cast<ADisplayClusterRootActor>(GetPreviewActor()))
-	{
-		RootActor->GetOnPreviewGenerated().Unbind();
-		RootActor->GetOnPreviewDestroyed().Unbind();
-	}
-	
 	ShutdownDCSCSEditors();
 
 	FBlueprintEditorUtils::OnRenameVariableReferencesEvent.Remove(RenameVariableHandle);
@@ -496,7 +489,6 @@ void FDisplayClusterConfiguratorBlueprintEditor::ClusterChanged(bool bStructureC
 
 	if (ADisplayClusterRootActor* Actor = Cast<ADisplayClusterRootActor>(GetPreviewActor()))
 	{
-		Actor->UpdatePreviewComponents();
 		FEditorSupportDelegates::ForcePropertyWindowRebuild.Broadcast(Actor->GetClass());
 	}
 

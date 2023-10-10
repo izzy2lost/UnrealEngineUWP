@@ -34,6 +34,7 @@ namespace DisplayClusterConfigurationStrings
 		static constexpr const TCHAR* ICVFXCategory                = TEXT("In Camera VFX");
 		static constexpr const TCHAR* ConfigurationCategory        = TEXT("Configuration");
 		static constexpr const TCHAR* PreviewCategory              = TEXT("Editor Preview");
+		static constexpr const TCHAR* PreviewInGameCategory        = TEXT("Preview In Game");
 		static constexpr const TCHAR* AdvancedCategory             = TEXT("Advanced");
 		static constexpr const TCHAR* TextureShareCategory         = TEXT("Texture Share");
 	}

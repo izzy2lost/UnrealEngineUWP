@@ -49,11 +49,11 @@ void FDisplayClusterViewportLightCardManager::Release()
 }
 
 ///////////////////////////////////////////////////////////////////////////////////////////////
-void FDisplayClusterViewportLightCardManager::HandleStartScene()
+void FDisplayClusterViewportLightCardManager::OnHandleStartScene()
 {
 }
 
-void FDisplayClusterViewportLightCardManager::HandleEndScene()
+void FDisplayClusterViewportLightCardManager::OnHandleEndScene()
 {
 	ReleaseUVLightCardData();
 }

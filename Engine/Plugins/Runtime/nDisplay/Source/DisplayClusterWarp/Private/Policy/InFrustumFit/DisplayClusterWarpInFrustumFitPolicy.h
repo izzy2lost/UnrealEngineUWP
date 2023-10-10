@@ -30,7 +30,9 @@ public:
 	virtual void BeginCalcFrustum(IDisplayClusterViewport* InViewport, const uint32 ContextNum) override;
 	virtual void EndCalcFrustum(IDisplayClusterViewport* InViewport, const uint32 ContextNum) override;
 
-	virtual bool HasPreviewMovableMesh(IDisplayClusterViewport* InViewport) override;
+	virtual bool HasPreviewEditableMesh(IDisplayClusterViewport* InViewport) override;
+
+	virtual void OnUpdatePreviewEditableMesh(IDisplayClusterViewportPreview& InViewportPreview, UMeshComponent* InEditableMeshComponent, const EDisplayClusterDisplayDeviceMaterialType InMaterialType, UMaterialInstanceDynamic* InMaterialInstance) const override;
 	//~~ End IDisplayClusterWarpPolicy
 
 private:

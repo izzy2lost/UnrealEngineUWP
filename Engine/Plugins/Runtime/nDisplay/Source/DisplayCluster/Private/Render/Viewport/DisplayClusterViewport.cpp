@@ -22,6 +22,10 @@
 #include "Render/Viewport/Containers/DisplayClusterViewport_PostRenderSettings.h"
 #include "Render/Viewport/Containers/DisplayClusterViewportProxyData.h"
 
+#include "Render/Viewport/Preview/DisplayClusterViewportPreview.h"
+
+#include "Render/DisplayDevice/Components/DisplayClusterDisplayDeviceBaseComponent.h"
+
 #include "EngineUtils.h"
 #include "SceneManagement.h"
 #include "SceneView.h"
@@ -46,6 +50,7 @@ static FAutoConsoleVariableRef CVarDisplayClusterMultiGPUEnable(
 ///////////////////////////////////////////////////////////////////////////////////////
 FDisplayClusterViewport::FDisplayClusterViewport(const TSharedRef<FDisplayClusterViewportConfiguration, ESPMode::ThreadSafe>& InConfiguration, const FString& InViewportId, const TSharedPtr<IDisplayClusterProjectionPolicy, ESPMode::ThreadSafe>& InProjectionPolicy)
 	: Configuration(InConfiguration)
+	, ViewportPreview(MakeShared< FDisplayClusterViewportPreview, ESPMode::ThreadSafe>(InConfiguration, InViewportId))
 	, ViewportProxy(MakeShared<FDisplayClusterViewportProxy, ESPMode::ThreadSafe>(InConfiguration, InViewportId, InProjectionPolicy))
 	, ViewportId(InViewportId)
 	, ClusterNodeId(InConfiguration->GetClusterNodeId())
@@ -87,7 +92,7 @@ FDisplayClusterViewport::~FDisplayClusterViewport()
 	OpenColorIO.Reset();
 
 	// Handle projection policy EndScene event
-	HandleEndScene();
+	OnHandleEndScene();
 
 	// Handle projection policy event
 	ProjectionPolicy.Reset();
@@ -100,11 +105,22 @@ FDisplayClusterViewport::~FDisplayClusterViewport()
 	}
 }
 
+IDisplayClusterViewportPreview& FDisplayClusterViewport::GetViewportPreview() const
+{
+	return ViewportPreview.Get();
+}
+
 FDisplayClusterViewportProxyData* FDisplayClusterViewport::CreateViewportProxyData()
 {
 	FDisplayClusterViewportProxyData* OutViewportProxyData = new FDisplayClusterViewportProxyData(ViewportProxy);
 
 	OutViewportProxyData->OpenColorIO = OpenColorIO;
+
+	// Get Display Device proxy object
+	if (UDisplayClusterDisplayDeviceBaseComponent* DisplayDevice = GetDisplayDeviceComponent(EDisplayClusterRootActorType::Configuration))
+	{
+		OutViewportProxyData->DisplayDeviceProxy = DisplayDevice->GetDisplayDeviceProxy(GetConfiguration());
+	}
 
 	OutViewportProxyData->RenderSettings = RenderSettings;
 	OutViewportProxyData->RenderSettingsICVFX.SetParameters(RenderSettingsICVFX);
@@ -229,7 +245,18 @@ const TArray<FSceneViewExtensionRef> FDisplayClusterViewport::GatherActiveExtens
 	return OutCustomExtensions;
 }
 
-void FDisplayClusterViewport::HandleStartScene()
+void FDisplayClusterViewport::Initialize()
+{
+	// Initialize a reference to this viewport for the preview API
+	ViewportPreview->Initialize(*this);
+}
+
+void FDisplayClusterViewport::ReleaseTextures()
+{
+	Resources.ReleaseAllResources();
+}
+
+void FDisplayClusterViewport::OnHandleStartScene()
 {
 	if (UninitializedProjectionPolicy.IsValid())
 	{
@@ -237,20 +264,25 @@ void FDisplayClusterViewport::HandleStartScene()
 		{
 			ProjectionPolicy = UninitializedProjectionPolicy;
 			UninitializedProjectionPolicy.Reset();
+
+			ResetShowLogMsgOnce(EDisplayClusterViewportShowLogMsgOnce::HandleStartScene_InvalidProjectionPolicy);
 		}
 	}
-	else 
+	else
 	{
 		// Already Initialized
 		if (!ProjectionPolicy.IsValid())
 		{
 			// No projection policy for this viewport
-			UE_LOG(LogDisplayClusterViewport, Error, TEXT("No projection policy assigned for Viewports '%s'."), *GetId());
+			if (CanShowLogMsgOnce(EDisplayClusterViewportShowLogMsgOnce::HandleStartScene_InvalidProjectionPolicy))
+			{
+				UE_LOG(LogDisplayClusterViewport, Error, TEXT("No projection policy assigned for Viewports '%s'."), *GetId());
+			}
 		}
 	}
 }
 
-void FDisplayClusterViewport::HandleEndScene()
+void FDisplayClusterViewport::OnHandleEndScene()
 {
 	if (ProjectionPolicy.IsValid())
 	{
@@ -286,11 +318,27 @@ bool FDisplayClusterViewport::ShouldUseAdditionalTargetableResource() const
 	return false;
 }
 
+bool FDisplayClusterViewport::ShouldUseOutputTargetableResources() const
+{
+	// Do not create output RTTs for internal ICVFX resources (invisible viewports that are only used to compose the output of other viewports)
+	if (EnumHasAnyFlags(RenderSettingsICVFX.RuntimeFlags, EDisplayClusterViewportRuntimeICVFXFlags::InternalResource))
+	{
+		return false;
+	}
+
+	// Only if this viewport is enabled and visible on the final frame.
+	return RenderSettings.bEnable && RenderSettings.bVisible;
+}
+
 bool FDisplayClusterViewport::ShouldUseAdditionalFrameTargetableResource() const
 {
-	if (ViewportRemap.IsUsed())
+	if (ShouldUseOutputTargetableResources())
 	{
-		return true;
+		// OutputFrameTargetableResources must be used for AdditionalFrameTargetableResource
+		if (ViewportRemap.IsUsed())
+		{
+			return true;
+		}
 	}
 
 	return false;
@@ -372,6 +420,12 @@ void FDisplayClusterViewport::SetupSceneView(uint32 ContextNum, class UWorld* Wo
 
 	// Handle Motion blur parameters
 	CameraMotionBlur.SetupSceneView(Contexts[ContextNum], InOutView);
+
+	// Handle DisplayDevice
+	if (UDisplayClusterDisplayDeviceBaseComponent* InDisplayDeviceComponent = GetDisplayDeviceComponent(EDisplayClusterRootActorType::Configuration))
+	{
+		InDisplayDeviceComponent->SetupSceneView(*ViewportPreview, ContextNum, InOutViewFamily, InOutView);
+	}
 }
 
 inline void AdjustRect(FIntRect& InOutRect, const float multX, const float multY)
@@ -441,7 +495,7 @@ float FDisplayClusterViewport::GetCustomBufferRatio(const FDisplayClusterRenderF
 
 void FDisplayClusterViewport::ResetFrameContexts()
 {
-	Resources.Release();
+	Resources.ReleaseAllResources();
 }
 
 bool FDisplayClusterViewport::UpdateFrameContexts(const uint32 InStereoViewIndex)
@@ -473,9 +527,6 @@ bool FDisplayClusterViewport::UpdateFrameContexts(const uint32 InStereoViewIndex
 	// Special case mono->stereo
 	const uint32 ViewportContextAmount = RenderSettings.bForceMono ? 1 : FrameTargetsAmount;
 
-	// Release only part of the resources, leaving resources that can be used by other viewports (viewport override feature)
-	Resources.Release(false);
-
 	// Freeze the image in the viewport only after the frame has been rendered
 	if (RenderSettings.bFreezeRendering && RenderSettings.bEnable)
 	{
@@ -495,6 +546,9 @@ bool FDisplayClusterViewport::UpdateFrameContexts(const uint32 InStereoViewIndex
 				ContextIt.FrameTargetRect = FDisplayClusterViewportHelpers::GetValidViewportRect(DesiredFrameTargetRect, GetId(), TEXT("Context Frame"));
 			}
 
+			// Release only part of the resources, leaving resources that can be used by other viewports (viewport override feature)
+			Resources.ReleaseNotSharedResources();
+
 			return true;
 		}
 	}
@@ -503,7 +557,7 @@ bool FDisplayClusterViewport::UpdateFrameContexts(const uint32 InStereoViewIndex
 	Contexts.Empty();
 
 	// Free all resources
-	Resources.Release();
+	Resources.ReleaseAllResources();
 
 	if (RenderSettings.bEnable == false)
 	{
@@ -527,7 +581,11 @@ bool FDisplayClusterViewport::UpdateFrameContexts(const uint32 InStereoViewIndex
 	// Exclude zero-size viewports from render
 	if (FrameTargetRect.Size().GetMin() <= 0)
 	{
-		UE_LOG(LogDisplayClusterViewport, Error, TEXT("The viewport '%s' FrameTarget rect has zero size %dx%d: Disabled"), *GetId(), FrameTargetRect.Size().X, FrameTargetRect.Size().Y);
+		if (CanShowLogMsgOnce(EDisplayClusterViewportShowLogMsgOnce::UpdateFrameContexts_FrameTargetRectHasZeroSize))
+		{
+			UE_LOG(LogDisplayClusterViewport, Error, TEXT("The viewport '%s' FrameTarget rect has zero size %dx%d: Disabled"), *GetId(), FrameTargetRect.Size().X, FrameTargetRect.Size().Y);
+		}
+
 		return false;
 	}
 
@@ -536,7 +594,7 @@ bool FDisplayClusterViewport::UpdateFrameContexts(const uint32 InStereoViewIndex
 
 	// Apply restrictions on the maximum size of the viewport texture.
 	const int32 ViewportTextureMaxSize = InFrameSettings.GetViewportTextureMaxSize();
-	if(ViewportTextureMaxSize > 0)
+	if (ViewportTextureMaxSize > 0)
 	{
 		DesiredContextSize = FDisplayClusterViewportHelpers::GetTextureSizeLessThanMax(DesiredContextSize, ViewportTextureMaxSize);
 	}
@@ -544,7 +602,11 @@ bool FDisplayClusterViewport::UpdateFrameContexts(const uint32 InStereoViewIndex
 	// Exclude zero-size viewports from render
 	if (DesiredContextSize.GetMin() <= 0)
 	{
-		UE_LOG(LogDisplayClusterViewport, Error, TEXT("The viewport '%s' RenderTarget rect has zero size %dx%d: Disabled"), *GetId(), DesiredContextSize.X, DesiredContextSize.Y);
+		if (CanShowLogMsgOnce(EDisplayClusterViewportShowLogMsgOnce::UpdateFrameContexts_RenderTargetRectHasZeroSize))
+		{
+			UE_LOG(LogDisplayClusterViewport, Error, TEXT("The viewport '%s' RenderTarget rect has zero size %dx%d: Disabled"), *GetId(), DesiredContextSize.X, DesiredContextSize.Y);
+		}
+
 		return false;
 	}
 
@@ -570,7 +632,6 @@ bool FDisplayClusterViewport::UpdateFrameContexts(const uint32 InStereoViewIndex
 	// Fix buffer ratio value vs MaxTextureSize:
 	const float CustomBufferRatio = FDisplayClusterViewportHelpers::GetValidSizeMultiplier(RenderTargetRect.Size(), BaseCustomBufferRatio, 1.f);
 
-	// Setup resource usage logic:
 	bool bDisableRender = false;
 	if (PostRenderSettings.Replace.IsEnabled())
 	{
@@ -629,7 +690,7 @@ bool FDisplayClusterViewport::UpdateFrameContexts(const uint32 InStereoViewIndex
 			}
 		}
 
-		if(!bUseUVLightCardViewport)
+		if (!bUseUVLightCardViewport)
 		{
 			// do not use UV LightCard viewport
 			return false;
@@ -654,18 +715,18 @@ bool FDisplayClusterViewport::UpdateFrameContexts(const uint32 InStereoViewIndex
 
 		const int32 MaxExplicitGPUIndex = GDisplayClusterMultiGPUEnable ? GNumExplicitGPUsForRendering - 1 : 0;
 		if (MaxExplicitGPUIndex > 0 && !bDisableRender)
-			{
-				// Experimental: allow mGPU for preview rendering:
+		{
+			// Experimental: allow mGPU for preview rendering:
 			if (const FIntPoint* GPURange = InFrameSettings.GetPreviewMultiGPURendering())
-				{
+			{
 				int32 MinGPUIndex = FMath::Min(GPURange->X, MaxExplicitGPUIndex);
 				int32 MaxGPUIndex = FMath::Min(GPURange->Y, MaxExplicitGPUIndex);
 
-					static int32 PreviewGPUIndex = MinGPUIndex;
-					if (PreviewGPUIndex > MaxGPUIndex)
-					{
-						PreviewGPUIndex = MinGPUIndex;
-					}
+				static int32 PreviewGPUIndex = MinGPUIndex;
+				if (PreviewGPUIndex > MaxGPUIndex)
+				{
+					PreviewGPUIndex = MinGPUIndex;
+				}
 
 				Context.GPUIndex = PreviewGPUIndex++;
 			}
@@ -700,12 +761,6 @@ bool FDisplayClusterViewport::UpdateFrameContexts(const uint32 InStereoViewIndex
 	}
 
 	// Reserve for resources
-	if (InFrameSettings.IsPreviewRendering())
-	{
-		// reserve preview texture resource
-		Resources[EDisplayClusterViewportResource::OutputPreviewTargetableResources].AddZeroed(FrameTargetsAmount);
-	}
-
 	if (!bDisableRender)
 	{
 		Resources[EDisplayClusterViewportResource::RenderTargets].AddZeroed(FrameTargetsAmount);
@@ -730,6 +785,14 @@ bool FDisplayClusterViewport::UpdateFrameContexts(const uint32 InStereoViewIndex
 			}
 		}
 	}
+
+	if (InFrameSettings.IsPreviewRendering() && ShouldUseOutputTargetableResources())
+	{
+		// reserve preview texture resource for all visible viewports
+		Resources[EDisplayClusterViewportResource::OutputPreviewTargetableResources].AddZeroed(FrameTargetsAmount);
+	}
+
+	ResetShowLogMsgOnce(EDisplayClusterViewportShowLogMsgOnce::UpdateFrameContexts);
 
 	return true;
 }

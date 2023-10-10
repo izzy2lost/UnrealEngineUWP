@@ -38,7 +38,7 @@ FDisplayClusterViewportResourceSettings::FDisplayClusterViewportResourceSettings
 		if (InRenderFrameSettings.ShouldUseLinearGamma())
 		{
 				DisplayGamma = 1.f;
-			}
+		}
 
 		if(InRenderFrameSettings.IsPreviewRendering())
 		{
@@ -48,8 +48,9 @@ FDisplayClusterViewportResourceSettings::FDisplayClusterViewportResourceSettings
 	}
 }
 
-FDisplayClusterViewportResourceSettings::FDisplayClusterViewportResourceSettings(const FDisplayClusterViewportResourceSettings& InBaseSettings, const FIntPoint& InSize, const EPixelFormat InFormat, const EDisplayClusterViewportResourceSettingsFlags InResourceFlags, const int32 InNumMips)
+FDisplayClusterViewportResourceSettings::FDisplayClusterViewportResourceSettings(const FDisplayClusterViewportResourceSettings& InBaseSettings, const FString InViewportId, const FIntPoint& InSize, const EPixelFormat InFormat, const EDisplayClusterViewportResourceSettingsFlags InResourceFlags, const int32 InNumMips)
 	: ClusterNodeId(InBaseSettings.ClusterNodeId)
+	, ViewportId(InViewportId)
 	, Size(InSize)
 	, Format((InFormat == PF_Unknown) ? InBaseSettings.Format : InFormat)
 	, DisplayGamma(InBaseSettings.DisplayGamma)

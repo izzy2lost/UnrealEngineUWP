@@ -84,6 +84,8 @@ void FDisplayClusterProjectionVIOSOPolicy::ImplRelease()
 {
 	ReleaseOriginComponent();
 
+	PreviewMeshComponentRef.ResetSceneComponent();
+
 	// Destroy VIOSO for all views
 	FScopeLock lock(&DllAccessCS);
 	Views.Reset();
@@ -210,17 +212,33 @@ bool FDisplayClusterProjectionVIOSOPolicy::ImplApplyWarpBlend_RenderThread(FRHIC
 	return true;
 }
 
+bool FDisplayClusterProjectionVIOSOPolicy::HasPreviewMesh(IDisplayClusterViewport* InViewport)
+{
+	if (!ViosoConfigData.bIsPreviewMeshEnabled || Views.IsEmpty() || !Views[0].IsValid() || !Views[0]->IsWarperInterfaceValid())
+	{
+		PreviewMeshComponentRef.ResetSceneActor();
+
+		return false;
+	}
+
+	return true;
+}
+
 UMeshComponent* FDisplayClusterProjectionVIOSOPolicy::GetOrCreatePreviewMeshComponent(IDisplayClusterViewport* InViewport, bool& bOutIsRootActorComponent)
 {
-	check(IsInGameThread());
-
-	if (!ViosoConfigData.bIsPreviewMeshEnabled || Views.IsEmpty() || !Views[0].IsValid() || !Views[0]->IsWarperInterfaceValid())
+	if (!HasPreviewMesh(InViewport))
 	{
 		return nullptr;
 	}
 
 	// Create a new DCRA mesh component
 	bOutIsRootActorComponent = false;
+
+	// If we have already created a preview mesh component before, return that component
+	if (UMeshComponent* ExistsPreviewMeshComp = Cast<UMeshComponent>(PreviewMeshComponentRef.GetOrFindSceneComponent()))
+	{
+		return ExistsPreviewMeshComp;
+	}
 
 	USceneComponent* OriginComp = GetPreviewMeshOriginComponent(InViewport);
 	TSharedPtr<FDisplayClusterProjectionVIOSOGeometryExportData, ESPMode::ThreadSafe> GeometryExportData = FDisplayClusterProjectionVIOSOGeometryExportData::Create(VIOSOLibrary, ViosoConfigData);
@@ -243,6 +261,9 @@ UMeshComponent* FDisplayClusterProjectionVIOSOPolicy::GetOrCreatePreviewMeshComp
 
 			// Because of "nDisplay.render.show.visualizationcomponents" we need extra flag to exclude this geometry from render
 			MeshComp->SetHiddenInGame(true);
+
+			// Store reference to mesh component
+			PreviewMeshComponentRef.SetSceneComponent(MeshComp);
 
 			return MeshComp;
 		}

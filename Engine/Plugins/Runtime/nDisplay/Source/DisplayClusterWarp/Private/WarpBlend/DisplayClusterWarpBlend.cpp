@@ -149,13 +149,13 @@ UMeshComponent* FDisplayClusterWarpBlend::GetOrCreatePreviewMeshComponent(IDispl
 	return GetOrCreatePreviewMeshComponentImpl(InViewport, false, bExistingComponent);
 }
 
-UMeshComponent* FDisplayClusterWarpBlend::GetOrCreatePreviewMovableMeshComponent(IDisplayClusterViewport* InViewport) const
+UMeshComponent* FDisplayClusterWarpBlend::GetOrCreatePreviewEditableMeshComponent(IDisplayClusterViewport* InViewport) const
 {
 	bool bExistingComponentDummy;
 	return GetOrCreatePreviewMeshComponentImpl(InViewport, true, bExistingComponentDummy);
 }
 
-UMeshComponent* FDisplayClusterWarpBlend::GetOrCreatePreviewMeshComponentImpl(IDisplayClusterViewport* InViewport, bool bMovableMesh, bool& bExistingComponent) const
+UMeshComponent* FDisplayClusterWarpBlend::GetOrCreatePreviewMeshComponentImpl(IDisplayClusterViewport* InViewport, bool bEditableMesh, bool& bExistingComponent) const
 {
 	const TSharedPtr<IDisplayClusterProjectionPolicy, ESPMode::ThreadSafe> ProjectionPolicy = InViewport ? InViewport->GetProjectionPolicy() : nullptr;
 
@@ -170,15 +170,15 @@ UMeshComponent* FDisplayClusterWarpBlend::GetOrCreatePreviewMeshComponentImpl(ID
 			{
 				UMeshComponent* ExistMeshComponent = static_cast<UMeshComponent*>(PreviewMeshComponent);
 
-				if (bMovableMesh)
+				if (bEditableMesh)
 				{
 					// create a mesh component copy
 					bExistingComponent = false;
 
-					// Get movable mesh root
-					USceneComponent* SceneOriginComp = ProjectionPolicy->GetPreviewMovableMeshOriginComponent(InViewport);
+					// Get editable mesh root
+					USceneComponent* SceneOriginComp = ProjectionPolicy->GetPreviewEditableMeshOriginComponent(InViewport);
 
-					const FString CompName = FString::Printf(TEXT("DCWarpBlend_MovableMesh_%s"), *ProjectionPolicy->GetId());
+					const FString CompName = FString::Printf(TEXT("DCWarpBlend_EditableMesh_%s"), *ProjectionPolicy->GetId());
 					const EObjectFlags ObjectFlags = EObjectFlags::RF_DuplicateTransient | RF_Transient | RF_TextExportTransient;
 					if (UMeshComponent* PreviewMeshComponentCopy = NewObject<UMeshComponent>(SceneOriginComp, ExistMeshComponent->GetClass(), *CompName, ObjectFlags, ExistMeshComponent))
 					{
@@ -214,7 +214,7 @@ UMeshComponent* FDisplayClusterWarpBlend::GetOrCreatePreviewMeshComponentImpl(ID
 			// Downscale preview mesh dimension to max limit
 			const uint32 PreviewGeometryDimLimit = 128;
 
-			USceneComponent* PreviewOriginComp = bMovableMesh ? ProjectionPolicy->GetPreviewMovableMeshOriginComponent(InViewport) : ProjectionPolicy->GetPreviewMeshOriginComponent(InViewport);
+			USceneComponent* PreviewOriginComp = bEditableMesh ? ProjectionPolicy->GetPreviewEditableMeshOriginComponent(InViewport) : ProjectionPolicy->GetPreviewMeshOriginComponent(InViewport);
 
 			// Create new WarpMesh component
 			FDisplayClusterWarpGeometryOBJ MeshData;
@@ -254,3 +254,11 @@ bool FDisplayClusterWarpBlend::ExportWarpMapGeometry(FDisplayClusterWarpGeometry
 {
 	return FDisplayClusterWarpBlendExporter_WarpMap::ExportWarpMap(GeometryContext, OutMeshData, InMaxDimension);
 }
+
+bool FDisplayClusterWarpBlend::HandleStartScene(IDisplayClusterViewport* InViewport)
+{
+	return true;
+}
+
+void FDisplayClusterWarpBlend::HandleEndScene(IDisplayClusterViewport* InViewport)
+{ }

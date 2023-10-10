@@ -10,6 +10,7 @@
 #include "Render/Viewport/Containers/DisplayClusterViewport_OverscanRuntimeSettings.h"
 #include "Render/Viewport/Containers/DisplayClusterViewportRemap.h"
 #include "Render/Viewport/Containers/DisplayClusterViewport_Enums.h"
+#include "Render/Viewport/Containers/DisplayClusterViewport_InternalEnums.h"
 
 #include "Render/Viewport/DisplayClusterViewport_CustomPostProcessSettings.h"
 #include "Render/Viewport/DisplayClusterViewport_VisibilitySettings.h"
@@ -24,6 +25,7 @@
 class FDisplayClusterViewportManager;
 class FDisplayClusterViewportManagerProxy;
 class FDisplayClusterViewportProxy;
+class FDisplayClusterViewportPreview;
 
 struct FDisplayClusterRenderFrameSettings;
 
@@ -52,6 +54,16 @@ public:
 		return AsShared();
 	}
 
+	virtual TSharedRef<class FDisplayClusterViewport, ESPMode::ThreadSafe> ToSharedRef() override
+	{
+		return AsShared();
+	}
+
+	virtual TSharedRef<const class FDisplayClusterViewport, ESPMode::ThreadSafe> ToSharedRef() const override
+	{
+		return AsShared();
+	}
+
 	virtual IDisplayClusterViewportConfiguration& GetConfiguration() override
 	{
 		return Configuration.Get();
@@ -62,15 +74,16 @@ public:
 		return Configuration.Get();
 	}
 
+	/** Get viewport preview API */
+	virtual IDisplayClusterViewportPreview& GetViewportPreview() const override;
+
 	virtual FString GetId() const override
 	{ 
-		check(IsInGameThread());
 		return ViewportId; 
 	}
 
 	virtual FString GetClusterNodeId() const override
 	{
-		check(IsInGameThread());
 		return ClusterNodeId;
 	}
 
@@ -103,6 +116,7 @@ public:
 	virtual bool SetupViewPoint(FMinimalViewInfo& InOutViewInfo) override;
 	virtual float GetStereoEyeOffsetDistance(const uint32 InContextNum) override;
 	virtual class UDisplayClusterCameraComponent* GetViewPointCameraComponent(const EDisplayClusterRootActorType InRootActorType) const override;
+	virtual class UDisplayClusterDisplayDeviceBaseComponent* GetDisplayDeviceComponent(const EDisplayClusterRootActorType InRootActorType) const override;
 	virtual bool GetViewPointCameraEye(const uint32 InContextNum, FVector& OutViewLocation, FRotator& OutViewRotation, FVector& OutViewOffset) override;
 
 	virtual const FDisplayClusterViewport_RenderSettingsICVFX& GetRenderSettingsICVFX() const override
@@ -148,14 +162,17 @@ public:
 	/// ~IDisplayClusterViewport
 	//////////////////////////////////////////////////////
 
-	FSceneView* ImplCalcScenePreview(class FSceneViewFamilyContext& InOutViewFamily, uint32 ContextNum);
-	bool    ImplPreview_CalculateStereoViewOffset(const uint32 InContextNum, FRotator& ViewRotation, const float WorldToMeters, FVector& ViewLocation);
-	FMatrix ImplPreview_GetStereoProjectionMatrix(const uint32 InContextNum);
+	void Initialize();
+	void ReleaseTextures();
+
 
 	// Get from logic request for additional targetable resource
 	bool ShouldUseAdditionalTargetableResource() const;
 	bool ShouldUseAdditionalFrameTargetableResource() const;
 	bool ShouldUseFullSizeFrameTargetableResource() const;
+	
+	// Return true if this viewport requires to use any of output resources (OutputPreviewTargetableResources or OutputFrameTargetableResources)
+	bool ShouldUseOutputTargetableResources() const;
 
 	void SetViewportBufferRatio(const float InBufferRatio);
 
@@ -179,8 +196,8 @@ public:
 		return false;
 	}
 
-	void HandleStartScene();
-	void HandleEndScene();
+	void OnHandleStartScene();
+	void OnHandleEndScene();
 
 	void AddReferencedObjects(FReferenceCollector& Collector);
 
@@ -318,6 +335,25 @@ public:
 	/** Cleanup view states. */
 	void CleanupViewState();
 
+	/** Returns true once if this type of log message can be displayed for the first time.*/
+	bool CanShowLogMsgOnce(const EDisplayClusterViewportShowLogMsgOnce& InLogState) const
+	{
+		if (!EnumHasAnyFlags(ShowLogMsgOnceFlags, InLogState))
+		{
+			EnumAddFlags(ShowLogMsgOnceFlags, InLogState);
+
+			return true;
+		}
+
+		return false;
+	}
+
+	/** Reset viewport log states. */
+	void ResetShowLogMsgOnce(const EDisplayClusterViewportShowLogMsgOnce& InLogState) const
+	{
+		EnumRemoveFlags(ShowLogMsgOnceFlags, InLogState);
+	}
+
 private:
 	float GetClusterRenderTargetRatioMult(const FDisplayClusterRenderFrameSettings& InFrameSettings) const;
 	FIntPoint GetDesiredContextSize(const FIntPoint& InSize, const FDisplayClusterRenderFrameSettings& InFrameSettings) const;
@@ -326,6 +362,9 @@ private:
 public:
 	// Configuration of the current cluster node
 	const TSharedRef<FDisplayClusterViewportConfiguration, ESPMode::ThreadSafe> Configuration;
+
+	// Viewport preview
+	const TSharedRef<FDisplayClusterViewportPreview, ESPMode::ThreadSafe> ViewportPreview;
 
 	// viewport proxy (render thread data)
 	const TSharedRef<FDisplayClusterViewportProxy, ESPMode::ThreadSafe> ViewportProxy;
@@ -376,8 +415,8 @@ private:
 	// View states (preview only)
 	TArray<TSharedPtr<FSceneViewStateReference, ESPMode::ThreadSafe>> ViewStates;
 
-	// Auxiliary variable for the log
-	bool bProjectionPolicyCalculateViewWarningOnce = false;
+	// A recurring message in the log will be shown only once
+	mutable EDisplayClusterViewportShowLogMsgOnce ShowLogMsgOnceFlags = EDisplayClusterViewportShowLogMsgOnce::None;
 
 	// Near clipping plane value (obtained from the GetDesiredView() functions).
 	// If the value is less than zero, it does not apply to this viewport.

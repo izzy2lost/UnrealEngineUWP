@@ -11,7 +11,7 @@
 
 class IDisplayClusterViewport;
 class IDisplayClusterViewportManager;
-class FRenderTarget;
+class FDisplayClusterViewportResource;
 
 /**
  * nDisplay: DCViewport context for render in UE View
@@ -71,7 +71,7 @@ struct FDisplayClusterRenderFrameTarget
 	EDisplayClusterViewportCaptureMode CaptureMode = EDisplayClusterViewportCaptureMode::Default;
 
 	// Render target resource ref
-	FRenderTarget* RenderTargetPtr = nullptr;
+	TSharedPtr<FDisplayClusterViewportResource, ESPMode::ThreadSafe> RenderTargetResource;
 
 	// Families, rendered on this target
 	TArray<FDisplayClusterRenderFrameTargetViewFamily> ViewFamilies;

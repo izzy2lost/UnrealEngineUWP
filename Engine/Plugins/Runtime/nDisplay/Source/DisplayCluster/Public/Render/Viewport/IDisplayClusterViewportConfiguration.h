@@ -5,6 +5,7 @@
 #include "CoreMinimal.h"
 #include "Engine/EngineTypes.h"
 #include "Render/Viewport/RenderFrame/DisplayClusterRenderFrameEnums.h"
+#include "Render/Viewport/Containers/DisplayClusterViewport_PreviewSettings.h"
 
 class UWorld;
 class UDisplayClusterConfigurationData;
@@ -19,20 +20,21 @@ struct FDisplayClusterConfigurationRenderFrame;
 enum class EDisplayClusterRootActorType : uint8
 {
 	// This DCRA will be used to render previews. The meshes and preview materials are created at runtime.
-	Preview = 0,
+	Preview = 1 << 0,
 
 	// A reference to DCRA in the scene, used as a source for math calculations and references.
 	// Locations in the scene and math data are taken from this DCRA.
-	Scene,
+	Scene = 1 << 1,
 
 	// Reference to DCRA, used as a source of configuration data from DCRA and its components.
-	Configuration,
+	Configuration = 1 << 2,
 
 	// This value can only be used in very specific cases:
 	// For function GetRootActor() : Return any of the DCRAs that are not nullptr, in ascending order of type: Preview, Scene, Configuration.
 	// For function SetRootActor() : Sets all references to DRCA to the specified value.
-	Any
+	Any = Preview | Scene | Configuration,
 };
+ENUM_CLASS_FLAGS(EDisplayClusterRootActorType);
 
 /**
  * Viewport manager configuration.
@@ -44,35 +46,44 @@ public:
 
 public:
 	/**
-	 *  Sets a reference to the current world to be rendered in DCRA
-	 * @param InWorld - ptr to the world to be rendered
+	 *  Sets a reference to the DCRA's
+	 * @param InRootActorType - Type of the DCRA
+	 * @param InRootActor     - a ref to DCRA
 	 */
-	virtual void SetCurrentWorld(UWorld* InWorld) = 0;
+	virtual void SetRootActor(const EDisplayClusterRootActorType InRootActorType, const ADisplayClusterRootActor* InRootActor) = 0;
 
 	/**
-	 *  Sets a reference to the DCRA's
-	 * @param InRootActor     - a ref to DCRA
-	 * @param InRootActorType - Type of the DCRA
-	 */
-	virtual void SetRootActor(ADisplayClusterRootActor* InRootActor, const EDisplayClusterRootActorType InRootActorType) = 0;
+	* Assign new preview settings for rendering previews.
+	*
+	* @param InPreviewSettings - a new preview settings
+	*/
+	virtual void SetPreviewSettings(const FDisplayClusterViewport_PreviewSettings& InPreviewSettings) = 0;
+
+	/** Gets the current preview settings. */
+	virtual const FDisplayClusterViewport_PreviewSettings& GetPreviewSettings() const = 0;
 
 	/**
 	* Update\Create\Delete local node viewports
 	* Updating the configuration to render a ClusterNode in the specified mode
 	*
 	* @param InRenderMode     - Render mode
+	* @param InWorld          - ptr to the world to be rendered
 	* @param InClusterNodeId  - cluster node for rendering
 	*/
-	virtual bool UpdateConfigurationForClusterNode(EDisplayClusterRenderFrameMode InRenderMode, const FString& InClusterNodeId) = 0;
+	virtual bool UpdateConfigurationForClusterNode(EDisplayClusterRenderFrameMode InRenderMode, const UWorld* InWorld, const FString& InClusterNodeId) = 0;
 
 	/**
 	* Update\Create\Delete local node viewports
 	* Updating the configuration to render a list of viewports in a given mode
 	*
 	* @param InRenderMode    - Render mode
+	* @param InWorld         - ptr to the world to be rendered
 	* @param InViewportNames - Viewports names for next frame
 	*/
-	virtual bool UpdateConfigurationForViewportsList(EDisplayClusterRenderFrameMode InRenderMode, const TArray<FString>& InViewportNames) = 0;
+	virtual bool UpdateConfigurationForViewportsList(EDisplayClusterRenderFrameMode InRenderMode, const UWorld* InWorld, const TArray<FString>& InViewportNames) = 0;
+
+	/** Release the current configuration and free resources. */
+	virtual void ReleaseConfiguration() = 0;
 
 public:
 	/** Return the configuration proxy object. */
@@ -136,9 +147,19 @@ public:
 	/** Returns true if preview rendering mode is used. */
 	virtual bool IsPreviewRendering() const = 0;
 
+	/** Returns true, if Techvis is used. */
+	virtual bool IsTechvisEnabled() const = 0;
+
+	/** Returns true if the DCRA preview feature in Standalone/Package builds is used. */
+	virtual bool IsPreviewInGameEnabled() const = 0;
+	
+
 	/** Returns the rendering mode for PIE. */
 	virtual EDisplayClusterRenderFrameMode GetRenderModeForPIE() const = 0;
 
 	/** Return current cluster node id. */
 	virtual const FString& GetClusterNodeId() const = 0;
+
+	/** Return current value for WorldToMeters. */
+	virtual const float GetWorldToMeters() const = 0;
 };

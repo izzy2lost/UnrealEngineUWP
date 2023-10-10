@@ -6,7 +6,7 @@
 #include "Components/DisplayClusterICVFXCameraComponent.h"
 #include "Components/DisplayClusterScreenComponent.h"
 #include "Components/DisplayClusterXformComponent.h"
-#include "Components/DisplayDevice/DisplayClusterDisplayDeviceBaseComponent.h"
+#include "Render/DisplayDevice/Components/DisplayClusterDisplayDeviceBaseComponent.h"
 #include "Components/DisplayClusterInFrustumFitCameraComponent.h"
 
 #include "Widgets/Layout/SSpacer.h"

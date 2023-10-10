@@ -4,6 +4,7 @@
 #include "Render/Viewport/Configuration/DisplayClusterViewportConfiguration.h"
 #include "Render/Viewport/RenderFrame/DisplayClusterRenderFrameSettings.h"
 #include "Render/Viewport/DisplayClusterViewportManager.h"
+#include "Render/Viewport/Preview/DisplayClusterViewportManagerPreview.h"
 
 #include "DisplayClusterRootActor.h"
 #include "IDisplayCluster.h"
@@ -112,11 +113,20 @@ EDisplayClusterRenderFrameAlphaChannelCaptureMode FDisplayClusterViewportConfigu
 	return EDisplayClusterRenderFrameAlphaChannelCaptureMode::None;
 }
 
-bool FDisplayClusterViewportConfigurationHelpers_RenderFrameSettings::UpdateRenderFrameConfiguration(EDisplayClusterRenderFrameMode InRenderMode, FDisplayClusterViewportConfiguration& InOutConfiguration)
+bool FDisplayClusterViewportConfigurationHelpers_RenderFrameSettings::UpdateRenderFrameConfiguration(FDisplayClusterViewportManager* ViewportManager, EDisplayClusterRenderFrameMode InRenderMode, FDisplayClusterViewportConfiguration& InOutConfiguration)
 {
+	if (InRenderMode == EDisplayClusterRenderFrameMode::Unknown)
+	{
+		// Do not initialize for unknown rendering type
+		return false;
+	}
+
+	check(ViewportManager);
+
 	ADisplayClusterRootActor* ConfigurationRootActor = InOutConfiguration.GetRootActor(EDisplayClusterRootActorType::Configuration);
 	if (!(ConfigurationRootActor))
 	{
+		// If the ConfigurationRootActor is not defined, initialization cannot be performed.
 		return false;
 	}
 
@@ -125,26 +135,15 @@ bool FDisplayClusterViewportConfigurationHelpers_RenderFrameSettings::UpdateRend
 	// Set current rendering mode
 	NewRenderFrameSettings.RenderMode = InRenderMode;
 
-#if WITH_EDITOR
-	// Update preview settings:
-	if(ADisplayClusterRootActor* PreviewRootActor = InOutConfiguration.GetRootActor(EDisplayClusterRootActorType::Preview))
+	// Preview Settings : experimental mGPU feature
+	NewRenderFrameSettings.PreviewMultiGPURendering.Reset();
+	if (GDisplayClusterPreviewAllowMultiGPURendering)
 	{
-		NewRenderFrameSettings.PreviewSettings.RenderTargetRatioMult = PreviewRootActor->PreviewRenderTargetRatioMult;
-		NewRenderFrameSettings.PreviewSettings.bFreezeRender = PreviewRootActor->bFreezePreviewRender;
-		NewRenderFrameSettings.PreviewSettings.bEnablePostProcess = PreviewRootActor->ShouldThisFrameOutputPreviewToPostProcessRenderTarget();
-		NewRenderFrameSettings.PreviewSettings.MaxTextureDimension = PreviewRootActor->PreviewMaxTextureDimension;
+		const int32 MinGPUIndex = FMath::Max(0, GDisplayClusterPreviewMultiGPURenderingMinIndex);
+		const int32 MaxGPUIndex = FMath::Max(MinGPUIndex, GDisplayClusterPreviewMultiGPURenderingMaxIndex);
 
-		// Preview Settings : experimental mGPU feature
-		NewRenderFrameSettings.PreviewSettings.MultiGPURendering.Reset();
-		if (GDisplayClusterPreviewAllowMultiGPURendering)
-		{
-			const int32 MinGPUIndex = FMath::Max(0, GDisplayClusterPreviewMultiGPURenderingMinIndex);
-			const int32 MaxGPUIndex = FMath::Max(MinGPUIndex, GDisplayClusterPreviewMultiGPURenderingMaxIndex);
-
-			NewRenderFrameSettings.PreviewSettings.MultiGPURendering = FIntPoint(MinGPUIndex, MaxGPUIndex);
-		}
+		NewRenderFrameSettings.PreviewMultiGPURendering = FIntPoint(MinGPUIndex, MaxGPUIndex);
 	}
-#endif
 
 	// Support alpha channel capture
 	NewRenderFrameSettings.AlphaChannelCaptureMode = GetAlphaChannelCaptureMode();
@@ -200,7 +199,8 @@ void FDisplayClusterViewportConfigurationHelpers_RenderFrameSettings::PostUpdate
 	{
 		FDisplayClusterRenderFrameSettings NewRenderFrameSettings = InOutConfiguration.GetRenderFrameSettings();
 
-		// Some frame postprocess require additional render targetable resources
+		// Update global flags that control viewport resources
+		NewRenderFrameSettings.bShouldUseOutputTargetableResources = ViewportManager->ShouldUseOutputTargetableResources();
 		NewRenderFrameSettings.bShouldUseAdditionalFrameTargetableResource = ViewportManager->ShouldUseAdditionalFrameTargetableResource();
 		NewRenderFrameSettings.bShouldUseFullSizeFrameTargetableResource = ViewportManager->ShouldUseFullSizeFrameTargetableResource();
 

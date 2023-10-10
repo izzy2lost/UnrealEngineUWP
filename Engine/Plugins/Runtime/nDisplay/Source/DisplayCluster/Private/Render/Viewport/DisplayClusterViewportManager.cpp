@@ -6,6 +6,9 @@
 #include "Render/Viewport/DisplayClusterViewportManagerViewPointExtension.h"
 #include "Render/Viewport/DisplayClusterViewportFrameStatsViewExtension.h"
 
+#include "Render/Viewport/Preview/DisplayClusterViewportManagerPreview.h"
+#include "Render/Viewport/Preview/DisplayClusterViewportPreview.h"
+
 #include "IDisplayCluster.h"
 #include "Render/IDisplayClusterRenderManager.h"
 #include "Render/Projection/IDisplayClusterProjectionPolicyFactory.h"
@@ -24,6 +27,7 @@
 #include "Render/Viewport/Configuration/DisplayClusterViewportConfiguration.h"
 #include "Render/Viewport/Configuration/DisplayClusterViewportConfigurationProxy.h"
 #include "Render/Viewport/Configuration/DisplayClusterViewportConfiguration_Viewport.h"
+
 #include "Render/Viewport/DisplayClusterViewportStrings.h"
 
 #include "IDisplayClusterWarpBlend.h"
@@ -131,9 +135,19 @@ using namespace UE::DisplayCluster::ViewportManager;
 ///////////////////////////////////////////////////////////////////////////////////////
 //          FDisplayClusterViewportManager
 ///////////////////////////////////////////////////////////////////////////////////////
+TSharedRef<IDisplayClusterViewportManager, ESPMode::ThreadSafe> IDisplayClusterViewportManager::CreateViewportManager()
+{
+	TSharedRef<FDisplayClusterViewportManager, ESPMode::ThreadSafe> ViewportManager = MakeShared<FDisplayClusterViewportManager, ESPMode::ThreadSafe>();
+
+	// After the constructor, we should always call this function to initialize internal references.
+	ViewportManager->Initialize();
+
+	return ViewportManager;
+}
 
 FDisplayClusterViewportManager::FDisplayClusterViewportManager()
 	: Configuration(MakeShared<FDisplayClusterViewportConfiguration, ESPMode::ThreadSafe>())
+	, ViewportManagerPreview(MakeShared<FDisplayClusterViewportManagerPreview, ESPMode::ThreadSafe>(Configuration))
 	, RenderTargetManager(MakeShared<FDisplayClusterRenderTargetManager, ESPMode::ThreadSafe>(Configuration))
 	, PostProcessManager(MakeShared<FDisplayClusterViewportPostProcessManager, ESPMode::ThreadSafe>(Configuration))
 	, LightCardManager(MakeShared<FDisplayClusterViewportLightCardManager, ESPMode::ThreadSafe>(Configuration))
@@ -152,11 +166,17 @@ void FDisplayClusterViewportManager::Initialize()
 
 	// Initialize configuration for exists viewport managers/proxy objects
 	Configuration->Initialize(*this);
+
+	// Register this viewport manager with the preview rendering pipeline.
+	ViewportManagerPreview->RegisterPreviewRendering();
 }
 
 FDisplayClusterViewportManager::~FDisplayClusterViewportManager()
 {
 	UnregisterCallbacks();
+
+	// Remove this viewport manager from the preview rendering pipeline.
+	ViewportManagerPreview->UnregisterPreviewRendering();
 	
 	// Remove viewports
 	EntireClusterViewports.Reset();
@@ -168,11 +188,13 @@ FDisplayClusterViewportManager::~FDisplayClusterViewportManager()
 	FrameStatsViewExtension.Reset();
 
 	LightCardManager->Release();
+	RenderTargetManager->Release();
+	PostProcessManager->Release_GameThread();
 
 	if (ViewportManagerProxy.IsValid())
 	{
 		// Remove viewport manager proxy on render_thread
-		ENQUEUE_RENDER_COMMAND(DeleteDisplayClusterViewportManagerProxy)(
+		ENQUEUE_RENDER_COMMAND(DeleteDisplayClusterViewportManagerProxy_Release)(
 			[ViewportManagerProxy = ViewportManagerProxy](FRHICommandListImmediate& RHICmdList)
 			{
 				ViewportManagerProxy->Release_RenderThread();
@@ -182,14 +204,38 @@ FDisplayClusterViewportManager::~FDisplayClusterViewportManager()
 	}
 }
 
-IDisplayClusterViewportConfiguration& FDisplayClusterViewportManager::GetConfiguration()
+void FDisplayClusterViewportManager::ReleaseTextures()
 {
-	return Configuration.Get();
+	for (const TSharedPtr<FDisplayClusterViewport, ESPMode::ThreadSafe>& ViewportIt : ImplGetEntireClusterViewports())
+	{
+		if (ViewportIt.IsValid())
+		{
+			ViewportIt->ReleaseTextures();
+		}
+	}
+
+	if (ViewportManagerProxy.IsValid())
+	{
+		// Remove viewport manager proxy on render_thread
+		ENQUEUE_RENDER_COMMAND(DisplayClusterViewportManagerProxy_ReleaseTextures)(
+			[ViewportManagerProxy = ViewportManagerProxy](FRHICommandListImmediate& RHICmdList)
+			{
+				ViewportManagerProxy->ReleaseTextures_RenderThread();
+			});
+	}
+
+	// Release RTT manager caches
+	RenderTargetManager->Release();
 }
 
-const IDisplayClusterViewportConfiguration& FDisplayClusterViewportManager::GetConfiguration() const
+IDisplayClusterViewportManagerPreview& FDisplayClusterViewportManager::GetViewportManagerPreview()
 {
-	return Configuration.Get();
+	return ViewportManagerPreview.Get();
+}
+
+const IDisplayClusterViewportManagerPreview& FDisplayClusterViewportManager::GetViewportManagerPreview() const
+{
+	return ViewportManagerPreview.Get();
 }
 
 const IDisplayClusterViewportManagerProxy* FDisplayClusterViewportManager::GetProxy() const
@@ -205,9 +251,8 @@ IDisplayClusterViewportManagerProxy* FDisplayClusterViewportManager::GetProxy()
 void FDisplayClusterViewportManager::HandleStartScene()
 {
 	check(IsInGameThread());
-	check(!Configuration->bCurrentSceneActive);
 
-	if (Configuration->GetCurrentWorld() == nullptr)
+	if (Configuration->IsSceneOpened())
 	{
 		// Do not start scene, if world not defined
 		return;
@@ -217,15 +262,13 @@ void FDisplayClusterViewportManager::HandleStartScene()
 	{
 		if (ViewportIt.IsValid())
 		{
-			ViewportIt->HandleStartScene();
+			ViewportIt->OnHandleStartScene();
 		}
 	}
 
-	PostProcessManager->HandleStartScene();
-	LightCardManager->HandleStartScene();
-
-	Configuration->bCurrentSceneActive = true;
-	Configuration->bCurrentSceneNeedsToBeUpdated = false;
+	PostProcessManager->OnHandleStartScene();
+	LightCardManager->OnHandleStartScene();
+	Configuration->OnHandleStartScene();
 }
 
 void FDisplayClusterViewportManager::HandleEndScene()
@@ -236,14 +279,17 @@ void FDisplayClusterViewportManager::HandleEndScene()
 	{
 		if (ViewportIt.IsValid())
 		{
-			ViewportIt->HandleEndScene();
+			ViewportIt->OnHandleEndScene();
 		}
 	}
 
-	PostProcessManager->HandleEndScene();
-	LightCardManager->HandleEndScene();
+	PostProcessManager->OnHandleEndScene();
+	LightCardManager->OnHandleEndScene();
 
-	Configuration->bCurrentSceneActive = false;
+	// Release preview from prev scene
+	ViewportManagerPreview->Release();
+
+	Configuration->OnHandleEndScene();
 }
 
 void FDisplayClusterViewportManager::HandleViewportRTTChanges(const TArray<FDisplayClusterViewport_Context>& InPrevContexts, const TArray<FDisplayClusterViewport_Context>& InContexts)
@@ -323,6 +369,21 @@ bool FDisplayClusterViewportManager::ShouldUseFullSizeFrameTargetableResource() 
 	for (const TSharedPtr<FDisplayClusterViewport, ESPMode::ThreadSafe>& Viewport : ImplGetCurrentRenderFrameViewports())
 	{
 		if (Viewport.IsValid() && Viewport->ShouldUseFullSizeFrameTargetableResource())
+		{
+			return true;
+		}
+	}
+
+	return false;
+}
+
+bool FDisplayClusterViewportManager::ShouldUseOutputTargetableResources() const
+{
+	check(IsInGameThread());
+
+	for (const TSharedPtr<FDisplayClusterViewport, ESPMode::ThreadSafe>& Viewport : ImplGetCurrentRenderFrameViewports())
+	{
+		if (Viewport.IsValid() && Viewport->ShouldUseOutputTargetableResources())
 		{
 			return true;
 		}
@@ -577,12 +638,13 @@ bool FDisplayClusterViewportManager::BeginNewFrame(FViewport* InViewport, FDispl
 	// Update desired views number
 	OutRenderFrame.DesiredNumberOfViews = (ImplGetEntireClusterViewports().Num() * Configuration->GetRenderFrameSettings().GetViewPerViewportAmount()) + 1;
 
-#if WITH_EDITOR
-	// Get preview resources from root actor
-	ImplUpdatePreviewRTTResources();
-#endif /*WITH_EDITOR*/
-
 	PostProcessManager->HandleBeginNewFrame(OutRenderFrame);
+
+	// Update viewport preview instances if preview is used and DCRA supports previews:
+	if (Configuration->IsPreviewRendering() && Configuration->GetRootActor(EDisplayClusterRootActorType::Preview) != nullptr)
+	{
+		ViewportManagerPreview->Update();
+	}
 
 	return true;
 }
@@ -734,7 +796,8 @@ FSceneViewFamily::ConstructionValues FDisplayClusterViewportManager::CreateViewF
 		break;
 	}
 
-	return FSceneViewFamily::ConstructionValues(InFrameTarget.RenderTargetPtr, InScene, InEngineShowFlags)
+	FRenderTarget* RenderTarget = InFrameTarget.RenderTargetResource.IsValid() ? InFrameTarget.RenderTargetResource->GetViewportResourceRenderTarget() : nullptr;
+	return FSceneViewFamily::ConstructionValues(RenderTarget, InScene, InEngineShowFlags)
 		.SetResolveScene(bResolveScene)
 		.SetRealtimeUpdate(true)
 		.SetAdditionalViewFamily(bInAdditionalViewFamily);
@@ -870,12 +933,17 @@ TSharedPtr<FDisplayClusterViewport, ESPMode::ThreadSafe> FDisplayClusterViewport
 	TSharedPtr<FDisplayClusterViewport, ESPMode::ThreadSafe> NewViewport = MakeShared<FDisplayClusterViewport>(Configuration, ViewportId, InProjectionPolicy);
 	if (NewViewport.IsValid())
 	{
+		NewViewport->Initialize();
+
 		// Add viewport on gamethread
 		EntireClusterViewports.Add(NewViewport);
 		Configuration->bCurrentRenderFrameViewportsNeedsToBeUpdated = true;
 
-		// Handle start scene for viewport
-		NewViewport->HandleStartScene();
+		if (Configuration->IsSceneOpened())
+		{
+			// Handle start scene for viewport
+			NewViewport->OnHandleStartScene();
+		}
 	}
 
 	return NewViewport;
@@ -1032,4 +1100,16 @@ FSceneView* FDisplayClusterViewportManager::CalcSceneView(ULocalPlayer* LocalPla
 	ViewportManagerViewPointExtension->SetCurrentStereoViewIndex(INDEX_NONE);
 
 	return View;
+}
+
+void FDisplayClusterViewportManager::OnPreGarbageCollect()
+{
+	// The view state can reference materials from the world being cleaned up. (Example post process materials)
+	for (const TSharedPtr<FDisplayClusterViewport, ESPMode::ThreadSafe>& ViewportIt : ImplGetEntireClusterViewports())
+	{
+		if (ViewportIt.IsValid())
+		{
+			ViewportIt->CleanupViewState();
+		}
+	}
 }

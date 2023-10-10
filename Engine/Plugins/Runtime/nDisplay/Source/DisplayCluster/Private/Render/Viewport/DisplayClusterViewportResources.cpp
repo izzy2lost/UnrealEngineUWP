@@ -27,7 +27,7 @@ bool FDisplayClusterViewportResources::GetRHIResources_RenderThread(const EDispl
 	{
 		for (const TSharedPtr<FDisplayClusterViewportResource, ESPMode::ThreadSafe>& ViewportResourceIt : *ExistResources)
 		{
-			if (FRHITexture2D* RHITexture2D = ViewportResourceIt.IsValid() ? ViewportResourceIt->GetViewportResourceRHI() : nullptr)
+			if (FRHITexture2D* RHITexture2D = ViewportResourceIt.IsValid() ? ViewportResourceIt->GetViewportResourceRHI_RenderThread() : nullptr)
 			{
 				// Collects only valid resources.
 				OutResources.Add(RHITexture2D);

@@ -37,6 +37,10 @@ public:
 
 	void Initialize();
 
+	/** Release all texture resources used for viewports.
+	* After that, the BeginNewFrame() function should be called for a new resource allocation.*/
+	void ReleaseTextures();
+
 	//~ Begin IDisplayClusterViewportManager
 	virtual TSharedPtr<IDisplayClusterViewportManager, ESPMode::ThreadSafe> ToSharedPtr() override
 	{
@@ -48,11 +52,32 @@ public:
 		return AsShared();
 	}
 
+	virtual TSharedRef<FDisplayClusterViewportManager, ESPMode::ThreadSafe> ToSharedRef() override
+	{
+		return AsShared();
+	}
+
+	virtual TSharedRef<const FDisplayClusterViewportManager, ESPMode::ThreadSafe> ToSharedRef() const override
+	{
+		return AsShared();
+	}
+
+	/** Get viewport manager preview API */
+	virtual IDisplayClusterViewportManagerPreview& GetViewportManagerPreview() override;
+	virtual const IDisplayClusterViewportManagerPreview& GetViewportManagerPreview() const override;
+
+
 	virtual const IDisplayClusterViewportManagerProxy* GetProxy() const override;
 	virtual       IDisplayClusterViewportManagerProxy* GetProxy() override;
 
-	virtual IDisplayClusterViewportConfiguration& GetConfiguration() override;
-	virtual const IDisplayClusterViewportConfiguration& GetConfiguration() const override;
+	virtual IDisplayClusterViewportConfiguration& GetConfiguration() override
+	{
+		return Configuration.Get();
+	}
+	virtual const IDisplayClusterViewportConfiguration& GetConfiguration() const override
+	{
+		return Configuration.Get();
+	}
 
 	virtual bool BeginNewFrame(FViewport* InViewport, FDisplayClusterRenderFrame& OutRenderFrame) override;
 	virtual void InitializeNewFrame() override;
@@ -67,11 +92,6 @@ public:
 
 	virtual void ConfigureViewFamily(const FDisplayClusterRenderFrameTarget& InFrameTarget, const FDisplayClusterRenderFrameTargetViewFamily& InFrameViewFamily, FSceneViewFamilyContext& InOutViewFamily) override;
 	virtual void RenderFrame(FViewport* InViewport) override;
-	virtual bool RenderInEditor(FDisplayClusterRenderFrame& InRenderFrame, FViewport* InViewport, const uint32 InFirstViewportNum, const int32 InViewportsAmount, int32& OutViewportsAmount, bool& bOutFrameRendered) override;
-
-#if WITH_EDITOR
-	void ImplUpdatePreviewRTTResources();
-#endif
 
 private:
 	/** Called before garbage collection is run */
@@ -145,6 +165,9 @@ public:
 	TSharedPtr<class FDisplayClusterViewportManagerViewExtension, ESPMode::ThreadSafe> GetViewportManagerViewExtension() const
 	{ return ViewportManagerViewExtension; }
 
+	/** Returns true if any of the viewports are visible and should use the output RTT resources. */
+	bool ShouldUseOutputTargetableResources() const;
+
 	bool ShouldUseAdditionalFrameTargetableResource() const;
 	bool ShouldUseFullSizeFrameTargetableResource() const;
 
@@ -166,6 +189,9 @@ private:
 public:
 	// Configuration of the current cluster node
 	const TSharedRef<class FDisplayClusterViewportConfiguration, ESPMode::ThreadSafe> Configuration;
+
+	// Viewport preview
+	const TSharedRef<class FDisplayClusterViewportManagerPreview, ESPMode::ThreadSafe> ViewportManagerPreview;
 
 	// Resource manager
 	const TSharedRef<class FDisplayClusterRenderTargetManager, ESPMode::ThreadSafe> RenderTargetManager;

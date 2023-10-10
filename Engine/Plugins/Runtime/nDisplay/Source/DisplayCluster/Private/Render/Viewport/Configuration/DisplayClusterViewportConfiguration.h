@@ -31,10 +31,29 @@ public:
 
 public:
 	//~ BEGIN IDisplayClusterViewportConfiguration
-	virtual void SetCurrentWorld(UWorld* InWorld) override;
-	virtual void SetRootActor(ADisplayClusterRootActor* InRootActor, const EDisplayClusterRootActorType InRootActorType) override;
-	virtual bool UpdateConfigurationForClusterNode(EDisplayClusterRenderFrameMode InRenderMode, const FString& InClusterNodeId) override;
-	virtual bool UpdateConfigurationForViewportsList(EDisplayClusterRenderFrameMode InRenderMode, const TArray<FString>& InViewportNames) override;
+	virtual void SetRootActor(const EDisplayClusterRootActorType InRootActorType, const ADisplayClusterRootActor* InRootActor) override;
+	
+	virtual void SetPreviewSettings(const FDisplayClusterViewport_PreviewSettings& InPreviewSettings) override
+	{
+		RenderFrameSettings.PreviewSettings = InPreviewSettings;
+	}
+
+	virtual const FDisplayClusterViewport_PreviewSettings& GetPreviewSettings() const override
+	{
+		return RenderFrameSettings.PreviewSettings;
+	}
+
+	virtual bool UpdateConfigurationForClusterNode(EDisplayClusterRenderFrameMode InRenderMode, const UWorld* InWorld, const FString& InClusterNodeId) override
+	{
+		return ImplUpdateConfiguration(InRenderMode, InWorld, InClusterNodeId, nullptr);
+	}
+
+	virtual bool UpdateConfigurationForViewportsList(EDisplayClusterRenderFrameMode InRenderMode, const UWorld* InWorld, const TArray<FString>& InViewportNames) override
+	{
+		return ImplUpdateConfiguration(InRenderMode, InWorld, TEXT(""), &InViewportNames);
+	}
+
+	virtual void ReleaseConfiguration() override;
 
 	virtual UWorld* GetCurrentWorld() const override;
 	virtual ADisplayClusterRootActor* GetRootActor(const EDisplayClusterRootActorType InRootActorType) const override;
@@ -66,6 +85,18 @@ public:
 	{
 		return RenderFrameSettings.IsPreviewRendering();
 	}
+
+	virtual bool IsTechvisEnabled() const override
+	{
+		return RenderFrameSettings.IsTechvisEnabled();
+	}
+
+	virtual bool IsPreviewInGameEnabled() const override
+	{
+		return RenderFrameSettings.IsPreviewInGameEnabled();
+	}
+
+	virtual const float GetWorldToMeters() const override;
 	// ~~END IDisplayClusterViewportConfiguration
 
 public:
@@ -104,39 +135,42 @@ public:
 		}
 	}
 
+	void OnHandleStartScene();
+	void OnHandleEndScene();
+
 private:
 	/** Update configuration implementation.
 	* 
-	* @param InRenderMode - rendering mode.
+	* @param InRenderMode    - rendering mode.
+	* @param InWorld         - ptr to the world to be rendered
 	* @param InClusterNodeId - (opt) Configuring rendering for a cluster node.
 	* @param InViewportNames - (opt) Configuring rendering for a list of viewports.
 	*/
-	bool ImplUpdateConfiguration(EDisplayClusterRenderFrameMode InRenderMode, const FString& InClusterNodeId, const TArray<FString>* InViewportNames);
+	bool ImplUpdateConfiguration(EDisplayClusterRenderFrameMode InRenderMode, const UWorld* InWorld, const FString& InClusterNodeId, const TArray<FString>* InViewportNames);
 
 	/** Hide DCRA components for nDisplay rendering.*/
 	void ImplUpdateConfigurationVisibility() const;
+
+	/** Set current world.*/
+	void SetCurrentWorldImpl(const UWorld* InWorld);
 
 public:
 	// Reference to configuration proxy object
 	const TSharedRef<FDisplayClusterViewportConfigurationProxy, ESPMode::ThreadSafe> Proxy;
 
-	// Is current scene started
-	bool bCurrentSceneActive = false;
-
-	// Is scene update is required
-	bool bCurrentSceneNeedsToBeUpdated = false;
-
 	// Whether the list of viewports of the current frame needs to be updated
 	bool bCurrentRenderFrameViewportsNeedsToBeUpdated = false;
 
 private:
+	// Is current scene started
+	bool bCurrentSceneActive = false;
+
 	// Current render frame settings
 	FDisplayClusterRenderFrameSettings RenderFrameSettings;
 
 	// A reference to the owning viewport manager
 	TWeakPtr<FDisplayClusterViewportManager, ESPMode::ThreadSafe> ViewportManagerWeakPtr;
 
-private:
 	// This DCRA will be used to render previews. The meshes and preview materials are created at runtime.
 	FDisplayClusterActorRef PreviewRootActorRef;
 

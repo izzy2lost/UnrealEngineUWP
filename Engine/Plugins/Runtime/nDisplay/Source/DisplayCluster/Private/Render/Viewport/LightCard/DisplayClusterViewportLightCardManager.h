@@ -39,10 +39,10 @@ public:
 
 public:
 	/** Handle StartScene event: created and update internal resources. */
-	void HandleStartScene();
+	void OnHandleStartScene();
 
 	/** Handle EndScene event: release internal resources. */
-	void HandleEndScene();
+	void OnHandleEndScene();
 
 	/** Render internal resoures for current frame. */
 	void RenderFrame();

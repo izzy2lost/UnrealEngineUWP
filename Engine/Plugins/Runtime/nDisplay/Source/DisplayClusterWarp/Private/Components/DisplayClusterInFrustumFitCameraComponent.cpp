@@ -22,7 +22,6 @@
 #include "Render/Warp/IDisplayClusterWarpPolicy.h"
 
 #include "DisplayClusterRootActor.h"
-#include "Components/DisplayClusterPreviewComponent.h"
 
 namespace UE::DisplayClusterWarp::ViewPointComponent
 {

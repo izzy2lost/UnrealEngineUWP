@@ -5,7 +5,6 @@
 #include "Blueprints/DisplayClusterBlueprintLib.h"
 #include "CanvasTypes.h"
 #include "Components/DisplayClusterScreenComponent.h"
-#include "Components/DisplayClusterPreviewComponent.h"
 #include "DisplayClusterChromakeyCardActor.h"
 #include "DisplayClusterLightCardActor.h"
 #include "DisplayClusterRootActor.h"
@@ -320,46 +319,10 @@ bool FDisplayClusterScenePreviewModule::InternalRenderImmediate(FRendererConfig&
 		AutoPopulateScene(RendererConfig);
 	}
 
-#if WITH_EDITOR
-	TMap<UDisplayClusterPreviewComponent*, UTexture*> PreviewComponentOverrideTextures;
-	const bool bUsePostProcessTexture = RendererConfig.bUsePostProcessTexture && (RenderSettings.RenderType == EDisplayClusterMeshProjectionOutput::Color);
-
-	// Update the preview components with the post-processed texture
-	if (bUsePostProcessTexture)
-	{
-		UDisplayClusterConfigurationData* Config = RendererConfig.RootActor->GetConfigData();
-
-		for (const TPair<FString, TObjectPtr<UDisplayClusterConfigurationClusterNode>>& NodePair : Config->Cluster->Nodes)
-		{
-			const UDisplayClusterConfigurationClusterNode* Node = NodePair.Value;
-			for (const TPair<FString, TObjectPtr<UDisplayClusterConfigurationViewport>>& ViewportPair : Node->Viewports)
-			{
-				UDisplayClusterPreviewComponent* PreviewComp = RendererConfig.RootActor->GetPreviewComponent(NodePair.Key, ViewportPair.Key);
-				if (PreviewComp)
-				{
-					PreviewComponentOverrideTextures.Add(PreviewComp, PreviewComp->GetOverrideTexture());
-					PreviewComp->SetOverrideTexture(PreviewComp->GetRenderTargetTexturePostProcess());
-				}
-			}
-		}
-	}
-#endif
-
 	// Push any deferred render state updates to ensure that light card positions, preview meshes modified above, etc. are up to date
 	World->SendAllEndOfFrameUpdates();
 
 	RendererConfig.Renderer->Render(&Canvas, World->Scene, RenderSettings);
-
-#if WITH_EDITOR
-	// Remove the override texture so the actor renders normally
-	if (bUsePostProcessTexture)
-	{
-		for (const TPair<UDisplayClusterPreviewComponent*, UTexture*>& PreviewPair : PreviewComponentOverrideTextures)
-		{
-			PreviewPair.Key->SetOverrideTexture(PreviewPair.Value);
-		}
-	}
-#endif
 
 	return true;
 }
@@ -414,17 +377,6 @@ void FDisplayClusterScenePreviewModule::RegisterRootActorEvents(ADisplayClusterR
 	}
 
 	const uint8* GenericThis = reinterpret_cast<uint8*>(this);
-
-	// Register/unregister actors to use post-processing for preview renders so their lighting looks correct,
-	// and add/remove preview override so our preview renders have the latest nDisplay preview texture.
-	Actor->UnsubscribeFromPostProcessRenderTarget(GenericThis);
-	Actor->RemovePreviewEnableOverride(GenericThis);
-
-	if (bShouldRegister)
-	{
-		Actor->SubscribeToPostProcessRenderTarget(GenericThis);
-		Actor->AddPreviewEnableOverride(GenericThis);
-	}
 
 	// Register/unregister for Blueprint events
 	if (UBlueprint* Blueprint = UBlueprint::GetBlueprintFromClass(Actor->GetClass()))

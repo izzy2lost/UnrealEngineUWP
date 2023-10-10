@@ -63,25 +63,26 @@ FDisplayClusterViewportPostProcessManager::FDisplayClusterViewportPostProcessMan
 
 FDisplayClusterViewportPostProcessManager::~FDisplayClusterViewportPostProcessManager()
 {
-	Release();
+	check(Postprocess.IsEmpty());
+	check(PostprocessProxy.IsEmpty());
+	check(!OutputRemap.IsValid());
 }
 
-void FDisplayClusterViewportPostProcessManager::Release()
+void FDisplayClusterViewportPostProcessManager::Release_GameThread()
 {
-	if (IsInGameThread())
-	{
-		Postprocess.Empty();
-		OutputRemap.Reset();
+	check(IsInGameThread());
 
-		ENQUEUE_RENDER_COMMAND(DisplayClusterViewportPostProcessManager_Release)(
-			[this](FRHICommandListImmediate& RHICmdList)
-			{
-				PostprocessProxy.Empty();
-			});
-	}
+	Postprocess.Empty();
+	OutputRemap.Reset();
+
+	ENQUEUE_RENDER_COMMAND(DisplayClusterViewportPostProcessManager_Release)(
+		[PostprocessManager = SharedThis(this)](FRHICommandListImmediate& RHICmdList)
+		{
+			PostprocessManager->PostprocessProxy.Empty();
+		});
 }
 
-bool FDisplayClusterViewportPostProcessManager::HandleStartScene()
+bool FDisplayClusterViewportPostProcessManager::OnHandleStartScene()
 {
 	check(IsInGameThread());
 
@@ -105,7 +106,7 @@ bool FDisplayClusterViewportPostProcessManager::HandleStartScene()
 	return bResult;
 }
 
-void FDisplayClusterViewportPostProcessManager::HandleEndScene()
+void FDisplayClusterViewportPostProcessManager::OnHandleEndScene()
 {
 	check(IsInGameThread());
 

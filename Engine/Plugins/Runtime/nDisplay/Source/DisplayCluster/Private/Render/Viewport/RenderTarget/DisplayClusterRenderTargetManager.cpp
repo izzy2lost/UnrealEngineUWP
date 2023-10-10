@@ -84,6 +84,8 @@ namespace UE::DisplayCluster::RenderTargetManager
 			UE_LOG(LogDisplayClusterViewport, Verbose, TEXT("Created new %s resource (%dx%d) for viewport '%s':%d"), *ResourceId, InTextureResource->GetResourceSettings().GetSizeXY().X, InTextureResource->GetResourceSettings().GetSizeXY().Y, *InViewport->GetId(), ContextNum);
 		}
 	}
+
+	static FString EmptyString;
 };
 using namespace UE::DisplayCluster::RenderTargetManager;
 
@@ -118,12 +120,11 @@ bool FDisplayClusterRenderTargetManager::AllocateRenderFrameResources(FViewport*
 			if (FrameRenderTargetIt.bShouldUseRenderTarget)
 			{
 				// reallocate
-				TSharedPtr<FDisplayClusterViewportResource, ESPMode::ThreadSafe> NewResource = ResourcesPool->AllocateResource(FrameRenderTargetIt.RenderTargetSize, ImplGetCustomFormat(FrameRenderTargetIt.CaptureMode), EDisplayClusterViewportResourceSettingsFlags::RenderTarget);
+				TSharedPtr<FDisplayClusterViewportResource, ESPMode::ThreadSafe> NewResource = ResourcesPool->AllocateResource(EmptyString, FrameRenderTargetIt.RenderTargetSize, ImplGetCustomFormat(FrameRenderTargetIt.CaptureMode), EDisplayClusterViewportResourceSettingsFlags::RenderTarget);
 				if (NewResource.IsValid())
 				{
 					// Set RenderFrame resource
-					FrameRenderTargetIt.RenderTargetPtr = NewResource->GetViewportResourceRenderTarget();
-					check(FrameRenderTargetIt.RenderTargetPtr);
+					FrameRenderTargetIt.RenderTargetResource = NewResource;
 
 					// Assign for all views in render target families
 					for (FDisplayClusterRenderFrameTargetViewFamily& ViewFamily : FrameRenderTargetIt.ViewFamilies)
@@ -164,28 +165,28 @@ bool FDisplayClusterRenderTargetManager::AllocateRenderFrameResources(FViewport*
 					const uint32& ContextNum = ContextIt.ContextNum;
 
 					// Allocate per-viewport preview output textures:
-					if (ViewportIt->GetViewportResources(EDisplayClusterViewportResource::OutputPreviewTargetableResources).Num() > (int32)ContextNum)
+					if (ViewportIt->GetViewportResources(EDisplayClusterViewportResource::OutputPreviewTargetableResources).IsValidIndex(ContextNum))
 					{
-						ViewportIt->GetViewportResourcesImpl(EDisplayClusterViewportResource::OutputPreviewTargetableResources)[ContextNum] = ResourcesPool->AllocateResource(ContextSize, CustomFormat, EDisplayClusterViewportResourceSettingsFlags::PreviewTargetableTexture);
+						ViewportIt->GetViewportResourcesImpl(EDisplayClusterViewportResource::OutputPreviewTargetableResources)[ContextNum] = ResourcesPool->AllocateResource(ViewportIt->GetId(), ContextSize, CustomFormat, EDisplayClusterViewportResourceSettingsFlags::PreviewTargetableTexture);
 						ImplViewportTextureResourceLogging(ViewportIt, ContextNum, TEXT("InputShader"), ViewportIt->GetViewportResources(EDisplayClusterViewportResource::OutputPreviewTargetableResources)[ContextNum]);
 					}
 
-					if (ViewportIt->GetViewportResources(EDisplayClusterViewportResource::InputShaderResources).Num() > (int32)ContextNum)
+					if (ViewportIt->GetViewportResources(EDisplayClusterViewportResource::InputShaderResources).IsValidIndex(ContextNum))
 					{
-						ViewportIt->GetViewportResourcesImpl(EDisplayClusterViewportResource::InputShaderResources)[ContextNum] = ResourcesPool->AllocateResource(ContextSize, CustomFormat, EDisplayClusterViewportResourceSettingsFlags::ResolveTargetableTexture);
+						ViewportIt->GetViewportResourcesImpl(EDisplayClusterViewportResource::InputShaderResources)[ContextNum] = ResourcesPool->AllocateResource(EmptyString, ContextSize, CustomFormat, EDisplayClusterViewportResourceSettingsFlags::ResolveTargetableTexture);
 						ImplViewportTextureResourceLogging(ViewportIt, ContextNum, TEXT("InputShader"), ViewportIt->GetViewportResources(EDisplayClusterViewportResource::InputShaderResources)[ContextNum]);
 					}
 
 					// Allocate custom resources:
-					if (ViewportIt->GetViewportResources(EDisplayClusterViewportResource::AdditionalTargetableResources).Num() > (int32)ContextNum)
+					if (ViewportIt->GetViewportResources(EDisplayClusterViewportResource::AdditionalTargetableResources).IsValidIndex(ContextNum))
 					{
-						ViewportIt->GetViewportResourcesImpl(EDisplayClusterViewportResource::AdditionalTargetableResources)[ContextNum] = ResourcesPool->AllocateResource(ContextSize, CustomFormat, EDisplayClusterViewportResourceSettingsFlags::RenderTargetableTexture);
+						ViewportIt->GetViewportResourcesImpl(EDisplayClusterViewportResource::AdditionalTargetableResources)[ContextNum] = ResourcesPool->AllocateResource(EmptyString, ContextSize, CustomFormat, EDisplayClusterViewportResourceSettingsFlags::RenderTargetableTexture);
 						ImplViewportTextureResourceLogging(ViewportIt, ContextNum, TEXT("AdditionalRTT"), ViewportIt->GetViewportResources(EDisplayClusterViewportResource::AdditionalTargetableResources)[ContextNum]);
 					}
 
-					if (ViewportIt->GetViewportResources(EDisplayClusterViewportResource::MipsShaderResources).Num() > (int32)ContextNum)
+					if (ViewportIt->GetViewportResources(EDisplayClusterViewportResource::MipsShaderResources).IsValidIndex(ContextNum))
 					{
-						ViewportIt->GetViewportResourcesImpl(EDisplayClusterViewportResource::MipsShaderResources)[ContextNum] = ResourcesPool->AllocateResource(ContextSize, CustomFormat, EDisplayClusterViewportResourceSettingsFlags::ResolveTargetableTexture, ContextIt.NumMips);
+						ViewportIt->GetViewportResourcesImpl(EDisplayClusterViewportResource::MipsShaderResources)[ContextNum] = ResourcesPool->AllocateResource(EmptyString, ContextSize, CustomFormat, EDisplayClusterViewportResourceSettingsFlags::ResolveTargetableTexture, ContextIt.NumMips);
 						ImplViewportTextureResourceLogging(ViewportIt, ContextNum, TEXT("Mips"), ViewportIt->GetViewportResources(EDisplayClusterViewportResource::MipsShaderResources)[ContextNum]);
 					}
 				}
@@ -209,43 +210,17 @@ bool FDisplayClusterRenderTargetManager::AllocateRenderFrameResources(FViewport*
 
 bool FDisplayClusterRenderTargetManager::AllocateFrameTargets(const FIntPoint& InViewportSize, FDisplayClusterRenderFrame& InOutRenderFrame)
 {
-	// Preview render to external RTT resource
-	if (Configuration->IsPreviewRendering())
+	// ICVFX internal viewports are invisible and do not use output frame resources.
+	// In case of off-screen rendering this texture is not used.
+	if (!Configuration->GetRenderFrameSettings().ShouldUseOutputFrameTargetableResources())
 	{
+		// Skip creating output resources if there are no visible viewports. This will save GPU memory.
 		return true;
 	}
 
-	uint32 FrameTargetsAmount = 0;
-
-	// Support side_by_side and top_bottom eye offset, aligned to Viewport size:
+	const uint32 FrameTargetsAmount = Configuration->GetRenderFrameSettings().GetViewPerViewportAmount();
+	const FIntPoint TargetOffset = Configuration->GetRenderFrameSettings().GetDesiredRTTSize(InViewportSize);
 	FIntPoint TargetLocation(ForceInitToZero);
-	FIntPoint TargetOffset(ForceInitToZero);
-
-	//Re-allocate frame targets
-	switch (Configuration->GetRenderFrameSettings().RenderMode)
-	{
-	case EDisplayClusterRenderFrameMode::Mono:
-		FrameTargetsAmount = 1;
-		break;
-
-	case EDisplayClusterRenderFrameMode::Stereo:
-		FrameTargetsAmount = 2;
-		break;
-
-	case EDisplayClusterRenderFrameMode::SideBySide:
-		FrameTargetsAmount = 2;
-		TargetOffset.X = InViewportSize.X / 2;
-		break;
-
-	case EDisplayClusterRenderFrameMode::TopBottom:
-		FrameTargetsAmount = 2;
-		TargetOffset.Y = InViewportSize.Y / 2;
-		break;
-
-	default:
-		// skip not implemented cases
-		return false;
-	}
 
 	// Reallocate frame target resources
 	TArray<TSharedPtr<FDisplayClusterViewportResource, ESPMode::ThreadSafe>> NewFrameTargetResources;
@@ -253,7 +228,7 @@ bool FDisplayClusterRenderTargetManager::AllocateFrameTargets(const FIntPoint& I
 
 	for (uint32 FrameTargetsIt = 0; FrameTargetsIt < FrameTargetsAmount; FrameTargetsIt++)
 	{
-		TSharedPtr<FDisplayClusterViewportResource, ESPMode::ThreadSafe> NewResource = ResourcesPool->AllocateResource(InOutRenderFrame.FrameRect.Size(), PF_Unknown, EDisplayClusterViewportResourceSettingsFlags::RenderTargetableTexture);
+		TSharedPtr<FDisplayClusterViewportResource, ESPMode::ThreadSafe> NewResource = ResourcesPool->AllocateResource(EmptyString, InOutRenderFrame.FrameRect.Size(), PF_Unknown, EDisplayClusterViewportResourceSettingsFlags::RenderTargetableTexture);
 		if (NewResource.IsValid())
 		{
 			if (EnumHasAnyFlags(NewResource->GetResourceState(), EDisplayClusterViewportResourceState::Initialized) == false)
@@ -270,7 +245,7 @@ bool FDisplayClusterRenderTargetManager::AllocateFrameTargets(const FIntPoint& I
 
 		if (Configuration->GetRenderFrameSettings().bShouldUseAdditionalFrameTargetableResource)
 		{
-			TSharedPtr<FDisplayClusterViewportResource, ESPMode::ThreadSafe> NewAdditionalResource = ResourcesPool->AllocateResource(InOutRenderFrame.FrameRect.Size(), PF_Unknown, EDisplayClusterViewportResourceSettingsFlags::RenderTargetableTexture);
+			TSharedPtr<FDisplayClusterViewportResource, ESPMode::ThreadSafe> NewAdditionalResource = ResourcesPool->AllocateResource(EmptyString, InOutRenderFrame.FrameRect.Size(), PF_Unknown, EDisplayClusterViewportResourceSettingsFlags::RenderTargetableTexture);
 			if (NewAdditionalResource.IsValid())
 			{
 				if (EnumHasAnyFlags(NewAdditionalResource->GetResourceState(), EDisplayClusterViewportResourceState::Initialized) == false)

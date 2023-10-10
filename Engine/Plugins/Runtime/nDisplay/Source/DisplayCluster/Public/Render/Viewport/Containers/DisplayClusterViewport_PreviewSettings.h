@@ -9,22 +9,48 @@
 */
 struct FDisplayClusterViewport_PreviewSettings
 {
-	// Preview RTT size multiplier
-	float RenderTargetRatioMult = 1.f;
+	// The IDisplayClusterViewportManagerPreview::UpdateEntireClusterPreviewRender() function will use this rendering mode
+	// For special rendering cases, set a different value, such as EDisplayClusterRenderFrameMode::PreviewProxyHitInScene
+	EDisplayClusterRenderFrameMode EntireClusterPreviewRenderMode = EDisplayClusterRenderFrameMode::PreviewInScene;
+
+	// Render the scene and display it as a preview on the nDisplay root actor in the editor.  This will impact editor performance.
+	bool bPreviewEnable = false;
+
+	// Render this DCRA in game for Standalone/Package builds.
+	bool bPreviewInGameEnable = false;
+	bool bPreviewInGameRenderFrustum = false;
+
+	// Preview uses techvis mode for rendering
+	bool bEnablePreviewTechvis = false;
 
 	// Enable/Disable preview rendering. When disabled preview image freeze
-	bool bFreezeRender = false;
+	bool bFreezePreviewRender = false;
 
 	// Hack preview gamma.
 	// In a scene, PostProcess always renders on top of the preview textures.
 	// But in it, PostProcess is also rendered with the flag turned off.
-	bool bEnablePostProcess = false;
+	bool bPreviewEnablePostProcess = false;
+
+	// Allows you to process preview meshes inside DCRA (get or create a mesh from a projection policy, update materials on the preview mesh, etc.).
+	bool bEnablePreviewMesh = false;
+
+	// Allows you to process preview editable meshes inside DCRA (get or create a mesh from a projection policy, update materials on the preview editable mesh, etc.).
+	bool bEnablePreviewEditableMesh = false;
+
+	// Render ICVFX Frustums
+	bool bPreviewICVFXFrustums = false;
+	float PreviewICVFXFrustumsFarDistance = 1000.0f;
+
+	// Preview RTT size multiplier
+	float PreviewRenderTargetRatioMult = 1.f;
 
 	// The maximum dimension of any texture for preview
 	// Limit preview textures max size
-	int32 MaxTextureDimension = 2048;
+	int32 PreviewMaxTextureDimension = 2048;
 
-	// [Experimental] Render preview in multi-GPU
-	// Specifies the mGPU index range for rendering the DCRA preview.
-	TOptional<FIntPoint> MultiGPURendering;
+	// Tick Per Frame
+	int TickPerFrame = 1;
+
+	// Max amount of Viewports Per Frame
+	int ViewportsPerFrame = 1;
 };

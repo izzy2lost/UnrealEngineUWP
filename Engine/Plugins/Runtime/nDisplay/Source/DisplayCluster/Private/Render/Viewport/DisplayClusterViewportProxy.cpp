@@ -125,8 +125,144 @@ namespace UE::DisplayCluster::ViewportProxy
 		// No FXAA
 		return false;
 	}
+
+	template<class TScreenPixelShader>
+	void ResampleCopyTextureImpl_RenderThread(FRHICommandListImmediate& RHICmdList, FRHITexture* SrcTexture, FRHITexture* DstTexture, const FIntRect& SrcRect, const FIntRect& DstRect, const EDisplayClusterTextureCopyMode InCopyMode = EDisplayClusterTextureCopyMode::RGBA)
+	{
+		// Texture format mismatch, use a shader to do the copy.
+		// #todo-renderpasses there's no explicit resolve here? Do we need one?
+		FRHIRenderPassInfo RPInfo(DstTexture, ERenderTargetActions::Load_Store);
+		RHICmdList.Transition(FRHITransitionInfo(DstTexture, ERHIAccess::Unknown, ERHIAccess::RTV));
+
+		RHICmdList.BeginRenderPass(RPInfo, TEXT("DisplayCluster_ResampleCopyTexture"));
+		{
+			FIntVector SrcSizeXYZ = SrcTexture->GetSizeXYZ();
+			FIntVector DstSizeXYZ = DstTexture->GetSizeXYZ();
+
+			FIntPoint SrcSize(SrcSizeXYZ.X, SrcSizeXYZ.Y);
+			FIntPoint DstSize(DstSizeXYZ.X, DstSizeXYZ.Y);
+
+			RHICmdList.SetViewport(0.f, 0.f, 0.0f, DstSize.X, DstSize.Y, 1.0f);
+
+			FGraphicsPipelineStateInitializer GraphicsPSOInit;
+			RHICmdList.ApplyCachedRenderTargets(GraphicsPSOInit);
+
+			switch (InCopyMode)
+			{
+			case EDisplayClusterTextureCopyMode::Alpha:
+				// Copy alpha channel from source to dest
+				GraphicsPSOInit.BlendState = TStaticBlendState <CW_ALPHA, BO_Add, BF_One, BF_Zero, BO_Add, BF_One, BF_Zero>::GetRHI();
+				break;
+
+			case EDisplayClusterTextureCopyMode::RGB:
+				// Copy only RGB channels from source to dest
+				GraphicsPSOInit.BlendState = TStaticBlendState <CW_RGB, BO_Add, BF_One, BF_Zero, BO_Add, BF_One, BF_Zero>::GetRHI();
+				break;
+
+			case EDisplayClusterTextureCopyMode::RGBA:
+			default:
+				GraphicsPSOInit.BlendState = TStaticBlendState<>::GetRHI();
+				break;
+			}
+
+			GraphicsPSOInit.RasterizerState = TStaticRasterizerState<>::GetRHI();
+			GraphicsPSOInit.DepthStencilState = TStaticDepthStencilState<false, CF_Always>::GetRHI();
+
+			FGlobalShaderMap* ShaderMap = GetGlobalShaderMap(GMaxRHIFeatureLevel);
+			TShaderMapRef<FScreenVS> VertexShader(ShaderMap);
+			TShaderMapRef<TScreenPixelShader> PixelShader(ShaderMap);
+
+			GraphicsPSOInit.BoundShaderState.VertexDeclarationRHI = GFilterVertexDeclaration.VertexDeclarationRHI;
+			GraphicsPSOInit.BoundShaderState.VertexShaderRHI = VertexShader.GetVertexShader();
+			GraphicsPSOInit.BoundShaderState.PixelShaderRHI = PixelShader.GetPixelShader();
+			GraphicsPSOInit.PrimitiveType = PT_TriangleList;
+
+			SetGraphicsPipelineState(RHICmdList, GraphicsPSOInit, 0);
+
+			const bool bSameSize = (SrcRect.Size() == DstRect.Size());
+			FRHISamplerState* PixelSampler = bSameSize ? TStaticSamplerState<SF_Point>::GetRHI() : TStaticSamplerState<SF_Bilinear>::GetRHI();
+
+			SetShaderParametersLegacyPS(RHICmdList, PixelShader, PixelSampler, SrcTexture);
+
+			// Set up vertex uniform parameters for scaling and biasing the rectangle.
+			// Note: Use DrawRectangle in the vertex shader to calculate the correct vertex position and uv.
+
+			UE::Renderer::PostProcess::DrawRectangle(
+				RHICmdList, VertexShader,
+				DstRect.Min.X, DstRect.Min.Y,
+				DstRect.Size().X, DstRect.Size().Y,
+				SrcRect.Min.X, SrcRect.Min.Y,
+				SrcRect.Size().X, SrcRect.Size().Y,
+				DstSize, SrcSize
+			);
+		}
+		RHICmdList.EndRenderPass();
+		RHICmdList.Transition(FRHITransitionInfo(DstTexture, ERHIAccess::Unknown, ERHIAccess::SRVMask));
+	}
+
+	static void ImplResolveResource(FRHICommandListImmediate& RHICmdList, FRHITexture2D* InputResource, const FIntRect& InputRect, FRHITexture2D* OutputResource, const FIntRect& OutputRect, const bool bOutputIsMipsResource, const bool bOutputIsPreviewResource)
+	{
+		check(InputResource);
+		check(OutputResource);
+
+		if (bOutputIsPreviewResource)
+		{
+			// Preview require a normal alpha (re-invert)
+			ResampleCopyTextureImpl_RenderThread<FScreenPSInvertAlpha>(RHICmdList, InputResource, OutputResource, InputRect, OutputRect);
+		}
+		else if (InputRect.Size() == OutputRect.Size() && InputResource->GetFormat() == OutputResource->GetFormat())
+		{
+			FRHICopyTextureInfo CopyInfo;
+			CopyInfo.Size = FIntVector(InputRect.Width(), InputRect.Height(), 0);
+			CopyInfo.SourcePosition.X = InputRect.Min.X;
+			CopyInfo.SourcePosition.Y = InputRect.Min.Y;
+			CopyInfo.DestPosition.X = OutputRect.Min.X;
+			CopyInfo.DestPosition.Y = OutputRect.Min.Y;
+
+			TransitionAndCopyTexture(RHICmdList, InputResource, OutputResource, CopyInfo);
+		}
+		else
+		{
+			ResampleCopyTextureImpl_RenderThread<FScreenPS>(RHICmdList, InputResource, OutputResource, InputRect, OutputRect);
+		}
+	}
+
+
+	struct FViewportResourceResolverData
+	{
+		FViewportResourceResolverData(const FDisplayClusterViewport_Context& InViewportContext, FRHITexture2D* InInputResource, const FIntRect& InInputRect, FRHITexture2D* InOutputResource, const FIntRect& InOutputRect, const bool InbOutputIsMipsResource, const bool InbOutputIsPreviewResource)
+			: InputResource(InInputResource)
+			, OutputResource(InOutputResource)
+			, InputRect(InInputRect)
+			, OutputRect(InOutputRect)
+			, bOutputIsMipsResource(InbOutputIsMipsResource)
+			, bOutputIsPreviewResource(InbOutputIsPreviewResource)
+			, ViewportContext(InViewportContext)
+		{ }
+
+		void Resolve_RenderThread(FRHICommandListImmediate& RHICmdList)
+		{
+			ImplResolveResource(RHICmdList, InputResource, InputRect, OutputResource, OutputRect, bOutputIsMipsResource, bOutputIsPreviewResource);
+		}
+
+		void AddFinalPass_RenderThread(FRDGBuilder& GraphBuilder, IDisplayClusterDisplayDeviceProxy& DisplayDevice)
+		{
+			DisplayDevice.AddFinalPass_RenderThread(GraphBuilder, ViewportContext, InputResource, InputRect, OutputResource, OutputRect);
+		}
+
+	private:
+		FRHITexture2D* InputResource;
+		FRHITexture2D* OutputResource;
+
+		const FIntRect InputRect;
+		const FIntRect OutputRect;
+
+		const bool bOutputIsMipsResource;
+		const bool bOutputIsPreviewResource;
+
+		const FDisplayClusterViewport_Context ViewportContext;
+	};
 };
-using namespace UE::DisplayCluster::ViewportProxy;
 
 ///////////////////////////////////////////////////////////////////////////////////////
 FDisplayClusterViewportProxy::FDisplayClusterViewportProxy(const TSharedRef<FDisplayClusterViewportConfiguration, ESPMode::ThreadSafe>& InConfiguration, const FString& InViewportId, const TSharedPtr<IDisplayClusterProjectionPolicy, ESPMode::ThreadSafe>& InProjectionPolicy)
@@ -145,6 +281,8 @@ FDisplayClusterViewportProxy::~FDisplayClusterViewportProxy()
 void FDisplayClusterViewportProxy::UpdateViewportProxyData_RenderThread(const FDisplayClusterViewportProxyData& InViewportProxyData)
 {
 	OpenColorIO = InViewportProxyData.OpenColorIO;
+
+	DisplayDeviceProxy = InViewportProxyData.DisplayDeviceProxy;
 
 	OverscanRuntimeSettings = InViewportProxyData.OverscanRuntimeSettings;
 
@@ -336,6 +474,7 @@ bool FDisplayClusterViewportProxy::IsInputRenderTargetResourceExists() const
 
 bool FDisplayClusterViewportProxy::ImplGetResources_RenderThread(const EDisplayClusterViewportResourceType InExtResourceType, TArray<FRHITexture2D*>& OutResources, const int32 InRecursionDepth) const
 {
+	using namespace UE::DisplayCluster::ViewportProxy;
 	check(IsInRenderingThread());
 
 	const EDisplayClusterViewportResourceType InResourceType = GetResourceType_RenderThread(InExtResourceType);
@@ -464,7 +603,8 @@ EDisplayClusterViewportOpenColorIOMode FDisplayClusterViewportProxy::GetOpenColo
 
 void FDisplayClusterViewportProxy::PostResolveViewport_RenderThread(FRHICommandListImmediate& RHICmdList) const
 {
-	check(IsInRenderingThread());
+	// resolve warped viewport resource to the output texture
+	ResolveResources_RenderThread(RHICmdList, EDisplayClusterViewportResourceType::AfterWarpBlendTargetableResource, EDisplayClusterViewportResourceType::OutputTargetableResource);
 
 	// Implement ViewportRemap feature
 	ImplViewportRemap_RenderThread(RHICmdList);
@@ -472,6 +612,8 @@ void FDisplayClusterViewportProxy::PostResolveViewport_RenderThread(FRHICommandL
 
 void FDisplayClusterViewportProxy::ImplViewportRemap_RenderThread(FRHICommandListImmediate& RHICmdList) const
 {
+	using namespace UE::DisplayCluster::ViewportProxy;
+
 	// Preview in editor not support this feature
 	if (ConfigurationProxy->IsPreviewRendering_RenderThread())
 	{
@@ -494,8 +636,8 @@ void FDisplayClusterViewportProxy::ImplViewportRemap_RenderThread(FRHICommandLis
 				const TSharedPtr<FDisplayClusterViewportResource, ESPMode::ThreadSafe>& Src = Resources[EDisplayClusterViewportResource::AdditionalFrameTargetableResources][ContextIt];
 				const TSharedPtr<FDisplayClusterViewportResource, ESPMode::ThreadSafe>& Dst = Resources[EDisplayClusterViewportResource::OutputFrameTargetableResources][ContextIt];
 
-				FRHITexture2D* Input = Src.IsValid() ? Src->GetViewportResourceRHI() : nullptr;
-				FRHITexture2D* Output = Dst.IsValid() ? Dst->GetViewportResourceRHI() : nullptr;
+				FRHITexture2D* Input = Src.IsValid() ? Src->GetViewportResourceRHI_RenderThread() : nullptr;
+				FRHITexture2D* Output = Dst.IsValid() ? Dst->GetViewportResourceRHI_RenderThread() : nullptr;
 
 				if (Input && Output)
 				{
@@ -513,6 +655,7 @@ bool FDisplayClusterViewportProxy::GetResourcesWithRects_RenderThread(const EDis
 
 bool FDisplayClusterViewportProxy::ImplGetResourcesWithRects_RenderThread(const EDisplayClusterViewportResourceType InExtResourceType, TArray<FRHITexture2D*>& OutResources, TArray<FIntRect>& OutResourceRects, const int32 InRecursionDepth) const
 {
+	using namespace UE::DisplayCluster::ViewportProxy;
 	check(IsInRenderingThread());
 
 	// Override resources from other viewport
@@ -625,6 +768,7 @@ bool FDisplayClusterViewportProxy::ApplyOCIO_RenderThread(FRHICommandListImmedia
 
 void FDisplayClusterViewportProxy::UpdateDeferredResources(FRHICommandListImmediate& RHICmdList) const
 {
+	using namespace UE::DisplayCluster::ViewportProxy;
 	check(IsInRenderingThread());
 
 	if (RenderSettings.bFreezeRendering || RenderSettings.bSkipRendering)
@@ -700,107 +844,6 @@ void FDisplayClusterViewportProxy::UpdateDeferredResources(FRHICommandListImmedi
 	}
 }
 
-template<class TScreenPixelShader>
-void ResampleCopyTextureImpl_RenderThread(FRHICommandListImmediate& RHICmdList, FRHITexture* SrcTexture, FRHITexture* DstTexture, const FIntRect& SrcRect, const FIntRect& DstRect, const EDisplayClusterTextureCopyMode InCopyMode = EDisplayClusterTextureCopyMode::RGBA)
-{
-	// Texture format mismatch, use a shader to do the copy.
-	// #todo-renderpasses there's no explicit resolve here? Do we need one?
-	FRHIRenderPassInfo RPInfo(DstTexture, ERenderTargetActions::Load_Store);
-	RHICmdList.Transition(FRHITransitionInfo(DstTexture, ERHIAccess::Unknown, ERHIAccess::RTV));
-
-	RHICmdList.BeginRenderPass(RPInfo, TEXT("DisplayCluster_ResampleCopyTexture"));
-	{
-		FIntVector SrcSizeXYZ = SrcTexture->GetSizeXYZ();
-		FIntVector DstSizeXYZ = DstTexture->GetSizeXYZ();
-
-		FIntPoint SrcSize(SrcSizeXYZ.X, SrcSizeXYZ.Y);
-		FIntPoint DstSize(DstSizeXYZ.X, DstSizeXYZ.Y);
-
-		RHICmdList.SetViewport(0.f, 0.f, 0.0f, DstSize.X, DstSize.Y, 1.0f);
-
-		FGraphicsPipelineStateInitializer GraphicsPSOInit;
-		RHICmdList.ApplyCachedRenderTargets(GraphicsPSOInit);
-
-		switch (InCopyMode)
-		{
-		case EDisplayClusterTextureCopyMode::Alpha:
-			// Copy alpha channel from source to dest
-			GraphicsPSOInit.BlendState = TStaticBlendState <CW_ALPHA, BO_Add, BF_One, BF_Zero, BO_Add, BF_One, BF_Zero>::GetRHI();
-			break;
-
-		case EDisplayClusterTextureCopyMode::RGB:
-			// Copy only RGB channels from source to dest
-			GraphicsPSOInit.BlendState = TStaticBlendState <CW_RGB, BO_Add, BF_One, BF_Zero, BO_Add, BF_One, BF_Zero>::GetRHI();
-			break;
-
-		case EDisplayClusterTextureCopyMode::RGBA:
-		default:
-			GraphicsPSOInit.BlendState = TStaticBlendState<>::GetRHI();
-			break;
-		}
-
-		GraphicsPSOInit.RasterizerState = TStaticRasterizerState<>::GetRHI();
-		GraphicsPSOInit.DepthStencilState = TStaticDepthStencilState<false, CF_Always>::GetRHI();
-
-		FGlobalShaderMap* ShaderMap = GetGlobalShaderMap(GMaxRHIFeatureLevel);
-		TShaderMapRef<FScreenVS> VertexShader(ShaderMap);
-		TShaderMapRef<TScreenPixelShader> PixelShader(ShaderMap);
-
-		GraphicsPSOInit.BoundShaderState.VertexDeclarationRHI = GFilterVertexDeclaration.VertexDeclarationRHI;
-		GraphicsPSOInit.BoundShaderState.VertexShaderRHI = VertexShader.GetVertexShader();
-		GraphicsPSOInit.BoundShaderState.PixelShaderRHI = PixelShader.GetPixelShader();
-		GraphicsPSOInit.PrimitiveType = PT_TriangleList;
-
-		SetGraphicsPipelineState(RHICmdList, GraphicsPSOInit, 0);
-
-		const bool bSameSize = (SrcRect.Size() == DstRect.Size());
-		FRHISamplerState* PixelSampler = bSameSize ? TStaticSamplerState<SF_Point>::GetRHI() : TStaticSamplerState<SF_Bilinear>::GetRHI();
-
-		SetShaderParametersLegacyPS(RHICmdList, PixelShader, PixelSampler, SrcTexture);
-
-		// Set up vertex uniform parameters for scaling and biasing the rectangle.
-		// Note: Use DrawRectangle in the vertex shader to calculate the correct vertex position and uv.
-
-		UE::Renderer::PostProcess::DrawRectangle(
-			RHICmdList, VertexShader,
-			DstRect.Min.X, DstRect.Min.Y,
-			DstRect.Size().X, DstRect.Size().Y,
-			SrcRect.Min.X, SrcRect.Min.Y,
-			SrcRect.Size().X, SrcRect.Size().Y,
-			DstSize, SrcSize
-			);
-	}
-	RHICmdList.EndRenderPass();
-	RHICmdList.Transition(FRHITransitionInfo(DstTexture, ERHIAccess::Unknown, ERHIAccess::SRVMask));
-}
-
-void ImplResolveResource(FRHICommandListImmediate& RHICmdList, FRHITexture2D* InputResource, const FIntRect& InputRect, FRHITexture2D* OutputResource, const FIntRect& OutputRect, const bool bOutputIsMipsResource, const bool bOutputIsPreviewResource)
-{
-	check(InputResource);
-	check(OutputResource);
-
-	if (bOutputIsPreviewResource)
-	{
-		// Preview require a normal alpha (re-invert)
-		ResampleCopyTextureImpl_RenderThread<FScreenPSInvertAlpha>(RHICmdList, InputResource, OutputResource, InputRect, OutputRect);
-	}
-	else if (InputRect.Size() == OutputRect.Size() && InputResource->GetFormat() == OutputResource->GetFormat())
-	{
-		FRHICopyTextureInfo CopyInfo;
-		CopyInfo.Size = FIntVector(InputRect.Width(), InputRect.Height(), 0);
-		CopyInfo.SourcePosition.X = InputRect.Min.X;
-		CopyInfo.SourcePosition.Y = InputRect.Min.Y;
-		CopyInfo.DestPosition.X = OutputRect.Min.X;
-		CopyInfo.DestPosition.Y = OutputRect.Min.Y;
-
-		TransitionAndCopyTexture(RHICmdList, InputResource, OutputResource, CopyInfo);
-	}
-	else
-	{
-		ResampleCopyTextureImpl_RenderThread<FScreenPS>(RHICmdList, InputResource, OutputResource, InputRect, OutputRect);
-	}
-}
-
 FIntRect FDisplayClusterViewportProxy::GetFinalContextRect(const EDisplayClusterViewportResourceType InExtResourceType, const FIntRect& InRect) const
 {
 	const EDisplayClusterViewportResourceType InResourceType = GetResourceType_RenderThread(InExtResourceType);
@@ -837,13 +880,16 @@ bool FDisplayClusterViewportProxy::ResolveResources_RenderThread(FRHICommandList
 
 bool FDisplayClusterViewportProxy::ImplResolveResources_RenderThread(FRHICommandListImmediate& RHICmdList, FDisplayClusterViewportProxy const* SourceProxy, const EDisplayClusterViewportResourceType InExtResourceType, const EDisplayClusterViewportResourceType OutExtResourceType, const int32 InContextNum) const
 {
+	using namespace UE::DisplayCluster::ViewportProxy;
+
 	check(IsInRenderingThread());
 	check(SourceProxy);
 
 	const EDisplayClusterViewportResourceType InResourceType = SourceProxy->GetResourceType_RenderThread(InExtResourceType);
 	const EDisplayClusterViewportResourceType OutResourceType = GetResourceType_RenderThread(OutExtResourceType);
 
-	if (InResourceType == EDisplayClusterViewportResourceType::MipsShaderResource) {
+	if (InResourceType == EDisplayClusterViewportResourceType::MipsShaderResource)
+	{
 		// RenderTargetMips not allowved for resolve op
 		return false;
 	}
@@ -852,6 +898,8 @@ bool FDisplayClusterViewportProxy::ImplResolveResources_RenderThread(FRHICommand
 
 	// This resolve pattern always called once for preview. This flag force to invert alpha (at this point alpha from engine is inverted)
 	const bool bOutputIsPreviewResource = InResourceType == EDisplayClusterViewportResourceType::InputShaderResource && OutResourceType == EDisplayClusterViewportResourceType::OutputPreviewTargetableResource;
+
+	TArray<FViewportResourceResolverData> ResourceResolverData;
 
 	TArray<FRHITexture2D*> SrcResources, DestResources;
 	TArray<FIntRect> SrcResourcesRect, DestResourcesRect;
@@ -870,20 +918,42 @@ bool FDisplayClusterViewportProxy::ImplResolveResources_RenderThread(FRHICommand
 				for (int32 DestResourceContextIndex = SrcContextNum; DestResourceContextIndex < DestResources.Num(); DestResourceContextIndex++)
 				{
 					const FIntRect DestRect = GetFinalContextRect(OutResourceType, DestResourcesRect[DestResourceContextIndex]);
-					ImplResolveResource(RHICmdList, SrcResources[SrcContextNum], SrcRect, DestResources[DestResourceContextIndex], DestRect, bOutputIsMipsResource, bOutputIsPreviewResource);
+					ResourceResolverData.Add(FViewportResourceResolverData(Contexts[SrcContextNum], SrcResources[SrcContextNum], SrcRect, DestResources[DestResourceContextIndex], DestRect, bOutputIsMipsResource, bOutputIsPreviewResource));
 				}
 				break;
 			}
 			else
 			{
 				const FIntRect DestRect = GetFinalContextRect(OutResourceType, DestResourcesRect[SrcContextNum]);
-				ImplResolveResource(RHICmdList, SrcResources[SrcContextNum], SrcRect, DestResources[SrcContextNum], DestRect, bOutputIsMipsResource, bOutputIsPreviewResource);
+				ResourceResolverData.Add(FViewportResourceResolverData(Contexts[SrcContextNum], SrcResources[SrcContextNum], SrcRect, DestResources[SrcContextNum], DestRect, bOutputIsMipsResource, bOutputIsPreviewResource));
 			}
 
 			if (InContextNum != INDEX_NONE)
 			{
 				// Copy only one texture
 				break;
+			}
+		}
+
+		if (InExtResourceType == EDisplayClusterViewportResourceType::AfterWarpBlendTargetableResource
+			&& OutExtResourceType == EDisplayClusterViewportResourceType::OutputTargetableResource
+			&& DisplayDeviceProxy.IsValid()
+			&& DisplayDeviceProxy->HasFinalPass_RenderThread())
+		{
+			// Custom resolve at external Display Device
+			FRDGBuilder GraphBuilder(RHICmdList);
+			for (FViewportResourceResolverData& ResourceResolverIt : ResourceResolverData)
+			{
+				ResourceResolverIt.AddFinalPass_RenderThread(GraphBuilder, *DisplayDeviceProxy.Get());
+			}
+			GraphBuilder.Execute();
+		}
+		else
+		{
+			// Standard resolve:
+			for (FViewportResourceResolverData& ResourceResolverIt : ResourceResolverData)
+			{
+				ResourceResolverIt.Resolve_RenderThread(RHICmdList);
 			}
 		}
 
@@ -920,6 +990,8 @@ END_SHADER_PARAMETER_STRUCT()
 
 bool FDisplayClusterViewportProxy::CopyResource_RenderThread(FRDGBuilder& GraphBuilder, const EDisplayClusterTextureCopyMode InCopyMode, const int32 InContextNum, FRDGTextureRef InSrcTextureRef, const FIntRect& InSrcRect, const EDisplayClusterViewportResourceType InExtDestResourceType)
 {
+	using namespace UE::DisplayCluster::ViewportProxy;
+
 	TArray<FRHITexture2D*> DestResources;
 	TArray<FIntRect> DestResourceRects;
 	if (HasBeenProduced(InSrcTextureRef) && GetResourcesWithRects_RenderThread(InExtDestResourceType, DestResources, DestResourceRects))
@@ -952,6 +1024,8 @@ bool FDisplayClusterViewportProxy::CopyResource_RenderThread(FRDGBuilder& GraphB
 
 bool FDisplayClusterViewportProxy::CopyResource_RenderThread(FRDGBuilder& GraphBuilder, const EDisplayClusterTextureCopyMode InCopyMode, const int32 InContextNum, const EDisplayClusterViewportResourceType InExtSrcResourceType, FRDGTextureRef InDestTextureRef, const FIntRect& InDestRect)
 {
+	using namespace UE::DisplayCluster::ViewportProxy;
+
 	TArray<FRHITexture2D*> SrcResources;
 	TArray<FIntRect> SrcResourceRects;
 	if (HasBeenProduced(InDestTextureRef) && GetResourcesWithRects_RenderThread(InExtSrcResourceType, SrcResources, SrcResourceRects))
@@ -1086,6 +1160,8 @@ FScreenPassTexture FDisplayClusterViewportProxy::OnPostProcessPassAfterTonemap_R
 
 void FDisplayClusterViewportProxy::OnPostRenderViewFamily_RenderThread(FRDGBuilder& GraphBuilder, FSceneViewFamily& InViewFamily, const FSceneView& InSceneView, const FDisplayClusterViewportProxy_Context& InProxyContext)
 {
+	using namespace UE::DisplayCluster::ViewportProxy;
+
 	const uint32 InContextNum = InProxyContext.ContextNum;
 
 #if WITH_MGPU
@@ -1124,7 +1200,7 @@ void FDisplayClusterViewportProxy::OnPostRenderViewFamily_RenderThread(FRDGBuild
 			EFXAAQuality FXAAQuality = EFXAAQuality::Q0;
 			if (GetFXAAQuality(RenderSettings.CaptureMode, FXAAQuality) && Resources[EDisplayClusterViewportResource::InputShaderResources].IsValidIndex(InContextNum))
 			{
-				if (FRHITexture2D* InputTextureRHI = Resources[EDisplayClusterViewportResource::InputShaderResources][InContextNum] ? Resources[EDisplayClusterViewportResource::InputShaderResources][InContextNum]->GetViewportResourceRHI() : nullptr)
+				if (FRHITexture2D* InputTextureRHI = Resources[EDisplayClusterViewportResource::InputShaderResources][InContextNum] ? Resources[EDisplayClusterViewportResource::InputShaderResources][InContextNum]->GetViewportResourceRHI_RenderThread() : nullptr)
 				{
 					// Apply FXAA for RGB only
 					// Note: Add AA for alpha channel
@@ -1171,4 +1247,9 @@ void FDisplayClusterViewportProxy::OnPostRenderViewFamily_RenderThread(FRDGBuild
 			break;
 		}
 	}
+}
+
+void FDisplayClusterViewportProxy::ReleaseTextures_RenderThread()
+{
+	Resources.ReleaseAllResources();
 }

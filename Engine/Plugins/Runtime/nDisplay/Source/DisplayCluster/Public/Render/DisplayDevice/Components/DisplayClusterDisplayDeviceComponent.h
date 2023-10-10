@@ -2,7 +2,7 @@
 
 #pragma once
 
-#include "DisplayClusterDisplayDeviceBaseComponent.h"
+#include "Render/DisplayDevice/Components/DisplayClusterDisplayDeviceBaseComponent.h"
 #include "OpenColorIOColorSpace.h"
 
 #include "DisplayClusterDisplayDeviceComponent.generated.h"
@@ -12,6 +12,9 @@ class UMaterialInstanceDynamic;
 class UTexture;
 class UTextureRenderTarget2D;
 
+/**
+* Display Device Component with OCIO render pass
+*/
 UCLASS(ClassGroup = (DisplayCluster), meta = (BlueprintSpawnableComponent, DisplayName = "NDisplay Display Device"))
 class DISPLAYCLUSTER_API UDisplayClusterDisplayDeviceComponent
 	: public UDisplayClusterDisplayDeviceBaseComponent
@@ -21,10 +24,10 @@ class DISPLAYCLUSTER_API UDisplayClusterDisplayDeviceComponent
 public:
 	UDisplayClusterDisplayDeviceComponent();
 
-	const FOpenColorIOColorConversionSettings& GetColorConversionSettings() const { return ColorConversionSettings; }
-	
-	virtual void OnUpdatePreviewMaterialInstance(UMaterialInstanceDynamic* InMaterialInstance) override;
-	virtual void RenderPass_GameThread(UTexture* InSourceTexture, UTextureRenderTarget2D* InRenderTarget) override;
+	//~BEGIN UDisplayClusterDisplayDeviceBaseComponent
+	virtual void OnUpdateDisplayDeviceMaterialInstance(IDisplayClusterViewportPreview& InViewportPreview, const EDisplayClusterDisplayDeviceMeshType InMeshType, const EDisplayClusterDisplayDeviceMaterialType InMaterialType, UMaterialInstanceDynamic* InMaterialInstance) const override;
+	virtual void UpdateDisplayDeviceProxyImpl(IDisplayClusterViewportConfiguration& InConfiguration) override;
+	//~~END UDisplayClusterDisplayDeviceBaseComponent
 
 protected:
 	/** Adjust the exposure for the emissive input. */

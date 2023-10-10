@@ -17,6 +17,9 @@ public:
 	// Assigned camera. If empty, the currently active camera must be used
 	FString CameraId;
 
+	// Assigned display device. If empty, the currently active display device must be used
+	FString DisplayDeviceId;
+
 	// Location and size on a backbuffer.
 	FIntRect Rect;
 

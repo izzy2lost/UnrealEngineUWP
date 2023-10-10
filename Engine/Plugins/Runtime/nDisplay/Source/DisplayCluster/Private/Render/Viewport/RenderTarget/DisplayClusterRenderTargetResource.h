@@ -23,8 +23,10 @@ public:
 
 public:
 	//~ Begin FDisplayClusterViewportResource
-	virtual FRHITexture2D* GetViewportResourceRHI() const override
+	virtual FRHITexture2D* GetViewportResourceRHI_RenderThread() const override
 	{
+		check(IsInRenderingThread());
+
 		return TextureRHI.IsValid() ? TextureRHI->GetTexture2D() : nullptr;
 	}
 
@@ -92,7 +94,7 @@ public:
 
 public:
 	//~ Begin FDisplayClusterViewportResource
-	virtual FRenderTarget* GetViewportResourceRenderTarget()
+	virtual FRenderTarget* GetViewportResourceRenderTarget() override
 	{
 		return this;
 	}

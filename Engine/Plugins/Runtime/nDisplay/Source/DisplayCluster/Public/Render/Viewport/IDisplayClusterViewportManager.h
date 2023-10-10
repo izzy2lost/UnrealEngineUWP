@@ -2,6 +2,7 @@
 
 #pragma once
 #include "Render/Viewport/IDisplayClusterViewport.h"
+#include "Render/Viewport/IDisplayClusterViewportManagerPreview.h"
 #include "Render/Viewport/RenderFrame/DisplayClusterRenderFrameEnums.h"
 
 #include "SceneView.h"
@@ -27,9 +28,19 @@ public:
 	virtual ~IDisplayClusterViewportManager() = default;
 
 public:
+	/** Static viewport manager instance constructor.
+	* This function is needed for external modules that may need their own instance of ViewportManager, 
+	* which will be used to generate preview images with their own rendering settings.
+	*/
+	static TSharedRef<IDisplayClusterViewportManager, ESPMode::ThreadSafe> CreateViewportManager();
+
 	/** Get TSharedPtr from self. */
 	virtual TSharedPtr<IDisplayClusterViewportManager, ESPMode::ThreadSafe> ToSharedPtr() = 0;
 	virtual TSharedPtr<const IDisplayClusterViewportManager, ESPMode::ThreadSafe> ToSharedPtr() const = 0;
+
+	/** Internal functions. Get TSharedRef from Self. */
+	virtual TSharedRef<class FDisplayClusterViewportManager, ESPMode::ThreadSafe> ToSharedRef() = 0;
+	virtual TSharedRef<const class FDisplayClusterViewportManager, ESPMode::ThreadSafe> ToSharedRef() const = 0;
 
 	/** Get viewport manager proxy interface. */
 	virtual const IDisplayClusterViewportManagerProxy* GetProxy() const = 0;
@@ -38,6 +49,10 @@ public:
 	/** Get viewport manager configuration interface. */
 	virtual IDisplayClusterViewportConfiguration& GetConfiguration() = 0;
 	virtual const IDisplayClusterViewportConfiguration& GetConfiguration() const = 0;
+
+	/** Get viewport manager preview API */
+	virtual IDisplayClusterViewportManagerPreview& GetViewportManagerPreview() = 0;
+	virtual const IDisplayClusterViewportManagerPreview& GetViewportManagerPreview() const = 0;
 
 	/**
 	* Initialize new frame for all viewports on game thread, and update context, render resources with viewport new settings
@@ -98,21 +113,6 @@ public:
 
 	/** Add internal DCVM objects to the reference collector. */
 	virtual void AddReferencedObjects(FReferenceCollector& Collector) = 0;
-
-	/**
-	* Render in editor (preview)
-	* [Game thread func]
-	*
-	* @param InRenderFrame - render frame setup
-	* @param InViewport
-	* @param InFirstViewportNum - begin render from this viewport in frame
-	* @param InViewportsAmount - max viewports for render
-	* @param OutViewportsAmount - total viewport rendered
-	* @param bOutFrameRendered - true, if cluster node composition pass done (additional pass after last viewport is rendered)
-	*
-	* @return - true, if render success
-	*/
-	virtual bool RenderInEditor(FDisplayClusterRenderFrame& InRenderFrame, FViewport* InViewport, const uint32 InFirstViewportNum, const int32 InViewportsAmount, int32& OutViewportsAmount, bool& bOutFrameRendered) = 0;
 
 	///////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 	/**
@@ -276,6 +276,26 @@ public:
 	*/
 	UE_DEPRECATED(5.4, "This function has been deprecated. Please use 'BeginNewFrame()'.")
 	virtual bool BeginNewFrame(FViewport* InViewport, UWorld* InWorld, FDisplayClusterRenderFrame& OutRenderFrame)
+	{
+		return false;
+	}
+
+
+	/**
+	* Render in editor (preview)
+	* [Game thread func]
+	*
+	* @param InRenderFrame - render frame setup
+	* @param InViewport
+	* @param InFirstViewportNum - begin render from this viewport in frame
+	* @param InViewportsAmount - max viewports for render
+	* @param OutViewportsAmount - total viewport rendered
+	* @param bOutFrameRendered - true, if cluster node composition pass done (additional pass after last viewport is rendered)
+	*
+	* @return - true, if render success
+	*/
+	UE_DEPRECATED(5.4, "This function has been deprecated. Please use 'GetViewportPreview().Render()'.")
+	virtual bool RenderInEditor(FDisplayClusterRenderFrame& InRenderFrame, FViewport* InViewport, const uint32 InFirstViewportNum, const int32 InViewportsAmount, int32& OutViewportsAmount, bool& bOutFrameRendered)
 	{
 		return false;
 	}

@@ -4,6 +4,7 @@
 
 #include "Render/Viewport/IDisplayClusterViewport_CustomPostProcessSettings.h"
 #include "Render/Viewport/IDisplayClusterViewportConfiguration.h"
+#include "Render/Viewport/IDisplayClusterViewportPreview.h"
 
 #include "Render/Viewport/Containers/DisplayClusterViewport_Context.h"
 #include "Render/Viewport/Containers/DisplayClusterViewport_RenderSettings.h"
@@ -32,6 +33,10 @@ public:
 	virtual TSharedPtr<IDisplayClusterViewport, ESPMode::ThreadSafe> ToSharedPtr() = 0;
 	virtual TSharedPtr<const IDisplayClusterViewport, ESPMode::ThreadSafe> ToSharedPtr() const = 0;
 
+	/** Internal functions. Get TSharedRef from Self. */
+	virtual TSharedRef<class FDisplayClusterViewport, ESPMode::ThreadSafe> ToSharedRef() = 0;
+	virtual TSharedRef<const class FDisplayClusterViewport, ESPMode::ThreadSafe> ToSharedRef() const = 0;
+
 	virtual FString GetId() const = 0;
 	virtual FString GetClusterNodeId() const = 0;
 
@@ -40,6 +45,9 @@ public:
 
 	/** [const] Get viewport manager configuration interface. */
 	virtual const IDisplayClusterViewportConfiguration& GetConfiguration() const = 0;
+
+	/** Get viewport preview API */
+	virtual IDisplayClusterViewportPreview& GetViewportPreview() const = 0;
 
 	/** Get main viewport render settings. */
 	virtual const FDisplayClusterViewport_RenderSettings&      GetRenderSettings() const = 0;
@@ -97,6 +105,11 @@ public:
 	* @param InRootActorType - the root type
 	*/
 	virtual class UDisplayClusterCameraComponent* GetViewPointCameraComponent(const EDisplayClusterRootActorType InRootActorType) const = 0;
+
+	/** Return a DisplayDevice component for this viewport.
+	* @param InRootActorType - the root type
+	*/
+	virtual class UDisplayClusterDisplayDeviceBaseComponent* GetDisplayDeviceComponent(const EDisplayClusterRootActorType InRootActorType) const = 0;
 
 	/** Retrieves the view position from the ViewPoint component used by this viewport.
 	 * The CalculateView() function receives arguments that may not match this position because they can be overridden.

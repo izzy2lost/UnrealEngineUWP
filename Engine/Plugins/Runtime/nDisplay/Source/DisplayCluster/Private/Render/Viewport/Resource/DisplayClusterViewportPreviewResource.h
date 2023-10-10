@@ -6,6 +6,7 @@
 #include "RHI.h"
 #include "RHIResources.h"
 #include "RenderResource.h"
+#include "Engine/TextureRenderTarget2D.h"
 
 /**
  * Viewport preview texture resource
@@ -15,28 +16,22 @@ class FDisplayClusterViewportPreviewResource
 {
 public:
 	FDisplayClusterViewportPreviewResource(const FDisplayClusterViewportResourceSettings& InResourceSettings);
-	virtual ~FDisplayClusterViewportPreviewResource() = default;
+	virtual ~FDisplayClusterViewportPreviewResource();
 
 public:
 	//~ Begin FDisplayClusterViewportResource
-	virtual FRHITexture2D* GetViewportResourceRHI() const override
+	virtual void InitializeViewportResource() override;
+	virtual void ReleaseViewportResource() override;
+
+	virtual UTextureRenderTarget2D* GetTextureRenderTarget2D() const override
 	{
-		return OutputPreviewTargetableResource.IsValid() ? OutputPreviewTargetableResource->GetTexture2D() : nullptr;
+		return RenderTargetTexture;
 	}
 
-	virtual void SetExternalViewportResourceRHI(FTextureRHIRef& InExternalViewportResourceRHI) override
-	{
-		OutputPreviewTargetableResource = InExternalViewportResourceRHI;
-	}
-
-	virtual void ReleaseViewportResource_RenderThread(FRHICommandListBase& RHICmdList) override
-	{
-		OutputPreviewTargetableResource.SafeRelease();
-	}
+	virtual FRHITexture2D* GetViewportResourceRHI_RenderThread() const override;
 	//~~ End FDisplayClusterViewportResource
 
 public:
-	// here we implement the preview resources the old way,
-	// but when we remove the DCPreviewComponent, this class will be redesigned using UTexture.
-	FTextureRHIRef OutputPreviewTargetableResource;
+	// Preview RTT resource
+	TObjectPtr<UTextureRenderTarget2D> RenderTargetTexture = nullptr;
 };

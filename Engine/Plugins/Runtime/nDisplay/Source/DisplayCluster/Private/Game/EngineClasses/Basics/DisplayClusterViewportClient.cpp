@@ -561,7 +561,7 @@ void UDisplayClusterViewportClient::Draw(FViewport* InViewport, FCanvas* SceneCa
 				FRotator	ViewRotation;
 				FSceneView* View = RenderFrameViewportManager->CalcSceneView(LocalPlayer, &ViewFamily, ViewLocation, ViewRotation, InViewport, nullptr, ViewportContext.StereoViewIndex);
 
-				if (View && !DCView.IsViewportContextCanBeRendered())
+				if (View && (!DCView.IsViewportContextCanBeRendered() || ViewFamily.RenderTarget == nullptr))
 				{
 					ViewFamily.Views.Remove(View);
 
@@ -997,55 +997,43 @@ bool UDisplayClusterViewportClient::Draw_PIE(FViewport* InViewport, FCanvas* Sce
 		return false;
 	}
 
-	// Get root actor from viewport
+	// Obtaining the primary root vector that can be used for PIE mode
 	ADisplayClusterRootActor* const RootActor = GameMgr->GetRootActor();
-	if (RootActor == nullptr)
+	if (!RootActor || !RootActor->IsPrimaryRootActorForPIE())
 	{
 		return false;
 	}
 
-	//@todo Implement this logic inside function DisplayCluster.GetConfigMgr()->GetLocalNodeId()
-	//@todo: change local node selection for customers
-	FString LocalNodeId = RootActor->PreviewNodeId;
-	if (LocalNodeId == DisplayClusterConfigurationStrings::gui::preview::PreviewNodeAll || LocalNodeId == DisplayClusterConfigurationStrings::gui::preview::PreviewNodeNone)
-	{
-		return false;
-	}
-
-
-	//Get world for render
-	UWorld* const MyWorld = GetWorld();
+	check(SceneCanvas);
+	check(GEngine);
 
 	// When the PIE is used by this DCRA, we must create a new ViewportManager
-	IDisplayClusterViewportManager* ViewportManager = RootActor->GetOrCreateViewportManager();
-	if (ViewportManager == nullptr)
+	if(IDisplayClusterViewportManager* ViewportManager = RootActor->GetOrCreateViewportManager())
 	{
-		return false;
+		FDisplayClusterViewport_PreviewSettings NewPreviewSettings = RootActor->GetPreviewSettings();
+		{
+			// Disable frustum preview rendering in PIE
+			NewPreviewSettings.bPreviewICVFXFrustums = false;
+
+			// Note: Normally these settings are not used for previewing in PIE and are ignored.
+			ViewportManager->GetConfiguration().SetPreviewSettings(NewPreviewSettings);
+		}
+
+		const EDisplayClusterRenderFrameMode RenderFrameMode = ViewportManager->GetConfiguration().GetRenderModeForPIE();
+		if (ViewportManager->GetViewportManagerPreview().InitializeClusterNodePreview(RenderFrameMode, GetWorld(), RootActor->PreviewNodeId, InViewport))
+		{
+			OnBeginDraw().Broadcast();
+
+			ViewportManager->GetViewportManagerPreview().RenderClusterNodePreview(INDEX_NONE, InViewport, SceneCanvas);
+			//ensure canvas has been flushed before rendering UI
+			SceneCanvas->Flush_GameThread();
+
+			OnEndDraw().Broadcast();
+
+			return true;
+		}
 	}
 
-	// update current world
-	ViewportManager->GetConfiguration().SetCurrentWorld(MyWorld);
-
-	// Update local node viewports (update\create\delete) and build new render frame
-	const EDisplayClusterRenderFrameMode RenderModeForPIE = ViewportManager->GetConfiguration().GetRenderModeForPIE();
-	if (ViewportManager->GetConfiguration().UpdateConfigurationForClusterNode(RenderModeForPIE, LocalNodeId) == false)
-	{
-		return false;
-	}
-
-	FDisplayClusterRenderFrame RenderFrame;
-	if (ViewportManager->BeginNewFrame(InViewport, RenderFrame) == false)
-	{
-		return false;
-	}
-
-	bool bOutFrameRendered = false;
-	int32 RenderedViewportsAmount = 0;
-	if (ViewportManager->RenderInEditor(RenderFrame, InViewport, 0, -1, RenderedViewportsAmount, bOutFrameRendered) == false)
-	{
-		return false;
-	}
-
-	return true;
+	return false;
 }
 #endif /*WITH_EDITOR*/

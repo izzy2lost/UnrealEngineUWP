@@ -9,7 +9,7 @@
 #include "Blueprints/DisplayClusterBlueprint.h"
 #include "Blueprints/DisplayClusterBlueprintGeneratedClass.h"
 #include "Components/DisplayClusterCameraComponent.h"
-#include "Components/DisplayDevice/DisplayClusterDisplayDeviceBaseComponent.h"
+#include "Render/DisplayDevice/Components/DisplayClusterDisplayDeviceBaseComponent.h"
 #include "Camera/CameraComponent.h"
 
 #include "Engine/SCS_Node.h"

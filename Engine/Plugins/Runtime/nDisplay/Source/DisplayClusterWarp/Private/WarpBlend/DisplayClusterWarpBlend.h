@@ -30,6 +30,9 @@ public:
 		return AsShared();
 	}
 
+	virtual bool HandleStartScene(IDisplayClusterViewport* InViewport) override;
+	virtual void HandleEndScene(IDisplayClusterViewport* InViewport) override;
+
 	virtual bool MarkWarpGeometryComponentDirty(const FName& InComponentName) override;
 
 	virtual bool UpdateGeometryContext(const float InWorldScale) override;
@@ -83,7 +86,7 @@ public:
 	virtual const FDisplayClusterWarpData& GetWarpData(const uint32 ContextNum) const override;
 
 	virtual UMeshComponent* GetOrCreatePreviewMeshComponent(IDisplayClusterViewport* InViewport, bool& bExistingComponent) const override;
-	virtual UMeshComponent* GetOrCreatePreviewMovableMeshComponent(IDisplayClusterViewport* InViewport) const override;
+	virtual UMeshComponent* GetOrCreatePreviewEditableMeshComponent(IDisplayClusterViewport* InViewport) const override;
 
 	//~!IDisplayClusterWarpBlend
 
@@ -95,7 +98,7 @@ private:
 	* @param bCreateCopy - true to always create a copy of the mesh
 	* @param bExistingComponent - (out) true if the mesh component is not a copy
 	*/
-	UMeshComponent* GetOrCreatePreviewMeshComponentImpl(IDisplayClusterViewport* InViewport, bool bMovableMesh, bool& bExistingComponent) const;
+	UMeshComponent* GetOrCreatePreviewMeshComponentImpl(IDisplayClusterViewport* InViewport, bool bEditableMesh, bool& bExistingComponent) const;
 
 	/** Begin frustum calc. */
 	void BeginCalcFrustum(const TSharedPtr<FDisplayClusterWarpEye, ESPMode::ThreadSafe>& InWarpEye);

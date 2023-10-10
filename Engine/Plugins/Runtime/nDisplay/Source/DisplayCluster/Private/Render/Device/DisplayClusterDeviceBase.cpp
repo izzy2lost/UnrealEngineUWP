@@ -328,11 +328,11 @@ bool FDisplayClusterDeviceBase::BeginNewFrame(FViewport* InViewport, UWorld* InW
 		{
 			const FString LocalNodeId = DeviceBaseHelpers::GetDisplayClusterAPI().GetConfigMgr()->GetLocalNodeId();
 
-			// update current world
-			ViewportManagerPtr->GetConfiguration().SetCurrentWorld(InWorld);
+			// Dont use preview setting on primary RootActor in game
+			ViewportManagerPtr->GetConfiguration().SetPreviewSettings(FDisplayClusterViewport_PreviewSettings());
 
 			// Update local node viewports (update\create\delete) and build new render frame
-			if (ViewportManagerPtr->GetConfiguration().UpdateConfigurationForClusterNode(RenderFrameMode, LocalNodeId))
+			if (ViewportManagerPtr->GetConfiguration().UpdateConfigurationForClusterNode(RenderFrameMode, InWorld, LocalNodeId))
 			{
 				if (ViewportManagerPtr->BeginNewFrame(InViewport, OutRenderFrame))
 				{
@@ -366,7 +366,7 @@ void FDisplayClusterDeviceBase::InitializeNewFrame()
 
 			// Send viewport manager proxy on render thread
 			ENQUEUE_RENDER_COMMAND(DisplayClusterDevice_SetViewportManagerProxy)(
-				[DCRenderDevice = this, NewViewportManagerProxy = ViewportManagerProxyPtr->AsShared()](FRHICommandListImmediate& RHICmdList)
+				[DCRenderDevice = SharedThis(this), NewViewportManagerProxy = ViewportManagerProxyPtr->AsShared()](FRHICommandListImmediate& RHICmdList)
 				{
 					DCRenderDevice->ViewportManagerProxyWeakPtr = NewViewportManagerProxy;
 				});

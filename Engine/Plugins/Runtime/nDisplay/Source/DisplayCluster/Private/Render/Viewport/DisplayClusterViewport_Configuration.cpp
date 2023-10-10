@@ -32,7 +32,7 @@ void FDisplayClusterViewport::UpdateConfiguration_ProjectionPolicy(const FDispla
 		UE_LOG(LogDisplayClusterViewport, Verbose, TEXT("Update projection policy for viewport '%s'."), *GetId());
 
 		// Release current projection
-		HandleEndScene();
+		OnHandleEndScene();
 		UninitializedProjectionPolicy.Reset();
 
 		// Create new projection type interface
@@ -42,7 +42,7 @@ void FDisplayClusterViewport::UpdateConfiguration_ProjectionPolicy(const FDispla
 	// If the scene is open, immediately initialize the viewport's scene resources
 	if (Configuration->IsSceneOpened())
 	{
-		HandleStartScene();
+		OnHandleStartScene();
 	}
 }
 

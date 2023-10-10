@@ -124,15 +124,7 @@ bool FDisplayClusterViewportConfiguration_ICVFXCamera::Initialize()
 	const FVector ViewOffset = FVector::ZeroVector;
 
 	// Get world scale
-	float WorldToMeters = 100.f;
-	if (UWorld* World = SceneRootActor->GetWorld())
-	{
-		if (AWorldSettings* WorldSettings = World->GetWorldSettings())
-		{
-			WorldToMeters = WorldSettings->WorldToMeters;
-		}
-	}
-
+	const float WorldToMeters = Configuration.GetWorldToMeters();
 	// Supports custom near clipping plane
 	const float NCP = (CustomNearClippingPlane >= 0) ? CustomNearClippingPlane : GNearClippingPlane;
 

@@ -56,16 +56,21 @@ struct FDisplayClusterViewportResourceSettings
 	* @param InResourceFlags - these flags determine what type of resource will be created.
 	* @param InNumMips       - the number of mips that will be created. This value is only supported by a certain type of resource.
 	*/
-	FDisplayClusterViewportResourceSettings(const FDisplayClusterViewportResourceSettings& InBaseSettings, const FIntPoint& InSize, const EPixelFormat InFormat, const EDisplayClusterViewportResourceSettingsFlags InResourceFlags = EDisplayClusterViewportResourceSettingsFlags::None, const int32 InNumMips = 1);
+	FDisplayClusterViewportResourceSettings(const FDisplayClusterViewportResourceSettings& InBaseSettings, const FString InViewportId, const FIntPoint& InSize, const EPixelFormat InFormat, const EDisplayClusterViewportResourceSettingsFlags InResourceFlags = EDisplayClusterViewportResourceSettingsFlags::None, const int32 InNumMips = 1);
 
 public:
 	/** Returns true if the input resource settings match the local values. */
 	inline bool IsResourceSettingsEqual(const FDisplayClusterViewportResourceSettings& In) const
 	{
-		// This is a temporary rule, because the preview texture uses a link to an external resource
-		if (EnumHasAnyFlags(ResourceFlags | In.ResourceFlags, EDisplayClusterViewportResourceSettingsFlags::PreviewTargetableTexture))
+		// Special rules for preview RTT resource
+		if (EnumHasAnyFlags(ResourceFlags, EDisplayClusterViewportResourceSettingsFlags::PreviewTargetableTexture))
 		{
-			return false;
+			// A cluster node can have multiple viewports using RTT previews
+			// But since these textures are linked to the preview mesh material, we will also add this rule to link to a specific viewport.
+			if (In.ViewportId != ViewportId)
+			{
+				return false;
+			}
 		}
 
 		return (In.Size == Size)
@@ -126,6 +131,9 @@ public:
 private:
 	// This is a resource belonging to the cluster node
 	const FString ClusterNodeId;
+
+	// The preview resource is always used by the same Outer viewport
+	const FString ViewportId;
 
 	// Resource width and height
 	FIntPoint    Size;

@@ -163,12 +163,22 @@ bool FDisplayClusterProjectionMPCDIPolicy::HandleStartScene(IDisplayClusterViewp
 	// Finally, initialize internal views data container
 	WarpBlendContexts.AddDefaulted(2);
 
+	if (WarpBlendInterface.IsValid())
+	{
+		WarpBlendInterface->HandleStartScene(InViewport);
+	}
+
 	return true;
 }
 
 void FDisplayClusterProjectionMPCDIPolicy::HandleEndScene(IDisplayClusterViewport* InViewport)
 {
 	check(IsInGameThread());
+
+	if (WarpBlendInterface.IsValid())
+	{
+		WarpBlendInterface->HandleEndScene(InViewport);
+	}
 
 	ImplRelease();
 }
@@ -179,6 +189,9 @@ void FDisplayClusterProjectionMPCDIPolicy::ImplRelease()
 
 	WarpBlendInterface.Reset();
 	WarpBlendContexts.Empty();
+
+	PreviewMeshComponentRef.ResetSceneComponent();
+	PreviewEditableMeshComponentRef.ResetSceneComponent();
 }
 
 bool FDisplayClusterProjectionMPCDIPolicy::GetWarpBlendInterface(TSharedPtr<IDisplayClusterWarpBlend, ESPMode::ThreadSafe>& OutWarpBlendInterface) const
@@ -463,6 +476,7 @@ UMeshComponent* FDisplayClusterProjectionMPCDIPolicy::GetOrCreatePreviewMeshComp
 	// If we have already created a preview mesh component before, return that component
 	if (UMeshComponent* ExistsPreviewMeshComp = Cast<UMeshComponent>(PreviewMeshComponentRef.GetOrFindSceneComponent()))
 	{
+		bOutIsRootActorComponent = bIsRootActorHasPreviewMeshComponent;
 		return ExistsPreviewMeshComp;
 	}
 
@@ -471,6 +485,7 @@ UMeshComponent* FDisplayClusterProjectionMPCDIPolicy::GetOrCreatePreviewMeshComp
 	{
 		// Store reference to mesh component
 		PreviewMeshComponentRef.SetSceneComponent(PreviewMeshComp);
+		bIsRootActorHasPreviewMeshComponent = bOutIsRootActorComponent;
 
 		return PreviewMeshComp;
 	}
@@ -478,52 +493,51 @@ UMeshComponent* FDisplayClusterProjectionMPCDIPolicy::GetOrCreatePreviewMeshComp
 	return nullptr;
 }
 
-USceneComponent* const FDisplayClusterProjectionMPCDIPolicy::GetPreviewMovableMeshOriginComponent(IDisplayClusterViewport* InViewport) const
+USceneComponent* const FDisplayClusterProjectionMPCDIPolicy::GetPreviewEditableMeshOriginComponent(IDisplayClusterViewport* InViewport) const
 {
-	// Note: currently for the movable mesh component we expect it to be used only in the scene,
+	// Note: currently for the Editable mesh component we expect it to be used only in the scene,
 	// so we use the root component from the scene all the time.
 	// But if other use cases are found, we need to refine this logic.
 
 	return GetOriginComponent();
 }
 
-bool FDisplayClusterProjectionMPCDIPolicy::HasPreviewMovableMesh(IDisplayClusterViewport* InViewport)
+bool FDisplayClusterProjectionMPCDIPolicy::HasPreviewEditableMesh(IDisplayClusterViewport* InViewport)
 {
-	if (InViewport)
+	if (bIsPreviewMeshEnabled && InViewport)
 	{
-		// The movable preview grid is a feature for the warp policy, so we must request permission to use it.
-		const bool bWarpPolicyUseMovableMesh = WarpPolicyInterface.IsValid() && WarpPolicyInterface->HasPreviewMovableMesh(InViewport);
-		if (bIsPreviewMeshEnabled && bWarpPolicyUseMovableMesh)
+		// The editable preview Editable mesh is a feature for the warp policy, so we must request permission to use it.
+		if (WarpPolicyInterface.IsValid() && WarpPolicyInterface->HasPreviewEditableMesh(InViewport))
 		{
 			return true;
 		}
 	}
 
-	PreviewMovableMeshComponentRef.ResetSceneComponent();
+	PreviewEditableMeshComponentRef.ResetSceneComponent();
 
 	return false;
 }
 
-UMeshComponent* FDisplayClusterProjectionMPCDIPolicy::GetOrCreatePreviewMovableMeshComponent(IDisplayClusterViewport* InViewport)
+UMeshComponent* FDisplayClusterProjectionMPCDIPolicy::GetOrCreatePreviewEditableMeshComponent(IDisplayClusterViewport* InViewport)
 {
-	if (!HasPreviewMovableMesh(InViewport))
+	if (!HasPreviewEditableMesh(InViewport))
 	{
 		return nullptr;
 	}
 
 	// If we have already created a preview mesh component before, return that component
-	if (UMeshComponent* ExistsPreviewMovableMeshComp = Cast<UMeshComponent>(PreviewMovableMeshComponentRef.GetOrFindSceneComponent()))
+	if (UMeshComponent* ExistsPreviewEditableMeshComp = Cast<UMeshComponent>(PreviewEditableMeshComponentRef.GetOrFindSceneComponent()))
 	{
-		return ExistsPreviewMovableMeshComp;
+		return ExistsPreviewEditableMeshComp;
 	}
 
 	// Get a new one
-	if (UMeshComponent* PreviewMovableMeshComp = WarpBlendInterface.IsValid() ? WarpBlendInterface->GetOrCreatePreviewMovableMeshComponent(InViewport) : nullptr)
+	if (UMeshComponent* PreviewEditableMeshComp = WarpBlendInterface.IsValid() ? WarpBlendInterface->GetOrCreatePreviewEditableMeshComponent(InViewport) : nullptr)
 	{
 		// Store reference to mesh component
-		PreviewMovableMeshComponentRef.SetSceneComponent(PreviewMovableMeshComp);
+		PreviewEditableMeshComponentRef.SetSceneComponent(PreviewEditableMeshComp);
 
-		return PreviewMovableMeshComp;
+		return PreviewEditableMeshComp;
 	}
 
 	return nullptr;

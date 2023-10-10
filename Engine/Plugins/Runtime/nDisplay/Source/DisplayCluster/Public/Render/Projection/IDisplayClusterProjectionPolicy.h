@@ -324,33 +324,33 @@ public:
 	}
 
 	/**
-	* Ask projection policy instance if it has any movable mesh based preview
+	* Ask projection policy instance if it has any Editable mesh based preview
 	* 
 	* @param InViewport - a owner viewport
 	* @return - True if mesh based preview is available
 	*/
-	virtual bool HasPreviewMovableMesh(IDisplayClusterViewport* InViewport)
+	virtual bool HasPreviewEditableMesh(IDisplayClusterViewport* InViewport)
 	{
 		return false;
 	}
 
 	/**
-	* Build preview movable mesh
+	* Build preview Editable mesh
 	* This MeshComponent is a copy of the preview mesh and can be moved freely with the UI visualization.
 	*
 	* @param InViewport - a owner viewport
 	*/
-	virtual UMeshComponent* GetOrCreatePreviewMovableMeshComponent(IDisplayClusterViewport* InViewport)
+	virtual UMeshComponent* GetOrCreatePreviewEditableMeshComponent(IDisplayClusterViewport* InViewport)
 	{
 		return nullptr;
 	}
 
 	/**
-	 * Return Origin point component used by preview movable mesh
+	 * Return Origin point component used by preview Editable mesh
 	 * 
 	 * @param InViewport - a owner viewport
 	 */
-	virtual USceneComponent* const GetPreviewMovableMeshOriginComponent(IDisplayClusterViewport* InViewport) const
+	virtual USceneComponent* const GetPreviewEditableMeshOriginComponent(IDisplayClusterViewport* InViewport) const
 	{
 		return nullptr;
 	}

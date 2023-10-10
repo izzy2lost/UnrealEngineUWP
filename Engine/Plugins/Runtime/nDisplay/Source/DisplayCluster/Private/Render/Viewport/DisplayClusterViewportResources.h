@@ -77,21 +77,20 @@ public:
 	}
 
 	/** Release refs to all viewport resources. */
-	void Release(bool bReleaseAllResources = true)
+	void ReleaseAllResources()
 	{
-		if (bReleaseAllResources)
-		{
-			ViewportResources.Empty();
-		}
-		else
-		{
-			// Release only part of the resources, leaving resources that can be used by other viewports (viewport override feature)
-			// Discard resources that are not used in frame composition
-			ImplRelease(EDisplayClusterViewportResource::OutputPreviewTargetableResources);
-			ImplRelease(EDisplayClusterViewportResource::RenderTargets);
-			ImplRelease(EDisplayClusterViewportResource::OutputFrameTargetableResources);
-			ImplRelease(EDisplayClusterViewportResource::AdditionalFrameTargetableResources);
-		}
+		ViewportResources.Empty();
+	}
+
+	/**
+	* Release only part of the resources, leaving resources that can be used by other viewports(viewport override feature)
+	* Discard resources that are not used in frame composition
+	*/
+	void ReleaseNotSharedResources()
+	{
+		ImplRelease(EDisplayClusterViewportResource::RenderTargets);
+		ImplRelease(EDisplayClusterViewportResource::OutputFrameTargetableResources);
+		ImplRelease(EDisplayClusterViewportResource::AdditionalFrameTargetableResources);
 	}
 
 	/** Raise DisableReallocate flag for all viewport resources of specified type.

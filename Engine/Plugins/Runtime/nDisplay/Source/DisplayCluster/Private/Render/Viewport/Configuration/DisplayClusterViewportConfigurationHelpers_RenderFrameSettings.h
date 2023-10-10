@@ -7,6 +7,7 @@
 #include "Render/Viewport/RenderFrame/DisplayClusterRenderFrameSettingsEnums.h"
 
 class FDisplayClusterViewportConfiguration;
+class FDisplayClusterViewportManager;
 
 /**
 * This enum is for CVar values only and is used to process the logic that converts the values to the runtime enum in GetAlphaChannelCaptureMode().
@@ -55,7 +56,7 @@ class FDisplayClusterViewportConfigurationHelpers_RenderFrameSettings
 {
 public:
 	// Update RenderFrameSettings
-	static bool UpdateRenderFrameConfiguration(EDisplayClusterRenderFrameMode InRenderMode, FDisplayClusterViewportConfiguration& InOutConfiguration);
+	static bool UpdateRenderFrameConfiguration(FDisplayClusterViewportManager* ViewportManager, EDisplayClusterRenderFrameMode InRenderMode, FDisplayClusterViewportConfiguration& InOutConfiguration);
 	static void PostUpdateRenderFrameConfiguration(FDisplayClusterViewportConfiguration& InOutConfiguration);
 
 private:

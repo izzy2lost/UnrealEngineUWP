@@ -23,6 +23,20 @@ enum class EDisplayClusterRenderFrameMode: uint8
 	// Special render: render to two separated backbuffer textures, with half size Y
 	TopBottom,
 
+
+	// Monoscopic rendering in PIE
+	PIE_Mono,
+
+	// Stereoscopic side-by-side rendering in PIE
+	PIE_SideBySide,
+
+	// Stereoscopic top-bottom rendering in PIE
+	PIE_TopBottom,
+
+	// Monoscopic rendering for MRQ
+	MRQ_Mono,
+
+
 	// Special render for preview in scene
 	PreviewInScene,
 

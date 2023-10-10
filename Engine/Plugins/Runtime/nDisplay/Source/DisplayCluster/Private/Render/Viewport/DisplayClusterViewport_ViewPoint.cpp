@@ -113,10 +113,15 @@ UDisplayClusterCameraComponent* FDisplayClusterViewport::GetViewPointCameraCompo
 	ADisplayClusterRootActor* RootActor = Configuration->GetRootActor(InRootActorType);
 	if (!RootActor)
 	{
-		UE_LOG(LogDisplayClusterViewport, Warning, TEXT("Viewport '%s' has no root actor found"), *GetId());
+		if (CanShowLogMsgOnce(EDisplayClusterViewportShowLogMsgOnce::GetViewPointCameraComponent_NoRootActorFound))
+		{
+			UE_LOG(LogDisplayClusterViewport, Warning, TEXT("Viewport '%s' has no root actor found"), *GetId());
+		}
 
 		return nullptr;
 	}
+
+	ResetShowLogMsgOnce(EDisplayClusterViewportShowLogMsgOnce::GetViewPointCameraComponent_NoRootActorFound);
 
 	if (!ProjectionPolicy.IsValid())
 	{
@@ -133,7 +138,14 @@ UDisplayClusterCameraComponent* FDisplayClusterViewport::GetViewPointCameraCompo
 	const FString& CameraId = GetRenderSettings().CameraId;
 	if (CameraId.Len() > 0)
 	{
-		UE_LOG(LogDisplayClusterViewport, Verbose, TEXT("Viewport '%s' has assigned ViewPoint '%s'"), *GetId(), *CameraId);
+		if (CanShowLogMsgOnce(EDisplayClusterViewportShowLogMsgOnce::GetViewPointCameraComponent_HasAssignedViewPoint))
+		{
+			UE_LOG(LogDisplayClusterViewport, Verbose, TEXT("Viewport '%s' has assigned ViewPoint '%s'"), *GetId(), *CameraId);
+		}
+	}
+	else
+	{
+		ResetShowLogMsgOnce(EDisplayClusterViewportShowLogMsgOnce::GetViewPointCameraComponent_HasAssignedViewPoint);
 	}
 
 	// Get camera component assigned to the viewport (or default camera if nothing assigned)
@@ -141,10 +153,15 @@ UDisplayClusterCameraComponent* FDisplayClusterViewport::GetViewPointCameraCompo
 		RootActor->GetDefaultCamera() :
 		RootActor->GetComponentByName<UDisplayClusterCameraComponent>(CameraId)))
 	{
+		ResetShowLogMsgOnce(EDisplayClusterViewportShowLogMsgOnce::GetViewPointCameraComponent);
+
 		return ViewCamera;
 	}
 
-	UE_LOG(LogDisplayClusterViewport, Warning, TEXT("ViewPoint '%s' is not found for viewport '%s'"), *CameraId, * GetId());
+	if (CanShowLogMsgOnce(EDisplayClusterViewportShowLogMsgOnce::GetViewPointCameraComponent_NotFound))
+	{
+		UE_LOG(LogDisplayClusterViewport, Warning, TEXT("ViewPoint '%s' is not found for viewport '%s'"), *CameraId, *GetId());
+	}
 
 	return nullptr;
 }

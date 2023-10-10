@@ -8,7 +8,7 @@
 #include "DisplayClusterProjectionStrings.h"
 #include "DisplayClusterConfiguratorLog.h"
 #include "Components/DisplayClusterCameraComponent.h"
-#include "Components/DisplayDevice/DisplayClusterDisplayDeviceBaseComponent.h"
+#include "Render/DisplayDevice/Components/DisplayClusterDisplayDeviceBaseComponent.h"
 #include "Views/Details/Widgets/SDisplayClusterConfiguratorComponentPicker.h"
 #include "Views/Details/Widgets/SDisplayClusterConfigurationSearchableComboBox.h"
 

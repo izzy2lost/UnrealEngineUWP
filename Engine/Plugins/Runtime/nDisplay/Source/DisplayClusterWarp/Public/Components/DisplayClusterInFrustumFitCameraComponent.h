@@ -71,10 +71,9 @@ public:
 	UPROPERTY(EditAnywhere, Category = "Projection", meta = (EditCondition = "bEnableCameraProjection"))
 	bool bUseCameraPostprocess = false;
 
-#if WITH_EDITORONLY_DATA
+	/** Show additional warped preview meshes before the camera. */
 	UPROPERTY(EditAnywhere, Category = "Projection", meta = (EditCondition = "bEnableCameraProjection"))
 	bool bShowPreviewFrustumFit = false;
-#endif
 
 private:
 	// a unique type of warp policy for this component

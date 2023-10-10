@@ -60,9 +60,9 @@ public:
 	virtual bool HasPreviewMesh(IDisplayClusterViewport* InViewport) override;
 	virtual UMeshComponent* GetOrCreatePreviewMeshComponent(IDisplayClusterViewport* InViewport, bool& bOutIsRootActorComponent) override;
 
-	virtual bool HasPreviewMovableMesh(IDisplayClusterViewport* InViewport) override;
-	virtual UMeshComponent* GetOrCreatePreviewMovableMeshComponent(IDisplayClusterViewport* InViewport) override;
-	virtual USceneComponent* const GetPreviewMovableMeshOriginComponent(IDisplayClusterViewport* InViewport) const override;
+	virtual bool HasPreviewEditableMesh(IDisplayClusterViewport* InViewport) override;
+	virtual UMeshComponent* GetOrCreatePreviewEditableMeshComponent(IDisplayClusterViewport* InViewport) override;
+	virtual USceneComponent* const GetPreviewEditableMeshOriginComponent(IDisplayClusterViewport* InViewport) const override;
 
 	//~~End IDisplayClusterProjectionPolicy
 
@@ -87,6 +87,12 @@ protected:
 	bool bIsPreviewMeshEnabled = false;
 
 private:
+	// Stored value of the preview mesh
 	FDisplayClusterSceneComponentRef PreviewMeshComponentRef;
-	FDisplayClusterSceneComponentRef PreviewMovableMeshComponentRef;
+
+	// Stored value of the preview meshes belonging flag. True if this component exists in DCRA and cannot be deleted with preview.
+	bool bIsRootActorHasPreviewMeshComponent = false;
+
+	// Stored value of the editable preview mesh
+	FDisplayClusterSceneComponentRef PreviewEditableMeshComponentRef;
 };

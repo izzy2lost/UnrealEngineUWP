@@ -4,7 +4,7 @@
 
 #include "Widgets/SDisplayClusterConfiguratorComponentPicker.h"
 
-#include "Components/DisplayDevice/DisplayClusterDisplayDeviceBaseComponent.h"
+#include "Render/DisplayDevice/Components/DisplayClusterDisplayDeviceBaseComponent.h"
 #include "DisplayClusterRootActor.h"
 #include "DisplayClusterConfigurationStrings.h"
 #include "DisplayClusterConfigurationTypes.h"

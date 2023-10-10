@@ -160,6 +160,8 @@ public:
 		constexpr bool bIncludeChildActors = false;
 		RootActor->GetComponents<UDisplayClusterICVFXCameraComponent>(CameraComponents, bIncludeChildActors);
 
+		UWorld* CurrentWorld = RootActor->GetWorld();
+
 		for (UDisplayClusterICVFXCameraComponent* CameraComponent : CameraComponents)
 		{
 			CameraComponent->CameraSettings.RenderSettings.AdvancedRenderSettings.GPUIndex = GetInnerGPUIndex();
@@ -170,7 +172,7 @@ public:
 			const FString NodeId = IDisplayCluster::Get().GetClusterMgr()->GetNodeId();
 			const EDisplayClusterRenderFrameMode RenderMode = EDisplayClusterRenderFrameMode::Mono;
 
-			ViewportManager->GetConfiguration().UpdateConfigurationForClusterNode(RenderMode, NodeId);
+			ViewportManager->GetConfiguration().UpdateConfigurationForClusterNode(RenderMode, CurrentWorld, NodeId);
 		}
 	}
 

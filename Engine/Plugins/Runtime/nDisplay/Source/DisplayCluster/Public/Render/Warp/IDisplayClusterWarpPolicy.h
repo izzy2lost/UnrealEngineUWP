@@ -3,9 +3,13 @@
 #pragma once
 
 #include "CoreMinimal.h"
+#include "Render/DisplayDevice/Containers/DisplayClusterDisplayDevice_Enums.h"
 
 class IDisplayClusterViewport;
 class IDisplayClusterViewportManager;
+class IDisplayClusterViewportPreview;
+class UMaterialInstanceDynamic;
+class UMeshComponent;
 
 /**
  * Warp policy interface
@@ -55,7 +59,7 @@ public:
 
 	/**
 	* Tick function
-	* The positions of movable preview components may be updated on each frame.
+	* The positions of editable preview components may be updated on each frame.
 	* Use this function to handle these updates.
 	* 
 	* @param InViewportManager - Viewport manager interface
@@ -106,12 +110,23 @@ public:
 	{ }
 
 	/**
-	* Ask warp  policy instance if it has any movable mesh based preview
+	* Ask warp  policy instance if it has any Editable mesh based preview
 	* @param InViewport - a owner viewport
 	* @return - True if mesh based preview is available
 	*/
-	virtual bool HasPreviewMovableMesh(IDisplayClusterViewport* InViewport)
+	virtual bool HasPreviewEditableMesh(IDisplayClusterViewport* InViewport)
 	{
 		return false;
 	}
+
+	/** Update Editable mesh material instance parameters.
+	* (this function is called every tick)
+	* 
+	* @param InViewport              - the current viewport
+	* @param InEditableMeshComponent - editable mesh component
+	* @param InMaterialType          - the type of material being requested
+	* @param InMaterialInstance      - material instance
+	*/
+	virtual void OnUpdatePreviewEditableMesh(IDisplayClusterViewportPreview& InViewportPreview, UMeshComponent* InEditableMeshComponent, const EDisplayClusterDisplayDeviceMaterialType InMaterialType, UMaterialInstanceDynamic* InMaterialInstance) const
+	{ }
 };

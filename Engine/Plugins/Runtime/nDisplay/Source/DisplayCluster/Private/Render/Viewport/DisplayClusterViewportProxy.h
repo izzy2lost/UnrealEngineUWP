@@ -8,6 +8,8 @@
 #include "Render/Viewport/Containers/DisplayClusterViewport_OverscanRuntimeSettings.h"
 #include "Render/Viewport/Configuration/DisplayClusterViewportConfigurationProxy.h"
 
+#include "Render/DisplayDevice/IDisplayClusterDisplayDeviceProxy.h"
+
 #include "EngineUtils.h"
 #include "ScreenRendering.h"
 #include "SceneView.h"
@@ -233,13 +235,16 @@ public:
 	/** Enable alpha channel for this viewport (useful for overlays with alpha channel: ChromaKey, LightCard). */
 	bool ShouldUseAlphaChannel_RenderThread() const;
 
-	/** AfterWarp resolve viewport resources: ViewportRemap, etc
+	/** Finally, resolve the viewport to the output RTT and apply the last PPs (ViewportRemap, etc.)
 	 *
 	 * @param RHICmdList - RHI interface
 	 *
 	 * @return - none
 	 */
 	void PostResolveViewport_RenderThread(FRHICommandListImmediate& RHICmdList) const;
+
+	/** Release all textures. */
+	void ReleaseTextures_RenderThread();
 
 	inline bool FindContext_RenderThread(const int32 ViewIndex, uint32* OutContextNum)
 	{
@@ -348,6 +353,9 @@ public:
 protected:
 	/** OpenColorIO nDisplay interface ref. */
 	TSharedPtr<FDisplayClusterViewport_OpenColorIO, ESPMode::ThreadSafe> OpenColorIO;
+
+	/** Display Device Proxy. */
+	TSharedPtr<IDisplayClusterDisplayDeviceProxy, ESPMode::ThreadSafe> DisplayDeviceProxy;
 
 	// Viewport render params
 	mutable FDisplayClusterViewport_RenderSettings RenderSettings;

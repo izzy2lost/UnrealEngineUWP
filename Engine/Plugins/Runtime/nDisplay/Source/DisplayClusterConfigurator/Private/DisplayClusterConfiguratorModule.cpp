@@ -277,6 +277,11 @@ void FDisplayClusterConfiguratorModule::RegisterSectionMappings()
 			DisplayClusterConfigurationStrings::categories::PreviewCategory, LOCTEXT("Editor Preview", "Editor Preview"));
 		Section->AddCategory(DisplayClusterConfigurationStrings::categories::PreviewCategory);
 	}
+	{
+		const TSharedRef<FPropertySection> Section = PropertyModule.FindOrCreateSection(ADisplayClusterRootActor::StaticClass()->GetFName(),
+			DisplayClusterConfigurationStrings::categories::PreviewInGameCategory, LOCTEXT("Preview In Game", "Preview In Game"));
+		Section->AddCategory(DisplayClusterConfigurationStrings::categories::PreviewInGameCategory);
+	}
 
 	// ICVFX Component
 	{

@@ -35,11 +35,16 @@ struct FDisplayClusterRenderFrameSettings
 	// Alpha channel capture mode for viewports (Lightcard, chromakey)
 	EDisplayClusterRenderFrameAlphaChannelCaptureMode AlphaChannelCaptureMode;
 
+
 	// Some frame postprocess require additional render targetable resources
 	bool bShouldUseAdditionalFrameTargetableResource = false;
 
 	// Postprocess can use full size backbuffer. This disables Frame RTT size optimization
 	bool bShouldUseFullSizeFrameTargetableResource = false;
+
+	// Create output resources only for visible viewports. This will save GPU memory space.
+	bool bShouldUseOutputTargetableResources = false;
+
 
 	// Multiply all viewports RTT size's for whole cluster by this value
 	float ClusterRenderTargetRatioMult = 1.f;
@@ -66,6 +71,10 @@ struct FDisplayClusterRenderFrameSettings
 	// Settings for preview rendering
 	FDisplayClusterViewport_PreviewSettings PreviewSettings;
 
+	// [Experimental] Render preview in multi-GPU
+	// Specifies the mGPU index range for rendering the DCRA preview.
+	TOptional<FIntPoint> PreviewMultiGPURendering;
+
 	// Use DC render device for rendering
 	bool bUseDisplayClusterRenderDevice = true;
 
@@ -84,6 +93,12 @@ public:
 	/** Current frame is preview. */
 	bool IsPreviewRendering() const;
 
+	/** Returns true, if Techvis is used. */
+	bool IsTechvisEnabled() const;
+
+	/** Returns true if the DCRA preview feature in Standalone/Package builds is used. */
+	bool IsPreviewInGameEnabled() const;
+
 	/** returns true if the preview rendering has been updated.If this function returns false, the DCRA preview image should be frozen. */
 	bool IsPreviewFreezeRender() const;
 
@@ -98,8 +113,18 @@ public:
 	/** Should use linear gamma. */
 	bool ShouldUseLinearGamma() const;
 
+	/** true, if output frame RTTs is used. */
+	bool ShouldUseOutputFrameTargetableResources() const;
+
+	/** Is stereo rendering on monoscopic display (sbs, tb) . */
+	bool ShouldUseStereoRenderingOnMonoscopicDisplay() const;
+
 	/** Getting the desired frame size multipliers. */
 	FVector2D GetDesiredFrameMult() const;
+
+	/** Obtain the desired RTT size (for sbs and tb this is half the size in one of the dimensions). */
+	FVector2D GetDesiredRTTSize(const FVector2D& InSize) const;
+	FIntPoint GetDesiredRTTSize(const FIntPoint& InSize) const;
 
 	/** Get the maximum texture size that is allowed to be used in the viewport. */
 	int32 GetViewportTextureMaxSize() const;

@@ -27,6 +27,7 @@ public:
 	
 	/** Allocate a new resource or reuse exists
 	* 
+	* @param InViewportId      - This resource belongs to this viewport only. Empty string if not used
 	* @param InSize            - resource dimensions
 	* @param CustomPixelFormat - resource pixel format
 	* @param InResourceFlags   - These flags define the behavior of the resource.
@@ -34,7 +35,7 @@ public:
 	* 
 	* @return ref to the resource instance
 	*/
-	TSharedPtr<FDisplayClusterViewportResource, ESPMode::ThreadSafe> AllocateResource(const FIntPoint& InSize, EPixelFormat CustomPixelFormat, const EDisplayClusterViewportResourceSettingsFlags InResourceFlags, int32 NumMips = 1);
+	TSharedPtr<FDisplayClusterViewportResource, ESPMode::ThreadSafe> AllocateResource(const FString InViewportId, const FIntPoint& InSize, EPixelFormat CustomPixelFormat, const EDisplayClusterViewportResourceSettingsFlags InResourceFlags, int32 NumMips = 1);
 
 	/** End reallocate resources for the specified cluster node. */
 	void EndReallocateResources();

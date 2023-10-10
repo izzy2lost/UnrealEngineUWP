@@ -144,6 +144,11 @@ bool FDisplayClusterProjectionMeshPolicy::HandleStartScene(IDisplayClusterViewpo
 	// Finally, initialize internal views data container
 	WarpBlendContexts.AddDefaulted(2);
 
+	if (WarpBlendInterface.IsValid())
+	{
+		WarpBlendInterface->HandleStartScene(InViewport);
+	}
+
 	return true;
 }
 
