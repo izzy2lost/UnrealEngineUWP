@@ -3,6 +3,7 @@
 #include "DisplayClusterConfigurationTypes_ICVFX.h"
 #include "DisplayClusterConfigurationTypes.h"
 #include "IDisplayCluster.h"
+#include "Camera/CameraTypes.h"
 
 namespace UE::DisplayClusterConfiguration::ICVFX
 {
@@ -32,6 +33,16 @@ FDisplayClusterConfigurationICVFX_CameraRenderSettings::FDisplayClusterConfigura
 {
 	// Setup incamera defaults:
 	GenerateMips.bAutoGenerateMips = true;
+}
+
+void FDisplayClusterConfigurationICVFX_CameraRenderSettings::SetupViewInfo(const FDisplayClusterConfigurationICVFX_StageSettings& InStageSettings, FMinimalViewInfo& InOutViewInfo) const
+{
+	// CameraSettings can disable posprocess from this camera
+	if (!bUseCameraComponentPostprocess)
+	{
+		InOutViewInfo.PostProcessSettings = FPostProcessSettings();
+		InOutViewInfo.PostProcessBlendWeight = 0.0f;
+	}
 }
 
 ///////////////////////////////////////////////////////////////////////////////////////
@@ -224,27 +235,6 @@ bool FDisplayClusterConfigurationICVFX_CameraSettings::IsChromakeyViewportSettin
 	return CameraOCIO.IsChromakeyViewportSettingsEqual(InClusterNodeId1, InClusterNodeId2);
 }
 
-float FDisplayClusterConfigurationICVFX_CameraSettings::GetCameraFieldOfViewMultiplier(const FDisplayClusterConfigurationICVFX_StageSettings& InStageSettings) const
-{
-	if (CustomFrustum.bEnable)
-	{
-		return CustomFrustum.FieldOfViewMultiplier;
-	}
-
-	return  1.f;
-}
-
-float FDisplayClusterConfigurationICVFX_CameraSettings::GetCameraAdaptResolutionRatio(const FDisplayClusterConfigurationICVFX_StageSettings& InStageSettings) const
-{
-	if (CustomFrustum.bAdaptResolution)
-	{
-		return GetCameraFieldOfViewMultiplier(InStageSettings);
-	}
-
-	// Don't use an adaptive resolution multiplier
-	return 1.f;
-}
-
 float FDisplayClusterConfigurationICVFX_CameraSettings::GetCameraBufferRatio(const FDisplayClusterConfigurationICVFX_StageSettings& InStageSettings) const
 {
 	return BufferRatio;
@@ -266,6 +256,13 @@ bool FDisplayClusterConfigurationICVFX_CameraSettings::GetCameraBorder(const FDi
 	OutBorderThickness = Border.Thickness * RealThicknessScaleValue;
 
 	return true;
+}
+
+void FDisplayClusterConfigurationICVFX_CameraSettings::SetupViewInfo(const FDisplayClusterConfigurationICVFX_StageSettings& InStageSettings, FMinimalViewInfo& InOutViewInfo)
+{
+	RenderSettings.SetupViewInfo(InStageSettings, InOutViewInfo);
+	CustomFrustum.SetupViewInfo(InStageSettings, InOutViewInfo);
+	CameraMotionBlur.SetupViewInfo(InStageSettings, InOutViewInfo);
 }
 
 FIntPoint FDisplayClusterConfigurationICVFX_CameraSettings::GetCameraFrameSize(const FDisplayClusterConfigurationICVFX_StageSettings& InStageSettings) const
@@ -291,7 +288,7 @@ FVector4 FDisplayClusterConfigurationICVFX_CameraSettings::GetCameraSoftEdge(con
 {
 	FVector4 ResultSoftEdge(ForceInitToZero);
 
-	const float FieldOfViewMultiplier = GetCameraFieldOfViewMultiplier(InStageSettings);
+	const float FieldOfViewMultiplier = CustomFrustum.GetCameraFieldOfViewMultiplier(InStageSettings);
 
 	// softedge adjustments	
 	const float Overscan = (FieldOfViewMultiplier > 0) ? FieldOfViewMultiplier : 1;
@@ -551,4 +548,52 @@ bool FDisplayClusterConfigurationICVFX_ChromakeyRenderSettings::ShouldUseChromak
 
 	// ChromakeyRender requires actors for render.
 	return ShowOnlyList.IsVisibilityListValid();
+}
+
+void FDisplayClusterConfigurationICVFX_CameraCustomFrustum::SetupViewInfo(const FDisplayClusterConfigurationICVFX_StageSettings& InStageSettings, FMinimalViewInfo& InOutViewInfo) const
+{
+	// Since Circle of confusion is directly proportional to aperature, with wider FOV focal length needs to be shortened by the same amount as FOV.
+	const float FOVMultiplier = GetCameraFieldOfViewMultiplier(InStageSettings);
+	const float ClampedFieldOfViewMultiplier = (FOVMultiplier > 0.f) ? FOVMultiplier : 1.f;
+	InOutViewInfo.PostProcessSettings.DepthOfFieldFstop /= ClampedFieldOfViewMultiplier;
+}
+
+float FDisplayClusterConfigurationICVFX_CameraCustomFrustum::GetCameraFieldOfViewMultiplier(const FDisplayClusterConfigurationICVFX_StageSettings& InStageSettings) const
+{
+	if (bEnable)
+	{
+		return FieldOfViewMultiplier;
+	}
+
+	return  1.f;
+}
+
+float FDisplayClusterConfigurationICVFX_CameraCustomFrustum::GetCameraAdaptResolutionRatio(const FDisplayClusterConfigurationICVFX_StageSettings& InStageSettings) const
+{
+	if (bAdaptResolution)
+	{
+		return GetCameraFieldOfViewMultiplier(InStageSettings);
+	}
+
+	// Don't use an adaptive resolution multiplier
+	return 1.f;
+}
+
+void FDisplayClusterConfigurationICVFX_CameraMotionBlur::SetupViewInfo(const FDisplayClusterConfigurationICVFX_StageSettings& InStageSettings, FMinimalViewInfo& InOutViewInfo) const
+{
+	// Add postprocess blur settings to viewinfo PP
+	if (MotionBlurPPS.bReplaceEnable)
+	{
+		// Send camera postprocess to override
+		InOutViewInfo.PostProcessBlendWeight = 1.0f;
+
+		InOutViewInfo.PostProcessSettings.MotionBlurAmount = MotionBlurPPS.MotionBlurAmount;
+		InOutViewInfo.PostProcessSettings.bOverride_MotionBlurAmount = true;
+
+		InOutViewInfo.PostProcessSettings.MotionBlurMax = MotionBlurPPS.MotionBlurMax;
+		InOutViewInfo.PostProcessSettings.bOverride_MotionBlurMax = true;
+
+		InOutViewInfo.PostProcessSettings.MotionBlurPerObjectSize = MotionBlurPPS.MotionBlurPerObjectSize;
+		InOutViewInfo.PostProcessSettings.bOverride_MotionBlurPerObjectSize = true;
+	}
 }

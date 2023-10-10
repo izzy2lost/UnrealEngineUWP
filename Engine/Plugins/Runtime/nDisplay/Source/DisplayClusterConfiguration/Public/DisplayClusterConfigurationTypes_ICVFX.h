@@ -513,6 +513,10 @@ public:
 	// Advanced render settings
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = NDisplay)
 	FDisplayClusterConfigurationICVFX_CameraAdvancedRenderSettings AdvancedRenderSettings;
+
+public:
+	/** Propagates general render related settings to the view info. */
+	void SetupViewInfo(const FDisplayClusterConfigurationICVFX_StageSettings& InStageSettings, FMinimalViewInfo& InOutViewInfo) const;
 };
 
 USTRUCT(BlueprintType)
@@ -555,6 +559,10 @@ public:
 	/** Motion Blur Settings Override */
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = NDisplay, meta = (DisplayName = "Motion Blur Settings Override"))
 	FDisplayClusterConfigurationICVFX_CameraMotionBlurOverridePPS MotionBlurPPS;
+
+public:
+	/** Propagates Motion Blur related settings to the view info. */
+	void SetupViewInfo(const FDisplayClusterConfigurationICVFX_StageSettings& InStageSettings, FMinimalViewInfo& InOutViewInfo) const;
 };
 
 USTRUCT(BlueprintType)
@@ -638,6 +646,17 @@ struct DISPLAYCLUSTERCONFIGURATION_API FDisplayClusterConfigurationICVFX_CameraC
 	/** Pixel/Percent value to alter the frustum to the bottom */
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = NDisplay, meta = (DisplayName = "Bottom", ClampMin = "-500.0", UIMin = "-500.0", ClampMax = "500.0", UIMax = "500.0"))
 	float Bottom = 0;
+
+public:
+	/** Propagates Custom Frustum related settings to the view info. */
+	void SetupViewInfo(const FDisplayClusterConfigurationICVFX_StageSettings& InStageSettings, FMinimalViewInfo& InOutViewInfo) const;
+
+	/** Get camera FOV multiplier. */
+	float GetCameraFieldOfViewMultiplier(const FDisplayClusterConfigurationICVFX_StageSettings& InStageSettings) const;
+
+	/** Get camera adapt resolution ratio. */
+	float GetCameraAdaptResolutionRatio(const FDisplayClusterConfigurationICVFX_StageSettings& InStageSettings) const;
+
 };
 
 USTRUCT(BlueprintType)
@@ -670,12 +689,6 @@ public:
 	/** Return calculated soft edges values. */
 	FVector4 GetCameraSoftEdge(const FDisplayClusterConfigurationICVFX_StageSettings& InStageSettings) const;
 
-	/** Get camera FOV multiplier. */
-	float GetCameraFieldOfViewMultiplier(const FDisplayClusterConfigurationICVFX_StageSettings& InStageSettings) const;
-
-	/** Get camera adapt resolution ratio. */
-	float GetCameraAdaptResolutionRatio(const FDisplayClusterConfigurationICVFX_StageSettings& InStageSettings) const;
-
 	/** Get camera buffer ratio. */
 	float GetCameraBufferRatio(const FDisplayClusterConfigurationICVFX_StageSettings& InStageSettings) const;
 
@@ -687,6 +700,9 @@ public:
 
 	/** Get camera border settings. */
 	bool GetCameraBorder(const FDisplayClusterConfigurationICVFX_StageSettings& InStageSettings, FLinearColor& OutBorderColor, float& OutBorderThickness) const;
+
+	/** Sets up view info for each relevant setting such as render, custom frustrum and motion blur settings. */
+	void SetupViewInfo(const FDisplayClusterConfigurationICVFX_StageSettings& InStageSettings, FMinimalViewInfo& InOutViewInfo);
 
 public:
 	/** Render the inner frustum for this ICVFX camera. */

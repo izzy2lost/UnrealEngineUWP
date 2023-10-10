@@ -95,7 +95,7 @@ bool FDisplayClusterViewportConfigurationHelpers_ICVFX::UpdateCameraProjectionSe
 
 	// Initialize camera policy with camera component and settings
 	FDisplayClusterProjectionCameraPolicySettings PolicyCameraSettings;
-	PolicyCameraSettings.FOVMultiplier = InCameraSettings.GetCameraFieldOfViewMultiplier(*StageSettings);
+	PolicyCameraSettings.FOVMultiplier = InCameraSettings.CustomFrustum.GetCameraFieldOfViewMultiplier(*StageSettings);
 
 	// Lens correction
 	PolicyCameraSettings.FrustumRotation = InCameraSettings.FrustumRotation;
@@ -533,7 +533,7 @@ void FDisplayClusterViewportConfigurationHelpers_ICVFX::UpdateCameraViewportSett
 	FDisplayClusterViewportConfigurationHelpers_ICVFX::UpdateCameraCustomFrustum(InCameraSettings.CustomFrustum, InOutRenderSettings.CustomFrustumSettings);
 
 	// Set RenderTargetAdaptRatio
-	InOutRenderSettings.RenderTargetAdaptRatio = InCameraSettings.GetCameraAdaptResolutionRatio(*StageSettings);
+	InOutRenderSettings.RenderTargetAdaptRatio = InCameraSettings.CustomFrustum.GetCameraAdaptResolutionRatio(*StageSettings);
 
 	// Set viewport buffer ratio
 	DstViewport.SetViewportBufferRatio(InCameraSettings.GetCameraBufferRatio(*StageSettings));

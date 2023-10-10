@@ -61,6 +61,14 @@ void UDisplayClusterICVFXCameraComponent::PostLoad()
 
 void UDisplayClusterICVFXCameraComponent::GetCameraView(float DeltaTime, FMinimalViewInfo& InOutViewInfo)
 {
+	const ADisplayClusterRootActor* RootActor = Cast<ADisplayClusterRootActor>(GetOwner());
+	if (RootActor == nullptr)
+	{
+		return;
+	}
+
+	const FDisplayClusterConfigurationICVFX_StageSettings& StageSettings = RootActor->GetStageSettings();
+
 	if (CameraSettings.ExternalCameraActor.IsValid())
 	{
 		// Get ViewInfo from external CineCamera
@@ -72,29 +80,7 @@ void UDisplayClusterICVFXCameraComponent::GetCameraView(float DeltaTime, FMinima
 		UCineCameraComponent::GetCameraView(DeltaTime, InOutViewInfo);
 	}
 
-	// CameraSettings can disable posprocess from this camera
-	if(!CameraSettings.RenderSettings.bUseCameraComponentPostprocess)
-	{
-		InOutViewInfo.PostProcessSettings = FPostProcessSettings();
-		InOutViewInfo.PostProcessBlendWeight = 0.0f;
-	}
-
-	// Add postprocess blur settings to viewinfo PP
-	const FDisplayClusterConfigurationICVFX_CameraMotionBlurOverridePPS& OverrideMotionBlurPPS = CameraSettings.CameraMotionBlur.MotionBlurPPS;
-	if (OverrideMotionBlurPPS.bReplaceEnable)
-	{
-		// Send camera postprocess to override
-		InOutViewInfo.PostProcessBlendWeight = 1.0f;
-
-		InOutViewInfo.PostProcessSettings.MotionBlurAmount = OverrideMotionBlurPPS.MotionBlurAmount;
-		InOutViewInfo.PostProcessSettings.bOverride_MotionBlurAmount = true;
-
-		InOutViewInfo.PostProcessSettings.MotionBlurMax = OverrideMotionBlurPPS.MotionBlurMax;
-		InOutViewInfo.PostProcessSettings.bOverride_MotionBlurMax = true;
-
-		InOutViewInfo.PostProcessSettings.MotionBlurPerObjectSize = OverrideMotionBlurPPS.MotionBlurPerObjectSize;
-		InOutViewInfo.PostProcessSettings.bOverride_MotionBlurPerObjectSize = true;
-	}
+	CameraSettings.SetupViewInfo(StageSettings, InOutViewInfo);
 }
 
 UCineCameraComponent* UDisplayClusterICVFXCameraComponent::GetActualCineCameraComponent()
