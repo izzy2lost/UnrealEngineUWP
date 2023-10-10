@@ -7,6 +7,7 @@
 #include "UObject/NoExportTypes.h"
 #include "UObject/Object.h"
 #include "UObject/ObjectMacros.h"
+#include "PerPlatformProperties.h"
 
 #include "MetasoundSettings.generated.h"
 
@@ -39,9 +40,11 @@ struct METASOUNDENGINE_API FMetaSoundQualitySettings
 	GENERATED_BODY()
 
 #if WITH_EDITORONLY_DATA
+
 	/** A hidden GUID that will be generated once when adding a new entry. This prevents orphaning of renamed entries. **/
-	UPROPERTY()
+	UPROPERTY(meta = (IgnoreForMemberInitializationTest))
 	FGuid UniqueId = FGuid::NewGuid();
+
 #endif //WITH_EDITORONLY_DATA
 
 	/** Name of this quality setting. This will appear in the quality dropdown list.
@@ -51,11 +54,11 @@ struct METASOUNDENGINE_API FMetaSoundQualitySettings
 
 	/** Sample Rate (in Hz). NOTE: A Zero value will force the default. **/
 	UPROPERTY(EditAnywhere, Category = "Quality", meta = (ClampMin = "0", ClampMax="96000"))
-	int32 SampleRate = 0;
+	FPerPlatformInt SampleRate = 0;
 
 	/** Block Rate (in Hz). NOTE: A Zero value will force the default.  **/
-	UPROPERTY(EditAnywhere, Category = "Quality", meta = (ClampMin = "0", ClampMax="100"))
-	float BlockRate = 0.f;
+	UPROPERTY(EditAnywhere, Category = "Quality", meta = (ClampMin = "0", ClampMax="1000"))
+	FPerPlatformFloat BlockRate = 0.f;
 };
 
 

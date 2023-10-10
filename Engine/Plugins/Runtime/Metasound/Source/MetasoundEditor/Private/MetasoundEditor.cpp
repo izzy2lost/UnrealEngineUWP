@@ -1644,8 +1644,10 @@ namespace Metasound
 					const FSampleRate SampleRate = static_cast<FSampleRate>(AudioDevice->GetSampleRate());
 					const uint32 PlayOrder = PreviewComp->GetLastPlayOrder();
 					const uint64 TransmitterID = Audio::GetTransmitterID(PreviewComp->GetAudioComponentID(), 0, PlayOrder);
-					
-					GraphConnectionManager = MakeUnique<FGraphConnectionManager>(*MetasoundAsset, *PreviewComp, TransmitterID, SampleRate);
+
+					UMetaSoundSource* Source = CastChecked<UMetaSoundSource>(Metasound);
+					GraphConnectionManager = MakeUnique<FGraphConnectionManager>(
+						*MetasoundAsset, *PreviewComp, TransmitterID, Source->GetOperatorSettings(SampleRate));
 				}
 
 				MetasoundGraphEditor->RegisterActiveTimer(0.0f,
