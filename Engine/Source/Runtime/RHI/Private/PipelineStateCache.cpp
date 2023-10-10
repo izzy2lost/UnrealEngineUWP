@@ -60,7 +60,7 @@ static inline uint32 GetTypeHash(const FGraphicsPipelineStateInitializer& Initia
 {
 	//#todo-rco: Hash!
 	return (GetTypeHash(Initializer.BoundShaderState) | (Initializer.NumSamples << 28)) ^ ((uint32)Initializer.PrimitiveType << 24) ^ GetTypeHash(Initializer.BlendState)
-		^ Initializer.RenderTargetsEnabled ^ GetTypeHash(Initializer.RasterizerState) ^ GetTypeHash(Initializer.DepthStencilState);
+		^ Initializer.RenderTargetsEnabled ^ GetTypeHash(Initializer.RasterizerState) ^ GetTypeHash(Initializer.DepthStencilState) ^ GetTypeHash(Initializer.MultiViewCount);
 }
 
 constexpr int32 PSO_MISS_FRAME_HISTORY_SIZE = 3;
