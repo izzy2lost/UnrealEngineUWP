@@ -2,6 +2,7 @@
 
 #include "HlslccHeaderWriter.h"
 #include "ShaderConductorContext.h"
+#include "SpirvCommon.h"
 
 THIRD_PARTY_INCLUDES_START
 #include "spirv_reflect.h"
@@ -122,84 +123,9 @@ namespace CrossCompiler
 		return TypeName;
 	}
 
-	static const TCHAR* SpvBuiltinToString(const SpvBuiltIn BuiltIn)
-	{
-		switch (BuiltIn)
-		{
-		case SpvBuiltInPosition:					return TEXT("gl_Position");
-		case SpvBuiltInPointSize:					return TEXT("gl_PointSize");
-		case SpvBuiltInClipDistance:				return TEXT("gl_ClipDistance");
-		case SpvBuiltInCullDistance:				return TEXT("gl_CullDistance");
-		case SpvBuiltInVertexId:					return TEXT("gl_VertexID");
-		case SpvBuiltInInstanceId:					return TEXT("gl_InstanceID");
-		case SpvBuiltInPrimitiveId:					return TEXT("gl_PrimitiveID");
-		case SpvBuiltInInvocationId:				return TEXT("gl_InvocationID");
-		case SpvBuiltInLayer:						return TEXT("gl_Layer");
-		case SpvBuiltInViewportIndex:				return TEXT("gl_ViewportIndex");
-		case SpvBuiltInTessLevelOuter:				return TEXT("gl_TessLevelOuter");
-		case SpvBuiltInTessLevelInner:				return TEXT("gl_TessLevelInner");
-		case SpvBuiltInTessCoord:					return TEXT("gl_TessCoord");
-		case SpvBuiltInPatchVertices:				return TEXT("gl_PatchVertices");
-		case SpvBuiltInFragCoord:					return TEXT("gl_FragCoord");
-		case SpvBuiltInPointCoord:					return TEXT("gl_PointCoord");
-		case SpvBuiltInFrontFacing:					return TEXT("gl_FrontFacing");
-		case SpvBuiltInSampleId:					return TEXT("gl_SampleID");
-		case SpvBuiltInSamplePosition:				return TEXT("gl_SamplePosition");
-		case SpvBuiltInSampleMask:					return TEXT("gl_SampleMask");
-		case SpvBuiltInFragDepth:					return TEXT("gl_FragDepth");
-		case SpvBuiltInHelperInvocation:			return TEXT("gl_HelperInvocation");
-		case SpvBuiltInNumWorkgroups:				return TEXT("gl_NumWorkgroups");
-		case SpvBuiltInWorkgroupSize:				return TEXT("gl_WorkgroupSize");
-		case SpvBuiltInWorkgroupId:					return TEXT("gl_WorkgroupID");
-		case SpvBuiltInLocalInvocationId:			return TEXT("gl_LocalInvocationID");
-		case SpvBuiltInGlobalInvocationId:			return TEXT("gl_GlobalInvocationID");
-		case SpvBuiltInLocalInvocationIndex:		return TEXT("gl_LocalInvocationIndex");
-		case SpvBuiltInWorkDim:						return TEXT("gl_WorkDim");
-		case SpvBuiltInGlobalSize:					return TEXT("gl_GlobalSize");
-		case SpvBuiltInEnqueuedWorkgroupSize:		return TEXT("gl_EnqueuedWorkgroupSize");
-		case SpvBuiltInGlobalOffset:				return TEXT("gl_GlobalOffset");
-		case SpvBuiltInGlobalLinearId:				return TEXT("gl_GlobalLinearID");
-		case SpvBuiltInSubgroupSize:				return TEXT("gl_SubgroupSize");
-		case SpvBuiltInSubgroupMaxSize:				return TEXT("gl_SubgroupMaxSize");
-		case SpvBuiltInNumSubgroups:				return TEXT("gl_NumSubgroups");
-		case SpvBuiltInNumEnqueuedSubgroups:		return TEXT("gl_NumEnqueuedSubgroups");
-		case SpvBuiltInSubgroupId:					return TEXT("gl_SubgroupID");
-		case SpvBuiltInSubgroupLocalInvocationId:	return TEXT("gl_SubgroupLocalInvocationID");
-		case SpvBuiltInVertexIndex:					return TEXT("gl_VertexIndex");
-		case SpvBuiltInInstanceIndex:				return TEXT("gl_InstanceIndex");
-		case SpvBuiltInSubgroupEqMask:				return TEXT("gl_SubgroupEqMask");
-		case SpvBuiltInSubgroupGeMask:				return TEXT("gl_SubgroupGeMask");
-		case SpvBuiltInSubgroupGtMask:				return TEXT("gl_SubgroupGtMask");
-		case SpvBuiltInSubgroupLeMask:				return TEXT("gl_SubgroupLeMask");
-		case SpvBuiltInSubgroupLtMask:				return TEXT("gl_SubgroupLtMask");
-		case SpvBuiltInBaseVertex:					return TEXT("gl_BaseVertex");
-		case SpvBuiltInBaseInstance:				return TEXT("gl_BaseInstance");
-		case SpvBuiltInDrawIndex:					return TEXT("gl_DrawIndex");
-		case SpvBuiltInDeviceIndex:					return TEXT("gl_DeviceIndex");
-		case SpvBuiltInViewIndex:					return TEXT("gl_ViewIndex");
-
-		// Ray tracing
-		case SpvBuiltInLaunchIdKHR:					return TEXT("gl_LaunchIDEXT");
-		case SpvBuiltInLaunchSizeKHR:				return TEXT("gl_LaunchSizeEXT");
-		case SpvBuiltInInstanceCustomIndexKHR:		return TEXT("gl_InstanceCustomIndexEXT");
-		case SpvBuiltInRayGeometryIndexKHR:			return TEXT("gl_GeometryIndexEXT");
-		case SpvBuiltInWorldRayOriginKHR:			return TEXT("gl_WorldRayOriginEXT");
-		case SpvBuiltInWorldRayDirectionKHR:		return TEXT("gl_WorldRayDirectionEXT");
-		case SpvBuiltInObjectRayOriginKHR:			return TEXT("gl_ObjectRayOriginEXT");
-		case SpvBuiltInObjectRayDirectionKHR:		return TEXT("gl_ObjectRayDirectionEXT");
-		case SpvBuiltInRayTminKHR:					return TEXT("gl_RayTminEXT");
-		case SpvBuiltInRayTmaxKHR:					return TEXT("gl_RayTmaxEXT");
-		case SpvBuiltInIncomingRayFlagsKHR:			return TEXT("gl_IncomingRayFlagsEXT");
-		case SpvBuiltInHitKindKHR:					return TEXT("gl_HitKindEXT");
-		case SpvBuiltInObjectToWorldKHR:			return TEXT("gl_ObjectToWorldEXT");
-		case SpvBuiltInWorldToObjectKHR:			return TEXT("gl_WorldToObjectEXT");
-		}
-		return nullptr;
-	}
-
 	static FString ConvertAttributeToMetaDataSemantic(const ANSICHAR* AttributeName, const SpvBuiltIn BuiltIn, bool bIsInput)
 	{
-		if (const TCHAR* BuiltInName = SpvBuiltinToString(BuiltIn))
+		if (const TCHAR* BuiltInName = SpirvBuiltinToString(BuiltIn))
 		{
 			return FString(BuiltInName);
 		}

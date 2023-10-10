@@ -506,8 +506,75 @@ static void PatchSpirvForPrecompilation(FSpirv& Spirv)
 	}
 }
 
+// @param StageVariablesStorageClass Must be SpvStorageClassOutput for vertex shaders and SpvStorageClassInput for pixel shaders.
+static bool PatchHlslWithReorderedIOVariables(FString& HlslSourceString, const FSpirv& Spirv, SpvStorageClass StageVariablesStorageClass)
+{
+	check(StageVariablesStorageClass == SpvStorageClassInput || StageVariablesStorageClass == SpvStorageClassOutput);
+
+	// Find declaration struct for stage variables
+	const FStringView StageVariableDeclarationName = (StageVariablesStorageClass == SpvStorageClassInput ? TEXT("SPIRV_Cross_Input") : TEXT("SPIRV_Cross_Output"));
+	const int32 StageVariableDeclarationBegin = HlslSourceString.Find(StageVariableDeclarationName, ESearchCase::CaseSensitive);
+	if (StageVariableDeclarationBegin == INDEX_NONE)
+	{
+		return false;
+	}
+
+	const int32 StageVariableDelcarationBlockBegin = HlslSourceString.Find(TEXT("{"), ESearchCase::CaseSensitive, ESearchDir::FromStart, StageVariableDeclarationBegin + StageVariableDeclarationName.Len());
+	if (StageVariableDelcarationBlockBegin == INDEX_NONE)
+	{
+		return false;
+	}
+
+	const int32 StageVariableDelcarationBlockEnd = HlslSourceString.Find(TEXT("}"), ESearchCase::CaseSensitive, ESearchDir::FromStart, StageVariableDelcarationBlockBegin + 1);
+	if (StageVariableDelcarationBlockEnd == INDEX_NONE)
+	{
+		return false;
+	}
+
+	// Parse declaration struct for stage variables into array of individual lines
+	const FString StageVariableDeclarationSource = HlslSourceString.Mid(StageVariableDelcarationBlockBegin + 1, StageVariableDelcarationBlockEnd - (StageVariableDelcarationBlockBegin + 1));
+
+	TArray<FString> StageVariableDeclarationLines;
+	StageVariableDeclarationSource.ParseIntoArrayLines(StageVariableDeclarationLines);
+
+	// Parse variable names from SPIR-V input
+	TArray<FString> Variables;
+	ParseSpirvGlobalVariables(Spirv, StageVariablesStorageClass, Variables);
+
+	if (Variables.Num() != StageVariableDeclarationLines.Num())
+	{
+		// Failed to match SPIR-V variables to SPIRV-Cross generated source
+		return false;
+	}
+
+	// Re-arrange source lines of stage variable declarations
+	FString SortedStageVariableDeclarationSource = TEXT("\n");
+
+	for (const FString& Variable : Variables)
+	{
+		for (FString& SourceLine : StageVariableDeclarationLines)
+		{
+			if (SourceLine.Find(Variable, ESearchCase::CaseSensitive) != INDEX_NONE)
+			{
+				// Append source line for current variable at the end of sorted declaration string.
+				// Then empty this source line to avoid unnecessary string comparisons for next variables.
+				SortedStageVariableDeclarationSource += SourceLine;
+				SortedStageVariableDeclarationSource += TEXT('\n');
+				SourceLine.Empty();
+				break;
+			}
+		}
+	}
+
+	// Replace old declaration with sorted one
+	HlslSourceString.RemoveAt(StageVariableDelcarationBlockBegin + 1, StageVariableDelcarationBlockEnd - (StageVariableDelcarationBlockBegin + 1));
+	HlslSourceString.InsertAt(StageVariableDelcarationBlockBegin + 1, SortedStageVariableDeclarationSource);
+
+	return true;
+}
+
 // @todo-lh: use ANSI string class whenever UE core gets one
-static void PatchHlslForPrecompilation(TArray<ANSICHAR>& HlslSource)
+static void PatchHlslForPrecompilation(TArray<ANSICHAR>& HlslSource, const EShaderFrequency Frequency, const FSpirv& Spirv)
 {
 	FString HlslSourceString;
 
@@ -547,6 +614,32 @@ static void PatchHlslForPrecompilation(TArray<ANSICHAR>& HlslSource)
 			// Remove all "counter_var_" prefixes for the current resource
 			HlslSourceString.ReplaceInline(*ResourceCounterName, *ResourceName, ESearchCase::CaseSensitive);
 		}
+	}
+
+	if (Frequency == SF_Vertex)
+	{
+		// Ensure order of output variables remains the same as declared in SPIR-V input
+		PatchHlslWithReorderedIOVariables(HlslSourceString, Spirv, SpvStorageClassOutput);
+	}
+	else if (Frequency == SF_Pixel)
+	{
+		// Patch internal error when SV_DepthLessEqual or SV_DepthGreaterEqual is specified in a pixel shader output. This is to prevent the following internal error:
+		//	error X8000 : D3D11 Internal Compiler Error : Invalid Bytecode : Interpolation mode for PS input position must be
+		//				  linear_noperspective_centroid or linear_noperspective_sample when outputting oDepthGE or oDepthLE and
+		//				  not running at sample frequency(which is forced by inputting SV_SampleIndex or declaring an input linear_sample or linear_noperspective_sample).
+		if (HlslSourceString.Find(TEXT("SV_DepthLessEqual"), ESearchCase::CaseSensitive) != INDEX_NONE ||
+			HlslSourceString.Find(TEXT("SV_DepthGreaterEqual"), ESearchCase::CaseSensitive) != INDEX_NONE)
+		{
+			// Ensure the interpolation mode is linear_noperspective_sample by adding "sample" specifier to one of the input-interpolators that have a floating-point type
+			const int32 FragCoordStringPosition = HlslSourceString.Find(TEXT("float4 gl_FragCoord : SV_Position"), ESearchCase::CaseSensitive);
+			if (FragCoordStringPosition != INDEX_NONE)
+			{
+				HlslSourceString.InsertAt(FragCoordStringPosition, TEXT("sample "));
+			}
+		}
+
+		// Ensure order of input variables remains the same as declared in SPIR-V input
+		PatchHlslWithReorderedIOVariables(HlslSourceString, Spirv, SpvStorageClassInput);
 	}
 
 	// Return new HLSL source
@@ -695,7 +788,7 @@ static bool CompileAndProcessD3DShaderFXCExt(
 			}
 
 			// Patch HLSL for workarounds to prevent potential additional FXC failures
-			PatchHlslForPrecompilation(CrossCompiledSource);
+			PatchHlslForPrecompilation(CrossCompiledSource, Frequency, Spirv);
 
 			if (bDumpDebugInfo && CrossCompiledSource.Num() > 1)
 			{
