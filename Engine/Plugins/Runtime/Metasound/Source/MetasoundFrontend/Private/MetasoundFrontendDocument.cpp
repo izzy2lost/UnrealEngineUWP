@@ -363,6 +363,8 @@ const FMetasoundFrontendInterfaceUClassOptions* FMetasoundFrontendInterface::Fin
 	return UClassOptions.FindByPredicate(FindClassOptionsPredicate);
 }
 
+const FMetasoundFrontendClassName FMetasoundFrontendClassName::InvalidClassName;
+
 FMetasoundFrontendClassName::FMetasoundFrontendClassName(const FName& InNamespace, const FName& InName, const FName& InVariant)
 : Namespace(InNamespace)
 , Name(InName)
@@ -383,6 +385,17 @@ FName FMetasoundFrontendClassName::GetScopedName() const
 FName FMetasoundFrontendClassName::GetFullName() const
 {
 	return Metasound::FNodeClassName::FormatFullName(Namespace, Name, Variant);
+}
+
+bool FMetasoundFrontendClassName::IsValid() const
+{
+	return *this != InvalidClassName;
+}
+
+// Returns NodeClassName version of full name
+Metasound::FNodeClassName FMetasoundFrontendClassName::ToNodeClassName() const
+{
+	return { Namespace, Name, Variant };
 }
 
 FString FMetasoundFrontendClassName::ToString() const

@@ -1238,18 +1238,22 @@ struct METASOUNDFRONTEND_API FMetasoundFrontendClassName
 	// Returns scoped name representing namespace and name. 
 	FName GetScopedName() const;
 
+	// Invalid form of class name (i.e. empty namespace, name, and variant)
+	static const FMetasoundFrontendClassName InvalidClassName;
+
+	// Whether or not this instance of a class name is a valid name.
+	bool IsValid() const;
+
 	// Returns NodeClassName version of full name
-	Metasound::FNodeClassName ToNodeClassName() const
-	{
-		return { Namespace, Name, Variant };
-	}
+	Metasound::FNodeClassName ToNodeClassName() const;
 
 	// Return string version of full name.
 	FString ToString() const;
 
 	friend FORCEINLINE uint32 GetTypeHash(const FMetasoundFrontendClassName& ClassName)
 	{
-		return GetTypeHash(ClassName.GetFullName());
+		const int32 NameHash = HashCombineFast(GetTypeHash(ClassName.Namespace), GetTypeHash(ClassName.Name));
+		return HashCombineFast(NameHash, GetTypeHash(ClassName.Variant));
 	}
 
 	METASOUNDFRONTEND_API friend bool operator==(const FMetasoundFrontendClassName& InLHS, const FMetasoundFrontendClassName& InRHS);
@@ -1571,6 +1575,7 @@ struct METASOUNDFRONTEND_API FMetasoundFrontendGraphClass : public FMetasoundFro
 	UPROPERTY()
 	FMetasoundFrontendGraphClassPresetOptions PresetOptions;
 };
+
 
 USTRUCT()
 struct METASOUNDFRONTEND_API FMetasoundFrontendDocumentMetadata
