@@ -192,7 +192,7 @@ UEdGraph* FParameterBlockEditor::GetFocusedGraph() const
 URigVMGraph* FParameterBlockEditor::GetFocusedVMGraph() const
 {
 	UAnimNextParameterBlock_EdGraph* EdGraph = Cast<UAnimNextParameterBlock_EdGraph>(GetFocusedGraph());
-	return EditorData->GetVMGraphForEdGraph(EdGraph);
+	return EditorData->GetRigVMGraphForEditorObject(EdGraph);
 }
 
 URigVMController* FParameterBlockEditor::GetFocusedVMController() const

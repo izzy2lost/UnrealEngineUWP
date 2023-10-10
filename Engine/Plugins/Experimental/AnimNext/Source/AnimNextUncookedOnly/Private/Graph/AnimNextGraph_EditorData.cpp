@@ -3,6 +3,7 @@
 #include "Graph/AnimNextGraph_EditorData.h"
 
 #include "ControlRigDefines.h"
+#include "ExternalPackageHelper.h"
 #include "Graph/AnimNextGraph.h"
 #include "Graph/AnimNextGraph_Controller.h"
 #include "Graph/AnimNextGraph_EdGraphSchema.h"
@@ -15,6 +16,31 @@
 #include "Curves/CurveFloat.h"
 #include "UObject/ObjectSaveContext.h"
 #include "Kismet2/BlueprintEditorUtils.h"
+#include "Graph/AnimNextGraphEntry.h"
+
+namespace UE::AnimNext::Graph::Private
+{
+
+static UAnimNextGraphEntry* CreateNewGraphEntry(UAnimNextGraph_EditorData* InEditorData, TSubclassOf<UAnimNextGraphEntry> InClass)
+{
+	UAnimNextGraphEntry* NewEntry = NewObject<UAnimNextGraphEntry>(InEditorData, InClass.Get(), NAME_None, RF_Transactional);
+	// If we are a transient asset, dont use external packages
+	UAnimNextGraph* Graph = UncookedOnly::FUtils::GetGraph(InEditorData);
+	check(Graph);
+	if(!Graph->HasAnyFlags(RF_Transient))
+	{
+		FExternalPackageHelper::SetPackagingMode(NewEntry, InEditorData, true, false, PKG_None);
+	}
+	return NewEntry;
+}
+
+template<typename EntryClassType>
+static EntryClassType* CreateNewGraphEntry(UAnimNextGraph_EditorData* InEditorData)
+{
+	return CastChecked<EntryClassType>(CreateNewGraphEntry(InEditorData, EntryClassType::StaticClass()));
+}
+
+}
 
 UAnimNextGraph_EditorData::UAnimNextGraph_EditorData(const FObjectInitializer& ObjectInitializer)
 {
@@ -25,26 +51,61 @@ UAnimNextGraph_EditorData::UAnimNextGraph_EditorData(const FObjectInitializer& O
 	{
 		TGuardValue<bool> DisableClientNotifs(RigVMClient.bSuspendNotifications, true);
 		RigVMClient.AddModel(TEXT("RigVMGraph"), false, &ObjectInitializer);
-		RigVMClient.AddModel(TEXT("TempRigVMGraph"), false, &ObjectInitializer);	// Used during compilation, otherwise empty
 		RigVMClient.GetOrCreateFunctionLibrary(false, &ObjectInitializer);
 	}
 	RigVMClient.SetExecuteContextStruct(FAnimNextExecuteContext::StaticStruct());
-	
-	auto MakeEdGraph = [this, &ObjectInitializer](FName InName) -> UAnimNextGraph_EdGraph*
+}
+
+
+void UAnimNextGraph_EditorData::BroadcastModified()
+{
+	RecompileVM();
+
+	if(!bSuspendGraphNotifications)
 	{
-		UAnimNextGraph_EdGraph* EdGraph = ObjectInitializer.CreateDefaultSubobject<UAnimNextGraph_EdGraph>(this, InName);
-		EdGraph->Schema = UAnimNextGraph_EdGraphSchema::StaticClass();
-		EdGraph->bAllowRenaming = false;
-		EdGraph->bEditable = true;
-		EdGraph->bAllowDeletion = false;
-		EdGraph->bIsFunctionDefinition = false;
-		EdGraph->Initialize(this);
+		ModifiedDelegate.Broadcast(this);
+	}
+}
 
-		return EdGraph;
-	};
+void UAnimNextGraph_EditorData::ReportError(const TCHAR* InMessage) const
+{
+#if WITH_EDITOR
+	FScriptExceptionHandler::Get().HandleException(ELogVerbosity::Error, InMessage, TEXT(""));
+#endif
+}
 
-	RootGraph = MakeEdGraph(TEXT("RootEdGraph"));
-	FunctionLibraryEdGraph = MakeEdGraph(TEXT("RigVMFunctionLibraryEdGraph"));
+void UAnimNextGraph_EditorData::ReconstructAllNodes()
+{
+#ifdef WITH_EDITORONLY_DATA
+	// Avoid refreshing EdGraph nodes during cook
+	if (GIsCookerLoadingPackage)
+	{
+		return;
+	}
+	
+	if (GetRigVMClient()->GetDefaultModel() == nullptr)
+	{
+		return;
+	}
+
+	TArray<URigVMEdGraphNode*> AllNodes;
+	UE::AnimNext::UncookedOnly::FUtils::GetAllNodesOfClass(this, AllNodes);
+
+	for (URigVMEdGraphNode* Node : AllNodes)
+	{
+		Node->SetFlags(RF_Transient);
+	}
+
+	for(URigVMEdGraphNode* Node : AllNodes)
+	{
+		Node->ReconstructNode();
+	}
+
+	for (URigVMEdGraphNode* Node : AllNodes)
+	{
+		Node->ClearFlags(RF_Transient);
+	}
+#endif	
 }
 
 void UAnimNextGraph_EditorData::Serialize(FArchive& Ar)
@@ -65,7 +126,6 @@ void UAnimNextGraph_EditorData::Initialize(bool bRecompileVM)
 		
 		RigVMClient.GetOrCreateController(RigVMClient.GetDefaultModel());
 		RigVMClient.GetOrCreateController(RigVMClient.GetFunctionLibrary());
-		RigVMClient.GetOrCreateController(TEXT("TempRigVMGraph"));
 
 		// Init function library controllers
 		for(URigVMLibraryNode* LibraryNode : RigVMClient.GetFunctionLibrary()->GetFunctions())
@@ -79,17 +139,10 @@ void UAnimNextGraph_EditorData::Initialize(bool bRecompileVM)
 		}
 	}
 
-	RootGraph->Initialize(this);
-	FunctionLibraryEdGraph->Initialize(this);
-	if(EntryPointGraph)
+	for(UAnimNextGraph_EdGraph* Graph : Graphs)
 	{
-		EntryPointGraph->Initialize(this);
+		Graph->Initialize(this);
 	}
-}
-
-UAnimNextGraph_EdGraph* UAnimNextGraph_EditorData::GetRootGraph() const
-{
-	return RootGraph;
 }
 
 void UAnimNextGraph_EditorData::PostLoad()
@@ -100,6 +153,12 @@ void UAnimNextGraph_EditorData::PostLoad()
 	RefreshAllModels(EAnimNextGraphLoadType::PostLoad);
 
 #if WITH_EDITOR
+	FExternalPackageHelper::LoadObjectsFromExternalPackages<UAnimNextGraphEntry>(this, [this](UAnimNextGraphEntry* InLoadedEntry)
+	{
+		check(IsValid(InLoadedEntry));
+		Entries.Add(InLoadedEntry);
+	});
+	
 	if (GIsEditor)
 	{
 		// delay compilation until the package has been loaded
@@ -125,6 +184,8 @@ void UAnimNextGraph_EditorData::HandlePackageDone()
 	FCoreUObjectDelegates::OnEndLoadPackage.RemoveAll(this);
 
 	RecompileVM();
+
+	ReconstructAllNodes();
 }
 
 void UAnimNextGraph_EditorData::RefreshAllModels(EAnimNextGraphLoadType InLoadType)
@@ -242,55 +303,10 @@ void UAnimNextGraph_EditorData::RefreshAllModels(EAnimNextGraphLoadType InLoadTy
 	}
 }
 
-void UAnimNextGraph_EditorData::RebuildEdGraphFromModel()
+void UAnimNextGraph_EditorData::GetAllGraphs(TArray<UEdGraph*>& OutGraphs) const
 {
-	DECLARE_SCOPE_HIERARCHICAL_COUNTER_FUNC()
-
-	TGuardValue<bool> SelfGuard(bSuspendModelNotificationsForSelf, true);
-	TGuardValue<bool> ClientIgnoreModificationsGuard(RigVMClient.bIgnoreModelNotifications, true);
-
-	verify(RigVMClient.GetOrCreateController((URigVMGraph*)nullptr));
-
-	TArray<UEdGraph*> EdGraphs;
-	GetAllGraphs(EdGraphs);
-
-	for (UEdGraph* Graph : EdGraphs)
-	{
-		TArray<UEdGraphNode*> Nodes = Graph->Nodes;
-		for (UEdGraphNode* Node : Nodes)
-		{
-			Graph->RemoveNode(Node);
-		}
-	}
-
-	if (FunctionLibraryEdGraph && RigVMClient.GetFunctionLibrary())
-	{
-		FunctionLibraryEdGraph->ModelNodePath = RigVMClient.GetFunctionLibrary()->GetNodePath();
-	}
-
-	TArray<URigVMGraph*> RigGraphs = RigVMClient.GetAllModels(true, true);
-
-	for (int32 RigGraphIndex = 0; RigGraphIndex < RigGraphs.Num(); RigGraphIndex++)
-	{
-		RigVMClient.GetOrCreateController(RigGraphs[RigGraphIndex])->ResendAllNotifications();
-	}
-}
-
-void UAnimNextGraph_EditorData::GetAllGraphs(TArray<UEdGraph*>& Graphs) const
-{
-	Graphs.Reset();
-
-	Graphs.Add(RootGraph);
-
-	if (EntryPointGraph)
-	{
-		Graphs.Add(EntryPointGraph);
-	}
-
-	if (FunctionLibraryEdGraph)
-	{
-		Graphs.Add(FunctionLibraryEdGraph);
-	}
+	OutGraphs.Reset();
+	OutGraphs.Append(Graphs);
 }
 
 #endif // WITH_EDITOR
@@ -321,6 +337,22 @@ void UAnimNextGraph_EditorData::HandleRigVMGraphAdded(const FRigVMClient* InClie
 	if(URigVMGraph* RigVMGraph = InClient->GetModel(InNodePath))
 	{
 		RigVMGraph->SetExecuteContextStruct(FAnimNextExecuteContext::StaticStruct());
+
+		if(!HasAnyFlags(RF_ClassDefaultObject | RF_NeedInitialization | RF_NeedLoad | RF_NeedPostLoad) &&
+			GetOuter() != GetTransientPackage())
+		{
+			CreateEdGraph(RigVMGraph, true);
+			RecompileVM();
+		}
+	}
+}
+
+void UAnimNextGraph_EditorData::HandleRigVMGraphRemoved(const FRigVMClient* InClient, const FString& InNodePath)
+{
+	if(URigVMGraph* RigVMGraph = InClient->GetModel(InNodePath))
+	{
+		RemoveEdGraph(RigVMGraph);
+		RecompileVM();
 	}
 }
 
@@ -381,8 +413,7 @@ UObject* UAnimNextGraph_EditorData::GetEditorObjectForRigVMGraph(URigVMGraph* In
 {
 	if(InVMGraph)
 	{
-		TArray<UAnimNextGraph_EdGraph*> AllGraphs = {RootGraph, EntryPointGraph, FunctionLibraryEdGraph};
-		for(UAnimNextGraph_EdGraph* EdGraph : AllGraphs)
+		for(UAnimNextGraph_EdGraph* EdGraph : Graphs)
 		{
 			if(EdGraph)
 			{
@@ -396,6 +427,26 @@ UObject* UAnimNextGraph_EditorData::GetEditorObjectForRigVMGraph(URigVMGraph* In
 	return nullptr;
 }
 
+URigVMGraph* UAnimNextGraph_EditorData::GetRigVMGraphForEditorObject(UObject* InObject) const
+{
+	if(const UAnimNextGraph_EdGraph* Graph = Cast<UAnimNextGraph_EdGraph>(InObject))
+	{
+		if (Graph->bIsFunctionDefinition)
+		{
+			if (URigVMLibraryNode* LibraryNode = RigVMClient.GetFunctionLibrary()->FindFunction(*Graph->ModelNodePath))
+			{
+				return LibraryNode->GetContainedGraph();
+			}
+		}
+		else
+		{
+			return RigVMClient.GetModel(Graph->ModelNodePath);
+		}
+	}
+
+	return nullptr;
+}
+
 FRigVMGraphFunctionStore* UAnimNextGraph_EditorData::GetRigVMGraphFunctionStore()
 {
 	return &GraphFunctionStore;
@@ -405,7 +456,6 @@ const FRigVMGraphFunctionStore* UAnimNextGraph_EditorData::GetRigVMGraphFunction
 {
 	return &GraphFunctionStore;
 }
-
 
 void UAnimNextGraph_EditorData::RecompileVM()
 {
@@ -520,34 +570,11 @@ void UAnimNextGraph_EditorData::HandleModifiedEvent(ERigVMGraphNotifType InNotif
 	// if the notification still has to be sent...
 	if (bNotifForOthersPending && !bSuspendModelNotificationsForOthers)
 	{
-		if (ModifiedEvent.IsBound())
+		if (RigVMGraphModifiedEvent.IsBound())
 		{
-			ModifiedEvent.Broadcast(InNotifType, InGraph, InSubject);
+			RigVMGraphModifiedEvent.Broadcast(InNotifType, InGraph, InSubject);
 		}
 	}
-}
-
-URigVMGraph* UAnimNextGraph_EditorData::GetVMGraphForEdGraph(const UEdGraph* InGraph) const
-{
-	if (InGraph == RootGraph)
-	{
-		return RigVMClient.GetDefaultModel();
-	}
-	else
-	{
-		const UAnimNextGraph_EdGraph* Graph = Cast<UAnimNextGraph_EdGraph>(InGraph);
-		check(Graph);
-
-		if (Graph->bIsFunctionDefinition)
-		{
-			if (URigVMLibraryNode* LibraryNode = RigVMClient.GetFunctionLibrary()->FindFunction(*Graph->ModelNodePath))
-			{
-				return LibraryNode->GetContainedGraph();
-			}
-		}
-	}
-
-	return nullptr;
 }
 
 void UAnimNextGraph_EditorData::CreateEdGraphForCollapseNode(URigVMCollapseNode* InNode)
@@ -556,39 +583,119 @@ void UAnimNextGraph_EditorData::CreateEdGraphForCollapseNode(URigVMCollapseNode*
 	{
 		if (URigVMGraph* ContainedGraph = InNode->GetContainedGraph())
 		{
-			if (EntryPointGraph == nullptr)
-			{
-				// create a sub graph
-				UAnimNextGraph_EdGraph* RigFunctionGraph = NewObject<UAnimNextGraph_EdGraph>(this, *InNode->GetName(), RF_Transactional);
-				RigFunctionGraph->Schema = UAnimNextGraph_EdGraphSchema::StaticClass();
-				RigFunctionGraph->bAllowRenaming = true;
-				RigFunctionGraph->bEditable = true;
-				RigFunctionGraph->bAllowDeletion = true;
-				RigFunctionGraph->ModelNodePath = ContainedGraph->GetNodePath();
-				RigFunctionGraph->bIsFunctionDefinition = true;
+			// create a sub graph
+			UAnimNextGraph_EdGraph* RigFunctionGraph = NewObject<UAnimNextGraph_EdGraph>(this, *InNode->GetName(), RF_Transactional);
+			RigFunctionGraph->Schema = UAnimNextGraph_EdGraphSchema::StaticClass();
+			RigFunctionGraph->bAllowRenaming = true;
+			RigFunctionGraph->bEditable = true;
+			RigFunctionGraph->bAllowDeletion = true;
+			RigFunctionGraph->ModelNodePath = ContainedGraph->GetNodePath();
+			RigFunctionGraph->bIsFunctionDefinition = true;
+		
+			RigFunctionGraph->Initialize(this);
 
-				EntryPointGraph = RigFunctionGraph;
-				RigFunctionGraph->Initialize(this);
-
-				RigVMClient.GetOrCreateController(ContainedGraph)->ResendAllNotifications();
-			}
+			RigVMClient.GetOrCreateController(ContainedGraph)->ResendAllNotifications();
 		}
 	}
 }
 
-bool UAnimNextGraph_EditorData::IsNodeExecConnected(const UEdGraphNode* Node) const
+UEdGraph* UAnimNextGraph_EditorData::CreateEdGraph(URigVMGraph* InRigVMGraph, bool bForce)
 {
-	static const TCHAR* ExecuteContextStr = TEXT(".ExecuteContext");
+	check(InRigVMGraph);
 
-	for (const UEdGraphPin* Pin : Node->Pins)
+	if(bForce)
 	{
-		const FString PinName = Pin->PinName.ToString();
-
-		if (PinName.Contains(ExecuteContextStr) && Pin->LinkedTo.Num() > 0)
-		{
-			return true;
-		}
+		RemoveEdGraph(InRigVMGraph);
 	}
 
+	FString GraphName = InRigVMGraph->GetName();
+
+	if(GraphName.IsEmpty())
+	{
+		GraphName = URigVMEdGraphSchema::GraphName_RigVM.ToString();
+	}
+
+	GraphName = RigVMClient.GetUniqueName(*GraphName).ToString();
+
+	UAnimNextGraph_EdGraph* RigFunctionGraph = NewObject<UAnimNextGraph_EdGraph>(this, *GraphName, RF_Transactional);
+	RigFunctionGraph->Schema = UAnimNextGraph_EdGraphSchema::StaticClass();
+	RigFunctionGraph->bAllowDeletion = true;
+	RigFunctionGraph->bIsFunctionDefinition = false;
+	RigFunctionGraph->ModelNodePath = InRigVMGraph->GetNodePath();
+	RigFunctionGraph->Initialize(this);
+
+	Graphs.Add(RigFunctionGraph);
+
+	return RigFunctionGraph;
+}
+
+bool UAnimNextGraph_EditorData::RemoveEdGraph(URigVMGraph* InModel)
+{
+	if(UAnimNextGraph_EdGraph* RigFunctionGraph = Cast<UAnimNextGraph_EdGraph>(GetEditorObjectForRigVMGraph(InModel)))
+	{
+		if(Graphs.Contains(RigFunctionGraph))
+		{
+			Modify();
+			Graphs.Remove(RigFunctionGraph);
+		}
+		RigVMClient.DestroyObject(RigFunctionGraph);
+		return true;
+	}
 	return false;
+}
+
+UAnimNextGraphEntry* UAnimNextGraphLibrary::AddGraph(UAnimNextGraph* InGraph, FName InName, bool bSetupUndoRedo, bool bPrintPythonCommand)
+{
+	return UE::AnimNext::UncookedOnly::FUtils::GetEditorData(InGraph)->AddGraph(InName, bSetupUndoRedo, bPrintPythonCommand);
+}
+
+UAnimNextGraphEntry* UAnimNextGraph_EditorData::AddGraph(FName InName, bool bSetupUndoRedo, bool bPrintPythonCommand)
+{
+	if(InName == NAME_None)
+	{
+		ReportError(TEXT("UAnimNextGraph_EditorData::AddGraph: Invalid graph name supplied."));
+		return nullptr;
+	}
+
+	// Check for duplicate name
+	FName NewGraphName = InName;
+	auto DuplicateNamePredicate = [&NewGraphName](const UAnimNextGraphEntry* InEntry)
+	{
+		return InEntry->GraphName == NewGraphName;
+	};
+
+	bool bAlreadyExists = Entries.ContainsByPredicate(DuplicateNamePredicate);
+	int32 NameNumber = InName.GetNumber() + 1;
+	while(bAlreadyExists)
+	{
+		NewGraphName = FName(InName, NameNumber);
+		bAlreadyExists =  Entries.ContainsByPredicate(DuplicateNamePredicate);
+	}
+
+	UAnimNextGraphEntry* NewEntry = UE::AnimNext::Graph::Private::CreateNewGraphEntry<UAnimNextGraphEntry>(this);
+	NewEntry->GraphName = NewGraphName;
+
+	if(bSetupUndoRedo)
+	{
+		NewEntry->Modify();
+		Modify();
+	}
+	
+	Entries.Add(NewEntry);
+
+	// Add new graph
+	{
+		TGuardValue<bool> EnablePythonPrint(bSuspendPythonMessagesForRigVMClient, !bPrintPythonCommand);
+		TGuardValue<bool> DisableAutoCompile(bAutoRecompileVM, false);
+		URigVMGraph* NewGraph = RigVMClient.AddModel(NewGraphName, bSetupUndoRedo);
+		ensure(NewGraph);
+		NewEntry->Graph = NewGraph;
+
+		URigVMController* Controller = RigVMClient.GetController(NewGraph);
+		UE::AnimNext::UncookedOnly::FUtils::SetupAnimGraph(Controller);
+	}
+
+	BroadcastModified();
+
+	return NewEntry;
 }

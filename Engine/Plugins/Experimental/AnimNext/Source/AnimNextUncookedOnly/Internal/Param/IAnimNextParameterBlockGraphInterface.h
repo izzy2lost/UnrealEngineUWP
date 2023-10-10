@@ -14,6 +14,8 @@ namespace UE::AnimNext::Editor
 	class SParameterBlockView;
 	class SParameterBlockViewRow;
 	class FParameterBlockTabSummoner;
+	class FModule;
+	struct FUtils;
 }
 
 namespace UE::AnimNext::UncookedOnly
@@ -36,6 +38,8 @@ class ANIMNEXTUNCOOKEDONLY_API IAnimNextParameterBlockGraphInterface
 	friend class UE::AnimNext::Editor::SParameterBlockViewRow;
 	friend struct UE::AnimNext::UncookedOnly::FUtilsPrivate;
 	friend class UE::AnimNext::Editor::FParameterBlockTabSummoner;
+	friend class UE::AnimNext::Editor::FModule;
+	friend struct UE::AnimNext::Editor::FUtils;
 
 	// Get the graph name
 	virtual FName GetGraphName() const = 0;

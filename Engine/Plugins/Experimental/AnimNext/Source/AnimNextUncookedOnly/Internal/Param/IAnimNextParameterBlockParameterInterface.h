@@ -19,6 +19,7 @@ namespace UE::AnimNext::Editor
 {
 	class SParameterBlockView;
 	class SParameterBlockViewRow;
+	struct FUtils;
 }
 
 namespace UE::AnimNext::UncookedOnly
@@ -40,6 +41,7 @@ class ANIMNEXTUNCOOKEDONLY_API IAnimNextParameterBlockParameterInterface
 	friend class UE::AnimNext::Editor::SParameterBlockView;
 	friend class UE::AnimNext::Editor::SParameterBlockViewRow;
 	friend struct UE::AnimNext::UncookedOnly::FUtils;
+	friend struct UE::AnimNext::Editor::FUtils;
 
 	// Get the parameter type
 	virtual FAnimNextParamType GetParamType() const = 0;

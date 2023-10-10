@@ -39,6 +39,7 @@ namespace UnrealBuildTool.Rules
 					"ContentBrowserFileDataSource",
 					"SubobjectEditor",
 					"Settings",
+					"EditorWidgets",
 				}
 			);
 		}

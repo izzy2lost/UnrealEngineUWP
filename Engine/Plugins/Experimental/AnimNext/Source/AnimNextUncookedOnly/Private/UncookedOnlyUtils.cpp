@@ -477,7 +477,7 @@ void FUtils::Compile(UAnimNextGraph* InGraph)
 	EditorData->bVMRecompilationRequired = false;
 	if(InGraph->RigVM)
 	{
-		EditorData->VMCompiledEvent.Broadcast(InGraph, InGraph->RigVM, InGraph->ExtendedExecuteContext);
+		EditorData->RigVMCompiledEvent.Broadcast(InGraph, InGraph->RigVM, InGraph->ExtendedExecuteContext);
 	}
 
 	VMClient->RemoveController(VMTempGraph);
@@ -498,6 +498,13 @@ UAnimNextGraph_EditorData* FUtils::GetEditorData(const UAnimNextGraph* InAnimNex
 	check(InAnimNextGraph);
 	
 	return CastChecked<UAnimNextGraph_EditorData>(InAnimNextGraph->EditorData);
+}
+
+UAnimNextGraph* FUtils::GetGraph(const UAnimNextGraph_EditorData* InEditorData)
+{
+	check(InEditorData);
+
+	return CastChecked<UAnimNextGraph>(InEditorData->GetOuter());
 }
 
 FParamTypeHandle FUtils::GetParameterHandleFromPin(const FEdGraphPinType& InPinType)
@@ -1012,8 +1019,19 @@ FRigVMTemplateArgumentType FUtils::GetRigVMArgTypeFromParamType(const FAnimNextP
 	return ArgType;
 }
 
+void FUtils::SetupAnimGraph(URigVMController* InController)
+{
+	// Clear the graph
+	InController->RemoveNodes(InController->GetGraph()->GetNodes());
 
-void FUtils::SetupGraph(URigVMController* InController)
+	// Add root node
+	URigVMUnitNode* MainEntryPointNode = InController->AddUnitNode(FRigUnit_AnimNextGraphRoot::StaticStruct(), FRigUnit_AnimNextGraphRoot::EventName, FVector2D(-400.0f, 0.0f), FString(), false);
+	URigVMPin* BeginExecutePin = MainEntryPointNode->FindPin(GET_MEMBER_NAME_STRING_CHECKED(FRigUnit_AnimNextGraphRoot, Result));
+	check(BeginExecutePin);
+	check(BeginExecutePin->GetDirection() == ERigVMPinDirection::Input);
+}
+
+void FUtils::SetupParameterGraph(URigVMController* InController)
 {
 	// Clear the graph
 	InController->RemoveNodes(InController->GetGraph()->GetNodes());

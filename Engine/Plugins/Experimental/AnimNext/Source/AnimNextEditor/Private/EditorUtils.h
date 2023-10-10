@@ -17,6 +17,7 @@ class UAnimNextParameter;
 class URigVMController;
 struct FAnimNextParameterLibraryAssetRegistryExports;
 struct FAnimNextParameterBlockAssetRegistryExports;
+struct FAnimNextWorkspaceAssetRegistryExports;
 
 namespace UE::AnimNext::Editor
 {
@@ -31,7 +32,7 @@ struct FUtils
 
 	static FName ValidateName(const UAnimNextParameterBlock_EditorData* InEditorData, const FString& InName);
 
-	static void GetAllGraphNames(const UAnimNextParameterBlock_EditorData* InEditorData, TSet<FName>& OutNames);
+	static void GetAllEntryNames(const UAnimNextParameterBlock_EditorData* InEditorData, TSet<FName>& OutNames);
 
 	static void GetFilteredVariableTypeTree(TArray<TSharedPtr<UEdGraphSchema_K2::FPinTypeTreeInfo>>& TypeTree, ETypeTreeFilter TypeTreeFilter);
 
@@ -49,6 +50,8 @@ struct FUtils
 	// If the name cannot be found, the returned type will be invalid
 	// Note that this is expensive and can query the asset registry
 	static FAnimNextParamType GetParameterTypeFromName(FName InName);
+
+	static bool GetExportedAssetsForWorkspace(const FAssetData& InWorkspaceAsset, FAnimNextWorkspaceAssetRegistryExports& OutExports);
 };
 
 }

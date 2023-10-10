@@ -8,17 +8,23 @@
 #include "Param/AnimNextParameterBlock.h"
 #include "Param/AnimNextParameterLibrary.h"
 #include "PropertyBagDetails.h"
+#include "Graph/AnimNextGraphEntry.h"
 #include "AssetRegistry/AssetRegistryModule.h"
 #include "AssetRegistry/IAssetRegistry.h"
+#include "Param/IAnimNextParameterBlockGraphInterface.h"
+#include "Param/IAnimNextParameterBlockParameterInterface.h"
 #include "Param/Params.h"
+#include "Workspace/AnimNextWorkspace.h"
 
 namespace UE::AnimNext::Editor
 {
 
 void FUtils::GetAllGraphNames(const UAnimNextGraph_EditorData* InEditorData, TSet<FName>& OutNames)
 {
-	// TODO
-	ensure(false);
+	for(UAnimNextGraphEntry* Entry : InEditorData->Entries)
+	{
+		OutNames.Add(Entry->GraphName);
+	}
 }
 
 static const int32 MaxNameLength = 100;
@@ -233,10 +239,19 @@ FAnimNextParamType FUtils::GetParameterTypeFromMetaData(const FStringView& InStr
 }
 
 
-void FUtils::GetAllGraphNames(const UAnimNextParameterBlock_EditorData* InEditorData, TSet<FName>& OutNames)
+void FUtils::GetAllEntryNames(const UAnimNextParameterBlock_EditorData* InEditorData, TSet<FName>& OutNames)
 {
-	// TODO
-//	ensure(false);
+	for(UAnimNextParameterBlockEntry* Entry : InEditorData->Entries)
+	{
+		if(IAnimNextParameterBlockParameterInterface* Parameter = Cast<IAnimNextParameterBlockParameterInterface>(Entry))
+		{
+			OutNames.Add(Parameter->GetParameterName());
+		}
+		else if(IAnimNextParameterBlockGraphInterface* Graph = Cast<IAnimNextParameterBlockGraphInterface>(Entry))
+		{
+			OutNames.Add(Graph->GetGraphName());
+		}
+	}
 }
 
 FName FUtils::ValidateName(const UAnimNextParameterBlock_EditorData* InEditorData, const FString& InName)
@@ -246,7 +261,7 @@ FName FUtils::ValidateName(const UAnimNextParameterBlock_EditorData* InEditorDat
 		FNameValidator(const UAnimNextParameterBlock_EditorData* InEditorData)
 			: EditorData(InEditorData)
 		{
-			GetAllGraphNames(EditorData, Names);
+			GetAllEntryNames(EditorData, Names);
 		}
 		
 		virtual EValidatorResult IsValid (const FName& Name, bool bOriginal = false) override
@@ -538,5 +553,12 @@ FAnimNextParamType FUtils::GetParameterTypeFromName(FName InName)
 
 	return FAnimNextParamType();
 }
+
+bool FUtils::GetExportedAssetsForWorkspace(const FAssetData& InWorkspaceAsset, FAnimNextWorkspaceAssetRegistryExports& OutExports)
+{
+	const FString TagValue = InWorkspaceAsset.GetTagValueRef<FString>(UAnimNextWorkspace::ExportsAssetRegistryTag);
+	return FAnimNextWorkspaceAssetRegistryExports::StaticStruct()->ImportText(*TagValue, &OutExports, nullptr, PPF_None, nullptr, FAnimNextWorkspaceAssetRegistryExports::StaticStruct()->GetName()) != nullptr;
+}
+
 
 }

@@ -35,8 +35,8 @@ namespace UE::AnimNext::Editor
 
 namespace UE::AnimNext::UncookedOnly
 {
-// A delegate for subscribing / reacting to parameter block modifications.
-DECLARE_MULTICAST_DELEGATE_OneParam(FOnParameterBlockModified, UAnimNextParameterBlock_EditorData* /* InEditorData */);
+	// A delegate for subscribing / reacting to parameter block modifications.
+	DECLARE_MULTICAST_DELEGATE_OneParam(FOnParameterBlockModified, UAnimNextParameterBlock_EditorData* /* InEditorData */);
 }
 
 enum class EAnimNextParameterLoadType : uint8
@@ -145,6 +145,7 @@ class UAnimNextParameterBlock_EditorData : public UObject, public IRigVMClientHo
 	virtual void HandleRigVMGraphRenamed(const FRigVMClient* InClient, const FString& InOldNodePath, const FString& InNewNodePath) override {}
 	virtual void HandleConfigureRigVMController(const FRigVMClient* InClient, URigVMController* InControllerToConfigure) override;
 	virtual UObject* GetEditorObjectForRigVMGraph(URigVMGraph* InVMGraph) const override;
+	virtual URigVMGraph* GetRigVMGraphForEditorObject(UObject* InObject) const override;
 
 	// IRigVMGraphFunctionHost interface
 	virtual FRigVMGraphFunctionStore* GetRigVMGraphFunctionStore() override;
@@ -172,10 +173,8 @@ class UAnimNextParameterBlock_EditorData : public UObject, public IRigVMClientHo
 	void IncrementVMRecompileBracket();
 
 	void DecrementVMRecompileBracket();
-	
-	void HandleModifiedEvent(ERigVMGraphNotifType InNotifType, URigVMGraph* InGraph, UObject* InSubject);
 
-	ANIMNEXTUNCOOKEDONLY_API URigVMGraph* GetVMGraphForEdGraph(const UEdGraph* InGraph) const;
+	void HandleModifiedEvent(ERigVMGraphNotifType InNotifType, URigVMGraph* InGraph, UObject* InSubject);
 
 	void CreateEdGraphForCollapseNode(URigVMCollapseNode* InNode);
 

@@ -1,0 +1,542 @@
+﻿// Copyright Epic Games, Inc. All Rights Reserved.
+
+#include "AnimNextWorkspaceEditor.h"
+
+#include "GraphDocumentSummoner.h"
+#include "AnimNextWorkspaceEditorMode.h"
+#include "AnimNextWorkspace.h"
+#include "AnimNextWorkspaceFactory.h"
+#include "AssetDocumentSummoner.h"
+#include "EdGraphNode_Comment.h"
+#include "EditorUtils.h"
+#include "ExternalPackageHelper.h"
+#include "Framework/Commands/GenericCommands.h"
+#include "RigVMModel/RigVMController.h"
+#include "Kismet2/BlueprintEditorUtils.h"
+#include "ScopedTransaction.h"
+#include "Widgets/Docking/SDockTab.h"
+#include "WorkflowOrientedApp/WorkflowUObjectDocuments.h"
+#include "SWorkspacePicker.h"
+#include "Dialog/SCustomDialog.h"
+#include "Graph/AnimNextGraphDocumentSummoner.h"
+#include "Param/AnimNextParameterBlock.h"
+#include "Param/AnimNextParameterBlock_EditorData.h"
+#include "Param/AnimNextParameterLibrary.h"
+#include "Param/ParameterBlockGraphDocumentSummoner.h"
+#include "Scheduler/AnimNextSchedule.h"
+#include "Framework/Application/SlateApplication.h"
+#include "Graph/AnimNextGraph.h"
+
+#define LOCTEXT_NAMESPACE "AnimNextWorkspaceEditor"
+
+namespace UE::AnimNext::Editor
+{
+
+namespace WorkspaceModes
+{
+	const FName WorkspaceEditor("AnimNextWorkspaceEditorMode");
+}
+
+namespace WorkspaceTabs
+{
+	const FName Details("DetailsTab");
+	const FName WorkspaceView("WorkspaceView");
+	const FName LeftAssetDocument("LeftAssetDocument");
+	const FName MiddleAssetDocument("MiddleAssetDocument");
+	const FName AnimNextGraphDocument("AnimNextGraphDocument");
+	const FName ParameterBlockGraphDocument("ParameterBlockGraphDocument");
+}
+
+const FName WorkspaceAppIdentifier("AnimNextWorkspaceEditor");
+
+TMap<FName, FWorkspaceEditor::FAssetDocumentWidgetFactoryFunc> FWorkspaceEditor::AssetDocumentWidgetFactories;
+
+FWorkspaceEditor::FWorkspaceEditor()
+{
+}
+
+FWorkspaceEditor::~FWorkspaceEditor()
+{
+}
+
+void FWorkspaceEditor::InitEditor(const EToolkitMode::Type InMode, const TSharedPtr<IToolkitHost>& InInitToolkitHost, UAnimNextWorkspace* InWorkspace)
+{
+	Workspace = InWorkspace;
+
+	DocumentManager = MakeShared<FDocumentTracker>(NAME_None);
+	DocumentManager->Initialize(SharedThis(this));
+
+	TSharedRef<FParameterBlockGraphDocumentSummoner> ParameterGraphDocumentSummoner = MakeShared<FParameterBlockGraphDocumentSummoner>(WorkspaceTabs::ParameterBlockGraphDocument, SharedThis(this));
+	ParameterGraphDocumentSummoner->OnSaveGraphState().BindSP(this, &FWorkspaceEditor::HandleSaveGraphState);
+	DocumentManager->RegisterDocumentFactory(ParameterGraphDocumentSummoner);
+
+	TSharedRef<FAnimNextGraphDocumentSummoner> GraphDocumentSummoner = MakeShared<FAnimNextGraphDocumentSummoner>(WorkspaceTabs::AnimNextGraphDocument, SharedThis(this));
+	GraphDocumentSummoner->OnSaveGraphState().BindSP(this, &FWorkspaceEditor::HandleSaveGraphState);
+	DocumentManager->RegisterDocumentFactory(GraphDocumentSummoner);
+
+	TSharedRef<FAssetDocumentSummoner> LeftAssetDocumentSummoner = MakeShared<FAssetDocumentSummoner>(WorkspaceTabs::LeftAssetDocument, SharedThis(this));
+	LeftAssetDocumentSummoner->SetAllowedAssetClassPaths(
+	{
+		UAnimNextGraph::StaticClass()->GetClassPathName(),
+		UAnimNextParameterBlock::StaticClass()->GetClassPathName(),
+		UAnimNextParameterLibrary::StaticClass()->GetClassPathName(),
+	});
+	LeftAssetDocumentSummoner->OnSaveDocumentState().BindSP(this, &FWorkspaceEditor::HandleSaveDocumentState);
+	DocumentManager->RegisterDocumentFactory(LeftAssetDocumentSummoner);
+
+	TSharedRef<FAssetDocumentSummoner> MiddleAssetDocumentSummoner = MakeShared<FAssetDocumentSummoner>(WorkspaceTabs::MiddleAssetDocument, SharedThis(this));
+	MiddleAssetDocumentSummoner->SetAllowedAssetClassPaths(
+	{
+		UAnimNextSchedule::StaticClass()->GetClassPathName(),
+	});
+	MiddleAssetDocumentSummoner->OnSaveDocumentState().BindSP(this, &FWorkspaceEditor::HandleSaveDocumentState);
+	DocumentManager->RegisterDocumentFactory(MiddleAssetDocumentSummoner);
+
+	constexpr bool bCreateDefaultStandaloneMenu = true;
+	constexpr bool bCreateDefaultToolbar = true;
+	InitAssetEditor(InMode, InInitToolkitHost, WorkspaceAppIdentifier, FTabManager::FLayout::NullLayout, bCreateDefaultStandaloneMenu, bCreateDefaultToolbar, InWorkspace);
+
+	BindCommands();
+
+	AddApplicationMode(WorkspaceModes::WorkspaceEditor, MakeShared<FWorkspaceEditorMode>(SharedThis(this)));
+	SetCurrentMode(WorkspaceModes::WorkspaceEditor);
+
+	ExtendMenu();
+	ExtendToolbar();
+	RegenerateMenusAndToolbars();
+}
+
+void FWorkspaceEditor::RegisterAssetDocumentWidget(FName InAssetClassName, FAssetDocumentWidgetFactoryFunc&& InFunction)
+{
+	AssetDocumentWidgetFactories.Add(InAssetClassName, MoveTemp(InFunction));
+}
+
+void FWorkspaceEditor::UnregisterAssetDocumentWidget(FName InAssetClassName)
+{
+	AssetDocumentWidgetFactories.Remove(InAssetClassName);
+}
+
+void FWorkspaceEditor::OpenWorkspaceForAsset(UObject* InAsset, EOpenWorkspaceMethod InOpenMethod)
+{
+	FAssetRegistryModule& AssetRegistryModule = FModuleManager::LoadModuleChecked<FAssetRegistryModule>(TEXT("AssetRegistry"));
+
+	TArray<FAssetData> RelevantWorkspaceAssets;
+
+	if(InOpenMethod != EOpenWorkspaceMethod::AlwaysOpenNewWorkspace)
+	{
+		// Look for existing workspaces that export this asset
+		FARFilter ARFilter;
+		ARFilter.ClassPaths.Add(UAnimNextWorkspace::StaticClass()->GetClassPathName());
+		ARFilter.bRecursiveClasses = true;
+
+		TArray<FAssetData> AllWorkspaceAssets;
+		AssetRegistryModule.Get().GetAssets(ARFilter, AllWorkspaceAssets);
+
+		for(const FAssetData& WorkspaceAsset : AllWorkspaceAssets)
+		{
+			FAnimNextWorkspaceAssetRegistryExports Exports;
+			FUtils::GetExportedAssetsForWorkspace(WorkspaceAsset, Exports);
+
+			FSoftObjectPath ObjectPath(InAsset);
+			for(const FAnimNextWorkspaceAssetRegistryExportEntry& ExportEntry : Exports.Assets)
+			{
+				if(ExportEntry.Asset == ObjectPath)
+				{
+					RelevantWorkspaceAssets.Add(WorkspaceAsset);
+					break;
+				}
+			}
+		}
+	}
+
+	auto HandleNewWorkspace = [InAsset]()
+	{
+		UAnimNextWorkspaceFactory* Factory = NewObject<UAnimNextWorkspaceFactory>();
+		UPackage* Package = CreatePackage(nullptr);
+		FName PackageName = *FPaths::GetBaseFilename(Package->GetName());
+		UAnimNextWorkspace* NewWorkspace = CastChecked<UAnimNextWorkspace>(Factory->FactoryCreateNew(UAnimNextWorkspace::StaticClass(), Package, PackageName, RF_Public | RF_Standalone, NULL, GWarn));
+		NewWorkspace->AddAsset(InAsset, false);
+		NewWorkspace->MarkPackageDirty();
+		TSharedRef<FWorkspaceEditor> Editor = MakeShared<FWorkspaceEditor>();
+		Editor->InitEditor(EToolkitMode::Standalone, nullptr, NewWorkspace);
+	};
+
+	auto HandleExistingWorkspace = [](const FAssetData& InAssetData)
+	{
+		if(UAnimNextWorkspace* ExistingWorkspace = Cast<UAnimNextWorkspace>(InAssetData.GetAsset()))
+		{
+			GEditor->GetEditorSubsystem<UAssetEditorSubsystem>()->OpenEditorForAsset(ExistingWorkspace);
+		}
+	};
+	
+	if(InOpenMethod == EOpenWorkspaceMethod::AlwaysOpenNewWorkspace || RelevantWorkspaceAssets.Num() == 0)
+	{
+		// No relevant workspaces, so open a new one and add the asset
+		HandleNewWorkspace();
+	}
+	else if(RelevantWorkspaceAssets.Num() == 1)
+	{
+		// One existing workspace, open it
+		HandleExistingWorkspace(RelevantWorkspaceAssets[0]);
+	}
+	else
+	{
+		// Multiple existing workspaces, present a window to let the user choose one to open with
+		TSharedRef<SWorkspacePicker> WorkspacePicker = SNew(SWorkspacePicker)
+			.WorkspaceAssets(RelevantWorkspaceAssets)
+			.OnAssetSelected_Lambda(HandleExistingWorkspace)
+			.OnNewAsset_Lambda(HandleNewWorkspace);
+
+		WorkspacePicker->ShowModal();
+	}
+}
+
+void FWorkspaceEditor::RestoreEditedObjectState()
+{
+	for (const FEditedDocumentInfo& Document : Workspace->LastEditedDocuments)
+	{
+		if (UObject* Obj = Document.EditedObjectPath.ResolveObject())
+		{
+			if(TSharedPtr<SDockTab> DockTab = OpenDocument(Obj, FDocumentTracker::RestorePreviousDocument))
+			{
+				if(Obj->IsA<UEdGraph>())
+				{
+					TSharedRef<SGraphEditor> GraphEditor = StaticCastSharedRef<SGraphEditor>(DockTab->GetContent());
+					GraphEditor->SetViewLocation(Document.SavedViewOffset, Document.SavedZoomAmount);
+				}
+			}
+		}
+	}
+}
+
+void FWorkspaceEditor::SaveEditedObjectState()
+{
+	// Clear currently edited documents
+	Workspace->LastEditedDocuments.Empty();
+
+	// Ask all open documents to save their state, which will update LastEditedGraphDocuments
+	DocumentManager->SaveAllState();
+}
+
+TSharedPtr<SDockTab> FWorkspaceEditor::OpenDocument(const UObject* InForObject, FDocumentTracker::EOpenDocumentCause InCause)
+{
+	if(InCause != FDocumentTracker::RestorePreviousDocument)
+	{
+		Workspace->LastEditedDocuments.AddUnique(const_cast<UObject*>(InForObject));
+	}
+
+	TSharedRef<FTabPayload_UObject> Payload = FTabPayload_UObject::Make(InForObject);
+	return DocumentManager->OpenDocument(Payload, InCause);
+}
+
+void FWorkspaceEditor::OpenAssets(TConstArrayView<FAssetData> InAssets)
+{
+	for(const FAssetData& Asset : InAssets)
+	{
+		if(UObject* LoadedAsset = Asset.GetAsset())
+		{
+			OpenDocument(LoadedAsset, FDocumentTracker::EOpenDocumentCause::OpenNewDocument);
+		}
+	}
+}
+
+void FWorkspaceEditor::BindCommands()
+{
+}
+
+void FWorkspaceEditor::ExtendMenu()
+{
+	
+}
+
+void FWorkspaceEditor::ExtendToolbar()
+{
+	
+}
+
+void FWorkspaceEditor::RegisterTabSpawners(const TSharedRef<FTabManager>& InTabManager)
+{
+	DocumentManager->SetTabManager(InTabManager);
+
+	FWorkflowCentricApplication::RegisterTabSpawners(InTabManager);
+}
+
+void FWorkspaceEditor::UnregisterTabSpawners(const TSharedRef<FTabManager>& InTabManager)
+{
+	FWorkflowCentricApplication::UnregisterTabSpawners(InTabManager);
+}
+
+FName FWorkspaceEditor::GetToolkitFName() const
+{
+	return FName("AnimNextWorkspaceEditor");
+}
+
+FText FWorkspaceEditor::GetBaseToolkitName() const
+{
+	return LOCTEXT("AppLabel", "AnimNextWorkspaceEditor");
+}
+
+FString FWorkspaceEditor::GetWorldCentricTabPrefix() const
+{
+	return LOCTEXT("WorldCentricTabPrefix", "AnimNextWorkspaceEditor ").ToString();
+}
+
+FLinearColor FWorkspaceEditor::GetWorldCentricTabColorScale() const
+{
+	return FLinearColor(0.3f, 0.2f, 0.5f, 0.5f);
+}
+
+void FWorkspaceEditor::InitToolMenuContext(FToolMenuContext& InMenuContext)
+{
+}
+
+void FWorkspaceEditor::SaveAsset_Execute()
+{
+	// If asset is a default 'Untitled' workspace, redirect to the 'save as' flow
+	FString AssetPath = Workspace->GetOutermost()->GetPathName();
+	if(AssetPath.StartsWith(TEXT("/Temp/Untitled")))
+	{
+		// Ensure we dont also 'save as' other externally linked assets at this point
+		TGuardValue<bool> SaveWorkspaceOnly(bSavingWorkspaceOnly, true);
+
+		SaveAssetAs_Execute();
+	}
+	else
+	{
+		FWorkflowCentricApplication::SaveAsset_Execute();
+	}
+}
+
+void FWorkspaceEditor::SetFocusedGraphEditor(TSharedPtr<SGraphEditor> InGraphEditor)
+{
+	// Update the graph editor that is currently focused
+	FocusedGraphEdPtr = InGraphEditor;
+}
+
+UEdGraph* FWorkspaceEditor::GetFocusedGraph() const
+{
+	if (FocusedGraphEdPtr.IsValid())
+	{
+		if (UEdGraph* Graph = FocusedGraphEdPtr.Pin()->GetCurrentGraph())
+		{
+			return Graph;
+		}
+	}
+	return nullptr;
+}
+
+URigVMGraph* FWorkspaceEditor::GetFocusedVMGraph() const
+{
+	if(UEdGraph* EdGraph = GetFocusedGraph())
+	{
+		if(IRigVMClientHost* RigVMClientHost = EdGraph->GetImplementingOuter<IRigVMClientHost>())
+		{
+			return Cast<URigVMGraph>(RigVMClientHost->GetRigVMGraphForEditorObject(EdGraph));
+		}
+	}
+	return nullptr;
+}
+
+URigVMController* FWorkspaceEditor::GetFocusedVMController() const
+{
+	if(UEdGraph* EdGraph = GetFocusedGraph())
+	{
+		if(IRigVMClientHost* RigVMClientHost = EdGraph->GetImplementingOuter<IRigVMClientHost>())
+		{
+			return RigVMClientHost->GetRigVMClient()->GetController(EdGraph);
+		}
+	}
+	return nullptr;
+}
+
+void FWorkspaceEditor::OnNodeTitleCommitted(const FText& NewText, ETextCommit::Type CommitInfo, UEdGraphNode* NodeBeingChanged)
+{
+	if (UEdGraphNode_Comment* CommentBeingChanged = Cast<UEdGraphNode_Comment>(NodeBeingChanged))
+	{
+		GetFocusedVMController()->SetCommentTextByName(CommentBeingChanged->GetFName(), NewText.ToString(), CommentBeingChanged->FontSize, CommentBeingChanged->bCommentBubbleVisible, CommentBeingChanged->bColorCommentBubble, true, true);
+	}
+}
+
+void FWorkspaceEditor::CloseDocumentTab(const UObject* DocumentID)
+{
+	Workspace->LastEditedDocuments.Remove(const_cast<UObject*>(DocumentID));
+
+	TSharedRef<FTabPayload_UObject> Payload = FTabPayload_UObject::Make(DocumentID);
+	DocumentManager->CloseTab(Payload);
+}
+
+bool FWorkspaceEditor::InEditingMode() const
+{
+	// @TODO: disallow editing when debugging when implemented
+
+	return true;
+}
+
+bool FWorkspaceEditor::IsEditable(UEdGraph* InGraph) const
+{
+	return InGraph && InEditingMode() && InGraph->bEditable;
+}
+
+FGraphPanelSelectionSet FWorkspaceEditor::GetSelectedNodes() const
+{
+	FGraphPanelSelectionSet CurrentSelection;
+	TSharedPtr<SGraphEditor> FocusedGraphEd = FocusedGraphEdPtr.Pin();
+	if (FocusedGraphEd.IsValid())
+	{
+		CurrentSelection = FocusedGraphEd->GetSelectedNodes();
+	}
+	return CurrentSelection;
+}
+
+void FWorkspaceEditor::DeleteSelectedNodes()
+{
+	TSharedPtr<SGraphEditor> FocusedGraphEd = FocusedGraphEdPtr.Pin();
+	if (!FocusedGraphEd.IsValid())
+	{
+		return;
+	}
+
+	const FScopedTransaction Transaction(FGenericCommands::Get().Delete->GetDescription());
+	FocusedGraphEd->GetCurrentGraph()->Modify();
+	
+	const FGraphPanelSelectionSet SelectedNodes = GetSelectedNodes();
+	
+	if(FocusedGraphEd)
+	{
+		FocusedGraphEd->ClearSelectionSet();
+	}
+
+	// Some nodes have sub-objects that are represented as other tabs.
+	// Close them here as a pre-pass before we remove their nodes. If the documents are left open they
+	// may reference dangling data and function incorrectly in cases such as FindBlueprintforNodeChecked
+	for (FGraphPanelSelectionSet::TConstIterator NodeIt( SelectedNodes ); NodeIt; ++NodeIt)
+	{
+		if (UEdGraphNode* Node = Cast<UEdGraphNode>(*NodeIt))
+		{
+			if (Node->CanUserDeleteNode())
+			{
+				auto CloseAllDocumentsTab = [this](const UEdGraphNode* InNode)
+				{
+					TArray<UObject*> NodesToClose;
+					GetObjectsWithOuter(InNode, NodesToClose);
+					for (UObject* Node : NodesToClose)
+					{
+						UEdGraph* NodeGraph = Cast<UEdGraph>(Node);
+						if (NodeGraph)
+						{
+							CloseDocumentTab(NodeGraph);
+						}
+					}
+				};
+				
+				if (Node->GetSubGraphs().Num() > 0)
+				{
+					CloseAllDocumentsTab(Node);
+				}
+			}
+		}
+	}
+
+	// Now remove the selected nodes
+	for (FGraphPanelSelectionSet::TConstIterator NodeIt( SelectedNodes ); NodeIt; ++NodeIt)
+	{
+		if (UEdGraphNode* Node = Cast<UEdGraphNode>(*NodeIt))
+		{
+			if (Node->CanUserDeleteNode())
+			{
+				if (Node->GetSubGraphs().Num() > 0)
+				{
+					DocumentManager->CleanInvalidTabs();
+				}
+
+				FBlueprintEditorUtils::RemoveNode(nullptr, Node);
+			}
+		}
+	}
+}
+
+bool FWorkspaceEditor::CanDeleteSelectedNodes()
+{
+	const FGraphPanelSelectionSet SelectedNodes = GetSelectedNodes();
+
+	bool bCanUserDeleteNode = false;
+
+	if(IsEditable(GetFocusedGraph()) && SelectedNodes.Num() > 0)
+	{
+		for(UObject* NodeObject : SelectedNodes)
+		{
+			// If any nodes allow deleting, then do not disable the delete option
+			UEdGraphNode* Node = Cast<UEdGraphNode>(NodeObject);
+			if(Node->CanUserDeleteNode())
+			{
+				bCanUserDeleteNode = true;
+				break;
+			}
+		}
+	}
+
+	return bCanUserDeleteNode;
+}
+
+void FWorkspaceEditor::SetSelectedObjects(TArray<UObject*> InObjects)
+{
+	if(DetailsView.IsValid())
+	{
+		DetailsView->SetObjects(InObjects);
+	}
+}
+
+void FWorkspaceEditor::GetSaveableObjects(TArray<UObject*>& OutObjects) const
+{
+	// Base class will pick up edited object
+	FWorkflowCentricApplication::GetSaveableObjects(OutObjects);
+
+	if(!bSavingWorkspaceOnly)
+	{
+		for(TSoftObjectPtr<UObject>& SoftAsset : Workspace->Assets)
+		{
+			if(UObject* Asset = SoftAsset.Get())
+			{
+				// Add object referenced by workspace
+				OutObjects.Add(Asset);
+
+				// Get external objects too
+				FExternalPackageHelper::GetExternalSaveableObjects(Asset, OutObjects);
+			}
+		}
+	}
+}
+
+void FWorkspaceEditor::HandleSaveGraphState(UEdGraph* InGraph, FVector2D InViewOffset, float InZoomAmount)
+{
+	Workspace->LastEditedDocuments.AddUnique(FEditedDocumentInfo(InGraph, InViewOffset, InZoomAmount));
+}
+
+void FWorkspaceEditor::HandleSaveDocumentState(UObject* InObject)
+{
+	Workspace->LastEditedDocuments.AddUnique(FEditedDocumentInfo(InObject));
+}
+
+bool FWorkspaceEditor::OnRequestClose(EAssetEditorCloseReason InCloseReason)
+{
+	auto RequiresSave = [this]()
+	{
+		UPackage* Package = Workspace->GetOutermost();
+		return Package->GetPathName().StartsWith(TEXT("/Temp/Untitled"));
+	};
+
+	// Give the user opportunity to save temp workspaces
+	if(RequiresSave())
+	{
+		// Ensure we dont also 'save as' other externally linked assets at this point
+		TGuardValue<bool> SaveWorkspaceOnly(bSavingWorkspaceOnly, true);
+
+		SaveAssetAs_Execute();
+	}
+
+	return true;
+}
+
+}
+
+#undef LOCTEXT_NAMESPACE

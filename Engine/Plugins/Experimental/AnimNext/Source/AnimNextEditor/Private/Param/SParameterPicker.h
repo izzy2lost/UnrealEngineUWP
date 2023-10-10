@@ -6,6 +6,8 @@
 #include "Param/ParameterPickerArgs.h"
 #include "Widgets/Views/STreeView.h"
 
+class SSearchBox;
+
 namespace UE::AnimNext::Editor
 {
 
@@ -55,6 +57,8 @@ private:
 	TArray<TSharedRef<FParameterPickerEntry>> FilteredHierarchy;
 
 	FText FilterText;
+
+	TSharedPtr<SSearchBox> SearchBox;
 };
 
 }

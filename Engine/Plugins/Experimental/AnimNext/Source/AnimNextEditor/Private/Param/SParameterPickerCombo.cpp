@@ -7,6 +7,7 @@
 #include "Widgets/Input/SComboButton.h"
 #include "Framework/Application/SlateApplication.h"
 #include "Widgets/Text/SInlineEditableTextBlock.h"
+#include "Widgets/Input/SSearchBox.h"
 
 namespace UE::AnimNext::Editor
 {
@@ -15,7 +16,7 @@ void SParameterPickerCombo::Construct(const FArguments& InArgs)
 {
 	OnGetParameterNameDelegate = InArgs._OnGetParameterName;
 	OnGetParameterTypeDelegate = InArgs._OnGetParameterType;
-	
+
 	FParameterPickerArgs PickerArgs = InArgs._PickerArgs;
 	PickerArgs.OnParameterPicked = FOnParameterPicked::CreateLambda([this, OrigPickerArgs = InArgs._PickerArgs](const FParameterBindingReference& InReference)
 	{
@@ -26,11 +27,12 @@ void SParameterPickerCombo::Construct(const FArguments& InArgs)
 
 		RequestRefresh();
 	});
+	PickerArgs.bFocusSearchWidget = true;
 
 	ChildSlot
 	[
 		SNew(SComboButton)
-		.OnGetMenuContent_Lambda([PickerArgs]()
+		.OnGetMenuContent_Lambda([PickerArgs, this]()
 		{
 			return SNew(SParameterPicker)
 				.Args(PickerArgs);

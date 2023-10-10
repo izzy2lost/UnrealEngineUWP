@@ -7,7 +7,6 @@
 #include "DecoratorBase/DecoratorPtr.h"
 #include "DecoratorBase/DecoratorHandle.h"
 #include "DecoratorBase/EntryPointHandle.h"
-
 #include "AnimNextGraph.generated.h"
 
 class UEdGraph;

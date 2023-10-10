@@ -91,6 +91,9 @@ struct FParameterPickerArgs
 
 	// Whether we should allow new parameters to be created by this widget
 	bool bAllowNew = true;
+
+	// Whether the search box should be focussed on widget creation
+	bool bFocusSearchWidget = true;
 };
 
 }

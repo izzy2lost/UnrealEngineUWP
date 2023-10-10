@@ -181,7 +181,7 @@ UAnimNextParameterBlockGraph* UAnimNextParameterBlock_EditorData::AddGraph(FName
 		NewEntry->Graph = NewGraph;
 
 		URigVMController* Controller = RigVMClient.GetController(NewGraph);
-		UE::AnimNext::UncookedOnly::FUtils::SetupGraph(Controller);
+		UE::AnimNext::UncookedOnly::FUtils::SetupParameterGraph(Controller);
 	}
 	
 	BroadcastModified();
@@ -577,7 +577,7 @@ void UAnimNextParameterBlock_EditorData::Initialize(bool bRecompileVM)
 void UAnimNextParameterBlock_EditorData::PostLoad()
 {
 	Super::PostLoad();
-	
+
 	Initialize(/*bRecompileVM*/false);
 	RefreshAllModels(EAnimNextParameterLoadType::PostLoad);
 
@@ -895,6 +895,26 @@ UObject* UAnimNextParameterBlock_EditorData::GetEditorObjectForRigVMGraph(URigVM
 	return nullptr;
 }
 
+URigVMGraph* UAnimNextParameterBlock_EditorData::GetRigVMGraphForEditorObject(UObject* InObject) const
+{
+	if(const UAnimNextParameterBlock_EdGraph* Graph = Cast<UAnimNextParameterBlock_EdGraph>(InObject))
+	{
+		if (Graph->bIsFunctionDefinition)
+		{
+			if (URigVMLibraryNode* LibraryNode = RigVMClient.GetFunctionLibrary()->FindFunction(*Graph->ModelNodePath))
+			{
+				return LibraryNode->GetContainedGraph();
+			}
+		}
+		else
+		{
+			return RigVMClient.GetModel(Graph->ModelNodePath);
+		}
+	}
+
+	return nullptr;
+}
+
 FRigVMGraphFunctionStore* UAnimNextParameterBlock_EditorData::GetRigVMGraphFunctionStore()
 {
 	return &GraphFunctionStore;
@@ -1041,22 +1061,6 @@ void UAnimNextParameterBlock_EditorData::HandleModifiedEvent(ERigVMGraphNotifTyp
 	}
 }
 
-URigVMGraph* UAnimNextParameterBlock_EditorData::GetVMGraphForEdGraph(const UEdGraph* InGraph) const
-{
-	const UAnimNextParameterBlock_EdGraph* Graph = Cast<UAnimNextParameterBlock_EdGraph>(InGraph);
-	check(Graph);
-
-	if (Graph->bIsFunctionDefinition)
-	{
-		if (URigVMLibraryNode* LibraryNode = RigVMClient.GetFunctionLibrary()->FindFunction(*Graph->ModelNodePath))
-		{
-			return LibraryNode->GetContainedGraph();
-		}
-	}
-
-	return nullptr;
-}
-
 void UAnimNextParameterBlock_EditorData::CreateEdGraphForCollapseNode(URigVMCollapseNode* InNode)
 {
 	if (InNode->GetGraph()->IsA<URigVMFunctionLibrary>())
@@ -1109,7 +1113,7 @@ UEdGraph* UAnimNextParameterBlock_EditorData::CreateEdGraph(URigVMGraph* InRigVM
 	UAnimNextParameterBlock_EdGraph* RigFunctionGraph = NewObject<UAnimNextParameterBlock_EdGraph>(this, *GraphName, RF_Transactional);
 	RigFunctionGraph->Schema = UAnimNextParameterBlock_EdGraphSchema::StaticClass();
 	RigFunctionGraph->bAllowDeletion = true;
-	RigFunctionGraph->bIsFunctionDefinition = true;
+	RigFunctionGraph->bIsFunctionDefinition = false;
 	RigFunctionGraph->ModelNodePath = InRigVMGraph->GetNodePath();
 	RigFunctionGraph->Initialize(this);
 

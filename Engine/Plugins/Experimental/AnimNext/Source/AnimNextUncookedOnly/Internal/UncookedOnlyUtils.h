@@ -4,6 +4,7 @@
 
 #include "CoreMinimal.h"
 #include "Param/AnimNextParameterBlock_EditorData.h"
+#include "Graph/AnimNextGraph_EditorData.h"
 #include "Param/ParamTypeHandle.h"
 #include "RigVMCore/RigVMTemplate.h"
 
@@ -26,6 +27,8 @@ struct ANIMNEXTUNCOOKEDONLY_API FUtils
 	static void Compile(UAnimNextGraph* InGraph);
 	
 	static UAnimNextGraph_EditorData* GetEditorData(const UAnimNextGraph* InAnimNextGraph);
+	
+	static UAnimNextGraph* GetGraph(const UAnimNextGraph_EditorData* InEditorData);
 	
 	static void RecreateVM(UAnimNextGraph* InGraph);
 
@@ -68,8 +71,11 @@ struct ANIMNEXTUNCOOKEDONLY_API FUtils
 	static FRigVMTemplateArgumentType GetRigVMArgTypeFromParamTypeHandle(const FParamTypeHandle& InParamTypeHandle);
 	static FRigVMTemplateArgumentType GetRigVMArgTypeFromParamType(const FAnimNextParamType& InParamType);
 
-	/** Set up a simple graph */
-	static void SetupGraph(URigVMController* InController);
+	/** Set up a simple animation graph */
+	static void SetupAnimGraph(URigVMController* InController);
+	
+	/** Set up a simple parameter graph */
+	static void SetupParameterGraph(URigVMController* InController);
 	
 	/** Set up a binding graph given the type to set */
 	static void SetupBindingGraph(URigVMController* InController, FName InParameterName, const FAnimNextParamType& InParamType);
@@ -85,6 +91,19 @@ struct ANIMNEXTUNCOOKEDONLY_API FUtils
 	static void GetAllNodesOfClass(const UAnimNextParameterBlock_EditorData* InEditorData, TArray<T*>& OutNodes)
 	{
 		for(const UAnimNextParameterBlock_EdGraph* Graph : InEditorData->Graphs)
+		{
+			check(Graph);
+			TArray<T*> GraphNodes;
+			Graph->GetNodesOfClass<T>(GraphNodes);
+			OutNodes.Append(GraphNodes);
+		}
+	}
+
+	/** Returns all nodes in all graphs of the specified class */
+	template<class T>
+	static void GetAllNodesOfClass(const UAnimNextGraph_EditorData* InEditorData, TArray<T*>& OutNodes)
+	{
+		for(const UAnimNextGraph_EdGraph* Graph : InEditorData->Graphs)
 		{
 			check(Graph);
 			TArray<T*> GraphNodes;

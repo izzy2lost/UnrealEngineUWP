@@ -421,6 +421,26 @@ UObject* URigVMBlueprint::GetEditorObjectForRigVMGraph(URigVMGraph* InVMGraph) c
 	return nullptr;
 }
 
+URigVMGraph* URigVMBlueprint::GetRigVMGraphForEditorObject(UObject* InObject) const
+{
+	if(URigVMEdGraph* RigVMEdGraph = Cast<URigVMEdGraph>(InObject))
+	{
+		if (RigVMEdGraph->bIsFunctionDefinition)
+		{
+			if (URigVMLibraryNode* LibraryNode = RigVMClient.GetFunctionLibrary()->FindFunction(*RigVMEdGraph->ModelNodePath))
+			{
+				return LibraryNode->GetContainedGraph();
+			}
+		}
+		else
+		{
+			return RigVMClient.GetModel(RigVMEdGraph->ModelNodePath);
+		}
+	}
+
+	return nullptr;
+}
+
 void URigVMBlueprint::HandleRigVMGraphAdded(const FRigVMClient* InClient, const FString& InNodePath)
 {
 	if(URigVMGraph* Model = InClient->GetModel(InNodePath))

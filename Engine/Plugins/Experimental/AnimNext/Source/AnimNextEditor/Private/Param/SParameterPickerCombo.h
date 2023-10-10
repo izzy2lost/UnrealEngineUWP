@@ -10,6 +10,11 @@ struct FAnimNextParamType;
 
 namespace UE::AnimNext::Editor
 {
+class SParameterPicker;
+}
+
+namespace UE::AnimNext::Editor
+{
 
 /** Retrieves the parameter name to display */
 using FOnGetParameterName = TDelegate<FName(void)>;
@@ -61,6 +66,9 @@ private:
 
 	// Cached color
 	FSlateColor IconColor = FLinearColor::Gray;
+
+	// Picker widget used to focus after the popup is displayed
+	TWeakPtr<SParameterPicker> PickerWidget;
 };
 
 }

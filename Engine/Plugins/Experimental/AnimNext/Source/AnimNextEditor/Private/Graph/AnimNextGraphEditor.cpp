@@ -62,10 +62,10 @@ void FGraphEditor::InitEditor(const EToolkitMode::Type InMode, const TSharedPtr<
 	RegenerateMenusAndToolbars();
 
 	// Open initial document
-	DocumentManager->OpenDocument(FTabPayload_UObject::Make(AnimNextGraph_EditorData->RootGraph), FDocumentTracker::EOpenDocumentCause::OpenNewDocument);
-
-	// Make sure editor graph matches the model
-	AnimNextGraph_EditorData->RebuildEdGraphFromModel();
+	if(AnimNextGraph_EditorData->Graphs.Num() > 0)
+	{
+		DocumentManager->OpenDocument(FTabPayload_UObject::Make(AnimNextGraph_EditorData->Graphs[0]), FDocumentTracker::EOpenDocumentCause::OpenNewDocument);
+	}
 }
 
 void FGraphEditor::BindCommands()
@@ -145,7 +145,7 @@ UEdGraph* FGraphEditor::GetFocusedGraph() const
 URigVMGraph* FGraphEditor::GetFocusedVMGraph() const
 {
 	UAnimNextGraph_EdGraph* EdGraph = Cast<UAnimNextGraph_EdGraph>(GetFocusedGraph());
-	return AnimNextGraph_EditorData->GetVMGraphForEdGraph(EdGraph);
+	return AnimNextGraph_EditorData->GetRigVMGraphForEditorObject(EdGraph);
 }
 
 URigVMController* FGraphEditor::GetFocusedVMController() const

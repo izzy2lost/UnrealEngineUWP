@@ -35,8 +35,11 @@ public:
 	// Returns the rigvm function host
 	virtual const IRigVMGraphFunctionHost* GetRigVMGraphFunctionHost() const = 0;
 
-	// Returns the editor object corresponding with the supplied editor object
+	// Returns the editor object corresponding with the supplied RigVM graph
 	virtual UObject* GetEditorObjectForRigVMGraph(URigVMGraph* InVMGraph) const = 0;
+
+	// Returns the RigVM graph corresponding with the supplied editor object
+	virtual URigVMGraph* GetRigVMGraphForEditorObject(UObject* InObject) const = 0;
 
 	// Reacts to adding a graph
 	virtual void HandleRigVMGraphAdded(const FRigVMClient* InClient, const FString& InNodePathOrName) = 0;

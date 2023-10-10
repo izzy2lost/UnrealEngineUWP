@@ -3,9 +3,6 @@
 #include "AnimNextEditorModule.h"
 
 #include "AnimNextConfig.h"
-#include "AssetToolsModule.h"
-#include "IAssetTools.h"
-#include "Graph/AssetTypeActions.h"
 #include "Graph/AnimNextGraphPanelNodeFactory.h"
 #include "Param/ParamTypePropertyCustomization.h"
 #include "Param/ParameterPickerArgs.h"
@@ -13,6 +10,18 @@
 #include "Param/ParamNamePropertyCustomization.h"
 #include "Param/SParameterPicker.h"
 #include "ISettingsModule.h"
+#include "UncookedOnlyUtils.h"
+#include "Graph/AnimNextGraph.h"
+#include "Param/AnimNextParameterBlock.h"
+#include "Param/AnimNextParameterBlockEntry.h"
+#include "Param/AnimNextParameterLibrary.h"
+#include "Param/IAnimNextParameterBlockGraphInterface.h"
+#include "Param/SParameterBlockView.h"
+#include "Param/SParameterLibraryView.h"
+#include "Graph/SAnimNextGraphView.h"
+#include "Scheduler/AnimNextSchedule.h"
+#include "Workspace/AnimNextWorkspaceEditor.h"
+
 
 #define LOCTEXT_NAMESPACE "AnimNextEditorModule"
 
@@ -30,10 +39,6 @@ class FModule : public IModule
 			LOCTEXT("SettingsDescription", "Customize AnimNext Settings."),
 			GetMutableDefault<UAnimNextConfig>()
 		);
-		
-		IAssetTools& AssetTools = FModuleManager::LoadModuleChecked<FAssetToolsModule>("AssetTools").Get();
-		AssetTypeActions_AnimNextGraph = MakeShared<FAssetTypeActions_AnimNextGraph>();
-		AssetTools.RegisterAssetTypeActions(AssetTypeActions_AnimNextGraph.ToSharedRef());
 
 		FPropertyEditorModule& PropertyModule = FModuleManager::LoadModuleChecked<FPropertyEditorModule>("PropertyEditor");
 
@@ -52,16 +57,106 @@ class FModule : public IModule
 
 		ParametersGraphPanelPinFactory = MakeShared<FParametersGraphPanelPinFactory>();
 		FEdGraphUtilities::RegisterVisualPinFactory(ParametersGraphPanelPinFactory);
+
+		FWorkspaceEditor::RegisterAssetDocumentWidget(UAnimNextParameterBlock::StaticClass()->GetFName(), [](TSharedRef<FWorkspaceEditor> InEditor, UObject* InAsset)
+		{
+			UAnimNextParameterBlock* ParameterBlock = CastChecked<UAnimNextParameterBlock>(InAsset);
+			UAnimNextParameterBlock_EditorData* EditorData = UncookedOnly::FUtils::GetEditorData(ParameterBlock);
+			return SNew(SParameterBlockView, EditorData)
+				.OnSelectionChanged_Lambda([WeakEditor = TWeakPtr<FWorkspaceEditor>(InEditor)](const TArray<UObject*>& InObjects)
+				{
+					if(TSharedPtr<FWorkspaceEditor> Editor = WeakEditor.Pin())
+					{
+						Editor->SetSelectedObjects(InObjects);
+					}
+				})
+				.OnOpenGraph_Lambda([WeakEditor = TWeakPtr<FWorkspaceEditor>(InEditor)](URigVMGraph* InGraph)
+				{
+					if(TSharedPtr<FWorkspaceEditor> Editor = WeakEditor.Pin())
+					{
+						if(IRigVMClientHost* RigVMClientHost = InGraph->GetImplementingOuter<IRigVMClientHost>())
+						{
+							if(UObject* EditorObject = RigVMClientHost->GetEditorObjectForRigVMGraph(InGraph))
+							{
+								Editor->OpenDocument(EditorObject, FDocumentTracker::EOpenDocumentCause::OpenNewDocument);
+							}
+						}
+					}
+				})
+				.OnDeleteEntries_Lambda([WeakEditor = TWeakPtr<FWorkspaceEditor>(InEditor)](const TArray<UAnimNextParameterBlockEntry*>& InEntries)
+				{
+					if(InEntries.Num() > 0)
+					{
+						if(TSharedPtr<FWorkspaceEditor> Editor = WeakEditor.Pin())
+						{
+							if(IRigVMClientHost* RigVMClientHost = InEntries[0]->GetImplementingOuter<IRigVMClientHost>())
+							{
+								for(UAnimNextParameterBlockEntry* Entry : InEntries)
+								{
+									if(IAnimNextParameterBlockGraphInterface* GraphInterface = Cast<IAnimNextParameterBlockGraphInterface>(Entry))
+									{
+										if(URigVMGraph* RigVMGraph = GraphInterface->GetGraph())
+										{
+											if (UObject* EditorObject = RigVMClientHost->GetEditorObjectForRigVMGraph(RigVMGraph))
+											{
+												Editor->CloseDocumentTab(EditorObject);
+											}
+										}
+									}
+								}
+							}
+						}
+					}
+				});
+		});
+
+		FWorkspaceEditor::RegisterAssetDocumentWidget(UAnimNextParameterLibrary::StaticClass()->GetFName(), [](TSharedRef<FWorkspaceEditor> InEditor, UObject* InAsset)
+		{
+			UAnimNextParameterLibrary* ParameterLibrary = CastChecked<UAnimNextParameterLibrary>(InAsset);
+			return SNew(SParameterLibraryView, ParameterLibrary)
+				.OnSelectionChanged_Lambda([WeakEditor = TWeakPtr<FWorkspaceEditor>(InEditor)](const TArray<UObject*>& InObjects)
+				{
+					if(TSharedPtr<FWorkspaceEditor> Editor = WeakEditor.Pin())
+					{
+						Editor->SetSelectedObjects(InObjects);
+					}
+				});
+		});
+
+		FWorkspaceEditor::RegisterAssetDocumentWidget(UAnimNextSchedule::StaticClass()->GetFName(), [](TSharedRef<FWorkspaceEditor> InEditor, UObject* InAsset)
+		{
+			UAnimNextSchedule* Schedule = CastChecked<UAnimNextSchedule>(InAsset);
+			FPropertyEditorModule& PropertyEditorModule = FModuleManager::GetModuleChecked<FPropertyEditorModule>( "PropertyEditor" );
+			FDetailsViewArgs DetailsViewArgs;
+			DetailsViewArgs.NameAreaSettings = FDetailsViewArgs::HideNameArea;
+			TSharedRef<IDetailsView> DetailsView = PropertyEditorModule.CreateDetailView(DetailsViewArgs);
+			DetailsView->SetObject(Schedule);
+			return DetailsView;
+		});
+
+		FWorkspaceEditor::RegisterAssetDocumentWidget(UAnimNextGraph::StaticClass()->GetFName(), [](TSharedRef<FWorkspaceEditor> InEditor, UObject* InAsset)
+		{
+			UAnimNextGraph* Graph = CastChecked<UAnimNextGraph>(InAsset);
+			UAnimNextGraph_EditorData* EditorData = UncookedOnly::FUtils::GetEditorData(Graph);
+			return SNew(SAnimNextGraphView, EditorData)
+				.OnOpenGraph_Lambda([WeakEditor = TWeakPtr<FWorkspaceEditor>(InEditor)](URigVMGraph* InGraph)
+				{
+					if(TSharedPtr<FWorkspaceEditor> Editor = WeakEditor.Pin())
+					{
+						if(IRigVMClientHost* RigVMClientHost = InGraph->GetImplementingOuter<IRigVMClientHost>())
+						{
+							if(UObject* EditorObject = RigVMClientHost->GetEditorObjectForRigVMGraph(InGraph))
+							{
+								Editor->OpenDocument(EditorObject, FDocumentTracker::EOpenDocumentCause::OpenNewDocument);
+							}
+						}
+					}
+				});
+		});
 	}
 
 	virtual void ShutdownModule() override
 	{
-		if(FModuleManager::Get().IsModuleLoaded("AssetTools"))
-		{
-			IAssetTools& AssetTools = FModuleManager::GetModuleChecked<FAssetToolsModule>("AssetTools").Get();
-			AssetTools.UnregisterAssetTypeActions(AssetTypeActions_AnimNextGraph.ToSharedRef());
-		}
-	
 		if(FModuleManager::Get().IsModuleLoaded("PropertyEditor"))
 		{
 			FPropertyEditorModule& PropertyModule = FModuleManager::LoadModuleChecked<FPropertyEditorModule>("PropertyEditor");
@@ -78,8 +173,6 @@ class FModule : public IModule
 		return SNew(SParameterPicker)
 			.Args(InArgs);
 	}
-
-	TSharedPtr<FAssetTypeActions_AnimNextGraph> AssetTypeActions_AnimNextGraph;
 
 	/** Node factory for the AnimNext graph */
 	TSharedPtr<FAnimNextGraphPanelNodeFactory> AnimNextGraphPanelNodeFactory;

@@ -117,6 +117,23 @@ void SParameterPicker::Construct(const FArguments& InArgs)
 		Args.OnGetParameterBindings->BindSP(this, &SParameterPicker::HandleGetParameterBindings);
 	}
 
+	if(Args.bFocusSearchWidget)
+	{
+		RegisterActiveTimer( 0.f, FWidgetActiveTimerDelegate::CreateLambda([this](double InCurrentTime, float InDeltaTime)
+		{
+			if (SearchBox.IsValid())
+			{
+				FWidgetPath WidgetToFocusPath;
+				FSlateApplication::Get().GeneratePathToWidgetUnchecked(SearchBox.ToSharedRef(), WidgetToFocusPath);
+				FSlateApplication::Get().SetKeyboardFocus(WidgetToFocusPath, EFocusCause::SetDirectly);
+				WidgetToFocusPath.GetWindow()->SetWidgetToFocusOnActivate(SearchBox);
+				return EActiveTimerReturnType::Stop;
+			}
+
+			return EActiveTimerReturnType::Continue;
+		}));
+	}
+
 	TSharedPtr<SHeaderRow> HeaderRow;
 
 	ChildSlot
@@ -126,7 +143,7 @@ void SParameterPicker::Construct(const FArguments& InArgs)
 		.AutoHeight()
 		.Padding(2.0f)
 		[
-			SNew(SSearchBox)
+			SAssignNew(SearchBox, SSearchBox)
 			.OnTextChanged_Lambda([this](FText InText)
 			{
 				FilterText = InText;
