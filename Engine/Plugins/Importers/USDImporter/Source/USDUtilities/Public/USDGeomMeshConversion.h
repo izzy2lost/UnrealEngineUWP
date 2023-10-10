@@ -2,9 +2,9 @@
 
 #pragma once
 
-#if USE_USD_SDK
-
 #include "CoreMinimal.h"
+
+#if USE_USD_SDK
 
 #include "UnrealUSDWrapper.h"
 #include "UsdWrappers/ForwardDeclarations.h"
