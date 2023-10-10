@@ -854,7 +854,7 @@ void FAssetSourceControlContextMenuState::ExecuteSCCRevertWritable() const
 		return true;
 	};
 
-	SourceControlHelpers::ApplyOperationAndReloadPackages(PackageNames, RevertOperation);
+	SourceControlHelpers::ApplyOperationAndReloadPackages(PackageFileNamesToRevert, RevertOperation);
 
 	// Tell UncontrolledCL to refresh to pick up changes to files it was watching.
 	FUncontrolledChangelistsModule& UncontrolledChangelistsModule = FUncontrolledChangelistsModule::Get();
