@@ -1707,9 +1707,6 @@ void UGameViewportClient::Draw(FViewport* InViewport, FCanvas* SceneCanvas)
 
 	FinalizeViews(&ViewFamily, PlayerViewMap);
 
-	// Update engine flags stored by viewport.
-	EngineShowFlags = ViewFamily.EngineShowFlags;
-
 	// Update level streaming.
 	MyWorld->UpdateLevelStreaming();
 
