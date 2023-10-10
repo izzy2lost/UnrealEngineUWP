@@ -19,8 +19,7 @@ public class AVEncoder : ModuleRules
 		// PrecompileForTargets = PrecompileTargetsType.None;
 
 		PrivateDependencyModuleNames.AddRange(new string[] {
-			"Engine",
-			"SignalProcessing"
+			"Engine"
 		});
 
 		PublicDependencyModuleNames.AddRange(new string[] {

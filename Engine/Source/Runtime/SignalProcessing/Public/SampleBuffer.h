@@ -4,7 +4,6 @@
 
 #include "CoreMinimal.h"
 #include "DSP/BufferVectorOperations.h"
-#include "DSP/FloatArrayMath.h"
 
 namespace Audio
 {
@@ -117,7 +116,10 @@ namespace Audio
 			else if constexpr(std::is_same_v<SampleType, float>)
 			{
 				// Convert from int to float:
-				Audio::ArrayPcm16ToFloat(MakeArrayView(InBufferPtr, NumSamples), RawPCMData);
+				for (int32 SampleIndex = 0; SampleIndex < NumSamples; SampleIndex++)
+				{
+					RawPCMData[SampleIndex] = (InBufferPtr[SampleIndex] / 32767.0f);
+				}
 			}
 			else
 			{
@@ -167,12 +169,18 @@ namespace Audio
 			else if constexpr(std::is_same_v<SampleType, int16> && std::is_same_v<OtherSampleType, float>)
 			{
 				// Convert from float to int:
-				Audio::ArrayFloatToPcm16(MakeArrayView(Other.RawPCMData), MakeArrayView(RawPCMData));
+				for (int32 SampleIndex = 0; SampleIndex < NumSamples; SampleIndex++)
+				{
+					RawPCMData[SampleIndex] = (int16)(Other.RawPCMData[SampleIndex] * 32767.0f);
+				}
 			}
 			else if constexpr(std::is_same_v<SampleType, float> && std::is_same_v<OtherSampleType, int16>)
 			{
 				// Convert from int to float:
-				Audio::ArrayPcm16ToFloat(MakeArrayView(Other.RawPCMData), MakeArrayView(RawPCMData));
+				for (int32 SampleIndex = 0; SampleIndex < NumSamples; SampleIndex++)
+				{
+					RawPCMData[SampleIndex] = (float)((float)Other.RawPCMData[SampleIndex]) / 32767.0f;
+				}
 			}
 			else
 			{
@@ -216,12 +224,18 @@ namespace Audio
 				if constexpr(std::is_same_v<SampleType, int16> && std::is_same_v<OtherSampleType, float>)
 				{
 					// Convert from float to int:
-					Audio::ArrayFloatToPcm16(MakeArrayView(InputBuffer, InNumSamples), MakeArrayView(&RawPCMData[StartIndex], InNumSamples));
+					for (int32 SampleIndex = 0; SampleIndex < InNumSamples; SampleIndex++)
+					{
+						RawPCMData[StartIndex + SampleIndex] = (int16)(InputBuffer[SampleIndex] * 32767.0f);
+					}
 				}
 				else if constexpr(std::is_same_v<SampleType, float> && std::is_same_v<OtherSampleType, int16>)
 				{
 					// Convert from int to float:
-					Audio::ArrayPcm16ToFloat(MakeArrayView(InputBuffer, InNumSamples), MakeArrayView(&RawPCMData[StartIndex], NumSamples));
+					for (int32 SampleIndex = 0; SampleIndex < InNumSamples; SampleIndex++)
+					{
+						RawPCMData[StartIndex + SampleIndex] = (float)InputBuffer[SampleIndex] / 32767.0f;
+					}
 				}
 				else
 				{

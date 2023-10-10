@@ -13,7 +13,6 @@ namespace UnrealBuildTool.Rules
 					"CoreUObject",
 					"ImageWrapper",
 					"Media",
-					"SignalProcessing"
 				});
 
 			PrivateDependencyModuleNames.AddRange(

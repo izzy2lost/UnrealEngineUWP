@@ -534,10 +534,14 @@ FSoundWaveProxyReader::EDecodeResult FSoundWaveProxyReader::Decode()
 			break;
 		}
 
-		const int32 NumSamplesStreamed = NumBytesStreamed / sizeof(int16);
-		const int32 NumFramesStreamed = NumSamplesStreamed / NumChannels;
+		int32 NumSamplesStreamed = NumBytesStreamed / sizeof(int16);
+		int32 NumFramesStreamed = NumSamplesStreamed / NumChannels;
 
-		Audio::ArrayPcm16ToFloat(MakeArrayView(ResidualBuffer.GetData(), NumSamplesStreamed), MakeArrayView(SampleConversionBuffer.GetData(), NumSamplesStreamed));
+		constexpr float Scalar = 1.f / 32768.f;
+		for (int32 SampleIdx = 0; SampleIdx < NumSamplesStreamed; ++SampleIdx)
+		{
+			SampleConversionBuffer[SampleIdx] = static_cast<float>(ResidualBuffer[SampleIdx]) * Scalar;
+		}
 
 		const float* SampleData = SampleConversionBuffer.GetData();
 		DecoderOutput.Push(SampleData, NumSamplesStreamed);

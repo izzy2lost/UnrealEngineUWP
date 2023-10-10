@@ -27,8 +27,7 @@ namespace UnrealBuildTool.Rules
 
 			PrivateDependencyModuleNames.AddRange(
 				new string[] {
-					"Core",
-					"SignalProcessing"
+					"Core"
 				});
 
 			PublicIncludePathModuleNames.AddRange(

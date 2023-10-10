@@ -4,7 +4,6 @@
 #include "OpusAudioInfo.h"
 #include "VorbisAudioInfo.h"
 #include "HAL/PlatformFileManager.h"
-#include "DSP/FloatArrayMath.h"
 
 FAudioFileReader::FAudioFileReader(const FString& InPath)
 {
@@ -54,7 +53,10 @@ bool FAudioFileReader::PopAudio(float* OutAudio, int32 NumSamples)
 	bool bIsFinished = Decompressor->ReadCompressedData((uint8*) DecompressionBuffer.GetData(), false, NumSamples * sizeof(Audio::DefaultUSoundWaveSampleType));
 
 	// Convert to float:
-	Audio::ArrayPcm16ToFloat(MakeArrayView((int16*)DecompressionBuffer.GetData(), NumSamples), MakeArrayView(OutAudio, NumSamples));
+	for (int32 Index = 0; Index < NumSamples; Index++)
+	{
+		OutAudio[Index] = ((float)DecompressionBuffer[Index]) / 32768.0f;
+	}
 
 	return bIsFinished;
 }

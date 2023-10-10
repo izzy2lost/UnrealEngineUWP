@@ -13,7 +13,6 @@ namespace UnrealBuildTool.Rules
 					"CoreUObject",
                     "Engine",
 					"AudioExtensions",
-					"SignalProcessing",
 				//	"TargetPlatform"
 				}
 			);

@@ -5,7 +5,6 @@
 #include "ContentStreaming.h"
 #include "AudioDecompress.h"
 #include "Misc/ScopeTryLock.h"
-#include "DSP/FloatArrayMath.h"
 
 namespace Audio
 {
@@ -289,9 +288,15 @@ namespace Audio
 				int16* CachedBufferPtr1 = (int16*)(CachedRealtimeFirstBuffer.GetData() + BufferSize);
 				float* AudioData0 = SourceVoiceBuffers[0]->AudioData.GetData();
 				float* AudioData1 = SourceVoiceBuffers[1]->AudioData.GetData();
+				for (uint32 Sample = 0; Sample < NumSamples; ++Sample)
+				{
+					AudioData0[Sample] = CachedBufferPtr0[Sample] / 32768.0f;
+				}
 
-				Audio::ArrayPcm16ToFloat(MakeArrayView(CachedBufferPtr0, NumSamples), MakeArrayView(AudioData0, NumSamples));
-				Audio::ArrayPcm16ToFloat(MakeArrayView(CachedBufferPtr1, NumSamples), MakeArrayView(AudioData1, NumSamples));
+				for (uint32 Sample = 0; Sample < NumSamples; ++Sample)
+				{
+					AudioData1[Sample] = CachedBufferPtr1[Sample] / 32768.0f;
+				}
 
 				// Submit the already decoded and cached audio buffers
 				SubmitBuffer(SourceVoiceBuffers[0]);
@@ -305,8 +310,12 @@ namespace Audio
 				SourceVoiceBuffers[0]->AudioData.AddZeroed(NumSamples);
 
 				int16* CachedBufferPtr0 = (int16*)CachedRealtimeFirstBuffer.GetData();
+
 				float* AudioData0 = SourceVoiceBuffers[0]->AudioData.GetData();
-				Audio::ArrayPcm16ToFloat(MakeArrayView(CachedBufferPtr0, NumSamples), MakeArrayView(AudioData0, NumSamples));
+				for (uint32 Sample = 0; Sample < NumSamples; ++Sample)
+				{
+					AudioData0[Sample] = CachedBufferPtr0[Sample] / 32768.0f;
+				}
 
 				// Submit the already decoded and cached audio buffers
 				SubmitBuffer(SourceVoiceBuffers[0]);

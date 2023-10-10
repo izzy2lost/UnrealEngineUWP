@@ -250,7 +250,12 @@ int32 FWebRTCSoundGenerator::OnGenerateAudio(float* OutAudio, int32 NumSamples)
 		int32 NumSamplesToCopy = FGenericPlatformMath::Min(NumSamples, Buffer.Num());
 
 		// Copy from local buffer into OutAudio if we have enough samples
-		Audio::ArrayPcm16ToFloat(TArrayView(Buffer, NumSamplesToCopy), TArrayView(OutAudio, NumSamplesToCopy));
+		for (int i = 0; i < NumSamplesToCopy; i++)
+		{
+			//TODO: vectorize!
+			*OutAudio = Buffer[i] / 32767.0f;
+			OutAudio++;
+		}
 
 		// Remove front NumSamples from the local buffer
 		Buffer.RemoveAt(0, NumSamplesToCopy, false);
