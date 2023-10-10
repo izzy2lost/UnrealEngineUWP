@@ -221,6 +221,7 @@ class SbSetup:
     def run_verify(self, options: argparse.Namespace) -> Dict[str, Any]:
         result = {}
         result['imports'] = {
+            'aioquic': False,
             'PySide2': False,
             'pythonosc.osc_server': False,
             'requests': False,
