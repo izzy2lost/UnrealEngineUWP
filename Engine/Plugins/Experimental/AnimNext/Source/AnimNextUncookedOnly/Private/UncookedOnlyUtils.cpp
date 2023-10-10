@@ -724,6 +724,7 @@ void FUtils::RecreateVM(UAnimNextParameterBlock* InParameterBlock)
 {
 	InParameterBlock->VM = NewObject<URigVM>(InParameterBlock, TEXT("VM"), RF_NoFlags);
 	InParameterBlock->VM->Reset(InParameterBlock->GetRigVMExtendedExecuteContext());
+	InParameterBlock->RigVM = InParameterBlock->VM; // Local serialization
 }
 
 UAnimNextParameterBlock_EditorData* FUtils::GetEditorData(const UAnimNextParameterBlock* InParameterBlock)

@@ -92,6 +92,10 @@ class UAnimNextParameterBlock : public URigVMHost, public IAnimNextParameterSour
 	FRigVMExtendedExecuteContext BaseRigVMContext;
 
 	UPROPERTY()
+	TObjectPtr<URigVM> RigVM;
+
+
+	UPROPERTY()
 	FInstancedPropertyBag PropertyBag;
 
 #if WITH_EDITORONLY_DATA

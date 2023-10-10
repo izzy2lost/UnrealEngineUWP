@@ -119,6 +119,8 @@ void UAnimNextParameterBlock::PostLoad()
 {
 	Super::PostLoad();
 
+	VM = RigVM;
+
 	// In packaged builds, initialize the VM
 	// In editor, the VM will be recompiled and initialized at UAnimNextParameterBlock_EditorData::HandlePackageDone::RecompileVM
 #if !WITH_EDITOR

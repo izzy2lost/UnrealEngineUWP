@@ -12,7 +12,7 @@ namespace Private
 static bool bInitialized = false;
 static FDelegateHandle PostGarbageCollectHandle;
 
-static std::atomic<uint32> GCCycle = 0; // Main thread GC counter, incremented when a VM has been deleted
+static std::atomic<uint32> GCCycle = 0; // Main thread GC counter, incremented on each main thread GC cycle
 
 static thread_local uint32 LocalGCCycle = 0;	// Local thread GC counter, used to compare with main and trigger compaction if different
 static thread_local TMap<FRigVMRuntimeDataID, FRigVMRuntimeData> RuntimeDataStorage;

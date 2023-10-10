@@ -325,7 +325,7 @@ protected:
 	/** true if we should increase the AbsoluteTime */
 	bool bAccumulateTime;
 
-	UPROPERTY()
+	UPROPERTY(Transient)
 	TObjectPtr<URigVM> VM;
 
 #if WITH_EDITOR
