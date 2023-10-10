@@ -4,11 +4,19 @@
 
 #include "HAL/Platform.h"
 
+#include "Net/Core/Connection/NetEnums.h"
+
 namespace UE::Net
 {
 
+/** Returns if the preferred replication system should be Iris. */
 IRISCORE_API bool ShouldUseIrisReplication();
+
+/** Set if the preferred replication system should be Iris or not. */
 IRISCORE_API void SetUseIrisReplication(bool EnableIrisReplication);
+
+/** Returns what replication sytem was set to be used by the cmdline. Returns Default when the command line was not set. */
+IRISCORE_API EReplicationSystem GetUseIrisReplicationCmdlineValue();
 
 }
 

@@ -7726,6 +7726,16 @@ UWorld* FSeamlessTravelHandler::Tick()
 			if (NetDriver)
 			{
 				NetDriver->PreSeamlessTravelGarbageCollect();
+
+				// Warn if we loaded a game mode that wanted a different replication system from the previous mode.
+				if (AGameModeBase* GameMode = LoadedWorld->GetAuthGameMode())
+				{
+					EReplicationSystem LoadedGameModeRepSystem = GameMode->GetGameNetDriverReplicationSystem();
+					const bool bIsNetDriverCompatible = LoadedGameModeRepSystem == EReplicationSystem::Default || 
+														UE::Net::GetUseIrisReplicationCmdlineValue() != EReplicationSystem::Default ||
+														(LoadedGameModeRepSystem == EReplicationSystem::Iris && NetDriver->IsUsingIrisReplication());
+					ensureMsgf(bIsNetDriverCompatible, TEXT("Seamless travel loaded game mode %s that wants a different replication system than the current NetDriver uses."), *GetNameSafe(GameMode));
+				}
 			}
 
 			GWorld = nullptr;

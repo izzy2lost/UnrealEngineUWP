@@ -13575,15 +13575,9 @@ namespace UE::Private
 	 *		3. NetDriverDefinition match
 	 *
 	 */
-	bool IsNetDriverUsingIris(UEngine* Engine, FName InNetDriverDefinition, FName InNetDriverName)
+	bool IsNetDriverUsingIris(UEngine* Engine, const FWorldContext& Context, FName InNetDriverDefinition, FName InNetDriverName)
 	{
 #if UE_WITH_IRIS
-		// NetDrivers can only use Iris if the global setting allows it.
-		if (UE::Net::ShouldUseIrisReplication() == false)
-		{
-			return false;
-		}
-
 		FIrisNetDriverConfig* IrisConfig = nullptr;
 
 		// Search for the exact name match
@@ -13614,8 +13608,76 @@ namespace UE::Private
 				});
 		}
 
+		const bool bConfigCanUseIris = IrisConfig && IrisConfig->bCanUseIris;
+		const bool bIsEngineDefaultIris = UE::Net::ShouldUseIrisReplication();
+
+		bool bUseIrisRepSystem = bConfigCanUseIris && bIsEngineDefaultIris;
+
+		if (InNetDriverDefinition == NAME_GameNetDriver)
+		{
+			if (UWorld* World = Context.World())
+			{
+				// If we are the server look if the game mode wanted to override the replication system
+				if (AGameModeBase* GameMode = World->GetAuthGameMode())
+				{
+					EReplicationSystem RequestedRepSystem = GameMode->GetGameNetDriverReplicationSystem();
+
+					// If the gamemode requested to use the generic repsystem
+					if (RequestedRepSystem == EReplicationSystem::Generic)
+					{
+						UE_CLOG(bUseIrisRepSystem, LogNet, Log, TEXT("GameMode %s is forcing NetDriver %s (NetDefinition %s) to use the Generic replication system."), *GetNameSafe(GameMode), *InNetDriverName.ToString(), *InNetDriverDefinition.ToString());
+						bUseIrisRepSystem = false;
+					}
+					// If the gamemode requested to use the Iris repsystem
+					else if (RequestedRepSystem == EReplicationSystem::Iris)
+					{
+						UE_CLOG(!bUseIrisRepSystem && bConfigCanUseIris, LogNet, Log, TEXT("GameMode %s is forcing NetDriver %s (NetDefinition %s) to use the Iris replication system."), *GetNameSafe(GameMode), *InNetDriverName.ToString(), *InNetDriverDefinition.ToString());
+
+						// Enable Iris ONLY if the config supports it.
+						bUseIrisRepSystem = bConfigCanUseIris;
+					}
+				}
+				else
+				{
+#if WITH_EDITOR
+					// In PIE let's cheat and make sure the clients follow what the server's net driver is using
+					if (Context.WorldType == EWorldType::PIE)
+					{
+						if (FWorldContext* ServerPIEContext = GEngine->GetWorldContextFromPIEInstance(0))
+						{
+							if (ServerPIEContext->RunAsDedicated)
+							{
+								for (const FNamedNetDriver PieNetDriver : ServerPIEContext->ActiveNetDrivers)
+								{
+									if (PieNetDriver.NetDriverDef->DefName == NAME_GameNetDriver)
+									{
+										bUseIrisRepSystem = PieNetDriver.NetDriver->IsUsingIrisReplication();
+										break;
+									}
+								}
+							}
+						}
+					}
+#endif
+				}
+			}
+		}
+
+		// Ignore most of the above if the cmdline is requesting a specific system
+		const EReplicationSystem CmdlineRequest = UE::Net::GetUseIrisReplicationCmdlineValue();
+		if (CmdlineRequest == EReplicationSystem::Iris)
+		{
+			UE_CLOG(!bUseIrisRepSystem && bConfigCanUseIris, LogNet, Log, TEXT("Cmdline -UseIrisReplication=1 is forcing NetDriver %s (NetDefinition %s) to use the Iris replication system."), *InNetDriverName.ToString(), *InNetDriverDefinition.ToString());
+			bUseIrisRepSystem = bConfigCanUseIris;
+		}
+		else if (CmdlineRequest == EReplicationSystem::Generic)
+		{
+			UE_CLOG(bUseIrisRepSystem, LogNet, Log, TEXT("Cmdline -UseIrisReplication=0 is forcing NetDriver %s (NetDefinition %s) to use the Iris replication system."), *InNetDriverName.ToString(), *InNetDriverDefinition.ToString());
+			bUseIrisRepSystem = false;
+		}
+
 		// Only use Iris if the module is loaded (this happens automatically if the Iris plugin is enabled)
-		if (IrisConfig && IrisConfig->bCanUseIris)
+		if (bUseIrisRepSystem)
 		{
 			if (!ensureMsgf(FModuleManager::Get().IsModuleLoaded("IrisCore"), TEXT("%s is not using Iris because the IrisCore module isn't loaded. Check whether the Iris plugin is enabled."), *InNetDriverName.ToString()))
 			{
@@ -13623,7 +13685,7 @@ namespace UE::Private
 			}
 		}
 
-		return IrisConfig ? IrisConfig->bCanUseIris : false;
+		return bUseIrisRepSystem;
 #else
 		return false;
 #endif //UE_WITH_IRIS
@@ -13763,7 +13825,7 @@ namespace UE::Private
 				check(ReturnVal != nullptr);
 
 				const FName DriverName = InNetDriverName.IsNone() ? ReturnVal->GetFName() : InNetDriverName;
-				const bool bInitializeWithIris = IsNetDriverUsingIris(Engine, NetDriverDefinition, DriverName);
+				const bool bInitializeWithIris = IsNetDriverUsingIris(Engine, Context, NetDriverDefinition, DriverName);
 
 				ReturnVal->SetNetDriverName(DriverName);
 				ReturnVal->SetNetDriverDefinition(NetDriverDefinition);
