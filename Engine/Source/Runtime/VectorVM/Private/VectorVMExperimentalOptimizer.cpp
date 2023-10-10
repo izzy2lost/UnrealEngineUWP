@@ -587,7 +587,7 @@ static void VVMEnsureRegAlloced(FVectorVMOptimizeContext *OptContext, bool Alloc
 	}
 }
 
-static FORCEINLINE uint32 VVMPushRegUsage_(FVectorVMOptimizeContext *OptContext, FVectorVMOptimizeInstruction *Instruction, uint16 RegIdx, uint32 Type, uint32 IOFlag, uint32 *NumRegisterUsageAlloced)
+static uint32 VVMPushRegUsage_(FVectorVMOptimizeContext *OptContext, FVectorVMOptimizeInstruction *Instruction, uint16 RegIdx, uint32 Type, uint32 IOFlag, uint32 *NumRegisterUsageAlloced)
 {
 	if (Type == VVM_RT_CONST)
 	{
