@@ -91,6 +91,7 @@
 	<Option Name="Device" DefaultValue="" Description="Device address to run tests on"/>
 	<Option Name="Configuration" DefaultValue="Development" Description="Configuration type: development, debug, test, shipping etc."/>
 	<Option Name="AttachToDebugger" DefaultValue="false" Description="Wait for debugger to attach."/>
+	<Option Name="EnableDeviceLoginVerification" DefaultValue="$(IsBuildMachine)" Description="Verify a user is logged in on Devices that supports it, try to sign in if not."/>
 
 	<Property Name="TestNodes" Value=""/>
 	<Property Name="AfterTestNodes" Value=""/>
@@ -142,6 +143,7 @@
 		<Property Name="TestArgsExt" Value="$(TestArgsExt) $($(TestName)GauntletArgs)"/>
 		<Property Name="TestArgsExt" Value="$(TestArgsExt) -extra-args=&quot;$($(TestName)ExtraArgs)&quot;"/>
 		<Property Name="TestArgsExt" Value="$(TestArgsExt) $($(Platform)ExtraArgs)"/>
+		<Property Name="TestArgsExt" Value="$(TestArgsExt) -VerifyLogin" If="$(EnableDeviceLoginVerification)"/>
 		<Do If="'$(Device)' != ''">
 			<Property Name="TestArgsExt" Value="$(TestArgsExt) -device=$(Device) "/>
 		</Do>

@@ -165,6 +165,8 @@ namespace LowLevelTests
 
 		public bool AttachToDebugger;
 
+		public bool VerifyLogin;
+
 		[AutoParam(false)]
 		public bool SkipStage;
 
@@ -234,6 +236,7 @@ namespace LowLevelTests
 
 			Tags = Params.ParseValue("tags=", null);
 			AttachToDebugger = Params.ParseParam("attachtodebugger");
+			VerifyLogin = Params.ParseParam("verifylogin");
 
 			TestExtraArgs = Params.ParseValue("extra-args=", null);
 
@@ -269,6 +272,7 @@ namespace LowLevelTests
 		private string Tags { get; set; }
 		private int Sleep { get; set; }
 		private bool AttachToDebugger { get; set; }
+		private bool VerifyLogin { get; set; }
 		private string ReportType { get; set; }
 		private int PerTestTimeout { get; set; }
 		private string TestExtraArgs { get; set; }
@@ -277,17 +281,18 @@ namespace LowLevelTests
 
 		public UnrealDeviceReservation UnrealDeviceReservation { get; private set; }
 
-		public LowLevelTestsSession(LowLevelTestsBuildSource InBuildSource, string InTags, int InSleep, bool InAttachToDebugger, string InReportType, int InPerTestTimeout = 0, string InTestExtraArgs = null, bool InContainerized = false)
+		public LowLevelTestsSession(LowLevelTestsBuildSource InBuildSource, LowLevelTestExecutorOptions InOptions)
 		{
 			BuildSource = InBuildSource;
-			Tags = InTags;
-			Sleep = InSleep;
-			AttachToDebugger = InAttachToDebugger;
-			ReportType = InReportType;
-			PerTestTimeout = InPerTestTimeout;
+			Tags = InOptions.Tags;
+			Sleep = InOptions.Sleep;
+			AttachToDebugger = InOptions.AttachToDebugger;
+			VerifyLogin = InOptions.VerifyLogin;
+			ReportType = InOptions.ReportType;
+			PerTestTimeout = InOptions.Timeout;
 			UnrealDeviceReservation = new UnrealDeviceReservation();
-			TestExtraArgs = InTestExtraArgs;
-			Containerized = InContainerized;
+			TestExtraArgs = InOptions.TestExtraArgs;
+			Containerized = InOptions.Containerized;
 		}
 
 		public bool TryReserveDevices()
@@ -337,6 +342,16 @@ namespace LowLevelTests
 			IDeviceUsageReporter.RecordStart(Device.Name, (UnrealTargetPlatform)Device.Platform, IDeviceUsageReporter.EventType.Install, IDeviceUsageReporter.EventState.Success, BuildSource.BuildName);
 			try
 			{
+				if (VerifyLogin && Device is IOnlineServiceLogin)
+				{
+					Log.Info("\nVerifying device login...");
+					if (!(Device as IOnlineServiceLogin).VerifyLogin())
+					{
+						throw new AutomationException("Unable to secure login to an online platform account!");
+					}
+					Log.Info("Success! User signed-in.\n");
+				}
+
 				Install = Device.InstallApplication(AppConfig);
 				InstallSuccess = true;
 				IDeviceUsageReporter.RecordEnd(Device.Name, (UnrealTargetPlatform)Device.Platform, IDeviceUsageReporter.EventType.Install, IDeviceUsageReporter.EventState.Success);
