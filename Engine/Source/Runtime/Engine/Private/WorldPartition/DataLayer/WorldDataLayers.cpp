@@ -815,7 +815,10 @@ const UDataLayerInstance* AWorldDataLayers::GetDataLayerInstance(const FName& In
 			}
 			return true;
 		});
-		return FoundDataLayerInstance;
+		if (FoundDataLayerInstance)
+		{
+			return FoundDataLayerInstance;
+		}
 	}
 #else
 	if (const UDataLayerInstance* const* FoundDataLayerInstance = InstanceNameToInstance.Find(InDataLayerInstanceName))
