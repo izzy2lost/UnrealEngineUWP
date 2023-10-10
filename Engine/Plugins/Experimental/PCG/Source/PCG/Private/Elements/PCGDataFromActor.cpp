@@ -155,7 +155,7 @@ bool FPCGDataFromActorElement::ExecuteInternal(FPCGContext* InContext) const
 		if (Self && Settings->ActorSelector.bMustOverlapSelf)
 		{
 			// Capture ActorBounds by value because it goes out of scope
-			FBox ActorBounds = PCGHelpers::GetGridBounds(Self, PCGComponent);
+			const FBox ActorBounds = PCGHelpers::GetActorBounds(Self);
 			BoundsCheck = [Settings, ActorBounds, PCGComponent](const AActor* OtherActor) -> bool
 			{
 				const FBox OtherActorBounds = OtherActor ? PCGHelpers::GetGridBounds(OtherActor, PCGComponent) : FBox(EForceInit::ForceInit);

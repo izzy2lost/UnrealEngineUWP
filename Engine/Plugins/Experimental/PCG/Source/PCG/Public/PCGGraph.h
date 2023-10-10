@@ -384,9 +384,6 @@ public:
 	// Best used on a brand new PCG Graph.
 	void AddUserParameters(const TArray<FPropertyBagPropertyDesc>& InDescs, const UPCGGraph* InOptionalOriginalGraph = nullptr);
 
-	UPROPERTY(BlueprintReadWrite, EditAnywhere, Category = "Runtime Generation")
-	FPCGRuntimeGenerationRadii GenerationRadii;
-
 protected:
 	virtual void OnGraphParametersChanged(EPCGGraphParameterEvent InChangeType, FName InChangedPropertyName) override;
 

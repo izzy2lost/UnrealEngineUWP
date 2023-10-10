@@ -95,10 +95,9 @@ void FPCGComponentDetails::CustomizeDetails(IDetailLayoutBuilder& DetailBuilder)
 			.Padding(4.0f)
 			[
 				SNew(SButton)
-				.OnClicked(this, &FPCGComponentDetails::OnCleanupClicked)
-				.Visibility(this, &FPCGComponentDetails::CleanupButtonVisible)
+				.OnClicked(this, &FPCGComponentDetails::OnCleanupClicked)				
 				[
-					SNew(STextBlock)
+					SNew(STextBlock)					
 					.Font(IDetailLayoutBuilder::GetDetailFont())
 					.Text(LOCTEXT("CleanupButton", "Cleanup"))
 				]
@@ -145,8 +144,7 @@ EVisibility FPCGComponentDetails::GenerateButtonVisible() const
 {
 	for (const TWeakObjectPtr<UPCGComponent>& Component : SelectedComponents)
 	{
-		// If component is runtime generated then generate/cleanup is managed by the scheduler.
-		if (Component.IsValid() && !Component->IsGenerating() && Component->GenerationTrigger != EPCGComponentGenerationTrigger::GenerateAtRuntime)
+		if (Component.IsValid() && !Component->IsGenerating())
 		{
 			return EVisibility::Visible;
 		}
@@ -159,22 +157,7 @@ EVisibility FPCGComponentDetails::CancelButtonVisible() const
 {
 	for (const TWeakObjectPtr<UPCGComponent>& Component : SelectedComponents)
 	{
-		// If component is runtime generated then generate/cleanup is managed by the scheduler.
-		if (Component.IsValid() && Component->IsGenerating() && Component->GenerationTrigger != EPCGComponentGenerationTrigger::GenerateAtRuntime)
-		{
-			return EVisibility::Visible;
-		}
-	}
-
-	return EVisibility::Collapsed;
-}
-
-EVisibility FPCGComponentDetails::CleanupButtonVisible() const
-{
-	for (const TWeakObjectPtr<UPCGComponent>& Component : SelectedComponents)
-	{
-		// If component is runtime generated then generate/cleanup is managed by the scheduler.
-		if (Component.IsValid() && Component->GenerationTrigger != EPCGComponentGenerationTrigger::GenerateAtRuntime)
+		if (Component.IsValid() && Component->IsGenerating())
 		{
 			return EVisibility::Visible;
 		}

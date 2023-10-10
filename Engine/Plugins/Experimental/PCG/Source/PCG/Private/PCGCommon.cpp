@@ -30,11 +30,6 @@ namespace PCGHiGenGrid
 		return InGrid >= EPCGHiGenGrid::GridMin && static_cast<uint32>(InGrid) < 2 * static_cast<uint32>(EPCGHiGenGrid::GridMax);
 	}
 
-	bool IsValidGridOrUninitialized(EPCGHiGenGrid InGrid)
-	{
-		return IsValidGrid(InGrid) || InGrid == EPCGHiGenGrid::Uninitialized;
-	}
-
 	uint32 GridToGridSize(EPCGHiGenGrid InGrid)
 	{
 		const uint32 GridAsUint = static_cast<uint32>(InGrid);
@@ -64,30 +59,3 @@ namespace PCGHiGenGrid
 		return 100 * static_cast<uint32>(EPCGHiGenGrid::Unbounded);
 	}
 }
-
-double FPCGRuntimeGenerationRadii::GetGenerationRadiusFromGrid(EPCGHiGenGrid Grid) const
-{
-	switch (Grid)
-	{
-		case EPCGHiGenGrid::Grid4: return GenerationRadius400;
-		case EPCGHiGenGrid::Grid8: return GenerationRadius800;
-		case EPCGHiGenGrid::Grid16: return GenerationRadius1600;
-		case EPCGHiGenGrid::Grid32: return GenerationRadius3200;
-		case EPCGHiGenGrid::Grid64: return GenerationRadius6400;
-		case EPCGHiGenGrid::Grid128: return GenerationRadius12800;
-		case EPCGHiGenGrid::Grid256: return GenerationRadius25600;
-		case EPCGHiGenGrid::Grid512: return GenerationRadius51200;
-		case EPCGHiGenGrid::Grid1024: return GenerationRadius102400;
-		case EPCGHiGenGrid::Grid2048: return GenerationRadius204800;
-		case EPCGHiGenGrid::Unbounded: return GenerationRadius;
-	}
-
-	ensure(false);
-	return 0;
-}
-
-double FPCGRuntimeGenerationRadii::GetCleanupRadiusFromGrid(EPCGHiGenGrid Grid) const
-{
-	return GetGenerationRadiusFromGrid(Grid) * CleanupRadiusMultiplier;
-}
-

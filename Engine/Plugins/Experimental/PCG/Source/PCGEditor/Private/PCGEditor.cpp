@@ -273,19 +273,12 @@ void FPCGEditor::UpdateDebugAfterComponentSelection(UPCGComponent* InOldComponen
 		return;
 	}
 
-	// GenerateOnDemand requests will bounce off if the component is GenerateAtRuntime, so we need to select the correct GenTrigger for the component to be updated.
-	EPCGComponentGenerationTrigger GenerationTrigger = EPCGComponentGenerationTrigger::GenerateOnDemand;
-	if (InNewComponent && InNewComponent->GenerationTrigger == EPCGComponentGenerationTrigger::GenerateAtRuntime)
-	{
-		GenerationTrigger = EPCGComponentGenerationTrigger::GenerateAtRuntime;
-	}
-
 	// If individual component debugging is disabled, just generate the new component if required.
 	if (!PCGGraphBeingEdited->DebugFlagAppliesToIndividualComponents())
 	{
 		if (InNewComponent && bInNewComponentStartedInspecting)
 		{
-			InNewComponent->GenerateLocal(GenerationTrigger, /*bForce=*/true);
+			InNewComponent->GenerateLocal(/*bForce=*/true);
 		}
 
 		return;
@@ -298,7 +291,7 @@ void FPCGEditor::UpdateDebugAfterComponentSelection(UPCGComponent* InOldComponen
 		{
 			// Transition from 'null' to 'any component not already inspecting' - generate to create debug/inspection info.
 			// If we have null selected, all components are displaying debug. Go to Original component so that all refresh.
-			InNewComponent->GetOriginalComponent()->GenerateLocal(GenerationTrigger, /*bForce=*/true);
+			InNewComponent->GetOriginalComponent()->GenerateLocal(/*bForce=*/true);
 		}
 	}
 	else
@@ -311,19 +304,15 @@ void FPCGEditor::UpdateDebugAfterComponentSelection(UPCGComponent* InOldComponen
 		// Regenerate to clear debug info if switching components, or if changing from a component to null.
 		if (InNewComponent || bDebugFlagSetOnAnyNode)
 		{
-			// If InNewComponent is nullptr in local instance debug mode, then RuntimeGen does not want to regenerate (this is to avoid regenerating all PAs).
-			if (InNewComponent || InOldComponent->GenerationTrigger != EPCGComponentGenerationTrigger::GenerateAtRuntime)
-			{
-				// Use original component - debug can be displayed both by the local component and parent local components.
-				InOldComponent->GetOriginalComponent()->GenerateLocal(GenerationTrigger, /*bForce=*/true);
-			}
+			// Use original component - debug can be displayed both by the local component and parent local components.
+			InOldComponent->GetOriginalComponent()->GenerateLocal(/*bForce=*/true);
 		}
 
 		// Debug new component if it wasn't already
 		if (InNewComponent && bInNewComponentStartedInspecting)
 		{
 			// Use original component - debug can be displayed both by the local component and parent local components.
-			InNewComponent->GetOriginalComponent()->GenerateLocal(GenerationTrigger, /*bForce=*/true);
+			InNewComponent->GetOriginalComponent()->GenerateLocal(/*bForce=*/true);
 		}
 	}
 }
@@ -1338,7 +1327,7 @@ void FPCGEditor::OnToggleDebug()
 			if (PCGSettingsInterface->bDebug != bNewCheckState)
 			{
 				PCGSettingsInterface->bDebug = bNewCheckState;
-				PCGNode->OnNodeChangedDelegate.Broadcast(PCGNode, EPCGChangeType::Debug);
+				PCGNode->OnNodeChangedDelegate.Broadcast(PCGNode, EPCGChangeType::Settings);
 			}
 		}
 	}

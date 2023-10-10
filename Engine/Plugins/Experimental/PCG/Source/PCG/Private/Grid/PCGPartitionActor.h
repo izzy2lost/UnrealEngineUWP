@@ -55,23 +55,8 @@ public:
 	FBox GetFixedBounds() const;
 	FIntVector GetGridCoord() const;
 
-	void SetPCGGridSize(uint32 InPCGGridSize) { PCGGridSize = InPCGGridSize; }
 	uint32 GetPCGGridSize() const { return PCGGridSize; }
-
 	bool IsUsing2DGrid() const { return bUse2DGrid; }
-
-	/** Marks this PartitionActor as managed by the runtime generation system. */
-	void SetToRuntimeGenerated() { bIsRuntimeGenerated = true; }
-	bool IsRuntimeGenerated() const { return bIsRuntimeGenerated; }
-
-	/** Forces the actor location to change even if its mobility is static. */
-	bool Teleport(const FVector& NewLocation);
-
-	/** Register with the PCG Subsystem. */
-	void RegisterPCG(bool bDoComponentMapping);
-
-	/** Unregister with the PCG Subsystem. */
-	void UnregisterPCG();
 
 	void AddGraphInstance(UPCGComponent* OriginalComponent);
 	void RemapGraphInstance(const UPCGComponent* OldOriginalComponent, UPCGComponent* NewOriginalComponent);
@@ -81,6 +66,7 @@ public:
 	// When a local component is destroyed. It calls this function. We make sure we don't keep mappings that are dead.
 	void RemoveLocalComponent(UPCGComponent* LocalComponent);
 
+#if WITH_EDITOR
 	/** To be called after the creation of a new actor to copy the GridSize property (Editor only) into the PCGGridSize property */
 	void PostCreation(const FGuid& InGridGUID);
 
@@ -95,6 +81,7 @@ public:
 
 	/** Changes transient state for the local component matching the given original component. Returns true if PA becomes empty */
 	bool ChangeTransientState(UPCGComponent* OriginalComponent, EPCGEditorDirtyMode EditingMode);
+#endif
 
 	// TODO: Make this in-editor only; during runtime, we should keep a map of component to bounds/volume only
 	// and preferably precompute the intersection, so this would make it easier/possible to not have the original actor in game version.
@@ -135,20 +122,8 @@ private:
 	/** Box component to draw the Partition actor bounds in the Editor viewport */
 	UPROPERTY(Transient)
 	TObjectPtr<UBoxComponent> BoundsComponent;
-#endif // WITH_EDITORONLY_DATA
-
-	/** Tracks the registration status of this PA with the ActorAndComponentMapping system. Helps us avoid invalid (un)registers. */
-	bool bIsRegistered = false;
-
-	/** Tracks if this actor was created by the Runtime Generation system. */
-	bool bIsRuntimeGenerated = false;
 
 	/** Utility bool to check if PostCreation/PostLoad was called. */
 	bool bWasPostCreatedLoaded = false;
-
-public:
-	/** Gets the name this actor would have if it were Runtime Generated.
-	* This does not respect traditional PA name contents like GridGuid, ShouldIncludeGridSizeInName, or ContextHash.
-	*/
-	static FString GetRuntimeGenActorName(uint32 GridSize, const FIntVector& GridCoords);
+#endif // WITH_EDITORONLY_DATA
 };

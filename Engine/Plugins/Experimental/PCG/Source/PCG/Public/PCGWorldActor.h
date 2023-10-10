@@ -64,12 +64,6 @@ public:
 	UPROPERTY(config, EditAnywhere, Category = GenerationSettings)
 	bool bUse2DGrid = true;
 
-#if WITH_EDITORONLY_DATA
-	/** Allows any currently active editor viewport to act as a Runtime Generation Source. */
-	UPROPERTY(EditAnywhere, Category = RuntimeGeneration)
-	bool bTreatEditorViewportAsGenerationSource = false;
-#endif
-
 private:
 	void RegisterToSubsystem();
 	void UnregisterFromSubsystem();

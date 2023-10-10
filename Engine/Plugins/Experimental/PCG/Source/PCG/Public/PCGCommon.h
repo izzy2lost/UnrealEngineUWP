@@ -18,8 +18,7 @@ enum class EPCGChangeType : uint8
 	Input = 1 << 2,
 	Edge = 1 << 3,
 	Node = 1 << 4,
-	Structural = 1 << 5,
-	Debug = 1 << 6, // The Debug change type propagates when debug is toggled on a node.
+	Structural = 1 << 5
 };
 ENUM_CLASS_FLAGS(EPCGChangeType);
 
@@ -140,10 +139,7 @@ enum class EPCGHiGenGrid : uint32
 {
 	Uninitialized = 0 UMETA(Hidden),
 
-	// NOTE: When adding new grids, increment PCGHiGenGrid::NumGridValues below
-	Grid4 = 4 UMETA(DisplayName = "400"),
-	Grid8 = 8 UMETA(DisplayName = "800"),
-	Grid16 = 16 UMETA(DisplayName = "1600"),
+	// NOTE: When adding new grids, increment PCGHiGenGrid::NumGridValues below.
 	Grid32 = 32 UMETA(DisplayName = "3200"),
 	Grid64 = 64 UMETA(DisplayName = "6400"),
 	Grid128 = 128 UMETA(DisplayName = "12800"),
@@ -152,7 +148,7 @@ enum class EPCGHiGenGrid : uint32
 	Grid1024 = 1024 UMETA(DisplayName = "102400"),
 	Grid2048 = 2048 UMETA(DisplayName = "204800"),
 	
-	GridMin = Grid4 UMETA(Hidden),
+	GridMin = Grid32 UMETA(Hidden),
 	GridMax = Grid2048 UMETA(Hidden),
 
 	// Should execute once rather than executing on any grid
@@ -163,7 +159,7 @@ ENUM_CLASS_FLAGS(EPCGHiGenGrid);
 namespace PCGHiGenGrid
 {
 	// Number of unique values of EPCGHiGenGrid, const so it can be used for the inline allocator below.
-	constexpr uint32 NumGridValues = 13;
+	constexpr uint32 NumGridValues = 10;
 
 	// Alias for array which is allocated on the stack (we have a strong idea of the max required elements).
 	using FSizeArray = TArray<uint32, TInlineAllocator<PCGHiGenGrid::NumGridValues>>;
@@ -173,7 +169,6 @@ namespace PCGHiGenGrid
 
 	PCG_API bool IsValidGridSize(uint32 InGridSize);
 	PCG_API bool IsValidGrid(EPCGHiGenGrid InGrid);
-	PCG_API bool IsValidGridOrUninitialized(EPCGHiGenGrid InGrid);
 	PCG_API uint32 GridToGridSize(EPCGHiGenGrid InGrid);
 	PCG_API EPCGHiGenGrid GridSizeToGrid(uint32 InGridSize);
 
@@ -195,58 +190,4 @@ enum class EPCGEditorDirtyMode : uint8
 	Normal UMETA(Tooltip="Normal editing mode where generation changes (generation, cleanup) dirty the component and its resources."),
 	Preview UMETA(Tooltip="Editing mode where generation changes (generation, cleanup, resources) on the component will not trigger any dirty state, but will also not save any of the generated resources."),
 	LoadAsPreview UMETA(Tooltip="Acts as the normal editing mode until the next load of the component, at which state it acts as-if-transient, namely that any further generation changes will not dirty the component.")
-};
-
-USTRUCT(BlueprintType)
-struct FPCGRuntimeGenerationRadii
-{
-	GENERATED_BODY()
-
-public:
-	/** Get the runtime generation radius for the given grid size. */
-	double GetGenerationRadiusFromGrid(EPCGHiGenGrid Grid) const;
-
-	/** Compute the runtime cleanup radius for the given grid size. */
-	double GetCleanupRadiusFromGrid(EPCGHiGenGrid Grid) const;
-
-	static constexpr double DefaultGenerationRadiusMultiplier = 2.0;
-	static constexpr double DefaultCleanupRadiusMultiplier = 1.1;
-
-	/** The distance (in centimeters) at which the component will be considered for generation by the RuntimeGenerationScheduler. For partitioned components, this also acts as the unbounded generation radius. */
-	UPROPERTY(BlueprintReadWrite, EditAnywhere, Category = "Runtime Generation")
-	double GenerationRadius = PCGHiGenGrid::UnboundedGridSize() * DefaultGenerationRadiusMultiplier;
-
-	UPROPERTY(BlueprintReadWrite, EditAnywhere, Category = "Runtime Generation")
-	double GenerationRadius400 = PCGHiGenGrid::GridToGridSize(EPCGHiGenGrid::Grid4) * DefaultGenerationRadiusMultiplier;
-
-	UPROPERTY(BlueprintReadWrite, EditAnywhere, Category = "Runtime Generation")
-	double GenerationRadius800 = PCGHiGenGrid::GridToGridSize(EPCGHiGenGrid::Grid8) * DefaultGenerationRadiusMultiplier;
-
-	UPROPERTY(BlueprintReadWrite, EditAnywhere, Category = "Runtime Generation")
-	double GenerationRadius1600 = PCGHiGenGrid::GridToGridSize(EPCGHiGenGrid::Grid16) * DefaultGenerationRadiusMultiplier;
-
-	UPROPERTY(BlueprintReadWrite, EditAnywhere, Category = "Runtime Generation")
-	double GenerationRadius3200 = PCGHiGenGrid::GridToGridSize(EPCGHiGenGrid::Grid32) * DefaultGenerationRadiusMultiplier;
-
-	UPROPERTY(BlueprintReadWrite, EditAnywhere, Category = "Runtime Generation")
-	double GenerationRadius6400 = PCGHiGenGrid::GridToGridSize(EPCGHiGenGrid::Grid64) * DefaultGenerationRadiusMultiplier;
-
-	UPROPERTY(BlueprintReadWrite, EditAnywhere, Category = "Runtime Generation")
-	double GenerationRadius12800 = PCGHiGenGrid::GridToGridSize(EPCGHiGenGrid::Grid128) * DefaultGenerationRadiusMultiplier;
-
-	UPROPERTY(BlueprintReadWrite, EditAnywhere, Category = "Runtime Generation")
-	double GenerationRadius25600 = PCGHiGenGrid::GridToGridSize(EPCGHiGenGrid::Grid256) * DefaultGenerationRadiusMultiplier;
-
-	UPROPERTY(BlueprintReadWrite, EditAnywhere, Category = "Runtime Generation")
-	double GenerationRadius51200 = PCGHiGenGrid::GridToGridSize(EPCGHiGenGrid::Grid512) * DefaultGenerationRadiusMultiplier;
-
-	UPROPERTY(BlueprintReadWrite, EditAnywhere, Category = "Runtime Generation")
-	double GenerationRadius102400 = PCGHiGenGrid::GridToGridSize(EPCGHiGenGrid::Grid1024) * DefaultGenerationRadiusMultiplier;
-
-	UPROPERTY(BlueprintReadWrite, EditAnywhere, Category = "Runtime Generation")
-	double GenerationRadius204800 = PCGHiGenGrid::GridToGridSize(EPCGHiGenGrid::Grid2048) * DefaultGenerationRadiusMultiplier;
-
-	/** Multiplier on the GenerationRadius to control the distance at which runtime generated components will be cleaned up. Applied per grid size. */
-	UPROPERTY(BlueprintReadWrite, EditAnywhere, Category = "Runtime Generation", meta = (UIMin = "1.0", ClampMin = "1.0"))
-	double CleanupRadiusMultiplier = DefaultCleanupRadiusMultiplier;
 };

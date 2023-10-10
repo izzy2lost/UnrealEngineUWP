@@ -26,9 +26,6 @@
 #include "Grid/PCGPartitionActor.h"
 #include "Helpers/PCGActorHelpers.h"
 #include "Helpers/PCGHelpers.h"
-#include "RuntimeGen/GenSources/PCGGenSourceBase.h"
-#include "RuntimeGen/SchedulingPolicies/PCGSchedulingPolicyBase.h"
-#include "RuntimeGen/SchedulingPolicies/PCGSchedulingPolicyDistanceAndDirection.h"
 #include "Utils/PCGGeneratedResourcesLogging.h"
 
 #include "LandscapeComponent.h"
@@ -45,7 +42,6 @@
 #include "GameFramework/Volume.h"
 #include "Kismet/GameplayStatics.h"
 #include "LandscapeSplinesComponent.h"
-#include "UObject/Package.h"
 
 #include UE_INLINE_GENERATED_CPP_BY_NAME(PCGComponent)
 
@@ -67,7 +63,6 @@ UPCGComponent::UPCGComponent(const FObjectInitializer& InObjectInitializer)
 	: Super(InObjectInitializer)
 {
 	GraphInstance = InObjectInitializer.CreateDefaultSubobject<UPCGGraphInstance>(this, TEXT("PCGGraphInstance"));
-	SchedulingPolicyClass = UPCGSchedulingPolicyDistanceAndDirection::StaticClass();
 
 #if WITH_EDITOR
 	// If we are in Editor, and we are a BP template (no owner), we will mark this component to force a generate when added to world.
@@ -80,10 +75,8 @@ UPCGComponent::UPCGComponent(const FObjectInitializer& InObjectInitializer)
 
 bool UPCGComponent::CanPartition() const
 {
-	// Support/Force partitioning on non-PCG partition actors in WP worlds. GenerateAtRuntime components can be partitioned even if WorldPartition is not enabled.
-	return ((GetOwner() && GetOwner()->GetWorld() && GetOwner()->GetWorld()->GetWorldPartition() != nullptr)
-		|| GenerationTrigger == EPCGComponentGenerationTrigger::GenerateAtRuntime)
-		&& Cast<APCGPartitionActor>(GetOwner()) == nullptr;
+	// Support/Force partitioning on non-PCG partition actors in WP worlds.
+	return GetOwner() && GetOwner()->GetWorld() && GetOwner()->GetWorld()->GetWorldPartition() != nullptr && Cast<APCGPartitionActor>(GetOwner()) == nullptr;
 }
 
 bool UPCGComponent::IsPartitioned() const
@@ -173,18 +166,6 @@ bool UPCGComponent::ShouldGenerate(bool bForce, EPCGComponentGenerationTrigger R
 		return false;
 	}
 
-	if (GenerationTrigger == EPCGComponentGenerationTrigger::GenerateAtRuntime)
-	{
-		// If we're runtime generated, turn down other requests.
-		const bool bShouldGenerate = RequestedGenerationTrigger == EPCGComponentGenerationTrigger::GenerateAtRuntime;
-		if (!bShouldGenerate)
-		{
-			UE_LOG(LogPCG, Warning, TEXT("Generation request with trigger %d denied as this component is managed by the runtime generation scheduler."), (int)RequestedGenerationTrigger);
-		}
-
-		return bShouldGenerate;
-	}
-
 #if WITH_EDITOR
 	// Always run Generate if we are in editor and partitioned since the original component doesn't know the state of the local one.
 	if (IsPartitioned() && !PCGHelpers::IsRuntimeOrPIE())
@@ -231,11 +212,6 @@ void UPCGComponent::SetPropertiesFromOriginal(const UPCGComponent* Original)
 	Seed = Original->Seed;
 	GenerationTrigger = Original->GenerationTrigger;
 
-	bOverrideGenerationRadii = Original->bOverrideGenerationRadii;
-	GenerationRadii = Original->GenerationRadii;
-	SchedulingPolicyClass = Original->SchedulingPolicyClass;
-	SchedulingPolicy = Original->SchedulingPolicy;
-
 	UPCGGraph* OriginalGraph = Original->GraphInstance ? Original->GraphInstance->GetGraph() : nullptr;
 	if (OriginalGraph != GraphInstance->GetGraph())
 	{
@@ -278,25 +254,15 @@ void UPCGComponent::Generate_Implementation(bool bForce)
 
 void UPCGComponent::GenerateLocal(bool bForce)
 {
-	GenerateInternal(bForce, EPCGHiGenGrid::Uninitialized, EPCGComponentGenerationTrigger::GenerateOnDemand, {});
-}
-
-void UPCGComponent::GenerateLocal(EPCGComponentGenerationTrigger RequestedGenerationTrigger, bool bForce, EPCGHiGenGrid Grid)
-{
-	GenerateInternal(bForce, Grid, RequestedGenerationTrigger, {});
+	GenerateInternal(bForce, EPCGComponentGenerationTrigger::GenerateOnDemand, {});
 }
 
 FPCGTaskId UPCGComponent::GenerateLocalGetTaskId(bool bForce)
 {
-	return GenerateInternal(bForce, EPCGHiGenGrid::Uninitialized, EPCGComponentGenerationTrigger::GenerateOnDemand, {});
+	return GenerateInternal(bForce, EPCGComponentGenerationTrigger::GenerateOnDemand, {});
 }
 
-FPCGTaskId UPCGComponent::GenerateLocalGetTaskId(EPCGComponentGenerationTrigger RequestedGenerationTrigger, bool bForce, EPCGHiGenGrid Grid)
-{
-	return GenerateInternal(bForce, Grid, RequestedGenerationTrigger, {});
-}
-
-FPCGTaskId UPCGComponent::GenerateInternal(bool bForce, EPCGHiGenGrid Grid, EPCGComponentGenerationTrigger RequestedGenerationTrigger, const TArray<FPCGTaskId>& Dependencies)
+FPCGTaskId UPCGComponent::GenerateInternal(bool bForce, EPCGComponentGenerationTrigger RequestedGenerationTrigger, const TArray<FPCGTaskId>& Dependencies)
 {
 	if (IsGenerating() || !GetSubsystem() || !ShouldGenerate(bForce, RequestedGenerationTrigger))
 	{
@@ -305,7 +271,7 @@ FPCGTaskId UPCGComponent::GenerateInternal(bool bForce, EPCGHiGenGrid Grid, EPCG
 
 	Modify(!IsInPreviewMode());
 
-	CurrentGenerationTask = GetSubsystem()->ScheduleComponent(this, Grid, /*bSave=*/bForce, Dependencies);
+	CurrentGenerationTask = GetSubsystem()->ScheduleComponent(this, /*bSave=*/bForce, Dependencies);
 
 	return CurrentGenerationTask;
 }
@@ -538,12 +504,6 @@ void UPCGComponent::Cleanup()
 		return;
 	}
 
-	if (GenerationTrigger == EPCGComponentGenerationTrigger::GenerateAtRuntime)
-	{
-		UE_LOG(LogPCG, Warning, TEXT("Cleanup request denied as this component is managed by the runtime generation scheduler."));
-		return;
-	}
-
 #if WITH_EDITOR
 	FScopedTransaction Transaction(LOCTEXT("PCGCleanup", "Clean up PCG component"));
 #endif
@@ -706,51 +666,6 @@ void UPCGComponent::ClearPerPinGeneratedOutput()
 	PerPinGeneratedOutput.Reset();
 }
 
-void UPCGComponent::SetSchedulingPolicyClass(TSubclassOf<UPCGSchedulingPolicyBase> InSchedulingPolicyClass) 
-{
-	if (!SchedulingPolicy || InSchedulingPolicyClass != SchedulingPolicyClass)
-	{
-		if (InSchedulingPolicyClass != SchedulingPolicyClass)
-		{
-			SchedulingPolicyClass = InSchedulingPolicyClass;
-		}
-		
-		RefreshSchedulingPolicy();
-	}
-}
-
-double UPCGComponent::GetGenerationRadiusFromGrid(EPCGHiGenGrid Grid) const
-{
-	if (bOverrideGenerationRadii)
-	{
-		return GenerationRadii.GetGenerationRadiusFromGrid(Grid);
-	}
-
-	const UPCGGraph* Graph = GetGraph();
-	if (ensure(Graph))
-	{
-		return Graph->GenerationRadii.GetGenerationRadiusFromGrid(Grid);
-	}
-
-	return 0;
-}
-
-double UPCGComponent::GetCleanupRadiusFromGrid(EPCGHiGenGrid Grid) const
-{
-	if (bOverrideGenerationRadii)
-	{
-		return GenerationRadii.GetCleanupRadiusFromGrid(Grid);
-	}
-
-	const UPCGGraph* Graph = GetGraph();
-	if (ensure(Graph))
-	{
-		return Graph->GenerationRadii.GetCleanupRadiusFromGrid(Grid);
-	}
-
-	return 0;
-}
-
 bool UPCGComponent::MoveResourcesToNewActor(AActor* InNewActor, bool bCreateChild)
 {
 	// Don't move resources if we are generating or cleaning up
@@ -815,9 +730,6 @@ bool UPCGComponent::MoveResourcesToNewActor(AActor* InNewActor, bool bCreateChil
 void UPCGComponent::CleanupLocalImmediate(bool bRemoveComponents)
 {
 	PCGGeneratedResourcesLogging::LogCleanupLocalImmediate(bRemoveComponents, GeneratedResources);
-
-	// Cancels generation of this component if there is an ongoing generation in progress.
-	CancelGeneration();
 
 	TSet<TSoftObjectPtr<AActor>> ActorsToDelete;
 
@@ -1121,7 +1033,7 @@ void UPCGComponent::BeginPlay()
 		}
 		else
 		{
-			GenerateInternal(/*bForce=*/false, EPCGHiGenGrid::Uninitialized, EPCGComponentGenerationTrigger::GenerateOnLoad, {});
+			GenerateInternal(/*bForce=*/false, EPCGComponentGenerationTrigger::GenerateOnLoad, {});
 			bRuntimeGenerated = true;
 		}
 	}
@@ -1274,19 +1186,6 @@ void UPCGComponent::PostLoad()
 		bDirtyGenerated = true;
 	}
 #endif
-
-	if (!SchedulingPolicy)
-	{
-		RefreshSchedulingPolicy();
-	}
-	else
-	{
-		const EObjectFlags Flags = GetMaskedFlags(RF_PropagateToSubObjects) | RF_Transactional;
-		SchedulingPolicy->SetFlags(Flags);
-#if WITH_EDITOR
-		SchedulingPolicy->SetShouldDisplayProperties(GenerationTrigger == EPCGComponentGenerationTrigger::GenerateAtRuntime);
-#endif
-	}
 }
 
 #if WITH_EDITOR
@@ -1388,19 +1287,10 @@ TStructOnScope<FActorComponentInstanceData> UPCGComponent::GetComponentInstanceD
 
 void UPCGComponent::OnGraphChanged(UPCGGraphInterface* InGraph, EPCGChangeType ChangeType)
 {
-	if (!!(ChangeType & EPCGChangeType::Debug) && GenerationTrigger == EPCGComponentGenerationTrigger::GenerateAtRuntime)
-	{
-		// TODO: Handle RuntimeGen business in the RuntimeGenScheduler, subscribe to OnGraphChanged there instead.
-		CleanupLocalImmediate(/*bRemoveComponents=*/true);
-		GenerateLocal(EPCGComponentGenerationTrigger::GenerateAtRuntime, /*bForce=*/true);
-	}
-	else
-	{
-		const bool bIsStructural = ((ChangeType & (EPCGChangeType::Edge | EPCGChangeType::Structural)) != EPCGChangeType::None);
-		const bool bDirtyInputs = bIsStructural || ((ChangeType & EPCGChangeType::Input) != EPCGChangeType::None);
+	const bool bIsStructural = ((ChangeType & (EPCGChangeType::Edge | EPCGChangeType::Structural)) != EPCGChangeType::None);
+	const bool bDirtyInputs = bIsStructural || ((ChangeType & EPCGChangeType::Input) != EPCGChangeType::None);
 
-		RefreshAfterGraphChanged(InGraph, bIsStructural, bDirtyInputs);
-	}
+	RefreshAfterGraphChanged(InGraph, bIsStructural, bDirtyInputs);
 }
 
 void UPCGComponent::RefreshAfterGraphChanged(UPCGGraphInterface* InGraph, bool bIsStructural, bool bDirtyInputs)
@@ -1529,31 +1419,6 @@ void UPCGComponent::PostEditChangeProperty(FPropertyChangedEvent& PropertyChange
 	else if (PropName == GET_MEMBER_NAME_CHECKED(UPCGComponent, Seed))
 	{
 		DirtyGenerated();
-		Refresh();
-	}
-	else if (PropName == GET_MEMBER_NAME_CHECKED(UPCGComponent, SchedulingPolicyClass))
-	{
-		// We don't need to refresh the component here because this does not effect generation behavior, only scheduling behavior.
-		RefreshSchedulingPolicy();
-	} 
-	else if (PropName == GET_MEMBER_NAME_CHECKED(UPCGComponent, GenerationTrigger))
-	{
-		if (GenerationTrigger == EPCGComponentGenerationTrigger::GenerateAtRuntime)
-		{
-			CleanupLocalImmediate(/*bRemoveComponents=*/true);
-		}
-
-		if (!SchedulingPolicy)
-		{
-			RefreshSchedulingPolicy();
-		}
-
-		if (SchedulingPolicy)
-		{
-			// We should only display scheduling policy parameters when in runtime generation mode.
-			SchedulingPolicy->SetShouldDisplayProperties(GenerationTrigger == EPCGComponentGenerationTrigger::GenerateAtRuntime);
-		}
-
 		Refresh();
 	}
 	// General properties that don't affect behavior
@@ -1822,12 +1687,6 @@ void UPCGComponent::Refresh(bool bStructural)
 		return;
 	}
 
-	// Do not allow automatic refreshing for runtime generation components.
-	if (GenerationTrigger == EPCGComponentGenerationTrigger::GenerateAtRuntime)
-	{
-		return;
-	}
-
 	// If the component is tagged as not to regenerate in the editor, only exceptional cases should trigger a refresh
 	// namely: the component is deactivated.
 	// Note that the component changing its IsPartitioned state is already covered in the PostEditChangeProperty
@@ -1951,8 +1810,6 @@ bool UPCGComponent::IsActorTracked(AActor* InActor, bool& bOutIsCulled) const
 
 void UPCGComponent::OnRefresh(bool bForceRefresh)
 {
-	check(GenerationTrigger != EPCGComponentGenerationTrigger::GenerateAtRuntime);
-
 	// Mark the refresh task invalid to allow re-triggering refreshes
 	CurrentRefreshTask = InvalidPCGTaskId;
 
@@ -1967,7 +1824,7 @@ void UPCGComponent::OnRefresh(bool bForceRefresh)
 		// If we are partitioned but we have resources, we need to force a cleanup
 		if (!GeneratedResources.IsEmpty())
 		{
-			CleanupLocalImmediate(/*bRemoveComponents=*/true);
+			CleanupLocalImmediate(true);
 		}
 	}
 
@@ -2355,27 +2212,6 @@ FPCGDataCollection UPCGComponent::CreateActorPCGDataCollection(AActor* Actor, co
 	}
 
 	return Collection;
-}
-
-void UPCGComponent::RefreshSchedulingPolicy()
-{
-	if (SchedulingPolicy)
-	{
-		SchedulingPolicy->Rename(nullptr, GetTransientPackage(), REN_DontCreateRedirectors | REN_ForceNoResetLoaders);
-		SchedulingPolicy->MarkAsGarbage();
-		SchedulingPolicy = nullptr;
-	}
-
-	if (SchedulingPolicyClass)
-	{
-		const EObjectFlags Flags = GetMaskedFlags(RF_PropagateToSubObjects);
-		SchedulingPolicy = NewObject<UPCGSchedulingPolicyBase>(this, SchedulingPolicyClass, NAME_None, Flags);
-
-#if WITH_EDITOR
-		// We should only display scheduling policy parameters when in runtime generation mode.
-		SchedulingPolicy->SetShouldDisplayProperties(GenerationTrigger == EPCGComponentGenerationTrigger::GenerateAtRuntime);
-#endif
-	}
 }
 
 UPCGData* UPCGComponent::CreatePCGData()
