@@ -234,7 +234,7 @@ namespace AutomationTool.Tasks
 			StringBuilder ZenLaunchCommandline = new StringBuilder();
 			ZenLaunchCommandline.AppendFormat("{0} -SponsorProcessID={1}", CommandUtils.MakePathSafeToUseWithCommandLine(ProjectFile.FullName), Environment.ProcessId);
 
-			CommandUtils.RunAndLog(CommandUtils.CmdEnv, CommandUtils.MakePathSafeToUseWithCommandLine(ZenLaunchExe.FullName), ZenLaunchCommandline.ToString(), Options: CommandUtils.ERunOptions.Default);
+			CommandUtils.RunAndLog(CommandUtils.CmdEnv, ZenLaunchExe.FullName, ZenLaunchCommandline.ToString(), Options: CommandUtils.ERunOptions.Default);
 		}
 		
 		static JsonSerializerOptions GetDefaultJsonSerializerOptions()
