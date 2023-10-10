@@ -1,6 +1,7 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 
 #include "OnDemandHttpClient.h"
+#include "Statistics.h"
 
 #include "Containers/StringConv.h"
 #include "HAL/IConsoleManager.h"
@@ -211,6 +212,10 @@ void FHttpClient::IssueRequest(FRequestParams&& Params)
 void FHttpClient::RetryRequest(FRequestParams&& Params, bool bNextEndpoint)
 {
 	check(Params.Attempt < Config.MaxRetryCount);
+	if (Params.Attempt == 0)
+	{
+		FOnDemandIoBackendStats::Get()->OnHttpRetry();
+	}
 	if (bNextEndpoint && Config.Endpoints.Num() > 1)
 	{
 		Params.Endpoint = (Params.Endpoint + 1) % Config.Endpoints.Num();
