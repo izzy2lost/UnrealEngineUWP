@@ -358,6 +358,16 @@ namespace EpicGames.Horde.Compute
 					}
 				}
 
+				if (!File.Exists(resolvedExecutable))
+				{
+					_logger.LogWarning("Executable {Path} does not exist", resolvedExecutable);	
+				}
+				
+				if (!File.Exists(resolvedWorkingDir))
+				{
+					_logger.LogWarning("Working dir {Path} does not exist", resolvedWorkingDir);	
+				}
+
 				using (ManagedProcessGroup group = new ManagedProcessGroup())
 				{
 					using (ManagedProcess process = new ManagedProcess(group, resolvedExecutable, resolvedCommandLine, resolvedWorkingDir, resolvedEnvVars, null, ProcessPriorityClass.Normal))
