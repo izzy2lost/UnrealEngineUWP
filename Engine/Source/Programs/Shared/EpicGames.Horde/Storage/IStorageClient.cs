@@ -83,6 +83,13 @@ namespace EpicGames.Horde.Storage
 		#region Blobs
 
 		/// <summary>
+		/// Creates a new blob handle by parsing a blob id
+		/// </summary>
+		/// <param name="blobId">Path to the blob</param>
+		/// <returns>New handle to the blob</returns>
+		BlobHandle CreateBlobHandle(BlobLocator blobId);
+
+		/// <summary>
 		/// Creates a new writer for storage blobs
 		/// </summary>
 		/// <param name="refName">Name of the ref being written.</param>
@@ -90,11 +97,20 @@ namespace EpicGames.Horde.Storage
 		IStorageWriter CreateWriter(RefName refName = default);
 
 		/// <summary>
-		/// Creates a new blob handle by parsing a blob id
+		/// Read a blob from the underlying storage system. Calling <see cref="BlobHandle.ReadAsync(CancellationToken)"/> is more efficient than calling this method repeatedly for small blobs.
 		/// </summary>
-		/// <param name="blobId">Path to the blob</param>
-		/// <returns>New handle to the blob</returns>
-		BlobHandle CreateBlobHandle(BlobLocator blobId);
+		/// <param name="locator">Locator for the blob</param>
+		/// <param name="cancellationToken">Cancellation token for the operation</param>
+		ValueTask<BlobData> ReadBlobAsync(BlobLocator locator, CancellationToken cancellationToken = default);
+
+		/// <summary>
+		/// Write a blob to the underlying storage system. Using the writer instance returned from <see cref="CreateWriter(RefName)"/> is more efficient than calling this method repeatedly for small blobs.
+		/// </summary>
+		/// <param name="type">Type of the blob</param>
+		/// <param name="data">Data to be stored</param>
+		/// <param name="references">References to other blobs</param>
+		/// <param name="cancellationToken">Cancellation token for the operation</param>
+		ValueTask<BlobHandle> WriteBlobAsync(BlobType type, ReadOnlyMemory<byte> data, IReadOnlyList<BlobHandle> references, CancellationToken cancellationToken = default);
 
 		#endregion
 

@@ -284,13 +284,16 @@ namespace Horde.Server.Storage
 			public bool SupportsRedirects => _impl.SupportsRedirects;
 			public IStorageBackend Backend => _impl.Backend;
 
-			#region Nodes
+			#region Blobs
 
 			public BlobHandle CreateBlobHandle(BlobLocator locator) => _impl.CreateBlobHandle(locator);
 			public BundleNodeHandle CreateNodeHandle(BundleNodeLocator locator) => _impl.CreateNodeHandle(locator);
 
 			public BundleWriter CreateWriter(RefName refName = default, BundleOptions? options = null) => _impl.CreateWriter(refName, options);
 			IStorageWriter IStorageClient.CreateWriter(RefName refName) => ((IStorageClient)_impl).CreateWriter(refName);
+
+			public ValueTask<BlobData> ReadBlobAsync(BlobLocator locator, CancellationToken cancellationToken = default) => _impl.ReadBlobAsync(locator, cancellationToken);
+			public ValueTask<BlobHandle> WriteBlobAsync(BlobType type, ReadOnlyMemory<byte> data, IReadOnlyList<BlobHandle> references, CancellationToken cancellationToken = default) => _impl.WriteBlobAsync(type, data, references, cancellationToken);
 
 			#endregion
 

@@ -1,6 +1,7 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 
 using System;
+using System.Collections.Generic;
 using System.IO;
 using System.Threading;
 using System.Threading.Tasks;
@@ -152,6 +153,23 @@ namespace EpicGames.Horde.Storage.Clients
 
 		/// <inheritdoc/>
 		IStorageWriter IStorageClient.CreateWriter(RefName refName) => CreateWriter(refName);
+
+		/// <inheritdoc/>
+		public async ValueTask<BlobData> ReadBlobAsync(BlobLocator locator, CancellationToken cancellationToken = default)
+		{
+			BlobHandle handle = CreateBlobHandle(locator);
+			return await handle.ReadAsync(cancellationToken);
+		}
+
+		/// <inheritdoc/>
+		public async ValueTask<BlobHandle> WriteBlobAsync(BlobType type, ReadOnlyMemory<byte> data, IReadOnlyList<BlobHandle> references, CancellationToken cancellationToken = default)
+		{
+			await using (IStorageWriter writer = CreateWriter())
+			{
+				data.CopyTo(writer.GetOutputBuffer(0, data.Length));
+				return await writer.WriteBlobAsync(data.Length, references, type, cancellationToken);
+			}
+		}
 
 		#endregion
 
