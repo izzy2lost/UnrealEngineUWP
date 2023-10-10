@@ -161,7 +161,10 @@ public:
 	UFUNCTION(Category = "Data Layer|Runtime", BlueprintCallable)
 	EDataLayerRuntimeState GetInitialRuntimeState() const { return IsRuntime() && !IsClientOnly() && !IsServerOnly() ? InitialRuntimeState : EDataLayerRuntimeState::Unloaded; }
 
+	UFUNCTION(Category = "Data Layer", BlueprintCallable)
 	virtual FString GetDataLayerShortName() const { return TEXT("Invalid Data Layer"); }
+
+	UFUNCTION(Category = "Data Layer", BlueprintCallable)
 	virtual FString GetDataLayerFullName() const { return TEXT("Invalid Data Layer"); }
 
 	virtual bool CanHaveChildDataLayers() const { return true; }
@@ -173,6 +176,7 @@ public:
 	ENGINE_API EDataLayerRuntimeState GetRuntimeState() const;
 	ENGINE_API EDataLayerRuntimeState GetEffectiveRuntimeState() const;
 
+	UFUNCTION(Category = "Data Layer", BlueprintCallable)
 	virtual const UDataLayerAsset* GetAsset() const { return nullptr; }
 
 	const TArray<TObjectPtr<UDataLayerInstance>>& GetChildren() const { return Children; }

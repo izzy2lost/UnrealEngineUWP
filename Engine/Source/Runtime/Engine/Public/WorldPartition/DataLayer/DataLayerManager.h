@@ -54,6 +54,9 @@ public:
 
 	//~ Begin Blueprint interface
 	UFUNCTION(BlueprintCallable, Category = DataLayers)
+	ENGINE_API TArray<UDataLayerInstance*> GetDataLayerInstances() const;
+
+	UFUNCTION(BlueprintCallable, Category = DataLayers)
 	ENGINE_API const UDataLayerInstance* GetDataLayerInstanceFromAsset(const UDataLayerAsset* InDataLayerAsset) const;
 
 	UFUNCTION(BlueprintCallable, Category = DataLayers)

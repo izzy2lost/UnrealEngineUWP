@@ -268,6 +268,17 @@ AWorldDataLayers* UDataLayerManager::GetWorldDataLayers() const
 	return GetTypedOuter<UWorld>()->GetWorldDataLayers();
 }
 
+TArray<UDataLayerInstance*> UDataLayerManager::GetDataLayerInstances() const
+{
+	TArray<UDataLayerInstance*> Result;
+	ForEachDataLayerInstance([&Result](UDataLayerInstance* DataLayerInstance)
+	{
+		Result.Add(DataLayerInstance);
+		return true;
+	});
+	return Result;
+}
+
 const UDataLayerInstance* UDataLayerManager::GetDataLayerInstanceFromAsset(const UDataLayerAsset* InDataLayerAsset) const
 {
 	return GetDataLayerInstance(InDataLayerAsset);
