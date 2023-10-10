@@ -67,9 +67,6 @@ struct CUSTOMIZABLEOBJECTEDITOR_API FCustomizableObjectNodeMaterialScalar
 	FString PinName;
 };
 
-// Deprecated, do not use!
-constexpr int32 UV_LAYOUT_DEFAULT = -2;
-
 // UCustomizableObjectNodeEditMaterial
 // Deprecated, do not use!
 USTRUCT()
