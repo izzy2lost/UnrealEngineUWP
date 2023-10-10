@@ -99,11 +99,18 @@ static FAutoConsoleVariableRef CVar_GIasHttpRecvBufKiB(
 	TEXT("Recv buffer size")
 );
 
-int32 GIasMaxHttpConnectionCount = 4;
-static FAutoConsoleVariableRef CVar_IasMaxHttpConnectionCount(
-	TEXT("ias.MaxHttpConnectionCount"),
-	GIasMaxHttpConnectionCount,
-	TEXT("Max number of open HTTP connections to the on demand endpoint(s).")
+static int32 GIasHttpConcurrentRequests = 8;
+static FAutoConsoleVariableRef CVar_IasHttpConcurrentRequests(
+	TEXT("ias.HttpConcurrentRequests"),
+	GIasHttpConcurrentRequests,
+	TEXT("Number of concurrent requests in the http client.")
+);
+
+static int32 GIasHttpConnectionCount = 4;
+static FAutoConsoleVariableRef CVar_IasHttpConnectionCount(
+	TEXT("ias.HttpConnectionCount"),
+	GIasHttpConnectionCount,
+	TEXT("Number of open HTTP connections to the on demand endpoint(s).")
 );
 
 static int32 GIasHttpPipelineLength = 2;
@@ -113,11 +120,11 @@ static FAutoConsoleVariableRef CVar_GIasHttpPipelineLength(
 	TEXT("Number of concurrent requests on one connection")
 );
 
-int32 GIasMaxHttpRetryCount = 2;
-static FAutoConsoleVariableRef CVar_IasMaxHttpRetryCount(
-	TEXT("ias.MaxHttpRetryCount"),
-	GIasMaxHttpRetryCount,
-	TEXT("Max number of HTTP request retries before failing the I/O request.")
+static int32 GIasHttpRetryCount = 2;
+static FAutoConsoleVariableRef CVar_IasHttpRetryCount(
+	TEXT("ias.HttpRetryCount"),
+	GIasHttpRetryCount,
+	TEXT("Number of HTTP request retries before failing the I/O request.")
 );
 
 int32 GIasHttpTimeOutMs = 10 * 1000;
@@ -2274,9 +2281,9 @@ uint32 FOnDemandIoBackend::Run()
 	{
 		.Endpoints = AvailableEps.Urls,
 		.PrimaryEndpoint = FMath::Min(GIasHttpPrimaryEndpoint, AvailableEps.Urls.Num() -1),
-		.MaxConnectionCount = GIasMaxHttpConnectionCount,
+		.MaxConnectionCount = GIasHttpConnectionCount,
 		.PipelineLength = GIasHttpPipelineLength,
-		.MaxRetryCount = FMath::Max(AvailableEps.Urls.Num() + 1, GIasMaxHttpRetryCount),
+		.MaxRetryCount = FMath::Max(AvailableEps.Urls.Num() + 1, GIasHttpRetryCount),
 		.ReceiveBufferSize = GIasHttpRecvBufKiB >= 0 ? GIasHttpRecvBufKiB << 10 : -1,
 		.FailTimeoutMs = GIasHttpFailTimeOutMs,
 		.bChangeEndpointAfterSuccessfulRetry = GIasHttpChangeEndpointAfterSuccessfulRetry,
@@ -2293,7 +2300,7 @@ uint32 FOnDemandIoBackend::Run()
 	while (!bStopRequested)
 	{
 		// Process HTTP request(s) even if the client is invalid to ensure enqueued request(s) gets completed.
-		ProcessHttpRequests(*HttpClient, HttpErrors, FMath::Min(GIasHttpPipelineLength * GIasMaxHttpConnectionCount, 64));
+		ProcessHttpRequests(*HttpClient, HttpErrors, FMath::Min(GIasHttpConcurrentRequests, 32));
 		AvailableEps.Current = HttpClient->GetEndpoint();
 
 		if (!bStopRequested)

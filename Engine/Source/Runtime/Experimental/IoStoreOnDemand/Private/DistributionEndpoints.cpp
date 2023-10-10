@@ -3,6 +3,7 @@
 #include "DistributionEndpoints.h"
 
 #include "Dom/JsonValue.h"
+#include "HAL/IConsoleManager.h"
 #include "HAL/PlatformTime.h"
 #include "HttpManager.h"
 #include "HttpModule.h"
@@ -16,7 +17,13 @@
 namespace UE::IO::IAS
 {
 
-extern int32 GIasMaxHttpRetryCount;
+static int32 GIasHttpDistributionRetryCount = 2;
+static FAutoConsoleVariableRef CVar_IasHttpDistributionRetryCount(
+	TEXT("ias.HttpDistributionRetryCount"),
+	GIasHttpDistributionRetryCount,
+	TEXT("Number of HTTP distribution request retries.")
+);
+
 
 FDistributionEndpoints::~FDistributionEndpoints()
 {
@@ -106,7 +113,7 @@ void FDistributionEndpoints::IssueEndpointRequests()
 	TRACE_CPUPROFILER_EVENT_SCOPE(FOnDemandIoBackend::IssueEndpointRequests);
 	// Currently we need to use the HTTP module in order to resolve service endpoints due to HTTPS
 	FHttpModule& HttpModule = FHttpModule::Get();
-	const int32 MaxAttempts = GIasMaxHttpRetryCount;
+	const int32 MaxAttempts = GIasHttpDistributionRetryCount;
 
 	TArray<FHttpRequestPtr, TInlineAllocator<2>> HttpRequests;
 	{
