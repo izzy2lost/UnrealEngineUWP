@@ -55,7 +55,7 @@ namespace UnrealBuildTool
 			DirectoryReference Directory = DirectoryReference.Combine(BaseDirectory, SubDirectoryName);
 			if (DirectoryLookupCache.DirectoryExists(Directory))
 			{
-				ModuleRulesContext ModuleContext = new ModuleRulesContext(BaseModuleContext) { DefaultUHTModuleType = DefaultUHTModuleType };
+				ModuleRulesContext ModuleContext = new ModuleRulesContext(BaseModuleContext) { DefaultUHTModuleType = DefaultUHTModuleType, bCanHotReload = true };
 				AddModuleRulesWithContext(Directory, ModuleContext, ModuleFileToContext);
 			}
 		}
