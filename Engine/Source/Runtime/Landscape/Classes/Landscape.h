@@ -302,10 +302,19 @@ public:
 	UFUNCTION(BlueprintCallable, Category = "Landscape|Runtime")
 	LANDSCAPE_API bool RenderWeightmaps(FTransform InWorldTransform, FBox2D InExtents, const TArray<FName>& InWeightmapLayerNames, UTextureRenderTarget* OutRenderTarget);
 
+	/** 
+	* Retrieves the names of valid paint layers on this landscape (editor-only : returns nothing at runtime) 
+	* @Param bInIncludeVisibilityLayer whether the visibility layer's name should be included in the list or not
+	* @return the list of paint layer names
+	*/
+	UFUNCTION(BlueprintCallable, BlueprintPure=false, Category = "Landscape|Editor", meta=(DevelopmentOnly))
+	TArray<FName> GetTargetLayerNames(bool bInIncludeVisibilityLayer = false) const;
+
 	bool IsValidRenderTargetFormatHeightmap(EPixelFormat InRenderTargetFormat, bool& bOutCompressHeight);
 	bool IsValidRenderTargetFormatWeightmap(EPixelFormat InRenderTargetFormat, int32& OutNumChannels);
 
 #if WITH_EDITOR
+
 	/** Computes & returns bounds containing all landscape proxies (if any) or this landscape's bounds otherwise. Note that in non-WP worlds this will call GetLoadedBounds(). */
 	LANDSCAPE_API FBox GetCompleteBounds() const;
 	void RegisterLandscapeEdMode(ILandscapeEdModeInterface* InLandscapeEdMode) { LandscapeEdMode = InLandscapeEdMode; }

@@ -84,6 +84,7 @@ LandscapeEdit.cpp: Landscape editing
 #include "LandscapeSplineActor.h"
 #endif
 #include "Algo/Count.h"
+#include "Algo/Transform.h"
 #include "Algo/ForEach.h"
 #include "Serialization/MemoryWriter.h"
 #include "Engine/Canvas.h"
@@ -8282,8 +8283,30 @@ bool ALandscapeProxy::LandscapeExportHeightmapToRenderTarget(UTextureRenderTarge
 	return true;
 }
 
-#if WITH_EDITOR
+TArray<FName> ALandscape::GetTargetLayerNames(bool bInIncludeVisibilityLayer) const
+{
+	TArray<FName> Result;
 
+#if WITH_EDITOR
+	if (ULandscapeInfo* LandscapeInfo = GetLandscapeInfo())
+	{
+		Algo::TransformIf(LandscapeInfo->Layers, Result,
+			[bInIncludeVisibilityLayer](const FLandscapeInfoLayerSettings& InSettings) 
+			{ 
+				return (InSettings.LayerInfoObj != nullptr) 
+				&& (bInIncludeVisibilityLayer || (InSettings.LayerInfoObj != ALandscapeProxy::VisibilityLayer)); 
+			},
+			[](const FLandscapeInfoLayerSettings& InSettings) { return InSettings.GetLayerName(); });
+	}
+#else // WITH_EDITOR
+	FMessageLog("Blueprint").Error(LOCTEXT("GetTargetLayerNames_Runtime.", "GetTargetLayerNames_EditorOnly: this cannot be called at runtime"));
+#endif // !WITH_EDITOR
+
+	return Result;
+}
+
+
+#if WITH_EDITOR
 
 bool ALandscapeProxy::LandscapeImportWeightmapFromRenderTarget(UTextureRenderTarget2D* InRenderTarget, FName InLayerName)
 {
