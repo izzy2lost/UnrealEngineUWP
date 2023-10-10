@@ -68,7 +68,7 @@ public:
 // 	UPROPERTY(EditAnywhere, Category="Data Channel", meta=(EditCondition = "Scope == ENiagaraDataChannelScope::Local"))
 // 	FName Source;
 
-	/** When reading from external, the channel to consume. */
+	/** The data channel to access and read from. */
 	UPROPERTY(EditAnywhere, Category="Data Channel")
 	TObjectPtr<UNiagaraDataChannelAsset> Channel;
 	

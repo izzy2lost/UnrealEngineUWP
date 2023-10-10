@@ -12,7 +12,7 @@
 
 FLinearColor UAssetDefinition_NiagaraDataChannel::GetAssetColor() const
 {
-	return FNiagaraEditorStyle::Get().GetColor("NiagaraEditor.AssetColors.DataChannel");
+	return FNiagaraEditorStyle::Get().GetColor("NiagaraEditor.AssetColors.DataChannelDefinitions");
 }
 
 TSoftClassPtr<> UAssetDefinition_NiagaraDataChannel::GetAssetClass() const

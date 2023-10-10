@@ -106,6 +106,9 @@ struct FNDCIslandDebugDrawSettings
 	bool ShowBounds()const { return bEnabled && bShowIslandBounds; }
 };
 
+/**
+Data channel that will automatically sub-divide the world into discreet "islands" based on location.
+*/
 UCLASS(Experimental, MinimalAPI)
 class UNiagaraDataChannel_Islands : public UNiagaraDataChannel
 {

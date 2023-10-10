@@ -5,6 +5,7 @@
 #include "CoreMinimal.h"
 #include "DetailLayoutBuilder.h"
 #include "DetailWidgetRow.h"
+#include "EdGraphSchema_Niagara.h"
 #include "MaterialTypes.h"
 #include "IDetailChildrenBuilder.h"
 #include "IDetailGroup.h"
@@ -12,7 +13,6 @@
 #include "PropertyHandle.h"
 #include "ScopedTransaction.h"
 #include "SGraphActionMenu.h"
-#include "DeviceProfiles/DeviceProfileManager.h"
 #include "Framework/Application/SlateApplication.h"
 #include "Framework/MultiBox/MultiBoxBuilder.h"
 #include "Materials/MaterialInterface.h"
@@ -44,7 +44,6 @@
 #include "ViewModels/NiagaraEmitterHandleViewModel.h"
 
 #include "Widgets/SNiagaraParameterMenu.h"
-#include "Widgets/Input/SSuggestionTextBox.h"
 
 #include UE_INLINE_GENERATED_CPP_BY_NAME(NiagaraTypeCustomizations)
 
@@ -2598,85 +2597,144 @@ void FNiagaraVariableDetailsCustomization::CustomizeChildren(TSharedRef<IPropert
 			[
 				PropertyHandle->CreatePropertyValueWidget()
 			];
-
 	}
 	else
 	{
 		void* VarPtr = nullptr;
 		if (PropertyHandle->GetValueData(VarPtr) == FPropertyAccess::Success)
 		{
-			FNiagaraVariable* Var = (FNiagaraVariable*)VarPtr;
+			bool bEnforceUniqueName = PropertyHandle->HasMetaData(TEXT("EnforceUniqueNames"));
+			FNiagaraVariable* Variable = static_cast<FNiagaraVariable*>(VarPtr);
 
 			Row.NameContent()
+			[
+				SNew(SHorizontalBox)
+				+ SHorizontalBox::Slot()
+				.AutoWidth()
+				.VAlign(VAlign_Center)
 				[
-					//PropertyHandle->CreatePropertyNameWidget()
-					SNew(SHorizontalBox)
-					+ SHorizontalBox::Slot()
-					.AutoWidth()
-					.Padding(4.0f, 4.0f, 4.0f, 4.0f)
+					SNew(STextBlock)
+					.Font(IDetailLayoutBuilder::GetDetailFont())
+					.Text(LOCTEXT("DataChannelVarNameText", "Name: "))
+				]
+				+ SHorizontalBox::Slot()
+				.AutoWidth()
+				.VAlign(VAlign_Center)
+				.Padding(4.0f, 4.0f, 4.0f, 4.0f)
+				[
+					SNew(SNiagaraConstrainedBox)
+					.MinWidth(150.0f)
 					[
-						SNew(SComboButton)
-						.ButtonStyle(FAppStyle::Get(), "RoundButton")
-						.ForegroundColor(FAppStyle::GetSlateColor("DefaultForeground"))
-						.ContentPadding(FMargin(0, 0))
-						.OnGetMenuContent(this, &FNiagaraVariableDetailsCustomization::GetTypeMenu, TypeDefHandleHandle, Var)
-						//.IsEnabled(this, &SNiagaraParameterPanel::GetCanAddParametersToCategory, Category)
-						.HAlign(HAlign_Center)
-						.VAlign(VAlign_Center)
-						.HasDownArrow(false)
-						.ButtonContent()
-						[
-							SNew(SHorizontalBox)
-							+ SHorizontalBox::Slot()
-							.AutoWidth()
-							.Padding(FMargin(0, 1))
-							[
-								SNew(SImage)
-								.Image(FAppStyle::GetBrush("Icons.Edit"))
-							]
-						]
+						SNew( SEditableTextBox )
+						.Text_Lambda([NameHandle]() -> FText { FText OutText; NameHandle->GetValueAsDisplayText(OutText); return OutText; })
+						.Font(IDetailLayoutBuilder::GetDetailFont())
+						.SelectAllTextWhenFocused(true)
+						.ClearKeyboardFocusOnCommit(false)
+						.OnTextCommitted_Lambda([NameHandle](const FText& NewName, ETextCommit::Type)
+						{
+							FScopedTransaction Transaction(LOCTEXT("ChangeVarName", "Change variable name"));
+							TArray<UObject*> OuterObjects;
+							NameHandle->GetOuterObjects(OuterObjects);
+							for (UObject* OuterObj : OuterObjects)
+							{
+								OuterObj->Modify();
+							}
+							NameHandle->SetValue(FName(NewName.ToString()));
+						} )
+						.OnVerifyTextChanged_Lambda([bEnforceUniqueName, PropertyHandle](const FText& InNewText, FText& OutErrorMessage) -> bool
+						{
+							// if necessary, validate that the entered name is unique among all entries of the variable array
+							if (!bEnforceUniqueName)
+							{
+								return true;
+							}
+							FName NewName = FName(InNewText.ToString());
+							if (TSharedPtr<IPropertyHandle> Handle = PropertyHandle->GetParentHandle())
+							{
+								if (TSharedPtr<IPropertyHandleArray> PropertyHandleArray = Handle->AsArray())
+								{
+									uint32 NumElements;
+									PropertyHandleArray->GetNumElements(NumElements);
+									bool bNewNameValid = true;
+									for (uint32 i = 0; i < NumElements; i++)
+									{
+										TSharedRef<IPropertyHandle> ElementHandle = PropertyHandleArray->GetElement(i);
+										void* VarPtr = nullptr;
+										if (!ElementHandle->IsSamePropertyNode(PropertyHandle) && ElementHandle->GetValueData(VarPtr) == FPropertyAccess::Success)
+										{
+											if (NewName == static_cast<FNiagaraVariable*>(VarPtr)->GetName())
+											{
+												bNewNameValid = false;
+												break;
+											}
+										}
+									}
+									if (!bNewNameValid)
+									{
+										OutErrorMessage = LOCTEXT("DuplicateNameError", "Variable name has to be unique!");
+										return false;
+									}
+								}
+							}
+							return true;
+						})
+						.SelectAllTextOnCommit( true )
 					]
-					+ SHorizontalBox::Slot()
-					.AutoWidth()
-					.HAlign(HAlign_Center)
-					.VAlign(VAlign_Center)
-					.Padding(4.0f, 4.0f, 4.0f, 4.0f)
+				]
+				+ SHorizontalBox::Slot()
+				.AutoWidth()
+				.VAlign(VAlign_Center)
+				.Padding(4.0f, 2.0f, 4.0f, 2.0f)
+				[
+					SNew(SNiagaraConstrainedBox)
+					.MinWidth(150.0f)
 					[
-						SNew(SNiagaraConstrainedBox)
-						.MinWidth(75.0f)
+						PropertyHandle->CreateDefaultPropertyButtonWidgets()
+					]
+				]
+			];
+			
+			Row.ValueContent()
+			[
+				SNew(SHorizontalBox)
+				+ SHorizontalBox::Slot()
+				.AutoWidth()
+				.VAlign(VAlign_Center)
+				.Padding(0, 0, 2.0f, 0)
+				[
+					SNew(STextBlock)
+					.Font(IDetailLayoutBuilder::GetDetailFont())
+					.Text(LOCTEXT("DataChannelVarTypeText", "Type: "))
+				]
+				+ SHorizontalBox::Slot()
+				.VAlign(VAlign_Center)
+				.Padding(2.0f)
+				[
+					SNew(SComboButton)
+					.HasDownArrow(true)
+					.ContentPadding(0)
+					.OnGetMenuContent(this, &FNiagaraVariableDetailsCustomization::GetTypeMenu, TypeDefHandleHandle, Variable)
+					.ButtonContent()
+					[
+						SNew(SHorizontalBox)
+						+ SHorizontalBox::Slot()
+						.VAlign(VAlign_Center)
+						.HAlign(HAlign_Center)
+						.AutoWidth()
+						[
+							SNew(SImage)
+							.ColorAndOpacity_Lambda([Variable]() {return UEdGraphSchema_Niagara::GetTypeColor(Variable->GetType());})
+							.Image(FNiagaraEditorStyle::Get().GetBrush("NiagaraEditor.Module.TypeIconPill"))
+						]
+						+ SHorizontalBox::Slot()
+						.Padding(4, 2, 2, 2)
 						[
 							SNew(STextBlock)
-							.Text_Lambda([Var] {return Var ? Var->GetType().GetNameText() : FText::GetEmpty(); })
+							.MinDesiredWidth(150)
+							.Text_Lambda([Variable] {return Variable ? Variable->GetType().GetNameText() : FText::GetEmpty(); })
+							.Font(IDetailLayoutBuilder::GetDetailFont())
 						]
 					]
-				];
-
-			Row.ValueContent()
-				[
-					SNew(SHorizontalBox)
-			+ SHorizontalBox::Slot()
-				.AutoWidth()
-				.HAlign(HAlign_Center)
-				.VAlign(VAlign_Center)
-				.Padding(4.0f, 4.0f, 4.0f, 4.0f)
-				[
-					SNew(SNiagaraConstrainedBox)
-					.MinWidth(150.0f)
-				[
-					NameHandle->CreatePropertyValueWidget()
-				]
-				]
-			+ SHorizontalBox::Slot()
-				.AutoWidth()
-				.HAlign(HAlign_Center)
-				.VAlign(VAlign_Center)
-				.Padding(4.0f, 4.0f, 4.0f, 4.0f)
-				[
-					SNew(SNiagaraConstrainedBox)
-					.MinWidth(150.0f)
-				[
-					PropertyHandle->CreateDefaultPropertyButtonWidgets()
-				]
 				]
 			];
 		}

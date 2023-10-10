@@ -891,6 +891,33 @@ void UNiagaraDataChannel::PreEditChange(FProperty* PropertyAboutToChange)
 
 void UNiagaraDataChannel::PostEditChangeProperty(FPropertyChangedEvent& PropertyChangedEvent)
 {
+	FName VariablesMemberName = GET_MEMBER_NAME_CHECKED(UNiagaraDataChannel, Variables);
+	if (PropertyChangedEvent.ChangeType == EPropertyChangeType::ArrayAdd && PropertyChangedEvent.GetPropertyName() == VariablesMemberName)
+	{
+		TSet<FName> ExistingNames;
+		for (const FNiagaraVariable& Var : Variables)
+		{
+			ExistingNames.Add(Var.GetName());
+		}
+		FName UniqueName = FNiagaraUtilities::GetUniqueName(FName("MyNewVar"), ExistingNames);
+		Variables.Last().SetName(UniqueName);
+	}
+	if (PropertyChangedEvent.ChangeType == EPropertyChangeType::Duplicate && PropertyChangedEvent.GetPropertyName() == VariablesMemberName)
+	{
+		int32 ArrayIndex = PropertyChangedEvent.GetArrayIndex(VariablesMemberName.ToString());
+		if (Variables.IsValidIndex(ArrayIndex + 1))
+		{
+			TSet<FName> ExistingNames;
+			for (const FNiagaraVariable& Var : Variables)
+			{
+				ExistingNames.Add(Var.GetName());
+			}
+			FNiagaraVariable& NewEntry = Variables[ArrayIndex + 1];
+			FName UniqueName = FNiagaraUtilities::GetUniqueName(NewEntry.GetName(), ExistingNames);
+			NewEntry.SetName(UniqueName);
+		}
+	}
+	
 	Super::PostEditChangeProperty(PropertyChangedEvent);
 	
 	check(IsInGameThread());

@@ -131,7 +131,7 @@ public:
 private:
 
 	/** The variables that define the data contained in this Data Channel. */
-	UPROPERTY(EditAnywhere, Category = "Data Channel")
+	UPROPERTY(EditAnywhere, Category = "Data Channel", meta=(EnforceUniqueNames = true))
 	TArray<FNiagaraVariable> Variables;
 
 	/** If true, we keep our previous frame's data. This comes at a memory and performance cost but allows users to avoid tick order dependency by reading last frame's data. Some users will prefer a frame of latency to tick order dependency. */
@@ -186,11 +186,30 @@ class NIAGARA_API UNiagaraDataChannelLibrary : public UBlueprintFunctionLibrary
 	UFUNCTION(BlueprintCallable, Category = NiagaraDataChannel, meta = (Keywords = "niagara DataChannel", WorldContext = "WorldContextObject", UnsafeDuringActorConstruction = "true"))
 	static UNiagaraDataChannelHandler* GetNiagaraDataChannel(const UObject* WorldContextObject, const UNiagaraDataChannelAsset* Channel);
 
-	/** Initializes and returns the Niagara Data Channel writer to write N elements to the given data channel. */
+	/**
+	 * Initializes and returns the Niagara Data Channel writer to write N elements to the given data channel.
+	 *
+	 * @param WorldContextObject	World to execute in
+	 * @param Channel				The channel to write to
+	 * @param SearchParams			Parameters used when retrieving a specific set of Data Channel Data to read or write like the islands data channel type.
+	 * @param Count					The number of elements to write 
+	 * @param bVisibleToGame	If true, the data written to this data channel is visible to Blueprint and C++ logic reading from it
+	 * @param bVisibleToCPU	If true, the data written to this data channel is visible to Niagara CPU emitters
+	 * @param bVisibleToGPU	If true, the data written to this data channel is visible to Niagara GPU emitters
+	 */
 	UFUNCTION(BlueprintCallable, Category = NiagaraDataChannel, meta = (Keywords = "niagara DataChannel", WorldContext = "WorldContextObject", UnsafeDuringActorConstruction = "true"))
-	static UNiagaraDataChannelWriter* WriteToNiagaraDataChannel(const UObject* WorldContextObject, const UNiagaraDataChannelAsset* Channel, FNiagaraDataChannelSearchParameters SearchParams, int32 Count, bool bVisibleToGame, bool bVisibleToCPU, bool bVisibleToGPU);
+	static UNiagaraDataChannelWriter* WriteToNiagaraDataChannel(const UObject* WorldContextObject, const UNiagaraDataChannelAsset* Channel, FNiagaraDataChannelSearchParameters SearchParams, int32 Count, UPARAM(DisplayName = "Visible to Blueprint") bool bVisibleToGame, UPARAM(DisplayName = "Visible to Niagara CPU") bool bVisibleToCPU, UPARAM(DisplayName = "Visible to Niagara GPU") bool bVisibleToGPU);
 
-	/** Initializes and returns the Niagara Data Channel reader for the given data channel. */
+	/**
+	 * Initializes and returns the Niagara Data Channel reader for the given data channel.
+	 *
+	 * @param WorldContextObject	World to execute in
+	 * @param Channel				The channel to read from
+	 * @param SearchParams			Parameters used when retrieving a specific set of Data Channel Data to read or write like the islands data channel type.
+	 * @param bReadPreviousFrame	True if this reader will read the previous frame's data. If false, we read the current frame.
+	 *								Reading the current frame allows for zero latency reads, but any data elements that are generated after this reader is used are missed.
+	 *								Reading the previous frame's data introduces a frame of latency but ensures we never miss any data as we have access to the whole frame.
+	 */
 	UFUNCTION(BlueprintCallable, Category = NiagaraDataChannel, meta = (Keywords = "niagara DataChannel", WorldContext = "WorldContextObject", UnsafeDuringActorConstruction = "true"))
 	static UNiagaraDataChannelReader* ReadFromNiagaraDataChannel(const UObject* WorldContextObject, const UNiagaraDataChannelAsset* Channel, FNiagaraDataChannelSearchParameters SearchParams, bool bReadPreviousFrame);
 
