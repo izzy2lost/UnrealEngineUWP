@@ -19,7 +19,10 @@ public:
 		{
 			if (RealCursor.IsValid())
 			{
-				FakePosition = RealCursor->GetPosition();
+				if (!bOverrideRealCursor)
+				{
+					FakePosition = RealCursor->GetPosition();
+				}
 			}
 			else
 			{
@@ -132,9 +135,15 @@ public:
 		bAllowMessageHandling = bValue;
 	}
 
+	void SetOverrideRealCursorCoordinates(bool bOverride)
+	{
+		bOverrideRealCursor = bOverride;
+	}
+
 	FAutomatedCursor(const TSharedPtr<ICursor>& InRealCursor)
 		: RealCursor(InRealCursor)
 		, bAllowMessageHandling(false)
+		, bOverrideRealCursor(false)
 	{
 		if (RealCursor.IsValid())
 		{
@@ -156,6 +165,7 @@ private:
 	const TSharedPtr<ICursor> RealCursor;
 
 	bool bAllowMessageHandling;
+	bool bOverrideRealCursor;
 
 	mutable FVector2D FakePosition;
 	mutable EMouseCursor::Type FakeMouseType;
@@ -201,7 +211,7 @@ public:
 		}
 	}
 
-	virtual bool IsHandlingMessages() override
+	virtual bool IsHandlingMessages() const override
 	{
 		if (!PassThroughMessageHandler.IsValid() || !PassThroughMessageHandler->IsHandlingMessages())
 		{
@@ -214,6 +224,14 @@ public:
 		}
 
 		return true;
+	}
+
+	virtual void SetOverrideRealCursorCoordinates(bool bOverride) override
+	{
+		if (AutomatedCursor.IsValid())
+		{
+			AutomatedCursor->SetOverrideRealCursorCoordinates(bOverride);
+		}
 	}
 
 	virtual void SetMessageHandler(const TSharedRef<FGenericApplicationMessageHandler>& InMessageHandler) override
@@ -277,7 +295,7 @@ public:
 
 	virtual FModifierKeysState GetModifierKeys() const override
 	{
-		if (!PassThroughMessageHandler.IsValid() || !PassThroughMessageHandler->IsHandlingMessages())
+		if (IsHandlingMessages())
 		{
 			return FakeModifierKeys;
 		}

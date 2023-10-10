@@ -114,10 +114,16 @@ private:
 		{
 			FScopeLock StateLock(&StepsCS);
 
+			if (0 == StepIndex)
+			{
+				Application->SetOverrideRealCursorCoordinates(true);
+			}
+
 			// If we've encountered an invalid step that's greater then zero then we were just waiting
 			// a little bit after the last step completed before signaling completion.
 			if ((StepIndex > 0 && !Steps.IsValidIndex(StepIndex)) || !Application->IsHandlingMessages())
 			{
+				Application->SetOverrideRealCursorCoordinates(false); 
 				Promise->SetValue(true);
 				Promise.Reset();
 				StepTotalProcessTime = FTimespan::Zero();
@@ -131,6 +137,7 @@ private:
 
 		if (Result.State == FStepResult::EState::FAILED)
 		{
+			Application->SetOverrideRealCursorCoordinates(false);
 			Promise->SetValue(false);
 			Promise.Reset();
 			StepTotalProcessTime = FTimespan::Zero();

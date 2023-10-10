@@ -770,8 +770,8 @@ void FAutomationDriverSpec::Define()
 				D1->TypeChord(EKeys::LeftShift, EKeys::Tab);
 
 				FDriverElementRef C2 = Driver->FindElement(By::Id("C2"));
-				TEST_TRUE(C2->HasFocusedDescendants());
 				C2->TypeChord(EKeys::LeftControl, EKeys::V);
+				TEST_TRUE(C2->HasFocusedDescendants());
 
 				TEST_EQUAL(SuiteViewModel->GetFormString(EFormElement::D1), TEXT("1234"));
 				TEST_EQUAL(SuiteViewModel->GetFormString(EFormElement::C2), TEXT("aBc"));
