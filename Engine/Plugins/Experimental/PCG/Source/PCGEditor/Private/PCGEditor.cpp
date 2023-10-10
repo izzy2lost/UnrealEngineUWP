@@ -579,22 +579,24 @@ void FPCGEditor::BindCommands()
 	GraphEditorCommands->MapAction(
 		PCGEditorCommands.ToggleEnabled,
 		FExecuteAction::CreateSP(this, &FPCGEditor::OnToggleEnabled),
-		FCanExecuteAction(),
+		FCanExecuteAction::CreateSP(this, &FPCGEditor::CanToggleEnabled),
 		FGetActionCheckState::CreateSP(this, &FPCGEditor::GetEnabledCheckState));
 
 	GraphEditorCommands->MapAction(
 		PCGEditorCommands.ToggleDebug,
 		FExecuteAction::CreateSP(this, &FPCGEditor::OnToggleDebug),
-		FCanExecuteAction(),
+		FCanExecuteAction::CreateSP(this, &FPCGEditor::CanToggleDebug),
 		FGetActionCheckState::CreateSP(this, &FPCGEditor::GetDebugCheckState));
 
 	GraphEditorCommands->MapAction(
 		PCGEditorCommands.DebugOnlySelected,
-		FExecuteAction::CreateSP(this, &FPCGEditor::OnDebugOnlySelected));
+		FExecuteAction::CreateSP(this, &FPCGEditor::OnDebugOnlySelected),
+		FCanExecuteAction::CreateSP(this, &FPCGEditor::CanToggleDebug));
 
 	GraphEditorCommands->MapAction(
 		PCGEditorCommands.DisableDebugOnAllNodes,
-		FExecuteAction::CreateSP(this, &FPCGEditor::OnDisableDebugOnAllNodes));
+		FExecuteAction::CreateSP(this, &FPCGEditor::OnDisableDebugOnAllNodes),
+		FCanExecuteAction::CreateSP(this, &FPCGEditor::CanToggleDebug));
 
 	GraphEditorCommands->MapAction(
 		PCGEditorCommands.AddSourcePin,
@@ -1137,6 +1139,15 @@ void FPCGEditor::OnToggleInspected()
 
 	UEdGraphNode* GraphNode = GraphEditorWidget->GetSingleSelectedNode();
 	UPCGEditorGraphNodeBase* PCGGraphNodeBase = Cast<UPCGEditorGraphNodeBase>(GraphNode);
+
+	const UPCGNode* PCGNode = PCGGraphNodeBase ? PCGGraphNodeBase->GetPCGNode() : nullptr;
+	const UPCGSettingsInterface* PCGSettingsInterface = PCGNode ? PCGNode->GetSettingsInterface() : nullptr;
+
+	if (PCGSettingsInterface && !PCGSettingsInterface->CanBeDebugged())
+	{
+		return;
+	}
+
 	if (PCGGraphNodeBase && PCGGraphNodeBase != PCGGraphNodeBeingInspected)
 	{
 		PCGGraphNodeBeingInspected = PCGGraphNodeBase;
@@ -1163,9 +1174,29 @@ bool FPCGEditor::CanToggleInspected() const
 		return false;
 	}
 
-	const UEdGraphNode* GraphNode = GraphEditorWidget->GetSingleSelectedNode();
+	const FGraphPanelSelectionSet& SelectedNodes = GraphEditorWidget->GetSelectedNodes();
+	if (SelectedNodes.Num() != 1)
+	{
+		// Can only inspect one node.
+		return false;
+	}
 
-	return GraphNode && GraphNode->IsA<UPCGEditorGraphNodeBase>();
+	for (const UObject* Object : GraphEditorWidget->GetSelectedNodes())
+	{
+		const UPCGEditorGraphNodeBase* PCGEditorGraphNode = Cast<UPCGEditorGraphNodeBase>(Object);
+		if (!PCGEditorGraphNode)
+		{
+			return false;
+		}
+
+		const UPCGSettingsInterface* PCGSettingsInterface = PCGEditorGraphNode->GetPCGNode() ? PCGEditorGraphNode->GetPCGNode()->GetSettingsInterface() : nullptr;
+		if (PCGSettingsInterface && PCGSettingsInterface->CanBeDebugged())
+		{
+			return true;
+		}
+	}
+
+	return false;
 }
 
 ECheckBoxState FPCGEditor::GetInspectedCheckState() const
@@ -1219,19 +1250,10 @@ void FPCGEditor::OnToggleEnabled()
 		for (UObject* Object : GraphEditorWidget->GetSelectedNodes())
 		{
 			UPCGEditorGraphNodeBase* PCGEditorGraphNode = Cast<UPCGEditorGraphNodeBase>(Object);
-			if (!PCGEditorGraphNode)
-			{
-				continue;
-			}
+			UPCGNode* PCGNode = PCGEditorGraphNode ? PCGEditorGraphNode->GetPCGNode() : nullptr;
+			UPCGSettingsInterface* PCGSettingsInterface = PCGNode ? PCGNode->GetSettingsInterface() : nullptr;
 
-			UPCGNode* PCGNode = PCGEditorGraphNode->GetPCGNode();
-			if (!PCGNode)
-			{
-				continue;
-			}
-
-			UPCGSettingsInterface* PCGSettingsInterface = PCGNode->GetSettingsInterface();
-			if (!PCGSettingsInterface)
+			if (!PCGSettingsInterface || !PCGSettingsInterface->CanBeDisabled())
 			{
 				continue;
 			}
@@ -1251,6 +1273,32 @@ void FPCGEditor::OnToggleEnabled()
 	}
 }
 
+bool FPCGEditor::CanToggleEnabled() const
+{
+	if (!GraphEditorWidget.IsValid())
+	{
+		return false;
+	}
+
+	for (const UObject* Object : GraphEditorWidget->GetSelectedNodes())
+	{
+		const UPCGEditorGraphNodeBase* PCGEditorGraphNode = Cast<UPCGEditorGraphNodeBase>(Object);
+		const UPCGNode* PCGNode = PCGEditorGraphNode ? PCGEditorGraphNode->GetPCGNode() : nullptr;
+		if (!PCGNode)
+		{
+			continue;
+		}
+
+		if (PCGNode->GetSettingsInterface() && PCGNode->GetSettingsInterface()->CanBeDisabled())
+		{
+			return true;
+		}
+	}
+
+	// Could not toggle enabled on anything in selection.
+	return false;
+}
+
 ECheckBoxState FPCGEditor::GetEnabledCheckState() const
 {
 	if (GraphEditorWidget.IsValid())
@@ -1258,22 +1306,13 @@ ECheckBoxState FPCGEditor::GetEnabledCheckState() const
 		bool bAllEnabled = true;
 		bool bAnyEnabled = false;
 
-		for (UObject* Object : GraphEditorWidget->GetSelectedNodes())
+		for (const UObject* Object : GraphEditorWidget->GetSelectedNodes())
 		{
 			const UPCGEditorGraphNodeBase* PCGEditorGraphNode = Cast<UPCGEditorGraphNodeBase>(Object);
-			if (!PCGEditorGraphNode)
-			{
-				continue;
-			}
+			const UPCGNode* PCGNode = PCGEditorGraphNode ? PCGEditorGraphNode->GetPCGNode() : nullptr;
+			const UPCGSettingsInterface* PCGSettingsInterface = PCGNode ? PCGNode->GetSettingsInterface() : nullptr;
 
-			const UPCGNode* PCGNode = PCGEditorGraphNode->GetPCGNode();
-			if (!PCGNode)
-			{
-				continue;
-			}
-
-			const UPCGSettingsInterface* PCGSettingsInterface = PCGNode->GetSettingsInterface();
-			if (!PCGSettingsInterface)
+			if (!PCGSettingsInterface || !PCGSettingsInterface->CanBeDisabled())
 			{
 				continue;
 			}
@@ -1307,19 +1346,10 @@ void FPCGEditor::OnToggleDebug()
 		for (UObject* Object : GraphEditorWidget->GetSelectedNodes())
 		{
 			UPCGEditorGraphNodeBase* PCGEditorGraphNode = Cast<UPCGEditorGraphNodeBase>(Object);
-			if (!PCGEditorGraphNode)
-			{
-				continue;
-			}
+			UPCGNode* PCGNode = PCGEditorGraphNode ? PCGEditorGraphNode->GetPCGNode() : nullptr;
+			UPCGSettingsInterface* PCGSettingsInterface = PCGNode ? PCGNode->GetSettingsInterface() : nullptr;
 
-			UPCGNode* PCGNode = PCGEditorGraphNode->GetPCGNode();
-			if (!PCGNode)
-			{
-				continue;
-			}
-
-			UPCGSettingsInterface* PCGSettingsInterface = PCGNode->GetSettingsInterface();
-			if (!PCGSettingsInterface)
+			if (!PCGSettingsInterface || !PCGSettingsInterface->CanBeDebugged())
 			{
 				continue;
 			}
@@ -1331,6 +1361,28 @@ void FPCGEditor::OnToggleDebug()
 			}
 		}
 	}
+}
+
+bool FPCGEditor::CanToggleDebug() const
+{
+	if (!GraphEditorWidget.IsValid())
+	{
+		return false;
+	}
+
+	for (const UObject* Object : GraphEditorWidget->GetSelectedNodes())
+	{
+		const UPCGEditorGraphNodeBase* PCGEditorGraphNode = Cast<UPCGEditorGraphNodeBase>(Object);
+		const UPCGNode* PCGNode = PCGEditorGraphNode ? PCGEditorGraphNode->GetPCGNode() : nullptr;
+
+		if (PCGNode && PCGNode->GetSettingsInterface()->CanBeDebugged())
+		{
+			return true;
+		}
+	}
+
+	// Could not toggle debug on anything in selection.
+	return false;
 }
 
 void FPCGEditor::OnDebugOnlySelected()
@@ -1347,13 +1399,12 @@ void FPCGEditor::OnDebugOnlySelected()
 		bool bAllSelectedNodesDebugged = true;
 
 		// Initial pass - inspect state of selected and non-selected nodes.
-		for (UEdGraphNode* Node : PCGEditorGraph->Nodes)
+		for (const UEdGraphNode* Node : PCGEditorGraph->Nodes)
 		{
-			UPCGEditorGraphNodeBase* PCGEditorGraphNode = Cast<UPCGEditorGraphNodeBase>(Node);
-			UPCGNode* PCGNode = PCGEditorGraphNode ? PCGEditorGraphNode->GetPCGNode() : nullptr;
-			UPCGSettingsInterface* PCGSettingsInterface = PCGNode ? PCGNode->GetSettingsInterface() : nullptr;
-
-			if (!PCGEditorGraphNode || !PCGNode || !PCGSettingsInterface)
+			const UPCGEditorGraphNodeBase* PCGEditorGraphNode = Cast<UPCGEditorGraphNodeBase>(Node);
+			const UPCGNode* PCGNode = PCGEditorGraphNode ? PCGEditorGraphNode->GetPCGNode() : nullptr;
+			const UPCGSettingsInterface* PCGSettingsInterface = PCGNode ? PCGNode->GetSettingsInterface() : nullptr;
+			if (!PCGSettingsInterface)
 			{
 				continue;
 			}
@@ -1378,7 +1429,7 @@ void FPCGEditor::OnDebugOnlySelected()
 			UPCGNode* PCGNode = PCGEditorGraphNode ? PCGEditorGraphNode->GetPCGNode() : nullptr;
 			UPCGSettingsInterface* PCGSettingsInterface = PCGNode ? PCGNode->GetSettingsInterface() : nullptr;
 
-			if (!PCGEditorGraphNode || !PCGNode || !PCGSettingsInterface)
+			if (!PCGSettingsInterface || !PCGSettingsInterface->CanBeDebugged())
 			{
 				continue;
 			}
@@ -1414,8 +1465,7 @@ void FPCGEditor::OnDisableDebugOnAllNodes()
 			UPCGEditorGraphNodeBase* PCGEditorGraphNode = Cast<UPCGEditorGraphNodeBase>(Node);
 			UPCGNode* PCGNode = PCGEditorGraphNode ? PCGEditorGraphNode->GetPCGNode() : nullptr;
 			UPCGSettingsInterface* PCGSettingsInterface = PCGNode ? PCGNode->GetSettingsInterface() : nullptr;
-
-			if (!PCGEditorGraphNode || !PCGNode || !PCGSettingsInterface)
+			if (!PCGSettingsInterface)
 			{
 				continue;
 			}
@@ -1443,22 +1493,13 @@ ECheckBoxState FPCGEditor::GetDebugCheckState() const
 		bool bAllDebug = true;
 		bool bAnyDebug = false;
 
-		for (UObject* Object : GraphEditorWidget->GetSelectedNodes())
+		for (const UObject* Object : GraphEditorWidget->GetSelectedNodes())
 		{
 			const UPCGEditorGraphNodeBase* PCGEditorGraphNode = Cast<UPCGEditorGraphNodeBase>(Object);
-			if (!PCGEditorGraphNode)
-			{
-				continue;
-			}
+			const UPCGNode* PCGNode = PCGEditorGraphNode ? PCGEditorGraphNode->GetPCGNode() : nullptr;
+			const UPCGSettingsInterface* PCGSettingsInterface = PCGNode ? PCGNode->GetSettingsInterface() : nullptr;
 
-			const UPCGNode* PCGNode = PCGEditorGraphNode->GetPCGNode();
-			if (!PCGNode)
-			{
-				continue;
-			}
-
-			const UPCGSettingsInterface* PCGSettingsInterface = PCGNode->GetSettingsInterface();
-			if (!PCGSettingsInterface)
+			if (!PCGSettingsInterface || !PCGSettingsInterface->CanBeDebugged())
 			{
 				continue;
 			}

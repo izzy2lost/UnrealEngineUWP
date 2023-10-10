@@ -124,11 +124,15 @@ private:
 	
 	/** Toggle node enabled state for selected nodes */
 	void OnToggleEnabled();
+	/** Whether we can toggle enabled state of selected nodes */
+	bool CanToggleEnabled() const;
 	/** Whether selected nodes are enabled or not */
 	ECheckBoxState GetEnabledCheckState() const;
 	
 	/** Toggle node debug state for selected nodes */
 	void OnToggleDebug();
+	/** Whether we can toggle debug state of selected nodes */
+	bool CanToggleDebug() const;
 	/** Whether selected nodes are being debugged or not */
 	ECheckBoxState GetDebugCheckState() const;
 

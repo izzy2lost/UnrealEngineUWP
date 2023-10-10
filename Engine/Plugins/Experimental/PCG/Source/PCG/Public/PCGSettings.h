@@ -154,14 +154,20 @@ public:
 	/** Dedicated method to change enable state because some nodes have more complex behavior on enable/disable (such as subgraphs) */
 	void SetEnabled(bool bInEnabled);
 
+	/** Whether this element can be disabled. */
+	virtual bool CanBeDisabled() const { return true; }
+
+	/** Whether this element supports Debug and Inspect features. */
+	virtual bool CanBeDebugged() const { return true; }
+
 #if WITH_EDITOR
 	FOnPCGSettingsChanged OnSettingsChangedDelegate;
 #endif
 
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = Debug)
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = Debug, meta = (EditCondition = bDisplayDebuggingProperties, EditConditionHides, HideEditConditionToggle))
 	bool bEnabled = true;
 
-	UPROPERTY(Transient, EditAnywhere, BlueprintReadWrite, Category = Debug)
+	UPROPERTY(Transient, EditAnywhere, BlueprintReadWrite, Category = Debug, meta = (EditCondition = bDisplayDebuggingProperties, EditConditionHides, HideEditConditionToggle))
 	bool bDebug = false;
 
 #if WITH_EDITORONLY_DATA
@@ -169,8 +175,12 @@ public:
 	FPCGDebugVisualizationSettings DebugSettings;
 
 	/** If a debugger is attached, triggers a breakpoint inside IPCGElement::Execute(). Editor only. Transient. */
-	UPROPERTY(Transient, DuplicateTransient, EditAnywhere, BlueprintReadWrite, Category = Debug, AdvancedDisplay)
+	UPROPERTY(Transient, DuplicateTransient, EditAnywhere, BlueprintReadWrite, Category = Debug, AdvancedDisplay, meta = (EditCondition = bDisplayDebuggingProperties, EditConditionHides))
 	bool bBreakDebugger = false;
+
+	// This can be set false by inheriting nodes to hide the debugging properties.
+	UPROPERTY(Transient, meta = (EditCondition = false, EditConditionHides))
+	bool bDisplayDebuggingProperties = true;
 #endif
 };
 

@@ -16,26 +16,30 @@ class PCG_API UPCGRerouteSettings : public UPCGSettings
 
 public:
 	UPCGRerouteSettings();
-	
+
+	//~Begin UPCGSettingsInterface interface
+	virtual bool CanBeDisabled() const override { return false; }
+	virtual bool CanBeDebugged() const override { return false; }
+	//~End UPCGSettingsInterface interface
+
+	//~Begin UPCGSettings interface
 	virtual bool HasDynamicPins() const override { return true; }
 	virtual EPCGDataType GetCurrentPinTypes(const UPCGPin* InPin) const override;
+
+#if WITH_EDITOR
+	virtual FName GetDefaultNodeName() const override { return FName("Reroute"); }
+	virtual FText GetDefaultNodeTitle() const override { return NSLOCTEXT("PCGRerouteElement", "NodeTitle", "Reroute"); }
+#endif
 
 protected:
 	virtual TArray<FPCGPinProperties> InputPinProperties() const override;
 	virtual TArray<FPCGPinProperties> OutputPinProperties() const override;
 	virtual FPCGElementPtr CreateElement() const override;
-	
-#if WITH_EDITOR
-	virtual FName GetDefaultNodeName() const override { return FName("Reroute"); }
-	virtual FText GetDefaultNodeTitle() const override { return NSLOCTEXT("PCGRerouteSettings", "NodeTitle", "Reroute"); }
-#endif
+	//~End UPCGSettings interface
 };
 
 class PCG_API FPCGRerouteElement : public IPCGElement
 {
-public:
-	virtual bool IsCacheable(const UPCGSettings* InSettings) const override { return true; }
-
 protected:
 	virtual bool ExecuteInternal(FPCGContext* Context) const override;
 };

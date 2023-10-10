@@ -8,6 +8,7 @@
 #include "PCGPin.h"
 #include "PCGSubgraph.h"
 #include "Elements/PCGHiGenGridSize.h"
+#include "Elements/PCGReroute.h"
 #include "Graph/PCGGraphExecutor.h"
 
 #include "Misc/ScopeRWLock.h"
@@ -452,7 +453,7 @@ EPCGHiGenGrid FPCGGraphCompiler::CalculateGridRecursive(
 	return Grid;
 }
 
-void FPCGGraphCompiler::CullTasks(TArray<FPCGGraphTask>& InOutCompiledTasks, TFunctionRef<bool(const FPCGGraphTask&)> CullTask)
+void FPCGGraphCompiler::CullTasks(TArray<FPCGGraphTask>& InOutCompiledTasks, bool bAddPassthroughWires, TFunctionRef<bool(const FPCGGraphTask&)> CullTask)
 {
 	TRACE_CPUPROFILER_EVENT_SCOPE(FPCGGraphCompiler::CullTasks);
 
@@ -465,14 +466,57 @@ void FPCGGraphCompiler::CullTasks(TArray<FPCGGraphTask>& InOutCompiledTasks, TFu
 	TArray<int32> TaskRemapping;
 	TaskRemapping.SetNumUninitialized(InOutCompiledTasks.Num());
 
-	// Never cull first (Input) task.
+	// Mark culled tasks by remapping to INDEX_NONE. First task is input task and is never culled.
+	TaskRemapping[0] = 0;
+	for (int32 TaskIndex = 1; TaskIndex < InOutCompiledTasks.Num(); ++TaskIndex)
+	{
+		TaskRemapping[TaskIndex] = CullTask(InOutCompiledTasks[TaskIndex]) ? INDEX_NONE : 0;
+	}
+
+	// Optionally add wires that bypass culled nodes.
+	if (bAddPassthroughWires)
+	{
+		for (int32 TaskIndex = 1; TaskIndex < InOutCompiledTasks.Num(); ++TaskIndex)
+		{
+			FPCGGraphTask& Task = InOutCompiledTasks[TaskIndex];
+			if (!Task.Node || Task.Node->GetInputPins().IsEmpty())
+			{
+				continue;
+			}
+
+			const int32 InputNumBefore = Task.Inputs.Num();
+			for (int32 InputIndex = 0; InputIndex < InputNumBefore; ++InputIndex)
+			{
+				const int32 InputTaskId = Task.Inputs[InputIndex].TaskId;
+
+				// Is node culled?
+				if (TaskRemapping[InputTaskId] == INDEX_NONE)
+				{
+					const FPCGGraphTask& InputTask = InOutCompiledTasks[InputTaskId];
+					if (InputTask.Node && InputTask.Node->GetInputPins().Num() > 1)
+					{
+						ensureMsgf(false, TEXT("Task culling currently only supports nodes with a single input pin which are trivial to unwire."));
+						continue;
+					}
+
+					// Upstream node was culled. Wire up the inputs of the culled node to this node.
+					for (int32 InputInputIndex = 0; InputInputIndex < InputTask.Inputs.Num(); ++InputInputIndex)
+					{
+						FPCGGraphTaskInput& NewInput = Task.Inputs.Add_GetRef(InputTask.Inputs[InputInputIndex]);
+						NewInput.OutPin = Task.Inputs[InputIndex].OutPin;
+					}
+				}
+			}
+		}
+	}
+
+	// Remove all culled tasks by compacting the task array. Never cull first (Input) task.
 	int32 WriteIndex = 1;
 	int32 ReadIndex = 1;
-	TaskRemapping[0] = 0;
-
 	while (ReadIndex < InOutCompiledTasks.Num())
 	{
-		if (!CullTask(InOutCompiledTasks[ReadIndex]))
+		// If not culled, then move the task to it's final remapped position in the task array.
+		if (TaskRemapping[ReadIndex] != INDEX_NONE)
 		{
 			if (WriteIndex != ReadIndex)
 			{
@@ -483,17 +527,13 @@ void FPCGGraphCompiler::CullTasks(TArray<FPCGGraphTask>& InOutCompiledTasks, TFu
 			TaskRemapping[ReadIndex] = WriteIndex;
 			++WriteIndex;
 		}
-		else
-		{
-			// Flag as culled.
-			TaskRemapping[ReadIndex] = INDEX_NONE;
-		}
 
 		++ReadIndex;
 	}
 
 	InOutCompiledTasks.SetNum(WriteIndex);
 
+	// Remap input task IDs, and remove edges that connect to culled nodes.
 	for (FPCGGraphTask& Task : InOutCompiledTasks)
 	{
 		for (int32 InputIndex = Task.Inputs.Num() - 1; InputIndex >= 0; --InputIndex)
@@ -592,6 +632,9 @@ void FPCGGraphCompiler::CompileTopGraph(UPCGGraph* InGraph, uint32 GenerationGri
 		return;
 	}
 
+	// Remove reroute nodes before execution grid setup, as grid linkages need final nodes to connect from/to.
+	CullTasks(CompiledTasks, /*bAddPassthroughWires=*/true, [](const FPCGGraphTask& InTask) { return InTask.Node && Cast<UPCGRerouteSettings>(InTask.Node->GetSettings()); });
+
 	// For hierarchical generation resolve the execution grid for each task and cull any tasks that won't execute.
 	if (InGraph->IsHierarchicalGenerationEnabled() && GenerationGridSize != PCGHiGenGrid::UninitializedGridSize())
 	{
@@ -607,7 +650,7 @@ void FPCGGraphCompiler::CompileTopGraph(UPCGGraph* InGraph, uint32 GenerationGri
 		CreateGridLinkages(GenerationGrid, TaskGenerationGrid, CompiledTasks, StackContext);
 
 		// Cull any task that should not execute on the current grid.
-		CullTasks(CompiledTasks, [GenerationGrid, &TaskGenerationGrid](const FPCGGraphTask& InTask)
+		CullTasks(CompiledTasks, /*bAddPassthroughWires=*/false, [GenerationGrid, &TaskGenerationGrid](const FPCGGraphTask& InTask)
 		{
 			const EPCGHiGenGrid TaskGrid = TaskGenerationGrid[InTask.NodeId];
 			return TaskGrid != EPCGHiGenGrid::Uninitialized && !(TaskGrid & GenerationGrid);

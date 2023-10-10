@@ -24,23 +24,29 @@ struct PCG_API FPCGDebugVisualizationSettings
 public:
 	FPCGDebugVisualizationSettings();
 
-	UPROPERTY(BlueprintReadWrite, EditAnywhere, Category = Debug, meta=(ClampMin="0", EditCondition = "ScaleMethod != EPCGDebugVisScaleMethod::Extents"))
+	UPROPERTY(BlueprintReadWrite, EditAnywhere, Category = Debug, meta = (ClampMin="0", EditCondition = "ScaleMethod != EPCGDebugVisScaleMethod::Extents && bDisplayProperties", EditConditionHides, HideEditConditionToggle))
 	float PointScale = 1.0f;
 
-	UPROPERTY(BlueprintReadWrite, EditAnywhere, Category = Debug)
+	UPROPERTY(BlueprintReadWrite, EditAnywhere, Category = Debug, meta = (EditCondition = "bDisplayProperties", EditConditionHides, HideEditConditionToggle))
 	EPCGDebugVisScaleMethod ScaleMethod = EPCGDebugVisScaleMethod::Extents;
 
-	UPROPERTY(BlueprintReadWrite, EditAnywhere, Category = Debug)
+	UPROPERTY(BlueprintReadWrite, EditAnywhere, Category = Debug, meta = (EditCondition = "bDisplayProperties", EditConditionHides, HideEditConditionToggle))
 	TSoftObjectPtr<UStaticMesh> PointMesh;
 
-	UPROPERTY(BlueprintReadWrite, EditAnywhere, Category = Debug)
+	UPROPERTY(BlueprintReadWrite, EditAnywhere, Category = Debug, meta = (EditCondition = "bDisplayProperties", EditConditionHides, HideEditConditionToggle))
 	TSoftObjectPtr<UMaterialInterface> MaterialOverride;
 
 	/** Warning: enabling this flag will have severe performance impact */
-	UPROPERTY(BlueprintReadWrite, EditAnywhere, Category = Debug)
+	UPROPERTY(BlueprintReadWrite, EditAnywhere, Category = Debug, meta = (EditCondition = "bDisplayProperties", EditConditionHides, HideEditConditionToggle))
 	bool bCheckForDuplicates = false;
 
 	TSoftObjectPtr<UMaterialInterface> GetMaterial() const;
+
+#if WITH_EDITORONLY_DATA
+	// This can be set false to hide the debugging properties.
+	UPROPERTY(Transient, meta = (EditCondition = false, EditConditionHides))
+	bool bDisplayProperties = true;
+#endif
 };
 
 #if UE_ENABLE_INCLUDE_ORDER_DEPRECATED_IN_5_2
