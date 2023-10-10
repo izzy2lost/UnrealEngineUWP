@@ -217,7 +217,6 @@ private:
 		Generate
 	};
 
-	FPCGTaskId ProcessGraph(UPCGComponent* Component, const FBox& InPreviousBounds, const FBox& InNewBounds, EOperation InOperation, bool bSave);
 	void CreatePartitionActorsWithinBounds(const FBox& InBounds, const PCGHiGenGrid::FSizeArray& InGridSizes);
 
 	FPCGNodeVisualLogs NodeVisualLogs;
