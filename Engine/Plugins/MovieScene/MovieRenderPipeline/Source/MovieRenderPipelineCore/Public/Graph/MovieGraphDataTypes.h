@@ -10,6 +10,7 @@
 #include "Containers/Queue.h"
 #include "Misc/FrameRate.h"
 #include "MovieRenderPipelineDataTypes.h"
+#include "Engine/EngineCustomTimeStep.h"
 
 #include "MovieGraphDataTypes.generated.h"
 
@@ -103,7 +104,9 @@ public:
 	/** Called each frame while the Movie Graph Pipeline is in a producing frames state. */
 	virtual void TickProducingFrames() {}
 
-	/** Called when the Movie Graph Pipeline is shutting down, use this to restore any changes. */
+	/** Called when this time step instance becomes active (ie: at the start of a shot). */
+	virtual void Initialize() {}
+	/** Called when this time step instance is no longer active (ie: at the end of a shot). */
 	virtual void Shutdown() {}
 
 	/** 
@@ -120,6 +123,66 @@ public:
 	virtual bool IsExpansionForTSRequired(const TObjectPtr<UMovieGraphEvaluatedConfig>& InConfig) const { return false; }
 
 	UMovieGraphPipeline* GetOwningGraph() const;
+};
+
+
+UCLASS()
+class MOVIERENDERPIPELINECORE_API UMovieGraphEngineTimeStep : public UEngineCustomTimeStep
+{
+	GENERATED_BODY()
+public:
+	UMovieGraphEngineTimeStep();
+
+	struct FTimeStepCache
+	{
+		FTimeStepCache()
+			: UndilatedDeltaTime(0.0)
+		{}
+
+		FTimeStepCache(double InUndilatedDeltaTime)
+			: UndilatedDeltaTime(InUndilatedDeltaTime)
+		{}
+
+		double UndilatedDeltaTime;
+	};
+
+	struct FSharedData
+	{
+		FSharedData()
+			: OutputFrameNumber(0)
+			, RenderedFrameNumber(0)
+		{}
+		
+		
+		/** Which output frame are we working on, relative to zero.*/
+		int32 OutputFrameNumber;
+
+		/** 
+		* Index of which frames we've submitted for rendering. Doesn't line up with OutputFrameNumber when using warm-up frames.
+		* Used internally by the rendering engine to keep track of which frames need to be read back.
+		*/
+		int32 RenderedFrameNumber;
+	};
+
+public:
+	void SetCachedFrameTiming(const FTimeStepCache& InTimeCache);
+
+	// UEngineCustomTimeStep Interface
+	virtual bool Initialize(UEngine* InEngine) override;
+	virtual void Shutdown(UEngine* InEngine) override;
+	virtual bool UpdateTimeStep(UEngine* InEngine) override;
+	virtual ECustomTimeStepSynchronizationState GetSynchronizationState() const override { return ECustomTimeStepSynchronizationState::Synchronized; }
+	// ~UEngineCustomTimeStep Interface
+
+	/** We don't do any thinking on our own, instead we just spit out the numbers stored in our time cache. */
+	FTimeStepCache TimeCache;
+
+	/** Data that should be shared between all shot time step instances. */
+	FSharedData SharedTimeStepData;
+
+	// Not cached in TimeCache as TimeCache is reset every frame.
+	float PrevMinUndilatedFrameTime;
+	float PrevMaxUndilatedFrameTime;
 };
 
 UCLASS(BlueprintType, Abstract)

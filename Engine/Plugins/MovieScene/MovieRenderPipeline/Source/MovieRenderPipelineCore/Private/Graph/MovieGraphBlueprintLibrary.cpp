@@ -338,7 +338,7 @@ void UMovieGraphBlueprintLibrary::GetOverallOutputFrames(const UMovieGraphPipeli
 	OutCurrentIndex = 0;
 	OutTotalCount = 0;
 	
-	if (InMovieGraphPipeline)
+	if (InMovieGraphPipeline && InMovieGraphPipeline->GetTimeStepInstance())
 	{
 		OutCurrentIndex = InMovieGraphPipeline->GetTimeStepInstance()->GetCalculatedTimeData().OutputFrameNumber;
 

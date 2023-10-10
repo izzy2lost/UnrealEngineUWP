@@ -67,6 +67,9 @@ public:
 	
 	/** Which index of the Active Shot List are we currently on */
 	int32 GetCurrentShotIndex() const { return CurrentShotIndex; }
+
+	/** Get the pointer to the Custom Engine Timestep we use to control engine ticking. Shared by all per-shot Time Steps.*/
+	TObjectPtr<UMovieGraphEngineTimeStep> GetCustomEngineTimeStep() const { return CustomEngineTimeStep; }
 	
 	/** Called by the TimeStepInstance when it's time to set up for another shot. Don't call this unless you know what you're doing. */
 	void SetupShot(const TObjectPtr<UMoviePipelineExecutorShot>& InShot);
@@ -165,6 +168,14 @@ protected:
 	UPROPERTY(Transient)
 	TArray<TObjectPtr<UMovieGraphTimeStepBase>> GraphTimeStepInstances;
 
+	/** 
+	* If set, on the next TickProducingFrames, the GraphTimeStepInstance pointer will be swapped with this one.
+	* Uses a deferred mechanism since SetupShot/TeardownShot are called by the current instance, so we don't want
+	* to swap until the current instance isn't actively being used.
+	*/
+	UPROPERTY(Transient)
+	TObjectPtr<UMovieGraphTimeStepBase> PendingTimeStepInstance;
+
 	/**
 	 * Sometimes the shot index can be incremented before the time step instance should be changed, so the current time
 	 * step instance is tracked. This should generally be used to access the current time step instance, rather than
@@ -240,6 +251,16 @@ protected:
 
 	/** Responsible for managing cvars throughout the lifetime of the pipeline. */
 	TSharedPtr<UE::MovieGraph::Private::FMovieGraphCVarManager> CVarManager;
+
+	/**
+	* A custom timestep created by the Movie Graph Pipeline to allow the time step managers to set what the delta times for the frame should be.
+	*/
+	UPROPERTY(Transient)
+	TObjectPtr<UMovieGraphEngineTimeStep> CustomEngineTimeStep;
+
+	/** The previous custom timestep the engine was using, if any. */
+	UPROPERTY(Transient)
+	TObjectPtr<UEngineCustomTimeStep> PrevCustomEngineTimeStep;
 	
 public:
 	static FString DefaultPreviewWidgetAsset;

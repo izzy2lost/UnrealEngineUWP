@@ -5,7 +5,6 @@
 #include "Graph/MovieGraphConfig.h"
 #include "Misc/FrameRate.h"
 #include "Misc/FrameTime.h"
-#include "Engine/EngineCustomTimeStep.h"
 #include "UObject/StrongObjectPtr.h"
 
 #include "MovieGraphCoreTimeStep.generated.h"
@@ -29,7 +28,6 @@ public:
 
 	// UMovieGraphTimeStepBase Interface
 	virtual void TickProducingFrames() override;
-	virtual void Shutdown() override;
 	virtual FMovieGraphTimeStepData GetCalculatedTimeData() const override { return CurrentTimeStepData; }
 	virtual bool IsExpansionForTSRequired(const TObjectPtr<UMovieGraphEvaluatedConfig>& InConfig) const override;
 	// ~UMovieGraphTimeStepBase Interface
@@ -106,8 +104,6 @@ protected:
 		FCurrentFrameData()
 			: TemporalSampleIndex(0)
 			, TemporalSampleCount(0)
-			, OutputFrameNumber(0)
-			, RenderedFrameNumber(0)
 		{
 		}
 
@@ -117,15 +113,6 @@ protected:
 		/** How many temporal sub-samples are there for the current output frame? */
 		int32 TemporalSampleCount;
 		
-		/** Which output frame are we working on, relative to zero.*/
-		int32 OutputFrameNumber;
-
-		/** 
-		* Index of which frames we've submitted for rendering. Doesn't line up with OutputFrameNumber when using warm-up frames.
-		* Used internally by the rendering engine to keep track of which frames need to be read back.
-		*/
-		int32 RenderedFrameNumber;
-
 		/** A range of time (in Tick Resolution) for the last output frame being worked on. Updated before first TS of next frame. */
 		TRange<FFrameTime> LastOutputFrameRange;
 
@@ -162,53 +149,4 @@ protected:
 	* across engine ticks to work towards producing a single frame.
 	*/
 	FCurrentFrameData CurrentFrameData;
-
-	/**
-	* A custom timestep owned by this object that is used to inform the engine what the delta time for each
-	* frame should be. 
-	*/
-	UPROPERTY(Transient)
-	TObjectPtr<UMovieGraphEngineTimeStep> CustomTimeStep;
-
-	/** The previous custom timestep the engine was using, if any. */
-	UPROPERTY(Transient)
-	TObjectPtr<UEngineCustomTimeStep> PrevCustomTimeStep;
-};
-
-UCLASS()
-class MOVIERENDERPIPELINECORE_API UMovieGraphEngineTimeStep : public UEngineCustomTimeStep
-{
-	GENERATED_BODY()
-public:
-	UMovieGraphEngineTimeStep();
-
-	struct FTimeStepCache
-	{
-		FTimeStepCache() 
-			: UndilatedDeltaTime(0.0)
-		{}
-
-		FTimeStepCache(double InUndilatedDeltaTime)
-			: UndilatedDeltaTime(InUndilatedDeltaTime)
-		{}
-
-		double UndilatedDeltaTime;
-	};
-
-public:
-	void SetCachedFrameTiming(const FTimeStepCache& InTimeCache);
-	
-	// UEngineCustomTimeStep Interface
-	virtual bool Initialize(UEngine* InEngine) override;
-	virtual void Shutdown(UEngine* InEngine) override;
-	virtual bool UpdateTimeStep(UEngine* InEngine) override;
-	virtual ECustomTimeStepSynchronizationState GetSynchronizationState() const override { return ECustomTimeStepSynchronizationState::Synchronized; }
-	// ~UEngineCustomTimeStep Interface
-
-	/** We don't do any thinking on our own, instead we just spit out the numbers stored in our time cache. */
-	FTimeStepCache TimeCache;
-
-	// Not cached in TimeCache as TimeCache is reset every frame.
-	float PrevMinUndilatedFrameTime;
-	float PrevMaxUndilatedFrameTime;
 };

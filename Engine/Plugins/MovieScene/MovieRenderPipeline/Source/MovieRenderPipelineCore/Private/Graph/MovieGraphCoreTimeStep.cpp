@@ -19,12 +19,8 @@
 
 UMovieGraphCoreTimeStep::UMovieGraphCoreTimeStep()
 {
-	CustomTimeStep = CreateDefaultSubobject<UMovieGraphEngineTimeStep>("MovieGraphEngineTimeStep");
-
 	// This set up our internal state to pick up on the first temporal sub-sample in the pattern
 	ResetForEndOfOutputFrame();
-	CurrentTimeStepData.OutputFrameNumber = 0;
-	CurrentTimeStepData.RenderedFrameNumber = 0;
 }
 
 void UMovieGraphCoreTimeStep::TickProducingFrames()
@@ -33,18 +29,6 @@ void UMovieGraphCoreTimeStep::TickProducingFrames()
 	const TArray<TObjectPtr<UMoviePipelineExecutorShot>>& ActiveShotList = GetOwningGraph()->GetActiveShotList();
 	const TObjectPtr<UMoviePipelineExecutorShot>& CurrentCameraCut = ActiveShotList[CurrentShotIndex];
 
-	// When start up we want to override the engine's Custom Timestep with our own.
-	// This gives us the ability to completely control the engine tick/delta time before the frame
-	// is started so that we don't have to always be thinking of delta times one frame ahead. We need
-	// to do this only once we're ready to set the timestep though, as Initialize can be called as
-	// a result of a OnBeginFrame, meaning that Initialize is called on the frame before TickProducingFrames
-	// so there would be one frame where it used the custom timestep (after initialize) before TPF was called.
-	if (GEngine->GetCustomTimeStep() != CustomTimeStep)
-	{
-		// ToDo: This will restore the wrong timestep at the end of a render if we have different TimeStep instances.
-		PrevCustomTimeStep = GEngine->GetCustomTimeStep();
-		GEngine->SetCustomTimeStep(CustomTimeStep);
-	}
 
 	// We cache the frame metrics for the duration of a single output frame, instead of recalculating them every tick.
 	// This is required for stochastic timesteps (which will jump around the actual evaluated time randomly within one
@@ -330,7 +314,7 @@ void UMovieGraphCoreTimeStep::TickProducingFrames()
 
 				// The delta time isn't very relevant here but you must specify at _a_ delta time each frame to ensure
 				// we never have a frame that uses a stale delta time.
-				CustomTimeStep->SetCachedFrameTiming(UMovieGraphEngineTimeStep::FTimeStepCache(CurrentFrameMetrics.FrameRate.AsInterval()));
+				GetOwningGraph()->GetCustomEngineTimeStep()->SetCachedFrameTiming(UMovieGraphEngineTimeStep::FTimeStepCache(CurrentFrameMetrics.FrameRate.AsInterval()));
 
 				CurrentCameraCut->ShotInfo.State = EMovieRenderShotState::Finished;
 				GetOwningGraph()->TeardownShot(CurrentCameraCut);
@@ -381,8 +365,8 @@ void UMovieGraphCoreTimeStep::TickProducingFrames()
 	CurrentTimeStepData.bIsFirstTemporalSampleForFrame = bIsFirstTemporalSampleOverride.Get(IsFirstTemporalSample());
 	CurrentTimeStepData.bIsLastTemporalSampleForFrame = bIsLastTemporalSampleOverride.Get(IsLastTemporalSample());
 	CurrentTimeStepData.bRequiresAccumulator = CurrentFrameData.TemporalSampleCount > 1 && !CurrentTimeStepData.bDiscardOutput;
-	CurrentTimeStepData.OutputFrameNumber = CurrentFrameData.OutputFrameNumber;
-	CurrentTimeStepData.RenderedFrameNumber = CurrentFrameData.RenderedFrameNumber;
+	CurrentTimeStepData.OutputFrameNumber = GetOwningGraph()->GetCustomEngineTimeStep()->SharedTimeStepData.OutputFrameNumber;
+	CurrentTimeStepData.RenderedFrameNumber = GetOwningGraph()->GetCustomEngineTimeStep()->SharedTimeStepData.RenderedFrameNumber;
 	CurrentTimeStepData.TemporalSampleCount = CurrentFrameData.TemporalSampleCount;
 	CurrentTimeStepData.TemporalSampleIndex = CurrentFrameData.TemporalSampleIndex;
 	CurrentTimeStepData.EvaluatedConfig = TObjectPtr<UMovieGraphEvaluatedConfig>(CurrentFrameData.EvaluatedConfig.Get());
@@ -418,7 +402,7 @@ void UMovieGraphCoreTimeStep::TickProducingFrames()
 	// Set our time step for the next frame. We use the undilated delta time for the Custom Timestep as the engine will
 	// apply the time dilation to the world tick for us, so we don't want to double up time dilation.
 	double UndilatedDeltaTime = CurrentFrameMetrics.TickResolution.AsSeconds(FrameDeltaTime);
-	CustomTimeStep->SetCachedFrameTiming(UMovieGraphEngineTimeStep::FTimeStepCache(UndilatedDeltaTime));
+	GetOwningGraph()->GetCustomEngineTimeStep()->SetCachedFrameTiming(UMovieGraphEngineTimeStep::FTimeStepCache(UndilatedDeltaTime));
 	GetOwningGraph()->GetDataSourceInstance()->SyncDataSourceTime(FinalEvalTime);
 	if (bShouldJump)
 	{
@@ -438,14 +422,14 @@ void UMovieGraphCoreTimeStep::TickProducingFrames()
 
 		if ( bIsLastTemporalSampleOverride.Get(IsLastTemporalSample()))
 		{
-			CurrentFrameData.RenderedFrameNumber++;
+			GetOwningGraph()->GetCustomEngineTimeStep()->SharedTimeStepData.RenderedFrameNumber++;
 			CurrentFrameData.LastOutputFrameRange = CurrentFrameData.CurrentOutputFrameRange;
 				
 			// Increment the output frame number only on the last temporal sample, and only if
 			// we're actually rendering frames to disk.
 			if (CurrentCameraCut->ShotInfo.State == EMovieRenderShotState::Rendering)
 			{
-				CurrentFrameData.OutputFrameNumber++;
+				GetOwningGraph()->GetCustomEngineTimeStep()->SharedTimeStepData.OutputFrameNumber++;
 			}
 				
 			// If we've rendered the last temporal sub-sample, we've started a new output frame
@@ -471,7 +455,7 @@ void UMovieGraphCoreTimeStep::TickProducingFrames()
 		UE_LOG(LogMovieRenderPipeline, Error, TEXT("Shot ran past evaluation range, this shouldn't be possible."));
 	}
 
-	if (!ensureMsgf(!FMath::IsNearlyZero(CustomTimeStep->TimeCache.UndilatedDeltaTime), TEXT("An incorrect or uninitialized time step was used!")))
+	if (!ensureMsgf(!FMath::IsNearlyZero(GetOwningGraph()->GetCustomEngineTimeStep()->TimeCache.UndilatedDeltaTime), TEXT("An incorrect or uninitialized time step was used!")))
 	{
 		UE_LOG(LogMovieRenderPipeline, Error, TEXT("An incorrect or uninitialized time step was used!"));
 	}
@@ -547,16 +531,6 @@ bool UMovieGraphCoreTimeStep::IsExpansionForTSRequired(const TObjectPtr<UMovieGr
 {
 	// ToDo: This needs to come from the config (once we have TemporalSampleCount there)
 	return false;
-}
-
-
-void UMovieGraphCoreTimeStep::Shutdown()
-{
-	// Shut down our custom timestep which reqstores some world settings we modified.
-
-	// ToDo: This takes 200ms because of an arbitrary sleep inside of SetCustomTimeStep when shutting down
-	// but that requires some bigger changes to custom timesteps to fix.
-	GEngine->SetCustomTimeStep(PrevCustomTimeStep);
 }
 
 void UMovieGraphCoreTimeStep::UpdateFrameMetrics()

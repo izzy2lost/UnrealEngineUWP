@@ -24,8 +24,6 @@
 #include "ImageWriteQueue.h"
 #include "Modules/ModuleManager.h"
 
-// Temp
-#include "LevelSequence.h"
 
 FString UMovieGraphPipeline::DefaultPreviewWidgetAsset = TEXT("/MovieRenderPipeline/Blueprints/UI_MovieGraphPipelineScreenOverlay.UI_MovieGraphPipelineScreenOverlay_C");
 
@@ -35,6 +33,7 @@ UMovieGraphPipeline::UMovieGraphPipeline()
 	, PipelineState(EMovieRenderPipelineState::Uninitialized)
 {
 	OutputMerger = MakeShared<UE::MovieGraph::FMovieGraphOutputMerger>(this);
+	CustomEngineTimeStep = CreateDefaultSubobject<UMovieGraphEngineTimeStep>("MovieGraphEngineTimeStep");
 
 	Debug_ImageWriteQueue = &FModuleManager::Get().LoadModuleChecked<IImageWriteQueueModule>("ImageWriteQueue").GetWriteQueue();
 }
@@ -330,10 +329,6 @@ void UMovieGraphPipeline::BuildShotListFromDataSource()
 		Shot->ShotInfo.VersionNumber = ResolveVersionForShot(Shot, EvaluatedConfig);
 	}
 
-	// Initialize the time step instance to be the first one. This is usually set up by the shot, but some logic may attempt
-	// to access the time step instance before the shot has a chance to initialize.
-	GraphTimeStepInstance = GraphTimeStepInstances[0];
-
 	// The active shot-list is a subset of the whole shot-list; The ShotInfo contains information about every range it detected to render
 	// but if the user has turned the shot off in the UI then we don't want to render it.
 	ActiveShotList.Empty();
@@ -399,17 +394,42 @@ void UMovieGraphPipeline::TickProducingFrames()
 	//	return;
 	//}
 
-		// When start up we want to override the engine's Custom Timestep with our own.
+	// When start up we want to override the engine's Custom Timestep with our own.
 	// This gives us the ability to completely control the engine tick/delta time before the frame
 	// is started so that we don't have to always be thinking of delta times one frame ahead. We need
 	// to do this only once we're ready to set the timestep though, as Initialize can be called as
 	// a result of a OnBeginFrame, meaning that Initialize is called on the frame before TickProducingFrames
 	// so there would be one frame where it used the custom timestep (after initialize) before TPF was called.
-	//if (GEngine->GetCustomTimeStep() != CustomTimeStep)
-	//{
-	//	CachedPrevCustomTimeStep = GEngine->GetCustomTimeStep();
-	//	GEngine->SetCustomTimeStep(CustomTimeStep);
-	//}
+	if (GEngine->GetCustomTimeStep() != CustomEngineTimeStep)
+	{
+		PrevCustomEngineTimeStep = GEngine->GetCustomTimeStep();
+		GEngine->SetCustomTimeStep(CustomEngineTimeStep);
+	}
+
+	// If we don't have a graph time step instance assigned at all and TickProducingFrames is being called,
+	// then we set the first one as the pending one (because we haven't initialized any shots yet), that way it gets
+	// Initialize called on it, and we avoid anyone relying on a not-initialized GraphTimeStepInstance if 
+	// they tried accessing it before the first shot was started.
+	if (!GraphTimeStepInstance)
+	{
+		PendingTimeStepInstance = GraphTimeStepInstances[0];
+	}
+
+	// We can switch between time-step instances between shots,
+	// but the SetupShot/TeardownShot are called by the current instance,
+	// so we defer the actual pointer change until the next tick.
+	if (PendingTimeStepInstance)
+	{
+		if(GraphTimeStepInstance)
+		{
+			GraphTimeStepInstance->Shutdown();
+		}
+		GraphTimeStepInstance = PendingTimeStepInstance;
+		GraphTimeStepInstance->Initialize();
+		
+		PendingTimeStepInstance = nullptr;
+	}
+
 
 
 	GetTimeStepInstance()->TickProducingFrames();
@@ -553,8 +573,6 @@ void UMovieGraphPipeline::SetupShot(const TObjectPtr<UMoviePipelineExecutorShot>
 	//	}
 	//}
 
-	GraphTimeStepInstance = GraphTimeStepInstances[CurrentShotIndex];
-
 	const FMovieGraphTimeStepData& TimeStepData = GetTimeStepInstance()->GetCalculatedTimeData();
 	const UMovieGraphEvaluatedConfig* EvaluatedConfig = TimeStepData.EvaluatedConfig;
 
@@ -618,6 +636,13 @@ void UMovieGraphPipeline::TeardownShot(const TObjectPtr<UMoviePipelineExecutorSh
 	}
 
 	CurrentShotIndex++;
+
+	// At the end of each shot, set our Pending instance to be the next one, so that all initialization logic is handled within
+	// a single TimeStepInstance instead of being split between the last one and the new one (which would happen if we use SetupShot to do this)
+	if (CurrentShotIndex < GraphTimeStepInstances.Num())
+	{
+		PendingTimeStepInstance = GraphTimeStepInstances[CurrentShotIndex];
+	}
 }
 
 void UMovieGraphPipeline::SetSoloShot(const TObjectPtr<UMoviePipelineExecutorShot>& InShot)
@@ -718,7 +743,26 @@ TArray<TPair<FName, T*>> UMovieGraphPipeline::GetSettingForActiveRenderLayers(co
 	TArray<TPair<FName, T*>> FoundSettings;
 	
 	UMoviePipelineRenderLayerSubsystem* LayerSubsystem = GetWorld()->GetSubsystem<UMoviePipelineRenderLayerSubsystem>();
-	const FMovieGraphTimeStepData& TimeStepData = GetTimeStepInstance()->GetCalculatedTimeData();
+
+
+	// ToDo: This is only called by the Export step for the CommandLineEncoderNode right now, which only
+	// works per-render layer. However, by the time the export step actually starts, there isn't actually
+	// an active shot anymore, and it's not clear what graph we should be actually evaluating now. Perhaps 
+	// if we find a UMovieGraphPostRenderNode on a Render Layer, we should pause and run it at the end of 
+	// that shot? This would cause issues with post-renderer nodes that wanted to do something with the whole
+	// sequence (such as turn all shots into one movie file). Maybe in the post-export step we should only evaluate
+	// the Globals pin on the Primary Config, because we don't know which layers actually got rendered (due to shot
+	// overrides, etc.)
+	//
+	// For now, we're going to fall back on the incorrect legacy behavior (which was relying on stale data from the last
+	// shot), but this is going to have to be revisited.
+	UMovieGraphTimeStepBase* TimeStepInstance = GetTimeStepInstance();
+	if (!TimeStepInstance)
+	{
+		TimeStepInstance = GraphTimeStepInstances.Last();
+	}
+
+	const FMovieGraphTimeStepData& TimeStepData = TimeStepInstance->GetCalculatedTimeData();
 	const TObjectPtr<UMovieGraphEvaluatedConfig> EvaluatedConfig = TimeStepData.EvaluatedConfig;
 
 	for (const UMoviePipelineRenderLayer* RenderLayer : LayerSubsystem->GetRenderLayers())
@@ -735,8 +779,6 @@ TArray<TPair<FName, T*>> UMovieGraphPipeline::GetSettingForActiveRenderLayers(co
 
 UMovieGraphTimeStepBase* UMovieGraphPipeline::GetTimeStepInstance() const
 {
-	check(GraphTimeStepInstance);
-
 	return GraphTimeStepInstance;
 }
 
@@ -938,18 +980,23 @@ void UMovieGraphPipeline::TransitionToState(const EMovieRenderPipelineState InNe
 			// to continue to call it to allow ticking the Finalization stage.
 			FCoreDelegates::OnEndFrame.RemoveAll(this);
 
-			// Restore any custom Time Step that may have been set before. We do this here
-			// because the TimeStepInstance is only expected to be having to calculate times
-			// during ProducingFrames.
-			GetTimeStepInstance()->Shutdown();
-
 			// Ensure all frames have been processed by the GPU and sent to the Output Merger
 			FlushRenderingCommands();
 
 			// And then make sure all frames are sent to the Output Containers before we finalize.
 			ProcessOutstandingFinishedFrames();
 
-			// PreviewTexture = nullptr;
+			// Restore any custom Time Step that may have been set before. We do this here
+			// because the TimeStepInstance is only expected to be having to calculate times
+			// during ProducingFrames.
+			GetTimeStepInstance()->Shutdown();
+
+			// We assign it to nullptr here so that post-ProducingFrame code doesn't accidentally 
+			// use a stale time step instance.
+			GraphTimeStepInstance = nullptr;
+
+			// Shut down our custom timestep which reqstores some world settings we modified.
+			GEngine->SetCustomTimeStep(PrevCustomEngineTimeStep);
 
 			// This is called once notifying output containers that all frames that will be submitted have been submitted.
 			PipelineState = EMovieRenderPipelineState::Finalize;
