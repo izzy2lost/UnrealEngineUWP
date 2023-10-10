@@ -47,12 +47,6 @@ public:
 	 */
 	UPROPERTY(EditAnywhere, Category=UserInterface, meta = (ConfigRestartRequired = true, DisplayName="Enable High DPI Support"))
 	bool bEnableHighDPIAwareness;
-	
-	/** 
-	 * Scales the entire editor interface up or down. 
-	 */
-	UPROPERTY(EditAnywhere, Config, Category=UserInterface, meta=(ClampMin=0.1))
-	float ApplicationScale = 1.0f;
 
 	/**
 	 * Whether to enable the Editor UI Layout configuration tools for the user.

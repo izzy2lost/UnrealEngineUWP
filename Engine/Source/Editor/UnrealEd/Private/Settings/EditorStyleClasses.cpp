@@ -1,7 +1,6 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 
 #include "CoreGlobals.h"
-#include "Framework/Application/SlateApplication.h"
 #include "HAL/IConsoleManager.h"
 #include "HAL/Platform.h"
 #include "Math/Color.h"
@@ -67,8 +66,6 @@ void UEditorStyleSettings::Init()
 		CurrentAppliedTheme = USlateThemeManager::Get().GetCurrentThemeID();
 		SaveConfig(); 
 	}
-	
-	FSlateApplication::Get().SetApplicationScale(ApplicationScale);
 
 	// Set from CVar 
 	IConsoleVariable* CVar = IConsoleManager::Get().FindConsoleVariable(TEXT("EnableHighDPIAwareness"));
@@ -95,10 +92,6 @@ void UEditorStyleSettings::PostEditChangeProperty(struct FPropertyChangedEvent& 
 	if (PropertyName == GET_MEMBER_NAME_CHECKED(UEditorStyleSettings, bEnableHighDPIAwareness))
 	{
 		GConfig->SetBool(TEXT("HDPI"), TEXT("EnableHighDPIAwareness"), bEnableHighDPIAwareness, GEditorSettingsIni);
-	}
-	else if (PropertyName == GET_MEMBER_NAME_CHECKED(UEditorStyleSettings, ApplicationScale))
-	{
-		FSlateApplication::Get().SetApplicationScale(ApplicationScale);
 	}
 
 //	if (!FUnrealEdMisc::Get().IsDeletePreferences())
