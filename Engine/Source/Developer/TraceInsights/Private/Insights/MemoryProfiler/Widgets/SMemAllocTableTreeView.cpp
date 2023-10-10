@@ -653,8 +653,8 @@ void SMemAllocTableTreeView::InitAvailableViewPresets()
 			InOutConfigSet.Add({ FMemAllocTableColumns::CountColumnId,         true, 100.0f });
 			InOutConfigSet.Add({ FMemAllocTableColumns::SizeColumnId,          true, 100.0f });
 			InOutConfigSet.Add({ FMemAllocTableColumns::TagColumnId,           true, 120.0f });
-			InOutConfigSet.Add({ FMemAllocTableColumns::FunctionColumnId,      true, 550.0f });
-			InOutConfigSet.Add({ FMemAllocTableColumns::CallstackSizeColumnId, true, 100.0f });
+			InOutConfigSet.Add({ FMemAllocTableColumns::AllocFunctionColumnId,      true, 550.0f });
+			InOutConfigSet.Add({ FMemAllocTableColumns::AllocCallstackSizeColumnId, true, 100.0f });
 		}
 	};
 	AvailableViewPresets.Add(MakeShared<FDefaultViewPreset>());
@@ -702,9 +702,9 @@ void SMemAllocTableTreeView::InitAvailableViewPresets()
 			InOutConfigSet.Add({ FMemAllocTableColumns::CountColumnId,           true, 100.0f });
 			InOutConfigSet.Add({ FMemAllocTableColumns::SizeColumnId,            true, 100.0f });
 			InOutConfigSet.Add({ FMemAllocTableColumns::TagColumnId,             true, 120.0f });
-			InOutConfigSet.Add({ FMemAllocTableColumns::FunctionColumnId,        true, 550.0f });
-			InOutConfigSet.Add({ FMemAllocTableColumns::SourceFileColumnId,      true, 550.0f });
-			InOutConfigSet.Add({ FMemAllocTableColumns::CallstackSizeColumnId,   true, 100.0f });
+			InOutConfigSet.Add({ FMemAllocTableColumns::AllocFunctionColumnId,        true, 550.0f });
+			InOutConfigSet.Add({ FMemAllocTableColumns::AllocSourceFileColumnId,      true, 550.0f });
+			InOutConfigSet.Add({ FMemAllocTableColumns::AllocCallstackSizeColumnId,   true, 100.0f });
 		}
 	};
 	AvailableViewPresets.Add(MakeShared<FDetailedViewPreset>());
@@ -754,7 +754,7 @@ void SMemAllocTableTreeView::InitAvailableViewPresets()
 			InOutConfigSet.Add({ FMemAllocTableColumns::CountColumnId,    true, 100.0f });
 			InOutConfigSet.Add({ FMemAllocTableColumns::SizeColumnId,     true, 100.0f });
 			InOutConfigSet.Add({ FMemAllocTableColumns::TagColumnId,      true, 200.0f });
-			InOutConfigSet.Add({ FMemAllocTableColumns::FunctionColumnId, true, 200.0f });
+			InOutConfigSet.Add({ FMemAllocTableColumns::AllocFunctionColumnId, true, 200.0f });
 		}
 	};
 	AvailableViewPresets.Add(MakeShared<FHeapViewPreset>());
@@ -805,7 +805,7 @@ void SMemAllocTableTreeView::InitAvailableViewPresets()
 			InOutConfigSet.Add({ FMemAllocTableColumns::CountColumnId,    true, 100.0f });
 			InOutConfigSet.Add({ FMemAllocTableColumns::SizeColumnId,     true, 100.0f });
 			InOutConfigSet.Add({ FMemAllocTableColumns::TagColumnId,      true, 120.0f });
-			InOutConfigSet.Add({ FMemAllocTableColumns::FunctionColumnId, true, 400.0f });
+			InOutConfigSet.Add({ FMemAllocTableColumns::AllocFunctionColumnId, true, 400.0f });
 		}
 	};
 	AvailableViewPresets.Add(MakeShared<FSizeViewPreset>());
@@ -854,7 +854,7 @@ void SMemAllocTableTreeView::InitAvailableViewPresets()
 			InOutConfigSet.Add({ FTable::GetHierarchyColumnId(),          true, 200.0f });
 			InOutConfigSet.Add({ FMemAllocTableColumns::CountColumnId,    true, 100.0f });
 			InOutConfigSet.Add({ FMemAllocTableColumns::SizeColumnId,     true, 100.0f });
-			InOutConfigSet.Add({ FMemAllocTableColumns::FunctionColumnId, true, 400.0f });
+			InOutConfigSet.Add({ FMemAllocTableColumns::AllocFunctionColumnId, true, 400.0f });
 		}
 	};
 	AvailableViewPresets.Add(MakeShared<FTagViewPreset>());
@@ -905,7 +905,7 @@ void SMemAllocTableTreeView::InitAvailableViewPresets()
 			InOutConfigSet.Add({ FMemAllocTableColumns::CountColumnId,    true, 100.0f });
 			InOutConfigSet.Add({ FMemAllocTableColumns::SizeColumnId,     true, 100.0f });
 			InOutConfigSet.Add({ FMemAllocTableColumns::TagColumnId,      true, 120.0f });
-			InOutConfigSet.Add({ FMemAllocTableColumns::FunctionColumnId, true, 400.0f });
+			InOutConfigSet.Add({ FMemAllocTableColumns::AllocFunctionColumnId, true, 400.0f });
 		}
 	};
 	AvailableViewPresets.Add(MakeShared<FAssetViewPreset>());
@@ -967,7 +967,7 @@ void SMemAllocTableTreeView::InitAvailableViewPresets()
 			InOutConfigSet.Add({ FMemAllocTableColumns::CountColumnId,    true, 100.0f });
 			InOutConfigSet.Add({ FMemAllocTableColumns::SizeColumnId,     true, 100.0f });
 			InOutConfigSet.Add({ FMemAllocTableColumns::TagColumnId,      true, 120.0f });
-			InOutConfigSet.Add({ FMemAllocTableColumns::FunctionColumnId, true, 400.0f });
+			InOutConfigSet.Add({ FMemAllocTableColumns::AllocFunctionColumnId, true, 400.0f });
 		}
 	};
 	AvailableViewPresets.Add(MakeShared<FClassNameViewPreset>());
@@ -978,22 +978,33 @@ void SMemAllocTableTreeView::InitAvailableViewPresets()
 	class FCallstackViewPreset : public ITableTreeViewPreset
 	{
 	public:
-		FCallstackViewPreset(bool bIsInverted)
+		FCallstackViewPreset(bool bIsInverted, bool bIsAlloc)
 			: bIsInvertedCallstack(bIsInverted)
+			, bIsAllocCallstack(bIsAlloc)
 		{
 		}
 
 		virtual FText GetName() const override
 		{
-			return bIsInvertedCallstack ?
-				LOCTEXT("InvertedCallstack_PresetName", "Inverted Callstack") :
-				LOCTEXT("Callstack_PresetName", "Callstack");
+			return
+				bIsAllocCallstack
+				? (bIsInvertedCallstack ?
+				LOCTEXT("InvertedCallstack_Alloc_PresetName", "Inverted Alloc Callstack") :
+				LOCTEXT("Callstack_Alloc_PresetName", "Alloc Callstack"))
+				: (bIsInvertedCallstack ?
+				LOCTEXT("InvertedCallstack_Free_PresetName", "Inverted Free Callstack") :
+				LOCTEXT("Callstack_Free_PresetName", "Free Callstack"));
 		}
 		virtual FText GetToolTip() const override
 		{
-			return bIsInvertedCallstack ?
-				LOCTEXT("InvertedCallstack_PresetToolTip", "Inverted Callstack Breakdown View\nConfigure the tree view to show a breakdown of allocations by inverted callstack.") :
-				LOCTEXT("Callstack_PresetToolTip", "Callstack Breakdown View\nConfigure the tree view to show a breakdown of allocations by callstack.");
+			return 
+				bIsAllocCallstack
+				? (bIsInvertedCallstack ?
+				LOCTEXT("InvertedCallstack_Alloc_PresetToolTip", "Inverted Alloc Callstack Breakdown View\nConfigure the tree view to show a breakdown of allocations by inverted callstack.") :
+				LOCTEXT("Callstack_Alloc_PresetToolTip", "Alloc Callstack Breakdown View\nConfigure the tree view to show a breakdown of allocations by callstack."))
+				: (bIsInvertedCallstack ?
+				LOCTEXT("InvertedCallstack_Free_PresetToolTip", "Inverted Free Callstack Breakdown View\nConfigure the tree view to show a breakdown of allocations by inverted callstack.") :
+				LOCTEXT("Callstack_Free_PresetToolTip", "Free Callstack Breakdown View\nConfigure the tree view to show a breakdown of allocations by callstack."));
 		}
 		virtual FName GetSortColumn() const override
 		{
@@ -1011,11 +1022,13 @@ void SMemAllocTableTreeView::InitAvailableViewPresets()
 			InOutCurrentGroupings.Add(InAvailableGroupings[0]);
 
 			const bool bIsInverted = bIsInvertedCallstack;
+			const bool bIsAlloc = bIsAllocCallstack;
 			const TSharedPtr<FTreeNodeGrouping>* CallstackGrouping = InAvailableGroupings.FindByPredicate(
-				[bIsInverted](TSharedPtr<FTreeNodeGrouping>& Grouping)
+				[bIsInverted, bIsAlloc](TSharedPtr<FTreeNodeGrouping>& Grouping)
 				{
 					return Grouping->Is<FMemAllocGroupingByCallstack>() &&
-						   Grouping->As<FMemAllocGroupingByCallstack>().IsInverted() == bIsInverted;
+						   Grouping->As<FMemAllocGroupingByCallstack>().IsInverted() == bIsInverted &&
+						   Grouping->As<FMemAllocGroupingByCallstack>().IsAllocCallstack() == bIsAlloc;
 				});
 			if (CallstackGrouping)
 			{
@@ -1028,14 +1041,24 @@ void SMemAllocTableTreeView::InitAvailableViewPresets()
 			InOutConfigSet.Add({ FMemAllocTableColumns::CountColumnId,    true, 100.0f });
 			InOutConfigSet.Add({ FMemAllocTableColumns::SizeColumnId,     true, 100.0f });
 			InOutConfigSet.Add({ FMemAllocTableColumns::TagColumnId,      true, 200.0f });
-			InOutConfigSet.Add({ FMemAllocTableColumns::FunctionColumnId, true, 200.0f });
+			if (bIsAllocCallstack)
+			{
+				InOutConfigSet.Add({ FMemAllocTableColumns::AllocFunctionColumnId, true, 200.0f });
+			}
+			else
+			{
+				InOutConfigSet.Add({ FMemAllocTableColumns::FreeFunctionColumnId, true, 200.0f });
+			}
 		}
 
 	private:
 		bool bIsInvertedCallstack;
+		bool bIsAllocCallstack;
 	};
-	AvailableViewPresets.Add(MakeShared<FCallstackViewPreset>(false));
-	AvailableViewPresets.Add(MakeShared<FCallstackViewPreset>(true));
+	AvailableViewPresets.Add(MakeShared<FCallstackViewPreset>(false, true));
+	AvailableViewPresets.Add(MakeShared<FCallstackViewPreset>(true, true));
+	AvailableViewPresets.Add(MakeShared<FCallstackViewPreset>(false, false));
+	AvailableViewPresets.Add(MakeShared<FCallstackViewPreset>(true, false));
 
 	//////////////////////////////////////////////////
 	// Address (4K Page) Breakdown View
@@ -1084,7 +1107,7 @@ void SMemAllocTableTreeView::InitAvailableViewPresets()
 			InOutConfigSet.Add({ FMemAllocTableColumns::CountColumnId,    true, 100.0f });
 			InOutConfigSet.Add({ FMemAllocTableColumns::SizeColumnId,     true, 100.0f });
 			InOutConfigSet.Add({ FMemAllocTableColumns::TagColumnId,      true, 120.0f });
-			InOutConfigSet.Add({ FMemAllocTableColumns::FunctionColumnId, true, 400.0f });
+			InOutConfigSet.Add({ FMemAllocTableColumns::AllocFunctionColumnId, true, 400.0f });
 		}
 	};
 	AvailableViewPresets.Add(MakeShared<FPageViewPreset>());
@@ -1303,7 +1326,8 @@ void SMemAllocTableTreeView::InternalCreateGroupings()
 			else if (Grouping->Is<FTreeNodeGroupingByPathBreakdown>())
 			{
 				const FName ColumnId = Grouping->As<FTreeNodeGroupingByPathBreakdown>().GetColumnId();
-				if (ColumnId == FMemAllocTableColumns::FunctionColumnId ||
+				if (ColumnId == FMemAllocTableColumns::AllocFunctionColumnId ||
+					ColumnId == FMemAllocTableColumns::FreeFunctionColumnId ||
 					ColumnId == FMemAllocTableColumns::ClassNameColumnId)
 				{
 					return true;
@@ -1323,8 +1347,10 @@ void SMemAllocTableTreeView::InternalCreateGroupings()
 		AvailableGroupings.Insert(MakeShared<FMemAllocGroupingByTag>(*AllocationsProvider), Index++);
 	}
 
-	AvailableGroupings.Insert(MakeShared<FMemAllocGroupingByCallstack>(false, bIsCallstackGroupingByFunction), Index++);
-	AvailableGroupings.Insert(MakeShared<FMemAllocGroupingByCallstack>(true, bIsCallstackGroupingByFunction), Index++);
+	AvailableGroupings.Insert(MakeShared<FMemAllocGroupingByCallstack>(true, false, bIsCallstackGroupingByFunction), Index++);
+	AvailableGroupings.Insert(MakeShared<FMemAllocGroupingByCallstack>(true, true, bIsCallstackGroupingByFunction), Index++);
+	AvailableGroupings.Insert(MakeShared<FMemAllocGroupingByCallstack>(false, false, bIsCallstackGroupingByFunction), Index++);
+	AvailableGroupings.Insert(MakeShared<FMemAllocGroupingByCallstack>(false, true, bIsCallstackGroupingByFunction), Index++);
 
 	if (AllocationsProvider)
 	{
@@ -1377,7 +1403,7 @@ void SMemAllocTableTreeView::UpdateFilterContext(const FFilterConfigurator& InFi
 		// GetFullCallstack is super heavy to compute. Validate that the filter has a use for this key before computing it.
 		if (InFilterConfigurator.IsKeyUsed(FullCallStackIndex))
 		{
-			FilterContext.SetFilterData<FString>(FullCallStackIndex, MemNode.GetFullCallstack().ToString());
+			FilterContext.SetFilterData<FString>(FullCallStackIndex, MemNode.GetFullCallstack(FMemAllocNode::ECallstackType::AllocCallstack).ToString());
 		}
 
 		if (InFilterConfigurator.IsKeyUsed(LLMFilterIndex))
@@ -1395,8 +1421,8 @@ void SMemAllocTableTreeView::InitFilterConfigurator(FFilterConfigurator& InOutFi
 
 	TSharedRef<FFilter> FullCallStackFilter = MakeShared<FFilter>(
 		FullCallStackIndex,
-		LOCTEXT("FullCallstack", "Full Callstack"),
-		LOCTEXT("SearchFullCallstack", "Search in all the callstack frames"),
+		LOCTEXT("FullCallstack", "Full Alloc Callstack"),
+		LOCTEXT("SearchFullCallstack", "Search in all the alloc callstack frames"),
 		EFilterDataType::String,
 		nullptr,
 		FFilterService::Get()->GetStringOperators());
@@ -1568,14 +1594,28 @@ void SMemAllocTableTreeView::ExtendMenu(FMenuBuilder& MenuBuilder)
 	{
 		MenuBuilder.BeginSection("Allocation", LOCTEXT("ContextMenu_Section_OpenSource", "Allocation"));
 		{
-			FText ItemLabel = FText::Format(LOCTEXT("ContextMenu_Open_SubMenu", "Open in {0}"), SourceCodeAccessor.GetNameText());
-			FText ItemToolTip = FText::Format(LOCTEXT("ContextMenu_Open_Desc_SubMenu", "Open source file of selected callstack frame in {0}."), SourceCodeAccessor.GetNameText());
+			FText ItemLabel = FText::Format(LOCTEXT("ContextMenu_Open_SubMenu_Alloc", "Open in {0} | Alloc Callstack"), SourceCodeAccessor.GetNameText());
+			FText ItemToolTip = FText::Format(LOCTEXT("ContextMenu_Open_Desc_SubMenu_Alloc", "Open source file of selected allocation callstack frame in {0}."), SourceCodeAccessor.GetNameText());
 
+			// Alloc callstack
 			MenuBuilder.AddSubMenu
 			(
 				ItemLabel,
 				ItemToolTip,
-				FNewMenuDelegate::CreateSP(this, &SMemAllocTableTreeView::BuildOpenSourceSubMenu),
+				FNewMenuDelegate::CreateSP(this, &SMemAllocTableTreeView::BuildOpenSourceSubMenu, true),
+				false,
+				FSlateIcon(FAppStyle::GetAppStyleSetName(), SourceCodeAccessor.GetOpenIconName())
+			);
+
+			ItemLabel = FText::Format(LOCTEXT("ContextMenu_Open_SubMenu_Free", "Open in {0} | Free Callstack"), SourceCodeAccessor.GetNameText());
+			ItemToolTip = FText::Format(LOCTEXT("ContextMenu_Open_Desc_SubMenu_Free", "Open source file of selected free callstack frame in {0}."), SourceCodeAccessor.GetNameText());
+
+			// Free Callstack
+			MenuBuilder.AddSubMenu
+			(
+				ItemLabel,
+				ItemToolTip,
+				FNewMenuDelegate::CreateSP(this, &SMemAllocTableTreeView::BuildOpenSourceSubMenu, false),
 				false,
 				FSlateIcon(FAppStyle::GetAppStyleSetName(), SourceCodeAccessor.GetOpenIconName())
 			);
@@ -1659,104 +1699,117 @@ uint32 SMemAllocTableTreeView::CountSourceFiles(FMemAllocNode& MemAllocNode)
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////
 
-void SMemAllocTableTreeView::BuildOpenSourceSubMenu(FMenuBuilder& MenuBuilder)
+bool SMemAllocTableTreeView::BuildOpenSourceSubMenuItems(FMenuBuilder& MenuBuilder, const TraceServices::FCallstack& Callstack)
+{
+	ISourceCodeAccessModule& SourceCodeAccessModule = FModuleManager::LoadModuleChecked<ISourceCodeAccessModule>("SourceCodeAccess");
+	ISourceCodeAccessor& SourceCodeAccessor = SourceCodeAccessModule.GetAccessor();
+
+	uint32 NumSourceFiles = 0;
+	const uint32 NumCallstackFrames = Callstack.Num();
+	check(NumCallstackFrames <= 256); // see Callstack.Frame(uint8)
+	for (uint32 FrameIndex = 0; FrameIndex < NumCallstackFrames; ++FrameIndex)
+	{
+		const TraceServices::FStackFrame* Frame = Callstack.Frame(static_cast<uint8>(FrameIndex));
+		if (Frame && Frame->Symbol && Frame->Symbol->File)
+		{
+			FText ItemLabel;
+			FText ItemToolTip;
+			if (Frame->Symbol->GetResult() == TraceServices::ESymbolQueryResult::OK)
+			{
+				FText FileName;
+				constexpr int32 MaxFileNameLen = 120;
+				const int32 FileNameLen = FCString::Strlen(Frame->Symbol->File);
+				if (FileNameLen > MaxFileNameLen)
+				{
+					FString FileNameStr = TEXT("...") + FString(MaxFileNameLen, Frame->Symbol->File + (FileNameLen - MaxFileNameLen));
+					FileName = FText::FromString(FileNameStr);
+				}
+				else
+				{
+					FileName = FText::FromString(Frame->Symbol->File);
+				}
+
+				FText SymbolName;
+				constexpr int32 MaxSymbolNameLen = 100;
+				const int32 SymbolNameLen = FCString::Strlen(Frame->Symbol->Name);
+				if (SymbolNameLen > MaxSymbolNameLen)
+				{
+					FString SymbolNameStr = TEXT("...") + FString(MaxSymbolNameLen, Frame->Symbol->Name + (SymbolNameLen - MaxSymbolNameLen));
+					SymbolName = FText::FromString(SymbolNameStr);
+				}
+				else
+				{
+					SymbolName = FText::FromString(Frame->Symbol->Name);
+				}
+
+				ItemLabel = FText::Format(LOCTEXT("ContextMenu_OpenSource_Fmt1", "{0} ({1}) \u2192 {2}"),
+					FileName,
+					FText::AsNumber(Frame->Symbol->Line),
+					SymbolName);
+
+				ItemToolTip = FText::Format(LOCTEXT("ContextMenu_OpenSource_Desc_Fmt1", "Open source file of selected callstack frame in {0}.\n{1} (line {2})\n\u2192 {3}"),
+					SourceCodeAccessor.GetNameText(),
+					FText::FromString(Frame->Symbol->File),
+					FText::AsNumber(Frame->Symbol->Line),
+					FText::FromString(Frame->Symbol->Name));
+			}
+			else
+			{
+				ItemLabel = FText::Format(LOCTEXT("ContextMenu_OpenSource_Fmt2", "{0} ({1}) \u2192 {2}"),
+					FText::FromString(Frame->Symbol->Module),
+					FText::FromString(FString::Printf(TEXT("0x%llX"), Frame->Addr)),
+					FText::FromString(TraceServices::QueryResultToString(Frame->Symbol->GetResult())));
+
+				ItemToolTip = FText::Format(LOCTEXT("ContextMenu_OpenSource_Desc_Fmt2", "Open source file of selected callstack frame in {0}."),
+					SourceCodeAccessor.GetNameText());
+			}
+
+			const bool bFileExists = FPaths::FileExists(Frame->Symbol->File);
+
+			FUIAction Action_OpenIDE
+			(
+				FExecuteAction::CreateSP(this, &SMemAllocTableTreeView::OpenSourceFileInIDE, Frame->Symbol->File, uint32(Frame->Symbol->Line)),
+				FCanExecuteAction::CreateLambda([bFileExists]() { return bFileExists; })
+			);
+			MenuBuilder.AddMenuEntry
+			(
+				ItemLabel,
+				ItemToolTip,
+				FSlateIcon(),
+				Action_OpenIDE,
+				NAME_None,
+				EUserInterfaceActionType::Button
+			);
+
+			++NumSourceFiles;
+		}
+	}
+
+	return NumSourceFiles > 0;
+}
+
+////////////////////////////////////////////////////////////////////////////////////////////////////
+
+void SMemAllocTableTreeView::BuildOpenSourceSubMenu(FMenuBuilder& MenuBuilder, bool bIsAllocCallstack)
 {
 	MenuBuilder.BeginSection("OpenSource");
 	{
-		uint32 NumSourceFiles = 0;
-
+		bool bHasAnySourceFilesToOpen = false;
 		FMemAllocNodePtr MemAllocNode = GetSingleSelectedMemAllocNode();
 		if (MemAllocNode.IsValid())
 		{
 			const FMemoryAlloc* Alloc = MemAllocNode->GetMemAlloc();
-			if (Alloc && Alloc->Callstack)
+			if (Alloc)
 			{
-				ISourceCodeAccessModule& SourceCodeAccessModule = FModuleManager::LoadModuleChecked<ISourceCodeAccessModule>("SourceCodeAccess");
-				ISourceCodeAccessor& SourceCodeAccessor = SourceCodeAccessModule.GetAccessor();
-
-				const uint32 NumCallstackFrames = Alloc->Callstack->Num();
-				check(NumCallstackFrames <= 256); // see Callstack->Frame(uint8)
-				for (uint32 FrameIndex = 0; FrameIndex < NumCallstackFrames; ++FrameIndex)
+				const TraceServices::FCallstack* Callstack = bIsAllocCallstack ? Alloc->Callstack : Alloc->FreeCallstack;
+				if (Callstack)
 				{
-					const TraceServices::FStackFrame* Frame = Alloc->Callstack->Frame(static_cast<uint8>(FrameIndex));
-					if (Frame && Frame->Symbol && Frame->Symbol->File)
-					{
-						FText ItemLabel;
-						FText ItemToolTip;
-						if (Frame->Symbol->GetResult() == TraceServices::ESymbolQueryResult::OK)
-						{
-							FText FileName;
-							constexpr int32 MaxFileNameLen = 120;
-							const int32 FileNameLen = FCString::Strlen(Frame->Symbol->File);
-							if (FileNameLen > MaxFileNameLen)
-							{
-								FString FileNameStr = TEXT("...") + FString(MaxFileNameLen, Frame->Symbol->File + (FileNameLen - MaxFileNameLen));
-								FileName = FText::FromString(FileNameStr);
-							}
-							else
-							{
-								FileName = FText::FromString(Frame->Symbol->File);
-							}
-
-							FText SymbolName;
-							constexpr int32 MaxSymbolNameLen = 100;
-							const int32 SymbolNameLen = FCString::Strlen(Frame->Symbol->Name);
-							if (SymbolNameLen > MaxSymbolNameLen)
-							{
-								FString SymbolNameStr = TEXT("...") + FString(MaxSymbolNameLen, Frame->Symbol->Name + (SymbolNameLen - MaxSymbolNameLen));
-								SymbolName = FText::FromString(SymbolNameStr);
-							}
-							else
-							{
-								SymbolName = FText::FromString(Frame->Symbol->Name);
-							}
-
-							ItemLabel = FText::Format(LOCTEXT("ContextMenu_OpenSource_Fmt1", "{0} ({1}) \u2192 {2}"),
-								FileName,
-								FText::AsNumber(Frame->Symbol->Line),
-								SymbolName);
-
-							ItemToolTip = FText::Format(LOCTEXT("ContextMenu_OpenSource_Desc_Fmt1", "Open source file of selected callstack frame in {0}.\n{1} (line {2})\n\u2192 {3}"),
-								SourceCodeAccessor.GetNameText(),
-								FText::FromString(Frame->Symbol->File),
-								FText::AsNumber(Frame->Symbol->Line),
-								FText::FromString(Frame->Symbol->Name));
-						}
-						else
-						{
-							ItemLabel = FText::Format(LOCTEXT("ContextMenu_OpenSource_Fmt2", "{0} ({1}) \u2192 {2}"),
-								FText::FromString(Frame->Symbol->Module),
-								FText::FromString(FString::Printf(TEXT("0x%llX"), Frame->Addr)),
-								FText::FromString(TraceServices::QueryResultToString(Frame->Symbol->GetResult())));
-
-							ItemToolTip = FText::Format(LOCTEXT("ContextMenu_OpenSource_Desc_Fmt2", "Open source file of selected callstack frame in {0}."),
-								SourceCodeAccessor.GetNameText());
-						}
-
-						const bool bFileExists = FPaths::FileExists(Frame->Symbol->File);
-
-						FUIAction Action_OpenIDE
-						(
-							FExecuteAction::CreateSP(this, &SMemAllocTableTreeView::OpenSourceFileInIDE, Frame->Symbol->File, uint32(Frame->Symbol->Line)),
-							FCanExecuteAction::CreateLambda([bFileExists]() { return bFileExists; })
-						);
-						MenuBuilder.AddMenuEntry
-						(
-							ItemLabel,
-							ItemToolTip,
-							FSlateIcon(),
-							Action_OpenIDE,
-							NAME_None,
-							EUserInterfaceActionType::Button
-						);
-
-						++NumSourceFiles;
-					}
+					bHasAnySourceFilesToOpen = BuildOpenSourceSubMenuItems(MenuBuilder, *Callstack);
 				}
 			}
 		}
 
-		if (NumSourceFiles == 0)
+		if (!bHasAnySourceFilesToOpen)
 		{
 			struct FLocal
 			{
@@ -1887,13 +1940,14 @@ void SMemAllocTableTreeView::ExportMemorySnapshot() const
 				OutData << Value;
 			}
 		};
-	auto WriteCallstackColumn = [Separator](FStringBuilderBase& OutData, const FTableTreeNode& Node)
+	auto WriteCallstackColumn = [Separator](FStringBuilderBase& OutData, const FTableTreeNode& Node, bool bIsAllocCallstack)
 		{
 			const FMemAllocNode& MemAllocNode = static_cast<const FMemAllocNode&>(Node);
 			const FMemoryAlloc* Alloc = MemAllocNode.GetMemAlloc();
 			if (Alloc)
 			{
-				if (!Alloc->Callstack)
+				const TraceServices::FCallstack* Callstack = bIsAllocCallstack ? Alloc->Callstack : Alloc->FreeCallstack;
+				if (!Callstack)
 				{
 					OutData << QuotationMarkBegin;
 					OutData << GetCallstackNotAvailableString();
@@ -1901,7 +1955,7 @@ void SMemAllocTableTreeView::ExportMemorySnapshot() const
 					return;
 				}
 
-				if (Alloc->Callstack->Num() == 0)
+				if (Callstack->Num() == 0)
 				{
 					OutData << QuotationMarkBegin;
 					OutData << GetEmptyCallstackString();
@@ -1909,7 +1963,7 @@ void SMemAllocTableTreeView::ExportMemorySnapshot() const
 					return;
 				}
 
-				const uint32 NumCallstackFrames = Alloc->Callstack->Num();
+				const uint32 NumCallstackFrames = Callstack->Num();
 				check(NumCallstackFrames <= 256);
 				OutData << QuotationMarkBegin;
 				for (uint32 Index = 0; Index < NumCallstackFrames; ++Index)
@@ -1918,7 +1972,7 @@ void SMemAllocTableTreeView::ExportMemorySnapshot() const
 					{
 						OutData << TEXT("/");
 					}
-					const TraceServices::FStackFrame* Frame = Alloc->Callstack->Frame(static_cast<uint8>(Index));
+					const TraceServices::FStackFrame* Frame = Callstack->Frame(static_cast<uint8>(Index));
 					check(Frame != nullptr);
 					FormatStackFrame(*Frame, OutData, EStackFrameFormatFlags::ModuleAndSymbol);
 				}
@@ -1937,8 +1991,10 @@ void SMemAllocTableTreeView::ExportMemorySnapshot() const
 	const FTableColumn& TagColumn = *GetTable()->FindColumn(FMemAllocTableColumns::TagColumnId);
 	const FTableColumn& AssetColumn = *GetTable()->FindColumn(FMemAllocTableColumns::AssetColumnId);
 	const FTableColumn& ClassNameColumn = *GetTable()->FindColumn(FMemAllocTableColumns::ClassNameColumnId);
-	const FTableColumn& FunctionColumn = *GetTable()->FindColumn(FMemAllocTableColumns::FunctionColumnId);
-	const FTableColumn& SourceFileColumn = *GetTable()->FindColumn(FMemAllocTableColumns::SourceFileColumnId);
+	const FTableColumn& AllocFunctionColumn = *GetTable()->FindColumn(FMemAllocTableColumns::AllocFunctionColumnId);
+	const FTableColumn& FreeFunctionColumn = *GetTable()->FindColumn(FMemAllocTableColumns::FreeFunctionColumnId);
+	const FTableColumn& AllocSourceFileColumn = *GetTable()->FindColumn(FMemAllocTableColumns::AllocSourceFileColumnId);
+	const FTableColumn& FreeSourceFileColumn = *GetTable()->FindColumn(FMemAllocTableColumns::FreeSourceFileColumnId);
 
 	// 2. Iterate over TreeNodes
 	TStringBuilder<2048> Buffer;
@@ -1963,9 +2019,12 @@ void SMemAllocTableTreeView::ExportMemorySnapshot() const
 			WriteColumnHeader(Buffer, TagColumn); Buffer += Separator;
 			WriteColumnHeader(Buffer, AssetColumn); Buffer += Separator;
 			WriteColumnHeader(Buffer, ClassNameColumn); Buffer += Separator;
-			WriteColumnHeader(Buffer, FunctionColumn); Buffer += Separator;
-			WriteColumnHeader(Buffer, SourceFileColumn); Buffer += Separator;
-			Buffer += TEXT("Callstack"); Buffer += LineEnd;
+			WriteColumnHeader(Buffer, AllocFunctionColumn); Buffer += Separator;
+			WriteColumnHeader(Buffer, FreeFunctionColumn); Buffer += Separator;
+			WriteColumnHeader(Buffer, AllocSourceFileColumn); Buffer += Separator;
+			WriteColumnHeader(Buffer, FreeSourceFileColumn); Buffer += Separator;
+			Buffer += TEXT("Alloc Callstack"); Buffer += Separator;
+			Buffer += TEXT("Free Callstack"); Buffer += LineEnd;
 
 			IsFirstRow = false;
 		}
@@ -1983,9 +2042,12 @@ void SMemAllocTableTreeView::ExportMemorySnapshot() const
 		WriteColumn(Buffer, TagColumn, *Node); Buffer += Separator;
 		WriteColumn(Buffer, AssetColumn, *Node); Buffer += Separator;
 		WriteColumn(Buffer, ClassNameColumn, *Node); Buffer += Separator;
-		WriteColumn(Buffer, FunctionColumn, *Node); Buffer += Separator;
-		WriteColumn(Buffer, SourceFileColumn, *Node); Buffer += Separator;
-		WriteCallstackColumn(Buffer, *Node); Buffer += LineEnd;
+		WriteColumn(Buffer, AllocFunctionColumn, *Node); Buffer += Separator;
+		WriteColumn(Buffer, FreeFunctionColumn, *Node); Buffer += Separator;
+		WriteColumn(Buffer, AllocSourceFileColumn, *Node); Buffer += Separator;
+		WriteColumn(Buffer, FreeSourceFileColumn, *Node); Buffer += Separator;
+		WriteCallstackColumn(Buffer, *Node, true); Buffer += Separator;
+		WriteCallstackColumn(Buffer, *Node, false); Buffer += LineEnd;
 
 		// 5. Write rows to file
 		FTCHARToUTF16 UTF16String(*Buffer, Buffer.Len());

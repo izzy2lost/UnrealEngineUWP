@@ -451,8 +451,10 @@ FResolvedSymbolFilter::FResolvedSymbolFilter()
 	IgnoreSymbolsByFunctionName.Add(TEXT("FVirtualWinApiHooks::"));
 	IgnoreSymbolsByFunctionName.Add(TEXT("Malloc"));
 	IgnoreSymbolsByFunctionName.Add(TEXT("Realloc"));
+	IgnoreSymbolsByFunctionName.Add(TEXT("Free"));
 	IgnoreSymbolsByFunctionName.Add(TEXT("MemoryTrace_"));
 	IgnoreSymbolsByFunctionName.Add(TEXT("operator new"));
+	IgnoreSymbolsByFunctionName.Add(TEXT("operator delete"));
 	IgnoreSymbolsByFunctionName.Add(TEXT("std::"));
 	IgnoreSymbolsByFunctionName.Add(TEXT("FWindowsPlatformMemory::"));
 	IgnoreSymbolsByFunctionName.Add(TEXT("FCachedOSPageAllocator::"));

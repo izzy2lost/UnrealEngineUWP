@@ -98,7 +98,8 @@ protected:
 	uint32 CountSourceFiles(FMemAllocNode& MemAllocNode);
 
 	virtual void ExtendMenu(FMenuBuilder& MenuBuilder) override;
-	void BuildOpenSourceSubMenu(FMenuBuilder& MenuBuilder);
+	bool BuildOpenSourceSubMenuItems(FMenuBuilder& MenuBuilder, const TraceServices::FCallstack& Callstack);
+	void BuildOpenSourceSubMenu(FMenuBuilder& MenuBuilder, bool bIsAllocCallstack);
 	bool CanOpenCallstackFrameSourceFileInIDE() const;
 	void OpenCallstackFrameSourceFileInIDE();
 	FText GetSelectedCallstackFrameFileName() const;

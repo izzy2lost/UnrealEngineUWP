@@ -39,8 +39,6 @@ public:
 	uint32 GetFreeCallstackId() const { return FreeCallstackId; }
 	const TraceServices::FCallstack* GetCallstack() const { return Callstack; }
 	const TraceServices::FCallstack* GetFreeCallstack() const { return FreeCallstack; }
-	FText GetFullCallstack() const;
-	FText GetFullCallstackSourceFiles() const;
 	HeapId GetRootHeap() const { return RootHeap; }
 
 private:

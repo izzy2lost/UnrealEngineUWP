@@ -55,15 +55,22 @@ INSIGHTS_IMPLEMENT_RTTI(FMemAllocGroupingByCallstack)
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////
 
-FMemAllocGroupingByCallstack::FMemAllocGroupingByCallstack(bool bInIsInverted, bool bInIsGroupingByFunction)
+FMemAllocGroupingByCallstack::FMemAllocGroupingByCallstack(bool bInIsAllocCallstack, bool bInIsInverted, bool bInIsGroupingByFunction)
 	: FTreeNodeGrouping(
-		bInIsInverted ? LOCTEXT("Grouping_ByCallstack2_ShortName", "Inverted Callstack")
-					  : LOCTEXT("Grouping_ByCallstack1_ShortName", "Callstack"),
-		bInIsInverted ? LOCTEXT("Grouping_ByCallstack2_TitleName", "By Inverted Callstack")
-					  : LOCTEXT("Grouping_ByCallstack1_TitleName", "By Callstack"),
+		bInIsAllocCallstack
+		? (bInIsInverted ? LOCTEXT("Grouping_ByCallstack2_ShortName", "Inverted Alloc Callstack")
+						: LOCTEXT("Grouping_ByCallstack1_ShortName", "Alloc Callstack"))
+		: (bInIsInverted ? LOCTEXT("Grouping_ByCallstack4_ShortName", "Inverted Free Callstack")
+						: LOCTEXT("Grouping_ByCallstack3_ShortName", "Free Callstack")),
+		bInIsAllocCallstack
+		? (bInIsInverted ? LOCTEXT("Grouping_ByCallstack2_TitleName", "By Inverted Alloc Callstack")
+					  : LOCTEXT("Grouping_ByCallstack1_TitleName", "By Alloc Callstack"))
+		: (bInIsInverted ? LOCTEXT("Grouping_ByCallstack4_TitleName", "By Inverted Free Callstack")
+					  : LOCTEXT("Grouping_ByCallstack3_TitleName", "By Free Callstack")),
 		LOCTEXT("Grouping_Callstack_Desc", "Creates a tree based on callstack of each allocation."),
 		TEXT("Icons.Group.TreeItem"),
 		nullptr)
+	, bIsAllocCallstack(bInIsAllocCallstack)
 	, bIsInverted(bInIsInverted)
 	, bIsGroupingByFunction(bInIsGroupingByFunction)
 {
@@ -111,7 +118,7 @@ void FMemAllocGroupingByCallstack::GroupNodes(const TArray<FTableTreeNodePtr>& N
 		const FMemoryAlloc* Alloc = MemAllocNode.GetMemAlloc();
 		if (Alloc)
 		{
-			const TraceServices::FCallstack* Callstack = Alloc->GetCallstack();
+			const TraceServices::FCallstack* Callstack = bIsAllocCallstack ? Alloc->GetCallstack() : Alloc->GetFreeCallstack();
 
 			FCallstackGroup** FoundGroupPtrPtr = GroupMapByCallstack.Find(Callstack);
 			if (FoundGroupPtrPtr)
