@@ -93,6 +93,14 @@ namespace ENDICollisionQuery_AsyncGpuTraceProvider
 	};
 }
 
+UENUM()
+enum class ENiagaraStripScriptByteCodeOption : uint8
+{
+	Default = 0 UMETA(DisplayName = "No Stripping"),
+	Strip_Original = 1 UMETA(DisplayName = "Strip Original ByteCode"),
+	Strip_Experimental = 2 UMETA(DisplayName = "Strip Experimental ByteCode"),
+};
+
 UCLASS(config = Niagara, defaultconfig, meta=(DisplayName="Niagara"), MinimalAPI)
 class UNiagaraSettings : public UDeveloperSettings
 {
@@ -139,6 +147,12 @@ class UNiagaraSettings : public UDeveloperSettings
 	*/
 	UPROPERTY(config, EditAnywhere, Category = Niagara, meta = (DisplayName = "Enable building data for Experimental VM"))
 	bool bExperimentalVMEnabled = false;
+
+	/**
+	 Controls how byte code will be stripped when loading assets that have multiple sets of bytecode (i.e. experimental).
+	 */
+	UPROPERTY(config, EditAnywhere, Category = Niagara, meta = (DisplayName = "Option for how to strip bytecode"))
+	ENiagaraStripScriptByteCodeOption ByteCodeStripOption = ENiagaraStripScriptByteCodeOption::Default;
 
 	/** Whether to limit the max tick delta time or not. */
 	UPROPERTY(config, EditAnywhere, BlueprintReadWrite, AdvancedDisplay, Category = "Niagara", meta = (InlineEditConditionToggle))

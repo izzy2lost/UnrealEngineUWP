@@ -3,58 +3,55 @@
 #include "NiagaraScript.h"
 
 #include "Algo/RemoveIf.h"
+#include "Algo/Sort.h"
 #include "Algo/Unique.h"
 #include "DataDrivenShaderPlatformInfo.h"
+#include "DataInterface/NiagaraDataInterfaceStaticMesh.h"
+#include "HAL/PlatformFileManager.h"
+#include "Interfaces/ITargetPlatform.h"
 #include "Misc/Compression.h"
+#include "Misc/CoreMiscDefines.h"
+#include "Misc/FileHelper.h"
+#include "Misc/SecureHash.h"
 #include "Modules/ModuleManager.h"
 #include "NiagaraCompileHashVisitor.h"
-#include "NiagaraScriptSourceBase.h"
-#include "NiagaraEmitter.h"
-#include "NiagaraShader.h"
-#include "UObject/Package.h"
-#include "NiagaraModule.h"
 #include "NiagaraCustomVersion.h"
+#include "NiagaraDataInterfaceSkeletalMesh.h"
+#include "NiagaraEmitter.h"
+#include "NiagaraModule.h"
+#include "NiagaraScriptSourceBase.h"
+#include "NiagaraSettings.h"
+#include "NiagaraShader.h"
+#include "NiagaraSimulationStageBase.h"
 #include "NiagaraStackSection.h"
 #include "NiagaraSystem.h"
-#include "Serialization/MemoryReader.h"
-#include "Misc/SecureHash.h"
-
 #include "ProfilingDebugging/CookStats.h"
+#include "Serialization/MemoryReader.h"
+#include "Serialization/ObjectAndNameAsStringProxyArchive.h"
 #include "Stats/Stats.h"
-#include "HAL/PlatformFileManager.h"
-#include "Misc/FileHelper.h"
 #include "UObject/EditorObjectVersion.h"
+#include "UObject/FortniteMainBranchObjectVersion.h"
 #include "UObject/ObjectSaveContext.h"
+#include "UObject/Package.h"
 #include "UObject/ReleaseObjectVersion.h"
-#include "NiagaraDataInterfaceSkeletalMesh.h"
-#include "DataInterface/NiagaraDataInterfaceStaticMesh.h"
-#include "Interfaces/ITargetPlatform.h"
+#include "UObject/RenderingObjectVersion.h"
+#include "UObject/UObjectIterator.h"
+#include "UObject/UObjectThreadContext.h"
+#include "VectorVM.h"
+
 #if WITH_EDITOR
 	#include "DerivedDataCacheInterface.h"
 	#include "DerivedDataCacheKey.h"
+	#include "INiagaraEditorOnlyDataUtlities.h"
 	#include "Interfaces/ITargetPlatform.h"
-	#include "NiagaraSettings.h"
 	#include "Internationalization/Regex.h"
 	#include "ShaderCodeLibrary.h"
-	#include "INiagaraEditorOnlyDataUtlities.h"
 
 	// This is a version string that mimics the old versioning scheme. In case of merge conflicts with DDC versions,
 	// you MUST generate a new GUID and set this new version. If you want to bump this version, generate a new guid
 	// using VS->Tools->Create GUID
 	#define NIAGARASCRIPT_DERIVEDDATA_VER		TEXT("AB7397ACFEFD46158A87743735E3C773")
 #endif
-
-#include "UObject/FortniteMainBranchObjectVersion.h"
-#include "UObject/RenderingObjectVersion.h"
-#include "UObject/UObjectIterator.h"
-#include "UObject/UObjectThreadContext.h"
-#include "Serialization/ObjectAndNameAsStringProxyArchive.h"
-
-#include "VectorVM.h"
-#include "NiagaraSimulationStageBase.h"
-
-#include "Algo/Sort.h"
-#include "Misc/CoreMiscDefines.h"
 
 #include UE_INLINE_GENERATED_CPP_BY_NAME(NiagaraScript)
 
@@ -106,14 +103,6 @@ static FAutoConsoleVariableRef CVarLogCompileStaticVars(
 	TEXT("fx.LogCompileStaticVars"),
 	UNiagaraScript::LogCompileStaticVars,
 	TEXT("If > 0 all compile id generation dealing with static variables will be logged.  \n"),
-	ECVF_Default
-);
-
-int32 GNiagaraScriptStripByteCodeOnLoad = 0;
-static FAutoConsoleVariableRef CVarGNiagaraScriptStripByteCodeOnLoad(
-	TEXT("fx.NiagaraScript.StripByteCodeOnLoad"),
-	GNiagaraScriptStripByteCodeOnLoad,
-	TEXT("If > 0 all scripts will have their legacy byte code stripped on load.  If < 0 all scripts will have their experimental data stripped on load. \n"),
 	ECVF_Default
 );
 
@@ -429,13 +418,23 @@ void FNiagaraVMExecutableData::PostSerialize(const FArchive& Ar)
 #if VECTORVM_SUPPORTS_EXPERIMENTAL && VECTORVM_SUPPORTS_LEGACY && !WITH_EDITOR
 	if (Ar.IsLoading())
 	{
-		if (GNiagaraScriptStripByteCodeOnLoad > 0)
+		// only worry about stripping out byte code if we have both sets loaded
+		if (ByteCode.GetLength() > 0 && !ExperimentalContextData.IsEmpty())
 		{
-			ByteCode.Reset();
-		}
-		else if (GNiagaraScriptStripByteCodeOnLoad < 0)
-		{
-			ExperimentalContextData.Empty();
+			switch (GetDefault<UNiagaraSettings>()->ByteCodeStripOption)
+			{
+			case ENiagaraStripScriptByteCodeOption::Strip_Original:
+				ByteCode.Reset();
+				break;
+
+			case ENiagaraStripScriptByteCodeOption::Strip_Experimental:
+				ExperimentalContextData.Empty();
+				break;
+			
+			default:
+			case ENiagaraStripScriptByteCodeOption::Default:
+				break;
+			}
 		}
 	}
 #endif
