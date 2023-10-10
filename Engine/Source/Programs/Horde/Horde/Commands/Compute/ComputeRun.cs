@@ -6,6 +6,7 @@ using EpicGames.Core;
 using EpicGames.Horde.Common;
 using EpicGames.Horde.Compute;
 using EpicGames.Horde.Compute.Clients;
+using EpicGames.Horde.Storage;
 using EpicGames.Horde.Storage.Bundles;
 using EpicGames.Horde.Storage.Clients;
 using EpicGames.Horde.Storage.Nodes;
@@ -107,7 +108,7 @@ namespace Horde.Commands.Compute
 
 			// Create a sandbox from the data to be uploaded
 			using MemoryStorageClient storage = new MemoryStorageClient();
-			BundleNodeLocator sandbox = await CreateSandboxAsync(TaskFile, storage, cancellationToken);
+			BlobLocator sandbox = await CreateSandboxAsync(TaskFile, storage, cancellationToken);
 
 			// Open a socket and upload the sandbox
 			using (AgentMessageChannel channel = lease.Socket.CreateAgentMessageChannel(ControlChannelId, 4 * 1024 * 1024))
@@ -128,14 +129,14 @@ namespace Horde.Commands.Compute
 			return true;
 		}
 
-		static async Task<BundleNodeLocator> CreateSandboxAsync(FileReference taskFile, BundleStorageClient storage, CancellationToken cancellationToken)
+		static async Task<BlobLocator> CreateSandboxAsync(FileReference taskFile, BundleStorageClient storage, CancellationToken cancellationToken)
 		{
 			await using BundleWriter writer = storage.CreateWriter();
 
 			DirectoryNode sandbox = new DirectoryNode();
 			await sandbox.CopyFromDirectoryAsync(taskFile.Directory.ToDirectoryInfo(), new ChunkingOptions(), writer, null, cancellationToken);
 
-			BundleNodeHandle handle = await writer.FlushAsync(sandbox, cancellationToken);
+			BlobHandle handle = await writer.FlushAsync(sandbox, cancellationToken);
 			return handle.GetLocator();
 		}
 	}

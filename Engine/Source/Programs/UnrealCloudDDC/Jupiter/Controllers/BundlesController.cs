@@ -6,7 +6,6 @@ using System.IO;
 using System.Linq;
 using System.Net;
 using System.Net.Mime;
-using System.Text.Json.Serialization;
 using System.Threading;
 using System.Threading.Tasks;
 using EpicGames.Core;
@@ -22,124 +21,6 @@ using Microsoft.Extensions.Logging;
 
 namespace Jupiter.Controllers
 {
-	/// <summary>
-	/// Response from uploading a bundle
-	/// </summary>
-	public class WriteBlobResponse
-	{
-		/// <summary>
-		/// Locator for the uploaded bundle
-		/// </summary>
-		public BundleLocator Blob { get; set; }
-
-		/// <summary>
-		/// URL to upload the blob to.
-		/// </summary>
-		public Uri? UploadUrl { get; set; }
-
-		/// <summary>
-		/// Flag for whether the client could use a redirect instead (ie. not post content to the server, and get an upload url back).
-		/// </summary>
-		public bool? SupportsRedirects { get; set; }
-	}
-
-	/// <summary>
-	/// Response object for finding a node
-	/// </summary>
-	public class FindNodeResponse
-	{
-		/// <summary>
-		/// Locator for the target blob
-		/// </summary>
-		public BundleLocator Blob { get; set; }
-
-		/// <summary>
-		/// Export index for the ref
-		/// </summary>
-		public int ExportIdx { get; set; }
-
-		/// <summary>
-		/// Constructor
-		/// </summary>
-		public FindNodeResponse(BundleNodeHandle target)
-		{
-			Blob = target.GetLocator().Blob;
-			ExportIdx = target.GetLocator().ExportIdx;
-		}
-	}
-	/// <summary>
-	/// Response object for searching for nodes with a given alias
-	/// </summary>
-	public class FindNodesResponse
-	{
-		/// <summary>
-		/// Hash of the target node
-		/// </summary>
-#pragma warning disable CA2227 // Collection properties should be read only
-		public List<FindNodeResponse> Nodes { get; set; } = new List<FindNodeResponse>();
-#pragma warning restore CA2227 // Collection properties should be read only
-	}
-
-	/// <summary>
-	/// Request object for writing a ref
-	/// </summary>
-	public class WriteRefRequest
-	{
-		/// <summary>
-		/// Locator for the target blob
-		/// </summary>
-		public BundleLocator Blob { get; set; }
-
-		/// <summary>
-		/// Export index for the ref
-		/// </summary>
-		public int ExportIdx { get; set; }
-
-		/// <summary>
-		/// Options for the ref
-		/// </summary>
-		public RefOptions? Options { get; set; }
-	}
-
-	/// <summary>
-	/// Response object for reading a ref
-	/// </summary>
-	public class ReadRefResponse
-	{
-		/// <summary>
-		/// Locator for the target blob
-		/// </summary>
-		public BundleLocator Blob { get; set; }
-
-		/// <summary>
-		/// Export index for the ref
-		/// </summary>
-		public int ExportIdx { get; set; }
-
-		/// <summary>
-		/// Link to information about the target node
-		/// </summary>
-		public string Link { get; set; }
-
-		/// <summary>
-		/// Constructor
-		/// </summary>
-		public ReadRefResponse(BundleNodeHandle target, string link)
-		{
-			Blob = target.GetLocator().Blob;
-			ExportIdx = target.GetLocator().ExportIdx;
-			Link = link;
-		}
-
-		[JsonConstructor]
-		public ReadRefResponse(BundleLocator blob, int exportIdx, string link)
-		{
-			Blob = blob;
-			ExportIdx = exportIdx;
-			Link = link;
-		}
-	}
-
 	/// <summary>
 	/// Controller for the /api/v1/storage endpoint
 	/// </summary>
@@ -207,7 +88,11 @@ namespace Jupiter.Controllers
 				{
 					Bundle bundle = await Bundle.FromStreamAsync(stream, cancellationToken);
 					BundleLocator locator = await client.WriteBundleAsync(bundle, prefix: (prefix == null) ? Utf8String.Empty : new Utf8String(prefix), cancellationToken: cancellationToken);
-					return new WriteBlobResponse { Blob = locator, SupportsRedirects = client.SupportsRedirects? (bool?)true : null };
+
+					WriteBlobResponse response = new WriteBlobResponse();
+					response.Blob = locator.ToString();
+					response.SupportsRedirects = client.SupportsRedirects ? (bool?)true : false;
+					return response;
 				}
 			}
 		}
@@ -279,7 +164,7 @@ namespace Jupiter.Controllers
 			FindNodesResponse response = new FindNodesResponse();
 			foreach (BlobAlias blobAlias in await client.FindAliasesAsync(alias, null, cancellationToken))
 			{
-				response.Nodes.Add(new FindNodeResponse((BundleNodeHandle)blobAlias.Target));
+				response.Nodes.Add(new FindNodeResponse(blobAlias.Target.GetLocator(), blobAlias.Rank, blobAlias.Data.ToArray()));
 			}
 
 			if (response.Nodes.Count == 0)
@@ -307,7 +192,7 @@ namespace Jupiter.Controllers
 				return result;
 			}
 			StorageClient client = await _storageService.GetClientAsync(namespaceId, cancellationToken);
-			BundleNodeLocator target = new BundleNodeLocator(request.Blob, request.ExportIdx);
+			BundleNodeLocator target = BundleNodeLocator.FromBlobLocator(request.Target);
 			await client.WriteRefTargetAsync(refName, target, request.Options, cancellationToken);
 
 			return Ok();
@@ -331,14 +216,14 @@ namespace Jupiter.Controllers
 
 			StorageClient client = await _storageService.GetClientAsync(namespaceId, cancellationToken);
 
-			BundleNodeHandle? target = await client.TryReadRefTargetAsync(refName, cancellationToken: cancellationToken);
+			BlobHandle? target = await client.TryReadRefTargetAsync(refName, cancellationToken: cancellationToken);
 			if (target == null)
 			{
 				return NotFound();
 			}
 
-			string link = Url.Action("GetNode", new { namespaceId = namespaceId, locator = target.GetLocator().Blob, export = target.GetLocator().ExportIdx })!;
-			return new ReadRefResponse(target, WebUtility.UrlDecode(link));
+			string link = Url.Action("GetNode", new { namespaceId = namespaceId, locator = target.GetLocator() })!;
+			return new ReadRefResponse(target.GetLocator(), WebUtility.UrlDecode(link));
 		}
 
 		/// <summary>

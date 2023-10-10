@@ -48,7 +48,7 @@ namespace EpicGames.Horde.Storage.Bundles
 	/// <summary>
 	/// Implementation of <see cref="BlobHandle"/> for nodes which can be read from storage
 	/// </summary>
-	public sealed class FlushedNodeHandle : BundleNodeHandle
+	sealed class FlushedNodeHandle : BundleNodeHandle
 	{
 		readonly BundleReader _reader;
 		readonly BundleNodeLocator _locator;

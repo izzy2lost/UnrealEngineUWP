@@ -180,10 +180,7 @@ namespace EpicGames.Horde.Storage.Clients
 		public abstract Task<bool> DeleteRefAsync(RefName name, CancellationToken cancellationToken = default);
 
 		/// <inheritdoc/>
-		public abstract Task<BundleNodeHandle?> TryReadRefTargetAsync(RefName name, RefCacheTime cacheTime = default, CancellationToken cancellationToken = default);
-
-		/// <inheritdoc/>
-		async Task<BlobHandle?> IStorageClient.TryReadRefTargetAsync(RefName name, RefCacheTime cacheTime, CancellationToken cancellationToken) => await TryReadRefTargetAsync(name, cacheTime, cancellationToken);
+		public abstract Task<BlobHandle?> TryReadRefTargetAsync(RefName name, RefCacheTime cacheTime = default, CancellationToken cancellationToken = default);
 
 		/// <inheritdoc/>
 		async Task IStorageClient.WriteRefTargetAsync(RefName name, BlobHandle target, RefOptions? options, CancellationToken cancellationToken)

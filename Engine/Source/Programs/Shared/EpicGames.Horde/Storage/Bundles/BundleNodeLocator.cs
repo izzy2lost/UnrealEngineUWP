@@ -161,7 +161,7 @@ namespace EpicGames.Horde.Storage.Bundles
 		/// </summary>
 		/// <param name="writer">Writer to serialize to</param>
 		/// <param name="value">Value to serialize</param>
-		public static void WriteNodeLocator(this IMemoryWriter writer, BundleNodeLocator value)
+		public static void WriteBlobLocator(this IMemoryWriter writer, BlobLocator value)
 		{
 			writer.WriteString(value.ToString());
 		}

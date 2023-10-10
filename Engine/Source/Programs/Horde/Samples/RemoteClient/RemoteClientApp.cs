@@ -7,6 +7,7 @@ using EpicGames.Horde;
 using EpicGames.Horde.Common;
 using EpicGames.Horde.Compute;
 using EpicGames.Horde.Compute.Clients;
+using EpicGames.Horde.Storage;
 using EpicGames.Horde.Storage.Bundles;
 using EpicGames.Horde.Storage.Clients;
 using EpicGames.Horde.Storage.Nodes;
@@ -114,7 +115,7 @@ namespace RemoteClient
 				{
 					DirectoryNode sandbox = new DirectoryNode();
 					await sandbox.CopyFromDirectoryAsync(uploadDir.ToDirectoryInfo(), new ChunkingOptions(), treeWriter, null);
-					BundleNodeHandle handle = await treeWriter.FlushAsync(sandbox);
+					BlobHandle handle = await treeWriter.FlushAsync(sandbox);
 					await channel.UploadFilesAsync("", handle.GetLocator(), storage);
 				}
 

@@ -111,7 +111,7 @@ namespace Horde.Agent.Tests
 			{
 			}
 
-			protected override Task UpdateLogAsync(BundleNodeHandle target, int lineCount, bool complete, CancellationToken cancellationToken)
+			protected override Task UpdateLogAsync(BlobHandle target, int lineCount, bool complete, CancellationToken cancellationToken)
 			{
 				Target = target;
 				return Task.CompletedTask;

@@ -395,6 +395,10 @@ namespace Horde.Server.Perforce
 				ClusterState? next = await UpdateClusterAsync(clusterName, streamInfos, state, cancellationToken);
 				return next;
 			}
+			catch (OperationCanceledException)
+			{
+				return null;
+			}
 			catch (Exception ex)
 			{
 				_logger.LogError(ex, "Exception while updating cluster state: {Message}", ex.Message);

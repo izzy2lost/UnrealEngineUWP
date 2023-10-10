@@ -185,7 +185,7 @@ public class StorageClient : BundleStorageClient
 		throw new NotImplementedException();
 	}
 
-	public override async Task<BundleNodeHandle?> TryReadRefTargetAsync(RefName name, RefCacheTime cacheTime = default, CancellationToken cancellationToken = default)
+	public override async Task<BlobHandle?> TryReadRefTargetAsync(RefName name, RefCacheTime cacheTime = default, CancellationToken cancellationToken = default)
 	{
 		// TODO: Cache time is ignored
 		try

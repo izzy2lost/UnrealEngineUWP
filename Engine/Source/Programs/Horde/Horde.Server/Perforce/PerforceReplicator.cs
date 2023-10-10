@@ -550,7 +550,7 @@ namespace Horde.Server.Perforce
 			BlobHandle commitHandle = await store.WriteRefAsync(refName, commitNode, refOptions: options.RefOptions, cancellationToken: cancellationToken);
 
 			// Log the snapshot info
-			_logger.LogInformation("Snapshot for {StreamId} CL {Change} is ref {RefName} (commit: {CommitHandle}, root: {RootHandle})", streamConfig.Id, change, refName, ((BundleNodeHandle)commitHandle).GetLocator(), ((BundleNodeHandle)rootRef.Handle).GetLocator());
+			_logger.LogInformation("Snapshot for {StreamId} CL {Change} is ref {RefName} (commit: {CommitHandle}, root: {RootHandle})", streamConfig.Id, change, refName, ((BundleNodeHandle)commitHandle).GetLocator(), rootRef.Handle.GetLocator());
 		}
 
 		static int GetFileOffset(string path)

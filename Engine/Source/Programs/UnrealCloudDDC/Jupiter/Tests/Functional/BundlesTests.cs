@@ -15,7 +15,6 @@ using Amazon.S3.Model;
 using EpicGames.Core;
 using EpicGames.Horde.Storage;
 using EpicGames.Horde.Storage.Bundles;
-using Jupiter.Controllers;
 using Jupiter.Implementation;
 using Microsoft.AspNetCore.TestHost;
 using Microsoft.AspNetCore.Hosting;
@@ -26,8 +25,6 @@ using Serilog;
 using Serilog.Core;
 
 namespace Jupiter.FunctionalTests.Storage;
-
-using WriteBlobResponse = Jupiter.Controllers.WriteBlobResponse;
 
 [TestClass]
 public class MemoryBundlesTests : BundlesTests
@@ -303,7 +300,7 @@ public abstract class BundlesTests
 
 		WriteBlobResponse? writeBlobResponse = await result.Content.ReadFromJsonAsync<WriteBlobResponse>();
 		Assert.IsNotNull(writeBlobResponse);
-		BundleLocator bundleLocator = writeBlobResponse.Blob;
+		BundleLocator bundleLocator = BundleNodeLocator.Parse(writeBlobResponse.Blob).Blob;
 
 		HttpResponseMessage getResult = await _httpClient!.GetAsync(new Uri($"api/v1/storage/{TestNamespaceName}/bundles/{bundleLocator}", UriKind.Relative));
 		getResult.EnsureSuccessStatusCode();

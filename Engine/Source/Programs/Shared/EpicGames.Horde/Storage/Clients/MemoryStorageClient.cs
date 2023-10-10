@@ -96,16 +96,16 @@ namespace EpicGames.Horde.Storage.Clients
 		public override Task<bool> DeleteRefAsync(RefName name, CancellationToken cancellationToken) => Task.FromResult(_refs.TryRemove(name, out _));
 
 		/// <inheritdoc/>
-		public override Task<BundleNodeHandle?> TryReadRefTargetAsync(RefName name, RefCacheTime cacheTime = default, CancellationToken cancellationToken = default)
+		public override Task<BlobHandle?> TryReadRefTargetAsync(RefName name, RefCacheTime cacheTime = default, CancellationToken cancellationToken = default)
 		{
 			BundleNodeLocator hashedLocator;
 			if (_refs.TryGetValue(name, out hashedLocator))
 			{
-				return Task.FromResult<BundleNodeHandle?>(CreateNodeHandle(hashedLocator)); 
+				return Task.FromResult<BlobHandle?>(CreateNodeHandle(hashedLocator)); 
 			}
 			else
 			{
-				return Task.FromResult<BundleNodeHandle?>(null);
+				return Task.FromResult<BlobHandle?>(null);
 			}
 		}
 
