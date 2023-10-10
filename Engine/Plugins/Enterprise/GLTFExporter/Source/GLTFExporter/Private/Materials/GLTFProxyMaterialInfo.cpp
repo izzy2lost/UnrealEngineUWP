@@ -31,7 +31,12 @@ const TGLTFProxyMaterialParameterInfo<float> FGLTFProxyMaterialInfo::ClearCoatNo
 const TGLTFProxyMaterialParameterInfo<float> FGLTFProxyMaterialInfo::SpecularFactor = { TEXT("Specular Factor") };
 const FGLTFProxyMaterialTextureParameterInfo FGLTFProxyMaterialInfo::SpecularTexture = { TEXT("Specular") };
 
+const TGLTFProxyMaterialParameterInfo<float> FGLTFProxyMaterialInfo::IOR = { TEXT("IOR") };
+
 const TGLTFProxyMaterialParameterInfo<FLinearColor> FGLTFProxyMaterialInfo::SheenColorFactor = { TEXT("Sheen Color Factor") };
 const FGLTFProxyMaterialTextureParameterInfo FGLTFProxyMaterialInfo::SheenColorTexture = { TEXT("Sheen Color") };
 const TGLTFProxyMaterialParameterInfo<float> FGLTFProxyMaterialInfo::SheenRoughnessFactor = { TEXT("Sheen Roughness Factor") };
 const FGLTFProxyMaterialTextureParameterInfo FGLTFProxyMaterialInfo::SheenRoughnessTexture = { TEXT("Sheen Roughness") };
+
+const TGLTFProxyMaterialParameterInfo<float> FGLTFProxyMaterialInfo::TransmissionFactor = { TEXT("Transmission Factor") };
+const FGLTFProxyMaterialTextureParameterInfo FGLTFProxyMaterialInfo::TransmissionTexture = { TEXT("Transmission") };

@@ -135,6 +135,21 @@ struct GLTFEXPORTER_API FGLTFJsonSheenExtension : IGLTFJsonObject
 	virtual void WriteObject(IGLTFJsonWriter& Writer) const override;
 };
 
+struct GLTFEXPORTER_API FGLTFJsonTransmissionExtension : IGLTFJsonObject
+{
+	float                   Factor; //transmissionFactor
+	FGLTFJsonTextureInfo    Texture; //transmissionTexture
+
+	FGLTFJsonTransmissionExtension()
+		: Factor(0.f)
+	{
+	}
+
+	bool HasValue() const { return !FMath::IsNearlyEqual(Factor, 0.f) || Texture.Index != nullptr; }
+
+	virtual void WriteObject(IGLTFJsonWriter& Writer) const override;
+};
+
 struct GLTFEXPORTER_API FGLTFJsonMaterial : IGLTFJsonIndexedObject
 {
 	FString Name;
@@ -155,10 +170,11 @@ struct GLTFEXPORTER_API FGLTFJsonMaterial : IGLTFJsonIndexedObject
 
 	bool DoubleSided;
 
-	FGLTFJsonClearCoatExtension ClearCoat;
-	FGLTFJsonSpecularExtension  Specular;
-	FGLTFJsonIORExtension       IOR;
-	FGLTFJsonSheenExtension     Sheen;
+	FGLTFJsonClearCoatExtension    ClearCoat;
+	FGLTFJsonSpecularExtension     Specular;
+	FGLTFJsonIORExtension          IOR;
+	FGLTFJsonSheenExtension        Sheen;
+	FGLTFJsonTransmissionExtension Transmission;
 
 	virtual void WriteObject(IGLTFJsonWriter& Writer) const override;
 

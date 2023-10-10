@@ -164,6 +164,19 @@ void FGLTFJsonSheenExtension::WriteObject(IGLTFJsonWriter& Writer) const
 	}
 }
 
+void FGLTFJsonTransmissionExtension::WriteObject(IGLTFJsonWriter& Writer) const
+{
+	if (!FMath::IsNearlyEqual(Factor, 0.f))
+	{
+		Writer.Write(TEXT("transmissionFactor"), Factor);
+	}
+
+	if (Texture.Index != nullptr)
+	{
+		Writer.Write(TEXT("transmissionTexture"), Texture);
+	}
+}
+
 void FGLTFJsonMaterial::WriteObject(IGLTFJsonWriter& Writer) const
 {
 	if (!Name.IsEmpty())
@@ -212,11 +225,14 @@ void FGLTFJsonMaterial::WriteObject(IGLTFJsonWriter& Writer) const
 	}
 
 	const bool HasEmissiveStrength = !FMath::IsNearlyEqual(EmissiveStrength, 1.0f, Writer.DefaultTolerance);
-	if (ShadingModel == EGLTFJsonShadingModel::Unlit || ShadingModel == EGLTFJsonShadingModel::ClearCoat || 
+	if (ShadingModel == EGLTFJsonShadingModel::Unlit ||
+		ShadingModel == EGLTFJsonShadingModel::ClearCoat ||
+		(ShadingModel == EGLTFJsonShadingModel::Transmission && Transmission.HasValue()) ||
 		HasEmissiveStrength || 
 		Specular.HasValue() || 
 		IOR.HasValue() ||
-		Sheen.HasValue())
+		Sheen.HasValue() ||
+		Transmission.HasValue())
 	{
 		Writer.StartExtensions();
 
@@ -244,6 +260,10 @@ void FGLTFJsonMaterial::WriteObject(IGLTFJsonWriter& Writer) const
 		else if (ShadingModel == EGLTFJsonShadingModel::ClearCoat)
 		{
 			Writer.Write(EGLTFJsonExtension::KHR_MaterialsClearCoat, ClearCoat);
+		}
+		else if (ShadingModel == EGLTFJsonShadingModel::Transmission)
+		{
+			Writer.Write(EGLTFJsonExtension::KHR_MaterialsTransmission, Transmission);
 		}
 
 		if (HasEmissiveStrength)

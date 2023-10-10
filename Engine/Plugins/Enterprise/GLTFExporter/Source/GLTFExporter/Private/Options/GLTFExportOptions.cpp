@@ -18,6 +18,7 @@ void UGLTFExportOptions::ResetToDefault()
 	bExportUnlitMaterials = true;
 	bExportClearCoatMaterials = true;
 	bExportClothMaterials = true;
+	bExportThinTranslucentMaterials = false;
 	bExportEmissiveStrength = true;
 	BakeMaterialInputs = EGLTFMaterialBakeMode::UseMeshData;
 	DefaultMaterialBakeSize = FGLTFMaterialBakeSize::Default;

@@ -14,6 +14,10 @@ class GLTFEXPORTER_API UGLTFProxyOptions : public UObject
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Config, Category = Material)
 	bool bBakeMaterialInputs;
 
+	/** If enabled, materials with shading model thin translucency will be used. Conversion is only partial.*/
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Config, Category = Material)
+	bool bUseThinTranslucentShadingModel;
+
 	/** Default size of the baked out texture (containing the material input). Can be overridden by material- and input-specific bake settings, see GLTFMaterialExportOptions. */
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Config, Category = Material, Meta = (EditCondition = "bBakeMaterialInputs"))
 	FGLTFMaterialBakeSize DefaultMaterialBakeSize;

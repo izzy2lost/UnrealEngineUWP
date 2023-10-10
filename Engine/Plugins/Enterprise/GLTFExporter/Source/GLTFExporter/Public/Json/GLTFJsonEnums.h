@@ -11,6 +11,7 @@ enum class EGLTFJsonExtension
 	KHR_MaterialsVariants,
 	KHR_MaterialsIOR,
 	KHR_MaterialsSheen,
+	KHR_MaterialsTransmission,
 	KHR_MeshQuantization,
 	KHR_TextureTransform,
 	KHR_MaterialsSpecular
@@ -23,6 +24,7 @@ enum class EGLTFJsonShadingModel
 	Unlit,
 	ClearCoat,
 	Sheen, /*UE Cloth*/
+	Transmission, /*UE Thin Translucent*/
 
 	NumShadingModels
 };
