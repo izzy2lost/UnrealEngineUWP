@@ -900,7 +900,7 @@ void SRigVMGraphNode::GetNodeInfoPopups(FNodeInfoContext* Context, TArray<FGraph
 				{
 					if(URigVMHost* DebuggedHost = Cast<URigVMHost>(Blueprint->GetObjectBeingDebugged()))
 					{
-						const int32 Count = ModelNode->GetInstructionVisitedCount(DebuggedHost->GetExtendedExecuteContext(), DebuggedHost->GetVM(), FRigVMASTProxy());
+						const int32 Count = ModelNode->GetInstructionVisitedCount(DebuggedHost->GetRigVMExtendedExecuteContext(), DebuggedHost->GetVM(), FRigVMASTProxy());
 						if(Count == 0)
 						{
 							PinnedWatchText = FString::Printf(TEXT("Node is not running - wrong event?\n%s"), *PinnedWatchText);
@@ -985,7 +985,7 @@ TArray<FOverlayWidgetInfo> SRigVMGraphNode::GetOverlayWidgets(bool bSelected, co
 				{
 					if(bShowNodeCounts || bShowInstructionIndex)
 					{
-						const int32 Count = ModelNode->GetInstructionVisitedCount(DebuggedHost->GetExtendedExecuteContext(), DebuggedHost->GetVM(), FRigVMASTProxy());
+						const int32 Count = ModelNode->GetInstructionVisitedCount(DebuggedHost->GetRigVMExtendedExecuteContext(), DebuggedHost->GetVM(), FRigVMASTProxy());
 						if((Count > Blueprint->RigGraphDisplaySettings.NodeRunLowerBound) || bShowInstructionIndex)
 						{
 							const int32 VOffset = bSelected ? -2 : 2;
@@ -999,7 +999,7 @@ TArray<FOverlayWidgetInfo> SRigVMGraphNode::GetOverlayWidgets(bool bSelected, co
 
 					if(bEnableProfiling)
 					{
-						const double MicroSeconds = ModelNode->GetInstructionMicroSeconds(DebuggedHost->GetExtendedExecuteContext(), DebuggedHost->GetVM(), FRigVMASTProxy());
+						const double MicroSeconds = ModelNode->GetInstructionMicroSeconds(DebuggedHost->GetRigVMExtendedExecuteContext(), DebuggedHost->GetVM(), FRigVMASTProxy());
 						if(MicroSeconds >= 0.0)
 						{
 							const int32 VOffset = bSelected ? -2 : 2;
@@ -1261,13 +1261,13 @@ FText SRigVMGraphNode::GetInstructionCountText() const
 					int32 FirstInstructionIndex = INDEX_NONE;
 					if(bShowNodeRunCount)
 					{
-						RunCount = ModelNode->GetInstructionVisitedCount(DebuggedHost->GetExtendedExecuteContext(), DebuggedHost->GetVM(), FRigVMASTProxy());
+						RunCount = ModelNode->GetInstructionVisitedCount(DebuggedHost->GetRigVMExtendedExecuteContext(), DebuggedHost->GetVM(), FRigVMASTProxy());
 						bShowNodeRunCount = RunCount > Blueprint->RigGraphDisplaySettings.NodeRunLowerBound;
 					}
 
 					if(bShowInstructionIndex)
 					{
-						const TArray<int32> Instructions = ModelNode->GetInstructionsForVM(DebuggedHost->GetExtendedExecuteContext(), DebuggedHost->GetVM());
+						const TArray<int32> Instructions = ModelNode->GetInstructionsForVM(DebuggedHost->GetRigVMExtendedExecuteContext(), DebuggedHost->GetVM());
 						bShowInstructionIndex = Instructions.Num() > 0;
 						if(bShowInstructionIndex)
 						{
@@ -1316,7 +1316,7 @@ FText SRigVMGraphNode::GetInstructionDurationText() const
 			{
 				if(URigVMHost* DebuggedHost = Cast<URigVMHost>(Blueprint->GetObjectBeingDebugged()))
 				{
-					const double MicroSeconds = ModelNode->GetInstructionMicroSeconds(DebuggedHost->GetExtendedExecuteContext(), DebuggedHost->GetVM(), FRigVMASTProxy());
+					const double MicroSeconds = ModelNode->GetInstructionMicroSeconds(DebuggedHost->GetRigVMExtendedExecuteContext(), DebuggedHost->GetVM(), FRigVMASTProxy());
 					if(MicroSeconds >= 0)
 					{
 						return FText::FromString(FString::Printf(TEXT("%d µs"), (int32)MicroSeconds));

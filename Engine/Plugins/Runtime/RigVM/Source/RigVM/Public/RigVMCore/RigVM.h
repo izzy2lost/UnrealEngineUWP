@@ -188,11 +188,8 @@ public:
 	// returns the cached VM hash
 	virtual uint32 GetVMHash() const;
 
-	UE_DEPRECATED(5.4, "Please, use ComputeVMHash with FRigVMExtendedExecuteContext parameter.")
-	virtual uint32 ComputeVMHash() const { return 0; }
-
 	// Generates a unique hash to compare VMs
-	virtual uint32 ComputeVMHash(const FRigVMExtendedExecuteContext& Context) const;
+	virtual uint32 ComputeVMHash() const;
 
 	UE_DEPRECATED(5.3, "Please, use GetNativizedClass with FRigVMExternalVariableDef array.")
 	UClass* GetNativizedClass(const TArray<FRigVMExternalVariable>& InExternalVariables) { return nullptr; }
@@ -222,37 +219,31 @@ public:
 	UE_DEPRECATED(5.3, "Please, use Initialize with Context param")
 	virtual bool Initialize(TArrayView<URigVMMemoryStorage*> Memory) { return false; }
 
-	UE_DEPRECATED(5.4, "Please, use Initialize with FRigVMMemoryStorageStruct param")
+	UE_DEPRECATED(5.4, "Please, use Initialize with just Context param")
 	virtual bool Initialize(FRigVMExtendedExecuteContext& Context, TArrayView<URigVMMemoryStorage*> Memory) { return false; }
 
 	// Prepares caches and memory for execution
-	virtual bool Initialize(FRigVMExtendedExecuteContext& Context, TArrayView<FRigVMMemoryStorageStruct*> Memory);
+	virtual bool Initialize(FRigVMExtendedExecuteContext& Context);
 
-	UE_DEPRECATED(5.4, "Please, use InitializeInstance with FRigVMMemoryStorageStruct param")
-	virtual bool InitializeInstance(FRigVMExtendedExecuteContext& Context, TArrayView<URigVMMemoryStorage*> Memory) { return false; }
-
-	// Initializes cached memory handles and copies work memory from the CDO to the Context
-	virtual bool InitializeInstance(FRigVMExtendedExecuteContext& Context, TArrayView<FRigVMMemoryStorageStruct*> Memory);
+	// Initializes cached memory handles and optionally copies work memory from the CDO to the Context
+	virtual bool InitializeInstance(FRigVMExtendedExecuteContext& Context, bool bCopyMemory = true);
 
 	UE_DEPRECATED(5.3, "Please, use Execute with Context param")
 	virtual ERigVMExecuteResult Execute(TArrayView<URigVMMemoryStorage*> Memory, const FName& InEntryName = NAME_None) { return ERigVMExecuteResult::Failed; }
 
-	UE_DEPRECATED(5.4, "Please, use Execute with FRigVMMemoryStorageStruct param")
+	UE_DEPRECATED(5.4, "Please, use ExecuteVM with Context param")
 	virtual ERigVMExecuteResult Execute(FRigVMExtendedExecuteContext& Context, TArrayView<URigVMMemoryStorage*> Memory, const FName& InEntryName = NAME_None) { return ERigVMExecuteResult::Failed; }
-
-	// Executes the VM.
-	// You can optionally provide external memory to the execution
-	// and provide optional additional operands.
-	virtual ERigVMExecuteResult Execute(FRigVMExtendedExecuteContext& Context, TArrayView<FRigVMMemoryStorageStruct*> Memory, const FName& InEntryName = NAME_None);
 
 	UE_DEPRECATED(5.3, "Please, use Execute with Context param")
 	virtual bool Execute(const FName& InEntryName = NAME_None) { return false; }
 
 	// Executes the VM.
-	// You can optionally provide external memory to the execution
-	// and provide optional additional operands.
-	UFUNCTION(BlueprintCallable, Category = RigVM)
-	virtual bool Execute(FRigVMExtendedExecuteContext& Context, const FName& InEntryName = NAME_None);
+	// You can optionally provide optional additional operands.
+	virtual ERigVMExecuteResult ExecuteVM(FRigVMExtendedExecuteContext& Context, const FName& InEntryName = NAME_None);
+
+	UE_DEPRECATED(5.4, "Please, use ExecuteVM with Context param")
+	UFUNCTION(BlueprintCallable, Category = RigVM, meta = (DeprecatedFunction, DeprecationMessage = "This function has been deprecated and it is no longer supported."))
+	virtual bool Execute(FRigVMExtendedExecuteContext& Context, const FName& InEntryName = NAME_None) { return false; }
 
 	UE_DEPRECATED(5.3, "Please, use ExecuteLazyBranch with Context param")
 	ERigVMExecuteResult ExecuteLazyBranch(const FRigVMBranchInfo& InBranchToRun) { return ERigVMExecuteResult::Failed; }
@@ -278,12 +269,6 @@ public:
 	UE_DEPRECATED(5.4, "GetMemoryByType has been deprecated from the VM. Please, use GetWorkMemory from VMHost or the version with a Context param")
 	virtual URigVMMemoryStorage* GetMemoryByType(ERigVMMemoryType InMemoryType, bool bCreateIfNeeded = true) { return nullptr; }
 
-	// Creates a new memory storage by type
-	void CreateMemoryByType(UObject* Outer, TObjectPtr<URigVMMemoryStorage>& MemoryStorage, ERigVMMemoryType InMemoryType, EObjectFlags ObjectFlags, bool bForceCreation);
-	virtual URigVMMemoryStorage* CreateMemoryByType(FRigVMExtendedExecuteContext& Context, ERigVMMemoryType InMemoryType, bool bForceCreation = false);
-
-	virtual void GenerateMemoryType(FRigVMExtendedExecuteContext& Context, ERigVMMemoryType InMemoryType, const TArray<FRigVMPropertyDescription>* InProperties, bool bForceCreation = false);
-	
 	// Returns a memory storage by type
 	virtual FRigVMMemoryStorageStruct* GetMemoryByType(FRigVMExtendedExecuteContext& Context, ERigVMMemoryType InMemoryType);
 	virtual const FRigVMMemoryStorageStruct* GetMemoryByType(const FRigVMExtendedExecuteContext& Context, ERigVMMemoryType InMemoryType) const;
@@ -304,12 +289,11 @@ public:
 	UE_DEPRECATED(5.4, "GetWorkMemory has been deprecated from the VM. Please, use GetWorkMemory from VMHost or the version with a Context param")
 	URigVMMemoryStorage* GetWorkMemory(bool bCreateIfNeeded = true) { return nullptr; }
 
-	// The default mutable work memory
+	// The instance mutable work memory the VM will use to execute
 	FRigVMMemoryStorageStruct* GetWorkMemory(FRigVMExtendedExecuteContext& Context)
 	{
 		return GetMemoryByType(Context, ERigVMMemoryType::Work);
 	}
-
 	const FRigVMMemoryStorageStruct* GetWorkMemory(const FRigVMExtendedExecuteContext& Context) const
 	{
 		return GetMemoryByType(Context, ERigVMMemoryType::Work);
@@ -318,22 +302,21 @@ public:
 	UE_DEPRECATED(5.4, "GetDebugMemory has been deprecated from the VM. Please, use GetDebugMemory from VMHost or the version with a Context param")
 	URigVMMemoryStorage* GetDebugMemory(bool bCreateIfNeeded = true) { return nullptr; }
 
-	// The default debug watch memory
+	// The instance debug watch memory
 	FRigVMMemoryStorageStruct* GetDebugMemory(FRigVMExtendedExecuteContext& Context)
 	{
 		return GetMemoryByType(Context, ERigVMMemoryType::Debug);
 	}
-
 	const FRigVMMemoryStorageStruct* GetDebugMemory(const FRigVMExtendedExecuteContext& Context) const
 	{
 		return GetMemoryByType(Context, ERigVMMemoryType::Debug);
 	}
 
-	UE_DEPRECATED(5.4, "Please, use GetLocalMemoryArray with a Context param")
+	UE_DEPRECATED(5.4, "Please, use GetInstanceMemoryArray with a Context param")
 	TArray<URigVMMemoryStorage*> GetLocalMemoryArray() { return TArray<URigVMMemoryStorage*>(); }
 
-	// returns all memory storages as an array
-	TArray<FRigVMMemoryStorageStruct*> GetLocalMemoryArray(FRigVMExtendedExecuteContext& Context)
+	// Returns the VM Literal memory and context instanced memory.
+	TArray<FRigVMMemoryStorageStruct*> GetInstanceMemory(FRigVMExtendedExecuteContext& Context)
 	{
 		TArray<FRigVMMemoryStorageStruct*> LocalMemory;
 		LocalMemory.Add(GetWorkMemory(Context));
@@ -342,6 +325,47 @@ public:
 		return LocalMemory;
 	}
 
+	// The default non mutable reference literal memory (generated by the compiler and copied to the instances as initial state)
+	const FRigVMMemoryStorageStruct& GetDefaultLiteralMemory() const
+	{
+		return LiteralMemoryStorage;
+	}
+	FRigVMMemoryStorageStruct& GetDefaultLiteralMemory()
+	{
+		return LiteralMemoryStorage;
+	}
+
+	// The default non mutable reference work memory (generated by the compiler and copied to the instances as initial state)
+	const FRigVMMemoryStorageStruct& GetDefaultWorkMemory() const
+	{
+		return DefaultWorkMemoryStorage;
+	}
+	FRigVMMemoryStorageStruct& GetDefaultWorkMemory()
+	{
+		return DefaultWorkMemoryStorage;
+	}
+
+	// The default non mutable reference debug memory (generated by the compiler and copied to the instances as initial state)
+	const FRigVMMemoryStorageStruct& GetDefaultDebugMemory() const
+	{
+		return DefaultDebugMemoryStorage;
+	}
+	FRigVMMemoryStorageStruct& GetDefaultDebugMemory()
+	{
+		return DefaultDebugMemoryStorage;
+	}
+
+	// Generates the Default memory and copy it to the Context if required by the type of memory
+	virtual void GenerateMemoryType(FRigVMExtendedExecuteContext& Context, ERigVMMemoryType InMemoryType, const TArray<FRigVMPropertyDescription>* InProperties);
+
+	// Used by the compiler and EngineTests to generate the default VM memory storages
+	virtual void GenerateDefaultMemoryType(ERigVMMemoryType InMemoryType, const TArray<FRigVMPropertyDescription>* InProperties);
+
+	// Returns a default memory storage by type
+	virtual const FRigVMMemoryStorageStruct* GetDefaultMemoryByType(ERigVMMemoryType InMemoryType) const;
+	virtual FRigVMMemoryStorageStruct* GetDefaultMemoryByType(ERigVMMemoryType InMemoryType);
+
+
 public:
 
 	UE_DEPRECATED(5.4, "Please, use GetLocalMemoryArray with a Context param")
@@ -349,21 +373,30 @@ public:
 
 	virtual void ClearMemory(FRigVMExtendedExecuteContext& Context);
 
-#if WITH_EDITORONLY_DATA
-	// Deprecated 5.4, please use the WorkMemory in the ExtendedExecuteContext
-	UPROPERTY()
-	TObjectPtr<URigVMMemoryStorage> WorkMemoryStorageObject_DEPRECATED;
-#endif
-
-	UPROPERTY()
-	TObjectPtr<URigVMMemoryStorage> LiteralMemoryStorageObject;
-
 	UPROPERTY()
 	FRigVMMemoryStorageStruct LiteralMemoryStorage;
 
-#if WITH_EDITORONLY_DATA
-	// Deprecated 5.4, please use the DebugMemory in the ExtendedExecuteContext
 	UPROPERTY()
+	FRigVMMemoryStorageStruct DefaultWorkMemoryStorage;
+
+	UPROPERTY()
+	FRigVMMemoryStorageStruct DefaultDebugMemoryStorage;
+
+#if WITH_EDITORONLY_DATA
+	// Deprecated 5.4
+	UPROPERTY(meta = (DeprecatedProperty, DeprecationMessage = "Please, use DefaultWorkMemoryStorage for compiling and WorkMemoryStorage in the ExtendedExecuteContext for intance execution"))
+	TObjectPtr<URigVMMemoryStorage> WorkMemoryStorageObject_DEPRECATED;
+#endif
+
+#if WITH_EDITORONLY_DATA
+	// Deprecated 5.4
+	UPROPERTY(meta = (DeprecatedProperty, DeprecationMessage = "Please, use LiteralMemoryStorage"))
+	TObjectPtr<URigVMMemoryStorage> LiteralMemoryStorageObject_DEPRECATED;
+#endif
+
+#if WITH_EDITORONLY_DATA
+	// Deprecated 5.4, 
+	UPROPERTY(meta = (DeprecatedProperty, DeprecationMessage = "Please use DefaultDebugMemoryStorage for compiling and DebugMemoryStorage in the ExtendedExecuteContext for intance execution"))
 	TObjectPtr<URigVMMemoryStorage> DebugMemoryStorageObject_DEPRECATED;
 #endif
 
@@ -475,17 +508,16 @@ public:
 		}
 	}
 
+	bool ResumeExecution(FRigVMExtendedExecuteContext& Context, const FName& InEntryName = NAME_None);
+
 	UE_DEPRECATED(5.3, "Please, use ResumeExecution with Context param")
 	bool ResumeExecution() { return false; }
 	UE_DEPRECATED(5.3, "Please, use ResumeExecution with Context param")
 	bool ResumeExecution(TArrayView<URigVMMemoryStorage*> Memory, const FName& InEntryName = NAME_None) { return false; }
-	UE_DEPRECATED(5.4, "Please, use ResumeExecution with FRigVMMemoryStorageStruct param")
+	UE_DEPRECATED(5.4, "Please, use ResumeExecution with Context param and entry name")
 	bool ResumeExecution(FRigVMExtendedExecuteContext& Context, TArrayView<URigVMMemoryStorage*> Memory, const FName& InEntryName = NAME_None) { return false; }
-
-	UE_DEPRECATED(5.4, "Please, use ResumeExecution in the Context RigVMDebugInfo")
+	UE_DEPRECATED(5.4, "Please, use ResumeExecution in the Host RigVMDebugInfo")
 	bool ResumeExecution(FRigVMExtendedExecuteContext& Context) { return false; }
-
-	bool ResumeExecution(FRigVMExtendedExecuteContext& Context, TArrayView<FRigVMMemoryStorageStruct*> Memory, const FName& InEntryName = NAME_None);
 
 #endif // WITH_EDITOR
 
@@ -937,8 +969,8 @@ public:
 
 private:
 	void InstructionOpEval(FRigVMExtendedExecuteContext& Context, int32 InstructionIndex, int32 InHandleBaseIndex, const TFunctionRef<void(FRigVMExtendedExecuteContext& Context, int32 InHandleIndex, const FRigVMBranchInfoKey& InBranchInfoKey, const FRigVMOperand& InArg)>& InOpFunc);
-	void PrepareMemoryForExecution(FRigVMExtendedExecuteContext& Context, TArrayView<FRigVMMemoryStorageStruct*> InMemory);
-	void CacheMemoryHandlesIfRequired(FRigVMExtendedExecuteContext& Context, TArrayView<FRigVMMemoryStorageStruct*> InMemory);
+	void PrepareMemoryForExecution(FRigVMExtendedExecuteContext& Context);
+	void CacheMemoryHandlesIfRequired(FRigVMExtendedExecuteContext& Context);
 	void RebuildByteCodeOnLoad();
 
 	UPROPERTY(transient)
@@ -961,7 +993,7 @@ public:
 		return ActiveExecutions.load();
 	}
 
-	bool ValidateAllOperandsDuringLoad(FRigVMExtendedExecuteContext& Context);
+	bool ValidateAllOperandsDuringLoad();
 	void RefreshArgumentNameCaches();
 
 private:
@@ -1000,9 +1032,6 @@ private:
 	TArray<FRigVMExternalVariableDef> ExternalVariables;
 	TArray<FRigVMLazyBranch> LazyBranches;
 	
-	//TMap<FString, FSoftObjectPath> UserDefinedStructGuidToPathName;
-	//TMap<FString, FSoftObjectPath> UserDefinedEnumToPathName;
-
 	// this function should be kept in sync with FRigVMOperand::GetContainerIndex()
 	static int32 GetContainerIndex(ERigVMMemoryType InType)
 	{
@@ -1067,6 +1096,7 @@ protected:
 	
 private:
 
+	UPROPERTY()
 	uint32 CachedVMHash = 0;
 
 	mutable TArray<FName> EntryNames;

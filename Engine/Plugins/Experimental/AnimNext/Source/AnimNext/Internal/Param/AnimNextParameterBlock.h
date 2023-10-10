@@ -66,6 +66,8 @@ class UAnimNextParameterBlock : public URigVMHost, public IAnimNextParameterSour
 {
 	GENERATED_BODY()
 
+	UAnimNextParameterBlock(const FObjectInitializer& ObjectInitializer);
+
 	friend class UAnimNextParameterBlockFactory;
 	friend class UAnimNextParameterBlock_EditorData;
 	friend struct UE::AnimNext::UncookedOnly::FUtils;
@@ -86,9 +88,8 @@ class UAnimNextParameterBlock : public URigVMHost, public IAnimNextParameterSour
 	virtual void PostRename(UObject* OldOuter, const FName OldName) override;
 	virtual void GetPreloadDependencies(TArray<UObject*>& OutDeps) override;
 	virtual void GetAssetRegistryTags(TArray<FAssetRegistryTag>& OutTags) const override;
-
-	UPROPERTY()
-	TObjectPtr<URigVM> RigVM;
+	
+	FRigVMExtendedExecuteContext BaseRigVMContext;
 
 	UPROPERTY()
 	FInstancedPropertyBag PropertyBag;

@@ -200,7 +200,7 @@ FText SRigStackItem::GetVisitedCountText() const
 				{
 					if(URigVM* VM = RigVMHost->GetVM())
 					{
-						const int32 Count = VM->GetInstructionVisitedCount(RigVMHost->GetExtendedExecuteContext(), WeakStackEntry.Pin()->InstructionIndex);
+						const int32 Count = VM->GetInstructionVisitedCount(RigVMHost->GetRigVMExtendedExecuteContext(), WeakStackEntry.Pin()->InstructionIndex);
 						if(Count > 0)
 						{
 							return FText::FromString(FString::FromInt(Count));
@@ -225,7 +225,7 @@ FText SRigStackItem::GetDurationText() const
 				{
 					if(URigVM* VM = RigVMHost->GetVM())
 					{
-						const double MicroSeconds = VM->GetInstructionMicroSeconds(RigVMHost->GetExtendedExecuteContext(), WeakStackEntry.Pin()->InstructionIndex);
+						const double MicroSeconds = VM->GetInstructionMicroSeconds(RigVMHost->GetRigVMExtendedExecuteContext(), WeakStackEntry.Pin()->InstructionIndex);
 						if(MicroSeconds > 0.0)
 						{
 							return FText::FromString(FString::Printf(TEXT("%d µs"), (int32)MicroSeconds));
@@ -350,7 +350,7 @@ void SRigVMExecutionStackView::Construct( const FArguments& InArgs, TSharedRef<F
 		{
 			if (URigVMHost* RigVMHost = RigVMEditor.Pin()->GetRigVMHost())
 			{
-				OnVMCompiled(RigVMBlueprint.Get(),  RigVMHost->GetVM(),  RigVMHost->GetExtendedExecuteContext());
+				OnVMCompiled(RigVMBlueprint.Get(),  RigVMHost->GetVM(),  RigVMHost->GetRigVMExtendedExecuteContext());
 			}
 		}
 	}
@@ -920,7 +920,7 @@ void SRigVMExecutionStackView::OnFilterTextChanged(const FText& SearchText)
 	URigVMHost* RigVMHost = RigVMEditor.Pin()->GetRigVMHost();
 	if (RigVMHost != nullptr)
 	{
-		RefreshTreeView(RigVMHost->GetVM(), &RigVMHost->GetExtendedExecuteContext());
+		RefreshTreeView(RigVMHost->GetVM(), &RigVMHost->GetRigVMExtendedExecuteContext());
 	}
 }
 
@@ -981,7 +981,7 @@ void SRigVMExecutionStackView::HandleHostInitializedEvent(URigVMHost* InHost, co
 {
 	TGuardValue<bool> SuspendControllerSelection(bSuspendControllerSelection, true);
 
-	RefreshTreeView(InHost->GetVM(), &InHost->GetExtendedExecuteContext());
+	RefreshTreeView(InHost->GetVM(), &InHost->GetRigVMExtendedExecuteContext());
 	OnSelectionChanged(TSharedPtr<FRigStackEntry>(), ESelectInfo::Direct);
 
 	for (TSharedPtr<FRigStackEntry>& Operator : Operators)
@@ -1022,7 +1022,7 @@ void SRigVMExecutionStackView::HandlePreviewHostUpdated(FRigVMEditor* InEditor)
 {
 	if(URigVMHost* RigVMHost = InEditor->GetRigVMHost())
 	{
-		RefreshTreeView(RigVMHost->GetVM(), &RigVMHost->GetExtendedExecuteContext());
+		RefreshTreeView(RigVMHost->GetVM(), &RigVMHost->GetRigVMExtendedExecuteContext());
 	}
 }
 

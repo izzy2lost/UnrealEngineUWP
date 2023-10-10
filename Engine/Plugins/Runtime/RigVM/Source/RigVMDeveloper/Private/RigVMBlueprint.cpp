@@ -1176,7 +1176,7 @@ void URigVMBlueprint::RecompileVM()
 		{
 			CDO->Modify(false);
 		}
-		CDO->VM->Reset(CDO->GetExtendedExecuteContext());
+		CDO->VM->Reset(CDO->GetRigVMExtendedExecuteContext());
 
 		// Clear all Errors
 		CompileLog.Messages.Reset();
@@ -1205,13 +1205,11 @@ void URigVMBlueprint::RecompileVM()
 		URigVMCompiler* Compiler = URigVMCompiler::StaticClass()->GetDefaultObject<URigVMCompiler>();
 		VMCompileSettings.SetExecuteContextStruct(RigVMClient.GetExecuteContextStruct());
 
-	    FRigVMExtendedExecuteContext& CDOContext = CDO->GetExtendedExecuteContext();
+	    FRigVMExtendedExecuteContext& CDOContext = CDO->GetRigVMExtendedExecuteContext();
 		const FRigVMCompileSettings Settings = (bCompileInDebugMode) ? FRigVMCompileSettings::Fast(VMCompileSettings.GetExecuteContextStruct()) : VMCompileSettings;
 		Compiler->Compile(Settings, RigVMClient.GetAllModels(false, false), GetOrCreateController(), CDO->VM, CDOContext, CDO->GetExternalVariablesImpl(false), &PinToOperandMap);
 
-		CDO->VM->SetVMHash(CDO->VM->ComputeVMHash(CDOContext));
-		CDOContext.VMHash = CDO->VM->GetVMHash();
-		CDO->VM->Initialize(CDOContext, CDO->VM->GetLocalMemoryArray(CDOContext));
+		CDO->VM->Initialize(CDOContext);
 		CDO->GenerateUserDefinedDependenciesData(CDOContext);
 
 		if (bErrorsDuringCompilation)
@@ -1224,7 +1222,7 @@ void URigVMBlueprint::RecompileVM()
 			bVMRecompilationRequired = false;
 			if(CDO->VM)
 			{
-				VMCompiledEvent.Broadcast(this, CDO->GetVM(), CDO->GetExtendedExecuteContext());
+				VMCompiledEvent.Broadcast(this, CDO->GetVM(), CDO->GetRigVMExtendedExecuteContext());
 			}
 			return;
 		}
@@ -1232,7 +1230,7 @@ void URigVMBlueprint::RecompileVM()
 		InitializeArchetypeInstances();
 
 		bVMRecompilationRequired = false;
-		VMCompiledEvent.Broadcast(this, CDO->GetVM(), CDO->GetExtendedExecuteContext());
+		VMCompiledEvent.Broadcast(this, CDO->GetVM(), CDO->GetRigVMExtendedExecuteContext());
 
 #if WITH_EDITOR
 		RefreshBreakpoints();
@@ -2942,7 +2940,7 @@ void URigVMBlueprint::HandleModifiedEvent(ERigVMGraphNotifType InNotifType, URig
 							URigVMHost* CDO = Cast<URigVMHost>(RigClass->GetDefaultObject(true /* create if needed */));
 							if (CDO->VM != nullptr)
 							{
-								CDO->VM->SetPropertyValueFromString(CDO->GetExtendedExecuteContext(), *Operand, DefaultValue);
+								CDO->VM->SetPropertyValueFromString(CDO->GetRigVMExtendedExecuteContext(), *Operand, DefaultValue);
 							}
 
 							TArray<UObject*> ArchetypeInstances;
@@ -2954,7 +2952,7 @@ void URigVMBlueprint::HandleModifiedEvent(ERigVMGraphNotifType InNotifType, URig
 								{
 									if (InstancedHost->VM)
 									{
-										InstancedHost->VM->SetPropertyValueFromString(InstancedHost->GetExtendedExecuteContext(), *Operand, DefaultValue);
+										InstancedHost->VM->SetPropertyValueFromString(InstancedHost->GetRigVMExtendedExecuteContext(), *Operand, DefaultValue);
 									}
 								}
 							}

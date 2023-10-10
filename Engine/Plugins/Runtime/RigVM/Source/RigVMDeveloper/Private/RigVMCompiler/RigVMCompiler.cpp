@@ -195,18 +195,18 @@ const FProperty* FRigVMCompilerWorkData::GetPropertyForOperand(const FRigVMOpera
 	
 	check(!bSetupMemory);
 
-	auto GetPropertyFromMemory = [this](FRigVMMemoryStorageStruct* InMemory, const FRigVMOperand& InOperand)
+	auto GetPropertyFromMemory = [this](FRigVMMemoryStorageStruct& InMemory, const FRigVMOperand& InOperand)
 	{
 		if(InOperand.GetRegisterOffset() == INDEX_NONE)
 		{
-			return  InMemory->GetProperty(InOperand.GetRegisterIndex());
+			return  InMemory.GetProperty(InOperand.GetRegisterIndex());
 		}
-		if(!InMemory->GetPropertyPaths().IsValidIndex(InOperand.GetRegisterOffset()))
+		if(!InMemory.GetPropertyPaths().IsValidIndex(InOperand.GetRegisterOffset()))
 		{
-			InMemory->SetPropertyPathDescriptions(PropertyPathDescriptions.FindChecked(InOperand.GetMemoryType()));
-			InMemory->RefreshPropertyPaths();
+			InMemory.SetPropertyPathDescriptions(PropertyPathDescriptions.FindChecked(InOperand.GetMemoryType()));
+			InMemory.RefreshPropertyPaths();
 		}
-		return InMemory->GetPropertyPaths()[InOperand.GetRegisterOffset()].GetTailProperty();
+		return InMemory.GetPropertyPaths()[InOperand.GetRegisterOffset()].GetTailProperty();
 	};
 
 	const FProperty* Property = nullptr;
@@ -214,17 +214,17 @@ const FProperty* FRigVMCompilerWorkData::GetPropertyForOperand(const FRigVMOpera
 	{
 	case ERigVMMemoryType::Literal:
 		{
-			Property = GetPropertyFromMemory(VM->GetLiteralMemory(), InOperand);
+			Property = GetPropertyFromMemory(VM->GetDefaultLiteralMemory(), InOperand);
 			break;
 		}
 	case ERigVMMemoryType::Work:
 		{
-			Property = GetPropertyFromMemory(VM->GetWorkMemory(*Context), InOperand);
+			Property = GetPropertyFromMemory(VM->GetDefaultWorkMemory(), InOperand);
 			break;
 		}
 	case ERigVMMemoryType::Debug:
 		{
-			Property = GetPropertyFromMemory(VM->GetDebugMemory(*Context), InOperand);
+			Property = GetPropertyFromMemory(VM->GetDefaultDebugMemory(), InOperand);
 			break;
 		}
 	case ERigVMMemoryType::External:
@@ -435,6 +435,7 @@ bool URigVMCompiler::Compile(const FRigVMCompileSettings& InSettings, TArray<URi
 	DECLARE_SCOPE_HIERARCHICAL_COUNTER_FUNC()
 
 	OutVM->Reset(OutVMContext);
+	OutVMContext.VMHash = 0;	// this has to be set when the memory is copied to the context
 
 	TMap<FString, FRigVMOperand> LocalOperands;
 	if (OutOperands == nullptr)
@@ -1210,7 +1211,7 @@ bool URigVMCompiler::Compile(const FRigVMCompileSettings& InSettings, TArray<URi
 	for (ERigVMMemoryType MemoryType : MemoryTypes)
 	{
 		const TArray<FRigVMPropertyDescription>* Properties = WorkData.PropertyDescriptions.Find(MemoryType);
-		WorkData.VM->GenerateMemoryType(*WorkData.Context, MemoryType, Properties);
+		WorkData.VM->GenerateDefaultMemoryType(MemoryType, Properties);
 	}
 
 	WorkData.bSetupMemory = false;
@@ -1248,7 +1249,7 @@ bool URigVMCompiler::Compile(const FRigVMCompileSettings& InSettings, TArray<URi
 	for(ERigVMMemoryType MemoryType : MemoryTypes)
 	{
 		const TArray<FRigVMPropertyPathDescription>* Descriptions = WorkData.PropertyPathDescriptions.Find(MemoryType);
-		if(FRigVMMemoryStorageStruct* MemoryStorageObject = WorkData.VM->GetMemoryByType(*WorkData.Context, MemoryType))
+		if(FRigVMMemoryStorageStruct* MemoryStorageObject = WorkData.VM->GetDefaultMemoryByType(MemoryType))
 		{
 			if (Descriptions)
 			{
@@ -1381,6 +1382,8 @@ bool URigVMCompiler::Compile(const FRigVMCompileSettings& InSettings, TArray<URi
 	{
 		CompileTimer.Stop();
 		WorkData.ReportInfof(TEXT("Total Compilation time %f\n"), CompilationTime*1000);
+
+		WorkData.VM->SetVMHash(WorkData.VM->ComputeVMHash());
 	}
 
 	return true;

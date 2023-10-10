@@ -228,11 +228,14 @@ public:
 	void SetLog(FRigVMLog* InLog) { RigVMLog = InLog; }
 #endif
 
-	// Returns a VM memory storage by type
+	// Returns the compiler generated VM memory storage by type
+	virtual const FRigVMMemoryStorageStruct* GetDefaultMemoryByType(ERigVMMemoryType InMemoryType) const;
+
+	// Returns an instanced VM memory storage by type
 	virtual FRigVMMemoryStorageStruct* GetMemoryByType(ERigVMMemoryType InMemoryType);
 	virtual const FRigVMMemoryStorageStruct* GetMemoryByType(ERigVMMemoryType InMemoryType) const;
 
-	// The default mutable work memory
+	// The instanced mutable work memory
 	FRigVMMemoryStorageStruct* GetWorkMemory() { return GetMemoryByType(ERigVMMemoryType::Work); }
 	const FRigVMMemoryStorageStruct* GetWorkMemory() const { return GetMemoryByType(ERigVMMemoryType::Work); }
 
@@ -240,7 +243,7 @@ public:
 	FRigVMMemoryStorageStruct* GetLiteralMemory() { return GetMemoryByType(ERigVMMemoryType::Literal); }
 	const FRigVMMemoryStorageStruct* GetLiteralMemory() const { return GetMemoryByType(ERigVMMemoryType::Literal); }
 
-	// The default debug watch memory
+	// The instanced debug watch memory
 	FRigVMMemoryStorageStruct* GetDebugMemory() { return GetMemoryByType(ERigVMMemoryType::Debug); }
 	const FRigVMMemoryStorageStruct* GetDebugMemory() const { return GetMemoryByType(ERigVMMemoryType::Debug); }
 
@@ -272,16 +275,36 @@ public:
 #endif
 
 	/** Provide access to the ExtendedExecuteContext */
-	UFUNCTION(BlueprintCallable, Category = RigVM)
+	UE_DEPRECATED(5.4, "Please, use GetRigVMExtendedExecuteContext")
+	UFUNCTION(BlueprintCallable, Category = RigVM, meta = (DeprecatedFunction, DeprecationMessage = "This function has been deprecated and it is no longer supported."))
 	virtual FRigVMExtendedExecuteContext& GetExtendedExecuteContext()
 	{
-		return ExtendedExecuteContext;
+		static FRigVMExtendedExecuteContext DummyContext;
+		return DummyContext;
 	};
 
 	/** Provide access to the ExtendedExecuteContext */
+	UE_DEPRECATED(5.4, "Please, use GetRigVMExtendedExecuteContext")
 	virtual const FRigVMExtendedExecuteContext& GetExtendedExecuteContext() const
 	{
-		return ExtendedExecuteContext;
+		static FRigVMExtendedExecuteContext DummyContext;
+		return DummyContext;
+	};
+
+	inline void SetRigVMExtendedExecuteContext(FRigVMExtendedExecuteContext* InRigVMExtendedExecuteContext)
+	{
+		RigVMExtendedExecuteContext = InRigVMExtendedExecuteContext;
+	}
+
+	inline FRigVMExtendedExecuteContext& GetRigVMExtendedExecuteContext()
+	{
+		check(RigVMExtendedExecuteContext != nullptr);
+		return *RigVMExtendedExecuteContext;
+	};
+	inline const FRigVMExtendedExecuteContext& GetRigVMExtendedExecuteContext() const
+	{
+		check(RigVMExtendedExecuteContext != nullptr);
+		return *RigVMExtendedExecuteContext;
 	};
 
 	UObject* ResolveUserDefinedTypeById(const FString& InTypeName) const;
@@ -302,7 +325,7 @@ protected:
 	/** true if we should increase the AbsoluteTime */
 	bool bAccumulateTime;
 
-	UPROPERTY(transient)
+	UPROPERTY()
 	TObjectPtr<URigVM> VM;
 
 #if WITH_EDITOR
@@ -321,9 +344,13 @@ protected:
 private:
 	UPROPERTY(transient)
 	TSet<TObjectPtr<UObject>> UserDefinedTypesInUse;
-	
+
+#if WITH_EDITORONLY_DATA
 	UPROPERTY()
-	FRigVMExtendedExecuteContext ExtendedExecuteContext;
+	FRigVMExtendedExecuteContext ExtendedExecuteContext_DEPRECATED;
+#endif
+	
+	FRigVMExtendedExecuteContext* RigVMExtendedExecuteContext = nullptr;
 
 protected:
 	
@@ -377,8 +404,6 @@ protected:
 
 	virtual void InitializeFromCDO();
 
-	static uint32 ComputeAndUpdateCDOHash(URigVMHost* InCDO);
-
 	virtual void CopyVMMemory(FRigVMExtendedExecuteContext& TargetContext, const FRigVMExtendedExecuteContext& SourceContext);
 
 public:
@@ -388,9 +413,6 @@ public:
 	virtual UAssetUserData* GetAssetUserDataOfClass(TSubclassOf<UAssetUserData> InUserDataClass) override;
 	virtual const TArray<UAssetUserData*>* GetAssetUserDataArray() const override;
 	//~ End IInterface_AssetUserData Interface
-
-	// Temporary flag while we get TLS-based work memory working, controls copying from the CDO in InitializeVM
-	bool bTEMP_CopyDefaultsFromCDO = true;
 
 protected:
 	/** Array of user data stored with the asset */

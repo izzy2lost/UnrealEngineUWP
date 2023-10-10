@@ -1751,7 +1751,7 @@ void FRigVMEditor::HandleVMExecutedEvent(URigVMHost* InHost, const FName& InEven
 					const FRigVMByteCode& ByteCode = VM->GetByteCode();
 					for(int32 InstructionIndex = 0; InstructionIndex < ByteCode.GetNumInstructions(); InstructionIndex++)
 					{
-						const int32 Count = VM->GetInstructionVisitedCount(DebuggedHost->GetExtendedExecuteContext(), InstructionIndex);
+						const int32 Count = VM->GetInstructionVisitedCount(DebuggedHost->GetRigVMExtendedExecuteContext(), InstructionIndex);
 						if(Count > RigVMBlueprint->RigGraphDisplaySettings.NodeRunLimit)
 						{
 							bFoundLimitWarnings = true;
@@ -3300,8 +3300,8 @@ void FRigVMEditor::UpdateGraphCompilerErrors()
 
 					if(RigVMEdGraphNode->ErrorType <= (int32)EMessageSeverity::Warning)
 					{
-						if(!VM->WasInstructionVisitedDuringLastRun(RigVMHost->GetExtendedExecuteContext(), RigVMEdGraphNode->GetInstructionIndex(true)) &&
-							!VM->WasInstructionVisitedDuringLastRun(RigVMHost->GetExtendedExecuteContext(), RigVMEdGraphNode->GetInstructionIndex(false)))
+						if(!VM->WasInstructionVisitedDuringLastRun(RigVMHost->GetRigVMExtendedExecuteContext(), RigVMEdGraphNode->GetInstructionIndex(true)) &&
+							!VM->WasInstructionVisitedDuringLastRun(RigVMHost->GetRigVMExtendedExecuteContext(), RigVMEdGraphNode->GetInstructionIndex(false)))
 						{
 							continue;
 						}

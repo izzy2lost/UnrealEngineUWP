@@ -58,9 +58,9 @@ void UAnimNextGraph::AllocateInstance(FAnimNextGraphInstance& Instance) const
 	UE::AnimNext::FExecutionContext Context(SharedDataBuffer);
 	Instance.GraphInstancePtr = Context.AllocateNodeInstance(UE::AnimNext::FWeakDecoratorPtr(), ResolvedRootDecoratorHandle);
 
-	Instance.ExtendedExecuteContext.CopyMemoryStorage(ExtendedExecuteContext, RigVM);
+	Instance.ExtendedExecuteContext.CopyMemoryStorage(ExtendedExecuteContext);
 
-	RigVM->InitializeInstance(Instance.ExtendedExecuteContext, RigVM->GetLocalMemoryArray(Instance.ExtendedExecuteContext));
+	RigVM->InitializeInstance(Instance.ExtendedExecuteContext);
 }
 
 void UAnimNextGraph::Run(const UE::AnimNext::FContext& Context, FAnimNextGraphInstance& GraphInstance, EAnimNextGraphSimulationSteps SimulationSteps) const
@@ -72,7 +72,7 @@ void UAnimNextGraph::Run(const UE::AnimNext::FContext& Context, FAnimNextGraphIn
 		AnimNextContext.InitializeWithGraph(SharedDataBuffer, GraphInstance.GraphInstancePtr);
 		AnimNextContext.SetSimulationSteps(SimulationSteps);
 
-		RigVM->Execute(GraphInstance.ExtendedExecuteContext, FRigUnit_AnimNextShimRoot::EventName);
+		RigVM->ExecuteVM(GraphInstance.ExtendedExecuteContext, FRigUnit_AnimNextShimRoot::EventName);
 
 		// Reset the context to avoid issues if we forget to reset it the next time we use it
 		AnimNextContext.DebugReset();

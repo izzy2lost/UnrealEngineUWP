@@ -9,6 +9,7 @@
 #include "DecoratorBase/DecoratorRegistry.h"
 #include "DecoratorBase/NodeTemplateRegistry.h"
 #include "RigVMCore/RigVMRegistry.h"
+#include "RigVMRuntimeDataRegistry.h"
 #include "Animation/AnimSequence.h"
 #include "Scheduler/Scheduler.h"
 #include "Param/Params.h"
@@ -38,10 +39,12 @@ public:
 		FDecoratorRegistry::Init();
 		FNodeTemplateRegistry::Init();
 		FScheduler::Init();
+		FRigVMRuntimeDataRegistry::Init();
 	}
 
 	virtual void ShutdownModule() override
 	{
+		FRigVMRuntimeDataRegistry::Destroy();
 		FScheduler::Destroy();
 		FNodeTemplateRegistry::Destroy();
 		FDecoratorRegistry::Destroy();

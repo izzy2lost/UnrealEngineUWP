@@ -549,8 +549,12 @@ struct RIGVM_API FRigVMExtendedExecuteContext
 	/** Resets VM execution state */
 	void ResetExecutionState();
 
-	void CopyMemoryStorage(const FRigVMExtendedExecuteContext& Other, UObject* Outer);
-	static void CopyMemoryStorage(TObjectPtr<URigVMMemoryStorage>& TargetMemory, const TObjectPtr <URigVMMemoryStorage>& SourceMemory, UObject* Outer);
+	void CopyMemoryStorage(const FRigVMExtendedExecuteContext& Other);
+
+	UE_DEPRECATED(5.4, "This function has been deprecated. Please, use CopyMemoryStorage with Context param.")
+	void CopyMemoryStorage(const FRigVMExtendedExecuteContext& Other, UObject* Outer) {}
+	UE_DEPRECATED(5.4, "This function has been deprecated. Please, use CopyMemoryStorage with Context param.")
+	static void CopyMemoryStorage(TObjectPtr<URigVMMemoryStorage>& TargetMemory, const TObjectPtr <URigVMMemoryStorage>& SourceMemory, UObject* Outer) {}
 
 	FRigVMExtendedExecuteContext& operator =(const FRigVMExtendedExecuteContext& Other);
 
@@ -704,20 +708,26 @@ struct RIGVM_API FRigVMExtendedExecuteContext
 		return 0;
 	}
 
-	UPROPERTY()
+	UPROPERTY(transient)
 	uint32 VMHash = 0;
 
 	UPROPERTY(transient)
-	TObjectPtr<URigVMMemoryStorage> WorkMemoryStorageObject;
-
-	UPROPERTY(transient)
-	TObjectPtr<URigVMMemoryStorage> DebugMemoryStorageObject;
-
-	UPROPERTY()
 	FRigVMMemoryStorageStruct WorkMemoryStorage;
 
-	UPROPERTY()
+	UPROPERTY(transient)
 	FRigVMMemoryStorageStruct DebugMemoryStorage;
+
+#if WITH_EDITORONLY_DATA
+	// Deprecated 5.4
+	UPROPERTY(transient, meta = (DeprecatedProperty, DeprecationMessage = "Please, use WorkMemoryStorage"))
+	TObjectPtr<URigVMMemoryStorage> WorkMemoryStorageObject_DEPRECATED;
+#endif
+
+#if WITH_EDITORONLY_DATA
+	// Deprecated 5.4
+	UPROPERTY(transient, meta = (DeprecatedProperty, DeprecationMessage = "Please, use DebugMemoryStorage"))
+	TObjectPtr<URigVMMemoryStorage> DebugMemoryStorageObject_DEPRECATED;
+#endif
 
 	FStructOnScope PublicDataScope;
 	URigVM* VM = nullptr;

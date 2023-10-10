@@ -30,6 +30,9 @@ struct RIGVM_API FRigVMObjectVersion
 		// VM Memory Storage Struct serialized
 		VMMemoryStorageStructSerialized,
 
+		// VM Memory Storage Defaults generated at VM
+		VMMemoryStorageDefaultsGeneratedAtVM,
+
 		// -----<new versions can be added above this line>-------------------------------------------------
 		VersionPlusOne,
 		LatestVersion = VersionPlusOne - 1

@@ -30,6 +30,7 @@
 #include "DecoratorBase/Decorator.h"
 #include "Graph/RigUnit_AnimNextBeginExecution.h"
 #include "Serialization/MemoryReader.h"
+#include "RigVMRuntimeDataRegistry.h"
 
 #include "RigVMCompiler/RigVMCompiler.h"
 #include "RigVMCore/RigVM.h"
@@ -463,7 +464,7 @@ void FUtils::Compile(UAnimNextGraph* InGraph)
 	Compiler->Compile(Settings, { VMTempGraph }, TempController, InGraph->RigVM, InGraph->ExtendedExecuteContext, InGraph->GetRigVMExternalVariables(), & EditorData->PinToOperandMap);
 
 	// Initialize right away, in packaged builds we initialize during PostLoad
-	InGraph->RigVM->Initialize(InGraph->ExtendedExecuteContext, InGraph->RigVM->GetLocalMemoryArray(InGraph->ExtendedExecuteContext));
+	InGraph->RigVM->Initialize(InGraph->ExtendedExecuteContext);
 
 	if (EditorData->bErrorsDuringCompilation)
 	{
@@ -489,15 +490,6 @@ void FUtils::Compile(UAnimNextGraph* InGraph)
 void FUtils::RecreateVM(UAnimNextGraph* InGraph)
 {
 	InGraph->RigVM = NewObject<URigVM>(InGraph, TEXT("VM"), RF_NoFlags);
-
-	// Cooked platforms will load these pointers from disk
-	if (!FPlatformProperties::RequiresCookedData())
-	{
-		InGraph->RigVM->CreateMemoryByType(InGraph->ExtendedExecuteContext, ERigVMMemoryType::Work);
-		InGraph->RigVM->CreateMemoryByType(InGraph->ExtendedExecuteContext, ERigVMMemoryType::Literal);
-		InGraph->RigVM->CreateMemoryByType(InGraph->ExtendedExecuteContext, ERigVMMemoryType::Debug);
-	}
-
 	InGraph->RigVM->Reset(InGraph->ExtendedExecuteContext);
 }
 
@@ -641,19 +633,15 @@ void FUtils::CompileVM(UAnimNextParameterBlock* InParameterBlock)
 
 	URigVMCompiler* Compiler = URigVMCompiler::StaticClass()->GetDefaultObject<URigVMCompiler>();
 	EditorData->VMCompileSettings.SetExecuteContextStruct(EditorData->RigVMClient.GetExecuteContextStruct());
-	FRigVMExtendedExecuteContext& CDOContext = InParameterBlock->GetExtendedExecuteContext();
+	FRigVMExtendedExecuteContext& CDOContext = InParameterBlock->GetRigVMExtendedExecuteContext();
 	const FRigVMCompileSettings Settings = (EditorData->bCompileInDebugMode) ? FRigVMCompileSettings::Fast(EditorData->VMCompileSettings.GetExecuteContextStruct()) : EditorData->VMCompileSettings;
 	URigVMController* RootController = EditorData->GetRigVMClient()->GetOrCreateController(EditorData->GetRigVMClient()->GetDefaultModel());
-	Compiler->Compile(Settings, EditorData->GetRigVMClient()->GetAllModels(false, false), RootController, InParameterBlock->RigVM, InParameterBlock->GetExtendedExecuteContext(), InParameterBlock->GetExternalVariables(), &EditorData->PinToOperandMap);
+	Compiler->Compile(Settings, EditorData->GetRigVMClient()->GetAllModels(false, false), RootController, InParameterBlock->VM, CDOContext, InParameterBlock->GetExternalVariables(), &EditorData->PinToOperandMap);
 
-	InParameterBlock->RigVM->SetVMHash(InParameterBlock->RigVM->ComputeVMHash(CDOContext));
-	CDOContext.VMHash = InParameterBlock->RigVM->GetVMHash();
-	InParameterBlock->RigVM->Initialize(CDOContext, InParameterBlock->RigVM->GetLocalMemoryArray(CDOContext));
+	InParameterBlock->VM->Initialize(CDOContext);
 	InParameterBlock->GenerateUserDefinedDependenciesData(CDOContext);
 
 	// Notable difference with vanilla RigVM host behavior - we init the VM here at the moment as we only have one 'instance'
-	InParameterBlock->bTEMP_CopyDefaultsFromCDO = false;
-	InParameterBlock->VM = InParameterBlock->RigVM;
 	InParameterBlock->InitializeVM(FRigUnit_AnimNextBeginExecution::EventName);
 
 	if (EditorData->bErrorsDuringCompilation)
@@ -664,9 +652,9 @@ void FUtils::CompileVM(UAnimNextParameterBlock* InParameterBlock)
 				TEXT("Compilation Errors may be suppressed for ControlRigBlueprint: %s. See VM Compile Setting in Class Settings for more Details"), *InParameterBlock->GetName());
 		}
 		EditorData->bVMRecompilationRequired = false;
-		if(InParameterBlock->RigVM)
+		if(InParameterBlock->VM)
 		{
-			EditorData->RigVMCompiledEvent.Broadcast(InParameterBlock, InParameterBlock->RigVM, InParameterBlock->GetExtendedExecuteContext());
+			EditorData->RigVMCompiledEvent.Broadcast(InParameterBlock, InParameterBlock->VM, InParameterBlock->GetRigVMExtendedExecuteContext());
 		}
 		return;
 	}
@@ -727,18 +715,8 @@ void FUtils::Compile(UAnimNextParameterBlock* InParameterBlock)
 
 void FUtils::RecreateVM(UAnimNextParameterBlock* InParameterBlock)
 {
-	InParameterBlock->RigVM = NewObject<URigVM>(InParameterBlock, TEXT("VM"), RF_NoFlags);
-
-	// Cooked platforms will load these pointers from disk
-	if (!FPlatformProperties::RequiresCookedData())
-	{
-		// We dont support ERigVMMemoryType::Work memory as we dont operate on an instance
-	//	InParameterBlock->RigVM->GetMemoryByType(ERigVMMemoryType::Work, true);
-		InParameterBlock->RigVM->CreateMemoryByType(InParameterBlock->GetExtendedExecuteContext(), ERigVMMemoryType::Literal);
-		InParameterBlock->RigVM->CreateMemoryByType(InParameterBlock->GetExtendedExecuteContext(), ERigVMMemoryType::Debug);
-	}
-
-	InParameterBlock->RigVM->Reset(InParameterBlock->GetExtendedExecuteContext());
+	InParameterBlock->VM = NewObject<URigVM>(InParameterBlock, TEXT("VM"), RF_NoFlags);
+	InParameterBlock->VM->Reset(InParameterBlock->GetRigVMExtendedExecuteContext());
 }
 
 UAnimNextParameterBlock_EditorData* FUtils::GetEditorData(const UAnimNextParameterBlock* InParameterBlock)

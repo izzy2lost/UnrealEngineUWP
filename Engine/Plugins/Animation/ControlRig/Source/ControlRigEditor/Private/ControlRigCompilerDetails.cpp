@@ -223,7 +223,7 @@ FReply FRigVMCompileSettingsDetails::OnCopyByteCodeClicked()
 		{
 			if(UControlRig* ControlRig = Cast<UControlRig>(BlueprintBeingCustomized->GetObjectBeingDebugged()))
 			{
-				FString ByteCodeContent = ControlRig->GetVM()->DumpByteCodeAsText(ControlRig->GetExtendedExecuteContext());
+				FString ByteCodeContent = ControlRig->GetVM()->DumpByteCodeAsText(ControlRig->GetRigVMExtendedExecuteContext());
 				FPlatformApplicationMisc::ClipboardCopy(*ByteCodeContent);
 			}
 		}
@@ -261,14 +261,14 @@ FReply FRigVMCompileSettingsDetails::OnCopyGeneratedCodeClicked()
 			{
 				if(CDO->GetVM())
 				{
-					CDO->GetVM()->ClearExternalVariables(CDO->GetExtendedExecuteContext());
+					CDO->GetVM()->ClearExternalVariables(CDO->GetRigVMExtendedExecuteContext());
 					TArray<FRigVMExternalVariable> ExternalVariables = CDO->GetExternalVariables();
 					for(const FRigVMExternalVariable& ExternalVariable : ExternalVariables)
 					{
-						CDO->GetVM()->AddExternalVariable(CDO->GetExtendedExecuteContext(), ExternalVariable);
+						CDO->GetVM()->AddExternalVariable(CDO->GetRigVMExtendedExecuteContext(), ExternalVariable);
 					}
 					
-					FRigVMExtendedExecuteContext& CDOContext = CDO->GetExtendedExecuteContext();
+					FRigVMExtendedExecuteContext& CDOContext = CDO->GetRigVMExtendedExecuteContext();
 
 					FRigVMCodeGenerator CodeGenerator(ClassName,
 						TEXT("TestModule"), BlueprintBeingCustomized->GetDefaultModel(), CDO->GetVM(), CDOContext,

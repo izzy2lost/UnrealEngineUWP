@@ -50,8 +50,8 @@ public:
 	virtual bool IsNativized() const override { return true; }
 	virtual void Empty(FRigVMExtendedExecuteContext& Context) override { return; }
 	virtual void CopyFrom(URigVM* InVM, bool bDeferCopy = false, bool bReferenceLiteralMemory = false, bool bReferenceByteCode = false, bool bCopyExternalVariables = false, bool bCopyDynamicRegisters = false) override { return; }
-	virtual bool Initialize(FRigVMExtendedExecuteContext& Context, TArrayView<FRigVMMemoryStorageStruct*> Memory) override;
-	virtual ERigVMExecuteResult Execute(FRigVMExtendedExecuteContext& Context, TArrayView<FRigVMMemoryStorageStruct*> Memory, const FName& InEntryName = NAME_None) override;
+	virtual bool Initialize(FRigVMExtendedExecuteContext& Context) override;
+	virtual ERigVMExecuteResult ExecuteVM(FRigVMExtendedExecuteContext& Context, const FName& InEntryName = NAME_None) override;
 	virtual int32 AddRigVMFunction(UScriptStruct* InRigVMStruct, const FName& InMethodName) override { return INDEX_NONE; }
 	virtual FString GetRigVMFunctionName(int32 InFunctionIndex) const override { return FString(); }
 	virtual FRigVMMemoryStorageStruct* GetMemoryByType(FRigVMExtendedExecuteContext& Context, ERigVMMemoryType InMemoryType) override { return nullptr; }
@@ -76,13 +76,13 @@ public:
 	virtual void Empty() override {}
 	UE_DEPRECATED(5.3, "Please, use Initialize with Context param")
 	virtual bool Initialize(TArrayView<URigVMMemoryStorage*> Memory) override { return false; }
-	UE_DEPRECATED(5.4, "Please, use Execute with FRigVMMemoryStorageStruct param")
-	virtual bool Initialize(FRigVMExtendedExecuteContext& Context, TArrayView<URigVMMemoryStorage*> Memory) override { return false; }
-	UE_DEPRECATED(5.4, "GetMemoryByType has been deprecated from the VM. Please, use GetWorkMemory from VMHost or the new GetMemoryByType with a FRigVMMemoryStorageStruct and Context parameter.")
+	UE_DEPRECATED(5.4, "Please, use Initialize just with Context param")
+	virtual bool Initialize(FRigVMExtendedExecuteContext& Context, TArrayView<URigVMMemoryStorage*> Memory) { return false; }
+	UE_DEPRECATED(5.4, "GetMemoryByType has been deprecated from the VM. Please, use GetWorkMemory from VMHost or the new GetMemoryByType with Context parameter.")
 	virtual URigVMMemoryStorage* GetMemoryByType(ERigVMMemoryType InMemoryType, bool bCreateIfNeeded = false) override { return nullptr; }
 	UE_DEPRECATED(5.3, "Please, use Execute with Context param")
 	virtual ERigVMExecuteResult Execute(TArrayView<URigVMMemoryStorage*> Memory, const FName& InEntryName = NAME_None) override { return ERigVMExecuteResult::Failed; }
-	UE_DEPRECATED(5.4, "Please, use Execute with FRigVMMemoryStorageStruct param")
+	UE_DEPRECATED(5.4, "Please, use Execute with just Context param")
 	virtual ERigVMExecuteResult Execute(FRigVMExtendedExecuteContext& Context, TArrayView<URigVMMemoryStorage*> Memory, const FName& InEntryName = NAME_None) override { return ERigVMExecuteResult::Failed; }
 	UE_DEPRECATED(5.3, "Please, use SetInstructionIndex with Context param")
 	virtual void SetInstructionIndex(uint16 InInstructionIndex) {}

@@ -86,8 +86,7 @@ UScriptStruct* FRigVMParameter::GetScriptStruct() const
 }
 
 URigVM::URigVM()
-	: LiteralMemoryStorageObject(nullptr)
-	, ByteCodePtr(&ByteCodeStorage)
+	: ByteCodePtr(&ByteCodeStorage)
     , FunctionNamesPtr(&FunctionNamesStorage)
     , FunctionsPtr(&FunctionsStorage)
     , FactoriesPtr(&FactoriesStorage)
@@ -150,6 +149,8 @@ void URigVM::Save(FArchive& Ar)
 	Ar << OperandToDebugRegisters;
 	
 	Ar << LiteralMemoryStorage;
+	Ar << DefaultWorkMemoryStorage;
+	Ar << DefaultDebugMemoryStorage;
 }
 
 void URigVM::Load(FArchive& Ar)
@@ -258,6 +259,12 @@ void URigVM::Load(FArchive& Ar)
 	{
 		Ar << LiteralMemoryStorage;
 	}
+
+	if (Ar.CustomVer(FRigVMObjectVersion::GUID) >= FRigVMObjectVersion::VMMemoryStorageDefaultsGeneratedAtVM)
+	{
+		Ar << DefaultWorkMemoryStorage;
+		Ar << DefaultDebugMemoryStorage;
+	}
 }
 
 void URigVM::CopyDataForSerialization(URigVM* InVM)
@@ -276,6 +283,8 @@ void URigVM::CopyDataForSerialization(URigVM* InVM)
 	OperandToDebugRegisters = InVM->OperandToDebugRegisters;
 
 	LiteralMemoryStorage = InVM->LiteralMemoryStorage;
+	DefaultWorkMemoryStorage = InVM->DefaultWorkMemoryStorage;
+	DefaultDebugMemoryStorage = InVM->DefaultDebugMemoryStorage;
 }
 
 void URigVM::PostLoad()
@@ -354,7 +363,7 @@ uint32 URigVM::GetVMHash() const
 	return CachedVMHash;
 }
 
-uint32 URigVM::ComputeVMHash(const FRigVMExtendedExecuteContext& Context) const
+uint32 URigVM::ComputeVMHash() const
 {
 	uint32 Hash = 0;
 	for(const FName& FunctionName : GetFunctionNames())
@@ -371,7 +380,7 @@ uint32 URigVM::ComputeVMHash(const FRigVMExtendedExecuteContext& Context) const
 	}
 
 	Hash = HashCombine(Hash, LiteralMemoryStorage.GetMemoryHash());
-	Hash = HashCombine(Hash, Context.WorkMemoryStorage.GetMemoryHash());
+	Hash = HashCombine(Hash, DefaultWorkMemoryStorage.GetMemoryHash());
 	
 	return Hash;
 }
@@ -403,12 +412,12 @@ UClass* URigVM::GetNativizedClass(const TArray<FRigVMExternalVariableDef>& InExt
 	return nullptr;
 }
 
-bool URigVM::ValidateAllOperandsDuringLoad(FRigVMExtendedExecuteContext& Context)
+bool URigVM::ValidateAllOperandsDuringLoad()
 {
 	// check all operands on all ops for validity
 	bool bAllOperandsValid = true;
 
-	TArray<FRigVMMemoryStorageStruct*> LocalMemory = { GetWorkMemory(Context), GetLiteralMemory(), GetDebugMemory(Context) };
+	const TArray<const FRigVMMemoryStorageStruct*> LocalMemory = { &GetDefaultWorkMemory(), &GetDefaultLiteralMemory(), &GetDefaultDebugMemory() };
 	
 	auto CheckOperandValidity = [LocalMemory, &bAllOperandsValid, this](const FRigVMOperand& InOperand) -> bool
 	{
@@ -621,71 +630,6 @@ FString URigVM::GetRigVMFunctionName(int32 InFunctionIndex) const
 	return GetFunctionNames()[InFunctionIndex].ToString();
 }
 
-void URigVM::CreateMemoryByType(UObject* Outer, TObjectPtr<URigVMMemoryStorage>& MemoryStorage, ERigVMMemoryType InMemoryType, EObjectFlags InObjectFlags, bool bForceCreation)
-{
-	if (MemoryStorage != nullptr && bForceCreation)
-	{
-		MemoryStorage->Rename(nullptr, GetTransientPackage(), REN_ForceNoResetLoaders | REN_DoNotDirty | REN_DontCreateRedirectors | REN_NonTransactional);
-		MemoryStorage = nullptr;
-	}
-
-	if (MemoryStorage == nullptr)
-	{
-		if (UClass* Class = URigVMMemoryStorageGeneratorClass::GetStorageClass(Outer, InMemoryType))
-		{
-			// The compiler creates the memory in the CDO, so we just use the storage CDO for all memory types
-			// Later, when we instantiate a VM, we will clone Work and Debug objects for each instance
-			MemoryStorage = Cast<URigVMMemoryStorage>(Class->GetDefaultObject(true));
-		}
-		else
-		{
-			MemoryStorage = NewObject<URigVMMemoryStorage>(Outer, FName(), InObjectFlags);
-		}
-	}
-}
-
-URigVMMemoryStorage* URigVM::CreateMemoryByType(FRigVMExtendedExecuteContext& Context, ERigVMMemoryType InMemoryType, bool bForceCreation)
-{
-	URigVMMemoryStorage* MemoryStorage = nullptr;
-
-	// TODO zzz : Deprecate function
-
-	return MemoryStorage;
-}
-
-void URigVM::GenerateMemoryType(FRigVMExtendedExecuteContext& Context, ERigVMMemoryType InMemoryType, const TArray<FRigVMPropertyDescription>* InProperties, bool bForceCreation)
-{
-	FRigVMMemoryStorageStruct NewBag = (InProperties != nullptr) ? FRigVMMemoryStorageStruct(InMemoryType, *InProperties) : FRigVMMemoryStorageStruct(InMemoryType);
-
-	switch(InMemoryType)
-	{
-		case ERigVMMemoryType::Literal:
-		{
-			LiteralMemoryStorage = NewBag;
-			break;
-		}
-
-		case ERigVMMemoryType::Work:
-		{
-			Context.WorkMemoryStorage = NewBag;
-			break;
-		}
-
-		case ERigVMMemoryType::Debug:
-		{
-#if WITH_EDITOR
-			Context.DebugMemoryStorage = NewBag;
-#endif
-			break;
-		}
-
-		default:
-		{
-			break;
-		}
-	}
-}
-
 FRigVMMemoryStorageStruct* URigVM::GetMemoryByType(FRigVMExtendedExecuteContext& Context, ERigVMMemoryType InMemoryType/*, bool bCreateIfNeeded*/)
 {
 	FRigVMMemoryStorageStruct* MemoryStorage = nullptr;
@@ -724,6 +668,111 @@ const FRigVMMemoryStorageStruct* URigVM::GetMemoryByType(const FRigVMExtendedExe
 	return const_cast<URigVM*>(this)->GetMemoryByType(const_cast<FRigVMExtendedExecuteContext&>(Context), InMemoryType/*, false*/);
 }
 
+void URigVM::GenerateMemoryType(FRigVMExtendedExecuteContext& Context, ERigVMMemoryType InMemoryType, const TArray<FRigVMPropertyDescription>* InProperties)
+{
+	GenerateDefaultMemoryType(InMemoryType, InProperties);
+
+	switch (InMemoryType)
+	{
+	case ERigVMMemoryType::Work:
+	{
+		Context.WorkMemoryStorage = DefaultWorkMemoryStorage;
+		break;
+	}
+
+	case ERigVMMemoryType::Debug:
+	{
+#if WITH_EDITOR
+		Context.DebugMemoryStorage = DefaultDebugMemoryStorage;
+#endif
+		break;
+	}
+
+	default:
+	{
+		break;
+	}
+	}
+}
+
+void URigVM::GenerateDefaultMemoryType(ERigVMMemoryType InMemoryType, const TArray<FRigVMPropertyDescription>* InProperties)
+{
+	FRigVMMemoryStorageStruct* Memory = nullptr;
+
+	switch (InMemoryType)
+	{
+		case ERigVMMemoryType::Literal:
+		{
+			Memory = &LiteralMemoryStorage;
+			break;
+		}
+
+		case ERigVMMemoryType::Work:
+		{
+			Memory = &DefaultWorkMemoryStorage;
+			break;
+		}
+
+#if WITH_EDITOR
+		case ERigVMMemoryType::Debug:
+		{
+			Memory = &DefaultDebugMemoryStorage;
+			break;
+		}
+#endif
+
+		default:
+		{
+			break;
+		}
+	}
+
+	if (Memory != nullptr)
+	{
+		*Memory = (InProperties != nullptr) ? FRigVMMemoryStorageStruct(InMemoryType, *InProperties) : FRigVMMemoryStorageStruct(InMemoryType);
+	}
+}
+
+FRigVMMemoryStorageStruct* URigVM::GetDefaultMemoryByType(ERigVMMemoryType InMemoryType)
+{
+	FRigVMMemoryStorageStruct* MemoryStorage = nullptr;
+
+	switch (InMemoryType)
+	{
+		case ERigVMMemoryType::Literal:
+		{
+			MemoryStorage = &LiteralMemoryStorage;
+			break;
+		}
+
+		case ERigVMMemoryType::Work:
+		{
+			MemoryStorage = &DefaultWorkMemoryStorage;
+			break;
+		}
+
+		case ERigVMMemoryType::Debug:
+		{
+#if WITH_EDITOR
+			MemoryStorage = &DefaultDebugMemoryStorage;
+#endif
+			break;
+		}
+
+		default:
+		{
+			break;
+		}
+	}
+
+	return MemoryStorage;
+}
+
+const FRigVMMemoryStorageStruct* URigVM::GetDefaultMemoryByType(ERigVMMemoryType InMemoryType) const
+{
+	return const_cast<URigVM*>(this)->GetDefaultMemoryByType(InMemoryType/*, false*/);
+}
+
 void URigVM::ClearMemory_Internal()
 {
 	// At one point our memory objects were saved with RF_Public, so to truly clear them, we have to also clear the flags
@@ -757,7 +806,11 @@ void URigVM::ClearMemory_Internal()
 	}
 #endif
 
-	LiteralMemoryStorage = FRigVMMemoryStorageStruct(ERigVMMemoryType::Literal);
+	LiteralMemoryStorage = FRigVMMemoryStorageStruct(ERigVMMemoryType::Invalid);
+	DefaultWorkMemoryStorage = FRigVMMemoryStorageStruct(ERigVMMemoryType::Invalid);
+#if WITH_EDITOR
+	DefaultDebugMemoryStorage = FRigVMMemoryStorageStruct(ERigVMMemoryType::Invalid);
+#endif
 
 	InvalidateCachedMemory_Internal();
 }
@@ -766,15 +819,14 @@ void URigVM::ClearMemory(FRigVMExtendedExecuteContext& Context)
 {
 	ClearMemory_Internal();
 
-	Context.WorkMemoryStorage = FRigVMMemoryStorageStruct(ERigVMMemoryType::Work);
-	Context.DebugMemoryStorage = FRigVMMemoryStorageStruct(ERigVMMemoryType::Debug);
+	Context.WorkMemoryStorage = FRigVMMemoryStorageStruct(ERigVMMemoryType::Invalid);
+	Context.DebugMemoryStorage = FRigVMMemoryStorageStruct(ERigVMMemoryType::Invalid);
 
 	InvalidateCachedMemory(Context);
 }
 
 const FRigVMInstructionArray& URigVM::GetInstructions()
 {
-	//RefreshInstructionsIfRequired();
 	return Instructions;
 }
 
@@ -835,14 +887,14 @@ bool URigVM::CanExecuteEntry(const FRigVMExtendedExecuteContext& Context, const 
 
 #if WITH_EDITOR
 
-bool URigVM::ResumeExecution(FRigVMExtendedExecuteContext& Context, TArrayView<FRigVMMemoryStorageStruct*> Memory, const FName& InEntryName)
+bool URigVM::ResumeExecution(FRigVMExtendedExecuteContext& Context, const FName& InEntryName)
 {
 	if (FRigVMDebugInfo* RigVMDebugInfo = Context.GetRigVMDebugInfo())
 	{
 		RigVMDebugInfo->ResumeExecution();
 	}
 
-	return Execute(Context, Memory, InEntryName) != ERigVMExecuteResult::Failed;
+	return ExecuteVM(Context, InEntryName) != ERigVMExecuteResult::Failed;
 }
 
 #endif 
@@ -1067,13 +1119,13 @@ void URigVM::InstructionOpEval(FRigVMExtendedExecuteContext& Context, int32 Inst
 	}
 }
 
-void URigVM::PrepareMemoryForExecution(FRigVMExtendedExecuteContext& Context, TArrayView<FRigVMMemoryStorageStruct*> InMemory)
+void URigVM::PrepareMemoryForExecution(FRigVMExtendedExecuteContext& Context)
 {
 	ensureMsgf(Context.ExecutingThreadId == FPlatformTLS::GetCurrentThreadId(), TEXT("RigVM::CacheMemoryHandlesIfRequired from multiple threads (%d and %d)"), Context.ExecutingThreadId, (int32)FPlatformTLS::GetCurrentThreadId());
 
 	InvalidateCachedMemory(Context);
 
-	if (Instructions.Num() == 0 || InMemory.Num() == 0)
+	if (Instructions.Num() == 0)
 	{
 		return;
 	}
@@ -1109,9 +1161,9 @@ void URigVM::PrepareMemoryForExecution(FRigVMExtendedExecuteContext& Context, TA
 	Context.CachedMemoryHandles.Reset(MemoryHandleCount);
 }
 
-void URigVM::CacheMemoryHandlesIfRequired(FRigVMExtendedExecuteContext& Context, TArrayView<FRigVMMemoryStorageStruct*> InMemory)
+void URigVM::CacheMemoryHandlesIfRequired(FRigVMExtendedExecuteContext& Context)
 {
-	if (Instructions.Num() == 0 || InMemory.Num() == 0)
+	if (Instructions.Num() == 0)
 	{
 		return;
 	}
@@ -1365,7 +1417,7 @@ bool URigVM::ShouldHaltAtInstruction(FRigVMExtendedExecuteContext& Context, cons
 }
 #endif
 
-bool URigVM::Initialize(FRigVMExtendedExecuteContext& Context, TArrayView<FRigVMMemoryStorageStruct*> Memory)
+bool URigVM::Initialize(FRigVMExtendedExecuteContext& Context)
 {
 	if (Context.ExecutingThreadId != INDEX_NONE)
 	{
@@ -1382,25 +1434,15 @@ bool URigVM::Initialize(FRigVMExtendedExecuteContext& Context, TArrayView<FRigVM
 		return true;
 	}
 
-	// changes to the layout of memory array should be reflected in GetContainerIndex()
-	TArray<FRigVMMemoryStorageStruct*> LocalMemory;
-	if (Memory.Num() == 0)
-	{
-		LocalMemory = GetLocalMemoryArray(Context);
-		Memory = LocalMemory;
-	}
-
 	RefreshArgumentNameCaches();
 
-	PrepareMemoryForExecution(Context, Memory);
+	PrepareMemoryForExecution(Context);
 
 	return true;
 }
 
-bool URigVM::InitializeInstance(FRigVMExtendedExecuteContext& Context, TArrayView<FRigVMMemoryStorageStruct*> Memory)
+bool URigVM::InitializeInstance(FRigVMExtendedExecuteContext& Context, bool bCopyMemory)
 {
-	check(!Memory.IsEmpty());
-
 	TGuardValue<int32> GuardThreadId(Context.ExecutingThreadId, FPlatformTLS::GetCurrentThreadId());
 
 	Context.CachedMemoryHandles.Reset(MemoryHandleCount);
@@ -1409,13 +1451,21 @@ bool URigVM::InitializeInstance(FRigVMExtendedExecuteContext& Context, TArrayVie
 	Context.LazyBranchInstanceData.Reset(LazyBranchSize);
 	Context.LazyBranchInstanceData.SetNumZeroed(LazyBranchSize);
 
+	if (bCopyMemory)
+	{
+		Context.VMHash = GetVMHash();
+		Context.WorkMemoryStorage = DefaultWorkMemoryStorage;
+#if WITH_EDITOR
+		Context.DebugMemoryStorage = DefaultDebugMemoryStorage;
+#endif // WITH_EDITOR
+	}
 
-	CacheMemoryHandlesIfRequired(Context, Memory);
+	CacheMemoryHandlesIfRequired(Context);
 
 	return true;
 }
 
-ERigVMExecuteResult URigVM::Execute(FRigVMExtendedExecuteContext& Context, TArrayView<FRigVMMemoryStorageStruct*> Memory, const FName& InEntryName)
+ERigVMExecuteResult URigVM::ExecuteVM(FRigVMExtendedExecuteContext& Context, const FName& InEntryName)
 {
 	// if this the first entry being executed - get ready for execution
 	const bool bIsRootEntry = Context.EntriesBeingExecuted.IsEmpty();
@@ -1441,8 +1491,7 @@ ERigVMExecuteResult URigVM::Execute(FRigVMExtendedExecuteContext& Context, TArra
 			return Context.CurrentExecuteResult = ERigVMExecuteResult::Failed;
 		}
 
-		check(!Memory.IsEmpty());
-		Context.CurrentVMMemory = Memory;
+		Context.CurrentVMMemory = GetInstanceMemory(Context);
 	}
 
 	FRigVMByteCode& ByteCode = GetByteCode();
@@ -1917,7 +1966,7 @@ ERigVMExecuteResult URigVM::ExecuteInstructions(FRigVMExtendedExecuteContext& Co
 				{
 					// this will restore the public data after invoking the entry
 					TGuardValue<FRigVMExecuteContext> PublicDataGuard(ContextPublicData, ContextPublicData);
-					const ERigVMExecuteResult ExecuteResult = Execute(Context, Context.CurrentVMMemory, Op.EntryName);
+					const ERigVMExecuteResult ExecuteResult = ExecuteVM(Context, Op.EntryName);
 					if(ExecuteResult != ERigVMExecuteResult::Succeeded)
 					{
 						return Context.CurrentExecuteResult = ExecuteResult;
@@ -2065,11 +2114,6 @@ ERigVMExecuteResult URigVM::ExecuteInstructions(FRigVMExtendedExecuteContext& Co
 	}
 
 	return Context.CurrentExecuteResult = ERigVMExecuteResult::Succeeded;
-}
-
-bool URigVM::Execute(FRigVMExtendedExecuteContext& Context, const FName& InEntryName)
-{
-	return Execute(Context, GetLocalMemoryArray(Context), InEntryName) != ERigVMExecuteResult::Failed;
 }
 
 ERigVMExecuteResult URigVM::ExecuteBranch(FRigVMExtendedExecuteContext& Context, const FRigVMBranchInfo& InBranchToRun)

@@ -407,6 +407,9 @@ public:
 	};
 	
 private:
+	UPROPERTY(Transient)
+	FRigVMExtendedExecuteContext RigVMExtendedExecuteContext;
+
 	UE::Anim::FStackAttributeContainer* ExternalAnimAttributeContainer;
 
 #if WITH_EDITOR

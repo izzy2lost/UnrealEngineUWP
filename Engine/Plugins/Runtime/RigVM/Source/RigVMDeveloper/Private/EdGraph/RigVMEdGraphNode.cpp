@@ -1132,7 +1132,7 @@ FLinearColor URigVMEdGraphNode::GetNodeProfilingColor() const
 			{
 				if(const URigVMNode* ModelNode = GetModelNode())
 				{
-					const double MicroSeconds = ModelNode->GetInstructionMicroSeconds(DebuggedHost->GetExtendedExecuteContext(), DebuggedHost->GetVM(), FRigVMASTProxy());
+					const double MicroSeconds = ModelNode->GetInstructionMicroSeconds(DebuggedHost->GetRigVMExtendedExecuteContext(), DebuggedHost->GetVM(), FRigVMASTProxy());
 					if(MicroSeconds >= 0.0)
 					{
 						if(Blueprint->RigGraphDisplaySettings.bAutoDetermineRange)

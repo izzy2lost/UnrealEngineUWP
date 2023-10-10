@@ -66,9 +66,6 @@ void FRigVMExtendedExecuteContext::Reset()
 
 	ResetExecutionState();
 
-	WorkMemoryStorageObject = nullptr;
-	DebugMemoryStorageObject = nullptr;
-
 	WorkMemoryStorage = FRigVMMemoryStorageStruct();
 	DebugMemoryStorage = FRigVMMemoryStorageStruct();
 
@@ -118,37 +115,16 @@ void FRigVMExtendedExecuteContext::ResetExecutionState()
 	Factory = nullptr;
 }
 
-void FRigVMExtendedExecuteContext::CopyMemoryStorage(const FRigVMExtendedExecuteContext& Other, UObject* Outer)
+void FRigVMExtendedExecuteContext::CopyMemoryStorage(const FRigVMExtendedExecuteContext& Other)
 {
+	VMHash = Other.VMHash;
 	WorkMemoryStorage = Other.WorkMemoryStorage;
 	DebugMemoryStorage = Other.DebugMemoryStorage;
 }
 
-void FRigVMExtendedExecuteContext::CopyMemoryStorage(TObjectPtr<URigVMMemoryStorage>& TargetMemory, const TObjectPtr <URigVMMemoryStorage>& SourceMemory, UObject* Outer)
-{
-	if(SourceMemory != nullptr)
-	{
-		if(TargetMemory == nullptr)
-		{
-			TargetMemory = NewObject<URigVMMemoryStorage>(Outer, SourceMemory->GetClass());
-		}
-		else if(TargetMemory->GetClass() != SourceMemory->GetClass()
-			|| TargetMemory == SourceMemory) // when a instance comes with CDO data automatically copied during instantiation
-		{
-			TargetMemory = NewObject<URigVMMemoryStorage>(Outer, SourceMemory->GetClass());
-		}
-
-		TargetMemory->CopyFrom(SourceMemory);
-	}
-	else if(TargetMemory != nullptr)
-	{
-		TargetMemory = nullptr;
-	}
-}
-
 FRigVMExtendedExecuteContext& FRigVMExtendedExecuteContext::operator =(const FRigVMExtendedExecuteContext& Other)
 {
-	VMHash = Other.VMHash;
+	CopyMemoryStorage(Other);
 
 	const UScriptStruct* OtherPublicDataStruct = Cast<UScriptStruct>(Other.PublicDataScope.GetStruct());
 	check(OtherPublicDataStruct);

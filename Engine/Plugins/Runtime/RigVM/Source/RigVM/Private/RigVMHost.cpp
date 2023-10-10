@@ -111,7 +111,7 @@ void URigVMHost::Serialize(FArchive& Ar)
 	// to make sure they are loaded prior to the VM.
 	if (Ar.IsObjectReferenceCollector() && VM != nullptr)
 	{
-		const TArray<const UObject*> UserDefinedDependencies = GetUserDefinedDependencies({ GetLiteralMemory(), GetWorkMemory() });
+		const TArray<const UObject*> UserDefinedDependencies = GetUserDefinedDependencies({ GetDefaultMemoryByType(ERigVMMemoryType::Literal), GetDefaultMemoryByType(ERigVMMemoryType::Work) });
 		for (const UObject* UserDefinedDependency : UserDefinedDependencies)
 		{
 			if (Cast<UUserDefinedStruct>(UserDefinedDependency) ||
@@ -133,6 +133,8 @@ void URigVMHost::PostLoad()
 {
 	Super::PostLoad();
 
+	FRigVMExtendedExecuteContext& ExtendedExecuteContext = GetRigVMExtendedExecuteContext();
+
 	ExtendedExecuteContext.InvalidateCachedMemory();
 
 	// In packaged builds, initialize the CDO VM
@@ -146,7 +148,7 @@ void URigVMHost::PostLoad()
 			InitializeCDOVM();
 		}
 
-		if (!VM->ValidateAllOperandsDuringLoad(ExtendedExecuteContext))
+		if (!ensure(VM->ValidateAllOperandsDuringLoad()))
 		{
 			VM->Reset(ExtendedExecuteContext);
 		}
@@ -168,7 +170,7 @@ void URigVMHost::PreSave(FObjectPreSaveContext SaveContext)
 {
 	Super::PreSave(SaveContext);
 
-	GenerateUserDefinedDependenciesData(ExtendedExecuteContext);
+	GenerateUserDefinedDependenciesData(GetRigVMExtendedExecuteContext());
 }
 
 void URigVMHost::BeginDestroy()
@@ -181,7 +183,10 @@ void URigVMHost::BeginDestroy()
 	DebugInfo.Reset();
 #endif
 
-	GetExtendedExecuteContext().ExecutionReachedExit().RemoveAll(this);
+	if (RigVMExtendedExecuteContext != nullptr)
+	{
+		RigVMExtendedExecuteContext->ExecutionReachedExit().RemoveAll(this);
+	}
 
 #if WITH_EDITORONLY_DATA
 	if (VMSnapshotBeforeExecution)
@@ -264,25 +269,18 @@ void URigVMHost::Initialize(bool bRequestInit)
 
 bool URigVMHost::InitializeVM(const FName& InEventName)
 {
+	FRigVMExtendedExecuteContext& ExtendedExecuteContext = GetRigVMExtendedExecuteContext();
+
 	const TArray<FRigVMExternalVariable> ExternalVariables = GetExternalVariablesImpl(false);
 	if (VM->GetExternalVariableDefs().Num() != ExternalVariables.Num())
 	{
 		return false;	// The rig did compile with errors
 	}
 
-	if (bTEMP_CopyDefaultsFromCDO && !HasAnyFlags(RF_ClassDefaultObject))
-	{
-		if (URigVMHost* CDO = GetClass()->GetDefaultObject<URigVMHost>())
-		{
-			ExtendedExecuteContext.WorkMemoryStorage = CDO->GetExtendedExecuteContext().WorkMemoryStorage; // initialize the memory to CDO default state
-		}
-	}
-
 	// update the VM's external variables
-	VM->SetExternalVariablesInstanceData(GetExtendedExecuteContext(), ExternalVariables);
+	VM->SetExternalVariablesInstanceData(ExtendedExecuteContext, ExternalVariables);
 
-	TArray<FRigVMMemoryStorageStruct*> LocalMemory = VM->GetLocalMemoryArray(ExtendedExecuteContext);
-	const bool bResult = VM->InitializeInstance(GetExtendedExecuteContext(), LocalMemory);
+	const bool bResult = VM->InitializeInstance(ExtendedExecuteContext);
 	if(bResult)
 	{
 		bRequiresInitExecution = false;
@@ -291,10 +289,7 @@ bool URigVMHost::InitializeVM(const FName& InEventName)
 	// reset the time and caches during init
 	AbsoluteTime = DeltaTime = 0.f;
 		
-	if(VM)
-	{
-		GetExtendedExecuteContext().GetPublicDataSafe<>().GetNameCache()->Reset();
-	}
+	ExtendedExecuteContext.GetPublicDataSafe<>().GetNameCache()->Reset();
 
 	if (InitializedEvent.IsBound())
 	{
@@ -450,7 +445,7 @@ void URigVMHost::InvalidateCachedMemory()
 {
 	if (VM)
 	{
-		VM->InvalidateCachedMemory(ExtendedExecuteContext);
+		VM->InvalidateCachedMemory(GetRigVMExtendedExecuteContext());
 	}
 }
 
@@ -494,7 +489,9 @@ bool URigVMHost::Execute(const FName& InEventName)
 
 	ensure(!HasAnyFlags(RF_ClassDefaultObject));
 	
-	FRigVMExecuteContext& PublicContext = GetExtendedExecuteContext().GetPublicData<>();
+	FRigVMExtendedExecuteContext& ExtendedExecuteContext = GetRigVMExtendedExecuteContext();
+
+	FRigVMExecuteContext& PublicContext = ExtendedExecuteContext.GetPublicData<>();
 	PublicContext.SetDeltaTime(DeltaTime);
 	PublicContext.SetAbsoluteTime(AbsoluteTime);
 	PublicContext.SetFramesPerSecond(GetCurrentFramesPerSecond());
@@ -518,11 +515,11 @@ bool URigVMHost::Execute(const FName& InEventName)
 			}
 		}
 
-		GetExtendedExecuteContext().SetDebugInfo(&DebugInfo);
+		ExtendedExecuteContext.SetDebugInfo(&DebugInfo);
 	}
 	else
 	{
-		GetExtendedExecuteContext().SetDebugInfo(nullptr);
+		ExtendedExecuteContext.SetDebugInfo(nullptr);
 	}
 #endif
 
@@ -533,7 +530,8 @@ bool URigVMHost::Execute(const FName& InEventName)
 		// only set a valid first entry event later when execution
 		// has passed the initialization stage and there are multiple events present in one evaluation
 		// first entry event is used to determined when to clear data during an evaluation
-		VM->SetFirstEntryEventInEventQueue(GetExtendedExecuteContext(), NAME_None);
+		VM->SetFirstEntryEventInEventQueue(GetRigVMExtendedExecuteContext(), NAME_None);
+		VM->SetFirstEntryEventInEventQueue(GetRigVMExtendedExecuteContext(), NAME_None);
 #endif
 	}
 
@@ -624,10 +622,12 @@ bool URigVMHost::InitializeCDOVM()
 	check(VM != nullptr);
 	check(VM->HasAnyFlags(RF_ClassDefaultObject | RF_DefaultSubObject));
 
+	FRigVMExtendedExecuteContext& ExtendedExecuteContext = GetRigVMExtendedExecuteContext();
+
 	// update the VM's external variables
-	VM->ClearExternalVariables(GetExtendedExecuteContext());
+	VM->ClearExternalVariables(ExtendedExecuteContext);
 	VM->SetExternalVariableDefs(GetExternalVariablesImpl(false));
-	return VM->Initialize(GetExtendedExecuteContext(), VM->GetLocalMemoryArray(ExtendedExecuteContext));
+	return VM->Initialize(ExtendedExecuteContext);
 }
 
 bool URigVMHost::Execute_Internal(const FName& InEventName)
@@ -637,7 +637,7 @@ bool URigVMHost::Execute_Internal(const FName& InEventName)
 		return false;
 	}
 
-	FRigVMExtendedExecuteContext& Context = GetExtendedExecuteContext();
+	FRigVMExtendedExecuteContext& ExtendedExecuteContext = GetRigVMExtendedExecuteContext();
 	
 	static constexpr TCHAR InvalidatedVMFormat[] = TEXT("%s: Invalidated VM - aborting execution.");
 	if(VM->IsNativized())
@@ -652,7 +652,7 @@ bool URigVMHost::Execute_Internal(const FName& InEventName)
 	else
 	{
 		// sanity check the validity of the VM to ensure stability.
-		if(!VM->IsContextValidForExecution(Context)
+		if(!VM->IsContextValidForExecution(ExtendedExecuteContext)
 			|| !IsValidLowLevel()
 			|| !VM->IsValidLowLevel()
 		)
@@ -673,8 +673,6 @@ bool URigVMHost::Execute_Internal(const FName& InEventName)
 	
 	const bool bUseDebuggingSnapshots = !VM->IsNativized();
 	
-	TArray<FRigVMMemoryStorageStruct*> LocalMemory = VM->GetLocalMemoryArray(ExtendedExecuteContext);
-
 #if WITH_EDITOR
 	if(bUseDebuggingSnapshots)
 	{
@@ -687,18 +685,18 @@ bool URigVMHost::Execute_Internal(const FName& InEventName)
 			{
 				if(bIsEventFirstInQueue)
 				{
-					CopyVMMemory(GetExtendedExecuteContext(), GetSnapshotContext());
+					CopyVMMemory(GetRigVMExtendedExecuteContext(), GetSnapshotContext());
 				}
 			}
 			else if(bIsEventLastInQueue)
 			{
-				CopyVMMemory(GetSnapshotContext(), GetExtendedExecuteContext());
+				CopyVMMemory(GetSnapshotContext(), GetRigVMExtendedExecuteContext());
 			}
 		}
 	}
 #endif
 
-	const bool bSuccess = VM->Execute(Context, LocalMemory, InEventName) != ERigVMExecuteResult::Failed;
+	const bool bSuccess = VM->ExecuteVM(ExtendedExecuteContext, InEventName) != ERigVMExecuteResult::Failed;
 
 #if UE_RIGVM_PROFILE_EXECUTE_UNITS_NUM
 	const uint64 EndCycles = FPlatformTime::Cycles64();
@@ -792,7 +790,7 @@ void URigVMHost::UpdateVMSettings()
 			});
 #endif
 
-		ExtendedExecuteContext.SetRuntimeSettings(VMRuntimeSettings);
+		GetRigVMExtendedExecuteContext().SetRuntimeSettings(VMRuntimeSettings);
 	}
 }
 
@@ -806,16 +804,22 @@ URigVM* URigVMHost::GetVM()
 	return VM;
 }
 
+const FRigVMMemoryStorageStruct* URigVMHost::GetDefaultMemoryByType(ERigVMMemoryType InMemoryType) const
+{
+	check(VM);
+	return VM->GetDefaultMemoryByType(InMemoryType);
+}
+
 FRigVMMemoryStorageStruct* URigVMHost::GetMemoryByType(ERigVMMemoryType InMemoryType)
 {
 	check(VM);
-	return VM->GetMemoryByType(ExtendedExecuteContext, InMemoryType);
+	return VM->GetMemoryByType(GetRigVMExtendedExecuteContext(), InMemoryType);
 }
 
 const FRigVMMemoryStorageStruct* URigVMHost::GetMemoryByType(ERigVMMemoryType InMemoryType) const
 {
 	check(VM);
-	return VM->GetMemoryByType(ExtendedExecuteContext, InMemoryType);
+	return VM->GetMemoryByType(GetRigVMExtendedExecuteContext(), InMemoryType);
 }
 
 void URigVMHost::DrawIntoPDI(FPrimitiveDrawInterface* PDI, const FTransform& InTransform)
@@ -940,7 +944,7 @@ void URigVMHost::SwapVMToNativizedIfRequired(UClass* InNativizedClass)
 			VM->Rename(nullptr, GetTransientPackage(), REN_ForceNoResetLoaders | REN_DoNotDirty | REN_DontCreateRedirectors | REN_NonTransactional);
 			VM->MarkAsGarbage();
 			VM = NewObject<URigVM>(this, InNativizedClass, TEXT("RigVM_NVMB"), PreviousFlags);
-			GetExtendedExecuteContext().ExecutionReachedExit().AddUObject(this, &URigVMHost::HandleExecutionReachedExit);
+			GetRigVMExtendedExecuteContext().ExecutionReachedExit().AddUObject(this, &URigVMHost::HandleExecutionReachedExit);
 #if UE_RIGVM_PROFILE_EXECUTE_UNITS_NUM
 			ProfilingRunsLeft = 0;
 			AccumulatedCycles = 0;
@@ -985,7 +989,7 @@ void URigVMHost::DeclareConstructClasses(TArray<FTopLevelAssetPath>& OutConstruc
 const FString URigVMHost::GetDebugExecutionString()
 {
 	TGuardValue<bool> DebugExecutionGuard(bDebugExecutionEnabled, true);
-	FRigVMExecuteContext& PublicContext = GetExtendedExecuteContext().GetPublicData<FRigVMExecuteContext>();
+	FRigVMExecuteContext& PublicContext = GetRigVMExtendedExecuteContext().GetPublicData<FRigVMExecuteContext>();
 	PublicContext.DebugMemoryString.Reset();
 	
 	Evaluate_AnyThread();
@@ -1026,15 +1030,15 @@ void URigVMHost::PostInitInstance(URigVMHost* InCDO)
 		RF_Public | RF_DefaultSubObject :
 		RF_Transient | RF_Transactional;
 
-	FRigVMExtendedExecuteContext& Context = GetExtendedExecuteContext();
+	FRigVMExtendedExecuteContext& ExtendedExecuteContext = GetRigVMExtendedExecuteContext();
 
-	Context.SetContextPublicDataStruct(GetPublicContextStruct());
+	ExtendedExecuteContext.SetContextPublicDataStruct(GetPublicContextStruct());
 
-	GetExtendedExecuteContext().ExecutionReachedExit().RemoveAll(this);
-	GetExtendedExecuteContext().ExecutionReachedExit().AddUObject(this, &URigVMHost::HandleExecutionReachedExit);
+	ExtendedExecuteContext.ExecutionReachedExit().RemoveAll(this);
+	ExtendedExecuteContext.ExecutionReachedExit().AddUObject(this, &URigVMHost::HandleExecutionReachedExit);
 
 #if WITH_EDITOR
-	Context.GetPublicData<>().SetLog(RigVMLog); // may be nullptr
+	ExtendedExecuteContext.GetPublicData<>().SetLog(RigVMLog); // may be nullptr
 #endif
 
 	UpdateVMSettings();
@@ -1047,24 +1051,6 @@ void URigVMHost::PostInitInstance(URigVMHost* InCDO)
 			if (VM == nullptr)	// some Engine Tests does not have the VM
 			{
 				VM = InCDO->GetVM();
-			}
-
-			// This is needed by some tests that use Templates to run (and RigVMHost does not initialize template CDO rigs)
-			if (InCDO->HasAnyFlags(RF_ArchetypeObject))
-			{
-				CopyVMMemory(GetExtendedExecuteContext(), InCDO->GetExtendedExecuteContext());
-
-				Context.VMHash = InCDO->GetExtendedExecuteContext().VMHash;
-
-				if (!ensure(VM->GetVMHash() == Context.VMHash))
-				{
-					UE_LOG(LogRigVM
-						, Warning
-						, TEXT("RigVMHost : VM Hash [%u] is different from Context stored VM Hash [%u]. Please recompile ControlRig used at Asset : [%s]")
-						, Context.VMHash
-						, VM->GetVMHash()
-						, *GetPathName());
-				}
 			}
 		}
 	}
@@ -1097,7 +1083,7 @@ void URigVMHost::GenerateUserDefinedDependenciesData(FRigVMExtendedExecuteContex
 {
 	if (VM)
 	{
-		const TArray<const UObject*> UserDefinedDependencies = GetUserDefinedDependencies({ GetLiteralMemory(), GetWorkMemory() });
+		const TArray<const UObject*> UserDefinedDependencies = GetUserDefinedDependencies({ GetDefaultMemoryByType(ERigVMMemoryType::Literal), GetDefaultMemoryByType(ERigVMMemoryType::Work) });
 		UserDefinedStructGuidToPathName.Reset();
 		UserDefinedEnumToPathName.Reset();
 		UserDefinedTypesInUse.Reset();
@@ -1192,7 +1178,7 @@ void URigVMHost::HandleExecutionReachedExit(const FName& InEventName)
 	{
 		if(URigVM* SnapShotVM = GetSnapshotVM(false))
 		{
-			CopyVMMemory(GetSnapshotContext(), GetExtendedExecuteContext());
+			CopyVMMemory(GetSnapshotContext(), GetRigVMExtendedExecuteContext());
 		}
 		DebugInfo.ResetState();
 		SetBreakpointAction(ERigVMBreakpointAction::None);
@@ -1290,33 +1276,21 @@ void URigVMHost::InstantiateVMFromCDO()
 	{
 		SwapVMToNativizedIfRequired();
 
+		FRigVMExtendedExecuteContext& ExtendedExecuteContext = GetRigVMExtendedExecuteContext();
+
 		URigVMHost* CDO = GetClass()->GetDefaultObject<URigVMHost>();
 		if (VM && CDO && CDO->VM)
 		{
 			if(!VM->IsNativized())
 			{
-				// clone work and debug memory between contexts
-				CopyVMMemory(ExtendedExecuteContext, CDO->GetExtendedExecuteContext());
-
-				ExtendedExecuteContext.VMHash = CDO->GetExtendedExecuteContext().VMHash;
+				ExtendedExecuteContext.WorkMemoryStorage = CDO->VM->GetDefaultWorkMemory();
+				ExtendedExecuteContext.DebugMemoryStorage = CDO->VM->GetDefaultDebugMemory();
+				ExtendedExecuteContext.VMHash = CDO->VM->GetVMHash();
 
 #if WITH_EDITOR
 				// Fix AutoCompile while stopped in a breakpoint
-				if (URigVM* SnapShotVM = GetSnapshotVM(false)) // don't create it if not already there
-				{
-					CopyVMMemory(GetSnapshotContext(), CDO->GetExtendedExecuteContext());
-				}
+				CopyVMMemory(GetSnapshotContext(), ExtendedExecuteContext);
 #endif // WITH_EDITOR
-
-				if (!ensure(VM->GetVMHash() == ExtendedExecuteContext.VMHash))
-				{
-					UE_LOG(LogRigVM
-						, Warning
-						, TEXT("RigVMHost : VM Hash [%u] is different from Context stored VM Hash [%u]. Please recompile ControlRig used at Asset : [%s]")
-						, ExtendedExecuteContext.VMHash
-						, VM->GetVMHash()
-						, *GetPathName());
-				}
 			}
 		}
 		else if (VM)
@@ -1374,21 +1348,9 @@ void URigVMHost::InitializeFromCDO()
 	}
 }
 
-/*static*/ uint32 URigVMHost::ComputeAndUpdateCDOHash(URigVMHost* InCDO)
-{
-	// This has to be calculated after the CDO has been fully instantiated and initialized, as the CDO memory is lazily instantiated and it affects the Hash
-	const uint32 CDOVMHash = InCDO->GetVM()->ComputeVMHash(InCDO->GetExtendedExecuteContext());
-	if (InCDO->GetVM()->GetVMHash() != InCDO->GetExtendedExecuteContext().VMHash || CDOVMHash != InCDO->GetVM()->GetVMHash())
-	{
-		InCDO->GetVM()->SetVMHash(CDOVMHash);
-		InCDO->GetExtendedExecuteContext().VMHash = CDOVMHash;
-	}
-	return CDOVMHash;
-}
-
 void URigVMHost::CopyVMMemory(FRigVMExtendedExecuteContext& TargetContext, const FRigVMExtendedExecuteContext& SourceContext)
 {
-	TargetContext.CopyMemoryStorage(SourceContext, this);
+	TargetContext.CopyMemoryStorage(SourceContext);
 }
 
 void URigVMHost::AddAssetUserData(UAssetUserData* InUserData)

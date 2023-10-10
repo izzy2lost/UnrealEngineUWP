@@ -2,6 +2,7 @@
 
 #include "Param/AnimNextParameterBlock.h"
 #include "RigVMCore/RigVMMemoryStorage.h"
+#include "RigVMRuntimeDataRegistry.h"
 #include "UObject/ObjectSaveContext.h"
 #include "UObject/Package.h"
 #include "Graph/RigUnit_AnimNextBeginExecution.h"
@@ -31,15 +32,27 @@ static TArray<UClass*> GetClassObjectsInPackage(UPackage* InPackage)
 
 }
 
+UAnimNextParameterBlock::UAnimNextParameterBlock(const FObjectInitializer& ObjectInitializer)
+	: Super(ObjectInitializer)
+{
+	SetRigVMExtendedExecuteContext(&BaseRigVMContext);
+}
+
 void UAnimNextParameterBlock::UpdateLayer(UE::AnimNext::FParamStackLayerHandle& InHandle) const
 {
 	if (VM)
 	{
-		FRigVMExtendedExecuteContext Context = GetExtendedExecuteContext();
+		UE::AnimNext::FRigVMRuntimeData* RuntimeData = UE::AnimNext::FRigVMRuntimeDataRegistry::FindRuntimeData(VM);
+		if (RuntimeData == nullptr || RuntimeData->Context.VMHash != VM->GetVMHash())
+		{
+			RuntimeData = UE::AnimNext::FRigVMRuntimeDataRegistry::AddRuntimeData(VM, GetRigVMExtendedExecuteContext());
+			VM->InitializeInstance(RuntimeData->Context, false); // TODO zzz : Temp until VM supports WorkData cached handles using offsets (UE-197067)
+		}
+
+		FRigVMExtendedExecuteContext& Context = RuntimeData->Context;
 		FAnimNextParameterExecuteContext& AnimNextParameterContext = Context.GetPublicDataSafe<FAnimNextParameterExecuteContext>();
 		AnimNextParameterContext.SetParamContextData(InHandle);
-		TArray<FRigVMMemoryStorageStruct*> LocalMemory = VM->GetLocalMemoryArray(Context);
-		VM->Execute(Context, LocalMemory, FRigUnit_AnimNextBeginExecution::EventName);
+		VM->ExecuteVM(Context, FRigUnit_AnimNextBeginExecution::EventName);
 	}
 }
 
@@ -104,8 +117,6 @@ void UAnimNextParameterBlock::GetPreloadDependencies(TArray<UObject*>& OutDeps)
 
 void UAnimNextParameterBlock::PostLoad()
 {
-	VM = RigVM;
-
 	Super::PostLoad();
 
 	// In packaged builds, initialize the VM

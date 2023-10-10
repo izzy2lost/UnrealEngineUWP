@@ -65,6 +65,7 @@ static TAutoConsoleVariable<float> CVarControlRigEnableDrawInterfaceInGame(
 	TEXT("If nonzero debug drawing will be enabled during play."),
 	ECVF_Default);
 
+
 UControlRig::UControlRig(const FObjectInitializer& ObjectInitializer)
 	: Super(ObjectInitializer)
 #if WITH_EDITOR
@@ -91,11 +92,15 @@ UControlRig::UControlRig(const FObjectInitializer& ObjectInitializer)
 #endif
 {
 	EventQueue.Add(FRigUnit_BeginExecution::EventName);
+
+	SetRigVMExtendedExecuteContext(&RigVMExtendedExecuteContext);
 }
 
 void UControlRig::BeginDestroy()
 {
 	Super::BeginDestroy();
+	SetRigVMExtendedExecuteContext(nullptr);
+
 	PreConstructionEvent.Clear();
 	PostConstructionEvent.Clear();
 	PreForwardsSolveEvent.Clear();
@@ -306,7 +311,7 @@ bool UControlRig::InitializeVM(const FName& InEventName)
 	{
 		HierarchyController->LogFunction = [this](EMessageSeverity::Type InSeverity, const FString& Message)
 		{
-			const FRigVMExecuteContext& PublicContext = GetExtendedExecuteContext().GetPublicData<>();
+			const FRigVMExecuteContext& PublicContext = GetRigVMExtendedExecuteContext().GetPublicData<>();
 			if(RigVMLog)
 			{
 				RigVMLog->Report(InSeverity,PublicContext.GetFunctionName(),PublicContext.GetInstructionIndex(), Message);
@@ -642,7 +647,9 @@ bool UControlRig::Execute(const FName& InEventName)
 	DECLARE_SCOPE_HIERARCHICAL_COUNTER_FUNC()
 	QUICK_SCOPE_CYCLE_COUNTER(STAT_ControlRig_Execute);
 	
-	FControlRigExecuteContext& PublicContext = GetExtendedExecuteContext().GetPublicDataSafe<FControlRigExecuteContext>();
+	FRigVMExtendedExecuteContext& ExtendedExecuteContext = GetRigVMExtendedExecuteContext();
+
+	FControlRigExecuteContext& PublicContext = ExtendedExecuteContext.GetPublicDataSafe<FControlRigExecuteContext>();
 
 #if WITH_EDITOR
 	PublicContext.SetLog(RigVMLog); // may be nullptr
@@ -663,7 +670,7 @@ bool UControlRig::Execute(const FName& InEventName)
 		// only set a valid first entry event later when execution
 		// has passed the initialization stage and there are multiple events present in one evaluation
 		// first entry event is used to determined when to clear data during an evaluation
-		VM->SetFirstEntryEventInEventQueue(GetExtendedExecuteContext(), NAME_None);
+		VM->SetFirstEntryEventInEventQueue(ExtendedExecuteContext, NAME_None);
 #endif
 	}
 
@@ -682,12 +689,11 @@ bool UControlRig::Execute(const FName& InEventName)
 			}
 		}
 
-		GetExtendedExecuteContext().SetDebugInfo(&DebugInfo);
-		GetSnapshotContext() = GetExtendedExecuteContext();
+		ExtendedExecuteContext.SetDebugInfo(&DebugInfo);
 	}
 	else
 	{
-		GetExtendedExecuteContext().SetDebugInfo(nullptr);
+		ExtendedExecuteContext.SetDebugInfo(nullptr);
 		GetSnapshotContext().Reset();
 	}
 #endif
@@ -967,7 +973,7 @@ bool UControlRig::Execute(const FName& InEventName)
 		// has passed the initialization stage and there are multiple events present
 		if (EventQueueToRun.Num() >= 2 && VM)
 		{
-			VM->SetFirstEntryEventInEventQueue(GetExtendedExecuteContext(), EventQueueToRun[0]);
+			VM->SetFirstEntryEventInEventQueue(ExtendedExecuteContext, EventQueueToRun[0]);
 		}
 
 		// Transform Overrride is generated using a Transient Control 
@@ -1323,7 +1329,7 @@ bool UControlRig::Execute_Internal(const FName& InEventName)
 	
 	if (VM)
 	{
-		FRigVMExtendedExecuteContext& Context = GetExtendedExecuteContext();
+		FRigVMExtendedExecuteContext& Context = GetRigVMExtendedExecuteContext();
 
 		static constexpr TCHAR InvalidatedVMFormat[] = TEXT("%s: Invalidated VM - aborting execution.");
 		if(VM->IsNativized())
@@ -1371,12 +1377,12 @@ bool UControlRig::Execute_Internal(const FName& InEventName)
 				{
 					if(bIsEventFirstInQueue)
 					{
-						CopyVMMemory(GetExtendedExecuteContext(), GetSnapshotContext());
+						CopyVMMemory(GetRigVMExtendedExecuteContext(), GetSnapshotContext());
 					}
 				}
 				else if(bIsEventLastInQueue)
 				{
-					CopyVMMemory(GetSnapshotContext(), GetExtendedExecuteContext());
+					CopyVMMemory(GetSnapshotContext(), GetRigVMExtendedExecuteContext());
 				}
 			}
 		}
@@ -1409,8 +1415,7 @@ bool UControlRig::Execute_Internal(const FName& InEventName)
 		FControlRigExecuteContextRigModuleGuard RigModuleGuard(PublicContext, this);
 		FRigHierarchyRedirectorGuard ElementRedirectorGuard(this);
 
-		TArray<FRigVMMemoryStorageStruct*> LocalMemory = VM->GetLocalMemoryArray(Context);
-		const bool bSuccess = VM->Execute(Context, LocalMemory, InEventName) != ERigVMExecuteResult::Failed;
+		const bool bSuccess = VM->ExecuteVM(Context, InEventName) != ERigVMExecuteResult::Failed;
 
 #if UE_RIGVM_PROFILE_EXECUTE_UNITS_NUM
 		const uint64 EndCycles = FPlatformTime::Cycles64();
@@ -2256,7 +2261,7 @@ bool UControlRig::SetTransientControlValue(const URigVMUnitNode* InNode, TShared
 		return false;
 	}
 
-	FControlRigExecuteContext& PublicContext = GetExtendedExecuteContext().GetPublicDataSafe<FControlRigExecuteContext>();
+	FControlRigExecuteContext& PublicContext = GetRigVMExtendedExecuteContext().GetPublicDataSafe<FControlRigExecuteContext>();
 	const bool bResult = UnitInstance->UpdateHierarchyForDirectManipulation(InNode, NodeInstance, PublicContext, InInfo);
 	InInfo->bInitialized = true;
 	return bResult;
@@ -3070,7 +3075,7 @@ USceneComponent* UControlRig::GetOwningSceneComponent()
 {
 	if(OuterSceneComponent == nullptr)
 	{
-		const FControlRigExecuteContext& PublicContext = GetExtendedExecuteContext().GetPublicDataSafe<FControlRigExecuteContext>();
+		const FControlRigExecuteContext& PublicContext = GetRigVMExtendedExecuteContext().GetPublicDataSafe<FControlRigExecuteContext>();
 		const FRigUnitContext& Context = PublicContext.UnitContext;
 
 		USceneComponent* SceneComponentFromRegistry = Context.DataSourceRegistry->RequestSource<USceneComponent>(UControlRig::OwnerComponent);
@@ -3094,7 +3099,7 @@ void UControlRig::PostInitInstance(URigVMHost* InCDO)
 		RF_Public | RF_DefaultSubObject :
 		RF_Transient | RF_Transactional;
 
-	FRigVMExtendedExecuteContext& Context = GetExtendedExecuteContext();
+	FRigVMExtendedExecuteContext& Context = GetRigVMExtendedExecuteContext();
 	
 	Context.SetContextPublicDataStruct(FControlRigExecuteContext::StaticStruct());
 
@@ -3133,24 +3138,6 @@ void UControlRig::PostInitInstance(URigVMHost* InCDO)
 			if (VM == nullptr) // this is needed for some EngineTests, on a normal setup, the VM is set to the CDO VM already
 			{
 				VM = InCDO->GetVM();
-			}
-
-			// This is needed by some tests that use Templates to run (and RigVMHost does not initialize template CDO rigs)
-			if (InCDO->HasAnyFlags(RF_ArchetypeObject))
-			{
-				CopyVMMemory(GetExtendedExecuteContext(), InCDO->GetExtendedExecuteContext());
-
-				Context.VMHash = InCDO->GetExtendedExecuteContext().VMHash;
-
-				if (!ensure(VM->GetVMHash() == Context.VMHash))
-				{
-					UE_LOG(LogRigVM
-						, Warning
-						, TEXT("ControlRig : VM Hash [%u] is different from Context stored VM Hash [%u]. Please recompile ControlRig used at Asset : [%s]")
-						, Context.VMHash
-						, VM->GetVMHash()
-						, *GetPathName());
-				}
 			}
 
 			DynamicHierarchy->CopyHierarchy(CastChecked<UControlRig>(InCDO)->GetHierarchy());
