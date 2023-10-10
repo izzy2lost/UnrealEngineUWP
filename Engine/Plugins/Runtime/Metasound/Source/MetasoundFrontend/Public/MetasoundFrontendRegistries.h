@@ -322,15 +322,18 @@ public:
 	virtual void RegisterPendingNodes() = 0;
 
 	// Register a graph from an IMetaSoundDocumentInterface
-	virtual FNodeRegistryKey RegisterGraph(const FNodeClassInfo& InAssetPath, const TScriptInterface<IMetaSoundDocumentInterface>& InDocument, bool bAsync=true) = 0;
+	virtual FNodeRegistryKey RegisterGraph(const FSoftObjectPath& InAssetPath, const TScriptInterface<IMetaSoundDocumentInterface>& InDocument, bool bAsync=true) = 0;
 
 	// Wait for async graph registration to complete for a specific graph
-	virtual void WaitForAsyncGraphRegistration(const FNodeRegistryKey& InRegistryKey) const = 0;
+	virtual void WaitForAsyncGraphRegistration(const FNodeRegistryKey& InRegistryKey, const FSoftObjectPath& InAssetPath) const = 0;
+
+	// Unregister an asset based graph from the frontend. 
+	virtual bool UnregisterGraph(const FNodeRegistryKey& InNodeRegistryKey, const FSoftObjectPath& InAssetPath) = 0;
 
 	// Retrieve a registered graph. 
 	//
 	// If the graph is registered asynchronously, this will wait until the registration task has completed.
-	virtual TSharedPtr<const Metasound::FGraph> GetGraph(const Metasound::Frontend::FNodeRegistryKey& InRegistryKey) const = 0;
+	virtual TSharedPtr<const Metasound::FGraph> GetGraph(const FNodeRegistryKey& InRegistryKey, const FSoftObjectPath& InAssetPath) const = 0;
 
 	/** Register an external node with the frontend.
 	 *

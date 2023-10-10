@@ -663,7 +663,7 @@ ISoundGeneratorPtr UMetaSoundSource::CreateSoundGenerator(const FSoundGeneratorI
 	}
 	else
 	{
-		TSharedPtr<const IGraph> MetasoundGraph = FMetasoundFrontendRegistryContainer::Get()->GetGraph(GetRegistryKey());
+		TSharedPtr<const IGraph> MetasoundGraph = GetRegisteredGraph();
 		if (!MetasoundGraph.IsValid())
 		{
 			return ISoundGeneratorPtr(nullptr);
@@ -1400,7 +1400,7 @@ TSharedPtr<Metasound::DynamicGraph::FDynamicOperatorTransactor> UMetaSoundSource
 			// graph to see if any FGraph already exists. 
 			if (IsRegistered())
 			{
-				TSharedPtr<const FGraph> CurrentGraph = FMetasoundFrontendRegistryContainer::Get()->GetGraph(GetRegistryKey());
+				TSharedPtr<const FGraph> CurrentGraph = GetRegisteredGraph();
 				if (CurrentGraph.IsValid())
 				{
 					DynamicTransactor = MakeShared<FDynamicOperatorTransactor>(*CurrentGraph);

@@ -84,15 +84,18 @@ namespace Metasound
 			virtual void RegisterPendingNodes() override;
 
 			// Register a graph from an IMetaSoundDocumentInterface
-			virtual FNodeRegistryKey RegisterGraph(const FNodeClassInfo& InAssetPath, const TScriptInterface<IMetaSoundDocumentInterface>& InDocument, bool bAsync) override;
+			virtual FNodeRegistryKey RegisterGraph(const FSoftObjectPath& InAssetPath, const TScriptInterface<IMetaSoundDocumentInterface>& InDocument, bool bAsync) override;
 			
 			// Wait for async graph registration to complete for a specific graph
-			virtual void WaitForAsyncGraphRegistration(const FNodeRegistryKey& InRegistryKey) const override;
+			virtual void WaitForAsyncGraphRegistration(const FNodeRegistryKey& InRegistryKey, const FSoftObjectPath& InAssetPath) const override;
 			
+			// Unregister a graph 
+			virtual bool UnregisterGraph(const FNodeRegistryKey& InNodeRegistryKey, const FSoftObjectPath& InAssetPath) override;
+
 			// Retrieve a registered graph. 
 			//
 			// If the graph is registered asynchronously, this will wait until the registration task has completed.
-			virtual TSharedPtr<const FGraph> GetGraph(const FNodeRegistryKey& InRegistryKey) const override;
+			virtual TSharedPtr<const FGraph> GetGraph(const FNodeRegistryKey& InRegistryKey, const FSoftObjectPath& InAssetPath) const override;
 
 			/** Register external node with the frontend.
 			 *
@@ -141,7 +144,11 @@ namespace Metasound
 
 			static FRegistryContainerImpl* LazySingleton;
 
-			void RegisterGraph(const FNodeRegistryKey& InKey, TSharedPtr<const FGraph> InGraph);
+			using FGraphRegistryKey = TTuple<FNodeRegistryKey, FSoftObjectPath>;
+
+			void WaitForAsyncRegistrationInternal(const FNodeRegistryKey& InRegistryKey, const FSoftObjectPath* InAssetPath) const;
+			void RegisterGraphInternal(const FNodeRegistryKey& InKey, const FSoftObjectPath& InAssetPath, TSharedPtr<const FGraph> InGraph);
+
 			const INodeRegistryEntry* FindNodeEntry(const FNodeRegistryKey& InKey) const;
 
 			const INodeRegistryTemplateEntry* FindNodeTemplateEntry(const FNodeRegistryKey& InKey) const;
@@ -157,12 +164,13 @@ namespace Metasound
 			FCriticalSection LazyInitCommandCritSection;
 
 			// Registry in which we keep all information about nodes implemented in C++.
-			TMap<FNodeRegistryKey, TSharedRef<INodeRegistryEntry, ESPMode::ThreadSafe>> RegisteredNodes;
+			TMultiMap<FNodeRegistryKey, TSharedRef<INodeRegistryEntry, ESPMode::ThreadSafe>> RegisteredNodes;
 
 			// Registry in which we keep all information about dynamically-generated templated nodes via in C++.
 			TMap<FNodeRegistryKey, TSharedRef<INodeRegistryTemplateEntry, ESPMode::ThreadSafe>> RegisteredNodeTemplates;
 
-			TMap<FNodeRegistryKey, TSharedPtr<const FGraph>> RegisteredGraphs;
+			// Map of all registered graphs
+			TMap<FGraphRegistryKey, TSharedPtr<const FGraph>> RegisteredGraphs;
 
 			// Registry in which we keep lists of possible nodes to use to convert between two datatypes
 			TMap<FConverterNodeRegistryKey, FConverterNodeRegistryValue> ConverterNodeRegistry;

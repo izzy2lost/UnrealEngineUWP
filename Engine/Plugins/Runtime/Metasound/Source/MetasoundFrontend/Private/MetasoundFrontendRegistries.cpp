@@ -270,7 +270,7 @@ namespace Metasound
 				FRegistryContainerImpl& Registry = FRegistryContainerImpl::Get();
 
 				FNodeRegistryKey RegistryKey = Registry.RegisterNode(MoveTemp(RegistryEntry));
-				Registry.RegisterGraph(RegistryKey, MoveTemp(GraphToRegister));
+				Registry.RegisterGraphInternal(RegistryKey, InNodeClassInfo.AssetPath, MoveTemp(GraphToRegister));
 			}
 		}
 
@@ -406,7 +406,7 @@ namespace Metasound
 			return MakeUnique<FNodeRegistryTransactionStream>(TransactionBuffer);
 		}
 
-		FNodeRegistryKey FRegistryContainerImpl::RegisterGraph(const FNodeClassInfo& InNodeClassInfo, const TScriptInterface<IMetaSoundDocumentInterface>& InDocumentInterface, bool bAsync)
+		FNodeRegistryKey FRegistryContainerImpl::RegisterGraph(const FSoftObjectPath& InAssetPath, const TScriptInterface<IMetaSoundDocumentInterface>& InDocumentInterface, bool bAsync)
 		{
 			using namespace UE;
 
@@ -415,6 +415,7 @@ namespace Metasound
 
 			const FMetasoundFrontendDocument& Document = InDocumentInterface->GetConstDocument();
 			FNodeRegistryKey RegistryKey = NodeRegistryKey::CreateKey(Document.RootGraph);
+			FNodeClassInfo NodeClassInfo(Document.RootGraph, InAssetPath);
 
 			// Proxies are created synchronously to avoid creating proxies in async tasks. Proxies
 			// are created from UObjects which need to be protected from GC and non-GT access.
@@ -427,13 +428,13 @@ namespace Metasound
 				FScopeLock LockActiveReg(&ActiveRegistrationTasksCriticalSection);
 				if (const FActiveRegistrationTaskInfo* ActiveTaskInfo = ActiveRegistrationTasks.Find(RegistryKey))
 				{
-					UE_LOG(LogMetaSound, Warning, TEXT("Waiting for async registration task to finish before beginning new registration task for same registration key (%s) with asset (%s))"), *RegistryKey, *InNodeClassInfo.AssetPath.ToString());
+					UE_LOG(LogMetaSound, Warning, TEXT("Waiting for async registration task to finish before beginning new registration task for same registration key (%s) with asset (%s))"), *RegistryKey, *InAssetPath.ToString());
 					ActiveTaskInfo->Task.Wait(FTimespan::FromSeconds(1.));
 				}
 			
 				Tasks::FTask BuildAndRegisterTask = AsyncRegistrationPipe.Launch(
 					UE_SOURCE_LOCATION,
-					[RegistryKey, NodeClassInfo=InNodeClassInfo, DocumentInterface=InDocumentInterface, ProxyDataCache=MoveTemp(ProxyDataCache)]()
+					[RegistryKey, NodeClassInfo=NodeClassInfo, DocumentInterface=InDocumentInterface, ProxyDataCache=MoveTemp(ProxyDataCache)]()
 					{
 						// Build and add the graph to the node registry
 						MetasoundFrontendRegistryPrivate::BuildAndRegisterGraphFromDocument(DocumentInterface->GetConstDocument(), ProxyDataCache, NodeClassInfo);
@@ -467,32 +468,52 @@ namespace Metasound
 			else
 			{
 				// Build and register graph synchronously
-				MetasoundFrontendRegistryPrivate::BuildAndRegisterGraphFromDocument(InDocumentInterface->GetConstDocument(), ProxyDataCache, InNodeClassInfo);
+				MetasoundFrontendRegistryPrivate::BuildAndRegisterGraphFromDocument(InDocumentInterface->GetConstDocument(), ProxyDataCache, NodeClassInfo);
 			}
 
 			return RegistryKey;
 		}
 
-		void FRegistryContainerImpl::RegisterGraph(const FNodeRegistryKey& InKey, TSharedPtr<const FGraph> InGraph)
+		void FRegistryContainerImpl::RegisterGraphInternal(const FNodeRegistryKey& InKey, const FSoftObjectPath& InAssetPath, TSharedPtr<const FGraph> InGraph)
 		{
 			FScopeLock Lock(&RegistryMapsCriticalSection);
 
-			if (const TSharedPtr<const FGraph>* ExistingGraph = RegisteredGraphs.Find(InKey))
+			FGraphRegistryKey GraphRegistryKey{InKey, InAssetPath};
+
+			if (const TSharedPtr<const FGraph>* ExistingEntry = RegisteredGraphs.Find(GraphRegistryKey))
 			{
-				UE_LOG(LogMetaSound, Error, TEXT("Multiple graphs are registered with the same registry key (%s). The existing registered graph (%s) will be replaced with the new graph (%s)."),  *InKey, *((*ExistingGraph)->GetInstanceName().ToString()), *(InGraph->GetInstanceName().ToString()));
+				UE_LOG(LogMetaSound, Warning, TEXT("Multiple graphs are registered with the same registry key (%s) and asset path. The existing registered graph will be replaced with the new graph."),  *InKey, *InAssetPath.ToString());
 			}
 
-			RegisteredGraphs.Add(InKey, MoveTemp(InGraph));
+			RegisteredGraphs.Add(GraphRegistryKey, MoveTemp(InGraph));
 		}
 
-		TSharedPtr<const Metasound::FGraph> FRegistryContainerImpl::GetGraph(const Metasound::Frontend::FNodeRegistryKey& InRegistryKey) const
+		bool FRegistryContainerImpl::UnregisterGraph(const FNodeRegistryKey& InNodeRegistryKey, const FSoftObjectPath& InAssetPath)
 		{
-			WaitForAsyncGraphRegistration(InRegistryKey);
+			WaitForAsyncGraphRegistration(InNodeRegistryKey, InAssetPath);
+
+			{
+				FScopeLock Lock(&RegistryMapsCriticalSection);
+
+				int32 NumRemoved = RegisteredGraphs.Remove(FGraphRegistryKey { InNodeRegistryKey, InAssetPath });
+
+				if (NumRemoved)
+				{
+					UnregisterNode(InNodeRegistryKey);
+					return true;
+				}
+				return false;
+			}
+		}
+
+		TSharedPtr<const Metasound::FGraph> FRegistryContainerImpl::GetGraph(const FNodeRegistryKey& InNodeRegistryKey, const FSoftObjectPath& InAssetPath) const
+		{
+			WaitForAsyncGraphRegistration(InNodeRegistryKey, InAssetPath);
 
 			TSharedPtr<const FGraph> Graph;
 			{
 				FScopeLock Lock(&RegistryMapsCriticalSection);
-				if (const TSharedPtr<const FGraph>* RegisteredGraph = RegisteredGraphs.Find(InRegistryKey))
+				if (const TSharedPtr<const FGraph>* RegisteredGraph = RegisteredGraphs.Find(FGraphRegistryKey{ InNodeRegistryKey, InAssetPath }))
 				{
 					Graph = *RegisteredGraph;
 				}
@@ -500,7 +521,7 @@ namespace Metasound
 
 			if (!Graph)
 			{
-				UE_LOG(LogMetaSound, Error, TEXT("Could not find graph with registry key (%s)."),  *InRegistryKey);
+				UE_LOG(LogMetaSound, Error, TEXT("Could not find graph with registry key (%s) and asset (%s)."),  *InNodeRegistryKey, *InAssetPath.ToString());
 			}
 
 			return Graph;
@@ -524,13 +545,11 @@ namespace Metasound
 					FScopeLock Lock(&RegistryMapsCriticalSection);
 
 					// check to see if an identical node was already registered, and log
-					if (RegisteredNodes.Contains(Key))
+					if (const TSharedRef<INodeRegistryEntry>* ExistingEntry = RegisteredNodes.Find(Key))
 					{
-						TSharedRef<INodeRegistryEntry, ESPMode::ThreadSafe> Node = RegisteredNodes[Key];
-						const FNodeClassInfo& ClassInfo = Node->GetClassInfo();
-						UE_LOG(LogMetaSound, Error, TEXT("Node with registry key '%s' already registered by asset '%s'. The previously registered node will be overwritten. " 
-							"This can happen if two classes share the same name or if METASOUND_REGISTER_NODE is defined in a public header."
-						), *Key, *ClassInfo.AssetPath.ToString());
+						const FNodeClassInfo& ClassInfo = (*ExistingEntry)->GetClassInfo();
+						UE_LOG(LogMetaSound, Error, TEXT("Node with registry key '%s' already registered by asset '%s' encountered while registering node with asset %s. MetaSounds which depend on these assets may utilize incorrect asset." 
+						), *Key, *ClassInfo.AssetPath.ToString(), *Entry->GetClassInfo().AssetPath.ToString());
 					}
 
 					// Store registry elements in map so nodes can be queried using registry key.
@@ -589,17 +608,17 @@ namespace Metasound
 			check(IsInGameThread());
 			if (NodeRegistryKey::IsValid(InKey))
 			{
-				if (const INodeRegistryEntry* Entry = FindNodeEntry(InKey))
+				FScopeLock Lock(&RegistryMapsCriticalSection);
+				if (const TSharedRef<INodeRegistryEntry, ESPMode::ThreadSafe>* EntryPtr = RegisteredNodes.Find(InKey))
 				{
-					FNodeRegistryTransaction::FTimeType Timestamp = FPlatformTime::Cycles64();
+					const TSharedRef<INodeRegistryEntry>& Entry = *EntryPtr;
 
+					FNodeRegistryTransaction::FTimeType Timestamp = FPlatformTime::Cycles64();
 					TransactionBuffer->AddTransaction(FNodeRegistryTransaction(FNodeRegistryTransaction::ETransactionType::NodeUnregistration, Entry->GetClassInfo(), Timestamp));
 
-					{
-						FScopeLock Lock(&RegistryMapsCriticalSection);
-						RegisteredNodes.Remove(InKey);
-						RegisteredGraphs.Remove(InKey);
-					}
+					uint32 NumRemoved = RegisteredNodes.RemoveSingle(InKey, Entry);
+					check(NumRemoved == 1);
+
 					return true;
 				}
 			}
@@ -653,11 +672,20 @@ namespace Metasound
 
 		bool FRegistryContainerImpl::IsNodeRegistered(const FNodeRegistryKey& InKey) const
 		{
-			WaitForAsyncGraphRegistration(InKey);
-
+			auto IsNodeRegisteredInternal = [this, &InKey]() -> bool
 			{
 				FScopeLock Lock(&RegistryMapsCriticalSection);
 				return RegisteredNodes.Contains(InKey) || RegisteredNodeTemplates.Contains(InKey);
+			};
+
+			if (IsNodeRegisteredInternal())
+			{
+				return true;
+			}
+			else
+			{
+				WaitForAsyncRegistrationInternal(InKey, nullptr /* InAssetPath */);
+				return IsNodeRegisteredInternal();
 			}
 		}
 
@@ -822,10 +850,9 @@ namespace Metasound
 
 		const INodeRegistryEntry* FRegistryContainerImpl::FindNodeEntry(const FNodeRegistryKey& InKey) const
 		{
-			WaitForAsyncGraphRegistration(InKey);
-
+			auto TryFindNodeEntry = [this, &InKey]() -> const INodeRegistryEntry*
 			{
-				// This scope lock proctects against race conditions manipulating the `RegisteredNodes` map, but it does not
+				// This scope lock protects against race conditions manipulating the `RegisteredNodes` map, but it does not
 				// protect against the individual INodeRegistryEntry from being removed after this function returns. Generally
 				// this is not an issue as the acess to the INodeRegistryEntry pointer happens on the same thread as calls to 
 				// remove node registry entries. 
@@ -834,9 +861,18 @@ namespace Metasound
 				{
 					return &Entry->Get();
 				}
-			}
+				return nullptr;
+			};
 
-			return nullptr;
+			if (const INodeRegistryEntry* Entry = TryFindNodeEntry())
+			{
+				return Entry;
+			}
+			else
+			{
+				WaitForAsyncRegistrationInternal(InKey, nullptr /* InAssetPath */);
+				return TryFindNodeEntry();
+			}
 		}
 
 
@@ -851,14 +887,31 @@ namespace Metasound
 			return nullptr;
 		}
 
-		void FRegistryContainerImpl::WaitForAsyncGraphRegistration(const FNodeRegistryKey& InRegistryKey) const
+		void FRegistryContainerImpl::WaitForAsyncGraphRegistration(const FNodeRegistryKey& InRegistryKey, const FSoftObjectPath& InAssetPath) const
+		{
+			WaitForAsyncRegistrationInternal(InRegistryKey, &InAssetPath);
+		}
+
+		void FRegistryContainerImpl::WaitForAsyncRegistrationInternal(const FNodeRegistryKey& InRegistryKey, const FSoftObjectPath* InAssetPath) const
 		{
 			UE::Tasks::FTask ActiveRegistrationTask;
 			{
 				FScopeLock Lock(&ActiveRegistrationTasksCriticalSection);
 				if (const FActiveRegistrationTaskInfo* FoundTask = ActiveRegistrationTasks.Find(InRegistryKey))
 				{
-					ActiveRegistrationTask = FoundTask->Task;
+					if (InAssetPath)
+					{
+						// Filter by asset path
+						if (*InAssetPath == FSoftObjectPath(FoundTask->OwningObject))
+						{
+							ActiveRegistrationTask = FoundTask->Task;
+						}
+					}
+					else
+					{
+						// ignore asset path
+						ActiveRegistrationTask = FoundTask->Task;
+					}
 				}
 			}
 

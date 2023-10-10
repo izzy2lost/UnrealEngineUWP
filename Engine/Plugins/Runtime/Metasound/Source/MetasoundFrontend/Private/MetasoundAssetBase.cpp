@@ -28,6 +28,7 @@
 #include "MetasoundFrontendRegistries.h"
 #include "MetasoundFrontendSearchEngine.h"
 #include "MetasoundFrontendTransform.h"
+#include "MetasoundGraph.h"
 #include "MetasoundJsonBackend.h"
 #include "MetasoundLog.h"
 #include "MetasoundParameterPack.h"
@@ -181,14 +182,14 @@ namespace Metasound
 
 		namespace ConsoleVariables
 		{
-			static bool bDisableAsyncGraphRegistration = true;
+			static bool bDisableAsyncGraphRegistration = false;
 		}
 
 		FAutoConsoleVariableRef CVarMetaSoundDisableAsyncGraphRegistration(
 			TEXT("au.MetaSound.Experimental.DisableAsyncGraphRegistration"),
 			Metasound::Frontend::ConsoleVariables::bDisableAsyncGraphRegistration,
 			TEXT("Disables async registration of MetaSound graphs\n")
-			TEXT("Default: true"),
+			TEXT("Default: false"),
 			ECVF_Default);
 
 		FAutoConsoleVariableRef CVarMetaSoundBlockRate(
@@ -308,6 +309,11 @@ void FMetasoundAssetBase::RegisterGraphWithFrontend(Metasound::Frontend::FMetaSo
 	}
 }
 
+TSharedPtr<const Metasound::FGraph> FMetasoundAssetBase::GetRegisteredGraph() const
+{
+	return FMetasoundFrontendRegistryContainer::Get()->GetGraph(RegistryKey, RegisteredGraphAssetPath);
+}
+
 void FMetasoundAssetBase::CookMetaSound()
 {
 	using namespace Metasound;
@@ -390,13 +396,23 @@ void FMetasoundAssetBase::UnregisterGraphWithFrontend()
 		return;
 	}
 
-	const bool bSuccess = FMetasoundFrontendRegistryContainer::Get()->UnregisterNode(RegistryKey);
+	bool bSuccess = false;
+	if (RegisteredGraphAssetPath.IsValid())
+	{
+		bSuccess = FMetasoundFrontendRegistryContainer::Get()->UnregisterGraph(RegistryKey, RegisteredGraphAssetPath);
+	}
+	else
+	{
+		bSuccess = FMetasoundFrontendRegistryContainer::Get()->UnregisterNode(RegistryKey);
+	}
+
 	if (!bSuccess)
 	{
 		UE_LOG(LogMetaSound, Warning, TEXT("Failed to unregister node with key %s for asset %s. No registry entry exists with that key."), *RegistryKey, *GetOwningAssetName());
 	}
 
 	RegistryKey = FNodeRegistryKey();
+	RegisteredGraphAssetPath = FSoftObjectPath();
 }
 
 void FMetasoundAssetBase::SetMetadata(FMetasoundFrontendClassMetadata& InMetadata)
@@ -949,8 +965,8 @@ Metasound::Frontend::FNodeRegistryKey FMetasoundAssetBase::CacheRuntimeData(cons
 	// the IMetaSoundDocumentInterface
 	const bool bAsync = !(IsBuilderActive() || ConsoleVariables::bDisableAsyncGraphRegistration);
 
-	FNodeClassInfo NodeClassInfo { Document.RootGraph, FSoftObjectPath(GetOwningAsset()) };
-	FNodeRegistryKey NewRegistryKey = FMetasoundFrontendRegistryContainer::Get()->RegisterGraph(NodeClassInfo, InDocumentInterface, bAsync);
+	RegisteredGraphAssetPath = FSoftObjectPath(GetOwningAsset());
+	FNodeRegistryKey NewRegistryKey = FMetasoundFrontendRegistryContainer::Get()->RegisterGraph(RegisteredGraphAssetPath, InDocumentInterface, bAsync);
 
 
 	return NewRegistryKey;
@@ -961,7 +977,7 @@ void FMetasoundAssetBase::WaitForAsyncGraphRegistration()
 	using namespace Metasound::Frontend;
 	if (NodeRegistryKey::IsValid(RegistryKey))
 	{
-		FMetasoundFrontendRegistryContainer::Get()->WaitForAsyncGraphRegistration(RegistryKey);
+		FMetasoundFrontendRegistryContainer::Get()->WaitForAsyncGraphRegistration(RegistryKey, RegisteredGraphAssetPath);
 	}
 }
 
