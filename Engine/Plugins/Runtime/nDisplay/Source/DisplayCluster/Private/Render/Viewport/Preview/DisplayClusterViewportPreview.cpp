@@ -21,6 +21,11 @@ FDisplayClusterViewportPreview::FDisplayClusterViewportPreview(const TSharedRef<
 	, PreviewEditableMesh(EDisplayClusterViewportPreviewMeshType::PreviewEditableMesh)
 { }
 
+FDisplayClusterViewportPreview::~FDisplayClusterViewportPreview()
+{
+	Release();
+}
+
 void FDisplayClusterViewportPreview::Initialize(FDisplayClusterViewport& InViewport)
 {
 	ViewportWeakPtr = InViewport.AsShared();
@@ -28,8 +33,12 @@ void FDisplayClusterViewportPreview::Initialize(FDisplayClusterViewport& InViewp
 
 void FDisplayClusterViewportPreview::Release()
 {
-	PreviewMesh.Release();
-	PreviewEditableMesh.Release();
+	if (FDisplayClusterViewport* InViewport = GetViewportImpl())
+	{
+		PreviewMesh.Release(*InViewport);
+		PreviewEditableMesh.Release(*InViewport);
+	}
+
 	PreviewRTT.Reset();
 	RuntimeFlags = EDisplayClusterViewportPreviewFlags::None;
 }
@@ -57,8 +66,8 @@ void FDisplayClusterViewportPreview::Update()
 	}
 	else
 	{
-		PreviewMesh.Release();
-		PreviewEditableMesh.Release();
+		PreviewMesh.Release(*InViewport);
+		PreviewEditableMesh.Release(*InViewport);
 	}
 
 	// Update Runtime Flags:

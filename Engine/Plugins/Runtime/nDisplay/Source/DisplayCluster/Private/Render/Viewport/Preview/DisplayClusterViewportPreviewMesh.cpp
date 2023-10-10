@@ -45,7 +45,7 @@ void FDisplayClusterViewportPreviewMesh::Update(FDisplayClusterViewport& InViewp
 	if (!ShouldUseMeshComponent(InViewport) || !InMeshMaterial)
 	{
 		// The mesh component and its resources are no longer used.
-		Release();
+		Release(InViewport);
 		return;
 	}
 
@@ -55,7 +55,7 @@ void FDisplayClusterViewportPreviewMesh::Update(FDisplayClusterViewport& InViewp
 	if (GetMeshComponent() != NewMeshComponent || bNewIsRootActorPreviewMesh != bIsRootActorMeshComponent)
 	{
 		// Release the reference to the old mesh component
-		ReleaseMeshComponent();
+		Release(InViewport);
 	}
 
 	if (NewMeshComponent != GetMeshComponent())
@@ -85,9 +85,16 @@ void FDisplayClusterViewportPreviewMesh::Update(FDisplayClusterViewport& InViewp
 	}
 }
 
-void FDisplayClusterViewportPreviewMesh::ReleaseMeshComponent()
+void FDisplayClusterViewportPreviewMesh::Release(FDisplayClusterViewport& InViewport)
 {
-	if (UMeshComponent* MeshComponent = GetMeshComponent())
+	UMeshComponent* MeshComponent = GetMeshComponent();
+	if (!MeshComponent && MeshComponentPtr)
+	{
+		// The mesh was destroyed earlier, (re-running build scripts inside RootActor), but we need to update the new mesh component to.
+		MeshComponent = GetOrCreatePreviewMeshComponent(&InViewport, bIsRootActorMeshComponent);
+	}
+
+	if (MeshComponent)
 	{
 		EnumAddFlags(RuntimeFlags, EDisplayClusterViewportPreviewMeshFlags::HasDeletedMeshComponent);
 
@@ -112,11 +119,6 @@ void FDisplayClusterViewportPreviewMesh::ReleaseMeshComponent()
 	CurrentMaterialType = EDisplayClusterDisplayDeviceMaterialType::DefaultPreviewMeshMaterial;
 
 	// The material instance references the mesh, so it must also be deleted
-	ReleaseMaterialInstance();
-}
-
-void FDisplayClusterViewportPreviewMesh::ReleaseMaterialInstance()
-{
 	if (UMaterialInstanceDynamic* MaterialInstance = GetMaterialInstance())
 	{
 		EnumAddFlags(RuntimeFlags, EDisplayClusterViewportPreviewMeshFlags::HasDeletedMaterialInstance);

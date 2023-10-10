@@ -56,10 +56,7 @@ public:
 		: MeshType(InMeshType)
 	{ }
 
-	~FDisplayClusterViewportPreviewMesh()
-	{
-		Release();
-	}
+	~FDisplayClusterViewportPreviewMesh() = default;
 
 public:
 	/** Get preview mesh component. */
@@ -79,16 +76,11 @@ public:
 	/** Get default material. */
 	UMaterial* GetDefaultMaterial() const;
 
-
 	/** Update mesh component and materials for viewport. */
 	void Update(FDisplayClusterViewport& InViewport, UDisplayClusterDisplayDeviceBaseComponent& InDisplayDeviceComponent);
 
 	/** Release mesh component and materials for viewport. */
-	void Release()
-	{
-		ReleaseMeshComponent();
-		ReleaseMaterialInstance();
-	}
+	void Release(FDisplayClusterViewport& InViewport);
 
 	/** Returns true if the runtime flags have any of the input flags. */
 	bool HasAnyFlag(const EDisplayClusterViewportPreviewMeshFlags InMeshFlags) const
@@ -97,12 +89,6 @@ public:
 	}
 
 private:
-	/** Remove mesh component. */
-	void ReleaseMeshComponent();
-
-	/** Remove material instance. */
-	void ReleaseMaterialInstance();
-
 	/** Returns true if this mesh type is supported by the viewport projection policy and DCRA. */
 	bool ShouldUseMeshComponent(FDisplayClusterViewport& InViewport) const;
 

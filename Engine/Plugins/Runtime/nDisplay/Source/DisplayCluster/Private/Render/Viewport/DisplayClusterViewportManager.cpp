@@ -275,6 +275,9 @@ void FDisplayClusterViewportManager::HandleEndScene()
 {
 	check(IsInGameThread());
 
+	// Release preview from prev scene
+	ViewportManagerPreview->Release();
+
 	for (const TSharedPtr<FDisplayClusterViewport, ESPMode::ThreadSafe>& ViewportIt : ImplGetEntireClusterViewports())
 	{
 		if (ViewportIt.IsValid())
@@ -285,9 +288,6 @@ void FDisplayClusterViewportManager::HandleEndScene()
 
 	PostProcessManager->OnHandleEndScene();
 	LightCardManager->OnHandleEndScene();
-
-	// Release preview from prev scene
-	ViewportManagerPreview->Release();
 
 	Configuration->OnHandleEndScene();
 }

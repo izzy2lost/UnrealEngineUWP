@@ -21,7 +21,7 @@ class FDisplayClusterViewportPreview
 {
 public:
 	FDisplayClusterViewportPreview(const TSharedRef<FDisplayClusterViewportConfiguration, ESPMode::ThreadSafe>& InConfiguration, const FString& ViewportId);
-	virtual ~FDisplayClusterViewportPreview() = default;
+	virtual ~FDisplayClusterViewportPreview();
 
 public:
 	//~ BEGIN IDisplayClusterViewportPreview
