@@ -6,6 +6,7 @@
 #include "Containers/StringConv.h"
 #include "Containers/StringView.h"
 #include "HAL/PlatformTime.h"
+#include "IO/IoStoreOnDemand.h"
 #include "Misc/StringBuilder.h"
 #include "Templates/Function.h"
 
@@ -59,6 +60,10 @@ void LatencyTest(FStringView InUrl, FStringView InPath, uint32 InTimeOutMs, TArr
 
 		Result = int32((int64(Result) * 1000) / Freq);
 	}
+	
+	TAnsiStringBuilder<512> ConnectionDesc;
+	Pool.Describe(ConnectionDesc);
+	UE_LOG(LogIas, Log, TEXT("Testing endpoint %s"), ANSI_TO_TCHAR(ConnectionDesc.ToString()));
 }
 
 } // namespace UE::IO::IAS::HTTP

@@ -1486,6 +1486,27 @@ bool FConnectionPool::Resolve()
 }
 
 ////////////////////////////////////////////////////////////////////////////////
+void FConnectionPool::Describe(FAnsiStringBuilderBase& OutString) const
+{
+	const FAnsiStringView HostName = Ptr->GetHostName();
+	OutString.Appendf("%.*s", HostName.Len(), HostName.GetData());
+	if (!!Ptr->IsResolved())
+	{
+		const auto IpAddress = Ptr->GetIpAddress();
+		OutString.Appendf(" (%u.%u.%u.%u)",
+						(IpAddress >> 24) & 0xff,
+						(IpAddress >> 16) & 0xff,
+						(IpAddress >> 8) & 0xff,
+						IpAddress & 0xff
+		);
+	}
+	else
+	{
+		OutString.Append(" (unresolved)");
+	}
+}
+
+////////////////////////////////////////////////////////////////////////////////
 bool FConnectionPool::IsValidHostUrl(FAnsiStringView Url)
 {
 	FUrlOffsets Tmp;
