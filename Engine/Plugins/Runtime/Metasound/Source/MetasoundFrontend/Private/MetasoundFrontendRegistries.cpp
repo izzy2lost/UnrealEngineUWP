@@ -894,6 +894,12 @@ namespace Metasound
 
 		void FRegistryContainerImpl::WaitForAsyncRegistrationInternal(const FNodeRegistryKey& InRegistryKey, const FSoftObjectPath* InAssetPath) const
 		{
+			if (AsyncRegistrationPipe.IsInContext())
+			{
+				// It is not safe to wait for an async registration task from within the async registration pipe because it will result in a deadlock. 
+				return;
+			}
+
 			UE::Tasks::FTask ActiveRegistrationTask;
 			{
 				FScopeLock Lock(&ActiveRegistrationTasksCriticalSection);
