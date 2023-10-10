@@ -388,8 +388,6 @@ public:
 
 #if RDG_DUMP_RESOURCES
 	static RENDERCORE_API FString BeginResourceDump(const TCHAR* Cmd);
-	static RENDERCORE_API void InitResourceDump();
-	static RENDERCORE_API void EndResourceDump();
 	static RENDERCORE_API bool IsDumpingFrame();
 #else
 	static bool IsDumpingFrame() { return false; }

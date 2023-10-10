@@ -15,6 +15,7 @@
 #include "Components/SceneCaptureComponent2D.h"
 #include "Components/SceneCaptureComponentCube.h"
 #include "DeferredShadingRenderer.h"
+#include "DumpGPU.h"
 #include "DynamicPrimitiveDrawing.h"
 #include "RenderTargetTemp.h"
 #include "RendererModule.h"
@@ -2563,6 +2564,13 @@ FSceneRenderer::FSceneRenderer(const FSceneViewFamily* InViewFamily, FHitProxyCo
 
 #if !UE_BUILD_SHIPPING
 		if (CVarTestCameraCut.GetValueOnGameThread())
+		{
+			ViewInfo->bCameraCut = true;
+		}
+#endif
+
+#if WITH_DUMPGPU
+		if (UE::RenderCore::DumpGPU::ShouldCameraCut())
 		{
 			ViewInfo->bCameraCut = true;
 		}

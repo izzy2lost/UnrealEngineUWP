@@ -189,7 +189,7 @@
 	#include "RenderUtils.h"
 	#include "DynamicResolutionState.h"
 	#include "EngineModule.h"
-	#include "RenderGraphBuilder.h"
+	#include "DumpGPU.h"
 
 #if !UE_SERVER
 	#include "AppMediaTimeSource.h"
@@ -5825,11 +5825,6 @@ void FEngineLoop::Tick()
             }
 		}
 		
-		// init for RDG resource dump
-		#if WITH_ENGINE && WITH_DUMPGPU
-			FRDGBuilder::InitResourceDump();
-		#endif
-
 		// main game engine tick (world, game objects, etc.)
 		GEngine->Tick(FApp::GetDeltaTime(), bIdleMode);
 
@@ -6105,9 +6100,9 @@ void FEngineLoop::Tick()
 
 		FCoreDelegates::OnEndFrame.Broadcast();
 
-		// end of RDG resource dump
+		// Tick DumpGPU to start/stop frame dumps
 		#if WITH_ENGINE && WITH_DUMPGPU
-			FRDGBuilder::EndResourceDump();
+			UE::RenderCore::DumpGPU::TickEndFrame();
 		#endif
 
 		#if !UE_SERVER && WITH_ENGINE
