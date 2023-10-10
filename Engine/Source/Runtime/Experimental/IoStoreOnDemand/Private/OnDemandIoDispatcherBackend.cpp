@@ -931,6 +931,12 @@ static TUniquePtr<FArchive> CreateReaderFromPlatformPackage(const FString& RelPa
 	IFileHandle* File = IPlatformFile::GetPlatformPhysical().OpenRead(*AbsPath);
 	if (File)
 	{
+#if PLATFORM_ANDROID
+		// This is a handle to an asset so we need to call Seek(0) to move the internal
+		// offset to the start of the asset file.
+		File->Seek(0);
+#endif //PLATFORM_ANDROID
+
 		return MakeUnique<FArchiveFileReaderGeneric>(File, *AbsPath, File->Size());
 	}
 	else
@@ -958,6 +964,11 @@ static TIoStatusOr<FOnDemandToc> GenerateOnDemandTocFromDisk(FStringView TocHash
 		if (FPlatformMisc::FileExistsInPlatformPackage(TocPath))
 		{	
 			TUniquePtr<FArchive> Ar = CreateReaderFromPlatformPackage(TocPath);
+			if (!Ar.IsValid())
+			{
+				return FIoStatus(EIoErrorCode::ReadError, WriteToString<256>(TEXT("Failed to open '"), TocPath, TEXT("' from disk")));
+			}
+
 			*Ar << OutToc;
 
 			Ar->Close();
@@ -969,7 +980,7 @@ static TIoStatusOr<FOnDemandToc> GenerateOnDemandTocFromDisk(FStringView TocHash
 			}
 			else
 			{
-				return FIoStatus(EIoErrorCode::ReadError, WriteToString<256>(TEXT("Failed to open '"), TocPath, TEXT("' from disk")));
+				return FIoStatus(EIoErrorCode::ReadError, WriteToString<256>(TEXT("Failed to serialize '"), TocPath, TEXT("' from disk")));
 			}
 		}
 		else
