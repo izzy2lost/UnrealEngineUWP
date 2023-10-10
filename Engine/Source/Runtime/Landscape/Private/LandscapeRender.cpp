@@ -3370,7 +3370,6 @@ IMPLEMENT_VERTEX_FACTORY_TYPE(FLandscapeVertexFactory, "/Engine/Private/Landscap
 	| EVertexFactoryFlags::SupportsLightmapBaking
 	| EVertexFactoryFlags::SupportsPrimitiveIdStream
 	| EVertexFactoryFlags::SupportsPSOPrecaching
-	| EVertexFactoryFlags::SupportsLumenMeshCards
 	| EVertexFactoryFlags::SupportsLandscape
 );
 
@@ -3447,6 +3446,7 @@ IMPLEMENT_VERTEX_FACTORY_TYPE(FLandscapeFixedGridVertexFactory, "/Engine/Private
 	| EVertexFactoryFlags::SupportsLightmapBaking
 	| EVertexFactoryFlags::SupportsPrimitiveIdStream
 	| EVertexFactoryFlags::SupportsPSOPrecaching
+	| EVertexFactoryFlags::SupportsLumenMeshCards
 	| EVertexFactoryFlags::SupportsLandscape
 );
 
