@@ -32,6 +32,18 @@ FString FNetworkPlatformFile::BulkFileExtension = TEXT(".ubulk");
 FString FNetworkPlatformFile::ExpFileExtension = TEXT(".uexp");
 FString FNetworkPlatformFile::FontFileExtension = TEXT(".ufont");
 
+// These are marked unsafe because they do not work with Programs. However, COTF is unlikely to be used with Programs
+// These are also temporary until some issues can be debugged
+static FString UnsafeEnginePlatformExtensionDir()
+{
+	return FPaths::EnginePlatformExtensionDir(TEXT("")).TrimChar('/');
+}
+
+static FString UnsafeProjectPlatformExtensionDir()
+{
+	return FPaths::ProjectPlatformExtensionDir(TEXT("")).TrimChar('/');
+}
+
 FNetworkPlatformFile::FNetworkPlatformFile()
 	: bHasLoadedDDCDirectories(false)
 	, InnerPlatformFile(NULL)
@@ -794,19 +806,17 @@ void FNetworkPlatformFile::FillGetFileList(FNetworkFileArchive& Payload)
 		GameName = FPaths::GetProjectFilePath();
 	}
 
-	FString IniPlatformName = FPlatformProperties::IniPlatformName();
 	FString EngineRelPath = FPaths::EngineDir();
 	FString EngineRelPluginPath = FPaths::EnginePluginsDir();
 	FString GameRelPath = FPaths::ProjectDir();
 	FString GameRelPluginPath = FPaths::ProjectPluginsDir();
-	FString EnginePlatformExtensionsDir = FPaths::EnginePlatformExtensionDir(*IniPlatformName);
-	FString ProjectPlatformExtensionsDir = FPaths::ProjectPlatformExtensionDir(*IniPlatformName);
+	FString EnginePlatformExtensionsDir = UnsafeEnginePlatformExtensionDir();
+	FString ProjectPlatformExtensionsDir = UnsafeProjectPlatformExtensionDir();
 
 	TArray<FString> Directories;
 	Directories.Add(EngineRelPath);
 	Directories.Add(GameRelPath);
 
-	Payload << IniPlatformName;
 	Payload << TargetPlatformNames;
 	Payload << GameName;
 	Payload << EngineRelPath;
@@ -843,15 +853,14 @@ void FNetworkPlatformFile::ProcessServerInitialResponse(FArrayReader& InResponse
 	InResponse << ServerEnginePlatformExtensionsDir;
 	InResponse << ServerProjectPlatformExtensionsDir;
 
-	FString IniPlatformName = FPlatformProperties::IniPlatformName();
 	UE_LOG(LogNetworkPlatformFile, Display, TEXT("    Server EngineDir      = %s"), *ServerEngineDir);
 	UE_LOG(LogNetworkPlatformFile, Display, TEXT("     Local EngineDir      = %s"), *FPaths::EngineDir());
 	UE_LOG(LogNetworkPlatformFile, Display, TEXT("    Server ProjectDir     = %s"), *ServerProjectDir);
 	UE_LOG(LogNetworkPlatformFile, Display, TEXT("     Local ProjectDir     = %s"), *FPaths::ProjectDir());
 	UE_LOG(LogNetworkPlatformFile, Display, TEXT("    Server EnginePlatformExtDir = %s"), *ServerEnginePlatformExtensionsDir);
-	UE_LOG(LogNetworkPlatformFile, Display, TEXT("     Local EnginePlatformExtDir = %s"), *FPaths::EnginePlatformExtensionDir(*IniPlatformName));
+	UE_LOG(LogNetworkPlatformFile, Display, TEXT("     Local EnginePlatformExtDir = %s"), *UnsafeEnginePlatformExtensionDir());
 	UE_LOG(LogNetworkPlatformFile, Display, TEXT("    Server ProjectPlatformExtDir = %s"), *ServerProjectPlatformExtensionsDir);
-	UE_LOG(LogNetworkPlatformFile, Display, TEXT("     Local ProjectPlatformExtDir = %s"), *FPaths::ProjectPlatformExtensionDir(*IniPlatformName));
+	UE_LOG(LogNetworkPlatformFile, Display, TEXT("     Local ProjectPlatformExtDir = %s"), *UnsafeProjectPlatformExtensionDir());
 
 	// Receive a list of files and their timestamps.
 	TMap<FString, FDateTime> ServerFileMap;
@@ -1482,13 +1491,11 @@ void FNetworkPlatformFile::ConvertServerFilenameToClientFilename(FString& Filena
 	}
 	else if (FilenameToConvert.StartsWith(InServerEnginePlatformExtensionsDir))
 	{
-		FString IniPlatformName(FPlatformProperties::IniPlatformName());
-		FilenameToConvert = FilenameToConvert.Replace(*InServerEnginePlatformExtensionsDir, *(FPaths::EnginePlatformExtensionDir(*IniPlatformName)));
+		FilenameToConvert = FilenameToConvert.Replace(*InServerEnginePlatformExtensionsDir, *(UnsafeEnginePlatformExtensionDir()));
 	}
 	else if (FilenameToConvert.StartsWith(InServerProjectPlatformExtensionsDir))
 	{
-		FString IniPlatformName(FPlatformProperties::IniPlatformName());
-		FilenameToConvert = FilenameToConvert.Replace(*InServerProjectPlatformExtensionsDir, *(FPaths::ProjectPlatformExtensionDir(*IniPlatformName)));
+		FilenameToConvert = FilenameToConvert.Replace(*InServerProjectPlatformExtensionsDir, *(UnsafeProjectPlatformExtensionDir()));
 	}
 }
 

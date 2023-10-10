@@ -188,10 +188,7 @@ protected:
 	
 private:
 
-	// Hold the ini name of the currently connected platform.
-	FString ConnectedIniPlatformName;
-
-	// Hold the name of the currently connected target platform.
+	// Hold the name of the currently connected platform.
 	FString ConnectedPlatformName;
 
 	// Hold the ip address of the currently connected platform.
