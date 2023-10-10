@@ -55,18 +55,16 @@ DECLARE_LLM_MEMORY_STAT(TEXT("Nanite"), STAT_NaniteLLM, STATGROUP_LLMFULL);
 DECLARE_LLM_MEMORY_STAT(TEXT("Nanite"), STAT_NaniteSummaryLLM, STATGROUP_LLM);
 LLM_DEFINE_TAG(Nanite, NAME_None, NAME_None, GET_STATFNAME(STAT_NaniteLLM), GET_STATFNAME(STAT_NaniteSummaryLLM));
 
-// TODO: Heavily work in progress / experimental - do not use!
 static TAutoConsoleVariable<int32> CVarNaniteAllowComputeMaterials(
 	TEXT("r.Nanite.AllowComputeMaterials"),
-	0, // Off by default
-	TEXT("Whether to enable support for (highly experimental) Nanite compute materials"),
+	1,
+	TEXT("Whether to enable support for Nanite compute materials"),
 	ECVF_RenderThreadSafe | ECVF_ReadOnly);
 
-// TODO: Heavily work in progress / experimental - do not use!
 static TAutoConsoleVariable<int32> CVarNaniteUseComputeMaterials(
 	TEXT("r.Nanite.ComputeMaterials"),
-	0, // Off by default
-	TEXT("Whether to enable (highly experimental) Nanite compute materials"),
+	1,
+	TEXT("Whether to enable Nanite compute materials"),
 	FConsoleVariableDelegate::CreateLambda([](IConsoleVariable* InVariable)
 	{
 		// Force recaching of Nanite draw commands when toggled.
