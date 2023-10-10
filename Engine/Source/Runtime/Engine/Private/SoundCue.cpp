@@ -383,8 +383,22 @@ void USoundCue::PostEditChangeProperty(struct FPropertyChangedEvent& PropertyCha
 		{
 			if (It->Sound == this && It->IsActive())
 			{
-				It->Stop();
-				It->Play();
+				// Allow attenuation overrides not update without stopping
+				if (PropertyChangedEvent.MemberProperty->GetFName() == GET_MEMBER_NAME_STRING_CHECKED(USoundCue, AttenuationOverrides))
+				{
+					It->SetAttenuationOverrides(AttenuationOverrides);
+				}
+				else if (PropertyChangedEvent.MemberProperty->GetFName() == GET_MEMBER_NAME_STRING_CHECKED(USoundCue, bOverrideAttenuation))
+				{
+					It->SetAttenuationOverrides(AttenuationOverrides);
+					It->SetOverrideAttenuation(bOverrideAttenuation);
+				}
+				else
+				{
+					It->Stop();
+					It->Play();
+				}
+
 			}
 		}
 

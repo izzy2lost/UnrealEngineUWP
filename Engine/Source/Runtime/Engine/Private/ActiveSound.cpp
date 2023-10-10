@@ -52,6 +52,7 @@ FActiveSound::FActiveSound()
 	, WorldID(0)
 	, Sound(nullptr)
 	, SourceEffectChain(nullptr)
+	, SoundAttenuation(nullptr)
 	, AudioComponentID(0)
 	, OwnerID(0)
 	, PlayOrder(INDEX_NONE)
@@ -98,6 +99,7 @@ FActiveSound::FActiveSound()
 	, bIsFirstAttenuationUpdate(true)
 	, bStartedWithinNonBinauralRadius(false)
 	, bModulationRoutingUpdated(false)
+	, bIsAttenuationSettingsOverridden(false)
 	, UserIndex(0)
 	, FadeOut(EFadeOut::None)
 	, bIsOccluded(false)
@@ -225,6 +227,8 @@ void FActiveSound::AddReferencedObjects(FReferenceCollector& Collector)
 		Sound->SourceEffectChain->AddReferencedEffects(Collector);
 	}
 
+	Collector.AddReferencedObject(SoundAttenuation);
+
 	for (auto& Concurrency : ConcurrencySet)
 	{
 		if (Concurrency)
@@ -290,6 +294,16 @@ void FActiveSound::SetSoundClass(USoundClass* SoundClass)
 	SoundClassOverride = SoundClass;
 	bApplyInteriorVolumes = (SoundClassOverride && SoundClassOverride->Properties.bApplyAmbientVolumes)
 		|| (Sound && Sound->ShouldApplyInteriorVolumes());
+}
+
+void FActiveSound::SetAttenuationSettingsAsset(TObjectPtr<USoundAttenuation> InSoundAttenuation)
+{
+	SoundAttenuation = InSoundAttenuation;
+}
+
+void FActiveSound::SetAttenuationSettingsOverride(bool bInattenuationSettingsOverride)
+{
+	bIsAttenuationSettingsOverridden = bInattenuationSettingsOverride;
 }
 
 bool FActiveSound::IsPlayWhenSilent() const
@@ -1425,7 +1439,14 @@ void FActiveSound::CollectAttenuationShapesForVisualization(TMultiMap<EAttenuati
 
 	if (bHasAttenuationSettings)
 	{
-		AttenuationSettings.CollectAttenuationShapesForVisualization(ShapeDetailsMap);
+		if (bIsAttenuationSettingsOverridden)
+		{
+			AttenuationSettings.CollectAttenuationShapesForVisualization(ShapeDetailsMap);
+		}
+		else if (SoundAttenuation)
+		{
+			SoundAttenuation->Attenuation.CollectAttenuationShapesForVisualization(ShapeDetailsMap);
+		}
 	}
 
 	// For sound cues we'll dig in and see if we can find any attenuation sound nodes that will affect the settings
@@ -1640,8 +1661,25 @@ void FActiveSound::UpdateAttenuation(float DeltaTime, FSoundParseParameters& Par
 
 void FActiveSound::UpdateAttenuation(float DeltaTime, FSoundParseParameters& ParseParams, int32 ListenerIndex, const FSoundAttenuationSettings* SettingsAttenuationNode)
 {
+	const FSoundAttenuationSettings* Settings = nullptr;
+
 	// Get the attenuation settings to use for this application to the active sound
-	const FSoundAttenuationSettings* Settings = SettingsAttenuationNode ? SettingsAttenuationNode : &AttenuationSettings;
+	// Use the passed-in attenuation settings
+	if (SettingsAttenuationNode)
+	{
+		Settings = SettingsAttenuationNode;
+	}
+	// We use the copied off "overridden" settings
+	else if (bIsAttenuationSettingsOverridden)
+	{
+		Settings = &AttenuationSettings;
+	}
+	// We fallback to using the asset's settings directly
+	else if (SoundAttenuation)
+	{
+		Settings = &SoundAttenuation->Attenuation;
+	}
+
 	if (!Settings)
 	{
 		UE_LOG(LogAudio, Warning, TEXT("No attenuation settings found for active sound."));

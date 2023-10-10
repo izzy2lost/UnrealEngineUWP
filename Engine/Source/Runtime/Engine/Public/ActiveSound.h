@@ -289,6 +289,7 @@ private:
 
 	TObjectPtr<USoundBase> Sound;
 	TObjectPtr<USoundEffectSourcePresetChain> SourceEffectChain;
+	TObjectPtr<USoundAttenuation> SoundAttenuation;
 
 	uint64 AudioComponentID;
 	FName AudioComponentUserID;
@@ -342,6 +343,10 @@ public:
 	ENGINE_API void SetSourceEffectChain(USoundEffectSourcePresetChain* InSourceEffectChain);
 
 	ENGINE_API void SetSoundClass(USoundClass* SoundClass);
+
+	ENGINE_API void SetAttenuationSettingsAsset(TObjectPtr<USoundAttenuation> InSoundAttenuation);
+
+	ENGINE_API void SetAttenuationSettingsOverride(bool bInIsAttenuationSettingsOverridden);
 
 	void SetAudioDevice(FAudioDevice* InAudioDevice)
 	{
@@ -527,6 +532,9 @@ public:
 	uint8 bStartedWithinNonBinauralRadius : 1;
 
 	uint8 bModulationRoutingUpdated : 1;
+
+	/** If this is true the active sound uses the overridden struct of the sound not the attenuation settings asset. */
+	uint8 bIsAttenuationSettingsOverridden : 1;
 
 	uint8 UserIndex;
 

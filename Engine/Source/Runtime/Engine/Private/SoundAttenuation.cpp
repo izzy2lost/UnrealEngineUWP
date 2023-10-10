@@ -155,6 +155,7 @@ USoundAttenuation::USoundAttenuation(const FObjectInitializer& ObjectInitializer
 {
 }
 
+
 #define LOCTEXT_NAMESPACE "AudioParameterInterface"
 #define AUDIO_PARAMETER_INTERFACE_NAMESPACE "UE.Attenuation"
 namespace Audio
