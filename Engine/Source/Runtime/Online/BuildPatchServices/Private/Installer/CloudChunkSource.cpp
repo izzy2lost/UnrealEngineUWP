@@ -17,6 +17,7 @@
 #include "Installer/MessagePump.h"
 #include "Common/StatsCollector.h"
 #include "Interfaces/IBuildInstaller.h"
+#include "Interfaces/IBuildInstallerSharedContext.h"
 #include "BuildPatchUtil.h"
 #include "Installer/Statistics/DownloadServiceStatistics.h"
 
@@ -173,6 +174,7 @@ namespace BuildPatchServices
 		const TSet<FGuid> InitialDownloadSet;
 		TPromise<void> Promise;
 		TFuture<void> Future;
+		IBuildInstallerThread* Thread = nullptr;
 		FDownloadProgressDelegate OnDownloadProgressDelegate;
 		FDownloadCompleteDelegate OnDownloadCompleteDelegate;
 
@@ -240,6 +242,7 @@ namespace BuildPatchServices
 		, InitialDownloadSet(MoveTemp(InInitialDownloadSet))
 		, Promise()
 		, Future()
+		, Thread(nullptr)
 		, OnDownloadProgressDelegate(FDownloadProgressDelegate::CreateThreadSafeSP(DownloadDelegates, &FDownloadDelegates::OnDownloadProgress))
 		, OnDownloadCompleteDelegate(FDownloadCompleteDelegate::CreateThreadSafeSP(DownloadDelegates, &FDownloadDelegates::OnDownloadComplete))
 		, CyclesAtLastData(0)
@@ -251,14 +254,12 @@ namespace BuildPatchServices
 		, RequestedDownloads()
 		, DownloadCount(InDownloadConnectionCount)
 	{
+		Future = Promise.GetFuture();
 		if (Configuration.bRunOwnThread)
 		{
-			TFunction<void()> Task = [this]() { return ThreadRun(); };
-			Future = Async(EAsyncExecution::ThreadIfForkSafe, MoveTemp(Task));
-		}
-		else
-		{
-			Future = Promise.GetFuture();
+			check(Configuration.SharedContext);
+			Thread = Configuration.SharedContext->CreateThread();
+			Thread->RunTask([this]() { ThreadRun(); });
 		}
 	}
 
@@ -266,6 +267,12 @@ namespace BuildPatchServices
 	{
 		bShouldAbort = true;
 		Future.Wait();
+
+		if (Thread)
+		{
+			Configuration.SharedContext->ReleaseThread(Thread);
+			Thread = nullptr;
+		}
 	}
 
 	void FCloudChunkSource::SetPaused(bool bInIsPaused)

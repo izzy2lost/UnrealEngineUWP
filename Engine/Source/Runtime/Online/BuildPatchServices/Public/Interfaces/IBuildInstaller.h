@@ -303,7 +303,6 @@ namespace BuildPatchServices
 	struct FBuildInstallerConfiguration;
 }
 
-
 /**
  * Interface to a Build Installer, exposes installation control, progress, and state information.
  */

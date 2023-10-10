@@ -13,6 +13,7 @@
 #include "CoreMinimal.h"
 #include "HAL/Platform.h"
 #include "Interfaces/IBuildManifest.h"
+#include "Interfaces/IBuildInstallerSharedContext.h"
 #include "Misc/Variant.h"
 #include "Templates/UnrealTemplate.h"
 
@@ -255,19 +256,11 @@ namespace BuildPatchServices
 		 */
 		BUILDPATCHSERVICES_API FBuildInstallerConfiguration(TArray<FInstallerAction> InstallerActions);
 
-		/**
-		 * Copy constructor.
-		 */
-		BUILDPATCHSERVICES_API FBuildInstallerConfiguration(const FBuildInstallerConfiguration& CopyFrom);
-
-		/**
-		 * RValue constructor to allow move semantics.
-		 */
-		BUILDPATCHSERVICES_API FBuildInstallerConfiguration(FBuildInstallerConfiguration&& MoveFrom);
-
 	public:
 		// The array of intended actions to perform.
 		TArray<FInstallerAction> InstallerActions;
+		// The context for allocating shared resources.
+		IBuildInstallerSharedContextPtr SharedContext;
 		// The directory to install to.
 		FString InstallDirectory;
 		// The directory for storing the intermediate files. This would usually be inside the InstallDirectory. Empty string will use module's global setting.

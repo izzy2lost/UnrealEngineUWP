@@ -65,7 +65,7 @@ namespace BuildPatchServices
 		FGuid SessionId;
 
 		// Hold a pointer to my thread for easier deleting.
-		FRunnableThread* Thread;
+		IBuildInstallerThread* Thread;
 
 		// The delegates that we will be calling when started.
 		const FBuildPatchInstallerDelegate StartDelegate;
@@ -74,7 +74,7 @@ namespace BuildPatchServices
 		const FBuildPatchInstallerDelegate CompleteDelegate;
 
 		// The installer configuration.
-		const FBuildInstallerConfiguration Configuration;
+		FBuildInstallerConfiguration Configuration;
 
 		// The Configuration.InstallerActions array converted into private class type.
 		TArray<FBuildPatchInstallerAction> InstallerActions;
@@ -262,11 +262,6 @@ namespace BuildPatchServices
 		 * Tick function called from the module to give us game thread time.
 		 */
 		bool Tick();
-
-		/**
-		 * Only returns once the thread has finished running.
-		 */
-		void WaitForThread() const;
 
 		/**
 		 * Called by the module during shutdown.

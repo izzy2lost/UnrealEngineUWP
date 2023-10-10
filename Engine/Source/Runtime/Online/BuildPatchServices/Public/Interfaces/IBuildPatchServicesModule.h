@@ -54,6 +54,13 @@ public:
 	virtual IBuildInstallerRef CreateBuildInstaller(BuildPatchServices::FBuildInstallerConfiguration Configuration, FBuildPatchInstallerDelegate OnComplete) const = 0;
 
 	/**
+	 * Factory providing construction of a build installer shared context class.
+	 * @param DebugName          Used to tag resources allocated with the shared context.
+	 * @return an instance of an IBuildInstallerSharedContex implementation.
+	 */
+	virtual IBuildInstallerSharedContextRef CreateBuildInstallerSharedContext(const TCHAR* DebugName) const = 0;
+
+	/**
 	 * Factory providing construction of a build statistics class.
 	 * @param Installer     The installer to create a build statistics for.
 	 * @return an instance of an IBuildStatistics implementation. 

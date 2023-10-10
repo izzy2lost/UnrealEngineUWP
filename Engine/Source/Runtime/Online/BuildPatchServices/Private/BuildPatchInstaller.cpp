@@ -39,6 +39,7 @@
 #include "Installer/Verifier.h"
 #include "Installer/FileAttribution.h"
 #include "Installer/InstallerAnalytics.h"
+#include "Installer/InstallerSharedContext.h"
 #include "Installer/Prerequisites.h"
 #include "Installer/MachineConfig.h"
 #include "Installer/MessagePump.h"
@@ -502,6 +503,14 @@ namespace BuildPatchServices
 		}
 
 		ChunkDataSizeProvider->AddManifestData(Manifests);
+
+		if (!Configuration.SharedContext)
+		{
+			Configuration.SharedContext = FBuildInstallerSharedContextFactory::Create(TEXT("BuildPatchInstaller"));
+			const bool bUseChunkDBs = !Configuration.ChunkDatabaseFiles.IsEmpty();
+			const uint32 NumExpectedThreads = Configuration.SharedContext->NumThreadsPerInstaller(bUseChunkDBs);
+			Configuration.SharedContext->PreallocateThreads(NumExpectedThreads);
+		}
 	}
 
 	FBuildPatchInstaller::~FBuildPatchInstaller()
@@ -608,19 +617,8 @@ namespace BuildPatchServices
 		if (Thread == nullptr)
 		{
 			// Start thread!
-			const TCHAR* ThreadName = TEXT("BuildPatchInstallerThread");
-
-			// Ideally this would check if we were forkable or a forked child process but there is 
-			// currently no in-engine way to check that.  Since BPS does not currently support
-			// FRunnableThread::ThreadType::Fake or FRunnableThread::ThreadType::Forkable 
-			// this check ends up being equivalent for now.  We most likely *never* want support 
-			// forking while an installer is running.
-			if (FPlatformProcess::SupportsMultithreading() || FForkProcessHelper::IsForkedMultithreadInstance())
-			{
-				Thread = FForkProcessHelper::CreateForkableThread(this, ThreadName);
-				check(Thread != nullptr);
-				check(Thread->GetThreadType() == FRunnableThread::ThreadType::Real);
-			}
+			Thread = Configuration.SharedContext->CreateThread();
+			Thread->RunTask([this]{ Run(); });
 
 			StartDelegate.ExecuteIfBound(AsShared());
 		}
@@ -992,6 +990,8 @@ namespace BuildPatchServices
 	{
 		FChunkDbSourceConfig ChunkDbSourceConfig(Configuration.ChunkDatabaseFiles);
 
+		ChunkDbSourceConfig.SharedContext = Configuration.SharedContext.Get();
+
 		// Load batch fetch config.
 		GConfig->GetInt(TEXT("Portal.BuildPatch"), TEXT("ChunkDbSourcePreFetchMinimum"), ChunkDbSourceConfig.PreFetchMinimum, GEngineIni);
 		GConfig->GetInt(TEXT("Portal.BuildPatch"), TEXT("ChunkDbSourcePreFetchMaximum"), ChunkDbSourceConfig.PreFetchMaximum, GEngineIni);
@@ -1022,6 +1022,8 @@ namespace BuildPatchServices
 	FCloudSourceConfig FBuildPatchInstaller::BuildCloudSourceConfig()
 	{
 		FCloudSourceConfig CloudSourceConfig(Configuration.CloudDirectories);
+
+		CloudSourceConfig.SharedContext = Configuration.SharedContext.Get();
 
 		// Load max download retry count from engine config.
 		GConfig->GetInt(TEXT("Portal.BuildPatch"), TEXT("ChunkRetries"), CloudSourceConfig.MaxRetryCount, GEngineIni);
@@ -1286,21 +1288,20 @@ namespace BuildPatchServices
 			TSet<FGuid> ReferencedChunks = ChunkReferenceTracker->GetReferencedChunks();
 			TUniquePtr<IChunkEvictionPolicy> MemoryEvictionPolicy(FChunkEvictionPolicyFactory::Create(
 				ChunkReferenceTracker.Get()));
+			TUniquePtr<IDiskChunkStore> DiskOverflowStore;
 #if ENABLE_PATCH_DISK_OVERFLOW_STORE
-			TUniquePtr<IDiskChunkStore> DiskOverflowStore(FDiskChunkStoreFactory::Create(
+			FDiskChunkStoreConfig DiskChunkStoreConfig(DataStagingDir);
+			DiskChunkStoreConfig.SharedContext = Configuration.SharedContext.Get();
+			DiskOverflowStore.Reset(FDiskChunkStoreFactory::Create(
 				FileSystem.Get(),
 				ChunkDataSerialization.Get(),
 				DiskChunkStoreStatistics.Get(),
-				FDiskChunkStoreConfig(DataStagingDir)));
+				MoveTemp(DiskChunkStoreConfig)));
 #endif // ENABLE_PATCH_DISK_OVERFLOW_STORE
 			TUniquePtr<IMemoryChunkStore> CloudChunkStore(FMemoryChunkStoreFactory::Create(
 				ChunkStoreMemorySize,
 				MemoryEvictionPolicy.Get(),
-#if ENABLE_PATCH_DISK_OVERFLOW_STORE
 				DiskOverflowStore.Get(),
-#else
-				nullptr,
-#endif // ENABLE_PATCH_DISK_OVERFLOW_STORE
 				MemoryChunkStoreStatistics.Get()));
 			TUniquePtr<IChunkDbChunkSource> ChunkDbChunkSource(FChunkDbChunkSourceFactory::Create(
 				BuildChunkDbSourceConfig(),
@@ -1321,7 +1322,7 @@ namespace BuildPatchServices
 				InstallChunkSourceStatistics.Get(),
 				InstallationInfo,
 				ManifestSet.Get()));
-			const TSet<FGuid> InitialDownloadChunks = ReferencedChunks.Difference(InstallChunkSource->GetAvailableChunks()).Difference(ChunkDbChunkSource->GetAvailableChunks());
+			TSet<FGuid> InitialDownloadChunks = ReferencedChunks.Difference(InstallChunkSource->GetAvailableChunks()).Difference(ChunkDbChunkSource->GetAvailableChunks());
 			FileOperationTracker->OnDataStateUpdate(ReferencedChunks.Intersect(ChunkDbChunkSource->GetAvailableChunks()), EFileOperationState::PendingLocalChunkDbData);
 			FileOperationTracker->OnDataStateUpdate(ReferencedChunks.Intersect(InstallChunkSource->GetAvailableChunks()).Difference(ChunkDbChunkSource->GetAvailableChunks()), EFileOperationState::PendingLocalInstallData);
 			FileOperationTracker->OnDataStateUpdate(InitialDownloadChunks, EFileOperationState::PendingRemoteCloudData);
@@ -1338,7 +1339,7 @@ namespace BuildPatchServices
 				DownloadConnectionCount.Get(),
 				CloudChunkSourceStatistics.Get(),
 				ManifestSet.Get(),
-				InitialDownloadChunks));
+				MoveTemp(InitialDownloadChunks)));
 			TArray<IChunkSource*> ChunkSources;
 			ChunkSources.Add(ChunkDbChunkSource.Get());
 			ChunkSources.Add(InstallChunkSource.Get());
@@ -1850,12 +1851,8 @@ namespace BuildPatchServices
 
 	void FBuildPatchInstaller::CleanupThread()
 	{
-		if (Thread != nullptr)
-		{
-			Thread->WaitForCompletion();
-			delete Thread;
-			Thread = nullptr;
-		}
+		Configuration.SharedContext->ReleaseThread(Thread);
+		Thread = nullptr;
 	}
 
 	double FBuildPatchInstaller::GetDownloadSpeed() const
@@ -2119,13 +2116,5 @@ namespace BuildPatchServices
 	{
 		check(IsInGameThread());
 		MessagePump->PumpMessages();
-	}
-
-	void FBuildPatchInstaller::WaitForThread() const
-	{
-		if (Thread != nullptr)
-		{
-			Thread->WaitForCompletion();
-		}
 	}
 }

@@ -155,38 +155,6 @@ namespace BuildPatchServices
 	{
 	}
 
-	FBuildInstallerConfiguration::FBuildInstallerConfiguration(FBuildInstallerConfiguration&& MoveFrom)
-		: InstallerActions(MoveTemp(MoveFrom.InstallerActions))
-		, InstallDirectory(MoveTemp(MoveFrom.InstallDirectory))
-		, StagingDirectory(MoveTemp(MoveFrom.StagingDirectory))
-		, BackupDirectory(MoveTemp(MoveFrom.BackupDirectory))
-		, ChunkDatabaseFiles(MoveTemp(MoveFrom.ChunkDatabaseFiles))
-		, CloudDirectories(MoveTemp(MoveFrom.CloudDirectories))
-		, InstallMode(MoveFrom.InstallMode)
-		, VerifyMode(MoveFrom.VerifyMode)
-		, DeltaPolicy(MoveFrom.DeltaPolicy)
-		, bRunRequiredPrereqs(MoveFrom.bRunRequiredPrereqs)
-		, bAllowConcurrentExecution(MoveFrom.bAllowConcurrentExecution)
-		, bTrackFileOperations(MoveFrom.bTrackFileOperations)
-	{
-	}
-
-	FBuildInstallerConfiguration::FBuildInstallerConfiguration(const FBuildInstallerConfiguration& CopyFrom)
-		: InstallerActions(CopyFrom.InstallerActions)
-		, InstallDirectory(CopyFrom.InstallDirectory)
-		, StagingDirectory(CopyFrom.StagingDirectory)
-		, BackupDirectory(CopyFrom.BackupDirectory)
-		, ChunkDatabaseFiles(CopyFrom.ChunkDatabaseFiles)
-		, CloudDirectories(CopyFrom.CloudDirectories)
-		, InstallMode(CopyFrom.InstallMode)
-		, VerifyMode(CopyFrom.VerifyMode)
-		, DeltaPolicy(CopyFrom.DeltaPolicy)
-		, bRunRequiredPrereqs(CopyFrom.bRunRequiredPrereqs)
-		, bAllowConcurrentExecution(CopyFrom.bAllowConcurrentExecution)
-		, bTrackFileOperations(CopyFrom.bTrackFileOperations)
-	{
-	}
-
 	FChunkBuildConfiguration::FChunkBuildConfiguration()
 		: FeatureLevel(EFeatureLevel::Latest)
 		, AppId(0)
