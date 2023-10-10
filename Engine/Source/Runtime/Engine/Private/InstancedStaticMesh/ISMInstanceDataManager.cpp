@@ -598,6 +598,15 @@ bool FPrimitiveInstanceDataManager::FlushChanges(FInstanceUpdateComponentDesc &&
 	EShaderPlatform ShaderPlatform = ComponentData.PrimitiveSceneProxy->GetScene().GetShaderPlatform();
 	ERHIFeatureLevel::Type FeatureLevel = ComponentData.PrimitiveSceneProxy->GetScene().GetFeatureLevel();
 	check(Proxy->CheckPlatformFeatureLevel(ShaderPlatform, FeatureLevel));
+	
+	// BandAid: This is the first flush & we have not been informed correctly about the number of instances in the ISM so we need to patch that up here and now.
+	if (bFirstFlush && GetMaxInstanceIndex() == 0 && ComponentData.NumSourceInstances != 0)
+	{
+		IdToIndexMap.Reset();
+		IndexToIdMap.Reset();
+		NumInstances = ComponentData.NumSourceInstances;
+	}
+	bFirstFlush = false;
 
 
 	bool bWasUpdateQueued = false;

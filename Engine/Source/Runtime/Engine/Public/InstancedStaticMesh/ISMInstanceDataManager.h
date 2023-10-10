@@ -210,4 +210,5 @@ private:
 	int32 NumCustomDataFloats = 0;
 	float AbsMaxDisplacement = 0.0f;
 	FRenderBounds StaticMeshBounds;
+	bool bFirstFlush = true;
 };
