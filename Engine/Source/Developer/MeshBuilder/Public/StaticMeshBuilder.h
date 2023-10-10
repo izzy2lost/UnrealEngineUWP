@@ -26,7 +26,6 @@ public:
 		FStaticMeshRenderData& OutRenderData,
 		UStaticMesh* StaticMesh,
 		const FStaticMeshLODGroup& LODGroup,
-		bool bGenerateCoarseMeshStreamingLODs,
 		bool bAllowNanite) override;
 
 	//No support for skeletal mesh build in this class

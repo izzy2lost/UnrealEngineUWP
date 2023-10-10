@@ -32,7 +32,6 @@ public:
 		FStaticMeshRenderData& OutRenderData,
 		UStaticMesh* StaticMesh,
 		const FStaticMeshLODGroup& LODGroup,
-		bool bGenerateCoarseMeshStreamingLODs,
 		bool bAllowNanite) = 0;
 
 	virtual bool BuildMeshVertexPositions(

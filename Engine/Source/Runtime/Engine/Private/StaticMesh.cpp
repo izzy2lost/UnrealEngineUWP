@@ -2786,14 +2786,6 @@ static FString BuildStaticMeshDerivedDataKeySuffix(const ITargetPlatform* Target
 		KeySuffix += TEXT("zzzzzzzz");
 	}
 
-	// Nanite Coarse mesh streaming change require regenerating the coarse mesh LODs during caching
-	static auto* VarNaniteCoarseMeshStreaming = IConsoleManager::Get().FindConsoleVariable(TEXT("r.Nanite.CoarseMeshStreaming"));
-	const bool bNaniteCoareMeshStreamingEnabled = !VarNaniteCoarseMeshStreaming || VarNaniteCoarseMeshStreaming->GetInt() != 0;
-	if (bNaniteCoareMeshStreamingEnabled)
-	{
-		KeySuffix += TEXT("_NCMS");
-	}
-
 	KeySuffix.AppendChar(Mesh->bSupportUniformlyDistributedSampling ? TEXT('1') : TEXT('0'));
 
 	if (TargetPlatform->SupportsFeature(ETargetPlatformFeatures::HardwareLZDecompression))
@@ -3103,15 +3095,10 @@ void FStaticMeshRenderData::Cache(const ITargetPlatform* TargetPlatform, UStatic
 			{
 				IMeshBuilderModule& MeshBuilderModule = IMeshBuilderModule::GetForPlatform(TargetPlatform);
 
-				// Only build the LODs if coarse mesh streaming is enabled
-				static auto* VarNaniteCoarseMeshStreaming = IConsoleManager::Get().FindConsoleVariable(TEXT("r.Nanite.CoarseMeshStreaming"));
-				const bool bNaniteCoarseMeshStreamingEnabled = !VarNaniteCoarseMeshStreaming || VarNaniteCoarseMeshStreaming->GetInt() != 0;
-				const bool bGenerateStreamingLODs = TargetPlatform->SupportsFeature(ETargetPlatformFeatures::MeshLODStreaming) && bNaniteCoarseMeshStreamingEnabled && LODGroup.IsLODStreamingSupported();
-
 				// Check if the target platform supports Nanite at all
 				const bool bAllowNanite = DoesTargetPlatformSupportNanite(TargetPlatform);
 
-				if (!MeshBuilderModule.BuildMesh(*this, Owner, LODGroup, bGenerateStreamingLODs, bAllowNanite))
+				if (!MeshBuilderModule.BuildMesh(*this, Owner, LODGroup, bAllowNanite))
 				{
 					UE_LOG(LogStaticMesh, Error, TEXT("Failed to build static mesh. See previous line(s) for details."));
 					return;
