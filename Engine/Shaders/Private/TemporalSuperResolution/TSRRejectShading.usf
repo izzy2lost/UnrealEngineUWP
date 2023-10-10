@@ -513,6 +513,9 @@ void MeasureRejection(
 
 	tsr_simd_halfC RawFactor        = saturate(tsr_simd_halfC::Const(1.0) - RawClampedEnergy * rcp(Delta));
 	tsr_simd_half RawRejection      = min3(RawFactor[0], RawFactor[1], RawFactor[2]);
+	#if CONFIG_SCENE_COLOR_ALPHA
+		RawRejection = min(RawRejection, RawFactor[3]);
+	#endif
 
 	#if CONFIG_SCENE_COLOR_ALPHA
 		OutRejectionClampBlend = Min3x3(Median3x3(RawRejection));
@@ -524,6 +527,9 @@ void MeasureRejection(
 
 	tsr_simd_halfC FilteredFactor   = saturate(tsr_simd_halfC::Const(1.0) - FilteredClampedEnergy * rcp(Delta));
 	tsr_simd_half FilteredRejection = min3(FilteredFactor[0], FilteredFactor[1], FilteredFactor[2]);
+	#if CONFIG_SCENE_COLOR_ALPHA
+		FilteredRejection = min(FilteredRejection, FilteredFactor[3]);
+	#endif
 	OutRejectionBlendFinal          = FilteredRejection;
 } // MeasureRejection()
 
@@ -848,7 +854,11 @@ void MainCS(
 			tsr_simd_halfC ResurrectionMatch = abs(ExposedInput - ExposedResurrectedHistory);
 
 			tsr_simd_halfC MatchDiff = PrevMatch - ResurrectionMatch;
-			tsr_simd_half TotalMatchDiff = BlurEven3x3(MatchDiff[0] + MatchDiff[1] + MatchDiff[2]);
+			#if CONFIG_SCENE_COLOR_ALPHA
+				tsr_simd_half TotalMatchDiff = BlurEven3x3(MatchDiff[0] + MatchDiff[1] + MatchDiff[2] + MatchDiff[3]);
+			#else
+				tsr_simd_half TotalMatchDiff = BlurEven3x3(MatchDiff[0] + MatchDiff[1] + MatchDiff[2]);
+			#endif
 
 			tsr_simd_bool bResurrectionIsCloser = MedianBool3x3(TotalMatchDiff > tsr_simd_half::Const(tsr_half(0.05 * 3.0)));
 			tsr_simd_bool bPrevIsNotGoodEnough = RejectionBlendFinal < tsr_simd_half::Const(0.5);

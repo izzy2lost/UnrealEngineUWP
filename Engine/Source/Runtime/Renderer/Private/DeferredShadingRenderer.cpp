@@ -96,6 +96,7 @@
 #include "SparseVolumeTexture/ISparseVolumeTextureStreamingManager.h"
 #include "WaterInfoTextureRendering.h"
 #include "SplineMeshSceneResources.h"
+#include "PostProcess/DebugAlphaChannel.h"
 
 #if !UE_BUILD_SHIPPING
 #include "RenderCaptureInterface.h"
@@ -4196,6 +4197,14 @@ void FDeferredShadingSceneRenderer::Render(FRDGBuilder& GraphBuilder)
 			RDG_GPU_STAT_SCOPE(GraphBuilder, HairRendering);
 			RenderHairComposition(GraphBuilder, Views, SceneTextures.Color.Target, SceneTextures.Depth.Target, SceneTextures.Velocity, TranslucencyResourceMap);
 		}
+
+#if DEBUG_ALPHA_CHANNEL
+		if (ShouldMakeDistantGeometryTranslucent())
+		{
+			SceneTextures.Color = MakeDistanceGeometryTranslucent(GraphBuilder, Views, SceneTextures);
+			SceneTextures.UniformBuffer = CreateSceneTextureUniformBuffer(GraphBuilder, &SceneTextures, FeatureLevel, SceneTextures.SetupMode);
+		}
+#endif
 
 		// Experimental voxel test code
 		for (int32 ViewIndex = 0; ViewIndex < Views.Num(); ViewIndex++)
