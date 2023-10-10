@@ -499,12 +499,12 @@ namespace UnrealBuildTool
 				CompileEnvironment.Definitions.Add("RHI_RAYTRACING=1");
 			}
 
-			if ((Target.bPGOOptimize || Target.bPGOProfile) && Target.ProjectFile != null)
+			if (Target.bPGOOptimize || Target.bPGOProfile)
 			{
 				Logger.LogInformation("PGO {PgoType} build", Target.bPGOOptimize ? "optimize" : "profile");
 				if (Target.bPGOOptimize)
 				{
-					CompileEnvironment.PGODirectory = DirectoryReference.Combine(Target.ProjectFile.Directory, "Platforms", "Android", "Build", "PGO").FullName;
+					CompileEnvironment.PGODirectory = DirectoryReference.Combine(Target.ProjectFile?.Directory ?? Unreal.WritableEngineDirectory, "Platforms", "Android", "Build", "PGO").FullName;
 					CompileEnvironment.PGOFilenamePrefix = String.Format("{0}-Android", Target.Name);
 
 					LinkEnvironment.PGODirectory = CompileEnvironment.PGODirectory;

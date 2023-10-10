@@ -1655,12 +1655,12 @@ namespace UnrealBuildTool
 
 			LinkEnvironment.ModuleDefinitionFile = Target.WindowsPlatform.ModuleDefinitionFile;
 
-			if ((Target.bPGOOptimize || Target.bPGOProfile) && Target.ProjectFile != null)
+			if (Target.bPGOOptimize || Target.bPGOProfile)
 			{
 				// Win64 PGO folder is Windows, the rest match the platform name
 				string PGOPlatform = Target.Platform == UnrealTargetPlatform.Win64 ? "Windows" : Target.Platform.ToString();
 
-				CompileEnvironment.PGODirectory = DirectoryReference.Combine(Target.ProjectFile.Directory, "Platforms", PGOPlatform, "Build", "PGO").FullName;
+				CompileEnvironment.PGODirectory = DirectoryReference.Combine(Target.ProjectFile?.Directory ?? Unreal.WritableEngineDirectory, "Platforms", PGOPlatform, "Build", "PGO").FullName;
 				CompileEnvironment.PGOFilenamePrefix = String.Format("{0}-{1}-{2}", Target.Name, Target.Platform, Target.Configuration);
 
 				LinkEnvironment.PGODirectory = CompileEnvironment.PGODirectory;

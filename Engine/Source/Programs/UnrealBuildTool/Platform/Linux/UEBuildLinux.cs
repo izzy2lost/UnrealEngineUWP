@@ -494,7 +494,7 @@ namespace UnrealBuildTool
 
 			if (CompileEnvironment.bPGOOptimize)
 			{
-				DirectoryReference BaseDir = Unreal.EngineDirectory;
+				DirectoryReference BaseDir = Unreal.WritableEngineDirectory;
 				if (Target.ProjectFile != null)
 				{
 					BaseDir = DirectoryReference.FromFile(Target.ProjectFile);
