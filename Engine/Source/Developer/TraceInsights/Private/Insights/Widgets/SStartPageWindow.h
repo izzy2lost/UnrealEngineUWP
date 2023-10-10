@@ -3,6 +3,7 @@
 #pragma once
 
 #include "Async/TaskGraphInterfaces.h"
+#include "Containers/Ticker.h"
 #include "Misc/FilterCollection.h"
 #include "Misc/TextFilter.h"
 #include "Styling/SlateTypes.h"
@@ -462,6 +463,9 @@ private:
 	 */
 	virtual FReply OnDragOver(const FGeometry& MyGeometry, const FDragDropEvent& DragDropEvent)  override;
 
+	/** Updates this class, done through FCoreTicker. Updates also when the page is not visible, unlike the Tick() function */
+	bool CoreTick(float DeltaTime);
+
 	//////////////////////////////////////////////////
 	// Filtering
 
@@ -587,6 +591,9 @@ private:
 	bool bStartProcessWithStompMalloc = false;
 
 	bool bSetKeyboardFocusOnNextTick = false;
+
+	FTickerDelegate OnTick;
+	FTSTicker::FDelegateHandle OnTickHandle;
 
 #if PLATFORM_WINDOWS
 	void* AutoConnectEvent = nullptr;

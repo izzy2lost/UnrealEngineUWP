@@ -936,6 +936,10 @@ STraceStoreWindow::STraceStoreWindow()
 
 STraceStoreWindow::~STraceStoreWindow()
 {
+	if (OnTickHandle.IsValid())
+	{
+		FTSTicker::GetCoreTicker().RemoveTicker(OnTickHandle);
+	}
 #if WITH_EDITOR
 	if (DurationActive > 0.0f && FEngineAnalytics::IsAvailable())
 	{
@@ -1069,6 +1073,10 @@ void STraceStoreWindow::Construct(const FArguments& InArgs)
 		.VAlign(VAlign_Center)
 		.Expose(OverlaySettingsSlot)
 	];
+
+	// Register tick functions.
+	OnTick = FTickerDelegate::CreateSP(this, &STraceStoreWindow::CoreTick);
+	OnTickHandle = FTSTicker::GetCoreTicker().AddTicker(OnTick, 0.0f);
 
 	CreateFilters();
 
@@ -2602,6 +2610,12 @@ void STraceStoreWindow::DisableAutoConnect()
 
 void STraceStoreWindow::Tick(const FGeometry& AllottedGeometry, const double InCurrentTime, const float InDeltaTime)
 {
+}
+
+////////////////////////////////////////////////////////////////////////////////////////////////////
+
+bool STraceStoreWindow::CoreTick(float DeltaTime)
+{
 	// We need to update the trace list, but not too often.
 	static uint64 NextTimestamp = 0;
 	uint64 Time = FPlatformTime::Cycles64();
@@ -2624,7 +2638,8 @@ void STraceStoreWindow::Tick(const FGeometry& AllottedGeometry, const double InC
 		FSlateApplication::Get().SetKeyboardFocus(TraceListView);
 	}
 
-	TickSplashScreenOverlay(InDeltaTime);
+	TickSplashScreenOverlay(DeltaTime);
+	return true;
 }
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////
