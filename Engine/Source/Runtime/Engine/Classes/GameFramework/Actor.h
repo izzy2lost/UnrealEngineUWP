@@ -3221,7 +3221,7 @@ protected:
 	 * Pushes the owning NetConnection for the actor and all of its children to the replication system.
 	 * This information decides whether properties with owner conditionals are replicated or not.
 	 */
-	ENGINE_API void UpdateOwningNetConnection() const;
+	ENGINE_API void UpdateOwningNetConnection();
 
 	/**
 	 * Helper to BeginReplication passing on additional parameters to the ReplicationSystem, typically called from code overriding normal BeginReplication()

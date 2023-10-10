@@ -1038,7 +1038,7 @@ void AActor::EndReplication(EEndPlayReason::Type EndPlayReason)
 	UE::Net::FReplicationSystemUtil::EndReplication(this, EndPlayReason);
 }
 
-void AActor::UpdateOwningNetConnection() const
+void AActor::UpdateOwningNetConnection()
 {
 	using namespace UE::Net;
 
@@ -1068,34 +1068,33 @@ void AActor::UpdateOwningNetConnection() const
 		return;
 	}
 
-	constexpr SIZE_T MaxActorCount = 512;
-	const AActor* Actors[MaxActorCount];
-	SIZE_T ActorCount = 1;
-	Actors[0] = this;
-	for (; ActorCount > 0; )
-	{
-		const AActor* Actor = Actors[--ActorCount];
-		check(ActorCount + Actor->Children.Num() <= UE_ARRAY_COUNT(Actors));
-		for (const AActor* Child : MakeArrayView(Actor->Children))
-		{
-			Actors[ActorCount++] = Child;
-		}
+	TArray<AActor*, TInlineAllocator<32>> EveryChildren;
+	// Include ourself
+	EveryChildren.Push(this);
 
-		if (Actor->GetIsReplicated())
+	do 
+	{
+		constexpr bool bNoShrinking = false;
+		if (AActor* Actor = EveryChildren.Pop(bNoShrinking))
 		{
-			const UE::Net::FNetRefHandle RefHandle = ObjectReplicationBridge->GetReplicatedRefHandle(Actor);
-			if (RefHandle.IsValid())
+			EveryChildren.Append(Actor->Children);
+
+			if (Actor->GetIsReplicated())
 			{
-				ReplicationSystem->SetOwningNetConnection(RefHandle, NewOwningNetConnectionId);
-				// Update autonomous proxy condition
-				if (Actor->GetRemoteRole() == ROLE_AutonomousProxy)
+				const UE::Net::FNetRefHandle RefHandle = ObjectReplicationBridge->GetReplicatedRefHandle(Actor);
+				if (RefHandle.IsValid())
 				{
-					const bool bEnableAutonomousCondition = true;
-					ReplicationSystem->SetReplicationConditionConnectionFilter(RefHandle, EReplicationCondition::RoleAutonomous, NewOwningNetConnectionId, bEnableAutonomousCondition);
+					ReplicationSystem->SetOwningNetConnection(RefHandle, NewOwningNetConnectionId);
+					// Update autonomous proxy condition
+					if (Actor->GetRemoteRole() == ROLE_AutonomousProxy)
+					{
+						const bool bEnableAutonomousCondition = true;
+						ReplicationSystem->SetReplicationConditionConnectionFilter(RefHandle, EReplicationCondition::RoleAutonomous, NewOwningNetConnectionId, bEnableAutonomousCondition);
+					}
 				}
 			}
 		}
-	}
+	} while (EveryChildren.Num());
 }
 #endif // UE_WITH_IRIS
 
