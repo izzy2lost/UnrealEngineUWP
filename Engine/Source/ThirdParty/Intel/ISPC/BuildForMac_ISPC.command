@@ -1,8 +1,15 @@
 #!/bin/bash
 
+#
+# This script is configured based on the following environment variables
+#    BUILD_UNIVERSAL - Enables universal binaries for MacOS.
+#    ANDROID_NDK     - If present, it needs to point to the root directory of the Android NDK.
+#                      In such case, cross compilation for the Android platform will be enabled.
+#
+
 set -e
 
-ISPC_VERSION=1.18.0
+ISPC_VERSION=1.21.0
 
 UE_THIRD_PARTY_LOCATION=`cd $(pwd)/..; pwd`
 
@@ -41,10 +48,16 @@ CMAKE_ARGS=(
     -DISPC_FREEBSD_TARGET=OFF
     -DISPC_MACOS_TARGET=ON
     -DISPC_IOS_TARGET=ON
-    -DISPC_ANDROID_TARGET=OFF
     -DISPC_PS4_TARGET=OFF
     -DISPC_PS5_TARGET=OFF
 )
+
+if [ "$ANDROID_NDK" != "" ] ; then
+    CMAKE_ARGS+=(-DISPC_ANDROID_TARGET=ON)
+	CMAKE_ARGS+=(-DISPC_ANDROID_NDK_PATH=$ANDROID_NDK/toolchains/llvm/prebuilt/linux-x86_64)
+else
+    CMAKE_ARGS+=(-DISPC_ANDROID_TARGET=OFF)
+fi
 
 if [ "$BUILD_UNIVERSAL" = true ] ; then
     CMAKE_ARGS+=(-DCMAKE_OSX_ARCHITECTURES="arm64;x86_64")
