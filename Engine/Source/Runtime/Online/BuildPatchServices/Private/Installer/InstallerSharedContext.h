@@ -25,6 +25,12 @@ namespace BuildPatchServices
 
 		struct FMsg
 		{
+			FMsg() = default;
+			FMsg(TUniqueFunction<void()> InTask, EMsg InMsg)
+				: Task(MoveTemp(InTask))
+				, Msg(InMsg)
+			{}
+
 			TUniqueFunction<void()> Task;
 			EMsg Msg = EMsg::None;
 		};
