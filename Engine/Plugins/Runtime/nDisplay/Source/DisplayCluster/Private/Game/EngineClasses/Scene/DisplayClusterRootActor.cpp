@@ -31,6 +31,7 @@
 #include "GameFramework/PlayerController.h"
 #include "Engine/Engine.h"
 #include "Engine/World.h"
+#include "Engine/GameInstance.h"
 
 #include "HAL/IConsoleManager.h"
 
@@ -50,7 +51,6 @@
 #include "Components/DisplayClusterStageGeometryComponent.h"
 #include "Components/LineBatchComponent.h"
 #include "UObject/Package.h"
-
 
 #if WITH_EDITOR
 #include "IConcertSyncClientModule.h"

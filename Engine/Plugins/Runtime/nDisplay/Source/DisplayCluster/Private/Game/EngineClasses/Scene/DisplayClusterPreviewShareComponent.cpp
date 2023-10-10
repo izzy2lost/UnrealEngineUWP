@@ -15,6 +15,7 @@
 #include "Misc/DisplayClusterLog.h"
 #include "SharedMemoryMediaOutput.h"
 #include "SharedMemoryMediaSource.h"
+#include "UObject/Package.h"
 
 #if WITH_EDITOR
 #include "LevelEditor.h"

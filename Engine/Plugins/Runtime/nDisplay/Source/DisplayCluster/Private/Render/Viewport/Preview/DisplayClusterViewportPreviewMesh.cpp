@@ -76,7 +76,7 @@ void FDisplayClusterViewportPreviewMesh::Update(FDisplayClusterViewport& InViewp
 			CurrentMaterialPtr = InMeshMaterial;
 			CurrentMaterialType = NewCurrentMaterialType;
 
-			MaterialInstancePtr = UMaterialInstanceDynamic::Create(InMeshMaterial, GetTransientPackage());
+			MaterialInstancePtr = UMaterialInstanceDynamic::Create(InMeshMaterial, MeshComponent);
 			EnumAddFlags(RuntimeFlags, EDisplayClusterViewportPreviewMeshFlags::HasChangedMaterialInstance);
 
 			// Set preview material
