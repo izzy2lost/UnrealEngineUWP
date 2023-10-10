@@ -78,7 +78,7 @@ struct FNeuralProfileStruct
 	ENeuralModelTileType TileSize;
 
 	/** Used to override the batch size if the batch dimension is dynamic (-1)*/
-	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Quality and Performance", meta = (EditCondition = "InputDimension[0] < 0"))
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Quality and Performance")
 	int32 BatchSizeOverride;
 
 	FNeuralProfileStruct()
