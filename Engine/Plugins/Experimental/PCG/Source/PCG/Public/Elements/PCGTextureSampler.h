@@ -64,7 +64,7 @@ public:
 #endif
 
 	// Common members in BaseTextureData
-	UPROPERTY(BlueprintReadWrite, VisibleAnywhere, Category = SpatialData, meta = (PCG_Overridable))
+	UPROPERTY(BlueprintReadWrite, EditAnywhere, Category = SpatialData, meta = (PCG_Overridable))
 	EPCGTextureDensityFunction DensityFunction = EPCGTextureDensityFunction::Multiply;
 
 	UPROPERTY(BlueprintReadWrite, EditAnywhere, Category = Settings, meta = (PCG_Overridable))
