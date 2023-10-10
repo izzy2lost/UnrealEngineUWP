@@ -51,7 +51,7 @@ float GetSectionLod(uint ComponentIndex)
 
 /**
  * x = Current mesh LOD
- * y = unused
+ * y = Unused
  * z = SectionSizeQuads in current mesh LOD
  * w = 1/SectionSizeQuads in current mesh LOD
  **/
@@ -363,7 +363,7 @@ FLandscapeTexCoords GetLandscapeTexCoords(FVertexFactoryInput Input, FVertexFact
 
 float3x3 CalcTangentBasisFromWorldNormal(float3 Normal)
 {
-	float3 LocalTangentX = normalize(float3(Normal.z, 0, -Normal.x));
+	float3 LocalTangentX = normalize(float3(Normal.z, 0.0f, -Normal.x));
 	float3 LocalTangentY = cross(Normal, LocalTangentX);
 
 	float3x3 LocalToTangent = float3x3(LocalTangentX,LocalTangentY,Normal);
