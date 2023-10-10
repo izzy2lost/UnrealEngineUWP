@@ -27,6 +27,8 @@ using Serilog.Core;
 
 namespace Jupiter.FunctionalTests.Storage;
 
+using WriteBlobResponse = Jupiter.Controllers.WriteBlobResponse;
+
 [TestClass]
 public class MemoryBundlesTests : BundlesTests
 {

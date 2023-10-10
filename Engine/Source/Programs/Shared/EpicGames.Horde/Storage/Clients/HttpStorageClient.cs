@@ -21,34 +21,6 @@ namespace EpicGames.Horde.Storage.Clients
 	/// </summary>
 	public class HttpStorageClient : BundleStorageClient
 	{
-		class WriteBlobResponse
-		{
-			public BundleLocator Blob { get; set; }
-			public Uri? UploadUrl { get; set; }
-			public bool? SupportsRedirects { get; set; }
-		}
-
-		class FindNodeResponse
-		{
-			public IoHash Hash { get; set; }
-			public BundleLocator Blob { get; set; }
-			public int ExportIdx { get; set; }
-			public int Rank { get; set; }
-			public byte[] Data { get; set; } = Array.Empty<byte>();
-		}
-
-		class FindNodesResponse
-		{
-			public List<FindNodeResponse> Nodes { get; set; } = new List<FindNodeResponse>();
-		}
-
-		class ReadRefResponse
-		{
-			public IoHash Hash { get; set; }
-			public BundleLocator Blob { get; set; }
-			public int ExportIdx { get; set; }
-		}
-
 		readonly string _basePath;
 		readonly Func<HttpClient> _createClient;
 		readonly ILogger _logger;
@@ -102,7 +74,7 @@ namespace EpicGames.Horde.Storage.Clients
 						for (int idx = 0; idx < message.Nodes.Count; idx++)
 						{
 							FindNodeResponse node = message.Nodes[idx];
-							BundleNodeHandle handle = CreateNodeHandle(new BundleNodeLocator(node.Blob, node.ExportIdx));
+							BlobHandle handle = CreateBlobHandle(node.Blob);
 							aliases[idx] = new BlobAlias(handle, node.Rank, node.Data);
 						}
 
@@ -170,8 +142,8 @@ namespace EpicGames.Horde.Storage.Clients
 						{
 							response.EnsureSuccessStatusCode();
 							ReadRefResponse? data = await response.Content.ReadFromJsonAsync<ReadRefResponse>(cancellationToken: cancellationToken);
-							_logger.LogDebug("Read ref {RefName} -> {Blob}#{ExportIdx}", name, data!.Blob, data!.ExportIdx);
-							return CreateNodeHandle(new BundleNodeLocator(data!.Blob, data!.ExportIdx));
+							_logger.LogDebug("Read ref {RefName} -> {Blob}", name, data!.Target);
+							return CreateNodeHandle(BundleNodeLocator.FromBlobLocator(data.Target));
 						}
 					}
 				}

@@ -26,111 +26,6 @@ using Microsoft.Extensions.Options;
 namespace Horde.Server.Storage
 {
 	/// <summary>
-	/// Response from uploading a bundle
-	/// </summary>
-	public class WriteBlobResponse
-	{
-		/// <summary>
-		/// Path to the uploaded blob
-		/// </summary>
-		public string Blob { get; set; } = String.Empty;
-
-		/// <summary>
-		/// URL to upload the blob to.
-		/// </summary>
-		public Uri? UploadUrl { get; set; }
-
-		/// <summary>
-		/// Flag for whether the client could use a redirect instead (ie. not post content to the server, and get an upload url back).
-		/// </summary>
-		public bool? SupportsRedirects { get; set; }
-	}
-
-	/// <summary>
-	/// Response object for finding a node
-	/// </summary>
-	public class FindNodeResponse
-	{
-		/// <summary>
-		/// Locator for the target blob
-		/// </summary>
-		public BundleLocator Blob { get; set; }
-
-		/// <summary>
-		/// Export index for the ref
-		/// </summary>
-		public int ExportIdx { get; set; }
-
-		/// <summary>
-		/// Inline data associated with this alias
-		/// </summary>
-		public byte[] Data { get; set; }
-
-		/// <summary>
-		/// Constructor
-		/// </summary>
-		public FindNodeResponse(BlobAlias alias)
-		{
-			BundleNodeLocator locator = ((BundleNodeHandle)alias.Target).GetLocator();
-
-			Blob = locator.Blob;
-			ExportIdx = locator.ExportIdx;
-			Data = alias.Data.ToArray();
-		}
-	}
-	/// <summary>
-	/// Response object for searching for nodes with a given alias
-	/// </summary>
-	public class FindNodesResponse
-	{
-		/// <summary>
-		/// Hash of the target node
-		/// </summary>
-		public List<FindNodeResponse> Nodes { get; set; } = new List<FindNodeResponse>();
-	}
-
-	/// <summary>
-	/// Request object for writing a ref
-	/// </summary>
-	public class WriteRefRequest
-	{
-		/// <summary>
-		/// Path to the target blob
-		/// </summary>
-		public BlobLocator Target { get; set; } 
-
-		/// <summary>
-		/// Options for the ref
-		/// </summary>
-		public RefOptions? Options { get; set; }
-	}
-
-	/// <summary>
-	/// Response object for reading a ref
-	/// </summary>
-	public class ReadRefResponse
-	{
-		/// <summary>
-		/// The target blob
-		/// </summary>
-		public BlobLocator Target { get; set; }
-
-		/// <summary>
-		/// Link to information about the target node
-		/// </summary>
-		public string Link { get; set; }
-
-		/// <summary>
-		/// Constructor
-		/// </summary>
-		public ReadRefResponse(BlobLocator target, string link)
-		{
-			Target = target;
-			Link = link;
-		}
-	}
-
-	/// <summary>
 	/// Controller for the /api/v1/storage endpoint
 	/// </summary>
 	[Authorize]
@@ -316,7 +211,7 @@ namespace Horde.Server.Storage
 			BlobAlias[] aliases = await client.FindAliasesAsync(alias, maxResults, cancellationToken);
 
 			FindNodesResponse response = new FindNodesResponse();
-			response.Nodes.AddRange(aliases.Select(x => new FindNodeResponse(x)));
+			response.Nodes.AddRange(aliases.Select(x => new FindNodeResponse(x.Target.GetLocator(), x.Rank, x.Data.ToArray())));
 
 			if (response.Nodes.Count == 0)
 			{
