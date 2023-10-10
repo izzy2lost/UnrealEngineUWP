@@ -519,8 +519,7 @@ void UWorldPartitionSubsystem::Deinitialize()
 	Super::Deinitialize();
 }
 
-// We allow creating UWorldPartitionSubsystem for inactive worlds as WorldPartition initialization is necessary 
-// because DataLayerManager is required to be initialized when duplicating a partitioned world.
+// WorldPartitionSubsystem is required for WorldPartition to be properly initialized (even when world is Inactive like during Cook or world duplication).
 bool UWorldPartitionSubsystem::DoesSupportWorldType(const EWorldType::Type WorldType) const
 {
 	return Super::DoesSupportWorldType(WorldType) || WorldType == EWorldType::Inactive || WorldType == EWorldType::EditorPreview;
