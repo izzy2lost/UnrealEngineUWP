@@ -114,10 +114,6 @@ void FDisplayClusterViewportPreviewMesh::Release(FDisplayClusterViewport& InView
 		}
 	}
 
-	// Remove mesh
-	MeshComponentPtr = nullptr;
-	CurrentMaterialType = EDisplayClusterDisplayDeviceMaterialType::DefaultPreviewMeshMaterial;
-
 	// The material instance references the mesh, so it must also be deleted
 	if (UMaterialInstanceDynamic* MaterialInstance = GetMaterialInstance())
 	{
@@ -131,7 +127,14 @@ void FDisplayClusterViewportPreviewMesh::Release(FDisplayClusterViewport& InView
 		}
 	}
 
+	Reset();
+}
+
+void FDisplayClusterViewportPreviewMesh::Reset()
+{
+	MeshComponentPtr = nullptr;
 	MaterialInstancePtr = nullptr;
+	CurrentMaterialType = EDisplayClusterDisplayDeviceMaterialType::DefaultPreviewMeshMaterial;
 }
 
 bool FDisplayClusterViewportPreviewMesh::ShouldUseMeshComponent(FDisplayClusterViewport& InViewport) const

@@ -38,6 +38,12 @@ void FDisplayClusterViewportPreview::Release()
 		PreviewMesh.Release(*InViewport);
 		PreviewEditableMesh.Release(*InViewport);
 	}
+	else
+	{
+		// Just reset internal references
+		PreviewMesh.Reset();
+		PreviewEditableMesh.Reset();
+	}
 
 	PreviewRTT.Reset();
 	RuntimeFlags = EDisplayClusterViewportPreviewFlags::None;
@@ -45,6 +51,13 @@ void FDisplayClusterViewportPreview::Release()
 
 void FDisplayClusterViewportPreview::Update()
 {
+	FDisplayClusterViewport* InViewport = GetViewportImpl();
+	if (InViewport == nullptr)
+	{
+		Release();
+		return;
+	}
+
 	RuntimeFlags = EDisplayClusterViewportPreviewFlags::None;
 
 	// Update viewport output RTT
@@ -55,8 +68,7 @@ void FDisplayClusterViewportPreview::Update()
 		PreviewRTT = NewPreviewRTT;
 	}
 
-	FDisplayClusterViewport* InViewport = GetViewportImpl();
-	UDisplayClusterDisplayDeviceBaseComponent* InDisplayDeviceComponent = InViewport ? InViewport->GetDisplayDeviceComponent(EDisplayClusterRootActorType::Configuration) : nullptr;
+	UDisplayClusterDisplayDeviceBaseComponent* InDisplayDeviceComponent = InViewport->GetDisplayDeviceComponent(EDisplayClusterRootActorType::Configuration);
 
 	// Update preview meshes only if DisplayDevice is used
 	if (InDisplayDeviceComponent)

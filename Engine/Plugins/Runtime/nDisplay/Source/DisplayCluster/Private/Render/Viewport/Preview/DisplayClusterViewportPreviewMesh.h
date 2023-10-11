@@ -79,8 +79,11 @@ public:
 	/** Update mesh component and materials for viewport. */
 	void Update(FDisplayClusterViewport& InViewport, UDisplayClusterDisplayDeviceBaseComponent& InDisplayDeviceComponent);
 
-	/** Release mesh component and materials for viewport. */
+	/** Restore default material and release mesh component with materials for viewport. */
 	void Release(FDisplayClusterViewport& InViewport);
+
+	/** Release mesh component and materials for viewport. */
+	void Reset();
 
 	/** Returns true if the runtime flags have any of the input flags. */
 	bool HasAnyFlag(const EDisplayClusterViewportPreviewMeshFlags InMeshFlags) const
