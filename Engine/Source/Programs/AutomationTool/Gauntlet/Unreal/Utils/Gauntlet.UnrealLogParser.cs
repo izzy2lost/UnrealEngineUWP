@@ -838,21 +838,9 @@ namespace Gauntlet
 
 							LinesWithoutBacktrace = 0;
 						}
-						else 
+						else
 						{
-							// Callstack may be prefixed (or interspersed?) with callstack from blueprint script VM 
-							Match ScriptCSMatch = Regex.Match(Line, @"\[ScriptStack\]\s*(.+)$", RegexOptions.IgnoreCase);
-
-							if (ScriptCSMatch.Success)
-							{
-								string Stack = ScriptCSMatch.Groups[1];	
-								Backtrace.Add(Stack);
-								LinesWithoutBacktrace = 0;
-							}
-							else
-							{
-								LinesWithoutBacktrace++;
-							}
+							LinesWithoutBacktrace++;
 						}
 
 						SearchContent = SearchContent.Substring(EOL + 1);
