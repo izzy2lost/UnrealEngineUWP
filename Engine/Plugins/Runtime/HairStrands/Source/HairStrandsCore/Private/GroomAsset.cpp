@@ -412,7 +412,9 @@ template<typename ResourceType>
 static void InitAtlasTexture(ResourceType* InResource, UTexture2D* InTexture, EHairAtlasTextureType InType)
 {
 	if (InTexture == nullptr || InResource == nullptr)
+	{
 		return;
+	}
 
 	InTexture->ConditionalPostLoad();
 

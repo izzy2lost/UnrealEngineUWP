@@ -8,12 +8,15 @@
 
 ////////////////////////////////////////////////////////////////////////////////
 
-#define EHairCardsFVFlags_InvertedUV 1
-#define EHairCardsFVFlags_TextureRootUV 2
-#define EHairCardsFVFlags_TextureGroupIndex 4
-#define EHairCardsFVFlags_TextureBaseColor 8
-#define EHairCardsFVFlags_TextureRoughness 10
-#define EHairCardsFVFlags_TextureAttribute 12
+#define EHairCardsFVFlags_InvertedUV        0x1
+#define EHairCardsFVFlags_TextureRootUV     0x2
+#define EHairCardsFVFlags_TextureGroupIndex 0x4
+#define EHairCardsFVFlags_TextureBaseColor  0x8
+#define EHairCardsFVFlags_TextureRoughness  0x10
+#define EHairCardsFVFlags_TextureAttribute  0x20
+#define EHairCardsFVFlags_TextureCoverage   0x40
+#define EHairCardsFVFlags_TextureDepth      0x80
+#define EHairCardsFVFlags_TextureTangent    0x100
 
 struct FHairVertexAttributes
 {
@@ -28,9 +31,13 @@ struct FHairVertexAttributes
 
 float GetHairStrandsDepth(float2 InAtlasUV, float InDeviceZ)
 {
-	const bool bInvertUV = HairCardsVF.Flags & EHairCardsFVFlags_InvertedUV;
-	InAtlasUV.y = bInvertUV ? 1 - InAtlasUV.y : InAtlasUV.y;
-	const float SceneDepthOffset = Texture2DSample(HairCardsVF.DepthTexture, HairCardsVF.DepthSampler, InAtlasUV).x;
+	float SceneDepthOffset = 0;
+	if (HairCardsVF.Flags & EHairCardsFVFlags_TextureDepth)
+	{
+		const bool bInvertUV = HairCardsVF.Flags & EHairCardsFVFlags_InvertedUV;
+		InAtlasUV.y = bInvertUV ? 1 - InAtlasUV.y : InAtlasUV.y;
+		SceneDepthOffset = Texture2DSample(HairCardsVF.DepthTexture, HairCardsVF.DepthSampler, InAtlasUV).x;
+	}
 	const float SceneDepth = ConvertFromDeviceZ(InDeviceZ);
 
 	return ConvertToDeviceZ(SceneDepth + SceneDepthOffset);
@@ -38,18 +45,27 @@ float GetHairStrandsDepth(float2 InAtlasUV, float InDeviceZ)
 
 float3 GetHairStrandsTangent(float2 InAtlasUV, half3x3 TangentToWorld, bool bUseTangentSpace)
 {
-	const bool bInvertUV = HairCardsVF.Flags & EHairCardsFVFlags_InvertedUV;
-	InAtlasUV.y = bInvertUV ? 1 - InAtlasUV.y : InAtlasUV.y;
-	const float3 LocalTangent = Texture2DSample(HairCardsVF.TangentTexture, HairCardsVF.TangentSampler, InAtlasUV).xyz * 2 - 1;
+	float3 LocalTangent = float3(0, 1, 0);
+	if (HairCardsVF.Flags & EHairCardsFVFlags_TextureTangent)
+	{
+		const bool bInvertUV = HairCardsVF.Flags & EHairCardsFVFlags_InvertedUV;
+		InAtlasUV.y = bInvertUV ? 1 - InAtlasUV.y : InAtlasUV.y;
+		LocalTangent = Texture2DSample(HairCardsVF.TangentTexture, HairCardsVF.TangentSampler, InAtlasUV).xyz * 2 - 1;
+	}
 	const float3 WorldTangent = mul(LocalTangent, TangentToWorld);
 	return bUseTangentSpace ? LocalTangent : WorldTangent;
 }
 
 float GetHairStrandsCoverage(float2 InAtlasUV)
 {
-	const bool bInvertUV = HairCardsVF.Flags & EHairCardsFVFlags_InvertedUV;
-	InAtlasUV.y = bInvertUV ? 1 - InAtlasUV.y : InAtlasUV.y;
-	return Texture2DSampleBias(HairCardsVF.CoverageTexture, HairCardsVF.CoverageSampler, InAtlasUV, HairCardsVF.CoverageBias).x;
+	float Coverage = 1.f;
+	if (HairCardsVF.Flags & EHairCardsFVFlags_TextureCoverage)
+	{
+		const bool bInvertUV = HairCardsVF.Flags & EHairCardsFVFlags_InvertedUV;
+		InAtlasUV.y = bInvertUV ? 1 - InAtlasUV.y : InAtlasUV.y;
+		Coverage = Texture2DSampleBias(HairCardsVF.CoverageTexture, HairCardsVF.CoverageSampler, InAtlasUV, HairCardsVF.CoverageBias).x;
+	}
+	return Coverage;
 }
 
 FHairVertexAttributes GetHairStrandsAttributes(float2 InAtlasUV, float2 InRootUV = float2(0, 0), float InCardLength = 0.f, float InCardGroupIndex = 0.f, float3 InCardBaseColor = 0.f, float InCardRoughness = 0.f)

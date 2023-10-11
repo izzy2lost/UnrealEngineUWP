@@ -27,12 +27,15 @@ template<typename T> inline void VFC_BindParam(FMeshDrawSingleShaderBindings& Sh
 
 enum class EHairCardsFactoryFlags : uint32
 {
-	InvertedUV = 1,
-	TextureRootUV = 2,
-	TextureGroupIndex = 4,
-	TextureBaseColor = 8,
-	TextureRoughness = 10,
-	TextureAttribute = 12
+	InvertedUV        = 0x1,
+	TextureRootUV     = 0x2,
+	TextureGroupIndex = 0x4,
+	TextureBaseColor  = 0x8,
+	TextureRoughness  = 0x10,
+	TextureAttribute  = 0x20,
+	TextureCoverage   = 0x40,
+	TextureDepth      = 0x80,
+	TextureTangent    = 0x100
 };
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
@@ -53,7 +56,16 @@ FHairCardsUniformBuffer CreateHairCardsVFUniformBuffer(
 
 		// Cards atlas UV are inverted so fetching needs to be inverted on the y-axis
 		UniformParameters.Flags = 0;
-		if (LOD.RestResource->bInvertUV) { UniformParameters.Flags |= uint32(EHairCardsFactoryFlags::InvertedUV);  }
+		UniformParameters.Flags |= LOD.RestResource->bInvertUV 					? uint32(EHairCardsFactoryFlags::InvertedUV) : 0u;
+		UniformParameters.Flags |= LOD.RestResource->CoverageTexture != nullptr ? uint32(EHairCardsFactoryFlags::TextureCoverage) : 0;
+		UniformParameters.Flags |= LOD.RestResource->DepthTexture != nullptr 	? uint32(EHairCardsFactoryFlags::TextureDepth) : 0;
+		UniformParameters.Flags |= LOD.RestResource->TangentTexture != nullptr 	? uint32(EHairCardsFactoryFlags::TextureTangent) : 0;
+		// These attributes are stored on vertex data rather than on textures
+		// EHairCardsFactoryFlags::TextureRootUV
+		// EHairCardsFactoryFlags::TextureGroupIndex
+		// EHairCardsFactoryFlags::TextureBaseColor
+		// EHairCardsFactoryFlags::TextureRoughness
+
 		UniformParameters.MaxVertexCount = LOD.RestResource->GetVertexCount();
 		UniformParameters.CoverageBias = FMath::Clamp(GHairCardCoverageBias, -16.f, 16.f);
 
@@ -110,10 +122,13 @@ FHairCardsUniformBuffer CreateHairCardsVFUniformBuffer(
 		// Meshes UV are not inverted so no need to invert the y-axis
 		UniformParameters.Flags = 0;
 		UniformParameters.Flags |= uint32(EHairCardsFactoryFlags::TextureRootUV);
-		UniformParameters.Flags |= uint32(EHairCardsFactoryFlags::TextureAttribute);
 		UniformParameters.Flags |= uint32(EHairCardsFactoryFlags::TextureGroupIndex);
 		UniformParameters.Flags |= uint32(EHairCardsFactoryFlags::TextureBaseColor);
 		UniformParameters.Flags |= uint32(EHairCardsFactoryFlags::TextureRoughness);
+		UniformParameters.Flags |= uint32(EHairCardsFactoryFlags::TextureAttribute);
+		UniformParameters.Flags |= LOD.RestResource->CoverageTexture != nullptr ? uint32(EHairCardsFactoryFlags::TextureCoverage) : 0;
+		UniformParameters.Flags |= LOD.RestResource->DepthTexture != nullptr ? uint32(EHairCardsFactoryFlags::TextureDepth) : 0;
+		UniformParameters.Flags |= LOD.RestResource->TangentTexture != nullptr ? uint32(EHairCardsFactoryFlags::TextureTangent) : 0;
 
 		UniformParameters.CoverageBias = 0;
 		UniformParameters.MaxVertexCount = LOD.RestResource->GetVertexCount();
