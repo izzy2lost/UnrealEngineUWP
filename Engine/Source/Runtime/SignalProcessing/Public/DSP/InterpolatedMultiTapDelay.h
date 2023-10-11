@@ -3,6 +3,7 @@
 #pragma once
 
 #include "AlignedBuffer.h"
+#include "VectorLinearResampler.h"
 
 namespace Audio
 {
@@ -16,21 +17,22 @@ namespace Audio
 	public:
 		FInterpolatedMultiTapDelay() = default;
 		
-		SIGNALPROCESSING_API void Init(const int32 InBufferSizeSamples, const float InSampleRate);
+		SIGNALPROCESSING_API void Init(const int32 InBufferSizeSamples);
 
-		SIGNALPROCESSING_API void Advance(const FAlignedFloatBuffer& InSamples);
-		SIGNALPROCESSING_API void Read(const float StartDelayMSec, const float EndDelayMSec, FAlignedFloatBuffer& OutSamples);
+		SIGNALPROCESSING_API void Advance(const FAlignedFloatBuffer& InBuffer);
+
+		// Read and interpolate a variable number of samples back in the delay line
+		// return a fixed-point representation of fraction of the last sample, which should be passed as StartSampleFraction on successive reads for that tap.
+		SIGNALPROCESSING_API uint32 Read(const uint32 StartNumDelaySamples, const uint32 StartSampleFraction, const uint32 EndNumDelaySamples, FAlignedFloatBuffer& OutBuffer);
 		SIGNALPROCESSING_API void Reset();
 		SIGNALPROCESSING_API bool IsInitialized() const;
 
 	private:
-		void ReadBlockInternal(const int32 StartSample, const int32 SamplesToRead, const int32 NumOutputSamples, float* OutSamples);
-		FORCEINLINE int32 AlignIndex(const int32 InIndex) const;
-		
 		int32 WriteIndex = 0;
-		float MsToSamples = 1.f;
 
 		FAlignedFloatBuffer DelayLine;
+		FAlignedFloatBuffer WrapBuffer;
+		FVectorLinearResampler Resampler;
 	};	
 }
 
