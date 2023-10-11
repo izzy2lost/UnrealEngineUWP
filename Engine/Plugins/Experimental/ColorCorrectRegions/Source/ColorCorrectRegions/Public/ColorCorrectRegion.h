@@ -2,11 +2,12 @@
 
 #pragma once
 
-#include "Components/MeshComponent.h"
 #include "CoreMinimal.h"
 #include "Engine/Scene.h"
 #include "GameFramework/Actor.h"
 #include "UObject/ObjectMacros.h"
+#include "UObject/Object.h"
+#include "Components/StaticMeshComponent.h"
 
 #include "StageActor/IDisplayClusterStageActor.h"
 
@@ -114,6 +115,10 @@ class COLORCORRECTREGIONS_API AColorCorrectRegion : public AActor, public IDispl
 {
 	GENERATED_UCLASS_BODY()
 public:
+	UPROPERTY()
+	TArray<TObjectPtr<UStaticMeshComponent>> MeshComponents;
+
+public:
 	virtual ~AColorCorrectRegion() override;
 	
 	/** Region type. */
@@ -199,9 +204,10 @@ public:
 	/** Called when any of the properties are changed. */
 	virtual void PostEditChangeProperty(FPropertyChangedEvent& PropertyChangedEvent) override;
 	virtual void PostEditMove(bool bFinished) override;
-
+	virtual void PostTransacted(const FTransactionObjectEvent& TransactionEvent) override;
 #endif
 
+public:
 	/** The main purpose of this component is to determine the visibility status of this Color Correction Actor. */
 	UPROPERTY()
 	TObjectPtr<UColorCorrectionInvisibleComponent> IdentityComponent;
@@ -230,6 +236,71 @@ public:
 	* Copy state required for rendering to be consumed by Scene view extension.
 	*/
 	void TransferState();
+
+	/** 
+	* All CC Actors rely on a shape for selection. These shapes need to be swapped depending on the type.
+	* This function forces the refresh of the shape if the Type was changed outside of UI.
+	* For internal use only.
+	*/
+	virtual void ChangeShapeVisibilityForActorType() {};
+
+protected:
+
+	/** All CC Actors rely on a shape for selection. These shapes need to be swapped depending on the type. */
+	template <typename TCCActorType>
+	void ChangeShapeVisibilityForActorTypeInternal(TCCActorType InDesiredType)
+	{
+		for (TCCActorType CCActorType : TEnumRange<TCCActorType>())
+		{
+			uint8 TypeIndex = static_cast<uint8>(CCActorType);
+
+			ensure(IsValid(MeshComponents[TypeIndex]));
+
+			if (CCActorType == InDesiredType)
+			{
+				MeshComponents[TypeIndex]->SetVisibility(true, true);
+			}
+			else
+			{
+				MeshComponents[TypeIndex]->SetVisibility(false, true);
+			}
+		}
+	};
+
+#if WITH_EDITOR
+protected:
+	/** Used to validate child components. */
+	virtual void FixMeshComponentReferences() {};
+
+	template <typename TCCActorType>
+	void FixMeshComponentReferencesInternal(TCCActorType InDesiredType)
+	{
+		if (!RootComponent)
+		{
+			return;
+		}
+
+		TArray<USceneComponent*> ChildComponents;
+		RootComponent->GetChildrenComponents(false, ChildComponents);
+		MeshComponents.Empty();
+		for (TCCActorType CCActorType : TEnumRange<TCCActorType>())
+		{
+			const FString ShapeNameString = UEnum::GetValueAsString(CCActorType);
+			for (USceneComponent* ChildComponent : ChildComponents)
+			{
+				TObjectPtr<UStaticMeshComponent> ChildMeshComponent = Cast<UStaticMeshComponent>(ChildComponent);
+				if (ChildMeshComponent && ChildComponent->GetName() == ShapeNameString)
+				{
+					MeshComponents.Add(ChildMeshComponent);
+					break;
+				}
+
+			}
+
+		}
+		ChangeShapeVisibilityForActorTypeInternal<TCCActorType>(InDesiredType);
+	};
+#endif
 
 private:
 
@@ -343,19 +414,19 @@ UCLASS(Blueprintable, NotPlaceable)
 class COLORCORRECTREGIONS_API AColorCorrectionRegion : public AColorCorrectRegion
 {
 	GENERATED_UCLASS_BODY()
-public:
-	UPROPERTY()
-	TArray<TObjectPtr<UStaticMeshComponent>> MeshComponents;
-
-public:
-	/** Swaps meshes for different CCR. */
-	void SetMeshVisibilityForRegionType();
 
 #if WITH_EDITOR
 	/** Called when any of the properties are changed. */
 	virtual void PostEditChangeProperty(FPropertyChangedEvent& PropertyChangedEvent) override;
 	virtual FName GetCustomIconName() const override;
+
+protected:
+	virtual void FixMeshComponentReferences() override;
 #endif
+
+protected:
+	virtual void ChangeShapeVisibilityForActorType() override;
+
 };
 
 

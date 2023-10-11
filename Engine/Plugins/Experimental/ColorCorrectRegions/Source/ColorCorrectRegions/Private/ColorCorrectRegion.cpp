@@ -362,13 +362,6 @@ void AColorCorrectRegion::PostEditChangeProperty(struct FPropertyChangedEvent& P
 			ColorCorrectRegionsSubsystem->SortRegionsByPriority();
 		}
 	}
-	if (PropertyName == GET_MEMBER_NAME_CHECKED(AColorCorrectRegion, Type) || PropertyChangedEvent.Property == nullptr)
-	{
-		if (ColorCorrectRegionsSubsystem.IsValid())
-		{
-			ColorCorrectRegionsSubsystem->OnLevelsChanged();
-		}
-	}
 
 	// Stage actor properties
 	{
@@ -404,6 +397,12 @@ void AColorCorrectRegion::PostEditMove(bool bFinished)
 	bNotifyOnParamSetter = false;
 	UpdatePositionalParamsFromTransform();
 	bNotifyOnParamSetter = true;
+}
+
+void AColorCorrectRegion::PostTransacted(const FTransactionObjectEvent& TransactionEvent)
+{
+	Super::PostTransacted(TransactionEvent);
+	FixMeshComponentReferences();
 }
 #endif //WITH_EDITOR
 
@@ -572,26 +571,12 @@ AColorCorrectionRegion::AColorCorrectionRegion(const FObjectInitializer& ObjectI
 		MeshComponent->CastShadow = false;
 		MeshComponent->SetHiddenInGame(true);
 	}
-
-	SetMeshVisibilityForRegionType();
-
+	ChangeShapeVisibilityForActorType();
 }
 
-void AColorCorrectionRegion::SetMeshVisibilityForRegionType()
+void AColorCorrectionRegion::ChangeShapeVisibilityForActorType()
 {
-	for (EColorCorrectRegionsType CCRType : TEnumRange<EColorCorrectRegionsType>())
-	{
-		uint8 TypeIndex = static_cast<uint8>(CCRType);
-
-		if (CCRType == Type)
-		{
-			MeshComponents[TypeIndex]->SetVisibility(true, true);
-		}
-		else
-		{
-			MeshComponents[TypeIndex]->SetVisibility(false, true);
-		}
-	}
+	ChangeShapeVisibilityForActorTypeInternal<EColorCorrectRegionsType>(Type);
 }
 
 #if WITH_EDITOR
@@ -600,15 +585,20 @@ void AColorCorrectionRegion::PostEditChangeProperty(struct FPropertyChangedEvent
 	Super::PostEditChangeProperty(PropertyChangedEvent);
 	const FName PropertyName = PropertyChangedEvent.GetPropertyName();
 
-	if (PropertyName == GET_MEMBER_NAME_CHECKED(AColorCorrectionRegion, Type))
+	if (PropertyName == GET_MEMBER_NAME_CHECKED(AColorCorrectRegion, Type) || PropertyChangedEvent.Property == nullptr)
 	{
-		SetMeshVisibilityForRegionType();
+		ChangeShapeVisibilityForActorType();
 	}
 }
 
 FName AColorCorrectionRegion::GetCustomIconName() const
 {
 	return TEXT("CCR.OutlinerThumbnail");
+}
+
+void AColorCorrectionRegion::FixMeshComponentReferences()
+{
+	FixMeshComponentReferencesInternal<EColorCorrectRegionsType>(Type);
 }
 #endif
 

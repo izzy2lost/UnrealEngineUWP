@@ -46,7 +46,8 @@ AColorCorrectionWindow::AColorCorrectionWindow(const FObjectInitializer& ObjectI
 		MeshComponent->CastShadow = false;
 		MeshComponent->SetHiddenInGame(true);
 	}
-	SetMeshVisibilityForWindowType();
+
+	ChangeShapeVisibilityForActorType();
 
 #if WITH_METADATA
 	CreateIcon();
@@ -64,7 +65,7 @@ void AColorCorrectionWindow::PostEditChangeProperty(struct FPropertyChangedEvent
 
 	if (PropertyName == GET_MEMBER_NAME_CHECKED(AColorCorrectionWindow, WindowType))
 	{
-		SetMeshVisibilityForWindowType();
+		ChangeShapeVisibilityForActorType();
 	}
 
 	Super::PostEditChangeProperty(PropertyChangedEvent);
@@ -127,22 +128,17 @@ void AColorCorrectionWindow::CreateIcon()
 }
 #endif 
 
-void AColorCorrectionWindow::SetMeshVisibilityForWindowType()
+void AColorCorrectionWindow::ChangeShapeVisibilityForActorType()
 {
-	for (EColorCorrectWindowType CCWType : TEnumRange<EColorCorrectWindowType>())
-	{
-		uint8 TypeIndex = static_cast<uint8>(CCWType);
-
-		if (CCWType == WindowType)
-		{
-			MeshComponents[TypeIndex]->SetVisibility(true, true);
-		}
-		else
-		{
-			MeshComponents[TypeIndex]->SetVisibility(false, true);
-		}
-	}
+	ChangeShapeVisibilityForActorTypeInternal<EColorCorrectWindowType>(WindowType);
 }
+
+#if WITH_EDITOR
+void AColorCorrectionWindow::FixMeshComponentReferences()
+{
+	FixMeshComponentReferencesInternal<EColorCorrectWindowType>(WindowType);
+}
+#endif
 
 ADEPRECATED_ColorCorrectWindow::ADEPRECATED_ColorCorrectWindow(const FObjectInitializer& ObjectInitializer)
 	: Super(ObjectInitializer)

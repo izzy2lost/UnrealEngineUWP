@@ -145,7 +145,6 @@ void UColorCorrectRegionsSubsystem::OnActorSpawned(AActor* InActor)
 	if (IsRegionValid(AsRegion, GetWorld()))
 	{
 		FScopeLock RegionScopeLock(&RegionAccessCriticalSection);
-		EColorCorrectRegionsType CCRType = AsRegion->Type;
 		// We wouldn't have to do a check here except in case of nDisplay we need to populate this list during OnLevelsChanged 
 		// because nDisplay can release Actors while those are marked as BeginningPlay. Therefore we want to avoid 
 		// adding regions twice.

@@ -26,9 +26,6 @@ class COLORCORRECTREGIONS_API AColorCorrectionWindow : public AColorCorrectRegio
 public:
 	virtual ~AColorCorrectionWindow() override;
 
-	UPROPERTY()
-	TArray<TObjectPtr<UStaticMeshComponent>> MeshComponents;
-
 	/** Region type. */
 	UPROPERTY(BlueprintReadWrite, EditAnywhere, Category="Color Correction", Meta = (DisplayName = "Type"))
 	EColorCorrectWindowType WindowType;
@@ -38,16 +35,20 @@ public:
 	virtual void PostEditChangeProperty(FPropertyChangedEvent& PropertyChangedEvent) override;
 	virtual void PostEditMove(bool bFinished) override;
 	virtual FName GetCustomIconName() const override;
+
+protected:
+	virtual void FixMeshComponentReferences() override;
 #endif
+
+protected:
+	virtual void ChangeShapeVisibilityForActorType() override;
 
 private:
 #if WITH_METADATA
 	void CreateIcon();
 #endif // WITH_METADATA
 
-	/** Swaps meshes for different CCW. */
-	void SetMeshVisibilityForWindowType();
-	
+
 };
 
 UCLASS(Deprecated, Blueprintable, notplaceable, meta = (DeprecationMessage = "This is a deprecated version of Color Correct Window. Please re-create Color Correct Window to remove this warning."))
