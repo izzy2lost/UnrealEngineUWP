@@ -864,12 +864,12 @@ namespace Jupiter.FunctionalTests.Storage
 
 		public TextNode(string text) => Text = text;
 
-		public TextNode(NodeReader reader)
+		public TextNode(INodeReader reader)
 		{
 			Text = reader.ReadString();
 		}
 
-		public override void Serialize(NodeWriter writer)
+		public override void Serialize(INodeWriter writer)
 		{
 			writer.WriteString(Text);
 		}

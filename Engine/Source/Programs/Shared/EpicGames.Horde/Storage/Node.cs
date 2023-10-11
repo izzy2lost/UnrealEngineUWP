@@ -66,7 +66,7 @@ namespace EpicGames.Horde.Storage
 		/// Serialize the contents of this node
 		/// </summary>
 		/// <returns>Data for the node</returns>
-		public abstract void Serialize(NodeWriter writer);
+		public abstract void Serialize(INodeWriter writer);
 
 		#region Static methods
 
@@ -240,9 +240,35 @@ namespace EpicGames.Horde.Storage
 	}
 
 	/// <summary>
+	/// Interface for reading nodes from storage
+	/// </summary>
+	public interface INodeReader : IMemoryReader
+	{
+		/// <summary>
+		/// Type to deserialize
+		/// </summary>
+		BlobType Type { get; }
+
+		/// <summary>
+		/// Version of the current node, as specified via <see cref="NodeTypeAttribute"/>
+		/// </summary>
+		int Version { get; }
+
+		/// <summary>
+		/// Locations of all referenced nodes.
+		/// </summary>
+		IReadOnlyList<BlobHandle> References { get; }
+
+		/// <summary>
+		/// Gets the next serialized blob handle
+		/// </summary>
+		BlobHandle ReadBlobReference();
+	}
+
+	/// <summary>
 	/// Reader for tree nodes
 	/// </summary>
-	public sealed class NodeReader : MemoryReader
+	sealed class NodeReader : MemoryReader, INodeReader
 	{
 		/// <summary>
 		/// Type to deserialize
@@ -258,6 +284,11 @@ namespace EpicGames.Horde.Storage
 		/// Total length of the data in this node
 		/// </summary>
 		public int Length => _blobData.Data.Length;
+
+		/// <summary>
+		/// Amount of data remaining to be read
+		/// </summary>
+		public int RemainingLength => RemainingMemory.Length;
 
 		/// <summary>
 		/// Raw data for this blob
@@ -288,9 +319,21 @@ namespace EpicGames.Horde.Storage
 	}
 
 	/// <summary>
+	/// Interface for a writer of node objects
+	/// </summary>
+	public interface INodeWriter : IMemoryWriter
+	{
+		/// <summary>
+		/// Adds a reference to another blob. This reference is stored out of band, and will not result in any bytes written to the output.
+		/// </summary>
+		/// <param name="reference">Referenced blob</param>
+		void WriteBlobReference(BlobHandle reference);
+	}
+
+	/// <summary>
 	/// Writer for node objects, which tracks references to other nodes
 	/// </summary>
-	public sealed class NodeWriter : IMemoryWriter
+	sealed class NodeWriter : INodeWriter
 	{
 		readonly IStorageWriter _treeWriter;
 

@@ -119,7 +119,7 @@ namespace EpicGames.Horde.Storage.Nodes
 		/// <summary>
 		/// Constructor
 		/// </summary>
-		public ChunkedDataNodeRef(NodeReader reader)
+		public ChunkedDataNodeRef(INodeReader reader)
 			: base(reader)
 		{
 			Type = (ChunkedDataNodeType)reader.ReadUnsignedVarInt();
@@ -128,7 +128,7 @@ namespace EpicGames.Horde.Storage.Nodes
 		/// <summary>
 		/// Constructor
 		/// </summary>
-		public ChunkedDataNodeRef(ChunkedDataNodeType type, NodeReader reader)
+		public ChunkedDataNodeRef(ChunkedDataNodeType type, INodeReader reader)
 			: base(reader)
 		{
 			Type = type;
@@ -144,7 +144,7 @@ namespace EpicGames.Horde.Storage.Nodes
 		}
 
 		/// <inheritdoc/>
-		public override void Serialize(NodeWriter writer)
+		public override void Serialize(INodeWriter writer)
 		{
 			base.Serialize(writer);
 
@@ -185,14 +185,14 @@ namespace EpicGames.Horde.Storage.Nodes
 		/// <summary>
 		/// Create a leaf node from the given serialized data
 		/// </summary>
-		public LeafChunkedDataNode(NodeReader reader)
+		public LeafChunkedDataNode(INodeReader reader)
 		{
 			// Keep this code in sync with CopyToStreamAsync
-			Data = reader.ReadFixedLengthBytes(reader.Length);
+			Data = reader.GetMemory();
 		}
 
 		/// <inheritdoc/>
-		public override void Serialize(NodeWriter writer)
+		public override void Serialize(INodeWriter writer)
 		{
 			writer.WriteFixedLengthBytes(Data.Span);
 		}
@@ -410,11 +410,11 @@ namespace EpicGames.Horde.Storage.Nodes
 		/// <summary>
 		/// Constructor
 		/// </summary>
-		public InteriorChunkedDataNode(NodeReader reader)
+		public InteriorChunkedDataNode(INodeReader reader)
 		{
 			// Keep this code in sync with CopyToStreamAsync
 			List<ChunkedDataNodeRef> children = new List<ChunkedDataNodeRef>();
-			while (reader.RemainingMemory.Length > 0)
+			while (reader.GetMemory().Length > 0)
 			{
 				if (reader.Version >= 2)
 				{
@@ -429,7 +429,7 @@ namespace EpicGames.Horde.Storage.Nodes
 		}
 
 		/// <inheritdoc/>
-		public override void Serialize(NodeWriter writer)
+		public override void Serialize(INodeWriter writer)
 		{
 			foreach (ChunkedDataNodeRef child in Children)
 			{

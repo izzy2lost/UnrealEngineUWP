@@ -27,7 +27,7 @@ namespace EpicGames.Horde.Storage.Nodes
 		/// Deserializing constructor
 		/// </summary>
 		/// <param name="reader"></param>
-		public DirectoryEntry(NodeReader reader)
+		public DirectoryEntry(INodeReader reader)
 			: base(reader)
 		{
 			Name = reader.ReadString();
@@ -37,7 +37,7 @@ namespace EpicGames.Horde.Storage.Nodes
 		/// Serialize this directory entry to disk
 		/// </summary>
 		/// <param name="writer"></param>
-		public override void Serialize(NodeWriter writer)
+		public override void Serialize(INodeWriter writer)
 		{
 			base.Serialize(writer);
 

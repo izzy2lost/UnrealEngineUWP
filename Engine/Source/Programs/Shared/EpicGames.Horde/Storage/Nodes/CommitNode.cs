@@ -85,7 +85,7 @@ namespace EpicGames.Horde.Storage.Nodes
 		/// Deserializing constructor
 		/// </summary>
 		/// <param name="reader"></param>
-		public CommitNode(NodeReader reader)
+		public CommitNode(INodeReader reader)
 		{
 			Number = (int)reader.ReadUnsignedVarInt();
 			Parent = reader.ReadOptionalNodeRef<CommitNode>();
@@ -100,7 +100,7 @@ namespace EpicGames.Horde.Storage.Nodes
 		}
 
 		/// <inheritdoc/>
-		public override void Serialize(NodeWriter writer)
+		public override void Serialize(INodeWriter writer)
 		{
 			writer.WriteUnsignedVarInt(Number);
 			writer.WriteOptionalNodeRef(Parent);
