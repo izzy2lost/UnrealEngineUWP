@@ -8,6 +8,7 @@
 #include "Styling/SlateStyleRegistry.h"
 #include "Styling/SlateTypes.h"
 #include "Styling/CoreStyle.h"
+#include "Styling/SegmentedControlStyle.h"
 #include "Styling/StarshipCoreStyle.h"
 #include "Styling/StyleColors.h"
 
@@ -516,6 +517,16 @@ void FNiagaraEditorStyle::InitStackWidgets()
 
 	Set("NiagaraEditor.Stack.Note.HeaderText", NoteHeaderStyle);
 	Set("NiagaraEditor.Stack.Note.HeaderEditableText", NoteHeaderInlineEditableStyle);
+
+	FSegmentedControlStyle SegmentedButtonStyle = FCoreStyle::Get().GetWidgetStyle<FSegmentedControlStyle>("SegmentedControl");
+	FCheckBoxStyle SegmentedControlStyle = FCoreStyle::Get().GetWidgetStyle<FCheckBoxStyle>("DetailsView.SectionButton");
+	SegmentedButtonStyle
+	.SetControlStyle(SegmentedControlStyle)
+	.SetFirstControlStyle(SegmentedControlStyle)
+	.SetLastControlStyle(SegmentedControlStyle)
+	.SetBackgroundBrush(FSlateNoResource());
+	
+	Set("NiagaraEditor.Stack.SegmentedControl", SegmentedButtonStyle);
 }
 
 void FNiagaraEditorStyle::InitNiagaraSequence()

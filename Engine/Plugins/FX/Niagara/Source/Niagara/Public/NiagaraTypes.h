@@ -659,8 +659,12 @@ enum class ENiagaraInputWidgetType : uint8
 	// a numeric input, but also has a dropdown with named values
 	NumericDropdown,
 
-	// A dropdown that behaves like an enum; only allows the exact pre-defined values, for integer inputs only
-	EnumStyle
+	// (for integer inputs only) A dropdown that behaves like an enum; only allows the exact pre-defined values.
+	EnumStyle,
+
+	// (for enum inputs only) Instead of the normal dropdown, the enum values are all displayed in a button grid.
+	// This shows all possible values at once, so only makes sense if there are few input values. 
+	SegmentedButtons
 };
 
 USTRUCT()
@@ -676,6 +680,26 @@ struct FWidgetNamedInputValue
 
 	UPROPERTY(EditAnywhere, Category="Customization")
 	FText Tooltip;
+};
+
+USTRUCT()
+struct FWidgetSegmentValueOverride
+{
+	GENERATED_BODY()
+
+	UPROPERTY(EditAnywhere, Category="Customization")
+	int32 EnumIndexToOverride = 0;
+
+	UPROPERTY(EditAnywhere, Category="Customization", meta=(InlineEditConditionToggle))
+	bool bOverrideDisplayName = false;
+	
+	// This will be used as display name instead of the enum value
+	UPROPERTY(EditAnywhere, Category="Customization", meta=(EditCondition="bOverrideDisplayName"))
+	FText DisplayNameOverride;
+
+	// If set, then this icon will be displayed on the button
+	UPROPERTY(EditAnywhere, Category="Customization")
+	TObjectPtr<UTexture2D> DisplayIcon;
 };
 
 /** A struct that serves as display metadata for integer type static switches. Is used in conjuction with the 'EnumStyle' widget customization. */
@@ -726,6 +750,13 @@ struct FNiagaraInputParameterCustomization
 	
 	UPROPERTY(EditAnywhere, Category="Customization", meta=(EditCondition="WidgetType == ENiagaraInputWidgetType::EnumStyle", EditConditionHides))
 	TArray<FNiagaraWidgetNamedIntegerInputValue> EnumStyleDropdownValues;
+
+	// Limits the number of buttons shown per row, 0 = unlimited
+	UPROPERTY(EditAnywhere, Category="Customization", meta=(EditCondition="WidgetType == ENiagaraInputWidgetType::SegmentedButtons", EditConditionHides))
+	int32 MaxSegmentsPerRow = 0;
+
+	UPROPERTY(EditAnywhere, Category="Customization", meta=(EditCondition="WidgetType == ENiagaraInputWidgetType::SegmentedButtons", EditConditionHides))
+	TArray<FWidgetSegmentValueOverride> SegmentValueOverrides;
 
 	UPROPERTY()
 	bool bBroadcastValueChangesOnCommitOnly = false;
