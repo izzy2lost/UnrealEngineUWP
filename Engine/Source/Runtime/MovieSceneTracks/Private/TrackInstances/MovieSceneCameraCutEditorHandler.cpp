@@ -1,6 +1,7 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 
 #include "TrackInstances/MovieSceneCameraCutEditorHandler.h"
+#include "Engine/EngineTypes.h"
 
 #if WITH_EDITOR
 
@@ -13,6 +14,13 @@
 
 namespace UE::MovieScene
 {
+
+bool FPreAnimatedCameraCutEditorTraits::ShouldHandleViewportCameraCuts(FLevelEditorViewportClient* ViewportClient)
+{
+	UWorld* EditorWorld = ViewportClient->GetWorld();
+	return EditorWorld && 
+		(EditorWorld->WorldType == EWorldType::Editor || EditorWorld->WorldType == EWorldType::EditorPreview);
+}
 
 FPreAnimatedCameraCutEditorState FPreAnimatedCameraCutEditorTraits::CachePreAnimatedValue(
 		FLevelEditorViewportClient* InKey)
@@ -40,8 +48,17 @@ void FPreAnimatedCameraCutEditorTraits::RestorePreAnimatedValue(
 		return;
 	}
 
+	// Check that we have an editor viewport.
+	if (!ShouldHandleViewportCameraCuts(InKey))
+	{
+		return;
+	}
+
 	// If the viewport wasn't locked to cinematics anyway, don't mess it up.
-	if (!InKey->IsLockedToCinematic())
+	// However, we don't call `IsLockedToCinematics` because we want to also consider the case
+	// of a camera actor that is PendingKill after having been unspawned by sequencer in the
+	// current update.
+	if (InKey->GetCinematicActorLock().LockedActor.IsExplicitlyNull())
 	{
 		return;
 	}
@@ -67,14 +84,75 @@ void FCameraCutEditorHandler::CachePreAnimatedValue(
 		return;
 	}
 
+	FCameraCutPlaybackCapabilityCompatibilityWrapper Wrapper(SequenceInstance);
+	if (!Wrapper.ShouldCacheEditorPreAnimatedState())
+	{
+		return;
+	}
+	
 	TSharedPtr<FPreAnimatedCameraCutEditorStorage> PreAnimatedStorage = Linker->PreAnimatedState.GetOrCreateStorage<FPreAnimatedCameraCutEditorStorage>();
 
 	for (FLevelEditorViewportClient* LevelVC : GEditor->GetLevelViewportClients())
 	{
+		if (!FPreAnimatedCameraCutEditorTraits::ShouldHandleViewportCameraCuts(LevelVC))
+		{
+			continue;
+		}
+
 		PreAnimatedStorage->CachePreAnimatedValue(
 				LevelVC,
 				[](FLevelEditorViewportClient* InKey) { return FPreAnimatedCameraCutEditorTraits::CachePreAnimatedValue(InKey); },
 				EPreAnimatedCaptureSourceTracking::AlwaysCache);
+	}
+}
+
+void FCameraCutEditorHandler::ForcePreAnimatedValueOperation(
+		UMovieSceneEntitySystemLinker* Linker,
+		EForcedCameraCutPreAnimatedStorageOperation Operation)
+{
+	if (!GEditor)
+	{
+		return;
+	}
+
+	TSharedPtr<FPreAnimatedCameraCutEditorStorage> PreAnimatedStorage = Linker->PreAnimatedState.GetOrCreateStorage<FPreAnimatedCameraCutEditorStorage>();
+
+	for (FLevelEditorViewportClient* LevelVC : GEditor->GetLevelViewportClients())
+	{
+		if (!FPreAnimatedCameraCutEditorTraits::ShouldHandleViewportCameraCuts(LevelVC))
+		{
+			continue;
+		}
+
+		FPreAnimatedStorageIndex StorageIndex = PreAnimatedStorage->FindStorageIndex(LevelVC);
+		if (StorageIndex.IsValid())
+		{
+			switch (Operation)
+			{
+				case EForcedCameraCutPreAnimatedStorageOperation::Cache:
+					{
+						PreAnimatedStorage->DiscardPreAnimatedStateStorage(StorageIndex, EPreAnimatedStorageRequirement::Transient);
+						PreAnimatedStorage->CachePreAnimatedValue(
+								LevelVC,
+								[](FLevelEditorViewportClient* InKey) { return FPreAnimatedCameraCutEditorTraits::CachePreAnimatedValue(InKey); },
+								EPreAnimatedCaptureSourceTracking::AlwaysCache);
+					}
+					break;
+				case EForcedCameraCutPreAnimatedStorageOperation::Restore:
+					{
+						FRestoreStateParams Params;
+						Params.Linker = Linker;
+						// No need to set the terminal instance handle, we don't use it (see above).
+						PreAnimatedStorage->RestorePreAnimatedStateStorage(StorageIndex, EPreAnimatedStorageRequirement::Transient, EPreAnimatedStorageRequirement::Persistent, Params);
+					}
+					break;
+				case EForcedCameraCutPreAnimatedStorageOperation::Discard:
+					{
+						PreAnimatedStorage->DiscardPreAnimatedStateStorage(StorageIndex, EPreAnimatedStorageRequirement::Transient);
+					}
+					break;
+			}
+		}
 	}
 }
 
@@ -115,7 +193,7 @@ void FCameraCutEditorHandler::SetCameraCut(
 
 	for (FLevelEditorViewportClient* LevelVC : GEditor->GetLevelViewportClients())
 	{
-		if (LevelVC == nullptr)
+		if (LevelVC == nullptr || !FPreAnimatedCameraCutEditorTraits::ShouldHandleViewportCameraCuts(LevelVC))
 		{
 			continue;
 		}
@@ -161,7 +239,10 @@ void FCameraCutEditorHandler::SetCameraCutForViewport(
 	// If that viewport wasn't locked to cinematics, see if we need to re-cache pre-animated state.
 	// This is necessary if the user released control with the camera button on the camera cut track.
 	// (see ReleaseCameraCutForViewport)
-	if (!ViewportClient.IsLockedToCinematic())
+	//
+	// Note that PreAnimatedStorage can be null here if we never cached any pre-animated state, which
+	// is possible if the option to restore viewports on unlock is off.
+	if (PreAnimatedStorage.IsValid() && !ViewportClient.IsLockedToCinematic())
 	{
 		FPreAnimatedStorageIndex StorageIndex = PreAnimatedStorage->FindStorageIndex(&ViewportClient);
 		if (!StorageIndex.IsValid())
@@ -308,8 +389,15 @@ void FCameraCutEditorHandler::ReleaseCameraCutForViewport(
 	}
 	
 	// Restore the viewport to its pre-animated state.
+	//
+	// Note that PreAnimatedStorage can be null here if we never cached any pre-animated state, which
+	// is possible if the option to restore viewports on unlock is off.
+	FPreAnimatedStorageIndex StorageIndex;
 	TSharedPtr<FPreAnimatedCameraCutEditorStorage> PreAnimatedStorage = Linker->PreAnimatedState.FindStorage(FPreAnimatedCameraCutEditorStorage::StorageID);
-	FPreAnimatedStorageIndex StorageIndex = PreAnimatedStorage->FindStorageIndex(&ViewportClient);
+	if (PreAnimatedStorage.IsValid())
+	{
+		StorageIndex = PreAnimatedStorage->FindStorageIndex(&ViewportClient);
+	}
 	if (StorageIndex.IsValid())
 	{
 		FPreAnimatedCameraCutEditorState CachedValue = PreAnimatedStorage->GetCachedValue(StorageIndex);

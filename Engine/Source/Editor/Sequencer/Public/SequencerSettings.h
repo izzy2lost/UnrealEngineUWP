@@ -437,6 +437,18 @@ public:
 	/** Sets whether or not to expand the outliner tree view when a child element is selected (from outside of the tree view). */
 	void SetAutoExpandNodesOnSelection(bool bInAutoExpandNodesOnSelection);
 
+
+	/**
+	 * Gets whether unlocking a camera cut track should return the viewport to its original location, or keep it where
+	 * the camera cut was.
+	 */
+	bool GetRestoreOriginalViewportOnCameraCutUnlock() const { return bRestoreOriginalViewportOnCameraCutUnlock; }
+	/**
+	 * Sets whether unlocking a camera cut track should return the viewport to its original location, or keep it where
+	 * the camera cut was.
+	 */
+	void SetRestoreOriginalViewportOnCameraCutUnlock(bool bInRestoreOriginalViewportOnCameraCutUnlock);
+
 	/** Gets the tree view width percentage */
 	float GetTreeViewWidth() const { return TreeViewWidth; }
 	/** Sets the tree view width percentage */
@@ -695,6 +707,14 @@ protected:
 	/** Whether to expand the sequencer tree view when a child element is selected (from outside of the tree view). */
 	UPROPERTY(config, EditAnywhere, Category = General)
 	bool bAutoExpandNodesOnSelection;
+
+	/**
+	 * Whether unlocking a camera cut track should return the viewport to its original location, or keep it where the
+	 * camera cut was.
+	 * WARNING: Disabling this will make previewing camera cut blends useless, since it will blend to the same position.
+	 */
+	UPROPERTY(config, EditAnywhere, Category=General)
+	bool bRestoreOriginalViewportOnCameraCutUnlock;
 
 	/** The tree view width percentage */
 	UPROPERTY(config, EditAnywhere, Category = General)

@@ -62,6 +62,7 @@ USequencerSettings::USequencerSettings( const FObjectInitializer& ObjectInitiali
 	TrajectoryPathCap = 250;
 	FrameNumberDisplayFormat = EFrameNumberDisplayFormats::Seconds;
 	bAutoExpandNodesOnSelection = true;
+	bRestoreOriginalViewportOnCameraCutUnlock = true;
 	TreeViewWidth = 0.3f;
 	bShowTickLines = true;
 	bShowSequencerToolbar = true;
@@ -956,6 +957,15 @@ void USequencerSettings::SetAutoExpandNodesOnSelection(bool bInAutoExpandNodesOn
 	if (bInAutoExpandNodesOnSelection != bAutoExpandNodesOnSelection)
 	{
 		bAutoExpandNodesOnSelection = bInAutoExpandNodesOnSelection;
+		SaveConfig();
+	}
+}
+
+void USequencerSettings::SetRestoreOriginalViewportOnCameraCutUnlock(bool bInRestoreOriginalViewportOnCameraCutUnlock)
+{
+	if (bInRestoreOriginalViewportOnCameraCutUnlock != bRestoreOriginalViewportOnCameraCutUnlock)
+	{
+		bRestoreOriginalViewportOnCameraCutUnlock = bInRestoreOriginalViewportOnCameraCutUnlock;
 		SaveConfig();
 	}
 }

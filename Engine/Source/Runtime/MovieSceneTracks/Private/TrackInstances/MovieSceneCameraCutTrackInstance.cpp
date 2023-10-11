@@ -10,6 +10,7 @@
 #include "EntitySystem/MovieSceneEntitySystemLinker.h"
 #include "EntitySystem/MovieSceneInstanceRegistry.h"
 #include "EntitySystem/MovieSceneSharedPlaybackState.h"
+#include "EntitySystem/TrackInstance/MovieSceneTrackInstanceSystem.h"
 #include "Evaluation/CameraCutPlaybackCapability.h"
 #include "Evaluation/MovieSceneEvaluation.h"
 #include "Evaluation/PreAnimatedState/MovieScenePreAnimatedCaptureSource.h"
@@ -22,6 +23,7 @@
 #include "Sections/MovieSceneCameraCutSection.h"
 #include "TrackInstances/MovieSceneCameraCutEditorHandler.h"
 #include "TrackInstances/MovieSceneCameraCutGameHandler.h"
+#include "TrackInstances/MovieSceneCameraCutViewportPreviewer.h"
 #include "Tracks/MovieSceneCameraCutTrack.h"
 
 #include UE_INLINE_GENERATED_CPP_BY_NAME(MovieSceneCameraCutTrackInstance)
@@ -54,6 +56,17 @@ bool FCameraCutPlaybackCapabilityCompatibilityWrapper::ShouldUpdateCameraCut()
 	}
 	return true;
 }
+
+#if WITH_EDITOR
+bool FCameraCutPlaybackCapabilityCompatibilityWrapper::ShouldCacheEditorPreAnimatedState()
+{
+	if (CameraCutCapability)
+	{
+		return CameraCutCapability->ShouldCacheEditorPreAnimatedState();
+	}
+	return true;
+}
+#endif
 
 void FCameraCutPlaybackCapabilityCompatibilityWrapper::OnCameraCutUpdated(const FOnCameraCutUpdatedParams& Params)
 {
@@ -265,6 +278,80 @@ public:
 }  // namespace MovieScene
 }  // namespace UE
 
+#if WITH_EDITOR
+
+void UMovieSceneCameraCutTrackInstance::ToggleCameraCutLock(UMovieSceneEntitySystemLinker* Linker, bool bEnableCameraCuts, bool bRestoreViewports)
+{
+	using namespace UE::MovieScene;
+
+	auto ForceEditorPreAnimatedStorageOperation = [](UMovieSceneCameraCutTrackInstance* This, UE::MovieScene::EForcedCameraCutPreAnimatedStorageOperation Operation)
+	{
+		using namespace UE::MovieScene;
+
+		UMovieSceneEntitySystemLinker* Linker = This->GetLinker();
+		for (const FCameraCutInputInfo& InputInfo : This->SortedInputInfos)
+		{
+			FScopedPreAnimatedCaptureSource CaptureSource(Linker, InputInfo.Input);
+			FCameraCutEditorHandler::ForcePreAnimatedValueOperation(Linker, Operation);
+		}
+	};
+
+	// Find the camera cut track instance and forcibly manage its pre-animated state for the editor 
+	// viewports depending on what we want to do with them.
+	UMovieSceneTrackInstanceInstantiator* TrackInstanceSystem = Linker->FindSystem<UMovieSceneTrackInstanceInstantiator>();
+	if (TrackInstanceSystem)
+	{
+		UMovieSceneCameraCutTrackInstance* CameraCutTrackInstance = nullptr;
+		for (auto It = TrackInstanceSystem->GetTrackInstances().CreateConstIterator(); It; ++It)
+		{
+			CameraCutTrackInstance = Cast<UMovieSceneCameraCutTrackInstance>(It->TrackInstance.Get());
+			if (CameraCutTrackInstance != nullptr)
+			{
+				break;
+			}
+		}
+
+		if (CameraCutTrackInstance)
+		{
+			if (bEnableCameraCuts)
+			{
+				// We locked the viewport to the cinematic... re-cache the viewport's position as the
+				// new pre-animated state if we intend to restore it later. Otherwise, don't cache it,
+				// so that we don't have any state to restore if we scrub/play out of the camera cut
+				// section.
+				if (bRestoreViewports)
+				{
+					ForceEditorPreAnimatedStorageOperation(CameraCutTrackInstance, EForcedCameraCutPreAnimatedStorageOperation::Cache);
+				}
+			}
+			else
+			{
+				// We unlocked the viewport... if we want to restore the original viewport position, 
+				// let's restore this position, which we saved as pre-animated value. If we want to stay
+				// in the same position as the cinematic camera, we can simply not do anything. But we in
+				// fact discard the pre-animated state altogether, because we don't want it to also come
+				// back when we scrub/play out of the camera cut section.
+				if (bRestoreViewports)
+				{
+					ForceEditorPreAnimatedStorageOperation(CameraCutTrackInstance, EForcedCameraCutPreAnimatedStorageOperation::Restore);
+				}
+				else
+				{
+					ForceEditorPreAnimatedStorageOperation(CameraCutTrackInstance, EForcedCameraCutPreAnimatedStorageOperation::Discard);
+				}
+			}
+		}
+	}
+}
+
+#endif // WITH_EDITOR
+
+void UMovieSceneCameraCutTrackInstance::OnInitialize()
+{
+#if WITH_EDITOR
+	ViewportPreviewer = MakeUnique<UE::MovieScene::FCameraCutViewportPreviewer>();
+#endif
+}
 
 void UMovieSceneCameraCutTrackInstance::OnAnimate()
 {
@@ -346,7 +433,7 @@ void UMovieSceneCameraCutTrackInstance::OnAnimate()
 
 	FCameraCutAnimator Animator(CameraCutCache);
 #if WITH_EDITOR
-	Animator.SetViewportPreviewer(&ViewportPreviewer);
+	Animator.SetViewportPreviewer(ViewportPreviewer.Get());
 #endif
 
 	// For now we only support one pre-roll.
@@ -527,8 +614,15 @@ void UMovieSceneCameraCutTrackInstance::OnEndUpdateInputs()
 void UMovieSceneCameraCutTrackInstance::OnDestroyed()
 {
 #if WITH_EDITOR
+	using namespace UE::MovieScene;
+
+	// Discard persistent storage on exit so that we don't restore whatever viewports we had
+	// way back when we opened the sequencer.
+	//FCameraCutEditorHandler::ForcePreAnimatedValueOperation(GetLinker(), EForcedCameraCutPreAnimatedStorageOperation::DiscardPersistent);
+
 	// Make sure we don't have any viewport modifiers registered anymore.
-	ViewportPreviewer.ToggleViewportPreviewModifiers(false);
+	ViewportPreviewer->ToggleViewportPreviewModifiers(false);
+	ViewportPreviewer.Reset();
 #endif
 }
 

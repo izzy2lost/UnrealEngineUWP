@@ -1,36 +1,40 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 
 #include "TrackEditors/CinematicShotTrackEditor.h"
-#include "Misc/Paths.h"
-#include "Widgets/SBoxPanel.h"
-#include "Framework/MultiBox/MultiBoxBuilder.h"
-#include "GameFramework/Actor.h"
-#include "Factories/Factory.h"
-#include "Tracks/MovieSceneSubTrack.h"
-#include "Tracks/MovieSceneCinematicShotTrack.h"
-#include "Sections/MovieSceneCinematicShotSection.h"
-#include "Modules/ModuleManager.h"
-#include "Application/ThrottleManager.h"
-#include "Framework/Application/SlateApplication.h"
-#include "Widgets/Layout/SBox.h"
-#include "Widgets/Input/SCheckBox.h"
-#include "Styling/AppStyle.h"
-#include "LevelEditorViewport.h"
+
+#include "AutomatedLevelSequenceCapture.h"
+#include "LevelSequence.h"
+#include "MovieSceneCaptureModule.h"
+#include "MovieSceneTimeHelpers.h"
 #include "MovieSceneToolHelpers.h"
-#include "FCPXML/FCPXMLMovieSceneTranslator.h"
+#include "MovieSceneToolsProjectSettings.h"
 #include "Sections/CinematicShotSection.h"
+#include "Sections/MovieSceneCinematicShotSection.h"
+#include "SequencerSettings.h"
 #include "SequencerUtilities.h"
+#include "TrackEditorThumbnail/TrackEditorThumbnailPool.h"
+#include "TrackInstances/MovieSceneCameraCutTrackInstance.h"
+#include "Tracks/MovieSceneCinematicShotTrack.h"
+#include "Tracks/MovieSceneSubTrack.h"
+
+#include "Application/ThrottleManager.h"
+#include "Editor.h"
+#include "FCPXML/FCPXMLMovieSceneTranslator.h"
+#include "Factories/Factory.h"
+#include "Framework/Application/SlateApplication.h"
+#include "Framework/MultiBox/MultiBoxBuilder.h"
+#include "Framework/Notifications/NotificationManager.h"
+#include "GameFramework/Actor.h"
+#include "LevelEditorViewport.h"
+#include "Misc/Paths.h"
+#include "Modules/ModuleManager.h"
+#include "Styling/AppStyle.h"
 #include "UObject/UObjectHash.h"
 #include "UObject/UObjectIterator.h"
-#include "LevelSequence.h"
-#include "AutomatedLevelSequenceCapture.h"
-#include "MovieSceneCaptureModule.h"
-#include "TrackEditorThumbnail/TrackEditorThumbnailPool.h"
-#include "MovieSceneToolsProjectSettings.h"
-#include "Editor.h"
-#include "MovieSceneTimeHelpers.h"
-#include "Framework/Notifications/NotificationManager.h"
+#include "Widgets/Input/SCheckBox.h"
+#include "Widgets/Layout/SBox.h"
 #include "Widgets/Notifications/SNotificationList.h"
+#include "Widgets/SBoxPanel.h"
 
 #define LOCTEXT_NAMESPACE "FCinematicShotTrackEditor"
 
@@ -282,26 +286,21 @@ ECheckBoxState FCinematicShotTrackEditor::AreShotsLocked() const
 
 void FCinematicShotTrackEditor::OnLockShotsClicked(ECheckBoxState CheckBoxState)
 {
-	if (CheckBoxState == ECheckBoxState::Checked)
+	TSharedPtr<ISequencer> SequencerPtr = GetSequencer();
+
+	const bool bEnableCameraCuts = (CheckBoxState == ECheckBoxState::Checked);
+	SequencerPtr->SetPerspectiveViewportCameraCutEnabled(bEnableCameraCuts);
+
+	bool bNeedsRestoreViewport = true;
+	if (const USequencerSettings* SequencerSettings = SequencerPtr->GetSequencerSettings())
 	{
-		for( FLevelEditorViewportClient* LevelVC : GEditor->GetLevelViewportClients() )
-		{
-			if (LevelVC && LevelVC->AllowsCinematicControl() && LevelVC->GetViewMode() != VMI_Unknown)
-			{
-				LevelVC->SetActorLock(nullptr);
-				LevelVC->bLockedCameraView = false;
-				LevelVC->UpdateViewForLockedActor();
-				LevelVC->Invalidate();
-			}
-		}
-		GetSequencer()->SetPerspectiveViewportCameraCutEnabled(true);
-	}
-	else
-	{
-		GetSequencer()->SetPerspectiveViewportCameraCutEnabled(false);
+		bNeedsRestoreViewport = SequencerSettings->GetRestoreOriginalViewportOnCameraCutUnlock();
 	}
 
-	GetSequencer()->ForceEvaluate();
+	UMovieSceneEntitySystemLinker* Linker = SequencerPtr->GetEvaluationTemplate().GetEntitySystemLinker();
+	UMovieSceneCameraCutTrackInstance::ToggleCameraCutLock(Linker, bEnableCameraCuts, bNeedsRestoreViewport);
+
+	SequencerPtr->ForceEvaluate();
 }
 
 FText FCinematicShotTrackEditor::GetLockShotsToolTip() const

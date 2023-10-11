@@ -5,7 +5,6 @@
 #include "CoreMinimal.h"
 #include "EntitySystem/BuiltInComponentTypes.h"
 #include "EntitySystem/TrackInstance/MovieSceneTrackInstance.h"
-#include "TrackInstances/MovieSceneCameraCutViewportPreviewer.h"
 #include "UObject/ObjectMacros.h"
 
 #include "MovieSceneCameraCutTrackInstance.generated.h"
@@ -15,6 +14,7 @@ class UMovieSceneCameraCutSection;
 
 namespace UE::MovieScene
 { 
+	class FCameraCutViewportPreviewer;
 	struct FCameraCutAnimator; 
 	struct FCameraCutPlaybackCapability;
 	struct FOnCameraCutUpdatedParams;
@@ -27,6 +27,9 @@ namespace UE::MovieScene
 
 		bool ShouldUpdateCameraCut();
 		void OnCameraCutUpdated(const FOnCameraCutUpdatedParams& Params);
+#if WITH_EDITOR
+		bool ShouldCacheEditorPreAnimatedState();
+#endif
 
 		FCameraCutPlaybackCapability* CameraCutCapability;
 		IMovieScenePlayer* Player;
@@ -37,11 +40,22 @@ namespace UE::MovieScene
  * Track instance used to animate camera cuts.
  */
 UCLASS()
-class UMovieSceneCameraCutTrackInstance : public UMovieSceneTrackInstance
+class MOVIESCENETRACKS_API UMovieSceneCameraCutTrackInstance : public UMovieSceneTrackInstance
 {
 	GENERATED_BODY()
 
+public:
+#if WITH_EDITOR
+	/**
+	 * Toggle camera cut lock on cinematic editor viewports while also correctly managing
+	 * remember/restoring/discarding pre-animated viewport positions based on sequencer
+	 * settings.
+	 */
+	static void ToggleCameraCutLock(UMovieSceneEntitySystemLinker* Linker, bool bEnableCameraCuts, bool bRestoreViewports);
+#endif
+
 private:
+	virtual void OnInitialize() override;
 	virtual void OnAnimate() override;
 	virtual void OnInputAdded(const FMovieSceneTrackInstanceInput& InInput) override;
 	virtual void OnEndUpdateInputs() override;
@@ -74,7 +88,7 @@ private:
 	TArray<FCameraCutInputInfo> SortedInputInfos;
 
 #if WITH_EDITOR
-	UE::MovieScene::FCameraCutViewportPreviewer ViewportPreviewer;
+	TUniquePtr<UE::MovieScene::FCameraCutViewportPreviewer> ViewportPreviewer;
 #endif
 
 private:

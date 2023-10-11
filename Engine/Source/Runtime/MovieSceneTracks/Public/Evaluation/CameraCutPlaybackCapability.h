@@ -11,7 +11,7 @@ class UCameraComponent;
 namespace UE::MovieScene
 {
 	/**
-	 *
+	 * Parameter struct for notifying a playback client that a camera cut has happened.
 	 */
 	struct FOnCameraCutUpdatedParams
 	{
@@ -41,7 +41,8 @@ namespace UE::MovieScene
 		virtual void OnCameraCutUpdated(const FOnCameraCutUpdatedParams& Params) {}
 
 #if WITH_EDITOR
-		virtual bool ShouldPreviewCameraCutBlends() { return true; }
+		/** Whether the editor should cache the pre-animated viewport position */
+		virtual bool ShouldCacheEditorPreAnimatedState() { return true; }
 #endif
 	};
 

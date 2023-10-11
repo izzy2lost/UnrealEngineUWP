@@ -844,11 +844,9 @@ protected:
 	// FCameraCutPlaybackCapability interface
 
 	virtual bool ShouldUpdateCameraCut() override { return IsPerspectiveViewportCameraCutEnabled(); }
+	virtual bool ShouldCacheEditorPreAnimatedState() override;
 	virtual float GetCameraBlendPlayRate() override;
 	virtual void OnCameraCutUpdated(const UE::MovieScene::FOnCameraCutUpdatedParams& Params) override;
-#if WITH_EDITOR
-	virtual bool ShouldPreviewCameraCutBlends() override { return !IsInSilentMode(); }
-#endif
 
 protected:
 

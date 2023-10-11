@@ -5,6 +5,7 @@
 #include "Camera/CameraComponent.h"
 #include "Camera/PlayerCameraManager.h"
 #include "Engine/Engine.h"
+#include "Engine/EngineTypes.h"
 #include "Engine/GameInstance.h"
 #include "Engine/LocalPlayer.h"
 #include "Engine/World.h"
@@ -18,13 +19,21 @@
 namespace UE::MovieScene
 {
 
+bool FPreAnimatedCameraCutTraits::ShouldHandleWorldCameraCuts(UWorld* World)
+{
+	return World && 
+		World->GetGameInstance() != nullptr &&
+		World->WorldType != EWorldType::Editor &&
+		World->WorldType != EWorldType::EditorPreview;
+}
+
 FPreAnimatedCameraCutState FPreAnimatedCameraCutTraits::CachePreAnimatedValue(
 		IMovieScenePlayer* Player, 
 		uint8 InKey)
 {
 	UObject* PlaybackContext = Player->GetPlaybackContext();
 	UWorld* World = PlaybackContext ? PlaybackContext->GetWorld() : nullptr;
-	if (World && World->GetGameInstance())
+	if (ShouldHandleWorldCameraCuts(World))
 	{
 		APlayerController* PC = World->GetGameInstance()->GetFirstLocalPlayerController();
 
@@ -40,7 +49,7 @@ FPreAnimatedCameraCutState FPreAnimatedCameraCutTraits::CachePreAnimatedValue(
 			AspectRatioAxisConstraint = LocalPlayer->AspectRatioAxisConstraint;
 		}
 
-		return StorageType{ LocalPlayer, ViewTarget, AspectRatioAxisConstraint };
+		return StorageType{ World, LocalPlayer, ViewTarget, AspectRatioAxisConstraint };
 	}
 	return StorageType();
 }
@@ -50,15 +59,8 @@ void FPreAnimatedCameraCutTraits::RestorePreAnimatedValue(
 		const FPreAnimatedCameraCutState& CachedValue, 
 		const FRestoreStateParams& Params)
 {
-	IMovieScenePlayer* Player = Params.GetTerminalPlayer();
-	if (!Player)
-	{
-		return;
-	}
-
-	UObject* PlaybackContext = Player->GetPlaybackContext();
-	UWorld* World = GEngine->GetWorldFromContextObject(PlaybackContext, EGetWorldErrorMode::LogAndReturnNull);
-	if (!World || !World->GetGameInstance())
+	UWorld* World = Cast<UWorld>(CachedValue.LastWorld.ResolveObjectPtr());
+	if (!ShouldHandleWorldCameraCuts(World))
 	{
 		return;
 	}
@@ -181,7 +183,7 @@ void FCameraCutGameHandler::SetCameraCut(
 	UWorld* World = PlaybackContext ? PlaybackContext->GetWorld() : nullptr;
 
 	// Also bail out if we don't have a world running any sort of game.
-	if (World == nullptr || World->GetGameInstance() == nullptr)
+	if (!FPreAnimatedCameraCutTraits::ShouldHandleWorldCameraCuts(World))
 	{
 		return;
 	}

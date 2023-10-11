@@ -10232,6 +10232,12 @@ void FSequencer::BindCommands()
 		FIsActionChecked::CreateLambda([this] { return Settings->GetAutoExpandNodesOnSelection(); }) );
 
 	SequencerCommandBindings->MapAction(
+		Commands.ToggleRestoreOriginalViewportOnCameraCutUnlock,
+		FExecuteAction::CreateLambda([this] { Settings->SetRestoreOriginalViewportOnCameraCutUnlock(!Settings->GetRestoreOriginalViewportOnCameraCutUnlock()); }),
+		FCanExecuteAction::CreateLambda([] { return true; }),
+		FIsActionChecked::CreateLambda([this] { return Settings->GetRestoreOriginalViewportOnCameraCutUnlock(); }) );
+
+	SequencerCommandBindings->MapAction(
 		Commands.ToggleExpandCollapseNodes,
 		FExecuteAction::CreateSP(this, &FSequencer::ToggleExpandCollapseNodes));
 
@@ -11531,6 +11537,11 @@ bool FSequencer::UsesDynamicWeighting()
 UE::Sequencer::FSequencerSelection& FSequencer::GetSelection()
 {
 	return *ViewModel->GetSelection();
+}
+
+bool FSequencer::ShouldCacheEditorPreAnimatedState()
+{
+	return Settings->GetRestoreOriginalViewportOnCameraCutUnlock();
 }
 
 float FSequencer::GetCameraBlendPlayRate()

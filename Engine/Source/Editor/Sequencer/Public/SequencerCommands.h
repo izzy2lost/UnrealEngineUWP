@@ -157,6 +157,12 @@ public:
 	/** Toggle auto expand outliner tree on child selection */
 	TSharedPtr< FUICommandInfo > ToggleAutoExpandNodesOnSelection;
 
+	/**
+	 * Toggle whether unlocking a camera cut track should return the viewport to its original location, or keep it where
+	 * the camera cut was.
+	 */
+	TSharedPtr< FUICommandInfo > ToggleRestoreOriginalViewportOnCameraCutUnlock;
+
 	/** Expand/collapse nodes */
 	TSharedPtr< FUICommandInfo > ToggleExpandCollapseNodes;
 

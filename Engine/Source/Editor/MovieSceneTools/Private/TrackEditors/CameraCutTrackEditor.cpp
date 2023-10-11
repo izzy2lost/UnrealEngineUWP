@@ -1,29 +1,33 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 
 #include "TrackEditors/CameraCutTrackEditor.h"
-#include "Widgets/SBoxPanel.h"
-#include "Framework/MultiBox/MultiBoxBuilder.h"
-#include "Tracks/MovieSceneCameraCutTrack.h"
-#include "Modules/ModuleManager.h"
-#include "Application/ThrottleManager.h"
-#include "Widgets/Layout/SBox.h"
-#include "Widgets/Input/SCheckBox.h"
+
+#include "DragAndDrop/ActorDragDropGraphEdOp.h"
 #include "MovieSceneCommonHelpers.h"
-#include "Styling/AppStyle.h"
-#include "GameFramework/WorldSettings.h"
-#include "LevelEditorViewport.h"
-#include "Sections/CameraCutSection.h"
-#include "Sections/MovieSceneCameraCutSection.h"
-#include "SequencerUtilities.h"
-#include "Editor.h"
-#include "ActorEditorUtils.h"
-#include "SceneOutlinerPublicTypes.h"
-#include "SceneOutlinerModule.h"
-#include "ActorTreeItem.h"
-#include "TrackEditorThumbnail/TrackEditorThumbnailPool.h"
 #include "MovieSceneObjectBindingIDPicker.h"
 #include "MovieSceneToolHelpers.h"
-#include "DragAndDrop/ActorDragDropGraphEdOp.h"
+#include "Sections/CameraCutSection.h"
+#include "Sections/MovieSceneCameraCutSection.h"
+#include "SequencerSettings.h"
+#include "SequencerUtilities.h"
+#include "TrackEditorThumbnail/TrackEditorThumbnailPool.h"
+#include "TrackInstances/MovieSceneCameraCutTrackInstance.h"
+#include "Tracks/MovieSceneCameraCutTrack.h"
+
+#include "ActorEditorUtils.h"
+#include "ActorTreeItem.h"
+#include "Application/ThrottleManager.h"
+#include "Editor.h"
+#include "Framework/MultiBox/MultiBoxBuilder.h"
+#include "GameFramework/WorldSettings.h"
+#include "LevelEditorViewport.h"
+#include "Modules/ModuleManager.h"
+#include "SceneOutlinerModule.h"
+#include "SceneOutlinerPublicTypes.h"
+#include "Styling/AppStyle.h"
+#include "Widgets/Input/SCheckBox.h"
+#include "Widgets/Layout/SBox.h"
+#include "Widgets/SBoxPanel.h"
 
 #define LOCTEXT_NAMESPACE "FCameraCutTrackEditor"
 
@@ -562,10 +566,21 @@ ECheckBoxState FCameraCutTrackEditor::IsCameraLocked() const
 
 void FCameraCutTrackEditor::OnLockCameraClicked(ECheckBoxState CheckBoxState)
 {
+	TSharedPtr<ISequencer> SequencerPtr = GetSequencer();
 
 	const bool bEnableCameraCuts = (CheckBoxState == ECheckBoxState::Checked);
-	GetSequencer()->SetPerspectiveViewportCameraCutEnabled(bEnableCameraCuts);
-	GetSequencer()->ForceEvaluate();
+	SequencerPtr->SetPerspectiveViewportCameraCutEnabled(bEnableCameraCuts);
+
+	bool bNeedsRestoreViewport = true;
+	if (const USequencerSettings* SequencerSettings = SequencerPtr->GetSequencerSettings())
+	{
+		bNeedsRestoreViewport = SequencerSettings->GetRestoreOriginalViewportOnCameraCutUnlock();
+	}
+
+	UMovieSceneEntitySystemLinker* Linker = SequencerPtr->GetEvaluationTemplate().GetEntitySystemLinker();
+	UMovieSceneCameraCutTrackInstance::ToggleCameraCutLock(Linker, bEnableCameraCuts, bNeedsRestoreViewport);
+
+	SequencerPtr->ForceEvaluate();
 }
 
 void FCameraCutTrackEditor::ToggleLockCamera()

@@ -2158,6 +2158,7 @@ TSharedRef<SWidget> SSequencer::MakeViewMenu()
 	if (Sequencer->IsLevelEditorSequencer())
 	{
 		MenuBuilder.AddMenuEntry( FSequencerCommands::Get().TogglePilotCamera );
+		MenuBuilder.AddMenuEntry( FSequencerCommands::Get().ToggleRestoreOriginalViewportOnCameraCutUnlock );
 	}
 
 	MenuBuilder.AddMenuEntry( FSequencerCommands::Get().ToggleAutoScroll );

@@ -20,6 +20,7 @@ struct FSequenceInstance;
 /** Pre-animated view target info */
 struct FPreAnimatedCameraCutState
 {
+	FObjectKey LastWorld;
 	FObjectKey LastLocalPlayer;
 	FObjectKey LastViewTarget;
 	TOptional<EAspectRatioAxisConstraint> LastAspectRatioAxisConstraint;
@@ -32,6 +33,7 @@ struct FPreAnimatedCameraCutTraits : FPreAnimatedStateTraits
 	using KeyType = uint8;
 	using StorageType = FPreAnimatedCameraCutState;
 
+	static bool ShouldHandleWorldCameraCuts(UWorld* World);
 	static StorageType CachePreAnimatedValue(IMovieScenePlayer* Player, uint8 InKey);
 
 	void RestorePreAnimatedValue(uint8 InKey, const StorageType& CachedValue, const FRestoreStateParams& Params);
