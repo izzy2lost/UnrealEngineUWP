@@ -645,8 +645,8 @@ static void BindSubstratePublicGlobalUniformParameters(FRDGBuilder& GraphBuilder
 
 static ERHIFeatureSupport SubstrateSupportsWaveOps(EShaderPlatform Platform)
 {
-	// D3D11 / SM5 do not support wave-ops by default, that fixes classification and black/wrong tiling.
-	if (Platform == SP_PCD3D_SM5)
+	// D3D11 / SM5 or preview do not support, or work well with, wave-ops by default (or SM5 preview has issues with wave intrinsics too), that fixes classification and black/wrong tiling.
+	if (Platform == SP_PCD3D_SM5 || FDataDrivenShaderPlatformInfo::GetIsPreviewPlatform(Platform))
 	{
 		return ERHIFeatureSupport::Unsupported;
 	}
