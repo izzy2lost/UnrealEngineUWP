@@ -425,7 +425,7 @@ void OutputInstanceLifetimeEvent(
 		TraceBufferedEvents(InstanceId);
 
 		const FString TreeName = StateTree->GetName();
-		const FString TreePath = StateTree->GetPackage()->GetName();
+		const FString TreePath = StateTree->GetPathName();
 
 		UE_TRACE_LOG(StateTreeDebugger, InstanceEvent, StateTreeDebugChannel)
 			<< InstanceEvent.Cycle(FPlatformTime::Cycles64())
