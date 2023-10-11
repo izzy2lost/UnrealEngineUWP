@@ -10,7 +10,7 @@ public class NNERuntimeRDG : ModuleRules
 	{
 		CppStandard = CppStandardVersion.Cpp17;
 
-		// Remove when this plugin can compile with cpp20
+		// Replace with PCHUsageMode.UseExplicitOrSharedPCHs when this plugin can compile with cpp20
 		PCHUsage = PCHUsageMode.NoPCHs;
 
 		PublicDependencyModuleNames.AddRange(new string[] 

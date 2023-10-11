@@ -13,7 +13,7 @@ namespace UnrealBuildTool.Rules
 
             string ACLSDKDir = Path.GetFullPath(Path.Combine(ModuleDirectory, "../ThirdParty"));
 
-			// Remove when this plugin can compile with cpp20
+			// Replace with PCHUsageMode.UseExplicitOrSharedPCHs when this plugin can compile with cpp20
 			PCHUsage = PCHUsageMode.NoPCHs;
 
 			PublicIncludePaths.Add(Path.Combine(ACLSDKDir, "acl/includes"));

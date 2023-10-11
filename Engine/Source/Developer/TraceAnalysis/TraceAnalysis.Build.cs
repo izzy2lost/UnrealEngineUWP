@@ -11,7 +11,7 @@ public class TraceAnalysis : ModuleRules
 		// Asio does not compile with C++20, remove if updated
 		CppStandard = CppStandardVersion.Cpp17;
 
-		// Remove when this module can compile with cpp20
+		// Replace with PCHUsageMode.UseExplicitOrSharedPCHs when this plugin can compile with cpp20
 		PCHUsage = PCHUsageMode.NoPCHs;
 
 		PrivateDependencyModuleNames.AddRange(
