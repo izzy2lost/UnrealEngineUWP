@@ -438,6 +438,12 @@ public:
 	/** find or add a auto instance mesh and return its index */
 	GEOMETRYCOLLECTIONENGINE_API const FGeometryCollectionAutoInstanceMesh& GetAutoInstanceMesh(int32 AutoInstanceMeshIndex) const;
 
+	/** 
+	* Assign an auto instanced meshes array
+	* if there's duplicate entry in the array , they will be collapsed as one and the index attribute will be adjusted acoordingly
+	*/
+	GEOMETRYCOLLECTIONENGINE_API void SetAutoInstanceMeshes(const TArray<FGeometryCollectionAutoInstanceMesh>& InAutoInstanceMeshes);
+	
 	/**  find or add a auto instance mesh from another one and return its index */
 	GEOMETRYCOLLECTIONENGINE_API int32 FindOrAddAutoInstanceMesh(const FGeometryCollectionAutoInstanceMesh& AutoInstanceMesh);
 

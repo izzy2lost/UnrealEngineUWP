@@ -65,7 +65,7 @@ void FGeometryCollectionTerminalDataflowNode::SetAssetValue(TObjectPtr<UObject> 
 
 			const bool bHasInternalMaterial = false; // with data flow there's no assumption of internal materials
 			CollectionAsset->ResetFrom(InCollection, InMaterials, false);
-			CollectionAsset->AutoInstanceMeshes = InInstancedMeshes;
+			CollectionAsset->SetAutoInstanceMeshes(InInstancedMeshes);
 
 #if WITH_EDITOR
 			// make sure we rebuild the render data when we are done setting everything 
