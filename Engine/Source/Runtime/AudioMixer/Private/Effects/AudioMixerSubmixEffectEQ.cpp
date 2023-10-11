@@ -102,7 +102,7 @@ void FSubmixEffectSubmixEQ::OnProcessAudio(const FSoundEffectSubmixInputData& In
 	// Update parameters that may have been set from game thread
 	UpdateParameters(InData.NumChannels);
 
-	const Audio::FAlignedFloatBuffer& InAudioBuffer = *InData.AudioBuffer;
+	Audio::FAlignedFloatBuffer& InAudioBuffer = *InData.AudioBuffer;
 	Audio::FAlignedFloatBuffer& OutAudioBuffer = *OutData.AudioBuffer;
 
 	if (bEQSettingsSet && RenderThreadEQSettings.EQBands.Num() > 0)

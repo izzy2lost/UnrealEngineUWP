@@ -30,7 +30,7 @@ void FSubmixEffectStereoDelay::OnProcessAudio(const FSoundEffectSubmixInputData&
 		ScratchStereoBuffer.Reset();
 		ScratchStereoBuffer.AddUninitialized(InData.NumFrames * 2);
 
-		const float* InputBufferPtr = InData.AudioBuffer->GetData();
+		float* InputBufferPtr = InData.AudioBuffer->GetData();
 
 		// Get the stereo data from the input buffer
 		for (int32 Frame = 0; Frame < InData.NumFrames; ++Frame)
@@ -60,7 +60,7 @@ void FSubmixEffectStereoDelay::OnProcessAudio(const FSoundEffectSubmixInputData&
 	}
 	else
 	{
-		const float* InputBufferPtr = InData.AudioBuffer->GetData();
+		float* InputBufferPtr = InData.AudioBuffer->GetData();
 		float* OutputBufferPtr = OutData.AudioBuffer->GetData();
 		int32 NumSamples = InData.NumChannels * InData.NumFrames;
 		DelayStereo.ProcessAudio(InputBufferPtr, NumSamples, OutputBufferPtr);
