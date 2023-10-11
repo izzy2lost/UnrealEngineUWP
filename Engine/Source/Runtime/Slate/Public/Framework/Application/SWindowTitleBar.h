@@ -3,6 +3,7 @@
 #pragma once
 
 #include "CoreMinimal.h"
+#include "HAL/PlatformMisc.h"
 #include "Misc/Attribute.h"
 #include "Layout/Visibility.h"
 #include "Styling/SlateColor.h"
@@ -326,7 +327,7 @@ protected:
 		}
 #endif //!PLATFORM_MAC
 
-		if (ShowAppIcon && bHasWindowButtons)
+		if (ShowAppIcon && bHasWindowButtons && FPlatformMisc::CanShowMenusInWindows())
 		{
 			OutLeftContent = 
 				SNew(SHorizontalBox)

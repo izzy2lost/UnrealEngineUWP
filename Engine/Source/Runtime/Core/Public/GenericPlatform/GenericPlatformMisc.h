@@ -1542,6 +1542,14 @@ public:
 	}
 
 	/*
+	 * Returns whether the platform can show main menus inside window title bars.
+	 */
+	static CORE_API bool CanShowMenusInWindows()
+	{
+		return true;
+	}
+
+	/*
 	 * Returns whether the volume buttons are handled by the system
 	 */
 	static bool GetVolumeButtonsHandledBySystem()
