@@ -96,9 +96,6 @@ void UGraph::Empty()
 	Vertices.Empty();
 	Edges.Empty();
 	Islands.Empty();
-	NextAvailableVertexUniqueIndex = 0;
-	NextAvailableEdgeUniqueIndex = 0;
-	NextAvailableIslandUniqueIndex = 0;
 }
 
 void UGraph::InitializeFromProperties(const FGraphProperties& InProperties)
@@ -107,7 +104,7 @@ void UGraph::InitializeFromProperties(const FGraphProperties& InProperties)
 	Properties = InProperties;
 }
 
-FGraphVertexHandle UGraph::CreateVertex(int64 InUniqueIndex)
+FGraphVertexHandle UGraph::CreateVertex(FGraphUniqueIndex InUniqueIndex)
 {
 	TRACE_CPUPROFILER_EVENT_SCOPE(UGraph::CreateVertex);
 	TObjectPtr<UGraphVertex> Vertex = CreateTypedVertex();
@@ -115,10 +112,13 @@ FGraphVertexHandle UGraph::CreateVertex(int64 InUniqueIndex)
 	{
 		return {};
 	}
-	Vertex->OnCreate();
 
-	// No need to increment since AddNode will do that.
-	Vertex->SetUniqueIndex((InUniqueIndex == INDEX_NONE) ? NextAvailableVertexUniqueIndex : InUniqueIndex);
+	if (!ensure(InUniqueIndex.IsValid()))
+	{
+		return{};
+	}
+	Vertex->OnCreate();
+	Vertex->SetUniqueIndex(InUniqueIndex);
 	RegisterVertex(Vertex);
 	OnVertexCreated.Broadcast(Vertex->Handle());
 	return Vertex->Handle();
@@ -135,10 +135,9 @@ void UGraph::RegisterVertex(TObjectPtr<UGraphVertex> Vertex)
 	const FGraphVertexHandle Handle = Vertex->Handle();
 	Vertex->SetParentGraph(this);
 	Vertices.Add(Handle, Vertex);
-	NextAvailableVertexUniqueIndex = FMath::Max(NextAvailableVertexUniqueIndex, Handle.GetUniqueIndex() + 1);
 }
 
-FGraphEdgeHandle UGraph::CreateEdge(FGraphVertexHandle Node1, FGraphVertexHandle Node2, int64 InUniqueIndex, bool bAddToIslands)
+FGraphEdgeHandle UGraph::CreateEdge(FGraphVertexHandle Node1, FGraphVertexHandle Node2, FGraphUniqueIndex InUniqueIndex, bool bAddToIslands)
 {
 	TRACE_CPUPROFILER_EVENT_SCOPE(UGraph::CreateEdge);
 	if (!Node1.IsComplete() || !Node2.IsComplete())
@@ -169,10 +168,14 @@ FGraphEdgeHandle UGraph::CreateEdge(FGraphVertexHandle Node1, FGraphVertexHandle
 	{
 		return {};
 	}
-	Edge->OnCreate();
 
-	// No need to increment since AddEdge will do that.
-	Edge->SetUniqueIndex((InUniqueIndex == INDEX_NONE) ? NextAvailableEdgeUniqueIndex : InUniqueIndex);
+	if (!ensure(InUniqueIndex.IsValid()))
+	{
+		return{};
+	}
+
+	Edge->OnCreate();
+	Edge->SetUniqueIndex(InUniqueIndex);
 	Edge->SetNodes(Node1, Node2);
 
 	RegisterEdge(Edge);
@@ -200,7 +203,7 @@ void UGraph::CreateBulkEdges(TArray<TPair<FGraphVertexHandle, FGraphVertexHandle
 
 	for (const TPair<FGraphVertexHandle, FGraphVertexHandle>& NodePair : NodesToConnect)
 	{
-		if (FGraphEdgeHandle Edge = CreateEdge(NodePair.Key, NodePair.Value, -1, false); Edge.IsValid())
+		if (FGraphEdgeHandle Edge = CreateEdge(NodePair.Key, NodePair.Value, FGraphUniqueIndex::CreateUniqueIndex(), false); Edge.IsValid())
 		{
 			NewEdges.Add(Edge);
 		}
@@ -225,11 +228,9 @@ void UGraph::RegisterEdge(TObjectPtr<UGraphEdge> Edge)
 
 	VertexEdges.FindOrAdd(Edge->NodeA()).Add(Handle);
 	VertexEdges.FindOrAdd(Edge->NodeB()).Add(Handle);
-
-	NextAvailableEdgeUniqueIndex = FMath::Max(NextAvailableEdgeUniqueIndex, Handle.GetUniqueIndex() + 1);
 }
 
-FGraphIslandHandle UGraph::CreateIsland(TArray<FGraphVertexHandle> InputNodes, int64 InUniqueIndex)
+FGraphIslandHandle UGraph::CreateIsland(TArray<FGraphVertexHandle> InputNodes, FGraphUniqueIndex InUniqueIndex)
 {
 	TRACE_CPUPROFILER_EVENT_SCOPE(UGraph::CreateIsland);
 	if (InputNodes.IsEmpty())
@@ -243,8 +244,7 @@ FGraphIslandHandle UGraph::CreateIsland(TArray<FGraphVertexHandle> InputNodes, i
 		return {};
 	}
 	Island->OnCreate();
-
-	Island->SetUniqueIndex((InUniqueIndex == INDEX_NONE) ? NextAvailableIslandUniqueIndex : InUniqueIndex);
+	Island->SetUniqueIndex((!InUniqueIndex.IsValid()) ? FGraphUniqueIndex::CreateUniqueIndex() : InUniqueIndex);
 
 	OnIslandCreated.Broadcast(Island->Handle());
 	for (const FGraphVertexHandle& Node : InputNodes)
@@ -266,7 +266,6 @@ void UGraph::RegisterIsland(TObjectPtr<UGraphIsland> Island)
 	const FGraphIslandHandle Handle = Island->Handle();
 	Island->SetParentGraph(this);
 	Islands.Add(Handle, Island);
-	NextAvailableIslandUniqueIndex = FMath::Max(NextAvailableIslandUniqueIndex, Handle.GetUniqueIndex() + 1);
 }
 
 void UGraph::RemoveIsland(const FGraphIslandHandle& IslandHandle)
@@ -303,11 +302,12 @@ void UGraph::MergeOrCreateIslands(TArray<FGraphEdgeHandle>&& InEdges)
 	TMap<FGraphIslandHandle, TSet<FGraphVertexHandle>> IslandVertexAdditions;
 	TMap<FGraphIslandHandle, int32> IslandSizeOverride;
 
-	int64 NextTemporaryIslandId = -2;
+	FGraphUniqueIndex NextTemporaryIslandId;
+	NextTemporaryIslandId.SetTemporary(true);
 
 	auto IsIslandTemporary = [](const FGraphIslandHandle& Handle)
 	{
-		return Handle.GetUniqueIndex() <= -2;
+		return Handle.GetUniqueIndex().IsTemporary();
 	};
 
 	auto GetIslandSize = [&IslandVertexAdditions, &IsIslandTemporary, &IslandSizeOverride](const FGraphIslandHandle& Handle)
@@ -450,7 +450,7 @@ void UGraph::MergeOrCreateIslands(TArray<FGraphEdgeHandle>&& InEdges)
 		else if (!IslandHandleA.IsValid() && !IslandHandleB.IsValid())
 		{
 			// Neither is in an island - need to create a new one.
-			FGraphIslandHandle NewIsland{ NextTemporaryIslandId--, nullptr };
+			FGraphIslandHandle NewIsland{ NextTemporaryIslandId.NextUniqueIndex(), nullptr};
 			VertexIslandChanges.Add(AHandle, NewIsland);
 			VertexIslandChanges.Add(BHandle, NewIsland);
 			IslandVertexAdditions.Emplace(NewIsland, TSet<FGraphVertexHandle>{AHandle, BHandle});
@@ -667,14 +667,14 @@ void UGraph::RemoveOrSplitIsland(TObjectPtr<UGraphIsland> Island)
 	}
 }
 
-FGraphVertexHandle UGraph::GetCompleteNodeHandle(const FGraphVertexHandle& InHandle)
+FGraphVertexHandle UGraph::GetCompleteNodeHandle(const FGraphVertexHandle& InHandle) const
 {
 	if (!InHandle.IsValid() || InHandle.HasElement())
 	{
 		return InHandle;
 	}
 
-	TObjectPtr<UGraphVertex>* Data = Vertices.Find(InHandle);
+	const TObjectPtr<UGraphVertex>* Data = Vertices.Find(InHandle);
 	if (!Data || !*Data)
 	{
 		return {};

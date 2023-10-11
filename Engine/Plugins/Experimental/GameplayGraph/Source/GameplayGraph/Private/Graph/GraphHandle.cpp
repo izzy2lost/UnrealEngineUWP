@@ -5,6 +5,7 @@
 #include "Graph/GraphEdge.h"
 #include "Graph/GraphIsland.h"
 #include "Graph/GraphVertex.h"
+#include "Misc/Guid.h"
 
 #include UE_INLINE_GENERATED_CPP_BY_NAME(GraphHandle)
 
@@ -15,7 +16,7 @@ FGraphHandle::FGraphHandle()
 
 }
 
-FGraphHandle::FGraphHandle(int64 InUniqueIndex, TObjectPtr<UGraphElement> InElement)
+FGraphHandle::FGraphHandle(FGraphUniqueIndex InUniqueIndex, TObjectPtr<UGraphElement> InElement)
 	: UniqueIndex(InUniqueIndex)
 	, Element(InElement)
 {
@@ -33,7 +34,7 @@ TObjectPtr<UGraphElement> FGraphHandle::GetElement() const
 
 bool FGraphHandle::IsValid() const
 {
-	return UniqueIndex != INDEX_NONE;
+	return UniqueIndex.IsValid();
 }
 
 bool FGraphHandle::HasElement() const
@@ -63,13 +64,13 @@ bool FGraphHandle::operator<(const FGraphHandle& Other) const
 
 void FGraphHandle::Clear()
 {
-	UniqueIndex = INDEX_NONE;
+	UniqueIndex = FGraphUniqueIndex();
 	Element = nullptr;
 }
 
 uint32 GetTypeHash(const FGraphHandle& Handle)
 {
-	return ::GetTypeHash(Handle.UniqueIndex);
+	return GetTypeHash(Handle.UniqueIndex);
 }
 
 FGraphVertexHandle::FGraphVertexHandle()

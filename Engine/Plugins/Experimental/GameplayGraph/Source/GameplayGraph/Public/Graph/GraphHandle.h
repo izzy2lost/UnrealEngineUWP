@@ -1,7 +1,9 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 #pragma once
 
+#include "Misc/Guid.h"
 #include "UObject/Object.h"
+
 #include "GraphHandle.generated.h"
 
 class UGraphElement;
@@ -10,6 +12,85 @@ class UGraphEdge;
 class UGraphIsland;
 
 DECLARE_LOG_CATEGORY_EXTERN(LogGameplayGraph, Log, All);
+
+USTRUCT()
+struct GAMEPLAYGRAPH_API FGraphUniqueIndex
+{
+	GENERATED_BODY()
+public:
+	FGraphUniqueIndex(bool InIsTemp = false)
+		: UniqueIndex(FGuid())
+		, bIsTemporary(InIsTemp) 
+	{}
+
+	FGraphUniqueIndex(FGuid InUniqueIndex, bool InIsTemp = false)
+		: UniqueIndex(InUniqueIndex)
+		, bIsTemporary(InIsTemp) 
+	{}
+
+
+	bool IsValid() const
+	{
+		return UniqueIndex.IsValid();
+	}
+
+	bool IsTemporary() const
+	{
+		return bIsTemporary;
+	}
+
+	void SetTemporary(bool InTemp)
+	{
+		bIsTemporary = InTemp;
+	}
+
+	FGraphUniqueIndex NextUniqueIndex() const
+	{
+		return FGraphUniqueIndex(FGuid::NewGuid(),bIsTemporary);
+	}
+
+	static FGraphUniqueIndex CreateUniqueIndex(bool InIsTemp = false)
+	{
+		return FGraphUniqueIndex(FGuid::NewGuid(), InIsTemp);
+	}
+
+	bool operator==(const FGraphUniqueIndex& Other) const
+	{
+		return UniqueIndex == Other.UniqueIndex;
+	}
+
+	bool operator!=(const FGraphUniqueIndex& Other) const
+	{
+		return UniqueIndex != Other.UniqueIndex;
+	}
+
+	bool operator<(const FGraphUniqueIndex& Other) const
+	{
+		return UniqueIndex < Other.UniqueIndex;
+	}
+
+	friend uint32 GAMEPLAYGRAPH_API GetTypeHash(const FGraphUniqueIndex& InUniqueIndex)
+	{
+		return uint32(CityHash64((char*)&InUniqueIndex.UniqueIndex, sizeof(FGuid)));
+	}
+
+	FString ToString() const
+	{
+		return UniqueIndex.ToString();
+	}
+
+
+private:
+	/** Unique identifier within a graph. */
+	UPROPERTY(SaveGame)
+	FGuid UniqueIndex = FGuid();
+
+	/** Temporary Status for index */
+	UPROPERTY(Transient)
+	bool bIsTemporary = false;
+
+};
+
 
 /**
  * For persistence, every node in a graph is given a unique index.
@@ -22,7 +103,7 @@ struct GAMEPLAYGRAPH_API FGraphHandle
 	GENERATED_BODY()
 public:
 	FGraphHandle();
-	FGraphHandle(int64 InUniqueIndex, TObjectPtr<UGraphElement> InElement);
+	FGraphHandle(FGraphUniqueIndex InUniqueIndex, TObjectPtr<UGraphElement> InElement);
 
 	void Clear();
 
@@ -31,7 +112,7 @@ public:
 	bool HasElement() const;
 	bool IsComplete() const;
 
-	int64 GetUniqueIndex() const { return UniqueIndex; }
+	FGraphUniqueIndex GetUniqueIndex() const { return UniqueIndex; }
 
 	void SetElement(TObjectPtr<UGraphElement> InElement);
 	TObjectPtr<UGraphElement> GetElement() const;
@@ -44,7 +125,7 @@ public:
 private:
 	/** Unique identifier within a graph. */
 	UPROPERTY(SaveGame)
-	int64 UniqueIndex = INDEX_NONE;
+	FGraphUniqueIndex UniqueIndex = FGraphUniqueIndex();
 
 	/** Pointer to the graph */
 	UPROPERTY(Transient)
@@ -57,7 +138,7 @@ struct GAMEPLAYGRAPH_API FGraphVertexHandle : public FGraphHandle
 	GENERATED_BODY()
 
 	FGraphVertexHandle();
-	FGraphVertexHandle(int64 InUniqueIndex, TObjectPtr<UGraphElement> InElement)
+	FGraphVertexHandle(FGraphUniqueIndex InUniqueIndex, TObjectPtr<UGraphElement> InElement = nullptr)
 		: FGraphHandle(InUniqueIndex, InElement)
 	{}
 
@@ -70,7 +151,7 @@ struct GAMEPLAYGRAPH_API FGraphEdgeHandle : public FGraphHandle
 	GENERATED_BODY()
 
 	FGraphEdgeHandle();
-	FGraphEdgeHandle(int64 InUniqueIndex, TObjectPtr<UGraphElement> InElement)
+	FGraphEdgeHandle(FGraphUniqueIndex InUniqueIndex, TObjectPtr<UGraphElement> InElement)
 		: FGraphHandle(InUniqueIndex, InElement)
 	{}
 
@@ -83,7 +164,7 @@ struct GAMEPLAYGRAPH_API FGraphIslandHandle : public FGraphHandle
 	GENERATED_BODY()
 
 	FGraphIslandHandle();
-	FGraphIslandHandle(int64 InUniqueIndex, TObjectPtr<UGraphElement> InElement)
+	FGraphIslandHandle(FGraphUniqueIndex InUniqueIndex, TObjectPtr<UGraphElement> InElement)
 		: FGraphHandle(InUniqueIndex, InElement)
 	{}
 

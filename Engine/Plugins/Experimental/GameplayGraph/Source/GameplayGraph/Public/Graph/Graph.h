@@ -88,13 +88,13 @@ public:
 	void InitializeFromProperties(const FGraphProperties& Properties);
 
 	/** Given a node handle, find the handle in the current graph with a proper element set. */
-	FGraphVertexHandle GetCompleteNodeHandle(const FGraphVertexHandle& InHandle);
+	FGraphVertexHandle GetCompleteNodeHandle(const FGraphVertexHandle& InHandle) const;
 
 	/** Create a node with the specified subclass, adds it to the graph, and returns a handle to it. */
-	FGraphVertexHandle CreateVertex(int64 InUniqueIndex = INDEX_NONE);
+	FGraphVertexHandle CreateVertex(FGraphUniqueIndex InUniqueIndex = FGraphUniqueIndex());
 
 	/** Creates an edge between the two nodes. */
-	FGraphEdgeHandle CreateEdge(FGraphVertexHandle Node1, FGraphVertexHandle Node2, int64 InUniqueIndex = INDEX_NONE, bool bAddToIslands = true);
+	FGraphEdgeHandle CreateEdge(FGraphVertexHandle Node1, FGraphVertexHandle Node2, FGraphUniqueIndex InUniqueIndex = FGraphUniqueIndex(), bool bAddToIslands = true);
 
 	/** Creates edges in bulk. This is more efficient than calling CreateEdge multiple times since we will only try to assign a node to an island once. */
 	void CreateBulkEdges(TArray<TPair<FGraphVertexHandle, FGraphVertexHandle>>&& NodesToConnect);
@@ -141,18 +141,8 @@ private:
 	TMap<FGraphIslandHandle, TObjectPtr<UGraphIsland>> Islands;
 	FGraphProperties Properties;
 
-	/**
-	 *  The unique index to assign to the next node that gets created.
-	 *  If loading from persistence, as nodes get added into the graph, this
-	 *  value will automatically keep increasing so we never try to reuse
-	 *  the same unique index.
-	 */
-	int64 NextAvailableVertexUniqueIndex = 0;
-	int64 NextAvailableEdgeUniqueIndex = 0;
-	int64 NextAvailableIslandUniqueIndex = 0;
-
 	/** Creates an island out of a given set of nodes. */
-	FGraphIslandHandle CreateIsland(TArray<FGraphVertexHandle> Nodes, int64 InUniqueIndex = INDEX_NONE);
+	FGraphIslandHandle CreateIsland(TArray<FGraphVertexHandle> Nodes, FGraphUniqueIndex InUniqueIndex = FGraphUniqueIndex());
 
 	/** Adds a node to the graph's node collection and modifies the NextAvailableNodeUniqueIndex as necessary to maintain its validity. */
 	void RegisterVertex(TObjectPtr<UGraphVertex> Node);
