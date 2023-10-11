@@ -183,6 +183,11 @@ void UCustomizableObject::PostLoad()
 #if WITH_EDITORONLY_DATA
 	for (TTuple<TObjectPtr<const UObject>, FGuid>& ParticipatingObject : ParticipatingObjects)
 	{
+		if (!ParticipatingObject.Key) // Object no longer exists.
+		{
+			continue;
+		}
+		
 		PRAGMA_DISABLE_DEPRECATION_WARNINGS
 		const FGuid PackageGuid = ParticipatingObject.Key.GetPackage()->GetGuid();
 		PRAGMA_ENABLE_DEPRECATION_WARNINGS
