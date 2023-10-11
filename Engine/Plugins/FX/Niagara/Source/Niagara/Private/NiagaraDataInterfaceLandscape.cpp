@@ -1393,7 +1393,6 @@ void UNiagaraDataInterfaceLandscape::SetShaderParameters(const FNiagaraDataInter
 bool UNiagaraDataInterfaceLandscape::InitPerInstanceData(void* PerInstanceData, FNiagaraSystemInstance* SystemInstance)
 {
 	FNDILandscapeData_GameThread* InstanceData = new(PerInstanceData) FNDILandscapeData_GameThread();
-	ApplyLandscape(*SystemInstance, *InstanceData);
 
 	bool SystemRequiresHeightsCpu = false;
 	bool SystemRequiresHeightsGpu = false;
@@ -1415,6 +1414,8 @@ bool UNiagaraDataInterfaceLandscape::InitPerInstanceData(void* PerInstanceData, 
 	InstanceData->SystemRequiresHeightsGpu = SystemRequiresHeightsGpu;
 	InstanceData->SystemRequiresNormalsGpu = SystemRequiresNormalsGpu;
 	InstanceData->RequiresPhysMatCacheGpu = SystemRequiresPhysMatGpu;
+
+	ApplyLandscape(*SystemInstance, *InstanceData);
 
 	FNiagaraDataInterfaceProxyLandscape* RT_Proxy = GetProxyAs<FNiagaraDataInterfaceProxyLandscape>();
 	ENQUEUE_RENDER_COMMAND(FNiagaraDICreateProxy) (
