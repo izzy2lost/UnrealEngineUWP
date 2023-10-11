@@ -15,6 +15,11 @@ bool FStaticMeshLODResourcesToDynamicMesh::Convert(
 	const ConversionOptions& Options,
 	FDynamicMesh3& OutputMesh)
 {
+	if (!ensureMsgf(StaticMeshResources && StaticMeshResources->VertexBuffers.StaticMeshVertexBuffer.GetAllowCPUAccess(), TEXT("bAllowCPUAccess must be set to true for StaticMeshes before calling FStaticMeshLODResourcesToDynamicMesh::Convert(), otherwise the mesh geometry data isn't accessible!")))
+	{
+		return false;
+	}
+
 	FStaticMeshLODResourcesMeshAdapter Adapter(StaticMeshResources);
 
 	Adapter.SetBuildScale(Options.BuildScale, false);
