@@ -6,33 +6,28 @@
 
 FHttpRequestCompleteDelegate& FHttpRequestImpl::OnProcessRequestComplete()
 {
-	UE_LOG(LogHttp, VeryVerbose, TEXT("FHttpRequestImpl::OnProcessRequestComplete()"));
 	return RequestCompleteDelegate;
 }
 
 PRAGMA_DISABLE_DEPRECATION_WARNINGS
 FHttpRequestProgressDelegate& FHttpRequestImpl::OnRequestProgress() 
 {
-	UE_LOG(LogHttp, VeryVerbose, TEXT("FHttpRequestImpl::OnRequestProgress()"));
 	return RequestProgressDelegate;
 }
 PRAGMA_ENABLE_DEPRECATION_WARNINGS
 
 FHttpRequestProgressDelegate64& FHttpRequestImpl::OnRequestProgress64() 
 {
-	UE_LOG(LogHttp, VeryVerbose, TEXT("FHttpRequestImpl::OnRequestProgress64()"));
 	return RequestProgressDelegate64;
 }
 
 FHttpRequestHeaderReceivedDelegate& FHttpRequestImpl::OnHeaderReceived()
 {
-	UE_LOG(LogHttp, VeryVerbose, TEXT("FHttpRequestImpl::OnHeaderReceived()"));
 	return HeaderReceivedDelegate;
 }
 
 FHttpRequestWillRetryDelegate& FHttpRequestImpl::OnRequestWillRetry()
 {
-	UE_LOG(LogHttp, VeryVerbose, TEXT("FHttpRequestImpl::OnRequestWillRetry()"));
 	return OnRequestWillRetryDelegate;
 }
 
