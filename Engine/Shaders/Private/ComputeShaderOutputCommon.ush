@@ -165,7 +165,7 @@ void ConditionalExport(bool Forced, RWTexture2D<SUBSTRATE_TOP_LAYER_TYPE> OutTar
 {
 #if CONDITIONAL_EXPORT
 	BRANCH
-	if (Forced || TopLayerData != 0)
+	if (Forced || any(TopLayerData != 0))
 #endif
 	{
 		OutTarget[PixelPos] = TopLayerData;
