@@ -47,6 +47,8 @@ DispatchParameters SetupBendDispatchParameters(float NearDepthVal, float FarDept
 #include "SceneTexturesCommon.ush"
 #include "ComputeShaderUtils.ush"
 
+#include "DeferredShadingCommon.ush"
+
 #ifdef UPSAMPLE_PASS
 #	include "ShadowFactorsUpsampleCommon.ush"
 #endif
@@ -63,11 +65,42 @@ float3 LightDirection;
 float ContactShadowLength;
 uint bContactShadowLengthInWS;
 float ContactShadowCastingIntensity;
+float ContactShadowNonCastingIntensity;
 
 uint DownsampleFactor;
 int4 ScissorRectMinAndSize;
 
 RWTexture2D<float2> RWShadowFactors;
+
+float GetContactShadowOcclusion(float2 HitUV)
+{
+	const uint2 HitPixelCoord = uint2(HitUV * View.BufferSizeAndInvSize.xy);
+
+#if SHADING_PATH_MOBILE
+#	if MOBILE_DEFERRED_SHADING
+		FGBufferData SampleGBuffer = MobileFetchAndDecodeGBuffer(HitUV, HitPixelCoord);
+		const bool bHitCastContactShadow = CastContactShadow(SampleGBuffer);
+#	else 
+		const bool bHitCastContactShadow = true; // TODO: support mobile forward path
+#	endif
+#else
+#	if SUBSTRATE_ENABLED
+#		if SUBSTRATE_RAYCAST_ENABLED && SUBSTRATE_MATERIALCONTAINER_IS_VIEWRESOURCE
+			uint2 PixelPos = View.ViewRectMin.xy + View.ViewSizeAndInvSize.xy * HitUV;
+			FSubstrateAddressing SubstrateAddressing = GetSubstratePixelDataByteOffset(PixelPos, uint2(View.BufferSizeAndInvSize.xy), SubstrateRayCast.MaxBytesPerPixel);
+			FSubstratePixelHeader SubstratePixelHeader = UnpackSubstrateHeaderIn(SubstrateRayCast.MaterialTextureArray, SubstrateAddressing, SubstrateRayCast.TopLayerTexture);
+			const bool bHitCastContactShadow = SubstratePixelHeader.DoesCastContactShadow();
+#		else
+			const bool bHitCastContactShadow = false;
+#		endif
+#	else
+		FGBufferData SampleGBuffer = GetGBufferData(HitUV);
+		const bool bHitCastContactShadow = CastContactShadow(SampleGBuffer);
+#	endif
+#endif
+
+	return bHitCastContactShadow ? ContactShadowCastingIntensity : ContactShadowNonCastingIntensity;
+}
 
 [numthreads(THREADGROUP_SIZEX, THREADGROUP_SIZEY, 1)]
 void ScreenSpaceShadowsCS(
@@ -77,8 +110,8 @@ void ScreenSpaceShadowsCS(
 {
 	uint ThreadIndex = GroupThreadId.y * THREADGROUP_SIZEX + GroupThreadId.x;
 
-	float2 ScreenUV = float2((DispatchThreadId.xy * DownsampleFactor + ScissorRectMinAndSize.xy + .5f) * View.BufferSizeAndInvSize.zw);
-	float2 ScreenPosition = (ScreenUV.xy - View.ScreenPositionScaleBias.wz) / View.ScreenPositionScaleBias.xy;
+	float2 ScreenUV = (DispatchThreadId.xy * DownsampleFactor + ScissorRectMinAndSize.xy + .5f) * View.BufferSizeAndInvSize.zw;
+	float2 ScreenPosition = (ScreenUV - View.ScreenPositionScaleBias.wz) / View.ScreenPositionScaleBias.xy;
 
 	float SceneDepth = CalcSceneDepth(ScreenUV);
 	float3 OpaqueTranslatedWorldPosition = mul(float4(GetScreenPositionForProjectionType(ScreenPosition, SceneDepth), SceneDepth, 1), PrimaryView.ScreenToTranslatedWorld).xyz;
@@ -91,7 +124,7 @@ void ScreenSpaceShadowsCS(
 	float2 HitUV;
 	float HitDistance = CastScreenSpaceShadowRay(OpaqueTranslatedWorldPosition, LightDirection, ActualContactShadowLength, 8, Dither, 2.0f, false, HitUV);
 
-	float Result = HitDistance > 0.0 ? (1.0f - ContactShadowCastingIntensity) : 1.0f;
+	float Result = HitDistance > 0.0 ? (1.0f - GetContactShadowOcclusion(HitUV)) : 1.0f;
 
 	#if METAL_PROFILE 
 		// clamp max depth to avoid #inf

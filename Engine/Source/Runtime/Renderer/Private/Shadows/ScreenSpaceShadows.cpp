@@ -61,6 +61,7 @@ class FScreenSpaceShadowsCS : public FGlobalShader
 		SHADER_PARAMETER(float, ContactShadowLength)
 		SHADER_PARAMETER(uint32, bContactShadowLengthInWS)
 		SHADER_PARAMETER(float, ContactShadowCastingIntensity)
+		SHADER_PARAMETER(float, ContactShadowNonCastingIntensity)
 		SHADER_PARAMETER(FIntRect, ScissorRectMinAndSize)
 		SHADER_PARAMETER(uint32, DownsampleFactor)
 	END_SHADER_PARAMETER_STRUCT()
@@ -95,6 +96,7 @@ class FScreenSpaceShadowsBendCS : public FGlobalShader
 		SHADER_PARAMETER(float, ContactShadowLength)
 		SHADER_PARAMETER(uint32, bContactShadowLengthInWS)
 		SHADER_PARAMETER(float, ContactShadowCastingIntensity)
+		SHADER_PARAMETER(float, ContactShadowNonCastingIntensity)
 		SHADER_PARAMETER(FIntRect, ScissorRectMinAndSize)
 		SHADER_PARAMETER(uint32, DownsampleFactor)
 		SHADER_PARAMETER(FVector2f, InvDepthTextureSize)
@@ -261,6 +263,7 @@ void RenderScreenSpaceShadows(
 		PassParameters->ContactShadowLength = ContactShadowLength;
 		PassParameters->bContactShadowLengthInWS = bContactShadowLengthInWS;
 		PassParameters->ContactShadowCastingIntensity = ContactShadowCastingIntensity;
+		PassParameters->ContactShadowNonCastingIntensity = ContactShadowNonCastingIntensity;
 
 		auto ComputeShader = View.ShaderMap->GetShader<FScreenSpaceShadowsCS>();
 
@@ -354,6 +357,7 @@ void RenderScreenSpaceShadowsBend(
 			PassParameters->ContactShadowLength = ContactShadowLength;
 			PassParameters->bContactShadowLengthInWS = bContactShadowLengthInWS;
 			PassParameters->ContactShadowCastingIntensity = ContactShadowCastingIntensity;
+			PassParameters->ContactShadowNonCastingIntensity = ContactShadowNonCastingIntensity;
 
 			PassParameters->LightCoordinate = FVector4f(DispatchList.LightCoordinate_Shader[0], DispatchList.LightCoordinate_Shader[1], DispatchList.LightCoordinate_Shader[2], DispatchList.LightCoordinate_Shader[3]);
 			PassParameters->WaveOffset = FIntVector(Dispatch.WaveOffset_Shader[0], Dispatch.WaveOffset_Shader[1], 0);
