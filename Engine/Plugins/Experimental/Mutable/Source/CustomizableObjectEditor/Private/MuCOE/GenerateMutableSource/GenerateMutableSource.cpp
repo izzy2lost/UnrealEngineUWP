@@ -1418,6 +1418,8 @@ void PopulateReferenceSkeletalMeshesData(FMutableGraphGenerationContext& Generat
 		// Physics Asset
 		if (const UPhysicsAsset* PhysicsAsset = RefSkeletalMesh->GetPhysicsAsset())
 		{
+			GenerationContext.AddParticipatingObject(*PhysicsAsset);
+
 			Data.PhysicsAsset = PhysicsAsset;
 			GenerationContext.PhysicsAssetMap.FindOrAdd(Data.PhysicsAsset.ToString(), Data.PhysicsAsset);
 		}
@@ -1425,14 +1427,18 @@ void PopulateReferenceSkeletalMeshesData(FMutableGraphGenerationContext& Generat
 		// Post ProcessAnimInstance
 		if(const TSubclassOf<UAnimInstance> PostProcessAnimInstance = RefSkeletalMesh->GetPostProcessAnimBlueprint())
 		{
+			GenerationContext.AddParticipatingObject(*PostProcessAnimInstance.Get());
+
 			Data.PostProcessAnimInst = PostProcessAnimInstance;
 			GenerationContext.AnimBPAssetsMap.FindOrAdd(Data.PostProcessAnimInst.ToString(), Data.PostProcessAnimInst);
 		}
 		
 		// Shadow Physics Asset
-		if (const UPhysicsAsset* PhysicsAsset = RefSkeletalMesh->GetPhysicsAsset())
+		if (const UPhysicsAsset* PhysicsAsset = RefSkeletalMesh->GetShadowPhysicsAsset())
 		{
-			Data.PhysicsAsset = PhysicsAsset;
+			GenerationContext.AddParticipatingObject(*PhysicsAsset);
+
+			Data.ShadowPhysicsAsset = PhysicsAsset;
 			GenerationContext.PhysicsAssetMap.FindOrAdd(Data.PhysicsAsset.ToString(), Data.PhysicsAsset);
 		}
 

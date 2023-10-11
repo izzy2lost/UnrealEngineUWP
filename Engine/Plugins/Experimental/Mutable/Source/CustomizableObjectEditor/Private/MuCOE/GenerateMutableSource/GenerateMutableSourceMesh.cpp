@@ -2857,6 +2857,11 @@ mu::NodeMeshPtr GenerateMutableSourceMesh(const UEdGraphPin* Pin,
 
 			if (!TypedNodeSkel->AnimInstance.IsNull())
 			{
+				if (UClass* AnimInstance = TypedNodeSkel->AnimInstance.LoadSynchronous())
+				{
+					GenerationContext.AddParticipatingObject(*AnimInstance);					
+				}
+
 				FName SlotIndex = TypedNodeSkel->AnimBlueprintSlotName;
 				GenerationContext.AnimBPAssetsMap.Add(TypedNodeSkel->AnimInstance.ToString(), TypedNodeSkel->AnimInstance);
 
@@ -2883,6 +2888,8 @@ mu::NodeMeshPtr GenerateMutableSourceMesh(const UEdGraphPin* Pin,
 				{
 					for (const UAssetUserData* AssetUserData : *AssetUserDataArray)
 					{
+						GenerationContext.AddParticipatingObject(*AssetUserData);
+
 						FString AuxString = AssetUserData->GetPathName();
 						GenerationContext.AssetUserDataAssetsMap.Add(AuxString, TSoftObjectPtr<UAssetUserData>(AssetUserData));
 
@@ -2905,6 +2912,9 @@ mu::NodeMeshPtr GenerateMutableSourceMesh(const UEdGraphPin* Pin,
 					MutableMesh->GetPhysicsBody()->GetBodyCount())
 				{
 					TSoftObjectPtr<UPhysicsAsset> PhysicsAsset = TypedNodeSkel->SkeletalMesh->GetPhysicsAsset();
+
+					GenerationContext.AddParticipatingObject(*PhysicsAsset);
+
 					GenerationContext.PhysicsAssetMap.Add(PhysicsAsset.ToString(), PhysicsAsset);
 					FString PhysicsAssetTag = FString("__PhysicsAsset:") + PhysicsAsset.ToString();
 
@@ -2929,6 +2939,8 @@ mu::NodeMeshPtr GenerateMutableSourceMesh(const UEdGraphPin* Pin,
 						TSoftObjectPtr<UPhysicsAsset> PhysicsAsset = ClothingAssetCommon->PhysicsAsset.Get();
 
 						FString ClothPhysicsAssetTag = FString("__ClothPhysicsAsset:") + FString::Printf(TEXT("%d_AssetIdx_"), AssetIndex) + PhysicsAsset.ToString();
+
+						GenerationContext.AddParticipatingObject(*ClothingAssetCommon->PhysicsAsset);
 						
 						GenerationContext.PhysicsAssetMap.Add(PhysicsAsset.ToString(), ClothingAssetCommon->PhysicsAsset.Get());
 

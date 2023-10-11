@@ -1285,6 +1285,7 @@ void FCustomizableObjectCompiler::CompileInternal(UCustomizableObject* Object, c
 			}
 		}
 
+		if (!ParamNamesToSelectedOptions.Num())
 		{
 			GenerationContext.ParticipatingObjects.Remove(Object); // Remove self CO reference.
 
