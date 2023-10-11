@@ -20,6 +20,7 @@
 #include "UObject/UnrealType.h"
 #include "View/MVVMViewClass.h"
 #include "View/MVVMViewModelContextResolver.h"
+#include "WidgetBlueprintEditorUtils.h"
 
 #define LOCTEXT_NAMESPACE "MVVMViewBlueprintCompiler"
 
@@ -324,31 +325,64 @@ void FMVVMViewBlueprintCompiler::CreateVariables(const FWidgetBlueprintCompilerC
 
 	for (FCompilerUserWidgetPropertyContext& SourceContext : CompilerUserWidgetPropertyContexts)
 	{
-		SourceContext.Field = BindingHelper::FindFieldByName(Context.GetSkeletonGeneratedClass(), FMVVMBindingName(SourceContext.PropertyName));
+		SourceContext.Field = BindingHelper::FindFieldByName(Context.GetGeneratedClass(), FMVVMBindingName(SourceContext.PropertyName));
 
 		// The class is not linked yet. It may not be available yet.
 		if (SourceContext.Field.IsEmpty())
 		{
-			for (FField* Field = Context.GetSkeletonGeneratedClass()->ChildProperties; Field != nullptr; Field = Field->Next)
+			for (FField* Field = Context.GetGeneratedClass()->ChildProperties; Field != nullptr; Field = Field->Next)
 			{
 				if (Field->GetFName() == SourceContext.PropertyName)
 				{
-					if (FProperty* Property = CastField<FProperty>(Field))
+					if (CastField<FProperty>(Field))
 					{
-						SourceContext.Field = FMVVMFieldVariant(Property);
-						break;
+						SourceContext.Field = FMVVMFieldVariant(CastField<FProperty>(Field));
 					}
 					else
 					{
 						WidgetBlueprintCompilerContext.MessageLog.Error(*FText::Format(LOCTEXT("FieldIsNotProperty", "The field for source '{0}' exists but is not a property."), SourceContext.DisplayName).ToString());
 						bAreSourcesCreatorValid = false;
-						continue;
 					}
+					break;
+				}
+			}
+			for (UField* Field = Context.GetGeneratedClass()->Children; Field != nullptr; Field = Field->Next)
+			{
+				if (Field->GetFName() == SourceContext.PropertyName)
+				{
+					WidgetBlueprintCompilerContext.MessageLog.Error(*FText::Format(LOCTEXT("FieldIsNotProperty", "The field for source '{0}' exists but is not a property."), SourceContext.DisplayName).ToString());
+					bAreSourcesCreatorValid = false;
+					break;
 				}
 			}
 		}
 
-		// Reuse the property if found
+		if (SourceContext.Field.IsEmpty())
+		{
+			UClass* ParentClass = Context.GetGeneratedClass()->GetSuperClass();
+			if (const FProperty* Property = ParentClass->FindPropertyByName(SourceContext.PropertyName))
+			{
+				SourceContext.Field = FMVVMFieldVariant(Property);
+			}
+		}
+
+
+		// Will always create viewmodel properties.
+		// Will never create properties for animation or other Self.Object
+		// Will create properties for widget when they are not already created.
+
+		const bool bIsWidgetInsideWidgetTree = WidgetNameToWidgetPointerMap.Find(SourceContext.PropertyName) != nullptr;
+		const bool bIsViewmodel = SourceContext.ViewModelId.IsValid();
+
+		if (bIsViewmodel && !SourceContext.Field.IsEmpty())
+		{
+			// Viewmodel property cannot already exist. It will creates issue with initialization and with View::SetViewModel.
+			const UClass* OwnerClass = Cast<UClass>(SourceContext.Field.GetOwner());
+			WidgetBlueprintCompilerContext.MessageLog.Error(*FText::Format(LOCTEXT("ViewmodelPropertyAlreadyExistInParent", "There is already a property named '{0}' in scope '{1}' for the viewmodel."), SourceContext.DisplayName, (OwnerClass ? OwnerClass->GetDisplayNameText() : FText::GetEmpty())).ToString());
+			bAreSourceContextsValid = false;
+			continue;
+		}
+
 		if (!SourceContext.Field.IsEmpty())
 		{
 			if (!BindingHelper::IsValidForSourceBinding(SourceContext.Field))
@@ -363,13 +397,25 @@ void FMVVMViewBlueprintCompiler::CreateVariables(const FWidgetBlueprintCompilerC
 			const bool bIsCompatible = ObjectProperty && SourceContext.Class->IsChildOf(ObjectProperty->PropertyClass);
 			if (!bIsCompatible)
 			{
-				WidgetBlueprintCompilerContext.MessageLog.Error(*FText::Format(LOCTEXT("PropertyExistsAndNotCompatible","There is already a property named '{0}' that is not compatible with the source of the same name."), SourceContext.DisplayName).ToString());
+				WidgetBlueprintCompilerContext.MessageLog.Error(*FText::Format(LOCTEXT("PropertyExistsAndNotCompatible", "There is already a property named '{0}' that is not compatible with the source of the same name."), SourceContext.DisplayName).ToString());
+				bAreSourceContextsValid = false;
+				continue;
+			}
+
+			const bool bIsBindWidget = FWidgetBlueprintEditorUtils::IsBindWidgetProperty(ObjectProperty);
+			if (Context.GetGeneratedClass() != ObjectProperty->GetOwnerStruct() && !bIsBindWidget)
+			{
+				// Widget needs to be BindWidget to be reused as a property.
+				const UClass* OwnerClass = Cast<UClass>(ObjectProperty->GetOwnerStruct());
+				WidgetBlueprintCompilerContext.MessageLog.Error(*FText::Format(LOCTEXT("WidgetPropertyAlreadyExist", "There is already a property named '{0}' in scope '{1}' for the widget. Are you missing a BindWidget?."), SourceContext.DisplayName, (OwnerClass ? OwnerClass->GetDisplayNameText() : FText::GetEmpty())).ToString());
 				bAreSourceContextsValid = false;
 				continue;
 			}
 		}
 
-		if (SourceContext.Field.IsEmpty())
+		// Can we reused the property or we need to create a new one.
+		bool bCreateVariable = bIsViewmodel || (bIsWidgetInsideWidgetTree && SourceContext.Field.IsEmpty());
+		if (bCreateVariable)
 		{
 			SourceContext.Field = FMVVMConstFieldVariant(CreateVariable(SourceContext));
 		}
@@ -480,10 +526,9 @@ void FMVVMViewBlueprintCompiler::CreateSourceLists(const FWidgetBlueprintCompile
 
 	bAreSourceContextsValid = bAreSourcesCreatorValid;
 
-	UWidgetBlueprintGeneratedClass* SkeletonClass = Context.GetSkeletonGeneratedClass();
 	const FName DefaultWidgetCategory = Context.GetWidgetBlueprint()->GetFName();
 
-	auto GenerateCompilerSourceContext = [Self = this, BlueprintView, DefaultWidgetCategory, Class = SkeletonClass, &ViewModelGuids, &WidgetSources](const FMVVMBlueprintPropertyPath& PropertyPath) -> TValueOrError<void, FText>
+	auto GenerateCompilerSourceContext = [Self = this, BlueprintView, DefaultWidgetCategory, Class = Context.GetGeneratedClass(), &ViewModelGuids, &WidgetSources](const FMVVMBlueprintPropertyPath& PropertyPath) -> TValueOrError<void, FText>
 	{
 		if (PropertyPath.IsFromWidget())
 		{

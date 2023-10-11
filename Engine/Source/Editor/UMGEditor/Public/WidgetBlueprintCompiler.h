@@ -102,7 +102,9 @@ public:
 		FProperty* CreateVariable(const FName Name, const FEdGraphPinType& Type) const;
 		void AddGeneratedFunctionGraph(UEdGraph* Graph) const;
 		UWidgetBlueprint* GetWidgetBlueprint() const;
+		UE_DEPRECATED(5.4, "GetSkeletonGeneratedClass renamed to GetGeneratedClass")
 		UWidgetBlueprintGeneratedClass* GetSkeletonGeneratedClass() const;
+		UWidgetBlueprintGeneratedClass* GetGeneratedClass() const;
 		EKismetCompileType::Type GetCompileType() const;
 
 	private:

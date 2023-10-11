@@ -51,11 +51,11 @@ public:
 
 	static UWidget* GetWidgetTemplateFromDragDrop(UWidgetBlueprint* Blueprint, UWidgetTree* RootWidgetTree, TSharedPtr<FDragDropOperation>& DragDropOp);
 
-	static bool IsBindWidgetProperty(FProperty* InProperty);
-	static bool IsBindWidgetProperty(FProperty* InProperty, bool& bIsOptional);
+	static bool IsBindWidgetProperty(const FProperty* InProperty);
+	static bool IsBindWidgetProperty(const FProperty* InProperty, bool& bIsOptional);
 
-	static bool IsBindWidgetAnimProperty(FProperty* InProperty);
-	static bool IsBindWidgetAnimProperty(FProperty* InProperty, bool& bIsOptional);
+	static bool IsBindWidgetAnimProperty(const FProperty* InProperty);
+	static bool IsBindWidgetAnimProperty(const FProperty* InProperty, bool& bIsOptional);
 
 	struct FUsableWidgetClassResult
 	{
