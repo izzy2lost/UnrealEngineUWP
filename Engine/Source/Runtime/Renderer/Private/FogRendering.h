@@ -35,3 +35,5 @@ extern void SetupFogUniformParameters(FRDGBuilder& GraphBuilder, const FViewInfo
 TRDGUniformBufferRef<FFogUniformParameters> CreateFogUniformBuffer(FRDGBuilder& GraphBuilder, const FViewInfo& View);
 
 extern bool ShouldRenderFog(const FSceneViewFamily& Family);
+
+extern float GetViewFogCommonStartDistance(const FViewInfo& View, bool bShouldRenderVolumetricFog);

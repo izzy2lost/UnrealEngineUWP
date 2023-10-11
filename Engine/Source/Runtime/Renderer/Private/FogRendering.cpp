@@ -319,12 +319,7 @@ static void RenderViewFog(
 	GraphicsPSOInit.bDepthBounds = GSupportsDepthBoundsTest && CVarFogUseDepthBounds.GetValueOnAnyThread() && !bSkipDepthBound;
 	if (GraphicsPSOInit.bDepthBounds)
 	{
-		float ExpFogStartDistance = View.ExponentialFogParameters.W;
-		float VolFogStartDistance = bShouldRenderVolumetricFog ? View.VolumetricFogStartDistance : ExpFogStartDistance;
-
-		// The fog can be set to start at a certain euclidean distance.
-		// clamp the value to be behind the near plane z, according to the smallest distance between volumetric fog and height fog (if they are enabled). 
-		float FogStartDistance = FMath::Max(30.0f, FMath::Min(ExpFogStartDistance, VolFogStartDistance));
+		float FogStartDistance = GetViewFogCommonStartDistance(View, bShouldRenderVolumetricFog);
 
 		// Here we compute the nearest z value the fog can start
 		// to skip shader execution on pixels that are closer.
@@ -472,4 +467,15 @@ bool ShouldRenderFog(const FSceneViewFamily& Family)
 		&& CVarFog.GetValueOnRenderThread() == 1
 		&& !EngineShowFlags.StationaryLightOverlap 
 		&& !EngineShowFlags.LightMapDensity;
+}
+
+float GetViewFogCommonStartDistance(const FViewInfo& View, bool bShouldRenderVolumetricFog)
+{
+	float ExpFogStartDistance = View.ExponentialFogParameters.W;
+	float VolFogStartDistance = bShouldRenderVolumetricFog ? View.VolumetricFogStartDistance : ExpFogStartDistance;
+
+	// The fog can be set to start at a certain euclidean distance.
+	// clamp the value to be behind the near plane z, according to the smallest distance between volumetric fog and height fog (if they are enabled). 
+	float FogCommonStartDistance = FMath::Max(30.0f, FMath::Min(ExpFogStartDistance, VolFogStartDistance));
+	return FogCommonStartDistance;
 }

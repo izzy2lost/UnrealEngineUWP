@@ -211,7 +211,7 @@ void FMobileSceneRenderer::RenderFog(FRHICommandList& RHICmdList, const FViewInf
 	SetGraphicsPipelineState(RHICmdList, GraphicsPSOInit, 0);
 	
 	// Use height fog start distance by default and fallback to AP distance
-	float FogStartDistance = View.ExponentialFogParameters.W;
+	float FogStartDistance = GetViewFogCommonStartDistance(View, bShouldRenderVolumetricFog);
 	if (!bUseHeightFog)
 	{
 		FSkyAtmosphereRenderSceneInfo& SkyInfo = *Scene->GetSkyAtmosphereSceneInfo();
