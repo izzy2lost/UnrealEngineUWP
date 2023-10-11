@@ -36,7 +36,7 @@ namespace UE::MultiUserClient
 
 		DECLARE_DELEGATE(FOnModifyReplicationMap);
 		FLocalStreamChangeTracker(
-			TSharedRef<IClientStreamSynchronizer> InStreamSynchronizer,
+			IClientStreamSynchronizer& InStreamSynchronizer,
 			TAttribute<FObjectReplicationMap*> InStreamWithInProgressChangesAttribute,
 			FOnModifyReplicationMap InOnModifyReplicationMapDelegate
 			);
@@ -101,8 +101,8 @@ namespace UE::MultiUserClient
 		
 	private:
 
-		/** Keeps track of the edited stream's server state. */
-		TSharedRef<IClientStreamSynchronizer> StreamSynchronizer;
+		/** Keeps track of the edited stream's server state. Outlives the FLocalStreamChangeTracker instance. */
+		IClientStreamSynchronizer& StreamSynchronizer;
 
 		/**
 		 * Represents ConfirmedServerState with changes made to it. These changes have not been sent to the server, yet.
@@ -127,7 +127,7 @@ namespace UE::MultiUserClient
 		FStreamChangelist DiffChanges() const
 		{
 			const FObjectReplicationMap* Map = StreamWithInProgressChangesAttribute.Get();
-			return Map ? DiffChanges(StreamSynchronizer->GetStreamId(), StreamSynchronizer->GetServerState(), *Map) : FStreamChangelist{};
+			return Map ? DiffChanges(StreamSynchronizer.GetStreamId(), StreamSynchronizer.GetServerState(), *Map) : FStreamChangelist{};
 		}
 		/** Builds the changelist to get from Base to Changed. */
 		static FStreamChangelist DiffChanges(const FGuid& StreamId, const FObjectReplicationMap& Base, const FObjectReplicationMap& Changed);

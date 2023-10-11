@@ -20,8 +20,13 @@
 
 namespace UE::MultiUserClient
 {
-	void SReplicationRootWidget::Construct(const FArguments& InArgs, TSharedRef<FMultiUserReplicationManager> InReplicationManager)
+	void SReplicationRootWidget::Construct(
+		const FArguments& InArgs,
+		TSharedRef<FMultiUserReplicationManager> InReplicationManager,
+		TSharedRef<IConcertSyncClient> InClient
+		)
 	{
+		Client = MoveTemp(InClient);
 		ReplicationManager = MoveTemp(InReplicationManager);
 		
 		// Show different widget based on whether we've joined replication.
@@ -80,7 +85,7 @@ namespace UE::MultiUserClient
 	{
 		ChildSlot
 		[
-			SNew(SReplicationJoinedView, ReplicationManager.ToSharedRef())
+			SNew(SReplicationJoinedView, ReplicationManager.ToSharedRef(), Client.ToSharedRef())
 		];
 	}
 

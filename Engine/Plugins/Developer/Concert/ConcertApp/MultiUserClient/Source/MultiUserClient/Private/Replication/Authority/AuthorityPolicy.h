@@ -33,7 +33,7 @@ namespace UE::MultiUserClient
 	{
 	public:
 		
-		FAuthorityPolicy(TSharedRef<IConcertSyncClient> InClient, TSharedRef<IClientStreamSynchronizer> InStreamSynchronizer);
+		FAuthorityPolicy(TSharedRef<IConcertSyncClient> InClient, IClientStreamSynchronizer& InStreamSynchronizer);
 		~FAuthorityPolicy();
 
 		DECLARE_MULTICAST_DELEGATE_OneParam(FOnAuthorityRequestSent,
@@ -56,8 +56,11 @@ namespace UE::MultiUserClient
 
 		/** Used to send authority requests to the server. */
 		const TSharedRef<IConcertSyncClient> Client;
-		/** Informs us when changes have been successfully submitted to the server. */
-		TSharedRef<IClientStreamSynchronizer> StreamSynchronizer;
+		/**
+		 * Informs us when changes have been successfully submitted to the server.
+		 * Outlives this FAuthorityPolicy.
+		 */
+		IClientStreamSynchronizer& StreamSynchronizer;
 
 		FOnAuthorityRequestSent OnAuthorityRequestSentDelegate;
 		FOnAuthorityResponseReceived OnAuthorityResponseReceivedDelegate;

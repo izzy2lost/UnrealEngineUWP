@@ -11,14 +11,13 @@ namespace UE::MultiUserClient
 {
 	FReplicationClient::FReplicationClient(
 		UMultiUserReplicationClientPreset& InSessionContent,
-		TSharedRef<IConcertSyncClient> InClient,
-		TSharedRef<IClientStreamSynchronizer> InStreamSynchronizer
+		TUniquePtr<IClientStreamSynchronizer> InStreamSynchronizer
 		)
 		: ClientContentStorage(&InSessionContent)
 		, StreamSynchronizer(MoveTemp(InStreamSynchronizer))
 		, LocalClientEditModel(ConcertClientSharedSlate::CreatePropertySelectionModel(*ClientContentStorage->Stream, ClientContentStorage->Stream->MakeReplicationMapGetterAttribute()))
 		, LocalClientStreamDiffer(
-			StreamSynchronizer,
+			GetStreamSynchronizer(),
 			ClientContentStorage->Stream->MakeReplicationMapGetterAttribute(),
 			FLocalStreamChangeTracker::FOnModifyReplicationMap::CreateLambda([this](){ ClientContentStorage->Stream->Modify(); })
 			)

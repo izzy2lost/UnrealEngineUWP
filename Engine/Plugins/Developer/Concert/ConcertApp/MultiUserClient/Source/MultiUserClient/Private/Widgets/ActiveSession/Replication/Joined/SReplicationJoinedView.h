@@ -6,12 +6,14 @@
 #include "Widgets/DeclarativeSyntaxSupport.h"
 #include "Widgets/SCompoundWidget.h"
 
+class IConcertSyncClient;
+class SNotificationItem;
+class SWidgetSwitcher;
+
 namespace UE::MultiUserClient
 {
 	class SReplicationClientView;
 }
-
-class SNotificationItem;
 
 namespace UE::ConcertClientSharedSlate
 {
@@ -31,22 +33,38 @@ namespace UE::MultiUserClient
 		{}
 		SLATE_END_ARGS()
 
-		void Construct(const FArguments& InArgs, TSharedRef<FMultiUserReplicationManager> InReplicationManager);
+		void Construct(
+			const FArguments& InArgs,
+			TSharedRef<FMultiUserReplicationManager> InReplicationManager,
+			TSharedRef<IConcertSyncClient> InClient
+			);
 
 	private:
 
+		/** The local client this widget is created for. */
+		TSharedPtr<IConcertSyncClient> Client;
 		/** Acts as the model of this view */
 		TSharedPtr<FMultiUserReplicationManager> ReplicationManager;
 		
-		/**
-		 * The local client's view if one is being displayed.
-		 * ChildSlot keeps the reference alive if we're in state EMultiUserReplicationConnectionState::Connected.
-		 * @see ShowWidget_Connected
-		 */
-		TWeakPtr<SReplicationClientView> WeakLocalClientView;
-
+		/** Selects which client is being view. */
+		TSharedPtr<SWidgetSwitcher> ClientViewSwitcher;
+		/** Maps a remote client to index in ClientViewSwitcher. */
+		TMap<FGuid, int32> RemoteClientToWidgetSwitcherIndex;
+		
 		/** Notification about in progress authority change, if any. */
 		TSharedPtr<SNotificationItem> AuthorityChangeNotification;
+		
+		// Building ClientViewSwitcher
+		/** Gets the remote clients and makes sure ClientViewSwitcher has a widget for each. */
+		void RefreshClientViewSwitcher();
+		/** Util for adding back old client widgets after ClientViewSwitcher was cleared. */
+		void RebuildClientViewSwitcherChildren(const TArray<TSharedRef<SWidget>> OldClientWidgets);
+
+		/** Warps the combo box with a text */
+		TSharedRef<SWidget> MakeClientSelectionArea();
+		/** Creates a combobox with which the content of ClientViewSwitcher can be changed. */
+		TSharedRef<SWidget> MakeClientSelectionComboBox();
+		TOptional<FGuid> GetRemoteClientBySwitcherIndex(int32 WidgetSwitcherIndex) const;
 
 		void OnAuthorityRequestSent_AnyThread(const ConcertSyncClient::Replication::FAuthorityChangeRequest& Request);
 		void OnAuthorityResponseReceived_AnyThread(

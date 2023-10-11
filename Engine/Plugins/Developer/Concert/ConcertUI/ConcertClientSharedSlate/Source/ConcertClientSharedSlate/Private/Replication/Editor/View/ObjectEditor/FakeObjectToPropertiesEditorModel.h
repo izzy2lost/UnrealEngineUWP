@@ -51,7 +51,13 @@ namespace UE::ConcertClientSharedSlate
 		/** Determines the properties that can be selected. */
 		TSharedRef<IPropertySelectionSourceModel> PropertySelectionSource;
 
-		bool IsRootObject(const FSoftObjectPath& ObjectPath) const;
+		/** Returns all objects that must be listed in the top-outliner section of the replication view. */
+		bool IterateTopLevelObjects(TFunctionRef<EBreakBehavior(const FSoftObjectPath& Object)> Delegate) const;
+		/** Whether this object should be displayed in the outliner. */
+		bool IsTopLevelObject(const FSoftObjectPath& ObjectPath) const;
+
+		/** Iterates all properties on the given object's path. */
+		bool IterateDisplayedProperties(const FSoftObjectPath& ObjectPath, TFunctionRef<EBreakBehavior(const FConcertPropertyChain& Property)> Delegate) const;
 	};
 }
 

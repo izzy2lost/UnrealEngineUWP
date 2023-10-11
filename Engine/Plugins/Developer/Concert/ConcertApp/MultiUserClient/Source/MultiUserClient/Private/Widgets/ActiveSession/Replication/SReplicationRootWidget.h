@@ -6,6 +6,8 @@
 #include "Widgets/SCompoundWidget.h"
 #include "Widgets/Layout/SSplitter.h"
 
+class IConcertSyncClient;
+
 namespace UE::MultiUserClient
 {
 	class FMultiUserReplicationManager;
@@ -21,10 +23,12 @@ namespace UE::MultiUserClient
 		{}
 		SLATE_END_ARGS()
 
-		void Construct(const FArguments& InArgs, TSharedRef<FMultiUserReplicationManager> InReplicationManager);
+		void Construct(const FArguments& InArgs, TSharedRef<FMultiUserReplicationManager> InReplicationManager, TSharedRef<IConcertSyncClient> InClient);
 
 	private:
 
+		/** The client this widget was created for. */
+		TSharedPtr<IConcertSyncClient> Client;
 		/** Manages the business logic which we represent. */
 		TSharedPtr<FMultiUserReplicationManager> ReplicationManager;
 		

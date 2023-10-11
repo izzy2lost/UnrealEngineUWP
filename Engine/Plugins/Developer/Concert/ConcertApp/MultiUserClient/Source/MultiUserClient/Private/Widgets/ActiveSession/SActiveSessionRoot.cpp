@@ -11,7 +11,6 @@
 #include "Styling/SlateTypes.h"
 #include "Widgets/Docking/SDockTab.h"
 #include "Widgets/SBoxPanel.h"
-#include "Widgets/SNullWidget.h"
 
 #define LOCTEXT_NAMESPACE "SActiveSessionRoot"
 
@@ -94,14 +93,11 @@ namespace UE::MultiUserClient
 
 	TSharedRef<SDockTab> SActiveSessionRoot::SpawnTab_Overview(const FSpawnTabArgs& Args)
 	{
-		TSharedPtr<IConcertSyncClient> ConcertSyncClientPin = ConcertSyncClient.Pin();
 		return SNew(SDockTab)
 			.Label(LOCTEXT("OverviewTab.Label", "Overview"))
 			.ToolTipText(LOCTEXT("OverviewTab.Tooltip", "Displays active session clients and activity."))
 			[
-				ConcertSyncClientPin
-					? SNew(SActiveSessionOverviewTab, MoveTemp(ConcertSyncClientPin))
-					: SNullWidget::NullWidget
+				SNew(SActiveSessionOverviewTab, ConcertSyncClient)
 			];
 	}
 
@@ -111,7 +107,7 @@ namespace UE::MultiUserClient
 			.Label(LOCTEXT("ReplicationTab.Label", "Replication"))
 			.ToolTipText(LOCTEXT("ReplicationTab.Tooltip", "Manage real-time object replication"))
 			[
-				SNew(SReplicationTabWithWarningOverlay, InReplicationManager)
+				SNew(SReplicationTabWithWarningOverlay, InReplicationManager, ConcertSyncClient.ToSharedRef())
 			];
 	}
 }

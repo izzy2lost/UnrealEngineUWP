@@ -72,10 +72,10 @@ namespace UE::MultiUserClient
 
 		DECLARE_MULTICAST_DELEGATE_TwoParams(FOnChangesAccepted, const FObjectReplicationMap& OldServerState, const ConcertSyncClient::Replication::FChangeStreamRequest& AcceptedRequest);
 		/** @return Event executed when a change request that was in transit was accepted by the server. This is executed before OnServerStateSynched: the local confirmed state is not updated, yet. */
-		virtual FOnChangesAccepted& OnChangesAccepted_AnyThread() = 0;
+		virtual FOnChangesAccepted& OnChangesAccepted() = 0;
 		DECLARE_MULTICAST_DELEGATE(FOnServerStateChanged);
 		/** @return Event executed when the result of GetServerState has been synched. Called after OnChangesAccepted_AnyThread. */
-		virtual FOnServerStateChanged& OnServerStateSynched_AnyThread() = 0;
+		virtual FOnServerStateChanged& OnServerStateSynched() = 0;
 		
 		virtual ~IClientStreamSynchronizer() = default;
 	};

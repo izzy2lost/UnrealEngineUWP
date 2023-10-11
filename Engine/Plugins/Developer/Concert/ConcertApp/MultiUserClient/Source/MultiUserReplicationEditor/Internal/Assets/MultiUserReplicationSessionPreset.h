@@ -16,6 +16,8 @@ class MULTIUSERREPLICATIONEDITOR_API UMultiUserReplicationSessionPreset : public
 public:
 
 	UMultiUserReplicationClientPreset* AddClient();
+	
+	void RemoveClient(UMultiUserReplicationClientPreset& Client);
 	void ClearClients();
 
 	const TArray<TObjectPtr<UMultiUserReplicationClientPreset>>& GetClientPresets() const { return ClientPresets; }

@@ -35,7 +35,7 @@ namespace UE::MultiUserClient
 
 	private:
 
-		TWeakPtr<IConcertSyncClient> ConcertSyncClient;
+		TSharedPtr<IConcertSyncClient> ConcertSyncClient;
 		/** Holds the child content: SActiveSessionOverviewTab and SReplicationControlsTab. */
 		TSharedPtr<FTabManager> TabManager;
 		

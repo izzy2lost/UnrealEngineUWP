@@ -39,17 +39,17 @@ namespace UE::MultiUserClient
 		}
 	}
 	
-	FAuthorityPolicy::FAuthorityPolicy(TSharedRef<IConcertSyncClient> InClient, TSharedRef<IClientStreamSynchronizer> InStreamSynchronizer)
+	FAuthorityPolicy::FAuthorityPolicy(TSharedRef<IConcertSyncClient> InClient, IClientStreamSynchronizer&  InStreamSynchronizer)
 		: Client(MoveTemp(InClient))
-		, StreamSynchronizer(MoveTemp(InStreamSynchronizer))
+		, StreamSynchronizer(InStreamSynchronizer)
 	{
 		// After submitting new objects, immediately request authority over it.
-		StreamSynchronizer->OnChangesAccepted_AnyThread().AddRaw(this, &FAuthorityPolicy::OnChangesAccepted_AnyThread);
+		StreamSynchronizer.OnChangesAccepted().AddRaw(this, &FAuthorityPolicy::OnChangesAccepted_AnyThread);
 	}
 
 	FAuthorityPolicy::~FAuthorityPolicy()
 	{
-		StreamSynchronizer->OnChangesAccepted_AnyThread().RemoveAll(this);
+		StreamSynchronizer.OnChangesAccepted().RemoveAll(this);
 	}
 
 	void FAuthorityPolicy::OnChangesAccepted_AnyThread(

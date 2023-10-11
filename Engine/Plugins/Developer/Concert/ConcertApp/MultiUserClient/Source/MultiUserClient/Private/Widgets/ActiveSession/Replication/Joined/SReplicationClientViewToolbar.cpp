@@ -31,11 +31,18 @@ namespace UE::MultiUserClient
 		ChildSlot
 		[
 			SNew(SHorizontalBox)
-
+			
 			+SHorizontalBox::Slot()
 			.FillWidth(1.f)
 			[
 				SNew(SSpacer)
+			]
+
+			+SHorizontalBox::Slot()
+			.AutoWidth()
+			.Padding(30.f, 0.f)
+			[
+				InArgs._AdditionalToolbarWidgets.Widget
 			]
 
 			// Upload button

@@ -2,7 +2,6 @@
 
 #include "LocalStreamChangeTracker.h"
 
-#include "IConcertSyncClient.h"
 #include "Replication/ChangeStreamSharedUtils.h"
 #include "Replication/IConcertClientReplicationManager.h"
 
@@ -13,21 +12,21 @@
 namespace UE::MultiUserClient
 {
 	FLocalStreamChangeTracker::FLocalStreamChangeTracker(
-		TSharedRef<IClientStreamSynchronizer> InStreamSynchronizer,
+		IClientStreamSynchronizer& InStreamSynchronizer,
 		TAttribute<FObjectReplicationMap*> InStreamWithInProgressChangesAttribute,
 		FOnModifyReplicationMap InOnModifyReplicationMapDelegate
 		)
-		: StreamSynchronizer(MoveTemp(InStreamSynchronizer))
+		: StreamSynchronizer(InStreamSynchronizer)
 		, StreamWithInProgressChangesAttribute(MoveTemp(InStreamWithInProgressChangesAttribute))
 		, OnModifyReplicationMapDelegate(MoveTemp(InOnModifyReplicationMapDelegate))
 	{
 		check(InStreamWithInProgressChangesAttribute.IsBound() || InStreamWithInProgressChangesAttribute.IsSet());
-		StreamSynchronizer->OnServerStateSynched_AnyThread().AddRaw(this, &FLocalStreamChangeTracker::RefreshChangesCache);
+		StreamSynchronizer.OnServerStateSynched().AddRaw(this, &FLocalStreamChangeTracker::RefreshChangesCache);
 	}
 
 	FLocalStreamChangeTracker::~FLocalStreamChangeTracker()
 	{
-		StreamSynchronizer->OnServerStateSynched_AnyThread().RemoveAll(this);
+		StreamSynchronizer.OnServerStateSynched().RemoveAll(this);
 	}
 
 	void FLocalStreamChangeTracker::RefreshChangesCache()
@@ -42,7 +41,7 @@ namespace UE::MultiUserClient
 		{
 			RefreshChangesCache();
 		}
-		return StreamSynchronizer->SubmitChanges(CachedDeltaChange);
+		return StreamSynchronizer.SubmitChanges(CachedDeltaChange);
 	}
 
 	void FLocalStreamChangeTracker::RevertCachedChanges()
@@ -52,7 +51,7 @@ namespace UE::MultiUserClient
 			FScopedTransaction Transaction(LOCTEXT("RevertCachedChanges", "Revert replication changes"));
 			OnModifyReplicationMapDelegate.ExecuteIfBound();
 			
-			*StreamWithInProgressChangesAttribute.Get() = StreamSynchronizer->GetServerState();
+			*StreamWithInProgressChangesAttribute.Get() = StreamSynchronizer.GetServerState();
 			CachedDeltaChange = {};
 
 			check(IsInGameThread());
@@ -73,7 +72,7 @@ namespace UE::MultiUserClient
 
 	bool FLocalStreamChangeTracker::CanMakeSubmitNetworkRequest() const
 	{
-		return StreamSynchronizer->CanMakeSubmitRequest();
+		return StreamSynchronizer.CanMakeSubmitRequest();
 	}
 
 	EObjectWarningFlags FLocalStreamChangeTracker::GetObjectWarningFlags(const FSoftObjectPath& ObjectPath)

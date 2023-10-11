@@ -50,6 +50,13 @@ namespace UE::MultiUserClient
 			});
 	}
 
+	FAuthorityPolicy* FMultiUserReplicationManager::GetAuthorityPolicy()
+	{
+		return ConnectedState
+			? &ConnectedState->ClientManager.GetLocalClient().GetAuthorityPolicy()
+			: nullptr;
+	}
+
 	void FMultiUserReplicationManager::OnSessionConnectionChanged(
 		IConcertClientSession& ConcertClientSession,
 		EConcertConnectionStatus ConcertConnectionStatus
@@ -71,12 +78,12 @@ namespace UE::MultiUserClient
 		}
 	}
 
-	void FMultiUserReplicationManager::OnLeaveSession(IConcertClientSession& ConcertClientSession)
+	void FMultiUserReplicationManager::OnLeaveSession(IConcertClientSession&)
 	{
-		// Keep in mind that FClientStreamRepository::GetLocalClientEditModel is referenced by the UI ...
-		ConnectedState.Reset();
-		// ... and after this broadcast the model should no longer be referenced by anyone
+		// This clears the UI. The clients' IEditableObjectToPropertiesModels should no longer be referenced by anyone.
 		SetConnectionStateAndBroadcast(EMultiUserReplicationConnectionState::Disconnected);
+		// Keep in mind that FClientStreamRepository::GetLocalClientEditModel is referenced by the UI so call this after clearing the UI.
+		ConnectedState.Reset();
 	}
 
 	void FMultiUserReplicationManager::HandleReplicationSessionJoined(const ConcertSyncClient::Replication::FJoinReplicatedSessionResult& JoinSessionResult)
@@ -100,7 +107,6 @@ namespace UE::MultiUserClient
 	}
 
 	FMultiUserReplicationManager::FConnectedState::FConnectedState(TSharedRef<IConcertSyncClient> InClient)
-		: ClientManager(InClient)
-		, AuthorityPolicy(InClient, ClientManager.GetLocalClient().GetStreamSynchronizer())
+		: ClientManager(InClient, InClient->GetConcertClient()->GetCurrentSession().ToSharedRef())
 	{}
 }

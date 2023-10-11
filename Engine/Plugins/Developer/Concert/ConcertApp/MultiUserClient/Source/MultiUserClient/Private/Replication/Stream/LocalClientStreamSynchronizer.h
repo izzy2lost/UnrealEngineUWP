@@ -29,8 +29,8 @@ namespace UE::MultiUserClient
 		virtual bool CanMakeSubmitRequest() const override { return !ChangeInTransit.IsSet(); }
 		virtual FGuid GetStreamId() const override { return LocalClientStreamId; }
 		virtual const FObjectReplicationMap& GetServerState() const override { return ConfirmedServerState; }
-		virtual FOnChangesAccepted& OnChangesAccepted_AnyThread() override { return OnChangesAcceptedDelegate; }
-		virtual FOnServerStateChanged& OnServerStateSynched_AnyThread() override { return OnServerStateSynchedDelegate; }
+		virtual FOnChangesAccepted& OnChangesAccepted() override { return OnChangesAcceptedDelegate; }
+		virtual FOnServerStateChanged& OnServerStateSynched() override { return OnServerStateSynchedDelegate; }
 		//~ End IClientStreamSynchronizer Interface
 
 	private:

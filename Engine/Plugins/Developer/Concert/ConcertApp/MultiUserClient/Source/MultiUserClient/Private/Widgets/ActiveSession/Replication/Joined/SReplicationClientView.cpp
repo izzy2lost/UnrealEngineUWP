@@ -39,6 +39,7 @@ namespace UE::MultiUserClient
 			[
 				SNew(SReplicationClientViewToolbar)
 				.GetChangeTrackerAttribute_Lambda([this](){ return &GetReplicationClientAttribute.Get()->GetDiffer(); })
+				.AdditionalToolbarWidgets() [ InArgs._AdditionalToolbarWidgets.Widget ]
 			]
 
 			// Editor
@@ -50,7 +51,7 @@ namespace UE::MultiUserClient
 		];
 		
 		// Refresh UI if streams change externally, e.g. a remote client changed what they sent
-		ReplicationClient->OnModelExternallyChanged_GameThread().AddSP(this, &SReplicationClientView::OnModelChanged);
+		ReplicationClient->OnModelExternallyChanged().AddSP(this, &SReplicationClientView::OnModelChanged);
 	}
 	
 	void SReplicationClientView::OnModelChanged() const

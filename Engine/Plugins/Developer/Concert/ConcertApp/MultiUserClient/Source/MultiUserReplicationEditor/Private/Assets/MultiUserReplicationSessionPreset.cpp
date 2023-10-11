@@ -14,6 +14,11 @@ UMultiUserReplicationClientPreset* UMultiUserReplicationSessionPreset::AddClient
 	return Result;
 }
 
+void UMultiUserReplicationSessionPreset::RemoveClient(UMultiUserReplicationClientPreset& Client)
+{
+	ClientPresets.RemoveSingle(&Client);
+}
+
 void UMultiUserReplicationSessionPreset::ClearClients()
 {
 	ClientPresets.Empty();

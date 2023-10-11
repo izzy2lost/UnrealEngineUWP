@@ -68,8 +68,7 @@ namespace UE::MultiUserClient
 		const FReplicationClientManager* GetClientManager() const { return ConnectedState ? &ConnectedState->ClientManager : nullptr; }
 
 		/** @note You're not supposed to keep any reference to AuthorityPolicy since it can become invalid depending on connection state. */
-		FAuthorityPolicy* GetAuthorityPolicy() { return ConnectedState ? & ConnectedState->AuthorityPolicy : nullptr; }
-		const FAuthorityPolicy* GetAuthorityPolicy() const { return ConnectedState ? & ConnectedState->AuthorityPolicy : nullptr; }
+		FAuthorityPolicy* GetAuthorityPolicy();
 
 		/** Called when the connection to the replication system changes. */
 		DECLARE_MULTICAST_DELEGATE_OneParam(FOnReplicationConnectionStateChanged, EMultiUserReplicationConnectionState /*NewState*/);
@@ -96,9 +95,6 @@ namespace UE::MultiUserClient
 			 * Only valid when ConnectionState == EMultiUserReplicationConnectionState::Connected.
 			 */
 			FReplicationClientManager ClientManager;
-
-			/** Manages the client's authority like automatically taking ownership over newly submitted objects. */
-			FAuthorityPolicy AuthorityPolicy;
 			
 			FConnectedState(TSharedRef<IConcertSyncClient> InClient);
 		};
@@ -111,7 +107,7 @@ namespace UE::MultiUserClient
 		/** Callback into Concert for when client connection has changed. */
 		void OnSessionConnectionChanged(IConcertClientSession& ConcertClientSession, EConcertConnectionStatus ConcertConnectionStatus);
 		/** Leaves the current replication session */
-		void OnLeaveSession(IConcertClientSession& ConcertClientSession);
+		void OnLeaveSession(IConcertClientSession&);
 
 		/** Handles server response for joining replication session */
 		void HandleReplicationSessionJoined(const ConcertSyncClient::Replication::FJoinReplicatedSessionResult& JoinSessionResult);

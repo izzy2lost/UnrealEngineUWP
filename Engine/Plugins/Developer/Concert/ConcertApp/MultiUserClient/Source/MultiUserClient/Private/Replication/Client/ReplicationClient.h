@@ -24,13 +24,12 @@ namespace UE::MultiUserClient
 
 		FReplicationClient(
 			UMultiUserReplicationClientPreset& InSessionContent,
-			TSharedRef<IConcertSyncClient> InClient,
-			TSharedRef<IClientStreamSynchronizer> InStreamSynchronizer
+			TUniquePtr<IClientStreamSynchronizer> InStreamSynchronizer
 			);
 
 		UMultiUserReplicationClientPreset* GetClientContent() const { return ClientContentStorage; }
 		TSharedRef<ConcertClientSharedSlate::IEditableObjectToPropertiesModel> GetClientEditModel() const { return LocalClientEditModel; }
-		TSharedRef<IClientStreamSynchronizer> GetStreamSynchronizer() const { return StreamSynchronizer; } 
+		IClientStreamSynchronizer& GetStreamSynchronizer() const { return *StreamSynchronizer.Get(); } 
 		
 		const FLocalStreamChangeTracker& GetDiffer() const { return LocalClientStreamDiffer; }
 		FLocalStreamChangeTracker& GetDiffer() { return LocalClientStreamDiffer; }
@@ -45,7 +44,7 @@ namespace UE::MultiUserClient
 		 * or the local client reverted a change that was rejected by the server.
 		 */
 		DECLARE_MULTICAST_DELEGATE(FOnModelExternallyChanged);
-		FOnModelExternallyChanged& OnModelExternallyChanged_GameThread() { return OnModelExternallyChangedDelegate; }
+		FOnModelExternallyChanged& OnModelExternallyChanged() { return OnModelExternallyChangedDelegate; }
 		
 	private:
 		
@@ -53,7 +52,7 @@ namespace UE::MultiUserClient
 		TObjectPtr<UMultiUserReplicationClientPreset> ClientContentStorage;
 		
 		/** Keeps the client's state on the server in sync. */
-		TSharedRef<IClientStreamSynchronizer> StreamSynchronizer;
+		TUniquePtr<IClientStreamSynchronizer> StreamSynchronizer;
 		
 		/**
 		 * Used to detect changes made to the client's config by the local editor.
