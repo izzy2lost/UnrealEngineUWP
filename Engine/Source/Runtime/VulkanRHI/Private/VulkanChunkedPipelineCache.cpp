@@ -297,7 +297,6 @@ public:
 
 		uint32 ParamHash;
 		uint32 LastValidOffset;
-		Archive << Version;
 		Archive << ParamHash;
 		Archive << LastValidOffset;
 		if (LastValidOffset == 0 || ParamHash != GetCacheBuildingParamHash())
