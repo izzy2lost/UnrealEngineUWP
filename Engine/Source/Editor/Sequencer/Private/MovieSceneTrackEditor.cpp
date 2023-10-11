@@ -97,7 +97,7 @@ void FMovieSceneTrackEditor::AnimatablePropertyChanged( FOnKeyProperty OnKeyProp
 		{
 			for (TWeakObjectPtr<UMovieSceneSection> NewSection : KeyPropertyResult.SectionsCreated)
 			{
-				if (NewSection.IsValid())
+				if (NewSection.IsValid() && NewSection.Get()->HasEndFrame())
 				{
 					NextKeyTime = NewSection.Get()->GetExclusiveEndFrame();
 					break;
