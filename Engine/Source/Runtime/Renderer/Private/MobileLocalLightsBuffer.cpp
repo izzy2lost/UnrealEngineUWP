@@ -144,6 +144,7 @@ public:
 		FMaterialShader::ModifyCompilationEnvironment(Parameters, OutEnvironment);
 		OutEnvironment.SetDefine(TEXT("LIGHT_FUNCTION"), 1);
 		OutEnvironment.SetDefine(TEXT("COMPUTE_SHADER"), 0);
+		OutEnvironment.SetDefine(TEXT("SUBSTRATE_INLINE_SHADING"), 1);
 		
 		if (MobileLocalLightsBufferPrepassEnabled(Parameters.Platform))
 		{
