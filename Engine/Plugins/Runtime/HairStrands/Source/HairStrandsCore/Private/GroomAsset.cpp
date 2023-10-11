@@ -2175,7 +2175,8 @@ namespace GroomDerivedDataCacheUtils
 		{
 			FString Key = Desc.GetMeshKey();
 			Ar << Key;
-		}		
+		}
+		Ar << Desc.GuideType;
 
 		FSHAHash Hash;
 		FSHA1::HashBuffer(TempBytes.GetData(), TempBytes.Num(), Hash.Hash);
@@ -2865,6 +2866,66 @@ inline FString GetLODName(const UGroomAsset* Asset, uint32 LODIndex)
 	return Asset->GetOutermost()->GetName() + FString::Printf(TEXT("_LOD%d"), LODIndex);
 }
 
+static bool InternalImportCardGeometry(FHairGroupsCardsSourceDescription* InDesc, const FHairDescriptionGroups& InHairDescriptionGroups, FHairCardsBulkData& OutBulkData, FHairStrandsDatas& OutGuidesData, FHairCardsInterpolationBulkData& OutInterpolationBulkData)
+{
+	UStaticMesh* CardsMesh = InDesc->ImportedMesh;
+	check(CardsMesh);
+	check(InHairDescriptionGroups.IsValid());
+	check(InHairDescriptionGroups.HairGroups.IsValidIndex(InDesc->GroupIndex));
+
+	// * Create a transient FHairStrandsData in order to extract RootUV and transfer them to cards data
+	// * Voxelize hair strands data (all group), to transfer group index from strands to cards
+	//FHairGroupInfo DummyInfo;
+
+	// Guides
+	FHairStrandsDatas TempHairGuidesData = InHairDescriptionGroups.HairGroups[InDesc->GroupIndex].Guides;
+	FGroomBuilder::BuildData(TempHairGuidesData);
+
+	// Strands
+	FHairStrandsVoxelData TempHairStrandsVoxelData;
+	FHairStrandsDatas TempHairStrandsData = InHairDescriptionGroups.HairGroups[InDesc->GroupIndex].Strands;
+	FGroomBuilder::BuildData(TempHairStrandsData);
+	FGroomBuilder::VoxelizeGroupIndex(InHairDescriptionGroups, TempHairStrandsVoxelData);
+
+	// Transfer RootUV from strands to guides
+	const bool bNeedRootUVTransfer = InDesc->GuideType == EHairCardsGuideType::GuideBased;
+	if (bNeedRootUVTransfer)
+	{
+		struct FRoot
+		{
+			FVector3f Position;
+			FVector2f RootUV;
+		};
+
+		// Extra all roots from strands
+		TArray<FRoot> StrandsRoots;
+		StrandsRoots.SetNum(TempHairStrandsData.GetNumCurves());
+		for (uint32 CurveIt = 0, CurveCount = TempHairStrandsData.GetNumCurves(); CurveIt < CurveCount; ++CurveIt)
+		{
+			StrandsRoots[CurveIt].Position = TempHairStrandsData.StrandsPoints.PointsPosition[TempHairStrandsData.StrandsCurves.CurvesOffset[CurveIt]];
+			StrandsRoots[CurveIt].RootUV   = TempHairStrandsData.StrandsCurves.CurvesRootUV[CurveIt];
+		}
+
+		// Find closest strands root for each guide roots, and assign RootUV
+		for (uint32 CurveIt = 0, CurveCount = TempHairGuidesData.GetNumCurves(); CurveIt < CurveCount; ++CurveIt)
+		{
+			float MaxDistance = FLT_MAX;
+			const FVector3f Position = TempHairGuidesData.StrandsPoints.PointsPosition[TempHairGuidesData.StrandsCurves.CurvesOffset[CurveIt]];
+			for (const FRoot& Root : StrandsRoots)
+			{
+				const float Dist = (Position - Root.Position).Length();
+				if (Dist < MaxDistance)
+				{
+					TempHairGuidesData.StrandsCurves.CurvesRootUV[CurveIt] = Root.RootUV;
+					MaxDistance = Dist;
+				}
+			}
+		}
+	}
+
+	return FHairCardsBuilder::ImportGeometry(CardsMesh, TempHairGuidesData, TempHairStrandsData, TempHairStrandsVoxelData, InDesc->GuideType == EHairCardsGuideType::Generated, OutBulkData, OutGuidesData, OutInterpolationBulkData);
+}
+
 bool UGroomAsset::BuildCardsData(uint32 GroupIndex)
 {
 	LLM_SCOPE_BYTAG(Groom);
@@ -2965,20 +3026,8 @@ bool UGroomAsset::BuildCardsData(uint32 GroupIndex)
 			{
 				CardsMesh->ConditionalPostLoad();
 
-				// * Create a transient FHairStrandsData in order to extract RootUV and transfer them to cards data
-				// * Voxelize hair strands data (all group), to transfer group index from strands to cards
-				FHairStrandsDatas TempHairStrandsData;
-				FHairStrandsVoxelData TempHairStrandsVoxelData;
-				{
-					const FHairDescriptionGroups& LocalHairDescriptionGroups = GetHairDescriptionGroups();
-					FHairGroupInfo DummyInfo;
-					check(LocalHairDescriptionGroups.IsValid());
-					TempHairStrandsData = LocalHairDescriptionGroups.HairGroups[GroupIndex].Strands;
-					FGroomBuilder::BuildData(TempHairStrandsData);
-					FGroomBuilder::VoxelizeGroupIndex(LocalHairDescriptionGroups, TempHairStrandsVoxelData);
-				}
-				
-				bInitResources = FHairCardsBuilder::ImportGeometry(CardsMesh, TempHairStrandsData, TempHairStrandsVoxelData, LOD.BulkData, LODGuidesData, LOD.InterpolationBulkData);
+				const FHairDescriptionGroups& LocalHairDescriptionGroups = GetHairDescriptionGroups();
+				bInitResources = InternalImportCardGeometry(Desc, LocalHairDescriptionGroups, LOD.BulkData, LODGuidesData, LOD.InterpolationBulkData);
 				if (!bInitResources)
 				{
 					UE_LOG(LogHairStrands, Warning, TEXT("Failed to import cards from %s for Group %d LOD %d."), *CardsMesh->GetName(), GroupIndex, LODIt);
@@ -3905,11 +3954,10 @@ bool UGroomAsset::GetHairCardsGuidesDatas(
 		{
 			CardsMesh->ConditionalPostLoad();
 
-			FHairStrandsVoxelData				DummyVoxelData;
-			FHairCardsBulkData					DummyBulkData;
-			FHairCardsInterpolationBulkData		DummyInterpolationBulkData;
-			FHairStrandsDatas					DummyHairStrandsData;
-			FHairCardsBuilder::ImportGeometry(CardsMesh, DummyHairStrandsData, DummyVoxelData, DummyBulkData, OutCardsGuidesData, DummyInterpolationBulkData);
+			FHairCardsInterpolationBulkData	OutDummyInterpolationBulkData;
+			FHairCardsBulkData OutDummyLODBulkData;
+			const FHairDescriptionGroups& LocalHairDescriptionGroups = GetHairDescriptionGroups();
+			InternalImportCardGeometry(Desc, LocalHairDescriptionGroups, OutDummyLODBulkData, OutCardsGuidesData, OutDummyInterpolationBulkData);
 			return true;
 		}
 	}

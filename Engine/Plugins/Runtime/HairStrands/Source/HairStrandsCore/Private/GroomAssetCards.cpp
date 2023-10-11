@@ -11,6 +11,7 @@ FHairGroupsCardsSourceDescription::FHairGroupsCardsSourceDescription()
 {
 	MaterialSlotName = NAME_None;
 	SourceType_DEPRECATED = EHairCardsSourceType::Imported;
+	GuideType = EHairCardsGuideType::Generated;
 	GroupIndex = 0;
 	LODIndex = -1;
 }

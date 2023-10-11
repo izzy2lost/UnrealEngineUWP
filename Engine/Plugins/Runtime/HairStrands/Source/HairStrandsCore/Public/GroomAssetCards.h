@@ -21,6 +21,13 @@ enum class EHairCardsSourceType : uint8
 	Imported UMETA(DisplayName = "Imported"),
 };
 
+UENUM(BlueprintType)
+enum class EHairCardsGuideType : uint8
+{
+	Generated  UMETA(DisplayName = "Generated"),
+	GuideBased UMETA(DisplayName = "Guide-Based"),
+};
+
 USTRUCT(BlueprintType)
 struct HAIRSTRANDSCORE_API FHairGroupCardsInfo
 {
@@ -97,6 +104,9 @@ struct HAIRSTRANDSCORE_API FHairGroupsCardsSourceDescription
 
 	UPROPERTY()
 	bool bInvertUV = false;
+
+	UPROPERTY(EditAnywhere, Category = "CardsSource")
+	EHairCardsGuideType GuideType;
 
 	UPROPERTY(EditAnywhere, Category = "CardsSource", meta = (DisplayName = "Mesh"))
 	TObjectPtr<UStaticMesh> ImportedMesh = nullptr;

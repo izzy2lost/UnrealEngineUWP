@@ -34,10 +34,12 @@ namespace FHairCardsBuilder
 {
 	bool ImportGeometry(
 		const UStaticMesh* StaticMesh,
+		const FHairStrandsDatas& InGuidesData,
 		const FHairStrandsDatas& InStrandsData,
 		const FHairStrandsVoxelData& InStrandsVoxelData,
+		const bool bGenerateGuidesFromCardGeometry,
 		FHairCardsBulkData& OutBulk,
-		FHairStrandsDatas& OutGuides,
+		FHairStrandsDatas& OutCardGuides,
 		FHairCardsInterpolationBulkData& OutInterpolationBulkData);
 
 	HAIRSTRANDSCORE_API bool ExtractCardsData(
