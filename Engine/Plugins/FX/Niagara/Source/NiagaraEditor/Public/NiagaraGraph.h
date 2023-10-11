@@ -6,6 +6,7 @@
 #include "NiagaraCommon.h"
 #include "EdGraph/EdGraph.h"
 #include "NiagaraScript.h"
+#include "NiagaraVariableMetaData.h"
 #include "NiagaraGraph.generated.h"
 
 class UNiagaraNodeStaticSwitch;

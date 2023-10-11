@@ -9,7 +9,6 @@
 #include "DetailWidgetRow.h"
 #include "ScopedTransaction.h"
 #include "NiagaraEditorStyle.h"
-#include "NiagaraEditorUtilities.h"
 #include "DetailCategoryBuilder.h"
 #include "DetailLayoutBuilder.h"
 #include "Widgets/Images/SImage.h"
@@ -17,12 +16,8 @@
 #include "IPropertyUtilities.h"
 #include "Misc/NotifyHook.h"
 #include "IDetailChildrenBuilder.h"
-#include "NiagaraComponent.h"
-#include "NiagaraScript.h"
-#include "NiagaraEmitter.h"
-#include "NiagaraSystem.h"
-#include "NiagaraNodeInput.h"
 #include "NiagaraEditorModule.h"
+#include "NiagaraVariableMetaData.h"
 
 #define LOCTEXT_NAMESPACE "FNiagaraDataInterfaceDetailsBase"
 #define ErrorsCategoryName  TEXT("Errors")
@@ -231,7 +226,7 @@ public:
 		DataInterface->OnErrorsRefreshed().AddSP(this, &FNiagaraDataInterfaceCustomNodeBuilder::OnRefreshErrorsRequested);
 	}
 
-	~FNiagaraDataInterfaceCustomNodeBuilder()
+	virtual ~FNiagaraDataInterfaceCustomNodeBuilder() override
 	{
 		if (DataInterface.IsValid())
 		{
@@ -334,7 +329,7 @@ private:
 };
 
 void FNiagaraDataInterfaceDetailsBase::CustomizeDetails(IDetailLayoutBuilder& DetailBuilder)
-{
+{	
 	Builder = &DetailBuilder;
 	PropertyUtilitiesWeak = DetailBuilder.GetPropertyUtilities();
 	TArray<TWeakObjectPtr<UObject>> SelectedObjects;

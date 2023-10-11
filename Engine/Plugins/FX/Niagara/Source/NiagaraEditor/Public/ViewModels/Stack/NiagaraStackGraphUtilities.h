@@ -5,6 +5,7 @@
 #include "NiagaraTypes.h"
 #include "NiagaraCommon.h"
 #include "NiagaraParameterMapHistoryFwd.h"
+#include "NiagaraVariableMetaData.h"
 #include "ViewModels/Stack/NiagaraParameterHandle.h"
 #include "ViewModels/Stack/NiagaraStackEntry.h"
 #include "AssetRegistry/AssetData.h"

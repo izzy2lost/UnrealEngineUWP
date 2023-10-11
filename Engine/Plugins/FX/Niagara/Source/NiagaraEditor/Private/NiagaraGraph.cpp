@@ -37,7 +37,6 @@
 #include "Modules/ModuleManager.h"
 #include "String/ParseTokens.h"
 #include "ViewModels/NiagaraScriptViewModel.h"
-#include "ViewModels/TNiagaraViewModelManager.h"
 
 #include UE_INLINE_GENERATED_CPP_BY_NAME(NiagaraGraph)
 

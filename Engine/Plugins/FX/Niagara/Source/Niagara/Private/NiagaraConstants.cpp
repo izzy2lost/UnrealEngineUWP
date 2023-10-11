@@ -3,6 +3,7 @@
 #include "NiagaraConstants.h"
 #include "NiagaraCommon.h"
 #include "NiagaraModule.h"
+#include "NiagaraVariableMetaData.h"
 
 #include "Internationalization/Internationalization.h"
 

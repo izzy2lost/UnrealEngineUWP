@@ -41,6 +41,7 @@
 #include "NiagaraSimulationStageBase.h"
 #include "NiagaraSystem.h"
 #include "NiagaraTypes.h"
+#include "NiagaraVariableMetaData.h"
 #include "ViewModels/NiagaraEmitterHandleViewModel.h"
 
 #include "Widgets/SNiagaraParameterMenu.h"

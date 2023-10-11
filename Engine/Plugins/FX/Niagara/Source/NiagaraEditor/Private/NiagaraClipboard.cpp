@@ -2,7 +2,6 @@
 
 #include "NiagaraClipboard.h"
 #include "NiagaraDataInterface.h"
-#include "NiagaraScript.h"
 
 #include "Factories.h"
 #include "UObject/UObjectMarks.h"
@@ -13,6 +12,7 @@
 #include "HAL/PlatformApplicationMisc.h"
 #include "NiagaraNodeFunctionCall.h"
 #include "Engine/UserDefinedEnum.h"
+#include "Engine/UserDefinedStruct.h"
 
 #include UE_INLINE_GENERATED_CPP_BY_NAME(NiagaraClipboard)
 
