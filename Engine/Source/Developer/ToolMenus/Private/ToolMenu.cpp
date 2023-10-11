@@ -308,6 +308,19 @@ FToolMenuSection& UToolMenu::FindOrAddSection(const FName SectionName)
 	return AddSection(SectionName);
 }
 
+FToolMenuSection& UToolMenu::FindOrAddSection(
+	const FName SectionName,
+	const TAttribute<FText>& InLabel,
+	const FToolMenuInsert InPosition)
+{
+	if (FToolMenuSection* FoundSection = FindSection(SectionName))
+	{
+		return *FoundSection;
+	}
+
+	return AddSection(SectionName, InLabel, InPosition);
+}
+
 void UToolMenu::RemoveSection(const FName SectionName)
 {
 	Sections.RemoveAll([SectionName](const FToolMenuSection& Section) { return Section.Name == SectionName; });

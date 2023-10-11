@@ -52,6 +52,8 @@ public:
 	FToolMenuSection* FindSection(const FName SectionName);
 
 	FToolMenuSection& FindOrAddSection(const FName SectionName);
+	
+	FToolMenuSection& FindOrAddSection(const FName SectionName, const TAttribute< FText >& InLabel, const FToolMenuInsert InPosition = FToolMenuInsert());
 
 	FName GetMenuName() const { return MenuName; }
 
