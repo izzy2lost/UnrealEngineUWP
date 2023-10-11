@@ -15,6 +15,7 @@
 #include "Misc/Paths.h"
 #include "SoundControlBus.h"
 #include "SoundControlBusMix.h"
+#include "SoundModulationWatcher.h"
 
 #include UE_INLINE_GENERATED_CPP_BY_NAME(AudioModulationStatics)
 
@@ -121,7 +122,9 @@ void UAudioModulationStatics::ActivateBus(const UObject* WorldContextObject, USo
 	UWorld* World = GetAudioWorld(WorldContextObject);
 	if (AudioModulation::FAudioModulationManager* ModSystem = GetModulation(World))
 	{
+		PRAGMA_DISABLE_DEPRECATION_WARNINGS
 		ModSystem->ActivateBus(*Bus);
+		PRAGMA_ENABLE_DEPRECATION_WARNINGS
 	}
 }
 
@@ -144,7 +147,9 @@ void UAudioModulationStatics::ActivateGenerator(const UObject* WorldContextObjec
 	{
 		if (Generator)
 		{
+			PRAGMA_DISABLE_DEPRECATION_WARNINGS
 			ModSystem->ActivateGenerator(*Generator);
+			PRAGMA_ENABLE_DEPRECATION_WARNINGS
 		}
 	}
 }
@@ -207,7 +212,9 @@ USoundControlBus* UAudioModulationStatics::CreateBus(UObject* WorldContextObject
 	{
 		if (AudioModulation::FAudioModulationManager* ModSystem = GetModulation(World))
 		{
+			PRAGMA_DISABLE_DEPRECATION_WARNINGS
 			ModSystem->ActivateBus(*NewBus);
+			PRAGMA_ENABLE_DEPRECATION_WARNINGS
 		}
 	}
 
@@ -328,6 +335,17 @@ USoundModulationGeneratorADEnvelope* UAudioModulationStatics::CreateADEnvelopeGe
 	return NewGenerator;
 }
 
+USoundModulationWatcher* UAudioModulationStatics::CreateModulationWatcher(UObject* WorldContextObject, FName Name, USoundModulatorBase* Modulator)
+{
+	if (USoundModulationWatcher* NewWatcher = NewObject<USoundModulationWatcher>(WorldContextObject, Name))
+	{
+		NewWatcher->SetModulator(Modulator);
+		return NewWatcher;
+	}
+
+	return nullptr;
+}
+
 void UAudioModulationStatics::DeactivateBus(const UObject* WorldContextObject, USoundControlBus* Bus)
 {
 	if (Bus)
@@ -335,7 +353,9 @@ void UAudioModulationStatics::DeactivateBus(const UObject* WorldContextObject, U
 		UWorld* World = GetAudioWorld(WorldContextObject);
 		if (AudioModulation::FAudioModulationManager* ModSystem = GetModulation(World))
 		{
+			PRAGMA_DISABLE_DEPRECATION_WARNINGS
 			ModSystem->DeactivateBus(*Bus);
+			PRAGMA_ENABLE_DEPRECATION_WARNINGS
 		}
 	}
 }
@@ -359,7 +379,9 @@ void UAudioModulationStatics::DeactivateGenerator(const UObject* WorldContextObj
 	{
 		if (Generator)
 		{
+			PRAGMA_DISABLE_DEPRECATION_WARNINGS
 			ModSystem->DeactivateGenerator(*Generator);
+			PRAGMA_ENABLE_DEPRECATION_WARNINGS
 		}
 	}
 }

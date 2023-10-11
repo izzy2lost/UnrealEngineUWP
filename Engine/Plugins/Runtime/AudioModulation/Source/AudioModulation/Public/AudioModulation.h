@@ -59,13 +59,21 @@ namespace AudioModulation
 	//~ End IAudioModulationManager implementation
 
 	public:
+		UE_DEPRECATED(5.4, "Deactivation of modulators in this manner is now deprecated. Use USoundModulationWatchers to safety activate and track a given modulator")
 		void ActivateBus(const USoundControlBus& InBus);
+
 		void ActivateBusMix(const USoundControlBusMix& InBusMix);
+
+		UE_DEPRECATED(5.4, "Deactivation of modulators in this manner is now deprecated. Use USoundModulationWatchers to safety activate and track a given modulator")
 		void ActivateGenerator(const USoundModulationGenerator& InGenerator);
 
+		UE_DEPRECATED(5.4, "Deactivation of modulators in this manner is now deprecated. Use USoundModulationWatchers to safety activate and track a given modulator")
 		void DeactivateBus(const USoundControlBus& InBus);
+
 		void DeactivateBusMix(const USoundControlBusMix& InBusMix);
 		void DeactivateAllBusMixes();
+
+		UE_DEPRECATED(5.4, "Deactivation of modulators in this manner is now deprecated. Use USoundModulationWatchers to safety activate and track a given modulator")
 		void DeactivateGenerator(const USoundModulationGenerator& InGenerator);
 
 		void SaveMixToProfile(const USoundControlBusMix& InBusMix, const int32 InProfileIndex);

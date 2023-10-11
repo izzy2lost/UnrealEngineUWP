@@ -67,18 +67,25 @@ namespace AudioModulation
 	public:
 		void Initialize(const FAudioPluginInitializationParams& InitializationParams);
 
+		UE_DEPRECATED(5.4, "Activation of modulators in this manner is now deprecated. Use USoundModulationWatchers to safety activate and track a given modulator")
 		void ActivateBus(const USoundControlBus& InBus);
+
 		void ActivateBusMix(FModulatorBusMixSettings&& InSettings);
 		void ActivateBusMix(const USoundControlBusMix& InBusMix);
+
+		UE_DEPRECATED(5.4, "Activation of modulators in this manner is now deprecated. Use USoundModulationWatchers to safety activate and track a given modulator")
 		void ActivateGenerator(const USoundModulationGenerator& InGenerator);
 
-		/**
-		 * Deactivates respectively typed (i.e. BusMix, Bus, Generator, etc.) object proxy if no longer referenced.
-		 * If still referenced, will wait until references are finished before destroying.
-		 */
+		UE_DEPRECATED(5.4, "Deactivation of modulators in this manner is now deprecated. Use USoundModulationWatchers to safety activate and track a given modulator")
 		void DeactivateBus(const USoundControlBus& InBus);
+
+		/** Deactivates given bus mix */
 		void DeactivateBusMix(const USoundControlBusMix& InBusMix);
+
+		/** Deactivates all bus mixes */
 		void DeactivateAllBusMixes();
+
+		UE_DEPRECATED(5.4, "Deactivation of modulators in this manner is now deprecated. Use USoundModulationWatchers to safety activate and track a given modulator")
 		void DeactivateGenerator(const USoundModulationGenerator& InGenerator);
 
 		void ProcessModulators(const double InElapsed);

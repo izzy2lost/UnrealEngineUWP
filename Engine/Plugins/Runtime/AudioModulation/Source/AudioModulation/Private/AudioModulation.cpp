@@ -48,7 +48,11 @@ namespace AudioModulation
 
 	void FAudioModulationManager::ActivateBus(const USoundControlBus& InBus)
 	{
+		UE_LOG(LogAudioModulation, Warning, TEXT("FAudioModulationManager::ActivateBus is deprecated. Use USoundModulationWatcher instead"));
+
+		PRAGMA_DISABLE_DEPRECATION_WARNINGS
 		ModSystem->ActivateBus(InBus);
+		PRAGMA_ENABLE_DEPRECATION_WARNINGS
 	}
 
 	void FAudioModulationManager::ActivateBusMix(const USoundControlBusMix& InBusMix)
@@ -58,12 +62,20 @@ namespace AudioModulation
 
 	void FAudioModulationManager::ActivateGenerator(const USoundModulationGenerator& InGenerator)
 	{
+		UE_LOG(LogAudioModulation, Warning, TEXT("FAudioModulationManager::ActivateGenerator is deprecated. Use USoundModulationWatcher instead"));
+
+		PRAGMA_DISABLE_DEPRECATION_WARNINGS
 		ModSystem->ActivateGenerator(InGenerator);
+		PRAGMA_ENABLE_DEPRECATION_WARNINGS
 	}
 
 	void FAudioModulationManager::DeactivateBus(const USoundControlBus& InBus)
 	{
+		UE_LOG(LogAudioModulation, Warning, TEXT("FAudioModulationManager::DeactivateBus is deprecated. Use USoundModulationWatcher instead"));
+
+		PRAGMA_DISABLE_DEPRECATION_WARNINGS
 		ModSystem->DeactivateBus(InBus);
+		PRAGMA_ENABLE_DEPRECATION_WARNINGS
 	}
 
 	void FAudioModulationManager::DeactivateBusMix(const USoundControlBusMix& InBusMix)
@@ -78,7 +90,11 @@ namespace AudioModulation
 
 	void FAudioModulationManager::DeactivateGenerator(const USoundModulationGenerator& InGenerator)
 	{
+		UE_LOG(LogAudioModulation, Warning, TEXT("FAudioModulationManager::DeactivateGenerator is deprecated. Use USoundModulationWatcher instead"));
+
+		PRAGMA_DISABLE_DEPRECATION_WARNINGS
 		ModSystem->DeactivateGenerator(InGenerator);
+		PRAGMA_ENABLE_DEPRECATION_WARNINGS
 	}
 
 #if !UE_BUILD_SHIPPING

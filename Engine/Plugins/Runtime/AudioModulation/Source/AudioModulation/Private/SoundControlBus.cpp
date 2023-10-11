@@ -119,7 +119,9 @@ void USoundControlBus::BeginDestroy()
 			{
 				FAudioModulationManager* Modulation = static_cast<FAudioModulationManager*>(ModulationInterface);
 				check(Modulation);
+				PRAGMA_DISABLE_DEPRECATION_WARNINGS
 				Modulation->DeactivateBus(*this);
+				PRAGMA_ENABLE_DEPRECATION_WARNINGS
 			}
 		}
 	}
