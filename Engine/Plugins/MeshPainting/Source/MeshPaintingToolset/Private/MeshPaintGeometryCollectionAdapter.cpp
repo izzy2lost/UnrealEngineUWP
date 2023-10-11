@@ -243,7 +243,7 @@ void FMeshPaintGeometryCollectionComponentAdapter::ApplyOrRemoveTextureOverride(
 {
 	if (GeometryCollectionComponent.IsValid())
 	{
-		DefaultApplyOrRemoveTextureOverride(GeometryCollectionComponent.Get(), SourceTexture, OverrideTexture);
+		TextureOverridesState.ApplyOrRemoveTextureOverride(GeometryCollectionComponent.Get(), SourceTexture, OverrideTexture);
 	}
 }
 

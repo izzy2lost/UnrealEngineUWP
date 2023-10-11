@@ -472,6 +472,9 @@ void UMaterialEditorInstanceConstant::PostEditChangeProperty(FPropertyChangedEve
 {
 	if (SourceInstance)
 	{
+		// Warn our source instance that it is about to be updated.
+		SourceInstance->PreEditChange(PropertyChangedEvent.Property);
+
 		FProperty* PropertyThatChanged = PropertyChangedEvent.Property;
 		bool bLayersParameterChanged = false;
 

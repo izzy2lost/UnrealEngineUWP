@@ -343,7 +343,7 @@ void FMeshPaintSkeletalMeshComponentAdapter::ApplyOrRemoveTextureOverride(UTextu
 {
 	if (SkeletalMeshComponent.IsValid())
 	{
-		DefaultApplyOrRemoveTextureOverride(SkeletalMeshComponent.Get(), SourceTexture, OverrideTexture);
+		TextureOverridesState.ApplyOrRemoveTextureOverride(SkeletalMeshComponent.Get(), SourceTexture, OverrideTexture);
 	}
 }
 
