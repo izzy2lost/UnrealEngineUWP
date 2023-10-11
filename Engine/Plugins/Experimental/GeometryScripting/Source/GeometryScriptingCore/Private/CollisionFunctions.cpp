@@ -20,12 +20,15 @@
 
 #include "ShapeApproximation/ShapeDetection3.h"
 #include "ShapeApproximation/MeshSimpleShapeApproximation.h"
+#include "MinVolumeSphere3.h"
+#include "MinVolumeBox3.h"
 
 #include "Clustering/FaceNormalClustering.h"
 #include "CompGeom/ConvexDecomposition3.h"
 #include "OrientedBoxTypes.h"
 #include "MeshQueries.h"
 #include "MeshAdapter.h"
+#include "SphereTypes.h"
 
 #include "Generators/MeshShapeGenerator.h"
 #include "Generators/GridBoxMeshGenerator.h"
@@ -274,6 +277,15 @@ static bool AppendConvexElemToCompactDynamicMesh(const FKConvexElem& Elem, FDyna
 	return true;
 }
 
+
+static double GetConvexElemVolume(const FKConvexElem& Convex)
+{
+	// Note: Not reliable to use the FKConvexElem::GetVolume function because it depends on the chaos convex being allocated, and also is not currently exported
+	TIndexMeshArrayAdapter<int32, double, FVector3d> HullMeshAdapter(&Convex.VertexData, &Convex.IndexData);
+	// Note: We take the negative volume because the hull triangles have opposite winding from ordinary meshes
+	double Volume = -TMeshQueries<TIndexMeshArrayAdapter<int32, double, FVector3d>>::GetVolumeArea(HullMeshAdapter).X;
+	return Volume;
+}
 
 }		// end namespace UELocal
 
@@ -885,6 +897,121 @@ void UGeometryScriptLibrary_CollisionFunctions::SimplifyConvexHulls(
 	}
 }
 
+void UGeometryScriptLibrary_CollisionFunctions::ApproximateConvexHullsWithSimplerCollisionShapes(
+	FGeometryScriptSimpleCollision& SimpleCollision,
+	const FGeometryScriptConvexHullApproximationOptions& ApproximateOptions,
+	bool& bHasApproximated,
+	UGeometryScriptDebug* Debug
+)
+{
+	bHasApproximated = false;
+
+	if (!ApproximateOptions.bFitBoxes && !ApproximateOptions.bFitSpheres)
+	{
+		// nothing to approximate
+		return;
+	}
+
+	// Helper to call ProcessPt on vertices and triangle-centroids of a convex hull mesh, stopping early if ProcessPt returns false
+	auto SampleHull = [](const FKConvexElem& Elem, TFunctionRef<bool(FVector)> ProcessPt) -> bool
+	{
+		for (FVector V : Elem.VertexData)
+		{
+			if (!ProcessPt(V))
+			{
+				return false;
+			}
+		}
+		for (int32 TriStart = 0; TriStart + 2 < Elem.IndexData.Num(); TriStart += 3)
+		{
+			FVector V0 = Elem.VertexData[Elem.IndexData[TriStart]];
+			FVector V1 = Elem.VertexData[Elem.IndexData[TriStart+1]];
+			FVector V2 = Elem.VertexData[Elem.IndexData[TriStart+2]];
+			if (!ProcessPt((V0 + V1 + V2) / 3))
+			{
+				return false;
+			}
+		}
+		return true;
+	};
+
+	auto GetVolumeDifferenceFrac = [](double HullVolume, double ApproxShapeVolume) -> double
+	{
+		return FMath::Abs(ApproxShapeVolume / HullVolume - 1.0);
+	};
+
+	TArray<FKConvexElem>& ConvexElems = SimpleCollision.AggGeom.ConvexElems;
+	for (int32 ConvexIdx = 0; ConvexIdx < ConvexElems.Num(); ++ConvexIdx)
+	{
+		const FKConvexElem& Elem = ConvexElems[ConvexIdx];
+		double HullVolume = UELocal::GetConvexElemVolume(Elem);
+
+		bool bFoundBox = false, bFoundSphere = false;
+		UE::Geometry::FSphere3d ApproxSphere;
+		FOrientedBox3d ApproxBox;
+		double SphereVolumeDiff = FMathd::MaxReal, BoxVolumeDiff = FMathd::MaxReal;
+
+		if (ApproximateOptions.bFitSpheres)
+		{
+			FMinVolumeSphere3d FitSphere;
+			if (FitSphere.Solve(Elem.VertexData.Num(), [&Elem](int32 Idx) {return Elem.VertexData[Idx];}))
+			{
+				FitSphere.GetResult(ApproxSphere);
+				double SphereVolume = ApproxSphere.Volume();
+				SphereVolumeDiff = GetVolumeDifferenceFrac(HullVolume, SphereVolume);
+				bFoundSphere = (SphereVolumeDiff < ApproximateOptions.VolumeDiffThreshold_Fraction)
+					&& SampleHull(Elem, [&](FVector V) -> bool
+					{
+						return FMath::Abs(ApproxSphere.SignedDistance(V)) < ApproximateOptions.DistanceThreshold;
+					});
+			}
+		}
+
+		if (ApproximateOptions.bFitBoxes)
+		{
+			FMinVolumeBox3d FitBox;
+			if (FitBox.Solve(Elem.VertexData.Num(), [&Elem](int32 Idx) {return Elem.VertexData[Idx];}, false, nullptr))
+			{
+				FitBox.GetResult(ApproxBox);
+				double BoxVolume = ApproxBox.Volume();
+				BoxVolumeDiff = GetVolumeDifferenceFrac(HullVolume, BoxVolume);
+				bFoundBox = (BoxVolumeDiff < ApproximateOptions.VolumeDiffThreshold_Fraction)
+					&& SampleHull(Elem, [&](FVector V) -> bool
+					{
+						return FMath::Abs(ApproxBox.SignedDistance(V)) < ApproximateOptions.DistanceThreshold;
+					});
+			}
+		}
+
+		if (bFoundSphere || bFoundBox)
+		{
+			// Add the approximating element
+			if (BoxVolumeDiff < SphereVolumeDiff)
+			{
+				FKBoxElem& ElemBox = SimpleCollision.AggGeom.BoxElems.Emplace_GetRef();
+				ElemBox.Center = ApproxBox.Center();
+				ElemBox.Rotation = (FRotator)ApproxBox.Frame.Rotation;
+				ElemBox.X = ApproxBox.Extents.X * 2;
+				ElemBox.Y = ApproxBox.Extents.Y * 2;
+				ElemBox.Z = ApproxBox.Extents.Z * 2;
+			}
+			else // sphere is better
+			{
+				FKSphereElem& ElemSphere = SimpleCollision.AggGeom.SphereElems.Emplace_GetRef();
+				ElemSphere.Center = ApproxSphere.Center;
+				ElemSphere.Radius = ApproxSphere.Radius;
+			}
+
+			// Remove the approximated convex hull
+			ConvexElems.RemoveAtSwap(ConvexIdx);
+			ConvexIdx--;
+
+			// Log that we accepted an approximation
+			bHasApproximated = true;
+		}
+	}
+}
+
 FGeometryScriptSimpleCollision UGeometryScriptLibrary_CollisionFunctions::MergeSimpleCollisionShapes(
 	const FGeometryScriptSimpleCollision& SimpleCollision,
 	const FGeometryScriptMergeSimpleCollisionOptions& MergeOptions,
@@ -1001,10 +1128,7 @@ FGeometryScriptSimpleCollision UGeometryScriptLibrary_CollisionFunctions::MergeS
 	}
 	for (const FKConvexElem& Convex : SimpleCollision.AggGeom.ConvexElems)
 	{
-		// Note: Not reliable to use the FKConvexElem::GetVolume function because it depends on the chaos convex being allocated, and also is not currently exported
-		TIndexMeshArrayAdapter<int32, double, FVector3d> HullMeshAdapter(&Convex.VertexData, &Convex.IndexData);
-		// Note: We take the negative volume because the hull triangles have opposite winding from ordinary meshes
-		double Volume = -TMeshQueries<TIndexMeshArrayAdapter<int32, double, FVector3d>>::GetVolumeArea(HullMeshAdapter).X;
+		double Volume = UELocal::GetConvexElemVolume(Convex);
 		AppendHullVertices(Convex.VertexData, Volume, &Convex);
 		if (CollisionMesh)
 		{

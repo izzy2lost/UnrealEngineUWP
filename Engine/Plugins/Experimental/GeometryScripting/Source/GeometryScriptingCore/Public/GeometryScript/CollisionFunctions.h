@@ -231,6 +231,29 @@ public:
 };
 
 USTRUCT(BlueprintType)
+struct GEOMETRYSCRIPTINGCORE_API FGeometryScriptConvexHullApproximationOptions
+{
+	GENERATED_BODY()
+public:
+
+	/** Whether to attempt to replace convex hulls with spheres */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = Options)
+	bool bFitSpheres = true;
+
+	/** Whether to attempt to replace convex hulls with boxes */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = Options)
+	bool bFitBoxes = true;
+
+	/** Approximating shape should be at least this close to the original shape */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = Options)
+	float DistanceThreshold = 5.f;
+
+	/** Acceptable difference between approximating shape volume and convex hull volume, as a fraction of convex hull volume */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = Options)
+	float VolumeDiffThreshold_Fraction = .15;
+};
+
+USTRUCT(BlueprintType)
 struct GEOMETRYSCRIPTINGCORE_API FGeometryScriptTransformCollisionOptions
 {
 	GENERATED_BODY()
@@ -390,6 +413,22 @@ public:
 		UPARAM(ref) FGeometryScriptSimpleCollision& SimpleCollision,
 		const FGeometryScriptConvexHullSimplificationOptions& SimplifyOptions,
 		bool& bHasSimplified,
+		UGeometryScriptDebug* Debug = nullptr
+	);
+
+	/**
+	 * Attempt to approximate any convex hulls in the given simple collision representation. Updates the passed-in Simple Collision.
+	 * Convex hulls that aren't well approximated (to tolerances set in ApproximateOptions) will remain as convex hulls.
+	 * 
+	 * @param SimpleCollision		The collision in which to attempt to approximate the convex hulls
+	 * @param ConvexSimplifyOptions	Options controlling how convex hulls are approximated
+	 * @param bHasApproximated		Indicates whether any convex hulls were replaced with simpler approximations
+	 */
+	UFUNCTION(BlueprintCallable, Category = "GeometryScript|Collision", meta = (ScriptMethod, AutoCreateRefTerm = "ApproximateOptions"))
+	static void ApproximateConvexHullsWithSimplerCollisionShapes(
+		UPARAM(ref) FGeometryScriptSimpleCollision& SimpleCollision,
+		const FGeometryScriptConvexHullApproximationOptions& ApproximateOptions,
+		bool& bHasApproximated,
 		UGeometryScriptDebug* Debug = nullptr
 	);
 
