@@ -2516,6 +2516,54 @@ bool FPluginManager::TryLoadModulesForPlugin( const FPlugin& Plugin, const ELoad
 	return true;
 }
 
+bool FPluginManager::TryUnloadModulesForPlugin(const FPlugin& Plugin, const ELoadingPhase::Type LoadingPhase, FText* OutFailureMessage /*= nullptr*/, bool bSkipUnload /*= false*/) const
+{
+	TMap<FName, EModuleUnloadResult> Errors;
+	FModuleDescriptor::UnloadModulesForPhase(LoadingPhase, Plugin.Descriptor.Modules, Errors, bSkipUnload);
+
+	FText FailureMessage;
+	for( const TPair<FName, EModuleUnloadResult>& FailureIt : Errors)
+	{
+		const FName ModuleNameThatFailedToLoad = FailureIt.Key;
+		const EModuleUnloadResult FailureReason = FailureIt.Value;
+
+		if (FailureReason != EModuleUnloadResult::Success)
+		{
+			const FText PluginNameText = FText::FromString(Plugin.Name);
+			const FText TextModuleName = FText::FromName(ModuleNameThatFailedToLoad);
+
+			if (FailureReason == EModuleUnloadResult::UnloadNotSupported)
+			{
+				FailureMessage = FText::Format(LOCTEXT("UnloadNotSupported", "Plugin '{0}' failed to unload because module '{1}' does not support unloading."), PluginNameText, TextModuleName);
+			}
+			else
+			{
+				ensure(0);	// If this goes off, the error handling code should be updated for the new enum values!
+				FailureMessage = FText::Format(LOCTEXT("PluginGenericUnloadFailure", "Plugin '{0}' failed to unload because module '{1}' could not be unloaded for an unspecified reason. Please report this error."), PluginNameText, TextModuleName);
+			}
+
+			// Don't need to display more than one module load error per plugin that failed to load
+			break;
+		}
+	}
+
+	if (!FailureMessage.IsEmpty())
+	{
+		UE_LOG(LogPluginManager, Error, TEXT("%s"), *FailureMessage.ToString());
+
+		FMessageDialog::Open(EAppMsgType::Ok, FailureMessage);
+
+		if (OutFailureMessage)
+		{
+			*OutFailureMessage = MoveTemp(FailureMessage);
+		}
+
+		return false;
+	}
+
+	return true;
+}
+
 bool FPluginManager::LoadModulesForEnabledPlugins( const ELoadingPhase::Type LoadingPhase )
 {
 	// Figure out which plugins are enabled
@@ -3048,13 +3096,25 @@ bool FPluginManager::UnmountExplicitlyLoadedPlugin(const FString& PluginName, FT
 		return false;
 	}
 
-	if (Plugin->Descriptor.Modules.Num() > 0)
+	// Simulate unload of all the plugin modules to gather errors
+	// We don't want to actually unload modules until content has been unloaded
+	for (ELoadingPhase::Type LoadingPhase = (ELoadingPhase::Type)(ELoadingPhase::Max - 1);
+		LoadingPhase >= (ELoadingPhase::Type)0;
+		LoadingPhase = (ELoadingPhase::Type)(LoadingPhase - 1))
 	{
-		if (OutReason)
+		if (LoadingPhase != ELoadingPhase::None)
 		{
-			*OutReason = LOCTEXT("UnloadPluginContainedModules", "Plugin contains modules and may be unsafe to unload");
+			constexpr bool bSkipUnload = true;
+			FText FailureMessage;
+			if (!TryUnloadModulesForPlugin(*Plugin, LoadingPhase, &FailureMessage, bSkipUnload))
+			{
+				if (OutReason)
+				{
+					*OutReason = MoveTemp(FailureMessage);
+				}
+				return false;
+			}
 		}
-		return false;
 	}
 
 	// Notify that additional localization data should be unloaded
@@ -3086,6 +3146,17 @@ bool FPluginManager::UnmountExplicitlyLoadedPlugin(const FString& PluginName, FT
 		if (UE::PluginManager::Private::CoreUObjectPluginHandler)
 		{
 			UE::PluginManager::Private::CoreUObjectPluginHandler->OnPluginUnload(*Plugin);
+		}
+	}
+
+	// Actually unload all the plugin modules now that content unmount is finished
+	for (ELoadingPhase::Type LoadingPhase = (ELoadingPhase::Type)(ELoadingPhase::Max - 1); 
+		 LoadingPhase >= (ELoadingPhase::Type)0; 
+		 LoadingPhase = (ELoadingPhase::Type)(LoadingPhase - 1))
+	{
+		if (LoadingPhase != ELoadingPhase::None)
+		{
+			verify(TryUnloadModulesForPlugin(*Plugin, LoadingPhase));
 		}
 	}
 

@@ -63,6 +63,17 @@ enum class EModuleLoadResult
 	FailedToInitialize
 };
 
+/**
+ * Enumerates reasons for failed module unloads.
+ */
+enum class EModuleUnloadResult
+{
+	/** Module unloaded successfully. */
+	Success,
+
+	/** Module does not support dynamic reloading (see IModuleInterface::SupportsDynamicReloading). */
+	UnloadNotSupported
+};
 
 /**
  * Enumerates reasons for modules to change.
