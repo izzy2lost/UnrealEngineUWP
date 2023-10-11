@@ -202,9 +202,6 @@ private:
 #if ENABLE_COOK_STATS
 	void LogCookStats(FCookStatsManager::AddStatFuncRef AddStat);
 #endif
-	void TickRetractionFromSchedulerThread(bool bAnyIdle, int32 BusiestNumAssignments);
-	void HandleRetractionMessage(FMPCollectorServerMessageContext& Context, bool bReadSuccessful,
-		FRetractionResultsMessage&& Message);
 	void AssignRequests(TArray<FWorkerId>&& InWorkers, TArray<TRefCountPtr<FCookWorkerServer>>& InRemoteWorkers, 
 		TArrayView<FPackageData*> Requests, TArray<FWorkerId>& OutAssignments,
 		TMap<FPackageData*, TArray<FPackageData*>>&& RequestGraph);
@@ -250,6 +247,7 @@ private:
 	int32 CoreLimit = 0;
 	EShowWorker ShowWorkerOption = EShowWorker::CombinedLogs;
 	ELoadBalanceAlgorithm LoadBalanceAlgorithm = ELoadBalanceAlgorithm::CookBurden;
+	/** Whether the director is allowed to cook any packages. True by default, false by commandline parameter. */
 	bool bAllowLocalCooks = true;
 
 	// Data only accessible from the CommunicationThread (or if the CommunicationThread is inactive)
