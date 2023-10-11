@@ -1107,18 +1107,13 @@ static void InternalRenderHairStrandsDebugInfo(
 	FRDGBuilder& GraphBuilder,
 	FScene* Scene,
 	FViewInfo& View,
-	FRDGTextureRef SceneColorTexture,
-	FRDGTextureRef SceneDepthTexture)
+	FHairStrandsBookmarkParameters& Params)
 {
 	if (!ShaderPrint::IsSupported(View.GetShaderPlatform()))
 	{
 		return;
 	}
 
-	FHairStrandsBookmarkParameters Params;
-	CreateHairStrandsBookmarkParameters(Scene, View, Params);
-	Params.SceneColorTexture = SceneColorTexture;
-	Params.SceneDepthTexture = SceneDepthTexture;
 	if (!Params.HasInstances())
 	{
 		return;
@@ -1142,7 +1137,7 @@ static void InternalRenderHairStrandsDebugInfo(
 	// Display tangent vector for strands/cards/meshes
 	if (ViewMode == EGroomViewMode::Tangent)
 		{
-			AddDebugHairTangentPass(GraphBuilder, View, SceneTextures, SceneColorTexture);
+			AddDebugHairTangentPass(GraphBuilder, View, SceneTextures, Params.SceneColorTexture);
 		}
 
 	// Draw LOD info 
@@ -1163,14 +1158,13 @@ static void InternalRenderHairStrandsDebugInfo(
 		}
 	}
 
-
 	// Pass this point, all debug rendering concern only hair strands data
 	if (!HairStrands::HasViewHairStrandsData(View))
 	{
 		return;
 	}
 
-	const FScreenPassRenderTarget SceneColor(SceneColorTexture, View.ViewRect, ERenderTargetLoadAction::ELoad);
+	const FScreenPassRenderTarget SceneColor(Params.SceneColorTexture, View.ViewRect, ERenderTargetLoadAction::ELoad);
 
 	const FHairStrandsViewData& HairData = View.HairStrandsViewData;
 
@@ -1178,11 +1172,11 @@ static void InternalRenderHairStrandsDebugInfo(
 	{
 		if (GHairStrandsDebugPlotBsdf > 0)
 		{
-			AddPlotBSDFPass(GraphBuilder, View, SceneColorTexture);
+			AddPlotBSDFPass(GraphBuilder, View, Params.SceneColorTexture);
 		}
 		if (HairData.DebugData.IsPlotDataValid())
 		{
-			AddPlotSamplePass(GraphBuilder, View, HairData.DebugData.PlotData, SceneColorTexture);
+			AddPlotSamplePass(GraphBuilder, View, HairData.DebugData.PlotData, Params.SceneColorTexture);
 		}	
 	}
 
@@ -1213,7 +1207,7 @@ static void InternalRenderHairStrandsDebugInfo(
 				if (DeepShadowData.AtlasSlotIndex != DomIndex)
 					continue;
 
-				AddDebugDeepShadowTexturePass(GraphBuilder, &View, FIntRect(), &DeepShadowData, &HairData.DeepShadowResources, SceneColorTexture);
+				AddDebugDeepShadowTexturePass(GraphBuilder, &View, FIntRect(), &DeepShadowData, &HairData.DeepShadowResources, Params.SceneColorTexture);
 			}
 		}
 	}
@@ -1223,11 +1217,11 @@ static void InternalRenderHairStrandsDebugInfo(
 	{
 		for (const FHairStrandsMacroGroupData& MacroGroupData : HairData.MacroGroupDatas)
 		{
-			AddDebugDeepShadowTexturePass(GraphBuilder, &View, MacroGroupData.ScreenRect, nullptr, nullptr, SceneColorTexture);
+			AddDebugDeepShadowTexturePass(GraphBuilder, &View, MacroGroupData.ScreenRect, nullptr, nullptr, Params.SceneColorTexture);
 		}
 
 		const FIntRect TotalRect = ComputeVisibleHairStrandsMacroGroupsRect(View.ViewRect, HairData.MacroGroupDatas);
-		AddDebugDeepShadowTexturePass(GraphBuilder, &View, TotalRect, nullptr, nullptr, SceneColorTexture);
+		AddDebugDeepShadowTexturePass(GraphBuilder, &View, TotalRect, nullptr, nullptr, Params.SceneColorTexture);
 	}
 	
 
@@ -1237,7 +1231,7 @@ static void InternalRenderHairStrandsDebugInfo(
 		{
 			if (HairData.DeepShadowResources.bIsGPUDriven)
 			{
-				AddDeepShadowInfoPass(GraphBuilder, View, HairData.DeepShadowResources, HairData.MacroGroupResources, SceneColorTexture);
+				AddDeepShadowInfoPass(GraphBuilder, View, HairData.DeepShadowResources, HairData.MacroGroupResources, Params.SceneColorTexture);
 			}
 		}
 	}
@@ -1254,13 +1248,13 @@ static void InternalRenderHairStrandsDebugInfo(
 		ViewMode == EGroomViewMode::MaterialTangent;
 	if (bRunDebugPass)
 	{
-		AddDebugHairPass(GraphBuilder, &View, ViewMode, HairData.VisibilityData, SceneTextures.Stencil, SceneColorTexture);
+		AddDebugHairPass(GraphBuilder, &View, ViewMode, HairData.VisibilityData, SceneTextures.Stencil, Params.SceneColorTexture);
 		AddDebugHairPrintPass(GraphBuilder, Scene, &View, ViewMode, HairData.VisibilityData, HairData.MacroGroupDatas, HairData.MacroGroupResources, SceneTextures.Stencil);
 	}
 	else if (ViewMode == EGroomViewMode::Tile)
 	{
 		check(HairData.VisibilityData.TileData.IsValid());
-		AddHairStrandsDebugTilePass(GraphBuilder, View, SceneColorTexture, HairData.VisibilityData.TileData);
+		AddHairStrandsDebugTilePass(GraphBuilder, View, Params.SceneColorTexture, HairData.VisibilityData.TileData);
 	}
 
 	const bool bIsVoxelMode = ViewMode == EGroomViewMode::VoxelsDensity;
@@ -1268,7 +1262,7 @@ static void InternalRenderHairStrandsDebugInfo(
 	{
 		if (HairData.VirtualVoxelResources.IsValid())
 		{
-			AddVoxelPageRaymarchingPass(GraphBuilder, View, HairData.MacroGroupDatas, HairData.VirtualVoxelResources, SceneColorTexture);
+			AddVoxelPageRaymarchingPass(GraphBuilder, View, HairData.MacroGroupDatas, HairData.VirtualVoxelResources, Params.SceneColorTexture);
 		}
 	}
 
@@ -1286,12 +1280,12 @@ static void InternalRenderHairStrandsDebugInfo(
 		PassParameters->PPLLNodeIndex = HairData.DebugData.PPLLData.NodeIndexTexture;
 		PassParameters->PPLLNodeData = GraphBuilder.CreateSRV(FRDGBufferSRVDesc(HairData.DebugData.PPLLData.NodeDataBuffer));
 		PassParameters->ViewUniformBuffer = View.ViewUniformBuffer;
-		PassParameters->SceneColorTextureUAV = GraphBuilder.CreateUAV(SceneColorTexture);
+		PassParameters->SceneColorTextureUAV = GraphBuilder.CreateUAV(Params.SceneColorTexture);
 		ShaderPrint::SetParameters(GraphBuilder, View.ShaderPrintData, PassParameters->ShaderPrintParameters);
 
 		FHairVisibilityDebugPPLLCS::FPermutationDomain PermutationVector;
 		TShaderMapRef<FHairVisibilityDebugPPLLCS> ComputeShader(View.ShaderMap, PermutationVector);
-		FIntVector TextureSize = SceneColorTexture->Desc.GetSize(); TextureSize.Z = 1;
+		FIntVector TextureSize = Params.SceneColorTexture->Desc.GetSize(); TextureSize.Z = 1;
 		FComputeShaderUtils::AddPass(GraphBuilder, RDG_EVENT_NAME("HairStrands::PPLLDebug"), ComputeShader, PassParameters, FIntVector::DivideAndRoundUp(TextureSize, FIntVector(8, 8, 1)));
 	}
 
@@ -1316,12 +1310,11 @@ void RenderHairStrandsDebugInfo(
 	FRDGBuilder& GraphBuilder,
 	FScene* Scene,
 	TArrayView<FViewInfo> Views,
-	FRDGTextureRef SceneColorTexture,
-	FRDGTextureRef SceneDepthTexture)
+	FHairStrandsBookmarkParameters& Parameters)
 {
 	bool bHasHairData = false;
 	for (FViewInfo& View : Views)
 	{
-		InternalRenderHairStrandsDebugInfo(GraphBuilder, Scene, View, SceneColorTexture, SceneDepthTexture);
+		InternalRenderHairStrandsDebugInfo(GraphBuilder, Scene, View, Parameters);
 	}
 }

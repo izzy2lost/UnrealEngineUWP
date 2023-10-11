@@ -4310,7 +4310,9 @@ void FDeferredShadingSceneRenderer::Render(FRDGBuilder& GraphBuilder)
 		{
 			if (HairStrandsBookmarkParameters.HasInstances())
 			{
-				RenderHairStrandsDebugInfo(GraphBuilder, Scene, Views, SceneTextures.Color.Target, SceneTextures.Depth.Target);
+				HairStrandsBookmarkParameters.SceneColorTexture = SceneTextures.Color.Target;
+				HairStrandsBookmarkParameters.SceneDepthTexture = SceneTextures.Depth.Target;
+				RenderHairStrandsDebugInfo(GraphBuilder, Scene, Views, HairStrandsBookmarkParameters);
 			}
 		}
 

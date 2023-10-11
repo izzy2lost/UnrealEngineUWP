@@ -864,7 +864,7 @@ static void AddHairDebugPrintInstancePass(
 	const FSceneView& View,
 	const FShaderPrintData* ShaderPrintData,
 	const FHairStrandsInstances& Instances,
-	const FUintVector4& InstanceCountPerType)
+	const TArray<EHairInstanceVisibilityType>& InstancesVisibilityType)
 {
 	if (!ShaderPrint::IsSupported(View.GetShaderPlatform()))
 	{
@@ -872,6 +872,14 @@ static void AddHairDebugPrintInstancePass(
 	}
 
 	const uint32 InstanceCount = Instances.Num();
+
+	// Compute instace count per visibility types
+	TArray<uint32> InstanceCountPerType;
+	InstanceCountPerType.Init(0u, uint32(EHairInstanceVisibilityType::Count));
+	for (uint32 InstanceIndex = 0; InstanceIndex < InstanceCount; ++InstanceIndex)
+	{
+		InstanceCountPerType[uint32(InstancesVisibilityType[Instances[InstanceIndex]->RegisteredIndex])]++;
+	}
 
 	// Force ShaderPrint on.
 	ShaderPrint::SetEnabled(true);
@@ -904,6 +912,7 @@ static void AddHairDebugPrintInstancePass(
 		const uint32 IntLODIndex = Instance->HairGroupPublicData->LODIndex;
 		const uint32 LODCount = Instance->HairGroupPublicData->GetLODScreenSizes().Num();
 		const EGroomCacheType ActiveGroomCacheType = GetHairInstanceCacheType(Instance);
+		const EHairInstanceVisibilityType VisibilityType = InstancesVisibilityType[Instance->RegisteredIndex];
 
 		FInstanceInfos& D = Infos.AddDefaulted_GetRef();
 		D.Data0.X =
@@ -939,8 +948,8 @@ static void AddHairDebugPrintInstancePass(
 
 				{
 					D.Data2 = FUintVector4(0);
-					D.Data2.X |= InstanceIndex < InstanceCountPerType[uint32(EHairInstanceCount::StrandsPrimaryView)]  ? 0x1u  : 0u;
-					D.Data2.X |= InstanceIndex < InstanceCountPerType[uint32(EHairInstanceCount::StrandsShadowView)]   ? 0x2u  : 0u;
+					D.Data2.X |= VisibilityType == EHairInstanceVisibilityType::StrandsPrimaryView           ? 0x1u  : 0u;
+					D.Data2.X |= VisibilityType == EHairInstanceVisibilityType::StrandsShadowView            ? 0x2u  : 0u;
 					D.Data2.X |= Instance->HairGroupPublicData->VFInput.Strands.Common.bScatterSceneLighting ? 0x4u  : 0u;
 					D.Data2.X |= Instance->HairGroupPublicData->VFInput.Strands.Common.bRaytracingGeometry   ? 0x8u  : 0u;
 					D.Data2.X |= Instance->HairGroupPublicData->VFInput.Strands.Common.bStableRasterization  ? 0x10u : 0u;
@@ -979,8 +988,11 @@ static void AddHairDebugPrintInstancePass(
 				D.Data0.W = Instance->Cards.LODs[IntLODIndex].Data->GetNumVertices();
 
 				D.Data2 = FUintVector4(0);
-				D.Data2.X |= InstanceIndex < InstanceCountPerType[uint32(EHairInstanceCount::CardsOrMeshesPrimaryView)] ? 0x1u : 0u;
-				D.Data2.X |= InstanceIndex < InstanceCountPerType[uint32(EHairInstanceCount::CardsOrMeshesShadowView)]  ? 0x2u : 0u;
+				D.Data2.X |= VisibilityType == EHairInstanceVisibilityType::CardsOrMeshesPrimaryView ? 0x1u : 0u;
+				D.Data2.X |= VisibilityType == EHairInstanceVisibilityType::CardsOrMeshesShadowView  ? 0x2u : 0u;
+
+				D.Data2.Y = D.Data0.W;
+				D.Data2.Z = D.Data0.Z;
 
 				#if RHI_RAYTRACING
 				bHasRaytracing = Instance->Cards.LODs[IntLODIndex].RaytracingResource != nullptr;
@@ -994,8 +1006,11 @@ static void AddHairDebugPrintInstancePass(
 				D.Data0.W = Instance->Meshes.LODs[IntLODIndex].Data->GetNumVertices();
 
 				D.Data2 = FUintVector4(0);
-				D.Data2.X |= InstanceIndex < InstanceCountPerType[uint32(EHairInstanceCount::CardsOrMeshesPrimaryView)] ? 0x1u : 0u;
-				D.Data2.X |= InstanceIndex < InstanceCountPerType[uint32(EHairInstanceCount::CardsOrMeshesShadowView)]  ? 0x2u : 0u;
+				D.Data2.X |= VisibilityType == EHairInstanceVisibilityType::CardsOrMeshesPrimaryView ? 0x1u : 0u;
+				D.Data2.X |= VisibilityType == EHairInstanceVisibilityType::CardsOrMeshesShadowView  ? 0x2u : 0u;
+
+				D.Data2.Y = D.Data0.W;
+				D.Data2.Z = D.Data0.Z;
 
 				#if RHI_RAYTRACING
 				bHasRaytracing = Instance->Meshes.LODs[IntLODIndex].RaytracingResource != nullptr;
@@ -1026,10 +1041,10 @@ static void AddHairDebugPrintInstancePass(
 	{
 		FHairDebugPrintInstanceCS::FParameters* Parameters = GraphBuilder.AllocParameters<FHairDebugPrintInstanceCS::FParameters>();
 		Parameters->InstanceCount = InstanceCount;
-		Parameters->InstanceCount_StrandsPrimaryView = InstanceCountPerType[uint32(EHairInstanceCount::StrandsPrimaryView)];
-		Parameters->InstanceCount_StrandsShadowView = InstanceCountPerType[uint32(EHairInstanceCount::StrandsShadowView)];
-		Parameters->InstanceCount_CardsOrMeshesPrimaryView = InstanceCountPerType[uint32(EHairInstanceCount::CardsOrMeshesPrimaryView)];
-		Parameters->InstanceCount_CardsOrMeshesShadowView = InstanceCountPerType[uint32(EHairInstanceCount::CardsOrMeshesShadowView)];
+		Parameters->InstanceCount_StrandsPrimaryView = InstanceCountPerType[uint32(EHairInstanceVisibilityType::StrandsPrimaryView)];
+		Parameters->InstanceCount_StrandsShadowView = InstanceCountPerType[uint32(EHairInstanceVisibilityType::StrandsShadowView)];
+		Parameters->InstanceCount_CardsOrMeshesPrimaryView = InstanceCountPerType[uint32(EHairInstanceVisibilityType::CardsOrMeshesPrimaryView)];
+		Parameters->InstanceCount_CardsOrMeshesShadowView = InstanceCountPerType[uint32(EHairInstanceVisibilityType::CardsOrMeshesShadowView)];
 		Parameters->InstanceNames = InstanceNames.GetParameters(GraphBuilder);
 		Parameters->AttributeNames = AttributeNames.GetParameters(GraphBuilder);
 		Parameters->Infos = GraphBuilder.CreateSRV(InfoBuffer, PF_R32_UINT);
@@ -1337,7 +1352,7 @@ void RunHairStrandsDebug(
 	FSceneInterface* Scene,
 	const FSceneView& View,
 	const FHairStrandsInstances& Instances,
-	const FUintVector4& InstanceCountPerType,
+	const TArray<EHairInstanceVisibilityType>& InstancesVisibilityType,
 	const FShaderPrintData* ShaderPrintData,
 	FRDGTextureRef SceneColorTexture,
 	FRDGTextureRef SceneDepthTexture,
@@ -1348,7 +1363,7 @@ void RunHairStrandsDebug(
 
 	if (ViewMode == EGroomViewMode::MacroGroups)
 	{
-		AddHairDebugPrintInstancePass(GraphBuilder, ShaderMap, View, ShaderPrintData, Instances, InstanceCountPerType);
+		AddHairDebugPrintInstancePass(GraphBuilder, ShaderMap, View, ShaderPrintData, Instances, InstancesVisibilityType);
 	}
 
 	if (ViewMode == EGroomViewMode::MeshProjection)

@@ -387,7 +387,7 @@ void CreateHairStrandsBookmarkParameters(FScene* Scene, FViewInfo& View, FHairSt
 	if (bComputeVisibleInstances)
 	{
 		const int32 ActiveInstanceCount = Scene->HairStrandsSceneData.RegisteredProxies.Num();
-		Out.InstancesVisibility.Init(false, ActiveInstanceCount);
+		Out.InstancesVisibilityType.Init(EHairInstanceVisibilityType::NotVisible, ActiveInstanceCount);
 	
 		// 1. Strands - Add all visible strands instances
 		Out.VisibleStrands.Reserve(View.HairStrandsMeshElements.Num());
@@ -400,8 +400,7 @@ void CreateHairStrandsBookmarkParameters(FScene* Scene, FViewInfo& View, FHairSt
 				if (HairData && HairData->Instance)
 				{
 					Out.VisibleStrands.Add(HairData->Instance);
-					Out.InstancesVisibility[HairData->Instance->RegisteredIndex] = true;
-					Out.InstanceCountPerType[uint32(EHairInstanceCount::StrandsPrimaryView)]++;
+					Out.InstancesVisibilityType[HairData->Instance->RegisteredIndex] = EHairInstanceVisibilityType::StrandsPrimaryView;
 				}
 			}
 		}
@@ -417,8 +416,7 @@ void CreateHairStrandsBookmarkParameters(FScene* Scene, FViewInfo& View, FHairSt
 				if (HairData && HairData->Instance)
 				{
 					Out.VisibleCardsOrMeshes_Primary.Add(HairData->Instance);
-					Out.InstancesVisibility[HairData->Instance->RegisteredIndex] = true;
-					Out.InstanceCountPerType[uint32(EHairInstanceCount::CardsOrMeshesPrimaryView)]++;
+					Out.InstancesVisibilityType[HairData->Instance->RegisteredIndex] = EHairInstanceVisibilityType::CardsOrMeshesPrimaryView;
 				}
 			}
 		}
@@ -431,6 +429,7 @@ void CreateHairStrandsBookmarkParameters(FScene* Scene, FViewInfo& View, FHairSt
 	Out.ViewRect				= View.ViewRect;
 	Out.ViewUniqueID			= View.ViewState ? View.ViewState->UniqueID : ~0;
 	Out.SceneColorTexture		= nullptr;
+	Out.SceneDepthTexture		= nullptr;
 	Out.Scene					= Scene;
 }
 
@@ -451,19 +450,19 @@ void UpdateHairStrandsBookmarkParameters(FScene* Scene, TArray<FViewInfo>& Views
 			const bool bCardsOrMeshes = Instance->GetHairGeometry() == EHairGeometryType::Cards || Instance->GetHairGeometry() == EHairGeometryType::Meshes;
 			const bool bCompatible = bStrands || bCardsOrMeshes;
 
-			if (Out.InstancesVisibility.IsValidIndex(Instance->RegisteredIndex) && !Out.InstancesVisibility[Instance->RegisteredIndex] && bCompatible)
+			if (Out.InstancesVisibilityType.IsValidIndex(Instance->RegisteredIndex) && Out.InstancesVisibilityType[Instance->RegisteredIndex] == EHairInstanceVisibilityType::NotVisible && bCompatible)
 			{
 				if (IsHairStrandsVisibleInShadows(Views[0], *Instance))
 				{
 					if (bStrands) 		
 					{ 
 						Out.VisibleStrands.Add(Instance);
-						Out.InstanceCountPerType[uint32(EHairInstanceCount::StrandsShadowView)]++; 
+						Out.InstancesVisibilityType[Instance->RegisteredIndex] = EHairInstanceVisibilityType::StrandsShadowView;
 					}
 					else if (bCardsOrMeshes) 
 					{ 
 						Out.VisibleCardsOrMeshes_Shadow.Add(Instance);
-						Out.InstanceCountPerType[uint32(EHairInstanceCount::CardsOrMeshesShadowView)]++; 
+						Out.InstancesVisibilityType[Instance->RegisteredIndex] = EHairInstanceVisibilityType::CardsOrMeshesShadowView;
 					}
 				}
 			}

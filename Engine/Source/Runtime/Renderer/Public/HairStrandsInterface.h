@@ -480,12 +480,13 @@ enum class EHairStrandsBookmark : uint8
 	ProcessEndOfFrame
 };
 
-enum class EHairInstanceCount : uint8
+enum class EHairInstanceVisibilityType : uint8
 {
-	StrandsPrimaryView = 0,
-	StrandsShadowView = 1,
-	CardsOrMeshesPrimaryView = 2,
-	CardsOrMeshesShadowView = 3,
+	NotVisible = 0,
+	StrandsPrimaryView = 1,
+	StrandsShadowView = 2,
+	CardsOrMeshesPrimaryView = 3,
+	CardsOrMeshesShadowView = 4,
 	Count
 };
 
@@ -502,14 +503,12 @@ struct FHairStrandsBookmarkParameters
 	FHairStrandsInstances VisibleCardsOrMeshes_Shadow;
 
 	FHairStrandsInstances* Instances = nullptr;
-	TBitArray<> InstancesVisibility;
+	TArray<EHairInstanceVisibilityType> InstancesVisibilityType;
 	const FSceneView* View = nullptr;// // View 0
 	FSceneInterface* Scene = nullptr;
 	TArray<const FSceneView*> AllViews;
 	FRDGTextureRef SceneColorTexture = nullptr;
 	FRDGTextureRef SceneDepthTexture = nullptr; 
-
-	FUintVector4 InstanceCountPerType = FUintVector4(0);
 
 	inline bool HasInstances() const { return Instances != nullptr && Instances->Num() > 0; }
 };
