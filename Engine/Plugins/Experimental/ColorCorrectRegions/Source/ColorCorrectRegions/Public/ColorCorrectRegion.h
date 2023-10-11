@@ -237,14 +237,14 @@ public:
 	*/
 	void TransferState();
 
-	/** 
+protected:
+
+	/**
 	* All CC Actors rely on a shape for selection. These shapes need to be swapped depending on the type.
 	* This function forces the refresh of the shape if the Type was changed outside of UI.
 	* For internal use only.
 	*/
 	virtual void ChangeShapeVisibilityForActorType() {};
-
-protected:
 
 	/** All CC Actors rely on a shape for selection. These shapes need to be swapped depending on the type. */
 	template <typename TCCActorType>
