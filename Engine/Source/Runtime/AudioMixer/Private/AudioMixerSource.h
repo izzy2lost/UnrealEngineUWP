@@ -119,6 +119,9 @@ namespace Audio
 		/** Whether or not to use the source data override plugin */
 		bool UseSourceDataOverridePlugin() const;
 
+		/** Gets an accumulated volume value based on the Modulation Destination data of the WaveInstance's submix and all of the submix's ancestors */
+		float GetInheritedSubmixVolumeModulation() const;
+
 	private:
 
 		FMixerDevice* MixerDevice;
@@ -128,8 +131,7 @@ namespace Audio
 		IAudioLinkFactory::FAudioLinkSourcePushedSharedPtr AudioLink;
 
 		// These modulators are obtained from the submix and used only on binaural assets
-		FModulationDestination* BinauralVolModulators;
-		FModulationDestination* BinauralWetModulators;
+		bool bBypassingSubmixModulation;
 
 		uint32 bPreviousBusEnablement;
 		uint32 bPreviousBaseSubmixEnablement;
