@@ -21,7 +21,6 @@ struct FHttpClientConfig
 	int32 PipelineLength = 1;
 	int32 MaxRetryCount = 1;
 	int32 ReceiveBufferSize = -1;
-	int32 FailTimeoutMs = 0;
 	bool bChangeEndpointAfterSuccessfulRetry = true;
 };
 

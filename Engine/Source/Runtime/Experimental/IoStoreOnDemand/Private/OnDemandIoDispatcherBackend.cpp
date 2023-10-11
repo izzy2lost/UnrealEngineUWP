@@ -134,13 +134,6 @@ static FAutoConsoleVariableRef CVar_IasHttpTimeOutMs(
 	TEXT("Time out value for HTTP requests in milliseconds")
 );
 
-static int32 GIasHttpFailTimeOutMs = 4 * 1000;
-static FAutoConsoleVariableRef CVar_IasHttpFailTimeOutMs(
-	TEXT("ias.HttpFailTimeOutMs"),
-	GIasHttpFailTimeOutMs,
-	TEXT("Fail infinite network waits that take longer than this (in ms, 0=disabled)")
-);
-
 int32 GIasHttpHealthCheckWaitTime = 3000;
 static FAutoConsoleVariableRef CVar_IasHttpHealthCheckWaitTime(
 	TEXT("ias.HttpHealthCheckWaitTime"),
@@ -2296,7 +2289,6 @@ uint32 FOnDemandIoBackend::Run()
 		.PipelineLength = GIasHttpPipelineLength,
 		.MaxRetryCount = FMath::Max(AvailableEps.Urls.Num() + 1, GIasHttpRetryCount),
 		.ReceiveBufferSize = GIasHttpRecvBufKiB >= 0 ? GIasHttpRecvBufKiB << 10 : -1,
-		.FailTimeoutMs = GIasHttpFailTimeOutMs,
 		.bChangeEndpointAfterSuccessfulRetry = GIasHttpChangeEndpointAfterSuccessfulRetry,
 	});
 	check(HttpClient.IsValid());

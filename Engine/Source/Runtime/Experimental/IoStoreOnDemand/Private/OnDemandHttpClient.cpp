@@ -12,6 +12,13 @@
 namespace UE::IO::IAS
 {
 
+static int32 GIasHttpFailTimeOutMs = 4 * 1000;
+static FAutoConsoleVariableRef CVar_IasHttpFailTimeOutMs(
+	TEXT("ias.HttpFailTimeOutMs"),
+	GIasHttpFailTimeOutMs,
+	TEXT("Fail infinite network waits that take longer than this (in ms, 0=disabled)")
+);
+
 static void LogHttpResult(const TCHAR* Host, const TCHAR* Url, uint32 StatusCode, uint64 DurationMs, uint64 Size, uint64 Offset, const char* Memo = "ok")
 {
 	Size >>= 10;
@@ -83,7 +90,7 @@ FHttpClient::FHttpClient(FHttpClientConfig&& ClientConfig)
 	Connections.SetNum(Config.Endpoints.Num());
 	SetEndpoint(Config.PrimaryEndpoint);
 
-	EventLoop.SetFailTimeout(Config.FailTimeoutMs);
+	EventLoop.SetFailTimeout(GIasHttpFailTimeOutMs);
 }
 
 TUniquePtr<FHttpClient> FHttpClient::Create(FHttpClientConfig&& ClientConfig)
