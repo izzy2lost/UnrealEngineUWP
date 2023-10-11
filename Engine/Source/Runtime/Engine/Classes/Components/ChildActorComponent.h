@@ -192,6 +192,9 @@ public:
 	/** Create the child actor */
 	ENGINE_API virtual void CreateChildActor(TFunction<void(AActor*)> CustomizerFunc = nullptr);
 
+	DECLARE_EVENT_OneParam(UChildActorComponent, FOnChildActorCreated, AActor*);
+	FOnChildActorCreated& OnChildActorCreated() { return OnChildActorCreatedDelegate; }
+
 	AActor* GetChildActor() const { return ChildActor; }
 	AActor* GetChildActorTemplate() const { return ChildActorTemplate; }
 
@@ -231,6 +234,8 @@ private:
 
 	UFUNCTION()
 	ENGINE_API void OnChildActorDestroyed(AActor* Actor);
+
+	FOnChildActorCreated OnChildActorCreatedDelegate;
 };
 
 struct FActorParentComponentSetter

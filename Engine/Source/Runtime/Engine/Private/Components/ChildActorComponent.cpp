@@ -863,6 +863,11 @@ void UChildActorComponent::CreateChildActor(TFunction<void(AActor*)> CustomizerF
 		delete CachedInstanceData;
 		CachedInstanceData = nullptr;
 	}
+
+	if (ChildActor)
+	{
+		OnChildActorCreatedDelegate.Broadcast(ChildActor);
+	}
 }
 
 void UChildActorComponent::SetChildActorName(const FName InName)
