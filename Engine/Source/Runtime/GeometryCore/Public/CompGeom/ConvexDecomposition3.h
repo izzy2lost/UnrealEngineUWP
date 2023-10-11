@@ -117,6 +117,19 @@ public:
 		Radius.Append(Other.Radius);
 	}
 
+	void AppendSpheres(TArrayView<const FSphere> Spheres)
+	{
+		const int32 AddCount = Spheres.Num();
+		const int32 OrigCount = Position.Num();
+		Position.SetNum(AddCount + OrigCount);
+		Radius.SetNum(AddCount + OrigCount);
+		for (int32 Idx = 0; Idx < AddCount; ++Idx)
+		{
+			Position[Idx + OrigCount] = Spheres[Idx].Center;
+			Radius[Idx + OrigCount] = Spheres[Idx].W;
+		}
+	}
+
 private:
 	// Sphere centers
 	TArray<FVector3d> Position;

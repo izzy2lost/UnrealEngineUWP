@@ -1146,4 +1146,30 @@ FGeometryScriptSphereCovering UGeometryScriptLibrary_CollisionFunctions::Compute
 	return ToRet;
 }
 
+TArray<FSphere> UGeometryScriptLibrary_CollisionFunctions::Conv_GeometryScriptSphereCoveringToSphereArray(const FGeometryScriptSphereCovering& SphereCovering)
+{
+	TArray<FSphere> ToRet;
+	if (SphereCovering.Spheres.IsValid())
+	{
+		int32 NumSpheres = SphereCovering.Spheres->Num();
+		ToRet.SetNumUninitialized(NumSpheres);
+		for (int32 Idx = 0; Idx < NumSpheres; ++Idx)
+		{
+			ToRet[Idx].Center = SphereCovering.Spheres->GetCenter(Idx);
+			ToRet[Idx].W = SphereCovering.Spheres->GetRadius(Idx);
+		}
+	}
+	return ToRet;
+}
+
+FGeometryScriptSphereCovering UGeometryScriptLibrary_CollisionFunctions::Conv_SphereArrayToGeometryScriptSphereCovering(const TArray<FSphere>& Spheres)
+{
+	FGeometryScriptSphereCovering Covering;
+	Covering.Reset();
+	Covering.Spheres->AppendSpheres(Spheres);
+	return Covering;
+}
+
+
+
 #undef LOCTEXT_NAMESPACE
