@@ -685,6 +685,8 @@ private:
 
 	/** Called in response to an actor being deleted in the level */
 	void OnLevelActorsRemoved(AActor* InActor);
+	
+	void OnEditorClose();
 
 	/** Gets whether the locked icon should be shown in the viewport because it is locked to an actor */
 	EVisibility GetLockedIconVisibility() const;
