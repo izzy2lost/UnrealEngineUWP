@@ -22,5 +22,5 @@ public:
 
 	virtual bool CanObserveSequence() const = 0;
 
-	virtual TObjectPtr<UObject> GetInstigator() = 0;
+	virtual TObjectPtr<UObject> GetInstigator() { return nullptr; }
 };
