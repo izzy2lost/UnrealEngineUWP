@@ -378,22 +378,55 @@ void F3DTransformTrackEditor::OnPreSaveWorld(UWorld* World)
 {
 	LockedCameraBindings.Reset();
 
+	TSharedPtr<ISequencer> SequencerPtr = GetSequencer();
+
+	// Get the camera binding GUIDs.
 	TArray<FGuid> CameraBindingIDs;
-	GetSequencer()->GetCameraObjectBindings(CameraBindingIDs);
+	SequencerPtr->GetCameraObjectBindings(CameraBindingIDs);
+
+	// Match the camera binding GUIDs with what actor they are bound to.
+	TArray<AActor*> CameraBindingActors;
 	for (const FGuid& CameraBindingID : CameraBindingIDs)
 	{
-		if (IsCameraBindingLocked(CameraBindingID))
+		AActor* BoundActor = nullptr;
+		for (auto Object : SequencerPtr->FindObjectsInCurrentSequence(CameraBindingID))
 		{
-			LockedCameraBindings.Add(CameraBindingID);
+			AActor* Actor = Cast<AActor>(Object.Get());
+			if (Actor != nullptr)
+			{
+				BoundActor = Actor;
+				break;
+			}
+		}
+		CameraBindingActors.Add(BoundActor);
+	}
+
+	// Look at all the editor viewports and see if they're locked to one of our
+	// bound camera actors. If they are, associate them with the binding GUID.
+	for (FLevelEditorViewportClient* LevelVC : GEditor->GetLevelViewportClients())
+	{
+		if (LevelVC && LevelVC->GetViewMode() != VMI_Unknown)
+		{
+			AActor* ActorLock = LevelVC->GetActiveActorLock().Get();
+			if (!ActorLock)
+			{
+				continue;
+			}
+
+			int32 Index = CameraBindingActors.Find(ActorLock);
+			if (Index != INDEX_NONE)
+			{
+				LockedCameraBindings.Add(LevelVC, CameraBindingIDs[Index]);
+			}
 		}
 	}
 }
 
 void F3DTransformTrackEditor::OnPostSaveWorld(UWorld* World)
 {
-	for (const FGuid& CameraBindingID : LockedCameraBindings)
+	for (const TPair<FLevelEditorViewportClient*, FGuid> Pair : LockedCameraBindings)
 	{
-		LockCameraBinding(true, CameraBindingID);
+		LockCameraBinding(true, Pair.Value, Pair.Key, false);
 	}
 
 	LockedCameraBindings.Reset();
@@ -586,11 +619,13 @@ void F3DTransformTrackEditor::OnLockCameraClicked(ECheckBoxState CheckBoxState, 
 	LockCameraBinding((CheckBoxState == ECheckBoxState::Checked), ObjectGuid);
 }
 
-void F3DTransformTrackEditor::LockCameraBinding(bool bLock, FGuid ObjectGuid)
+void F3DTransformTrackEditor::LockCameraBinding(bool bLock, FGuid ObjectGuid, FLevelEditorViewportClient* ViewportClient, bool bRemoveCinematicLock)
 {
-	TWeakObjectPtr<AActor> CameraActor;
+	TSharedPtr<ISequencer> SequencerPtr = GetSequencer();
 
-	for (auto Object : GetSequencer()->FindObjectsInCurrentSequence(ObjectGuid))
+	// Find the actor bound to the given object binding ID.
+	AActor* CameraActor = nullptr;
+	for (auto Object : SequencerPtr->FindObjectsInCurrentSequence(ObjectGuid))
 	{
 		AActor* Actor = Cast<AActor>(Object.Get());
 
@@ -601,70 +636,75 @@ void F3DTransformTrackEditor::LockCameraBinding(bool bLock, FGuid ObjectGuid)
 		}
 	}
 
-	// Lock the active viewport to the camera
-	if (bLock)
+	// Bail out if we didn't find the actor to lock the viewport to.
+	if (!CameraActor)
 	{
-		// Set the active viewport or any viewport if there is no active viewport
+		return;
+	}
+
+	// Find the active viewport if no viewport was provided. If no viewport is active, or if the active viewport doesn't
+	// match our requirements, use the first one we find that fits.
+	if (ViewportClient == nullptr)
+	{
 		FViewport* ActiveViewport = GEditor->GetActiveViewport();
 
-		FLevelEditorViewportClient* LevelVC = nullptr;
-
-		for(FLevelEditorViewportClient* Viewport : GEditor->GetLevelViewportClients())
+		for (FLevelEditorViewportClient* LevelVC : GEditor->GetLevelViewportClients())
 		{		
-			if (Viewport && Viewport->GetViewMode() != VMI_Unknown && Viewport->AllowsCinematicControl())
+			if (LevelVC && 
+					LevelVC->GetViewMode() != VMI_Unknown && 
+					(LevelVC->Viewport == ActiveViewport || ActiveViewport == nullptr))
 			{
-				LevelVC = Viewport;
-
-				if (LevelVC->Viewport == ActiveViewport)
-				{
-					break;
-				}
+				ViewportClient = LevelVC;
+				break;
 			}
-		}
-
-		if (LevelVC != nullptr && CameraActor.IsValid())
-		{
-			UCameraComponent* CameraComponent = MovieSceneHelpers::CameraComponentFromActor(CameraActor.Get());
-
-			if (CameraComponent && CameraComponent->ProjectionMode == ECameraProjectionMode::Type::Perspective)
-			{
-				if (LevelVC->GetViewportType() != LVT_Perspective)
-				{
-					LevelVC->SetViewportType(LVT_Perspective);
-				}
-			}
-
-			GetSequencer()->SetPerspectiveViewportCameraCutEnabled(false);
-			LevelVC->SetCinematicActorLock(nullptr);
-			LevelVC->SetActorLock(CameraActor.Get());
-			LevelVC->bLockedCameraView = true;
-			LevelVC->UpdateViewForLockedActor();
-			LevelVC->Invalidate();
 		}
 	}
-	// Otherwise, clear all locks on the camera
+
+	// Bail out if we didn't find any acceptable viewport.
+	if (!ViewportClient)
+	{
+		return;
+	}
+
+	if (bLock)
+	{
+		// Lock the given/active/found viewport to the camera.
+		UCameraComponent* CameraComponent = MovieSceneHelpers::CameraComponentFromActor(CameraActor);
+		if (CameraComponent && CameraComponent->ProjectionMode == ECameraProjectionMode::Type::Perspective)
+		{
+			if (ViewportClient->GetViewportType() != LVT_Perspective)
+			{
+				ViewportClient->SetViewportType(LVT_Perspective);
+			}
+		}
+
+		if (bRemoveCinematicLock)
+		{
+			GetSequencer()->SetPerspectiveViewportCameraCutEnabled(false);
+			ViewportClient->SetCinematicActorLock(nullptr);
+		}
+
+		ViewportClient->SetActorLock(CameraActor);
+		ViewportClient->bLockedCameraView = true;
+		ViewportClient->UpdateViewForLockedActor();
+		ViewportClient->Invalidate();
+	}
 	else
 	{
-		ClearLockedCameras(CameraActor.Get());
-	}
-}
-
-void F3DTransformTrackEditor::ClearLockedCameras(AActor* LockedActor)
-{
-	for(FLevelEditorViewportClient* LevelVC : GEditor->GetLevelViewportClients())
-	{
-		if (LevelVC && LevelVC->GetViewMode() != VMI_Unknown && LevelVC->AllowsCinematicControl())
+		// Clear the lock to this camera on the given/active/found viewport.
+		if (ViewportClient->IsActorLocked(CameraActor))
 		{
-			if (LevelVC->IsActorLocked(LockedActor))
+			if (bRemoveCinematicLock)
 			{
-				LevelVC->SetCinematicActorLock(nullptr);
-				LevelVC->SetActorLock(nullptr);
-				LevelVC->bLockedCameraView = false;
-				LevelVC->ViewFOV = LevelVC->FOVAngle;
-				LevelVC->RemoveCameraRoll();
-				LevelVC->UpdateViewForLockedActor();
-				LevelVC->Invalidate();
+				ViewportClient->SetCinematicActorLock(nullptr);
 			}
+
+			ViewportClient->SetActorLock(nullptr);
+			ViewportClient->bLockedCameraView = false;
+			ViewportClient->ViewFOV = ViewportClient->FOVAngle;
+			ViewportClient->RemoveCameraRoll();
+			ViewportClient->UpdateViewForLockedActor();
+			ViewportClient->Invalidate();
 		}
 	}
 }
