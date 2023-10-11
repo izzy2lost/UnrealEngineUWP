@@ -690,6 +690,8 @@ FGuid ULevelSequence::CreateSpawnable(UObject* ObjectToSpawn)
 			UMovieSceneSpawnTrack* NewSpawnTrack = MovieScene->AddTrack<UMovieSceneSpawnTrack>(NewGuid);
 			if (NewSpawnTrack)
 			{
+				NewSpawnTrack->Modify();
+
 				NewSpawnTrack->AddSection(*NewSpawnTrack->CreateNewSection());
 			}
 			return NewGuid;
