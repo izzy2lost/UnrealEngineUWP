@@ -587,7 +587,7 @@ void FFbxExporter::ExportAnimTrack(IAnimTrackAdapter& AnimTrackAdapter, AActor* 
 
 	const float TickRate = 1.0f/FrameRate;
 
-	FScopedSlowTask SlowTask(AnimationLength, NSLOCTEXT("UnrealEd", "ExportAnimationProgress", "Exporting Animation"));
+	FScopedSlowTask SlowTask(AnimationLength + 1, NSLOCTEXT("UnrealEd", "ExportAnimationProgress", "Exporting Animation"));
 	SlowTask.MakeDialog(true);
 
 	for (int32 FrameCount = 0; FrameCount <= AnimationLength; ++FrameCount)
