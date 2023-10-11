@@ -679,14 +679,8 @@ bool UMVVMEditorSubsystem::IsValidConversionFunction(const UWidgetBlueprint* Wid
 	const TArray<const FProperty*>& ConversionArgProperties = ArgumentsResult.GetValue();
 	for (const FProperty* ArgumentProperty : ConversionArgProperties)
 	{
-		if (ArgumentProperty->IsA<FObjectProperty>())
-		{
-			// filter out any functions with UObject properties - they aren't valid conversion functions
-			return false;
-		}
 
-		if (SourceProperty == nullptr ||
-			UE::MVVM::BindingHelper::ArePropertiesCompatible(SourceProperty, ArgumentProperty))
+		if (SourceProperty == nullptr || UE::MVVM::BindingHelper::ArePropertiesCompatible(SourceProperty, ArgumentProperty))
 		{
 			bAnyCompatible = true;
 		}
