@@ -1641,13 +1641,13 @@ namespace Metasound
 					check(AudioDevice);
 
 					const FName& AudioBufferTypeName = GetMetasoundDataTypeName<FAudioBuffer>();
-					const FSampleRate SampleRate = static_cast<FSampleRate>(AudioDevice->GetSampleRate());
+					const FSampleRate DeviceSampleRate = static_cast<FSampleRate>(AudioDevice->GetSampleRate());
 					const uint32 PlayOrder = PreviewComp->GetLastPlayOrder();
 					const uint64 TransmitterID = Audio::GetTransmitterID(PreviewComp->GetAudioComponentID(), 0, PlayOrder);
 
 					UMetaSoundSource* Source = CastChecked<UMetaSoundSource>(Metasound);
 					GraphConnectionManager = MakeUnique<FGraphConnectionManager>(
-						*MetasoundAsset, *PreviewComp, TransmitterID, Source->GetOperatorSettings(SampleRate));
+						*MetasoundAsset, *PreviewComp, TransmitterID, Source->GetOperatorSettings(DeviceSampleRate));
 				}
 
 				MetasoundGraphEditor->RegisterActiveTimer(0.0f,

@@ -3732,7 +3732,14 @@ float USoundWave::GetSampleRateForCurrentPlatform() const
 {
 	if (bProcedural)
 	{
-		return SampleRate;
+		if (SampleRate > 0)
+		{
+			return SampleRate;
+		}
+
+		// Never return a 0 if we've been serialized with one.
+		static const float DefaultSampleRate = 48000.f;
+		return DefaultSampleRate;
 	}
 
 #if WITH_EDITORONLY_DATA

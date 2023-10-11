@@ -52,11 +52,11 @@ struct METASOUNDENGINE_API FMetaSoundQualitySettings
 	UPROPERTY(EditAnywhere, Category = "Quality")
 	FName Name;
 
-	/** Sample Rate (in Hz). NOTE: A Zero value will force the default. **/
+	/** Sample Rate (in Hz). NOTE: A Zero value will have no effect and use the Device Rate. **/
 	UPROPERTY(EditAnywhere, Category = "Quality", meta = (ClampMin = "0", ClampMax="96000"))
 	FPerPlatformInt SampleRate = 0;
 
-	/** Block Rate (in Hz). NOTE: A Zero value will force the default.  **/
+	/** Block Rate (in Hz). NOTE: A Zero value will have no effect and use the Default (100)  **/
 	UPROPERTY(EditAnywhere, Category = "Quality", meta = (ClampMin = "0", ClampMax="1000"))
 	FPerPlatformFloat BlockRate = 0.f;
 };

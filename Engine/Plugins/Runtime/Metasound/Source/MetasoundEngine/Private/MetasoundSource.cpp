@@ -223,10 +223,26 @@ bool UMetaSoundSource::CanEditChange(const FProperty* InProperty) const
 	// Allow changes to quality if we don't have any overrides.
 	if (InProperty->GetFName() == GET_MEMBER_NAME_CHECKED(UMetaSoundSource, QualitySetting))
 	{
-		const bool bBlockRateIsZero = BlockRateOverride.GetValue() == 0;
-		const bool bSampleRateIsZero = SampleRateOverride.GetValue() == 0;
+		const TArray<FName> Platforms = FDataDrivenPlatformInfoRegistry::GetSortedPlatformNames(EPlatformInfoType::AllPlatformInfos);
+		const int32 DefaultBlockRate = BlockRateOverride.GetDefault();
+		const float DefaultSampleRate = BlockRateOverride.GetDefault();
 
-		return bBlockRateIsZero && bSampleRateIsZero;
+		if (DefaultBlockRate > 0 && DefaultSampleRate > 0)
+		{
+			return false;
+		}
+
+		for (const FName Platform : Platforms)
+		{
+			if (BlockRateOverride.GetValueForPlatform(Platform) != DefaultBlockRate )
+			{
+				return false;
+			}
+			if (!FMath::IsNearlyEqual(SampleRateOverride.GetValueForPlatform(Platform), DefaultSampleRate))
+			{
+				return false;
+			}
+		}
 	}
 		
 	return true;
@@ -271,7 +287,7 @@ void UMetaSoundSource::PostEditChangeQualitySettings()
 	OperatorSettings.Reset();
 
 	// Refresh the SampleRate (which is what the engine sees from the operator settings).
-	SampleRate = GetOperatorSettings(SampleRate).GetSampleRate();
+	SampleRate = GetOperatorSettings(CachedAudioDeviceSampleRate).GetSampleRate();
 
 	// Always refresh the GUID with the selection.
 	if (const UMetaSoundSettings* Settings = GetDefault<UMetaSoundSettings>())	
@@ -433,16 +449,13 @@ void UMetaSoundSource::PostLoadQualitySettings()
 				WeakSource->OperatorSettings.Reset();
 						
 				// Override SampleRate with the Operator settings version which uses our Quality settings.
-				WeakSource->SampleRate = WeakSource->GetOperatorSettings(WeakSource->SampleRate).GetSampleRate();
+				WeakSource->SampleRate = WeakSource->GetOperatorSettings(WeakSource->CachedAudioDeviceSampleRate).GetSampleRate();
 			}
 		};
 		Metasound::Frontend::GetBlockRateOverrideChangedDelegate().AddWeakLambda(this, ResetOperatorSettings);
 		Metasound::Frontend::GetSampleRateOverrideChangedDelegate().AddWeakLambda(this, ResetOperatorSettings);
 	}
 #endif //WITH_EDITORONLY_DATA
-
-	// Override SampleRate with the Operator settings version which uses our Quality settings.
-	SampleRate = GetOperatorSettings(SampleRate).GetSampleRate();
 }
 
 void UMetaSoundSource::ResolveQualitySettings(const UMetaSoundSettings* Settings)
@@ -1199,8 +1212,14 @@ TSharedPtr<Audio::IParameterTransmitter> UMetaSoundSource::CreateParameterTransm
 	}
 }
 
-Metasound::FOperatorSettings UMetaSoundSource::GetOperatorSettings(Metasound::FSampleRate InSampleRate) const
+Metasound::FOperatorSettings UMetaSoundSource::GetOperatorSettings(Metasound::FSampleRate InDeviceSampleRate) const
 {	
+	// We should recache the operator settings if the device rate has changed.
+	if (InDeviceSampleRate != CachedAudioDeviceSampleRate)
+	{
+		OperatorSettings.Reset();
+	}
+	
 	if (!OperatorSettings)
 	{
 		using namespace Metasound;
@@ -1210,10 +1229,11 @@ Metasound::FOperatorSettings UMetaSoundSource::GetOperatorSettings(Metasound::FS
 		auto QueryQualitySettings = [&](Metasound::FSampleRate InSampleRate) -> Metasound::FOperatorSettings
 		{
 			static const float DefaultBlockRateConstant = 100.f;
+			static const float DefaultSampleRateConstant = 48000.f;
 			
-			// 1. Sensible defaults.
-			FSampleRate SampleRate = InSampleRate;
-			float BlockRate = DefaultBlockRateConstant;
+			// 1. Sensible defaults. (If Device SampleRate is sensible use that as default).
+			FSampleRate MetasoundSampleRate = InSampleRate > 0 ? InDeviceSampleRate : DefaultSampleRateConstant;
+			float MetasoundBlockRate = DefaultBlockRateConstant;
 
 			// 2. Query our quality settings.
 			if (const UMetaSoundSettings* Settings = GetDefault<UMetaSoundSettings>())
@@ -1223,11 +1243,11 @@ Metasound::FOperatorSettings UMetaSoundSource::GetOperatorSettings(Metasound::FS
 					// Allow partial applications of settings, if some are non-zero.
 					if (const float Value = Found->BlockRate.GetValue(); Value > 0.f)
 					{
-						BlockRate = Value;
+						MetasoundBlockRate = Value;
 					}
 					if (const float Value = Found->SampleRate.GetValue(); Value > 0.f)
 					{
-						SampleRate = Value;
+						MetasoundSampleRate = Value;
 					}
 				}
 			}
@@ -1235,11 +1255,11 @@ Metasound::FOperatorSettings UMetaSoundSource::GetOperatorSettings(Metasound::FS
 			// 3. Do per asset overrides.
 			if (const float SerializedBlockRate = BlockRateOverride.GetValue(); SerializedBlockRate > 0.0f)
 			{
-				BlockRate = SerializedBlockRate;
+				MetasoundBlockRate = SerializedBlockRate;
 			}
 			if (const int32 SerializedSampleRate = SampleRateOverride.GetValue(); SerializedSampleRate > 0)
 			{
-				SampleRate = SerializedSampleRate;
+				MetasoundSampleRate = SerializedSampleRate;
 			}
 
 			// 4. Query CVars. (Override with CVars if they are > 0)
@@ -1249,22 +1269,22 @@ Metasound::FOperatorSettings UMetaSoundSource::GetOperatorSettings(Metasound::FS
 
 			if (SampleRateCvar > 0)
 			{
-				SampleRate = SampleRateCvar;
+				MetasoundSampleRate = SampleRateCvar;
 			}
 			if (BlockRateCVar > 0)
 			{
-				BlockRate = BlockRateCVar;
+				MetasoundBlockRate = BlockRateCVar;
 			}
 
 			// 5. Sanity clamps.
-			TRange<float> BlockRange = GetBlockRateClampRange();
-			TRange<int32> RateRange = GetSampleRateClampRange();
-			BlockRate = FMath::Clamp(BlockRate, BlockRange.GetLowerBoundValue(), BlockRange.GetUpperBoundValue());
-			SampleRate = FMath::Clamp(SampleRate, RateRange.GetLowerBoundValue(), RateRange.GetUpperBoundValue());
+			const TRange<float> BlockRange = GetBlockRateClampRange();
+			const TRange<int32> RateRange = GetSampleRateClampRange();
+			MetasoundBlockRate = FMath::Clamp(MetasoundBlockRate, BlockRange.GetLowerBoundValue(), BlockRange.GetUpperBoundValue());
+			MetasoundSampleRate = FMath::Clamp(MetasoundSampleRate, RateRange.GetLowerBoundValue(), RateRange.GetUpperBoundValue());
 
-			return Metasound::FOperatorSettings(SampleRate, BlockRate);
+			return Metasound::FOperatorSettings(MetasoundSampleRate, MetasoundBlockRate);
 		};
-		OperatorSettings = QueryQualitySettings(InSampleRate);
+		OperatorSettings = QueryQualitySettings(InDeviceSampleRate);
 	}
 	return *OperatorSettings;
 }

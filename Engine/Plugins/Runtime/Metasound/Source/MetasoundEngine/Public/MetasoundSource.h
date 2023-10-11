@@ -115,11 +115,11 @@ public:
 	FGuid QualitySettingGuid;
 #endif //WITH_EDITOR_DATA
 
-	// Override the BlockRate for this Sound (overrides the Platforms Quality Settings for this asset)
+	// Override the BlockRate for this Sound (overrides Quality). NOTE: A Zero value will have no effect and use either the Quality setting (if set), or the defaults.
 	UPROPERTY(EditAnywhere, BlueprintReadOnly, AdvancedDisplay, Category = Metasound, meta = (UIMin = 0, UIMax = 1000.0, DisplayAfter="OutputFormat", DisplayName = "Override Block Rate (in Hz)"))
 	FPerPlatformFloat BlockRateOverride = 0.f;
 
-	// Override the SampleRate for this Sound (overrides the Platforms Quality Settings for this asset)
+	// Override the SampleRate for this Sound (overrides Quality). NOTE: A Zero value will have no effect and use either the Quality setting (if set), or the Device Rate
 	UPROPERTY(EditAnywhere, BlueprintReadOnly, AdvancedDisplay, Category = Metasound, meta = (UIMin = 0, UIMax = 96000, DisplayName = "Override Sample Rate (in Hz)"))
 	FPerPlatformInt SampleRateOverride = 0;
 
@@ -249,7 +249,7 @@ public:
 	TWeakPtr<Metasound::FMetasoundGenerator> GetGeneratorForAudioComponent(uint64 ComponentId) const;
 	FOnGeneratorInstanceCreated OnGeneratorInstanceCreated;
 	FOnGeneratorInstanceDestroyed OnGeneratorInstanceDestroyed;
-	Metasound::FOperatorSettings GetOperatorSettings(Metasound::FSampleRate InSampleRate) const;
+	Metasound::FOperatorSettings GetOperatorSettings(Metasound::FSampleRate InDeviceSampleRate) const;
 
 	virtual const FMetasoundFrontendDocument& GetConstDocument() const override;
 
@@ -319,6 +319,9 @@ private:
 	 * Lazy (Cached) Operator Settings. Built in GetOperatorSettings
 	 */
 	mutable TOptional<Metasound::FOperatorSettings> OperatorSettings;
+
+	// Cache the AudioDevice Samplerate. (so that if we have to regenerate operator settings without the device rate we can use this).
+	mutable Metasound::FSampleRate CachedAudioDeviceSampleRate = 0;
 	
 	bool bIsBuilderActive = false;
 };
