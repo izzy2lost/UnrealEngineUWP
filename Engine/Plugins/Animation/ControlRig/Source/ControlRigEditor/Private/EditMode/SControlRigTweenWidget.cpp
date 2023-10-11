@@ -12,7 +12,6 @@
 #include "Styling/AppStyle.h"
 #include "Styling/CoreStyle.h"
 #include "ScopedTransaction.h"
-#include "ControlRig.h"
 #include "UnrealEdGlobals.h"
 #include "Tools/ControlRigPose.h"
 #include "ISequencer.h"

@@ -30,7 +30,7 @@
 #include "AnimPreviewInstance.h"
 #endif 
 
-#include "ControlRig.generated.h"
+#include "BaseControlRig.generated.h"
 
 class IControlRigObjectBinding;
 class UScriptStruct;

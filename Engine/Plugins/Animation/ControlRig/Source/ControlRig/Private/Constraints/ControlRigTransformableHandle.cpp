@@ -5,7 +5,7 @@
 
 #include "Components/SkeletalMeshComponent.h"
 #include "ControlRigComponent.h"
-#include "ControlRig.h"
+#include "BaseControlRig.h"
 #include "IControlRigObjectBinding.h"
 #include "Rigs/RigHierarchyElements.h"
 #include "Sequencer/MovieSceneControlRigParameterSection.h"

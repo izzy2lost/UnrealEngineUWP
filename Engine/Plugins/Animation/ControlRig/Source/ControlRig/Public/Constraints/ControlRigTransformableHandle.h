@@ -4,7 +4,6 @@
 
 #include "TransformableHandle.h"
 #include "Rigs/RigHierarchyDefines.h"
-#include "ControlRig.h"
 
 #include "ControlRigTransformableHandle.generated.h"
 

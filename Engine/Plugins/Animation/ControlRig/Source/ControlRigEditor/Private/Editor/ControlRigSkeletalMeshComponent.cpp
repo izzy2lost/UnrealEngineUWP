@@ -3,7 +3,7 @@
 #include "Editor/ControlRigSkeletalMeshComponent.h"
 #include "Sequencer/ControlRigLayerInstance.h" 
 #include "SkeletalDebugRendering.h"
-#include "ControlRig.h"
+#include "BaseControlRig.h"
 #include "AnimPreviewInstance.h"
 
 #include UE_INLINE_GENERATED_CPP_BY_NAME(ControlRigSkeletalMeshComponent)

@@ -3,7 +3,7 @@
 #include "EditMode/ControlRigControlsProxy.h"
 #include "EditorModeManager.h"
 #include "EditMode/ControlRigEditMode.h"
-#include "ControlRig.h"
+#include "BaseControlRig.h"
 #include "Rigs/RigHierarchy.h"
 
 #include "Components/SkeletalMeshComponent.h"
@@ -19,8 +19,6 @@
 #include "DetailCategoryBuilder.h"
 #include "DetailWidgetRow.h"
 #include "SEnumCombo.h"
-#include "ControlRig.h"
-
 
 void UControlRigControlsProxy::SetIsMultiple(bool bIsVal)
 { 

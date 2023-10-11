@@ -5,6 +5,7 @@
 #include "ControlRigGizmoLibrary.h"
 #include "IControlRigObjectBinding.h"
 #include "Sequencer/MovieSceneControlRigParameterTrack.h"
+#include "BaseControlRig.h"
 
 #include UE_INLINE_GENERATED_CPP_BY_NAME(ControlRigControlActor)
 

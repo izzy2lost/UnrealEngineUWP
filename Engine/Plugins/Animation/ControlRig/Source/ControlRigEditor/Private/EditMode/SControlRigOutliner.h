@@ -8,7 +8,7 @@
 #include "EditMode/ControlRigBaseDockableView.h"
 #include "Widgets/SWidget.h"
 #include "Widgets/SCompoundWidget.h"
-#include "ControlRig.h"
+#include "BaseControlRig.h"
 #include "Rigs/RigHierarchy.h"
 #include "Editor/SRigHierarchyTreeView.h"
 #include "Widgets/SBoxPanel.h"
@@ -17,7 +17,6 @@
 class ISequencer;
 class SExpandableArea;
 class SSearchableRigHierarchyTreeView;
-class UControlRig;
 
 class SMultiRigHierarchyTreeView;
 class SMultiRigHierarchyItem;

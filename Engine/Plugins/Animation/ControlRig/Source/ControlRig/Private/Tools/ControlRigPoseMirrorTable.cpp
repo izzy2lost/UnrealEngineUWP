@@ -2,7 +2,7 @@
 
 #include "Tools/ControlRigPoseMirrorTable.h"
 #include "Tools/ControlRigPoseMirrorSettings.h"
-#include "ControlRig.h"
+#include "BaseControlRig.h"
 #include "Tools/ControlRigPose.h"
 #include "RigVMFunctions/Math/RigVMMathLibrary.h"
 

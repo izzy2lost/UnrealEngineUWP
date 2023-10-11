@@ -7,9 +7,10 @@
 #include "Templates/SubclassOf.h"
 #include "Engine/Blueprint.h"
 #include "Factories/Factory.h"
-#include "ControlRig.h"
 #include "ControlRigBlueprint.h"
 #include "ControlRigBlueprintFactory.generated.h"
+
+class UControlRig;
 
 UCLASS(HideCategories=Object)
 class CONTROLRIGEDITOR_API UControlRigBlueprintFactory : public UFactory

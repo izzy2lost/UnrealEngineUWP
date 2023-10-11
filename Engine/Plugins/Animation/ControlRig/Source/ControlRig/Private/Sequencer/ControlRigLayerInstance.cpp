@@ -7,7 +7,7 @@
 
 #include "Sequencer/ControlRigLayerInstance.h"
 #include "Sequencer/ControlRigLayerInstanceProxy.h"
-#include "ControlRig.h"
+#include "BaseControlRig.h"
 
 #include UE_INLINE_GENERATED_CPP_BY_NAME(ControlRigLayerInstance)
 

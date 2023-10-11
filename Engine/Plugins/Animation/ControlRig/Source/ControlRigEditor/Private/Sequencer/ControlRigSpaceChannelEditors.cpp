@@ -48,7 +48,7 @@
 #include "Sequencer/MovieSceneControlRigSpaceChannel.h"
 #include "Channels/MovieSceneChannelProxy.h"
 #include "MovieSceneObjectBindingID.h"
-#include "ControlRig.h"
+#include "BaseControlRig.h"
 #include "IControlRigObjectBinding.h"
 #include "ControlRigSpaceChannelCurveModel.h"
 #include "ScopedTransaction.h"

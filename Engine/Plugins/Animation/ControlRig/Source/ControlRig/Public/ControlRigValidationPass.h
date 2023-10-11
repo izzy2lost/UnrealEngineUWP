@@ -1,7 +1,7 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 
 #pragma once
-#include "ControlRig.h"
+#include "BaseControlRig.h"
 #include "Logging/TokenizedMessage.h"
 
 #include "ControlRigValidationPass.generated.h"

@@ -10,7 +10,6 @@
 #include "CoreMinimal.h"
 #include "UObject/ObjectMacros.h"
 #include "MovieSceneBindingProxy.h"
-#include "ControlRig.h"
 #include "Tools/ControlRigSnapper.h"
 #include "TransformNoScale.h"
 #include "EulerTransform.h"
@@ -25,6 +24,7 @@ class UTickableConstraint;
 class UTickableTransformConstraint;
 class UTransformableHandle;
 struct FBakingAnimationKeySettings;
+class UControlRig;
 
 USTRUCT(BlueprintType)
 struct FControlRigSequencerBindingProxy

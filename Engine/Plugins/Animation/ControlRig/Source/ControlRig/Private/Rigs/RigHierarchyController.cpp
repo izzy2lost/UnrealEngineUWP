@@ -1,7 +1,7 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 
 #include "Rigs/RigHierarchyController.h"
-#include "ControlRig.h"
+#include "BaseControlRig.h"
 #include "AnimationCoreLibrary.h"
 #include "UObject/Package.h"
 
@@ -13,8 +13,6 @@
 #include "Engine/SkeletalMesh.h"
 #include "RigVMPythonUtils.h"
 #endif
-
-#include "ControlRig.h"
 
 #include UE_INLINE_GENERATED_CPP_BY_NAME(RigHierarchyController)
 

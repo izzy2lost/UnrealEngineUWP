@@ -4,7 +4,7 @@
 #include "Evaluation/Blending/MovieSceneMultiChannelBlending.h"
 #include "Sequencer/MovieSceneControlRigParameterTrack.h"
 #include "Sequencer/MovieSceneControlRigParameterSection.h"
-#include "ControlRig.h"
+#include "BaseControlRig.h"
 #include "Evaluation/MovieSceneEvaluation.h"
 #include "IMovieScenePlayer.h"
 #include "MovieSceneCommonHelpers.h"

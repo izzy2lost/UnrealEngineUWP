@@ -3,7 +3,7 @@
 #pragma once
 
 #include "UObject/LazyObjectPtr.h"
-#include "ControlRig.h"
+#include "BaseControlRig.h"
 #include "ControlRigSequenceObjectReference.generated.h"
 
 

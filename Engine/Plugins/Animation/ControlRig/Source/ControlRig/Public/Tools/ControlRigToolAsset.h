@@ -4,7 +4,7 @@
 #include "CoreMinimal.h"
 #include "Misc/PackageName.h"
 #include "UObject/Object.h"
-#include "ControlRig.h"
+#include "BaseControlRig.h"
 #include "Tools/ControlRigPoseProjectSettings.h"
 #include "AssetRegistry/IAssetRegistry.h"
 #include "AssetRegistry/AssetRegistryModule.h"

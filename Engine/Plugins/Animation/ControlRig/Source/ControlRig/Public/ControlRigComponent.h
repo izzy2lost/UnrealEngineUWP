@@ -3,7 +3,7 @@
 #pragma once
 
 #include "Components/PrimitiveComponent.h"
-#include "ControlRig.h"
+#include "BaseControlRig.h"
 #include "ControlRigAnimInstance.h"
 #include "Components/SkeletalMeshComponent.h"
 #include "PrimitiveSceneProxy.h"
@@ -15,7 +15,6 @@
 
 #include "ControlRigComponent.generated.h"
 
-class UControlRig;
 class UControlRigComponent;
 
 /** Enum for controlling which space a transform is applied in. */

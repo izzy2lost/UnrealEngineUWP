@@ -2,6 +2,7 @@
 #include "Tools/ControlRigPose.h"
 #include "Tools/ControlRigPoseProjectSettings.h"
 #include "IControlRigObjectBinding.h"
+#include "BaseControlRig.h"
 
 #include UE_INLINE_GENERATED_CPP_BY_NAME(ControlRigPose)
 

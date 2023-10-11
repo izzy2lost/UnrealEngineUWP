@@ -4,7 +4,7 @@
 #include "BlueprintActionDatabaseRegistrar.h"
 #include "BlueprintNodeSpawner.h"
 #include "PropertyEditorModule.h"
-#include "ControlRig.h"
+#include "BaseControlRig.h"
 #include "ControlRigComponent.h"
 #include "GraphEditorActions.h"
 #include "Kismet2/KismetEditorUtilities.h"

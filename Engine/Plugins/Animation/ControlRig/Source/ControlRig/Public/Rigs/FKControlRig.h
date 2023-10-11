@@ -1,7 +1,7 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 
 #pragma once
-#include "ControlRig.h"
+#include "BaseControlRig.h"
 #include "Rigs/RigHierarchyController.h"
 #include "Units/Hierarchy/RigUnit_SetTransform.h"
 #include "Units/Hierarchy/RigUnit_SetCurveValue.h"

@@ -13,7 +13,7 @@
 #include "Styling/AppStyle.h"
 #include "ISequencer.h"
 #include "ScopedTransaction.h"
-#include "ControlRig.h"
+#include "BaseControlRig.h"
 #include "EditMode/ControlRigEditMode.h"
 #include "MovieSceneSequence.h"
 #include "MovieScene.h"

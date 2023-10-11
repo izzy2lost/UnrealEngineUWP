@@ -2,7 +2,7 @@
 
 #include "ControlRigVisualGraphUtils.h"
 
-#include "ControlRig.h"
+#include "BaseControlRig.h"
 #include "VisualGraphUtilsModule.h"
 
 #if WITH_EDITOR

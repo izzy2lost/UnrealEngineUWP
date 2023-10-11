@@ -2,7 +2,7 @@
 
 #include "Graph/ControlRigGraph.h"
 #include "ControlRigBlueprint.h"
-#include "ControlRig.h"
+#include "BaseControlRig.h"
 #include "RigVMModel/RigVMGraph.h"
 #include "Units/RigUnit.h"
 

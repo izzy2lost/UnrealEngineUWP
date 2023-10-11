@@ -3,7 +3,7 @@
 #include "Tools/ControlRigTweener.h"
 #include "Channels/MovieSceneFloatChannel.h"
 #include "Channels/MovieSceneDoubleChannel.h"
-#include "ControlRig.h"
+#include "BaseControlRig.h"
 #include "ISequencer.h"
 #include "MovieSceneSequence.h"
 #include "MovieScene.h"

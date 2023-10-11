@@ -1,7 +1,7 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 
 #pragma once
-#include "ControlRig.h"
+#include "BaseControlRig.h"
 #include "Units/Hierarchy/RigUnit_AddBoneTransform.h"
 #include "AdditiveControlRig.generated.h"
 

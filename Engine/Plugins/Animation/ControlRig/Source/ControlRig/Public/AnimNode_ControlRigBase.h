@@ -4,10 +4,10 @@
 
 #include "Animation/AnimBulkCurves.h"
 #include "Animation/AnimNode_CustomProperty.h"
-#include "ControlRig.h"
 #include "AnimNode_ControlRigBase.generated.h"
 
 class UNodeMappingContainer;
+class UControlRig;
 
 /** Struct defining the settings to override when driving a control rig */
 USTRUCT()

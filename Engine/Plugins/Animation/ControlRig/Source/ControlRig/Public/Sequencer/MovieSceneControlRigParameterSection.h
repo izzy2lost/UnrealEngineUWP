@@ -9,7 +9,7 @@
 #include "UObject/ObjectMacros.h"
 #include "Channels/MovieSceneFloatChannel.h"
 #include "Sections/MovieSceneSubSection.h"
-#include "ControlRig.h"
+#include "BaseControlRig.h"
 #include "MovieSceneSequencePlayer.h"
 #include "Animation/AnimData/BoneMaskFilter.h"
 #include "MovieSceneObjectBindingID.h"

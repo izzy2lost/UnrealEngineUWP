@@ -7,13 +7,13 @@
 #include "CoreMinimal.h"
 #include "UObject/Object.h"
 #include "TransformNoScale.h"
-#include "ControlRig.h"
 #include "Engine/SkeletalMesh.h"
 #include "ControlRigToolAsset.h"
 #include "Tools/ControlRigPoseMirrorTable.h"
 #include "Rigs/RigControlHierarchy.h"
 #include "ControlRigPose.generated.h"
 
+class UControlRig;
 /**
 * The Data Stored For Each Control in A Pose.
 */

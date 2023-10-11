@@ -8,7 +8,6 @@
 #include "ScopedTransaction.h"
 #include "DetailLayoutBuilder.h"
 #include "ControlRigBlueprint.h"
-#include "ControlRig.h"
 
 void SControlRigShapeNameList::Construct(const FArguments& InArgs, FRigControlElement* ControlElement, UControlRigBlueprint* InBlueprint)
 {

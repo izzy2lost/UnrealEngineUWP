@@ -17,7 +17,7 @@
 #include "MovieSceneToolHelpers.h"
 #include "Rigs/FKControlRig.h"
 #include "Units/Execution/RigUnit_InverseExecution.h"
-#include "ControlRig.h"
+#include "BaseControlRig.h"
 #include "EditMode/ControlRigEditMode.h"
 #include "EditorModeManager.h"
 #include "Engine/Selection.h"

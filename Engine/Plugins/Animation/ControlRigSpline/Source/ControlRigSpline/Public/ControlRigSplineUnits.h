@@ -3,7 +3,6 @@
 #include "CoreMinimal.h"
 #include "ControlRigDefines.h"
 #include "Units/RigUnit.h"
-#include "ControlRig.h"
 #include "ControlRigSplineTypes.h"
 #include "Units/Highlevel/Hierarchy/RigUnit_FitChainToCurve.h"
 #include "ControlRigSplineUnits.generated.h"

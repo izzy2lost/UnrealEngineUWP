@@ -4,7 +4,7 @@
 #include "Engine/SkeletalMesh.h"
 #include "Rigs/RigHierarchyController.h"
 #include "Units/RigUnitContext.h"
-#include "ControlRig.h"
+#include "BaseControlRig.h"
 #include "Components/SkeletalMeshComponent.h"
 #include "Units/Execution/RigUnit_PrepareForExecution.h"
 

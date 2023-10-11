@@ -10,7 +10,7 @@
 #include "Styling/AppStyle.h"
 #include "Styling/CoreStyle.h"
 #include "ScopedTransaction.h"
-#include "ControlRig.h"
+#include "BaseControlRig.h"
 #include "UnrealEdGlobals.h"
 #include "EditMode/ControlRigEditMode.h"
 #include "Tools/ControlRigPose.h"

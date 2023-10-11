@@ -6,7 +6,7 @@
 #include "UObject/ObjectMacros.h"
 #include "Sections/MovieSceneParameterSection.h"
 #include "MovieSceneNameableTrack.h"
-#include "ControlRig.h"
+#include "BaseControlRig.h"
 #include "Compilation/IMovieSceneTrackTemplateProducer.h"
 #include "INodeAndChannelMappings.h"
 #include "MovieSceneControlRigParameterSection.h"

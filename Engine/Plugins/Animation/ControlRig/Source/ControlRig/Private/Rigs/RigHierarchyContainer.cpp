@@ -1,7 +1,7 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 
 #include "Rigs/RigHierarchyContainer.h"
-#include "ControlRig.h"
+#include "BaseControlRig.h"
 #include "HelperUtil.h"
 #include "UObject/PropertyPortFlags.h"
 

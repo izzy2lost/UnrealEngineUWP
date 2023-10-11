@@ -27,7 +27,7 @@
 #include "Animation/DebugSkelMeshComponent.h"
 #include "IPersonaPreviewScene.h"
 #include "Animation/AnimData/BoneMaskFilter.h"
-#include "ControlRig.h"
+#include "BaseControlRig.h"
 #include "Editor/ControlRigSkeletalMeshComponent.h"
 #include "ControlRigObjectBinding.h"
 #include "RigVMBlueprintUtils.h"

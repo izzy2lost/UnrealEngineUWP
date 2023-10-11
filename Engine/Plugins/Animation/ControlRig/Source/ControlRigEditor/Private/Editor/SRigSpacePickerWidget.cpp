@@ -18,7 +18,7 @@
 #include "Framework/Application/SlateUser.h"
 #include "Framework/Notifications/NotificationManager.h"
 #include "Modules/ModuleManager.h"
-#include "ControlRig.h"
+#include "BaseControlRig.h"
 #include "ControlRigBlueprint.h"
 #include "RigVMBlueprintGeneratedClass.h"
 

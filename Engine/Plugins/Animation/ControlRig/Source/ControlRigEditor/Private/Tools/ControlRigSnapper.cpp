@@ -4,7 +4,7 @@
 #include "Tools/ControlRigTweener.h" //remove
 
 #include "Channels/MovieSceneFloatChannel.h"
-#include "ControlRig.h"
+#include "BaseControlRig.h"
 #include "ISequencer.h"
 #include "MovieSceneSequence.h"
 #include "MovieScene.h"

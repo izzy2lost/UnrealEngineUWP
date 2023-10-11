@@ -11,7 +11,6 @@
 #include "Widgets/SCompoundWidget.h"
 #include "Misc/FrameNumber.h"
 #include "IDetailsView.h"
-#include "ControlRig.h"
 #include "Rigs/RigHierarchy.h"
 #include "IDetailKeyframeHandler.h"
 #include "IDetailCustomization.h"
@@ -20,6 +19,7 @@
 #include "DetailWidgetRow.h"
 
 class ISequencer;
+class UControlRig;
 
 class FControlRigEditModeGenericDetails : public IDetailCustomization
 {
