@@ -208,7 +208,7 @@ struct FStateTreeTraceConditionEvent : FStateTreeTraceNodeEvent
 struct FStateTreeTraceActiveStatesEvent : FStateTreeTraceBaseEvent
 {
 	// Intentionally implemented in source file to compile 'TArray<FStateTreeStateHandle>' using only forward declaration.
-	explicit FStateTreeTraceActiveStatesEvent(const double RecordingWorldTime);
+	STATETREEMODULE_API explicit FStateTreeTraceActiveStatesEvent(const double RecordingWorldTime);
 
 	STATETREEMODULE_API FString ToFullString(const UStateTree& StateTree) const;
 	STATETREEMODULE_API FString GetValueString(const UStateTree& StateTree) const;

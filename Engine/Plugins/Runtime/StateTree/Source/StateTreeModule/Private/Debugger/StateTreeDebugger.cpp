@@ -78,7 +78,7 @@ FStateTreeDebugger::FStateTreeDebugger()
 	: StateTreeModule(FModuleManager::GetModuleChecked<IStateTreeModule>("StateTreeModule"))
 	, ScrubState(EventCollections)
 {
-	UE::StateTree::Delegates::OnTracingStateChanged.AddLambda([this](const bool bTracesEnabled)
+	TracingStateChangedHandle = UE::StateTree::Delegates::OnTracingStateChanged.AddLambda([this](const bool bTracesEnabled)
 		{
 			// StateTree traces got enabled in the current process so let's analyse it if not already analysing something.
 			if (bTracesEnabled && !IsAnalysisSessionActive())
@@ -90,7 +90,9 @@ FStateTreeDebugger::FStateTreeDebugger()
 
 FStateTreeDebugger::~FStateTreeDebugger()
 {
-	UE::StateTree::Delegates::OnTracingStateChanged.RemoveAll(this);
+	UE::StateTree::Delegates::OnTracingStateChanged.Remove(TracingStateChangedHandle);
+	TracingStateChangedHandle.Reset();
+
 	StopSessionAnalysis();
 }
 

@@ -4,6 +4,7 @@
 
 #if WITH_STATETREE_DEBUGGER
 
+#include "Delegates/IDelegateInstance.h"
 #include "IStateTreeTraceProvider.h"
 #include "StateTree.h"
 #include "StateTreeDebuggerTypes.h"
@@ -333,6 +334,11 @@ private:
 	 * Indicates the last transition type between two consecutive analyses to manage track cleanup properly.
 	 */
 	EAnalysisTransitionType AnalysisTransitionType = EAnalysisTransitionType::Unset;
+
+	/**
+	 * Delegate Handle bound to UE::StateTree::Delegates::OnTracingStateChanged
+	 */
+	FDelegateHandle TracingStateChangedHandle;
 };
 
 #endif // WITH_STATETREE_DEBUGGER
