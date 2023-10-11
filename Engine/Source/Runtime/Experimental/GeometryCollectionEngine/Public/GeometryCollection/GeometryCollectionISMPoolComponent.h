@@ -238,8 +238,6 @@ struct FGeometryCollectionMeshGroup
 
 	/** Array of allocated mesh infos. */
 	TArray<FGeometryCollectionMeshInfo> MeshInfos;
-	/** Map from mesh instance description to the its index in the MeshInfo array. */
-	TMap<FGeometryCollectionStaticMeshInstance, FMeshId> Meshes;
 };
 
 /** Structure containting all info for a single ISM. */

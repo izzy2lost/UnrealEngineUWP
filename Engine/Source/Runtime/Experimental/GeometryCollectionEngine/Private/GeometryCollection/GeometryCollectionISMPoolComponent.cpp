@@ -26,14 +26,7 @@ FAutoConsoleVariableRef CVarISMPoolComponentFreeListTargetSize(
 
 FGeometryCollectionMeshGroup::FMeshId FGeometryCollectionMeshGroup::AddMesh(const FGeometryCollectionStaticMeshInstance& MeshInstance, int32 InstanceCount, const FGeometryCollectionMeshInfo& ISMInstanceInfo)
 {
-	FMeshId* MeshIndex = Meshes.Find(MeshInstance);
-	if (MeshIndex)
-	{
-		return *MeshIndex;
-	}
-
 	const FMeshId MeshInfoIndex = MeshInfos.Emplace(ISMInstanceInfo);
-	Meshes.Add(MeshInstance, MeshInfoIndex);
 	return MeshInfoIndex;
 }
 
@@ -67,7 +60,6 @@ void FGeometryCollectionMeshGroup::RemoveAllMeshes(FGeometryCollectionISMPool& I
 		ISMPool.RemoveISM(MeshInfo);
 	}
 	MeshInfos.Empty();
-	Meshes.Empty();
 }
 
 void FGeometryCollectionISM::CreateISM(AActor* InOwningActor, bool bInUseHISM)
