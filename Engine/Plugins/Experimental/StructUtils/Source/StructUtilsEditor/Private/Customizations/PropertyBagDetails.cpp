@@ -756,6 +756,8 @@ void FPropertyBagInstanceDataDetails::OnChildRowAdded(IDetailPropertyRow& ChildR
 	const FProperty* Property = ChildPropertyHandle->GetProperty();
 	if (FPropertyBagPropertyDesc* Desc = PropertyDescs.FindByPredicate([Property](const FPropertyBagPropertyDesc& Desc){ return Desc.CachedProperty == Property; }))
 	{
+		static const FName HideInDetailPanelsName(TEXT("HideInDetailPanel"));
+
 		if (Desc->ContainerTypes.Num() > 1)
 		{
 			static const FText UnsupportedTypeWarningNestedContainer = LOCTEXT("NestedContainersWarning", "This property type is not supported in the property bag UI.");
@@ -774,6 +776,11 @@ void FPropertyBagInstanceDataDetails::OnChildRowAdded(IDetailPropertyRow& ChildR
 			// Warn that the unsinged types cannot be set via the type selection.
 			UnsupportedTypeWarning = UnsupportedTypeWarningUnsigned;
 			bSupportedType = false;
+		}
+		else if (Property->HasMetaData(HideInDetailPanelsName))
+		{
+			ChildRow.Visibility(EVisibility::Hidden);
+			return;
 		}
 	}
 

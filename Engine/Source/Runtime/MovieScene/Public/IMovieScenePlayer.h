@@ -23,6 +23,7 @@ class UMovieSceneEntitySystemLinker;
 struct FMovieSceneRootEvaluationTemplateInstance;
 class FMovieSceneSequenceInstance;
 class IMovieScenePlayer;
+class IMovieSceneSequencePlayerObserver;
 
 namespace UE::MovieScene
 {
@@ -208,6 +209,11 @@ public:
 	 * Called by the evaluation system after evaluation has occured
 	 */
 	virtual void PostEvaluation(const FMovieSceneContext& Context) {}
+
+	/*
+	* Used to access the Observer in MovieSceneSequencePlayer
+	*/
+	virtual TScriptInterface<IMovieSceneSequencePlayerObserver> GetObserver() { return nullptr; }
 
 public:
 

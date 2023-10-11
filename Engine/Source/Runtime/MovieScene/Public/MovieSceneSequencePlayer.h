@@ -540,6 +540,8 @@ protected:
 	MOVIESCENE_API virtual void PreEvaluation(const FMovieSceneContext& Context) override;
 	MOVIESCENE_API virtual void PostEvaluation(const FMovieSceneContext& Context) override;
 
+	MOVIESCENE_API virtual TScriptInterface<IMovieSceneSequencePlayerObserver> GetObserver() override { return Observer; }
+
 	/*~ Begin UObject interface */
 	virtual bool IsSupportedForNetworking() const { return true; }
 	MOVIESCENE_API virtual int32 GetFunctionCallspace(UFunction* Function, FFrame* Stack) override;
