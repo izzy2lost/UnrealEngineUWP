@@ -1105,6 +1105,11 @@ namespace Gauntlet
 		{
 
 		}
+		
+		public void FullClean()
+		{
+
+		}
 
 		public IAppInstance Run(IAppInstall App)
 		{

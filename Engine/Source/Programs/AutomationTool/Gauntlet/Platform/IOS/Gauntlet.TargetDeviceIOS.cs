@@ -593,6 +593,11 @@ namespace Gauntlet
 
 		}
 
+		public void FullClean(UnrealAppConfig AppConfiguration)
+		{
+
+		}
+		
 		public void PopulateDirectoryMappings(string ProjectDir)
 		{
 			LocalDirectoryMappings.Add(EIntendedBaseCopyDirectory.Build, Path.Combine(ProjectDir, "Build"));
