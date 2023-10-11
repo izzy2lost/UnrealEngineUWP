@@ -931,6 +931,12 @@ public:
 	UFUNCTION(BlueprintCallable, BlueprintInternalUseOnly)
 	GEOMETRYCOLLECTIONENGINE_API void SetGravityGroupIndex(int32 InGravityGroupIndex);
 
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, BlueprintSetter = SetIsOneWayInteraction, Category = "ChaosPhysics|General")
+	bool bIsOneWayInteraction;
+
+	UFUNCTION(BlueprintCallable, BlueprintInternalUseOnly)
+	GEOMETRYCOLLECTIONENGINE_API void SetIsOneWayInteraction(bool bInOneWayInteraction);
+
 	/** when true, density will be used to compute mass using the assigned physics material */
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, BlueprintSetter = SetDensityFromPhysicsMaterial, Category = "ChaosPhysics|General")
 	bool bDensityFromPhysicsMaterial;

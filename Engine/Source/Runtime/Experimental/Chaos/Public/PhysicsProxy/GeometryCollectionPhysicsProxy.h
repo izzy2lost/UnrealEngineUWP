@@ -463,6 +463,7 @@ public:
 	CHAOS_API void SetUseMaterialDamageModifiers_External(bool bUseMaterialDamageModifiers);
 	CHAOS_API void SetMaterialOverrideMassScaleMultiplier_External(float InMultiplier);
 	CHAOS_API void SetGravityGroupIndex_External(int32 GravityGroupIndex);
+	CHAOS_API void SetIsOneWayInteraction_External(bool bInIsOneWayInteraction);
 	/** 
 	 * Traverses the parents of TransformGroupIdx counting number of levels,
 	 * and sets levels array value for TransformGroupIdx and its parents if not yet initialized.
@@ -642,6 +643,7 @@ private:
 	uint8 bIsCollisionFilterDataDirty: 1;
 	uint8 bIsDamageThresholdDataDirty: 1;
 	uint8 bIsGravityGroupIndexDirty: 1;
+	uint8 bIsOneWayInteractionDirty : 1;
 
 	// Currently this is using triple buffers for game-physics and 
 	// physics-game thread communication, but not for any reason other than this 

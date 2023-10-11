@@ -382,6 +382,7 @@ public:
 	TOptional<bool> bUseMaterialDamageModifiers;
 	TOptional<float> MaterialOverrideMassScaleMultiplier;
 	TOptional<uint8> GravityGroupIndex;
+	TOptional<bool> bIsOneWayInteraction;
 };
 
 /**

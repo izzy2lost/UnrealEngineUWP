@@ -475,6 +475,7 @@ FGeometryCollectionPhysicsProxy::FGeometryCollectionPhysicsProxy(
 	, bIsCollisionFilterDataDirty(false)
 	, bIsDamageThresholdDataDirty(false)
 	, bIsGravityGroupIndexDirty(false)
+	, bIsOneWayInteractionDirty(false)
 	, CollectorGuid(InCollectorGuid)
 {
 	// We rely on a guarded buffer.
@@ -1465,6 +1466,7 @@ void FGeometryCollectionPhysicsProxy::InitializeBodiesPT(Chaos::FPBDRigidsSolver
 				Handle->SetGravityEnabled(bEnableGravity);
 				Handle->SetGravityGroupIndex(Parameters.GravityGroupIndex);
 				Handle->SetCCDEnabled(Parameters.UseCCD);
+				Handle->SetOneWayInteraction(Parameters.bIsOneWayInteraction);
 				Handle->SetInertiaConditioningEnabled(Parameters.UseInertiaConditioning);
 				Handle->SetLinearEtherDrag(Parameters.LinearDamping);
 				Handle->SetAngularEtherDrag(Parameters.AngularDamping);
@@ -2973,6 +2975,13 @@ void FGeometryCollectionPhysicsProxy::SetGravityGroupIndex_External(int32 Gravit
 	SetProxyDirty_External();
 }
 
+void FGeometryCollectionPhysicsProxy::SetIsOneWayInteraction_External(bool bIsOneWayInteraction)
+{
+	check(IsInGameThread());
+	GameThreadPerFrameData.bIsOneWayInteraction = bIsOneWayInteraction;
+	SetProxyDirty_External();
+}
+
 void FGeometryCollectionPhysicsProxy::PushStateOnGameThread(Chaos::FPBDRigidsSolver* InSolver)
 {
 	// rest all the dirty flags
@@ -2980,6 +2989,7 @@ void FGeometryCollectionPhysicsProxy::PushStateOnGameThread(Chaos::FPBDRigidsSol
 	bIsCollisionFilterDataDirty = false;
 	bIsDamageThresholdDataDirty = false;
 	bIsGravityGroupIndexDirty = false;
+	bIsOneWayInteractionDirty = false;
 	MaterialOverrideMassScaleMultiplierChange = 0;
 
 	// CONTEXT: GAMETHREAD
@@ -3060,6 +3070,13 @@ void FGeometryCollectionPhysicsProxy::PushStateOnGameThread(Chaos::FPBDRigidsSol
 		Parameters.GravityGroupIndex = GameThreadPerFrameData.GravityGroupIndex.GetValue();
 		GameThreadPerFrameData.GravityGroupIndex.Reset();
 		bIsGravityGroupIndexDirty = true;
+	}
+
+	if (GameThreadPerFrameData.bIsOneWayInteraction.IsSet())
+	{
+		Parameters.bIsOneWayInteraction = GameThreadPerFrameData.bIsOneWayInteraction.GetValue();
+		GameThreadPerFrameData.bIsOneWayInteraction.Reset();
+		bIsOneWayInteractionDirty = true;
 	}
 
 	if (GameThreadPerFrameData.DamagePropagationData.IsSet())
@@ -3209,6 +3226,17 @@ void FGeometryCollectionPhysicsProxy::PushToPhysicsState()
 			if (Chaos::FPBDRigidClusteredParticleHandle* Handle = SolverParticleHandles[TransformIndex])
 			{
 				Handle->SetGravityGroupIndex(Parameters.GravityGroupIndex);
+			}
+		}
+	}
+
+	if (bIsOneWayInteractionDirty)
+	{
+		for (int32 TransformIndex = 0; TransformIndex < SolverParticleHandles.Num(); ++TransformIndex)
+		{
+			if (Chaos::FPBDRigidClusteredParticleHandle* Handle = SolverParticleHandles[TransformIndex])
+			{
+				Handle->SetOneWayInteraction(Parameters.bIsOneWayInteraction);
 			}
 		}
 	}

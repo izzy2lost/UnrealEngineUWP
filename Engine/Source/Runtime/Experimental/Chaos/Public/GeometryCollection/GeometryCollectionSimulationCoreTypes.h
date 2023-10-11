@@ -213,6 +213,7 @@ struct FSimulationParameters
 		, GravityGroupIndex(0)
 		, UseInertiaConditioning(true)
 		, UseCCD(false)
+		, bIsOneWayInteraction(false)
 		, LinearDamping(0.01f)
 		, AngularDamping(0)
 		, bUseDamagePropagation(false)
@@ -272,6 +273,7 @@ struct FSimulationParameters
 		, GravityGroupIndex(Other.GravityGroupIndex)
 		, UseInertiaConditioning(Other.UseInertiaConditioning)
 		, UseCCD(Other.UseCCD)
+		, bIsOneWayInteraction(Other.bIsOneWayInteraction)
 		, LinearDamping(Other.LinearDamping)
 		, AngularDamping(Other.AngularDamping)
 		, bUseDamagePropagation(Other.bUseDamagePropagation)
@@ -361,6 +363,7 @@ struct FSimulationParameters
 	int32 GravityGroupIndex;
 	bool UseInertiaConditioning;
 	bool UseCCD;
+	bool bIsOneWayInteraction;
 	float LinearDamping;
 	float AngularDamping;
 
