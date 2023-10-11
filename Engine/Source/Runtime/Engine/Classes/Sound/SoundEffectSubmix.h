@@ -58,7 +58,7 @@ struct FSoundEffectSubmixInputData
 	const TArray<FTransform>* ListenerTransforms;
 
 	/** The raw input audio buffer. Size is NumFrames * NumChannels */
-	Audio::FAlignedFloatBuffer* AudioBuffer;
+	const Audio::FAlignedFloatBuffer* AudioBuffer;
 
 	/** Sample accurate audio clock. */
 	double AudioClock;

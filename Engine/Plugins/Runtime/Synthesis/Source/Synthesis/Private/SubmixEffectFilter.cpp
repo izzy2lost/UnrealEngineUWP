@@ -52,7 +52,7 @@ void FSubmixEffectFilter::OnProcessAudio(const FSoundEffectSubmixInputData& InDa
 		InitFilter();
 	}
 
-	float* InAudioBuffer = InData.AudioBuffer->GetData();
+	const float* InAudioBuffer = InData.AudioBuffer->GetData();
 	float* OutAudioBuffer = OutData.AudioBuffer->GetData();
 	const int32 NumSamples = InData.AudioBuffer->Num();
 

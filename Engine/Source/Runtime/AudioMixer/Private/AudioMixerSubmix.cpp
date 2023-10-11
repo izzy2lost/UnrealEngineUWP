@@ -1399,7 +1399,9 @@ namespace Audio
 					EffectChainOutputBuffer.Reset();
 					EffectChainOutputBuffer.AddZeroed(NumSamples);
 
-					bProcessedAnEffect |= GenerateEffectChainAudio(InputData, InputBuffer, FadeInfo.EffectChain, EffectChainOutputBuffer);
+					const bool bResult = GenerateEffectChainAudio(InputData, InputBuffer, FadeInfo.EffectChain, EffectChainOutputBuffer);
+					bProcessedAnEffect |= bResult;
+					const FAlignedFloatBuffer* OutBuffer = bResult ? &EffectChainOutputBuffer : &InputBuffer;
 
 					// Mix effect chain output into SubmixChainMixBuffer
 					float StartFadeVolume = FadeInfo.FadeVolume.GetValue();
@@ -1407,7 +1409,7 @@ namespace Audio
 					float EndFadeVolume = FadeInfo.FadeVolume.GetValue();
 
 					// Mix this effect chain with other effect chains.
-					ArrayMixIn(EffectChainOutputBuffer, SubmixChainMixBuffer, StartFadeVolume, EndFadeVolume);
+					ArrayMixIn(*OutBuffer, SubmixChainMixBuffer, StartFadeVolume, EndFadeVolume);
 				}
 
 				// If we processed any effects, write over the old input buffer vs mixing into it. This is basically the "wet channel" audio in a submix.
@@ -1640,8 +1642,6 @@ namespace Audio
 
 			// Check to see if we need to down-mix our audio before sending to the submix effect
 			const uint32 ChannelCountOverride = SubmixEffect->GetDesiredInputChannelCountOverride();
-			bool bCurrentEffectProcessedAudio = false;
-
 			if (ChannelCountOverride != INDEX_NONE && ChannelCountOverride != NumChannels)
 			{
 				// Perform the down-mix operation with the down-mixed scratch buffer
@@ -1650,17 +1650,15 @@ namespace Audio
 
 				InputData.NumChannels = ChannelCountOverride;
 				InputData.AudioBuffer = &DownmixedBuffer;
-				bCurrentEffectProcessedAudio = SubmixEffect->ProcessAudio(InputData, OutputData);
 			}
 			else
 			{
 				// If we're not down-mixing, then just pass in the current wet buffer and our channel count is the same as the output channel count
 				InputData.NumChannels = NumChannels;
 				InputData.AudioBuffer = &ScratchBuffer;
-				bCurrentEffectProcessedAudio = SubmixEffect->ProcessAudio(InputData, OutputData);
 			}
 
-			if (bCurrentEffectProcessedAudio)
+			if (SubmixEffect->ProcessAudio(InputData, OutputData))
 			{
 				// Mix in the dry signal directly
 				const float DryLevel = SubmixEffect->GetDryLevel();
@@ -1673,12 +1671,6 @@ namespace Audio
 
 				bProcessedAnEffect = true;
 			}
-		}
-
-		if (!bProcessedAnEffect)
-		{
-			// If no effects were processed pass through the input audio to the output buffer.
-			OutBuffer = InAudioBuffer;
 		}
 
 		return bProcessedAnEffect;

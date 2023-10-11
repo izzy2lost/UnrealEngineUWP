@@ -25,7 +25,7 @@ void FSubmixEffectStereoToQuad::OnProcessAudio(const FSoundEffectSubmixInputData
 
 	if (InData.NumChannels > 2)
 	{
-		float* InputBufferPtr = InData.AudioBuffer->GetData();
+		const float* InputBufferPtr = InData.AudioBuffer->GetData();
 		float* OutputBufferPtr = OutData.AudioBuffer->GetData();
 
 		// Channel offset in SMPTE channel order for side left and side right
