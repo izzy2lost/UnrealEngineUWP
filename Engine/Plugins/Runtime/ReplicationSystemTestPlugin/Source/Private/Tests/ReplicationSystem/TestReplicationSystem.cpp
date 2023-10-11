@@ -1801,4 +1801,107 @@ UE_NET_TEST_FIXTURE(FReplicationSystemServerClientTestFixture, TestClientCanSkip
 }
 
 
+// Test that PropertyReplication properly handles partial states during Apply
+UE_NET_TEST_FIXTURE(FReplicationSystemServerClientTestFixture, TestPartialDequantize)
+{
+	// Enable cvars to exercise path that store previous state for OnReps to make sure we exercise path that accumulate dirty changes so that we have a complete state.
+	IConsoleVariable* CVarUsePrevReceivedStateForOnReps = IConsoleManager::Get().FindConsoleVariable(TEXT("net.Iris.UsePrevReceivedStateForOnReps"));
+	check(CVarUsePrevReceivedStateForOnReps != nullptr && CVarUsePrevReceivedStateForOnReps->IsVariableBool());
+	const bool bUsePrevReceivedStateForOnReps = CVarUsePrevReceivedStateForOnReps->GetBool();
+	CVarUsePrevReceivedStateForOnReps->Set(true, ECVF_SetByCode);
+
+	// Make sure we allow partial dequantize
+	IConsoleVariable* CVarForceFullDequantizeAndApply = IConsoleManager::Get().FindConsoleVariable(TEXT("net.iris.ForceFullDequantizeAndApply"));
+	check(CVarForceFullDequantizeAndApply != nullptr && CVarForceFullDequantizeAndApply->IsVariableBool());
+	const bool bForceFullDequantizeAndApply = CVarForceFullDequantizeAndApply->GetBool();
+	CVarForceFullDequantizeAndApply->Set(false, ECVF_SetByCode);
+
+	// Add a client
+	FReplicationSystemTestClient* Client = CreateClient();
+
+	// Spawn objects on server
+	UTestReplicatedObjectWithRepNotifies* ServerObjectA = Server->CreateObject<UTestReplicatedObjectWithRepNotifies>();
+	
+	// Send and deliver packet
+	Server->PreSendUpdate();
+	Server->SendAndDeliverTo(Client, true);
+	Server->PostSendUpdate();
+
+	// Verify assumptions
+	// Object should exist on client and have default state
+	UTestReplicatedObjectWithRepNotifies* ClientObjectA = Cast<UTestReplicatedObjectWithRepNotifies>(Client->GetReplicationBridge()->GetReplicatedObject(ServerObjectA->NetRefHandle));
+	UE_NET_ASSERT_NE(ClientObjectA, nullptr);
+
+	UE_NET_ASSERT_EQ(ServerObjectA->IntA, ClientObjectA->IntA);
+	UE_NET_ASSERT_EQ(ClientObjectA->PrevIntAStoredInOnRep, -1);
+	UE_NET_ASSERT_EQ(ServerObjectA->IntB, ClientObjectA->IntB);
+	UE_NET_ASSERT_EQ(ClientObjectA->PrevIntBStoredInOnRep, -1);
+	UE_NET_ASSERT_EQ(ServerObjectA->IntC, ClientObjectA->IntC);
+
+	// Modify only IntA
+	ServerObjectA->IntA = 1;
+
+	// Send and deliver packet
+	Server->UpdateAndSend({Client});
+
+	// Verify assumptions
+	// Only IntA should have been modified
+	UE_NET_ASSERT_EQ(ServerObjectA->IntA, ClientObjectA->IntA);
+	UE_NET_ASSERT_EQ(ClientObjectA->PrevIntAStoredInOnRep, -1);
+	UE_NET_ASSERT_EQ(ServerObjectA->IntB, ClientObjectA->IntB);
+	UE_NET_ASSERT_EQ(ClientObjectA->PrevIntBStoredInOnRep, -1);
+	UE_NET_ASSERT_EQ(ServerObjectA->IntC, ClientObjectA->IntC);
+
+	// Modify only IntB
+	ServerObjectA->IntB = 1;
+
+	// Send and deliver packet
+	Server->UpdateAndSend({Client});
+
+	// Verify assumptions
+	// Only IntA should have been modified
+	UE_NET_ASSERT_EQ(ServerObjectA->IntA, ClientObjectA->IntA);
+	UE_NET_ASSERT_EQ(ClientObjectA->PrevIntAStoredInOnRep, -1);
+
+	UE_NET_ASSERT_EQ(ServerObjectA->IntB, ClientObjectA->IntB);
+	UE_NET_ASSERT_EQ(ClientObjectA->PrevIntBStoredInOnRep, -1);
+	UE_NET_ASSERT_EQ(ServerObjectA->IntC, ClientObjectA->IntC);
+
+	// Modify only IntA
+	ServerObjectA->IntA = 2;
+
+	// Send and deliver packet
+	Server->UpdateAndSend({Client});
+
+	// Verify assumptions
+	// IntA should have been modified, and if everything works correctly PrevIntAStoredInOnRep should be 1
+	UE_NET_ASSERT_EQ(ServerObjectA->IntA, ClientObjectA->IntA);
+	UE_NET_ASSERT_EQ(ClientObjectA->PrevIntAStoredInOnRep, 1);
+
+	UE_NET_ASSERT_EQ(ServerObjectA->IntB, ClientObjectA->IntB);
+	UE_NET_ASSERT_EQ(ClientObjectA->PrevIntBStoredInOnRep, -1);
+	UE_NET_ASSERT_EQ(ServerObjectA->IntC, ClientObjectA->IntC);
+
+	// Verify that we do not apply repnotifies if we do not receive data from server by modifying values on the client and verifying that they do not get overwritten
+	ServerObjectA->IntB = 2;
+	ClientObjectA->IntA = -1;
+	ClientObjectA->PrevIntAStoredInOnRep = -1;
+
+	// Send and deliver packet
+	Server->UpdateAndSend({Client});
+
+	// Verify assumptions, since we messed with IntA and PrevIntAStoredInOnRep locally they have the value we set but IntB should be updated according to replicated state
+	UE_NET_ASSERT_NE(ServerObjectA->IntA, ClientObjectA->IntA);
+	UE_NET_ASSERT_EQ(ClientObjectA->PrevIntAStoredInOnRep, -1);
+	UE_NET_ASSERT_EQ(ServerObjectA->IntB, ClientObjectA->IntB);
+	UE_NET_ASSERT_EQ(ClientObjectA->PrevIntBStoredInOnRep, 1);
+	UE_NET_ASSERT_EQ(ServerObjectA->IntC, ClientObjectA->IntC);
+
+	// Restore cvars
+	CVarUsePrevReceivedStateForOnReps->Set(bUsePrevReceivedStateForOnReps, ECVF_SetByCode);
+	CVarForceFullDequantizeAndApply->Set(bForceFullDequantizeAndApply, ECVF_SetByCode);
+}
+
+
+
 }

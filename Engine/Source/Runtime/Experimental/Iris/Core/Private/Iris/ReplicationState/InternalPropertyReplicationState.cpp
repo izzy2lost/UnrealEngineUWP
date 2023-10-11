@@ -28,12 +28,19 @@ void InitReplicationStateInternals(uint8* StateBuffer, const FReplicationStateDe
 	}
 }
 
-void CopyPropertyReplicationStateInternals(uint8* RESTRICT DstStateBuffer, uint8* RESTRICT SrcStateBuffer, const FReplicationStateDescriptor* Descriptor)
+void CopyPropertyReplicationStateInternals(uint8* RESTRICT DstStateBuffer, uint8* RESTRICT SrcStateBuffer, const FReplicationStateDescriptor* Descriptor, bool bOverwriteChangeMask = true)
 {
 	FNetBitArrayView DstChangeMask = GetMemberChangeMask(DstStateBuffer, Descriptor);
 	FNetBitArrayView SrcChangeMask = GetMemberChangeMask(SrcStateBuffer, Descriptor);
 
-	DstChangeMask.Copy(SrcChangeMask);
+	if (bOverwriteChangeMask)
+	{
+		DstChangeMask.Copy(SrcChangeMask);
+	}
+	else
+	{
+		DstChangeMask.Combine(SrcChangeMask, FNetBitArrayView::OrOp);
+	}
 
 	// Copy optional conditional changemask
 	if (EnumHasAnyFlags(Descriptor->Traits, EReplicationStateTraits::HasLifetimeConditionals))
@@ -41,7 +48,14 @@ void CopyPropertyReplicationStateInternals(uint8* RESTRICT DstStateBuffer, uint8
 		FNetBitArrayView DstConditionalChangeMask = GetMemberConditionalChangeMask(DstStateBuffer, Descriptor);
 		FNetBitArrayView SrcConditionalChangeMask = GetMemberConditionalChangeMask(SrcStateBuffer, Descriptor);
 
-		DstConditionalChangeMask.Copy(SrcConditionalChangeMask);
+		if (bOverwriteChangeMask)
+		{
+			DstConditionalChangeMask.Copy(SrcConditionalChangeMask);
+		}
+		else
+		{
+			DstConditionalChangeMask.Combine(SrcConditionalChangeMask, FNetBitArrayView::OrOp);
+		}
 	}
 }
 
@@ -114,6 +128,39 @@ void CopyPropertyReplicationState(uint8* RESTRICT DstStateBuffer, uint8* RESTRIC
 	{
 		const FReplicationStateMemberPropertyDescriptor& MemberPropertyDescriptor = MemberPropertyDescriptors[MemberIt];
 		if (MemberPropertyDescriptor.ArrayIndex == 0)
+		{
+			const FReplicationStateMemberDescriptor& MemberDescriptor = MemberDescriptors[MemberIt];
+			const FProperty* Property = MemberProperties[MemberIt];
+			Property->CopyCompleteValue(DstStateBuffer + MemberDescriptor.ExternalMemberOffset, SrcStateBuffer + MemberDescriptor.ExternalMemberOffset);
+		}
+	}
+}
+
+void CopyDirtyMembers(uint8* RESTRICT DstStateBuffer, uint8* RESTRICT SrcStateBuffer, const FReplicationStateDescriptor* Descriptor)
+{
+	check(IsAligned(DstStateBuffer, Descriptor->ExternalAlignment) && IsAligned(SrcStateBuffer, Descriptor->ExternalAlignment));
+
+	// Merge changemasks
+	const bool bOverwriteChangeMask = false;
+	CopyPropertyReplicationStateInternals(DstStateBuffer, SrcStateBuffer, Descriptor, bOverwriteChangeMask);
+
+	// copy dirty members
+	const FReplicationStateMemberDescriptor* MemberDescriptors = Descriptor->MemberDescriptors;
+	const FProperty** MemberProperties = Descriptor->MemberProperties;
+	const FReplicationStateMemberPropertyDescriptor* MemberPropertyDescriptors = Descriptor->MemberPropertyDescriptors;
+	FNetBitArrayView DirtyStates = GetMemberChangeMask(SrcStateBuffer, Descriptor);
+	
+	const uint32 MemberCount = Descriptor->MemberCount;
+
+	const bool bIsInitState = Descriptor->IsInitState();
+
+	for (uint32 MemberIt = 0; MemberIt < MemberCount; ++MemberIt)
+	{
+		const FReplicationStateMemberPropertyDescriptor& MemberPropertyDescriptor = MemberPropertyDescriptors[MemberIt];
+		const FReplicationStateMemberChangeMaskDescriptor& ChangeMaskInfo = Descriptor->MemberChangeMaskDescriptors[MemberIt];
+
+		const bool bShouldCopyProperty = bIsInitState || DirtyStates.IsAnyBitSet(ChangeMaskInfo.BitOffset, ChangeMaskInfo.BitCount);
+		if (bShouldCopyProperty && MemberPropertyDescriptor.ArrayIndex == 0)
 		{
 			const FReplicationStateMemberDescriptor& MemberDescriptor = MemberDescriptors[MemberIt];
 			const FProperty* Property = MemberProperties[MemberIt];

@@ -375,6 +375,21 @@ void FPropertyReplicationState::PushPropertyReplicationState(const UObject* Owne
 	}
 }
 
+void FPropertyReplicationState::CopyDirtyProperties(const FPropertyReplicationState& Other)
+{
+	check(this != &Other && IsValid());
+	check(ReplicationStateDescriptor.GetReference() == Other.ReplicationStateDescriptor.GetReference());
+
+	if (!Private::IsReplicationStateBound(StateBuffer, ReplicationStateDescriptor.GetReference()))
+	{
+		Private::CopyDirtyMembers(StateBuffer, Other.StateBuffer, ReplicationStateDescriptor.GetReference());
+	}
+	else
+	{
+		Set(Other);
+	}
+}
+
 bool FPropertyReplicationState::PollObjectReferences(const void* RESTRICT SrcStateData)
 {
 	if (IsValid())

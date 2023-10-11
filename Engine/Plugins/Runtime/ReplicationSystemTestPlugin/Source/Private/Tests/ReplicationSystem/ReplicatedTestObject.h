@@ -428,6 +428,43 @@ public:
 	TArray<UE::Net::FReplicationFragment*> ReplicationFragments;
 };
 
+UCLASS()
+class UTestReplicatedObjectWithRepNotifies : public UReplicatedTestObject
+{
+	GENERATED_BODY()
+
+public:
+
+	UTestReplicatedObjectWithRepNotifies();
+
+	// Network interface must be part of base.
+	virtual void RegisterReplicationFragments(UE::Net::FFragmentRegistrationContext& Fragments, UE::Net::EFragmentRegistrationFlags RegistrationFlags) override;
+
+public:
+
+	UPROPERTY(Transient, ReplicatedUsing=OnRep_IntA)
+	int32 IntA = -1;
+	int32 PrevIntAStoredInOnRep = -1;
+
+	UPROPERTY(Transient, ReplicatedUsing=OnRep_IntB)
+	int32 IntB = -1;
+	int32 PrevIntBStoredInOnRep = -1;
+
+	UPROPERTY(Transient, Replicated)
+	int8 IntC = -1;
+
+public:
+	UFUNCTION()
+	void OnRep_IntA(int32 OldInt);
+
+	UFUNCTION()
+	void OnRep_IntB(int32 OldInt);
+
+	// Network data only for test
+	TArray<UE::Net::FReplicationFragment*> ReplicationFragments;
+};
+
+
 
 /**
  *  A test class for Replication on an object with no replicated members

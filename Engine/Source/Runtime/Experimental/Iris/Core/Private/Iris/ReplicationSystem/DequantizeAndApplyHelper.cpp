@@ -2,6 +2,7 @@
 
 #include "DequantizeAndApplyHelper.h"
 #include "Containers/ArrayView.h"
+#include "HAL/IConsoleManager.h"
 #include "Iris/Core/IrisProfiler.h"
 #include "Net/Core/NetBitArray.h"
 #include "Iris/ReplicationState/ReplicationStateDescriptor.h"
@@ -15,6 +16,12 @@
 
 namespace UE::Net::Private
 {
+
+static bool bCVarForceFullDequantizeAndApply = false;
+static FAutoConsoleVariableRef CVarForceFullDequantizeAndApply(
+	TEXT("net.iris.ForceFullDequantizeAndApply"),
+	bCVarForceFullDequantizeAndApply,
+	TEXT("When enabled a full dequantize of dirty states will be used when applying received statedata regardless of traits set in the fragments."));
 
 struct FDequantizeAndApplyHelper::FContext
 {
@@ -93,7 +100,8 @@ FDequantizeAndApplyHelper::FContext* FDequantizeAndApplyHelper::Initialize(FNetS
 		ChangeMaskReader.ReadBitStream(ChangeMaskStorage, ChangeMaskBitCount);
 
 		// Cache all ReplicationStates with dirty changes
-		const bool bShouldDequantizeState = ChangeMask.IsAnyBitSet() || (NetSerializationContext.IsInitState() && CurrentDescriptor->IsInitState());
+		const bool bIsInitState = NetSerializationContext.IsInitState() && CurrentDescriptor->IsInitState();
+		const bool bShouldDequantizeState = ChangeMask.IsAnyBitSet() || bIsInitState;
 		if (bShouldDequantizeState)
 		{
 			FContext::FStateData& StateData = CachedStateData[CachedStateCount];
@@ -112,8 +120,17 @@ FDequantizeAndApplyHelper::FContext* FDequantizeAndApplyHelper::Initialize(FNetS
 				FNetBitArrayView DestChangeMask = Private::GetMemberChangeMask(StateBuffer, CurrentDescriptor);
 				DestChangeMask.Copy(ChangeMask);
 	
-				// Dequantize state data
-				FReplicationStateOperations::Dequantize(NetSerializationContext, StateBuffer, (uint8*)CurrentInternalStateBuffer, CurrentDescriptor);
+				// Dequantize state data, if the fragment supports partial dequantize we will only dequantize dirty members
+				const bool bUseFullDequantizeAndApply = bIsInitState || bCVarForceFullDequantizeAndApply || !EnumHasAnyFlags(StateData.Fragment->GetTraits(), EReplicationFragmentTraits::SupportsPartialDequantizedState);
+				if (bUseFullDequantizeAndApply)
+				{
+					FReplicationStateOperations::Dequantize(NetSerializationContext, StateBuffer, (uint8*)CurrentInternalStateBuffer, CurrentDescriptor);
+				}
+				else
+				{
+					NetSerializationContext.SetChangeMask(&ChangeMask);
+					FReplicationStateOperations::DequantizeWithMask(NetSerializationContext, ChangeMask, 0U, StateBuffer, (uint8*)CurrentInternalStateBuffer, CurrentDescriptor);
+				}
 
 				StateData.StateBufferData.ExternalStateBuffer = StateBuffer;
 			}

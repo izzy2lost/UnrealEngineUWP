@@ -518,6 +518,40 @@ void UReplicatedSubObjectOrderObject::RegisterReplicationFragments(UE::Net::FFra
 }
 
 //////////////////////////////////////////////////////////////////////////
+// Implementation for UTestReplicatedObjectWithRepNotifies
+//////////////////////////////////////////////////////////////////////////
+void UTestReplicatedObjectWithRepNotifies::GetLifetimeReplicatedProps(TArray< class FLifetimeProperty >& OutLifetimeProps) const
+{
+	DOREPLIFETIME_CONDITION_NOTIFY(UTestReplicatedObjectWithRepNotifies, IntA, COND_None, REPNOTIFY_Always);
+	DOREPLIFETIME_CONDITION_NOTIFY(UTestReplicatedObjectWithRepNotifies, IntB, COND_None, REPNOTIFY_Always);
+	DOREPLIFETIME(UTestReplicatedObjectWithRepNotifies, IntC);
+}
+
+UTestReplicatedObjectWithRepNotifies::UTestReplicatedObjectWithRepNotifies()
+	: UReplicatedTestObject()
+{
+}
+
+void UTestReplicatedObjectWithRepNotifies::RegisterReplicationFragments(UE::Net::FFragmentRegistrationContext& Context, UE::Net::EFragmentRegistrationFlags RegistrationFlags)
+{
+	// Base object owns the fragment in this case
+	{
+		this->ReplicationFragments.Reset();
+		UE::Net::FReplicationFragmentUtil::CreateAndRegisterFragmentsForObject(this, Context, RegistrationFlags, &this->ReplicationFragments);
+	}
+}
+
+void UTestReplicatedObjectWithRepNotifies::OnRep_IntA(int32 OldInt)
+{
+	PrevIntAStoredInOnRep = OldInt;
+}
+
+void UTestReplicatedObjectWithRepNotifies::OnRep_IntB(int32 OldInt)
+{
+	PrevIntBStoredInOnRep = OldInt;
+}
+
+//////////////////////////////////////////////////////////////////////////
 // Implementation for UTestReplicatedIrisObjectWithDynamicCondition
 //////////////////////////////////////////////////////////////////////////
 UTestReplicatedIrisObjectWithDynamicCondition::UTestReplicatedIrisObjectWithDynamicCondition()

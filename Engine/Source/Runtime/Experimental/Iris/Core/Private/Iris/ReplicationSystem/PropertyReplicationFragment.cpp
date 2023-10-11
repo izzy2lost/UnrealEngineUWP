@@ -73,6 +73,8 @@ FPropertyReplicationFragment::FPropertyReplicationFragment(EReplicationFragmentT
 	}
 
 	Traits |= EReplicationFragmentTraits::HasPropertyReplicationState;
+	// We can handle partial state in all apply operations
+	Traits |= EReplicationFragmentTraits::SupportsPartialDequantizedState;
 }
 
 FPropertyReplicationFragment::~FPropertyReplicationFragment() = default;
@@ -106,7 +108,16 @@ void FPropertyReplicationFragment::CallRepNotifies(FReplicationStateApplyContext
 		// If we rely on received data for the onreps, we just copy the received state, otherwise we must store the local state before applying received data.
 		if (bUsePrevReceivedStateForOnReps && PrevReplicationState)
 		{
-			*PrevReplicationState = ReceivedState;
+			// Init is always a full state so we can just copy it
+			if (Context.bIsInit)
+			{
+				*PrevReplicationState = ReceivedState;
+			}
+			else
+			{
+				// As apply now might provide us with partial states we should only copy dirty members.
+				PrevReplicationState->CopyDirtyProperties(ReceivedState);
+			}
 		}
 	}
 	else

@@ -101,6 +101,11 @@ public:
 	 */
 	IRISCORE_API bool PollObjectReferences(const void* RESTRICT SrcData);
 
+	/**
+	 * Copy dirty properties from the other state including changemask
+	 */
+	IRISCORE_API void CopyDirtyProperties(const FPropertyReplicationState& Other);
+
 	struct FCallRepNotifiesParameters
 	{
 		// Previous state if requested
