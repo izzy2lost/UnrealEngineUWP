@@ -13614,57 +13614,48 @@ namespace UE::Private
 
 		bool bUseIrisRepSystem = bConfigCanUseIris && bIsEngineDefaultIris;
 
-		if (InNetDriverDefinition == NAME_GameNetDriver)
+		if (UGameInstance* ContextGameInstance = Context.OwningGameInstance)
 		{
-			if (UWorld* World = Context.World())
+			EReplicationSystem GameInstanceDesiredRepSystem = ContextGameInstance->GetDesiredReplicationSystem(InNetDriverDefinition);
+
+			// If the game instance requested to use the generic repsystem
+			if (GameInstanceDesiredRepSystem == EReplicationSystem::Generic)
 			{
-				// If we are the server look if the game mode wanted to override the replication system
-				if (AGameModeBase* GameMode = World->GetAuthGameMode())
-				{
-					EReplicationSystem RequestedRepSystem = GameMode->GetGameNetDriverReplicationSystem();
+				UE_CLOG(bUseIrisRepSystem, LogNet, Log, TEXT("GameInstance %s is forcing NetDriver %s (NetDefinition %s) to use the Generic replication system."), *GetNameSafe(ContextGameInstance), *InNetDriverName.ToString(), *InNetDriverDefinition.ToString());
+				bUseIrisRepSystem = false;
+			}
+			// If the game instance requested to use the Iris repsystem
+			else if (GameInstanceDesiredRepSystem == EReplicationSystem::Iris)
+			{
+				UE_CLOG(!bUseIrisRepSystem && bConfigCanUseIris, LogNet, Log, TEXT("GameInstance %s is forcing NetDriver %s (NetDefinition %s) to use the Iris replication system."), *GetNameSafe(ContextGameInstance), *InNetDriverName.ToString(), *InNetDriverDefinition.ToString());
+				
+				// Enable Iris ONLY if the config supports it.
+				bUseIrisRepSystem = bConfigCanUseIris;
+			}
 
-					// If the gamemode requested to use the generic repsystem
-					if (RequestedRepSystem == EReplicationSystem::Generic)
-					{
-						UE_CLOG(bUseIrisRepSystem, LogNet, Log, TEXT("GameMode %s is forcing NetDriver %s (NetDefinition %s) to use the Generic replication system."), *GetNameSafe(GameMode), *InNetDriverName.ToString(), *InNetDriverDefinition.ToString());
-						bUseIrisRepSystem = false;
-					}
-					// If the gamemode requested to use the Iris repsystem
-					else if (RequestedRepSystem == EReplicationSystem::Iris)
-					{
-						UE_CLOG(!bUseIrisRepSystem && bConfigCanUseIris, LogNet, Log, TEXT("GameMode %s is forcing NetDriver %s (NetDefinition %s) to use the Iris replication system."), *GetNameSafe(GameMode), *InNetDriverName.ToString(), *InNetDriverDefinition.ToString());
-
-						// Enable Iris ONLY if the config supports it.
-						bUseIrisRepSystem = bConfigCanUseIris;
-					}
-				}
-				else
-				{
 #if WITH_EDITOR
-					// In PIE let's cheat and make sure the clients follow what the server's net driver is using
-					if (Context.WorldType == EWorldType::PIE)
+			// In PIE let's cheat and make sure the clients follow what the server's net driver is using
+			if (Context.WorldType == EWorldType::PIE && !Context.RunAsDedicated)
+			{
+				if (FWorldContext* ServerPIEContext = GEngine->GetWorldContextFromPIEInstance(0))
+				{
+					if (ServerPIEContext->RunAsDedicated)
 					{
-						if (FWorldContext* ServerPIEContext = GEngine->GetWorldContextFromPIEInstance(0))
+						for (const FNamedNetDriver& PieNetDriver : ServerPIEContext->ActiveNetDrivers)
 						{
-							if (ServerPIEContext->RunAsDedicated)
+							if (PieNetDriver.NetDriverDef->DefName == NAME_GameNetDriver)
 							{
-								for (const FNamedNetDriver& PieNetDriver : ServerPIEContext->ActiveNetDrivers)
-								{
-									if (PieNetDriver.NetDriverDef->DefName == NAME_GameNetDriver)
-									{
-										bUseIrisRepSystem = PieNetDriver.NetDriver->IsUsingIrisReplication();
-										break;
-									}
-								}
+								bUseIrisRepSystem = PieNetDriver.NetDriver->IsUsingIrisReplication();
+								break;
 							}
 						}
 					}
-#endif
 				}
 			}
+#endif
 		}
 
-		// Ignore most of the above if the cmdline is requesting a specific system
+		// Ignore all of the above if the cmdline is requesting a specific system
 		const EReplicationSystem CmdlineRequest = UE::Net::GetUseIrisReplicationCmdlineValue();
 		if (CmdlineRequest == EReplicationSystem::Iris)
 		{

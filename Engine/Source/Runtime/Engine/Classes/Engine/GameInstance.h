@@ -646,6 +646,9 @@ public:
 	/** Remove a referenced object, this will allow it to GC out */
 	ENGINE_API virtual void UnregisterReferencedObject(UObject* ObjectToReference);
 
+	/** Allows a GameInstance to override the default configured replication system for it's specific conditions. Return Default to use the configured replication system. */
+	ENGINE_API virtual EReplicationSystem GetDesiredReplicationSystem(FName InNetDriverDefinition) const;
+
 protected:
 	/** Non-virtual dispatch for OnStart, also calls the associated global OnStartGameInstance. */
 	ENGINE_API void BroadcastOnStart();

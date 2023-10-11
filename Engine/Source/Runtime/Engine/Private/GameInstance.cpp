@@ -22,6 +22,7 @@
 #include "Framework/Application/SlateApplication.h"
 #include "Misc/PackageName.h"
 #include "Net/ReplayPlaylistTracker.h"
+#include "Net/Core/Connection/NetEnums.h"
 #include "ReplaySubsystem.h"
 
 #include UE_INLINE_GENERATED_CPP_BY_NAME(GameInstance)
@@ -1427,6 +1428,25 @@ bool UGameInstance::ClientTravelToSession(int32 ControllerId, FName InSessionNam
 void UGameInstance::NotifyPreClientTravel(const FString& PendingURL, ETravelType TravelType, bool bIsSeamlessTravel)
 {
 	OnNotifyPreClientTravel().Broadcast(PendingURL, TravelType, bIsSeamlessTravel);
+}
+
+EReplicationSystem UGameInstance::GetDesiredReplicationSystem(FName InNetDriverDefinition) const
+{
+	EReplicationSystem DesiredRepSystem = EReplicationSystem::Default;
+
+	if (InNetDriverDefinition == NAME_GameNetDriver)
+	{
+		if (UWorld* World = GetWorld())
+		{
+			// If we are the server, return the game mode's desired replication system
+			if (AGameModeBase* ServerGameMode = World->GetAuthGameMode())
+			{
+				return ServerGameMode->GetGameNetDriverReplicationSystem();
+			}
+		}
+	}
+
+	return DesiredRepSystem;
 }
 
 void UGameInstance::ReturnToMainMenu()
