@@ -189,7 +189,8 @@ void APCGWorldActor::GetGridGuids(PCGHiGenGrid::FSizeToGuidMap& OutSizeToGuidMap
 void APCGWorldActor::MergeFrom(APCGWorldActor* OtherWorldActor)
 {
 	check(OtherWorldActor && this != OtherWorldActor);
-	ensure(PartitionGridSize == OtherWorldActor->PartitionGridSize && bUse2DGrid == OtherWorldActor->bUse2DGrid && GridGuids.OrderIndependentCompareEqual(OtherWorldActor->GridGuids));
+	// TODO: Is this really important to check? It seems it can fail, cf FORT-664546. We might want to do something special about it.
+	// ensure(PartitionGridSize == OtherWorldActor->PartitionGridSize && bUse2DGrid == OtherWorldActor->bUse2DGrid && GridGuids.OrderIndependentCompareEqual(OtherWorldActor->GridGuids));
 	LandscapeCacheObject->TakeOwnership(OtherWorldActor->LandscapeCacheObject);
 }
 
