@@ -39,6 +39,18 @@ struct CHOOSER_API FChooserEvaluationInputObject
 USTRUCT(BlueprintType)
 struct CHOOSER_API FChooserEvaluationContext
 {
+	FChooserEvaluationContext() {}
+	FChooserEvaluationContext(UObject* ContextObject)
+	{
+		AddParam(ContextObject);
+	}
+	void AddParam(UObject* ContextObject)
+	{
+		Params.AddDefaulted();
+		Params.Last().InitializeAs(FChooserEvaluationInputObject::StaticStruct());
+		Params.Last().GetMutable<FChooserEvaluationInputObject>().Object = ContextObject;
+	}
+
 	#if WITH_EDITOR
     	FChooserDebuggingInfo DebuggingInfo;
     #endif

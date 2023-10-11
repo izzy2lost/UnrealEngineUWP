@@ -63,8 +63,8 @@ struct PROXYTABLE_API FRuntimeProxyValue
 	TArray<FProxyStructOutput> OutputStructData;
 };
 
-UCLASS(MinimalAPI,BlueprintType)
-class UProxyTable : public UObject
+UCLASS(BlueprintType)
+class PROXYTABLE_API UProxyTable : public UObject
 {
 	GENERATED_UCLASS_BODY()
 public:
