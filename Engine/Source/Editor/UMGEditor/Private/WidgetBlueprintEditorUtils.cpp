@@ -2018,13 +2018,13 @@ void FWidgetBlueprintEditorUtils::ImportPropertiesFromText(UObject* Object, cons
 	}
 }
 
-bool FWidgetBlueprintEditorUtils::IsBindWidgetProperty(const FProperty* InProperty)
+bool FWidgetBlueprintEditorUtils::IsBindWidgetProperty(FProperty* InProperty)
 {
 	bool bIsOptional;
 	return IsBindWidgetProperty(InProperty, bIsOptional);
 }
 
-bool FWidgetBlueprintEditorUtils::IsBindWidgetProperty(const FProperty* InProperty, bool& bIsOptional)
+bool FWidgetBlueprintEditorUtils::IsBindWidgetProperty(FProperty* InProperty, bool& bIsOptional)
 {
 	if ( InProperty )
 	{
@@ -2037,13 +2037,13 @@ bool FWidgetBlueprintEditorUtils::IsBindWidgetProperty(const FProperty* InProper
 	return false;
 }
 
-bool FWidgetBlueprintEditorUtils::IsBindWidgetAnimProperty(const FProperty* InProperty)
+bool FWidgetBlueprintEditorUtils::IsBindWidgetAnimProperty(FProperty* InProperty)
 {
 	bool bIsOptional;
 	return IsBindWidgetAnimProperty(InProperty, bIsOptional);
 }
 
-bool FWidgetBlueprintEditorUtils::IsBindWidgetAnimProperty(const FProperty* InProperty, bool& bIsOptional)
+bool FWidgetBlueprintEditorUtils::IsBindWidgetAnimProperty(FProperty* InProperty, bool& bIsOptional)
 {
 	if (InProperty)
 	{
