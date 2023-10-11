@@ -2,6 +2,7 @@
 
 #pragma once
 
+#include "Metadata/PCGAttributePropertySelector.h"
 #include "Metadata/PCGMetadataAttributeTpl.h"
 #include "Metadata/Accessors/IPCGAttributeAccessor.h"
 #include "Metadata/Accessors/PCGAttributeAccessorHelpers.h"
@@ -53,8 +54,8 @@ namespace PCGPropertyHelpers
 		// Class or ScriptStruct of the object/struct we want to extract the property from.
 		const UStruct* Class = nullptr;
 
-		// Name of the property we want to extract
-		FName PropertyName = NAME_None;
+		// Selector of the property we want to extract
+		FPCGAttributePropertySelector PropertySelector;
 
 		// Optional name of the attribute that will receive the extracted property. If None, will take the property name. 
 		// Also not used for Structs/Object extraction, as we will create multiple attributes, and they will be the name of all the extracted members.

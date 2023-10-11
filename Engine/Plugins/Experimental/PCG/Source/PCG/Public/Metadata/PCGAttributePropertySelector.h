@@ -58,6 +58,9 @@ public:
 	EPCGPointProperties GetPointProperty() const { return PointProperty; }
 	EPCGExtraProperties GetExtraProperty() const { return ExtraProperty; }
 
+	// Convenient function to know if it is a basic attribute (attribute and no extra names)
+	bool IsBasicAttribute() const;
+
 	// Return the name of the selector.
 	FName GetName() const;
 
@@ -77,6 +80,12 @@ public:
 		OutSelector.ImportFromOtherSelector(InOther);
 		return OutSelector;
 	}
+
+	// Convenience static constructors
+	static FPCGAttributePropertySelector CreateAttributeSelector(const FName AttributeName);
+	static FPCGAttributePropertySelector CreatePointPropertySelector(EPCGPointProperties PointProperty);
+	static FPCGAttributePropertySelector CreateExtraPropertySelector(EPCGExtraProperties ExtraProperty);
+	static FPCGAttributePropertySelector CreateSelectorFromString(const FString& String);
 
 	void ImportFromOtherSelector(const FPCGAttributePropertySelector& InOther);
 

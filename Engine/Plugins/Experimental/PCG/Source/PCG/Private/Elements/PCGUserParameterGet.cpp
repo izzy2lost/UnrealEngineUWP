@@ -10,6 +10,7 @@
 #include "PCGSubgraph.h"
 #include "Data/PCGUserParametersData.h"
 #include "Helpers/PCGPropertyHelpers.h"
+#include "Metadata/PCGAttributePropertySelector.h"
 
 #include "PropertyBag.h"
 #include "StructView.h"
@@ -158,7 +159,7 @@ bool FPCGUserParameterGetElement::ExecuteInternal(FPCGContext* Context) const
 		return true;
 	}
 
-	PCGPropertyHelpers::FExtractorParameters ExtractorParameters{ Parameters.GetMemory(), PropertyBag, PropertyName, PropertyName, Settings->bForceObjectAndStructExtraction, /*bPropertyNeedsToBeVisible=*/false };
+	PCGPropertyHelpers::FExtractorParameters ExtractorParameters{ Parameters.GetMemory(), PropertyBag, FPCGAttributePropertySelector::CreateAttributeSelector(PropertyName), PropertyName, Settings->bForceObjectAndStructExtraction, /*bPropertyNeedsToBeVisible=*/false};
 
 	if (UPCGParamData* ParamData = PCGPropertyHelpers::ExtractPropertyAsAttributeSet(ExtractorParameters, Context))
 	{

@@ -14,6 +14,81 @@
 
 #define LOCTEXT_NAMESPACE "PCGPropertyHelpers"
 
+namespace PCGPropertyHelpers
+{
+	static constexpr uint64 ExcludePropertyFlags = CPF_DisableEditOnInstance;
+	static constexpr uint64 IncludePropertyFlags = CPF_BlueprintVisible;
+
+	void LogError(const FText& ErrorMessage, FPCGContext* InOptionalContext)
+	{
+		if (InOptionalContext)
+		{
+			PCGE_LOG_C(Error, GraphAndLog, InOptionalContext, ErrorMessage);
+		}
+		else
+		{
+			UE_LOG(LogPCG, Error, TEXT("%s"), *ErrorMessage.ToString());
+		}
+	}
+
+	/**
+	* Recursive function to go down the property chain to find the property and its container address.
+	* @param CurrentClass      Struct/Class for the current container
+	* @param CurrentName       Property name to look for in the container class.
+	* @param NextNames         List of property names to continue extracting at a deeper level.
+	* @param bNeedsToBeVisible Discard properties that are not visibile in Blueprint
+	* @param OutContainer      Raw address for the current container. Will be write to at each recursive call.
+	* @param OptionalContext   Optional context used for logging.
+	* @returns                 The last property of the chain (and its container address is in OutContainer)
+	*/
+	FProperty* ExtractPropertyChain(const UStruct* CurrentClass, const FName CurrentName, TArrayView<const FString> NextNames, const bool bNeedsToBeVisible, const void*& OutContainer, FPCGContext* OptionalContext)
+	{
+		check(CurrentClass);
+
+		// Try to get the property
+		FProperty* Property = FindFProperty<FProperty>(CurrentClass, CurrentName);
+		if (!Property)
+		{
+			LogError(FText::Format(LOCTEXT("PropertyDoesNotExist", "Property '{0}' does not exist in {1}."), FText::FromName(CurrentName), FText::FromName(CurrentClass->GetFName())), OptionalContext);
+			return nullptr;
+		}
+
+		// Make sure the property is visible, if requested
+		if (bNeedsToBeVisible && (Property->HasAnyPropertyFlags(ExcludePropertyFlags) || !Property->HasAnyPropertyFlags(IncludePropertyFlags)))
+		{
+			LogError(FText::Format(LOCTEXT("PropertyExistsButNotVisible", "Property '{0}' does exist in {1}, but is not visible."), FText::FromName(CurrentName), FText::FromName(CurrentClass->GetFName())), OptionalContext);
+			return nullptr;
+		}
+
+		if (!NextNames.IsEmpty())
+		{
+			UStruct* NextClass = nullptr;
+
+			if (FStructProperty* StructProperty = CastField<FStructProperty>(Property))
+			{
+				NextClass = StructProperty->Struct;
+				OutContainer = StructProperty->ContainerPtrToValuePtr<void>(OutContainer);
+			}
+			else if (FObjectProperty* ObjectProperty = CastField<FObjectProperty>(Property))
+			{
+				NextClass = ObjectProperty->PropertyClass;
+				OutContainer = ObjectProperty->GetObjectPropertyValue_InContainer(OutContainer);
+			}
+			else
+			{
+				LogError(FText::Format(LOCTEXT("PropertyIsNotExtractable", "Property '{0}' does exist in {1}, but is not extractable."), FText::FromName(CurrentName), FText::FromName(CurrentClass->GetFName())), OptionalContext);
+				return nullptr;
+			}
+
+			return ExtractPropertyChain(NextClass, FName(NextNames[0]), NextNames.RightChop(1), bNeedsToBeVisible, OutContainer, OptionalContext);
+		}
+		else
+		{
+			return Property;
+		}
+	}
+}
+
 EPCGMetadataTypes PCGPropertyHelpers::GetMetadataTypeFromProperty(const FProperty* InProperty)
 {
 	if (!InProperty)
@@ -36,36 +111,12 @@ UPCGParamData* PCGPropertyHelpers::ExtractPropertyAsAttributeSet(const PCGProper
 {
 	check(Parameters.Container && Parameters.Class);
 
-	auto LogError = [InOptionalContext](const FText& ErrorMessage)
-	{
-		if (InOptionalContext)
-		{
-			PCGE_LOG_C(Error, GraphAndLog, InOptionalContext, ErrorMessage);
-		}
-		else
-		{
-			UE_LOG(LogPCG, Error, TEXT("%s"), *ErrorMessage.ToString());
-		}
-	};
+	const void* Container = Parameters.Container;
+	FProperty* Property = ExtractPropertyChain(Parameters.Class, Parameters.PropertySelector.GetName(), Parameters.PropertySelector.GetExtraNames(), Parameters.bPropertyNeedsToBeVisible, Container, InOptionalContext);
 
-	// Try to get the property
-	FProperty* Property = FindFProperty<FProperty>(Parameters.Class, Parameters.PropertyName);
 	if (!Property)
 	{
-		LogError(FText::Format(LOCTEXT("PropertyDoesNotExist", "Property '{0}' does not exist."), FText::FromName(Parameters.PropertyName)));
 		return nullptr;
-	}
-
-	// Make sure the property is visible, if requested
-	const uint64 ExcludePropertyFlags = CPF_DisableEditOnInstance;
-	const uint64 IncludePropertyFlags = CPF_BlueprintVisible;
-	if (Parameters.bPropertyNeedsToBeVisible)
-	{
-		if (Property->HasAnyPropertyFlags(ExcludePropertyFlags) || !Property->HasAnyPropertyFlags(IncludePropertyFlags))
-		{
-			LogError(FText::Format(LOCTEXT("PropertyExistsButNotVisible", "Property '{0}' does exist, but is not visible."), FText::FromName(Parameters.PropertyName)));
-			return nullptr;
-		}
 	}
 
 	// If the property is an array, we will work on the underlying property, and extract each element as an entry in the param data
@@ -75,10 +126,10 @@ UPCGParamData* PCGPropertyHelpers::ExtractPropertyAsAttributeSet(const PCGProper
 		Property = ArrayProperty->Inner;
 	}
 
-	using GetAddressFunc = TFunction<const void* (const void*)>;
 	using ExtractablePropertyTuple = TTuple<FName, const FProperty*>;
 	TArray<ExtractablePropertyTuple> ExtractableProperties;
 
+	using GetAddressFunc = TFunction<const void* (const void*)>;
 	GetAddressFunc AddressFunc;
 
 	// Force extraction if the property is not supported by accessors.
@@ -144,7 +195,7 @@ UPCGParamData* PCGPropertyHelpers::ExtractPropertyAsAttributeSet(const PCGProper
 
 	if (ExtractableProperties.IsEmpty())
 	{
-		LogError(LOCTEXT("NoPropertiesFound", "No properties found to extract"));
+		LogError(LOCTEXT("NoPropertiesFound", "No properties found to extract"), InOptionalContext);
 		return nullptr;
 	}
 
@@ -152,7 +203,7 @@ UPCGParamData* PCGPropertyHelpers::ExtractPropertyAsAttributeSet(const PCGProper
 	TArray<const void*, TInlineAllocator<16>> ElementAddresses;
 	if (ArrayProperty)
 	{
-		FScriptArrayHelper_InContainer Helper(ArrayProperty, Parameters.Container);
+		FScriptArrayHelper_InContainer Helper(ArrayProperty, Container);
 		ElementAddresses.Reserve(Helper.Num());
 		for (int32 DynamicIndex = 0; DynamicIndex < Helper.Num(); ++DynamicIndex)
 		{
@@ -161,7 +212,7 @@ UPCGParamData* PCGPropertyHelpers::ExtractPropertyAsAttributeSet(const PCGProper
 	}
 	else
 	{
-		ElementAddresses.Add(Parameters.Container);
+		ElementAddresses.Add(Container);
 	}
 
 	// From there, we should be able to create the data.
@@ -191,7 +242,7 @@ UPCGParamData* PCGPropertyHelpers::ExtractPropertyAsAttributeSet(const PCGProper
 
 			if (!Metadata->SetAttributeFromDataProperty(AttributeName, EntryKey, ContainerPtr, FinalProperty, /*bCreate=*/ true))
 			{
-				LogError(FText::Format(LOCTEXT("ErrorCreatingAttribute", "Error while creating an attribute for property '{0}'. Either the property type is not supported by PCG or attribute creation failed."), FText::FromString(FinalProperty->GetName())));
+				LogError(FText::Format(LOCTEXT("ErrorCreatingAttribute", "Error while creating an attribute for property '{0}'. Either the property type is not supported by PCG or attribute creation failed."), FText::FromString(FinalProperty->GetName())), InOptionalContext);
 				bValidOperation = false;
 				break;
 			}

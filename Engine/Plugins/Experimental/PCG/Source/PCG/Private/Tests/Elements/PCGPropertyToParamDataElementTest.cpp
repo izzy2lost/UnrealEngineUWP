@@ -94,14 +94,27 @@ bool VerifyAttributeValue(FPCGTestBaseClass* TestInstance, PCGTestsCommon::FTest
 
 		if (bSuccess)
 		{
-			const UPCGParamData* ParamData = Cast<UPCGParamData>(Context->OutputData.GetAllParams()[0].Data);
+			const UPCGParamData* ParamData = CastChecked<UPCGParamData>(Context->OutputData.GetAllParams()[0].Data);
+			const UPCGMetadata* Metadata = ParamData->ConstMetadata();
+			check(Metadata);
+
 			int32 Index = 0;
 			int32 ItemKey = 0;
+
+			// Make sure that we have exactly the same number of attributes as expected
+			if (!TestInstance->TestEqual(FormatWithPropertyName("Attribute number is matching"), Metadata->GetAttributeCount(), AttributeNames.Num()))
+			{
+				// Cleanup behind ourselves.
+				TestData.TestPCGComponent->GetGraph()->RemoveNode(TrivialNode);
+				TestData.TestPCGComponent->GetGraph()->RemoveNode(TestNode);
+
+				return false;
+			}
 
 			// Fold expression that will iterate on all Expected Values, to check their types and their values.
 			// We keep track of the current Index, to know which attribute to check, and an ItemKey to know where to look at in the value array of the attribute.
 			// cf. comment at the top to know in which order ExpectedValues should be.
-			([&Index, &AttributeNames, ParamData, &FormatWithPropertyNameAndSubNames, TestInstance, &bSuccess, &ItemKey, &ExpectedValues]()
+			([&Index, &AttributeNames, Metadata, &FormatWithPropertyNameAndSubNames, TestInstance, &bSuccess, &ItemKey, &ExpectedValues]()
 			{
 				if (bSuccess)
 				{
@@ -110,7 +123,7 @@ bool VerifyAttributeValue(FPCGTestBaseClass* TestInstance, PCGTestsCommon::FTest
 
 					// We use Index to track the current attribute to check
 					const FName AttributeName = AttributeNames[Index];
-					const FPCGMetadataAttributeBase* Attribute = ParamData->ConstMetadata()->GetConstAttribute(AttributeName);
+					const FPCGMetadataAttributeBase* Attribute = Metadata->GetConstAttribute(AttributeName);
 
 					bSuccess = TestInstance->TestNotNull(FormatWithPropertyNameAndSubNames("Attribute should not be null", AttributeName, ItemKey), Attribute);
 
@@ -233,6 +246,9 @@ bool FPCGPropertyToParamDataPropertyTypeTest::RunTest(const FString& Parameters)
 	Actor->ArrayOfVectorsProperty = { VectorValue, SecondVectorValue };
 	Actor->ArrayOfStructsProperty = { ColorValue, SecondColorValue };
 	Actor->ArrayOfObjectsProperty = { ObjectValue, SecondObjectValue };
+	Actor->DummyStruct.FloatProperty = 1.2f;
+	Actor->DummyStruct.IntArrayProperty = { 5, 6, 7 };
+	Actor->DummyStruct.Level2Struct.DoubleArrayProperty = { 0.1, 0.2, 0.3 };
 
 	// Basic properties
 	bSuccess &= VerifyAttributeValueValid(this, TestData, GET_MEMBER_NAME_CHECKED(APCGUnitTestDummyActor, IntProperty), 42ll, ExtraTestWhat);
@@ -281,9 +297,13 @@ bool FPCGPropertyToParamDataPropertyTypeTest::RunTest(const FString& Parameters)
 		(int64)ColorValue.R, (int64)ColorValue.G, (int64)ColorValue.B, (int64)ColorValue.A, (int64)SecondColorValue.R, (int64)SecondColorValue.G, (int64)SecondColorValue.B, (int64)SecondColorValue.A);
 	bSuccess &= VerifyAttributeValuesValid(this, TestData, GET_MEMBER_NAME_CHECKED(APCGUnitTestDummyActor, ArrayOfObjectsProperty), ObjectPropertyNames, ExtraTestWhat, ObjectValue->Int64Property, ObjectValue->DoubleProperty, SecondObjectValue->Int64Property, SecondObjectValue->DoubleProperty);
 
-	// Unsupported struct properties
-	AddExpectedError(TEXT("Error while creating an attribute for property"), EAutomationExpectedErrorFlags::Contains, 1);
-	bSuccess &= VerifyAttributeValueInvalid(this, TestData, GET_MEMBER_NAME_CHECKED(APCGUnitTestDummyActor, ColorProperty), ColorValue, ExtraTestWhat);
+	// Extractors
+	bSuccess &= VerifyAttributeValuesValid(this, TestData, TEXT("DummyStruct.FloatProperty"), { GET_MEMBER_NAME_CHECKED(FPCGDummyGetPropertyStruct, FloatProperty) }, ExtraTestWhat, 1.2);
+	bSuccess &= VerifyAttributeValuesValid(this, TestData, TEXT("DummyStruct.IntArrayProperty"), { GET_MEMBER_NAME_CHECKED(FPCGDummyGetPropertyStruct, IntArrayProperty) }, ExtraTestWhat, 5ll, 6ll, 7ll);
+	bSuccess &= VerifyAttributeValuesValid(this, TestData, TEXT("DummyStruct.Level2Struct.DoubleArrayProperty"), { GET_MEMBER_NAME_CHECKED(FPCGDummyGetPropertyLevel2Struct, DoubleArrayProperty) }, ExtraTestWhat, 0.1, 0.2, 0.3);
+
+	// Extracting the DummyStruct should only extract the float, as arrays and deeper structs are discarded
+	bSuccess &= VerifyAttributeValuesValid(this, TestData, TEXT("DummyStruct"), { GET_MEMBER_NAME_CHECKED(FPCGDummyGetPropertyStruct, FloatProperty) }, ExtraTestWhat, 1.2);
 
 	// Unknown property
 	AddExpectedError(TEXT("Property 'DummyMissingProperty' does not exist"), EAutomationExpectedErrorFlags::Contains, 1);

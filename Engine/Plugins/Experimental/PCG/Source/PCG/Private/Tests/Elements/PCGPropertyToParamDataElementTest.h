@@ -14,6 +14,30 @@ enum class EPCGUnitTestDummyEnum : int64
 	Three
 };
 
+USTRUCT(BlueprintType, meta = (Hidden))
+struct FPCGDummyGetPropertyLevel2Struct
+{
+	GENERATED_BODY()
+
+	UPROPERTY(BlueprintReadOnly, Category = "")
+	TArray<double> DoubleArrayProperty;
+};
+
+USTRUCT(BlueprintType, meta = (Hidden))
+struct FPCGDummyGetPropertyStruct
+{
+	GENERATED_BODY()
+
+	UPROPERTY(BlueprintReadOnly, Category = "")
+	TArray<int> IntArrayProperty;
+
+	UPROPERTY(BlueprintReadOnly, Category = "")
+	float FloatProperty = 0.0f;
+
+	UPROPERTY(BlueprintReadOnly, Category = "")
+	FPCGDummyGetPropertyLevel2Struct Level2Struct;
+};
+
 UCLASS(MinimalAPI, NotBlueprintable, NotPlaceable, NotBlueprintType, Transient, HideDropdown, meta = (Hidden))
 class UPCGDummyGetPropertyTest : public UObject
 {
@@ -101,6 +125,9 @@ public:
 
 	UPROPERTY(BlueprintReadOnly, Category = "")
 	TArray<TObjectPtr<UPCGDummyGetPropertyTest>> ArrayOfObjectsProperty;
+
+	UPROPERTY(BlueprintReadOnly, Category = "")
+	FPCGDummyGetPropertyStruct DummyStruct;
 };
 
 UCLASS(MinimalAPI, NotBlueprintable, NotPlaceable, NotBlueprintType, Transient, HideDropdown, meta = (Hidden))
