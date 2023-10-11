@@ -4,9 +4,10 @@
 
 #include "Containers/Array.h"
 #include "Containers/Map.h"
+#include "Compatibility/TypedElementObjectReinstancingManager.h"
 #include "Elements/Interfaces/TypedElementDataStorageInterface.h"
 #include "Elements/Interfaces/TypedElementDataStorageCompatibilityInterface.h"
-#include "Compatibility/TypedElementObjectReinstancingManager.h"
+#include "Misc/Change.h"
 #include "UObject/ObjectMacros.h"
 #include "UObject/WeakObjectPtr.h"
 
@@ -61,11 +62,27 @@ public:
 	TypedElementRowHandle FindRowWithCompatibleObjectExplicit(const void* Object) const override;
 
 private:
+	class FRegistrationCommandChange final : public FCommandChange
+	{
+	public:
+		FRegistrationCommandChange(TypedElementDataStorage::TableHandle InTable,
+			UTypedElementDatabaseCompatibility* InCompatibilityLayer);
+
+		void Apply(UObject* Object) override;
+		void Revert(UObject* Object) override;
+		FString ToString() const override;
+
+	private:
+		UTypedElementDatabaseCompatibility* CompatibilityLayer{ nullptr };
+		TypedElementDataStorage::TableHandle Table{ TypedElementDataStorage::InvalidTableHandle };
+	};
+
 	void Prepare();
 	void Reset();
 	void CreateStandardArchetypes();
 	
 	bool ShouldAddObject(const UObject* Object) const;
+	TypedElementRowHandle AddCompatibleObjectExplicitNoTransaction(UObject* Object, TypedElementTableHandle Table);
 	TypedElementRowHandle DealiasObject(const UObject* Object) const;
 
 	void Tick();

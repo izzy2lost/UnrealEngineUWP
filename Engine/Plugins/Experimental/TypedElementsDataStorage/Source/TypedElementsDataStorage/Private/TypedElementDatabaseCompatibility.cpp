@@ -4,6 +4,7 @@
 
 #include "Algo/Unique.h"
 #include "Editor.h"
+#include "Editor/TransBuffer.h"
 #include "Elements/Columns/TypedElementCompatibilityColumns.h"
 #include "Elements/Columns/TypedElementLabelColumns.h"
 #include "Elements/Columns/TypedElementMiscColumns.h"
@@ -86,31 +87,18 @@ TypedElementRowHandle UTypedElementDatabaseCompatibility::AddCompatibleObjectExp
 
 TypedElementRowHandle UTypedElementDatabaseCompatibility::AddCompatibleObjectExplicit(UObject* Object, TypedElementTableHandle Table)
 {
-	using namespace TypedElementDataStorage;
-
-#if TEDS_SEPARATE_ACTOR_REGISTRATION
-	if (Object->IsA<AActor>())
+	if (ensureMsgf(Storage, TEXT("Trying to add a UObject to Typed Element's Data Storage before the storage is available.")) &&
+		ShouldAddObject(Object))
 	{
-		return AddCompatibleObjectExplicit(static_cast<AActor*>(Object));
+		if (GUndo)
+		{
+			GUndo->StoreUndo(Object, MakeUnique<FRegistrationCommandChange>(Table, this));
+		}
+		return AddCompatibleObjectExplicitNoTransaction(Object, Table);
 	}
 	else
-#endif
 	{
-		if (ensureMsgf(Storage, TEXT("Trying to add a UObject to Typed Element's Data Storage before the storage is available.")) && 
-			ShouldAddObject(Object))
-		{
-			TypedElementRowHandle ReservedRow = Storage->ReserveRow();
-			Storage->IndexRow(GenerateIndexHash(Object), ReservedRow);
-			
-			PendingRegistration<TWeakObjectPtr<UObject>>& Pending = UObjectsPendingRegistration.FindOrAdd(Table);
-			Pending.Add(ReservedRow, Object);
-			
-			return ReservedRow;
-		}
-		else
-		{
-			return TypedElementInvalidRowHandle;
-		}
+		return TypedElementInvalidRowHandle;
 	}
 }
 
@@ -354,6 +342,28 @@ bool UTypedElementDatabaseCompatibility::ShouldAddObject(const UObject* Object) 
 	return Include;
 }
 
+TypedElementRowHandle UTypedElementDatabaseCompatibility::AddCompatibleObjectExplicitNoTransaction(UObject* Object, TypedElementTableHandle Table)
+{
+	using namespace TypedElementDataStorage;
+
+#if TEDS_SEPARATE_ACTOR_REGISTRATION
+	if (Object->IsA<AActor>())
+	{
+		return AddCompatibleObjectExplicit(static_cast<AActor*>(Object));
+	}
+	else
+#endif
+	{
+		TypedElementRowHandle ReservedRow = Storage->ReserveRow();
+		Storage->IndexRow(GenerateIndexHash(Object), ReservedRow);
+
+		PendingRegistration<TWeakObjectPtr<UObject>>& Pending = UObjectsPendingRegistration.FindOrAdd(Table);
+		Pending.Add(ReservedRow, Object);
+
+		return ReservedRow;
+	}
+}
+
 TypedElementRowHandle UTypedElementDatabaseCompatibility::DealiasObject(const UObject* Object) const
 {
 	for (const ObjectToRowDealiaser& Dealiaser : ObjectToRowDialiasers)
@@ -554,7 +564,6 @@ void UTypedElementDatabaseCompatibility::TickPendingUObjectRegistration()
 					Storage->AddOrGetColumn<FTypedElementClassTypeInfoColumn>(Row, FTypedElementClassTypeInfoColumn{ .TypeInfo = Object->GetClass() });
 					// Make sure the new row is tagged for update.
 					Storage->AddColumn<FTypedElementSyncFromWorldTag>(Row);
-					
 					OnObjectAdded(Object.Get(), Object->GetClass(), Row);
 				});
 		}
@@ -671,4 +680,32 @@ void UTypedElementDatabaseCompatibility::OnPreObjectRemoved(const void* Object, 
 		const ObjectRemovedCallback& Callback = CallbackPair.Key;
 		Callback(Object, TypeInfo, Row);
 	}
+}
+
+
+
+//
+// UTypedElementDatabaseCompatibility::FRegistrationCommandChange
+//
+
+UTypedElementDatabaseCompatibility::FRegistrationCommandChange::FRegistrationCommandChange(
+	TypedElementDataStorage::TableHandle InTable, UTypedElementDatabaseCompatibility* InCompatibilityLayer)
+	: CompatibilityLayer(InCompatibilityLayer)
+	, Table(InTable)
+{
+}
+
+void UTypedElementDatabaseCompatibility::FRegistrationCommandChange::Apply(UObject* Object)
+{
+	CompatibilityLayer->AddCompatibleObjectExplicitNoTransaction(Object, Table);
+}
+
+void UTypedElementDatabaseCompatibility::FRegistrationCommandChange::Revert(UObject* Object)
+{
+	CompatibilityLayer->RemoveCompatibleObject(Object);
+}
+
+FString UTypedElementDatabaseCompatibility::FRegistrationCommandChange::ToString() const
+{
+	return TEXT("Typed Element Data Storage Compatibility - Registration");
 }
