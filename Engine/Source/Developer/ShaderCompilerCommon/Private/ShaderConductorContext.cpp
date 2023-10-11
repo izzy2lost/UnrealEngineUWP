@@ -431,7 +431,8 @@ namespace CrossCompiler
 			DxcArgRefs.Add("2017");
 			break;
 		case 2018:
-			// Default
+			DxcArgRefs.Add("-HV");
+			DxcArgRefs.Add("2018");
 			break;
 		case 2021:
 			DxcArgRefs.Add("-HV");
