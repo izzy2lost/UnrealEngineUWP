@@ -182,7 +182,7 @@ static FAutoConsoleVariableRef CVar_IoReportAnalytics(
 	GIasReportAnalyticsEnabled,
 	TEXT("Enables reporting statics to the analytics system"));
 
-bool GIasGenerateOnDemandToc = false;
+bool GIasGenerateOnDemandToc = true;
 static FAutoConsoleVariableRef CVar_IasGenerateOnDemandToc(
 	TEXT("s.IasGenerateOnDemandToc"),
 	GIasGenerateOnDemandToc,
@@ -192,7 +192,7 @@ static FAutoConsoleVariableRef CVar_IasGenerateOnDemandToc(
 
 // A temp fallback path allowing us to attempt to load the OnDemand toc from disk rather than
 // trying to generate it.
-bool GIasLoadOnDemandToc = false;
+bool GIasLoadOnDemandToc = true;
 static FAutoConsoleVariableRef CVar_IasLoadOnDemandToc(
 	TEXT("ias.LoadOnDemandToc"),
 	GIasLoadOnDemandToc,
