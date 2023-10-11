@@ -1354,6 +1354,7 @@ void ULandscapeComponent::PostLoad()
 	{
 		UpdateGrassTypes();
 	}
+	UpdateGrassTypesMaxDiscardDistance();
 
 #if !UE_BUILD_SHIPPING
 	if (MobileCombinationMaterialInstances.Num() == 0)

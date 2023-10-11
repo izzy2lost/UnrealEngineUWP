@@ -882,6 +882,7 @@ bool ULandscapeComponent::UpdateGrassTypes(bool bForceUpdate)
 			bChanged = true;
 
 			GrassTypes = Material->GetMaterial()->GetCachedExpressionData().GrassTypes;
+			UpdateGrassTypesMaxDiscardDistance();
 		}
 	}
 	return bChanged;
@@ -2537,11 +2538,6 @@ void ALandscapeProxy::UpdateGrassDataStatus(TSet<UTexture2D*>* OutCurrentForcedS
 
 			// outdated meaning: it has grass data, but it is not up to date
 			bool bIsGrassMapOutdated = Component->GrassData->HasValidData() && bGrassMapGenerationHashChanged;
-
-			if (bGrassMapGenerationHashChanged)
-			{
-				Component->UpdateGrassTypesMaxDiscardDistance();
-			}
 
 			if (bIsGrassMapOutdated && OutOutdatedComponents)
 			{
