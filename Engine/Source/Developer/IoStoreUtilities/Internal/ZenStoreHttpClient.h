@@ -54,9 +54,9 @@ public:
 	const TCHAR* GetHostName() const { return ZenService.GetInstance().GetHostName(); }
 	uint16 GetPort() const { return ZenService.GetInstance().GetPort(); }
 	const UE::Zen::FZenServiceInstance& GetZenServiceInstance() const { return ZenService.GetInstance(); }
-#else // Default to localhost:1337 for platforms where Zen wouldn't be supported yet
+#else // Default to localhost:8558 for platforms where Zen wouldn't be supported yet
 	const TCHAR* GetHostName() const { return TEXT("localhost"); }
-	uint16 GetPort() const { return 1337; }
+	uint16 GetPort() const { return 8558; }
 #endif
 
 	TFuture<TIoStatusOr<FCbObject>> GetOplog();

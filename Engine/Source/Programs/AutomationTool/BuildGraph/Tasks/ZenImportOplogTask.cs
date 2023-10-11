@@ -74,7 +74,7 @@ namespace AutomationTool.Tasks
 		/// The host port for the zen server we are importing from
 		/// </summary>
 		[TaskParameter(Optional = true)]
-		public string HostPort = "1337";
+		public string HostPort = "8558";
 		
 
 		/// <summary>
@@ -227,7 +227,7 @@ namespace AutomationTool.Tasks
 
 			Writer.WriteBool("islocalhost", true);
 			Writer.WriteString("hostname", "localhost");
-			Writer.WriteInteger("hostport", 1337);
+			Writer.WriteInteger("hostport", 8558);
 			Writer.WriteString("projectid", Parameters.ProjectName);
 			Writer.WriteString("oplogid", Parameters.OplogName);
 

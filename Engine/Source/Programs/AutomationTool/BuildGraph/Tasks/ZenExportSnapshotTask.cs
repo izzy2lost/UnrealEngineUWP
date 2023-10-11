@@ -371,7 +371,7 @@ namespace AutomationTool.Tasks
 					ExportSourceData NewExportSource = new ExportSourceData();
 					NewExportSource.IsLocalHost = ZenServerObject["islocalhost"].AsBool();
 					NewExportSource.HostName = ZenServerObject["hostname"].AsString("localhost");
-					NewExportSource.HostPort = ZenServerObject["hostport"].AsInt16(1337);
+					NewExportSource.HostPort = ZenServerObject["hostport"].AsInt16(8558);
 					NewExportSource.ProjectId = ZenServerObject["projectid"].AsString();
 					NewExportSource.OplogId = ZenServerObject["oplogid"].AsString();
 					NewExportSource.TargetPlatform = Platform;

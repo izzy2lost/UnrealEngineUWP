@@ -39,7 +39,7 @@ struct FServiceAutoLaunchSettings
 {
 	FString DataPath;
 	FString ExtraArgs;
-	uint16 DesiredPort = 1337;
+	uint16 DesiredPort = 8558;
 	bool bShowConsole = false;
 	bool bLimitProcessLifetime = false;
 	bool bSendUnattendedBugReports = false;

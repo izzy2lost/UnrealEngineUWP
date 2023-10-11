@@ -836,7 +836,7 @@ namespace AutomationScripts
 			}
 
 			string ProjectId = ProjectUtils.GetProjectPathId(SC.RawProjectPath);
-			ushort ZenHostPort = 1337;
+			ushort ZenHostPort = 8558;
 			List<string> HostAddresses = null;
 			if (ZenStoreMarkerFile != null)
 			{

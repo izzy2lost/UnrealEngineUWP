@@ -293,7 +293,7 @@ namespace OidcToken
 		/// <summary>
 		/// The url to the zen server that we should share a token with (if Zen flag is set)
 		/// </summary>
-		public string ZenUrl { get; set; } = "http://localhost:1337";
+		public string ZenUrl { get; set; } = "http://localhost:8558";
 		
 		/// <summary>
 		/// Path to the game root directory

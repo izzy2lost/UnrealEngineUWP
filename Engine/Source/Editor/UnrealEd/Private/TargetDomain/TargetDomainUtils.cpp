@@ -427,9 +427,9 @@ TArray<const UTF8CHAR*> FEditorDomainOplog::ReservedOplogKeys;
 
 FEditorDomainOplog::FEditorDomainOplog()
 #if UE_WITH_ZEN
-: HttpClient(TEXT("localhost"), UE::Zen::FZenServiceInstance::GetAutoLaunchedPort() > 0 ? UE::Zen::FZenServiceInstance::GetAutoLaunchedPort() : 1337)
+: HttpClient(TEXT("localhost"), UE::Zen::FZenServiceInstance::GetAutoLaunchedPort() > 0 ? UE::Zen::FZenServiceInstance::GetAutoLaunchedPort() : 8558)
 #else
-: HttpClient(TEXT("localhost"), 1337)
+: HttpClient(TEXT("localhost"), 8558)
 #endif
 {
 	StaticInit();
