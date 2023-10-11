@@ -5,6 +5,7 @@
 #include "NiagaraTypes.h"
 #include "NiagaraEditorCommon.h"
 #include "NiagaraEditorStyle.h"
+#include "NiagaraVariableMetaData.h"
 
 #include "SEnumCombo.h"
 #include "Engine/Texture2D.h"

@@ -23,6 +23,7 @@
 #include "NiagaraScriptSource.h"
 #include "NiagaraSimulationStageBase.h"
 #include "NiagaraSystem.h"
+#include "NiagaraVariableMetaData.h"
 #include "NiagaraParameterBinding.h"
 #include "SNiagaraParameterEditor.h"
 #include "Customizations/NiagaraTypeCustomizations.h"
