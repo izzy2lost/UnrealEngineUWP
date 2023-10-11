@@ -193,6 +193,8 @@ void FCompensationEvaluator::ComputeLocalTransforms(
 			BakeHelper->StopBaking(MovieScene);
 		}
 	}
+	//get back to where we are at, should also make sure things are active
+	InSequencer->ForceEvaluate();
 }
 
 void FCompensationEvaluator::ComputeLocalTransformsForBaking(UWorld* InWorld, const TSharedPtr<ISequencer>& InSequencer, const TArray<FFrameNumber>& InFrames)
