@@ -101,6 +101,12 @@ namespace PCGUtils
 					break;
 				}
 
+				if (Task.ParentId == PathIds.Last())
+				{
+					ensureMsgf(false, TEXT("Parent ID is same as current task ID which will result in infinite loop."));
+					break;
+				}
+
 				PathIds.Add(Task.ParentId);
 			}
 

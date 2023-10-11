@@ -533,9 +533,9 @@ void FPCGGraphCompiler::CullTasks(TArray<FPCGGraphTask>& InOutCompiledTasks, boo
 
 	InOutCompiledTasks.SetNum(WriteIndex);
 
-	// Remap input task IDs, and remove edges that connect to culled nodes.
 	for (FPCGGraphTask& Task : InOutCompiledTasks)
 	{
+		// Remap input task IDs, and remove edges that connect to culled nodes.
 		for (int32 InputIndex = Task.Inputs.Num() - 1; InputIndex >= 0; --InputIndex)
 		{
 			const int32 InputTaskId = Task.Inputs[InputIndex].TaskId;
@@ -548,6 +548,17 @@ void FPCGGraphCompiler::CullTasks(TArray<FPCGGraphTask>& InOutCompiledTasks, boo
 			{
 				Task.Inputs.RemoveAt(InputIndex);
 			}
+		}
+
+		// Remap parent ID if there tasks is in a child scope.
+		if (Task.ParentId != InvalidPCGTaskId)
+		{
+			const int32 RemappedParentId = TaskRemapping[Task.ParentId];
+			// Parent task should not have been culled.
+			ensure(RemappedParentId != INDEX_NONE);
+
+			// Write the remapped ID - even if it's invalid/INDEX_NONE. Hanging parent IDs can cause issues elsewhere.
+			Task.ParentId = RemappedParentId;
 		}
 	}
 }
@@ -594,7 +605,7 @@ void FPCGGraphCompiler::OffsetNodeIds(TArray<FPCGGraphTask>& Tasks, FPCGTaskId O
 	{
 		Task.NodeId += Offset;
 
-		if  (Task.ParentId == InvalidPCGTaskId)
+		if (Task.ParentId == InvalidPCGTaskId)
 		{
 			Task.ParentId = ParentId;
 		}
@@ -603,7 +614,7 @@ void FPCGGraphCompiler::OffsetNodeIds(TArray<FPCGGraphTask>& Tasks, FPCGTaskId O
 			Task.ParentId += Offset;
 		}
 
-		for(FPCGGraphTaskInput& Input : Task.Inputs)
+		for (FPCGGraphTaskInput& Input : Task.Inputs)
 		{
 			Input.TaskId += Offset;
 		}
