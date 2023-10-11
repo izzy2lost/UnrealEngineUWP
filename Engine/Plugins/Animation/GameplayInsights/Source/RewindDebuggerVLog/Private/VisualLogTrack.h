@@ -7,6 +7,7 @@
 #include "SEventTimelineView.h"
 #include "IDetailsView.h"
 #include "VLogDetailsObject.h"
+#include "UObject/WeakObjectPtrTemplates.h"
 
 namespace RewindDebugger
 {
@@ -26,6 +27,8 @@ private:
 	virtual uint64 GetObjectIdInternal() const override { return ObjectId; }
 	virtual FName GetNameInternal() const override { return Category; }
 
+	UVLogDetailsObject* InitializeDetailsObject();
+
 	TSharedPtr<SEventTimelineView::FTimelineEventData> GetEventData() const;
 	
 	mutable TSharedPtr<SEventTimelineView::FTimelineEventData> EventData;
@@ -36,7 +39,7 @@ private:
 	FSlateIcon Icon;
 	FText TrackName;
 	TSharedPtr<IDetailsView> DetailsView;
-	UVLogDetailsObject* DetailsObject;
+	TWeakObjectPtr<UVLogDetailsObject> DetailsObjectWeakPtr;
 
 	double PreviousScrubTime = 0.0f;
 	

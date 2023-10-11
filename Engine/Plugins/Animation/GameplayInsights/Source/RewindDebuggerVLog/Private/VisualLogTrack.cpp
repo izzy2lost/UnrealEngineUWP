@@ -12,6 +12,15 @@
 namespace RewindDebugger
 {
 
+UVLogDetailsObject* FVisualLogCategoryTrack::InitializeDetailsObject()
+{
+	UVLogDetailsObject* DetailsObject = NewObject<UVLogDetailsObject>();
+	DetailsObject->SetFlags(RF_Standalone);
+	DetailsObjectWeakPtr = MakeWeakObjectPtr(DetailsObject);
+	DetailsView->SetObject(DetailsObject);
+	return DetailsObject;
+}
+
 FVisualLogCategoryTrack::FVisualLogCategoryTrack(uint64 InObjectId, const FName& InCategory) :
 	ObjectId(InObjectId),
 	Category(InCategory)
@@ -20,19 +29,21 @@ FVisualLogCategoryTrack::FVisualLogCategoryTrack(uint64 InObjectId, const FName&
 	EventData = MakeShared<SEventTimelineView::FTimelineEventData>();
 	Icon = FSlateIcon("EditorStyle", "Sequencer.Tracks.Event", "Sequencer.Tracks.Event");
 
-	DetailsObject = NewObject<UVLogDetailsObject>(GetTransientPackage(), UVLogDetailsObject::StaticClass(), NAME_None, RF_Transient|RF_Standalone);
 	
 	FPropertyEditorModule& PropertyEditorModule = FModuleManager::GetModuleChecked<FPropertyEditorModule>("PropertyEditor");
 	FDetailsViewArgs DetailsViewArgs;
 	DetailsViewArgs.NameAreaSettings = FDetailsViewArgs::HideNameArea;
 	DetailsView = PropertyEditorModule.CreateDetailView(DetailsViewArgs);
-	DetailsView->SetObject(DetailsObject);
-	
+
+	InitializeDetailsObject();
 }
 
 FVisualLogCategoryTrack::~FVisualLogCategoryTrack()
 {
-	DetailsObject->SetFlags(RF_Standalone);
+	if (UVLogDetailsObject* DetailsObject = DetailsObjectWeakPtr.Get())
+	{
+		DetailsObject->ClearFlags(RF_Standalone);
+	}
 }
 
 TSharedPtr<SEventTimelineView::FTimelineEventData> FVisualLogCategoryTrack::GetEventData() const
@@ -69,6 +80,7 @@ bool FVisualLogCategoryTrack::UpdateInternal()
 	double EndTime = TraceTimeRange.GetUpperBoundValue();
 	
 	const TraceServices::IAnalysisSession* AnalysisSession = RewindDebugger->GetAnalysisSession();
+	
 	if (const FVisualLoggerProvider* VisLogProvider = AnalysisSession->ReadProvider<FVisualLoggerProvider>(FVisualLoggerProvider::ProviderName))
 	{
 		if(EventUpdateRequested > 10)
@@ -98,15 +110,25 @@ bool FVisualLogCategoryTrack::UpdateInternal()
 		if (PreviousScrubTime != CurrentScrubTime)
 		{
 			PreviousScrubTime = CurrentScrubTime;
+
+			UVLogDetailsObject* DetailsObject = DetailsObjectWeakPtr.Get();
+			if (DetailsObject == nullptr)
+			{
+				// this should not happen unless the object was garbage collected (which should not happen since it's marked as Standalone)
+				DetailsObject = InitializeDetailsObject();
+			}
+
 			DetailsObject->VisualLogDetails.SetNum(0,false);
 			
 			const TraceServices::IFrameProvider& FramesProvider = TraceServices::ReadFrameProvider(*AnalysisSession);
+			TraceServices::FAnalysisSessionReadScope SessionReadScope(*AnalysisSession);
+			
 			TraceServices::FFrame MarkerFrame;
 			if(FramesProvider.GetFrameFromTime(ETraceFrameType::TraceFrameType_Game, CurrentScrubTime, MarkerFrame))
 			{
-				VisLogProvider->ReadVisualLogEntryTimeline(ObjectId, [this, &MarkerFrame, EndTime, VisLogProvider, AnalysisSession](const FVisualLoggerProvider::VisualLogEntryTimeline& InTimeline)
+				VisLogProvider->ReadVisualLogEntryTimeline(ObjectId, [this, DetailsObject, &MarkerFrame, EndTime, VisLogProvider, AnalysisSession](const FVisualLoggerProvider::VisualLogEntryTimeline& InTimeline)
 				{
-					InTimeline.EnumerateEvents(MarkerFrame.StartTime, MarkerFrame.EndTime, [this, VisLogProvider, AnalysisSession](double InStartTime, double InEndTime, uint32 InDepth, const FVisualLogEntry& InMessage)
+					InTimeline.EnumerateEvents(MarkerFrame.StartTime, MarkerFrame.EndTime, [this, DetailsObject, VisLogProvider, AnalysisSession](double InStartTime, double InEndTime, uint32 InDepth, const FVisualLogEntry& InMessage)
 					{
 						for(const FVisualLogShapeElement& Element : InMessage.ElementsToDraw)
 						{

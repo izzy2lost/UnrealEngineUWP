@@ -30,6 +30,8 @@ bool FVisualLoggerProvider::ReadVisualLogEntryTimeline(uint64 InObjectId, TFunct
 
 void FVisualLoggerProvider::EnumerateCategories(TFunctionRef<void(const FName&)> Callback) const
 {
+	Session.ReadAccessCheck();
+	
 	for(const FName& Category : Categories)
 	{
 		Callback(Category);
