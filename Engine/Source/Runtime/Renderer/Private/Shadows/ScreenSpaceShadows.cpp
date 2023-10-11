@@ -15,6 +15,24 @@
 #include "RenderGraphUtils.h"
 #include "PixelShaderUtils.h"
 
+#include "bend_sss_cpu.h"
+
+enum class ContactShadowsMethod
+{
+	StochasticJittering = 0,
+	BendSSS = 1,
+};
+
+static int32 GContactShadowsMethod = 0;
+static FAutoConsoleVariableRef CVarContactShadowsMethod(
+	TEXT("r.ContactShadows.Standalone.Method"),
+	GContactShadowsMethod,
+	TEXT("Technique to use to calculate Contact (Screen Space) Shadows:\n")
+	TEXT("0 - Stochastic Jittering.\n")
+	TEXT("1 - Bend Screen Space Shadows."),
+	ECVF_Scalability | ECVF_RenderThreadSafe
+);
+
 extern void GetLightContactShadowParameters(const FLightSceneProxy* Proxy, float& OutLength, bool& bOutLengthInWS, float& OutCastingIntensity, float& OutNonCastingIntensity);
 
 const int32 GScreenSpaceShadowsTileSizeX = 8;
@@ -63,6 +81,45 @@ class FScreenSpaceShadowsCS : public FGlobalShader
 
 IMPLEMENT_GLOBAL_SHADER(FScreenSpaceShadowsCS, "/Engine/Private/ScreenSpaceShadows.usf", "ScreenSpaceShadowsCS", SF_Compute);
 
+class FScreenSpaceShadowsBendCS : public FGlobalShader
+{
+	DECLARE_GLOBAL_SHADER(FScreenSpaceShadowsBendCS);
+	SHADER_USE_PARAMETER_STRUCT(FScreenSpaceShadowsBendCS, FGlobalShader);
+
+	BEGIN_SHADER_PARAMETER_STRUCT(FParameters, )
+		SHADER_PARAMETER_RDG_TEXTURE_UAV(RWTexture2D<float>, OutputTexture)
+		SHADER_PARAMETER_RDG_TEXTURE(Texture2D<float>, DepthTexture)
+		SHADER_PARAMETER_SAMPLER(SamplerState, PointBorderSampler)
+		SHADER_PARAMETER_STRUCT_REF(FViewUniformShaderParameters, View)
+		SHADER_PARAMETER(FVector3f, LightDirection)
+		SHADER_PARAMETER(float, ContactShadowLength)
+		SHADER_PARAMETER(uint32, bContactShadowLengthInWS)
+		SHADER_PARAMETER(float, ContactShadowCastingIntensity)
+		SHADER_PARAMETER(FIntRect, ScissorRectMinAndSize)
+		SHADER_PARAMETER(uint32, DownsampleFactor)
+		SHADER_PARAMETER(FVector2f, InvDepthTextureSize)
+		SHADER_PARAMETER(FVector4f, LightCoordinate)
+		SHADER_PARAMETER(FIntVector, WaveOffset)
+	END_SHADER_PARAMETER_STRUCT()
+
+	static bool ShouldCompilePermutation(const FGlobalShaderPermutationParameters& Parameters)
+	{
+		return true;
+	}
+
+	static void ModifyCompilationEnvironment(const FGlobalShaderPermutationParameters& Parameters, FShaderCompilerEnvironment& OutEnvironment)
+	{
+		OutEnvironment.SetDefine(TEXT("THREADGROUP_SIZEX"), 64);
+		OutEnvironment.SetDefine(TEXT("THREADGROUP_SIZEY"), 1);
+		OutEnvironment.SetDefine(TEXT("FORCE_DEPTH_TEXTURE_READS"), 1);
+		OutEnvironment.SetDefine(TEXT("PLATFORM_SUPPORTS_TYPED_UAV_LOAD"), (int32)RHISupports4ComponentUAVReadWrite(Parameters.Platform));
+
+		OutEnvironment.CompilerFlags.Add(CFLAG_ForceDXC);
+	}
+};
+
+IMPLEMENT_GLOBAL_SHADER(FScreenSpaceShadowsBendCS, "/Engine/Private/ScreenSpaceShadows.usf", "ScreenSpaceShadowsBendCS", SF_Compute);
+
 class FScreenSpaceShadowsUpsamplePS : public FGlobalShader
 {
 	DECLARE_GLOBAL_SHADER(FScreenSpaceShadowsUpsamplePS);
@@ -98,6 +155,70 @@ BEGIN_SHADER_PARAMETER_STRUCT(FScreenSpaceShadowsUpsample, )
 	SHADER_PARAMETER_STRUCT_INCLUDE(FScreenSpaceShadowsUpsamplePS::FParameters, PS)
 	RENDER_TARGET_BINDING_SLOTS()
 END_SHADER_PARAMETER_STRUCT()
+
+void UpsampleScreenSpaceShadows(
+	FRDGBuilder& GraphBuilder,
+	const FMinimalSceneTextures& SceneTextures,
+	const FViewInfo& View,
+	FIntRect ScissorRect,
+	bool bProjectingForForwardShading,
+	const FLightSceneInfo* LightSceneInfo,
+	FRDGTextureRef ShadowsTexture,
+	int32 DownsampleFactor,
+	FRDGTextureRef ScreenShadowMaskTexture
+)
+{
+	FScreenSpaceShadowsUpsample* PassParameters = GraphBuilder.AllocParameters<FScreenSpaceShadowsUpsample>();
+	PassParameters->RenderTargets[0] = FRenderTargetBinding(ScreenShadowMaskTexture, ERenderTargetLoadAction::ELoad);
+	PassParameters->RenderTargets.DepthStencil = FDepthStencilBinding(SceneTextures.Depth.Target, ERenderTargetLoadAction::ELoad, ERenderTargetLoadAction::ELoad, FExclusiveDepthStencil::DepthRead_StencilRead);
+
+	PassParameters->PS.View = GetShaderBinding(View.ViewUniformBuffer);
+	PassParameters->PS.SceneTextures = SceneTextures.GetSceneTextureShaderParameters(View.GetFeatureLevel());
+	PassParameters->PS.ShadowFactorsTexture = ShadowsTexture;
+	PassParameters->PS.ShadowFactorsSampler = TStaticSamplerState<SF_Bilinear>::GetRHI();
+	PassParameters->PS.ScissorRectMinAndSize = FIntRect(ScissorRect.Min, ScissorRect.Size());
+	PassParameters->PS.OneOverDownsampleFactor = 1.0f / DownsampleFactor;
+
+	FScreenSpaceShadowsUpsamplePS::FPermutationDomain PermutationVector;
+	PermutationVector.Set<FScreenSpaceShadowsUpsamplePS::FUpsample>(DownsampleFactor != 1);
+	auto PixelShader = View.ShaderMap->GetShader<FScreenSpaceShadowsUpsamplePS>(PermutationVector);
+
+	// blend separately from CSM / DF Shadows since those interact with static lighting
+	// this matches behavior of GetShadowTerms(...) 
+	const bool bIsWholeSceneDirectionalShadow = false;
+
+	FRHIBlendState* BlendState = FProjectedShadowInfo::GetBlendStateForProjection(
+		LightSceneInfo->GetDynamicShadowMapChannel(),
+		bIsWholeSceneDirectionalShadow,
+		false,
+		bProjectingForForwardShading,
+		false);
+
+	ClearUnusedGraphResources(PixelShader, &PassParameters->PS);
+
+	GraphBuilder.AddPass(
+		RDG_EVENT_NAME("Upsample"),
+		PassParameters,
+		ERDGPassFlags::Raster,
+		[PassParameters, &View, PixelShader, BlendState, ScissorRect](FRHICommandList& RHICmdList)
+		{
+			RHICmdList.SetViewport(ScissorRect.Min.X, ScissorRect.Min.Y, 0.0f, ScissorRect.Max.X, ScissorRect.Max.Y, 1.0f);
+			RHICmdList.SetScissorRect(true, ScissorRect.Min.X, ScissorRect.Min.Y, ScissorRect.Max.X, ScissorRect.Max.Y);
+
+			FGraphicsPipelineStateInitializer GraphicsPSOInit;
+			FPixelShaderUtils::InitFullscreenPipelineState(RHICmdList, View.ShaderMap, PixelShader, GraphicsPSOInit);
+
+			GraphicsPSOInit.BoundShaderState.PixelShaderRHI = PixelShader.GetPixelShader();
+			GraphicsPSOInit.BlendState = BlendState;
+
+			SetGraphicsPipelineState(RHICmdList, GraphicsPSOInit, 0);
+
+			SetShaderParameters(RHICmdList, PixelShader, PixelShader.GetPixelShader(), PassParameters->PS);
+
+			FPixelShaderUtils::DrawFullscreenTriangle(RHICmdList);
+			RHICmdList.SetScissorRect(false, 0, 0, 0, 0);
+		});
+}
 
 void RenderScreenSpaceShadows(
 	FRDGBuilder& GraphBuilder,
@@ -155,58 +276,110 @@ void RenderScreenSpaceShadows(
 			FIntVector(GroupSizeX, GroupSizeY, 1));
 	}
 
+	UpsampleScreenSpaceShadows(
+		GraphBuilder,
+		SceneTextures,
+		View,
+		ScissorRect,
+		bProjectingForForwardShading,
+		LightSceneInfo,
+		ShadowsTexture,
+		GetScreenSpaceShadowDownsampleFactor(),
+		ScreenShadowMaskTexture);
+}
+
+void RenderScreenSpaceShadowsBend(
+	FRDGBuilder& GraphBuilder,
+	bool bAsyncCompute,
+	const FMinimalSceneTextures& SceneTextures,
+	const FViewInfo& View,
+	FIntRect ScissorRect,
+	bool bProjectingForForwardShading,
+	const FLightSceneInfo* LightSceneInfo,
+	FRDGTextureRef ScreenShadowMaskTexture)
+{
+	check(ScissorRect.Area() > 0);
+
+	const int32 DownsampleFactor = 1;
+
+	const FIntPoint BufferSize = View.GetSceneTexturesConfig().Extent;
+	FRDGTextureDesc Desc(FRDGTextureDesc::Create2D(BufferSize, PF_R16F, FClearValueBinding::None, TexCreate_UAV | TexCreate_ShaderResource));
+	FRDGTextureRef ShadowsTexture = GraphBuilder.CreateTexture(Desc, TEXT("ScreenSpaceShadows"));
+
+	const FRDGTextureDesc& DepthDesc = SceneTextures.Depth.Resolve->Desc;
+
 	{
-		FScreenSpaceShadowsUpsample* PassParameters = GraphBuilder.AllocParameters<FScreenSpaceShadowsUpsample>();
-		PassParameters->RenderTargets[0] = FRenderTargetBinding(ScreenShadowMaskTexture, ERenderTargetLoadAction::ELoad);
-		PassParameters->RenderTargets.DepthStencil = FDepthStencilBinding(SceneTextures.Depth.Target, ERenderTargetLoadAction::ELoad, ERenderTargetLoadAction::ELoad, FExclusiveDepthStencil::DepthRead_StencilRead);
+		const FLightSceneProxy* LightProxy = LightSceneInfo->Proxy;
 
-		PassParameters->PS.View = GetShaderBinding(View.ViewUniformBuffer);
-		PassParameters->PS.SceneTextures = SceneTextures.GetSceneTextureShaderParameters(View.GetFeatureLevel());
-		PassParameters->PS.ShadowFactorsTexture = ShadowsTexture;
-		PassParameters->PS.ShadowFactorsSampler = TStaticSamplerState<SF_Bilinear>::GetRHI();
-		PassParameters->PS.ScissorRectMinAndSize = FIntRect(ScissorRect.Min, ScissorRect.Size());
-		PassParameters->PS.OneOverDownsampleFactor = 1.0f / GetScreenSpaceShadowDownsampleFactor();
+		const FMatrix ViewProjection = View.ViewMatrices.GetViewProjectionMatrix();
+		const FVector4 LightDirection4 = FVector4(-LightProxy->GetDirection(), 0.0f);
+		const FVector4 LightDirection4Clip = ViewProjection.TransformFVector4(LightDirection4);
 
-		FScreenSpaceShadowsUpsamplePS::FPermutationDomain PermutationVector;
-		PermutationVector.Set<FScreenSpaceShadowsUpsamplePS::FUpsample>(GetScreenSpaceShadowDownsampleFactor() != 1);
-		auto PixelShader = View.ShaderMap->GetShader<FScreenSpaceShadowsUpsamplePS>(PermutationVector);
+		FVector4f LightProjection = (FVector4f)LightDirection4Clip;
+		FIntPoint MinRenderBounds = ScissorRect.Min;
+		FIntPoint MaxRenderBounds = ScissorRect.Max;
+		Bend::DispatchList DispatchList = Bend::BuildDispatchList((float*)&LightProjection, (int32*)&BufferSize, (int32*)&MinRenderBounds, (int32*)&MaxRenderBounds);
 
-		// blend separately from CSM / DF Shadows since those interact with static lighting
-		// this matches behavior of GetShadowTerms(...) 
-		const bool bIsWholeSceneDirectionalShadow = false;
+		for (int32 DispatchIndex = 0; DispatchIndex < DispatchList.DispatchCount; ++DispatchIndex)
+		{
+			const Bend::DispatchData& Dispatch = DispatchList.Dispatch[DispatchIndex];
 
-		FRHIBlendState* BlendState = FProjectedShadowInfo::GetBlendStateForProjection(
-			LightSceneInfo->GetDynamicShadowMapChannel(),
-			bIsWholeSceneDirectionalShadow,
-			false,
-			bProjectingForForwardShading,
-			false);
+			FScreenSpaceShadowsBendCS::FParameters* PassParameters = GraphBuilder.AllocParameters<FScreenSpaceShadowsBendCS::FParameters>();
 
-		ClearUnusedGraphResources(PixelShader, &PassParameters->PS);
+			PassParameters->OutputTexture = GraphBuilder.CreateUAV(ShadowsTexture);
 
-		GraphBuilder.AddPass(
-			RDG_EVENT_NAME("Upsample"),
-			PassParameters,
-			ERDGPassFlags::Raster,
-			[PassParameters, &View, PixelShader, BlendState, ScissorRect](FRHICommandList& RHICmdList)
-			{
-				RHICmdList.SetViewport(ScissorRect.Min.X, ScissorRect.Min.Y, 0.0f, ScissorRect.Max.X, ScissorRect.Max.Y, 1.0f);
-				RHICmdList.SetScissorRect(true, ScissorRect.Min.X, ScissorRect.Min.Y, ScissorRect.Max.X, ScissorRect.Max.Y);
+			PassParameters->DepthTexture = SceneTextures.Depth.Resolve;
+			PassParameters->InvDepthTextureSize = FVector2f(1.0f / DepthDesc.Extent.X, 1.0f / DepthDesc.Extent.Y);
 
-				FGraphicsPipelineStateInitializer GraphicsPSOInit;
-				FPixelShaderUtils::InitFullscreenPipelineState(RHICmdList, View.ShaderMap, PixelShader, GraphicsPSOInit);
+			// A point sampler, with Wrap Mode set to Clamp-To-Border-Color (D3D12_TEXTURE_ADDRESS_MODE_BORDER), and Border Color set to "FarDepthValue" (typically zero), or some other far-depth value out of DepthBounds.
+			// If you have issues where invalid shadows are appearing from off-screen, it is likely that this sampler is not correctly setup
+			PassParameters->PointBorderSampler = TStaticSamplerState<SF_Point, AM_Border, AM_Border, AM_Border, 0, 1, 0>::GetRHI();
 
-				GraphicsPSOInit.BoundShaderState.PixelShaderRHI = PixelShader.GetPixelShader();
-				GraphicsPSOInit.BlendState = BlendState;
+			PassParameters->View = View.ViewUniformBuffer;
 
-				SetGraphicsPipelineState(RHICmdList, GraphicsPSOInit, 0);
+			PassParameters->ScissorRectMinAndSize = FIntRect(ScissorRect.Min, ScissorRect.Size());
+			PassParameters->DownsampleFactor = DownsampleFactor;
 
-				SetShaderParameters(RHICmdList, PixelShader, PixelShader.GetPixelShader(), PassParameters->PS);
+			FLightRenderParameters LightParameters;
+			LightProxy->GetLightShaderParameters(LightParameters);
 
-				FPixelShaderUtils::DrawFullscreenTriangle(RHICmdList);
-				RHICmdList.SetScissorRect(false, 0, 0, 0, 0);
-			});
+			PassParameters->LightDirection = LightParameters.Direction;
+
+			float ContactShadowLength;
+			bool bContactShadowLengthInWS;
+			float ContactShadowCastingIntensity;
+			float ContactShadowNonCastingIntensity;
+			GetLightContactShadowParameters(LightProxy, ContactShadowLength, bContactShadowLengthInWS, ContactShadowCastingIntensity, ContactShadowNonCastingIntensity);
+
+			PassParameters->ContactShadowLength = ContactShadowLength;
+			PassParameters->bContactShadowLengthInWS = bContactShadowLengthInWS;
+			PassParameters->ContactShadowCastingIntensity = ContactShadowCastingIntensity;
+
+			PassParameters->LightCoordinate = FVector4f(DispatchList.LightCoordinate_Shader[0], DispatchList.LightCoordinate_Shader[1], DispatchList.LightCoordinate_Shader[2], DispatchList.LightCoordinate_Shader[3]);
+			PassParameters->WaveOffset = FIntVector(Dispatch.WaveOffset_Shader[0], Dispatch.WaveOffset_Shader[1], 0);
+
+			auto ComputeShader = View.ShaderMap->GetShader<FScreenSpaceShadowsBendCS>();
+
+			FComputeShaderUtils::AddPass(
+				GraphBuilder,
+				RDG_EVENT_NAME("ScreenSpaceShadowing (Bend)"),
+				bAsyncCompute ? ERDGPassFlags::AsyncCompute : ERDGPassFlags::Compute,
+				ComputeShader,
+				PassParameters,
+				FIntVector(Dispatch.WaveCount[0], Dispatch.WaveCount[1], Dispatch.WaveCount[2]));
+		}
 	}
+
+	UpsampleScreenSpaceShadows(
+		GraphBuilder,
+		SceneTextures,
+		View,
+		ScissorRect,
+		bProjectingForForwardShading,
+		LightSceneInfo,
+		ShadowsTexture,
+		DownsampleFactor,
+		ScreenShadowMaskTexture);
 }
 
 void RenderScreenSpaceShadows(
@@ -247,15 +420,30 @@ void RenderScreenSpaceShadows(
 
 		if (ScissorRect.Area() > 0)
 		{
-			RenderScreenSpaceShadows(
-				GraphBuilder,
-				false,
-				SceneTextures,
-				View,
-				ScissorRect,
-				bProjectingForForwardShading,
-				LightSceneInfo,
-				ScreenShadowMaskTexture);
+			if (GContactShadowsMethod == (uint32)ContactShadowsMethod::BendSSS)
+			{
+				RenderScreenSpaceShadowsBend(
+					GraphBuilder,
+					false,
+					SceneTextures,
+					View,
+					ScissorRect,
+					bProjectingForForwardShading,
+					LightSceneInfo,
+					ScreenShadowMaskTexture);
+			}
+			else
+			{
+				RenderScreenSpaceShadows(
+					GraphBuilder,
+					false,
+					SceneTextures,
+					View,
+					ScissorRect,
+					bProjectingForForwardShading,
+					LightSceneInfo,
+					ScreenShadowMaskTexture);
+			}
 		}
 	}
 }
