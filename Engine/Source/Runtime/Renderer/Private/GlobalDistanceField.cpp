@@ -2290,7 +2290,6 @@ void UpdateGlobalDistanceFieldVolume(
 							&& NumUpdateBounds > 0
 							&& NumHeightfieldPrimitives > 0
 							&& GAOGlobalDistanceFieldRepresentHeightfields
-							&& SupportsDistanceFieldAO(Scene->GetFeatureLevel(), Scene->GetShaderPlatform())
 							&& !IsVulkanMobileSM5Platform(Scene->GetShaderPlatform()))
 						{
 							for (int32 HeightfieldPrimitiveIndex = 0; HeightfieldPrimitiveIndex < NumHeightfieldPrimitives; HeightfieldPrimitiveIndex++)
