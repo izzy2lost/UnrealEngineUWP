@@ -511,7 +511,12 @@ IEOSPlatformHandlePtr FEOSSDKManager::CreatePlatform(const FString& PlatformConf
 IEOSPlatformHandlePtr FEOSSDKManager::CreatePlatform(const FEOSSDKPlatformConfig& PlatformConfig, EOS_Platform_Options& PlatformOptions)
 {
 	OnPreCreateNamedPlatform.Broadcast(PlatformConfig, PlatformOptions);
-	return CreatePlatform(PlatformOptions);
+	IEOSPlatformHandlePtr Result = CreatePlatform(PlatformOptions);
+	if (Result)
+	{
+		static_cast<FEOSPlatformHandle&>(*Result.Get()).ConfigName = PlatformConfig.Name;
+	}
+	return Result;
 }
 
 IEOSPlatformHandlePtr FEOSSDKManager::CreatePlatform(EOS_Platform_Options& PlatformOptions)
@@ -1166,6 +1171,11 @@ void FEOSPlatformHandle::Tick()
 	QUICK_SCOPE_CYCLE_COUNTER(FEOSPlatformHandle_Tick);
 	CSV_SCOPED_TIMING_STAT_EXCLUSIVE(EOSSDK);
 	EOS_Platform_Tick(PlatformHandle);
+}
+
+FString FEOSPlatformHandle::GetConfigName() const
+{
+	return ConfigName;
 }
 
 FString FEOSPlatformHandle::GetOverrideCountryCode() const

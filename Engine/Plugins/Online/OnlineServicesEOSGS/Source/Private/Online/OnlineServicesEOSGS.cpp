@@ -81,11 +81,11 @@ void FOnlineServicesEOSGS::RegisterComponents()
 	Components.Register<FLobbiesEOSGS>(*this);
 	Components.Register<FStatsEOSGS>(*this);
 	Components.Register<FSessionsEOSGS>(*this);
-	if (EOS_Platform_GetTitleStorageInterface(GetEOSPlatformHandle()))
+	if (EOS_Platform_GetTitleStorageInterface(*GetEOSPlatformHandle()))
 	{
 		Components.Register<FTitleFileEOSGS>(*this);
 	}
-	if (EOS_Platform_GetPlayerDataStorageInterface(GetEOSPlatformHandle()))
+	if (EOS_Platform_GetPlayerDataStorageInterface(*GetEOSPlatformHandle()))
 	{
 		Components.Register<FUserFileEOSGS>(*this);
 	}
@@ -156,15 +156,5 @@ TOnlineResult<FGetResolvedConnectString> FOnlineServicesEOSGS::GetResolvedConnec
 	// No valid lobby or session id set
 	return TOnlineResult<FGetResolvedConnectString>(Errors::InvalidParams());
 }
-
-EOS_HPlatform FOnlineServicesEOSGS::GetEOSPlatformHandle() const
-{
-	if (EOSPlatformHandle)
-	{
-		return *EOSPlatformHandle;
-	}
-	return nullptr;
-}
-
 
 /* UE::Online */ }

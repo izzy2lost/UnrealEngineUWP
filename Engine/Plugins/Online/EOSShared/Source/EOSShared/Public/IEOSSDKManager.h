@@ -45,13 +45,17 @@ DECLARE_MULTICAST_DELEGATE_OneParam(FEOSSDKManagerOnPreCreatePlatform, EOS_Platf
 class IEOSPlatformHandle
 {
 public:
-	IEOSPlatformHandle(EOS_HPlatform InPlatformHandle) : PlatformHandle(InPlatformHandle) {}
+	IEOSPlatformHandle(EOS_HPlatform InPlatformHandle)
+		: PlatformHandle(InPlatformHandle)
+	{}
+
 	virtual ~IEOSPlatformHandle() = default;
 
 	virtual void Tick() = 0;
 
 	operator EOS_HPlatform() const { return PlatformHandle; }
 
+	virtual FString GetConfigName() const = 0;
 	virtual FString GetOverrideCountryCode() const = 0;
 	virtual FString GetOverrideLocaleCode() const = 0;
 

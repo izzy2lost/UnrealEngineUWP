@@ -4,13 +4,14 @@
 
 #include "Containers/BackgroundableTicker.h"
 #include "EOSShared.h"
+#include "IEOSSDKManager.h"
 #include "Misc/CommandLine.h"
 #include "Online/AuthErrors.h"
 #include "Online/OnlineErrorEOSGS.h"
 #include "Online/OnlineIdEOSGS.h"
 #include "Online/OnlineServicesEOSGS.h"
-
 #include "Online/OnlineUtils.h"
+
 #include "eos_auth.h"
 #include "eos_connect.h"
 
@@ -546,10 +547,10 @@ void FAuthEOSGS::Initialize()
 {
 	Super::Initialize();
 
-	AuthHandle = EOS_Platform_GetAuthInterface(static_cast<FOnlineServicesEOSGS&>(GetServices()).GetEOSPlatformHandle());
+	AuthHandle = EOS_Platform_GetAuthInterface(*static_cast<FOnlineServicesEOSGS&>(GetServices()).GetEOSPlatformHandle());
 	check(AuthHandle != nullptr);
 
-	ConnectHandle = EOS_Platform_GetConnectInterface(static_cast<FOnlineServicesEOSGS&>(GetServices()).GetEOSPlatformHandle());
+	ConnectHandle = EOS_Platform_GetConnectInterface(*static_cast<FOnlineServicesEOSGS&>(GetServices()).GetEOSPlatformHandle());
 	check(ConnectHandle != nullptr);
 
 	RegisterHandlers();

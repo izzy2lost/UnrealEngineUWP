@@ -2,14 +2,15 @@
 
 #include "Online/AuthEOS.h"
 
-#include "EOSShared.h"
-#include "Online/OnlineIdEOS.h"
-#include "Online/OnlineErrorEOSGS.h"
-#include "Online/OnlineServicesEOS.h"
 #include "Algo/Transform.h"
+#include "EOSShared.h"
+#include "IEOSSDKManager.h"
 #include "Online/AuthErrors.h"
-
+#include "Online/OnlineErrorEOSGS.h"
+#include "Online/OnlineIdEOS.h"
+#include "Online/OnlineServicesEOS.h"
 #include "Online/OnlineUtils.h"
+
 #include "eos_auth.h"
 #include "eos_connect.h"
 #include "eos_userinfo.h"
@@ -46,7 +47,7 @@ void FAuthEOS::Initialize()
 {
 	Super::Initialize();
 
-	UserInfoHandle = EOS_Platform_GetUserInfoInterface(static_cast<FOnlineServicesEOS&>(GetServices()).GetEOSPlatformHandle());
+	UserInfoHandle = EOS_Platform_GetUserInfoInterface(*static_cast<FOnlineServicesEOS&>(GetServices()).GetEOSPlatformHandle());
 	check(UserInfoHandle != nullptr);
 }
 

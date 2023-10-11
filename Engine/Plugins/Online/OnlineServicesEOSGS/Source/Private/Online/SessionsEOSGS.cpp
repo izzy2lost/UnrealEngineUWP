@@ -3,11 +3,12 @@
 #include "Online/SessionsEOSGS.h"
 
 #include "EOSShared.h"
+#include "IEOSSDKManager.h"
 #include "Online/AuthEOSGS.h"
 #include "Online/LobbiesCommonTypes.h"
-#include "Online/OnlineServicesEOSGS.h"
 #include "Online/NboSerializerEOSGSSvc.h"
 #include "Online/OnlineErrorEOSGS.h"
+#include "Online/OnlineServicesEOSGS.h"
 #include "Online/SessionsEOSGSTypes.h"
 
 #include "eos_sessions.h"
@@ -143,7 +144,7 @@ void FSessionsEOSGS::Initialize()
 {
 	Super::Initialize();
 
-	SessionsHandle = EOS_Platform_GetSessionsInterface(static_cast<FOnlineServicesEOSGS&>(GetServices()).GetEOSPlatformHandle());
+	SessionsHandle = EOS_Platform_GetSessionsInterface(*static_cast<FOnlineServicesEOSGS&>(GetServices()).GetEOSPlatformHandle());
 	check(SessionsHandle);
 
 	RegisterEventHandlers();

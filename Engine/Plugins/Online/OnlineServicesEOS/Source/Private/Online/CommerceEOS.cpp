@@ -1,10 +1,12 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 
 #include "Online/CommerceEOS.h"
-#include "Online/OnlineErrorEOSGS.h"
-#include "Online/OnlineServicesEOS.h"
-#include "Online/OnlineIdEOS.h"
+
+#include "IEOSSDKManager.h"
 #include "Online/AuthEOS.h"
+#include "Online/OnlineErrorEOSGS.h"
+#include "Online/OnlineIdEOS.h"
+#include "Online/OnlineServicesEOS.h"
 
 namespace UE::Online {
 
@@ -12,7 +14,7 @@ void FCommerceEOS::PostInitialize()
 {	
 	Super::PostInitialize();
 
-	EcomHandle = EOS_Platform_GetEcomInterface(static_cast<FOnlineServicesEOS&>(GetServices()).GetEOSPlatformHandle());
+	EcomHandle = EOS_Platform_GetEcomInterface(*static_cast<FOnlineServicesEOS&>(GetServices()).GetEOSPlatformHandle());
 	check(EcomHandle);
 }
 

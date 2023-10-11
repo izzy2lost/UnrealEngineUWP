@@ -122,6 +122,7 @@ struct FEOSPlatformHandle : public IEOSPlatformHandle
 	virtual ~FEOSPlatformHandle();
 	virtual void Tick() override;
 
+	virtual FString GetConfigName() const override;
 	virtual FString GetOverrideCountryCode() const override;
 	virtual FString GetOverrideLocaleCode() const override;
 
@@ -134,6 +135,9 @@ struct FEOSPlatformHandle : public IEOSPlatformHandle
 
 	/* Reference to the EOSSDK manager */
 	FEOSSDKManager& Manager;
+
+	/* The name of the config used to instantiate this handle */
+	FString ConfigName;
 };
 
 #endif // WITH_EOS_SDK

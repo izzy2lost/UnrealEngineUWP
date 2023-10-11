@@ -31,7 +31,7 @@ public:
 	virtual TOnlineResult<FGetResolvedConnectString> GetResolvedConnectString(FGetResolvedConnectString::Params&& Params) override;
 	virtual EOnlineServices GetServicesProvider() const override { return EOnlineServices::Epic; }
 
-	EOS_HPlatform GetEOSPlatformHandle() const;
+	IEOSPlatformHandlePtr GetEOSPlatformHandle() const { return EOSPlatformHandle; }
 
 	static const TCHAR* GetConfigNameStatic() { return TEXT("EOS"); }
 protected:
