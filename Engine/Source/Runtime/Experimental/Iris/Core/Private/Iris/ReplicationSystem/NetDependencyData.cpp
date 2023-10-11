@@ -84,6 +84,7 @@ FNetDependencyData::FSubObjectConditionalsArray& FNetDependencyData::GetOrCreate
 		
 		// Make sure that we initialize the conditionals to match the number of SubObjects
 		const int32 NumChildSubObjects = DependentObjectsStorage[Entry.ArrayIndices[EArrayType::ChildSubObjects]].Num();
+		static_assert(COND_None == 0, "Can't use SetNumZeroed() to initialize COND_None");
 		SubObjectConditionalsArray->SetNumZeroed(NumChildSubObjects);
 
 		return *SubObjectConditionalsArray;
