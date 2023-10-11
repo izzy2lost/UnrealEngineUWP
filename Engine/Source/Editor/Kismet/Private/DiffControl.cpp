@@ -254,7 +254,10 @@ void FSCSDiffControl::GenerateTreeEntries(TArray<TSharedPtr<FBlueprintDifference
 		{
 			return SNew(STextBlock)
 					.Text(DiffViewUtils::SCSDiffMessage(Entry, ObjectName))
-					.ColorAndOpacity(DiffViewUtils::Differs());
+					.ColorAndOpacity(Entry.DiffType == ETreeDiffType::NODE_CORRUPTED ?
+						DiffViewUtils::Conflicting() :
+						DiffViewUtils::Differs()
+						);
 		};
 
 		for (const FSCSDiffEntry& Difference : DifferingProperties.Entries)

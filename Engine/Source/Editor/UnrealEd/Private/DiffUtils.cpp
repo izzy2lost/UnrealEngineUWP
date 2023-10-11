@@ -750,6 +750,23 @@ void DiffUtils::CompareUnrelatedSCS(const UBlueprint* Old, const TArray< FSCSRes
 				OutDifferingEntries.Entries.Push(Diff);
 			}
 
+			// did it become corrupted? or stop being corrupted?
+			const bool bNewIsCorrupt = New->GeneratedClass && NewEntry->Object && !NewEntry->Object->IsIn(New->GeneratedClass);
+			const bool bOldIsCorrupt = Old->GeneratedClass && OldNode.Object && !OldNode.Object->IsIn(Old->GeneratedClass);
+			if (bNewIsCorrupt != bOldIsCorrupt)
+			{
+				if (bNewIsCorrupt)
+				{
+					FSCSDiffEntry Diff = { NewEntry->Identifier, ETreeDiffType::NODE_CORRUPTED, FSingleObjectDiffEntry() };
+					OutDifferingEntries.Entries.Push(Diff);
+				}
+				else
+				{
+					FSCSDiffEntry Diff = { OldNode.Identifier, ETreeDiffType::NODE_CORRUPTED, FSingleObjectDiffEntry() };
+					OutDifferingEntries.Entries.Push(Diff);
+				}
+			}
+
 			// no change! Do nothing.
 		}
 		else
@@ -1504,6 +1521,9 @@ FText DiffViewUtils::SCSDiffMessage(const FSCSDiffEntry& Difference, FText Objec
 		break;
 	case ETreeDiffType::NODE_MOVED:
 		Text = FText::Format(NSLOCTEXT("DiffViewUtils", "NodeMoved", "Moved Node {0} in {1}"), NodeName, ObjectName);
+		break;
+	case ETreeDiffType::NODE_CORRUPTED:
+		Text = FText::Format(NSLOCTEXT("DiffViewUtils", "NodeMoved", "Node {0} in {1} has corrupt outer - must be recreated"), NodeName, ObjectName);
 		break;
 	}
 	return Text;
