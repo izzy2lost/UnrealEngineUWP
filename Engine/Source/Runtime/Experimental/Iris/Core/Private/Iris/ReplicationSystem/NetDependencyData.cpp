@@ -2,7 +2,8 @@
 
 #include "NetDependencyData.h"
 #include "Iris/Core/IrisLog.h"
-#include "ReplicationOperationsInternal.h"
+#include "Iris/ReplicationSystem/ReplicationOperationsInternal.h"
+#include "UObject/CoreNetTypes.h"
 
 namespace UE::Net::Private
 {
