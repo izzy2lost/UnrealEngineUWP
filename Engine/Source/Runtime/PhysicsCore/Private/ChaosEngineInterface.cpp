@@ -2168,21 +2168,15 @@ void FChaosEngineInterface::SetGlobalPose_AssumesLocked(const FPhysicsActorHandl
 
 	if (IsKinematic(InActorReference))
 	{
-		// If we have already set a kinematic target this tick it must be cleared. NOTE: because we are clearing the target, 
-		// the Velocity will be zeroed on the next simulation tick unless there is a subsequent call to SetKinematicTarget 
-		// with an appropriate position delta. 
-		Body_External.ClearKinematicTarget();
-		Body_External.SetX(InNewPose.GetLocation());
-		Body_External.SetR(InNewPose.GetRotation());
-		// @todo(chaos): Should we also explicitly set the velocity to zero here?
-		//Body_External.SetV(FVector::Zero());
-		//Body_External.SetW(FVector::Zero());
+		// NOTE: SetGlobalPose is a teleport for kinematics. Use SetKinematicTarget_AssumesLocked
+		// if the kinematic should calculate its velocity from the transform delta.
+		Body_External.SetKinematicTarget(InNewPose);
+		Body_External.SetV(FVector::Zero());
+		Body_External.SetW(FVector::Zero());
 	}
-	else
-	{
-		Body_External.SetX(InNewPose.GetLocation());
-		Body_External.SetR(InNewPose.GetRotation());
-	}
+
+	Body_External.SetX(InNewPose.GetLocation());
+	Body_External.SetR(InNewPose.GetRotation());
 
 	Body_External.UpdateShapeBounds();
 
@@ -2219,11 +2213,15 @@ void FChaosEngineInterface::SetKinematicTarget_AssumesLocked(const FPhysicsActor
 	const Chaos::FKinematicTarget NewKinematicTarget = Chaos::FKinematicTarget::MakePositionTarget(InNewTarget);
 	InActorReference->GetGameThreadAPI().SetKinematicTarget(NewKinematicTarget);
 
+	// If enabled for this body, immediately update the body transforms to match the kinematic target.
+	// @todo(chaos): Velocity is not updated here and never will be because we don't read back from the physics thread.
+	// We should fix this, but it is awkward to handle multiple calls to SetKinematicTarget on the same frame if we
+	// don't have a "previous transform" from which to calculate the velocity and we have overwritten X/R already.
 	if (ShouldSetKinematicTargetSetGameTransform(InActorReference))
 	{
 		// IMPORTANT : we do not invalidate X and R as they will be properly computed using the kinematic target information 
-		InActorReference->GetGameThreadAPI().SetX(InNewTarget.GetLocation(), false); 
-		InActorReference->GetGameThreadAPI().SetR(InNewTarget.GetRotation(), false); 
+		InActorReference->GetGameThreadAPI().SetX(InNewTarget.GetLocation(), false);
+		InActorReference->GetGameThreadAPI().SetR(InNewTarget.GetRotation(), false);
 		InActorReference->GetGameThreadAPI().UpdateShapeBounds();
 
 		FChaosScene* Scene = GetCurrentScene(InActorReference);

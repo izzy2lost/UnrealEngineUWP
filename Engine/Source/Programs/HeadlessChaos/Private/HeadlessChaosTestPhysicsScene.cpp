@@ -1333,7 +1333,14 @@ namespace ChaosTest {
 		EXPECT_NEAR(Particle.V()[2], ZVel, 1e-2);
 	}
 
-	GTEST_TEST(EngineInterface, SetKinematicTarget)
+	void ExpectVectorEqual(const FVec3& V0, const FVec3& V1)
+	{
+		EXPECT_EQ(V0.X, V1.X);
+		EXPECT_EQ(V0.Y, V1.Y);
+		EXPECT_EQ(V0.Z, V1.Z);
+	}
+
+	void TestKinematicTarget(const bool bInUpdateKinematicFromSimulation)
 	{
 		// Need to test:
 		// GT particle position is immediately updated after calling SetKinematicTarget_AssumesLocked
@@ -1362,12 +1369,14 @@ namespace ChaosTest {
 		TArray<FPhysicsActorHandle> Proxys = { Proxy };
 		Scene.AddActorsToScene_AssumesLocked(Proxys);
 		Particle.SetObjectState(EObjectStateType::Kinematic);
+		Particle.SetUpdateKinematicFromSimulation(bInUpdateKinematicFromSimulation);
 
 		struct FDummyInput : FSimCallbackInput
 		{
 			FSingleParticlePhysicsProxy* Proxy;
 			FVec3 CorrectX;
 			FVec3 CorrectV;
+			bool bKinematicWritebackEnabled;
 			void Reset() {}
 		};
 
@@ -1375,15 +1384,19 @@ namespace ChaosTest {
 		{
 			virtual void OnPreSimulate_Internal() override
 			{
+				const FVec3 ExpectedX = GetConsumerInput_Internal()->CorrectX;
+				const FVec3 ExpectedV = GetConsumerInput_Internal()->CorrectV;
+
 				auto Handle = GetConsumerInput_Internal()->Proxy->GetPhysicsThreadAPI();
-				EXPECT_EQ(Handle->X(), GetConsumerInput_Internal()->CorrectX);
-				EXPECT_EQ(Handle->V(), GetConsumerInput_Internal()->CorrectV);
+				ExpectVectorEqual(Handle->X(), ExpectedX);
+				ExpectVectorEqual(Handle->V(), ExpectedV);
 			}
 		};
 
 		auto Callback = Scene.GetSolver()->CreateAndRegisterSimCallbackObject_External<FCallback>();
 
 		Callback->GetProducerInputData_External()->Proxy = Proxy;
+		Callback->GetProducerInputData_External()->bKinematicWritebackEnabled = bInUpdateKinematicFromSimulation;
 
 		FVec3 Grav(0, 0, 0);
 		float Dt = 1;
@@ -1394,12 +1407,12 @@ namespace ChaosTest {
 			Scene.StartFrame();
 			Scene.EndFrame();
 			// Test X and V on GT
-			EXPECT_EQ(Particle.X().X, CorrectX.X);
-			EXPECT_EQ(Particle.X().Y, CorrectX.Y);
-			EXPECT_EQ(Particle.X().Z, CorrectX.Z);
-			EXPECT_EQ(Particle.V().X, CorrectV.X);
-			EXPECT_EQ(Particle.V().Y, CorrectV.Y);
-			EXPECT_EQ(Particle.V().Z, CorrectV.Z);
+			// NOTE: GT velocity will not be updated if kinematic writeback from the physics thread is disabled
+			ExpectVectorEqual(Particle.X(), CorrectX);
+			if (Callback->GetProducerInputData_External()->bKinematicWritebackEnabled)
+			{
+				ExpectVectorEqual(Particle.V(), CorrectV);
+			}
 			// Test X and V on PT, this is going to be used in OnPreSimulate_Internal in next frame.
 			Callback->GetProducerInputData_External()->CorrectX = CorrectX;
 			Callback->GetProducerInputData_External()->CorrectV = CorrectV;
@@ -1419,9 +1432,13 @@ namespace ChaosTest {
 		CurrentV = FVec3(1, 1, 1);
 		FChaosEngineInterface::SetKinematicTarget_AssumesLocked(Proxy, FTransform(CurrentX));
 
-		// Test if position is immediately updated on GT after SetKinematicTarget_AssumesLocked
-		EXPECT_EQ(Particle.X(), CurrentX);
+		// Test if position is immediately updated on GT after SetKinematicTarget_AssumesLocked (if we aren't reading data back from PT)
+		if (!bInUpdateKinematicFromSimulation)
+		{
+			ExpectVectorEqual(Particle.X(), CurrentX);
+		}
 
+		// This will fail when bInUpdateKinematicFromSimulation is false becasuse GT and PT disagree on velocity
 		AdvanceFrameAndRunTest(CurrentX, CurrentV);
 
 		// Test if velocity becomes zero when no kinematic target is set
@@ -1444,6 +1461,7 @@ namespace ChaosTest {
 		FChaosEngineInterface::SetGlobalPose_AssumesLocked(Proxy, FTransform(CurrentX));
 
 		Callback->GetProducerInputData_External()->CorrectX = CurrentX;
+		Callback->GetProducerInputData_External()->CorrectV = CurrentV;
 		AdvanceFrameAndRunTest(CurrentX, CurrentV);
 
 		// Test if particle positions and velocities are correct after SetGlobalPose_AssumesLocked, SetKinematicTarget_AssumesLocked
@@ -1473,6 +1491,18 @@ namespace ChaosTest {
 		CurrentX = FVec3(3, 2, 1);
 		CurrentV = FVec3(0, 0, 0);
 		AdvanceFrameAndRunTest(CurrentX, CurrentV);
+	}
+
+	// Test SetKinematicTarget when writeback from PT is enabled
+	GTEST_TEST(EngineInterface, SetKinematicTargetWriteBackEnabled)
+	{
+		TestKinematicTarget(true);
+	}
+
+	// Test SetKinematicTarget when writeback from PT is disabled
+	GTEST_TEST(EngineInterface, SetKinematicTargetWriteBackDisabled)
+	{
+		TestKinematicTarget(false);
 	}
 
 	GTEST_TEST(EngineInterface, PerPropertySetOnGT)
