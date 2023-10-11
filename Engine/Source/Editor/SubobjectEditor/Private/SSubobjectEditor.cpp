@@ -3253,7 +3253,16 @@ void SSubobjectEditor::GetSelectedItemsForContextMenu(TArray<FComponentEventCons
 		const FSubobjectEditorTreeNodePtrType& TreeNode = *NodeIter;
 		const FSubobjectData* Data = TreeNode->GetDataSource();
 		NewItem.VariableName = Data->GetVariableName();
-		NewItem.Component = const_cast<UActorComponent*>(TreeNode->GetComponentTemplate());
+		const UObject* ContextObject = GetObjectContext();
+		const AActor* ContextAsActor = Cast<AActor>(ContextObject);
+		if (!ContextObject->HasAnyFlags(RF_ClassDefaultObject) && ContextAsActor)
+		{
+			NewItem.Component = const_cast<UActorComponent*>(Data->FindComponentInstanceInActor(ContextAsActor));
+		}
+		else
+		{
+			NewItem.Component = const_cast<UObject*>(Data->GetObjectForBlueprint(GetBlueprint()));
+		}
 		OutSelectedItems.Add(NewItem);
 	}
 }
