@@ -5078,7 +5078,10 @@ void StaticExit()
 		GUObjectArray.CloseDisregardForGC();
 	}
 
-	// Complete any pending incremental GC
+	// Complete any pending incremental reachability analysis
+	FinalizeIncrementalReachabilityAnalysis();
+
+	// Complete any pending incremental purge
 	if (IsIncrementalPurgePending())
 	{
 		IncrementalPurgeGarbage(false);

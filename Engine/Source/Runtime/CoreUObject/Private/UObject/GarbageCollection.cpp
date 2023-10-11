@@ -5492,7 +5492,9 @@ void FReachabilityAnalysisState::PerformReachabilityAnalysis()
 	{
 		UE::GC::CollectGarbageFull(ObjectKeepFlags);
 	}
-	else if (NumRechabilityIterationsToSkip == 0 || !bIsSuspended)
+	else if (NumRechabilityIterationsToSkip == 0 || // Delay reachability analysis by NumRechabilityIterationsToSkip (if desired)
+		!bIsSuspended || // but only but only after the first iteration (which also does MarkObjectsAsUnreachable)
+		IterationTimeLimit <= 0.0f) // and only when using time limit (we're not using the limit when we're flushing reachability analysis when starting a new one or on exit)
 	{
 		UE::GC::CollectGarbageIncremental(ObjectKeepFlags);
 	}
@@ -5531,14 +5533,25 @@ bool IsIncrementalReachabilityAnalysisPending()
 	return UE::GC::Private::GIsIncrementalReachabilityPending;
 }
 
-void PerformIncrementalReachabilityAnalysis()
+void PerformIncrementalReachabilityAnalysis(double TimeLimit)
 {
 	checkf(UE::GC::Private::GIsIncrementalReachabilityPending, TEXT("Incremental reachability must be pending to perform its next iteration"));
 	// When performing Reachability Analysis iterations start the internal timer before acquiring GC lock 
 	// so that we don't spend more time than GIncrementalReachabilityTimeLimit on fully completing an iteration
-	UE::GC::GReachabilityState.StartTimer(GIncrementalReachabilityTimeLimit);
+	const bool bUsingTimeLimit = TimeLimit > 0.0;
+	UE::GC::GReachabilityState.StartTimer(bUsingTimeLimit ? TimeLimit : 0.0);
 	AcquireGCLock();	
-	UE::GC::GReachabilityState.PerformReachabilityAnalysisAndConditionallyPurgeGarbage(/*bReachabilityUsingTimeLimit = */ true);
+	UE::GC::GReachabilityState.PerformReachabilityAnalysisAndConditionallyPurgeGarbage(bUsingTimeLimit);
+
+	checkf(bUsingTimeLimit || !UE::GC::Private::GIsIncrementalReachabilityPending, TEXT("Incremental Reachability is still pending after completing the previous iteration without time limit."));
+}
+
+void FinalizeIncrementalReachabilityAnalysis()
+{
+	if (IsIncrementalReachabilityAnalysisPending())
+	{
+		PerformIncrementalReachabilityAnalysis(0.0);
+	}
 }
 
 FString FGarbageReferenceInfo::GetReferencingObjectInfo() const

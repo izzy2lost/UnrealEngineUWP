@@ -877,14 +877,16 @@ COREUOBJECT_API void GatherUnreachableObjects(bool bForceSingleThreaded);
 COREUOBJECT_API bool IsIncrementalReachabilityAnalysisPending();
 
 /**
- * Incrementally purge garbage by deleting all unreferenced objects after routing Destroy.
+ * Incrementally perform reachability analysis
  *
- * Calling code needs to be EXTREMELY careful when and how to call this function as
- * RF_Unreachable cannot change on any objects unless any pending purge has completed!
- *
- * @param	bUseTimeLimit	whether the time limit parameter should be used
+ * @param	TimeLimit	Time limit (in seconds) for this function call. 0.0 results in no time limit being used.
  */
-COREUOBJECT_API void PerformIncrementalReachabilityAnalysis();
+COREUOBJECT_API void PerformIncrementalReachabilityAnalysis(double TimeLimit);
+
+/**
+ * Finalizes incremental reachability analysis (if currently running) without any time limit
+ */
+COREUOBJECT_API void FinalizeIncrementalReachabilityAnalysis();
 
 /**
  * Incrementally purge garbage by deleting all unreferenced objects after routing Destroy.

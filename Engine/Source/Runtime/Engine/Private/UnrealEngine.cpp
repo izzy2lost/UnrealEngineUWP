@@ -76,6 +76,7 @@ UnrealEngine.cpp: Implements the UEngine class and helpers.
 #include "EngineUtils.h"
 #include "Framework/Application/SlateApplication.h"
 #include "UObject/GarbageCollectionHistory.h"
+#include "UObject/ReachabilityAnalysis.h"
 #include "Widgets/Input/SButton.h"
 #include "Engine/EngineCustomTimeStep.h"
 #include "Engine/LevelStreamingPersistent.h"
@@ -1819,7 +1820,7 @@ void UEngine::ConditionalCollectGarbage()
 					else if (IsIncrementalReachabilityAnalysisPending())
 					{
 						SCOPE_CYCLE_COUNTER(STAT_GCMarkTime);
-						PerformIncrementalReachabilityAnalysis();
+						PerformIncrementalReachabilityAnalysis(GetReachabilityAnalysisTimeLimit());
 					}
 					// Perform incremental purge update if it's pending or in progress.
 					else if (!IsIncrementalPurgePending()
@@ -1866,7 +1867,7 @@ void UEngine::ConditionalCollectGarbage()
 	}
 	else if (IsIncrementalReachabilityAnalysisPending())
 	{
-		PerformIncrementalReachabilityAnalysis();
+		PerformIncrementalReachabilityAnalysis(GetReachabilityAnalysisTimeLimit());
 	}
 }
 
