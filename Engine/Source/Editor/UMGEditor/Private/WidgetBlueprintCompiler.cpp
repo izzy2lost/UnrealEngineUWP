@@ -59,6 +59,11 @@ UWidgetBlueprintGeneratedClass* FWidgetBlueprintCompilerContext::FCreateVariable
 	return Context.NewWidgetBlueprintClass;
 }
 
+UWidgetBlueprintGeneratedClass* FWidgetBlueprintCompilerContext::FCreateVariableContext::GetGeneratedClass() const
+{
+	return Context.NewWidgetBlueprintClass;
+}
+
 
 EKismetCompileType::Type FWidgetBlueprintCompilerContext::FCreateVariableContext::GetCompileType() const
 {
