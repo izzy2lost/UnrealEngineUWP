@@ -75,6 +75,7 @@ const FName SkeletalMeshEditorTabs::AssetDetailsTab(TEXT("AnimAssetPropertiesTab
 const FName SkeletalMeshEditorTabs::ViewportTab(TEXT("Viewport"));
 const FName SkeletalMeshEditorTabs::AdvancedPreviewTab(TEXT("AdvancedPreviewTab"));
 const FName SkeletalMeshEditorTabs::MorphTargetsTab("MorphTargetsTab");
+const FName SkeletalMeshEditorTabs::ToolboxDetailsTab("ToolBoxDetailsTab");
 const FName SkeletalMeshEditorTabs::CurveMetadataTab(TEXT("AnimCurveMetadataEditorTab"));
 const FName SkeletalMeshEditorTabs::FindReplaceTab("FindReplaceTab");
 
@@ -262,6 +263,10 @@ void FSkeletalMeshEditor::InitSkeletalMeshEditor(const EToolkitMode::Type Mode, 
 	PreviewScene->RegisterOnMeshClick(FOnMeshClick::CreateSP(this, &FSkeletalMeshEditor::HandleMeshClick));
 	PreviewScene->SetAllowMeshHitProxies(true);
 
+	// Make sure we get told when the editor mode changes so we can switch to the appropriate tab
+	// if there's a toolbox available.
+	GetEditorModeManager().OnEditorModeIDChanged().AddSP(this, &FSkeletalMeshEditor::OnEditorModeIdChanged);
+
 	// run attached post-init delegates
 	ISkeletalMeshEditorModule& SkeletalMeshEditorModule = FModuleManager::GetModuleChecked<ISkeletalMeshEditorModule>("SkeletalMeshEditor");
 	const TArray<ISkeletalMeshEditorModule::FOnSkeletalMeshEditorInitialized>& PostInitDelegates = SkeletalMeshEditorModule.GetPostEditorInitDelegates();
@@ -326,6 +331,41 @@ TSharedPtr<FSkeletalMeshEditor> FSkeletalMeshEditor::GetSkeletalMeshEditor(const
 	}
 
 	return TSharedPtr<FSkeletalMeshEditor>();
+}
+
+void FSkeletalMeshEditor::OnEditorModeIdChanged(const FEditorModeID& ModeChangedID, bool bIsEnteringMode)
+{
+	if (GetEditorModeManager().IsDefaultMode(ModeChangedID))
+	{
+		return;
+	}
+
+	static const TArray<FTabId> DefaultTabs{
+		SkeletalMeshEditorTabs::DetailsTab,
+		SkeletalMeshEditorTabs::AssetDetailsTab,
+		SkeletalMeshEditorTabs::SkeletonTreeTab,
+		SkeletalMeshEditorTabs::AdvancedPreviewTab,
+		SkeletalMeshEditorTabs::MorphTargetsTab,
+		SkeletalMeshEditorTabs::CurveMetadataTab,
+		SkeletalMeshEditorTabs::FindReplaceTab
+	};
+	
+	if (bIsEnteringMode)
+	{
+		// FIXME: We should get the hosted toolkit from here.
+		if (GetEditorModeManager().GetActiveScriptableMode(ModeChangedID)->UsesToolkits())
+		{
+			TabManager->TryInvokeTab(SkeletalMeshEditorTabs::ToolboxDetailsTab);
+		}
+	}
+	else
+	{
+		TSharedPtr<SDockTab> ToolboxTab = TabManager->FindExistingLiveTab(SkeletalMeshEditorTabs::ToolboxDetailsTab);
+		if (ToolboxTab.IsValid())
+		{
+			ToolboxTab->RequestCloseTab();
+		}
+	}
 }
 
 void FSkeletalMeshEditor::RegisterReimportContextMenu(const FName InBaseMenuName)
