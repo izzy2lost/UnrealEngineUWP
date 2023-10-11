@@ -21,7 +21,6 @@
 #include "Misc/NamePermissionList.h"
 #include "Trace/SlateMemoryTags.h"
 #include "HAL/PlatformApplicationMisc.h"
-#include "HAL/PlatformMisc.h"
 #if PLATFORM_MAC
 #include "Framework/MultiBox/Mac/MacMenu.h"
 #endif
@@ -317,7 +316,6 @@ TSharedRef<FTabManager::FLayoutNode> FTabManager::FLayout::NewFromString_Helper(
 		return FTabManager::NewArea(FTabManager::FallbackWindowSize);
 	}	
 }
-
 
 TSharedPtr<FTabManager::FLayout> FTabManager::FLayout::NewFromString( const FString& LayoutAsText )
 {
@@ -791,46 +789,20 @@ void FTabManager::UpdateMainMenu(TSharedPtr<SDockTab> ForTab, const bool bForce)
 		ParentWindowOfOwningTab = MainNonCloseableTabPinned->GetParentWindow();
 	}
 
-#if PLATFORM_MAC
-	if (!FPlatformMisc::CanShowMenusInWindows())
+	if (bAllowPerWindowMenu)
 	{
-		if (MenuMultiBox.IsValid())
+		if (ParentWindowOfOwningTab)
 		{
-			bool bUpdate = bForce;
-			// On OS X opening the tab will set the multi-box and take key focus, but not seemingly send a keyboard focus event into Slate.
-			if (ParentWindowOfOwningTab.IsValid())
-			{
-				bUpdate |= ParentWindowOfOwningTab->GetNativeWindow()->IsForegroundWindow();
-			}
-
-			if (bUpdate)
-			{
-				FSlateMacMenu::UpdateWithMultiBox(MenuMultiBox.ToSharedRef());
-			}
-		}
-		else
-		{
-			FSlateMacMenu::UpdateWithMultiBox(nullptr);
+			ParentWindowOfOwningTab->GetTitleBar()->UpdateWindowMenu(MenuWidget);
 		}
 	}
 	else
-#endif // PLATFORM_MAC
 	{
-		if (bAllowPerWindowMenu)
+		MenuMultiBox.Reset();
+		MenuWidget.Reset();
+		if (ParentWindowOfOwningTab)
 		{
-			if (ParentWindowOfOwningTab)
-			{
-				ParentWindowOfOwningTab->GetTitleBar()->UpdateWindowMenu(MenuWidget);
-			}
-		}
-		else
-		{
-			MenuMultiBox.Reset();
-			MenuWidget.Reset();
-			if (ParentWindowOfOwningTab)
-			{
-				ParentWindowOfOwningTab->GetTitleBar()->UpdateWindowMenu(nullptr);
-			}
+			ParentWindowOfOwningTab->GetTitleBar()->UpdateWindowMenu(nullptr);
 		}
 	}
 }
@@ -1460,7 +1432,7 @@ TSharedPtr<SDockTab> FTabManager::InvokeTab_Internal(const FTabId& TabId, bool b
 
 	// Tab is not live. Figure out where to spawn it.
 	TSharedPtr<SDockingTabStack> StackToSpawnIn = bForceOpenWindowIfNeeded ? AttemptToOpenTab( TabId, true ) : FindPotentiallyClosedTab( TabId );
-	
+
 	if (StackToSpawnIn.IsValid())
 	{
 		const TSharedPtr<SDockTab> NewTab = SpawnTab(TabId, TSharedPtr<SWindow>());
