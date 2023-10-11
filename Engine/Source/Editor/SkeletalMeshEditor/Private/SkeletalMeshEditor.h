@@ -45,7 +45,6 @@ namespace SkeletalMeshEditorTabs
 	extern const FName MorphTargetsTab;
 	extern const FName MeshDetailsTab;
 	extern const FName AnimationMappingTab;
-	extern const FName ToolboxDetailsTab;
 	extern const FName CurveMetadataTab;
 	extern const FName FindReplaceTab;
 }
@@ -165,12 +164,6 @@ private:
 	void RegisterReimportContextMenu(const FName InBaseMenuName);
 
 	static TSharedPtr<FSkeletalMeshEditor> GetSkeletalMeshEditor(const FToolMenuContext& InMenuContext);
-
-	void OnEditorModeIdChanged(const FEditorModeID& ModeChangedID, bool bIsEnteringMode);
-
-	bool CanSpawnToolboxTab(const FSpawnTabArgs& InArgs) const;
-	TSharedRef<SDockTab> SpawnToolboxTab(const FSpawnTabArgs& InArgs);
-	void OnToolboxTabClosed(TSharedRef<SDockTab> InClosedTab);
 
 private:
 	void ExtendMenu();
