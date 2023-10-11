@@ -1081,11 +1081,14 @@ void FD3D12Adapter::InitializeDevices()
 
 			// Detect availability of shader model 6.0 wave operations
 			{
-				D3D12_FEATURE_DATA_D3D12_OPTIONS1 Features{};
-				RootDevice->CheckFeatureSupport(D3D12_FEATURE_D3D12_OPTIONS1, &Features, sizeof(Features));
-				GRHISupportsWaveOperations = Features.WaveOps;
-				GRHIMinimumWaveSize = Features.WaveLaneCountMin;
-				GRHIMaximumWaveSize = Features.WaveLaneCountMax;
+				if (GMaxRHIFeatureLevel >= ERHIFeatureLevel::SM6)
+				{
+					D3D12_FEATURE_DATA_D3D12_OPTIONS1 Features{};
+					RootDevice->CheckFeatureSupport(D3D12_FEATURE_D3D12_OPTIONS1, &Features, sizeof(Features));
+					GRHISupportsWaveOperations = Features.WaveOps;
+					GRHIMinimumWaveSize = Features.WaveLaneCountMin;
+					GRHIMaximumWaveSize = Features.WaveLaneCountMax;
+				}
 
 				if (GRHISupportsWaveOperations)
 				{
