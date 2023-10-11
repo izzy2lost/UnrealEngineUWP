@@ -3291,12 +3291,6 @@ bool PreprocessOpenGLShader(const FShaderCompilerInput& Input, const FShaderComp
 		}
 	}
 
-	if (!PreprocessOutput.ParseAndModify(Input, Environment, nullptr))
-	{
-		// The FShaderParameterParser will add any relevant errors.
-		return false;
-	}
-
 	// This requires removing the HLSLCC_NoPreprocess flag later on!
 	CleanupUniformBufferCode(Input.Environment, PreprocessOutput.EditSource());
 
@@ -3321,9 +3315,23 @@ bool PreprocessOpenGLShader(const FShaderCompilerInput& Input, const FShaderComp
  * @param WorkingDirectory - (unused, part of IShaderFormat API)
  * @param Version - Target GLSL version for this compilation
  */
-void CompileOpenGLShader(const FShaderCompilerInput& Input, const FShaderPreprocessOutput& PreprocessOutput, FShaderCompilerOutput& Output, const FString& WorkingDirectory, GLSLVersion Version)
+void CompileOpenGLShader(const FShaderCompilerInput& Input, const FString& InPreprocessedSource, FShaderCompilerOutput& Output, const FString& WorkingDirectory, GLSLVersion Version)
 {
-	const FString& PreprocessedShader = PreprocessOutput.GetSource();
+	FString EntryPointName = Input.EntryPointName;
+	FString PreprocessedSource = InPreprocessedSource;
+
+	FShaderParameterParser ShaderParameterParser(Input.Environment.CompilerFlags, nullptr, {}, {});
+	if (!ShaderParameterParser.ParseAndModify(Input, Output.Errors, PreprocessedSource, EBindlessParameterMode::Default))
+	{
+		// The FShaderParameterParser will add any relevant errors.
+		return;
+	}
+
+	if (ShaderParameterParser.DidModifyShader())
+	{
+		Output.ModifiedShaderSource = PreprocessedSource;
+	}
+
 	const EHlslCompileTarget HlslCompilerTarget = GetCompileTarget(Version);
 
 	const bool bUseSC = ShouldUseDXC(Input.Environment.CompilerFlags);
@@ -3366,7 +3374,7 @@ void CompileOpenGLShader(const FShaderCompilerInput& Input, const FShaderPreproc
 #if DXC_SUPPORTED
 	if (bUseSC)
 	{
-		bCompilationSucceeded = CompileToGlslWithShaderConductor(Input, Output, Version, Frequency, PreprocessedShader, GlslShaderSource);
+		bCompilationSucceeded = CompileToGlslWithShaderConductor(Input, Output, Version, Frequency, PreprocessedSource, GlslShaderSource);
 	}
 	else
 #endif // DXC_SUPPORTED
@@ -3383,7 +3391,7 @@ void CompileOpenGLShader(const FShaderCompilerInput& Input, const FShaderPreproc
 			if (CrossCompilerContext.Init(TCHAR_TO_ANSI(*Input.VirtualSourceFilePath), LanguageSpec))
 			{
 				bCompilationSucceeded = CrossCompilerContext.Run(
-					TCHAR_TO_ANSI(*PreprocessedShader),
+					TCHAR_TO_ANSI(*PreprocessedSource),
 					TCHAR_TO_ANSI(*Input.EntryPointName),
 					BackEnd,
 					&GlslShaderSource,
@@ -3460,7 +3468,7 @@ void FOpenGLFrontend::CompileShader(const FShaderCompilerInput& Input, FShaderCo
 {
 	FShaderPreprocessOutput PreprocessOutput;
 	PreprocessOpenGLShader(Input, Input.Environment, PreprocessOutput, Version);
-	CompileOpenGLShader(Input, PreprocessOutput, Output, WorkingDirectory, Version);
+	CompileOpenGLShader(Input, PreprocessOutput.GetSource(), Output, WorkingDirectory, Version);
 }
 
 static void FillDeviceCapsOfflineCompilationInternal(struct FDeviceCapabilities& Capabilities, const GLSLVersion ShaderVersion)

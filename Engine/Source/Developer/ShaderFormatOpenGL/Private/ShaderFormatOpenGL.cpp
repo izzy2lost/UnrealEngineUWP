@@ -4,6 +4,7 @@
 #include "ShaderFormatOpenGL.h"
 
 #include "ShaderCompilerCommon.h"
+#include "ShaderPreprocessTypes.h"
 #include "HAL/FileManager.h"
 #include "Modules/ModuleManager.h"
 #include "Interfaces/IShaderFormat.h"
@@ -19,9 +20,10 @@ extern bool PreprocessOpenGLShader(
 	const FShaderCompilerEnvironment& Environment,
 	FShaderPreprocessOutput& Output,
 	GLSLVersion Version);
+
 extern void CompileOpenGLShader(
 	const FShaderCompilerInput& Input,
-	const FShaderPreprocessOutput& PreprocessOutput,
+	const FString& InPreprocessedSource,
 	FShaderCompilerOutput& Output,
 	const FString& WorkingDirectory,
 	GLSLVersion Version);
@@ -98,7 +100,7 @@ public:
 	virtual void CompilePreprocessedShader(const FShaderCompilerInput& Input, const FShaderPreprocessOutput& PreprocessOutput, FShaderCompilerOutput& Output, const FString& WorkingDirectory) const override
 	{
 		CheckFormat(Input.ShaderFormat);
-		CompileOpenGLShader(Input, PreprocessOutput, Output, WorkingDirectory, TranslateFormatNameToEnum(Input.ShaderFormat));		
+		CompileOpenGLShader(Input, PreprocessOutput.GetSource(), Output, WorkingDirectory, TranslateFormatNameToEnum(Input.ShaderFormat));		
 	}
 
 	virtual const TCHAR* GetPlatformIncludeDirectory() const override

@@ -938,6 +938,7 @@ void FShaderCompilerEnvironment::SerializeCompilationDependencies(FArchive& Ar)
 {
 	Ar << CompileArgs;
 	Ar << CompilerFlags;
+	Ar << RenderTargetOutputFormatsMap;
 	Ar << ResourceTableMap.Resources;
 	Ar << UniformBufferMap;
 	Ar << FullPrecisionInPS;

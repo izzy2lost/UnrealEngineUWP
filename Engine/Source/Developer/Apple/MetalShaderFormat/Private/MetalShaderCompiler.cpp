@@ -872,12 +872,6 @@ bool PreprocessMetalShader(const FShaderCompilerInput& Input, const FShaderCompi
 		}
 	}
 
-	if (!PreprocessOutput.ParseAndModify(Input, Environment, nullptr))
-	{
-		// The FShaderParameterParser will add any relevant errors.
-		return false;
-	}
-
 	CleanupUniformBufferCode(Input.Environment, PreprocessOutput.EditSource());
 
 	// Process TEXT macro.
@@ -894,8 +888,23 @@ bool PreprocessMetalShader(const FShaderCompilerInput& Input, const FShaderCompi
 	return true;
 }
 
-void CompileMetalShader(const FShaderCompilerInput& Input, const FShaderPreprocessOutput& PreprocessOutput, FShaderCompilerOutput& Output)
+void CompileMetalShader(const FShaderCompilerInput& Input, const FString& InPreprocessedSource, FShaderCompilerOutput& Output)
 {
+	FString EntryPointName = Input.EntryPointName;
+	FString PreprocessedSource = InPreprocessedSource;
+
+	FShaderParameterParser ShaderParameterParser(Input.Environment.CompilerFlags, nullptr, {}, {});
+	if (!ShaderParameterParser.ParseAndModify(Input, Output.Errors, PreprocessedSource, EBindlessParameterMode::Default))
+	{
+		// The FShaderParameterParser will add any relevant errors.
+		return;
+	}
+
+	if (ShaderParameterParser.DidModifyShader())
+	{
+		Output.ModifiedShaderSource = PreprocessedSource;
+	}
+
 	EMetalGPUSemantics Semantics = EMetalGPUSemanticsMobile;
 	if (Input.ShaderFormat == NAME_SF_METAL_MRT
 		|| Input.ShaderFormat == NAME_SF_METAL_MRT_TVOS
@@ -1104,8 +1113,8 @@ void CompileMetalShader(const FShaderCompilerInput& Input, const FShaderPreproce
 		FSHA1::HashBuffer(&Guid, sizeof(FGuid), GUIDHash.Hash);
 	}
 
-	DoCompileMetalShader(Input, Output, PreprocessOutput.GetSource(), GUIDHash, VersionEnum, Semantics, MaxUnrollLoops, (EShaderFrequency)Input.Target.Frequency, bDumpDebugInfo, Standard, MinOSVersion);
-	PreprocessOutput.GetParameterParser().ValidateShaderParameterTypes(Input, bIsMobile, Output);
+	DoCompileMetalShader(Input, Output, PreprocessedSource, GUIDHash, VersionEnum, Semantics, MaxUnrollLoops, (EShaderFrequency)Input.Target.Frequency, bDumpDebugInfo, Standard, MinOSVersion);
+	ShaderParameterParser.ValidateShaderParameterTypes(Input, bIsMobile, Output);
 }
 
 void OutputMetalDebugData(const FShaderCompilerInput& Input, const FShaderPreprocessOutput& PreprocessOutput, const FShaderCompilerOutput& Output)

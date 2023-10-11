@@ -2231,17 +2231,6 @@ bool PreprocessVulkanShader(const FShaderCompilerInput& Input, const FShaderComp
 		}
 	}
 
-	// Create a _RootShaderParameters and bind it in slot 0 like any other uniform buffer
-	const TCHAR* ConstantBufferType = InternalState.UseRootParametersStructure() ? TEXT("cbuffer") : nullptr;
-
-	const TArrayView<const TCHAR* const> ExtraSRVTypes;
-	const TArrayView<const TCHAR* const> ExtraUAVTypes;
-	if (!PreprocessOutput.ParseAndModify(Input, Environment, ConstantBufferType, ExtraSRVTypes, ExtraUAVTypes, EBindlessParameterMode::Vulkan))
-	{
-		// The FShaderParameterParser will add any relevant errors.
-		return false;
-	}
-
 	CleanupUniformBufferCode(Input.Environment, PreprocessedShaderSource);
 
 	// Process TEXT macro.
@@ -2543,11 +2532,24 @@ static bool CompileShaderGroup(
 	return bSuccess;
 }
 
-void CompileVulkanShader(const FShaderCompilerInput& Input, const FShaderPreprocessOutput& PreprocessOutput, FShaderCompilerOutput& Output, const class FString& WorkingDirectory)
+void CompileVulkanShader(const FShaderCompilerInput& Input, const FString& InPreprocessedSource, FShaderCompilerOutput& Output, const class FString& WorkingDirectory)
 {
 	check(IsVulkanShaderFormat(Input.ShaderFormat));
 
-	FVulkanShaderCompilerInternalState InternalState(Input, PreprocessOutput.GetParameterParser());
+	FString EntryPointName = Input.EntryPointName;
+	FString PreprocessedSource = InPreprocessedSource;
+
+	// Create a _RootShaderParameters and bind it in slot 0 like any other uniform buffer
+	const TCHAR* ConstantBufferType = (Input.Target.GetFrequency() == SF_RayGen && Input.RootParametersStructure != nullptr) ? TEXT("cbuffer") : nullptr;
+
+	FShaderParameterParser ShaderParameterParser(Input.Environment.CompilerFlags, ConstantBufferType, {}, {});
+	if (!ShaderParameterParser.ParseAndModify(Input, Output.Errors, PreprocessedSource, EBindlessParameterMode::Vulkan))
+	{
+		// The FShaderParameterParser will add any relevant errors.
+		return;
+	}
+
+	FVulkanShaderCompilerInternalState InternalState(Input, ShaderParameterParser);
 
 	const EHlslShaderFrequency HlslFrequency = InternalState.GetHlslShaderFrequency();
 	if (HlslFrequency == HSF_InvalidFrequency)
@@ -2560,13 +2562,15 @@ void CompileVulkanShader(const FShaderCompilerInput& Input, const FShaderPreproc
 		return;
 	}
 
-	FString BindlessPreprocessedShaderSource;
 	if (InternalState.bUseBindlessUniformBuffer)
 	{
-		BindlessPreprocessedShaderSource = PreprocessOutput.GetSource();
-		InternalState.AllBindlessUBs = ConvertUBToBindless(BindlessPreprocessedShaderSource);
+		InternalState.AllBindlessUBs = ConvertUBToBindless(PreprocessedSource);
 	}
-	const FString& PreprocessedShaderSource = InternalState.bUseBindlessUniformBuffer ? BindlessPreprocessedShaderSource : PreprocessOutput.GetSource();
+
+	if (ShaderParameterParser.DidModifyShader() || InternalState.AllBindlessUBs.Num() > 0)
+	{
+		Output.ModifiedShaderSource = PreprocessedSource;
+	}
 
 	bool bSuccess = false;
 
@@ -2574,13 +2578,13 @@ void CompileVulkanShader(const FShaderCompilerInput& Input, const FShaderPreproc
 	// HitGroup shaders might have multiple entrypoints that we combine into a single blob
 	if (InternalState.HasMultipleEntryPoints())
 	{
-		bSuccess = CompileShaderGroup(InternalState, PreprocessedShaderSource, Output);
+		bSuccess = CompileShaderGroup(InternalState, PreprocessedSource, Output);
 	}
 	else
 	{
 		// Compile regular shader via ShaderConductor (DXC)
 		VulkanShaderCompilerSerializedOutput SerializedOutput;
-		bSuccess = CompileWithShaderConductor(InternalState, PreprocessedShaderSource, SerializedOutput, Output);
+		bSuccess = CompileWithShaderConductor(InternalState, PreprocessedSource, SerializedOutput, Output);
 
 		if (InternalState.bUseBindlessUniformBuffer)
 		{
@@ -2606,7 +2610,7 @@ void CompileVulkanShader(const FShaderCompilerInput& Input, const FShaderPreproc
 
 	Output.SerializeShaderCodeValidation();
 
-	PreprocessOutput.GetParameterParser().ValidateShaderParameterTypes(Input, InternalState.IsMobileES31(), Output);
+	ShaderParameterParser.ValidateShaderParameterTypes(Input, InternalState.IsMobileES31(), Output);
 	
 	const bool bDirectCompile = FParse::Param(FCommandLine::Get(), TEXT("directcompile"));
 	if (bDirectCompile)

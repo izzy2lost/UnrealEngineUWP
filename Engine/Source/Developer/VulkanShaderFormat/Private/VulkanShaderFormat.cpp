@@ -9,20 +9,21 @@
 #include "hlslcc.h"
 #include "ShaderCore.h"
 #include "ShaderCompilerCore.h"
+#include "ShaderPreprocessTypes.h"
 #include "DXCWrapper.h"
 #include "ShaderConductorContext.h"
 #include "RHIShaderFormatDefinitions.inl"
 
 extern bool PreprocessVulkanShader(
-	const struct  FShaderCompilerInput& Input,
-	const struct FShaderCompilerEnvironment& Environment,
-	class FShaderPreprocessOutput& PreprocessOutput);
+	const FShaderCompilerInput& Input,
+	const FShaderCompilerEnvironment& Environment,
+	FShaderPreprocessOutput& PreprocessOutput);
 
 extern void CompileVulkanShader(
-	const struct FShaderCompilerInput& Input,
-	const class FShaderPreprocessOutput& PreprocessOutput,
-	struct FShaderCompilerOutput& Output,
-	const class FString& WorkingDirectory);
+	const FShaderCompilerInput& Input,
+	const FString& InPreprocessedSource,
+	FShaderCompilerOutput& Output,
+	const FString& WorkingDirectory);
 
 extern void OutputVulkanDebugData(
 	const FShaderCompilerInput& Input, 
@@ -107,7 +108,7 @@ public:
 	virtual void CompilePreprocessedShader(const FShaderCompilerInput& Input, const FShaderPreprocessOutput& PreprocessOutput, FShaderCompilerOutput& Output,const FString& WorkingDirectory) const override
 	{
 		check(InternalGetVersion(Input.ShaderFormat) >= 0);
-		CompileVulkanShader(Input, PreprocessOutput, Output, WorkingDirectory);
+		CompileVulkanShader(Input, PreprocessOutput.GetSource(), Output, WorkingDirectory);
 	}
 
 	virtual void OutputDebugData(const FShaderCompilerInput& Input, const FShaderPreprocessOutput& PreprocessOutput, const FShaderCompilerOutput& Output) const override
