@@ -461,7 +461,8 @@ namespace UE::MVVM::BindingHelper
 				&& DestinationObjectProperty
 				&& SourceObjectProperty->PropertyClass
 				&& DestinationObjectProperty->PropertyClass
-				&& SourceObjectProperty->PropertyClass->IsChildOf(DestinationObjectProperty->PropertyClass);
+				&& SourceObjectProperty->PropertyClass->IsChildOf(DestinationObjectProperty->PropertyClass)
+				&& SourceObjectProperty->GetClass() == DestinationObjectProperty->GetClass(); // FSoftObjectPtr != TObjectPtr != FWeakObjectPtr != FLazyObjectPtr
 		}
 
 		bool IsObjectArrayPropertyCompatible(const FProperty* Source, const FProperty* Destination)
