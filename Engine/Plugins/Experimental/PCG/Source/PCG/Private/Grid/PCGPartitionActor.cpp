@@ -1,7 +1,7 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 
 #include "PCGPartitionActor.h"
-#include "Engine/World.h"
+
 #include "PCGComponent.h"
 #include "PCGModule.h"
 #include "PCGSubsystem.h"
@@ -10,6 +10,7 @@
 #include "Helpers/PCGHelpers.h"
 
 #include "Components/BoxComponent.h"
+#include "Engine/World.h"
 
 #include UE_INLINE_GENERATED_CPP_BY_NAME(PCGPartitionActor)
 
@@ -30,11 +31,6 @@ APCGPartitionActor::APCGPartitionActor(const FObjectInitializer& ObjectInitializ
 	BoundsComponent->SetupAttachment(GetRootComponent());
 	BoundsComponent->bDrawOnlyIfSelected = true;
 #endif // WITH_EDITOR
-}
-
-UPCGSubsystem* APCGPartitionActor::GetSubsystem() const 
-{
-	return UPCGSubsystem::GetInstance(GetWorld());
 }
 
 void APCGPartitionActor::PostLoad()
@@ -69,7 +65,6 @@ void APCGPartitionActor::PostLoad()
 	// Make sure that we don't track objects that do not exist anymore
 	CleanupDeadGraphInstances(/*bRemoveNullOnly=*/true);
 
-#if WITH_EDITOR
 	// Mark all our local components as local
 	for (UPCGComponent* LocalComponent : GetAllLocalPCGComponents())
 	{
@@ -78,17 +73,14 @@ void APCGPartitionActor::PostLoad()
 	}
 
 	bWasPostCreatedLoaded = true;
-#endif // WITH_EDITOR
 }
 
 void APCGPartitionActor::BeginDestroy()
 {
-#if WITH_EDITOR
-	if (!PCGHelpers::IsRuntimeOrPIE() && GetSubsystem() && PCGGridSize > 0)
+	if (!PCGHelpers::IsRuntimeOrPIE())
 	{
-		GetSubsystem()->UnregisterPartitionActor(this);
+		UnregisterPCG();
 	}
-#endif // WITH_EDITOR
 
 	Super::BeginDestroy();
 }
@@ -139,12 +131,10 @@ void APCGPartitionActor::Serialize(FArchive& Ar)
 
 void APCGPartitionActor::Destroyed()
 {
-#if WITH_EDITOR
-	if (!PCGHelpers::IsRuntimeOrPIE() && GetSubsystem() && PCGGridSize > 0)
+	if (!PCGHelpers::IsRuntimeOrPIE())
 	{
-		GetSubsystem()->UnregisterPartitionActor(this);
+		UnregisterPCG();
 	}
-#endif // WITH_EDITOR
 
 	Super::Destroyed();
 }
@@ -171,39 +161,34 @@ void APCGPartitionActor::PostRegisterAllComponents()
 	// Make the Partition actor register itself to the PCG Subsystem
 	// Always do it at runtime, wait for the post load/creation in editor
 	// Only do the mapping if we are at runtime.
-
-	// Make sure the PCGGridSize is not 0, otherwise it will break everything
-
+	// Skip if RuntimeGen, RG PAs only register in PostCreate.
 	const bool bIsRuntimeOrPIE = PCGHelpers::IsRuntimeOrPIE();
-	if ((bIsRuntimeOrPIE 
-#if WITH_EDITOR
-		|| bWasPostCreatedLoaded
-#endif // WITH_EDITOR
-		) && ensure(PCGGridSize > 0))
+	if (!IsRuntimeGenerated() && !HasAnyFlags(RF_Transient) && (bIsRuntimeOrPIE || bWasPostCreatedLoaded))
 	{
-		if (UPCGSubsystem* Subsystem = GetSubsystem())
-		{
-			Subsystem->RegisterPartitionActor(this, /*bDoComponentMapping*/ bIsRuntimeOrPIE);
-		}
+		RegisterPCG(bIsRuntimeOrPIE);
 	}
 }
 
 void APCGPartitionActor::BeginPlay()
 {
-	// Pass through all the pcg components, to verify if we need to generate them
-	for (auto& It : OriginalToLocal)
+	if (!IsRuntimeGenerated() && !HasAnyFlags(RF_Transient))
 	{
-		if (It.Key && It.Value)
+		// Pass through all the pcg components, to verify if we need to generate them.
+		for (auto& It : OriginalToLocal)
 		{
-			// If we have an original component that is generated (or generating), this one is automatically generated => GenerateOnLoad
-			if (It.Key->bGenerated || It.Key->IsGenerating())
+			if (It.Key && It.Value)
 			{
-				It.Value->GenerationTrigger = EPCGComponentGenerationTrigger::GenerateOnLoad;
-			}
-			// Otherwise, make them match
-			else
-			{
-				It.Value->GenerationTrigger = It.Key->GenerationTrigger;
+				// If we have an original component that is generated (or generating), this one is automatically generated => GenerateOnLoad.
+				// But if its runtime generated then it's handled by the runtime generation scheduler.
+				if ((It.Key->bGenerated || It.Key->IsGenerating()) && ensure(It.Key->GenerationTrigger != EPCGComponentGenerationTrigger::GenerateAtRuntime))
+				{
+					It.Value->GenerationTrigger = EPCGComponentGenerationTrigger::GenerateOnLoad;
+				}
+				// Otherwise, make them match
+				else
+				{
+					It.Value->GenerationTrigger = It.Key->GenerationTrigger;
+				}
 			}
 		}
 	}
@@ -213,10 +198,7 @@ void APCGPartitionActor::BeginPlay()
 
 void APCGPartitionActor::EndPlay(const EEndPlayReason::Type EndPlayReason)
 {
-	if (UPCGSubsystem* Subsystem = GetSubsystem())
-	{
-		Subsystem->UnregisterPartitionActor(this);
-	}
+	UnregisterPCG();
 
 	Super::EndPlay(EndPlayReason);
 }
@@ -254,6 +236,42 @@ FIntVector APCGPartitionActor::GetGridCoord() const
 {
 	const FVector Center = GetActorLocation();
 	return UPCGActorHelpers::GetCellCoord(Center, PCGGridSize, bUse2DGrid);
+}
+
+bool APCGPartitionActor::Teleport(const FVector& NewLocation)
+{
+	// We should not be teleporting a PA that is in use. We only teleport empty RuntimeGen PAs to their grid cell before initialization.
+	check(bIsRuntimeGenerated && OriginalToLocal.IsEmpty() && LocalToOriginal.IsEmpty());
+
+	RootComponent->SetMobility(EComponentMobility::Movable);
+	bool bResult = Super::SetActorLocation(NewLocation, /*bSweep=*/false, nullptr, ETeleportType::TeleportPhysics);
+	RootComponent->SetMobility(EComponentMobility::Static);
+
+	return bResult;
+}
+
+void APCGPartitionActor::RegisterPCG(bool bDoComponentMapping)
+{
+	if (UPCGSubsystem* Subsystem = GetSubsystem())
+	{
+		if (!bIsRegistered)
+		{
+			Subsystem->RegisterPartitionActor(this, bDoComponentMapping);
+			bIsRegistered = true;
+		}
+	}
+}
+
+void APCGPartitionActor::UnregisterPCG()
+{
+	if (UPCGSubsystem* Subsystem = GetSubsystem())
+	{
+		if (bIsRegistered)
+		{
+			Subsystem->UnregisterPartitionActor(this);
+			bIsRegistered = false;
+		}
+	}
 }
 
 void APCGPartitionActor::GetActorBounds(bool bOnlyCollidingComponents, FVector& Origin, FVector& BoxExtent, bool bIncludeFromChildActors) const
@@ -476,10 +494,18 @@ AActor* APCGPartitionActor::GetSceneOutlinerParent() const
 		return Super::GetSceneOutlinerParent();
 	}	
 }
+#endif // WITH_EDITOR
 
 void APCGPartitionActor::PostCreation(const FGuid& InGridGUID)
 {
-	PCGGridSize = Super::GetGridSize();
+#if WITH_EDITOR
+	// For RuntimeGen we do not care about the grid size from WP, we write it ourselves.
+	if (!IsRuntimeGenerated())
+	{
+		PCGGridSize = Super::GetGridSize();
+	}
+#endif
+
 	PCGGuid = InGridGUID;
 
 	// Put in cache if we use the 2D grid or not.
@@ -498,15 +524,15 @@ void APCGPartitionActor::PostCreation(const FGuid& InGridGUID)
 	{
 		BoundsComponent->SetBoxExtent(GetFixedBounds().GetExtent());
 	}
+#endif // WITH_EDITOR
 
-	// Make sure PCGGrid size if greater than 0, otherwise it will break everything
-	if (!PCGHelpers::IsRuntimeOrPIE() && GetSubsystem() && ensure(PCGGridSize > 0))
+	// RuntimeGen PAs always register in PostCreate. Non-RG should only register here if in-editor
+	if (IsRuntimeGenerated() || !PCGHelpers::IsRuntimeOrPIE())
 	{
-		GetSubsystem()->RegisterPartitionActor(this, /*bDoComponentMapping=*/ false);
+		RegisterPCG(/*bDoComponentMapping=*/false);
 	}
 
 	bWasPostCreatedLoaded = true;
-#endif // WITH_EDITOR
 }
 
 bool APCGPartitionActor::IsSafeForDeletion() const
@@ -542,6 +568,12 @@ TSet<TObjectPtr<UPCGComponent>> APCGPartitionActor::GetAllOriginalPCGComponents(
 	return ResultComponents;
 }
 
+UPCGSubsystem* APCGPartitionActor::GetSubsystem() const 
+{
+	return UPCGSubsystem::GetInstance(GetWorld());
+}
+
+#if WITH_EDITOR
 bool APCGPartitionActor::ChangeTransientState(UPCGComponent* OriginalComponent, EPCGEditorDirtyMode EditingMode)
 {
 	check(OriginalComponent);
@@ -580,5 +612,14 @@ bool APCGPartitionActor::ChangeTransientState(UPCGComponent* OriginalComponent, 
 
 	return OriginalToLocal.IsEmpty() && LoadedPreviewComponents.IsEmpty();
 }
-
 #endif // WITH_EDITOR
+
+FString APCGPartitionActor::GetRuntimeGenActorName(uint32 GridSize, const FIntVector& GridCoords)
+{
+	TStringBuilderWithBuffer<TCHAR, NAME_SIZE> ActorNameBuilder;
+	ActorNameBuilder += TEXT("PCGRuntimeGenPartitionActor_");
+	ActorNameBuilder += FString::Printf(TEXT("%d_"), GridSize);
+	ActorNameBuilder += FString::Printf(TEXT("%d_%d_%d"), GridCoords.X, GridCoords.Y, GridCoords.Z);
+
+	return ActorNameBuilder.ToString();
+}

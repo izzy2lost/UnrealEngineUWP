@@ -27,6 +27,7 @@ protected:
 private:
 	EVisibility GenerateButtonVisible() const;
 	EVisibility CancelButtonVisible() const;
+	EVisibility CleanupButtonVisible() const;
 	FReply OnGenerateClicked();
 	FReply OnCancelClicked();
 	FReply OnCleanupClicked();

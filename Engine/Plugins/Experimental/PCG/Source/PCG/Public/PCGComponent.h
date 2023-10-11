@@ -20,15 +20,18 @@ class APCGPartitionActor;
 struct FPCGContext;
 class FPCGActorAndComponentMapping;
 class UPCGComponent;
-class UPCGGraph;
-class UPCGGraphInterface;
-class UPCGGraphInstance;
-class UPCGManagedResource;
 class UPCGData;
+class IPCGGenSourceBase;
+class UPCGGraph;
+class UPCGGraphInstance;
+class UPCGGraphInterface;
+class UPCGManagedResource;
+class UPCGSchedulingPolicyBase;
 class UPCGSubsystem;
 class ALandscapeProxy;
 class FLandscapeProxyComponentDataChangedParams;
 class UClass;
+
 
 #if WITH_EDITOR
 	DECLARE_MULTICAST_DELEGATE_OneParam(FOnPCGGraphGenerated, UPCGComponent*);
@@ -48,8 +51,9 @@ enum class EPCGComponentInput : uint8
 UENUM(Blueprintable)
 enum class EPCGComponentGenerationTrigger : uint8
 {
-	GenerateOnLoad,
-	GenerateOnDemand
+	GenerateOnLoad    UMETA(ToolTip = "Generates only when the component is loaded into the level."),
+	GenerateOnDemand  UMETA(ToolTip = "Generates only when requested (e.g. via Blueprint)."),
+	GenerateAtRuntime UMETA(ToolTip = "Generates only when scheduled by the Runtime Generation Scheduler.")
 };
 
 UENUM(meta = (Bitflags))
@@ -112,6 +116,8 @@ public:
 	/** If this is a local component returns self, otherwise returns the original component. */
 	UPCGComponent* GetOriginalComponent();
 
+	UPCGSchedulingPolicyBase* GetRuntimeGenSchedulingPolicy() const { return SchedulingPolicy; }
+
 	bool CanPartition() const;
 
 	UPCGGraph* GetGraph() const;
@@ -136,7 +142,11 @@ public:
 	UFUNCTION(BlueprintCallable, Category = PCG)
 	void GenerateLocal(bool bForce);
 
+	/** Requests the component to generate only on the specified grid level (all grid levels if EPCGHiGenGrid::Uninitialized). */
+	void GenerateLocal(EPCGComponentGenerationTrigger RequestedGenerationTrigger, bool bForce, EPCGHiGenGrid Grid = EPCGHiGenGrid::Uninitialized);
+
 	FPCGTaskId GenerateLocalGetTaskId(bool bForce);
+	FPCGTaskId GenerateLocalGetTaskId(EPCGComponentGenerationTrigger RequestedGenerationTrigger, bool bForce, EPCGHiGenGrid Grid = EPCGHiGenGrid::Uninitialized);
 
 	/** Cleans up the generation from a local (vs. remote) standpoint. Will not be replicated. Will be delayed. */
 	UFUNCTION(BlueprintCallable, Category = PCG)
@@ -181,6 +191,15 @@ public:
 	/** Clear any data stored for any pins. */
 	void ClearPerPinGeneratedOutput();
 
+	/** Set the runtime generation scheduling policy type. */
+	void SetSchedulingPolicyClass(TSubclassOf<UPCGSchedulingPolicyBase> InSchedulingPolicyClass);
+
+	/** Get the runtime generation radius for the given grid size. */
+	double GetGenerationRadiusFromGrid(EPCGHiGenGrid Grid) const;
+
+	/** Compute the runtime cleanup radius for the given grid size. */
+	double GetCleanupRadiusFromGrid(EPCGHiGenGrid Grid) const;
+
 	UPROPERTY(BlueprintReadWrite, EditAnywhere, Category = Settings)
 	EPCGComponentInput InputType = EPCGComponentInput::Actor;
 
@@ -200,8 +219,23 @@ public:
 	UPROPERTY(BlueprintReadOnly, EditAnywhere, Category = Properties, AdvancedDisplay, meta = (EditCondition = "!bIsComponentLocal", EditConditionHides))
 	EPCGComponentGenerationTrigger GenerationTrigger = EPCGComponentGenerationTrigger::GenerateOnLoad;
 
+	/** Manual overrides for the graph generation radii and cleanup radius multiplier. */
+	UPROPERTY(BlueprintReadWrite, EditAnywhere, Category = RuntimeGeneration, meta = (EditCondition = "GenerationTrigger == EPCGComponentGenerationTrigger::GenerateAtRuntime", EditConditionHides))
+	bool bOverrideGenerationRadii = false;
+
+	UPROPERTY(BlueprintReadWrite, EditAnywhere, Category = RuntimeGeneration, meta = (EditCondition = "GenerationTrigger == EPCGComponentGenerationTrigger::GenerateAtRuntime && bOverrideGenerationRadii", EditConditionHides))
+	FPCGRuntimeGenerationRadii GenerationRadii;
+
+	/** A Scheduling Policy dictates the order in which instances of this component will be scheduled. */
+	UPROPERTY(BlueprintReadOnly, EditAnywhere, NoClear, Category = RuntimeGeneration, meta = (EditCondition = "GenerationTrigger == EPCGComponentGenerationTrigger::GenerateAtRuntime", EditConditionHides))
+	TSubclassOf<UPCGSchedulingPolicyBase> SchedulingPolicyClass = nullptr;
+
+	/** This is the instanced UPCGSchedulingPolicy object which holds scheduling parameters and calculates priorities. */
+	UPROPERTY(BlueprintReadOnly, VisibleAnywhere, Instanced, Category = RuntimeGeneration, meta = (EditCondition = "GenerationTrigger == EPCGComponentGenerationTrigger::GenerateAtRuntime", EditConditionHides))
+	TObjectPtr<UPCGSchedulingPolicyBase> SchedulingPolicy;
+
 	/** Flag to indicate whether this component has run in the editor. Note that for partitionable actors, this will always be false. */
-	UPROPERTY(BlueprintReadOnly, VisibleAnywhere, AdvancedDisplay, Category = Properties, meta = (NoResetToDefault))
+	UPROPERTY(BlueprintReadOnly, VisibleAnywhere, AdvancedDisplay, Category = Properties, NonTransactional, meta = (NoResetToDefault))
 	bool bGenerated = false;
 
 	UPROPERTY(NonPIEDuplicateTransient)
@@ -309,6 +343,9 @@ public:
 	static UPCGData* CreateActorPCGData(AActor* Actor, const UPCGComponent* Component, bool bParseActor = true);
 
 protected:
+	void RefreshSchedulingPolicy();
+
+protected:
 	UPROPERTY(BlueprintReadOnly, VisibleAnywhere, Category = PCG, Instanced, meta = (NoResetToDefault))
 	TObjectPtr<UPCGGraphInstance> GraphInstance;
 
@@ -343,7 +380,7 @@ private:
 	bool ShouldGenerate(bool bForce, EPCGComponentGenerationTrigger RequestedGenerationTrigger) const;
 
 	/* Internal call that allows to delay a Generate/Cleanup call, chain with dependencies and keep track of the task id created. This task id is also returned. */
-	FPCGTaskId GenerateInternal(bool bForce, EPCGComponentGenerationTrigger RequestedGenerationTrigger, const TArray<FPCGTaskId>& Dependencies);
+	FPCGTaskId GenerateInternal(bool bForce, EPCGHiGenGrid Grid, EPCGComponentGenerationTrigger RequestedGenerationTrigger, const TArray<FPCGTaskId>& Dependencies);
 	FPCGTaskId CleanupInternal(bool bRemoveComponents, bool bSave, const TArray<FPCGTaskId>& Dependencies);
 
 	/* Internal call to create tasks to generate the component. If there is nothing to do, an invalid task id will be returned. Should only be used by the subsystem. */

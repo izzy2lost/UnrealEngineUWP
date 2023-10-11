@@ -1,0 +1,113 @@
+// Copyright Epic Games, Inc. All Rights Reserved.
+
+#pragma once
+
+#include "PCGCommon.h"
+#include "UObject/WeakObjectPtr.h"
+
+class FPCGActorAndComponentMapping;
+class UPCGComponent;
+class IPCGGenSourceBase;
+class APCGPartitionActor;
+class APCGWorldActor;
+
+/**
+ * The Runtime Generation Scheduler system handles the scheduling of PCG Components marked as GenerateAtRuntime.
+ * It searches the level for Partitioned and Non-Partitioned components in range of the currently active
+ * UPCGGenSources in the level, and schedules them efficiently based on their UPCGSchedulingPolicy, creating 
+ * APCGPartitionActors as necessary to support hierarchical generation.
+ *
+ * APCGPartitionActors can be created/destroyed on demand or provided by a dynamically growing pool of actors. If
+ * enabled, the pool will double in capacity anytime the number of available PAs reaches zero.
+ * 
+ * Components and PartitionActors created by the Runtime Generation Scheduler should be managed exclusively by the
+ * runtime gen scheduling system.
+ */
+class FPCGRuntimeGenScheduler
+{
+	friend class UPCGSubsystem;
+
+public:
+	FPCGRuntimeGenScheduler(UWorld* InWorld, FPCGActorAndComponentMapping* InActorAndComponentMapping);
+	~FPCGRuntimeGenScheduler();
+
+	FPCGRuntimeGenScheduler(const FPCGRuntimeGenScheduler&) = delete;
+	FPCGRuntimeGenScheduler(FPCGRuntimeGenScheduler&& other) = delete;
+	FPCGRuntimeGenScheduler& operator=(const FPCGRuntimeGenScheduler& other) = delete;
+	FPCGRuntimeGenScheduler& operator=(FPCGRuntimeGenScheduler&& other) = delete; 
+
+	void Tick(const APCGWorldActor* InPCGWorldActor);
+
+	void OnOriginalComponentUnregistered(UPCGComponent* InComponent);
+
+protected:
+	struct FGridGenerationKey : TTuple<uint32, FIntVector, UPCGComponent*>
+	{
+		FGridGenerationKey(uint32 InGridSize, const FIntVector& InGridCoords, UPCGComponent* InOriginalComponent)
+			: TTuple<uint32, FIntVector, UPCGComponent*>(InGridSize, InGridCoords, InOriginalComponent) {}
+
+		uint32 GetGridSize() const { return Get<0>(); }
+		FIntVector GetGridCoords() const { return Get<1>(); }
+		UPCGComponent* GetOriginalComponent() const { return Get<2>(); }
+	};
+
+	/** Returns true if the scheduler should tick this frame. */
+	bool ShouldTick();
+
+	/** Queue nearby components for generation. */
+	void TickQueueComponentsForGeneration(
+		const TSet<IPCGGenSourceBase*>& GenSources,
+		const APCGWorldActor* InPCGWorldActor,
+		TMap<FGridGenerationKey, double>& OutComponentsToGenerate);
+
+	/** Perform immediate cleanup on components that become out of range. */
+	void TickCleanup(const TSet<IPCGGenSourceBase*>& GenSources, const APCGWorldActor* InPCGWorldActor);
+
+	/** Schedule generation on components in priority order. */
+	void TickScheduleGeneration(TMap<FGridGenerationKey, double>& ComponentsToGenerate);
+
+	/** Detects changes in RuntimeGen CVars to keep the PA pool in a valid state. */
+	void TickCVars(const APCGWorldActor* InPCGWorldActor);
+
+	/** Cleanup all local components in the GeneratedComponents set. */
+	void CleanupLocalComponents(const APCGWorldActor* InPCGWorldActor);
+
+	/** Cleanup a component and remove it from the GeneratedComponents set. */
+	void CleanupComponent(const FGridGenerationKey& GenerationKey, UPCGComponent* GeneratedComponent);
+
+	/** Creates an empty RuntimeGen PA on demand if one cannot already be found in the level. PA will be created for the given GridSize and GridCoords. */
+	APCGPartitionActor* FindOrCreatePartitionActor(uint32 GridSize, const FIntVector& GridCoords);
+	
+	/** Grabs an empty RuntimeGen PA from the PartitionActorPool and initializes it at the given GridSize and GridCoords. If no PAs are available in the pool,
+	* the pool capacity will double and new PAs will be created.
+	*/
+	APCGPartitionActor* GetPartitionActorFromPool(uint32 GridSize, const FIntVector& GridCoords);
+
+	/** Adds Count new RuntimeGen PAs to the Runtime PA pool. */
+	void AddPartitionActorPoolCount(int32 Count);
+
+	/** Destroy all pooled partition actors and rebuild with the NewPoolSize. */
+	void ResetPartitionActorPoolToSize(uint32 NewPoolSize);
+
+private:
+	/** Tracks the generated components managed by the RuntimeGenScheduler. For local components, this generation key will hold the original component.
+	* For non-partitioned components, the generation key should have unbounded grid size and (0, 0, 0) grid coordinates.
+	*/
+	TSet<FGridGenerationKey> GeneratedComponents;
+
+	/** Pool of RuntimeGen PartitionActors used for hierarchical generation. */
+	TArray<APCGPartitionActor*> PartitionActorPool;
+
+	/** PartitionActorPoolSize represents the current maximum capacity of the PartitionActorPool. */
+	int32 PartitionActorPoolSize = 0;
+
+	/** Used to track the number of frames until we can schedule another generation. */
+	uint32 ScheduleFrameCounter = 0;
+
+	FPCGActorAndComponentMapping* ActorAndComponentMapping = nullptr;
+	class FPCGGenSourceManager* GenSourceManager = nullptr;
+	class UWorld* World = nullptr;
+
+	bool bPoolingWasEnabledLastFrame = true;
+	uint32 BasePoolSizeLastFrame = 0;
+};
