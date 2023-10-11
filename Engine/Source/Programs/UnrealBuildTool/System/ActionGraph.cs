@@ -361,17 +361,15 @@ namespace UnrealBuildTool
 		/// </summary>
 		private static ActionExecutor SelectExecutor(BuildConfiguration BuildConfiguration, int ActionCount, List<TargetDescriptor> TargetDescriptors, ILogger Logger)
 		{
-#if __BOXEXECUTOR_AVAILABLE__
-			bool bAnySingleFile = TargetDescriptors.Any(Descriptor => Descriptor.SpecificFilesToCompile.Count == 1);
-			if (!bAnySingleFile && BuildConfiguration.bAllowBoxExecutor && BoxExecutor.IsAvailable(Logger))
-			{
-				CommandLineArguments? AdditionalArguments = TargetDescriptors.FirstOrDefault()?.AdditionalArguments;
-				return new BoxExecutor(BuildConfiguration.MaxParallelActions, BuildConfiguration.bAllCores, BuildConfiguration.bCompactOutput, Logger, AdditionalArguments);
-			}
-#endif // #if __BOXEXECUTOR_AVAILABLE__
-
 			if (ActionCount > ParallelExecutor.GetDefaultNumParallelProcesses(BuildConfiguration.MaxParallelActions, BuildConfiguration.bAllCores, Logger))
 			{
+#if __BOXEXECUTOR_AVAILABLE__
+				if (BuildConfiguration.bAllowBoxExecutor && BoxExecutor.IsAvailable(Logger))
+				{
+					return new BoxExecutor(BuildConfiguration.MaxParallelActions, BuildConfiguration.bAllCores, BuildConfiguration.bCompactOutput, Logger, TargetDescriptors.FirstOrDefault()?.AdditionalArguments);
+				}
+#endif // #if __BOXEXECUTOR_AVAILABLE__
+
 				if (BuildConfiguration.bAllowXGE && XGE.IsAvailable(Logger) && ActionCount >= XGE.MinActions)
 				{
 					return new XGE(Logger);
@@ -385,6 +383,13 @@ namespace UnrealBuildTool
 					return new FASTBuild(BuildConfiguration.MaxParallelActions, BuildConfiguration.bAllCores, BuildConfiguration.bCompactOutput, Logger);
 				}
 			}
+
+#if __BOXEXECUTOR_AVAILABLE__
+			if (BuildConfiguration.bAllowBoxLocalExecutor && BoxLocalExecutor.IsAvailable(Logger))
+			{
+				return new BoxLocalExecutor(BuildConfiguration.MaxParallelActions, BuildConfiguration.bAllCores, BuildConfiguration.bCompactOutput, Logger, TargetDescriptors.FirstOrDefault()?.AdditionalArguments);
+			}
+#endif // #if __BOXEXECUTOR_AVAILABLE__
 
 			return new ParallelExecutor(BuildConfiguration.MaxParallelActions, BuildConfiguration.bAllCores, BuildConfiguration.bCompactOutput, Logger);
 		}
@@ -402,6 +407,7 @@ namespace UnrealBuildTool
 			{
 				// Figure out which executor to use
 				using ActionExecutor Executor = SelectExecutor(BuildConfiguration, ActionsToExecute.Count, TargetDescriptors, Logger);
+				Logger.LogInformation("Using {ExecutorName} executor to run {ActionCount} action(s)", Executor.Name, ActionsToExecute.Count);
 
 				// Execute the build
 				Stopwatch Timer = Stopwatch.StartNew();

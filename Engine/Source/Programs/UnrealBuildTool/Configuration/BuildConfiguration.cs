@@ -39,7 +39,6 @@ namespace UnrealBuildTool
 		[Obsolete("HybridExecutor is no longer supported")]
 		public bool bAllowHybridExecutor = false;
 
-#if __BOXEXECUTOR_AVAILABLE__
 		/// <summary>
 		/// Whether the experimental box executor will be used.
 		/// </summary>
@@ -47,7 +46,19 @@ namespace UnrealBuildTool
 		[CommandLine("-Box", Value = "true")]
 		[CommandLine("-NoBox", Value = "false")]
 		public bool bAllowBoxExecutor = false;
-#endif // #if __BOXEXECUTOR_AVAILABLE__
+
+		/// <summary>
+		/// Whether the experimental box (local only) executor will be used.
+		/// </summary>
+		[XmlConfigFile]
+		[CommandLine("-BoxLocal", Value = "true")]
+		[CommandLine("-NoBoxLocal", Value = "false")]
+		public bool bAllowBoxLocalExecutor
+		{
+			get => bAllowBoxExecutor || bAllowBoxLocalExecutorPrivate;
+			set => bAllowBoxLocalExecutorPrivate = value;
+		}
+		private bool bAllowBoxLocalExecutorPrivate = false;
 
 		/// <summary>
 		/// Whether XGE may be used if available, default is true.
