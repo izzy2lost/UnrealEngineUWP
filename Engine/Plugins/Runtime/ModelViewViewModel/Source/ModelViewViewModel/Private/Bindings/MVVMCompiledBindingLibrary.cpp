@@ -343,7 +343,7 @@ namespace UE::MVVM::Private
 		void* DataPtr = FMemory_Alloca_Aligned(Function->ParmsSize, Function->GetMinAlignment());
 		ReturnObjectProperty->InitializeValue(DataPtr);
 		Container->ProcessEvent(Function, DataPtr);
-		UObject* NewContainer = ReturnObjectProperty->GetObjectPropertyValue_InContainer(DataPtr);
+		UObject* NewContainer = ReturnObjectProperty->GetObjectPropertyValue(DataPtr);
 		ReturnObjectProperty->DestroyValue(DataPtr);
 		return NewContainer;
 	}
@@ -395,7 +395,6 @@ TValueOrError<UE::MVVM::FFieldContext, void> FMVVMCompiledBindingLibrary::Evalua
 			if (PathIndex.bIsObjectProperty)
 			{
 				const FObjectPropertyBase* ObjectProperty = CastField<const FObjectPropertyBase>(Property);
-				check(ObjectProperty);
 				UObject* NewContainer = ObjectProperty->GetObjectPropertyValue_InContainer(CurrentContainer.GetData()); // this skip any Getter
 				CurrentContainer.SetUObject(NewContainer);
 			}
