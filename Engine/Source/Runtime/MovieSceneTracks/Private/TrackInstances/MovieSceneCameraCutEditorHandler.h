@@ -38,7 +38,7 @@ struct FPreAnimatedCameraCutEditorTraits : FPreAnimatedStateTraits
 	using KeyType = FLevelEditorViewportClient*;
 	using StorageType = FPreAnimatedCameraCutEditorState;
 
-	static bool ShouldHandleViewportCameraCuts(FLevelEditorViewportClient* ViewportClient);
+	static bool ShouldHandleViewportCameraCuts(UWorld* ViewportWorld);
 	static StorageType CachePreAnimatedValue(KeyType InKey);
 
 	void RestorePreAnimatedValue(KeyType InKey, const StorageType& CachedValue, const FRestoreStateParams& Params);
@@ -87,6 +87,7 @@ struct FCameraCutEditorHandler
 	/** Force cache/discard/restore pre-animated values */
 	static void ForcePreAnimatedValueOperation(
 			UMovieSceneEntitySystemLinker* Linker,
+			const FSequenceInstance& SequenceInstance,
 			EForcedCameraCutPreAnimatedStorageOperation Operation);
 
 private:

@@ -289,10 +289,12 @@ void UMovieSceneCameraCutTrackInstance::ToggleCameraCutLock(UMovieSceneEntitySys
 		using namespace UE::MovieScene;
 
 		UMovieSceneEntitySystemLinker* Linker = This->GetLinker();
+		const FInstanceRegistry* InstanceRegistry = Linker->GetInstanceRegistry();
 		for (const FCameraCutInputInfo& InputInfo : This->SortedInputInfos)
 		{
 			FScopedPreAnimatedCaptureSource CaptureSource(Linker, InputInfo.Input);
-			FCameraCutEditorHandler::ForcePreAnimatedValueOperation(Linker, Operation);
+			const FSequenceInstance& SequenceInstance = InstanceRegistry->GetInstance(InputInfo.Input.InstanceHandle);
+			FCameraCutEditorHandler::ForcePreAnimatedValueOperation(Linker, SequenceInstance, Operation);
 		}
 	};
 
@@ -614,12 +616,6 @@ void UMovieSceneCameraCutTrackInstance::OnEndUpdateInputs()
 void UMovieSceneCameraCutTrackInstance::OnDestroyed()
 {
 #if WITH_EDITOR
-	using namespace UE::MovieScene;
-
-	// Discard persistent storage on exit so that we don't restore whatever viewports we had
-	// way back when we opened the sequencer.
-	//FCameraCutEditorHandler::ForcePreAnimatedValueOperation(GetLinker(), EForcedCameraCutPreAnimatedStorageOperation::DiscardPersistent);
-
 	// Make sure we don't have any viewport modifiers registered anymore.
 	ViewportPreviewer->ToggleViewportPreviewModifiers(false);
 	ViewportPreviewer.Reset();

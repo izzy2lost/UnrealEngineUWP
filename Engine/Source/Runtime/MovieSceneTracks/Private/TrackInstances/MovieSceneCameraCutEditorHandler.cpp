@@ -15,11 +15,10 @@
 namespace UE::MovieScene
 {
 
-bool FPreAnimatedCameraCutEditorTraits::ShouldHandleViewportCameraCuts(FLevelEditorViewportClient* ViewportClient)
+bool FPreAnimatedCameraCutEditorTraits::ShouldHandleViewportCameraCuts(UWorld* ViewportWorld)
 {
-	UWorld* EditorWorld = ViewportClient->GetWorld();
-	return EditorWorld && 
-		(EditorWorld->WorldType == EWorldType::Editor || EditorWorld->WorldType == EWorldType::EditorPreview);
+	return ViewportWorld && 
+		(ViewportWorld->WorldType == EWorldType::Editor || ViewportWorld->WorldType == EWorldType::EditorPreview);
 }
 
 FPreAnimatedCameraCutEditorState FPreAnimatedCameraCutEditorTraits::CachePreAnimatedValue(
@@ -37,7 +36,7 @@ void FPreAnimatedCameraCutEditorTraits::RestorePreAnimatedValue(
 		const FPreAnimatedCameraCutEditorState& CachedValue, 
 		const FRestoreStateParams& Params)
 {
-	if (!GEditor)
+	if (!GEditor || !InKey)
 	{
 		return;
 	}
@@ -49,7 +48,7 @@ void FPreAnimatedCameraCutEditorTraits::RestorePreAnimatedValue(
 	}
 
 	// Check that we have an editor viewport.
-	if (!ShouldHandleViewportCameraCuts(InKey))
+	if (!ShouldHandleViewportCameraCuts(InKey->GetWorld()))
 	{
 		return;
 	}
@@ -89,12 +88,23 @@ void FCameraCutEditorHandler::CachePreAnimatedValue(
 	{
 		return;
 	}
+
+	IMovieScenePlayer* Player = SequenceInstance.GetPlayer();
+	UObject* PlaybackContext = Player->GetPlaybackContext();
+	UWorld* ContextWorld = PlaybackContext ? PlaybackContext->GetWorld() : nullptr;
+
+	// Only handle editor world/viewports.
+	if (!FPreAnimatedCameraCutEditorTraits::ShouldHandleViewportCameraCuts(ContextWorld))
+	{
+		return;
+	}
 	
 	TSharedPtr<FPreAnimatedCameraCutEditorStorage> PreAnimatedStorage = Linker->PreAnimatedState.GetOrCreateStorage<FPreAnimatedCameraCutEditorStorage>();
 
 	for (FLevelEditorViewportClient* LevelVC : GEditor->GetLevelViewportClients())
 	{
-		if (!FPreAnimatedCameraCutEditorTraits::ShouldHandleViewportCameraCuts(LevelVC))
+		// Only handle the viewports that are tied to our playback context.
+		if (!LevelVC || LevelVC->GetWorld() != ContextWorld)
 		{
 			continue;
 		}
@@ -108,9 +118,20 @@ void FCameraCutEditorHandler::CachePreAnimatedValue(
 
 void FCameraCutEditorHandler::ForcePreAnimatedValueOperation(
 		UMovieSceneEntitySystemLinker* Linker,
+		const FSequenceInstance& SequenceInstance,
 		EForcedCameraCutPreAnimatedStorageOperation Operation)
 {
 	if (!GEditor)
+	{
+		return;
+	}
+
+	IMovieScenePlayer* Player = SequenceInstance.GetPlayer();
+	UObject* PlaybackContext = Player->GetPlaybackContext();
+	UWorld* ContextWorld = PlaybackContext ? PlaybackContext->GetWorld() : nullptr;
+
+	// Only handle editor world/viewports.
+	if (!FPreAnimatedCameraCutEditorTraits::ShouldHandleViewportCameraCuts(ContextWorld))
 	{
 		return;
 	}
@@ -119,7 +140,8 @@ void FCameraCutEditorHandler::ForcePreAnimatedValueOperation(
 
 	for (FLevelEditorViewportClient* LevelVC : GEditor->GetLevelViewportClients())
 	{
-		if (!FPreAnimatedCameraCutEditorTraits::ShouldHandleViewportCameraCuts(LevelVC))
+		// Only handle the viewports that are tied to our playback context.
+		if (!LevelVC || LevelVC->GetWorld() != ContextWorld)
 		{
 			continue;
 		}
@@ -175,6 +197,16 @@ void FCameraCutEditorHandler::SetCameraCut(
 		return;
 	}
 
+	IMovieScenePlayer* Player = SequenceInstance.GetPlayer();
+	UObject* PlaybackContext = Player->GetPlaybackContext();
+	UWorld* ContextWorld = PlaybackContext ? PlaybackContext->GetWorld() : nullptr;
+
+	// Only handle editor world/viewports.
+	if (!FPreAnimatedCameraCutEditorTraits::ShouldHandleViewportCameraCuts(ContextWorld))
+	{
+		return;
+	}
+
 	FCameraCutPlaybackCapabilityCompatibilityWrapper Wrapper(SequenceInstance);
 
 	// If we don't want to update camera cuts, let's remember it and release the viewports
@@ -193,7 +225,8 @@ void FCameraCutEditorHandler::SetCameraCut(
 
 	for (FLevelEditorViewportClient* LevelVC : GEditor->GetLevelViewportClients())
 	{
-		if (LevelVC == nullptr || !FPreAnimatedCameraCutEditorTraits::ShouldHandleViewportCameraCuts(LevelVC))
+		// Only handle the viewports that are tied to our playback context.
+		if (!LevelVC || LevelVC->GetWorld() != ContextWorld)
 		{
 			continue;
 		}
