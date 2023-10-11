@@ -1544,8 +1544,9 @@ void FSceneView::OverridePostProcessSettings(const FPostProcessSettings& Src, fl
 		LERP_PP(AutoExposureBias);
 		LERP_PP(HistogramLogMin);
 		LERP_PP(HistogramLogMax);
-		LERP_PP(LocalExposureHighlightContrast);
-		LERP_PP(LocalExposureShadowContrast);
+		LERP_PP(LocalExposureContrastScale_DEPRECATED);
+		LERP_PP(LocalExposureHighlightContrastScale);
+		LERP_PP(LocalExposureShadowContrastScale);
 		LERP_PP(LocalExposureDetailStrength);
 		LERP_PP(LocalExposureBlurredLuminanceBlend);
 		LERP_PP(LocalExposureBlurredLuminanceKernelSizePercent);
@@ -1857,13 +1858,13 @@ void FSceneView::StartFinalPostprocessSettings(FVector InViewLocation)
 		{
 			const float HighlightContrast = FMath::Clamp(CVarDefaultLocalExposureHighlightContrast.GetValueOnGameThread(), 0.0f, 1.0f);
 
-			FinalPostProcessSettings.LocalExposureHighlightContrast = HighlightContrast;
+			FinalPostProcessSettings.LocalExposureHighlightContrastScale = HighlightContrast;
 		}
 
 		{
 			const float ShadowContrast = FMath::Clamp(CVarDefaultLocalExposureHighlightContrast.GetValueOnGameThread(), 0.0f, 1.0f);
 
-			FinalPostProcessSettings.LocalExposureShadowContrast = ShadowContrast;
+			FinalPostProcessSettings.LocalExposureShadowContrastScale = ShadowContrast;
 		}
 
 		if (!CVarDefaultMotionBlur.GetValueOnGameThread())
@@ -1942,8 +1943,8 @@ void FSceneView::EndFinalPostprocessSettings(const FSceneViewInitOptions& ViewIn
 
 		if (LocalExposureCVarValue <= 0 || !Family->EngineShowFlags.LocalExposure)
 		{
-			FinalPostProcessSettings.LocalExposureHighlightContrast = 1.0f;
-			FinalPostProcessSettings.LocalExposureShadowContrast = 1.0f;
+			FinalPostProcessSettings.LocalExposureHighlightContrastScale = 1.0f;
+			FinalPostProcessSettings.LocalExposureShadowContrastScale = 1.0f;
 			FinalPostProcessSettings.LocalExposureHighlightContrastCurve = nullptr;
 			FinalPostProcessSettings.LocalExposureShadowContrastCurve = nullptr;
 			FinalPostProcessSettings.LocalExposureDetailStrength = 1.0f;

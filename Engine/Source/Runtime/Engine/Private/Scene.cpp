@@ -7,7 +7,6 @@
 #include "UObject/RenderingObjectVersion.h"
 #include "UObject/ReleaseObjectVersion.h"
 #include "UObject/UE5ReleaseStreamObjectVersion.h"
-#include "UObject/FortniteMainBranchObjectVersion.h"
 #include "DataDrivenShaderPlatformInfo.h"
 #include "UObject/UnrealType.h"
 
@@ -510,10 +509,8 @@ FPostProcessSettings::FPostProcessSettings()
 	AutoExposureApplyPhysicalCameraExposure = 1;
 
 	LocalExposureContrastScale_DEPRECATED = 1.0f;
-	LocalExposureHighlightContrastScale_DEPRECATED = 1.0f;
-	LocalExposureShadowContrastScale_DEPRECATED = 1.0f;
-	LocalExposureHighlightContrast = 0.8f;
-	LocalExposureShadowContrast = 0.8f;
+	LocalExposureHighlightContrastScale = 1.0f;
+	LocalExposureShadowContrastScale = 1.0f;
 	LocalExposureDetailStrength = 1.0f;
 	LocalExposureBlurredLuminanceBlend = 0.6f;
 	LocalExposureBlurredLuminanceKernelSizePercent = 50.0f;
@@ -902,26 +899,6 @@ void FPostProcessSettings::PostSerialize(const FArchive& Ar)
 					AutoExposureBias = ExtraAutoExposureBias;
 				}
 			}
-		}
-
-		if (bOverride_LocalExposureContrastScale_DEPRECATED)
-		{
-			bOverride_LocalExposureHighlightContrastScale_DEPRECATED = bOverride_LocalExposureContrastScale_DEPRECATED;
-			bOverride_LocalExposureShadowContrastScale_DEPRECATED = bOverride_LocalExposureContrastScale_DEPRECATED;
-		}
-		if (LocalExposureContrastScale_DEPRECATED != 1.0f)
-		{
-			LocalExposureHighlightContrastScale_DEPRECATED = LocalExposureContrastScale_DEPRECATED;
-			LocalExposureShadowContrastScale_DEPRECATED = LocalExposureContrastScale_DEPRECATED;
-		}
-
-		if (Ar.CustomVer(FFortniteMainBranchObjectVersion::GUID) < FFortniteMainBranchObjectVersion::LocalExposureDefaultChangeFrom1)
-		{
-			bOverride_LocalExposureHighlightContrast = bOverride_LocalExposureHighlightContrastScale_DEPRECATED;
-			bOverride_LocalExposureShadowContrast = bOverride_LocalExposureShadowContrastScale_DEPRECATED;
-
-			LocalExposureHighlightContrast = LocalExposureHighlightContrastScale_DEPRECATED;
-			LocalExposureShadowContrast = LocalExposureShadowContrastScale_DEPRECATED;
 		}
 
 		if (Ar.CustomVer(FUE5ReleaseStreamObjectVersion::GUID) < FUE5ReleaseStreamObjectVersion::ReflectionMethodEnum)

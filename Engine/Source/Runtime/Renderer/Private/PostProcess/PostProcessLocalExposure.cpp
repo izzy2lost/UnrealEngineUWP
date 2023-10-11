@@ -111,8 +111,8 @@ FLocalExposureParameters GetLocalExposureParameters(const FViewInfo& View, FIntP
 
 	const FVector2f LocalExposureBilateralGridUVScale = GetLocalExposureBilateralGridUVScale(ViewRectSize);
 
-	float HighlightContrast = Settings.LocalExposureHighlightContrast;
-	float ShadowContrast = Settings.LocalExposureShadowContrast;
+	float HighlightContrast = Settings.LocalExposureHighlightContrastScale;
+	float ShadowContrast = Settings.LocalExposureShadowContrastScale;
 
 	const float AverageSceneLuminance = View.GetLastAverageSceneLuminance();
 	if (AverageSceneLuminance > 0)

@@ -901,17 +901,11 @@ struct FPostProcessSettings
 	UPROPERTY()
 	uint8 bOverride_LocalExposureContrastScale_DEPRECATED:1;
 
-	UPROPERTY()
-	uint8 bOverride_LocalExposureHighlightContrastScale_DEPRECATED :1;
-
-	UPROPERTY()
-	uint8 bOverride_LocalExposureShadowContrastScale_DEPRECATED :1;
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category=Overrides, meta=(PinHiddenByDefault, InlineEditConditionToggle))
+	uint8 bOverride_LocalExposureHighlightContrastScale:1;
 
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category=Overrides, meta=(PinHiddenByDefault, InlineEditConditionToggle))
-	uint8 bOverride_LocalExposureHighlightContrast:1;
-
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category=Overrides, meta=(PinHiddenByDefault, InlineEditConditionToggle))
-	uint8 bOverride_LocalExposureShadowContrast:1;
+	uint8 bOverride_LocalExposureShadowContrastScale:1;
 
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category=Overrides, meta=(PinHiddenByDefault, InlineEditConditionToggle))
 	uint8 bOverride_LocalExposureHighlightContrastCurve:1;
@@ -1838,11 +1832,14 @@ struct FPostProcessSettings
 	UPROPERTY()
 	float LocalExposureContrastScale_DEPRECATED;
 
-	UPROPERTY()
-	float LocalExposureHighlightContrastScale_DEPRECATED;
-
-	UPROPERTY()
-	float LocalExposureShadowContrastScale_DEPRECATED;
+	/** 
+	 * Local Exposure decomposes luminance of the frame into a base layer and a detail layer.
+	 * Contrast of the base layer is reduced based on this value.
+	 * Value less than 1 will enable local exposure.
+	 * Good values are usually in the range 0.6 .. 1.0.
+	*/
+	UPROPERTY(interp, BlueprintReadWrite, Category="Lens|Local Exposure", meta=(UIMin = "0.0", UIMax = "1.0", editcondition = "bOverride_LocalExposureHighlightContrastScale", DisplayName = "Highlight Contrast"))
+	float LocalExposureHighlightContrastScale;
 
 	/** 
 	 * Local Exposure decomposes luminance of the frame into a base layer and a detail layer.
@@ -1850,17 +1847,8 @@ struct FPostProcessSettings
 	 * Value less than 1 will enable local exposure.
 	 * Good values are usually in the range 0.6 .. 1.0.
 	*/
-	UPROPERTY(interp, BlueprintReadWrite, Category="Lens|Local Exposure", meta=(UIMin = "0.0", UIMax = "1.0", editcondition = "bOverride_LocalExposureHighlightContrast", DisplayName = "Highlight Contrast"))
-	float LocalExposureHighlightContrast;
-
-	/** 
-	 * Local Exposure decomposes luminance of the frame into a base layer and a detail layer.
-	 * Contrast of the base layer is reduced based on this value.
-	 * Value less than 1 will enable local exposure.
-	 * Good values are usually in the range 0.6 .. 1.0.
-	*/
-	UPROPERTY(interp, BlueprintReadWrite, Category="Lens|Local Exposure", meta=(UIMin = "0.0", UIMax = "1.0", editcondition = "bOverride_LocalExposureShadowContrast", DisplayName = "Shadow Contrast"))
-	float LocalExposureShadowContrast;
+	UPROPERTY(interp, BlueprintReadWrite, Category="Lens|Local Exposure", meta=(UIMin = "0.0", UIMax = "1.0", editcondition = "bOverride_LocalExposureShadowContrastScale", DisplayName = "Shadow Contrast"))
+	float LocalExposureShadowContrastScale;
 
 	/**
 	 * Local Exposure Highlight Contrast based on the scene EV100.
@@ -2308,6 +2296,17 @@ struct FPostProcessSettings
 		if (RayTracingGI_DEPRECATED)
 		{
 			RayTracingGIType = (ERayTracingGlobalIlluminationType)(RayTracingGI_DEPRECATED == 1);
+		}
+
+		if (bOverride_LocalExposureContrastScale_DEPRECATED)
+		{
+			bOverride_LocalExposureHighlightContrastScale = bOverride_LocalExposureContrastScale_DEPRECATED;
+			bOverride_LocalExposureShadowContrastScale = bOverride_LocalExposureContrastScale_DEPRECATED;
+		}
+		if (LocalExposureContrastScale_DEPRECATED != 1.0f)
+		{
+			LocalExposureHighlightContrastScale = LocalExposureContrastScale_DEPRECATED;
+			LocalExposureShadowContrastScale = LocalExposureContrastScale_DEPRECATED;
 		}
 	}
 #endif
