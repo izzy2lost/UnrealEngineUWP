@@ -65,6 +65,8 @@ DECLARE_DYNAMIC_MULTICAST_DELEGATE_OneParam(FOnChaosCrumblingEvent, const FChaos
 
 DECLARE_DYNAMIC_MULTICAST_DELEGATE(FOnGeometryCollectionFullyDecayedEvent);
 
+DECLARE_DYNAMIC_MULTICAST_DELEGATE(FOnGeometryCollectionRootMovedEvent);
+
 namespace GeometryCollection
 {
 	enum class ESelectionMode : uint8
@@ -1207,6 +1209,7 @@ public:
 	FOnChaosBreakEvent OnRootBreakEvent;
 
 	FOnGeometryCollectionFullyDecayedEvent OnFullyDecayedEvent;
+	FOnGeometryCollectionRootMovedEvent OnRootMovedEvent;
 
 	GEOMETRYCOLLECTIONENGINE_API void DispatchBreakEvent(const FChaosBreakEvent& Event);
 
@@ -1282,6 +1285,8 @@ public:
 
 	/** allow update of the custom renderer if enabled */
 	GEOMETRYCOLLECTIONENGINE_API void SetUpdateCustomRenderer(bool bValue) { bUpdateCustomRenderer = bValue; }
+
+	GEOMETRYCOLLECTIONENGINE_API bool ShouldUpdateComponentTransformToRootBone() const { return bUpdateComponentTransformToRootBone; }
 
 public:
 	UPROPERTY(BlueprintAssignable, Category = "Collision")

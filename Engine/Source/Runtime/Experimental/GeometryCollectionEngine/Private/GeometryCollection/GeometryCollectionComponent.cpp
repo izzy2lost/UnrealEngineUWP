@@ -3844,7 +3844,16 @@ void UGeometryCollectionComponent::OnPostPhysicsSync()
 	// dirty the transform if the collection is
 	if (DynamicCollection && DynamicCollection->IsDirty())
 	{
+		const FTransform& PreviousRootTransform = OnRootMovedEvent.IsBound() ? ComponentSpaceTransforms.RequestRootTransform() : FTransform::Identity;
 		ComponentSpaceTransforms.MarkDirty();
+		if (OnRootMovedEvent.IsBound())
+		{
+			const FTransform& NewRootTransform = ComponentSpaceTransforms.RequestRootTransform();
+			if (!PreviousRootTransform.EqualsNoScale(NewRootTransform))
+			{
+				OnRootMovedEvent.Broadcast();
+			}
+		}
 	}
 
 	UpdateAttachedChildrenTransform();
