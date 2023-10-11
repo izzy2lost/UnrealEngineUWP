@@ -3,6 +3,7 @@
 #pragma once
 
 #include "Units/RigDispatchFactory.h"
+#include "Units/RigUnit.h"
 #include "RigUnit_UserData.generated.h"
 
 /*
