@@ -290,7 +290,7 @@ bool FPropertyReplicationState::PollPropertyReplicationState(const void* RESTRIC
 	return IsDirty();
 }
 
-bool FPropertyReplicationState::PollPropertyReplicationStateForRepNotifies(const void* RESTRICT SrcStateData)
+bool FPropertyReplicationState::StoreCurrentPropertyReplicationStateForRepNotifies(const void* RESTRICT SrcStateData, const FPropertyReplicationState* NewStateToBeApplied)
 {
 	if (IsValid())
 	{
@@ -304,15 +304,21 @@ bool FPropertyReplicationState::PollPropertyReplicationStateForRepNotifies(const
 		const FReplicationStateMemberPropertyDescriptor* MemberPropertyDescriptors = Descriptor->MemberPropertyDescriptors;
 		const uint32 MemberCount = Descriptor->MemberCount;
 
+		// Copy all if this is a state with no changemask or if NewStateToBeApplied is not set
+		const bool bCopyAll = IsInitState() || NewStateToBeApplied == nullptr;
 		for (uint32 MemberIt = 0; MemberIt < MemberCount; ++MemberIt)
 		{
 			const FReplicationStateMemberDescriptor& MemberDescriptor = MemberDescriptors[MemberIt];
 			const FReplicationStateMemberPropertyDescriptor& MemberPropertyDescriptor = MemberPropertyDescriptors[MemberIt];
 
-			if (MemberPropertyDescriptor.RepNotifyFunction)
+			if (MemberPropertyDescriptor.RepNotifyFunction && (bCopyAll || NewStateToBeApplied->IsDirty(MemberIt)))
 			{
 				const FProperty* Property = MemberProperties[MemberIt];
-				PollPropertyValue(MemberIt, SrcBuffer + Property->GetOffset_ForGC() + Property->ElementSize*MemberPropertyDescriptor.ArrayIndex);
+
+				void* DstValue = StateBuffer + Descriptor->MemberDescriptors[MemberIt].ExternalMemberOffset;
+				const void* SrcValue = SrcBuffer + Property->GetOffset_ForGC() + Property->ElementSize*MemberPropertyDescriptor.ArrayIndex;
+
+				Private::InternalCopyPropertyValue(Descriptor, MemberIt, DstValue, SrcBuffer + Property->GetOffset_ForGC() + Property->ElementSize*MemberPropertyDescriptor.ArrayIndex);
 			}
 		}
 	}

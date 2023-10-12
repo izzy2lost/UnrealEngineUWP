@@ -87,8 +87,10 @@ public:
 	*/
 	IRISCORE_API bool PollPropertyReplicationState(const void* RESTRICT SrcData);
 
-	/** Poll src data from properties which we want to store in order to determine if we need to call RepNotifies. */
-	IRISCORE_API bool PollPropertyReplicationStateForRepNotifies(const void* RESTRICT SrcData);
+	/** Certain rep notifies requires the current state to be stored before we overwrite it, this method will copy property values from src data, , where SrcData is a UClass/UStruct containing properties
+	 * if the property is marked as dirty in NewStateToBeApplied
+	 */
+	IRISCORE_API bool StoreCurrentPropertyReplicationStateForRepNotifies(const void* RESTRICT SrcData, const FPropertyReplicationState* NewStateToBeApplied);
 
 	/** Push received state data to properties in DstData buffer. Note: DstData is a UClass/UStruct containing properties. Updates representation in DstStateBuffer and mark destination properties as dirty if updated. */
 	IRISCORE_API void PushPropertyReplicationState(const UObject* Owner, void* RESTRICT DstData, bool bPushAll = false) const;
