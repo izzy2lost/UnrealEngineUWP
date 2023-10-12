@@ -43,6 +43,14 @@ static FAutoConsoleVariableRef CVarEnableNiagaraMeshRendering(
 	ECVF_Default
 );
 
+static int32 GNiagaraMeshRendererCalcMeshUsedParticleCount = 64;
+static FAutoConsoleVariableRef CVarNiagaraMeshRendererCalcMeshUsedParticleCount(
+	TEXT("fx.Niagara.MeshRenderer.CalcMeshUsedParticleCount"),
+	GNiagaraMeshRendererCalcMeshUsedParticleCount,
+	TEXT("Optimization which will inspect renderer vis / mesh index to determine which set of meshes we can potential render with."),
+	ECVF_Default
+);
+
 #if RHI_RAYTRACING
 static TAutoConsoleVariable<int32> CVarRayTracingNiagaraMeshes(
 	TEXT("r.RayTracing.Geometry.NiagaraMeshes"),
@@ -212,6 +220,8 @@ void FNiagaraRendererMeshes::Initialize(const UNiagaraRendererProperties* InProp
 	// Initialize the valid mesh slots, and prep them with the data for every mesh, LOD, and section we'll be needing over the lifetime of the renderer
 	const uint32 MaxMeshes = Properties->Meshes.Num();
 	Meshes.Empty(MaxMeshes);
+	MeshUsedMax = 0;
+
 	for (uint32 SourceMeshIndex = 0; SourceMeshIndex < MaxMeshes; ++SourceMeshIndex)
 	{
 		const auto& MeshProperties = Properties->Meshes[SourceMeshIndex];
@@ -222,6 +232,8 @@ void FNiagaraRendererMeshes::Initialize(const UNiagaraRendererProperties* InProp
 		{
 			continue;
 		}
+
+		MeshUsedMax = SourceMeshIndex + 1;
 
 		FIntVector2 LODRange = FIntVector2(0, 1);
 		if (MeshProperties.LODMode == ENiagaraMeshLODMode::LODLevel)
@@ -459,6 +471,73 @@ void FNiagaraRendererMeshes::PrepareParticleMeshRenderData(FParticleMeshRenderDa
 		// Update layout as it could have changed
 		ParticleMeshRenderData.RendererLayout = bNeedCustomSort ? RendererLayoutWithCustomSorting : RendererLayoutWithoutCustomSorting;
 	}
+}
+
+bool FNiagaraRendererMeshes::CalculateMeshUsed(FParticleMeshRenderData& ParticleMeshRenderData) const
+{
+	//-OPT: Should we handle modes where the tags are inside none-particle data?  i.e. EmitterRendererVisTagOffset | EmitterMeshIndexOffset
+	if (ParticleRendererVisTagOffset == INDEX_NONE && ParticleMeshIndexOffset == INDEX_NONE)
+	{
+		return true;
+	}
+
+	if (ParticleMeshRenderData.DynamicDataMesh->GetSimTarget() != ENiagaraSimTarget::CPUSim)
+	{
+		return true;
+	}
+
+	const int32 NumInstances = ParticleMeshRenderData.SourceParticleData->GetNumInstances();
+	if ( NumInstances > GNiagaraMeshRendererCalcMeshUsedParticleCount )
+	{
+		return true;
+	}
+
+	if (SourceMode != ENiagaraRendererSourceDataMode::Particles)
+	{
+		//-OPT: Should we handle emitter mode?
+		return true;
+	}
+
+	const FNiagaraDataBuffer* DataToRender = ParticleMeshRenderData.DynamicDataMesh->GetParticleDataToRender();
+	if (ParticleRendererVisTagOffset != INDEX_NONE)
+	{
+		const int32* RendererVisValues = reinterpret_cast<const int32*>(DataToRender->GetComponentPtrInt32(ParticleRendererVisTagOffset));
+		int32 FoundIndex = 0;
+		while (FoundIndex < NumInstances)
+		{
+			if (RendererVisValues[FoundIndex] == RendererVisibility)
+			{
+				break;
+			}
+			++FoundIndex;
+		}
+		if (FoundIndex == NumInstances)
+		{
+			return false;
+		}
+	}
+
+	if (ParticleMeshIndexOffset == INDEX_NONE)
+	{
+		return true;
+	}
+
+	ParticleMeshRenderData.MeshUsed.AddUninitialized(MeshUsedMax);
+	ParticleMeshRenderData.MeshUsed.SetRange(0, MeshUsedMax, false);
+	bool bAnyVisible = false;
+
+	const int32* MeshIndexValues = reinterpret_cast<const int32*>(DataToRender->GetComponentPtrInt32(ParticleMeshIndexOffset));
+	for (int32 i=0; i < NumInstances; ++i)
+	{
+		const int32 MeshIndex = MeshIndexValues[i];
+		if (MeshIndex >= 0 && MeshIndex < MeshUsedMax)
+		{
+			ParticleMeshRenderData.MeshUsed[MeshIndex] = true;
+			bAnyVisible = true;
+		}
+	}
+
+	return bAnyVisible;
 }
 
 void FNiagaraRendererMeshes::PrepareParticleRenderBuffers(FRHICommandListBase& RHICmdList, FParticleMeshRenderData& ParticleMeshRenderData, FGlobalDynamicReadBuffer& DynamicReadBuffer) const
@@ -1294,6 +1373,11 @@ void FNiagaraRendererMeshes::GetDynamicMeshElements(const TArray<const FSceneVie
 	FScopeCycleCounter EmitterStatsCounter(EmitterStatID);
 #endif
 
+	if (!CalculateMeshUsed(ParticleMeshRenderData))
+	{
+		return;
+	}
+
 	PrepareParticleRenderBuffers(RHICmdList, ParticleMeshRenderData, Collector.GetDynamicReadBuffer());
 
 	// If mesh index comes from the parameter store grab the information now
@@ -1352,6 +1436,11 @@ void FNiagaraRendererMeshes::GetDynamicMeshElements(const TArray<const FSceneVie
 
 				// Emitter mode mesh index binding
 				if (EmitterModeMeshIndex != INDEX_NONE && MeshIndex != EmitterModeMeshIndex)
+				{
+					continue;
+				}
+
+				if (ParticleMeshRenderData.MeshUsed.Num() > 0 && !ParticleMeshRenderData.MeshUsed[Meshes[MeshIndex].SourceMeshIndex])
 				{
 					continue;
 				}
