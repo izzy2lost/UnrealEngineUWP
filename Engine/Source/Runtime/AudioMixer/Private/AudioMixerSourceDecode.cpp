@@ -10,6 +10,7 @@
 #include "Async/Async.h"
 #include "AudioDecompress.h"
 #include "Sound/SoundGenerator.h"
+#include "DSP/FloatArrayMath.h"
 
 static int32 ForceSyncAudioDecodesCvar = 0;
 FAutoConsoleVariableRef CVarForceSyncAudioDecodes(
@@ -125,13 +126,8 @@ public:
 						check(NumBytesWritten <= ByteSize);
 
 						ProceduralResult.NumSamplesWritten = NumBytesWritten / sizeof(int16);
-
-						// Convert the buffer to float
-						int16* DecodedBufferPtr = (int16*)DecodeBuffer.GetData();
-						for (int32 SampleIndex = 0; SampleIndex < ProceduralResult.NumSamplesWritten; ++SampleIndex)
-						{
-							ProceduralTaskData.AudioData[SampleIndex] = (float)(DecodedBufferPtr[SampleIndex]) / 32768.0f;
-						}
+						Audio::ArrayPcm16ToFloat(MakeArrayView((int16*)DecodeBuffer.GetData(), ProceduralResult.NumSamplesWritten)
+							, MakeArrayView(ProceduralTaskData.AudioData, ProceduralResult.NumSamplesWritten));
 					}
 					else
 					{
@@ -195,15 +191,8 @@ public:
 				}
 
 				// Convert the decoded PCM data into a float buffer while still in the async task
-				int32 SampleIndex = 0;
-				int16* DecodedBufferPtr = (int16*)DecodeBuffer.GetData();
-				for (int32 Frame = 0; Frame < DecodeTaskData.NumFramesToDecode; ++Frame)
-				{
-					for (int32 Channel = 0; Channel < NumChannels; ++Channel, ++SampleIndex)
-					{
-						DecodeTaskData.AudioData[SampleIndex] = (float)(DecodedBufferPtr[SampleIndex]) / 32768.0f;
-					}
-				}
+				Audio::ArrayPcm16ToFloat(MakeArrayView((int16*)DecodeBuffer.GetData(), DecodeTaskData.NumFramesToDecode * NumChannels)
+					, MakeArrayView(DecodeTaskData.AudioData, DecodeTaskData.NumFramesToDecode* NumChannels));
 			}
 			break;
 		}

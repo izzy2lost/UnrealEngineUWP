@@ -140,17 +140,10 @@ namespace Metasound
 		{
 			SampleConversionBuffer.SetNumUninitialized(InBuffer.Num(), false /* bAllowShrinking */);
 
-			// Convert 16 bit pcm to 32 bit float.
-			constexpr float Scalar = 1.f / 32768.f;
 			const int16* Src = InBuffer.GetData();
 			float* Dst = SampleConversionBuffer.GetData();
-			int32 Num = InBuffer.Num();
-
-			// Convert 1 sample at a time, slow.
-			for (int32 i = 0; i < Num; ++i)
-			{
-				*Dst++ = static_cast<float>(*Src++) * Scalar;
-			}
+			const int32 Num = InBuffer.Num();
+			Audio::ArrayPcm16ToFloat(MakeArrayView(Src, Num), MakeArrayView(Dst, Num));
 
 			return PushAudioInternal(InDetails, SampleConversionBuffer);
 		}

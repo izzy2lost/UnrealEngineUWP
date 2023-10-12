@@ -339,10 +339,7 @@ void UMotoSynthSource::FilterSourceDataForAnalysis()
 	float* ScratchDataBufferPtr = ScratchBuffer.GetData();
 
 	// Convert the source data to floats
-	for (int32 FrameIndex = 0; FrameIndex < SourceDataPCM.Num(); ++FrameIndex)
-	{
-		ScratchDataBufferPtr[FrameIndex] = (float)SourceDataPCM[FrameIndex] / 32767.0f;
-	}
+	Audio::ArrayPcm16ToFloat(MakeArrayView(SourceDataPCM), MakeArrayView(ScratchDataBufferPtr, SourceDataPCM.Num()));
 
 	// Filter the audio source and write the output to the analysis buffer. Do not modify the source audio data.
 	if (bEnableFilteringForAnalysis)
@@ -550,10 +547,7 @@ void UMotoSynthSource::WriteAnalysisBufferToWaveFile()
 		TArray<int16> AnalysisBufferInt16;
 		AnalysisBufferInt16.AddUninitialized(AnalysisBuffer.Num());
 
-		for (int32 i = 0; i < AnalysisBufferInt16.Num(); ++i)
-		{
-			AnalysisBufferInt16[i] = AnalysisBuffer[i] * 32767.0f;
-		}
+		Audio::ArrayFloatToPcm16(MakeArrayView(AnalysisBuffer), MakeArrayView(AnalysisBufferInt16));
 
 		Audio::TSampleBuffer<> BufferToWrite(AnalysisBufferInt16.GetData(), AnalysisBufferInt16.Num(), 1, SourceSampleRate);
 
