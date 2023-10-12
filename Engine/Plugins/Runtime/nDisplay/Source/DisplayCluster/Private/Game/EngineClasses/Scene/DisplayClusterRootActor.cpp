@@ -52,14 +52,6 @@
 #include "Components/LineBatchComponent.h"
 #include "UObject/Package.h"
 
-#if WITH_EDITOR
-#include "IConcertSyncClientModule.h"
-#include "IConcertClientWorkspace.h"
-#include "IConcertSyncClient.h"
-
-#include "AssetToolsModule.h"
-#endif
-
 namespace UE::DisplayCluster::RootActor
 {
 	template <typename TComp>
@@ -169,7 +161,6 @@ void ADisplayClusterRootActor::ResetEntireClusterPreviewRendering()
 	{
 		// Update the preview settings as is from this DCRA
 		ViewportManager->GetViewportManagerPreview().ResetEntireClusterPreviewRendering();
-
 	}
 }
 
@@ -207,9 +198,6 @@ void ADisplayClusterRootActor::RemoveViewportManager()
 {
 	if (ViewportManagerPtr.IsValid())
 	{
-		// Reset all DCRA references
-		ViewportManagerPtr->GetConfiguration().SetRootActor(EDisplayClusterRootActorType::Any, nullptr);
-
 		// Immediately release the viewport manager with resources
 		ViewportManagerPtr.Reset();
 	}
@@ -242,22 +230,22 @@ bool ADisplayClusterRootActor::IsPrimaryRootActorForPIE() const
 }
 
 bool ADisplayClusterRootActor::IsRunningPIE() const
-	{
+{
 #if WITH_EDITOR
-		const UWorld* World = GetWorld();
-		return World && World->IsPlayInEditor();
+	const UWorld* World = GetWorld();
+	return World && World->IsPlayInEditor();
 #else
-		// Without editor return false
-		return false;
+	// Without editor return false
+	return false;
 #endif
-	}
+}
 
 bool ADisplayClusterRootActor::IsRunningDisplayCluster() const
 {
 	if (OperationMode == EDisplayClusterOperationMode::Cluster || OperationMode == EDisplayClusterOperationMode::Editor)
 	{
-	return true;
-}
+		return true;
+	}
 
 	return false;
 }
@@ -435,14 +423,14 @@ void ADisplayClusterRootActor::UpdateConfigDataInstance(UDisplayClusterConfigura
 			// properly with instanced values.
 
 			const EObjectFlags CommonFlags = RF_Public | RF_Transactional;
-			
+
 			CurrentConfigData = NewObject<UDisplayClusterConfigurationData>(
 				this,
 				UDisplayClusterConfigurationData::StaticClass(),
 				NAME_None,
 				IsTemplate() ? RF_ArchetypeObject | CommonFlags : CommonFlags,
 				ConfigDataTemplate);
-			
+
 			if (CurrentConfigData->Cluster == nullptr)
 			{
 				CurrentConfigData->Cluster = NewObject<UDisplayClusterConfigurationCluster>(
@@ -540,7 +528,7 @@ void ADisplayClusterRootActor::GetTypedPrimitives(TSet<FPrimitiveComponentId>& O
 		{
 			if (InCompNames != nullptr)
 			{
-				if(InCompNames->Find(CompIt->GetName()) != INDEX_NONE)
+				if (InCompNames->Find(CompIt->GetName()) != INDEX_NONE)
 				{
 					// add only comp from names list
 					CollectPrimitiveComponentsImpl(OutPrimitives, CompIt, bCollectChildrenVisualizationComponent);
@@ -733,7 +721,7 @@ void ADisplayClusterRootActor::InitializeRootActor()
 	{
 		return;
 	}
-	
+
 	bool bIsPIE = false;
 
 	if (!CurrentConfigData && !ConfigDataName.IsNone())
@@ -818,7 +806,7 @@ void ADisplayClusterRootActor::SetLightCardOwnership()
 	{
 		FDisplayClusterConfigurationICVFX_VisibilityList& LightCardVisibilityList = CurrentData->StageSettings.Lightcard.ShowOnlyList;
 		LightCardVisibilityList.AutoAddedActors.Reset();
-		
+
 		TArray<UDisplayClusterICVFXCameraComponent*> ICVFXComponents;
 		GetComponents(ICVFXComponents);
 
@@ -832,7 +820,7 @@ void ADisplayClusterRootActor::SetLightCardOwnership()
 					LightCardActor->SetWeakRootActorOwner(this);
 				}
 			}
-		
+
 			for (UDisplayClusterICVFXCameraComponent* Camera : ICVFXComponents)
 			{
 				FDisplayClusterConfigurationICVFX_ChromakeyRenderSettings* CameraChromakeyRenderSettings = Camera->CameraSettings.Chromakey.GetWritableChromakeyRenderSettings(GetStageSettings());
@@ -844,7 +832,7 @@ void ADisplayClusterRootActor::SetLightCardOwnership()
 
 				FDisplayClusterConfigurationICVFX_VisibilityList& ChromakeyCards = CameraChromakeyRenderSettings->ShowOnlyList;
 				ChromakeyCards.AutoAddedActors.Reset();
-				
+
 				for (const TSoftObjectPtr<AActor>& Actor : ChromakeyCards.Actors)
 				{
 					if (ADisplayClusterChromakeyCardActor* ChromakeyCardActor = Actor.IsValid() ? Cast<ADisplayClusterChromakeyCardActor>(Actor.Get()) : nullptr)
@@ -1004,7 +992,7 @@ void ADisplayClusterRootActor::Tick(float DeltaSeconds)
 	{
 		LineBatch->Flush();
 	}
-	
+
 	// Support for DCRA preview in the scene for standalone\package
 	// Use settings only from active DCRA
 	const bool bIsPrimaryRootActor = IsPrimaryRootActor();
@@ -1053,12 +1041,13 @@ void ADisplayClusterRootActor::Tick(float DeltaSeconds)
 		}
 	}
 
-	// Update Preview settings
+	// Get preview settings from the this actor current source
+	// as they may already be configured externally, so just get the preview settings from the current source
 	FDisplayClusterViewport_PreviewSettings NewPreviewSettings = GetPreviewSettings();
 
 	const bool bIsRunningPIE = IsRunningPIE();
 	const bool bIsRunningGame = IsRunningGame();
-	
+
 	// RootActor can have a preview in the scene
 	bool bEnablePreviewInScene = NewPreviewSettings.bPreviewEnable;
 	bool bPreviewInGame = false;
@@ -1120,57 +1109,50 @@ void ADisplayClusterRootActor::Tick(float DeltaSeconds)
 		NewPreviewSettings.bPreviewEnable = false;
 	}
 
-	// Preview in scene is a special render:
-	if (!bEnablePreviewInScene)
+	// Update entire cluster preview rendering
+	if (IDisplayClusterViewportManager* ViewportManager = bEnablePreviewInScene ? GetOrCreateViewportManager() : GetViewportManager())
 	{
-		// Hide invisible DCRA
-		SetActorHiddenInGame(true);
+		// Update preview settings to new
+		ViewportManager->GetConfiguration().SetPreviewSettings(NewPreviewSettings);
 
-		// Stop preview rendering.
-		if (IDisplayClusterViewportManager* ViewportManager = GetViewportManager())
-		{
-			// Update preview settings to new
-			ViewportManager->GetConfiguration().SetPreviewSettings(NewPreviewSettings);
-
-			// Stop preview rendering
-			ViewportManager->GetViewportManagerPreview().UpdateEntireClusterPreviewRender(false);
-		}
+		// Stop preview rendering
+		ViewportManager->GetViewportManagerPreview().UpdateEntireClusterPreviewRender(bEnablePreviewInScene);
 	}
-	// When the preview is used by this DCRA, we must create a new ViewportManager
-	else
-	{
-		// Show DCRA preview in the scene for standalone\package
-		SetActorHiddenInGame(false);
 
-		if (IDisplayClusterViewportManager* ViewportManager = GetOrCreateViewportManager())
-		{
-			// Update preview settings to new
-			ViewportManager->GetConfiguration().SetPreviewSettings(NewPreviewSettings);
-
-			// Request rendering
-			ViewportManager->GetViewportManagerPreview().UpdateEntireClusterPreviewRender(true);
-		}
-	}
+	// Update RootActor visibility for game
+	SetActorHiddenInGame(!bEnablePreviewInScene);
 
 	SetLightCardOwnership();
 
 	Super::Tick(DeltaSeconds);
 }
 
-FDisplayClusterViewport_PreviewSettings ADisplayClusterRootActor::GetPreviewSettings() const
+FDisplayClusterViewport_PreviewSettings ADisplayClusterRootActor::GetPreviewSettings(bool bIgnorePreviewSetttingsSource) const
 {
-	if (IDisplayClusterViewportManager* ViewportManager = GetViewportManager())
+	if (!bIgnorePreviewSetttingsSource)
 	{
-		if (!bUseLocalPreviewSetttings)
+		// Obtain preview settings from other sources:
+		switch (PreviewSetttingsSource)
 		{
-			return ViewportManager->GetConfiguration().GetPreviewSettings();
+		case EDisplayClusterConfigurationRootActorPreviewSettingsSource::Configuration:
+			if (IDisplayClusterViewportManager* ViewportManager = GetViewportManager())
+			{
+				return ViewportManager->GetConfiguration().GetPreviewSettings();
+			}
+			break;
+
+
+		case EDisplayClusterConfigurationRootActorPreviewSettingsSource::RootActor:
+		default:
+			break;
 		}
 	}
+
+	// Get preview settings from RootActor properties:
 
 	FDisplayClusterViewport_PreviewSettings OutPreviewSettings;
 
 	// By default RootActor renders in scene colors
-	// but
 	OutPreviewSettings.EntireClusterPreviewRenderMode = EDisplayClusterRenderFrameMode::PreviewInScene;
 
 	OutPreviewSettings.bPreviewEnable       = bPreviewEnable;
@@ -1179,10 +1161,10 @@ FDisplayClusterViewport_PreviewSettings ADisplayClusterRootActor::GetPreviewSett
 	OutPreviewSettings.bEnablePreviewTechvis     = bEnablePreviewTechvis;
 	OutPreviewSettings.bPreviewEnablePostProcess = bPreviewEnablePostProcess;
 
-	OutPreviewSettings.bPreviewICVFXFrustums = bPreviewICVFXFrustums;
+	OutPreviewSettings.bPreviewICVFXFrustums           = bPreviewICVFXFrustums;
 	OutPreviewSettings.PreviewICVFXFrustumsFarDistance = PreviewICVFXFrustumsFarDistance;
 
-	OutPreviewSettings.bEnablePreviewMesh        = bEnablePreviewMesh;
+	OutPreviewSettings.bEnablePreviewMesh         = bEnablePreviewMesh;
 	OutPreviewSettings.bEnablePreviewEditableMesh = bEnablePreviewEditableMesh;
 
 	OutPreviewSettings.PreviewRenderTargetRatioMult = PreviewRenderTargetRatioMult;
@@ -1251,226 +1233,6 @@ void ADisplayClusterRootActor::BeginDestroy()
 
 	Super::BeginDestroy();
 }
-
-/**
-* Propagate map changes from the DefaultsOwner to the InstanceOwner. The map must be <FString, UObject*>.
-* Each instanced object value will also be setup to use default propagation.
-*
-* If the DefaultsOwner has added a key it will be added to all instances with a new UObject value templated from the
-* default value.
-* 
-* If the DefaultsOwner has removed a key it will be removed from all instances.
-* 
-* All other elements will be left alone and element values will always work through the default propagation system.
-*
-* This is necessary in the event the instance has modified individual element value properties. Default container
-* propagation will treat the entire container as dirty and not add or remove elements to the instance.
-* 
-* For nDisplay the instance can only edit element properties, not the container size.
-* This allows us to safely propagate size changes from the default map through a custom propagation system.
-*
-* @param MapProperty The map property to sync.
-* @param DefaultsOwner The direct object owning the map property with the default values.
-* @param InstanceOwner The direct object owning the map property with the instance values.
-*/
-static void PropagateDefaultMapToInstancedMap(const FMapProperty* MapProperty, UObject* DefaultsOwner, UObject* InstanceOwner)
-{
-	check(DefaultsOwner);
-	check(InstanceOwner);
-	
-	const void* MapContainerDefaults = MapProperty->ContainerPtrToValuePtr<void*>(DefaultsOwner);
-	const void* MapContainerInstance = MapProperty->ContainerPtrToValuePtr<void*>(InstanceOwner);
-	FScriptMapHelper MapDefaultsHelper(MapProperty, MapContainerDefaults);
-	FScriptMapHelper MapInstanceHelper(MapProperty, MapContainerInstance);
-
-	bool bHasChanged = false;
-
-	auto AddKeyWithInstancedObject = [&](const FString* Key, UObject* ArchetypeToUse)
-	{
-		if (const uint8* ExistingPair = MapInstanceHelper.FindMapPairPtrFromHash(Key))
-		{
-			MapInstanceHelper.RemovePair(ExistingPair);
-		}
-		
-		// Existing objects should only occur in the case of delete and undo.
-		UObject* ObjectToAdd = FindObject<UObject>(InstanceOwner, *ArchetypeToUse->GetName());
-		if (ObjectToAdd == nullptr)
-		{
-			// Create the instance to assign to the map. Provide the archetype as a template with
-			// the same name so properties are propagated automatically.
-			ObjectToAdd = NewObject<UObject>(InstanceOwner, ArchetypeToUse->GetClass(),
-			ArchetypeToUse->GetFName(), RF_Transactional, ArchetypeToUse);
-		}
-#if WITH_EDITOR
-		else if (GIsTransacting)
-		{
-			// HACK: Projection policy parameters can become cleared when a VP is deleted, undone, redone, undone.
-			// The policy params are meant to only be set from the DCRA CDO, so resetting them back to the VP archetype is safe.
-			// @todo figure out how the parameters are being cleared between the redo/undo. No other properties seem to be impacted. 
-			if (UDisplayClusterConfigurationViewport* InstanceViewport = Cast<UDisplayClusterConfigurationViewport>(ObjectToAdd))
-			{
-				const UDisplayClusterConfigurationViewport* ArchetypeViewport = CastChecked<UDisplayClusterConfigurationViewport>(ArchetypeToUse);
-				if (InstanceViewport->ProjectionPolicy.Parameters.IsEmpty() && !ArchetypeViewport->ProjectionPolicy.Parameters.IsEmpty())
-				{
-					UE_LOG(LogDisplayClusterBlueprint, Warning, TEXT("Projection Policy mismatch from archetype on viewport, correcting. Instance: %s, Archetype: %s."),
-						*ObjectToAdd->GetName(), *ObjectToAdd->GetArchetype()->GetName());
-
-					InstanceViewport->ProjectionPolicy.Parameters = ArchetypeViewport->ProjectionPolicy.Parameters;
-				}
-			}
-		}
-#endif
-		
-		MapInstanceHelper.AddPair(Key, &ObjectToAdd);
-		
-		bHasChanged = true;
-	};
-
-	// Look for elements that should be added.
-	for (FScriptMapHelper::FIterator DefaultIt = MapDefaultsHelper.CreateIterator(); DefaultIt; ++DefaultIt)
-	{
-		uint8* DefaultPairPtr = MapDefaultsHelper.GetPairPtr(*DefaultIt);
-		check(DefaultPairPtr);
-		
-		FString* Key = MapProperty->KeyProp->ContainerPtrToValuePtr<FString>(DefaultPairPtr);
-		check(Key);
-		
-		UObject** DefaultObjectPtr =  MapProperty->ValueProp->ContainerPtrToValuePtr<UObject*>(DefaultPairPtr);
-		check(DefaultObjectPtr);
-		
-		UObject* DefaultObject = *DefaultObjectPtr;
-		check(DefaultObject);
-		
-		if (UObject** InstancedObjectPtr = (UObject**)MapInstanceHelper.FindValueFromHash(Key))
-		{
-			if (const UObject* InstancedObject = *InstancedObjectPtr)
-			{
-				const bool bArchetypeCorrect = DefaultObject == InstancedObject->GetArchetype();
-				
-				// The archetype should always match the new default. There are edge cases with MU
-				// where the instance may be updated prior to the CDO and should be corrected once
-				// the BP is saved. If this occurs outside of MU there could be a serious problem.
-				if (!bArchetypeCorrect)
-				{
-					const ADisplayClusterRootActor* RootActor =
-						Cast<ADisplayClusterRootActor>(InstancedObject->GetTypedOuter(ADisplayClusterRootActor::StaticClass()));
-					if (!RootActor)
-					{
-						// Undo transactions can potentially trigger this while an object was renamed to the transient package.
-						check(InstancedObject->GetPackage() == GetTransientPackage());
-						continue;
-					}
-#if WITH_EDITOR
-					if (GEditor)
-					{
-						bool bIsMultiUserSession = false;
-						TSharedPtr<IConcertSyncClient> ConcertSyncClient = IConcertSyncClientModule::Get().GetClient(TEXT("MultiUser"));
-						if (ConcertSyncClient.IsValid())
-						{
-							TSharedPtr<IConcertClientWorkspace> Workspace = ConcertSyncClient->GetWorkspace();
-							bIsMultiUserSession = Workspace.IsValid();
-						}
-
-						ensure(bArchetypeCorrect || bIsMultiUserSession);
-					}
-#endif
-					UE_LOG(LogDisplayClusterBlueprint, Warning, TEXT("Archetype mismatch on nDisplay config %s. Make sure the config is compiled and saved. Property: %s, Instance: %s, Archetype: %s, Default: %s."),
-						*RootActor->GetName(), *MapProperty->GetName(), *InstancedObject->GetName(), *InstancedObject->GetArchetype()->GetName(), *DefaultObject->GetName());
-				}
-				continue;
-			}
-		}
-		
-		AddKeyWithInstancedObject(Key, DefaultObject);
-	}
-
-	// Look for elements that should be removed.
-	for (FScriptMapHelper::FIterator InstanceIt = MapInstanceHelper.CreateIterator(); InstanceIt; ++InstanceIt)
-	{
-		uint8* InstancePairPtr = MapInstanceHelper.GetPairPtr(*InstanceIt);
-		check(InstancePairPtr);
-		
-		FString* Key = MapProperty->KeyProp->ContainerPtrToValuePtr<FString>(InstancePairPtr);
-		check(Key);
-		
-		if (!MapDefaultsHelper.FindValueFromHash(Key))
-		{
-			if (UObject** InstanceObjectPtr = MapProperty->ValueProp->ContainerPtrToValuePtr<UObject*>(InstancePairPtr))
-			{
-				if (UObject* InstanceObject = *InstanceObjectPtr)
-				{
-					// Trash the object -- default propagation won't handle this any more.
-					// RemoveAt below will remove the reference to it. This transaction can still be undone.
-					// Rename to transient package now so the same name is available immediately.
-					// It's possible a new object needs to be created with this outer using the same name.
-					InstanceObject->Rename(nullptr, GetTransientPackage(), REN_DontCreateRedirectors);
-					InstanceObject->SetFlags(RF_Transient);
-				}
-			}
-			
-			MapInstanceHelper.RemoveAt(*InstanceIt);
-			bHasChanged = true;
-		}
-	}
-	
-	if (bHasChanged)
-	{
-		MapInstanceHelper.Rehash();
-#if WITH_EDITOR
-		InstanceOwner->PostEditChange();
-#endif
-	}
-}
-
-/**
- * Syncs default config data changes to a config instance.
- *
- * @param InDefaultConfigData The class default config data object.
- * @param InInstanceConfigData An instance config data object.
- */
-static void PropagateDataFromDefaultConfig(UDisplayClusterConfigurationData* InDefaultConfigData, UDisplayClusterConfigurationData* InInstanceConfigData)
-{
-	check(InDefaultConfigData);
-	check(InInstanceConfigData);
-	
-	const FMapProperty* ClusterNodesMapProperty = FindFieldChecked<FMapProperty>(UDisplayClusterConfigurationCluster::StaticClass(),
-																				GET_MEMBER_NAME_CHECKED(UDisplayClusterConfigurationCluster, Nodes));
-	const FMapProperty* ViewportsMapProperty = FindFieldChecked<FMapProperty>(UDisplayClusterConfigurationClusterNode::StaticClass(),
-																			GET_MEMBER_NAME_CHECKED(UDisplayClusterConfigurationClusterNode, Viewports));
-	
-	PropagateDefaultMapToInstancedMap(ClusterNodesMapProperty, InDefaultConfigData->Cluster, InInstanceConfigData->Cluster);
-	
-	for (const TTuple<FString, TObjectPtr<UDisplayClusterConfigurationClusterNode>>& ClusterKeyVal : InDefaultConfigData->Cluster->Nodes)
-	{
-		UDisplayClusterConfigurationClusterNode* DestinationValue = InInstanceConfigData->Cluster->Nodes.FindChecked(
-			ClusterKeyVal.Key);
-		PropagateDefaultMapToInstancedMap(ViewportsMapProperty, ClusterKeyVal.Value, DestinationValue);
-	}
-}
-
-#if WITH_EDITOR
-void ADisplayClusterRootActor::RerunConstructionScripts()
-{
-	DECLARE_SCOPE_CYCLE_COUNTER(TEXT("ADisplayClusterRootActor::RerunConstructionScripts"), STAT_RerunConstructionScripts, STATGROUP_NDisplay);
-	
-	const IDisplayClusterConfiguration& Config = IDisplayClusterConfiguration::Get();
-	if (!Config.IsTransactingSnapshot())
-	{
-		Super::RerunConstructionScripts();
-		
-		if (!IsTemplate())
-		{
-			if (UDisplayClusterConfigurationData* CurrentData = GetConfigData())
-			{
-				const ADisplayClusterRootActor* CDO = CastChecked<ADisplayClusterRootActor>(GetClass()->GetDefaultObject());
-				UDisplayClusterConfigurationData* DefaultData = CDO->GetConfigData();
-				PropagateDataFromDefaultConfig(DefaultData, CurrentData);
-			}
-		}
-		RerunConstructionScripts_Editor();
-	}
-}
-#endif
 
 UDisplayClusterCameraComponent* ADisplayClusterRootActor::GetDefaultCamera() const
 {
@@ -1609,7 +1371,7 @@ bool ADisplayClusterRootActor::SetReplaceTextureFlagForAllViewports(bool bReplac
 	else
 	{
 		// No need to set this on a non operational nDisplay root actor.
-		if ((GDisplayCluster->GetOperationMode() == EDisplayClusterOperationMode::Cluster) 
+		if ((GDisplayCluster->GetOperationMode() == EDisplayClusterOperationMode::Cluster)
 			&& (this != Display.GetGameMgr()->GetRootActor()))
 		{
 			return false;
@@ -1626,7 +1388,7 @@ bool ADisplayClusterRootActor::SetReplaceTextureFlagForAllViewports(bool bReplac
 		Nodes.Add(Node);
 	}
 
-	for (const UDisplayClusterConfigurationClusterNode* Node: Nodes)
+	for (const UDisplayClusterConfigurationClusterNode* Node : Nodes)
 	{
 		check(Node != nullptr);
 
@@ -1651,7 +1413,7 @@ bool ADisplayClusterRootActor::SetFreezeOuterViewports(bool bEnable)
 		UE_LOG(LogDisplayClusterGame, Warning, TEXT("ADisplayClusterRootActor::SetFreezeOuterViewports failed because ConfigData was null"));
 		return false;
 	}
-	
+
 	if (ConfigData->StageSettings.bFreezeRenderOuterViewports != bEnable)
 	{
 #if WITH_EDITOR

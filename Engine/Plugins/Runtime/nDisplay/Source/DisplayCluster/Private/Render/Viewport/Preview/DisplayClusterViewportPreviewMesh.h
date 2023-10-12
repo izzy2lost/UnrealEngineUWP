@@ -77,13 +77,10 @@ public:
 	UMaterial* GetDefaultMaterial() const;
 
 	/** Update mesh component and materials for viewport. */
-	void Update(FDisplayClusterViewport& InViewport, UDisplayClusterDisplayDeviceBaseComponent& InDisplayDeviceComponent);
+	void Update(FDisplayClusterViewport* InViewport, UDisplayClusterDisplayDeviceBaseComponent* InDisplayDeviceComponent);
 
 	/** Restore default material and release mesh component with materials for viewport. */
-	void Release(FDisplayClusterViewport& InViewport);
-
-	/** Release mesh component and materials for viewport. */
-	void Reset();
+	void Release(FDisplayClusterViewport* InViewport);
 
 	/** Returns true if the runtime flags have any of the input flags. */
 	bool HasAnyFlag(const EDisplayClusterViewportPreviewMeshFlags InMeshFlags) const
@@ -93,7 +90,7 @@ public:
 
 private:
 	/** Returns true if this mesh type is supported by the viewport projection policy and DCRA. */
-	bool ShouldUseMeshComponent(FDisplayClusterViewport& InViewport) const;
+	bool ShouldUseMeshComponent(FDisplayClusterViewport* InViewport) const;
 
 	/** Get mesh component. */
 	UMeshComponent* GetOrCreatePreviewMeshComponent(FDisplayClusterViewport* InViewport, bool& bOutIsRootActorComponent) const;

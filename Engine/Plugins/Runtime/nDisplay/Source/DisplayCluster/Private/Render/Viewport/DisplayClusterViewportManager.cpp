@@ -641,7 +641,7 @@ bool FDisplayClusterViewportManager::BeginNewFrame(FViewport* InViewport, FDispl
 	PostProcessManager->HandleBeginNewFrame(OutRenderFrame);
 
 	// Update viewport preview instances if preview is used and DCRA supports previews:
-	if (Configuration->IsPreviewRendering() && Configuration->GetRootActor(EDisplayClusterRootActorType::Preview) != nullptr)
+	if (Configuration->IsPreviewRendering())
 	{
 		ViewportManagerPreview->Update();
 	}

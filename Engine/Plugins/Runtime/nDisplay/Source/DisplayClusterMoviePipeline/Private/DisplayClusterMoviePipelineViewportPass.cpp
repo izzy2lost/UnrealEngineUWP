@@ -485,8 +485,12 @@ bool UDisplayClusterMoviePipelineViewportPassBase::InitializeDisplayCluster()
 
 			if (IDisplayClusterViewportManager* ViewportManager = DCRootActor->GetOrCreateViewportManager())
 			{
+				// Get preview settings from DCRootActor properties
+				FDisplayClusterViewport_PreviewSettings NewPreviewSettings = DCRootActor->GetPreviewSettings(true);
+				NewPreviewSettings.bPreviewEnable = false;
+
 				// Don't use preview settings for MRQ rendering (same as for game)
-				ViewportManager->GetConfiguration().SetPreviewSettings(FDisplayClusterViewport_PreviewSettings());
+				ViewportManager->GetConfiguration().SetPreviewSettings(NewPreviewSettings);
 
 				// Update local node viewports (update\create\delete) and build new render frame
 				if (ViewportManager->GetConfiguration().UpdateConfigurationForViewportsList(EDisplayClusterRenderFrameMode::MRQ_Mono, GetWorld(), DisplayClusterViewports))

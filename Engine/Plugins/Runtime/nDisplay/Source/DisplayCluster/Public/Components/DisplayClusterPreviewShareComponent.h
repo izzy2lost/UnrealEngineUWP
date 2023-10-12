@@ -104,13 +104,8 @@ protected:
 	/**
 	* Creates or updates a custom rendering for the specified RootActor.
 	* Returns nullptr if rendering is not possible, or a reference to a custom viewport manager storing rendered resources.
-	* 
-	.*/
+	*/
 	bool UpdateCustomViewportManager(const ADisplayClusterRootActor* InSrcRootActor);
-
-	/** Release the custom viewport manager instance, if it exists. */
-	void ReleaseCustomViewportManager();
-
 
 	//~ UActorComponent interface begin
 	virtual void OnRegister() override;
@@ -142,6 +137,9 @@ private:
 	// Used to perform rendering with custom settings from an external DCRA
 	TSharedPtr<IDisplayClusterViewportManager, ESPMode::ThreadSafe> CustomViewportManager;
 
+	/** Disabling all special preview renderers and reverting to the default view. */
+	void RestoreDefaultPreviewSettings();
+
 	/** Closes all media related objects (i.e. media captures and media players) */
 	void CloseAllMedia();
 
@@ -165,9 +163,6 @@ private:
 
 	/** Logic that should run every tick when in Pull Actor mode */
 	void TickPullActor();
-
-	/** Retrieves preview textures from given source nDisplay actor and uses them to drive the preview textures of the owning actor */
-	void PullPreviewFromSourceActor(const ADisplayClusterRootActor* SourceRootActor);
 
 	/** Syncs the Icvfx cameras from the given source nDisplay actor to the given destination nDisplay actor */
 	void SyncIcvxCamerasFromSourceActor(const ADisplayClusterRootActor* SrcRootActor, const ADisplayClusterRootActor* DstRootActor);

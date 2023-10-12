@@ -328,8 +328,12 @@ bool FDisplayClusterDeviceBase::BeginNewFrame(FViewport* InViewport, UWorld* InW
 		{
 			const FString LocalNodeId = DeviceBaseHelpers::GetDisplayClusterAPI().GetConfigMgr()->GetLocalNodeId();
 
+			// Get preview settings from RootActor properties
+			FDisplayClusterViewport_PreviewSettings NewPreviewSettings = RootActor->GetPreviewSettings(true);
+			NewPreviewSettings.bPreviewEnable = false;
+
 			// Dont use preview setting on primary RootActor in game
-			ViewportManagerPtr->GetConfiguration().SetPreviewSettings(FDisplayClusterViewport_PreviewSettings());
+			ViewportManagerPtr->GetConfiguration().SetPreviewSettings(NewPreviewSettings);
 
 			// Update local node viewports (update\create\delete) and build new render frame
 			if (ViewportManagerPtr->GetConfiguration().UpdateConfigurationForClusterNode(RenderFrameMode, InWorld, LocalNodeId))

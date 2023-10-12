@@ -27,22 +27,28 @@ namespace UE::DisplayCluster::Preview
 ////////////////////////////////////////////////////////////////////////////////////////
 // FDisplayClusterViewportPreviewMesh
 ////////////////////////////////////////////////////////////////////////////////////////
-void FDisplayClusterViewportPreviewMesh::Update(FDisplayClusterViewport& InViewport, UDisplayClusterDisplayDeviceBaseComponent& InDisplayDeviceComponent)
+void FDisplayClusterViewportPreviewMesh::Update(FDisplayClusterViewport* InViewport, UDisplayClusterDisplayDeviceBaseComponent* InDisplayDeviceComponent)
 {
-	// Update default material
-	DefaultMaterialPtr = InDisplayDeviceComponent.GetDisplayDeviceMaterial(EDisplayClusterDisplayDeviceMaterialType::DefaultPreviewMeshMaterial);
-
-	// Get current preview material
-	EDisplayClusterDisplayDeviceMaterialType NewCurrentMaterialType = InViewport.GetConfiguration().IsTechvisEnabled()
-		? EDisplayClusterDisplayDeviceMaterialType::PreviewMeshTechvisMaterial
-		: EDisplayClusterDisplayDeviceMaterialType::PreviewMeshMaterial;
-
-	UMaterial* InMeshMaterial = InDisplayDeviceComponent.GetDisplayDeviceMaterial(NewCurrentMaterialType);
-
 	// Reset runtime flags before each update
 	RuntimeFlags = EDisplayClusterViewportPreviewMeshFlags::None;
 
-	if (!ShouldUseMeshComponent(InViewport) || !InMeshMaterial)
+	if (!InViewport || !ShouldUseMeshComponent(InViewport) || !InDisplayDeviceComponent)
+	{
+		// The mesh component and its resources are no longer used.
+		Release(InViewport);
+		return;
+	}
+
+	// Update default material
+	DefaultMaterialPtr = InDisplayDeviceComponent->GetDisplayDeviceMaterial(EDisplayClusterDisplayDeviceMaterialType::DefaultPreviewMeshMaterial);
+
+	// Get current preview material
+	EDisplayClusterDisplayDeviceMaterialType NewCurrentMaterialType = InViewport->GetConfiguration().IsTechvisEnabled()
+		? EDisplayClusterDisplayDeviceMaterialType::PreviewMeshTechvisMaterial
+		: EDisplayClusterDisplayDeviceMaterialType::PreviewMeshMaterial;
+
+	UMaterial* InMeshMaterial = InDisplayDeviceComponent->GetDisplayDeviceMaterial(NewCurrentMaterialType);
+	if (!InMeshMaterial)
 	{
 		// The mesh component and its resources are no longer used.
 		Release(InViewport);
@@ -51,7 +57,7 @@ void FDisplayClusterViewportPreviewMesh::Update(FDisplayClusterViewport& InViewp
 
 	// Get or create warp mesh:
 	bool bNewIsRootActorPreviewMesh = false;
-	UMeshComponent* NewMeshComponent = GetOrCreatePreviewMeshComponent(&InViewport, bNewIsRootActorPreviewMesh);
+	UMeshComponent* NewMeshComponent = GetOrCreatePreviewMeshComponent(InViewport, bNewIsRootActorPreviewMesh);
 	if (GetMeshComponent() != NewMeshComponent || bNewIsRootActorPreviewMesh != bIsRootActorMeshComponent)
 	{
 		// Release the reference to the old mesh component
@@ -85,13 +91,13 @@ void FDisplayClusterViewportPreviewMesh::Update(FDisplayClusterViewport& InViewp
 	}
 }
 
-void FDisplayClusterViewportPreviewMesh::Release(FDisplayClusterViewport& InViewport)
+void FDisplayClusterViewportPreviewMesh::Release(FDisplayClusterViewport* InViewport)
 {
 	UMeshComponent* MeshComponent = GetMeshComponent();
 	if (!MeshComponent && MeshComponentPtr)
 	{
 		// The mesh was destroyed earlier, (re-running build scripts inside RootActor), but we need to update the new mesh component to.
-		MeshComponent = GetOrCreatePreviewMeshComponent(&InViewport, bIsRootActorMeshComponent);
+		MeshComponent = GetOrCreatePreviewMeshComponent(InViewport, bIsRootActorMeshComponent);
 	}
 
 	if (MeshComponent)
@@ -127,34 +133,30 @@ void FDisplayClusterViewportPreviewMesh::Release(FDisplayClusterViewport& InView
 		}
 	}
 
-	Reset();
-}
-
-void FDisplayClusterViewportPreviewMesh::Reset()
-{
 	MeshComponentPtr = nullptr;
 	MaterialInstancePtr = nullptr;
 	CurrentMaterialType = EDisplayClusterDisplayDeviceMaterialType::DefaultPreviewMeshMaterial;
 }
 
-bool FDisplayClusterViewportPreviewMesh::ShouldUseMeshComponent(FDisplayClusterViewport& InViewport) const
+bool FDisplayClusterViewportPreviewMesh::ShouldUseMeshComponent(FDisplayClusterViewport* InViewport) const
 {
-	if (!InViewport.GetRenderSettings().bEnable)
+	if (!InViewport || !InViewport->GetRenderSettings().bEnable)
 	{
 		// disable viewport
 		return false;
 	}
 
-	TSharedPtr<IDisplayClusterProjectionPolicy, ESPMode::ThreadSafe> ProjectionPolicy = InViewport.GetProjectionPolicy();
+	const FDisplayClusterViewport_PreviewSettings PreviewSettings = InViewport->Configuration->GetRenderFrameSettings().PreviewSettings;
+	TSharedPtr<IDisplayClusterProjectionPolicy, ESPMode::ThreadSafe> ProjectionPolicy = InViewport->GetProjectionPolicy();
 	if (ProjectionPolicy.IsValid())
 	{
 		switch (MeshType)
 		{
 		case EDisplayClusterViewportPreviewMeshType::PreviewMesh:
-			return ProjectionPolicy->HasPreviewMesh(&InViewport) && InViewport.Configuration->GetRenderFrameSettings().PreviewSettings.bEnablePreviewMesh;
+			return ProjectionPolicy->HasPreviewMesh(InViewport) && PreviewSettings.bEnablePreviewMesh;
 
 		case EDisplayClusterViewportPreviewMeshType::PreviewEditableMesh:
-			return ProjectionPolicy->HasPreviewEditableMesh(&InViewport) && InViewport.Configuration->GetRenderFrameSettings().PreviewSettings.bEnablePreviewEditableMesh;
+			return ProjectionPolicy->HasPreviewEditableMesh(InViewport) && PreviewSettings.bEnablePreviewEditableMesh;
 
 		default:
 			break;
@@ -166,9 +168,7 @@ bool FDisplayClusterViewportPreviewMesh::ShouldUseMeshComponent(FDisplayClusterV
 
 UMeshComponent* FDisplayClusterViewportPreviewMesh::GetOrCreatePreviewMeshComponent(FDisplayClusterViewport* InViewport, bool& bOutIsRootActorComponent) const
 {
-	check(InViewport);
-
-	TSharedPtr<IDisplayClusterProjectionPolicy, ESPMode::ThreadSafe> ProjectionPolicy = InViewport->GetProjectionPolicy();
+	TSharedPtr<IDisplayClusterProjectionPolicy, ESPMode::ThreadSafe> ProjectionPolicy = InViewport ? InViewport->GetProjectionPolicy() : nullptr;
 	if (ProjectionPolicy.IsValid())
 	{
 		switch (MeshType)

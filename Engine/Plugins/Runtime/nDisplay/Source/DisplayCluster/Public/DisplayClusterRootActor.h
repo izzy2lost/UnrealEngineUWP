@@ -402,8 +402,11 @@ public:
 		return LastDeltaSecondsValue;
 	}
 
-	/** Get current settings for preview rendering. */
-	FDisplayClusterViewport_PreviewSettings GetPreviewSettings() const;
+	/** Get current settings for preview rendering.
+	* 
+	* @param bIgnorePreviewSetttingsSource - if true, the PreviewSettingsSource is ignored
+	*/
+	FDisplayClusterViewport_PreviewSettings GetPreviewSettings(bool bIgnorePreviewSetttingsSource = false) const;
 
 //////////////////////////////////////////////////////////////////////////////////////////////
 // EDITOR RELATED SETTINGS
@@ -433,16 +436,16 @@ public:
 	bool bEnablePreviewTechvis = false;
 
 	/** Enable the use of a preview mesh for the preview for this DCRA. */
-	UPROPERTY()
+	UPROPERTY(Transient, NonTransactional)
 	bool bEnablePreviewMesh = true;
 
 	/** Enable the use of a preview editable mesh for the preview for this DCRA. */
-	UPROPERTY()
+	UPROPERTY(Transient, NonTransactional)
 	bool bEnablePreviewEditableMesh = true;
 
-	/** Always use preview settings defined in this RootActor. */
-	UPROPERTY()
-	bool bUseLocalPreviewSetttings = true;
+	/** Determines where the preview settings will be retrieved from. */
+	UPROPERTY(Transient, NonTransactional)
+	EDisplayClusterConfigurationRootActorPreviewSettingsSource PreviewSetttingsSource = EDisplayClusterConfigurationRootActorPreviewSettingsSource::RootActor;
 
 	/** Freeze preview render.  This will impact editor performance. */
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Editor Preview", meta = (DisplayName = "Freeze Editor Preview"))
@@ -458,7 +461,7 @@ public:
 
 #if WITH_EDITORONLY_DATA
 	/** When the MRQ is rendered, this flag is raised. */
-	UPROPERTY()
+	UPROPERTY(Transient, NonTransactional)
 	bool bMoviePipelineRenderPass = false;
 
 	/** Selectively preview a specific viewport or show all/none. */
@@ -525,10 +528,10 @@ public:
 	virtual bool ShouldTickIfViewportsOnly() const override { return true; }
 
 	UE_DEPRECATED(5.4, "This function has been deprecated.")
-	FOnPreviewUpdated& GetOnPreviewGenerated() { return OnPreviewGenerated; }
+	FOnPreviewUpdated& GetOnPreviewGenerated() { return DeprecatedPreviewDelegate; }
 
 	UE_DEPRECATED(5.4, "This function has been deprecated.")
-	FOnPreviewUpdated& GetOnPreviewDestroyed() { return OnPreviewDestroyed; }
+	FOnPreviewUpdated& GetOnPreviewDestroyed() { return DeprecatedPreviewDelegate; }
 
 	// return true, if preview enabled for this actor
 	UE_DEPRECATED(5.4, "This function has been deprecated.")
@@ -657,7 +660,7 @@ private:
 
 	TWeakPtr<IDisplayClusterConfiguratorBlueprintEditor> ToolkitPtr;
 
-	FOnPreviewUpdated OnPreviewGenerated;
-	FOnPreviewUpdated OnPreviewDestroyed;
+	// UE_DEPRECATED 5.4
+	FOnPreviewUpdated DeprecatedPreviewDelegate;
 #endif
 };

@@ -30,7 +30,7 @@
 
 #include "Engine/RendererSettings.h"
 
-namespace UE::DisplayCluster::ConfigurationHelpers
+namespace UE::DisplayCluster::Configuration
 {
 	static inline ADisplayClusterRootActor* ImplGetRootActor(const FDisplayClusterActorRef& InConfigurationRootActorRef)
 	{
@@ -45,27 +45,34 @@ namespace UE::DisplayCluster::ConfigurationHelpers
 		return nullptr;
 	}
 
-	static inline bool ImplSetRootActor(const ADisplayClusterRootActor* InRootActor, FDisplayClusterActorRef& InOutConfigurationRootActorRef)
+	static inline bool ImplIsChangedRootActor(const ADisplayClusterRootActor* InRootActor, FDisplayClusterActorRef& InOutConfigurationRootActorRef)
 	{
 		const bool bIsDefined = InOutConfigurationRootActorRef.IsDefinedSceneActor();
 		if (InRootActor == nullptr)
 		{
-			InOutConfigurationRootActorRef.ResetSceneActor();
-
 			return bIsDefined;
 		}
 
 		if (!bIsDefined || ImplGetRootActor(InOutConfigurationRootActorRef) != InRootActor)
 		{
-			InOutConfigurationRootActorRef.SetSceneActor(InRootActor);
-
 			return true;
 		}
 
 		return false;
 	}
+
+	static inline void ImplSetRootActor(const ADisplayClusterRootActor* InRootActor, FDisplayClusterActorRef& InOutConfigurationRootActorRef)
+	{
+		if (InRootActor == nullptr)
+		{
+			InOutConfigurationRootActorRef.ResetSceneActor();
+		}
+		else
+		{
+			InOutConfigurationRootActorRef.SetSceneActor(InRootActor);
+		}
+	}
 };
-using namespace UE::DisplayCluster;
 
 ///////////////////////////////////////////////////////////////////
 // FDisplayClusterViewportConfiguration
@@ -88,27 +95,60 @@ void FDisplayClusterViewportConfiguration::SetRootActor(const EDisplayClusterRoo
 {
 	check(IsInGameThread());
 
-	if (EnumHasAnyFlags(InRootActorType, EDisplayClusterRootActorType::Preview))
+	using namespace UE::DisplayCluster::Configuration;
+
+	// COllect all required RootActor refs changes
+	EDisplayClusterRootActorType RootActorChanges = (EDisplayClusterRootActorType)0;
+	if (EnumHasAnyFlags(InRootActorType, EDisplayClusterRootActorType::Preview) && ImplIsChangedRootActor(InRootActor, PreviewRootActorRef))
 	{
-		ConfigurationHelpers::ImplSetRootActor(InRootActor, PreviewRootActorRef);
+		EnumAddFlags(RootActorChanges, EDisplayClusterRootActorType::Preview);
+	}
+	if (EnumHasAnyFlags(InRootActorType, EDisplayClusterRootActorType::Scene) && ImplIsChangedRootActor(InRootActor, SceneRootActorRef))
+	{
+		EnumAddFlags(RootActorChanges, EDisplayClusterRootActorType::Scene);
+	}
+	if (EnumHasAnyFlags(InRootActorType, EDisplayClusterRootActorType::Configuration) && ImplIsChangedRootActor(InRootActor, ConfigurationRootActorRef))
+	{
+		EnumAddFlags(RootActorChanges, EDisplayClusterRootActorType::Configuration);
 	}
 
-	if (EnumHasAnyFlags(InRootActorType, EDisplayClusterRootActorType::Scene))
+	if (RootActorChanges != (EDisplayClusterRootActorType)0)
 	{
-		ConfigurationHelpers::ImplSetRootActor(InRootActor, SceneRootActorRef);
-	}
 
-	if (EnumHasAnyFlags(InRootActorType, EDisplayClusterRootActorType::Configuration))
-	{
-		ConfigurationHelpers::ImplSetRootActor(InRootActor, ConfigurationRootActorRef);
+		if (IsSceneOpened())
+		{
+			if (FDisplayClusterViewportManager* ViewportManager = GetViewportManagerImpl())
+			{
+				ViewportManager->HandleEndScene();
+
+				// Always reset entore cluster preview rendering when RootActor chagned
+				ViewportManager->GetViewportManagerPreview().ResetEntireClusterPreviewRendering();
+			}
+		}
+
+		// Change RootActor
+		if (EnumHasAnyFlags(RootActorChanges, EDisplayClusterRootActorType::Preview))
+		{
+			ImplSetRootActor(InRootActor, PreviewRootActorRef);
+		}
+		if (EnumHasAnyFlags(RootActorChanges, EDisplayClusterRootActorType::Scene))
+		{
+			ImplSetRootActor(InRootActor, SceneRootActorRef);
+		}
+		if (EnumHasAnyFlags(RootActorChanges, EDisplayClusterRootActorType::Configuration))
+		{
+			ImplSetRootActor(InRootActor, ConfigurationRootActorRef);
+		}
 	}
 }
 
 ADisplayClusterRootActor* FDisplayClusterViewportConfiguration::GetRootActor(const EDisplayClusterRootActorType InRootActorType) const
 {
+	using namespace UE::DisplayCluster::Configuration;
+
 	if (EnumHasAnyFlags(InRootActorType, EDisplayClusterRootActorType::Preview))
 	{
-		if (ADisplayClusterRootActor* OutRootActor = ConfigurationHelpers::ImplGetRootActor(PreviewRootActorRef))
+		if (ADisplayClusterRootActor* OutRootActor = ImplGetRootActor(PreviewRootActorRef))
 		{
 			return OutRootActor;
 		}
@@ -116,7 +156,7 @@ ADisplayClusterRootActor* FDisplayClusterViewportConfiguration::GetRootActor(con
 
 	if (EnumHasAnyFlags(InRootActorType, EDisplayClusterRootActorType::Scene))
 	{
-		if (ADisplayClusterRootActor* OutRootActor = ConfigurationHelpers::ImplGetRootActor(SceneRootActorRef))
+		if (ADisplayClusterRootActor* OutRootActor = ImplGetRootActor(SceneRootActorRef))
 		{
 			return OutRootActor;
 		}
@@ -124,7 +164,7 @@ ADisplayClusterRootActor* FDisplayClusterViewportConfiguration::GetRootActor(con
 
 	if (EnumHasAnyFlags(InRootActorType, EDisplayClusterRootActorType::Configuration))
 	{
-		if (ADisplayClusterRootActor* OutRootActor = ConfigurationHelpers::ImplGetRootActor(ConfigurationRootActorRef))
+		if (ADisplayClusterRootActor* OutRootActor = ImplGetRootActor(ConfigurationRootActorRef))
 		{
 			return OutRootActor;
 		}
@@ -151,31 +191,16 @@ void FDisplayClusterViewportConfiguration::SetCurrentWorldImpl(const UWorld* InW
 {
 	if (GetCurrentWorld() != InWorld)
 	{
-		if (FDisplayClusterViewportManager* ViewportManager = GetViewportManagerImpl())
+		if (IsSceneOpened())
 		{
-			const bool bIsSceneOpened = IsSceneOpened();
-
-			if (bIsSceneOpened)
+			if (FDisplayClusterViewportManager* ViewportManager = GetViewportManagerImpl())
 			{
 				ViewportManager->HandleEndScene();
 			}
-
-			if (InWorld)
-			{
-				// Ignore const UWorld
-				CurrentWorldRef = TWeakObjectPtr<UWorld>((UWorld*)InWorld);
-
-				// Restore scene status
-				if (bIsSceneOpened)
-				{
-					ViewportManager->HandleStartScene();
-				}
-			}
 		}
-		else
-		{
-			ViewportManager->HandleEndScene();
-		}
+
+		// Ignore const UWorld
+		CurrentWorldRef = (UWorld*)InWorld;
 	}
 }
 
@@ -301,7 +326,7 @@ void FDisplayClusterViewportConfiguration::ReleaseConfiguration()
 bool FDisplayClusterViewportConfiguration::ImplUpdateConfiguration(EDisplayClusterRenderFrameMode InRenderMode, const UWorld* InWorld, const FString& InClusterNodeId, const TArray<FString>* InViewportNames)
 {
 	check(IsInGameThread());
-	
+
 	FDisplayClusterViewportManager* ViewportManager = GetViewportManagerImpl();
 	if (!ViewportManager || !FDisplayClusterViewportConfigurationHelpers_RenderFrameSettings::UpdateRenderFrameConfiguration(ViewportManager, InRenderMode, *this))
 	{
