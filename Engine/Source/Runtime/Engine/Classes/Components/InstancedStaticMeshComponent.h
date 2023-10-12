@@ -190,8 +190,6 @@ class UInstancedStaticMeshComponent : public UStaticMeshComponent, public ISMIns
 	 */
 	ENGINE_API void SetCustomDataById(const TArrayView<const FPrimitiveInstanceId> &InstanceIds, TArrayView<const float> CustomDataFloats); 
 	inline void SetCustomDataById(FPrimitiveInstanceId InstanceId, TArrayView<const float> CustomDataFloats) { SetCustomDataById(MakeArrayView(&InstanceId, 1), CustomDataFloats); }
-	ENGINE_API void SetCustomDataValueById(FPrimitiveInstanceId InstanceId, int32 CustomDataIndex, float CustomDataValue);
-
 	/**
 	 */
 	ENGINE_API virtual void RemoveInstancesById(const TArrayView<const FPrimitiveInstanceId> &InstanceIds, bool bUpdateNavigation = true);

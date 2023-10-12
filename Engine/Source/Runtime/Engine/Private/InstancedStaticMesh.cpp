@@ -3192,12 +3192,6 @@ void UInstancedStaticMeshComponent::SetCustomDataById(const TArrayView<const FPr
 	}
 }
 
-void UInstancedStaticMeshComponent::SetCustomDataValueById(FPrimitiveInstanceId InstanceId, int32 CustomDataIndex, float CustomDataValue)
-{
-	check(PrimitiveInstanceDataManager.GetMode() != FPrimitiveInstanceDataManager::EMode::ExternalLegacyData);
-	SetCustomDataValue(PrimitiveInstanceDataManager.IdToIndex(InstanceId), CustomDataIndex, CustomDataValue);
-}
-
 void UInstancedStaticMeshComponent::RemoveInstancesById(const TArrayView<const FPrimitiveInstanceId>& InstanceIds, const bool bUpdateNavigation)
 {
 	check(PrimitiveInstanceDataManager.GetMode() != FPrimitiveInstanceDataManager::EMode::ExternalLegacyData);
