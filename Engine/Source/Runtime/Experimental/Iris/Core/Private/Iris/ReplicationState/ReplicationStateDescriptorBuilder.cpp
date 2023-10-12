@@ -2408,7 +2408,7 @@ TRefCountPtr<const FReplicationStateDescriptor> FReplicationStateDescriptorBuild
 	}
 	else
 	{
-		const bool bIsAllowedToWarn = ShouldUseIrisReplication() || FApp::IsGame() || IsRunningDedicatedServer() || IsRunningClientOnly();
+		const bool bIsAllowedToWarn = (ShouldUseIrisReplication() || FApp::IsGame() || IsRunningDedicatedServer() || IsRunningClientOnly()) && !IsRunningCommandlet();
 
 		if (bIsStructWithCustomSerialization)
 		{
