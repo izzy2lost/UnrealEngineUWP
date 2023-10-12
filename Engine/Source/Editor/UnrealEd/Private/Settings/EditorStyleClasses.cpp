@@ -99,7 +99,7 @@ void UEditorStyleSettings::PostEditChangeProperty(struct FPropertyChangedEvent& 
 	{
 		GConfig->SetBool(TEXT("HDPI"), TEXT("EnableHighDPIAwareness"), bEnableHighDPIAwareness, GEditorSettingsIni);
 	}
-	else if (PropertyName == GET_MEMBER_NAME_CHECKED(UEditorStyleSettings, ApplicationScale))
+	else if (PropertyName.IsNone() || PropertyName == GET_MEMBER_NAME_CHECKED(UEditorStyleSettings, ApplicationScale))
 	{
 		if (FSlateApplication::IsInitialized())
 		{
