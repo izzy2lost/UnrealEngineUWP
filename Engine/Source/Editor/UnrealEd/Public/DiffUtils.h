@@ -220,7 +220,8 @@ namespace ETreeDiffType
 		NODE_TYPE_CHANGED,
 		NODE_PROPERTY_CHANGED,
 		NODE_MOVED,
-		NODE_CORRUPTED
+		NODE_CORRUPTED,
+		NODE_FIXED
 		/** We could potentially try to identify hierarchy reorders separately from add/remove */
 	};
 }

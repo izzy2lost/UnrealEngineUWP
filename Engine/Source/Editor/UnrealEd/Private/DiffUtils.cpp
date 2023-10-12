@@ -762,7 +762,7 @@ void DiffUtils::CompareUnrelatedSCS(const UBlueprint* Old, const TArray< FSCSRes
 				}
 				else
 				{
-					FSCSDiffEntry Diff = { OldNode.Identifier, ETreeDiffType::NODE_CORRUPTED, FSingleObjectDiffEntry() };
+					FSCSDiffEntry Diff = { OldNode.Identifier, ETreeDiffType::NODE_FIXED, FSingleObjectDiffEntry() };
 					OutDifferingEntries.Entries.Push(Diff);
 				}
 			}
@@ -1523,7 +1523,10 @@ FText DiffViewUtils::SCSDiffMessage(const FSCSDiffEntry& Difference, FText Objec
 		Text = FText::Format(NSLOCTEXT("DiffViewUtils", "NodeMoved", "Moved Node {0} in {1}"), NodeName, ObjectName);
 		break;
 	case ETreeDiffType::NODE_CORRUPTED:
-		Text = FText::Format(NSLOCTEXT("DiffViewUtils", "NodeMoved", "Node {0} in {1} has corrupt outer - must be recreated"), NodeName, ObjectName);
+		Text = FText::Format(NSLOCTEXT("DiffViewUtils", "NodeCorrupted", "Node {0} in {1} has corrupt outer - must be recreated"), NodeName, ObjectName);
+		break;
+	case ETreeDiffType::NODE_FIXED:
+		Text = FText::Format(NSLOCTEXT("DiffViewUtils", "NodeFixed", "Node {0} in {1} has been recreated to correct outer"), NodeName, ObjectName);
 		break;
 	}
 	return Text;
