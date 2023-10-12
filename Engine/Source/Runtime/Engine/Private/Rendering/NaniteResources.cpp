@@ -63,7 +63,7 @@ static TAutoConsoleVariable<int32> CVarNaniteAllowComputeMaterials(
 
 static TAutoConsoleVariable<int32> CVarNaniteUseComputeMaterials(
 	TEXT("r.Nanite.ComputeMaterials"),
-	1,
+	0,
 	TEXT("Whether to enable Nanite compute materials"),
 	FConsoleVariableDelegate::CreateLambda([](IConsoleVariable* InVariable)
 	{
