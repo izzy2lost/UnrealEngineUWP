@@ -70,10 +70,7 @@ namespace Chaos
 		{
 			if (EventContainer)
 			{
-				if (BufferMode != EMultiBufferMode::Single)
-				{
-					EventContainer->ResetConsumerBuffer();
-				}
+				EventContainer->ResetConsumerBuffer();
 				EventContainer->FlipBufferIfRequired();
 			}
 		}
