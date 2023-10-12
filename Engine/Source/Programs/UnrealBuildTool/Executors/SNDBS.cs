@@ -76,6 +76,7 @@ namespace UnrealBuildTool
 		public SNDBS(List<TargetDescriptor> InTargetDescriptors, ILogger Logger)
 			: base(Logger)
 		{
+			XmlConfig.ApplyTo(this);
 			TargetDescriptors = InTargetDescriptors;
 		}
 
