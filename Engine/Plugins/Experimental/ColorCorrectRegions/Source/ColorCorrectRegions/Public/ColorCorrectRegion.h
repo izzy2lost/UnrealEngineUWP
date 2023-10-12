@@ -254,7 +254,15 @@ protected:
 		{
 			uint8 TypeIndex = static_cast<uint8>(CCActorType);
 
-			ensure(IsValid(MeshComponents[TypeIndex]));
+			if (!IsValid(MeshComponents[TypeIndex]))
+			{
+#if WITH_EDITOR
+				FixMeshComponentReferencesInternal<TCCActorType>(InDesiredType);
+#else
+				ensure(IsValid(MeshComponents[TypeIndex]));
+#endif
+				return;
+			}
 
 			if (CCActorType == InDesiredType)
 			{
