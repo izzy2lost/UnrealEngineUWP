@@ -2,6 +2,7 @@
 
 using System;
 using System.Collections.Generic;
+using EpicGames.Horde.Storage.Bundles;
 
 #pragma warning disable CA2227 // Collection properties should be read only
 
@@ -89,6 +90,18 @@ namespace EpicGames.Horde.Storage
 		public BlobLocator Target { get; set; }
 
 		/// <summary>
+		/// Locator for the target blob
+		/// </summary>
+		[Obsolete("Use Target instead")]
+		public BundleLocator? Blob { get; set; }
+
+		/// <summary>
+		/// Export index for the ref
+		/// </summary>
+		[Obsolete("Use ExportIdx instead")]
+		public int? ExportIdx { get; set; }
+
+		/// <summary>
 		/// Inline data associated with the ref
 		/// </summary>
 		public byte[] Data { get; set; } = Array.Empty<byte>();
@@ -108,6 +121,18 @@ namespace EpicGames.Horde.Storage
 		/// The target blob
 		/// </summary>
 		public BlobLocator Target { get; set; }
+
+		/// <summary>
+		/// Locator for the target blob
+		/// </summary>
+		[Obsolete("Use Target instead")]
+		public BundleLocator? Blob { get; set; }
+
+		/// <summary>
+		/// Export index for the ref
+		/// </summary>
+		[Obsolete("Use ExportIdx instead")]
+		public int? ExportIdx { get; set; }
 
 		/// <summary>
 		/// Inline data stored with the ref

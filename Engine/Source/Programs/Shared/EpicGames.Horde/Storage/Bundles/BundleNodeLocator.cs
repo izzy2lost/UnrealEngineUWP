@@ -59,7 +59,7 @@ namespace EpicGames.Horde.Storage.Bundles
 			int hashIdx = text.IndexOf('#');
 			if (hashIdx == -1)
 			{
-				throw new ArgumentException("Invalid node locator", nameof(text));
+				throw new ArgumentException($"Invalid node locator: {text}", nameof(text));
 			}
 
 			int exportIdx = Int32.Parse(text.Slice(hashIdx + 1), NumberStyles.None, CultureInfo.InvariantCulture);

@@ -242,6 +242,13 @@ namespace Horde.Server.Storage
 				return Forbid(StorageAclAction.WriteRefs, namespaceId);
 			}
 
+#pragma warning disable CS0618 // Type or member is obsolete
+			if (request.Blob != null && request.ExportIdx != null)
+			{
+				request.Target = new BlobLocator($"{request.Blob.Value}#{request.ExportIdx.Value}");
+			}
+#pragma warning restore CS0618 // Type or member is obsolete
+
 			BlobHandle target = client.CreateBlobHandle(request.Target);
 			await client.WriteRefAsync(refName, target, request.Data, request.Options, cancellationToken);
 
@@ -294,7 +301,24 @@ namespace Horde.Server.Storage
 			}
 
 			string link = $"/api/v1/storage/{namespaceId}/nodes/{target.Target.GetLocator()}";
-			return new ReadRefResponse { Target = target.Target.GetLocator(), Data = target.Data.ToArray(), Link = link };
+			ReadRefResponse response = new ReadRefResponse { Target = target.Target.GetLocator(), Data = target.Data.ToArray(), Link = link };
+
+#pragma warning disable CS0618 // Type or member is obsolete
+			try
+			{
+				string locator = target.Target.ToString();
+				int hashIdx = locator.LastIndexOf('#');
+
+				if (hashIdx != -1)
+				{
+					response.Blob = new BundleLocator(locator.Substring(0, hashIdx));
+					response.ExportIdx = Int32.Parse(locator.Substring(hashIdx + 1));
+				}
+			}
+			catch { }
+#pragma warning restore CS0618 // Type or member is obsolete
+
+			return response;
 		}
 
 		/// <summary>
