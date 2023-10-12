@@ -263,6 +263,9 @@ struct FStaticTerrainLayerWeightParameter
 	int32 WeightmapIndex;
 
 	UPROPERTY()
+	bool bIsRepeatedLayer = false;
+
+	UPROPERTY()
 	bool bWeightBasedBlend;
 
 	FStaticTerrainLayerWeightParameter() :
@@ -273,6 +276,13 @@ struct FStaticTerrainLayerWeightParameter
 	FStaticTerrainLayerWeightParameter(const FName& InName, int32 InWeightmapIndex, bool InWeightBasedBlend) :
 		LayerName(InName),
 		WeightmapIndex(InWeightmapIndex),
+		bWeightBasedBlend(InWeightBasedBlend)
+	{ }
+
+	FStaticTerrainLayerWeightParameter(const FName& InName, int32 InWeightmapIndex, bool InWeightBasedBlend, bool InIsRepeatedLayer) :
+		LayerName(InName),
+		WeightmapIndex(InWeightmapIndex),
+		bIsRepeatedLayer(InIsRepeatedLayer),
 		bWeightBasedBlend(InWeightBasedBlend)
 	{ }
 

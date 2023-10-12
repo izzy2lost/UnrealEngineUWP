@@ -8054,7 +8054,10 @@ int32 FHLSLMaterialTranslator::StaticTerrainLayerWeight(FName LayerName,int32 De
 
 		// If there are multiple weight maps with the same name, they should be numbered to allow for unique masks
 		FName LayerNameTest = Parameter.LayerName;
-		LayerNameTest.SetNumber(0);
+		if(Parameter.bIsRepeatedLayer)
+		{
+			LayerNameTest.SetNumber(0);
+		}
 
 		if(LayerNameTest != LayerName)
 		{
