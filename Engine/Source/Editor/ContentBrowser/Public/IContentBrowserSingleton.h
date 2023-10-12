@@ -421,6 +421,8 @@ struct FSharedAssetDialogConfig
 	TArray<FTopLevelAssetPath> AssetClassNames;
 	FVector2D WindowSizeOverride;
 	FOnPathSelected OnPathSelected;
+	/** When specified, this window will be used instead of the mainframe window. */
+	TSharedPtr<SWindow> WindowOverride;
 
 	virtual EAssetDialogType::Type GetDialogType() const = 0;
 

@@ -663,17 +663,24 @@ void FContentBrowserSingleton::SharedCreateAssetDialogWindow(const TSharedRef<SA
 
 	DialogWindow->SetContent(AssetDialog);
 
-	IMainFrameModule& MainFrameModule = FModuleManager::LoadModuleChecked<IMainFrameModule>(TEXT("MainFrame"));
-	const TSharedPtr<SWindow>& MainFrameParentWindow = MainFrameModule.GetParentWindow();
-	if (MainFrameParentWindow.IsValid())
+	TSharedPtr<SWindow> ParentWindow = InConfig.WindowOverride;
+	if (!InConfig.WindowOverride)
+	{
+		IMainFrameModule& MainFrameModule = FModuleManager::LoadModuleChecked<IMainFrameModule>(TEXT("MainFrame"));
+		const TSharedPtr<SWindow>& MainFrameParentWindow = MainFrameModule.GetParentWindow();
+		ParentWindow = MainFrameModule.GetParentWindow();
+	}
+
+
+	if (ParentWindow.IsValid())
 	{
 		if (bModal)
 		{
-			FSlateApplication::Get().AddModalWindow(DialogWindow, MainFrameParentWindow.ToSharedRef());
+			FSlateApplication::Get().AddModalWindow(DialogWindow, ParentWindow.ToSharedRef());
 		}
 		else if (FGlobalTabmanager::Get()->GetRootWindow().IsValid())
 		{
-			FSlateApplication::Get().AddWindowAsNativeChild(DialogWindow, MainFrameParentWindow.ToSharedRef());
+			FSlateApplication::Get().AddWindowAsNativeChild(DialogWindow, ParentWindow.ToSharedRef());
 		}
 		else
 		{
