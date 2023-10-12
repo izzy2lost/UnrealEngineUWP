@@ -5043,6 +5043,15 @@ namespace UnrealBuildTool
 				GlobalCompileEnvironment.Definitions.Add("USE_LOGGING_IN_SHIPPING=0");
 			}
 
+			if (Rules.bUseConsoleInShipping)
+			{
+				GlobalCompileEnvironment.Definitions.Add("ALLOW_CONSOLE_IN_SHIPPING=1");
+			}
+			else
+			{
+				GlobalCompileEnvironment.Definitions.Add("ALLOW_CONSOLE_IN_SHIPPING=0");
+			}
+
 			if (Rules.bAllowProfileGPUInTest)
 			{
 				GlobalCompileEnvironment.Definitions.Add("ALLOW_PROFILEGPU_IN_TEST=1");

@@ -1384,6 +1384,12 @@ namespace UnrealBuildTool
 		public bool bUseLoggingInShipping = false;
 
 		/// <summary>
+		/// Whether to turn on console for shipping builds.
+		/// </summary>
+		[RequiresUniqueBuildEnvironment]
+		public bool bUseConsoleInShipping = false;
+
+		/// <summary>
 		/// Whether to turn on logging to memory for test/shipping builds.
 		/// </summary>
 		[RequiresUniqueBuildEnvironment]
@@ -3300,6 +3306,8 @@ namespace UnrealBuildTool
 		public bool bWithFixedTimeStepSupport => Inner.bWithFixedTimeStepSupport;
 
 		public bool bUseLoggingInShipping => Inner.bUseLoggingInShipping;
+
+		public bool bUseConsoleInShipping => Inner.bUseConsoleInShipping;
 
 		public bool bLoggingToMemoryEnabled => Inner.bLoggingToMemoryEnabled;
 
