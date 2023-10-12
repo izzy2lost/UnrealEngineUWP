@@ -112,6 +112,7 @@ namespace Chaos::Private
 						if (ContactNormalDotTriangleNormal > ExistingContactData.GetContactNormalDotTriangleNormal())
 						{
 							ExistingContact = ContactPoint;
+							ExistingContact.FaceIndex = Triangle.GetTriangleIndex();
 
 							ExistingContactData.SetVertexID(VertexID0);
 							ExistingContactData.SetContactNormalDotTriangleNormal(ContactNormalDotTriangleNormal);
