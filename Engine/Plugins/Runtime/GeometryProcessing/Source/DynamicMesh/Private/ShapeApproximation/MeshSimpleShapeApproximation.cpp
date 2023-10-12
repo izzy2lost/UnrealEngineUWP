@@ -166,7 +166,7 @@ struct FSimpleShapeFitsResult
 
 
 static void ComputeSimpleShapeFits(const FDynamicMesh3& Mesh,
-									bool bSphere, bool bBox, bool bCapsule, bool bConvex, bool bUseExactComputationForBox, 
+									bool bSphere, bool bBox, bool bCapsule, double MinDimension, bool bUseExactComputationForBox,
 								   FSimpleShapeFitsResult& FitResult,
 								   FProgressCancel* Progress = nullptr)
 {
@@ -191,6 +191,11 @@ static void ComputeSimpleShapeFits(const FDynamicMesh3& Mesh,
 		{
 			FitResult.bHaveBox = true;
 			MinBoxCalc.GetResult(FitResult.Box);
+			double MinHalfDimension = MinDimension * .5;
+			for (int32 SubIdx = 0; SubIdx < 3; ++SubIdx)
+			{
+				FitResult.Box.Extents[SubIdx] = FMath::Max(MinHalfDimension, FitResult.Box.Extents[SubIdx]);
+			}
 		}
 	}
 
@@ -204,6 +209,7 @@ static void ComputeSimpleShapeFits(const FDynamicMesh3& Mesh,
 		{
 			FitResult.bHaveSphere = true;
 			MinSphereCalc.GetResult(FitResult.Sphere);
+			FitResult.Sphere.Radius = FMath::Max(MinDimension * .5, FitResult.Sphere.Radius);
 		}
 	}
 
@@ -212,17 +218,10 @@ static void ComputeSimpleShapeFits(const FDynamicMesh3& Mesh,
 	{
 		FitResult.bHaveCapsule = TFitCapsule3<double>::Solve(FromLinear.Num(),
 			[&](int32 Index) { return Mesh.GetVertex(FromLinear[Index]); }, FitResult.Capsule);
-	}
-
-	// todo: once we have computed convex we can use it to compute box
-	FitResult.bHaveConvex = false;
-	if (bConvex)
-	{
-		FMeshConvexHull Hull(&Mesh);
-		if (Hull.Compute(Progress))
+		if (FitResult.bHaveCapsule)
 		{
-			FitResult.bHaveConvex = true;
-			FitResult.Convex = MoveTemp(Hull.ConvexHull);
+			FitResult.Capsule.Radius = FMath::Max(MinDimension * .5, FitResult.Capsule.Radius);
+			// Note: No need to clamp Length based on MinDimension; a capsule's min dimension can't be along its length since a capsule w/ length of zero is still a sphere ...
 		}
 	}
 }
@@ -250,6 +249,10 @@ void FMeshSimpleShapeApproximation::Generate_AlignedBoxes(FSimpleShapeSet3d& Sha
 		{
 			FBoxShape3d NewBox;
 			NewBox.Box = FOrientedBox3d(Bounds);
+			for (int32 SubIdx = 0; SubIdx < 3; ++SubIdx)
+			{
+				NewBox.Box.Extents[SubIdx] = FMath::Max(MinDimension * .5, NewBox.Box.Extents[SubIdx]);
+			}
 
 			GeometryLock.Lock();
 			ShapeSetOut.Boxes.Add(NewBox);
@@ -274,7 +277,7 @@ void FMeshSimpleShapeApproximation::Generate_OrientedBoxes(FSimpleShapeSet3d& Sh
 
 		const FDynamicMesh3& SourceMesh = *SourceMeshes[idx];
 		FSimpleShapeFitsResult FitResult;
-		ComputeSimpleShapeFits(SourceMesh, false, true, false, false, bUseExactComputationForBox, FitResult, Progress);
+		ComputeSimpleShapeFits(SourceMesh, false, true, false, MinDimension, bUseExactComputationForBox, FitResult, Progress);
 
 		if (Progress && Progress->Cancelled())
 		{
@@ -304,7 +307,7 @@ void FMeshSimpleShapeApproximation::Generate_MinimalSpheres(FSimpleShapeSet3d& S
 
 		const FDynamicMesh3& SourceMesh = *SourceMeshes[idx];
 		FSimpleShapeFitsResult FitResult;
-		ComputeSimpleShapeFits(SourceMesh, true, false, false, false, bUseExactComputationForBox, FitResult);
+		ComputeSimpleShapeFits(SourceMesh, true, false, false, MinDimension, bUseExactComputationForBox, FitResult);
 
 		if (FitResult.bHaveSphere)
 		{
@@ -327,7 +330,7 @@ void FMeshSimpleShapeApproximation::Generate_Capsules(FSimpleShapeSet3d& ShapeSe
 
 		const FDynamicMesh3& SourceMesh = *SourceMeshes[idx];
 		FSimpleShapeFitsResult FitResult;
-		ComputeSimpleShapeFits(SourceMesh, false, false, true, false, bUseExactComputationForBox, FitResult);
+		ComputeSimpleShapeFits(SourceMesh, false, false, true, MinDimension, bUseExactComputationForBox, FitResult);
 
 		if (FitResult.bHaveCapsule)
 		{
@@ -355,6 +358,7 @@ void FMeshSimpleShapeApproximation::Generate_ConvexHulls(FSimpleShapeSet3d& Shap
 
 		Hull.bPostSimplify = bSimplifyHulls;
 		Hull.MaxTargetFaceCount = HullTargetFaceCount;
+		Hull.MinDimension = MinDimension;
 
 		if (Hull.Compute(Progress))
 		{
@@ -529,9 +533,14 @@ void FMeshSimpleShapeApproximation::Generate_MinVolume(FSimpleShapeSet3d& ShapeS
 		const FDynamicMesh3& SourceMesh = *SourceMeshes[idx];
 
 		FOrientedBox3d AlignedBox = FOrientedBox3d(SourceMesh.GetBounds());
+		double MinHalfDimension = MinDimension * .5;
+		for (int32 SubIdx = 0; SubIdx < 3; ++SubIdx)
+		{
+			AlignedBox.Extents[SubIdx] = FMath::Max(MinHalfDimension, AlignedBox.Extents[SubIdx]);
+		}
 
 		FSimpleShapeFitsResult FitResult;
-		ComputeSimpleShapeFits(SourceMesh, true, true, true, false, bUseExactComputationForBox, FitResult);
+		ComputeSimpleShapeFits(SourceMesh, true, true, true, MinDimension, bUseExactComputationForBox, FitResult);
 
 		double Volumes[4];
 		Volumes[0] = AlignedBox.Volume();
