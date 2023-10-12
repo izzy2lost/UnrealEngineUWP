@@ -409,9 +409,9 @@ static void ApplyAndroidCompatConfigRules()
 					auto* CVar = IConsoleManager::Get().FindConsoleVariable(*CVarName);
 					if (CVar)
 					{
-						// set with current priority means that DPs etc can still override anything set here.
-						// e.g. -dpcvars= is expected to work.
-						CVar->SetWithCurrentPriority(*Value); 
+						// set with HF priority
+						// configrules are therefore higher priority than deviceprofiles. (e.g. -dpcvars)
+						CVar->Set(*Value, ECVF_SetByHotfix);
 						UE_LOG(LogAndroid, Log, TEXT("Compat Setting %s = %s"), *CVarName, *Value);
 					}
 				}
