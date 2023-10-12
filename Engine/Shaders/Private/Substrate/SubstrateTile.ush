@@ -38,97 +38,97 @@ uint SubstratePackTile(uint2 TileCoord)
 }
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////////////
-// Substrate BSDF tile
+// Substrate Closure tile
 
-struct FSubstrateBSDFTile
+struct FSubstrateClosureTile
 {
 	uint2 TileCoord;
-	uint  BSDFIndex;
-	uint  BSDFCount;
+	uint  ClosureIndex;
+	uint  ClosureCount;
 };
 
-uint PackBSDFTile(FSubstrateBSDFTile In)
+uint PackClosureTile(FSubstrateClosureTile In)
 {
 	// Tile coord are encoded onto 10bits. Max resolution 8k x 8k. Max 8 tiles per pixel.
 	return 
 		PackTileCoord10bits(In.TileCoord)|
-		((In.BSDFIndex    & 0xF  ) << 20)| 
-		((In.BSDFCount    & 0xF  ) << 24);
+		((In.ClosureIndex & 0xF  ) << 20)| 
+		((In.ClosureCount & 0xF  ) << 24);
 }
 
-FSubstrateBSDFTile UnpackBSDFTile(uint In)
+FSubstrateClosureTile UnpackClosureTile(uint In)
 {
-	FSubstrateBSDFTile Out;
+	FSubstrateClosureTile Out;
 	Out.TileCoord   = UnpackTileCoord10bits(In);
-	Out.BSDFIndex   = (In >> 20u) & 0xF;
-	Out.BSDFCount   = (In >> 24u) & 0xF;
+	Out.ClosureIndex= (In >> 20u) & 0xF;
+	Out.ClosureCount= (In >> 24u) & 0xF;
 	return Out;
 }
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////////////
-// Substrate BSDF offset
+// Substrate Closure offset
 
-// Store the material slice index offset for each BSDF, for pixels containing several BSDFs
-struct FSubstrateBSDFOffset
+// Store the material slice index offset for each closure, for pixels containing several closures
+struct FSubstrateClosureOffset
 {
-	uint BSDFOffsets[SUBSTRATE_MAX_CLOSURE_COUNT_FOR_CLOSUREOFFSET];
-	uint BSDFCount;
+	uint ClosureOffsets[SUBSTRATE_MAX_CLOSURE_COUNT_FOR_CLOSUREOFFSET];
+	uint ClosureCount;
 };
 
-bool HasMultipleBSDFs(uint InPackedBSDFOffset)
+bool HasMultipleClosures(uint InPackedClosureOffset)
 {
 	// If a tile has:
-	// * No BSDF its value will be 0 (no offset)
-	// * 1 BSDF it will have a single offset (value=1, 1uint header)
-	// * Several BSDFs, it will have several offset (value > 1)
-	return InPackedBSDFOffset > 1;
+	// * No closure its value will be 0 (no offset)
+	// * 1 closure it will have a single offset (value=1, 1uint header)
+	// * Several closures, it will have several offset (value > 1)
+	return InPackedClosureOffset > 1;
 }
 
-uint PackBSDFOffset(FSubstrateBSDFOffset In)
+uint PackClosureOffset(FSubstrateClosureOffset In)
 {
 	// Packed as relative cumulative offsets of N bits, stored into 32 bits
 	// | N bits | N bits | N bits | N bits | ... | N bits |
-	//   BSDF 0   BSDF 1   BSDF 2   BSDF 3  ...   BSDF (2^N - 1)
+	//   Clos 0   Clos 1   Clos 2   Clos 3  ...   Clos (2^N - 1)
 
 	uint Out = 0;
-	const uint BSDFCount = min(In.BSDFCount, SUBSTRATE_MAX_CLOSURE_COUNT_FOR_CLOSUREOFFSET);
-	if (BSDFCount > 0)
+	const uint ClosureCount = min(In.ClosureCount, SUBSTRATE_MAX_CLOSURE_COUNT_FOR_CLOSUREOFFSET);
+	if (ClosureCount > 0)
 	{
-		Out = In.BSDFOffsets[0] & SUBSTRATE_CLOSURE_OFFSET_BIT_MASK;
+		Out = In.ClosureOffsets[0] & SUBSTRATE_CLOSURE_OFFSET_BIT_MASK;
 		UNROLL_N(SUBSTRATE_MAX_CLOSURE_COUNT_FOR_CLOSUREOFFSET-1)
-		for (uint i = 1; i < BSDFCount; i++)
+		for (uint i = 1; i < ClosureCount; i++)
 		{
-			const uint Curr = In.BSDFOffsets[i];
-			const uint Prev = In.BSDFOffsets[i-1];
+			const uint Curr = In.ClosureOffsets[i];
+			const uint Prev = In.ClosureOffsets[i-1];
 			Out = Out | (((Curr - Prev) & SUBSTRATE_CLOSURE_OFFSET_BIT_MASK) << (SUBSTRATE_CLOSURE_OFFSET_BIT_COUNT * i));
 		}
 	}
 	return Out;
 }
 
-FSubstrateBSDFOffset UnpackBSDFOffset(uint In, uint InBSDFCount)
+FSubstrateClosureOffset UnpackClosureOffset(uint In, uint InClosureCount)
 {
-	FSubstrateBSDFOffset Out = (FSubstrateBSDFOffset)0;
-	if (InBSDFCount > 0)
+	FSubstrateClosureOffset Out = (FSubstrateClosureOffset)0;
+	if (InClosureCount > 0)
 	{
-		Out.BSDFCount = min(InBSDFCount, SUBSTRATE_MAX_CLOSURE_COUNT_FOR_CLOSUREOFFSET);
-		Out.BSDFOffsets[0] = (In & SUBSTRATE_CLOSURE_OFFSET_BIT_MASK);
+		Out.ClosureCount = min(InClosureCount, SUBSTRATE_MAX_CLOSURE_COUNT_FOR_CLOSUREOFFSET);
+		Out.ClosureOffsets[0] = (In & SUBSTRATE_CLOSURE_OFFSET_BIT_MASK);
 
 		UNROLL_N(SUBSTRATE_MAX_CLOSURE_COUNT_FOR_CLOSUREOFFSET-1)
-		for (uint i = 1; i < Out.BSDFCount; i++)
+		for (uint i = 1; i < Out.ClosureCount; i++)
 		{
-			Out.BSDFOffsets[i] = Out.BSDFOffsets[i-1] + ((In>>(SUBSTRATE_CLOSURE_OFFSET_BIT_COUNT * i)) & SUBSTRATE_CLOSURE_OFFSET_BIT_MASK);
+			Out.ClosureOffsets[i] = Out.ClosureOffsets[i-1] + ((In>>(SUBSTRATE_CLOSURE_OFFSET_BIT_COUNT * i)) & SUBSTRATE_CLOSURE_OFFSET_BIT_MASK);
 		}
 	}
 	return Out;
 }
 
-uint UnpackBSDFOffsetAtIndex(uint In, uint InIndex, uint InBSDFCount)
+uint UnpackClosureOffsetAtIndex(uint In, uint InIndex, uint InClosureCount)
 {
 	uint Out = 0;
-	if (InBSDFCount > 0)
+	if (InClosureCount > 0)
 	{
-		const uint OffsetCount = min3(InIndex+1, InBSDFCount, SUBSTRATE_MAX_CLOSURE_COUNT_FOR_CLOSUREOFFSET);
+		const uint OffsetCount = min3(InIndex+1, InClosureCount, SUBSTRATE_MAX_CLOSURE_COUNT_FOR_CLOSUREOFFSET);
 		UNROLL_N(SUBSTRATE_MAX_CLOSURE_COUNT_FOR_CLOSUREOFFSET)
 		for (uint i = 0; i < OffsetCount; i++)
 		{
@@ -138,17 +138,17 @@ uint UnpackBSDFOffsetAtIndex(uint In, uint InIndex, uint InBSDFCount)
 	return Out;
 }
 
-void SubstrateSeekBSDF(inout FSubstrateAddressing Addressing, uint AddressOffset)
+void SubstrateSeekClosure(inout FSubstrateAddressing Addressing, uint AddressOffset)
 {
 	Addressing.CurrentIndex = AddressOffset;
 	Addressing.ReadBytes = Addressing.CurrentIndex * 4;
 }
 
-void SubstrateSeekBSDF(inout FSubstrateAddressing Addressing, FSubstrateBSDFOffset Offsets, uint BSDFIndex)
+void SubstrateSeekClosure(inout FSubstrateAddressing Addressing, FSubstrateClosureOffset Offsets, uint InClosureIndex)
 {
-	if (BSDFIndex < Offsets.BSDFCount)
+	if (InClosureIndex < Offsets.ClosureCount)
 	{
-		Addressing.CurrentIndex = Offsets.BSDFOffsets[BSDFIndex];
+		Addressing.CurrentIndex = Offsets.ClosureOffsets[InClosureIndex];
 		Addressing.ReadBytes = Addressing.CurrentIndex * 4;
 	}
 }

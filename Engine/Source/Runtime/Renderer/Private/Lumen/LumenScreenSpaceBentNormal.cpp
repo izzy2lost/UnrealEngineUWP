@@ -211,14 +211,14 @@ FLumenScreenSpaceBentNormalParameters ComputeScreenSpaceShortRangeAO(
 
 			if (bOverflow)
 			{
-				PassParameters->TileIndirectBuffer = View.SubstrateViewData.BSDFTileDispatchIndirectBuffer;
+				PassParameters->TileIndirectBuffer = View.SubstrateViewData.ClosureTileDispatchIndirectBuffer;
 				FComputeShaderUtils::AddPass(
 					GraphBuilder,
 					RDG_EVENT_NAME("ShortRangeAO_ScreenSpace(Rays=%u, Overflow)", NumPixelRays),
 					ComputePassFlags,
 					ComputeShader,
 					PassParameters,
-					View.SubstrateViewData.BSDFTileDispatchIndirectBuffer,
+					View.SubstrateViewData.ClosureTileDispatchIndirectBuffer,
 					0);
 			}
 			else

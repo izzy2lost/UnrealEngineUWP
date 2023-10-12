@@ -1142,14 +1142,14 @@ void InterpolateAndIntegrate(
 
 				if (bOverflow)
 				{
-					PassParameters->TileIndirectBuffer = View.SubstrateViewData.BSDFTileDispatchIndirectBuffer;
+					PassParameters->TileIndirectBuffer = View.SubstrateViewData.ClosureTileDispatchIndirectBuffer;
 					FComputeShaderUtils::AddPass(
 						GraphBuilder,
 						RDG_EVENT_NAME("TileClassificationMark(Overflow)"),
 						ComputePassFlags,
 						ComputeShader,
 						PassParameters,
-						View.SubstrateViewData.BSDFTileDispatchIndirectBuffer,
+						View.SubstrateViewData.ClosureTileDispatchIndirectBuffer,
 						0u);
 				}
 				else
@@ -1194,14 +1194,14 @@ void InterpolateAndIntegrate(
 
 				if (bOverflow)
 				{
-					PassParameters->TileIndirectBuffer = View.SubstrateViewData.BSDFTilePerThreadDispatchIndirectBuffer;
+					PassParameters->TileIndirectBuffer = View.SubstrateViewData.ClosureTilePerThreadDispatchIndirectBuffer;
 					FComputeShaderUtils::AddPass(
 						GraphBuilder,
 						RDG_EVENT_NAME("TileClassificationBuildLists(Overflow)"),
 						ComputePassFlags,
 						ComputeShader,
 						PassParameters,
-						View.SubstrateViewData.BSDFTilePerThreadDispatchIndirectBuffer, 0u);
+						View.SubstrateViewData.ClosureTilePerThreadDispatchIndirectBuffer, 0u);
 				}
 				else
 				{
@@ -1496,14 +1496,14 @@ void UpdateHistoryScreenProbeGather(
 						#if 0
 						if (bOverflow)
 						{
-							PassParameters->TileIndirectBuffer = View.SubstrateViewData.BSDFTileDispatchIndirectBuffer;
+							PassParameters->TileIndirectBuffer = View.SubstrateViewData.ClosureTileDispatchIndirectBuffer;
 							FComputeShaderUtils::AddPass(
 								GraphBuilder,
 								RDG_EVENT_NAME("TemporalReprojection(Overflow)"),
 								ComputePassFlags,
 								ComputeShader,
 								PassParameters,
-								View.SubstrateViewData.BSDFTileDispatchIndirectBuffer,
+								View.SubstrateViewData.ClosureTileDispatchIndirectBuffer,
 								0u);
 						}
 						else

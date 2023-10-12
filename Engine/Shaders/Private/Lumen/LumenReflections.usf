@@ -95,7 +95,7 @@ void ReflectionTileClassificationMarkCS(
 
 	GroupMemoryBarrierWithGroupSync();
 
-	bool bIsValid = all(DispatchThreadId < View.ViewRectMinAndSize.zw);
+	bool bIsValid = all(DispatchThreadId.xy < View.ViewRectMinAndSize.zw);
 	bool bIsAnyValid = bIsValid;
 	const FLumenMaterialCoord Coord = GetLumenMaterialCoord(DispatchThreadId.xy + View.ViewRectMinAndSize.xy, SUBSTRATE_ENABLED ? DispatchThreadId.z : 0);
 	const uint3 FlattenTileCoord = uint3(GroupId, Coord.BSDFIndex);
@@ -204,13 +204,13 @@ void ReflectionTileClassificationBuildListsCS(
 
 			#if PERMUTATION_OVERFLOW_TILE && SUBSTRATE_ENABLED
 			const uint LinearIndex = GroupId.x * THREADGROUP_SIZE * THREADGROUP_SIZE + x;
-			const bool bIsTileValid = LinearIndex < Substrate.BSDFTileCountBuffer[0];
+			const bool bIsTileValid = LinearIndex < Substrate.ClosureTileCountBuffer[0];
 			FReflectionTileData TileData = (FReflectionTileData)0;
 			if (bIsTileValid)
 			{
-				const FSubstrateBSDFTile BSDFTile = UnpackBSDFTile(Substrate.BSDFTileBuffer[LinearIndex]);
-				TileData.Coord     = BSDFTile.TileCoord;
-				TileData.BSDFIndex = BSDFTile.BSDFIndex;
+				const FSubstrateClosureTile Tile = UnpackClosureTile(Substrate.ClosureTileBuffer[LinearIndex]);
+				TileData.Coord     = Tile.TileCoord;
+				TileData.BSDFIndex = Tile.ClosureIndex;
 			}
 			const bool bIsValid = bIsTileValid && all(TileData.Coord < TileViewportDimensions);
 			#else
@@ -320,8 +320,8 @@ void ReflectionGenerateRaysCS(
 
 				if (Coord.BSDFIndex > 0)
 				{
-					const uint OffsetAddress = UnpackBSDFOffsetAtIndex(Substrate.BSDFOffsetTexture[Coord.SvPosition], Coord.BSDFIndex, SubstratePixelHeader.BSDFCount);
-					SubstrateSeekBSDF(SubstrateAddressing, OffsetAddress);
+					const uint OffsetAddress = UnpackClosureOffsetAtIndex(Substrate.ClosureOffsetTexture[Coord.SvPosition], Coord.BSDFIndex, SubstratePixelHeader.BSDFCount);
+					SubstrateSeekClosure(SubstrateAddressing, OffsetAddress);
 				}
 				FSubstrateBSDF BSDF = UnpackSubstrateBSDF(Substrate.MaterialTextureArray, SubstrateAddressing, SubstratePixelHeader);
 
@@ -376,7 +376,7 @@ void ReflectionGenerateRaysCS(
 
 			if (ConeAngle > RadianceCacheConeHalfAngle)
 			{
-				FRadianceCacheCoverage Coverage = GetRadianceCacheCoverageWithUncertainCoverage(WorldPosition, RayDirection, InterleavedGradientNoise(ReflectionTracingCoord, View.StateFrameIndexMod8));
+				FRadianceCacheCoverage Coverage = GetRadianceCacheCoverageWithUncertainCoverage(WorldPosition, RayDirection, InterleavedGradientNoise(ReflectionTracingCoord.xy, View.StateFrameIndexMod8));
 				bUseRadianceCache = Coverage.bValid;
 				if (bUseRadianceCache)
 				{

@@ -567,8 +567,8 @@ void PrintPixel(uint2 InCoord, float3 InWorldPosition, float3 V)
 	{
 		if (ClosureIndex > 0)
 		{
-			const uint AddressOffset = UnpackBSDFOffsetAtIndex(Substrate.BSDFOffsetTexture[InCoord], ClosureIndex, Header.BSDFCount);
-			SubstrateSeekBSDF(SubstrateAddressing, AddressOffset);
+			const uint AddressOffset = UnpackClosureOffsetAtIndex(Substrate.ClosureOffsetTexture[InCoord], ClosureIndex, Header.BSDFCount);
+			SubstrateSeekClosure(SubstrateAddressing, AddressOffset);
 		}
 
 		RectMin = Context.Pos;

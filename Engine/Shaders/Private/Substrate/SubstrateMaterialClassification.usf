@@ -361,7 +361,7 @@ void ArgsMainCS(uint2 DispatchThreadId : SV_DispatchThreadID)
 	const uint TileType = DispatchThreadId.x;
 	if (TileType < SUBSTRATE_TILE_TYPE_COUNT)
 	{
-		// We could have more than 65k tile in particular with complex multi-layer BSDF covering full 
+		// We could have more than 65k tile in particular with complex multi-layer closure covering full 
 		TileDispatchIndirectDataBuffer[GetSubstrateTileTypeDispatchIndirectArgOffset_DWord(TileType) + 0] = TileDrawIndirectDataBuffer[GetSubstrateTileTypeDrawIndirectArgOffset_DWord(TileType) + 1];
 		TileDispatchIndirectDataBuffer[GetSubstrateTileTypeDispatchIndirectArgOffset_DWord(TileType) + 1] = 1;
 		TileDispatchIndirectDataBuffer[GetSubstrateTileTypeDispatchIndirectArgOffset_DWord(TileType) + 2] = 1;
@@ -372,7 +372,7 @@ void ArgsMainCS(uint2 DispatchThreadId : SV_DispatchThreadID)
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////////////
 
-#if SHADER_BSDF_TILE_PREPARE_ARGS
+#if SHADER_CLOSURE_TILE_PREPARE_ARGS
 
 int2 TileCount_Primary;
 
@@ -399,11 +399,11 @@ void ArgsMainCS(uint2 DispatchThreadId : SV_DispatchThreadID)
 	}
 }
 
-#endif // SHADER_BSDF_TILE_PREPARE_ARGS
+#endif // SHADER_CLOSURE_TILE_PREPARE_ARGS
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////////////
 
-#if SHADER_BSDF_TILE
+#if SHADER_CLOSURE_TILE
 
 int2 ViewResolution;
 uint MaxBytesPerPixel;
@@ -417,19 +417,19 @@ Texture2DArray<uint> MaterialTextureArray;
 Buffer<uint> TileListBuffer;
 uint TileListBufferOffset;
 
-RWTexture2D<uint> RWBSDFOffsetTexture;
-RWBuffer<uint>    RWBSDFTileCountBuffer;
-RWBuffer<uint>    RWBSDFTileBuffer;
+RWTexture2D<uint> RWClosureOffsetTexture;
+RWBuffer<uint>    RWClosureTileCountBuffer;
+RWBuffer<uint>    RWClosureTileBuffer;
 
 #if !PERMUTATION_WAVE_OPS
-groupshared uint s_TileBSDFCount[GROUP_THREAD_COUNT];
+groupshared uint s_TileClosureCount[GROUP_THREAD_COUNT];
 #endif
 
 #if PERMUTATION_WAVE_OPS && COMPILER_SUPPORTS_WAVE_SIZE
 WAVESIZE(64) // PERMUTATION_WAVE_OPS is true only when wave>=64 are available
 #endif
 [numthreads(SUBSTRATE_TILE_SIZE, SUBSTRATE_TILE_SIZE, 1)]
-void BSDFTileMainCS(uint2 GroupThreadId : SV_GroupThreadID, uint2 GroupId : SV_GroupID, uint LinearIndex : SV_GroupIndex)
+void ClosureTileMainCS(uint2 GroupThreadId : SV_GroupThreadID, uint2 GroupId : SV_GroupID, uint LinearIndex : SV_GroupIndex)
 {
 	const uint2 TileCoord = SubstrateUnpackTile(TileListBuffer[TileListBufferOffset + GroupId.x]);
 	uint2 PixelCoord = TileCoord * SUBSTRATE_TILE_SIZE + GroupThreadId;
@@ -445,77 +445,77 @@ void BSDFTileMainCS(uint2 GroupThreadId : SV_GroupThreadID, uint2 GroupId : SV_G
 
 		if (ClosureCount > 0)
 		{
-			FSubstrateBSDFOffset Offsets = (FSubstrateBSDFOffset)0;
-			Offsets.BSDFCount = ClosureCount;
+			FSubstrateClosureOffset Offsets = (FSubstrateClosureOffset)0;
+			Offsets.ClosureCount = ClosureCount;
 
 			UNROLL_N(SUBSTRATE_MAX_CLOSURE_COUNT_FOR_CLOSUREOFFSET)
-			for (uint BSDFIndex = 0; BSDFIndex < ClosureCount; ++BSDFIndex)
+			for (uint ClosureIndex = 0; ClosureIndex < ClosureCount; ++ClosureIndex)
 			{
-				Offsets.BSDFOffsets[BSDFIndex] = SubstrateAddressing.CurrentIndex;
+				Offsets.ClosureOffsets[ClosureIndex] = SubstrateAddressing.CurrentIndex;
 				UnpackSubstrateBSDFIn(MaterialTextureArray, SubstrateAddressing, SubstratePixelHeader);
 			}
 
-			RWBSDFOffsetTexture[PixelCoord] = PackBSDFOffset(Offsets);
+			RWClosureOffsetTexture[PixelCoord] = PackClosureOffset(Offsets);
 		}
 	}
 
 #if PERMUTATION_WAVE_OPS
 
-	const uint TileBSDFCount = WaveActiveMax(ClosureCount);
+	const uint TileClosureCount = WaveActiveMax(ClosureCount);
 
 #else // PERMUTATION_WAVE_OPS
 
-	s_TileBSDFCount[LinearIndex] = ClosureCount;
+	s_TileClosureCount[LinearIndex] = ClosureCount;
 
 	GroupMemoryBarrierWithGroupSync();
 	if (LinearIndex < 32)
 	{
-		s_TileBSDFCount[LinearIndex] = max(s_TileBSDFCount[LinearIndex], s_TileBSDFCount[LinearIndex + 32]);
+		s_TileClosureCount[LinearIndex] = max(s_TileClosureCount[LinearIndex], s_TileClosureCount[LinearIndex + 32]);
 	}
 	GroupMemoryBarrierWithGroupSync();
 	if (LinearIndex < 16)
 	{
-		s_TileBSDFCount[LinearIndex] = max(s_TileBSDFCount[LinearIndex], s_TileBSDFCount[LinearIndex + 16]);
+		s_TileClosureCount[LinearIndex] = max(s_TileClosureCount[LinearIndex], s_TileClosureCount[LinearIndex + 16]);
 	}
 	GroupMemoryBarrierWithGroupSync();
 
 	if (LinearIndex < 8)
 	{
-		s_TileBSDFCount[LinearIndex] = max(s_TileBSDFCount[LinearIndex], s_TileBSDFCount[LinearIndex + 8]);
+		s_TileClosureCount[LinearIndex] = max(s_TileClosureCount[LinearIndex], s_TileClosureCount[LinearIndex + 8]);
 	}
 	GroupMemoryBarrierWithGroupSync();
 	if (LinearIndex < 4)
 	{
-		s_TileBSDFCount[LinearIndex] = max(s_TileBSDFCount[LinearIndex], s_TileBSDFCount[LinearIndex + 4]);
+		s_TileClosureCount[LinearIndex] = max(s_TileClosureCount[LinearIndex], s_TileClosureCount[LinearIndex + 4]);
 	}
 	GroupMemoryBarrierWithGroupSync();
 	if (LinearIndex < 2)
 	{
-		s_TileBSDFCount[LinearIndex] = max(s_TileBSDFCount[LinearIndex], s_TileBSDFCount[LinearIndex + 2]);
+		s_TileClosureCount[LinearIndex] = max(s_TileClosureCount[LinearIndex], s_TileClosureCount[LinearIndex + 2]);
 	}
 	GroupMemoryBarrierWithGroupSync();
 
-	const uint TileBSDFCount = max(s_TileBSDFCount[LinearIndex], s_TileBSDFCount[LinearIndex + 1]);
+	const uint TileClosureCount = max(s_TileClosureCount[LinearIndex], s_TileClosureCount[LinearIndex + 1]);
 
 #endif // PERMUTATION_WAVE_OPS
 
 	if (LinearIndex == 0)
 	{
-		if (TileBSDFCount > 1)
+		if (TileClosureCount > 1)
 		{
-			// Store only tile data for BSDF[1..X]. BSDF[0] is implicity stored into the first layer
+			// Store only tile data for Closure[1..X]. Closure[0] is implicity stored into the first layer
 			uint StoreIndex = 0;
-			InterlockedAdd(RWBSDFTileCountBuffer[0], TileBSDFCount - 1, StoreIndex);
+			InterlockedAdd(RWClosureTileCountBuffer[0], TileClosureCount - 1, StoreIndex);
 
-			FSubstrateBSDFTile Tile;
+			FSubstrateClosureTile Tile;
 			Tile.TileCoord = TileCoord;
-			Tile.BSDFCount = TileBSDFCount;
-			for (uint BSDFIndex = 1; BSDFIndex < TileBSDFCount; ++BSDFIndex)
+			Tile.ClosureCount = TileClosureCount;
+			for (uint ClosureIndex = 1; ClosureIndex < TileClosureCount; ++ClosureIndex)
 			{
-				Tile.BSDFIndex = BSDFIndex;
-				RWBSDFTileBuffer[StoreIndex + BSDFIndex - 1] = PackBSDFTile(Tile);
+				Tile.ClosureIndex = ClosureIndex;
+				RWClosureTileBuffer[StoreIndex + ClosureIndex - 1] = PackClosureTile(Tile);
 			}
 		}
 	}
 }
-#endif // SHADER_BSDF_TILE
+#endif // SHADER_CLOSURE_TILE

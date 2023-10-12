@@ -708,7 +708,7 @@ void ScreenProbeTileClassificationBuildListsCS(
 	if (GroupThreadId == 0)
 	{
 		#if PERMUTATION_OVERFLOW_TILE		
-		const uint TileCount = Substrate.BSDFTileCountBuffer[0];
+		const uint TileCount = Substrate.ClosureTileCountBuffer[0];
 		#endif
 
 		UNROLL
@@ -721,13 +721,13 @@ void ScreenProbeTileClassificationBuildListsCS(
 		{
 			#if PERMUTATION_OVERFLOW_TILE
 			const uint LinearIndex = GroupId.x * THREADGROUP_SIZE + x;
-			const bool bIsTileValid = LinearIndex < Substrate.BSDFTileCountBuffer[0];
+			const bool bIsTileValid = LinearIndex < Substrate.ClosureTileCountBuffer[0];
 			FScreenProbeIntegrateTileData TileData = (FScreenProbeIntegrateTileData)0;
 			if (bIsTileValid)
 			{
-				const FSubstrateBSDFTile BSDFTile = UnpackBSDFTile(Substrate.BSDFTileBuffer[LinearIndex]);
-				TileData.Coord = BSDFTile.TileCoord;
-				TileData.BSDFIndex = BSDFTile.BSDFIndex;
+				const FSubstrateClosureTile Tile = UnpackClosureTile(Substrate.ClosureTileBuffer[LinearIndex]);
+				TileData.Coord = Tile.TileCoord;
+				TileData.BSDFIndex = Tile.ClosureIndex;
 			}
 			const bool bIsValid = bIsTileValid && all(TileData.Coord < ViewportTileDimensions);
 			#else
@@ -1464,8 +1464,8 @@ void ScreenProbeIntegrateCS(
 				// SUBSTRATE_TODO: Abstract this more
 				FSubstrateAddressing SubstrateAddressing = GetSubstratePixelDataByteOffset(Coord.SvPosition, uint2(View.BufferSizeAndInvSize.xy), Substrate.MaxBytesPerPixel);
 				const FSubstratePixelHeader SubstratePixelHeader = UnpackSubstrateHeaderIn(Substrate.MaterialTextureArray, SubstrateAddressing, Substrate.TopLayerTexture);
-				const uint OffsetAddress = UnpackBSDFOffsetAtIndex(Substrate.BSDFOffsetTexture[Coord.SvPosition], Coord.BSDFIndex, SubstratePixelHeader.BSDFCount);
-				SubstrateSeekBSDF(SubstrateAddressing, OffsetAddress);
+				const uint OffsetAddress = UnpackClosureOffsetAtIndex(Substrate.ClosureOffsetTexture[Coord.SvPosition], Coord.BSDFIndex, SubstratePixelHeader.BSDFCount);
+				SubstrateSeekClosure(SubstrateAddressing, OffsetAddress);
 				FSubstrateBSDF BSDF = UnpackSubstrateBSDFIn(Substrate.MaterialTextureArray, SubstrateAddressing, SubstratePixelHeader);
 
 				// We set slabs BSDFs as having a single specular lob without haziness.
@@ -1967,7 +1967,7 @@ void ScreenProbeTemporalReprojectionCS(
 	OutDiffuseIndirect.rgb = -min(-OutDiffuseIndirect.rgb, 0.0f);
 	OutRoughSpecularIndirect.rgb = -min(-OutRoughSpecularIndirect.rgb, 0.0f);
 
-	RWNewHistoryDiffuseIndirect[Coord.SvPositionFlatten] = float4(OutDiffuseIndirect, 0);
+	RWNewHistoryDiffuseIndirect[Coord.SvPositionFlatten] = OutDiffuseIndirect;
 	RWNewHistoryRoughSpecularIndirect[Coord.SvPositionFlatten] = OutRoughSpecularIndirect;
 	RWNumHistoryFramesAccumulated[Coord.SvPositionFlatten] = NewNumFramesAccumulated / MaxFramesAccumulated;
 
@@ -2075,7 +2075,7 @@ void ScreenProbeDebugMain(uint3 DispatchThreadId : SV_DispatchThreadID)
 
 	#if SUBSTRATE_ENABLED
 		uint2 TileRes = Substrate.TileCount;
-		uint  AllocatedTileCount = Substrate.BSDFTileCountBuffer[0];
+		uint  AllocatedTileCount = Substrate.ClosureTileCountBuffer[0];
 		bool bOverflowValid = AllocatedTileCount > 0;
 	#else
 		uint2 TileRes = ViewportIntegrateTileDimensions;

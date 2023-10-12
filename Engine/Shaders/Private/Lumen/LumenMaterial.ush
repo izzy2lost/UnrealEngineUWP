@@ -60,11 +60,11 @@ FLumenMaterialCoord GetLumenMaterialCoord(uint2 DispatchThreadId, uint2 GroupId,
 	const uint LinearIndex = GetLumenMaterialLinearIndex(GroupId);
 	bIsValid = false;
 	bIsAnyValid = false;
-	if (LinearIndex < Substrate.BSDFTileCountBuffer[0])
+	if (LinearIndex < Substrate.ClosureTileCountBuffer[0])
 	{
-		const FSubstrateBSDFTile BSDFNTile = UnpackBSDFTile(Substrate.BSDFTileBuffer[LinearIndex]);
-		Out.SvPosition = BSDFNTile.TileCoord * SUBSTRATE_TILE_SIZE + GroupThreadId /*Local (tile) coord*/;
-		Out.BSDFIndex  = BSDFNTile.BSDFIndex;
+		const FSubstrateClosureTile Tile = UnpackClosureTile(Substrate.ClosureTileBuffer[LinearIndex]);
+		Out.SvPosition = Tile.TileCoord * SUBSTRATE_TILE_SIZE + GroupThreadId /*Local (tile) coord*/;
+		Out.BSDFIndex  = Tile.ClosureIndex;
 		bIsValid = all(Out.SvPosition < View.ViewRectMinAndSize.zw);
 		bIsAnyValid = true;
 	}
@@ -199,8 +199,8 @@ FLumenMaterialData InternalReadMaterialData_Substrate(uint2 InCoord, uint InBSDF
 			// Move data read address to the requested BDSF
 			if (InBSDFIndex > 0)
 			{
-				const uint AddressOffset = UnpackBSDFOffsetAtIndex(Substrate.BSDFOffsetTexture[InCoord], InBSDFIndex, SubstratePixelHeader.BSDFCount);
-				SubstrateSeekBSDF(SubstrateAddressing, AddressOffset);
+				const uint AddressOffset = UnpackClosureOffsetAtIndex(Substrate.ClosureOffsetTexture[InCoord], InBSDFIndex, SubstratePixelHeader.BSDFCount);
+				SubstrateSeekClosure(SubstrateAddressing, AddressOffset);
 			}
 
 			const FSubstrateSubsurfaceHeader SSSHeader			= SubstrateLoadSubsurfaceHeader(Substrate.MaterialTextureArray, Substrate.FirstSliceStoringSubstrateSSSData, InCoord);

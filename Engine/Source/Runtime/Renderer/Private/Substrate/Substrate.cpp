@@ -30,7 +30,7 @@ static TAutoConsoleVariable<int32> CVarUseCmaskClear(
 static TAutoConsoleVariable<int32> CVarSubstrateUseClosureCountFromMaterial(
 	TEXT("r.Substrate.UseClosureCountFromMaterial"),
 	1,
-	TEXT("When enable, scale the number of Lumen's layers for multi-BSDFs pixels based on material data. Otherwise use r.Substrate.ClosuresPerPixel."),
+	TEXT("When enable, scale the number of Lumen's layers for multi-closures pixels based on material data. Otherwise use r.Substrate.ClosuresPerPixel."),
 	ECVF_RenderThreadSafe);
 
 static TAutoConsoleVariable<int32> CVarSubstrateDebugPeelLayersAboveDepth(
@@ -189,7 +189,7 @@ static EPixelFormat GetClassificationTileFormat(const FIntPoint& InResolution)
 	return bRequest8bit ? PF_R16_UINT : PF_R32_UINT;
 }
 
-static void InitialiseSubstrateViewData(FRDGBuilder& GraphBuilder, FViewInfo& View, const FSceneTexturesConfig& SceneTexturesConfig, bool bNeedBSDFOffets, FSubstrateSceneData& SceneData)
+static void InitialiseSubstrateViewData(FRDGBuilder& GraphBuilder, FViewInfo& View, const FSceneTexturesConfig& SceneTexturesConfig, bool bNeedClosureOffets, FSubstrateSceneData& SceneData)
 {
 	// Sanity check: the scene data should already exist 
 	check(SceneData.MaterialTextureArray != nullptr);
@@ -244,8 +244,8 @@ static void InitialiseSubstrateViewData(FRDGBuilder& GraphBuilder, FViewInfo& Vi
 			Out.ClassificationTileListBufferUAV = GraphBuilder.CreateUAV(Out.ClassificationTileListBuffer, ClassificationTileFormat);
 		}
 
-		// BSDF tiles
-		if (bNeedBSDFOffets)
+		// Closure tiles
+		if (bNeedClosureOffets)
 		{
 			const FIntPoint TileCount = GetSubstrateTextureTileResolution(View, DynResIndependentViewSize);
 			const uint32 LayerCount = GetSubstrateTextureLayerCount(View);
@@ -253,19 +253,19 @@ static void InitialiseSubstrateViewData(FRDGBuilder& GraphBuilder, FViewInfo& Vi
 
 			Out.TileCount	= TileCount;
 			Out.LayerCount  = LayerCount;
-			Out.BSDFTilePerThreadDispatchIndirectBuffer = GraphBuilder.CreateBuffer(FRDGBufferDesc::CreateIndirectDesc<FRHIDispatchIndirectParameters>(1), TEXT("Substrate.SubstrateBSDFTilePerThreadDispatchIndirectBuffer"));
-			Out.BSDFTileDispatchIndirectBuffer = GraphBuilder.CreateBuffer(FRDGBufferDesc::CreateIndirectDesc<FRHIDispatchIndirectParameters>(1), TEXT("Substrate.SubstrateBSDFTileDispatchIndirectBuffer"));
-			Out.BSDFTileCountBuffer = GraphBuilder.CreateBuffer(FRDGBufferDesc::CreateBufferDesc(4, 1), TEXT("Substrate.BSDFTileCount"));
-			Out.BSDFTileBuffer = GraphBuilder.CreateBuffer(FRDGBufferDesc::CreateBufferDesc(4, MaxTileCount), TEXT("Substrate.BSDFTileBuffer"));
+			Out.ClosureTilePerThreadDispatchIndirectBuffer = GraphBuilder.CreateBuffer(FRDGBufferDesc::CreateIndirectDesc<FRHIDispatchIndirectParameters>(1), TEXT("Substrate.SubstrateClosureTilePerThreadDispatchIndirectBuffer"));
+			Out.ClosureTileDispatchIndirectBuffer = GraphBuilder.CreateBuffer(FRDGBufferDesc::CreateIndirectDesc<FRHIDispatchIndirectParameters>(1), TEXT("Substrate.SubstrateClosureTileDispatchIndirectBuffer"));
+			Out.ClosureTileCountBuffer = GraphBuilder.CreateBuffer(FRDGBufferDesc::CreateBufferDesc(4, 1), TEXT("Substrate.ClosureTileCount"));
+			Out.ClosureTileBuffer = GraphBuilder.CreateBuffer(FRDGBufferDesc::CreateBufferDesc(4, MaxTileCount), TEXT("Substrate.ClosureTileBuffer"));
 		}
 		else
 		{
 			Out.TileCount = GetSubstrateTextureTileResolution(View, DynResIndependentViewSize);
 			Out.LayerCount = 1;
-			Out.BSDFTilePerThreadDispatchIndirectBuffer = nullptr;
-			Out.BSDFTileDispatchIndirectBuffer = nullptr;
-			Out.BSDFTileCountBuffer = nullptr;
-			Out.BSDFTileBuffer = nullptr;
+			Out.ClosureTilePerThreadDispatchIndirectBuffer = nullptr;
+			Out.ClosureTileDispatchIndirectBuffer = nullptr;
+			Out.ClosureTileCountBuffer = nullptr;
+			Out.ClosureTileBuffer = nullptr;
 		}
 
 		// Create the readable uniform buffers
@@ -277,7 +277,7 @@ static void InitialiseSubstrateViewData(FRDGBuilder& GraphBuilder, FViewInfo& Vi
 	}
 }
 
-static bool NeedBSDFOffsets(const FScene* Scene, const FViewInfo& View)
+static bool NeedClosureOffsets(const FScene* Scene, const FViewInfo& View)
 {
 	return  ShouldRenderLumenDiffuseGI(Scene, View) || ShouldRenderLumenReflections(View) || Substrate::ShouldRenderSubstrateDebugPasses(View);
 }
@@ -331,7 +331,7 @@ void InitialiseSubstrateFrameSceneData(FRDGBuilder& GraphBuilder, FSceneRenderer
 	};
 
 	// Compute the max byte per pixels required by the views
-	bool bNeedBSDFOffsets = false;
+	bool bNeedClosureOffsets = false;
 	bool bNeedUAV = false;
 	bool bUseDBufferPass = false;
 
@@ -351,7 +351,7 @@ void InitialiseSubstrateFrameSceneData(FRDGBuilder& GraphBuilder, FSceneRenderer
 		Out.ViewsMaxBytesPerPixel = 0;
 		for (const FViewInfo& View : SceneRenderer.Views)
 		{
-			bNeedBSDFOffsets = bNeedBSDFOffsets || NeedBSDFOffsets(SceneRenderer.Scene, View);
+			bNeedClosureOffsets = bNeedClosureOffsets || NeedClosureOffsets(SceneRenderer.Scene, View);
 			bNeedUAV = bNeedUAV || IsDBufferPassEnabled(View.GetShaderPlatform()) || NaniteComputeMaterialsSupported();
 			Out.ViewsMaxBytesPerPixel = FMath::Max(Out.ViewsMaxBytesPerPixel, View.SubstrateViewData.MaxBytesPerPixel);
 			bUseDBufferPass = bUseDBufferPass || IsDBufferPassEnabled(View.GetShaderPlatform());
@@ -417,11 +417,11 @@ void InitialiseSubstrateFrameSceneData(FRDGBuilder& GraphBuilder, FSceneRenderer
 			}
 		}
 
-		// BSDF offsets
-		if (bNeedBSDFOffsets)
+		// Closure offsets
+		if (bNeedClosureOffsets)
 		{
-			Out.BSDFOffsetTexture = GraphBuilder.CreateTexture(FRDGTextureDesc::Create2D(SceneTextureExtent, PF_R32_UINT, FClearValueBinding::None, TexCreate_UAV | TexCreate_ShaderResource), TEXT("Substrate.BSDFOffsets"));
-			AddClearUAVPass(GraphBuilder, GraphBuilder.CreateUAV(Out.BSDFOffsetTexture), 0u);
+			Out.ClosureOffsetTexture = GraphBuilder.CreateTexture(FRDGTextureDesc::Create2D(SceneTextureExtent, PF_R32_UINT, FClearValueBinding::None, TexCreate_UAV | TexCreate_ShaderResource), TEXT("Substrate.ClosureOffsets"));
+			AddClearUAVPass(GraphBuilder, GraphBuilder.CreateUAV(Out.ClosureOffsetTexture), 0u);
 		}
 	}
 	else
@@ -462,7 +462,7 @@ void InitialiseSubstrateFrameSceneData(FRDGBuilder& GraphBuilder, FSceneRenderer
 	// Initialized view data
 	for (int32 ViewIndex = 0; ViewIndex < SceneRenderer.Views.Num(); ViewIndex++)
 	{
-		Substrate::InitialiseSubstrateViewData(GraphBuilder, SceneRenderer.Views[ViewIndex], SceneRenderer.GetActiveSceneTexturesConfig(), bNeedBSDFOffsets, Out);
+		Substrate::InitialiseSubstrateViewData(GraphBuilder, SceneRenderer.Views[ViewIndex], SceneRenderer.GetActiveSceneTexturesConfig(), bNeedClosureOffsets, Out);
 	}
 
 	if (IsSubstrateEnabled())
@@ -532,17 +532,17 @@ static void BindSubstrateGlobalUniformParameters(FRDGBuilder& GraphBuilder, FSub
 		OutSubstrateUniformParameters.MaterialTextureArray = SubstrateSceneData->MaterialTextureArray;
 		OutSubstrateUniformParameters.TopLayerTexture = SubstrateSceneData->TopLayerTexture;
 		OutSubstrateUniformParameters.OpaqueRoughRefractionTexture = SubstrateSceneData->OpaqueRoughRefractionTexture;
-		OutSubstrateUniformParameters.BSDFOffsetTexture = SubstrateSceneData->BSDFOffsetTexture;
-		OutSubstrateUniformParameters.BSDFTileCountBuffer = SubstrateViewData->BSDFTileCountBuffer ? GraphBuilder.CreateSRV(SubstrateViewData->BSDFTileCountBuffer, PF_R32_UINT) : nullptr;
-		OutSubstrateUniformParameters.BSDFTileBuffer = SubstrateViewData->BSDFTileBuffer ? GraphBuilder.CreateSRV(SubstrateViewData->BSDFTileBuffer, PF_R32_UINT) : nullptr;
+		OutSubstrateUniformParameters.ClosureOffsetTexture = SubstrateSceneData->ClosureOffsetTexture;
+		OutSubstrateUniformParameters.ClosureTileCountBuffer = SubstrateViewData->ClosureTileCountBuffer ? GraphBuilder.CreateSRV(SubstrateViewData->ClosureTileCountBuffer, PF_R32_UINT) : nullptr;
+		OutSubstrateUniformParameters.ClosureTileBuffer = SubstrateViewData->ClosureTileBuffer ? GraphBuilder.CreateSRV(SubstrateViewData->ClosureTileBuffer, PF_R32_UINT) : nullptr;
 
-		if (OutSubstrateUniformParameters.BSDFOffsetTexture == nullptr)
+		if (OutSubstrateUniformParameters.ClosureOffsetTexture == nullptr)
 		{
 			const FRDGSystemTextures& SystemTextures = FRDGSystemTextures::Get(GraphBuilder);
 			FRDGBufferSRVRef DefaultBuffer = GraphBuilder.CreateSRV(GSystemTextures.GetDefaultBuffer(GraphBuilder, 4, 0u), PF_R32_UINT);
-			OutSubstrateUniformParameters.BSDFOffsetTexture = SystemTextures.Black;
-			OutSubstrateUniformParameters.BSDFTileCountBuffer = DefaultBuffer;
-			OutSubstrateUniformParameters.BSDFTileBuffer = DefaultBuffer;
+			OutSubstrateUniformParameters.ClosureOffsetTexture = SystemTextures.Black;
+			OutSubstrateUniformParameters.ClosureTileCountBuffer = DefaultBuffer;
+			OutSubstrateUniformParameters.ClosureTileBuffer = DefaultBuffer;
 		}
 	}
 	else
@@ -559,9 +559,9 @@ static void BindSubstrateGlobalUniformParameters(FRDGBuilder& GraphBuilder, FSub
 		OutSubstrateUniformParameters.MaterialTextureArray = DefaultTextureArray;
 		OutSubstrateUniformParameters.TopLayerTexture = SystemTextures.DefaultNormal8Bit;
 		OutSubstrateUniformParameters.OpaqueRoughRefractionTexture = SystemTextures.Black;
-		OutSubstrateUniformParameters.BSDFOffsetTexture = SystemTextures.Black;
-		OutSubstrateUniformParameters.BSDFTileCountBuffer = DefaultBuffer;
-		OutSubstrateUniformParameters.BSDFTileBuffer = DefaultBuffer;
+		OutSubstrateUniformParameters.ClosureOffsetTexture = SystemTextures.Black;
+		OutSubstrateUniformParameters.ClosureTileCountBuffer = DefaultBuffer;
+		OutSubstrateUniformParameters.ClosureTileBuffer = DefaultBuffer;
 	}
 }
 
@@ -641,10 +641,10 @@ TRDGUniformBufferRef<FSubstratePublicGlobalUniformParameters> CreatePublicGlobal
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 
-class FSubstrateBSDFTilePassCS : public FGlobalShader
+class FSubstrateClosureTilePassCS : public FGlobalShader
 {
-	DECLARE_GLOBAL_SHADER(FSubstrateBSDFTilePassCS);
-	SHADER_USE_PARAMETER_STRUCT(FSubstrateBSDFTilePassCS, FGlobalShader);
+	DECLARE_GLOBAL_SHADER(FSubstrateClosureTilePassCS);
+	SHADER_USE_PARAMETER_STRUCT(FSubstrateClosureTilePassCS, FGlobalShader);
 
 	class FWaveOps : SHADER_PERMUTATION_BOOL("PERMUTATION_WAVE_OPS");
 	using FPermutationDomain = TShaderPermutationDomain<FWaveOps>;
@@ -659,9 +659,9 @@ class FSubstrateBSDFTilePassCS : public FGlobalShader
 		SHADER_PARAMETER_RDG_TEXTURE(Texture2D, TopLayerTexture)
 		SHADER_PARAMETER_RDG_TEXTURE_SRV(Texture2DArray<uint>, MaterialTextureArray)
 
-		SHADER_PARAMETER_RDG_TEXTURE_UAV(RWTexture2D<uint>, RWBSDFOffsetTexture)
-		SHADER_PARAMETER_RDG_BUFFER_UAV(RWBuffer<uint>, RWBSDFTileCountBuffer)
-		SHADER_PARAMETER_RDG_BUFFER_UAV(RWBuffer<uint>, RWBSDFTileBuffer)
+		SHADER_PARAMETER_RDG_TEXTURE_UAV(RWTexture2D<uint>, RWClosureOffsetTexture)
+		SHADER_PARAMETER_RDG_BUFFER_UAV(RWBuffer<uint>, RWClosureTileCountBuffer)
+		SHADER_PARAMETER_RDG_BUFFER_UAV(RWBuffer<uint>, RWClosureTileBuffer)
 
 		SHADER_PARAMETER_RDG_BUFFER_SRV(Buffer<uint>, TileListBuffer)
 		SHADER_PARAMETER(uint32, TileListBufferOffset)
@@ -682,7 +682,7 @@ class FSubstrateBSDFTilePassCS : public FGlobalShader
 	static void ModifyCompilationEnvironment(const FGlobalShaderPermutationParameters& Parameters, FShaderCompilerEnvironment& OutEnvironment)
 	{
 		FGlobalShader::ModifyCompilationEnvironment(Parameters, OutEnvironment);
-		OutEnvironment.SetDefine(TEXT("SHADER_BSDF_TILE"), 1);
+		OutEnvironment.SetDefine(TEXT("SHADER_CLOSURE_TILE"), 1);
 
 		FPermutationDomain PermutationVector(Parameters.PermutationId);
 		if (PermutationVector.Get<FWaveOps>())
@@ -691,7 +691,7 @@ class FSubstrateBSDFTilePassCS : public FGlobalShader
 		}
 	}
 };
-IMPLEMENT_GLOBAL_SHADER(FSubstrateBSDFTilePassCS, "/Engine/Private/Substrate/SubstrateMaterialClassification.usf", "BSDFTileMainCS", SF_Compute);
+IMPLEMENT_GLOBAL_SHADER(FSubstrateClosureTilePassCS, "/Engine/Private/Substrate/SubstrateMaterialClassification.usf", "ClosureTileMainCS", SF_Compute);
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 
@@ -827,10 +827,10 @@ IMPLEMENT_GLOBAL_SHADER(FSubstrateMaterialTilePrepareArgsPassCS, "/Engine/Privat
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 
-class FSubstrateBSDFTilePrepareArgsPassCS : public FGlobalShader
+class FSubstrateClosureTilePrepareArgsPassCS : public FGlobalShader
 {
-	DECLARE_GLOBAL_SHADER(FSubstrateBSDFTilePrepareArgsPassCS);
-	SHADER_USE_PARAMETER_STRUCT(FSubstrateBSDFTilePrepareArgsPassCS, FGlobalShader);
+	DECLARE_GLOBAL_SHADER(FSubstrateClosureTilePrepareArgsPassCS);
+	SHADER_USE_PARAMETER_STRUCT(FSubstrateClosureTilePrepareArgsPassCS, FGlobalShader);
 
 	BEGIN_SHADER_PARAMETER_STRUCT(FParameters, )
 		SHADER_PARAMETER(FIntPoint, TileCount_Primary)
@@ -847,10 +847,10 @@ class FSubstrateBSDFTilePrepareArgsPassCS : public FGlobalShader
 	static void ModifyCompilationEnvironment(const FGlobalShaderPermutationParameters& Parameters, FShaderCompilerEnvironment& OutEnvironment)
 	{
 		FGlobalShader::ModifyCompilationEnvironment(Parameters, OutEnvironment);
-		OutEnvironment.SetDefine(TEXT("SHADER_BSDF_TILE_PREPARE_ARGS"), 1);
+		OutEnvironment.SetDefine(TEXT("SHADER_CLOSURE_TILE_PREPARE_ARGS"), 1);
 	}
 };
-IMPLEMENT_GLOBAL_SHADER(FSubstrateBSDFTilePrepareArgsPassCS, "/Engine/Private/Substrate/SubstrateMaterialClassification.usf", "ArgsMainCS", SF_Compute);
+IMPLEMENT_GLOBAL_SHADER(FSubstrateClosureTilePrepareArgsPassCS, "/Engine/Private/Substrate/SubstrateMaterialClassification.usf", "ArgsMainCS", SF_Compute);
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 
@@ -1297,18 +1297,18 @@ void AddSubstrateMaterialClassificationPass(FRDGBuilder& GraphBuilder, const FMi
 				FIntVector(1,1,1));
 		}
 
-		// Compute BSDF tile index and material read offset
-		if (SubstrateSceneData->BSDFOffsetTexture)
+		// Compute closure tile index and material read offset
+		if (SubstrateSceneData->ClosureOffsetTexture)
 		{
-			FRDGBufferUAVRef RWBSDFTileCountBuffer = GraphBuilder.CreateUAV(SubstrateViewData->BSDFTileCountBuffer, PF_R32_UINT);
-			AddClearUAVPass(GraphBuilder, RWBSDFTileCountBuffer, 0u);
+			FRDGBufferUAVRef RWClosureTileCountBuffer = GraphBuilder.CreateUAV(SubstrateViewData->ClosureTileCountBuffer, PF_R32_UINT);
+			AddClearUAVPass(GraphBuilder, RWClosureTileCountBuffer, 0u);
 
-			auto MarkBSDFTilePass = [&](ESubstrateTileType TileType)
+			auto MarkClosureTilePass = [&](ESubstrateTileType TileType)
 			{
-				FSubstrateBSDFTilePassCS::FPermutationDomain PermutationVector;
-				PermutationVector.Set< FSubstrateBSDFTilePassCS::FWaveOps >(bWaveOps);
-				TShaderMapRef<FSubstrateBSDFTilePassCS> ComputeShader(View.ShaderMap, PermutationVector);
-				FSubstrateBSDFTilePassCS::FParameters* PassParameters = GraphBuilder.AllocParameters<FSubstrateBSDFTilePassCS::FParameters>();
+				FSubstrateClosureTilePassCS::FPermutationDomain PermutationVector;
+				PermutationVector.Set< FSubstrateClosureTilePassCS::FWaveOps >(bWaveOps);
+				TShaderMapRef<FSubstrateClosureTilePassCS> ComputeShader(View.ShaderMap, PermutationVector);
+				FSubstrateClosureTilePassCS::FParameters* PassParameters = GraphBuilder.AllocParameters<FSubstrateClosureTilePassCS::FParameters>();
 				PassParameters->ViewUniformBuffer = View.ViewUniformBuffer;
 				PassParameters->TileSizeLog2 = SUBSTRATE_TILE_SIZE_DIV_AS_SHIFT;
 				PassParameters->TileCount_Primary = SubstrateViewData->TileCount;
@@ -1320,13 +1320,13 @@ void AddSubstrateMaterialClassificationPass(FRDGBuilder& GraphBuilder, const FMi
 				PassParameters->TileListBufferOffset = SubstrateViewData->ClassificationTileListBufferOffset[TileType];
 				PassParameters->TileIndirectBuffer = SubstrateViewData->ClassificationTileDispatchIndirectBuffer;
 
-				PassParameters->RWBSDFOffsetTexture = GraphBuilder.CreateUAV(SubstrateSceneData->BSDFOffsetTexture);
-				PassParameters->RWBSDFTileCountBuffer = RWBSDFTileCountBuffer;
-				PassParameters->RWBSDFTileBuffer = GraphBuilder.CreateUAV(SubstrateViewData->BSDFTileBuffer, PF_R32_UINT);
+				PassParameters->RWClosureOffsetTexture = GraphBuilder.CreateUAV(SubstrateSceneData->ClosureOffsetTexture);
+				PassParameters->RWClosureTileCountBuffer = RWClosureTileCountBuffer;
+				PassParameters->RWClosureTileBuffer = GraphBuilder.CreateUAV(SubstrateViewData->ClosureTileBuffer, PF_R32_UINT);
 
 				FComputeShaderUtils::AddPass(
 					GraphBuilder,
-					RDG_EVENT_NAME("Substrate::BSDFTileAndOffsets(%s - %s)", ToString(TileType), bWaveOps ? TEXT("Wave") : TEXT("SharedMemory")),
+					RDG_EVENT_NAME("Substrate::ClosureTileAndOffsets(%s - %s)", ToString(TileType), bWaveOps ? TEXT("Wave") : TEXT("SharedMemory")),
 					PassFlags,
 					ComputeShader,
 					PassParameters,
@@ -1335,24 +1335,24 @@ void AddSubstrateMaterialClassificationPass(FRDGBuilder& GraphBuilder, const FMi
 			};
 			if (GetSubstrateUsesComplexSpecialPath(View))
 			{
-				MarkBSDFTilePass(ESubstrateTileType::EComplexSpecial);
+				MarkClosureTilePass(ESubstrateTileType::EComplexSpecial);
 			}
-			MarkBSDFTilePass(ESubstrateTileType::EComplex);
+			MarkClosureTilePass(ESubstrateTileType::EComplex);
 		}
 
 		// Tile indirect dispatch args conversion
-		if (SubstrateSceneData->BSDFOffsetTexture)
+		if (SubstrateSceneData->ClosureOffsetTexture)
 		{
-			TShaderMapRef<FSubstrateBSDFTilePrepareArgsPassCS> ComputeShader(View.ShaderMap);
-			FSubstrateBSDFTilePrepareArgsPassCS::FParameters* PassParameters = GraphBuilder.AllocParameters<FSubstrateBSDFTilePrepareArgsPassCS::FParameters>();
+			TShaderMapRef<FSubstrateClosureTilePrepareArgsPassCS> ComputeShader(View.ShaderMap);
+			FSubstrateClosureTilePrepareArgsPassCS::FParameters* PassParameters = GraphBuilder.AllocParameters<FSubstrateClosureTilePrepareArgsPassCS::FParameters>();
 			PassParameters->TileCount_Primary = SubstrateViewData->TileCount;
-			PassParameters->TileDrawIndirectDataBuffer = GraphBuilder.CreateSRV(SubstrateViewData->BSDFTileCountBuffer, PF_R32_UINT);
-			PassParameters->TileDispatchIndirectDataBuffer = GraphBuilder.CreateUAV(SubstrateViewData->BSDFTileDispatchIndirectBuffer, PF_R32_UINT);
-			PassParameters->TileDispatchPerThreadIndirectDataBuffer = GraphBuilder.CreateUAV(SubstrateViewData->BSDFTilePerThreadDispatchIndirectBuffer, PF_R32_UINT);
+			PassParameters->TileDrawIndirectDataBuffer = GraphBuilder.CreateSRV(SubstrateViewData->ClosureTileCountBuffer, PF_R32_UINT);
+			PassParameters->TileDispatchIndirectDataBuffer = GraphBuilder.CreateUAV(SubstrateViewData->ClosureTileDispatchIndirectBuffer, PF_R32_UINT);
+			PassParameters->TileDispatchPerThreadIndirectDataBuffer = GraphBuilder.CreateUAV(SubstrateViewData->ClosureTilePerThreadDispatchIndirectBuffer, PF_R32_UINT);
 
 			FComputeShaderUtils::AddPass(
 				GraphBuilder,
-				RDG_EVENT_NAME("Substrate::BSDFTilePrepareArgs"),
+				RDG_EVENT_NAME("Substrate::ClosureTilePrepareArgs"),
 				PassFlags,
 				ComputeShader,
 				PassParameters,

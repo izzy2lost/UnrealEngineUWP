@@ -65,9 +65,9 @@ BEGIN_GLOBAL_SHADER_PARAMETER_STRUCT(FSubstrateGlobalUniformParameters, RENDERER
 	SHADER_PARAMETER_RDG_TEXTURE(Texture2DArray<uint>, MaterialTextureArray)
 	SHADER_PARAMETER_RDG_TEXTURE(Texture2D<uint2>, TopLayerTexture)
 	SHADER_PARAMETER_RDG_TEXTURE(Texture2D<float3>, OpaqueRoughRefractionTexture)
-	SHADER_PARAMETER_RDG_TEXTURE(Texture2D<uint>, BSDFOffsetTexture)
-	SHADER_PARAMETER_RDG_BUFFER_SRV(Buffer<uint>, BSDFTileBuffer)
-	SHADER_PARAMETER_RDG_BUFFER_SRV(Buffer<uint>, BSDFTileCountBuffer)
+	SHADER_PARAMETER_RDG_TEXTURE(Texture2D<uint>, ClosureOffsetTexture)
+	SHADER_PARAMETER_RDG_BUFFER_SRV(Buffer<uint>, ClosureTileBuffer)
+	SHADER_PARAMETER_RDG_BUFFER_SRV(Buffer<uint>, ClosureTileCountBuffer)
 END_GLOBAL_SHADER_PARAMETER_STRUCT()
 
 BEGIN_GLOBAL_SHADER_PARAMETER_STRUCT(FSubstratePublicGlobalUniformParameters, RENDERER_API)
@@ -119,7 +119,7 @@ struct FSubstrateSceneData
 	FRDGTextureUAVRef TopLayerTextureUAV = nullptr;
 	FRDGTextureUAVRef OpaqueRoughRefractionTextureUAV = nullptr;
 
-	FRDGTextureRef BSDFOffsetTexture = nullptr;
+	FRDGTextureRef ClosureOffsetTexture = nullptr;
 
 	// Used when the subsurface luminance is separated from the scene color
 	FRDGTextureRef SeparatedSubSurfaceSceneColor = nullptr;
@@ -154,10 +154,10 @@ struct FSubstrateViewData
 	FRDGBufferRef    ClassificationTileDispatchIndirectBuffer = nullptr;
 	FRDGBufferUAVRef ClassificationTileDispatchIndirectBufferUAV = nullptr;
 
-	FRDGBufferRef  BSDFTileBuffer = nullptr;
-	FRDGBufferRef  BSDFTileCountBuffer = nullptr;
-	FRDGBufferRef  BSDFTileDispatchIndirectBuffer = nullptr;
-	FRDGBufferRef  BSDFTilePerThreadDispatchIndirectBuffer = nullptr;
+	FRDGBufferRef  ClosureTileBuffer = nullptr;
+	FRDGBufferRef  ClosureTileCountBuffer = nullptr;
+	FRDGBufferRef  ClosureTileDispatchIndirectBuffer = nullptr;
+	FRDGBufferRef  ClosureTilePerThreadDispatchIndirectBuffer = nullptr;
 
 	FSubstrateSceneData* SceneData = nullptr;
 

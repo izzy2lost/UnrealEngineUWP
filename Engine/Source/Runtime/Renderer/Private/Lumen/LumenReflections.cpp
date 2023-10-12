@@ -762,14 +762,14 @@ FLumenReflectionTileParameters ReflectionTileClassification(
 
 		if (bOverflow)
 		{
-			PassParameters->TileIndirectBuffer = View.SubstrateViewData.BSDFTilePerThreadDispatchIndirectBuffer;
+			PassParameters->TileIndirectBuffer = View.SubstrateViewData.ClosureTilePerThreadDispatchIndirectBuffer;
 			FComputeShaderUtils::AddPass(
 				GraphBuilder,
 				RDG_EVENT_NAME("TileClassificationBuildLists(Overflow)"),
 				ComputePassFlags,
 				ComputeShader,
 				PassParameters,
-				View.SubstrateViewData.BSDFTilePerThreadDispatchIndirectBuffer, 0u);
+				View.SubstrateViewData.ClosureTilePerThreadDispatchIndirectBuffer, 0u);
 		}
 		else
 		{
