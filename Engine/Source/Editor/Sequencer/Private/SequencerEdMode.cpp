@@ -235,7 +235,11 @@ bool FSequencerEdMode::IsPressingMoveTimeSlider(FViewport* InViewport) const
 	{
 		EMultipleKeyBindingIndex ChordIndex = static_cast<EMultipleKeyBindingIndex>(i);
 		const FInputChord& Chord = *Commands.ScrubTimeViewport->GetActiveChord(ChordIndex);
-		bIsMovingTimeSlider |= Chord.IsValidChord() && InViewport->KeyState(Chord.Key);
+		bIsMovingTimeSlider |= Chord.IsValidChord() && InViewport->KeyState(Chord.Key) && 
+			(Chord.NeedsAlt() ? IsAltDown(InViewport) : !IsAltDown(InViewport)) &&
+			(Chord.NeedsShift() ? IsShiftDown(InViewport) : !IsShiftDown(InViewport)) &&
+			(Chord.NeedsControl() ? IsCtrlDown(InViewport) : !IsCtrlDown(InViewport));
+
 	}
 	return bIsMovingTimeSlider;
 }
