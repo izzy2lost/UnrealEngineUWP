@@ -263,7 +263,7 @@ int32 UDataLayerToAssetCommandlet::Main(const FString& Params)
 		return EReturnCode::CommandletInitializationError;
 	}
 
-	ConversionFolder = DestinationFolder + "/" + MainWorld->GetName();
+	ConversionFolder = DestinationFolder + "/" + MainWorld->GetName() + "/";
 
 	TStrongObjectPtr<UDataLayerToAssetCommandletContext> Context(NewObject<UDataLayerToAssetCommandletContext>());
 
@@ -348,7 +348,10 @@ bool UDataLayerToAssetCommandlet::BuildConversionInfos(TStrongObjectPtr<UDataLay
 	AssetRegistry.GetAssetsByClass(UDataLayerAsset::StaticClass()->GetFName(), ExistingDataLayerAssets);
 	for (FAssetData& AssetData : ExistingDataLayerAssets)
 	{
-		CommandletContext->StoreExistingDataLayer(AssetData);
+		if (IsAssetInConversionFolder(AssetData.GetSoftObjectPath()))
+		{
+			CommandletContext->StoreExistingDataLayer(AssetData);
+		}
 	}
 
 	AWorldDataLayers* WorldDataLayers = MainWorld->GetWorldDataLayers();
@@ -749,9 +752,9 @@ bool UDataLayerToAssetCommandlet::CommitConversion(TStrongObjectPtr<UDataLayerTo
 	return true;
 }
 
-bool UDataLayerToAssetCommandlet::IsAssetInConversionFolder(const TObjectPtr<UDataLayerAsset> DataLayerAsset)
+bool UDataLayerToAssetCommandlet::IsAssetInConversionFolder(const FSoftObjectPath& DataLayerAsset)
 {
-	return FCString::Stristr(*DataLayerAsset->GetPackage()->GetName(), *ConversionFolder) != nullptr;
+	return DataLayerAsset.GetAssetPathString().StartsWith(ConversionFolder);
 }
 
 PRAGMA_ENABLE_DEPRECATION_WARNINGS
