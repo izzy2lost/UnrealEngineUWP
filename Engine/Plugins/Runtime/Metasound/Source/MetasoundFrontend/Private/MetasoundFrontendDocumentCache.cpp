@@ -229,9 +229,6 @@ namespace Metasound::Frontend
 
 		FDocumentDependencyCache& Cache = GetDependencyCache();
 
-		const bool contains = Cache.KeyToIndex.Contains(SwapKey);
-		check(contains);
-
 		DocumentCachePrivate::RemoveSwapMapIndexChecked(SwapKey, LastKey, Cache.KeyToIndex);
 		DocumentCachePrivate::RemoveSwapMapIndexChecked(SwapDependency.ID, LastDependency.ID, Cache.IDToIndex);
 	}
