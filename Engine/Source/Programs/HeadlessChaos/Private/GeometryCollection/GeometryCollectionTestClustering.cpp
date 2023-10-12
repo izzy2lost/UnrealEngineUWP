@@ -76,7 +76,7 @@ namespace GeometryCollectionTest
 
 		FGeometryCollectionClusteringUtility::ClusterAllBonesUnderNewRoot(RestCollection.Get());
 		EXPECT_EQ(RestCollection->Transform.Num(), 3);
-		RestCollection->Transform[2] = FTransform(FQuat::MakeFromEuler(FVector(90.0, 0, 0.)), FVector(0, 0, 40));
+		RestCollection->Transform[2] = FTransform3f(FQuat4f::MakeFromEuler(FVector3f(90.0, 0, 0.)), FVector3f(0, 0, 40));
 
 		//GeometryCollectionAlgo::PrintParentHierarchy(RestCollection.Get());
 
@@ -141,7 +141,7 @@ namespace GeometryCollectionTest
 
 		FGeometryCollectionClusteringUtility::ClusterAllBonesUnderNewRoot(RestCollection.Get());
 		EXPECT_EQ(RestCollection->Transform.Num(), 3);
-		RestCollection->Transform[2] = FTransform(FQuat::MakeFromEuler(FVector(90.0, 0, 0.)), FVector(0, 0, 40));
+		RestCollection->Transform[2] = FTransform3f(FQuat4f::MakeFromEuler(FVector3f(90.0, 0, 0.)), FVector3f(0, 0, 40));
 
 		//GeometryCollectionAlgo::PrintParentHierarchy(RestCollection.Get());
 
@@ -440,7 +440,7 @@ namespace GeometryCollectionTest
 
 
 		TSharedPtr<FGeometryCollection> RestCollection = CreateClusteredBody(FVector::ZeroVector);
-		RestCollection->Transform[2] = FTransform(FQuat::MakeFromEuler(FVector(0., 90.f, 0.)), FVector(0, 0, 17));
+		RestCollection->Transform[2] = FTransform3f(FQuat4f::MakeFromEuler(FVector3f(0., 90.f, 0.)), FVector3f(0, 0, 17));
 		CreationParameters Params;
 		Params.RestCollection = RestCollection;
 		Params.DynamicState = EObjectStateTypeEnum::Chaos_Object_Dynamic;
@@ -537,11 +537,11 @@ namespace GeometryCollectionTest
 
 		FGeometryCollectionClusteringUtility::ClusterAllBonesUnderNewRoot(RestCollection.Get());
 		EXPECT_EQ(RestCollection->Transform.Num(), 3);
-		RestCollection->Transform[2] = FTransform(FQuat::MakeFromEuler(FVector(90.f, 0, 0.)), FVector(0, 0, 40));
+		RestCollection->Transform[2] = FTransform3f(FQuat4f::MakeFromEuler(FVector3f(90.f, 0, 0.)), FVector3f(0, 0, 40));
 
 		FGeometryCollectionClusteringUtility::ClusterBonesUnderNewNode(RestCollection.Get(), 3, { 2 }, true);
 		EXPECT_EQ(RestCollection->Transform.Num(), 4);
-		RestCollection->Transform[3] = FTransform(FQuat::MakeFromEuler(FVector(0.f, 0, 0.)), FVector(0, 0, 10));
+		RestCollection->Transform[3] = FTransform3f(FQuat4f::MakeFromEuler(FVector3f(0.f, 0, 0.)), FVector4f(0, 0, 10));
 
 		//GeometryCollectionAlgo::PrintParentHierarchy(RestCollection.Get());
 
@@ -2222,7 +2222,7 @@ namespace GeometryCollectionTest
 		RestCollection->AppendGeometry(*GeometryCollection::MakeCubeElement(FTransform(FQuat::MakeFromEuler(FVector(0.f)), FVector(500, 0, 0)), FVector(1.0)));
 
 		RestCollection->AddElements(7, FGeometryCollection::TransformGroup);
-		RestCollection->Transform[10].SetTranslation(FVector(0,0,0));
+		RestCollection->Transform[10].SetTranslation(FVector3f(0,0,0));
 
 		RestCollection->SimulationType[0] = FGeometryCollection::ESimulationTypes::FST_Rigid;
 		RestCollection->SimulationType[1] = FGeometryCollection::ESimulationTypes::FST_Rigid;

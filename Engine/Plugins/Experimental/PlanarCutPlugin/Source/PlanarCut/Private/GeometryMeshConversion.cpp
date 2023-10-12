@@ -2528,8 +2528,8 @@ void FCellMeshes::CreateMeshesForSinglePlane(const FPlanarCells& Cells, const FA
 	}
 }
 
-
-void FDynamicMeshCollection::Init(const FGeometryCollection* Collection, const TManagedArray<FTransform>& Transforms, const TArrayView<const int32>& TransformIndices, FTransform TransformCollection, bool bSaveIsolatedVertices)
+template<typename TransformType>
+void FDynamicMeshCollection::InitTemplate(const FGeometryCollection* Collection, const TManagedArray<TransformType>& Transforms, const TArrayView<const int32>& TransformIndices, FTransform TransformCollection, bool bSaveIsolatedVertices)
 {
 	GeometryCollection::UV::FConstUVLayers UVLayers = GeometryCollection::UV::FindActiveUVLayers(*Collection);
 	int32 NumUVLayers = UVLayers.Num();
@@ -2630,6 +2630,16 @@ void FDynamicMeshCollection::Init(const FGeometryCollection* Collection, const T
 	}
 }
 
+
+void FDynamicMeshCollection::Init(const FGeometryCollection* Collection, const TManagedArray<FTransform>& Transforms, const TArrayView<const int32>& TransformIndices, FTransform TransformCollection, bool bSaveIsolatedVertices)
+{
+	InitTemplate(Collection, Transforms, TransformIndices, TransformCollection, bSaveIsolatedVertices);
+}
+
+void FDynamicMeshCollection::Init(const FGeometryCollection* Collection, const TManagedArray<FTransform3f>& Transforms, const TArrayView<const int32>& TransformIndices, FTransform TransformCollection, bool bSaveIsolatedVertices)
+{
+	InitTemplate(Collection, Transforms, TransformIndices, TransformCollection, bSaveIsolatedVertices);
+}
 
 void FDynamicMeshCollection::SetGeometryVisibility(FGeometryCollection* Collection, const TArray<int32>& GeometryIndices, bool bVisible)
 {
@@ -3386,7 +3396,7 @@ int32 FDynamicMeshCollection::AppendToCollection(const FTransform& FromCollectio
 		Output.Children[TransformParent].Add(TransformIdx);
 		Output.SimulationType[TransformParent] = FGeometryCollection::ESimulationTypes::FST_Clustered;
 	}
-	Output.Transform[TransformIdx] = FTransform::Identity;
+	Output.Transform[TransformIdx] = FTransform3f::Identity;
 	Output.SimulationType[TransformIdx] = FGeometryCollection::ESimulationTypes::FST_Rigid;
 
 	int32 FacesStart = Output.AddElements(NumTriangles, FGeometryCollection::FacesGroup);

@@ -28,9 +28,10 @@ public:
 	FTransformDynamicCollection(FTransformDynamicCollection&&) = delete;
 	FTransformDynamicCollection& operator=(FTransformDynamicCollection&&) = delete;
 
-	CHAOS_API FTransform3f GetTransform(int32 Index) const;
+	CHAOS_API const FTransform3f& GetTransform(int32 Index) const;
 	CHAOS_API void SetTransform(int32 Index, const FTransform3f& Transform);
 	CHAOS_API int32 GetNumTransforms() const;
+	CHAOS_API void ResetInitialTransforms();
 
 	CHAOS_API const TManagedArray<bool>& GetHasParent() const;
 	CHAOS_API bool GetHasParent(int32 Index) const;

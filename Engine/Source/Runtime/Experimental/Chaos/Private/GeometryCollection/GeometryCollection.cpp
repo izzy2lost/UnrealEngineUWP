@@ -216,7 +216,6 @@ int32 FGeometryCollection::AppendGeometry(const FGeometryCollection & Element, i
 	const TManagedArray<int32>& ElementFaceStart = Element.FaceStart;
 	const TManagedArray<int32>& ElementFaceCount = Element.FaceCount;
 
-	const TManagedArray<FTransform>& ElementTransform = Element.Transform;
 	const TManagedArray<FString>& ElementBoneName = Element.BoneName;
 	const TManagedArray<FGeometryCollectionSection>& ElementSections = Element.Sections;
 
@@ -407,7 +406,7 @@ bool FGeometryCollection::AppendEmbeddedInstance(int32 InExemplarIndex, int32 In
 
 	// add a new embedded instance
 	int32 Element = AddElements(1, FGeometryCollection::TransformGroup);
-	Transform[Element] = InTransform;
+	Transform[Element] = FTransform3f(InTransform);
 	Parent[Element] = InParentIndex;
 	Children[InParentIndex].Add(Element);
 	SimulationType[Element] = FST_None;
@@ -1603,18 +1602,18 @@ void FGeometryCollection::Init(FGeometryCollection* Collection, const TArray<flo
 		TManagedArray<int32>& MaterialID = Collection->MaterialID;
 		TManagedArray<int32>& MaterialIndex = Collection->MaterialIndex;
 		TManagedArray<bool>& Internal = Collection->Internal;
-		TManagedArray<FTransform>& Transform = Collection->Transform;
+		TManagedArray<FTransform3f>& Transform = Collection->Transform;
 		TManagedArray<int32>& BoneMap = Collection->BoneMap;
 		
 		Collection->SetNumUVLayers(1);
 
 		// set the vertex information
 		TManagedArray<FVector2f>* UV0 = Collection->FindUVLayer(0);
-		FVector3d TempVertices(0.f, 0.f, 0.f);
+		FVector3f TempVertices(0.f, 0.f, 0.f);
 		for (int32 Idx = 0; Idx < NumNewVertices; ++Idx)
 		{
 			Vertices[Idx] = FVector3f(RawVertexArray[3 * Idx], RawVertexArray[3 * Idx + 1], RawVertexArray[3 * Idx + 2]);
-			TempVertices += FVector3d(Vertices[Idx]);
+			TempVertices += Vertices[Idx];
 			(*UV0)[Idx] = FVector2f::ZeroVector;
 
 			Colors[Idx] = FLinearColor::White;
@@ -1625,7 +1624,7 @@ void FGeometryCollection::Init(FGeometryCollection* Collection, const TArray<flo
 
 		// set the particle information
 		TempVertices /= (float)NumNewVertices;
-		Transform[0] = FTransform(TempVertices);
+		Transform[0] = FTransform3f(TempVertices);
 		Transform[0].NormalizeRotation();
 
 		// set the index information
@@ -1767,12 +1766,12 @@ void FGeometryCollection::WriteDataToHeaderFile(const FString &Name, const FStri
 	DataFile << "const TArray<FTransform> " << TCHAR_TO_UTF8(*Name) << "::RawTransformArray = {" << endl;
 
 	int32 NumTransforms = NumElements(FGeometryCollection::TransformGroup);
-	const TManagedArray<FTransform>& TransformArray = Transform;
+	const TManagedArray<FTransform3f>& TransformArray = Transform;
 	for (int32 IdxTransform = 0; IdxTransform < NumTransforms; ++IdxTransform)
 	{
-		FQuat Rotation = TransformArray[IdxTransform].GetRotation();
-		FVector Translation = TransformArray[IdxTransform].GetTranslation();
-		FVector Scale3D = TransformArray[IdxTransform].GetScale3D();
+		FQuat4f Rotation = TransformArray[IdxTransform].GetRotation();
+		FVector3f Translation = TransformArray[IdxTransform].GetTranslation();
+		FVector3f Scale3D = TransformArray[IdxTransform].GetScale3D();
 
 		DataFile << "   FTransform(FQuat(" <<
 			Rotation.X << ", " <<
@@ -1925,7 +1924,7 @@ FGeometryCollection* FGeometryCollection::NewGeometryCollection(const TArray<flo
 	TManagedArray<int32>&  MaterialID = RestCollection->MaterialID;
 	TManagedArray<int32>&  MaterialIndex = RestCollection->MaterialIndex;
 	TManagedArray<bool>& Internal = RestCollection->Internal;
-	TManagedArray<FTransform>&  Transform = RestCollection->Transform;
+	TManagedArray<FTransform3f>&  Transform = RestCollection->Transform;
 	TManagedArray<int32>& Parent = RestCollection->Parent;
 	TManagedArray<TSet<int32>>& Children = RestCollection->Children;
 	TManagedArray<int32>& SimulationType = RestCollection->SimulationType;
@@ -1951,7 +1950,7 @@ FGeometryCollection* FGeometryCollection::NewGeometryCollection(const TArray<flo
 
 	for (int32 Idx = 0; Idx < NumNewTransforms; ++Idx)
 	{
-		Transform[Idx] = RawTransformArray[Idx];
+		Transform[Idx] = FTransform3f(RawTransformArray[Idx]);
 		Transform[Idx].NormalizeRotation();
 
 		Parent[Idx] = RawParentArray[Idx];
@@ -2051,7 +2050,7 @@ TArray<TArray<int32>> FGeometryCollection::ConnectionGraph()
 	TArray<TArray<int32>> Connectivity;
 	Connectivity.Init(TArray<int32>(), NumTransforms);
 
-	TArray<FTransform> GlobalMatrices;
+	TArray<FTransform3f> GlobalMatrices;
 	GeometryCollectionAlgo::GlobalMatrices(Transform, Parent, GlobalMatrices);
 
 	TArray<FVector> Pts;
@@ -2061,7 +2060,7 @@ TArray<TArray<int32>> FGeometryCollection::ConnectionGraph()
 		if (IsGeometry(TransformGroupIndex))
 		{
 			Remap.Add(Pts.Num(), TransformGroupIndex);
-			Pts.Add(GlobalMatrices[TransformGroupIndex].GetTranslation());
+			Pts.Add(FVector(GlobalMatrices[TransformGroupIndex].GetTranslation()));
 		}
 	}
 

@@ -537,6 +537,26 @@ void PLANARCUT_API ConvertToMeshDescription(
 	TFunction<int32(int32, bool)> RemapMaterialIDs = nullptr
 );
 
+/**
+ * Convert chosen Geometry groups inside a GeometryCollection to a single Mesh Description.
+ *
+ * @param OutputMesh				Mesh to be filled with the geometry collection geometry
+ * @param TransformOut				Transform taking output mesh geometry to local space of geometry collection
+ * @param bCenterPivot				Whether to center the geometry at the origin
+ * @param Collection				The collection to be converted
+ * @param TransformIndices			Which transform groups inside the collection to convert
+ * @param RemapMaterialIDs			Optional function to remap (MaterialID, bIsInternal) -> NewMaterialID
+ */
+void PLANARCUT_API ConvertToMeshDescription(
+	FMeshDescription& OutputMesh,
+	FTransform& TransformOut,
+	bool bCenterPivot,
+	FGeometryCollection& Collection,
+	const TManagedArray<FTransform3f>& BoneTransforms,
+	const TArrayView<const int32>& TransformIndices,
+	TFunction<int32(int32, bool)> RemapMaterialIDs = nullptr
+);
+
 
 #if UE_ENABLE_INCLUDE_ORDER_DEPRECATED_IN_5_2
 #include "CoreMinimal.h"

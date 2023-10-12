@@ -282,11 +282,11 @@ void FGeometryCollectionEngineConversion::AppendMeshDescription(
 	AppendMeshDescriptionTask.EnterProgressFrame(1);
 
 	// Geometry transform
-	TManagedArray<FTransform>& Transform = GeometryCollection->Transform;
+	TManagedArray<FTransform3f>& Transform = GeometryCollection->Transform;
 
 	int32 TransformIndex1 = GeometryCollection->AddElements(1, FGeometryCollection::TransformGroup);
-	Transform[TransformIndex1] = StaticMeshTransform;
-	Transform[TransformIndex1].SetScale3D(FVector(1.f, 1.f, 1.f));
+	Transform[TransformIndex1] = FTransform3f(StaticMeshTransform);
+	Transform[TransformIndex1].SetScale3D(FVector3f(1.f, 1.f, 1.f));
 
 	// collisions
 	if (BodySetup)
@@ -770,8 +770,8 @@ bool FGeometryCollectionEngineConversion::AppendGeometryCollection(const FGeomet
 	const int32 GeometryCount = SourceGeometryCollectionPtr->TransformIndex.Num();
 	const int32 SectionCount = SourceGeometryCollectionPtr->Sections.Num();
 
-	FVector Scale = GeometryCollectionTransform.GetScale3D();
-	FTransform AppliedTransform = GeometryCollectionTransform;
+	FVector3f Scale = FVector3f(GeometryCollectionTransform.GetScale3D());
+	FTransform3f AppliedTransform = FTransform3f(GeometryCollectionTransform);
 	AppliedTransform.RemoveScaling();
 
 	const int32 VertexStart = TargetGeometryCollection->AddElements(VertexCount, FGeometryCollection::VerticesGroup);
@@ -850,7 +850,7 @@ bool FGeometryCollectionEngineConversion::AppendGeometryCollection(const FGeomet
 	}
 
 	// source transform information
-	const TManagedArray<FTransform>& SourceTransform = SourceGeometryCollectionPtr->Transform;
+	const TManagedArray<FTransform3f>& SourceTransform = SourceGeometryCollectionPtr->Transform;
 	const TManagedArray<FString>& SourceBoneName = SourceGeometryCollectionPtr->BoneName;
 	const TManagedArray<FLinearColor>& SourceBoneColor = SourceGeometryCollectionPtr->BoneColor;
 	const TManagedArray<int32>& SourceParent = SourceGeometryCollectionPtr->Parent;
@@ -862,7 +862,7 @@ bool FGeometryCollectionEngineConversion::AppendGeometryCollection(const FGeomet
 	const TManagedArray<Chaos::FImplicitObjectPtr>* SourceExternalCollisions = SourceGeometryCollectionPtr->FindAttribute<Chaos::FImplicitObjectPtr>(FGeometryCollection::ExternalCollisionsAttribute, FGeometryCollection::TransformGroup);
 
 	// target transform information
-	TManagedArray<FTransform>& TargetTransform = TargetGeometryCollection->Transform;
+	TManagedArray<FTransform3f>& TargetTransform = TargetGeometryCollection->Transform;
 	TManagedArray<FString>& TargetBoneName = TargetGeometryCollection->BoneName;
 	TManagedArray<FLinearColor>& TargetBoneColor = TargetGeometryCollection->BoneColor;
 	TManagedArray<int32>& TargetParent = TargetGeometryCollection->Parent;
@@ -885,7 +885,7 @@ bool FGeometryCollectionEngineConversion::AppendGeometryCollection(const FGeomet
 		}
 		else
 		{
-			FTransform ScaledTranslation = SourceTransform[TransformIndex];
+			FTransform3f ScaledTranslation = SourceTransform[TransformIndex];
 			ScaledTranslation.ScaleTranslation(Scale);
 			TargetTransform[TransformOffset] = ScaledTranslation;
 		}

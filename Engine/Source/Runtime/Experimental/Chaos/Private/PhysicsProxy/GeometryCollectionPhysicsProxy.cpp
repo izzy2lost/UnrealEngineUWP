@@ -551,7 +551,6 @@ void FGeometryCollectionPhysicsProxy::Initialize(Chaos::FPBDRigidsEvolutionBase 
 
 	// Initialise GT/External particles
 	const int32 NumTransforms = DynamicCollection.GetNumTransforms();
-
 	// make sure we copy the anchored information over to the physics thread collection
 	const Chaos::Facades::FCollectionAnchoringFacade DynamicCollectionAnchoringFacade(DynamicCollection);
 	Chaos::Facades::FCollectionAnchoringFacade PhysicsThreadCollectionAnchoringFacade(PhysicsThreadCollection);
@@ -4519,7 +4518,7 @@ void FGeometryCollectionPhysicsProxy::InitializeSharedCollisionStructures(
 	
 	TArray<FTransform> CollectionSpaceTransforms;
 	{ // tmp scope
-		const TManagedArray<FTransform>& HierarchyTransform = RestCollection.Transform;
+		const TManagedArray<FTransform3f>& HierarchyTransform = RestCollection.Transform;
 		GeometryCollectionAlgo::GlobalMatrices(HierarchyTransform, Parent, CollectionSpaceTransforms);
 	} // tmp scope
 

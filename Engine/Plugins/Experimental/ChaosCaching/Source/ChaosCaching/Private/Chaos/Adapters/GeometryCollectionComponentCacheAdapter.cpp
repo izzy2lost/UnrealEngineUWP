@@ -661,7 +661,7 @@ namespace Chaos
 				RestTransforms.SetNum(NumTransforms);
 				for (int32 Idx = 0; Idx < NumTransforms; ++Idx)
 				{
-					RestTransforms[Idx] = GeometryCollection->Transform[Idx];
+					RestTransforms[Idx] = FTransform(GeometryCollection->Transform[Idx]);
 				}
 
 				for (int32 CacheIdx = 0; CacheIdx < NumCacheTransforms; ++CacheIdx)
@@ -786,7 +786,7 @@ namespace Chaos
 					InitialTransforms.SetNum(NumTransforms);
 					for (int32 Idx = 0; Idx < NumTransforms; ++Idx)
 					{
-						InitialTransforms[Idx] = GeometryCollection->Transform[Idx];
+						InitialTransforms[Idx] = FTransform(GeometryCollection->Transform[Idx]);
 					}
 
 					for (int32 CacheIdx = 0; CacheIdx < NumCacheTransforms; ++CacheIdx)
@@ -814,7 +814,7 @@ namespace Chaos
 
 	TArray<int32> FGeometryCollectionCacheAdapter::GatherAllBreaksUpToTime(UChaosCache* InCache, float InTime) const
 	{
-		// Evaluate all breaking event that have occured from the beginning of the cache up to the specified time.
+		// Evaluate all breaking event that have occurred from the beginning of the cache up to the specified time.
 		TArray<int32> ReleaseIndices;
 
 		FPlaybackTickRecord TickRecord;

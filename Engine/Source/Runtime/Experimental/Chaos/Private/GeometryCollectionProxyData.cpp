@@ -40,11 +40,11 @@ void FTransformDynamicCollection::InitializeTransforms()
 	}
 }
 
-FTransform3f FTransformDynamicCollection::GetTransform(int32 Index) const
+const FTransform3f& FTransformDynamicCollection::GetTransform(int32 Index) const
 {
 	if (bTransformHasChanged == false)
 	{
-		return FTransform3f(RestCollection->Transform[Index]);
+		return RestCollection->Transform[Index];
 	}
 	return Transform[Index];
 }
@@ -59,6 +59,15 @@ int32 FTransformDynamicCollection::GetNumTransforms() const
 {
 	ensure(!bTransformHasChanged || RestCollection->Transform.Num() == Transform.Num());
 	return RestCollection->Transform.Num();
+}
+
+void FTransformDynamicCollection::ResetInitialTransforms()
+{
+	if (bTransformHasChanged)
+	{
+		RemoveAttribute(FTransformCollection::TransformAttribute, FTransformCollection::TransformGroup);
+		bTransformHasChanged = false;
+	}
 }
 
 const TManagedArray<bool>& FTransformDynamicCollection::GetHasParent() const

@@ -896,8 +896,6 @@ public:
 	// Declare all the methods
 	COPY_ON_WRITE_ATTRIBUTES
 
-	GEOMETRYCOLLECTIONENGINE_API const TManagedArray<FTransform>& GetTransformArrayRest() const;
-
 	GEOMETRYCOLLECTIONENGINE_API TManagedArray<int32>& GetParentArrayCopyOnWrite();
 	GEOMETRYCOLLECTIONENGINE_API int32 GetParent(int32 Index) const;
 	GEOMETRYCOLLECTIONENGINE_API const TManagedArray<int32>& GetParentArrayRest() const;
@@ -1542,12 +1540,13 @@ private:
 	void ProcessRepDynamicDataOnPT();
 
 	// called when the rest transform are updated from SetRestState / ResetRestTransforms
-	// this upadtes the renderer as well as the dynamic collection initial transforms
-	void RestTransformsChanged(const TArray<FTransform>& NewRestTransform);
+	// this updates only the renderer, the dynamic collection should be initialized when calling this function
+	void RestTransformsChanged();
 
 	// return the most actual transforms
-	// this can be the rest collection ones, the overriden RestTransforms or the dynamic collection ones
-	const TArray<FTransform>& GetCurrentRestTransforms() const;
+	// this can be the rest collection ones, the overridden RestTransforms or the dynamic collection ones
+	FTransform GetCurrentTransform(int32 Index) const;
+	void ComputeCurrentGlobalsMatrices(TArray<FTransform>& OutTransforms) const;
 
 	bool bRenderStateDirty;
 	bool bEnableBoneSelection;

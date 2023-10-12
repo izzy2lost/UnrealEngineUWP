@@ -198,6 +198,8 @@ struct PLANARCUT_API FDynamicMeshCollection
 	TIndirectArray<FMeshData> Meshes;
 	UE::Geometry::FAxisAlignedBox3d Bounds;
 	
+	FDynamicMeshCollection() {}
+
 	FDynamicMeshCollection(const FGeometryCollection* Collection, const TArrayView<const int32>& TransformIndices, FTransform TransformCollection, bool bSaveIsolatedVertices = false)
 	{
 		Init(Collection, TransformIndices, TransformCollection, bSaveIsolatedVertices);
@@ -208,12 +210,18 @@ struct PLANARCUT_API FDynamicMeshCollection
 		Init(Collection, Transforms, TransformIndices, TransformCollection, bSaveIsolatedVertices);
 	}
 
+	FDynamicMeshCollection(const FGeometryCollection* Collection, const TManagedArray<FTransform3f>& Transforms, const TArrayView<const int32>& TransformIndices, FTransform TransformCollection, bool bSaveIsolatedVertices = false)
+	{
+		Init(Collection, Transforms, TransformIndices, TransformCollection, bSaveIsolatedVertices);
+	}
+
 	void Init(const FGeometryCollection* Collection, const TArrayView<const int32>& TransformIndices, FTransform TransformCollection, bool bSaveIsolatedVertices = false)
 	{
 		Init(Collection, Collection->Transform, TransformIndices, TransformCollection, bSaveIsolatedVertices);
 	}
 
 	void Init(const FGeometryCollection* Collection, const TManagedArray<FTransform>& Transforms, const TArrayView<const int32>& TransformIndices, FTransform TransformCollection, bool bSaveIsolatedVertices = false);
+	void Init(const FGeometryCollection* Collection, const TManagedArray<FTransform3f>& Transforms, const TArrayView<const int32>& TransformIndices, FTransform TransformCollection, bool bSaveIsolatedVertices = false);
 
 	int32 CutWithMultiplePlanes(
 		const TArrayView<const FPlane>& Planes,
@@ -275,6 +283,10 @@ struct PLANARCUT_API FDynamicMeshCollection
 	static int32 AppendToCollection(const FTransform& FromCollection, UE::Geometry::FDynamicMesh3& Mesh, double CollisionSampleSpacing, int32 TransformParent, FString BoneName, FGeometryCollection& Output, int32 InternalMaterialID);
 
 private:
+
+	template<typename TransformType>
+	void InitTemplate(const FGeometryCollection* Collection, const TManagedArray<TransformType>& Transforms, const TArrayView<const int32>& TransformIndices, FTransform TransformCollection, bool bSaveIsolatedVertices);
+
 
 	void SetGeometryVisibility(FGeometryCollection* Collection, const TArray<int32>& GeometryIndices, bool bVisible);
 

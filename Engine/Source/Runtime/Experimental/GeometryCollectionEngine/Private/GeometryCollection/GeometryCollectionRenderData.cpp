@@ -569,7 +569,7 @@ FBoxSphereBounds BuildPreSkinnedBounds(FGeometryCollection& InCollection)
 	TRACE_CPUPROFILER_EVENT_SCOPE(FGeometryCollectionRenderData::BuildBounds);
 
 	const TManagedArray<FBox>& BoundingBoxes = InCollection.BoundingBox;
-	const TManagedArray<FTransform>& Transform = InCollection.Transform;
+	const TManagedArray<FTransform3f>& Transform = InCollection.Transform;
 	const TManagedArray<int32>& Parent = InCollection.Parent;
 	const TManagedArray<int32>& TransformIndices = InCollection.TransformIndex;
 	const int32 NumBoxes = BoundingBoxes.Num();

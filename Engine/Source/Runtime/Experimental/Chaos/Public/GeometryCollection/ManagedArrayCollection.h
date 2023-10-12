@@ -404,7 +404,7 @@ public:
 
 
 	/**
-	* Remove the attribute from the collection.
+	* Remove the attribute from the collection, and clear the memory.
 	* @param Name - The name of the attribute
 	* @param Group - The group that manages the attribute
 	*/

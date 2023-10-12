@@ -228,7 +228,7 @@ namespace GeometryCollectionTest
 			RestCollection->InnerRadius[0] = 1.f;	// Assume sphere w/radius 1
 			RestCollection->OuterRadius[0] = 1.f;	// Assume sphere w/radius 1
 			RestCollection->AddElements(1, FGeometryCollection::TransformGroup);
-			RestCollection->Transform[0] = Params.RootTransform;
+			RestCollection->Transform[0] = FTransform3f(Params.RootTransform);
 			RestCollection->Transform[0].NormalizeRotation();
 			break;
 		default:

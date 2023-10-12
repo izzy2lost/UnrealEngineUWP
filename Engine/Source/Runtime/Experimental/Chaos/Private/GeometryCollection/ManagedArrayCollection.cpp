@@ -302,6 +302,11 @@ void FManagedArrayCollection::Append(const FManagedArrayCollection& InCollection
 void FManagedArrayCollection::RemoveAttribute(FName Name, FName Group)
 {
 	FKeyType Key = FManagedArrayCollection::MakeMapKey(Name, Group);
+	FValueType* FoundValue = Map.Find(Key);
+	if (FoundValue != nullptr)
+	{
+		FoundValue->Value->Empty();
+	}
 	Map.Remove(Key);
 }
 
@@ -712,10 +717,14 @@ void FManagedArrayCollection::Serialize(Chaos::FChaosArchive& Ar)
 		{
 			if (FValueType* Existing = Map.Find(Pair.Key))
 			{
-				if (ensureMsgf(Existing->ArrayType == Pair.Value.ArrayType, TEXT("Type change not supported. Ignoring serialized data")))
+				if (Existing->ArrayType == Pair.Value.ArrayType)
 				{
 					Existing->Value->ExchangeArrays(*Pair.Value.Value);	//if there is already an entry do an exchange. This way external arrays get correct serialization
 					//question: should we validate if group dependency has changed in some invalid way?
+				}
+				else
+				{
+					Existing->Value->Convert(*Pair.Value.Value);
 				}
 			}
 			else

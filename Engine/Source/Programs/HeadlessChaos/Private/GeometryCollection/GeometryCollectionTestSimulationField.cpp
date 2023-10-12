@@ -1092,7 +1092,7 @@ namespace GeometryCollectionTest
 		RestCollection->AppendGeometry(*GeometryCollection::MakeCubeElement(FTransform(FQuat::MakeFromEuler(FVector(0.f)), FVector(200, 0, 0)), FVector(1.0)));
 		RestCollection->AppendGeometry(*GeometryCollection::MakeCubeElement(FTransform(FQuat::MakeFromEuler(FVector(0.f)), FVector(300, 0, 0)), FVector(1.0)));
 		RestCollection->AppendGeometry(*GeometryCollection::MakeCubeElement(FTransform(FQuat::MakeFromEuler(FVector(0.f)), FVector(400, 0, 0)), FVector(1.0)));
-		RestCollection->Transform[0].SetTranslation(FVector(0.0f));
+		RestCollection->Transform[0].SetTranslation(FVector3f(0.0f));
 		RestCollection->SimulationType[0] = FGeometryCollection::ESimulationTypes::FST_Clustered;
 		RestCollection->SimulationType[1] = FGeometryCollection::ESimulationTypes::FST_Clustered;
 		RestCollection->SimulationType[2] = FGeometryCollection::ESimulationTypes::FST_Clustered;
@@ -1161,7 +1161,7 @@ namespace GeometryCollectionTest
 		RestCollection->AppendGeometry(*GeometryCollection::MakeCubeElement(FTransform(FQuat::MakeFromEuler(FVector(0.f)), FVector(200, 0, 0)), FVector(1.0)));
 		RestCollection->AppendGeometry(*GeometryCollection::MakeCubeElement(FTransform(FQuat::MakeFromEuler(FVector(0.f)), FVector(300, 0, 0)), FVector(1.0)));
 		RestCollection->AppendGeometry(*GeometryCollection::MakeCubeElement(FTransform(FQuat::MakeFromEuler(FVector(0.f)), FVector(400, 0, 0)), FVector(1.0)));
-		RestCollection->Transform[0].SetTranslation(FVector(0.0f));
+		RestCollection->Transform[0].SetTranslation(FVector3f(0.0f));
 		RestCollection->SimulationType[0] = FGeometryCollection::ESimulationTypes::FST_Clustered;
 		RestCollection->SimulationType[1] = FGeometryCollection::ESimulationTypes::FST_Clustered;
 		RestCollection->SimulationType[2] = FGeometryCollection::ESimulationTypes::FST_Clustered;

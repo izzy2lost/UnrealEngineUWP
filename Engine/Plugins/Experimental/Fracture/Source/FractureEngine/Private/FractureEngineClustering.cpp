@@ -297,9 +297,9 @@ FBox FVoronoiPartitioner::GenerateBounds(const FGeometryCollection* GeometryColl
 
 	if (GeometryCollection->IsRigid(TransformIndex))
 	{
-		const TManagedArray<FTransform>& Transforms = GeometryCollection->Transform;
+		const TManagedArray<FTransform3f>& Transforms = GeometryCollection->Transform;
 		const TManagedArray<int32>& Parents = GeometryCollection->Parent;
-		FTransform GlobalTransform = GeometryCollectionAlgo::GlobalMatrix(Transforms, Parents, TransformIndex);
+		FTransform3f GlobalTransform = GeometryCollectionAlgo::GlobalMatrix3f(Transforms, Parents, TransformIndex);
 		
 		int32 GeometryIndex = GeometryCollection->TransformToGeometryIndex[TransformIndex];
 		int32 VertexStart = GeometryCollection->VertexStart[GeometryIndex];
@@ -310,7 +310,7 @@ FBox FVoronoiPartitioner::GenerateBounds(const FGeometryCollection* GeometryColl
 		Vertices.SetNum(VertexCount);
 		for (int32 VertexOffset = 0; VertexOffset < VertexCount; ++VertexOffset)
 		{
-			Vertices[VertexOffset] = GlobalTransform.TransformPosition((FVector)GCVertices[VertexStart + VertexOffset]);
+			Vertices[VertexOffset] = FVector(GlobalTransform.TransformPosition(GCVertices[VertexStart + VertexOffset]));
 		}
 
 		return FBox(Vertices);
@@ -677,7 +677,7 @@ void FFractureEngineClustering::AutoCluster(FGeometryCollection& GeometryCollect
 		GeometryCollection.BoneName[NewClusterIndex] = "ClusterBone";
 		GeometryCollection.Children[NewClusterIndex] = TSet<int32>(NewCluster);
 		GeometryCollection.SimulationType[NewClusterIndex] = FGeometryCollection::ESimulationTypes::FST_Clustered;
-		GeometryCollection.Transform[NewClusterIndex] = FTransform::Identity;
+		GeometryCollection.Transform[NewClusterIndex] = FTransform3f::Identity;
 		GeometryCollectionAlgo::ParentTransforms(&GeometryCollection, NewClusterIndex, NewCluster);
 	}
 	if (bHasEmptyClusters)

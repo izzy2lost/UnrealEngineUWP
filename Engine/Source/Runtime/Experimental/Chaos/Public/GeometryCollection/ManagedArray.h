@@ -182,7 +182,7 @@ protected:
 	/**
 	* Convert from a predefined Array, the managed array itself should have defined its conversion procedure
 	*/
-	virtual void Convert(const FManagedArrayBase&) { check(false); /* This type has no conversion process defined*/ };
+	virtual void Convert(const FManagedArrayBase&) { ensureMsgf(false, TEXT("Type change not supported")); /* This type has no conversion process defined*/ };
 
 	/**
 	* Copy a range of values from the ConstArray into this

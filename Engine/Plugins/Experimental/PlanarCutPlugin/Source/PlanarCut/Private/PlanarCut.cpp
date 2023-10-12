@@ -2085,13 +2085,13 @@ int32 AddCollisionSampleVertices(double CollisionSampleSpacing, FGeometryCollect
 	return INDEX_NONE;
 }
 
-
-void ConvertToMeshDescription(
+template <typename TransformType>
+void ConvertToMeshDescriptionTemplate(
 	FMeshDescription& MeshOut,
 	FTransform& TransformOut,
 	bool bCenterPivot,
 	FGeometryCollection& Collection,
-	const TManagedArray<FTransform>& BoneTransforms,
+	const TManagedArray<TransformType>& BoneTransforms,
 	const TArrayView<const int32>& TransformIndices,
 	TFunction<int32(int32, bool)> RemapMaterialIDs
 )
@@ -2099,7 +2099,15 @@ void ConvertToMeshDescription(
 	FTransform CellsToWorld = FTransform::Identity;
 	TransformOut = FTransform::Identity;
 
-	FDynamicMeshCollection MeshCollection(&Collection, BoneTransforms.Num() ? BoneTransforms : Collection.Transform, TransformIndices, CellsToWorld);
+	FDynamicMeshCollection MeshCollection;
+	if (BoneTransforms.Num())
+	{
+		MeshCollection.Init(&Collection, BoneTransforms, TransformIndices, CellsToWorld);
+	}
+	else
+	{
+		MeshCollection.Init(&Collection, Collection.Transform, TransformIndices, CellsToWorld);
+	}
 	
 	FDynamicMesh3 CombinedMesh;
 	SetGeometryCollectionAttributes(CombinedMesh, Collection.NumUVLayers());
@@ -2153,5 +2161,32 @@ void ConvertToMeshDescription(
 	FDynamicMeshToMeshDescription Converter;
 	Converter.Convert(&CombinedMesh, MeshOut, true);
 }
+
+void ConvertToMeshDescription(
+	FMeshDescription& MeshOut,
+	FTransform& TransformOut,
+	bool bCenterPivot,
+	FGeometryCollection& Collection,
+	const TManagedArray<FTransform>& BoneTransforms,
+	const TArrayView<const int32>& TransformIndices,
+	TFunction<int32(int32, bool)> RemapMaterialIDs
+)
+{
+	ConvertToMeshDescriptionTemplate(MeshOut, TransformOut, bCenterPivot, Collection, BoneTransforms, TransformIndices, RemapMaterialIDs);
+}
+
+void ConvertToMeshDescription(
+	FMeshDescription& MeshOut,
+	FTransform& TransformOut,
+	bool bCenterPivot,
+	FGeometryCollection& Collection,
+	const TManagedArray<FTransform3f>& BoneTransforms,
+	const TArrayView<const int32>& TransformIndices,
+	TFunction<int32(int32, bool)> RemapMaterialIDs
+)
+{
+	ConvertToMeshDescriptionTemplate(MeshOut, TransformOut, bCenterPivot, Collection, BoneTransforms, TransformIndices, RemapMaterialIDs);
+}
+
 
 #undef LOCTEXT_NAMESPACE

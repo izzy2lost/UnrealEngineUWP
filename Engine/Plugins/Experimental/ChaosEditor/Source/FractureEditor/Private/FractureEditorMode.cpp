@@ -613,7 +613,7 @@ void UFractureEditorMode::GetComponentGlobalBounds(UGeometryCollectionComponent*
 	TSharedPtr<FGeometryCollection, ESPMode::ThreadSafe> GeometryCollectionPtr = GeometryCollection->GetGeometryCollection();
 	FGeometryCollection* OutGeometryCollection = GeometryCollectionPtr.Get();
 
-	const TManagedArray<FTransform>& Transform = OutGeometryCollection->Transform;
+	const TManagedArray<FTransform3f>& Transform = OutGeometryCollection->Transform;
 	const TManagedArray<FBox>& BoundingBox = OutGeometryCollection->BoundingBox;
 	const TManagedArray<int32>& TransformToGeometryIndex = OutGeometryCollection->TransformToGeometryIndex;
 	const TManagedArray<int32>& Parent = OutGeometryCollection->Parent;
