@@ -397,7 +397,7 @@ namespace EpicGames.Horde.Storage.Bundles
 					}
 					else if (packetIdx == _currentPacketIdx)
 					{
-						return _currentPacket!.Memory.Slice(offset, length).Slice(offset, length).ToArray();
+						return _currentPacket!.Memory.Slice(offset, length).ToArray();
 					}
 					else
 					{
