@@ -36,7 +36,7 @@ static FORCEINLINE const TCHAR* GetShadingMaterialName(const FMaterialRenderProx
 
 TAutoConsoleVariable<int32> CVarParallelBasePassBuild(
 	TEXT("r.Nanite.ParallelBasePassBuild"),
-	1,
+	0, // TODO: Temp crash fix workaround
 	TEXT(""),
 	ECVF_RenderThreadSafe
 );
