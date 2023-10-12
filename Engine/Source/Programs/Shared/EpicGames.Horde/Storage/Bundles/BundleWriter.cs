@@ -465,7 +465,7 @@ namespace EpicGames.Horde.Storage.Bundles
 			}
 
 			// Mark the bundle as complete
-			public async Task WriteAsync(BundleStorageClient store, Utf8String prefix, ILogger? traceLogger)
+			public async Task WriteAsync(BundleStorageClient store, string? basePath, ILogger? traceLogger)
 			{
 				traceLogger?.LogInformation("Marking bundle {BundleId} as complete ({NumNodes} nodes); adding to write queue.", BundleId, _queue.Count);
 
@@ -474,7 +474,7 @@ namespace EpicGames.Horde.Storage.Bundles
 				try
 				{
 					Bundle bundle = CreateBundle();
-					BundleLocator locator = await store.WriteBundleAsync(bundle, prefix);
+					BundleLocator locator = await store.WriteBundleAsync(bundle, basePath);
 					traceLogger?.LogInformation("Written bundle {BundleId} as {Locator}", BundleId, locator);
 
 					for (int idx = 0; idx < _queue.Count; idx++)
@@ -600,17 +600,17 @@ namespace EpicGames.Horde.Storage.Bundles
 		{
 			long _memoryFootprint;
 			readonly BundleStorageClient _store;
-			readonly Utf8String _prefix;
+			readonly string? _basePath;
 			readonly long _maxMemoryFootprint;
 			readonly ILogger? _traceLogger;
 			readonly AsyncEvent _completeEvent = new AsyncEvent();
 			int _refCount;
 			readonly List<Task> _writeTasks = new List<Task>();
 
-			public WriteQueue(BundleStorageClient store, Utf8String prefix, long maxMemoryFootprint, ILogger? traceLogger)
+			public WriteQueue(BundleStorageClient store, string? basePath, long maxMemoryFootprint, ILogger? traceLogger)
 			{
 				_store = store;
-				_prefix = prefix;
+				_basePath = basePath;
 				_maxMemoryFootprint = maxMemoryFootprint;
 				_refCount = 1;
 				_traceLogger = traceLogger;
@@ -673,7 +673,7 @@ namespace EpicGames.Horde.Storage.Bundles
 
 			async Task WriteAsync(PendingBundle pendingBundle)
 			{
-				await pendingBundle.WriteAsync(_store, _prefix, _traceLogger);
+				await pendingBundle.WriteAsync(_store, _basePath, _traceLogger);
 				Interlocked.Add(ref _memoryFootprint, -pendingBundle.CompressedLength);
 				pendingBundle.Dispose();
 				_completeEvent.Pulse();
@@ -685,7 +685,7 @@ namespace EpicGames.Horde.Storage.Bundles
 		readonly BundleStorageClient _store;
 		readonly BundleReader _reader;
 		readonly BundleOptions _options;
-		readonly RefName _refName;
+		readonly string? _basePath;
 
 		readonly WriteQueue _writeQueue;
 
@@ -700,11 +700,11 @@ namespace EpicGames.Horde.Storage.Bundles
 		/// </summary>
 		/// <param name="store">Store to write data to</param>
 		/// <param name="reader">Reader for serialized node data</param>
-		/// <param name="refName">Name of the ref being written</param>
+		/// <param name="basePath">Base path for new nodes</param>
 		/// <param name="options">Options for the writer</param>
 		/// <param name="traceLogger">Optional logger for trace information</param>
-		public BundleWriter(BundleStorageClient store, BundleReader reader, RefName refName, BundleOptions? options = null, ILogger? traceLogger = null)
-			: this(store, reader, refName, options, null, traceLogger)
+		public BundleWriter(BundleStorageClient store, BundleReader reader, string? basePath, BundleOptions? options = null, ILogger? traceLogger = null)
+			: this(store, reader, basePath, options, null, traceLogger)
 		{
 		}
 
@@ -713,7 +713,7 @@ namespace EpicGames.Horde.Storage.Bundles
 		/// </summary>
 		/// <param name="other"></param>
 		public BundleWriter(BundleWriter other)
-			: this(other._store, other._reader, other._refName, other._options, other._writeQueue, other.TraceLogger)
+			: this(other._store, other._reader, other._basePath, other._options, other._writeQueue, other.TraceLogger)
 		{
 			_writeQueue.AddRef();
 		}
@@ -721,13 +721,13 @@ namespace EpicGames.Horde.Storage.Bundles
 		/// <summary>
 		/// Internal constructor
 		/// </summary>
-		private BundleWriter(BundleStorageClient store, BundleReader reader, RefName refName, BundleOptions? options, WriteQueue? writeQueue, ILogger? traceLogger = null)
+		private BundleWriter(BundleStorageClient store, BundleReader reader, string? basePath, BundleOptions? options, WriteQueue? writeQueue, ILogger? traceLogger = null)
 		{
 			_store = store;
 			_reader = reader;
-			_refName = refName;
+			_basePath = basePath;
 			_options = options ?? s_defaultOptions;
-			_writeQueue = writeQueue ?? new WriteQueue(store, refName.Text, _options.MaxWriteQueueLength, traceLogger);
+			_writeQueue = writeQueue ?? new WriteQueue(store, basePath, _options.MaxWriteQueueLength, traceLogger);
 			TraceLogger = traceLogger;
 		}
 
@@ -846,17 +846,6 @@ namespace EpicGames.Horde.Storage.Bundles
 		public async Task<BundleNodeHandle> FlushAsync(Node root, CancellationToken cancellationToken = default)
 		{
 			return (BundleNodeHandle)await NodeRefExtensions.FlushAsync(this, root, cancellationToken);
-		}
-
-		/// <inheritdoc/>
-		ValueTask IStorageWriter.WriteRefAsync(BlobHandle target, ReadOnlyMemory<byte> data, RefOptions? options, CancellationToken cancellationToken) => WriteRefAsync((BundleNodeHandle)target, data, options, cancellationToken);
-
-		/// <inheritdoc/>
-		public async ValueTask WriteRefAsync(BundleNodeHandle target, ReadOnlyMemory<byte> data, RefOptions? options = null, CancellationToken cancellationToken = default)
-		{
-			await target.FlushAsync(cancellationToken);
-			BundleNodeLocator locator = target.GetLocator();
-			await _store.WriteRefAsync(_refName, locator, data, options, cancellationToken);
 		}
 	}
 }

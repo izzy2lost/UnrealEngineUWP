@@ -1,7 +1,6 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 
 using System;
-using System.Collections.Generic;
 using System.IO;
 using System.Threading;
 using System.Threading.Tasks;
@@ -72,13 +71,13 @@ namespace EpicGames.Horde.Storage.Clients
 		/// </summary>
 		/// <param name="storageClient">Storage client</param>
 		/// <param name="bundle">Bundle to write</param>
-		/// <param name="prefix">Prefix for the uploaded data</param>
+		/// <param name="basePath">Prefix for the uploaded data</param>
 		/// <param name="cancellationToken">Cancellation token for the operation</param>
 		/// <returns>Locator for reading the bundle back in</returns>
-		public static async Task<BundleLocator> WriteBundleAsync(this IBundleStorageClient storageClient, Bundle bundle, Utf8String prefix = default, CancellationToken cancellationToken = default)
+		public static async Task<BundleLocator> WriteBundleAsync(this IBundleStorageClient storageClient, Bundle bundle, string? basePath = null, CancellationToken cancellationToken = default)
 		{
 			using ReadOnlySequenceStream stream = new ReadOnlySequenceStream(bundle.AsSequence());
-			string path = await storageClient.Backend.WriteAsync(stream, prefix.IsEmpty ? null : prefix.ToString(), cancellationToken);
+			string path = await storageClient.Backend.WriteAsync(stream, basePath, cancellationToken);
 			return new BundleLocator(path);
 		}
 	}
@@ -149,27 +148,10 @@ namespace EpicGames.Horde.Storage.Clients
 		public BundleNodeHandle CreateNodeHandle(BundleNodeLocator locator) => new FlushedNodeHandle(_bundleReader, locator);
 
 		/// <inheritdoc/>
-		public BundleWriter CreateWriter(RefName refName = default, BundleOptions? options = null) => new BundleWriter(this, _bundleReader, refName, options);
+		public BundleWriter CreateWriter(string? basePath = null, BundleOptions? options = null) => new BundleWriter(this, _bundleReader, basePath, options);
 
 		/// <inheritdoc/>
-		IStorageWriter IStorageClient.CreateWriter(RefName refName) => CreateWriter(refName);
-
-		/// <inheritdoc/>
-		public async ValueTask<BlobData> ReadBlobAsync(BlobLocator locator, CancellationToken cancellationToken = default)
-		{
-			BlobHandle handle = CreateBlobHandle(locator);
-			return await handle.ReadAsync(cancellationToken);
-		}
-
-		/// <inheritdoc/>
-		public async ValueTask<BlobHandle> WriteBlobAsync(BlobType type, ReadOnlyMemory<byte> data, IReadOnlyList<BlobHandle> references, CancellationToken cancellationToken = default)
-		{
-			await using (IStorageWriter writer = CreateWriter())
-			{
-				data.CopyTo(writer.GetOutputBuffer(0, data.Length));
-				return await writer.WriteBlobAsync(type, data.Length, references, cancellationToken);
-			}
-		}
+		IStorageWriter IStorageClient.CreateWriter(string? basePath) => CreateWriter(basePath);
 
 		#endregion
 

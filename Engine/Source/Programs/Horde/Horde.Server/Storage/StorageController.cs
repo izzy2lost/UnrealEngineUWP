@@ -104,7 +104,7 @@ namespace Horde.Server.Storage
 					bundle = await Bundle.FromStreamAsync(stream, cancellationToken);
 				}
 
-				BundleLocator locator = await storageClient.WriteBundleAsync(bundle, prefix: (prefix == null) ? Utf8String.Empty : new Utf8String(prefix), cancellationToken: cancellationToken);
+				BundleLocator locator = await storageClient.WriteBundleAsync(bundle, prefix, cancellationToken: cancellationToken);
 				return new WriteBlobResponse { Blob = locator.ToString(), SupportsRedirects = storageClient?.Backend.SupportsRedirects };
 			}
 		}

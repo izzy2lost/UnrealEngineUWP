@@ -52,15 +52,6 @@ namespace EpicGames.Horde.Storage
 		/// <param name="cancellationToken">Cancellation token for the operation</param>
 		/// <returns>Handle to the written node</returns>
 		ValueTask<BlobHandle> WriteBlobAsync(BlobType type, int size, IReadOnlyList<BlobHandle> references, IReadOnlyList<AliasInfo> aliases, CancellationToken cancellationToken = default);
-
-		/// <summary>
-		/// Writes the reference using the given target node
-		/// </summary>
-		/// <param name="target">The target node</param>
-		/// <param name="data">Inline data for the node</param>
-		/// <param name="options">Options for the new ref</param>
-		/// <param name="cancellationToken">Cancellation token for the operation</param>
-		ValueTask WriteRefAsync(BlobHandle target, ReadOnlyMemory<byte> data = default, RefOptions? options = null, CancellationToken cancellationToken = default);
 	}
 
 	/// <summary>
@@ -202,9 +193,6 @@ namespace EpicGames.Horde.Storage
 			wrappedHandle._inner = await _inner.WriteBlobAsync(type, size, references.ConvertAll(x => ((WrappedHandle)x)._inner!), aliases, cancellationToken);
 			return wrappedHandle;
 		}
-
-		/// <inheritdoc/>
-		public ValueTask WriteRefAsync(BlobHandle target, ReadOnlyMemory<byte> data, RefOptions? options = null, CancellationToken cancellationToken = default) => _inner.WriteRefAsync(target, data, options, cancellationToken);
 	}
 
 	/// <summary>

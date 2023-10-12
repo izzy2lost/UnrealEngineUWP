@@ -212,7 +212,7 @@ public class StorageClient : BundleStorageClient
 		}
 	}
 
-	public async Task<BlobHandle> WriteRefAsync(RefName name, Bundle bundle, int exportIdx, Utf8String prefix = default, RefOptions? options = null, CancellationToken cancellationToken = default)
+	public async Task<BlobHandle> WriteRefAsync(RefName name, Bundle bundle, int exportIdx, string? prefix = null, RefOptions? options = null, CancellationToken cancellationToken = default)
 	{
 		BundleLocator locator = await this.WriteBundleAsync(bundle, prefix, cancellationToken);
 		BundleNodeLocator nodeLocator = new BundleNodeLocator(locator, exportIdx);

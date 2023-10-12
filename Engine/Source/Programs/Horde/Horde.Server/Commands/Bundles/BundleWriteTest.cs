@@ -1,7 +1,6 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 
 using System;
-using System.Collections.Generic;
 using System.Diagnostics;
 using System.Security.Cryptography;
 using System.Threading;
@@ -25,8 +24,6 @@ namespace Horde.Server.Commands.Bundles
 
 			public void Dispose() { }
 
-			public ValueTask<BlobData> ReadBlobAsync(BlobLocator locator, CancellationToken cancellationToken = default) => throw new NotImplementedException();
-			public ValueTask<BlobHandle> WriteBlobAsync(BlobType type, ReadOnlyMemory<byte> data, IReadOnlyList<BlobHandle> references, CancellationToken cancellationToken = default) => throw new NotImplementedException();
 			public BlobHandle CreateBlobHandle(BlobLocator locator) => throw new NotImplementedException();
 			public Task<bool> DeleteRefAsync(RefName name, CancellationToken cancellationToken = default) => Task.FromResult(true);
 			public Task AddAliasAsync(string name, BlobHandle handle, int rank = 0, ReadOnlyMemory<byte> data = default, CancellationToken cancellationToken = default) => throw new NotImplementedException();
@@ -35,13 +32,13 @@ namespace Horde.Server.Commands.Bundles
 			public Task<RefValue?> TryReadRefAsync(RefName name, RefCacheTime cacheTime = default, CancellationToken cancellationToken = default) => throw new NotImplementedException();
 			public Task WriteRefAsync(RefName name, BlobHandle target, ReadOnlyMemory<byte> data = default, RefOptions? options = null, CancellationToken cancellationToken = default) => Task.CompletedTask;
 
-			public BundleWriter CreateWriter(RefName refName = default, BundleOptions? options = null)
+			public BundleWriter CreateWriter(string? basePath = null, BundleOptions? options = null)
 			{
-				_ = (this, refName, options);
+				_ = (this, basePath, options);
 				throw new NotImplementedException();// new BundleWriter(this, _reader, refName, options);
 			}
 
-			IStorageWriter IStorageClient.CreateWriter(RefName refName) => CreateWriter(refName);
+			IStorageWriter IStorageClient.CreateWriter(string? basePath) => CreateWriter(basePath);
 
 			public void GetStats(StorageStats stats) { }
 		}

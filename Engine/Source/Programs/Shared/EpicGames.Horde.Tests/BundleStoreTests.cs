@@ -140,7 +140,7 @@ namespace EpicGames.Horde.Tests
 		{
 			// Generate a tree
 			{
-				await using IStorageWriter writer = store.CreateWriter(new RefName("test"), options);
+				await using IStorageWriter writer = store.CreateWriter("test", options);
 
 				SimpleNode node1 = new SimpleNode(new ReadOnlySequence<byte>(new byte[] { 1 }), Array.Empty<HashedNodeRef<SimpleNode>>());
 				SimpleNode node2 = new SimpleNode(new ReadOnlySequence<byte>(new byte[] { 2 }), new[] { await writer.WriteHashedNodeAsync(node1) });
@@ -206,24 +206,6 @@ namespace EpicGames.Horde.Tests
 			SimpleNode node = await store.ReadRefAsync<SimpleNode>(refName);
 
 			Assert.AreEqual(123, node.Data.FirstSpan[0]);
-		}
-
-		[TestMethod]
-		public async Task SimpleNodeWithRefDataAsync()
-		{
-			using MemoryStorageClient store = new MemoryStorageClient();
-
-			RefName refName = new RefName("test");
-			await using (IStorageWriter writer = store.CreateWriter(refName))
-			{
-				BlobHandle target = await writer.WriteBlobAsync(new BlobType(Guid.NewGuid(), 0), 0, Array.Empty<BlobHandle>());
-				await writer.WriteRefAsync(target, new byte[] { 4, 5, 6 });
-			}
-
-			RefValue? value = await ((IStorageClient)store).TryReadRefAsync(refName);
-
-			Assert.IsNotNull(value);
-			Assert.IsTrue(value.Data.Span.SequenceEqual(new byte[] { 4, 5, 6 }));			
 		}
 
 		[TestMethod]

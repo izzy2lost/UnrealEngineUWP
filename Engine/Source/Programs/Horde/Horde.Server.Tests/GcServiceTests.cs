@@ -4,7 +4,6 @@ using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Threading.Tasks;
-using EpicGames.Core;
 using Microsoft.VisualStudio.TestTools.UnitTesting;
 using EpicGames.Horde.Storage;
 using EpicGames.Horde.Storage.Bundles;
@@ -108,7 +107,7 @@ namespace Horde.Server.Tests
 				List<BundleLocator> imports = children[idx].ConvertAll(x => locators[x]);
 				BundleHeader header = new BundleHeader(types.ToArray(), imports.ToArray(), Array.Empty<BundleExport>(), Array.Empty<BundlePacket>());
 				Bundle bundle = new Bundle(header, Array.Empty<ReadOnlyMemory<byte>>());
-				locators[idx] = await store.WriteBundleAsync(bundle, prefix: new Utf8String("gctest"));
+				locators[idx] = await store.WriteBundleAsync(bundle, basePath: "gctest");
 			}
 
 			return locators;

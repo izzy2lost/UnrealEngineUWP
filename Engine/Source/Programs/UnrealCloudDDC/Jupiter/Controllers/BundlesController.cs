@@ -87,7 +87,7 @@ namespace Jupiter.Controllers
 				using (Stream stream = file.OpenReadStream())
 				{
 					Bundle bundle = await Bundle.FromStreamAsync(stream, cancellationToken);
-					BundleLocator locator = await client.WriteBundleAsync(bundle, prefix: (prefix == null) ? Utf8String.Empty : new Utf8String(prefix), cancellationToken: cancellationToken);
+					BundleLocator locator = await client.WriteBundleAsync(bundle, prefix, cancellationToken: cancellationToken);
 
 					WriteBlobResponse response = new WriteBlobResponse();
 					response.Blob = locator.ToString();

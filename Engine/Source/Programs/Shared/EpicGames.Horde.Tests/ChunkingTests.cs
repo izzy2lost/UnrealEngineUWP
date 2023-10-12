@@ -51,7 +51,8 @@ namespace EpicGames.Horde.Tests
 		{
 			using MemoryStorageClient store = new MemoryStorageClient();
 
-			await using (IStorageWriter writer = store.CreateWriter(new RefName("hello")))
+			const string RefName = "hello";
+			await using (IStorageWriter writer = store.CreateWriter(RefName))
 			{
 				ChunkingOptions options = new ChunkingOptions();
 				options.LeafOptions = new LeafChunkedDataNodeOptions(64, 64, 64);
@@ -65,7 +66,7 @@ namespace EpicGames.Horde.Tests
 				directory.AddFile("test.foo", FileEntryFlags.None, 0, chunkedData);
 
 				HashedNodeRef<DirectoryNode> directoryRef = await writer.WriteHashedNodeAsync(directory);
-				await writer.WriteRefAsync(directoryRef.Handle);
+				await store.WriteRefTargetAsync(RefName, directoryRef.Handle);
 			}
 		}
 
