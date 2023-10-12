@@ -461,7 +461,8 @@ namespace UE::MVVM::BindingHelper
 				&& DestinationObjectProperty
 				&& SourceObjectProperty->PropertyClass
 				&& DestinationObjectProperty->PropertyClass
-				&& SourceObjectProperty->PropertyClass->IsChildOf(DestinationObjectProperty->PropertyClass);
+				&& SourceObjectProperty->PropertyClass->IsChildOf(DestinationObjectProperty->PropertyClass)
+				&& SourceObjectProperty->AllowObjectTypeReinterpretationTo(DestinationObjectProperty); // prevents TWeakObjectPtr to UObject*, allow TObjectPtr to UObject*
 		}
 
 		bool IsObjectArrayPropertyCompatible(const FProperty* Source, const FProperty* Destination)

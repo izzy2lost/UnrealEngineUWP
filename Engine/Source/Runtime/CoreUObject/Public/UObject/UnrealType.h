@@ -2628,10 +2628,10 @@ public:
 #endif // USE_CIRCULAR_DEPENDENCY_LOAD_DEFERRING
 
 	virtual void CheckValidObject(void* ValueAddress, TObjectPtr<UObject> OldValue) const;
+	virtual bool AllowObjectTypeReinterpretationTo(const FObjectPropertyBase* Other) const;
 
 protected:
 	virtual bool AllowCrossLevel() const;
-	virtual bool AllowObjectTypeReinterpretationTo(const FObjectPropertyBase* Other) const;
 	// End of FObjectPropertyBase interface
 
 	/**
