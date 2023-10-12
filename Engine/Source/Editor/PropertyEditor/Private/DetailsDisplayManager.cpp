@@ -6,9 +6,9 @@
 #include "SDetailsView.h"
 #include "DetailLayoutBuilderImpl.h"
 #include "DetailCategoryBuilderImpl.h"
-#include "ObjectEditorUtils.h"
 #include "ObjectPropertyNode.h"
 
+#define LOCTEXT_NAMESPACE "DetailsDisplayManager"
 
 static TAutoConsoleVariable<bool> CVarForceShowComponentEditor(
 	TEXT("DetailsPanel.UI.ForceShowComponentEditor"),
@@ -78,8 +78,9 @@ bool FDetailsDisplayManager::ShowEmptyCategoryIfRootUObjectHasNoPropertyData(UOb
 	return false;
 }
 
+
 bool FDetailsDisplayManager::AddEmptyCategoryToDetailLayoutIfNeeded(TSharedRef<FComplexPropertyNode> Node,
-                                                      TSharedRef<FDetailLayoutBuilderImpl> DetailLayoutBuilder)
+																	TSharedRef<FDetailLayoutBuilderImpl> DetailLayoutBuilder)
 {
 	if (FObjectPropertyNode* ObjectPropertyNode = Node->AsObjectNode())
 	{
@@ -132,3 +133,4 @@ bool FDetailsDisplayManager::GetForceShowSubObjectEditor()
 	return CVarForceShowComponentEditor.GetValueOnAnyThread();
 }
 
+#undef LOCTEXT_NAMESPACE
