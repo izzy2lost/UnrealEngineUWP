@@ -695,13 +695,18 @@ protected:
 		/** The actual server sequence time in seconds, with client ping at the time of the sample baked in */
 		double ServerTime;
 		/** Wall-clock time that the sample was receieved */
-		double ReceievedTime;
+		double ReceivedTime;
 	};
 	/**
 	 * Array of server sequence times in seconds, with ping compensation baked in.
 	 * Samples are sorted chronologically with the oldest samples first
 	 */
 	TArray<FServerTimeSample> ServerTimeSamples;
+
+	/*
+	* On UpdateServerTimeSamples, the last recorded time dilation. Used to update the server time samples each update to ensure we can smooth server time even on changing time dilation.
+	*/
+	float LastEffectiveTimeDilation = 1.0f;
 
 	/** Replicated playback status and current time that are replicated to clients */
 	UPROPERTY(replicated)
