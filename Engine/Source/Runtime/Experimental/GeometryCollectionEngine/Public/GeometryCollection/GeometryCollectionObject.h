@@ -820,8 +820,6 @@ public:
 
 	GEOMETRYCOLLECTIONENGINE_API const TArray<int32>& GetBreadthFirstTransformIndices() const { return BreadthFirstTransformIndices; }
 
-	GEOMETRYCOLLECTIONENGINE_API const TArray<int32>& GetAutoInstanceTransformRemapIndices() const { return AutoInstanceTransformRemapIndices; }
-
 private:
 #if WITH_EDITOR
 	GEOMETRYCOLLECTIONENGINE_API void CreateSimulationDataImp(bool bCopyFromDDC);
@@ -841,7 +839,6 @@ private:
 	GEOMETRYCOLLECTIONENGINE_API void FillAutoInstanceMeshesInstancesIfNeeded();
 
 	void CacheBreadthFirstTransformIndices();
-	void CacheAutoInstanceTransformRemapIndices();
 
 private:
 	/** Guid created on construction of this collection. It should be used to uniquely identify this collection */
@@ -875,10 +872,6 @@ private:
 	// cache transform indices in breadth-first order
 	UPROPERTY(VisibleAnywhere, Transient, Category = "Clustering")
 	TArray<int32> BreadthFirstTransformIndices;
-
-	// cache transform remap indices
-	UPROPERTY(VisibleAnywhere, Transient, Category = "Clustering")
-	TArray<int32> AutoInstanceTransformRemapIndices;
 
 	// #todo(dmp): rename to be consistent BoneSelectedMaterialID?
 	// Legacy index of the bone selected material in the object's Materials array, or INDEX_NONE if it is not stored there.

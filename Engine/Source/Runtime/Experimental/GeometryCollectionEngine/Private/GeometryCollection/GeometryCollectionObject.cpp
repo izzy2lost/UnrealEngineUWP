@@ -329,51 +329,6 @@ void UGeometryCollection::CacheBreadthFirstTransformIndices()
 	}
 }
 
-void UGeometryCollection::CacheAutoInstanceTransformRemapIndices()
-{
-	AutoInstanceTransformRemapIndices.Reset();
-	if (GeometryCollection == nullptr)
-	{
-		return;
-	}
-	const GeometryCollection::Facades::FCollectionInstancedMeshFacade InstancedMeshFacade(*GeometryCollection);
-	if (!InstancedMeshFacade.IsValid())
-	{
-		return;
-	}
-
-	const int32 NumMeshes = AutoInstanceMeshes.Num();
-
-	TArray<int32> TransformGroups;
-	TransformGroups.AddZeroed(NumMeshes);
-	TArray<int32> TransformStarts;
-	TransformStarts.AddUninitialized(NumMeshes);
-	TArray<int32> InstanceCounts;
-	InstanceCounts.AddUninitialized(NumMeshes);
-	TArray<int32> WrittenTransformCounts;
-	WrittenTransformCounts.AddZeroed(NumMeshes);
-
-	for (int32 MeshIndex = 0; MeshIndex < NumMeshes; MeshIndex++)
-	{
-		const int32 NumInstances = AutoInstanceMeshes[MeshIndex].NumInstances;
-		TransformStarts[MeshIndex] = MeshIndex == 0 ? 0 : TransformStarts[MeshIndex - 1] + InstanceCounts[MeshIndex - 1];
-		InstanceCounts[MeshIndex] = NumInstances;
-	}
-	
-	AutoInstanceTransformRemapIndices.AddUninitialized(TransformStarts.Last() + InstanceCounts.Last());
-
-	const int32 NumTransforms = InstancedMeshFacade.GetNumIndices();
-	for (int32 TransformIndex = 0; TransformIndex < NumTransforms; TransformIndex++)
-	{
-		if (GeometryCollection->Children[TransformIndex].Num() == 0)
-		{
-			const int32 AutoInstanceMeshIndex = InstancedMeshFacade.GetIndex(TransformIndex);
-			const int32 TransformArrayIndex = TransformStarts[AutoInstanceMeshIndex] + WrittenTransformCounts[AutoInstanceMeshIndex]++;
-			AutoInstanceTransformRemapIndices[TransformArrayIndex] = TransformIndex;
-		}
-	}
-}
-
 void UGeometryCollection::UpdateGeometryDependentProperties()
 {
 #if WITH_EDITOR
@@ -1198,8 +1153,6 @@ void UGeometryCollection::Serialize(FArchive& Ar)
 
 	// Generate root to leave order lookup
 	CacheBreadthFirstTransformIndices();
-	// Generate transform remap for AutoInstanceMeshes instances
-	CacheAutoInstanceTransformRemapIndices();
 
 	if (Ar.IsLoading())
 	{
