@@ -42,14 +42,23 @@ bool FCookMetadataState::Serialize(FArchive& Ar)
 		Version = ECookMetadataStateVersion::LatestVersion;
 	}
 
+	bool bSerializeShaderHierarchy = true;
 	Ar << Version;
 	if (Ar.IsLoading())
 	{
-		if (Version != ECookMetadataStateVersion::LatestVersion)
+		if (Version < ECookMetadataStateVersion::AddedPluginEntryType)
 		{
-			UE_LOG(LogCookedMetadata, Error, TEXT("Cook metadata version mismatch: found %d, we can load %d"), Version, ECookMetadataStateVersion::LatestVersion);
+			UE_LOG(LogCookedMetadata, Error, TEXT("Cook metadata version too old: found %d, we can load %d, latest is %d"), Version, ECookMetadataStateVersion::AddedPluginEntryType, ECookMetadataStateVersion::LatestVersion);
 			return false; // invalid version - current we don't support backcompat
 		}
+		if (Version > ECookMetadataStateVersion::LatestVersion)
+		{
+			UE_LOG(LogCookedMetadata, Error, TEXT("Cook metadata version too new: found %d, latest is %d"), Version, ECookMetadataStateVersion::LatestVersion);
+			return false;
+		}
+
+		bSerializeShaderHierarchy = Version >= ECookMetadataStateVersion::ActualAddShaderPseudoHierarchy;
+
 	}
 	Ar << PluginHierarchy;
 	Ar << AssociatedDevelopmentAssetRegistryHash;
@@ -58,6 +67,11 @@ bool FCookMetadataState::Serialize(FArchive& Ar)
 	Ar << BuildVersion;
 	Ar << HordeJobId;
 	Ar << SizesPresent;
+
+	if (bSerializeShaderHierarchy)
+	{
+		Ar << ShaderPseudoHierarchy;
+	}
 	return true;
 }
 

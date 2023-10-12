@@ -20,8 +20,11 @@ enum class ECookMetadataStateVersion : uint8
 	PostWritebackHash = 2,
 	FixSerialization = 3,
 	AddedCustomFields = 4,
+
+	// Note: This is a lie, the shader data wasn't actually serializing to file, use ActualAddShaderPseudoHierarchy
 	AddedShaderPseudoHierarchy = 5,
 	AddedPluginEntryType = 6,
+	ActualAddShaderPseudoHierarchy = 7,
 
 	// Add new versions above this.
 	VersionCount,
@@ -257,6 +260,12 @@ struct COOKMETADATA_API FCookMetadataShaderPseudoAsset
 
 	// Shaders are always compressed, independent of what GetSizesPresent() says.
 	uint32 CompressedSize = 0;
+
+	friend FArchive& operator<<(FArchive& Ar, FCookMetadataShaderPseudoAsset& PseudoAsset)
+	{
+		Ar << PseudoAsset.Name << PseudoAsset.CompressedSize;
+		return Ar;
+	}
 };
 
 struct COOKMETADATA_API FCookMetadataShaderPseudoHierarchy
@@ -270,6 +279,12 @@ struct COOKMETADATA_API FCookMetadataShaderPseudoHierarchy
 	// Keyed off a PackageName in the project, returns a [start, end) pair of indices
 	// into DependencyList for the shaders that package depends on.
 	TMap<FName, TPair<int32, int32>> PackageShaderDependencyMap;
+
+	friend FArchive& operator<<(FArchive& Ar, FCookMetadataShaderPseudoHierarchy& PseudoHierarchy)
+	{
+		Ar << PseudoHierarchy.ShaderAssets << PseudoHierarchy.DependencyList << PseudoHierarchy.PackageShaderDependencyMap;
+		return Ar;
+	}
 };
 
 /**
