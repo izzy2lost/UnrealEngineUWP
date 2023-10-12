@@ -55,9 +55,9 @@ public:
 	 * Returns the UObject which asset path is '//PackageName.AssetName[:SubPathString]'.
 	 * Returns nullptr if the asset which path is '//PackageName.AssetName[:SubPathString]' was not part of
 	 * the level import cached in this UInterchangeSceneImportAsset.
-	 * @oaram PackageName: Package path of the actual object to reimport
-	 * @oaram AssetName: Asset name of the actual object to reimport
-	 * @oaram SubPathString: Optional subobject name
+	 * @param PackageName: Package path of the actual object to reimport
+	 * @param AssetName: Asset name of the actual object to reimport
+	 * @param SubPathString: Optional subobject name
 	 */
 	INTERCHANGEENGINE_API UObject* GetSceneObject(const FString& PackageName, const FString& AssetName, const FString& SubPathString = FString()) const;
 
@@ -65,9 +65,9 @@ public:
 	 * Returns the factory node associated with the asset which path is '//PackageName.AssetName[:SubPathString]'.
 	 * Returns nullptr if the asset which path is '//PackageName.AssetName[:SubPathString]' was not part of
 	 * the level import cached in this UInterchangeSceneImportAsset.
-	 * @oaram PackageName: Package path of the actual object to reimport
-	 * @oaram AssetName: Asset name of the actual object to reimport
-	 * @oaram SubPathString: Optional subobject name
+	 * @param PackageName: Package path of the actual object to reimport
+	 * @param AssetName: Asset name of the actual object to reimport
+	 * @param SubPathString: Optional subobject name
 	 */
 	INTERCHANGEENGINE_API const UInterchangeFactoryBaseNode* GetFactoryNode(const FString& PackageName, const FString& AssetName, const FString& SubPathString = FString()) const;
 

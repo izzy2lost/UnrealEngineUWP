@@ -168,7 +168,7 @@ struct FLevelSequenceBindingReferences
 	 *
 	 * @param ObjectId					The ID to associate the object with
 	 * @param InContext					A context in which InObject resides
-	 * @oaram InResolveBindingParams    Struct containing additional resolving params
+	 * @param InResolveBindingParams    Struct containing additional resolving params
 	 * @param OutObjects				Array to populate with resolved object bindings
 	 */
 	void ResolveBinding(const FGuid& ObjectId, UObject* InContext, const FLevelSequenceBindingReference::FResolveBindingParams& InResolveBindingParams, TArray<UObject*, TInlineAllocator<1>>& OutObjects) const;
@@ -179,7 +179,7 @@ struct FLevelSequenceBindingReferences
 	 *
 	 * @param ObjectId					The ID to associate the object with
 	 * @param InContext					A context in which InObject resides
-	 * @oaram StreamedLevelAssetPath    The path to the streamed level asset that contains the level sequence actor playing back the sequence. 'None' for any non-instance-level setups.
+	 * @param StreamedLevelAssetPath    The path to the streamed level asset that contains the level sequence actor playing back the sequence. 'None' for any non-instance-level setups.
 	 * @param OutObjects				Array to populate with resolved object bindings
 	 */
 	FGuid FindBindingFromObject(UObject* InObject, UObject* InContext) const;

@@ -1609,7 +1609,7 @@ public:
 	 * Reimport animation using SourceFilePath and SourceFileStamp 
 	 *
 	 * @param Skeleton				The skeleton that animation is import into
-	 * @oaram AnimSequence			The existing AnimSequence.
+	 * @param AnimSequence			The existing AnimSequence.
 	 * @param ImportData			The import data of the existing AnimSequence
 	 * @param InFilename			The FBX filename
 	 * @param bOutImportAll			

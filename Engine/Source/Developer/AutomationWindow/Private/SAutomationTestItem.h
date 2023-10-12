@@ -38,7 +38,7 @@ public:
 	 * Construct this widget.  Called by the SNew() Slate macro.
 	 *
 	 * @param	InArgs	          Declaration used by the SNew() macro to construct this widget.
-	 * @oaram   InOwnerTableView  The owner table into which this row is being placed.
+	 * @param   InOwnerTableView  The owner table into which this row is being placed.
 	 */
 	void Construct( const FArguments& InArgs, const TSharedRef<STableViewBase>& InOwnerTableView );
 
