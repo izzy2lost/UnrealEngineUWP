@@ -6,6 +6,7 @@ using System.ComponentModel.DataAnnotations;
 using System.Diagnostics;
 using System.Diagnostics.CodeAnalysis;
 using System.Linq;
+using System.Net;
 using System.Security.Claims;
 using System.Text.Json.Serialization;
 using EpicGames.Core;
@@ -163,6 +164,11 @@ namespace Horde.Server.Server
 		/// List of costs of a particular agent type
 		/// </summary>
 		public List<AgentRateConfig> Rates { get; set; } = new List<AgentRateConfig>();
+		
+		/// <summary>
+		/// List of mappings between network CIDR blocks to an identifier (a logical grouping)
+		/// </summary>
+		public List<NetworkCidrBlockMapping> CidrBlocks { get; set; } = new List<NetworkCidrBlockMapping>();
 
 		/// <summary>
 		/// List of compute profiles
@@ -339,6 +345,69 @@ namespace Horde.Server.Server
 		/// <param name="config">Configuration for the stream</param>
 		/// <returns>True if the stream configuration was found</returns>
 		public bool TryGetTool(ToolId toolId, [NotNullWhen(true)] out ToolConfig? config) => _toolLookup.TryGetValue(toolId, out config);
+
+		/// <summary>
+		/// Attempt to resolve an IP address to a network ID
+		/// </summary>
+		/// <param name="ip">IP address to resolve</param>
+		/// <param name="networkId">Identifier of the network</param>
+		/// <returns>True if the IP address was resolved</returns>
+		public bool TryGetNetworkId(IPAddress ip, [NotNullWhen(true)] out string? networkId)
+		{
+			foreach (NetworkCidrBlockMapping blockMapping in CidrBlocks)
+			{
+				bool isMatch = IsIpInBlock(ip, blockMapping.CidrBlock);
+				if (blockMapping.Condition != null)
+				{
+					IEnumerable<string> GetPropertyValues(string name)
+					{
+						if (name == "ip")
+						{
+							yield return ip.ToString();
+						}
+					}
+				
+					isMatch = blockMapping.Condition.Evaluate(GetPropertyValues);
+				}
+
+				if (isMatch && blockMapping.Id != null)
+				{
+					networkId = blockMapping.Id;
+					return true;
+				}
+			}
+
+			networkId = null;
+			return false;
+		}
+		
+		private static bool IsIpInBlock(IPAddress ip, string? cidrBlock)
+		{
+			if (cidrBlock == null)
+			{
+				return false;
+			}
+			
+			string[] parts = cidrBlock.Split('/');
+			if (parts.Length != 2 || !IPAddress.TryParse(parts[0], out IPAddress? address) || !Int32.TryParse(parts[1], out int maskBits))
+			{
+				return false;
+			}
+			
+			byte[] networkPrefixBytes = address.GetAddressBytes();
+			Array.Reverse(networkPrefixBytes);
+
+			uint networkPrefix = BitConverter.ToUInt32(networkPrefixBytes, 0);
+			uint subnetMask = 0xffffffff;
+			subnetMask <<= 32 - maskBits;
+			uint ipRangeStart = networkPrefix & subnetMask;
+			uint ipRangeEnd = networkPrefix | (subnetMask ^ 0xffffffff);
+
+			byte[] ipBytes = ip.GetAddressBytes();
+			Array.Reverse(ipBytes);
+			uint ipUint = BitConverter.ToUInt32(ipBytes, 0);
+			return ipUint > ipRangeStart && ipUint <= ipRangeEnd;
+		}
 
 		/// <summary>
 		/// Attempts to get compute cluster configuration from this object
@@ -561,7 +630,7 @@ namespace Horde.Server.Server
 	}
 
 	/// <summary>
-	/// Describes the monetary cost of agents matching a particular criteris
+	/// Describes the monetary cost of agents matching a particular criteria
 	/// </summary>
 	public class AgentRateConfig
 	{
@@ -576,6 +645,31 @@ namespace Horde.Server.Server
 		/// </summary>
 		[CbField("r")]
 		public double Rate { get; set; }
+	}
+	
+	/// <summary>
+	/// Describes a mapping of a network CIDR block to an identifier.
+	/// The ID describes any logical grouping, such as region, availability zone, rack or office location. 
+	/// </summary>
+	public class NetworkCidrBlockMapping
+	{
+		/// <summary>
+		/// CIDR block
+		/// </summary>
+		[CbField("cb")]
+		public string? CidrBlock { get; set; }
+		
+		/// <summary>
+		/// Condition string
+		/// </summary>
+		[CbField("c")]
+		public Condition? Condition { get; set; }
+
+		/// <summary>
+		/// Arbitrary network identifier
+		/// </summary>
+		[CbField("id")]
+		public string? Id { get; set; }
 	}
 
 	/// <summary>

@@ -350,6 +350,27 @@ namespace Horde.Server.Server
 
 			return config;
 		}
+		
+		/// <summary>
+		/// Get the network ID for a given IP address
+		/// </summary>
+		[HttpGet]
+		[Route("/api/v1/debug/network-id")]
+		public ActionResult<object> GetNetworkId([FromQuery] string? ipAddress = null)
+		{
+			if (!_globalConfig.Value.Authorize(ServerAclAction.Debug, User))
+			{
+				return Forbid(ServerAclAction.Debug);
+			}
+
+			if (ipAddress == null || !IPAddress.TryParse(ipAddress, out IPAddress? ip))
+			{
+				return BadRequest("Unable to read or convert query parameter 'ipAddress'");
+			}
+
+			_globalConfig.Value.TryGetNetworkId(ip, out string? networkId);
+			return Ok($"Network ID: {networkId}");
+		}
 
 		/// <summary>
 		/// Generate log message of varying size
