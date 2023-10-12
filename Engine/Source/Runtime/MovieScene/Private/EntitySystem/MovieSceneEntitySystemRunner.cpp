@@ -479,15 +479,17 @@ void FMovieSceneEntitySystemRunner::FlushOutstanding(double BudgetMs, UE::MovieS
 		return;
 	}
 
+	// If this runner is already being flushed, early return
+	if (CurrentFlushState != ERunnerFlushState::None)
+	{
+		UE_LOG(LogMovieSceneECS, Warning, TEXT("Cannot flush this runner while it is already being flushed outside of a re-entrancy window"));
+		return;
+	}
+
 	UMovieSceneEntitySystemLinker* Linker = GetLinker();
 
 	// Check that we are attached to a linker that allows starting a new evaluation.
 	if (!ensureMsgf(Linker, TEXT("Runner isn't attached to a valid linker")))
-	{
-		return;
-	}
-
-	if (!ensureMsgf(CurrentFlushState == ERunnerFlushState::None, TEXT("Cannot flush this runner while it is already being flushed outside of a re-entrancy window")))
 	{
 		return;
 	}
