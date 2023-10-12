@@ -97,8 +97,6 @@ namespace UnsyncUI
 				Entries = new List<Entry>();
 			}
 
-			Entries.Clear();
-
 			foreach (var queryEntry in queryResult.entries)
 			{
 				Entry entry = new Entry();
