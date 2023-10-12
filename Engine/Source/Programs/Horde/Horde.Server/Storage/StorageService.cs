@@ -3,6 +3,7 @@
 using System;
 using System.Buffers;
 using System.Collections.Generic;
+using System.ComponentModel;
 using System.IO;
 using System.Linq;
 using System.Runtime.CompilerServices;
@@ -13,6 +14,7 @@ using EpicGames.Core;
 using EpicGames.Horde.Storage;
 using EpicGames.Horde.Storage.Bundles;
 using EpicGames.Horde.Storage.Clients;
+using EpicGames.Horde.Storage.Nodes;
 using EpicGames.Redis;
 using EpicGames.Redis.Utility;
 using Horde.Server.Acls;
@@ -240,18 +242,30 @@ namespace Horde.Server.Storage
 			/// <inheritdoc/>
 			public override async Task<RefValue?> TryReadRefAsync(RefName name, RefCacheTime cacheTime = default, CancellationToken cancellationToken = default)
 			{
-				(BundleNodeLocator Locator, ReadOnlyMemory<byte> Data)? result = await _outer.TryReadRefTargetAsync(NamespaceId, name, cacheTime, cancellationToken);
+				RefInfo? result = await _outer.TryReadRefAsync(NamespaceId, name, cacheTime, cancellationToken);
 				if (result == null)
 				{
 					return null;
 				}
-				return new RefValue(CreateNodeHandle(result.Value.Locator), result.Value.Data);
+
+				EncodedBlobData packet = new EncodedBlobData(result.Data);
+				if (packet.Type != Node.GetNodeType<RedirectNode>())
+				{
+					throw new InvalidDataException($"Expected redirect node in ref {name}");
+				}
+
+				BlobLocator locator = packet.Refs[0];
+				return new RefValue(CreateBlobHandle(locator), ReadOnlyMemory<byte>.Empty);
 			}
 
 			/// <inheritdoc/>
 			public override async Task WriteRefAsync(RefName name, BundleNodeLocator locator, ReadOnlyMemory<byte> data = default, RefOptions? options = null, CancellationToken cancellationToken = default)
 			{
-				await _outer.WriteRefTargetAsync(NamespaceId, name, locator, data, options, cancellationToken);
+				BlobType blobType = Node.GetNodeType<RedirectNode>();
+				BlobHandle blobHandle = CreateBlobHandle(locator.ToBlobLocator());
+				using BlobData blobData = new BlobData(blobType, ReadOnlyMemory<byte>.Empty, new List<BlobHandle> { blobHandle });
+
+				await _outer.WriteRefAsync(NamespaceId, name, blobData, options, cancellationToken);
 			}
 
 			/// <inheritdoc/>
@@ -411,7 +425,7 @@ namespace Horde.Server.Storage
 			}
 		}
 
-		class RefInfo
+		class RefInfo : ISupportInitialize
 		{
 			[BsonIgnoreIfDefault]
 			public ObjectId Id { get; set; }
@@ -422,17 +436,14 @@ namespace Horde.Server.Storage
 			[BsonElement("name")]
 			public RefName Name { get; set; }
 
-			[BsonElement("blob")]
-			public BundleLocator BlobLocator { get; set; }
-
 			[BsonElement("data")]
 			public byte[] Data { get; set; } = Array.Empty<byte>();
 
-			[BsonElement("binf")]
-			public ObjectId BlobInfoId { get; set; }
+			[BsonElement("binf"), BsonIgnoreIfNull]
+			public ObjectId? LegacyImport { get; set; }
 
-			[BsonElement("idx")]
-			public int ExportIdx { get; set; }
+			[BsonElement("imp")]
+			public List<ObjectId> Imports { get; set; } = new List<ObjectId>();
 
 			[BsonElement("xa"), BsonIgnoreIfDefault]
 			public DateTime? ExpiresAtUtc { get; set; }
@@ -440,29 +451,48 @@ namespace Horde.Server.Storage
 			[BsonElement("xt"), BsonIgnoreIfDefault]
 			public TimeSpan? Lifetime { get; set; }
 
-			[BsonIgnore]
-			public BundleNodeLocator Target => new BundleNodeLocator(BlobLocator, ExportIdx);
+#pragma warning disable IDE0051 // Remove unused private members
+			[BsonExtraElements]
+			BsonDocument? ExtraElements { get; set; }
+#pragma warning restore IDE0051 // Remove unused private members
 
 			[BsonConstructor]
 			public RefInfo()
 			{
 				Name = RefName.Empty;
-				BlobLocator = BundleLocator.Empty;
 			}
 
-			public RefInfo(NamespaceId namespaceId, RefName name, BundleNodeLocator target, byte[] data, ObjectId blobInfoId)
+			public RefInfo(NamespaceId namespaceId, RefName name, byte[] data, IReadOnlyList<ObjectId> imports)
 			{
 				NamespaceId = namespaceId;
 				Name = name;
-				BlobLocator = target.Blob;
 				Data = data;
-				BlobInfoId = blobInfoId;
-				ExportIdx = target.ExportIdx;
+				Imports = new List<ObjectId>(imports);
 			}
 
 			public bool HasExpired(DateTime utcNow) => ExpiresAtUtc.HasValue && utcNow >= ExpiresAtUtc.Value;
 
 			public bool RequiresTouch(DateTime utcNow) => ExpiresAtUtc.HasValue && Lifetime.HasValue && utcNow >= ExpiresAtUtc.Value - new TimeSpan(Lifetime.Value.Ticks / 4);
+
+			void ISupportInitialize.BeginInit() { }
+
+			void ISupportInitialize.EndInit()
+			{
+				if (ExtraElements != null)
+				{
+					if (ExtraElements.TryGetValue("blob", out BsonValue blob) && ExtraElements.TryGetValue("idx", out BsonValue idx))
+					{
+						BlobLocator locator = new BlobLocator($"{blob.AsString}#{idx.AsInt32}");
+						Data = EncodedBlobData.Create(Node.GetNodeType<RedirectNode>(), new[] { locator }, ReadOnlyMemory<byte>.Empty);
+					}
+					ExtraElements = null;
+				}
+				if (LegacyImport != null)
+				{
+					Imports.Add(LegacyImport.Value);
+					LegacyImport = null;
+				}
+			}
 		}
 
 		[SingletonDocument("gc-state")]
@@ -534,7 +564,8 @@ namespace Horde.Server.Storage
 
 			List<MongoIndex<RefInfo>> refIndexes = new List<MongoIndex<RefInfo>>();
 			refIndexes.Add(keys => keys.Ascending(x => x.NamespaceId).Ascending(x => x.Name), unique: true);
-			refIndexes.Add(keys => keys.Ascending(x => x.BlobInfoId));
+			refIndexes.Add(keys => keys.Ascending(x => x.LegacyImport));
+			refIndexes.Add(keys => keys.Ascending(x => x.Imports));
 			_refCollection = mongoService.GetCollection<RefInfo>("Storage.Refs", refIndexes);
 
 			_blobTicker = clock.AddSharedTicker("Storage:Blobs", TimeSpan.FromMinutes(5.0), TickBlobsAsync, _logger);
@@ -677,7 +708,13 @@ namespace Horde.Server.Storage
 				return true;
 			}
 
-			FilterDefinition<RefInfo> refFilter = Builders<RefInfo>.Filter.Eq(x => x.BlobInfoId, blobInfoId);
+			FilterDefinition<RefInfo> refLegacyFilter = Builders<RefInfo>.Filter.Eq(x => x.LegacyImport, blobInfoId);
+			if (await _refCollection.Find(refLegacyFilter).AnyAsync(cancellationToken))
+			{
+				return true;
+			}
+
+			FilterDefinition<RefInfo> refFilter = Builders<RefInfo>.Filter.AnyEq(x => x.Imports, blobInfoId);
 			if (await _refCollection.Find(refFilter).AnyAsync(cancellationToken))
 			{
 				return true;
@@ -867,7 +904,7 @@ namespace Horde.Server.Storage
 						_logger.LogInformation("Expired ref {NamespaceId}:{RefName}", refInfo.NamespaceId, refInfo.Name);
 						FilterDefinition<RefInfo> filter = Builders<RefInfo>.Filter.Expr(x => x.Id == refInfo.Id && x.ExpiresAtUtc == refInfo.ExpiresAtUtc);
 						requests.Add(new DeleteOneModel<RefInfo>(filter));
-						AddGcCheckRecord(refInfo.NamespaceId, refInfo.BlobInfoId);
+						AddGcCheckRecord(refInfo.NamespaceId, refInfo.Imports);
 						AddRefToCache(refInfo.NamespaceId, refInfo.Name, default);
 					}
 
@@ -903,7 +940,7 @@ namespace Horde.Server.Storage
 			if (oldRefInfo != null)
 			{
 				_logger.LogInformation("Deleted ref {NamespaceId}:{RefName}", namespaceId, name);
-				AddGcCheckRecord(namespaceId, oldRefInfo.BlobInfoId);
+				AddGcCheckRecord(namespaceId, oldRefInfo.Imports);
 				return true;
 			}
 
@@ -911,7 +948,7 @@ namespace Horde.Server.Storage
 		}
 
 		/// <inheritdoc/>
-		async Task<(BundleNodeLocator, ReadOnlyMemory<byte>)?> TryReadRefTargetAsync(NamespaceId namespaceId, RefName name, RefCacheTime cacheTime = default, CancellationToken cancellationToken = default)
+		async Task<RefInfo?> TryReadRefAsync(NamespaceId namespaceId, RefName name, RefCacheTime cacheTime = default, CancellationToken cancellationToken = default)
 		{
 			RefCacheValue entry;
 			if (!_memoryCache.TryGetValue(name, out entry) || RefCacheTime.IsStaleCacheEntry(entry.Time, cacheTime))
@@ -939,19 +976,28 @@ namespace Horde.Server.Storage
 				}
 			}
 
-			return (entry.Value.Target, entry.Value.Data);
+			return entry.Value;
 		}
 
 		/// <inheritdoc/>
-		async Task WriteRefTargetAsync(NamespaceId namespaceId, RefName name, BundleNodeLocator target, ReadOnlyMemory<byte> data, RefOptions? options = null, CancellationToken cancellationToken = default)
+		async Task WriteRefAsync(NamespaceId namespaceId, RefName name, BlobData data, RefOptions? options = null, CancellationToken cancellationToken = default)
 		{
-			BlobInfo? newBlobInfo = await _blobCollection.Find(x => x.NamespaceId == namespaceId && x.Path == target.Blob.Path.ToString()).FirstOrDefaultAsync(cancellationToken);
-			if (newBlobInfo == null)
+			List<ObjectId> imports = new List<ObjectId>();
+			foreach (BlobHandle import in data.Refs)
 			{
-				throw new Exception($"Invalid/unknown blob identifier '{target.Blob.Path}' in namespace {namespaceId}");
+				string path = import.GetLocator().Outermost.ToString();
+
+				BlobInfo? newBlobInfo = await _blobCollection.Find(x => x.NamespaceId == namespaceId && x.Path == path).FirstOrDefaultAsync(cancellationToken);
+				if (newBlobInfo == null)
+				{
+					throw new Exception($"Invalid/unknown blob identifier '{path}' in namespace {namespaceId}");
+				}
+
+				imports.Add(newBlobInfo.Id);
 			}
 
-			RefInfo newRefInfo = new RefInfo(namespaceId, name, target, data.ToArray(), newBlobInfo.Id);
+			byte[] packetData = EncodedBlobData.Create(data);
+			RefInfo newRefInfo = new RefInfo(namespaceId, name, packetData, imports);
 
 			if (options != null && options.Lifetime.HasValue)
 			{
@@ -963,24 +1009,12 @@ namespace Horde.Server.Storage
 			}
 
 			RefInfo? oldRefInfo = await _refCollection.FindOneAndReplaceAsync<RefInfo>(x => x.NamespaceId == namespaceId && x.Name == name, newRefInfo, new FindOneAndReplaceOptions<RefInfo> { IsUpsert = true }, cancellationToken);
-			if (oldRefInfo != null && oldRefInfo.BlobInfoId != newRefInfo.BlobInfoId)
+			if (oldRefInfo != null)
 			{
-				AddGcCheckRecord(namespaceId, oldRefInfo.BlobInfoId);
+				AddGcCheckRecord(namespaceId, oldRefInfo.Imports);
 			}
 
-			if (oldRefInfo == null)
-			{
-				_logger.LogInformation("Inserted ref {NamespaceId}:{RefName} to {Target}", namespaceId, name, target);
-			}
-			else if (oldRefInfo.Target != newRefInfo.Target)
-			{
-				_logger.LogInformation("Updated ref {NamespaceId}:{RefName} to {Target} (was {OldTarget})", namespaceId, name, newRefInfo.Target, oldRefInfo.Target);
-			}
-			else
-			{
-				_logger.LogInformation("Updated ref {NamespaceId}:{RefName} to {Target} (no-op)", namespaceId, name, target);
-			}
-
+			_logger.LogInformation("Updated ref {NamespaceId}:{RefName}", namespaceId, name);
 			AddRefToCache(namespaceId, name, newRefInfo);
 		}
 
@@ -1130,10 +1164,18 @@ namespace Horde.Server.Storage
 			state.Namespaces.SortBy(x => x.Id);
 		}
 
-		void AddGcCheckRecord(NamespaceId namespaceId, ObjectId blobInfoId)
+		void AddGcCheckRecord(NamespaceId namespaceId, ObjectId id)
 		{
 			double score = GetGcTimestamp();
-			_ = _redisService.GetDatabase().SortedSetAddAsync(GetGcCheckSet(namespaceId), blobInfoId.ToByteArray(), score, flags: CommandFlags.FireAndForget);
+			_ = _redisService.GetDatabase().SortedSetAddAsync(GetGcCheckSet(namespaceId), id.ToByteArray(), score, flags: CommandFlags.FireAndForget);
+		}
+
+		void AddGcCheckRecord(NamespaceId namespaceId, IEnumerable<ObjectId> imports)
+		{
+			foreach (ObjectId import in imports)
+			{
+				AddGcCheckRecord(namespaceId, import);
+			}
 		}
 
 		#endregion

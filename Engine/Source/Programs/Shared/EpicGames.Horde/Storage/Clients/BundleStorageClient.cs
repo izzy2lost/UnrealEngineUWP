@@ -141,7 +141,7 @@ namespace EpicGames.Horde.Storage.Clients
 		#region Nodes
 
 		/// <inheritdoc/>
-		public BlobHandle CreateBlobHandle(BlobLocator blobId) => CreateNodeHandle(BundleNodeLocator.FromBlobLocator(blobId));
+		public BlobHandle CreateBlobHandle(BlobLocator locator) => CreateNodeHandle(BundleNodeLocator.FromBlobLocator(locator));
 
 		/// <summary>
 		/// Creates a handle to a node from its locator
