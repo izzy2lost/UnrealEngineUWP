@@ -55,6 +55,16 @@ namespace Chaos
 		CHAOS_API void ConvertToProbe();
 
 		/**
+		 * Convert the constraint from probe to a regular physical collision
+		 */
+		CHAOS_API void ConvertToNonProbe();
+
+		/**
+		 * Return true if this constraint is a probe type
+		 */
+		CHAOS_API bool GetIsProbe() const;
+
+		/**
 		* @return Number of contact points in constraint pair. ContactPointIdx must be below number of contacts.
 		*/
 		CHAOS_API int32 GetNumContacts() const;
@@ -220,6 +230,12 @@ namespace Chaos
 		* Modify InvMassScale of particle. 0 gives particle infinite mass during collision, values > 1 decrease mass during collision.
 		*/
 		CHAOS_API void ModifyInvMassScale(FReal InvMassScale, int32 ParticleIdx);
+
+		/*
+		* Get the other particle in the constraint - if the input particle isn't in the constraint,
+		* get null
+		*/
+		CHAOS_API FGeometryParticleHandle* GetOtherParticle(FGeometryParticleHandle* Particle) const;
 
 		/*
 		* Retrieve physics handles for particles in contact pair.
@@ -493,6 +509,9 @@ namespace Chaos
 		// Turn this constraint into a probe. It will still generate hit events,
 		// but will not produce impulses
 		CHAOS_API void ConvertToProbeConstraint(FPBDCollisionConstraint& Constraint);
+
+		// Turn this constraint from a probe into a regular constraint
+		CHAOS_API void ConvertToNonProbeConstraint(FPBDCollisionConstraint& Constraint);
 
 		CHAOS_API void MarkConstraintForManifoldUpdate(FPBDCollisionConstraint& Constraint);
 

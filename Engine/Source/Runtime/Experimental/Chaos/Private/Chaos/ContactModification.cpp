@@ -21,6 +21,16 @@ namespace Chaos
 		Modifier->ConvertToProbeConstraint(*Constraint);
 	}
 
+	void FContactPairModifier::ConvertToNonProbe()
+	{
+		Modifier->ConvertToNonProbeConstraint(*Constraint);
+	}
+
+	bool FContactPairModifier::GetIsProbe() const
+	{
+		return Constraint->GetIsProbe();
+	}
+
 	int32 FContactPairModifier::GetNumContacts() const
 	{
 		return Constraint->GetManifoldPoints().Num();
@@ -456,6 +466,19 @@ namespace Chaos
 		}
 	}
 
+	FGeometryParticleHandle* FContactPairModifier::GetOtherParticle(FGeometryParticleHandle* Particle) const
+	{
+		if (Particle == Constraint->GetParticle0())
+		{
+			return Constraint->GetParticle1();
+		}
+		else if (Particle == Constraint->GetParticle1())
+		{
+			return Constraint->GetParticle0();
+		}
+		return nullptr;
+	}
+
 	TVec2<FGeometryParticleHandle*> FContactPairModifier::GetParticlePair() const
 	{
 		return { Constraint->GetParticle0(), Constraint->GetParticle1() };
@@ -609,6 +632,13 @@ namespace Chaos
 		Constraint.SetModifierApplied();
 
 		Constraint.SetIsProbe(true);
+	}
+
+	void FCollisionContactModifier::ConvertToNonProbeConstraint(FPBDCollisionConstraint& Constraint)
+	{
+		Constraint.SetModifierApplied();
+
+		Constraint.SetIsProbe(false);
 	}
 
 	void FCollisionContactModifier::MarkConstraintForManifoldUpdate(FPBDCollisionConstraint& Constraint)
