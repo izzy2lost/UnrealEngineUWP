@@ -925,6 +925,7 @@ void FAutomationDriverSpec::Define()
 			It("should return false if the element is not currently visible in the SWidget DOM being displayed", EAsyncExecution::ThreadPool, [this]()
 			{
 				SuiteViewModel->SetPianoVisibility(EVisibility::Hidden);
+				Driver->Wait(Until::ElementIsHidden(By::Id("Piano"), FWaitTimeout::InSeconds(1)));
 				TEST_FALSE(Driver->FindElement(By::Id("Piano"))->IsVisible());
 			});
 
@@ -938,6 +939,7 @@ void FAutomationDriverSpec::Define()
 		{
 			It("should return true if the element is a currently enabled SWidget", EAsyncExecution::ThreadPool, [this]()
 			{
+				Driver->Wait(Until::ElementIsVisible(By::Id("Piano"), FWaitTimeout::InSeconds(1)));
 				TEST_TRUE(Driver->FindElement(By::Id("KeyB"))->IsInteractable());
 			});
 
