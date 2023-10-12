@@ -155,7 +155,7 @@ namespace UE::PixelStreaming
 	{
 		if (FrameThread != nullptr)
 		{
-			FrameThread->Kill(false);
+			FrameThread->Kill(true);
 		}
 		FrameThread = nullptr;
 		bThreadRunning = false;
