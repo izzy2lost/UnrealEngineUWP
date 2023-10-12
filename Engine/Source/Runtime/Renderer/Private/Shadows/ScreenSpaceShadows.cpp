@@ -57,6 +57,7 @@ class FScreenSpaceShadowsCS : public FGlobalShader
 		SHADER_PARAMETER_RDG_TEXTURE_UAV(RWTexture2D<float2>, RWShadowFactors)
 		SHADER_PARAMETER_STRUCT_REF(FViewUniformShaderParameters, View)
 		SHADER_PARAMETER_STRUCT_INCLUDE(FSceneTextureShaderParameters, SceneTextures)
+		SHADER_PARAMETER_RDG_TEXTURE_SRV(Texture2D<uint2>, StencilTexture)
 		SHADER_PARAMETER(FVector3f, LightDirection)
 		SHADER_PARAMETER(float, ContactShadowLength)
 		SHADER_PARAMETER(uint32, bContactShadowLengthInWS)
@@ -90,6 +91,7 @@ class FScreenSpaceShadowsBendCS : public FGlobalShader
 	BEGIN_SHADER_PARAMETER_STRUCT(FParameters, )
 		SHADER_PARAMETER_RDG_TEXTURE_UAV(RWTexture2D<float>, OutputTexture)
 		SHADER_PARAMETER_RDG_TEXTURE(Texture2D<float>, DepthTexture)
+		SHADER_PARAMETER_RDG_TEXTURE_SRV(Texture2D<uint2>, StencilTexture)
 		SHADER_PARAMETER_SAMPLER(SamplerState, PointBorderSampler)
 		SHADER_PARAMETER_STRUCT_REF(FViewUniformShaderParameters, View)
 		SHADER_PARAMETER(FVector3f, LightDirection)
@@ -244,6 +246,7 @@ void RenderScreenSpaceShadows(
 		PassParameters->RWShadowFactors = GraphBuilder.CreateUAV(ShadowsTexture);
 		PassParameters->View = View.ViewUniformBuffer;
 		PassParameters->SceneTextures = SceneTextures.GetSceneTextureShaderParameters(View.GetFeatureLevel());
+		PassParameters->StencilTexture = SceneTextures.Stencil;
 
 		PassParameters->ScissorRectMinAndSize = FIntRect(ScissorRect.Min, ScissorRect.Size());
 		PassParameters->DownsampleFactor = GetScreenSpaceShadowDownsampleFactor();
@@ -333,6 +336,8 @@ void RenderScreenSpaceShadowsBend(
 
 			PassParameters->DepthTexture = SceneTextures.Depth.Resolve;
 			PassParameters->InvDepthTextureSize = FVector2f(1.0f / DepthDesc.Extent.X, 1.0f / DepthDesc.Extent.Y);
+
+			PassParameters->StencilTexture = SceneTextures.Stencil;
 
 			// A point sampler, with Wrap Mode set to Clamp-To-Border-Color (D3D12_TEXTURE_ADDRESS_MODE_BORDER), and Border Color set to "FarDepthValue" (typically zero), or some other far-depth value out of DepthBounds.
 			// If you have issues where invalid shadows are appearing from off-screen, it is likely that this sampler is not correctly setup

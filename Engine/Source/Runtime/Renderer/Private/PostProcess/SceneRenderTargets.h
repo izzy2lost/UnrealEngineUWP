@@ -52,7 +52,10 @@
 // Mobile specific
 // Store shading model into stencil [1-2] bits (only used in mobile deferred)
 #define GET_STENCIL_MOBILE_SM_MASK(Value) uint8(((Value) & 0x3) << 1)
+
+// Cast contact shadow mask - bit 1 (only used in mobile forward) / Must match shader (ScreenSpaceShadows.usf)
+#define STENCIL_MOBILE_CAST_CONTACT_SHADOW_BIT_ID	1
 // Forward local light buffer mask for light function - bit 2
-#define STENCIL_MOBILE_LIGHTFUNCTION_MASK uint8(1 << 2)
+#define STENCIL_MOBILE_LIGHTFUNCTION_MASK			uint8(1 << 2)
 // Sky material mask - bit 3
-#define STENCIL_MOBILE_SKY_MASK uint8(1 << 3)
+#define STENCIL_MOBILE_SKY_MASK						uint8(1 << 3)

@@ -72,6 +72,11 @@ int4 ScissorRectMinAndSize;
 
 RWTexture2D<float2> RWShadowFactors;
 
+Texture2D<uint2> StencilTexture;
+
+// Must match C++ (SceneRenderTargets.h)
+#define STENCIL_MOBILE_CAST_CONTACT_SHADOW_MASK 2
+
 float GetContactShadowOcclusion(float2 HitUV)
 {
 	const uint2 HitPixelCoord = uint2(HitUV * View.BufferSizeAndInvSize.xy);
@@ -80,8 +85,9 @@ float GetContactShadowOcclusion(float2 HitUV)
 #	if MOBILE_DEFERRED_SHADING
 		FGBufferData SampleGBuffer = MobileFetchAndDecodeGBuffer(HitUV, HitPixelCoord);
 		const bool bHitCastContactShadow = CastContactShadow(SampleGBuffer);
-#	else 
-		const bool bHitCastContactShadow = true; // TODO: support mobile forward path
+#	else
+		uint Stencil = StencilTexture.Load(int3(HitPixelCoord, 0)) STENCIL_COMPONENT_SWIZZLE;
+		const bool bHitCastContactShadow = Stencil & STENCIL_MOBILE_CAST_CONTACT_SHADOW_MASK;
 #	endif
 #else
 #	if SUBSTRATE_ENABLED
