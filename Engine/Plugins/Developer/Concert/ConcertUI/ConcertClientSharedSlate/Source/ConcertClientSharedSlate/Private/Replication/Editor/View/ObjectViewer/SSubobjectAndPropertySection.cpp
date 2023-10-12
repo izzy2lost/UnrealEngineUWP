@@ -249,7 +249,7 @@ namespace UE::ConcertClientSharedSlate
 		{
 			ToSort.Sort([this](const TSharedPtr<FReplicatedPropertyData>& Left, const TSharedPtr<FReplicatedPropertyData>& Right)
 			{
-				return SortPropertyRowPredicate.Execute(Left, Right);
+				return SortPropertyRowPredicate.Execute(*Left.Get(), *Right.Get());
 			});
 		}
 	}

@@ -2,7 +2,7 @@
 
 #pragma once
 
-#include "ReplicationColumn.h"
+#include "Replication/Editor/View/ReplicationColumn.h"
 #include "Widgets/Layout/SBox.h"
 #include "Widgets/SNullWidget.h"
 #include "Widgets/Views/SExpanderArrow.h"
@@ -35,7 +35,7 @@ namespace UE::ConcertClientSharedSlate
 			SLATE_EVENT(FGetColumn, ColumnGetter)
 
 			/** The data to pass to TReplicationColumn::BuildColumnWidget. */
-			SLATE_ARGUMENT(TListItemType, RowData)
+			SLATE_ARGUMENT(TSharedPtr<TListItemType>, RowData)
 		
 			/** The name of the column that will have the SExpanderArrow for the tree view. */
 			SLATE_ARGUMENT(FName, ExpandableColumnLabel)
@@ -66,7 +66,7 @@ namespace UE::ConcertClientSharedSlate
 				return SNullWidget::NullWidget;
 			}
 			
-			const TSharedRef<SWidget> ColumnWidget = Column->BuildColumnWidget({ HighlightText, RowData });
+			const TSharedRef<SWidget> ColumnWidget = Column->BuildColumnWidget({ HighlightText, *RowData.Get() });
 			const bool bNeedsExpanderArrow = ColumnName == ExpandableColumnLabel;
 			if (!bNeedsExpanderArrow)
 			{
@@ -99,7 +99,7 @@ namespace UE::ConcertClientSharedSlate
 		
 		FGetColumn ColumnGetterDelegate;
 		TSharedPtr<FText> HighlightText;
-		TListItemType RowData;
+		TSharedPtr<TListItemType> RowData;
 		FName ExpandableColumnLabel;
 		float RowHeight;
 	};

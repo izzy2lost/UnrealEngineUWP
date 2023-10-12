@@ -6,7 +6,7 @@
 #include "Assets/MultiUserReplicationSessionPreset.h"
 #include "Replication/Editor/Model/Property/SelectPropertyFromUClassModel.h"
 #include "Replication/Editor/Model/Object/EditorObjectSelectionSourceModel.h"
-#include "Replication/Editor/View/IReplicationEditorView.h"
+#include "Replication/Editor/View/IReplicationStreamEditor.h"
 #include "Replication/ReplicationWidgetFactories.h"
 
 #include "Framework/Docking/TabManager.h"
@@ -84,7 +84,7 @@ namespace UE::MultiUserReplicationEditor
 			}));
 		const TSharedRef<FEditorObjectSelectionSourceModel> ObjectSourceModel = MakeShared<FEditorObjectSelectionSourceModel>();
 		const TSharedRef<FSelectPropertyFromUClassModel> PropertySourceModel = MakeShared<FSelectPropertyFromUClassModel>();
-		const TSharedRef<IReplicationEditorView> EditorView = CreateEditorForUnrealEditor(FCreateEditorParams{ AssetReadWriteModel, ObjectSourceModel, PropertySourceModel });
+		const TSharedRef<IReplicationStreamEditor> EditorView = CreateDefaultStreamEditor(FCreateEditorParams{ AssetReadWriteModel, ObjectSourceModel, PropertySourceModel });
 		return SNew(SDockTab)
 			.Label(LOCTEXT("BaseDetailsTitle", "Details"))
 			[

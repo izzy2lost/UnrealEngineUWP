@@ -6,10 +6,11 @@
 #include "Replication/Editor/Model/IEditableObjectToPropertiesModel.h"
 #include "Replication/Editor/Model/ReplicatedPropertyData.h"
 #include "Replication/Editor/Model/ReplicatedObjectData.h"
-#include "Replication/Editor/View/ObjectEditor/SObjectToPropertyEditor.h"
+#include "Replication/Editor/View/ObjectEditor/SBaseReplicationStreamEditor.h"
 #include "Replication/PropertyChainUtils.h"
 
 #include "Internationalization/Internationalization.h"
+#include "GameFramework/Actor.h"
 #include "Textures/SlateIcon.h"
 #include "Widgets/Images/SImage.h"
 #include "Widgets/SBoxPanel.h"
@@ -36,7 +37,7 @@ namespace UE::ConcertClientSharedSlate::ReplicationObjectColumns
 						.VAlign(VAlign_Center)
 						[
 							SNew(SImage)
-							.Image(DisplayUtils::GetObjectIcon(*Model, Args.RowData->GetObjectPath()).GetOptionalIcon())
+							.Image(DisplayUtils::GetObjectIcon(*Model, Args.RowData.GetObjectPath()).GetOptionalIcon())
 						];
 				})
 				.ColumnSortOrder(static_cast<int32>(EReplicationColumnOrder::Icon)),
@@ -54,11 +55,11 @@ namespace UE::ConcertClientSharedSlate::ReplicationObjectColumns
 				{
 					return SNew(STextBlock)
 						.HighlightText(TAttribute<FText>::CreateLambda([HighlightText = Args.HighlightText](){ return *HighlightText; }))
-						.Text(DisplayUtils::GetObjectDisplayText(Args.RowData->GetObjectPath()));
+						.Text(DisplayUtils::GetObjectDisplayText(Args.RowData.GetObjectPath()));
 				})
-				.PopulateSearchItems_Lambda([](const TSharedPtr<FReplicatedObjectData>& ObjectData, TArray<FString>& InOutSearchStrings)
+				.PopulateSearchItems_Lambda([](const FReplicatedObjectData& ObjectData, TArray<FString>& InOutSearchStrings)
 				{
-					InOutSearchStrings.Add(DisplayUtils::GetObjectDisplayText(ObjectData->GetObjectPath()).ToString());
+					InOutSearchStrings.Add(DisplayUtils::GetObjectDisplayText(ObjectData.GetObjectPath()).ToString());
 				})
 				.ColumnSortOrder(static_cast<int32>(EReplicationColumnOrder::Label)),
 			SHeaderRow::Column(LabelColumnId)
@@ -75,11 +76,11 @@ namespace UE::ConcertClientSharedSlate::ReplicationObjectColumns
 				{
 					return SNew(STextBlock)
 						.HighlightText(TAttribute<FText>::CreateLambda([HighlightText = Args.HighlightText](){ return *HighlightText; }))
-						.Text(DisplayUtils::GetObjectTypeText(*Model, Args.RowData->GetObjectPath()));
+						.Text(DisplayUtils::GetObjectTypeText(*Model, Args.RowData.GetObjectPath()));
 				})
-				.PopulateSearchItems_Lambda([Model](const TSharedPtr<FReplicatedObjectData>& ObjectData, TArray<FString>& InOutSearchStrings)
+				.PopulateSearchItems_Lambda([Model](const FReplicatedObjectData& ObjectData, TArray<FString>& InOutSearchStrings)
 				{
-					InOutSearchStrings.Add(DisplayUtils::GetObjectTypeText(Model.Get(), ObjectData->GetObjectPath()).ToString());
+					InOutSearchStrings.Add(DisplayUtils::GetObjectTypeText(Model.Get(), ObjectData.GetObjectPath()).ToString());
 				})
 				.ColumnSortOrder(static_cast<int32>(EReplicationColumnOrder::Type)),
 			SHeaderRow::Column(TypeColumnId)
@@ -94,38 +95,8 @@ namespace UE::ConcertClientSharedSlate::ReplicationObjectColumns
 
 namespace UE::ConcertClientSharedSlate::ReplicationPropertyColumns
 {
-	const FName ReplicatesColumnId = TEXT("ReplicatesColumn");
 	const FName LabelColumnId = TEXT("LabelColumn");
 	const FName TypeColumnId = TEXT("TypeColumn");
-
-	FReplicationPropertyColumn ReplicatesColumns(
-		FGetPropertyCheckboxState GetPropertyCheckboxStateDelegate,
-		FOnPropertyCheckboxChanged OnPropertyBoxToggledDelegate,
-		const float ColumnWidth
-		)
-	{
-		return FReplicationPropertyColumn(
-			FReplicationPropertyColumn::FArguments()
-				.GenerateWidgetColumn_Lambda([GetPropertyCheckboxStateDelegate, OnPropertyBoxToggledDelegate](const FReplicationPropertyColumn::FBuildArgs& Args)
-				{
-					return SNew(SCheckBox)
-						.ToolTipText(LOCTEXT("ReplicatesCheckbox.Tooltip", "Should replicate?"))
-						.IsChecked_Lambda([GetPropertyCheckboxStateDelegate, RowData = Args.RowData]()
-						{
-							return GetPropertyCheckboxStateDelegate.Execute(RowData->GetProperty());
-						})
-						.OnCheckStateChanged_Lambda([OnPropertyBoxToggledDelegate, RowData = Args.RowData](ECheckBoxState NewState)
-						{
-							const bool bIsChecked = NewState == ECheckBoxState::Checked;
-							OnPropertyBoxToggledDelegate.Execute(bIsChecked, RowData->GetProperty());
-						});
-				})
-				.ColumnSortOrder(static_cast<int32>(EReplicationPropertyColumnOrder::ReplicatesCheckbox)),
-			SHeaderRow::Column(ReplicatesColumnId)
-				.DefaultLabel(FText::GetEmpty())
-				.FixedWidth(ColumnWidth)
-			);
-	}
 	
 	FReplicationPropertyColumn LabelColumn()
 	{
@@ -135,11 +106,11 @@ namespace UE::ConcertClientSharedSlate::ReplicationPropertyColumns
 				{
 					return SNew(STextBlock)
 						.HighlightText(TAttribute<FText>::CreateLambda([HighlightText = Args.HighlightText](){ return *HighlightText; }))
-						.Text(DisplayUtils::GetPropertyDisplayText(Args.RowData->GetProperty()));
+						.Text(DisplayUtils::GetPropertyDisplayText(Args.RowData.GetProperty()));
 				})
-				.PopulateSearchItems_Lambda([](const TSharedPtr<FReplicatedPropertyData>& ObjectData, TArray<FString>& InOutSearchStrings)
+				.PopulateSearchItems_Lambda([](const FReplicatedPropertyData& ObjectData, TArray<FString>& InOutSearchStrings)
 				{
-					InOutSearchStrings.Add(DisplayUtils::GetPropertyDisplayText(ObjectData->GetProperty()).ToString());
+					InOutSearchStrings.Add(DisplayUtils::GetPropertyDisplayText(ObjectData.GetProperty()).ToString());
 				})
 				.ColumnSortOrder(static_cast<int32>(EReplicationPropertyColumnOrder::Label)),
 			SHeaderRow::Column(LabelColumnId)
@@ -150,11 +121,10 @@ namespace UE::ConcertClientSharedSlate::ReplicationPropertyColumns
 	
 	FReplicationPropertyColumn TypeColumn()
 	{
-		static auto GetDisplayText = [](const TSharedPtr<FReplicatedPropertyData>& Args)
+		static auto GetDisplayText = [](const FReplicatedPropertyData& Args)
 		{
-			check(Args);
-			UClass* Class = Args->GetOwningClass().TryLoadClass<UObject>();
-			const FProperty* Property = Class ? ConcertSyncCore::PropertyChain::ResolveProperty(*Class, Args->GetProperty()) : nullptr;
+			UClass* Class = Args.GetOwningClass().TryLoadClass<UObject>();
+			const FProperty* Property = Class ? ConcertSyncCore::PropertyChain::ResolveProperty(*Class, Args.GetProperty()) : nullptr;
 			return Property ? FText::FromString(Property->GetCPPType()) : LOCTEXT("Unknown", "Unknown");	
 		};
 		
@@ -166,7 +136,7 @@ namespace UE::ConcertClientSharedSlate::ReplicationPropertyColumns
 						.HighlightText(TAttribute<FText>::CreateLambda([HighlightText = Args.HighlightText](){ return *HighlightText; }))
 						.Text(GetDisplayText(Args.RowData));
 				})
-				.PopulateSearchItems_Lambda([](const TSharedPtr<FReplicatedPropertyData>& ObjectData, TArray<FString>& InOutSearchStrings)
+				.PopulateSearchItems_Lambda([](const FReplicatedPropertyData& ObjectData, TArray<FString>& InOutSearchStrings)
 				{
 					InOutSearchStrings.Add(GetDisplayText(ObjectData).ToString());
 				})
@@ -175,6 +145,99 @@ namespace UE::ConcertClientSharedSlate::ReplicationPropertyColumns
 				.DefaultLabel(LOCTEXT("TypeColumnLabel", "Type"))
 				.FillWidth(1.f)
 			);
+	}
+
+	namespace Private
+	{
+		static ECheckBoxState OnGetPropertyCheckboxState(
+			const FConcertPropertyChain& PropertyChain,
+			const IReplicationStreamViewer& Viewer,
+			const IObjectToPropertiesModel& Model
+			)
+		{
+			const TArray<FSoftObjectPath> SelectedObjectPaths = Viewer.GetObjectsBeingPropertyEdited();
+			return GetPropertyCheckboxStateBasedOnSelection(PropertyChain, SelectedObjectPaths, Model);
+		}
+
+		static void OnPropertyCheckboxChanged(
+			bool bIsChecked,
+			const FConcertPropertyChain& PropertyChain,
+			const IReplicationStreamViewer& Viewer,
+			IEditableObjectToPropertiesModel& Model
+			)
+		{
+			const TArray Properties{ PropertyChain };
+			const TArray<FSoftObjectPath> SelectedObjects = Viewer.GetObjectsBeingPropertyEdited();
+
+			if (bIsChecked)
+			{
+				// We cannot proceed if any of the selected objects cannot be loaded because we cannot obtain its class
+				for (const FSoftObjectPath& Path : SelectedObjects)
+				{
+					UObject* Object = Path.ResolveObject();
+					if (!Object && !Model.ContainsObjects({ Path }))
+					{
+						return;
+					}
+				}
+				
+				for (const FSoftObjectPath& Path : Viewer.GetObjectsBeingPropertyEdited())
+				{
+					UObject* Object = Path.ResolveObject();
+					if (!Model.ContainsObjects({ Path }))
+					{
+						Model.AddObjects({ Object });
+					}
+					Model.AddProperties(Path, Properties);
+				}
+			}
+			else
+			{
+				for (const FSoftObjectPath& Path : Viewer.GetObjectsBeingPropertyEdited())
+				{
+					Model.RemoveProperties(Path, Properties);
+					// If this does not resolve it is not too bad if the subobject is not removed...
+					UObject* Object = Path.ResolveObject();
+					const bool bNeedsToRemoveNonRoot = Object && !Object->IsA<AActor>() && Model.GetNumProperties(Path) == 0;
+					if (bNeedsToRemoveNonRoot)
+					{
+						Model.RemoveObjects({ Path });
+					}
+				}
+			}
+		}
+	}
+	
+	FReplicationPropertyColumn ReplicatesColumns(
+		TWeakPtr<IReplicationStreamViewer> Viewer,
+		TWeakPtr<IEditableObjectToPropertiesModel> Model,
+		const float ColumnWidth,
+		const int32 Priority
+		)
+	{
+		return MakePropertyCheckboxColumn(
+			FGetColumnCheckboxState::CreateLambda(
+				[Viewer, Model](const FConcertPropertyChain& Property)
+				{
+					const TSharedPtr<IReplicationStreamViewer> ViewerPin = Viewer.Pin();
+					const TSharedPtr<IEditableObjectToPropertiesModel> ModelPin = Model.Pin();
+					return ensure(ViewerPin && ModelPin) ? Private::OnGetPropertyCheckboxState(Property, *ViewerPin, *ModelPin) : ECheckBoxState::Undetermined;
+				}),
+			FOnColumnCheckboxChanged::CreateLambda(
+				[Viewer, Model](bool bIsChecked, const FConcertPropertyChain& Property)
+				{
+					const TSharedPtr<IReplicationStreamViewer> ViewerPin = Viewer.Pin();
+					const TSharedPtr<IEditableObjectToPropertiesModel> ModelPin = Model.Pin();
+					if (ensure(ViewerPin && ModelPin))
+					{
+						Private::OnPropertyCheckboxChanged(bIsChecked, Property, *ViewerPin, *ModelPin);
+					}
+				}),
+			FText::GetEmpty(),
+			LOCTEXT("Replicates.ToolTip", "Select whether this property should be replicated"),
+			ColumnWidth, 
+			Priority
+		);
 	}
 
 	ECheckBoxState GetPropertyCheckboxStateBasedOnSelection(const FConcertPropertyChain& Property, TConstArrayView<FSoftObjectPath> Selection, const IObjectToPropertiesModel& Model)
@@ -198,6 +261,27 @@ namespace UE::ConcertClientSharedSlate::ReplicationPropertyColumns
 			}
 		}
 		return CheckBoxState;
+	}
+	
+	bool SortBySelectionThenByName_PropertyPredicate(
+		const TArray<FSoftObjectPath>& SelectedObjects,
+		const IObjectToPropertiesModel& Model,
+		const FReplicatedPropertyData& Left,
+		const FReplicatedPropertyData& Right
+		)
+	{
+		const ECheckBoxState LeftCheckboxState = GetPropertyCheckboxStateBasedOnSelection(Left.GetProperty(), SelectedObjects, Model);
+		const ECheckBoxState RightCheckboxState = GetPropertyCheckboxStateBasedOnSelection(Right.GetProperty(), SelectedObjects, Model);
+		
+		// Secondary sort by name
+		if (LeftCheckboxState == RightCheckboxState)
+		{
+			return DisplayUtils::GetPropertyDisplayString(Left.GetProperty()) < DisplayUtils::GetPropertyDisplayString(Right.GetProperty());
+		}
+
+		// Selected properties should appear first
+		return LeftCheckboxState == ECheckBoxState::Checked
+			&& (RightCheckboxState == ECheckBoxState::Unchecked || RightCheckboxState == ECheckBoxState::Undetermined);
 	}
 }
 

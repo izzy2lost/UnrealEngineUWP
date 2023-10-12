@@ -2,8 +2,20 @@
 
 #pragma once
 
+#include "ReplicationWidgetDelegates.h"
+#include "Editor/View/PredefinedReplicationColumns.h"
 #include "Misc/Attribute.h"
 #include "Templates/SharedPointer.h"
+
+namespace UE::ConcertClientSharedSlate
+{
+	class IObjectToPropertiesModel;
+}
+
+namespace UE::ConcertClientSharedSlate
+{
+	class IReplicationStreamViewer;
+}
 
 class UObject;
 class SWidget;
@@ -19,65 +31,15 @@ namespace UE::ConcertClientSharedSlate
 namespace UE::ConcertClientSharedSlate
 {
 	class IEditableObjectToPropertiesModel;
-	class IReplicationEditorView;
+	class IReplicationStreamEditor;
 	class IObjectSelectionSourceModel;
 	class IPropertySelectionSourceModel;
-		
-	struct FCreateEditorParams
-	{
-		/**
-		 * The model that the editor is displaying.
-		 * @note The view will keep a strong reference to this.
-		 */
-		TSharedRef<IEditableObjectToPropertiesModel> DataModel;
-
-		/**
-		 * Determines the objects that can be added to the object list. 
-		 * @note The view will keep a strong reference to this.
-		 */
-		TSharedRef<IObjectSelectionSourceModel> ObjectSource;
-
-		/**
-		 * Determines the properties that can be added to the property list.
-		 * @note The view will keep a strong reference to this.
-		 */
-		TSharedRef<IPropertySelectionSourceModel> PropertySource;
-
-		// TODO DP: Add way to add more columns
-
-		/**
-		 * Optional. This is inserted between the root object outliner and property view.
-		 * It e.g. displays the components of the actor selected in the root object view.
-		 * 
-		 * Exists so it can be customized differently depending on whether used in the editor or on the server-
-		 */
-		TSharedPtr<IReplicationSubobjectView> SubobjectView;
-	};
-	
-	/** Creates an object that looks like the SSubobjectEditor. */
-	CONCERTCLIENTSHAREDSLATE_API TSharedRef<IReplicationSubobjectView> CreateUnrealEditorSubobjectView();
-
-	/**
-	 * Creates a replication editor.
-	 * 
-	 * The editor consists of three areas, which share similar workflows as the world outliner and details panel in the level editor:
-	 * 1. Root objects,  similar to world outliner: objects (usually actors) are added here. FCreateEditorParams::ObjectSource is used to build a combo button through which new objects can be added.
-	 * 2. Subobjects (optional), similar to component view (SSubobjectEditor): Shows subobjects of a root objects selected above; typically components.
-	 * 3. Properties, similar to details panel: Shows properties of the selected root object and / or subobjects.
-	 */
-	CONCERTCLIENTSHAREDSLATE_API TSharedRef<IReplicationEditorView> CreateEditor(FCreateEditorParams Params);
-
-	/** Creates a default IReplicationEditorView view to use in the Unreal Editor (as opposed to on the server, etc.). */
-	inline TSharedRef<IReplicationEditorView> CreateEditorForUnrealEditor(FCreateEditorParams BaseParams)
-	{
-		BaseParams.SubobjectView = CreateUnrealEditorSubobjectView();
-		return CreateEditor(MoveTemp(BaseParams));
-	}
 	
 	/**
 	 * Creates a model that can be passed to CreateEditor.
 	 * 
-	 * This model edits a FObjectReplicationMap that is assumed to be within the transactional OwnerObject. The model will respond to undo & redo by triggering the model's update callbacks.
+	 * This model edits a FObjectReplicationMap that is assumed to be within the transactional OwnerObject.
+	 * The model will respond to undo & redo by triggering the model's update callbacks.
 	 * 
 	 * @param OwnerObject The object containing the FObjectReplicationMap.
 	 * @param ReplicationMapAttribute Getter for extracting the FObjectReplicationMap to edit
@@ -89,4 +51,85 @@ namespace UE::ConcertClientSharedSlate
 		TAttribute<FObjectReplicationMap*> ReplicationMapAttribute,
 		TAttribute<const FConcertReplicationEditorSettings*> OptionalReplicationSettingsAttribute = {}
 		);
+	
+	/** Creates a stream editor with a subobject view that looks like the SSubobjectEditor. */
+	CONCERTCLIENTSHAREDSLATE_API TSharedRef<IReplicationSubobjectView> CreateUnrealEditorSubobjectView();
+
+	/** Params for creating an IReplicationStreamEditor */
+	struct FCreateEditorParams
+	{
+		/**
+		 * The model that the editor is displaying.
+		 * @note The view will keep a strong reference to this.
+		 */
+		TSharedRef<IEditableObjectToPropertiesModel> DataModel;
+		/**
+		 * Determines the objects that can be added to the object list. 
+		 * @note The view will keep a strong reference to this.
+		 */
+		TSharedRef<IObjectSelectionSourceModel> ObjectSource;
+		/**
+		 * Determines the properties that can be added to the property list.
+		 * @note The view will keep a strong reference to this.
+		 */
+		TSharedRef<IPropertySelectionSourceModel> PropertySource;
+
+		/**
+		 * Optional. This is inserted between the root object outliner and property view.
+		 * It e.g. displays the components of the actor selected in the root object view.
+		 * 
+		 * Exists so it can be customized differently depending on whether used in the editor or on the server.
+		 * @note The view will keep a strong reference to this.
+		 */
+		TSharedPtr<IReplicationSubobjectView> SubobjectView;
+
+		/** Called to generate the context menu for objects. This extends the options already generated by this widget and is called at the end. */
+		FExtendMenu OnExtendObjectsContextMenu;
+		/** Optional. Used for determining the order in which properties are displayed. */
+		FSortPropertyPredicate SortPropertyRowPredicate;
+		
+		/** Additional columns to add to the object view */
+		TArray<ReplicationObjectColumns::FReplicationObjectColumn> AdditionalObjectColumns;
+		/** Additional columns to add to the property view */
+		TArray<ReplicationPropertyColumns::FReplicationPropertyColumn> AdditionalPropertyColumns;
+		
+		/** Optional widget to add to the left of the object list search bar. */
+		TAlwaysValidWidget LeftOfObjectSearchBar;
+		/** Optional widget to add to the left of the property list search bar. */
+		TAlwaysValidWidget LeftOfPropertySearchBar;
+	};
+
+	/**
+	 * Creates a base replication stream editor.
+	 * 
+	 * This editor implements base functionality for adding objects but has NO logic for editing properties.
+	 * You are expected to inject widgets or columns, which implement editing properties.
+	 * @see CreateDefaultStreamEditor, which adds a checkbox to the start of every property row.
+	 *
+	 * The editor consists of three areas, which share similar workflows the level editor:
+	 * 1. Root objects, similar to world outliner:
+	 *		- Similar to World Outliner: Displays top-level objects, i.e. actors, are added here.
+	 *		- FCreateEditorParams::ObjectSource is used to build a combo button through which new objects can be added.
+	 * 2. Subobjects (optional):
+	 *		- Similar to component view (SSubobjectEditor)
+	 *		- Shows subobjects of a root objects selected above; typically components.
+	 * 3. Properties:
+	 *		- Similar to details panel
+	 *		- Shows properties of the selected root object and / or subobjects.
+	 */
+	CONCERTCLIENTSHAREDSLATE_API TSharedRef<IReplicationStreamEditor> CreateEditor(FCreateEditorParams Params);
+
+	/**
+	 * Creates a default IReplicationStreamEditor.
+	 *
+	 * This editor adds a checkbox to the start of every property row.
+	 * - Checking adds the property to the selected objects' property mappings.
+	 * - Unchecking removes the property to the selected objects' property mappings
+	 *
+	 * This requires a subobject view. If you do not pass it in, the default view, which looks like the SSubobjectEditor,
+	 * is created.
+	 * 
+	 * @see CreateViewer for a description of the UI layout.
+	 */
+	CONCERTCLIENTSHAREDSLATE_API TSharedRef<IReplicationStreamEditor> CreateDefaultStreamEditor(FCreateEditorParams Params);
 }

@@ -3,7 +3,8 @@
 #include "Replication/ReplicationWidgetFactories.h"
 
 #include "Editor/Model/TransactionalPropertySelectionModel.h"
-#include "Editor/View/SReplicationStreamEditor.h"
+#include "Editor/View/ObjectEditor/SDefaultReplicationStreamEditor.h"
+#include "Editor/View/ObjectEditor/SBaseReplicationStreamEditor.h"
 #include "Editor/View/SubobjectView/SUnrealEditorSubobjectView.h"
 
 namespace UE::ConcertClientSharedSlate
@@ -13,11 +14,33 @@ namespace UE::ConcertClientSharedSlate
 		return SNew(SUnrealEditorSubobjectView);
 	}
 	
-	TSharedRef<IReplicationEditorView> CreateEditor(FCreateEditorParams Params)
+	TSharedRef<IReplicationStreamEditor> CreateEditor(FCreateEditorParams Params)
 	{
-		return SNew(SReplicationStreamEditor, MoveTemp(Params));
+		return SNew(SBaseReplicationStreamEditor, Params.DataModel, Params.ObjectSource, Params.PropertySource)
+			.AdditionalObjectColumns(Params.AdditionalObjectColumns)
+			.AdditionalPropertyColumns(Params.AdditionalPropertyColumns)
+			.SubobjectView(Params.SubobjectView)
+			.OnExtendObjectsContextMenu(Params.OnExtendObjectsContextMenu)
+			.SortPropertyRowPredicate(Params.SortPropertyRowPredicate)
+			.LeftOfObjectSearchBar() [ Params.LeftOfObjectSearchBar.Widget ]
+			.LeftOfPropertySearchBar() [ Params.LeftOfPropertySearchBar.Widget ];
 	}
-	
+
+	TSharedRef<IReplicationStreamEditor> CreateDefaultStreamEditor(FCreateEditorParams Params)
+	{
+		// Default editor relies on a subobject view
+		Params.SubobjectView = Params.SubobjectView ? Params.SubobjectView : CreateUnrealEditorSubobjectView();
+		
+		return SNew(SDefaultReplicationStreamEditor, Params.DataModel, Params.ObjectSource, Params.PropertySource)
+			.AdditionalObjectColumns(Params.AdditionalObjectColumns)
+			.AdditionalPropertyColumns(Params.AdditionalPropertyColumns)
+			.SubobjectView(Params.SubobjectView)
+			.OnExtendObjectsContextMenu(Params.OnExtendObjectsContextMenu)
+			.SortPropertyRowPredicate(Params.SortPropertyRowPredicate)
+			.LeftOfObjectSearchBar() [ Params.LeftOfObjectSearchBar.Widget ]
+			.LeftOfPropertySearchBar() [ Params.LeftOfPropertySearchBar.Widget ];
+	}
+
 	TSharedRef<IEditableObjectToPropertiesModel> CreatePropertySelectionModel(
 		UObject& OwnerObject,
 		TAttribute<FObjectReplicationMap*> ReplicationMapAttribute,

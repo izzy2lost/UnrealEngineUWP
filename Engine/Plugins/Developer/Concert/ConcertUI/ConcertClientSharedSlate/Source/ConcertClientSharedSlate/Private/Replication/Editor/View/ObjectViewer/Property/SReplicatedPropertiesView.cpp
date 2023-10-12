@@ -19,7 +19,7 @@ namespace UE::ConcertClientSharedSlate
 		
 		ChildSlot
 		[
-			SAssignNew(ReplicatedProperties, SReplicationTreeView<TSharedPtr<FReplicatedPropertyData>>)
+			SAssignNew(ReplicatedProperties, SReplicationTreeView<FReplicatedPropertyData>)
 				.RootItemsSource(InArgs._RootItemsSource)
 				.OnGetChildren(InArgs._OnGetChildren)
 				.Columns(InArgs._Columns)

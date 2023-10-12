@@ -1,15 +1,17 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 
-#include "SObjectToPropertyEditor.h"
+#include "SBaseReplicationStreamEditor.h"
 
 #include "FakeObjectToPropertiesEditorModel.h"
 #include "Model/Item/SourceModelBuilders.h"
+#include "Replication/Data/ConcertPropertySelection.h"
 #include "Replication/Editor/Model/DisplayUtils.h"
 #include "Replication/Editor/Model/IEditableObjectToPropertiesModel.h"
 #include "Replication/Editor/Model/Object/IObjectSelectionSourceModel.h"
 #include "Replication/Editor/Model/Property/IPropertySelectionSourceModel.h"
 #include "Replication/Editor/Model/ReplicatedPropertyData.h"
 #include "Replication/Editor/Model/ReplicatedObjectData.h"
+#include "Replication/Editor/View/ObjectViewer/SReplicationStreamViewer.h"
 
 #include "Algo/AnyOf.h"
 #include "GameFramework/Actor.h"
@@ -20,7 +22,8 @@
 
 namespace UE::ConcertClientSharedSlate
 {
-	void SObjectToPropertyEditor::Construct(const FArguments& InArgs,
+	void SBaseReplicationStreamEditor::Construct(
+		const FArguments& InArgs,
 		TSharedRef<IEditableObjectToPropertiesModel> InPropertiesModel,
 		TSharedRef<IObjectSelectionSourceModel> InObjectSelectionSource,
 		TSharedRef<IPropertySelectionSourceModel> InPropertySelectionSource)
@@ -29,47 +32,70 @@ namespace UE::ConcertClientSharedSlate
 		PropertySelectionSource = MoveTemp(InPropertySelectionSource);
 		
 		EditablePropertiesModel = MoveTemp(InPropertiesModel);
-		EditablePropertiesModel->OnObjectsChanged().AddSP(this, &SObjectToPropertyEditor::OnObjectsChanged);
-		EditablePropertiesModel->OnPropertiesChanged().AddSP(this, &SObjectToPropertyEditor::OnPropertiesChanged);
+		EditablePropertiesModel->OnObjectsChanged().AddSP(this, &SBaseReplicationStreamEditor::OnObjectsChanged);
+		EditablePropertiesModel->OnPropertiesChanged().AddSP(this, &SBaseReplicationStreamEditor::OnPropertiesChanged);
 		PropertiesModelAdapter = MakeShared<FFakeObjectToPropertiesEditorModel>(EditablePropertiesModel.ToSharedRef(), PropertySelectionSource.ToSharedRef());
 
-		using namespace ReplicationPropertyColumns;
-		const FReplicationPropertyColumn ReplicatesColumn =
-			ReplicatesColumns(
-				FGetPropertyCheckboxState::CreateSP(this, &SObjectToPropertyEditor::OnGetPropertyCheckboxState),
-				FOnPropertyCheckboxChanged::CreateSP(this, &SObjectToPropertyEditor::OnPropertyCheckboxChanged)
-				);
+		OnExtendObjectsContextMenuDelegate = InArgs._OnExtendObjectsContextMenu;
 		
-		SObjectToPropertyView::Construct(
-			SObjectToPropertyView::FArguments()
-				.AdditionalPropertyColumns({ ReplicatesColumn })
+		ChildSlot
+		[
+			SAssignNew(ReplicationViewer, SReplicationStreamViewer, PropertiesModelAdapter.ToSharedRef())
+				.AdditionalObjectColumns(InArgs._AdditionalObjectColumns)
+				.AdditionalPropertyColumns(InArgs._AdditionalPropertyColumns)
 				.SubobjectView(InArgs._SubobjectView)
-				.OnDeleteObjects(this, &SObjectToPropertyEditor::OnDeleteObjects)
-				.OnObjectsContextMenuOpening(this, &SObjectToPropertyEditor::OnObjectsContextMenuOpening)
-				.SortPropertyRowPredicate(this, &SObjectToPropertyEditor::SortBySelectionThenByName_PropertyPredicate)
+				.OnDeleteObjects(this, &SBaseReplicationStreamEditor::OnDeleteObjects)
+				.OnObjectsContextMenuOpening(this, &SBaseReplicationStreamEditor::OnObjectsContextMenuOpening)
+				.SortPropertyRowPredicate(InArgs._SortPropertyRowPredicate)
 				.LeftOfObjectSearchBar()
 				[
-					BuildRootAddObjectWidgets()
+					SNew(SHorizontalBox)
+					+SHorizontalBox::Slot()
+					.AutoWidth()
+					[
+						BuildRootAddObjectWidgets()
+					]
+					+SHorizontalBox::Slot()
+					.AutoWidth()
+					[
+						InArgs._LeftOfObjectSearchBar.Widget
+					]
 				]
 				.LeftOfPropertySearchBar()
 				[
-					SAssignNew(AddPropertyWidgetContainer, SHorizontalBox)
-				],
-			PropertiesModelAdapter.ToSharedRef()
-			);
+					InArgs._LeftOfPropertySearchBar.Widget
+				]
+		];
 	}
 
-	void SObjectToPropertyEditor::OnObjectsChanged(TConstArrayView<UObject*> AddedObjects, TConstArrayView<FSoftObjectPath> RemovedObjects, EReplicatedObjectChangeReason ChangeReason)
+	void SBaseReplicationStreamEditor::Refresh()
 	{
-		RefreshObjectData();
+		ReplicationViewer->RefreshObjectData();
+		ReplicationViewer->RefreshSubobjectData();
+		ReplicationViewer->RefreshPropertyData();
 	}
 
-	void SObjectToPropertyEditor::OnPropertiesChanged()
+	TArray<FSoftObjectPath> SBaseReplicationStreamEditor::GetSelectedTopLevelObjects() const
 	{
-		RefreshPropertyData();
+		return ReplicationViewer->GetSelectedTopLevelObjects();
 	}
 
-	TSharedRef<SWidget> SObjectToPropertyEditor::BuildRootAddObjectWidgets() const
+	TArray<FSoftObjectPath> SBaseReplicationStreamEditor::GetObjectsBeingPropertyEdited() const
+	{
+		return ReplicationViewer->GetObjectsBeingPropertyEdited();
+	}
+
+	void SBaseReplicationStreamEditor::OnObjectsChanged(TConstArrayView<UObject*> AddedObjects, TConstArrayView<FSoftObjectPath> RemovedObjects, EReplicatedObjectChangeReason ChangeReason)
+	{
+		ReplicationViewer->RefreshObjectData();
+	}
+
+	void SBaseReplicationStreamEditor::OnPropertiesChanged()
+	{
+		ReplicationViewer->RefreshPropertyData();
+	}
+
+	TSharedRef<SWidget> SBaseReplicationStreamEditor::BuildRootAddObjectWidgets() const
 	{
 		using namespace ConcertSharedSlate;
 		
@@ -86,7 +112,7 @@ namespace UE::ConcertClientSharedSlate
 		return Root;
 	}
 
-	void SObjectToPropertyEditor::OnObjectsSelectedForAdding(TArray<FSelectableObjectInfo> ObjectsToAdd) const
+	void SBaseReplicationStreamEditor::OnObjectsSelectedForAdding(TArray<FSelectableObjectInfo> ObjectsToAdd) const
 	{
 		TArray<UObject*> Objects;
 		Algo::TransformIf(
@@ -99,44 +125,7 @@ namespace UE::ConcertClientSharedSlate
 		EditablePropertiesModel->AddObjects(Objects);
 	}
 
-	ECheckBoxState SObjectToPropertyEditor::OnGetPropertyCheckboxState(const FConcertPropertyChain& PropertyChain)
-	{
-		const TArray<FSoftObjectPath> SelectedObjectPaths = GetSelectedObjectShowingProperties();
-		return ReplicationPropertyColumns::GetPropertyCheckboxStateBasedOnSelection(PropertyChain, SelectedObjectPaths, *EditablePropertiesModel);
-	}
-
-	void SObjectToPropertyEditor::OnPropertyCheckboxChanged(bool bIsChecked, const FConcertPropertyChain& PropertyChain)
-	{
-		TArray Properties{ PropertyChain };
-		for (const FSoftObjectPath& Path : GetSelectedObjectShowingProperties())
-		{
-			UObject* Object = Path.ResolveObject();
-			if (!Object)
-			{
-				continue;
-			}
-			
-			if (bIsChecked)
-			{
-				if (!EditablePropertiesModel->ContainsObjects({ Path }))
-				{
-					EditablePropertiesModel->AddObjects({ Object });
-				}
-				EditablePropertiesModel->AddProperties(Path, Properties);
-			}
-			else
-			{
-				EditablePropertiesModel->RemoveProperties(Path, Properties);
-				const bool bNeedsToRemoveNonRoot = !Object->IsA<AActor>() && EditablePropertiesModel->GetNumProperties(Path) == 0;
-				if (bNeedsToRemoveNonRoot)
-				{
-					EditablePropertiesModel->RemoveObjects({ Path });
-				}
-			}
-		}
-	}
-
-	void SObjectToPropertyEditor::OnDeleteObjects(const TArray<TSharedPtr<FReplicatedObjectData>>& ObjectsToDelete) const
+	void SBaseReplicationStreamEditor::OnDeleteObjects(const TArray<TSharedPtr<FReplicatedObjectData>>& ObjectsToDelete) const
 	{
 		TArray<FSoftObjectPath> DeleteObjectPaths;
 		Algo::Transform(ObjectsToDelete, DeleteObjectPaths, [](const TSharedPtr<FReplicatedObjectData>& Data) { return Data->GetObjectPath(); });
@@ -161,7 +150,7 @@ namespace UE::ConcertClientSharedSlate
 		EditablePropertiesModel->RemoveObjects(ObjectAndChildren);
 	}
 
-	TSharedPtr<SWidget> SObjectToPropertyEditor::OnObjectsContextMenuOpening() const
+	TSharedPtr<SWidget> SBaseReplicationStreamEditor::OnObjectsContextMenuOpening() const
 	{
 		FMenuBuilder MenuBuilder(true, nullptr);
 		AddObjectSourceContextMenuOptions(MenuBuilder);
@@ -169,20 +158,21 @@ namespace UE::ConcertClientSharedSlate
 				LOCTEXT("DeleteItems", "Delete"),
 				FText::GetEmpty(),
 				FSlateIcon(),
-				FUIAction(FExecuteAction::CreateSP(this, &SObjectToPropertyEditor::OnDeleteObjects_PassByValue, GetSelectedOutlinerObjects())),
+				FUIAction(FExecuteAction::CreateSP(this, &SBaseReplicationStreamEditor::OnDeleteObjects_PassByValue, ReplicationViewer->GetSelectedOutlinerObjects())),
 				NAME_None,
 				EUserInterfaceActionType::Button
 			);
 		
+		OnExtendObjectsContextMenuDelegate.ExecuteIfBound(MenuBuilder);
 		return MenuBuilder.MakeWidget();
 	}
 
-	void SObjectToPropertyEditor::AddObjectSourceContextMenuOptions(FMenuBuilder& MenuBuilder) const
+	void SBaseReplicationStreamEditor::AddObjectSourceContextMenuOptions(FMenuBuilder& MenuBuilder) const
 	{
 		using namespace ConcertSharedSlate;
 		
 		// Context menu generation is only supported for single items
-		const TArray<TSharedPtr<FReplicatedObjectData>> SelectedObjects = GetSelectedOutlinerObjects();
+		const TArray<TSharedPtr<FReplicatedObjectData>> SelectedObjects = ReplicationViewer->GetSelectedOutlinerObjects();
 		if (SelectedObjects.Num() != 1)
 		{
 			return;
@@ -214,13 +204,13 @@ namespace UE::ConcertClientSharedSlate
 		MenuBuilder.AddSeparator();
 	}
 
-	ConcertSharedSlate::FSourceModelBuilders<FSelectableObjectInfo>::FItemPickerArgs SObjectToPropertyEditor::MakeObjectSourceBuilderArgs() const
+	ConcertSharedSlate::FSourceModelBuilders<FSelectableObjectInfo>::FItemPickerArgs SBaseReplicationStreamEditor::MakeObjectSourceBuilderArgs() const
 	{
 		using namespace ConcertSharedSlate;
 		
 		return FSourceModelBuilders<FSelectableObjectInfo>::FItemPickerArgs
 		{
-			FSourceModelBuilders<FSelectableObjectInfo>::FOnItemsSelected::CreateSP(this, &SObjectToPropertyEditor::OnObjectsSelectedForAdding),
+			FSourceModelBuilders<FSelectableObjectInfo>::FOnItemsSelected::CreateSP(this, &SBaseReplicationStreamEditor::OnObjectsSelectedForAdding),
 			FSourceModelBuilders<FSelectableObjectInfo>::FGetItemDisplayString::CreateLambda([](const FSelectableObjectInfo& Item)
 			{
 				return Item.Object.IsValid() ? DisplayUtils::GetObjectDisplayString(*Item.Object.Get()) : TEXT("");
@@ -234,23 +224,6 @@ namespace UE::ConcertClientSharedSlate
 				return EditablePropertiesModel->ContainsObjects({ Item.Object.Get() } );
 			})
 		}; 
-	}
-
-	bool SObjectToPropertyEditor::SortBySelectionThenByName_PropertyPredicate(const TSharedPtr<FReplicatedPropertyData>& Left, const TSharedPtr<FReplicatedPropertyData>& Right) const
-	{
-		const TArray<FSoftObjectPath> SelectedObjects = GetSelectedObjectShowingProperties();
-		const ECheckBoxState LeftCheckboxState = ReplicationPropertyColumns::GetPropertyCheckboxStateBasedOnSelection(Left->GetProperty(), SelectedObjects, *EditablePropertiesModel);
-		const ECheckBoxState RightCheckboxState = ReplicationPropertyColumns::GetPropertyCheckboxStateBasedOnSelection(Right->GetProperty(), SelectedObjects, *EditablePropertiesModel);
-		
-		// Secondary sort by name
-		if (LeftCheckboxState == RightCheckboxState)
-		{
-			return DisplayUtils::GetPropertyDisplayString(Left->GetProperty()) < DisplayUtils::GetPropertyDisplayString(Right->GetProperty());
-		}
-
-		// Selected properties should appear first
-		return LeftCheckboxState == ECheckBoxState::Checked
-			&& (RightCheckboxState == ECheckBoxState::Unchecked || RightCheckboxState == ECheckBoxState::Undetermined);
 	}
 }
 

@@ -2,6 +2,8 @@
 
 #pragma once
 
+#include "Replication/Editor/View/IReplicationStreamViewer.h"
+
 #include "Replication/Editor/Model/ReplicatedObjectData.h"
 #include "Replication/Editor/View/ObjectViewer/Tree/SReplicationTreeView.h"
 #include "Replication/Editor/View/ObjectViewer/Tree/SelectionViewerColumns.h"
@@ -37,11 +39,11 @@ namespace UE::ConcertClientSharedSlate
 	 * Important: this view should be possible to be built in programs, so it should not reference things like AActor,
 	 * UActorComponent, ResolveObject, etc. directly. 
 	 */
-	class CONCERTCLIENTSHAREDSLATE_API SObjectToPropertyView : public SCompoundWidget
+	class CONCERTCLIENTSHAREDSLATE_API SReplicationStreamViewer : public IReplicationStreamViewer
 	{
 	public:
 
-		SLATE_BEGIN_ARGS(SObjectToPropertyView)
+		SLATE_BEGIN_ARGS(SReplicationStreamViewer)
 		{}
 			/** Additional columns to add to the object view */
 			SLATE_ARGUMENT(TArray<ReplicationObjectColumns::FReplicationObjectColumn>, AdditionalObjectColumns)
@@ -52,7 +54,7 @@ namespace UE::ConcertClientSharedSlate
 			SLATE_ARGUMENT(TSharedPtr<IReplicationSubobjectView>, SubobjectView)
 
 			/** Optional. Called when the delete key is pressed in the object view. */
-			SLATE_EVENT(SReplicationTreeView<TSharedPtr<FReplicatedObjectData>>::FDeleteItems, OnDeleteObjects)
+			SLATE_EVENT(SReplicationTreeView<FReplicatedObjectData>::FDeleteItems, OnDeleteObjects)
 		
 			/** Called to generate the context menu for objects. */
 			SLATE_EVENT(FOnContextMenuOpening, OnObjectsContextMenuOpening)
@@ -68,6 +70,12 @@ namespace UE::ConcertClientSharedSlate
 
 		void Construct(const FArguments& InArgs, TSharedRef<IObjectToPropertiesModel> InPropertiesModel);
 
+		//~ Begin IReplicationStreamViewer Interface
+		virtual void Refresh() override;
+		virtual TArray<FSoftObjectPath> GetSelectedTopLevelObjects() const override;
+		virtual TArray<FSoftObjectPath> GetObjectsBeingPropertyEdited() const override;
+		//~ End IReplicationStreamViewer Interface
+
 		void RefreshObjectData();
 		void RefreshSubobjectData();
 		void RefreshPropertyData();
@@ -77,8 +85,6 @@ namespace UE::ConcertClientSharedSlate
 
 		/** @return Gets the root objects selected in the outliner; the subobject view chooses which of these objects (or their subobjects) end up in GetSelectedObjectShowingProperties. */
 		TArray<TSharedPtr<FReplicatedObjectData>> GetSelectedOutlinerObjects() const { return ReplicatedObjects->GetSelectedItems(); }
-		/** @return The objects for which properties are being shown; this is what the subobject reports are selected (or the root objects if there is no subobject view). */
-		TArray<FSoftObjectPath> GetSelectedObjectShowingProperties() const;
 		
 	private:
 
@@ -91,12 +97,12 @@ namespace UE::ConcertClientSharedSlate
 		TSharedPtr<SSubobjectAndPropertySection> SubobjectAndPropertySection;
 
 		/** Tree view for replicated objects. */
-		TSharedPtr<SReplicationTreeView<TSharedPtr<FReplicatedObjectData>>> ReplicatedObjects;
+		TSharedPtr<SReplicationTreeView<FReplicatedObjectData>> ReplicatedObjects;
 		
 		/**
 		 * These instances can be subclasses of FReplicatedObjectData, e.g. FReplicatedObjectData_Editor.
 		 * Their type can be overridden by subclasses.
-		 * They only have the FReplicatedObjectData type so they can be passed efficiently to SObjectToPropertyViewer.
+		 * They only have the FReplicatedObjectData type so they can be passed efficiently to SObjectToPropertyView.
 		 * @see GetObjectData
 		 */
 		TSet<TSharedPtr<FReplicatedObjectData>> ObjectRowData;

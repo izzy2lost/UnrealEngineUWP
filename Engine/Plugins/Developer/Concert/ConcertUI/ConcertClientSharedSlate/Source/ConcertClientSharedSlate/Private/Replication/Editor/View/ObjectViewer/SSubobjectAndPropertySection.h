@@ -3,6 +3,7 @@
 #pragma once
 
 #include "Replication/Editor/View/ObjectViewer/Tree/SelectionViewerColumns.h"
+#include "Replication/ReplicationWidgetDelegates.h"
 
 #include "Misc/Optional.h"
 #include "Replication/Data/ConcertPropertySelection.h"
@@ -16,8 +17,6 @@ namespace UE::ConcertClientSharedSlate
 	class SReplicatedPropertiesView;
 	class IReplicationSubobjectView;
 
-	DECLARE_DELEGATE_RetVal_TwoParams(bool, FSortPropertyPredicate, const TSharedPtr<FReplicatedPropertyData>& Left, const TSharedPtr<FReplicatedPropertyData>& Right);
-	
 	/**
 	 * Displays an optional IReplicationSubobjectView and followed by SReplicatedPropertiesView tree view (which is always created).
 	 * 
@@ -87,7 +86,7 @@ namespace UE::ConcertClientSharedSlate
 		/**
 		 * These instances can be subclasses of FReplicatedPropertyData, e.g. FReplicatedPropertyData_Editor.
 		 * Their type can be overridden by subclasses.
-		 * They only have the FReplicatedPropertyData type so they can be passed efficiently to SObjectToPropertyViewer.
+		 * They only have the FReplicatedPropertyData type so they can be passed efficiently to SObjectToPropertyView.
 		 * @see GetPropertyData
 		 */
 		TArray<TSharedPtr<FReplicatedPropertyData>> PropertyRowData;

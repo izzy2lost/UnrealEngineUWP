@@ -1,6 +1,6 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 
-#include "SObjectToPropertyView.h"
+#include "SReplicationStreamViewer.h"
 
 #include "ConcertFrontendUtils.h"
 #include "Replication/Editor/Model/IObjectToPropertiesModel.h"
@@ -15,11 +15,11 @@
 #include "Widgets/SBoxPanel.h"
 #include "Widgets/Text/STextBlock.h"
 
-#define LOCTEXT_NAMESPACE "SObjectToPropertyViewer"
+#define LOCTEXT_NAMESPACE "SObjectToPropertyView"
 
 namespace UE::ConcertClientSharedSlate
 {
-	void SObjectToPropertyView::Construct(const FArguments& InArgs, TSharedRef<IObjectToPropertiesModel> InPropertiesModel)
+	void SReplicationStreamViewer::Construct(const FArguments& InArgs, TSharedRef<IObjectToPropertiesModel> InPropertiesModel)
 	{
 		PropertiesModel = MoveTemp(InPropertiesModel);
 		
@@ -35,7 +35,29 @@ namespace UE::ConcertClientSharedSlate
 		PropertyArea->SetExpanded(true);
 	}
 
-	void SObjectToPropertyView::RefreshObjectData()
+	void SReplicationStreamViewer::Refresh()
+	{
+		RefreshObjectData();
+		RefreshPropertyData();
+		RefreshSubobjectData();
+	}
+
+	TArray<FSoftObjectPath> SReplicationStreamViewer::GetSelectedTopLevelObjects() const
+	{
+		TArray<FSoftObjectPath> Result;
+		Algo::Transform(GetSelectedOutlinerObjects(), Result, [](const TSharedPtr<FReplicatedObjectData>& Data)
+		{
+			return Data->GetObjectPath();
+		});
+		return Result;
+	}
+
+	TArray<FSoftObjectPath> SReplicationStreamViewer::GetObjectsBeingPropertyEdited() const
+	{
+		return SubobjectAndPropertySection->GetSelectedObjects();
+	}
+
+	void SReplicationStreamViewer::RefreshObjectData()
 	{
 		const int32 NumElements = PropertiesModel->GetNumReplicatedObjects();
 		// Re-using existing instances is tricky: we cannot update the object path in an item because the list view will no detect this change;
@@ -69,7 +91,7 @@ namespace UE::ConcertClientSharedSlate
 		}
 	}
 
-	void SObjectToPropertyView::RefreshSubobjectData()
+	void SReplicationStreamViewer::RefreshSubobjectData()
 	{
 		SubobjectAndPropertySection->RefreshSubobjectData();
 		
@@ -77,27 +99,22 @@ namespace UE::ConcertClientSharedSlate
 		RefreshPropertyData();
 	}
 
-	void SObjectToPropertyView::RefreshPropertyData()
+	void SReplicationStreamViewer::RefreshPropertyData()
 	{
 		SubobjectAndPropertySection->RefreshPropertyData();
 	}
 	
-	const TArray<TSharedPtr<FReplicatedPropertyData>>& SObjectToPropertyView::GetPropertyRowData() const
+	const TArray<TSharedPtr<FReplicatedPropertyData>>& SReplicationStreamViewer::GetPropertyRowData() const
 	{
 		return SubobjectAndPropertySection->GetPropertyRowData();
 	}
 
-	TArray<FSoftObjectPath> SObjectToPropertyView::GetSelectedObjectShowingProperties() const
-	{
-		return SubobjectAndPropertySection->GetSelectedObjects();
-	}
-
-	TSharedRef<FReplicatedObjectData> SObjectToPropertyView::AllocateObjectData(FSoftObjectPath ObjectPath)
+	TSharedRef<FReplicatedObjectData> SReplicationStreamViewer::AllocateObjectData(FSoftObjectPath ObjectPath)
 	{
 		return MakeShared<FReplicatedObjectData>(MoveTemp(ObjectPath));
 	}
 
-	TSharedRef<SWidget> SObjectToPropertyView::CreateContentWidget(const FArguments& InArgs)
+	TSharedRef<SWidget> SReplicationStreamViewer::CreateContentWidget(const FArguments& InArgs)
 	{
 		return SNew(SSplitter)
 			.Orientation(Orient_Vertical)
@@ -109,14 +126,14 @@ namespace UE::ConcertClientSharedSlate
 			]
 
 			+SSplitter::Slot()
-			.SizeRule(TAttribute<SSplitter::ESizeRule>(this, &SObjectToPropertyView::GetPropertyAreaSizeRule))
+			.SizeRule(TAttribute<SSplitter::ESizeRule>(this, &SReplicationStreamViewer::GetPropertyAreaSizeRule))
 			.Value(2.f)
 			[
 				CreatePropertiesSection(InArgs)
 			];
 	}
 
-	TSharedRef<SWidget> SObjectToPropertyView::CreateActorsSection(const FArguments& InArgs)
+	TSharedRef<SWidget> SReplicationStreamViewer::CreateActorsSection(const FArguments& InArgs)
 	{
 		TArray<ReplicationObjectColumns::FReplicationObjectColumn> Columns
 		{
@@ -126,9 +143,9 @@ namespace UE::ConcertClientSharedSlate
 		};
 		Columns.Append(InArgs._AdditionalObjectColumns);
 		
-		return SAssignNew(ReplicatedObjects, SReplicationTreeView<TSharedPtr<FReplicatedObjectData>>)
+		return SAssignNew(ReplicatedObjects, SReplicationTreeView<FReplicatedObjectData>)
 			.RootItemsSource(&RootObjectRowData)
-			.OnGetChildren(this, &SObjectToPropertyView::GetObjectRowChildren)
+			.OnGetChildren(this, &SReplicationStreamViewer::GetObjectRowChildren)
 			.OnContextMenuOpening(InArgs._OnObjectsContextMenuOpening)
 			.OnDeleteItems(InArgs._OnDeleteObjects)
 			.OnSelectionChanged_Lambda([this]()
@@ -146,7 +163,7 @@ namespace UE::ConcertClientSharedSlate
 			];
 	}
 
-	TSharedRef<SWidget> SObjectToPropertyView::CreatePropertiesSection(const FArguments& InArgs)
+	TSharedRef<SWidget> SReplicationStreamViewer::CreatePropertiesSection(const FArguments& InArgs)
 	{
 		return SNew(SBorder)
 			.BorderImage(FAppStyle::Get().GetBrush("ToolPanel.GroupBorder"))
@@ -158,7 +175,7 @@ namespace UE::ConcertClientSharedSlate
 				.BorderImage_Lambda([this]() { return ConcertFrontendUtils::GetExpandableAreaBorderImage(*PropertyArea); })
 				.BodyBorderImage(FAppStyle::Get().GetBrush("ToolPanel.GroupBorder"))
 				.BodyBorderBackgroundColor(FLinearColor::White)
-				.OnAreaExpansionChanged(this, &SObjectToPropertyView::OnPropertyAreaExpansionChanged)
+				.OnAreaExpansionChanged(this, &SReplicationStreamViewer::OnPropertyAreaExpansionChanged)
 				.Padding(0.0f)
 				.HeaderContent()
 				[
@@ -182,7 +199,7 @@ namespace UE::ConcertClientSharedSlate
 			];
 	}
 
-	void SObjectToPropertyView::BuildRootObjectRowData()
+	void SReplicationStreamViewer::BuildRootObjectRowData()
 	{
 		TSet<TSharedPtr<FReplicatedObjectData>> NonRootNodes;
 		for (const TSharedPtr<FReplicatedObjectData>& Node : ObjectRowData)
@@ -209,7 +226,7 @@ namespace UE::ConcertClientSharedSlate
 		});
 	}
 
-	void SObjectToPropertyView::GetObjectRowChildren(TSharedPtr<FReplicatedObjectData> ReplicatedObjectData, TFunctionRef<void(TSharedPtr<FReplicatedObjectData>)> ProcessChild)
+	void SReplicationStreamViewer::GetObjectRowChildren(TSharedPtr<FReplicatedObjectData> ReplicatedObjectData, TFunctionRef<void(TSharedPtr<FReplicatedObjectData>)> ProcessChild)
 	{
 		// For now there are no children in the outliner.
 		// In the future we could add an external delegate that allows child actors to be parented.

@@ -38,7 +38,7 @@ namespace UE::MultiUserClient
 		 * Called when the data underlying the model has changed externally. Since the change was not caused by the model,
 		 * its events, like IEditableObjectToPropertiesModel::OnObjectsChanged, were not called.
 		 * 
-		 * Subscribers are intended to call IReplicationEditorView::Refresh() in response.
+		 * Subscribers are intended to call IReplicationStreamEditor::Refresh() in response.
 		 * 
 		 * Examples: Remote client changed their stream, remote client joined with streams,
 		 * or the local client reverted a change that was rejected by the server.

@@ -6,7 +6,7 @@
 
 namespace UE::ConcertClientSharedSlate
 {
-	/** Instanced for each property row in SObjectToPropertyViewer.*/
+	/** Instanced for each property row in SObjectToPropertyView.*/
 	class FReplicatedPropertyData
 	{
 	public:
@@ -24,14 +24,7 @@ namespace UE::ConcertClientSharedSlate
 		/** The class with which the FProperty can be determined. */
 		FSoftClassPath OwningClass;
 		
-		/** The object identified by the */
+		/** The property to be replicated */
 		FConcertPropertyChain Property;
-	};
-
-	/** Instanced for each property row SObjectToPropertyEditor. */
-	class FReplicatedPropertyData_Editor : public FReplicatedPropertyData
-	{
-		// Empty and unused for now. I just want to highlight that if you want custom data for SObjectToPropertyEditor,
-		// you should add it here and override SObjectToPropertyViewer::AllocatePropertyData.
 	};
 }

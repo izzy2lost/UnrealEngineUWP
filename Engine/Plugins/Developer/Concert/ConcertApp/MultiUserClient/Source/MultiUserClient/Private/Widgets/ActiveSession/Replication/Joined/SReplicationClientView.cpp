@@ -5,7 +5,7 @@
 #include "Replication/Client/ReplicationClient.h"
 #include "Replication/Editor/Model/Object/EditorObjectSelectionSourceModel.h"
 #include "Replication/Editor/Model/Property/SelectPropertyFromUClassModel.h"
-#include "Replication/Editor/View/IReplicationEditorView.h"
+#include "Replication/Editor/View/IReplicationStreamEditor.h"
 #include "Replication/ReplicationWidgetFactories.h"
 #include "Widgets/ActiveSession/Replication/Joined/SReplicationClientViewToolbar.h"
 
@@ -27,7 +27,7 @@ namespace UE::MultiUserClient
 			MakeShared<FSelectPropertyFromUClassModel>()
 		};
 
-		EditorView = CreateEditorForUnrealEditor(ReplicationEditorCreationParams);
+		EditorView = CreateDefaultStreamEditor(ReplicationEditorCreationParams);
 		ChildSlot
 		[
 			SNew(SVerticalBox)

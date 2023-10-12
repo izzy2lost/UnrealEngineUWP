@@ -2,7 +2,7 @@
 
 #pragma once
 
-#include "ReplicationColumn.h"
+#include "Replication/Editor/View/ReplicationColumn.h"
 #include "SReplicationColumnRow.h"
 
 #include "Algo/RemoveIf.h"
@@ -26,16 +26,16 @@ namespace UE::ConcertClientSharedSlate
 	{
 	public:
 
-		DECLARE_DELEGATE_OneParam(FDeleteItems, const TArray<TItemType>& SelectedItems);
-		DECLARE_DELEGATE_TwoParams(FGetItemChildren, TItemType Item, TFunctionRef<void(TItemType)> ProcessChild);
+		DECLARE_DELEGATE_OneParam(FDeleteItems, const TArray<TSharedPtr<TItemType>>& SelectedItems);
+		DECLARE_DELEGATE_TwoParams(FGetItemChildren, TSharedPtr<TItemType> Item, TFunctionRef<void(TSharedPtr<TItemType>)> ProcessChild);
 		DECLARE_DELEGATE(FOnSelectionChanged);
-		DECLARE_DELEGATE_RetVal_OneParam(bool, FCustomFilter, const TItemType& Item);
+		DECLARE_DELEGATE_RetVal_OneParam(bool, FCustomFilter, const TSharedPtr<TItemType>& Item);
 
 		SLATE_BEGIN_ARGS(SReplicationTreeView<TItemType>)
 			: _SelectionMode(ESelectionMode::Single)
 		{}
 			/** The items to display */
-			SLATE_ARGUMENT(TArray<TItemType>*, RootItemsSource)
+			SLATE_ARGUMENT(TArray<TSharedPtr<TItemType>>*, RootItemsSource)
 
 			/** Gets an items children for the tree view */
 			SLATE_EVENT(FGetItemChildren, OnGetChildren)
@@ -77,7 +77,7 @@ namespace UE::ConcertClientSharedSlate
 			ExpandableColumnId = InArgs._ExpandableColumnLabel;
 			
 			SearchText = MakeShared<FText>();
-			SearchTextFilter = MakeShared<TTextFilter<const TItemType&>>(TTextFilter<const TItemType&>::FItemToStringArray::CreateSP(this, &SReplicationTreeView::PopulateSearchStrings));
+			SearchTextFilter = MakeShared<TTextFilter<const TSharedPtr<TItemType>&>>(TTextFilter<const TSharedPtr<TItemType>&>::FItemToStringArray::CreateSP(this, &SReplicationTreeView::PopulateSearchStrings));
 			SearchTextFilter->OnChanged().AddSP(this, &SReplicationTreeView::OnFilterChanged);
 			
 			ChildSlot
@@ -138,20 +138,20 @@ namespace UE::ConcertClientSharedSlate
 			OnFilterChanged();
 		}
 		
-		void SetSelectedItems(const TArray<TItemType>& ObjectsToSelect, bool bIsSelected)
+		void SetSelectedItems(const TArray<TSharedPtr<TItemType>>& ObjectsToSelect, bool bIsSelected)
 		{
 			TreeView->ClearSelection();
 			TreeView->SetItemSelection(ObjectsToSelect, bIsSelected);
 		}
-		void SetExpandedItems(const TArray<TItemType>& ObjectsToSelect, bool bIsExpanded)
+		void SetExpandedItems(const TArray<TSharedPtr<TItemType>>& ObjectsToSelect, bool bIsExpanded)
 		{
-			for (TItemType Item : ObjectsToSelect)
+			for (TSharedPtr<TItemType> Item : ObjectsToSelect)
 			{
 				TreeView->SetItemExpansion(Item, bIsExpanded);
 			}
 		}
 		
-		TArray<TItemType> GetSelectedItems() const { return TreeView->GetSelectedItems(); }
+		TArray<TSharedPtr<TItemType>> GetSelectedItems() const { return TreeView->GetSelectedItems(); }
 		
 		virtual FReply OnKeyDown(const FGeometry& MyGeometry, const FKeyEvent& InKeyEvent) override;
 
@@ -162,17 +162,17 @@ namespace UE::ConcertClientSharedSlate
 		/** Used to highlight text in text widgets */
 		TSharedPtr<FText> SearchText;
 		/** Performs text search */
-		TSharedPtr<TTextFilter<const TItemType&>> SearchTextFilter;
+		TSharedPtr<TTextFilter<const TSharedPtr<TItemType>&>> SearchTextFilter;
 
 		/** ListView's header row */
 		TSharedPtr<SHeaderRow> HeaderRow;
 		/** Displays the contents */
-		TSharedPtr<STreeView<TItemType>> TreeView;
+		TSharedPtr<STreeView<TSharedPtr<TItemType>>> TreeView;
 		/** The name of the column which will have the SExpandableArrow widget for the tree view. */
 		FName ExpandableColumnId;
 
-		TArray<TItemType>* AllRootItems = nullptr;
-		TArray<TItemType> FilteredRootItems;
+		TArray<TSharedPtr<TItemType>>* AllRootItems = nullptr;
+		TArray<TSharedPtr<TItemType>> FilteredRootItems;
 
 		/** Callback for getting an item's children. */
 		FGetItemChildren OnGetChildrenDelegate;
@@ -184,15 +184,15 @@ namespace UE::ConcertClientSharedSlate
 
 		TSharedRef<SWidget> CreateTreeView(const FArguments& InArgs);
 		TSharedRef<SHeaderRow> CreateHeaderRow(const FArguments& InArgs);
-		TSharedRef<ITableRow> OnGenerateRowWidget(TItemType Item, const TSharedRef<STableViewBase>& OwnerTable);
-		void GetRowChildren(TItemType Item, TArray<TItemType>& OutChildren);
+		TSharedRef<ITableRow> OnGenerateRowWidget(TSharedPtr<TItemType> Item, const TSharedRef<STableViewBase>& OwnerTable);
+		void GetRowChildren(TSharedPtr<TItemType> Item, TArray<TSharedPtr<TItemType>>& OutChildren);
 		
 		void OnSearchTextCommitted(const FText& InFilterText, ETextCommit::Type CommitType);
 		void OnSearchTextChanged(const FText& InSearchText);
 
-		void PopulateSearchStrings(const TItemType& Item, TArray<FString>& OutSearchStrings);
+		void PopulateSearchStrings(const TSharedPtr<TItemType>& Item, TArray<FString>& OutSearchStrings);
 		void OnFilterChanged();
-		bool PassesFilters(const TItemType& Item);
+		bool PassesFilters(const TSharedPtr<TItemType>& Item);
 	};
 
 	template <typename TItemType>
@@ -215,7 +215,7 @@ namespace UE::ConcertClientSharedSlate
 			.BorderBackgroundColor(FSlateColor(FLinearColor(0.6, 0.6, 0.6)))
 			.Padding(0)
 			[
-				SAssignNew(TreeView, STreeView<TItemType>)
+				SAssignNew(TreeView, STreeView<TSharedPtr<TItemType>>)
 				.OnGetChildren(this, &SReplicationTreeView::GetRowChildren)
 				.TreeItemsSource(&FilteredRootItems)
 				.OnGenerateRow(this, &SReplicationTreeView::OnGenerateRowWidget)
@@ -249,7 +249,7 @@ namespace UE::ConcertClientSharedSlate
 	}
 
 	template <typename TItemType>
-	TSharedRef<ITableRow> SReplicationTreeView<TItemType>::OnGenerateRowWidget(TItemType Item, const TSharedRef<STableViewBase>& OwnerTable)
+	TSharedRef<ITableRow> SReplicationTreeView<TItemType>::OnGenerateRowWidget(TSharedPtr<TItemType> Item, const TSharedRef<STableViewBase>& OwnerTable)
 	{
 		const typename SReplicationColumnRow<TItemType>::FGetColumn ColumnGetter = SReplicationColumnRow<TItemType>::FGetColumn::CreateLambda([this](const FName& ColumnId) -> const TReplicationColumn<TItemType>*
 		{
@@ -273,11 +273,11 @@ namespace UE::ConcertClientSharedSlate
 	}
 
 	template <typename TItemType>
-	void SReplicationTreeView<TItemType>::GetRowChildren(TItemType Item, TArray<TItemType>& OutChildren)
+	void SReplicationTreeView<TItemType>::GetRowChildren(TSharedPtr<TItemType> Item, TArray<TSharedPtr<TItemType>>& OutChildren)
 	{
 		if (OnGetChildrenDelegate.IsBound())
 		{
-			OnGetChildrenDelegate.Execute(Item, [this, &OutChildren](TItemType ItemToAdd)
+			OnGetChildrenDelegate.Execute(Item, [this, &OutChildren](TSharedPtr<TItemType> ItemToAdd)
 			{
 				if (PassesFilters(ItemToAdd))
 				{
@@ -305,12 +305,12 @@ namespace UE::ConcertClientSharedSlate
 	}
 
 	template <typename TItemType>
-	void SReplicationTreeView<TItemType>::PopulateSearchStrings(const TItemType& Item, TArray<FString>& OutSearchStrings)
+	void SReplicationTreeView<TItemType>::PopulateSearchStrings(const TSharedPtr<TItemType>& Item, TArray<FString>& OutSearchStrings)
 	{
 		for (const SHeaderRow::FColumn& Column : HeaderRow->GetColumns())
 		{
 			const TReplicationColumn<TItemType>& CastColumn = static_cast<const TReplicationColumn<TItemType>&>(Column);
-			CastColumn.ExecutePopulateSearchString(Item, OutSearchStrings);
+			CastColumn.ExecutePopulateSearchString(*Item.Get(), OutSearchStrings);
 		}
 	}
 
@@ -318,13 +318,13 @@ namespace UE::ConcertClientSharedSlate
 	void SReplicationTreeView<TItemType>::OnFilterChanged()
 	{
 		// Try preserving the selected activity.
-		TArray<TItemType> SelectedItems = TreeView->GetSelectedItems();
+		TArray<TSharedPtr<TItemType>> SelectedItems = TreeView->GetSelectedItems();
 
 		// Reset the list of displayed activities.
 		FilteredRootItems.Reset(AllRootItems->Num());
 
 		// Apply the filter.
-		for (const TItemType& Activity : *AllRootItems)
+		for (const TSharedPtr<TItemType>& Activity : *AllRootItems)
 		{
 			if (PassesFilters(Activity))
 			{
@@ -333,7 +333,7 @@ namespace UE::ConcertClientSharedSlate
 		}
 
 		// Restore/reset the selected activity.
-		SelectedItems.SetNum(Algo::RemoveIf(SelectedItems, [this](const TItemType& Item){ return !FilteredRootItems.Contains(Item); }));
+		SelectedItems.SetNum(Algo::RemoveIf(SelectedItems, [this](const TSharedPtr<TItemType>& Item){ return !FilteredRootItems.Contains(Item); }));
 		if (!SelectedItems.IsEmpty())
 		{
 			TreeView->SetItemSelection(SelectedItems, true); // Restore previous selection.
@@ -344,7 +344,7 @@ namespace UE::ConcertClientSharedSlate
 	}
 
 	template <typename TItemType>
-	bool SReplicationTreeView<TItemType>::PassesFilters(const TItemType& Item)
+	bool SReplicationTreeView<TItemType>::PassesFilters(const TSharedPtr<TItemType>& Item)
 	{
 		return SearchTextFilter->PassesFilter(Item)
 			&& (!CustomFilterDelegate.IsBound() || CustomFilterDelegate.Execute(Item));

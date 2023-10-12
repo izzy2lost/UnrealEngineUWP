@@ -25,10 +25,10 @@ namespace UE::ConcertClientSharedSlate
 			SLATE_ARGUMENT(TArray<TSharedPtr<FReplicatedPropertyData>>*, RootItemsSource)
 		
 			/** Gets an items children for the tree view */
-			SLATE_EVENT(SReplicationTreeView<TSharedPtr<FReplicatedPropertyData>>::FGetItemChildren, OnGetChildren)
+			SLATE_EVENT(SReplicationTreeView<FReplicatedPropertyData>::FGetItemChildren, OnGetChildren)
 		
 			/** The columns this list should have */
-			SLATE_ARGUMENT(TArray<TReplicationColumn<TSharedPtr<FReplicatedPropertyData>>>, Columns)
+			SLATE_ARGUMENT(TArray<TReplicationColumn<FReplicatedPropertyData>>, Columns)
 			/** The name of the column that will have the SExpanderArrow for the tree view. */
 			SLATE_ARGUMENT(FName, ExpandableColumnLabel)
 		
@@ -50,7 +50,7 @@ namespace UE::ConcertClientSharedSlate
 	private:
 
 		/** The tree view displaying the replicated properties */
-		TSharedPtr<SReplicationTreeView<TSharedPtr<FReplicatedPropertyData>>> ReplicatedProperties;
+		TSharedPtr<SReplicationTreeView<FReplicatedPropertyData>> ReplicatedProperties;
 		/** Displays the active filters*/
 		TSharedPtr<SBasicFilterBar<TSharedPtr<FReplicatedPropertyData>>> FilterBar;
 
