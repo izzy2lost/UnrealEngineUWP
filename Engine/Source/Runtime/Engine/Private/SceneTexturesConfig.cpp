@@ -214,11 +214,16 @@ static uint32 GetEditorPrimitiveNumSamples(ERHIFeatureLevel::Type FeatureLevel)
 static void SetupMobileGBufferFlags(FGBufferBindings GBufferBindings[GBL_Num], bool bRequiresMultiPass)
 {
 	ETextureCreateFlags AddFlags = TexCreate_InputAttachmentRead;
+	
+	// Mobile uses FBF/subpassLoad to fetch data from GBuffer, and FBF does not always work with sRGB targets 
+	ETextureCreateFlags RemoveFlags = TexCreate_SRGB;
 
 	if (!bRequiresMultiPass)
 	{
 		// use memoryless GBuffer when possible
 		AddFlags |= TexCreate_Memoryless;
+		// memoryless GBuffer cant be used with compute
+		RemoveFlags |= TexCreate_UAV;
 	}
 
 	for (uint32 Layout = 0; Layout < GBL_Num; ++Layout)
@@ -230,13 +235,12 @@ static void SetupMobileGBufferFlags(FGBufferBindings GBufferBindings[GBL_Num], b
 		Bindings.GBufferC.Flags |= AddFlags;
 		Bindings.GBufferD.Flags |= AddFlags;
 		Bindings.GBufferE.Flags |= AddFlags;
-
-		// Mobile uses FBF/subpassLoad to fetch data from GBuffer, and FBF does not always work with sRGB targets 
-		Bindings.GBufferA.Flags &= (~TexCreate_SRGB);
-		Bindings.GBufferB.Flags &= (~TexCreate_SRGB);
-		Bindings.GBufferC.Flags &= (~TexCreate_SRGB);
-		Bindings.GBufferD.Flags &= (~TexCreate_SRGB);
-		Bindings.GBufferE.Flags &= (~TexCreate_SRGB);
+		
+		Bindings.GBufferA.Flags &= (~RemoveFlags);
+		Bindings.GBufferB.Flags &= (~RemoveFlags);
+		Bindings.GBufferC.Flags &= (~RemoveFlags);
+		Bindings.GBufferD.Flags &= (~RemoveFlags);
+		Bindings.GBufferE.Flags &= (~RemoveFlags);
 
 		// Input attachments with PF_R8G8B8A8 has better support on mobile than PF_B8G8R8A8
 		auto OverrideB8G8R8A8 = [](FGBufferBinding& Binding) { if (Binding.Format == PF_B8G8R8A8) Binding.Format = PF_R8G8B8A8; };

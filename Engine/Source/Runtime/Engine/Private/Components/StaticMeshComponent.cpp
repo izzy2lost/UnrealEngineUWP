@@ -1566,10 +1566,11 @@ void UStaticMeshComponent::CollectPSOPrecacheDataImpl(
 
 	bool bSupportsManualVertexFetch = VFType->SupportsManualVertexFetch(GMaxRHIFeatureLevel);
 	bool bAnySectionCastsShadows = false;
+	int32 MeshMinLOD = GetStaticMesh()->GetMinLODIdx();
 
 	FPSOPrecacheVertexFactoryDataPerMaterialIndexList VFTypesPerMaterialIndex;
 	FStaticMeshLODResourcesArray& LODResources = GetStaticMesh()->GetRenderData()->LODResources;
-	for (int32 LODIndex = 0; LODIndex < LODResources.Num(); ++LODIndex)
+	for (int32 LODIndex = MeshMinLOD; LODIndex < LODResources.Num(); ++LODIndex)
 	{
 		FStaticMeshLODResources& LODRenderData = LODResources[LODIndex];
 		FVertexDeclarationElementList VertexElements;

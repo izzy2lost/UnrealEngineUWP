@@ -83,28 +83,37 @@ void FGeometryCollectionVertexFactory::ValidateCompiledResult(const FVertexFacto
 
 void FGeometryCollectionVertexFactory::GetPSOPrecacheVertexFetchElements(EVertexInputStreamType VertexInputStreamType, FVertexDeclarationElementList& Elements)
 {
-	Elements.Add(FVertexElement(0, 0, VET_Float3, 0, 0, false));
+	Elements.Add(FVertexElement(0, 0, VET_Float3, 0, sizeof(float)*3u, false));
 
-	switch (VertexInputStreamType)
+	if (VertexInputStreamType == EVertexInputStreamType::PositionAndNormalOnly)
 	{
-	case EVertexInputStreamType::Default:
-	{
-		Elements.Add(FVertexElement(1, 0, VET_UInt, 13, 0, true));
-		break;
+		// 2-axis TangentBasis components in a single buffer, hence *2u
+		Elements.Add(FVertexElement(1, 0, VET_PackedNormal, 2, sizeof(FPackedNormal)*2u, false));
 	}
-	case EVertexInputStreamType::PositionOnly:
+
+	if (UseGPUScene(GMaxRHIShaderPlatform, GMaxRHIFeatureLevel)
+		&& !PlatformGPUSceneUsesUniformBufferView(GMaxRHIShaderPlatform))
 	{
-		Elements.Add(FVertexElement(1, 0, VET_UInt, 1, 0, true));
-		break;
-	}
-	case EVertexInputStreamType::PositionAndNormalOnly:
-	{
-		Elements.Add(FVertexElement(1, 0, VET_PackedNormal, 2, 0, false));
-		Elements.Add(FVertexElement(2, 0, VET_UInt, 1, 0, true));
-		break;
-	}
-	default:
-		checkNoEntry();
+		switch (VertexInputStreamType)
+		{
+		case EVertexInputStreamType::Default:
+		{
+			Elements.Add(FVertexElement(1, 0, VET_UInt, 13, sizeof(uint32), true));
+			break;
+		}
+		case EVertexInputStreamType::PositionOnly:
+		{
+			Elements.Add(FVertexElement(1, 0, VET_UInt, 1, sizeof(uint32), true));
+			break;
+		}
+		case EVertexInputStreamType::PositionAndNormalOnly:
+		{
+			Elements.Add(FVertexElement(2, 0, VET_UInt, 1, sizeof(uint32), true));
+			break;
+		}
+		default:
+			checkNoEntry();
+		}
 	}
 }
 

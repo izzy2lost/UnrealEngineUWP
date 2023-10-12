@@ -21,6 +21,7 @@
 #include "StaticMeshResources.h"
 #include "Containers/Ticker.h"
 #include "PSOPrecache.h"
+#include "DataDrivenShaderPlatformInfo.h"
 
 static TAutoConsoleVariable<int32> CVarRayTracingTextMeshes(
 	TEXT("r.RayTracing.Geometry.Text"),
@@ -1518,7 +1519,9 @@ void UTextRenderComponent::PostLoad()
 		}
 	}
 
-	if (IsComponentPSOPrecachingEnabled() && TextMaterial)
+	if (IsComponentPSOPrecachingEnabled() && TextMaterial
+		// FIXME: need to collect an actual vertex declaration for non-MVF path
+		&& RHISupportsManualVertexFetch(GMaxRHIShaderPlatform))
 	{
 		FPSOPrecacheParams PrecachePSOParams;
 		SetupPrecachePSOParams(PrecachePSOParams);

@@ -31,6 +31,7 @@
 #include "LocalVertexFactory.h"
 #include "UObject/ICookInfo.h"
 #include "UObject/ObjectSaveContext.h"
+#include "DataDrivenShaderPlatformInfo.h"
 
 #include UE_INLINE_GENERATED_CPP_BY_NAME(WaterBodyComponent)
 
@@ -1605,7 +1606,9 @@ void UWaterBodyComponent::PostLoad()
 
 	DeprecateData();
 
-	if (IsComponentPSOPrecachingEnabled())
+	if (IsComponentPSOPrecachingEnabled()
+		// FIXME: need to collect an actual vertex declaration for non-MVF path
+		&& RHISupportsManualVertexFetch(GMaxRHIShaderPlatform))
 	{
 		FPSOPrecacheParams PrecachePSOParams;
 		SetupPrecachePSOParams(PrecachePSOParams);
