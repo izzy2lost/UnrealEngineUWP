@@ -689,6 +689,17 @@ void UNiagaraRibbonRendererProperties::GetRendererFeedback(const FVersionedNiaga
 
 		CheckUVSettingsForChannel(UV0Settings, 0);
 		CheckUVSettingsForChannel(UV1Settings, 1);
+
+		if (DrawDirection != ENiagaraRibbonDrawDirection::FrontToBack)
+		{
+			OutWarnings.Emplace(
+				LOCTEXT("GpuDrawDirectionNoSupportDesc", "Gpu ribbons only support the default Draw Direction for 'Front To Back'"),
+				LOCTEXT("GpuDrawDirectionNoSupportSummary", "Gpu ribbons do not support this Draw Direction mode it will be ignored"),
+				FText(),
+				FNiagaraRendererFeedbackFix(),
+				true
+			);
+		}
 	}
 
 	// If we're in multiplane shape, and multiplane count is even while we're in camera facing mode then one

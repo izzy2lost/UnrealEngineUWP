@@ -286,12 +286,11 @@ private:
 #endif
 
 public:
-
 	UPROPERTY(EditAnywhere, Category = "Ribbon Rendering")	
 	int32 MaxNumRibbons;
 	
-	/** If true, the particles are only sorted when using a translucent material. */
-	UPROPERTY(EditAnywhere, Category = "Ribbon Rendering")
+	/** Controls the order the ribbon segments will be rendered. */
+	UPROPERTY(EditAnywhere, Category = "Sorting")
 	ENiagaraRibbonDrawDirection DrawDirection;
 
 	/** Shape of the ribbon, from flat plane, multiplane, 3d tube, and custom shapes. */
