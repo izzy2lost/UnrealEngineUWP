@@ -401,6 +401,21 @@ public:
 	virtual void EmitValueShader(FEmitContext& Context, FEmitScope& Scope, const FRequestedType& RequestedType, FEmitValueShaderResult& OutResult) const override;
 };
 
+class FPathTracingBufferTextureFunction : public FExpression
+{
+public:
+	const FExpression* UVExpression;
+	const uint8 PathTracingBufferTextureID;
+
+	FPathTracingBufferTextureFunction(const FExpression* InUVExpression, uint8 InPathTracingBufferTextureID)
+		: UVExpression(InUVExpression)
+		, PathTracingBufferTextureID(InPathTracingBufferTextureID)
+	{}
+
+	virtual bool PrepareValue(FEmitContext& Context, FEmitScope& Scope, const FRequestedType& RequestedType, FPrepareValueResult& OutResult) const override;
+	virtual void EmitValueShader(FEmitContext& Context, FEmitScope& Scope, const FRequestedType& RequestedType, FEmitValueShaderResult& OutResult) const override;
+};
+
 class FExpressionSphericalParticleOpacityFunction : public FExpression
 {
 public:
@@ -570,6 +585,30 @@ public:
 	virtual bool PrepareValue(FEmitContext& Context, FEmitScope& Scope, const FRequestedType& RequestedType, FPrepareValueResult& OutResult) const override;
 	virtual void EmitValueShader(FEmitContext& Context, FEmitScope& Scope, const FRequestedType& RequestedType, FEmitValueShaderResult& OutResult) const override;
 };
+
+class FExpressionAntiAliasedTextureMask : public FExpression
+{
+public:
+	const FExpression* TextureExpression;
+	const FExpression* TexCoordExpression;
+	float Threshold;
+	uint8 Channel;
+
+	explicit FExpressionAntiAliasedTextureMask(
+		const FExpression* InTextureExpression, 
+		const FExpression* InTexCoordExpression,
+		float InThreshold, 
+		uint8 InChannel)
+		: TextureExpression(InTextureExpression)
+		, TexCoordExpression(InTexCoordExpression)
+		, Threshold(InThreshold)
+		, Channel(InChannel)
+	{}
+
+	virtual bool PrepareValue(FEmitContext& Context, FEmitScope& Scope, const FRequestedType& RequestedType, FPrepareValueResult& OutResult) const override;
+	virtual void EmitValueShader(FEmitContext& Context, FEmitScope& Scope, const FRequestedType& RequestedType, FEmitValueShaderResult& OutResult) const override;
+};
+
 
 class FExpressionStaticTerrainLayerWeight : public FExpression
 {

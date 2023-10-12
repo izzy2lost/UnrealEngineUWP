@@ -141,6 +141,7 @@
 #include "Materials/MaterialExpressionParticleSize.h"
 #include "Materials/MaterialExpressionParticleSpeed.h"
 #include "Materials/MaterialExpressionParticleSubUVProperties.h"
+#include "Materials/MaterialExpressionPathTracingBufferTexture.h"
 #include "Materials/MaterialExpressionPathTracingQualitySwitch.h"
 #include "Materials/MaterialExpressionPathTracingRayTypeSwitch.h"
 #include "Materials/MaterialExpressionPerInstanceCustomData.h"
@@ -166,6 +167,7 @@
 #include "Materials/MaterialExpressionRotator.h"
 #include "Materials/MaterialExpressionRound.h"
 #include "Materials/MaterialExpressionRuntimeVirtualTextureOutput.h"
+#include "Materials/MaterialExpressionRuntimeVirtualTextureReplace.h"
 #include "Materials/MaterialExpressionRuntimeVirtualTextureSample.h"
 #include "Materials/MaterialExpressionRuntimeVirtualTextureSampleParameter.h"
 #include "Materials/MaterialExpressionSaturate.h"
@@ -1539,6 +1541,27 @@ bool UMaterialExpressionTextureSample::GenerateHLSLExpressionBase(FMaterialHLSLG
 	return true;
 }
 
+bool UMaterialExpressionAntialiasedTextureMask::GenerateHLSLExpression(FMaterialHLSLGenerator& Generator, UE::HLSLTree::FScope& Scope, int32 OutputIndex, UE::HLSLTree::FExpression const*& OutExpression) const
+{
+	using namespace UE::HLSLTree;
+
+	const FExpression* CoordExpression = Coordinates.AcquireHLSLExpressionOrExternalInput(Generator, Scope, Material::MakeInputTexCoord(ConstCoordinate));
+
+	const FExpression* TextureExpression = nullptr;
+	if (TextureObject.GetTracedInput().Expression)
+	{
+		TextureExpression = TextureObject.AcquireHLSLExpression(Generator, Scope);
+	}
+	else if (Texture)
+	{
+		const FMaterialParameterMetadata ParameterMeta(Texture);
+		TextureExpression = Generator.GenerateMaterialParameter(FName(), ParameterMeta, SamplerType);
+	}
+
+	OutExpression = Generator.GetTree().NewExpression<Material::FExpressionAntiAliasedTextureMask>(TextureExpression, CoordExpression, Threshold, Channel);
+	return true;
+}
+
 bool UMaterialExpressionTextureSample::GenerateHLSLExpression(FMaterialHLSLGenerator& Generator, UE::HLSLTree::FScope& Scope, int32 OutputIndex, UE::HLSLTree::FExpression const*& OutExpression) const
 {
 	using namespace UE::HLSLTree;
@@ -1969,6 +1992,27 @@ bool UMaterialExpressionRuntimeVirtualTextureOutput::GenerateHLSLExpression(FMat
 		return false;
 	}
 
+	return true;
+}
+
+bool UMaterialExpressionRuntimeVirtualTextureReplace::GenerateHLSLExpression(FMaterialHLSLGenerator& Generator, UE::HLSLTree::FScope& Scope, int32 OutputIndex, UE::HLSLTree::FExpression const*& OutExpression) const
+{
+	using namespace UE::HLSLTree;
+
+	if (!Default.GetTracedInput().Expression)
+	{
+		return Generator.Errorf(TEXT("Missing RuntimeVirtualTextureReplace input 'Default'"));
+	}
+
+	if (!VirtualTextureOutput.GetTracedInput().Expression)
+	{
+		return Generator.Errorf(TEXT("Missing RuntimeVirtualTextureReplace input 'VirtualTextureOutput'"));
+	}
+
+	const FExpression* DefaultExpression = Default.AcquireHLSLExpression(Generator, Scope);
+	const FExpression* VirtualTextureExpression = VirtualTextureOutput.AcquireHLSLExpression(Generator, Scope);
+	const FExpression* ConditionExpression = Generator.GetTree().NewExpression<FExpressionInlineCustomHLSL>(UE::Shader::EValueType::Bool1, TEXT("GetRuntimeVirtualTextureOutputSwitch()"));
+	OutExpression = Generator.GetTree().NewExpression<FExpressionSelect>(ConditionExpression, VirtualTextureExpression, DefaultExpression);
 	return true;
 }
 
@@ -2471,6 +2515,25 @@ bool UMaterialExpressionPathTracingQualitySwitch::GenerateHLSLExpression(FMateri
 		OutExpression = Generator.GetTree().NewExpression<FExpressionSelect>(ConditionExpression, PathTracedExpression, NormalExpression);
 		return true;
 	}
+}
+
+bool UMaterialExpressionPathTracingBufferTexture::GenerateHLSLExpression(FMaterialHLSLGenerator& Generator, UE::HLSLTree::FScope& Scope, int32 OutputIndex, UE::HLSLTree::FExpression const*& OutExpression) const
+{
+	using namespace UE::HLSLTree;
+
+	const FExpression* UVExpression = nullptr;
+	if (Coordinates.GetTracedInput().Expression)
+	{
+		UVExpression = Coordinates.AcquireHLSLExpression(Generator, Scope);
+	}
+	else
+	{
+		UVExpression = Generator.GetTree().NewExpression<UE::HLSLTree::FExpressionInlineCustomHLSL>(UE::Shader::EValueType::Float2, TEXT("GetDefaultPathTracingBufferTextureUV(Parameters, 0)"));
+
+	}
+
+	OutExpression = Generator.GetTree().NewExpression<Material::FPathTracingBufferTextureFunction>(UVExpression, PathTracingBufferTextureId);
+	return true;
 }
 
 bool UMaterialExpressionDepthOfFieldFunction::GenerateHLSLExpression(FMaterialHLSLGenerator& Generator, UE::HLSLTree::FScope& Scope, int32 OutputIndex, UE::HLSLTree::FExpression const*& OutExpression) const

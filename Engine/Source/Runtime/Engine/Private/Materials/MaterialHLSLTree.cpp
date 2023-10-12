@@ -965,6 +965,36 @@ void FExpressionDBufferTexture::EmitValueShader(FEmitContext& Context, FEmitScop
 		EmitTexCoord, DBufferTextureID);
 }
 
+bool FPathTracingBufferTextureFunction::PrepareValue(FEmitContext& Context, FEmitScope& Scope, const FRequestedType& RequestedType, FPrepareValueResult& OutResult) const
+{
+	if (Context.Material->GetMaterialDomain() != MD_PostProcess)
+	{
+		return Context.Error(TEXT("Path tracing buffer textures are only available on post process material."));
+	}
+
+	if (Context.PrepareExpression(UVExpression, Scope, RequestedType).IsVoid())
+	{
+		return false;
+	}
+
+	if (Context.bMarkLiveValues && Context.MaterialCompilationOutput)
+	{
+		Context.MaterialCompilationOutput->SetIsPathTracingBufferTextureUsed(PathTracingBufferTextureID);
+	}
+
+	return OutResult.SetType(Context, RequestedType, EExpressionEvaluation::Shader, Shader::EValueType::Float4);
+}
+
+void FPathTracingBufferTextureFunction::EmitValueShader(FEmitContext& Context, FEmitScope& Scope, const FRequestedType& RequestedType, FEmitValueShaderResult& OutResult) const
+{
+	FEmitShaderExpression* EmitTexCoord = UVExpression->GetValueShader(Context, Scope, Shader::EValueType::Float2);
+
+	OutResult.Code = Context.EmitInlineExpression(
+		Scope, Shader::EValueType::Float4,
+		TEXT("MaterialExpressionPathTracingBufferTextureLookup(Parameters, %, %)"),
+		EmitTexCoord, (int)PathTracingBufferTextureID);
+}
+
 namespace Private
 {
 
@@ -1859,6 +1889,48 @@ void FExpressionTextureProperty::EmitValuePreshader(FEmitContext& Context, FEmit
 			OutResult.Type = Shader::EValueType::Float2;
 		}
 	}
+}
+
+bool FExpressionAntiAliasedTextureMask::PrepareValue(FEmitContext& Context, FEmitScope& Scope, const FRequestedType& RequestedType, FPrepareValueResult& OutResult) const
+{
+	if (Context.TargetParameters.FeatureLevel < ERHIFeatureLevel::SM5)
+	{
+		return Context.Errorf(TEXT("Node not supported in feature level %d. %d required."), Context.TargetParameters.FeatureLevel, ERHIFeatureLevel::SM5);
+	}
+
+	const FPreparedType& TextureType = Context.PrepareExpression(TextureExpression, Scope, FMaterialTextureValue::GetTypeName());
+	if (TextureType.Type.ObjectType != FMaterialTextureValue::GetTypeName())
+	{
+		return Context.Error(TEXT("Expected texture"));
+	}
+
+	const FPreparedType& CoordType = Context.PrepareExpression(TexCoordExpression, Scope, Shader::EValueType::Float2);
+	if (CoordType.IsVoid())
+	{
+		return false;
+	}
+
+	return OutResult.SetType(Context, RequestedType, EExpressionEvaluation::Shader, Shader::EValueType::Float1);
+}
+
+void FExpressionAntiAliasedTextureMask::EmitValueShader(FEmitContext& Context, FEmitScope& Scope, const FRequestedType& RequestedType, FEmitValueShaderResult& OutResult) const
+{
+	FEmitShaderExpression* EmitCoord = TexCoordExpression->GetValueShader(Context, Scope, Shader::EValueType::Float2);
+
+	FMaterialTextureValue TextureValue;
+	verify(TextureExpression->GetValueObject(Context, Scope, TextureValue));
+	TStringBuilder<64> FormattedTexture;
+	Private::EmitTextureShader(Context, TextureValue, FormattedTexture);
+
+	OutResult.Code = Context.EmitExpression(
+		Scope,
+		Shader::EValueType::Float1,
+		TEXT("AntialiasedTextureMask(%,%Sampler,%,%,%)"),
+		FormattedTexture.ToString(),
+		FormattedTexture.ToString(),
+		EmitCoord,
+		Threshold,
+		Channel);
 }
 
 bool FExpressionRuntimeVirtualTextureUniform::PrepareValue(FEmitContext& Context, FEmitScope& Scope, const FRequestedType& RequestedType, FPrepareValueResult& OutResult) const
