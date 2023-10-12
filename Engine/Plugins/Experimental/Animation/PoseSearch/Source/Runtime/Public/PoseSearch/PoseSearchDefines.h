@@ -4,10 +4,10 @@
 
 #include "Async/ParallelFor.h"
 #include "Logging/LogMacros.h"
-#include "ObjectTrace.h"
+#include "Animation/AnimTrace.h"
 
 // Enable this if object tracing is enabled, mimics animation tracing
-#define UE_POSE_SEARCH_TRACE_ENABLED OBJECT_TRACE_ENABLED
+#define UE_POSE_SEARCH_TRACE_ENABLED ANIM_TRACE_ENABLED
 
 #ifndef UE_POSE_SEARCH_FORCE_SINGLE_THREAD
 #define UE_POSE_SEARCH_FORCE_SINGLE_THREAD 0

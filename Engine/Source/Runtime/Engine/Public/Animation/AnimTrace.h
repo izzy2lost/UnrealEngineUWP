@@ -7,7 +7,7 @@
 #include "CoreMinimal.h"
 #include "Trace/Trace.h"
 
-#define ANIM_TRACE_ENABLED OBJECT_TRACE_ENABLED
+#define ANIM_TRACE_ENABLED (OBJECT_TRACE_ENABLED && !(UE_BUILD_SHIPPING || UE_BUILD_TEST))
 
 #if ANIM_TRACE_ENABLED
 
