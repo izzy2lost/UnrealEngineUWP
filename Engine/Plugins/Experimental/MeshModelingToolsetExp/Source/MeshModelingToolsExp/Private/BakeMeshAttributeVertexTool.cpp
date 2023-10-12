@@ -273,10 +273,9 @@ void UBakeMeshAttributeVertexTool::Setup()
 	// TargetMesh stores the original target mesh. It is intended to remain
 	// const throughout this tool and is used to refresh the PreviewMesh back
 	// to its original state.
-	TargetMesh = UE::ToolTarget::GetDynamicMeshCopy(Targets[0], true);
-	TargetSpatial.SetMesh(&TargetMesh, true);
-	TargetMeshTangents = MakeShared<FMeshTangentsd, ESPMode::ThreadSafe>(&TargetMesh);
-	TargetMeshTangents->CopyTriVertexTangents(TargetMesh);
+	TargetMesh = MakeShared<FDynamicMesh3, ESPMode::ThreadSafe>(UE::ToolTarget::GetDynamicMeshCopy(Targets[0], true));
+	TargetMeshTangents = MakeShared<FMeshTangentsd, ESPMode::ThreadSafe>(TargetMesh.Get());
+	TargetMeshTangents->CopyTriVertexTangents(*TargetMesh);
 
 	// PreviewMesh stores computed result mesh. On shutdown, PreviewMesh will be
 	// used to commit the dynamic mesh to the target tool target.
@@ -626,7 +625,7 @@ void UBakeMeshAttributeVertexTool::UpdateColorTopology()
 			}, 0.0f);
 
 		// Copy source vertex colors onto new color overlay topology.
-		const FDynamicMeshColorOverlay* TargetColorOverlay = TargetMesh.HasAttributes() ? TargetMesh.Attributes()->PrimaryColors() : nullptr;
+		const FDynamicMeshColorOverlay* TargetColorOverlay = TargetMesh->HasAttributes() ? TargetMesh->Attributes()->PrimaryColors() : nullptr;
 		FDynamicMeshColorOverlay* PreviewColorOverlay = Mesh.Attributes()->PrimaryColors(); 
 		if (TargetColorOverlay)
 		{
@@ -782,8 +781,8 @@ void UBakeMeshAttributeVertexTool::GatherAnalytics(FBakeAnalytics::FMeshSettings
 		return;
 	}
 	
-	Data.NumTargetMeshVerts = TargetMesh.VertexCount();
-	Data.NumTargetMeshTris = TargetMesh.TriangleCount();
+	Data.NumTargetMeshVerts = TargetMesh->VertexCount();
+	Data.NumTargetMeshTris = TargetMesh->TriangleCount();
 	Data.NumDetailMesh = 1;
 	Data.NumDetailMeshTris = DetailMesh->TriangleCount();
 }

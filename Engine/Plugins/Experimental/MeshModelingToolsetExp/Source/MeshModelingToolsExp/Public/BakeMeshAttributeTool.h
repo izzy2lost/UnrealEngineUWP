@@ -129,9 +129,8 @@ protected:
 	//
 	EBakeOpState OpState = EBakeOpState::Evaluate;
 
-	UE::Geometry::FDynamicMesh3 TargetMesh;
+	TSharedPtr<UE::Geometry::FDynamicMesh3, ESPMode::ThreadSafe> TargetMesh;
 	TSharedPtr<UE::Geometry::TMeshTangents<double>, ESPMode::ThreadSafe> TargetMeshTangents;
-	UE::Geometry::FDynamicMeshAABBTree3 TargetSpatial;
 
 	/**
 	 * Compute validity of the Target Mesh tangents. Only checks validity

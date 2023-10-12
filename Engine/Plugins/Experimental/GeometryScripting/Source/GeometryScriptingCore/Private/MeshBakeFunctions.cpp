@@ -1209,7 +1209,7 @@ FGeometryScriptRenderCaptureTextures UGeometryScriptLibrary_MeshBakeFunctions::B
 	}
 
 	FRenderCaptureTextures TexturesOut;
-	GetTexturesFromRenderCaptureBaker(Baker, TexturesOut);
+	GetTexturesFromRenderCaptureBaker(*Baker, TexturesOut);
 
 	// Update source data
 	if (TexturesOut.BaseColorMap)

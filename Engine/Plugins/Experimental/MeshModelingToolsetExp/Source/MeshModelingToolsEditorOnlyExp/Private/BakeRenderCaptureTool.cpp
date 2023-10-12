@@ -169,15 +169,15 @@ bool URenderCaptureProperties::operator!=(const URenderCaptureProperties& Other)
 class FRenderCaptureMapBakerOp : public TGenericDataOperator<FMeshMapBaker>
 {
 public:
-	UE::Geometry::FDynamicMesh3* BaseMesh = nullptr;
-	UE::Geometry::FDynamicMeshAABBTree3* BaseMeshSpatial = nullptr;
+	TSharedPtr<UE::Geometry::FDynamicMesh3, ESPMode::ThreadSafe> BaseMesh;
+	TSharedPtr<UE::Geometry::FDynamicMeshAABBTree3, ESPMode::ThreadSafe> BaseMeshSpatial;
 	TSharedPtr<UE::Geometry::FMeshTangentsd, ESPMode::ThreadSafe> BaseMeshTangents;
 	TSharedPtr<TArray<int32>, ESPMode::ThreadSafe> BaseMeshUVCharts;
 	int32 TargetUVLayer;
 	double ValidSampleDepthThreshold;
 	EBakeTextureResolution TextureImageSize;
 	EBakeTextureSamplesPerPixel SamplesPerPixel;
-	FSceneCapturePhotoSet* SceneCapture = nullptr;
+	TSharedPtr<FSceneCapturePhotoSet, ESPMode::ThreadSafe> SceneCapture;
 
 	// Used to pass the channels which need baking via the bBakeXXX and bUsePackedMRS members
 	// PendingBake allows us to skip baking for computed capture types previously baked
@@ -192,10 +192,10 @@ public:
 void FRenderCaptureMapBakerOp::CalculateResult(FProgressCancel*)
 {
 	FSceneCapturePhotoSetSampler Sampler(
-		SceneCapture,
+		SceneCapture.Get(),
 		ValidSampleDepthThreshold,
-		BaseMesh,
-		BaseMeshSpatial,
+		BaseMesh.Get(),
+		BaseMeshSpatial.Get(),
 		BaseMeshTangents.Get());
 
 	const FImageDimensions TextureDimensions(
@@ -205,10 +205,10 @@ void FRenderCaptureMapBakerOp::CalculateResult(FProgressCancel*)
 	FRenderCaptureOcclusionHandler OcclusionHandler(TextureDimensions);
 
 	Result = MakeRenderCaptureBaker(
-		BaseMesh,
+		BaseMesh.Get(),
 		BaseMeshTangents,
 		BaseMeshUVCharts,
-		SceneCapture,
+		SceneCapture.Get(),
 		&Sampler,
 		PendingBake,
 		TargetUVLayer,
@@ -276,20 +276,22 @@ void UBakeRenderCaptureTool::Setup()
 	// Initialize the datastructures used by the bake background compute/tool operator
 	PreviewMesh->ProcessMesh([this](const FDynamicMesh3& Mesh)
 	{
-		TargetMesh.Copy(Mesh);
+		TargetMesh = MakeShared<FDynamicMesh3, ESPMode::ThreadSafe>();
+		TargetMesh->Copy(Mesh);
 		const FTransformSRT3d BaseToWorld = UE::ToolTarget::GetLocalToWorldTransform(Targets[0]);
-		MeshTransforms::ApplyTransform(TargetMesh, BaseToWorld, true);
+		MeshTransforms::ApplyTransform(*TargetMesh, BaseToWorld, true);
 
 		// Initialize UV charts
 		TargetMeshUVCharts = MakeShared<TArray<int32>, ESPMode::ThreadSafe>();
-		FMeshMapBaker::ComputeUVCharts(TargetMesh, *TargetMeshUVCharts);
+		FMeshMapBaker::ComputeUVCharts(*TargetMesh, *TargetMeshUVCharts);
 
 		// Initialize tangents
-		TargetMeshTangents = MakeShared<FMeshTangentsd, ESPMode::ThreadSafe>(&TargetMesh);
-		TargetMeshTangents->CopyTriVertexTangents(TargetMesh);
+		TargetMeshTangents = MakeShared<FMeshTangentsd, ESPMode::ThreadSafe>(TargetMesh.Get());
+		TargetMeshTangents->CopyTriVertexTangents(*TargetMesh);
 
 		// Initialize spatial index
-		TargetMeshSpatial.SetMesh(&TargetMesh, true);
+		TargetMeshSpatial = MakeShared<FDynamicMeshAABBTree3, ESPMode::ThreadSafe>();
+		TargetMeshSpatial->SetMesh(TargetMesh.Get(), true);
 	});
 
 	// Initialize actors
@@ -352,7 +354,7 @@ void UBakeRenderCaptureTool::Setup()
 	InputMeshSettings->RestoreProperties(this);
 	AddToolPropertySource(InputMeshSettings);
 	InputMeshSettings->TargetStaticMesh = UE::ToolTarget::GetStaticMeshFromTargetIfAvailable(Target);
-	UpdateUVLayerNames(InputMeshSettings->TargetUVLayer, InputMeshSettings->TargetUVLayerNamesList, TargetMesh);
+	UpdateUVLayerNames(InputMeshSettings->TargetUVLayer, InputMeshSettings->TargetUVLayerNamesList, *TargetMesh);
 	InputMeshSettings->WatchProperty(InputMeshSettings->TargetUVLayer, [this](FString) { OpState |= EBakeOpState::Evaluate; });
 	
 	{
@@ -381,7 +383,7 @@ void UBakeRenderCaptureTool::Setup()
 		UE::ToolTarget::HideSourceObject(Targets[Idx]);
 	}
 
-	SceneCapture = MakeUnique<FSceneCapturePhotoSet>();
+	SceneCapture = MakeShared<FSceneCapturePhotoSet>();
 
 	// Make sure we trigger SceneCapture computation in UpdateResult
 	OpState |= EBakeOpState::Evaluate;
@@ -790,15 +792,15 @@ TUniquePtr<TGenericDataOperator<FMeshMapBaker>> UBakeRenderCaptureTool::MakeNewO
 	check(SceneCapture.IsValid());
 
 	TUniquePtr<FRenderCaptureMapBakerOp> Op = MakeUnique<FRenderCaptureMapBakerOp>();
-	Op->BaseMesh = &TargetMesh;
-	Op->BaseMeshSpatial = &TargetMeshSpatial;
+	Op->BaseMesh = TargetMesh;
+	Op->BaseMeshSpatial = TargetMeshSpatial;
 	Op->BaseMeshTangents = TargetMeshTangents;
 	Op->BaseMeshUVCharts = TargetMeshUVCharts;
 	Op->TargetUVLayer = InputMeshSettings->GetTargetUVLayerIndex();
 	Op->ValidSampleDepthThreshold = Settings->ValidSampleDepthThreshold;
 	Op->TextureImageSize = Settings->TextureSize;
 	Op->SamplesPerPixel = Settings->SamplesPerPixel;
-	Op->SceneCapture = SceneCapture.Get();
+	Op->SceneCapture = SceneCapture;
 
 	ForEachCaptureType([this, &Op](ERenderCaptureType CaptureType)
 	{
@@ -822,7 +824,7 @@ void UBakeRenderCaptureTool::OnMapsUpdated(const TUniquePtr<FMeshMapBaker>& NewR
 	TRACE_CPUPROFILER_EVENT_SCOPE(BakeRenderCaptureTool_Textures_BuildTextures);
 
 	FRenderCaptureTextures TexturesOut;
-	GetTexturesFromRenderCaptureBaker(NewResult, TexturesOut);
+	GetTexturesFromRenderCaptureBaker(*NewResult, TexturesOut);
 
 	// The NewResult will contain the newly baked textures so we only update those and not overwrite any already baked
 	// valid TexturesOut. If a texture is invalidated by some tool property change it will null on entry to this function
@@ -871,7 +873,7 @@ bool UBakeRenderCaptureTool::ValidTargetMeshTangents()
 {
 	if (bCheckTargetMeshTangents)
 	{
-		bValidTargetMeshTangents = TargetMeshTangents ? FDynamicMeshTangents(&TargetMesh).HasValidTangents(true) : false;
+		bValidTargetMeshTangents = TargetMeshTangents ? FDynamicMeshTangents(TargetMesh.Get()).HasValidTangents(true) : false;
 		bCheckTargetMeshTangents = false;
 	}
 	return bValidTargetMeshTangents;
@@ -1073,7 +1075,7 @@ void UBakeRenderCaptureTool::UpdateResult()
 		{
 			const auto HasDegenerateUVs = [this]
 			{
-				FDynamicMeshUVOverlay* UVOverlay = TargetMesh.Attributes()->GetUVLayer(InputMeshSettings->GetTargetUVLayerIndex());
+				FDynamicMeshUVOverlay* UVOverlay = TargetMesh->Attributes()->GetUVLayer(InputMeshSettings->GetTargetUVLayerIndex());
 				FAxisAlignedBox2f Bounds = FAxisAlignedBox2f::Empty();
 				for (const int Index : UVOverlay->ElementIndicesItr())
 				{
@@ -1084,7 +1086,7 @@ void UBakeRenderCaptureTool::UpdateResult()
 				return Bounds.Min == Bounds.Max;
 			};
 
-			if (TargetMesh.Attributes()->GetUVLayer(InputMeshSettings->GetTargetUVLayerIndex()) == nullptr)
+			if (TargetMesh->Attributes()->GetUVLayer(InputMeshSettings->GetTargetUVLayerIndex()) == nullptr)
 			{
 				ErrorMessage = LOCTEXT("TargetMeshMissingUVs", "The Target Mesh UV layer is missing");
 			}
@@ -1140,7 +1142,7 @@ void UBakeRenderCaptureTool::UpdateResult()
 				UE::ToolTarget::ShowSourceObject(Targets[Idx]);
 			}
 
-			UpdatedChannels = UpdateSceneCapture(SceneCapture, Actors, DesiredConfig, false);
+			UpdatedChannels = UpdateSceneCapture(*SceneCapture, Actors, DesiredConfig, false);
 
 			// Hide the source meshes after the render capture so they don't occlude the preview
 			for (int Idx = 1; Idx < Targets.Num(); ++Idx)
@@ -1148,7 +1150,7 @@ void UBakeRenderCaptureTool::UpdateResult()
 				UE::ToolTarget::HideSourceObject(Targets[Idx]);
 			}
 
-			const FSceneCaptureConfig AchievedConfig = GetSceneCaptureConfig(SceneCapture);
+			const FSceneCaptureConfig AchievedConfig = GetSceneCaptureConfig(*SceneCapture);
 			ensure(SceneCapture->Cancelled() == (AchievedConfig != DesiredConfig));
 
 			// If the scene capture was cancelled make sure the tool properties are consistent with the computed captures
@@ -1404,7 +1406,7 @@ void UBakeRenderCaptureTool::GatherAnalytics(FBakeAnalytics::FMeshSettings& Data
 		return;
 	}
 
-	Data.NumTargetMeshTris = TargetMesh.TriangleCount();
+	Data.NumTargetMeshTris = TargetMesh->TriangleCount();
 	Data.NumDetailMesh = Actors.Num();
 	Data.NumDetailMeshTris = 0;
 	for (AActor* Actor : Actors)

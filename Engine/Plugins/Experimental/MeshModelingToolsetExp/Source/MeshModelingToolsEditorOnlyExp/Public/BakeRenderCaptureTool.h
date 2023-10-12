@@ -353,8 +353,8 @@ protected:
 	TUniquePtr<TGenericDataBackgroundCompute<UE::Geometry::FMeshMapBaker>> Compute = nullptr;
 	EBakeOpState OpState = EBakeOpState::Evaluate;
 
-	UE::Geometry::FDynamicMesh3 TargetMesh;
-	UE::Geometry::FDynamicMeshAABBTree3 TargetMeshSpatial;
+	TSharedPtr<UE::Geometry::FDynamicMesh3, ESPMode::ThreadSafe> TargetMesh;
+	TSharedPtr<UE::Geometry::FDynamicMeshAABBTree3, ESPMode::ThreadSafe> TargetMeshSpatial;
 	TSharedPtr<TArray<int32>, ESPMode::ThreadSafe> TargetMeshUVCharts;
 	TSharedPtr<UE::Geometry::FMeshTangentsd, ESPMode::ThreadSafe> TargetMeshTangents;
 
@@ -401,7 +401,7 @@ protected:
 	TObjectPtr<UPreviewMesh> PreviewMesh;
 
 	// Note: We need to compute this on the game thread because the implementation has checks for this
-	TUniquePtr<UE::Geometry::FSceneCapturePhotoSet> SceneCapture = nullptr;
+	TSharedPtr<UE::Geometry::FSceneCapturePhotoSet, ESPMode::ThreadSafe> SceneCapture;
 
 	// These are used to determine if we need to re-bake results
 	float ComputedValidDepthThreshold;
