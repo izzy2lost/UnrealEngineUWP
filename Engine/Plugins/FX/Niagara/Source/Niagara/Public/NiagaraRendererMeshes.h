@@ -74,6 +74,7 @@ protected:
 
 		uint32							RendererVisTagOffset = INDEX_NONE;
 		uint32							MeshIndexOffset = INDEX_NONE;
+		TBitArray<TInlineAllocator<2>>	MeshUsed;
 
 		FVector							WorldSpacePivotOffset = FVector::ZeroVector;
 		FSphere							CullingSphere = FSphere(EForceInit::ForceInit);
@@ -127,6 +128,7 @@ protected:
 	};
 
 	NIAGARA_API void PrepareParticleMeshRenderData(FParticleMeshRenderData& ParticleMeshRenderData, const FSceneViewFamily& ViewFamily, FMeshElementCollector& Collector, FNiagaraDynamicDataBase* InDynamicData, const FNiagaraSceneProxy* SceneProxy, bool bRayTracing, ENiagaraGpuComputeTickStage::Type GpuReadyTickStage) const;
+	NIAGARA_API bool CalculateMeshUsed(FParticleMeshRenderData& ParticleMeshRenderData) const;
 	NIAGARA_API void PrepareParticleRenderBuffers(FRHICommandListBase& RHICmdList, FParticleMeshRenderData& ParticleMeshRenderData, FGlobalDynamicReadBuffer& DynamicReadBuffer) const;
 	NIAGARA_API void InitializeSortInfo(const FParticleMeshRenderData& ParticleMeshRenderData, const FNiagaraSceneProxy& SceneProxy, const FSceneView& View, int32 ViewIndex, bool bIsInstancedStereo, FNiagaraGPUSortInfo& OutSortInfo) const;
 	NIAGARA_API void PreparePerMeshData(FParticleMeshRenderData& ParticleMeshRenderData, const FNiagaraMeshVertexFactory& VertexFactory, const FNiagaraSceneProxy& SceneProxy, const FMeshData& MeshData) const;
@@ -169,6 +171,7 @@ protected:
 
 private:
 	TArray<FMeshData, TInlineAllocator<1>> Meshes;
+	int32 MeshUsedMax = 0;
 
 	ENiagaraRendererSourceDataMode SourceMode;
 	ENiagaraSortMode SortMode;
