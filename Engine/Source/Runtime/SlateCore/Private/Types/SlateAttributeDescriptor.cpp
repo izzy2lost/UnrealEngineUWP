@@ -176,7 +176,9 @@ FSlateAttributeDescriptor::FInitializer::~FInitializer()
 {
 	// Confirm that the Visibility attribute is marked as "bAffectVisibility"
 	{
-		const FAttribute* FoundVisibilityAttribute = Descriptor.FindAttribute("Visibility");
+		static const FName NAME_Visibility = "Visibility";
+		const FAttribute* FoundVisibilityAttribute = Descriptor.FindAttribute(NAME_Visibility);
+		checkf(&Descriptor.GetAttributeAtIndex(0) == FoundVisibilityAttribute, TEXT(""));
 		checkf(FoundVisibilityAttribute, TEXT("The visibility attribute doesn't exist."));
 		checkf(FoundVisibilityAttribute->bAffectVisibility, TEXT("The Visibility attribute must be marked as 'Affect Visibility'"));
 	}
@@ -265,7 +267,7 @@ FSlateAttributeDescriptor::FInitializer::~FInitializer()
 	TArray<FPrerequisiteSort, TInlineAllocator<32>> Prerequisites;
 	Prerequisites.Reserve(Descriptor.Attributes.Num());
 
-	bool bHavePrerequisite = false;
+	bool bSortNeeded = false;
 	for (int32 Index = 0; Index < Descriptor.Attributes.Num(); ++Index)
 	{
 		FAttribute& Attribute = Descriptor.Attributes[Index];
@@ -291,7 +293,7 @@ FSlateAttributeDescriptor::FInitializer::~FInitializer()
 			if (ensureAlwaysMsgf(Descriptor.Attributes.IsValidIndex(PrerequisiteIndex), TEXT("The Prerequisite '%s' doesn't exist"), *Prerequisite.ToString()))
 			{
 				Prerequisites.Emplace(Index, PrerequisiteIndex, -1);
-				bHavePrerequisite = true;
+				bSortNeeded = true;
 			}
 			else
 			{
@@ -300,11 +302,18 @@ FSlateAttributeDescriptor::FInitializer::~FInitializer()
 		}
 		else
 		{
-			Prerequisites.Emplace(Index, INDEX_NONE, 0);
+			// index 0 is the visibility attribute
+			int32 PrerequisiteIndex = INDEX_NONE;
+			if (Index != 0 && Attribute.bAffectVisibility)
+			{
+				bSortNeeded = true;
+				PrerequisiteIndex = 0; // After Visibility
+			}
+			Prerequisites.Emplace(Index, PrerequisiteIndex, 0);
 		}
 	}
 
-	if (bHavePrerequisite)
+	if (bSortNeeded)
 	{
 		// Get the depth order
 		for (FPrerequisiteSort& PrerequisiteSort : Prerequisites)
