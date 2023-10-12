@@ -4,11 +4,13 @@
 
 #include "Graph/MovieGraphConfig.h"
 #include "Graph/MovieGraphConfigFactory.h"
+#include "Graph/MovieGraphNode.h"
 
 #include "Algo/RemoveIf.h"
 #include "AssetRegistry/AssetRegistryModule.h"
 #include "AssetToolsModule.h"
 #include "IAssetTools.h"
+#include "Misc/AutomationTest.h"
 #include "UObject/Package.h"
 
 namespace UE::MovieGraph::Private::Tests
@@ -83,8 +85,7 @@ namespace UE::MovieGraph::Private::Tests
 		return NativeParentClass && (NativeParentClass == BaseClass || NativeParentClass->IsChildOf(BaseClass));
 	}
 
-	TArray<UClass*> GetBlueprintClasses(
-		UClass* BaseClass, bool bRecursive)
+	TArray<UClass*> GetBlueprintClasses(UClass* BaseClass, bool bRecursive)
 	{
 		const FAssetRegistryModule& AssetRegistryModule =
 			FModuleManager::LoadModuleChecked< FAssetRegistryModule >(FName("AssetRegistry"));
@@ -111,5 +112,33 @@ namespace UE::MovieGraph::Private::Tests
 		RemoveAbstractClasses(DerivedClasses);
 
 		return DerivedClasses;
+	}
+	
+	void SuppressLogWarnings(FAutomationTestBase* InTestBase)
+	{
+		check(InTestBase);
+		InTestBase->bSuppressLogWarnings = true;
+	}
+
+	void SuppressLogErrors(FAutomationTestBase* InTestBase)
+	{
+		check(InTestBase);
+		InTestBase->bSuppressLogErrors = true;
+	}
+
+	void SetupTest(
+		FAutomationTestBase* InTestBase, const bool bSuppressLogWarnings, const bool bSuppressLogErrors)
+	{
+		check(InTestBase);
+		
+		if (bSuppressLogWarnings)
+		{
+			SuppressLogWarnings(InTestBase);
+		}
+
+		if (bSuppressLogErrors)
+		{
+			SuppressLogErrors(InTestBase);
+		}
 	}
 }

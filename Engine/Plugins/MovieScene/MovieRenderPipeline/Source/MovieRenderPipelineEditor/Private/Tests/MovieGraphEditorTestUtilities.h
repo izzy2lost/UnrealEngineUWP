@@ -4,7 +4,9 @@
 
 #include "CoreMinimal.h"
 
+class FAutomationTestBase;
 class UMovieGraphConfig;
+class UMovieGraphNode;
 
 namespace UE::MovieGraph::Private::Tests
 {
@@ -14,4 +16,8 @@ namespace UE::MovieGraph::Private::Tests
 	TArray<UClass*> GetAllDerivedClasses(UClass* BaseClass, bool bRecursive);
 	TArray<UClass*> GetNativeClasses(UClass* BaseClass, bool bRecursive);
 	TArray<UClass*> GetBlueprintClasses(UClass* BaseClass, bool bRecursive);
+	void SuppressLogWarnings(FAutomationTestBase* InTestBase);
+	void SuppressLogErrors(FAutomationTestBase* InTestBase);
+	void SetupTest(
+		FAutomationTestBase* InTestBase, const bool bSuppressLogWarnings = true, const bool bSuppressLogErrors = true);
 }

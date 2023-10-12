@@ -678,7 +678,7 @@ public:
 			FFrame::KismetExecutionMessage(
 				*FString::Printf(
 					TEXT("%hs: Invalid PipelineGraphNodeClass. Please specify a valid class."), __FUNCTION__),
-					ELogVerbosity::Display);
+					ELogVerbosity::Error);
 		
 			return nullptr;
 		}

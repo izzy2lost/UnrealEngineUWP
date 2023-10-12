@@ -583,7 +583,7 @@ void UMovieGraphConfig::AddNode(UMovieGraphNode* InNode)
 		FFrame::KismetExecutionMessage(
 			*FString::Printf(
 				TEXT("%hs: No node was specified for add."), __FUNCTION__),
-				ELogVerbosity::Display);
+				ELogVerbosity::Error);
 		return;
 	}
 
@@ -592,7 +592,7 @@ void UMovieGraphConfig::AddNode(UMovieGraphNode* InNode)
 		FFrame::KismetExecutionMessage(
 			*FString::Printf(
 				TEXT("%hs:Cannot add node of type %s."), __FUNCTION__, *InNode->GetClass()->GetName()),
-				ELogVerbosity::Display);
+				ELogVerbosity::Error);
 		return;
 	}
 
@@ -623,7 +623,7 @@ bool UMovieGraphConfig::RemoveNode(UMovieGraphNode* InNode)
 		FFrame::KismetExecutionMessage(
 			*FString::Printf(
 				TEXT("%hs: Could not remove invalid InNode"), __FUNCTION__),
-				ELogVerbosity::Display);
+				ELogVerbosity::Error);
 		return false;
 	}
 

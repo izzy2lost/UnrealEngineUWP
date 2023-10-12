@@ -227,7 +227,7 @@ bool UMovieGraphPin::IsConnectionToBranchAllowed(const UMovieGraphPin* OtherPin,
 	
 	if (!InputPin || !OutputPin)
 	{
-		OutError = NSLOCTEXT("MoviePipeline", "PinDirectionMismatchError", "Directions are not compatible!");
+		OutError = NSLOCTEXT("MovieGraph", "PinDirectionMismatchError", "Directions are not compatible!");
 		return false;
 	}
 	
@@ -235,6 +235,17 @@ bool UMovieGraphPin::IsConnectionToBranchAllowed(const UMovieGraphPin* OtherPin,
 	const TObjectPtr<UMovieGraphNode> FromNode = OutputPin->Node;
 	check(ToNode && FromNode);
 	const UMovieGraphConfig* GraphConfig = ToNode->GetGraph();
+
+	// Test High-Level Node Restrictions
+	const EMovieGraphBranchRestriction FromNodeRestriction = FromNode->GetBranchRestriction();
+	const EMovieGraphBranchRestriction ToNodeRestriction = ToNode->GetBranchRestriction();
+	if (FromNodeRestriction != ToNodeRestriction &&						// If BranchRestrictions are not the same
+		FromNodeRestriction != EMovieGraphBranchRestriction::Any &&		// And neither Node is an 'Any' Node
+		ToNodeRestriction != EMovieGraphBranchRestriction::Any)			// Then do not allow connection
+	{
+		OutError = NSLOCTEXT("MovieGraph", "HighLevelPerNodeBranchRestrictionError", "Cannot connect a Globals-only Node to a RenderLayer-only Node!");
+		return false;
+	}
 
 	// Get all upstream/downstream nodes that occur on the connection -- these are the nodes that need to be checked for branch restrictions.
 	// FromNode/ToNode themselves also needs to be part of the validation checks.
@@ -264,7 +275,7 @@ bool UMovieGraphPin::IsConnectionToBranchAllowed(const UMovieGraphPin* OtherPin,
 	// Globals branches can only be connected to Globals branches
 	if ((bGlobalsIsDownstream && bUpstreamBranchExistsAndIsntOnlyGlobals) || (bGlobalsIsUpstream && bDownstreamBranchExistsAndIsntOnlyGlobals))
 	{
-		OutError = NSLOCTEXT("MoviePipeline", "GlobalsBranchMismatchError", "Globals branches can only be connected to other Globals branches.");
+		OutError = NSLOCTEXT("MovieGraph", "GlobalsBranchMismatchError", "Globals branches can only be connected to other Globals branches.");
 		return false;
 	}
 
@@ -280,7 +291,7 @@ bool UMovieGraphPin::IsConnectionToBranchAllowed(const UMovieGraphPin* OtherPin,
 			if (bDownstreamBranchExistsAndIsntOnlyGlobals || bUpstreamBranchExistsAndIsntOnlyGlobals)
 			{
 				OutError = FText::Format(
-					NSLOCTEXT("MoviePipeline", "GlobalsBranchRestrictionError", "The node '{0}' can only be connected to the Globals branch."),
+					NSLOCTEXT("MovieGraph", "GlobalsBranchRestrictionError", "The node '{0}' can only be connected to the Globals branch."),
 						FText::FromString(NodeToCheck->GetName()));
 				return false;
 			}
@@ -292,7 +303,7 @@ bool UMovieGraphPin::IsConnectionToBranchAllowed(const UMovieGraphPin* OtherPin,
 			if (bGlobalsIsDownstream || bGlobalsIsUpstream)
 			{
 				OutError = FText::Format(
-					NSLOCTEXT("MoviePipeline", "RenderLayerBranchRestrictionError", "The node '{0}' can only be connected to a render layer branch."),
+					NSLOCTEXT("MovieGraph", "RenderLayerBranchRestrictionError", "The node '{0}' can only be connected to a render layer branch."),
 						FText::FromString(NodeToCheck->GetName()));
 				return false;
 			}
