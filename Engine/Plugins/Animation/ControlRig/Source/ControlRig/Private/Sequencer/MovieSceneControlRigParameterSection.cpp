@@ -1590,6 +1590,11 @@ void UMovieSceneControlRigParameterSection::StoreLastControlsUsedToReconstruct(c
 
 void UMovieSceneControlRigParameterSection::ReconstructChannelProxy()
 {
+	ChannelProxy.Reset();
+}
+
+EMovieSceneChannelProxyType UMovieSceneControlRigParameterSection::CacheChannelProxy()
+{
 	FMovieSceneChannelProxyData Channels;
 	ControlChannelMap.Empty();
 	// Need to create the channels in sorted orders
@@ -1605,7 +1610,6 @@ void UMovieSceneControlRigParameterSection::ReconstructChannelProxy()
 			OnArray.Init(true, ControlRig->AvailableControls().Num());
 			SetControlsMask(OnArray);
 		}
-
 		int32 ControlIndex = 0; 
 		int32 MaskIndex = 0;
 		int32 TotalIndex = 0; 
@@ -1623,20 +1627,17 @@ void UMovieSceneControlRigParameterSection::ReconstructChannelProxy()
 		const FName SpaceName = FName(TEXT("Space"));
 
 		// begin constraints
-		const FConstraintsManagerController& Controller = FConstraintsManagerController::Get(ControlRig->GetWorld());
-		auto GetConstraints = [&Controller, this](const FName& InControlName)
-		{
-			static constexpr bool bSorted = true;
-			const uint32 ControlHash = UTransformableControlHandle::ComputeHash(ControlRig.Get(), InControlName);
-			return Controller.GetParentConstraints(ControlHash, bSorted);
-		};
-
-
-		auto AddConstrainChannels = [this, GetConstraints, &ConstraintsChannelIndex, &TotalIndex, &Channels](
+	// begin constraints
+		auto AddConstrainChannels = [this, &ConstraintsChannelIndex, &TotalIndex, &Channels](
 			const FName& InControlName, const FText& InGroup, const bool bEnabled)
 		{
-			TArray<TWeakObjectPtr<UTickableConstraint>> Constraints = GetConstraints(InControlName);
-			for (const TWeakObjectPtr<UTickableConstraint>& Constraint: Constraints)
+			
+			const FConstraintsManagerController& Controller = FConstraintsManagerController::Get(ControlRig->GetWorld());
+
+			static constexpr bool bSorted = true;
+			const uint32 ControlHash = UTransformableControlHandle::ComputeHash(ControlRig.Get(), InControlName);
+			TArray<TWeakObjectPtr<UTickableConstraint>> Constraints = Controller.GetParentConstraints(ControlHash, bSorted);
+			for (const TWeakObjectPtr<UTickableConstraint>& Constraint : Constraints)
 			{
 				if (Constraint.IsValid())
 				{
@@ -2285,8 +2286,8 @@ void UMovieSceneControlRigParameterSection::ReconstructChannelProxy()
 
 
 	ChannelProxy = MakeShared<FMovieSceneChannelProxy>(MoveTemp(Channels));
-
-	MarkAsChanged();
+	
+	return EMovieSceneChannelProxyType::Dynamic;
 }
 
 FMovieSceneInterrogationKey UMovieSceneControlRigParameterSection::GetFloatInterrogationKey()

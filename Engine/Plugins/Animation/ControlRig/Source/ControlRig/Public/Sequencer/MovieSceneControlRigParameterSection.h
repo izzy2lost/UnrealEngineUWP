@@ -268,6 +268,8 @@ public:
 	//UMovieSceneSection virtuals
 	virtual void SetBlendType(EMovieSceneBlendType InBlendType) override;
 	virtual UObject* GetImplicitObjectOwner() override;
+	virtual EMovieSceneChannelProxyType CacheChannelProxy() override;
+
 	// IMovieSceneConstrainedSection overrides
 	/*
 	* Whether it has that channel

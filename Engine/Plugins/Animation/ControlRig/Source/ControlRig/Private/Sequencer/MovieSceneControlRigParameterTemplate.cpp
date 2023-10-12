@@ -1133,6 +1133,9 @@ static UTickableConstraint* CreateConstraintIfNeeded(const FConstraintsManagerCo
 		if (Controller.GetConstraint(Constraint->ConstraintID) == nullptr)
 		{
 			Controller.AddConstraint(ConstraintValue.Constraint.Get());
+			//need to reconstuct channels here.. note this is now lazy and so will recreate it next time view requests it
+			Section->ReconstructChannelProxy();
+			Section->MarkAsChanged();
 		}
 	}
 
