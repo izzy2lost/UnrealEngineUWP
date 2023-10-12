@@ -21,7 +21,7 @@ public:
 	void SetDatabaseToSearch(UPoseSearchDatabase* InDatabase, bool bForceInterruptIfNew);
 
 	// Search InDatabases instead of the Database property on the node. Use bForceInterruptIfNew to ignore the continuing pose if InDatabases is new.
-	void SetDatabasesToSearch(const TArray<UPoseSearchDatabase*>& InDatabases, bool bForceInterruptIfNew);
+	void SetDatabasesToSearch(TConstArrayView<UPoseSearchDatabase*> InDatabases, bool bForceInterruptIfNew);
 
 	// Reset the effects of SetDatabaseToSearch/SetDatabasesToSearch and use the Database property on this node.
 	void ResetDatabasesToSearch(bool bInForceInterrupt);

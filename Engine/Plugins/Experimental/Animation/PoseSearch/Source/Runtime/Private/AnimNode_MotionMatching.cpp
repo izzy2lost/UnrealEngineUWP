@@ -231,7 +231,7 @@ void FAnimNode_MotionMatching::SetDatabaseToSearch(UPoseSearchDatabase* InDataba
 	}
 }
 
-void FAnimNode_MotionMatching::SetDatabasesToSearch(const TArray<UPoseSearchDatabase*>& InDatabases, bool bForceInterruptIfNew)
+void FAnimNode_MotionMatching::SetDatabasesToSearch(TConstArrayView<UPoseSearchDatabase*> InDatabases, bool bForceInterruptIfNew)
 {
 	// Check if InDatabases and DatabasesToSearch are the same.
 	bool bDatabasesAlreadySet = true;
