@@ -334,6 +334,26 @@ namespace Horde.Agent.Tests
 		}
 
 		[TestMethod]
+		public void CsCompileEventMatcher5()
+		{
+			string[] lines =
+			{
+				@"  EpicGames.BuildGraph.Tests -> /mnt/horde/DMH/Sync/Engine/Source/Programs/Shared/EpicGames.BuildGraph.Tests/bin/Analyze/net6.0/EpicGames.BuildGraph.Tests.dll",
+				@"Engine/Source/Programs/Shared/EpicGames.Horde/Storage/BlobData.cs(4,1): warning IDE0005: Using directive is unnecessary. [/mnt/horde/DMH/Sync/Engine/Source/Programs/Shared/EpicGames.Horde/EpicGames.Horde.csproj]",
+				@"Engine/Source/Programs/Shared/EpicGames.Horde/Storage/BlobData.cs(7,1): warning IDE0005: Using directive is unnecessary. [/mnt/horde/DMH/Sync/Engine/Source/Programs/Shared/EpicGames.Horde/EpicGames.Horde.csproj]",
+				@"  EpicGames.Horde -> /mnt/horde/DMH/Sync/Engine/Source/Programs/Shared/EpicGames.Horde/bin/Analyze/net6.0/EpicGames.Horde.dll",
+				@"  RemoteWorker -> /mnt/horde/DMH/Sync/Engine/Source/Programs/Horde/Samples/RemoteWorker/bin/Debug/net6.0/RemoteWorker.dll",
+				@"  EpicGames.Serialization.Tests -> /mnt/horde/DMH/Sync/Engine/Source/Programs/Shared/EpicGames.Serialization.Tests/bin/Analyze/net6.0/EpicGames.Serialization.Tests.dll",
+			};
+
+			List<LogEvent> logEvents = Parse(String.Join("\n", lines));
+			Assert.AreEqual(2, logEvents.Count);
+
+			CheckEventGroup(logEvents.Slice(0, 1), 1, 1, LogLevel.Warning, KnownLogEvents.Compiler);
+			CheckEventGroup(logEvents.Slice(1, 1), 2, 1, LogLevel.Warning, KnownLogEvents.Compiler);
+		}
+
+		[TestMethod]
 		public void HttpEventMatcher()
 		{
 			string[] lines =

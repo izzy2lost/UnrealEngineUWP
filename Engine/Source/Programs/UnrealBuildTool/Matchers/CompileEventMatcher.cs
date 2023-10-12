@@ -65,6 +65,7 @@ namespace UnrealBuildTool.Matchers
 		static readonly Regex s_xcodeIDEWatchExtensionPattern = new Regex(@"xcodebuild.*Requested but did not find extension point with identifier.*for extension.*\.watchOS of plug-in com\.apple\.dt\.IDEWatchSupportCore");
 		static readonly Regex s_scriptCompilePattern = new Regex(@"^\s*[A-Za-z0-9_\.]+ ERROR:.* [A-Za-z_]+ failed to compile\.");
 		static readonly Regex s_cscSummaryPattern = new Regex(@"^\s+\d+ (?:Warning|Error)\(s\)");
+		static readonly Regex s_cscOutputPattern = new Regex(@"^  [^ ]+ -> ");
 	
 		static readonly string[] s_invalidExtensions =
 		{
@@ -267,7 +268,7 @@ namespace UnrealBuildTool.Matchers
 
 			for (; ; )
 			{
-				while (builder.Current.StartsWith(1, nextIndent) && !builder.Current.IsMatch(1, s_cscSummaryPattern))
+				while (builder.Current.StartsWith(1, nextIndent) && !builder.Current.IsMatch(1, s_cscSummaryPattern) && !builder.Current.IsMatch(1, s_cscOutputPattern))
 				{
 					builder.MoveNext();
 				}
