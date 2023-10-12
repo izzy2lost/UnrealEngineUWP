@@ -7968,14 +7968,11 @@ bool FSequencer::PasteSections(const FString& TextToImport, TArray<FNotification
 		return false;
 	}
 
-	NotifyMovieSceneDataChanged(EMovieSceneDataChangeType::MovieSceneStructureItemAdded);
-
 	FSectionModelStorageExtension* SectionModelStorage = ViewModel->GetRootModel()->CastDynamic<FSectionModelStorageExtension>();
 	{
 		UE::MovieScene::FScopedSignedObjectModifyDefer ForceFlush(true);
 		check(SectionModelStorage);
 	}
-
 
 	EmptySelection();
 
@@ -7989,6 +7986,8 @@ bool FSequencer::PasteSections(const FString& TextToImport, TArray<FNotification
 	}
 
 	ThrobSectionSelection();
+
+	NotifyMovieSceneDataChanged(EMovieSceneDataChangeType::MovieSceneStructureItemAdded);
 
 	return true;
 }
