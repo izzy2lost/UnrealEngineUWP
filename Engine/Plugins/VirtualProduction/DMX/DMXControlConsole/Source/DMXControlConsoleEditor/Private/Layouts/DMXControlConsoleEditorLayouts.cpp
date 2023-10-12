@@ -3,43 +3,40 @@
 #include "DMXControlConsoleEditorLayouts.h"
 
 #include "Algo/Find.h"
+#include "DMXControlConsole.h"
 #include "DMXControlConsoleData.h"
 #include "Layouts/DMXControlConsoleEditorGlobalLayoutBase.h"
-#include "Layouts/DMXControlConsoleEditorGlobalLayoutDefault.h"
-#include "Layouts/DMXControlConsoleEditorGlobalLayoutUser.h"
-#include "Library/DMXLibrary.h"
-#include "Models/DMXControlConsoleEditorModel.h"
 
 
 UDMXControlConsoleEditorLayouts::UDMXControlConsoleEditorLayouts()
 {
-	DefaultLayout = CreateDefaultSubobject<UDMXControlConsoleEditorGlobalLayoutDefault>(TEXT("DefaultLayout"));
+	DefaultLayout = CreateDefaultSubobject<UDMXControlConsoleEditorGlobalLayoutBase>(TEXT("DefaultLayout"));
 }
 
-UDMXControlConsoleEditorGlobalLayoutUser* UDMXControlConsoleEditorLayouts::AddUserLayout(const FString& LayoutName)
+UDMXControlConsoleEditorGlobalLayoutBase* UDMXControlConsoleEditorLayouts::AddUserLayout(const FString& LayoutName)
 {
-	UDMXControlConsoleEditorGlobalLayoutUser* UserLayout = NewObject<UDMXControlConsoleEditorGlobalLayoutUser>(this, NAME_None, RF_Transactional);
+	UDMXControlConsoleEditorGlobalLayoutBase* UserLayout = NewObject<UDMXControlConsoleEditorGlobalLayoutBase>(this, NAME_None, RF_Transactional);
 	FString NewLayoutName = LayoutName;
 	if (NewLayoutName.IsEmpty() || FindUserLayoutByName(NewLayoutName))
 	{
 		const int32 Index = UserLayouts.Num();
 		NewLayoutName = FString::Format(TEXT("Layout {0}"), { Index });
 	}
-	UserLayout->SetLayoutName(NewLayoutName);
+	UserLayout->LayoutName = NewLayoutName;
 
 	UserLayouts.Add(UserLayout);
 
 	return UserLayout;
 }
 
-void UDMXControlConsoleEditorLayouts::DeleteUserLayout(UDMXControlConsoleEditorGlobalLayoutUser* UserLayout)
+void UDMXControlConsoleEditorLayouts::DeleteUserLayout(UDMXControlConsoleEditorGlobalLayoutBase* UserLayout)
 {
 	if (!ensureMsgf(UserLayout, TEXT("Invalid layout, cannot delete from '%s'."), *GetName()))
 	{
 		return;
 	}
 
-	if (!ensureMsgf(UserLayouts.Contains(UserLayout), TEXT("'%s' is not owner of '%s'. Cannot delete layout correctly."), *GetName(), *UserLayout->GetLayoutName()))
+	if (!ensureMsgf(UserLayouts.Contains(UserLayout), TEXT("'%s' is not owner of '%s'. Cannot delete layout correctly."), *GetName(), *UserLayout->LayoutName))
 	{
 		return;
 	}
@@ -47,11 +44,11 @@ void UDMXControlConsoleEditorLayouts::DeleteUserLayout(UDMXControlConsoleEditorG
 	UserLayouts.Remove(UserLayout);
 }
 
-UDMXControlConsoleEditorGlobalLayoutUser* UDMXControlConsoleEditorLayouts::FindUserLayoutByName(const FString& LayoutName) const
+UDMXControlConsoleEditorGlobalLayoutBase* UDMXControlConsoleEditorLayouts::FindUserLayoutByName(const FString& LayoutName) const
 {
-	const TObjectPtr<UDMXControlConsoleEditorGlobalLayoutUser>* UserLayout = Algo::FindByPredicate(UserLayouts, [LayoutName](const UDMXControlConsoleEditorGlobalLayoutUser* CustomLayout)
+	const TObjectPtr<UDMXControlConsoleEditorGlobalLayoutBase>* UserLayout = Algo::FindByPredicate(UserLayouts, [LayoutName](const UDMXControlConsoleEditorGlobalLayoutBase* CustomLayout)
 		{
-			return IsValid(CustomLayout) && CustomLayout->GetLayoutName() == LayoutName;
+			return IsValid(CustomLayout) && CustomLayout->LayoutName == LayoutName;
 		});
 
 	return UserLayout ? UserLayout->Get() : nullptr;
@@ -61,6 +58,12 @@ void UDMXControlConsoleEditorLayouts::ClearUserLayouts()
 {
 	ActiveLayout = DefaultLayout;
 	UserLayouts.Reset();
+}
+
+UDMXControlConsoleEditorGlobalLayoutBase& UDMXControlConsoleEditorLayouts::GetDefaultLayoutChecked() const
+{
+	checkf(DefaultLayout, TEXT("Invalid default layout, cannot get from '%s'."), *GetName());
+	return *DefaultLayout;
 }
 
 void UDMXControlConsoleEditorLayouts::SetActiveLayout(UDMXControlConsoleEditorGlobalLayoutBase* InLayout)
@@ -75,13 +78,21 @@ void UDMXControlConsoleEditorLayouts::SetActiveLayout(UDMXControlConsoleEditorGl
 	}
 }
 
-void UDMXControlConsoleEditorLayouts::UpdateDefaultLayout(const UDMXControlConsoleData* ControlConsoleData)
+void UDMXControlConsoleEditorLayouts::UpdateDefaultLayout()
 {
-	if (DefaultLayout)
+	if (!DefaultLayout)
 	{
-		DefaultLayout->Modify();
-		DefaultLayout->GenerateLayoutByControlConsoleData(ControlConsoleData);
+		return;
 	}
+
+	const UDMXControlConsole* OwnerConsole = Cast<UDMXControlConsole>(GetOuter());
+	if (!ensureMsgf(OwnerConsole, TEXT("Invalid outer for '%s', cannot update layouts correctly."), *GetName()))
+	{
+		return;
+	}
+
+	DefaultLayout->Modify();
+	DefaultLayout->GenerateLayoutByControlConsoleData(OwnerConsole->GetControlConsoleData());
 }
 
 void UDMXControlConsoleEditorLayouts::BeginDestroy()
@@ -91,5 +102,22 @@ void UDMXControlConsoleEditorLayouts::BeginDestroy()
 	if (DefaultLayout && DefaultLayout->IsRegistered())
 	{
 		DefaultLayout->Unregister();
+	}
+}
+
+void UDMXControlConsoleEditorLayouts::PostLoad()
+{
+	Super::PostLoad();
+
+	UserLayouts.Remove(nullptr);
+
+	if (!DefaultLayout)
+	{
+		DefaultLayout = NewObject<UDMXControlConsoleEditorGlobalLayoutBase>(this, TEXT("DefaultLayout"), RF_Transactional);
+	}
+
+	if (!ActiveLayout)
+	{
+		SetActiveLayout(DefaultLayout);
 	}
 }

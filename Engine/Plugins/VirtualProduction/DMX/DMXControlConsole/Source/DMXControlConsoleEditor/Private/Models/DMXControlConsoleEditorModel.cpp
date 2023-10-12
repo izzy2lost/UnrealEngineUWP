@@ -17,10 +17,7 @@
 #include "FileHelpers.h"
 #include "Framework/Application/SlateApplication.h"
 #include "IContentBrowserSingleton.h"
-#include "Layouts/DMXControlConsoleEditorLayouts.h"
 #include "Layouts/DMXControlConsoleEditorGlobalLayoutBase.h"
-#include "Layouts/DMXControlConsoleEditorGlobalLayoutDefault.h"
-#include "Layouts/DMXControlConsoleEditorGlobalLayoutUser.h"
 #include "Layouts/DMXControlConsoleEditorLayouts.h"
 #include "Library/DMXLibrary.h"
 #include "Models/Filter/FilterModel.h"
@@ -114,7 +111,7 @@ void UDMXControlConsoleEditorModel::RemoveAllSelectedElements()
 	}
 
 	UDMXControlConsoleEditorGlobalLayoutBase* ActiveLayout = EditorConsoleLayouts->GetActiveLayout();
-	if (!ActiveLayout || ActiveLayout->GetClass() == UDMXControlConsoleEditorGlobalLayoutDefault::StaticClass())
+	if (!ActiveLayout || ActiveLayout == &EditorConsoleLayouts->GetDefaultLayoutChecked())
 	{
 		return;
 	}
@@ -145,6 +142,7 @@ void UDMXControlConsoleEditorModel::RemoveAllSelectedElements()
 
 			ActiveLayout->PreEditChange(nullptr);
 			ActiveLayout->RemoveFromLayout(SelectedFaderGroup);
+			ActiveLayout->RemoveFromActiveFaderGroups(SelectedFaderGroup);
 			ActiveLayout->PostEditChange();
 
 			if (!SelectedFaderGroup->HasFixturePatch())
@@ -201,21 +199,21 @@ void UDMXControlConsoleEditorModel::ClearAll()
 	const FScopedTransaction ClearAllTransaction(LOCTEXT("ClearAllTransaction", "Clear All"));
 	ActiveLayout->Modify();
 	ActiveLayout->ClearAll();
-	if (ActiveLayout->GetClass() == UDMXControlConsoleEditorGlobalLayoutDefault::StaticClass())
+	if (ActiveLayout == &EditorConsoleLayouts->GetDefaultLayoutChecked())
 	{
-		const TArray<UDMXControlConsoleEditorGlobalLayoutUser*> UserLayouts = EditorConsoleLayouts->GetUserLayouts();
-		for (UDMXControlConsoleEditorGlobalLayoutUser* UserLayout : UserLayouts)
+		const TArray<UDMXControlConsoleEditorGlobalLayoutBase*> UserLayouts = EditorConsoleLayouts->GetUserLayouts();
+		for (UDMXControlConsoleEditorGlobalLayoutBase* UserLayout : UserLayouts)
 		{
 			UserLayout->Modify();
-			UserLayout->ClearAllPatchedFaderGroups();
-			UserLayout->ClearEmptyLayoutRows();
+			constexpr bool bOnlyPatchedFaderGroups = true;
+			UserLayout->ClearAll(bOnlyPatchedFaderGroups);
 		}
 
-		if (UDMXControlConsoleData* ControlconsoleData = GetEditorConsoleData())
+		if (UDMXControlConsoleData* ControlConsoleData = GetEditorConsoleData())
 		{
 			constexpr bool bOnlyPatchedFaderGroups = true;
-			ControlconsoleData->Modify();
-			ControlconsoleData->ClearAll(bOnlyPatchedFaderGroups);
+			ControlConsoleData->Modify();
+			ControlConsoleData->ClearAll(bOnlyPatchedFaderGroups);
 		}
 	}
 }
@@ -471,14 +469,26 @@ void UDMXControlConsoleEditorModel::UnbindFromDMXLibraryChanges()
 
 void UDMXControlConsoleEditorModel::InitializeEditorLayouts()
 {
-	if (EditorConsole && !EditorConsole->ControlConsoleEditorLayouts)
+	if (!EditorConsole)
 	{
-		UDMXControlConsoleEditorLayouts* EditorConsoleLayouts = NewObject<UDMXControlConsoleEditorLayouts>(EditorConsole, NAME_None, RF_Transactional);
+		return;
+	}
+
+	UDMXControlConsoleEditorLayouts* EditorConsoleLayouts = Cast<UDMXControlConsoleEditorLayouts>(EditorConsole->ControlConsoleEditorLayouts);
+	if (!EditorConsoleLayouts)
+	{
+		EditorConsoleLayouts = NewObject<UDMXControlConsoleEditorLayouts>(EditorConsole, NAME_None, RF_Transactional);
 		EditorConsole->ControlConsoleEditorLayouts = EditorConsoleLayouts;
-		
-		UDMXControlConsoleEditorGlobalLayoutDefault* DefaultLayout = EditorConsoleLayouts->GetDefaultLayout();
-		EditorConsoleLayouts->SetActiveLayout(DefaultLayout);
-		EditorConsoleLayouts->UpdateDefaultLayout(GetEditorConsoleData());
+
+		EditorConsoleLayouts->UpdateDefaultLayout();
+		EditorConsoleLayouts->SetActiveLayout(&EditorConsoleLayouts->GetDefaultLayoutChecked());
+	}
+
+	UDMXControlConsoleEditorGlobalLayoutBase& DefaultLayout = EditorConsoleLayouts->GetDefaultLayoutChecked();
+	if (DefaultLayout.GetLayoutRows().IsEmpty())
+	{
+		EditorConsoleLayouts->UpdateDefaultLayout();
+		EditorConsoleLayouts->SetActiveLayout(&DefaultLayout);
 	}
 
 	RegisterEditorLayouts();
@@ -492,11 +502,8 @@ void UDMXControlConsoleEditorModel::RegisterEditorLayouts()
 		return;
 	}
 
-	UDMXControlConsoleEditorGlobalLayoutDefault* DefaultLayout = EditorLayouts->GetDefaultLayout();
-	if (DefaultLayout)
-	{
-		DefaultLayout->Register();
-	}
+	UDMXControlConsoleEditorGlobalLayoutBase& DefaultLayout = EditorLayouts->GetDefaultLayoutChecked();
+	DefaultLayout.Register();
 }
 
 void UDMXControlConsoleEditorModel::UnregisterEditorLayouts()
@@ -507,11 +514,8 @@ void UDMXControlConsoleEditorModel::UnregisterEditorLayouts()
 		return;
 	}
 
-	UDMXControlConsoleEditorGlobalLayoutDefault* DefaultLayout = EditorLayouts->GetDefaultLayout();
-	if (DefaultLayout)
-	{
-		DefaultLayout->Unregister();
-	}
+	UDMXControlConsoleEditorGlobalLayoutBase& DefaultLayout = EditorLayouts->GetDefaultLayoutChecked();
+	DefaultLayout.Unregister();
 }
 
 void UDMXControlConsoleEditorModel::SaveConsoleToConfig()
@@ -648,8 +652,8 @@ void UDMXControlConsoleEditorModel::OnDMXLibraryChanged()
 	}
 
 	// Clear user layouts from patched fader groups
-	const TArray<UDMXControlConsoleEditorGlobalLayoutUser*> UserLayouts = EditorConsoleLayouts->GetUserLayouts();
-	for (UDMXControlConsoleEditorGlobalLayoutUser* UserLayout : UserLayouts)
+	const TArray<UDMXControlConsoleEditorGlobalLayoutBase*> UserLayouts = EditorConsoleLayouts->GetUserLayouts();
+	for (UDMXControlConsoleEditorGlobalLayoutBase* UserLayout : UserLayouts)
 	{
 		if (!UserLayout)
 		{
@@ -657,8 +661,8 @@ void UDMXControlConsoleEditorModel::OnDMXLibraryChanged()
 		}
 
 		UserLayout->PreEditChange(nullptr);
-		UserLayout->ClearAllPatchedFaderGroups();
-		UserLayout->ClearEmptyLayoutRows();
+		constexpr bool bOnlyPatchedFaderGroups = true;
+		UserLayout->ClearAll(bOnlyPatchedFaderGroups);
 		UserLayout->PostEditChange();
 	}
 
@@ -670,7 +674,7 @@ void UDMXControlConsoleEditorModel::OnDMXLibraryChanged()
 
 	// Update current console default layout
 	EditorConsoleLayouts->PreEditChange(nullptr);
-	EditorConsoleLayouts->UpdateDefaultLayout(EditorConsoleData);
+	EditorConsoleLayouts->UpdateDefaultLayout();
 	EditorConsoleLayouts->PostEditChange();
 
 	RequestUpdateEditorModel();

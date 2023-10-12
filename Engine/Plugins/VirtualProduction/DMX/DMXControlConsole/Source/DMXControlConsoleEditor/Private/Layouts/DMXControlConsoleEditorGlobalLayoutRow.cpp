@@ -10,14 +10,17 @@
 
 UDMXControlConsoleEditorGlobalLayoutRow::FOnGlobalLayoutRowChangedDelegate UDMXControlConsoleEditorGlobalLayoutRow::OnGlobalLayoutRowChanged;
 
-void UDMXControlConsoleEditorGlobalLayoutRow::AddToLayoutRow(UDMXControlConsoleFaderGroup* FaderGroup)
+void UDMXControlConsoleEditorGlobalLayoutRow::AddToLayoutRow(UDMXControlConsoleFaderGroup* FaderGroup, const int32 Index)
 {
-	if (FaderGroup)
+	if (!FaderGroup || Index > FaderGroups.Num())
 	{
-		FaderGroups.Add(FaderGroup);
-
-		OnGlobalLayoutRowChanged.Broadcast(this);
+		return;
 	}
+
+	const int32 ValidIndex = Index < 0 ? FaderGroups.Num() : Index;
+	FaderGroups.Insert(FaderGroup, ValidIndex);
+
+	OnGlobalLayoutRowChanged.Broadcast(this);
 }
 
 void UDMXControlConsoleEditorGlobalLayoutRow::AddToLayoutRow(const TArray<UDMXControlConsoleFaderGroup*> InFaderGroups)
@@ -30,31 +33,11 @@ void UDMXControlConsoleEditorGlobalLayoutRow::AddToLayoutRow(const TArray<UDMXCo
 	}
 }
 
-void UDMXControlConsoleEditorGlobalLayoutRow::AddToLayoutRow(UDMXControlConsoleFaderGroup* FaderGroup, const int32 Index)
-{
-	if (FaderGroup && Index >= 0)
-	{
-		FaderGroups.Insert(FaderGroup, Index);
-
-		OnGlobalLayoutRowChanged.Broadcast(this);
-	}
-}
-
 void UDMXControlConsoleEditorGlobalLayoutRow::RemoveFromLayoutRow(UDMXControlConsoleFaderGroup* FaderGroup)
 {
 	FaderGroups.Remove(FaderGroup);
 
 	OnGlobalLayoutRowChanged.Broadcast(this);
-}
-
-void UDMXControlConsoleEditorGlobalLayoutRow::RemoveFromLayoutRow(const int32 Index)
-{
-	if (ensureMsgf(FaderGroups.IsValidIndex(Index), TEXT("Trying to remove layout row from index %i, but index is invalid. Ignoring call."), Index))
-	{
-		FaderGroups.RemoveAt(Index);
-
-		OnGlobalLayoutRowChanged.Broadcast(this);
-	}
 }
 
 int32 UDMXControlConsoleEditorGlobalLayoutRow::GetRowIndex() const

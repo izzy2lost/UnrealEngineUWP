@@ -21,7 +21,7 @@
 #include "IDetailsView.h"
 #include "Layout/Visibility.h"
 #include "Layouts/DMXControlConsoleEditorGlobalLayoutRow.h"
-#include "Layouts/DMXControlConsoleEditorGlobalLayoutUser.h"
+#include "Layouts/DMXControlConsoleEditorGlobalLayoutBase.h"
 #include "Layouts/DMXControlConsoleEditorLayouts.h"
 #include "Layouts/Widgets/SDMXControlConsoleEditorGridLayout.h"
 #include "Layouts/Widgets/SDMXControlConsoleEditorHorizontalLayout.h"

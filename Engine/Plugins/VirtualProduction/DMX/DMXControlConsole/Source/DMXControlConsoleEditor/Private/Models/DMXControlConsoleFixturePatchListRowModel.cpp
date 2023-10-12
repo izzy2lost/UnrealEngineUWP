@@ -5,7 +5,6 @@
 #include "DMXControlConsoleFaderGroup.h"
 #include "Models/DMXControlConsoleEditorModel.h"
 #include "Layouts/DMXControlConsoleEditorGlobalLayoutBase.h"
-#include "Layouts/DMXControlConsoleEditorGlobalLayoutUser.h"
 #include "Layouts/DMXControlConsoleEditorLayouts.h"
 #include "ScopedTransaction.h"
 #include "Styling/SlateTypes.h"
@@ -32,19 +31,19 @@ bool FDMXControlConsoleFixturePatchListRowModel::IsRowEnabled() const
 		return true;
 	}
 
-	// Do only if current layout is User Layout
-	const UDMXControlConsoleEditorGlobalLayoutBase* CurrentLayout = EditorConsoleLayouts->GetActiveLayout();
-	if (!CurrentLayout)
+	// Do only if active layout is not default Layout
+	const UDMXControlConsoleEditorGlobalLayoutBase* ActiveLayout = EditorConsoleLayouts->GetActiveLayout();
+	if (!ActiveLayout)
 	{
 		return true;
 	}
 
-	if (CurrentLayout->GetClass() != UDMXControlConsoleEditorGlobalLayoutUser::StaticClass())
+	if (ActiveLayout == &EditorConsoleLayouts->GetDefaultLayoutChecked())
 	{
 		return true;
 	}
 
-	const UDMXControlConsoleFaderGroup* FaderGroup = CurrentLayout->FindFaderGroupByFixturePatch(FixturePatch);
+	const UDMXControlConsoleFaderGroup* FaderGroup = ActiveLayout->FindFaderGroupByFixturePatch(FixturePatch);
 	return !IsValid(FaderGroup);
 }
 

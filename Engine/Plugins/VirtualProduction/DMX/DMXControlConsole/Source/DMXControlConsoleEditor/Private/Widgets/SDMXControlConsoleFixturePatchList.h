@@ -93,9 +93,6 @@ private:
 	/** Returns true if the current show mode matches the specified one */
 	bool IsUsingShowMode(EDMXReadOnlyFixturePatchListShowMode InShowMode) const;
 
-	/** Returns the currently active layout class */
-	TSubclassOf<UDMXControlConsoleEditorGlobalLayoutBase> GetActiveGlobalLayoutClass() const;
-
 	/** Specifies if active, inactive or all patches are shown in the list */
 	EDMXReadOnlyFixturePatchListShowMode ShowMode;
 

@@ -4,7 +4,6 @@
 
 #include "DMXEditorModule.h"
 #include "Commands/DMXControlConsoleEditorCommands.h"
-#include "Layouts/DMXControlConsoleEditorGlobalLayoutDefault.h"
 #include "Models/DMXControlConsoleEditorModel.h"
 #include "Style/DMXControlConsoleEditorStyle.h"
 #include "Views/SDMXControlConsoleEditorView.h"

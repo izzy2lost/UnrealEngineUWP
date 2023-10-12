@@ -9,9 +9,7 @@
 #include "DMXControlConsoleFaderGroupRow.h"
 #include "Editor.h"
 #include "Layouts/DMXControlConsoleEditorGlobalLayoutBase.h"
-#include "Layouts/DMXControlConsoleEditorGlobalLayoutDefault.h"
 #include "Layouts/DMXControlConsoleEditorGlobalLayoutRow.h"
-#include "Layouts/DMXControlConsoleEditorGlobalLayoutUser.h"
 #include "Layouts/DMXControlConsoleEditorLayouts.h"
 #include "Models/DMXControlConsoleEditorModel.h"
 #include "ScopedTransaction.h"
@@ -327,8 +325,7 @@ namespace UE::DMXControlConsoleEditor::Layout::Private
 			return;
 		}
 
-		const int32 RowIndex = ActiveLayout->GetFaderGroupRowIndex(FaderGroup);
-		const UDMXControlConsoleEditorGlobalLayoutRow* LayoutRow = ActiveLayout->GetLayoutRow(RowIndex);
+		const UDMXControlConsoleEditorGlobalLayoutRow* LayoutRow = ActiveLayout->GetLayoutRow(FaderGroup);
 		const TSharedPtr<SDMXControlConsoleEditorLayoutRowView> LayoutRowView = FindLayoutRowView(LayoutRow);
 		if (LayoutRowView.IsValid())
 		{
@@ -376,7 +373,7 @@ namespace UE::DMXControlConsoleEditor::Layout::Private
 			const UDMXControlConsoleEditorGlobalLayoutBase* ActiveLayout = EditorConsoleLayouts->GetActiveLayout();
 			bIsVisible =
 				IsValid(ActiveLayout) &&
-				ActiveLayout->GetClass() != UDMXControlConsoleEditorGlobalLayoutDefault::StaticClass() &&
+				ActiveLayout != &EditorConsoleLayouts->GetDefaultLayoutChecked() &&
 				EditorConsoleData->FilterString.IsEmpty() &&
 				(ActiveLayout->GetLayoutRows().IsEmpty() ||
 				ActiveLayout->GetAllActiveFaderGroups().IsEmpty());

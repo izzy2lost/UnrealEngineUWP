@@ -7,8 +7,7 @@
 enum class ECheckBoxState : uint8;
 template <typename OptionType> class SComboBox;
 class SEditableTextBox;
-class UClass;
-class UDMXControlConsoleEditorGlobalLayoutUser;
+class UDMXControlConsoleEditorGlobalLayoutBase;
 
 
 /** A widget to pick layouts for Control Console */
@@ -29,7 +28,10 @@ private:
 	TSharedRef<SWidget> GenerateLayoutCheckBoxWidget();
 
 	/** Generates a widget for each element in UserLayoutsComboBox */
-	TSharedRef<SWidget> GenerateLayoutComboBoxWidget(const TWeakObjectPtr<UDMXControlConsoleEditorGlobalLayoutUser> InLayout);
+	TSharedRef<SWidget> GenerateLayoutComboBoxWidget(const TWeakObjectPtr<UDMXControlConsoleEditorGlobalLayoutBase> InLayout);
+
+	/** True if the active layout is the default layout */
+	bool IsDefaultLayoutActive() const;
 
 	/** Called when Default Layout checkbox state has changed */
 	void OnDefaultLayoutChecked(ECheckBoxState CheckBoxState);
@@ -37,14 +39,11 @@ private:
 	/** Called when UserLayout checkbox state has changed */
 	void OnUserLayoutChecked(ECheckBoxState CheckBoxState);
 
-	/** Checked if the active layout class matche the given layout class */
-	ECheckBoxState IsActiveLayoutClass(UClass* InLayoutClass) const;
-
 	/** Updates ComboBoxSource array according to the current DMX Library */
 	void UpdateComboBoxSource();
 
 	/** Called when an FixturePatchesComboBox element is selected */
-	void OnComboBoxSelectionChanged(const TWeakObjectPtr<UDMXControlConsoleEditorGlobalLayoutUser> InLayout, ESelectInfo::Type SelectInfo);
+	void OnComboBoxSelectionChanged(const TWeakObjectPtr<UDMXControlConsoleEditorGlobalLayoutBase> InLayout, ESelectInfo::Type SelectInfo);
 
 	/** Called when LayoutNameEditableBox text changes */
 	void OnLayoutNameTextChanged(const FText& NewText);
@@ -68,13 +67,13 @@ private:
 	EVisibility GetComboBoxVisibility() const;
 
 	/** Reference to UserLayoutsComboBox last selected item */
-	TWeakObjectPtr<UDMXControlConsoleEditorGlobalLayoutUser> LastSelectedItem;
+	TWeakObjectPtr<UDMXControlConsoleEditorGlobalLayoutBase> LastSelectedItem;
 
 	/** Source items for UserLayoutsComboBox */
-	TArray<TWeakObjectPtr<UDMXControlConsoleEditorGlobalLayoutUser>> ComboBoxSource;
+	TArray<TWeakObjectPtr<UDMXControlConsoleEditorGlobalLayoutBase>> ComboBoxSource;
 
 	/** A ComboBox for showing all User Layouts in the current Control Console */
-	TSharedPtr<SComboBox<TWeakObjectPtr<UDMXControlConsoleEditorGlobalLayoutUser>>> UserLayoutsComboBox;
+	TSharedPtr<SComboBox<TWeakObjectPtr<UDMXControlConsoleEditorGlobalLayoutBase>>> UserLayoutsComboBox;
 
 	/** Reference to text box for editing layout name */
 	TSharedPtr<SEditableTextBox> LayoutNameEditableBox;

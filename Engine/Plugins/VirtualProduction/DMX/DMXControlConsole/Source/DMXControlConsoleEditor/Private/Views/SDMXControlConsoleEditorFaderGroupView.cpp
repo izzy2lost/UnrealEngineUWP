@@ -10,9 +10,7 @@
 #include "DMXControlConsoleFixturePatchMatrixCell.h"
 #include "Framework/Application/SlateApplication.h"
 #include "Layouts/DMXControlConsoleEditorGlobalLayoutBase.h"
-#include "Layouts/DMXControlConsoleEditorGlobalLayoutDefault.h"
 #include "Layouts/DMXControlConsoleEditorGlobalLayoutRow.h"
-#include "Layouts/DMXControlConsoleEditorGlobalLayoutUser.h"
 #include "Layouts/DMXControlConsoleEditorLayouts.h"
 #include "Models/DMXControlConsoleEditorModel.h"
 #include "ScopedTransaction.h"
@@ -176,12 +174,12 @@ bool SDMXControlConsoleEditorFaderGroupView::CanAddFaderGroup() const
 		return false;
 	}
 
-	// True if current Layout is User Layout, no vertical layout mode and no global filter
-	const UDMXControlConsoleEditorGlobalLayoutBase* CurrentLayout = ControlConsoleLayouts->GetActiveLayout();
+	// True if active layout is User Layout, no vertical layout mode and no global filter
+	const UDMXControlConsoleEditorGlobalLayoutBase* ActiveLayout = ControlConsoleLayouts->GetActiveLayout();
 	return
-		IsValid(CurrentLayout) &&
-		CurrentLayout->GetClass() == UDMXControlConsoleEditorGlobalLayoutUser::StaticClass() &&
-		CurrentLayout->GetLayoutMode() != EDMXControlConsoleLayoutMode::Vertical &&
+		IsValid(ActiveLayout) &&
+		ActiveLayout != &ControlConsoleLayouts->GetDefaultLayoutChecked() &&
+		ActiveLayout->GetLayoutMode() != EDMXControlConsoleLayoutMode::Vertical &&
 		ControlConsoleData->FilterString.IsEmpty();
 }
 
@@ -200,24 +198,24 @@ bool SDMXControlConsoleEditorFaderGroupView::CanAddFaderGroupRow() const
 		return false;
 	}
 
-	// True if current Layout is User Layout and there's no global filter
-	const UDMXControlConsoleEditorGlobalLayoutBase* CurrentLayout = ControlConsoleLayouts->GetActiveLayout();
-	if (!CurrentLayout)
+	// True if active layout is user layout and there's no global filter
+	const UDMXControlConsoleEditorGlobalLayoutBase* ActiveLayout = ControlConsoleLayouts->GetActiveLayout();
+	if (!ActiveLayout)
 	{
 		return false;
 	}
 
 	bool bCanAdd =
-		CurrentLayout->GetClass() == UDMXControlConsoleEditorGlobalLayoutUser::StaticClass() &&
-		CurrentLayout->GetLayoutMode() != EDMXControlConsoleLayoutMode::Horizontal &&
+		ActiveLayout != &ControlConsoleLayouts->GetDefaultLayoutChecked() &&
+		ActiveLayout->GetLayoutMode() != EDMXControlConsoleLayoutMode::Horizontal &&
 		ControlConsoleData->FilterString.IsEmpty();
 
 	// True if grid layout mode and this is the first active fader group in the row
-	if (CurrentLayout->GetLayoutMode() == EDMXControlConsoleLayoutMode::Grid)
+	if (ActiveLayout->GetLayoutMode() == EDMXControlConsoleLayoutMode::Grid)
 	{
 		bCanAdd &= 
 			FaderGroup->IsActive() &&
-			CurrentLayout->GetFaderGroupColumnIndex(FaderGroup.Get()) == 0;
+			ActiveLayout->GetFaderGroupColumnIndex(FaderGroup.Get()) == 0;
 	}
 
 	return bCanAdd;
@@ -556,13 +554,13 @@ void SDMXControlConsoleEditorFaderGroupView::OnAddFaderGroup() const
 		return;
 	}
 
-	UDMXControlConsoleEditorGlobalLayoutBase* CurrentLayout = ControlConsoleLayouts->GetActiveLayout();
-	if (!CurrentLayout)
+	UDMXControlConsoleEditorGlobalLayoutBase* ActiveLayout = ControlConsoleLayouts->GetActiveLayout();
+	if (!ActiveLayout)
 	{
 		return;
 	}
 
-	UDMXControlConsoleEditorGlobalLayoutRow* LayoutRow = CurrentLayout->GetLayoutRow(FaderGroup.Get());
+	UDMXControlConsoleEditorGlobalLayoutRow* LayoutRow = ActiveLayout->GetLayoutRow(FaderGroup.Get());
 	if (!LayoutRow)
 	{
 		return;
@@ -572,6 +570,10 @@ void SDMXControlConsoleEditorFaderGroupView::OnAddFaderGroup() const
 	LayoutRow->PreEditChange(nullptr);
 	LayoutRow->AddToLayoutRow(NewFaderGroup, Index + 1);
 	LayoutRow->PostEditChange();
+
+	ActiveLayout->PreEditChange(nullptr);
+	ActiveLayout->AddToActiveFaderGroups(NewFaderGroup);
+	ActiveLayout->PostEditChange();
 }
 
 void SDMXControlConsoleEditorFaderGroupView::OnAddFaderGroupRow() const
@@ -589,8 +591,8 @@ void SDMXControlConsoleEditorFaderGroupView::OnAddFaderGroupRow() const
 	}
 
 	// Add Fader Group next if vertical sorting
-	UDMXControlConsoleEditorGlobalLayoutBase* CurrentLayout = ControlConsoleLayouts->GetActiveLayout();
-	if (CurrentLayout->GetLayoutMode() == EDMXControlConsoleLayoutMode::Vertical)
+	UDMXControlConsoleEditorGlobalLayoutBase* ActiveLayout = ControlConsoleLayouts->GetActiveLayout();
+	if (ActiveLayout->GetLayoutMode() == EDMXControlConsoleLayoutMode::Vertical)
 	{
 		OnAddFaderGroup();
 		return;
@@ -606,25 +608,26 @@ void SDMXControlConsoleEditorFaderGroupView::OnAddFaderGroupRow() const
 	const UDMXControlConsoleFaderGroupRow* NewRow = ControlConsoleData.AddFaderGroupRow(RowIndex + 1);
 	ControlConsoleData.PostEditChange();
 
-	UDMXControlConsoleEditorGlobalLayoutRow* LayoutRow = CurrentLayout->GetLayoutRow(FaderGroup.Get());
+	UDMXControlConsoleEditorGlobalLayoutRow* LayoutRow = ActiveLayout->GetLayoutRow(FaderGroup.Get());
 	if (!LayoutRow)
 	{
 		return;
 	}
 
 	const int32 LayoutRowIndex = LayoutRow->GetRowIndex();
-	CurrentLayout->PreEditChange(nullptr);
-	UDMXControlConsoleEditorGlobalLayoutRow* NewLayoutRow = CurrentLayout->AddNewRowToLayout(LayoutRowIndex + 1);
-	CurrentLayout->PostEditChange();
-	if (!NewLayoutRow)
+	ActiveLayout->PreEditChange(nullptr);
+	UDMXControlConsoleEditorGlobalLayoutRow* NewLayoutRow = ActiveLayout->AddNewRowToLayout(LayoutRowIndex + 1);
+	if (NewLayoutRow)
 	{
-		return;
+		UDMXControlConsoleFaderGroup* NewFaderGroup = NewRow && !NewRow->GetFaderGroups().IsEmpty() ? NewRow->GetFaderGroups()[0] : nullptr;
+		NewLayoutRow->PreEditChange(nullptr);
+		NewLayoutRow->AddToLayoutRow(NewFaderGroup);
+		NewLayoutRow->PostEditChange();
+
+		ActiveLayout->AddToActiveFaderGroups(NewFaderGroup);
 	}
 
-	UDMXControlConsoleFaderGroup* NewFaderGroup = NewRow && !NewRow->GetFaderGroups().IsEmpty() ? NewRow->GetFaderGroups()[0] : nullptr;
-	NewLayoutRow->PreEditChange(nullptr);
-	NewLayoutRow->AddToLayoutRow(NewFaderGroup);
-	NewLayoutRow->PostEditChange();
+	ActiveLayout->PostEditChange();
 }
 
 void SDMXControlConsoleEditorFaderGroupView::OnFaderGroupFixturePatchChanged(UDMXControlConsoleFaderGroup* InFaderGroup, UDMXEntityFixturePatch* FixturePatch)

@@ -13,9 +13,7 @@
 #include "Commands/DMXControlConsoleEditorCommands.h"
 #include "Framework/MultiBox/MultiBoxBuilder.h"
 #include "Layouts/DMXControlConsoleEditorGlobalLayoutBase.h"
-#include "Layouts/DMXControlConsoleEditorGlobalLayoutDefault.h"
 #include "Layouts/DMXControlConsoleEditorGlobalLayoutRow.h"
-#include "Layouts/DMXControlConsoleEditorGlobalLayoutUser.h"
 #include "Layouts/DMXControlConsoleEditorLayouts.h"
 #include "Library/DMXEntityFixturePatch.h"
 #include "Library/DMXEntityReference.h"
@@ -165,8 +163,8 @@ TSharedRef<SWidget> SDMXControlConsoleEditorFixturePatchVerticalBox::CreateAddPa
 	const UDMXControlConsoleEditorLayouts* EditorConsoleLayouts = EditorConsoleModel->GetEditorConsoleLayouts();
 	if (EditorConsoleLayouts)
 	{
-		const UDMXControlConsoleEditorGlobalLayoutBase* CurrentLayout = EditorConsoleLayouts->GetActiveLayout();
-		if (CurrentLayout && CurrentLayout->GetClass() == UDMXControlConsoleEditorGlobalLayoutUser::StaticClass())
+		const UDMXControlConsoleEditorGlobalLayoutBase* ActiveLayout = EditorConsoleLayouts->GetActiveLayout();
+		if (ActiveLayout && ActiveLayout != &EditorConsoleLayouts->GetDefaultLayoutChecked())
 		{
 			TArray<TWeakObjectPtr<UDMXEntityFixturePatch>> WeakFixturePatches;
 			TArray<UDMXEntityFixturePatch*> SelectedFixturePatches = FixturePatchList->GetSelectedFixturePatches();
@@ -209,8 +207,8 @@ FReply SDMXControlConsoleEditorFixturePatchVerticalBox::OnAddAllPatchesClicked()
 		return FReply::Handled();
 	}
 
-	UDMXControlConsoleEditorGlobalLayoutBase* CurrentLayout = EditorConsoleLayouts->GetActiveLayout();
-	if (!CurrentLayout)
+	UDMXControlConsoleEditorGlobalLayoutBase* ActiveLayout = EditorConsoleLayouts->GetActiveLayout();
+	if (!ActiveLayout)
 	{
 		return FReply::Handled();
 	}
@@ -226,16 +224,16 @@ FReply SDMXControlConsoleEditorFixturePatchVerticalBox::OnAddAllPatchesClicked()
 
 		// Remove Fader Groups already in the layout and all unpatched Fader Groups
 		TArray<UDMXControlConsoleFaderGroup*> FaderGroups = FaderGroupRow->GetFaderGroups();
-		FaderGroups.RemoveAll([&CurrentLayout](const UDMXControlConsoleFaderGroup* FaderGroup)
+		FaderGroups.RemoveAll([&ActiveLayout](const UDMXControlConsoleFaderGroup* FaderGroup)
 			{
 				return FaderGroup && 
 					(!FaderGroup->HasFixturePatch() ||
-					CurrentLayout->ContainsFaderGroup(FaderGroup));
+						ActiveLayout->ContainsFaderGroup(FaderGroup));
 			});
 
-		CurrentLayout->PreEditChange(nullptr);
-		UDMXControlConsoleEditorGlobalLayoutRow* LayoutRow = CurrentLayout->AddNewRowToLayout();
-		CurrentLayout->PostEditChange();
+		ActiveLayout->PreEditChange(nullptr);
+		UDMXControlConsoleEditorGlobalLayoutRow* LayoutRow = ActiveLayout->AddNewRowToLayout();
+		ActiveLayout->PostEditChange();
 
 		if (LayoutRow)
 		{
@@ -267,8 +265,8 @@ EVisibility SDMXControlConsoleEditorFixturePatchVerticalBox::GetFixturePatchList
 	const UDMXControlConsoleEditorModel* EditorConsoleModel = GetDefault<UDMXControlConsoleEditorModel>();
 	if (const UDMXControlConsoleEditorLayouts* EditorConsoleLayouts = EditorConsoleModel->GetEditorConsoleLayouts())
 	{
-		const UDMXControlConsoleEditorGlobalLayoutBase* CurrentLayout = EditorConsoleLayouts->GetActiveLayout();
-		bIsVisible = IsValid(CurrentLayout) && CurrentLayout->GetClass() == UDMXControlConsoleEditorGlobalLayoutUser::StaticClass();
+		const UDMXControlConsoleEditorGlobalLayoutBase* ActiveLayout = EditorConsoleLayouts->GetActiveLayout();
+		bIsVisible = IsValid(ActiveLayout) && ActiveLayout != &EditorConsoleLayouts->GetDefaultLayoutChecked();
 	}
 
 	return bIsVisible ? EVisibility::Visible : EVisibility::Collapsed;

@@ -8,8 +8,6 @@
 
 class UDMXControlConsoleData;
 class UDMXControlConsoleEditorGlobalLayoutBase;
-class UDMXControlConsoleEditorGlobalLayoutDefault;
-class UDMXControlConsoleEditorGlobalLayoutUser;
 
 
 /** Control Console container class for layouts data */
@@ -27,31 +25,31 @@ public:
 	UDMXControlConsoleEditorLayouts();
 
 	/** Adds a new User Layout */
-	UDMXControlConsoleEditorGlobalLayoutUser* AddUserLayout(const FString& LayoutName);
+	UDMXControlConsoleEditorGlobalLayoutBase* AddUserLayout(const FString& LayoutName);
 
 	/** Deletes the given User Layout */
-	void DeleteUserLayout(UDMXControlConsoleEditorGlobalLayoutUser* UserLayout);
+	void DeleteUserLayout(UDMXControlConsoleEditorGlobalLayoutBase* UserLayout);
 
 	/** Finds the User Layout with the given name, if valid */
-	UDMXControlConsoleEditorGlobalLayoutUser* FindUserLayoutByName(const FString& LayoutName) const;
+	UDMXControlConsoleEditorGlobalLayoutBase* FindUserLayoutByName(const FString& LayoutName) const;
 
 	/** Clears UserLayouts array */
 	void ClearUserLayouts();
 
-	/** Gets reference to Default Layout */
-	UDMXControlConsoleEditorGlobalLayoutDefault* GetDefaultLayout() const { return DefaultLayout; }
+	/** Gets a reference to the Default Layout */
+	UDMXControlConsoleEditorGlobalLayoutBase& GetDefaultLayoutChecked() const;
 
 	/** Gets User Layouts array */
-	const TArray<UDMXControlConsoleEditorGlobalLayoutUser*>& GetUserLayouts() const { return UserLayouts; }
+	const TArray<UDMXControlConsoleEditorGlobalLayoutBase*>& GetUserLayouts() const { return UserLayouts; }
 
-	/** Gets reference to active Layout */
+	/** Gets reference to the active Layout */
 	UDMXControlConsoleEditorGlobalLayoutBase* GetActiveLayout() const { return ActiveLayout; }
 
 	/** Sets the active Layout */
 	void SetActiveLayout(UDMXControlConsoleEditorGlobalLayoutBase* InLayout);
 
-	/** Updates the default Layout to the given Control Console Data */
-	void UpdateDefaultLayout(const UDMXControlConsoleData* ControlConsoleData);
+	/** Updates the default Layout to Control Console Data */
+	void UpdateDefaultLayout();
 
 	/** Called after the Active Layout has been changed */
 	FSimpleMulticastDelegate& GetOnActiveLayoutChanged() { return OnActiveLayoutChanged; }
@@ -62,6 +60,7 @@ public:
 protected:
 	//~ Begin UObject interface
 	virtual void BeginDestroy() override;
+	virtual void PostLoad() override;
 	//~ End UObject interface
 
 private:
@@ -71,15 +70,15 @@ private:
 	/** Called after the Active Layouts's layout mode has been changed */
 	FSimpleMulticastDelegate OnLayoutModeChanged;
 
-	/** Reference to Default Layout */
+	/** Reference to the Default Layout */
 	UPROPERTY()
-	TObjectPtr<UDMXControlConsoleEditorGlobalLayoutDefault> DefaultLayout;
+	TObjectPtr<UDMXControlConsoleEditorGlobalLayoutBase> DefaultLayout;
 
 	/** Array of User Layouts */
 	UPROPERTY()
-	TArray<TObjectPtr<UDMXControlConsoleEditorGlobalLayoutUser>> UserLayouts;
+	TArray<TObjectPtr<UDMXControlConsoleEditorGlobalLayoutBase>> UserLayouts;
 
-	/** Reference to active Layout in use */
+	/** Reference to the active Layout in use */
 	UPROPERTY()
 	TObjectPtr<UDMXControlConsoleEditorGlobalLayoutBase> ActiveLayout;
 };

@@ -21,20 +21,14 @@ class UDMXControlConsoleEditorGlobalLayoutRow
 	DECLARE_MULTICAST_DELEGATE_OneParam(FOnGlobalLayoutRowChangedDelegate, UDMXControlConsoleEditorGlobalLayoutRow* /** ChangedRow */)
 	
 public:
-	/** Adds the given Fader Group to the Layout Row */
-	void AddToLayoutRow(UDMXControlConsoleFaderGroup* FaderGroup);
+	/** Adds the given Fader Group to the Layout Row at the given index */
+	void AddToLayoutRow(UDMXControlConsoleFaderGroup* FaderGroup, const int32 Index = INDEX_NONE);
 
 	/** Adds the given array of Fader Groups to the Layout Row */
 	void AddToLayoutRow(const TArray<UDMXControlConsoleFaderGroup*> InFaderGroups);
 
-	/** Adds the given Fader Group to the Layout Row at the given index */
-	void AddToLayoutRow(UDMXControlConsoleFaderGroup* FaderGroup, const int32 Index);
-
 	/** Removes the given Fader Group from the Layout Row */
 	void RemoveFromLayoutRow(UDMXControlConsoleFaderGroup* FaderGroup);
-
-	/** Removes the Fader Group at the given index from the Layout Row */
-	void RemoveFromLayoutRow(const int32 Index);
 
 	/** Gets Fader Groups array for this row */
 	const TArray<TWeakObjectPtr<UDMXControlConsoleFaderGroup>>& GetFaderGroups() const { return FaderGroups; }

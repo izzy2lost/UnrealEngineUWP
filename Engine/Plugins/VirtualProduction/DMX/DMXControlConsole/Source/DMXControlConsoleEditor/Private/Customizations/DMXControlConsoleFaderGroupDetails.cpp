@@ -14,7 +14,6 @@
 #include "IPropertyUtilities.h"
 #include "Layout/Visibility.h"
 #include "Layouts/DMXControlConsoleEditorGlobalLayoutBase.h"
-#include "Layouts/DMXControlConsoleEditorGlobalLayoutUser.h"
 #include "Layouts/DMXControlConsoleEditorLayouts.h"
 #include "Library/DMXEntityFixturePatch.h"
 #include "Models/DMXControlConsoleEditorModel.h"
@@ -190,7 +189,9 @@ FReply FDMXControlConsoleFaderGroupDetails::OnClearButtonClicked()
 
 		ActiveLayout->PreEditChange(nullptr);
 		ActiveLayout->RemoveFromLayout(SelectedFaderGroup);
+		ActiveLayout->RemoveFromActiveFaderGroups(SelectedFaderGroup);
 		ActiveLayout->AddToLayout(FaderGroupToAdd, RowIndex, ColumnIndex);
+		ActiveLayout->AddToActiveFaderGroups(FaderGroupToAdd);
 		ActiveLayout->PostEditChange();
 
 		FaderGroupToAdd->Modify();
@@ -301,10 +302,10 @@ EVisibility FDMXControlConsoleFaderGroupDetails::GetClearButtonVisibility() cons
 {
 	bool bIsVisible = DoSelectedFaderGroupsHaveAnyFixturePatches();
 	const UDMXControlConsoleEditorModel* EditorConsoleModel = GetDefault<UDMXControlConsoleEditorModel>();
-	if (const UDMXControlConsoleEditorLayouts* EditorlConsoleLayouts = EditorConsoleModel->GetEditorConsoleLayouts())
+	if (const UDMXControlConsoleEditorLayouts* EditorConsoleLayouts = EditorConsoleModel->GetEditorConsoleLayouts())
 	{
-		const UDMXControlConsoleEditorGlobalLayoutBase* ActiveLayout = EditorlConsoleLayouts->GetActiveLayout();
-		bIsVisible &= ActiveLayout->GetClass() == UDMXControlConsoleEditorGlobalLayoutUser::StaticClass();
+		const UDMXControlConsoleEditorGlobalLayoutBase* ActiveLayout = EditorConsoleLayouts->GetActiveLayout();
+		bIsVisible &= ActiveLayout != &EditorConsoleLayouts->GetDefaultLayoutChecked();
 	}
 	return bIsVisible ? EVisibility::Visible : EVisibility::Collapsed;
 }

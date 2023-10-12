@@ -45,7 +45,7 @@ namespace UE::DMX::SDMXReadOnlyFixturePatchListNamespace::Private
 			{
 				const TSharedPtr<FDMXReadOnlyFixturePatchListItem>* CorrespondingItemPtr = Algo::FindByPredicate(NewListItems, [ItemToRestore](const TSharedPtr<FDMXReadOnlyFixturePatchListItem> NewItem)
 					{
-						return NewItem->GetFixturePatch() == ItemToRestore->GetFixturePatch();
+						return NewItem.IsValid() && ItemToRestore.IsValid() && NewItem->GetFixturePatch() == ItemToRestore->GetFixturePatch();
 					});
 				if (CorrespondingItemPtr)
 				{

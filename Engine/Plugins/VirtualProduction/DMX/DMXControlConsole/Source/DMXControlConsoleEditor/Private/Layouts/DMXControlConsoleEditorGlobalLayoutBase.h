@@ -10,7 +10,9 @@
 class UDMXControlConsoleData;
 class UDMXControlConsoleEditorGlobalLayoutRow;
 class UDMXControlConsoleFaderGroup;
+class UDMXEntity;
 class UDMXEntityFixturePatch;
+class UDMXLibrary;
 
 
 UENUM()
@@ -24,91 +26,114 @@ enum class EDMXControlConsoleLayoutMode : uint8
 };
 
 /** Base class for Control Console layout */
-UCLASS(Abstract)
+UCLASS()
 class UDMXControlConsoleEditorGlobalLayoutBase
 	: public UObject
 {
 	GENERATED_BODY()
 
 public:
-	/** Adds the given Fader Group to the layout at given row/column index */
-	void AddToLayout(UDMXControlConsoleFaderGroup* FaderGroup, const int32 RowIndex, const int32 ColumnIndex);
+	/** Adds the given Fader Group to the layout at the given row/column index */
+	void AddToLayout(UDMXControlConsoleFaderGroup* FaderGroup, const int32 RowIndex, const int32 ColumnIndex = INDEX_NONE);
 
-	/** Adds the given Fader Group at the end of the Layout Row at the given index */
-	void AddToLayout(UDMXControlConsoleFaderGroup* FaderGroup, const int32 RowIndex);
-
-	/** Adds a new Layout Row to the layout */
-	UDMXControlConsoleEditorGlobalLayoutRow* AddNewRowToLayout();
-
-	/** Add a new Layout Row at the given index */
-	UDMXControlConsoleEditorGlobalLayoutRow* AddNewRowToLayout(const int32 RowIndex);
+	/** Adds a new Layout Row at the given index */
+	UDMXControlConsoleEditorGlobalLayoutRow* AddNewRowToLayout(const int32 RowIndex = INDEX_NONE);
 
 	/** Removes the given Fader Group from the layout */
-	void RemoveFromLayout(const UDMXControlConsoleFaderGroup* FaderGroup);
+	void RemoveFromLayout(UDMXControlConsoleFaderGroup* FaderGroup);
 
-	/** Removes Fader Group at given column/row index, if valid, from the layout */
-	void RemoveFromLayout(const int32 RowIndex, const int32 ColumnIndex);
-
-	/** Gets an array of all Layout Rows in this layout */
+	/** Gets an array of all the Layout Rows in this layout */
 	const TArray<UDMXControlConsoleEditorGlobalLayoutRow*>& GetLayoutRows() const { return LayoutRows; }
 
 	/** Gets the Layout Row which owns the given Fader Group, if valid */
 	UDMXControlConsoleEditorGlobalLayoutRow* GetLayoutRow(const UDMXControlConsoleFaderGroup* FaderGroup) const;
 
-	/** Gets the Layout Row at given index, if valid */
-	UDMXControlConsoleEditorGlobalLayoutRow* GetLayoutRow(const int32 RowIndex) const;
-
-	/** Gets an array of all Fader Groups in this layout */
+	/** Gets an array of all the Fader Groups in this layout */
 	TArray<TWeakObjectPtr<UDMXControlConsoleFaderGroup>> GetAllFaderGroups() const;
 
-	/** Gets an array of all active Fader Groups in this layout */
+	/** Adds the Fader Group to the array of active Fader Groups */
+	void AddToActiveFaderGroups(UDMXControlConsoleFaderGroup* FaderGroup);
+
+	/** Removes the Fader Group form the array of active Fader Groups */
+	void RemoveFromActiveFaderGroups(UDMXControlConsoleFaderGroup* FaderGroup);
+
+	/** Gets an array of all the active Fader Groups in this layout */
 	TArray<TWeakObjectPtr<UDMXControlConsoleFaderGroup>> GetAllActiveFaderGroups() const; 
 
-	/** Gets the Fader Group at given row/column index, if valid */
-	UDMXControlConsoleFaderGroup* GetFaderGroupAt(const int32 RowIndex, const int32 ColumnIndex) const;
+	/** Sets the activity state of all the Fader Groups in the layout */
+	void SetActiveFaderGroupsInLayout(bool bActive);
 
-	/** Gets row index for the given Fader Group, if valid */
+	/** Gets the row index of the given Fader Group, if valid */
 	int32 GetFaderGroupRowIndex(const UDMXControlConsoleFaderGroup* FaderGroup) const;
 
-	/** Gets column index for the given Fader Group, if valid */
+	/** Gets the column index of the given Fader Group, if valid */
 	int32 GetFaderGroupColumnIndex(const UDMXControlConsoleFaderGroup* FaderGroup) const;
 
-	/** Gets current layout mode */
+	/** Gets the current layout mode */
 	EDMXControlConsoleLayoutMode GetLayoutMode() const { return LayoutMode; }
 
-	/** Sets current layout mode */
+	/** Sets the current layout mode */
 	void SetLayoutMode(const EDMXControlConsoleLayoutMode NewLayoutMode);
-
-	/** Sets active state of all Fader Groups in the layout */
-	virtual void SetActiveFaderGroupsInLayout(bool bActive);
 
 	/** True if the layout contains the given Fader Group */
 	bool ContainsFaderGroup(const UDMXControlConsoleFaderGroup* FaderGroup) const;
 
 	/** Generates Layout Rows by the given Control Console Data */
-	virtual void GenerateLayoutByControlConsoleData(const UDMXControlConsoleData* ControlConsoleData);
+	void GenerateLayoutByControlConsoleData(const UDMXControlConsoleData* ControlConsoleData);
 
 	/** Finds a patched Fader Group in the layout */
 	UDMXControlConsoleFaderGroup* FindFaderGroupByFixturePatch(const UDMXEntityFixturePatch* InFixturePatch) const;
 
 	/** Clears all Layout Rows */
-	void ClearAll();
-
-	/** Clears all patched Fader Groups in the layout */
-	void ClearAllPatchedFaderGroups();
+	void ClearAll(const bool bOnlyPatchedFaderGroups = false);
 
 	/** Clears all empty Layout Rows in the layout */
 	void ClearEmptyLayoutRows();
 
+	/** Registers this layout */
+	void Register();
+
+	/** Unregisters this layout */
+	void Unregister();
+
+	/** True if this layout is registered to the DMX Library delegates */
+	bool IsRegistered() const { return bIsRegistered; }
+
 	// Property Name getters
 	FORCEINLINE static FName GetLayoutModePropertyName() { return GET_MEMBER_NAME_CHECKED(UDMXControlConsoleEditorGlobalLayoutBase, LayoutMode); }
-	
+	FORCEINLINE static FName GetLayoutNamePropertyName() { return GET_MEMBER_NAME_CHECKED(UDMXControlConsoleEditorGlobalLayoutBase, LayoutName); }
+
+	/** Name identifier of this Layout */
+	UPROPERTY()
+	FString LayoutName;
+
+protected:
+	//~ Begin UObject interface
+	virtual void BeginDestroy() override;
+	//~ End UObject interface
+
 private:
-	/** Reference to Layout Rows array */
+	/** Called when a Fixture Patch was removed from a DMX Library */
+	void OnFixturePatchRemovedFromLibrary(UDMXLibrary* Library, TArray<UDMXEntity*> Entities);
+
+	/** Called when a Fader Group was added to Control Console Data */
+	void OnFaderGroupAddedToData(const UDMXControlConsoleFaderGroup* FaderGroup, UDMXControlConsoleData* ControlConsoleData);
+
+	/** Called to clean this layout from all the unpatched Fader Groups */
+	void CleanLayoutFromUnpatchedFaderGroups();
+
+	/** Reference to the Layout Rows array */
 	UPROPERTY()
 	TArray<TObjectPtr<UDMXControlConsoleEditorGlobalLayoutRow>> LayoutRows;
+
+	/** Array of the currently active Fader Groups in the layout */
+	UPROPERTY()
+	TArray<TWeakObjectPtr<UDMXControlConsoleFaderGroup>> ActiveFaderGroups;
 
 	/** Current layout sorting method for this layout */
 	UPROPERTY()
 	EDMXControlConsoleLayoutMode LayoutMode = EDMXControlConsoleLayoutMode::Grid;
+
+	/** True if the layout is registered to the DMX Library delegates */
+	bool bIsRegistered = false;
 };

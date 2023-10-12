@@ -8,6 +8,10 @@
 #include "DMXControlConsoleFaderGroup.h"
 #include "DMXControlConsoleFaderGroupRow.h"
 #include "Layouts/DMXControlConsoleEditorLayouts.h"
+#include "Library/DMXEntity.h"
+#include "Library/DMXEntityFixturePatch.h"
+#include "Library/DMXLibrary.h"
+#include "Models/DMXControlConsoleEditorModel.h"
 
 
 #define LOCTEXT_NAMESPACE "DMXControlConsoleEditorGlobalLayoutBase"
@@ -27,43 +31,21 @@ void UDMXControlConsoleEditorGlobalLayoutBase::AddToLayout(UDMXControlConsoleFad
 	}
 }
 
-void UDMXControlConsoleEditorGlobalLayoutBase::AddToLayout(UDMXControlConsoleFaderGroup* FaderGroup, const int32 RowIndex)
-{
-	if (!LayoutRows.IsValidIndex(RowIndex))
-	{
-		return;
-	}
-
-	UDMXControlConsoleEditorGlobalLayoutRow* LayoutRow = LayoutRows[RowIndex];
-	if (LayoutRow)
-	{
-		LayoutRow->Modify();
-		LayoutRow->AddToLayoutRow(FaderGroup);
-	}
-}
-
-UDMXControlConsoleEditorGlobalLayoutRow* UDMXControlConsoleEditorGlobalLayoutBase::AddNewRowToLayout()
-{
-	UDMXControlConsoleEditorGlobalLayoutRow* LayoutRow = NewObject<UDMXControlConsoleEditorGlobalLayoutRow>(this, NAME_None, RF_Transactional);
-	LayoutRows.Add(LayoutRow);
-
-	return LayoutRow;
-}
-
 UDMXControlConsoleEditorGlobalLayoutRow* UDMXControlConsoleEditorGlobalLayoutBase::AddNewRowToLayout(const int32 RowIndex)
 {
-	if (RowIndex < 0 || RowIndex > LayoutRows.Num())
+	if (RowIndex > LayoutRows.Num())
 	{
 		return nullptr;
 	}
 
 	UDMXControlConsoleEditorGlobalLayoutRow* LayoutRow = NewObject<UDMXControlConsoleEditorGlobalLayoutRow>(this, NAME_None, RF_Transactional);
-	LayoutRows.Insert(LayoutRow, RowIndex);
+	const int32 ValidRowIndex = RowIndex < 0 ? LayoutRows.Num() : RowIndex;
+	LayoutRows.Insert(LayoutRow, ValidRowIndex);
 
 	return LayoutRow;
 }
 
-void UDMXControlConsoleEditorGlobalLayoutBase::RemoveFromLayout(const UDMXControlConsoleFaderGroup* FaderGroup)
+void UDMXControlConsoleEditorGlobalLayoutBase::RemoveFromLayout(UDMXControlConsoleFaderGroup* FaderGroup)
 {
 	if (!FaderGroup)
 	{
@@ -72,11 +54,6 @@ void UDMXControlConsoleEditorGlobalLayoutBase::RemoveFromLayout(const UDMXContro
 
 	const int32 RowIndex = GetFaderGroupRowIndex(FaderGroup);
 	const int32 ColumnIndex = GetFaderGroupColumnIndex(FaderGroup);
-	RemoveFromLayout(RowIndex, ColumnIndex);
-}
-
-void UDMXControlConsoleEditorGlobalLayoutBase::RemoveFromLayout(const int32 RowIndex, const int32 ColumnIndex)
-{
 	if (!LayoutRows.IsValidIndex(RowIndex))
 	{
 		return;
@@ -86,18 +63,13 @@ void UDMXControlConsoleEditorGlobalLayoutBase::RemoveFromLayout(const int32 RowI
 	if (LayoutRow)
 	{
 		LayoutRow->Modify();
-		LayoutRow->RemoveFromLayoutRow(ColumnIndex);
+		LayoutRow->RemoveFromLayoutRow(FaderGroup);
 	}
 }
 
 UDMXControlConsoleEditorGlobalLayoutRow* UDMXControlConsoleEditorGlobalLayoutBase::GetLayoutRow(const UDMXControlConsoleFaderGroup* FaderGroup) const
 {
 	const int32 RowIndex = GetFaderGroupRowIndex(FaderGroup);
-	return GetLayoutRow(RowIndex);
-}
-
-UDMXControlConsoleEditorGlobalLayoutRow* UDMXControlConsoleEditorGlobalLayoutBase::GetLayoutRow(const int32 RowIndex) const
-{
 	return LayoutRows.IsValidIndex(RowIndex) ? LayoutRows[RowIndex] : nullptr;
 }
 
@@ -115,6 +87,22 @@ TArray<TWeakObjectPtr<UDMXControlConsoleFaderGroup>> UDMXControlConsoleEditorGlo
 	return AllFaderGroups;
 }
 
+void UDMXControlConsoleEditorGlobalLayoutBase::AddToActiveFaderGroups(UDMXControlConsoleFaderGroup* FaderGroup)
+{
+	if (FaderGroup && !ActiveFaderGroups.Contains(FaderGroup))
+	{
+		ActiveFaderGroups.Add(FaderGroup);
+	}
+}
+
+void UDMXControlConsoleEditorGlobalLayoutBase::RemoveFromActiveFaderGroups(UDMXControlConsoleFaderGroup* FaderGroup)
+{
+	if (FaderGroup && ActiveFaderGroups.Contains(FaderGroup))
+	{
+		ActiveFaderGroups.Remove(FaderGroup);
+	}
+}
+
 TArray<TWeakObjectPtr<UDMXControlConsoleFaderGroup>> UDMXControlConsoleEditorGlobalLayoutBase::GetAllActiveFaderGroups() const
 {
 	TArray<TWeakObjectPtr<UDMXControlConsoleFaderGroup>> AllActiveFaderGroups = GetAllFaderGroups();
@@ -126,15 +114,20 @@ TArray<TWeakObjectPtr<UDMXControlConsoleFaderGroup>> UDMXControlConsoleEditorGlo
 	return AllActiveFaderGroups;
 }
 
-UDMXControlConsoleFaderGroup* UDMXControlConsoleEditorGlobalLayoutBase::GetFaderGroupAt(const int32 RowIndex, const int32 ColIndex) const
+void UDMXControlConsoleEditorGlobalLayoutBase::SetActiveFaderGroupsInLayout(bool bActive)
 {
-	if (LayoutRows.IsValidIndex(RowIndex))
+	const TArray<TWeakObjectPtr<UDMXControlConsoleFaderGroup>> AllFaderGroups = GetAllFaderGroups();
+	for (const TWeakObjectPtr<UDMXControlConsoleFaderGroup>& FaderGroup : AllFaderGroups)
 	{
-		const UDMXControlConsoleEditorGlobalLayoutRow* LayoutRow = LayoutRows[RowIndex];
-		return IsValid(LayoutRow) ? LayoutRow->GetFaderGroupAt(ColIndex) : nullptr;
-	}
+		if (!FaderGroup.IsValid())
+		{
+			continue;
+		}
 
-	return nullptr;
+		const bool bActivate = ActiveFaderGroups.Contains(FaderGroup) ? bActive : !bActive;
+		FaderGroup->Modify();
+		FaderGroup->SetIsActive(bActivate);
+	}
 }
 
 int32 UDMXControlConsoleEditorGlobalLayoutBase::GetFaderGroupRowIndex(const UDMXControlConsoleFaderGroup* FaderGroup) const
@@ -192,19 +185,6 @@ void UDMXControlConsoleEditorGlobalLayoutBase::SetLayoutMode(const EDMXControlCo
 	OwnerEditorLayouts->OnLayoutModeChanged.Broadcast();
 }
 
-void UDMXControlConsoleEditorGlobalLayoutBase::SetActiveFaderGroupsInLayout(bool bActive)
-{
-	const TArray<TWeakObjectPtr<UDMXControlConsoleFaderGroup>> AllFaderGroups = GetAllFaderGroups();
-	for (const TWeakObjectPtr<UDMXControlConsoleFaderGroup>& FaderGroup : AllFaderGroups)
-	{
-		if (FaderGroup.IsValid())
-		{
-			FaderGroup->Modify();
-			FaderGroup->SetIsActive(bActive);
-		}
-	}
-}
-
 bool UDMXControlConsoleEditorGlobalLayoutBase::ContainsFaderGroup(const UDMXControlConsoleFaderGroup* FaderGroup) const
 {
 	return GetFaderGroupRowIndex(FaderGroup) != INDEX_NONE;
@@ -239,6 +219,18 @@ void UDMXControlConsoleEditorGlobalLayoutBase::GenerateLayoutByControlConsoleDat
 
 		LayoutRows.Add(LayoutRow);
 	}
+
+	const UDMXControlConsoleEditorLayouts* OwnerEditorLayouts = Cast<UDMXControlConsoleEditorLayouts>(GetOuter());
+	if (!ensureMsgf(OwnerEditorLayouts, TEXT("Invalid outer for '%s', cannot get fader group owner correctly."), *GetName()))
+	{
+		return;
+	}
+
+	// The default layout can't contain not patched fader groups
+	if (&OwnerEditorLayouts->GetDefaultLayoutChecked() == this)
+	{
+		CleanLayoutFromUnpatchedFaderGroups();
+	}
 }
 
 UDMXControlConsoleFaderGroup* UDMXControlConsoleEditorGlobalLayoutBase::FindFaderGroupByFixturePatch(const UDMXEntityFixturePatch* InFixturePatch) const
@@ -257,30 +249,34 @@ UDMXControlConsoleFaderGroup* UDMXControlConsoleEditorGlobalLayoutBase::FindFade
 	return nullptr;
 }
 
-void UDMXControlConsoleEditorGlobalLayoutBase::ClearAll()
+void UDMXControlConsoleEditorGlobalLayoutBase::ClearAll(const bool bOnlyPatchedFaderGroups)
 {
-	LayoutRows.Reset();
-}
-
-void UDMXControlConsoleEditorGlobalLayoutBase::ClearAllPatchedFaderGroups()
-{
-	for (UDMXControlConsoleEditorGlobalLayoutRow* LayoutRow : LayoutRows)
+	if (bOnlyPatchedFaderGroups)
 	{
-		if (!LayoutRow)
+		for (UDMXControlConsoleEditorGlobalLayoutRow* LayoutRow : LayoutRows)
 		{
-			continue;
-		}
-
-		const TArray<TWeakObjectPtr<UDMXControlConsoleFaderGroup>> FaderGroups = LayoutRow->GetFaderGroups();
-		for (const TWeakObjectPtr<UDMXControlConsoleFaderGroup>& FaderGroup : FaderGroups)
-		{
-			if (FaderGroup.IsValid() &&
-				FaderGroup->HasFixturePatch())
+			if (!LayoutRow)
 			{
-				LayoutRow->Modify();
-				LayoutRow->RemoveFromLayoutRow(FaderGroup.Get());
+				continue;
+			}
+
+			const TArray<TWeakObjectPtr<UDMXControlConsoleFaderGroup>> FaderGroups = LayoutRow->GetFaderGroups();
+			for (const TWeakObjectPtr<UDMXControlConsoleFaderGroup>& FaderGroup : FaderGroups)
+			{
+				if (FaderGroup.IsValid() &&
+					FaderGroup->HasFixturePatch())
+				{
+					LayoutRow->Modify();
+					LayoutRow->RemoveFromLayoutRow(FaderGroup.Get());
+				}
 			}
 		}
+
+		ClearEmptyLayoutRows();
+	}
+	else
+	{
+		LayoutRows.Reset();
 	}
 }
 
@@ -290,6 +286,103 @@ void UDMXControlConsoleEditorGlobalLayoutBase::ClearEmptyLayoutRows()
 		{
 			return LayoutRow && LayoutRow->GetFaderGroups().IsEmpty();
 		});
+}
+
+void UDMXControlConsoleEditorGlobalLayoutBase::Register()
+{
+	if (!ensureMsgf(!bIsRegistered, TEXT("Layout already registered to dmx library delegates.")))
+	{
+		return;
+	}
+
+	if (!UDMXLibrary::GetOnEntitiesRemoved().IsBoundToObject(this))
+	{
+		UDMXLibrary::GetOnEntitiesRemoved().AddUObject(this, &UDMXControlConsoleEditorGlobalLayoutBase::OnFixturePatchRemovedFromLibrary);
+	}
+
+	const UDMXControlConsoleEditorModel* EditorModel = GetDefault<UDMXControlConsoleEditorModel>();
+	UDMXControlConsoleData* EditorConsoleData = EditorModel->GetEditorConsoleData();
+	if (EditorConsoleData && !EditorConsoleData->GetOnFaderGroupAdded().IsBoundToObject(this))
+	{
+		EditorConsoleData->GetOnFaderGroupAdded().AddUObject(this, &UDMXControlConsoleEditorGlobalLayoutBase::OnFaderGroupAddedToData, EditorConsoleData);
+	}
+
+	bIsRegistered = true;
+}
+
+void UDMXControlConsoleEditorGlobalLayoutBase::Unregister()
+{
+	if (!ensureMsgf(bIsRegistered, TEXT("Layout already unregistered from dmx library delegates.")))
+	{
+		return;
+	}
+
+	UDMXLibrary::GetOnEntitiesRemoved().RemoveAll(this);
+
+	const UDMXControlConsoleEditorModel* EditorModel = GetDefault<UDMXControlConsoleEditorModel>();
+	UDMXControlConsoleData* EditorConsoleData = EditorModel->GetEditorConsoleData();
+	if (EditorConsoleData)
+	{
+		EditorConsoleData->GetOnFaderGroupAdded().RemoveAll(this);
+	}
+
+	bIsRegistered = false;
+}
+
+void UDMXControlConsoleEditorGlobalLayoutBase::BeginDestroy()
+{
+	Super::BeginDestroy();
+
+	ensureMsgf(!bIsRegistered, TEXT("Layout still registered to dmx library delegates before being destroyed."));
+}
+
+void UDMXControlConsoleEditorGlobalLayoutBase::OnFixturePatchRemovedFromLibrary(UDMXLibrary* Library, TArray<UDMXEntity*> Entities)
+{
+	if (Entities.IsEmpty())
+	{
+		return;
+	}
+
+	const TArray<TWeakObjectPtr<UDMXControlConsoleFaderGroup>> AllFaderGroups = GetAllFaderGroups();
+	for (const TWeakObjectPtr<UDMXControlConsoleFaderGroup>& FaderGroup : AllFaderGroups)
+	{
+		if (!FaderGroup.IsValid())
+		{
+			continue;
+		}
+
+		const UDMXEntityFixturePatch* FixturePatch = FaderGroup->GetFixturePatch();
+		if (!FixturePatch || Entities.Contains(FixturePatch))
+		{
+			RemoveFromLayout(FaderGroup.Get());
+		}
+	}
+
+	ClearEmptyLayoutRows();
+}
+
+void UDMXControlConsoleEditorGlobalLayoutBase::OnFaderGroupAddedToData(const UDMXControlConsoleFaderGroup* FaderGroup, UDMXControlConsoleData* ControlConsoleData)
+{
+	if (FaderGroup && FaderGroup->HasFixturePatch())
+	{
+		Modify();
+		GenerateLayoutByControlConsoleData(ControlConsoleData);
+	}
+}
+
+void UDMXControlConsoleEditorGlobalLayoutBase::CleanLayoutFromUnpatchedFaderGroups()
+{
+	const TArray<TWeakObjectPtr<UDMXControlConsoleFaderGroup>> AllFaderGroups = GetAllFaderGroups();
+	for (const TWeakObjectPtr<UDMXControlConsoleFaderGroup>& FaderGroup : AllFaderGroups)
+	{
+		if (FaderGroup.IsValid() && !FaderGroup->HasFixturePatch())
+		{
+			RemoveFromLayout(FaderGroup.Get());
+			RemoveFromActiveFaderGroups(FaderGroup.Get());
+		}
+	}
+
+	ClearEmptyLayoutRows();
 }
 
 #undef LOCTEXT_NAMESPACE

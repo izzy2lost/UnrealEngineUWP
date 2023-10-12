@@ -13,9 +13,7 @@
 #include "DMXControlConsoleFaderGroup.h"
 #include "Framework/MultiBox/MultiBoxBuilder.h"
 #include "Layouts/DMXControlConsoleEditorGlobalLayoutBase.h"
-#include "Layouts/DMXControlConsoleEditorGlobalLayoutDefault.h"
 #include "Layouts/DMXControlConsoleEditorGlobalLayoutRow.h"
-#include "Layouts/DMXControlConsoleEditorGlobalLayoutUser.h"
 #include "Layouts/DMXControlConsoleEditorLayouts.h"
 #include "Library/DMXEntityFixturePatch.h"
 #include "Library/DMXLibrary.h"
@@ -74,13 +72,13 @@ namespace UE::DMXControlConsole::Private
 				return false;
 			}
 
-			const UDMXControlConsoleEditorGlobalLayoutBase* CurrentLayout = EditorConsoleLayouts->GetActiveLayout();
-			if (!CurrentLayout)
+			const UDMXControlConsoleEditorGlobalLayoutBase* ActiveLayout = EditorConsoleLayouts->GetActiveLayout();
+			if (!ActiveLayout)
 			{
 				return false;
 			}
 
-			const UDMXControlConsoleFaderGroup* FaderGroup = CurrentLayout->FindFaderGroupByFixturePatch(FixturePatch);
+			const UDMXControlConsoleFaderGroup* FaderGroup = ActiveLayout->FindFaderGroupByFixturePatch(FixturePatch);
 			const bool bIsAddedToUserLayout = IsValid(FaderGroup);
 
 			switch (ShowMode)
@@ -97,19 +95,33 @@ namespace UE::DMXControlConsole::Private
 		}
 	}
 
+	/** Helper that returns true if the default layout is the active layout */
+	bool IsDefaultLayoutActive()
+	{
+		const UDMXControlConsoleEditorModel* EditorConsoleModel = GetDefault<UDMXControlConsoleEditorModel>();
+		const UDMXControlConsoleEditorLayouts* EditorConsoleLayouts = EditorConsoleModel->GetEditorConsoleLayouts();
+		if (EditorConsoleLayouts)
+		{
+			const UDMXControlConsoleEditorGlobalLayoutBase* ActiveLayout = EditorConsoleLayouts->GetActiveLayout();
+			return ActiveLayout && ActiveLayout == &EditorConsoleLayouts->GetDefaultLayoutChecked();
+		}
+
+		return false;
+	}
+
 	/** Helper that returns fixture patches that should be excluded from the list, given the active layout class and the current show mode. */
-	TArray<UDMXEntityFixturePatch*> FindFixturePatchesToExclude(const TArray<UDMXEntityFixturePatch*> AllFixturePatches, TSubclassOf<UDMXControlConsoleEditorGlobalLayoutBase> ActiveLayoutClass, EDMXReadOnlyFixturePatchListShowMode ShowMode)
+	TArray<UDMXEntityFixturePatch*> FindFixturePatchesToExclude(const TArray<UDMXEntityFixturePatch*> AllFixturePatches, EDMXReadOnlyFixturePatchListShowMode ShowMode)
 	{
 		TArray<UDMXEntityFixturePatch*> Result;
 
-		Algo::CopyIf(AllFixturePatches, Result, [ActiveLayoutClass, ShowMode](const UDMXEntityFixturePatch* FixturePatch)
+		Algo::CopyIf(AllFixturePatches, Result, [ShowMode](const UDMXEntityFixturePatch* FixturePatch)
 			{
 				if (!FixturePatch)
 				{
 					return false;
 				}
 
-				if (ActiveLayoutClass == UDMXControlConsoleEditorGlobalLayoutDefault::StaticClass())
+				if (IsDefaultLayoutActive())
 				{
 					return Internal::IsFixturePatchExcludedInDefaultLayout(FixturePatch, ShowMode);
 				}
@@ -175,7 +187,7 @@ FName SDMXControlConsoleFixturePatchList::GetHeaderRowFilterMenuName() const
 void SDMXControlConsoleFixturePatchList::ForceRefresh()
 {
 	using namespace UE::DMXControlConsole::Private;
-	const TArray<UDMXEntityFixturePatch*> FixturePatchesToExclude = FindFixturePatchesToExclude(GetFixturePatchesInDMXLibrary(), GetActiveGlobalLayoutClass(), ShowMode);
+	const TArray<UDMXEntityFixturePatch*> FixturePatchesToExclude = FindFixturePatchesToExclude(GetFixturePatchesInDMXLibrary(), ShowMode);
 
 	SetExcludedFixturePatches(FixturePatchesToExclude);
 	SDMXReadOnlyFixturePatchList::ForceRefresh();
@@ -321,9 +333,9 @@ void SDMXControlConsoleFixturePatchList::AdoptSelectionFromData()
 		return;
 	}
 
-	// Do only if the current layout is the default layout
-	const UDMXControlConsoleEditorGlobalLayoutBase* CurrentLayout = EditorConsoleLayouts->GetActiveLayout();
-	if (!CurrentLayout || CurrentLayout->GetClass() != UDMXControlConsoleEditorGlobalLayoutDefault::StaticClass())
+	// Do only if the active layout is the default layout
+	const UDMXControlConsoleEditorGlobalLayoutBase* ActiveLayout = EditorConsoleLayouts->GetActiveLayout();
+	if (!ActiveLayout || ActiveLayout != &EditorConsoleLayouts->GetDefaultLayoutChecked())
 	{
 		return;
 	}
@@ -414,8 +426,8 @@ TSharedPtr<SWidget> SDMXControlConsoleFixturePatchList::OnContextMenuOpening()
 	const UDMXControlConsoleEditorLayouts* EditorConsoleLayouts = EditorConsoleModel->GetEditorConsoleLayouts();
 	if (EditorConsoleLayouts)
 	{
-		const UDMXControlConsoleEditorGlobalLayoutBase* CurrentLayout = EditorConsoleLayouts->GetActiveLayout();
-		if (CurrentLayout && CurrentLayout->GetClass() == UDMXControlConsoleEditorGlobalLayoutUser::StaticClass())
+		const UDMXControlConsoleEditorGlobalLayoutBase* ActiveLayout = EditorConsoleLayouts->GetActiveLayout();
+		if (ActiveLayout && ActiveLayout != &EditorConsoleLayouts->GetDefaultLayoutChecked())
 		{
 			TArray<TWeakObjectPtr<UDMXEntityFixturePatch>> WeakFixturePatches;
 			const TArray<UDMXEntityFixturePatch*> SelectedFixturePatches = GetSelectedFixturePatches();
@@ -447,9 +459,8 @@ void SDMXControlConsoleFixturePatchList::OnSelectionChanged(const TSharedPtr<FDM
 	}
 
 	// Continue only if the current layout is the default layout
-	UDMXControlConsoleEditorGlobalLayoutBase* CurrentLayout = EditorConsoleLayouts->GetActiveLayout();
-	UDMXControlConsoleEditorGlobalLayoutDefault* DefaultLayout = Cast<UDMXControlConsoleEditorGlobalLayoutDefault>(CurrentLayout);
-	if (!DefaultLayout)
+	UDMXControlConsoleEditorGlobalLayoutBase* ActiveLayout = EditorConsoleLayouts->GetActiveLayout();
+	if (!ActiveLayout || ActiveLayout != &EditorConsoleLayouts->GetDefaultLayoutChecked())
 	{
 		return;
 	}
@@ -477,7 +488,7 @@ void SDMXControlConsoleFixturePatchList::OnSelectionChanged(const TSharedPtr<FDM
 		FaderGroup->SetIsActive(bIsSelected);
 		if (bIsSelected)
 		{
-			DefaultLayout->AddToActiveFaderGroups(FaderGroup);
+			ActiveLayout->AddToActiveFaderGroups(FaderGroup);
 			const bool bAutoSelect = EditorConsoleModel->GetAutoSelectActivePatches();
 			if (bAutoSelect)
 			{
@@ -487,7 +498,7 @@ void SDMXControlConsoleFixturePatchList::OnSelectionChanged(const TSharedPtr<FDM
 		}
 		else
 		{
-			DefaultLayout->RemoveFromActiveFaderGroups(FaderGroup);
+			ActiveLayout->RemoveFromActiveFaderGroups(FaderGroup);
 			FaderGroupsToRemoveFromSelection.Add(FaderGroup);
 			if (SelectedItemPtr)
 			{
@@ -646,19 +657,6 @@ void SDMXControlConsoleFixturePatchList::SetShowMode(EDMXReadOnlyFixturePatchLis
 bool SDMXControlConsoleFixturePatchList::IsUsingShowMode(EDMXReadOnlyFixturePatchListShowMode InShowMode) const
 {
 	return ShowMode == InShowMode;
-}
-
-TSubclassOf<UDMXControlConsoleEditorGlobalLayoutBase> SDMXControlConsoleFixturePatchList::GetActiveGlobalLayoutClass() const
-{
-	const UDMXControlConsoleEditorModel* EditorConsoleModel = GetDefault<UDMXControlConsoleEditorModel>();
-	const UDMXControlConsoleEditorLayouts* EditorConsoleLayouts = EditorConsoleModel->GetEditorConsoleLayouts();
-	if (!EditorConsoleLayouts)
-	{
-		return nullptr;
-	}
-
-	const UDMXControlConsoleEditorGlobalLayoutBase* CurrentLayout = EditorConsoleLayouts->GetActiveLayout();
-	return CurrentLayout ? CurrentLayout->GetClass() : nullptr;
 }
 
 #undef LOCTEXT_NAMESPACE
