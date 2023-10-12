@@ -1074,7 +1074,7 @@ namespace UnrealBuildTool
 				// Enable codeview ghash for faster lld links
 				if (Target.WindowsPlatform.Compiler == WindowsCompiler.Clang && Target.WindowsPlatform.bAllowClangLinker)
 				{
-					Arguments.Add("-gcodeview-ghash");
+					Arguments.Add("-Xclang -gcodeview-ghash");
 				}
 
 				// Disable specific warnings that cause problems with Clang
