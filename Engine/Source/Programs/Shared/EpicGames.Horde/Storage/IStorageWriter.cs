@@ -45,13 +45,13 @@ namespace EpicGames.Horde.Storage
 		/// <summary>
 		/// Finish writing a node.
 		/// </summary>
+		/// <param name="type">Type of the node that was written</param>
 		/// <param name="size">Used size of the buffer</param>
 		/// <param name="references">References to other nodes</param>
-		/// <param name="type">Type of the node that was written</param>
 		/// <param name="aliases">Aliases for this node</param>
 		/// <param name="cancellationToken">Cancellation token for the operation</param>
 		/// <returns>Handle to the written node</returns>
-		ValueTask<BlobHandle> WriteBlobAsync(int size, IReadOnlyList<BlobHandle> references, BlobType type, IReadOnlyList<AliasInfo> aliases, CancellationToken cancellationToken = default);
+		ValueTask<BlobHandle> WriteBlobAsync(BlobType type, int size, IReadOnlyList<BlobHandle> references, IReadOnlyList<AliasInfo> aliases, CancellationToken cancellationToken = default);
 
 		/// <summary>
 		/// Writes the reference using the given target node
@@ -180,7 +180,7 @@ namespace EpicGames.Horde.Storage
 		public Memory<byte> GetOutputBuffer(int usedSize, int desiredSize) => _inner.GetOutputBuffer(usedSize, desiredSize);
 
 		/// <inheritdoc/>
-		public async ValueTask<BlobHandle> WriteBlobAsync(int size, IReadOnlyList<BlobHandle> references, BlobType type, IReadOnlyList<AliasInfo> aliases, CancellationToken cancellationToken = default)
+		public async ValueTask<BlobHandle> WriteBlobAsync(BlobType type, int size, IReadOnlyList<BlobHandle> references, IReadOnlyList<AliasInfo> aliases, CancellationToken cancellationToken = default)
 		{
 			ReadOnlyMemory<byte> data = _inner.GetOutputBuffer(size, size).Slice(0, size);
 			IoHash hash = IoHash.Compute(data.Span);
@@ -199,7 +199,7 @@ namespace EpicGames.Horde.Storage
 				_cache.Add(key, wrappedHandle);
 			}
 
-			wrappedHandle._inner = await _inner.WriteBlobAsync(size, references.ConvertAll(x => ((WrappedHandle)x)._inner!), type, aliases, cancellationToken);
+			wrappedHandle._inner = await _inner.WriteBlobAsync(type, size, references.ConvertAll(x => ((WrappedHandle)x)._inner!), aliases, cancellationToken);
 			return wrappedHandle;
 		}
 
@@ -221,29 +221,29 @@ namespace EpicGames.Horde.Storage
 		/// Finish writing a node.
 		/// </summary>
 		/// <param name="writer">Writer instance to manipulate</param>
+		/// <param name="type">Type of the node that was written</param>
 		/// <param name="size">Used size of the buffer</param>
 		/// <param name="references">References to other nodes</param>
-		/// <param name="type">Type of the node that was written</param>
 		/// <param name="cancellationToken">Cancellation token for the operation</param>
 		/// <returns>Handle to the written node</returns>
-		public static ValueTask<BlobHandle> WriteBlobAsync(this IStorageWriter writer, int size, IReadOnlyList<BlobHandle> references, BlobType type, CancellationToken cancellationToken = default)
+		public static ValueTask<BlobHandle> WriteBlobAsync(this IStorageWriter writer, BlobType type, int size, IReadOnlyList<BlobHandle> references, CancellationToken cancellationToken = default)
 		{
-			return writer.WriteBlobAsync(size, references, type, Array.Empty<AliasInfo>(), cancellationToken);
+			return writer.WriteBlobAsync(type, size, references, Array.Empty<AliasInfo>(), cancellationToken);
 		}
 
 		/// <summary>
 		/// Finish writing a node.
 		/// </summary>
 		/// <param name="writer">Writer instance to manipulate</param>
+		/// <param name="type">Type of the node that was written</param>
 		/// <param name="size">Used size of the buffer</param>
 		/// <param name="references">References to other nodes</param>
-		/// <param name="type">Type of the node that was written</param>
 		/// <param name="cancellationToken">Cancellation token for the operation</param>
 		/// <returns>Handle to the written node</returns>
-		public static async ValueTask<HashedNodeRef<T>> WriteHashedNodeRefAsync<T>(this IStorageWriter writer, int size, IReadOnlyList<BlobHandle> references, BlobType type, CancellationToken cancellationToken = default) where T : Node
+		public static async ValueTask<HashedNodeRef<T>> WriteHashedNodeRefAsync<T>(this IStorageWriter writer, BlobType type, int size, IReadOnlyList<BlobHandle> references, CancellationToken cancellationToken = default) where T : Node
 		{
 			IoHash hash = IoHash.Compute(writer.GetOutputBuffer(size, size).Span.Slice(0, size));
-			BlobHandle blobHandle = await WriteBlobAsync(writer, size, references, type, cancellationToken);
+			BlobHandle blobHandle = await WriteBlobAsync(writer, type, size, references, cancellationToken);
 			return new HashedNodeRef<T>(hash, blobHandle);
 		}
 	}

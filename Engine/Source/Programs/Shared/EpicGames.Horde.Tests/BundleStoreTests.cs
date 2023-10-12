@@ -216,7 +216,7 @@ namespace EpicGames.Horde.Tests
 			RefName refName = new RefName("test");
 			await using (IStorageWriter writer = store.CreateWriter(refName))
 			{
-				BlobHandle target = await writer.WriteBlobAsync(0, Array.Empty<BlobHandle>(), new BlobType(Guid.NewGuid(), 0));
+				BlobHandle target = await writer.WriteBlobAsync(new BlobType(Guid.NewGuid(), 0), 0, Array.Empty<BlobHandle>());
 				await writer.WriteRefAsync(target, new byte[] { 4, 5, 6 });
 			}
 

@@ -292,7 +292,7 @@ namespace EpicGames.Horde.Storage
 			IoHash hash = nodeWriter.ComputeHash();
 
 			// Write the final data
-			BlobHandle handle = await writer.WriteBlobAsync(nodeWriter.Length, nodeWriter.References, node.NodeType, cancellationToken);
+			BlobHandle handle = await writer.WriteBlobAsync(node.NodeType, nodeWriter.Length, nodeWriter.References, cancellationToken);
 			return new HashedNodeRef<TNode>(hash, handle);
 		}
 

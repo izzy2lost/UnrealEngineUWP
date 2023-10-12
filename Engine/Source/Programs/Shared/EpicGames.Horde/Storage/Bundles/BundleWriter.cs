@@ -363,7 +363,7 @@ namespace EpicGames.Horde.Storage.Bundles
 			}
 
 			// Finish a node write
-			public PendingNode WriteNode(int size, BlobType blobType, IReadOnlyList<BlobHandle> refs, IReadOnlyList<AliasInfo> aliases)
+			public PendingNode WriteNode(BlobType blobType, int size, IReadOnlyList<BlobHandle> refs, IReadOnlyList<AliasInfo> aliases)
 			{
 				PendingNode pendingNode = new PendingNode(_treeReader, blobType, _currentPacketIdx, _currentPacketLength, (int)size, refs, aliases, this);
 				_currentPacketLength += pendingNode.Length;
@@ -778,18 +778,18 @@ namespace EpicGames.Horde.Storage.Bundles
 		/// <summary>
 		/// Finish writing a node.
 		/// </summary>
+		/// <param name="type">Type of the node that was written</param>
 		/// <param name="size">Used size of the buffer</param>
 		/// <param name="references">References to other nodes</param>
-		/// <param name="type">Type of the node that was written</param>
 		/// <param name="aliases">Aliases for the node</param>
 		/// <param name="cancellationToken">Cancellation token for the operation</param>
 		/// <returns>Handle to the written node</returns>
-		public async ValueTask<BlobHandle> WriteBlobAsync(int size, IReadOnlyList<BlobHandle> references, BlobType type, IReadOnlyList<AliasInfo> aliases, CancellationToken cancellationToken = default)
+		public async ValueTask<BlobHandle> WriteBlobAsync(BlobType type, int size, IReadOnlyList<BlobHandle> references, IReadOnlyList<AliasInfo> aliases, CancellationToken cancellationToken = default)
 		{
 			PendingBundle currentBundle = GetCurrentBundle();
 
 			// Append this node data
-			PendingNode pendingNode = currentBundle.WriteNode(size, type, references, aliases);
+			PendingNode pendingNode = currentBundle.WriteNode(type, size, references, aliases);
 			TraceLogger?.LogInformation("Added new node for {NodeKey} in bundle {BundleId}", pendingNode, currentBundle.BundleId);
 
 			// Add dependencies on all bundles containing a dependent node

@@ -167,7 +167,7 @@ namespace EpicGames.Horde.Storage.Clients
 			await using (IStorageWriter writer = CreateWriter())
 			{
 				data.CopyTo(writer.GetOutputBuffer(0, data.Length));
-				return await writer.WriteBlobAsync(data.Length, references, type, cancellationToken);
+				return await writer.WriteBlobAsync(type, data.Length, references, cancellationToken);
 			}
 		}
 
