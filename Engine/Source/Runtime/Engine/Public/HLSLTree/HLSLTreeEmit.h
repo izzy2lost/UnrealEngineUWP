@@ -583,6 +583,8 @@ public:
 
 	bool bUsesSkyAtmosphere = false;
 	bool bUsesSpeedTree = false;
+	bool bUsesSphericalParticleOpacity = false;
+	bool bUsesWorldPositionExcludingShaderOffsets = false;
 
 	uint32 DynamicParticleParameterMask = 0u;
 

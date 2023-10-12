@@ -94,6 +94,7 @@
 #include "Materials/MaterialExpressionGenericConstant.h"
 #include "Materials/MaterialExpressionGetLocal.h"
 #include "Materials/MaterialExpressionGetMaterialAttributes.h"
+#include "Materials/MaterialExpressionGIReplace.h"
 #include "Materials/MaterialExpressionHairAttributes.h"
 #include "Materials/MaterialExpressionHairColor.h"
 #include "Materials/MaterialExpressionHsvToRgb.h"
@@ -105,10 +106,12 @@
 #include "Materials/MaterialExpressionLightmapUVs.h"
 #include "Materials/MaterialExpressionLightVector.h"
 #include "Materials/MaterialExpressionLinearInterpolate.h"
+#include "Materials/MaterialExpressionLightmassReplace.h"
 #include "Materials/MaterialExpressionLogarithm.h"
 #include "Materials/MaterialExpressionLogarithm10.h"
 #include "Materials/MaterialExpressionLogarithm2.h"
 #include "Materials/MaterialExpressionMakeMaterialAttributes.h"
+#include "Materials/MaterialExpressionMapARPassthroughCameraUV.h"
 #include "Materials/MaterialExpressionMaterialAttributeLayers.h"
 #include "Materials/MaterialExpressionMaterialFunctionCall.h"
 #include "Materials/MaterialExpressionMaterialProxyReplace.h"
@@ -152,6 +155,7 @@
 #include "Materials/MaterialExpressionPreSkinnedPosition.h"
 #include "Materials/MaterialExpressionPreviousFrameSwitch.h"
 #include "Materials/MaterialExpressionSamplePhysicsField.h"
+#include "Materials/MaterialExpressionSphericalParticleOpacity.h"
 #include "Materials/MaterialExpressionQualitySwitch.h"
 #include "Materials/MaterialExpressionRayTracingQualitySwitch.h"
 #include "Materials/MaterialExpressionReflectionCapturePassSwitch.h"
@@ -347,6 +351,36 @@ bool UMaterialExpressionStaticSwitch::GenerateHLSLExpression(FMaterialHLSLGenera
 		// Select can handle missing values
 		OutExpression = Generator.GetTree().NewExpression<FExpressionSelect>(ConditionExpression, TrueExpression, FalseExpression);
 	}
+	return true;
+}
+
+bool UMaterialExpressionMapARPassthroughCameraUV::GenerateHLSLExpression(FMaterialHLSLGenerator& Generator, UE::HLSLTree::FScope& Scope, int32 OutputIndex, UE::HLSLTree::FExpression const*& OutExpression) const
+{
+	using namespace UE::HLSLTree;
+	const FExpression* UVExpression = Coordinates.AcquireHLSLExpression(Generator, Scope);
+	if (!UVExpression)
+	{
+		return Generator.Error(TEXT("UV input missing"));
+	}
+
+	FTree& Tree = Generator.GetTree();
+	const FExpression* UVPair0 = Tree.NewExpression<FExpressionInlineCustomHLSL>(UE::Shader::EValueType::Float4, TEXT("ResolvedView.XRPassthroughCameraUVs[0]"));
+	const FExpression* UVPair1 = Tree.NewExpression<FExpressionInlineCustomHLSL>(UE::Shader::EValueType::Float4, TEXT("ResolvedView.XRPassthroughCameraUVs[1]"));
+	const FExpression* ULerp = Tree.NewLerp(UVPair0, UVPair1, Tree.NewExpression<FExpressionSwizzle>(MakeSwizzleMask(true, false, false, false), UVExpression));
+	OutExpression = Tree.NewLerp(
+		Tree.NewExpression<FExpressionSwizzle>(MakeSwizzleMask(true, true, false, false), ULerp),
+		Tree.NewExpression<FExpressionSwizzle>(MakeSwizzleMask(false, false, true, true), ULerp),
+		Tree.NewExpression<FExpressionSwizzle>(MakeSwizzleMask(false, true, false, false), UVExpression)
+		);
+	return true;
+}
+
+bool UMaterialExpressionSphericalParticleOpacity::GenerateHLSLExpression(FMaterialHLSLGenerator& Generator, UE::HLSLTree::FScope& Scope, int32 OutputIndex, UE::HLSLTree::FExpression const*& OutExpression) const
+{
+	using namespace UE::HLSLTree;
+
+	const FExpression* DensityExpression = Density.AcquireHLSLExpressionOrConstant(Generator, Scope, ConstantDensity);
+	OutExpression = Generator.GetTree().NewExpression<Material::FExpressionSphericalParticleOpacityFunction>(DensityExpression);
 	return true;
 }
 
@@ -883,6 +917,66 @@ bool UMaterialExpressionStaticSwitchParameter::GenerateHLSLExpression(FMaterialH
 	const FExpression* ExpressionSwitch = Generator.GenerateMaterialParameter(ParameterName, ParameterMeta);
 	OutExpression = Generator.GetTree().NewExpression<FExpressionSelect>(ExpressionSwitch, ExpressionA, ExpressionB);
 	return true;
+}
+
+bool UMaterialExpressionGIReplace::GenerateHLSLExpression(FMaterialHLSLGenerator& Generator, UE::HLSLTree::FScope& Scope, int32 OutputIndex, UE::HLSLTree::FExpression const*& OutExpression) const
+{
+	using namespace UE::HLSLTree;
+
+	if (!Default.GetTracedInput().Expression)
+	{
+		return Generator.Error(TEXT("Missing GIReplace input 'Default'"));
+	}
+
+	const FExpression* DefaultExpression = Default.AcquireHLSLExpression(Generator, Scope);
+	const FExpression* DynamicIndirectExpression = DynamicIndirect.AcquireHLSLExpressionOrDefaultExpression(Generator, Scope, DefaultExpression);
+	// This is a EMaterialCompilerType::Standard, so does not need to handle StaticIndirect, a different compiler type will handle that
+
+	if (DynamicIndirectExpression == DefaultExpression)
+	{
+		OutExpression = DefaultExpression;
+	}
+	else
+	{
+		const FExpression* ExpressionSwitch = Generator.GetTree().NewExpression<UE::HLSLTree::FExpressionInlineCustomHLSL>(UE::Shader::EValueType::Bool1, TEXT("GetGIReplaceState()"));
+		OutExpression = Generator.GetTree().NewExpression<FExpressionSelect>(ExpressionSwitch, DynamicIndirectExpression, DefaultExpression);
+	}
+
+	return true;
+}
+
+bool UMaterialExpressionLightmassReplace::GenerateHLSLExpression(FMaterialHLSLGenerator& Generator, UE::HLSLTree::FScope& Scope, int32 OutputIndex, UE::HLSLTree::FExpression const*& OutExpression) const
+{
+	using namespace UE::HLSLTree;
+
+	if (!Realtime.GetTracedInput().Expression)
+	{
+		return Generator.Error(TEXT("Missing LightmassReplace input Realtime"));
+	}
+	if (!Lightmass.GetTracedInput().Expression)
+	{
+		return Generator.Error(TEXT("Missing LightmassReplace input Lightmass"));
+	}
+
+	// This is a EMaterialCompilerType::Standard, not a Lightmass compiler, but there is a shader-time switch to handle
+	const FExpression* LightmassExpression = Lightmass.AcquireHLSLExpression(Generator, Scope);
+	const FExpression* RealtimeExpression = Realtime.AcquireHLSLExpression(Generator, Scope);
+
+	if (LightmassExpression && RealtimeExpression)
+	{
+		const FExpression* ExpressionSwitch = Generator.GetTree().NewExpression<UE::HLSLTree::FExpressionInlineCustomHLSL>(UE::Shader::EValueType::Bool1, TEXT("GetLightmassReplaceState()"));
+		OutExpression = Generator.GetTree().NewExpression<FExpressionSelect>(ExpressionSwitch, LightmassExpression, RealtimeExpression);
+	}
+	else if (RealtimeExpression)
+	{
+		OutExpression = RealtimeExpression;
+	}
+	else if (LightmassExpression)
+	{
+		OutExpression = LightmassExpression;
+	}
+
+	return OutExpression != nullptr;
 }
 
 bool UMaterialExpressionStaticComponentMaskParameter::GenerateHLSLExpression(FMaterialHLSLGenerator& Generator, UE::HLSLTree::FScope& Scope, int32 OutputIndex, UE::HLSLTree::FExpression const*& OutExpression) const

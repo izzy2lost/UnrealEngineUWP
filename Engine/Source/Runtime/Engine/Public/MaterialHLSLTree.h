@@ -401,6 +401,19 @@ public:
 	virtual void EmitValueShader(FEmitContext& Context, FEmitScope& Scope, const FRequestedType& RequestedType, FEmitValueShaderResult& OutResult) const override;
 };
 
+class FExpressionSphericalParticleOpacityFunction : public FExpression
+{
+public:
+	const FExpression* DensityExpression;
+
+	FExpressionSphericalParticleOpacityFunction(const FExpression* InDensityExpression)
+		: DensityExpression(InDensityExpression)
+	{}
+
+	virtual bool PrepareValue(FEmitContext& Context, FEmitScope& Scope, const FRequestedType& RequestedType, FPrepareValueResult& OutResult) const override;
+	virtual void EmitValueShader(FEmitContext& Context, FEmitScope& Scope, const FRequestedType& RequestedType, FEmitValueShaderResult& OutResult) const override;
+};
+
 class FExpressionSobolFunction : public FExpression
 {
 public:

@@ -899,6 +899,37 @@ void FExpressionDecalMipmapLevel::EmitValueShader(FEmitContext& Context, FEmitSc
 		EmitSizeExpression);
 }
 
+bool FExpressionSphericalParticleOpacityFunction::PrepareValue(FEmitContext& Context, FEmitScope& Scope, const FRequestedType& RequestedType, FPrepareValueResult& OutResult) const
+{
+	if (Context.ShaderFrequency != SF_Pixel && Context.ShaderFrequency != SF_Compute)
+	{
+		return Context.Error(TEXT("Can only be used in Pixel and Compute shaders."));
+	}
+
+	if (Context.PrepareExpression(DensityExpression, Scope, RequestedType).IsVoid())
+	{
+		return false;
+	}
+
+	if (Context.bMarkLiveValues && Context.MaterialCompilationOutput)
+	{
+		Context.MaterialCompilationOutput->SetIsSceneTextureUsed(PPI_SceneDepth);
+		Context.bUsesSphericalParticleOpacity = true;
+		Context.bUsesWorldPositionExcludingShaderOffsets = true;
+	}
+
+	return OutResult.SetType(Context, RequestedType, EExpressionEvaluation::Shader, Shader::EValueType::Float1);
+}
+
+void FExpressionSphericalParticleOpacityFunction::EmitValueShader(FEmitContext& Context, FEmitScope& Scope, const FRequestedType& RequestedType, FEmitValueShaderResult& OutResult) const
+{
+	FEmitShaderExpression* EmitDensityExpression = DensityExpression->GetValueShader(Context, Scope, Shader::EValueType::Float2);
+	OutResult.Code = Context.EmitInlineExpression(
+		Scope, Shader::EValueType::Float1,
+		TEXT("GetSphericalParticleOpacity(Parameters,%)"),
+		EmitDensityExpression);
+}
+
 bool FExpressionDBufferTexture::PrepareValue(FEmitContext& Context, FEmitScope& Scope, const FRequestedType& RequestedType, FPrepareValueResult& OutResult) const
 {
 	if (UVExpression && Context.PrepareExpression(UVExpression, Scope, RequestedType).IsVoid())
@@ -1420,6 +1451,35 @@ FEmitShaderExpression* EmitTextureSampleShader(
 			break;
 		}
 
+		// If not 2D texture, disable AutomaticViewMipBias.
+		if (TextureType != MCT_Texture2D)
+		{
+			bAutomaticViewMipBias = false;
+		}
+
+		// if we are not in the PS we need a mip level
+		if (Context.ShaderFrequency != SF_Pixel)
+		{
+			MipValueMode = TMVM_MipLevel;
+			bAutomaticViewMipBias = false;
+		}
+
+		const FMaterial* Material = Context.Material;
+		if (Material)
+		{
+			// If mobile, disable AutomaticViewMipBias.
+			if (Material->GetFeatureLevel() < ERHIFeatureLevel::SM5)
+			{
+				bAutomaticViewMipBias = false;
+			}
+
+			// Outside of surface and decal domains, disable AutomaticViewMipBias.
+			if (Material->GetMaterialDomain() != MD_Surface && Material->GetMaterialDomain() != MD_DeferredDecal)
+			{
+				bAutomaticViewMipBias = false;
+			}
+		}
+
 		TStringBuilder<64> FormattedTexture;
 		Private::EmitTextureShader(Context, TextureValue, FormattedTexture);
 
@@ -1786,6 +1846,19 @@ void FExpressionTextureProperty::EmitValuePreshader(FEmitContext& Context, FEmit
 	Context.PreshaderStackPosition++;
 	OutResult.Type = Shader::EValueType::Float3;
 	OutResult.Preshader.WriteOpcode(Op).Write<FMemoryImageMaterialParameterInfo>(TextureValue.ParameterInfo).Write(TextureIndex);
+
+	// Swizzle to two components for texture2d-type textures
+	if (TextureValue.Texture)
+	{
+		EMaterialValueType Type = TextureValue.Texture->GetMaterialType();
+
+		// this follows the old translator's concept of a Float2 texture size, masked to 2 components, .xy
+		if (Type != MCT_VolumeTexture && Type != MCT_Texture2DArray && Type != MCT_SparseVolumeTexture)
+		{
+			OutResult.Preshader.WriteOpcode(Shader::EPreshaderOpcode::ComponentSwizzle).Write((uint8)2).Write((uint8)0).Write((uint8)1).Write((uint8)0).Write((uint8)0);
+			OutResult.Type = Shader::EValueType::Float2;
+		}
+	}
 }
 
 bool FExpressionRuntimeVirtualTextureUniform::PrepareValue(FEmitContext& Context, FEmitScope& Scope, const FRequestedType& RequestedType, FPrepareValueResult& OutResult) const

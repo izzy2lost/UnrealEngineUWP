@@ -344,7 +344,7 @@ static void GetMaterialEnvironment(EShaderPlatform InPlatform,
 	const bool bNeedsParticlePosition = EmitMaterialData.IsExternalInputUsed(Material::EExternalInput::ParticleTranslatedWorldPosition) ||
 		EmitMaterialData.IsExternalInputUsed(Material::EExternalInput::ParticleRadius);
 
-	if (bNeedsParticlePosition || InMaterial.ShouldGenerateSphericalParticleNormals()) // || bUsesSphericalParticleOpacity)
+	if (bNeedsParticlePosition || InMaterial.ShouldGenerateSphericalParticleNormals() || EmitContext.bUsesSphericalParticleOpacity)
 	{
 		OutEnvironment.SetDefine(TEXT("NEEDS_PARTICLE_POSITION"), 1);
 	}
@@ -415,6 +415,7 @@ static void GetMaterialEnvironment(EShaderPlatform InPlatform,
 	}
 
 	const bool bNeedsWorldPositionExcludingShaderOffsets =
+		EmitContext.bUsesWorldPositionExcludingShaderOffsets || 
 		EmitMaterialData.IsExternalInputUsed(Material::EExternalInput::WorldPosition_NoOffsets) ||
 		EmitMaterialData.IsExternalInputUsed(Material::EExternalInput::TranslatedWorldPosition_NoOffsets) ||
 		EmitMaterialData.IsExternalInputUsed(Material::EExternalInput::PrevWorldPosition_NoOffsets) ||
