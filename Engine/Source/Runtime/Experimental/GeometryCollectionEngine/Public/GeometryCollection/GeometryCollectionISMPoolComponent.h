@@ -6,6 +6,7 @@
 #include "Containers/Map.h"
 #include "InstancedStaticMeshDelegates.h"
 #include "Materials/MaterialInterface.h"
+#include "InstanceDataTypes.h"
 
 #include "GeometryCollectionISMPoolComponent.generated.h"
 
@@ -256,10 +257,8 @@ struct FGeometryCollectionISM
 	TObjectPtr<UInstancedStaticMeshComponent> ISMComponent;
 	/** Groups of instances allocated in the ISM. */
 	FInstanceGroups InstanceGroups;
-	/** Mapping from our instance index to the ISM Component index. */
-	TArray<int32> InstanceIndexToRenderIndex;
-	/** Mapping from the ISM Component index to our instance index . */
-	TArray<int32> RenderIndexToInstanceIndex;
+	/** Id of Instance in ISMC */
+	TArray<FPrimitiveInstanceId> InstanceIds;
 };
 
 /** A pool of ISMs. */
