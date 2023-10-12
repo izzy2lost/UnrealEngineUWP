@@ -47,19 +47,20 @@ namespace UE::Chooser
 	};
 
 	// property type, for numerical conversions
-	enum class EPropertyNumericalType
+	enum class EChooserPropertyAccessType
 	{
-		NONE,
-		BOOL,
-		INT32,
-		FLOAT,
-		DOUBLE,
+		None,
+		Bool,
+		Int32,
+		Float,
+		Double,
+		SoftObjectRef
 	};
 
 	struct FCompiledBinding
 	{
 		int ContextIndex = 0;
-		EPropertyNumericalType PropertyType = EPropertyNumericalType::NONE;
+		EChooserPropertyAccessType PropertyType = EChooserPropertyAccessType::None;
 		// type info for number and enum conversions
 		TArray<FCompiledBindingElement> CompiledChain;
 		const UStruct* TargetType = nullptr;
@@ -179,9 +180,16 @@ struct FContextObjectTypeStruct : public FContextObjectTypeBase
 
 namespace UE::Chooser
 {
-	CHOOSER_API uint8* ResolveCompiledPropertyChain(FChooserEvaluationContext& Context, const FCompiledBinding& CompiledBinding);
-	CHOOSER_API bool ResolvePropertyChain(const void*& Container, const UStruct*& StructType, const TArray<FName>& PropertyBindingChain);
-	CHOOSER_API bool ResolvePropertyChain(FChooserEvaluationContext& Context, const FChooserPropertyBinding& Binding, const void*& OutContainer, const UStruct*& OutStructType);
+	struct FResolvedPropertyChainResult
+	{
+		uint8* Container = nullptr;
+		uint32 PropertyOffset = 0;
+		UFunction* Function = nullptr;
+		EChooserPropertyAccessType PropertyType = EChooserPropertyAccessType::None;
+		uint8 Mask = 0;
+	};
+	
+	CHOOSER_API bool ResolvePropertyChain(FChooserEvaluationContext& Context, const FChooserPropertyBinding& Binding, FResolvedPropertyChainResult& Result);
 
 #if WITH_EDITOR
 	CHOOSER_API void CopyPropertyChain(const TArray<FBindingChainElement>& InBindingChain, FChooserPropertyBinding& OutPropertyBinding);
@@ -192,19 +200,13 @@ template <typename T>
 bool FChooserPropertyBinding::GetValuePtr(FChooserEvaluationContext& Context, T*& OutResult) const
 {
 	using namespace  UE::Chooser;
-	if (!CompiledBinding.IsValid())
-	{
-		return false;
-	}
 
-	const FCompiledBinding& Binding = *CompiledBinding.Get();
-		
-	if (uint8* Result = ResolveCompiledPropertyChain(Context, Binding))
+	FResolvedPropertyChainResult Result;
+	if (ResolvePropertyChain(Context, *this, Result))
 	{
-		const FCompiledBindingElement& Element = Binding.CompiledChain.Last();
-		if (!Element.bIsFunction)
+		if (Result.Function == nullptr)
 		{
-			OutResult = reinterpret_cast<T*>(Result + Binding.CompiledChain.Last().Offset);
+			OutResult = reinterpret_cast<T*>(Result.Container + Result.PropertyOffset);
 			return true;
 		}
 	}
@@ -215,111 +217,104 @@ template <typename T>
 bool FChooserPropertyBinding::GetValue(FChooserEvaluationContext& Context, T& OutResult) const
 {
 	using namespace  UE::Chooser;
-	if (!CompiledBinding.IsValid())
-	{
-		return false;
-	}
 
-	const FCompiledBinding& Binding = *CompiledBinding.Get();
-		
-	if (uint8* Result = ResolveCompiledPropertyChain(Context, Binding))
+	FResolvedPropertyChainResult Result;
+	if (ResolvePropertyChain(Context, *this, Result))
 	{
-		const FCompiledBindingElement& Element = Binding.CompiledChain.Last();
-		if (!Element.bIsFunction)
+		if (Result.Function == nullptr)
 		{
-			switch (Binding.PropertyType)
+			switch (Result.PropertyType)
 			{
-			case EPropertyNumericalType::FLOAT:
+			case EChooserPropertyAccessType::Float:
 				{
-					float FloatResult = *reinterpret_cast<float*>(Result + Binding.CompiledChain.Last().Offset);
+					float FloatResult = *reinterpret_cast<float*>(Result.Container + Result.PropertyOffset);
 					OutResult = static_cast<T>(FloatResult);
 					break;
 				}
-			case EPropertyNumericalType::DOUBLE:
+			case EChooserPropertyAccessType::Double:
 				{
-					double DoubleResult = *reinterpret_cast<double*>(Result + Binding.CompiledChain.Last().Offset);
+					double DoubleResult = *reinterpret_cast<double*>(Result.Container + Result.PropertyOffset);
 					OutResult = static_cast<T>(DoubleResult);
 					break;
 				}
-			case EPropertyNumericalType::INT32:
+			case EChooserPropertyAccessType::Int32:
 				{
-					int32 IntResult = *reinterpret_cast<int*>(Result + Binding.CompiledChain.Last().Offset);
+					int32 IntResult = *reinterpret_cast<int*>(Result.Container + Result.PropertyOffset);
 					OutResult = static_cast<T>(IntResult);
 					break;
 				}
-			case EPropertyNumericalType::BOOL:
+			case EChooserPropertyAccessType::Bool:
 				{
-					const FCompiledBindingElement& Last = Binding.CompiledChain.Last();
-					uint8* ByteValue = Result + Last.Offset;
-					OutResult = !!(*ByteValue & Last.Mask);
+					uint8* ByteValue = Result.Container + Result.PropertyOffset;
+					OutResult = !!(*ByteValue & Result.Mask);
 					break;
 				}
 			default:
-				OutResult = *reinterpret_cast<T*>(Result + Binding.CompiledChain.Last().Offset);
+				OutResult = *reinterpret_cast<T*>(Result.Container + Result.PropertyOffset);
 				break;
 			}
 		}
 		else
 		{
-			UObject* Object = reinterpret_cast<UObject*>(Result);
-			if (Element.Function->IsNative())
+			UObject* Object = reinterpret_cast<UObject*>(Result.Container);
+			if (Result.Function->IsNative())
 			{
-				FFrame Stack(Object, Element.Function, nullptr, nullptr, Element.Function->ChildProperties);
-				switch (Binding.PropertyType)
+				FFrame Stack(Object, Result.Function, nullptr, nullptr, Result.Function->ChildProperties);
+				switch (Result.PropertyType)
 				{
-				case EPropertyNumericalType::FLOAT:
+				case EChooserPropertyAccessType::Float:
 					{
 						float FloatResult = 0;
-						Element.Function->Invoke(Object, Stack, &FloatResult);
+						Result.Function->Invoke(Object, Stack, &FloatResult);
 						OutResult = static_cast<T>(FloatResult);
 						break;
 					}
-				case EPropertyNumericalType::DOUBLE:
+				case EChooserPropertyAccessType::Double:
 					{
 						double DoubleResult = 0;
-						Element.Function->Invoke(Object, Stack, &DoubleResult);
+						Result.Function->Invoke(Object, Stack, &DoubleResult);
 						OutResult = static_cast<T>(DoubleResult);
 						break;
 					}
-				case EPropertyNumericalType::INT32:
+				case EChooserPropertyAccessType::Int32:
 					{
 						int32 IntResult = 0;
-						Element.Function->Invoke(Object, Stack, &IntResult);
+						Result.Function->Invoke(Object, Stack, &IntResult);
 						OutResult = static_cast<T>(IntResult);
 						break;
 					}
 				default:
-					Element.Function->Invoke(Object, Stack, &OutResult);
+					Result.Function->Invoke(Object, Stack, &OutResult);
 					break;
 				}
 			}
 			else
 			{
-				switch (Binding.PropertyType)
+				switch (Result.PropertyType)
 				{
-				case EPropertyNumericalType::FLOAT:
+				case EChooserPropertyAccessType::Float:
 					{
 						float FloatResult = 0;
-						Object->ProcessEvent(Element.Function, &FloatResult);
+						Object->ProcessEvent(Result.Function, &FloatResult);
 						OutResult = static_cast<T>(FloatResult);
 						break;
 					}
-				case EPropertyNumericalType::DOUBLE:
+				case EChooserPropertyAccessType::Double:
 					{
 						double DoubleResult = 0;
-						Object->ProcessEvent(Element.Function, &DoubleResult);
+						Object->ProcessEvent(Result.Function, &DoubleResult);
 						OutResult = static_cast<T>(DoubleResult);
 						break;
 					}
-				case EPropertyNumericalType::INT32:
+				case EChooserPropertyAccessType::Int32:
 					{
 						int32 IntResult = 0;
-						Object->ProcessEvent(Element.Function, &IntResult);
+						Object->ProcessEvent(Result.Function, &IntResult);
 						OutResult = static_cast<T>(IntResult);
 						break;
 					}
 				default:
-					Object->ProcessEvent(Element.Function, &OutResult);
+					Object->ProcessEvent(Result.Function, &OutResult);
 					break;
 				}
 			}
@@ -333,51 +328,44 @@ template <typename T>
 bool FChooserPropertyBinding::SetValue(FChooserEvaluationContext& Context, const T& InValue) const
 {
 	using namespace  UE::Chooser;
-	if (!CompiledBinding.IsValid())
-	{
-		return false;
-	}
 
-	const FCompiledBinding& Binding = *CompiledBinding.Get();
-		
-	if (uint8* Result = ResolveCompiledPropertyChain(Context, Binding))
+	FResolvedPropertyChainResult Result;
+	if (ResolvePropertyChain(Context, *this, Result))
 	{
-		const FCompiledBindingElement& Element = Binding.CompiledChain.Last();
-		if (!Element.bIsFunction)
+		if (Result.Function == nullptr)
 		{
-			switch (Binding.PropertyType)
+			switch (Result.PropertyType)
 			{
-			case EPropertyNumericalType::FLOAT:
+			case EChooserPropertyAccessType::Float:
 				{
-					*reinterpret_cast<float*>(Result + Binding.CompiledChain.Last().Offset) = static_cast<float>(InValue);
+					*reinterpret_cast<float*>(Result.Container + Result.PropertyOffset) = static_cast<float>(InValue);
 					break;
 				}
-			case EPropertyNumericalType::DOUBLE:
+			case EChooserPropertyAccessType::Double:
 				{
-					*reinterpret_cast<double*>(Result + Binding.CompiledChain.Last().Offset) = static_cast<double>(InValue);
+					*reinterpret_cast<double*>(Result.Container + Result.PropertyOffset) = static_cast<double>(InValue);
 					break;
 				}
-			case EPropertyNumericalType::INT32:
+			case EChooserPropertyAccessType::Int32:
 				{
-					*reinterpret_cast<int*>(Result + Binding.CompiledChain.Last().Offset) = static_cast<int>(InValue);
+					*reinterpret_cast<int*>(Result.Container + Result.PropertyOffset) = static_cast<int>(InValue);
 					break;
 				}
-			case EPropertyNumericalType::BOOL:
+			case EChooserPropertyAccessType::Bool:
 			{
-				const FCompiledBindingElement& Last = Binding.CompiledChain.Last();
-				uint8* ByteValue = Result + Last.Offset;
-				if (Last.Mask == 255) // regular bool
+				uint8* ByteValue = Result.Container + Result.PropertyOffset;
+				if (Result.Mask == 255) // regular bool
 				{
-					*reinterpret_cast<bool*>(Result + Binding.CompiledChain.Last().Offset) = static_cast<bool>(InValue);
+					*reinterpret_cast<bool*>(Result.Container + Result.PropertyOffset) = static_cast<bool>(InValue);
 				}
 				else // bitset bool
 				{
-					*ByteValue = ((*ByteValue) & ~Last.Mask) | (InValue ? Last.Mask : 0);
+					*ByteValue = ((*ByteValue) & ~Result.Mask) | (InValue ? Result.Mask : 0);
 				}
 				break;
 			}
 			default:
-				*reinterpret_cast<T*>(Result + Binding.CompiledChain.Last().Offset) = InValue;
+				*reinterpret_cast<T*>(Result.Container + Result.PropertyOffset) = InValue;
 				break;
 			}
 			return true;

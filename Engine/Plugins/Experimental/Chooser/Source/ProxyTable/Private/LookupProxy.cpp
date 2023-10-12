@@ -71,38 +71,16 @@ FObjectChooserBase::EIteratorStatus FLookupProxyWithOverrideTable::ChooseMulti(F
 
 bool FProxyTableContextProperty::GetValue(FChooserEvaluationContext& Context, const UProxyTable*& OutResult) const
 {
-	if (Binding.CompiledBinding)
+	UProxyTable** ProxyTableReference;
+	if (Binding.GetValuePtr(Context, ProxyTableReference))
 	{
-		UProxyTable** ProxyTableReference;
-		if (Binding.GetValuePtr(Context, ProxyTableReference))
-		{
-			OutResult = *ProxyTableReference;
-			return true;
-		}
-		else
-		{
-			return false;
-		}
+		OutResult = *ProxyTableReference;
+		return true;
 	}
 	else
 	{
-		// for temporary backwards compatibility: ProxyTableContextProperties on UProxyAsset are being phased out,
-		// but they don't get compiled so we need to keep this code-path temporarily
-		const UStruct* StructType = nullptr;
-		const void* Container = nullptr;
-	
-		if (UE::Chooser::ResolvePropertyChain(Context, Binding,Container, StructType))
-		{
-			if (const FObjectProperty* Property = FindFProperty<FObjectProperty>(StructType, Binding.PropertyBindingChain.Last()))
-			{
-				OutResult = *Property->ContainerPtrToValuePtr<UProxyTable*>(Container);
-				return true;
-			}
-		}
+		return false;
 	}
-	
-
-	return false;
 }
 
 void FLookupProxy::Compile(IHasContextClass* HasContext, bool bForce)

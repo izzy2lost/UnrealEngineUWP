@@ -4,6 +4,7 @@
 
 #include "IObjectChooser.h"
 #include "Engine/UserDefinedStruct.h"
+#include "HAL/IConsoleManager.h"
 #include "UObject/UnrealType.h"
 #include "Logging/LogMacros.h"
 
@@ -13,6 +14,12 @@
 #endif
 
 #define LOCTEXT_NAMESPACE "ChooserPropertyAccess"
+
+TAutoConsoleVariable<bool> CVarUseCompiledPropertyChainsInEditor(
+	TEXT("Choosers.UseCompiledPropertyChainsInEditor"),
+	false,
+	TEXT("Enable optimized property access on Choosers and Proxy Tables in Editor. \n0: Disable (default), 1: Enable"),
+	ECVF_Default);
 		
 FName FChooserPropertyBinding::GetUniqueId() const
 {
@@ -220,19 +227,23 @@ void FChooserPropertyBinding::Compile(IHasContextClass* Owner, bool bForce)
 			if (const FBoolProperty* BoolProperty = CastField<FBoolProperty>(BaseProperty))
 			{
 				OutCompiledBinding.CompiledChain.Last().Mask = BoolProperty->GetFieldMask();
-				OutCompiledBinding.PropertyType = UE::Chooser::EPropertyNumericalType::BOOL;
+				OutCompiledBinding.PropertyType = UE::Chooser::EChooserPropertyAccessType::Bool;
 			}
 			if (BaseProperty->IsA<FFloatProperty>())
 			{
-				OutCompiledBinding.PropertyType = UE::Chooser::EPropertyNumericalType::FLOAT;
+				OutCompiledBinding.PropertyType = UE::Chooser::EChooserPropertyAccessType::Float;
 			}
 			else if (BaseProperty->IsA<FDoubleProperty>())
 			{
-				OutCompiledBinding.PropertyType = UE::Chooser::EPropertyNumericalType::DOUBLE;
+				OutCompiledBinding.PropertyType = UE::Chooser::EChooserPropertyAccessType::Double;
 			}
 			else if (BaseProperty->IsA<FIntProperty>())
 			{
-				OutCompiledBinding.PropertyType = UE::Chooser::EPropertyNumericalType::INT32;
+				OutCompiledBinding.PropertyType = UE::Chooser::EChooserPropertyAccessType::Int32;
+			}
+			else if (BaseProperty->IsA<FSoftObjectProperty>())
+			{
+				OutCompiledBinding.PropertyType = UE::Chooser::EChooserPropertyAccessType::SoftObjectRef;
 			}
 		}
 		else
@@ -248,15 +259,15 @@ void FChooserPropertyBinding::Compile(IHasContextClass* Owner, bool bForce)
 					OutCompiledBinding.CompiledChain.Add(UE::Chooser::FCompiledBindingElement(Function));
 					if (ReturnProperty->IsA<FFloatProperty>())
 					{
-						OutCompiledBinding.PropertyType = UE::Chooser::EPropertyNumericalType::FLOAT;
+						OutCompiledBinding.PropertyType = UE::Chooser::EChooserPropertyAccessType::Float;
 					}
 					else if (ReturnProperty->IsA<FDoubleProperty>())
 					{
-						OutCompiledBinding.PropertyType = UE::Chooser::EPropertyNumericalType::DOUBLE;
+						OutCompiledBinding.PropertyType = UE::Chooser::EChooserPropertyAccessType::Double;
 					}
 					else if (ReturnProperty->IsA<FIntProperty>())
 					{
-						OutCompiledBinding.PropertyType = UE::Chooser::EPropertyNumericalType::INT32;
+						OutCompiledBinding.PropertyType = UE::Chooser::EChooserPropertyAccessType::Int32;
 					}
 				}
 			}
@@ -285,21 +296,28 @@ void FChooserPropertyBinding::Compile(IHasContextClass* Owner, bool bForce)
 namespace UE::Chooser
 {
 
-	uint8* ResolveCompiledPropertyChain(FChooserEvaluationContext& Context, const FCompiledBinding& CompiledBinding)
+	bool ResolveCompiledPropertyChain(FChooserEvaluationContext& Context, const FChooserPropertyBinding& Binding, FResolvedPropertyChainResult& Result)
 	{
-		uint8* Result = nullptr;
 		const UStruct* InputType = nullptr;
+		uint8* Container = nullptr;
+		
+		if (!Binding.CompiledBinding.IsValid())
+		{
+			return false;
+		}
+		
+		const FCompiledBinding& CompiledBinding = *Binding.CompiledBinding.Get();
 
 		if(!Context.Params.IsValidIndex(CompiledBinding.ContextIndex))
 		{
 			UE_LOG(LogChooser, Warning, TEXT("Invalid Index {%d} while resolving compiled property chain."), CompiledBinding.ContextIndex);
-			return nullptr;
+			return false;
 		}
 		
 		if (FChooserEvaluationInputObject* ObjectInput = Context.Params[CompiledBinding.ContextIndex].GetMutablePtr<FChooserEvaluationInputObject>())
 		{
 			UObject* Object = ObjectInput->Object.Get();
-			Result = reinterpret_cast<uint8*>(Object);
+			Container = reinterpret_cast<uint8*>(Object);
 			if (Object)
 			{
 				InputType = Object->GetClass();
@@ -307,102 +325,88 @@ namespace UE::Chooser
 		}
 		else
 		{
-			Result = Context.Params[CompiledBinding.ContextIndex].GetMutableMemory();
+			Container = Context.Params[CompiledBinding.ContextIndex].GetMutableMemory();
 			InputType = Context.Params[CompiledBinding.ContextIndex].GetScriptStruct();
 		}
 
-		if (Result == nullptr || InputType == nullptr)
+		if (Container == nullptr || InputType == nullptr)
 		{
-			return nullptr;
+			return false;
 		}
 
 		if (!InputType->IsChildOf(CompiledBinding.TargetType))
 		{
 			UE_LOG(LogChooser, Warning, TEXT("Property Binding compiled for type: {%s} is being evaluated on incompatible type: {%s}."), ToCStr(CompiledBinding.TargetType->GetName()), ToCStr(InputType->GetName()));
-			return nullptr;
+			return false;
 		}
 		
 		for (int i = 0; i<CompiledBinding.CompiledChain.Num() - 1; i++)
 		{
-			if (Result)
+			if (Container)
 			{
 				const FCompiledBindingElement& Element = CompiledBinding.CompiledChain[i];
 				if (!Element.bIsFunction)
 				{
-					Result = *reinterpret_cast<uint8**>(Result + CompiledBinding.CompiledChain[i].Offset);
+					Container = *reinterpret_cast<uint8**>(Container + CompiledBinding.CompiledChain[i].Offset);
 				}
 				else
 				{
-					UObject* Object = reinterpret_cast<UObject*>(Result);
+					UObject* Object = reinterpret_cast<UObject*>(Container);
 					if (Element.Function->IsNative())
 					{
 						FFrame Stack(Object, Element.Function, nullptr, nullptr, Element.Function->ChildProperties);
-						Element.Function->Invoke(Object, Stack, &Result);
+						Element.Function->Invoke(Object, Stack, &Container);
 					}
 					else
 					{
-						Object->ProcessEvent(Element.Function, &Result);
+						Object->ProcessEvent(Element.Function, &Container);
 					}
 				}
 			}
 		}
 
-		return Result;
+		Result.Container = Container;
+		const FCompiledBindingElement& Last = CompiledBinding.CompiledChain.Last();
+		if (Last.bIsFunction)
+		{
+			Result.Function = Last.Function;
+		}
+		else
+		{
+			Result.PropertyOffset = Last.Offset;
+			Result.Mask = Last.Mask;
+		}
+		Result.PropertyType = CompiledBinding.PropertyType;
+		return true;
 	}
 	
-	bool ResolvePropertyChain(FChooserEvaluationContext& Context, const FChooserPropertyBinding& PropertyBinding, const void*& OutContainer, const UStruct*& OutStructType)
+	bool ResolvePropertyChain(uint8* Container, const UStruct*& StructType, const FChooserPropertyBinding& PropertyBinding, FResolvedPropertyChainResult& Result)
 	{
-		if (Context.Params.IsValidIndex(PropertyBinding.ContextIndex))
+		if (PropertyBinding.PropertyBindingChain.Num() == 0)
 		{
-			if (FChooserEvaluationInputObject* ObjectParam = Context.Params[PropertyBinding.ContextIndex].GetMutablePtr<FChooserEvaluationInputObject>())
+			if (PropertyBinding.IsBoundToRoot)
 			{
-				OutContainer = ObjectParam->Object;
-				if (OutContainer)
-				{
-					OutStructType = ObjectParam->Object->GetClass();
-				}
-				else
-				{
-					OutStructType = nullptr;
-				}
+				Result.Container = Container;
+				return true;
 			}
 			else
 			{
-				OutContainer = Context.Params[PropertyBinding.ContextIndex].GetMutableMemory();
-				OutStructType = Context.Params[PropertyBinding.ContextIndex].GetScriptStruct();
-			}
-			
-
-			if (OutContainer == nullptr || OutStructType == nullptr)
-			{
 				return false;
 			}
-
-			return ResolvePropertyChain(OutContainer, OutStructType, PropertyBinding.PropertyBindingChain);
-		}
-
-		return false;
-	}
-	
-	bool ResolvePropertyChain(const void*& Container, const UStruct*& StructType, const TArray<FName>& PropertyBindingChain)
-	{
-		if (PropertyBindingChain.Num() == 0)
-		{
-			return false;
 		}
 	
-		const int PropertyChainLength = PropertyBindingChain.Num();
+		const int PropertyChainLength = PropertyBinding.PropertyBindingChain.Num();
 		for(int PropertyChainIndex = 0; PropertyChainIndex < PropertyChainLength - 1; PropertyChainIndex++)
 		{
-			if (const FStructProperty* StructProperty = FindFProperty<FStructProperty>(StructType, PropertyBindingChain[PropertyChainIndex]))
+			if (const FStructProperty* StructProperty = FindFProperty<FStructProperty>(StructType, PropertyBinding.PropertyBindingChain[PropertyChainIndex]))
 			{
 				StructType = StructProperty->Struct;
-				Container = StructProperty->ContainerPtrToValuePtr<void>(Container);
+				Container = StructProperty->ContainerPtrToValuePtr<uint8>(Container);
 			}
-			else if (const FObjectProperty* ObjectProperty = FindFProperty<FObjectProperty>(StructType, PropertyBindingChain[PropertyChainIndex]))
+			else if (const FObjectProperty* ObjectProperty = FindFProperty<FObjectProperty>(StructType, PropertyBinding.PropertyBindingChain[PropertyChainIndex]))
 			{
 				StructType = ObjectProperty->PropertyClass;
-				Container = *ObjectProperty->ContainerPtrToValuePtr<TObjectPtr<UObject>>(Container);
+				Container = static_cast<uint8*>(*ObjectProperty->ContainerPtrToValuePtr<TObjectPtr<UObject>>(Container));
 				if (Container == nullptr)
 				{
 					return false;
@@ -413,9 +417,9 @@ namespace UE::Chooser
 				// check if it's a member function
 				if (const UClass* ClassType = Cast<const UClass>(StructType))
 				{
-					if (UFunction* Function = ClassType->FindFunctionByName(PropertyBindingChain[PropertyChainIndex]))
+					if (UFunction* Function = ClassType->FindFunctionByName(PropertyBinding.PropertyBindingChain[PropertyChainIndex]))
 					{
-						UObject* Object = reinterpret_cast<UObject*>(const_cast<void*>(Container));
+						UObject* Object = reinterpret_cast<UObject*>(Container);
 						if (Function->IsNative())
 						{
 							FFrame Stack(Object, Function, nullptr, nullptr, Function->ChildProperties);
@@ -432,7 +436,7 @@ namespace UE::Chooser
 						}
 						else
 						{
-							StructType = reinterpret_cast<UObject*>(const_cast<void*>(Container))->GetClass();
+							StructType = reinterpret_cast<UObject*>(Container)->GetClass();
 						}
 					}
 					else
@@ -446,9 +450,117 @@ namespace UE::Chooser
 				}
 			}
 		}
+
+
+		bool bFound = false;
+
+		if (const FProperty* BaseProperty = FindFProperty<FProperty>(StructType, PropertyBinding.PropertyBindingChain.Last()))
+		{
+			bFound = true;
+
+			Result.Container = Container;
+			Result.PropertyOffset = BaseProperty->GetOffset_ForInternal();
+			
+			if (const FBoolProperty* BoolProperty = CastField<FBoolProperty>(BaseProperty))
+			{
+				Result.Mask = BoolProperty->GetFieldMask();
+				Result.PropertyType = UE::Chooser::EChooserPropertyAccessType::Bool;
+			}
+			if (BaseProperty->IsA<FFloatProperty>())
+			{
+				Result.PropertyType = UE::Chooser::EChooserPropertyAccessType::Float;
+			}
+			else if (BaseProperty->IsA<FDoubleProperty>())
+			{
+				Result.PropertyType = UE::Chooser::EChooserPropertyAccessType::Double;
+			}
+			else if (BaseProperty->IsA<FIntProperty>())
+			{
+				Result.PropertyType = UE::Chooser::EChooserPropertyAccessType::Int32;
+			}
+			else if (BaseProperty->IsA<FSoftObjectProperty>())
+			{
+				Result.PropertyType = UE::Chooser::EChooserPropertyAccessType::SoftObjectRef;
+			}
+		}
+		else
+		{
+			// handle function calls 
+			if (const UClass* ClassType = Cast<const UClass>(StructType))
+			{
+				if (UFunction* Function = ClassType->FindFunctionByName(PropertyBinding.PropertyBindingChain.Last()))
+				{
+					bFound = true;
+					
+					Result.Container = Container;
+					Result.Function = Function;
+					
+					const FProperty* ReturnProperty = Function->GetReturnProperty();
+					if (ReturnProperty->IsA<FFloatProperty>())
+					{
+						Result.PropertyType = UE::Chooser::EChooserPropertyAccessType::Float;
+					}
+					else if (ReturnProperty->IsA<FDoubleProperty>())
+					{
+						Result.PropertyType = UE::Chooser::EChooserPropertyAccessType::Double;
+					}
+					else if (ReturnProperty->IsA<FIntProperty>())
+					{
+						Result.PropertyType = UE::Chooser::EChooserPropertyAccessType::Int32;
+					}
+				}
+			}
+		}
 	
-		return true;
+		return bFound;
 	}
+
+	bool ResolvePropertyChain(FChooserEvaluationContext& Context, const FChooserPropertyBinding& PropertyBinding, FResolvedPropertyChainResult& Result)
+	{
+		bool bUseCompiledChain = PropertyBinding.CompiledBinding.IsValid();
+
+#if WITH_EDITOR
+		if (!CVarUseCompiledPropertyChainsInEditor.GetValueOnAnyThread())
+		{
+			bUseCompiledChain = false;
+		}
+#endif
+		
+		if (bUseCompiledChain)
+		{
+			return ResolveCompiledPropertyChain(Context,PropertyBinding,Result);
+		}
+		
+		if (Context.Params.IsValidIndex(PropertyBinding.ContextIndex))
+		{
+			uint8* Container = nullptr;
+			const UStruct* StructType = nullptr;
+			if (FChooserEvaluationInputObject* ObjectParam = Context.Params[PropertyBinding.ContextIndex].GetMutablePtr<FChooserEvaluationInputObject>())
+			{
+				Container = static_cast<uint8*>(ObjectParam->Object);
+				if (Container)
+				{
+					StructType = ObjectParam->Object->GetClass();
+				}
+			}
+			else
+			{
+				Container = Context.Params[PropertyBinding.ContextIndex].GetMutableMemory();
+				StructType = Context.Params[PropertyBinding.ContextIndex].GetScriptStruct();
+			}
+
+
+			if (Container == nullptr || StructType == nullptr)
+			{
+				return false;
+			}
+
+			return ResolvePropertyChain(Container, StructType, PropertyBinding, Result);
+		}
+
+		return false;
+	}
+
 	
 #if WITH_EDITOR
 	void CopyPropertyChain(const TArray<FBindingChainElement>& InBindingChain, FChooserPropertyBinding& OutPropertyBinding)

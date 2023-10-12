@@ -176,42 +176,11 @@ static void OutputStructData(const FRuntimeProxyValue& EntryValueData, FChooserE
 {
 	for (const FProxyStructOutput& StructOutput : EntryValueData.OutputStructData)
 	{
-		// todo: should be updated to the following, but ProxyTable needs to trigger compiling of it's output struct bindings first
-		// void* TargetData;
-		// if (StructOutput.Binding.GetValuePtr(Context, TargetData))
-		// {
-		// 	StructOutput.Value.GetScriptStruct()->CopyScriptStruct(TargetData, StructOutput.Value.GetMemory());
-		// }	
-		
-		const void* Container = nullptr;
-		const UStruct* StructType;
-
 		// copy each struct output value
-
-		if (StructOutput.Binding.PropertyBindingChain.IsEmpty())
+		void* TargetData;
+		if (StructOutput.Binding.GetValuePtr(Context, TargetData))
 		{
-			if(Context.Params.IsValidIndex((StructOutput.Binding.ContextIndex)))
-			{
-				// directly bound to context struct
-				if (Context.Params[StructOutput.Binding.ContextIndex].GetScriptStruct() == StructOutput.Value.GetScriptStruct())
-				{
-					void* TargetData = Context.Params[StructOutput.Binding.ContextIndex].GetMutableMemory();
-					StructOutput.Value.GetScriptStruct()->CopyScriptStruct(TargetData, StructOutput.Value.GetMemory());
-				}
-			}
-		}
-		else if (UE::Chooser::ResolvePropertyChain(Context, StructOutput.Binding, Container, StructType))
-		{
-			if (FStructProperty* Property = FindFProperty<FStructProperty>(StructType, StructOutput.Binding.PropertyBindingChain.Last()))
-			{
-				// const cast is here just because ResolvePropertyChain expects a const void*&
-				void* TargetData = Property->ContainerPtrToValuePtr<void>(const_cast<void*>(Container));
-				
-				if (Property->Struct == StructOutput.Value.GetScriptStruct())
-				{
-					Property->Struct->CopyScriptStruct(TargetData, StructOutput.Value.GetMemory());
-				}
-			}
+			StructOutput.Value.GetScriptStruct()->CopyScriptStruct(TargetData, StructOutput.Value.GetMemory());
 		}
 	}
 }

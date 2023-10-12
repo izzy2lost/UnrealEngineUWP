@@ -8,24 +8,21 @@
 
 bool FObjectContextProperty::GetValue(FChooserEvaluationContext& Context, FSoftObjectPath& OutResult) const
 {
-	const UStruct* StructType = nullptr;
-	const void* Container = nullptr;
-
-	// todo: update this to use the compiled property chain
-	if (UE::Chooser::ResolvePropertyChain(Context, Binding, Container, StructType))
+	UE::Chooser::FResolvedPropertyChainResult Result;
+	if (UE::Chooser::ResolvePropertyChain(Context, Binding, Result))
 	{
-		if (const FObjectPropertyBase* ObjectProperty = FindFProperty<FObjectPropertyBase>(StructType, Binding.PropertyBindingChain.Last()))
+		if (Result.Function == nullptr)
 		{
 			// if the property is a soft object property, get the path directly
-			if (ObjectProperty->IsA<FSoftObjectProperty>())
+			if (Result.PropertyType == UE::Chooser::EChooserPropertyAccessType::SoftObjectRef)
 			{
-				const FSoftObjectPtr& SoftObjectPtr = *ObjectProperty->ContainerPtrToValuePtr<FSoftObjectPtr>(Container);
+				const FSoftObjectPtr& SoftObjectPtr = *reinterpret_cast<const FSoftObjectPtr*>(Result.Container + Result.PropertyOffset);
 				OutResult = SoftObjectPtr.ToSoftObjectPath();
 				return true;
 			}
-			
+		
 			// otherwise get the value from the object property and convert to a soft object path
-			const UObject* LoadedObject = ObjectProperty->GetObjectPropertyValue_InContainer(Container);
+			const UObject* LoadedObject = reinterpret_cast<const UObject*>(Result.Container + Result.PropertyOffset);
 			OutResult = LoadedObject;
 			return true;
 		}

@@ -19,6 +19,11 @@ struct CHOOSER_API FObjectContextProperty : public FChooserParameterObjectBase
 	FChooserObjectPropertyBinding Binding;
 
 	virtual bool GetValue(FChooserEvaluationContext& Context, FSoftObjectPath& OutResult) const override;
+	
+	virtual void Compile(IHasContextClass* Owner, bool bForce) override
+	{
+		Binding.Compile(Owner, bForce);
+	};
 
 #if WITH_EDITOR
 	virtual void GetDisplayName(FText& OutName) const override
