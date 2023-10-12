@@ -13,21 +13,6 @@ struct FPropertyChangedChainEvent;
 
 using FStaticSpatialIndexType = TStaticSpatialIndexRTree<TObjectPtr<UWorldPartitionRuntimeCell>>;
 
-/** Holds settings for an HLOD layer for a particular partition class. */
-USTRUCT()
-struct FRuntimePartitionHLODSetupLayer
-{
-	GENERATED_USTRUCT_BODY()
-
-#if WITH_EDITORONLY_DATA
-	UPROPERTY(VisibleAnywhere, Category = RuntimeSettings, Meta = (DisplayThumbnail = false))
-	TObjectPtr<const UHLODLayer> HLODLayer;
-#endif
-
-	UPROPERTY(EditAnywhere, Category = RuntimeSettings, Instanced)
-	TObjectPtr<URuntimePartition> PartitionLayer;
-};
-
 /** Holds an HLOD setup for a particular partition class. */
 USTRUCT()
 struct FRuntimePartitionHLODSetup
@@ -35,12 +20,11 @@ struct FRuntimePartitionHLODSetup
 	GENERATED_USTRUCT_BODY()
 
 	/** Associated HLOD Layer objects */
-	UPROPERTY(EditAnywhere, Category = RuntimeSettings, Meta = (EditCondition = "Class != nullptr", HideEditConditionToggle, NoResetToDefault, ForceInlineRow))
-	TObjectPtr<const UHLODLayer> HLODLayer;
+	UPROPERTY(EditAnywhere, Category = RuntimeSettings)
+	TArray<TObjectPtr<const UHLODLayer>> HLODLayers;
 
-	/** HLOD setup, one for each layers in the hierarchy */
-	UPROPERTY(VisibleAnywhere, Category = RuntimeSettings, EditFixedSize, Meta = (EditCondition = "HLODLayer != nullptr", HideEditConditionToggle, ForceInlineRow))
-	TArray<FRuntimePartitionHLODSetupLayer> PartitionLayers;
+	UPROPERTY(VisibleAnywhere, Category = RuntimeSettings, Instanced)
+	TObjectPtr<URuntimePartition> PartitionLayer;
 };
 
 /** Holds settings for a runtime partition instance. */
@@ -181,9 +165,6 @@ private:
 #if WITH_EDITOR
 	/** Generate the runtime partitions streaming descs. */
 	bool GenerateRuntimePartitionsStreamingDescs(const IStreamingGenerationContext* StreamingGenerationContext, TMap<URuntimePartition*, TArray<URuntimePartition::FCellDescInstance>>& OutRuntimeCellDescs) const;
-
-	/** Update the partition layers to reflect the curent HLOD setups. */
-	void UpdateHLODPartitionLayers();
 
 	struct FCellUniqueId
 	{

@@ -14,6 +14,13 @@ void URuntimePartition::SetDefaultValues()
 	bIsHLODSetup = false;
 }
 
+void URuntimePartition::InitHLODRuntimePartitionFrom(const URuntimePartition* RuntimePartition, int32 HLODIndex)
+{
+	Name = *FString::Printf(TEXT("%s_HLOD%d"), *RuntimePartition->Name.ToString(), HLODIndex);
+	LoadingRange = RuntimePartition->LoadingRange * 2;
+	bIsHLODSetup = true;
+}
+
 void URuntimePartition::PostEditChangeProperty(FPropertyChangedEvent& InPropertyChangedEvent)
 {
 	const FName PropertyName = InPropertyChangedEvent.GetPropertyName();
@@ -24,6 +31,13 @@ void URuntimePartition::PostEditChangeProperty(FPropertyChangedEvent& InProperty
 	}
 
 	Super::PostEditChangeProperty(InPropertyChangedEvent);
+}
+
+URuntimePartition* URuntimePartition::CreateHLODRuntimePartition(int32 HLODIndex) const
+{
+	URuntimePartition* HLODRuntimePartition = DuplicateObject<URuntimePartition>(this, GetOuter());
+	HLODRuntimePartition->InitHLODRuntimePartitionFrom(this, HLODIndex);
+	return HLODRuntimePartition;
 }
 
 URuntimePartition::FCellDesc URuntimePartition::CreateCellDesc(const FString& InName, bool bInIsSpatiallyLoaded, int32 InLevel, const TArray<const IStreamingGenerationContext::FActorSetInstance*>& InActorSetInstances)

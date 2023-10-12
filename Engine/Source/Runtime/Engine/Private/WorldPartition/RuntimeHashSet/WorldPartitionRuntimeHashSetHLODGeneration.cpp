@@ -160,18 +160,8 @@ bool UWorldPartitionRuntimeHashSet::SupportsHLODs() const
 
 bool UWorldPartitionRuntimeHashSet::SetupHLODActors(const IStreamingGenerationContext* StreamingGenerationContext, const UWorldPartition::FSetupHLODActorsParams& Params) const
 {
-	auto GetRuntimePartitionDescHLODSetup = [](const FRuntimePartitionDesc* RuntimePartitionDesc, const UHLODLayer* HLODLayer) -> const FRuntimePartitionHLODSetup*
-	{
-		for (const FRuntimePartitionHLODSetup& HLODSetup : RuntimePartitionDesc->HLODSetups)
-		{
-			if (HLODLayer == HLODSetup.HLODLayer)
-			{
-				return &HLODSetup;
-			}
-		}
-
-		return nullptr;
-	};
+	IWorldPartitionHLODUtilities* WPHLODUtilities = FModuleManager::Get().LoadModuleChecked<IWorldPartitionHLODUtilitiesModule>("WorldPartitionHLODUtilities").GetUtilities();
+	check(WPHLODUtilities);
 
 	UWorldPartition* WorldPartition = GetOuterUWorldPartition();
 	const UDataLayerManager* DataLayerManager = WorldPartition->GetDataLayerManager();
@@ -198,9 +188,13 @@ bool UWorldPartitionRuntimeHashSet::SetupHLODActors(const IStreamingGenerationCo
 		TArray<FGuid> HLODActorGuids;
 		for (auto& [RuntimePartition, CellDescInstances] : RuntimePartitionsStreamingDescs)
 		{
+			int32 CellDescInstanceIndex = 0;
 			for (URuntimePartition::FCellDescInstance& CellDescInstance : CellDescInstances)
 			{
-				// Here we split actors into their respective HLOD layers because we want to provide a specific runtime grid name for our HLOD setup to FWorldPartitionHLODUtilities::CreateHLODActors. 
+				const FCellUniqueId CellUniqueId = GetCellUniqueId(CellDescInstance);
+
+				UE_LOG(LogWorldPartition, Display, TEXT("[%d / %d] Processing cell %s..."), ++CellDescInstanceIndex, CellDescInstances.Num(), *CellUniqueId.Name);
+
 				TArray<IStreamingGenerationContext::FActorInstance> ActorInstances;
 				for (const IStreamingGenerationContext::FActorSetInstance* ActorSetInstance : CellDescInstance.ActorSetInstances)
 				{
@@ -213,11 +207,14 @@ bool UWorldPartitionRuntimeHashSet::SetupHLODActors(const IStreamingGenerationCo
 				// Fake tick
 				PrivateUtils::GameTick(WorldPartition->GetWorld());
 
-				const FCellUniqueId CellUniqueId = GetCellUniqueId(CellDescInstance);
-
 				TArray<FName> MainPartitionTokens;
 				TArray<FName> HLODPartitionTokens;
 				verify(ParseGridName(ActorInstances[0].ActorSetInstance->RuntimeGrid, MainPartitionTokens, HLODPartitionTokens));
+
+				if (MainPartitionTokens[0].IsNone())
+				{
+					MainPartitionTokens[0] = RuntimePartitions[0].Name;
+				}
 					
 				FHLODCreationParams HLODCreationParams;
 				HLODCreationParams.WorldPartition = WorldPartition;
@@ -230,7 +227,6 @@ bool UWorldPartitionRuntimeHashSet::SetupHLODActors(const IStreamingGenerationCo
 				HLODCreationParams.ContentBundleGuid = CellDescInstance.ContentBundleID;
 				HLODCreationParams.DataLayerInstances = CellDescInstance.DataLayerInstances;
 
-				IWorldPartitionHLODUtilities* WPHLODUtilities = FModuleManager::Get().LoadModuleChecked<IWorldPartitionHLODUtilitiesModule>("WorldPartitionHLODUtilities").GetUtilities();
 				TArray<AWorldPartitionHLOD*> CellHLODActors = WPHLODUtilities->CreateHLODActors(HLODCreationContext, HLODCreationParams, ActorInstances);
 
 				if (!CellHLODActors.IsEmpty())

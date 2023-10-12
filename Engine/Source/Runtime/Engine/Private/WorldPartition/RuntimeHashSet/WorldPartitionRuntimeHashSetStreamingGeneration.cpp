@@ -6,6 +6,7 @@
 #include "WorldPartition/ContentBundle/ContentBundleDescriptor.h"
 #include "WorldPartition/WorldPartitionStreamingPolicy.h"
 #include "WorldPartition/DataLayer/DataLayersID.h"
+#include "WorldPartition/HLOD/HLODLayer.h"
 
 #if WITH_EDITOR
 bool UWorldPartitionRuntimeHashSet::GenerateRuntimePartitionsStreamingDescs(const IStreamingGenerationContext* StreamingGenerationContext, TMap<URuntimePartition*, TArray<URuntimePartition::FCellDescInstance>>& OutRuntimeCellDescs) const
@@ -58,11 +59,11 @@ bool UWorldPartitionRuntimeHashSet::GenerateRuntimePartitionsStreamingDescs(cons
 
 				for (const FRuntimePartitionHLODSetup& HLODSetup : (*RuntimePartitionDesc)->HLODSetups)
 				{
-					for (const FRuntimePartitionHLODSetupLayer& HLODPartitionLayer : HLODSetup.PartitionLayers)
+					for (const UHLODLayer* HLODPartitionLayer : HLODSetup.HLODLayers)
 					{
-						if (HLODPartitionLayer.HLODLayer.GetName() == HLODPartitionTokens[0])
+						if (HLODPartitionLayer->GetName() == HLODPartitionTokens[0])
 						{
-							RuntimePartitionsToActorSetMap.FindOrAdd(HLODPartitionLayer.PartitionLayer).Add(&ActorSetInstance);
+							RuntimePartitionsToActorSetMap.FindOrAdd(HLODSetup.PartitionLayer).Add(&ActorSetInstance);
 							bFoundHLODPartitionLayer = true;
 							break;
 						}
