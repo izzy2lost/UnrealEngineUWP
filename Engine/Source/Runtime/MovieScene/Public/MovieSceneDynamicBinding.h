@@ -22,7 +22,7 @@ struct FMovieSceneDynamicBindingPayloadVariable
 	GENERATED_BODY()
 		
 	UPROPERTY()
-	TObjectPtr<UObject> ObjectValue;
+	FSoftObjectPath ObjectValue;
 
 	UPROPERTY(EditAnywhere, Category = "Sequencer|Dynamic Binding")
 	FString Value;

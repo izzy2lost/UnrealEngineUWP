@@ -311,9 +311,9 @@ void FMovieSceneDirectorBlueprintEndpointCustomization::CustomizeChildren(TShare
 
 					// We have an override for this variable
 					bool bImportSuccess = false;
-					if (PayloadVariable->ObjectValue)
+					if (PayloadVariable->ObjectValue.IsValid())
 					{
-						bImportSuccess = FBlueprintEditorUtils::PropertyValueFromString(Field, PayloadVariable->ObjectValue->GetPathName(), StructData->GetStructMemory());
+						bImportSuccess = FBlueprintEditorUtils::PropertyValueFromString(Field, PayloadVariable->ObjectValue.ToString(), StructData->GetStructMemory());
 					}
 					if (!bImportSuccess)
 					{

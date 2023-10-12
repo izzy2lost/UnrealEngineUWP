@@ -57,7 +57,7 @@ struct MOVIESCENETOOLS_API FMovieSceneDirectorBlueprintEndpointParameter
 struct MOVIESCENETOOLS_API FMovieSceneDirectorBlueprintVariableValue
 {
 	/* In the case the variable is a UObject, reference to the UObject */
-	TObjectPtr<UObject> ObjectValue;
+	FSoftObjectPath ObjectValue;
 
 	/** String value of the variable */
 	FString Value;

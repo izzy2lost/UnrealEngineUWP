@@ -13,6 +13,7 @@
 #include "UObject/ObjectPtr.h"
 #include "UObject/WeakObjectPtr.h"
 #include "UObject/WeakObjectPtrTemplates.h"
+#include "UObject/SoftObjectPtr.h"
 
 #include "MovieSceneEvent.generated.h"
 
@@ -35,7 +36,7 @@ struct FMovieSceneEventPayloadVariable
 
 	UPROPERTY()
 	/** If the value for this pin should be an object, we store a pointer to it */
-	TObjectPtr<class UObject> ObjectValue;
+	FSoftObjectPath ObjectValue;
 
 	UPROPERTY(EditAnywhere, Category="Sequencer|Event")
 	FString Value;

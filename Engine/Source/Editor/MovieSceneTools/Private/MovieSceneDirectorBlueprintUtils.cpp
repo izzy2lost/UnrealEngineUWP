@@ -309,9 +309,9 @@ FMovieSceneDirectorBlueprintEntrypointResult FMovieSceneDirectorBlueprintUtils::
 			else
 			{
 				bool bMarkAsModified = false;
-				if (PayloadVariable->ObjectValue)
+				if (PayloadVariable->ObjectValue.IsValid())
 				{
-					Schema->TrySetDefaultObject(*Pin, PayloadVariable->ObjectValue, bMarkAsModified);
+					Schema->TrySetDefaultObject(*Pin, PayloadVariable->ObjectValue.ResolveObject(), bMarkAsModified);
 				}
 				else if (!PayloadVariable->Value.IsEmpty())
 				{
@@ -403,9 +403,9 @@ bool FMovieSceneDirectorBlueprintUtils::GenerateEntryPointRawActorParameter(
 
 	// Set the default value for the path string/object
 	const bool bMarkAsModified = false;
-	if (PayloadValue.ObjectValue)
+	if (PayloadValue.ObjectValue.IsValid())
 	{
-		Schema->TrySetDefaultObject(*PathInput, PayloadValue.ObjectValue, bMarkAsModified);
+		Schema->TrySetDefaultObject(*PathInput, PayloadValue.ObjectValue.ResolveObject(), bMarkAsModified);
 	}
 	else if (!PayloadValue.Value.IsEmpty())
 	{
