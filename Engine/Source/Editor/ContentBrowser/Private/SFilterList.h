@@ -41,8 +41,6 @@ enum class ECheckBoxState : uint8;
 class SFilterList : public SAssetFilterBar<FAssetFilterType>
 {
 public:
-
-	DECLARE_DELEGATE_RetVal( TSharedPtr<SWidget>, FOnGetContextMenu );
 	DECLARE_DELEGATE_OneParam(FOnFilterBarLayoutChanging, EFilterBarLayout /* NewLayout */)
 	/**
 	 * An event delegate that is executed when a custom text filter has been created/modified/deleted in any FilterList
@@ -56,16 +54,16 @@ public:
 	: _UseSharedSettings(false)
 	, _FilterBarLayout(EFilterBarLayout::Horizontal)
 	, _CanChangeOrientation(false)
+	, _DefaultMenuExpansionCategory(EAssetCategoryPaths::Basic)
 	{
 		
 	}
-
-		/** Called when an asset is right clicked */
-		SLATE_EVENT( FOnGetContextMenu, OnGetContextMenu )
-
 		/** Delegate for when filters have changed */
 		SLATE_EVENT( FOnFilterChanged, OnFilterChanged )
 
+		/** Delegate that lets the user modify the menu after the fact */
+		SLATE_EVENT(FOnExtendAddFilterMenu, OnExtendAddFilterMenu)
+	
 		/** The filter collection used to further filter down assets returned from the backend */
 		SLATE_ARGUMENT( TSharedPtr<FAssetFilterCollectionType>, FrontendFilters)
 
@@ -97,6 +95,9 @@ public:
 		/** If true, allow dynamically changing the orientation and saving in the config */
 		SLATE_ARGUMENT(bool, CanChangeOrientation)
 
+		/** Expands the specified asset category, if specified. If not, it will expand Basic/Common instead. */
+		SLATE_ARGUMENT(TOptional<FAssetCategoryPath>, DefaultMenuExpansionCategory)
+
 	SLATE_END_ARGS()
 
 	/** Constructs this widget with InArgs */
@@ -113,14 +114,12 @@ public:
 
 	/** Retrieve a specific frontend filter */
 	TSharedPtr<FFrontendFilter> GetFrontendFilter(const FString& InName) const;
-
+	
 	/** Handler for when the floating add filter button was clicked */
-	TSharedRef<SWidget> ExternalMakeAddFilterMenu(EAssetTypeCategories::Type MenuExpansion = EAssetTypeCategories::Basic);
+	TSharedRef<SWidget> ExternalMakeAddFilterMenu();
 
 	/** Disables any active filters that would hide the supplied items */
 	void DisableFiltersThatHideItems(TArrayView<const FContentBrowserItem> ItemList);
-
-	virtual FReply OnMouseButtonUp( const FGeometry& MyGeometry, const FPointerEvent& MouseEvent ) override;
 
 	/** Returns the class filters specified at construction using argument 'InitialClassFilters'. */
 	const TArray<UClass*>& GetInitialClassFilters();
@@ -150,7 +149,7 @@ public:
 protected:
 	
 	/** Handler for when the add filter button was clicked */
-	TSharedRef<SWidget> MakeAddFilterMenu() override;
+	//virtual TSharedRef<SWidget> MakeAddFilterMenu() override;
 	
 	/** Handler for when a custom text filter is created */
 	virtual void OnCreateCustomTextFilter(const FCustomTextFilterData& InFilterData, bool bApplyFilter) override;
@@ -161,11 +160,11 @@ protected:
 
 private:
 
-	/** Exists for backwards compatibility with ExternalMakeAddFilterMenu */
-	TSharedRef<SWidget> MakeAddFilterMenu(EAssetTypeCategories::Type MenuExpansion = EAssetTypeCategories::Basic);
+	// /** Exists for backwards compatibility with ExternalMakeAddFilterMenu */
+	// TSharedRef<SWidget> MakeAddFilterMenu(FAssetCategoryPath MenuExpansion = EAssetCategoryPaths::Basic);
 
-	void PopulateAddFilterMenu_Internal(UToolMenu* Menu);
-
+	virtual UAssetFilterBarContext* CreateAssetFilterBarContext() override;
+	
 	/** Handler for when another SFilterList using shared settings creates a custom text filter */
 	void OnExternalCustomTextFilterCreated(TSharedPtr<SWidget> BroadcastingFilterList);
 	
@@ -181,9 +180,6 @@ private:
 
 	/** List of classes that our filters must match */
 	TArray<UClass*> InitialClassFilters;
-
-	/** Delegate for getting the context menu. */
-	FOnGetContextMenu OnGetContextMenu;
 
 	/** Delegate for when filters have changed */
 	FOnFilterChanged OnFilterChanged;

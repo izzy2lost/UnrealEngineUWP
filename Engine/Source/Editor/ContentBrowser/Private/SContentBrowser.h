@@ -343,12 +343,6 @@ private:
 	/** Gets the tool tip for the "Add New" button */
 	FText GetAddNewToolTipText() const;
 
-	/** Makes the filters menu */
-	TSharedRef<SWidget> MakeAddFilterMenu();
-	
-	/** Builds the context menu for the filter list area. */
-	TSharedPtr<SWidget> GetFilterContextMenu();
-
 	/** Saves dirty content. */
 	FReply OnSaveClicked();
 

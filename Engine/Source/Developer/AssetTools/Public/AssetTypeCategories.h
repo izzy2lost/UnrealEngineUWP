@@ -27,9 +27,10 @@ namespace EAssetTypeCategories
 		Media = 1 << 9,
 		Textures = 1 << 10,
 		World = 1 << 11,
+		FX = 1 << 12,
 
 		// Items below this will be allocated at runtime via RegisterAdvancedAssetCategory
-		FirstUser = 1 << 12,
+		FirstUser = 1 << 13,
 		LastUser = 1 << 31,
 		// Last allowed value is 1 << 31
 	};

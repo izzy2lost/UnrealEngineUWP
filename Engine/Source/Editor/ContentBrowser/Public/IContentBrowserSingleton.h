@@ -22,6 +22,7 @@ class FViewport;
 class IPlugin;
 class SWidget;
 class UFactory;
+class UToolMenu;
 
 typedef const FContentBrowserItem& FAssetFilterType;
 typedef TFilterCollection<FAssetFilterType> FAssetFilterCollectionType;
@@ -296,6 +297,9 @@ struct FAssetPickerConfig
 	/** If true, sort by path in column view. Only works if initial view type is Column */
 	bool bSortByPathInColumnView;
 
+	/** Can be used to freely change the Add Filter menu. This is executed on the dynamically instanced menu, not the registered menu. */
+	TDelegate<void(UToolMenu*)> OnExtendAddFilterMenu;
+	
 	/** Override the default filter context menu layout */
 	EAssetTypeCategories::Type DefaultFilterMenuExpansion;
 

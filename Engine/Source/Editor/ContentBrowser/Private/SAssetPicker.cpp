@@ -205,7 +205,9 @@ void SAssetPicker::Construct( const FArguments& InArgs )
 			.FrontendFilters(FrontendFilters)
 			.InitialClassFilters(FilterClassList)
 			.FilterBarIdentifier(FName(SaveSettingsName))
-			.ExtraFrontendFilters(InArgs._AssetPickerConfig.ExtraFrontendFilters);
+			.ExtraFrontendFilters(InArgs._AssetPickerConfig.ExtraFrontendFilters)
+			.DefaultMenuExpansionCategory(ConvertAssetTypeCategoryToAssetCategoryPath(DefaultFilterMenuExpansion).Get(EAssetCategoryPaths::Basic))
+			.OnExtendAddFilterMenu(InArgs._AssetPickerConfig.OnExtendAddFilterMenu);
 		
 		FilterComboButtonPtr = StaticCastSharedRef<SComboButton>(SFilterList::MakeAddFilterButton(FilterListPtr.ToSharedRef()));
 		
@@ -529,11 +531,6 @@ void SAssetPicker::SetNewBackendFilter(const FARFilter& NewFilter)
 	OnFilterChanged();
 }
 
-TSharedRef<SWidget> SAssetPicker::MakeAddFilterMenu()
-{
-	return FilterListPtr->ExternalMakeAddFilterMenu(DefaultFilterMenuExpansion);
-}
-
 void SAssetPicker::OnFilterChanged()
 {
 	FARFilter Filter;
@@ -813,6 +810,43 @@ TSharedPtr<SWidget> SAssetPicker::GetItemContextMenu(TArrayView<const FContentBr
 	}
 
 	return nullptr;
+}
+
+TOptional<FAssetCategoryPath> SAssetPicker::ConvertAssetTypeCategoryToAssetCategoryPath(EAssetTypeCategories::Type InDefaultFilterMenuExpansion)
+{
+	// TODO We should completely replace EAssetTypeCategories with FAssetCategoryPath, but FAssetCategoryPath is contained in the AssetDefinitionsModule.
+	// Since the API exposes the DefaultFilterMenuExpansion, we can't easily change this
+	switch (InDefaultFilterMenuExpansion)
+	{
+	case EAssetTypeCategories::Basic:
+		return EAssetCategoryPaths::Basic;
+	case EAssetTypeCategories::Animation:
+		return EAssetCategoryPaths::Animation;
+	case EAssetTypeCategories::Materials:
+		return EAssetCategoryPaths::Material;
+	case EAssetTypeCategories::Sounds:
+		return EAssetCategoryPaths::Audio;
+	case EAssetTypeCategories::Physics:
+		return EAssetCategoryPaths::Physics;
+	case EAssetTypeCategories::UI:
+		return EAssetCategoryPaths::UI;
+	case EAssetTypeCategories::Misc:
+		return EAssetCategoryPaths::Misc;
+	case EAssetTypeCategories::Gameplay:
+		return EAssetCategoryPaths::Gameplay;
+	case EAssetTypeCategories::Blueprint:
+		return EAssetCategoryPaths::Blueprint;
+	case EAssetTypeCategories::Media:
+		return EAssetCategoryPaths::Media;
+	case EAssetTypeCategories::Textures:
+		return EAssetCategoryPaths::Texture;
+	case EAssetTypeCategories::World:
+		break;
+	case EAssetTypeCategories::FX:
+		return EAssetCategoryPaths::FX;
+	}
+
+	return TOptional<FAssetCategoryPath>();
 }
 
 #undef LOCTEXT_NAMESPACE

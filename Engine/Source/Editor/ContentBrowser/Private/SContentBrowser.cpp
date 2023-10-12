@@ -961,7 +961,6 @@ TSharedRef<SWidget> SContentBrowser::CreateAssetView(const FContentBrowserConfig
 	// Create the Filter Bar Widget
 	FilterListPtr = SNew(SFilterList)
 					.OnFilterChanged(this, &SContentBrowser::OnFilterChanged)
-					.OnGetContextMenu(this, &SContentBrowser::GetFilterContextMenu)
 					.Visibility((Config != nullptr ? Config->bCanShowFilters : true) ? EVisibility::Visible : EVisibility::Collapsed)
 					.FrontendFilters(FrontendFilters)
 					.FilterBarIdentifier(InstanceName)
@@ -2950,16 +2949,6 @@ FText SContentBrowser::GetAddNewToolTipText() const
 	}
 	
 	return LOCTEXT( "AddNewToolTip_NoPath", "No path is selected as an add target." );
-}
-
-TSharedRef<SWidget> SContentBrowser::MakeAddFilterMenu()
-{
-	return FilterListPtr->ExternalMakeAddFilterMenu();
-}
-
-TSharedPtr<SWidget> SContentBrowser::GetFilterContextMenu()
-{
-	return FilterListPtr->ExternalMakeAddFilterMenu();
 }
 
 void SContentBrowser::RegisterPathViewFiltersMenu()
