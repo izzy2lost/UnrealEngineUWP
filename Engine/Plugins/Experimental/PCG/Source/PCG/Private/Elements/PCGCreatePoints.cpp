@@ -37,11 +37,30 @@ bool FPCGCreatePointsElement::ExecuteInternal(FPCGContext* Context) const
 	const UPCGCreatePointsSettings* Settings = Context->GetInputSettings<UPCGCreatePointsSettings>();
 	check(Settings);
 
-	UPCGComponent* OriginalComponentContext = Context->SourceComponent.Get();
-	check(OriginalComponentContext);
+	UPCGComponent* PCGComponent = nullptr;
+	check(Context->SourceComponent.Get());
 
-	const FTransform OriginalComponentTransform = OriginalComponentContext->GetOwner()->GetActorTransform();
-	const FTransform ComponentTransformScaleOne = FTransform(OriginalComponentTransform.Rotator(), OriginalComponentTransform.GetLocation(), FVector::One());
+	if (Settings->GridPivot == EPCGLocalGridPivot::OriginalComponent)
+	{
+		PCGComponent = Context->SourceComponent->GetOriginalComponent();
+	}
+	else if (Settings->GridPivot == EPCGLocalGridPivot::LocalComponent)
+	{
+		PCGComponent = Context->SourceComponent.Get();
+	}
+
+	FTransform OriginalComponentTransform = FTransform();
+	FTransform ComponentTransformScaleOne = FTransform();
+	const UPCGSpatialData* Target = nullptr;
+
+	if (PCGComponent)
+	{
+		check(PCGComponent->GetOwner());
+
+		OriginalComponentTransform = PCGComponent->GetOwner()->GetActorTransform();
+		ComponentTransformScaleOne = FTransform(OriginalComponentTransform.Rotator(), OriginalComponentTransform.GetLocation(), FVector::One());
+		Target = Settings->bCullPointsOutsideVolume ? Cast<UPCGSpatialData>(PCGComponent->GetActorPCGData()) : nullptr;
+	}
 
 	TArray<FPCGPoint> PointsToLoopOn = Settings->PointsToCreate;
 	
@@ -53,9 +72,8 @@ bool FPCGCreatePointsElement::ExecuteInternal(FPCGContext* Context) const
 
 	TArray<FPCGPoint>& OutputPoints = PtData->GetMutablePoints();
 	Output.Data = PtData;
-	
 
-	if (!Settings->bLocal && !Settings->bCullPointsOutsideVolume)
+	if (Settings->GridPivot == EPCGLocalGridPivot::Global && !Settings->bCullPointsOutsideVolume)
 	{
 		for (auto& Points : PointsToLoopOn)
 		{
@@ -70,14 +88,12 @@ bool FPCGCreatePointsElement::ExecuteInternal(FPCGContext* Context) const
 	}
 	else
 	{
-		const UPCGSpatialData* Target = Settings->bCullPointsOutsideVolume ? Cast<UPCGSpatialData>(OriginalComponentContext->GetActorPCGData()) : nullptr;
-
 		FPCGAsync::AsyncPointProcessing(Context, PointsToLoopOn.Num(), OutputPoints, [&PointsToLoopOn, Settings, &ComponentTransformScaleOne, Target](int32 Index, FPCGPoint& OutPoint)
 		{
 			const FPCGPoint& InPoint = PointsToLoopOn[Index];
 			OutPoint = InPoint;
 
-			if (Settings->bLocal)
+			if (Settings->GridPivot == EPCGLocalGridPivot::LocalComponent || Settings->GridPivot == EPCGLocalGridPivot::OriginalComponent)
 			{
 				OutPoint.Transform *= ComponentTransformScaleOne;
 			}
@@ -96,7 +112,7 @@ bool FPCGCreatePointsElement::IsCacheable(const UPCGSettings* InSettings) const
 {
 	const UPCGCreatePointsSettings* Settings = Cast<const UPCGCreatePointsSettings>(InSettings);
 
-	return Settings && !Settings->bLocal;
+	return Settings && Settings->GridPivot == EPCGLocalGridPivot::Global;
 }
 
 #undef LOCTEXT_NAMESPACE

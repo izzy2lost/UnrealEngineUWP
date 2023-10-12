@@ -6,6 +6,14 @@
 #include "Data/PCGPointData.h"
 #include "PCGCreatePoints.generated.h"
 
+UENUM()
+enum class EPCGLocalGridPivot : uint8
+{
+	Global,
+	OriginalComponent,
+	LocalComponent
+};
+
 /**
  * Creates point data from a provided list of points.
  */
@@ -34,10 +42,11 @@ public:
 	UPROPERTY(BlueprintReadWrite, EditAnywhere, Category = Settings, meta = (PCG_Overridable))
 	TArray<FPCGPoint> PointsToCreate;
 
-	/** If true, points are transformed to world space using the PCG component transform */
+	/** Sets the points transform to world or local space*/
 	UPROPERTY(BlueprintReadWrite, EditAnywhere, Category = Settings, meta = (PCG_Overridable))
-	bool bLocal = false;
+	EPCGLocalGridPivot GridPivot = EPCGLocalGridPivot::Global;
 
+	/** If true, points are removed if they are outside of the volume */
 	UPROPERTY(BlueprintReadWrite, EditAnywhere, Category = Settings, meta = (PCG_Overridable))
 	bool bCullPointsOutsideVolume = false;
 };

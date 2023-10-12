@@ -39,12 +39,20 @@ namespace PCGTestsCommon
 		TestActor = EditorWorld->SpawnActor<AActor>(ActorClass, TransientActorParameters);
 		check(TestActor);
 
-		TestPCGComponent = NewObject<UPCGComponent>(TestActor, FName(TEXT("Test PCG Component")), RF_Transient);
-		check(TestPCGComponent);
+		if (UPCGComponent* PCGComponent = TestActor->GetComponentByClass<UPCGComponent>())
+		{
+			TestPCGComponent = PCGComponent;
+		}
+		else
+		{
+			TestPCGComponent = NewObject<UPCGComponent>(TestActor, FName(TEXT("Test PCG Component")), RF_Transient);
+			check(TestPCGComponent);
+			TestActor->AddInstanceComponent(TestPCGComponent);
+			TestPCGComponent->RegisterComponent();
+		}
+
 		// By default PCG components for tests will be non-partitioned
 		TestPCGComponent->SetIsPartitioned(false);
-		TestActor->AddInstanceComponent(TestPCGComponent);
-		TestPCGComponent->RegisterComponent();
 
 		UPCGGraph* TestGraph = NewObject<UPCGGraph>(TestPCGComponent, FName(TEXT("Test PCG Graph")), RF_Transient);
 		check(TestGraph);
