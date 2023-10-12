@@ -119,13 +119,12 @@ class FSubstrateSystemInfoCS : public FGlobalShader
 		SHADER_PARAMETER(uint32, ClassificationAsync)
 		SHADER_PARAMETER(uint32, Classification8bits)
 		SHADER_PARAMETER(uint32, bRoughRefraction)
-		SHADER_PARAMETER(uint32, bTileOverflowUseMaterialData)
+		SHADER_PARAMETER(uint32, bUseClosureCountFromMaterialData)
 		SHADER_PARAMETER(uint32, ProjectMaxBytesPerPixel)
 		SHADER_PARAMETER(uint32, ViewsMaxBytesPerPixel)
 		SHADER_PARAMETER(uint32, MaterialBufferAllocationInBytes)
 		SHADER_PARAMETER(uint32, MaterialBufferAllocationMode)
 		SHADER_PARAMETER(uint32, LayerCount)
-		SHADER_PARAMETER(float, TileOverflowRatio)
 		SHADER_PARAMETER_RDG_BUFFER_SRV(Buffer<uint>, ClassificationTileDrawIndirectBuffer)
 		SHADER_PARAMETER_STRUCT_REF(FViewUniformShaderParameters, ViewUniformBuffer)
 		SHADER_PARAMETER_RDG_UNIFORM_BUFFER(FSubstrateGlobalUniformParameters, Substrate)
@@ -278,10 +277,9 @@ static void AddVisualizeMaterialCountPasses(FRDGBuilder & GraphBuilder, const FV
 }
 
 uint32 GetSubstrateTextureLayerCount(const FViewInfo& View);
-uint32 GetSubstrateTileOverflowRatio(const FViewInfo& View);
 bool IsClassificationAsync();
 bool SupportsCMask(const FStaticShaderPlatform InPlatform);
-bool DoesSubstrateTileOverflowUseMaterialData();
+bool UsesSubstrateClosureCountFromMaterialData();
 uint32 GetMaterialBufferAllocationMode();
 
 static void AddVisualizeSystemInfoPasses(FRDGBuilder& GraphBuilder, const FViewInfo& View, FScreenPassTexture& ScreenPassSceneColor, EShaderPlatform Platform)
@@ -301,9 +299,8 @@ static void AddVisualizeSystemInfoPasses(FRDGBuilder& GraphBuilder, const FViewI
 	PassParameters->ClassificationCMask = SupportsCMask(View.GetShaderPlatform()) ? 1 : 0;
 	PassParameters->ClassificationAsync = IsClassificationAsync() ? 1 : 0;
 	PassParameters->Classification8bits = Is8bitTileCoordEnabled() ? 1 : 0;
-	PassParameters->TileOverflowRatio = GetSubstrateTileOverflowRatio(View);
 	PassParameters->LayerCount = GetSubstrateTextureLayerCount(View);
-	PassParameters->bTileOverflowUseMaterialData = DoesSubstrateTileOverflowUseMaterialData() ? 1 : 0;
+	PassParameters->bUseClosureCountFromMaterialData = UsesSubstrateClosureCountFromMaterialData() ? 1 : 0;
 	PassParameters->bRoughRefraction = IsOpaqueRoughRefractionEnabled() ? 1 : 0;
 	PassParameters->ClassificationTileDrawIndirectBuffer = GraphBuilder.CreateSRV(View.SubstrateViewData.ClassificationTileDrawIndirectBuffer, PF_R32_UINT);
 	PassParameters->ViewUniformBuffer = View.ViewUniformBuffer;

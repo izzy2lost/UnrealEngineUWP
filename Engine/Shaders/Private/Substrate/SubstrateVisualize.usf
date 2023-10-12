@@ -1537,14 +1537,13 @@ uint ClassificationCMask;
 uint ClassificationAsync;
 uint Classification8bits;
 uint bRoughRefraction;
-uint bTileOverflowUseMaterialData;
+uint bUseClosureCountFromMaterialData;
 uint ViewsMaxBytesPerPixel;
 uint ProjectMaxBytesPerPixel;
 uint MaterialBufferAllocationInBytes;
 uint MaterialBufferAllocationMode;
 
 uint LayerCount;
-float TileOverflowRatio;
 Buffer<uint> ClassificationTileDrawIndirectBuffer;
 
 uint GetTileCount(uint InType)
@@ -1608,19 +1607,12 @@ void MainCS(uint3 DispatchThreadId : SV_DispatchThreadID)
 		PrintBool(Context, bEnergyPreservation);
 		Newline(Context);
 
-		Print(Context, TEXT(" Tile overflow mat. : "), LegendColor);
-		PrintBool(Context, bTileOverflowUseMaterialData);
+		Print(Context, TEXT(" Use #closures mat. : "), LegendColor);
+		PrintBool(Context, bUseClosureCountFromMaterialData);
 		Newline(Context); 
 
-		Print(Context, TEXT(" Tile overflow      : "), LegendColor);
-		Print(Context, TileOverflowRatio, ValueColor, 3, 1);
-		Print(Context, TEXT(" ["), LegendColor);
-		Print(Context, TileOverflowRatio +1, ValueColor, 2, 0);
-		Print(Context, TEXT(" BSDFs]"), LegendColor);
-		Newline(Context);
-
 		Print(Context, TEXT(" Tile LayerCount.   : "), LegendColor);
-		PrintBool(Context, LayerCount);
+		Print(Context, LayerCount, FontOrange);
 		Newline(Context); 
 
 		Print(Context, TEXT(" DBuffer pass       : "), LegendColor);

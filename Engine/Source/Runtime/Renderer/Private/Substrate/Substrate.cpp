@@ -27,16 +27,10 @@ static TAutoConsoleVariable<int32> CVarUseCmaskClear(
 	TEXT("TEST."),
 	ECVF_RenderThreadSafe);
 
-static TAutoConsoleVariable<float> CVarSubstrateTileOverflow(
-	TEXT("r.Substrate.TileOverflow"),
-	1.f,
-	TEXT("Scale the number of Substrate tile for overflowing tiles containing multi-BSDFs pixels. (0: 0%, 1: 100%. Default 1.0f)."),
-	ECVF_RenderThreadSafe);
-
-static TAutoConsoleVariable<int32> CVarSubstrateTileOverflowFromMaterial(
-	TEXT("r.Substrate.TileOverflowFromMaterial"),
+static TAutoConsoleVariable<int32> CVarSubstrateUseClosureCountFromMaterial(
+	TEXT("r.Substrate.UseClosureCountFromMaterial"),
 	1,
-	TEXT("When enable, scale the number of Substrate tile for overflowing tiles containing multi-BSDFs pixels based on material data. Otherwise use global overflow scale defined by r.Substrate.TileOverflow."),
+	TEXT("When enable, scale the number of Lumen's layers for multi-BSDFs pixels based on material data. Otherwise use r.Substrate.ClosuresPerPixel."),
 	ECVF_RenderThreadSafe);
 
 static TAutoConsoleVariable<int32> CVarSubstrateDebugPeelLayersAboveDepth(
@@ -114,21 +108,9 @@ uint32 GetMaterialBufferAllocationMode()
 	return FMath::Clamp(CVarSubstrateBytePerPixelMode.GetValueOnAnyThread(), 0, 2);
 }
 
-bool DoesSubstrateTileOverflowUseMaterialData() 
+bool UsesSubstrateClosureCountFromMaterialData() 
 {
-	return CVarSubstrateTileOverflowFromMaterial.GetValueOnRenderThread() > 0;
-}
-
-uint32 GetSubstrateTileOverflowRatio(const FViewInfo& View)
-{
-	if (DoesSubstrateTileOverflowUseMaterialData())
-	{
-		return FMath::Clamp(View.SubstrateViewData.MaxBSDFCount, 1u, 4u);
-	}
-	else
-	{
-		return FMath::Clamp(uint32(CVarSubstrateTileOverflow.GetValueOnRenderThread()), 1u, 4u);
-	}
+	return CVarSubstrateUseClosureCountFromMaterial.GetValueOnRenderThread() > 0;
 }
 
 uint32 GetSubstrateTextureLayerCount(const FViewInfo& View)
@@ -136,7 +118,14 @@ uint32 GetSubstrateTextureLayerCount(const FViewInfo& View)
 	uint32 Out = 1;
 	if (Substrate::IsSubstrateEnabled())
 	{
-		Out = GetSubstrateTileOverflowRatio(View);
+		if (UsesSubstrateClosureCountFromMaterialData())
+		{
+			Out = FMath::Clamp(View.SubstrateViewData.MaxBSDFCount, 1u, SUBSTRATE_MAX_BSDF_COUNT);
+		}
+		else
+		{
+			Out = FMath::Clamp(uint32(GetClosurePerPixel(View.GetShaderPlatform())), 1u, SUBSTRATE_MAX_BSDF_COUNT);
+		}
 	}
 	return Out;
 }
@@ -254,7 +243,6 @@ static void InitialiseSubstrateViewData(FRDGBuilder& GraphBuilder, FViewInfo& Vi
 			const FIntPoint TileCount = GetSubstrateTextureTileResolution(View, DynResIndependentViewSize);
 			const uint32 LayerCount = GetSubstrateTextureLayerCount(View);
 			const uint32 MaxTileCount = TileCount.X * TileCount.Y * LayerCount;
-			const FIntPoint BaseOverflowTileOffset = FIntPoint(0, FMath::DivideAndRoundUp(DynResIndependentViewSize.Y, SUBSTRATE_TILE_SIZE));
 
 			Out.TileCount	= TileCount;
 			Out.LayerCount  = LayerCount;
