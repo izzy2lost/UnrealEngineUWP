@@ -156,6 +156,15 @@ public:
 			, const TManagedArray<int32>& Parent
 			, FTransform& TransformOut);
 
+	Chaos::FPBDRigidParticleHandle* GetParticle(TArray<Chaos::FPBDRigidClusteredParticleHandle*>& Particles
+		, TArray<Chaos::FPBDRigidClusteredParticleHandle*>& ClusterParticles
+		, int TransformIndex
+		, const FVector& PositionalOffset
+		, const FTransform& Transform
+		, const TManagedArray<FTransform>& CollectionMassToLocal
+		, const TManagedArray<int32>& Parent
+		, FTransform& TransformOut);
+
 	Chaos::FPBDRigidParticleHandle* GetParticle(const FTransform& OffsetTransform
 		, TArray<Chaos::FPBDRigidParticleHandle*>& Particles
 		, TArray<Chaos::FPBDRigidClusteredParticleHandle*>& ClusterParticles
@@ -168,11 +177,24 @@ public:
 		, const TManagedArray<FTransform>& Transforms
 		, const TManagedArray<FTransform>& CollectionMassToLocal
 		, const TManagedArray<int32>& Parent);
+
+	void Apply(TArray<Chaos::FPBDRigidClusteredParticleHandle*>& Particles
+		, TArray<Chaos::FPBDRigidClusteredParticleHandle*>& ClusterParticles
+		, const TManagedArray<FTransform3f>& Transforms
+		, const TManagedArray<FTransform>& CollectionMassToLocal
+		, const TManagedArray<int32>& Parent);
 	
 	void Apply(TArray<Chaos::FPBDRigidParticleHandle*>& Particles
 		, TArray<Chaos::FPBDRigidClusteredParticleHandle*>& ClusterParticles);
 
 private:
+
+	template<typename TransformType>
+	void ApplyTemplate(TArray<Chaos::FPBDRigidClusteredParticleHandle*>& Particles
+		, TArray<Chaos::FPBDRigidClusteredParticleHandle*>& ClusterParticles
+		, const TManagedArray<TransformType>& Transforms
+		, const TManagedArray<FTransform>& CollectionMassToLocal
+		, const TManagedArray<int32>& Parent);
 
 	void AddForceAtPosition(Chaos::FPBDRigidParticleHandle* RigidHandle, const FApplyForceAtPositionData& DataIn, const FTransform& OffsetTransform);
 	void AddTorque(Chaos::FPBDRigidParticleHandle* RigidHandle, const FAddTorqueInRadiansData& DataIn, const FTransform& OffsetTransform);
