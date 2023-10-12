@@ -2819,13 +2819,11 @@ public:
 
 	/** Nanite shading material commands. These are stored on the scene as they are computed at FPrimitiveSceneInfo::AddToScene time. */
 	FNaniteMaterialCommands NaniteMaterials[ENaniteMeshPass::Num];
+	TSharedPtr<FNaniteShadingCommands> NaniteShadingCommands[ENaniteMeshPass::Num];
 
 	/** Nanite raster and shading pipelines. These are stored on the scene as they are computed at FPrimitiveSceneInfo::AddToScene time. */
 	FNaniteRasterPipelines  NaniteRasterPipelines[ENaniteMeshPass::Num];
 	FNaniteShadingPipelines NaniteShadingPipelines[ENaniteMeshPass::Num];
-
-	// TODO: Heavily work in progress / experimental - do not use!
-	FNaniteShadingCommands NaniteShadingCommands[ENaniteMeshPass::Num];
 
 	/** Nanite material visibility references. These are stored on the scene as they are computed at FPrimitiveSceneInfo::AddToScene time. */
 	FNaniteVisibility NaniteVisibility[ENaniteMeshPass::Num];

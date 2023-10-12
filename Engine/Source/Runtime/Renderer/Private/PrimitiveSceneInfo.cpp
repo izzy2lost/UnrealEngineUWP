@@ -718,13 +718,15 @@ void FPrimitiveSceneInfo::CacheNaniteMaterialBins(FScene* Scene, const TArrayVie
 			// Base Pass
 			{
 				const FNaniteShadingPipelines& ShadingPipelines = Scene->NaniteShadingPipelines[ENaniteMeshPass::BasePass];
-				Nanite::BuildShadingCommands(*Scene, ShadingPipelines, Scene->NaniteShadingCommands[ENaniteMeshPass::BasePass]);
+				Scene->NaniteShadingCommands[ENaniteMeshPass::BasePass] = MakeShared<FNaniteShadingCommands>();
+				Nanite::BuildShadingCommands(*Scene, ShadingPipelines, *Scene->NaniteShadingCommands[ENaniteMeshPass::BasePass]);
 			}
 
 			// Lumen Cards
 			{
 				const FNaniteShadingPipelines& ShadingPipelines = Scene->NaniteShadingPipelines[ENaniteMeshPass::LumenCardCapture];
-				Nanite::BuildShadingCommands(*Scene, ShadingPipelines, Scene->NaniteShadingCommands[ENaniteMeshPass::LumenCardCapture]);
+				Scene->NaniteShadingCommands[ENaniteMeshPass::LumenCardCapture] = MakeShared<FNaniteShadingCommands>();
+				Nanite::BuildShadingCommands(*Scene, ShadingPipelines, *Scene->NaniteShadingCommands[ENaniteMeshPass::LumenCardCapture]);
 			}
 		}
 	}

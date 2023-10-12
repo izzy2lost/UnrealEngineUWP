@@ -827,7 +827,7 @@ struct FNaniteShadingPipeline
 
 struct FNaniteShadingEntry
 {
-	FNaniteShadingPipeline ShadingPipeline{};
+	TSharedPtr<FNaniteShadingPipeline> ShadingPipeline;
 	uint32 ReferenceCount = 0;
 	uint16 BinIndex = 0xFFFFu;
 };
@@ -879,8 +879,11 @@ private:
 
 struct FNaniteShadingCommand
 {
-	const FNaniteShadingPipeline* Pipeline = nullptr;
+	TSharedPtr<FNaniteShadingPipeline> Pipeline;
+	FRHIBatchedShaderParameters BatchedParameters;
+	FUint32Vector4 PassData;
 	uint16 ShadingBin = 0xFFFFu;
+	bool bVisible = true;
 };
 
 /// END-TODO: Work in progress / experimental

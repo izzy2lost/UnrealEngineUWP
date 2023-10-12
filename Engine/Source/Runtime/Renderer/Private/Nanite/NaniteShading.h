@@ -30,6 +30,7 @@ FShadeBinning ShadeBinning(
 	const FScene& Scene,
 	const FViewInfo& View,
 	const FIntRect InViewRect,
+	const FNaniteShadingCommands& ShadingCommands,
 	const FRasterResults& RasterResults,
 	const TConstArrayView<FRDGTextureRef> ClearTargets
 );

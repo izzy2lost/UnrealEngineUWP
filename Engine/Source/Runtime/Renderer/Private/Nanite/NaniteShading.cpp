@@ -36,7 +36,7 @@ static FORCEINLINE const TCHAR* GetShadingMaterialName(const FMaterialRenderProx
 
 TAutoConsoleVariable<int32> CVarParallelBasePassBuild(
 	TEXT("r.Nanite.ParallelBasePassBuild"),
-	0, // TODO: Temp crash fix workaround
+	1,
 	TEXT(""),
 	ECVF_RenderThreadSafe
 );
@@ -404,8 +404,9 @@ void BuildShadingCommands(
 	for (const auto& Iter : Pipelines)
 	{
 		FNaniteShadingCommand& ShadingCommand = ShadingCommands.Commands.AddDefaulted_GetRef();
-		ShadingCommand.Pipeline   = &Iter.Value.ShadingPipeline;
-		ShadingCommand.ShadingBin = Iter.Value.BinIndex;
+		const FNaniteShadingEntry& Entry = Iter.Value;
+		ShadingCommand.Pipeline   = Entry.ShadingPipeline;
+		ShadingCommand.ShadingBin = Entry.BinIndex;
 
 		ShadingCommands.MaxShadingBin = FMath::Max<uint32>(ShadingCommands.MaxShadingBin, uint32(ShadingCommand.ShadingBin));
 	}
@@ -414,8 +415,8 @@ void BuildShadingCommands(
 	{
 		ShadingCommands.Commands.Sort([&ShadingCommands](auto& A, auto& B)
 		{
-			const FNaniteShadingPipeline& PipelineA = *A.Pipeline;
-			const FNaniteShadingPipeline& PipelineB = *B.Pipeline;
+			const FNaniteShadingPipeline& PipelineA = *A.Pipeline.Get();
+			const FNaniteShadingPipeline& PipelineB = *B.Pipeline.Get();
 
 			if (PipelineA.ComputeShader != PipelineB.ComputeShader)
 			{
@@ -432,7 +433,7 @@ void BuildShadingCommands(
 				return PipelineA.Material < PipelineB.Material;
 			}
 
-			return A.Pipeline < B.Pipeline;
+			return A.Pipeline.Get() < B.Pipeline.Get();
 		});
 	}
 
@@ -620,9 +621,8 @@ bool LoadShadingPipeline(
 }
 
 void RecordShadingParameters(
-	FUint32Vector4& PassData,
 	FRHIBatchedShaderParameters& BatchedParameters,
-	const FNaniteShadingCommand& ShadingCommand,
+	FNaniteShadingCommand& ShadingCommand,
 	const FUint32Vector4& ViewRect,
 	const TArray<FRHIUnorderedAccessView*, TInlineAllocator<8>>& OutputTargets,
 	FRHIUnorderedAccessView* OutputTargetsArray
@@ -631,8 +631,10 @@ void RecordShadingParameters(
 	FRHIComputeShader* ComputeShaderRHI = ShadingCommand.Pipeline->ComputeShader;
 	const bool bNoDerivativeOps = !!ShadingCommand.Pipeline->bNoDerivativeOps;
 
-	PassData.X = ShadingCommand.ShadingBin;
-	PassData.Y = bNoDerivativeOps ? 0 /* Pixel Binning */ : 1 /* Quad Binning */;
+	ShadingCommand.PassData.X = ShadingCommand.ShadingBin; // Active Shading Bin
+	ShadingCommand.PassData.Y = bNoDerivativeOps ? 0 /* Pixel Binning */ : 1 /* Quad Binning */;
+	ShadingCommand.PassData.Z = 0; // Unused
+	ShadingCommand.PassData.W = 0; // Unused
 
 	ShadingCommand.Pipeline->ShaderBindings->SetParameters(BatchedParameters, ComputeShaderRHI);
 
@@ -641,7 +643,7 @@ void RecordShadingParameters(
 		ShadingCommand.Pipeline->BasePassData->TypedShader->SetPassParameters(
 			BatchedParameters,
 			ViewRect,
-			PassData,
+			ShadingCommand.PassData,
 			OutputTargets[0],
 			OutputTargets[1],
 			OutputTargets[2],
@@ -657,13 +659,9 @@ void RecordShadingParameters(
 
 void RecordShadingCommand(
 	FRHIComputeCommandList& RHICmdList,
-	FUint32Vector4& PassData,
 	FRHIBuffer* IndirectArgsBuffer,
 	const uint32 IndirectArgStride,
-	const FUint32Vector4& ViewRect,
-	const TArray<FRHIUnorderedAccessView*, TInlineAllocator<8>>& OutputTargets,
-	FRHIUnorderedAccessView* OutputTargetsArray,
-	const FNaniteShadingCommand& ShadingCommand
+	FNaniteShadingCommand& ShadingCommand
 )
 {
 #if WANTS_DRAW_MESH_EVENTS
@@ -675,23 +673,12 @@ void RecordShadingCommand(
 	FRHIComputeShader* ComputeShaderRHI = ShadingCommand.Pipeline->ComputeShader;
 	SetComputePipelineState(RHICmdList, ComputeShaderRHI);
 
-	FRHIBatchedShaderParameters& BatchedParameters = RHICmdList.GetScratchShaderParameters();
-
-	RecordShadingParameters(
-		PassData,
-		BatchedParameters,
-		ShadingCommand,
-		ViewRect,
-		OutputTargets,
-		OutputTargetsArray
-	);
-
 	if (GRHISupportsShaderRootConstants)
 	{
-		RHICmdList.SetShaderRootConstants(PassData);
+		RHICmdList.SetShaderRootConstants(ShadingCommand.PassData);
 	}
 
-	RHICmdList.SetBatchedShaderParameters(ComputeShaderRHI, BatchedParameters);
+	RHICmdList.SetBatchedShaderParameters(ComputeShaderRHI, ShadingCommand.BatchedParameters);
 	RHICmdList.DispatchIndirectComputeShader(IndirectArgsBuffer, IndirectOffset);
 }
 
@@ -699,12 +686,7 @@ class FRecordShadingCommandsAnyThreadTask : public FRenderTask
 {
 	FRHICommandList& RHICmdList;
 	FRHIBuffer* IndirectArgs = nullptr;
-	TSharedPtr<TBitArray<SceneRenderingBitArrayAllocator>> VisibilityData;
-	const TConstArrayView<FNaniteShadingCommand> ShadingCommands;
-	TArray<FRHIUnorderedAccessView*, TInlineAllocator<8>> OutputTargets;
-	FRHIUnorderedAccessView* OutputTargetsArray = nullptr;
-	FUint32Vector4 ViewRect;
-	FUint32Vector4 PassData;
+	TSharedPtr<FNaniteShadingCommands> ShadingCommands;
 	uint32 IndirectArgsStride;
 	int32 TaskIndex;
 	int32 TaskNum;
@@ -715,23 +697,13 @@ public:
 		FRHICommandList& InRHICmdList,
 		FRHIBuffer* InIndirectArgs,
 		uint32 InIndirectArgsStride,
-		TSharedPtr<TBitArray<SceneRenderingBitArrayAllocator>>& InVisibilityData,
-		const TConstArrayView<FNaniteShadingCommand> InShadingCommands,
-		const TConstArrayView<FRHIUnorderedAccessView*> InOutputTargets,
-		FRHIUnorderedAccessView* InOutputTargetsArray,
-		const FUint32Vector4& InViewRect,
-		const FUint32Vector4& InPassData,
+		TSharedPtr<FNaniteShadingCommands> InShadingCommands,
 		int32 InTaskIndex,
 		int32 InTaskNum
 	)
 		: RHICmdList(InRHICmdList)
 		, IndirectArgs(InIndirectArgs)
-		, VisibilityData(InVisibilityData)
 		, ShadingCommands(InShadingCommands)
-		, OutputTargets(InOutputTargets)
-		, OutputTargetsArray(InOutputTargetsArray)
-		, ViewRect(InViewRect)
-		, PassData(InPassData)
 		, IndirectArgsStride(InIndirectArgsStride)
 		, TaskIndex(InTaskIndex)
 		, TaskNum(InTaskNum)
@@ -750,24 +722,20 @@ public:
 		TRACE_CPUPROFILER_EVENT_SCOPE(RecordShadingCommandsAnyThreadTask);
 
 		// Recompute shading command range.
-		const int32 CommandNum = ShadingCommands.Num();
+		const int32 CommandNum = ShadingCommands->Commands.Num();
 		const int32 NumCommandsPerTask = TaskIndex < CommandNum ? FMath::DivideAndRoundUp(CommandNum, TaskNum) : 0;
 		const int32 StartIndex = TaskIndex * NumCommandsPerTask;
 		const int32 NumCommands = FMath::Min(NumCommandsPerTask, CommandNum - StartIndex);
 
 		for (int32 CommandIndex = 0; CommandIndex < NumCommands; ++CommandIndex)
 		{
-			const FNaniteShadingCommand& ShadingCommand = ShadingCommands[StartIndex + CommandIndex];
-			if (!VisibilityData.IsValid() || VisibilityData->AccessCorrespondingBit(FRelativeBitReference(ShadingCommand.ShadingBin)))
+			FNaniteShadingCommand& ShadingCommand = ShadingCommands->Commands[StartIndex + CommandIndex];
+			if (ShadingCommand.bVisible)
 			{
 				RecordShadingCommand(
 					RHICmdList,
-					PassData,
 					IndirectArgs,
 					IndirectArgsStride,
-					ViewRect,
-					OutputTargets,
-					OutputTargetsArray,
 					ShadingCommand
 				);
 			}
@@ -913,7 +881,9 @@ void DispatchBasePass(
 	RDG_EVENT_SCOPE(GraphBuilder, "Nanite::BasePass");
 	SCOPED_NAMED_EVENT(DispatchBasePass, FColor::Emerald);
 
-	const TArray<FNaniteShadingCommand>& ShadingCommands = Scene.NaniteShadingCommands[ENaniteMeshPass::BasePass].Commands;
+	TSharedPtr<FNaniteShadingCommands> CommandsPtr = Scene.NaniteShadingCommands[ENaniteMeshPass::BasePass];
+
+	const TArray<FNaniteShadingCommand>& ShadingCommands = CommandsPtr->Commands;
 	const uint32 ShadingBinCount = uint32(ShadingCommands.Num());
 
 	if (ShadingBinCount == 0u)
@@ -921,7 +891,7 @@ void DispatchBasePass(
 		return;
 	}
 
-	FShaderBundleRHIRef ShaderBundle = Scene.NaniteShadingCommands[ENaniteMeshPass::BasePass].ShaderBundle;
+	FShaderBundleRHIRef ShaderBundle = CommandsPtr->ShaderBundle;
 
 	const bool bDrawSceneViewsInOneNanitePass = ShouldDrawSceneViewsInOneNanitePass(View);
 	FIntRect ViewRect = bDrawSceneViewsInOneNanitePass ? View.GetFamilyViewRect() : View.ViewRect;
@@ -1001,7 +971,7 @@ void DispatchBasePass(
 		}
 	}
 
-	FShadeBinning Binning = ShadeBinning(GraphBuilder, Scene, View, ViewRect, RasterResults, ClearTargetList);
+	FShadeBinning Binning = ShadeBinning(GraphBuilder, Scene, View, ViewRect, *CommandsPtr, RasterResults, ClearTargetList);
 
 	FNaniteShadingPassParameters* ShadingPassParameters = GraphBuilder.AllocParameters<FNaniteShadingPassParameters>();
 	*ShadingPassParameters = CreateNaniteShadingPassParams(
@@ -1033,7 +1003,7 @@ void DispatchBasePass(
 		FRDGParallelCommandListSet* ParallelCommandListSet,
 		const FUint32Vector4& ViewRect,
 		TSharedPtr<TBitArray<SceneRenderingBitArrayAllocator>> VisibilityData,
-		const TConstArrayView<const FNaniteShadingCommand> ShadingCommands,
+		const TSharedPtr<FNaniteShadingCommands> ShadingCommands,
 		FShaderBundleRHIRef ShaderBundle,
 		FNaniteShadingPassParameters* ShadingPassParameters,
 		FRHIComputeCommandList& RHICmdList,
@@ -1070,18 +1040,6 @@ void DispatchBasePass(
 		OutputTargets.Add(GetOutputTargetRHI(ShadingPassParameters->OutTarget7));
 
 		FRHIUnorderedAccessView* OutputTargetsArray = GetOutputTargetRHI(ShadingPassParameters->OutTargets);
-
-		// .X = Active Shading Bin
-		// .Y = Quad Binning Flag
-		// .Z = Unused
-		// .W = Unused
-		FUint32Vector4 PassData(
-			0, // Set per shading command
-			0,
-			0,
-			0
-		);
-
 		FRHIBuffer* IndirectArgsBuffer = (!bBundleShading || bBundleEmulation) ? ShadingPassParameters->MaterialIndirectArgs->GetIndirectRHICallBuffer() : nullptr;
 
 		if (ParallelCommandListSet)
@@ -1089,7 +1047,7 @@ void DispatchBasePass(
 			TRACE_CPUPROFILER_EVENT_SCOPE(ParallelRecordShadingCommands);
 
 			// Distribute work evenly to the available task graph workers based on NumPassCommands.
-			const int32 NumPassCommands = ShadingCommands.Num();
+			const int32 NumPassCommands = ShadingCommands->Commands.Num();
 			const int32 NumThreads = FMath::Min<int32>(FTaskGraphInterface::Get().GetNumWorkerThreads(), ParallelCommandListSet->Width);
 			const int32 NumTasks = FMath::Min<int32>(NumThreads, FMath::DivideAndRoundUp(NumPassCommands, ParallelCommandListSet->MinDrawsPerCommandList));
 			const int32 NumCommandsPerTask = FMath::DivideAndRoundUp(NumPassCommands, NumTasks);
@@ -1101,6 +1059,16 @@ void DispatchBasePass(
 			// So task prerequisites can be empty (MeshDrawCommands task has prereq on FMeshDrawCommandInitResourcesTask which calls LazilyInitShaders on all shader)
 			ensure(FParallelMeshDrawCommandPass::IsOnDemandShaderCreationEnabled());
 			FGraphEventArray EmptyPrereqs;
+
+			ParallelFor(ShadingCommands->Commands.Num(), [&](int32 CommandIndex)
+			{
+				FNaniteShadingCommand& ShadingCommand = ShadingCommands->Commands[CommandIndex];
+				ShadingCommand.bVisible = !VisibilityData.IsValid() || VisibilityData->AccessCorrespondingBit(FRelativeBitReference(ShadingCommand.ShadingBin));
+				if (ShadingCommand.bVisible)
+				{
+					RecordShadingParameters(ShadingCommand.BatchedParameters, ShadingCommand, ViewRect, OutputTargets, OutputTargetsArray);
+				}
+			});
 
 			for (int32 TaskIndex = 0; TaskIndex < NumTasks; TaskIndex++)
 			{
@@ -1115,12 +1083,7 @@ void DispatchBasePass(
 						*CmdList,
 						IndirectArgsBuffer,
 						IndirectArgStride,
-						VisibilityData,
 						ShadingCommands,
-						OutputTargets,
-						OutputTargetsArray,
-						ViewRect,
-						PassData,
 						TaskIndex,
 						NumTasks
 					);
@@ -1154,21 +1117,19 @@ void DispatchBasePass(
 					{
 						std::atomic<uint32> PendingPSOs{ 0u };
 
-						ParallelFor(ShadingCommands.Num(), [&](int32 CommandIndex)
+						ParallelFor(ShadingCommands->Commands.Num(), [&](int32 CommandIndex)
 						{
-							const FNaniteShadingCommand& ShadingCommand = ShadingCommands[CommandIndex];
-							FRHIShaderBundleDispatch& Dispatch = Command.Dispatches[ShadingCommand.ShadingBin];
+							FNaniteShadingCommand& ShadingCommand = ShadingCommands->Commands[CommandIndex];
+							ShadingCommand.bVisible = !VisibilityData.IsValid() || VisibilityData->AccessCorrespondingBit(FRelativeBitReference(ShadingCommand.ShadingBin));
 
-							// TODO: Allow for sending partial dispatch lists, but for now we'll leave the record index invalid so bundle dispatch skips it
-							if (!VisibilityData.IsValid() || VisibilityData->AccessCorrespondingBit(FRelativeBitReference(ShadingCommand.ShadingBin)))
+							if (ShadingCommand.bVisible)
 							{
-								// Need to take a thread local copy of this as it is mutated during recording.
-								FUint32Vector4 CommandData = PassData;
+								FRHIShaderBundleDispatch& Dispatch = Command.Dispatches[ShadingCommand.ShadingBin];
 
 								Dispatch.RecordIndex = ShadingCommand.ShadingBin;
-								RecordShadingParameters(CommandData, Dispatch.Parameters, ShadingCommand, ViewRect, OutputTargets, OutputTargetsArray);
+								RecordShadingParameters(Dispatch.Parameters, ShadingCommand, ViewRect, OutputTargets, OutputTargetsArray);
 								Dispatch.Shader = ShadingCommand.Pipeline->ComputeShader;
-								Dispatch.Constants = CommandData;
+								Dispatch.Constants = ShadingCommand.PassData;
 								Dispatch.PipelineState = FindComputePipelineState(Dispatch.Shader);
 								if (Dispatch.PipelineState != nullptr)
 								{
@@ -1184,7 +1145,8 @@ void DispatchBasePass(
 							}
 							else
 							{
-								Dispatch.RecordIndex = ~uint32(0u);
+								// TODO: Allow for sending partial dispatch lists, but for now we'll leave the record index invalid so bundle dispatch skips it
+								Command.Dispatches[ShadingCommand.ShadingBin].RecordIndex = ~uint32(0u);
 							}
 						});
 
@@ -1209,16 +1171,17 @@ void DispatchBasePass(
 					}
 					else
 					{
-						for (int32 CommandIndex = 0; CommandIndex < ShadingCommands.Num(); ++CommandIndex)
+						for (int32 CommandIndex = 0; CommandIndex < ShadingCommands->Commands.Num(); ++CommandIndex)
 						{
-							const FNaniteShadingCommand& ShadingCommand = ShadingCommands[CommandIndex];
-							FRHIShaderBundleDispatch& Dispatch = Command.Dispatches[ShadingCommand.ShadingBin];
+							FNaniteShadingCommand& ShadingCommand = ShadingCommands->Commands[CommandIndex];
+							ShadingCommand.bVisible = !VisibilityData.IsValid() || VisibilityData->AccessCorrespondingBit(FRelativeBitReference(ShadingCommand.ShadingBin));
 
-							// TODO: Allow for sending partial dispatch lists, but for now we'll leave the record index invalid so bundle dispatch skips it
-							if (!VisibilityData.IsValid() || VisibilityData->AccessCorrespondingBit(FRelativeBitReference(ShadingCommand.ShadingBin)))
+							if (ShadingCommand.bVisible)
 							{
+								FRHIShaderBundleDispatch& Dispatch = Command.Dispatches[ShadingCommand.ShadingBin];
+
 								Dispatch.RecordIndex = ShadingCommand.ShadingBin;
-								RecordShadingParameters(PassData, Dispatch.Parameters, ShadingCommand, ViewRect, OutputTargets, OutputTargetsArray);
+								RecordShadingParameters(Dispatch.Parameters, ShadingCommand, ViewRect, OutputTargets, OutputTargetsArray);
 
 								Dispatch.Shader = ShadingCommand.Pipeline->ComputeShader;
 								check(Dispatch.Shader);
@@ -1232,7 +1195,8 @@ void DispatchBasePass(
 							}
 							else
 							{
-								Dispatch.RecordIndex = ~uint32(0u);
+								// TODO: Allow for sending partial dispatch lists, but for now we'll leave the record index invalid so bundle dispatch skips it
+								Command.Dispatches[ShadingCommand.ShadingBin].RecordIndex = ~uint32(0u);
 							}
 						}
 					}
@@ -1254,11 +1218,13 @@ void DispatchBasePass(
 			}
 			else // !bDispatchBundle
 			{
-				for (const FNaniteShadingCommand& ShadingCommand : ShadingCommands)
+				for (FNaniteShadingCommand& ShadingCommand : ShadingCommands->Commands)
 				{
-					if (!VisibilityData.IsValid() || VisibilityData->AccessCorrespondingBit(FRelativeBitReference(ShadingCommand.ShadingBin)))
+					ShadingCommand.bVisible = !VisibilityData.IsValid() || VisibilityData->AccessCorrespondingBit(FRelativeBitReference(ShadingCommand.ShadingBin));
+					if (ShadingCommand.bVisible)
 					{
-						RecordShadingCommand(RHICmdList, PassData, IndirectArgsBuffer, IndirectArgStride, ViewRect, OutputTargets, OutputTargetsArray, ShadingCommand);
+						RecordShadingParameters(ShadingCommand.BatchedParameters, ShadingCommand, ViewRect, OutputTargets, OutputTargetsArray);
+						RecordShadingCommand(RHICmdList, IndirectArgsBuffer, IndirectArgStride, ShadingCommand);
 					}
 				}
 			}
@@ -1279,7 +1245,7 @@ void DispatchBasePass(
 			RDG_EVENT_NAME("ShadeGBufferCS"),
 			ShadingPassParameters,
 			ERDGPassFlags::Compute,
-			[&ShadePassWork, ShadingPassParameters, &ShadingCommands, IndirectArgStride, VisibilityData, &View, ViewRect, bSkipBarriers]
+			[&ShadePassWork, ShadingPassParameters, CommandsPtr, IndirectArgStride, VisibilityData, &View, ViewRect, bSkipBarriers]
 			(const FRDGPass* RDGPass, FRHICommandListImmediate& RHICmdList)
 			{
 				FParallelCommandListBindings CmdListBindings(ShadingPassParameters);
@@ -1295,7 +1261,7 @@ void DispatchBasePass(
 						(uint32)ViewRect.Max.Y
 					),
 					VisibilityData,
-					ShadingCommands,
+					CommandsPtr,
 					FShaderBundleRHIRef(),
 					ShadingPassParameters,
 					RHICmdList,
@@ -1329,7 +1295,7 @@ void DispatchBasePass(
 			RDG_EVENT_NAME("ShadeGBufferCS"),
 			ShadingPassParameters,
 			ERDGPassFlags::Compute,
-			[&ShadePassWork, ShadingPassParameters, &ShadingCommands, ShaderBundle, IndirectArgStride, VisibilityData, &View, ViewRect, bSkipBarriers, bBundleShading, bBundleEmulation]
+			[&ShadePassWork, ShadingPassParameters, CommandsPtr, ShaderBundle, IndirectArgStride, VisibilityData, &View, ViewRect, bSkipBarriers, bBundleShading, bBundleEmulation]
 			(const FRDGPass* RDGPass, FRHIComputeCommandList& RHICmdList)
 			{
 				if (bBundleShading)
@@ -1348,7 +1314,7 @@ void DispatchBasePass(
 						(uint32)ViewRect.Max.Y
 					),
 					VisibilityData,
-					ShadingCommands,
+					CommandsPtr,
 					ShaderBundle,
 					ShadingPassParameters,
 					RHICmdList,
@@ -1369,6 +1335,7 @@ FShadeBinning ShadeBinning(
 	const FScene& Scene,
 	const FViewInfo& View,
 	const FIntRect InViewRect,
+	const FNaniteShadingCommands& ShadingCommands,
 	const FRasterResults& RasterResults,
 	const TConstArrayView<FRDGTextureRef> ClearTargets
 )
@@ -1381,15 +1348,14 @@ FShadeBinning ShadeBinning(
 	const FSceneTexturesConfig& Config = View.GetSceneTexturesConfig();
 	const EShaderPlatform ShaderPlatform = View.GetShaderPlatform();
 
-	const TArray<FNaniteShadingCommand>& ShadingCommands = Scene.NaniteShadingCommands[ENaniteMeshPass::BasePass].Commands;
-	const uint32 ShadingCommandCount = uint32(ShadingCommands.Num());
+	const uint32 ShadingCommandCount = uint32(ShadingCommands.Commands.Num());
 
 	if (ShadingCommandCount == 0u)
 	{
 		return Binning;
 	}
 
-	const FNaniteShadingCommands::FMetaBufferArray& MetaBufferData = Scene.NaniteShadingCommands[ENaniteMeshPass::BasePass].MetaBufferData;
+	const FNaniteShadingCommands::FMetaBufferArray& MetaBufferData = ShadingCommands.MetaBufferData;
 
 	TArray<FRDGTextureRef, TInlineAllocator<MaxSimultaneousRenderTargets>> ValidClearTargets;
 
@@ -1407,7 +1373,7 @@ FShadeBinning ShadeBinning(
 		}
 	}
 
-	const uint32 ShadingBinCount = Scene.NaniteShadingCommands[ENaniteMeshPass::BasePass].MaxShadingBin + 1u;
+	const uint32 ShadingBinCount = ShadingCommands.MaxShadingBin + 1u;
 	const uint32 ShadingBinCountPow2 = FMath::RoundUpToPowerOfTwo(ShadingBinCount);
 
 	const bool bGatherStats = GNaniteShowStats != 0;
@@ -1803,7 +1769,7 @@ FNaniteShadingBin FNaniteShadingPipelines::Register(const FNaniteShadingPipeline
 	if (ShadingEntry.ReferenceCount == 0)
 	{
 		// First reference
-		ShadingEntry.ShadingPipeline = InShadingPipeline;
+		ShadingEntry.ShadingPipeline = MakeShared<FNaniteShadingPipeline>(InShadingPipeline);
 		ShadingEntry.BinIndex = AllocateBin();
 	}
 
