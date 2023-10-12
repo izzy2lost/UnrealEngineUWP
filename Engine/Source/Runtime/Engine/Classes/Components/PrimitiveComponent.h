@@ -1330,7 +1330,7 @@ public:
 	/**
 	 *	Event called when physics state is created or destroyed for this component
 	 */
-	UPROPERTY(BlueprintAssignable, Category = "Physics")
+	UPROPERTY(BlueprintAssignable, Category = "Physics", TextExportTransient)
 	FComponentPhysicsStateChanged OnComponentPhysicsStateChanged;
 
 	/** Event called when the mouse cursor is moved over this component and mouse over events are enabled in the player controller */

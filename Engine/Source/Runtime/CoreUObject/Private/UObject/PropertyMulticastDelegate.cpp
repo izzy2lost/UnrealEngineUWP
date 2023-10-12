@@ -248,7 +248,7 @@ void FMulticastDelegateProperty::ExportText_Internal( FString& ValueStr, const v
 
 				bool bDelegateHasValue = CurInvocation->GetFunctionName() != NAME_None;
 				ValueStr += FString::Printf(TEXT("%s.%s"),
-					CurInvocation->GetUObject() != NULL ? *CurInvocation->GetUObject()->GetName() : TEXT("(null)"),
+					CurInvocation->GetUObject() != NULL ? *CurInvocation->GetUObject()->GetPathName() : TEXT("(null)"),
 					*CurInvocation->GetFunctionName().ToString());
 			}
 		}
