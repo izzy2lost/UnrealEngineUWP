@@ -20,6 +20,7 @@
 #include "String/ParseTokens.h"
 #include "UObject/Class.h"
 #include "UObject/UObjectIterator.h"
+#include "FXSystem.h"
 
 DECLARE_CYCLE_STAT(TEXT("Niagara - Utilities - PrepareRapidIterationParameters"), STAT_Niagara_Utilities_PrepareRapidIterationParameters, STATGROUP_Niagara);
 
@@ -951,8 +952,7 @@ bool FNiagaraUtilities::AllowComputeShaders(EShaderPlatform ShaderPlatform)
 
 bool FNiagaraUtilities::AllowGPUSorting(EShaderPlatform ShaderPlatform)
 {
-	static const IConsoleVariable* AllowGPUSortingCVar = IConsoleManager::Get().FindConsoleVariable(TEXT("FX.AllowGPUSorting"));
-	return ensure(AllowGPUSortingCVar) && (AllowGPUSortingCVar->GetInt() != 0);
+	return FXConsoleVariables::bAllowGPUSorting != 0;
 }
 
 bool FNiagaraUtilities::AllowGPUCulling(EShaderPlatform ShaderPlatform)
