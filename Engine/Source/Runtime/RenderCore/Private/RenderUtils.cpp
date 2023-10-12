@@ -1669,7 +1669,7 @@ static TAutoConsoleVariable<int32> CVarSubstrateBytesPerPixel(
 
 static TAutoConsoleVariable<int32> CVarSubstrateClosuresPerPixel(
 	TEXT("r.Substrate.ClosuresPerPixel"),
-	8,	// Similar to SUBSTRATE_MAX_BSDF_COUNT
+	8,	// Similar to SUBSTRATE_MAX_CLOSURE_COUNT
 	TEXT("Substrate closure count per pixel can be constrained. That is usefull to reduce the number of byte written durting the base pass, but also to limit the number of closures in Forward. Higher value means more complex material can be represented."),
 	ECVF_ReadOnly | ECVF_RenderThreadSafe);
 

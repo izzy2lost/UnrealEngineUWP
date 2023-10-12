@@ -237,7 +237,7 @@ static void AddVisualizeMaterialPropertiesPasses(FRDGBuilder& GraphBuilder, cons
 	PrintOffsetBufferUAV = GraphBuilder.CreateUAV(PrintOffsetBuffer, PF_R32_UINT);
 	AddClearUAVPass(GraphBuilder, PrintOffsetBufferUAV, 50u);
 
-	for (uint32 ClosureIndex=0; ClosureIndex < SUBSTRATE_MAX_BSDF_COUNT; ++ClosureIndex)
+	for (uint32 ClosureIndex=0; ClosureIndex < SUBSTRATE_MAX_CLOSURE_COUNT; ++ClosureIndex)
 	{
 		FMaterialPrintInfoCS::FParameters* PassParameters = GraphBuilder.AllocParameters<FMaterialPrintInfoCS::FParameters>();
 		PassParameters->ClosureIndex = ClosureIndex;

@@ -436,20 +436,20 @@ void BSDFTileMainCS(uint2 GroupThreadId : SV_GroupThreadID, uint2 GroupId : SV_G
 	const bool bIsInViewRect = all(PixelCoord < uint2(View.ViewRectMinAndSize.zw));
 	PixelCoord += View.ViewRectMinAndSize.xy;
 
-	uint BSDFCount = 0;
+	uint ClosureCount = 0;
 	if (bIsInViewRect)
 	{
 		FSubstrateAddressing SubstrateAddressing = GetSubstratePixelDataByteOffset(PixelCoord, uint2(View.BufferSizeAndInvSize.xy), MaxBytesPerPixel);
 		FSubstratePixelHeader SubstratePixelHeader = UnpackSubstrateHeaderIn(MaterialTextureArray, SubstrateAddressing, TopLayerTexture);
-		BSDFCount = min(SubstratePixelHeader.BSDFCount, SUBSTRATE_MAX_BSDF_COUNT_FOR_BDSFOFFSET);
+		ClosureCount = min(SubstratePixelHeader.BSDFCount, SUBSTRATE_MAX_CLOSURE_COUNT_FOR_CLOSUREOFFSET);
 
-		if (BSDFCount > 0)
+		if (ClosureCount > 0)
 		{
 			FSubstrateBSDFOffset Offsets = (FSubstrateBSDFOffset)0;
-			Offsets.BSDFCount = BSDFCount;
+			Offsets.BSDFCount = ClosureCount;
 
-			UNROLL_N(SUBSTRATE_MAX_BSDF_COUNT_FOR_BDSFOFFSET)
-			for (uint BSDFIndex = 0; BSDFIndex < BSDFCount; ++BSDFIndex)
+			UNROLL_N(SUBSTRATE_MAX_CLOSURE_COUNT_FOR_CLOSUREOFFSET)
+			for (uint BSDFIndex = 0; BSDFIndex < ClosureCount; ++BSDFIndex)
 			{
 				Offsets.BSDFOffsets[BSDFIndex] = SubstrateAddressing.CurrentIndex;
 				UnpackSubstrateBSDFIn(MaterialTextureArray, SubstrateAddressing, SubstratePixelHeader);
@@ -461,11 +461,11 @@ void BSDFTileMainCS(uint2 GroupThreadId : SV_GroupThreadID, uint2 GroupId : SV_G
 
 #if PERMUTATION_WAVE_OPS
 
-	const uint TileBSDFCount = WaveActiveMax(BSDFCount);
+	const uint TileBSDFCount = WaveActiveMax(ClosureCount);
 
 #else // PERMUTATION_WAVE_OPS
 
-	s_TileBSDFCount[LinearIndex] = BSDFCount;
+	s_TileBSDFCount[LinearIndex] = ClosureCount;
 
 	GroupMemoryBarrierWithGroupSync();
 	if (LinearIndex < 32)

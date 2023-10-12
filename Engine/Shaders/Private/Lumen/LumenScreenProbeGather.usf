@@ -2113,7 +2113,7 @@ void ScreenProbeDebugMain(uint3 DispatchThreadId : SV_DispatchThreadID)
 #if SUBSTRATE_ENABLED
 	if (LayerCount > 1)
 	{
-		LayerIndex = AddSlider(Context, TEXT("Tile index"), 0, FontSilver, 0.f, SUBSTRATE_MAX_BSDF_COUNT); 
+		LayerIndex = AddSlider(Context, TEXT("Tile index"), 0, FontSilver, 0.f, SUBSTRATE_MAX_CLOSURE_COUNT); 
 		LayerIndex = clamp(LayerIndex, 0u, LayerCount-1u);
 		Print(Context, LayerIndex, FontEmerald); Newline(Context);
 	}

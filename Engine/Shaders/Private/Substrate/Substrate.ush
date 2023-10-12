@@ -1050,7 +1050,7 @@ struct FSubstrateTree
 	int BSDFCount;
 	uint OperatorCount;
 
-	FSubstrateBSDF BSDFs[SUBSTRATE_MAX_BSDF_COUNT];
+	FSubstrateBSDF BSDFs[SUBSTRATE_MAX_CLOSURE_COUNT];
 	FSubstrateOperator Operators[SUBSTRATE_MAX_OPERATOR_COUNT];
 
 	void UpdateSingleBSDFOperatorCoverageTransmittance(

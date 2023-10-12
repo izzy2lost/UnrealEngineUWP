@@ -711,7 +711,7 @@ void VisualizeMaterialPS(
 	if (ViewMode == 2)
 	{
 		// BSDF count
-		const float MaxClosureCount = SUBSTRATE_MAX_BSDF_COUNT;
+		const float MaxClosureCount = SUBSTRATE_MAX_CLOSURE_COUNT;
 		if (Header.BSDFCount > 0)
 		{
 			const float BSDFCost = saturate(float(Header.BSDFCount) / MaxClosureCount);

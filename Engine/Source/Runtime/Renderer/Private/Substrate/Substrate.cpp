@@ -68,11 +68,11 @@ IMPLEMENT_GLOBAL_SHADER_PARAMETER_STRUCT(FSubstrateGlobalUniformParameters, "Sub
 void FSubstrateViewData::Reset()
 {
 	// When tracking the MaxClosureCount per view, we use a bit mask stored onto 8bit. 
-	// If SUBSTRATE_MAX_BSDF_COUNT>8u, it will overflow. Hence the static assert here
+	// If SUBSTRATE_MAX_CLOSURE_COUNT>8u, it will overflow. Hence the static assert here
 	// Variables to verify when increasing the max. closure count:
 	// * MaxClosureCount
 	// * SubstrateClosureCountMask
-	static_assert(SUBSTRATE_MAX_BSDF_COUNT <= 8u);
+	static_assert(SUBSTRATE_MAX_CLOSURE_COUNT <= 8u);
 
 	// Preserve old max closure count which is set prior to the reset operation
 	const uint32 OldMaxClosureCount = MaxClosureCount;
@@ -127,11 +127,11 @@ uint32 GetSubstrateTextureLayerCount(const FViewInfo& View)
 	{
 		if (UsesSubstrateClosureCountFromMaterialData())
 		{
-			Out = FMath::Clamp(View.SubstrateViewData.MaxClosureCount, 1u, SUBSTRATE_MAX_BSDF_COUNT);
+			Out = FMath::Clamp(View.SubstrateViewData.MaxClosureCount, 1u, SUBSTRATE_MAX_CLOSURE_COUNT);
 		}
 		else
 		{
-			Out = FMath::Clamp(uint32(GetClosurePerPixel(View.GetShaderPlatform())), 1u, SUBSTRATE_MAX_BSDF_COUNT);
+			Out = FMath::Clamp(uint32(GetClosurePerPixel(View.GetShaderPlatform())), 1u, SUBSTRATE_MAX_CLOSURE_COUNT);
 		}
 	}
 	return Out;
