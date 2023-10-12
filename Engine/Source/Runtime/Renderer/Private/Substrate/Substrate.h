@@ -62,14 +62,11 @@ BEGIN_GLOBAL_SHADER_PARAMETER_STRUCT(FSubstrateGlobalUniformParameters, RENDERER
 	SHADER_PARAMETER(uint32, TileSize)
 	SHADER_PARAMETER(uint32, TileSizeLog2)
 	SHADER_PARAMETER(FIntPoint, TileCount)
-	SHADER_PARAMETER(FIntPoint, TileOffset)
-	SHADER_PARAMETER(FIntPoint, OverflowTileCount)
-	SHADER_PARAMETER(FIntPoint, OverflowTileOffset)
 	SHADER_PARAMETER_RDG_TEXTURE(Texture2DArray<uint>, MaterialTextureArray)
 	SHADER_PARAMETER_RDG_TEXTURE(Texture2D<uint2>, TopLayerTexture)
 	SHADER_PARAMETER_RDG_TEXTURE(Texture2D<float3>, OpaqueRoughRefractionTexture)
 	SHADER_PARAMETER_RDG_TEXTURE(Texture2D<uint>, BSDFOffsetTexture)
-	SHADER_PARAMETER_RDG_TEXTURE(Texture2D<uint>, BSDFTileTexture)
+	SHADER_PARAMETER_RDG_BUFFER_SRV(Buffer<uint>, BSDFTileBuffer)
 	SHADER_PARAMETER_RDG_BUFFER_SRV(Buffer<uint>, BSDFTileCountBuffer)
 END_GLOBAL_SHADER_PARAMETER_STRUCT()
 
@@ -144,9 +141,7 @@ struct FSubstrateViewData
 	bool bUsesComplexSpecialRenderPath = 0;
 
 	FIntPoint TileCount  = FIntPoint(0, 0);
-	FIntPoint TileOffset = FIntPoint(0, 0);
-	FIntPoint OverflowTileCount = FIntPoint(0, 0);
-	FIntPoint OverflowTileOffset = FIntPoint(0, 0);
+	uint32    LayerCount = 0;
 
 	FRDGBufferRef    ClassificationTileListBuffer;
 	FRDGBufferSRVRef ClassificationTileListBufferSRV;
@@ -159,7 +154,7 @@ struct FSubstrateViewData
 	FRDGBufferRef    ClassificationTileDispatchIndirectBuffer = nullptr;
 	FRDGBufferUAVRef ClassificationTileDispatchIndirectBufferUAV = nullptr;
 
-	FRDGTextureRef BSDFTileTexture = nullptr;
+	FRDGBufferRef  BSDFTileBuffer = nullptr;
 	FRDGBufferRef  BSDFTileCountBuffer = nullptr;
 	FRDGBufferRef  BSDFTileDispatchIndirectBuffer = nullptr;
 	FRDGBufferRef  BSDFTilePerThreadDispatchIndirectBuffer = nullptr;
@@ -179,6 +174,7 @@ constexpr uint32 StencilBit_Complex			= 0x40; // In sync with SceneRenderTargets
 constexpr uint32 StencilBit_ComplexSpecial	= 0x80; // In sync with SceneRenderTargets.h - GET_STENCIL_BIT_MASK(STENCIL_SUBSTRATE_COMPLEX_SPECIAL)	
 
 FIntPoint GetSubstrateTextureResolution(const FViewInfo& View, const FIntPoint& InResolution);
+uint32 GetSubstrateTextureLayerCount(const FViewInfo& View);
 bool GetSubstrateUsesComplexSpecialPath(const FViewInfo& View);
 
 void InitialiseSubstrateFrameSceneData(FRDGBuilder& GraphBuilder, FSceneRenderer& SceneRenderer);

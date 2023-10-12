@@ -1543,6 +1543,7 @@ uint ProjectMaxBytesPerPixel;
 uint MaterialBufferAllocationInBytes;
 uint MaterialBufferAllocationMode;
 
+uint LayerCount;
 float TileOverflowRatio;
 Buffer<uint> ClassificationTileDrawIndirectBuffer;
 
@@ -1617,6 +1618,10 @@ void MainCS(uint3 DispatchThreadId : SV_DispatchThreadID)
 		Print(Context, TileOverflowRatio +1, ValueColor, 2, 0);
 		Print(Context, TEXT(" BSDFs]"), LegendColor);
 		Newline(Context);
+
+		Print(Context, TEXT(" Tile LayerCount.   : "), LegendColor);
+		PrintBool(Context, LayerCount);
+		Newline(Context); 
 
 		Print(Context, TEXT(" DBuffer pass       : "), LegendColor);
 		PrintBool(Context, bDbufferPass);

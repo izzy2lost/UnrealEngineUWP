@@ -577,8 +577,9 @@ FCompactedReflectionTraceParameters LumenReflections::CompactTraces(
 	ETraceCompactionMode TraceCompactionMode,
 	bool bSortByMaterial)
 {
+	const uint32 LayerCount = Substrate::GetSubstrateTextureLayerCount(View);
 	FRDGBufferRef CompactedTraceTexelAllocator = GraphBuilder.CreateBuffer(FRDGBufferDesc::CreateBufferDesc(sizeof(uint32), 1), TEXT("Lumen.Reflections.CompactedTraceTexelAllocator"));
-	const int32 NumCompactedTraceTexelDataElements = ReflectionTracingParameters.ReflectionTracingBufferSize.X * ReflectionTracingParameters.ReflectionTracingBufferSize.Y;
+	const int32 NumCompactedTraceTexelDataElements = ReflectionTracingParameters.ReflectionTracingBufferSize.X * ReflectionTracingParameters.ReflectionTracingBufferSize.Y * LayerCount;
 	FRDGBufferRef CompactedTraceTexelData = GraphBuilder.CreateBuffer(FRDGBufferDesc::CreateBufferDesc(sizeof(uint32), NumCompactedTraceTexelDataElements), TEXT("Lumen.Reflections.CompactedTraceTexelData"));
 
 	const bool bWaveOps = GLumenReflectionTraceCompactionWaveOps != 0 

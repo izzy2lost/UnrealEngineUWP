@@ -16,7 +16,7 @@
 #define THREADGROUP_SIZE 1
 #endif
 
-RWTexture2D<UNORM float4> RWScreenBentNormal;
+RWTexture2DArray<UNORM float4> RWScreenBentNormal;
 float SlopeCompareToleranceScale;
 float ScreenTraceNoFallbackThicknessScale;
 float MaxScreenTraceFraction;
@@ -49,13 +49,12 @@ float3 GetTranslatedWorldPositionFromScreenUV(float2 ScreenUV, float SceneDepth)
 }
 
 [numthreads(THREADGROUP_SIZE, THREADGROUP_SIZE, 1)]
-void ScreenSpaceShortRangeAOCS(uint2 DispatchThreadId : SV_DispatchThreadID)
+void ScreenSpaceShortRangeAOCS(
+	uint2 GroupId : SV_GroupID,
+	uint2 DispatchThreadId : SV_DispatchThreadID,
+	uint2 GroupThreadId : SV_GroupThreadID)
 {
-#if SUBSTRATE_ENABLED && PERMUTATION_OVERFLOW
-	const FLumenMaterialCoord Coord = GetLumenMaterialCoord(DispatchThreadId + (Substrate.OverflowTileOffset * SUBSTRATE_TILE_SIZE), true);
-#else
-	const FLumenMaterialCoord Coord = GetLumenMaterialCoord(DispatchThreadId + View.ViewRectMinAndSize.xy, false);
-#endif
+	const FLumenMaterialCoord Coord = GetLumenMaterialCoord(DispatchThreadId, GroupId, GroupThreadId);
 
 	const float2 ScreenUV = (Coord.SvPosition + .5f) * View.BufferSizeAndInvSize.zw;
 	const float SceneDepth = CalcSceneDepth(ScreenUV);

@@ -22,13 +22,13 @@ uint UseJitter;
 uint UseHighResSurface;
 
 // Note: negative if invalid ray
-Texture2D DownsampledDepth;
-Texture2D<float4> RayBuffer;
+Texture2DArray DownsampledDepth;
+Texture2DArray<float4> RayBuffer;
 // The distance to trace each ray before interpolating from the Radiance Cache
-Texture2D<uint> RayTraceDistance;
+Texture2DArray<uint> RayTraceDistance;
 
-Texture2D<float3> TraceRadiance;
-Texture2D<float> TraceHit;
+Texture2DArray<float3> TraceRadiance;
+Texture2DArray<float> TraceHit;
 
 #if 1
 	#define SCREEN_TEMPORAL_INDEX			View.StateFrameIndexMod8
@@ -125,7 +125,7 @@ void UnpackRayTraceDistance(uint PackedData, inout float RadianceCacheMaxTraceDi
 	bUseRadianceCache = (PackedData >> 15) != 0;
 }
 
-FRayData GetRayData(uint2 TracingCoord)
+FRayData GetRayData(uint3 TracingCoord)
 {
 	float4 PackedRayData = RayBuffer[TracingCoord];
 
@@ -141,23 +141,50 @@ FRayData GetRayData(uint2 TracingCoord)
 
 Buffer<uint> ReflectionResolveTileData;
 
-uint2 GetReflectionResolveScreenCoord(uint TileIndex, uint ThreadIndex)
+
+struct FReflectionTileData
 {
-	uint2 TileOffset = uint2(ReflectionResolveTileData[TileIndex] & 0xFFFF, (ReflectionResolveTileData[TileIndex] >> 16) & 0xFFFF);
+	uint2 Coord;
+	uint BSDFIndex;
+};
+
+uint PackTileData(FReflectionTileData In)
+{
+	return 
+	#if SUBSTRATE_ENABLED
+		((In.BSDFIndex & 0x7) << 24) |
+	#endif
+		PackTileCoord12bits(In.Coord);
+}
+
+FReflectionTileData UnpackTileData(uint In)
+{
+	FReflectionTileData Out;
+	Out.Coord 	  = UnpackTileCoord12bits(In);
+	Out.BSDFIndex = SUBSTRATE_ENABLED ? ((In>>24) & 0x7) : 0;
+	return Out;
+}
+
+uint2 GetReflectionResolveScreenCoord(uint TileIndex, uint ThreadIndex, inout FReflectionTileData OutTileData)
+{
+	OutTileData = UnpackTileData(ReflectionResolveTileData[TileIndex]);
+	uint2 TileOffset = OutTileData.Coord;
 	return TileOffset * REFLECTION_THREADGROUP_SIZE_2D + uint2(ThreadIndex % REFLECTION_THREADGROUP_SIZE_2D, ThreadIndex / REFLECTION_THREADGROUP_SIZE_2D);
 }
 
 Buffer<uint> ReflectionTracingTileData;
 
-uint2 GetReflectionTracingScreenCoord(uint TileIndex, uint ThreadIndex)
+uint3 GetReflectionTracingScreenCoord(uint TileIndex, uint ThreadIndex, inout FReflectionTileData OutTileData)
 {
-	uint2 TileOffset = uint2(ReflectionTracingTileData[TileIndex] & 0xFFFF, (ReflectionTracingTileData[TileIndex] >> 16) & 0xFFFF);
-	return TileOffset * REFLECTION_THREADGROUP_SIZE_2D + uint2(ThreadIndex % REFLECTION_THREADGROUP_SIZE_2D, ThreadIndex / REFLECTION_THREADGROUP_SIZE_2D);
+	OutTileData = UnpackTileData(ReflectionTracingTileData[TileIndex]);
+	uint2 TileOffset = OutTileData.Coord;
+	return uint3(TileOffset * REFLECTION_THREADGROUP_SIZE_2D + uint2(ThreadIndex % REFLECTION_THREADGROUP_SIZE_2D, ThreadIndex / REFLECTION_THREADGROUP_SIZE_2D), OutTileData.BSDFIndex);
 }
 
-uint2 GetReflectionTracingScreenCoordZOrder(uint TileIndex, uint ThreadIndex)
+uint2 GetReflectionTracingScreenCoordZOrder(uint TileIndex, uint ThreadIndex, inout FReflectionTileData OutTileData)
 {
-	uint2 TileOffset = uint2(ReflectionTracingTileData[TileIndex] & 0xFFFF, (ReflectionTracingTileData[TileIndex] >> 16) & 0xFFFF);
+	OutTileData = UnpackTileData(ReflectionTracingTileData[TileIndex]);
+	uint2 TileOffset = OutTileData.Coord;
 	return TileOffset * REFLECTION_THREADGROUP_SIZE_2D + ZOrder2D(ThreadIndex, log2(REFLECTION_THREADGROUP_SIZE_2D));
 }
 
@@ -198,4 +225,35 @@ float ApplySmoothBias(float Roughness)
 
 	// Only opaque and translucent reflections get the denoiser, otherwise force to mirror
 	return ReflectionPass == 0 || ReflectionPass == 2 ? NewRoughness : 0.0f;
+}
+
+///////////////////////////////////////////////////////////////////////////////////////////////////
+// Abstract coord for reflection tracing
+
+struct FReflectionTracingCoord
+{
+	uint2 Coord;
+	uint3 CoordFlatten;
+	uint  BSDFIndex;
+};
+
+FReflectionTracingCoord GetReflectionTracingCoord(uint2 InReflectionTracingCoord, uint BSDFIndex)
+{
+	FReflectionTracingCoord Out;
+	Out.Coord = InReflectionTracingCoord;
+	Out.BSDFIndex = SUBSTRATE_ENABLED ? BSDFIndex : 0u;
+	Out.CoordFlatten = uint3(Out.Coord, Out.BSDFIndex);
+	return Out;
+}
+
+uint EncodeTraceTexel(uint2 ReflectionTracingCoord, uint BSDFIndex)
+{
+	return PackTileCoord12bits(ReflectionTracingCoord) | ((BSDFIndex & 0xF) << 24);
+}
+
+FReflectionTracingCoord DecodeTraceTexel(uint TraceTexelData)
+{
+	const uint2 TraceCoord = UnpackTileCoord12bits(TraceTexelData);
+	const uint BSDFIndex = (TraceTexelData >> 24) & 0xF;
+	return GetReflectionTracingCoord(TraceCoord, BSDFIndex);
 }

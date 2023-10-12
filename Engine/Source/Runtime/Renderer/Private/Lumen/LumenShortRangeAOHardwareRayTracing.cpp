@@ -57,7 +57,7 @@ class FLumenShortRangeAOHardwareRayTracing : public FGlobalShader
 	SHADER_USE_ROOT_PARAMETER_STRUCT(FLumenShortRangeAOHardwareRayTracing, FGlobalShader)
 
 	BEGIN_SHADER_PARAMETER_STRUCT(FParameters, )
-		SHADER_PARAMETER_RDG_TEXTURE_UAV(RWTexture2D<float3>, RWScreenBentNormal)
+		SHADER_PARAMETER_RDG_TEXTURE_UAV(RWTexture2DArray<float3>, RWScreenBentNormal)
 		SHADER_PARAMETER_STRUCT_INCLUDE(FSceneTextureParameters, SceneTextures)
 		SHADER_PARAMETER_STRUCT_REF(FViewUniformShaderParameters, ViewUniformBuffer)
 		SHADER_PARAMETER_RDG_BUFFER_SRV(RaytracingAccelerationStructure, TLAS)

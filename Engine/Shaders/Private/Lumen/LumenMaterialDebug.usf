@@ -9,6 +9,7 @@
 #define TILE_CLASSIFICATION_SUPPORT_ALL 2
 #define TILE_CLASSIFICATION_NUM 3
 
+#if 0
 uint2 TranslateTileCoordIntoPrimarySpace(uint2 TileNCoord, bool bOverflow, inout uint TileIndex)
 {
 	uint2 Out = TileNCoord;
@@ -33,9 +34,11 @@ uint GetTileDataOffset(uint2 InViewportIntegrateTileDimensions, uint InMode, boo
 
 #define TILE_SIZE 8
 
+// TODO: move this debug code directly into ScreenProbeGather.usf to shader 'uint PackTileData(FScreenProbeIntegrateTileData In)' 
+// and avoid this duplicate code which is error prone
 uint2 UnpackTileData(uint In)
 {
-	return uint2(In & 0xFFFF, In >> 16);
+	return UnpackTileCoord12bits(In)
 }
 
 int2 ViewportIntegrateTileDimensions;
@@ -112,10 +115,13 @@ void PrintTileStats(inout FShaderPrintContext Context, bool bOverflow)
 	Print(Context, TEXT("All              : "), FontSilver); Print(Context, All, 	FontSilver); Newline(Context);
 	Print(Context, TEXT("Total            : "), FontSilver); Print(Context, Total, 	GetValidColor(Total>0)); Newline(Context);
 }
+#endif
 
 [numthreads(1, 1, 1)]
 void ScreenProbeDebugMain(uint3 DispatchThreadId : SV_DispatchThreadID)
 {
+
+#if 0
 	const bool bOverflowValid = SUBSTRATE_ENABLED ? Substrate.BSDFTileCountBuffer[0] > 0 : false;
 
 	FShaderPrintContext Context = InitShaderPrintContext(all(DispatchThreadId == 0), uint2(50, 100));
@@ -178,4 +184,6 @@ void ScreenProbeDebugMain(uint3 DispatchThreadId : SV_DispatchThreadID)
 			PrintTiles(Context, LinearCoord, true, bOverflowLinear, TileIndexFilter);
 		}
 	}
+
+#endif
 }

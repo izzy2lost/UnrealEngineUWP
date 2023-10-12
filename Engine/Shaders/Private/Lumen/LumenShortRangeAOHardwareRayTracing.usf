@@ -24,7 +24,7 @@ float3 GetTranslatedWorldPositionFromScreenUV(float2 ScreenUV, float SceneDepth)
 }
 
 RaytracingAccelerationStructure TLAS;
-RWTexture2D<UNORM float4> RWScreenBentNormal;
+RWTexture2DArray<UNORM float4> RWScreenBentNormal;
 uint NumRays;
 float NormalBias;
 float MaxScreenTraceFraction;
@@ -125,6 +125,6 @@ RAY_TRACING_ENTRY_RAYGEN(LumenShortRangeAOHardwareRayTracing)
 		// Debug passthrough
 		//BentNormal = Material.WorldNormal;
 
-		RWScreenBentNormal[PixelCoord] = float4(BentNormal * .5f + .5f, 0);
+		RWScreenBentNormal[uint3(PixelCoord, 0 /*BSDFIndex*/)] = float4(BentNormal * .5f + .5f, 0);
 	}
 }

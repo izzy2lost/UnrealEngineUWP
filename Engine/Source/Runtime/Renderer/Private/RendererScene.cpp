@@ -913,7 +913,6 @@ uint64 FScreenProbeGatherTemporalState::GetGPUSizeBytes(bool bLogSizes) const
 		GetRenderTargetGPUSizeBytes(NumFramesAccumulatedRT, bLogSizes) +
 		GetRenderTargetGPUSizeBytes(FastUpdateModeHistoryRT, bLogSizes) +
 		GetRenderTargetGPUSizeBytes(NormalHistoryRT, bLogSizes) +
-		GetRenderTargetGPUSizeBytes(BSDFTileHistoryRT, bLogSizes) +
 		GetRenderTargetGPUSizeBytes(HistoryScreenProbeSceneDepth, bLogSizes) +
 		GetRenderTargetGPUSizeBytes(HistoryScreenProbeTranslatedWorldPosition, bLogSizes) +
 		GetRenderTargetGPUSizeBytes(ProbeHistoryScreenProbeRadiance, bLogSizes) +
@@ -926,7 +925,6 @@ uint64 FReflectionTemporalState::GetGPUSizeBytes(bool bLogSizes) const
 		GetRenderTargetGPUSizeBytes(SpecularIndirectHistoryRT, bLogSizes) +
 		GetRenderTargetGPUSizeBytes(NumFramesAccumulatedRT, bLogSizes) +
 		GetRenderTargetGPUSizeBytes(ResolveVarianceHistoryRT, bLogSizes) +
-		GetRenderTargetGPUSizeBytes(BSDFTileHistoryRT, bLogSizes) +
 		GetRenderTargetGPUSizeBytes(DepthHistoryRT, bLogSizes) +
 		GetRenderTargetGPUSizeBytes(NormalHistoryRT, bLogSizes);
 }

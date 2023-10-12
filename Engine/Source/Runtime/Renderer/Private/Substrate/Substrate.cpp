@@ -114,44 +114,38 @@ uint32 GetMaterialBufferAllocationMode()
 	return FMath::Clamp(CVarSubstrateBytePerPixelMode.GetValueOnAnyThread(), 0, 2);
 }
 
-enum ESubstrateTileSpace
-{
-	SubstrateTileSpace_Primary = 1u,
-	SubstrateTileSpace_Overflow = 2u
-};
-
 bool DoesSubstrateTileOverflowUseMaterialData() 
 {
 	return CVarSubstrateTileOverflowFromMaterial.GetValueOnRenderThread() > 0;
 }
 
-float GetSubstrateTileOverflowRatio(const FViewInfo& View)
+uint32 GetSubstrateTileOverflowRatio(const FViewInfo& View)
 {
 	if (DoesSubstrateTileOverflowUseMaterialData())
 	{
-		const uint32 MaxBDFCount = FMath::Max(View.SubstrateViewData.MaxBSDFCount,1u);
-		return FMath::Clamp(MaxBDFCount-1, 0.f, 4.0f);
+		return FMath::Clamp(View.SubstrateViewData.MaxBSDFCount, 1u, 4u);
 	}
 	else
 	{
-		return FMath::Clamp(CVarSubstrateTileOverflow.GetValueOnRenderThread(), 0.f, 4.0f);
+		return FMath::Clamp(uint32(CVarSubstrateTileOverflow.GetValueOnRenderThread()), 1u, 4u);
 	}
 }
 
-static FIntPoint GetSubstrateTextureTileResolution(const FViewInfo& View, const FIntPoint& InResolution, uint32 InSpace)
+uint32 GetSubstrateTextureLayerCount(const FViewInfo& View)
+{
+	uint32 Out = 1;
+	if (Substrate::IsSubstrateEnabled())
+	{
+		Out = GetSubstrateTileOverflowRatio(View);
+	}
+	return Out;
+}
+
+static FIntPoint GetSubstrateTextureTileResolution(const FViewInfo& View, const FIntPoint& InResolution)
 {
 	FIntPoint Out = InResolution;
 	Out.X = FMath::DivideAndRoundUp(Out.X, SUBSTRATE_TILE_SIZE);
-	Out.Y = 0;
-	if (InSpace & ESubstrateTileSpace::SubstrateTileSpace_Primary)
-	{
-		Out.Y += FMath::DivideAndRoundUp(InResolution.Y, SUBSTRATE_TILE_SIZE);
-	}
-	if (InSpace & ESubstrateTileSpace::SubstrateTileSpace_Overflow)
-	{
-		const float OverflowRatio = GetSubstrateTileOverflowRatio(View);
-		Out.Y += FMath::CeilToInt(FMath::DivideAndRoundUp(InResolution.Y, SUBSTRATE_TILE_SIZE) * OverflowRatio);
-	}
+	Out.Y = FMath::DivideAndRoundUp(Out.Y, SUBSTRATE_TILE_SIZE);
 	return Out;
 }
 
@@ -159,8 +153,9 @@ FIntPoint GetSubstrateTextureResolution(const FViewInfo& View, const FIntPoint& 
 {
 	if (Substrate::IsSubstrateEnabled())
 	{
-		return GetSubstrateTextureTileResolution(View, InResolution, ESubstrateTileSpace::SubstrateTileSpace_Primary | ESubstrateTileSpace::SubstrateTileSpace_Overflow) * SUBSTRATE_TILE_SIZE;
+		return GetSubstrateTextureTileResolution(View, InResolution) * SUBSTRATE_TILE_SIZE;
 	}
+	else
 	{
 		return InResolution;
 	}
@@ -256,33 +251,26 @@ static void InitialiseSubstrateViewData(FRDGBuilder& GraphBuilder, FViewInfo& Vi
 		// BSDF tiles
 		if (bNeedBSDFOffets)
 		{
-			const FIntPoint BufferSize_Extended = GetSubstrateTextureTileResolution(View, DynResIndependentViewSize, ESubstrateTileSpace::SubstrateTileSpace_Primary | ESubstrateTileSpace::SubstrateTileSpace_Overflow);
-
+			const FIntPoint TileCount = GetSubstrateTextureTileResolution(View, DynResIndependentViewSize);
+			const uint32 LayerCount = GetSubstrateTextureLayerCount(View);
+			const uint32 MaxTileCount = TileCount.X * TileCount.Y * LayerCount;
 			const FIntPoint BaseOverflowTileOffset = FIntPoint(0, FMath::DivideAndRoundUp(DynResIndependentViewSize.Y, SUBSTRATE_TILE_SIZE));
 
-			Out.TileCount	= GetSubstrateTextureTileResolution(View, DynResIndependentViewSize, ESubstrateTileSpace::SubstrateTileSpace_Primary);
-			Out.TileOffset  = FIntPoint(FMath::DivideAndRoundUp(View.ViewRect.Min.X, SUBSTRATE_TILE_SIZE), FMath::DivideAndRoundUp(View.ViewRect.Min.Y, SUBSTRATE_TILE_SIZE));
-
-			Out.OverflowTileCount = GetSubstrateTextureTileResolution(View, DynResIndependentViewSize, ESubstrateTileSpace::SubstrateTileSpace_Overflow);
-			Out.OverflowTileOffset = GetSubstrateTextureTileResolution(View, Out.TileOffset * SUBSTRATE_TILE_SIZE, ESubstrateTileSpace::SubstrateTileSpace_Overflow) + BaseOverflowTileOffset;
-
-			Out.BSDFTileTexture = GraphBuilder.CreateTexture(FRDGTextureDesc::Create2D(BufferSize_Extended, PF_R32_UINT, FClearValueBinding::None, TexCreate_UAV | TexCreate_ShaderResource), TEXT("Substrate.BSDFTiles"));
-			AddClearUAVPass(GraphBuilder, GraphBuilder.CreateUAV(Out.BSDFTileTexture), 0u);
-
+			Out.TileCount	= TileCount;
+			Out.LayerCount  = LayerCount;
 			Out.BSDFTilePerThreadDispatchIndirectBuffer = GraphBuilder.CreateBuffer(FRDGBufferDesc::CreateIndirectDesc<FRHIDispatchIndirectParameters>(1), TEXT("Substrate.SubstrateBSDFTilePerThreadDispatchIndirectBuffer"));
 			Out.BSDFTileDispatchIndirectBuffer = GraphBuilder.CreateBuffer(FRDGBufferDesc::CreateIndirectDesc<FRHIDispatchIndirectParameters>(1), TEXT("Substrate.SubstrateBSDFTileDispatchIndirectBuffer"));
 			Out.BSDFTileCountBuffer = GraphBuilder.CreateBuffer(FRDGBufferDesc::CreateBufferDesc(4, 1), TEXT("Substrate.BSDFTileCount"));
+			Out.BSDFTileBuffer = GraphBuilder.CreateBuffer(FRDGBufferDesc::CreateBufferDesc(4, MaxTileCount), TEXT("Substrate.BSDFTileBuffer"));
 		}
 		else
 		{
-			Out.TileCount = GetSubstrateTextureTileResolution(View, DynResIndependentViewSize, ESubstrateTileSpace::SubstrateTileSpace_Primary);
-			Out.TileOffset = FIntPoint(0,0);
-			Out.OverflowTileCount = FIntPoint(0, 0);
-			Out.OverflowTileOffset = FIntPoint(0, 0);
-			Out.BSDFTileTexture = nullptr;
+			Out.TileCount = GetSubstrateTextureTileResolution(View, DynResIndependentViewSize);
+			Out.LayerCount = 1;
 			Out.BSDFTilePerThreadDispatchIndirectBuffer = nullptr;
 			Out.BSDFTileDispatchIndirectBuffer = nullptr;
 			Out.BSDFTileCountBuffer = nullptr;
+			Out.BSDFTileBuffer = nullptr;
 		}
 
 		// Create the readable uniform buffers
@@ -546,23 +534,20 @@ static void BindSubstrateGlobalUniformParameters(FRDGBuilder& GraphBuilder, FSub
 		OutSubstrateUniformParameters.TileSize = SUBSTRATE_TILE_SIZE;
 		OutSubstrateUniformParameters.TileSizeLog2 = SUBSTRATE_TILE_SIZE_DIV_AS_SHIFT;
 		OutSubstrateUniformParameters.TileCount = SubstrateViewData->TileCount;
-		OutSubstrateUniformParameters.TileOffset = SubstrateViewData->TileOffset;
-		OutSubstrateUniformParameters.OverflowTileCount = SubstrateViewData->OverflowTileCount;
-		OutSubstrateUniformParameters.OverflowTileOffset = SubstrateViewData->OverflowTileOffset;
 		OutSubstrateUniformParameters.MaterialTextureArray = SubstrateSceneData->MaterialTextureArray;
 		OutSubstrateUniformParameters.TopLayerTexture = SubstrateSceneData->TopLayerTexture;
 		OutSubstrateUniformParameters.OpaqueRoughRefractionTexture = SubstrateSceneData->OpaqueRoughRefractionTexture;
-		OutSubstrateUniformParameters.BSDFTileTexture = SubstrateViewData->BSDFTileTexture;
 		OutSubstrateUniformParameters.BSDFOffsetTexture = SubstrateSceneData->BSDFOffsetTexture;
 		OutSubstrateUniformParameters.BSDFTileCountBuffer = SubstrateViewData->BSDFTileCountBuffer ? GraphBuilder.CreateSRV(SubstrateViewData->BSDFTileCountBuffer, PF_R32_UINT) : nullptr;
+		OutSubstrateUniformParameters.BSDFTileBuffer = SubstrateViewData->BSDFTileBuffer ? GraphBuilder.CreateSRV(SubstrateViewData->BSDFTileBuffer, PF_R32_UINT) : nullptr;
 
 		if (OutSubstrateUniformParameters.BSDFOffsetTexture == nullptr)
 		{
 			const FRDGSystemTextures& SystemTextures = FRDGSystemTextures::Get(GraphBuilder);
 			FRDGBufferSRVRef DefaultBuffer = GraphBuilder.CreateSRV(GSystemTextures.GetDefaultBuffer(GraphBuilder, 4, 0u), PF_R32_UINT);
 			OutSubstrateUniformParameters.BSDFOffsetTexture = SystemTextures.Black;
-			OutSubstrateUniformParameters.BSDFTileTexture = SystemTextures.Black;
 			OutSubstrateUniformParameters.BSDFTileCountBuffer = DefaultBuffer;
+			OutSubstrateUniformParameters.BSDFTileBuffer = DefaultBuffer;
 		}
 	}
 	else
@@ -576,15 +561,12 @@ static void BindSubstrateGlobalUniformParameters(FRDGBuilder& GraphBuilder, FSub
 		OutSubstrateUniformParameters.TileSize = 0;
 		OutSubstrateUniformParameters.TileSizeLog2 = 0;
 		OutSubstrateUniformParameters.TileCount = 0;
-		OutSubstrateUniformParameters.TileOffset = 0;
-		OutSubstrateUniformParameters.OverflowTileCount = 0;
-		OutSubstrateUniformParameters.OverflowTileOffset = 0;
 		OutSubstrateUniformParameters.MaterialTextureArray = DefaultTextureArray;
 		OutSubstrateUniformParameters.TopLayerTexture = SystemTextures.DefaultNormal8Bit;
 		OutSubstrateUniformParameters.OpaqueRoughRefractionTexture = SystemTextures.Black;
-		OutSubstrateUniformParameters.BSDFTileTexture = SystemTextures.Black;
 		OutSubstrateUniformParameters.BSDFOffsetTexture = SystemTextures.Black;
 		OutSubstrateUniformParameters.BSDFTileCountBuffer = DefaultBuffer;
+		OutSubstrateUniformParameters.BSDFTileBuffer = DefaultBuffer;
 	}
 }
 
@@ -677,17 +659,14 @@ class FSubstrateBSDFTilePassCS : public FGlobalShader
 		SHADER_PARAMETER(int32, bRectPrimitive)
 		SHADER_PARAMETER(int32, TileSizeLog2)
 		SHADER_PARAMETER(FIntPoint, TileCount_Primary)
-		SHADER_PARAMETER(FIntPoint, TileOffset_Primary)
-		SHADER_PARAMETER(FIntPoint, OverflowTileCount)
-		SHADER_PARAMETER(FIntPoint, OverflowTileOffset)
 		SHADER_PARAMETER(FIntPoint, ViewResolution)
 		SHADER_PARAMETER(uint32, MaxBytesPerPixel)
 		SHADER_PARAMETER_RDG_TEXTURE(Texture2D, TopLayerTexture)
 		SHADER_PARAMETER_RDG_TEXTURE_SRV(Texture2DArray<uint>, MaterialTextureArray)
 
-		SHADER_PARAMETER_RDG_TEXTURE_UAV(RWTexture2D<uint>, RWBSDFTileTexture)
 		SHADER_PARAMETER_RDG_TEXTURE_UAV(RWTexture2D<uint>, RWBSDFOffsetTexture)
 		SHADER_PARAMETER_RDG_BUFFER_UAV(RWBuffer<uint>, RWBSDFTileCountBuffer)
+		SHADER_PARAMETER_RDG_BUFFER_UAV(RWBuffer<uint>, RWBSDFTileBuffer)
 
 		SHADER_PARAMETER_RDG_BUFFER_SRV(Buffer<uint>, TileListBuffer)
 		SHADER_PARAMETER(uint32, TileListBufferOffset)
@@ -860,9 +839,6 @@ class FSubstrateBSDFTilePrepareArgsPassCS : public FGlobalShader
 
 	BEGIN_SHADER_PARAMETER_STRUCT(FParameters, )
 		SHADER_PARAMETER(FIntPoint, TileCount_Primary)
-		SHADER_PARAMETER(FIntPoint, TileOffset_Primary)
-		SHADER_PARAMETER(FIntPoint, OverflowTileCount)
-		SHADER_PARAMETER(FIntPoint, OverflowTileOffset)
 		SHADER_PARAMETER_RDG_BUFFER_SRV(Buffer, TileDrawIndirectDataBuffer)
 		SHADER_PARAMETER_RDG_BUFFER_UAV(RWBuffer, TileDispatchIndirectDataBuffer)
 		SHADER_PARAMETER_RDG_BUFFER_UAV(RWBuffer, TileDispatchPerThreadIndirectDataBuffer)
@@ -1341,9 +1317,6 @@ void AddSubstrateMaterialClassificationPass(FRDGBuilder& GraphBuilder, const FMi
 				PassParameters->ViewUniformBuffer = View.ViewUniformBuffer;
 				PassParameters->TileSizeLog2 = SUBSTRATE_TILE_SIZE_DIV_AS_SHIFT;
 				PassParameters->TileCount_Primary = SubstrateViewData->TileCount;
-				PassParameters->TileOffset_Primary = SubstrateViewData->TileOffset;
-				PassParameters->OverflowTileCount = SubstrateViewData->OverflowTileCount;
-				PassParameters->OverflowTileOffset = SubstrateViewData->OverflowTileOffset;
 				PassParameters->ViewResolution = View.ViewRect.Size();
 				PassParameters->MaxBytesPerPixel = SubstrateSceneData->MaxBytesPerPixel;
 				PassParameters->TopLayerTexture = SubstrateSceneData->TopLayerTexture;
@@ -1353,8 +1326,8 @@ void AddSubstrateMaterialClassificationPass(FRDGBuilder& GraphBuilder, const FMi
 				PassParameters->TileIndirectBuffer = SubstrateViewData->ClassificationTileDispatchIndirectBuffer;
 
 				PassParameters->RWBSDFOffsetTexture = GraphBuilder.CreateUAV(SubstrateSceneData->BSDFOffsetTexture);
-				PassParameters->RWBSDFTileTexture = GraphBuilder.CreateUAV(SubstrateViewData->BSDFTileTexture);
 				PassParameters->RWBSDFTileCountBuffer = RWBSDFTileCountBuffer;
+				PassParameters->RWBSDFTileBuffer = GraphBuilder.CreateUAV(SubstrateViewData->BSDFTileBuffer, PF_R32_UINT);
 
 				FComputeShaderUtils::AddPass(
 					GraphBuilder,
@@ -1378,9 +1351,6 @@ void AddSubstrateMaterialClassificationPass(FRDGBuilder& GraphBuilder, const FMi
 			TShaderMapRef<FSubstrateBSDFTilePrepareArgsPassCS> ComputeShader(View.ShaderMap);
 			FSubstrateBSDFTilePrepareArgsPassCS::FParameters* PassParameters = GraphBuilder.AllocParameters<FSubstrateBSDFTilePrepareArgsPassCS::FParameters>();
 			PassParameters->TileCount_Primary = SubstrateViewData->TileCount;
-			PassParameters->TileOffset_Primary = SubstrateViewData->TileOffset;
-			PassParameters->OverflowTileCount = SubstrateViewData->OverflowTileCount;
-			PassParameters->OverflowTileOffset = SubstrateViewData->OverflowTileOffset;
 			PassParameters->TileDrawIndirectDataBuffer = GraphBuilder.CreateSRV(SubstrateViewData->BSDFTileCountBuffer, PF_R32_UINT);
 			PassParameters->TileDispatchIndirectDataBuffer = GraphBuilder.CreateUAV(SubstrateViewData->BSDFTileDispatchIndirectBuffer, PF_R32_UINT);
 			PassParameters->TileDispatchPerThreadIndirectDataBuffer = GraphBuilder.CreateUAV(SubstrateViewData->BSDFTilePerThreadDispatchIndirectBuffer, PF_R32_UINT);

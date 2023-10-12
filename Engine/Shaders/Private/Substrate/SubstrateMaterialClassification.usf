@@ -361,6 +361,7 @@ void ArgsMainCS(uint2 DispatchThreadId : SV_DispatchThreadID)
 	const uint TileType = DispatchThreadId.x;
 	if (TileType < SUBSTRATE_TILE_TYPE_COUNT)
 	{
+		// We could have more than 65k tile in particular with complex multi-layer BSDF covering full 
 		TileDispatchIndirectDataBuffer[GetSubstrateTileTypeDispatchIndirectArgOffset_DWord(TileType) + 0] = TileDrawIndirectDataBuffer[GetSubstrateTileTypeDrawIndirectArgOffset_DWord(TileType) + 1];
 		TileDispatchIndirectDataBuffer[GetSubstrateTileTypeDispatchIndirectArgOffset_DWord(TileType) + 1] = 1;
 		TileDispatchIndirectDataBuffer[GetSubstrateTileTypeDispatchIndirectArgOffset_DWord(TileType) + 2] = 1;
@@ -374,10 +375,6 @@ void ArgsMainCS(uint2 DispatchThreadId : SV_DispatchThreadID)
 #if SHADER_BSDF_TILE_PREPARE_ARGS
 
 int2 TileCount_Primary;
-int2 TileOffset_Primary;
-
-int2 OverflowTileCount;
-int2 OverflowTileOffset;
 
 Buffer<uint>   TileDrawIndirectDataBuffer;
 RWBuffer<uint> TileDispatchIndirectDataBuffer;
@@ -389,15 +386,15 @@ void ArgsMainCS(uint2 DispatchThreadId : SV_DispatchThreadID)
 	if (all(DispatchThreadId == 0))
 	{
 		const uint TileCount = TileDrawIndirectDataBuffer[0].x;
-		const uint DispatchX = min(TileCount, uint(OverflowTileCount.x));
-		const uint DispatchY = DivideAndRoundUp(TileCount, OverflowTileCount.x);
+		const uint DispatchX = min(TileCount, uint(TileCount_Primary.x));
+		const uint DispatchY = DivideAndRoundUp(TileCount, TileCount_Primary.x);
 
 		TileDispatchIndirectDataBuffer[0] = DispatchX;
 		TileDispatchIndirectDataBuffer[1] = DispatchY;
 		TileDispatchIndirectDataBuffer[2] = 1;
 		
-		TileDispatchPerThreadIndirectDataBuffer[0] = DivideAndRoundUp(DispatchX, SUBSTRATE_TILE_SIZE);
-		TileDispatchPerThreadIndirectDataBuffer[1] = DivideAndRoundUp(DispatchY, SUBSTRATE_TILE_SIZE);
+		TileDispatchPerThreadIndirectDataBuffer[0] = DivideAndRoundUp(TileCount, SUBSTRATE_TILE_SIZE * SUBSTRATE_TILE_SIZE);
+		TileDispatchPerThreadIndirectDataBuffer[1] = 1;
 		TileDispatchPerThreadIndirectDataBuffer[2] = 1;
 	}
 }
@@ -413,10 +410,6 @@ uint MaxBytesPerPixel;
 uint TileSizeLog2;
 
 int2 TileCount_Primary;
-int2 TileOffset_Primary;
-
-int2 OverflowTileCount;
-int2 OverflowTileOffset;
 
 Texture2D<uint2> TopLayerTexture;
 Texture2DArray<uint> MaterialTextureArray;
@@ -424,18 +417,13 @@ Texture2DArray<uint> MaterialTextureArray;
 Buffer<uint> TileListBuffer;
 uint TileListBufferOffset;
 
-RWTexture2D<uint> RWBSDFTileTexture;
 RWTexture2D<uint> RWBSDFOffsetTexture;
 RWBuffer<uint>    RWBSDFTileCountBuffer;
+RWBuffer<uint>    RWBSDFTileBuffer;
 
 #if !PERMUTATION_WAVE_OPS
 groupshared uint s_TileBSDFCount[GROUP_THREAD_COUNT];
 #endif
-
-uint2 LinearCoordToTileCoord(uint InLinear)
-{
-	return uint2(InLinear % OverflowTileCount.x, InLinear / OverflowTileCount.x) + OverflowTileOffset;
-}
 
 #if PERMUTATION_WAVE_OPS && COMPILER_SUPPORTS_WAVE_SIZE
 WAVESIZE(64) // PERMUTATION_WAVE_OPS is true only when wave>=64 are available
@@ -444,10 +432,12 @@ WAVESIZE(64) // PERMUTATION_WAVE_OPS is true only when wave>=64 are available
 void BSDFTileMainCS(uint2 GroupThreadId : SV_GroupThreadID, uint2 GroupId : SV_GroupID, uint LinearIndex : SV_GroupIndex)
 {
 	const uint2 TileCoord = SubstrateUnpackTile(TileListBuffer[TileListBufferOffset + GroupId.x]);
-	const uint2 PixelCoord = TileCoord * SUBSTRATE_TILE_SIZE + GroupThreadId;
+	uint2 PixelCoord = TileCoord * SUBSTRATE_TILE_SIZE + GroupThreadId;
+	const bool bIsInViewRect = all(PixelCoord < uint2(View.ViewRectMinAndSize.zw));
+	PixelCoord += View.ViewRectMinAndSize.xy;
 
 	uint BSDFCount = 0;
-	if (all(PixelCoord < uint2(ViewResolution)))
+	if (bIsInViewRect)
 	{
 		FSubstrateAddressing SubstrateAddressing = GetSubstratePixelDataByteOffset(PixelCoord, uint2(View.BufferSizeAndInvSize.xy), MaxBytesPerPixel);
 		FSubstratePixelHeader SubstratePixelHeader = UnpackSubstrateHeaderIn(MaterialTextureArray, SubstrateAddressing, TopLayerTexture);
@@ -509,34 +499,22 @@ void BSDFTileMainCS(uint2 GroupThreadId : SV_GroupThreadID, uint2 GroupId : SV_G
 
 #endif // PERMUTATION_WAVE_OPS
 
-	if (LinearIndex < 1)
+	if (LinearIndex == 0)
 	{
 		if (TileBSDFCount > 1)
 		{
-			uint LinearTileCoord = 0;
-			InterlockedAdd(RWBSDFTileCountBuffer[0], TileBSDFCount - 1, LinearTileCoord);
+			// Store only tile data for BSDF[1..X]. BSDF[0] is implicity stored into the first layer
+			uint StoreIndex = 0;
+			InterlockedAdd(RWBSDFTileCountBuffer[0], TileBSDFCount - 1, StoreIndex);
 
 			FSubstrateBSDFTile Tile;
-			Tile.Count = TileBSDFCount;
-			Tile.Index = 0;
-
-			// For first/parent tile, set TileCoord to point towards the first 'overflow' tile
-			Tile.TileCoord = LinearCoordToTileCoord(LinearTileCoord);
-			RWBSDFTileTexture[TileCoord] = PackBSDFTile(Tile);
-
-			// For 'overflow' tiles, set TileCoord to point towards the first/parent tile
 			Tile.TileCoord = TileCoord;
+			Tile.BSDFCount = TileBSDFCount;
 			for (uint BSDFIndex = 1; BSDFIndex < TileBSDFCount; ++BSDFIndex)
 			{
-				const uint2 OverflowCoord = LinearCoordToTileCoord(LinearTileCoord + BSDFIndex - 1);
-
-				Tile.Index = BSDFIndex;
-				RWBSDFTileTexture[OverflowCoord] = PackBSDFTile(Tile);
+				Tile.BSDFIndex = BSDFIndex;
+				RWBSDFTileBuffer[StoreIndex + BSDFIndex - 1] = PackBSDFTile(Tile);
 			}
-		}
-		else
-		{
-			RWBSDFTileTexture[GroupId] = 0;
 		}
 	}
 }

@@ -1038,9 +1038,9 @@ float3 InverseTonemapLightingForRoughSpecular(float3 TonemappedLighting)
 #define SPIRAL_PATTERN_UPSAMPLE		1
 #define PASSTHROUGH_UPSAMPLE		2
 
-RWTexture2D<float3> RWDiffuseIndirect;
-RWTexture2D<float3> RWRoughSpecularIndirect;
-RWTexture2D<float> RWResolveVariance;
+RWTexture2DArray<float3> RWDiffuseIndirect;
+RWTexture2DArray<float3> RWRoughSpecularIndirect;
+RWTexture2DArray<float> RWResolveVariance;
 
 float UpsampleKernelSize;
 uint UpsampleNumSamples;
@@ -1242,35 +1242,41 @@ void UpsampleAndIntegrateCS(
 			}
 #endif
 
+			// SUBSTRATE_TODO
+			const uint3 WriteCoord = uint3(SvPosition, 0 /*BSDFIndex*/);
+
 			// FDiffuseIndirectCompositePS applies DiffuseColor
-			RWDiffuseIndirect[SvPosition] = DiffuseLighting * Diffuse_Lambert(1.0f);
-			RWRoughSpecularIndirect[SvPosition] = SpecularLighting;
+			RWDiffuseIndirect[WriteCoord] = DiffuseLighting * Diffuse_Lambert(1.0f);
+			RWRoughSpecularIndirect[WriteCoord] = SpecularLighting;
 
 			#if USE_BILATERAL_FILTER
 				// Clamp the variance range to not overlap with DisocclusionVariance, so the bilateral filter can detect disocclusion
 				ResolveVariance = min(ResolveVariance, DisocclusionVariance - .1f);
-				RWResolveVariance[SvPosition] = ResolveVariance;
+				RWResolveVariance[WriteCoord] = ResolveVariance;
 			#endif
 		}
 		else
 		{
-			RWDiffuseIndirect[SvPosition] = 0;
-			RWRoughSpecularIndirect[SvPosition] = 0;
+			// SUBSTRATE_TODO
+			const uint3 WriteCoord = uint3(SvPosition, 0 /*BSDFIndex*/);
+
+			RWDiffuseIndirect[WriteCoord] = 0;
+			RWRoughSpecularIndirect[WriteCoord] = 0;
 
 			#if USE_BILATERAL_FILTER
-				RWResolveVariance[SvPosition] = 0;
+			RWResolveVariance[WriteCoord] = 0;
 			#endif
 		}
 	}
 }
 
-RWTexture2D<float3> RWNewHistoryDiffuseIndirect;
-RWTexture2D<float3> RWNewHistoryRoughSpecularIndirect;
-RWTexture2D<UNORM float> RWNumHistoryFramesAccumulated;
+RWTexture2DArray<float3> RWNewHistoryDiffuseIndirect;
+RWTexture2DArray<float3> RWNewHistoryRoughSpecularIndirect;
+RWTexture2DArray<UNORM float> RWNumHistoryFramesAccumulated;
 
-Texture2D<float3> DiffuseIndirect;
-Texture2D<float3> RoughSpecularIndirect;
-Texture2D<float3> ResolveVariance;
+Texture2DArray<float3> DiffuseIndirect;
+Texture2DArray<float3> RoughSpecularIndirect;
+Texture2DArray<float>  ResolveVariance;
 Texture2D DiffuseIndirectHistory;
 Texture2D RoughSpecularIndirectHistory;
 Texture2D ResolveVarianceHistory;
@@ -1308,7 +1314,7 @@ static const int2 kOffsets3x3[8] =
 };
 
 float3 ClampHistory(
-	Texture2D<float3> LightingTexture,
+	Texture2DArray<float3> LightingTexture,
 	uint2 ScreenCoord, 
 	uint2 MinScreenCoord, 
 	uint2 MaxScreenCoord,
@@ -1324,11 +1330,10 @@ float3 ClampHistory(
 	{
 		const int2 SampleOffset = kOffsets3x3[NeighborId];
 
-		uint2 NeighborScreenCoord_Primary = ScreenCoord + SampleOffset;
-		NeighborScreenCoord_Primary = clamp(NeighborScreenCoord_Primary, MinScreenCoord, MaxScreenCoord);
-		const uint2 NeighborScreenCoord_Flatten = GetNeighborFlattenCoord(NeighborScreenCoord_Primary, InBSDFIndex);
+		uint3 NeighborScreenCoord = uint3(ScreenCoord + SampleOffset, InBSDFIndex);
+		NeighborScreenCoord.xy = clamp(NeighborScreenCoord.xy, MinScreenCoord, MaxScreenCoord);
 
-		const float3 Lighting = LightingTexture[NeighborScreenCoord_Flatten].xyz;
+		const float3 Lighting = LightingTexture[NeighborScreenCoord].xyz;
 		NeighborMin = min(NeighborMin, Lighting.xyz);
 		NeighborMax = max(NeighborMax, Lighting.xyz);
 	}
@@ -1519,8 +1524,8 @@ void TemporalAccumulationCS(
 	{
 		const uint2 MinScreenCoord = View.ViewRectMinAndSize.xy;
 		const uint2 MaxScreenCoord = View.ViewRectMinAndSize.xy + View.ViewRectMinAndSize.zw - 1;
-		HistoryDiffuseIndirect = ClampHistory(DiffuseIndirect, Coord.SvPosition, MinScreenCoord, MaxScreenCoord, NewDiffuseLighting.xyz, HistoryDiffuseIndirect, Coord.TileBSDFIndex);
-		HistoryRoughSpecularIndirect = ClampHistory(RoughSpecularIndirect, Coord.SvPosition, MinScreenCoord, MaxScreenCoord, NewRoughSpecularLighting, HistoryRoughSpecularIndirect, Coord.TileBSDFIndex);
+		HistoryDiffuseIndirect = ClampHistory(DiffuseIndirect, Coord.SvPosition, MinScreenCoord, MaxScreenCoord, NewDiffuseLighting.xyz, HistoryDiffuseIndirect, Coord.BSDFIndex);
+		HistoryRoughSpecularIndirect = ClampHistory(RoughSpecularIndirect, Coord.SvPosition, MinScreenCoord, MaxScreenCoord, NewRoughSpecularLighting, HistoryRoughSpecularIndirect, Coord.BSDFIndex);
 	}
 #endif
 
@@ -1542,7 +1547,7 @@ void TemporalAccumulationCS(
 
 #if USE_BILATERAL_FILTER
 	float VarianceHistoryWeight = bHistoryWasOnscreen ? .9f : 0;
-	float NewResolveVariance = ResolveVariance[Coord.SvPositionFlatten];
+	float NewResolveVariance = ResolveVariance[Coord.SvPositionFlatten].x;
 
 	if (dot(VisibilityWeights, 1.0f) < 1.0f)
 	{

@@ -26585,7 +26585,7 @@ int32 UMaterialExpressionSubstrateConvertMaterialAttributes::Compile(class FMate
 	}
 		
 	// We also cannot ignore the tangent when using the default Tangent because GetTangentBasis
-	// used in StrataGetBSDFSharedBasis cannot be relied on for smooth tangent used for lighting on any mesh.
+	// used in SubstrateGetBSDFSharedBasis cannot be relied on for smooth tangent used for lighting on any mesh.
 
 	const uint64 Cached = GetConnectedMaterialAttributesInputs(Material);
 	const bool bHasAnisotropy = IsMaterialAttributeInputConnected(Cached, MP_Anisotropy);
@@ -26845,7 +26845,7 @@ FSubstrateOperator* UMaterialExpressionSubstrateConvertMaterialAttributes::Subst
 {
 	const uint64 Cached = GetConnectedMaterialAttributesInputs(Material);
 
-	// Note Thickness has no meaning/usage in the context of StrataLegacyConversionNode
+	// Note Thickness has no meaning/usage in the context of SubstrateLegacyConversionNode
 	int32 ThicknessIndex = Compiler->SubstrateThicknessStackGetThicknessIndex();
 
 	const bool bHasAnisotropy = IsMaterialAttributeInputConnected(Cached, MP_Anisotropy);

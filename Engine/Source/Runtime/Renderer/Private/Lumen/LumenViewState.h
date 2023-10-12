@@ -46,7 +46,6 @@ public:
 	TRefCountPtr<IPooledRenderTarget> NumFramesAccumulatedRT;
 	TRefCountPtr<IPooledRenderTarget> FastUpdateModeHistoryRT;
 	TRefCountPtr<IPooledRenderTarget> NormalHistoryRT;
-	TRefCountPtr<IPooledRenderTarget> BSDFTileHistoryRT;
 	FIntRect ProbeHistoryViewRect;
 	FVector4f ProbeHistoryScreenPositionScaleBias;
 	TRefCountPtr<IPooledRenderTarget> HistoryScreenProbeSceneDepth;
@@ -56,9 +55,8 @@ public:
 	FLumenGatherCvarState LumenGatherCvars;
 	FIntPoint HistorySceneTexturesExtent;
 	FIntPoint HistoryEffectiveResolution;
-	FIntPoint HistoryOverflowTileOffset;
-	FIntPoint HistoryOverflowTileCount;
 	uint32 HistorySubstrateMaxBSDFCount;
+	uint32 HistorySubstrateLayerCount;
 
 	FScreenProbeGatherTemporalState()
 	{
@@ -68,9 +66,8 @@ public:
 		ProbeHistoryScreenPositionScaleBias = FVector4f(0, 0, 0, 0);
 		HistorySceneTexturesExtent = FIntPoint(0,0);
 		HistoryEffectiveResolution = FIntPoint(0,0);
-		HistoryOverflowTileOffset = FIntPoint(0, 0);
-		HistoryOverflowTileCount = FIntPoint(0, 0);
 		HistorySubstrateMaxBSDFCount = 0;
+		HistorySubstrateLayerCount = 0;
 	}
 
 	void SafeRelease()
@@ -81,7 +78,6 @@ public:
 		NumFramesAccumulatedRT.SafeRelease();
 		FastUpdateModeHistoryRT.SafeRelease();
 		NormalHistoryRT.SafeRelease();
-		BSDFTileHistoryRT.SafeRelease();
 		HistoryScreenProbeSceneDepth.SafeRelease();
 		HistoryScreenProbeTranslatedWorldPosition.SafeRelease();
 		ProbeHistoryScreenProbeRadiance.SafeRelease();
@@ -99,7 +95,6 @@ public:
 		TRANSFER_LUMEN_RESOURCE(NumFramesAccumulatedRT);
 		TRANSFER_LUMEN_RESOURCE(FastUpdateModeHistoryRT);
 		TRANSFER_LUMEN_RESOURCE(NormalHistoryRT);
-		TRANSFER_LUMEN_RESOURCE(BSDFTileHistoryRT);
 		TRANSFER_LUMEN_RESOURCE(HistoryScreenProbeSceneDepth);
 		TRANSFER_LUMEN_RESOURCE(HistoryScreenProbeTranslatedWorldPosition);
 		TRANSFER_LUMEN_RESOURCE(ProbeHistoryScreenProbeRadiance);
@@ -197,14 +192,12 @@ public:
 	FVector4f HistoryScreenPositionScaleBias;
 	FIntPoint HistorySceneTexturesExtent;
 	FIntPoint HistoryEffectiveResolution;
-	FIntPoint HistoryOverflowTileOffset;
-	FIntPoint HistoryOverflowTileCount;
 	uint32 HistorySubstrateMaxBSDFCount;
+	uint32 HistorySubstrateLayerCount;
 
 	TRefCountPtr<IPooledRenderTarget> SpecularIndirectHistoryRT;
 	TRefCountPtr<IPooledRenderTarget> NumFramesAccumulatedRT;
 	TRefCountPtr<IPooledRenderTarget> ResolveVarianceHistoryRT;
-	TRefCountPtr<IPooledRenderTarget> BSDFTileHistoryRT;
 	TRefCountPtr<IPooledRenderTarget> DepthHistoryRT;
 	TRefCountPtr<IPooledRenderTarget> NormalHistoryRT;
 
@@ -215,9 +208,8 @@ public:
 		HistoryScreenPositionScaleBias = FVector4f(0, 0, 0, 0);
 		HistorySceneTexturesExtent = FIntPoint(0,0);
 		HistoryEffectiveResolution = FIntPoint(0,0);
-		HistoryOverflowTileOffset = FIntPoint(0, 0);
-		HistoryOverflowTileCount = FIntPoint(0,0);
 		HistorySubstrateMaxBSDFCount = 0;
+		HistorySubstrateLayerCount = 0;
 	}
 
 	void SafeRelease()
@@ -225,7 +217,6 @@ public:
 		SpecularIndirectHistoryRT.SafeRelease();
 		NumFramesAccumulatedRT.SafeRelease();
 		ResolveVarianceHistoryRT.SafeRelease();
-		BSDFTileHistoryRT.SafeRelease();
 		DepthHistoryRT.SafeRelease();
 		NormalHistoryRT.SafeRelease();
 	}
@@ -239,7 +230,6 @@ public:
 		TRANSFER_LUMEN_RESOURCE(SpecularIndirectHistoryRT);
 		TRANSFER_LUMEN_RESOURCE(NumFramesAccumulatedRT);
 		TRANSFER_LUMEN_RESOURCE(ResolveVarianceHistoryRT);
-		TRANSFER_LUMEN_RESOURCE(BSDFTileHistoryRT);
 		TRANSFER_LUMEN_RESOURCE(DepthHistoryRT);
 		TRANSFER_LUMEN_RESOURCE(NormalHistoryRT);
 

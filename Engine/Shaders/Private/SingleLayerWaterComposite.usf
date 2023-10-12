@@ -328,7 +328,8 @@ void WaterTileCatergorisationMarkCS(uint3 ThreadId : SV_DispatchThreadID, uint3 
 			uint WriteToIndex;
 			InterlockedAdd(DrawIndirectDataUAV[1], 1, WriteToIndex);
 			InterlockedAdd(DispatchIndirectDataUAV[0], 1);
-			WaterTileListDataUAV[WriteToIndex] = PackTileCoord16bits(GroupId.xy);
+			// Encoding needs to match Lumen reflection tile encoding (see LumenReflection.usf)
+			WaterTileListDataUAV[WriteToIndex] = PackTileCoord12bits(GroupId.xy);
 		}
 	}
 
@@ -473,8 +474,8 @@ void WaterTileClassificationBuildListsCS(
 				if (bTileUsed)
 				{
 					uint TileOffset = SharedNumTiles;
-					uint PackedTileData = TileCoordinate.x | (TileCoordinate.y << 16);
-					SharedTileData[TileOffset] = PackedTileData;
+					// Encoding needs to match Lumen reflection tile encoding (see LumenReflection.usf)
+					SharedTileData[TileOffset] = PackTileCoord12bits(TileCoordinate);
 					SharedNumTiles = TileOffset + 1;
 				}
 			}
@@ -510,11 +511,7 @@ void WaterTileVS(
 	out float4 Position : SV_POSITION) 
 {
 	const uint PackedTile = TileListData[InstanceId.x];
-#if PERMUTATION_TILE_ENCODING == 0 		// 16bits coord
-	const uint2 TileCoord = UnpackTileCoord16bits(PackedTile);
-#elif PERMUTATION_TILE_ENCODING == 1 	// 12bits coord
 	const uint2 TileCoord = UnpackTileCoord12bits(PackedTile);
-#endif
 	const uint2 TileOrigin = TileCoord * SLW_TILE_SIZE_XY;
 
 	uint2 TileVertex = TileOrigin;

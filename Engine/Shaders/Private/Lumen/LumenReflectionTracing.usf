@@ -22,22 +22,25 @@
 
 #define DEBUG_VISUALIZE_TRACE_TYPES 0
 
-RWTexture2D<float> RWTraceHit;
-RWTexture2D<float3> RWTraceRadiance;
-RWTexture2D<uint> RWTraceMaterialId;
+RWTexture2DArray<float>  RWTraceHit;
+RWTexture2DArray<float3> RWTraceRadiance;
+RWTexture2DArray<uint>   RWTraceMaterialId;
 
 [numthreads(REFLECTION_THREADGROUP_SIZE_1D, 1, 1)]
 void ReflectionClearTracesCS(
 	uint GroupId : SV_GroupID,
 	uint GroupThreadId : SV_GroupThreadID)
 {
-	uint2 ReflectionTracingCoord = GetReflectionTracingScreenCoord(GroupId, GroupThreadId);
-	RWTraceRadiance[ReflectionTracingCoord] = 0.0f;
-	RWTraceHit[ReflectionTracingCoord] = EncodeRayDistance(0.0f, false);
+	FReflectionTileData TileData;
+	uint2 TmpReflectionTracingCoord = GetReflectionTracingScreenCoord(GroupId/*TileCoord*/, GroupThreadId/*InnerTileCoord*/, TileData);
+	const FReflectionTracingCoord ReflectionTracingCoord = GetReflectionTracingCoord(TmpReflectionTracingCoord, TileData.BSDFIndex);
+
+	RWTraceRadiance[ReflectionTracingCoord.CoordFlatten] = 0.0f;
+	RWTraceHit[ReflectionTracingCoord.CoordFlatten] = EncodeRayDistance(0.0f, false);
 
 	#if CLEAT_TRACE_MATERIAL_ID
 	{
-		RWTraceMaterialId[ReflectionTracingCoord] = PackTraceMaterialId(false, 0);
+		RWTraceMaterialId[ReflectionTracingCoord.CoordFlatten] = PackTraceMaterialId(false, 0);
 	}
 	#endif
 }
@@ -54,12 +57,14 @@ void ReflectionTraceScreenTexturesCS(
 	uint GroupId : SV_GroupID,
 	uint GroupThreadId : SV_GroupThreadID)
 {
-	const FReflectionTracingCoord ReflectionTracingCoord = GetReflectionTracingCoord(GetReflectionTracingScreenCoord(GroupId, GroupThreadId));
+	FReflectionTileData TileData;
+	const uint2 TmpReflectionTracingCoord = GetReflectionTracingScreenCoord(GroupId/*TileCoord*/, GroupThreadId/*InnerTileCoord*/, TileData);
+	const FReflectionTracingCoord ReflectionTracingCoord = GetReflectionTracingCoord(TmpReflectionTracingCoord, TileData.BSDFIndex);
 
 	if (all(ReflectionTracingCoord.Coord < ReflectionTracingViewSize))
 	{
 		float2 ScreenUV = GetScreenUVFromReflectionTracingCoord(ReflectionTracingCoord.Coord);
-		float SceneDepth = DownsampledDepth.Load(int3(ReflectionTracingCoord.CoordFlatten, 0)).x;
+		float SceneDepth = DownsampledDepth.Load(int4(ReflectionTracingCoord.CoordFlatten, 0)).x;
 
 		if (SceneDepth > 0.0f)
 		{
@@ -224,7 +229,7 @@ uint CompactionThreadGroupSize;
 void SetupCompactionIndirectArgsCS(uint GroupThreadId : SV_GroupThreadID)
 {
 	uint NumTracingThreads = ReflectionTracingTileIndirectArgs[0] * REFLECTION_THREADGROUP_SIZE_1D;
-	uint NumCompactionGroups = (NumTracingThreads + CompactionThreadGroupSize - 1) / CompactionThreadGroupSize;
+	uint NumCompactionGroups = DivideAndRoundUp(NumTracingThreads, CompactionThreadGroupSize);
 
 	if (GroupThreadId < 3)
 	{
@@ -249,7 +254,7 @@ float CompactionTracingEndDistanceFromCamera;
 float CompactionMaxTraceDistance;
 float NearFieldMaxTraceDistance;
 float FarFieldDitheredStartDistanceFactor;
-Texture2D<uint> TraceMaterialId;
+Texture2DArray<uint> TraceMaterialId;
 
 groupshared uint SharedGlobalTraceTexelStartOffset;
 
@@ -291,12 +296,14 @@ void ReflectionCompactTracesCS(
 
 	if (ReflectionTileIndex < ReflectionTracingTileIndirectArgs[0])
 	{
-		const FReflectionTracingCoord ReflectionTracingCoord = GetReflectionTracingCoord(GetReflectionTracingScreenCoordZOrder(ReflectionTileIndex, ReflectionGroupThreadId));
+		FReflectionTileData TileData;
+		const uint2 TmpReflectionTracingCoord = GetReflectionTracingScreenCoordZOrder(ReflectionTileIndex/*TileCoord*/, ReflectionGroupThreadId/*InnerTileCoord*/, TileData);
+		const FReflectionTracingCoord ReflectionTracingCoord = GetReflectionTracingCoord(TmpReflectionTracingCoord, TileData.BSDFIndex);
 
 		if (all(ReflectionTracingCoord.Coord < ReflectionTracingViewSize))
 		{
 			float2 ScreenUV = GetScreenUVFromReflectionTracingCoord(ReflectionTracingCoord.Coord);
-			float SceneDepth = DownsampledDepth.Load(int3(ReflectionTracingCoord.CoordFlatten, 0)).x;
+			float SceneDepth = DownsampledDepth.Load(int4(ReflectionTracingCoord.CoordFlatten, 0)).x;
 
 			bool bHit;
 			float TraceHitDistance = DecodeRayDistance(TraceHit[ReflectionTracingCoord.CoordFlatten].x, bHit);
@@ -330,11 +337,11 @@ void ReflectionCompactTracesCS(
 #if ORDERED_COMPACTION
 				bTraceValid = true;
 				SharedTexelValid[GroupThreadId] = 1;
-				TraceTexelForThisThread = EncodeTraceTexel(ReflectionTracingCoord.CoordFlatten);
+				TraceTexelForThisThread = EncodeTraceTexel(ReflectionTracingCoord.Coord, ReflectionTracingCoord.BSDFIndex);
 #else
 				uint SharedTexelOffset;
 				InterlockedAdd(SharedTraceTexelAllocator, 1, SharedTexelOffset);
-				SharedTraceTexels[SharedTexelOffset] = EncodeTraceTexel(ReflectionTracingCoord.CoordFlatten);
+				SharedTraceTexels[SharedTexelOffset] = EncodeTraceTexel(ReflectionTracingCoord.Coord, ReflectionTracingCoord.BSDFIndex);
 #endif
 			}
 		}
@@ -407,13 +414,13 @@ RWBuffer<uint> RWReflectionCompactRayTraceDispatchIndirectArgs;
 void SetupCompactedTracesIndirectArgsCS()
 {
 	// THREADGROUP_SIZE_64
-	WriteDispatchIndirectArgs(RWReflectionCompactTracingIndirectArgs, 0, (CompactedTraceTexelAllocator[0] + 64 - 1) / 64, 1, 1);
+	WriteDispatchIndirectArgs(RWReflectionCompactTracingIndirectArgs, 0, DivideAndRoundUp(CompactedTraceTexelAllocator[0],64u), 1, 1);
 
 	// THREADGROUP_SIZE_32
-	WriteDispatchIndirectArgs(RWReflectionCompactTracingIndirectArgs, 1, (CompactedTraceTexelAllocator[0] + 32 - 1) / 32, 1, 1);
+	WriteDispatchIndirectArgs(RWReflectionCompactTracingIndirectArgs, 1, DivideAndRoundUp(CompactedTraceTexelAllocator[0],32u), 1, 1);
 
 	// THREADGROUP_SIZE_256
-	WriteDispatchIndirectArgs(RWReflectionCompactTracingIndirectArgs, 2, (CompactedTraceTexelAllocator[0] + 256 - 1) / 256, 1, 1);
+	WriteDispatchIndirectArgs(RWReflectionCompactTracingIndirectArgs, 2, DivideAndRoundUp(CompactedTraceTexelAllocator[0],256u), 1, 1);
 
 	// Ray tracing dispatch dimensions are defined simply in terms of threads/rays, not thread groups.
 	WriteDispatchIndirectArgs(RWReflectionCompactRayTraceDispatchIndirectArgs, 0, CompactedTraceTexelAllocator[0], 1, 1);
@@ -552,7 +559,7 @@ float MaxMeshSDFTraceDistance;
 void TraceMeshSDFs(FReflectionTracingCoord ReflectionTracingCoord, float TraceHitDistance)
 {
 	float2 ScreenUV = GetScreenUVFromReflectionTracingCoord(ReflectionTracingCoord.Coord);
-	float SceneDepth = DownsampledDepth.Load(int3(ReflectionTracingCoord.CoordFlatten, 0)).x;
+	float SceneDepth = DownsampledDepth.Load(int4(ReflectionTracingCoord.CoordFlatten, 0)).x;
 
 	float3 WorldPosition = GetWorldPositionFromScreenUV(ScreenUV, SceneDepth);
 	float3 TranslatedWorldPosition = GetTranslatedWorldPositionFromScreenUV(ScreenUV, SceneDepth);
@@ -683,7 +690,7 @@ void ReflectionTraceMeshSDFsCS(uint DispatchThreadId : SV_DispatchThreadID)
 void TraceVoxels(FReflectionTracingCoord ReflectionTracingCoord, float TraceHitDistance)
 {
 	float2 ScreenUV = GetScreenUVFromReflectionTracingCoord(ReflectionTracingCoord.Coord);
-	float SceneDepth = DownsampledDepth.Load(int3(ReflectionTracingCoord.CoordFlatten, 0)).x;
+	float SceneDepth = DownsampledDepth.Load(int4(ReflectionTracingCoord.CoordFlatten, 0)).x;
 
 	float3 WorldPosition = GetWorldPositionFromScreenUV(ScreenUV, SceneDepth); // LUMEN_LWC_TODO
 	float3 TranslatedWorldPosition = GetTranslatedWorldPositionFromScreenUV(ScreenUV, SceneDepth);
@@ -872,17 +879,17 @@ void VisualizeReflectionTracesCS(
 
 		if (all(QueryProbeScreenPosition > 0) && all(QueryProbeScreenPosition < ReflectionTracingViewSize))
 		{
-			const FReflectionTracingCoord ReflectionTracingCoord = GetReflectionTracingCoord(QueryProbeScreenPosition);
+			const FReflectionTracingCoord ReflectionTracingCoord = GetReflectionTracingCoord(QueryProbeScreenPosition, 0 /*TODO*/);
 			float2 ScreenUV = GetScreenUVFromReflectionTracingCoord(ReflectionTracingCoord.Coord);
-			float SceneDepth = DownsampledDepth.Load(int3(ReflectionTracingCoord.CoordFlatten, 0)).x;
+			float SceneDepth = DownsampledDepth.Load(int4(ReflectionTracingCoord.CoordFlatten,0)).x;
 
 			float3 WorldPosition = GetWorldPositionFromScreenUV(ScreenUV, SceneDepth); // LUMEN_LWC_TODO
 			float3 TranslatedWorldPosition = GetTranslatedWorldPositionFromScreenUV(ScreenUV, SceneDepth);
 			FRayData RayData = GetRayData(ReflectionTracingCoord.CoordFlatten);
 
 			bool bHit;
-			float TraceHitDistance = DecodeRayDistance(TraceHit[ReflectionTracingCoord.Coord].x, bHit);
-			float3 RayHitRadiance = TraceRadiance[ReflectionTracingCoord.Coord];
+			float TraceHitDistance = DecodeRayDistance(TraceHit[ReflectionTracingCoord.CoordFlatten].x, bHit);
+			float3 RayHitRadiance = TraceRadiance[ReflectionTracingCoord.CoordFlatten];
 
 			FShaderPrintContext Context = InitShaderPrintContext(true, float2(0.1, 0.1));
 

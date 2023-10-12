@@ -75,12 +75,12 @@ int SampleSceneColor;
 float RelativeDepthThickness;
 uint MaxReflectionBounces;
 
-Texture2D<uint2> TraceBookmark;
+Texture2DArray<uint2> TraceBookmark;
 
-RWTexture2D<float3> RWTraceRadiance;
-RWTexture2D<float> RWTraceHit;
-RWTexture2D<uint2> RWTraceBookmark;
-RWTexture2D<uint> RWTraceMaterialId;
+RWTexture2DArray<float3> RWTraceRadiance;
+RWTexture2DArray<float>  RWTraceHit;
+RWTexture2DArray<uint2>  RWTraceBookmark;
+RWTexture2DArray<uint>   RWTraceMaterialId;
 
 LUMEN_HARDWARE_RAY_TRACING_ENTRY(LumenReflectionHardwareRayTracing)
 {
@@ -99,7 +99,7 @@ LUMEN_HARDWARE_RAY_TRACING_ENTRY(LumenReflectionHardwareRayTracing)
 		float2 ScreenCoord = ScreenUV * View.BufferSizeAndInvSize.xy;
 		uint LinearCoord = ScreenCoord.y * View.BufferSizeAndInvSize.x + ScreenCoord.x;
 
-		float SceneDepth = DownsampledDepth.Load(int3(ReflectionTracingCoord.CoordFlatten, 0)).x;
+		float SceneDepth = DownsampledDepth.Load(int4(ReflectionTracingCoord.CoordFlatten, 0)).x;
 		float3 TranslatedWorldPosition = GetTranslatedWorldPositionFromScreenUV(ScreenUV, SceneDepth);
 		const float3 WorldNormal = ReadMaterialData(uint2(ScreenCoord)).WorldNormal;
 		FRayData RayData = GetRayData(ReflectionTracingCoord.CoordFlatten);
@@ -107,7 +107,7 @@ LUMEN_HARDWARE_RAY_TRACING_ENTRY(LumenReflectionHardwareRayTracing)
 		float ClippedNearFieldMaxTraceDistance = ClipAndDitherNearFieldMaxTraceDistance(
 			TranslatedWorldPosition,
 			RayData.Direction,
-			ReflectionTracingCoord.CoordFlatten,
+			ReflectionTracingCoord.Coord,
 			NearFieldSceneRadius,
 			NearFieldMaxTraceDistance,
 			NearFieldMaxTraceDistanceDitherScale);

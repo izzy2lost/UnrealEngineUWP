@@ -58,7 +58,7 @@ class FScreenSpaceShortRangeAOCS : public FGlobalShader
 	SHADER_USE_PARAMETER_STRUCT(FScreenSpaceShortRangeAOCS, FGlobalShader)
 
 	BEGIN_SHADER_PARAMETER_STRUCT(FParameters, )
-		SHADER_PARAMETER_RDG_TEXTURE_UAV(RWTexture2D<float3>, RWScreenBentNormal)
+		SHADER_PARAMETER_RDG_TEXTURE_UAV(RWTexture2DArray<float3>, RWScreenBentNormal)
 		SHADER_PARAMETER_RDG_UNIFORM_BUFFER(FSceneTextureUniformParameters, SceneTexturesStruct)
 		SHADER_PARAMETER_RDG_UNIFORM_BUFFER(FSubstrateGlobalUniformParameters, Substrate)
 		SHADER_PARAMETER_STRUCT_INCLUDE(FSceneTextureParameters, SceneTextures)
@@ -77,7 +77,7 @@ class FScreenSpaceShortRangeAOCS : public FGlobalShader
 	END_SHADER_PARAMETER_STRUCT()
 
 	class FNumPixelRays : SHADER_PERMUTATION_SPARSE_INT("NUM_PIXEL_RAYS", 4, 8, 16);
-	class FOverflow : SHADER_PERMUTATION_BOOL("PERMUTATION_OVERFLOW"); 
+	class FOverflow : SHADER_PERMUTATION_BOOL("PERMUTATION_OVERFLOW_TILE"); 
 	class FHairStrandsScreen : SHADER_PERMUTATION_BOOL("USE_HAIRSTRANDS_SCREEN");
 	class FHairStrandsVoxel : SHADER_PERMUTATION_BOOL("USE_HAIRSTRANDS_VOXEL");
 	using FPermutationDomain = TShaderPermutationDomain<FNumPixelRays, FOverflow, FHairStrandsScreen, FHairStrandsVoxel>;
@@ -126,7 +126,8 @@ FLumenScreenSpaceBentNormalParameters ComputeScreenSpaceShortRangeAO(
 
 	// When Substrate is enabled, increase the resolution for multi-layer tile overflowing (tile containing multi-BSDF data)
 	FIntPoint BentNormalResolution = Substrate::GetSubstrateTextureResolution(View, View.GetSceneTexturesConfig().Extent);
-	FRDGTextureDesc ScreenBentNormalDesc(FRDGTextureDesc::Create2D(BentNormalResolution, PF_A2B10G10R10, FClearValueBinding::Black, TexCreate_ShaderResource | TexCreate_UAV));
+	const uint32 LayerCount = Substrate::GetSubstrateTextureLayerCount(View);
+	FRDGTextureDesc ScreenBentNormalDesc(FRDGTextureDesc::Create2DArray(BentNormalResolution, PF_A2B10G10R10, FClearValueBinding::Black, TexCreate_ShaderResource | TexCreate_UAV, LayerCount));
 	FRDGTextureRef ScreenBentNormal = GraphBuilder.CreateTexture(ScreenBentNormalDesc, TEXT("Lumen.ScreenProbeGather.ScreenBentNormal"));
 
 	int32 NumPixelRays = 4;

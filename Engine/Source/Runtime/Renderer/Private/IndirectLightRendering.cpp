@@ -170,6 +170,11 @@ class FDiffuseIndirectCompositePS : public FGlobalShader
 		SHADER_PARAMETER(float, LumenReflectionSpecularScale)
 		SHADER_PARAMETER(float, LumenReflectionContrast)
 
+		SHADER_PARAMETER_RDG_TEXTURE(Texture2DArray, DiffuseIndirect_Lumen_0)
+		SHADER_PARAMETER_RDG_TEXTURE(Texture2DArray, DiffuseIndirect_Lumen_1)
+		SHADER_PARAMETER_RDG_TEXTURE(Texture2DArray, DiffuseIndirect_Lumen_2)
+		SHADER_PARAMETER_RDG_TEXTURE(Texture2DArray, DiffuseIndirect_Lumen_3)
+
 		SHADER_PARAMETER_STRUCT(FSSDSignalTextures, DiffuseIndirect)
 		SHADER_PARAMETER_SAMPLER(SamplerState, DiffuseIndirectSampler)
 		
@@ -1287,6 +1292,11 @@ void FDeferredShadingSceneRenderer::RenderDiffuseIndirectAndAmbientOcclusion(
 			PassParameters->LumenReflectionContrast = GetLumenReflectionContrast();
 
 			PassParameters->bVisualizeDiffuseIndirect = bIsVisualizePass;
+
+			PassParameters->DiffuseIndirect_Lumen_0 = DenoiserOutputs.Textures[0];
+			PassParameters->DiffuseIndirect_Lumen_1 = DenoiserOutputs.Textures[1];
+			PassParameters->DiffuseIndirect_Lumen_2 = DenoiserOutputs.Textures[2];
+			PassParameters->DiffuseIndirect_Lumen_3 = DenoiserOutputs.Textures[3];
 
 			PassParameters->DiffuseIndirect = DenoiserOutputs;
 			PassParameters->DiffuseIndirectSampler = TStaticSamplerState<SF_Point>::GetRHI();
