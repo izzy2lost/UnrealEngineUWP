@@ -37,6 +37,9 @@ class IAnimNotifyEventContextDataInterface;
 #define DECLARE_NOTIFY_CONTEXT_INTERFACE(ClassName) \
 	DECLARE_ANIMGRAPH_MESSAGE(ClassName)
 
+#define DECLARE_NOTIFY_CONTEXT_INTERFACE_API(ClassName, ModuleApi) \
+	DECLARE_ANIMGRAPH_MESSAGE_API(ClassName, ModuleApi)
+
 namespace UE { namespace Anim {
 
 class IAnimNotifyEventContextDataInterface
