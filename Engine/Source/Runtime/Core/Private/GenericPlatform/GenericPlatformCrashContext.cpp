@@ -237,6 +237,7 @@ namespace NCached
 	static TMap<FString, FString> EngineData;
 	static TMap<FString, FString> GameData;
 	static TMap<FString, FGPUBreadcrumbCrashData> GPUBreadcrumbsByQueue;
+	static FString GPUBreadcrumbsSource;
 
 	template <size_t CharCount, typename CharType>
 	void Set(CharType(&Dest)[CharCount], const CharType* pSrc)
@@ -1098,6 +1099,8 @@ void FGenericCrashContext::AddGPUBreadcrumbs() const
 	// if changes are made in the format exported by the engine.
 	AddSection(CommonBuffer, TEXT("FormatVersion"), FGPUBreadcrumbCrashData::GetBreadcrumbStringFormatVersion());
 
+	AddSection(CommonBuffer, TEXT("Source"), NCached::GPUBreadcrumbsSource);
+
 	for (auto& [Queue, Breadcrumbs] : NCached::GPUBreadcrumbsByQueue)
 	{
 		BeginSection(CommonBuffer, TEXT("Queue"));
@@ -1313,6 +1316,22 @@ void FGenericCrashContext::SetEngineData(const FString& Key, const FString& Valu
 void FGenericCrashContext::SetGPUBreadcrumbs(const FString& GPUQueueName, const TArray<FBreadcrumbNode>& Breadcrumbs)
 {
 	NCached::GPUBreadcrumbsByQueue.Emplace(GPUQueueName, FGPUBreadcrumbCrashData(Breadcrumbs));
+}
+
+void FGenericCrashContext::SetGPUBreadcrumbsSource(const FString& GPUBreadcrumbsSource)
+{
+	NCached::GPUBreadcrumbsSource = GPUBreadcrumbsSource;
+}
+
+const FString& FGenericCrashContext::GetGPUBreadcrumbsSource()
+{
+	return NCached::GPUBreadcrumbsSource;
+}
+
+void FGenericCrashContext::ResetGPUBreadcrumbsData()
+{
+	NCached::GPUBreadcrumbsByQueue.Empty();
+	NCached::GPUBreadcrumbsSource.Empty();
 }
 
 const TMap<FString, FString>& FGenericCrashContext::GetEngineData()

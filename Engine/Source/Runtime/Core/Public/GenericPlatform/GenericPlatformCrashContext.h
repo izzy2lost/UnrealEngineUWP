@@ -497,8 +497,17 @@ public:
 	/** Updates (or adds if not already present) arbitrary engine data to the crash context (will remove the key if passed an empty string) */
 	CORE_API static void SetEngineData(const FString& Key, const FString& Value);
 
-	/** Updates (or adds if not already present) GPU breadcrumb data for a given GPU queue */
+	/** Updates (or adds if not already present) GPU breadcrumb data for a given GPU queue. */
 	CORE_API static void SetGPUBreadcrumbs(const FString& GPUQueueName, const TArray<FBreadcrumbNode>& Breadcrumbs);
+
+	/** Sets a named source for the GPU breadcrumbs, mainly used to identify which system produced them. */
+	CORE_API static void SetGPUBreadcrumbsSource(const FString& GPUBreadcrumbsSource);
+
+	/** Gets the named source for the GPU breadcrumbs. */
+	CORE_API static const FString& GetGPUBreadcrumbsSource();
+
+	/** Clears all the GPU breadcrumb data. */
+	CORE_API static void ResetGPUBreadcrumbsData();
 
 	/** Accessor for engine data change callback delegate */
 	static FEngineDataSetDelegate& OnEngineDataSetDelegate() { return OnEngineDataSet; }
