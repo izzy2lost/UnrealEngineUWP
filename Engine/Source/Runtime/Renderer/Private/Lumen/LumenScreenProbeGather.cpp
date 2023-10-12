@@ -1376,7 +1376,7 @@ void UpdateHistoryScreenProbeGather(
 			&& !Substrate::IsSubstrateEnabled(); // SUBSTRATE_TODO provide Lumen with a valid normal
 		const bool bRejectBasedOnNormal = bWantToRejectBasedOnNormal && NormalHistoryState;
 		const bool bSupportBackfaceDiffuse = BackfaceDiffuseIndirect != nullptr;
-		const bool bOverflowTileHistoryValid = Substrate::IsSubstrateEnabled() ? View.SubstrateViewData.MaxBSDFCount == ScreenProbeGatherState.HistorySubstrateMaxBSDFCount : true;
+		const bool bOverflowTileHistoryValid = Substrate::IsSubstrateEnabled() ? View.SubstrateViewData.MaxClosureCount == ScreenProbeGatherState.HistorySubstrateMaxClosureCount : true;
 
 		ensureMsgf(SceneTextures.Velocity->Desc.Format != PF_G16R16, TEXT("Lumen requires 3d velocity.  Update Velocity format code."));
 
@@ -1581,7 +1581,7 @@ void UpdateHistoryScreenProbeGather(
 			*DiffuseIndirectHistoryViewRect = NewHistoryViewRect;
 			*DiffuseIndirectHistoryScreenPositionScaleBias = View.GetScreenPositionScaleBias(SceneTextures.Config.Extent, View.ViewRect);
 			ScreenProbeGatherState.LumenGatherCvars = GLumenGatherCvars;
-			ScreenProbeGatherState.HistorySubstrateMaxBSDFCount = View.SubstrateViewData.MaxBSDFCount;
+			ScreenProbeGatherState.HistorySubstrateMaxClosureCount = View.SubstrateViewData.MaxClosureCount;
 			ScreenProbeGatherState.HistoryEffectiveResolution = EffectiveResolution;
 			ScreenProbeGatherState.HistorySubstrateLayerCount = LayerCount;
 			ScreenProbeGatherState.HistorySceneTexturesExtent = SceneTextures.Config.Extent;

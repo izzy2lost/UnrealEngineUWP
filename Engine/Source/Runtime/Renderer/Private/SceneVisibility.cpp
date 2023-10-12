@@ -1156,7 +1156,7 @@ void FRelevancePacket::Finalize()
 	NaniteCustomDepthInstances.AppendTo(WriteView.NaniteCustomDepthInstances);
 	WriteView.bUsesCustomDepth |= bUsesCustomDepth;
 	WriteView.bUsesCustomStencil |= bUsesCustomStencil;
-	WriteView.SubstrateViewData.MaxBSDFCount = FMath::Max(WriteView.SubstrateViewData.MaxBSDFCount, 8u - FMath::CountLeadingZeros8(SubstrateBSDFCountMask));
+	WriteView.SubstrateViewData.MaxClosureCount = FMath::Max(WriteView.SubstrateViewData.MaxClosureCount, 8u - FMath::CountLeadingZeros8(SubstrateClosureCountMask));
 	WriteView.SubstrateViewData.MaxBytesPerPixel = FMath::Max(WriteView.SubstrateViewData.MaxBytesPerPixel, SubstrateUintPerPixel * 4u);
 	WriteView.SubstrateViewData.bUsesComplexSpecialRenderPath |= bUsesComplexSpecialRenderPath;
 	DirtyIndirectLightingCacheBufferPrimitives.AppendTo(WriteView.DirtyIndirectLightingCacheBufferPrimitives);
@@ -1226,7 +1226,7 @@ void FRelevancePacket::ComputeRelevance(FDynamicPrimitiveIndexList& DynamicPrimi
 	CombinedShadingModelMask = 0;
 	SubstrateUintPerPixel = 0;
 	bUsesComplexSpecialRenderPath = false;
-	SubstrateBSDFCountMask = 0;
+	SubstrateClosureCountMask = 0;
 	bSceneHasSkyMaterial = 0;
 	bHasSingleLayerWaterMaterial = 0;
 	bUsesSecondStageDepthPass = 0;
@@ -1796,7 +1796,7 @@ void FRelevancePacket::ComputeRelevance(FDynamicPrimitiveIndexList& DynamicPrimi
 		CombinedShadingModelMask |= ViewRelevance.ShadingModelMask;
 		SubstrateUintPerPixel = FMath::Max(SubstrateUintPerPixel, ViewRelevance.SubstrateUintPerPixel);
 		bUsesComplexSpecialRenderPath |= ViewRelevance.bUsesComplexSpecialRenderPath;
-		SubstrateBSDFCountMask |= ViewRelevance.SubstrateBSDFCountMask;
+		SubstrateClosureCountMask |= ViewRelevance.SubstrateClosureCountMask;
 		bUsesLightingChannels |= ViewRelevance.bUsesLightingChannels;
 		bTranslucentSurfaceLighting |= ViewRelevance.bTranslucentSurfaceLighting;
 		bUsesCustomDepth |= (ViewRelevance.CustomDepthStencilUsageMask & 1) > 0;

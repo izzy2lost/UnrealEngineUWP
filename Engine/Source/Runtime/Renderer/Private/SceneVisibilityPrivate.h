@@ -648,7 +648,7 @@ private:
 	UE::Tasks::FTask ComputeRelevanceTask;
 	uint16 CombinedShadingModelMask = 0;
 	uint8 SubstrateUintPerPixel = 0;
-	uint8 SubstrateBSDFCountMask = 0;
+	uint8 SubstrateClosureCountMask = 0;
 	bool bUsesComplexSpecialRenderPath = false;
 	bool bHasDistortionPrimitives = false;
 	bool bHasCustomDepthPrimitives = false;

@@ -36,7 +36,7 @@ class FMaterialPrintInfoCS : public FGlobalShader
 	using FPermutationDomain = TShaderPermutationDomain<>;
 
 	BEGIN_SHADER_PARAMETER_STRUCT(FParameters, )
-		SHADER_PARAMETER(uint32, BSDFIndex)
+		SHADER_PARAMETER(uint32, ClosureIndex)
 		SHADER_PARAMETER_STRUCT_REF(FViewUniformShaderParameters, ViewUniformBuffer)
 		SHADER_PARAMETER_RDG_UNIFORM_BUFFER(FSubstrateGlobalUniformParameters, Substrate)
 		SHADER_PARAMETER_STRUCT_INCLUDE(FSceneTextureParameters, SceneTextures)
@@ -236,12 +236,11 @@ static void AddVisualizeMaterialPropertiesPasses(FRDGBuilder& GraphBuilder, cons
 	FRDGBufferRef PrintOffsetBuffer = GraphBuilder.CreateBuffer(FRDGBufferDesc::CreateBufferDesc(4, 2), TEXT("Substrate.DebugPrintPositionOffset"));
 	PrintOffsetBufferUAV = GraphBuilder.CreateUAV(PrintOffsetBuffer, PF_R32_UINT);
 	AddClearUAVPass(GraphBuilder, PrintOffsetBufferUAV, 50u);
-	const uint32 MaxBSDFCount = 8;
 
-	for (uint32 BSDFIndex=0; BSDFIndex < MaxBSDFCount; ++BSDFIndex)
+	for (uint32 ClosureIndex=0; ClosureIndex < SUBSTRATE_MAX_BSDF_COUNT; ++ClosureIndex)
 	{
 		FMaterialPrintInfoCS::FParameters* PassParameters = GraphBuilder.AllocParameters<FMaterialPrintInfoCS::FParameters>();
-		PassParameters->BSDFIndex = BSDFIndex;
+		PassParameters->ClosureIndex = ClosureIndex;
 		PassParameters->RWPositionOffsetBuffer = PrintOffsetBufferUAV;
 		PassParameters->ViewUniformBuffer = View.ViewUniformBuffer;
 		PassParameters->Substrate = Substrate::BindSubstrateGlobalUniformParameters(View);
@@ -249,7 +248,7 @@ static void AddVisualizeMaterialPropertiesPasses(FRDGBuilder& GraphBuilder, cons
 		ShaderPrint::SetParameters(GraphBuilder, View.ShaderPrintData, PassParameters->ShaderPrintParameters);
 
 		TShaderMapRef<FMaterialPrintInfoCS> ComputeShader(View.ShaderMap);
-		FComputeShaderUtils::AddPass(GraphBuilder, RDG_EVENT_NAME("Substrate::VisualizeMaterial(Print, BSDF=%d)", BSDFIndex), ComputeShader, PassParameters, FIntVector(1, 1, 1));
+		FComputeShaderUtils::AddPass(GraphBuilder, RDG_EVENT_NAME("Substrate::VisualizeMaterial(Print, Closure=%d)", ClosureIndex), ComputeShader, PassParameters, FIntVector(1, 1, 1));
 	}
 }
 

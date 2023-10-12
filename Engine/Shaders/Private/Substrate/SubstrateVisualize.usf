@@ -87,7 +87,7 @@ void DrawPixelFootprint(float3 P, float3 dPdx, float3 dPdy, uint2 PixelCoord)
 
 #if SHADER_MATERIALPRINT
 
-uint BSDFIndex;
+uint ClosureIndex;
 RWBuffer<uint> RWPositionOffsetBuffer;
 
 void PrintPixelType(inout FShaderPrintContext Ctx, in FSubstratePixelHeader Header, FFontColor InColor)
@@ -473,7 +473,7 @@ void PrintBSDF(inout FShaderPrintContext Context, inout FSubstrateAddressing Sub
 void PrintPixel(uint2 InCoord, float3 InWorldPosition, float3 V)
 {
 	FShaderPrintContext Context;
-	if (BSDFIndex > 0)
+	if (ClosureIndex > 0)
 	{
 		float2 PrintOffset;
 		PrintOffset.x = asfloat(RWPositionOffsetBuffer[0]);
@@ -501,7 +501,7 @@ void PrintPixel(uint2 InCoord, float3 InWorldPosition, float3 V)
 	float2 RectMax = Context.StartPos;
 
 	// Header
-	if (BSDFIndex < Header.BSDFCount && BSDFIndex == 0)
+	if (ClosureIndex < Header.BSDFCount && ClosureIndex == 0)
 	{
 		const FSubstrateTopLayerData TopLayerData = SubstrateUnpackTopLayerData((SUBSTRATE_TOP_LAYER_TYPE)Substrate.TopLayerTexture.Load(uint3(InCoord, 0)));
 
@@ -563,11 +563,11 @@ void PrintPixel(uint2 InCoord, float3 InWorldPosition, float3 V)
 	}
 
 	// BSDFs
-	if (BSDFIndex < Header.BSDFCount)
+	if (ClosureIndex < Header.BSDFCount)
 	{
-		if (BSDFIndex > 0)
+		if (ClosureIndex > 0)
 		{
-			const uint AddressOffset = UnpackBSDFOffsetAtIndex(Substrate.BSDFOffsetTexture[InCoord], BSDFIndex, Header.BSDFCount);
+			const uint AddressOffset = UnpackBSDFOffsetAtIndex(Substrate.BSDFOffsetTexture[InCoord], ClosureIndex, Header.BSDFCount);
 			SubstrateSeekBSDF(SubstrateAddressing, AddressOffset);
 		}
 
@@ -581,7 +581,7 @@ void PrintPixel(uint2 InCoord, float3 InWorldPosition, float3 V)
 	}
 
 	// Memory footprint
-	if (BSDFIndex+1 == Header.BSDFCount)
+	if (ClosureIndex+1 == Header.BSDFCount)
 	{
 		const bool bSubstrateMaterial = Header.BSDFCount > 0;
 		const bool bIsSimpleMaterial = Header.IsSimpleMaterial() || Header.BSDFCount == 0;
@@ -711,10 +711,10 @@ void VisualizeMaterialPS(
 	if (ViewMode == 2)
 	{
 		// BSDF count
-		const float MaxBSDFCount = 4.f;
+		const float MaxClosureCount = SUBSTRATE_MAX_BSDF_COUNT;
 		if (Header.BSDFCount > 0)
 		{
-			const float BSDFCost = saturate(float(Header.BSDFCount) / MaxBSDFCount);
+			const float BSDFCost = saturate(float(Header.BSDFCount) / MaxClosureCount);
 			OutColor.xyz = ColorMapTurbo(BSDFCost);
 		}
 	
@@ -722,10 +722,10 @@ void VisualizeMaterialPS(
 		if (all(uint2(SVPos.xy) == uint2(0,0)))
 		{
 			FShaderPrintContext Context = InitShaderPrintContext(true, uint2(50, 50));
-			Print(Context, TEXT("1 BSDF"), InitFontColor(ColorMapTurbo(1 / MaxBSDFCount))); Newline(Context);
-			Print(Context, TEXT("2 BSDF"), InitFontColor(ColorMapTurbo(2 / MaxBSDFCount))); Newline(Context);
-			Print(Context, TEXT("3 BSDF"), InitFontColor(ColorMapTurbo(3 / MaxBSDFCount))); Newline(Context);
-			Print(Context, TEXT("4 BSDF"), InitFontColor(ColorMapTurbo(4 / MaxBSDFCount))); Newline(Context);
+			Print(Context, TEXT("1 BSDF"), InitFontColor(ColorMapTurbo(1 / MaxClosureCount))); Newline(Context);
+			Print(Context, TEXT("2 BSDF"), InitFontColor(ColorMapTurbo(2 / MaxClosureCount))); Newline(Context);
+			Print(Context, TEXT("3 BSDF"), InitFontColor(ColorMapTurbo(3 / MaxClosureCount))); Newline(Context);
+			Print(Context, TEXT("4 BSDF"), InitFontColor(ColorMapTurbo(4 / MaxClosureCount))); Newline(Context);
 		}
 	}
 	else if (ViewMode == 3)
@@ -734,7 +734,7 @@ void VisualizeMaterialPS(
 		FSubstratePixelHeader Header = UnpackSubstrateHeaderIn(Substrate.MaterialTextureArray, SubstrateAddressing, Substrate.TopLayerTexture);
 
 		uint MaterialBytePerPixel = 0;
-		Substrate_for (uint BSDFIndex = 0, BSDFIndex < Header.BSDFCount, ++BSDFIndex)
+		Substrate_for (uint ClosureIndex = 0, ClosureIndex < Header.BSDFCount, ++ClosureIndex)
 		{
 			// Unpack BSDF data
 			FSubstrateBSDF BSDF = UnpackSubstrateBSDF(Substrate.MaterialTextureArray, SubstrateAddressing, Header);

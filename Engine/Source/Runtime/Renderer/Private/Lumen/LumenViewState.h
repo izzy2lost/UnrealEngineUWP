@@ -55,7 +55,7 @@ public:
 	FLumenGatherCvarState LumenGatherCvars;
 	FIntPoint HistorySceneTexturesExtent;
 	FIntPoint HistoryEffectiveResolution;
-	uint32 HistorySubstrateMaxBSDFCount;
+	uint32 HistorySubstrateMaxClosureCount;
 	uint32 HistorySubstrateLayerCount;
 
 	FScreenProbeGatherTemporalState()
@@ -66,7 +66,7 @@ public:
 		ProbeHistoryScreenPositionScaleBias = FVector4f(0, 0, 0, 0);
 		HistorySceneTexturesExtent = FIntPoint(0,0);
 		HistoryEffectiveResolution = FIntPoint(0,0);
-		HistorySubstrateMaxBSDFCount = 0;
+		HistorySubstrateMaxClosureCount = 0;
 		HistorySubstrateLayerCount = 0;
 	}
 
@@ -192,7 +192,7 @@ public:
 	FVector4f HistoryScreenPositionScaleBias;
 	FIntPoint HistorySceneTexturesExtent;
 	FIntPoint HistoryEffectiveResolution;
-	uint32 HistorySubstrateMaxBSDFCount;
+	uint32 HistorySubstrateMaxClosureCount;
 	uint32 HistorySubstrateLayerCount;
 
 	TRefCountPtr<IPooledRenderTarget> SpecularIndirectHistoryRT;
@@ -208,7 +208,7 @@ public:
 		HistoryScreenPositionScaleBias = FVector4f(0, 0, 0, 0);
 		HistorySceneTexturesExtent = FIntPoint(0,0);
 		HistoryEffectiveResolution = FIntPoint(0,0);
-		HistorySubstrateMaxBSDFCount = 0;
+		HistorySubstrateMaxClosureCount = 0;
 		HistorySubstrateLayerCount = 0;
 	}
 

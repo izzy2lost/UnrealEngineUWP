@@ -891,7 +891,7 @@ void UpdateHistoryReflections(
 		TRefCountPtr<IPooledRenderTarget>* ResolveVarianceHistoryState = &ReflectionTemporalState.ResolveVarianceHistoryRT;
 		FIntRect* HistoryViewRect = &ReflectionTemporalState.HistoryViewRect;
 		FVector4f* HistoryScreenPositionScaleBias = &ReflectionTemporalState.HistoryScreenPositionScaleBias;
-		const bool bOverflowTileHistoryValid = Substrate::IsSubstrateEnabled() && !bTranslucentReflection ? View.SubstrateViewData.MaxBSDFCount == ReflectionTemporalState.HistorySubstrateMaxBSDFCount : true;
+		const bool bOverflowTileHistoryValid = Substrate::IsSubstrateEnabled() && !bTranslucentReflection ? View.SubstrateViewData.MaxClosureCount == ReflectionTemporalState.HistorySubstrateMaxClosureCount : true;
 
 		FRDGTextureRef OldDepthHistory = View.ViewState->Lumen.DepthHistoryRT ? GraphBuilder.RegisterExternalTexture(View.ViewState->Lumen.DepthHistoryRT) : SceneTextures.Depth.Target;
 		{
@@ -990,7 +990,7 @@ void UpdateHistoryReflections(
 		ReflectionTemporalState.HistoryScreenPositionScaleBias = View.GetScreenPositionScaleBias(SceneTextures.Config.Extent, View.ViewRect);
 		ReflectionTemporalState.HistoryEffectiveResolution = EffectiveResolution;
 		ReflectionTemporalState.HistorySceneTexturesExtent = SceneTextures.Config.Extent;
-		ReflectionTemporalState.HistorySubstrateMaxBSDFCount = View.SubstrateViewData.MaxBSDFCount;
+		ReflectionTemporalState.HistorySubstrateMaxClosureCount = View.SubstrateViewData.MaxClosureCount;
 		ReflectionTemporalState.HistorySubstrateLayerCount = View.SubstrateViewData.LayerCount;
 
 		// Queue updating the view state's render target reference with the new values

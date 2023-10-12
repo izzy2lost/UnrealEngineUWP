@@ -18,7 +18,7 @@ struct FMaterialRelevance
 		{
 			uint16 ShadingModelMask;
 			uint8 SubstrateUintPerPixel;
-			uint8 SubstrateBSDFCountMask;
+			uint8 SubstrateClosureCountMask;
 			uint8 bUsesComplexSpecialRenderPath : 1;
 			uint8 bOpaque : 1;
 			uint8 bMasked : 1;

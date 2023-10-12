@@ -133,8 +133,8 @@ struct FSubstrateSceneData
 
 struct FSubstrateViewData
 {
-	// Max BSDF count among all visible materials
-	uint32 MaxBSDFCount = 0;
+	// Max BytePerPixel & max Closure count among all visible materials
+	uint32 MaxClosureCount = 0;
 	uint32 MaxBytesPerPixel = 0;
 
 	// True if any material requires the complex special path (e.g. glints or SpecularLUT)

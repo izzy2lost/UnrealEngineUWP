@@ -509,7 +509,7 @@ FMaterialRelevance UMaterialInterface::GetRelevance_Internal(const UMaterial* Ma
 		MaterialRelevance.bUsesSkyMaterial = Material->bIsSky;
 		MaterialRelevance.bUsesSingleLayerWaterMaterial = bUsesSingleLayerWaterMaterial;
 		MaterialRelevance.bUsesAnisotropy = bUsesAnisotropy;
-		MaterialRelevance.SubstrateBSDFCountMask = SubstrateBSDFCountMask;
+		MaterialRelevance.SubstrateClosureCountMask = SubstrateBSDFCountMask;
 		MaterialRelevance.SubstrateUintPerPixel = SubstrateUintPerPixel;
 		MaterialRelevance.bUsesComplexSpecialRenderPath = MaterialResource->MaterialGetSubstrateUsesComplexSpecialRenderPath_GameThread();
 
