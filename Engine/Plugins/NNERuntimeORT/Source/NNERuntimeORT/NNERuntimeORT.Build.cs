@@ -17,7 +17,7 @@ public class NNERuntimeORT : ModuleRules
 				"Engine",
 				"NNE",
 				"NNEOnnxruntimeEditor",
-				"NNEUtils",
+				"NNEUtilities",
 				"Projects"
 			}
 		);

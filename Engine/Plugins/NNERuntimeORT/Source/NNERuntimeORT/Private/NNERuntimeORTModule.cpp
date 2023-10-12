@@ -3,7 +3,7 @@
 #include "NNERuntimeORTModule.h"
 #include "NNE.h"
 #include "NNERuntimeORT.h"
-#include "NNERuntimeORTThirdPartyIncludeHelper.h"
+#include "NNEUtilitiesORTIncludeHelper.h"
 #include "HAL/FileManager.h"
 #include "HAL/PlatformProcess.h"
 #include "Interfaces/IPluginManager.h"

@@ -10,7 +10,7 @@
 #include "NNEModelOptimizerInterface.h"
 #include "NNERuntimeORTModel.h"
 #include "NNERuntimeORTUtils.h"
-#include "NNEUtilsModelOptimizer.h"
+#include "NNEUtilitiesModelOptimizer.h"
 
 #include UE_INLINE_GENERATED_CPP_BY_NAME(NNERuntimeORT)
 
@@ -37,7 +37,7 @@ TSharedPtr<UE::NNE::FSharedModelData> UNNERuntimeORTDml::CreateModelData(FString
 		return {};
 	}
 
-	TUniquePtr<UE::NNE::Internal::IModelOptimizer> Optimizer = UE::NNEUtils::Internal::CreateONNXToONNXModelOptimizer();
+	TUniquePtr<UE::NNE::Internal::IModelOptimizer> Optimizer = UE::NNEUtilities::Internal::CreateONNXToONNXModelOptimizer();
 
 	FNNEModelRaw InputModel;
 	InputModel.Data = FileData;
@@ -65,7 +65,7 @@ TSharedPtr<UE::NNE::FSharedModelData> UNNERuntimeORTCpu::CreateModelData(FString
 		return {};
 	}
 
-	TUniquePtr<UE::NNE::Internal::IModelOptimizer> Optimizer = UE::NNEUtils::Internal::CreateONNXToONNXModelOptimizer();
+	TUniquePtr<UE::NNE::Internal::IModelOptimizer> Optimizer = UE::NNEUtilities::Internal::CreateONNXToONNXModelOptimizer();
 
 	FNNEModelRaw InputModel;
 	InputModel.Data = FileData;

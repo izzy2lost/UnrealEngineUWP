@@ -7,9 +7,9 @@
 #include "NNEModelData.h"
 #include "NNERuntimeCPU.h"
 #include "NNERuntimeGPU.h"
-#include "NNERuntimeORTThirdPartyIncludeHelper.h"
 #include "NNETensor.h"
 #include "NNETypes.h"
+#include "NNEUtilitiesORTIncludeHelper.h"
 
 namespace UE::NNERuntimeORT::Private
 {

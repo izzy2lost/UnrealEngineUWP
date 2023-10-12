@@ -90,7 +90,7 @@ namespace UE::NNERuntimeRDG::Private::Hlsl
 			check(InputTensorDescs.Num() == 3);
 			check(OutputTensorDescs.Num() == 1);
 
-			Epsilon = Attributes.GetValue<float>(TEXT("epsilon"));
+			Epsilon = Attributes.GetValueOrDefault<float>(TEXT("epsilon"), 1e-5f);
 
 			// For testing only
 			TInstanceNormalizationCS::LexFromString(Algorithm, *Attributes.GetValueOrDefault<FString>(TEXT("__UE__algorithm"), "MAX"));
@@ -151,7 +151,7 @@ namespace UE::NNERuntimeRDG::Private::Hlsl
 		bool bIsValid = true;
 
 		FAttributeValidator AttributeValidator;
-		AttributeValidator.AddRequired(TEXT("epsilon"), ENNEAttributeDataType::Float);
+		AttributeValidator.AddOptional(TEXT("epsilon"), ENNEAttributeDataType::Float);
 		AttributeValidator.AddOptional(TEXT("__UE__algorithm"), ENNEAttributeDataType::String);
 		bIsValid &= AttributeValidator.Validate(AttributeMap);
 

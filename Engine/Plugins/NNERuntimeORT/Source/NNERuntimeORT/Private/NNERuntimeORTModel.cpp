@@ -10,7 +10,7 @@
 #include "Windows/WindowsHWrapper.h"
 #endif //PLATFORM_WINDOWS
 
-#include "NNERuntimeORTThirdPartyWarningDisabler.h"
+#include "NNEUtilitiesThirdPartyWarningDisabler.h"
 NNE_THIRD_PARTY_INCLUDES_START
 
 #undef check
