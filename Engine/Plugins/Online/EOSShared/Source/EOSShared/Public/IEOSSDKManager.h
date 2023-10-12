@@ -33,7 +33,7 @@ struct FEOSSDKPlatformConfig
 	bool bWindowsEnableOverlayD3D10 = false;
 	bool bWindowsEnableOverlayOpenGL = false;
 	bool bEnableRTC = true;
-	int32 TickBudgetInMilliseconds = 0;
+	int32 TickBudgetInMilliseconds = 1;
 	TArray<FString> OptionalConfig;
 };
 
