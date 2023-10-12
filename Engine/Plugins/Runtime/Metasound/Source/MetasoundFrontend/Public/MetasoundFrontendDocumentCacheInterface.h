@@ -4,6 +4,7 @@
 #include "Containers/Array.h"
 #include "HAL/Platform.h"
 #include "MetasoundFrontendDocumentModifyDelegates.h"
+#include "MetasoundFrontendRegistryKey.h"
 #include "Templates/SharedPointer.h"
 #include "UObject/Interface.h"
 
@@ -21,8 +22,6 @@ struct FMetasoundFrontendVertex;
 
 namespace Metasound::Frontend
 {
-	using FNodeRegistryKey = FString;
-
 	/** Interface for querying cached document nodes. */
 	class IDocumentGraphNodeCache : public TSharedFromThis<IDocumentGraphNodeCache>
 	{

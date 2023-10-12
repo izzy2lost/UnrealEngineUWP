@@ -27,18 +27,26 @@ void FMetasoundAutomatedNodeTest_Reset::GetTests(TArray<FString>& OutBeautifiedN
 	UE_LOG(LogMetaSound, Verbose, TEXT("Found %d metasound nodes to test"), OutTestCommands.Num());
 }
 
-bool FMetasoundAutomatedNodeTest_Reset::RunTest(const FString& InRegistryKey)
+bool FMetasoundAutomatedNodeTest_Reset::RunTest(const FString& InRegistryKeyString)
 {
 	using namespace Metasound;
 	using namespace Metasound::EngineTest;
+	using namespace Metasound::Frontend;
 
 	static const FOperatorSettings OperatorSettings{48000  /* samplerate */, 100.f /* block rate */};
 	static const FMetasoundEnvironment SourceEnvironment = GetSourceEnvironmentForTest();
 
-	TUniquePtr<INode> Node = CreateNodeFromRegistry(InRegistryKey);
+	FNodeRegistryKey RegistryKey;
+	if (!FNodeRegistryKey::Parse(InRegistryKeyString, RegistryKey))
+	{
+		AddError(FString::Printf(TEXT("Failed to parse registry key string %s"), *InRegistryKeyString));
+		return false;
+	}
+
+	TUniquePtr<INode> Node = CreateNodeFromRegistry(RegistryKey);
 	if (!Node.IsValid())
 	{
-		AddError(FString::Printf(TEXT("Failed to create node %s from registry"), *InRegistryKey));
+		AddError(FString::Printf(TEXT("Failed to create node %s from registry"), *InRegistryKeyString));
 		return false;
 	}
 
@@ -74,7 +82,7 @@ bool FMetasoundAutomatedNodeTest_Reset::RunTest(const FString& InRegistryKey)
 
 		if (!Operator.IsValid())
 		{
-			AddError(FString::Printf(TEXT("Failed to create operator from node %s - %s."), *InRegistryKey, *GetPrettyName(InRegistryKey)));
+			AddError(FString::Printf(TEXT("Failed to create operator from node %s - %s."), *InRegistryKeyString, *GetPrettyName(RegistryKey)));
 		}
 
 		// Store a copy of the input values data values so the inputs
@@ -123,14 +131,14 @@ bool FMetasoundAutomatedNodeTest_Reset::RunTest(const FString& InRegistryKey)
 		}
 		else if (OpExecFunc)
 		{
-			AddError(FString::Printf(TEXT("Missing initialize function when execute function exists for node %s - %s"), *InRegistryKey, *GetPrettyName(InRegistryKey)));
+			AddError(FString::Printf(TEXT("Missing initialize function when execute function exists for node %s - %s"), *InRegistryKeyString, *GetPrettyName(RegistryKey)));
 		}
 
 		// Check that after returning all inputs to their original state and calling
 		// reset on the operator, that all output values have returned to their initail state. 
 		if (!OutputTester.AreAllOutputValuesEqualToCapturedValues())
 		{
-			AddError(FString::Printf(TEXT("Reset function resulted in different starting conditions for node %s - %s"), *InRegistryKey, *GetPrettyName(InRegistryKey)));
+			AddError(FString::Printf(TEXT("Reset function resulted in different starting conditions for node %s - %s"), *InRegistryKeyString, *GetPrettyName(RegistryKey)));
 		}
 	};
 

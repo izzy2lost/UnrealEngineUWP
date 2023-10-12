@@ -33,58 +33,6 @@ namespace Metasound
 	{
 		namespace MetasoundFrontendRegistryPrivate
 		{
-			const FString& GetClassTypeString(EMetasoundFrontendClassType InType)
-			{
-				static const FString InputType(TEXT("Input"));
-				static const FString OutputType(TEXT("Output"));
-				static const FString ExternalType(TEXT("External"));
-				static const FString VariableAccessorType(TEXT("VariableAccessor"));
-				static const FString VariableDeferredAccessorType(TEXT("VariableDeferredAccessor"));
-				static const FString VariableMutatorType(TEXT("VariableMutator"));
-				static const FString VariableType(TEXT("Variable"));
-				static const FString LiteralType(TEXT("Literal"));
-				static const FString GraphType(TEXT("Graph"));
-				static const FString TemplateType(TEXT("Template"));
-				static const FString InvalidType(TEXT("Invalid"));
-
-				switch (InType)
-				{
-					case EMetasoundFrontendClassType::Input:
-						return InputType;
-
-					case EMetasoundFrontendClassType::Output:
-						return OutputType;
-
-					case EMetasoundFrontendClassType::External:
-						return ExternalType;
-
-					case EMetasoundFrontendClassType::Literal:
-						return LiteralType;
-
-					case EMetasoundFrontendClassType::Variable:
-						return VariableType;
-						
-					case EMetasoundFrontendClassType::VariableDeferredAccessor:
-						return VariableDeferredAccessorType;
-
-					case EMetasoundFrontendClassType::VariableAccessor:
-						return VariableAccessorType;
-
-					case EMetasoundFrontendClassType::VariableMutator:
-						return VariableMutatorType;
-
-					case EMetasoundFrontendClassType::Template:
-						return TemplateType;
-
-					case EMetasoundFrontendClassType::Graph:
-						return GraphType;
-
-					default:
-						static_assert(static_cast<uint8>(EMetasoundFrontendClassType::Invalid) == 10, "Missing EMetasoundFrontendClassType case coverage");
-						return InvalidType;
-				}
-			}
-
 			// FGraphNode is used to create unique INodes based off of a IGraph. 
 			//
 			// Individual nodes need to reflect their InstanceName and InstanceID, but otherwise
@@ -348,7 +296,7 @@ namespace Metasound
 			// Because creation of external nodes can rely on assets being unavailable due to errors in loading order, asset(s)
 			// missing, etc. only log error and don't throw ensure to avoid blocking start-up if assets are missing. All other
 			// CreateNode calls are natively managed and thus better suited to throw ensures.
-			UE_LOG(LogMetaSound, Error, TEXT("Could not find node [RegistryKey:%s]"), *InKey);
+			UE_LOG(LogMetaSound, Error, TEXT("Could not find node [RegistryKey:%s]"), *InKey.ToString());
 			return nullptr;
 		}
 
@@ -356,7 +304,7 @@ namespace Metasound
 		{
 			const INodeRegistryEntry* Entry = FindNodeEntry(InKey);
 
-			if (ensureAlwaysMsgf(nullptr != Entry, TEXT("Could not find node [RegistryKey:%s]"), *InKey))
+			if (ensureAlwaysMsgf(nullptr != Entry, TEXT("Could not find node [RegistryKey:%s]"), *InKey.ToString()))
 			{
 				return Entry->CreateNode(MoveTemp(InParams));
 			}
@@ -368,7 +316,7 @@ namespace Metasound
 		{
 			const INodeRegistryEntry* Entry = FindNodeEntry(InKey);
 
-			if (ensureAlwaysMsgf(nullptr != Entry, TEXT("Could not find node [RegistryKey:%s]"), *InKey))
+			if (ensureAlwaysMsgf(nullptr != Entry, TEXT("Could not find node [RegistryKey:%s]"), *InKey.ToString()))
 			{
 				return Entry->CreateNode(MoveTemp(InParams));
 			}
@@ -380,7 +328,7 @@ namespace Metasound
 		{
 			const INodeRegistryEntry* Entry = FindNodeEntry(InKey);
 
-			if (ensureAlwaysMsgf(nullptr != Entry, TEXT("Could not find node [RegistryKey:%s]"), *InKey))
+			if (ensureAlwaysMsgf(nullptr != Entry, TEXT("Could not find node [RegistryKey:%s]"), *InKey.ToString()))
 			{
 				return Entry->CreateNode(MoveTemp(InParams));
 			}
@@ -408,13 +356,15 @@ namespace Metasound
 
 		FNodeRegistryKey FRegistryContainerImpl::RegisterGraph(const FSoftObjectPath& InAssetPath, const TScriptInterface<IMetaSoundDocumentInterface>& InDocumentInterface, bool bAsync)
 		{
+			METASOUND_TRACE_CPUPROFILER_EVENT_SCOPE(Metasound::FRegistryContainerImpl::RegisterGraph);
+
 			using namespace UE;
 
 			check(InDocumentInterface);
 			check(IsInGameThread());
 
 			const FMetasoundFrontendDocument& Document = InDocumentInterface->GetConstDocument();
-			FNodeRegistryKey RegistryKey = NodeRegistryKey::CreateKey(Document.RootGraph);
+			FNodeRegistryKey RegistryKey = FNodeRegistryKey(Document.RootGraph);
 			FNodeClassInfo NodeClassInfo(Document.RootGraph, InAssetPath);
 
 			// Proxies are created synchronously to avoid creating proxies in async tasks. Proxies
@@ -428,7 +378,7 @@ namespace Metasound
 				FScopeLock LockActiveReg(&ActiveRegistrationTasksCriticalSection);
 				if (const FActiveRegistrationTaskInfo* ActiveTaskInfo = ActiveRegistrationTasks.Find(RegistryKey))
 				{
-					UE_LOG(LogMetaSound, Warning, TEXT("Waiting for async registration task to finish before beginning new registration task for same registration key (%s) with asset (%s))"), *RegistryKey, *InAssetPath.ToString());
+					UE_LOG(LogMetaSound, Warning, TEXT("Waiting for async registration task to finish before beginning new registration task for same registration key (%s) with asset (%s))"), *RegistryKey.ToString(), *InAssetPath.ToString());
 					ActiveTaskInfo->Task.Wait(FTimespan::FromSeconds(1.));
 				}
 			
@@ -452,7 +402,7 @@ namespace Metasound
 							int32 NumRemoved = Registry.ActiveRegistrationTasks.Remove(RegistryKey);
 							if (NumRemoved != 1)
 							{
-								UE_LOG(LogMetaSound, Warning, TEXT("Multiple active registration tasks for the same asset may result in incorrect MetaSound graphs being instantiated during runtime. Registry Key: (%s) Asset Path: (%s)"), *RegistryKey, *NodeClassInfo.AssetPath.ToString());
+								UE_LOG(LogMetaSound, Warning, TEXT("Multiple active registration tasks for the same asset may result in incorrect MetaSound graphs being instantiated during runtime. Registry Key: (%s) Asset Path: (%s)"), *RegistryKey.ToString(), *NodeClassInfo.AssetPath.ToString());
 							}
 						}
 					}
@@ -482,7 +432,7 @@ namespace Metasound
 
 			if (const TSharedPtr<const FGraph>* ExistingEntry = RegisteredGraphs.Find(GraphRegistryKey))
 			{
-				UE_LOG(LogMetaSound, Warning, TEXT("Multiple graphs are registered with the same registry key (%s) and asset path. The existing registered graph will be replaced with the new graph."),  *InKey, *InAssetPath.ToString());
+				UE_LOG(LogMetaSound, Warning, TEXT("Multiple graphs are registered with the same registry key (%s) and asset path. The existing registered graph will be replaced with the new graph."),  *InKey.ToString(), *InAssetPath.ToString());
 			}
 
 			RegisteredGraphs.Add(GraphRegistryKey, MoveTemp(InGraph));
@@ -521,7 +471,7 @@ namespace Metasound
 
 			if (!Graph)
 			{
-				UE_LOG(LogMetaSound, Error, TEXT("Could not find graph with registry key (%s) and asset (%s)."),  *InNodeRegistryKey, *InAssetPath.ToString());
+				UE_LOG(LogMetaSound, Error, TEXT("Could not find graph with registry key (%s) and asset (%s)."),  *InNodeRegistryKey.ToString(), *InAssetPath.ToString());
 			}
 
 			return Graph;
@@ -539,7 +489,7 @@ namespace Metasound
 
 				FNodeRegistryTransaction::FTimeType Timestamp = FPlatformTime::Cycles64();
 
-				Key = NodeRegistryKey::CreateKey(Entry->GetClassInfo());
+				Key = FNodeRegistryKey(Entry->GetClassInfo());
 
 				{
 					FScopeLock Lock(&RegistryMapsCriticalSection);
@@ -549,7 +499,7 @@ namespace Metasound
 					{
 						const FNodeClassInfo& ClassInfo = (*ExistingEntry)->GetClassInfo();
 						UE_LOG(LogMetaSound, Error, TEXT("Node with registry key '%s' already registered by asset '%s' encountered while registering node with asset %s. MetaSounds which depend on these assets may utilize incorrect asset." 
-						), *Key, *ClassInfo.AssetPath.ToString(), *Entry->GetClassInfo().AssetPath.ToString());
+						), *Key.ToString(), *ClassInfo.AssetPath.ToString(), *Entry->GetClassInfo().AssetPath.ToString());
 					}
 
 					// Store registry elements in map so nodes can be queried using registry key.
@@ -577,7 +527,7 @@ namespace Metasound
 
 				FNodeRegistryTransaction::FTimeType Timestamp = FPlatformTime::Cycles64();
 
-				Key = NodeRegistryKey::CreateKey(Entry->GetClassInfo());
+				Key = FNodeRegistryKey(Entry->GetClassInfo());
 
 				{
 					FScopeLock Lock(&RegistryMapsCriticalSection);
@@ -585,7 +535,7 @@ namespace Metasound
 					ensureAlwaysMsgf(
 						!RegisteredNodeTemplates.Contains(Key),
 						TEXT("Node template with registry key '%s' already registered. The previously registered node will be overwritten."),
-						*Key);
+						*Key.ToString());
 
 
 					// Store registry elements in map so nodes can be queried using registry key.
@@ -606,7 +556,7 @@ namespace Metasound
 			METASOUND_LLM_SCOPE;
 			
 			check(IsInGameThread());
-			if (NodeRegistryKey::IsValid(InKey))
+			if (InKey.IsValid())
 			{
 				FScopeLock Lock(&RegistryMapsCriticalSection);
 				if (const TSharedRef<INodeRegistryEntry, ESPMode::ThreadSafe>* EntryPtr = RegisteredNodes.Find(InKey))
@@ -630,7 +580,7 @@ namespace Metasound
 		{
 			METASOUND_LLM_SCOPE;
 
-			if (NodeRegistryKey::IsValid(InKey))
+			if (InKey.IsValid())
 			{
 				if (const INodeRegistryTemplateEntry* Entry = FindNodeTemplateEntry(InKey))
 				{
@@ -757,7 +707,7 @@ namespace Metasound
 				{
 					if (IDataTypeRegistry::Get().GetFrontendInputClass(InDataTypeName, Class))
 					{
-						OutKey = NodeRegistryKey::CreateKey(Class.Metadata);
+						OutKey = FNodeRegistryKey(Class.Metadata);
 						return true;
 					}
 				}
@@ -767,7 +717,7 @@ namespace Metasound
 				{
 					if (IDataTypeRegistry::Get().GetFrontendConstructorInputClass(InDataTypeName, Class))
 					{
-						OutKey = NodeRegistryKey::CreateKey(Class.Metadata);
+						OutKey = FNodeRegistryKey(Class.Metadata);
 						return true;
 					}
 				}
@@ -789,7 +739,7 @@ namespace Metasound
 			FMetasoundFrontendClass Class;
 			if (IDataTypeRegistry::Get().GetFrontendLiteralClass(InDataTypeName, Class))
 			{
-				OutKey = NodeRegistryKey::CreateKey(Class.Metadata);
+				OutKey = FNodeRegistryKey(Class.Metadata);
 				return true;
 			}
 			return false;
@@ -804,7 +754,7 @@ namespace Metasound
 				{
 					if (IDataTypeRegistry::Get().GetFrontendOutputClass(InDataTypeName, Class))
 					{
-						OutKey = NodeRegistryKey::CreateKey(Class.Metadata);
+						OutKey = FNodeRegistryKey(Class.Metadata);
 						return true;
 					}
 				}
@@ -814,7 +764,7 @@ namespace Metasound
 				{
 					if (IDataTypeRegistry::Get().GetFrontendConstructorOutputClass(InDataTypeName, Class))
 					{
-						OutKey = NodeRegistryKey::CreateKey(Class.Metadata);
+						OutKey = FNodeRegistryKey(Class.Metadata);
 						return true;
 					}
 				}
@@ -874,7 +824,6 @@ namespace Metasound
 				return TryFindNodeEntry();
 			}
 		}
-
 
 		const INodeRegistryTemplateEntry* FRegistryContainerImpl::FindNodeTemplateEntry(const FNodeRegistryKey& InKey) const
 		{
@@ -947,7 +896,7 @@ namespace Metasound
 
 		FNodeRegistryKey FNodeRegistryTransaction::GetNodeRegistryKey() const
 		{
-			return NodeRegistryKey::CreateKey(NodeClassInfo);
+			return FNodeRegistryKey(NodeClassInfo);
 		}
 
 		FNodeRegistryTransaction::FTimeType FNodeRegistryTransaction::GetTimestamp() const
@@ -957,7 +906,6 @@ namespace Metasound
 
 		namespace NodeRegistryKey
 		{
-			// All registry keys should be created through this function to ensure consistency.
 			FNodeRegistryKey CreateKey(EMetasoundFrontendClassType InType, const FString& InFullClassName, int32 InMajorVersion, int32 InMinorVersion)
 			{
 				using namespace MetasoundFrontendRegistryPrivate;
@@ -966,19 +914,20 @@ namespace Metasound
 					// No graphs are registered. Any registered graph should be registered as an external node.
 					InType = EMetasoundFrontendClassType::External;
 				}
-				const FString RegistryKey = FString::Format(TEXT("{0}_{1}_{2}.{3}"), {*GetClassTypeString(InType), *InFullClassName, InMajorVersion, InMinorVersion});
-				return RegistryKey;
+
+				FMetasoundFrontendClassName ClassName;
+				FMetasoundFrontendClassName::Parse(InFullClassName, ClassName);
+				return FNodeRegistryKey(InType, ClassName, InMajorVersion, InMinorVersion);
 			}
 
 			const FNodeRegistryKey& GetInvalid()
 			{
-				static const FNodeRegistryKey InvalidKey;
-				return InvalidKey;
+				return FNodeRegistryKey::GetInvalid();
 			}
 
 			bool IsValid(const FNodeRegistryKey& InKey)
 			{
-				return InKey != GetInvalid();
+				return InKey.IsValid();
 			}
 
 			bool IsEqual(const FNodeRegistryKey& InLHS, const FNodeRegistryKey& InRHS)
@@ -1018,60 +967,24 @@ namespace Metasound
 
 			FNodeRegistryKey CreateKey(const FNodeClassMetadata& InNodeMetadata)
 			{
-				return CreateKey(EMetasoundFrontendClassType::External, InNodeMetadata.ClassName.GetFullName().ToString(), InNodeMetadata.MajorVersion, InNodeMetadata.MinorVersion);
+				return FNodeRegistryKey(InNodeMetadata);
 			}
 
 			FNodeRegistryKey CreateKey(const FMetasoundFrontendClassMetadata& InNodeMetadata)
 			{
 				checkf(InNodeMetadata.GetType() != EMetasoundFrontendClassType::Graph, TEXT("Cannot create key from 'graph' type. Likely meant to use CreateKey overload that is provided FMetasoundFrontendGraphClass"));
-				return CreateKey(InNodeMetadata.GetType(), InNodeMetadata.GetClassName().GetFullName().ToString(), InNodeMetadata.GetVersion().Major, InNodeMetadata.GetVersion().Minor);
+				return FNodeRegistryKey(InNodeMetadata);
 			}
 
 			FNodeRegistryKey CreateKey(const FMetasoundFrontendGraphClass& InGraphClass)
 			{
-				return CreateKey(
-					EMetasoundFrontendClassType::External, // Overridden as all graphs are considered the same as an external in the registry
-					InGraphClass.Metadata.GetClassName().GetFullName().ToString(),
-					InGraphClass.Metadata.GetVersion().Major,
-					InGraphClass.Metadata.GetVersion().Minor
-				);
+				return FNodeRegistryKey(InGraphClass);
 			}
 
 			FNodeRegistryKey CreateKey(const FNodeClassInfo& InClassInfo)
 			{
-				checkf(InClassInfo.Type != EMetasoundFrontendClassType::Graph, TEXT("Cannot create key from 'graph' type. Likely meant to use CreateKey overload that is provided FMetasoundFrontendGraphClass"));
-				return CreateKey(InClassInfo.Type, InClassInfo.ClassName.GetFullName().ToString(), InClassInfo.Version.Major, InClassInfo.Version.Minor);
+				return FNodeRegistryKey(InClassInfo);
 			}
-		}
-
-		FNodeClassInfo::FNodeClassInfo(const FMetasoundFrontendClassMetadata& InMetadata)
-			: ClassName(InMetadata.GetClassName())
-			, Type(InMetadata.GetType())
-			, Version(InMetadata.GetVersion())
-		{
-		}
-
-		FNodeClassInfo::FNodeClassInfo(const FMetasoundFrontendGraphClass& InClass, const FSoftObjectPath& InAssetPath)
-			: ClassName(InClass.Metadata.GetClassName())
-			, Type(EMetasoundFrontendClassType::External) // Overridden as it is considered the same as an external class in the registry
-			, AssetClassID(FGuid(ClassName.Name.ToString()))
-			, AssetPath(InAssetPath)
-			, Version(InClass.Metadata.GetVersion())
-		{
-			ensure(!AssetPath.IsNull());
-#if WITH_EDITORONLY_DATA
-			for (const FMetasoundFrontendClassInput& Input : InClass.Interface.Inputs)
-			{
-				InputTypes.Add(Input.TypeName);
-			}
-
-			for (const FMetasoundFrontendClassOutput& Output : InClass.Interface.Outputs)
-			{
-				OutputTypes.Add(Output.TypeName);
-			}
-
-			bIsPreset = InClass.PresetOptions.bIsPreset;
-#endif // WITH_EDITORONLY_DATA
 		}
 	} // namespace Frontend
 } // namespace Metasound
@@ -1089,17 +1002,17 @@ void FMetasoundFrontendRegistryContainer::ShutdownMetasoundFrontend()
 
 Metasound::Frontend::FNodeRegistryKey FMetasoundFrontendRegistryContainer::GetRegistryKey(const FNodeClassMetadata& InNodeMetadata)
 {
-	return Metasound::Frontend::NodeRegistryKey::CreateKey(InNodeMetadata);
+	return Metasound::Frontend::FNodeRegistryKey(InNodeMetadata);
 }
 
 Metasound::Frontend::FNodeRegistryKey FMetasoundFrontendRegistryContainer::GetRegistryKey(const FMetasoundFrontendClassMetadata& InNodeMetadata)
 {
-	return Metasound::Frontend::NodeRegistryKey::CreateKey(InNodeMetadata);
+	return Metasound::Frontend::FNodeRegistryKey(InNodeMetadata);
 }
 
 Metasound::Frontend::FNodeRegistryKey FMetasoundFrontendRegistryContainer::GetRegistryKey(const FNodeClassInfo& InClassInfo)
 {
-	return Metasound::Frontend::NodeRegistryKey::CreateKey(InClassInfo);
+	return Metasound::Frontend::FNodeRegistryKey(InClassInfo);
 }
 
 bool FMetasoundFrontendRegistryContainer::GetFrontendClassFromRegistered(const FNodeRegistryKey& InKey, FMetasoundFrontendClass& OutClass)
@@ -1118,7 +1031,9 @@ bool FMetasoundFrontendRegistryContainer::GetNodeClassInfoFromRegistered(const F
 {
 	if (FMetasoundFrontendRegistryContainer* Registry = FMetasoundFrontendRegistryContainer::Get())
 	{
+		PRAGMA_DISABLE_DEPRECATION_WARNINGS
 		return Registry->FindNodeClassInfoFromRegistered(InKey, OutInfo);
+		PRAGMA_ENABLE_DEPRECATION_WARNINGS
 	}
 	return false;
 }

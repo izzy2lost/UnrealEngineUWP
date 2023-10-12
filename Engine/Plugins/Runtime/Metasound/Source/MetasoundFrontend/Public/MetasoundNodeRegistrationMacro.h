@@ -119,7 +119,7 @@ namespace Metasound
 
 
 		Frontend::FNodeRegistryKey Key = FMetasoundFrontendRegistryContainer::Get()->RegisterNode(MakeUnique<FNodeRegistryEntry>(InMetadata));
-		const bool bSuccessfullyRegisteredNode = Frontend::NodeRegistryKey::IsValid(Key);
+		const bool bSuccessfullyRegisteredNode = Key.IsValid();
 		ensureAlwaysMsgf(bSuccessfullyRegisteredNode, TEXT("Registering node class failed. Please check the logs."));
 
 		return bSuccessfullyRegisteredNode;

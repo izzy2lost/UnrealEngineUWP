@@ -52,7 +52,7 @@ namespace Metasound
 			if (ensure(nullptr != Registry))
 			{
 				bool bSuccess = Registry->FindFrontendClassFromRegistered(InKey, OutClass);
-				ensureAlwaysMsgf(bSuccess, TEXT("Cannot generate description of unregistered node [RegistryKey:%s]"), *InKey);
+				ensureAlwaysMsgf(bSuccess, TEXT("Cannot generate description of unregistered node [RegistryKey:%s]"), *InKey.ToString());
 			}
 
 			return OutClass;
@@ -109,7 +109,7 @@ class FMetasoundFrontendModule : public IModuleInterface
 	{
 		using namespace Metasound::Frontend;
 
-		UnregisterNodeTemplate(FRerouteNodeTemplate::Version);
+		UnregisterNodeTemplate(FRerouteNodeTemplate::ClassName, FRerouteNodeTemplate::VersionNumber);
 	}
 };
 

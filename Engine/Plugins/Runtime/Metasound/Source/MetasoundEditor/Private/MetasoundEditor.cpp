@@ -32,6 +32,7 @@
 #include "Kismet2/KismetEditorUtilities.h"
 #include "Logging/TokenizedMessage.h"
 #include "Metasound.h"
+#include "MetasoundAssetSubsystem.h"
 #include "MetasoundBuilderSubsystem.h"
 #include "MetasoundDocumentInterface.h"
 #include "MetasoundEditorCommands.h"
@@ -1824,18 +1825,11 @@ namespace Metasound
 			if (UMetasoundEditorGraphExternalNode* ExternalNode = Cast<UMetasoundEditorGraphExternalNode>(InNode))
 			{
 				FConstNodeHandle NodeHandle = ExternalNode->GetConstNodeHandle();
-				FNodeRegistryKey Key = FMetasoundFrontendRegistryContainer::Get()->GetRegistryKey(NodeHandle->GetClassMetadata());
+				const FNodeRegistryKey Key(NodeHandle->GetClassMetadata());
 
-				FNodeClassInfo ClassInfo;
-				if (FMetasoundFrontendRegistryContainer::Get()->FindNodeClassInfoFromRegistered(Key, ClassInfo))
+				if (const FSoftObjectPath* AssetObject = UMetaSoundAssetSubsystem::GetChecked().FindObjectPathFromKey(Key))
 				{
-					if (ClassInfo.AssetClassID.IsValid())
-					{
-						if (UObject* AssetObject = ClassInfo.LoadAsset())
-						{
-							GEditor->GetEditorSubsystem<UAssetEditorSubsystem>()->OpenEditorForAsset(AssetObject);
-						}
-					}
+					GEditor->GetEditorSubsystem<UAssetEditorSubsystem>()->OpenEditorForAsset(*AssetObject);
 				}
 			}
 		}
@@ -2477,7 +2471,7 @@ namespace Metasound
 					FMetasoundFrontendClassMetadata LookupMetadata;
 					LookupMetadata.SetClassName(ExternalNode->GetClassName());
 					LookupMetadata.SetType(EMetasoundFrontendClassType::External);
-					const FNodeRegistryKey PastedRegistryKey = NodeRegistryKey::CreateKey(LookupMetadata);
+					const FNodeRegistryKey PastedRegistryKey = FNodeRegistryKey(LookupMetadata);
 					if (const FSoftObjectPath* AssetPath = IMetaSoundAssetManager::GetChecked().FindObjectPathFromKey(PastedRegistryKey))
 					{
 						if (MetasoundAsset->AddingReferenceCausesLoop(*AssetPath))
@@ -2948,7 +2942,7 @@ namespace Metasound
 					const bool bHasNewVersion = HighestVersion.IsValid() && HighestVersion > Metadata.GetVersion();
 
 					// Check for non-native classes
-					const FNodeRegistryKey RegistryKey = NodeRegistryKey::CreateKey(Metadata);
+					const FNodeRegistryKey RegistryKey = FNodeRegistryKey(Metadata);
 					const bool bIsClassNative = FMetasoundFrontendRegistryContainer::Get()->IsNodeNative(RegistryKey);
 
 					if (bHasNewVersion || !bIsClassNative)

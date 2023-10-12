@@ -2,6 +2,7 @@
 #pragma once
 
 #include "MetasoundVertex.h"
+#include "MetasoundFrontendRegistryKey.h"
 #include "UObject/SoftObjectPath.h"
 #include "UObject/WeakObjectPtrTemplates.h"
 
@@ -14,8 +15,6 @@ namespace Metasound
 {
 	namespace Frontend
 	{
-		using FNodeRegistryKey = FString;
-
 		namespace AssetTags
 		{
 			extern const FString METASOUNDFRONTEND_API ArrayDelim;

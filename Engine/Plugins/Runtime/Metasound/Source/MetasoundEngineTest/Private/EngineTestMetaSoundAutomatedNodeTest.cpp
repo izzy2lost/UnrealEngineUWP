@@ -668,7 +668,7 @@ namespace Metasound::EngineTest{
 		FMetasoundFrontendClass NodeClass;
 		if (!NodeRegistry->FindFrontendClassFromRegistered(InNodeRegistryKey, NodeClass))
 		{
-			UE_LOG(LogMetaSound, Error, TEXT("Failed to find registered class with registry key %s"), *InNodeRegistryKey);
+			UE_LOG(LogMetaSound, Error, TEXT("Failed to find registered class with registry key %s"), *InNodeRegistryKey.ToString());
 			return MoveTemp(Node);
 		}
 
@@ -753,11 +753,11 @@ namespace Metasound::EngineTest{
 				continue;
 			}
 
-			Frontend::FNodeRegistryKey NodeRegistryKey = NodeRegistry->GetRegistryKey(NodeClass.Metadata);
-			
 			OutBeautifiedNames.Add(FString::Printf(TEXT("%s %s"), *NodeClass.Metadata.GetClassName().ToString(), *NodeClass.Metadata.GetVersion().ToString()));
+
 			// Test commands are node registry keys
-			OutTestCommands.Add(NodeRegistryKey);
+			Frontend::FNodeRegistryKey NodeRegistryKey(NodeClass.Metadata);
+			OutTestCommands.Add(NodeRegistryKey.ToString());
 		}
 	}
 

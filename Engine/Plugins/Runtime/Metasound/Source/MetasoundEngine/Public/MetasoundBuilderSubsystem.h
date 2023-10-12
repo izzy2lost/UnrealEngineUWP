@@ -424,7 +424,7 @@ protected:
 					DocClassName = &ExistingDoc.RootGraph.Metadata.GetClassName();
 				}
 				const FNodeRegistryKey& RegistryKey = MetaSound->GetRegistryKey();
-				if (NodeRegistryKey::IsValid(RegistryKey))
+				if (RegistryKey.IsValid())
 				{
 					if (FMetasoundFrontendRegistryContainer::Get()->IsNodeRegistered(RegistryKey))
 					{

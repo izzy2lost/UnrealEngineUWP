@@ -26,6 +26,9 @@ namespace Metasound::Frontend
 	public:
 		virtual ~INodeTemplate() = default;
 
+		// Returns note template class name.
+		virtual const FMetasoundFrontendClassName& GetClassName() const = 0;
+
 		UE_DEPRECATED(5.4, "Use version that does not provide a preprocessed document")
 		virtual TUniquePtr<INodeTransform> GenerateNodeTransform(FMetasoundFrontendDocument& InDocument) const { return nullptr; }
 
@@ -41,8 +44,11 @@ namespace Metasound::Frontend
 		// Returns access type of the given output within the provided builder's document
 		virtual EMetasoundFrontendVertexAccessType GetNodeOutputAccessType(const FMetaSoundFrontendDocumentBuilder& InBuilder, const FGuid& InNodeID, const FGuid& InVertexID) const = 0;
 
-		// Returns the version of the given node class template.
-		virtual const FMetasoundFrontendVersion& GetVersion() const = 0;
+		UE_DEPRECATED(5.4, "Use version number or classname instead")
+		virtual const FMetasoundFrontendVersion& GetVersion() const { const static FMetasoundFrontendVersion NullVersion; return NullVersion; }
+
+		// Returns note template class version.
+		virtual const FMetasoundFrontendVersionNumber& GetVersionNumber() const = 0;
 
 #if WITH_EDITOR
 		// Returns whether or not the given node template has the necessary
@@ -85,5 +91,9 @@ namespace Metasound::Frontend
 	// Register & Unregister are not publicly accessible implementation as the API
 	// is in beta and, currently, only to be used by internal implementation (ex. reroute nodes).
 	void RegisterNodeTemplate(TUniquePtr<INodeTemplate>&& InTemplate);
+
+	UE_DEPRECATED(5.4, "Use version that provides class name and version instead")
 	void UnregisterNodeTemplate(const FMetasoundFrontendVersion& InNodeTemplateVersion);
+
+	void UnregisterNodeTemplate(const FMetasoundFrontendClassName& InClassName, const FMetasoundFrontendVersionNumber& InTemplateVersion);
 } // namespace Metasound::Frontend

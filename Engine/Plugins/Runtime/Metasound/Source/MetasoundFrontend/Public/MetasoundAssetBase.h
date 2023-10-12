@@ -7,6 +7,7 @@
 #include "MetasoundFrontendController.h"
 #include "MetasoundFrontendDocument.h"
 #include "MetasoundFrontendDocumentAccessPtr.h"
+#include "MetasoundFrontendRegistryKey.h"
 #include "MetasoundGraph.h"
 #include "MetasoundLog.h"
 #include "MetasoundParameterTransmitter.h"

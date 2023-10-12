@@ -83,7 +83,7 @@ namespace Metasound
 	};
 
 	/** Provides metadata for a given node. */
-	struct FNodeClassMetadata
+	struct METASOUNDGRAPHCORE_API FNodeClassMetadata
 	{
 		/** Name of class. Used for registration and lookup. */
 		FNodeClassName ClassName;

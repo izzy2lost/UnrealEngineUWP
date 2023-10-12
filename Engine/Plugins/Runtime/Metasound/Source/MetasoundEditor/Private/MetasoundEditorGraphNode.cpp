@@ -853,7 +853,7 @@ void UMetasoundEditorGraphExternalNode::Validate(Metasound::Editor::FGraphNodeVa
 	const FMetasoundFrontendClassMetadata& Metadata = NodeHandle->GetClassMetadata();
 
 	// 1. Validate referenced graph recursively if defined as asset node class
-	const FNodeRegistryKey RegistryKey = NodeRegistryKey::CreateKey(Metadata);
+	const FNodeRegistryKey RegistryKey = FNodeRegistryKey(Metadata);
 	if (IMetaSoundAssetManager* AssetManager = IMetaSoundAssetManager::Get())
 	{
 		if (const FSoftObjectPath* Path = AssetManager->FindObjectPathFromKey(RegistryKey))
@@ -892,7 +892,7 @@ void UMetasoundEditorGraphExternalNode::Validate(Metasound::Editor::FGraphNodeVa
 	// 2. Validate template nodes
 	if (Metadata.GetType() == EMetasoundFrontendClassType::Template)
 	{
-		const FNodeRegistryKey Key = NodeRegistryKey::CreateKey(Metadata);
+		const FNodeRegistryKey Key = FNodeRegistryKey(Metadata);
 		if (const INodeTemplate* Template = INodeTemplateRegistry::Get().FindTemplate(Key))
 		{
 			const bool bIsValidInterface = Template->IsValidNodeInterface(NodeHandle->GetNodeInterface());

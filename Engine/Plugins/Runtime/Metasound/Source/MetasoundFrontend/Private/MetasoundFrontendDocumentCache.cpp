@@ -209,7 +209,7 @@ namespace Metasound::Frontend
 		using namespace Metasound::Frontend;
 
 		const FMetasoundFrontendClass& Dependency = GetDocument().Dependencies[NewIndex];
-		const FNodeRegistryKey Key = NodeRegistryKey::CreateKey(Dependency.Metadata);
+		const FNodeRegistryKey Key = FNodeRegistryKey(Dependency.Metadata);
 
 		FDocumentDependencyCache& Cache = GetDependencyCache();
 		Cache.KeyToIndex.Add(Key, NewIndex);
@@ -224,10 +224,14 @@ namespace Metasound::Frontend
 		const FMetasoundFrontendClass& SwapDependency = Dependencies[SwapIndex];
 		const FMetasoundFrontendClass& LastDependency = Dependencies[LastIndex];
 
-		const FNodeRegistryKey SwapKey = NodeRegistryKey::CreateKey(SwapDependency.Metadata);
-		const FNodeRegistryKey LastKey = NodeRegistryKey::CreateKey(LastDependency.Metadata);
+		const FNodeRegistryKey SwapKey = FNodeRegistryKey(SwapDependency.Metadata);
+		const FNodeRegistryKey LastKey = FNodeRegistryKey(LastDependency.Metadata);
 
 		FDocumentDependencyCache& Cache = GetDependencyCache();
+
+		const bool contains = Cache.KeyToIndex.Contains(SwapKey);
+		check(contains);
+
 		DocumentCachePrivate::RemoveSwapMapIndexChecked(SwapKey, LastKey, Cache.KeyToIndex);
 		DocumentCachePrivate::RemoveSwapMapIndexChecked(SwapDependency.ID, LastDependency.ID, Cache.IDToIndex);
 	}
@@ -237,10 +241,10 @@ namespace Metasound::Frontend
 		using namespace Metasound::Frontend;
 
 		const FMetasoundFrontendClass& DependencyBeingRemoved = GetDocument().Dependencies[IndexBeingRenamed];
-		const FNodeRegistryKey OldKey = NodeRegistryKey::CreateKey(DependencyBeingRemoved.Metadata);
+		const FNodeRegistryKey OldKey = FNodeRegistryKey(DependencyBeingRemoved.Metadata);
 		FMetasoundFrontendClassMetadata NewMetadata = DependencyBeingRemoved.Metadata;
 		NewMetadata.SetClassName(NewName);
-		const FNodeRegistryKey NewKey = NodeRegistryKey::CreateKey(NewMetadata);
+		const FNodeRegistryKey NewKey = FNodeRegistryKey(NewMetadata);
 
 		FDocumentDependencyCache& Cache = GetDependencyCache();
 		Cache.KeyToIndex.Add(NewKey, IndexBeingRenamed);
@@ -822,7 +826,7 @@ namespace Metasound::Frontend
 		{
 			const FMetasoundFrontendClass& Class = InDocument.Dependencies[Index];
 			const FMetasoundFrontendClassMetadata& Metadata = Class.Metadata;
-			FNodeRegistryKey Key = NodeRegistryKey::CreateKey(Metadata);
+			FNodeRegistryKey Key = FNodeRegistryKey(Metadata);
 			KeyToIndex.Add(MoveTemp(Key), Index);
 			IDToIndex.Add(Class.ID, Index);
 		}

@@ -61,7 +61,7 @@ namespace Metasound
 			RegistryKey = InEntry.Value.Get<FNodeRegistryTransaction>().GetNodeRegistryKey();
 		}
 
-		return FFrontendQueryKey(RegistryKey);
+		return FFrontendQueryKey(RegistryKey.ToString());
 	}
 
 	void FReduceRegistrationEventsToCurrentStatus::Reduce(const FFrontendQueryKey& InKey, FFrontendQueryPartition& InOutEntries) const

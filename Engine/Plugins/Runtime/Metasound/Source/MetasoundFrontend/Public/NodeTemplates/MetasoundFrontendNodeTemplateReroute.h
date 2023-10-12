@@ -16,13 +16,16 @@ namespace Metasound::Frontend
 	{
 	public:
 		static const FMetasoundFrontendClassName ClassName;
-		static const FMetasoundFrontendVersion Version;
+
+		static const FMetasoundFrontendVersionNumber VersionNumber;
 
 		static const FNodeRegistryKey& GetRegistryKey();
 
 		static FMetasoundFrontendNodeInterface CreateNodeInterfaceFromDataType(FName InDataType);
 
 		virtual ~FRerouteNodeTemplate() = default;
+
+		virtual const FMetasoundFrontendClassName& GetClassName() const override;
 
 		UE_DEPRECATED(5.4, "Use version that does not require mutating a provided PreprocessedDocument")
 		virtual TUniquePtr<INodeTransform> GenerateNodeTransform(FMetasoundFrontendDocument& InPreprocessedDocument) const override;
@@ -31,7 +34,7 @@ namespace Metasound::Frontend
 		virtual const FMetasoundFrontendClass& GetFrontendClass() const override;
 		virtual EMetasoundFrontendVertexAccessType GetNodeInputAccessType(const FMetaSoundFrontendDocumentBuilder& InBuilder, const FGuid& InNodeID, const FGuid& InVertexID) const override;
 		virtual EMetasoundFrontendVertexAccessType GetNodeOutputAccessType(const FMetaSoundFrontendDocumentBuilder& InBuilder, const FGuid& InNodeID, const FGuid& InVertexID) const override;
-		virtual const FMetasoundFrontendVersion& GetVersion() const override;
+		virtual const FMetasoundFrontendVersionNumber& GetVersionNumber() const override;
 		virtual bool IsInputAccessTypeDynamic() const override;
 		virtual bool IsOutputAccessTypeDynamic() const override;
 		virtual bool IsValidNodeInterface(const FMetasoundFrontendNodeInterface& InNodeInterface) const override;

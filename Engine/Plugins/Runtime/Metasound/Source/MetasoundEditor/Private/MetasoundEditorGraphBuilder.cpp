@@ -246,7 +246,7 @@ namespace Metasound
 				DisplayName = Metadata.GetDisplayName();
 				if (DisplayName.IsEmptyOrWhitespace())
 				{
-					const FNodeRegistryKey RegistryKey = NodeRegistryKey::CreateKey(Metadata);
+					const FNodeRegistryKey RegistryKey = FNodeRegistryKey(Metadata);
 					bool bIsClassNative = FMetasoundFrontendRegistryContainer::Get()->IsNodeNative(RegistryKey);
 					if (!bIsClassNative)
 					{
@@ -435,7 +435,7 @@ namespace Metasound
 			NewGraphNode = NodeCreator.CreateNode(bInSelectNewNode);
 			if (ensure(NewGraphNode))
 			{
-				const FNodeRegistryKey RegistryKey = NodeRegistryKey::CreateKey(InNodeHandle->GetClassMetadata());
+				const FNodeRegistryKey RegistryKey = FNodeRegistryKey(InNodeHandle->GetClassMetadata());
 				NewGraphNode->bIsClassNative = FMetasoundFrontendRegistryContainer::Get()->IsNodeNative(RegistryKey);
 				NewGraphNode->ClassName = InNodeHandle->GetClassMetadata().GetClassName();
 				NewGraphNode->CacheTitle();

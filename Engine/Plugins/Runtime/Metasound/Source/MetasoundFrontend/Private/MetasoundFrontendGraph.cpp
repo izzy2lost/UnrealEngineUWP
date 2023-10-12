@@ -241,7 +241,7 @@ namespace Metasound
 		// TODO: handle check to see if node interface conforms to class interface here. 
 		// TODO: check to see if external object supports class interface.
 
-		const FNodeRegistryKey Key = NodeRegistryKey::CreateKey(InClass.Metadata);
+		const FNodeRegistryKey Key = FNodeRegistryKey(InClass.Metadata);
 		return FMetasoundFrontendRegistryContainer::Get()->CreateNode(Key, InitData);
 	}
 

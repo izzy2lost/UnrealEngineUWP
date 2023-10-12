@@ -326,7 +326,7 @@ void FMetasoundAssetBase::RegisterGraphWithFrontend(Metasound::Frontend::FMetaSo
 		RegistryKey = CacheRuntimeData(RegistryDocInterface);
 	}
 
-	if (NodeRegistryKey::IsValid(RegistryKey))
+	if (RegistryKey.IsValid())
 	{
 #if WITH_EDITORONLY_DATA
 		UpdateAssetRegistry();
@@ -396,7 +396,7 @@ void FMetasoundAssetBase::CookMetaSound()
 		RegistryKey = FMetasoundFrontendRegistryContainer::Get()->RegisterNode(MoveTemp(RegistryEntry));
 	}
 
-	if (NodeRegistryKey::IsValid(RegistryKey))
+	if (RegistryKey.IsValid())
 	{
 #if WITH_EDITORONLY_DATA
 		UpdateAssetRegistry();
@@ -417,7 +417,7 @@ void FMetasoundAssetBase::UnregisterGraphWithFrontend()
 	METASOUND_TRACE_CPUPROFILER_EVENT_SCOPE(MetaSoundAssetBase::UnregisterGraphWithFrontend);
 
 	check(IsInGameThread());
-	if (!NodeRegistryKey::IsValid(RegistryKey))
+	if (!RegistryKey.IsValid())
 	{
 		return;
 	}
@@ -440,7 +440,7 @@ void FMetasoundAssetBase::UnregisterGraphWithFrontend()
 
 	if (!bSuccess)
 	{
-		UE_LOG(LogMetaSound, Warning, TEXT("Failed to unregister node with key %s for asset %s. No registry entry exists with that key."), *RegistryKey, *GetOwningAssetName());
+		UE_LOG(LogMetaSound, Warning, TEXT("Failed to unregister node with key %s for asset %s. No registry entry exists with that key."), *RegistryKey.ToString(), *GetOwningAssetName());
 	}
 
 	RegistryKey = FNodeRegistryKey();
@@ -703,7 +703,7 @@ bool FMetasoundAssetBase::IsRegistered() const
 {
 	using namespace Metasound::Frontend;
 
-	return NodeRegistryKey::IsValid(RegistryKey);
+	return RegistryKey.IsValid();
 }
 
 bool FMetasoundAssetBase::IsReferencedAsset(const FMetasoundAssetBase& InAsset) const
@@ -1007,7 +1007,7 @@ Metasound::Frontend::FNodeRegistryKey FMetasoundAssetBase::CacheRuntimeData(cons
 void FMetasoundAssetBase::WaitForAsyncGraphRegistration()
 {
 	using namespace Metasound::Frontend;
-	if (NodeRegistryKey::IsValid(RegistryKey))
+	if (RegistryKey.IsValid())
 	{
 		FMetasoundFrontendRegistryContainer::Get()->WaitForAsyncGraphRegistration(RegistryKey, RegisteredGraphAssetPath);
 	}

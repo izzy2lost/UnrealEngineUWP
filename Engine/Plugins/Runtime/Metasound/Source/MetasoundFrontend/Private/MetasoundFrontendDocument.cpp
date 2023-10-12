@@ -36,6 +36,21 @@ namespace Metasound
 				const FVector2D DefaultOffsetY { 0.0f, 80.0f };
 			} // namespace NodeLayout
 		} // namespace DisplayStyle
+
+		namespace ClassTypePrivate
+		{
+			static const FString External = TEXT("External");
+			static const FString Graph = TEXT("Graph");
+			static const FString Input = TEXT("Input");
+			static const FString Output = TEXT("Output");
+			static const FString Literal = TEXT("Literal");
+			static const FString Variable = TEXT("Variable");
+			static const FString VariableDeferredAccessor = TEXT("Variable (Deferred Accessor)");
+			static const FString VariableAccessor = TEXT("Variable (Accessor)");
+			static const FString VariableMutator = TEXT("Variable (Mutator)");
+			static const FString Template = TEXT("Template");
+			static const FString Invalid = TEXT("Invalid");
+		}
 	} // namespace Frontend
 
 	namespace DocumentPrivate
@@ -121,6 +136,7 @@ namespace Metasound
 		};
 	} // namespace DocumentPrivate
 } // namespace Metasound
+
 
 #if WITH_EDITORONLY_DATA
 void FMetasoundFrontendDocumentModifyContext::ClearDocumentModified()
@@ -365,6 +381,12 @@ const FMetasoundFrontendInterfaceUClassOptions* FMetasoundFrontendInterface::Fin
 
 const FMetasoundFrontendClassName FMetasoundFrontendClassName::InvalidClassName;
 
+FMetasoundFrontendClassName::FMetasoundFrontendClassName(const FName& InNamespace, const FName& InName)
+	: Namespace(InNamespace)
+	, Name(InName)
+{
+}
+
 FMetasoundFrontendClassName::FMetasoundFrontendClassName(const FName& InNamespace, const FName& InName, const FName& InVariant)
 : Namespace(InNamespace)
 , Name(InName)
@@ -403,14 +425,28 @@ FString FMetasoundFrontendClassName::ToString() const
 	return GetFullName().ToString();
 }
 
-bool operator==(const FMetasoundFrontendClassName& InLHS, const FMetasoundFrontendClassName& InRHS)
+bool FMetasoundFrontendClassName::Parse(const FString& InClassName, FMetasoundFrontendClassName& OutClassName)
 {
-	return (InLHS.Namespace == InRHS.Namespace) && (InLHS.Name == InRHS.Name) && (InLHS.Variant == InRHS.Variant);
-}
+	OutClassName = { };
+	TArray<FString> Tokens;
+	InClassName.ParseIntoArray(Tokens, TEXT("."));
 
-bool operator!=(const FMetasoundFrontendClassName& InLHS, const FMetasoundFrontendClassName& InRHS)
-{
-	return !(InLHS == InRHS);
+	// Name is required, which in turn requires at least "None" is serialized for the namespace
+	if (Tokens.Num() < 2)
+	{
+		return false;
+	}
+
+	OutClassName.Namespace = FName(*Tokens[0]);
+	OutClassName.Name = FName(*Tokens[1]);
+
+	// Variant is optional
+	if (Tokens.Num() > 2)
+	{
+		OutClassName.Variant = FName(*Tokens[2]);
+	}
+
+	return true;
 }
 
 FMetasoundFrontendClassInterface FMetasoundFrontendClassInterface::GenerateClassInterface(const Metasound::FVertexInterface& InVertexInterface)
@@ -644,7 +680,7 @@ bool FMetasoundFrontendClass::CacheGraphDependencyMetadataFromRegistry(FMetasoun
 {
 	using namespace Metasound::Frontend;
 
-	const FNodeRegistryKey Key = NodeRegistryKey::CreateKey(InOutDependency.Metadata);
+	const FNodeRegistryKey Key = FNodeRegistryKey(InOutDependency.Metadata);
 	FMetasoundFrontendClass RegistryClass;
 
 	FMetasoundFrontendRegistryContainer* Registry = FMetasoundFrontendRegistryContainer::Get();
@@ -833,30 +869,32 @@ FMetasoundFrontendDocument::FMetasoundFrontendDocument()
 
 const TCHAR* LexToString(EMetasoundFrontendClassType InClassType)
 {
+	using namespace Metasound::Frontend;
+
 	switch (InClassType)
 	{
 		case EMetasoundFrontendClassType::External:
-			return TEXT("External");
+			return *ClassTypePrivate::External;
 		case EMetasoundFrontendClassType::Graph:
-			return TEXT("Graph");
+			return *ClassTypePrivate::Graph;
 		case EMetasoundFrontendClassType::Input:
-			return TEXT("Input");
+			return *ClassTypePrivate::Input;
 		case EMetasoundFrontendClassType::Output:
-			return TEXT("Output");
+			return *ClassTypePrivate::Output;
 		case EMetasoundFrontendClassType::Literal:
-			return TEXT("Literal");
+			return *ClassTypePrivate::Literal;
 		case EMetasoundFrontendClassType::Variable:
-			return TEXT("Variable");
+			return *ClassTypePrivate::Variable;
 		case EMetasoundFrontendClassType::VariableDeferredAccessor:
-			return TEXT("Variable (Deferred Accessor)");
+			return *ClassTypePrivate::VariableDeferredAccessor;
 		case EMetasoundFrontendClassType::VariableAccessor:
-			return TEXT("Variable (Accessor)");
+			return *ClassTypePrivate::VariableAccessor;
 		case EMetasoundFrontendClassType::VariableMutator:
-			return TEXT("Variable (Mutator)");
+			return *ClassTypePrivate::VariableMutator;
 		case EMetasoundFrontendClassType::Template:
-			return TEXT("Template");
+			return *ClassTypePrivate::Template;
 		case EMetasoundFrontendClassType::Invalid:
-			return TEXT("Invalid");
+			return *ClassTypePrivate::Invalid;
 		default:
 			static_assert(static_cast<int32>(EMetasoundFrontendClassType::Invalid) == 10, "Possible missed EMetasoundFrontendClassType case coverage");
 			return nullptr;
@@ -879,60 +917,117 @@ const TCHAR* LexToString(EMetasoundFrontendVertexAccessType InVertexAccess)
 	}
 }
 
-namespace Metasound
+namespace Metasound::Frontend
 {
-	namespace Frontend
+	bool StringToClassType(const FString& InString, EMetasoundFrontendClassType& OutClassType)
 	{
-		void ForEachLiteral(const FMetasoundFrontendDocument& InDoc, FForEachLiteralFunctionRef OnLiteral)
+		if (InString == ClassTypePrivate::External)
 		{
-			ForEachLiteral(InDoc.RootGraph, OnLiteral);
-			for (const FMetasoundFrontendGraphClass& GraphClass : InDoc.Subgraphs)
-			{
-				ForEachLiteral(GraphClass, OnLiteral);
-			}
-			for (const FMetasoundFrontendClass& Dependency : InDoc.Dependencies)
-			{
-				ForEachLiteral(Dependency, OnLiteral);
-			}
+			OutClassType = EMetasoundFrontendClassType::External;
+			return true;
 		}
 
-		void ForEachLiteral(const FMetasoundFrontendGraphClass& InGraphClass, FForEachLiteralFunctionRef OnLiteral)
+		if (InString == ClassTypePrivate::Graph)
 		{
-			ForEachLiteral(static_cast<const FMetasoundFrontendClass&>(InGraphClass), OnLiteral);
-
-			for (const FMetasoundFrontendNode& Node : InGraphClass.Graph.Nodes)
-			{
-				ForEachLiteral(Node, OnLiteral);
-			}
-
-			for (const FMetasoundFrontendVariable& Variable : InGraphClass.Graph.Variables)
-			{
-				OnLiteral(Variable.TypeName, Variable.Literal);
-			}
+			OutClassType = EMetasoundFrontendClassType::Graph;
+			return true;
 		}
 
-		void ForEachLiteral(const FMetasoundFrontendClass& InClass, FForEachLiteralFunctionRef OnLiteral)
+		if (InString == ClassTypePrivate::Input)
 		{
-			for (const FMetasoundFrontendClassInput& ClassInput : InClass.Interface.Inputs)
-			{
-				OnLiteral(ClassInput.TypeName, ClassInput.DefaultLiteral);
-			}
+			OutClassType = EMetasoundFrontendClassType::Input;
+			return true;
 		}
 
-		void ForEachLiteral(const FMetasoundFrontendNode& InNode, FForEachLiteralFunctionRef OnLiteral)
+		if (InString == ClassTypePrivate::Invalid)
 		{
-			for (const FMetasoundFrontendVertexLiteral& VertexLiteral : InNode.InputLiterals)
-			{
-				auto HasEqualVertexID = [&VertexLiteral](const FMetasoundFrontendVertex& InVertex) -> bool
-				{ 
-					return InVertex.VertexID == VertexLiteral.VertexID; 
-				};
+			OutClassType = EMetasoundFrontendClassType::Invalid;
+			return true;
+		}
 
-				if (const FMetasoundFrontendVertex* InputVertex = InNode.Interface.Inputs.FindByPredicate(HasEqualVertexID))
-				{
-					OnLiteral(InputVertex->TypeName, VertexLiteral.Value);
-				}
+		if (InString == ClassTypePrivate::Literal)
+		{
+			OutClassType = EMetasoundFrontendClassType::Literal;
+			return true;
+		}
+
+		if (InString == ClassTypePrivate::Output)
+		{
+			OutClassType = EMetasoundFrontendClassType::Output;
+			return true;
+		}
+
+		if (InString == ClassTypePrivate::Template)
+		{
+			OutClassType = EMetasoundFrontendClassType::Template;
+			return true;
+		}
+
+		if (InString == ClassTypePrivate::Variable)
+		{
+			OutClassType = EMetasoundFrontendClassType::Variable;
+			return true;
+		}
+
+		if (InString == ClassTypePrivate::VariableDeferredAccessor)
+		{
+			OutClassType = EMetasoundFrontendClassType::VariableDeferredAccessor;
+			return true;
+		}
+
+		OutClassType = EMetasoundFrontendClassType::Invalid;
+		return false;
+	}
+
+	void ForEachLiteral(const FMetasoundFrontendDocument& InDoc, FForEachLiteralFunctionRef OnLiteral)
+	{
+		ForEachLiteral(InDoc.RootGraph, OnLiteral);
+		for (const FMetasoundFrontendGraphClass& GraphClass : InDoc.Subgraphs)
+		{
+			ForEachLiteral(GraphClass, OnLiteral);
+		}
+		for (const FMetasoundFrontendClass& Dependency : InDoc.Dependencies)
+		{
+			ForEachLiteral(Dependency, OnLiteral);
+		}
+	}
+
+	void ForEachLiteral(const FMetasoundFrontendGraphClass& InGraphClass, FForEachLiteralFunctionRef OnLiteral)
+	{
+		ForEachLiteral(static_cast<const FMetasoundFrontendClass&>(InGraphClass), OnLiteral);
+
+		for (const FMetasoundFrontendNode& Node : InGraphClass.Graph.Nodes)
+		{
+			ForEachLiteral(Node, OnLiteral);
+		}
+
+		for (const FMetasoundFrontendVariable& Variable : InGraphClass.Graph.Variables)
+		{
+			OnLiteral(Variable.TypeName, Variable.Literal);
+		}
+	}
+
+	void ForEachLiteral(const FMetasoundFrontendClass& InClass, FForEachLiteralFunctionRef OnLiteral)
+	{
+		for (const FMetasoundFrontendClassInput& ClassInput : InClass.Interface.Inputs)
+		{
+			OnLiteral(ClassInput.TypeName, ClassInput.DefaultLiteral);
+		}
+	}
+
+	void ForEachLiteral(const FMetasoundFrontendNode& InNode, FForEachLiteralFunctionRef OnLiteral)
+	{
+		for (const FMetasoundFrontendVertexLiteral& VertexLiteral : InNode.InputLiterals)
+		{
+			auto HasEqualVertexID = [&VertexLiteral](const FMetasoundFrontendVertex& InVertex) -> bool
+			{ 
+				return InVertex.VertexID == VertexLiteral.VertexID; 
+			};
+
+			if (const FMetasoundFrontendVertex* InputVertex = InNode.Interface.Inputs.FindByPredicate(HasEqualVertexID))
+			{
+				OnLiteral(InputVertex->TypeName, VertexLiteral.Value);
 			}
 		}
 	}
-}
+} // namespace Metasound::Frontend

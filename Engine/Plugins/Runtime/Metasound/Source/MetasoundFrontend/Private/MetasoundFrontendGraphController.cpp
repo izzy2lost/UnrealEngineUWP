@@ -1411,7 +1411,7 @@ namespace Metasound
 				return AddNode(Class, InNodeGuid);
 			}
 
-			UE_LOG(LogMetaSound, Warning, TEXT("Failed to find or add node class info with registry key [Key:%s]"), *InKey);
+			UE_LOG(LogMetaSound, Warning, TEXT("Failed to find or add node class info with registry key [Key:%s]"), *InKey.ToString());
 			return INodeController::GetInvalidHandle();
 		}
 
@@ -1421,7 +1421,7 @@ namespace Metasound
 				TEXT("Cannot implement '%s' template node using 'AddNode'. Template nodes must always "
 				"be added using AddTemplateNode function and supply the interface to be implemented"),
 				*InClassMetadata.GetClassName().ToString());
-			return AddNode(NodeRegistryKey::CreateKey(InClassMetadata), InNodeGuid);
+			return AddNode(FNodeRegistryKey(InClassMetadata), InNodeGuid);
 		}
 
 		FNodeHandle FGraphController::AddTemplateNode(const FNodeRegistryKey& InKey, FMetasoundFrontendNodeInterface&& InNodeInterface, FGuid InNodeGuid)
@@ -1429,7 +1429,7 @@ namespace Metasound
 			if (const INodeTemplate* Template = INodeTemplateRegistry::Get().FindTemplate(InKey))
 			{
 				const bool bIsValidInterface = Template->IsValidNodeInterface(InNodeInterface);
-				if (ensureAlwaysMsgf(bIsValidInterface, TEXT("Cannot implement interface when attempting to add node using template with key '%s'"), *InKey))
+				if (ensureAlwaysMsgf(bIsValidInterface, TEXT("Cannot implement interface when attempting to add node using template with key '%s'"), *InKey.ToString()))
 				{
 					// Construct a FNodeClassInfo from this lookup key.
 					FConstClassAccessPtr Class = OwningDocument->FindOrAddClass(InKey);
@@ -1452,7 +1452,7 @@ namespace Metasound
 				}
 			}
 
-			UE_LOG(LogMetaSound, Warning, TEXT("Failed to find or add node template class info with registry key [Key:%s]"), *InKey);
+			UE_LOG(LogMetaSound, Warning, TEXT("Failed to find or add node template class info with registry key [Key:%s]"), *InKey.ToString());
 			return INodeController::GetInvalidHandle();
 		}
 
@@ -1656,7 +1656,7 @@ namespace Metasound
 					{
 						if (IMetaSoundAssetManager* AssetManager = IMetaSoundAssetManager::Get())
 						{
-							const FNodeRegistryKey RegistryKey = NodeRegistryKey::CreateKey(NodeClass->Metadata);
+							const FNodeRegistryKey RegistryKey = FNodeRegistryKey(NodeClass->Metadata);
 							if (const FSoftObjectPath* Path = AssetManager->FindObjectPathFromKey(RegistryKey))
 							{
 								const FString& AssetName = Path->GetAssetName();

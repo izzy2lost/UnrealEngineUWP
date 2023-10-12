@@ -23,6 +23,8 @@
 struct FMetasoundFrontendClass;
 struct FMetasoundFrontendClassInterface;
 
+enum class EMetasoundFrontendClassType : uint8;
+
 
 namespace Metasound
 {
@@ -153,6 +155,7 @@ enum class EMetasoundFrontendClassType : uint8
 
 	Invalid UMETA(Hidden)
 };
+
 
 // General purpose version number for Metasound Frontend objects.
 USTRUCT(BlueprintType)
@@ -1215,9 +1218,8 @@ struct METASOUNDFRONTEND_API FMetasoundFrontendClassName
 	GENERATED_BODY()
 
 	FMetasoundFrontendClassName() = default;
-
+	FMetasoundFrontendClassName(const FName& InNamespace, const FName& InName);
 	FMetasoundFrontendClassName(const FName& InNamespace, const FName& InName, const FName& InVariant);
-
 	FMetasoundFrontendClassName(const Metasound::FNodeClassName& InName);
 
 	// Namespace of class.
@@ -1250,15 +1252,34 @@ struct METASOUNDFRONTEND_API FMetasoundFrontendClassName
 	// Return string version of full name.
 	FString ToString() const;
 
+	// Parses string into class name.  For deserialization and debug use only.
+	static bool Parse(const FString& InClassName, FMetasoundFrontendClassName& OutClassName);
+
 	friend FORCEINLINE uint32 GetTypeHash(const FMetasoundFrontendClassName& ClassName)
 	{
 		const int32 NameHash = HashCombineFast(GetTypeHash(ClassName.Namespace), GetTypeHash(ClassName.Name));
 		return HashCombineFast(NameHash, GetTypeHash(ClassName.Variant));
 	}
 
-	METASOUNDFRONTEND_API friend bool operator==(const FMetasoundFrontendClassName& InLHS, const FMetasoundFrontendClassName& InRHS);
+	friend FORCEINLINE bool operator==(const FMetasoundFrontendClassName& InLHS, const FMetasoundFrontendClassName& InRHS)
+	{
+		return (InLHS.Namespace == InRHS.Namespace) && (InLHS.Name == InRHS.Name) && (InLHS.Variant == InRHS.Variant);
+	}
 
-	METASOUNDFRONTEND_API friend bool operator!=(const FMetasoundFrontendClassName& InLHS, const FMetasoundFrontendClassName& InRHS);
+	friend FORCEINLINE bool operator<(const FMetasoundFrontendClassName& InLHS, const FMetasoundFrontendClassName& InRHS)
+	{
+		if (InLHS.Namespace == InRHS.Namespace)
+		{
+			if (InLHS.Name == InRHS.Name)
+			{
+				return InLHS.Variant.FastLess(InRHS.Variant);
+			}
+
+			return InLHS.Name.FastLess(InRHS.Name);
+		}
+
+		return InLHS.Namespace.FastLess(InRHS.Namespace);
+	}
 };
 
 
@@ -1658,10 +1679,10 @@ public:
 METASOUNDFRONTEND_API const TCHAR* LexToString(EMetasoundFrontendClassType InClassType);
 METASOUNDFRONTEND_API const TCHAR* LexToString(EMetasoundFrontendVertexAccessType InVertexAccess);
 
-namespace Metasound
+namespace Metasound::Frontend
 {
-	namespace Frontend
-	{
+		METASOUNDFRONTEND_API bool StringToClassType(const FString& InString, EMetasoundFrontendClassType& OutClassType);
+
 		/** Signature of function called for each found literal. */
 		using FForEachLiteralFunctionRef = TFunctionRef<void(const FName& InDataTypeName, const FMetasoundFrontendLiteral&)>; 
 
@@ -1676,6 +1697,5 @@ namespace Metasound
 
 		/** Execute the provided function for each literal on a FMetasoundFrontendNode.*/
 		METASOUNDFRONTEND_API void ForEachLiteral(const FMetasoundFrontendNode& InNode, FForEachLiteralFunctionRef OnLiteral);
-	}
-}
+} // namespace Metasound::Frontend
 

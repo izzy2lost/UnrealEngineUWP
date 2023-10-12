@@ -19,6 +19,7 @@
 #include "MetasoundFrontendDocumentModifyDelegates.h"
 #include "MetasoundFrontendNodeTemplateRegistry.h"
 #include "MetasoundFrontendRegistries.h"
+#include "MetasoundFrontendRegistryKey.h"
 #include "MetasoundFrontendSearchEngine.h"
 #include "MetasoundFrontendTransform.h"
 #include "MetasoundTrace.h"
@@ -134,7 +135,7 @@ namespace Metasound::Frontend
 		{
 			const FMetasoundFrontendClassMetadata& Metadata = DocumentInterface.GetConstDocument().RootGraph.Metadata;
 			const FMetasoundFrontendVersionNumber& Version = Metadata.GetVersion();
-			const FNodeRegistryKey RegKey = NodeRegistryKey::CreateKey(EMetasoundFrontendClassType::External, Metadata.GetClassName().ToString(), Version.Major, Version.Minor);
+			const FNodeRegistryKey RegKey(EMetasoundFrontendClassType::External, Metadata.GetClassName(), Version.Major, Version.Minor);
 			if (const FMetasoundAssetBase* Asset = IMetaSoundAssetManager::GetChecked().TryLoadAssetFromKey(RegKey))
 			{
 				return Asset->GetOwningAssetName();
@@ -1125,7 +1126,7 @@ bool FMetaSoundFrontendDocumentBuilder::AddInterface(FName InterfaceName)
 
 const FMetasoundFrontendNode* FMetaSoundFrontendDocumentBuilder::AddGraphNode(const FMetasoundFrontendGraphClass& InGraphClass, FGuid InNodeID)
 {
-	auto FinalizeNode = [](const FMetasoundFrontendNode& Node, const Metasound::Frontend::FNodeRegistryKey& ClassKey)
+	auto FinalizeNode = [](FMetasoundFrontendNode& InOutNode, const Metasound::Frontend::FNodeRegistryKey& ClassKey)
 	{
 #if WITH_EDITOR
 		using namespace Metasound::Frontend;
@@ -1135,14 +1136,14 @@ const FMetasoundFrontendNode* FMetaSoundFrontendDocumentBuilder::AddGraphNode(co
 		{
 			if (const FSoftObjectPath* Path = AssetManager->FindObjectPathFromKey(ClassKey))
 			{
-				return FName(*Path->GetAssetName());
+				InOutNode.Name = Path->GetAssetFName();
+				return;
 			}
 		}
+
+		InOutNode.Name = ClassKey.ClassName.GetFullName();
 #endif // WITH_EDITOR
-
-		return Node.Name;
 	};
-
 
 	// Dependency is considered "External" when looked up or added on another graph
 	FMetasoundFrontendClassMetadata NewClassMetadata = InGraphClass.Metadata;
@@ -1198,7 +1199,7 @@ FMetasoundFrontendNode* FMetaSoundFrontendDocumentBuilder::AddNodeInternal(const
 
 	using namespace Metasound::Frontend;
 
-	const FNodeRegistryKey ClassKey = NodeRegistryKey::CreateKey(InClassMetadata);
+	const FNodeRegistryKey ClassKey = FNodeRegistryKey(InClassMetadata);
 	if (const FMetasoundFrontendClass* Dependency = DocumentCache->FindDependency(ClassKey))
 	{
 		FMetasoundFrontendDocument& Document = GetDocument();
@@ -1381,7 +1382,7 @@ const FMetasoundFrontendClass* FMetaSoundFrontendDocumentBuilder::FindDependency
 
 	checkf(InMetadata.GetType() != EMetasoundFrontendClassType::Graph,
 		TEXT("Dependencies are never listed as 'Graph' types. Graphs are considered 'External' from the perspective of the parent document to allow for nativization."));
-	const FNodeRegistryKey RegistryKey = NodeRegistryKey::CreateKey(InMetadata);
+	const FNodeRegistryKey RegistryKey = FNodeRegistryKey(InMetadata);
 	return DocumentCache->FindDependency(RegistryKey);
 }
 
@@ -1530,7 +1531,7 @@ const TSet<FMetasoundFrontendVersion>* FMetaSoundFrontendDocumentBuilder::FindNo
 		if (const FMetasoundFrontendClass* NodeClass = DocumentCache->FindDependency(Node->ClassID))
 		{
 			// 1. May be a serialized asset, so first check with asset manager.
-			const FNodeRegistryKey NodeClassRegistryKey = NodeRegistryKey::CreateKey(NodeClass->Metadata);
+			const FNodeRegistryKey NodeClassRegistryKey = FNodeRegistryKey(NodeClass->Metadata);
 			return FMetasoundFrontendRegistryContainer::Get()->FindImplementedInterfacesFromRegistered(NodeClassRegistryKey);
 		}
 	}
@@ -1678,9 +1679,9 @@ EMetasoundFrontendVertexAccessType FMetaSoundFrontendDocumentBuilder::GetNodeInp
 			{
 				case EMetasoundFrontendClassType::Template:
 				{
-					const FNodeRegistryKey Key = NodeRegistryKey::CreateKey(Class->Metadata);
+					const FNodeRegistryKey Key = FNodeRegistryKey(Class->Metadata);
 					const INodeTemplate* Template = INodeTemplateRegistry::Get().FindTemplate(Key);
-					if (ensureMsgf(Template, TEXT("Failed to find MetaSound node template registered with key '%s'"), *Key))
+					if (ensureMsgf(Template, TEXT("Failed to find MetaSound node template registered with key '%s'"), *Key.ToString()))
 					{
 						if (Template->IsInputAccessTypeDynamic())
 						{
@@ -1803,9 +1804,9 @@ EMetasoundFrontendVertexAccessType FMetaSoundFrontendDocumentBuilder::GetNodeOut
 			{
 				case EMetasoundFrontendClassType::Template:
 				{
-					const FNodeRegistryKey Key = NodeRegistryKey::CreateKey(Class->Metadata);
+					const FNodeRegistryKey Key = FNodeRegistryKey(Class->Metadata);
 					const INodeTemplate* Template = INodeTemplateRegistry::Get().FindTemplate(Key);
-					if (ensureMsgf(Template, TEXT("Failed to find MetaSound node template registered with key '%s'"), *Key))
+					if (ensureMsgf(Template, TEXT("Failed to find MetaSound node template registered with key '%s'"), *Key.ToString()))
 					{
 						if (Template->IsOutputAccessTypeDynamic())
 						{
@@ -2057,7 +2058,7 @@ bool FMetaSoundFrontendDocumentBuilder::TransformTemplateNodes()
 	{
 		if (Dependency.Metadata.GetType() == EMetasoundFrontendClassType::Template)
 		{
-			const FNodeRegistryKey Key = NodeRegistryKey::CreateKey(Dependency.Metadata);
+			const FNodeRegistryKey Key = FNodeRegistryKey(Dependency.Metadata);
 			const INodeTemplate* Template = INodeTemplateRegistry::Get().FindTemplate(Key);
 			ensureMsgf(Template, TEXT("Template not found for template class reference '%s'"), *Dependency.Metadata.GetClassName().ToString());
 			TemplateParams.Add(Dependency.ID, FTemplateTransformParams { Template });
@@ -2174,7 +2175,7 @@ bool FMetaSoundFrontendDocumentBuilder::RemoveDependency(EMetasoundFrontendClass
 	FMetasoundFrontendDocument& Document = GetDocument();
 	const IDocumentGraphNodeCache& NodeCache = DocumentCache->GetNodeCache();
 
-	const FNodeRegistryKey ClassKey = NodeRegistryKey::CreateKey(ClassType, InClassName.GetFullName().ToString(), InClassVersionNumber.Major, InClassVersionNumber.Minor);
+	const FNodeRegistryKey ClassKey(ClassType, InClassName, InClassVersionNumber);
 	if (const int32* IndexPtr = DocumentCache->FindDependencyIndex(ClassKey))
 	{
 		TArray<FMetasoundFrontendClass>& Dependencies = Document.Dependencies;

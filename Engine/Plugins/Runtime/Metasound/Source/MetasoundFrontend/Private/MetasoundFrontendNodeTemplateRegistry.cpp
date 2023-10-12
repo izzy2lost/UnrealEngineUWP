@@ -56,9 +56,8 @@ namespace Metasound::Frontend
 	{
 		if (ensure(InTemplate.IsValid()))
 		{
-			const FMetasoundFrontendVersion& Version = InTemplate->GetVersion();
-			const FNodeRegistryKey Key = NodeRegistryKey::CreateKey(InTemplate->GetFrontendClass().Metadata);
-			if (ensure(NodeRegistryKey::IsValid(Key)))
+			const FNodeRegistryKey Key = FNodeRegistryKey(InTemplate->GetFrontendClass().Metadata);
+			if (ensure(Key.IsValid()))
 			{
 				Templates.Add(Key, MoveTemp(InTemplate));
 			}
@@ -122,8 +121,20 @@ namespace Metasound::Frontend
 
 	void UnregisterNodeTemplate(const FMetasoundFrontendVersion& InVersion)
 	{
-		const FNodeRegistryKey Key = NodeRegistryKey::CreateKey(EMetasoundFrontendClassType::Template, InVersion.Name.ToString(), InVersion.Number.Major, InVersion.Number.Minor);
-		if (ensure(NodeRegistryKey::IsValid(Key)))
+		FMetasoundFrontendClassName ClassName;
+		FMetasoundFrontendClassName::Parse(InVersion.Name.ToString(), ClassName);
+		const FNodeRegistryKey Key = FNodeRegistryKey(EMetasoundFrontendClassType::Template, ClassName, InVersion.Number);
+		if (ensure(Key.IsValid()))
+		{
+			FRegistryContainerImpl::Get().UnregisterNodeTemplate(Key);
+			static_cast<FNodeTemplateRegistry&>(INodeTemplateRegistry::Get()).Unregister(Key);
+		}
+	}
+
+	void UnregisterNodeTemplate(const FMetasoundFrontendClassName& InClassName, const FMetasoundFrontendVersionNumber& InTemplateVersion)
+	{
+		const FNodeRegistryKey Key = FNodeRegistryKey(EMetasoundFrontendClassType::Template, InClassName, InTemplateVersion);
+		if (ensure(Key.IsValid()))
 		{
 			FRegistryContainerImpl::Get().UnregisterNodeTemplate(Key);
 			static_cast<FNodeTemplateRegistry&>(INodeTemplateRegistry::Get()).Unregister(Key);

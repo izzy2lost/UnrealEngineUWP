@@ -303,7 +303,7 @@ namespace Metasound
 						const FNodeRegistryKey RegistryKey = AssetSubsystem->AddOrUpdateAsset(InAssetData);
 
 						// Can be invalid if being called for the first time on an asset before FRenameRootGraphClass is called
-						if (NodeRegistryKey::IsValid(RegistryKey))
+						if (RegistryKey.IsValid())
 						{
 							const bool bPrimeRequested = AssetPrimeStatus > EAssetPrimeStatus::NotRequested;
 							const bool bIsRegistered = FMetasoundFrontendRegistryContainer::Get()->IsNodeRegistered(RegistryKey);

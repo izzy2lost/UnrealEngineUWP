@@ -89,7 +89,12 @@ namespace Metasound::Frontend
 
 	const FMetasoundFrontendClassName FRerouteNodeTemplate::ClassName { "UE", "Reroute", "" };
 
-	const FMetasoundFrontendVersion FRerouteNodeTemplate::Version { ClassName.GetFullName(), { 1, 0 } };
+	const FMetasoundFrontendVersionNumber FRerouteNodeTemplate::VersionNumber { 1, 0 };
+
+	const FMetasoundFrontendClassName& FRerouteNodeTemplate::GetClassName() const
+	{
+		return ClassName;
+	}
 
 	TUniquePtr<INodeTransform> FRerouteNodeTemplate::GenerateNodeTransform(FMetasoundFrontendDocument& InPreprocessedDocument) const
 	{
@@ -123,7 +128,7 @@ namespace Metasound::Frontend
 #endif // WITH_EDITOR
 
 			Class.Metadata.SetType(EMetasoundFrontendClassType::Template);
-			Class.Metadata.SetVersion(Version.Number);
+			Class.Metadata.SetVersion(VersionNumber);
 
 
 			return Class;
@@ -201,18 +206,13 @@ namespace Metasound::Frontend
 
 	const FNodeRegistryKey& FRerouteNodeTemplate::GetRegistryKey()
 	{
-		static const FNodeRegistryKey RegistryKey = NodeRegistryKey::CreateKey(
-			EMetasoundFrontendClassType::Template,
-			ClassName.ToString(), 
-			Version.Number.Major, 
-			Version.Number.Minor);
-
+		static const FNodeRegistryKey RegistryKey = FNodeRegistryKey(EMetasoundFrontendClassType::Template, ClassName, VersionNumber);
 		return RegistryKey;
 	}
 
-	const FMetasoundFrontendVersion& FRerouteNodeTemplate::GetVersion() const
+	const FMetasoundFrontendVersionNumber& FRerouteNodeTemplate::GetVersionNumber() const
 	{
-		return Version;
+		return VersionNumber;
 	}
 
 #if WITH_EDITOR

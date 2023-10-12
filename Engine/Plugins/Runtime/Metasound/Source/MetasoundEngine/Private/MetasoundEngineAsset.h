@@ -49,7 +49,7 @@ namespace Metasound
 
 			for (const IMetaSoundAssetManager::FAssetInfo& AssetClass : InAssetClasses)
 			{
-				InMetaSound.ReferencedAssetClassKeys.Add(AssetClass.RegistryKey);
+				InMetaSound.ReferencedAssetClassKeys.Add(AssetClass.RegistryKey.ToString());
 				if (UObject* Object = AssetClass.AssetPath.TryLoad())
 				{
 					InMetaSound.ReferencedAssetClassObjects.Add(Object);

@@ -96,7 +96,7 @@ namespace Metasound
 				}
 				else
 				{
-					UE_LOG(LogMetaSound, VeryVerbose, TEXT("Object paths do not match. Skipping removal of %s:%s from the asset subsystem."), *InKeyToRemove, *InPathToRemove.ToString());
+					UE_LOG(LogMetaSound, VeryVerbose, TEXT("Object paths do not match. Skipping removal of %s:%s from the asset subsystem."), *InKeyToRemove.ToString(), *InPathToRemove.ToString());
 				}
 			}
 			return false;
@@ -143,7 +143,7 @@ void UMetaSoundAssetSubsystem::AddAssetReferences(FMetasoundAssetBase& InAssetBa
 	using namespace Metasound::Frontend;
 
 	const FMetasoundFrontendDocument& Document = InAssetBase.GetDocumentChecked();
-	const FNodeRegistryKey AssetClassKey = NodeRegistryKey::CreateKey(Document.RootGraph);
+	const FNodeRegistryKey AssetClassKey = FNodeRegistryKey(Document.RootGraph);
 
 	if (!ContainsKey(AssetClassKey))
 	{
@@ -153,11 +153,13 @@ void UMetaSoundAssetSubsystem::AddAssetReferences(FMetasoundAssetBase& InAssetBa
 
 	bool bAddFromReferencedAssets = false;
 	const TSet<FString>& ReferencedAssetClassKeys = InAssetBase.GetReferencedAssetClassKeys();
-	for (const FString& ReferencedAssetClassKey : ReferencedAssetClassKeys)
+	for (const FString& KeyString : ReferencedAssetClassKeys)
 	{
-		if (!ContainsKey(ReferencedAssetClassKey))
+		FNodeRegistryKey RegistryKey;
+		const bool bIsKey = FNodeRegistryKey::Parse(KeyString, RegistryKey);
+		if (!bIsKey || !ContainsKey(RegistryKey))
 		{
-			UE_LOG(LogMetaSound, Verbose, TEXT("Missing referenced class '%s' asset entry."), *ReferencedAssetClassKey);
+			UE_LOG(LogMetaSound, Verbose, TEXT("Missing referenced class '%s' asset entry."), *KeyString);
 			bAddFromReferencedAssets = true;
 		}
 	}
@@ -176,13 +178,13 @@ void UMetaSoundAssetSubsystem::AddAssetReferences(FMetasoundAssetBase& InAssetBa
 		if (Asset)
 		{
 			const FMetasoundFrontendDocument& RefDocument = Asset->GetDocumentChecked();
-			const FNodeRegistryKey ClassKey = NodeRegistryKey::CreateKey(RefDocument.RootGraph);
+			const FNodeRegistryKey ClassKey = FNodeRegistryKey(RefDocument.RootGraph);
 			if (!ContainsKey(ClassKey))
 			{
 				UE_LOG(LogMetaSound, Verbose,
 					TEXT("Preemptive load of class '%s' due to early "
 						"registration request (asset scan likely not complete)."),
-					*ClassKey);
+					*ClassKey.ToString());
 
 				UObject* MetaSoundObject = Asset->GetOwningAsset();
 				if (ensureAlways(MetaSoundObject))
@@ -211,9 +213,9 @@ Metasound::Frontend::FNodeRegistryKey UMetaSoundAssetSubsystem::AddOrUpdateAsset
 	check(MetaSoundAsset);
 
 	const FMetasoundFrontendDocument& Document = MetaSoundAsset->GetDocumentChecked();
-	const FNodeRegistryKey RegistryKey = NodeRegistryKey::CreateKey(Document.RootGraph);
+	const FNodeRegistryKey RegistryKey = FNodeRegistryKey(Document.RootGraph);
 
-	if (NodeRegistryKey::IsValid(RegistryKey))
+	if (RegistryKey.IsValid())
 	{
 		PathMap.FindOrAdd(RegistryKey) = InObject.GetPathName();
 	}
@@ -257,8 +259,8 @@ Metasound::Frontend::FNodeRegistryKey UMetaSoundAssetSubsystem::AddOrUpdateAsset
 
 	if (ClassInfo.AssetClassID.IsValid())
 	{
-		const FNodeRegistryKey RegistryKey = NodeRegistryKey::CreateKey(ClassInfo);
-		if (NodeRegistryKey::IsValid(RegistryKey))
+		const FNodeRegistryKey RegistryKey = FNodeRegistryKey(ClassInfo);
+		if (RegistryKey.IsValid())
 		{
 			PathMap.FindOrAdd(RegistryKey) = InAssetData.GetSoftObjectPath();
 		}
@@ -268,7 +270,7 @@ Metasound::Frontend::FNodeRegistryKey UMetaSoundAssetSubsystem::AddOrUpdateAsset
 
 	// Invalid ClassID means the node could not be registered.
 	// Let caller report or ensure as necessary.
-	return NodeRegistryKey::GetInvalid();
+	return FNodeRegistryKey::GetInvalid();
 }
 
 bool UMetaSoundAssetSubsystem::CanAutoUpdate(const FMetasoundFrontendClassName& InClassName) const
@@ -333,7 +335,7 @@ TSet<UMetaSoundAssetSubsystem::FAssetInfo> UMetaSoundAssetSubsystem::GetReferenc
 	const FMetasoundFrontendDocument& Document = InAssetBase.GetDocumentChecked();
 	for (const FMetasoundFrontendClass& Class : Document.Dependencies)
 	{
-		const FNodeRegistryKey Key = NodeRegistryKey::CreateKey(Class.Metadata);
+		const FNodeRegistryKey Key = FNodeRegistryKey(Class.Metadata);
 		if (const FSoftObjectPath* ObjectPath = PathMap.Find(Key))
 		{
 			OutAssetInfos.Add(FAssetInfo{Key, *ObjectPath});
@@ -361,11 +363,11 @@ TSet<UMetaSoundAssetSubsystem::FAssetInfo> UMetaSoundAssetSubsystem::GetReferenc
 			{
 				if (bIsInitialAssetScanComplete)
 				{
-					UE_LOG(LogMetaSound, Warning, TEXT("MetaSound Node Class with registry key '%s' not registered when gathering referenced asset classes from '%s': Retrieving all asset classes may not be comprehensive."), *Key, *InAssetBase.GetOwningAssetName());
+					UE_LOG(LogMetaSound, Warning, TEXT("MetaSound Node Class with registry key '%s' not registered when gathering referenced asset classes from '%s': Retrieving all asset classes may not be comprehensive."), *Key.ToString(), *InAssetBase.GetOwningAssetName());
 				}
 				else
 				{
-					UE_LOG(LogMetaSound, Warning, TEXT("Attempt to get registered dependent asset with key '%s' from MetaSound asset '%s' before asset scan has completed: Asset class cannot be provided"), *Key, *InAssetBase.GetOwningAssetName());
+					UE_LOG(LogMetaSound, Warning, TEXT("Attempt to get registered dependent asset with key '%s' from MetaSound asset '%s' before asset scan has completed: Asset class cannot be provided"), *Key.ToString(), *InAssetBase.GetOwningAssetName());
 				}
 			}
 		}
@@ -399,15 +401,17 @@ bool UMetaSoundAssetSubsystem::TryLoadReferencedAssets(const FMetasoundAssetBase
 
 	TArray<FMetasoundAssetBase*> ReferencedAssets;
 	const TSet<FString>& AssetClassKeys = InAssetBase.GetReferencedAssetClassKeys();
-	for (const FNodeRegistryKey& Key : AssetClassKeys)
+	for (const FString& KeyString : AssetClassKeys)
 	{
+		FNodeRegistryKey Key;
+		FNodeRegistryKey::Parse(KeyString, Key);
 		if (FMetasoundAssetBase* MetaSound = TryLoadAssetFromKey(Key))
 		{
 			OutReferencedAssets.Add(MetaSound);
 		}
 		else
 		{
-			UE_LOG(LogMetaSound, Error, TEXT("Failed to find referenced MetaSound asset with key '%s'"), *Key);
+			UE_LOG(LogMetaSound, Error, TEXT("Failed to find referenced MetaSound asset with key '%s'"), *KeyString);
 			bSucceeded = false;
 		}
 	}
@@ -599,7 +603,7 @@ void UMetaSoundAssetSubsystem::RemoveAsset(const UObject& InObject)
 	{
 		const FSoftObjectPath ObjectPath(&InObject);
 		const FMetasoundFrontendDocument& Document = MetaSoundAsset->GetDocumentChecked();
-		FNodeRegistryKey RegistryKey = NodeRegistryKey::CreateKey(Document.RootGraph);
+		FNodeRegistryKey RegistryKey = FNodeRegistryKey(Document.RootGraph);
 		if (AssetSubsystemPrivate::RemoveIfExactMatch(PathMap, RegistryKey, ObjectPath))
 		{
 			UMetaSoundBuilderSubsystem::GetChecked().DetachBuilderFromAsset(Document.RootGraph.Metadata.GetClassName());
@@ -615,7 +619,7 @@ void UMetaSoundAssetSubsystem::RemoveAsset(const FAssetData& InAssetData)
 	FNodeClassInfo ClassInfo;
 	if (ensureAlways(AssetSubsystemPrivate::GetAssetClassInfo(InAssetData, ClassInfo)))
 	{
-		FNodeRegistryKey RegistryKey = FMetasoundFrontendRegistryContainer::Get()->GetRegistryKey(ClassInfo);
+		const FNodeRegistryKey RegistryKey(ClassInfo);
 		const FSoftObjectPath ObjectPath = InAssetData.GetSoftObjectPath();
 		if (AssetSubsystemPrivate::RemoveIfExactMatch(PathMap, RegistryKey, ObjectPath))
 		{
@@ -740,7 +744,7 @@ void UMetaSoundAssetSubsystem::UnregisterAssetClassesInDirectories(const TArray<
 			FNodeClassInfo AssetClassInfo;
 			if (ensureAlways(AssetSubsystemPrivate::GetAssetClassInfo(AssetData, AssetClassInfo)))
 			{
-				const FNodeRegistryKey RegistryKey = NodeRegistryKey::CreateKey(AssetClassInfo);
+				const FNodeRegistryKey RegistryKey = FNodeRegistryKey(AssetClassInfo);
 				const bool bIsRegistered = FMetasoundFrontendRegistryContainer::Get()->IsNodeRegistered(RegistryKey);
 				if (bIsRegistered)
 				{

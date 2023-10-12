@@ -7,6 +7,7 @@
 #include "Containers/UnrealString.h"
 #include "CoreFwd.h"
 #include "MetasoundDataReference.h"
+#include "MetasoundFrontendRegistryKey.h"
 #include "MetasoundLog.h"
 #include "MetasoundOperatorSettings.h"
 #include "MetasoundVertex.h"
@@ -30,11 +31,6 @@ namespace Metasound
 	class INode;
 	class FOutputVertexInterfaceData;
 	class FInputVertexInterfaceData;
-
-	namespace Frontend
-	{
-		typedef FString FNodeRegistryKey;
-	}
 }
 
 namespace Metasound::EngineTest 

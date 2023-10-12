@@ -737,7 +737,7 @@ namespace Metasound
 			const FMetasoundFrontendClassMetadata Metadata = GetClassMetadata();
 
 			// Lookup new version in node registry
-			FNodeRegistryKey NewVersionRegistryKey = NodeRegistryKey::CreateKey(Metadata.GetType(), Metadata.GetClassName().ToString(), InNewVersion.Major, InNewVersion.Minor);
+			FNodeRegistryKey NewVersionRegistryKey = FNodeRegistryKey(Metadata.GetType(), Metadata.GetClassName(), InNewVersion);
 			FMetasoundFrontendRegistryContainer* Registry = FMetasoundFrontendRegistryContainer::Get();
 			checkf(nullptr != Registry, TEXT("The metasound node registry should always be available if the metasound plugin is loaded"));
 
@@ -827,7 +827,7 @@ namespace Metasound
 			// Make sure classes are up-to-date with registered versions of class.
 			// Note that this may break other nodes in the graph that have stale
 			// class API, but that's on the caller to fix-up or report invalid state.
-			const FNodeRegistryKey RegistryKey = NodeRegistryKey::CreateKey(NewMetasoundClass.Metadata);
+			const FNodeRegistryKey RegistryKey = FNodeRegistryKey(NewMetasoundClass.Metadata);
 			FDocumentHandle Document = GetOwningGraph()->GetOwningDocument();
 
 			constexpr bool bRefreshFromRegistry = true;
@@ -946,7 +946,7 @@ namespace Metasound
 				FMetasoundFrontendRegistryContainer* Registry = FMetasoundFrontendRegistryContainer::Get();
 				checkf(nullptr != Registry, TEXT("The metasound node registry should always be available if the metasound plugin is loaded"));
 				FMetasoundFrontendClass RegisteredClass;
-				bool bFoundRegisteredClass = Registry->FindFrontendClassFromRegistered(NodeRegistryKey::CreateKey(GetClassMetadata()), OutInterfaceUpdates.RegistryClass);
+				bool bFoundRegisteredClass = Registry->FindFrontendClassFromRegistered(FNodeRegistryKey(GetClassMetadata()), OutInterfaceUpdates.RegistryClass);
 
 				if (!bFoundRegisteredClass)
 				{
@@ -1039,7 +1039,7 @@ namespace Metasound
 				// define changes in native vs asset class definitions. Need to
 				// hash a changeID from natively defined node classes in order to
 				// merge branches.
-				const FNodeRegistryKey RegistryKey = NodeRegistryKey::CreateKey(RegistryClass.Metadata);
+				const FNodeRegistryKey RegistryKey = FNodeRegistryKey(RegistryClass.Metadata);
 				const bool bIsClassNative = FMetasoundFrontendRegistryContainer::Get()->IsNodeNative(RegistryKey);
 				if (bIsClassNative)
 				{
