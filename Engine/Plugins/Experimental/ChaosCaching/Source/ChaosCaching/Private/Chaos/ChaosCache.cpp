@@ -16,6 +16,13 @@ FAutoConsoleVariableRef CVarChaosCacheUseInterpolation(
 	bChaosCacheUseInterpolation,
 	TEXT("When enabled, cache interpolates between keys.[def: true]"));
 
+bool bChaosCacheCompressTracksAfterRecording = true;
+FAutoConsoleVariableRef CVarChaosCacheCompressTracksAfterRecording(
+	TEXT("p.Chaos.Cache.CompressTracksAfterRecording"),
+	bChaosCacheCompressTracksAfterRecording,
+	TEXT("When enabled, cache will compress the transform tracks after recording is done.[def: true]"));
+
+
 UChaosCache::UChaosCache()
 	: CurrentRecordCount(0)
 	, CurrentPlaybackCount(0)
@@ -460,6 +467,19 @@ void UChaosCache::EndRecord(FCacheUserToken& InOutToken)
 	if (bCompressChannels)
 	{
 		CompressChannelsData(ChannelsCompressionErrorThreshold, ChannelsCompressionSampleRate);
+	}
+
+	if (bChaosCacheCompressTracksAfterRecording)
+	{
+		CompressTracks();
+	}
+}
+
+void UChaosCache::CompressTracks()
+{
+	for (FPerParticleCacheData& Track : ParticleTracks)
+	{
+		Track.TransformData.Compress();
 	}
 }
 
@@ -918,4 +938,67 @@ const float FParticleTransformTrack::GetEndTime() const
 	}
 
 	return 0.0f;
+}
+
+void FParticleTransformTrack::Compress()
+{
+	if (KeyTimestamps.Num() > 0)
+	{
+		// simple compression algorithm to remove similar keys
+		// we compare the resulting transform
+		// the compression can be done in place because the number of resulting keys is always smaller than the original number of keys
+
+		int32 CompressedKeyIndex = 1; // set to 1 because we'll always write after KeyIndex
+
+		for (int32 KeyIndex = 0; KeyIndex < KeyTimestamps.Num(); KeyIndex++)
+		{
+			FTransform CurrentTransform = EvaluateAt(KeyIndex);
+
+			// find the next index where the transform is different
+			int32 NextIndex = (KeyIndex + 1);
+			for (; NextIndex < KeyTimestamps.Num(); NextIndex++)
+			{
+				const FTransform NextTransform = EvaluateAt(NextIndex);
+				if (!NextTransform.Equals(CurrentTransform))
+				{
+					// skip write the same value over itself 
+					const int32 LastSimilarIndex = (NextIndex - 1);
+					if (LastSimilarIndex > KeyIndex)
+					{
+						KeyTimestamps[CompressedKeyIndex] = KeyTimestamps[LastSimilarIndex];
+						RawTransformTrack.PosKeys[CompressedKeyIndex] = RawTransformTrack.PosKeys[LastSimilarIndex];
+						RawTransformTrack.RotKeys[CompressedKeyIndex] = RawTransformTrack.RotKeys[LastSimilarIndex];
+						// not sure we use that part anymore ( maybe in older caches ?)
+						RawTransformTrack.ScaleKeys[CompressedKeyIndex] = RawTransformTrack.ScaleKeys[LastSimilarIndex];
+					}
+					CompressedKeyIndex++;
+					break;
+				}
+			}
+			// we we have reached the end we need to copy the last key
+			if (NextIndex == KeyTimestamps.Num())
+			{
+				const int32 LastSimilarIndex = (NextIndex - 1);
+				KeyTimestamps[CompressedKeyIndex] = KeyTimestamps[LastSimilarIndex];
+				RawTransformTrack.PosKeys[CompressedKeyIndex] = RawTransformTrack.PosKeys[LastSimilarIndex];
+				RawTransformTrack.RotKeys[CompressedKeyIndex] = RawTransformTrack.RotKeys[LastSimilarIndex];
+				// not sure we use that part anymore ( maybe in older caches ?)
+				RawTransformTrack.ScaleKeys[CompressedKeyIndex] = RawTransformTrack.ScaleKeys[LastSimilarIndex];
+				
+				// we are now done 
+				CompressedKeyIndex++;
+				break; 
+			}
+			// make sure we start back as far as we can
+			KeyIndex = (NextIndex - 1);
+		}
+
+		// we are done we can now shrink the original arrays to the compressed size
+		const int32 CompressedSize = CompressedKeyIndex;
+		KeyTimestamps.SetNum(CompressedSize);
+		RawTransformTrack.PosKeys.SetNum(CompressedSize);
+		RawTransformTrack.RotKeys.SetNum(CompressedSize);
+		// not sure we use that part anymore ( maybe in older caches ?)
+		RawTransformTrack.ScaleKeys.SetNum(CompressedSize);
+	}
 }
