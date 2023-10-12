@@ -60,10 +60,10 @@ public:
 	UPROPERTY(BlueprintReadWrite, EditAnywhere, Category = Settings)
 	EPCGMedadataTrigOperation Operation = EPCGMedadataTrigOperation::Acos;
 
-	UPROPERTY(BlueprintReadWrite, EditAnywhere, Category = Input)
+	UPROPERTY(BlueprintReadWrite, EditAnywhere, Category = Input, meta = (PCG_Overridable))
 	FPCGAttributePropertyInputSelector InputSource1;
 
-	UPROPERTY(BlueprintReadWrite, EditAnywhere, Category = Input, meta = (EditCondition = "Operation == EPCGMedadataTrigOperation::Atan2", EditConditionHides))
+	UPROPERTY(BlueprintReadWrite, EditAnywhere, Category = Input, meta = (EditCondition = "Operation == EPCGMedadataTrigOperation::Atan2", EditConditionHides, PCG_Overridable))
 	FPCGAttributePropertyInputSelector InputSource2;
 
 #if WITH_EDITORONLY_DATA

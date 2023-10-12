@@ -94,7 +94,7 @@ public:
 	float Contrast = 1.0;
 
 	// The output attribute name to write, if not 'None'
-	UPROPERTY(BlueprintReadWrite, EditAnywhere, Category = Settings)
+	UPROPERTY(BlueprintReadWrite, EditAnywhere, Category = Settings, meta = (PCG_Overridable))
 	FPCGAttributePropertyOutputNoSourceSelector ValueTarget;
 
 	// Adds a random amount of offset up to this amount

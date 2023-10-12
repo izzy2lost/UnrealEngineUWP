@@ -33,7 +33,7 @@ struct FPCGActorPropertyOverride
 {
 	GENERATED_BODY()
 
-	UPROPERTY(EditAnywhere, Category = Settings)
+	UPROPERTY(EditAnywhere, Category = Settings, meta = (PCG_Overridable))
 	FPCGAttributePropertyInputSelector InputSource;
 
 	UPROPERTY(EditAnywhere, Category = Settings)

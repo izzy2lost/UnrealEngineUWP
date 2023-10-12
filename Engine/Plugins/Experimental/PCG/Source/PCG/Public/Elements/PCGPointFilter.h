@@ -118,7 +118,7 @@ public:
 	EPCGPointFilterOperator Operator = EPCGPointFilterOperator::Greater;
 
 	/** Target property/attribute related properties */
-	UPROPERTY(BlueprintReadWrite, EditAnywhere, Category = Settings)
+	UPROPERTY(BlueprintReadWrite, EditAnywhere, Category = Settings, meta = (PCG_Overridable))
 	FPCGAttributePropertyInputSelector TargetAttribute;
 
 	/** Threshold property/attribute/constant related properties */
@@ -218,7 +218,7 @@ protected:
 
 public:
 	/** Target property/attribute related properties */
-	UPROPERTY(BlueprintReadWrite, EditAnywhere, Category = Settings)
+	UPROPERTY(BlueprintReadWrite, EditAnywhere, Category = Settings, meta = (PCG_Overridable))
 	FPCGAttributePropertyInputSelector TargetAttribute;
 
 	/** Threshold property/attribute/constant related properties */

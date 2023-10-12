@@ -39,7 +39,7 @@ public:
 	bool bMatchAttributes = false;
 
 	/** Attribute from the point data to select & maetch */
-	UPROPERTY(BlueprintReadWrite, EditAnywhere, Category = Settings, meta = (EditCondition = "bMatchAttributes"))
+	UPROPERTY(BlueprintReadWrite, EditAnywhere, Category = Settings, meta = (EditCondition = "bMatchAttributes", PCG_Overridable))
 	FPCGAttributePropertyInputSelector InputAttribute;
 
 	/** Attribute from the attribute set to match against */
@@ -54,7 +54,7 @@ public:
 	bool bUseInputWeightAttribute = false;
 
 	/** Input weight from the points, assumed to be in the [0, 1] range */
-	UPROPERTY(BlueprintReadWrite, EditAnywhere, Category = Settings, meta = (EditCondition = "bUseInputWeightAttribute"))
+	UPROPERTY(BlueprintReadWrite, EditAnywhere, Category = Settings, meta = (EditCondition = "bUseInputWeightAttribute", PCG_Overridable))
 	FPCGAttributePropertyInputSelector InputWeightAttribute;
 
 	/** Controls whether we will consider the weights, as determined by the Weight Attribute values on the attribute set */

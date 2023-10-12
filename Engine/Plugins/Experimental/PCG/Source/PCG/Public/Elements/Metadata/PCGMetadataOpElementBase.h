@@ -124,7 +124,7 @@ public:
 	/* Return the current input pin to forward to the output. */
 	uint32 GetInputPinToForward() const;
 
-	UPROPERTY(BlueprintReadWrite, EditAnywhere, Category = "Output")
+	UPROPERTY(BlueprintReadWrite, EditAnywhere, Category = "Output", meta = (PCG_Overridable))
 	FPCGAttributePropertyOutputSelector OutputTarget;
 
 	/* By default, output is taken from first non-param pin (aka if the second pin is a point data, the output will be this point data). You can change it to any available input pin. */

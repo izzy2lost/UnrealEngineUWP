@@ -63,7 +63,7 @@ public:
 	TObjectPtr<UPCGMatchAndSetBase> MatchAndSetInstance;
 
 	/** "Set" part of the Match & Set - defines what will be changed in the operation */
-	UPROPERTY(BlueprintReadWrite, EditAnywhere, Category = Settings)
+	UPROPERTY(BlueprintReadWrite, EditAnywhere, Category = Settings, meta = (PCG_Overridable))
 	FPCGAttributePropertyOutputSelector SetTarget;
 
 	/** If the "Set" part is an attribute, then the type must be provided */
