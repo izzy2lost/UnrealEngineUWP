@@ -45,7 +45,12 @@ void UInheritableComponentHandler::PostLoad()
 						Record.ComponentClass = Record.ComponentTemplate->GetClass();
 					}
 				}
-				
+
+				ensureMsgf(
+					Record.ComponentTemplate->HasAnyFlags(RF_LoadCompleted) && 
+					Record.ComponentTemplate->IsA(Record.ComponentClass),
+					TEXT("Encountered unloaded object while trying to conform component template names"));
+
 				// Fix up component template name on load, if it doesn't match the original template name. Otherwise, archetype lookups will fail for this template.
 				// For example, this can occur after a component variable rename in a parent BP class, but before a child BP class with an override template is loaded.
 				// Note: If the key maps to an SCS node, the node's variable GUID will be used for the lookup instead of the name below (that's only used for UCS keys).
@@ -504,6 +509,13 @@ void UInheritableComponentHandler::PreloadAll()
 		}
 	}
 	PreloadAllTemplates();
+	// This will get component names up to date - since these component 
+	// templates are used by GetArchetypeFromRequiredInfo we want to have real
+	// names as quickly as possible. The circumstances that require
+	// this are not clear to me, but that the logic exists and occasionally
+	// runs means we should run it ASAP - otherwise we may use the wrong
+	// archetype on construction.
+	ConditionalPostLoad();
 }
 
 FComponentKey UInheritableComponentHandler::FindKey(const FName VariableName) const

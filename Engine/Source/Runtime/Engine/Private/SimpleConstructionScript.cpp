@@ -1508,6 +1508,11 @@ void USimpleConstructionScript::ValidateNodeVariableNames(FCompilerResultsLog& M
 void USimpleConstructionScript::ValidateNodeTemplates(FCompilerResultsLog& MessageLog)
 {
 	TArray<USCS_Node*> Nodes = GetAllNodes();
+	UClass* OwningClass = GetOwnerClass();
+
+	// it's likely that we shouldn't run any of this for diff loaded packages, but don't 
+	// want to destabilize anyone.. so just soldering off my new logic
+	const bool bForDiff = OwningClass->GetOutermost()->HasAnyPackageFlags(PKG_ForDiffing);
 
 	for (USCS_Node* Node : Nodes)
 	{
@@ -1546,6 +1551,34 @@ void USimpleConstructionScript::ValidateNodeTemplates(FCompilerResultsLog& Messa
 			if (bRemoveNode)
 			{
 				RemoveNodeAndPromoteChildren(Node);
+			}
+		}
+		else if (!bForDiff)
+		{
+			if (Node->ComponentTemplate->GetOuter() != OwningClass)
+			{
+				// this component template is somehow not owned by the class, recreate it:
+				FString VariableName = Node->GetVariableName().ToString();
+				if (Node->ComponentTemplate->HasAnyFlags(RF_ClassDefaultObject))
+				{
+					// duplicate won't work on CDOs because SDO will (for no good reason) reset loaders when duplicating a CDO...
+					Node->ComponentTemplate = NewObject<UActorComponent>(
+						OwningClass, 
+						Node->ComponentTemplate->GetClass(), 
+						*(VariableName + ComponentTemplateNameSuffix), 
+						RF_ArchetypeObject | RF_Transactional | RF_Public);
+				}
+				else
+				{
+					Node->ComponentTemplate = static_cast<UActorComponent*>(StaticDuplicateObject(
+						Node->ComponentTemplate, 
+						OwningClass, 
+						*(VariableName + ComponentTemplateNameSuffix)));
+					Node->ComponentTemplate->SetFlags(RF_ArchetypeObject | RF_Transactional | RF_Public);
+				}
+				MessageLog.Warning(*FText::Format(NSLOCTEXT(
+					"SimpleConstructionScript", "CorruptComponentFixed", 
+					"SCS Node component template {0} has been recreated because it was unexpectedly not owned by the class"), FText::FromString(VariableName)).ToString());
 			}
 		}
 	}
