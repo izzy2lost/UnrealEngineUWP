@@ -69,7 +69,25 @@ namespace UnsyncUI
         { }
     }
 
-    public static class AsyncIO
+	public interface IDirectoryEnumerator
+	{
+		public Task<IEnumerable<string>> EnumerateDirectories(string path, CancellationToken token);
+		public Task<IEnumerable<string>> EnumerateFiles(string path, CancellationToken token);
+	}
+
+	public class NativeDirectoryEnumerator : IDirectoryEnumerator
+	{
+		public Task<IEnumerable<string>> EnumerateDirectories(string path, CancellationToken token)
+		{
+			return AsyncIO.EnumerateDirectoriesAsync(path, token);
+		}
+		public Task<IEnumerable<string>> EnumerateFiles(string path, CancellationToken token)
+		{
+			return AsyncIO.EnumerateFilesAsync(path, token);
+		}
+	}
+
+	static class AsyncIO
     {
 		private static SemaphoreSlim mutex = new SemaphoreSlim(4);
 

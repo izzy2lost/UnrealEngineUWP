@@ -20,6 +20,8 @@ namespace UnsyncUI
 		public UserPreferences UserConfig { get; private set; }
 		public string DefaultSearchTerms { get; private set; } = "";
 
+		internal bool EnableExperimentalFeatures = false;
+
 		protected override void OnStartup(StartupEventArgs e)
 		{
 			string configFile = e.Args.Length > 0 ? e.Args[0] : "unsyncui.xml";
@@ -32,6 +34,10 @@ namespace UnsyncUI
 				{
 					DefaultSearchTerms = e.Args[i + 1];
 					++i;
+				}
+				else if (arg == "--experimental")
+				{
+					EnableExperimentalFeatures = true;
 				}
 			}
 
@@ -91,6 +97,12 @@ namespace UnsyncUI
 			if (UserConfig.DFS == "")
 			{
 				UserConfig.DFS = null;
+			}
+
+			if (Config != null)
+			{
+				Config.UnsyncPath = UnsyncPath;
+				Config.EnableExperimentalFeatures = EnableExperimentalFeatures;
 			}
 
 			base.OnStartup(e);

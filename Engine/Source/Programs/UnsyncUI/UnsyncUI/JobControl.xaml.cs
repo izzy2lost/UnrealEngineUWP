@@ -371,6 +371,11 @@ namespace UnsyncUI
 				if (!string.IsNullOrWhiteSpace(Proxy))
 				{
 					args.Add($"--proxy \"{Proxy}\"");
+
+					if (App.Current.Config.EnableExperimentalFeatures)
+					{
+						args.Add("--login");
+					}
 				}
 
 				if (!string.IsNullOrWhiteSpace(DFS))
@@ -405,7 +410,7 @@ namespace UnsyncUI
 
 				Debug.WriteLine($"Running unsync with args {argsStr}");
 
-				var unsyncPath = App.Current.UnsyncPath;
+				var unsyncPath = App.Current.Config.UnsyncPath;
 				proc = new AsyncProcess(unsyncPath, argsStr);
 
 				await foreach (var str in proc.RunAsync(cts.Token))

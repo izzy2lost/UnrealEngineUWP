@@ -23,6 +23,11 @@ namespace UnsyncUI
 			DataContext = new MainWindowModel();
 			var version = System.Reflection.Assembly.GetEntryAssembly().GetName().Version;
 			Title = $"UnsyncUI v{version.Major}.{version.Minor}.{version.Build}";
+
+			if (App.Current.EnableExperimentalFeatures)
+			{
+				Title += " [EXPERIMENTAL]";
+			}
 		}
 
 		private void Window_Closing(object sender, CancelEventArgs e)
