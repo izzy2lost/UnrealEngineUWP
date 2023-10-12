@@ -69,7 +69,7 @@ void SStandaloneAssetEditorToolkitHost::SetupInitialContent( const TSharedRef<FT
 		}
 	}
 
-	DefaultMenuWidget = SNullWidget::NullWidget;
+	bMainMenuCreated = false;
 
 	HostTabPtr = InHostTab;
 
@@ -231,7 +231,7 @@ FName SStandaloneAssetEditorToolkitHost::GetMenuName() const
 
 void SStandaloneAssetEditorToolkitHost::GenerateMenus(bool bForceCreateMenu)
 {
-	if( bForceCreateMenu || DefaultMenuWidget != SNullWidget::NullWidget )
+	if( bForceCreateMenu || bMainMenuCreated )
 	{
 		const FName AssetEditorMenuName = GetMenuName();
 
@@ -240,7 +240,9 @@ void SStandaloneAssetEditorToolkitHost::GenerateMenus(bool bForceCreateMenu)
 		FToolMenuContext ToolMenuContext(HostedAssetEditorToolkit->GetToolkitCommands(), FExtender::Combine(MenuExtenders), ContextObject);
 		HostedAssetEditorToolkit->InitToolMenuContext(ToolMenuContext);
 		IMainFrameModule& MainFrameModule = FModuleManager::LoadModuleChecked<IMainFrameModule>( "MainFrame" );
-		DefaultMenuWidget = MainFrameModule.MakeMainMenu( MyTabManager, AssetEditorMenuName, ToolMenuContext );
+
+		MainFrameModule.MakeMainMenuNoWidget( MyTabManager, AssetEditorMenuName, ToolMenuContext );
+		bMainMenuCreated = true;
 	}
 }
 

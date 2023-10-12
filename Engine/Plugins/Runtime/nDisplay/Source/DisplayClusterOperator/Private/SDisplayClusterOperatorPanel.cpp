@@ -188,7 +188,7 @@ void SDisplayClusterOperatorPanel::Construct(const FArguments& InArgs, const TSh
 	FToolMenuContext ToolMenuContext(CommandList, MenuExtender);
 	
 	const IMainFrameModule& MainFrameModule = FModuleManager::LoadModuleChecked<IMainFrameModule>("MainFrame");
-	MainFrameModule.MakeMainMenu(TabManager, MenuName, ToolMenuContext);
+	MainFrameModule.MakeMainMenuNoWidget(TabManager, MenuName, ToolMenuContext);
 	
 	// Allow any external modules to register extensions to the operator panel's status bar
 	FDisplayClusterOperatorStatusBarExtender StatusBarExtender;
