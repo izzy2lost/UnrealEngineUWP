@@ -33,7 +33,7 @@ void ReflectionClearTracesCS(
 {
 	FReflectionTileData TileData;
 	uint2 TmpReflectionTracingCoord = GetReflectionTracingScreenCoord(GroupId/*TileCoord*/, GroupThreadId/*InnerTileCoord*/, TileData);
-	const FReflectionTracingCoord ReflectionTracingCoord = GetReflectionTracingCoord(TmpReflectionTracingCoord, TileData.BSDFIndex);
+	const FReflectionTracingCoord ReflectionTracingCoord = GetReflectionTracingCoord(TmpReflectionTracingCoord, TileData.ClosureIndex);
 
 	RWTraceRadiance[ReflectionTracingCoord.CoordFlatten] = 0.0f;
 	RWTraceHit[ReflectionTracingCoord.CoordFlatten] = EncodeRayDistance(0.0f, false);
@@ -59,7 +59,7 @@ void ReflectionTraceScreenTexturesCS(
 {
 	FReflectionTileData TileData;
 	const uint2 TmpReflectionTracingCoord = GetReflectionTracingScreenCoord(GroupId/*TileCoord*/, GroupThreadId/*InnerTileCoord*/, TileData);
-	const FReflectionTracingCoord ReflectionTracingCoord = GetReflectionTracingCoord(TmpReflectionTracingCoord, TileData.BSDFIndex);
+	const FReflectionTracingCoord ReflectionTracingCoord = GetReflectionTracingCoord(TmpReflectionTracingCoord, TileData.ClosureIndex);
 
 	if (all(ReflectionTracingCoord.Coord < ReflectionTracingViewSize))
 	{
@@ -298,7 +298,7 @@ void ReflectionCompactTracesCS(
 	{
 		FReflectionTileData TileData;
 		const uint2 TmpReflectionTracingCoord = GetReflectionTracingScreenCoordZOrder(ReflectionTileIndex/*TileCoord*/, ReflectionGroupThreadId/*InnerTileCoord*/, TileData);
-		const FReflectionTracingCoord ReflectionTracingCoord = GetReflectionTracingCoord(TmpReflectionTracingCoord, TileData.BSDFIndex);
+		const FReflectionTracingCoord ReflectionTracingCoord = GetReflectionTracingCoord(TmpReflectionTracingCoord, TileData.ClosureIndex);
 
 		if (all(ReflectionTracingCoord.Coord < ReflectionTracingViewSize))
 		{
@@ -337,11 +337,11 @@ void ReflectionCompactTracesCS(
 #if ORDERED_COMPACTION
 				bTraceValid = true;
 				SharedTexelValid[GroupThreadId] = 1;
-				TraceTexelForThisThread = EncodeTraceTexel(ReflectionTracingCoord.Coord, ReflectionTracingCoord.BSDFIndex);
+				TraceTexelForThisThread = EncodeTraceTexel(ReflectionTracingCoord.Coord, ReflectionTracingCoord.ClosureIndex);
 #else
 				uint SharedTexelOffset;
 				InterlockedAdd(SharedTraceTexelAllocator, 1, SharedTexelOffset);
-				SharedTraceTexels[SharedTexelOffset] = EncodeTraceTexel(ReflectionTracingCoord.Coord, ReflectionTracingCoord.BSDFIndex);
+				SharedTraceTexels[SharedTexelOffset] = EncodeTraceTexel(ReflectionTracingCoord.Coord, ReflectionTracingCoord.ClosureIndex);
 #endif
 			}
 		}

@@ -23,23 +23,23 @@ struct FLumenMaterialCoord
 {
 	uint2 SvPosition;
 	uint3 SvPositionFlatten;
-	uint  BSDFIndex;
+	uint  ClosureIndex;
 };
 
 
 ///////////////////////////////////////////////////////////////////////////////////////////////////
 // Abstract ScreenProbeGather / Reflection coord building
 
-FLumenMaterialCoord GetLumenMaterialCoord(in uint2 SvPosition, uint InBSDFIndex)
+FLumenMaterialCoord GetLumenMaterialCoord(in uint2 SvPosition, uint InClosureIndex)
 {
 	FLumenMaterialCoord Out = (FLumenMaterialCoord)0;
 	Out.SvPosition = SvPosition;	
 #if SUBSTRATE_ENABLED
-	Out.BSDFIndex  = InBSDFIndex;
+	Out.ClosureIndex  = InClosureIndex;
 #else
-	Out.BSDFIndex  = 0;
+	Out.ClosureIndex  = 0;
 #endif
-	Out.SvPositionFlatten = uint3(Out.SvPosition, Out.BSDFIndex);
+	Out.SvPositionFlatten = uint3(Out.SvPosition, Out.ClosureIndex);
 	return Out;
 }
 
@@ -64,7 +64,7 @@ FLumenMaterialCoord GetLumenMaterialCoord(uint2 DispatchThreadId, uint2 GroupId,
 	{
 		const FSubstrateClosureTile Tile = UnpackClosureTile(Substrate.ClosureTileBuffer[LinearIndex]);
 		Out.SvPosition = Tile.TileCoord * SUBSTRATE_TILE_SIZE + GroupThreadId /*Local (tile) coord*/;
-		Out.BSDFIndex  = Tile.ClosureIndex;
+		Out.ClosureIndex  = Tile.ClosureIndex;
 		bIsValid = all(Out.SvPosition < View.ViewRectMinAndSize.zw);
 		bIsAnyValid = true;
 	}
@@ -72,10 +72,10 @@ FLumenMaterialCoord GetLumenMaterialCoord(uint2 DispatchThreadId, uint2 GroupId,
 	bIsValid = all(DispatchThreadId < View.ViewRectMinAndSize.zw);
 	bIsAnyValid = true;
 	Out.SvPosition = DispatchThreadId;
-	Out.BSDFIndex = 0;
+	Out.ClosureIndex = 0;
 #endif
 	Out.SvPosition += bAddMinRect ? View.ViewRectMinAndSize.xy /*ViewMin*/ : 0;
-	Out.SvPositionFlatten = uint3(Out.SvPosition, Out.BSDFIndex);
+	Out.SvPositionFlatten = uint3(Out.SvPosition, Out.ClosureIndex);
 	return Out;
 }
 
@@ -186,7 +186,7 @@ FLumenMaterialData InternalReadMaterialData_Substrate(uint2 InPixelPos)
 }
 
 // Substrate material internal read function - Per-BSDF data
-FLumenMaterialData InternalReadMaterialData_Substrate(uint2 InCoord, uint InBSDFIndex, float MaxRoughnessToTraceSmoothReflection)
+FLumenMaterialData InternalReadMaterialData_Substrate(uint2 InCoord, uint InClosureIndex, float MaxRoughnessToTraceSmoothReflection)
 {
 	FLumenMaterialData Out = (FLumenMaterialData)0;
 #if SUBSTRATE_ENABLED && SUBSTRATE_MATERIALCONTAINER_IS_VIEWRESOURCE
@@ -194,12 +194,12 @@ FLumenMaterialData InternalReadMaterialData_Substrate(uint2 InCoord, uint InBSDF
 		FSubstrateAddressing SubstrateAddressing			= GetSubstratePixelDataByteOffset(InCoord, uint2(View.BufferSizeAndInvSize.xy), Substrate.MaxBytesPerPixel);
 		const FSubstratePixelHeader SubstratePixelHeader	= UnpackSubstrateHeaderIn(Substrate.MaterialTextureArray, SubstrateAddressing, Substrate.TopLayerTexture);
 
-		if (InBSDFIndex < SubstratePixelHeader.BSDFCount)
+		if (InClosureIndex < SubstratePixelHeader.BSDFCount)
 		{
 			// Move data read address to the requested BDSF
-			if (InBSDFIndex > 0)
+			if (InClosureIndex > 0)
 			{
-				const uint AddressOffset = UnpackClosureOffsetAtIndex(Substrate.ClosureOffsetTexture[InCoord], InBSDFIndex, SubstratePixelHeader.BSDFCount);
+				const uint AddressOffset = UnpackClosureOffsetAtIndex(Substrate.ClosureOffsetTexture[InCoord], InClosureIndex, SubstratePixelHeader.BSDFCount);
 				SubstrateSeekClosure(SubstrateAddressing, AddressOffset);
 			}
 
@@ -342,7 +342,7 @@ FLumenMaterialData ReadMaterialData(FLumenMaterialCoord InCoord, float MaxRoughn
 #if FRONT_LAYER_TRANSLUCENCY
 	return InternalReadMaterialData_FrontLayerTranslucency(InCoord.SvPosition);
 #elif SUBSTRATE_ENABLED
-	return InternalReadMaterialData_Substrate(InCoord.SvPosition, InCoord.BSDFIndex, MaxRoughnessToTraceSmoothReflection);
+	return InternalReadMaterialData_Substrate(InCoord.SvPosition, InCoord.ClosureIndex, MaxRoughnessToTraceSmoothReflection);
 #else
 	return InternalReadMaterialData_GBuffer(InCoord.SvPosition);
 #endif

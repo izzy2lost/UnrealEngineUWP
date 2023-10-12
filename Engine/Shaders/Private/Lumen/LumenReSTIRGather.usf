@@ -1243,7 +1243,7 @@ void UpsampleAndIntegrateCS(
 #endif
 
 			// SUBSTRATE_TODO
-			const uint3 WriteCoord = uint3(SvPosition, 0 /*BSDFIndex*/);
+			const uint3 WriteCoord = uint3(SvPosition, 0 /*ClosureIndex*/);
 
 			// FDiffuseIndirectCompositePS applies DiffuseColor
 			RWDiffuseIndirect[WriteCoord] = DiffuseLighting * Diffuse_Lambert(1.0f);
@@ -1258,7 +1258,7 @@ void UpsampleAndIntegrateCS(
 		else
 		{
 			// SUBSTRATE_TODO
-			const uint3 WriteCoord = uint3(SvPosition, 0 /*BSDFIndex*/);
+			const uint3 WriteCoord = uint3(SvPosition, 0 /*ClosureIndex*/);
 
 			RWDiffuseIndirect[WriteCoord] = 0;
 			RWRoughSpecularIndirect[WriteCoord] = 0;
@@ -1288,14 +1288,14 @@ float4 HistoryEffectiveResolution;
 
 float MaxFramesAccumulated;
 
-// Return the 'flatten' SvPosition/ScreenCoord of particular BSDF layer
-uint2 GetNeighborFlattenCoord(uint2 InScreenCoord, uint InBSDFIndex)
+// Return the 'flatten' SvPosition/ScreenCoord of particular closure/layer
+uint2 GetNeighborFlattenCoord(uint2 InScreenCoord, uint InClosureIndex)
 {
 	return InScreenCoord;
 }
 
-// Return the previous frame 'flatten' UV coord of a particular layer
-float2 GetPrevUV(const float2 InPrevScreenCoordUV, uint InBSDFIndex)
+// Return the previous frame 'flatten' UV coord of a particular closure/layer
+float2 GetPrevUV(const float2 InPrevScreenCoordUV, uint InClosureIndex)
 {
 	float2 Out = InPrevScreenCoordUV;
 	return Out;
@@ -1320,7 +1320,7 @@ float3 ClampHistory(
 	uint2 MaxScreenCoord,
 	float3 NewLighting,
 	float3 HistoryLighting,
-	uint InBSDFIndex)
+	uint InClosureIndex)
 {
 	float3 NeighborMin = NewLighting;
 	float3 NeighborMax = NewLighting;
@@ -1330,7 +1330,7 @@ float3 ClampHistory(
 	{
 		const int2 SampleOffset = kOffsets3x3[NeighborId];
 
-		uint3 NeighborScreenCoord = uint3(ScreenCoord + SampleOffset, InBSDFIndex);
+		uint3 NeighborScreenCoord = uint3(ScreenCoord + SampleOffset, InClosureIndex);
 		NeighborScreenCoord.xy = clamp(NeighborScreenCoord.xy, MinScreenCoord, MaxScreenCoord);
 
 		const float3 Lighting = LightingTexture[NeighborScreenCoord].xyz;
@@ -1524,8 +1524,8 @@ void TemporalAccumulationCS(
 	{
 		const uint2 MinScreenCoord = View.ViewRectMinAndSize.xy;
 		const uint2 MaxScreenCoord = View.ViewRectMinAndSize.xy + View.ViewRectMinAndSize.zw - 1;
-		HistoryDiffuseIndirect = ClampHistory(DiffuseIndirect, Coord.SvPosition, MinScreenCoord, MaxScreenCoord, NewDiffuseLighting.xyz, HistoryDiffuseIndirect, Coord.BSDFIndex);
-		HistoryRoughSpecularIndirect = ClampHistory(RoughSpecularIndirect, Coord.SvPosition, MinScreenCoord, MaxScreenCoord, NewRoughSpecularLighting, HistoryRoughSpecularIndirect, Coord.BSDFIndex);
+		HistoryDiffuseIndirect = ClampHistory(DiffuseIndirect, Coord.SvPosition, MinScreenCoord, MaxScreenCoord, NewDiffuseLighting.xyz, HistoryDiffuseIndirect, Coord.ClosureIndex);
+		HistoryRoughSpecularIndirect = ClampHistory(RoughSpecularIndirect, Coord.SvPosition, MinScreenCoord, MaxScreenCoord, NewRoughSpecularLighting, HistoryRoughSpecularIndirect, Coord.ClosureIndex);
 	}
 #endif
 

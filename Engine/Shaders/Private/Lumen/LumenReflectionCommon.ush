@@ -145,14 +145,14 @@ Buffer<uint> ReflectionResolveTileData;
 struct FReflectionTileData
 {
 	uint2 Coord;
-	uint BSDFIndex;
+	uint ClosureIndex;
 };
 
 uint PackTileData(FReflectionTileData In)
 {
 	return 
 	#if SUBSTRATE_ENABLED
-		((In.BSDFIndex & 0x7) << 24) |
+		((In.ClosureIndex & 0x7) << 24) |
 	#endif
 		PackTileCoord12bits(In.Coord);
 }
@@ -161,7 +161,7 @@ FReflectionTileData UnpackTileData(uint In)
 {
 	FReflectionTileData Out;
 	Out.Coord 	  = UnpackTileCoord12bits(In);
-	Out.BSDFIndex = SUBSTRATE_ENABLED ? ((In>>24) & 0x7) : 0;
+	Out.ClosureIndex = SUBSTRATE_ENABLED ? ((In>>24) & 0x7) : 0;
 	return Out;
 }
 
@@ -178,7 +178,7 @@ uint3 GetReflectionTracingScreenCoord(uint TileIndex, uint ThreadIndex, inout FR
 {
 	OutTileData = UnpackTileData(ReflectionTracingTileData[TileIndex]);
 	uint2 TileOffset = OutTileData.Coord;
-	return uint3(TileOffset * REFLECTION_THREADGROUP_SIZE_2D + uint2(ThreadIndex % REFLECTION_THREADGROUP_SIZE_2D, ThreadIndex / REFLECTION_THREADGROUP_SIZE_2D), OutTileData.BSDFIndex);
+	return uint3(TileOffset * REFLECTION_THREADGROUP_SIZE_2D + uint2(ThreadIndex % REFLECTION_THREADGROUP_SIZE_2D, ThreadIndex / REFLECTION_THREADGROUP_SIZE_2D), OutTileData.ClosureIndex);
 }
 
 uint2 GetReflectionTracingScreenCoordZOrder(uint TileIndex, uint ThreadIndex, inout FReflectionTileData OutTileData)
@@ -234,26 +234,26 @@ struct FReflectionTracingCoord
 {
 	uint2 Coord;
 	uint3 CoordFlatten;
-	uint  BSDFIndex;
+	uint  ClosureIndex;
 };
 
-FReflectionTracingCoord GetReflectionTracingCoord(uint2 InReflectionTracingCoord, uint BSDFIndex)
+FReflectionTracingCoord GetReflectionTracingCoord(uint2 InReflectionTracingCoord, uint InClosureIndex)
 {
 	FReflectionTracingCoord Out;
 	Out.Coord = InReflectionTracingCoord;
-	Out.BSDFIndex = SUBSTRATE_ENABLED ? BSDFIndex : 0u;
-	Out.CoordFlatten = uint3(Out.Coord, Out.BSDFIndex);
+	Out.ClosureIndex = SUBSTRATE_ENABLED ? InClosureIndex : 0u;
+	Out.CoordFlatten = uint3(Out.Coord, Out.ClosureIndex);
 	return Out;
 }
 
-uint EncodeTraceTexel(uint2 ReflectionTracingCoord, uint BSDFIndex)
+uint EncodeTraceTexel(uint2 ReflectionTracingCoord, uint InClosureIndex)
 {
-	return PackTileCoord12bits(ReflectionTracingCoord) | ((BSDFIndex & 0xF) << 24);
+	return PackTileCoord12bits(ReflectionTracingCoord) | ((InClosureIndex & 0xF) << 24);
 }
 
 FReflectionTracingCoord DecodeTraceTexel(uint TraceTexelData)
 {
 	const uint2 TraceCoord = UnpackTileCoord12bits(TraceTexelData);
-	const uint BSDFIndex = (TraceTexelData >> 24) & 0xF;
-	return GetReflectionTracingCoord(TraceCoord, BSDFIndex);
+	const uint ClosureIndex = (TraceTexelData >> 24) & 0xF;
+	return GetReflectionTracingCoord(TraceCoord, ClosureIndex);
 }
