@@ -2,6 +2,7 @@
 
 #pragma once
 
+#include "Elements/Common/TypedElementHandles.h"
 #include "Elements/Interfaces/TypedElementDataStorageInterface.h"
 #include "UObject/ObjectMacros.h"
 #include "UObject/WeakObjectPtrTemplates.h"
@@ -32,4 +33,15 @@ struct FTypedElementExternalObjectColumn final : public FTypedElementDataStorage
 	GENERATED_BODY()
 
 	void* Object;
+};
+
+/**
+ * Source table used to register the external object with.
+ */
+USTRUCT(meta = (DisplayName = "Object source table"))
+struct FTypedElementObjectSourceTableColumn final : public FTypedElementDataStorageColumn
+{
+	GENERATED_BODY()
+
+	TypedElementDataStorage::TableHandle SourceTable;
 };

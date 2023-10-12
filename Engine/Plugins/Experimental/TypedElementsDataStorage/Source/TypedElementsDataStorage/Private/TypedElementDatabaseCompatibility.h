@@ -77,12 +77,30 @@ private:
 		TypedElementDataStorage::TableHandle Table{ TypedElementDataStorage::InvalidTableHandle };
 	};
 
+	class FDeregistrationCommandChange final : public FCommandChange
+	{
+	public:
+		FDeregistrationCommandChange(TypedElementDataStorage::TableHandle InTable,
+			UTypedElementDatabaseCompatibility* InCompatibilityLayer);
+
+		void Apply(UObject* Object) override;
+		void Revert(UObject* Object) override;
+		FString ToString() const override;
+
+	private:
+		UTypedElementDatabaseCompatibility* CompatibilityLayer{ nullptr };
+		TypedElementDataStorage::TableHandle Table{ TypedElementDataStorage::InvalidTableHandle };
+	};
+
 	void Prepare();
 	void Reset();
 	void CreateStandardArchetypes();
 	
 	bool ShouldAddObject(const UObject* Object) const;
-	TypedElementRowHandle AddCompatibleObjectExplicitNoTransaction(UObject* Object, TypedElementTableHandle Table);
+	template<bool bEnableTransactions>
+	TypedElementRowHandle AddCompatibleObjectExplicitTransactionable(UObject* Object, TypedElementTableHandle Table);
+	template<bool bEnableTransactions>
+	void RemoveCompatibleObjectExplicitTransactionable(UObject* Object);
 	TypedElementRowHandle DealiasObject(const UObject* Object) const;
 
 	void Tick();
