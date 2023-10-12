@@ -2104,8 +2104,7 @@ void UNiagaraComponent::CreateCullProxy(bool bForce)
 		FNiagaraWorldManager* WorldMan = FNiagaraWorldManager::Get(GetWorld());
 		check(WorldMan);
 		
-		UNiagaraCullProxyComponent* SystemCullProxy = WorldMan->GetCullProxy(this);
-		if (SystemCullProxy)
+		if ( UNiagaraCullProxyComponent* SystemCullProxy = WorldMan->GetCullProxy(this) )
 		{
 			if (SystemCullProxy->RegisterCulledComponent(this, bForce))
 			{
@@ -2313,7 +2312,11 @@ FPrimitiveSceneProxy* UNiagaraComponent::CreateSceneProxy()
 
 void UNiagaraComponent::GetUsedMaterials(TArray<UMaterialInterface*>& OutMaterials, bool bGetDebugMaterials) const
 {
-	if (SystemInstanceController.IsValid())
+	if (CullProxy)
+	{
+		CullProxy->GetUsedMaterials(OutMaterials, bGetDebugMaterials);
+	}
+	else if (SystemInstanceController.IsValid())
 	{
 		SystemInstanceController->GetUsedMaterials(OutMaterials);
 	}
