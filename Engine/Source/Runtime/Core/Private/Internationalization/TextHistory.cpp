@@ -906,7 +906,14 @@ bool FTextHistory_Base::CanUpdateDisplayString()
 void FTextHistory_Base::UpdateDisplayString()
 {
 	check(!TextId.IsEmpty()); // CanUpdateDisplayString should prevent UpdateDisplayString being called
-	LocalizedString = FTextLocalizationManager::Get().GetDisplayString(TextId.GetNamespace(), TextId.GetKey(), SourceString.IsEmpty() ? nullptr : &SourceString);
+
+	// Create a temp to hold the old value in case we abort, in which case we assign out of the OPEN so the old value will be preserved
+	FTextConstDisplayStringPtr NewLocalizedString;
+	UE_AUTORTFM_OPEN({
+		NewLocalizedString = FTextLocalizationManager::Get().GetDisplayString(TextId.GetNamespace(), TextId.GetKey(), SourceString.IsEmpty() ? nullptr : &SourceString);
+	});
+
+	LocalizedString = NewLocalizedString;
 }
 
 bool FTextHistory_Base::StaticShouldReadFromBuffer(const TCHAR* Buffer)
