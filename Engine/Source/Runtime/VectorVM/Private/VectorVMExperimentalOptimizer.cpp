@@ -2753,7 +2753,25 @@ uint32 OptimizeVectorVMScript(const uint8 *InBytecode, int InBytecodeLen, FVecto
 				uint16 SerialIdx = OutputRegs[i].OutputIns->Output.SerialIdx;
 				check(OutputRegs[i].OutputIns->Output.DataSetIdx < 0xFF); //storing 1 byte only
 				OptContext->OutputRemapDataSetIdx[SerialIdx] = (uint8)OutputRegs[i].OutputIns->Output.DataSetIdx;
-				OptContext->OutputRemapDataType[SerialIdx]   = (uint16)OutputRegs[i].OutputIns->OpCode - (uint16)EVectorVMOp::outputdata_float;
+				switch (OutputRegs[i].OutputIns->OpCode)
+				{
+					case EVectorVMOp::outputdata_float:
+						OptContext->OutputRemapDataType[SerialIdx] = 0;
+					break;
+
+					case EVectorVMOp::outputdata_int32:
+						OptContext->OutputRemapDataType[SerialIdx] = 1;
+					break;
+
+					case EVectorVMOp::outputdata_half:
+					case EVectorVMOp::outputdata_float_from_half:
+					case EVectorVMOp::outputdata_half_from_half:
+						OptContext->OutputRemapDataType[SerialIdx] = 2;
+					break;
+
+					default:
+					break;
+				}
 				OptContext->OutputRemapDst[SerialIdx]        = OutputRegs[i].OutputIns->Output.DstRegIdx;
 			}			
 
