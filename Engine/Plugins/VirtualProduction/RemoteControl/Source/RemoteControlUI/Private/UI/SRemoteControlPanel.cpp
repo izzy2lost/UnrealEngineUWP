@@ -1928,6 +1928,7 @@ void SRemoteControlPanel::RegisterDefaultToolBar()
 	if (!ToolMenus->IsMenuRegistered(DefaultRemoteControlPanelToolBarName))
 	{
 		UToolMenu* ToolbarBuilder = ToolMenus->RegisterMenu(DefaultRemoteControlPanelToolBarName, NAME_None, EMultiBoxType::SlimHorizontalToolBar);
+		ToolbarBuilder->StyleName = "ContentBrowser.ToolBar";
 
 #if 0
 		ToolbarBuilder->StyleName = "AssetEditorToolbar";
@@ -1975,7 +1976,7 @@ void SRemoteControlPanel::GenerateToolbar()
 				[
 					SNew(SSeparator)
 					.SeparatorImage(FAppStyle::Get().GetBrush("Separator"))
-					.Thickness(2.f)
+					.Thickness(1.5f)
 					.Orientation(EOrientation::Orient_Vertical)
 				];
 
@@ -1988,7 +1989,12 @@ void SRemoteControlPanel::GenerateToolbar()
 				];
 		}
 
-		MiscWidgets = MiscWidgetsHBox;
+		MiscWidgets = SNew(SVerticalBox)
+			+ SVerticalBox::Slot()
+			.AutoHeight()
+			[
+				MiscWidgetsHBox
+			];
 	}
 
 	const URemoteControlSettings* Settings = GetMutableDefault<URemoteControlSettings>();
@@ -2155,6 +2161,7 @@ void SRemoteControlPanel::RegisterAuxiliaryToolBar()
 	if (!ToolMenus->IsMenuRegistered(AuxiliaryRemoteControlPanelToolBarName))
 	{
 		UToolMenu* ToolbarBuilder = ToolMenus->RegisterMenu(AuxiliaryRemoteControlPanelToolBarName, NAME_None, EMultiBoxType::SlimHorizontalToolBar);
+		ToolbarBuilder->StyleName = "ContentBrowser.ToolBar";
 
 #if 0
 		ToolbarBuilder->StyleName = "AssetEditorToolbar";
@@ -2165,19 +2172,29 @@ void SRemoteControlPanel::RegisterAuxiliaryToolBar()
 			const FRemoteControlCommands& Commands = FRemoteControlCommands::Get();
 
 			ToolsSection.AddEntry(FToolMenuEntry::InitWidget("Protocols"
-				, SNew(SAutoResizeButton)
-					.UICommand(FRemoteControlCommands::Get().ToggleProtocolMappings)
-					.ForceSmallIcons_Static(SRemoteControlPanel::ShouldForceSmallIcons)
-					.IconOverride(FSlateIcon(FAppStyle::GetAppStyleSetName(), "LevelEditor.Tabs.StatsViewer"))
-				, Commands.ToggleProtocolMappings->GetLabel()
+				, SNew(SVerticalBox)
+					+ SVerticalBox::Slot()
+					.AutoHeight()
+					[
+						SNew(SAutoResizeButton)
+							.UICommand(FRemoteControlCommands::Get().ToggleProtocolMappings)
+							.ForceSmallIcons_Static(SRemoteControlPanel::ShouldForceSmallIcons)
+							.IconOverride(FSlateIcon(FAppStyle::GetAppStyleSetName(), "LevelEditor.Tabs.StatsViewer"))
+					]
+					, Commands.ToggleProtocolMappings->GetLabel()
 			)
 			);
 
 			ToolsSection.AddEntry(FToolMenuEntry::InitWidget("Logic"
-				, SNew(SAutoResizeButton)
+			, SNew(SVerticalBox)
+				+ SVerticalBox::Slot()
+				.AutoHeight()
+				[
+					SNew(SAutoResizeButton)
 					.UICommand(FRemoteControlCommands::Get().ToggleLogicEditor)
 					.ForceSmallIcons_Static(SRemoteControlPanel::ShouldForceSmallIcons)
-					.IconOverride(FSlateIcon(FAppStyle::GetAppStyleSetName(), TEXT("GraphEditor.StateMachine_24x")))
+					.IconOverride(FSlateIcon(FAppStyle::GetAppStyleSetName(), TEXT("GraphEditor.StateMachine_16x")))
+				]
 				, Commands.ToggleLogicEditor->GetLabel()
 			)
 			);

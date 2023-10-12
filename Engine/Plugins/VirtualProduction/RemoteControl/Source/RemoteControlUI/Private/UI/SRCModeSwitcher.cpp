@@ -127,7 +127,7 @@ void SRCModeSwitcher::RegenerateWidgets()
 					.ToolTip(SomeMode.ToolTip)
 					.ToolTipText(SomeMode.ToolTip.IsSet() ? TAttribute<FText>() :
 						SomeMode.DefaultTooltip.IsSet() ? SomeMode.DefaultTooltip : ModeLabel)
-					.Padding(4.f)
+					.Padding(FMargin(4.f, 0.f))
 					[
 						ContentWidget
 					];

@@ -255,7 +255,7 @@ void SRCMinorPanel::Construct(const SRCMinorPanel::FArguments& InArgs)
 				+SHorizontalBox::Slot()
 				.AutoWidth()
 				.VAlign(VAlign_Center)
-				.Padding(4.f, 4.f, 2.f, 4.f)
+				.Padding(4.f, 0.f, 2.f, 0.f)
 				[
 					SAssignNew(LeftHeaderToolbar, SHorizontalBox)
 				]
@@ -264,7 +264,7 @@ void SRCMinorPanel::Construct(const SRCMinorPanel::FArguments& InArgs)
 				+SHorizontalBox::Slot()
 				.AutoWidth()
 				.VAlign(VAlign_Center)
-				.Padding(2.f, 4.f)
+				.Padding(2.f, 0.f)
 				[
 					SNew(STextBlock)
 					.TextStyle(&RCPanelStyle->HeaderTextStyle)
@@ -275,7 +275,7 @@ void SRCMinorPanel::Construct(const SRCMinorPanel::FArguments& InArgs)
 				+SHorizontalBox::Slot()
 				.FillWidth(1.0f)
 				.VAlign(VAlign_Center)
-				.Padding(2.f, 4.f, 5.f, 4.f)
+				.Padding(2.f, 0.f, 5.f, 0.f)
 				[
 					SAssignNew(CenterHeaderToolbar, SHorizontalBox)
 				]
@@ -283,7 +283,7 @@ void SRCMinorPanel::Construct(const SRCMinorPanel::FArguments& InArgs)
 				// Right Toolbar
 				+SHorizontalBox::Slot()
 				.AutoWidth()
-				.Padding(2.f, 4.f, 4.f, 4.f)
+				.Padding(2.f, 0.f, 4.f, 0.f)
 				.VAlign(VAlign_Center)
 				[
 					SAssignNew(RightHeaderToolbar, SHorizontalBox)
