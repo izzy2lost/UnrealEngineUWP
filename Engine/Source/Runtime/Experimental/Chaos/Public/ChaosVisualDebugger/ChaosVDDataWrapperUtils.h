@@ -11,9 +11,11 @@ namespace Chaos
 {
 	class FParticlePairMidPhase;
 	class FPBDCollisionConstraint;
+	class FPBDCollisionConstraintMaterial;
 }
 
 class FChaosVisualDebuggerTrace;
+struct FChaosVDCollisionMaterial;
 struct FChaosVDConstraint;
 struct FChaosVDParticlePairMidPhase;
 struct FChaosVDParticleDataWrapper;
@@ -34,6 +36,9 @@ private:
 
 	/** Takes a FManifoldPointResult and copies the relevant data to the CVD counterpart */
 	static void CopyManifoldPointResultsToDataWrapper(const Chaos::FManifoldPointResult& InCopyFrom, FChaosVDManifoldPoint& OutCopyTo);
+
+	/** Takes a FPBDCollisionConstraintMaterial and copies the relevant data to the CVD counterpart */
+	static void CopyCollisionMaterialToDataWrapper(const Chaos::FPBDCollisionConstraintMaterial& InCopyFrom, FChaosVDCollisionMaterial& OutCopyTo);
 
 	/** Creates and populates a FChaosVDParticleDataWrapper with the data of the provided FGeometryParticleHandle */
 	static FChaosVDParticleDataWrapper BuildParticleDataWrapperFromParticle(const Chaos::FGeometryParticleHandle* ParticleHandlePtr);

@@ -35,6 +35,24 @@ bool FChaosVDManifoldPoint::Serialize(FArchive& Ar)
 	return true;
 }
 
+bool FChaosVDCollisionMaterial::Serialize(FArchive& Ar)
+{
+	Ar << FaceIndex;
+	Ar << MaterialDynamicFriction;
+	Ar << MaterialStaticFriction;
+	Ar << MaterialRestitution;
+	Ar << DynamicFriction;
+	Ar << StaticFriction;
+	Ar << Restitution;
+	Ar << RestitutionThreshold;
+	Ar << InvMassScale0;
+	Ar << InvMassScale1;
+	Ar << InvInertiaScale0;
+	Ar << InvInertiaScale1;
+
+	return true;
+}
+
 bool FChaosVDConstraint::Serialize(FArchive& Ar)
 {
 	FArchive_Serialize_BitfieldBool(Ar, bIsCurrent);
@@ -51,6 +69,7 @@ bool FChaosVDConstraint::Serialize(FArchive& Ar)
 	FArchive_Serialize_BitfieldBool(Ar, bModifierApplied);
 	FArchive_Serialize_BitfieldBool(Ar, bMaterialSet);
 
+	Ar << Material;
 	Ar << AccumulatedImpulse;
 	Ar << ShapesType;
 	Ar << ShapeWorldTransforms;

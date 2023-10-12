@@ -151,6 +151,66 @@ inline FArchive& operator<<(FArchive& Ar, FChaosVDManifoldPoint& Data)
 }
 
 USTRUCT()
+struct FChaosVDCollisionMaterial
+{
+	GENERATED_BODY()
+
+	UPROPERTY(VisibleAnywhere, Category = MaterialData)
+	int32 FaceIndex = INDEX_NONE;
+
+	UPROPERTY(VisibleAnywhere, Category = MaterialData)
+	float MaterialDynamicFriction = 0.0f;
+	
+	UPROPERTY(VisibleAnywhere, Category = MaterialData)
+	float MaterialStaticFriction = 0.0f;
+	
+	UPROPERTY(VisibleAnywhere, Category = MaterialData)
+	float MaterialRestitution = 0.0f;
+
+	UPROPERTY(VisibleAnywhere, Category = MaterialData)
+	float DynamicFriction = 0.0f;
+	
+	UPROPERTY(VisibleAnywhere, Category = MaterialData)
+	float StaticFriction = 0.0f;
+	
+	UPROPERTY(VisibleAnywhere, Category = MaterialData)
+	float Restitution = 0.0f;
+	
+	UPROPERTY(VisibleAnywhere, Category = MaterialData)
+	float RestitutionThreshold = 0.0f;
+	
+	UPROPERTY(VisibleAnywhere, Category = MaterialData)
+	float InvMassScale0 = 0.0f;
+	
+	UPROPERTY(VisibleAnywhere, Category = MaterialData)
+	float InvMassScale1 = 0.0f;
+	
+	UPROPERTY(VisibleAnywhere, Category = MaterialData)
+	float InvInertiaScale0 = 0.0f;
+	
+	UPROPERTY(VisibleAnywhere, Category = MaterialData)
+	float InvInertiaScale1 = 0.0f;
+
+	bool Serialize(FArchive& Ar);
+};
+
+template<>
+struct TStructOpsTypeTraits<FChaosVDCollisionMaterial> : public TStructOpsTypeTraitsBase2<FChaosVDCollisionMaterial>
+{
+	enum
+	{
+		WithSerializer = true,
+	};
+};
+
+inline FArchive& operator<<(FArchive& Ar, FChaosVDCollisionMaterial& Data)
+{
+	Data.Serialize(Ar);
+	return Ar;
+}
+
+
+USTRUCT()
 struct CHAOSVDRUNTIME_API FChaosVDConstraint
 {
 	GENERATED_BODY()
@@ -184,6 +244,9 @@ struct CHAOSVDRUNTIME_API FChaosVDConstraint
 	UPROPERTY(VisibleAnywhere, Category=ConstraintData)
 	uint8 bMaterialSet:1 = false;
 	
+	UPROPERTY(VisibleAnywhere, Category = ConstraintData)
+	FChaosVDCollisionMaterial Material;
+
 	UPROPERTY(VisibleAnywhere, Category=ConstraintData)
 	FVector AccumulatedImpulse = FVector(ForceInit);
 	

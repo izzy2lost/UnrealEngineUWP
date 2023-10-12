@@ -32,19 +32,28 @@ void FChaosVDParticleDataVisualizer::DrawVisualization(const FSceneView* View, F
 	}
 
 	// TODO: Implement scale settings for the vectors, and take into account the simulation space transform
+	const float VelScale = 0.5f;		// [cm/s]
+	const float AngVelScale = 50.0f;	// [rad/s]
+	const float AccScale = 0.005f;		// [cm/s2]
+	const float AngAccScale = 0.5f;		// [rad/s2]
+	const float ImpScale = 0.001;		// [g.m/s]
+	const float AngImpScale = 0.1f;		// [g.m2/s]
 
 	const FVector& OwnerLocation = ParticleDataViewer->ParticlePositionRotation.MX;
+	const FQuat& OwnerRotation = ParticleDataViewer->ParticlePositionRotation.MR;
+	const FVector OwnerCoMLocation = OwnerLocation + OwnerRotation * ParticleDataViewer->ParticleMassProps.MCenterOfMass;
+
 
 	if (ParticleDataViewer->ParticleVelocities.HasValidData())
 	{
 		if (EnumHasAnyFlags(VisualizationFlagsToUse, EChaosVDParticleDataVisualizationFlags::Velocity))
 		{
-			FChaosVDDebugDrawUtils::DrawArrowVector(PDI, OwnerLocation, OwnerLocation + ParticleDataViewer->ParticleVelocities.MV, TEXT("Velocity"), FColor::Green);
+			FChaosVDDebugDrawUtils::DrawArrowVector(PDI, OwnerCoMLocation, OwnerCoMLocation + VelScale * ParticleDataViewer->ParticleVelocities.MV, TEXT("Velocity"), FColor::Green);
 		}
 
 		if (EnumHasAnyFlags(VisualizationFlagsToUse, EChaosVDParticleDataVisualizationFlags::AngularVelocity))
 		{
-			FChaosVDDebugDrawUtils::DrawArrowVector(PDI, OwnerLocation, OwnerLocation + ParticleDataViewer->ParticleVelocities.MW, TEXT("Angular Velocity"), FColor::Blue);
+			FChaosVDDebugDrawUtils::DrawArrowVector(PDI, OwnerCoMLocation, OwnerCoMLocation + AngVelScale * ParticleDataViewer->ParticleVelocities.MW, TEXT("Angular Velocity"), FColor::Blue);
 		}
 	}
 
@@ -52,22 +61,22 @@ void FChaosVDParticleDataVisualizer::DrawVisualization(const FSceneView* View, F
 	{
 		if (EnumHasAnyFlags(VisualizationFlagsToUse, EChaosVDParticleDataVisualizationFlags::Acceleration))
 		{
-			FChaosVDDebugDrawUtils::DrawArrowVector(PDI, OwnerLocation, OwnerLocation + ParticleDataViewer->ParticleDynamics.MAcceleration, TEXT("Acceleration"), FColor::Orange);
+			FChaosVDDebugDrawUtils::DrawArrowVector(PDI, OwnerCoMLocation, OwnerCoMLocation + AccScale * ParticleDataViewer->ParticleDynamics.MAcceleration, TEXT("Acceleration"), FColor::Orange);
 		}
 		
 		if (EnumHasAnyFlags(VisualizationFlagsToUse, EChaosVDParticleDataVisualizationFlags::AngularAcceleration))
 		{
-			FChaosVDDebugDrawUtils::DrawArrowVector(PDI, OwnerLocation, OwnerLocation + ParticleDataViewer->ParticleDynamics.MAngularAcceleration, TEXT("Angular Acceleration"), FColor::Purple);
+			FChaosVDDebugDrawUtils::DrawArrowVector(PDI, OwnerCoMLocation, OwnerCoMLocation + AngAccScale * ParticleDataViewer->ParticleDynamics.MAngularAcceleration, TEXT("Angular Acceleration"), FColor::Purple);
 		}
 
 		if (EnumHasAnyFlags(VisualizationFlagsToUse, EChaosVDParticleDataVisualizationFlags::LinearImpulse))
 		{
-			FChaosVDDebugDrawUtils::DrawArrowVector(PDI, OwnerLocation, OwnerLocation + ParticleDataViewer->ParticleDynamics.MLinearImpulseVelocity, TEXT("Linear Implulse Velocity"), FColor::Purple);
+			FChaosVDDebugDrawUtils::DrawArrowVector(PDI, OwnerCoMLocation, OwnerCoMLocation + ImpScale * ParticleDataViewer->ParticleDynamics.MLinearImpulseVelocity, TEXT("Linear Implulse Velocity"), FColor::Purple);
 		}
 
 		if (EnumHasAnyFlags(VisualizationFlagsToUse, EChaosVDParticleDataVisualizationFlags::AngularImpulse))
 		{
-			FChaosVDDebugDrawUtils::DrawArrowVector(PDI, OwnerLocation, OwnerLocation + ParticleDataViewer->ParticleDynamics.MAngularImpulseVelocity, TEXT("Angular Implulse Velocity"), FColor::Emerald);
+			FChaosVDDebugDrawUtils::DrawArrowVector(PDI, OwnerCoMLocation, OwnerCoMLocation + AngImpScale * ParticleDataViewer->ParticleDynamics.MAngularImpulseVelocity, TEXT("Angular Implulse Velocity"), FColor::Emerald);
 		}
 	}
 }

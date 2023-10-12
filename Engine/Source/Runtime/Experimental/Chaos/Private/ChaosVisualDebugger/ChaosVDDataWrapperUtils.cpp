@@ -37,6 +37,22 @@ void FChaosVDDataWrapperUtils::CopyManifoldPointResultsToDataWrapper(const Chaos
 	OutCopyTo.bInsideStaticFrictionCone =  InCopyFrom.bInsideStaticFrictionCone;
 }
 
+void FChaosVDDataWrapperUtils::CopyCollisionMaterialToDataWrapper(const Chaos::FPBDCollisionConstraintMaterial& InCopyFrom, FChaosVDCollisionMaterial& OutCopyTo)
+{
+	OutCopyTo.FaceIndex = InCopyFrom.FaceIndex;
+	OutCopyTo.MaterialDynamicFriction = InCopyFrom.MaterialDynamicFriction;
+	OutCopyTo.MaterialStaticFriction = InCopyFrom.MaterialStaticFriction;
+	OutCopyTo.MaterialRestitution = InCopyFrom.MaterialRestitution;
+	OutCopyTo.DynamicFriction = InCopyFrom.DynamicFriction;
+	OutCopyTo.StaticFriction = InCopyFrom.StaticFriction;
+	OutCopyTo.Restitution = InCopyFrom.Restitution;
+	OutCopyTo.RestitutionThreshold = InCopyFrom.RestitutionThreshold;
+	OutCopyTo.InvMassScale0 = InCopyFrom.InvMassScale0;
+	OutCopyTo.InvMassScale1 = InCopyFrom.InvMassScale1;
+	OutCopyTo.InvInertiaScale0 = InCopyFrom.InvInertiaScale0;
+	OutCopyTo.InvInertiaScale1 = InCopyFrom.InvInertiaScale1;
+}
+
 FChaosVDParticleDataWrapper FChaosVDDataWrapperUtils::BuildParticleDataWrapperFromParticle(const Chaos::FGeometryParticleHandle* ParticleHandlePtr)
 {
 	check(ParticleHandlePtr);
@@ -93,6 +109,8 @@ FChaosVDConstraint FChaosVDDataWrapperUtils::BuildConstraintDataWrapperFromConst
 	WrappedConstraintData.CCDEnablePenetration = InConstraint.CCDEnablePenetration;
 	WrappedConstraintData.CCDTargetPenetration = InConstraint.CCDTargetPenetration;
 	
+	CopyCollisionMaterialToDataWrapper(InConstraint.Material, WrappedConstraintData.Material);
+
 	WrappedConstraintData.AccumulatedImpulse = FVector(InConstraint.AccumulatedImpulse);
 
 	WrappedConstraintData.Particle0Index = InConstraint.GetParticle0()->UniqueIdx().Idx;
