@@ -521,6 +521,12 @@ void UClusterUnionComponent::ForceRebuildGTParticleGeometry()
 		}
 	}
 
+	// TODO: Make sure that the empty cluster union does not get added to the acceleration structure
+	if (Particles.Num() == 0)
+	{
+		return;
+	}	
+
 	Chaos::FImplicitObjectUnion* NewGeometry = Objects.IsEmpty() ? new Chaos::FImplicitObjectUnionClustered() : new Chaos::FImplicitObjectUnion(MoveTemp(Objects));
 	NewGeometry->SetAllowBVH(true);
 

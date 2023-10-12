@@ -417,9 +417,10 @@ private:
 };
 
 template <typename Traits, typename TGeomInputs, typename TAccelContainer>
-bool TSceneCastCommonImp(const UWorld* World, typename Traits::TOutHits& OutHits, const TGeomInputs& GeomInputs, const FVector Start, const FVector End, ECollisionChannel TraceChannel, const struct FCollisionQueryParams& Params, const struct FCollisionResponseParams& ResponseParams, const struct FCollisionObjectQueryParams& ObjectParams, const TAccelContainer& AccelContainer)
+bool TSceneCastCommonImpWithRetryRequest(const UWorld* World, typename Traits::TOutHits& OutHits, const TGeomInputs& GeomInputs, const FVector Start, const FVector End, ECollisionChannel TraceChannel, const struct FCollisionQueryParams& Params, const struct FCollisionResponseParams& ResponseParams, const struct FCollisionObjectQueryParams& ObjectParams, const TAccelContainer& AccelContainer, bool& bOutRequestRetry, FCollisionQueryParams& OutRetryParams)
 {
 	using namespace ChaosInterface;
+	bOutRequestRetry = false;
 
 	FScopeCycleCounter Counter(Params.StatId);
 	STARTQUERYTIMER();
@@ -584,9 +585,16 @@ bool TSceneCastCommonImp(const UWorld* World, typename Traits::TOutHits& OutHits
 								// redo the entire trace and force the SQ trace to ignore the cluster union actor. This is only relevant in the case where we aren't doing a multi-trace since in the
 								// case of a multi-trace, we would've found all the other things we hit as well. In the case of a non-multi (single) trace, the SQ trace determined that the cluster union
 								// is the best hit! But there could be other things we could've hit instead if we ignored the fact that we hit a cluster union.
-								FCollisionQueryParams NewParams = Params;
-								NewParams.AddIgnoredActor(ClusterUnionActor);
-								return TSceneCastCommonImp<Traits, TGeomInputs, TAccelContainer>(World, OutHits, GeomInputs, Start, End, TraceChannel, NewParams, ResponseParams, ObjectParams, AccelContainer);
+								OutRetryParams = Params;
+								// Ignore the actor that was hit (Check the shape data to be sure)
+								uint32 ActorIDFromShape = Traits::GetHits(HitBufferSync)->Shape->GetQueryData().Word0;
+								OutRetryParams.AddIgnoredActor(ActorIDFromShape);
+								if (ActorIDFromShape != ClusterUnionActor->GetUniqueID())
+								{
+									UE_LOG(LogChaos, Warning, TEXT("TSceneCastCommonImpWithRetryRequest: Incorrect Shape Actor ID detected"));
+								}								
+								bOutRequestRetry = true;
+								return false;
 							}
 							else
 							{
@@ -614,6 +622,31 @@ bool TSceneCastCommonImp(const UWorld* World, typename Traits::TOutHits& OutHits
 #endif
 
 	return bHaveBlockingHit;
+}
+
+template <typename Traits, typename TGeomInputs, typename TAccelContainer>
+bool TSceneCastCommonImp(const UWorld* World, typename Traits::TOutHits& OutHits, const TGeomInputs& GeomInputs, const FVector Start, const FVector End, ECollisionChannel TraceChannel, const struct FCollisionQueryParams& Params, const struct FCollisionResponseParams& ResponseParams, const struct FCollisionObjectQueryParams& ObjectParams, const TAccelContainer& AccelContainer)
+{
+	bool bRequestRetry = true;
+	bool bReturnResult = false;
+	FCollisionQueryParams RetryParams;
+
+	bReturnResult = TSceneCastCommonImpWithRetryRequest<Traits, TGeomInputs, TAccelContainer>(World, OutHits, GeomInputs, Start, End, TraceChannel, Params, ResponseParams, ObjectParams, AccelContainer, bRequestRetry, RetryParams);	
+	
+	int InfiniteLoopProtection = 10;
+	while (bRequestRetry && InfiniteLoopProtection > 0)
+	{
+		bReturnResult = TSceneCastCommonImpWithRetryRequest<Traits, TGeomInputs, TAccelContainer>(World, OutHits, GeomInputs, Start, End, TraceChannel, RetryParams, ResponseParams, ObjectParams, AccelContainer, bRequestRetry, RetryParams);
+		InfiniteLoopProtection--;
+	}
+
+	if (InfiniteLoopProtection <= 0)
+	{
+		UE_LOG(LogChaos, Warning, TEXT("TSceneCastCommonImp: Potential Infinite Loop Detected"));
+		bReturnResult = false;
+	}
+
+	return bReturnResult;
 }
 
 template <typename Traits, typename PTTraits, typename TGeomInputs, typename TAccelContainer = FDefaultAccelContainer>
