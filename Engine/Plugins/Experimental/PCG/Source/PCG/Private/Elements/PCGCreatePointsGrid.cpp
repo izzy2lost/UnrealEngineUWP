@@ -8,6 +8,8 @@
 #include "Helpers/PCGHelpers.h"
 #include "Helpers/PCGSettingsHelpers.h"
 
+#include "GameFramework/Actor.h"
+
 #define LOCTEXT_NAMESPACE "PCGCreatePointsGridElement"
 
 TArray<FPCGPinProperties> UPCGCreatePointsGridSettings::InputPinProperties() const
