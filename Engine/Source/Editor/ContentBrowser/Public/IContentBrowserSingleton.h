@@ -303,6 +303,9 @@ struct FAssetPickerConfig
 	/** Override the default filter context menu layout */
 	EAssetTypeCategories::Type DefaultFilterMenuExpansion;
 
+	/** If we display filters & set to true, we will add sections instead of sub-menus for other filters. Useful if the number of additional filters is small. */
+	bool bUseSectionsForCustomFilterCategories;
+
 	FAssetPickerConfig()
 		: SelectionMode( ESelectionMode::Multi )
 		, ThumbnailLabel( EThumbnailLabel::ClassName )
@@ -325,6 +328,7 @@ struct FAssetPickerConfig
 		, bShowTypeInColumnView(true)
 		, bSortByPathInColumnView(false)
 		, DefaultFilterMenuExpansion(EAssetTypeCategories::Basic)
+		, bUseSectionsForCustomFilterCategories(false)
 	{}
 };
 

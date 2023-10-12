@@ -155,6 +155,7 @@ public:
 		, _CanChangeOrientation(false)
 		, _FilterPillStyle(EFilterPillStyle::Default)
 		, _DefaultMenuExpansionCategory(EAssetCategoryPaths::Basic)
+		, _bUseSectionsForCustomCategories(false)
 		{
 		
 		}
@@ -202,6 +203,9 @@ public:
 
 		/** Expands the specified asset category, if specified. If not, it will expand Basic/Common instead. */
 		SLATE_ARGUMENT(TOptional<FAssetCategoryPath>, DefaultMenuExpansionCategory)
+
+		/** If true, adds custom categories as sections (expanded) vs. as sub-menus */
+		SLATE_ARGUMENT(bool, bUseSectionsForCustomCategories)
 	
 	SLATE_END_ARGS()
 
@@ -224,6 +228,7 @@ public:
 		Args._FilterBarLayout = InArgs._FilterBarLayout;
 		Args._CanChangeOrientation = InArgs._CanChangeOrientation;
 		Args._FilterPillStyle = InArgs._FilterPillStyle;
+		Args._UseSectionsForCategories = InArgs._bUseSectionsForCustomCategories;
 		
 		SBasicFilterBar<FilterType>::Construct(Args);
 
@@ -1083,7 +1088,7 @@ protected:
 				
 				// If we are doing a full menu (i.e expanding basic) we add a menu entry which toggles all other categories
                 Section.AddMenuEntry(
-                	NAME_None,
+                	FName(FText::AsCultureInvariant(ExpandedCategory->SectionHeading).ToString()),
                 	ExpandedCategory->SectionHeading,
                 	MenuExpansion->Tooltip,
                 	FSlateIcon(FAppStyle::Get().GetStyleSetName(), "PlacementBrowser.Icons.Basic"),

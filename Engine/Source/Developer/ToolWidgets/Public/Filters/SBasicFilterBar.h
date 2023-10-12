@@ -1531,8 +1531,6 @@ protected:
 					FNewToolMenuDelegate::CreateSP(this, &SBasicFilterBar<FilterType>::CreateTextFiltersMenu)
 					);
 		}
-		
-		OnExtendAddFilterMenu.ExecuteIfBound(Menu);
 	}
 
 	/** Helper function to add all custom filters to the Add Filter Menu */

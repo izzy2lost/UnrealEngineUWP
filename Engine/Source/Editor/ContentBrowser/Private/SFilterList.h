@@ -55,6 +55,7 @@ public:
 	, _FilterBarLayout(EFilterBarLayout::Horizontal)
 	, _CanChangeOrientation(false)
 	, _DefaultMenuExpansionCategory(EAssetCategoryPaths::Basic)
+	, _bUseSectionsForCustomCategories(false)
 	{
 		
 	}
@@ -97,6 +98,9 @@ public:
 
 		/** Expands the specified asset category, if specified. If not, it will expand Basic/Common instead. */
 		SLATE_ARGUMENT(TOptional<FAssetCategoryPath>, DefaultMenuExpansionCategory)
+
+		/** If true, adds custom categories as sections (expanded) vs. as sub-menus */
+		SLATE_ARGUMENT(bool, bUseSectionsForCustomCategories)
 
 	SLATE_END_ARGS()
 

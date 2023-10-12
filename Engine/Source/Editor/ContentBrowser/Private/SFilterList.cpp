@@ -141,6 +141,7 @@ void SFilterList::Construct( const FArguments& InArgs )
 	Args._OnExtendAddFilterMenu = InArgs._OnExtendAddFilterMenu;
 	Args._FilterMenuName = FName("ContentBrowser.FilterMenu");
 	Args._DefaultMenuExpansionCategory = InArgs._DefaultMenuExpansionCategory;
+	Args._bUseSectionsForCustomCategories = InArgs._bUseSectionsForCustomCategories;
 
 	SAssetFilterBar<FAssetFilterType>::Construct(Args);
 
