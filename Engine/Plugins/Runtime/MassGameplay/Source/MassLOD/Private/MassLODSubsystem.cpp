@@ -323,8 +323,9 @@ void UMassLODSubsystem::AddPlayerViewer(APlayerController& PlayerController)
 #endif // WITH_EDITOR
 	// ignore players that don't have a pawn nor a camera
 	if (PlayerController.GetPawn() == nullptr
-		|| bool(PlayerController.PlayerCameraManager) == false
-		|| PlayerController.PlayerCameraManager->GetLastFrameCameraCacheTime() == 0.f)
+		&& (bool(PlayerController.PlayerCameraManager) == false
+			|| PlayerController.PlayerCameraManager->GetLastFrameCameraCacheTime() == 0.f)
+		)	
 	{
 		return;
 	}
