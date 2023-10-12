@@ -647,6 +647,28 @@ namespace Horde.Agent.Tests
 		}
 
 		[TestMethod]
+		public void ShaderEventMatcher()
+		{
+			string[] lines =
+			{
+				@"LogCook: Display: Cook Diagnostics: OpenFileHandles=10353, VirtualMemory=20078MiB",
+				@"LogShaderCompilers: Warning: Failed to compile Material /Game/Crowd/Character/Shared/Materials/MetaHuman/M_Crowd_Head_v2.M_Crowd_Head_v2 for platform SF_XSX_SM6, Default Material will be used in game.",
+				@"  error:validation errors",
+				@"  error:Root Signature in DXIL container is not compatible with shader.",
+				@"  error:Shader SRV descriptor range (RegisterSpace=0, NumDescriptors=1, BaseShaderRegister=64) is not fully bound in root signature.",
+				@"Validation failed.",
+				@"  Shader compile failed",
+				@"LogCook: Display: Excluding /Interchange/gltf/MaterialInstances/MI_ClearCoat_Mask_DS"
+			};
+
+			{
+				List<LogEvent> logEvents = Parse(lines);
+				Assert.AreEqual(8, logEvents.Count);
+				CheckEventGroup(logEvents.Slice(1, 6), 1, 6, LogLevel.Warning, KnownLogEvents.Engine_ShaderCompiler);
+			}
+		}
+
+		[TestMethod]
 		public void LocalizationChannelMatcher()
 		{
 			string[] lines =
