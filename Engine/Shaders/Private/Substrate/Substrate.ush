@@ -75,8 +75,8 @@
 #define MATERIAL_ALLOW_NEGATIVE_EMISSIVECOLOR 0
 #endif
 
-#ifndef SUBSTRATE_CLAMPED_BSDF_COUNT
-#define SUBSTRATE_CLAMPED_BSDF_COUNT 0
+#ifndef SUBSTRATE_CLAMPED_CLOSURE_COUNT
+#define SUBSTRATE_CLAMPED_CLOSURE_COUNT 0
 #endif
 
 #ifndef SUBSTRATE_USES_CONVERSION_FROM_LEGACY
@@ -1117,8 +1117,8 @@ void SubstratePackOutSubstrateTree(
 	OutCoord = 0;
 	OutCoordY = 1;
 
-	SubstrateTree.BSDFCount = min(SubstrateTree.BSDFCount, SUBSTRATE_CLAMPED_BSDF_COUNT);
-	SUBSTRATE_UNROLL_N(SUBSTRATE_CLAMPED_BSDF_COUNT)
+	SubstrateTree.BSDFCount = min(SubstrateTree.BSDFCount, SUBSTRATE_CLAMPED_CLOSURE_COUNT);
+	SUBSTRATE_UNROLL_N(SUBSTRATE_CLAMPED_CLOSURE_COUNT)
 	for(int i=0; i< SubstrateTree.BSDFCount; ++i)
 	{
 		WRITE_UINT(SubstrateTree.BSDFs[i].State);
@@ -3701,7 +3701,7 @@ void FSubstratePixelHeader::SubstrateConvertFromDBuffer(
 ///////////////////////////////////////////////////////////////////////////////
 // Substrate deferred base-pass output
 
-#if SUBSTRATE_INLINE_SHADING && SUBSTRATE_CLAMPED_BSDF_COUNT > 0
+#if SUBSTRATE_INLINE_SHADING && SUBSTRATE_CLAMPED_CLOSURE_COUNT > 0
 
 // Update all Coverage/Transmittance/Weights for all BSDFs based on material topology
 void FSubstratePixelHeader::SubstrateUpdateTree(
@@ -3771,7 +3771,7 @@ void FSubstratePixelHeader::SubstrateUpdateTree(
 	OutTransmittancePreCoverage = saturate(SubstrateTree.Operators[SubstrateData.OperatorIndex].ThroughputAlongV);
 }
 
-#endif // SUBSTRATE_INLINE_SHADING && SUBSTRATE_CLAMPED_BSDF_COUNT > 0
+#endif // SUBSTRATE_INLINE_SHADING && SUBSTRATE_CLAMPED_CLOSURE_COUNT > 0
 
 ///////////////////////////////////////////////////////////////////////////////
 // Header and BSDF packing

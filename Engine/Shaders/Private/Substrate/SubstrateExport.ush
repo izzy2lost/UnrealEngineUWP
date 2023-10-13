@@ -122,7 +122,7 @@ void PackSubstrateOut(
 )
 {
 	// This only exists with inline shading and when we are going to write out BSDFs (UpdateAllXXX functions needs to be defined)
-#if SUBSTRATE_INLINE_SHADING && SUBSTRATE_CLAMPED_BSDF_COUNT > 0
+#if SUBSTRATE_INLINE_SHADING && SUBSTRATE_CLAMPED_CLOSURE_COUNT > 0
 
 	bSubstrateSubsurfaceEnable = false;
 	EmissiveColor = 0.0f;
@@ -169,7 +169,7 @@ void PackSubstrateOut(
 		float TopLayerTotalWeight = 0.0f;
 		
 		{
-			SUBSTRATE_UNROLL_N(SUBSTRATE_CLAMPED_BSDF_COUNT)
+			SUBSTRATE_UNROLL_N(SUBSTRATE_CLAMPED_CLOSURE_COUNT)
 			for (int BSDFIdx = 0; BSDFIdx < SubstratePixelHeader.SubstrateTree.BSDFCount; ++BSDFIdx)
 			{
 			#define BSDF SubstratePixelHeader.SubstrateTree.BSDFs[BSDFIdx]
@@ -390,7 +390,7 @@ void PackSubstrateOut(
 		{
 			float BSDFCount = 0;
 			float2 SpecMultiBounceAO_IndirectIrradiance_Acc = 0.0f;
-			SUBSTRATE_UNROLL_N(SUBSTRATE_CLAMPED_BSDF_COUNT)
+			SUBSTRATE_UNROLL_N(SUBSTRATE_CLAMPED_CLOSURE_COUNT)
 			for (int BSDFIdx = 0; BSDFIdx < SubstratePixelHeader.SubstrateTree.BSDFCount; ++BSDFIdx)
 			{
 			#define BSDF SubstratePixelHeader.SubstrateTree.BSDFs[BSDFIdx]
@@ -477,7 +477,7 @@ void PackSubstrateOut(
 
 		{
 			int BSDFCount = 0;
-			SUBSTRATE_UNROLL_N(SUBSTRATE_CLAMPED_BSDF_COUNT)
+			SUBSTRATE_UNROLL_N(SUBSTRATE_CLAMPED_CLOSURE_COUNT)
 			for (int BSDFIdx = 0; BSDFIdx < SubstratePixelHeader.SubstrateTree.BSDFCount; ++BSDFIdx)
 			{
 			#define BSDF SubstratePixelHeader.SubstrateTree.BSDFs[BSDFIdx]
@@ -865,7 +865,7 @@ void PackSubstrateOut(
 
 		FinalizeWrites(SubstrateBuffer, SubstrateAddressing);
 	}
-#endif // SUBSTRATE_INLINE_SHADING && SUBSTRATE_CLAMPED_BSDF_COUNT > 0
+#endif // SUBSTRATE_INLINE_SHADING && SUBSTRATE_CLAMPED_CLOSURE_COUNT > 0
 
 }
 
@@ -903,7 +903,7 @@ void SubstrateMaterialExportOut(
 		//
 		// Forward lighting
 		//
-		SUBSTRATE_UNROLL_N(SUBSTRATE_CLAMPED_BSDF_COUNT)
+		SUBSTRATE_UNROLL_N(SUBSTRATE_CLAMPED_CLOSURE_COUNT)
 		for (int BSDFIdx = 0; BSDFIdx < SubstratePixelHeader.SubstrateTree.BSDFCount; ++BSDFIdx)
 		{
 		#define CurrentBSDF SubstratePixelHeader.SubstrateTree.BSDFs[BSDFIdx]

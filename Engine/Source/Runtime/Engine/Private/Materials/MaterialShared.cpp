@@ -1249,15 +1249,15 @@ uint8 FMaterial::MaterialGetSubstrateMaterialType_RenderThread() const
 	return RenderingThreadShaderMap ? RenderingThreadShaderMap->GetSubstrateMaterialType() : false;
 }
 
-uint8 FMaterial::MaterialGetSubstrateBSDFCount_GameThread() const
+uint8 FMaterial::MaterialGetSubstrateClosureCount_GameThread() const
 {
-	return GameThreadShaderMap ? GameThreadShaderMap->GetSubstrateBSDFCount() : false;
+	return GameThreadShaderMap ? GameThreadShaderMap->GetSubstrateClosureCount() : false;
 }
 
-uint8 FMaterial::MaterialGetSubstrateBSDFCount_RenderThread() const
+uint8 FMaterial::MaterialGetSubstrateClosureCount_RenderThread() const
 {
 	check(IsInParallelRenderingThread());
-	return RenderingThreadShaderMap ? RenderingThreadShaderMap->GetSubstrateBSDFCount() : false;
+	return RenderingThreadShaderMap ? RenderingThreadShaderMap->GetSubstrateClosureCount() : false;
 }
 
 uint8 FMaterial::MaterialGetSubstrateUintPerPixel_GameThread() const

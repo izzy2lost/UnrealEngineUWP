@@ -1408,7 +1408,7 @@ public:
 
 	const FSubstrateMaterialCompilationOutput& GetSubstrateMaterialCompilationOutput() const { return GetContent()->MaterialCompilationOutput.SubstrateMaterialCompilationOutput; }
 	uint8 GetSubstrateMaterialType() const { return GetSubstrateMaterialCompilationOutput().SubstrateMaterialType; }
-	uint8 GetSubstrateBSDFCount() const { return GetSubstrateMaterialCompilationOutput().SubstrateBSDFCount; }
+	uint8 GetSubstrateClosureCount() const { return GetSubstrateMaterialCompilationOutput().SubstrateClosureCount; }
 	uint8 GetSubstrateUintPerPixel() const { return GetSubstrateMaterialCompilationOutput().SubstrateUintPerPixel; }
 	bool GetSubstrateUsesComplexSpecialRenderPath() const { return GetSubstrateMaterialCompilationOutput().SubstrateMaterialType == SUBSTRATE_MATERIAL_TYPE_COMPLEX_SPECIAL; }
 	
@@ -2178,8 +2178,8 @@ public:
 	ENGINE_API uint8 MaterialGetSubstrateMaterialType_RenderThread() const;
 
 	/** Get Substrate material BSDF count. */
-	ENGINE_API uint8 MaterialGetSubstrateBSDFCount_GameThread() const;
-	ENGINE_API uint8 MaterialGetSubstrateBSDFCount_RenderThread() const;
+	ENGINE_API uint8 MaterialGetSubstrateClosureCount_GameThread() const;
+	ENGINE_API uint8 MaterialGetSubstrateClosureCount_RenderThread() const;
 
 	/** Get Substrate material uint count per pixel. */
 	ENGINE_API uint8 MaterialGetSubstrateUintPerPixel_GameThread() const;

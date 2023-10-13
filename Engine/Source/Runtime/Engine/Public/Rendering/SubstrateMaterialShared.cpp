@@ -7,7 +7,7 @@ IMPLEMENT_TYPE_LAYOUT(FSubstrateMaterialCompilationOutput);
 
 FSubstrateMaterialCompilationOutput::FSubstrateMaterialCompilationOutput()
 	: SubstrateMaterialType(0)
-	, SubstrateBSDFCount(0)
+	, SubstrateClosureCount(0)
 	, SubstrateUintPerPixel(0)
 #if WITH_EDITOR
 	, SubstrateMaterialDescription()

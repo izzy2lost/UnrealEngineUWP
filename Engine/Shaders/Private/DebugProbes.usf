@@ -3,7 +3,7 @@
 #include "Common.ush"
 
 // Mention that we are going to use a single slab
-#define SUBSTRATE_CLAMPED_BSDF_COUNT 1
+#define SUBSTRATE_CLAMPED_CLOSURE_COUNT 1
 #define SUBSTRATE_INLINE_SHADING 1
 #include "Substrate/Substrate.ush"
 

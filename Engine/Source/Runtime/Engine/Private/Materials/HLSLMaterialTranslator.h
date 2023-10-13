@@ -492,7 +492,7 @@ protected:
 		TMap<FGuid, int32> SubstrateMaterialExpressionToOperatorIndex;
 		TArray<FSubstrateOperator> SubstrateMaterialExpressionRegisteredOperators;
 		FSubstrateOperator* SubstrateMaterialRootOperator;
-		uint32 SubstrateMaterialBSDFCount; // Also acts as requested 
+		uint32 SubstrateMaterialEffectiveClosureCount; // Also acts as requested 
 		uint32 SubstrateMaterialRequestedSizeByte;
 		uint32 SubstrateMaterialClosureCount;
 		FSubstrateMaterialComplexity SubstrateMaterialComplexity;

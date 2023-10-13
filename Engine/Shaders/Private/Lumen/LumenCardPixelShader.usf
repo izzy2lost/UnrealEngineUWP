@@ -108,7 +108,7 @@ void Main(
 
 
 		// Extract averaged DiffuseAlbedo / SpecularColor
-		SUBSTRATE_UNROLL_N(SUBSTRATE_CLAMPED_BSDF_COUNT)
+		SUBSTRATE_UNROLL_N(SUBSTRATE_CLAMPED_CLOSURE_COUNT)
 		for (int BSDFIdx = 0; BSDFIdx < SubstratePixelHeader.SubstrateTree.BSDFCount; ++BSDFIdx)
 		{
 			#define CurrentBSDF SubstratePixelHeader.SubstrateTree.BSDFs[BSDFIdx]

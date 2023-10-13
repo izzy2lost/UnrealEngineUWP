@@ -106,8 +106,8 @@ public:
 	/** Substrate material type, at compile time (Possible values from SUBSTRATE_MATERIAL_TYPE_XXX: simple/single/complex/complex special) */
 	LAYOUT_FIELD(uint8, SubstrateMaterialType);
 
-	/** Substrate BSDF count, at compile time (0-7) */
-	LAYOUT_FIELD(uint8, SubstrateBSDFCount);
+	/** Substrate closure count, at compile time (0-7) */
+	LAYOUT_FIELD(uint8, SubstrateClosureCount);
 
 	/** Substrate uint per pixel, at compile time (0-255) */
 	LAYOUT_FIELD(uint8, SubstrateUintPerPixel);
@@ -129,7 +129,7 @@ public:
 	/** The byte count per pixel supported by the platform the material has been compiled against */
 	LAYOUT_FIELD_EDITORONLY(uint8, PlatformBytePerPixel);
 
-	/** Material requested BSDF/closure count per pixel */
+	/** Material requested closure count per pixel */
 	LAYOUT_FIELD_EDITORONLY(uint8, RequestedClosurePerPixel);
 	/** The closure count per pixel supported by the platform the material has been compiled against */
 	LAYOUT_FIELD_EDITORONLY(uint8, PlatformClosurePixel);

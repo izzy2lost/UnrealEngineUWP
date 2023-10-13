@@ -353,7 +353,7 @@ void FHLSLMaterialTranslator::FSubstrateCompilationContext::Initialise()
 	SubstrateMaterialRootOperator = nullptr;
 	SubstrateMaterialExpressionRegisteredOperators.Reserve(SUBSTRATE_MAX_COMPILER_REGISTERED_OPERATOR_COUNT);
 	SubstrateMaterialExpressionToOperatorIndex.Reserve(SUBSTRATE_MAX_COMPILER_REGISTERED_OPERATOR_COUNT);
-	SubstrateMaterialBSDFCount = 0;
+	SubstrateMaterialEffectiveClosureCount = 0;
 	SubstrateMaterialRequestedSizeByte = 0;
 	SubstrateMaterialComplexity.Reset();
 	bSubstrateMaterialIsUnlitNode = false;
@@ -1766,7 +1766,7 @@ bool FHLSLMaterialTranslator::Translate()
 			if (bSubstrateFrontMaterialIsValid)
 			{
 				// The material can be null when some entries are automatically generated, for instance in the material layer blending system
-				bSubstrateFrontMaterialIsValid &= SubstrateCtx.SubstrateMaterialBSDFCount > 0;
+				bSubstrateFrontMaterialIsValid &= SubstrateCtx.SubstrateMaterialEffectiveClosureCount > 0;
 			}
 
 			if (bSubstrateFrontMaterialIsValid)
@@ -1785,12 +1785,12 @@ bool FHLSLMaterialTranslator::Translate()
 
 						ResourcesString += FString::Printf(TEXT("void  FSubstratePixelHeader::PreUpdateAllBSDFWithBottomUpOperatorVisit%s(float3 V)\n"), *TreeFunctionPostFix);
 						ResourcesString += "{\n";
-						for (uint32 BSDFIndex = 0; BSDFIndex < SubstrateCtx.SubstrateMaterialBSDFCount; ++BSDFIndex)
+						for (uint32 ClosureIndex = 0; ClosureIndex < SubstrateCtx.SubstrateMaterialEffectiveClosureCount; ++ClosureIndex)
 						{
 							ResourcesString += "\t{\n";
 							for (auto& It : SubstrateCtx.SubstrateMaterialExpressionRegisteredOperators)
 							{
-								if (!It.IsDiscarded() && It.BSDFIndex == BSDFIndex)
+								if (!It.IsDiscarded() && It.BSDFIndex == ClosureIndex)
 								{
 									// Walk up the graph to the root node and apply weight factors
 									std::function<void(const FSubstrateOperator&, int32)> WalkOperatorsUp = [&](const FSubstrateOperator& CurrentOperator, int32 PreviousOperatorIndex) -> void
@@ -1846,9 +1846,9 @@ bool FHLSLMaterialTranslator::Translate()
 					{
 						ResourcesString += FString::Printf(TEXT("void FSubstratePixelHeader::UpdateAllBSDFsOperatorCoverageTransmittance%s(FSubstrateIntegrationSettings Settings, float3 V)\n"), *TreeFunctionPostFix);
 						ResourcesString += "{\n";
-						for (uint32 BSDFIndex = 0; BSDFIndex < SubstrateCtx.SubstrateMaterialBSDFCount; ++BSDFIndex)
+						for (uint32 ClosureIndex = 0; ClosureIndex < SubstrateCtx.SubstrateMaterialEffectiveClosureCount; ++ClosureIndex)
 						{
-							ResourcesString += FString::Printf(TEXT("\t SubstrateTree.UpdateSingleBSDFOperatorCoverageTransmittance(this, %d, Settings, V);\n"), BSDFIndex);
+							ResourcesString += FString::Printf(TEXT("\t SubstrateTree.UpdateSingleBSDFOperatorCoverageTransmittance(this, %d, Settings, V);\n"), ClosureIndex);
 						}
 						ResourcesString += "}\n";
 					}
@@ -1883,11 +1883,11 @@ bool FHLSLMaterialTranslator::Translate()
 
 						ResourcesString += FString::Printf(TEXT("void FSubstratePixelHeader::UpdateAllBSDFWithBottomUpOperatorVisit%s()\n"), *TreeFunctionPostFix);
 						ResourcesString += "{\n";
-						for (uint32 BSDFIndex = 0; BSDFIndex < SubstrateCtx.SubstrateMaterialBSDFCount; ++BSDFIndex)
+						for (uint32 ClosureIndex = 0; ClosureIndex < SubstrateCtx.SubstrateMaterialEffectiveClosureCount; ++ClosureIndex)
 						{
 							for (auto& It : SubstrateCtx.SubstrateMaterialExpressionRegisteredOperators)
 							{
-								if (!It.IsDiscarded() && It.BSDFIndex == BSDFIndex)
+								if (!It.IsDiscarded() && It.BSDFIndex == ClosureIndex)
 								{
 									// Walk up the graph to the root node and apply weight factors
 									std::function<void(const FSubstrateOperator&, int32)> WalkOperatorsUp = [&](const FSubstrateOperator& CurrentOperator, int32 PreviousOperatorIndex) -> void
@@ -1896,17 +1896,17 @@ bool FHLSLMaterialTranslator::Translate()
 										{
 										case SUBSTRATE_OPERATOR_WEIGHT:
 										{
-											ResourcesString += FString::Printf(TEXT("\t SubstrateTree.UpdateAllBSDFWithBottomUpOperatorVisit_Weight(%d /*BSDFIndex*/, %d /*Op index*/, %d /*PreviousIsInputA*/);\n"), BSDFIndex, CurrentOperator.Index, 1);
+											ResourcesString += FString::Printf(TEXT("\t SubstrateTree.UpdateAllBSDFWithBottomUpOperatorVisit_Weight(%d /*BSDFIndex*/, %d /*Op index*/, %d /*PreviousIsInputA*/);\n"), ClosureIndex, CurrentOperator.Index, 1);
 											break;
 										}
 										case SUBSTRATE_OPERATOR_HORIZONTAL:
 										{
-											ResourcesString += FString::Printf(TEXT("\t SubstrateTree.UpdateAllBSDFWithBottomUpOperatorVisit_Horizontal(%d /*BSDFIndex*/, %d /*Op index*/, %d /*PreviousIsInputA*/);\n"), BSDFIndex, CurrentOperator.Index, CurrentOperator.LeftIndex == PreviousOperatorIndex ? 1 : 0);
+											ResourcesString += FString::Printf(TEXT("\t SubstrateTree.UpdateAllBSDFWithBottomUpOperatorVisit_Horizontal(%d /*BSDFIndex*/, %d /*Op index*/, %d /*PreviousIsInputA*/);\n"), ClosureIndex, CurrentOperator.Index, CurrentOperator.LeftIndex == PreviousOperatorIndex ? 1 : 0);
 											break;
 										}
 										case SUBSTRATE_OPERATOR_VERTICAL:
 										{
-											ResourcesString += FString::Printf(TEXT("\t SubstrateTree.UpdateAllBSDFWithBottomUpOperatorVisit_Vertical(%d /*BSDFIndex*/, %d /*Op index*/, %d /*PreviousIsInputA*/);\n"), BSDFIndex, CurrentOperator.Index, CurrentOperator.LeftIndex == PreviousOperatorIndex ? 1 : 0);
+											ResourcesString += FString::Printf(TEXT("\t SubstrateTree.UpdateAllBSDFWithBottomUpOperatorVisit_Vertical(%d /*BSDFIndex*/, %d /*Op index*/, %d /*PreviousIsInputA*/);\n"), ClosureIndex, CurrentOperator.Index, CurrentOperator.LeftIndex == PreviousOperatorIndex ? 1 : 0);
 											break;
 										}
 										case SUBSTRATE_OPERATOR_ADD:
@@ -2383,7 +2383,7 @@ void FHLSLMaterialTranslator::GetMaterialEnvironment(EShaderPlatform InPlatform,
 			OutEnvironment.SetDefine(TEXT("SUBSTRATE_SINGLEPATH"), SubstrateCtx.SubstrateMaterialComplexity.IsSingle() ? TEXT("1") : TEXT("0"));
 			OutEnvironment.SetDefine(TEXT("SUBSTRATE_FASTPATH"), SubstrateCtx.SubstrateMaterialComplexity.IsSimple() ? TEXT("1") : TEXT("0"));
 			OutEnvironment.SetDefine(TEXT("SUBSTRATE_COMPLEXSPECIALPATH"), SubstrateCtx.SubstrateMaterialComplexity.IsComplexSpecial() ? TEXT("1") : TEXT("0"));
-			OutEnvironment.SetDefine(TEXT("SUBSTRATE_CLAMPED_BSDF_COUNT"), SubstrateCtx.SubstrateMaterialBSDFCount);
+			OutEnvironment.SetDefine(TEXT("SUBSTRATE_CLAMPED_CLOSURE_COUNT"), SubstrateCtx.SubstrateMaterialEffectiveClosureCount);
 		}
 
 
@@ -2406,8 +2406,8 @@ void FHLSLMaterialTranslator::GetMaterialEnvironment(EShaderPlatform InPlatform,
 			// Now write some feedback to the user, but only produce debug string if in editor
 			{
 				// Output some debug info as comment in code and in the material stat window
-				const uint32 SubstrateBytePerPixel = Substrate::GetBytePerPixel(InPlatform);
-				const uint32 SubstrateClosurePerPixel = Substrate::GetClosurePerPixel(InPlatform);
+				const uint32 SubstrateBytePerPixel_Platform = Substrate::GetBytePerPixel(InPlatform);
+				const uint32 SubstrateClosurePerPixel_Platform = Substrate::GetClosurePerPixel(InPlatform);
 				FString SubstrateMaterialContextDescription;
 
 				auto GetSubstrateCompilationContextName = [](uint32 Index)
@@ -2426,14 +2426,14 @@ void FHLSLMaterialTranslator::GetMaterialEnvironment(EShaderPlatform InPlatform,
 				FString SubstrateCompilationContextName = GetSubstrateCompilationContextName(SubstrateCompilationContextIndex);
 				SubstrateMaterialContextDescription += FString::Printf(TEXT("----- SUBSTRATE - %s -----\r\n"), *SubstrateCompilationContextName);
 				SubstrateMaterialContextDescription += FString::Printf(TEXT("SubstrateCompilationInfo -\r\n"));
-				SubstrateMaterialContextDescription += FString::Printf(TEXT(" - Byte Per Pixel Budget                           %u\r\n"), SubstrateBytePerPixel);
-				SubstrateMaterialContextDescription += FString::Printf(TEXT(" - Closure Per Pixel Budget                        %u\r\n"), SubstrateClosurePerPixel);
+				SubstrateMaterialContextDescription += FString::Printf(TEXT(" - Byte Per Pixel Budget                           %u\r\n"), SubstrateBytePerPixel_Platform);
+				SubstrateMaterialContextDescription += FString::Printf(TEXT(" - Closure Per Pixel Budget                        %u\r\n"), SubstrateClosurePerPixel_Platform);
 				SubstrateMaterialContextDescription += FString::Printf(TEXT(" - Requested Byte Size before simplification       %u (%d UINT32)\r\n"), SubstrateSimplificationStatus.OriginalRequestedByteSize, SubstrateSimplificationStatus.OriginalRequestedByteSize / 4);
 				SubstrateMaterialContextDescription += FString::Printf(TEXT(" - Requested Byte Size after simplification        %u (%d UINT32)\r\n"), SubstrateCtx.SubstrateMaterialRequestedSizeByte, SubstrateCtx.SubstrateMaterialRequestedSizeByte / 4);
 				SubstrateMaterialContextDescription += FString::Printf(TEXT(" - Requested Closure Count before simplification   %u\r\n"), SubstrateSimplificationStatus.OriginalRequestedClosureCount);
 				SubstrateMaterialContextDescription += FString::Printf(TEXT(" - Requested Closure Count after simplification    %u\r\n"), SubstrateCtx.SubstrateMaterialClosureCount);
 				SubstrateMaterialContextDescription += FString::Printf(TEXT(" - Material complexity                             %s\r\n"), *FSubstrateMaterialComplexity::ToString(SubstrateCtx.SubstrateMaterialComplexity.SubstrateMaterialType(), true /* Upper case */));
-				SubstrateMaterialContextDescription += FString::Printf(TEXT(" - BSDF Count                                      %i\r\n"), SubstrateCtx.SubstrateMaterialBSDFCount); // REMOVE?
+				SubstrateMaterialContextDescription += FString::Printf(TEXT(" - BSDF Count                                      %i\r\n"), SubstrateCtx.SubstrateMaterialEffectiveClosureCount); // REMOVE?
 				if (RequestedSharedLocalBasesCount > SUBSTRATE_MAX_SHAREDLOCALBASES_REGISTERS)
 				{
 					SubstrateMaterialDescription += FString::Printf(TEXT(" - SharedLocalBasesCount                      %i (Requested:%i)\r\n"), SubstrateCtx.FinalUsedSharedLocalBasesCount, RequestedSharedLocalBasesCount);
@@ -11809,7 +11809,7 @@ bool FHLSLMaterialTranslator::FSubstrateCompilationContext::SubstrateGenerateDer
 		}
 
 		// Reset some data
-		SubstrateMaterialBSDFCount = 0;
+		SubstrateMaterialEffectiveClosureCount = 0;
 
 		//
 		// Parse the tree and mark nodes that are the root of a subtree using parameter blending, while other nodes in that tree are forced to use parameter blending.
@@ -11870,7 +11870,7 @@ bool FHLSLMaterialTranslator::FSubstrateCompilationContext::SubstrateGenerateDer
 				{
 					if (!bInsideParameterBlendingSubTree)
 					{
-						CurrentOperator.BSDFIndex = SubstrateMaterialBSDFCount++;
+						CurrentOperator.BSDFIndex = SubstrateMaterialEffectiveClosureCount++;
 					}
 
 					bHasUnlit |= CurrentOperator.BSDFType == SUBSTRATE_BSDF_TYPE_UNLIT;
@@ -11888,7 +11888,7 @@ bool FHLSLMaterialTranslator::FSubstrateCompilationContext::SubstrateGenerateDer
 				if (CurrentOperator.OperatorType != SUBSTRATE_OPERATOR_BSDF && bRootOfParameterBlendingSubTree)
 				{
 					CurrentOperator.OperatorType = SUBSTRATE_OPERATOR_BSDF;
-					CurrentOperator.BSDFIndex = SubstrateMaterialBSDFCount++;
+					CurrentOperator.BSDFIndex = SubstrateMaterialEffectiveClosureCount++;
 					// We do not reset LeftIndex and RightIndex because those are needed to recover local tangent basis information needed with parameter blending.
 				}
 
@@ -11906,7 +11906,7 @@ bool FHLSLMaterialTranslator::FSubstrateCompilationContext::SubstrateGenerateDer
 			}
 			bSubstrateMaterialIsUnlitNode = bHasUnlit;
 
-			if ((bHasUnlit || bHasVFogCloud || bHasHair || bHasEye || bHasSLW) && SubstrateMaterialBSDFCount > 1)
+			if ((bHasUnlit || bHasVFogCloud || bHasHair || bHasEye || bHasSLW) && SubstrateMaterialEffectiveClosureCount > 1)
 			{
 				Compiler->Errorf(TEXT("Unlit, Fog/Cloud, Hair or SingleLayerWater must be used in isolation. See %s (asset: %s).\r\n"), *CompilerMaterial->GetDebugName(), *CompilerMaterial->GetAssetPath().ToString());
 				// Even though we could support Unlit with slab.
@@ -11920,9 +11920,9 @@ bool FHLSLMaterialTranslator::FSubstrateCompilationContext::SubstrateGenerateDer
 				// This is because it will results in simpler lighting loops focusin on slab.
 			}
 
-			if (SubstrateMaterialBSDFCount > SUBSTRATE_MAX_CLOSURE_COUNT)
+			if (SubstrateMaterialEffectiveClosureCount > SUBSTRATE_MAX_CLOSURE_COUNT)
 			{
-				Compiler->Errorf(TEXT("Material tries to register more BSDF than can be supproted (%d > %d). See %s (asset: %s).\r\n"), SubstrateMaterialBSDFCount, SUBSTRATE_MAX_CLOSURE_COUNT, *CompilerMaterial->GetDebugName(), *CompilerMaterial->GetAssetPath().ToString());
+				Compiler->Errorf(TEXT("Material tries to register more BSDF than can be supproted (%d > %d). See %s (asset: %s).\r\n"), SubstrateMaterialEffectiveClosureCount, SUBSTRATE_MAX_CLOSURE_COUNT, *CompilerMaterial->GetDebugName(), *CompilerMaterial->GetAssetPath().ToString());
 			}
 		}
 
@@ -12076,14 +12076,14 @@ bool FHLSLMaterialTranslator::FSubstrateCompilationContext::SubstrateGenerateDer
 			//		1- A first one to evaluate the normal/tangent code
 			//		2- Operators are processed and simplification computed based on memory budget
 			//		3- Material is finally compiled for with operator updated to fit in memory budget.
-			uint8 UsedSharedLocalBasesCount = SubstrateMaterialBSDFCount;
+			uint8 UsedSharedLocalBasesCount = SubstrateMaterialEffectiveClosureCount;
 
 			const uint32 UintByteSize = sizeof(uint32);
 			SubstrateMaterialRequestedSizeByte = 0;
 
 			// 1. Evaluate simple/single BSDF
-			SubstrateMaterialComplexity.bIsSimple = SubstrateMaterialBSDFCount == 1;
-			SubstrateMaterialComplexity.bIsSingle = SubstrateMaterialBSDFCount == 1;
+			SubstrateMaterialComplexity.bIsSimple = SubstrateMaterialEffectiveClosureCount == 1;
+			SubstrateMaterialComplexity.bIsSingle = SubstrateMaterialEffectiveClosureCount == 1;
 			SubstrateMaterialComplexity.bIsComplexSpecial = false;
 			bool bIsFastWaterPath = false;
 			bool bCustomEncoding = false;
@@ -12335,7 +12335,7 @@ bool FHLSLMaterialTranslator::FSubstrateCompilationContext::SubstrateGenerateDer
 			{
 				// Only write those data for the default material
 				Compiler->MaterialCompilationOutput.SubstrateMaterialCompilationOutput.SubstrateMaterialType = SubstrateMaterialComplexity.SubstrateMaterialType();
-				Compiler->MaterialCompilationOutput.SubstrateMaterialCompilationOutput.SubstrateBSDFCount = SubstrateMaterialBSDFCount;
+				Compiler->MaterialCompilationOutput.SubstrateMaterialCompilationOutput.SubstrateClosureCount = SubstrateMaterialEffectiveClosureCount;
 				Compiler->MaterialCompilationOutput.SubstrateMaterialCompilationOutput.SubstrateUintPerPixel = uint8(FMath::Clamp(RequestedSizeInUint, 0u, 0xFF));
 
 #if WITH_EDITOR
@@ -12365,7 +12365,7 @@ bool FHLSLMaterialTranslator::FSubstrateCompilationContext::SubstrateGenerateDer
 				{
 					Compiler->MaterialCompilationOutput.SubstrateMaterialCompilationOutput.MaterialType = SUBSTRATE_MATERIAL_TYPE_DECAL;
 				}
-				else if (SubstrateMaterialBSDFCount > 1)
+				else if (SubstrateMaterialEffectiveClosureCount > 1)
 				{
 					Compiler->MaterialCompilationOutput.SubstrateMaterialCompilationOutput.MaterialType = SUBSTRATE_MATERIAL_TYPE_MULTIPLESLABS;
 				}

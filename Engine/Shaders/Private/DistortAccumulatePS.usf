@@ -142,7 +142,7 @@ void Main(
 
 	// We accumulate F0 only from the top layer to evaluate the material F0 used to evaluate distortion
 	float3 TopF0 = 0.0f;
-	SUBSTRATE_UNROLL_N(SUBSTRATE_CLAMPED_BSDF_COUNT)
+	SUBSTRATE_UNROLL_N(SUBSTRATE_CLAMPED_CLOSURE_COUNT)
 	for (int BSDFIdx = 0; BSDFIdx < SubstratePixelHeader.SubstrateTree.BSDFCount; ++BSDFIdx)
 	{
 	#define BSDF SubstratePixelHeader.SubstrateTree.BSDFs[BSDFIdx]

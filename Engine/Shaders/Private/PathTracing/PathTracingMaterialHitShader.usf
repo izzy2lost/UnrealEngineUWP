@@ -301,7 +301,7 @@ RAY_TRACING_ENTRY_CLOSEST_HIT(PathTracingMaterialCHS,
 		float3 RoughnessData = 0.0;
 		float NoV = 0.0f;
 		float3 LocalSigmaT = 0.0f;
-		SUBSTRATE_UNROLL_N(SUBSTRATE_CLAMPED_BSDF_COUNT)
+		SUBSTRATE_UNROLL_N(SUBSTRATE_CLAMPED_CLOSURE_COUNT)
 		for (int BSDFIdx = 0; BSDFIdx < SubstratePixelHeader.SubstrateTree.BSDFCount; ++BSDFIdx)
 		{
 #define BSDF SubstratePixelHeader.SubstrateTree.BSDFs[BSDFIdx]
@@ -611,12 +611,12 @@ RAY_TRACING_ENTRY_CLOSEST_HIT(PathTracingMaterialCHS,
 		}
 
 
-#if SUBSTRATE_CLAMPED_BSDF_COUNT > 1
+#if SUBSTRATE_CLAMPED_CLOSURE_COUNT > 1
 		// The material might be using more than one slab -- insert code to stochastically pick one 
 		float SlabPdf = 1.0;
 		if (BSDFCount > 1)
 		{
-			float SlabCDF[SUBSTRATE_CLAMPED_BSDF_COUNT];
+			float SlabCDF[SUBSTRATE_CLAMPED_CLOSURE_COUNT];
 			float SlabCDFSum = 0.0;
 			for (BSDFIdx = 0; BSDFIdx < BSDFCount; ++BSDFIdx)
 			{
@@ -740,7 +740,7 @@ RAY_TRACING_ENTRY_CLOSEST_HIT(PathTracingMaterialCHS,
 		}
 		if (SlabPdf > 0)
 		{
-#elif SUBSTRATE_CLAMPED_BSDF_COUNT == 1
+#elif SUBSTRATE_CLAMPED_CLOSURE_COUNT == 1
 		if (BSDFCount > 0)
 		{
 			// There is only one slab active
@@ -748,10 +748,10 @@ RAY_TRACING_ENTRY_CLOSEST_HIT(PathTracingMaterialCHS,
 #else
 // shouldn't be possible to reach this point
 #error Unexpected BSDF Count
-#endif // SUBSTRATE_CLAMPED_BSDF_COUNT 
+#endif // SUBSTRATE_CLAMPED_CLOSURE_COUNT 
 
 
-#if SUBSTRATE_CLAMPED_BSDF_COUNT > 0
+#if SUBSTRATE_CLAMPED_CLOSURE_COUNT > 0
 			Payload.WorldNormal = SubstratePixelHeader.SharedLocalBases.Normals[BSDF_GETSHAREDLOCALBASISID(BSDF)];
 			Payload.WorldTangent = SubstratePixelHeader.SharedLocalBases.Tangents[BSDF_GETSHAREDLOCALBASISID(BSDF)];
 
@@ -910,12 +910,12 @@ RAY_TRACING_ENTRY_CLOSEST_HIT(PathTracingMaterialCHS,
 					break;
 				}
 			}
-#if SUBSTRATE_CLAMPED_BSDF_COUNT > 1
+#if SUBSTRATE_CLAMPED_CLOSURE_COUNT > 1
 			// account for the probability of having chosen this slab
 			Payload.BSDFOpacity /= SlabPdf;
 #endif
-		} // close brace opened by SUBSTRATE_CLAMPED_BSDF_COUNT > 1 or SUBSTRATE_CLAMPED_BSDF_COUNT == 1 ifdefs above
-#endif // SUBSTRATE_CLAMPED_BSDF_COUNT > 0
+		} // close brace opened by SUBSTRATE_CLAMPED_CLOSURE_COUNT > 1 or SUBSTRATE_CLAMPED_CLOSURE_COUNT == 1 ifdefs above
+#endif // SUBSTRATE_CLAMPED_CLOSURE_COUNT > 0
 
 #undef  BSDF
 	} // if BSDFCount > 0

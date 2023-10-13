@@ -94,7 +94,7 @@ float3 SubstrateMobileForwardLighting(
 		#if SUBSTRATE_FORCE_SINGLE_BSDF
 		int BSDFIdx = 0;
 		#else
-		SUBSTRATE_UNROLL_N(SUBSTRATE_CLAMPED_BSDF_COUNT)
+		SUBSTRATE_UNROLL_N(SUBSTRATE_CLAMPED_CLOSURE_COUNT)
 		for (int BSDFIdx = 0; BSDFIdx < SubstratePixelHeader.SubstrateTree.BSDFCount; ++BSDFIdx)
 		#endif
 		{

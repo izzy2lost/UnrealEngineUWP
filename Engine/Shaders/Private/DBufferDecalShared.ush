@@ -170,7 +170,7 @@ void ApplyDBufferData(in FSubstrateDBuffer SubstrateDBufferData, inout FSubstrat
 	}
 
 	// For now apply decal data onto all layers, without consideration of top layers
-	SUBSTRATE_UNROLL_N(SUBSTRATE_CLAMPED_BSDF_COUNT)
+	SUBSTRATE_UNROLL_N(SUBSTRATE_CLAMPED_CLOSURE_COUNT)
 	for (int BSDFIdx = 0; BSDFIdx < SubstratePixelHeader.SubstrateTree.BSDFCount; ++BSDFIdx)
 	{
 	#define BSDF SubstratePixelHeader.SubstrateTree.BSDFs[BSDFIdx]
