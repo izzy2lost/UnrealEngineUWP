@@ -5,6 +5,7 @@
 #include "AssetManagerEditorModule.h"
 #include "AssetRegistry/AssetRegistryModule.h"
 #include "AssetRegistry/AssetData.h"
+#include "Async/ParallelFor.h"
 #include "EdGraphNode_PluginReference.h"
 #include "EdGraph/EdGraphPin.h"
 #include "Interfaces/IPluginManager.h"
@@ -80,6 +81,28 @@ namespace UE::PluginReferenceViewer::Private
 			OutAssetIdentifiers.Add(FAssetIdentifier(AssetsInPlugin[Index].PackageName));
 		}
 	};
+
+	uint64 GetSizeOfPlugin(const TSharedRef<IPlugin> Plugin)
+	{
+		uint64 Size = 0;
+		TArray<FAssetData> PluginAssets;
+
+		IAssetRegistry& AssetRegistry = FModuleManager::LoadModuleChecked<FAssetRegistryModule>("AssetRegistry").Get();
+
+		// we want to only include on disk assets otherwise we will be stuck only on the game thread
+		AssetRegistry.GetAssetsByPath(FName(Plugin->GetMountedAssetPath()), PluginAssets, true, true);
+
+		for (const FAssetData& PluginAsset : PluginAssets)
+		{
+			if (TOptional<FAssetPackageData> PackageData = AssetRegistry.GetAssetPackageDataCopy(PluginAsset.PackageName))
+			{
+				Size += PackageData->DiskSize;
+			}
+		}
+
+		return Size;
+	}
+
 }
 
 FPluginReferenceNodeInfo::FPluginReferenceNodeInfo(const FPluginIdentifier& InIdentifier, bool bInReferencers)
@@ -103,6 +126,7 @@ int32 FPluginReferenceNodeInfo::ProvisionSize(const FPluginIdentifier& InParentI
 
 UEdGraph_PluginReferenceViewer::UEdGraph_PluginReferenceViewer(const FObjectInitializer& ObjectInitializer)
 	: Super(ObjectInitializer)
+	, bAdvancedInfoLoaded(false)
 {
 
 }
@@ -131,6 +155,11 @@ void UEdGraph_PluginReferenceViewer::GetPluginAssets(const FPluginIdentifier& Pl
 	const TSharedRef<IPlugin> ForPlugin = PluginMap.FindChecked(Plugin);
 
 	UE::PluginReferenceViewer::Private::GetPluginAssets(ForPlugin, OutAssetIdentifiers);
+}
+
+const FPluginStats& UEdGraph_PluginReferenceViewer::GetPluginStats(const FPluginIdentifier& Plugin)
+{
+	return StatsMap.FindChecked(Plugin);
 }
 
 void UEdGraph_PluginReferenceViewer::CachePluginDependencies(const TArray<TSharedRef<IPlugin>>& Plugins)
@@ -237,6 +266,63 @@ UEdGraphNode_PluginReference* UEdGraph_PluginReferenceViewer::ConstructNodes(con
 	}
 
 	return RefilterGraph();
+}
+
+void UEdGraph_PluginReferenceViewer::LoadAdvancedPluginInfo()
+{
+	// don't reload everything if we have already filled the stats map
+	if (bAdvancedInfoLoaded)
+	{
+		return;
+	}
+
+	// fill the map before we task work out
+	for (const TPair<FPluginIdentifier, TUniquePtr<FPluginDependsNode> >& CachedPair : CachedDependsNodes)
+	{
+		StatsMap.Add(CachedPair.Key);
+	}
+
+	TArray<FPluginIdentifier> MapKeys;
+	ReferencerNodeInfos.GenerateKeyArray(MapKeys);
+
+	// GetSizeOfPlugin is an expensive call so using ParallelFors here
+
+	ParallelFor(MapKeys.Num(),
+		[this, &MapKeys](int32 Index)
+		{
+			FPluginStats& Stats = StatsMap.FindChecked(MapKeys[Index]);
+			Stats.Size = UE::PluginReferenceViewer::Private::GetSizeOfPlugin(PluginMap.FindChecked(MapKeys[Index]));
+		});
+
+	MapKeys.Empty();
+	DependencyNodeInfos.GenerateKeyArray(MapKeys);
+
+	ParallelFor(MapKeys.Num(),
+		[this, &MapKeys](int32 Index)
+		{
+			FPluginStats& Stats = StatsMap.FindChecked(MapKeys[Index]);
+			Stats.Size = UE::PluginReferenceViewer::Private::GetSizeOfPlugin(PluginMap.FindChecked(MapKeys[Index]));
+		});
+
+
+	for (TPair<FPluginIdentifier, TUniquePtr<FPluginDependsNode> >& CachedPair : CachedDependsNodes)
+	{
+		FPluginDependsNode* DependsNode = CachedPair.Value.Get();
+
+		FPluginStats& CurrentPluginStats = StatsMap.FindChecked(CachedPair.Key);
+
+		CurrentPluginStats.Dependencies = DependsNode->Dependencies.Num();
+		CurrentPluginStats.Referencers = DependsNode->Referencers.Num();
+
+		CurrentPluginStats.SizeWithDependencies = CurrentPluginStats.Size;
+
+		for (const FPluginDependsNode* Dependency : DependsNode->Dependencies)
+		{
+			CurrentPluginStats.SizeWithDependencies += StatsMap.FindChecked(Dependency->Identifier).Size;
+		}
+	}
+
+	bAdvancedInfoLoaded = true;
 }
 
 UEdGraphNode_PluginReference* UEdGraph_PluginReferenceViewer::RecursivelyCreateNodes(bool bInReferencers, const FPluginIdentifier& InPluginId, const FIntPoint& InNodeLoc, const FPluginIdentifier& InParentId, UEdGraphNode_PluginReference* InParentNode, TMap<FPluginIdentifier, FPluginReferenceNodeInfo>& InNodeInfos, int32 InCurrentDepth, int32 InMaxDepth, bool bIsRoot)
@@ -387,6 +473,16 @@ UEdGraphNode_PluginReference* UEdGraph_PluginReferenceViewer::RebuildGraph()
 	RemoveAllNodes();
 
 	UEdGraphNode_PluginReference* NewRootNode = ConstructNodes(CurrentGraphRootIdentifiers, CurrentGraphRootOrigin);
+
+	if (bAdvancedInfoLoaded)
+	{
+		// Load advanced plugin checks this bool so multiple load requests from the UI don't cause needless reloads, so set false
+		bAdvancedInfoLoaded = false;
+
+		StatsMap.Empty();
+		LoadAdvancedPluginInfo();
+	}
+
 	return NewRootNode;
 }
 
@@ -537,3 +633,4 @@ void UEdGraph_PluginReferenceViewer::GetPluginReferencers(const FPluginIdentifie
 		}
 	}
 }
+

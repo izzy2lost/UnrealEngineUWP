@@ -53,6 +53,26 @@ struct FPluginIdentifier
 	}
 };
 
+
+struct FAssetStats
+{
+	FAssetStats() : References(0)
+	{
+	}
+
+	uint32 References;
+};
+
+struct FPluginStats
+{
+	uint64 Size;
+	uint64 SizeWithDependencies;
+
+	uint32 Dependencies;
+	uint32 Referencers;
+};
+
+
 struct FPluginDependsNode
 {
 	explicit FPluginDependsNode(const FPluginIdentifier& InIdentifier)
@@ -112,6 +132,10 @@ public:
 	/** Finds all plugin assets */
 	void GetPluginAssets(const FPluginIdentifier& Plugin, TArray<FAssetIdentifier>& OutAssetIdentifiers);
 
+	const FPluginStats& GetPluginStats(const FPluginIdentifier& Plugin);
+
+	void LoadAdvancedPluginInfo();
+
 	UEdGraphNode_PluginReference* ConstructNodes(const TArray<FPluginIdentifier>& GraphRootIdentifiers, const FIntPoint& GraphRootOrigin);
 
 	UEdGraphNode_PluginReference* RecursivelyCreateNodes(bool bInReferencers, const FPluginIdentifier& InPluginId, const FIntPoint& InNodeLoc, const FPluginIdentifier& InParentId, UEdGraphNode_PluginReference* InParentNode, TMap<FPluginIdentifier, FPluginReferenceNodeInfo>& InNodeInfos, int32 InCurrentDepth, int32 InMaxDepth, bool bIsRoot = false);
@@ -165,9 +189,12 @@ private:
 
 	TMap<FPluginIdentifier, TUniquePtr<FPluginDependsNode>> CachedDependsNodes;
 	TMap<FPluginIdentifier, const TSharedRef<IPlugin>> PluginMap;
+	TMap<FPluginIdentifier, FPluginStats> StatsMap;
 
 	TMap<FPluginIdentifier, FPluginReferenceNodeInfo> ReferencerNodeInfos;
 	TMap<FPluginIdentifier, FPluginReferenceNodeInfo> DependencyNodeInfos;
 
 	friend SPluginReferenceViewer;
+
+	bool bAdvancedInfoLoaded = false;
 };
