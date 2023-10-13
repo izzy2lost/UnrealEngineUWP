@@ -102,7 +102,7 @@ struct FISMComponentDescription
 {
 	enum EFlags
 	{
-		UseHISM = 1 << 1,
+		UseHISM = 1 << 1,							// HISM is no longer supported. This flag is ignored.
 		GpuLodSelection = 1 << 2,
 		ReverseCulling = 1 << 3,
 		StaticMobility = 1 << 4,
@@ -247,7 +247,7 @@ struct FGeometryCollectionMeshGroup
 struct FGeometryCollectionISM
 {
 	/** Create the ISMComponent according to settings on the mesh instance. */
-	void CreateISM(AActor* InOwningActor, bool bInUseHISM);
+	void CreateISM(AActor* InOwningActor);
 	/** Initialize the ISMComponent according to settings on the mesh instance. */
 	void InitISM(const FGeometryCollectionStaticMeshInstance& InMeshInstance);
 	/** Add a group to the ISM. Returns the group index. */
@@ -291,8 +291,6 @@ struct FGeometryCollectionISMPool
 	TArray<int32> FreeList;
 	/** Free list of indices in ISMs that have registered ISM components. */
 	TArray<int32> FreeListISM;
-	/** Free list of indices in ISMs that have registered HISM components. */
-	TArray<int32> FreeListHISM;
 };
 
 
