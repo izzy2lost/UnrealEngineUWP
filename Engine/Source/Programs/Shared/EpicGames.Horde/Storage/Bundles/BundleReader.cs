@@ -22,7 +22,7 @@ namespace EpicGames.Horde.Storage.Bundles
 		/// <summary>
 		/// Locator for the bundle
 		/// </summary>
-		public BundleLocator Locator { get; }
+		public BlobLocator Locator { get; }
 
 		/// <summary>
 		/// Bundle header
@@ -37,7 +37,7 @@ namespace EpicGames.Horde.Storage.Bundles
 		/// <summary>
 		/// Constructor
 		/// </summary>
-		public BundleInfo(BundleLocator locator, BundleHeader header, int headerLength)
+		public BundleInfo(BlobLocator locator, BundleHeader header, int headerLength)
 		{
 			Locator = locator;
 			Header = header;
@@ -56,7 +56,7 @@ namespace EpicGames.Horde.Storage.Bundles
 		[DebuggerDisplay("{Locator}")]
 		class QueuedBundle
 		{
-			public BundleLocator Locator { get; }
+			public BlobLocator Locator { get; }
 			public TaskCompletionSource<BundleInfo> BundleInfo { get; } = new TaskCompletionSource<BundleInfo>();
 			public List<QueuedPacket> QueuedPackets { get; } = new List<QueuedPacket>(); // Sorted by index
 			public int InfoRefCount { get; set; } // Ref count for reading the header
@@ -65,7 +65,7 @@ namespace EpicGames.Horde.Storage.Bundles
 			public CancellationTokenSource CancellationSource { get; set; } = new CancellationTokenSource();
 			public bool Complete { get; set; }
 
-			public QueuedBundle(BundleLocator locator)
+			public QueuedBundle(BlobLocator locator)
 			{
 				Locator = locator;
 			}
@@ -166,7 +166,7 @@ namespace EpicGames.Horde.Storage.Bundles
 		/// <param name="locator">Locator for the bundle</param>
 		/// <param name="cancellationToken">Cancellation token for the operation</param>
 		/// <returns>Information about the bundle</returns>
-		public async Task<BundleHeader> ReadHeaderAsync(BundleLocator locator, CancellationToken cancellationToken)
+		public async Task<BundleHeader> ReadHeaderAsync(BlobLocator locator, CancellationToken cancellationToken)
 		{
 			// Check for a cached value first
 			if (_cache.TryGetCachedHeader(locator, out BundleInfo? cachedBundleInfo))
@@ -194,7 +194,7 @@ namespace EpicGames.Horde.Storage.Bundles
 			}
 		}
 
-		static string GetDecodeTaskKey(BundleLocator locator, int packetIdx) => $"{locator}#{packetIdx}";
+		static string GetDecodeTaskKey(BlobLocator locator, int packetIdx) => $"{locator}#{packetIdx}";
 
 		/// <summary>
 		/// Reads decoded packet data from a bundle
@@ -203,7 +203,7 @@ namespace EpicGames.Horde.Storage.Bundles
 		/// <param name="packetIdx">Index of the bundle packet</param>
 		/// <param name="cancellationToken">Cancellation token for the operation</param>
 		/// <returns>Data for the packet</returns>
-		public async Task<ReadOnlyMemory<byte>> ReadPacketAsync(BundleLocator locator, int packetIdx, CancellationToken cancellationToken)
+		public async Task<ReadOnlyMemory<byte>> ReadPacketAsync(BlobLocator locator, int packetIdx, CancellationToken cancellationToken)
 		{
 			ReadOnlyMemory<byte> cachedDecodedPacket;
 			if (_cache.TryGetCachedDecodedPacket(locator, packetIdx, out cachedDecodedPacket))
@@ -231,7 +231,7 @@ namespace EpicGames.Horde.Storage.Bundles
 			return await decodeTask.WaitAsync(cancellationToken);
 		}
 
-		async Task<ReadOnlyMemory<byte>> ReadAndDecodePacketAsync(BundleLocator locator, int packetIdx, CancellationToken cancellationToken)
+		async Task<ReadOnlyMemory<byte>> ReadAndDecodePacketAsync(BlobLocator locator, int packetIdx, CancellationToken cancellationToken)
 		{
 			BundleHeader header = await ReadHeaderAsync(locator, cancellationToken);
 			ReadOnlyMemory<byte> encodedPacket = await ReadEncodedPacketAsync(locator, packetIdx, cancellationToken);
@@ -260,7 +260,7 @@ namespace EpicGames.Horde.Storage.Bundles
 		/// <param name="packetIdx">Index of the bundle packet</param>
 		/// <param name="cancellationToken">Cancellation token for the operation</param>
 		/// <returns>Dtaa for the packet</returns>
-		public async Task<ReadOnlyMemory<byte>> ReadEncodedPacketAsync(BundleLocator locator, int packetIdx, CancellationToken cancellationToken)
+		public async Task<ReadOnlyMemory<byte>> ReadEncodedPacketAsync(BlobLocator locator, int packetIdx, CancellationToken cancellationToken)
 		{
 			// Register a read for the packet
 			QueuedBundle? bundle = null;
@@ -290,7 +290,7 @@ namespace EpicGames.Horde.Storage.Bundles
 			}
 		}
 
-		QueuedBundle FindOrAddBundle(BundleLocator locator)
+		QueuedBundle FindOrAddBundle(BlobLocator locator)
 		{
 			QueuedBundle? bundle = _queuedBundles.FirstOrDefault(x => x.Locator == locator);
 			if (bundle == null)
@@ -547,7 +547,7 @@ namespace EpicGames.Horde.Storage.Bundles
 			List<BlobHandle> refs = new List<BlobHandle>(export.References.Count);
 			foreach (BundleExportRef reference in export.References)
 			{
-				BundleLocator importBlob;
+				BlobLocator importBlob;
 				if (reference.ImportIdx == -1)
 				{
 					importBlob = locator.Blob;

@@ -270,7 +270,7 @@ namespace EpicGames.Horde.Storage.Bundles
 		/// <summary>
 		/// Constructor
 		/// </summary>
-		public BundleHeader(BlobType[] types, BundleLocator[] imports, BundleExport[] exports, BundlePacket[] packets)
+		public BundleHeader(BlobType[] types, BlobLocator[] imports, BundleExport[] exports, BundlePacket[] packets)
 		{
 			Types = new BundleTypeCollection(types);
 			Imports = new BundleImportCollection(imports);
@@ -484,12 +484,12 @@ namespace EpicGames.Horde.Storage.Bundles
 
 			// Read the imports
 			int numImports = (int)reader.ReadUnsignedVarInt();
-			List<BundleLocator> imports = new List<BundleLocator>(numImports);
+			List<BlobLocator> imports = new List<BlobLocator>(numImports);
 			List<BundleExportRef> allExportReferences = new List<BundleExportRef>();
 
 			for (int importIdx = 0; importIdx < numImports; importIdx++)
 			{
-				BundleLocator locator = reader.ReadBlobLocator();
+				BlobLocator locator = new BlobLocator(reader.ReadUtf8String());
 				imports.Add(locator);
 
 				int[] exportIndexes = reader.ReadVariableLengthArray(() => (int)reader.ReadUnsignedVarInt());
@@ -676,9 +676,9 @@ namespace EpicGames.Horde.Storage.Bundles
 	/// <summary>
 	/// Collection of imported node references
 	/// </summary>
-	public struct BundleImportCollection : IReadOnlyList<BundleLocator>
+	public struct BundleImportCollection : IReadOnlyList<BlobLocator>
 	{
-		readonly BundleLocator[] _imports;
+		readonly BlobLocator[] _imports;
 
 		/// <inheritdoc/>
 		public int Count => _imports.Length;
@@ -686,7 +686,7 @@ namespace EpicGames.Horde.Storage.Bundles
 		/// <summary>
 		/// Constructor
 		/// </summary>
-		public BundleImportCollection(BundleLocator[] imports) => _imports = imports;
+		public BundleImportCollection(BlobLocator[] imports) => _imports = imports;
 
 		/// <summary>
 		/// Reads a collection from memory
@@ -696,12 +696,12 @@ namespace EpicGames.Horde.Storage.Bundles
 			ReadOnlySpan<byte> span = data.Span;
 			int count = (span.Length == 0) ? 0 : BinaryPrimitives.ReadInt32LittleEndian(span) / sizeof(int);
 
-			BundleLocator[] imports = new BundleLocator[count];
+			BlobLocator[] imports = new BlobLocator[count];
 			for (int idx = 0; idx < count; idx++)
 		{
 				int offset = BinaryPrimitives.ReadInt32LittleEndian(span.Slice(idx * sizeof(int)));
 				int length = span.Slice(offset).IndexOf((byte)0);
-				imports[idx] = new BundleLocator(new Utf8String(data.Slice(offset, length)));
+				imports[idx] = new BlobLocator(new Utf8String(data.Slice(offset, length)));
 			}
 
 			return new BundleImportCollection(imports);
@@ -718,10 +718,10 @@ namespace EpicGames.Horde.Storage.Bundles
 		}
 
 		/// <inheritdoc/>
-		public BundleLocator this[int index] => _imports[index];
+		public BlobLocator this[int index] => _imports[index];
 
 		/// <inheritdoc/>
-		public IEnumerator<BundleLocator> GetEnumerator() => _imports.AsEnumerable().GetEnumerator();
+		public IEnumerator<BlobLocator> GetEnumerator() => _imports.AsEnumerable().GetEnumerator();
 
 		/// <inheritdoc/>
 		IEnumerator IEnumerable.GetEnumerator() => GetEnumerator();
@@ -739,12 +739,12 @@ namespace EpicGames.Horde.Storage.Bundles
 		public void Write(IMemoryWriter writer)
 		{
 			int offset = _imports.Length * sizeof(int);
-			foreach (BundleLocator import in _imports)
+			foreach (BlobLocator import in _imports)
 			{
 				writer.WriteInt32(offset);
 				offset += import.Path.Length + 1;
 			}
-			foreach (BundleLocator import in _imports)
+			foreach (BlobLocator import in _imports)
 			{
 				writer.WriteNullTerminatedUtf8String(import.Path);
 			}

@@ -23,7 +23,7 @@ namespace EpicGames.Horde.Storage.Clients
 		#region Blobs
 
 		/// <inheritdoc/>
-		Task<Stream> OpenAsync(BundleLocator locator, int offset, int? length = null, CancellationToken cancellationToken = default);
+		Task<Stream> OpenAsync(BlobLocator locator, int offset, int? length = null, CancellationToken cancellationToken = default);
 
 		#endregion
 
@@ -34,7 +34,7 @@ namespace EpicGames.Horde.Storage.Clients
 		/// </summary>
 		/// <param name="locator">Locator for the bundle</param>
 		/// <param name="cancellationToken">Cancellation token for the operation</param>
-		Task<BundleHeader> ReadHeaderAsync(BundleLocator locator, CancellationToken cancellationToken);
+		Task<BundleHeader> ReadHeaderAsync(BlobLocator locator, CancellationToken cancellationToken);
 
 		#endregion
 	}
@@ -51,7 +51,7 @@ namespace EpicGames.Horde.Storage.Clients
 		/// <param name="locator">Locator for the bundle</param>
 		/// <param name="cancellationToken">Cancellation token for the operation</param>
 		/// <returns>Stream for reading from the bundle</returns>
-		public static Task<Stream> OpenAsync(this IBundleStorageClient storageClient, BundleLocator locator, CancellationToken cancellationToken = default) => storageClient.OpenAsync(locator, 0, null, cancellationToken);
+		public static Task<Stream> OpenAsync(this IBundleStorageClient storageClient, BlobLocator locator, CancellationToken cancellationToken = default) => storageClient.OpenAsync(locator, 0, null, cancellationToken);
 
 		/// <summary>
 		/// Reads an entire bundle into memory
@@ -60,7 +60,7 @@ namespace EpicGames.Horde.Storage.Clients
 		/// <param name="locator">Locator for the bundle</param>
 		/// <param name="cancellationToken">Cancellation token for the operation</param>
 		/// <returns>Bundle that was read</returns>
-		public static async Task<Bundle> ReadBundleAsync(this IBundleStorageClient storageClient, BundleLocator locator, CancellationToken cancellationToken = default)
+		public static async Task<Bundle> ReadBundleAsync(this IBundleStorageClient storageClient, BlobLocator locator, CancellationToken cancellationToken = default)
 		{
 			using Stream stream = await storageClient.OpenAsync(locator, cancellationToken);
 			return await Bundle.FromStreamAsync(stream, cancellationToken);
@@ -74,11 +74,11 @@ namespace EpicGames.Horde.Storage.Clients
 		/// <param name="basePath">Prefix for the uploaded data</param>
 		/// <param name="cancellationToken">Cancellation token for the operation</param>
 		/// <returns>Locator for reading the bundle back in</returns>
-		public static async Task<BundleLocator> WriteBundleAsync(this IBundleStorageClient storageClient, Bundle bundle, string? basePath = null, CancellationToken cancellationToken = default)
+		public static async Task<BlobLocator> WriteBundleAsync(this IBundleStorageClient storageClient, Bundle bundle, string? basePath = null, CancellationToken cancellationToken = default)
 		{
 			using ReadOnlySequenceStream stream = new ReadOnlySequenceStream(bundle.AsSequence());
 			string path = await storageClient.Backend.WriteAsync(stream, basePath, cancellationToken);
-			return new BundleLocator(path);
+			return new BlobLocator(path);
 		}
 	}
 
@@ -123,14 +123,14 @@ namespace EpicGames.Horde.Storage.Clients
 		#region Blobs
 
 		/// <inheritdoc/>
-		public async Task<Stream> OpenAsync(BundleLocator locator, int offset, int? length = null, CancellationToken cancellationToken = default) => await _backend.OpenAsync(locator.Path.ToString(), offset, length, cancellationToken);
+		public async Task<Stream> OpenAsync(BlobLocator locator, int offset, int? length = null, CancellationToken cancellationToken = default) => await _backend.OpenAsync(locator.Path.ToString(), offset, length, cancellationToken);
 
 		#endregion
 
 		#region Bundles
 
 		/// <inheritdoc/>
-		public Task<BundleHeader> ReadHeaderAsync(BundleLocator locator, CancellationToken cancellationToken) => _bundleReader.ReadHeaderAsync(locator, cancellationToken);
+		public Task<BundleHeader> ReadHeaderAsync(BlobLocator locator, CancellationToken cancellationToken) => _bundleReader.ReadHeaderAsync(locator, cancellationToken);
 
 		/// <inheritdoc/>
 		public async Task<BlobData> ReadNodeDataAsync(BundleNodeLocator locator, CancellationToken cancellationToken) => await _bundleReader.ReadNodeDataAsync(locator, cancellationToken);

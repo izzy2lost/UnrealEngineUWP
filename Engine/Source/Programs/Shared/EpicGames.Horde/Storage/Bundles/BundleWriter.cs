@@ -474,7 +474,7 @@ namespace EpicGames.Horde.Storage.Bundles
 				try
 				{
 					Bundle bundle = CreateBundle();
-					BundleLocator locator = await store.WriteBundleAsync(bundle, basePath);
+					BlobLocator locator = await store.WriteBundleAsync(bundle, basePath);
 					traceLogger?.LogInformation("Written bundle {BundleId} as {Locator}", BundleId, locator);
 
 					for (int idx = 0; idx < _queue.Count; idx++)
@@ -521,8 +521,8 @@ namespace EpicGames.Horde.Storage.Bundles
 			Bundle CreateBundleInternal()
 			{
 				// List of imported blobs
-				List<BundleLocator> imports = new List<BundleLocator>();
-				Dictionary<BundleLocator, int> importToIndex = new Dictionary<BundleLocator, int>();
+				List<BlobLocator> imports = new List<BlobLocator>();
+				Dictionary<BlobLocator, int> importToIndex = new Dictionary<BlobLocator, int>();
 
 				// List of types in the bundle
 				List<BlobType> types = new List<BlobType>();

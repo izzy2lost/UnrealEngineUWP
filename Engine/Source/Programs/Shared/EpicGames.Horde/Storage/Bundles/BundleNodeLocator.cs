@@ -22,7 +22,7 @@ namespace EpicGames.Horde.Storage.Bundles
 		/// <summary>
 		/// Location of the blob containing this node
 		/// </summary>
-		public BundleLocator Blob { get; }
+		public BlobLocator Blob { get; }
 
 		/// <summary>
 		/// Index of the export within the blob
@@ -32,7 +32,7 @@ namespace EpicGames.Horde.Storage.Bundles
 		/// <summary>
 		/// Constructor
 		/// </summary>
-		public BundleNodeLocator(BundleLocator blob, int exportIdx)
+		public BundleNodeLocator(BlobLocator blob, int exportIdx)
 		{
 			Blob = blob;
 			ExportIdx = exportIdx;
@@ -41,7 +41,7 @@ namespace EpicGames.Horde.Storage.Bundles
 		/// <summary>
 		/// Determines if this locator points to a valid entry
 		/// </summary>
-		public bool IsValid() => Blob.IsValid();
+		public bool IsValid() => !Blob.Path.IsEmpty;
 
 		/// <summary>
 		/// Parse a string as a node locator
@@ -63,7 +63,7 @@ namespace EpicGames.Horde.Storage.Bundles
 			}
 
 			int exportIdx = Int32.Parse(text.Slice(hashIdx + 1), NumberStyles.None, CultureInfo.InvariantCulture);
-			BundleLocator blobLocator = new BundleLocator(new Utf8String(text.Slice(0, hashIdx)));
+			BlobLocator blobLocator = new BlobLocator(new Utf8String(text.Slice(0, hashIdx)));
 			return new BundleNodeLocator(blobLocator, exportIdx);
 		}
 

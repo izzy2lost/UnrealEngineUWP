@@ -127,7 +127,7 @@ namespace Horde.Server.Storage
 			{
 				string path = await _inner.WriteAsync(stream, $"{_prefix}{prefix}", cancellationToken);
 
-				BundleLocator locator = new BundleLocator(path);
+				BlobLocator locator = new BlobLocator(path);
 				await _outer.AddBlobAsync(_namespaceId, locator, null, cancellationToken);
 
 				return path;
@@ -174,7 +174,7 @@ namespace Horde.Server.Storage
 					return null;
 				}
 
-				BundleLocator locator = new BundleLocator(redirect.Value.Path);
+				BlobLocator locator = new BlobLocator(redirect.Value.Path);
 				await _outer.AddBlobAsync(_namespaceId, locator, null, cancellationToken);
 
 				return redirect;
@@ -308,9 +308,9 @@ namespace Horde.Server.Storage
 
 			#region Bundles
 
-			public Task<Stream> OpenAsync(BundleLocator locator, int offset, int? length = null, CancellationToken cancellationToken = default) => _impl.OpenAsync(locator, offset, length, cancellationToken);
+			public Task<Stream> OpenAsync(BlobLocator locator, int offset, int? length = null, CancellationToken cancellationToken = default) => _impl.OpenAsync(locator, offset, length, cancellationToken);
 
-			public Task<BundleHeader> ReadHeaderAsync(BundleLocator locator, CancellationToken cancellationToken) => _impl.ReadHeaderAsync(locator, cancellationToken);
+			public Task<BundleHeader> ReadHeaderAsync(BlobLocator locator, CancellationToken cancellationToken) => _impl.ReadHeaderAsync(locator, cancellationToken);
 
 			#endregion
 
@@ -409,7 +409,7 @@ namespace Horde.Server.Storage
 				Path = String.Empty;
 			}
 
-			public BlobInfo(ObjectId id, NamespaceId namespaceId, BundleLocator locator)
+			public BlobInfo(ObjectId id, NamespaceId namespaceId, BlobLocator locator)
 			{
 				Id = id;
 				NamespaceId = namespaceId;
@@ -683,7 +683,7 @@ namespace Horde.Server.Storage
 		#region Blobs
 
 		/// <inheritdoc/>
-		async Task AddBlobAsync(NamespaceId namespaceId, BundleLocator locator, List<AliasInfo>? exports = null, CancellationToken cancellationToken = default)
+		async Task AddBlobAsync(NamespaceId namespaceId, BlobLocator locator, List<AliasInfo>? exports = null, CancellationToken cancellationToken = default)
 		{
 			ObjectId id = ObjectId.GenerateNewId(_clock.UtcNow);
 			BlobInfo blobInfo = new BlobInfo(id, namespaceId, locator);
@@ -746,11 +746,11 @@ namespace Horde.Server.Storage
 
 							if (client != null)
 							{
-								BundleHeader? header = await client.ReadHeaderAsync(new BundleLocator(blobInfo.Locator.Path), cancellationToken);
+								BundleHeader? header = await client.ReadHeaderAsync(blobInfo.Locator, cancellationToken);
 								if (header != null)
 								{
 									List<ObjectId> importInfoIds = new List<ObjectId>();
-									foreach (BundleLocator import in header.Imports)
+									foreach (BlobLocator import in header.Imports)
 									{
 										FilterDefinition<BlobInfo> filter = Builders<BlobInfo>.Filter.Expr(x => x.NamespaceId == blobInfo.NamespaceId && x.Path == import.Path.ToString());
 										UpdateDefinition<BlobInfo> update = Builders<BlobInfo>.Update.SetOnInsert(x => x.Imports, null);

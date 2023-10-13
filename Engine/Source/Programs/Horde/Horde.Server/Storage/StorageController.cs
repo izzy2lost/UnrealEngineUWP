@@ -104,7 +104,7 @@ namespace Horde.Server.Storage
 					bundle = await Bundle.FromStreamAsync(stream, cancellationToken);
 				}
 
-				BundleLocator locator = await storageClient.WriteBundleAsync(bundle, prefix, cancellationToken: cancellationToken);
+				BlobLocator locator = await storageClient.WriteBundleAsync(bundle, prefix, cancellationToken: cancellationToken);
 				return new WriteBlobResponse { Blob = locator.ToString(), SupportsRedirects = storageClient?.Backend.SupportsRedirects };
 			}
 		}
@@ -118,7 +118,7 @@ namespace Horde.Server.Storage
 		[HttpGet]
 		[Route("/api/v1/storage/{namespaceId}/blobs/{*locator}")]
 		[Route("/api/v1/storage/{namespaceId}/bundles/{*locator}")]
-		public async Task<ActionResult> ReadBlobAsync(NamespaceId namespaceId, BundleLocator locator, CancellationToken cancellationToken = default)
+		public async Task<ActionResult> ReadBlobAsync(NamespaceId namespaceId, BlobLocator locator, CancellationToken cancellationToken = default)
 		{
 			using IServerStorageClient? client = _storageService.TryCreateClient(namespaceId);
 			if (client == null)
@@ -136,7 +136,7 @@ namespace Horde.Server.Storage
 		/// <summary>
 		/// Reads a blob from storage, without performing namespace access checks.
 		/// </summary>
-		internal static async Task<ActionResult> ReadBlobInternalAsync(IBundleStorageClient storageClient, BundleLocator locator, IHeaderDictionary headers, CancellationToken cancellationToken)
+		internal static async Task<ActionResult> ReadBlobInternalAsync(IBundleStorageClient storageClient, BlobLocator locator, IHeaderDictionary headers, CancellationToken cancellationToken)
 		{
 			Uri? redirectUrl = await storageClient.Backend.TryGetReadRedirectAsync(locator.ToString(), cancellationToken);
 			if (redirectUrl != null)
@@ -311,7 +311,7 @@ namespace Horde.Server.Storage
 
 				if (hashIdx != -1)
 				{
-					response.Blob = new BundleLocator(locator.Substring(0, hashIdx));
+					response.Blob = new BlobLocator(locator.Substring(0, hashIdx));
 					response.ExportIdx = Int32.Parse(locator.Substring(hashIdx + 1));
 				}
 			}

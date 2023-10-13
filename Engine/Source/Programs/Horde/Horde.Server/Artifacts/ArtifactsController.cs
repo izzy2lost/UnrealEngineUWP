@@ -9,7 +9,6 @@ using System.Threading.Tasks;
 using EpicGames.Core;
 using EpicGames.Horde.Artifacts;
 using EpicGames.Horde.Storage;
-using EpicGames.Horde.Storage.Bundles;
 using EpicGames.Horde.Storage.Nodes;
 using Horde.Server.Server;
 using Horde.Server.Storage;
@@ -77,7 +76,7 @@ namespace Horde.Server.Artifacts
 		[HttpGet]
 		[Route("/api/v2/artifacts/{id}/blobs/{*locator}")]
 		[Route("/api/v2/artifacts/{id}/bundles/{*locator}")]
-		public async Task<ActionResult> ReadArtifactBlobAsync(ArtifactId id, BundleLocator locator, CancellationToken cancellationToken = default)
+		public async Task<ActionResult> ReadArtifactBlobAsync(ArtifactId id, BlobLocator locator, CancellationToken cancellationToken = default)
 		{
 			IArtifact? artifact = await _artifactCollection.GetAsync(id, cancellationToken);
 			if (artifact == null)

@@ -62,6 +62,11 @@ namespace EpicGames.Horde.Storage
 		}
 
 		/// <summary>
+		/// Whether the blob locator is valid
+		/// </summary>
+		public bool IsValid() => !_path.IsEmpty;
+
+		/// <summary>
 		/// The outermost blob locator
 		/// </summary>
 		public BlobLocator Outermost
@@ -107,6 +112,17 @@ namespace EpicGames.Horde.Storage
 				int hashIdx = _path.LastIndexOf('#');
 				return (hashIdx == -1) ? Utf8String.Empty : _path.Slice(hashIdx + 1);
 			}
+		}
+
+		/// <summary>
+		/// Checks whether this blob is within the given folder
+		/// </summary>
+		/// <param name="folderName">Name of the folder</param>
+		/// <returns>True if the the blob id is within the given folder</returns>
+		public bool WithinFolder(Utf8String folderName)
+		{
+			Utf8String path = Path;
+			return path.Length > folderName.Length && path.StartsWith(folderName) && path[folderName.Length] == '/';
 		}
 
 		/// <inheritdoc/>

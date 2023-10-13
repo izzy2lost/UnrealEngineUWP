@@ -4,13 +4,11 @@ using System;
 using System.ComponentModel;
 using System.Globalization;
 using System.IO;
-using System.Text;
 using System.Text.Json;
 using System.Text.Json.Serialization;
 using System.Threading.Tasks;
 using Blake3;
 using EpicGames.Core;
-using EpicGames.Horde.Storage.Bundles;
 using EpicGames.Serialization;
 
 namespace Jupiter.Implementation
@@ -152,16 +150,6 @@ namespace Jupiter.Implementation
 		public IoHash AsIoHash()
 		{
 			return new IoHash(HashData);
-		}
-
-		public static BlobId FromBlobLocator(BundleLocator locator)
-		{
-			return new BlobId(Encoding.UTF8.GetBytes(locator.ToString()));
-		}
-
-		public BundleLocator AsBlobLocator()
-		{
-			return new BundleLocator(Encoding.UTF8.GetString(HashData));
 		}
 	}
 

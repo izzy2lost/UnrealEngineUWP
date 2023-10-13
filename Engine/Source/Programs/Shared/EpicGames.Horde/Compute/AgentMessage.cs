@@ -243,7 +243,7 @@ namespace EpicGames.Horde.Compute
 	/// <summary>
 	/// Creates a blob read request
 	/// </summary>
-	public record struct ReadBlobMessage(BundleLocator Locator, int Offset, int Length);
+	public record struct ReadBlobMessage(BlobLocator Locator, int Offset, int Length);
 
 	/// <summary>
 	/// Message for running an XOR command
@@ -540,7 +540,7 @@ namespace EpicGames.Horde.Compute
 		/// <returns></returns>
 		public static ReadBlobMessage ParseReadBlobRequest(this AgentMessage message)
 		{
-			BundleLocator locator = message.ReadBlobLocator();
+			BlobLocator locator = new BlobLocator(message.ReadUtf8String());
 			int offset = (int)message.ReadUnsignedVarInt();
 			int length = (int)message.ReadUnsignedVarInt();
 			return new ReadBlobMessage(locator, offset, length);
@@ -644,7 +644,7 @@ namespace EpicGames.Horde.Compute
 		/// <param name="length">Length of the data</param>
 		/// <param name="storage">Storage client to retrieve the blob from</param>
 		/// <param name="cancellationToken">Cancellation token for the operation</param>
-		public static async Task SendBlobDataAsync(this AgentMessageChannel channel, BundleLocator locator, int offset, int length, BundleStorageClient storage, CancellationToken cancellationToken = default)
+		public static async Task SendBlobDataAsync(this AgentMessageChannel channel, BlobLocator locator, int offset, int length, BundleStorageClient storage, CancellationToken cancellationToken = default)
 		{
 			using Stream stream = await storage.OpenAsync(locator, offset, length, cancellationToken);
 
