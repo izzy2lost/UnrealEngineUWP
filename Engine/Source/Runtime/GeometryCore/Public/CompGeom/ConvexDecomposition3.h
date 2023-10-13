@@ -63,13 +63,16 @@ struct FNegativeSpaceSampleSettings
 	// Ignore spheres with smaller radius than this
 	double MinRadius = 10.0;
 
-	// Currently only applies to VoxelSearch.
+	// Whether the reference mesh used has flipped orientation, so winding < -.5 is 'inside'
+	bool bReferenceMeshHasNegativeWinding = true;
+
+	// Below options currently only apply to VoxelSearch.
+	
 	// Whether to require that all candidate sample locations identified by Voxel Search are covered by negative space samples, up to the specified Min Sample Spacing.
 	// Note: This takes priority over TargetNumSamples if the TargetNumSamples did not achieve the required coverage.
 	bool bRequireSearchSampleCoverage = false;
-
-	// Whether the reference mesh used has flipped orientation, so winding < -.5 is 'inside'
-	bool bReferenceMeshHasNegativeWinding = true;
+	// Whether to only consider negative space that is connected to the bounding convex hull, i.e., to ignore hollow inner pockets of negative space that cannot be reached from the outside via a larger-than-ReduceRadiusMargin-wide path
+	bool bOnlyConnectedToHull = false;
 
 	// Make sure the settings values are in valid ranges
 	void Sanitize()

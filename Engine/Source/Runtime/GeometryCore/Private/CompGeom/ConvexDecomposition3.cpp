@@ -167,11 +167,64 @@ bool FSphereCovering::AddNegativeSpace(const TFastWindingTree<FDynamicMesh3>& Sp
 			return -1.0;
 		};
 
-		// Note: we could try to sample the hull away from vertices (on edges > 2*ReduceRadiusMargin long, and similarly on large triangles)
-		// to generate seeds to allow us to call the (generally faster) MarchingCubes.GenerateContinuation(Seeds) function below.
-		// However, naively calling GenerateContinuation with the mesh vertices can give an empty result (due to the radius margin).
-		// For now, we just call the slower (but reliable) Generate() function.
-		FDynamicMesh3 NegativeSpaceMesh(&MarchingCubes.Generate());
+		// If we can ignore internal negative space, we can use a seeded/continuation marching cubes here, starting from the convex hull.
+		// Since our negative space surface is away from the source mesh, we need to sample the hull away from its vertices as well;
+		// we do so with a subdivision scheme that can generate a large number of seed points, but still far fewer than there are voxel cells.
+		if (SampleSettings.bOnlyConnectedToHull)
+		{
+			TArray<FVector> Seeds;
+			double MinSeedSpacing = FMath::Max(MarchingCubes.CubeSize, SampleSettings.ReduceRadiusMargin);
+			double AddPtLenSq = 4 * MinSeedSpacing * MinSeedSpacing;
+			double SubDivLenSq = 16 * MinSeedSpacing * MinSeedSpacing;
+
+			// Make a manual stack of triangles to process --
+			// adding midpoints on long edges and subdividing when the resulting triangles could have long enough edges
+			TArray<FTriangle3d> ProcessTriStack;
+			for (FIndex3i TriInds : MeshHull.GetTriangles())
+			{
+				FTriangle3d HullTri(
+					Mesh->GetVertex(TriInds.A),
+					Mesh->GetVertex(TriInds.B),
+					Mesh->GetVertex(TriInds.C));
+				ProcessTriStack.Reset();
+				ProcessTriStack.Push(HullTri);
+				int32 SeedsAdded = 0;
+				while (!ProcessTriStack.IsEmpty())
+				{
+					FTriangle3d Tri = ProcessTriStack.Pop();
+					FVector3d EdgeLensSq(
+						FVector::DistSquared(Tri.V[2], Tri.V[0]),
+						FVector::DistSquared(Tri.V[0], Tri.V[1]),
+						FVector::DistSquared(Tri.V[1], Tri.V[2]));
+					int32 NumLongEdges = 0;
+					FTriangle3d Mids;
+					for (int32 SubIdx = 0, LastIdx = 2; SubIdx < 3; LastIdx = SubIdx++)
+					{
+						Mids.V[SubIdx] = (Tri.V[SubIdx] + Tri.V[LastIdx]) * .5;
+						if (EdgeLensSq[SubIdx] > AddPtLenSq)
+						{
+							Seeds.Add(Mids.V[SubIdx]);
+						}
+						NumLongEdges += (int32)(EdgeLensSq[SubIdx] > SubDivLenSq);
+					}
+					// Had any edge long enough to subdivide; go ahead and add all candidate tris
+					if (NumLongEdges > 0)
+					{
+						ProcessTriStack.Add(Mids);
+						ProcessTriStack.Emplace(Tri.V[0], Mids.V[0], Mids.V[1]);
+						ProcessTriStack.Emplace(Tri.V[1], Mids.V[1], Mids.V[2]);
+						ProcessTriStack.Emplace(Tri.V[2], Mids.V[2], Mids.V[0]);
+					}
+				}
+			}
+
+			MarchingCubes.GenerateContinuation(Seeds);
+		}
+		else
+		{
+			MarchingCubes.Generate();
+		}
+		FDynamicMesh3 NegativeSpaceMesh(&MarchingCubes);
 		NegativeSpaceMesh.DiscardAttributes();
 
 		// Make sure the mesh is compact to simplify downsampling below

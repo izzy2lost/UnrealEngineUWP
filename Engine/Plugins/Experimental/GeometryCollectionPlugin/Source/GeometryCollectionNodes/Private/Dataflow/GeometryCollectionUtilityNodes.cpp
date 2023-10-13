@@ -253,6 +253,7 @@ void FGenerateClusterConvexHullsFromLeafHullsDataflowNode::Evaluate(Dataflow::FC
 				NegativeSpaceSettings.MinSpacing = GetValue(Context, &MinSampleSpacing);
 				NegativeSpaceSettings.SampleMethod = ConvertNegativeSpaceSampleMethodDataflowEnum(SampleMethod);
 				NegativeSpaceSettings.bRequireSearchSampleCoverage = bRequireSearchSampleCoverage;
+				NegativeSpaceSettings.bOnlyConnectedToHull = bOnlyConnectedToHull;
 				NegativeSpaceSettings.Sanitize();
 				bHasNegativeSpace = UE::FractureEngine::Convex::ComputeConvexHullsNegativeSpace(*GeomCollection, NegativeSpace, NegativeSpaceSettings, bHasSelectionFilter, SelectionArray);
 			}
@@ -338,6 +339,7 @@ void FGenerateClusterConvexHullsFromChildrenHullsDataflowNode::Evaluate(Dataflow
 				NegativeSpaceSettings.MinSpacing = GetValue(Context, &MinSampleSpacing);
 				NegativeSpaceSettings.SampleMethod = ConvertNegativeSpaceSampleMethodDataflowEnum(SampleMethod);
 				NegativeSpaceSettings.bRequireSearchSampleCoverage = bRequireSearchSampleCoverage;
+				NegativeSpaceSettings.bOnlyConnectedToHull = bOnlyConnectedToHull;
 				NegativeSpaceSettings.Sanitize();
 				bHasNegativeSpace = UE::FractureEngine::Convex::ComputeConvexHullsNegativeSpace(*GeomCollection, NegativeSpace, NegativeSpaceSettings, bHasSelectionFilter, SelectionArray);
 			}
@@ -448,6 +450,7 @@ void FMergeConvexHullsDataflowNode::Evaluate(Dataflow::FContext& Context, const 
 			NegativeSpaceSettings.MinSpacing = GetValue(Context, &MinSampleSpacing);
 			NegativeSpaceSettings.SampleMethod = ConvertNegativeSpaceSampleMethodDataflowEnum(SampleMethod);
 			NegativeSpaceSettings.bRequireSearchSampleCoverage = bRequireSearchSampleCoverage;
+			NegativeSpaceSettings.bOnlyConnectedToHull = bOnlyConnectedToHull;
 			NegativeSpaceSettings.Sanitize();
 		}
 		if (bInProtectNegativeSpace && !bComputeNegativeSpacePerBone)
