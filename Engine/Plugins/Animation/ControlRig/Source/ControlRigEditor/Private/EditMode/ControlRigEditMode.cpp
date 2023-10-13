@@ -3150,8 +3150,13 @@ void FControlRigEditMode::InvertInputPose(bool bSelectionOnly)
 			});
 		}
 
-		ControlRig->InvertInputPose(SelectedRigElements, EControlRigSetKey::Never);
+		const TArray<FRigControlElement*> ModifiedElements = ControlRig->InvertInputPose(SelectedRigElements, EControlRigSetKey::Never);
 		ControlRig->Evaluate_AnyThread();
+
+		for (FRigControlElement* ControlElement : ModifiedElements)
+		{
+			ControlRig->ControlModified().Broadcast(ControlRig, ControlElement, EControlRigSetKey::DoNotCare);
+		}
 	}
 }
 

@@ -458,21 +458,30 @@ void UControlRig::ClearPoseBeforeBackwardsSolve()
 	PoseBeforeBackwardsSolve.Reset();
 }
 
-void UControlRig::InvertInputPose(const TArray<FRigElementKey>& InElements, EControlRigSetKey InSetKey)
+TArray<FRigControlElement*> UControlRig::InvertInputPose(const TArray<FRigElementKey>& InElements, EControlRigSetKey InSetKey)
 {
+	TArray<FRigControlElement*> ModifiedElements;
+	ModifiedElements.Reserve(ControlsAfterBackwardsSolve.Num());
 	for (const FRigPoseElement& PoseElement : ControlsAfterBackwardsSolve)
 	{
 		if (FRigControlElement* ControlElement = Cast<FRigControlElement>(DynamicHierarchy->Get(PoseElement.Index)))
 		{
+			if (IsAdditive() && ControlElement->Settings.ControlType == ERigControlType::Bool)
+			{
+				continue;
+			}
+			
 			if (InElements.IsEmpty() || InElements.Contains(ControlElement->GetKey()))
 			{
 				FRigControlValue Value;
 				Value.SetFromTransform(PoseElement.LocalTransform.Inverse(), ControlElement->Settings.ControlType, ControlElement->Settings.PrimaryAxis);
 				FRigSetControlValueInfo Info = {Value, true, FRigControlModifiedContext(InSetKey), false, false, false};
 				ControlValues.Add(ControlElement->GetKey(), Info);
+				ModifiedElements.Add(ControlElement);
 			}
 		}
 	}
+	return ModifiedElements;
 }
 
 void UControlRig::InitializeFromCDO()
