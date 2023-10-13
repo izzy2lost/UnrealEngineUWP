@@ -127,7 +127,7 @@ void FDecompressionTools::GetBonePose(const UAnimSequence* AnimSequence, const F
 	SCOPE_CYCLE_COUNTER(STAT_AnimSeq_GetBonePose);
 	CSV_SCOPED_TIMING_STAT(Animation, AnimSeq_GetBonePose);
 
-	const TArrayView<const FBoneIndexType> LODBoneIndexes = OutAnimationPoseData.GetLODBoneIndexes();
+	const TArrayView<const FBoneIndexType> LODBoneIndexToSkeletonBoneIndexMap = OutAnimationPoseData.GetLODBoneIndexToSkeletonBoneIndexMap();
 
 	check(!bForceUseRawData || CanEvaluateRawAnimationData(AnimSequence));
 	const bool bUseRawDataForPoseExtraction = (CanEvaluateRawAnimationData(AnimSequence) && bForceUseRawData) ||
@@ -158,19 +158,19 @@ void FDecompressionTools::GetBonePose(const UAnimSequence* AnimSequence, const F
 		// if retargeting is disabled, we initialize pose with 'Retargeting Source' ref pose.
 		if (bDisableRetargeting)
 		{
-			TArray<FTransform> const& AuthoredOnRefSkeleton = AnimSequence->GetRetargetTransforms();
+			const TArray<FTransform>& AuthoredOnRefSkeleton = AnimSequence->GetRetargetTransforms();
 
-			const int32 NumBones = LODBoneIndexes.Num();
-			const int32 NumRawBones = AnimSequence->GetSkeleton()->GetReferenceSkeleton().GetRawBoneNum();
+			const int32 NumLODBones = LODBoneIndexToSkeletonBoneIndexMap.Num();
+			const int32 NumRawSkeletonBones = AnimSequence->GetSkeleton()->GetReferenceSkeleton().GetRawBoneNum();
 
-			for (int i = 0; i < NumBones; i++)
+			for (int LODBoneIndex = 0; LODBoneIndex < NumLODBones; LODBoneIndex++)
 			{
-				const int32 SkeletonBoneIndex = LODBoneIndexes[i];
+				const int32 SkeletonBoneIndex = LODBoneIndexToSkeletonBoneIndexMap[LODBoneIndex];
 
 				// Virtual bones are part of the retarget transform pose, so if the pose has not been updated (recently) there might be a mismatch
-				if (SkeletonBoneIndex < NumRawBones || AuthoredOnRefSkeleton.IsValidIndex(SkeletonBoneIndex))
+				if (SkeletonBoneIndex < NumRawSkeletonBones || AuthoredOnRefSkeleton.IsValidIndex(SkeletonBoneIndex))
 				{
-					OutAnimationPoseData.LocalTransformsView[i] = AuthoredOnRefSkeleton[SkeletonBoneIndex];
+					OutAnimationPoseData.LocalTransformsView[LODBoneIndex] = AuthoredOnRefSkeleton[SkeletonBoneIndex];
 				}
 			}
 		}
@@ -276,9 +276,9 @@ void FDecompressionTools::DecompressPose(FLODPose& OutAnimationPoseData,
 										const FRootMotionReset& RootMotionReset)
 {
 	const FReferencePose& ReferencePose = OutAnimationPoseData.GetRefPose();
-	const TArrayView<const FBoneIndexType> LODBoneIndexes = OutAnimationPoseData.GetLODBoneIndexes();
-	const TArrayView<const FBoneIndexType> SkeletonToLODBoneIndexes = ReferencePose.GetSkeletonToLODBoneIndexes(0); // Full list of Skeleton to LOD conversion
-	const int32 NumLODBoneIndexes = LODBoneIndexes.Num();
+	const TArrayView<const FBoneIndexType> LODBoneIndexToSkeletonBoneIndexMap = OutAnimationPoseData.GetLODBoneIndexToMeshBoneIndexMap();
+	const TArrayView<const FBoneIndexType> SkeletonToLODBoneIndexes = ReferencePose.GetSkeletonBoneIndexToLODBoneIndexMap(0); // Full list of Skeleton to LOD conversion
+	const int32 NumLODBoneIndexes = LODBoneIndexToSkeletonBoneIndexMap.Num();
 
 	const int32 NumTracks = CompressedData.CompressedTrackToSkeletonMapTable.Num();
 
@@ -299,7 +299,7 @@ void FDecompressionTools::DecompressPose(FLODPose& OutAnimationPoseData,
 	OrientAndScaleRetargetingPairs.Reset();
 
 	// Optimization: assuming first index is root bone. That should always be the case in Skeletons.
-	checkSlow((LODBoneIndexes[0] == FMeshPoseBoneIndex(0).GetInt()));
+	checkSlow((LODBoneIndexToSkeletonBoneIndexMap[0] == FMeshPoseBoneIndex(0).GetInt()));
 	// this is not guaranteed for AnimSequences though... If Root is not animated, Track will not exist.
 	const bool bFirstTrackIsRootBone = (CompressedData.GetSkeletonIndexFromTrackIndex(0) == 0);
 
@@ -443,7 +443,7 @@ void FDecompressionTools::DecompressPose(FLODPose& OutAnimationPoseData,
 		{
 			for (int32 LODBoneIndex = (bFirstTrackIsRootBone ? 1 : 0); LODBoneIndex < LODNumBones; ++LODBoneIndex)
 			{
-				const int32 TargetSkeletonBoneIndex = LODBoneIndexes[LODBoneIndex]; // ReferencePose.GetSkeletonBoneIndexFromLODBoneIndex(LODBoneIndex);
+				const int32 TargetSkeletonBoneIndex = LODBoneIndexToSkeletonBoneIndexMap[LODBoneIndex]; // ReferencePose.GetSkeletonBoneIndexFromLODBoneIndex(LODBoneIndex);
 				OutAnimationPoseData.LocalTransformsView[LODBoneIndex].SetRotation(SkeletonRemapping.RetargetBoneRotationToTargetSkeleton(TargetSkeletonBoneIndex, OutAnimationPoseData.LocalTransformsView[LODBoneIndex].GetRotation()));
 				if (TargetSkeleton->GetBoneTranslationRetargetingMode(TargetSkeletonBoneIndex, OutAnimationPoseData.GetDisableRetargeting()) != EBoneTranslationRetargetingMode::Skeleton)
 				{

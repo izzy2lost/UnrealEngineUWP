@@ -34,13 +34,20 @@ struct TReferencePose
 	// Higher LOD come first
 	TTransformArray<AllocatorType> ReferenceLocalTransforms;
 
-	// List of LOD bone indices for each LOD
+	// A mapping of LOD sorted bone indices to skeletal mesh indices per LOD
 	// Each list of bone indices is a mapping of: LODSortedBoneIndex -> SkeletalMeshBoneIndex
-	TArray<TArray<FBoneIndexType, AllocatorType>, AllocatorType> LODBoneIndexes;
+	// When fast path is enabled, we have a single LOD entry that we truncate to the number of bones for each LOD
+	TArray<TArray<FBoneIndexType, AllocatorType>, AllocatorType> LODBoneIndexToMeshBoneIndexMapPerLOD;
+
+	// A mapping of LOD sorted bone indices to skeleton indices per LOD
+	// Each list of bone indices is a mapping of: LODSortedBoneIndex -> SkeletonBoneIndex
+	// When fast path is enabled, we have a single LOD entry that we truncate to the number of bones for each LOD
+	TArray<TArray<FBoneIndexType, AllocatorType>, AllocatorType> LODBoneIndexToSkeletonBoneIndexMapPerLOD;
 
 	// List of skeleton bone indices for each LOD
 	// Each list of skeleton bone indices is a mapping of: SkeletonBoneIndex -> LODSortedBoneIndex
-	TArray<TArray<FBoneIndexType, AllocatorType>, AllocatorType> SkeletonToLODBoneIndexes;
+	// When fast path is enabled, we have a single LOD entry that we truncate to the number of bones for each LOD
+	TArray<TArray<FBoneIndexType, AllocatorType>, AllocatorType> SkeletonBoneIndexToLODBoneIndexMapPerLOD;
 
 	// Number of bones for each LOD
 	TArray<int32, AllocatorType> LODNumBones;
@@ -69,88 +76,104 @@ struct TReferencePose
 	}
 
 	void Initialize(const FReferenceSkeleton& RefSkeleton
-		, const TArray<TArray<FBoneIndexType>>& InLODBoneIndexes
-		, const TArray<TArray<FBoneIndexType>>& InSkeletonToLODBoneIndexes
+		, const TArray<TArray<FBoneIndexType>>& InLODBoneIndexToMeshBoneIndexMapPerLOD
+		, const TArray<TArray<FBoneIndexType>>& InLODBoneIndexToSkeletonBoneIndexMapPerLOD
+		, const TArray<TArray<FBoneIndexType>>& InSkeletonBoneIndexToLODBoneIndexMapPerLOD
 		, const TArray<int32, AllocatorType>& InLODNumBones
 		, bool bFastPath = false)
 	{
-		const int32 NumBonesLOD0 = (InLODNumBones.Num()) > 0 ? InLODNumBones[0] : 0;
+		const int32 NumBonesLOD0 = !InLODNumBones.IsEmpty() ? InLODNumBones[0] : 0;
 
 		ReferenceLocalTransforms.SetNum(NumBonesLOD0);
-		LODBoneIndexes = InLODBoneIndexes;
-		SkeletonToLODBoneIndexes = InSkeletonToLODBoneIndexes;
+		LODBoneIndexToMeshBoneIndexMapPerLOD = InLODBoneIndexToMeshBoneIndexMapPerLOD;
+		LODBoneIndexToSkeletonBoneIndexMapPerLOD = InLODBoneIndexToSkeletonBoneIndexMapPerLOD;
+		SkeletonBoneIndexToLODBoneIndexMapPerLOD = InSkeletonBoneIndexToLODBoneIndexMapPerLOD;
 		LODNumBones = InLODNumBones;
 		
 		const TArray<FTransform>& RefBonePose = RefSkeleton.GetRefBonePose();
-		const TArray<FBoneIndexType>& InBoneIndexes = InLODBoneIndexes[0]; // Fill the transforms with the LOD0 indexes
+		const TArray<FBoneIndexType>& BoneLODIndexToMeshIndexMap0 = InLODBoneIndexToMeshBoneIndexMapPerLOD[0]; // Fill the transforms with the LOD0 indexes
 
-		for (int32 i = 0; i < NumBonesLOD0; ++i)
+		for (int32 LODBoneIndex = 0; LODBoneIndex < NumBonesLOD0; ++LODBoneIndex)
 		{
-			ReferenceLocalTransforms[i] = RefBonePose[InBoneIndexes[i]]; // TODO : For SoA this is un-optimal, as we are using a TransformAdapter. Evaluate using a specific SoA iterator
+			// TODO : For SoA this is un-optimal, as we are using a TransformAdapter. Evaluate using a specific SoA iterator
+			ReferenceLocalTransforms[LODBoneIndex] = RefBonePose[BoneLODIndexToMeshIndexMap0[LODBoneIndex]];
 		}
 
 		GenerationFlags = bFastPath ? EReferencePoseGenerationFlags::FastPath : EReferencePoseGenerationFlags::None;
 	}
 
-	const TArrayView<const FBoneIndexType> GetLODBoneIndexes(int32 LODLevel) const
+	// Returns a list of LOD sorted skeletal mesh bone indices, a mapping of: LODSortedBoneIndex -> SkeletalMeshBoneIndex
+	const TArrayView<const FBoneIndexType> GetLODBoneIndexToMeshBoneIndexMap(int32 LODLevel) const
 	{
 		TArrayView<const FBoneIndexType> ArrayView;
 
-		if (LODLevel >= 0 && (IsFastPath() || LODLevel < LODBoneIndexes.Num()))
+		if (LODLevel >= 0 && (IsFastPath() || LODLevel < LODBoneIndexToMeshBoneIndexMapPerLOD.Num()))
 		{
 			const int32 NumBonesForLOD = GetNumBonesForLOD(LODLevel);
+			const int32 LODIndex = IsFastPath() ? 0 : LODLevel;
 
-			if (IsFastPath())
-			{
-				ArrayView = MakeArrayView(LODBoneIndexes[0].GetData(), NumBonesForLOD);
-			}
-			else
-			{
-				ArrayView = MakeArrayView(LODBoneIndexes[LODLevel].GetData(), NumBonesForLOD);
-			}
+			ArrayView = MakeArrayView(LODBoneIndexToMeshBoneIndexMapPerLOD[LODIndex].GetData(), NumBonesForLOD);
 		}
 
 		return ArrayView;
 	}
 
-	const TArrayView<const FBoneIndexType> GetSkeletonToLODBoneIndexes(int32 LODLevel) const
+	// Returns a list of LOD sorted skeleton bone indices, a mapping of: LODSortedBoneIndex -> SkeletonBoneIndex
+	const TArrayView<const FBoneIndexType> GetLODBoneIndexToSkeletonBoneIndexMap(int32 LODLevel) const
 	{
 		TArrayView<const FBoneIndexType> ArrayView;
 
-		if (LODLevel >= 0 && (IsFastPath() || LODLevel < SkeletonToLODBoneIndexes.Num()))
+		if (LODLevel >= 0 && (IsFastPath() || LODLevel < LODBoneIndexToSkeletonBoneIndexMapPerLOD.Num()))
 		{
 			const int32 NumBonesForLOD = GetNumBonesForLOD(LODLevel);
+			const int32 LODIndex = IsFastPath() ? 0 : LODLevel;
 
-			if (IsFastPath())
-			{
-				return MakeArrayView(SkeletonToLODBoneIndexes[0].GetData(), NumBonesForLOD);
-			}
-			else
-			{
-				return MakeArrayView(SkeletonToLODBoneIndexes[LODLevel].GetData(), NumBonesForLOD);
-			}
+			ArrayView = MakeArrayView(LODBoneIndexToSkeletonBoneIndexMapPerLOD[LODIndex].GetData(), NumBonesForLOD);
 		}
 
 		return ArrayView;
+	}
+
+	// Returns a list of LOD bone indices, a mapping of: SkeletonBoneIndex -> LODSortedBoneIndex
+	const TArrayView<const FBoneIndexType> GetSkeletonBoneIndexToLODBoneIndexMap(int32 LODLevel) const
+	{
+		TArrayView<const FBoneIndexType> ArrayView;
+
+		if (LODLevel >= 0 && (IsFastPath() || LODLevel < SkeletonBoneIndexToLODBoneIndexMapPerLOD.Num()))
+		{
+			const int32 NumBonesForLOD = GetNumBonesForLOD(LODLevel);
+			const int32 LODIndex = IsFastPath() ? 0 : LODLevel;
+
+			ArrayView = MakeArrayView(SkeletonBoneIndexToLODBoneIndexMapPerLOD[LODIndex].GetData(), NumBonesForLOD);
+		}
+
+		return ArrayView;
+	}
+
+	int32 GetMeshBoneIndexFromLODBoneIndex(int32 LODBoneIndex) const
+	{
+		const int32 NumBonesLOD0 = LODBoneIndexToMeshBoneIndexMapPerLOD[0].Num();
+		check(LODBoneIndex < NumBonesLOD0);
+		return LODBoneIndexToMeshBoneIndexMapPerLOD[0][LODBoneIndex];
 	}
 
 	int32 GetSkeletonBoneIndexFromLODBoneIndex(int32 LODBoneIndex) const
 	{
-		const int32 NumBonesLOD0 = LODBoneIndexes[0].Num();
+		const int32 NumBonesLOD0 = LODBoneIndexToSkeletonBoneIndexMapPerLOD[0].Num();
 		check(LODBoneIndex < NumBonesLOD0);
-		return LODBoneIndexes[0][LODBoneIndex];
+		return LODBoneIndexToSkeletonBoneIndexMapPerLOD[0][LODBoneIndex];
 	}
 
 	int32 GetLODBoneIndexFromSkeletonBoneIndex(int32 SkeletionBoneIndex) const
 	{
-		const int32 NumBonesLOD0 = SkeletonToLODBoneIndexes[0].Num();
+		const int32 NumBonesLOD0 = SkeletonBoneIndexToLODBoneIndexMapPerLOD[0].Num();
 		check(SkeletionBoneIndex < NumBonesLOD0);
-		return SkeletonToLODBoneIndexes[0][SkeletionBoneIndex];
+		return SkeletonBoneIndexToLODBoneIndexMapPerLOD[0][SkeletionBoneIndex];
 	}
 
 	FTransform GetRefPoseTransform(int32 LODBoneIndex) const
 	{
-		const int32 NumBonesLOD0 = LODBoneIndexes[0].Num();
+		const int32 NumBonesLOD0 = LODBoneIndexToMeshBoneIndexMapPerLOD[0].Num();
 		check(LODBoneIndex < NumBonesLOD0);
 
 		return ReferenceLocalTransforms[LODBoneIndex];
@@ -158,7 +181,7 @@ struct TReferencePose
 
 	const FQuat GetRefPoseRotation(int32 LODBoneIndex) const
 	{
-		const int32 NumBonesLOD0 = LODBoneIndexes[0].Num();
+		const int32 NumBonesLOD0 = LODBoneIndexToMeshBoneIndexMapPerLOD[0].Num();
 		check(LODBoneIndex < NumBonesLOD0);
 
 		return ReferenceLocalTransforms[LODBoneIndex].GetRotation();
@@ -166,7 +189,7 @@ struct TReferencePose
 
 	const FVector GetRefPoseTranslation(int32 LODBoneIndex) const
 	{
-		const int32 NumBonesLOD0 = LODBoneIndexes[0].Num();
+		const int32 NumBonesLOD0 = LODBoneIndexToMeshBoneIndexMapPerLOD[0].Num();
 		check(LODBoneIndex < NumBonesLOD0);
 
 		return ReferenceLocalTransforms[LODBoneIndex].GetTranslation();
@@ -174,12 +197,11 @@ struct TReferencePose
 
 	const FVector GetRefPoseScale3D(int32 LODBoneIndex) const
 	{
-		const int32 NumBonesLOD0 = LODBoneIndexes[0].Num();
+		const int32 NumBonesLOD0 = LODBoneIndexToMeshBoneIndexMapPerLOD[0].Num();
 		check(LODBoneIndex < NumBonesLOD0);
 
 		return ReferenceLocalTransforms[LODBoneIndex].GetScale3D();
 	}
-
 };
 
 /**

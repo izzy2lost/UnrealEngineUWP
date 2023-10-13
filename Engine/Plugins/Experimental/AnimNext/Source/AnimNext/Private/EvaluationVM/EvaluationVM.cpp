@@ -35,7 +35,7 @@ namespace UE::AnimNext
 	{
 		const UE::Anim::FCurveFilterSettings CurveFilterSettings(UE::Anim::ECurveFilterMode::DisallowAll);
 		USkeleton* Skeleton = const_cast<USkeleton*>(InReferencePose.Skeleton.Get());	// const_cast because the bone container takes a mutable reference
-		BoneContainer.InitializeTo(InReferencePose.GetLODBoneIndexes(InCurrentLOD), CurveFilterSettings, *Skeleton);
+		BoneContainer.InitializeTo(InReferencePose.GetLODBoneIndexToMeshBoneIndexMap(InCurrentLOD), CurveFilterSettings, *Skeleton);
 
 		// TODO: In AnimInstanceProxy this is how we initialize the bone container, we need to get the component somehow or we
 		// gotta figure out how to support ref pose overrides

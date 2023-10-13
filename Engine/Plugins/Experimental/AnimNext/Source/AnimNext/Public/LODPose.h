@@ -81,11 +81,11 @@ struct FLODPose
 		return RefPose != nullptr ? RefPose->GetNumBonesForLOD(LODLevel) : 0;
 	}
 
-	const TArrayView<const FBoneIndexType> GetLODBoneIndexes() const
+	const TArrayView<const FBoneIndexType> GetLODBoneIndexToMeshBoneIndexMap() const
 	{
 		if (LODLevel != INVALID_LOD_LEVEL && RefPose != nullptr)
 		{
-			return RefPose->GetLODBoneIndexes(LODLevel);
+			return RefPose->GetLODBoneIndexToMeshBoneIndexMap(LODLevel);
 		}
 		else
 		{
@@ -93,11 +93,23 @@ struct FLODPose
 		}
 	}
 
-	const TArrayView<const FBoneIndexType> GetSkeletonToLODBoneIndexes() const
+	const TArrayView<const FBoneIndexType> GetLODBoneIndexToSkeletonBoneIndexMap() const
 	{
 		if (LODLevel != INVALID_LOD_LEVEL && RefPose != nullptr)
 		{
-			return RefPose->GetSkeletonToLODBoneIndexes(LODLevel);
+			return RefPose->GetLODBoneIndexToSkeletonBoneIndexMap(LODLevel);
+		}
+		else
+		{
+			return TArrayView<const FBoneIndexType>();
+		}
+	}
+
+	const TArrayView<const FBoneIndexType> GetSkeletonBoneIndexToLODBoneIndexMap() const
+	{
+		if (LODLevel != INVALID_LOD_LEVEL && RefPose != nullptr)
+		{
+			return RefPose->GetSkeletonBoneIndexToLODBoneIndexMap(LODLevel);
 		}
 		else
 		{

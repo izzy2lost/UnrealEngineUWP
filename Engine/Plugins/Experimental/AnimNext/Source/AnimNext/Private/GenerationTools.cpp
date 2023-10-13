@@ -93,14 +93,14 @@ struct FCompareBoneIndexType
 			bCanGenerateSingleBonesList &= CheckExcludedBones(NumLODs, GenerationLODData, SkeletalMesh);
 			//bCanGenerateSingleBonesList &= CheckExcludedBones(NumLODs, ComponentSpaceGenerationLODData, SkeletalMesh); // Commented : right now we only support skeletal meshes with all the sockets set to always animate
 
-			TArray<FBoneIndexType> OrderedBoneList;
+			TArray<FBoneIndexType> LODBoneIndexToMeshBoneIndexMap;
 			TArray<FBoneIndexType> ComponentSpaceOrderedBoneList;
 
 			if (bCanGenerateSingleBonesList)
 			{
-				bCanGenerateSingleBonesList &= GenerateOrderedBoneList(SkeletalMesh, GenerationLODData, OrderedBoneList);
+				bCanGenerateSingleBonesList &= GenerateOrderedBoneList(SkeletalMesh, GenerationLODData, LODBoneIndexToMeshBoneIndexMap);
 				//bCanGenerateSingleBonesList &= GenerateOrderedBoneList(SkeletalMesh, ComponentSpaceGenerationLODData, ComponentSpaceOrderedBoneList); // Commented : right now we only support skeletal meshes with all the sockets set to always animate
-				//bCanGenerateSingleBonesList &= OrderedBoneList == ComponentSpaceOrderedBoneList; // Commented : right now we only support skeletal meshes with all the sockets set to always animate
+				//bCanGenerateSingleBonesList &= LODBoneIndexToMeshBoneIndexMap == ComponentSpaceOrderedBoneList; // Commented : right now we only support skeletal meshes with all the sockets set to always animate
 			}
 
 			if (bCanGenerateSingleBonesList)
@@ -125,23 +125,27 @@ struct FCompareBoneIndexType
 				const FSkeletonToMeshLinkup& LinkupTable = Skeleton->LinkupCache[SkelMeshLinkupIndex];
 
 				// Generate a Skeleton to LOD look up table
-				const int32 NumOrderedBones = OrderedBoneList.Num();
+				const int32 NumOrderedBones = LODBoneIndexToMeshBoneIndexMap.Num();
 
-				TArray<FBoneIndexType> SkeletonToLODBoneList;
-				SkeletonToLODBoneList.SetNumZeroed(NumOrderedBones);
+				TArray<FBoneIndexType> SkeletonBoneIndexToLODBoneIndexMap;
+				TArray<FBoneIndexType> LODBoneIndexToSkeletonBoneIndexMap;
+				SkeletonBoneIndexToLODBoneIndexMap.SetNumZeroed(NumOrderedBones);
+				LODBoneIndexToSkeletonBoneIndexMap.SetNumZeroed(NumOrderedBones);
+
 				for (int32 LODBoneIndex = 0; LODBoneIndex < NumOrderedBones; ++LODBoneIndex)
 				{
 					// The ordered list contains skeletal mesh bone indices sorted by LOD
-					const FMeshPoseBoneIndex MeshBoneIndex(OrderedBoneList[LODBoneIndex]);
+					const FMeshPoseBoneIndex MeshBoneIndex(LODBoneIndexToMeshBoneIndexMap[LODBoneIndex]);
 
 					// Remap our skeletal mesh bone index into the skeleton bone index we output for
 					const FSkeletonPoseBoneIndex SkeletonBoneIndex(LinkupTable.MeshToSkeletonTable[MeshBoneIndex.GetInt()]);
 					ensure(SkeletonBoneIndex.IsValid());	// We expect the skeletal mesh bone to map to a valid skeleton bone
 
-					SkeletonToLODBoneList[static_cast<FBoneIndexType>(SkeletonBoneIndex.GetInt())] = LODBoneIndex;
+					SkeletonBoneIndexToLODBoneIndexMap[static_cast<FBoneIndexType>(SkeletonBoneIndex.GetInt())] = LODBoneIndex;
+					LODBoneIndexToSkeletonBoneIndexMap[LODBoneIndex] = static_cast<FBoneIndexType>(SkeletonBoneIndex.GetInt());
 				}
 
-				OutAnimationReferencePose.Initialize(SkeletalMesh->GetRefSkeleton(), { OrderedBoneList }, { SkeletonToLODBoneList }, LODNumBones, bCanGenerateSingleBonesList);
+				OutAnimationReferencePose.Initialize(SkeletalMesh->GetRefSkeleton(), { LODBoneIndexToMeshBoneIndexMap }, { LODBoneIndexToSkeletonBoneIndexMap }, { SkeletonBoneIndexToLODBoneIndexMap }, LODNumBones, bCanGenerateSingleBonesList);
 
 				ReferencePoseGenerated = true;
 			}
@@ -406,7 +410,7 @@ struct FCompareBoneIndexType
 {
 	const FBoneContainer& BoneContainer = SourcePose.Pose.GetBoneContainer();
 	const FReferencePose& RefPose = TargetPose.GetRefPose();
-	const TArrayView<const FBoneIndexType> LODBoneIndexes = RefPose.GetLODBoneIndexes(TargetPose.LODLevel);
+	const TArrayView<const FBoneIndexType> LODBoneIndexes = RefPose.GetLODBoneIndexToMeshBoneIndexMap(TargetPose.LODLevel);
 	const int32 NumLODBones = LODBoneIndexes.Num();
 
 	check(TargetPose.GetNumBones() == NumLODBones);
@@ -441,7 +445,7 @@ struct FCompareBoneIndexType
 {
 	const FBoneContainer& BoneContainer = TargetPose.Pose.GetBoneContainer();
 	const FReferencePose& RefPose = SourcePose.GetRefPose();
-	const TArrayView<const FBoneIndexType> LODBoneIndexes = RefPose.GetLODBoneIndexes(SourcePose.LODLevel);
+	const TArrayView<const FBoneIndexType> LODBoneIndexes = RefPose.GetLODBoneIndexToMeshBoneIndexMap(SourcePose.LODLevel);
 	const int32 NumLODBones = LODBoneIndexes.Num();
 
 	check(SourcePose.GetNumBones() == NumLODBones);
