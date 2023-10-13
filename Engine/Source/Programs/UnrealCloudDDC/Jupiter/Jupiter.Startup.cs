@@ -22,7 +22,6 @@ using Jupiter.Common.Implementation;
 using Jupiter.Implementation.Objects;
 using Jupiter.Implementation.TransactionLog;
 using Microsoft.AspNetCore.Authorization;
-using Microsoft.Extensions.Caching.Memory;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Options;

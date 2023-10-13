@@ -20,7 +20,6 @@ using Amazon.S3.Model;
 using Azure.Storage.Blobs;
 using EpicGames.Core;
 using EpicGames.Horde.Storage;
-using EpicGames.Horde.Storage.Bundles;
 using EpicGames.Serialization;
 using Jupiter.Controllers;
 using Jupiter.Implementation;
@@ -36,7 +35,6 @@ using Serilog.Core;
 using ContentHash = Jupiter.Implementation.ContentHash;
 using IBlobStore = Jupiter.Implementation.IBlobStore;
 using EpicGames.AspNet;
-using EpicGames.Horde.Storage.Clients;
 using Jupiter.Tests.Functional;
 
 namespace Jupiter.FunctionalTests.Storage
