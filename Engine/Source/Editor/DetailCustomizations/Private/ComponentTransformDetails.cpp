@@ -432,13 +432,15 @@ void FComponentTransformDetails::GenerateChildContent( IDetailChildrenBuilder& C
 	TSharedPtr<IPropertyHandle> ScalePropertyHandle = LayoutBuilder.GetProperty(USceneComponent::GetRelativeScale3DPropertyName(), USceneComponent::StaticClass());
 
 	const FString& MetaLocationDeltaString = LocationPropertyHandle->GetMetaData("Delta");
+	const FString& MetaRotationDeltaString = RotationPropertyHandle->GetMetaData("Delta");
 	const FString& MetaRotationMinString = RotationPropertyHandle->GetMetaData("UIMin");
 	const FString& MetaRotationMaxString = RotationPropertyHandle->GetMetaData("UIMax");
 	const FString& MetaScaleDeltaString = ScalePropertyHandle->GetMetaData("Delta");
 
 	float LocationSpinDelta = !MetaLocationDeltaString.IsEmpty() ? FCString::Atof(*MetaLocationDeltaString) : 1.f;
-	float RotationMin = !MetaRotationMinString.IsEmpty() ? FCString::Atof(*MetaRotationMinString) : 0.f;
-	float RotationMax = !MetaRotationMaxString.IsEmpty() ? FCString::Atof(*MetaRotationMaxString) : 359.999f;
+	float RotationSpinDelta = !MetaRotationDeltaString.IsEmpty() ? FCString::Atof(*MetaRotationDeltaString) : 1.f;
+	TOptional<FRotator::FReal> RotationMin = !MetaRotationMinString.IsEmpty() ? FCString::Atof(*MetaRotationMinString) : TOptional<FRotator::FReal>();
+	TOptional<FRotator::FReal> RotationMax = !MetaRotationMaxString.IsEmpty() ? FCString::Atof(*MetaRotationMaxString) : TOptional<FRotator::FReal>();
 	float ScaleSpinDelta = !MetaScaleDeltaString.IsEmpty() ? FCString::Atof(*MetaScaleDeltaString) : 0.0025f;
 
 	// Location
@@ -518,6 +520,7 @@ void FComponentTransformDetails::GenerateChildContent( IDetailChildrenBuilder& C
 		[
 			SNew( SNumericRotatorInputBox<FRotator::FReal> )
 			.AllowSpin( SelectedObjects.Num() == 1 ) 
+			.SpinDelta(RotationSpinDelta)
 			.MinSliderValue(RotationMin)
 			.MaxSliderValue(RotationMax)
 			.Roll( this, &FComponentTransformDetails::GetRotationX )
