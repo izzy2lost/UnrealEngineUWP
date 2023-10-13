@@ -2997,7 +2997,7 @@ bool UGroomAsset::BuildCardsData(uint32 GroupIndex)
 			// #hair_todo: add finer culling granularity to rebuild only what is necessary
 			const FHairGroupsCardsSourceDescription* CachedDesc = SourceIt < CachedHairGroupsCards.Num() ? &CachedHairGroupsCards[SourceIt] : nullptr;
 			const bool bLODHasChanged = CachedDesc == nullptr || !(*CachedDesc == *Desc);
-			if (!bLODHasChanged && (bIsAlreadyBuilt[LODIt] || GroupsLOD.LODs[LODIt].GeometryType != EGroomGeometryType::Cards)) // build only if it's Cards type
+			if (!bLODHasChanged && bIsAlreadyBuilt[LODIt])
 			{
 				bDataBuilt |= bIsAlreadyBuilt[LODIt];
 				continue;
@@ -3239,7 +3239,7 @@ bool UGroomAsset::BuildMeshesData(uint32 GroupIndex)
 		{
 			const FHairGroupsMeshesSourceDescription* CachedDesc = SourceIt < CachedHairGroupsMeshes.Num() ? &CachedHairGroupsMeshes[SourceIt] : nullptr;
 			const bool bLODHasChanged = CachedDesc == nullptr || !(*CachedDesc == *Desc);
-			if (!bLODHasChanged && (bIsAlreadyBuilt[LODIt] || GroupsLOD.LODs[LODIt].GeometryType != EGroomGeometryType::Meshes)) // build only if it's Meshes type
+			if (!bLODHasChanged && bIsAlreadyBuilt[LODIt])
 			{
 				bDataBuilt |= bIsAlreadyBuilt[LODIt];
 				continue;
