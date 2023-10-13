@@ -342,6 +342,7 @@
 		Engine/Build/BatchFiles/Mac/ThinApp.sh
 		Engine/Build/BatchFiles/Mac/UpdateVersionAfterBuild.sh
 		Engine/Build/BatchFiles/Mac/ThinApp.sh
+        Engine/Build/BatchFiles/Mac/SourceCodeLookup.sh
 		Engine/Build/BatchFiles/RunDotnet.sh
 		Engine/Build/BatchFiles/RunDotnetMSBuild.sh
 		Engine/Build/BatchFiles/RunUAT.command
