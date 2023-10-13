@@ -9,6 +9,7 @@
 #include "MetasoundOperatorBuilder.h"
 #include "MetasoundOperatorInterface.h"
 #include "MetasoundOutputNode.h"
+#include "MetasoundOperatorCache.h"
 #include "MetasoundParameterTransmitter.h"
 #include "MetasoundRouter.h"
 #include "MetasoundTrace.h"
@@ -30,8 +31,8 @@ namespace Metasound
 	namespace ConsoleVariables
 	{
 		static bool bEnableAsyncMetaSoundGeneratorBuilder = true;
-		static bool bEnableExperimentalOneShotOperatorCache = false;
-		static bool bEnableExperimentalOperatorCache = false;
+		static bool bEnableExperimentalOneShotOperatorPool = false;
+		static bool bEnableExperimentalOperatorPool = false;
 #if ENABLE_METASOUNDGENERATOR_INVALID_SAMPLE_VALUE_LOGGING
 		static bool bEnableMetaSoundGeneratorNonFiniteLogging = false;
 		static bool bEnableMetaSoundGeneratorInvalidSampleValueLogging = false;
@@ -195,16 +196,16 @@ FAutoConsoleVariableRef CVarMetaSoundEnableAsyncGeneratorBuilder(
 	TEXT("Default: true"),
 	ECVF_Default);
 
-FAutoConsoleVariableRef CVarMetaSoundEnableExperimentalOneShotOperatorCache(
-	TEXT("au.MetaSound.Experimental.EnableOneShotOperatorCache"),
-	Metasound::ConsoleVariables::bEnableExperimentalOneShotOperatorCache,
+FAutoConsoleVariableRef CVarMetaSoundEnableExperimentalOneShotOperatorPool(
+	TEXT("au.MetaSound.Experimental.EnableOneShotOperatorPool"),
+	Metasound::ConsoleVariables::bEnableExperimentalOneShotOperatorPool,
 	TEXT("Enables caching of MetaSound operators using the OneShot source interface.\n")
 	TEXT("Default: false"),
 	ECVF_Default);
 
-FAutoConsoleVariableRef CVarMetaSoundEnableExperimentalOperatorCache(
-	TEXT("au.MetaSound.Experimental.EnableOperatorCache"),
-	Metasound::ConsoleVariables::bEnableExperimentalOperatorCache,
+FAutoConsoleVariableRef CVarMetaSoundEnableExperimentalOperatorPool(
+	TEXT("au.MetaSound.Experimental.EnableOperatorPool"),
+	Metasound::ConsoleVariables::bEnableExperimentalOperatorPool,
 	TEXT("Enables caching of all MetaSound operators.\n")
 	TEXT("Default: false"),
 	ECVF_Default);
@@ -246,7 +247,6 @@ namespace Metasound
 
 	void FMetasoundGeneratorInitParams::Reset(FMetasoundGeneratorInitParams& InParams)
 	{
-		InParams.Graph.Reset();
 		InParams.Environment = {};
 		InParams.MetaSoundName = {};
 		InParams.AudioOutputNames = {};
@@ -262,6 +262,9 @@ namespace Metasound
 
 	FMetasoundGenerator::FMetasoundGenerator(const FOperatorSettings& InOperatorSettings)
 		: OperatorSettings(InOperatorSettings)
+#if ENABLE_METASOUND_GENERATOR_INSTANCE_COUNTING
+		, InstanceCounter(FModuleManager::GetModuleChecked<FMetasoundGeneratorModule>("MetasoundGenerator").GetOperatorInstanceCounterManager())
+#endif // if ENABLE_METASOUND_GENERATOR_INSTANCE_COUNTING
 		, bIsFinishTriggered(false)
 		, bIsFinished(false)
 		, bPendingGraphTrigger(true)
@@ -277,7 +280,6 @@ namespace Metasound
 #else
 		, bDoRuntimeRenderTiming(false)
 #endif // if ENABLE_METASOUND_GENERATOR_RENDER_TIMING
-
 	{
 	}
 
@@ -304,6 +306,10 @@ namespace Metasound
 		MetasoundName = InInitParams.MetaSoundName;
 		NumChannels = InInitParams.AudioOutputNames.Num();
 		NumSamplesPerExecute = NumChannels * NumFramesPerExecute;
+
+#if ENABLE_METASOUND_GENERATOR_INSTANCE_COUNTING
+		InstanceCounter.Init(MetasoundName);
+#endif // if ENABLE_METASOUND_GENERATOR_INSTANCE_COUNTING
 
 		// Data channels
 		ParameterQueue = InInitParams.DataChannel;
@@ -803,14 +809,14 @@ PRAGMA_ENABLE_DEPRECATION_WARNINGS
 		InitBase(InParams);
 		// attempt to use operator cache instead of building a new operator.
 		bool bDidUseCachedOperator = false;
-		const bool bIsOperatorCacheEnabled = ConsoleVariables::bEnableExperimentalOneShotOperatorCache || ConsoleVariables::bEnableExperimentalOperatorCache;
+		const bool bIsOperatorPoolEnabled = ConsoleVariables::bEnableExperimentalOneShotOperatorPool || ConsoleVariables::bEnableExperimentalOperatorPool;
 		// Dynamic operators cannot use the operator cache because they can change their internal structure. 
 		// The operator cache assumes that the operator is unchanged from it's original structure. 
-		if (bIsOperatorCacheEnabled)
+		if (bIsOperatorPoolEnabled)
 		{
-			bUseOperatorCache = ConsoleVariables::bEnableExperimentalOperatorCache || MetasoundGeneratorPrivate::HasOneShotInterface(InParams.Graph->GetVertexInterface());
+			bUseOperatorPool = ConsoleVariables::bEnableExperimentalOperatorPool || MetasoundGeneratorPrivate::HasOneShotInterface(InParams.Graph->GetVertexInterface());
 
-			if (bUseOperatorCache)
+			if (bUseOperatorPool)
 			{
 				bDidUseCachedOperator = TryUseCachedOperator(InParams, true /* bTriggerGenerator */);
 			}
@@ -830,7 +836,7 @@ PRAGMA_ENABLE_DEPRECATION_WARNINGS
 			BuilderTask = nullptr;
 		}
 
-		if (bUseOperatorCache)
+		if (bUseOperatorPool)
 		{
 			ReleaseOperatorToCache();
 		}
@@ -842,12 +848,12 @@ PRAGMA_ENABLE_DEPRECATION_WARNINGS
 		METASOUND_TRACE_CPUPROFILER_EVENT_SCOPE(FMetasoundConstGraphGenerator::TryUseCachedOperator);
 
 		FMetasoundGeneratorModule& Module = FModuleManager::GetModuleChecked<FMetasoundGeneratorModule>("MetasoundGenerator");
-		TSharedPtr<FOperatorCache> OperatorCache = Module.GetOperatorCache();
-		if (OperatorCache.IsValid())
+		TSharedPtr<FOperatorPool> OperatorPool = Module.GetOperatorPool();
+		if (OperatorPool.IsValid())
 		{
 			// See if the cache has an operator with matching OperatorID
 			OperatorID = InInitParams.Graph->GetInstanceID();
-			FOperatorAndInputs GraphOperatorAndInputs = OperatorCache->ClaimCachedOperator(OperatorID);
+			FOperatorAndInputs GraphOperatorAndInputs = OperatorPool->ClaimOperator(OperatorID);
 			if (GraphOperatorAndInputs.Operator.IsValid())
 			{
 				UE_LOG(LogMetasoundGenerator, VeryVerbose, TEXT("Using cached operator %s for MetaSound %s"), *LexToString(OperatorID), *InInitParams.MetaSoundName); 
@@ -882,8 +888,8 @@ PRAGMA_ENABLE_DEPRECATION_WARNINGS
 		if (OperatorID.IsValid())
 		{
 			FMetasoundGeneratorModule& Module = FModuleManager::GetModuleChecked<FMetasoundGeneratorModule>("MetasoundGenerator");
-			TSharedPtr<FOperatorCache> OperatorCache = Module.GetOperatorCache();
-			if (OperatorCache.IsValid())
+			TSharedPtr<FOperatorPool> OperatorPool = Module.GetOperatorPool();
+			if (OperatorPool.IsValid())
 			{
 				TUniquePtr<IOperator> GraphOperator = ReleaseGraphOperator();
 
@@ -891,7 +897,7 @@ PRAGMA_ENABLE_DEPRECATION_WARNINGS
 				{
 					// Release graph operator and input data to the cache
 					UE_LOG(LogMetasoundGenerator, VeryVerbose, TEXT("Caching operator %s"), *LexToString(OperatorID));
-					OperatorCache->AddOperatorToCache(OperatorID, MoveTemp(GraphOperator), ReleaseInputVertexData());
+					OperatorPool->AddOperator(OperatorID, MoveTemp(GraphOperator), ReleaseInputVertexData());
 				}
 			}
 		}

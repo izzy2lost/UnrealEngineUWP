@@ -3,6 +3,7 @@
 
 #include "MetasoundExecutableOperator.h"
 #include "MetasoundGraphOperator.h"
+#include "MetasoundInstanceCounter.h"
 #include "MetasoundOperatorBuilder.h"
 #include "MetasoundOperatorInterface.h"
 #include "MetasoundParameterPack.h"
@@ -21,6 +22,9 @@
 #define ENABLE_METASOUND_GENERATOR_RENDER_TIMING WITH_EDITOR
 #endif // ifndef ENABLE_METASOUND_GENERATOR_RENDER_TIMING
 
+#ifndef ENABLE_METASOUND_GENERATOR_INSTANCE_COUNTING
+#define ENABLE_METASOUND_GENERATOR_INSTANCE_COUNTING UE_TRACE_ENABLED && !UE_BUILD_SHIPPING
+#endif // ifndef ENABLE_METASOUND_GENERATOR_INSTANCE_COUNTING
 namespace Metasound
 {
 	namespace DynamicGraph
@@ -240,6 +244,9 @@ namespace Metasound
 
 		virtual TUniquePtr<IOperator> ReleaseGraphOperator();
 		FInputVertexInterfaceData ReleaseInputVertexData();
+#if ENABLE_METASOUND_GENERATOR_INSTANCE_COUNTING
+		FConcurrentInstanceCounter InstanceCounter; 
+#endif // if ENABLE_METASOUND_GENERATOR_INSTANCE_COUNTING
 
 		/** Release the graph operator and remove any references to data owned by
 		 * the graph operator.
@@ -360,7 +367,7 @@ namespace Metasound
 
 		TUniquePtr<FAsyncTaskBase> BuilderTask;
 		FGuid OperatorID;
-		bool bUseOperatorCache = false;
+		bool bUseOperatorPool = false;
 	};
 
 	struct METASOUNDGENERATOR_API FMetasoundDynamicGraphGeneratorInitParams : FMetasoundGeneratorInitParams

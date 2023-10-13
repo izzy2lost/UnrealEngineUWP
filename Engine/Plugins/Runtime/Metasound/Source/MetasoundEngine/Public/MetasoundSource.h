@@ -45,6 +45,11 @@ namespace Audio
 
 class UMetaSoundSettings;
 
+namespace Metasound
+{
+	struct FMetasoundGeneratorInitParams;
+} // namespace Metasound
+
 DECLARE_TS_MULTICAST_DELEGATE_TwoParams(FOnGeneratorInstanceCreated, uint64, TSharedPtr<Metasound::FMetasoundGenerator>);
 DECLARE_TS_MULTICAST_DELEGATE_TwoParams(FOnGeneratorInstanceDestroyed, uint64, TSharedPtr<Metasound::FMetasoundGenerator>);
 
@@ -247,6 +252,8 @@ public:
 	virtual bool EnableSubmixSendsOnPreview() const override { return true; }
 
 	TWeakPtr<Metasound::FMetasoundGenerator> GetGeneratorForAudioComponent(uint64 ComponentId) const;
+	bool IsDynamic() const;
+
 	FOnGeneratorInstanceCreated OnGeneratorInstanceCreated;
 	FOnGeneratorInstanceDestroyed OnGeneratorInstanceDestroyed;
 	Metasound::FOperatorSettings GetOperatorSettings(Metasound::FSampleRate InDeviceSampleRate) const;
@@ -280,11 +287,15 @@ private:
 	bool IsParameterValidInternal(const FAudioParameter& InParameter, const FName& InTypeName, Metasound::Frontend::IDataTypeRegistry& InDataTypeRegistry) const;
 
 	static Metasound::SourcePrivate::FParameterRouter& GetParameterRouter();
+
+public:
+	Metasound::FOperatorSettings GetOperatorSettings(Metasound::FSampleRate InSampleRate) const;
+	Metasound::FMetasoundEnvironment CreateEnvironment(const FSoundGeneratorInitParams& InParams) const;
+	const TArray<Metasound::FVertexName>& GetOutputAudioChannelOrder() const;
+private:
 	
 	Metasound::FMetasoundEnvironment CreateEnvironment() const;
-	Metasound::FMetasoundEnvironment CreateEnvironment(const FSoundGeneratorInitParams& InParams) const;
 	Metasound::FMetasoundEnvironment CreateEnvironment(const Audio::FParameterTransmitterInitParams& InParams) const;
-	const TArray<Metasound::FVertexName>& GetOutputAudioChannelOrder() const;
 
 	mutable FCriticalSection GeneratorMapCriticalSection;
 	TSortedMap<uint64, TWeakPtr<Metasound::FMetasoundGenerator>> Generators;

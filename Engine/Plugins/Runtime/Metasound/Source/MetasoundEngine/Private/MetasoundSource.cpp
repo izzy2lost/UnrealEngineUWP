@@ -29,6 +29,7 @@
 #include "MetasoundGenerator.h"
 #include "MetasoundLog.h"
 #include "MetasoundOperatorBuilderSettings.h"
+#include "MetasoundOperatorCacheSubsystem.h"
 #include "MetasoundOperatorSettings.h"
 #include "MetasoundParameterTransmitter.h"
 #include "MetasoundPrimitives.h"
@@ -509,7 +510,7 @@ void UMetaSoundSource::InitParameters(TArray<FAudioParameter>& ParametersToInit,
 	METASOUND_LLM_SCOPE;
 	METASOUND_TRACE_CPUPROFILER_EVENT_SCOPE(UMetaSoundSource::InitParameters);
 
-	if (bIsBuilderActive)
+	if (bIsBuilderActive)	
 	{
 		InitParametersInternal(CreateRuntimeInputMap(), ParametersToInit, InFeatureName);
 	}
@@ -1382,6 +1383,12 @@ TWeakPtr<Metasound::FMetasoundGenerator> UMetaSoundSource::GetGeneratorForAudioC
 		return TWeakPtr<FMetasoundGenerator>(nullptr);
 	}
 	return *Result;
+}
+
+
+bool UMetaSoundSource::IsDynamic() const
+{
+	return DynamicTransactor.IsValid();
 }
 
 Metasound::SourcePrivate::FParameterRouter& UMetaSoundSource::GetParameterRouter()
