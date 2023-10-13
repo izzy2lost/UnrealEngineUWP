@@ -367,6 +367,16 @@ public:
 	}
 
 	template<typename SharedFragmentType>
+	TConstArrayView<FSharedStruct> GetSharedFragmentsOfType()
+	{
+		static_assert(TIsDerivedFrom<SharedFragmentType, FMassSharedFragment>::IsDerived
+			, "Given struct doesn't represent a valid shared fragment type. Make sure to inherit from FMassSharedFragment or one of its child-types.");
+
+		TArray<FSharedStruct>* InstancesOfType = SharedFragmentsTypeMap.Find(SharedFragmentType::StaticStruct());
+		return InstancesOfType ? *InstancesOfType : TConstArrayView<FSharedStruct>();
+	}
+
+	template<typename SharedFragmentType>
 	SharedFragmentType* GetSharedFragmentDataPtr(FMassEntityHandle Entity) const
 	{
 		static_assert(TIsDerivedFrom<SharedFragmentType, FMassSharedFragment>::IsDerived
@@ -450,8 +460,8 @@ public:
 			Index = SharedFragments.Add(FSharedStruct::Make<T>(Forward<TArgs>(InArgs)...));
 			// note that even though we're copying the freshly created FSharedStruct instance it's perfectly fine since 
 			// FSharedStruct do guarantee there's not going to be data duplication (via a member shared pointer to hosted data)
-			TArray<FSharedStruct>& InstancedOfType = SharedFragmentsTypeMap.FindOrAdd(T::StaticStruct(), {});
-			InstancedOfType.Add(SharedFragments[Index]);
+			TArray<FSharedStruct>& InstancesOfType = SharedFragmentsTypeMap.FindOrAdd(T::StaticStruct(), {});
+			InstancesOfType.Add(SharedFragments[Index]);
 		}
 
 		return SharedFragments[Index];
@@ -460,9 +470,9 @@ public:
 	template<typename T>
 	void ForEachSharedFragment(TFunctionRef< void(T& /*SharedFragment*/) > ExecuteFunction)
 	{
-		if (TArray<FSharedStruct>* InstancedOfType = SharedFragmentsTypeMap.Find(T::StaticStruct()))
+		if (TArray<FSharedStruct>* InstancesOfType = SharedFragmentsTypeMap.Find(T::StaticStruct()))
 		{
-			for (const FSharedStruct& SharedStruct : *InstancedOfType)
+			for (const FSharedStruct& SharedStruct : *InstancesOfType)
 			{
 				ExecuteFunction(SharedStruct.Get<T>());
 			}
@@ -472,9 +482,9 @@ public:
 	template<typename T>
 	void ForEachSharedFragmentConditional(TFunctionRef< bool(T& /*SharedFragment*/) > ConditionFunction, TFunctionRef< void(T& /*SharedFragment*/) > ExecuteFunction)
 	{
-		if (TArray<FSharedStruct>* InstancedOfType = SharedFragmentsTypeMap.Find(T::StaticStruct()))
+		if (TArray<FSharedStruct>* InstancesOfType = SharedFragmentsTypeMap.Find(T::StaticStruct()))
 		{
-			for (const FSharedStruct& SharedStruct : *InstancedOfType)
+			for (const FSharedStruct& SharedStruct : *InstancesOfType)
 			{
 				T& StructInstanceRef = SharedStruct.Get<T>();
 				if (ConditionFunction(StructInstanceRef))
