@@ -12,7 +12,6 @@ using System.Threading;
 using System.Threading.Tasks;
 using EpicGames.Core;
 using EpicGames.Horde.Storage;
-using EpicGames.Horde.Storage.Bundles;
 using EpicGames.Horde.Storage.Clients;
 using EpicGames.Horde.Storage.Nodes;
 using EpicGames.Redis;
@@ -52,7 +51,7 @@ namespace Horde.Server.Storage
 	/// <summary>
 	/// Interface for storage clients which includes a backend implementation. Some functionality is exposed through the backend which is not part of the regular storage API (eg. enumerating).
 	/// </summary>
-	public interface IServerStorageClient : IBundleStorageClient
+	public interface IServerStorageClient : IStorageClient
 	{
 		/// <summary>
 		/// Whether the backend supports redirects
@@ -65,6 +64,36 @@ namespace Horde.Server.Storage
 		/// <param name="action">The action being performed</param>
 		/// <param name="user">The principal to validate</param>
 		bool Authorize(AclAction action, ClaimsPrincipal user);
+
+		/// <summary>
+		/// Deletes a blob from storage
+		/// </summary>
+		/// <param name="locator">Locator for the blob to delete</param>
+		/// <param name="cancellationToken">Cancellation token for the operation</param>
+		Task DeleteAsync(BlobLocator locator, CancellationToken cancellationToken = default);
+
+		/// <summary>
+		/// Enumerate all the blobs available through this client
+		/// </summary>
+		/// <param name="cancellationToken">Cancellation token for the operation</param>
+		/// <returns>Sequence of locators</returns>
+		IAsyncEnumerable<BlobLocator> EnumerateAsync(CancellationToken cancellationToken = default);
+
+		/// <summary>
+		/// Attempts to get a redirect URL for the given blob
+		/// </summary>
+		/// <param name="locator">Blob to read</param>
+		/// <param name="cancellationToken">Cancellation token for the operation</param>
+		/// <returns>Optional url to read from</returns>
+		ValueTask<Uri?> TryGetReadRedirectAsync(BlobLocator locator, CancellationToken cancellationToken = default);
+
+		/// <summary>
+		/// Gets a write redirect for a new blob
+		/// </summary>
+		/// <param name="prefix">Prefix for the new blob</param>
+		/// <param name="cancellationToken">Cancellation token for the operation</param>
+		/// <returns>Locator for the blob and url to upload to</returns>
+		ValueTask<(BlobLocator, Uri)?> TryGetWriteRedirectAsync(string? prefix = null, CancellationToken cancellationToken = default);
 	}
 
 	/// <summary>
@@ -184,22 +213,22 @@ namespace Horde.Server.Storage
 			public void GetStats(StorageStats stats) { }
 		}
 
-		sealed class StorageClientImpl : BundleStorageClient
+		sealed class StorageClientImpl : BundleStorageClient, IServerStorageClient
 		{
 			readonly StorageService _outer;
+			readonly NamespaceConfig _config;
 			int _refCount = 1;
 
-			public NamespaceConfig Config { get; }
-			public NamespaceId NamespaceId { get; }
+			public NamespaceConfig Config => _config;
+			public NamespaceId NamespaceId => _config.Id;
 			public bool SupportsRedirects { get; }
 
 			public StorageClientImpl(StorageService outer, NamespaceConfig config, IStorageBackend backend, BundleReaderCache bundleReaderCache, ILogger logger)
 				: base(backend, bundleReaderCache, logger)
 			{
 				_outer = outer;
+				_config = config;
 
-				Config = config;
-				NamespaceId = config.Id;
 				SupportsRedirects = backend.SupportsRedirects && !config.EnableAliases;
 			}
 
@@ -215,6 +244,33 @@ namespace Horde.Server.Storage
 					Dispose();
 				}
 			}
+
+			/// <inheritdoc/>
+			public bool Authorize(AclAction action, ClaimsPrincipal user) => _config.Authorize(action, user);
+
+			#region Blobs
+
+			/// <inheritdoc/>
+			public Task DeleteAsync(BlobLocator locator, CancellationToken cancellationToken = default) => Backend.DeleteAsync(locator.ToString(), cancellationToken);
+
+			/// <inheritdoc/>
+			public IAsyncEnumerable<BlobLocator> EnumerateAsync(CancellationToken cancellationToken = default) => Backend.EnumerateAsync(cancellationToken).Select(x => new BlobLocator(x));
+
+			/// <inheritdoc/>
+			public ValueTask<Uri?> TryGetReadRedirectAsync(BlobLocator locator, CancellationToken cancellationToken = default) => Backend.TryGetReadRedirectAsync(locator.ToString(), cancellationToken);
+
+			/// <inheritdoc/>
+			public async ValueTask<(BlobLocator, Uri)?> TryGetWriteRedirectAsync(string? prefix = null, CancellationToken cancellationToken = default)
+			{
+				(string, Uri)? result = await Backend.TryGetWriteRedirectAsync(prefix, cancellationToken);
+				if (result == null)
+				{
+					return null;
+				}
+				return (new BlobLocator(result.Value.Item1), result.Value.Item2);
+			}
+
+			#endregion
 
 			#region Aliases
 
@@ -292,48 +348,65 @@ namespace Horde.Server.Storage
 				}
 			}
 
-			public NamespaceConfig Config => _impl.Config;
-			public NamespaceId NamespaceId => _impl.NamespaceId;
+			/// <inheritdoc/>
 			public bool SupportsRedirects => _impl.SupportsRedirects;
-			public IStorageBackend Backend => _impl.Backend;
+
+			/// <inheritdoc/>
+			public bool Authorize(AclAction action, ClaimsPrincipal user) => _impl.Authorize(action, user);
 
 			#region Blobs
 
+			/// <inheritdoc/>
 			public BlobHandle CreateBlobHandle(BlobLocator locator) => _impl.CreateBlobHandle(locator);
 
-			public BundleWriter CreateWriter(string? basePath = null, BundleOptions? options = null) => _impl.CreateWriter(basePath, options);
-			IStorageWriter IStorageClient.CreateWriter(string? basePath) => ((IStorageClient)_impl).CreateWriter(basePath);
+			/// <inheritdoc/>
+			public IStorageWriter CreateWriter(string? basePath = null) => _impl.CreateWriter(basePath);
 
-			#endregion
+			/// <inheritdoc/>
+			public Task DeleteAsync(BlobLocator locator, CancellationToken cancellationToken) => _impl.DeleteAsync(locator, cancellationToken);
 
-			#region Bundles
+			/// <inheritdoc/>
+			public IAsyncEnumerable<BlobLocator> EnumerateAsync(CancellationToken cancellationToken) => _impl.EnumerateAsync(cancellationToken);
 
-			public Task<Stream> OpenAsync(BlobLocator locator, int offset, int? length = null, CancellationToken cancellationToken = default) => _impl.OpenAsync(locator, offset, length, cancellationToken);
+			/// <inheritdoc/>
+			public ValueTask<Uri?> TryGetReadRedirectAsync(BlobLocator locator, CancellationToken cancellationToken = default) => _impl.TryGetReadRedirectAsync(locator, cancellationToken);
 
-			public Task<BundleHeader> ReadHeaderAsync(BlobLocator locator, CancellationToken cancellationToken) => _impl.ReadHeaderAsync(locator, cancellationToken);
+			/// <inheritdoc/>
+			public ValueTask<(BlobLocator, Uri)?> TryGetWriteRedirectAsync(string? prefix = null, CancellationToken cancellationToken = default) => _impl.TryGetWriteRedirectAsync(prefix, cancellationToken);
+
+			/// <inheritdoc/>
+			public ValueTask<BlobHandle> WriteBlobAsync(BlobType blobType, Stream stream, IReadOnlyList<BlobHandle> references, string? basePath, CancellationToken cancellationToken) => _impl.WriteBlobAsync(blobType, stream, references, basePath, cancellationToken);
 
 			#endregion
 
 			#region Aliases
 
+			/// <inheritdoc/>
 			public Task AddAliasAsync(string name, BlobHandle handle, int rank = 0, ReadOnlyMemory<byte> data = default, CancellationToken cancellationToken = default) => _impl.AddAliasAsync(name, handle, rank, data, cancellationToken);
+
+			/// <inheritdoc/>
 			public Task RemoveAliasAsync(string name, BlobHandle handle, CancellationToken cancellationToken = default) => _impl.RemoveAliasAsync(name, handle, cancellationToken);
+
+			/// <inheritdoc/>
 			public Task<BlobAlias[]> FindAliasesAsync(string name, int? maxResults = null, CancellationToken cancellationToken = default) => _impl.FindAliasesAsync(name, maxResults, cancellationToken);
 
 			#endregion
 
 			#region Refs
 
+			/// <inheritdoc/>
 			public Task<bool> DeleteRefAsync(RefName name, CancellationToken cancellationToken = default) => _impl.DeleteRefAsync(name, cancellationToken);
+
+			/// <inheritdoc/>
 			public Task<RefValue?> TryReadRefAsync(RefName name, RefCacheTime cacheTime, CancellationToken cancellationToken) => _impl.TryReadRefAsync(name, cacheTime, cancellationToken);
+
+			/// <inheritdoc/>
 			public Task WriteRefAsync(RefName name, BlobHandle handle, ReadOnlyMemory<byte> data = default, RefOptions? options = null, CancellationToken cancellationToken = default) => _impl.WriteRefAsync(name, handle, data, options, cancellationToken);
 
 			#endregion
 
 			/// <inheritdoc/>
 			public void GetStats(StorageStats stats) => _impl.GetStats(stats);
-
-			public bool Authorize(AclAction action, ClaimsPrincipal user) => _impl.Config.Authorize(action, user);
 		}
 
 		class State : IDisposable
@@ -413,7 +486,7 @@ namespace Horde.Server.Storage
 			{
 				Id = id;
 				NamespaceId = namespaceId;
-				Path = locator.Path.ToString();
+				Path = locator.ToString();
 			}
 		}
 
@@ -746,19 +819,23 @@ namespace Horde.Server.Storage
 
 							if (client != null)
 							{
-								BundleHeader? header = await client.ReadHeaderAsync(blobInfo.Locator, cancellationToken);
-								if (header != null)
+								BlobHandle handle = client.CreateBlobHandle(blobInfo.Locator);
+								IReadOnlyList<BlobHandle> imports = await handle.GetRefsAsync(cancellationToken);
+
+								List<ObjectId> importInfoIds = new List<ObjectId>();
+								foreach (BlobHandle import in imports)
 								{
-									List<ObjectId> importInfoIds = new List<ObjectId>();
-									foreach (BlobLocator import in header.Imports)
-									{
-										FilterDefinition<BlobInfo> filter = Builders<BlobInfo>.Filter.Expr(x => x.NamespaceId == blobInfo.NamespaceId && x.Path == import.Path.ToString());
-										UpdateDefinition<BlobInfo> update = Builders<BlobInfo>.Update.SetOnInsert(x => x.Imports, null);
-										BlobInfo blobInfoDoc = await _blobCollection.FindOneAndUpdateAsync(filter, update, new FindOneAndUpdateOptions<BlobInfo> { IsUpsert = true, ReturnDocument = ReturnDocument.After }, cancellationToken);
-										importInfoIds.Add(blobInfoDoc.Id);
-									}
-									await _blobCollection.UpdateOneAsync(x => x.Id == blobInfo.Id, Builders<BlobInfo>.Update.Set(x => x.Imports, importInfoIds), null, cancellationToken);
+									BlobLocator importLocator = import.GetLocator();
+									string importPath = importLocator.Outermost.ToString();
+
+									FilterDefinition<BlobInfo> filter = Builders<BlobInfo>.Filter.Expr(x => x.NamespaceId == blobInfo.NamespaceId && x.Path == importPath);
+									UpdateDefinition<BlobInfo> update = Builders<BlobInfo>.Update.SetOnInsert(x => x.Imports, null);
+									BlobInfo blobInfoDoc = await _blobCollection.FindOneAndUpdateAsync(filter, update, new FindOneAndUpdateOptions<BlobInfo> { IsUpsert = true, ReturnDocument = ReturnDocument.After }, cancellationToken);
+
+									importInfoIds.Add(blobInfoDoc.Id);
 								}
+								await _blobCollection.UpdateOneAsync(x => x.Id == blobInfo.Id, Builders<BlobInfo>.Update.Set(x => x.Imports, importInfoIds), null, cancellationToken);
+
 								AddGcCheckRecord(blobInfo.NamespaceId, blobInfo.Id);
 							}
 						}
@@ -1140,7 +1217,7 @@ namespace Horde.Server.Storage
 							_ = _redisService.GetDatabase().SortedSetAddAsync(checkSet, entries, flags: CommandFlags.FireAndForget);
 							score = Math.BitIncrement(score);
 						}
-						await client.Backend.DeleteAsync(info.Locator.ToString(), cancellationToken);
+						await client.DeleteAsync(info.Locator, cancellationToken);
 					}
 				}
 				_ = _redisService.GetDatabase().SortedSetRemoveAsync(checkSet, values[0], CommandFlags.FireAndForget);

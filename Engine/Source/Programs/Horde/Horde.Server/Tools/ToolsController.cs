@@ -2,7 +2,6 @@
 
 using EpicGames.Core;
 using EpicGames.Horde.Storage;
-using EpicGames.Horde.Storage.Clients;
 using EpicGames.Horde.Storage.Nodes;
 using Horde.Server.Server;
 using Horde.Server.Storage;
@@ -242,7 +241,7 @@ namespace Horde.Server.Tools
 				return Forbid(ToolAclAction.UploadTool, id);
 			}
 
-			using IBundleStorageClient storageClient = _toolCollection.CreateStorageClient(tool);
+			using IServerStorageClient storageClient = _toolCollection.CreateStorageClient(tool);
 			return await StorageController.WriteBlobAsync(storageClient, file, cancellationToken: cancellationToken);
 		}
 
@@ -519,7 +518,7 @@ namespace Horde.Server.Tools
 
 		private async Task<GetToolDeploymentResponse> GetDeploymentInfoResponseAsync(ITool tool, IToolDeployment deployment, CancellationToken cancellationToken)
 		{
-			using IBundleStorageClient client = _toolCollection.CreateStorageClient(tool);
+			using IServerStorageClient client = _toolCollection.CreateStorageClient(tool);
 			BlobHandle rootHandle = await client.ReadRefTargetAsync(deployment.RefName, cancellationToken: cancellationToken);
 
 			return new GetToolDeploymentResponse(deployment, rootHandle);
@@ -551,7 +550,7 @@ namespace Horde.Server.Tools
 				return BadRequest("Invalid blob id for tool");
 			}
 
-			using IBundleStorageClient storageClient = _toolCollection.CreateStorageClient(tool);
+			using IServerStorageClient storageClient = _toolCollection.CreateStorageClient(tool);
 			return StorageController.ReadBlobInternalAsync(storageClient, locator, Request.Headers, cancellationToken);
 		}
 

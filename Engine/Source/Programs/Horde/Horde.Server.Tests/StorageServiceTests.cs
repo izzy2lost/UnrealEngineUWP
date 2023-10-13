@@ -40,22 +40,22 @@ namespace Horde.Server.Tests
 
 			BundleHeader header = new BundleHeader(types.ToArray(), Array.Empty<BlobLocator>(), exports.ToArray(), new BundlePacket[1]);
 			Bundle bundle = new Bundle(header, Array.Empty<ReadOnlyMemory<byte>>());
-			BlobLocator locator = await client.WriteBundleAsync(bundle);
+			BlobLocator locator = await client.WriteBundleAsync(bundle).GetLocatorAsync();
 
-			await client.AddAliasAsync("foo", client.CreateBlobHandle(new BundleNodeLocator(locator, 0).ToBlobLocator()));
-			await client.AddAliasAsync("foo", client.CreateBlobHandle(new BundleNodeLocator(locator, 1).ToBlobLocator()));
-			await client.AddAliasAsync("bar", client.CreateBlobHandle(new BundleNodeLocator(locator, 2).ToBlobLocator()));
+			await client.AddAliasAsync("foo", client.CreateBlobHandle(new BlobLocator($"{locator}#0")));
+			await client.AddAliasAsync("foo", client.CreateBlobHandle(new BlobLocator($"{locator}#1")));
+			await client.AddAliasAsync("bar", client.CreateBlobHandle(new BlobLocator($"{locator}#2")));
 
 			BlobAlias[] aliases;
 
 			aliases = await client.FindAliasesAsync("foo");
 			Assert.AreEqual(2, aliases.Length);
-			Assert.AreEqual(new BundleNodeLocator(locator, 0), ((BundleNodeHandle)aliases[0].Target).GetLocator());
-			Assert.AreEqual(new BundleNodeLocator(locator, 1), ((BundleNodeHandle)aliases[1].Target).GetLocator());
+			Assert.AreEqual(new BlobLocator($"{locator}#0"), aliases[0].Target.GetLocator());
+			Assert.AreEqual(new BlobLocator($"{locator}#1"), aliases[1].Target.GetLocator());
 
 			aliases = await client.FindAliasesAsync("bar");
 			Assert.AreEqual(1, aliases.Length);
-			Assert.AreEqual(new BundleNodeLocator(locator, 2), ((BundleNodeHandle)aliases[0].Target).GetLocator());
+			Assert.AreEqual(new BlobLocator($"{locator}#2"), aliases[0].Target.GetLocator());
 		}
 	}
 }

@@ -115,6 +115,51 @@ namespace EpicGames.Horde.Storage
 		}
 
 		/// <summary>
+		/// Determines if this locator can be unwrapped into an outer locator/fragment pair
+		/// </summary>
+		public bool CanUnwrap() => _path.IndexOf('#') != -1;
+
+		/// <summary>
+		/// Split this locator into 
+		/// </summary>
+		/// <param name="outer"></param>
+		/// <param name="fragment"></param>
+		/// <returns></returns>
+		public bool TryUnwrap(out BlobLocator outer, out Utf8String fragment)
+		{
+			int hashIdx = _path.LastIndexOf('#');
+			return Split(hashIdx, out outer, out fragment);
+		}
+
+		/// <summary>
+		/// Split this locator into the outermost fragment and locator
+		/// </summary>
+		/// <param name="outer">The outermost blob locator</param>
+		/// <param name="fragment">The corresponding fragment</param>
+		/// <returns>True if </returns>
+		public bool TryUnwrapFull(out BlobLocator outer, out Utf8String fragment)
+		{
+			int hashIdx = _path.IndexOf('#');
+			return Split(hashIdx, out outer, out fragment);
+		}
+
+		bool Split(int hashIdx, out BlobLocator outer, out Utf8String fragment)
+		{
+			if (hashIdx == -1)
+			{
+				outer = this;
+				fragment = default;
+				return false;
+			}
+			else
+			{
+				outer = new BlobLocator(_path.Slice(0, hashIdx));
+				fragment = _path.Slice(hashIdx + 1);
+				return true;
+			}
+		}
+
+		/// <summary>
 		/// Checks whether this blob is within the given folder
 		/// </summary>
 		/// <param name="folderName">Name of the folder</param>
@@ -145,7 +190,7 @@ namespace EpicGames.Horde.Storage
 	}
 
 	/// <summary>
-	/// Type converter from strings to PropertyFilter objects
+	/// Type converter from strings to BlobLocator objects
 	/// </summary>
 	sealed class BlobLocatorTypeConverter : TypeConverter
 	{
@@ -182,7 +227,7 @@ namespace EpicGames.Horde.Storage
 	}
 
 	/// <summary>
-	/// Class which serializes AgentId objects to JSON
+	/// Class which serializes BlobLocator objects to JSON
 	/// </summary>
 	public sealed class BlobLocatorJsonConverter : JsonConverter<BlobLocator>
 	{

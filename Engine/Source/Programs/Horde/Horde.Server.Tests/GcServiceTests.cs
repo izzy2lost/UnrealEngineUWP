@@ -52,19 +52,19 @@ namespace Horde.Server.Tests
 
 			await Clock.AdvanceAsync(TimeSpan.FromDays(1.0));
 
-			BlobLocator[] remaining = await store.Backend.EnumerateAsync().Select(x => new BlobLocator(x)).ToArrayAsync();
+			BlobLocator[] remaining = await store.EnumerateAsync().ToArrayAsync();
 			Assert.AreEqual(nodes.Count, remaining.Length);
 			Assert.IsTrue(remaining.All(x => nodes.Contains(x)));
 		}
 
-		static async Task<HashSet<BlobLocator>> FindNodesAsync(IBundleStorageClient store, IEnumerable<BlobLocator> roots)
+		static async Task<HashSet<BlobLocator>> FindNodesAsync(IStorageClient store, IEnumerable<BlobLocator> roots)
 		{
 			HashSet<BlobLocator> nodes = new HashSet<BlobLocator>();
 			await FindNodesAsync(store, roots, nodes);
 			return nodes;
 		}
 
-		static async Task FindNodesAsync(IBundleStorageClient store, IEnumerable<BlobLocator> roots, HashSet<BlobLocator> nodes)
+		static async Task FindNodesAsync(IStorageClient store, IEnumerable<BlobLocator> roots, HashSet<BlobLocator> nodes)
 		{
 			foreach (BlobLocator root in roots)
 			{
@@ -76,7 +76,7 @@ namespace Horde.Server.Tests
 			}
 		}
 
-		static async ValueTask<BlobLocator[]> CreateTestDataAsync(IBundleStorageClient store, int numRoots, int numInterior, int numLeaves, int avgChildren, Random random)
+		static async ValueTask<BlobLocator[]> CreateTestDataAsync(IStorageClient store, int numRoots, int numInterior, int numLeaves, int avgChildren, Random random)
 		{
 			int firstRoot = 0;
 			int firstInterior = firstRoot + numRoots;
@@ -107,7 +107,8 @@ namespace Horde.Server.Tests
 				List<BlobLocator> imports = children[idx].ConvertAll(x => locators[x]);
 				BundleHeader header = new BundleHeader(types.ToArray(), imports.ToArray(), Array.Empty<BundleExport>(), Array.Empty<BundlePacket>());
 				Bundle bundle = new Bundle(header, Array.Empty<ReadOnlyMemory<byte>>());
-				locators[idx] = await store.WriteBundleAsync(bundle, basePath: "gctest");
+				BlobHandle handle = await store.WriteBundleAsync(bundle, basePath: "gctest");
+				locators[idx] = handle.GetLocator();
 			}
 
 			return locators;

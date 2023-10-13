@@ -1,6 +1,9 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 
 using System;
+using System.Collections.Generic;
+using System.Diagnostics;
+using System.Diagnostics.CodeAnalysis;
 using System.IO;
 using System.Threading;
 using System.Threading.Tasks;
@@ -11,47 +14,21 @@ using Microsoft.Extensions.Logging;
 namespace EpicGames.Horde.Storage.Clients
 {
 	/// <summary>
-	/// Interface for bundle storage clients. Used to implement ref-counted redirect wrappers.
-	/// </summary>
-	public interface IBundleStorageClient : IStorageClient
-	{
-		/// <summary>
-		/// Backend for this client
-		/// </summary>
-		IStorageBackend Backend { get; }
-
-		#region Blobs
-
-		/// <inheritdoc/>
-		Task<Stream> OpenAsync(BlobLocator locator, int offset, int? length = null, CancellationToken cancellationToken = default);
-
-		#endregion
-
-		#region Bundles
-
-		/// <summary>
-		/// Reads the header for a bundle
-		/// </summary>
-		/// <param name="locator">Locator for the bundle</param>
-		/// <param name="cancellationToken">Cancellation token for the operation</param>
-		Task<BundleHeader> ReadHeaderAsync(BlobLocator locator, CancellationToken cancellationToken);
-
-		#endregion
-	}
-
-	/// <summary>
-	/// Extension methods for <see cref="IBundleStorageClient"/>
+	/// Extension methods for reading bundles
 	/// </summary>
 	public static class BundleStorageClientExtensions
 	{
 		/// <summary>
-		/// Opens a bundle stream for reading
+		/// Reads an entire bundle into memory
 		/// </summary>
-		/// <param name="storageClient">Storage client</param>
-		/// <param name="locator">Locator for the bundle</param>
+		/// <param name="handle">Handle to read from</param>
 		/// <param name="cancellationToken">Cancellation token for the operation</param>
-		/// <returns>Stream for reading from the bundle</returns>
-		public static Task<Stream> OpenAsync(this IBundleStorageClient storageClient, BlobLocator locator, CancellationToken cancellationToken = default) => storageClient.OpenAsync(locator, 0, null, cancellationToken);
+		/// <returns>Bundle that was read</returns>
+		public static async Task<Bundle> ReadBundleAsync(this BlobHandle handle, CancellationToken cancellationToken = default)
+		{
+			using Stream stream = await handle.OpenAsync(cancellationToken: cancellationToken);
+			return await Bundle.FromStreamAsync(stream, cancellationToken);
+		}
 
 		/// <summary>
 		/// Reads an entire bundle into memory
@@ -60,9 +37,10 @@ namespace EpicGames.Horde.Storage.Clients
 		/// <param name="locator">Locator for the bundle</param>
 		/// <param name="cancellationToken">Cancellation token for the operation</param>
 		/// <returns>Bundle that was read</returns>
-		public static async Task<Bundle> ReadBundleAsync(this IBundleStorageClient storageClient, BlobLocator locator, CancellationToken cancellationToken = default)
+		public static async Task<Bundle> ReadBundleAsync(this IStorageClient storageClient, BlobLocator locator, CancellationToken cancellationToken = default)
 		{
-			using Stream stream = await storageClient.OpenAsync(locator, cancellationToken);
+			BlobHandle handle = storageClient.CreateBlobHandle(locator);
+			using Stream stream = await handle.OpenAsync(cancellationToken: cancellationToken);
 			return await Bundle.FromStreamAsync(stream, cancellationToken);
 		}
 
@@ -74,19 +52,81 @@ namespace EpicGames.Horde.Storage.Clients
 		/// <param name="basePath">Prefix for the uploaded data</param>
 		/// <param name="cancellationToken">Cancellation token for the operation</param>
 		/// <returns>Locator for reading the bundle back in</returns>
-		public static async Task<BlobLocator> WriteBundleAsync(this IBundleStorageClient storageClient, Bundle bundle, string? basePath = null, CancellationToken cancellationToken = default)
+		public static async Task<BlobHandle> WriteBundleAsync(this IStorageClient storageClient, Bundle bundle, string? basePath = null, CancellationToken cancellationToken = default)
 		{
+			BlobHandle[] imports = new BlobHandle[bundle.Header.Imports.Count];
+			for (int idx = 0; idx < bundle.Header.Imports.Count; idx++)
+			{
+				imports[idx] = storageClient.CreateBlobHandle(new BlobLocator(bundle.Header.Imports[idx].Path));
+			}
+
 			using ReadOnlySequenceStream stream = new ReadOnlySequenceStream(bundle.AsSequence());
-			string path = await storageClient.Backend.WriteAsync(stream, basePath, cancellationToken);
-			return new BlobLocator(path);
+			return await storageClient.WriteBlobAsync(BundleStorageClient.BundleBlobType, stream, imports, basePath, cancellationToken);
 		}
 	}
 
 	/// <summary>
 	/// Base class for an implementation of <see cref="IStorageClient"/>, providing implementations for some common functionality using bundles.
 	/// </summary>
-	public abstract class BundleStorageClient : IBundleStorageClient
+	public abstract class BundleStorageClient : IStorageClient
 	{
+		/// <summary>
+		/// Blob type for bundles
+		/// </summary>
+		public static BlobType BundleBlobType { get; } = new BlobType(Guid.Parse("{7C5BA294-2D21-4F92-85BE-852F48CC4C1E}"), 1);
+
+		class BundleHandle : BlobHandle
+		{
+			readonly BundleStorageClient _storageClient;
+			readonly string _path;
+			List<BlobHandle>? _refs;
+
+			public BundleHandle(BundleStorageClient storageClient, string path)
+			{
+				_storageClient = storageClient;
+				_path = path;
+			}
+
+			public override ValueTask<BlobType> GetTypeAsync(CancellationToken cancellationToken = default) => new ValueTask<BlobType>(BundleBlobType);
+
+			public override async ValueTask<IReadOnlyList<BlobHandle>> GetRefsAsync(CancellationToken cancellationToken = default)
+			{
+				if (_refs == null)
+				{
+					List<BlobHandle> refs = new List<BlobHandle>();
+
+					BundleHeader header = await _storageClient.ReadHeaderAsync(new BlobLocator(_path), cancellationToken);
+					foreach (BlobLocator import in header.Imports)
+					{
+						refs.Add(_storageClient.CreateBlobHandle(new BlobLocator(import.Path)));
+					}
+
+					_refs = refs;
+				}
+				return _refs;
+			}
+
+			public override Task<Stream> OpenAsync(int offset = 0, int? length = null, CancellationToken cancellationToken = default)
+			{
+				return _storageClient.OpenAsync(new BlobLocator(_path), offset, length, cancellationToken);
+			}
+
+			public override async ValueTask<BlobData> ReadAsync(CancellationToken cancellationToken = default)
+			{
+				using (Stream stream = await _storageClient.OpenAsync(new BlobLocator(_path), 0, cancellationToken: cancellationToken))
+				{
+					byte[] data = await stream.ReadAllBytesAsync(cancellationToken);
+					return new BlobData(BundleBlobType, data, await GetRefsAsync(cancellationToken));
+				}
+			}
+
+			public override bool TryGetLocator([NotNullWhen(true)] out BlobLocator locator)
+			{
+				locator = new BlobLocator(_path);
+				return true;
+			}
+		}
+
 		readonly IStorageBackend _backend;
 		readonly BundleReader _bundleReader;
 
@@ -123,7 +163,15 @@ namespace EpicGames.Horde.Storage.Clients
 		#region Blobs
 
 		/// <inheritdoc/>
-		public async Task<Stream> OpenAsync(BlobLocator locator, int offset, int? length = null, CancellationToken cancellationToken = default) => await _backend.OpenAsync(locator.Path.ToString(), offset, length, cancellationToken);
+		public async Task<Stream> OpenAsync(BlobLocator locator, int offset = 0, int? length = null, CancellationToken cancellationToken = default) => await _backend.OpenAsync(locator.Path.ToString(), offset, length, cancellationToken);
+
+		/// <inheritdoc/>
+		public async ValueTask<BlobHandle> WriteBlobAsync(BlobType type, Stream stream, IReadOnlyList<BlobHandle> references, string? basePath = null, CancellationToken cancellationToken = default)
+		{
+			Debug.Assert(type == BundleBlobType);
+			string path = await _backend.WriteAsync(stream, basePath, cancellationToken);
+			return new BundleHandle(this, path);
+		}
 
 		#endregion
 
@@ -140,7 +188,17 @@ namespace EpicGames.Horde.Storage.Clients
 		#region Nodes
 
 		/// <inheritdoc/>
-		public BlobHandle CreateBlobHandle(BlobLocator locator) => new FlushedNodeHandle(_bundleReader, BundleNodeLocator.FromBlobLocator(locator));
+		public BlobHandle CreateBlobHandle(BlobLocator locator)
+		{
+			if (locator.CanUnwrap())
+			{
+				return new FlushedNodeHandle(_bundleReader, BundleNodeLocator.FromBlobLocator(locator));
+			}
+			else
+			{
+				return new BundleHandle(this, locator.Path.ToString());
+			}
+		}
 
 		/// <inheritdoc/>
 		public BundleWriter CreateWriter(string? basePath = null, BundleOptions? options = null) => new BundleWriter(this, _bundleReader, basePath, options);

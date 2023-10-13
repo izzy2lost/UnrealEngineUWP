@@ -474,7 +474,7 @@ namespace EpicGames.Horde.Storage.Bundles
 				try
 				{
 					Bundle bundle = CreateBundle();
-					BlobLocator locator = await store.WriteBundleAsync(bundle, basePath);
+					BlobLocator locator = await store.WriteBundleAsync(bundle, basePath).GetLocatorAsync();
 					traceLogger?.LogInformation("Written bundle {BundleId} as {Locator}", BundleId, locator);
 
 					for (int idx = 0; idx < _queue.Count; idx++)

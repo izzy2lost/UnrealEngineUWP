@@ -2,6 +2,7 @@
 
 using System;
 using System.Collections.Generic;
+using System.IO;
 using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
@@ -85,9 +86,9 @@ namespace EpicGames.Horde.Storage
 		/// <summary>
 		/// Creates a new blob handle by parsing a blob id
 		/// </summary>
-		/// <param name="blobId">Path to the blob</param>
+		/// <param name="locator">Path to the blob</param>
 		/// <returns>New handle to the blob</returns>
-		BlobHandle CreateBlobHandle(BlobLocator blobId);
+		BlobHandle CreateBlobHandle(BlobLocator locator);
 
 		/// <summary>
 		/// Creates a new writer for storage blobs
@@ -95,6 +96,16 @@ namespace EpicGames.Horde.Storage
 		/// <param name="basePath">Base path for any nodes written from the writer.</param>
 		/// <returns>New writer instance. Must be disposed after use.</returns>
 		IStorageWriter CreateWriter(string? basePath = null);
+
+		/// <summary>
+		/// Write a blob to the underlying storage system. Using the writer instance returned from <see cref="IStorageClient.CreateWriter(String)"/> is more efficient than calling this method repeatedly for small blobs.
+		/// </summary>
+		/// <param name="type">Type of the blob</param>
+		/// <param name="stream">Pipe to read data from</param>
+		/// <param name="references">References to other blobs</param>
+		/// <param name="basePath">Base path for writes</param>
+		/// <param name="cancellationToken">Cancellation token for the operation</param>
+		ValueTask<BlobHandle> WriteBlobAsync(BlobType type, Stream stream, IReadOnlyList<BlobHandle> references, string? basePath = null, CancellationToken cancellationToken = default);
 
 		#endregion
 

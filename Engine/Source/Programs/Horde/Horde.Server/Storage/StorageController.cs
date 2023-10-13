@@ -78,34 +78,23 @@ namespace Horde.Server.Storage
 		/// <param name="prefix">Prefix for uploaded blobs</param>
 		/// <param name="cancellationToken">Cancellation token</param>
 		/// <returns>Information about the written blob, or redirect information</returns>
-		public static async Task<ActionResult<WriteBlobResponse>> WriteBlobAsync(IBundleStorageClient storageClient, IFormFile? file, [FromForm] string? prefix = default, CancellationToken cancellationToken = default)
+		public static async Task<ActionResult<WriteBlobResponse>> WriteBlobAsync(IServerStorageClient storageClient, IFormFile? file, [FromForm] string? prefix = default, CancellationToken cancellationToken = default)
 		{
-			IServerStorageClient? storageClientImpl = storageClient as IServerStorageClient;
 			if (file == null)
 			{
-				if (storageClientImpl == null)
-				{
-					return new WriteBlobResponse { SupportsRedirects = false };
-				}
-
-				(string Path, Uri UploadUrl)? result = await storageClient.Backend.TryGetWriteRedirectAsync(prefix ?? String.Empty, cancellationToken);
+				(BlobLocator Path, Uri UploadUrl)? result = await storageClient.TryGetWriteRedirectAsync(prefix ?? String.Empty, cancellationToken);
 				if (result == null)
 				{
 					return new WriteBlobResponse { SupportsRedirects = false };
 				}
 
-				return new WriteBlobResponse { Blob = result.Value.Path, UploadUrl = result.Value.UploadUrl };
+				return new WriteBlobResponse { Blob = result.Value.Path.ToString(), UploadUrl = result.Value.UploadUrl };
 			}
 			else
 			{
-				Bundle bundle;
-				using (Stream stream = file.OpenReadStream())
-				{
-					bundle = await Bundle.FromStreamAsync(stream, cancellationToken);
-				}
-
-				BlobLocator locator = await storageClient.WriteBundleAsync(bundle, prefix, cancellationToken: cancellationToken);
-				return new WriteBlobResponse { Blob = locator.ToString(), SupportsRedirects = storageClient?.Backend.SupportsRedirects };
+				using Stream stream = file.OpenReadStream();
+				BlobHandle handle = await storageClient.WriteBlobAsync(BundleStorageClient.BundleBlobType, stream, Array.Empty<BlobHandle>(), prefix, cancellationToken);
+				return new WriteBlobResponse { Blob = handle.GetLocator().ToString(), SupportsRedirects = storageClient.SupportsRedirects };
 			}
 		}
 
@@ -136,9 +125,9 @@ namespace Horde.Server.Storage
 		/// <summary>
 		/// Reads a blob from storage, without performing namespace access checks.
 		/// </summary>
-		internal static async Task<ActionResult> ReadBlobInternalAsync(IBundleStorageClient storageClient, BlobLocator locator, IHeaderDictionary headers, CancellationToken cancellationToken)
+		internal static async Task<ActionResult> ReadBlobInternalAsync(IServerStorageClient storageClient, BlobLocator locator, IHeaderDictionary headers, CancellationToken cancellationToken)
 		{
-			Uri? redirectUrl = await storageClient.Backend.TryGetReadRedirectAsync(locator.ToString(), cancellationToken);
+			Uri? redirectUrl = await storageClient.TryGetReadRedirectAsync(locator, cancellationToken);
 			if (redirectUrl != null)
 			{
 				return new RedirectResult(redirectUrl.ToString());
@@ -182,7 +171,8 @@ namespace Horde.Server.Storage
 			}
 
 #pragma warning disable CA2000 // Dispose objects before losing scope
-			Stream stream = await storageClient.OpenAsync(locator, offset, length, cancellationToken);
+			BlobHandle handle = storageClient.CreateBlobHandle(new BlobLocator(locator.Path));
+			Stream stream = await handle.OpenAsync(offset, length, cancellationToken);
 			return new FileStreamResult(stream, "application/octet-stream");
 #pragma warning restore CA2000 // Dispose objects before losing scope
 		}

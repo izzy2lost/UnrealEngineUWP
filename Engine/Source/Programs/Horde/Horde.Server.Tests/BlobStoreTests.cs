@@ -83,7 +83,7 @@ namespace Horde.Server.Tests
 			using IServerStorageClient store = CreateStorageClient();
 
 			byte[] input = CreateTestData(256, 0);
-			BlobLocator locator = await store.WriteBundleAsync(CreateTestBundle(input, Array.Empty<BlobLocator>()));
+			BlobLocator locator = await store.WriteBundleAsync(CreateTestBundle(input, Array.Empty<BlobLocator>())).GetLocatorAsync();
 
 			Bundle outputBundle = await store.ReadBundleAsync(locator);
 			Assert.IsTrue(outputBundle.Packets[0].Span.SequenceEqual(input));
@@ -96,21 +96,21 @@ namespace Horde.Server.Tests
 
 			byte[] input1 = CreateTestData(256, 1);
 			Bundle bundle1 = CreateTestBundle(input1, Array.Empty<BlobLocator>());
-			BlobLocator locator1 = await store.WriteBundleAsync(bundle1);
+			BlobLocator locator1 = await store.WriteBundleAsync(bundle1).GetLocatorAsync();
 			Blob blob1 = await ReadBlobAsync(store, locator1);
 			Assert.IsTrue(blob1.Data.Span.SequenceEqual(input1));
 			Assert.IsTrue(blob1.References.SequenceEqual(Array.Empty<BlobLocator>()));
 
 			byte[] input2 = CreateTestData(256, 2);
 			Bundle bundle2 = CreateTestBundle(input2, new BlobLocator[] { locator1 });
-			BlobLocator locator2 = await store.WriteBundleAsync(bundle2);
+			BlobLocator locator2 = await store.WriteBundleAsync(bundle2).GetLocatorAsync();
 			Blob blob2 = await ReadBlobAsync(store, locator2);
 			Assert.IsTrue(blob2.Data.Span.SequenceEqual(input2));
 			Assert.IsTrue(blob2.References.SequenceEqual(new BlobLocator[] { locator1 }));
 
 			byte[] input3 = CreateTestData(256, 3);
 			Bundle bundle3 = CreateTestBundle(input3, new BlobLocator[] { locator1, locator2, locator1 });
-			BlobLocator locator3 = await store.WriteBundleAsync(bundle3);
+			BlobLocator locator3 = await store.WriteBundleAsync(bundle3).GetLocatorAsync();
 			Blob blob3 = await ReadBlobAsync(store, locator3);
 			Assert.IsTrue(blob3.Data.Span.SequenceEqual(input3));
 			Assert.IsTrue(blob3.References.SequenceEqual(new BlobLocator[] { locator1, locator2, locator1 }));
@@ -130,12 +130,12 @@ namespace Horde.Server.Tests
 			using IServerStorageClient store = CreateStorageClient();
 
 			Bundle bundle1 = CreateTestBundle(new byte[] { 1, 2, 3 }, Array.Empty<BlobLocator>());
-			BlobLocator locator1 = await store.WriteBundleAsync(bundle1);
-			BundleNodeLocator target = new BundleNodeLocator(locator1, 0);
+			BlobLocator locator1 = await store.WriteBundleAsync(bundle1).GetLocatorAsync();
+			BlobLocator target = new BlobLocator($"{locator1}#0");
 
-			await store.WriteRefTargetAsync("test-ref-1", store.CreateBlobHandle(target.ToBlobLocator()));
-			await store.WriteRefTargetAsync("test-ref-2", store.CreateBlobHandle(target.ToBlobLocator()), new RefOptions { Lifetime = TimeSpan.FromMinutes(30.0), Extend = true });
-			await store.WriteRefTargetAsync("test-ref-3", store.CreateBlobHandle(target.ToBlobLocator()), new RefOptions { Lifetime = TimeSpan.FromMinutes(30.0), Extend = false });
+			await store.WriteRefTargetAsync("test-ref-1", store.CreateBlobHandle(target));
+			await store.WriteRefTargetAsync("test-ref-2", store.CreateBlobHandle(target), new RefOptions { Lifetime = TimeSpan.FromMinutes(30.0), Extend = true });
+			await store.WriteRefTargetAsync("test-ref-3", store.CreateBlobHandle(target), new RefOptions { Lifetime = TimeSpan.FromMinutes(30.0), Extend = false });
 
 			Assert.AreEqual(target, await TryReadRefTargetAsync(store, "test-ref-1"));
 			Assert.AreEqual(target, await TryReadRefTargetAsync(store, "test-ref-2"));
@@ -160,9 +160,9 @@ namespace Horde.Server.Tests
 			Assert.AreEqual(default, await TryReadRefTargetAsync(store, "test-ref-3"));
 		}
 
-		static async Task<BundleNodeLocator> TryReadRefTargetAsync(IBundleStorageClient store, RefName name)
+		static async Task<BlobLocator> TryReadRefTargetAsync(IStorageClient store, RefName name)
 		{
-			BundleNodeHandle? handle = (BundleNodeHandle?)await store.TryReadRefTargetAsync(name);
+			BlobHandle? handle = await store.TryReadRefTargetAsync(name);
 			if (handle == null)
 			{
 				return default;

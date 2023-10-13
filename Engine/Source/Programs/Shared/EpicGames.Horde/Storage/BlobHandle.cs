@@ -3,8 +3,10 @@
 using System;
 using System.Collections.Generic;
 using System.Diagnostics.CodeAnalysis;
+using System.IO;
 using System.Threading;
 using System.Threading.Tasks;
+using EpicGames.Core;
 
 namespace EpicGames.Horde.Storage
 {
@@ -13,6 +15,26 @@ namespace EpicGames.Horde.Storage
 	/// </summary>
 	public abstract class BlobHandle
 	{
+		class BlobDataStream : ReadOnlyMemoryStream
+		{
+			readonly BlobData _blobData;
+
+			public BlobDataStream(BlobData blobData, ReadOnlyMemory<byte> data)
+				: base(data)
+			{
+				_blobData = blobData;
+			}
+
+			protected override void Dispose(bool disposing)
+			{
+				base.Dispose(disposing);
+				if (disposing)
+				{
+					_blobData.Dispose();
+				}
+			}
+		}
+
 		/// <summary>
 		/// Gets a path to this blob that can be used to describe blob references over the wire.
 		/// </summary>
@@ -51,6 +73,19 @@ namespace EpicGames.Horde.Storage
 		{
 			using BlobData data = await ReadAsync(cancellationToken);
 			return data.Refs;
+		}
+
+		/// <summary>
+		/// Open the blob's data stream
+		/// </summary>
+		/// <param name="offset">Start offset of the stream</param>
+		/// <param name="length">Length of the stream</param>
+		/// <param name="cancellationToken">Cancellation token for the operation</param>
+		public virtual async Task<Stream> OpenAsync(int offset = 0, int? length = null, CancellationToken cancellationToken = default)
+		{
+			BlobData blobData = await ReadAsync(cancellationToken);
+			ReadOnlyMemory<byte> memory = blobData.Data.Slice(offset, length ?? blobData.Data.Length - offset);
+			return new BlobDataStream(blobData, memory);
 		}
 
 		/// <summary>
@@ -98,6 +133,21 @@ namespace EpicGames.Horde.Storage
 				return blobId.ToString();
 			}
 			return base.ToString() ?? "Unknown";
+		}
+	}
+
+	/// <summary>
+	/// Extension methods for blob handles
+	/// </summary>
+	public static class BlobHandleExtensions
+	{
+		/// <summary>
+		/// Helper method for awaiting a handle and returning its locator
+		/// </summary>
+		public static async ValueTask<BlobLocator> GetLocatorAsync(this Task<BlobHandle> handleTask)
+		{
+			BlobHandle handle = await handleTask;
+			return handle.GetLocator();
 		}
 	}
 }
