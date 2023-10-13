@@ -189,7 +189,9 @@ FCameraShakePreviewer& FCameraShakePreviewerLinkerExtension::GetPreviewer(FInsta
 	NewPreviewer.RegisterViewModifiers([ContextWorld](FLevelEditorViewportClient* LevelVC) -> bool
 				{
 					return LevelVC->AllowsCinematicControl() && LevelVC->GetWorld() == ContextWorld;
-				});
+				},
+				// Pass false to help the Mac compiler along.
+				false);
 	return NewPreviewer;
 }
 
