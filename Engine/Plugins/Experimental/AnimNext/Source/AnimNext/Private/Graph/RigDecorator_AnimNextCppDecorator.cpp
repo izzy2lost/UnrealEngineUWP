@@ -10,7 +10,7 @@
 #include UE_INLINE_GENERATED_CPP_BY_NAME(RigDecorator_AnimNextCppDecorator)
 
 #if WITH_EDITOR
-void FRigDecorator_AnimNextCppDecorator::GetProgrammaticPins(URigVMController* InController, int32 InParentPinIndex, FRigVMPinInfoArray& OutPinArray) const
+void FRigDecorator_AnimNextCppDecorator::GetProgrammaticPins(URigVMController* InController, int32 InParentPinIndex, const FString& InDefaultValue, FRigVMPinInfoArray& OutPinArray) const
 {
 	if (DecoratorSharedDataStruct == nullptr)
 	{
@@ -18,6 +18,12 @@ void FRigDecorator_AnimNextCppDecorator::GetProgrammaticPins(URigVMController* I
 	}
 
 	FStructOnScope DefaultValueMemoryScope(DecoratorSharedDataStruct);
+
+	if (!InDefaultValue.IsEmpty())
+	{
+		FRigVMPinDefaultValueImportErrorContext ErrorPipe;
+		DecoratorSharedDataStruct->ImportText(*InDefaultValue, DefaultValueMemoryScope.GetStructMemory(), nullptr, PPF_None, &ErrorPipe, DecoratorSharedDataStruct->GetName());
+	}
 
 	const int32 StartPinIndex = OutPinArray.Num();
 	OutPinArray.AddPins(DecoratorSharedDataStruct, InController, ERigVMPinDirection::Invalid, InParentPinIndex, DefaultValueMemoryScope.GetStructMemory(), true);

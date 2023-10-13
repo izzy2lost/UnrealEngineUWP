@@ -13793,7 +13793,7 @@ FName URigVMController::AddDecorator(URigVMNode* InNode, UScriptStruct* InDecora
 	AddPinsForStruct(InDecoratorScriptStruct, InNode, DecoratorPin, DecoratorPin->GetDirection(), InDefaultValue, true);
 
 	FRigVMPinInfoArray ProgrammaticPins;
-	Decorator->GetProgrammaticPins(this, INDEX_NONE, ProgrammaticPins);
+	Decorator->GetProgrammaticPins(this, INDEX_NONE, InDefaultValue, ProgrammaticPins);
 
 	const FRigVMRegistry& Registry = FRigVMRegistry::Get();
 	const FRigVMPinInfoArray PreviousPins;
@@ -15313,7 +15313,7 @@ bool URigVMController::GenerateNewPinInfos(const FRigVMRegistry& Registry, URigV
 				TSharedPtr<FStructOnScope> DecoratorScope = Pin->GetDecoratorInstance();
 				FRigVMDecorator* VMDecorator = (FRigVMDecorator*)DecoratorScope->GetStructMemory();
 
-				VMDecorator->GetProgrammaticPins(this, NewPinIndex, NewPinInfos);
+				VMDecorator->GetProgrammaticPins(this, NewPinIndex, Pin->GetDefaultValue(), NewPinInfos);
 			}
 		}
 	}
