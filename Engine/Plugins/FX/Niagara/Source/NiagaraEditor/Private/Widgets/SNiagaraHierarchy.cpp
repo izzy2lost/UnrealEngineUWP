@@ -1155,10 +1155,7 @@ bool SNiagaraHierarchy::FilterForSourceSection(TSharedPtr<const FNiagaraHierarch
 {
 	if(ActiveSourceSection.IsValid())
 	{
-		if(const UNiagaraHierarchySection* Section = ItemViewModel->GetSection())
-		{
-			return GetActiveSourceSectionData() == Section;
-		}
+		return GetActiveSourceSectionData() == ItemViewModel->GetSection();
 	}
 
 	return true;

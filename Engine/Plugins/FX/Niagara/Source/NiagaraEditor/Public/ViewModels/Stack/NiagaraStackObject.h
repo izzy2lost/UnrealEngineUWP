@@ -18,7 +18,7 @@ class UNiagaraStackObject : public UNiagaraStackItemContent, public FNotifyHook
 	GENERATED_BODY()
 		
 public:
-	DECLARE_DELEGATE_TwoParams(FOnSelectRootNodes, TArray<TSharedRef<IDetailTreeNode>>, TArray<TSharedRef<IDetailTreeNode>>*);
+	DECLARE_DELEGATE_TwoParams(FOnGetCustomRootNodes, TArray<TSharedRef<IDetailTreeNode>>, TArray<TSharedRef<IDetailTreeNode>>*);
 
 public:
 	NIAGARAEDITOR_API UNiagaraStackObject();
@@ -30,9 +30,10 @@ public:
 		@param InOwnerStackItemEditorDataKey The stack editor data key of the owning stack entry. 
 		@param InOwningNiagaraNode An optional niagara node which owns this object. */
 	NIAGARAEDITOR_API void Initialize(FRequiredEntryData InRequiredEntryData, UObject* InObject, bool bInIsTopLevelObject, FString InOwnerStackItemEditorDataKey, UNiagaraNode* InOwningNiagaraNode = nullptr);
-
-	NIAGARAEDITOR_API void SetOnSelectRootNodes(FOnSelectRootNodes OnSelectRootNodes);
-
+	
+	NIAGARAEDITOR_API void SetOnGetCustomRootNodes(FOnGetCustomRootNodes OnSelectRootNodes);
+	NIAGARAEDITOR_API TArray<FName> GetCustomRootNodeNames() const;
+	
 	NIAGARAEDITOR_API void RegisterInstancedCustomPropertyLayout(UStruct* Class, FOnGetDetailCustomizationInstance DetailLayoutDelegate);
 	NIAGARAEDITOR_API void RegisterInstancedCustomPropertyTypeLayout(FName PropertyTypeName, FOnGetPropertyTypeCustomizationInstance PropertyTypeLayoutDelegate, TSharedPtr<IPropertyTypeIdentifier> Identifier = nullptr);
 
@@ -79,7 +80,7 @@ private:
 	bool bIsTopLevelObject;
 
 	UNiagaraNode* OwningNiagaraNode;
-	FOnSelectRootNodes OnSelectRootNodesDelegate;
+	FOnGetCustomRootNodes OnSelectRootNodesDelegate;
 	TArray<FRegisteredClassCustomization> RegisteredClassCustomizations;
 	TArray<FRegisteredPropertyCustomization> RegisteredPropertyCustomizations;
 	TSharedPtr<IPropertyRowGenerator> PropertyRowGenerator;
@@ -87,6 +88,9 @@ private:
 
 	/** An optional object guid that can be provided to identify the object this stack entry represents. This can be used for summary view purposes and is also given to the child property rows. */
 	TOptional<FGuid> ObjectGuid;
+
+	/** We keep track of our custom root nodes, if available. This helps us determine identities of stack objects. */
+	TArray<TSharedRef<IDetailTreeNode>> CustomRootNodes;
 	
 	FGuid MessageManagerRegistrationKey;
 	TArray<FStackIssue> MessageManagerIssues;

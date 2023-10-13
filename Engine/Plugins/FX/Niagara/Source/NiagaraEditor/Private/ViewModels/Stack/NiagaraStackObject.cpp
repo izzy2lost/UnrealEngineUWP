@@ -44,9 +44,21 @@ void UNiagaraStackObject::Initialize(FRequiredEntryData InRequiredEntryData, UOb
 	).BindUObject(this, &UNiagaraStackObject::OnMessageManagerRefresh);
 }
 
-void UNiagaraStackObject::SetOnSelectRootNodes(FOnSelectRootNodes OnSelectRootNodes)
+void UNiagaraStackObject::SetOnGetCustomRootNodes(FOnGetCustomRootNodes OnSelectRootNodes)
 {
 	OnSelectRootNodesDelegate = OnSelectRootNodes;
+}
+
+TArray<FName> UNiagaraStackObject::GetCustomRootNodeNames() const
+{
+	TArray<FName> Result;
+
+	Algo::Transform(CustomRootNodes, Result, [](TSharedRef<IDetailTreeNode> RootNote)
+	{
+		return RootNote->GetNodeName();
+	});
+
+	return Result;
 }
 
 void UNiagaraStackObject::RegisterInstancedCustomPropertyLayout(UStruct* Class, FOnGetDetailCustomizationInstance DetailLayoutDelegate)
@@ -97,6 +109,8 @@ FNiagaraHierarchyIdentity UNiagaraStackObject::DetermineSummaryIdentity() const
 
 void UNiagaraStackObject::FinalizeInternal()
 {
+	CustomRootNodes.Empty();
+	
 	if (PropertyRowGenerator.IsValid())
 	{
 		PropertyRowGenerator->OnRowsRefreshed().RemoveAll(this);
@@ -290,6 +304,7 @@ void UNiagaraStackObject::RefreshChildrenInternal(const TArray<UNiagaraStackEntr
 		if (OnSelectRootNodesDelegate.IsBound())
 		{
 			OnSelectRootNodesDelegate.Execute(DefaultRootTreeNodes, &RootTreeNodes);
+			CustomRootNodes = RootTreeNodes;
 		}
 		else
 		{

@@ -13,11 +13,14 @@
 #include "ViewModels/NiagaraSystemViewModel.h"
 #include "ViewModels/NiagaraScriptViewModel.h"
 #include "ViewModels/HierarchyEditor/NiagaraSummaryViewViewModel.h"
+#include "ViewModels/Stack/NiagaraStackEmitterPropertiesGroup.h"
+#include "ViewModels/Stack/NiagaraStackEmitterSettingsGroup.h"
 #include "ViewModels/Stack/NiagaraStackEventScriptItemGroup.h"
 #include "ViewModels/Stack/NiagaraStackGraphUtilities.h"
 #include "ViewModels/Stack/NiagaraStackFunctionInputCollection.h"
 #include "ViewModels/Stack/NiagaraStackInputCategory.h"
 #include "ViewModels/Stack/NiagaraStackModuleItem.h"
+#include "ViewModels/Stack/NiagaraStackObject.h"
 #include "ViewModels/Stack/NiagaraStackPropertyRow.h"
 #include "ViewModels/Stack/NiagaraStackRendererItem.h"
 #include "ViewModels/Stack/NiagaraStackSimulationStageGroup.h"
@@ -333,6 +336,19 @@ void UNiagaraStackSummaryViewCollection::RefreshChildrenInternal(const TArray<UN
 				NewChildren.Add(StackRenderer);	
 			}
 		}
+		else if(UNiagaraHierarchyEmitterProperties* EmitterProperties = Cast<UNiagaraHierarchyEmitterProperties>(Data))
+		{
+			UNiagaraStackEmitterPropertiesItem* StackEmitterPropertiesItem = FindCurrentChildOfTypeByPredicate<UNiagaraStackEmitterPropertiesItem>(CurrentChildren,
+			[&](UNiagaraStackEmitterPropertiesItem* CurrentEmitterProperties) { return CurrentEmitterProperties->GetEmitterViewModel()->GetEmitter().Emitter->GetUniqueEmitterName() == EmitterProperties->GetPersistentIdentity().Names[0]; });
+	
+			if (StackEmitterPropertiesItem == nullptr)
+			{
+				StackEmitterPropertiesItem = NewObject<UNiagaraStackEmitterPropertiesItem>(this);
+				StackEmitterPropertiesItem->Initialize(CreateDefaultChildRequiredData());
+			}
+		
+			NewChildren.Add(StackEmitterPropertiesItem);	
+		}
 		else if(UNiagaraHierarchyEventHandler* EventHandler = Cast<UNiagaraHierarchyEventHandler>(Data))
 		{
 			const TArray<FNiagaraEventScriptProperties>& EventScriptProperties = GetEmitterViewModel()->GetEmitter().GetEmitterData()->GetEventHandlers();
@@ -474,23 +490,46 @@ void UNiagaraStackSummaryViewCollection::RefreshChildrenInternal(const TArray<UN
 			if(ObjectsForProperties.Contains(ObjectGuid))
 			{
 				UObject* Object = ObjectsForProperties[ObjectProperty->GetPersistentIdentity().Guids[0]];
-				TArray<TSharedRef<IDetailTreeNode>> RootNodes = GetEmitterViewModel()->GetSummaryHierarchyViewModel()->RequestDetailTreeNodesForObject(Object);
-				
-				for(TSharedRef<IDetailTreeNode>& RootNode : RootNodes)
-				{
-					TArray<TSharedRef<IDetailTreeNode>> ChildrenNodes;
-					RootNode->GetChildren(ChildrenNodes);
 
-					for(TSharedRef<IDetailTreeNode> ChildNode : ChildrenNodes)
+				UNiagaraStackObject* StackObjectWithProperty = FindCurrentChildOfTypeByPredicate<UNiagaraStackObject>(CurrentChildren,
+				[&](UNiagaraStackObject* StackObjectCandidate)
+				{
+					if(StackObjectCandidate->GetObject() != Object)
 					{
-						if(ChildNode->GetNodeName() == ObjectProperty->GetPersistentIdentity().Names[0])
-						{
-							UNiagaraStackPropertyRow* PropertyRow = NewObject<UNiagaraStackPropertyRow>(this);
-							PropertyRow->Initialize(CreateDefaultChildRequiredData(), ChildNode, false, GetOwnerStackItemEditorDataKey(), GetOwnerStackItemEditorDataKey(), nullptr);
-							NewChildren.Add(PropertyRow);
-						}
+						return false;
 					}
+					
+					if(StackObjectCandidate->GetCustomRootNodeNames().Num() == 1 && StackObjectCandidate->GetCustomRootNodeNames()[0] == ObjectProperty->GetPersistentIdentity().Names[0])
+					{
+						return true;
+					}
+
+					return false;
+				});
+
+				if(StackObjectWithProperty == nullptr)
+				{
+					StackObjectWithProperty = NewObject<UNiagaraStackObject>(this);
+					StackObjectWithProperty->Initialize(CreateDefaultChildRequiredData(), Object, false, GetStackEditorDataKey(), nullptr);
+					StackObjectWithProperty->SetOnGetCustomRootNodes(UNiagaraStackObject::FOnGetCustomRootNodes::CreateLambda([PropertyName = ObjectProperty->GetPersistentIdentity().Names[0]](TArray<TSharedRef<IDetailTreeNode>> DefaultRootNodes, TArray<TSharedRef<IDetailTreeNode>>* Result)
+					{
+						for(TSharedRef<IDetailTreeNode>& RootNode : DefaultRootNodes)
+						{
+							TArray<TSharedRef<IDetailTreeNode>> ChildrenNodes;
+							RootNode->GetChildren(ChildrenNodes);
+							
+							for(TSharedRef<IDetailTreeNode> ChildNode : ChildrenNodes)
+							{
+								if(ChildNode->GetNodeName() == PropertyName)
+								{
+									Result->Add(ChildNode);
+								}
+							}
+						}
+					}));
 				}
+				
+				NewChildren.Add(StackObjectWithProperty);
 			}
 		}
 	}
