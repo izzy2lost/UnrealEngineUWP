@@ -93,8 +93,16 @@ public class ControllerIntegrationTest : IAsyncDisposable
 
 	public virtual async ValueTask DisposeAsync()
 	{
-		await Factory.DisposeAsync();
-		MongoDbInstance.Dispose();
+		try
+		{
+			await Factory.DisposeAsync();
+			MongoDbInstance.Dispose();
+		}
+		catch (Exception ex)
+		{
+			Console.WriteLine($"Exception running cleanup: {ex}");
+			throw;
+		}
 
 		GC.SuppressFinalize(this);
 	}

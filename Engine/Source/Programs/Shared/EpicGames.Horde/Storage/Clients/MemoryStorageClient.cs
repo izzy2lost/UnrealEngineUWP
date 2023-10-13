@@ -6,7 +6,6 @@ using System.Collections.Generic;
 using System.Threading;
 using System.Threading.Tasks;
 using Microsoft.Extensions.Logging.Abstractions;
-using EpicGames.Horde.Storage.Bundles;
 using EpicGames.Horde.Storage.Backends;
 
 namespace EpicGames.Horde.Storage.Clients
@@ -14,14 +13,14 @@ namespace EpicGames.Horde.Storage.Clients
 	/// <summary>
 	/// Stores a RefValue in the <see cref="MemoryStorageClient"/>
 	/// </summary>
-	public record class RefData(BundleNodeLocator Locator, ReadOnlyMemory<byte> Data);
+	public record class RefData(BlobLocator Locator, ReadOnlyMemory<byte> Data);
 
 	/// <summary>
 	/// Implementation of <see cref="IStorageClient"/> which stores data in memory. Not intended for production use.
 	/// </summary>
 	public class MemoryStorageClient : BundleStorageClient
 	{
-		record class ExportEntry(BundleNodeLocator Locator, int Rank, ReadOnlyMemory<byte> Data,  ExportEntry? Next);
+		record class ExportEntry(BlobLocator Locator, int Rank, ReadOnlyMemory<byte> Data,  ExportEntry? Next);
 
 		/// <summary>
 		/// Backend instance
@@ -68,14 +67,15 @@ namespace EpicGames.Horde.Storage.Clients
 		#region Aliases
 
 		/// <inheritdoc/>
-		public override Task AddAliasAsync(string name, BundleNodeLocator handle, int rank = 0, ReadOnlyMemory<byte> data = default, CancellationToken cancellationToken = default)
+		public override async Task AddAliasAsync(string name, BlobHandle handle, int rank = 0, ReadOnlyMemory<byte> data = default, CancellationToken cancellationToken = default)
 		{
-			_aliases.AddOrUpdate(name, _ => new ExportEntry(handle, rank, data, null), (_, entry) => new ExportEntry(handle, rank, data, entry));
-			return Task.CompletedTask;
+			await handle.FlushAsync(cancellationToken);
+			BlobLocator locator = handle.GetLocator();
+			_aliases.AddOrUpdate(name, _ => new ExportEntry(locator, rank, data, null), (_, entry) => new ExportEntry(locator, rank, data, entry));
 		}
 
 		/// <inheritdoc/>
-		public override Task RemoveAliasAsync(string name, BundleNodeLocator handle, CancellationToken cancellationToken = default)
+		public override Task RemoveAliasAsync(string name, BlobHandle handle, CancellationToken cancellationToken = default)
 		{
 			throw new NotSupportedException();
 		}
@@ -88,7 +88,7 @@ namespace EpicGames.Horde.Storage.Clients
 			{
 				for (; entry != null; entry = entry.Next)
 				{
-					BundleNodeHandle handle = CreateNodeHandle(entry.Locator);
+					BlobHandle handle = CreateBlobHandle(entry.Locator);
 					aliases.Add(new BlobAlias(handle, entry.Rank, entry.Data));
 				}
 			}
@@ -108,7 +108,7 @@ namespace EpicGames.Horde.Storage.Clients
 			RefData? refData;
 			if (_refs.TryGetValue(name, out refData))
 			{
-				return Task.FromResult<RefValue?>(new RefValue(CreateNodeHandle(refData.Locator), refData.Data)); 
+				return Task.FromResult<RefValue?>(new RefValue(CreateBlobHandle(refData.Locator), refData.Data)); 
 			}
 			else
 			{
@@ -117,10 +117,12 @@ namespace EpicGames.Horde.Storage.Clients
 		}
 
 		/// <inheritdoc/>
-		public override Task WriteRefAsync(RefName name, BundleNodeLocator target, ReadOnlyMemory<byte> data = default, RefOptions? options = null, CancellationToken cancellationToken = default)
+		public override async Task WriteRefAsync(RefName name, BlobHandle target, ReadOnlyMemory<byte> data = default, RefOptions? options = null, CancellationToken cancellationToken = default)
 		{
-			_refs[name] = new RefData(target, data);
-			return Task.CompletedTask;
+			await target.FlushAsync(cancellationToken);
+
+			BlobLocator locator = target.GetLocator();
+			_refs[name] = new RefData(locator, data);
 		}
 
 		#endregion

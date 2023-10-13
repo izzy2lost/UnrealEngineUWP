@@ -10,7 +10,6 @@ using System.Threading.Tasks;
 using System.Web;
 using EpicGames.Core;
 using Microsoft.Extensions.Logging;
-using EpicGames.Horde.Storage.Bundles;
 using EpicGames.Horde.Storage.Backends;
 
 namespace EpicGames.Horde.Storage.Clients
@@ -38,13 +37,13 @@ namespace EpicGames.Horde.Storage.Clients
 		#region Nodes
 
 		/// <inheritdoc/>
-		public override Task AddAliasAsync(string name, BundleNodeLocator locator, int rank = 0, ReadOnlyMemory<byte> data = default, CancellationToken cancellationToken = default)
+		public override Task AddAliasAsync(string name, BlobHandle target, int rank = 0, ReadOnlyMemory<byte> data = default, CancellationToken cancellationToken = default)
 		{
 			throw new NotSupportedException("Http storage client does not currently support aliases.");
 		}
 
 		/// <inheritdoc/>
-		public override Task RemoveAliasAsync(string name, BundleNodeLocator locator, CancellationToken cancellationToken = default)
+		public override Task RemoveAliasAsync(string name, BlobHandle target, CancellationToken cancellationToken = default)
 		{
 			throw new NotSupportedException("Http storage client does not currently support aliases.");
 		}
@@ -143,7 +142,7 @@ namespace EpicGames.Horde.Storage.Clients
 							ReadRefResponse? data = await response.Content.ReadFromJsonAsync<ReadRefResponse>(cancellationToken: cancellationToken);
 							_logger.LogDebug("Read ref {RefName} -> {Blob}", name, data!.Target);
 
-							BundleNodeHandle handle = CreateNodeHandle(BundleNodeLocator.FromBlobLocator(data.Target));
+							BlobHandle handle = CreateBlobHandle(data.Target);
 							return new RefValue(handle, data.Data);
 						}
 					}
@@ -152,13 +151,16 @@ namespace EpicGames.Horde.Storage.Clients
 		}
 
 		/// <inheritdoc/>
-		public override async Task WriteRefAsync(RefName name, BundleNodeLocator locator, ReadOnlyMemory<byte> data, RefOptions? options = null, CancellationToken cancellationToken = default)
+		public override async Task WriteRefAsync(RefName name, BlobHandle target, ReadOnlyMemory<byte> data, RefOptions? options = null, CancellationToken cancellationToken = default)
 		{
+			await target.FlushAsync(cancellationToken);
+			BlobLocator locator = target.GetLocator();
+
 			_logger.LogDebug("Writing ref {RefName} -> {RefTarget}", name, locator);
 			using (HttpClient httpClient = _createClient())
 			{
 				WriteRefRequest request = new WriteRefRequest();
-				request.Target = locator.ToBlobLocator();
+				request.Target = locator;
 				request.Data = data.ToArray();
 				request.Options = options;
 

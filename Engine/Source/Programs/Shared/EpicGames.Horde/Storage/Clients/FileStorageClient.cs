@@ -7,7 +7,6 @@ using System.Threading.Tasks;
 using EpicGames.Core;
 using EpicGames.Horde.Storage.Backends;
 using Microsoft.Extensions.Logging;
-using EpicGames.Horde.Storage.Bundles;
 
 namespace EpicGames.Horde.Storage.Clients
 {
@@ -40,7 +39,7 @@ namespace EpicGames.Horde.Storage.Clients
 		public async ValueTask<BlobHandle> ReadRefAsync(FileReference file)
 		{
 			string text = await FileReference.ReadAllTextAsync(file);
-			return CreateNodeHandle(BundleNodeLocator.Parse(text));
+			return CreateBlobHandle(new BlobLocator(text));
 		}
 
 		FileReference GetRefFile(RefName name) => FileReference.Combine(_rootDir, name.ToString() + ".ref");
@@ -48,13 +47,13 @@ namespace EpicGames.Horde.Storage.Clients
 		#region Aliases
 
 		/// <inheritdoc/>
-		public override Task AddAliasAsync(string name, BundleNodeLocator locator, int rank = 0, ReadOnlyMemory<byte> data = default, CancellationToken cancellationToken = default)
+		public override Task AddAliasAsync(string name, BlobHandle handle, int rank = 0, ReadOnlyMemory<byte> data = default, CancellationToken cancellationToken = default)
 		{
 			throw new NotSupportedException("File storage client does not currently support aliases.");
 		}
 
 		/// <inheritdoc/>
-		public override Task RemoveAliasAsync(string name, BundleNodeLocator locator, CancellationToken cancellationToken = default)
+		public override Task RemoveAliasAsync(string name, BlobHandle handle, CancellationToken cancellationToken = default)
 		{
 			throw new NotSupportedException("File storage client does not currently support aliases.");
 		}
@@ -93,7 +92,7 @@ namespace EpicGames.Horde.Storage.Clients
 			_logger.LogInformation("Reading {File}", file);
 			string[] lines = await FileReference.ReadAllLinesAsync(file, cancellationToken);
 
-			BlobHandle handle = CreateNodeHandle(BundleNodeLocator.Parse(lines[0].Trim()));
+			BlobHandle handle = CreateBlobHandle(new BlobLocator(lines[0].Trim()));
 			ReadOnlyMemory<byte> data = ReadOnlyMemory<byte>.Empty;
 			if (lines.Length >= 2)
 			{
@@ -104,8 +103,11 @@ namespace EpicGames.Horde.Storage.Clients
 		}
 
 		/// <inheritdoc/>
-		public override async Task WriteRefAsync(RefName name, BundleNodeLocator locator, ReadOnlyMemory<byte> data, RefOptions? options = null, CancellationToken cancellationToken = default)
+		public override async Task WriteRefAsync(RefName name, BlobHandle target, ReadOnlyMemory<byte> data, RefOptions? options = null, CancellationToken cancellationToken = default)
 		{
+			await target.FlushAsync(cancellationToken);
+			BlobLocator locator = target.GetLocator();
+
 			FileReference file = GetRefFile(name);
 			DirectoryReference.CreateDirectory(file.Directory);
 			_logger.LogInformation("Writing {File}", file);

@@ -486,7 +486,8 @@ namespace EpicGames.Horde.Storage.Bundles
 
 						foreach (AliasInfo alias in node.Aliases)
 						{
-							await store.AddAliasAsync(alias.Name, nodeLocator, alias.Rank, alias.Data);
+							BlobHandle target = store.CreateBlobHandle(nodeLocator.ToBlobLocator());
+							await store.AddAliasAsync(alias.Name, target, alias.Rank, alias.Data, CancellationToken.None);
 						}
 					}
 

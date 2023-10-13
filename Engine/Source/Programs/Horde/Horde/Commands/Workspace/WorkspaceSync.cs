@@ -3,7 +3,6 @@
 using System.Diagnostics;
 using EpicGames.Core;
 using EpicGames.Horde.Storage;
-using EpicGames.Horde.Storage.Bundles;
 using EpicGames.Horde.Storage.Clients;
 using EpicGames.Horde.Storage.Nodes;
 using Microsoft.Extensions.Logging;
@@ -56,7 +55,7 @@ namespace Horde.Commands.Workspace
 			else if (Node != null)
 			{
 				using IStorageClient store = CreateStorageClient();
-				BlobHandle handle = ((BundleStorageClient)store).CreateNodeHandle(BundleNodeLocator.Parse(Node));
+				BlobHandle handle = store.CreateBlobHandle(new BlobLocator(Node));
 				return await ExecuteInternalAsync(store, handle, logger);
 			}
 			else
