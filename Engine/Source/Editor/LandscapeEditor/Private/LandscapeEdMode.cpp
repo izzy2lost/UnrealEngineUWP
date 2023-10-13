@@ -3538,7 +3538,7 @@ ALandscape* FEdModeLandscape::ChangeComponentSetting(int32 NumComponentsX, int32
 					NewMaxY = NewMinY + NewVertsY - 1;
 
 					// offset landscape to component boundary
-					LandscapeOffset = FVector(NewMinX, NewMinY, 0) * OldLandscape->GetActorScale();
+					LandscapeOffset = OldLandscape->GetActorTransform().TransformVector(FVector(NewMinX, NewMinY, 0));
 					LandscapeOffsetQuads = FIntPoint(NewMinX, NewMinY);
 				}
 

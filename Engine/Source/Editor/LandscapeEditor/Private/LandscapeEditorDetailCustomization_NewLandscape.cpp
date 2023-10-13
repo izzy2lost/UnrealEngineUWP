@@ -1064,8 +1064,8 @@ FReply FLandscapeEditorDetailCustomization_NewLandscape::OnCreateButtonClicked()
 	
 	const FIntPoint TotalLandscapeComponentSize { UISettings->NewLandscape_ComponentCount.X, UISettings->NewLandscape_ComponentCount.Y };
 
-	const int32 ComponentCountX = bNeedsLandscapeRegions ? UISettings->WorldPartitionRegionSize : TotalLandscapeComponentSize.X;
-	const int32 ComponentCountY = bNeedsLandscapeRegions ? UISettings->WorldPartitionRegionSize : TotalLandscapeComponentSize.Y;
+	const int32 ComponentCountX = bNeedsLandscapeRegions ? FMath::Min(static_cast<int32>(UISettings->WorldPartitionRegionSize), TotalLandscapeComponentSize.X) : TotalLandscapeComponentSize.X;
+	const int32 ComponentCountY = bNeedsLandscapeRegions ? FMath::Min(static_cast<int32>(UISettings->WorldPartitionRegionSize), TotalLandscapeComponentSize.Y) : TotalLandscapeComponentSize.Y;
 	const int32 QuadsPerComponent = UISettings->NewLandscape_SectionsPerComponent * QuadsPerSection;
 	const int32 SizeX = ComponentCountX * QuadsPerComponent + 1;
 	const int32 SizeY = ComponentCountY * QuadsPerComponent + 1;
