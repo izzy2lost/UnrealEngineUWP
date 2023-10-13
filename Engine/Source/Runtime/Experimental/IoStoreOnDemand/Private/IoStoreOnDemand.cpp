@@ -586,6 +586,7 @@ TIoStatusOr<FOnDemandToc> LoadTocFromUrl(const FString& ServiceUrl, const FStrin
 		TAnsiStringBuilder<256> Url;
 
 		Url << "/" << TocPath;
+
 		UE_LOG(LogIas, Log, TEXT("Fetching TOC '%s/%s' (#%d/%d)"), *ServiceUrl, *TocPath, Attempt + 1, RetryCount);
 
 		TIoStatusOr<FOnDemandToc> Toc;
@@ -1624,6 +1625,10 @@ void FIoStoreOnDemandModule::InitializeInternal()
 			{
 				Endpoint.ServiceUrls.Add(FString(UrlView.Left(7 +  Delim)));
 				Endpoint.TocPath = UrlView.RightChop(Endpoint.ServiceUrls[0].Len() + 1);
+
+				// Since the user has provided a url to download the .iochunktoc from we should
+				// assume that they want to download it rather than use anything on disk.
+				Endpoint.bForceTocDownload = true;
 			}
 		}
 	}

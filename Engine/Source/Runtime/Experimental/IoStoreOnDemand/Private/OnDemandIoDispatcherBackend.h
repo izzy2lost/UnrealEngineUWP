@@ -24,6 +24,8 @@ struct FOnDemandEndpoint
 	TArray<FString> ServiceUrls;
 	FString TocPath;
 
+	bool bForceTocDownload = false;
+
 	bool IsValid() const
 	{
 		return (DistributionUrl.Len() > 0 || ServiceUrls.Num() > 0) && TocPath.Len() > 0;
