@@ -220,4 +220,6 @@ namespace FPhysicsAssetUtils
 	* Whether or not Constraints are allowed to be created (due to asset list filtering)
 	*/
 	PHYSICSUTILITIES_API bool CanCreateConstraints();
+
+	PHYSICSUTILITIES_API void SanitizeRestrictedContent(UPhysicsAsset* PhysAsset);
 };
