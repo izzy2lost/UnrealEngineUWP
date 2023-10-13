@@ -715,19 +715,8 @@ void FPrimitiveSceneInfo::CacheNaniteMaterialBins(FScene* Scene, const TArrayVie
 
 		if (UseNaniteComputeMaterials())
 		{
-			// Base Pass
-			{
-				const FNaniteShadingPipelines& ShadingPipelines = Scene->NaniteShadingPipelines[ENaniteMeshPass::BasePass];
-				Scene->NaniteShadingCommands[ENaniteMeshPass::BasePass] = MakeShared<FNaniteShadingCommands>();
-				Nanite::BuildShadingCommands(*Scene, ShadingPipelines, *Scene->NaniteShadingCommands[ENaniteMeshPass::BasePass]);
-			}
-
-			// Lumen Cards
-			{
-				const FNaniteShadingPipelines& ShadingPipelines = Scene->NaniteShadingPipelines[ENaniteMeshPass::LumenCardCapture];
-				Scene->NaniteShadingCommands[ENaniteMeshPass::LumenCardCapture] = MakeShared<FNaniteShadingCommands>();
-				Nanite::BuildShadingCommands(*Scene, ShadingPipelines, *Scene->NaniteShadingCommands[ENaniteMeshPass::LumenCardCapture]);
-			}
+			Scene->NaniteShadingPipelines[ENaniteMeshPass::BasePass].bBuildCommands = true;
+			Scene->NaniteShadingPipelines[ENaniteMeshPass::LumenCardCapture].bBuildCommands = true;
 		}
 	}
 }
@@ -861,6 +850,9 @@ void FPrimitiveSceneInfo::RemoveCachedNaniteMaterialBins()
 			const FNaniteShadingBin& ShadingBin = NanitePassShadingBins[ShadingBinIndex];
 			ShadingPipelines.Unregister(ShadingBin);
 		}
+
+		// Need to rebuild the shading commands list
+		ShadingPipelines.bBuildCommands = true;
 
 		Visibility.RemoveReferences(this);
 

@@ -297,7 +297,7 @@ void FMaterialShader::SetParameters(
 		FMaterialRenderContext MaterialRenderContext(MaterialRenderProxy, Material, &View);
 		bUniformExpressionCacheNeedsDelete = true;
 		UniformExpressionCache = new FUniformExpressionCache();
-		MaterialRenderProxy->EvaluateUniformExpressions(FRHICommandListExecutor::GetImmediateCommandList(), *UniformExpressionCache, MaterialRenderContext);
+		MaterialRenderProxy->EvaluateUniformExpressions(FRHICommandListImmediate::Get(), *UniformExpressionCache, MaterialRenderContext);
 	}
 
 	SetUniformBufferParameter(BatchedParameters, MaterialUniformBuffer, UniformExpressionCache->UniformBuffer);

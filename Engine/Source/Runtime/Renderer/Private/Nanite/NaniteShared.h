@@ -872,6 +872,8 @@ public:
 		return PipelineMap;
 	}
 
+	bool bBuildCommands = true;
+
 private:
 	TBitArray<> PipelineBins;
 	FNaniteShadingPipelineMap PipelineMap;

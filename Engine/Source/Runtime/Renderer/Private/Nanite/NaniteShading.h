@@ -36,9 +36,8 @@ FShadeBinning ShadeBinning(
 );
 
 void BuildShadingCommands(
-	const FScene& Scene,
-	const FNaniteShadingPipelines& ShadingPipelines,
-	FNaniteShadingCommands& ShadingCommands
+	FScene& Scene,
+	ENaniteMeshPass::Type MeshPass
 );
 
 bool LoadShadingPipeline(
@@ -50,6 +49,7 @@ bool LoadShadingPipeline(
 
 void DispatchBasePass(
 	FRDGBuilder& GraphBuilder,
+	FNaniteShadingCommands& ShadingCommands,
 	const FSceneRenderer& SceneRenderer,
 	const FSceneTextures& SceneTextures,
 	const FRenderTargetBindingSlots& BasePassRenderTargets,

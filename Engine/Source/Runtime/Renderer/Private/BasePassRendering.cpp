@@ -1362,8 +1362,10 @@ void FDeferredShadingSceneRenderer::RenderBasePassInternal(
 
 			if (UseNaniteComputeMaterials())
 			{
+				Nanite::BuildShadingCommands(*Scene, ENaniteMeshPass::BasePass);
 				Nanite::DispatchBasePass(
 					GraphBuilder,
+					Scene->NaniteShadingCommands[ENaniteMeshPass::BasePass],
 					*this,
 					SceneTextures,
 					BasePassRenderTargets,
