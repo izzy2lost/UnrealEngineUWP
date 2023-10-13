@@ -5941,6 +5941,11 @@ void FSequencer::ClearFilters()
 void FSequencer::SynchronizeExternalSelectionWithSequencerSelection()
 {
 	using namespace UE::Sequencer;
+	
+	if (!ViewModel)
+	{
+		return;
+	}
 
 	if ( bUpdatingSequencerSelection || !IsLevelEditorSequencer() )
 	{
