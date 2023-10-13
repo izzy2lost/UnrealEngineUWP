@@ -41,9 +41,12 @@ namespace UE::MovieScene
 		/** Get or create the previewer for the given sequence instance */
 		FCameraShakePreviewer& GetPreviewer(FInstanceHandle InstanceHandle);
 		/** Update all previewers by using the update context of each matching sequence instance */
-		void UpdateAllPreviewers(FInstanceRegistry* InstanceRegistry);
+		void UpdateAllPreviewers();
 		/** Whether there is any previewer with any shake */
 		bool HasAnyShake() const;
+
+	private:
+		void OnLevelViewportClientListChanged();
 
 	private:
 		TMap<FInstanceHandle, FCameraShakePreviewer> Previewers;

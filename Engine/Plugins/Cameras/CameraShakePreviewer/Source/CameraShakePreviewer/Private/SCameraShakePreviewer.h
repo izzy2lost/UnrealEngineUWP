@@ -40,7 +40,7 @@ struct FTogglePreviewCameraShakesParams;
 class FCameraShakePreviewUpdater : public FTickableEditorObject
 {
 public:
-	FCameraShakePreviewUpdater();
+	FCameraShakePreviewUpdater(UWorld* InWorld);
 	virtual ~FCameraShakePreviewUpdater();
 
 	// FTickableObject Interface
@@ -54,10 +54,7 @@ public:
 	void RemoveAllCameraShakesFromSource(const UCameraShakeSourceComponent* SourceComponent);
 	void RemoveAllCameraShakes();
 
-	void ModifyCamera(FEditorViewportViewModifierParams& Params);
-
-private:
-	void OnObjectsReplaced(const TMap<UObject*, UObject*>& ReplacementMap);
+	FCameraShakePreviewer& GetPreviewer() { return Previewer; }
 
 private:
 	FCameraShakePreviewer Previewer;
@@ -84,8 +81,8 @@ public:
 
 private:
 	void Populate();
-	UWorld* FindCurrentWorld();
 	void Refresh();
+	void UpdateActiveViewportAndWorld();
 
 	void OnTogglePreviewCameraShakes(const FTogglePreviewCameraShakesParams& Params);
 
@@ -108,8 +105,6 @@ private:
 	void OnNewCurrentLevel();
 	void OnMapLoaded(const FString&  Filename, bool bAsTemplate);
 
-	void OnModifyView(FEditorViewportViewModifierParams& Params);
-
 private:
 	TArray<TSharedPtr<FCameraShakeData>> CameraShakes;
 	TUniquePtr<FCameraShakePreviewUpdater> CameraShakePreviewUpdater;
@@ -118,9 +113,11 @@ private:
 	TSharedPtr<SButton> PlayStopSelectedButton;
 
 	FCameraShakePreviewerModule* CameraShakePreviewerModule;
+
 	FLevelEditorViewportClient* ActiveViewportClient;
-	int ActiveViewportIndex;
+	int32 ActiveViewportIndex;
 
 	TWeakObjectPtr<UWorld> WeakCurrentWorld;
+
 	bool bNeedsRefresh;
 };

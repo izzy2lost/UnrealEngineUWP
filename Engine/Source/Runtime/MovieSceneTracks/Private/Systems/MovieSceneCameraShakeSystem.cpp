@@ -20,6 +20,7 @@
 
 #if WITH_EDITOR
 #include "Editor.h"
+#include "LevelEditorViewport.h"
 #endif  // WITH_EDITOR
 
 #include UE_INLINE_GENERATED_CPP_BY_NAME(MovieSceneCameraShakeSystem)
@@ -150,10 +151,12 @@ FCameraShakePreviewerLinkerExtension::FCameraShakePreviewerLinkerExtension(UMovi
 
 FCameraShakePreviewerLinkerExtension::~FCameraShakePreviewerLinkerExtension()
 {
+	GEditor->OnLevelViewportClientListChanged().RemoveAll(this);
+
 	for (TPair<FInstanceHandle, FCameraShakePreviewer>& Pair : Previewers)
 	{
 		FCameraShakePreviewer& Previewer = Pair.Value;
-		Previewer.UnRegisterViewModifier();
+		Previewer.UnRegisterViewModifiers();
 	}
 	Previewers.Reset();
 }
@@ -170,13 +173,30 @@ FCameraShakePreviewer& FCameraShakePreviewerLinkerExtension::GetPreviewer(FInsta
 		return *Previewer;
 	}
 
-	FCameraShakePreviewer& NewPreviewer = Previewers.Add(InstanceHandle);
-	NewPreviewer.RegisterViewModifier();
+	if (Previewers.IsEmpty())
+	{
+		// This is our first previewer... let's start listening to viewports changing.
+		GEditor->OnLevelViewportClientListChanged().AddSP(this, &FCameraShakePreviewerLinkerExtension::OnLevelViewportClientListChanged);
+	}
+
+	UMovieSceneEntitySystemLinker* Linker = WeakLinker.Get();
+	FInstanceRegistry* InstanceRegistry = Linker->GetInstanceRegistry();
+	const FSequenceInstance& SequenceInstance = InstanceRegistry->GetInstance(InstanceHandle);
+	UObject* PlaybackContext = SequenceInstance.GetPlayer()->GetPlaybackContext();
+	UWorld* ContextWorld = PlaybackContext ? PlaybackContext->GetWorld() : nullptr;
+
+	FCameraShakePreviewer& NewPreviewer = Previewers.Add(InstanceHandle, ContextWorld);
+	NewPreviewer.RegisterViewModifiers([ContextWorld](FLevelEditorViewportClient* LevelVC) -> bool
+				{
+					return LevelVC->AllowsCinematicControl() && LevelVC->GetWorld() == ContextWorld;
+				});
 	return NewPreviewer;
 }
 
-void FCameraShakePreviewerLinkerExtension::UpdateAllPreviewers(FInstanceRegistry* InstanceRegistry)
+void FCameraShakePreviewerLinkerExtension::UpdateAllPreviewers()
 {
+	UMovieSceneEntitySystemLinker* Linker = WeakLinker.Get();
+	FInstanceRegistry* InstanceRegistry = Linker->GetInstanceRegistry();
 	const TSparseArray<FSequenceInstance>& Instances = InstanceRegistry->GetSparseInstances();
 	for (auto It = Instances.CreateConstIterator(); It; ++It)
 	{
@@ -210,6 +230,28 @@ bool FCameraShakePreviewerLinkerExtension::HasAnyShake() const
 		}
 	}
 	return false;
+}
+
+void FCameraShakePreviewerLinkerExtension::OnLevelViewportClientListChanged()
+{
+	// When viewports change, our shake previewers already correctly unregister from any removed viewport.
+	// However, we need to automatically register any *new* viewport that fits our requirements.
+	UMovieSceneEntitySystemLinker* Linker = WeakLinker.Get();
+	FInstanceRegistry* InstanceRegistry = Linker->GetInstanceRegistry();
+	for (TPair<FInstanceHandle, FCameraShakePreviewer> Pair : Previewers)
+	{
+		const FSequenceInstance& SequenceInstance = InstanceRegistry->GetInstance(Pair.Key);
+		UObject* PlaybackContext = SequenceInstance.GetPlayer()->GetPlaybackContext();
+		UWorld* ContextWorld = PlaybackContext ? PlaybackContext->GetWorld() : nullptr;
+
+		Pair.Value.RegisterViewModifiers(
+				[ContextWorld](FLevelEditorViewportClient* LevelVC)
+				{
+					return LevelVC->AllowsCinematicControl() && LevelVC->GetWorld() == ContextWorld;
+				},
+				// Ignore duplicate registrations.
+				true);
+	}
 }
 
 #endif  // WITH_EDITOR
@@ -697,8 +739,7 @@ void UMovieSceneCameraShakeEvaluatorSystem::OnRun(FSystemTaskPrerequisites& InPr
 		// The previewer only stores the delta time, and only computes shake results when the editor
 		// later processes viewports. We can therefore safely do this in parallel with the shake
 		// evaluation above.
-		FInstanceRegistry* InstanceRegistry = Linker->GetInstanceRegistry();
-		PreviewerExtension->UpdateAllPreviewers(InstanceRegistry);
+		PreviewerExtension->UpdateAllPreviewers();
 	}
 #endif  // WITH_EDITOR
 }

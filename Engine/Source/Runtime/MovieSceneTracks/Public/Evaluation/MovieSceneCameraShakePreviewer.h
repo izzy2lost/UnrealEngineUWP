@@ -38,13 +38,21 @@ struct FCameraShakePreviewerAddParams
 class MOVIESCENETRACKS_API FCameraShakePreviewer : public FGCObject
 {
 public:
-	FCameraShakePreviewer();
+	using FViewportFilter = TFunctionRef<bool(FLevelEditorViewportClient*)>;
+
+	FCameraShakePreviewer(UWorld* InWorld);
 	~FCameraShakePreviewer();
+
+	UWorld* GetWorld() const { return World; }
 
 	void ModifyView(FEditorViewportViewModifierParams& Params);
 
-	void RegisterViewModifier();
-	void UnRegisterViewModifier();
+	void RegisterViewModifiers(bool bIgnoreDuplicateRegistration = false);
+	void RegisterViewModifiers(FViewportFilter InViewportFilter, bool bIgnoreDuplicateRegistration = false);
+	void UnRegisterViewModifiers();
+
+	void RegisterViewModifier(FLevelEditorViewportClient* ViewportClient, bool bIgnoreDuplicateRegistration = false);
+	void UnRegisterViewModifier(FLevelEditorViewportClient* ViewportClient);
 
 	void Update(float DeltaTime, bool bIsPlaying);
 	void Scrub(float ScrubTime);
@@ -71,6 +79,8 @@ private:
 	void ResetModifiers();
 
 private:
+	UWorld* World;
+
 	TArray<FLevelEditorViewportClient*> RegisteredViewportClients;
 
 	struct FPreviewCameraShakeInfo

@@ -9,25 +9,30 @@
 #include "Camera/CameraShakeSourceComponent.h"
 #include "Camera/CameraModifier_CameraShake.h"
 
-FCameraShakePreviewer::FCameraShakePreviewer()
-	: LastDeltaTime(0.f)
+FCameraShakePreviewer::FCameraShakePreviewer(UWorld* InWorld)
+	: World(InWorld)
+	, LastDeltaTime(0.f)
 	, LastLocationModifier(FVector::ZeroVector)
 	, LastRotationModifier(FRotator::ZeroRotator)
 	, LastFOVModifier(0.f)
 {
+	// Handle camera shakes being recompiled.
+	FCoreUObjectDelegates::OnObjectsReplaced.AddRaw(this, &FCameraShakePreviewer::OnObjectsReplaced);
 }
 
 FCameraShakePreviewer::~FCameraShakePreviewer()
 {
-	if (!ensureMsgf(RegisteredViewportClients.Num() == 0, TEXT("Forgot to call UnRegisterViewModifier!")))
+	if (!ensureMsgf(RegisteredViewportClients.Num() == 0, TEXT("Forgot to call UnRegisterViewModifiers!")))
 	{
-		UnRegisterViewModifier();
+		UnRegisterViewModifiers();
 	}
+
+	FCoreUObjectDelegates::OnObjectsReplaced.RemoveAll(this);
 }
 
 UCameraShakeBase* FCameraShakePreviewer::AddCameraShake(const FCameraShakePreviewerAddParams& Params)
 {
-	UCameraShakeBase* NewShake = NewObject<UCameraShakeBase>(GetTransientPackage(), Params.ShakeClass);
+	UCameraShakeBase* NewShake = NewObject<UCameraShakeBase>(World, Params.ShakeClass);
 	ActiveShakes.Add({ NewShake, Params.SourceComponent, Params.GlobalStartTime });
 
 	FCameraShakeBaseStartParams StartParams;
@@ -211,7 +216,12 @@ void FCameraShakePreviewer::OnModifyView(FEditorViewportViewModifierParams& Para
 	}
 }
 
-void FCameraShakePreviewer::RegisterViewModifier()
+void FCameraShakePreviewer::RegisterViewModifiers(bool bIgnoreDuplicateRegistration)
+{
+	RegisterViewModifiers([](FLevelEditorViewportClient*) { return true; }, bIgnoreDuplicateRegistration);
+}
+
+void FCameraShakePreviewer::RegisterViewModifiers(FViewportFilter ViewportFilter, bool bIgnoreDuplicateRegistration)
 {
 	if (GEditor == nullptr)
 	{
@@ -221,20 +231,38 @@ void FCameraShakePreviewer::RegisterViewModifier()
 	// Register our view modifier on all appropriate viewports, and remember which viewports we did that on.
 	// We will later make sure to unregister on the same list, except for any viewport that somehow disappeared since,
 	// which we will be notified about with the OnLevelViewportClientListChanged event.
-	RegisteredViewportClients.Reset();
 	for (FLevelEditorViewportClient* LevelVC : GEditor->GetLevelViewportClients())
 	{		
-		if (LevelVC && LevelVC->AllowsCinematicControl() && LevelVC->GetViewMode() != VMI_Unknown)
+		if (LevelVC && 
+				LevelVC->GetViewMode() != VMI_Unknown &&
+				LevelVC->GetWorld() == World &&
+				ViewportFilter(LevelVC))
 		{
-			RegisteredViewportClients.Add(LevelVC);
-			LevelVC->ViewModifiers.AddRaw(this, &FCameraShakePreviewer::OnModifyView);
+			RegisterViewModifier(LevelVC, bIgnoreDuplicateRegistration);
 		}
 	}
-
-	GEditor->OnLevelViewportClientListChanged().AddRaw(this, &FCameraShakePreviewer::OnLevelViewportClientListChanged);
 }
 
-void FCameraShakePreviewer::UnRegisterViewModifier()
+void FCameraShakePreviewer::RegisterViewModifier(FLevelEditorViewportClient* ViewportClient, bool bIgnoreDuplicateRegistration)
+{
+	if (RegisteredViewportClients.Contains(ViewportClient))
+	{
+		// Already registered to this viewport.
+		ensureMsgf(bIgnoreDuplicateRegistration, TEXT("Given viewport is already registered."));
+		return;
+	}
+
+	RegisteredViewportClients.Add(ViewportClient);
+	ViewportClient->ViewModifiers.AddRaw(this, &FCameraShakePreviewer::OnModifyView);
+	if (RegisteredViewportClients.Num() == 1)
+	{
+		// If this is the first viewport, start listening to viewports changing.
+		GEditor->OnLevelViewportClientListChanged().AddRaw(this, &FCameraShakePreviewer::OnLevelViewportClientListChanged);
+	}
+}
+
+
+void FCameraShakePreviewer::UnRegisterViewModifiers()
 {
 	if (GEditor == nullptr)
 	{
@@ -250,6 +278,21 @@ void FCameraShakePreviewer::UnRegisterViewModifier()
 	RegisteredViewportClients.Reset();
 }
 
+void FCameraShakePreviewer::UnRegisterViewModifier(FLevelEditorViewportClient* ViewportClient)
+{
+	const int32 NumRemoved = RegisteredViewportClients.Remove(ViewportClient);
+	if (ensureMsgf(NumRemoved > 0, TEXT("The given viewport client wasn't registered.")))
+	{
+		// If this is the last viewport, stop listening to viewports changing.
+		if (RegisteredViewportClients.IsEmpty())
+		{
+			GEditor->OnLevelViewportClientListChanged().RemoveAll(this);
+		}
+
+		ViewportClient->ViewModifiers.RemoveAll(this);
+	}
+}
+
 void FCameraShakePreviewer::OnLevelViewportClientListChanged()
 {
 	if (GEditor != nullptr)
@@ -259,6 +302,21 @@ void FCameraShakePreviewer::OnLevelViewportClientListChanged()
 		TSet<FLevelEditorViewportClient*> PreviousViewportClients(RegisteredViewportClients);
 		TSet<FLevelEditorViewportClient*> NewViewportClients(GEditor->GetLevelViewportClients());
 		RegisteredViewportClients = PreviousViewportClients.Intersect(NewViewportClients).Array();
+
+		// Unregister ourselves from the viewport-change callback if we don't have any registered 
+		// viewports anymore.
+		if (RegisteredViewportClients.IsEmpty())
+		{
+			GEditor->OnLevelViewportClientListChanged().RemoveAll(this);
+		}
+
+		// Remove ourselves from the viewport that went away. It's probably not necessary since they
+		// will be destroyed, but better be safe.
+		TSet<FLevelEditorViewportClient*> RemovedViewportClients = PreviousViewportClients.Difference(NewViewportClients);
+		for (FLevelEditorViewportClient* RemovedViewportClient : RemovedViewportClients)
+		{
+			RemovedViewportClient->ViewModifiers.RemoveAll(this);
+		}
 	}
 }
 

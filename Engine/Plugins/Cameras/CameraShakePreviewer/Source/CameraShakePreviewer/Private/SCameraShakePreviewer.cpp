@@ -17,7 +17,7 @@
 
 #define LOCTEXT_NAMESPACE "CameraShakePreviewer"
 
-namespace UE::MovieScene
+namespace UE::Sequencer
 {
 
 UWorld* FindCameraShakePreviewerWorld()
@@ -58,31 +58,19 @@ struct FCameraShakeData
 	}
 };
 
-FCameraShakePreviewUpdater::FCameraShakePreviewUpdater()
+FCameraShakePreviewUpdater::FCameraShakePreviewUpdater(UWorld* InWorld)
+	: Previewer(InWorld)
 {
-	// Handle camera shakes being recompiled.
-	FCoreUObjectDelegates::OnObjectsReplaced.AddRaw(this, &FCameraShakePreviewUpdater::OnObjectsReplaced);
 }
 
 FCameraShakePreviewUpdater::~FCameraShakePreviewUpdater()
 {
-	FEditorSupportDelegates::PrepareToCleanseEditorObject.RemoveAll(this);
-	FCoreUObjectDelegates::OnObjectsReplaced.RemoveAll(this);
-}
-
-void FCameraShakePreviewUpdater::OnObjectsReplaced(const TMap<UObject*, UObject*>& ReplacementMap)
-{
-	Previewer.OnObjectsReplaced(ReplacementMap);
+	Previewer.UnRegisterViewModifiers();
 }
 
 void FCameraShakePreviewUpdater::Tick(float DeltaTime)
 {
 	Previewer.Update(DeltaTime, true);
-}
-
-void FCameraShakePreviewUpdater::ModifyCamera(FEditorViewportViewModifierParams& Params)
-{
-	Previewer.ModifyView(Params);
 }
 
 UCameraShakeBase* FCameraShakePreviewUpdater::AddCameraShake(TSubclassOf<UCameraShakeBase> ShakeClass, const FAddCameraShakeParams& Params)
@@ -314,11 +302,8 @@ void SCameraShakePreviewer::Construct(const FArguments& InArgs)
 		GEditor->OnLevelViewportClientListChanged().AddSP(this, &SCameraShakePreviewer::OnLevelViewportClientListChanged);
 	}
 
-	// Create our camera shake manager.
-	CameraShakePreviewUpdater = TUniquePtr<FCameraShakePreviewUpdater>(new FCameraShakePreviewUpdater());
-	ActiveViewportClient = nullptr;
-
 	// Populate the main list based on the current level.
+	UpdateActiveViewportAndWorld();
 	Populate();
 	bNeedsRefresh = false;
 }
@@ -326,11 +311,6 @@ void SCameraShakePreviewer::Construct(const FArguments& InArgs)
 SCameraShakePreviewer::~SCameraShakePreviewer()
 {
 	CameraShakePreviewUpdater = nullptr;
-
-	if (ActiveViewportClient != nullptr)
-	{
-		ActiveViewportClient->ViewModifiers.RemoveAll(this);
-	}
 
 	FEditorDelegates::MapChange.RemoveAll(this);
 	FEditorDelegates::NewCurrentLevel.RemoveAll(this);
@@ -361,7 +341,7 @@ TSharedRef<ITableRow> SCameraShakePreviewer::OnCameraShakesListGenerateRowWidget
 
 void SCameraShakePreviewer::Populate()
 {
-	UWorld* CurrentWorld = FindCurrentWorld();
+	UWorld* CurrentWorld =  WeakCurrentWorld.Get();
 	if (!ensureMsgf(CurrentWorld, TEXT("Could not find current world instance.")))
 	{
 		return;
@@ -437,12 +417,6 @@ void SCameraShakePreviewer::Populate()
 	CameraShakesListView->RequestListRefresh();
 }
 
-UWorld* SCameraShakePreviewer::FindCurrentWorld()
-{
-	WeakCurrentWorld = UE::MovieScene::FindCameraShakePreviewerWorld();
-	return WeakCurrentWorld.Get();
-}
-
 void SCameraShakePreviewer::Refresh()
 {
 	bNeedsRefresh = true;
@@ -451,6 +425,9 @@ void SCameraShakePreviewer::Refresh()
 void SCameraShakePreviewer::Tick(const FGeometry& AllottedGeometry, const double InCurrentTime, const float InDeltaTime)
 {
 	SCompoundWidget::Tick(AllottedGeometry, InCurrentTime, InDeltaTime);
+
+	// See if the world or active viewport have changed.
+	UpdateActiveViewportAndWorld();
 
 	// Update our list of camera shakes if needed.
 	if (bNeedsRefresh)
@@ -518,66 +495,73 @@ void SCameraShakePreviewer::Tick(const FGeometry& AllottedGeometry, const double
 			}
 		}
 	}
+}
 
-	// See if the active viewport has changed.
-	if (GEditor)
+void SCameraShakePreviewer::UpdateActiveViewportAndWorld()
+{
+	if (!GEditor)
 	{
-		FViewport* ActiveViewport = GEditor->GetActiveViewport();
-		if ((ActiveViewportClient == nullptr && ActiveViewport != nullptr) ||
-			(ActiveViewportClient != nullptr && ActiveViewportClient->Viewport != ActiveViewport))
+		ActiveViewportIndex = INDEX_NONE;
+		WeakCurrentWorld = nullptr;
+		CameraShakePreviewUpdater.Reset();
+		return;
+	}
+
+	// Update the active viewport and index. This is used for showing viewport info in the UI.
+	ActiveViewportIndex = 0;
+	ActiveViewportClient = nullptr;
+	FViewport* const ActiveViewport = GEditor->GetActiveViewport();
+	for (FLevelEditorViewportClient* ViewportClient : GEditor->GetLevelViewportClients())
+	{
+		if (ViewportClient->Viewport == ActiveViewport)
 		{
-			ActiveViewportIndex = 0;
-			FLevelEditorViewportClient* NewActiveViewportClient = nullptr;
-			if (ActiveViewport != nullptr)
-			{
-				// Find the new active viewport client.
-				const TArray<FLevelEditorViewportClient*>& ViewportClients = GEditor->GetLevelViewportClients();
-				for (FLevelEditorViewportClient* ViewportClient : ViewportClients)
-				{
-					++ActiveViewportIndex;
-					if (ViewportClient->Viewport == ActiveViewport)
+			ActiveViewportClient = ViewportClient;
+			break;
+		}
+		++ActiveViewportIndex;
+	}
+	if (!ActiveViewportClient)
+	{
+		ActiveViewportIndex = INDEX_NONE;
+	}
+
+	// Always use the first editor world we can find. If this is a different world than what we
+	// were looking at before, re-create the shake previewer.
+	UWorld* const PreviousWorld = WeakCurrentWorld.Get();
+	UWorld* const NewWorld = UE::Sequencer::FindCameraShakePreviewerWorld();
+	if (PreviousWorld != NewWorld)
+	{
+		if (NewWorld)
+		{
+			CameraShakePreviewUpdater.Reset(new FCameraShakePreviewUpdater(NewWorld));
+
+			// Immediately register the previewer with any viewport that wants shaking.
+			CameraShakePreviewUpdater->GetPreviewer().RegisterViewModifiers(
+					[this, NewWorld](FLevelEditorViewportClient* LevelVC)
 					{
-						NewActiveViewportClient = ViewportClient;
-						break;
-					}
-				}
-			}
-			// else: no new active viewport client, and leave the index at 0.
-
-			if (NewActiveViewportClient != ActiveViewportClient)
-			{
-				// Clear the old viewport's callbacks.
-				if (ActiveViewportClient != nullptr)
-				{
-					ActiveViewportClient->ViewModifiers.RemoveAll(this);
-				}
-
-				ActiveViewportClient = NewActiveViewportClient;
-
-				// Add to the new viewport's callbacks if necessary.
-				if (ActiveViewportClient != nullptr)
-				{
-					if (ActiveViewportClient != nullptr && CameraShakePreviewerModule->HasCameraShakesPreview(ActiveViewportClient))
-					{
-						ActiveViewportClient->ViewModifiers.AddRaw(this, &SCameraShakePreviewer::OnModifyView);
-					}
-				}
-			}
+						return LevelVC->GetWorld() == NewWorld && 
+							CameraShakePreviewerModule->HasCameraShakesPreview(LevelVC);
+					});
+		}
+		else
+		{
+			CameraShakePreviewUpdater.Reset();
 		}
 	}
+	WeakCurrentWorld = NewWorld;
 }
 
 void SCameraShakePreviewer::OnTogglePreviewCameraShakes(const FTogglePreviewCameraShakesParams& Params)
 {
-	if (Params.ViewportClient == ActiveViewportClient)
+	if (Params.ViewportClient && Params.ViewportClient->GetWorld() == WeakCurrentWorld)
 	{
-		if (Params.bPreviewCameraShakes && ensure(!Params.ViewportClient->ViewModifiers.IsBoundToObject(this)))
+		if (Params.bPreviewCameraShakes)
 		{
-			ActiveViewportClient->ViewModifiers.AddRaw(this, &SCameraShakePreviewer::OnModifyView);
+			CameraShakePreviewUpdater->GetPreviewer().RegisterViewModifier(Params.ViewportClient);
 		}
-		else if (!Params.bPreviewCameraShakes && ensure(Params.ViewportClient->ViewModifiers.IsBoundToObject(this)))
+		else if (!Params.bPreviewCameraShakes)
 		{
-			ActiveViewportClient->ViewModifiers.RemoveAll(this);
+			CameraShakePreviewUpdater->GetPreviewer().UnRegisterViewModifier(Params.ViewportClient);
 		}
 	}
 }
@@ -596,9 +580,9 @@ void SCameraShakePreviewer::OnCameraShakesListSectionChanged(TSharedPtr<FCameraS
 
 FText SCameraShakePreviewer::GetActiveViewportName() const
 {
-	if (ActiveViewportIndex > 0)
+	if (ActiveViewportIndex != INDEX_NONE)
 	{
-		return FText::FromString(LexToString(ActiveViewportIndex));
+		return FText::FromString(LexToString(ActiveViewportIndex + 1));
 	}
 	return FText::FromString("<None>");
 }
@@ -690,17 +674,18 @@ void SCameraShakePreviewer::PlayCameraShake(TSharedPtr<FCameraShakeData> CameraS
 
 void SCameraShakePreviewer::OnLevelViewportClientListChanged()
 {
-	if (ActiveViewportClient != nullptr)
+	// When viewports change, our shake previewer already correctly unregisters from any removed viewport.
+	// However, we need to automatically register any *new* viewport that fits our requirements.
+	if (UWorld* CurrentWorld = WeakCurrentWorld.Get())
 	{
-		const TArray<FLevelEditorViewportClient*> ViewportClients = GEditor->GetLevelViewportClients();
-		const bool bFound = ViewportClients.Contains(ActiveViewportClient);
-		if (!bFound)
-		{
-			// Our target viewport has been removed from the list... let's forget it.
-			// TODO: unsafe? maybe we don't actually need to cleanup?
-			ActiveViewportClient->ViewModifiers.RemoveAll(this);
-			ActiveViewportClient = nullptr;
-		}
+		CameraShakePreviewUpdater->GetPreviewer().RegisterViewModifiers(
+				[this, CurrentWorld](FLevelEditorViewportClient* LevelVC)
+				{
+					return LevelVC->GetWorld() == CurrentWorld && 
+						CameraShakePreviewerModule->HasCameraShakesPreview(LevelVC);
+				},
+				// Ignore duplicate registrations.
+				true);
 	}
 }
 
@@ -749,9 +734,5 @@ void SCameraShakePreviewer::PostUndo(bool bSuccess)
 	Refresh();
 }
 
-void SCameraShakePreviewer::OnModifyView(FEditorViewportViewModifierParams& Params)
-{
-	CameraShakePreviewUpdater->ModifyCamera(Params);
-}
-
 #undef LOCTEXT_NAMESPACE
+
