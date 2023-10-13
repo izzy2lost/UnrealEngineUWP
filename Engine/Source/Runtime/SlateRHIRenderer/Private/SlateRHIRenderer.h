@@ -6,10 +6,12 @@
 #include "Textures/SlateShaderResource.h"
 #include "Rendering/DrawElements.h"
 #include "RHI.h"
+#include "RenderCommandFence.h"
 #include "RenderResource.h"
 #include "SlateRHIResourceManager.h"
 #include "UnrealClient.h"
 #include "Rendering/SlateRenderer.h"
+#include "Rendering/SlateRendererSettings.h"
 #include "Rendering/SlateDrawBuffer.h"
 #include "Slate/SlateTextures.h"
 #include "RendererInterface.h"
@@ -305,6 +307,8 @@ private:
 	bool bIsStandaloneStereoOnlyDevice;
 	bool bTakingAScreenShot;
 	bool bUpdateHDRDisplayInformation;
+	ESlatePostRT bShrinkPostBufferRequested;
+	FRenderCommandFence SlatePostRTFences[(uint8)ESlatePostRT::Num];
 	FIntRect ScreenshotRect;
 	FViewportInfo* ScreenshotViewportInfo;
 	TArray<FColor>* OutScreenshotData;

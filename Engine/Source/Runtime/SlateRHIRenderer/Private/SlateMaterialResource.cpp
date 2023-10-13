@@ -1,6 +1,8 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 
 #include "SlateMaterialResource.h"
+#include "Rendering/SlateRendererSettings.h"
+#include "Engine/Texture.h"
 #include "Materials/MaterialInstanceDynamic.h"
 #include "Materials/MaterialRenderProxy.h"
 #include "MaterialShared.h"
@@ -70,6 +72,7 @@ FSlateMaterialResource::FSlateMaterialResource(const UMaterialInterface& InMater
 	, TextureMaskResource( InTextureMask )
 	, Width(FMath::RoundToInt(InImageSize.X))
 	, Height(FMath::RoundToInt(InImageSize.Y))
+	, CachedSlatePostBuffers(ESlatePostRT::None)
 {
 #if SLATE_CHECK_UOBJECT_RENDER_RESOURCES
 	SlateMaterialResource::CheckInvalidUMaterial(InMaterialResource, NAME_None);
@@ -101,6 +104,11 @@ FSlateMaterialResource::~FSlateMaterialResource()
 	}
 }
 
+ESlatePostRT FSlateMaterialResource::GetUsedSlatePostBuffers() const
+{
+	return CachedSlatePostBuffers;
+}
+
 bool FSlateMaterialResource::IsResourceValid() const
 {
 	if (MaterialProxy && MaterialObject)
@@ -122,6 +130,28 @@ void FSlateMaterialResource::UpdateMaterial(const UMaterialInterface& InMaterial
 
 	MaterialObjectWeakPtr = MaterialObject;
 	UpdateMaterialName();
+
+	if (MaterialObject)
+	{
+		// Quality / Feature level irrelevant since flag to search all levels for both is true
+		TArray<UTexture*> OutUsedTextures;
+		MaterialObject->GetUsedTextures(OutUsedTextures, EMaterialQualityLevel::Num, true, ERHIFeatureLevel::Num, true);
+
+		CachedSlatePostBuffers = ESlatePostRT::None;
+		for (const UTexture* OutUsedTexture : OutUsedTextures)
+		{
+			for (const TPair<ESlatePostRT, FSlatePostSettings>& SlatePostSetting : USlateRendererSettings::Get()->SlatePostSettings)
+			{
+				const ESlatePostRT SlatePostBitflag = SlatePostSetting.Key;
+				const FSlatePostSettings& SlatePostSettingValue = SlatePostSetting.Value;
+
+				if (SlatePostSettingValue.bEnabled && OutUsedTexture && OutUsedTexture->GetPathName() == SlatePostSettingValue.GetPathToSlatePostRT())
+				{
+					CachedSlatePostBuffers |= SlatePostBitflag;
+				}
+			}
+		}
+	}
 
 	SlateMaterialResource::CheckInvalidMaterialProxy(MaterialProxy, DebugName);
 
@@ -159,6 +189,8 @@ void FSlateMaterialResource::ResetMaterial()
 	MaterialObjectWeakPtr = nullptr;
 	UpdateMaterialName();
 #endif
+
+	CachedSlatePostBuffers = ESlatePostRT::None;
 
 	TextureMaskResource = nullptr;
 	if (SlateProxy)

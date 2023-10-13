@@ -4,6 +4,7 @@
 
 #include "CoreMinimal.h"
 #include "Rendering/RenderingCommon.h"
+#include "Rendering/SlateRendererSettings.h"
 #include "Layout/Clipping.h"
 #include "Stats/Stats.h"
 #include "SlateGlobals.h"
@@ -255,6 +256,8 @@ public:
 
 	bool CompositeHDRViewports() const { return bCompositeHDRViewports; }
 
+	ESlatePostRT GetUsedSlatePostBuffers() const { return UsedSlatePostBuffers; }
+
 	void SetCompositeHDRViewports(bool bInCompositeHDRViewports) { bCompositeHDRViewports = bInCompositeHDRViewports; }
 
 	/** 
@@ -480,4 +483,7 @@ private:
 
 	// true if viewports get composited as a separate pass, instead of being rendered directly to the render target. Useful for HDR displays
 	bool bCompositeHDRViewports;
+
+	// true if we added a resource that is using a slate post buffer 
+	ESlatePostRT UsedSlatePostBuffers;
 };

@@ -4,6 +4,7 @@
 
 FSlateBaseUTextureResource::FSlateBaseUTextureResource(UTexture* InTexture)
 	: TextureObject(InTexture)
+	, CachedSlatePostBuffers(ESlatePostRT::None)
 {
 #if SLATE_CHECK_UOBJECT_RENDER_RESOURCES
 	ObjectWeakPtr = InTexture;
@@ -28,6 +29,11 @@ uint32 FSlateBaseUTextureResource::GetHeight() const
 ESlateShaderResource::Type FSlateBaseUTextureResource::GetType() const
 {
 	return ESlateShaderResource::TextureObject;
+}
+
+ESlatePostRT FSlateBaseUTextureResource::GetUsedSlatePostBuffers() const
+{
+	return CachedSlatePostBuffers;
 }
 
 #if SLATE_CHECK_UOBJECT_RENDER_RESOURCES
@@ -104,6 +110,18 @@ void FSlateUTextureResource::UpdateTexture(UTexture* InTexture)
 
 	if (Proxy && TextureObject)
 	{
+		CachedSlatePostBuffers = ESlatePostRT::None;
+		for (const TPair<ESlatePostRT, FSlatePostSettings>& SlatePostSetting : USlateRendererSettings::Get()->SlatePostSettings)
+		{
+			const ESlatePostRT SlatePostBitflag = SlatePostSetting.Key;
+			const FSlatePostSettings& SlatePostSettingValue = SlatePostSetting.Value;
+
+			if (SlatePostSettingValue.bEnabled && InTexture && InTexture->GetPathName() == SlatePostSettingValue.GetPathToSlatePostRT())
+			{
+				CachedSlatePostBuffers |= SlatePostBitflag;
+			}
+		}
+
 		FTexture* TextureResource = TextureObject->GetResource();
 
 		Proxy->Resource = this;
@@ -129,6 +147,8 @@ void FSlateUTextureResource::ResetTexture()
 	ObjectWeakPtr = nullptr;
 	UpdateDebugName();
 #endif
+
+	CachedSlatePostBuffers = ESlatePostRT::None;
 
 	if (Proxy)
 	{

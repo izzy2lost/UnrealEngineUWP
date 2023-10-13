@@ -283,6 +283,7 @@ FSlateElementBatcher::FSlateElementBatcher( TSharedRef<FSlateRenderingPolicy> In
 	, bSRGBVertexColor( !InRenderingPolicy->IsVertexColorInLinearSpace() )
 	, bRequiresVsync(false)
 	, bCompositeHDRViewports(false)
+	, UsedSlatePostBuffers(ESlatePostRT::None)
 {
 }
 
@@ -3090,6 +3091,11 @@ FSlateRenderBatch& FSlateElementBatcher::CreateRenderBatch(
 
 	NewBatch.ClippingState = ClippingState;
 
+	if (InResource)
+	{
+		UsedSlatePostBuffers |= InResource->GetUsedSlatePostBuffers();
+	}
+
 	return NewBatch;
 }
 
@@ -3109,6 +3115,11 @@ FSlateRenderBatch& FSlateElementBatcher::CreateRenderBatch(
 		: SlateBatchData->AddRenderBatch(Layer, ShaderParams, InResource, PrimitiveType, ShaderType, DrawEffects, DrawFlags, DrawElement.GetSceneIndex());
 
 	NewBatch.ClippingState = ResolveClippingState(DrawElement);
+
+	if (InResource)
+	{
+		UsedSlatePostBuffers |= InResource->GetUsedSlatePostBuffers();
+	}
 
 	return NewBatch;
 }
@@ -3561,6 +3572,7 @@ void FSlateElementBatcher::ResetBatches()
 {
 	bRequiresVsync = false;
 	bCompositeHDRViewports = false;
+	UsedSlatePostBuffers = ESlatePostRT::None;
 	NumPostProcessPasses = 0;
 }
 

@@ -9,6 +9,8 @@
 #include "Widgets/SWindow.h"
 #include "Framework/Application/SlateApplication.h"
 #include "EngineGlobals.h"
+#include "Engine/AssetManager.h"
+#include "Engine/TextureRenderTarget2D.h"
 #include "Materials/MaterialRenderProxy.h"
 #include "MaterialShared.h"
 #include "RendererInterface.h"
@@ -21,9 +23,16 @@
 #include "ScreenRendering.h"
 #include "SlateShaders.h"
 #include "Rendering/ElementBatcher.h"
+#include "Rendering/SlateRenderer.h"
+#include "Rendering/SlateRendererSettings.h"
+#include "RenderResource.h"
+#include "RenderingThread.h"
+#include "RHIResources.h"
+#include "RHIUtilities.h"
 #include "StereoRendering.h"
 #include "SlateNativeTextureResource.h"
 #include "SceneUtils.h"
+#include "TextureResource.h"
 #include "VolumeRendering.h"
 #include "ShaderCompiler.h"
 #include "PipelineStateCache.h"
@@ -86,6 +95,12 @@ static TAutoConsoleVariable<int32> CVarMemorylessDepthStencil(
 	TEXT("Slate.MemorylessDepthStencil"),
 	0,
 	TEXT("Whether to use memoryless DepthStencil target for Slate. Reduces memory usage and implies that DepthStencil state can't be preserved between Slate renderpasses"),
+	ECVF_RenderThreadSafe);
+
+static TAutoConsoleVariable<int32> CVarCopyBackbufferToSlatePostRenderTargets(
+	TEXT("Slate.CopyBackbufferToSlatePostRenderTargets"),
+	0,
+	TEXT("Experimental. Set true to copy final backbuffer into slate RTs for slate post processing / material usage"),
 	ECVF_RenderThreadSafe);
 
 #if WITH_SLATE_VISUALIZERS
@@ -224,6 +239,7 @@ FSlateRHIRenderer::FSlateRHIRenderer(TSharedRef<FSlateFontServices> InSlateFontS
 	OutHDRScreenshotData = NULL;
 	ScreenshotViewportInfo = nullptr;
 	bIsStandaloneStereoOnlyDevice = IHeadMountedDisplayModule::IsAvailable() && IHeadMountedDisplayModule::Get().IsStandaloneStereoOnlyDevice();
+	bShrinkPostBufferRequested = ESlatePostRT::None;
 }
 
 FSlateRHIRenderer::~FSlateRHIRenderer()
@@ -1704,6 +1720,9 @@ void FSlateRHIRenderer::DrawWindows_Private(FSlateDrawBuffer& WindowDrawBuffer)
 
 				bLockToVsync |= bForceVsyncFromCVar;
 
+				// Cache if the element batcher used a post buffer, will get reset on batch reset
+				ESlatePostRT UsedSlatePostBufferBits = ElementBatcher->GetUsedSlatePostBuffers();
+
 				// All elements for this window have been batched and rendering data updated
 				ElementBatcher->ResetBatches();
 
@@ -1715,6 +1734,106 @@ void FSlateRHIRenderer::DrawWindows_Private(FSlateDrawBuffer& WindowDrawBuffer)
 				{
 					// Resize the viewport if needed
 					ConditionalResizeViewport(ViewInfo, ViewInfo->DesiredWidth, ViewInfo->DesiredHeight, IsViewportFullscreen(*Window), Window);
+				}
+
+				// Update slate post buffers before slate draw if needed
+				if (CVarCopyBackbufferToSlatePostRenderTargets.GetValueOnAnyThread() && IsInGameThread() && GIsClient && !IsRunningCommandlet() && !GUsingNullRHI && UAssetManager::IsInitialized())
+				{
+					uint8 SlatePostBufferBitIndex = 0;
+					for (ESlatePostRT SlatePostBufferBit : TEnumRange<ESlatePostRT>())
+					{
+						if (!USlateRendererSettings::Get()->SlatePostSettings[SlatePostBufferBit].bEnabled)
+						{
+							SlatePostBufferBitIndex++;
+							continue;
+						}
+
+						UTextureRenderTarget2D* SlatePostBuffer = Cast<UTextureRenderTarget2D>(USlateRendererSettings::Get()->TryGetPostBufferRT(SlatePostBufferBit));
+						if (!SlatePostBuffer)
+						{
+							SlatePostBuffer = Cast<UTextureRenderTarget2D>(USlateRendererSettings::GetMutable()->LoadGetPostBufferRT(SlatePostBufferBit));
+						}
+
+						bool bIsViewportPresentForPIE = GIsEditor ? Window->GetViewport().IsValid() : true;
+						bool bPostBufferBitUsed = (UsedSlatePostBufferBits & SlatePostBufferBit) != ESlatePostRT::None;
+
+						if (bIsViewportPresentForPIE && bPostBufferBitUsed)
+						{
+							// Viewport only has a RT texture in editor / PIE, this texture will be the size of the viewport
+							// typically this texture 'BufferedRT', is smaller than the entire backbuffer used for the editor
+							// We initialize to nullptr so this ptr can be copied & resolved here instead of in the render command
+							FSlateRenderTargetRHI* ViewportTexture = nullptr;
+							if (GIsEditor)
+							{
+								ViewportTexture = static_cast<FSlateRenderTargetRHI*>(Window->GetViewport()->GetViewportRenderTargetTexture());
+							}
+							
+							FIntPoint SizeSlatePostRT = GIsEditor
+								? FIntPoint(ViewportTexture->GetWidth(), ViewportTexture->GetHeight())
+								: FIntPoint(ViewInfo->DesiredWidth, ViewInfo->DesiredHeight);
+
+							bool bHDREnabled = IsHDREnabled();
+							bool bIsPixelFormatCorrect = bHDREnabled 
+								? SlatePostBuffer->GetFormat() == EPixelFormat::PF_FloatRGBA 
+								: SlatePostBuffer->GetFormat() == EPixelFormat::PF_A2B10G10R10;
+							if (SlatePostBuffer->SizeX != SizeSlatePostRT.X || SlatePostBuffer->SizeY != SizeSlatePostRT.Y || !bIsPixelFormatCorrect)
+							{
+								SlatePostBuffer->InitCustomFormat(SizeSlatePostRT.X, SizeSlatePostRT.Y, bHDREnabled ? EPixelFormat::PF_FloatRGBA : EPixelFormat::PF_A2B10G10R10, false);
+							}
+
+							const FVector2D ElementWindowSize = ElementList.GetWindowSize();
+							ENQUEUE_RENDER_COMMAND(FUpdateSlatePostBuffers)([ViewInfo, ElementWindowSize, ViewportTexture, SlatePostBuffer](FRHICommandListImmediate& RHICmdList)
+							{
+								bool bRenderedStereo = false;
+								if (CVarDrawToVRRenderTarget->GetInt() == 0 && GEngine && IsValidRef(ViewInfo->GetRenderTargetTexture()) && GEngine->StereoRenderingDevice.IsValid())
+								{
+									GEngine->StereoRenderingDevice->RenderTexture_RenderThread(RHICmdList, RHIGetViewportBackBuffer(ViewInfo->ViewportRHI), ViewInfo->GetRenderTargetTexture(), ElementWindowSize);
+									bRenderedStereo = true;
+								}
+
+								FTexture2DRHIRef ViewportRT = bRenderedStereo ? nullptr : ViewInfo->GetRenderTargetTexture();
+								FTexture2DRHIRef BackBuffer = (ViewportRT) ? ViewportRT : RHIGetViewportBackBuffer(ViewInfo->ViewportRHI);
+
+								if (BackBuffer)
+								{
+									FRHICopyTextureInfo CopyInfo;
+
+									// Copy just the viewport RT if in PIE, else do entire backbuffer
+									if (GIsEditor)
+									{
+										CopyInfo.Size = FIntVector(ViewportTexture->GetWidth(), ViewportTexture->GetHeight(), 1);
+										TransitionAndCopyTexture(RHICmdList, ViewportTexture->GetRHIRef(), SlatePostBuffer->TextureReference.TextureReferenceRHI, CopyInfo);
+									}
+									else
+									{
+										FIntPoint BackbufferExtent = BackBuffer->GetDesc().Extent;
+										CopyInfo.Size = FIntVector(BackbufferExtent.X, BackbufferExtent.Y, 1);
+										TransitionAndCopyTexture(RHICmdList, BackBuffer, SlatePostBuffer->TextureReference.TextureReferenceRHI, CopyInfo);
+									}
+								}
+							});
+
+							SlatePostRTFences[SlatePostBufferBitIndex].BeginFence();
+
+							bShrinkPostBufferRequested &= ~SlatePostBufferBit;
+						}
+						else if (SlatePostBuffer->GetResource() && SlatePostRTFences[SlatePostBufferBitIndex].IsFenceComplete() && (SlatePostBuffer->SizeX != 1 || SlatePostBuffer->SizeY != 1))
+						{
+							if ((bShrinkPostBufferRequested & SlatePostBufferBit) == ESlatePostRT::None)
+							{
+								// Delay shrink attempts for a frame, since if we resize while there is an active copy in flight, we will crash
+								bShrinkPostBufferRequested |= SlatePostBufferBit;
+							}
+							else
+							{
+								// Resize unused SlatePostRTs to 1x1.
+								SlatePostBuffer->InitCustomFormat(1, 1, IsHDREnabled() ? EPixelFormat::PF_FloatRGBA : EPixelFormat::PF_A2B10G10R10, false);
+								bShrinkPostBufferRequested &= ~SlatePostBufferBit;
+							}
+						}
+
+						SlatePostBufferBitIndex++;
+					}
 				}
 
 				// Tell the rendering thread to draw the windows

@@ -1,0 +1,70 @@
+// Copyright Epic Games, Inc. All Rights Reserved.
+
+#include "Rendering/SlateRendererSettings.h"
+#include "HAL/IConsoleManager.h"
+
+#include UE_INLINE_GENERATED_CPP_BY_NAME(SlateRendererSettings)
+
+static TAutoConsoleVariable<int32> CVarDefaultEnablePostRenderTarget_0(
+	TEXT("Slate.DefaultEnablePostRenderTarget_0"),
+	1,
+	TEXT("Experimental. Set true to enable slate post render target 0"),
+	ECVF_ReadOnly);
+
+FSlatePostSettings::FSlatePostSettings()
+	: bEnabled(false)
+	, PathToSlatePostRT(FString())
+	, CachedSlatePostRT(nullptr)
+{
+}
+
+USlateRendererSettings::USlateRendererSettings()
+{
+	SlatePostSettings.Add(ESlatePostRT::ESlatePostRT_0, FSlatePostSettings());
+	SlatePostSettings.Add(ESlatePostRT::ESlatePostRT_1, FSlatePostSettings());
+	SlatePostSettings.Add(ESlatePostRT::ESlatePostRT_2, FSlatePostSettings());
+	SlatePostSettings.Add(ESlatePostRT::ESlatePostRT_3, FSlatePostSettings());
+	SlatePostSettings.Add(ESlatePostRT::ESlatePostRT_4, FSlatePostSettings());
+
+	// By default, enable the first post RT
+	SlatePostSettings[ESlatePostRT::ESlatePostRT_0].bEnabled = CVarDefaultEnablePostRenderTarget_0.GetValueOnAnyThread();
+
+	// Hardcoded paths to engine assets
+	SlatePostSettings[ESlatePostRT::ESlatePostRT_0].PathToSlatePostRT = "/Engine/EngineResources/SlatePost0_RT.SlatePost0_RT";
+	SlatePostSettings[ESlatePostRT::ESlatePostRT_1].PathToSlatePostRT = "/Engine/EngineResources/SlatePost1_RT.SlatePost1_RT";
+	SlatePostSettings[ESlatePostRT::ESlatePostRT_2].PathToSlatePostRT = "/Engine/EngineResources/SlatePost2_RT.SlatePost2_RT";
+	SlatePostSettings[ESlatePostRT::ESlatePostRT_3].PathToSlatePostRT = "/Engine/EngineResources/SlatePost3_RT.SlatePost3_RT";
+	SlatePostSettings[ESlatePostRT::ESlatePostRT_4].PathToSlatePostRT = "/Engine/EngineResources/SlatePost4_RT.SlatePost4_RT";
+}
+
+USlateRendererSettings::~USlateRendererSettings()
+{
+	for (ESlatePostRT SlatePostBufferBit : TEnumRange<ESlatePostRT>())
+	{
+		UObject* SlatePostBuffer = SlatePostSettings[SlatePostBufferBit].CachedSlatePostRT;
+		if (SlatePostBuffer)
+		{
+			SlatePostBuffer->RemoveFromRoot();
+		}
+	}
+}
+
+UObject* USlateRendererSettings::TryGetPostBufferRT(ESlatePostRT InPostBufferBit) const
+{
+	return SlatePostSettings[InPostBufferBit].CachedSlatePostRT;
+}
+
+UObject* USlateRendererSettings::LoadGetPostBufferRT(ESlatePostRT InPostBufferBit)
+{
+	UObject* Result = TryGetPostBufferRT(InPostBufferBit);
+
+	if (!Result)
+	{
+		Result = LoadObject<UObject>(nullptr, *SlatePostSettings[InPostBufferBit].PathToSlatePostRT, nullptr, LOAD_None, nullptr);
+		Result->AddToRoot();
+
+		SlatePostSettings[InPostBufferBit].CachedSlatePostRT = Result;
+	}
+
+	return Result;
+}
