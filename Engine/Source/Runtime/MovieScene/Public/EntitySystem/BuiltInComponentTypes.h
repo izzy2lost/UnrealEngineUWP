@@ -326,6 +326,7 @@ private:
 	FObjectKey ObjectKey;
 };
 
+
 /**
  * Specifies a unique, sorted path of hbiases that contribute to a blended output
  * Supports up to 8 unique HBiases in its path
@@ -334,6 +335,14 @@ struct FHierarchicalBlendTarget
 {
 	/** Default Constructor */
 	MOVIESCENE_API FHierarchicalBlendTarget();
+
+	MOVIESCENE_API FHierarchicalBlendTarget(const FHierarchicalBlendTarget& RHS);
+	MOVIESCENE_API FHierarchicalBlendTarget& operator=(const FHierarchicalBlendTarget& RHS);
+
+	MOVIESCENE_API FHierarchicalBlendTarget(FHierarchicalBlendTarget&& RHS);
+	MOVIESCENE_API FHierarchicalBlendTarget& operator=(FHierarchicalBlendTarget&& RHS);
+
+	MOVIESCENE_API ~FHierarchicalBlendTarget();
 
 	/**
 	 * Add the specified HBias to this blend target.
@@ -356,33 +365,94 @@ struct FHierarchicalBlendTarget
 	 */
 	MOVIESCENE_API TArrayView<const int16> AsArray() const;
 
+	/**
+	 * Retrieve the current capacity of this container - only to be used for debugging and testing purposes
+	 */
+	uint16 GetCapacity() const
+	{
+		return Capacity;
+	}
+
 public:
 
 	friend uint32 GetTypeHash(const FHierarchicalBlendTarget& In)
 	{
-		const void* Data = In.HBiasChain;
-		const uint32* Data32 = static_cast<const uint32*>(Data);
-		static_assert(sizeof(HBiasChain) == sizeof(uint32)*4);
-
 		// Use 32 bit ints for hashing speed
-		return HashCombine(Data32[0], Data32[1]) ^ HashCombine(Data32[2], Data32[3]);
+		const void* Memory = In.GetMemory();
+		const uint32* Data32 = static_cast<const uint32*>(Memory);
+
+		if (In.Capacity == InlineCapacity)
+		{
+			static_assert(sizeof(FHierarchicalBlendTarget) == sizeof(uint32)*4);
+
+			// Use 32 bit ints for hashing speed
+			// this actually ends up hashing the capacity as well since we have 7 int16s + 1 uint16
+			return HashCombine(Data32[0], Data32[1]) ^ HashCombine(Data32[2], Data32[3]);
+		}
+		else
+		{
+			static_assert(GrowAmount%4 == 0, "GrowAmount is not a multiple of 2 which is required for this loop to work");
+			check(In.Capacity%4 == 0);
+			uint32 Hash = 0;
+			for (int32 Index = 0; Index < In.Capacity/4; Index += 4)
+			{
+				Hash ^= HashCombine(Data32[Index+0], Data32[Index+1]) ^ HashCombine(Data32[Index+2], Data32[Index+3]);
+			}
+			return Hash;
+		}
 	}
 	friend bool operator<(const FHierarchicalBlendTarget& A, const FHierarchicalBlendTarget& B)
 	{
-		return FMemory::Memcmp(A.HBiasChain, B.HBiasChain, sizeof(HBiasChain)) < 0;
+		if (A.Capacity != B.Capacity)
+		{
+			return A.Capacity < B.Capacity;
+		}
+		return FMemory::Memcmp(A.GetMemory(), B.GetMemory(), sizeof(int16)*A.Capacity) < 0;
 	}
 	friend bool operator==(const FHierarchicalBlendTarget& A, const FHierarchicalBlendTarget& B)
 	{
-		return FMemory::Memcmp(A.HBiasChain, B.HBiasChain, sizeof(HBiasChain)) == 0;
+		if (A.Capacity != B.Capacity)
+		{
+			return false;
+		}
+		return FMemory::Memcmp(A.GetMemory(), B.GetMemory(), sizeof(int16)*A.Capacity) == 0;
 	}
 	friend bool operator!=(const FHierarchicalBlendTarget& A, const FHierarchicalBlendTarget& B)
 	{
-		return FMemory::Memcmp(A.HBiasChain, B.HBiasChain, sizeof(HBiasChain)) != 0;
+		if (A.Capacity != B.Capacity)
+		{
+			return true;
+		}
+		return FMemory::Memcmp(A.GetMemory(), B.GetMemory(), sizeof(int16)*A.Capacity) != 0;
 	}
 
 private:
-	/** 16 bytes of hbias chain. Supports up to a maximum of 8 sub-sequences. */
-	int16 HBiasChain[8];
+
+	void FreeAllocation();
+
+	MOVIESCENE_API int16* GetMemory();
+	MOVIESCENE_API const int16* GetMemory() const;
+
+	TArrayView<int16> GetAllEntries();
+	TArrayView<const int16> GetAllEntries() const;
+
+	void Grow(uint16 NewCapacity);
+
+	/**
+	 * 14 bytes of hbias chain.
+	 * Type is either:
+	 *		int16[7] where Capacity == InlineCapacity
+	 *		int16*   (heap allocated) where Capacity > InlineCapacity
+	 * Supports inline up to a maximum of 7 sub-sequences, or any number on the heap allocation.
+	 * Implemented using type-erasure since a union would be padded up to 16 bytes, and we want to keep sizeof this type == 16 bytes
+	 */
+	alignas(8) uint8 Data[14];
+
+	/** 2 bytes - maximum number of hbiases in this chain. */
+	uint16 Capacity;
+
+	static constexpr int32 InlineCapacity = sizeof(Data) / sizeof(int16);
+	static constexpr uint16 GrowAmount = 16u;
 };
 
 /**

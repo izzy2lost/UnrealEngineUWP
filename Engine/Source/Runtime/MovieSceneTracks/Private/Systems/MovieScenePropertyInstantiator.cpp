@@ -759,9 +759,12 @@ void UMovieScenePropertyInstantiatorSystem::UpdatePropertyInfo(const FPropertyPa
 		}
 		else
 		{
-			ActiveBiasEntry = IgnoredHBiasEntry;
+			ActiveBiasEntry = MoveTemp(IgnoredHBiasEntry);
 		}
 	}
+
+	// -----------------------------------
+	// NOW UNSAFE TO USE IgnoredHBiasEntry
 
 	// Reset the restore state status of the property if we still have contributors
 	// We do not do this if there are no contributors to ensure that stale properties are restored correctly
@@ -780,7 +783,7 @@ void UMovieScenePropertyInstantiatorSystem::UpdatePropertyInfo(const FPropertyPa
 
 	Params.PropertyInfo->bIsPartiallyAnimated = bIsPartial;
 	Params.PropertyInfo->bMaxHBiasHasChanged  = Params.PropertyInfo->HierarchicalMetaData.HBias != ActiveBiasEntry.HBias;
-	Params.PropertyInfo->HierarchicalMetaData = ActiveBiasEntry;
+	Params.PropertyInfo->HierarchicalMetaData = MoveTemp(ActiveBiasEntry);
 }
 
 void UMovieScenePropertyInstantiatorSystem::InitializeFastPath(const FPropertyParameters& Params)
