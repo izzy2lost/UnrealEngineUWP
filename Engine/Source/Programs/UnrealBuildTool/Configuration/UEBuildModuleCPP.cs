@@ -637,6 +637,9 @@ namespace UnrealBuildTool
 				Logger.LogTrace("Module '{ModuleName}' not using unity build mode", Name);
 			}
 
+			CompileEnvironment.bUseUnity = bModuleUsesUnityBuild;
+			GeneratedCPPCompileEnvironment.bUseUnity = bModuleUsesUnityBuild;
+
 			// Compile Generated CPP Files
 			if (bModuleUsesUnityBuild)
 			{
