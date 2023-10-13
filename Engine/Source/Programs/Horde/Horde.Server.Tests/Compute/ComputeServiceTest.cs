@@ -4,9 +4,14 @@ using System;
 using System.Collections.Generic;
 using System.Diagnostics.Metrics;
 using System.Linq;
+using System.Net;
+using System.Threading;
 using System.Threading.Tasks;
 using EpicGames.Horde.Compute;
+using Horde.Server.Agents;
+using Horde.Server.Agents.Pools;
 using Horde.Server.Compute;
+using Horde.Server.Server;
 using Microsoft.VisualStudio.TestTools.UnitTesting;
 using OpenTelemetry.Trace;
 
@@ -199,6 +204,30 @@ namespace Horde.Server.Tests.Compute
 			Dictionary<string, int> result = ComputeService.GroupByPoolAndCount(ris);
 			Assert.AreEqual(3, result["poolA"]);
 			Assert.AreEqual(2, result["poolB"]);
+		}
+		
+		[TestMethod]
+		public async Task PoolNameTemplatingAsync()
+		{
+			GlobalConfig.CurrentValue.CidrBlocks = new List<NetworkCidrBlockMapping>
+			{
+				new() { CidrBlock = "12.0.0.0/16", Id = "myNetworkId" }
+			};
+			
+			IPAddress ip = IPAddress.Parse("12.0.10.30");
+			List<string> props = new() { "ComputeIp=11.0.0.1", "ComputePort=5000" };
+			IAgent agent1 = await CreateAgentAsync(new PoolId("foo"), properties: props);
+			IAgent agent2 = await CreateAgentAsync(new PoolId("bar-default"), properties: props);
+			IAgent agent3 = await CreateAgentAsync(new PoolId("bar-myNetworkId"), properties: props);
+			
+			ComputeResource? resource1 = await ComputeService.TryAllocateResourceAsync("req1", ip, new Requirements { Pool = "foo" }, null, CancellationToken.None);
+			Assert.AreEqual(agent1.Id, resource1!.AgentId);
+			
+			ComputeResource? resource2 = await ComputeService.TryAllocateResourceAsync("req2", IPAddress.Parse("15.0.0.1"), new Requirements { Pool = "bar-%CLIENT_NETWORK_ID%" }, null, CancellationToken.None);
+			Assert.AreEqual(agent2.Id, resource2!.AgentId);
+			
+			ComputeResource? resource3 = await ComputeService.TryAllocateResourceAsync("req3", ip, new Requirements { Pool = "bar-%CLIENT_NETWORK_ID%" }, null, CancellationToken.None);
+			Assert.AreEqual(agent3.Id, resource3!.AgentId);
 		}
 	}
 }

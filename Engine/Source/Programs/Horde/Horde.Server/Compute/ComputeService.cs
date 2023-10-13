@@ -25,6 +25,7 @@ using HordeCommon;
 using HordeCommon.Rpc.Tasks;
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
+using Microsoft.Extensions.Options;
 using OpenTelemetry.Trace;
 using StackExchange.Redis;
 
@@ -80,6 +81,7 @@ namespace Horde.Server.Compute
 		readonly ILogFileService _logService;
 		readonly AgentService _agentService;
 		readonly RedisService _redisService;
+		readonly IOptionsMonitor<GlobalConfig> _globalConfig;
 		readonly IClock _clock;
 		readonly Tracer _tracer;
 		readonly Counter<int> _allocationsAcceptedCount;
@@ -93,12 +95,13 @@ namespace Horde.Server.Compute
 		/// <summary>
 		/// Constructor
 		/// </summary>
-		public ComputeService(IAgentCollection agentCollection, ILogFileService logService, AgentService agentService, RedisService redisService, IClock clock, Tracer tracer, Meter meter, ILogger<ComputeService> logger)
+		public ComputeService(IAgentCollection agentCollection, ILogFileService logService, AgentService agentService, RedisService redisService, IOptionsMonitor<GlobalConfig> globalConfig, IClock clock, Tracer tracer, Meter meter, ILogger<ComputeService> logger)
 		{
 			_agentCollection = agentCollection;
 			_logService = logService;
 			_agentService = agentService;
 			_redisService = redisService;
+			_globalConfig = globalConfig;
 			_clock = clock;
 			_tracer = tracer;
 			_ticker = clock.AddTicker<ComputeService>(_requestLogMetricInterval, TickAsync, logger);
@@ -199,14 +202,24 @@ namespace Horde.Server.Compute
 		/// <summary>
 		/// Allocates a compute resource
 		/// </summary>
-		public async Task<ComputeResource?> TryAllocateResourceAsync(string? requestId, Requirements requirements, LeaseId? parentLeaseId, CancellationToken cancellationToken)
+		/// <param name="requestId">Unique ID of this allocation request. If the same allocation retried, the same request ID should be used</param>
+		/// <param name="requesterIp">IP address of the requester</param>
+		/// <param name="requirements">Criteria for selecting an agent</param>
+		/// <param name="parentLeaseId">Optional parent lease</param>
+		/// <param name="cancellationToken">Cancellation token</param>
+		/// <returns>A compute resource if successful</returns>
+		public async Task<ComputeResource?> TryAllocateResourceAsync(string? requestId, IPAddress? requesterIp, Requirements requirements, LeaseId? parentLeaseId, CancellationToken cancellationToken)
 		{
 			using TelemetrySpan span = _tracer.StartActiveSpan($"{nameof(ComputeService)}.{nameof(TryAllocateResourceAsync)}");
 			span.SetAttribute("requestId", requestId);
+			span.SetAttribute("requestIp", requesterIp?.ToString());
 			span.SetAttribute("parentLeaseId", parentLeaseId?.ToString());
 			span.SetAttribute("req.pool", requirements.Pool);
 			span.SetAttribute("req.condition", requirements.Condition?.ToString());
 			span.SetAttribute("req.exclusive", requirements.Exclusive);
+
+			requirements.Pool = ResolvePoolId(requirements.Pool, requesterIp);
+			span.SetAttribute("req.poolResolved", requirements.Pool);
 
 			foreach ((string name, ResourceRequirements resReq) in requirements.Resources)
 			{
@@ -248,6 +261,18 @@ namespace Horde.Server.Compute
 
 			await LogRequestAsync(AllocationOutcome.Denied, requestId, requirements, parentLeaseId, span);
 			return null;
+		}
+
+		private string? ResolvePoolId(string? poolId, IPAddress? ipAddress)
+		{
+			if (poolId == null)
+			{
+				return null;
+			}
+			
+			bool result = _globalConfig.CurrentValue.TryGetNetworkId(ipAddress ?? IPAddress.Any, out string? networkId);
+			networkId = result ? networkId : "default";
+			return poolId.Replace("%CLIENT_NETWORK_ID%", networkId, StringComparison.InvariantCulture);
 		}
 		
 		/// <summary>
