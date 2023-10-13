@@ -136,7 +136,11 @@ void FNiagaraDataSetReadback::GPUReadbackInternal(FRHICommandListImmediate& RHIC
 	Transitions.Emplace(ReadbackBuffers[0].Buffer, FNiagaraGPUInstanceCountManager::kCountBufferDefaultState, ERHIAccess::CopySrc);
 	for (int32 i=1; i < ReadbackBuffers.Num(); ++i)
 	{
-		Transitions.Emplace(ReadbackBuffers[i].Buffer, ERHIAccess::SRVMask, ERHIAccess::CopySrc);
+		Transitions.Emplace(
+			ReadbackBuffers[i].Buffer,
+			(i == IDtoIndexBufferIndex) ? ERHIAccess::SRVCompute : ERHIAccess::SRVMask,
+			ERHIAccess::CopySrc
+		);
 	}
 	RHICmdList.Transition(Transitions);
 
