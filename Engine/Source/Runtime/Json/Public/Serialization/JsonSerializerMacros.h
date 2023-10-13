@@ -22,65 +22,65 @@
 	}
 
 #define JSON_SERIALIZE(JsonName, JsonValue) \
-		Serializer.Serialize(TEXT(JsonName), JsonValue)
+		Serializer.Serialize(TEXTVIEW(JsonName), JsonValue)
 
 #define JSON_SERIALIZE_WITHDEFAULT(JsonName, JsonValue, DefaultJsonValue) \
 		if (Serializer.IsLoading()) \
 		{ \
-			if (!Serializer.GetObject()->HasField(TEXT(JsonName))) \
+			if (!Serializer.GetObject()->HasField(TEXTVIEW(JsonName))) \
            	{ \
            		JsonValue = DefaultJsonValue; \
            	} \
         } \
-		Serializer.Serialize(TEXT(JsonName), JsonValue);
+		Serializer.Serialize(TEXTVIEW(JsonName), JsonValue);
 		
 #define JSON_SERIALIZE_OPTIONAL(JsonName, OptionalJsonValue) \
 		if (Serializer.IsLoading()) \
 		{ \
-			if (Serializer.GetObject()->HasField(TEXT(JsonName))) \
+			if (Serializer.GetObject()->HasField(TEXTVIEW(JsonName))) \
 			{ \
-				Serializer.Serialize(TEXT(JsonName), OptionalJsonValue.Emplace()); \
+				Serializer.Serialize(TEXTVIEW(JsonName), OptionalJsonValue.Emplace()); \
 			} \
 		} \
 		else \
 		{ \
 			if (OptionalJsonValue.IsSet()) \
 			{ \
-				Serializer.Serialize(TEXT(JsonName), OptionalJsonValue.GetValue()); \
+				Serializer.Serialize(TEXTVIEW(JsonName), OptionalJsonValue.GetValue()); \
 			} \
 		}
 
 #define JSON_SERIALIZE_ARRAY(JsonName, JsonArray) \
-		Serializer.SerializeArray(TEXT(JsonName), JsonArray)
+		Serializer.SerializeArray(TEXTVIEW(JsonName), JsonArray)
 		
 #define JSON_SERIALIZE_ARRAY_WITHDEFAULT(JsonName, JsonArray, DefaultArray) \
 		if (Serializer.IsLoading()) \
 		{ \
-			if (!Serializer.GetObject()->HasField(TEXT(JsonName))) \
+			if (!Serializer.GetObject()->HasField(TEXTVIEW(JsonName))) \
 			{ \
 				JsonArray = DefaultArray; \
 			} \
 		} \
-		Serializer.SerializeArray(TEXT(JsonName), JsonArray);
+		Serializer.SerializeArray(TEXTVIEW(JsonName), JsonArray);
 		
 #define JSON_SERIALIZE_OBJECT_WITHDEFAULT(JsonName, JsonObject, DefaultObject) \
 		if (Serializer.IsLoading()) \
 		{ \
-			if (!Serializer.GetObject()->HasField(TEXT(JsonName))) \
+			if (!Serializer.GetObject()->HasField(TEXTVIEW(JsonName))) \
 			{ \
 				JsonObject = DefaultObject; \
 			} \
 		} \
-		Serializer.SerializeArray(TEXT(JsonName), JsonArray);
+		Serializer.SerializeArray(TEXTVIEW(JsonName), JsonArray);
 
 #define JSON_SERIALIZE_MAP(JsonName, JsonMap) \
-		Serializer.SerializeMap(TEXT(JsonName), JsonMap)
+		Serializer.SerializeMap(TEXTVIEW(JsonName), JsonMap)
 
 #define JSON_SERIALIZE_SIMPLECOPY(JsonMap) \
 		Serializer.SerializeSimpleMap(JsonMap)
 
 #define JSON_SERIALIZE_MAP_SAFE(JsonName, JsonMap) \
-		Serializer.SerializeMapSafe(TEXT(JsonName), JsonMap)
+		Serializer.SerializeMapSafe(TEXTVIEW(JsonName), JsonMap)
 
 #define JSON_SERIALIZE_SERIALIZABLE(JsonName, JsonValue) \
 		JsonValue.Serialize(Serializer, false)
@@ -88,9 +88,9 @@
 #define JSON_SERIALIZE_RAW_JSON_STRING(JsonName, JsonValue) \
 		if (Serializer.IsLoading()) \
 		{ \
-			if (Serializer.GetObject()->HasTypedField<EJson::Object>(TEXT(JsonName))) \
+			if (Serializer.GetObject()->HasTypedField<EJson::Object>(TEXTVIEW(JsonName))) \
 			{ \
-				TSharedPtr<FJsonObject> JsonObject = Serializer.GetObject()->GetObjectField(TEXT(JsonName)); \
+				TSharedPtr<FJsonObject> JsonObject = Serializer.GetObject()->GetObjectField(TEXTVIEW(JsonName)); \
 				if (JsonObject.IsValid()) \
 				{ \
 					auto Writer = TJsonWriterFactory<TCHAR, TCondensedJsonPrintPolicy<TCHAR>>::Create(&JsonValue); \
@@ -106,7 +106,7 @@
 		{ \
 			if (!JsonValue.IsEmpty()) \
 			{ \
-				Serializer.WriteIdentifierPrefix(TEXT(JsonName)); \
+				Serializer.WriteIdentifierPrefix(TEXTVIEW(JsonName)); \
 				Serializer.WriteRawJSONValue(*JsonValue); \
 			} \
 		}
@@ -114,9 +114,9 @@
 #define JSON_SERIALIZE_ARRAY_SERIALIZABLE(JsonName, JsonArray, ElementType) \
 		if (Serializer.IsLoading()) \
 		{ \
-			if (Serializer.GetObject()->HasTypedField<EJson::Array>(JsonName)) \
+			if (Serializer.GetObject()->HasTypedField<EJson::Array>(TEXTVIEW(JsonName))) \
 			{ \
-				for (auto It = Serializer.GetObject()->GetArrayField(JsonName).CreateConstIterator(); It; ++It) \
+				for (auto It = Serializer.GetObject()->GetArrayField(TEXTVIEW(JsonName)).CreateConstIterator(); It; ++It) \
 				{ \
 					ElementType& Obj = JsonArray.AddDefaulted_GetRef(); \
 					Obj.FromJson((*It)->AsObject()); \
@@ -125,7 +125,7 @@
 		} \
 		else \
 		{ \
-			Serializer.StartArray(JsonName); \
+			Serializer.StartArray(TEXTVIEW(JsonName)); \
 			for (auto It = JsonArray.CreateIterator(); It; ++It) \
 			{ \
 				It->Serialize(Serializer, false); \
@@ -136,9 +136,9 @@
 #define JSON_SERIALIZE_ARRAY_SERIALIZABLE_WITHDEFAULT(JsonName, JsonArray, ElementType, DefaultArray) \
 		if (Serializer.IsLoading()) \
 		{ \
-			if (Serializer.GetObject()->HasTypedField<EJson::Array>(JsonName)) \
+			if (Serializer.GetObject()->HasTypedField<EJson::Array>(TEXTVIEW(JsonName))) \
 			{ \
-				for (auto It = Serializer.GetObject()->GetArrayField(JsonName).CreateConstIterator(); It; ++It) \
+				for (auto It = Serializer.GetObject()->GetArrayField(TEXTVIEW(JsonName)).CreateConstIterator(); It; ++It) \
 				{ \
 					ElementType& Obj = JsonArray.AddDefaulted_GetRef(); \
 					Obj.FromJson((*It)->AsObject()); \
@@ -151,7 +151,7 @@
 		} \
 		else \
 		{ \
-			Serializer.StartArray(JsonName); \
+			Serializer.StartArray(TEXTVIEW(JsonName)); \
 			for (auto It = JsonArray.CreateIterator(); It; ++It) \
 			{ \
 				It->Serialize(Serializer, false); \
@@ -162,10 +162,10 @@
 #define JSON_SERIALIZE_OPTIONAL_ARRAY_SERIALIZABLE(JsonName, OptionalJsonArray, ElementType) \
 		if (Serializer.IsLoading()) \
 		{ \
-			if (Serializer.GetObject()->HasTypedField<EJson::Array>(JsonName)) \
+			if (Serializer.GetObject()->HasTypedField<EJson::Array>(TEXTVIEW(JsonName))) \
 			{ \
 				TArray<ElementType>& JsonArray = OptionalJsonArray.Emplace(); \
-				for (auto It = Serializer.GetObject()->GetArrayField(JsonName).CreateConstIterator(); It; ++It) \
+				for (auto It = Serializer.GetObject()->GetArrayField(TEXTVIEW(JsonName)).CreateConstIterator(); It; ++It) \
 				{ \
 					ElementType& Obj = JsonArray.AddDefaulted_GetRef(); \
 					Obj.FromJson((*It)->AsObject()); \
@@ -176,7 +176,7 @@
 		{ \
 			if (OptionalJsonArray.IsSet()) \
 			{ \
-				Serializer.StartArray(JsonName); \
+				Serializer.StartArray(TEXTVIEW(JsonName)); \
 				for (auto It = OptionalJsonArray->CreateIterator(); It; ++It) \
 				{ \
 					It->Serialize(Serializer, false); \
@@ -188,9 +188,9 @@
 #define JSON_SERIALIZE_MAP_SERIALIZABLE(JsonName, JsonMap, ElementType) \
 		if (Serializer.IsLoading()) \
 		{ \
-			if (Serializer.GetObject()->HasTypedField<EJson::Object>(JsonName)) \
+			if (Serializer.GetObject()->HasTypedField<EJson::Object>(TEXTVIEW(JsonName))) \
 			{ \
-				TSharedPtr<FJsonObject> JsonObj = Serializer.GetObject()->GetObjectField(JsonName); \
+				TSharedPtr<FJsonObject> JsonObj = Serializer.GetObject()->GetObjectField(TEXTVIEW(JsonName)); \
 				for (auto MapIt = JsonObj->Values.CreateConstIterator(); MapIt; ++MapIt) \
 				{ \
 					ElementType NewEntry; \
@@ -201,10 +201,10 @@
 		} \
 		else \
 		{ \
-			Serializer.StartObject(JsonName); \
+			Serializer.StartObject(TEXTVIEW(JsonName)); \
 			for (auto It = JsonMap.CreateIterator(); It; ++It) \
 			{ \
-				Serializer.StartObject(It.Key()); \
+				Serializer.StartObject(MakeStringView(It.Key())); \
 				It.Value().Serialize(Serializer, true); \
 				Serializer.EndObject(); \
 			} \
@@ -216,9 +216,9 @@
 		if (Serializer.IsLoading()) \
 		{ \
 			/* Read in the value from the JsonName field */ \
-			if (Serializer.GetObject()->HasTypedField<EJson::Object>(JsonName)) \
+			if (Serializer.GetObject()->HasTypedField<EJson::Object>(TEXTVIEW(JsonName))) \
 			{ \
-				TSharedPtr<FJsonObject> JsonObj = Serializer.GetObject()->GetObjectField(JsonName); \
+				TSharedPtr<FJsonObject> JsonObj = Serializer.GetObject()->GetObjectField(TEXTVIEW(JsonName)); \
 				if (JsonObj.IsValid()) \
 				{ \
 					(JsonSerializableObject).FromJson(JsonObj); \
@@ -228,7 +228,7 @@
 		else \
 		{ \
 			/* Write the value to the Name field */ \
-			Serializer.StartObject(JsonName); \
+			Serializer.StartObject(TEXTVIEW(JsonName)); \
 			(JsonSerializableObject).Serialize(Serializer, true); \
 			Serializer.EndObject(); \
 		}
@@ -238,9 +238,9 @@
 		if (Serializer.IsLoading()) \
 		{ \
 			/* Read in the value from the JsonName field */ \
-			if (Serializer.GetObject()->HasTypedField<EJson::Object>(JsonName)) \
+			if (Serializer.GetObject()->HasTypedField<EJson::Object>(TEXTVIEW(JsonName))) \
 			{ \
-				TSharedPtr<FJsonObject> JsonObj = Serializer.GetObject()->GetObjectField(JsonName); \
+				TSharedPtr<FJsonObject> JsonObj = Serializer.GetObject()->GetObjectField(TEXTVIEW(JsonName)); \
 				if (JsonObj.IsValid()) \
 				{ \
 					(JsonSerializableObject).FromJson(JsonObj); \
@@ -254,7 +254,7 @@
 		else \
 		{ \
 			/* Write the value to the Name field */ \
-			Serializer.StartObject(JsonName); \
+			Serializer.StartObject(TEXTVIEW(JsonName)); \
 			(JsonSerializableObject).Serialize(Serializer, true); \
 			Serializer.EndObject(); \
 		}
@@ -263,9 +263,9 @@
 		if (Serializer.IsLoading()) \
 		{ \
 			using ObjectType = TRemoveReference<decltype(JsonSerializableObject.GetValue())>::Type; \
-			if (Serializer.GetObject()->HasTypedField<EJson::Object>(JsonName)) \
+			if (Serializer.GetObject()->HasTypedField<EJson::Object>(TEXTVIEW(JsonName))) \
 			{ \
-				TSharedPtr<FJsonObject> JsonObj = Serializer.GetObject()->GetObjectField(JsonName); \
+				TSharedPtr<FJsonObject> JsonObj = Serializer.GetObject()->GetObjectField(TEXTVIEW(JsonName)); \
 				if (JsonObj.IsValid()) \
 				{ \
 					JsonSerializableObject = ObjectType{}; \
@@ -277,7 +277,7 @@
 		{ \
 			if (JsonSerializableObject.IsSet()) \
 			{ \
-				Serializer.StartObject(JsonName); \
+				Serializer.StartObject(TEXTVIEW(JsonName)); \
 				(JsonSerializableObject.GetValue()).Serialize(Serializer, true); \
 				Serializer.EndObject(); \
 			} \
@@ -287,48 +287,48 @@
 		if (Serializer.IsLoading()) \
 		{ \
 			int64 UnixTimestampValue; \
-			Serializer.Serialize(TEXT(JsonName), UnixTimestampValue); \
+			Serializer.Serialize(TEXTVIEW(JsonName), UnixTimestampValue); \
 			JsonDateTime = FDateTime::FromUnixTimestamp(UnixTimestampValue); \
 		} \
 		else \
 		{ \
 			int64 UnixTimestampValue = JsonDateTime.ToUnixTimestamp(); \
-			Serializer.Serialize(TEXT(JsonName), UnixTimestampValue); \
+			Serializer.Serialize(TEXTVIEW(JsonName), UnixTimestampValue); \
 		}
 
 #define JSON_SERIALIZE_DATETIME_UNIX_TIMESTAMP_MILLISECONDS(JsonName, JsonDateTime) \
 if (Serializer.IsLoading()) \
 { \
 	int64 UnixTimestampValueInMilliseconds; \
-	Serializer.Serialize(TEXT(JsonName), UnixTimestampValueInMilliseconds); \
+	Serializer.Serialize(TEXTVIEW(JsonName), UnixTimestampValueInMilliseconds); \
 	JsonDateTime = FDateTime::FromUnixTimestamp(UnixTimestampValueInMilliseconds / 1000); \
 } \
 else \
 { \
 	int64 UnixTimestampValueInMilliseconds = JsonDateTime.ToUnixTimestamp() * 1000; \
-	Serializer.Serialize(TEXT(JsonName), UnixTimestampValueInMilliseconds); \
+	Serializer.Serialize(TEXTVIEW(JsonName), UnixTimestampValueInMilliseconds); \
 }
 
 #define JSON_SERIALIZE_ENUM(JsonName, JsonEnum) \
 if (Serializer.IsLoading()) \
 { \
 	FString JsonTextValue; \
-	Serializer.Serialize(TEXT(JsonName), JsonTextValue); \
+	Serializer.Serialize(TEXTVIEW(JsonName), JsonTextValue); \
 	LexFromString(JsonEnum, *JsonTextValue); \
 } \
 else \
 { \
 	FString JsonTextValue = LexToString(JsonEnum); \
-	Serializer.Serialize(TEXT(JsonName), JsonTextValue); \
+	Serializer.Serialize(TEXTVIEW(JsonName), JsonTextValue); \
 }
 
 #define JSON_SERIALIZE_ENUM_ARRAY(JsonName, JsonArray, EnumType) \
 if (Serializer.IsLoading()) \
 { \
-	if (Serializer.GetObject()->HasTypedField<EJson::Array>(JsonName)) \
+	if (Serializer.GetObject()->HasTypedField<EJson::Array>(TEXTVIEW(JsonName))) \
 	{ \
 		EnumType EnumValue; \
-		for (auto It = Serializer.GetObject()->GetArrayField(JsonName).CreateConstIterator(); It; ++It) \
+		for (auto It = Serializer.GetObject()->GetArrayField(TEXTVIEW(JsonName)).CreateConstIterator(); It; ++It) \
 		{ \
 			LexFromString(EnumValue, *(*It)->AsString()); \
 			JsonArray.Add(EnumValue); \
@@ -337,11 +337,11 @@ if (Serializer.IsLoading()) \
 } \
 else \
 { \
-	Serializer.StartArray(JsonName); \
+	Serializer.StartArray(TEXTVIEW(JsonName)); \
 	for (EnumType& EnumValue : JsonArray) \
 	{ \
 		FString JsonTextValue = LexToString(EnumValue); \
-		Serializer.Serialize(TEXT(JsonName), JsonTextValue); \
+		Serializer.Serialize(TEXTVIEW(JsonName), JsonTextValue); \
 	} \
 	Serializer.EndArray(); \
 }
@@ -368,34 +368,51 @@ struct FJsonSerializerBase
 	virtual bool IsLoading() const = 0;
 	virtual bool IsSaving() const = 0;
 	virtual void StartObject() = 0;
-	virtual void StartObject(const FString& Name) = 0;
+	virtual void StartObject(FStringView Name) = 0;
 	virtual void EndObject() = 0;
 	virtual void StartArray() = 0;
-	virtual void StartArray(const FString& Name) = 0;
+	virtual void StartArray(FStringView Name) = 0;
 	virtual void EndArray() = 0;
-	virtual void Serialize(const TCHAR* Name, int32& Value) = 0;
-	virtual void Serialize(const TCHAR* Name, uint32& Value) = 0;
-	virtual void Serialize(const TCHAR* Name, int64& Value) = 0;
-	virtual void Serialize(const TCHAR* Name, bool& Value) = 0;
-	virtual void Serialize(const TCHAR* Name, FString& Value) = 0;
-	virtual void Serialize(const TCHAR* Name, FText& Value) = 0;
-	virtual void Serialize(const TCHAR* Name, float& Value) = 0;
-	virtual void Serialize(const TCHAR* Name, double& Value) = 0;
-	virtual void Serialize(const TCHAR* Name, FDateTime& Value) = 0;
+	virtual void Serialize(FStringView Name, int32& Value) = 0;
+	virtual void Serialize(FStringView Name, uint32& Value) = 0;
+	virtual void Serialize(FStringView Name, int64& Value) = 0;
+	virtual void Serialize(FStringView Name, bool& Value) = 0;
+	virtual void Serialize(FStringView Name, FString& Value) = 0;
+	virtual void Serialize(FStringView Name, FText& Value) = 0;
+	virtual void Serialize(FStringView Name, float& Value) = 0;
+	virtual void Serialize(FStringView Name, double& Value) = 0;
+	virtual void Serialize(FStringView Name, FDateTime& Value) = 0;
 	virtual void SerializeArray(FJsonSerializableArray& Array) = 0;
-	virtual void SerializeArray(const TCHAR* Name, FJsonSerializableArray& Value) = 0;
-	virtual void SerializeArray(const TCHAR* Name, FJsonSerializableArrayInt& Value) = 0;
-	virtual void SerializeArray(const TCHAR* Name, FJsonSerializableArrayFloat& Value) = 0;
-	virtual void SerializeMap(const TCHAR* Name, FJsonSerializableKeyValueMap& Map) = 0;
-	virtual void SerializeMap(const TCHAR* Name, FJsonSerializableKeyValueMapInt& Map) = 0;
-	virtual void SerializeMap(const TCHAR* Name, FJsonSerializableKeyValueMapArrayInt& Map) = 0;
-	virtual void SerializeMap(const TCHAR* Name, FJsonSerializableKeyValueMapInt64& Map) = 0;
-	virtual void SerializeMap(const TCHAR* Name, FJsonSerializableKeyValueMapFloat& Map) = 0;
+	virtual void SerializeArray(FStringView Name, FJsonSerializableArray& Value) = 0;
+	virtual void SerializeArray(FStringView Name, FJsonSerializableArrayInt& Value) = 0;
+	virtual void SerializeArray(FStringView Name, FJsonSerializableArrayFloat& Value) = 0;
+	virtual void SerializeMap(FStringView Name, FJsonSerializableKeyValueMap& Map) = 0;
+	virtual void SerializeMap(FStringView Name, FJsonSerializableKeyValueMapInt& Map) = 0;
+	virtual void SerializeMap(FStringView Name, FJsonSerializableKeyValueMapArrayInt& Map) = 0;
+	virtual void SerializeMap(FStringView Name, FJsonSerializableKeyValueMapInt64& Map) = 0;
+	virtual void SerializeMap(FStringView Name, FJsonSerializableKeyValueMapFloat& Map) = 0;
 	virtual void SerializeSimpleMap(FJsonSerializableKeyValueMap& Map) = 0;
-	virtual void SerializeMapSafe(const TCHAR* Name, FJsonSerializableKeyValueMap& Map) = 0;
+	virtual void SerializeMapSafe(FStringView Name, FJsonSerializableKeyValueMap& Map) = 0;
 	virtual TSharedPtr<FJsonObject> GetObject() = 0;
-	virtual void WriteIdentifierPrefix(const TCHAR* Name) = 0;
-	virtual void WriteRawJSONValue(const TCHAR* Value) = 0;
+	virtual void WriteIdentifierPrefix(FStringView Name) = 0;
+	virtual void WriteRawJSONValue(FStringView Value) = 0;
+
+#if !PLATFORM_TCHAR_IS_UTF8CHAR
+
+	UE_DEPRECATED(5.4, "Passing an ANSI string to StartObject has been deprecated outside of UTF-8 mode. Please use the overload that takes a TCHAR string.")
+	void StartObject(FAnsiStringView Name)
+	{
+		StartObject(StringCast<TCHAR>(Name.GetData(), Name.Len()));
+	}
+
+	UE_DEPRECATED(5.4, "Passing an ANSI string to StartArray has been deprecated outside of UTF-8 mode. Please use the overload that takes a TCHAR string.")
+	void StartArray(FAnsiStringView Name)
+	{
+		StartArray(StringCast<TCHAR>(Name.GetData(), Name.Len()));
+	}
+
+#endif // !PLATFORM_TCHAR_IS_UTF8CHAR
+	
 };
 
 /**
@@ -442,7 +459,7 @@ public:
 	/**
 	 * Starts a new object "{"
 	 */
-	virtual void StartObject(const FString& Name) override
+	virtual void StartObject(FStringView Name) override
 	{
 		JsonWriter->WriteObjectStart(Name);
 	}
@@ -459,7 +476,7 @@ public:
 		JsonWriter->WriteArrayStart();
 	}
 
-	virtual void StartArray(const FString& Name) override
+	virtual void StartArray(FStringView Name) override
 	{
 		JsonWriter->WriteArrayStart(Name);
 	}
@@ -474,7 +491,7 @@ public:
 	 * @param Name the field name to write out
 	 * @param Value the value to write out
 	 */
-	virtual void Serialize(const TCHAR* Name, int32& Value) override
+	virtual void Serialize(FStringView Name, int32& Value) override
 	{
 		JsonWriter->WriteValue(Name, Value);
 	}
@@ -484,7 +501,7 @@ public:
 	 * @param Name the field name to write out
 	 * @param Value the value to write out
 	 */
-	virtual void Serialize(const TCHAR* Name, uint32& Value) override
+	virtual void Serialize(FStringView Name, uint32& Value) override
 	{
 		JsonWriter->WriteValue(Name, static_cast<int64>(Value));
 	}
@@ -494,7 +511,7 @@ public:
 	 * @param Name the field name to write out
 	 * @param Value the value to write out
 	 */
-	virtual void Serialize(const TCHAR* Name, int64& Value) override
+	virtual void Serialize(FStringView Name, int64& Value) override
 	{
 		JsonWriter->WriteValue(Name, Value);
 	}
@@ -504,7 +521,7 @@ public:
 	 * @param Name the field name to write out
 	 * @param Value the value to write out
 	 */
-	virtual void Serialize(const TCHAR* Name, bool& Value) override
+	virtual void Serialize(FStringView Name, bool& Value) override
 	{
 		JsonWriter->WriteValue(Name, Value);
 	}
@@ -514,7 +531,7 @@ public:
 	 * @param Name the field name to write out
 	 * @param Value the value to write out
 	 */
-	virtual void Serialize(const TCHAR* Name, FString& Value) override
+	virtual void Serialize(FStringView Name, FString& Value) override
 	{
 		JsonWriter->WriteValue(Name, Value);
 	}
@@ -524,7 +541,7 @@ public:
 	 * @param Name the field name to write out
 	 * @param Value the value to write out
 	 */
-	virtual void Serialize(const TCHAR* Name, FText& Value) override
+	virtual void Serialize(FStringView Name, FText& Value) override
 	{
 		JsonWriter->WriteValue(Name, Value.ToString());
 	}
@@ -534,7 +551,7 @@ public:
 	 * @param Name the field name to write out
 	 * @param Value the value to write out
 	 */
-	virtual void Serialize(const TCHAR* Name, float& Value) override
+	virtual void Serialize(FStringView Name, float& Value) override
 	{
 		JsonWriter->WriteValue(Name, Value);
 	}
@@ -544,7 +561,7 @@ public:
 	* @param Name the field name to write out
 	* @param Value the value to write out
 	*/
-	virtual void Serialize(const TCHAR* Name, double& Value) override
+	virtual void Serialize(FStringView Name, double& Value) override
 	{
 		JsonWriter->WriteValue(Name, Value);
 	}
@@ -554,7 +571,7 @@ public:
 	* @param Name the field name to write out
 	* @param Value the value to write out
 	*/
-	virtual void Serialize(const TCHAR* Name, FDateTime& Value) override
+	virtual void Serialize(FStringView Name, FDateTime& Value) override
 	{
 		if (Value.GetTicks() > 0)
 		{
@@ -583,7 +600,7 @@ public:
 	 * @param Name the name of the property to serialize
 	 * @param Array the array to serialize
 	 */
-	virtual void SerializeArray(const TCHAR* Name, FJsonSerializableArray& Array) override
+	virtual void SerializeArray(FStringView Name, FJsonSerializableArray& Array) override
 	{
 		JsonWriter->WriteArrayStart(Name);
 		// Iterate all of values
@@ -599,7 +616,7 @@ public:
 	 * @param Name the name of the property to serialize
 	 * @param Array the array to serialize
 	 */
-	virtual void SerializeArray(const TCHAR* Name, FJsonSerializableArrayInt& Array) override
+	virtual void SerializeArray(FStringView Name, FJsonSerializableArrayInt& Array) override
 	{
 		JsonWriter->WriteArrayStart(Name);
 		// Iterate all of values
@@ -616,7 +633,7 @@ public:
 	 * @param Name the name of the property to serialize
 	 * @param Array the array to serialize
 	 */
-	virtual void SerializeArray(const TCHAR* Name, FJsonSerializableArrayFloat& Array) override
+	virtual void SerializeArray(FStringView Name, FJsonSerializableArrayFloat& Array) override
 	{
 		JsonWriter->WriteArrayStart(Name);
 		// Iterate all of values
@@ -633,7 +650,7 @@ public:
 	 * @param Name the name of the property to serialize
 	 * @param Map the map to serialize
 	 */
-	virtual void SerializeMap(const TCHAR* Name, FJsonSerializableKeyValueMap& Map) override
+	virtual void SerializeMap(FStringView Name, FJsonSerializableKeyValueMap& Map) override
 	{
 		JsonWriter->WriteObjectStart(Name);
 		// Iterate all of the keys and their values
@@ -650,7 +667,7 @@ public:
 	 * @param Name the name of the property to serialize
 	 * @param Map the map to serialize
 	 */
-	virtual void SerializeMap(const TCHAR* Name, FJsonSerializableKeyValueMapInt& Map) override
+	virtual void SerializeMap(FStringView Name, FJsonSerializableKeyValueMapInt& Map) override
 	{
 		JsonWriter->WriteObjectStart(Name);
 		// Iterate all of the keys and their values
@@ -666,7 +683,7 @@ public:
 	 * @param Name the name of the property to serialize
 	 * @param Map the map to serialize
 	 */
-	virtual void SerializeMap(const TCHAR* Name, FJsonSerializableKeyValueMapArrayInt& Map) override
+	virtual void SerializeMap(FStringView Name, FJsonSerializableKeyValueMapArrayInt& Map) override
 	{
 		JsonWriter->WriteObjectStart(Name);
 		// Iterate all of the keys and their values
@@ -683,7 +700,7 @@ public:
 	 * @param Name the name of the property to serialize
 	 * @param Map the map to serialize
 	 */
-	virtual void SerializeMap(const TCHAR* Name, FJsonSerializableKeyValueMapInt64& Map) override
+	virtual void SerializeMap(FStringView Name, FJsonSerializableKeyValueMapInt64& Map) override
 	{
 		JsonWriter->WriteObjectStart(Name);
 		// Iterate all of the keys and their values
@@ -700,7 +717,7 @@ public:
 	 * @param Name the name of the property to serialize
 	 * @param Map the map to serialize
 	 */
-	virtual void SerializeMap(const TCHAR* Name, FJsonSerializableKeyValueMapFloat& Map) override
+	virtual void SerializeMap(FStringView Name, FJsonSerializableKeyValueMapFloat& Map) override
 	{
 		JsonWriter->WriteObjectStart(Name);
 		// Iterate all of the keys and their values
@@ -723,17 +740,17 @@ public:
 	 * @param Name Name of property to serialize
 	 * @param Map The Map to copy String values from
 	 */
-	virtual void SerializeMapSafe(const TCHAR* Name, FJsonSerializableKeyValueMap& Map)
+	virtual void SerializeMapSafe(FStringView Name, FJsonSerializableKeyValueMap& Map)
 	{
 		SerializeMap(Name, Map);
 	}
 
-	virtual void WriteIdentifierPrefix(const TCHAR* Name)
+	virtual void WriteIdentifierPrefix(FStringView Name)
 	{
 		JsonWriter->WriteIdentifierPrefix(Name);
 	}
 
-	virtual void WriteRawJSONValue(const TCHAR* Value)
+	virtual void WriteRawJSONValue(FStringView Value)
 	{
 		JsonWriter->WriteRawJSONValue(Value);
 	}
@@ -776,7 +793,7 @@ public:
 		// Empty on purpose
 	}
 	/** Ignored */
-	virtual void StartObject(const FString& Name) override
+	virtual void StartObject(FStringView Name) override
 	{
 		// Empty on purpose
 	}
@@ -791,7 +808,7 @@ public:
 		// Empty on purpose
 	}
 	/** Ignored */
-	virtual void StartArray(const FString& Name) override
+	virtual void StartArray(FStringView Name) override
 	{
 		// Empty on purpose
 	}
@@ -806,7 +823,7 @@ public:
 	 * @param Name the name of the field to read
 	 * @param Value the out value to read the data into
 	 */
-	virtual void Serialize(const TCHAR* Name, int32& Value) override
+	virtual void Serialize(FStringView Name, int32& Value) override
 	{
 		if (JsonObject->HasTypedField<EJson::Number>(Name))
 		{
@@ -819,7 +836,7 @@ public:
 	 * @param Name the name of the field to read
 	 * @param Value the out value to read the data into
 	 */
-	virtual void Serialize(const TCHAR* Name, uint32& Value) override
+	virtual void Serialize(FStringView Name, uint32& Value) override
 	{
 		if (JsonObject->HasTypedField<EJson::Number>(Name))
 		{
@@ -832,7 +849,7 @@ public:
 	 * @param Name the name of the field to read
 	 * @param Value the out value to read the data into
 	 */
-	virtual void Serialize(const TCHAR* Name, int64& Value) override
+	virtual void Serialize(FStringView Name, int64& Value) override
 	{
 		if (JsonObject->HasTypedField<EJson::Number>(Name))
 		{
@@ -845,7 +862,7 @@ public:
 	 * @param Name the name of the field to read
 	 * @param Value the out value to read the data into
 	 */
-	virtual void Serialize(const TCHAR* Name, bool& Value) override
+	virtual void Serialize(FStringView Name, bool& Value) override
 	{
 		if (JsonObject->HasTypedField<EJson::Boolean>(Name))
 		{
@@ -858,7 +875,7 @@ public:
 	 * @param Name the name of the field to read
 	 * @param Value the out value to read the data into
 	 */
-	virtual void Serialize(const TCHAR* Name, FString& Value) override
+	virtual void Serialize(FStringView Name, FString& Value) override
 	{
 		if (JsonObject->HasTypedField<EJson::String>(Name))
 		{
@@ -871,7 +888,7 @@ public:
 	 * @param Name the name of the field to read
 	 * @param Value the out value to read the data into
 	 */
-	virtual void Serialize(const TCHAR* Name, FText& Value) override
+	virtual void Serialize(FStringView Name, FText& Value) override
 	{
 		if (JsonObject->HasTypedField<EJson::String>(Name))
 		{
@@ -884,7 +901,7 @@ public:
 	 * @param Name the name of the field to read
 	 * @param Value the out value to read the data into
 	 */
-	virtual void Serialize(const TCHAR* Name, float& Value) override
+	virtual void Serialize(FStringView Name, float& Value) override
 	{
 		if (JsonObject->HasTypedField<EJson::Number>(Name))
 		{
@@ -897,7 +914,7 @@ public:
 	* @param Name the name of the field to read
 	* @param Value the out value to read the data into
 	*/
-	virtual void Serialize(const TCHAR* Name, double& Value) override
+	virtual void Serialize(FStringView Name, double& Value) override
 	{
 		if (JsonObject->HasTypedField<EJson::Number>(Name))
 		{
@@ -910,7 +927,7 @@ public:
 	* @param Name the field name to write out
 	* @param Value the value to write out
 	*/
-	virtual void Serialize(const TCHAR* Name, FDateTime& Value) override
+	virtual void Serialize(FStringView Name, FDateTime& Value) override
 	{
 		if (JsonObject->HasTypedField<EJson::String>(Name))
 		{
@@ -934,7 +951,7 @@ public:
 	 * @param Name the name of the property to serialize
 	 * @param Array the array to serialize
 	 */
-	virtual void SerializeArray(const TCHAR* Name, FJsonSerializableArray& Array) override
+	virtual void SerializeArray(FStringView Name, FJsonSerializableArray& Array) override
 	{
 		if (JsonObject->HasTypedField<EJson::Array>(Name))
 		{
@@ -952,7 +969,7 @@ public:
 	 * @param Name the name of the property to serialize
 	 * @param Array the array to serialize
 	 */
-	virtual void SerializeArray(const TCHAR* Name, FJsonSerializableArrayInt& Array) override
+	virtual void SerializeArray(FStringView Name, FJsonSerializableArrayInt& Array) override
 	{
 		if (JsonObject->HasTypedField<EJson::Array>(Name))
 		{
@@ -970,7 +987,7 @@ public:
 	 * @param Name the name of the property to serialize
 	 * @param Array the array to serialize
 	 */
-	virtual void SerializeArray(const TCHAR* Name, FJsonSerializableArrayFloat& Array) override
+	virtual void SerializeArray(FStringView Name, FJsonSerializableArrayFloat& Array) override
 	{
 		if (JsonObject->HasTypedField<EJson::Array>(Name))
 		{
@@ -988,7 +1005,7 @@ public:
 	 * @param Name the name of the property to serialize
 	 * @param Map the map to serialize
 	 */
-	virtual void SerializeMap(const TCHAR* Name, FJsonSerializableKeyValueMap& Map) override
+	virtual void SerializeMap(FStringView Name, FJsonSerializableKeyValueMap& Map) override
 	{
 		if (JsonObject->HasTypedField<EJson::Object>(Name))
 		{
@@ -1007,7 +1024,7 @@ public:
 	 * @param Name the name of the property to serialize
 	 * @param Map the map to serialize
 	 */
-	virtual void SerializeMap(const TCHAR* Name, FJsonSerializableKeyValueMapInt& Map) override
+	virtual void SerializeMap(FStringView Name, FJsonSerializableKeyValueMapInt& Map) override
 	{
 		if (JsonObject->HasTypedField<EJson::Object>(Name))
 		{
@@ -1027,7 +1044,7 @@ public:
      * @param Name the name of the property to serialize
      * @param Map the map to serialize
      */
-    virtual void SerializeMap(const TCHAR* Name, FJsonSerializableKeyValueMapArrayInt& Map) override
+    virtual void SerializeMap(FStringView Name, FJsonSerializableKeyValueMapArrayInt& Map) override
     {
     	if (JsonObject->HasTypedField<EJson::Object>(Name))
     	{
@@ -1055,7 +1072,7 @@ public:
 	 * @param Name the name of the property to serialize
 	 * @param Map the map to serialize
 	 */
-	virtual void SerializeMap(const TCHAR* Name, FJsonSerializableKeyValueMapInt64& Map) override
+	virtual void SerializeMap(FStringView Name, FJsonSerializableKeyValueMapInt64& Map) override
 	{
 		if (JsonObject->HasTypedField<EJson::Object>(Name))
 		{
@@ -1075,7 +1092,7 @@ public:
 	 * @param Name the name of the property to serialize
 	 * @param Map the map to serialize
 	 */
-	virtual void SerializeMap(const TCHAR* Name, FJsonSerializableKeyValueMapFloat& Map) override
+	virtual void SerializeMap(FStringView Name, FJsonSerializableKeyValueMapFloat& Map) override
 	{
 		if (JsonObject->HasTypedField<EJson::Object>(Name))
 		{
@@ -1108,7 +1125,7 @@ public:
 	 * @param Name Name of property to deserialize
 	 * @param Map The Map to fill with String values found
 	 */
-	virtual void SerializeMapSafe(const TCHAR* Name, FJsonSerializableKeyValueMap& Map) override
+	virtual void SerializeMapSafe(FStringView Name, FJsonSerializableKeyValueMap& Map) override
 	{
 		if (JsonObject->HasTypedField<EJson::Object>(Name))
 		{
@@ -1125,13 +1142,13 @@ public:
 		}
 	}
 
-	virtual void WriteIdentifierPrefix(const TCHAR* Name)
+	virtual void WriteIdentifierPrefix(FStringView Name)
 	{
 		// Should never be called on a reader
 		check(false);
 	}
 
-	virtual void WriteRawJSONValue(const TCHAR* Value)
+	virtual void WriteRawJSONValue(FStringView Value)
 	{
 		// Should never be called on a reader
 		check(false);
