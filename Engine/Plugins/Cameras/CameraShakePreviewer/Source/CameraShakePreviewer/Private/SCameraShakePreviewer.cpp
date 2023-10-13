@@ -541,7 +541,9 @@ void SCameraShakePreviewer::UpdateActiveViewportAndWorld()
 					{
 						return LevelVC->GetWorld() == NewWorld && 
 							CameraShakePreviewerModule->HasCameraShakesPreview(LevelVC);
-					});
+					},
+					// Pass false to help the Mac compiler along.
+					false);
 		}
 		else
 		{
