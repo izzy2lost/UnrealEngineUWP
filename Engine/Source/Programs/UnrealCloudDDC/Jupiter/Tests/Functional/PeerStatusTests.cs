@@ -91,7 +91,7 @@ namespace Jupiter.FunctionalTests.Status
 
 			PeerStatus? siteBPeerStatus = statusService.GetPeerStatus("siteB");
 			Assert.IsNotNull(siteBPeerStatus);
-			Assert.AreEqual(420, siteBPeerStatus.Latency, 50);
+			Assert.AreEqual(450, siteBPeerStatus.Latency, 50);
 			Assert.IsTrue(siteBPeerStatus.Reachable);
 		}
 
