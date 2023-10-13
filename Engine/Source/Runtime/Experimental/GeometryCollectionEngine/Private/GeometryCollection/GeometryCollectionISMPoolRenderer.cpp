@@ -151,7 +151,6 @@ void UGeometryCollectionISMPoolRenderer::InitInstancesFromGeometryCollection(UGe
 			{
 				StaticMeshInstance.MaterialsOverrides = AutoInstanceMesh.Materials;
 			}
-			StaticMeshInstance.Desc.Flags |= FISMComponentDescription::UseHISM;
 
 			TArray<float> DummyCustomData;
 			InstancesGroup.MeshIds.Add(ISMPoolComponent->AddMeshToGroup(InstancesGroup.GroupIndex, StaticMeshInstance, AutoInstanceMesh.NumInstances, DummyCustomData));
