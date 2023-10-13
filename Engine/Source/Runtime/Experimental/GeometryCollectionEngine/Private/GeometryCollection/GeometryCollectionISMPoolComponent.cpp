@@ -24,11 +24,6 @@ FAutoConsoleVariableRef CVarISMPoolComponentFreeListTargetSize(
 	GComponentFreeListTargetSize,
 	TEXT("Target size for number of ISM components in the ISMPool."));
 
-static bool GAutoRemoveInstances = false;
-FAutoConsoleVariableRef CVarISMPoolAutoRemoveInstances(
-	TEXT("r.ISMPool.AutoRemoveInstances"),
-	GAutoRemoveInstances,
-	TEXT("Remove instances with zero scale from ISM components in the ISMPool."));
 
 FGeometryCollectionMeshGroup::FMeshId FGeometryCollectionMeshGroup::AddMesh(const FGeometryCollectionStaticMeshInstance& MeshInstance, int32 InstanceCount, const FGeometryCollectionMeshInfo& ISMInstanceInfo)
 {
@@ -36,16 +31,11 @@ FGeometryCollectionMeshGroup::FMeshId FGeometryCollectionMeshGroup::AddMesh(cons
 	return MeshInfoIndex;
 }
 
-bool FGeometryCollectionMeshGroup::BatchUpdateInstancesTransforms(FGeometryCollectionISMPool& ISMPool, FMeshId MeshId, int32 StartInstanceIndex, const TArray<FTransform>& NewInstancesTransforms, bool bWorldSpace, bool bMarkRenderStateDirty, bool bTeleport)
-{
-	return BatchUpdateInstancesTransforms(ISMPool, MeshId, StartInstanceIndex, MakeArrayView(NewInstancesTransforms), bWorldSpace, bMarkRenderStateDirty, bTeleport);
-}
-
 bool FGeometryCollectionMeshGroup::BatchUpdateInstancesTransforms(FGeometryCollectionISMPool& ISMPool, FMeshId MeshId, int32 StartInstanceIndex, TArrayView<const FTransform> NewInstancesTransforms, bool bWorldSpace, bool bMarkRenderStateDirty, bool bTeleport)
 {
 	if (MeshInfos.IsValidIndex(MeshId))
 	{
-		return ISMPool.BatchUpdateInstancesTransforms(MeshInfos[MeshId], StartInstanceIndex, NewInstancesTransforms, bWorldSpace, bMarkRenderStateDirty, bTeleport);
+		return ISMPool.BatchUpdateInstancesTransforms(MeshInfos[MeshId], StartInstanceIndex, NewInstancesTransforms, bWorldSpace, bMarkRenderStateDirty, bTeleport, bAllowPerInstanceRemoval);
 	}
 	UE_LOG(LogChaos, Warning, TEXT("UGeometryCollectionISMPoolComponent : Invalid mesh Id (%d) for this mesh group"), MeshId);
 	return false;
@@ -225,12 +215,7 @@ FGeometryCollectionMeshInfo FGeometryCollectionISMPool::AddISM(UGeometryCollecti
 	return Info;
 }
 
-bool FGeometryCollectionISMPool::BatchUpdateInstancesTransforms(FGeometryCollectionMeshInfo& MeshInfo, int32 StartInstanceIndex, const TArray<FTransform>& NewInstancesTransforms, bool bWorldSpace, bool bMarkRenderStateDirty, bool bTeleport)
-{
-	return BatchUpdateInstancesTransforms(MeshInfo, StartInstanceIndex, MakeArrayView(NewInstancesTransforms), bWorldSpace, bMarkRenderStateDirty, bTeleport);
-}
-
-bool FGeometryCollectionISMPool::BatchUpdateInstancesTransforms(FGeometryCollectionMeshInfo& MeshInfo, int32 StartInstanceIndex, TArrayView<const FTransform> NewInstancesTransforms, bool bWorldSpace, bool bMarkRenderStateDirty, bool bTeleport)
+bool FGeometryCollectionISMPool::BatchUpdateInstancesTransforms(FGeometryCollectionMeshInfo& MeshInfo, int32 StartInstanceIndex, TArrayView<const FTransform> NewInstancesTransforms, bool bWorldSpace, bool bMarkRenderStateDirty, bool bTeleport, bool bAllowPerInstanceRemoval)
 {
 	if (!ISMs.IsValidIndex(MeshInfo.ISMIndex))
 	{
@@ -256,7 +241,7 @@ bool FGeometryCollectionISMPool::BatchUpdateInstancesTransforms(FGeometryCollect
 		FPrimitiveInstanceId InstanceId = ISM.InstanceIds[InstanceGroup.Start + InstanceIndex];
 		FTransform const& Transform = NewInstancesTransforms[InstanceIndex];
 
-		if (GAutoRemoveInstances)
+		if (bAllowPerInstanceRemoval)
 		{
 			if (Transform.GetScale3D().IsZero() && InstanceId.IsValid())
 			{
@@ -429,9 +414,11 @@ void UGeometryCollectionISMPoolComponent::TickComponent(float DeltaTime, enum EL
 	Pool.GarbageCollect();
 }
 
-UGeometryCollectionISMPoolComponent::FMeshGroupId  UGeometryCollectionISMPoolComponent::CreateMeshGroup()
+UGeometryCollectionISMPoolComponent::FMeshGroupId  UGeometryCollectionISMPoolComponent::CreateMeshGroup(bool bAllowPerInstanceRemoval)
 {
-	MeshGroups.Add(NextMeshGroupId);
+	FGeometryCollectionMeshGroup Group;
+	Group.bAllowPerInstanceRemoval = bAllowPerInstanceRemoval;
+	MeshGroups.Add(NextMeshGroupId, Group);
 	return NextMeshGroupId++;
 }
 

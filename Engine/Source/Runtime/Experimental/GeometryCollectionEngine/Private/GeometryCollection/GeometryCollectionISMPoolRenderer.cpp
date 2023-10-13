@@ -26,9 +26,12 @@ void UGeometryCollectionISMPoolRenderer::OnUnregisterGeometryCollection()
 	ISMPoolActor = nullptr;
 }
 
-void UGeometryCollectionISMPoolRenderer::UpdateState(UGeometryCollection const& InGeometryCollection, FTransform const& InComponentTransform, bool bIsBroken, bool bIsVisible)
+void UGeometryCollectionISMPoolRenderer::UpdateState(UGeometryCollection const& InGeometryCollection, FTransform const& InComponentTransform, uint32 InStateFlags)
 {
 	ComponentTransform = InComponentTransform;
+
+	const bool bIsVisible = (InStateFlags & EState_Visible) != 0;
+	const bool bIsBroken = (InStateFlags & EState_Broken) != 0;
 
 	if (bIsVisible == false)
 	{
@@ -104,7 +107,6 @@ void UGeometryCollectionISMPoolRenderer::InitMergedMeshFromGeometryCollection(UG
 
 		FGeometryCollectionStaticMeshInstance StaticMeshInstance;
 		StaticMeshInstance.StaticMesh = StaticMesh;
-		StaticMeshInstance.Desc.Flags |= FISMComponentDescription::UseHISM;
 
 		TArray<float> DummyCustomData;
 		MergedMeshGroup.MeshIds.Add(ISMPoolComponent->AddMeshToGroup(MergedMeshGroup.GroupIndex, StaticMeshInstance, 1, DummyCustomData));

@@ -21,7 +21,7 @@ public:
 	//~ Begin IGeometryCollectionExternalRenderInterface Interface.
 	virtual void OnRegisterGeometryCollection(UGeometryCollectionComponent const& InComponent) override;
 	virtual void OnUnregisterGeometryCollection() override;
-	virtual void UpdateState(UGeometryCollection const& InGeometryCollection, FTransform const& InComponentTransform, bool bInIsBroken, bool bInIsVisible) override;
+	virtual void UpdateState(UGeometryCollection const& InGeometryCollection, FTransform const& InComponentTransform, uint32 InStateFlags) override;
 	virtual void UpdateRootTransform(UGeometryCollection const& InGeometryCollection, FTransform const& InRootTransform) override;
 	virtual void UpdateTransforms(UGeometryCollection const& InGeometryCollection, TArrayView<const FTransform> InTransforms) override;
 	//~ End IGeometryCollectionExternalRenderInterface Interface.

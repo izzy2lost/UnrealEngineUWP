@@ -230,7 +230,6 @@ struct FGeometryCollectionMeshGroup
 	/** Adds a new mesh with instance count. We expect to only add a unique mesh instance once to each group. Returns a ID that can be used to update the instances. */
 	FMeshId AddMesh(const FGeometryCollectionStaticMeshInstance& MeshInstance, int32 InstanceCount, const FGeometryCollectionMeshInfo& ISMInstanceInfo);
 	/** Update instance transforms for a group of instances. */
-	bool BatchUpdateInstancesTransforms(FGeometryCollectionISMPool& ISMPool, FMeshId MeshId, int32 StartInstanceIndex, const TArray<FTransform>& NewInstancesTransforms, bool bWorldSpace, bool bMarkRenderStateDirty, bool bTeleport);
 	bool BatchUpdateInstancesTransforms(FGeometryCollectionISMPool& ISMPool, FMeshId MeshId, int32 StartInstanceIndex, TArrayView<const FTransform> NewInstancesTransforms, bool bWorldSpace, bool bMarkRenderStateDirty, bool bTeleport);
 	void BatchUpdateInstanceCustomData(FGeometryCollectionISMPool& ISMPool, int32 CustomFloatIndex, float CustomFloatValue);
 
@@ -239,6 +238,9 @@ struct FGeometryCollectionMeshGroup
 
 	/** Array of allocated mesh infos. */
 	TArray<FGeometryCollectionMeshInfo> MeshInfos;
+
+	/** Flag for whether we allow removal of instances when transform scale is set to zero. */
+	bool bAllowPerInstanceRemoval = false;
 };
 
 /** Structure containting all info for a single ISM. */
@@ -272,8 +274,7 @@ struct FGeometryCollectionISMPool
 	/** Remove ISM contents. */
 	void RemoveISM(const FGeometryCollectionMeshInfo& MeshInfo);
 	/** Update ISM contents. */
-	bool BatchUpdateInstancesTransforms(FGeometryCollectionMeshInfo& MeshInfo, int32 StartInstanceIndex, const TArray<FTransform>& NewInstancesTransforms, bool bWorldSpace, bool bMarkRenderStateDirty, bool bTeleport);
-	bool BatchUpdateInstancesTransforms(FGeometryCollectionMeshInfo& MeshInfo, int32 StartInstanceIndex, TArrayView<const FTransform> NewInstancesTransforms, bool bWorldSpace, bool bMarkRenderStateDirty, bool bTeleport);
+	bool BatchUpdateInstancesTransforms(FGeometryCollectionMeshInfo& MeshInfo, int32 StartInstanceIndex, TArrayView<const FTransform> NewInstancesTransforms, bool bWorldSpace, bool bMarkRenderStateDirty, bool bTeleport, bool bAllowPerInstanceRemoval);
 	void BatchUpdateInstanceCustomData(FGeometryCollectionMeshInfo const& MeshInfo, int32 CustomFloatIndex, float CustomFloatValue);
 
 	/** Clear all ISM components and associated data. */
@@ -318,7 +319,7 @@ public:
 	* no resources are created until the meshes are added for this group 
 	* return a mesh group Id used to add and update instances
 	*/
-	GEOMETRYCOLLECTIONENGINE_API FMeshGroupId CreateMeshGroup();
+	GEOMETRYCOLLECTIONENGINE_API FMeshGroupId CreateMeshGroup(bool bAllowPerInstanceRemoval = false);
 
 	/** Destroy  a mesh group and its associated resources */
 	GEOMETRYCOLLECTIONENGINE_API void DestroyMeshGroup(FMeshGroupId MeshGroupId);

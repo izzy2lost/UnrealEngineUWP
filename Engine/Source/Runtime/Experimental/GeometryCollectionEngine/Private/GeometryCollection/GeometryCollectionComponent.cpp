@@ -5770,7 +5770,12 @@ void UGeometryCollectionComponent::RefreshCustomRenderer()
 
 					const bool bRenderRootProxy = bEnableRootProxyForCustomRenderer && !bIsBroken;
 
-					RendererInterface->UpdateState(*RestCollection, ComponentTransform, !bRenderRootProxy, !bHiddenInGame);
+					uint32 StateFlags = 0;
+					StateFlags |= bHiddenInGame ? 0 : IGeometryCollectionExternalRenderInterface::EState_Visible;
+					StateFlags |= bRenderRootProxy ? 0 : IGeometryCollectionExternalRenderInterface::EState_Broken;
+					StateFlags |= bEnableRootProxyForCustomRenderer ? 0 : IGeometryCollectionExternalRenderInterface::EState_ForcedBroken;
+
+					RendererInterface->UpdateState(*RestCollection, ComponentTransform, StateFlags);
 
 					if (bRenderRootProxy)
 					{
