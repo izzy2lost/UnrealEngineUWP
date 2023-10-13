@@ -37,6 +37,8 @@ public:
 protected:
 	IEOSPlatformHandlePtr EOSPlatformHandle;
 
+	void WarnIfEncryptionKeyMissing(const FString& InterfaceName) const;
+
 #if WITH_ENGINE
 	TSharedPtr<FSocketSubsystemEOS, ESPMode::ThreadSafe> SocketSubsystem;
 #endif

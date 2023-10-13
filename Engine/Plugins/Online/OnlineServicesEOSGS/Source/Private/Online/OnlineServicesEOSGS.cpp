@@ -73,6 +73,27 @@ void FOnlineServicesEOSGS::Destroy()
 #endif
 }
 
+void FOnlineServicesEOSGS::WarnIfEncryptionKeyMissing(const FString& InterfaceName) const
+{
+	if (IEOSSDKManager* Manager = IEOSSDKManager::Get())
+	{
+		const FString& PlatformConfigName = GetEOSPlatformHandle()->GetConfigName();
+		if (const FEOSSDKPlatformConfig* Config = Manager->GetPlatformConfig(PlatformConfigName))
+		{
+			const FString& EncryptionKey = Config->EncryptionKey;
+			if (EncryptionKey.IsEmpty())
+			{
+				UE_LOG(LogOnlineServices, Verbose, TEXT("%s interface not available due to missing ClientEncryptionKey in config."), *InterfaceName);
+			}
+			else
+			{
+				// If we have an encryption key and still can't get the interface, something weird is going on.
+				UE_LOG(LogOnlineServices, Warning, TEXT("%s interface not available despite encryption key being present."), *InterfaceName);
+			}
+		}
+	}
+}
+
 void FOnlineServicesEOSGS::RegisterComponents()
 {
 	Components.Register<FAchievementsEOSGS>(*this);
@@ -85,9 +106,17 @@ void FOnlineServicesEOSGS::RegisterComponents()
 	{
 		Components.Register<FTitleFileEOSGS>(*this);
 	}
+	else
+	{
+		WarnIfEncryptionKeyMissing(TEXT("TitleStorage"));
+	}
 	if (EOS_Platform_GetPlayerDataStorageInterface(*GetEOSPlatformHandle()))
 	{
 		Components.Register<FUserFileEOSGS>(*this);
+	}
+	else
+	{
+		WarnIfEncryptionKeyMissing(TEXT("PlayerDataStorage"));
 	}
 	Super::RegisterComponents();
 }
