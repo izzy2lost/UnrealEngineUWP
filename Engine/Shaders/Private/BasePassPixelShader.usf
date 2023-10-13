@@ -1707,7 +1707,7 @@ void FPixelShaderInOut_MainPS(
 
 #if (SUBSTRATE_TRANSLUCENT_FORWARD || SUBSTRATE_FORWARD_SHADING) && !SUBSTRATE_INLINE_SINGLELAYERWATER && !SUBSTRATE_OPTIMIZED_UNLIT
 	//FORWARD_SHADING
-	if (SubstratePixelHeader.BSDFCount > 0)
+	if (SubstratePixelHeader.ClosureCount > 0)
 	{
 		float2 ScreenUV = ScreenPositionToBufferUV(MaterialParameters.ScreenPosition);
 

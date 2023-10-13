@@ -108,7 +108,7 @@ void ReflectionTileClassificationMarkCS(
 	{
 		FSubstrateAddressing SubstrateAddressing = GetSubstratePixelDataByteOffset(Coord.SvPosition, uint2(View.BufferSizeAndInvSize.xy), Substrate.MaxBytesPerPixel);
 		FSubstratePixelHeader SubstratePixelHeader= UnpackSubstrateHeaderIn(Substrate.MaterialTextureArray, SubstrateAddressing, Substrate.TopLayerTexture);
-		bIsValid = Coord.ClosureIndex < SubstratePixelHeader.BSDFCount;
+		bIsValid = Coord.ClosureIndex < SubstratePixelHeader.ClosureCount;
 	}
 #endif
 
@@ -320,7 +320,7 @@ void ReflectionGenerateRaysCS(
 
 				if (Coord.ClosureIndex > 0)
 				{
-					const uint OffsetAddress = UnpackClosureOffsetAtIndex(Substrate.ClosureOffsetTexture[Coord.SvPosition], Coord.ClosureIndex, SubstratePixelHeader.BSDFCount);
+					const uint OffsetAddress = UnpackClosureOffsetAtIndex(Substrate.ClosureOffsetTexture[Coord.SvPosition], Coord.ClosureIndex, SubstratePixelHeader.ClosureCount);
 					SubstrateSeekClosure(SubstrateAddressing, OffsetAddress);
 				}
 				FSubstrateBSDF BSDF = UnpackSubstrateBSDF(Substrate.MaterialTextureArray, SubstrateAddressing, SubstratePixelHeader);

@@ -627,7 +627,7 @@ FLumenHitLightingMaterial GetLumenHitLightingMaterial(FPackedMaterialClosestHitP
 		FSubstrateAddressing SubstrateAddressing = GetSubstratePixelDataByteOffset(0, 0, 0);
 		FSubstratePixelHeader SubstratePixelHeader = UnpackSubstrateHeaderIn(PackedPayload.SubstrateData, SubstrateAddressing, PackedPayload.SubstrateData);
 
-		Substrate_for(uint BSDFIndex = 0, BSDFIndex < SubstratePixelHeader.BSDFCount, ++BSDFIndex)
+		Substrate_for(uint ClosureIndex = 0, ClosureIndex < SubstratePixelHeader.ClosureCount, ++ClosureIndex)
 		{
 			FSubstrateBSDF BSDF = UnpackSubstrateBSDF(PackedPayload.SubstrateData, SubstrateAddressing, SubstratePixelHeader);
 			if (SubstrateIsBSDFVisible(BSDF))

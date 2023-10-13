@@ -137,7 +137,7 @@ void MainCS(
 	FSubstratePixelHeader SubstratePixelHeader = UnpackSubstrateHeaderIn(MaterialTextureArrayUAV, SubstrateAddressing, TopLayerTexture);
 
 	BRANCH
-	if (SubstratePixelHeader.BSDFCount <= 0)
+	if (SubstratePixelHeader.ClosureCount <= 0)
 	{
 		return;
 	}

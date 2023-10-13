@@ -127,10 +127,10 @@ void TileMainCS(uint2 DispatchThreadId : SV_DispatchThreadID, uint LinearIndex :
 		const uint PackedHeader = MaterialTextureArrayUAV[uint3(PixelCoord, 0)];
 		FSubstratePixelHeader SubstratePixelHeader = UnpackSubstrateHeaderIn(PackedHeader, SubstrateAddressing, TopLayerTexture);
 
-		const bool bIsSimple =  SubstratePixelHeader.IsSimpleMaterial() || SubstratePixelHeader.BSDFCount == 0; // BSDFCount == 0 ensures that non-Substrate pixel, like sky pixels, won't make a simple tile flagged as complex
+		const bool bIsSimple =  SubstratePixelHeader.IsSimpleMaterial() || SubstratePixelHeader.ClosureCount == 0; // BSDFCount == 0 ensures that non-Substrate pixel, like sky pixels, won't make a simple tile flagged as complex
 		const bool bIsSingle = !SubstratePixelHeader.IsSimpleMaterial() && SubstratePixelHeader.IsSingleMaterial();
 		const bool bIsComplexSpecial = SubstratePixelHeader.IsComplexSpecialMaterial();
-		bContainsSubstrateMaterial  = SubstratePixelHeader.BSDFCount > 0;
+		bContainsSubstrateMaterial  = SubstratePixelHeader.ClosureCount > 0;
 		bContainsSimpleMaterial  = bIsSimple;
 		bContainsSingleMaterial  = bIsSingle;
 		bContainsComplexMaterial		= !bIsSingle && !bIsSimple && !bIsComplexSpecial;
@@ -441,7 +441,7 @@ void ClosureTileMainCS(uint2 GroupThreadId : SV_GroupThreadID, uint2 GroupId : S
 	{
 		FSubstrateAddressing SubstrateAddressing = GetSubstratePixelDataByteOffset(PixelCoord, uint2(View.BufferSizeAndInvSize.xy), MaxBytesPerPixel);
 		FSubstratePixelHeader SubstratePixelHeader = UnpackSubstrateHeaderIn(MaterialTextureArray, SubstrateAddressing, TopLayerTexture);
-		ClosureCount = min(SubstratePixelHeader.BSDFCount, SUBSTRATE_MAX_CLOSURE_COUNT_FOR_CLOSUREOFFSET);
+		ClosureCount = min(SubstratePixelHeader.ClosureCount, SUBSTRATE_MAX_CLOSURE_COUNT_FOR_CLOSUREOFFSET);
 
 		if (ClosureCount > 0)
 		{

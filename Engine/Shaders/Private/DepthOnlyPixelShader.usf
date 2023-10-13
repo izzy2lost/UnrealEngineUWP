@@ -65,7 +65,7 @@ void Main(
 		FSubstratePixelHeader SubstratePixelHeader = MaterialParameters.GetFrontSubstrateHeader();
 
 		float MaterialOpacity = 1.0f;
-		if (SubstratePixelHeader.BSDFCount > 0)
+		if (SubstratePixelHeader.ClosureCount > 0)
 		{
 			// Update tree (coverage/transmittance/luminace weights)
 			const FSubstrateIntegrationSettings Settings = InitSubstrateIntegrationSettings();

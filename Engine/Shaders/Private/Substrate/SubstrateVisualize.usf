@@ -501,18 +501,18 @@ void PrintPixel(uint2 InCoord, float3 InWorldPosition, float3 V)
 	float2 RectMax = Context.StartPos;
 
 	// Header
-	if (ClosureIndex < Header.BSDFCount && ClosureIndex == 0)
+	if (ClosureIndex < Header.ClosureCount && ClosureIndex == 0)
 	{
 		const FSubstrateTopLayerData TopLayerData = SubstrateUnpackTopLayerData((SUBSTRATE_TOP_LAYER_TYPE)Substrate.TopLayerTexture.Load(uint3(InCoord, 0)));
 
-		const bool bSubstrateMaterial = Header.BSDFCount > 0;
-		const bool bIsSimpleMaterial = Header.IsSimpleMaterial() || Header.BSDFCount == 0;
+		const bool bSubstrateMaterial = Header.ClosureCount > 0;
+		const bool bIsSimpleMaterial = Header.IsSimpleMaterial() || Header.ClosureCount == 0;
 		const bool bIsSingleMaterial = !Header.IsSimpleMaterial() && Header.IsSingleMaterial();
 
 		FSubstrateIrradianceAndOcclusion IrradianceAndOcclusion = SubstrateGetIrradianceAndAO(Header);
 
 		RectMin = Context.Pos;
-		Print(Context, Header.BSDFCount, FontBSDFCount, 2, 0);
+		Print(Context, Header.ClosureCount, FontBSDFCount, 2, 0);
 		Print(Context, TEXT("BSDF"), FontBSDFCount);
 		Print(Context, TEXT(" - "), FontWhite);
 		PrintPixelType(Context, Header, FontLightRed);
@@ -563,11 +563,11 @@ void PrintPixel(uint2 InCoord, float3 InWorldPosition, float3 V)
 	}
 
 	// BSDFs
-	if (ClosureIndex < Header.BSDFCount)
+	if (ClosureIndex < Header.ClosureCount)
 	{
 		if (ClosureIndex > 0)
 		{
-			const uint AddressOffset = UnpackClosureOffsetAtIndex(Substrate.ClosureOffsetTexture[InCoord], ClosureIndex, Header.BSDFCount);
+			const uint AddressOffset = UnpackClosureOffsetAtIndex(Substrate.ClosureOffsetTexture[InCoord], ClosureIndex, Header.ClosureCount);
 			SubstrateSeekClosure(SubstrateAddressing, AddressOffset);
 		}
 
@@ -581,10 +581,10 @@ void PrintPixel(uint2 InCoord, float3 InWorldPosition, float3 V)
 	}
 
 	// Memory footprint
-	if (ClosureIndex+1 == Header.BSDFCount)
+	if (ClosureIndex+1 == Header.ClosureCount)
 	{
-		const bool bSubstrateMaterial = Header.BSDFCount > 0;
-		const bool bIsSimpleMaterial = Header.IsSimpleMaterial() || Header.BSDFCount == 0;
+		const bool bSubstrateMaterial = Header.ClosureCount > 0;
+		const bool bIsSimpleMaterial = Header.IsSimpleMaterial() || Header.ClosureCount == 0;
 		const bool bIsSingleMaterial = !Header.IsSimpleMaterial() && Header.IsSingleMaterial();
 
 		const uint FootPrint_PostBSDFs = SubstrateAddressing.ReadBytes;
@@ -704,7 +704,7 @@ void VisualizeMaterialPS(
 	FSubstrateAddressing SubstrateAddressing = GetSubstratePixelDataByteOffset(PixelPosDynRes, uint2(View.BufferSizeAndInvSize.xy), Substrate.MaxBytesPerPixel);
 	const uint FootPrint_Start = SubstrateAddressing.ReadBytes;
 	FSubstratePixelHeader Header = UnpackSubstrateHeaderIn(Substrate.MaterialTextureArray, SubstrateAddressing, Substrate.TopLayerTexture);
-	const bool bSubstrateMaterial = Header.BSDFCount > 0;
+	const bool bSubstrateMaterial = Header.ClosureCount > 0;
 
 	OutColor = 0;
 	OutColor.w = 0.1f;
@@ -712,9 +712,9 @@ void VisualizeMaterialPS(
 	{
 		// BSDF count
 		const float MaxClosureCount = SUBSTRATE_MAX_CLOSURE_COUNT;
-		if (Header.BSDFCount > 0)
+		if (Header.ClosureCount > 0)
 		{
-			const float BSDFCost = saturate(float(Header.BSDFCount) / MaxClosureCount);
+			const float BSDFCost = saturate(float(Header.ClosureCount) / MaxClosureCount);
 			OutColor.xyz = ColorMapTurbo(BSDFCost);
 		}
 	
@@ -734,7 +734,7 @@ void VisualizeMaterialPS(
 		FSubstratePixelHeader Header = UnpackSubstrateHeaderIn(Substrate.MaterialTextureArray, SubstrateAddressing, Substrate.TopLayerTexture);
 
 		uint MaterialBytePerPixel = 0;
-		Substrate_for (uint ClosureIndex = 0, ClosureIndex < Header.BSDFCount, ++ClosureIndex)
+		Substrate_for (uint ClosureIndex = 0, ClosureIndex < Header.ClosureCount, ++ClosureIndex)
 		{
 			// Unpack BSDF data
 			FSubstrateBSDF BSDF = UnpackSubstrateBSDF(Substrate.MaterialTextureArray, SubstrateAddressing, Header);
@@ -805,7 +805,7 @@ void MaterialDebugSubstrateTreeCS(uint3 DispatchThreadId : SV_DispatchThreadID)
 
 	FSubstrateAddressing SubstrateAddressing = GetSubstratePixelDataByteOffset(PixelPos, uint2(View.BufferSizeAndInvSize.xy), Substrate.MaxBytesPerPixel);
 	FSubstratePixelHeader Header = UnpackSubstrateHeaderIn(Substrate.MaterialTextureArray, SubstrateAddressing, Substrate.TopLayerTexture);
-	if (Header.BSDFCount > 0)
+	if (Header.ClosureCount > 0)
 	{
 		const int SliceStoringDebugSubstrateTreeData = Substrate.SliceStoringDebugSubstrateTreeData;
 
@@ -1189,7 +1189,7 @@ void EvaluateLighting(
 
 	// Create a head that will map to a single BSDF
 	FSubstratePixelHeader SubstratePixelHeader = InitialiseSubstratePixelHeader();
-	SubstratePixelHeader.BSDFCount = 1;
+	SubstratePixelHeader.ClosureCount = 1;
 
 	FSubstrateIntegrationSettings Settings = InitSubstrateIntegrationSettings();
 	FSubstrateAddressing NullSubstrateAddressing = (FSubstrateAddressing)0;
@@ -1411,7 +1411,7 @@ void MaterialDebugSubstrateTreePS(
 
 	FSubstrateAddressing SubstrateAddressing = GetSubstratePixelDataByteOffset((float2(View.CursorPosition) * View.ViewResolutionFraction), uint2(View.BufferSizeAndInvSize.xy), Substrate.MaxBytesPerPixel);
 	FSubstratePixelHeader Header = UnpackSubstrateHeaderIn(Substrate.MaterialTextureArray, SubstrateAddressing, Substrate.TopLayerTexture);
-	if (Header.BSDFCount > 0)
+	if (Header.ClosureCount > 0)
 	{
 		const float2 PixelPos = SVPos.xy;
 		OutColor = float4(0.0f, 0.0f, 0.0f, PixelPos.x < 540.0f ? 0.5f : 1.0f); // Background

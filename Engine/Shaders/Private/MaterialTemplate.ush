@@ -524,11 +524,11 @@ struct FMaterialPixelParameters
 		FSubstratePixelHeader SubstratePixelHeader = InitialiseSubstratePixelHeader();
 #if SUBSTRATE_USE_FULLYSIMPLIFIED_MATERIAL == 1
 		SubstratePixelHeader.SubstrateTree = SubstrateTreeFullySimplified;
-		SubstratePixelHeader.BSDFCount = SubstrateTreeFullySimplified.BSDFCount;
+		SubstratePixelHeader.ClosureCount = SubstrateTreeFullySimplified.BSDFCount;
 		SubstratePixelHeader.SharedLocalBases = SharedLocalBasesFullySimplified;
 #else
 		SubstratePixelHeader.SubstrateTree = SubstrateTree;
-		SubstratePixelHeader.BSDFCount = SubstrateTree.BSDFCount;
+		SubstratePixelHeader.ClosureCount = SubstrateTree.BSDFCount;
 		SubstratePixelHeader.SharedLocalBases = SharedLocalBases;
 #endif
 		SubstratePixelHeader.IrradianceAO = InitIrradianceAndOcclusion();
@@ -2559,7 +2559,7 @@ float4 SceneTextureLookup(float2 UV, int SceneTextureIndex, bool bFiltered)
 		FSubstrateAddressing SubstrateAddressing   = GetSubstratePixelDataByteOffset(PixelPos, uint2(View.BufferSizeAndInvSize.xy), SubstrateSceneTexture.MaxBytesPerPixel);
 		FSubstratePixelHeader SubstratePixelHeader = UnpackSubstrateHeaderIn(SubstrateSceneTexture.MaterialTextureArray, SubstrateAddressing, SubstrateSceneTexture.TopLayerTexture);
 		BRANCH
-		if (SubstratePixelHeader.BSDFCount > 0)
+		if (SubstratePixelHeader.ClosureCount > 0)
 		{
 			const FSubstrateSubsurfaceHeader SSSHeader = SubstrateLoadSubsurfaceHeader(SubstrateSceneTexture.MaterialTextureArray, SubstrateSceneTexture.FirstSliceStoringSubstrateSSSData, SubstrateAddressing.PixelCoords);
 			const uint SSSType = SubstrateSubSurfaceHeaderGetSSSType(SSSHeader);

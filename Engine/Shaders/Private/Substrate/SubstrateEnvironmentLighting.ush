@@ -58,7 +58,7 @@ FSubstrateDeferredLighting SubstrateEnvironmentLighting(
 	uint NumCulledReflectionCaptures = 0;
 #endif
 
-	Substrate_for (uint BSDFIndex = 0, BSDFIndex < SubstratePixelHeader.BSDFCount, ++BSDFIndex)
+	Substrate_for (uint ClosureIndex = 0, ClosureIndex < SubstratePixelHeader.ClosureCount, ++ClosureIndex)
 	{
 		FSubstrateBSDF BSDF = UnpackSubstrateBSDF(MaterialBuffer, SubstrateAddressing, SubstratePixelHeader);
 

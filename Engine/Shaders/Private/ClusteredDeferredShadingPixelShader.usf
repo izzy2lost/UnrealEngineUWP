@@ -419,7 +419,7 @@ void ClusteredShadingPixelShader(
 	float3 SubSurfaceSceneColor = 0;
 
 	BRANCH
-	if (SubstratePixelHeader.BSDFCount > 0 || CulledLightGridData.NumLocalLights == 0)
+	if (SubstratePixelHeader.ClosureCount > 0 || CulledLightGridData.NumLocalLights == 0)
 	{
 		const float2 ScreenPosition = ViewportUVToScreenPos(ScreenUV);
 		const float3 TranslatedWorldPosition = mul(float4(GetScreenPositionForProjectionType(ScreenPosition, SceneDepth), SceneDepth, 1), PrimaryView.ScreenToTranslatedWorld).xyz;

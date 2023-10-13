@@ -424,7 +424,7 @@ FExposureMaterial GetExposureMaterial(uint2 InPixelPos)
 		{
 			FSubstrateDeferredLighting Out = GetInitialisedSubstrateDeferredLighting();
 			const FSubstrateIntegrationSettings Settings = InitSubstrateIntegrationSettings(false /*bForceFullyRough*/, Substrate.bRoughDiffuse, Substrate.PeelLayersAboveDepth, Substrate.bRoughnessTracking);
-			Substrate_for(uint BSDFIndex = 0, BSDFIndex < SubstratePixelHeader.BSDFCount, ++BSDFIndex)
+			Substrate_for(uint ClosureIndex = 0, ClosureIndex < SubstratePixelHeader.ClosureCount, ++ClosureIndex)
 			{
 				FSubstrateBSDF BSDF = UnpackSubstrateBSDF(Substrate.MaterialTextureArray, SubstrateAddressing, SubstratePixelHeader);
 				FSubstrateBSDFContext SubstrateBSDFContext = SubstrateCreateBSDFContext(SubstratePixelHeader, BSDF, SubstrateAddressing, V);

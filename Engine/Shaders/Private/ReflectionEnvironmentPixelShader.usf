@@ -292,7 +292,7 @@ void ReflectionEnvironmentSkyLighting(
 	FSubstrateAddressing SubstrateAddressing = GetSubstratePixelDataByteOffset(PixelPos, uint2(View.BufferSizeAndInvSize.xy), Substrate.MaxBytesPerPixel);
 	FSubstratePixelHeader SubstratePixelHeader = UnpackSubstrateHeaderIn(Substrate.MaterialTextureArray, SubstrateAddressing, Substrate.TopLayerTexture);
 	BRANCH
-	if (SubstratePixelHeader.BSDFCount > 0) // This test is also enough to exclude sky pixels
+	if (SubstratePixelHeader.ClosureCount > 0) // This test is also enough to exclude sky pixels
 	{
 		float DeviceZ = SampleDeviceZFromSceneTextures(BufferUV);
 		float SceneDepth = ConvertFromDeviceZ(DeviceZ);

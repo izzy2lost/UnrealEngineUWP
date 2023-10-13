@@ -254,7 +254,7 @@ void DeferredLightPixelMain(
 	FSubstratePixelHeader SubstratePixelHeader = UnpackSubstrateHeaderIn(Substrate.MaterialTextureArray, SubstrateAddressing, Substrate.TopLayerTexture);
 
 	BRANCH
-	if (SubstratePixelHeader.BSDFCount > 0	// This test is also enough to exclude sky pixels
+	if (SubstratePixelHeader.ClosureCount > 0	// This test is also enough to exclude sky pixels
 #if USE_LIGHTING_CHANNELS
 		&& (GetLightingChannelMask(InputParams.ScreenUV) & DeferredLightUniforms.LightingChannelMask)
 #endif

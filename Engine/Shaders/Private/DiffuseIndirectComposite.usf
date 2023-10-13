@@ -251,9 +251,9 @@ FSubstrateDeferredLighting SubstrateIndirectLighting(
 	FSubstrateDeferredLighting Out = GetInitialisedSubstrateDeferredLighting();
 	const FSubstrateIntegrationSettings Settings = InitSubstrateIntegrationSettings(false /*bForceFullyRough*/, Substrate.bRoughDiffuse, Substrate.PeelLayersAboveDepth, Substrate.bRoughnessTracking);
 
-	Substrate_for(uint BSDFIndex = 0, BSDFIndex < SubstratePixelHeader.BSDFCount, ++BSDFIndex)
+	Substrate_for(uint ClosureIndex = 0, ClosureIndex < SubstratePixelHeader.ClosureCount, ++ClosureIndex)
 	{
-		const uint4 FetchCoord = uint4(PixelPos, BSDFIndex, 0);
+		const uint4 FetchCoord = uint4(PixelPos, ClosureIndex, 0);
 
 		// * Lumen integration output indirect lighting per BSDF
 		// * SSGI  integration output a single indirect lighting value for all BSDF
@@ -283,7 +283,7 @@ FSubstrateDeferredLighting SubstrateIndirectLighting(
 		const float3 DiffuseColor = SubstrateGetBSDFDiffuseColor(BSDF);
 		const float  Roughness = SubstrateGetBSDFRoughness(BSDF);
 		const bool bHasBackfaceDiffuse = SubstrateGetBSDFType(BSDF) == SUBSTRATE_BSDF_TYPE_SLAB && BSDF.HasBackScattering();
-		const FShadingOcclusion Occlusion = GetShadingOcclusion(PixelPos, BSDFIndex, V, SubstrateBSDFContext.N, Roughness, DiffuseColor, InAO);
+		const FShadingOcclusion Occlusion = GetShadingOcclusion(PixelPos, ClosureIndex, V, SubstrateBSDFContext.N, Roughness, DiffuseColor, InAO);
 
 		const float3 InGlossyLighting = MixSpecularAndRoughReflections(Roughness, bHasBackfaceDiffuse, InSpecularLighting, InRoughSpecularLighting);
 

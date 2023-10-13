@@ -167,10 +167,10 @@ FLumenMaterialData InternalReadMaterialData_Substrate(uint2 InPixelPos)
 	Out.bIsHair							= BSDFType == SUBSTRATE_BSDF_TYPE_HAIR;
 	Out.bHasBackfaceDiffuse				= BSDFType == SUBSTRATE_BSDF_TYPE_SLAB && SubstratePixelHeader.HasSubsurface();
 	Out.bRequiresBxDFImportanceSampling = Out.bIsHair;
-	Out.bIsValid 						= SubstratePixelHeader.BSDFCount > 0;
+	Out.bIsValid 						= SubstratePixelHeader.ClosureCount > 0;
 
 	// SUBSTRATE_TODO: For now, use only the last BSDF (arbitrary)
-	Substrate_for(uint BSDFIndex = 0, BSDFIndex < SubstratePixelHeader.BSDFCount, ++BSDFIndex)
+	Substrate_for(uint ClosureIndex = 0, ClosureIndex < SubstratePixelHeader.ClosureCount, ++ClosureIndex)
 	{
 		float3 NullV				= float3(0, 0, 1);
 		FSubstrateBSDF BSDF			= UnpackSubstrateBSDF(Substrate.MaterialTextureArray, SubstrateAddressing, SubstratePixelHeader);
@@ -194,12 +194,12 @@ FLumenMaterialData InternalReadMaterialData_Substrate(uint2 InCoord, uint InClos
 		FSubstrateAddressing SubstrateAddressing			= GetSubstratePixelDataByteOffset(InCoord, uint2(View.BufferSizeAndInvSize.xy), Substrate.MaxBytesPerPixel);
 		const FSubstratePixelHeader SubstratePixelHeader	= UnpackSubstrateHeaderIn(Substrate.MaterialTextureArray, SubstrateAddressing, Substrate.TopLayerTexture);
 
-		if (InClosureIndex < SubstratePixelHeader.BSDFCount)
+		if (InClosureIndex < SubstratePixelHeader.ClosureCount)
 		{
 			// Move data read address to the requested BDSF
 			if (InClosureIndex > 0)
 			{
-				const uint AddressOffset = UnpackClosureOffsetAtIndex(Substrate.ClosureOffsetTexture[InCoord], InClosureIndex, SubstratePixelHeader.BSDFCount);
+				const uint AddressOffset = UnpackClosureOffsetAtIndex(Substrate.ClosureOffsetTexture[InCoord], InClosureIndex, SubstratePixelHeader.ClosureCount);
 				SubstrateSeekClosure(SubstrateAddressing, AddressOffset);
 			}
 

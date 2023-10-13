@@ -115,7 +115,7 @@ float4 DebugRayTracingMaterial(FRayDesc Ray, bool bIsFarField)
 		FSubstratePixelHeader SubstratePixelHeader = UnpackSubstrateHeaderIn(Payload.SubstrateData, SubstrateAddressing, Payload.SubstrateData);
 
 		BRANCH
-		if (SubstratePixelHeader.BSDFCount > 0)
+		if (SubstratePixelHeader.ClosureCount > 0)
 		{
 			const FSubstrateBSDF BSDF = UnpackSubstrateBSDFIn(Payload.SubstrateData, SubstrateAddressing, SubstratePixelHeader); // Take the parameter of the first BSDF
 			const float3x3 TangentBasis = SubstrateGetBSDFSharedBasis(SubstratePixelHeader, BSDF, SubstrateAddressing);

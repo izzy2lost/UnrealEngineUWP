@@ -67,7 +67,7 @@ SingleLayerWaterCompositeOutput SingleLayerWaterComposite(float2 BufferUV, float
 	// Water do nto read the classification data to avoid running it a second time when water is enabled.
 	FSubstrateAddressing SubstrateAddressing = GetSubstratePixelDataByteOffset(SvPosition.xy, uint2(View.BufferSizeAndInvSize.xy), Substrate.MaxBytesPerPixel);
 	FSubstratePixelHeader SubstratePixelHeader = UnpackSubstrateHeaderIn(Substrate.MaterialTextureArray, SubstrateAddressing, Substrate.TopLayerTexture);
-	if (SubstratePixelHeader.BSDFCount > 0 && SubstratePixelHeader.IsSingleLayerWater())
+	if (SubstratePixelHeader.ClosureCount > 0 && SubstratePixelHeader.IsSingleLayerWater())
 	{
 		float DeviceZ = SampleDeviceZFromSceneTextures(BufferUV);
 		float SceneDepth = ConvertFromDeviceZ(DeviceZ);
@@ -295,7 +295,7 @@ bool DoesPixelContainWater(uint2 PixelPos)
 #if SUBSTRATE_ENABLED
 	FSubstrateAddressing SubstrateAddressing = GetSubstratePixelDataByteOffset(PixelPos, uint2(View.BufferSizeAndInvSize.xy), Substrate.MaxBytesPerPixel);
 	FSubstratePixelHeader SubstratePixelHeader = UnpackSubstrateHeaderIn(Substrate.MaterialTextureArray, SubstrateAddressing, Substrate.TopLayerTexture);
-	return (SubstratePixelHeader.BSDFCount > 0 && SubstratePixelHeader.IsSingleLayerWater());
+	return (SubstratePixelHeader.ClosureCount > 0 && SubstratePixelHeader.IsSingleLayerWater());
 #else
 	float2 BufferUV = (PixelPos + 0.5f) * View.BufferSizeAndInvSize.zw;
 	FGBufferData GBuffer = GetGBufferDataFromSceneTextures(BufferUV);

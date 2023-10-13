@@ -644,7 +644,7 @@ void Main(
 
 	#define SUBSTRATE_DEBUG_ENABLE_LIGHTING 1
 	#if SUBSTRATE_DEBUG_ENABLE_LIGHTING
-	if (SubstratePixelHeader.BSDFCount > 0)
+	if (SubstratePixelHeader.ClosureCount > 0)
 	{
 		#if FULLY_ROUGH
 		const bool bForceFullyRough = true;

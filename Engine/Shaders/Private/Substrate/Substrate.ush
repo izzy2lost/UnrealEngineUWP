@@ -2000,7 +2000,7 @@ uint SubstrateGetSharedLocalBasisType(in uint Types, uint Index)
 
 struct FSubstratePixelHeader
 {
-	uint BSDFCount;
+	uint ClosureCount;
 
 	uint State;
 
@@ -2114,7 +2114,7 @@ FSubstrateMaterialContainer DummySubstrateBuffer;
 FSubstratePixelHeader InitialiseSubstratePixelHeader()
 {
 	FSubstratePixelHeader Out;
-	Out.BSDFCount = 0;
+	Out.ClosureCount = 0;
 #if SUBSTRATE_INLINE_SHADING
 	Out.SharedLocalBases = (FSharedLocalBases)0;
 	Out.SubstrateTree = GetInitialisedSubstrateTree();
@@ -3652,7 +3652,7 @@ void FSubstratePixelHeader::SubstrateConvertFromDBuffer(
 	// Header
 	const uint SharedLocalBasisIndex = 0;
 	uint SharedLocalBasisTypes = 0;
-	this.BSDFCount = 1;
+	this.ClosureCount = 1;
 #if SUBSTRATE_INLINE_SHADING
 	this.SharedLocalBases = SubstrateInitialiseSharedLocalBases();
 	this.SharedLocalBases.Normals[SharedLocalBasisIndex] = In.WorldNormal;
@@ -3802,7 +3802,7 @@ FSubstratePixelHeader UnpackSubstrateHeaderIn(uint PackedHeader, inout FSubstrat
 {
 	FSubstratePixelHeader Out = InitialiseSubstratePixelHeader();
 	Out.State		= HEADER_GETCOMMONSTATES(PackedHeader);	// Unpack state and AO data at the same time 
-	Out.BSDFCount   = HEADER_GETBSDFCOUNT(PackedHeader);
+	Out.ClosureCount= HEADER_GETBSDFCOUNT(PackedHeader);
 
 	// Use simple or single layout for decoding data
 	BRANCH
@@ -3810,7 +3810,7 @@ FSubstratePixelHeader UnpackSubstrateHeaderIn(uint PackedHeader, inout FSubstrat
 	{
 		// Within a tile classified as simple or single, some pixel might be invalid (e.g., sky pixels). 
 		// This ensures that invalid pixels are not processed, and keep these tiles as single/simple instead of complex
-		Out.BSDFCount = Out.IsSubstrateMaterial() ? 1 : 0; 
+		Out.ClosureCount = Out.IsSubstrateMaterial() ? 1 : 0; 
 
 	  #if SUBSTRATE_DEFERRED_SHADING
 		Out.SharedLocalBasesTypes_PackedHeader = PackedHeader; // ?
