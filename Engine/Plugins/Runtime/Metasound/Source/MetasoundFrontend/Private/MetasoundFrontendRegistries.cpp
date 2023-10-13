@@ -413,7 +413,7 @@ namespace Metasound
 				{
 					ObjectReferencer->AddObject(OwningObject);
 				}
-				ActiveRegistrationTasks.Add(RegistryKey, FActiveRegistrationTaskInfo{BuildAndRegisterTask, OwningObject});
+				ActiveRegistrationTasks.Add(RegistryKey, FActiveRegistrationTaskInfo{BuildAndRegisterTask, InAssetPath, OwningObject});
 			}
 			else
 			{
@@ -857,7 +857,7 @@ namespace Metasound
 					if (InAssetPath)
 					{
 						// Filter by asset path
-						if (*InAssetPath == FSoftObjectPath(FoundTask->OwningObject))
+						if (*InAssetPath == FoundTask->AssetPath)
 						{
 							ActiveRegistrationTask = FoundTask->Task;
 						}

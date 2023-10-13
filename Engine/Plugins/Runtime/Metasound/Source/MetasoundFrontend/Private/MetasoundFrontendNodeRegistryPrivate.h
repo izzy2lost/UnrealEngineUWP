@@ -183,6 +183,7 @@ namespace Metasound
 			struct FActiveRegistrationTaskInfo
 			{
 				UE::Tasks::FTask Task;
+				FSoftObjectPath AssetPath;
 				TObjectPtr<UObject> OwningObject;
 			};
 
