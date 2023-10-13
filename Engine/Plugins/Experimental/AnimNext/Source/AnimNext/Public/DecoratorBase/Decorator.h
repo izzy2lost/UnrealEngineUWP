@@ -81,9 +81,10 @@ class FArchive;
 	}
 
 // Allows a decorator to auto-register and unregister within the current execution scope
+// The decorator must be found in the current scope without a namespace qualification
 #define AUTO_REGISTER_ANIM_DECORATOR(DecoratorName) \
 	UE::AnimNext::FDecoratorStaticInitHook DecoratorName##Hook( \
-		[](void* DestPtr, FDecoratorMemoryLayout& MemoryDesc) -> FDecorator* \
+		[](void* DestPtr, UE::AnimNext::FDecoratorMemoryLayout& MemoryDesc) -> UE::AnimNext::FDecorator* \
 		{ \
 			MemoryDesc = DecoratorName::DecoratorMemoryDescription; \
 			return DestPtr != nullptr ? new(DestPtr) DecoratorName() : nullptr; \
