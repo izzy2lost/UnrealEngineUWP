@@ -8,6 +8,7 @@
 #include "Misc/Guid.h"
 #include "HAL/CriticalSection.h"
 #include "Templates/UniquePtr.h"
+#include "Sound/SoundGenerator.h"
 #include "Subsystems/AudioEngineSubsystem.h"
 
 #include "MetasoundSource.h"
@@ -36,6 +37,6 @@ public:
 	void PrecacheMetaSound(UMetaSoundSource* InMetaSound, int32 InNumInstances = 1);
 
 private:
-	TUniquePtr<FSoundGeneratorInitParams> BuildParams;
+	FSoundGeneratorInitParams BuildParams;
 }; //UMetaSoundCacheSubsystem
 
