@@ -374,6 +374,7 @@ void FAutomationWorkerModule::HandlePreTestingEvent()
 #if WITH_ENGINE
 	FAutomationTestFramework::Get().OnScreenshotCaptured().BindRaw(this, &FAutomationWorkerModule::HandleScreenShotCapturedWithName);
 	FAutomationTestFramework::Get().OnScreenshotAndTraceCaptured().BindRaw(this, &FAutomationWorkerModule::HandleScreenShotAndTraceCapturedWithName);
+	FAutomationTestFramework::Get().OnScreenshotComparisonReport.AddRaw(this, &FAutomationWorkerModule::HandleScreenShotComparisonReport);
 #endif
 }
 
@@ -383,6 +384,7 @@ void FAutomationWorkerModule::HandlePostTestingEvent()
 #if WITH_ENGINE
 	FAutomationTestFramework::Get().OnScreenshotAndTraceCaptured().Unbind();
 	FAutomationTestFramework::Get().OnScreenshotCaptured().Unbind();
+	FAutomationTestFramework::Get().OnScreenshotComparisonReport.RemoveAll(this);
 #endif
 }
 
@@ -394,6 +396,7 @@ void FAutomationWorkerModule::HandleScreenShotCompared(const FAutomationWorkerIm
 	// Image comparison finished.
 	FAutomationScreenshotCompareResults CompareResults;
 	CompareResults.UniqueId = Message.UniqueId;
+	CompareResults.ScreenshotName = Message.ScreenshotName;
 	CompareResults.bWasNew = Message.bNew;
 	CompareResults.bWasSimilar = Message.bSimilar;
 	CompareResults.MaxLocalDifference = Message.MaxLocalDifference;
@@ -418,6 +421,25 @@ void FAutomationWorkerModule::HandlePerformanceDataRetrieved(const FAutomationWo
 }
 
 #if WITH_ENGINE
+void FAutomationWorkerModule::HandleScreenShotComparisonReport(const FAutomationScreenshotCompareResults& Results)
+{
+	FAutomationWorkerImageComparisonResults* Message = FMessageEndpoint::MakeMessage<FAutomationWorkerImageComparisonResults>();
+
+	Message->ScreenshotName = Results.ScreenshotName;
+	Message->UniqueId = Results.UniqueId;
+	Message->bNew = Results.bWasNew;
+	Message->bSimilar = Results.bWasSimilar;
+	Message->ErrorMessage = Results.ErrorMessage;
+	Message->MaxLocalDifference = Results.MaxLocalDifference;
+	Message->GlobalDifference = Results.GlobalDifference;
+	Message->IncomingFilePath = Results.IncomingFilePath;
+	Message->ReportComparisonFilePath = Results.ReportComparisonFilePath;
+	Message->ReportApprovedFilePath = Results.ReportApprovedFilePath;
+	Message->ReportIncomingFilePath = Results.ReportIncomingFilePath;
+
+	MessageEndpoint->Send(Message, TestRequesterAddress);
+}
+
 void FAutomationWorkerModule::HandleScreenShotCapturedWithName(const TArray<FColor>& RawImageData, const FAutomationScreenshotData& Data)
 {
 	HandleScreenShotAndTraceCapturedWithName(RawImageData, TArray<uint8>(), Data);
@@ -575,7 +597,7 @@ void FAutomationWorkerModule::HandleRunTestsMessage( const FAutomationWorkerRunT
 			return;
 		}
 
-		FString LogMessage = FString::Format(TEXT("Worker is already running test '%s' from %s. '%s' won't be run."), 
+		FString LogMessage = FString::Format(TEXT("Worker is already running test '{0}' from {1}. '{2}' won't be run."), 
 			{ *BeautifiedTestName, *TestRequesterAddress.ToString(), *Message.BeautifiedTestName });
 		UE_LOG(LogAutomationWorker, Warning, TEXT("%s"), *LogMessage);
 

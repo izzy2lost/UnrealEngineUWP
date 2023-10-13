@@ -303,6 +303,12 @@ public:
 	FText ErrorMessage;
 
 	/*
+		Name of the screenshot
+	*/
+	UPROPERTY()
+	FString ScreenshotName;
+
+	/*
 		Version of the image comparision result 
 	*/
 	UPROPERTY()

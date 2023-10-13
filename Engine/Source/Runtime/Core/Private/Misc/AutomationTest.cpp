@@ -1024,6 +1024,11 @@ void FAutomationTestFramework::NotifyScreenshotComparisonComplete(const FAutomat
 	OnScreenshotCompared.Broadcast(CompareResults);
 }
 
+void FAutomationTestFramework::NotifyScreenshotComparisonReport(const FAutomationScreenshotCompareResults& CompareResults)
+{
+	OnScreenshotComparisonReport.Broadcast(CompareResults);
+}
+
 void FAutomationTestFramework::NotifyTestDataRetrieved(bool bWasNew, const FString& JsonData)
 {
 	OnTestDataRetrieved.Broadcast(bWasNew, JsonData);
@@ -1197,14 +1202,14 @@ void FAutomationTestExecutionInfo::AddError(const FString& ErrorMessage)
 
 //------------------------------------------------------------------------------
 
-FAutomationEvent FAutomationScreenshotCompareResults::ToAutomationEvent(const FString& ScreenhotName) const
+FAutomationEvent FAutomationScreenshotCompareResults::ToAutomationEvent() const
 {
 	FAutomationEvent Event(EAutomationEventType::Info, TEXT(""));
 
 	if (bWasNew)
 	{
 		Event.Type = EAutomationEventType::Warning;
-		Event.Message = FString::Printf(TEXT("New Screenshot '%s' was discovered!  Please add a ground truth version of it."), *ScreenhotName);
+		Event.Message = FString::Printf(TEXT("New Screenshot '%s' was discovered!  Please add a ground truth version of it."), *ScreenshotName);
 	}
 	else
 	{
@@ -1212,7 +1217,7 @@ FAutomationEvent FAutomationScreenshotCompareResults::ToAutomationEvent(const FS
 		{
 			Event.Type = EAutomationEventType::Info;
 			Event.Message = FString::Printf(TEXT("Screenshot '%s' was similar!  Global Difference = %f, Max Local Difference = %f"),
-				*ScreenhotName, GlobalDifference, MaxLocalDifference);
+				*ScreenshotName, GlobalDifference, MaxLocalDifference);
 		}
 		else
 		{
@@ -1221,11 +1226,11 @@ FAutomationEvent FAutomationScreenshotCompareResults::ToAutomationEvent(const FS
 			if (ErrorMessage.IsEmpty())
 			{
 				Event.Message = FString::Printf(TEXT("Screenshot '%s' test failed, Screenshots were different!  Global Difference = %f, Max Local Difference = %f"),
-					*ScreenhotName, GlobalDifference, MaxLocalDifference);
+					*ScreenshotName, GlobalDifference, MaxLocalDifference);
 			}
 			else
 			{
-				Event.Message = FString::Printf(TEXT("Screenshot '%s' test failed; Error = %s"), *ScreenhotName, *ErrorMessage);
+				Event.Message = FString::Printf(TEXT("Screenshot '%s' test failed; Error = %s"), *ScreenshotName, *ErrorMessage);
 			}
 		}
 	}

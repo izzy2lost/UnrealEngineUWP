@@ -457,6 +457,9 @@ protected:
 	 */
 	void ExecuteNextTask( int32 ClusterIndex, OUT bool& bAllTestsCompleted );
 
+	/* Report an image comparison result */
+	void ReportImageComparisonResult(const FMessageAddress Sender, const FAutomationWorkerImageComparisonResults& Result);
+
 	/** Process the comparison queue to see if there are comparisons we need to respond to the test with. */
 	void ProcessComparisonQueue();
 
@@ -492,6 +495,9 @@ private:
 
 	/** Handles FAutomationWorkerScreenImage messages. */
 	void HandleReceivedScreenShot( const FAutomationWorkerScreenImage& Message, const TSharedRef<IMessageContext, ESPMode::ThreadSafe>& Context );
+
+	/** Handles FAutomationWorkerScreenshotComparisonResult messages. */
+	void HandleReceivedComparisonResult( const FAutomationWorkerImageComparisonResults& Message, const TSharedRef<IMessageContext, ESPMode::ThreadSafe>& Context );
 
 	/** Handles FAutomationWorkerTestDataRequest messages. */
 	void HandleTestDataRequest(const FAutomationWorkerTestDataRequest& Message, const TSharedRef<IMessageContext, ESPMode::ThreadSafe>& Context);
@@ -622,7 +628,6 @@ private:
 	struct FComparisonEntry
 	{
 		FMessageAddress Sender;
-		FString ScreenshotPath;
 		TFuture<FImageComparisonResult> PendingComparison;
 	};
 

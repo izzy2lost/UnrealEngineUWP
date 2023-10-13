@@ -238,7 +238,7 @@ namespace AutomationCommon
 	{
 	public:
 		FAutomationImageComparisonRequest(const FString& InImageName, const FString& InContext, int32 InWidth, int32 InHeight, const TArray<FColor>& InImageData, const FAutomationComparisonToleranceAmount& InTolerance, const FString& InNotes)
-			: ImageName(InImageName), ImageData(InImageData), Initiate(false), TaskCompleted(false)
+			: ImageData(InImageData), Initiate(false), TaskCompleted(false)
 		{
 			FString Context = InContext;
 			if (Context.IsEmpty())
@@ -253,7 +253,7 @@ namespace AutomationCommon
 				}
 			}
 
-			ComparisonParameters = BuildScreenshotData(Context, TEXT(""), ImageName, InWidth, InHeight);
+			ComparisonParameters = BuildScreenshotData(Context, TEXT(""), InImageName, InWidth, InHeight);
 
 			// Copy the relevant data into the metadata for the screenshot.
 			ComparisonParameters.bHasComparisonRules = true;
@@ -283,7 +283,7 @@ namespace AutomationCommon
 
 			if (FAutomationTestBase* CurrentTest = FAutomationTestFramework::Get().GetCurrentTest())
 			{
-				CurrentTest->AddEvent(CompareResults.ToAutomationEvent(ImageName));
+				CurrentTest->AddEvent(CompareResults.ToAutomationEvent());
 			}
 
 			TaskCompleted = true;
@@ -309,7 +309,6 @@ namespace AutomationCommon
 		}
 
 	private:
-		FString	ImageName;
 		FAutomationScreenshotData ComparisonParameters;
 		const TArray<FColor> ImageData;
 		bool Initiate;

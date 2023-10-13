@@ -790,8 +790,47 @@ struct FAutomationScreenshotCompareResults
 	double GlobalDifference = 0.0;
 	bool bWasNew = false;
 	bool bWasSimilar = false;
+	FString IncomingFilePath;
+	FString ReportComparisonFilePath;
+	FString ReportApprovedFilePath;
+	FString ReportIncomingFilePath;
+	FString ScreenshotName;
 
-	CORE_API FAutomationEvent ToAutomationEvent(const FString& ScreenhotName) const;
+	FAutomationScreenshotCompareResults()
+		: UniqueId()
+		, MaxLocalDifference(0.0)
+		, GlobalDifference(0.0)
+		, bWasNew(false)
+		, bWasSimilar(false)
+	{ }
+
+	FAutomationScreenshotCompareResults(
+		FGuid InUniqueId,
+		FString InErrorMessage,
+		double InMaxLocalDifference,
+		double InGlobalDifference,
+		bool InWasNew,
+		bool InWasSimilar,
+		FString InIncomingFilePath,
+		FString InReportComparisonFilePath,
+		FString InReportApprovedFilePath,
+		FString InReportIncomingFilePath,
+		FString InScreenshotName
+	)
+		: UniqueId(InUniqueId)
+		, ErrorMessage(InErrorMessage)
+		, MaxLocalDifference(InMaxLocalDifference)
+		, GlobalDifference(InGlobalDifference)
+		, bWasNew(InWasNew)
+		, bWasSimilar(InWasSimilar)
+		, IncomingFilePath(InIncomingFilePath)
+		, ReportComparisonFilePath(InReportComparisonFilePath)
+		, ReportApprovedFilePath(InReportApprovedFilePath)
+		, ReportIncomingFilePath(InReportIncomingFilePath)
+		, ScreenshotName(InScreenshotName)
+	{ }
+
+	CORE_API FAutomationEvent ToAutomationEvent() const;
 };
 
 enum class EAutomationComparisonToleranceLevel : uint8
@@ -861,6 +900,8 @@ DECLARE_DELEGATE_ThreeParams(FOnTestScreenshotAndTraceCaptured, const TArray<FCo
 
 DECLARE_MULTICAST_DELEGATE_OneParam(FOnTestScreenshotComparisonComplete, const FAutomationScreenshotCompareResults& /*CompareResults*/);
 
+DECLARE_MULTICAST_DELEGATE_OneParam(FOnTestScreenshotComparisonReport, const FAutomationScreenshotCompareResults& /*CompareResults*/);
+
 DECLARE_MULTICAST_DELEGATE_TwoParams(FOnTestDataRetrieved, bool /*bWasNew*/, const FString& /*JsonData*/);
 
 DECLARE_MULTICAST_DELEGATE_TwoParams(FOnPerformanceDataRetrieved, bool /*bSuccess*/, const FString& /*ErrorMessage*/);
@@ -885,6 +926,9 @@ public:
 
 	/** Called when a screenshot comparison completes. */
 	FOnTestScreenshotComparisonComplete OnScreenshotCompared;
+
+	/** Called when a screenshot comparison result is reported */
+	FOnTestScreenshotComparisonReport OnScreenshotComparisonReport;
 
 	/** Called when the test data is retrieved. */
 	FOnTestDataRetrieved OnTestDataRetrieved;
@@ -1102,7 +1146,16 @@ public:
 	 */
 	static CORE_API bool NeedLogBPTestMetadata();
 
+	/**
+	 * Notify that the screenshot comparison has completed
+	 */
 	CORE_API void NotifyScreenshotComparisonComplete(const FAutomationScreenshotCompareResults& CompareResults);
+
+	/**
+	 * Notify the screenshot comparison report to the framework
+	 */
+	CORE_API void NotifyScreenshotComparisonReport(const FAutomationScreenshotCompareResults& CompareResults);
+
 	CORE_API void NotifyTestDataRetrieved(bool bWasNew, const FString& JsonData);
 	CORE_API void NotifyPerformanceDataRetrieved(bool bSuccess, const FString& ErrorMessage);
 

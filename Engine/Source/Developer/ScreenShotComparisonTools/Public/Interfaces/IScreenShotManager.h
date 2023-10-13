@@ -80,4 +80,19 @@ public:
 	* based on the platform/rhi/etc.
 	*/
 	virtual FString GetIdealApprovedFolderForImage(const FAutomationScreenshotMetadata& MetaData) const = 0;
+
+	/**
+	* Find the all the files that are approved for the given metadata and file pattern 
+	*/
+	virtual TArray<FString> FindApprovedFiles(const FAutomationScreenshotMetadata& IncomingMetaData, const FString& FilePattern) const = 0;
+
+	/**
+	* Compare a sequence of images. If the returned value is null no comparison failed. Otherwise return the first failing frame.
+	*/
+	virtual TSharedPtr<FImageComparisonResult> CompareImageSequence(const TMap<FString, FString>& Sequence, const FAutomationScreenshotMetadata& Metadata) = 0;
+
+	/**
+	* Notify the automation test framework of an image comparison result
+	*/
+	virtual void NotifyAutomationTestFrameworkOfImageComparison(const FImageComparisonResult& Result) = 0;
 };

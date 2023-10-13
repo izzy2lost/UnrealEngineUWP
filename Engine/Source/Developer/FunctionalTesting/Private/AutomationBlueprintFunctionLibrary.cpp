@@ -493,7 +493,7 @@ public:
 
 		if (FAutomationTestBase* CurrentTest = FAutomationTestFramework::Get().GetCurrentTest())
 		{
-			CurrentTest->AddEvent(CompareResults.ToAutomationEvent(ScreenShotName));
+			CurrentTest->AddEvent(CompareResults.ToAutomationEvent());
 		}
 
 		DeleteSelfNextFrame();
@@ -586,7 +586,7 @@ public:
 
 		if (FAutomationTestBase* CurrentTest = FAutomationTestFramework::Get().GetCurrentTest())
 		{
-			CurrentTest->AddEvent(CompareResults.ToAutomationEvent(ScreenShotName));
+			CurrentTest->AddEvent(CompareResults.ToAutomationEvent());
 		}
 
 		delete this;

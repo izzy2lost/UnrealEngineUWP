@@ -2,11 +2,11 @@
 
 #pragma once
 
+#include "AutomationState.h"
 #include "CoreTypes.h"
 #include "Containers/UnrealString.h"
-#include "Misc/Guid.h"
 #include "Misc/AutomationTest.h"
-#include "AutomationState.h"
+#include "Misc/Guid.h"
 #include "UObject/ObjectMacros.h"
 
 #include "AutomationWorkerMessages.generated.h"
@@ -692,7 +692,6 @@ public:
 	}
 };
 
-
 /**
  * Implements a message that is sent in containing a screen shot run during performance test.
  */
@@ -737,19 +736,40 @@ public:
 	{
 	}
 
-	FAutomationWorkerImageComparisonResults(FGuid InUniqueId, bool InIsNew, bool InAreSimilar, double InMaxLocalDifference, double InGlobalDifference, FString InErrorMessage)
+	FAutomationWorkerImageComparisonResults(
+		FGuid InUniqueId,
+		const FString& InName,
+		bool InIsNew,
+		bool InAreSimilar,
+		double InMaxLocalDifference,
+		double InGlobalDifference,
+		const FString& InErrorMessage,
+		const FString& InIncomingFilePath,
+		const FString& InReportComparisonFilePath,
+		const FString& InReportApprovedFilePath,
+		const FString& InReportIncomingFilePath
+	)
 		: UniqueId(InUniqueId)
+		, ScreenshotName(InName)
 		, bNew(InIsNew)
 		, bSimilar(InAreSimilar)
 		, MaxLocalDifference(InMaxLocalDifference)
 		, GlobalDifference(InGlobalDifference)
 		, ErrorMessage(InErrorMessage)
+		, IncomingFilePath(InIncomingFilePath)
+		, ReportComparisonFilePath(InReportComparisonFilePath)
+		, ReportApprovedFilePath(InReportApprovedFilePath)
+		, ReportIncomingFilePath(InReportIncomingFilePath)
 	{
 	}
 
 	/** The unique id for the comparison. */
 	UPROPERTY(EditAnywhere, Category="Message")
 	FGuid UniqueId;
+
+	/** The name of the screenshot. */
+	UPROPERTY(EditAnywhere, Category = "Message")
+	FString ScreenshotName;
 
 	/** Was this a new image we've never seen before and have no ground truth for? */
 	UPROPERTY(EditAnywhere, Category="Message")
@@ -767,6 +787,18 @@ public:
 
 	UPROPERTY(EditAnywhere, Category="Message")
 	FString ErrorMessage;
+
+	UPROPERTY(EditAnywhere, Category = "Message")
+	FString IncomingFilePath;
+
+	UPROPERTY(EditAnywhere, Category = "Message")
+	FString ReportComparisonFilePath;
+
+	UPROPERTY(EditAnywhere, Category = "Message")
+	FString ReportApprovedFilePath;
+
+	UPROPERTY(EditAnywhere, Category = "Message")
+	FString ReportIncomingFilePath;
 };
 
 

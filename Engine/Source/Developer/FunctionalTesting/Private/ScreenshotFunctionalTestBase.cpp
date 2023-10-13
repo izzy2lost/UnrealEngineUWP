@@ -207,7 +207,7 @@ void AScreenshotFunctionalTestBase::OnComparisonComplete(const FAutomationScreen
 
 	if (FAutomationTestBase* CurrentTest = FAutomationTestFramework::Get().GetCurrentTest())
 	{
-		CurrentTest->AddEvent(CompareResults.ToAutomationEvent(TestLabel));
+		CurrentTest->AddEvent(CompareResults.ToAutomationEvent());
 	}
 
 	FAutomationTestFramework::Get().NotifyScreenshotTakenAndCompared();

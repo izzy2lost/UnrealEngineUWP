@@ -52,6 +52,13 @@ public:
 	virtual bool OpenComparisonReports(FString ImportPath, TArray<FComparisonReport>& OutReports) override;
 	
 	virtual FString GetIdealApprovedFolderForImage(const FAutomationScreenshotMetadata& MetaData) const override;
+
+	virtual TArray<FString> FindApprovedFiles(const FAutomationScreenshotMetadata& IncomingMetaData, const FString& FilePattern) const override;
+
+	virtual TSharedPtr<FImageComparisonResult> CompareImageSequence(const TMap<FString, FString>& Sequence, const FAutomationScreenshotMetadata& Metadata) override;
+
+	virtual void NotifyAutomationTestFrameworkOfImageComparison(const FImageComparisonResult& Result) override;
+
 	//~ End IScreenShotManager Interface
 
 private:
@@ -62,8 +69,6 @@ private:
 		
 
 	FString GetApprovedFolderForImageWithOptions(const FAutomationScreenshotMetadata& MetaData, EApprovedFolderOptions InOptions) const;
-
-	TArray<FString> FindApprovedImages(const FAutomationScreenshotMetadata& IncomingMetaData);
 
 	FString GetDefaultExportDirectory() const;
 

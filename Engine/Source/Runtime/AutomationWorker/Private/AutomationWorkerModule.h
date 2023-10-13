@@ -125,6 +125,9 @@ private:
 
 	/** Invoked when we have screen shot and frame trace to send. */
 	void HandleScreenShotAndTraceCapturedWithName(const TArray<FColor>& RawImageData, const TArray<uint8>& CapturedFrameTrace, const FAutomationScreenshotData& Data);
+
+	/** Invoked when we have a screenshot comparison result to send. */
+	void HandleScreenShotComparisonReport(const FAutomationScreenshotCompareResults& Results);
 #endif
 
 	/** Dispatches analytics events to the data collector. */

@@ -1251,7 +1251,7 @@ struct FMoviePipelineShotOutputData
 	GENERATED_BODY()
 
 	/** Which shot was this output data for? */
-	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Movie Pipeline")
+	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Transient, Category = "Movie Pipeline")
 	TWeakObjectPtr<UMoviePipelineExecutorShot> Shot;
 
 	/** 
@@ -1310,11 +1310,11 @@ struct FMoviePipelineOutputData
 	*
 	* Provided here for backwards compatibility.
 	*/
-	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Movie Pipeline")
+	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Transient, Category = "Movie Pipeline")
 	TObjectPtr<UMoviePipeline> Pipeline;
 	
 	/** Job the data is for. Job may still be in progress (if a shot callback) so be careful about modifying properties on it */
-	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Movie Pipeline")
+	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Transient, Category = "Movie Pipeline")
 	TObjectPtr<UMoviePipelineExecutorJob> Job;
 	
 	/** Did the job succeed, or was it canceled early due to an error (such as failure to write file to disk)? */

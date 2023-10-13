@@ -447,6 +447,48 @@ void FAutomationControllerManager::Tick()
 	ProcessComparisonQueue();
 }
 
+void FAutomationControllerManager::ReportImageComparisonResult(const FMessageAddress Sender, const FAutomationWorkerImageComparisonResults& Result)
+{
+	// Find the game session instance info
+	int32 ClusterIndex;
+	int32 DeviceIndex;
+	verify(DeviceClusterManager.FindDevice(Sender, ClusterIndex, DeviceIndex));
+
+	// Get the current test.
+	TSharedPtr<IAutomationReport> Report = DeviceClusterManager.GetTest(ClusterIndex, DeviceIndex);
+	if (Report.IsValid())
+	{
+		// Record the artifacts for the test.
+		TMap<EComparisonFileTypes, FString> LocalFiles;
+
+		FString ScreenshotResultsFolder = FPaths::AutomationReportsDir();
+
+		// Paths in the result are relative to the automation report directory.	
+		LocalFiles.Add(EComparisonFileTypes::Unapproved, FPaths::Combine(ScreenshotResultsFolder, Result.ReportIncomingFilePath));
+
+		// Don't copy reference and delta if the images are similar.
+		if (!Result.bSimilar)
+		{
+			// unapproved should always be valid. but approved/difference may be empty if this is a new screenshot
+			if (Result.ReportIncomingFilePath.Len())
+			{
+				LocalFiles.Add(EComparisonFileTypes::Approved, FPaths::Combine(ScreenshotResultsFolder, Result.ReportApprovedFilePath));
+			}
+
+			if (Result.ReportComparisonFilePath.Len())
+			{
+				LocalFiles.Add(EComparisonFileTypes::Difference, FPaths::Combine(ScreenshotResultsFolder, Result.ReportComparisonFilePath));
+			}
+		}
+
+		Report->AddArtifact(ClusterIndex, CurrentTestPass, FAutomationArtifact(Result.UniqueId, Result.ScreenshotName, EAutomationArtifactType::Comparison, LocalFiles));
+	}
+	else
+	{
+		UE_LOG(LogAutomationController, Error, TEXT("Cannot generate screenshot report for screenshot %s as report is missing"), *Result.IncomingFilePath);
+	}
+}
+
 void FAutomationControllerManager::ProcessComparisonQueue()
 {
 	TSharedPtr<FComparisonEntry> Entry;
@@ -458,66 +500,33 @@ void FAutomationControllerManager::ProcessComparisonQueue()
 			check(Dequeued);
 
 			FImageComparisonResult Result = Entry->PendingComparison.Get();
-
-			const FGuid UniqueId = FGuid::NewGuid();
+			FAutomationWorkerImageComparisonResults ResultMessage(
+				FGuid::NewGuid(),
+				Result.ScreenshotName,
+				Result.IsNew(),
+				Result.AreSimilar(),
+				Result.MaxLocalDifference,
+				Result.GlobalDifference,
+				Result.ErrorMessage.ToString(),
+				Result.IncomingFilePath,
+				Result.ReportComparisonFilePath,
+				Result.ReportApprovedFilePath,
+				Result.ReportIncomingFilePath
+			);
 
 			// Send the message back to the automation worker letting it know the results of the comparison test.
 			{
-				FAutomationWorkerImageComparisonResults* Message = FMessageEndpoint::MakeMessage<FAutomationWorkerImageComparisonResults>(
-					UniqueId,
-					Result.IsNew(),
-					Result.AreSimilar(),
-					Result.MaxLocalDifference,
-					Result.GlobalDifference,
-					Result.ErrorMessage.ToString()
-				);
+				FAutomationWorkerImageComparisonResults* Message = FMessageEndpoint::MakeMessage<FAutomationWorkerImageComparisonResults>(ResultMessage);
 
-				UE_LOG(LogAutomationController, Log, TEXT("Sending ImageComparisonResult to %s (IsNew=%d, AreSimilar=%d)"), 
+				UE_LOG(LogAutomationController, Log, TEXT("Sending ImageComparisonResult to %s (IsNew=%d, AreSimilar=%d)"),
 					*Entry->Sender.ToString()
 					, Result.IsNew()
 					, Result.AreSimilar()
-					);
+				);
 				MessageEndpoint->Send(Message, Entry->Sender);
 			}
 
-			// Find the game session instance info
-			int32 ClusterIndex;
-			int32 DeviceIndex;
-			verify(DeviceClusterManager.FindDevice(Entry->Sender, ClusterIndex, DeviceIndex));
-
-			// Get the current test.
-			TSharedPtr<IAutomationReport> Report = DeviceClusterManager.GetTest(ClusterIndex, DeviceIndex);
-			if (Report.IsValid())
-			{
-				// Record the artifacts for the test.
-				TMap<EComparisonFileTypes, FString> LocalFiles;
-
-				FString ScreenshotResultsFolder = FPaths::AutomationReportsDir();
-	
-				// Paths in the result are relative to the automation report directory.	
-				LocalFiles.Add(EComparisonFileTypes::Unapproved, FPaths::Combine(ScreenshotResultsFolder, Result.ReportIncomingFilePath));
-
-				// Don't copy reference and delta if the images are similar.
-				if (!Result.AreSimilar())
-				{
-					// unapproved should always be valid. but approved/difference may be empty if this is a new screenshot
-					if (Result.ReportIncomingFilePath.Len())
-					{
-						LocalFiles.Add(EComparisonFileTypes::Approved, FPaths::Combine(ScreenshotResultsFolder, Result.ReportApprovedFilePath));
-					}
-
-					if (Result.ReportComparisonFilePath.Len())
-					{
-						LocalFiles.Add(EComparisonFileTypes::Difference, FPaths::Combine(ScreenshotResultsFolder, Result.ReportComparisonFilePath));
-					}
-				}
-
-				Report->AddArtifact(ClusterIndex, CurrentTestPass, FAutomationArtifact(UniqueId, Entry->ScreenshotPath, EAutomationArtifactType::Comparison, LocalFiles));
-			}
-			else
-			{
-				UE_LOG(LogAutomationController, Error, TEXT("Cannot generate screenshot report for screenshot %s as report is missing"), *Result.IncomingFilePath);
-			}
+			ReportImageComparisonResult(Entry->Sender, ResultMessage);
 		}
 	}
 }
@@ -876,6 +885,7 @@ void FAutomationControllerManager::Startup()
 		.Handling<FAutomationWorkerRequestTestsReplyComplete>(this, &FAutomationControllerManager::HandleRequestTestsReplyCompleteMessage)
 		.Handling<FAutomationWorkerRunTestsReply>(this, &FAutomationControllerManager::HandleRunTestsReplyMessage)
 		.Handling<FAutomationWorkerScreenImage>(this, &FAutomationControllerManager::HandleReceivedScreenShot)
+		.Handling<FAutomationWorkerImageComparisonResults>(this, &FAutomationControllerManager::HandleReceivedComparisonResult)
 		.Handling<FAutomationWorkerTestDataRequest>(this, &FAutomationControllerManager::HandleTestDataRequest)
 		.Handling<FAutomationWorkerWorkerOffline>(this, &FAutomationControllerManager::HandleWorkerOfflineMessage)
 		.Handling<FAutomationWorkerTelemetryData>(this, &FAutomationControllerManager::HandleReceivedTelemetryData);
@@ -1314,10 +1324,14 @@ void FAutomationControllerManager::HandleReceivedScreenShot(const FAutomationWor
 	// compare the incoming image and throw it away afterwards (note - there will be a copy in the report)
 	TSharedRef<FComparisonEntry> Comparison = MakeShareable(new FComparisonEntry());
 	Comparison->Sender = Context->GetSender();
-	Comparison->ScreenshotPath = Message.Metadata.Context /  Message.Metadata.ScreenShotName;
 	Comparison->PendingComparison = ScreenshotManager->CompareScreenshotAsync(IncomingFileName, Message.Metadata, EScreenShotCompareOptions::DiscardImage);
 
 	ComparisonQueue.Enqueue(Comparison);
+}
+
+void FAutomationControllerManager::HandleReceivedComparisonResult(const FAutomationWorkerImageComparisonResults& Message, const TSharedRef<IMessageContext, ESPMode::ThreadSafe>& Context)
+{
+	ReportImageComparisonResult(Context->GetSender(), Message);
 }
 
 void FAutomationControllerManager::HandleTestDataRequest(const FAutomationWorkerTestDataRequest& Message, const TSharedRef<IMessageContext, ESPMode::ThreadSafe>& Context)
