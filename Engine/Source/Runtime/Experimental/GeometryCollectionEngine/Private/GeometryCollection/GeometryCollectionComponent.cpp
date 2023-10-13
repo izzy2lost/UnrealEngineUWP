@@ -135,6 +135,9 @@ FAutoConsoleVariableRef CVarGeometryCollectionCreatePhysicsStateInEditor(TEXT("p
 bool GeometryCollectionUseReplicationV2 = true;
 FAutoConsoleVariableRef CVarGeometryCollectionUseReplicationV2(TEXT("p.Chaos.GC.UseReplicationV2"), GeometryCollectionUseReplicationV2, TEXT("When true use new replication data model"));
 
+int32 GeometryCollectionNetAwakeningMode = 1;
+FAutoConsoleVariableRef CVarGeometryCollectionNetAwakeningMode(TEXT("p.Chaos.GC.NetAwakeningMode"), GeometryCollectionNetAwakeningMode, TEXT("Changes how GC components ensure that their owner is awake for replication. 0 = ForceDormancyAwake, 1 = Use Flush Net Dormancy"));
+
 DEFINE_LOG_CATEGORY_STATIC(UGCC_LOG, Error, All);
 
 extern FGeometryCollectionDynamicDataPool GDynamicDataPool;
@@ -1988,6 +1991,8 @@ void UGeometryCollectionComponent::UpdateRepData()
 	
 	if (Owner && GetIsReplicated() && Owner->GetLocalRole() == ROLE_Authority)
 	{
+		FlushNetDormancyIfNeeded();
+
 		const bool bReplicateMovement = Owner->IsReplicatingMovement();
 		bool bFirstUpdate = false;
 		if(ClustersToRep == nullptr)
@@ -2196,10 +2201,14 @@ void UGeometryCollectionComponent::UpdateRepData()
 			MARK_PROPERTY_DIRTY_FROM_NAME(UGeometryCollectionComponent, RepData, this);
 			++RepData.Version;
 
-			if(Owner->NetDormancy != DORM_Awake)
+			const bool bSetDormancyToAwake = Owner->NetDormancy > DORM_Awake && GetDesiredNetAwakeningMode() == ENetAwakeningMode::ForceDormancyAwake;
+			if (bSetDormancyToAwake)
 			{
-				//If net dormancy is Initial it must be for perf reasons, but since a cluster changed we need to replicate down
-				Owner->SetNetDormancy(DORM_Awake);
+				if (Owner->NetDormancy > DORM_Awake)
+				{
+					//If net dormancy is Initial it must be for perf reasons, but since a cluster changed we need to replicate down	
+					Owner->SetNetDormancy(DORM_Awake);
+				}
 			}
 		}
 	}
@@ -2225,6 +2234,8 @@ void UGeometryCollectionComponent::UpdateRepStateAndDynamicData()
 
 	if (GetIsReplicated() && Owner->GetLocalRole() == ROLE_Authority)
 	{
+		FlushNetDormancyIfNeeded();
+
 		if (RestCollection && RestCollection->GetGeometryCollection())
 		{
 			FPBDRigidsSolver* Solver = PhysicsProxy->GetSolver<Chaos::FPBDRigidsSolver>();
@@ -2339,7 +2350,8 @@ void UGeometryCollectionComponent::UpdateRepStateAndDynamicData()
 
 			if (bDynamicChanged || bStateChanged)
 			{
-				if (Owner->NetDormancy != DORM_Awake)
+				const bool bSetDormancyToAwake = Owner->NetDormancy > DORM_Awake && GetDesiredNetAwakeningMode() == ENetAwakeningMode::ForceDormancyAwake;
+				if (bSetDormancyToAwake)
 				{
 					//If net dormancy is Initial it must be for perf reasons, but since a cluster changed we need to replicate down
 					Owner->SetNetDormancy(DORM_Awake);
@@ -6535,6 +6547,38 @@ void UGeometryCollectionComponent::PostLoad()
 		ISMPool_DEPRECATED = nullptr;
 		bAutoAssignISMPool_DEPRECATED = false;
 	}
+}
+
+void UGeometryCollectionComponent::FlushNetDormancyIfNeeded() const
+{
+	if (GetDesiredNetAwakeningMode() != ENetAwakeningMode::FlushNetDormancy)
+	{
+		return;
+	}
+
+	if (AActor* Owner = GetOwner())
+	{
+
+		Owner->FlushNetDormancy();
+	}
+}
+
+UGeometryCollectionComponent::ENetAwakeningMode UGeometryCollectionComponent::GetDesiredNetAwakeningMode() const
+{
+	constexpr int32 MinNetAwakeningMode = 0;
+	constexpr int32 MaxNetAwakeningMode = 1;
+	ENetAwakeningMode Mode;
+	if (GeometryCollectionNetAwakeningMode < MinNetAwakeningMode || GeometryCollectionNetAwakeningMode > MaxNetAwakeningMode)
+	{
+		ensureMsgf(false, TEXT("Invalid NetAwakening mode configured, falling back to the default mode"));
+		Mode = ENetAwakeningMode::ForceDormancyAwake;
+	}
+	else
+	{
+		Mode = static_cast<ENetAwakeningMode>(GeometryCollectionNetAwakeningMode);
+	}
+
+	return Mode;
 }
 
 Chaos::FPhysicsObject* UGeometryCollectionComponent::GetPhysicsObjectById(Chaos::FPhysicsObjectId Id) const

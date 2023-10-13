@@ -110,4 +110,7 @@ public:
 public:
 	ENGINE_API virtual void PostRepNotifies() override;
 	//~ End UObject Interface
+
+private:
+	void FlushNetDormancyIfNeeded();
 };

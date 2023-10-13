@@ -1708,6 +1708,19 @@ private:
 
 	bool bUpdateCustomRenderer;
 
+private:
+
+	enum class ENetAwakeningMode
+	{
+		ForceDormancyAwake,
+		FlushNetDormancy,
+	};
+
+	/** Flushes the net dormancy of our owner if this action is enabled and we are dormant */
+	void FlushNetDormancyIfNeeded() const;
+
+	ENetAwakeningMode GetDesiredNetAwakeningMode() const;
+
 	//~ Begin IPhysicsComponent Interface.
 public:
 	GEOMETRYCOLLECTIONENGINE_API virtual Chaos::FPhysicsObject* GetPhysicsObjectById(Chaos::FPhysicsObjectId Id) const override;

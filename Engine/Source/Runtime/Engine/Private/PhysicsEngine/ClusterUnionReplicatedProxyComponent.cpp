@@ -10,6 +10,12 @@
 
 #include UE_INLINE_GENERATED_CPP_BY_NAME(ClusterUnionReplicatedProxyComponent)
 
+namespace ClusterUnionCVars
+{
+	bool ClusterUnionUseFlushNetDormancy = true;
+	FAutoConsoleVariableRef CVarClusterUnionUseFlushNetDormancy(TEXT("p.Chaos.CU.UseFlushNetDormancy"), ClusterUnionUseFlushNetDormancy, TEXT("When true it will flush the net dormancy of the owner the next frame instead of awaking the actor"));
+}
+
 UClusterUnionReplicatedProxyComponent::UClusterUnionReplicatedProxyComponent(const FObjectInitializer& ObjectInitializer)
 	: UActorComponent(ObjectInitializer)
 {
@@ -56,18 +62,24 @@ void UClusterUnionReplicatedProxyComponent::EndPlay(const EEndPlayReason::Type E
 
 void UClusterUnionReplicatedProxyComponent::SetParentClusterUnion(UClusterUnionComponent* InComponent)
 {
+	FlushNetDormancyIfNeeded();
+
 	ParentClusterUnion = InComponent;
 	MARK_PROPERTY_DIRTY_FROM_NAME(UClusterUnionReplicatedProxyComponent, ParentClusterUnion, this);
 }
 
 void UClusterUnionReplicatedProxyComponent::SetChildClusteredComponent(UPrimitiveComponent* InComponent)
 {
+	FlushNetDormancyIfNeeded();
+
 	ChildClusteredComponent = InComponent;
 	MARK_PROPERTY_DIRTY_FROM_NAME(UClusterUnionReplicatedProxyComponent, ChildClusteredComponent, this);
 }
 
 void UClusterUnionReplicatedProxyComponent::SetParticleBoneIds(const TArray<int32>& InIds)
 {
+	FlushNetDormancyIfNeeded();
+
 	ParticleBoneIds = InIds;
 
 	ParticleChildToParents.Empty();
@@ -85,6 +97,8 @@ void UClusterUnionReplicatedProxyComponent::SetParticleChildToParent(int32 BoneI
 	int32 Index = INDEX_NONE;
 	if (ParticleBoneIds.Find(BoneId, Index))
 	{
+		FlushNetDormancyIfNeeded();
+
 		ParticleChildToParents[Index] = ChildToParent;
 		MARK_PROPERTY_DIRTY_FROM_NAME(UClusterUnionReplicatedProxyComponent, ParticleChildToParents, this);
 	}
@@ -159,6 +173,19 @@ void UClusterUnionReplicatedProxyComponent::PostRepNotifies()
 			DeferSetChildToParentChildUntilClusteredComponentInParentUnion();
 		}
 		bNetUpdateParticleChildToParents = false;
+	}
+}
+
+void UClusterUnionReplicatedProxyComponent::FlushNetDormancyIfNeeded()
+{
+	if (!ClusterUnionCVars::ClusterUnionUseFlushNetDormancy)
+	{
+		return;
+	}
+
+	if (AActor* Owner = GetOwner())
+	{
+		Owner->FlushNetDormancy();
 	}
 }
 
