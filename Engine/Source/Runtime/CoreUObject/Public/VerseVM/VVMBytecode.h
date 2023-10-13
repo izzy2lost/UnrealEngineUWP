@@ -35,11 +35,10 @@ enum class EOperandRole : uint8
 	UnifyDef,
 };
 
-// The types within this pragma are types that are embedded in the bytecode
-// stream. The bytecode stream is not aligned. So we mark all embedded types
-// also as unaligned so that it doesn't trip up UBSan.
-#pragma pack(push, 1)
-struct FOp
+// We align the bytecode stream to 8 bytes so we don't see tearing from the collector,
+// and in the future other concurrent threads, when writing to a VValue/pointer sized
+// entry.
+struct alignas(8) FOp
 {
 	const EOpcode Opcode;
 
@@ -98,5 +97,4 @@ struct FLabelOffset
 		return const_cast<FOp*>(BitCast<const FOp*>(BitCast<const uint8*>(this) + Offset));
 	}
 };
-#pragma pack(pop)
 } // namespace Verse

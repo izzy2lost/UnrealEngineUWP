@@ -310,12 +310,6 @@ namespace UnrealBuildTool
 			// Emit bytecode structs.
 			foreach (Instruction Inst in Instructions)
 			{
-
-				// Bytecode structs are 1-byte aligned. If we expand them to have intermediates that can
-				// be written to dynamically (a la an IC), and are also scanned by a concurrent GC, those
-				// fields will need to have natural alignment to avoid the GC seeing torn values. 
-				S.Append($"#pragma pack(push, 1)\n");
-
 				S.Append($"struct {Inst.CppName} : public FOp");
 				S.Append("\n{\n");
 				
@@ -327,9 +321,6 @@ namespace UnrealBuildTool
 				// Define fields
 				foreach (Argument Arg in Inst.Args)
 				{
-					// Immediate operands will be given natural alignment instead of 1-byte packing since
-					// we don't know their sizes upfront. Variadic operands as well since `TArray` may not remain
-					// nicely-aligned like it is now forever.
 					if (Arg.Role == Role.Immediate)
 					{
 						ImmediateArgsIndices[NumImmediateArgs++] = Index;
@@ -348,7 +339,6 @@ namespace UnrealBuildTool
 				{
 					S.Append($"    {Const.Type.ToCpp()} {Const.Name};\n");
 				}
-				S.Append($"#pragma pack(pop)\n\n");
 
 				if (NumVariadicArgs > 0)
 				{
@@ -363,10 +353,7 @@ namespace UnrealBuildTool
 					S.Append($"    TArray<{Arg.DefCppType()}> {Arg.Name};\n");
 				}
 
-				// Because we don't know the sizes of the various arguments here, we're going to just make
-				// an assumption here that all immediate operands should be at the end of the opcode struct
-				// with natural alignment. We also need to wrap it in a `TWriteBarrier` so that we can have an
-				// easy way to mark these values for GC purposes.
+				// We wrap these in a `TWriteBarrier` so that we can have an easy way to mark these values for GC purposes.
 				if (NumImmediateArgs > 0)
 				{
 					S.Append("    // Immediate arguments.\n");
@@ -454,7 +441,8 @@ namespace UnrealBuildTool
 				}
 				S.Append("    }\n");
 
-				S.Append("\n};\n\n");
+				S.Append("\n};\n");
+				S.Append($"static_assert(alignof({Inst.CppName}) >= 8);\n\n");
 			}
 
 			// Emit captures structs.
