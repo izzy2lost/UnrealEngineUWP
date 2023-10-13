@@ -144,12 +144,9 @@ void AWaterZone::PostLoad()
 		LocalTessellationExtent = TessellatedWaterMeshExtent_DEPRECATED;
 		bEnableLocalOnlyTessellation = bEnableNonTesselatedLODMesh_DEPRECATED;
 	}
-
-	// WaterMesh ExtentInTiles returns the half extent.
-	const FVector2D ExtentInTiles = 2.0 * FVector2D(WaterMesh->GetExtentInTiles());
-	ZoneExtent = FVector2D(ExtentInTiles * WaterMesh->GetTileSize());
-	OnExtentChanged();
 #endif // WITH_EDITORONLY_DATA
+
+	OnExtentChanged();
 }
 
 void AWaterZone::PostRegisterAllComponents()
@@ -196,6 +193,7 @@ void AWaterZone::MarkForRebuild(EWaterZoneRebuildFlags Flags, const FBox2D& Upda
 		{
 			UE_LOG(LogWater, Verbose, TEXT("AWaterZone::MarkForRebuild (UpdateWaterMesh)"));
 			WaterMesh->MarkWaterMeshGridDirty();
+			WaterMesh->MarkRenderStateDirty();
 		}
 	}
 	if (EnumHasAnyFlags(Flags, EWaterZoneRebuildFlags::UpdateWaterInfoTexture))
@@ -390,21 +388,8 @@ void AWaterZone::SetFarMeshMaterial(UMaterialInterface* InFarDistanceMaterial)
 
 void AWaterZone::OnExtentChanged()
 {
-	// Compute the new tile extent based on the new bounds
-	const float MeshTileSize = WaterMesh->GetTileSize();
-	const FVector2D ZoneHalfExtent = ZoneExtent / 2.0;
-
-	int32 NewExtentInTilesX = FMath::FloorToInt(ZoneHalfExtent.X / MeshTileSize);
-	int32 NewExtentInTilesY = FMath::FloorToInt(ZoneHalfExtent.Y / MeshTileSize);
-	
-	// We must ensure that the zone is always at least 1x1
-	NewExtentInTilesX = FMath::Max(1, NewExtentInTilesX);
-	NewExtentInTilesY = FMath::Max(1, NewExtentInTilesY);
-
-	WaterMesh->SetExtentInTiles(FIntPoint(NewExtentInTilesX, NewExtentInTilesY));
-
 #if WITH_EDITOR
-	BoundsComponent->SetBoxExtent(FVector(ZoneHalfExtent, 8192.f));
+	BoundsComponent->SetBoxExtent(FVector(GetZoneExtent() / 2., 8192.f));
 #endif // WITH_EDITOR
 
 	UpdateOverlappingWaterBodies();

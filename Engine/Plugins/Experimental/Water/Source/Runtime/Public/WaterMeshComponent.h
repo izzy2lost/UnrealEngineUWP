@@ -59,10 +59,8 @@ public:
 
 	float GetLODScale() const { return LODScale + LODScaleBiasScalability; }
 
-	void SetExtentInTiles(FIntPoint NewExtentInTiles);
-	FIntPoint GetExtentInTiles() const { return ExtentInTiles; }
+	FIntPoint GetExtentInTiles() const;
 
-	FIntPoint GetLocalTessellationExtentInTiles() const { return LocalTessellationExtentInTiles; }
 	void SetDynamicWaterMeshCenter(const FVector2D& NewCenter);
 	FVector2D GetDynamicWaterMeshCenter() const { return DynamicWaterMeshCenter; }
 
@@ -86,6 +84,9 @@ public:
 
 	UFUNCTION(BlueprintPure, Category = Rendering)
 	bool IsEnabled() const { return bIsEnabled; }
+
+	UE_DEPRECATED(5.4, "The ExtentInTiles is now derived from the water zone extent and the tile size.")
+	void SetExtentInTiles(FIntPoint NewExtentInTiles) {}
 private:
 	//~ Begin USceneComponent Interface
 	virtual FBoxSphereBounds CalcBounds(const FTransform& LocalToWorld) const override;
@@ -98,13 +99,9 @@ private:
 	UPROPERTY(EditAnywhere, Category = Rendering, meta = (ClampMin = "100", AllowPrivateAcces = "true"))
 	float TileSize = 2400.0f;
 
-	/** The extent of the system in number of tiles. Maximum number of tiles for this system will be ExtentInTiles.X*2*ExtentInTiles.Y*2 */
-	UPROPERTY(EditAnywhere, Category = Rendering, meta = (ClampMin = "1", AllowPrivateAcces = "true"))
-	FIntPoint ExtentInTiles = FIntPoint(64, 64);
-
-	/** The extent of the system in number of tiles when local tessellation is enabled. Maximum number of tiles for this system will be LocalTessellationExtentInTiles.X * 2 * LocalTessellationExtentInTiles.Y * 2 */
-	UPROPERTY(EditAnywhere, Category = Rendering, meta = (ClampMin = "1"))
-	FIntPoint LocalTessellationExtentInTiles = FIntPoint(32, 32);
+	/** The current quad tree resolution derived from the extent of the water zone and the water mesh tile size (Extent / TileSize). */
+	UPROPERTY(Transient, VisibleAnywhere, Category = Rendering)
+	mutable FIntPoint QuadTreeResolution = FIntPoint::ZeroValue;
 
 	/** The current center of the dynamic water mesh. Updated by the water view extension whenever the view location crosses the update bounds. */
 	FVector2D DynamicWaterMeshCenter = FVector2D::ZeroVector;
@@ -148,6 +145,11 @@ private:
 	virtual void PostEditChangeProperty(FPropertyChangedEvent& PropertyChangedEvent) override;
 	//~ Begin USceneComponent Interface
 #endif
+
+#if WITH_EDITORONLY_DATA
+	UPROPERTY()
+	FIntPoint ExtentInTiles_DEPRECATED = FIntPoint(64, 64);
+#endif // WITH_EDITORONLY_DATA
 };
 
 #if UE_ENABLE_INCLUDE_ORDER_DEPRECATED_IN_5_2

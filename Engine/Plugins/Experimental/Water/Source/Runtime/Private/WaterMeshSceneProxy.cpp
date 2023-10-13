@@ -3,6 +3,7 @@
 #include "WaterMeshSceneProxy.h"
 #include "MaterialShared.h"
 #include "WaterMeshComponent.h"
+#include "WaterZoneActor.h"
 #include "Materials/Material.h"
 #include "WaterUtils.h"
 #include "PrimitiveViewRelevance.h"
@@ -119,6 +120,12 @@ FWaterMeshSceneProxy::FWaterMeshSceneProxy(UWaterMeshComponent* Component)
 	WaterMeshUserDataBuffers = new WaterMeshUserDataBuffersType(WaterInstanceDataBuffers);
 
 	WaterQuadTree.BuildMaterialIndices();
+
+	if (const AWaterZone* WaterZone = Component->GetOwner<AWaterZone>(); ensureMsgf(WaterZone != nullptr, TEXT("WaterMeshComponent is owned by an actor that is not a WaterZone. This is not supported!")))
+	{
+		const FBox WaterInfoBounds3D = WaterZone->GetDynamicWaterInfoBounds();
+		WaterInfoBounds = FBox2D(FVector2D(WaterInfoBounds3D.Min), FVector2D(WaterInfoBounds3D.Max));
+	}
 
 #if RHI_RAYTRACING
 	RayTracingWaterData.SetNum(DensityCount);
@@ -268,6 +275,7 @@ void FWaterMeshSceneProxy::GetDynamicMeshElements(const TArray<const FSceneView*
 			TraversalDesc.PreViewTranslation = View->ViewMatrices.GetPreViewTranslation();
 			TraversalDesc.LODScale = LODScale;
 			TraversalDesc.bLODMorphingEnabled = !!CVarWaterMeshLODMorphEnabled.GetValueOnRenderThread();
+			TraversalDesc.WaterInfoBounds = WaterInfoBounds;
 
 #if !(UE_BUILD_SHIPPING || UE_BUILD_TEST)
 			//Debug
@@ -507,6 +515,7 @@ void FWaterMeshSceneProxy::GetDynamicRayTracingInstances(FRayTracingMaterialGath
 	TraversalDesc.Frustum = FConvexVolume(); // Default volume to disable frustum culling
 	TraversalDesc.LODScale = LODScale;
 	TraversalDesc.bLODMorphingEnabled = !!CVarWaterMeshLODMorphEnabled.GetValueOnRenderThread();
+	TraversalDesc.WaterInfoBounds = WaterInfoBounds;
 
 	WaterQuadTree.BuildWaterTileInstanceData(TraversalDesc, WaterInstanceData);
 
@@ -660,23 +669,3 @@ HHitProxy* FWaterMeshSceneProxy::CreateHitProxies(UPrimitiveComponent* Component
 	return nullptr;
 }
 #endif // WITH_WATER_SELECTION_SUPPORT
-
-
-void FWaterMeshSceneProxy::OnTessellatedWaterMeshBoundsChanged_GameThread(const FBox2D& InTessellatedWaterMeshBounds)
-{
-	check(IsInParallelGameThread() || IsInGameThread());
-
-	FWaterMeshSceneProxy* SceneProxy = this;
-	ENQUEUE_RENDER_COMMAND(OnTessellatedWaterMeshBoundsChanged)(
-		[SceneProxy, InTessellatedWaterMeshBounds](FRHICommandListImmediate& RHICmdList)
-		{
-			SceneProxy->OnTessellatedWaterMeshBoundsChanged_RenderThread(InTessellatedWaterMeshBounds);
-		});
-}
-
-void FWaterMeshSceneProxy::OnTessellatedWaterMeshBoundsChanged_RenderThread(const FBox2D& InTessellatedWaterMeshBounds)
-{
-	check(IsInRenderingThread());
-
-	TessellatedWaterMeshBounds = InTessellatedWaterMeshBounds;
-}

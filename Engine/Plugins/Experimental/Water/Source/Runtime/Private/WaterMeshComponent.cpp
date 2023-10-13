@@ -171,13 +171,6 @@ FMaterialRelevance UWaterMeshComponent::GetWaterMaterialRelevance(ERHIFeatureLev
 	return Result;
 }
 
-void UWaterMeshComponent::SetExtentInTiles(FIntPoint NewExtentInTiles)
-{
-	ExtentInTiles = NewExtentInTiles;
-	MarkWaterMeshGridDirty();
-	MarkRenderStateDirty();
-}
-
 void UWaterMeshComponent::SetDynamicWaterMeshCenter(const FVector2D& NewCenter)
 {
 	if (!DynamicWaterMeshCenter.Equals(NewCenter))
@@ -192,6 +185,25 @@ void UWaterMeshComponent::SetTileSize(float NewTileSize)
 	TileSize = NewTileSize;
 	MarkWaterMeshGridDirty();
 	MarkRenderStateDirty();
+}
+
+FIntPoint UWaterMeshComponent::GetExtentInTiles() const
+{
+	if (const AWaterZone* WaterZone = GetOwner<AWaterZone>(); ensureMsgf(WaterZone != nullptr, TEXT("WaterMeshComponent is owned by an actor that is not a WaterZone. This is not supported!")))
+	{
+		const float MeshTileSize = TileSize;
+		const FVector2D ZoneHalfExtent = FVector2D(WaterZone->GetDynamicWaterInfoExtent()) / 2.0;
+		const int32 HalfExtentInTilesX = FMath::RoundUpToPowerOfTwo(ZoneHalfExtent.X / MeshTileSize);
+		const int32 HalfExtentInTilesY = FMath::RoundUpToPowerOfTwo(ZoneHalfExtent.Y / MeshTileSize);
+		const FIntPoint HalfExtentInTiles = FIntPoint(HalfExtentInTilesX, HalfExtentInTilesY);
+
+		// QuadTreeResolution caches the resolution so it is clearly visible to the user in the details panel. It represents the full extent rather than the half extent
+		QuadTreeResolution = HalfExtentInTiles * 2;
+
+		return HalfExtentInTiles;
+	}
+
+	return FIntPoint(1, 1);
 }
 
 FBoxSphereBounds UWaterMeshComponent::CalcBounds(const FTransform& LocalToWorld) const
@@ -221,25 +233,13 @@ void UWaterMeshComponent::RebuildWaterMesh(float InTileSize, const FIntPoint& In
 {
 	TRACE_CPUPROFILER_EVENT_SCOPE(RebuildWaterMesh);
 
+	AWaterZone* WaterZone = CastChecked<AWaterZone>(GetOwner());
+
 	// Position snapped to the grid
-	const FVector2D GridPosition = FVector2D(FMath::GridSnap<FVector::FReal>(GetComponentLocation().X, InTileSize), FMath::GridSnap<FVector::FReal>(GetComponentLocation().Y, InTileSize));
+	const FVector2D GridPosition = WaterZone->IsLocalOnlyTessellationEnabled() ? GetDynamicWaterMeshCenter() : FVector2D(FMath::GridSnap<FVector::FReal>(GetComponentLocation().X, InTileSize), FMath::GridSnap<FVector::FReal>(GetComponentLocation().Y, InTileSize));
 	const FVector2D WorldExtent = FVector2D(InTileSize * InExtentInTiles.X, InTileSize * InExtentInTiles.Y);
 
 	FBox2D WaterWorldBox = FBox2D(-WorldExtent + GridPosition, WorldExtent + GridPosition);
-
-	AWaterZone* WaterZone = Cast<AWaterZone>(GetOwner());
-
-	// when local tessellation is enabled, only use the overlap of the dynamic mesh region with the total water mesh extent to avoid updating the entire water zone.
-	FIntPoint ExtentInTilesToUse = InExtentInTiles;
-	if (WaterZone->IsLocalOnlyTessellationEnabled())
-	{
-		const FVector2D WorldspaceExtent = FVector2D(LocalTessellationExtentInTiles * InTileSize);
-		const FVector2D MeshPosition = GetDynamicWaterMeshCenter();
-		FBox2D DynamicWaterMeshBounds(MeshPosition - WorldspaceExtent, MeshPosition + WorldspaceExtent);
-
-		WaterWorldBox = DynamicWaterMeshBounds.Overlap(WaterWorldBox);
-		ExtentInTilesToUse = LocalTessellationExtentInTiles;
-	}
 	
 	// If the dynamic bounds is outside the full bounds of the water mesh, we shouldn't regenerate the quadtree
 	if (!(WaterWorldBox.GetArea() > 0.f))
@@ -248,7 +248,7 @@ void UWaterMeshComponent::RebuildWaterMesh(float InTileSize, const FIntPoint& In
 	}
 
 	// This resets the tree to an initial state, ready for node insertion
-	WaterQuadTree.InitTree(WaterWorldBox, InTileSize, ExtentInTilesToUse);
+	WaterQuadTree.InitTree(WaterWorldBox, InTileSize, InExtentInTiles);
 
 	UsedMaterials.Empty();
 
@@ -583,8 +583,10 @@ void UWaterMeshComponent::RebuildWaterMesh(float InTileSize, const FIntPoint& In
 	{
 		UsedMaterials.Add(FarDistanceMaterial);
 
-		const FBox2D FarMeshInnerRegion = FBox2D(-WorldExtent + GridPosition, WorldExtent + GridPosition);
-		WaterQuadTree.AddFarMesh(FarDistanceMaterial, FarMeshInnerRegion, FarDistanceMeshExtent, FarMeshHeight);
+		// Far Mesh should stitch to the edge of the water zone
+		const FBox2D FarMeshBounds = WaterZone->GetZoneBounds2D();
+
+		WaterQuadTree.AddFarMesh(FarDistanceMaterial, FarMeshBounds, FarDistanceMeshExtent, FarMeshHeight);
 	}
 
 	WaterQuadTree.Unlock(true);
@@ -616,6 +618,8 @@ void UWaterMeshComponent::Update()
 		TessFactorBiasScalability = NewTessFactorBias;
 		LODScaleBiasScalability = NewLODScaleBias;
 		const float LODCountBiasFactor = FMath::Pow(2.0f, (float)LODCountBiasScalability);
+
+		FIntPoint ExtentInTiles = GetExtentInTiles();
 		RebuildWaterMesh(TileSize / LODCountBiasFactor, FIntPoint(FMath::CeilToInt(ExtentInTiles.X * LODCountBiasFactor), FMath::CeilToInt(ExtentInTiles.Y * LODCountBiasFactor)));
 		PrecachePSOs();
 		bNeedsRebuild = false;
@@ -636,8 +640,6 @@ void UWaterMeshComponent::PostEditChangeProperty(FPropertyChangedEvent& Property
 		if (PropertyName == GET_MEMBER_NAME_CHECKED(UWaterMeshComponent, LODScale)
 			|| PropertyName == GET_MEMBER_NAME_CHECKED(UWaterMeshComponent, TessellationFactor)
 			|| PropertyName == GET_MEMBER_NAME_CHECKED(UWaterMeshComponent, TileSize)
-			|| PropertyName == GET_MEMBER_NAME_CHECKED(UWaterMeshComponent, ExtentInTiles)
-			|| PropertyName == GET_MEMBER_NAME_CHECKED(UWaterMeshComponent, LocalTessellationExtentInTiles)
 			|| PropertyName == GET_MEMBER_NAME_CHECKED(UWaterMeshComponent, ForceCollapseDensityLevel)
 			|| PropertyName == GET_MEMBER_NAME_CHECKED(UWaterMeshComponent, FarDistanceMaterial)
 			|| PropertyName == GET_MEMBER_NAME_CHECKED(UWaterMeshComponent, FarDistanceMeshExtent)

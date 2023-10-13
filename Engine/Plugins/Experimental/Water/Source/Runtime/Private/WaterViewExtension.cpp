@@ -339,7 +339,7 @@ void FWaterViewExtension::SetupView(FSceneViewFamily& InViewFamily, FSceneView& 
 
 			WaterInfoUpdateBounds.Add(WaterZone, UpdateBounds);
 
-			const FVector2D WaterQuadTreeHalfExtent = WaterMesh->GetLocalTessellationExtentInTiles() * TileSize;
+			const FVector2D WaterQuadTreeHalfExtent = WaterMesh->GetExtentInTiles() * TileSize;
 			const FVector2D WaterQuadTreeCenter = WaterMesh->GetDynamicWaterMeshCenter();
 			const FBox2D WaterQuadTreeBounds(WaterQuadTreeCenter - WaterQuadTreeHalfExtent, WaterQuadTreeCenter + WaterQuadTreeHalfExtent);
 

@@ -131,9 +131,11 @@ void FWaterQuadTree::FNode::SelectLODRefinement(const FNodeData& InNodeData, int
 	const FWaterBodyRenderData& WaterBodyRenderData = InNodeData.WaterBodyRenderData[WaterBodyIndex];
 	const FVector CenterPosition = Bounds.GetCenter();
 	const FVector Extent = Bounds.GetExtent();
+	const FBox2D Bounds2D = FBox2D(FVector2D(Bounds.Min), FVector2D(Bounds.Max));
 
 	// Early out on frustum culling 
-	if (InTraversalDesc.Frustum.IntersectBox(CenterPosition, Extent))
+	check(InTraversalDesc.WaterInfoBounds.bIsValid);
+	if (InTraversalDesc.Frustum.IntersectBox(CenterPosition, Extent) && Bounds2D.Intersect(InTraversalDesc.WaterInfoBounds))
 	{
 		// This LOD can represent all its leaf nodes, simply add node
 		if (CanRender(DensityLevel, InTraversalDesc.ForceCollapseDensityLevel, WaterBodyRenderData))
@@ -159,16 +161,17 @@ void FWaterQuadTree::FNode::SelectLOD(const FNodeData& InNodeData, int32 InLODLe
 	const FWaterBodyRenderData& WaterBodyRenderData = InNodeData.WaterBodyRenderData[WaterBodyIndex];
 	const FVector CenterPosition = Bounds.GetCenter();
 	const FVector Extent = Bounds.GetExtent();
+	const FBox2D Bounds2D = FBox2D(FVector2D(Bounds.Min), FVector2D(Bounds.Max));
 
 	// Early out on frustum culling 
-	if (!InTraversalDesc.Frustum.IntersectBox(CenterPosition, Extent))
+	check(InTraversalDesc.WaterInfoBounds.bIsValid);
+	if (!InTraversalDesc.Frustum.IntersectBox(CenterPosition, Extent) || !Bounds2D.Intersect(InTraversalDesc.WaterInfoBounds))
 	{
 		// Handled
 		return;
 	}
 
 	// Distance to tile (if 0, position is inside quad)
-	FBox2D Bounds2D(FVector2D(Bounds.Min), FVector2D(Bounds.Max));
 	const float ClosestDistanceToTile = FMath::Sqrt(Bounds2D.ComputeSquaredDistanceToPoint(FVector2D(InTraversalDesc.ObserverPosition)));
 
 	// If quad is outside this LOD range, it belongs to the LOD above, assume it fits in that LOD and drill down to find renderable nodes
@@ -257,66 +260,6 @@ void FWaterQuadTree::FNode::SelectLOD(const FNodeData& InNodeData, int32 InLODLe
 					{
 						InNodeData.Nodes[ChildIndex].SelectLOD(InNodeData, InLODLevel - 1, InTraversalDesc, Output);
 					}
-				}
-			}
-		}
-	}
-}
-
-void FWaterQuadTree::FNode::SelectLODWithinBounds(const FNodeData& InNodeData, int32 InLODLevel, const FTraversalDesc& InTraversalDesc, FTraversalOutput& Output) const
-{
-	// #todo_water [roey]: this function currently forces all nodes to render at their lowest lod size. This isn't _that_ bad considering most of the nodes are close
-	// enough to the camera to render at lowest lod level anyways but ideally we would leverage the same lod selection system as the non-bounds implementation.
-
-	const FWaterBodyRenderData& WaterBodyRenderData = InNodeData.WaterBodyRenderData[WaterBodyIndex];
-	const FVector CenterPosition = Bounds.GetCenter();
-	const FVector Extent = Bounds.GetExtent();
-
-	// Early out on frustum culling 
-	if (!InTraversalDesc.Frustum.IntersectBox(CenterPosition, Extent))
-	{
-		// Handled
-		return;
-	}
-
-	if (InLODLevel == 0)
-	{
-		if (CanRender(0, InTraversalDesc.ForceCollapseDensityLevel, WaterBodyRenderData))
-		{
-			AddNodeForRender(InNodeData, WaterBodyRenderData, 0, InLODLevel, InTraversalDesc, Output);
-		}
-	}
-	else
-	{
-		// If this node has a complete subtree it will not contain any actual children, they are implicit to save memory so we generate them here
-		if (HasCompleteSubtree && IsSubtreeSameWaterBody)
-		{
-			FNode ChildNode;
-			const FVector HalfBoundSize(Extent.X, Extent.Y, Extent.Z*2.0f);
-			const FVector HalfOffsets[] = { {0.0f, 0.0f, 0.0f}, {1.0f, 0.0f, 0.0f} , {0.0f, 1.0f, 0.0f} , {1.0f, 1.0f, 0.0f} };
-			for (int i = 0; i < 4; i++)
-			{
-				const FVector ChildMin = Bounds.Min + HalfBoundSize * HalfOffsets[i];
-				const FVector ChildMax = ChildMin + HalfBoundSize;
-				const FBox ChildBounds(ChildMin, ChildMax);
-
-				// Create a temporary node to traverse
-				ChildNode.HasCompleteSubtree = 1;
-				ChildNode.IsSubtreeSameWaterBody = 1;
-				ChildNode.TransitionWaterBodyIndex = TransitionWaterBodyIndex;
-				ChildNode.WaterBodyIndex = WaterBodyIndex;
-				ChildNode.Bounds = ChildBounds;
-
-				ChildNode.SelectLODWithinBounds(InNodeData, InLODLevel - 1, InTraversalDesc, Output);
-			}
-		}
-		else
-		{
-			for (int32 ChildIndex : Children)
-			{
-				if (ChildIndex > 0)
-				{
-					InNodeData.Nodes[ChildIndex].SelectLODWithinBounds(InNodeData, InLODLevel - 1, InTraversalDesc, Output);
 				}
 			}
 		}

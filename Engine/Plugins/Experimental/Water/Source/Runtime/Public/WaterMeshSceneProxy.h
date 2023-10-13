@@ -63,8 +63,6 @@ public:
 	virtual bool IsRayTracingRelevant() const override { return true; }
 #endif
 
-	void OnTessellatedWaterMeshBoundsChanged_GameThread(const FBox2D& InTessellatedWaterMeshBounds);
-
 private:
 	struct FWaterLODParams
 	{
@@ -92,8 +90,6 @@ private:
 	void SetupRayTracingInstances(FRHICommandListBase& RHICmdList, int32 NumInstances, uint32 DensityIndex);
 #endif
 
-	void OnTessellatedWaterMeshBoundsChanged_RenderThread(const FBox2D& InTessellatedWaterMeshBounds);
-
 	FMaterialRelevance MaterialRelevance;
 
 	// One vertex factory per LOD
@@ -109,7 +105,7 @@ private:
 	WaterMeshUserDataBuffersType* WaterMeshUserDataBuffers;
 
 	/** The world-space bounds of the current water info texture coverage. The Water mesh should only render tiles within this bounding box. */
-	FBox2D TessellatedWaterMeshBounds = FBox2D(ForceInit);
+	FBox2D WaterInfoBounds = FBox2D(ForceInit);
 
 	/** Scale of the concentric LOD squares  */
 	float LODScale = -1.0f;

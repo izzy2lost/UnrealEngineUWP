@@ -108,6 +108,7 @@ struct FWaterQuadTree
 		FVector ObserverPosition = FVector::ZeroVector;
 		FVector PreViewTranslation = FVector::ZeroVector;
 		FConvexVolume Frustum;
+		FBox2D WaterInfoBounds = FBox2D(ForceInitToZero);
 		bool bLODMorphingEnabled = true;
 
 #if !(UE_BUILD_SHIPPING || UE_BUILD_TEST)
