@@ -31,6 +31,8 @@ struct ANIMNEXT_API FAnimNextBlendTwoKeyframesTask : public FAnimNextEvaluationT
 {
 	GENERATED_BODY()
 
+	DECLARE_ANIM_EVALUATION_TASK(FAnimNextBlendTwoKeyframesTask)
+
 	static FAnimNextBlendTwoKeyframesTask Make(float InterpolationAlpha);
 
 	// Task entry point
@@ -54,6 +56,8 @@ USTRUCT()
 struct ANIMNEXT_API FAnimNextBlendOverwriteKeyframeWithScaleTask : public FAnimNextEvaluationTask
 {
 	GENERATED_BODY()
+
+	DECLARE_ANIM_EVALUATION_TASK(FAnimNextBlendOverwriteKeyframeWithScaleTask)
 
 	static FAnimNextBlendOverwriteKeyframeWithScaleTask Make(float ScaleFactor);
 
@@ -79,6 +83,8 @@ USTRUCT()
 struct ANIMNEXT_API FAnimNextBlendAddKeyframeWithScaleTask : public FAnimNextEvaluationTask
 {
 	GENERATED_BODY()
+
+	DECLARE_ANIM_EVALUATION_TASK(FAnimNextBlendAddKeyframeWithScaleTask)
 
 	static FAnimNextBlendAddKeyframeWithScaleTask Make(float ScaleFactor);
 

@@ -19,6 +19,8 @@ struct ANIMNEXT_API FAnimNextAnimSequenceKeyframeTask : public FAnimNextEvaluati
 {
 	GENERATED_BODY()
 
+	DECLARE_ANIM_EVALUATION_TASK(FAnimNextAnimSequenceKeyframeTask)
+
 	static FAnimNextAnimSequenceKeyframeTask MakeFromSampleTime(TWeakObjectPtr<UAnimSequence> AnimSequence, double SampleTime, bool bInterpolate);
 	static FAnimNextAnimSequenceKeyframeTask MakeFromKeyframeIndex(TWeakObjectPtr<UAnimSequence> AnimSequence, uint32 KeyframeIndex);
 

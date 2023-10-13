@@ -23,6 +23,8 @@ struct ANIMNEXT_API FAnimNextExecuteProgramTask : public FAnimNextEvaluationTask
 {
 	GENERATED_BODY()
 
+	DECLARE_ANIM_EVALUATION_TASK(FAnimNextExecuteProgramTask)
+
 	static FAnimNextExecuteProgramTask Make(const UE::AnimNext::FEvaluationProgram* Program);
 
 	// Task entry point

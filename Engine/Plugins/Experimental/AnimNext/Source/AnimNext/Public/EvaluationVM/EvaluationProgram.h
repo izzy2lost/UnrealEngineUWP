@@ -39,6 +39,9 @@ namespace UE::AnimNext
 		// Executes the current program on the provided virtual machine
 		void Execute(FEvaluationVM& VM) const;
 
+		// Returns the program as a string suitable for debug purposes
+		FString ToString() const;
+
 	private:
 		// Disallow copy
 		FEvaluationProgram(const FEvaluationProgram&) = delete;

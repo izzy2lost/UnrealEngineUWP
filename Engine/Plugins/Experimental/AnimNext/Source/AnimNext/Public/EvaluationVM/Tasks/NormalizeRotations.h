@@ -18,6 +18,8 @@ struct ANIMNEXT_API FAnimNextNormalizeKeyframeRotationsTask : public FAnimNextEv
 {
 	GENERATED_BODY()
 
+	DECLARE_ANIM_EVALUATION_TASK(FAnimNextNormalizeKeyframeRotationsTask)
+
 	// Task entry point
 	virtual void Execute(UE::AnimNext::FEvaluationVM& VM) const override;
 };

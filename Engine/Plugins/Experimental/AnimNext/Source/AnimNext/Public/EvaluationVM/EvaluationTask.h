@@ -11,6 +11,10 @@ namespace UE::AnimNext
 	struct FEvaluationVM;
 }
 
+// Implements various implementation details for an animation evaluation task
+#define DECLARE_ANIM_EVALUATION_TASK(TaskName) \
+	virtual const UScriptStruct* GetStruct() const override { return TaskName::StaticStruct(); }
+
 /*
  * Evaluation Task
  *
@@ -26,6 +30,9 @@ struct ANIMNEXT_API FAnimNextEvaluationTask
 	GENERATED_BODY()
 
 	virtual ~FAnimNextEvaluationTask() {}
+
+	// Returns the derived type for the task
+	virtual const UScriptStruct* GetStruct() const { return FAnimNextEvaluationTask::StaticStruct(); }
 
 	// Task entry point
 	virtual void Execute(UE::AnimNext::FEvaluationVM& VM) const { LowLevelFatalError(TEXT("Pure virtual not implemented (FAnimNextEvaluationTask::Execute)")); }

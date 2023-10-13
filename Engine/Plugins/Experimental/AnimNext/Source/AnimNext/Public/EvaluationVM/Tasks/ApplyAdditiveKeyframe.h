@@ -19,6 +19,8 @@ struct ANIMNEXT_API FAnimNextApplyAdditiveKeyframeTask : public FAnimNextEvaluat
 {
 	GENERATED_BODY()
 
+	DECLARE_ANIM_EVALUATION_TASK(FAnimNextApplyAdditiveKeyframeTask)
+
 	static FAnimNextApplyAdditiveKeyframeTask Make(float BlendWeight);
 
 	// Task entry point

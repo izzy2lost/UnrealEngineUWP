@@ -19,6 +19,8 @@ struct ANIMNEXT_API FAnimNextPushReferenceKeyframeTask : public FAnimNextEvaluat
 {
 	GENERATED_BODY()
 
+	DECLARE_ANIM_EVALUATION_TASK(FAnimNextPushReferenceKeyframeTask)
+
 	static FAnimNextPushReferenceKeyframeTask MakeFromSkeleton();
 	static FAnimNextPushReferenceKeyframeTask MakeFromAdditiveIdentity();
 
