@@ -161,7 +161,7 @@ namespace Jupiter.FunctionalTests.Metrics
 		}
 
 		[TestMethod]
-		public async Task GetBucketsTest()
+		public async Task GetBucketsTestAsync()
 		{
 			IReferencesStore referenceStore = (IReferencesStore)_server!.Services.GetService(typeof(IReferencesStore))!;
 

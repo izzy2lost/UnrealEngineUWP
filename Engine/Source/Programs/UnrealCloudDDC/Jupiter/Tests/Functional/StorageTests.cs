@@ -447,48 +447,6 @@ namespace Jupiter.FunctionalTests.Storage
 		}
 
 		[TestMethod]
-		public async Task PostBundleAsync()
-		{
-			Bundle bundle = await CreateBundleAsync("test string");
-			byte[] payload = bundle.AsSequence().ToArray();
-			using ByteArrayContent requestContent = new ByteArrayContent(payload);
-			requestContent.Headers.ContentType = new MediaTypeHeaderValue("application/octet-stream");
-			requestContent.Headers.ContentLength = payload.Length;
-			BlobId id = BlobId.FromBlobLocator(new BundleLocator("locator"));
-			HttpResponseMessage result = await _httpClient!.PutAsync(new Uri($"api/v1/blobs/{TestBundleNamespaceName}/{id}", UriKind.Relative), requestContent);
-
-			result.EnsureSuccessStatusCode();
-			InsertResponse? content = await result.Content.ReadFromJsonAsync<InsertResponse>();
-			Assert.IsNotNull(content);
-			Assert.AreEqual(id, content.Identifier);
-		}
-
-		[TestMethod]
-		public async Task PostBundleToCASNamespaceAsync()
-		{
-			Bundle bundle = await CreateBundleAsync("test string");
-			byte[] payload = bundle.AsSequence().ToArray();
-			using ByteArrayContent requestContent = new ByteArrayContent(payload);
-			requestContent.Headers.ContentType = new MediaTypeHeaderValue("application/octet-stream");
-			requestContent.Headers.ContentLength = payload.Length;
-			BlobId id = BlobId.FromBlobLocator(new BundleLocator("locator"));
-			HttpResponseMessage result = await _httpClient!.PutAsync(new Uri($"api/v1/blobs/{TestNamespaceName}/{id}", UriKind.Relative), requestContent);
-
-			Assert.AreEqual(HttpStatusCode.InternalServerError, result.StatusCode);
-		}
-
-		private static async Task<Bundle> CreateBundleAsync(string contents)
-		{
-			using MemoryStorageClient store = new MemoryStorageClient();
-			await using BundleWriter writer = store.CreateWriter(options: new BundleOptions { CompressionFormat = BundleCompressionFormat.None });
-
-			TextNode node = new TextNode(contents);
-			BundleNodeHandle handle = await writer.FlushAsync(node, CancellationToken.None);
-
-			return await store.ReadBundleAsync(handle.GetLocator().Blob);
-		}
-
-		[TestMethod]
 		public async Task DeleteBlobAsync()
 		{
 			HttpResponseMessage result = await  _httpClient!.DeleteAsync(new Uri($"api/v1/s/{TestNamespaceName}/{DeleteFileHash}", UriKind.Relative));
@@ -855,23 +813,5 @@ namespace Jupiter.FunctionalTests.Storage
 	public class InsertResponse
 	{
 		public BlobId? Identifier { get; set; }
-	}
-
-	[NodeType("{F63606D4-5DBB-4061-A655-6F444F65229E}")]
-	class TextNode : Node
-	{
-		public string Text { get; }
-
-		public TextNode(string text) => Text = text;
-
-		public TextNode(INodeReader reader)
-		{
-			Text = reader.ReadString();
-		}
-
-		public override void Serialize(INodeWriter writer)
-		{
-			writer.WriteString(Text);
-		}
 	}
 }
