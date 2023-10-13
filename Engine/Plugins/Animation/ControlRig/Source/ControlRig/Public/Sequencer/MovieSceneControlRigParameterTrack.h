@@ -205,7 +205,7 @@ private:
 
 public:
 	static CONTROLRIG_API FColor AbsoluteRigTrackColor;
-	static CONTROLRIG_API FColor AdditiveRigTrackColor;
+	static CONTROLRIG_API FColor LayeredRigTrackColor;
 };
 
 

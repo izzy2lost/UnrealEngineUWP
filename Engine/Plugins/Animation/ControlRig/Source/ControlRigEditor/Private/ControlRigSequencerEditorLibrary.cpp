@@ -270,10 +270,10 @@ static UMovieSceneControlRigParameterTrack* AddControlRig(ULevelSequence* LevelS
 
 		if (bIsAdditiveControlRig)
 		{
-			const FString AdditiveObjectName = ObjectName + TEXT(" (Additive)");
+			const FString AdditiveObjectName = ObjectName + TEXT(" (Layered)");
 			Track->SetTrackName(FName(*ObjectName));
 			Track->SetDisplayName(FText::FromString(AdditiveObjectName));
-			Track->SetColorTint(UMovieSceneControlRigParameterTrack::AdditiveRigTrackColor);
+			Track->SetColorTint(UMovieSceneControlRigParameterTrack::LayeredRigTrackColor);
 		}
 		else
 		{

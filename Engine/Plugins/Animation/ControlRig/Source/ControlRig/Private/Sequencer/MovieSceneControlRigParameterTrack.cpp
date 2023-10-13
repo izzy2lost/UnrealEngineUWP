@@ -18,7 +18,7 @@
 #define LOCTEXT_NAMESPACE "MovieSceneParameterControlRigTrack"
 
 FColor UMovieSceneControlRigParameterTrack::AbsoluteRigTrackColor = FColor(65, 89, 194, 65);
-FColor UMovieSceneControlRigParameterTrack::AdditiveRigTrackColor = FColor(173, 151, 114);
+FColor UMovieSceneControlRigParameterTrack::LayeredRigTrackColor = FColor(173, 151, 114);
 
 FControlRotationOrder::FControlRotationOrder()
 	:RotationOrder(EEulerRotationOrder::YZX),
