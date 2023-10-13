@@ -330,6 +330,22 @@ struct FWeightedLatticeBvEntry
 		return Bounds;
 	}
 
+	THierarchicalSpatialHash<int32, FReal>::FVectorAABB VectorAABB() const
+	{
+		THierarchicalSpatialHash<int32, FReal>::FVectorAABB Bounds(Lattice->GetDeformedPoints()(CellIndex));
+		for (int32 I = 0; I < 2; ++I)
+		{
+			for (int32 J = 0; J < 2; ++J)
+			{
+				for (int32 K = 0; K < 2; ++K)
+				{
+					Bounds.GrowToInclude(Lattice->GetDeformedPoints()(CellIndex + TVec3<int32>(I, J, K)));
+				}
+			}
+		}
+		return Bounds;
+	}
+
 	template<typename TPayloadType>
 	TPayloadType GetPayload(int32 Idx) const
 	{

@@ -6,6 +6,7 @@
 #include "Chaos/TriangleMesh.h"
 #include "Chaos/HierarchicalSpatialHash.h"
 #include "Chaos/CollectionPropertyFacade.h"
+#include "Templates/PimplPtr.h"
 
 // This does initialization for PBDCollisionSpringConstraints and PBDTriangleMeshIntersections, 
 // including intersection detection and global intersection analysis
@@ -228,6 +229,10 @@ private:
 	TArray<FContourMinimizationIntersection> ContourMinimizationIntersections;
 	TArray<FGIAColor> VertexGIAColors;
 	TArray<FGIAColor> TriangleGIAColors;
+
+	// Scratch buffers used by Init and PostInit. They live here so they can be reused rather than reallocated.
+	struct FScratchBuffers;
+	TPimplPtr<FScratchBuffers> ScratchBuffers;
 
 	// Debug display of intersection contours
 	TArray<TArray<FBarycentricPoint>> IntersectionContourPoints;

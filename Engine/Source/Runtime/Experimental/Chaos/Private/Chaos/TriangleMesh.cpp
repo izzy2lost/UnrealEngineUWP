@@ -64,8 +64,37 @@ struct TTriangleMeshBvEntry
 		return Bounds;
 	}
 
+	typename FTriangleMesh::TSpatialHashType<T>::FVectorAABB VectorAABB() const
+	{
+		const TVec3<int32>& Tri = TmData->GetElements()[Index];
+		const TVec3<T>& A = (*Points)[Tri[0]];
+		const TVec3<T>& B = (*Points)[Tri[1]];
+		const TVec3<T>& C = (*Points)[Tri[2]];
+		typename FTriangleMesh::TSpatialHashType<T>::FVectorAABB AABB(A);
+		AABB.GrowToInclude(B);
+		AABB.GrowToInclude(C);
+		return AABB;
+	}
+
 	template<typename TPayloadType>
 	int32 GetPayload(int32 Idx) const { return Idx; }
+};
+
+template<typename T>
+struct TTriangleMeshBvData
+{
+	const FTriangleMesh* TmData;
+	const TConstArrayView<TVec3<T>>* Points;
+
+	TTriangleMeshBvEntry<T> operator[](const int32 ParticleIndex) const
+	{
+		return TTriangleMeshBvEntry<T>{ TmData, Points, ParticleIndex };
+	}
+
+	int32 Num() const
+	{
+		return TmData->GetNumElements();
+	}
 };
 
 FTriangleMesh::FTriangleMesh()
@@ -1675,15 +1704,9 @@ template CHAOS_API bool FTriangleMesh::SmoothProject<FRealDouble>(const TBVHType
 template<typename T>
 void FTriangleMesh::BuildSpatialHash(const TConstArrayView<TVec3<T>>& Points, TSpatialHashType<T>& SpatialHash, const T MinSpatialLodSize) const
 {
-	TArray<TTriangleMeshBvEntry<T>> BVEntries;
-	const int32 NumTris = MElements.Num();
-	BVEntries.Reset(NumTris);
-	for (int32 Tri = 0; Tri < NumTris; ++Tri)
-	{
-		BVEntries.Add({ this, &Points, Tri });
-	}
+	const TTriangleMeshBvData<T> BvData({ this, &Points });
 
-	SpatialHash.Initialize(BVEntries, MinSpatialLodSize);
+	SpatialHash.Initialize(BvData, MinSpatialLodSize);
 }
 template void FTriangleMesh::BuildSpatialHash<FRealSingle>(const TConstArrayView<TVec3<FRealSingle>>& Points, TSpatialHashType<FRealSingle>& SpatialHash, const FRealSingle MinSpatialLodSize) const;
 template void FTriangleMesh::BuildSpatialHash<FRealDouble>(const TConstArrayView<TVec3<FRealDouble>>& Points, TSpatialHashType<FRealDouble>& SpatialHash, const FRealDouble MinSpatialLodSize) const;
@@ -1694,19 +1717,19 @@ bool FTriangleMesh::PointProximityQuery(const TSpatialHashType<T>& SpatialHash, 
 {
 	const T TotalThickness = ThisThickness + PointThickness;
 	const T TotalThicknessSq = TotalThickness * TotalThickness;
-	TAABB<T,3> QueryBounds(PointPosition, PointPosition);
+	typename TSpatialHashType<T>::FVectorAABB QueryBounds(PointPosition);
 	QueryBounds.Thicken(TotalThickness);
 
-	const TArray<int32> PotentialIntersections = SpatialHash.FindAllIntersections(QueryBounds);
+	const TArray<int32> PotentialIntersections = SpatialHash.FindAllIntersections(QueryBounds,
+		[PointIndex, &BroadphaseTest](int32 Payload)
+	{
+		return BroadphaseTest(PointIndex, Payload);
+	});
 
 	Result.Reset(PotentialIntersections.Num());
 
 	for (int32 TriIdx : PotentialIntersections)
 	{
-		if (!BroadphaseTest(PointIndex, TriIdx))
-		{
-			continue;
-		}
 
 		const TVec3<T>& A = Points[MElements[TriIdx][0]];
 		const TVec3<T>& B = Points[MElements[TriIdx][1]];
@@ -1743,20 +1766,20 @@ template<typename T>
 bool FTriangleMesh::EdgeIntersectionQuery(const TSpatialHashType<T>& SpatialHash, const TConstArrayView<TVec3<T>>& Points, const int32 EdgeIndex, const TVec3<T>& EdgePosition1, const TVec3<T>& EdgePosition2,
 	TFunctionRef<bool(const int32 EdgeIndex, const int32 TriangleIndex)> BroadphaseTest, TArray<TTriangleCollisionPoint<T>>& Result) const
 {
-	TAABB<T, 3> QueryBounds(EdgePosition1, EdgePosition1);
+	typename TSpatialHashType<T>::FVectorAABB QueryBounds(EdgePosition1);
 	QueryBounds.GrowToInclude(EdgePosition2);
 
-	const TArray<int32> PotentialIntersections = SpatialHash.FindAllIntersections(QueryBounds);
+	const TArray<int32> PotentialIntersections = SpatialHash.FindAllIntersections(QueryBounds,
+		[EdgeIndex, &BroadphaseTest](int32 Payload)
+	{
+		return BroadphaseTest(EdgeIndex, Payload);
+	}
+	);
 
 	Result.Reset(PotentialIntersections.Num());
 
 	for (int32 TriIdx : PotentialIntersections)
 	{
-		if (!BroadphaseTest(EdgeIndex, TriIdx))
-		{
-			continue;
-		}
-
 		const TVec3<T>& A = Points[MElements[TriIdx][0]];
 		const TVec3<T>& B = Points[MElements[TriIdx][1]];
 		const TVec3<T>& C = Points[MElements[TriIdx][2]];

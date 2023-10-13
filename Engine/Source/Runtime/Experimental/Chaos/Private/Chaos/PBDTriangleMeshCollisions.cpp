@@ -23,7 +23,7 @@ struct FEdgeFaceIntersection
 
 // Returned array has NOT been shrunk
 template<typename SpatialAccelerator>
-static TArray<FEdgeFaceIntersection> FindEdgeFaceIntersections(const FTriangleMesh& TriangleMesh, const SpatialAccelerator& Spatial, const FSolverParticles& Particles)
+static void FindEdgeFaceIntersections(const FTriangleMesh& TriangleMesh, const SpatialAccelerator& Spatial, const FSolverParticles& Particles, TArray<FEdgeFaceIntersection>& Intersections)
 {
 	TRACE_CPUPROFILER_EVENT_SCOPE(ChaosFPBDTriangleMeshCollisions_IntersectionQuery);
 
@@ -31,18 +31,18 @@ static TArray<FEdgeFaceIntersection> FindEdgeFaceIntersections(const FTriangleMe
 	const TArray<TVec2<int32>>& EdgeToFaces = TriangleMesh.GetEdgeToFaces();
 	const TArray<TVec3<int32>>& Elements = TriangleMesh.GetElements();
 
-	TArray<FEdgeFaceIntersection> Intersections;
-
 	// Preallocate enough space for (more than) typical number of expected intersections.
 	constexpr int32 PreallocatedIntersectionsPerEdge = 3;
-	Intersections.SetNum(PreallocatedIntersectionsPerEdge * SegmentMesh.GetNumElements());
+	const int32 PreallocatedIntersectionsNum = PreallocatedIntersectionsPerEdge * SegmentMesh.GetNumElements();
+	Intersections.Reset();
+	Intersections.SetNumUninitialized(PreallocatedIntersectionsNum);
 	std::atomic<int32> IntersectionIndex(0);
 
 	// Extra intersections that require a lock to write to if you have more than PreallocatedIntersectionsPerEdge 
 	TArray<FEdgeFaceIntersection> ExtraIntersections;
 	FCriticalSection CriticalSection;
 	PhysicsParallelFor(SegmentMesh.GetNumElements(),
-		[&Spatial, &TriangleMesh, &Particles, &SegmentMesh, &EdgeToFaces, &Elements, &IntersectionIndex, &Intersections, PreallocatedIntersectionsPerEdge, &ExtraIntersections, &CriticalSection](int32 EdgeIndex)
+		[&Spatial, &TriangleMesh, &Particles, &SegmentMesh, &EdgeToFaces, &Elements, &IntersectionIndex, &Intersections, PreallocatedIntersectionsNum, &ExtraIntersections, &CriticalSection](int32 EdgeIndex)
 		{
 
 			TArray< TTriangleCollisionPoint<FSolverReal> > Result;
@@ -78,10 +78,9 @@ static TArray<FEdgeFaceIntersection> FindEdgeFaceIntersections(const FTriangleMe
 					Intersection.FaceCoordinate = { CollisionPoint.Bary[2], CollisionPoint.Bary[3] };
 					Intersection.FaceNormal = CollisionPoint.Normal;
 					Intersection.IntersectionPoint = CollisionPoint.Location;
-
-					if (CollisionPointIndex < PreallocatedIntersectionsPerEdge)
+					const int32 IndexToWrite = IntersectionIndex.fetch_add(1);
+					if (IndexToWrite < PreallocatedIntersectionsNum)
 					{
-						const int32 IndexToWrite = IntersectionIndex.fetch_add(1);
 						Intersections[IndexToWrite] = Intersection;
 					}
 					else
@@ -101,7 +100,6 @@ static TArray<FEdgeFaceIntersection> FindEdgeFaceIntersections(const FTriangleMe
 
 	// Append any ExtraIntersections
 	Intersections.Append(ExtraIntersections);
-	return Intersections;
 }
 
 // Global intersection analysis (identifying global contours, flood filling)
@@ -239,7 +237,8 @@ namespace GIA
 		} // namespace __internal
 
 		// Build intersection contour data from edge-face intersection data.
-		static TArray<FIntersectionContourPair> BuildIntersectionContours(const FTriangleMesh& TriangleMesh, const TArray<FEdgeFaceIntersection>& IntersectionArray, TArray<TArray<FPBDTriangleMeshCollisions::FBarycentricPoint>>& ContourPoints)
+		static void BuildIntersectionContours(const FTriangleMesh& TriangleMesh, const TArray<FEdgeFaceIntersection>& IntersectionArray, 
+			TArray<FIntersectionContourPair>& Contours, TArray<TArray<FPBDTriangleMeshCollisions::FBarycentricPoint>>& ContourPoints)
 		{
 			TRACE_CPUPROFILER_EVENT_SCOPE(ChaosFPBDTriangleMeshCollisions_BuildIntersectionContours);
 
@@ -256,8 +255,6 @@ namespace GIA
 			const TArray<TVec2<int32>>& EdgeToFaces = TriangleMesh.GetEdgeToFaces();
 			const TArray<TVec3<int32>>& FaceToEdges = TriangleMesh.GetFaceToEdges();
 			const TArray<TVec3<int32>>& Elements = TriangleMesh.GetElements();
-
-			TArray<FIntersectionContourPair> Contours;
 
 			while (!IntersectionMap.IsEmpty())
 			{
@@ -586,8 +583,7 @@ namespace GIA
 					// We failed to find the next intersection in this contour. 
 					break;
 				}
-			}
-			return Contours;
+			};
 		}
 	} // namespace ContourBuilding
 
@@ -1252,6 +1248,18 @@ namespace ContourMinimization
 	}
 } // namespace ContourMinimization
 
+struct FPBDTriangleMeshCollisions::FScratchBuffers
+{
+	TArray<FEdgeFaceIntersection> EdgeFaceIntersections;
+	TArray<GIA::FIntersectionContourPair> IntersectionContours;
+
+	void Reset()
+	{
+		EdgeFaceIntersections.Reset();
+		IntersectionContours.Reset();
+	}
+};
+
 void FPBDTriangleMeshCollisions::Init(const FSolverParticles& Particles, const FSolverReal MinProximityQueryRadius)
 {
 	if (TriangleMesh.GetNumElements() == 0)
@@ -1277,21 +1285,26 @@ void FPBDTriangleMeshCollisions::Init(const FSolverParticles& Particles, const F
 		return;
 	}
 
+	if (!ScratchBuffers)
+	{
+		ScratchBuffers = MakePimpl<FScratchBuffers>();
+	}
+	ScratchBuffers->Reset();
+
 	// Detect all EdgeFace Intersections
-	TArray<FEdgeFaceIntersection> Intersections = FindEdgeFaceIntersections(TriangleMesh, SpatialHash, Particles);
-	if (Intersections.Num() == 0)
+	FindEdgeFaceIntersections(TriangleMesh, SpatialHash, Particles, ScratchBuffers->EdgeFaceIntersections);
+	if (ScratchBuffers->EdgeFaceIntersections.Num() == 0)
 	{
 		return;
 	}
 
-	TArray<GIA::FIntersectionContourPair> IntersectionContours;
 	if (bGlobalIntersectionAnalysis)
 	{ 
 		// Walk EdgeFace intersections to build global contours
-		IntersectionContours = GIA::ContourBuilding::BuildIntersectionContours(TriangleMesh, Intersections, IntersectionContourPoints);
+		GIA::ContourBuilding::BuildIntersectionContours(TriangleMesh, ScratchBuffers->EdgeFaceIntersections, ScratchBuffers->IntersectionContours, IntersectionContourPoints);
 		// Flood fill global contours to determine intersecting regions.
-		GIA::FloodFill::FloodFillContours(TriangleMesh, NumParticles, Offset, IntersectionContours, VertexGIAColors, TriangleGIAColors);
-		GIA::FloodFill::AssignContourPointTypes(IntersectionContours, IntersectionContourPoints, IntersectionContourTypes);
+		GIA::FloodFill::FloodFillContours(TriangleMesh, NumParticles, Offset, ScratchBuffers->IntersectionContours, VertexGIAColors, TriangleGIAColors);
+		GIA::FloodFill::AssignContourPointTypes(ScratchBuffers->IntersectionContours, IntersectionContourPoints, IntersectionContourTypes);
 	}
 
 	if (bContourMinimization)
@@ -1299,12 +1312,12 @@ void FPBDTriangleMeshCollisions::Init(const FSolverParticles& Particles, const F
 		if (bGlobalIntersectionAnalysis)
 		{
 			// Global contours which are non-closed or loop are handled via ContourMinimization impulses. Build global gradient (by adding contribution across all intersections per contour).
-			ContourMinimization::BuildGlobalContourMinimizationIntersections(TriangleMesh, Particles, IntersectionContours, ContourMinimizationIntersections);
+			ContourMinimization::BuildGlobalContourMinimizationIntersections(TriangleMesh, Particles, ScratchBuffers->IntersectionContours, ContourMinimizationIntersections);
 		}
 		else
 		{
 			// Just build local gradient for all Intersections
-			ContourMinimization::BuildLocalContourMinimizationIntersections(TriangleMesh, Particles, Intersections, ContourMinimizationIntersections);
+			ContourMinimization::BuildLocalContourMinimizationIntersections(TriangleMesh, Particles, ScratchBuffers->EdgeFaceIntersections, ContourMinimizationIntersections);
 		}
 	}
 }
@@ -1327,19 +1340,24 @@ void FPBDTriangleMeshCollisions::PostStepInit(const FSolverParticles& Particles)
 			constexpr FSolverReal MinSpatialLodSize = 1.f;
 			TriangleMesh.BuildSpatialHash(static_cast<const TArrayView<const FSolverVec3>&>(Particles.XArray()), SpatialHash, MinSpatialLodSize);
 
+			if (!ScratchBuffers)
+			{
+				ScratchBuffers = MakePimpl<FScratchBuffers>();
+			}
+			ScratchBuffers->Reset();
 
 			// Detect all EdgeFace Intersections
-			TArray<FEdgeFaceIntersection> Intersections = FindEdgeFaceIntersections(TriangleMesh, SpatialHash, Particles);
+			FindEdgeFaceIntersections(TriangleMesh, SpatialHash, Particles, ScratchBuffers->EdgeFaceIntersections);
 
 			if (bUseGlobalPostStepContours)
 			{
-				TArray<GIA::FIntersectionContourPair> IntersectionContours = GIA::ContourBuilding::BuildIntersectionContours(TriangleMesh, Intersections, PostStepIntersectionContourPoints);
-				ContourMinimization::BuildGlobalContourMinimizationIntersections(TriangleMesh, Particles, IntersectionContours, PostStepContourMinimizationIntersections);
+				GIA::ContourBuilding::BuildIntersectionContours(TriangleMesh, ScratchBuffers->EdgeFaceIntersections, ScratchBuffers->IntersectionContours, PostStepIntersectionContourPoints);
+				ContourMinimization::BuildGlobalContourMinimizationIntersections(TriangleMesh, Particles, ScratchBuffers->IntersectionContours, PostStepContourMinimizationIntersections);
 			}
 			else
 			{
 				// Just build local gradient for all Intersections
-				ContourMinimization::BuildLocalContourMinimizationIntersections(TriangleMesh, Particles, Intersections, PostStepContourMinimizationIntersections);
+				ContourMinimization::BuildLocalContourMinimizationIntersections(TriangleMesh, Particles, ScratchBuffers->EdgeFaceIntersections, PostStepContourMinimizationIntersections);
 			}
 		}
 	}

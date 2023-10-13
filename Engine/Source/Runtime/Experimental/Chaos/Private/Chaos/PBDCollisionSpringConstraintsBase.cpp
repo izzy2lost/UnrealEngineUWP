@@ -70,9 +70,9 @@ void FPBDCollisionSpringConstraintsBase::Init(const FSolverParticles& Particles,
 
 		// Preallocate enough space for all possible connections.
 		constexpr int32 MaxConnectionsPerPoint = 3;
-		Constraints.SetNum(NumParticles * MaxConnectionsPerPoint);
-		Barys.SetNum(NumParticles * MaxConnectionsPerPoint);
-		FlipNormal.SetNum(NumParticles * MaxConnectionsPerPoint);
+		Constraints.SetNumUninitialized(NumParticles * MaxConnectionsPerPoint);
+		Barys.SetNumUninitialized(NumParticles * MaxConnectionsPerPoint);
+		FlipNormal.SetNumUninitialized(NumParticles * MaxConnectionsPerPoint);
 
 		std::atomic<int32> ConstraintIndex(0);
 
@@ -179,9 +179,9 @@ void FPBDCollisionSpringConstraintsBase::Init(const FSolverParticles& Particles,
 
 		// Shrink the arrays to the actual number of found constraints.
 		const int32 ConstraintNum = ConstraintIndex.load();
-		Constraints.SetNum(ConstraintNum, /*bAllowShrinking*/ true);
-		Barys.SetNum(ConstraintNum, /*bAllowShrinking*/ true);
-		FlipNormal.SetNum(ConstraintNum, /*bAllowShrinking*/ true);
+		Constraints.SetNum(ConstraintNum, /*bAllowShrinking*/ false);
+		Barys.SetNum(ConstraintNum, /*bAllowShrinking*/ false);
+		FlipNormal.SetNum(ConstraintNum, /*bAllowShrinking*/ false);
 	}
 }
 template void CHAOS_API FPBDCollisionSpringConstraintsBase::Init<FTriangleMesh::TBVHType<FSolverReal>>(const FSolverParticles& Particles, const FTriangleMesh::TBVHType<FSolverReal>& Spatial, 
