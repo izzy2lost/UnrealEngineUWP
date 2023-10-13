@@ -25,12 +25,7 @@
 			"Name": "AudioModulationEditor",
 			"Type": "Editor",
 			"LoadingPhase": "PostEngineInit"
-		},
-		{
-			"Name": "AudioModulationTest",
-			"Type": "Runtime",
-			"LoadingPhase": "PreDefault"
-		},
+		}
 	],
 	"Plugins": [
 		{
@@ -41,5 +36,5 @@
 			"Name": "WaveTable",
 			"Enabled": true
 		}
-	]	
+	]
 }
