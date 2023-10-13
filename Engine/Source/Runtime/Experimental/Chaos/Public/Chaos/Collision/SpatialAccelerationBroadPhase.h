@@ -23,6 +23,7 @@
 namespace Chaos::CVars
 {
 	extern bool bChaosMidPhaseRedistributionEnabled;
+	extern bool bChaosIgnoreOneWayPairCollisions;
 }
 
 namespace Chaos
@@ -679,11 +680,14 @@ namespace Chaos
 
 				if (Overlap.bCollisionsEnabled)
 				{
-					const bool bIsOneWay0 = FConstGenericParticleHandle(Overlap.Particles[0])->OneWayInteraction();
-					const bool bIsOneWay1 = FConstGenericParticleHandle(Overlap.Particles[1])->OneWayInteraction();
-					if (bIsOneWay0 && bIsOneWay1)
+					if (CVars::bChaosIgnoreOneWayPairCollisions)
 					{
-						continue;
+						const bool bIsOneWay0 = FConstGenericParticleHandle(Overlap.Particles[0])->OneWayInteraction();
+						const bool bIsOneWay1 = FConstGenericParticleHandle(Overlap.Particles[1])->OneWayInteraction();
+						if (bIsOneWay0 && bIsOneWay1)
+						{
+							continue;
+						}
 					}
 
 					// Get the midphase for this pair
