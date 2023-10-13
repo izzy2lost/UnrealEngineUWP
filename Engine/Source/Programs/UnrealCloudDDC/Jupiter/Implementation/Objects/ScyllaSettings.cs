@@ -111,6 +111,11 @@ public class ScyllaSettings : IValidatableObject
 	/// </summary>
 	public bool AvoidSchemaChanges { get; set; } = false;
 
+	/// <summary>
+	/// Runs the record fetching in parallel (up to CountOfNodes) - experimental change that only applies when UsePerShardScanning is active 
+	/// </summary>
+	public bool AllowParallelRecordFetch { get; set; } = false;
+
 	public IEnumerable<ValidationResult> Validate(ValidationContext validationContext)
 	{
 		List<ValidationResult> results = new List<ValidationResult>();

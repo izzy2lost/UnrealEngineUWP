@@ -9,6 +9,7 @@ using Cassandra;
 using Cassandra.Mapping;
 using EpicGames.Horde.Storage;
 using Jupiter.Common;
+using Jupiter.Common.Utils;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
 using OpenTelemetry.Trace;
@@ -309,25 +310,80 @@ namespace Jupiter.Implementation
 				? _getObjectsLastAccessForPartitionRangeStatement
 				: _getObjectsForPartitionRangeStatement;
 
-			foreach ((long, long) range in ScyllaUtils.GetTableRanges(_settings.CurrentValue.CountOfNodes, _settings.CurrentValue.CountOfCoresPerNode, 3))
-			{
-				RowSet rowSet = await _session.ExecuteAsync(getObjectStatement.Bind(range.Item1, range.Item2));
-				foreach (Row row in rowSet)
-				{
-					string ns = row.GetValue<string>("namespace");
-					string bucket = row.GetValue<string>("bucket");
-					string name = row.GetValue<string>("name");
-					DateTime? lastAccessTime = row.GetValue<DateTime?>("last_access_time");
+			// generate a list of all the primary key ranges that exist on the cluster
+			List<(long, long)> tableRanges = ScyllaUtils.GetTableRanges(_settings.CurrentValue.CountOfNodes, _settings.CurrentValue.CountOfCoresPerNode, 3).ToList();
 
-					// skip any names that are not conformant to io hash
-					if (name.Length != 40)
+			// randomly shuffle this list so that we do not scan them in the same order, means that we will eventually visit all ranges even if the process running this is restarted before we have finished
+			List<int> tableRangeIndices = Enumerable.Range(0, tableRanges.Count).ToList();
+			tableRangeIndices.Shuffle();
+
+			if (_settings.CurrentValue.AllowParallelRecordFetch)
+			{
+				ConcurrentQueue<(NamespaceId, BucketId, RefId, DateTime)> foundRecords = new ConcurrentQueue<(NamespaceId, BucketId, RefId, DateTime)>();
+
+				Task scanTask = Parallel.ForEachAsync(tableRangeIndices, new ParallelOptions {MaxDegreeOfParallelism = (int)_settings.CurrentValue.CountOfNodes},
+					async (index, token) =>
 					{
-						continue;
+						(long, long) range = tableRanges[index];
+						RowSet rowSet = await _session.ExecuteAsync(getObjectStatement.Bind(range.Item1, range.Item2));
+						foreach (Row row in rowSet)
+						{
+							if (token.IsCancellationRequested)
+							{
+								return;
+							}
+							string ns = row.GetValue<string>("namespace");
+							string bucket = row.GetValue<string>("bucket");
+							string name = row.GetValue<string>("name");
+							DateTime? lastAccessTime = row.GetValue<DateTime?>("last_access_time");
+
+							// skip any names that are not conformant to io hash
+							if (name.Length != 40)
+							{
+								continue;
+							}
+
+							// if last access time is missing we treat it as being very old
+							lastAccessTime ??= DateTime.MinValue;
+							foundRecords.Enqueue((new NamespaceId(ns), new BucketId(bucket), new RefId(name), lastAccessTime.Value));
+						}
+					});
+
+				while (!scanTask.IsCompleted)
+				{
+					while (foundRecords.TryDequeue(out (NamespaceId, BucketId, RefId, DateTime) foundRecord))
+					{
+						yield return foundRecord;
 					}
 
-					// if last access time is missing we treat it as being very old
-					lastAccessTime ??= DateTime.MinValue;
-					yield return (new NamespaceId(ns), new BucketId(bucket), new RefId(name), lastAccessTime.Value);
+					await Task.Delay(10);
+				}
+
+				await scanTask;
+			}
+			else
+			{
+				foreach (int index in tableRangeIndices)
+				{
+					(long, long) range = tableRanges[index];
+					RowSet rowSet = await _session.ExecuteAsync(getObjectStatement.Bind(range.Item1, range.Item2));
+					foreach (Row row in rowSet)
+					{
+						string ns = row.GetValue<string>("namespace");
+						string bucket = row.GetValue<string>("bucket");
+						string name = row.GetValue<string>("name");
+						DateTime? lastAccessTime = row.GetValue<DateTime?>("last_access_time");
+
+						// skip any names that are not conformant to io hash
+						if (name.Length != 40)
+						{
+							continue;
+						}
+
+						// if last access time is missing we treat it as being very old
+						lastAccessTime ??= DateTime.MinValue;
+						yield return (new NamespaceId(ns), new BucketId(bucket), new RefId(name), lastAccessTime.Value);
+					}
 				}
 			}
 		}
