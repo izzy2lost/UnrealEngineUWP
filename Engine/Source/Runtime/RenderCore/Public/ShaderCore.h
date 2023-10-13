@@ -1200,6 +1200,9 @@ class FShaderType;
 class FVertexFactoryType;
 class FShaderPipelineType;
 
+// Text to use as line terminator for HLSL files (may differ from platform LINE_TERMINATOR)
+#define HLSL_LINE_TERMINATOR TEXT("\n")
+
 /** Force updates each shader/pipeline type provided to update their list of referenced uniform buffers. */
 RENDERCORE_API void UpdateReferencedUniformBufferNames(
 	TArrayView<const FShaderType*> OutdatedShaderTypes,

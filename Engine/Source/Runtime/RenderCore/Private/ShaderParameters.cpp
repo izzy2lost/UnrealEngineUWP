@@ -96,7 +96,7 @@ void FShaderUniformBufferParameter::ModifyCompilationEnvironment(const TCHAR* Pa
 	}
 
 	FString& GeneratedUniformBuffersInclude = OutEnvironment.IncludeVirtualPathToContentsMap.FindOrAdd("/Engine/Generated/GeneratedUniformBuffers.ush");
-	const FString Include = FString::Printf(TEXT("#include \"%s\"") LINE_TERMINATOR, *IncludeName);
+	const FString Include = FString::Printf(TEXT("#include \"%s\"") HLSL_LINE_TERMINATOR, *IncludeName);
 
 	GeneratedUniformBuffersInclude.Append(Include);
 	Struct.AddResourceTableEntries(OutEnvironment.ResourceTableMap, OutEnvironment.UniformBufferMap);
@@ -171,7 +171,7 @@ static void CreateHLSLUniformBufferStructMembersDeclaration(
 		{
 			Decl.StructMembers << GlobalPrefix << TEXT("_");
 		}
-		Decl.StructMembers << Member.GetName() << TEXT(");\r\n");
+		Decl.StructMembers << Member.GetName() << TEXT(");\n");
 	};
 
 	if ((UniformBufferStruct.GetUsageFlags() & (uint32)FShaderParametersMetadata::EUsageFlags::UniformView) != 0)
@@ -188,7 +188,7 @@ static void CreateHLSLUniformBufferStructMembersDeclaration(
 		}
 		ParameterName << Member.GetName();
 
-		Decl.ConstantBufferMembers.Appendf(TEXT("UB_CB_UNIFORM_BLOCK(%s, %s);\r\n"), *UniformBufferName, *ParameterName);
+		Decl.ConstantBufferMembers.Appendf(TEXT("UB_CB_UNIFORM_BLOCK(%s, %s);\n"), *UniformBufferName, *ParameterName);
 
 		AddStructMember(Member, false);
 		return;
@@ -232,7 +232,7 @@ static void CreateHLSLUniformBufferStructMembersDeclaration(
 				check(HLSLBaseOffset < AbsoluteMemberOffset);
 				while (HLSLBaseOffset < AbsoluteMemberOffset)
 				{
-					Decl.ConstantBufferMembers.Appendf(TEXT("\t%s() UB_CB_MEMBER_NAME(%s, Padding%u);\r\n"), PreviousBaseTypeName, *UniformBufferName, HLSLBaseOffset);
+					Decl.ConstantBufferMembers.Appendf(TEXT("\t%s() UB_CB_MEMBER_NAME(%s, Padding%u);\n"), PreviousBaseTypeName, *UniformBufferName, HLSLBaseOffset);
 					HLSLBaseOffset += 4;
 				};
 				check(HLSLBaseOffset == AbsoluteMemberOffset);
@@ -250,7 +250,7 @@ static void CreateHLSLUniformBufferStructMembersDeclaration(
 			}
 			ParameterName << Member.GetName();
 
-			Decl.ConstantBufferMembers.Appendf(TEXT("\tUB_UINT() UB_CB_PREFIXED_MEMBER_NAME(%s, %s, %s);\r\n"), *UniformBufferName, MemberPrefix, *ParameterName);
+			Decl.ConstantBufferMembers.Appendf(TEXT("\tUB_UINT() UB_CB_PREFIXED_MEMBER_NAME(%s, %s, %s);\n"), *UniformBufferName, MemberPrefix, *ParameterName);
 		}
 		else
 		{
@@ -307,7 +307,7 @@ static void CreateHLSLUniformBufferStructMembersDeclaration(
 				check(HLSLBaseOffset < AbsoluteMemberOffset);
 				while (HLSLBaseOffset < AbsoluteMemberOffset)
 				{
-					Decl.ConstantBufferMembers.Appendf(TEXT("\t%s() UB_CB_MEMBER_NAME(%s, Padding%u);\r\n"), PreviousBaseTypeName, *UniformBufferName, HLSLBaseOffset);
+					Decl.ConstantBufferMembers.Appendf(TEXT("\t%s() UB_CB_MEMBER_NAME(%s, Padding%u);\n"), PreviousBaseTypeName, *UniformBufferName, HLSLBaseOffset);
 					HLSLBaseOffset += 4;
 				};
 				check(HLSLBaseOffset == AbsoluteMemberOffset);
@@ -322,7 +322,7 @@ static void CreateHLSLUniformBufferStructMembersDeclaration(
 			}
 			ParameterName << Member.GetName();
 
-			Decl.ConstantBufferMembers.Appendf(TEXT("\t%s(%s) UB_CB_MEMBER_NAME(%s, %s%s);\r\n"), BaseTypeName, *TypeDim, *UniformBufferName, *ParameterName, *ArrayDim);
+			Decl.ConstantBufferMembers.Appendf(TEXT("\t%s(%s) UB_CB_MEMBER_NAME(%s, %s%s);\n"), BaseTypeName, *TypeDim, *UniformBufferName, *ParameterName, *ArrayDim);
 
 			AddStructMember(Member, false);
 		}
@@ -346,17 +346,17 @@ static void CreateHLSLUniformBufferStructMembersDeclaration(
 
 			if (Member.GetBaseType() == UBMT_SAMPLER)
 			{
-				Decl.ResourceMembers.Appendf(TEXT("UB_RESOURCE_MEMBER_SAMPLER(%s, %s, %s);\r\n"), Member.GetShaderType(), *UniformBufferName, *ParameterName);
+				Decl.ResourceMembers.Appendf(TEXT("UB_RESOURCE_MEMBER_SAMPLER(%s, %s, %s);\n"), Member.GetShaderType(), *UniformBufferName, *ParameterName);
 				AddStructMember(Member, true);
 			}
 			else if (Member.GetBaseType() == UBMT_SRV)
 			{
-				Decl.ResourceMembers.Appendf(TEXT("UB_RESOURCE_MEMBER_RESOURCE(%s, %s, %s);\r\n"), Member.GetShaderType(), *UniformBufferName, *ParameterName);
+				Decl.ResourceMembers.Appendf(TEXT("UB_RESOURCE_MEMBER_RESOURCE(%s, %s, %s);\n"), Member.GetShaderType(), *UniformBufferName, *ParameterName);
 				AddStructMember(Member, true);
 			}
 			else
 			{
-				Decl.ResourceMembers.Appendf(TEXT("UB_RESOURCE_MEMBER_RESOURCE(%s, %s, %s);\r\n"), Member.GetShaderType(), *UniformBufferName, *ParameterName);
+				Decl.ResourceMembers.Appendf(TEXT("UB_RESOURCE_MEMBER_RESOURCE(%s, %s, %s);\n"), Member.GetShaderType(), *UniformBufferName, *ParameterName);
 				AddStructMember(Member, true);
 			}
 		}
@@ -374,15 +374,15 @@ static FString CreateHLSLUniformBufferDeclaration(const TCHAR* UniformBufferName
 		CreateHLSLUniformBufferStructMembersDeclaration(UniformBufferStruct, UniformBufferName, TEXT(""), TEXT(""), 0, Decl, HLSLBaseOffset);
 
 		return FString::Printf(
-			TEXT("#pragma once\r\n")
-			TEXT("UB_CB_DEFINITION_START(%s)\r\n")
+			TEXT("#pragma once\n")
+			TEXT("UB_CB_DEFINITION_START(%s)\n")
 			TEXT("%s")
-			TEXT("UB_CB_DEFINITION_END(%s)\r\n")
+			TEXT("UB_CB_DEFINITION_END(%s)\n")
 			TEXT("%s")
-			TEXT("UniformBuffer %s\r\n")
-			TEXT("{\r\n")
+			TEXT("UniformBuffer %s\n")
+			TEXT("{\n")
 			TEXT("%s")
-			TEXT("};\r\n"),
+			TEXT("};\n"),
 			UniformBufferName,
 			*Decl.ConstantBufferMembers,
 			UniformBufferName,

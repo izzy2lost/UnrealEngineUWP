@@ -186,7 +186,7 @@ bool FCompareBasepassShaders::RunTest(const FString& Parameters)
 
     AddCommand(new FDelayedFunctionLatentCommand([=] {
         FString str;
-        FString DefineStr = FString("#define ") + Parameters + " 1\r\n";
+        FString DefineStr = FString("#define ") + Parameters + " 1\n";
         for (int i = 0; i < ShaderNames.Num(); ++i) {
             FFileHelper::LoadFileToString((*FileStrings)[i], *ShaderNames[i]);
             str = DefineStr + (*FileStrings)[i];

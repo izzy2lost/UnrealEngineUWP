@@ -1365,15 +1365,15 @@ FString FMaterialDerivativeAutogen::GenerateUsedFunctions(FHLSLMaterialTranslato
 			FString FieldName = GetFloatVectorName(DerivType);
 			FString FieldNameDDXY = GetFloatVectorDDXYName(DerivType);
 
-			Ret += BaseName + TEXT(" Construct") + BaseName + TEXT("(") + FieldName + TEXT(" InValue,") + FieldNameDDXY + TEXT(" InDdx,") + FieldNameDDXY + TEXT(" InDdy)") LINE_TERMINATOR;
-			Ret += TEXT("{") LINE_TERMINATOR;
-			Ret += TEXT("\t") + BaseName + TEXT(" Ret;") LINE_TERMINATOR;
-			Ret += TEXT("\tRet.Value = InValue;") LINE_TERMINATOR;
-			Ret += TEXT("\tRet.Ddx = InDdx;") LINE_TERMINATOR;
-			Ret += TEXT("\tRet.Ddy = InDdy;") LINE_TERMINATOR;
-			Ret += TEXT("\treturn Ret;") LINE_TERMINATOR;
-			Ret += TEXT("}") LINE_TERMINATOR;
-			Ret += TEXT("") LINE_TERMINATOR;
+			Ret += BaseName + TEXT(" Construct") + BaseName + TEXT("(") + FieldName + TEXT(" InValue,") + FieldNameDDXY + TEXT(" InDdx,") + FieldNameDDXY + TEXT(" InDdy)") HLSL_LINE_TERMINATOR;
+			Ret += TEXT("{") HLSL_LINE_TERMINATOR;
+			Ret += TEXT("\t") + BaseName + TEXT(" Ret;") HLSL_LINE_TERMINATOR;
+			Ret += TEXT("\tRet.Value = InValue;") HLSL_LINE_TERMINATOR;
+			Ret += TEXT("\tRet.Ddx = InDdx;") HLSL_LINE_TERMINATOR;
+			Ret += TEXT("\tRet.Ddy = InDdy;") HLSL_LINE_TERMINATOR;
+			Ret += TEXT("\treturn Ret;") HLSL_LINE_TERMINATOR;
+			Ret += TEXT("}") HLSL_LINE_TERMINATOR;
+			Ret += TEXT("") HLSL_LINE_TERMINATOR;
 		}
 	}
 
@@ -1386,15 +1386,15 @@ FString FMaterialDerivativeAutogen::GenerateUsedFunctions(FHLSLMaterialTranslato
 			FString BaseName = GetDerivVectorName(DerivType);
 			FString FieldName = GetFloatVectorName(DerivType);
 
-			Ret += BaseName + TEXT(" ConstructConstant") + BaseName + TEXT("(") + FieldName + TEXT(" Value)") LINE_TERMINATOR;
-			Ret += TEXT("{") LINE_TERMINATOR;
-			Ret += TEXT("\t") + BaseName + TEXT(" Ret;") LINE_TERMINATOR;
-			Ret += TEXT("\tRet.Value = Value;") LINE_TERMINATOR;
-			Ret += TEXT("\tRet.Ddx = 0;") LINE_TERMINATOR;
-			Ret += TEXT("\tRet.Ddy = 0;") LINE_TERMINATOR;
-			Ret += TEXT("\treturn Ret;") LINE_TERMINATOR;
-			Ret += TEXT("}") LINE_TERMINATOR;
-			Ret += TEXT("") LINE_TERMINATOR;
+			Ret += BaseName + TEXT(" ConstructConstant") + BaseName + TEXT("(") + FieldName + TEXT(" Value)") HLSL_LINE_TERMINATOR;
+			Ret += TEXT("{") HLSL_LINE_TERMINATOR;
+			Ret += TEXT("\t") + BaseName + TEXT(" Ret;") HLSL_LINE_TERMINATOR;
+			Ret += TEXT("\tRet.Value = Value;") HLSL_LINE_TERMINATOR;
+			Ret += TEXT("\tRet.Ddx = 0;") HLSL_LINE_TERMINATOR;
+			Ret += TEXT("\tRet.Ddy = 0;") HLSL_LINE_TERMINATOR;
+			Ret += TEXT("\treturn Ret;") HLSL_LINE_TERMINATOR;
+			Ret += TEXT("}") HLSL_LINE_TERMINATOR;
+			Ret += TEXT("") HLSL_LINE_TERMINATOR;
 		}
 	}
 
@@ -1407,24 +1407,24 @@ FString FMaterialDerivativeAutogen::GenerateUsedFunctions(FHLSLMaterialTranslato
 			FString BaseName = GetDerivVectorName(DerivType);
 			FString FieldName = GetFloatVectorName(DerivType);
 
-			Ret += BaseName + TEXT(" ConstructFinite") + BaseName + TEXT("(") + FieldName + TEXT(" InValue)") LINE_TERMINATOR;
-			Ret += TEXT("{") LINE_TERMINATOR;
-			Ret += TEXT("\t") + BaseName + TEXT(" Ret;") LINE_TERMINATOR;
-			Ret += TEXT("\tRet.Value = InValue;") LINE_TERMINATOR;
+			Ret += BaseName + TEXT(" ConstructFinite") + BaseName + TEXT("(") + FieldName + TEXT(" InValue)") HLSL_LINE_TERMINATOR;
+			Ret += TEXT("{") HLSL_LINE_TERMINATOR;
+			Ret += TEXT("\t") + BaseName + TEXT(" Ret;") HLSL_LINE_TERMINATOR;
+			Ret += TEXT("\tRet.Value = InValue;") HLSL_LINE_TERMINATOR;
 			if (Index == 4)
 			{
 				// LWC_TODO: Better way to do this??
-				Ret += TEXT("\tRet.Ddx = ddx(LWCHackToFloat(InValue));") LINE_TERMINATOR;
-				Ret += TEXT("\tRet.Ddy = ddy(LWCHackToFloat(InValue));") LINE_TERMINATOR;
+				Ret += TEXT("\tRet.Ddx = ddx(LWCHackToFloat(InValue));") HLSL_LINE_TERMINATOR;
+				Ret += TEXT("\tRet.Ddy = ddy(LWCHackToFloat(InValue));") HLSL_LINE_TERMINATOR;
 			}
 			else
 			{
-				Ret += TEXT("\tRet.Ddx = ddx(InValue);") LINE_TERMINATOR;
-				Ret += TEXT("\tRet.Ddy = ddy(InValue);") LINE_TERMINATOR;
+				Ret += TEXT("\tRet.Ddx = ddx(InValue);") HLSL_LINE_TERMINATOR;
+				Ret += TEXT("\tRet.Ddy = ddy(InValue);") HLSL_LINE_TERMINATOR;
 			}
-			Ret += TEXT("\treturn Ret;") LINE_TERMINATOR;
-			Ret += TEXT("}") LINE_TERMINATOR;
-			Ret += TEXT("") LINE_TERMINATOR;
+			Ret += TEXT("\treturn Ret;") HLSL_LINE_TERMINATOR;
+			Ret += TEXT("}") HLSL_LINE_TERMINATOR;
+			Ret += TEXT("") HLSL_LINE_TERMINATOR;
 		}
 	}
 
@@ -1446,15 +1446,15 @@ FString FMaterialDerivativeAutogen::GenerateUsedFunctions(FHLSLMaterialTranslato
 				const EDerivativeType SrcTypeDDXY = MakeNonLWCType(SrcDerivType);
 				const EDerivativeType DstTypeDDXY = MakeNonLWCType(DstDerivType);
 
-				Ret += DstBaseName + TEXT(" Convert_") + DstBaseName + TEXT("_") + SrcBaseName + TEXT("(") + SrcBaseName + TEXT(" Src)") LINE_TERMINATOR;
-				Ret += TEXT("{") LINE_TERMINATOR;
-				Ret += TEXT("\t") + DstBaseName + TEXT(" Ret;") LINE_TERMINATOR;
-				Ret += TEXT("\tRet.Value = ") + CoerceFloat(Translator, TEXT("Src.Value"), DstDerivType, SrcDerivType) + TEXT(";") LINE_TERMINATOR;
-				Ret += TEXT("\tRet.Ddx = ") + CoerceFloat(Translator, TEXT("Src.Ddx"), DstTypeDDXY, SrcTypeDDXY) + TEXT(";") LINE_TERMINATOR;
-				Ret += TEXT("\tRet.Ddy = ") + CoerceFloat(Translator, TEXT("Src.Ddy"), DstTypeDDXY, SrcTypeDDXY) + TEXT(";") LINE_TERMINATOR;
-				Ret += TEXT("\treturn Ret;") LINE_TERMINATOR;
-				Ret += TEXT("}") LINE_TERMINATOR;
-				Ret += TEXT("") LINE_TERMINATOR;
+				Ret += DstBaseName + TEXT(" Convert_") + DstBaseName + TEXT("_") + SrcBaseName + TEXT("(") + SrcBaseName + TEXT(" Src)") HLSL_LINE_TERMINATOR;
+				Ret += TEXT("{") HLSL_LINE_TERMINATOR;
+				Ret += TEXT("\t") + DstBaseName + TEXT(" Ret;") HLSL_LINE_TERMINATOR;
+				Ret += TEXT("\tRet.Value = ") + CoerceFloat(Translator, TEXT("Src.Value"), DstDerivType, SrcDerivType) + TEXT(";") HLSL_LINE_TERMINATOR;
+				Ret += TEXT("\tRet.Ddx = ") + CoerceFloat(Translator, TEXT("Src.Ddx"), DstTypeDDXY, SrcTypeDDXY) + TEXT(";") HLSL_LINE_TERMINATOR;
+				Ret += TEXT("\tRet.Ddy = ") + CoerceFloat(Translator, TEXT("Src.Ddy"), DstTypeDDXY, SrcTypeDDXY) + TEXT(";") HLSL_LINE_TERMINATOR;
+				Ret += TEXT("\treturn Ret;") HLSL_LINE_TERMINATOR;
+				Ret += TEXT("}") HLSL_LINE_TERMINATOR;
+				Ret += TEXT("") HLSL_LINE_TERMINATOR;
 			}
 		}
 	}
@@ -1482,22 +1482,22 @@ FString FMaterialDerivativeAutogen::GenerateUsedFunctions(FHLSLMaterialTranslato
 			{
 				FString ElemStr = FString::Printf(TEXT("%d"), ElemIndex + 1);
 
-				Ret += ScalarName + TEXT(" Extract") + BaseName + TEXT("_") + ElemStr + TEXT("(") + BaseName + TEXT(" InValue)") LINE_TERMINATOR;
-				Ret += TEXT("{") LINE_TERMINATOR;
-				Ret += TEXT("\t") + ScalarName + TEXT(" Ret;") LINE_TERMINATOR;
+				Ret += ScalarName + TEXT(" Extract") + BaseName + TEXT("_") + ElemStr + TEXT("(") + BaseName + TEXT(" InValue)") HLSL_LINE_TERMINATOR;
+				Ret += TEXT("{") HLSL_LINE_TERMINATOR;
+				Ret += TEXT("\t") + ScalarName + TEXT(" Ret;") HLSL_LINE_TERMINATOR;
 				if (IsLWCType(DerivType))
 				{
-					Ret += FString::Printf(TEXT("\tRet.Value = LWCGetComponent(InValue.Value, %d);") LINE_TERMINATOR, ElemIndex);
+					Ret += FString::Printf(TEXT("\tRet.Value = LWCGetComponent(InValue.Value, %d);") HLSL_LINE_TERMINATOR, ElemIndex);
 				}
 				else
 				{
-					Ret += TEXT("\tRet.Value = InValue.Value.") + FString(SwizzleList[ElemIndex]) + TEXT(";") LINE_TERMINATOR;
+					Ret += TEXT("\tRet.Value = InValue.Value.") + FString(SwizzleList[ElemIndex]) + TEXT(";") HLSL_LINE_TERMINATOR;
 				}
-				Ret += TEXT("\tRet.Ddx = InValue.Ddx.") + FString(SwizzleList[ElemIndex]) + TEXT(";") LINE_TERMINATOR;
-				Ret += TEXT("\tRet.Ddy = InValue.Ddy.") + FString(SwizzleList[ElemIndex]) + TEXT(";") LINE_TERMINATOR;
-				Ret += TEXT("\treturn Ret;") LINE_TERMINATOR;
-				Ret += TEXT("}") LINE_TERMINATOR;
-				Ret += TEXT("") LINE_TERMINATOR;
+				Ret += TEXT("\tRet.Ddx = InValue.Ddx.") + FString(SwizzleList[ElemIndex]) + TEXT(";") HLSL_LINE_TERMINATOR;
+				Ret += TEXT("\tRet.Ddy = InValue.Ddy.") + FString(SwizzleList[ElemIndex]) + TEXT(";") HLSL_LINE_TERMINATOR;
+				Ret += TEXT("\treturn Ret;") HLSL_LINE_TERMINATOR;
+				Ret += TEXT("}") HLSL_LINE_TERMINATOR;
+				Ret += TEXT("") HLSL_LINE_TERMINATOR;
 			}
 		}
 	}
@@ -1522,195 +1522,195 @@ FString FMaterialDerivativeAutogen::GenerateUsedFunctions(FHLSLMaterialTranslato
 				switch ((EFunc2)Op)
 				{
 				case EFunc2::Add:
-					Ret += BaseName + TEXT(" AddDeriv") + Suffix + TEXT("(") + BaseName + TEXT(" A, ") + BaseName + TEXT(" B)") LINE_TERMINATOR;
-					Ret += TEXT("{") LINE_TERMINATOR;
-					Ret += TEXT("\t") + BaseName + TEXT(" Ret;") LINE_TERMINATOR;
+					Ret += BaseName + TEXT(" AddDeriv") + Suffix + TEXT("(") + BaseName + TEXT(" A, ") + BaseName + TEXT(" B)") HLSL_LINE_TERMINATOR;
+					Ret += TEXT("{") HLSL_LINE_TERMINATOR;
+					Ret += TEXT("\t") + BaseName + TEXT(" Ret;") HLSL_LINE_TERMINATOR;
 					if (IsLWCType(DerivType))
 					{
 						Translator.AddLWCFuncUsage(ELWCFunctionKind::Add);
-						Ret += TEXT("\tRet.Value = LWCAdd(A.Value, B.Value);") LINE_TERMINATOR;
+						Ret += TEXT("\tRet.Value = LWCAdd(A.Value, B.Value);") HLSL_LINE_TERMINATOR;
 					}
 					else
 					{
-						Ret += TEXT("\tRet.Value = A.Value + B.Value;") LINE_TERMINATOR;
+						Ret += TEXT("\tRet.Value = A.Value + B.Value;") HLSL_LINE_TERMINATOR;
 					}
-					Ret += TEXT("\tRet.Ddx = A.Ddx + B.Ddx;") LINE_TERMINATOR;
-					Ret += TEXT("\tRet.Ddy = A.Ddy + B.Ddy;") LINE_TERMINATOR;
-					Ret += TEXT("\treturn Ret;") LINE_TERMINATOR;
-					Ret += TEXT("}") LINE_TERMINATOR;
-					Ret += TEXT("") LINE_TERMINATOR;
+					Ret += TEXT("\tRet.Ddx = A.Ddx + B.Ddx;") HLSL_LINE_TERMINATOR;
+					Ret += TEXT("\tRet.Ddy = A.Ddy + B.Ddy;") HLSL_LINE_TERMINATOR;
+					Ret += TEXT("\treturn Ret;") HLSL_LINE_TERMINATOR;
+					Ret += TEXT("}") HLSL_LINE_TERMINATOR;
+					Ret += TEXT("") HLSL_LINE_TERMINATOR;
 					break;
 				case EFunc2::Sub:
-					Ret += BaseName + TEXT(" SubDeriv") + Suffix + TEXT("(") + BaseName + TEXT(" A, ") + BaseName + TEXT(" B)") LINE_TERMINATOR;
-					Ret += TEXT("{") LINE_TERMINATOR;
-					Ret += TEXT("\t") + BaseName + TEXT(" Ret;") LINE_TERMINATOR;
+					Ret += BaseName + TEXT(" SubDeriv") + Suffix + TEXT("(") + BaseName + TEXT(" A, ") + BaseName + TEXT(" B)") HLSL_LINE_TERMINATOR;
+					Ret += TEXT("{") HLSL_LINE_TERMINATOR;
+					Ret += TEXT("\t") + BaseName + TEXT(" Ret;") HLSL_LINE_TERMINATOR;
 					if (IsLWCType(DerivType))
 					{
 						Translator.AddLWCFuncUsage(ELWCFunctionKind::Subtract);
-						Ret += TEXT("\tRet.Value = LWCSubtract(A.Value, B.Value);") LINE_TERMINATOR;
+						Ret += TEXT("\tRet.Value = LWCSubtract(A.Value, B.Value);") HLSL_LINE_TERMINATOR;
 					}
 					else
 					{
-						Ret += TEXT("\tRet.Value = A.Value - B.Value;") LINE_TERMINATOR;
+						Ret += TEXT("\tRet.Value = A.Value - B.Value;") HLSL_LINE_TERMINATOR;
 					}
-					Ret += TEXT("\tRet.Ddx = A.Ddx - B.Ddx;") LINE_TERMINATOR;
-					Ret += TEXT("\tRet.Ddy = A.Ddy - B.Ddy;") LINE_TERMINATOR;
-					Ret += TEXT("\treturn Ret;") LINE_TERMINATOR;
-					Ret += TEXT("}") LINE_TERMINATOR;
-					Ret += TEXT("") LINE_TERMINATOR;
+					Ret += TEXT("\tRet.Ddx = A.Ddx - B.Ddx;") HLSL_LINE_TERMINATOR;
+					Ret += TEXT("\tRet.Ddy = A.Ddy - B.Ddy;") HLSL_LINE_TERMINATOR;
+					Ret += TEXT("\treturn Ret;") HLSL_LINE_TERMINATOR;
+					Ret += TEXT("}") HLSL_LINE_TERMINATOR;
+					Ret += TEXT("") HLSL_LINE_TERMINATOR;
 					break;
 				case EFunc2::Mul:
-					Ret += BaseName + TEXT(" MulDeriv") + Suffix + TEXT("(") + BaseName + TEXT(" A, ") + BaseName + TEXT(" B)") LINE_TERMINATOR;
-					Ret += TEXT("{") LINE_TERMINATOR;
-					Ret += TEXT("\t") + BaseName + TEXT(" Ret;") LINE_TERMINATOR;
+					Ret += BaseName + TEXT(" MulDeriv") + Suffix + TEXT("(") + BaseName + TEXT(" A, ") + BaseName + TEXT(" B)") HLSL_LINE_TERMINATOR;
+					Ret += TEXT("{") HLSL_LINE_TERMINATOR;
+					Ret += TEXT("\t") + BaseName + TEXT(" Ret;") HLSL_LINE_TERMINATOR;
 					if (IsLWCType(DerivType))
 					{
 						Translator.AddLWCFuncUsage(ELWCFunctionKind::MultiplyVectorVector);
-						Ret += TEXT("\tRet.Value = LWCMultiply(A.Value, B.Value);") LINE_TERMINATOR;
-						Ret += TEXT("\tRet.Ddx = A.Ddx * LWCToFloat(B.Value) + LWCToFloat(A.Value) * B.Ddx;") LINE_TERMINATOR;
-						Ret += TEXT("\tRet.Ddy = A.Ddy * LWCToFloat(B.Value) + LWCToFloat(A.Value) * B.Ddy;") LINE_TERMINATOR;
+						Ret += TEXT("\tRet.Value = LWCMultiply(A.Value, B.Value);") HLSL_LINE_TERMINATOR;
+						Ret += TEXT("\tRet.Ddx = A.Ddx * LWCToFloat(B.Value) + LWCToFloat(A.Value) * B.Ddx;") HLSL_LINE_TERMINATOR;
+						Ret += TEXT("\tRet.Ddy = A.Ddy * LWCToFloat(B.Value) + LWCToFloat(A.Value) * B.Ddy;") HLSL_LINE_TERMINATOR;
 					}
 					else
 					{
-						Ret += TEXT("\tRet.Value = A.Value * B.Value;") LINE_TERMINATOR;
-						Ret += TEXT("\tRet.Ddx = A.Ddx * B.Value + A.Value * B.Ddx;") LINE_TERMINATOR;
-						Ret += TEXT("\tRet.Ddy = A.Ddy * B.Value + A.Value * B.Ddy;") LINE_TERMINATOR;
+						Ret += TEXT("\tRet.Value = A.Value * B.Value;") HLSL_LINE_TERMINATOR;
+						Ret += TEXT("\tRet.Ddx = A.Ddx * B.Value + A.Value * B.Ddx;") HLSL_LINE_TERMINATOR;
+						Ret += TEXT("\tRet.Ddy = A.Ddy * B.Value + A.Value * B.Ddy;") HLSL_LINE_TERMINATOR;
 					}
-					Ret += TEXT("\treturn Ret;") LINE_TERMINATOR;
-					Ret += TEXT("}") LINE_TERMINATOR;
-					Ret += TEXT("") LINE_TERMINATOR;
+					Ret += TEXT("\treturn Ret;") HLSL_LINE_TERMINATOR;
+					Ret += TEXT("}") HLSL_LINE_TERMINATOR;
+					Ret += TEXT("") HLSL_LINE_TERMINATOR;
 					break;
 				case EFunc2::Div:
-					Ret += BaseName + TEXT(" DivDeriv") + Suffix + TEXT("(") + BaseName + TEXT(" A, ") + BaseName + TEXT(" B)") LINE_TERMINATOR;
-					Ret += TEXT("{") LINE_TERMINATOR;
-					Ret += TEXT("\t") + BaseName + TEXT(" Ret;") LINE_TERMINATOR;
+					Ret += BaseName + TEXT(" DivDeriv") + Suffix + TEXT("(") + BaseName + TEXT(" A, ") + BaseName + TEXT(" B)") HLSL_LINE_TERMINATOR;
+					Ret += TEXT("{") HLSL_LINE_TERMINATOR;
+					Ret += TEXT("\t") + BaseName + TEXT(" Ret;") HLSL_LINE_TERMINATOR;
 					if (IsLWCType(DerivType))
 					{
 						Translator.AddLWCFuncUsage(ELWCFunctionKind::Divide);
-						Ret += TEXT("\tRet.Value = LWCDivide(A.Value, B.Value);") LINE_TERMINATOR;
+						Ret += TEXT("\tRet.Value = LWCDivide(A.Value, B.Value);") HLSL_LINE_TERMINATOR;
 						Translator.AddLWCFuncUsage(ELWCFunctionKind::Other);
 						Translator.AddLWCFuncUsage(ELWCFunctionKind::Demote, 2);
 						Translator.AddLWCFuncUsage(ELWCFunctionKind::MultiplyVectorVector, 3);
-						Ret += TEXT("\t") + FieldName + TEXT(" Denom = LWCRcp(LWCMultiply(B.Value, B.Value));") LINE_TERMINATOR;
-						Ret += TEXT("\t") + FieldName + TEXT(" dFdA =  LWCToFloat(LWCMultiply(B.Value, Denom));") LINE_TERMINATOR;
-						Ret += TEXT("\t") + FieldName + TEXT(" dFdB = -LWCToFloat(LWCMultiply(A.Value, Denom));") LINE_TERMINATOR;
-						Ret += TEXT("\tRet.Ddx = dFdA * A.Ddx + dFdB * B.Ddx;") LINE_TERMINATOR;
-						Ret += TEXT("\tRet.Ddy = dFdA * A.Ddy + dFdB * B.Ddy;") LINE_TERMINATOR;
+						Ret += TEXT("\t") + FieldName + TEXT(" Denom = LWCRcp(LWCMultiply(B.Value, B.Value));") HLSL_LINE_TERMINATOR;
+						Ret += TEXT("\t") + FieldName + TEXT(" dFdA =  LWCToFloat(LWCMultiply(B.Value, Denom));") HLSL_LINE_TERMINATOR;
+						Ret += TEXT("\t") + FieldName + TEXT(" dFdB = -LWCToFloat(LWCMultiply(A.Value, Denom));") HLSL_LINE_TERMINATOR;
+						Ret += TEXT("\tRet.Ddx = dFdA * A.Ddx + dFdB * B.Ddx;") HLSL_LINE_TERMINATOR;
+						Ret += TEXT("\tRet.Ddy = dFdA * A.Ddy + dFdB * B.Ddy;") HLSL_LINE_TERMINATOR;
 					}
 					else
 					{
-						Ret += TEXT("\tRet.Value = A.Value / B.Value;") LINE_TERMINATOR;
-						Ret += TEXT("\t") + FieldName + TEXT(" Denom = rcp(B.Value * B.Value);") LINE_TERMINATOR;
-						Ret += TEXT("\t") + FieldName + TEXT(" dFdA =  B.Value * Denom;") LINE_TERMINATOR;
-						Ret += TEXT("\t") + FieldName + TEXT(" dFdB = -A.Value * Denom;") LINE_TERMINATOR;
-						Ret += TEXT("\tRet.Ddx = dFdA * A.Ddx + dFdB * B.Ddx;") LINE_TERMINATOR;
-						Ret += TEXT("\tRet.Ddy = dFdA * A.Ddy + dFdB * B.Ddy;") LINE_TERMINATOR;
+						Ret += TEXT("\tRet.Value = A.Value / B.Value;") HLSL_LINE_TERMINATOR;
+						Ret += TEXT("\t") + FieldName + TEXT(" Denom = rcp(B.Value * B.Value);") HLSL_LINE_TERMINATOR;
+						Ret += TEXT("\t") + FieldName + TEXT(" dFdA =  B.Value * Denom;") HLSL_LINE_TERMINATOR;
+						Ret += TEXT("\t") + FieldName + TEXT(" dFdB = -A.Value * Denom;") HLSL_LINE_TERMINATOR;
+						Ret += TEXT("\tRet.Ddx = dFdA * A.Ddx + dFdB * B.Ddx;") HLSL_LINE_TERMINATOR;
+						Ret += TEXT("\tRet.Ddy = dFdA * A.Ddy + dFdB * B.Ddy;") HLSL_LINE_TERMINATOR;
 					}
-					Ret += TEXT("\treturn Ret;") LINE_TERMINATOR;
-					Ret += TEXT("}") LINE_TERMINATOR;
-					Ret += TEXT("") LINE_TERMINATOR;
+					Ret += TEXT("\treturn Ret;") HLSL_LINE_TERMINATOR;
+					Ret += TEXT("}") HLSL_LINE_TERMINATOR;
+					Ret += TEXT("") HLSL_LINE_TERMINATOR;
 
 					if (IsLWCType(DerivType))
 					{
 						// Add an overload to divide LWC by non-LWC value
-						Ret += BaseName + TEXT(" DivDeriv") + Suffix + TEXT("(") + BaseName + TEXT(" A, ") + NonLWCBaseName + TEXT(" B)") LINE_TERMINATOR;
-						Ret += TEXT("{") LINE_TERMINATOR;
-						Ret += TEXT("\t") + BaseName + TEXT(" Ret;") LINE_TERMINATOR;
+						Ret += BaseName + TEXT(" DivDeriv") + Suffix + TEXT("(") + BaseName + TEXT(" A, ") + NonLWCBaseName + TEXT(" B)") HLSL_LINE_TERMINATOR;
+						Ret += TEXT("{") HLSL_LINE_TERMINATOR;
+						Ret += TEXT("\t") + BaseName + TEXT(" Ret;") HLSL_LINE_TERMINATOR;
 						Translator.AddLWCFuncUsage(ELWCFunctionKind::Divide);
-						Ret += TEXT("\tRet.Value = LWCDivide(A.Value, B.Value);") LINE_TERMINATOR;
-						Ret += TEXT("\t") + FieldName + TEXT(" Denom = rcp(B.Value * B.Value);") LINE_TERMINATOR;
-						Ret += TEXT("\t") + FieldName + TEXT(" dFdA =  B.Value * Denom;") LINE_TERMINATOR;
+						Ret += TEXT("\tRet.Value = LWCDivide(A.Value, B.Value);") HLSL_LINE_TERMINATOR;
+						Ret += TEXT("\t") + FieldName + TEXT(" Denom = rcp(B.Value * B.Value);") HLSL_LINE_TERMINATOR;
+						Ret += TEXT("\t") + FieldName + TEXT(" dFdA =  B.Value * Denom;") HLSL_LINE_TERMINATOR;
 						Translator.AddLWCFuncUsage(ELWCFunctionKind::Demote);
 						Translator.AddLWCFuncUsage(ELWCFunctionKind::MultiplyVectorVector);
-						Ret += TEXT("\t") + FieldName + TEXT(" dFdB = -LWCToFloat(LWCMultiply(A.Value, Denom));") LINE_TERMINATOR;
-						Ret += TEXT("\tRet.Ddx = dFdA * A.Ddx + dFdB * B.Ddx;") LINE_TERMINATOR;
-						Ret += TEXT("\tRet.Ddy = dFdA * A.Ddy + dFdB * B.Ddy;") LINE_TERMINATOR;
-						Ret += TEXT("\treturn Ret;") LINE_TERMINATOR;
-						Ret += TEXT("}") LINE_TERMINATOR;
-						Ret += TEXT("") LINE_TERMINATOR;
+						Ret += TEXT("\t") + FieldName + TEXT(" dFdB = -LWCToFloat(LWCMultiply(A.Value, Denom));") HLSL_LINE_TERMINATOR;
+						Ret += TEXT("\tRet.Ddx = dFdA * A.Ddx + dFdB * B.Ddx;") HLSL_LINE_TERMINATOR;
+						Ret += TEXT("\tRet.Ddy = dFdA * A.Ddy + dFdB * B.Ddy;") HLSL_LINE_TERMINATOR;
+						Ret += TEXT("\treturn Ret;") HLSL_LINE_TERMINATOR;
+						Ret += TEXT("}") HLSL_LINE_TERMINATOR;
+						Ret += TEXT("") HLSL_LINE_TERMINATOR;
 					}
 					break;
 				case EFunc2::Fmod:
 					// Only valid when B derivatives are zero.
 					// We can't really do anything meaningful in the non-zero case.
-					Ret += NonLWCBaseName + TEXT(" FmodDeriv") + Suffix + TEXT("(") + BaseName + TEXT(" A, ") + NonLWCBaseName + TEXT(" B)") LINE_TERMINATOR;
-					Ret += TEXT("{") LINE_TERMINATOR;
-					Ret += TEXT("\t") + NonLWCBaseName + TEXT(" Ret;") LINE_TERMINATOR;
+					Ret += NonLWCBaseName + TEXT(" FmodDeriv") + Suffix + TEXT("(") + BaseName + TEXT(" A, ") + NonLWCBaseName + TEXT(" B)") HLSL_LINE_TERMINATOR;
+					Ret += TEXT("{") HLSL_LINE_TERMINATOR;
+					Ret += TEXT("\t") + NonLWCBaseName + TEXT(" Ret;") HLSL_LINE_TERMINATOR;
 					if (IsLWCType(DerivType))
 					{
 						Translator.AddLWCFuncUsage(ELWCFunctionKind::Other);
-						Ret += TEXT("\tRet.Value = LWCFmod(A.Value, B.Value);") LINE_TERMINATOR;
+						Ret += TEXT("\tRet.Value = LWCFmod(A.Value, B.Value);") HLSL_LINE_TERMINATOR;
 					}
 					else
 					{
-						Ret += TEXT("\tRet.Value = fmod(A.Value, B.Value);") LINE_TERMINATOR;
+						Ret += TEXT("\tRet.Value = fmod(A.Value, B.Value);") HLSL_LINE_TERMINATOR;
 					}
-					Ret += TEXT("\tRet.Ddx = A.Ddx;") LINE_TERMINATOR;
-					Ret += TEXT("\tRet.Ddy = A.Ddy;") LINE_TERMINATOR;
-					Ret += TEXT("\treturn Ret;") LINE_TERMINATOR;
-					Ret += TEXT("}") LINE_TERMINATOR;
-					Ret += TEXT("") LINE_TERMINATOR;
+					Ret += TEXT("\tRet.Ddx = A.Ddx;") HLSL_LINE_TERMINATOR;
+					Ret += TEXT("\tRet.Ddy = A.Ddy;") HLSL_LINE_TERMINATOR;
+					Ret += TEXT("\treturn Ret;") HLSL_LINE_TERMINATOR;
+					Ret += TEXT("}") HLSL_LINE_TERMINATOR;
+					Ret += TEXT("") HLSL_LINE_TERMINATOR;
 					break;
 				case EFunc2::Min:
-					Ret += BaseName + TEXT(" MinDeriv") + Suffix + TEXT("(") + BaseName + TEXT(" A, ") + BaseName + TEXT(" B)") LINE_TERMINATOR;
-					Ret += TEXT("{") LINE_TERMINATOR;
-					Ret += TEXT("\t") + BaseName + TEXT(" Ret;") LINE_TERMINATOR;
+					Ret += BaseName + TEXT(" MinDeriv") + Suffix + TEXT("(") + BaseName + TEXT(" A, ") + BaseName + TEXT(" B)") HLSL_LINE_TERMINATOR;
+					Ret += TEXT("{") HLSL_LINE_TERMINATOR;
+					Ret += TEXT("\t") + BaseName + TEXT(" Ret;") HLSL_LINE_TERMINATOR;
 					if (IsLWCType(DerivType))
 					{
 						Translator.AddLWCFuncUsage(ELWCFunctionKind::Other);
-						Ret += TEXT("\t") + BoolName + TEXT(" Cmp = LWCLess(A.Value, B.Value);") LINE_TERMINATOR;
-						Ret += TEXT("\tRet.Value = LWCSelect(Cmp, A.Value, B.Value);") LINE_TERMINATOR;
+						Ret += TEXT("\t") + BoolName + TEXT(" Cmp = LWCLess(A.Value, B.Value);") HLSL_LINE_TERMINATOR;
+						Ret += TEXT("\tRet.Value = LWCSelect(Cmp, A.Value, B.Value);") HLSL_LINE_TERMINATOR;
 					}
 					else
 					{
-						Ret += TEXT("\t") + BoolName + TEXT(" Cmp = A.Value < B.Value;") LINE_TERMINATOR;
-						Ret += TEXT("\tRet.Value = select(Cmp, A.Value, B.Value);") LINE_TERMINATOR;
+						Ret += TEXT("\t") + BoolName + TEXT(" Cmp = A.Value < B.Value;") HLSL_LINE_TERMINATOR;
+						Ret += TEXT("\tRet.Value = select(Cmp, A.Value, B.Value);") HLSL_LINE_TERMINATOR;
 					}
-					Ret += TEXT("\tRet.Ddx = select(Cmp, A.Ddx, B.Ddx);") LINE_TERMINATOR;
-					Ret += TEXT("\tRet.Ddy = select(Cmp, A.Ddy, B.Ddy);") LINE_TERMINATOR;
-					Ret += TEXT("\treturn Ret;") LINE_TERMINATOR;
-					Ret += TEXT("}") LINE_TERMINATOR;
-					Ret += TEXT("") LINE_TERMINATOR;
+					Ret += TEXT("\tRet.Ddx = select(Cmp, A.Ddx, B.Ddx);") HLSL_LINE_TERMINATOR;
+					Ret += TEXT("\tRet.Ddy = select(Cmp, A.Ddy, B.Ddy);") HLSL_LINE_TERMINATOR;
+					Ret += TEXT("\treturn Ret;") HLSL_LINE_TERMINATOR;
+					Ret += TEXT("}") HLSL_LINE_TERMINATOR;
+					Ret += TEXT("") HLSL_LINE_TERMINATOR;
 					break;
 				case EFunc2::Max:
-					Ret += BaseName + TEXT(" MaxDeriv") + Suffix + TEXT("(") + BaseName + TEXT(" A, ") + BaseName + TEXT(" B)") LINE_TERMINATOR;
-					Ret += TEXT("{") LINE_TERMINATOR;
-					Ret += TEXT("\t") + BaseName + TEXT(" Ret;") LINE_TERMINATOR;
+					Ret += BaseName + TEXT(" MaxDeriv") + Suffix + TEXT("(") + BaseName + TEXT(" A, ") + BaseName + TEXT(" B)") HLSL_LINE_TERMINATOR;
+					Ret += TEXT("{") HLSL_LINE_TERMINATOR;
+					Ret += TEXT("\t") + BaseName + TEXT(" Ret;") HLSL_LINE_TERMINATOR;
 					if (IsLWCType(DerivType))
 					{
 						Translator.AddLWCFuncUsage(ELWCFunctionKind::Other);
-						Ret += TEXT("\t") + BoolName + TEXT(" Cmp = LWCGreater(A.Value, B.Value);") LINE_TERMINATOR;
-						Ret += TEXT("\tRet.Value = LWCSelect(Cmp, A.Value, B.Value);") LINE_TERMINATOR;
+						Ret += TEXT("\t") + BoolName + TEXT(" Cmp = LWCGreater(A.Value, B.Value);") HLSL_LINE_TERMINATOR;
+						Ret += TEXT("\tRet.Value = LWCSelect(Cmp, A.Value, B.Value);") HLSL_LINE_TERMINATOR;
 					}
 					else
 					{
-						Ret += TEXT("\t") + BoolName + TEXT(" Cmp = A.Value > B.Value;") LINE_TERMINATOR;
-						Ret += TEXT("\tRet.Value = select(Cmp, A.Value, B.Value);") LINE_TERMINATOR;
+						Ret += TEXT("\t") + BoolName + TEXT(" Cmp = A.Value > B.Value;") HLSL_LINE_TERMINATOR;
+						Ret += TEXT("\tRet.Value = select(Cmp, A.Value, B.Value);") HLSL_LINE_TERMINATOR;
 					}
-					Ret += TEXT("\tRet.Ddx = select(Cmp, A.Ddx, B.Ddx);") LINE_TERMINATOR;
-					Ret += TEXT("\tRet.Ddy = select(Cmp, A.Ddy, B.Ddy);") LINE_TERMINATOR;
-					Ret += TEXT("\treturn Ret;") LINE_TERMINATOR;
-					Ret += TEXT("}") LINE_TERMINATOR;
-					Ret += TEXT("") LINE_TERMINATOR;
+					Ret += TEXT("\tRet.Ddx = select(Cmp, A.Ddx, B.Ddx);") HLSL_LINE_TERMINATOR;
+					Ret += TEXT("\tRet.Ddy = select(Cmp, A.Ddy, B.Ddy);") HLSL_LINE_TERMINATOR;
+					Ret += TEXT("\treturn Ret;") HLSL_LINE_TERMINATOR;
+					Ret += TEXT("}") HLSL_LINE_TERMINATOR;
+					Ret += TEXT("") HLSL_LINE_TERMINATOR;
 					break;
 				case EFunc2::Dot:
-					Ret += ScalarName + TEXT(" DotDeriv") + Suffix + TEXT("(") + BaseName + TEXT(" A, ") + BaseName + TEXT(" B)") LINE_TERMINATOR;
-					Ret += TEXT("{") LINE_TERMINATOR;
+					Ret += ScalarName + TEXT(" DotDeriv") + Suffix + TEXT("(") + BaseName + TEXT(" A, ") + BaseName + TEXT(" B)") HLSL_LINE_TERMINATOR;
+					Ret += TEXT("{") HLSL_LINE_TERMINATOR;
 					if (IsLWCType(DerivType))
 					{
-						Ret += TEXT("\t") + ScalarName + TEXT(" Ret = ConstructConstant") + ScalarName + TEXT("(LWCPromote(0.0f));") LINE_TERMINATOR;
+						Ret += TEXT("\t") + ScalarName + TEXT(" Ret = ConstructConstant") + ScalarName + TEXT("(LWCPromote(0.0f));") HLSL_LINE_TERMINATOR;
 					}
 					else
 					{
-						Ret += TEXT("\t") + ScalarName + TEXT(" Ret = ConstructConstant") + ScalarName + TEXT("(0);") LINE_TERMINATOR;
+						Ret += TEXT("\t") + ScalarName + TEXT(" Ret = ConstructConstant") + ScalarName + TEXT("(0);") HLSL_LINE_TERMINATOR;
 					}
 					for (uint32 Component = 0; Component < NumComponents; Component++)
 					{
-						Ret += FString::Printf(TEXT("\tRet = AddDeriv%s(Ret,MulDeriv%s(Extract%s_%d(A),Extract%s_%d(B)));"), *Suffix, *Suffix, *BaseName, Component + 1, *BaseName, Component + 1) + LINE_TERMINATOR;
+						Ret += FString::Printf(TEXT("\tRet = AddDeriv%s(Ret,MulDeriv%s(Extract%s_%d(A),Extract%s_%d(B)));"), *Suffix, *Suffix, *BaseName, Component + 1, *BaseName, Component + 1) + HLSL_LINE_TERMINATOR;
 					}
-					Ret += TEXT("\treturn Ret;") LINE_TERMINATOR;
-					Ret += TEXT("}") LINE_TERMINATOR;
-					Ret += TEXT("") LINE_TERMINATOR;
+					Ret += TEXT("\treturn Ret;") HLSL_LINE_TERMINATOR;
+					Ret += TEXT("}") HLSL_LINE_TERMINATOR;
+					Ret += TEXT("") HLSL_LINE_TERMINATOR;
 					break;
 				case EFunc2::Pow:
 					// pow(A,B) = exp(B*log(A))
@@ -1719,58 +1719,58 @@ FString FMaterialDerivativeAutogen::GenerateUsedFunctions(FHLSLMaterialTranslato
 					// sanity check when B is constant and A is a linear function (B'=0,A'=1)
 					//     pow'(A,B) = pow(A,B) * (0*log(A) + (B/A)*1)
 					//     pow'(A,B) = B * pow(A,B-1)
-					Ret += BaseName + TEXT(" PowDeriv") + Suffix + TEXT("(") + BaseName + TEXT(" A, ") + BaseName + TEXT(" B)") LINE_TERMINATOR;
-					Ret += TEXT("{") LINE_TERMINATOR;
-					Ret += TEXT("\t") + BaseName + TEXT(" Ret;") LINE_TERMINATOR;
-					Ret += TEXT("\tRet.Value = pow(A.Value, B.Value);") LINE_TERMINATOR;
-					Ret += TEXT("\tRet.Ddx = Ret.Value * (B.Ddx * log(A.Value) + (B.Value/A.Value)*A.Ddx);") LINE_TERMINATOR;
-					Ret += TEXT("\tRet.Ddy = Ret.Value * (B.Ddy * log(A.Value) + (B.Value/A.Value)*A.Ddy);") LINE_TERMINATOR;
-					Ret += TEXT("\treturn Ret;") LINE_TERMINATOR;
-					Ret += TEXT("}") LINE_TERMINATOR;
-					Ret += TEXT("") LINE_TERMINATOR;
+					Ret += BaseName + TEXT(" PowDeriv") + Suffix + TEXT("(") + BaseName + TEXT(" A, ") + BaseName + TEXT(" B)") HLSL_LINE_TERMINATOR;
+					Ret += TEXT("{") HLSL_LINE_TERMINATOR;
+					Ret += TEXT("\t") + BaseName + TEXT(" Ret;") HLSL_LINE_TERMINATOR;
+					Ret += TEXT("\tRet.Value = pow(A.Value, B.Value);") HLSL_LINE_TERMINATOR;
+					Ret += TEXT("\tRet.Ddx = Ret.Value * (B.Ddx * log(A.Value) + (B.Value/A.Value)*A.Ddx);") HLSL_LINE_TERMINATOR;
+					Ret += TEXT("\tRet.Ddy = Ret.Value * (B.Ddy * log(A.Value) + (B.Value/A.Value)*A.Ddy);") HLSL_LINE_TERMINATOR;
+					Ret += TEXT("\treturn Ret;") HLSL_LINE_TERMINATOR;
+					Ret += TEXT("}") HLSL_LINE_TERMINATOR;
+					Ret += TEXT("") HLSL_LINE_TERMINATOR;
 					break;
 				case EFunc2::PowPositiveClamped:
-					Ret += BaseName + TEXT(" PowPositiveClampedDeriv") + Suffix + TEXT("(") + BaseName + TEXT(" A, ") + BaseName + TEXT(" B)") LINE_TERMINATOR;
-					Ret += TEXT("{") LINE_TERMINATOR;
-					Ret += TEXT("\t") + BaseName + TEXT(" Ret;") LINE_TERMINATOR;
-					Ret += TEXT("\t") + BoolName + TEXT(" InRange = (0.0 < B.Value);") LINE_TERMINATOR; // should we check for A as well?
-					Ret += TEXT("\t") + FieldName + TEXT(" Zero = 0.0;") LINE_TERMINATOR;
-					Ret += TEXT("\tRet.Value = PositiveClampedPow(A.Value, B.Value);") LINE_TERMINATOR;
-					Ret += TEXT("\tRet.Ddx = Ret.Value * (B.Ddx * log(A.Value) + (B.Value/A.Value)*A.Ddx);") LINE_TERMINATOR;
-					Ret += TEXT("\tRet.Ddy = Ret.Value * (B.Ddy * log(A.Value) + (B.Value/A.Value)*A.Ddy);") LINE_TERMINATOR;
-					Ret += TEXT("\tRet.Ddx = select(InRange, Ret.Ddx, Zero);") LINE_TERMINATOR;
-					Ret += TEXT("\tRet.Ddy = select(InRange, Ret.Ddy, Zero);") LINE_TERMINATOR;
-					Ret += TEXT("\treturn Ret;") LINE_TERMINATOR;
-					Ret += TEXT("}") LINE_TERMINATOR;
-					Ret += TEXT("") LINE_TERMINATOR;
+					Ret += BaseName + TEXT(" PowPositiveClampedDeriv") + Suffix + TEXT("(") + BaseName + TEXT(" A, ") + BaseName + TEXT(" B)") HLSL_LINE_TERMINATOR;
+					Ret += TEXT("{") HLSL_LINE_TERMINATOR;
+					Ret += TEXT("\t") + BaseName + TEXT(" Ret;") HLSL_LINE_TERMINATOR;
+					Ret += TEXT("\t") + BoolName + TEXT(" InRange = (0.0 < B.Value);") HLSL_LINE_TERMINATOR; // should we check for A as well?
+					Ret += TEXT("\t") + FieldName + TEXT(" Zero = 0.0;") HLSL_LINE_TERMINATOR;
+					Ret += TEXT("\tRet.Value = PositiveClampedPow(A.Value, B.Value);") HLSL_LINE_TERMINATOR;
+					Ret += TEXT("\tRet.Ddx = Ret.Value * (B.Ddx * log(A.Value) + (B.Value/A.Value)*A.Ddx);") HLSL_LINE_TERMINATOR;
+					Ret += TEXT("\tRet.Ddy = Ret.Value * (B.Ddy * log(A.Value) + (B.Value/A.Value)*A.Ddy);") HLSL_LINE_TERMINATOR;
+					Ret += TEXT("\tRet.Ddx = select(InRange, Ret.Ddx, Zero);") HLSL_LINE_TERMINATOR;
+					Ret += TEXT("\tRet.Ddy = select(InRange, Ret.Ddy, Zero);") HLSL_LINE_TERMINATOR;
+					Ret += TEXT("\treturn Ret;") HLSL_LINE_TERMINATOR;
+					Ret += TEXT("}") HLSL_LINE_TERMINATOR;
+					Ret += TEXT("") HLSL_LINE_TERMINATOR;
 					break;
 				case EFunc2::Atan2:
-					Ret += BaseName + TEXT(" Atan2Deriv") + Suffix + TEXT("(") + BaseName + TEXT(" A, ") + BaseName + TEXT(" B)") LINE_TERMINATOR;
-					Ret += TEXT("{") LINE_TERMINATOR;
-					Ret += TEXT("\t") + BaseName + TEXT(" Ret;") LINE_TERMINATOR;
-					Ret += TEXT("\tRet.Value = atan2(A.Value, B.Value);") LINE_TERMINATOR;
-					Ret += TEXT("\t") + FieldName + TEXT(" Denom = rcp(A.Value * A.Value + B.Value * B.Value);") LINE_TERMINATOR;
-					Ret += TEXT("\t") + FieldName + TEXT(" dFdA =  B.Value * Denom;") LINE_TERMINATOR;
-					Ret += TEXT("\t") + FieldName + TEXT(" dFdB = -A.Value * Denom;") LINE_TERMINATOR;
-					Ret += TEXT("\tRet.Ddx = dFdA * A.Ddx + dFdB * B.Ddx;") LINE_TERMINATOR;
-					Ret += TEXT("\tRet.Ddy = dFdA * A.Ddy + dFdB * B.Ddy;") LINE_TERMINATOR;
-					Ret += TEXT("\treturn Ret;") LINE_TERMINATOR;
-					Ret += TEXT("}") LINE_TERMINATOR;
-					Ret += TEXT("") LINE_TERMINATOR;
+					Ret += BaseName + TEXT(" Atan2Deriv") + Suffix + TEXT("(") + BaseName + TEXT(" A, ") + BaseName + TEXT(" B)") HLSL_LINE_TERMINATOR;
+					Ret += TEXT("{") HLSL_LINE_TERMINATOR;
+					Ret += TEXT("\t") + BaseName + TEXT(" Ret;") HLSL_LINE_TERMINATOR;
+					Ret += TEXT("\tRet.Value = atan2(A.Value, B.Value);") HLSL_LINE_TERMINATOR;
+					Ret += TEXT("\t") + FieldName + TEXT(" Denom = rcp(A.Value * A.Value + B.Value * B.Value);") HLSL_LINE_TERMINATOR;
+					Ret += TEXT("\t") + FieldName + TEXT(" dFdA =  B.Value * Denom;") HLSL_LINE_TERMINATOR;
+					Ret += TEXT("\t") + FieldName + TEXT(" dFdB = -A.Value * Denom;") HLSL_LINE_TERMINATOR;
+					Ret += TEXT("\tRet.Ddx = dFdA * A.Ddx + dFdB * B.Ddx;") HLSL_LINE_TERMINATOR;
+					Ret += TEXT("\tRet.Ddy = dFdA * A.Ddy + dFdB * B.Ddy;") HLSL_LINE_TERMINATOR;
+					Ret += TEXT("\treturn Ret;") HLSL_LINE_TERMINATOR;
+					Ret += TEXT("}") HLSL_LINE_TERMINATOR;
+					Ret += TEXT("") HLSL_LINE_TERMINATOR;
 					break;
 				case EFunc2::Atan2Fast:
-					Ret += BaseName + TEXT(" Atan2FastDeriv") + Suffix + TEXT("(") + BaseName + TEXT(" A, ") + BaseName + TEXT(" B)") LINE_TERMINATOR;
-					Ret += TEXT("{") LINE_TERMINATOR;
-					Ret += TEXT("\t") + BaseName + TEXT(" Ret;") LINE_TERMINATOR;
-					Ret += TEXT("\tRet.Value = atan2Fast(A.Value, B.Value);") LINE_TERMINATOR;
-					Ret += TEXT("\t") + FieldName + TEXT(" Denom = rcp(A.Value * A.Value + B.Value * B.Value);") LINE_TERMINATOR;
-					Ret += TEXT("\t") + FieldName + TEXT(" dFdA =  B.Value * Denom;") LINE_TERMINATOR;
-					Ret += TEXT("\t") + FieldName + TEXT(" dFdB = -A.Value * Denom;") LINE_TERMINATOR;
-					Ret += TEXT("\tRet.Ddx = dFdA * A.Ddx + dFdB * B.Ddx;") LINE_TERMINATOR;
-					Ret += TEXT("\tRet.Ddy = dFdA * A.Ddy + dFdB * B.Ddy;") LINE_TERMINATOR;
-					Ret += TEXT("\treturn Ret;") LINE_TERMINATOR;
-					Ret += TEXT("}") LINE_TERMINATOR;
-					Ret += TEXT("") LINE_TERMINATOR;
+					Ret += BaseName + TEXT(" Atan2FastDeriv") + Suffix + TEXT("(") + BaseName + TEXT(" A, ") + BaseName + TEXT(" B)") HLSL_LINE_TERMINATOR;
+					Ret += TEXT("{") HLSL_LINE_TERMINATOR;
+					Ret += TEXT("\t") + BaseName + TEXT(" Ret;") HLSL_LINE_TERMINATOR;
+					Ret += TEXT("\tRet.Value = atan2Fast(A.Value, B.Value);") HLSL_LINE_TERMINATOR;
+					Ret += TEXT("\t") + FieldName + TEXT(" Denom = rcp(A.Value * A.Value + B.Value * B.Value);") HLSL_LINE_TERMINATOR;
+					Ret += TEXT("\t") + FieldName + TEXT(" dFdA =  B.Value * Denom;") HLSL_LINE_TERMINATOR;
+					Ret += TEXT("\t") + FieldName + TEXT(" dFdB = -A.Value * Denom;") HLSL_LINE_TERMINATOR;
+					Ret += TEXT("\tRet.Ddx = dFdA * A.Ddx + dFdB * B.Ddx;") HLSL_LINE_TERMINATOR;
+					Ret += TEXT("\tRet.Ddy = dFdA * A.Ddy + dFdB * B.Ddy;") HLSL_LINE_TERMINATOR;
+					Ret += TEXT("\treturn Ret;") HLSL_LINE_TERMINATOR;
+					Ret += TEXT("}") HLSL_LINE_TERMINATOR;
+					Ret += TEXT("") HLSL_LINE_TERMINATOR;
 					break;
 				case EFunc2::Cross:
 					if (DerivType == EDerivativeType::Float3)
@@ -1778,15 +1778,15 @@ FString FMaterialDerivativeAutogen::GenerateUsedFunctions(FHLSLMaterialTranslato
 						// (A*B)' = A' * B + A * B'
 						// Cross(A, B) = A.yzx * B.zxy - A.zxy * B.yzx;
 						// Cross(A, B)' = A.yzx' * B.zxy + A.yzx * B.zxy' - A.zxy' * B.yzx - A.zxy * B.yzx';
-						Ret += BaseName + TEXT(" CrossDeriv") + Suffix + TEXT("(") + BaseName + TEXT(" A, ") + BaseName + TEXT(" B)") LINE_TERMINATOR;
-						Ret += TEXT("{") LINE_TERMINATOR;
-						Ret += TEXT("\t") + BaseName + TEXT(" Ret;") LINE_TERMINATOR;
-						Ret += TEXT("\tRet.Value = cross(A.Value, B.Value);") LINE_TERMINATOR;
-						Ret += TEXT("\tRet.Ddx = A.Ddx.yzx * B.Value.zxy + A.Value.yzx * B.Ddx.zxy - A.Ddx.zxy * B.Value.yzx - A.Value.zxy * B.Ddx.yzx;") LINE_TERMINATOR;
-						Ret += TEXT("\tRet.Ddy = A.Ddy.yzx * B.Value.zxy + A.Value.yzx * B.Ddy.zxy - A.Ddy.zxy * B.Value.yzx - A.Value.zxy * B.Ddy.yzx;") LINE_TERMINATOR;
-						Ret += TEXT("\treturn Ret;") LINE_TERMINATOR;
-						Ret += TEXT("}") LINE_TERMINATOR;
-						Ret += TEXT("") LINE_TERMINATOR;
+						Ret += BaseName + TEXT(" CrossDeriv") + Suffix + TEXT("(") + BaseName + TEXT(" A, ") + BaseName + TEXT(" B)") HLSL_LINE_TERMINATOR;
+						Ret += TEXT("{") HLSL_LINE_TERMINATOR;
+						Ret += TEXT("\t") + BaseName + TEXT(" Ret;") HLSL_LINE_TERMINATOR;
+						Ret += TEXT("\tRet.Value = cross(A.Value, B.Value);") HLSL_LINE_TERMINATOR;
+						Ret += TEXT("\tRet.Ddx = A.Ddx.yzx * B.Value.zxy + A.Value.yzx * B.Ddx.zxy - A.Ddx.zxy * B.Value.yzx - A.Value.zxy * B.Ddx.yzx;") HLSL_LINE_TERMINATOR;
+						Ret += TEXT("\tRet.Ddy = A.Ddy.yzx * B.Value.zxy + A.Value.yzx * B.Ddy.zxy - A.Ddy.zxy * B.Value.yzx - A.Value.zxy * B.Ddy.yzx;") HLSL_LINE_TERMINATOR;
+						Ret += TEXT("\treturn Ret;") HLSL_LINE_TERMINATOR;
+						Ret += TEXT("}") HLSL_LINE_TERMINATOR;
+						Ret += TEXT("") HLSL_LINE_TERMINATOR;
 					}
 					break;
 				default:
@@ -1816,383 +1816,383 @@ FString FMaterialDerivativeAutogen::GenerateUsedFunctions(FHLSLMaterialTranslato
 				switch((EFunc1)Op)
 				{
 				case EFunc1::Abs:
-					Ret += BaseName + TEXT(" AbsDeriv") + Suffix + TEXT("(") + BaseName + TEXT(" A)") LINE_TERMINATOR;
-					Ret += TEXT("{") LINE_TERMINATOR;
-					Ret += TEXT("\t") + NonLWCFieldName + TEXT(" One = 1.0f;") LINE_TERMINATOR;
-					Ret += TEXT("\t") + BaseName + TEXT(" Ret;") LINE_TERMINATOR;
+					Ret += BaseName + TEXT(" AbsDeriv") + Suffix + TEXT("(") + BaseName + TEXT(" A)") HLSL_LINE_TERMINATOR;
+					Ret += TEXT("{") HLSL_LINE_TERMINATOR;
+					Ret += TEXT("\t") + NonLWCFieldName + TEXT(" One = 1.0f;") HLSL_LINE_TERMINATOR;
+					Ret += TEXT("\t") + BaseName + TEXT(" Ret;") HLSL_LINE_TERMINATOR;
 					if (IsLWCType(DerivType))
 					{
 						Translator.AddLWCFuncUsage(ELWCFunctionKind::Other);
-						Ret += TEXT("\tRet.Value = LWCAbs(A.Value);") LINE_TERMINATOR;
-						Ret += TEXT("\t") + NonLWCFieldName + TEXT(" dFdA = select(LWCGreaterEqual(A.Value, 0.0f), One, -One);") LINE_TERMINATOR;
+						Ret += TEXT("\tRet.Value = LWCAbs(A.Value);") HLSL_LINE_TERMINATOR;
+						Ret += TEXT("\t") + NonLWCFieldName + TEXT(" dFdA = select(LWCGreaterEqual(A.Value, 0.0f), One, -One);") HLSL_LINE_TERMINATOR;
 					}
 					else
 					{
-						Ret += TEXT("\tRet.Value = abs(A.Value);") LINE_TERMINATOR;
-						Ret += TEXT("\t") + NonLWCFieldName + TEXT(" dFdA = select(A.Value >= 0.0f, One, -One);") LINE_TERMINATOR;
+						Ret += TEXT("\tRet.Value = abs(A.Value);") HLSL_LINE_TERMINATOR;
+						Ret += TEXT("\t") + NonLWCFieldName + TEXT(" dFdA = select(A.Value >= 0.0f, One, -One);") HLSL_LINE_TERMINATOR;
 					}
 
-					Ret += TEXT("\tRet.Ddx = dFdA * A.Ddx;") LINE_TERMINATOR;
-					Ret += TEXT("\tRet.Ddy = dFdA * A.Ddy;") LINE_TERMINATOR;
-					Ret += TEXT("\treturn Ret;") LINE_TERMINATOR;
-					Ret += TEXT("}") LINE_TERMINATOR;
-					Ret += TEXT("") LINE_TERMINATOR;
+					Ret += TEXT("\tRet.Ddx = dFdA * A.Ddx;") HLSL_LINE_TERMINATOR;
+					Ret += TEXT("\tRet.Ddy = dFdA * A.Ddy;") HLSL_LINE_TERMINATOR;
+					Ret += TEXT("\treturn Ret;") HLSL_LINE_TERMINATOR;
+					Ret += TEXT("}") HLSL_LINE_TERMINATOR;
+					Ret += TEXT("") HLSL_LINE_TERMINATOR;
 					break;
 				case EFunc1::Sin:
-					Ret += NonLWCBaseName + TEXT(" SinDeriv") + Suffix + TEXT("(") + BaseName + TEXT(" A)") LINE_TERMINATOR;
-					Ret += TEXT("{") LINE_TERMINATOR;
-					Ret += TEXT("\t") + NonLWCBaseName + TEXT(" Ret;") LINE_TERMINATOR;
+					Ret += NonLWCBaseName + TEXT(" SinDeriv") + Suffix + TEXT("(") + BaseName + TEXT(" A)") HLSL_LINE_TERMINATOR;
+					Ret += TEXT("{") HLSL_LINE_TERMINATOR;
+					Ret += TEXT("\t") + NonLWCBaseName + TEXT(" Ret;") HLSL_LINE_TERMINATOR;
 					if (IsLWCType(DerivType))
 					{
 						Translator.AddLWCFuncUsage(ELWCFunctionKind::Other);
-						Ret += TEXT("\tRet.Value = LWCSin(A.Value);") LINE_TERMINATOR;
+						Ret += TEXT("\tRet.Value = LWCSin(A.Value);") HLSL_LINE_TERMINATOR;
 						Ret += TEXT("\t") + FieldName + TEXT(" dFdA = LWCCos(A.Value);");
 					}
 					else
 					{
-						Ret += TEXT("\tRet.Value = sin(A.Value);") LINE_TERMINATOR;
+						Ret += TEXT("\tRet.Value = sin(A.Value);") HLSL_LINE_TERMINATOR;
 						Ret += TEXT("\t") + FieldName + TEXT(" dFdA = cos(A.Value);");
 					}
-					Ret += TEXT("\tRet.Ddx = dFdA * A.Ddx;") LINE_TERMINATOR;
-					Ret += TEXT("\tRet.Ddy = dFdA * A.Ddy;") LINE_TERMINATOR;
-					Ret += TEXT("\treturn Ret;") LINE_TERMINATOR;
-					Ret += TEXT("}") LINE_TERMINATOR;
-					Ret += TEXT("") LINE_TERMINATOR;
+					Ret += TEXT("\tRet.Ddx = dFdA * A.Ddx;") HLSL_LINE_TERMINATOR;
+					Ret += TEXT("\tRet.Ddy = dFdA * A.Ddy;") HLSL_LINE_TERMINATOR;
+					Ret += TEXT("\treturn Ret;") HLSL_LINE_TERMINATOR;
+					Ret += TEXT("}") HLSL_LINE_TERMINATOR;
+					Ret += TEXT("") HLSL_LINE_TERMINATOR;
 					break;
 				case EFunc1::Cos:
-					Ret += NonLWCBaseName + TEXT(" CosDeriv") + Suffix + TEXT("(") + BaseName + TEXT(" A)") LINE_TERMINATOR;
-					Ret += TEXT("{") LINE_TERMINATOR;
-					Ret += TEXT("\t") + NonLWCBaseName + TEXT(" Ret;") LINE_TERMINATOR;
+					Ret += NonLWCBaseName + TEXT(" CosDeriv") + Suffix + TEXT("(") + BaseName + TEXT(" A)") HLSL_LINE_TERMINATOR;
+					Ret += TEXT("{") HLSL_LINE_TERMINATOR;
+					Ret += TEXT("\t") + NonLWCBaseName + TEXT(" Ret;") HLSL_LINE_TERMINATOR;
 					if (IsLWCType(DerivType))
 					{
 						Translator.AddLWCFuncUsage(ELWCFunctionKind::Other);
-						Ret += TEXT("\tRet.Value = LWCCos(A.Value);") LINE_TERMINATOR;
+						Ret += TEXT("\tRet.Value = LWCCos(A.Value);") HLSL_LINE_TERMINATOR;
 						Ret += TEXT("\t") + FieldName + TEXT(" dFdA = -LWCSin(A.Value);");
 					}
 					else
 					{
-						Ret += TEXT("\tRet.Value = cos(A.Value);") LINE_TERMINATOR;
+						Ret += TEXT("\tRet.Value = cos(A.Value);") HLSL_LINE_TERMINATOR;
 						Ret += TEXT("\t") + FieldName + TEXT(" dFdA = -sin(A.Value);");
 					}
-					Ret += TEXT("\tRet.Ddx = dFdA * A.Ddx;") LINE_TERMINATOR;
-					Ret += TEXT("\tRet.Ddy = dFdA * A.Ddy;") LINE_TERMINATOR;
-					Ret += TEXT("\treturn Ret;") LINE_TERMINATOR;
-					Ret += TEXT("}") LINE_TERMINATOR;
-					Ret += TEXT("") LINE_TERMINATOR;
+					Ret += TEXT("\tRet.Ddx = dFdA * A.Ddx;") HLSL_LINE_TERMINATOR;
+					Ret += TEXT("\tRet.Ddy = dFdA * A.Ddy;") HLSL_LINE_TERMINATOR;
+					Ret += TEXT("\treturn Ret;") HLSL_LINE_TERMINATOR;
+					Ret += TEXT("}") HLSL_LINE_TERMINATOR;
+					Ret += TEXT("") HLSL_LINE_TERMINATOR;
 					break;
 				case EFunc1::Tan:
-					Ret += NonLWCBaseName + TEXT(" TanDeriv") + Suffix + TEXT("(") + BaseName + TEXT(" A)") LINE_TERMINATOR;
-					Ret += TEXT("{") LINE_TERMINATOR;
-					Ret += TEXT("\t") + NonLWCBaseName + TEXT(" Ret;") LINE_TERMINATOR;
+					Ret += NonLWCBaseName + TEXT(" TanDeriv") + Suffix + TEXT("(") + BaseName + TEXT(" A)") HLSL_LINE_TERMINATOR;
+					Ret += TEXT("{") HLSL_LINE_TERMINATOR;
+					Ret += TEXT("\t") + NonLWCBaseName + TEXT(" Ret;") HLSL_LINE_TERMINATOR;
 					if (IsLWCType(DerivType))
 					{
 						Translator.AddLWCFuncUsage(ELWCFunctionKind::Other);
-						Ret += TEXT("\tRet.Value = LWCTan(A.Value);") LINE_TERMINATOR;
+						Ret += TEXT("\tRet.Value = LWCTan(A.Value);") HLSL_LINE_TERMINATOR;
 						Ret += TEXT("\t") + FieldName + TEXT(" dFdA = rcp(Pow2(LWCCos(A.Value)));");
 					}
 					else
 					{
-						Ret += TEXT("\tRet.Value = tan(A.Value);") LINE_TERMINATOR;
+						Ret += TEXT("\tRet.Value = tan(A.Value);") HLSL_LINE_TERMINATOR;
 						Ret += TEXT("\t") + FieldName + TEXT(" dFdA = rcp(Pow2(cos(A.Value)));");
 					}
-					Ret += TEXT("\tRet.Ddx = dFdA * A.Ddx;") LINE_TERMINATOR;
-					Ret += TEXT("\tRet.Ddy = dFdA * A.Ddy;") LINE_TERMINATOR;
-					Ret += TEXT("\treturn Ret;") LINE_TERMINATOR;
-					Ret += TEXT("}") LINE_TERMINATOR;
-					Ret += TEXT("") LINE_TERMINATOR;
+					Ret += TEXT("\tRet.Ddx = dFdA * A.Ddx;") HLSL_LINE_TERMINATOR;
+					Ret += TEXT("\tRet.Ddy = dFdA * A.Ddy;") HLSL_LINE_TERMINATOR;
+					Ret += TEXT("\treturn Ret;") HLSL_LINE_TERMINATOR;
+					Ret += TEXT("}") HLSL_LINE_TERMINATOR;
+					Ret += TEXT("") HLSL_LINE_TERMINATOR;
 					break;
 				case EFunc1::Asin:
-					Ret += BaseName + TEXT(" AsinDeriv") + Suffix + TEXT("(") + BaseName + TEXT(" A)") LINE_TERMINATOR;
-					Ret += TEXT("{") LINE_TERMINATOR;
-					Ret += TEXT("\t") + BaseName + TEXT(" Ret;") LINE_TERMINATOR;
-					Ret += TEXT("\tRet.Value = asin(A.Value);") LINE_TERMINATOR;
+					Ret += BaseName + TEXT(" AsinDeriv") + Suffix + TEXT("(") + BaseName + TEXT(" A)") HLSL_LINE_TERMINATOR;
+					Ret += TEXT("{") HLSL_LINE_TERMINATOR;
+					Ret += TEXT("\t") + BaseName + TEXT(" Ret;") HLSL_LINE_TERMINATOR;
+					Ret += TEXT("\tRet.Value = asin(A.Value);") HLSL_LINE_TERMINATOR;
 					Ret += TEXT("\t") + FieldName + TEXT(" dFdA = rsqrt(max(1.0f - A.Value * A.Value, 0.00001f));");
-					Ret += TEXT("\tRet.Ddx = dFdA * A.Ddx;") LINE_TERMINATOR;
-					Ret += TEXT("\tRet.Ddy = dFdA * A.Ddy;") LINE_TERMINATOR;
-					Ret += TEXT("\treturn Ret;") LINE_TERMINATOR;
-					Ret += TEXT("}") LINE_TERMINATOR;
-					Ret += TEXT("") LINE_TERMINATOR;
+					Ret += TEXT("\tRet.Ddx = dFdA * A.Ddx;") HLSL_LINE_TERMINATOR;
+					Ret += TEXT("\tRet.Ddy = dFdA * A.Ddy;") HLSL_LINE_TERMINATOR;
+					Ret += TEXT("\treturn Ret;") HLSL_LINE_TERMINATOR;
+					Ret += TEXT("}") HLSL_LINE_TERMINATOR;
+					Ret += TEXT("") HLSL_LINE_TERMINATOR;
 					break;
 				case EFunc1::AsinFast:
-					Ret += BaseName + TEXT(" AsinFastDeriv") + Suffix + TEXT("(") + BaseName + TEXT(" A)") LINE_TERMINATOR;
-					Ret += TEXT("{") LINE_TERMINATOR;
-					Ret += TEXT("\t") + BaseName + TEXT(" Ret;") LINE_TERMINATOR;
-					Ret += TEXT("\tRet.Value = asinFast(A.Value);") LINE_TERMINATOR;
+					Ret += BaseName + TEXT(" AsinFastDeriv") + Suffix + TEXT("(") + BaseName + TEXT(" A)") HLSL_LINE_TERMINATOR;
+					Ret += TEXT("{") HLSL_LINE_TERMINATOR;
+					Ret += TEXT("\t") + BaseName + TEXT(" Ret;") HLSL_LINE_TERMINATOR;
+					Ret += TEXT("\tRet.Value = asinFast(A.Value);") HLSL_LINE_TERMINATOR;
 					Ret += TEXT("\t") + FieldName + TEXT(" dFdA = rsqrt(max(1.0f - A.Value * A.Value, 0.00001f));");
-					Ret += TEXT("\tRet.Ddx = dFdA * A.Ddx;") LINE_TERMINATOR;
-					Ret += TEXT("\tRet.Ddy = dFdA * A.Ddy;") LINE_TERMINATOR;
-					Ret += TEXT("\treturn Ret;") LINE_TERMINATOR;
-					Ret += TEXT("}") LINE_TERMINATOR;
-					Ret += TEXT("") LINE_TERMINATOR;
+					Ret += TEXT("\tRet.Ddx = dFdA * A.Ddx;") HLSL_LINE_TERMINATOR;
+					Ret += TEXT("\tRet.Ddy = dFdA * A.Ddy;") HLSL_LINE_TERMINATOR;
+					Ret += TEXT("\treturn Ret;") HLSL_LINE_TERMINATOR;
+					Ret += TEXT("}") HLSL_LINE_TERMINATOR;
+					Ret += TEXT("") HLSL_LINE_TERMINATOR;
 					break;
 				case EFunc1::Acos:
-					Ret += BaseName + TEXT(" AcosDeriv") + Suffix + TEXT("(") + BaseName + TEXT(" A)") LINE_TERMINATOR;
-					Ret += TEXT("{") LINE_TERMINATOR;
-					Ret += TEXT("\t") + BaseName + TEXT(" Ret;") LINE_TERMINATOR;
-					Ret += TEXT("\tRet.Value = acos(A.Value);") LINE_TERMINATOR;
+					Ret += BaseName + TEXT(" AcosDeriv") + Suffix + TEXT("(") + BaseName + TEXT(" A)") HLSL_LINE_TERMINATOR;
+					Ret += TEXT("{") HLSL_LINE_TERMINATOR;
+					Ret += TEXT("\t") + BaseName + TEXT(" Ret;") HLSL_LINE_TERMINATOR;
+					Ret += TEXT("\tRet.Value = acos(A.Value);") HLSL_LINE_TERMINATOR;
 					Ret += TEXT("\t") + FieldName + TEXT(" dFdA = -rsqrt(max(1.0f - A.Value * A.Value, 0.00001f));");
-					Ret += TEXT("\tRet.Ddx = dFdA * A.Ddx;") LINE_TERMINATOR;
-					Ret += TEXT("\tRet.Ddy = dFdA * A.Ddy;") LINE_TERMINATOR;
-					Ret += TEXT("\treturn Ret;") LINE_TERMINATOR;
-					Ret += TEXT("}") LINE_TERMINATOR;
-					Ret += TEXT("") LINE_TERMINATOR;
+					Ret += TEXT("\tRet.Ddx = dFdA * A.Ddx;") HLSL_LINE_TERMINATOR;
+					Ret += TEXT("\tRet.Ddy = dFdA * A.Ddy;") HLSL_LINE_TERMINATOR;
+					Ret += TEXT("\treturn Ret;") HLSL_LINE_TERMINATOR;
+					Ret += TEXT("}") HLSL_LINE_TERMINATOR;
+					Ret += TEXT("") HLSL_LINE_TERMINATOR;
 					break;
 				case EFunc1::AcosFast:
-					Ret += BaseName + TEXT(" AcosFastDeriv") + Suffix + TEXT("(") + BaseName + TEXT(" A)") LINE_TERMINATOR;
-					Ret += TEXT("{") LINE_TERMINATOR;
-					Ret += TEXT("\t") + BaseName + TEXT(" Ret;") LINE_TERMINATOR;
-					Ret += TEXT("\tRet.Value = acosFast(A.Value);") LINE_TERMINATOR;
+					Ret += BaseName + TEXT(" AcosFastDeriv") + Suffix + TEXT("(") + BaseName + TEXT(" A)") HLSL_LINE_TERMINATOR;
+					Ret += TEXT("{") HLSL_LINE_TERMINATOR;
+					Ret += TEXT("\t") + BaseName + TEXT(" Ret;") HLSL_LINE_TERMINATOR;
+					Ret += TEXT("\tRet.Value = acosFast(A.Value);") HLSL_LINE_TERMINATOR;
 					Ret += TEXT("\t") + FieldName + TEXT(" dFdA = -rsqrt(max(1.0f - A.Value * A.Value, 0.00001f));");
-					Ret += TEXT("\tRet.Ddx = dFdA * A.Ddx;") LINE_TERMINATOR;
-					Ret += TEXT("\tRet.Ddy = dFdA * A.Ddy;") LINE_TERMINATOR;
-					Ret += TEXT("\treturn Ret;") LINE_TERMINATOR;
-					Ret += TEXT("}") LINE_TERMINATOR;
-					Ret += TEXT("") LINE_TERMINATOR;
+					Ret += TEXT("\tRet.Ddx = dFdA * A.Ddx;") HLSL_LINE_TERMINATOR;
+					Ret += TEXT("\tRet.Ddy = dFdA * A.Ddy;") HLSL_LINE_TERMINATOR;
+					Ret += TEXT("\treturn Ret;") HLSL_LINE_TERMINATOR;
+					Ret += TEXT("}") HLSL_LINE_TERMINATOR;
+					Ret += TEXT("") HLSL_LINE_TERMINATOR;
 					break;
 				case EFunc1::Atan:
-					Ret += BaseName + TEXT(" AtanDeriv") + Suffix + TEXT("(") + BaseName + TEXT(" A)") LINE_TERMINATOR;
-					Ret += TEXT("{") LINE_TERMINATOR;
-					Ret += TEXT("\t") + BaseName + TEXT(" Ret;") LINE_TERMINATOR;
-					Ret += TEXT("\tRet.Value = atan(A.Value);") LINE_TERMINATOR;
+					Ret += BaseName + TEXT(" AtanDeriv") + Suffix + TEXT("(") + BaseName + TEXT(" A)") HLSL_LINE_TERMINATOR;
+					Ret += TEXT("{") HLSL_LINE_TERMINATOR;
+					Ret += TEXT("\t") + BaseName + TEXT(" Ret;") HLSL_LINE_TERMINATOR;
+					Ret += TEXT("\tRet.Value = atan(A.Value);") HLSL_LINE_TERMINATOR;
 					Ret += TEXT("\t") + FieldName + TEXT(" dFdA = rcp(A.Value * A.Value + 1.0f);");
-					Ret += TEXT("\tRet.Ddx = dFdA * A.Ddx;") LINE_TERMINATOR;
-					Ret += TEXT("\tRet.Ddy = dFdA * A.Ddy;") LINE_TERMINATOR;
-					Ret += TEXT("\treturn Ret;") LINE_TERMINATOR;
-					Ret += TEXT("}") LINE_TERMINATOR;
-					Ret += TEXT("") LINE_TERMINATOR;
+					Ret += TEXT("\tRet.Ddx = dFdA * A.Ddx;") HLSL_LINE_TERMINATOR;
+					Ret += TEXT("\tRet.Ddy = dFdA * A.Ddy;") HLSL_LINE_TERMINATOR;
+					Ret += TEXT("\treturn Ret;") HLSL_LINE_TERMINATOR;
+					Ret += TEXT("}") HLSL_LINE_TERMINATOR;
+					Ret += TEXT("") HLSL_LINE_TERMINATOR;
 					break;
 				case EFunc1::AtanFast:
-					Ret += BaseName + TEXT(" AtanFastDeriv") + Suffix + TEXT("(") + BaseName + TEXT(" A)") LINE_TERMINATOR;
-					Ret += TEXT("{") LINE_TERMINATOR;
-					Ret += TEXT("\t") + BaseName + TEXT(" Ret;") LINE_TERMINATOR;
-					Ret += TEXT("\tRet.Value = atanFast(A.Value);") LINE_TERMINATOR;
+					Ret += BaseName + TEXT(" AtanFastDeriv") + Suffix + TEXT("(") + BaseName + TEXT(" A)") HLSL_LINE_TERMINATOR;
+					Ret += TEXT("{") HLSL_LINE_TERMINATOR;
+					Ret += TEXT("\t") + BaseName + TEXT(" Ret;") HLSL_LINE_TERMINATOR;
+					Ret += TEXT("\tRet.Value = atanFast(A.Value);") HLSL_LINE_TERMINATOR;
 					Ret += TEXT("\t") + FieldName + TEXT(" dFdA = rcp(A.Value * A.Value + 1.0f);");
-					Ret += TEXT("\tRet.Ddx = dFdA * A.Ddx;") LINE_TERMINATOR;
-					Ret += TEXT("\tRet.Ddy = dFdA * A.Ddy;") LINE_TERMINATOR;
-					Ret += TEXT("\treturn Ret;") LINE_TERMINATOR;
-					Ret += TEXT("}") LINE_TERMINATOR;
-					Ret += TEXT("") LINE_TERMINATOR;
+					Ret += TEXT("\tRet.Ddx = dFdA * A.Ddx;") HLSL_LINE_TERMINATOR;
+					Ret += TEXT("\tRet.Ddy = dFdA * A.Ddy;") HLSL_LINE_TERMINATOR;
+					Ret += TEXT("\treturn Ret;") HLSL_LINE_TERMINATOR;
+					Ret += TEXT("}") HLSL_LINE_TERMINATOR;
+					Ret += TEXT("") HLSL_LINE_TERMINATOR;
 					break;
 				case EFunc1::Sqrt:
-					Ret += NonLWCBaseName + TEXT(" SqrtDeriv") + Suffix + TEXT("(") + BaseName + TEXT(" A)") LINE_TERMINATOR;
-					Ret += TEXT("{") LINE_TERMINATOR;
-					Ret += TEXT("\t") + NonLWCBaseName + TEXT(" Ret;") LINE_TERMINATOR;
+					Ret += NonLWCBaseName + TEXT(" SqrtDeriv") + Suffix + TEXT("(") + BaseName + TEXT(" A)") HLSL_LINE_TERMINATOR;
+					Ret += TEXT("{") HLSL_LINE_TERMINATOR;
+					Ret += TEXT("\t") + NonLWCBaseName + TEXT(" Ret;") HLSL_LINE_TERMINATOR;
 					if (IsLWCType(DerivType))
 					{
 						Translator.AddLWCFuncUsage(ELWCFunctionKind::Other);
-						Ret += TEXT("\tRet.Value = LWCSqrt(A.Value);") LINE_TERMINATOR;
-						Ret += TEXT("\t") + NonLWCFieldName + TEXT(" dFdA = 0.5f * LWCRsqrt(LWCMax(A.Value, 0.00001f));") LINE_TERMINATOR;
+						Ret += TEXT("\tRet.Value = LWCSqrt(A.Value);") HLSL_LINE_TERMINATOR;
+						Ret += TEXT("\t") + NonLWCFieldName + TEXT(" dFdA = 0.5f * LWCRsqrt(LWCMax(A.Value, 0.00001f));") HLSL_LINE_TERMINATOR;
 					}
 					else
 					{
-						Ret += TEXT("\tRet.Value = sqrt(A.Value);") LINE_TERMINATOR;
-						Ret += TEXT("\t") + NonLWCFieldName + TEXT(" dFdA = 0.5f * rsqrt(max(A.Value, 0.00001f));") LINE_TERMINATOR;
+						Ret += TEXT("\tRet.Value = sqrt(A.Value);") HLSL_LINE_TERMINATOR;
+						Ret += TEXT("\t") + NonLWCFieldName + TEXT(" dFdA = 0.5f * rsqrt(max(A.Value, 0.00001f));") HLSL_LINE_TERMINATOR;
 					}
 					
-					Ret += TEXT("\tRet.Ddx = dFdA * A.Ddx;") LINE_TERMINATOR;
-					Ret += TEXT("\tRet.Ddy = dFdA * A.Ddy;") LINE_TERMINATOR;
-					Ret += TEXT("\treturn Ret;") LINE_TERMINATOR;
-					Ret += TEXT("}") LINE_TERMINATOR;
-					Ret += TEXT("") LINE_TERMINATOR;
+					Ret += TEXT("\tRet.Ddx = dFdA * A.Ddx;") HLSL_LINE_TERMINATOR;
+					Ret += TEXT("\tRet.Ddy = dFdA * A.Ddy;") HLSL_LINE_TERMINATOR;
+					Ret += TEXT("\treturn Ret;") HLSL_LINE_TERMINATOR;
+					Ret += TEXT("}") HLSL_LINE_TERMINATOR;
+					Ret += TEXT("") HLSL_LINE_TERMINATOR;
 					break;
 				case EFunc1::Rcp:
-					Ret += NonLWCBaseName + TEXT(" RcpDeriv") + Suffix + TEXT("(") + BaseName + TEXT(" A)") LINE_TERMINATOR;
-					Ret += TEXT("{") LINE_TERMINATOR;
-					Ret += TEXT("\t") + NonLWCBaseName + TEXT(" Ret;") LINE_TERMINATOR;
+					Ret += NonLWCBaseName + TEXT(" RcpDeriv") + Suffix + TEXT("(") + BaseName + TEXT(" A)") HLSL_LINE_TERMINATOR;
+					Ret += TEXT("{") HLSL_LINE_TERMINATOR;
+					Ret += TEXT("\t") + NonLWCBaseName + TEXT(" Ret;") HLSL_LINE_TERMINATOR;
 					if (IsLWCType(DerivType))
 					{
 						Translator.AddLWCFuncUsage(ELWCFunctionKind::Other);
-						Ret += TEXT("\tRet.Value = LWCRcp(A.Value);") LINE_TERMINATOR;
+						Ret += TEXT("\tRet.Value = LWCRcp(A.Value);") HLSL_LINE_TERMINATOR;
 					}
 					else
 					{
-						Ret += TEXT("\tRet.Value = rcp(A.Value);") LINE_TERMINATOR;
+						Ret += TEXT("\tRet.Value = rcp(A.Value);") HLSL_LINE_TERMINATOR;
 					}
 					Ret += TEXT("\t") + NonLWCFieldName + TEXT(" dFdA = -Ret.Value * Ret.Value;");
-					Ret += TEXT("\tRet.Ddx = dFdA * A.Ddx;") LINE_TERMINATOR;
-					Ret += TEXT("\tRet.Ddy = dFdA * A.Ddy;") LINE_TERMINATOR;
-					Ret += TEXT("\treturn Ret;") LINE_TERMINATOR;
-					Ret += TEXT("}") LINE_TERMINATOR;
-					Ret += TEXT("") LINE_TERMINATOR;
+					Ret += TEXT("\tRet.Ddx = dFdA * A.Ddx;") HLSL_LINE_TERMINATOR;
+					Ret += TEXT("\tRet.Ddy = dFdA * A.Ddy;") HLSL_LINE_TERMINATOR;
+					Ret += TEXT("\treturn Ret;") HLSL_LINE_TERMINATOR;
+					Ret += TEXT("}") HLSL_LINE_TERMINATOR;
+					Ret += TEXT("") HLSL_LINE_TERMINATOR;
 					break;
 				case EFunc1::Rsqrt:
-					Ret += NonLWCBaseName + TEXT(" RsqrtDeriv") + Suffix + TEXT("(") + BaseName + TEXT(" A)") LINE_TERMINATOR;
-					Ret += TEXT("{") LINE_TERMINATOR;
-					Ret += TEXT("\t") + NonLWCBaseName + TEXT(" Ret;") LINE_TERMINATOR;
+					Ret += NonLWCBaseName + TEXT(" RsqrtDeriv") + Suffix + TEXT("(") + BaseName + TEXT(" A)") HLSL_LINE_TERMINATOR;
+					Ret += TEXT("{") HLSL_LINE_TERMINATOR;
+					Ret += TEXT("\t") + NonLWCBaseName + TEXT(" Ret;") HLSL_LINE_TERMINATOR;
 					if (IsLWCType(DerivType))
 					{
 						Translator.AddLWCFuncUsage(ELWCFunctionKind::Other);
-						Ret += TEXT("\tRet.Value = LWCRsqrt(A.Value);") LINE_TERMINATOR;
+						Ret += TEXT("\tRet.Value = LWCRsqrt(A.Value);") HLSL_LINE_TERMINATOR;
 						Ret += TEXT("\t") + NonLWCFieldName + TEXT(" dFdA = -0.5f * LWCRsqrt(A.Value) * LWCRcp(A.Value);");
 					}
 					else
 					{
-						Ret += TEXT("\tRet.Value = rsqrt(A.Value);") LINE_TERMINATOR;
+						Ret += TEXT("\tRet.Value = rsqrt(A.Value);") HLSL_LINE_TERMINATOR;
 						Ret += TEXT("\t") + NonLWCFieldName + TEXT(" dFdA = -0.5f * rsqrt(A.Value) * rcp(A.Value);");
 					}
 					
-					Ret += TEXT("\tRet.Ddx = dFdA * A.Ddx;") LINE_TERMINATOR;
-					Ret += TEXT("\tRet.Ddy = dFdA * A.Ddy;") LINE_TERMINATOR;
-					Ret += TEXT("\treturn Ret;") LINE_TERMINATOR;
-					Ret += TEXT("}") LINE_TERMINATOR;
-					Ret += TEXT("") LINE_TERMINATOR;
+					Ret += TEXT("\tRet.Ddx = dFdA * A.Ddx;") HLSL_LINE_TERMINATOR;
+					Ret += TEXT("\tRet.Ddy = dFdA * A.Ddy;") HLSL_LINE_TERMINATOR;
+					Ret += TEXT("\treturn Ret;") HLSL_LINE_TERMINATOR;
+					Ret += TEXT("}") HLSL_LINE_TERMINATOR;
+					Ret += TEXT("") HLSL_LINE_TERMINATOR;
 					break;
 				case EFunc1::Saturate:
-					Ret += NonLWCBaseName + TEXT(" SaturateDeriv") + Suffix + TEXT("(") + BaseName + TEXT(" A)") LINE_TERMINATOR;
-					Ret += TEXT("{") LINE_TERMINATOR;
-					Ret += TEXT("\t") + NonLWCFieldName + TEXT(" Zero = 0.0f;") LINE_TERMINATOR;
-					Ret += TEXT("\t") + NonLWCBaseName + TEXT(" Ret;") LINE_TERMINATOR;
+					Ret += NonLWCBaseName + TEXT(" SaturateDeriv") + Suffix + TEXT("(") + BaseName + TEXT(" A)") HLSL_LINE_TERMINATOR;
+					Ret += TEXT("{") HLSL_LINE_TERMINATOR;
+					Ret += TEXT("\t") + NonLWCFieldName + TEXT(" Zero = 0.0f;") HLSL_LINE_TERMINATOR;
+					Ret += TEXT("\t") + NonLWCBaseName + TEXT(" Ret;") HLSL_LINE_TERMINATOR;
 					if (IsLWCType(DerivType))
 					{
 						Translator.AddLWCFuncUsage(ELWCFunctionKind::Other);
-						Ret += TEXT("\tRet.Value = LWCSaturate(A.Value);") LINE_TERMINATOR;
-						Ret += TEXT("\t") + BoolName + TEXT(" InRange = LWCEquals(Ret.Value, A.Value);") LINE_TERMINATOR;
+						Ret += TEXT("\tRet.Value = LWCSaturate(A.Value);") HLSL_LINE_TERMINATOR;
+						Ret += TEXT("\t") + BoolName + TEXT(" InRange = LWCEquals(Ret.Value, A.Value);") HLSL_LINE_TERMINATOR;
 					}
 					else
 					{
-						Ret += TEXT("\tRet.Value = saturate(A.Value);") LINE_TERMINATOR;
-						Ret += TEXT("\t") + BoolName + TEXT(" InRange = and(0.0 < A.Value, A.Value < 1.0);") LINE_TERMINATOR;
+						Ret += TEXT("\tRet.Value = saturate(A.Value);") HLSL_LINE_TERMINATOR;
+						Ret += TEXT("\t") + BoolName + TEXT(" InRange = and(0.0 < A.Value, A.Value < 1.0);") HLSL_LINE_TERMINATOR;
 					}
-					Ret += TEXT("\tRet.Ddx = select(InRange, A.Ddx, Zero);") LINE_TERMINATOR;
-					Ret += TEXT("\tRet.Ddy = select(InRange, A.Ddy, Zero);") LINE_TERMINATOR;
-					Ret += TEXT("\treturn Ret;") LINE_TERMINATOR;
-					Ret += TEXT("}") LINE_TERMINATOR;
-					Ret += TEXT("") LINE_TERMINATOR;
+					Ret += TEXT("\tRet.Ddx = select(InRange, A.Ddx, Zero);") HLSL_LINE_TERMINATOR;
+					Ret += TEXT("\tRet.Ddy = select(InRange, A.Ddy, Zero);") HLSL_LINE_TERMINATOR;
+					Ret += TEXT("\treturn Ret;") HLSL_LINE_TERMINATOR;
+					Ret += TEXT("}") HLSL_LINE_TERMINATOR;
+					Ret += TEXT("") HLSL_LINE_TERMINATOR;
 					break;
 				case EFunc1::Frac:
-					Ret += NonLWCBaseName + TEXT(" FracDeriv") + Suffix + TEXT("(") + BaseName + TEXT(" A)") LINE_TERMINATOR;
-					Ret += TEXT("{") LINE_TERMINATOR;
-					Ret += TEXT("\t") + NonLWCBaseName + TEXT(" Ret;") LINE_TERMINATOR;
+					Ret += NonLWCBaseName + TEXT(" FracDeriv") + Suffix + TEXT("(") + BaseName + TEXT(" A)") HLSL_LINE_TERMINATOR;
+					Ret += TEXT("{") HLSL_LINE_TERMINATOR;
+					Ret += TEXT("\t") + NonLWCBaseName + TEXT(" Ret;") HLSL_LINE_TERMINATOR;
 					if (IsLWCType(DerivType))
 					{
 						Translator.AddLWCFuncUsage(ELWCFunctionKind::Other);
-						Ret += TEXT("\tRet.Value = LWCFrac(A.Value);") LINE_TERMINATOR;
+						Ret += TEXT("\tRet.Value = LWCFrac(A.Value);") HLSL_LINE_TERMINATOR;
 					}
 					else
 					{
-						Ret += TEXT("\tRet.Value = frac(A.Value);") LINE_TERMINATOR;
+						Ret += TEXT("\tRet.Value = frac(A.Value);") HLSL_LINE_TERMINATOR;
 					}
-					Ret += TEXT("\tRet.Ddx = A.Ddx;") LINE_TERMINATOR;
-					Ret += TEXT("\tRet.Ddy = A.Ddy;") LINE_TERMINATOR;
-					Ret += TEXT("\treturn Ret;") LINE_TERMINATOR;
-					Ret += TEXT("}") LINE_TERMINATOR;
-					Ret += TEXT("") LINE_TERMINATOR;
+					Ret += TEXT("\tRet.Ddx = A.Ddx;") HLSL_LINE_TERMINATOR;
+					Ret += TEXT("\tRet.Ddy = A.Ddy;") HLSL_LINE_TERMINATOR;
+					Ret += TEXT("\treturn Ret;") HLSL_LINE_TERMINATOR;
+					Ret += TEXT("}") HLSL_LINE_TERMINATOR;
+					Ret += TEXT("") HLSL_LINE_TERMINATOR;
 					break;
 				case EFunc1::Log:
-					Ret += BaseName + TEXT(" LogDeriv") + Suffix + TEXT("(") + BaseName + TEXT(" A)") LINE_TERMINATOR;
-					Ret += TEXT("{") LINE_TERMINATOR;
-					Ret += TEXT("\t") + BaseName + TEXT(" Ret;") LINE_TERMINATOR;
-					Ret += TEXT("\tRet.Value = log(A.Value);") LINE_TERMINATOR;
+					Ret += BaseName + TEXT(" LogDeriv") + Suffix + TEXT("(") + BaseName + TEXT(" A)") HLSL_LINE_TERMINATOR;
+					Ret += TEXT("{") HLSL_LINE_TERMINATOR;
+					Ret += TEXT("\t") + BaseName + TEXT(" Ret;") HLSL_LINE_TERMINATOR;
+					Ret += TEXT("\tRet.Value = log(A.Value);") HLSL_LINE_TERMINATOR;
 					Ret += TEXT("\t") + FieldName + TEXT(" dFdA = rcp(A.Value);");
-					Ret += TEXT("\tRet.Ddx = dFdA * A.Ddx ;") LINE_TERMINATOR;
-					Ret += TEXT("\tRet.Ddy = dFdA * A.Ddy;") LINE_TERMINATOR;
-					Ret += TEXT("\treturn Ret;") LINE_TERMINATOR;
-					Ret += TEXT("}") LINE_TERMINATOR;
-					Ret += TEXT("") LINE_TERMINATOR;
+					Ret += TEXT("\tRet.Ddx = dFdA * A.Ddx ;") HLSL_LINE_TERMINATOR;
+					Ret += TEXT("\tRet.Ddy = dFdA * A.Ddy;") HLSL_LINE_TERMINATOR;
+					Ret += TEXT("\treturn Ret;") HLSL_LINE_TERMINATOR;
+					Ret += TEXT("}") HLSL_LINE_TERMINATOR;
+					Ret += TEXT("") HLSL_LINE_TERMINATOR;
 					break;
 				case EFunc1::Log2:
-					Ret += BaseName + TEXT(" Log2Deriv") + Suffix + TEXT("(") + BaseName + TEXT(" A)") LINE_TERMINATOR;
-					Ret += TEXT("{") LINE_TERMINATOR;
-					Ret += TEXT("\t") + BaseName + TEXT(" Ret;") LINE_TERMINATOR;
-					Ret += TEXT("\tRet.Value = log2(A.Value);") LINE_TERMINATOR;
+					Ret += BaseName + TEXT(" Log2Deriv") + Suffix + TEXT("(") + BaseName + TEXT(" A)") HLSL_LINE_TERMINATOR;
+					Ret += TEXT("{") HLSL_LINE_TERMINATOR;
+					Ret += TEXT("\t") + BaseName + TEXT(" Ret;") HLSL_LINE_TERMINATOR;
+					Ret += TEXT("\tRet.Value = log2(A.Value);") HLSL_LINE_TERMINATOR;
 					Ret += TEXT("\t") + FieldName + TEXT(" dFdA = rcp(A.Value) * 1.442695f;");
-					Ret += TEXT("\tRet.Ddx = dFdA * A.Ddx ;") LINE_TERMINATOR;
-					Ret += TEXT("\tRet.Ddy = dFdA * A.Ddy;") LINE_TERMINATOR;
-					Ret += TEXT("\treturn Ret;") LINE_TERMINATOR;
-					Ret += TEXT("}") LINE_TERMINATOR;
-					Ret += TEXT("") LINE_TERMINATOR;
+					Ret += TEXT("\tRet.Ddx = dFdA * A.Ddx ;") HLSL_LINE_TERMINATOR;
+					Ret += TEXT("\tRet.Ddy = dFdA * A.Ddy;") HLSL_LINE_TERMINATOR;
+					Ret += TEXT("\treturn Ret;") HLSL_LINE_TERMINATOR;
+					Ret += TEXT("}") HLSL_LINE_TERMINATOR;
+					Ret += TEXT("") HLSL_LINE_TERMINATOR;
 					break;
 				case EFunc1::Log10:
-					Ret += BaseName + TEXT(" Log10Deriv") + Suffix + TEXT("(") + BaseName + TEXT(" A)") LINE_TERMINATOR;
-					Ret += TEXT("{") LINE_TERMINATOR;
-					Ret += TEXT("\t") + BaseName + TEXT(" Ret;") LINE_TERMINATOR;
-					Ret += TEXT("\tRet.Value = log10(A.Value);") LINE_TERMINATOR;
+					Ret += BaseName + TEXT(" Log10Deriv") + Suffix + TEXT("(") + BaseName + TEXT(" A)") HLSL_LINE_TERMINATOR;
+					Ret += TEXT("{") HLSL_LINE_TERMINATOR;
+					Ret += TEXT("\t") + BaseName + TEXT(" Ret;") HLSL_LINE_TERMINATOR;
+					Ret += TEXT("\tRet.Value = log10(A.Value);") HLSL_LINE_TERMINATOR;
 					Ret += TEXT("\t") + FieldName + TEXT(" dFdA = rcp(A.Value) * 0.4342945f;");
-					Ret += TEXT("\tRet.Ddx = dFdA * A.Ddx;") LINE_TERMINATOR;
-					Ret += TEXT("\tRet.Ddy = dFdA * A.Ddy;") LINE_TERMINATOR;
-					Ret += TEXT("\treturn Ret;") LINE_TERMINATOR;
-					Ret += TEXT("}") LINE_TERMINATOR;
-					Ret += TEXT("") LINE_TERMINATOR;
+					Ret += TEXT("\tRet.Ddx = dFdA * A.Ddx;") HLSL_LINE_TERMINATOR;
+					Ret += TEXT("\tRet.Ddy = dFdA * A.Ddy;") HLSL_LINE_TERMINATOR;
+					Ret += TEXT("\treturn Ret;") HLSL_LINE_TERMINATOR;
+					Ret += TEXT("}") HLSL_LINE_TERMINATOR;
+					Ret += TEXT("") HLSL_LINE_TERMINATOR;
 					break;
 				case EFunc1::Exp:
-					Ret += BaseName + TEXT(" ExpDeriv") + Suffix + TEXT("(") + BaseName + TEXT(" A)") LINE_TERMINATOR;
-					Ret += TEXT("{") LINE_TERMINATOR;
-					Ret += TEXT("\t") + BaseName + TEXT(" Ret;") LINE_TERMINATOR;
-					Ret += TEXT("\tRet.Value = exp(A.Value);") LINE_TERMINATOR;
-					Ret += TEXT("\tRet.Ddx = exp(A.Value) * A.Ddx;") LINE_TERMINATOR;
-					Ret += TEXT("\tRet.Ddy = exp(A.Value) * A.Ddy;") LINE_TERMINATOR;
-					Ret += TEXT("\treturn Ret;") LINE_TERMINATOR;
-					Ret += TEXT("}") LINE_TERMINATOR;
-					Ret += TEXT("") LINE_TERMINATOR;
+					Ret += BaseName + TEXT(" ExpDeriv") + Suffix + TEXT("(") + BaseName + TEXT(" A)") HLSL_LINE_TERMINATOR;
+					Ret += TEXT("{") HLSL_LINE_TERMINATOR;
+					Ret += TEXT("\t") + BaseName + TEXT(" Ret;") HLSL_LINE_TERMINATOR;
+					Ret += TEXT("\tRet.Value = exp(A.Value);") HLSL_LINE_TERMINATOR;
+					Ret += TEXT("\tRet.Ddx = exp(A.Value) * A.Ddx;") HLSL_LINE_TERMINATOR;
+					Ret += TEXT("\tRet.Ddy = exp(A.Value) * A.Ddy;") HLSL_LINE_TERMINATOR;
+					Ret += TEXT("\treturn Ret;") HLSL_LINE_TERMINATOR;
+					Ret += TEXT("}") HLSL_LINE_TERMINATOR;
+					Ret += TEXT("") HLSL_LINE_TERMINATOR;
 					break;
 				case EFunc1::Exp2:
-					Ret += BaseName + TEXT(" Exp2Deriv") + Suffix + TEXT("(") + BaseName + TEXT(" A)") LINE_TERMINATOR;
-					Ret += TEXT("{") LINE_TERMINATOR;
-					Ret += TEXT("\t") + BaseName + TEXT(" Ret;") LINE_TERMINATOR;
-					Ret += TEXT("\tRet.Value = exp2(A.Value);") LINE_TERMINATOR;
+					Ret += BaseName + TEXT(" Exp2Deriv") + Suffix + TEXT("(") + BaseName + TEXT(" A)") HLSL_LINE_TERMINATOR;
+					Ret += TEXT("{") HLSL_LINE_TERMINATOR;
+					Ret += TEXT("\t") + BaseName + TEXT(" Ret;") HLSL_LINE_TERMINATOR;
+					Ret += TEXT("\tRet.Value = exp2(A.Value);") HLSL_LINE_TERMINATOR;
 					Ret += TEXT("\t") + FieldName + TEXT(" dFdA = exp2(A.Value) * 0.693147f;");
-					Ret += TEXT("\tRet.Ddx = dFdA * A.Ddx;") LINE_TERMINATOR;
-					Ret += TEXT("\tRet.Ddy = dFdA * A.Ddy;") LINE_TERMINATOR;
-					Ret += TEXT("\treturn Ret;") LINE_TERMINATOR;
-					Ret += TEXT("}") LINE_TERMINATOR;
-					Ret += TEXT("") LINE_TERMINATOR;
+					Ret += TEXT("\tRet.Ddx = dFdA * A.Ddx;") HLSL_LINE_TERMINATOR;
+					Ret += TEXT("\tRet.Ddy = dFdA * A.Ddy;") HLSL_LINE_TERMINATOR;
+					Ret += TEXT("\treturn Ret;") HLSL_LINE_TERMINATOR;
+					Ret += TEXT("}") HLSL_LINE_TERMINATOR;
+					Ret += TEXT("") HLSL_LINE_TERMINATOR;
 					break;
 				case EFunc1::Length:
-					Ret += ScalarName + TEXT(" LengthDeriv") + Suffix + TEXT("(") + BaseName + TEXT(" A)") LINE_TERMINATOR;
-					Ret += TEXT("{") LINE_TERMINATOR;
-					Ret += TEXT("\t") + ScalarName + TEXT(" Ret;") LINE_TERMINATOR;
+					Ret += ScalarName + TEXT(" LengthDeriv") + Suffix + TEXT("(") + BaseName + TEXT(" A)") HLSL_LINE_TERMINATOR;
+					Ret += TEXT("{") HLSL_LINE_TERMINATOR;
+					Ret += TEXT("\t") + ScalarName + TEXT(" Ret;") HLSL_LINE_TERMINATOR;
 					if (IsLWCType(DerivType))
 					{
 						Translator.AddLWCFuncUsage(ELWCFunctionKind::Other);
-						Ret += TEXT("\tRet.Value = LWCLength(A.Value);") LINE_TERMINATOR;
+						Ret += TEXT("\tRet.Value = LWCLength(A.Value);") HLSL_LINE_TERMINATOR;
 					}
 					else
 					{
-						Ret += TEXT("\tRet.Value = length(A.Value);") LINE_TERMINATOR;
+						Ret += TEXT("\tRet.Value = length(A.Value);") HLSL_LINE_TERMINATOR;
 					}
-					Ret += FString::Printf(TEXT("\tFloatDeriv Deriv = SqrtDeriv%s(DotDeriv%s(A,A));") LINE_TERMINATOR, * Suffix, * Suffix);
-					Ret += TEXT("\tRet.Ddx = Deriv.Ddx;") LINE_TERMINATOR;
-					Ret += TEXT("\tRet.Ddy = Deriv.Ddy;") LINE_TERMINATOR;
-					Ret += TEXT("\treturn Ret;") LINE_TERMINATOR;
-					Ret += TEXT("}") LINE_TERMINATOR;
-					Ret += TEXT("") LINE_TERMINATOR;
+					Ret += FString::Printf(TEXT("\tFloatDeriv Deriv = SqrtDeriv%s(DotDeriv%s(A,A));") HLSL_LINE_TERMINATOR, * Suffix, * Suffix);
+					Ret += TEXT("\tRet.Ddx = Deriv.Ddx;") HLSL_LINE_TERMINATOR;
+					Ret += TEXT("\tRet.Ddy = Deriv.Ddy;") HLSL_LINE_TERMINATOR;
+					Ret += TEXT("\treturn Ret;") HLSL_LINE_TERMINATOR;
+					Ret += TEXT("}") HLSL_LINE_TERMINATOR;
+					Ret += TEXT("") HLSL_LINE_TERMINATOR;
 					break;
 				case EFunc1::InvLength:
-					Ret += TEXT("FloatDeriv InvLengthDeriv") + Suffix + TEXT("(") + BaseName + TEXT(" A)") LINE_TERMINATOR;
-					Ret += TEXT("{") LINE_TERMINATOR;
-					Ret += TEXT("\tFloatDeriv Ret;") LINE_TERMINATOR;
+					Ret += TEXT("FloatDeriv InvLengthDeriv") + Suffix + TEXT("(") + BaseName + TEXT(" A)") HLSL_LINE_TERMINATOR;
+					Ret += TEXT("{") HLSL_LINE_TERMINATOR;
+					Ret += TEXT("\tFloatDeriv Ret;") HLSL_LINE_TERMINATOR;
 					if (IsLWCType(DerivType))
 					{
 						Translator.AddLWCFuncUsage(ELWCFunctionKind::Other);
-						Ret += TEXT("\tRet.Value = LWCRcpLength(A.Value);") LINE_TERMINATOR;
+						Ret += TEXT("\tRet.Value = LWCRcpLength(A.Value);") HLSL_LINE_TERMINATOR;
 					}
 					else
 					{
-						Ret += TEXT("\tRet.Value = rcp(length(A.Value));") LINE_TERMINATOR;
+						Ret += TEXT("\tRet.Value = rcp(length(A.Value));") HLSL_LINE_TERMINATOR;
 					}
-					Ret += FString::Printf(TEXT("\tFloatDeriv Deriv = RsqrtDeriv%s(DotDeriv%s(A,A));") LINE_TERMINATOR, *Suffix, *Suffix);
-					Ret += TEXT("\tRet.Ddx = Deriv.Ddx;") LINE_TERMINATOR;
-					Ret += TEXT("\tRet.Ddy = Deriv.Ddy;") LINE_TERMINATOR;
-					Ret += TEXT("\treturn Ret;") LINE_TERMINATOR;
-					Ret += TEXT("}") LINE_TERMINATOR;
-					Ret += TEXT("") LINE_TERMINATOR;
+					Ret += FString::Printf(TEXT("\tFloatDeriv Deriv = RsqrtDeriv%s(DotDeriv%s(A,A));") HLSL_LINE_TERMINATOR, *Suffix, *Suffix);
+					Ret += TEXT("\tRet.Ddx = Deriv.Ddx;") HLSL_LINE_TERMINATOR;
+					Ret += TEXT("\tRet.Ddy = Deriv.Ddy;") HLSL_LINE_TERMINATOR;
+					Ret += TEXT("\treturn Ret;") HLSL_LINE_TERMINATOR;
+					Ret += TEXT("}") HLSL_LINE_TERMINATOR;
+					Ret += TEXT("") HLSL_LINE_TERMINATOR;
 					break;
 				case EFunc1::Normalize:
-					Ret += NonLWCBaseName + TEXT(" NormalizeDeriv") + Suffix + TEXT("(") + BaseName + TEXT(" A)") LINE_TERMINATOR;
-					Ret += TEXT("{") LINE_TERMINATOR;
-					Ret += FString::Printf(TEXT("\tFloatDeriv InvLen = RsqrtDeriv%s(DotDeriv%s(A,A));") LINE_TERMINATOR, *Suffix, *Suffix);
-					Ret += TEXT("\t") + BaseName + TEXT(" Ret = MulDeriv") + Suffix + TEXT("(") + ConvertDeriv(TEXT("InvLen"), DerivType, EDerivativeType::Float1) + TEXT(", A);") LINE_TERMINATOR;
+					Ret += NonLWCBaseName + TEXT(" NormalizeDeriv") + Suffix + TEXT("(") + BaseName + TEXT(" A)") HLSL_LINE_TERMINATOR;
+					Ret += TEXT("{") HLSL_LINE_TERMINATOR;
+					Ret += FString::Printf(TEXT("\tFloatDeriv InvLen = RsqrtDeriv%s(DotDeriv%s(A,A));") HLSL_LINE_TERMINATOR, *Suffix, *Suffix);
+					Ret += TEXT("\t") + BaseName + TEXT(" Ret = MulDeriv") + Suffix + TEXT("(") + ConvertDeriv(TEXT("InvLen"), DerivType, EDerivativeType::Float1) + TEXT(", A);") HLSL_LINE_TERMINATOR;
 					if (IsLWCType(DerivType))
 					{
 						// Convert the result to non-LWC
-						Ret += TEXT("\treturn ") + ConvertDeriv(TEXT("Ret"), MakeNonLWCType(DerivType), DerivType) + TEXT(";") LINE_TERMINATOR;
+						Ret += TEXT("\treturn ") + ConvertDeriv(TEXT("Ret"), MakeNonLWCType(DerivType), DerivType) + TEXT(";") HLSL_LINE_TERMINATOR;
 					}
 					else
 					{
-						Ret += TEXT("\treturn Ret;") LINE_TERMINATOR;
+						Ret += TEXT("\treturn Ret;") HLSL_LINE_TERMINATOR;
 					}
-					Ret += TEXT("}") LINE_TERMINATOR;
-					Ret += TEXT("") LINE_TERMINATOR;
+					Ret += TEXT("}") HLSL_LINE_TERMINATOR;
+					Ret += TEXT("") HLSL_LINE_TERMINATOR;
 					break;
 				default:
 					check(0);
@@ -2215,53 +2215,53 @@ FString FMaterialDerivativeAutogen::GenerateUsedFunctions(FHLSLMaterialTranslato
 			
 			// lerp(a,b,s) = a*(1-s) + b*s
 			// lerp(a,b,s)' = a' * (1 - s') + b' * s + s' * (b - a)
-			Ret += FString::Printf(TEXT("%s LerpDeriv(%s A, %s B, %s S)"), *BaseName, *BaseName, *BaseName, *NonLWCBaseName) + LINE_TERMINATOR;
-			Ret += TEXT("{") LINE_TERMINATOR;
-			Ret += TEXT("\t") + BaseName + TEXT(" Ret;") LINE_TERMINATOR;
+			Ret += FString::Printf(TEXT("%s LerpDeriv(%s A, %s B, %s S)"), *BaseName, *BaseName, *BaseName, *NonLWCBaseName) + HLSL_LINE_TERMINATOR;
+			Ret += TEXT("{") HLSL_LINE_TERMINATOR;
+			Ret += TEXT("\t") + BaseName + TEXT(" Ret;") HLSL_LINE_TERMINATOR;
 			if (IsLWCType(DerivType))
 			{
 				Translator.AddLWCFuncUsage(ELWCFunctionKind::Other);
-				Ret += TEXT("\tRet.Value = LWCLerp(A.Value, B.Value, S.Value);") LINE_TERMINATOR;
+				Ret += TEXT("\tRet.Value = LWCLerp(A.Value, B.Value, S.Value);") HLSL_LINE_TERMINATOR;
 				Translator.AddLWCFuncUsage(ELWCFunctionKind::Subtract, 2);
-				Ret += TEXT("\tRet.Ddx = lerp(A.Ddx, B.Ddx, S.Value) + S.Ddx * LWCToFloat(LWCSubtract(B.Value, A.Value));") LINE_TERMINATOR;
-				Ret += TEXT("\tRet.Ddy = lerp(A.Ddy, B.Ddy, S.Value) + S.Ddy * LWCToFloat(LWCSubtract(B.Value, A.Value));") LINE_TERMINATOR;
+				Ret += TEXT("\tRet.Ddx = lerp(A.Ddx, B.Ddx, S.Value) + S.Ddx * LWCToFloat(LWCSubtract(B.Value, A.Value));") HLSL_LINE_TERMINATOR;
+				Ret += TEXT("\tRet.Ddy = lerp(A.Ddy, B.Ddy, S.Value) + S.Ddy * LWCToFloat(LWCSubtract(B.Value, A.Value));") HLSL_LINE_TERMINATOR;
 			}
 			else
 			{
-				Ret += TEXT("\tRet.Value = lerp(A.Value, B.Value, S.Value);") LINE_TERMINATOR;
-				Ret += TEXT("\tRet.Ddx = lerp(A.Ddx, B.Ddx, S.Value) + S.Ddx * (B.Value - A.Value);") LINE_TERMINATOR;
-				Ret += TEXT("\tRet.Ddy = lerp(A.Ddy, B.Ddy, S.Value) + S.Ddy * (B.Value - A.Value);") LINE_TERMINATOR;
+				Ret += TEXT("\tRet.Value = lerp(A.Value, B.Value, S.Value);") HLSL_LINE_TERMINATOR;
+				Ret += TEXT("\tRet.Ddx = lerp(A.Ddx, B.Ddx, S.Value) + S.Ddx * (B.Value - A.Value);") HLSL_LINE_TERMINATOR;
+				Ret += TEXT("\tRet.Ddy = lerp(A.Ddy, B.Ddy, S.Value) + S.Ddy * (B.Value - A.Value);") HLSL_LINE_TERMINATOR;
 			}
-			Ret += TEXT("\treturn Ret;") LINE_TERMINATOR;
-			Ret += TEXT("}") LINE_TERMINATOR;
-			Ret += TEXT("") LINE_TERMINATOR;
+			Ret += TEXT("\treturn Ret;") HLSL_LINE_TERMINATOR;
+			Ret += TEXT("}") HLSL_LINE_TERMINATOR;
+			Ret += TEXT("") HLSL_LINE_TERMINATOR;
 		}
 
 		if (bIfEnabled[Index] || IsDebugGenerateAllFunctionsEnabled())
 		{
 			// TODO - do we need to make these bool-vectors?
-			Ret += FString::Printf(TEXT("%s IfDeriv(bool bGreaterEqual, %s Greater, %s Less)"), *BaseName, *BaseName, *BaseName) + LINE_TERMINATOR;
-			Ret += TEXT("{") LINE_TERMINATOR;
-			Ret += TEXT("\tif(bGreaterEqual)") LINE_TERMINATOR;
-			Ret += TEXT("\t\treturn Greater;") LINE_TERMINATOR;
-			Ret += TEXT("\telse") LINE_TERMINATOR;
-			Ret += TEXT("\t\treturn Less;") LINE_TERMINATOR;
-			Ret += TEXT("}") LINE_TERMINATOR;
-			Ret += TEXT("") LINE_TERMINATOR;
+			Ret += FString::Printf(TEXT("%s IfDeriv(bool bGreaterEqual, %s Greater, %s Less)"), *BaseName, *BaseName, *BaseName) + HLSL_LINE_TERMINATOR;
+			Ret += TEXT("{") HLSL_LINE_TERMINATOR;
+			Ret += TEXT("\tif(bGreaterEqual)") HLSL_LINE_TERMINATOR;
+			Ret += TEXT("\t\treturn Greater;") HLSL_LINE_TERMINATOR;
+			Ret += TEXT("\telse") HLSL_LINE_TERMINATOR;
+			Ret += TEXT("\t\treturn Less;") HLSL_LINE_TERMINATOR;
+			Ret += TEXT("}") HLSL_LINE_TERMINATOR;
+			Ret += TEXT("") HLSL_LINE_TERMINATOR;
 		}
 
 		if (bIf2Enabled[Index] || IsDebugGenerateAllFunctionsEnabled())
 		{
-			Ret += FString::Printf(TEXT("%s IfDeriv(bool bNotEqual, bool bGreaterEqual, %s Greater, %s Less, %s Equal)"), *BaseName, *BaseName, *BaseName, *BaseName) + LINE_TERMINATOR;
-			Ret += TEXT("{") LINE_TERMINATOR;
-			Ret += TEXT("\tif(!bNotEqual)") LINE_TERMINATOR;	// Written like this to preserve NaN behavior of original code.
-			Ret += TEXT("\t\treturn Equal;") LINE_TERMINATOR;
-			Ret += TEXT("\tif(bGreaterEqual)") LINE_TERMINATOR;
-			Ret += TEXT("\t\treturn Greater;") LINE_TERMINATOR;
-			Ret += TEXT("\telse") LINE_TERMINATOR;
-			Ret += TEXT("\t\treturn Less;") LINE_TERMINATOR;
-			Ret += TEXT("}") LINE_TERMINATOR;
-			Ret += TEXT("") LINE_TERMINATOR;
+			Ret += FString::Printf(TEXT("%s IfDeriv(bool bNotEqual, bool bGreaterEqual, %s Greater, %s Less, %s Equal)"), *BaseName, *BaseName, *BaseName, *BaseName) + HLSL_LINE_TERMINATOR;
+			Ret += TEXT("{") HLSL_LINE_TERMINATOR;
+			Ret += TEXT("\tif(!bNotEqual)") HLSL_LINE_TERMINATOR;	// Written like this to preserve NaN behavior of original code.
+			Ret += TEXT("\t\treturn Equal;") HLSL_LINE_TERMINATOR;
+			Ret += TEXT("\tif(bGreaterEqual)") HLSL_LINE_TERMINATOR;
+			Ret += TEXT("\t\treturn Greater;") HLSL_LINE_TERMINATOR;
+			Ret += TEXT("\telse") HLSL_LINE_TERMINATOR;
+			Ret += TEXT("\t\treturn Less;") HLSL_LINE_TERMINATOR;
+			Ret += TEXT("}") HLSL_LINE_TERMINATOR;
+			Ret += TEXT("") HLSL_LINE_TERMINATOR;
 		}
 	}
 
@@ -2269,56 +2269,56 @@ FString FMaterialDerivativeAutogen::GenerateUsedFunctions(FHLSLMaterialTranslato
 	{
 		// float2(dot(InTexCoords, InRotationScale.xy), dot(InTexCoords, InRotationScale.zw)) + InOffset;
 		// InTexCoords.xy * InRotationScale.xw + InTexCoords.yx * InRotationScale.yz + InOffset;
-		Ret += TEXT("FloatDeriv2 RotateScaleOffsetTexCoordsDeriv(FloatDeriv2 TexCoord, FloatDeriv4 RotationScale, FloatDeriv2 Offset)") LINE_TERMINATOR;
-		Ret += TEXT("{") LINE_TERMINATOR;
-		Ret += TEXT("\tFloatDeriv2 Ret = Offset;") LINE_TERMINATOR;
-		Ret += TEXT("\tRet = AddDeriv(Ret, MulDeriv(TexCoord, SwizzleDeriv2(RotationScale, xw)));") LINE_TERMINATOR;
-		Ret += TEXT("\tRet = AddDeriv(Ret, MulDeriv(SwizzleDeriv2(TexCoord, yx), SwizzleDeriv2(RotationScale, yz)));") LINE_TERMINATOR;
-		Ret += TEXT("\treturn Ret;") LINE_TERMINATOR;
-		Ret += TEXT("}") LINE_TERMINATOR;
-		Ret += TEXT("") LINE_TERMINATOR;
+		Ret += TEXT("FloatDeriv2 RotateScaleOffsetTexCoordsDeriv(FloatDeriv2 TexCoord, FloatDeriv4 RotationScale, FloatDeriv2 Offset)") HLSL_LINE_TERMINATOR;
+		Ret += TEXT("{") HLSL_LINE_TERMINATOR;
+		Ret += TEXT("\tFloatDeriv2 Ret = Offset;") HLSL_LINE_TERMINATOR;
+		Ret += TEXT("\tRet = AddDeriv(Ret, MulDeriv(TexCoord, SwizzleDeriv2(RotationScale, xw)));") HLSL_LINE_TERMINATOR;
+		Ret += TEXT("\tRet = AddDeriv(Ret, MulDeriv(SwizzleDeriv2(TexCoord, yx), SwizzleDeriv2(RotationScale, yz)));") HLSL_LINE_TERMINATOR;
+		Ret += TEXT("\treturn Ret;") HLSL_LINE_TERMINATOR;
+		Ret += TEXT("}") HLSL_LINE_TERMINATOR;
+		Ret += TEXT("") HLSL_LINE_TERMINATOR;
 	}
 	
 	if (bUnMirrorEnabled[1][1] || IsDebugGenerateAllFunctionsEnabled())
 	{
 		// UnMirrorUV
-		Ret += TEXT("FloatDeriv2 UnMirrorUV(FloatDeriv2 UV, FMaterialPixelParameters Parameters)") LINE_TERMINATOR;
-		Ret += TEXT("{") LINE_TERMINATOR;
-		Ret += TEXT("\tconst MaterialFloat Scale = (Parameters.UnMirrored * 0.5f);") LINE_TERMINATOR;
-		Ret += TEXT("\tUV.Value = UV.Value * Scale + 0.5f;") LINE_TERMINATOR;
-		Ret += TEXT("\tUV.Ddx *= Scale;") LINE_TERMINATOR;
-		Ret += TEXT("\tUV.Ddy *= Scale;") LINE_TERMINATOR;
-		Ret += TEXT("\treturn UV;") LINE_TERMINATOR;
-		Ret += TEXT("}") LINE_TERMINATOR;
-		Ret += TEXT("") LINE_TERMINATOR;
+		Ret += TEXT("FloatDeriv2 UnMirrorUV(FloatDeriv2 UV, FMaterialPixelParameters Parameters)") HLSL_LINE_TERMINATOR;
+		Ret += TEXT("{") HLSL_LINE_TERMINATOR;
+		Ret += TEXT("\tconst MaterialFloat Scale = (Parameters.UnMirrored * 0.5f);") HLSL_LINE_TERMINATOR;
+		Ret += TEXT("\tUV.Value = UV.Value * Scale + 0.5f;") HLSL_LINE_TERMINATOR;
+		Ret += TEXT("\tUV.Ddx *= Scale;") HLSL_LINE_TERMINATOR;
+		Ret += TEXT("\tUV.Ddy *= Scale;") HLSL_LINE_TERMINATOR;
+		Ret += TEXT("\treturn UV;") HLSL_LINE_TERMINATOR;
+		Ret += TEXT("}") HLSL_LINE_TERMINATOR;
+		Ret += TEXT("") HLSL_LINE_TERMINATOR;
 	}
 	
 	if(bUnMirrorEnabled[1][0] || IsDebugGenerateAllFunctionsEnabled())
 	{
 		// UnMirrorU
-		Ret += TEXT("FloatDeriv2 UnMirrorU(FloatDeriv2 UV, FMaterialPixelParameters Parameters)") LINE_TERMINATOR;
-		Ret += TEXT("{") LINE_TERMINATOR;
-		Ret += TEXT("\tconst MaterialFloat Scale = (Parameters.UnMirrored * 0.5f);") LINE_TERMINATOR;
-		Ret += TEXT("\tUV.Value.x = UV.Value.x * Scale + 0.5f;") LINE_TERMINATOR;
-		Ret += TEXT("\tUV.Ddx.x *= Scale;") LINE_TERMINATOR;
-		Ret += TEXT("\tUV.Ddy.x *= Scale;") LINE_TERMINATOR;
-		Ret += TEXT("\treturn UV;") LINE_TERMINATOR;
-		Ret += TEXT("}") LINE_TERMINATOR;
-		Ret += TEXT("") LINE_TERMINATOR;
+		Ret += TEXT("FloatDeriv2 UnMirrorU(FloatDeriv2 UV, FMaterialPixelParameters Parameters)") HLSL_LINE_TERMINATOR;
+		Ret += TEXT("{") HLSL_LINE_TERMINATOR;
+		Ret += TEXT("\tconst MaterialFloat Scale = (Parameters.UnMirrored * 0.5f);") HLSL_LINE_TERMINATOR;
+		Ret += TEXT("\tUV.Value.x = UV.Value.x * Scale + 0.5f;") HLSL_LINE_TERMINATOR;
+		Ret += TEXT("\tUV.Ddx.x *= Scale;") HLSL_LINE_TERMINATOR;
+		Ret += TEXT("\tUV.Ddy.x *= Scale;") HLSL_LINE_TERMINATOR;
+		Ret += TEXT("\treturn UV;") HLSL_LINE_TERMINATOR;
+		Ret += TEXT("}") HLSL_LINE_TERMINATOR;
+		Ret += TEXT("") HLSL_LINE_TERMINATOR;
 	}
 	
 	if (bUnMirrorEnabled[0][1] || IsDebugGenerateAllFunctionsEnabled())
 	{
 		// UnMirrorV
-		Ret += TEXT("FloatDeriv2 UnMirrorV(FloatDeriv2 UV, FMaterialPixelParameters Parameters)") LINE_TERMINATOR;
-		Ret += TEXT("{") LINE_TERMINATOR;
-		Ret += TEXT("\tconst MaterialFloat Scale = (Parameters.UnMirrored * 0.5f);") LINE_TERMINATOR;
-		Ret += TEXT("\tUV.Value.y = UV.Value.y * Scale + 0.5f;") LINE_TERMINATOR;
-		Ret += TEXT("\tUV.Ddx.y *= Scale;") LINE_TERMINATOR;
-		Ret += TEXT("\tUV.Ddy.y *= Scale;") LINE_TERMINATOR;
-		Ret += TEXT("\treturn UV;") LINE_TERMINATOR;
-		Ret += TEXT("}") LINE_TERMINATOR;
-		Ret += TEXT("") LINE_TERMINATOR;
+		Ret += TEXT("FloatDeriv2 UnMirrorV(FloatDeriv2 UV, FMaterialPixelParameters Parameters)") HLSL_LINE_TERMINATOR;
+		Ret += TEXT("{") HLSL_LINE_TERMINATOR;
+		Ret += TEXT("\tconst MaterialFloat Scale = (Parameters.UnMirrored * 0.5f);") HLSL_LINE_TERMINATOR;
+		Ret += TEXT("\tUV.Value.y = UV.Value.y * Scale + 0.5f;") HLSL_LINE_TERMINATOR;
+		Ret += TEXT("\tUV.Ddx.y *= Scale;") HLSL_LINE_TERMINATOR;
+		Ret += TEXT("\tUV.Ddy.y *= Scale;") HLSL_LINE_TERMINATOR;
+		Ret += TEXT("\treturn UV;") HLSL_LINE_TERMINATOR;
+		Ret += TEXT("}") HLSL_LINE_TERMINATOR;
+		Ret += TEXT("") HLSL_LINE_TERMINATOR;
 	}
 
 	return Ret;

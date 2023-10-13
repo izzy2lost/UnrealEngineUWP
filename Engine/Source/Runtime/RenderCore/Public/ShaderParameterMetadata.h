@@ -452,7 +452,7 @@ private:
 
 	/** Strings for uniform buffer generated path and include, created once */
 	FString UniformBufferPath;		// Format:  "/Engine/Generated/UniformBuffers/%s.ush"
-	FString UniformBufferInclude;	// Format:  "#include \"/Engine/Generated/UniformBuffers/%s.ush\"" LINE_TERMINATOR
+	FString UniformBufferInclude;	// Format:  "#include \"/Engine/Generated/UniformBuffers/%s.ush\"" HLSL_LINE_TERMINATOR
 
 	/** Hashes for frequently used strings */
 	uint32 UniformBufferPathHash;

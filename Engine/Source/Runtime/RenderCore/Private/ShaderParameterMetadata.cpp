@@ -947,7 +947,7 @@ void FShaderParametersMetadata::InitializeUniformBufferDeclaration()
 
 		// Cache strings for uniform buffer generated path and include
 		UniformBufferPath = FString::Printf(TEXT("/Engine/Generated/UniformBuffers/%s.ush"), ShaderVariableName);
-		UniformBufferInclude = FString::Printf(TEXT("#include \"/Engine/Generated/UniformBuffers/%s.ush\"") LINE_TERMINATOR, ShaderVariableName);
+		UniformBufferInclude = FString::Printf(TEXT("#include \"/Engine/Generated/UniformBuffers/%s.ush\"") HLSL_LINE_TERMINATOR, ShaderVariableName);
 
 		// Cache some frequently used hashes
 		UniformBufferPathHash = GetTypeHash(UniformBufferPath);

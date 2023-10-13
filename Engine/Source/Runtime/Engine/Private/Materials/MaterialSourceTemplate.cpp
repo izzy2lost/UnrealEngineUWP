@@ -52,6 +52,10 @@ bool FMaterialSourceTemplate::Preload(EShaderPlatform ShaderPlatform)
 	FString MaterialTemplateString;
 	LoadShaderSourceFileChecked(TEXT("/Engine/Private/MaterialTemplate.ush"), ShaderPlatform, MaterialTemplateString);
 
+	// Normalize line endings -- preprocessor does this later if necessary, but that can run faster if it's already done, and doing it here
+	// means it only happens once when the template gets loaded, rather than for every Material shader.
+	MaterialTemplateString.ReplaceInline(TEXT("\r\n"), TEXT("\n"), ESearchCase::CaseSensitive);
+
 	// Find the string index of the '#line' statement in MaterialTemplate.usf
 	const int32 LineIndex = MaterialTemplateString.Find(TEXT("#line"), ESearchCase::CaseSensitive);
 	check(LineIndex != INDEX_NONE);
@@ -62,7 +66,6 @@ bool FMaterialSourceTemplate::Preload(EShaderPlatform ShaderPlatform)
 	do
 	{
 		TemplateLineNumber++;
-		// Using \n instead of LINE_TERMINATOR as not all of the lines are terminated consistently
 		// Subtract one from the last found line ending index to make sure we skip over it
 		StartPosition = MaterialTemplateString.Find(TEXT("\n"), ESearchCase::CaseSensitive, ESearchDir::FromEnd, StartPosition - 1);
 	} while (StartPosition != INDEX_NONE);

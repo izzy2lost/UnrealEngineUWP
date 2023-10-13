@@ -1068,7 +1068,7 @@ bool FShaderParameterParser::MoveShaderParametersToRootConstantBuffer(
 				if (ParsedParameter->ConstantBufferParameterType == EShaderParameterType::BindlessResourceIndex)
 				{
 					RootCBufferContent.Append(FString::Printf(
-						TEXT("uint BindlessResource_%.*s : packoffset(c%d%s);\r\n"),
+						TEXT("uint BindlessResource_%.*s : packoffset(c%d%s);\n"),
 						SVARG(ParsedParameter->ParsedName),
 						ConstantRegister,
 						ConstantSwizzle));
@@ -1076,7 +1076,7 @@ bool FShaderParameterParser::MoveShaderParametersToRootConstantBuffer(
 				else if (ParsedParameter->ConstantBufferParameterType == EShaderParameterType::BindlessSamplerIndex)
 				{
 					RootCBufferContent.Append(FString::Printf(
-						TEXT("uint BindlessSampler_%.*s : packoffset(c%d%s);\r\n"),
+						TEXT("uint BindlessSampler_%.*s : packoffset(c%d%s);\n"),
 						SVARG(ParsedParameter->ParsedName),
 						ConstantRegister,
 						ConstantSwizzle));
@@ -1086,7 +1086,7 @@ bool FShaderParameterParser::MoveShaderParametersToRootConstantBuffer(
 					if (!ParsedParameter->ParsedArraySize.IsEmpty())
 					{
 						RootCBufferContent.Append(FString::Printf(
-							TEXT("%.*s %s[%.*s] : packoffset(c%d%s);\r\n"),
+							TEXT("%.*s %s[%.*s] : packoffset(c%d%s);\n"),
 							SVARG(ParsedParameter->ParsedType),
 							ShaderBindingName,
 							SVARG(ParsedParameter->ParsedArraySize),
@@ -1096,7 +1096,7 @@ bool FShaderParameterParser::MoveShaderParametersToRootConstantBuffer(
 					else
 					{
 						RootCBufferContent.Append(FString::Printf(
-							TEXT("%.*s %s : packoffset(c%d%s);\r\n"),
+							TEXT("%.*s %s : packoffset(c%d%s);\n"),
 							SVARG(ParsedParameter->ParsedType),
 							ShaderBindingName,
 							ConstantRegister,
@@ -1109,10 +1109,10 @@ bool FShaderParameterParser::MoveShaderParametersToRootConstantBuffer(
 		});
 
 		FString CBufferCodeBlock = FString::Printf(
-			TEXT("%s %s\r\n")
-			TEXT("{\r\n")
+			TEXT("%s %s\n")
+			TEXT("{\n")
 			TEXT("%s")
-			TEXT("}\r\n\r\n"),
+			TEXT("}\n\n"),
 			ConstantBufferType,
 			FShaderParametersMetadata::kRootUniformBufferBindingName,
 			*RootCBufferContent);
