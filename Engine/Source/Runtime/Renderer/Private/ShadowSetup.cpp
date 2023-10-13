@@ -34,7 +34,6 @@
 #include "VirtualShadowMaps/VirtualShadowMapClipmap.h"
 #include "InstanceCulling/InstanceCullingManager.h"
 #include "Shadows/ShadowSceneRenderer.h"
-#include "Lumen/Lumen.h"
 #include "RenderCore.h"
 #include "StaticMeshBatch.h"
 #include "UnrealEngine.h"
@@ -5761,7 +5760,6 @@ void FSceneRenderer::CreateDynamicShadows(FDynamicShadowsTaskData& TaskData)
 	const bool bProjectEnablePointLightShadows = Scene->ReadOnlyCVARCache.bEnablePointLightShadows && !bMobile; // Point light shadow is unsupported on mobile for now.
 	const bool bProjectEnableMovableDirectionLightShadows = !bMobile || Scene->ReadOnlyCVARCache.bMobileAllowMovableDirectionalLights;
 	const bool bProjectEnableMovableSpotLightShadows = !bMobile || IsMobileMovableSpotlightShadowsEnabled(ShaderPlatform);
-	const bool bUseLumenDirectLighting = ShouldRenderLumenDirectLighting(Scene, Views[0]);
 
 	uint32 NumPointShadowCachesUpdatedThisFrame = 0;
 	uint32 NumSpotShadowCachesUpdatedThisFrame = 0;
@@ -5800,14 +5798,6 @@ void FSceneRenderer::CreateDynamicShadows(FDynamicShadowsTaskData& TaskData)
 				const FLightOcclusionType OcclusionType = GetLightOcclusionType(LightSceneInfoCompact);
 				if (OcclusionType != FLightOcclusionType::Shadowmap)
 					continue;
-
-				const bool bHandledByLumenDirectLighting = bUseLumenDirectLighting &&
-					LightSceneInfoCompact.LightType != LightType_Directional;
-
-				if (bHandledByLumenDirectLighting)
-				{
-					continue;
-				}
 
 				// Only consider lights that may have shadows.
 				if (LightSceneInfoCompact.bCastStaticShadow || LightSceneInfoCompact.bCastDynamicShadow)

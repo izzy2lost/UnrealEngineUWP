@@ -84,7 +84,8 @@ struct FLocalLightData
 	// Derived terms after unpacking
 	/** Flag is true if clustered deferred is supported for this light. They are always first / together.*/
 	bool bClusteredDeferredSupported;
-	bool bLumenLightSupported;
+	// True if stochastic shadows are support for this light.
+	bool bStochasticShadowsSupported;
 	/** Flag is true if it is a simple light. They are always first / together.*/
 	bool bIsSimpleLight;
 	/** Virtual shadow map ID or INDEX_NONE if not present. */

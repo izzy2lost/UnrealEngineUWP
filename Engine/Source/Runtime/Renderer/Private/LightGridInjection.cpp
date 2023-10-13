@@ -32,6 +32,7 @@ LightGridInjection.cpp
 #include "ShaderPrint.h"
 #include "ShaderPrintParameters.h"
 #include "RenderUtils.h"
+#include "StochasticShadows/StochasticShadows.h"
 
 int32 GLightGridPixelSize = 64;
 FAutoConsoleVariableRef CVarLightGridPixelSize(
@@ -456,7 +457,7 @@ FComputeLightGridOutput FSceneRenderer::ComputeLightGrid(FRDGBuilder& GraphBuild
 		// Track the end markers for different types
 		int32 SimpleLightsEnd = 0;
 		int32 ClusteredSupportedEnd = 0;
-		int32 LumenSupportedStart = 0;
+		int32 StochasticShadowsSupportedStart = 0;
 
 		const float Exposure = View.GetLastEyeAdaptationExposure();
 
@@ -515,7 +516,7 @@ FComputeLightGridOutput FSceneRenderer::ComputeLightGrid(FRDGBuilder& GraphBuild
 			int32 SelectedForwardDirectionalLightPriority = -1;
 			const TArray<FSortedLightSceneInfo, SceneRenderingAllocator>& SortedLights = SortedLightSet.SortedLights;
 			ClusteredSupportedEnd = SimpleLightsEnd;
-			LumenSupportedStart = MAX_int32;
+			StochasticShadowsSupportedStart = MAX_int32;
 			// Next add all the other lights, track the end index for clustered supporting lights
 			for (int32 SortedIndex = SimpleLightsEnd; SortedIndex < SortedLights.Num(); ++SortedIndex)
 			{
@@ -558,9 +559,9 @@ FComputeLightGridOutput FSceneRenderer::ComputeLightGrid(FRDGBuilder& GraphBuild
 							ClusteredSupportedEnd = FMath::Max(ClusteredSupportedEnd, ForwardLocalLightData.Num());
 						}
 
-						if (SortedLightInfo.SortKey.Fields.bHandledByLumen && LumenSupportedStart == MAX_int32)
+						if (SortedLightInfo.SortKey.Fields.bHandledByStochasticShadows && StochasticShadowsSupportedStart == MAX_int32)
 						{
-							LumenSupportedStart = ForwardLocalLightData.Num() - 1;
+							StochasticShadowsSupportedStart = ForwardLocalLightData.Num() - 1;
 						}
 						const float LightFade = GetLightFadeFactor(View, LightProxy);
 						LightParameters.Color *= LightFade;
@@ -733,7 +734,7 @@ FComputeLightGridOutput FSceneRenderer::ComputeLightGrid(FRDGBuilder& GraphBuild
 		ForwardLightData->LightGridPixelSizeShift = FMath::FloorLog2(GLightGridPixelSize);
 		ForwardLightData->SimpleLightsEndIndex = SimpleLightsEnd;
 		ForwardLightData->ClusteredDeferredSupportedEndIndex = ClusteredSupportedEnd;
-		ForwardLightData->LumenSupportedStartIndex = FMath::Min<int32>(LumenSupportedStart, NumLocalLightsFinal);
+		ForwardLightData->StochasticShadowsSupportedStartIndex = FMath::Min<int32>(StochasticShadowsSupportedStart, NumLocalLightsFinal);
 		ForwardLightData->DirectLightingShowFlag = ViewFamily.EngineShowFlags.DirectLighting ? 1 : 0;
 
 		// Clamp far plane to something reasonable
@@ -924,9 +925,7 @@ FComputeLightGridOutput FDeferredShadingSceneRenderer::GatherLightsAndComputeLig
 		&& CVarVirtualShadowOnePassProjection.GetValueOnRenderThread()
 		&& VirtualShadowMapArray.IsEnabled();
 
-	const bool bUseLumenDirectLighting = ShouldRenderLumenDirectLighting(Scene, Views[0]);
-
-	GatherAndSortLights(SortedLightSet, bShadowedLightsInClustered, bUseLumenDirectLighting);
+	GatherAndSortLights(SortedLightSet, bShadowedLightsInClustered);
 	
 	if (!bNeedLightGrid)
 	{

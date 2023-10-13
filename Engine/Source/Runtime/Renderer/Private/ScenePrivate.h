@@ -43,6 +43,7 @@
 #endif
 #include "Nanite/Nanite.h"
 #include "Lumen/LumenViewState.h"
+#include "StochasticShadows/StochasticShadowsViewState.h"
 #include "VolumetricRenderTargetViewStateData.h"
 #include "GPUScene.h"
 #include "DynamicBVH.h"
@@ -1016,6 +1017,7 @@ public:
 	TRefCountPtr<IPooledRenderTarget> SubsurfaceScatteringQualityHistoryRT;
 
 	FLumenViewState Lumen;
+	FStochasticShadowsViewState StochasticShadows;
 
 	// Pre-computed filter in spectral (i.e. FFT) domain along with data to determine if we need to up date it
 	struct {

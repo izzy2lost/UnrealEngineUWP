@@ -713,6 +713,10 @@ private:
 		FRDGTextureRef DistanceFieldNormal,
 		FRDGTextureRef& OutDynamicBentNormalAO);
 
+	void RenderStochasticShadows(
+		FRDGBuilder& GraphBuilder,
+		const FSceneTextures& SceneTextures);
+
 	FSSDSignalTextures RenderLumenFinalGather(
 		FRDGBuilder& GraphBuilder,
 		const FSceneTextures& SceneTextures,
@@ -720,7 +724,7 @@ private:
 		FRDGTextureRef LightingChannelsTexture,
 		FViewInfo& View,
 		FPreviousViewInfo* PreviousViewInfos,
-		bool bHasLumenLights,
+		bool bRenderDirectLighting,
 		class FLumenMeshSDFGridParameters& MeshSDFGridParameters,
 		LumenRadianceCache::FRadianceCacheInterpolationParameters& RadianceCacheParameters,
 		class FLumenScreenSpaceBentNormalParameters& ScreenSpaceBentNormalParameters,
@@ -733,7 +737,7 @@ private:
 		FRDGTextureRef LightingChannelsTexture,
 		FViewInfo& View,
 		FPreviousViewInfo* PreviousViewInfos,
-		bool bHasLumenLights,
+		bool bRenderDirectLighting,
 		class FLumenMeshSDFGridParameters& MeshSDFGridParameters,
 		LumenRadianceCache::FRadianceCacheInterpolationParameters& RadianceCacheParameters,
 		class FLumenScreenSpaceBentNormalParameters& ScreenBentNormalParameters,
@@ -1181,6 +1185,7 @@ private:
 	void PrepareLumenHardwareRayTracingReSTIR(const FViewInfo& View, TArray<FRHIRayTracingShader*>& OutRayGenShaders);
 	void PrepareLumenHardwareRayTracingVisualize(const FViewInfo& View, TArray<FRHIRayTracingShader*>& OutRayGenShaders);
 	static void PrepareLumenHardwareRayTracingVisualizeDeferredMaterial(const FViewInfo& View, TArray<FRHIRayTracingShader*>& OutRayGenShaders);
+	static void PrepareStochasticShadows(const FViewInfo& View, const FScene& Scene, TArray<FRHIRayTracingShader*>& OutRayGenShaders);
 
 	// Versions for setting up the deferred material pipeline
 	static void PrepareRayTracingReflectionsDeferredMaterial(const FViewInfo& View, const FScene& Scene, TArray<FRHIRayTracingShader*>& OutRayGenShaders);

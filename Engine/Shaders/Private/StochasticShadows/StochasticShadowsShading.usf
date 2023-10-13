@@ -1,0 +1,152 @@
+// Copyright Epic Games, Inc. All Rights Reserved.
+
+#define NON_DIRECTIONAL_DIRECT_LIGHTING 1
+#define SUPPORT_CONTACT_SHADOWS 0
+
+#include "../Common.ush"
+#include "../BlueNoise.ush"
+#include "../ShaderPrint.ush"
+#include "../LightGridCommon.ush"
+#include "StochasticShadows.ush"
+
+#define DEBUG_SHADOW_MASK 0
+
+RWTexture2D<float4> RWSceneColor;
+
+Texture2D<UNORM float> ShadingTileAtlas;
+Texture2D<uint> ShadingTileGridAllocator;
+StructuredBuffer<uint> ShadingTileGrid;
+StructuredBuffer<uint> ShadowMaskTileAllocator;
+StructuredBuffer<uint> ShadingTileAllocator;
+uint MaxShadowMaskTiles;
+uint MaxShadingTiles;
+
+/**
+ * Apply all lights per pixel using shadow data from the shadow mask.
+ */
+[numthreads(THREADGROUP_SIZE, THREADGROUP_SIZE, 1)]
+void ShadeLightSamplesWithShadowMaskCS(
+	uint3 GroupId : SV_GroupID,
+	uint3 GroupThreadId : SV_GroupThreadID,
+	uint3 DispatchThreadId : SV_DispatchThreadID)
+{
+	uint2 ScreenCoord = DispatchThreadId.xy;
+
+	if (all(ScreenCoord < View.ViewRectMinAndSize.zw))
+	{
+#if DEBUG_MODE
+		int2 DebugScreenCoord = View.CursorPosition.x >= 0 ? View.CursorPosition * View.ViewResolutionFraction : -1;
+		bool bDebug = all(ScreenCoord == DebugScreenCoord);
+		FShaderPrintContext Context = InitShaderPrintContext(true, float2(0.55, 0.05));
+#endif
+
+		float2 ScreenUV = (ScreenCoord + 0.5f) * View.BufferSizeAndInvSize.zw;
+		FGBufferData GBuffer = GetGBufferData(ScreenUV);
+
+		if (GBuffer.Depth > 0.0f)
+		{
+			uint2 ShadingTileCoord = GroupId.xy;
+			uint2 CoordInShadingTile = GroupThreadId.xy;
+
+			float3 TranslatedWorldPosition = GetTranslatedWorldPositionFromScreenUV(ScreenUV, GBuffer.Depth);		
+			float3 CameraVector = normalize(TranslatedWorldPosition - View.TranslatedWorldCameraOrigin);
+
+			float4 Radiance = 0.0f;
+			uint NumShadingTilesInCell = ShadingTileGridAllocator.Load(int3(ShadingTileCoord, 0));
+
+			#if DEBUG_MODE
+			if (bDebug)
+			{
+				Print(Context, TEXT("ShadeSamplesCS"));
+				Newline(Context);
+				Print(Context, TEXT("ScreenCoord: "));
+				Print(Context, ScreenCoord.x);
+				Print(Context, ScreenCoord.y);
+				Newline(Context);
+				Print(Context, TEXT("NumShadingTilesInCell: "));
+				Print(Context, NumShadingTilesInCell);
+				Newline(Context);
+				Print(Context, TEXT("ShadowMaskTiles: "));
+				Print(Context, MaxShadowMaskTiles);
+				Print(Context, ShadowMaskTileAllocator[0]);
+				Print(Context, float(ShadowMaskTileAllocator[0] * 8 * 8) / (View.ViewSizeAndInvSize.x * View.ViewSizeAndInvSize.y));
+				Newline(Context);
+				Print(Context, TEXT("ShadingTiles: "));
+				Print(Context, MaxShadingTiles);
+				Print(Context, ShadingTileAllocator[0]);
+				Print(Context, ShadingTileAllocator[0] / float(MaxShadingTiles));
+				Newline(Context);
+				Print(Context, TEXT("LightId   | Shadow    | Radiance"));
+			}
+			#endif
+
+			for (uint IndexInCell = 0; IndexInCell < NumShadingTilesInCell; ++IndexInCell)
+			{
+				const uint PackedShadingTile = ShadingTileGrid[GetShadingTileGridOffset(ShadingTileCoord, IndexInCell)];
+				const FShadingTile ShadingTile = UnpackShadingTile(PackedShadingTile);
+				FDeferredLightData LightData = ConvertToDeferredLight(GetLightSceneData(ShadingTile.LightSceneId));
+
+				uint2 ShadingTileAtlasCoord = GetShadingTileAtlasCoord(ShadingTile.ShadingTileIndex, CoordInShadingTile);
+
+				float ShadowFactor = ShadingTileAtlas[ShadingTileAtlasCoord];
+
+				#if DEBUG_MODE
+				if (bDebug)
+				{
+					Newline(Context);
+					Print(Context, ShadingTile.LightSceneId);
+					Print(Context, ShadowFactor);
+				}
+				#endif
+
+				#if DEBUG_SHADOW_MASK
+				{
+					Radiance += float4(normalize(LightData.Color) * ShadowFactor, 0.0f);
+				}
+				#endif
+
+				if (ShadowFactor > 0.0f)
+				{
+					GBuffer.Roughness = max(GBuffer.Roughness, View.MinRoughness);
+
+					float4 LightAttenuation = 1.0f;
+					float Dither = 0.5f;
+					float SurfaceShadow = 1;
+					float AmbientOcclusion = ShadowFactor;
+
+					// #sdl_todo: tile classification and better integration
+					GBuffer.ShadingModelID = SHADINGMODELID_DEFAULT_LIT;
+					LightData.ShadowedBits = 0;
+
+					float4 LightRadiance = GetDynamicLighting(
+						TranslatedWorldPosition,
+						CameraVector,
+						GBuffer, 
+						AmbientOcclusion,
+						GBuffer.ShadingModelID,
+						LightData,
+						LightAttenuation,
+						Dither,
+						ScreenCoord, 
+						SurfaceShadow);
+
+					#if DEBUG_MODE
+					if (bDebug)
+					{
+						Print(Context, LightRadiance);
+					}
+					#endif
+
+					#if !DEBUG_SHADOW_MASK
+					{
+						Radiance += LightRadiance * View.PreExposure;
+					}
+					#endif
+				}
+			}
+
+			// #sdl_todo: replace with a pixel shader?
+			RWSceneColor[ScreenCoord] = RWSceneColor[ScreenCoord] + Radiance;
+		}
+	}
+}

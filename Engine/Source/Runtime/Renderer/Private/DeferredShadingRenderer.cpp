@@ -97,6 +97,7 @@
 #include "WaterInfoTextureRendering.h"
 #include "SplineMeshSceneResources.h"
 #include "PostProcess/DebugAlphaChannel.h"
+#include "StochasticShadows/StochasticShadows.h"
 
 #if !UE_BUILD_SHIPPING
 #include "RenderCaptureInterface.h"
@@ -2439,7 +2440,7 @@ void FDeferredShadingSceneRenderer::CommitFinalPipelineState()
 				bHasSSGI || bUseLumen);
 
 			ViewPipelineState.Set(&FPerViewPipelineState::bClosestHZB, 
-				bHasSSGI || bUseLumen);
+				bHasSSGI || bUseLumen || StochasticShadows::IsUsingClosestHZB());
 		}
 	}
 
@@ -3790,7 +3791,6 @@ void FDeferredShadingSceneRenderer::Render(FRDGBuilder& GraphBuilder)
 		}
 
 		FAsyncLumenIndirectLightingOutputs AsyncLumenIndirectLightingOutputs;
-		const bool bHasLumenLights = SortedLightSet.LumenLightStart < SortedLightSet.SortedLights.Num();
 
 		GraphBuilder.FlushSetupQueue();
 
@@ -3812,7 +3812,7 @@ void FDeferredShadingSceneRenderer::Render(FRDGBuilder& GraphBuilder)
 				SceneTextures,
 				LumenFrameTemporaries,
 				LightingChannelsTexture,
-				bHasLumenLights,
+				/*bHasLumenLights*/ false,
 				AsyncLumenIndirectLightingOutputs);
 
 			// If we haven't already rendered shadow maps, render them now (due to forward shading or r.shadow.ShadowMapsRenderEarly)
@@ -3957,7 +3957,7 @@ void FDeferredShadingSceneRenderer::Render(FRDGBuilder& GraphBuilder)
 				SceneTextures,
 				LumenFrameTemporaries,
 				LightingChannelsTexture,
-				bHasLumenLights,
+				/*bHasLumenLights*/ false,
 				/* bCompositeRegularLumenOnly = */ false,
 				/* bIsVisualizePass = */ false,
 				AsyncLumenIndirectLightingOutputs);
@@ -3985,6 +3985,13 @@ void FDeferredShadingSceneRenderer::Render(FRDGBuilder& GraphBuilder)
 			RenderLights(GraphBuilder, SceneTextures, TranslucencyLightingVolumeTextures, LightingChannelsTexture, SortedLightSet);
 			GraphBuilder.SetCommandListStat(GET_STATID(STAT_CLM_AfterLighting));
 
+			if (SortedLightSet.StochasticShadowsLightStart < SortedLightSet.SortedLights.Num())
+			{
+				RenderStochasticShadows(
+					GraphBuilder,
+					SceneTextures);
+			}
+
 			InjectTranslucencyLightingVolumeAmbientCubemap(GraphBuilder, Views, TranslucencyLightingVolumeTextures);
 			FilterTranslucencyLightingVolume(GraphBuilder, Views, TranslucencyLightingVolumeTextures);
 
@@ -3994,7 +4001,7 @@ void FDeferredShadingSceneRenderer::Render(FRDGBuilder& GraphBuilder)
 				SceneTextures,
 				LumenFrameTemporaries,
 				LightingChannelsTexture,
-				bHasLumenLights,
+				/*bHasLumenLights*/ false,
 				/* bCompositeRegularLumenOnly = */ true,
 				/* bIsVisualizePass = */ false,
 				AsyncLumenIndirectLightingOutputs);
@@ -4627,6 +4634,7 @@ bool AnyRayTracingPassEnabled(const FScene* Scene, const FViewInfo& View)
 		|| Scene->bHasRayTracedLights
 		|| ShouldRenderPluginRayTracingGlobalIllumination(View)
         || Lumen::AnyLumenHardwareRayTracingPassEnabled(Scene, View)
+		|| StochasticShadows::UseHardwareRayTracing()
 		|| ShouldRenderRayTracingReflectionsWater(View)
 		|| HasRayTracedOverlay(*View.Family);
 }
