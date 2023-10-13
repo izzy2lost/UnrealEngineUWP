@@ -1464,7 +1464,8 @@ namespace UnrealBuildTool
 			if (Target.WindowsPlatform.Compiler.IsMSVC())
 			{
 				// If deterministic is enabled, MSVC does not use multiple threads
-				if (!CompileEnvironment.bDeterministic && !CompileEnvironment.bUseUnity)
+				// If we are building without unity files the multithread part balances out with the start/exit of all the actions
+				if (!CompileEnvironment.bDeterministic && CompileEnvironment.bUseUnity)
 				{
 					BaseCompileAction.Weight = Target.MSVCCompileActionWeight;
 				}
