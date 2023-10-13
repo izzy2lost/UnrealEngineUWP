@@ -3,6 +3,7 @@
 using System;
 using System.ComponentModel;
 using System.Globalization;
+using System.Text;
 using System.Text.Json;
 using System.Text.Json.Serialization;
 using EpicGames.Core;
@@ -41,6 +42,16 @@ namespace EpicGames.Horde.Storage
 		/// </summary>
 		/// <param name="outer">The base locator to append to</param>
 		/// <param name="fragment">Characters to append</param>
+		public BlobLocator(BlobLocator outer, string fragment)
+			: this(outer, Encoding.UTF8.GetBytes(fragment))
+		{
+		}
+
+		/// <summary>
+		/// Constructor
+		/// </summary>
+		/// <param name="outer">The base locator to append to</param>
+		/// <param name="fragment">Characters to append</param>
 		public BlobLocator(BlobLocator outer, ReadOnlySpan<byte> fragment)
 		{
 			byte[] buffer = new byte[outer._path.Length + 1 + fragment.Length];
@@ -59,6 +70,18 @@ namespace EpicGames.Horde.Storage
 			{
 				int hashIdx = _path.IndexOf('#');
 				return (hashIdx == -1) ? new BlobLocator(_path) : new BlobLocator(_path.Slice(0, hashIdx));
+			}
+		}
+
+		/// <summary>
+		/// Fragment within the base blob
+		/// </summary>
+		public Utf8String OutermostFragment
+		{
+			get
+			{
+				int hashIdx = _path.IndexOf('#');
+				return (hashIdx == -1) ? Utf8String.Empty : _path.Slice(hashIdx + 1);
 			}
 		}
 
