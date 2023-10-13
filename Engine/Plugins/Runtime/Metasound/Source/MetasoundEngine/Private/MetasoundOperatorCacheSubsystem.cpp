@@ -7,6 +7,7 @@
 #include "MetasoundOperatorCache.h"
 #include "Modules/ModuleManager.h"
 #include "Misc/Optional.h"
+#include "Sound/SoundGenerator.h"
 
 static TOptional<Metasound::FMetasoundGeneratorInitParams> CreateInitParams(UMetaSoundSource* InMetaSound, const FSoundGeneratorInitParams& InParams)
 {
