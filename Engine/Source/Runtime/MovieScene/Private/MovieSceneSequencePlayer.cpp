@@ -22,6 +22,11 @@
 #include "GameFramework/PlayerState.h"
 #include "Algo/BinarySearch.h"
 
+#if UE_WITH_IRIS
+#include "Iris/ReplicationSystem/ReplicationFragmentUtil.h"
+#include "Net/Iris/ReplicationSystem/ReplicationSystemUtil.h"
+#endif // UE_WITH_IRIS
+
 
 #include UE_INLINE_GENERATED_CPP_BY_NAME(MovieSceneSequencePlayer)
 
@@ -1968,6 +1973,13 @@ bool UMovieSceneSequencePlayer::CallRemoteFunction(UFunction* Function, void* Pa
 
 	return false;
 }
+
+#if UE_WITH_IRIS
+void UMovieSceneSequencePlayer::RegisterReplicationFragments(UE::Net::FFragmentRegistrationContext& Context, UE::Net::EFragmentRegistrationFlags RegistrationFlags)
+{
+	UE::Net::FReplicationFragmentUtil::CreateAndRegisterFragmentsForObject(this, Context, RegistrationFlags);
+}
+#endif
 
 bool UMovieSceneSequencePlayer::NeedsQueueLatentAction() const
 {

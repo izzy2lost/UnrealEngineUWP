@@ -261,7 +261,6 @@ protected:
 	//~ End IMovieScenePlaybackClient interface
 
 	//~ Begin UObject interface
-	LEVELSEQUENCE_API virtual bool ReplicateSubobjects(UActorChannel* Channel, FOutBunch* Bunch, FReplicationFlags *RepFlags) override;
 	LEVELSEQUENCE_API virtual void PostInitProperties() override;
 	LEVELSEQUENCE_API virtual void PostLoad() override;
 public:

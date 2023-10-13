@@ -548,6 +548,9 @@ protected:
 	MOVIESCENE_API virtual bool CallRemoteFunction(UFunction* Function, void* Parameters, FOutParmRec* OutParms, FFrame* Stack) override;
 	MOVIESCENE_API virtual void PostNetReceive() override;
 	MOVIESCENE_API virtual void BeginDestroy() override;
+#if UE_WITH_IRIS
+	MOVIESCENE_API virtual void RegisterReplicationFragments(UE::Net::FFragmentRegistrationContext& Context, UE::Net::EFragmentRegistrationFlags RegistrationFlags) override;
+#endif
 	/*~ End UObject interface */
 
 	//~ Begin IMovieSceneSequenceTickManagerClient interface

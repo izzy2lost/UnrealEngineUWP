@@ -63,8 +63,6 @@ ALevelSequenceActor::ALevelSequenceActor(const FObjectInitializer& Init)
 	bIsSpatiallyLoaded = false;
 #endif //WITH_EDITORONLY_DATA
 
-	bReplicateUsingRegisteredSubObjectList = false;
-
 	BindingOverrides = Init.CreateDefaultSubobject<UMovieSceneBindingOverrides>(this, "BindingOverrides");
 	BurnInOptions = Init.CreateDefaultSubobject<ULevelSequenceBurnInOptions>(this, "BurnInOptions");
 	DefaultInstanceData = Init.CreateDefaultSubobject<UDefaultLevelSequenceInstanceData>(this, "InstanceData");
@@ -139,15 +137,6 @@ void ALevelSequenceActor::SetReplicatePlayback(bool bInReplicatePlayback)
 	SetReplicates(bReplicatePlayback);
 }
 
-bool ALevelSequenceActor::ReplicateSubobjects(UActorChannel* Channel, FOutBunch* Bunch, FReplicationFlags* RepFlags)
-{
-	bool bWroteSomething = Super::ReplicateSubobjects(Channel, Bunch, RepFlags);
-
-	bWroteSomething |= Channel->ReplicateSubobject(SequencePlayer, *Bunch, *RepFlags);
-
-	return bWroteSomething;
-}
-
 void ALevelSequenceActor::GetLifetimeReplicatedProps(TArray<FLifetimeProperty>& OutLifetimeProps) const
 {
 	Super::GetLifetimeReplicatedProps(OutLifetimeProps);
@@ -176,6 +165,11 @@ void ALevelSequenceActor::BeginPlay()
 {
 	Super::BeginPlay();
 
+	if (SequencePlayer)
+	{
+		AddReplicatedSubObject(SequencePlayer);
+	}
+
 	if (PlaybackSettings.bAutoPlay)
 	{
 		SequencePlayer->Play();
@@ -186,6 +180,8 @@ void ALevelSequenceActor::EndPlay(const EEndPlayReason::Type EndPlayReason)
 {
 	if (SequencePlayer)
 	{
+		RemoveReplicatedSubObject(SequencePlayer);
+
 		// Stop may modify a lot of actor state so it needs to be called
 		// during EndPlay (when Actors + World are still valid) instead
 		// of waiting for the UObject to be destroyed by GC.

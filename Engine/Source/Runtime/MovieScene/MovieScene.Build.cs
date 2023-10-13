@@ -21,6 +21,6 @@ public class MovieScene : ModuleRules
 				"TimeManagement"
 			}
 		);
-
-    }
+		SetupIrisSupport(Target);
+	}
 }
