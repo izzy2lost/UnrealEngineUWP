@@ -69,7 +69,7 @@ public class Core : ModuleRules
 			// We do not want the static analyzer to run on thirdparty code
 			if (Target.StaticAnalyzer == StaticAnalyzer.None) 
 			{
-				PublicSystemIncludePaths.Add(Path.Combine(Target.UEThirdPartySourceDirectory, "mimalloc/include"));
+				PrivateDependencyModuleNames.Add("mimalloc");
 				PrivateDefinitions.Add("PLATFORM_BUILDS_MIMALLOC=1");
 			}
 			
@@ -104,7 +104,7 @@ public class Core : ModuleRules
 				);
 			PublicFrameworks.AddRange(new string[] { "Cocoa", "Carbon", "IOKit", "Security" });
 
-			PublicSystemIncludePaths.Add(Path.Combine(Target.UEThirdPartySourceDirectory, "mimalloc/include"));
+			PrivateDependencyModuleNames.Add("mimalloc");
 			PrivateDefinitions.Add("PLATFORM_BUILDS_MIMALLOC=1");
 
 			if (Target.bBuildEditor == true)
@@ -160,7 +160,7 @@ public class Core : ModuleRules
 			// Core uses dlopen()
 			PublicSystemLibraries.Add("dl");
 
-			PublicSystemIncludePaths.Add(Path.Combine(Target.UEThirdPartySourceDirectory, "mimalloc/include"));
+			PrivateDependencyModuleNames.Add("mimalloc");
 			PrivateDefinitions.Add("PLATFORM_BUILDS_MIMALLOC=1");
 
 			if (Target.Configuration != UnrealTargetConfiguration.Shipping && Target.Type != TargetType.Program)
