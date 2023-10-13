@@ -108,6 +108,19 @@ void FPCGComponentDetails::CustomizeDetails(IDetailLayoutBuilder& DetailBuilder)
 			.Padding(4.0f)
 			[
 				SNew(SButton)
+				.OnClicked(this, &FPCGComponentDetails::OnRefreshClicked)
+				.Visibility(this, &FPCGComponentDetails::RefreshButtonVisible)
+				[
+					SNew(STextBlock)
+					.Font(IDetailLayoutBuilder::GetDetailFont())
+					.Text(LOCTEXT("RefreshButton", "Refresh"))
+				]
+			]
+			+ SHorizontalBox::Slot()
+			.AutoWidth()
+			.Padding(4.0f)
+			[
+				SNew(SButton)
 				.OnClicked(this, &FPCGComponentDetails::OnClearPCGLinkClicked)
 				[
 					SNew(STextBlock)
@@ -183,6 +196,19 @@ EVisibility FPCGComponentDetails::CleanupButtonVisible() const
 	return EVisibility::Collapsed;
 }
 
+EVisibility FPCGComponentDetails::RefreshButtonVisible() const
+{
+	for (const TWeakObjectPtr<UPCGComponent>& Component : SelectedComponents)
+	{
+		if (Component.IsValid() && Component->GenerationTrigger == EPCGComponentGenerationTrigger::GenerateAtRuntime)
+		{
+			return EVisibility::Visible;
+		}
+	}
+
+	return EVisibility::Collapsed;
+}
+
 FReply FPCGComponentDetails::OnGenerateClicked()
 {
 	for (TWeakObjectPtr<UPCGComponent>& Component : SelectedComponents)
@@ -203,6 +229,19 @@ FReply FPCGComponentDetails::OnCancelClicked()
 		if (Component.IsValid())
 		{
 			Component.Get()->CancelGeneration();
+		}
+	}
+
+	return FReply::Handled();
+}
+
+FReply FPCGComponentDetails::OnRefreshClicked()
+{
+	for (TWeakObjectPtr<UPCGComponent>& Component : SelectedComponents)
+	{
+		if (Component.IsValid())
+		{
+			Component.Get()->Refresh();
 		}
 	}
 

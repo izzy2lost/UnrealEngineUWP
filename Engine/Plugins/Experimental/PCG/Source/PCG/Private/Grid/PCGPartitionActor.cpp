@@ -171,6 +171,7 @@ void APCGPartitionActor::PostRegisterAllComponents()
 
 void APCGPartitionActor::BeginPlay()
 {
+	// bIsRuntimeGenerated is not set yet, so we also need to check if the PA is transient.
 	if (!IsRuntimeGenerated() && !HasAnyFlags(RF_Transient))
 	{
 		// Pass through all the pcg components, to verify if we need to generate them.

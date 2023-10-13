@@ -28,9 +28,11 @@ private:
 	EVisibility GenerateButtonVisible() const;
 	EVisibility CancelButtonVisible() const;
 	EVisibility CleanupButtonVisible() const;
+	EVisibility RefreshButtonVisible() const;
 	FReply OnGenerateClicked();
 	FReply OnCancelClicked();
 	FReply OnCleanupClicked();
+	FReply OnRefreshClicked();
 	FReply OnClearPCGLinkClicked();
 	void OnGraphChanged(UPCGComponent* InComponent);
 

@@ -75,6 +75,9 @@ protected:
 	/** Cleanup a component and remove it from the GeneratedComponents set. */
 	void CleanupComponent(const FGridGenerationKey& GenerationKey, UPCGComponent* GeneratedComponent);
 
+	/** Refresh a generated component. bRemovePartitionActors will also perform a full cleanup of PAs and local components. */
+	void RefreshComponent(UPCGComponent* InComponent, bool bRemovePartitionActors = false);
+
 	/** Creates an empty RuntimeGen PA on demand if one cannot already be found in the level. PA will be created for the given GridSize and GridCoords. */
 	APCGPartitionActor* FindOrCreatePartitionActor(uint32 GridSize, const FIntVector& GridCoords);
 	

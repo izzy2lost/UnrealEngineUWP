@@ -410,13 +410,14 @@ FPCGTaskId UPCGSubsystem::ScheduleComponent(UPCGComponent* PCGComponent, EPCGHiG
 
 		auto LocalGenerateTask = [OriginalComponent = PCGComponent, Grid, &Dependencies, bSave, &GridSizes](UPCGComponent* LocalComponent)
 		{
-			const uint32 LocalComponentGridSize = LocalComponent->GetGenerationGridSize();
-			if (!GridSizes.Contains(LocalComponentGridSize))
+			if (!GridSizes.Contains(LocalComponent->GetGenerationGridSize()))
 			{
-				return InvalidPCGTaskId;
+				// Local component with invalid grid size. Grid sizes may have changed in graph.
+				return LocalComponent->CleanupInternal(/*bRemoveComponents=*/true, /*bSave=*/true, Dependencies);
 			}
 			else if (Grid != EPCGHiGenGrid::Uninitialized && !(Grid & LocalComponent->GetGenerationGrid()))
 			{
+				// Grid size does not match the given target grid, so skip.
 				return InvalidPCGTaskId;
 			}
 
@@ -657,6 +658,19 @@ void UPCGSubsystem::CancelAllGeneration()
 	for (UPCGComponent* Component : CancelledComponents)
 	{
 		Component->OnProcessGraphAborted(/*bQuiet=*/true);
+	}
+}
+
+void UPCGSubsystem::RefreshRuntimeGenComponent(UPCGComponent* RuntimeComponent, bool bRemovePartitionActors)
+{
+	if (!ensure(RuntimeComponent && RuntimeComponent->GenerationTrigger == EPCGComponentGenerationTrigger::GenerateAtRuntime))
+	{
+		return;
+	}
+
+	if (ensure(RuntimeGenScheduler))
+	{
+		RuntimeGenScheduler->RefreshComponent(RuntimeComponent, bRemovePartitionActors);
 	}
 }
 

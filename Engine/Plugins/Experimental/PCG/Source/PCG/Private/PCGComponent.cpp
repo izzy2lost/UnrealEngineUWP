@@ -281,9 +281,9 @@ void UPCGComponent::GenerateLocal(bool bForce)
 	GenerateInternal(bForce, EPCGHiGenGrid::Uninitialized, EPCGComponentGenerationTrigger::GenerateOnDemand, {});
 }
 
-void UPCGComponent::GenerateLocal(EPCGComponentGenerationTrigger RequestedGenerationTrigger, bool bForce, EPCGHiGenGrid Grid)
+void UPCGComponent::GenerateLocal(EPCGComponentGenerationTrigger RequestedGenerationTrigger, bool bForce, EPCGHiGenGrid Grid, const TArray<FPCGTaskId>& Dependencies)
 {
-	GenerateInternal(bForce, Grid, RequestedGenerationTrigger, {});
+	GenerateInternal(bForce, Grid, RequestedGenerationTrigger, Dependencies);
 }
 
 FPCGTaskId UPCGComponent::GenerateLocalGetTaskId(bool bForce)
@@ -1454,6 +1454,23 @@ void UPCGComponent::RefreshAfterGraphChanged(UPCGGraphInterface* InGraph, bool b
 }
 
 #if WITH_EDITOR
+void UPCGComponent::PreEditChange(FProperty* PropertyAboutToChange)
+{
+	Super::PreEditChange(PropertyAboutToChange);
+
+	if (PropertyAboutToChange && PropertyAboutToChange->GetFName() == GET_MEMBER_NAME_CHECKED(UPCGComponent, GenerationTrigger))
+	{
+		if (GenerationTrigger == EPCGComponentGenerationTrigger::GenerateAtRuntime)
+		{
+			if (UPCGSubsystem* Subsystem = GetSubsystem())
+			{
+				// When toggling off of GenerateAtRuntime, we should flush the RuntimeGenScheduler state for this component.
+				Subsystem->RefreshRuntimeGenComponent(this, /*bRemovePartitionActors=*/true);
+			}
+		}
+	}
+}
+
 void UPCGComponent::PostEditChangeProperty(FPropertyChangedEvent& PropertyChangedEvent)
 {
 	if (!PropertyChangedEvent.Property || !IsValid(this))
@@ -1538,11 +1555,6 @@ void UPCGComponent::PostEditChangeProperty(FPropertyChangedEvent& PropertyChange
 	} 
 	else if (PropName == GET_MEMBER_NAME_CHECKED(UPCGComponent, GenerationTrigger))
 	{
-		if (GenerationTrigger == EPCGComponentGenerationTrigger::GenerateAtRuntime)
-		{
-			CleanupLocalImmediate(/*bRemoveComponents=*/true);
-		}
-
 		if (!SchedulingPolicy)
 		{
 			RefreshSchedulingPolicy();
@@ -1554,7 +1566,16 @@ void UPCGComponent::PostEditChangeProperty(FPropertyChangedEvent& PropertyChange
 			SchedulingPolicy->SetShouldDisplayProperties(GenerationTrigger == EPCGComponentGenerationTrigger::GenerateAtRuntime);
 		}
 
-		Refresh();
+		if (GenerationTrigger == EPCGComponentGenerationTrigger::GenerateAtRuntime)
+		{
+			// If we have been set to GenerateAtRuntime, we should cleanup any artifacts.
+			// TODO: Should this include PartitionActors?
+			CleanupLocalImmediate(/*bRemoveComponents=*/true);
+		}
+		else
+		{
+			Refresh();
+		}
 	}
 	// General properties that don't affect behavior
 	else
@@ -1822,9 +1843,15 @@ void UPCGComponent::Refresh(bool bStructural)
 		return;
 	}
 
-	// Do not allow automatic refreshing for runtime generation components.
+	// Runtime component refreshes should go through the runtime scheduler.
 	if (GenerationTrigger == EPCGComponentGenerationTrigger::GenerateAtRuntime)
 	{
+		if (UPCGSubsystem* Subsystem = GetSubsystem())
+		{
+			// TODO: We only need to remove PAs if the grid sizes changed. Is there a reliable way to know that?
+			Subsystem->RefreshRuntimeGenComponent(this, /*bRemovePartitionActors=*/true);
+		}
+
 		return;
 	}
 

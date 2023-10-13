@@ -121,6 +121,9 @@ public:
 	/** Cancels currently running generation on given graph */
 	void CancelGeneration(UPCGGraph* Graph);
 
+	/** Asks the runtime generation scheduler to refresh a given GenerateAtRuntime component. bRemovePartitionActors will also perform a full cleanup of PAs and local components. */
+	void RefreshRuntimeGenComponent(UPCGComponent* RuntimeComponent, bool bRemovePartitionActors = false);
+
 	/** Returns true if there are any tasks for this graph currently scheduled or executing. */
 	bool IsGraphCurrentlyExecuting(UPCGGraph* Graph);
 
