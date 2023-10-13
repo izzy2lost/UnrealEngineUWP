@@ -1454,7 +1454,7 @@ void UGameFeaturesSubsystem::LoadBuiltInGameFeaturePlugin(const TSharedRef<IPlug
 
 	FString PluginURL;
 	FGameFeaturePluginDetails PluginDetails;
-	if (GetGameFeaturePluginDetails(Plugin, PluginURL, PluginDetails))
+	if (GetBuiltInGameFeaturePluginDetails(Plugin, PluginURL, PluginDetails))
 	{
 		if (GameSpecificPolicies->IsPluginAllowed(PluginURL))
 		{
@@ -1730,6 +1730,11 @@ EGameFeaturePluginState UGameFeaturesSubsystem::GetPluginState(FGameFeaturePlugi
 
 bool UGameFeaturesSubsystem::GetGameFeaturePluginDetails(const TSharedRef<IPlugin>& Plugin, FString& OutPluginURL, FGameFeaturePluginDetails& OutPluginDetails) const
 {
+	return GetBuiltInGameFeaturePluginDetails(Plugin, OutPluginURL, OutPluginDetails);
+}
+
+bool UGameFeaturesSubsystem::GetBuiltInGameFeaturePluginDetails(const TSharedRef<IPlugin>& Plugin, FString& OutPluginURL, FGameFeaturePluginDetails& OutPluginDetails) const
+{
 	// @TODO: this problematic because it assumes file protocol.
 	// Ideally this would work with any protocol, but for current uses cases the exact protocol doesn't seem to matter.
 
@@ -1750,14 +1755,20 @@ bool UGameFeaturesSubsystem::GetGameFeaturePluginDetails(const TSharedRef<IPlugi
 
 		if (bIsFileProtocol)
 		{
-			return GetGameFeaturePluginDetails(OutPluginURL, PluginDescriptorFilename, OutPluginDetails);
+			return GetGameFeaturePluginDetailsInternal(PluginDescriptorFilename, OutPluginDetails);
 		}
 	}
 
 	return false;
 }
 
-bool UGameFeaturesSubsystem::GetGameFeaturePluginDetails(const FString& PluginURL, const FString& PluginDescriptorFilename, FGameFeaturePluginDetails& OutPluginDetails) const
+bool UGameFeaturesSubsystem::GetGameFeaturePluginDetails(FString PluginURL, FGameFeaturePluginDetails& OutPluginDetails) const
+{
+	FGameFeaturePluginIdentifier Ident(MoveTemp(PluginURL));
+	return GetGameFeaturePluginDetailsInternal(FString(Ident.GetIdentifyingString()), OutPluginDetails);
+}
+
+bool UGameFeaturesSubsystem::GetGameFeaturePluginDetailsInternal(const FString& PluginDescriptorFilename, FGameFeaturePluginDetails& OutPluginDetails) const
 {
 	TRACE_CPUPROFILER_EVENT_SCOPE(GFP_GetPluginDetails);
 
@@ -2101,7 +2112,7 @@ void UGameFeaturesSubsystem::FinishTermination(UGameFeaturePluginStateMachine* M
 bool UGameFeaturesSubsystem::FindOrCreatePluginDependencyStateMachines(const FString& PluginURL, const FString& PluginFilename, const FGameFeatureProtocolOptions& InDepProtocolOptions, TArray<UGameFeaturePluginStateMachine*>& OutDependencyMachines)
 {
 	FGameFeaturePluginDetails Details;
-	if (GetGameFeaturePluginDetails(PluginURL, PluginFilename, Details))
+	if (GetGameFeaturePluginDetailsInternal(PluginFilename, Details))
 	{
 		for (const FGameFeaturePluginReferenceDetails& PluginDependency : Details.PluginDependencies)
 		{
@@ -2152,7 +2163,7 @@ bool UGameFeaturesSubsystem::FindOrCreatePluginDependencyStateMachines(const FSt
 bool UGameFeaturesSubsystem::FindPluginDependencyStateMachinesToActivate(const FString& PluginURL, const FString& PluginFilename, TArray<UGameFeaturePluginStateMachine*>& OutDependencyMachines) const
 {
 	FGameFeaturePluginDetails Details;
-	if (GetGameFeaturePluginDetails(PluginURL, PluginFilename, Details))
+	if (GetGameFeaturePluginDetailsInternal(PluginFilename, Details))
 	{
 		for (const FGameFeaturePluginReferenceDetails& PluginDependency : Details.PluginDependencies)
 		{

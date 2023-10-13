@@ -560,7 +560,14 @@ public:
 	EGameFeaturePluginState GetPluginState(FGameFeaturePluginIdentifier PluginIdentifier) const;
 
 	/** Gets relevant properties out of a uplugin file */
+	UE_DEPRECATED(5.4, "Use GetBuiltInGameFeaturePluginDetails instead")
 	bool GetGameFeaturePluginDetails(const TSharedRef<IPlugin>& Plugin, FString& OutPluginURL, struct FGameFeaturePluginDetails& OutPluginDetails) const;
+
+	/** Gets relevant properties out of a uplugin file. Should only be used for built-in GFPs */
+	bool GetBuiltInGameFeaturePluginDetails(const TSharedRef<IPlugin>& Plugin, FString& OutPluginURL, struct FGameFeaturePluginDetails& OutPluginDetails) const;
+
+	/** Gets relevant properties out of a uplugin file if it's installed */
+	bool GetGameFeaturePluginDetails(FString PluginURL, struct FGameFeaturePluginDetails& OutPluginDetails) const;
 
 	/** Determine the initial feature state for a built-in plugin */
 	static EBuiltInAutoState DetermineBuiltInInitialFeatureState(TSharedPtr<FJsonObject> Descriptor, const FString& ErrorContext);
@@ -620,7 +627,7 @@ private:
 	const UGameFeatureData* GetRegisteredDataForStateMachine(UGameFeaturePluginStateMachine* GFSM) const;
 
 	/** Gets relevant properties out of a uplugin file */
-	bool GetGameFeaturePluginDetails(const FString& PluginURL, const FString& PluginDescriptorFilename, struct FGameFeaturePluginDetails& OutPluginDetails) const;
+	bool GetGameFeaturePluginDetailsInternal(const FString& PluginDescriptorFilename, struct FGameFeaturePluginDetails& OutPluginDetails) const;
 
 	/** Prunes any cached GFP details */
 	void PruneCachedGameFeaturePluginDetails(const FString& PluginURL, const FString& PluginDescriptorFilename) const;
