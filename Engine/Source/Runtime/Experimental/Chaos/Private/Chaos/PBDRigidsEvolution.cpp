@@ -1065,6 +1065,11 @@ namespace Chaos
 			{
 				Particle->SetSleepCounter(0);
 			}
+
+			// If we are not kinematic, the MovingKinematic flag should be cleared
+			// If we are kinematic and are (or become) moving, the flag will be updated in ApplyKinematicTargets
+			// Either way, we can reset the flag here
+			Particle->ClearIsMovingKinematic();
 		}
 
 		// If we are now dynamic and enabled, we need to be in the graph if not already there. We may not be

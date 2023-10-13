@@ -51,63 +51,75 @@ namespace Chaos
 				return false;
 			}
 
-			bool bIsKinematic1 = true;
+			bool bIsMovingKinematic1 = false;
 			bool bIsDynamicAwake1 = false;
 			bool bIsDynamicAsleep1 = false;
 			const FPBDRigidParticleHandle* Rigid1 = Particle1->CastToRigidParticle();
 			if (Rigid1 != nullptr)
 			{
-				bIsKinematic1 = Rigid1->IsKinematic();
-				bIsDynamicAsleep1 = !bIsKinematic1 && Rigid1->IsSleeping();
-				bIsDynamicAwake1 = !bIsKinematic1 && !bIsDynamicAsleep1;
+				bIsMovingKinematic1 = Rigid1->IsMovingKinematic();
+				bIsDynamicAsleep1 = Rigid1->IsDynamic() && Rigid1->IsSleeping();
+				bIsDynamicAwake1 = Rigid1->IsDynamic() && !Rigid1->IsSleeping();;
 			}
 
-			bool bIsKinematic2 = true;
+			bool bIsMovingKinematic2 = false;
 			bool bIsDynamicAwake2 = false;
 			bool bIsDynamicAsleep2 = false;
 			const FPBDRigidParticleHandle* Rigid2 = Particle2->CastToRigidParticle();
 			if (Rigid2 != nullptr)
 			{
-				bIsKinematic2 = Rigid2->IsKinematic();
-				bIsDynamicAsleep2 = !bIsKinematic2 && Rigid2->IsSleeping();
-				bIsDynamicAwake2 = !bIsKinematic2 && !bIsDynamicAsleep2;
+				bIsMovingKinematic2 = Rigid2->IsMovingKinematic();
+				bIsDynamicAsleep2 = Rigid2->IsDynamic() && Rigid2->IsSleeping();
+				bIsDynamicAwake2 = Rigid2->IsDynamic() && !Rigid2->IsSleeping();
 			}
 
-			// In both cases (resim or not) we will generate (1) dynamic-(sleeping,kinematic(steady+moving),static) pairs + (2) sleeping-moving kinematic ones
-			// Sleeping particles could collide with dynamic ones but these collisions are already handled in case 1
-			// Sleeping particles won't collide with static or steady kinematic particles since neither are moving
-			// Sleeping particles will collide against moving kinematic particles
-			bool bAcceptParticlePair = false;
-			if ((bIsDynamicAwake1 && !bIsDynamicAwake2) || (bIsDynamicAsleep1 && bIsKinematic2))
-			{
-				bAcceptParticlePair = true;
-			}
-
-			// Used to determine a winner in cases where we will visit particle pairs in both orders
+			// Used to determine a winner in cases where we visit particle pairs in both orders
 			const bool bIsParticle1Preferred = AreParticlesInPreferredOrder(Particle1, Particle2);
 
+			bool bAcceptParticlePair = false;
 			if (!bIsResimming)
 			{
-				// Normally (not resimming) we iterate over dynamic and asleep|kinematic particles, so:
-				// - Particle1 is dynamic, asleep OR kinematic
-				// - Particle2 may be static, kinematic, dynamic, asleep
+				// Assumptions for the non-resim case:
+				//		- Particle1 is the particle from an outer loop over either
+				//			(A) all dynamic particles, or 
+				//			(B) all awake dynamic and moving kinematic particles.
+				//		- Particle2 is one of the particles whose bounds overlaps Particle1
 
-				// If Particle1 is non dynamic but particle 2 is dynamic, the case should already be handled by (1)
-				if (!bIsDynamicAwake1 && bIsDynamicAwake2)
+				// If the first particle is an awake dynamic
+				//		- accept if the other particle is an awake dynamic and we are the preferred particle (lower ID)
+				//		- accept if the other particle is in any other state (static, kinematic, asleep)
+				if (bIsDynamicAwake1)
 				{
-					bAcceptParticlePair = false;
+					if (bIsDynamicAwake2)
+					{
+						bAcceptParticlePair = bIsParticle1Preferred;
+					}
+					else
+					{
+						bAcceptParticlePair = true;
+					}
 				}
-				// If Particle1 and Particle2 are dynamic we validate the pair if particle1 has higher ID to discard duplicates since we will visit twice the pairs
-				else if (bIsDynamicAwake1 && bIsDynamicAwake2)
+				// If the first particle is an asleep dynamic
+				//		- accept if the other particle is a moving kinematic
+				//		- reject if the other particle is a stationary kinematic or static - sleeping and static particles do not collide
+				//		- reject if the other particle is an awake dynamic - will be picked up when visiting in the opposite order
+				//		- reject if the other particle if an asleep dynamic - two sleeping dynamics do not collide
+				else if (bIsDynamicAsleep1)
 				{
-					bAcceptParticlePair = bIsParticle1Preferred;
+					bAcceptParticlePair = bIsMovingKinematic2;
 				}
-				// If Particle1 is kinematic we should in theory discard the pairs against sleeping particles
-				// since the sleeping-kinematic case has been validated in (2). But Particle1 is asleep OR kinematic so
-				// when entering this condition we are sure that we enver entered (2). It is why we validate the kinematic-sleeping pairs as well
-				else if (bIsKinematic1 && bIsDynamicAsleep2)
+				// If the first particle is a moving kinematic
+				//		- accept if the other particle is sleeping dynamic
+				//		- reject if the other particle is an awake dynamic - will be picked up when visiting in the opposite order
+				//		- reject if the other particle is a kinematic or static - they do not collide
+				else if (bIsMovingKinematic1)
 				{
-					bAcceptParticlePair = true;
+					bAcceptParticlePair = bIsDynamicAsleep2;
+				}
+				// If the first particle is static or non-moving kinematic
+				//		- reject always - will be picked up when visiting in the opposite order
+				else
+				{
 				}
 			}
 			else
@@ -121,6 +133,14 @@ namespace Chaos
 				// Even though Particle1 may be kinematic when resimming, we want to create the contacts in the original order (i.e., dynamic first)
 				// 
 				const bool bIsParticle2Desynced = bIsResimming && (Particle2->SyncState() == ESyncState::HardDesync);
+				const bool bIsKinematic1 = !bIsDynamicAwake1 && !bIsDynamicAsleep1;
+				const bool bIsKinematic2 = !bIsDynamicAwake2 && !bIsDynamicAsleep2;
+
+				// If Particle1 is dynamic, accept if the other is asleep or nor dynamic
+				if ((bIsDynamicAwake1 && !bIsDynamicAwake2) || (bIsDynamicAsleep1 && bIsKinematic2))
+				{
+					bAcceptParticlePair = true;
+				}
 
 				// If Particle1 is non dynamic but particle 2 is dynamic, the case should already be handled by (1) for
 				// the desynced dynamic - synced/desynced (static,kinematic,asleep) pairs. But we still need to process

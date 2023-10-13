@@ -455,6 +455,13 @@ public:
 		Particles.DisableParticle(Particle);
 		DisableConstraints(Particle);
 		DestroyTransientConstraints(Particle);
+
+		if (FPBDRigidParticleHandle* Rigid = Particle->CastToRigidParticle())
+		{
+			// This flag is only updated for moving kinematics, so make sure 
+			// we don't leave a residual value if we get enabled again
+			Rigid->ClearIsMovingKinematic();
+		}
 	}
 
 	/**
@@ -763,6 +770,7 @@ public:
 				// Reset velocity and then switch to do-nothing mode
 				Particle.V() = FVec3(0, 0, 0);
 				Particle.W() = FVec3(0, 0, 0);
+				Particle.ClearIsMovingKinematic();
 				KinematicTarget.SetMode(EKinematicTargetMode::None);
 				break;
 			}
@@ -807,6 +815,7 @@ public:
 				Particle.R() = NewR;
 				Particle.V() = NewV;
 				Particle.W() = NewW;
+				Particle.SetIsMovingKinematic();
 
 				break;
 			}
@@ -817,6 +826,8 @@ public:
 				bMoved = true;
 				Particle.X() = Particle.X() + Particle.V() * Dt;
 				Particle.R() = FRotation3::IntegrateRotationWithAngularVelocity(Particle.R(), Particle.W(), Dt);
+				Particle.SetIsMovingKinematic();
+
 				break;
 			}
 			}

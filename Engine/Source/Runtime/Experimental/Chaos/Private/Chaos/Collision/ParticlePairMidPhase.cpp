@@ -917,6 +917,14 @@ namespace Chaos
 				CullDistance += FMath::Min(VelocityBoundsMultiplier * VMaxDt, MaxVelocityBoundsExpansion);
 			}
 
+#if !UE_BUILD_TEST && !UE_BUILD_SHIPPING
+			// At least one body must be dynamic, and at least one must be awake (or moving if a kinematic)
+			const bool bIsMoving0 = (P0->IsDynamic() && !P0->IsSleeping()) || P0->IsMovingKinematic();
+			const bool bIsMoving1 = (P1->IsDynamic() && !P1->IsSleeping()) || P1->IsMovingKinematic();
+			const bool bAnyMoving = bIsMoving0 || bIsMoving1;
+			ensureMsgf(bAnyMoving, TEXT("GenerateCollisions called on two stationary objects %s %s"), *P0->GetDebugName(), *P1->GetDebugName());
+#endif
+
 			// Run collision detection on all potentially colliding shape pairs
 			NumActiveConstraints = GenerateCollisionsImpl(CullDistance, Dt, Context);
 		}

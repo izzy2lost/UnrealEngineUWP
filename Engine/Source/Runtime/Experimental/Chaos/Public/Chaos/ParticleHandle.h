@@ -1297,6 +1297,21 @@ public:
 		PBDRigidParticles->TransientFlags(ParticleIdx).ClearUseIgnoreCollisionManager();
 	}
 
+	inline bool IsMovingKinematic() const
+	{
+		return IsKinematic() && PBDRigidParticles->TransientFlags(ParticleIdx).GetIsMovingKinematic();
+	}
+
+	inline void SetIsMovingKinematic()
+	{
+		PBDRigidParticles->TransientFlags(ParticleIdx).SetIsMovingKinematic();
+	}
+
+	inline void ClearIsMovingKinematic()
+	{
+		PBDRigidParticles->TransientFlags(ParticleIdx).ClearIsMovingKinematic();
+	}
+
 	ESleepType SleepType() const { return PBDRigidParticles->SleepType(ParticleIdx);}
 
 	void SetSleepType(ESleepType SleepType){ PBDRigidParticles->SetSleepType(ParticleIdx, SleepType); }
@@ -2209,6 +2224,31 @@ public:
 		if (auto RigidHandle = MHandle->CastToRigidParticle())
 		{
 			RigidHandle->ClearUseIgnoreCollisionManager();
+		}
+	}
+
+	inline bool IsMovingKinematic() const
+	{
+		if (auto RigidHandle = MHandle->CastToRigidParticle())
+		{
+			return RigidHandle->IsMovingKinematic();
+		}
+		return false;
+	}
+
+	inline void SetIsMovingKinematic()
+	{
+		if (auto RigidHandle = MHandle->CastToRigidParticle())
+		{
+			RigidHandle->SetIsMovingKinematic();
+		}
+	}
+
+	inline void ClearIsMovingKinematic()
+	{
+		if (auto RigidHandle = MHandle->CastToRigidParticle())
+		{
+			RigidHandle->ClearIsMovingKinematic();
 		}
 	}
 

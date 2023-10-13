@@ -248,33 +248,62 @@ void CheckParticleViewForDupes(const FString& Name, const TParticleView& Particl
 
 void CheckParticleViewsForDupes(FPBDRigidsSOAs& Particles)
 {
-	if (CVars::bChaosSolverCheckParticleViews)
+	// Check that all particles know what lists they are in
+	Particles.CheckListMasks();
+
+	// Check that we have no particles in multiple views
+	Particles.CheckViewMasks();
+
+	// A particle appearing twice in either of these results in a race condition because the 
+	// collision detection loop will visit the same particle pair twice on different threads.
+	CheckParticleViewForDupes(TEXT("NonDisabledDynamicView"), Particles.GetNonDisabledDynamicView());
+	CheckParticleViewForDupes(TEXT("ActiveDynamicMovingKinematicParticlesView"), Particles.GetActiveDynamicMovingKinematicParticlesView());
+
+	// No known problems with dupes in these lists, but there should never be dupes
+	CheckParticleViewForDupes(TEXT("NonDisabledView"), Particles.GetNonDisabledView());
+	CheckParticleViewForDupes(TEXT("NonDisabledClusteredView"), Particles.GetNonDisabledClusteredView());
+	CheckParticleViewForDupes(TEXT("ActiveParticlesView"), Particles.GetActiveParticlesView());
+	CheckParticleViewForDupes(TEXT("DirtyParticlesView"), Particles.GetDirtyParticlesView());
+	CheckParticleViewForDupes(TEXT("AllParticlesView"), Particles.GetAllParticlesView());
+	CheckParticleViewForDupes(TEXT("ActiveKinematicParticlesView"), Particles.GetActiveKinematicParticlesView());
+	CheckParticleViewForDupes(TEXT("ActiveMovingKinematicParticlesView"), Particles.GetActiveMovingKinematicParticlesView());
+	CheckParticleViewForDupes(TEXT("ActiveStaticParticlesView"), Particles.GetActiveStaticParticlesView());
+	CheckParticleViewForDupes(TEXT("ActiveDynamicMovingKinematicParticlesView"), Particles.GetActiveDynamicMovingKinematicParticlesView());
+}
+
+void CheckMovingKinematicFlag(FPBDRigidsSOAs& Particles)
+{
+	// Make sure all particles have the correct value for the MovingKinematic flag (NOTE: must be after ApplyKinematicTargets)
+	for (const auto& Particle : Particles.GetActiveParticlesView())
 	{
-		QUICK_SCOPE_CYCLE_COUNTER(STAT_Evolution_CheckParticleViewsForDupes);
-
-		// Check that all particles know what lists they are in
-		Particles.CheckListMasks();
-
-		// Check that we have no particles in multiple views
-		Particles.CheckViewMasks();
-
-		// A particle appearing twice in either of these results in a race condition because the 
-		// collision detection loop will visit the same particle pair twice on different threads.
-		CheckParticleViewForDupes(TEXT("NonDisabledDynamicView"), Particles.GetNonDisabledDynamicView());
-		CheckParticleViewForDupes(TEXT("ActiveDynamicMovingKinematicParticlesView"), Particles.GetActiveDynamicMovingKinematicParticlesView());
-
-		// No known problems with dupes in these lists, but there should never be dupes
-		CheckParticleViewForDupes(TEXT("NonDisabledView"), Particles.GetNonDisabledView());
-		CheckParticleViewForDupes(TEXT("NonDisabledClusteredView"), Particles.GetNonDisabledClusteredView());
-		CheckParticleViewForDupes(TEXT("ActiveParticlesView"), Particles.GetActiveParticlesView());
-		CheckParticleViewForDupes(TEXT("DirtyParticlesView"), Particles.GetDirtyParticlesView());
-		CheckParticleViewForDupes(TEXT("AllParticlesView"), Particles.GetAllParticlesView());
-		CheckParticleViewForDupes(TEXT("ActiveKinematicParticlesView"), Particles.GetActiveKinematicParticlesView());
-		CheckParticleViewForDupes(TEXT("ActiveMovingKinematicParticlesView"), Particles.GetActiveMovingKinematicParticlesView());
-		CheckParticleViewForDupes(TEXT("ActiveStaticParticlesView"), Particles.GetActiveStaticParticlesView());
-		CheckParticleViewForDupes(TEXT("ActiveDynamicMovingKinematicParticlesView"), Particles.GetActiveDynamicMovingKinematicParticlesView());
+		if (const FPBDRigidParticleHandle* Rigid = Particle.Handle()->CastToRigidParticle())
+		{
+			if (Rigid->IsKinematic())
+			{
+				const bool bIsMoving = !Rigid->V().IsNearlyZero() || !Rigid->W().IsNearlyZero();
+				ensureMsgf(bIsMoving == Rigid->IsMovingKinematic(),
+					TEXT("Kinematic IsMoving flag mismatch. IsMoving=%d V=(%f, %f, %f) W=(%f %f %f) %s"),
+					Rigid->IsMovingKinematic(), Rigid->V().X, Rigid->V().Y, Rigid->V().Z, Rigid->W().X, Rigid->W().Y, Rigid->W().Z, *Rigid->GetDebugName());
+			}
+			else
+			{
+				ensureMsgf(!Rigid->IsMovingKinematic(), TEXT("Kinematic IsMoving flag set for non-kinematic %s"), *Rigid->GetDebugName());
+			}
+		}
 	}
 }
+
+void CheckParticleViewsForErrors(FPBDRigidsSOAs& Particles)
+{
+	if (CVars::bChaosSolverCheckParticleViews)
+	{
+		QUICK_SCOPE_CYCLE_COUNTER(STAT_Evolution_CheckParticleViewsForErrors);
+
+		CheckParticleViewsForDupes(Particles);
+		CheckMovingKinematicFlag(Particles);
+	}
+}
+
 
 
 void FPBDRigidsEvolutionGBF::Advance(const FReal Dt,const FReal MaxStepDt,const int32 MaxSteps)
@@ -451,7 +480,7 @@ void FPBDRigidsEvolutionGBF::AdvanceOneTimeStepImpl(const FReal Dt, const FSubSt
 
 	// Collision detection is sensitive to duplication bugs in the particle views
 	// so this is here to help us track them down when they happen
-	CheckParticleViewsForDupes(Particles);
+	CheckParticleViewsForErrors(Particles);
 
 	{
 		SCOPE_CYCLE_COUNTER(STAT_Evolution_DetectCollisions);

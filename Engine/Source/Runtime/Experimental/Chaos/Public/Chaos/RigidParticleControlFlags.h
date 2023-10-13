@@ -132,11 +132,18 @@ namespace Chaos
 		void SetUseIgnoreCollisionManager() { Flags.bUseIgnoreCollisionManager = true; }
 		void ClearUseIgnoreCollisionManager() { Flags.bUseIgnoreCollisionManager = false; }
 
+		// Is this particle kinematic and moving (velocity and angular velocity are non-zero). This is updated in ApplyKinematicTargets
+		// to help avoid checking velocity and angular velocity (especially for kinematics).
+		bool GetIsMovingKinematic() const { return Flags.bIsMovingKinematic; }
+		void SetIsMovingKinematic() { Flags.bIsMovingKinematic = true; }
+		void ClearIsMovingKinematic() { Flags.bIsMovingKinematic = false; }
+
 	private:
 		struct FFlags
 		{
 			FStorage bInertiaConditioningDirty : 1;
 			FStorage bUseIgnoreCollisionManager : 1;
+			FStorage bIsMovingKinematic : 1;
 			// Add new properties above this line
 			// Change FStorage typedef if we exceed the max bits
 		};
