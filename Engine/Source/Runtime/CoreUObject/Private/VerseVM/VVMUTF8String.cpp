@@ -57,10 +57,26 @@ TGlobalTrivialEmergentTypePtr<&VUniqueString::StaticCppClassInfo> VUniqueString:
 
 TLazyInitialized<VStringInternPool> VUniqueString::StringPool;
 
+bool VUniqueStringSet::Equals(const VUniqueStringSet& Other) const
+{
+	if (Num() != Other.Num())
+	{
+		return false;
+	}
+	for (const TWriteBarrier<VUniqueString>& String : *this)
+	{
+		if (!Other.IsValidId(Other.FindId(String->AsStringView())))
+		{
+			return false;
+		}
+	}
+	return true;
+}
+
 VUniqueStringSet& VUniqueStringSetInternPool::Intern(FAllocationContext Context, const TSet<VUniqueString*>& InSet)
 {
 	UE::TUniqueLock Lock(Mutex);
-	if (TWeakBarrier<VUniqueStringSet>* UniqueSet = Sets.Find(InSet))
+	if (TWeakBarrier<VUniqueStringSet>* UniqueSet = Sets.Find({InSet}))
 	{
 		// If we found an entry, but GC clears the weak reference before we can use it, fall through
 		// to add a new entry for the set.
@@ -91,7 +107,7 @@ void VUniqueStringSetInternPool::ConductCensus()
 
 UE::FMutex VUniqueStringSetInternPool::Mutex;
 
-DEFINE_VCPPCLASSINFO(VUniqueStringSet, VCell, TEXT("HashableUniqueStringSet"));
+DEFINE_VCPPCLASSINFO(VUniqueStringSet, VCell, TEXT("UniqueStringSet"));
 TGlobalTrivialEmergentTypePtr<&VUniqueStringSet::StaticCppClassInfo> VUniqueStringSet::GlobalTrivialEmergentType;
 
 TLazyInitialized<VUniqueStringSetInternPool> VUniqueStringSet::Pool;

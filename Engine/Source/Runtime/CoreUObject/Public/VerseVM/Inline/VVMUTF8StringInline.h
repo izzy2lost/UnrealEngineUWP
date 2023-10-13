@@ -2,6 +2,7 @@
 
 #pragma once
 
+#include "Misc/AssertionMacros.h"
 #if !WITH_VERSE_VM
 #error In order to use VerseVM, WITH_VERSE_VM must be set
 #endif
@@ -195,25 +196,126 @@ inline uint32 GetTypeHash(const VUniqueStringSet& Set)
 	return Result;
 }
 
+inline FHashableUniqueStringSetKey::FHashableUniqueStringSetKey()
+	: Type(EType::Invalid) {}
+
+inline FHashableUniqueStringSetKey::FHashableUniqueStringSetKey(const TSet<VUniqueString*>& InSet)
+	: Set(&InSet)
+	, Type(EType::Set) {}
+
+inline FHashableUniqueStringSetKey::FHashableUniqueStringSetKey(const VUniqueStringSet& InCell)
+	: Cell(&InCell)
+	, Type(EType::Cell) {}
+
+inline bool FHashableUniqueStringSetKey::operator==(const FHashableUniqueStringSetKey& Other) const
+{
+	auto CompareCellAndSet = [](const VUniqueStringSet& InCell, const TSet<VUniqueString*>& InSet) {
+		if (InCell.Num() != static_cast<uint32>(InSet.Num()))
+		{
+			return false;
+		}
+		for (const TWriteBarrier<VUniqueString>& UniqueString : InCell)
+		{
+			if (!InSet.Contains(UniqueString.Get()))
+			{
+				return false;
+			}
+		}
+		return true;
+	};
+
+	auto CompareCells = [](const VUniqueStringSet& InCell, const VUniqueStringSet& InOther) {
+		// We are just doing a basic pointer comparison here because this path should only ever get hit
+		// when both cells are not the same. If you hit this, check how you're adding to the unique string set pool.
+		V_DIE_IF(InCell == InOther);
+		checkSlow(!InCell.Equals(InOther));
+		return false;
+	};
+
+	if (Type == EType::Invalid || Other.Type == EType::Invalid)
+	{
+		V_DIE_IF(Type == Other.Type); // We shouldn't have a case of a null-to-null lookup.
+		return false;
+	}
+
+	switch (Type)
+	{
+		case EType::Cell:
+			switch (Other.Type)
+			{
+				case EType::Cell:
+					return CompareCells(*Cell, *Other.Cell);
+				case EType::Set:
+					return CompareCellAndSet(*Cell, *Other.Set);
+				case EType::Invalid:
+					VERSE_UNREACHABLE(); // Should have been hit above.
+				default:
+					return false;
+			}
+			break;
+		case EType::Set:
+			switch (Other.Type)
+			{
+				case EType::Cell:
+					return CompareCellAndSet(*Other.Cell, *Set);
+				case EType::Invalid: // Should have been hit above.
+				case EType::Set:
+					// There shouldn't be a case where a key lookup causes a set-to-set comparison,
+					// because the map entries should only be cells.
+					VERSE_UNREACHABLE();
+					break;
+				default:
+					return false;
+			}
+			break;
+
+		case EType::Invalid: // Should have been hit above.
+		default:
+			VERSE_UNREACHABLE();
+			break;
+	}
+
+	return true;
+};
+
+inline FHashableUniqueStringSetKeyFuncs::KeyInitType FHashableUniqueStringSetKeyFuncs::GetSetKey(FHashableUniqueStringSetKeyFuncs::ElementInitType& Element)
+{
+	return {Element};
+}
+
 inline FHashableUniqueStringSetKeyFuncs::KeyInitType FHashableUniqueStringSetKeyFuncs::GetSetKey(const TWeakBarrier<VUniqueStringSet>& Element)
 {
-	TSet<VUniqueString*> Result;
-	Result.Reserve(Element->Strings.Num());
-	for (const TWriteBarrier<VUniqueString>& String : Element->Strings)
+	const VUniqueStringSet* ElementSet = Element.Get();
+	if (!ElementSet)
 	{
-		Result.Add(String.Get());
+		// We can hit this after `FHeap::Terminate`, but before `ConductCensus` is called, so
+		// the memory still "lives", but the cell is not marked and is impending being swept.
+		// In such a case, we treat it as if it doesn't exist in the set at all.
+		return {};
 	}
-	return Result;
+	return {*ElementSet};
 }
 
 inline bool FHashableUniqueStringSetKeyFuncs::Matches(FHashableUniqueStringSetKeyFuncs::KeyInitType A, FHashableUniqueStringSetKeyFuncs::KeyInitType B)
 {
-	return VUniqueStringSet::Equals(A, B);
+	return A == B;
 }
 
 inline uint32 FHashableUniqueStringSetKeyFuncs::GetKeyHash(KeyInitType Key)
 {
-	return GetTypeHash(Key);
+	switch (Key.Type)
+	{
+		case FHashableUniqueStringSetKey::EType::Cell:
+			V_DIE_UNLESS(Key.Cell);
+			return GetTypeHash(*Key.Cell);
+		case FHashableUniqueStringSetKey::EType::Set:
+			V_DIE_UNLESS(Key.Set);
+			return GetTypeHash(*Key.Set);
+		case FHashableUniqueStringSetKey::EType::Invalid:
+		default:
+			break;
+	}
+	VERSE_UNREACHABLE();
 }
 
 } // namespace Verse

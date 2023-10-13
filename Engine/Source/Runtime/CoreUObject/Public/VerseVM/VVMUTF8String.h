@@ -64,7 +64,7 @@ private:
 	virtual void ConductCensus() override;
 
 	// The pool doesn't own the string data, the context does. So these strings are stored as weakrefs.
-	// When the GC conducts a census, this string pool is also cleared of the strings that are marked.
+	// When the GC conducts a census, this string pool is also cleared of the strings that are unmarked.
 	TSet<TWeakBarrier<VUniqueString>, FUniqueStringSetKeyFuncs<TWeakBarrier<VUniqueString>>> UniqueStrings;
 	static UE::FMutex Mutex;
 
@@ -256,6 +256,9 @@ struct VUniqueStringSet : VCell
 
 	bool operator==(const VUniqueStringSet& Other) const;
 
+	/// This is a slower, deep-equality based check. Suitable for debugging purposes.
+	bool Equals(const VUniqueStringSet& Other) const;
+
 	uint32 Num() const;
 
 	FSetElementId FindId(const FUtf8StringView& String) const;
@@ -286,13 +289,41 @@ private:
 uint32 GetTypeHash(const TSet<VUniqueString*>& Set);
 uint32 GetTypeHash(const VUniqueStringSet& Set);
 
+struct FHashableUniqueStringSetKey
+{
+	enum class EType : uint8
+	{
+		Cell,
+		Set,
+
+		/// This means that the key refers to a invalid unique string set - its memory has been
+		/// swept/is about to be swept and is no longer considered a valid set. This is used as
+		/// a sentinel value to distinguish between actual empty string sets.
+		/// When `Type` is set to this, both `Cell` and `Set` are undefined.
+		Invalid
+	};
+
+	union
+	{
+		const VUniqueStringSet* Cell;
+		const TSet<VUniqueString*>* Set;
+	};
+
+	EType Type;
+
+	FHashableUniqueStringSetKey();
+	FHashableUniqueStringSetKey(const TSet<VUniqueString*>& InSet);
+	FHashableUniqueStringSetKey(const VUniqueStringSet& InCell);
+	bool operator==(const FHashableUniqueStringSetKey& Other) const;
+};
+
 /// Allows for lookup into the unique string set pool without unnecessary construction of barriers.
 struct FHashableUniqueStringSetKeyFuncs : BaseKeyFuncs<TWeakBarrier<VUniqueStringSet>, TWeakBarrier<VUniqueStringSet>, /*bAllowDuplicateKeys*/ false>
 {
-	typedef TSet<VUniqueString*> KeyInitType;
+	typedef FHashableUniqueStringSetKey KeyInitType;
 	typedef VUniqueStringSet& ElementInitType;
 
-	// static KeyInitType GetSetKey(KeyInitType& Element);
+	static KeyInitType GetSetKey(ElementInitType& Element);
 
 	static KeyInitType GetSetKey(const TWeakBarrier<VUniqueStringSet>& Element);
 
@@ -306,7 +337,7 @@ class VUniqueStringSetInternPool final : FGlobalHeapCensusRoot
 {
 private:
 	/// Private constructor since there should only ever be one global instance of this.
-	/// There's no virtual destructor since `TLazyInitialized` is never destroyed and this is meant to be a global string pool.
+	/// There's no virtual destructor since `TLazyInitialized` is never destroyed and this is meant to be a global unique string set pool.
 	VUniqueStringSetInternPool() = default;
 
 	/// Retrieves an existing string set from the set pool if it exists or creates a new one and returns it.
@@ -315,8 +346,6 @@ private:
 	/// This gives the pool the ability to conduct census on its own to clear references to the sets.
 	virtual void ConductCensus() override;
 
-	// The pool doesn't own the string data, the context does. So these strings are stored as weakrefs.
-	// When the GC conducts a census, this string pool is also cleared of the strings that are marked.
 	TSet<TWeakBarrier<VUniqueStringSet>, FHashableUniqueStringSetKeyFuncs> Sets;
 
 	static UE::FMutex Mutex;

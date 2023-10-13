@@ -723,12 +723,22 @@ VCell* FContextImpl::RunWeakReadBarrierUnmarkedWhenActive(VCell* Cell)
 	}
 	else
 	{
-		V_DIE_UNLESS(WeakBarrierState == EWeakBarrierState::AttemptingToTerminate);
+		V_DIE_UNLESS(WeakBarrierState == EWeakBarrierState::AttemptingToTerminate); // means that `AttemptToTerminate()` was called
 		TUniqueLock Lock(FHeap::Mutex);
 		WeakBarrierState = FHeap::GetWeakBarrierState();
 
-		// Without a handshake, there's no way we'd go from attempting to terminate to inactive.
-		V_DIE_IF(WeakBarrierState == EWeakBarrierState::Inactive);
+		/*
+		 * We can hit this in the condition where:
+		 * - Two threads are running `AttemptToTerminate` simultaneously.
+		 * - After we first read `WeakBarrierState`, the second thread adds items to the mark stack.
+		 * - This causes the other thread to cancel termination and set the state back to inactive.
+		 * - We then read the `WeakBarrierState` again; this is now inactive.
+		 * In this case, we should be safe to return the cell because the GC is inactive and the memory should be safe to read from.
+		 */
+		if (WeakBarrierState == EWeakBarrierState::Inactive)
+		{
+			return Cell;
+		}
 
 		if (WeakBarrierState == EWeakBarrierState::CheckMarkedOnRead)
 		{
