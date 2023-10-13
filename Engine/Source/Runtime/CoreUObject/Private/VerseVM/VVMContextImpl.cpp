@@ -728,11 +728,10 @@ VCell* FContextImpl::RunWeakReadBarrierUnmarkedWhenActive(VCell* Cell)
 		WeakBarrierState = FHeap::GetWeakBarrierState();
 
 		/*
-		 * We can hit this in the condition where:
-		 * - Two threads are running `AttemptToTerminate` simultaneously.
-		 * - After we first read `WeakBarrierState`, the second thread adds items to the mark stack.
-		 * - This causes the other thread to cancel termination and set the state back to inactive.
-		 * - We then read the `WeakBarrierState` again; this is now inactive.
+		 * We can hit this TOCTOU race on the following conditions:
+		 * - The GC is attempting to terminate. We've read the weak barrier state by this point, but haven't yet acquired the lock.
+		 * - During the soft handshake with mutator threads, one of them ends up marking items and thus cancels termination. The weak barrier state is now inactive.
+		 * - We then acquire the lock and read the barrier state which is inactive.
 		 * In this case, we should be safe to return the cell because the GC is inactive and the memory should be safe to read from.
 		 */
 		if (WeakBarrierState == EWeakBarrierState::Inactive)
