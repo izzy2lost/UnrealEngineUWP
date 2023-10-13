@@ -2061,7 +2061,16 @@ UActorDescContainer* UWorldPartition::RegisterActorDescContainer(const FContaine
 			}
 
 			// Filter actors with duplicated GUID in WorldPartition
-			return !GetActorDesc(ActorDesc->GetGuid());
+			if (GetActorDesc(ActorDesc->GetGuid()))
+			{
+				UE_LOG(LogWorldPartition, Warning, TEXT("Found existing actor descriptor guid `%s`: Actor: '%s' from package '%s'"),
+					*ActorDesc->GetGuid().ToString(),
+					*ActorDesc->GetActorName().ToString(),
+					*ActorDesc->GetActorPackage().ToString());
+				return false;
+			}
+
+			return true;
 		};
 
 		UActorDescContainer* ContainerToRegister = NewObject<UActorDescContainer>(this);

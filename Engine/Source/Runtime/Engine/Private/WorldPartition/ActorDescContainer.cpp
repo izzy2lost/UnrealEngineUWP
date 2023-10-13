@@ -97,9 +97,24 @@ void UActorDescContainer::Initialize(const FInitializeParams& InitParams)
 					*ExistingDesc->GetActorPackage().ToString());
 				bValid = false;
 			}
-			else if(!ActorDesc->GetNativeClass().IsValid() || 
-					(ActorDesc->GetBaseClass().IsValid() && !ClassDescRegistry.IsRegisteredClass(ActorDesc->GetBaseClass())) || 
-					(InitParams.FilterActorDesc && !InitParams.FilterActorDesc(ActorDesc.Get())))
+			else if (!ActorDesc->GetNativeClass().IsValid())
+			{
+				UE_LOG(LogWorldPartition, Warning, TEXT("Invalid actor native class: Actor: '%s' (guid '%s') from package '%s'"),
+					*ActorDesc->GetActorName().ToString(),
+					*ActorDesc->GetGuid().ToString(),
+					*ActorDesc->GetActorPackage().ToString());
+				bValid = false;
+			}
+			else if (ActorDesc->GetBaseClass().IsValid() && !ClassDescRegistry.IsRegisteredClass(ActorDesc->GetBaseClass()))
+			{
+				UE_LOG(LogWorldPartition, Warning, TEXT("Unknown actor base class `%s`: Actor: '%s' (guid '%s') from package '%s'"),
+					*ActorDesc->GetBaseClass().ToString(),
+					*ActorDesc->GetActorName().ToString(),
+					*ActorDesc->GetGuid().ToString(),
+					*ActorDesc->GetActorPackage().ToString());
+				bValid = false;
+			}
+			else if (InitParams.FilterActorDesc && !InitParams.FilterActorDesc(ActorDesc.Get()))
 			{
 				bValid = false;
 			}
