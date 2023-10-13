@@ -293,6 +293,8 @@ void UDynamicMeshSculptTool::Setup()
 
 void UDynamicMeshSculptTool::Shutdown(EToolShutdownType ShutdownType)
 {
+	ClosePlaceholderTransaction(); // End any placeholder transaction, which could arise from brush stroke actions
+
 	if (ShutdownType == EToolShutdownType::Accept && AreAllTargetsValid() == false)
 	{
 		UE_LOG(LogTemp, Error, TEXT("Tool Target has become Invalid (possibly it has been Force Deleted). Aborting Tool."));
@@ -2419,6 +2421,7 @@ void UDynamicMeshSculptTool::BeginChange(bool bIsVertexChange)
 {
 	check(ActiveVertexChange == nullptr);
 	check(ActiveMeshChange == nullptr);
+	OpenPlaceholderTransaction(LOCTEXT("MeshSculptChange", "Brush Stroke")); // Create a placeholder change to prevent undo during the operation
 	if (bIsVertexChange)
 	{
 		ActiveVertexChange = new FMeshVertexChangeBuilder();
@@ -2432,6 +2435,12 @@ void UDynamicMeshSculptTool::BeginChange(bool bIsVertexChange)
 
 void UDynamicMeshSculptTool::EndChange()
 {
+	// End any placeholder transaction so we can emit a real transaction
+	// Note we close the placeholder transaction before emitting the FChange-based one due to the comment on 
+	// ApplyChange in ToolContextInterfaces.h indicating that we should not have an open transaction when we emit a change.
+	// TODO: We could revisit whether that comment is accurate, and if not, could move this Close call to the bottom of this function.
+	// (This does not affect the behavior in practice, since the empty placeholder transaction does not persist.)
+	ClosePlaceholderTransaction();
 	if (ActiveVertexChange != nullptr)
 	{
 		GetToolManager()->EmitObjectChange(DynamicMeshComponent, MoveTemp(ActiveVertexChange->Change), LOCTEXT("MeshSculptChange", "Brush Stroke"));
@@ -2454,11 +2463,29 @@ void UDynamicMeshSculptTool::EndChange()
 
 void UDynamicMeshSculptTool::CancelChange()
 {
+	ClosePlaceholderTransaction();
 	delete ActiveVertexChange;
 	ActiveVertexChange = nullptr;
 	
 	delete ActiveMeshChange;
 	ActiveMeshChange = nullptr;
+}
+
+void UDynamicMeshSculptTool::OpenPlaceholderTransaction(FText Name)
+{
+	if (!bHasActivePlaceholderTransaction)
+	{
+		GetToolManager()->BeginUndoTransaction(Name);
+		bHasActivePlaceholderTransaction = true;
+	}
+}
+void UDynamicMeshSculptTool::ClosePlaceholderTransaction()
+{
+	if (bHasActivePlaceholderTransaction)
+	{
+		GetToolManager()->EndUndoTransaction();
+		bHasActivePlaceholderTransaction = false;
+	}
 }
 
 void UDynamicMeshSculptTool::SaveActiveROI()

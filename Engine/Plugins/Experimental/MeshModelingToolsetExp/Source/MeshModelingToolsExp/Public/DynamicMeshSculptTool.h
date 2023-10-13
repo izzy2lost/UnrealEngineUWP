@@ -497,6 +497,9 @@ private:
 
 	FMeshVertexChangeBuilder* ActiveVertexChange = nullptr;
 	UE::Geometry::FDynamicMeshChangeTracker* ActiveMeshChange = nullptr;
+	bool bHasActivePlaceholderTransaction = false;
+	void OpenPlaceholderTransaction(FText Name);
+	void ClosePlaceholderTransaction();
 	void BeginChange(bool bIsVertexChange);
 	void EndChange();
 	void CancelChange();
