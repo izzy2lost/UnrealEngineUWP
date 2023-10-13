@@ -52,7 +52,9 @@ namespace Horde.Server.Artifacts
 			{
 				foreach (IGrouping<NamespaceId, IArtifact> group in artifacts.GroupBy(x => x.NamespaceId))
 				{
+#pragma warning disable CA2000
 					using IServerStorageClient storageClient = _storageService.CreateClient(group.Key);
+#pragma warning restore CA2000
 					foreach (IArtifact artifact in group)
 					{
 						_logger.LogDebug("Expiring artifact {ArtifactId}, ref {RefName}", artifact.Id, artifact.RefName);

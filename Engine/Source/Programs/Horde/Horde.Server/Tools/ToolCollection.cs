@@ -5,7 +5,6 @@ using EpicGames.Horde.Storage;
 using EpicGames.Horde.Storage.Clients;
 using EpicGames.Horde.Storage.Nodes;
 using EpicGames.Serialization;
-using Horde.Server.Acls;
 using Horde.Server.Server;
 using Horde.Server.Storage;
 using Horde.Server.Utilities;
@@ -21,7 +20,6 @@ using System;
 using System.Collections.Generic;
 using System.IO;
 using System.Linq;
-using System.Security.Claims;
 using System.Threading;
 using System.Threading.Tasks;
 
@@ -416,49 +414,6 @@ namespace Horde.Server.Tools
 				default:
 					throw new ArgumentException("Invalid action for deployment", nameof(action));
 			}
-		}
-
-		class ServerStorageClientWrapper : IServerStorageClient
-		{
-			readonly IStorageClient _inner;
-
-			public bool SupportsRedirects => false;
-
-			public ServerStorageClientWrapper(IStorageClient inner) => _inner = inner;
-			public void Dispose() => _inner.Dispose();
-
-			public bool Authorize(AclAction action, ClaimsPrincipal user) => true;
-
-			#region Blobs
-
-			public BlobHandle CreateBlobHandle(BlobLocator blobId) => _inner.CreateBlobHandle(blobId);
-			public IStorageWriter CreateWriter(string? basePath = null) => _inner.CreateWriter(basePath);
-
-			public Task DeleteAsync(BlobLocator locator, CancellationToken cancellationToken = default) => throw new NotSupportedException();
-			public IAsyncEnumerable<BlobLocator> EnumerateAsync(CancellationToken cancellationToken = default) => throw new NotSupportedException();
-			public ValueTask<Uri?> TryGetReadRedirectAsync(BlobLocator locator, CancellationToken cancellationToken = default) => default;
-			public ValueTask<(BlobLocator, Uri)?> TryGetWriteRedirectAsync(string? prefix = null, CancellationToken cancellationToken = default) => default;
-			public ValueTask<BlobHandle> WriteBlobAsync(BlobType blobType, Stream stream, IReadOnlyList<BlobHandle> references, string? basePath, CancellationToken cancellationToken) => default;
-
-			#endregion
-
-			#region Aliases
-
-			public Task AddAliasAsync(string name, BlobHandle handle, int rank = 0, ReadOnlyMemory<byte> data = default, CancellationToken cancellationToken = default) => _inner.AddAliasAsync(name, handle, rank, data, cancellationToken);
-			public Task RemoveAliasAsync(string name, BlobHandle handle, CancellationToken cancellationToken = default) => _inner.RemoveAliasAsync(name, handle, cancellationToken);
-			public Task<BlobAlias[]> FindAliasesAsync(string name, int? maxResults = null, CancellationToken cancellationToken = default) => _inner.FindAliasesAsync(name, maxResults, cancellationToken);
-
-			#endregion
-
-			#region Refs
-
-			public Task<bool> DeleteRefAsync(RefName name, CancellationToken cancellationToken = default) => _inner.DeleteRefAsync(name, cancellationToken);
-			public Task<RefValue?> TryReadRefAsync(RefName name, RefCacheTime cacheTime = default, CancellationToken cancellationToken = default) => _inner.TryReadRefAsync(name, cacheTime, cancellationToken);
-			public Task WriteRefAsync(RefName name, BlobHandle handle, ReadOnlyMemory<byte> data = default, RefOptions? options = null, CancellationToken cancellationToken = default) => _inner.WriteRefAsync(name, handle, data, options, cancellationToken);
-
-			#endregion
-
-			public void GetStats(StorageStats stats) => _inner.GetStats(stats);
 		}
 
 		/// <summary>
