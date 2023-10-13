@@ -5,6 +5,8 @@
 #include "PCGContext.h"
 #include "PCGParamData.h"
 #include "PCGPin.h"
+#include "Metadata/PCGMetadata.h"
+#include "Metadata/PCGMetadataAttribute.h"
 
 #include UE_INLINE_GENERATED_CPP_BY_NAME(PCGAttributeGetFromIndexElement)
 
@@ -85,6 +87,18 @@ bool FPCGAttributeGetFromIndexElement::ExecuteInternal(FPCGContext* Context) con
 		const PCGMetadataEntryKey OriginalEntryKey = Index;
 		PCGMetadataEntryKey SingleEntryKey = SubParam->Metadata->AddEntry();
 		SubParam->Metadata->SetAttributes(OriginalEntryKey, ParamMetadata, SingleEntryKey);
+
+		TArray<FName> AttributeNames;
+		TArray<EPCGMetadataTypes> AttributeTypes;
+		SubParam->Metadata->GetAttributes(AttributeNames, AttributeTypes);
+
+		for (const FName AttributeName : AttributeNames)
+		{
+			if (FPCGMetadataAttributeBase* Attribute = SubParam->Metadata->GetMutableAttribute(AttributeName))
+			{
+				Attribute->SetDefaultValueToFirstEntry();
+			}
+		}
 
 		FPCGTaggedData& TaggedData = Context->OutputData.TaggedData.Emplace_GetRef(Input);
 		TaggedData.Data = SubParam;

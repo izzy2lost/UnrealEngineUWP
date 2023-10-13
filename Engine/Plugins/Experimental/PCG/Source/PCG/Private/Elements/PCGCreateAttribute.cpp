@@ -355,13 +355,27 @@ bool FPCGCreateAttributeElement::ExecuteInternal(FPCGContext* Context) const
 			const FPCGAttributePropertyInputSelector InputSource = Settings->InputSource.CopyAndFixLast(SourceParamData);
 
 			// We need accessors if we have a multi entry source attribute or we have extractors
-			const bool bNeedAccessors = SourceParamData->Metadata->GetLocalItemCount() > 1 || !InputSource.GetExtraNames().IsEmpty();
+			const bool bIsMultiEntries = SourceParamData->Metadata->GetLocalItemCount() > 1;
+			const bool bNeedAccessors = bIsMultiEntries || !InputSource.GetExtraNames().IsEmpty();
 
 			// If no accessor, copy over the attribute
 			if (!bNeedAccessors)
 			{
 				const FPCGMetadataAttributeBase* SourceAttribute = SourceParamData->Metadata->GetConstAttribute(SourceParamAttributeName);
 				Attribute = Metadata->CopyAttribute(SourceAttribute, OutputAttributeName, /*bKeepParent=*/false, /*bCopyEntries=*/false, /*bCopyValues=*/false);
+
+				// We perhaps need to fix the default value. If the first entry is different from the default value, we override the default value.
+				if (Attribute && Attribute->IsEqualToDefaultValue(Attribute->GetValueKey(0)))
+				{
+					auto FixDefaultValue = [Attribute](auto Dummy)
+					{
+						using AttributeType = decltype(Dummy);
+						FPCGMetadataAttribute<AttributeType>* TypedAttribute = static_cast<FPCGMetadataAttribute<AttributeType>*>(Attribute);
+						TypedAttribute->SetDefaultValue(TypedAttribute->GetValueFromItemKey(0));
+					};
+
+					PCGMetadataAttribute::CallbackWithRightType(Attribute->GetTypeId(), FixDefaultValue);
+				}
 			}
 			else // Create a new attribute of the accessed field's type manually
 			{
@@ -373,12 +387,17 @@ bool FPCGCreateAttributeElement::ExecuteInternal(FPCGContext* Context) const
 					return true;
 				}
 
-				auto CreateOutputAttribute = [Metadata, OutputAttributeName, &InputAccessor, &InputKeys, OutputData, bIsParamData]<typename Type>(Type Dummy) -> FPCGMetadataAttributeBase*
+				auto CreateOutputAttribute = [Metadata, OutputAttributeName, &InputAccessor, &InputKeys, OutputData, bIsParamData, bIsMultiEntries]<typename Type>(Type Dummy) -> FPCGMetadataAttributeBase*
 				{
-					// Get the value from the input accessor default value and pass that as the default value
-					Type Value{};
-					InputAccessor->Get<Type>(Value, FPCGAttributeAccessorKeysEntries(PCGInvalidEntryKey));
-					FPCGMetadataAttribute<Type>* Attribute = PCGMetadataElementCommon::ClearOrCreateAttribute<Type>(Metadata, OutputAttributeName, Value);
+					// If we have multiple entries, use the zero value as a default value.
+					// Otherwise get the first entry of the source param as default value.
+					Type DefaultValue = PCG::Private::MetadataTraits<Type>::ZeroValue();
+					if (!bIsMultiEntries)
+					{
+						InputAccessor->Get<Type>(DefaultValue, FPCGAttributeAccessorKeysEntries(PCGMetadataEntryKey(0)));
+					}
+
+					FPCGMetadataAttribute<Type>* Attribute = PCGMetadataElementCommon::ClearOrCreateAttribute<Type>(Metadata, OutputAttributeName, DefaultValue);
 
 					FPCGAttributePropertySelector OutputSelector;
 					OutputSelector.SetAttributeName(OutputAttributeName);

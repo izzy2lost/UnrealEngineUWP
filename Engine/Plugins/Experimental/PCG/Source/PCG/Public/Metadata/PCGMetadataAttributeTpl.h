@@ -331,6 +331,16 @@ public:
 		return PCG::Private::MetadataTraits<T>::Equal(GetValue(ValueKey), DefaultValue);
 	}
 
+	virtual void SetDefaultValueToFirstEntry() override
+	{
+		if (Values.Num() != 1)
+		{
+			return;
+		}
+
+		DefaultValue = Values[0];
+	}
+
 	PCGMetadataValueKey GetValueKeyOffsetForChild() const
 	{
 		FReadScopeLock ScopeLock(ValueLock);
