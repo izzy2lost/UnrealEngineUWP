@@ -917,6 +917,7 @@ void UNavigationSystemV1::ConstructNavOctree()
 bool UNavigationSystemV1::ConditionalPopulateNavOctree()
 {
 	// Discard all navigation updates caused by octree construction
+	UE_LOG(LogNavigationDirtyArea, VeryVerbose, TEXT("%hs: Reseting Dirty Areas added during octree construction. DirtyAreas.Num = [%d]."), __FUNCTION__, DefaultDirtyAreasController.DirtyAreas.Num());
 	TGuardValue<TArray<FNavigationDirtyArea>> DirtyGuard(DefaultDirtyAreasController.DirtyAreas, TArray<FNavigationDirtyArea>());
 
 	// See if any of registered navigation data need navoctree

@@ -180,6 +180,8 @@ bool FNavigationDirtyAreasController::ShouldReportOversizedDirtyArea() const
 void FNavigationDirtyAreasController::Reset()
 {
 	// discard all pending dirty areas, we are going to rebuild navmesh anyway 
+	UE_LOG(LogNavigationDirtyArea, VeryVerbose, TEXT("%hs: Reseting All Dirty Areas. DirtyAreas.Num = [%d]"),__FUNCTION__, DirtyAreas.Num());
+
 	DirtyAreas.Reset();
 #if !UE_BUILD_SHIPPING
 	bDirtyAreasReportedWhileAccumulationLocked = false;
