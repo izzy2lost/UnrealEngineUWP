@@ -289,7 +289,6 @@ private:
 	static Metasound::SourcePrivate::FParameterRouter& GetParameterRouter();
 
 public:
-	Metasound::FOperatorSettings GetOperatorSettings(Metasound::FSampleRate InSampleRate) const;
 	Metasound::FMetasoundEnvironment CreateEnvironment(const FSoundGeneratorInitParams& InParams) const;
 	const TArray<Metasound::FVertexName>& GetOutputAudioChannelOrder() const;
 private:
