@@ -126,7 +126,7 @@ namespace Chaos
 			return Current;
 		}
 
-		bool ShouldThrottleParticleRelease()
+		bool CVarShouldThrottleParticleRelease()
 		{
 			return (ClusteringParticleReleaseThrottlingMinCount >= 0 && ClusteringParticleReleaseThrottlingMaxCount >= 0);
 		}
@@ -149,6 +149,36 @@ namespace Chaos
 			}
 
 			return 1.0f;
+		}
+
+		template<typename TParticleContainer>
+		void GenericThrottleReleasedParticlesIfNecessary(TParticleContainer& Container, typename FRigidClustering::FRigidEvolution& MEvolution)
+		{
+			if (!CVarShouldThrottleParticleRelease())
+			{
+				return;
+			}
+
+			const float RatioOfParticlesToDisable = GetRatioOfReleasedParticlesToDisable(MEvolution);
+			const int32 NumberOfParticlesToDisable = (int32)((float)Container.Num() * RatioOfParticlesToDisable);
+			if (NumberOfParticlesToDisable > 0)
+			{ 
+				int32 DisabledParticleCount = 0;
+				for (auto ChildIt = Container.CreateIterator(); ChildIt; ++ChildIt)
+				{
+					if (FPBDRigidParticleHandle* Child = *ChildIt)
+					{
+						DisabledParticleCount++;
+						MEvolution.DisableParticle(Child);
+						MEvolution.GetParticles().MarkTransientDirtyParticle(Child);
+						ChildIt.RemoveCurrent();
+					}
+					if (DisabledParticleCount >= NumberOfParticlesToDisable)
+					{
+						break;
+					}
+				}
+			}
 		}
 	}
 	
@@ -1200,30 +1230,8 @@ namespace Chaos
 		}
 
 		// optimization : start disabling activated children if the number of active released particle is too high
-		if (ShouldThrottleParticleRelease())
-		{
-			const float RatioOfParticlesToDisable = GetRatioOfReleasedParticlesToDisable(MEvolution);
-			const int32 NumberOfParticlesToDisable = (int32)((float)ActivatedChildren.Num() * RatioOfParticlesToDisable);
-			if (NumberOfParticlesToDisable > 0)
-			{ 
-				int32 DisabledParticleCount = 0;
-				for (auto ChildIt = ActivatedChildren.CreateIterator(); ChildIt; ++ChildIt)
-				{
-					if (FPBDRigidParticleHandle* Child = *ChildIt)
-					{
-						DisabledParticleCount++;
-						MEvolution.DisableParticle(Child);
-						MEvolution.GetParticles().MarkTransientDirtyParticle(Child);
-						ChildIt.RemoveCurrent();
-					}
-					if (DisabledParticleCount >= NumberOfParticlesToDisable)
-					{
-						break;
-					}
-				}
-			}
-		}
-		
+		ThrottleReleasedParticlesIfNecessary(ActivatedChildren);
+
 		FrameReleasedChildren += ActivatedChildren.Num();
 
 		return ActivatedChildren;
@@ -2913,6 +2921,21 @@ namespace Chaos
 	{
 		SCOPE_CYCLE_COUNTER(STAT_RemoveNodeConnections);
 		RemoveFilteredNodeConnections(ClusteredChild, true);
+	}
+
+	bool FRigidClustering::ShouldThrottleParticleRelease() const
+	{
+		return CVarShouldThrottleParticleRelease();
+	}
+
+	void FRigidClustering::ThrottleReleasedParticlesIfNecessary(TSet<FPBDRigidParticleHandle*>& Particles) const
+	{
+		GenericThrottleReleasedParticlesIfNecessary(Particles, MEvolution);
+	}
+
+	void FRigidClustering::ThrottleReleasedParticlesIfNecessary(TArray<FPBDRigidParticleHandle*>& Particles) const
+	{
+		GenericThrottleReleasedParticlesIfNecessary(Particles, MEvolution);
 	}
 
 } // namespace Chaos

@@ -759,10 +759,22 @@ namespace Chaos
 		}
 
 		ParticleIndicesToRemove.Sort();
+
+		TArray<FPBDRigidParticleHandle*> NonMainReleasedParticles;
+		NonMainReleasedParticles.Reserve(ParticleIndicesToRemove.Num());
+
 		for (int32 Index = ParticleIndicesToRemove.Num() - 1; Index >= 0; --Index)
 		{
 			const int32 ParticleIndex = ParticleIndicesToRemove[Index];
-			Cluster->ChildProperties.Remove(Cluster->ChildParticles[ParticleIndex]);
+			FPBDRigidParticleHandle* Particle = Cluster->ChildParticles[ParticleIndex];
+			if (const FClusterUnionParticleProperties* Properties = Cluster->ChildProperties.Find(Particle))
+			{
+				if (Properties->bIsAuxiliaryParticle)
+				{
+					NonMainReleasedParticles.Add(Particle);
+				}
+				Cluster->ChildProperties.Remove(Particle);
+			}
 
 			// This can't be RemoveAtSwap otherwise there will be a mismatch between the index of a particle
 			// and the index of its corresponding shape in the cluster union's shape array. There is currently
@@ -771,6 +783,11 @@ namespace Chaos
 		}
 
 		MClustering.RemoveParticlesFromCluster(Cluster->InternalCluster, ParticleSet.Array());
+		if (MClustering.ShouldThrottleParticleRelease())
+		{
+			// Only want to throttle the release of non-main particles.
+			MClustering.ThrottleReleasedParticlesIfNecessary(NonMainReleasedParticles);
+		}
 
 		// Removing a particle should have no bearing on the proxy of the cluster.
 		// This gets changed because we go through an internal initialization route when we update the cluster union particle's properties.
