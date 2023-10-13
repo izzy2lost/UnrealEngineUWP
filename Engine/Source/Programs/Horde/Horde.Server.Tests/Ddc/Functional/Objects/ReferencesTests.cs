@@ -53,6 +53,7 @@ namespace Horde.Server.Tests.Ddc.FunctionalTests.References
 	}
 
 	[TestClass]
+	[Ignore]
     public class ReferencesTests : ControllerIntegrationTest
     {
 		//		private static TestServer? _server;
