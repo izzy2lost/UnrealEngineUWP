@@ -130,6 +130,9 @@ class USplineMeshComponent : public UStaticMeshComponent, public IInterface_Coll
 	UPROPERTY()
 	FGuid CachedMeshBodySetupGuid;
 
+	// Navigation bounds can differ from primitive bounds since NavCollision can hold more geometry
+	FBox CachedNavigationBounds;
+
 	// Physics data.
 	UPROPERTY()
 	TObjectPtr<UBodySetup> BodySetup;
@@ -194,11 +197,30 @@ public:
 	//Begin USceneComponent Interface
 	ENGINE_API virtual FBoxSphereBounds CalcBounds(const FTransform& LocalToWorld) const override;
 	ENGINE_API virtual FTransform GetSocketTransform(FName InSocketName, ERelativeTransformSpace TransformSpace = RTS_World) const override;
+	ENGINE_API virtual void UpdateBounds() override;
 	//End USceneComponent Interface
 
 	//Begin UPrimitiveComponent Interface
 protected:
 	ENGINE_API virtual void OnCreatePhysicsState() override;
+
+	float ComputeRatioAlongSpline(float DistanceAlong) const;
+
+	/** Returns the normalized range on the spline where the visual mesh is located taking custom range into account. */
+	void ComputeVisualMeshSplineTRange(float& MinT, float& MaxT) const;
+
+	/**
+	 * Computes the bounding box, in world space, for a given bounding box distorted by the spline in local space.
+	 * By default this method uses the provided mesh bounds that were used to define the spline range [0,1] so all points are expected
+	 * to stay in that range. In case the bounds to deform are overriden by the optional parameter then linear extrapolation
+	 * will be applied at the beginning and at the end of the spline for the exceeding part.
+	 * @param InLocalToWorld Transformation to apply to the computed bounds to convert them from local space to world space.
+	 * @param InMeshBounds Bounds of the static mesh that get distorted by the spline.
+	 * @param InBoundsToDistort Optional bounds to distort instead of using the mesh bounds.
+	 * @return Bounds, in world space, of the provided bounds distorted by the spline.
+	 */
+	FBox ComputeDistortedBounds(const FTransform& InLocalToWorld, const FBoxSphereBounds& InMeshBounds, const FBoxSphereBounds* InBoundsToDistort = nullptr) const;
+
 public:
 	ENGINE_API virtual class UBodySetup* GetBodySetup() override;
 #if WITH_EDITOR
@@ -388,7 +410,7 @@ public:
 	 * Calculates the spline transform, including roll, scale, and offset along the spline at a specified alpha interpolation parameter along the spline
 	 * @Note:  This is mirrored to Lightmass::CalcSliceTransform() and LocalVertexShader.usf.  If you update one of these, please update them all!
 	 */
-	ENGINE_API FTransform CalcSliceTransformAtSplineOffset(const float Alpha) const;
+	ENGINE_API FTransform CalcSliceTransformAtSplineOffset(const float Alpha, const float MinT=0.f, const float MaxT=1.0f) const;
 
 	UE_DEPRECATED(5.2, "Use GetAxisValueRef() instead.")
 	static const double& GetAxisValue(const FVector3d& InVector, ESplineMeshAxis::Type InAxis) { return GetAxisValueRef(InVector, InAxis); }
