@@ -139,6 +139,8 @@ FLocalExposureParameters GetLocalExposureParameters(const FViewInfo& View, FIntP
 	Parameters.BlurredLuminanceBlend = Settings.LocalExposureBlurredLuminanceBlend;
 	Parameters.MiddleGreyExposureCompensation = LocalExposureMiddleGreyExposureCompensation;
 	Parameters.BilateralGridUVScale = LocalExposureBilateralGridUVScale;
+	Parameters.HighlightThreshold = Settings.LocalExposureHighlightThreshold;
+	Parameters.ShadowThreshold = Settings.LocalExposureShadowThreshold;
 	return Parameters;
 }
 

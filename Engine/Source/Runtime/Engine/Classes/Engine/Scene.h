@@ -914,6 +914,12 @@ struct FPostProcessSettings
 	uint8 bOverride_LocalExposureShadowContrastCurve:1;
 
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category=Overrides, meta=(PinHiddenByDefault, InlineEditConditionToggle))
+	uint8 bOverride_LocalExposureHighlightThreshold:1;
+
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category=Overrides, meta=(PinHiddenByDefault, InlineEditConditionToggle))
+	uint8 bOverride_LocalExposureShadowThreshold :1;
+
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category=Overrides, meta=(PinHiddenByDefault, InlineEditConditionToggle))
 	uint8 bOverride_LocalExposureDetailStrength:1;
 
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category=Overrides, meta=(PinHiddenByDefault, InlineEditConditionToggle))
@@ -1863,6 +1869,18 @@ struct FPostProcessSettings
 	 */
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Lens|Local Exposure", meta = (editcondition = "bOverride_LocalExposureShadowContrastCurve", DisplayName = "Shadow Contrast Curve"))
 	TObjectPtr<class UCurveFloat> LocalExposureShadowContrastCurve = nullptr;
+
+	/** 
+	 * Threshold used to determine which regions of the screen are considered highlights.
+	*/
+	UPROPERTY(interp, BlueprintReadWrite, Category="Lens|Local Exposure", meta=(UIMin = "0.0", UIMax = "4.0", editcondition = "bOverride_LocalExposureHighlightThreshold", DisplayName = "Highlight Threshold"))
+	float LocalExposureHighlightThreshold;
+
+	/**
+	 * Threshold used to determine which regions of the screen are considered shadows.
+	*/
+	UPROPERTY(interp, BlueprintReadWrite, Category="Lens|Local Exposure", meta=(UIMin = "0.0", UIMax = "4.0", editcondition = "bOverride_LocalExposureShadowThreshold", DisplayName = "Shadow Threshold"))
+	float LocalExposureShadowThreshold;
 
 	/**
 	 * Local Exposure decomposes luminance of the frame into a base layer and a detail layer.

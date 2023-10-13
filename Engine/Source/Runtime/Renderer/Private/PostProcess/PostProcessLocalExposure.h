@@ -13,6 +13,8 @@ BEGIN_SHADER_PARAMETER_STRUCT(FLocalExposureParameters, )
 	SHADER_PARAMETER(float, BlurredLuminanceBlend)
 	SHADER_PARAMETER(float, MiddleGreyExposureCompensation)
 	SHADER_PARAMETER(FVector2f, BilateralGridUVScale)
+	SHADER_PARAMETER(float, HighlightThreshold)
+	SHADER_PARAMETER(float, ShadowThreshold)
 END_SHADER_PARAMETER_STRUCT()
 
 FLocalExposureParameters GetLocalExposureParameters(const FViewInfo& View, FIntPoint ViewRectSize, const FEyeAdaptationParameters& EyeAdaptationParameters);
