@@ -40,7 +40,7 @@ public:
 	UPROPERTY(EditAnywhere, Category = SelectionFilter)
 	bool bSelectFaces = true;
 
-	/** When true, will select edge loops. Edge loops are paths along a string of valence-4 vertices. */
+	/** When true, will select edge loops. Edge loops are either paths through vertices with 4 edges, or boundaries of holes. */
 	UPROPERTY(EditAnywhere, Category = SelectionFilter)
 	bool bSelectEdgeLoops = false;
 

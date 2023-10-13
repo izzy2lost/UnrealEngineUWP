@@ -267,6 +267,7 @@ bool UPolygonSelectionMechanic::UpdateHighlight(const FRay& WorldRay)
 	if (HilightSelection.SelectedEdgeIDs.Num() > 0 && Properties->bSelectEdgeLoops && ShouldSelectEdgeLoopsFunc())
 	{
 		GroupTopoSelector->ExpandSelectionByEdgeLoops(HilightSelection);
+		GroupTopoSelector->ExpandSelectionByBoundaryLoops(HilightSelection);
 	}
 
 	// Don't hover highlight a selection that we already selected, because people didn't like that
@@ -346,6 +347,7 @@ bool UPolygonSelectionMechanic::UpdateSelection(const FRay& WorldRay, FVector3d&
 		if (Selection.SelectedEdgeIDs.Num() > 0 && Properties->bSelectEdgeLoops && ShouldSelectEdgeLoopsFunc())
 		{
 			GroupTopoSelector->ExpandSelectionByEdgeLoops(Selection);
+			GroupTopoSelector->ExpandSelectionByBoundaryLoops(Selection);
 		}
 	}
 
