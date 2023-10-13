@@ -301,6 +301,12 @@ void FReplicationSystemTestNode::PostSendUpdate()
 void FReplicationSystemTestNode::DeliverTo(FReplicationSystemTestNode& Dest, uint32 LocalConnectionId, uint32 RemoteConnectionId, bool bDeliver)
 {
 	FConnectionInfo& Connection = GetConnectionInfo(LocalConnectionId);
+	if (Connection.WrittenPackets.IsEmpty())
+	{
+		UE_LOG(LogIris, Log, TEXT("ReplicationSystemTestFixture: Conn: %u Unable to %hs packet as there are no packets."), LocalConnectionId, (bDeliver ? "deliver" : "drop"));
+		return;
+	}
+
 	const FPacketData& Packet = Connection.WrittenPackets.Peek();
 
 	if (bDeliver)
@@ -414,7 +420,7 @@ void FReplicationSystemTestServer::DeliverTo(FReplicationSystemTestClient* Clien
 	FReplicationSystemTestNode::DeliverTo(*Client, Client->ConnectionIdOnServer, Client->LocalConnectionId, bDeliver);
 }
 
-bool FReplicationSystemTestServer::UpdateAndSend(const TArray<FReplicationSystemTestClient*>& Clients, bool bDeliver /*= true*/)
+bool FReplicationSystemTestServer::UpdateAndSend(const TArrayView<FReplicationSystemTestClient*const>& Clients, bool bDeliver /*= true*/)
 {
 	bool bSuccess = true;
 

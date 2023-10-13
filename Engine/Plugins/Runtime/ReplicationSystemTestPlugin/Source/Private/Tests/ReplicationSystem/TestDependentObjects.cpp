@@ -83,7 +83,7 @@ UE_NET_TEST_FIXTURE(FReplicationSystemServerClientTestFixture, TestDependentObje
 
 	// Filter out Server object to start with
 	FNetObjectGroupHandle FilterGroup = ReplicationSystem->CreateGroup();
-	ReplicationSystem->AddGroupFilter(FilterGroup);
+	ReplicationSystem->AddExclusionFilterGroup(FilterGroup);
 	ReplicationSystem->AddToGroup(FilterGroup, ServerObject->NetRefHandle);
 
 	// Setup dependent object to only replicate with ServerObject
@@ -131,7 +131,7 @@ UE_NET_TEST_FIXTURE(FReplicationSystemServerClientTestFixture, TestChainedDepend
 
 	// Filter out Server object to start with
 	FNetObjectGroupHandle FilterGroup = ReplicationSystem->CreateGroup();
-	ReplicationSystem->AddGroupFilter(FilterGroup);
+	ReplicationSystem->AddExclusionFilterGroup(FilterGroup);
 	ReplicationSystem->AddToGroup(FilterGroup, ServerObject->NetRefHandle);
 
 	// Setup dependent object to only replicate with ServerObject

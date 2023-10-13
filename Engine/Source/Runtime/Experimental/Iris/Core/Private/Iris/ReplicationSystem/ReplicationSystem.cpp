@@ -69,7 +69,7 @@ public:
 	{
 		NotReplicatedNetObjectGroupHandle = ReplicationSystem->CreateGroup();
 		check(NotReplicatedNetObjectGroupHandle.IsNotReplicatedNetObjectGroup());
-		ReplicationSystem->AddGroupFilter(NotReplicatedNetObjectGroupHandle);
+		ReplicationSystem->AddExclusionFilterGroup(NotReplicatedNetObjectGroupHandle);
 		
 		// Setup SubObjectFiltering groups
 		NetGroupOwnerNetObjectGroupHandle = ReplicationSystem->GetOrCreateSubObjectFilter(UE::Net::NetGroupOwner);
@@ -1212,23 +1212,25 @@ void UReplicationSystem::AddToGroup(FNetObjectGroupHandle GroupHandle, FNetRefHa
 
 	using namespace UE::Net::Private;
 
-	FNetObjectGroups& Groups = Impl->ReplicationSystemInternal.GetGroups();
 	FNetRefHandleManager& NetRefHandleManager = Impl->ReplicationSystemInternal.GetNetRefHandleManager();
-	FReplicationFiltering& Filtering = Impl->ReplicationSystemInternal.GetFiltering();	
-
 	const FInternalNetRefIndex ObjectInternalIndex = NetRefHandleManager.GetInternalIndex(Handle);
-	
+
 	if (Impl->ReplicationSystemInternal.AreFilterChangesBlocked())
 	{
 		ensureMsgf(false, TEXT("Setting filter conditions is not yet supported during this operation. Filter condition on %s (%s) failed."), *GetNameSafe(NetRefHandleManager.GetReplicatedObjectInstance(ObjectInternalIndex)), *Handle.ToString());
 		return;
 	}
 
-	if (ObjectInternalIndex)
+	if (ObjectInternalIndex == FNetRefHandleManager::InvalidInternalIndex)
 	{
-		Groups.AddToGroup(GroupHandle, ObjectInternalIndex);
-		Filtering.NotifyObjectAddedToGroup(GroupHandle, ObjectInternalIndex);
+		return;
 	}
+	
+	FNetObjectGroups& Groups = Impl->ReplicationSystemInternal.GetGroups();
+	FReplicationFiltering& Filtering = Impl->ReplicationSystemInternal.GetFiltering();	
+
+	Groups.AddToGroup(GroupHandle, ObjectInternalIndex);
+	Filtering.NotifyObjectAddedToGroup(GroupHandle, ObjectInternalIndex);
 }
 
 void UReplicationSystem::RemoveFromGroup(FNetObjectGroupHandle GroupHandle, FNetRefHandle Handle)
@@ -1242,23 +1244,23 @@ void UReplicationSystem::RemoveFromGroup(FNetObjectGroupHandle GroupHandle, FNet
 	using namespace UE::Net::Private;
 
 	FNetRefHandleManager& NetRefHandleManager = Impl->ReplicationSystemInternal.GetNetRefHandleManager();
-
 	const FInternalNetRefIndex ObjectInternalIndex = NetRefHandleManager.GetInternalIndex(Handle);
-
 	if (Impl->ReplicationSystemInternal.AreFilterChangesBlocked())
 	{
 		ensureMsgf(false, TEXT("Setting filter conditions is not yet supported during this operation. Filter condition on %s (%s) failed."), *GetNameSafe(NetRefHandleManager.GetReplicatedObjectInstance(ObjectInternalIndex)), *Handle.ToString());
 		return;
 	}
 
-	if (ObjectInternalIndex)
+	if (ObjectInternalIndex == FNetRefHandleManager::InvalidInternalIndex)
 	{
-		FNetObjectGroups& Groups = Impl->ReplicationSystemInternal.GetGroups();
-		FReplicationFiltering& Filtering = Impl->ReplicationSystemInternal.GetFiltering();	
-
-		Groups.RemoveFromGroup(GroupHandle, ObjectInternalIndex);
-		Filtering.NotifyObjectRemovedFromGroup(GroupHandle, ObjectInternalIndex);
+		return;
 	}
+
+	FNetObjectGroups& Groups = Impl->ReplicationSystemInternal.GetGroups();
+	FReplicationFiltering& Filtering = Impl->ReplicationSystemInternal.GetFiltering();
+
+	Groups.RemoveFromGroup(GroupHandle, ObjectInternalIndex);
+	Filtering.NotifyObjectRemovedFromGroup(GroupHandle, ObjectInternalIndex);
 }
 
 void UReplicationSystem::RemoveFromAllGroups(FNetRefHandle Handle)
@@ -1350,22 +1352,40 @@ UE::Net::FNetObjectGroupHandle UReplicationSystem::GetNetGroupReplayNetObjectGro
 	return Impl->NetGroupReplayNetObjectGroupHandle;
 }
 
-void UReplicationSystem::AddGroupFilter(FNetObjectGroupHandle GroupHandle)
+bool UReplicationSystem::AddExclusionFilterGroup(FNetObjectGroupHandle GroupHandle)
 {
 	// Early out if this is invalid group
 	if (!ensure(IsValidGroup(GroupHandle)))
 	{
-		return;
+		return false;
 	}
 
 	if (Impl->ReplicationSystemInternal.AreFilterChangesBlocked())
 	{
 		ensureMsgf(false, TEXT("Setting filter conditions is not yet supported during this operation."));
-		return;
+		return false;
 	}
 
 	UE::Net::Private::FReplicationFiltering& Filtering = Impl->ReplicationSystemInternal.GetFiltering();	
-	Filtering.AddGroupFilter(GroupHandle);
+	return Filtering.AddExclusionFilterGroup(GroupHandle);
+}
+
+bool UReplicationSystem::AddInclusionFilterGroup(FNetObjectGroupHandle GroupHandle)
+{
+	// Early out if this is invalid group
+	if (!ensure(IsValidGroup(GroupHandle)))
+	{
+		return false;
+	}
+
+	if (Impl->ReplicationSystemInternal.AreFilterChangesBlocked())
+	{
+		ensureMsgf(false, TEXT("Setting filter conditions is not yet supported during this operation."));
+		return false;
+	}
+
+	UE::Net::Private::FReplicationFiltering& Filtering = Impl->ReplicationSystemInternal.GetFiltering();	
+	return Filtering.AddInclusionFilterGroup(GroupHandle);
 }
 
 void UReplicationSystem::RemoveGroupFilter(FNetObjectGroupHandle GroupHandle)

@@ -191,7 +191,7 @@ public:
 	void DeliverTo(FReplicationSystemTestClient* Client, bool bDeliver);
 
 	// Tick and send packets to one or all clients
-	bool UpdateAndSend(const TArray<FReplicationSystemTestClient*>& Clients, bool bDeliver=true);
+	bool UpdateAndSend(const TArrayView<FReplicationSystemTestClient*const>& Clients, bool bDeliver=true);
 };
 
 class FReplicationSystemServerClientTestFixture : public FNetworkAutomationTestSuiteFixture

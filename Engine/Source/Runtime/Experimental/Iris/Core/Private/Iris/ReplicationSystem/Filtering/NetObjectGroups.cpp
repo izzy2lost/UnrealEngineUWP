@@ -1,6 +1,7 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 
 #include "NetObjectGroups.h"
+#include "Math/UnrealMathUtility.h"
 #include "Iris/ReplicationSystem/Filtering/NetObjectFilter.h"
 #include "Iris/ReplicationSystem/NetRefHandleManager.h" // for InvalidInternalIndex
 #include "Containers/ArrayView.h"
@@ -71,22 +72,23 @@ void FNetObjectGroups::ResetGroupMembership(FNetObjectGroupMembership& Target)
 
 void FNetObjectGroups::Init(const FNetObjectGroupInitParams& Params)
 {
-	MaxGroupCount = Params.MaxGroupCount;
+	ensureMsgf(Params.MaxGroupCount < std::numeric_limits<FNetObjectGroupHandle::FGroupIndexType>::max(), TEXT("MaxGroupCount cannot exceed %u"), std::numeric_limits<FNetObjectGroupHandle::FGroupIndexType>::max());
+	MaxGroupCount = FMath::Clamp<uint32>(Params.MaxGroupCount, 0U, std::numeric_limits<FNetObjectGroupHandle::FGroupIndexType>::max());
 
 	// Reserve first as invalid group
 	Groups.Add(FNetObjectGroup());
 
 	GroupMemberships.SetNumZeroed(Params.MaxObjectCount);
-	GroupFilteredObjects.Init(Params.MaxObjectCount);
+	GroupFilteredOutObjects.Init(Params.MaxObjectCount);
 }
 
 FNetObjectGroupHandle FNetObjectGroups::CreateGroup()
 {
 	if (ensure((uint32)Groups.Num() < MaxGroupCount))
 	{
-		const int Index = Groups.Add(FNetObjectGroup());
+		const uint32 Index = static_cast<uint32>(Groups.Add(FNetObjectGroup()));
 		FNetObjectGroupHandle GroupHandle;
-		GroupHandle.Index = Index;
+		GroupHandle.Index = static_cast<FNetObjectGroupHandle::FGroupIndexType>(Index);
 		GroupHandle.Epoch = CurrentEpoch;
 		return GroupHandle;
 	}
@@ -122,6 +124,16 @@ void FNetObjectGroups::SetGroupName(FNetObjectGroupHandle GroupHandle, FName Gro
 			Group->GroupName = GroupName;
 		}
 	}
+}
+
+FName FNetObjectGroups::GetGroupName(FNetObjectGroupHandle GroupHandle) const
+{
+	if (const FNetObjectGroup* Group = GetGroup(GroupHandle))
+	{
+		return Group->GroupName;
+	}
+
+	return FName();
 }
 
 FNetObjectGroupHandle FNetObjectGroups::CreateNamedGroup(FName GroupName)
@@ -219,7 +231,7 @@ void FNetObjectGroups::AddToGroup(FNetObjectGroupHandle GroupHandle, FInternalNe
 
 			if (IsFilterGroup(*Group))
 			{
-				GroupFilteredObjects.SetBit(InternalIndex);
+				GroupFilteredOutObjects.SetBit(InternalIndex);
 			}
 		}
 		else
@@ -243,50 +255,82 @@ void FNetObjectGroups::RemoveFromGroup(FNetObjectGroupHandle GroupHandle, FInter
 		// Check to see if the object is still part of a filter group
 		if (!IsInAnyFilterGroup(GroupMembership))
 		{
-			GroupFilteredObjects.ClearBit(InternalIndex);
+			GroupFilteredOutObjects.ClearBit(InternalIndex);
 		}
 	}
 }
 
-void FNetObjectGroups::AddFilterTrait(FNetObjectGroupHandle GroupHandle)
+void FNetObjectGroups::AddExclusionFilterTrait(FNetObjectGroupHandle GroupHandle)
 {
 	if (FNetObjectGroup* Group = GetGroup(GroupHandle))
 	{
 		if (!IsFilterGroup(*Group))
 		{
-			Group->Traits |= ENetObjectGroupTraits::IsFiltering;
+			Group->Traits |= ENetObjectGroupTraits::IsExclusionFiltering;
 
 			// Flag all current members of this group that they are now filterable
 			for (FInternalNetRefIndex MemberIndex : Group->Members)
 			{
-				GroupFilteredObjects.SetBit(MemberIndex);
+				GroupFilteredOutObjects.SetBit(MemberIndex);
 			}
 		}
 	}
 }
 
-void FNetObjectGroups::RemoveFilterTrait(FNetObjectGroupHandle GroupHandle)
+void FNetObjectGroups::RemoveExclusionFilterTrait(FNetObjectGroupHandle GroupHandle)
+{
+	FNetObjectGroup* Group = GetGroup(GroupHandle);
+	if (Group == nullptr)
+	{
+		return;
+	}
+
+	if (!IsExclusionFilterGroup(*Group))
+	{
+		return;
+	}
+
+	Group->Traits &= ~(ENetObjectGroupTraits::IsExclusionFiltering);
+
+	for (FInternalNetRefIndex MemberIndex : Group->Members)
+	{
+		// Check to see if the object is still part of a filter group
+		if (!IsInAnyFilterGroup(GroupMemberships[MemberIndex]))
+		{
+			GroupFilteredOutObjects.ClearBit(MemberIndex);
+		}
+	}
+}
+
+void FNetObjectGroups::AddInclusionFilterTrait(FNetObjectGroupHandle GroupHandle)
 {
 	if (FNetObjectGroup* Group = GetGroup(GroupHandle))
 	{
-		Group->Traits &= ~(ENetObjectGroupTraits::IsFiltering);
-
-		for (FInternalNetRefIndex MemberIndex : Group->Members)
+		// Can't be both inclusion and exclusion so let's do nothing if the group has any sort of filter trait.
+		if (!IsFilterGroup(*Group))
 		{
-			// Check to see if the object is still part of a filter group
-			if (!IsInAnyFilterGroup(GroupMemberships[MemberIndex]))
-			{
-				GroupFilteredObjects.ClearBit(MemberIndex);
-			}
+			Group->Traits |= ENetObjectGroupTraits::IsInclusionFiltering;
 		}
 	}
+}
+
+void FNetObjectGroups::RemoveInclusionFilterTrait(FNetObjectGroupHandle GroupHandle)
+{
+	FNetObjectGroup* Group = GetGroup(GroupHandle);
+	if (Group == nullptr)
+	{
+		return;
+	}
+
+	// Simply remove the trait.
+	Group->Traits &= ~(ENetObjectGroupTraits::IsInclusionFiltering);
 }
 
 bool FNetObjectGroups::IsFilterGroup(FNetObjectGroupHandle GroupHandle) const
 {
 	if (const FNetObjectGroup* Group = GetGroup(GroupHandle))
 	{
-		return EnumHasAnyFlags(Group->Traits, ENetObjectGroupTraits::IsFiltering);
+		return EnumHasAnyFlags(Group->Traits, ENetObjectGroupTraits::IsExclusionFiltering | ENetObjectGroupTraits::IsInclusionFiltering);
 	}
 
 	return false;

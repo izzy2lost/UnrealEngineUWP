@@ -715,7 +715,7 @@ UE_NET_TEST_FIXTURE(FReplicationSystemServerClientTestFixture, AddRemoveFromConn
 	FNetObjectGroupHandle Group = ReplicationSystem->CreateGroup();
 	ReplicationSystem->AddToGroup(Group, ServerObject->NetRefHandle);
 
-	ReplicationSystem->AddGroupFilter(Group);
+	ReplicationSystem->AddExclusionFilterGroup(Group);
 	ReplicationSystem->SetGroupFilterStatus(Group, ENetFilterStatus::Allow);
 
 	// Start replicating object

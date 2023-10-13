@@ -937,7 +937,7 @@ UE::Net::FNetObjectGroupHandle UReplicationBridge::CreateLevelGroup(const UObjec
 	FNetObjectGroupHandle LevelGroupHandle = ReplicationSystem->CreateGroup();
 	if (ensure(LevelGroupHandle.IsValid()))
 	{
-		ReplicationSystem->AddGroupFilter(LevelGroupHandle);
+		ReplicationSystem->AddExclusionFilterGroup(LevelGroupHandle);
 		LevelGroups.Emplace(FObjectKey(Level), LevelGroupHandle);
 	}
 

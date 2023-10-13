@@ -23,20 +23,19 @@ namespace UE::Net::Private
 
 enum class ENetObjectGroupTraits : uint32
 {
-	None				= 0x0000,
-	IsFindableByName	= 0x0001,
-	IsFiltering			= 0x0002,
+	None                 = 0x0000,
+	IsFindableByName     = 0x0001,
+	IsExclusionFiltering = 0x0002,
+	IsInclusionFiltering = 0x0004,
 };
 ENUM_CLASS_FLAGS(ENetObjectGroupTraits);
 
 struct FNetObjectGroup
 {
-	FNetObjectGroup() : Traits(ENetObjectGroupTraits::None) {}
-
 	// Group members can only be replicated objects that have internal indices
 	TArray<FInternalNetRefIndex> Members;
 	FName GroupName;
-	ENetObjectGroupTraits Traits;
+	ENetObjectGroupTraits Traits = ENetObjectGroupTraits::None;
 };
 
 struct FNetObjectGroupInitParams
@@ -67,21 +66,34 @@ public:
 	FNetObjectGroup* GetGroupByIndex(FNetObjectGroupHandle::FGroupIndexType GroupIndex);
 
 	void SetGroupName(FNetObjectGroupHandle GroupHandle, FName GroupName);
+	FName GetGroupName(FNetObjectGroupHandle GroupHandle) const;
 
-	inline bool IsValidGroup(FNetObjectGroupHandle GroupHandle) const { return GroupHandle.IsValid() && GroupHandle.Epoch == CurrentEpoch && Groups.IsValidIndex(GroupHandle.GetGroupIndex()); }
+	bool IsValidGroup(FNetObjectGroupHandle GroupHandle) const;
 
 	bool Contains(FNetObjectGroupHandle GroupHandle, FInternalNetRefIndex InternalIndex) const;
 	void AddToGroup(FNetObjectGroupHandle GroupHandle, FInternalNetRefIndex InternalIndex);
 	void RemoveFromGroup(FNetObjectGroupHandle GroupHandle, FInternalNetRefIndex InternalIndex);
 
-	/** Called when a group is set to filter it's members */
-	void AddFilterTrait(FNetObjectGroupHandle GroupHandle);
+	/** Called when a group is to be used as an exclusion filter group */
+	void AddExclusionFilterTrait(FNetObjectGroupHandle GroupHandle);
 
-	/** Called when a group no longer filters it's members */
-	void RemoveFilterTrait(FNetObjectGroupHandle GroupHandle);
+	/** Called when a group is no longer used as an exclusion filter group */
+	void RemoveExclusionFilterTrait(FNetObjectGroupHandle GroupHandle);
 
-	/** Does the gorup have the filter trait */
+	/** Called when a group is to be used as an inclusion filter group */
+	void AddInclusionFilterTrait(FNetObjectGroupHandle GroupHandle);
+
+	/** Called when a group is no longer used as an inclusion filter group */
+	void RemoveInclusionFilterTrait(FNetObjectGroupHandle GroupHandle);
+
+	/** Does the group have a filter trait, either exclusion or inclusion */
 	bool IsFilterGroup(FNetObjectGroupHandle GroupHandle) const;
+
+	/** Does the group have the exclusion filter trait */
+	bool IsExclusionFilterGroup(FNetObjectGroupHandle GroupHandle) const;
+
+	/** Does the group have the inclusion filter trait */
+	bool IsInclusionFilterGroup(FNetObjectGroupHandle GroupHandle) const;
 
 	/** Returns how many groups the given handle is a member of */
 	uint32 GetNumGroupMemberships(FInternalNetRefIndex InternalIndex) const;
@@ -98,9 +110,9 @@ public:
 	void DestroyNamedGroup(FName GroupName);
 
 	/** Returns a list of all objects currently part of a group with the filter trait */
-	const FNetBitArrayView GetGroupFilteredObjects() const
+	const FNetBitArrayView GetGroupFilteredOutObjects() const
 	{
-		return MakeNetBitArrayView(GroupFilteredObjects);
+		return MakeNetBitArrayView(GroupFilteredOutObjects);
 	}
 
 private:
@@ -116,6 +128,8 @@ private:
 	static bool IsMemberOf(const FNetObjectGroupMembership& Target, FNetObjectGroupHandle Group);
 
 	bool IsFilterGroup(const FNetObjectGroup& Group) const;
+	bool IsExclusionFilterGroup(const FNetObjectGroup& Group) const;
+	bool IsInclusionFilterGroup(const FNetObjectGroup& Group) const;
 
 	bool IsInAnyFilterGroup(const FNetObjectGroupMembership& GroupMembership) const;
 
@@ -127,18 +141,33 @@ private:
 	uint32 MaxGroupCount;
 
 	// List of objects that are members of a group with a filter trait
-	FNetBitArray GroupFilteredObjects;
+	FNetBitArray GroupFilteredOutObjects;
 
 	TMap<FName, FNetObjectGroupHandle> NamedGroups;
 
-	uint32 CurrentEpoch = 0U;
+	FNetObjectGroupHandle::FGroupIndexType CurrentEpoch = 0U;
 
-	inline static uint32 NextEpoch = 1U;
+	inline static FNetObjectGroupHandle::FGroupIndexType NextEpoch = 1U;
 };
+
+inline bool FNetObjectGroups::IsValidGroup(FNetObjectGroupHandle GroupHandle) const
+{
+	return GroupHandle.IsValid() && GroupHandle.Epoch == CurrentEpoch && Groups.IsValidIndex(GroupHandle.GetGroupIndex());
+}
 
 inline bool FNetObjectGroups::IsFilterGroup(const FNetObjectGroup& Group) const
 {
-	return EnumHasAnyFlags(Group.Traits, ENetObjectGroupTraits::IsFiltering);
+	return EnumHasAnyFlags(Group.Traits, ENetObjectGroupTraits::IsExclusionFiltering | ENetObjectGroupTraits::IsInclusionFiltering);
+}
+
+inline bool FNetObjectGroups::IsExclusionFilterGroup(const FNetObjectGroup& Group) const
+{
+	return EnumHasAnyFlags(Group.Traits, ENetObjectGroupTraits::IsExclusionFiltering);
+}
+
+inline bool FNetObjectGroups::IsInclusionFilterGroup(const FNetObjectGroup& Group) const
+{
+	return EnumHasAnyFlags(Group.Traits, ENetObjectGroupTraits::IsInclusionFiltering);
 }
 
 } // end namespace UE::Net::Private

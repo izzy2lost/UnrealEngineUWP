@@ -340,7 +340,7 @@ public:
 	 */
 	IRISCORE_API bool IsValidGroup(FNetObjectGroupHandle GroupHandle) const;
 
-	/** Special group, NetHandles assigned to this group will be filtered out for all connections */
+	/** Special group, root objects assigned to this group will be filtered out for all connections */
 	IRISCORE_API FNetObjectGroupHandle GetNotReplicatedNetObjectGroup() const;
 
 	/** Special group, SubObjects assigned to this group will replicate to owner of RootParent */
@@ -406,13 +406,32 @@ public:
 	// Group Filtering
 
 	/**
-	 * Add a group to the filtering system. By default the filter disallows replication for all objects in the group.
+	 * Add a group to the filtering system. This group is used only for filtering out objects. Exclusion groups are processed before dynamic filters, those implemented by UNetObjectFilter. 
+	 * By default an exclusion group disallows replication for all objects in it. Use SetGroupFilterStatus to change the behavior.
+	 * @note A group can only be either an exclusion group or an inclusion group, not both at the same time.
 	 * @param GroupHandle A valid handle to a group.
-	 * @see CreateGroup 
+	 * @see CreateGroup
+	 * @see AddInclusionFilterGroup
+	 * @see SetGroupFilterStatus
+	 * @return true if the group was successfully added as an exclusion group, false in all other cases such as being an invalid group, reserved group or used as an inclusion filter.
 	 */
-	IRISCORE_API void AddGroupFilter(FNetObjectGroupHandle GroupHandle);
+	IRISCORE_API bool AddExclusionFilterGroup(FNetObjectGroupHandle GroupHandle);
 
-	/** Remove group from filtering system, will cancel effects of the group. */
+	/**
+	 * Add a group to the filtering system. This group is used only for allowing replication of objects. Inclusion groups are processed after dynamic filters, those implemented by UNetObjectFilter. 
+	 * Inclusion groups are used to allow overriding the effect of dynamic filtering which can be useful to always allow replication of team specific objects for example.
+	 * By default the group will not override the effects of dynamic filtering. Use SetGroupFilterStatus to set which connection the objects should be allowed to replicate to, overriding the dynamic filtering.
+	 * @note A group can only be either an exclusion group or an inclusion group, not both at the same time.
+	 * @note Subobjects added to inclusion groups will be ignored during processing. A subobject's filter status is determined by the root object. For subobject filtering one can use SubObjectFilters.
+	 * @param GroupHandle A valid handle to a group.
+	 * @see CreateGroup
+	 * @see AddExclusionFilterGroup
+	 * @see SetGroupFilterStatus
+	 * @return true if the group was successfully added as an inclusion group, false in all other cases such as being an invalid group, reserved group or used as an exclusion filter.
+	 */
+	IRISCORE_API bool AddInclusionFilterGroup(FNetObjectGroupHandle GroupHandle);
+
+	/** Remove group from filtering system, cancelling all effects of the group. */
 	IRISCORE_API void RemoveGroupFilter(FNetObjectGroupHandle GroupHandle);
 
 	/** Set status of GroupFilter for specific connection. */
