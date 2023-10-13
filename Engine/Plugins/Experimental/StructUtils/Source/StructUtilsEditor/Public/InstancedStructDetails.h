@@ -106,6 +106,9 @@ private:
 	bool bIsHandlingStructValuePostChange = false;
 	
 	FDelegateHandle UserDefinedStructReinstancedHandle;
+
+protected:
+	void OnStructLayoutChanges();
 };
 
 /**

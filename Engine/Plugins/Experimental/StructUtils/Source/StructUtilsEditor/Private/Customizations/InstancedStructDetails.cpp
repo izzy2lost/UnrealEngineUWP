@@ -249,12 +249,7 @@ FInstancedStructDataDetails::~FInstancedStructDataDetails()
 
 void FInstancedStructDataDetails::OnUserDefinedStructReinstancedHandle(const UUserDefinedStruct& Struct)
 {
-	if (StructProvider.IsValid())
-	{
-		// Reset the struct provider immediately, some update functions might get called with the old struct.
-		StructProvider->Reset();
-	}
-	OnRegenerateChildren.ExecuteIfBound();
+	OnStructLayoutChanges();
 }
 
 void FInstancedStructDataDetails::SetOnRebuildChildren(FSimpleDelegate InOnRegenerateChildren)
@@ -281,6 +276,16 @@ TArray<TWeakObjectPtr<const UStruct>> FInstancedStructDataDetails::GetInstanceTy
 	});
 
 	return Result;
+}
+
+void FInstancedStructDataDetails::OnStructLayoutChanges()
+{
+	if (StructProvider.IsValid())
+	{
+		// Reset the struct provider immediately, some update functions might get called with the old struct.
+		StructProvider->Reset();
+	}
+	OnRegenerateChildren.ExecuteIfBound();
 }
 
 void FInstancedStructDataDetails::OnStructHandlePostChange()

@@ -250,3 +250,15 @@ public:
 	UPROPERTY(BlueprintReadWrite, EditAnywhere, Category = "Runtime Generation", meta = (UIMin = "1.0", ClampMin = "1.0"))
 	double CleanupRadiusMultiplier = DefaultCleanupRadiusMultiplier;
 };
+
+struct FInstancedPropertyBag;
+
+namespace PCGDelegates
+{
+#if WITH_EDITOR
+	/** Callback to hook in the UI to detect property bag changes, so the UI is reset and does not try to read in garbage memory. */
+	DECLARE_MULTICAST_DELEGATE_OneParam(FOnInstanceLayoutChanged, const FInstancedPropertyBag& /*Instance*/);
+	extern PCG_API FOnInstanceLayoutChanged OnInstancedPropertyBagLayoutChanged;
+#endif
+}
+

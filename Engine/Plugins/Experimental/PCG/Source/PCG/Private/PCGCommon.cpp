@@ -91,3 +91,10 @@ double FPCGRuntimeGenerationRadii::GetCleanupRadiusFromGrid(EPCGHiGenGrid Grid) 
 	return GetGenerationRadiusFromGrid(Grid) * CleanupRadiusMultiplier;
 }
 
+namespace PCGDelegates
+{
+#if WITH_EDITOR
+	FOnInstanceLayoutChanged OnInstancedPropertyBagLayoutChanged;
+#endif
+} // PCGDelegates
+

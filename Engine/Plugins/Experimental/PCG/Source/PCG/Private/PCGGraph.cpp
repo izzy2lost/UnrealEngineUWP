@@ -2,6 +2,7 @@
 
 #include "PCGGraph.h"
 
+#include "PCGCommon.h"
 #include "PCGComponent.h"
 #include "PCGEdge.h"
 #include "PCGInputOutputSettings.h"
@@ -1687,6 +1688,10 @@ bool FPCGOverrideInstancedPropertyBag::RefreshParameters(const FInstancedPropert
 		// Copy the parent parameters and reset overriddes
 		Parameters = *ParentUserParameters;
 		PropertiesIDsOverridden.Reset();
+#if WITH_EDITOR
+		// Notify the UI to force refresh
+		PCGDelegates::OnInstancedPropertyBagLayoutChanged.Broadcast(Parameters);
+#endif // WITH_EDITOR
 		break;
 	}
 	case EPCGGraphParameterEvent::Added:
@@ -1702,6 +1707,10 @@ bool FPCGOverrideInstancedPropertyBag::RefreshParameters(const FInstancedPropert
 		}
 
 		MigrateToNewBagInstance(*ParentUserParameters);
+#if WITH_EDITOR
+		// Notify the UI to force refresh
+		PCGDelegates::OnInstancedPropertyBagLayoutChanged.Broadcast(Parameters);
+#endif // WITH_EDITOR
 		break;
 	}
 	case EPCGGraphParameterEvent::ValueModifiedByParent:
