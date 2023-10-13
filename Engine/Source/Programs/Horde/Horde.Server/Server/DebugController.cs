@@ -22,6 +22,7 @@ using Horde.Server.Projects;
 using Horde.Server.Utilities;
 using JetBrains.Profiler.SelfApi;
 using Microsoft.AspNetCore.Authorization;
+using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
@@ -368,8 +369,8 @@ namespace Horde.Server.Server
 				return BadRequest("Unable to read or convert query parameter 'ipAddress'");
 			}
 
-			_globalConfig.Value.TryGetNetworkId(ip, out string? networkId);
-			return Ok($"Network ID: {networkId}");
+			_globalConfig.Value.TryGetNetworkConfig(ip, out NetworkConfig? networkConfig);
+			return networkConfig == null ? StatusCode(StatusCodes.Status500InternalServerError, "Unable to find a network config for the IP") : Ok(networkConfig);
 		}
 
 		/// <summary>

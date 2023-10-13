@@ -166,9 +166,9 @@ namespace Horde.Server.Server
 		public List<AgentRateConfig> Rates { get; set; } = new List<AgentRateConfig>();
 		
 		/// <summary>
-		/// List of mappings between network CIDR blocks to an identifier (a logical grouping)
+		/// List of networks
 		/// </summary>
-		public List<NetworkCidrBlockMapping> CidrBlocks { get; set; } = new List<NetworkCidrBlockMapping>();
+		public List<NetworkConfig> Networks { get; set; } = new List<NetworkConfig>();
 
 		/// <summary>
 		/// List of compute profiles
@@ -347,37 +347,23 @@ namespace Horde.Server.Server
 		public bool TryGetTool(ToolId toolId, [NotNullWhen(true)] out ToolConfig? config) => _toolLookup.TryGetValue(toolId, out config);
 
 		/// <summary>
-		/// Attempt to resolve an IP address to a network ID
+		/// Attempt to resolve an IP address to a network config
 		/// </summary>
 		/// <param name="ip">IP address to resolve</param>
-		/// <param name="networkId">Identifier of the network</param>
+		/// <param name="networkConfig">Config for the network</param>
 		/// <returns>True if the IP address was resolved</returns>
-		public bool TryGetNetworkId(IPAddress ip, [NotNullWhen(true)] out string? networkId)
+		public bool TryGetNetworkConfig(IPAddress ip, [NotNullWhen(true)] out NetworkConfig? networkConfig)
 		{
-			foreach (NetworkCidrBlockMapping blockMapping in CidrBlocks)
+			foreach (NetworkConfig nc in Networks)
 			{
-				bool isMatch = IsIpInBlock(ip, blockMapping.CidrBlock);
-				if (blockMapping.Condition != null)
+				if (nc.Id != null && IsIpInBlock(ip, nc.CidrBlock))
 				{
-					IEnumerable<string> GetPropertyValues(string name)
-					{
-						if (name == "ip")
-						{
-							yield return ip.ToString();
-						}
-					}
-				
-					isMatch = blockMapping.Condition.Evaluate(GetPropertyValues);
-				}
-
-				if (isMatch && blockMapping.Id != null)
-				{
-					networkId = blockMapping.Id;
+					networkConfig = nc;
 					return true;
 				}
 			}
 
-			networkId = null;
+			networkConfig = null;
 			return false;
 		}
 		
@@ -386,6 +372,11 @@ namespace Horde.Server.Server
 			if (cidrBlock == null)
 			{
 				return false;
+			}
+
+			if (cidrBlock == "0.0.0.0/0")
+			{
+				return true;
 			}
 			
 			string[] parts = cidrBlock.Split('/');
@@ -648,11 +639,17 @@ namespace Horde.Server.Server
 	}
 	
 	/// <summary>
-	/// Describes a mapping of a network CIDR block to an identifier.
+	/// Describes a network
 	/// The ID describes any logical grouping, such as region, availability zone, rack or office location. 
 	/// </summary>
-	public class NetworkCidrBlockMapping
+	public class NetworkConfig
 	{
+		/// <summary>
+		/// ID for this network
+		/// </summary>
+		[CbField("id")]
+		public string? Id { get; set; }
+		
 		/// <summary>
 		/// CIDR block
 		/// </summary>
@@ -660,16 +657,16 @@ namespace Horde.Server.Server
 		public string? CidrBlock { get; set; }
 		
 		/// <summary>
-		/// Condition string
+		/// Human-readable description
 		/// </summary>
-		[CbField("c")]
-		public Condition? Condition { get; set; }
-
+		[CbField("d")]
+		public string? Description { get; set; }
+		
 		/// <summary>
-		/// Arbitrary network identifier
+		/// Compute ID for this network (used when allocating compute resources)
 		/// </summary>
-		[CbField("id")]
-		public string? Id { get; set; }
+		[CbField("cid")]
+		public string? ComputeId { get; set; }
 	}
 
 	/// <summary>

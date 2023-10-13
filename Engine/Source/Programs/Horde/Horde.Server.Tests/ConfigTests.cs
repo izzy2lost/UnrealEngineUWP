@@ -122,47 +122,49 @@ namespace Horde.Server.Tests
 			Assert.IsTrue(!ReferenceEquals(file1, file3));
 		}
 
+		
+		private static NetworkConfig? GetNetworkConfig(GlobalConfig gc, string ip)
+		{
+			bool result = gc.TryGetNetworkConfig(IPAddress.Parse(ip), out NetworkConfig? networkConfig);
+			return result ? networkConfig : null;
+		}
+		
 		[TestMethod]
-		public void NetworkCidrMapping()
+		public void NetworkConfig()
 		{
 			GlobalConfig gc = new()
 			{
-				CidrBlocks = new List<NetworkCidrBlockMapping>()
+				Networks = new List<NetworkConfig>()
 				{
 					new() { CidrBlock = "10.0.0.0/30", Id = "foo" },
 					new() { CidrBlock = "10.0.0.4/30", Id = "bar" },
 					new() { CidrBlock = "192.168.0.0/16", Id = "baz" },
-					new() { CidrBlock = "192.100.0.0/16", Id = "cond", Condition = "ip == '192.100.10.20'"},
 				}
 			};
+
+			Assert.AreEqual(null, GetNetworkConfig(gc, "10.0.0.0"));
+			Assert.AreEqual("foo", GetNetworkConfig(gc, "10.0.0.1")!.Id);
+			Assert.AreEqual("foo", GetNetworkConfig(gc, "10.0.0.2")!.Id);
+			Assert.AreEqual("foo", GetNetworkConfig(gc, "10.0.0.3")!.Id);
 			
-			string? GetNetworkId(string ip)
+			Assert.AreEqual(null, GetNetworkConfig(gc, "10.0.0.4"));
+			Assert.AreEqual("bar", GetNetworkConfig(gc, "10.0.0.5")!.Id);
+			Assert.AreEqual("bar", GetNetworkConfig(gc, "10.0.0.6")!.Id);
+			Assert.AreEqual("bar", GetNetworkConfig(gc, "10.0.0.7")!.Id);
+			Assert.AreEqual(null, GetNetworkConfig(gc, "10.0.0.4"));
+			
+			Assert.AreEqual(null, GetNetworkConfig(gc, "192.168.0.0"));
+			Assert.AreEqual("baz", GetNetworkConfig(gc, "192.168.0.1")!.Id);
+			Assert.AreEqual("baz", GetNetworkConfig(gc, "192.168.255.254")!.Id);
+			Assert.AreEqual(null, GetNetworkConfig(gc, "192.169.0.1"));
+			
+			Assert.AreEqual(null, GetNetworkConfig(gc,"11.0.0.1"));
+			
+			gc = new()
 			{
-				bool result = gc.TryGetNetworkId(IPAddress.Parse(ip), out string? networkId);
-				return result ? networkId : null;
-			}
-
-			Assert.AreEqual(null, GetNetworkId("10.0.0.0"));
-			Assert.AreEqual("foo", GetNetworkId("10.0.0.1"));
-			Assert.AreEqual("foo", GetNetworkId("10.0.0.2"));
-			Assert.AreEqual("foo", GetNetworkId("10.0.0.3"));
-
-			Assert.AreEqual(null, GetNetworkId("10.0.0.4"));
-			Assert.AreEqual("bar", GetNetworkId("10.0.0.5"));
-			Assert.AreEqual("bar", GetNetworkId("10.0.0.6"));
-			Assert.AreEqual("bar", GetNetworkId("10.0.0.7"));
-			Assert.AreEqual(null, GetNetworkId("10.0.0.4"));
-			
-			Assert.AreEqual(null, GetNetworkId("192.168.0.0"));
-			Assert.AreEqual("baz", GetNetworkId("192.168.0.1"));
-			Assert.AreEqual("baz", GetNetworkId("192.168.255.254"));
-			Assert.AreEqual(null, GetNetworkId("192.169.0.1"));
-			
-			Assert.AreEqual(null, GetNetworkId("192.100.10.19"));
-			Assert.AreEqual("cond", GetNetworkId("192.100.10.20"));
-			Assert.AreEqual(null, GetNetworkId("192.100.10.21"));
-			
-			Assert.AreEqual(null, GetNetworkId("11.0.0.1"));
+				Networks = new List<NetworkConfig>() { new() { CidrBlock = "0.0.0.0/0", Id = "global" } }
+			};
+			Assert.AreEqual("global", GetNetworkConfig(gc,"15.3.4.5")!.Id);
 		}
 	}
 }

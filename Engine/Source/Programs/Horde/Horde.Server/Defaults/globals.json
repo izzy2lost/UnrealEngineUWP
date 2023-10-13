@@ -79,6 +79,14 @@
 			"condition": "Platform == 'Linux'"
 		}
 	],
+	"networks": [
+		{
+			"id": "default",
+			"cidrBlock": "0.0.0.0/0",
+			"description": "Default network (matching all IPs)",
+			"computeId": "default"
+		}
+	],
 	"artifactTypes": [
 		{
 			"name": "step-output",

@@ -270,9 +270,12 @@ namespace Horde.Server.Compute
 				return null;
 			}
 			
-			bool result = _globalConfig.CurrentValue.TryGetNetworkId(ipAddress ?? IPAddress.Any, out string? networkId);
-			networkId = result ? networkId : "default";
-			return poolId.Replace("%CLIENT_NETWORK_ID%", networkId, StringComparison.InvariantCulture);
+			_globalConfig.CurrentValue.TryGetNetworkConfig(ipAddress ?? IPAddress.Any, out NetworkConfig? networkConfig);
+			string networkId = networkConfig?.Id ?? "default";
+			string computeId = networkConfig?.ComputeId ?? "default";
+			return poolId
+				.Replace("%REQUESTER_NETWORK_ID%", networkId, StringComparison.InvariantCulture)
+				.Replace("%REQUESTER_COMPUTE_ID%", computeId, StringComparison.InvariantCulture);
 		}
 		
 		/// <summary>

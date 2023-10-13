@@ -209,9 +209,9 @@ namespace Horde.Server.Tests.Compute
 		[TestMethod]
 		public async Task PoolNameTemplatingAsync()
 		{
-			GlobalConfig.CurrentValue.CidrBlocks = new List<NetworkCidrBlockMapping>
+			GlobalConfig.CurrentValue.Networks = new List<NetworkConfig>
 			{
-				new() { CidrBlock = "12.0.0.0/16", Id = "myNetworkId" }
+				new() { CidrBlock = "12.0.0.0/16", Id = "myNetworkId", ComputeId = "myComputeId" }
 			};
 			
 			IPAddress ip = IPAddress.Parse("12.0.10.30");
@@ -219,15 +219,19 @@ namespace Horde.Server.Tests.Compute
 			IAgent agent1 = await CreateAgentAsync(new PoolId("foo"), properties: props);
 			IAgent agent2 = await CreateAgentAsync(new PoolId("bar-default"), properties: props);
 			IAgent agent3 = await CreateAgentAsync(new PoolId("bar-myNetworkId"), properties: props);
+			IAgent agent4 = await CreateAgentAsync(new PoolId("qux-myComputeId"), properties: props);
 			
 			ComputeResource? resource1 = await ComputeService.TryAllocateResourceAsync("req1", ip, new Requirements { Pool = "foo" }, null, CancellationToken.None);
 			Assert.AreEqual(agent1.Id, resource1!.AgentId);
 			
-			ComputeResource? resource2 = await ComputeService.TryAllocateResourceAsync("req2", IPAddress.Parse("15.0.0.1"), new Requirements { Pool = "bar-%CLIENT_NETWORK_ID%" }, null, CancellationToken.None);
+			ComputeResource? resource2 = await ComputeService.TryAllocateResourceAsync("req2", IPAddress.Parse("15.0.0.1"), new Requirements { Pool = "bar-%REQUESTER_NETWORK_ID%" }, null, CancellationToken.None);
 			Assert.AreEqual(agent2.Id, resource2!.AgentId);
 			
-			ComputeResource? resource3 = await ComputeService.TryAllocateResourceAsync("req3", ip, new Requirements { Pool = "bar-%CLIENT_NETWORK_ID%" }, null, CancellationToken.None);
+			ComputeResource? resource3 = await ComputeService.TryAllocateResourceAsync("req3", ip, new Requirements { Pool = "bar-%REQUESTER_NETWORK_ID%" }, null, CancellationToken.None);
 			Assert.AreEqual(agent3.Id, resource3!.AgentId);
+			
+			ComputeResource? resource4 = await ComputeService.TryAllocateResourceAsync("req4", ip, new Requirements { Pool = "qux-%REQUESTER_COMPUTE_ID%" }, null, CancellationToken.None);
+			Assert.AreEqual(agent4.Id, resource4!.AgentId);
 		}
 	}
 }
