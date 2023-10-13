@@ -166,7 +166,15 @@ void FChaosVDPlaybackController::GoToRecordedSolverStep_AssumesLocked(const int3
 			{
 				const int32 FrameDiff = FrameNumber - CurrentTrackInfo->CurrentFrame;
 				constexpr int32 FrameDriftTolerance = 1;
-				if (FMath::Abs(FrameDiff) > FrameDriftTolerance || CurrentTrackInfo->CurrentFrame == 0)
+
+				// If we go back, even for one single step and the particles that changed are not in the prev step, we have no data to restore their changed values.
+				// So for now if we are going backwards, always play from closest keyframe.
+				// TODO: Implement a less expensive way of handle these cases.
+				// We should keep the previous state of each loaded particle so if when going back they are not in the new delta we are evaluating, (and were not destroyed)
+				// we can just re-apply that last known state.
+				const bool bNeedsToPlayFromKeyframe = FrameDiff < 0 || FMath::Abs(FrameDiff) > FrameDriftTolerance;
+
+				if (bNeedsToPlayFromKeyframe || CurrentTrackInfo->CurrentFrame == 0)
 				{
 					// As Frames are recorded as delta, we need to make sure of playing back all the deltas since the closest keyframe
 					PlayFromClosestKeyFrame_AssumesLocked(InTrackID, FrameNumber, *SceneToControlSharedPtr.Get());

@@ -290,7 +290,9 @@ void FChaosVDRecording::GetAvailableSolverIDsAtGameFrame_AssumesLocked(const FCh
 
 void FChaosVDRecording::CollapseSolverFramesRange_AssumesLocked(int32 SolverID, int32 StartFrame, int32 EndFrame, FChaosVDSolverFrameData& OutCollapsedFrameData)
 {
-	TMap<int32, FChaosVDParticleDataWrapper> TempParticleDataByID;
+	static TMap<int32, FChaosVDParticleDataWrapper> TempParticleDataByID;
+
+	TempParticleDataByID.Reset();
 	
 	for (int32 CurrentFrameNumber = StartFrame; CurrentFrameNumber <= EndFrame; CurrentFrameNumber++)
 	{
