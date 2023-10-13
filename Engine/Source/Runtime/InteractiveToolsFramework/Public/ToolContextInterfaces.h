@@ -122,7 +122,7 @@ enum class EStandardToolContextMaterials
 
 /** Types of coordinate systems that a Tool/Gizmo might use */
 UENUM()
-enum class EToolContextCoordinateSystem
+enum class EToolContextCoordinateSystem : uint8
 {
 	/** World space coordinate system */
 	World = 0,
