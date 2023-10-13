@@ -76,7 +76,7 @@ FAbcFile::~FAbcFile()
 
 EAbcImportError FAbcFile::Open()
 {
-	Factory.setPolicy(Alembic::Abc::ErrorHandler::kThrowPolicy);
+	Factory.setPolicy(Alembic::Abc::ErrorHandler::kQuietNoopPolicy);
 	Factory.setOgawaNumStreams(12);
 	
 	// Extract Archive and compression type from file
@@ -427,6 +427,13 @@ EAbcImportError FAbcFile::Import(UAbcImportSettings* InImportSettings)
 
 void FAbcFile::TraverseAbcHierarchy(const Alembic::Abc::IObject& InObject, IAbcObject* InParent)
 {
+	if (!InObject)
+	{
+		TSharedRef<FTokenizedMessage> Message = FTokenizedMessage::Create(EMessageSeverity::Warning, LOCTEXT("AbcInvalidObject", "Invalid object detected: the Alembic file may be corrupted."));
+		FAbcImportLogger::AddImportMessage(Message);
+		return;
+	}
+
 	// Get Header and MetaData info from current Alembic Object
 	Alembic::AbcCoreAbstract::ObjectHeader Header = InObject.getHeader();
 	const Alembic::Abc::MetaData ObjectMetaData = InObject.getMetaData();
@@ -512,13 +519,10 @@ void FAbcFile::TraverseAbcHierarchy(const Alembic::Abc::IObject& InObject, IAbcO
 	}
 
 	// Recursive traversal of child objects
-	if (NumChildren > 0)
+	for (uint32 ChildIndex = 0; ChildIndex < NumChildren; ++ChildIndex)
 	{
-		for (uint32 ChildIndex = 0; ChildIndex < NumChildren; ++ChildIndex)
-		{
-			const Alembic::Abc::IObject& AbcChildObject = InObject.getChild(ChildIndex);
-			TraverseAbcHierarchy(AbcChildObject, CreatedObject);
-		}
+		const Alembic::Abc::IObject& AbcChildObject = InObject.getChild(ChildIndex);
+		TraverseAbcHierarchy(AbcChildObject, CreatedObject);
 	}
 }
 
