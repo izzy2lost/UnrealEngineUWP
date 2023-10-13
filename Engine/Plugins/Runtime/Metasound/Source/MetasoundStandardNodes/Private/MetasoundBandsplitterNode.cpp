@@ -238,27 +238,26 @@ namespace Metasound
 			return DefaultInterface;
 		}
 
-		static TUniquePtr<IOperator> CreateOperator(const FCreateOperatorParams& InParams, FBuildErrorArray& OutErrors)
+		static TUniquePtr<IOperator> CreateOperator(const FBuildOperatorParams& InParams, FBuildResults& OutResults)
 		{
 			using namespace BandSplitterNode;
-
-			const FDataReferenceCollection& Inputs = InParams.InputDataReferences;
-			const FInputVertexInterface& InputInterface = InParams.Node.GetVertexInterface().GetInputInterface();
+			
+			const FInputVertexInterfaceData& InputData = InParams.InputData;
 
 			TArray<FAudioBufferReadRef> InputBuffers;
 			TArray<FFloatReadRef> InputCrossovers;
 
-			FEnumBandSplitterFilterOrderReadRef FilterOrderIn = Inputs.GetDataReadReferenceOrConstructWithVertexDefault<FEnumBandSplitterFilterOrder>(InputInterface, METASOUND_GET_PARAM_NAME(InputFilterOrder), InParams.OperatorSettings);
-			FBoolReadRef bPhaseCompensateIn = Inputs.GetDataReadReferenceOrConstructWithVertexDefault<bool>(InputInterface, METASOUND_GET_PARAM_NAME(InputPhaseCompensate), InParams.OperatorSettings);
+			FEnumBandSplitterFilterOrderReadRef FilterOrderIn = InputData.GetOrCreateDefaultDataReadReference<FEnumBandSplitterFilterOrder>(METASOUND_GET_PARAM_NAME(InputFilterOrder), InParams.OperatorSettings);
+			FBoolReadRef bPhaseCompensateIn = InputData.GetOrCreateDefaultDataReadReference<bool>(METASOUND_GET_PARAM_NAME(InputPhaseCompensate), InParams.OperatorSettings);
 
 			for (uint32 Chan = 0; Chan < NumChannels; Chan++)
 			{
-				InputBuffers.Add(Inputs.GetDataReadReferenceOrConstruct<FAudioBuffer>(GetAudioInputName(Chan), InParams.OperatorSettings));
+				InputBuffers.Add(InputData.GetOrConstructDataReadReference<FAudioBuffer>(GetAudioInputName(Chan), InParams.OperatorSettings));
 			}
 
 			for (uint32 Band = 0; Band < NumBands - 1; Band++)
 			{
-				InputCrossovers.Add(Inputs.GetDataReadReferenceOrConstructWithVertexDefault<float>(InputInterface, GetCrossoverInputName(Band), InParams.OperatorSettings));
+				InputCrossovers.Add(InputData.GetOrCreateDefaultDataReadReference<float>(GetCrossoverInputName(Band), InParams.OperatorSettings));
 			}
 
 			return MakeUnique<TBandSplitterOperator<NumBands, NumChannels>>(InParams.OperatorSettings, MoveTemp(InputBuffers), MoveTemp(InputCrossovers), FilterOrderIn, bPhaseCompensateIn);
