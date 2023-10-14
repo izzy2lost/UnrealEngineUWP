@@ -111,6 +111,7 @@ namespace UE::Net
 {
 	extern int32 FilterGuidRemapping;
 	extern bool bDiscardTornOffActorRPCs;
+	extern bool bRemapStableSubobjects;
 
 	static float QueuedBunchTimeoutSeconds = 30.0f;
 	static FAutoConsoleVariableRef CVarQueuedBunchTimeoutSeconds(
@@ -2381,6 +2382,20 @@ void UActorChannel::DestroyActorAndComponents()
 		for (UActorComponent* Component : Actor->GetComponents())
 		{
 			MoveMappedObjectToUnmapped(Component);
+		}
+
+		// Also unmap any stably-named subobjects we didn't create
+		if (UE::Net::bRemapStableSubobjects)
+		{
+			TArray<UObject*> Inners;
+			GetObjectsWithOuter(Actor, Inners);
+			for (UObject* Inner : Inners)
+			{
+				if (Inner->IsNameStableForNetworking())
+				{
+					MoveMappedObjectToUnmapped(Inner);
+				}
+			}
 		}
 
 		// Unmap this object so we can remap it if it becomes relevant again in the future
