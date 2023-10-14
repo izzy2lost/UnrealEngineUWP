@@ -350,6 +350,23 @@ namespace Chaos
 	}
 
 	template<EThreadContext Id>
+	TThreadKinematicParticle<Id>* FReadPhysicsObjectInterface<Id>::GetKinematicParticle(const FConstPhysicsObjectHandle Handle)
+	{
+		if (Handle)
+		{
+			if (TThreadParticle<Id>* Particle = Handle->GetParticle<Id>())
+			{
+				if (TThreadKinematicParticle<Id>* KinematicParticle = Particle->CastToKinematicParticle())
+				{
+					return KinematicParticle;
+				}
+			}
+		}
+
+		return nullptr;
+	}
+
+	template<EThreadContext Id>
 	TThreadRigidParticle<Id>* FReadPhysicsObjectInterface<Id>::GetRigidParticle(const FConstPhysicsObjectHandle Handle)
 	{
 		if (Handle)

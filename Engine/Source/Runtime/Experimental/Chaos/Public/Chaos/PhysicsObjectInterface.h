@@ -73,6 +73,7 @@ namespace Chaos
 		CHAOS_API FSpatialAccelerationIdx GetSpatialIndex(const FConstPhysicsObjectHandle Object);
 
 		CHAOS_API TThreadParticle<Id>* GetParticle(const FConstPhysicsObjectHandle Object);
+		CHAOS_API TThreadKinematicParticle<Id>* GetKinematicParticle(const FConstPhysicsObjectHandle Object);
 		CHAOS_API TThreadRigidParticle<Id>* GetRigidParticle(const FConstPhysicsObjectHandle Object);
 		CHAOS_API TArray<TThreadParticle<Id>*> GetAllParticles(TArrayView<const FConstPhysicsObjectHandle> InObjects);
 		CHAOS_API TArray<TThreadRigidParticle<Id>*> GetAllRigidParticles(TArrayView<const FConstPhysicsObjectHandle> InObjects);
