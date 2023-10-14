@@ -209,7 +209,7 @@ void FAnimNode_RemapCurvesBase::VerifyExpressions(
 		UE_LOG(LogCurveExpression, Warning, TEXT("%s"), *InMessage);
 	};
 	
-	if (CurveExpressions.IsEmpty())
+	if (GetRawExpressions().IsEmpty())
 	{
 		ReportAndLog(TEXT("No curve expressions set."));
 		return;
