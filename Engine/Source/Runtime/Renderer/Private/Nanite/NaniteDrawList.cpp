@@ -3,6 +3,8 @@
 #include "NaniteDrawList.h"
 #include "BasePassRendering.h"
 #include "NaniteSceneProxy.h"
+#include "NaniteShading.h"
+#include "NaniteVertexFactory.h"
 #include "SceneUtils.h"
 #include "ScenePrivate.h"
 #include "MeshPassProcessor.inl"
@@ -481,7 +483,8 @@ void FNaniteMeshProcessor::CollectPSOInitializers(
 	}
 
 	// Only support the Nanite vertex factory type.
-	if (VertexFactoryData.VertexFactoryType != &Nanite::FVertexFactory::StaticType)
+	if (VertexFactoryData.VertexFactoryType != &Nanite::FVertexFactory::StaticType &&
+		VertexFactoryData.VertexFactoryType != &FNaniteVertexFactory::StaticType)
 	{
 		return;
 	}
@@ -498,16 +501,23 @@ void FNaniteMeshProcessor::CollectPSOInitializers(
 	FPSOPrecacheVertexFactoryData NaniteVertexFactoryData = VertexFactoryData;
 	NaniteVertexFactoryData.CustomDefaultVertexDeclaration = nullptr;
 		
+	if (VertexFactoryData.VertexFactoryType == &FNaniteVertexFactory::StaticType)
 	{
-		// generate for both skylight enabled/disabled? Or can this be known already at this point?
-		bool bRenderSkyLight = true;
-		CollectPSOInitializersForSkyLight(SceneTexturesConfig, NaniteVertexFactoryData, Material, bRenderSkyLight, PSOInitializers);
-		
-		bRenderSkyLight = false;
-		CollectPSOInitializersForSkyLight(SceneTexturesConfig, NaniteVertexFactoryData, Material, bRenderSkyLight, PSOInitializers);
+		Nanite::CollectShadingPSOInitializers(SceneTexturesConfig, NaniteVertexFactoryData, Material, PreCacheParams, FeatureLevel, ShaderPlatform, PSOInitializers);
 	}
+	else
+	{
+		{
+			// generate for both skylight enabled/disabled? Or can this be known already at this point?
+			bool bRenderSkyLight = true;
+			CollectPSOInitializersForSkyLight(SceneTexturesConfig, NaniteVertexFactoryData, Material, bRenderSkyLight, PSOInitializers);
 
-	Nanite::CollectRasterPSOInitializers(SceneTexturesConfig, Material, PreCacheParams, ShaderPlatform, PSOInitializers);
+			bRenderSkyLight = false;
+			CollectPSOInitializersForSkyLight(SceneTexturesConfig, NaniteVertexFactoryData, Material, bRenderSkyLight, PSOInitializers);
+		}
+
+		Nanite::CollectRasterPSOInitializers(SceneTexturesConfig, Material, PreCacheParams, ShaderPlatform, PSOInitializers);
+	}
 }
 
 void FNaniteMeshProcessor::CollectPSOInitializersForSkyLight(
@@ -537,10 +547,11 @@ void FNaniteMeshProcessor::CollectPSOInitializersForSkyLight(
 			GBufferLayout,
 			nullptr, // vertex shader
 			&BasePassPixelShader
-			);
+		);
+
 		if (!bShadersValid)
 		{
-			return;
+			continue;
 		}
 
 		TMeshProcessorShaders

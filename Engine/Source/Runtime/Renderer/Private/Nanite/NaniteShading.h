@@ -60,4 +60,14 @@ void DispatchBasePass(
 	const FRasterResults& RasterResults
 );
 
+void CollectShadingPSOInitializers(
+	const FSceneTexturesConfig& SceneTexturesConfig,
+	const FPSOPrecacheVertexFactoryData& VertexFactoryData,
+	const FMaterial& Material,
+	const FPSOPrecacheParams& PreCacheParams,
+	ERHIFeatureLevel::Type FeatureLevel,
+	EShaderPlatform ShaderPlatform,
+	TArray<FPSOPrecacheData>& PSOInitializers
+);
+
 } // Nanite

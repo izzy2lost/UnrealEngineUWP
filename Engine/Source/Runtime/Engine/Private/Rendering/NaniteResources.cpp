@@ -2303,6 +2303,7 @@ IMPLEMENT_VERTEX_FACTORY_TYPE(FNaniteVertexFactory, "/Engine/Private/Nanite/Nani
 	| EVertexFactoryFlags::SupportsManualVertexFetch
 	| EVertexFactoryFlags::SupportsLumenMeshCards
 	| EVertexFactoryFlags::SupportsLandscape
+	| EVertexFactoryFlags::SupportsPSOPrecaching
 );
 
 void ClearNaniteResources(Nanite::FResources& InResources)

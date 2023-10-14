@@ -1732,7 +1732,7 @@ void CollectRasterPSOInitializersForPermutation(
 			// NOTE: AsGraphicsPipelineStateInitializer will create the RHIShaders internally if they are not cached yet
 			FGraphicsPipelineStateInitializer GraphicsPSOInit = MinimalPipelineStateInitializer.AsGraphicsPipelineStateInitializer();
 
-#if PSO_PRECACHING_VALIDATE
+		#if PSO_PRECACHING_VALIDATE
 			if (PSOCollectorStats::IsMinimalPSOValidationEnabled())
 			{
 				MinimalPipelineStateInitializer.StatePrecachePSOHash = GraphicsPSOInit.StatePrecachePSOHash;
@@ -1741,7 +1741,7 @@ void CollectRasterPSOInitializersForPermutation(
 				FGraphicsMinimalPipelineStateInitializer PatchedMinimalInitializer = PSOCollectorStats::PatchMinimalPipelineStateToCheck(MinimalPipelineStateInitializer);
 				PSOCollectorStats::GetMinimalPSOPrecacheStatsCollector().AddStateToCache(PatchedMinimalInitializer, PSOCollectorStats::GetPSOPrecacheHash, (uint32)EMeshPass::NaniteMeshPass, nullptr);
 			}
-#endif // PSO_PRECACHING_VALIDATE
+		#endif
 			
 			FPSOPrecacheData PSOPrecacheData;
 			PSOPrecacheData.Type = FPSOPrecacheData::EType::Graphics;
@@ -1762,6 +1762,7 @@ void CollectRasterPSOInitializersForPermutation(
 			ComputePSOPrecacheData.ComputeShader = MicropolyRasterizeCS.GetComputeShader();
 		#if PSO_PRECACHING_VALIDATE
 			ComputePSOPrecacheData.MeshPassType = (uint32)EMeshPass::NaniteMeshPass;
+			ComputePSOPrecacheData.VertexFactoryType = nullptr;
 		#endif
 			PSOInitializers.Add(ComputePSOPrecacheData);
 		}

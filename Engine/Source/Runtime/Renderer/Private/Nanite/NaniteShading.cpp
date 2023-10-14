@@ -20,6 +20,7 @@ DEFINE_STAT(STAT_CLP_NaniteBasePass);
 
 extern TAutoConsoleVariable<int32> CVarNaniteShowDrawEvents;
 
+extern int32 GSkipDrawOnPSOPrecaching;
 extern int32 GNaniteShowStats;
 
 #if WANTS_DRAW_MESH_EVENTS
@@ -623,7 +624,7 @@ bool LoadShadingPipeline(
 	return bLoaded;
 }
 
-void RecordShadingParameters(
+inline void RecordShadingParameters(
 	FRHIBatchedShaderParameters& BatchedParameters,
 	FNaniteShadingCommand& ShadingCommand,
 	const uint32 DataByteOffset,
@@ -661,7 +662,7 @@ void RecordShadingParameters(
 	}
 }
 
-void RecordShadingCommand(
+inline void RecordShadingCommand(
 	FRHIComputeCommandList& RHICmdList,
 	FRHIBuffer* IndirectArgsBuffer,
 	const uint32 IndirectArgStride,
@@ -684,6 +685,59 @@ void RecordShadingCommand(
 
 	RHICmdList.SetBatchedShaderParameters(ComputeShaderRHI, ShadingCommand.BatchedParameters);
 	RHICmdList.DispatchIndirectComputeShader(IndirectArgsBuffer, IndirectOffset);
+}
+
+inline bool PrepareShadingCommand(FNaniteShadingCommand& ShadingCommand)
+{
+	if (!PipelineStateCache::IsPSOPrecachingEnabled())
+	{
+		ShadingCommand.PSOPrecacheState = EPSOPrecacheResult::Unknown;
+		return true;
+	}
+
+	EPSOPrecacheResult PSOPrecacheResult = ShadingCommand.PSOPrecacheState;
+	bool bShouldCheckPrecacheResult = false;
+
+	// If PSO precache validation is on, we need to check the state for stats tracking purposes.
+#if PSO_PRECACHING_VALIDATE
+	if (PSOCollectorStats::IsPrecachingValidationEnabled() && PSOPrecacheResult == EPSOPrecacheResult::Unknown)
+	{
+		bShouldCheckPrecacheResult = true;
+	}
+#endif
+
+	// If we are skipping commands when the PSO is being precached but is not ready, we
+	// need to keep checking the state until it's not marked active anymore.
+	const bool bAllowSkip = true;
+	if (bAllowSkip && GSkipDrawOnPSOPrecaching)
+	{
+		if (PSOPrecacheResult == EPSOPrecacheResult::Unknown ||
+			PSOPrecacheResult == EPSOPrecacheResult::Active)
+		{
+			bShouldCheckPrecacheResult = true;
+		}
+	}
+
+	if (bShouldCheckPrecacheResult)
+	{
+		// Cache the state so that it's only checked again if necessary.
+		PSOPrecacheResult = PipelineStateCache::CheckPipelineStateInCache(ShadingCommand.Pipeline->ComputeShader);
+		ShadingCommand.PSOPrecacheState = PSOPrecacheResult;
+	}
+
+#if PSO_PRECACHING_VALIDATE
+	PSOCollectorStats::GetFullPSOPrecacheStatsCollector().CheckStateInCache(
+		*ShadingCommand.Pipeline->ComputeShader,
+		PSOCollectorStats::GetPSOPrecacheHash,
+		PSOPrecacheResult,
+		uint32(EMeshPass::BasePass),
+		&FNaniteVertexFactory::StaticType
+	);
+#endif
+
+	// Try and skip draw if the PSO is not precached yet.
+	const bool bSkipped = (bAllowSkip && GSkipDrawOnPSOPrecaching && PSOPrecacheResult == EPSOPrecacheResult::Active);
+	return !bSkipped;
 }
 
 class FRecordShadingCommandsAnyThreadTask : public FRenderTask
@@ -749,7 +803,7 @@ public:
 		{
 			FNaniteShadingCommand& ShadingCommand = ShadingCommands.Commands[StartIndex + CommandIndex];
 			ShadingCommand.bVisible = !VisibilityData.IsValid() || VisibilityData->AccessCorrespondingBit(FRelativeBitReference(ShadingCommand.ShadingBin));
-			if (ShadingCommand.bVisible)
+			if (ShadingCommand.bVisible && PrepareShadingCommand(ShadingCommand))
 			{
 				RecordShadingParameters(
 					ShadingCommand.BatchedParameters,
@@ -1142,7 +1196,7 @@ void DispatchBasePass(
 							FNaniteShadingCommand& ShadingCommand = ShadingCommands.Commands[CommandIndex];
 							ShadingCommand.bVisible = !VisibilityData.IsValid() || VisibilityData->AccessCorrespondingBit(FRelativeBitReference(ShadingCommand.ShadingBin));
 
-							if (ShadingCommand.bVisible)
+							if (ShadingCommand.bVisible && PrepareShadingCommand(ShadingCommand))
 							{
 								FRHIShaderBundleDispatch& Dispatch = Command.Dispatches[ShadingCommand.ShadingBin];
 
@@ -1196,7 +1250,7 @@ void DispatchBasePass(
 							FNaniteShadingCommand& ShadingCommand = ShadingCommands.Commands[CommandIndex];
 							ShadingCommand.bVisible = !VisibilityData.IsValid() || VisibilityData->AccessCorrespondingBit(FRelativeBitReference(ShadingCommand.ShadingBin));
 
-							if (ShadingCommand.bVisible)
+							if (ShadingCommand.bVisible && PrepareShadingCommand(ShadingCommand))
 							{
 								FRHIShaderBundleDispatch& Dispatch = Command.Dispatches[ShadingCommand.ShadingBin];
 
@@ -1241,7 +1295,7 @@ void DispatchBasePass(
 				for (FNaniteShadingCommand& ShadingCommand : ShadingCommands.Commands)
 				{
 					ShadingCommand.bVisible = !VisibilityData.IsValid() || VisibilityData->AccessCorrespondingBit(FRelativeBitReference(ShadingCommand.ShadingBin));
-					if (ShadingCommand.bVisible)
+					if (ShadingCommand.bVisible && PrepareShadingCommand(ShadingCommand))
 					{
 						RecordShadingParameters(ShadingCommand.BatchedParameters, ShadingCommand, DataByteOffset, ViewRect, OutputTargets, OutputTargetsArray);
 						RecordShadingCommand(RHICmdList, IndirectArgsBuffer, IndirectArgStride, ShadingCommand);
@@ -1591,6 +1645,74 @@ FShadeBinning ShadeBinning(
 	}
 
 	return Binning;
+}
+
+void CollectShadingPSOInitializers(
+	const FSceneTexturesConfig& SceneTexturesConfig,
+	const FPSOPrecacheVertexFactoryData& VertexFactoryData,
+	const FMaterial& Material,
+	const FPSOPrecacheParams& PreCacheParams,
+	ERHIFeatureLevel::Type FeatureLevel,
+	EShaderPlatform ShaderPlatform,
+	TArray<FPSOPrecacheData>& PSOInitializers)
+{
+	// Base Pass
+	{
+		TArray<ELightMapPolicyType, TInlineAllocator<2>> UniformLightMapPolicyTypes = FBasePassMeshProcessor::GetUniformLightMapPolicyTypeForPSOCollection(FeatureLevel, Material);
+
+		auto CollectBasePass = [&](bool bRenderSkyLight)
+		{
+			for (ELightMapPolicyType UniformLightMapPolicyType : UniformLightMapPolicyTypes)
+			{
+				TShaderRef<TBasePassComputeShaderPolicyParamType<FUniformLightMapPolicy>> BasePassComputeShader;
+
+				bool bShadersValid = GetBasePassShader<FUniformLightMapPolicy>(
+					Material,
+					VertexFactoryData.VertexFactoryType,
+					FUniformLightMapPolicy(UniformLightMapPolicyType),
+					FeatureLevel,
+					bRenderSkyLight,
+					&BasePassComputeShader
+				);
+
+				if (!bShadersValid)
+				{
+					continue;
+				}
+
+				TMeshProcessorShaders
+				<
+					FMeshMaterialShader, // Vertex
+					FMeshMaterialShader, // Pixel
+					FMeshMaterialShader, // Geometry
+					FMeshMaterialShader, // RayTracing
+					TBasePassComputeShaderPolicyParamType<FUniformLightMapPolicy>
+				>
+				PassShaders;
+				PassShaders.ComputeShader = BasePassComputeShader;
+
+				FPSOPrecacheData ComputePSOPrecacheData;
+				ComputePSOPrecacheData.Type = FPSOPrecacheData::EType::Compute;
+				ComputePSOPrecacheData.ComputeShader = BasePassComputeShader.GetComputeShader();
+			#if PSO_PRECACHING_VALIDATE
+				ComputePSOPrecacheData.MeshPassType = (uint32)EMeshPass::BasePass;
+				ComputePSOPrecacheData.VertexFactoryType = VertexFactoryData.VertexFactoryType;
+			#endif
+				PSOInitializers.Add(ComputePSOPrecacheData);
+
+			#if PSO_PRECACHING_VALIDATE
+				if (PSOCollectorStats::IsMinimalPSOValidationEnabled())
+				{
+					PSOCollectorStats::GetShadersOnlyPSOPrecacheStatsCollector().AddStateToCache(*ComputePSOPrecacheData.ComputeShader, PSOCollectorStats::GetPSOPrecacheHash, (uint32)EMeshPass::BasePass, VertexFactoryData.VertexFactoryType);
+					PSOCollectorStats::GetMinimalPSOPrecacheStatsCollector().AddStateToCache(*ComputePSOPrecacheData.ComputeShader, PSOCollectorStats::GetPSOPrecacheHash, (uint32)EMeshPass::BasePass, VertexFactoryData.VertexFactoryType);
+				}
+			#endif
+			}
+		};
+
+		CollectBasePass(true);
+		CollectBasePass(false);
+	}
 }
 
 } // Nanite

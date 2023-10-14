@@ -883,6 +883,9 @@ struct FNaniteShadingCommand
 	FUint32Vector4 PassData;
 	uint16 ShadingBin = 0xFFFFu;
 	bool bVisible = true;
+
+	// The PSO precache state - updated at dispatch time and can be used to skip command when still precaching
+	EPSOPrecacheResult PSOPrecacheState = EPSOPrecacheResult::Unknown;
 };
 
 /// END-TODO: Work in progress / experimental

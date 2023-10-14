@@ -629,7 +629,7 @@ void AddUniformBasePassComputeShader(bool bEnableSkyLight, FMaterialShaderTypes&
 template <ELightMapPolicyType Policy>
 bool GetUniformBasePassShader(
 	const FMaterial& Material,
-	FVertexFactoryType* VertexFactoryType, 
+	const FVertexFactoryType* VertexFactoryType,
 	ERHIFeatureLevel::Type FeatureLevel,
 	bool bEnableSkyLight,
 	TShaderRef<TBasePassComputeShaderPolicyParamType<FUniformLightMapPolicy>>* ComputeShader
@@ -655,8 +655,8 @@ bool GetUniformBasePassShader(
 template <>
 bool GetBasePassShader<FUniformLightMapPolicy>(
 	const FMaterial& Material, 
-	FVertexFactoryType* VertexFactoryType, 
-	FUniformLightMapPolicy LightMapPolicy, 
+	const FVertexFactoryType* VertexFactoryType,
+	FUniformLightMapPolicy LightMapPolicy,
 	ERHIFeatureLevel::Type FeatureLevel,
 	bool bEnableSkyLight,
 	TShaderRef<TBasePassComputeShaderPolicyParamType<FUniformLightMapPolicy>>* ComputeShader
