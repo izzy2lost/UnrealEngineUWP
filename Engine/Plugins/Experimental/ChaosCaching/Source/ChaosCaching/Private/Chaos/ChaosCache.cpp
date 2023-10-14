@@ -16,7 +16,7 @@ FAutoConsoleVariableRef CVarChaosCacheUseInterpolation(
 	bChaosCacheUseInterpolation,
 	TEXT("When enabled, cache interpolates between keys.[def: true]"));
 
-bool bChaosCacheCompressTracksAfterRecording = true;
+bool bChaosCacheCompressTracksAfterRecording = false;
 FAutoConsoleVariableRef CVarChaosCacheCompressTracksAfterRecording(
 	TEXT("p.Chaos.Cache.CompressTracksAfterRecording"),
 	bChaosCacheCompressTracksAfterRecording,
