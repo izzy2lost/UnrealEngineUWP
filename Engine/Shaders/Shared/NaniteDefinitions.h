@@ -428,7 +428,11 @@ struct FNaniteShadingBinMeta
 	UINT_TYPE MaterialFlags;
 };
 
-#define NANITE_SHADING_BIN_META_BYTES ((UINT_TYPE)sizeof(FNaniteShadingBinMeta))
+#if defined(__cplusplus)
+#define NANITE_SHADING_BIN_META_BYTES sizeof(FNaniteShadingBinMeta)
+#else
+#define NANITE_SHADING_BIN_META_BYTES uint(sizeof(FNaniteShadingBinMeta))
+#endif
 
 // https://github.com/microsoft/DirectXShaderCompiler/issues/2181
 #define NANITE_SHADING_BIN_META_ELEMENT_COUNT_OFFSET	0u
