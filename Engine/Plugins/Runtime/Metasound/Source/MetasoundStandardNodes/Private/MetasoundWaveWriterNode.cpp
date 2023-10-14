@@ -358,7 +358,7 @@ namespace Metasound
 			return Metadata;
 		}
 
-		static TUniquePtr<IOperator> CreateOperator(const FCreateOperatorParams& InParams, FBuildErrorArray& OutErrors);
+		static TUniquePtr<IOperator> CreateOperator(const FBuildOperatorParams& InParams, FBuildResults& OutResults);
 
 		void Execute()
 		{
@@ -508,22 +508,24 @@ namespace Metasound
 	};
 
 	template<int32 NumInputChannels>
-	TUniquePtr<Metasound::IOperator> TWaveWriterOperator<NumInputChannels>::CreateOperator(const FCreateOperatorParams& InParams, FBuildErrorArray& OutErrors)
+	TUniquePtr<Metasound::IOperator> TWaveWriterOperator<NumInputChannels>::CreateOperator(const FBuildOperatorParams& InParams, FBuildResults& OutResults)
 	{
 		using namespace WaveWriterOperatorPrivate;
 		using namespace WaveWriterVertexNames;
 
-		const FDataReferenceCollection& InputCol = InParams.InputDataReferences;
 		const FOperatorSettings& Settings = InParams.OperatorSettings;
-		const FInputVertexInterface& InputInterface = DeclareVertexInterface().GetInputInterface();
+		const FInputVertexInterfaceData& InputData = InParams.InputData;
 
 		int32 NumConnectedAudioPins = 0;
 		TArray<FAudioBufferReadRef> InputBuffers;
 		for (int32 i = 0; i < NumInputChannels; ++i)
 		{
 			const FVertexName PinName = GetAudioInputName(i);
-			NumConnectedAudioPins += (int32)InputCol.ContainsDataReadReference<FAudioBuffer>(PinName);
-			InputBuffers.Add(InputCol.GetDataReadReferenceOrConstruct<FAudioBuffer>(PinName, InParams.OperatorSettings));
+			if (InputData.IsVertexBound(PinName))
+			{
+				NumConnectedAudioPins++;
+			}
+			InputBuffers.Add(InputData.GetOrConstructDataReadReference<FAudioBuffer>(PinName, InParams.OperatorSettings));
 		}
 		
 		// Only create a real operator if there's some connected pins.
@@ -532,9 +534,9 @@ namespace Metasound
 			return MakeUnique<TWaveWriterOperator>(
 				Settings,
 				MoveTemp(InputBuffers),
-				InputCol.GetDataReadReferenceOrConstructWithVertexDefault<bool>(InputInterface, METASOUND_GET_PARAM_NAME(InEnabledPin), Settings),
+				InputData.GetOrCreateDefaultDataReadReference<bool>(METASOUND_GET_PARAM_NAME(InEnabledPin), Settings),
 				GetNameCache(),
-				InputCol.GetDataReadReferenceOrConstructWithVertexDefault<FString>(InputInterface, METASOUND_GET_PARAM_NAME(InFilenamePrefixPin), Settings)
+				InputData.GetOrCreateDefaultDataReadReference<FString>(METASOUND_GET_PARAM_NAME(InFilenamePrefixPin), Settings)
 			);
 		}
 
