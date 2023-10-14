@@ -53,18 +53,18 @@ namespace Horde.Server.Logs
 		private readonly ILogFileService _logFileService;
 		private readonly IIssueCollection _issueCollection;
 		private readonly JobService _jobService;
-		private readonly StorageService _storageService;
+		private readonly IStorageClientFactory _storageClientFactory;
 		private readonly IOptionsSnapshot<GlobalConfig> _globalConfig;
 
 		/// <summary>
 		/// Constructor
 		/// </summary>
-		public LogsController(ILogFileService logFileService, IIssueCollection issueCollection, JobService jobService, StorageService storageService, IOptionsSnapshot<GlobalConfig> globalConfig)
+		public LogsController(ILogFileService logFileService, IIssueCollection issueCollection, JobService jobService, IStorageClientFactory storageClientFactory, IOptionsSnapshot<GlobalConfig> globalConfig)
 		{
 			_logFileService = logFileService;
 			_issueCollection = issueCollection;
 			_jobService = jobService;
-			_storageService = storageService;
+			_storageClientFactory = storageClientFactory;
 			_globalConfig = globalConfig;
  		}
 
@@ -116,7 +116,7 @@ namespace Horde.Server.Logs
 				return Forbid();
 			}
 
-			using IStorageClient storageClient = _storageService.CreateClient(Namespace.Logs);
+			using IStorageClient storageClient = _storageClientFactory.CreateClient(Namespace.Logs);
 			return await StorageController.WriteBlobAsync(storageClient, file, $"{logFile.RefName}", cancellationToken);
 		}
 
