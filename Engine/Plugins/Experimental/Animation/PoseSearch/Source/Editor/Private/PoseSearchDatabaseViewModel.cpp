@@ -305,30 +305,6 @@ namespace UE::PoseSearch
 		return RootTransform;
 	}
 
-	void FDatabaseViewModel::OnSetPoseFeaturesDrawMode(EFeaturesDrawMode DrawMode)
-	{
-		PoseFeaturesDrawMode = DrawMode;
-	}
-
-	bool FDatabaseViewModel::IsPoseFeaturesDrawMode(EFeaturesDrawMode DrawMode) const
-	{
-		return EnumHasAnyFlags(PoseFeaturesDrawMode, DrawMode);
-	}
-
-	void FDatabaseViewModel::OnSetAnimationPreviewMode(EAnimationPreviewMode PreviewMode)
-	{
-		if (PreviewMode != AnimationPreviewMode)
-		{
-			AnimationPreviewMode = PreviewMode;
-			RemovePreviewActors();
-		}
-	}
-
-	bool FDatabaseViewModel::IsAnimationPreviewMode(EAnimationPreviewMode PreviewMode) const
-	{
-		return EnumHasAnyFlags(AnimationPreviewMode, PreviewMode);
-	}
-
 	void FDatabaseViewModel::AddSequenceToDatabase(UAnimSequence* AnimSequence)
 	{
 		FPoseSearchDatabaseSequence NewAsset;
@@ -477,16 +453,13 @@ namespace UE::PoseSearch
 			for (int32 IndexAssetIndex = 0; IndexAssetIndex < SearchIndex.Assets.Num(); ++IndexAssetIndex)
 			{
 				const FSearchIndexAsset& IndexAsset = SearchIndex.Assets[IndexAssetIndex];
-				if (AnimationPreviewMode == EAnimationPreviewMode::OriginalAndMirrored || !IndexAsset.IsMirrored())
+				if (const int32* SelectedNodesIndex = AssociatedAssetIndices.Find(IndexAsset.GetSourceAssetIdx()))
 				{
-					if (const int32* SelectedNodesIndex = AssociatedAssetIndices.Find(IndexAsset.GetSourceAssetIdx()))
+					FDatabasePreviewActor PreviewActor = SpawnPreviewActor(IndexAssetIndex);
+					if (PreviewActor.IsValid())
 					{
-						FDatabasePreviewActor PreviewActor = SpawnPreviewActor(IndexAssetIndex);
-						if (PreviewActor.IsValid())
-						{
-							MaxPreviewPlayLength = FMath::Max(MaxPreviewPlayLength, IndexAsset.GetLastSampleTime(PoseSearchDatabase->Schema->SampleRate) - IndexAsset.GetFirstSampleTime(PoseSearchDatabase->Schema->SampleRate));
-							PreviewActors.Add(PreviewActor);
-						}
+						MaxPreviewPlayLength = FMath::Max(MaxPreviewPlayLength, IndexAsset.GetLastSampleTime(PoseSearchDatabase->Schema->SampleRate) - IndexAsset.GetFirstSampleTime(PoseSearchDatabase->Schema->SampleRate));
+						PreviewActors.Add(PreviewActor);
 					}
 				}
 			}

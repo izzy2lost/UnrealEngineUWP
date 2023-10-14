@@ -29,57 +29,12 @@ namespace UE::PoseSearch
 		const bool bInShouldCloseWindowAfterMenuSelection = true;
 		FMenuBuilder ShowMenuBuilder(bInShouldCloseWindowAfterMenuSelection, ViewportRef->GetCommandList());
 		{
-			ShowMenuBuilder.AddSubMenu(
-				LOCTEXT("ShowMenu_PoseFeaturesDrawSubMenu", "Pose Features"),
-				LOCTEXT("ShowMenu_PoseFeaturesDrawSubMenuToolTip", "Pose Feature Drawing Options"),
-				FNewMenuDelegate::CreateLambda([](FMenuBuilder& SubMenuBuilder)
-			{
-				const FDatabaseEditorCommands& Commands = FDatabaseEditorCommands::Get();
-
-				SubMenuBuilder.BeginSection("PoseFeatures", LOCTEXT("ShowMenu_PoseFeaturesLabel", "Pose Features"));
-				{
-					SubMenuBuilder.AddMenuEntry(Commands.ShowPoseFeaturesNone);
-					SubMenuBuilder.AddMenuEntry(Commands.ShowPoseFeaturesAll);
-					SubMenuBuilder.AddMenuEntry(Commands.ShowPoseFeaturesDetailed);
-				}
-				SubMenuBuilder.EndSection();
-			})
-			);
-
-			ShowMenuBuilder.AddSubMenu(
-				LOCTEXT("ShowMenu_AnimationsSubMenu", "Animations"),
-				LOCTEXT("ShowMenu_AnimationsSubMenuToolTip", "Animation Preview Options"),
-				FNewMenuDelegate::CreateLambda([](FMenuBuilder& SubMenuBuilder)
-			{
-				const FDatabaseEditorCommands& Commands = FDatabaseEditorCommands::Get();
-
-				SubMenuBuilder.BeginSection("Animations", LOCTEXT("ShowMenu_AnimationsLabel", "Animations"));
-				{
-					SubMenuBuilder.AddMenuEntry(Commands.ShowAnimationOriginalOnly);
-					SubMenuBuilder.AddMenuEntry(Commands.ShowAnimationOriginalAndMirrored);
-				}
-				SubMenuBuilder.EndSection();
-			})
-			);
-
-			
-			ShowMenuBuilder.AddSubMenu(
-				LOCTEXT("ShowMenu_DebugSubMenu", "Debug"),
-				LOCTEXT("ShowMenu_DebugSubMenuToolTip", "Debug Options"),
-				FNewMenuDelegate::CreateLambda([](FMenuBuilder& SubMenuBuilder)
-			{
-				const FDatabaseEditorCommands& Commands = FDatabaseEditorCommands::Get();
-
-				SubMenuBuilder.BeginSection("Debug", LOCTEXT("ShowMenu_DebugLabel", "Debug"));
-				{
-					SubMenuBuilder.AddMenuEntry(Commands.ShowDisplayRootMotionSpeed);
-					SubMenuBuilder.AddMenuEntry(Commands.ShowQuantizeAnimationToPoseData);
-					SubMenuBuilder.AddMenuEntry(Commands.ShowBones);
-				}
-				SubMenuBuilder.EndSection();
-			})
-			);
-			
+			ShowMenuBuilder.BeginSection("Debug", LOCTEXT("ShowMenu_DebugLabel", "Debug"));
+			const FDatabaseEditorCommands& Commands = FDatabaseEditorCommands::Get();
+			ShowMenuBuilder.AddMenuEntry(Commands.ShowDisplayRootMotionSpeed);
+			ShowMenuBuilder.AddMenuEntry(Commands.ShowQuantizeAnimationToPoseData);
+			ShowMenuBuilder.AddMenuEntry(Commands.ShowBones);
+			ShowMenuBuilder.EndSection();
 		}
 
 		return ShowMenuBuilder.MakeWidget();

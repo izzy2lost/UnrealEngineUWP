@@ -38,66 +38,6 @@ namespace UE::PoseSearch
 			AssetEditorPtr.Pin()->GetViewModelSharedPtr().ToSharedRef();
 
 		CommandList->MapAction(
-			Commands.ShowPoseFeaturesNone,
-			FExecuteAction::CreateSP(
-				ViewModelRef,
-				&FDatabaseViewModel::OnSetPoseFeaturesDrawMode,
-				EFeaturesDrawMode::None),
-			FCanExecuteAction(),
-			FIsActionChecked::CreateSP(
-				ViewModelRef,
-				&FDatabaseViewModel::IsPoseFeaturesDrawMode,
-				EFeaturesDrawMode::None));
-
-		CommandList->MapAction(
-			Commands.ShowPoseFeaturesAll,
-			FExecuteAction::CreateSP(
-				ViewModelRef,
-				&FDatabaseViewModel::OnSetPoseFeaturesDrawMode,
-				EFeaturesDrawMode::All),
-			FCanExecuteAction(),
-			FIsActionChecked::CreateSP(
-				ViewModelRef,
-				&FDatabaseViewModel::IsPoseFeaturesDrawMode,
-				EFeaturesDrawMode::All));
-
-		CommandList->MapAction(
-			Commands.ShowPoseFeaturesDetailed,
-			FExecuteAction::CreateSP(
-				ViewModelRef,
-				&FDatabaseViewModel::OnSetPoseFeaturesDrawMode,
-				EFeaturesDrawMode::Detailed),
-			FCanExecuteAction(),
-			FIsActionChecked::CreateSP(
-				ViewModelRef,
-				&FDatabaseViewModel::IsPoseFeaturesDrawMode,
-				EFeaturesDrawMode::Detailed));
-
-		CommandList->MapAction(
-			Commands.ShowAnimationOriginalOnly,
-			FExecuteAction::CreateSP(
-				ViewModelRef,
-				&FDatabaseViewModel::OnSetAnimationPreviewMode,
-				EAnimationPreviewMode::OriginalOnly),
-			FCanExecuteAction(),
-			FIsActionChecked::CreateSP(
-				ViewModelRef,
-				&FDatabaseViewModel::IsAnimationPreviewMode,
-				EAnimationPreviewMode::OriginalOnly));
-
-		CommandList->MapAction(
-			Commands.ShowAnimationOriginalAndMirrored,
-			FExecuteAction::CreateSP(
-				ViewModelRef,
-				&FDatabaseViewModel::OnSetAnimationPreviewMode,
-				EAnimationPreviewMode::OriginalAndMirrored),
-			FCanExecuteAction(),
-			FIsActionChecked::CreateSP(
-				ViewModelRef,
-				&FDatabaseViewModel::IsAnimationPreviewMode,
-				EAnimationPreviewMode::OriginalAndMirrored));
-
-		CommandList->MapAction(
 			Commands.ShowDisplayRootMotionSpeed,
 			FExecuteAction::CreateSP(ViewModelRef, &FDatabaseViewModel::OnToggleDisplayRootMotionSpeed),
 			FCanExecuteAction(),

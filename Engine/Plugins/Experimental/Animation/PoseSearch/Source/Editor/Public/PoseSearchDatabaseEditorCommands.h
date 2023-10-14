@@ -24,11 +24,6 @@ namespace UE::PoseSearch
 		virtual void RegisterCommands() override;
 
 	public:
-		TSharedPtr<FUICommandInfo> ShowPoseFeaturesNone;
-		TSharedPtr<FUICommandInfo> ShowPoseFeaturesAll;
-		TSharedPtr<FUICommandInfo> ShowPoseFeaturesDetailed;
-		TSharedPtr<FUICommandInfo> ShowAnimationOriginalOnly;
-		TSharedPtr<FUICommandInfo> ShowAnimationOriginalAndMirrored;
 		TSharedPtr<FUICommandInfo> ShowDisplayRootMotionSpeed;
 		TSharedPtr<FUICommandInfo> ShowQuantizeAnimationToPoseData;
 		TSharedPtr<FUICommandInfo> ShowBones;

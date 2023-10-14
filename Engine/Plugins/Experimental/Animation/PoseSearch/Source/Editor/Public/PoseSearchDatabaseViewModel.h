@@ -25,21 +25,6 @@ namespace UE::PoseSearch
 	struct FSearchIndexAsset;
 	class SDatabaseDataDetails;
 
-	enum class EFeaturesDrawMode : uint8
-	{
-		None,
-		All,
-		Detailed
-	};
-	ENUM_CLASS_FLAGS(EFeaturesDrawMode);
-
-	enum class EAnimationPreviewMode : uint8
-	{
-		OriginalOnly,
-		OriginalAndMirrored
-	};
-	ENUM_CLASS_FLAGS(EAnimationPreviewMode);
-
 	struct FDatabasePreviewActor
 	{
 	public:
@@ -86,12 +71,6 @@ namespace UE::PoseSearch
 
 		TArray<FDatabasePreviewActor>& GetPreviewActors() { return PreviewActors; }
 		const TArray<FDatabasePreviewActor>& GetPreviewActors() const { return PreviewActors; }
-
-		void OnSetPoseFeaturesDrawMode(EFeaturesDrawMode DrawMode);
-		bool IsPoseFeaturesDrawMode(EFeaturesDrawMode DrawMode) const;
-
-		void OnSetAnimationPreviewMode(EAnimationPreviewMode PreviewMode);
-		bool IsAnimationPreviewMode(EAnimationPreviewMode PreviewMode) const;
 
 		void OnToggleDisplayRootMotionSpeed() { bDisplayRootMotionSpeed = !bDisplayRootMotionSpeed; }
 		bool IsDisplayRootMotionSpeedChecked() const { return bDisplayRootMotionSpeed; };
@@ -155,12 +134,6 @@ namespace UE::PoseSearch
 		bool bIsEditorSelection = true;
 		bool bDrawQueryVector = false;
 		TArray<float> QueryVector;
-
-		/** What features to show in the viewport */
-		EFeaturesDrawMode PoseFeaturesDrawMode = EFeaturesDrawMode::All;
-
-		/** What animations to show in the viewport */
-		EAnimationPreviewMode AnimationPreviewMode = EAnimationPreviewMode::OriginalAndMirrored;
 
 		/** Is animation debug draw enabled */
 		bool bDisplayRootMotionSpeed = false;
