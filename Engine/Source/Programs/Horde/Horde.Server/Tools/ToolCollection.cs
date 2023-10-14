@@ -255,7 +255,7 @@ namespace Horde.Server.Tools
 			ToolDeploymentId deploymentId = ToolDeploymentId.GenerateNewId();
 			RefName refName = new RefName($"{tool.Id}/{deploymentId}");
 
-			using IServerStorageClient client = _storageService.CreateClient(tool.Config.NamespaceId);
+			using IStorageClient client = _storageService.CreateClient(tool.Config.NamespaceId);
 
 			HashedNodeRef<DirectoryNode> nodeRef;
 			await using (IStorageWriter writer = client.CreateWriter(refName))
@@ -287,7 +287,7 @@ namespace Horde.Server.Tools
 			NamespaceId namespaceId = tool.Config.NamespaceId;
 			RefName refName = new RefName($"{tool.Id}/{deploymentId}");
 
-			using IServerStorageClient client = _storageService.CreateClient(namespaceId);
+			using IStorageClient client = _storageService.CreateClient(namespaceId);
 			BlobHandle targetHandle = client.CreateBlobHandle(target);
 			await client.WriteRefTargetAsync(refName, targetHandle, cancellationToken: cancellationToken);
 
@@ -421,11 +421,11 @@ namespace Horde.Server.Tools
 		/// </summary>
 		/// <param name="tool">Identifier for the tool</param>
 		/// <returns>Storage client for the data</returns>
-		public IServerStorageClient CreateStorageClient(ITool tool)
+		public IStorageClient CreateStorageClient(ITool tool)
 		{
 			if (tool.Config is BundledToolConfig bundledConfig)
 			{
-				return new ServerStorageClientWrapper(new FileStorageClient(DirectoryReference.Combine(ServerApp.AppDir, bundledConfig.DataDir ?? $"tools/{tool.Id}"), _cache, _logger));
+				return new FileStorageClient(DirectoryReference.Combine(ServerApp.AppDir, bundledConfig.DataDir ?? $"tools/{tool.Id}"), _cache, _logger);
 			}
 			else
 			{

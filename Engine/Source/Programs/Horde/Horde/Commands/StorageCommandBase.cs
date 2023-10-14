@@ -58,7 +58,7 @@ namespace Horde.Commands
 			}
 			else
 			{
-				return _storageClientFactory.CreateClient(Path);
+				return _storageClientFactory.CreateClientWithPath(Path);
 			}
 		}
 	}

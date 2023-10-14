@@ -81,6 +81,11 @@ namespace EpicGames.Horde.Storage
 	/// </summary>
 	public interface IStorageClient : IDisposable
 	{
+		/// <summary>
+		/// Whether the backend supports http redirects
+		/// </summary>
+		bool SupportsRedirects { get; }
+
 		#region Blobs
 
 		/// <summary>
@@ -106,6 +111,22 @@ namespace EpicGames.Horde.Storage
 		/// <param name="basePath">Base path for writes</param>
 		/// <param name="cancellationToken">Cancellation token for the operation</param>
 		ValueTask<BlobHandle> WriteBlobAsync(BlobType type, Stream stream, IReadOnlyList<BlobHandle> references, string? basePath = null, CancellationToken cancellationToken = default);
+
+		/// <summary>
+		/// Attempts to get a redirect URL for the given blob
+		/// </summary>
+		/// <param name="locator">Blob to read</param>
+		/// <param name="cancellationToken">Cancellation token for the operation</param>
+		/// <returns>Optional url to read from</returns>
+		ValueTask<Uri?> TryGetReadRedirectAsync(BlobLocator locator, CancellationToken cancellationToken = default);
+
+		/// <summary>
+		/// Gets a write redirect for a new blob
+		/// </summary>
+		/// <param name="prefix">Prefix for the new blob</param>
+		/// <param name="cancellationToken">Cancellation token for the operation</param>
+		/// <returns>Locator for the blob and url to upload to</returns>
+		ValueTask<(BlobLocator, Uri)?> TryGetWriteRedirectAsync(string? prefix = null, CancellationToken cancellationToken = default);
 
 		#endregion
 
@@ -186,8 +207,27 @@ namespace EpicGames.Horde.Storage
 		/// Creates a storage client for the given namespace
 		/// </summary>
 		/// <param name="namespaceId">Namespace to manipulate</param>
-		/// <returns>Storage client instance. Must be disposed by the caller.</returns>
-		IStorageClient CreateClient(NamespaceId namespaceId);
+		/// <returns>Storage client instance. May be null if the namespace does not exist.</returns>
+		IStorageClient? TryCreateClient(NamespaceId namespaceId);
+	}
+
+	/// <summary>
+	/// Extension methods for <see cref="IStorageClientFactory"/>
+	/// </summary>
+	public static class StorageClientFactoryExtensions
+	{
+		/// <summary>
+		/// Creates a new storage client, throwing an exception if it does not exist
+		/// </summary>
+		public static IStorageClient CreateClient(this IStorageClientFactory factory, NamespaceId namespaceId)
+		{
+			IStorageClient? client = factory.TryCreateClient(namespaceId);
+			if (client == null)
+			{
+				throw new InvalidOperationException($"No namespace '{namespaceId}' is configured");
+			}
+			return client;
+		}
 	}
 
 	/// <summary>

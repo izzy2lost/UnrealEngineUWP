@@ -11,27 +11,24 @@ using EpicGames.Horde.Storage.Clients;
 using Horde.Server.Storage;
 using System.Threading;
 using Horde.Server.Server;
+using Microsoft.Extensions.DependencyInjection;
 
 namespace Horde.Server.Tests
 {
 	[TestClass]
 	public sealed class GcServiceTests : TestSetup
 	{
-		void SetupNamespace()
-		{
-			GlobalConfig globalConfig = new GlobalConfig();
-			globalConfig.Storage.Backends.Add(new BackendConfig { Id = new BackendId("default-backend"), Type = StorageBackendType.Memory });
-			globalConfig.Storage.Namespaces.Add(new NamespaceConfig { Id = new NamespaceId("default"), Backend = new BackendId("default-backend"), GcDelayHrs = 0.0 });
-			SetConfig(globalConfig);
-		}
-
 		[TestMethod]
 		public async Task CreateBasicTreeAsync()
 		{
 			await StorageService.StartAsync(CancellationToken.None);
 
-			SetupNamespace();
-			using IServerStorageClient store = StorageService.CreateClient(new NamespaceId("default"));
+			GlobalConfig globalConfig = new GlobalConfig();
+			globalConfig.Storage.Backends.Add(new BackendConfig { Id = new BackendId("default-backend"), Type = StorageBackendType.Memory });
+			globalConfig.Storage.Namespaces.Add(new NamespaceConfig { Id = new NamespaceId("default"), Backend = new BackendId("default-backend"), GcDelayHrs = 0.0 });
+			SetConfig(globalConfig);
+
+			using IStorageClient store = StorageService.CreateClient(new NamespaceId("default"));
 
 			Random random = new Random(0);
 			BlobLocator[] blobs = await CreateTestDataAsync(store, 30, 50, 30, 5, random);
@@ -52,9 +49,11 @@ namespace Horde.Server.Tests
 
 			await Clock.AdvanceAsync(TimeSpan.FromDays(1.0));
 
-			BlobLocator[] remaining = await store.EnumerateAsync().ToArrayAsync();
+			IStorageBackend backend = ServiceProvider.GetRequiredService<IStorageBackendProvider>().CreateBackend(globalConfig.Storage.Backends[0]);
+
+			string[] remaining = await backend.EnumerateAsync().ToArrayAsync();
 			Assert.AreEqual(nodes.Count, remaining.Length);
-			Assert.IsTrue(remaining.All(x => nodes.Contains(x)));
+			Assert.IsTrue(remaining.All(x => nodes.Contains(new BlobLocator(x))));
 		}
 
 		static async Task<HashSet<BlobLocator>> FindNodesAsync(IStorageClient store, IEnumerable<BlobLocator> roots)

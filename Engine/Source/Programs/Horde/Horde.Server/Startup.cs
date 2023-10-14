@@ -527,7 +527,7 @@ namespace Horde.Server
 			services.AddSingleton<DeviceService>();
 			services.AddSingleton<NoticeService>();
 			services.AddSingleton<StorageService>();
-			services.AddSingleton<IStorageClientFactory>(sp => sp.GetRequiredService<StorageService>());
+			services.AddScoped(sp => sp.GetRequiredService<StorageService>().CreateStorageClientFactory(sp.GetRequiredService<IOptionsSnapshot<GlobalConfig>>().Value));
 			services.AddSingleton<TestDataService>();
 			services.AddSingleton<BundleReaderCache>();
 			services.AddSingleton<StorageBackendCache>(CreateStorageBackendCache);
@@ -542,7 +542,7 @@ namespace Horde.Server
 			}
 
 			// DDC
-			services.AddSingleton<IRequestHelper, RequestHelper>();
+			services.AddScoped<IRequestHelper, RequestHelper>();
 			services.AddSingleton<IBlobService, BlobService>();
 			services.AddSingleton<IRefService, RefService>();
 			services.AddSingleton<IReferenceResolver, ReferenceResolver>();

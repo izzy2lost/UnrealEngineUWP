@@ -177,7 +177,7 @@ namespace EpicGames.Horde.Storage.Clients
 	/// <summary>
 	/// Factory for constructing HttpStorageClient instances
 	/// </summary>
-	public class HttpStorageClientFactory : IStorageClientFactory
+	public sealed class HttpStorageClientFactory : IStorageClientFactory
 	{
 		readonly IHttpClientFactory _httpClientFactory;
 		readonly StorageBackendCache _backendCache;
@@ -202,7 +202,7 @@ namespace EpicGames.Horde.Storage.Clients
 		/// </summary>
 		/// <param name="basePath">Base path for all requests</param>
 		/// <param name="accessToken">Custom access token to use for requests</param>
-		public HttpStorageClient CreateClient(string basePath, string? accessToken = null)
+		public HttpStorageClient CreateClientWithPath(string basePath, string? accessToken = null)
 		{
 			HttpClient CreateClient()
 			{
@@ -227,9 +227,9 @@ namespace EpicGames.Horde.Storage.Clients
 		/// </summary>
 		/// <param name="namespaceId">Namespace to create a client for</param>
 		/// <param name="accessToken">Custom access token to use for requests</param>
-		public HttpStorageClient CreateClient(NamespaceId namespaceId, string? accessToken = null) => CreateClient($"api/v1/storage/{namespaceId}", accessToken);
+		public HttpStorageClient CreateClient(NamespaceId namespaceId, string? accessToken = null) => CreateClientWithPath($"api/v1/storage/{namespaceId}", accessToken);
 
 		/// <inheritdoc/>
-		IStorageClient IStorageClientFactory.CreateClient(NamespaceId namespaceId) => CreateClient(namespaceId);
+		IStorageClient? IStorageClientFactory.TryCreateClient(NamespaceId namespaceId) => CreateClient(namespaceId);
 	}
 }

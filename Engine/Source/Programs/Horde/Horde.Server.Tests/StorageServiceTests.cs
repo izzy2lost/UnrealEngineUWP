@@ -20,7 +20,7 @@ namespace Horde.Server.Tests
 		public async Task BlobCollectionTestAsync()
 		{
 			StorageService storageService = ServiceProvider.GetRequiredService<StorageService>();
-			using IServerStorageClient client = storageService.CreateClient(new NamespaceId("memory"));
+			using IStorageClient client = storageService.CreateClient(new NamespaceId("memory"));
 
 			List<BlobType> types = new List<BlobType>();
 			types.Add(new BlobType(Guid.Parse("{11C2D886-3349-4164-946F-E9D10BD12E3D}"), 0));

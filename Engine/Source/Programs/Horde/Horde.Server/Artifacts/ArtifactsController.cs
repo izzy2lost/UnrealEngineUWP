@@ -92,7 +92,7 @@ namespace Horde.Server.Artifacts
 				return BadRequest("Invalid blob id for artifact");
 			}
 
-			using IServerStorageClient storageClient = _storageService.CreateClient(artifact.NamespaceId);
+			using IStorageClient storageClient = _storageService.CreateClient(artifact.NamespaceId);
 			return await StorageController.ReadBlobInternalAsync(storageClient, locator, Request.Headers, cancellationToken);
 		}
 

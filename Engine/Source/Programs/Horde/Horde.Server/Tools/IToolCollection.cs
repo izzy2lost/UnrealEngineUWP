@@ -5,7 +5,6 @@ using System.Threading;
 using System.Threading.Tasks;
 using EpicGames.Horde.Storage;
 using Horde.Server.Server;
-using Horde.Server.Storage;
 
 namespace Horde.Server.Tools
 {
@@ -58,7 +57,7 @@ namespace Horde.Server.Tools
 		/// </summary>
 		/// <param name="tool">The tool to get a storage client for</param>
 		/// <returns>Instance of the storage client</returns>
-		IServerStorageClient CreateStorageClient(ITool tool);
+		IStorageClient CreateStorageClient(ITool tool);
 
 		/// <summary>
 		/// Opens a stream to the data for a particular deployment

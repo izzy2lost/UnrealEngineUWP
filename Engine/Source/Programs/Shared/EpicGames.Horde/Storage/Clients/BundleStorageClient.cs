@@ -135,6 +135,9 @@ namespace EpicGames.Horde.Storage.Clients
 		/// </summary>
 		public IStorageBackend Backend => _backend;
 
+		/// <inheritdoc/>
+		public virtual bool SupportsRedirects { get; } = false;
+
 		/// <summary>
 		/// Constructor
 		/// </summary>
@@ -172,6 +175,12 @@ namespace EpicGames.Horde.Storage.Clients
 			string path = await _backend.WriteAsync(stream, basePath, cancellationToken);
 			return new BundleHandle(this, path);
 		}
+
+		/// <inheritdoc/>
+		public virtual ValueTask<Uri?> TryGetReadRedirectAsync(BlobLocator locator, CancellationToken cancellationToken = default) => new ValueTask<Uri?>();
+
+		/// <inheritdoc/>
+		public virtual ValueTask<(BlobLocator, Uri)?> TryGetWriteRedirectAsync(string? prefix = null, CancellationToken cancellationToken = default) => new ValueTask<(BlobLocator, Uri)?>();
 
 		#endregion
 
