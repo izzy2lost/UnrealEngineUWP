@@ -35,25 +35,29 @@ Texture2D<uint> ShadingMask;
 SamplerState ShadingMaskSampler;
 #endif
 
-RWStructuredBuffer<FNaniteShadingBinMeta> OutShadingBinMeta;
+// Headers stored at the beginning, followed by bin data starting at ShadingBinDataByteOffset
+RWByteAddressBuffer OutShadingBinData;
+uint ShadingBinDataByteOffset;
+
+FNaniteShadingBinMeta GetShadingBinMeta(uint ShadingBin)
+{
+	return OutShadingBinData.Load<FNaniteShadingBinMeta>(ShadingBin * NANITE_SHADING_BIN_META_BYTES);
+}
+
+FNaniteMaterialFlags GetShadingBinMaterialFlags(uint ShadingBin)
+{
+	return UnpackNaniteMaterialFlags(GetShadingBinMeta(ShadingBin).MaterialFlags);
+}
 
 #if SHADING_BIN_RESERVE
 RWStructuredBuffer<uint> OutShadingBinAllocator;
 RWByteAddressBuffer OutShadingBinArgs;
-#endif
-
-#if SHADING_BIN_SCATTER
-RWByteAddressBuffer OutShadingBinData;
+StructuredBuffer<FNaniteShadingBinMeta> ShadingBinMeta;
 #endif
 
 #if GATHER_STATS
 RWStructuredBuffer<FNaniteShadingBinStats> OutShadingBinStats;
 #endif
-
-FNaniteMaterialFlags GetShadingBinMaterialFlags(uint BinIndex)
-{
-	return UnpackNaniteMaterialFlags(OutShadingBinMeta[BinIndex].MaterialFlags);
-}
 
 #if SHADING_BIN_COUNT || SHADING_BIN_SCATTER
 
@@ -247,8 +251,11 @@ void BinShadingQuad(uint2 Coord, uint ThreadIndex)
 				BRANCH
 				if (MaterialFlags.bNoDerivativeOps)
 				{
-					uint PixelCount = SampleCountQuadVRS(ShadingRate, BinCoverage);
-					WaveInterlockedAdd(OutShadingBinMeta[VotedBin].ElementCount, PixelCount);
+					const uint PixelCount = WaveActiveSum(SampleCountQuadVRS(ShadingRate, BinCoverage));
+					if (WaveIsFirstLane())
+					{
+						OutShadingBinData.InterlockedAdd((VotedBin * NANITE_SHADING_BIN_META_BYTES) + NANITE_SHADING_BIN_META_ELEMENT_COUNT_OFFSET, PixelCount);
+					}
 				}
 				else
 				{
@@ -270,7 +277,11 @@ void BinShadingQuad(uint2 Coord, uint ThreadIndex)
 					
 					if (bWriteQuad)
 					{
-						WaveInterlockedAddScalar(OutShadingBinMeta[VotedBin].ElementCount, 1);
+						const uint AddCount = WaveActiveCountBits(true);
+						if (WaveIsFirstLane())
+						{
+							OutShadingBinData.InterlockedAdd((VotedBin * NANITE_SHADING_BIN_META_BYTES) + NANITE_SHADING_BIN_META_ELEMENT_COUNT_OFFSET, AddCount);
+						}
 					}
 				}
 			}
@@ -347,7 +358,7 @@ void BinShadingQuad(uint2 Coord, uint ThreadIndex)
 		BRANCH
 		if (MaterialFlags.bNoDerivativeOps)
 		{
-			const uint RangeStart = OutShadingBinMeta[VotedBin].RangeStart;
+			const uint RangeStart = GetShadingBinMeta(VotedBin).RangeStart;
 
 			const uint PixelCount = countbits(BinCoverage);
 			const uint WavePixelCount = WaveActiveSum(PixelCount);
@@ -359,7 +370,7 @@ void BinShadingQuad(uint2 Coord, uint ThreadIndex)
 			GroupMemoryBarrierWithGroupSync();
 			if (ThreadIndex == GroupUpdateThread)
 			{
-				InterlockedAdd(OutShadingBinMeta[VotedBin].NumWrittenElements, GroupWriteCount, GroupWriteOffset);
+				OutShadingBinData.InterlockedAdd((VotedBin * NANITE_SHADING_BIN_META_BYTES) + NANITE_SHADING_BIN_META_WRITTEN_COUNT_OFFSET, GroupWriteCount, GroupWriteOffset);
 			}
 			GroupMemoryBarrierWithGroupSync();
 
@@ -380,7 +391,7 @@ void BinShadingQuad(uint2 Coord, uint ThreadIndex)
 				const uint2 CoarsePixelTL = (PixelCoord >> VRSShift) << VRSShift;
 
 				const uint WriteMask = BitFieldExtractU32(CoarsePixelWriteMasks, 4, PixelIndex * 4);
-				OutShadingBinData.Store(DataWriteOffset * 4, PackShadingPixel(CoarsePixelTL, VRSShift, WriteMask));
+				OutShadingBinData.Store(ShadingBinDataByteOffset + (DataWriteOffset * 4), PackShadingPixel(CoarsePixelTL, VRSShift, WriteMask));
 				DataWriteOffset++;
 			}
 		}
@@ -435,11 +446,11 @@ void BinShadingQuad(uint2 Coord, uint ThreadIndex)
 			}
 			GroupMemoryBarrierWithGroupSync();
 
-			uint RangeStart = OutShadingBinMeta[VotedBin].RangeStart;
+			uint RangeStart = GetShadingBinMeta(VotedBin).RangeStart;
 			BRANCH
 			if (ThreadIndex == GroupUpdateThread)
 			{
-				InterlockedAdd(OutShadingBinMeta[VotedBin].NumWrittenElements, GroupWriteCount, GroupWriteOffset);
+				OutShadingBinData.InterlockedAdd((VotedBin * NANITE_SHADING_BIN_META_BYTES) + NANITE_SHADING_BIN_META_WRITTEN_COUNT_OFFSET, GroupWriteCount, GroupWriteOffset);
 			}
 			GroupMemoryBarrierWithGroupSync();
 
@@ -449,7 +460,7 @@ void BinShadingQuad(uint2 Coord, uint ThreadIndex)
 			BRANCH
 			if (bWriteQuad)
 			{
-				OutShadingBinData.Store2(RangeStart * 4 + DataWriteOffset * 8, PackShadingQuad(QuadTLCoord, VRSShift, OutputWriteMask));
+				OutShadingBinData.Store2(ShadingBinDataByteOffset + (RangeStart * 4 + DataWriteOffset * 8), PackShadingQuad(QuadTLCoord, VRSShift, OutputWriteMask));
 
 #if GATHER_STATS
 				const uint NumHelpers = 4	- ((OutputWriteMask & 0x000Fu) != 0u)
@@ -490,10 +501,10 @@ void BinShadingQuad(uint2 Coord, uint ThreadIndex)
 	};
 
 	// Fetch per pixel shading write masks and remove mask bits if they are not valid writes (i.e. no cmask for that export)
-	const uint WriteMaskTL = select(ValidPixels.x, BitFieldExtractU32(OutShadingBinMeta[ShadingMaskTL.ShadingBin].MaterialFlags, 8u, 24u), 0x0u);
-	const uint WriteMaskTR = select(ValidPixels.y, BitFieldExtractU32(OutShadingBinMeta[ShadingMaskTR.ShadingBin].MaterialFlags, 8u, 24u), 0x0u);
-	const uint WriteMaskBL = select(ValidPixels.z, BitFieldExtractU32(OutShadingBinMeta[ShadingMaskBL.ShadingBin].MaterialFlags, 8u, 24u), 0x0u);
-	const uint WriteMaskBR = select(ValidPixels.w, BitFieldExtractU32(OutShadingBinMeta[ShadingMaskBR.ShadingBin].MaterialFlags, 8u, 24u), 0x0u);
+	const uint WriteMaskTL = select(ValidPixels.x, BitFieldExtractU32(GetShadingBinMeta(ShadingMaskTL.ShadingBin).MaterialFlags, 8u, 24u), 0x0u);
+	const uint WriteMaskTR = select(ValidPixels.y, BitFieldExtractU32(GetShadingBinMeta(ShadingMaskTR.ShadingBin).MaterialFlags, 8u, 24u), 0x0u);
+	const uint WriteMaskBL = select(ValidPixels.z, BitFieldExtractU32(GetShadingBinMeta(ShadingMaskBL.ShadingBin).MaterialFlags, 8u, 24u), 0x0u);
+	const uint WriteMaskBR = select(ValidPixels.w, BitFieldExtractU32(GetShadingBinMeta(ShadingMaskBR.ShadingBin).MaterialFlags, 8u, 24u), 0x0u);
 
 	// NOTE: It should be only necessary to test the TL pixel's cmask index/shift, since a quad shouldn't be able to span multiple nibbles.
 	uint CMaskIndex;
@@ -605,13 +616,13 @@ void ShadingBinReserveCS(uint ShadingBin : SV_DispatchThreadID)
 	uint BinPixelCount;
 	if (MaterialFlags.bNoDerivativeOps)
 	{
-		BinPixelCount = OutShadingBinMeta[ShadingBin].ElementCount;
+		BinPixelCount = GetShadingBinMeta(ShadingBin).ElementCount;
 
 		if (BinPixelCount > 0)
 		{
 			uint RangeStart;
 			InterlockedAdd(OutShadingBinAllocator[0], BinPixelCount, RangeStart);
-			OutShadingBinMeta[ShadingBin].RangeStart = RangeStart;
+			OutShadingBinData.Store((ShadingBin * NANITE_SHADING_BIN_META_BYTES) + NANITE_SHADING_BIN_META_RANGE_START_OFFSET, RangeStart);
 		}
 
 #if GATHER_STATS
@@ -624,13 +635,13 @@ void ShadingBinReserveCS(uint ShadingBin : SV_DispatchThreadID)
 	}
 	else
 	{
-		const uint BinQuadCount = OutShadingBinMeta[ShadingBin].ElementCount;
+		const uint BinQuadCount = GetShadingBinMeta(ShadingBin).ElementCount;
 
 		if (BinQuadCount > 0)
 		{
 			uint RangeStart;
 			InterlockedAdd(OutShadingBinAllocator[0], BinQuadCount * 2, RangeStart);
-			OutShadingBinMeta[ShadingBin].RangeStart = RangeStart;
+			OutShadingBinData.Store((ShadingBin * NANITE_SHADING_BIN_META_BYTES) + NANITE_SHADING_BIN_META_RANGE_START_OFFSET, RangeStart);
 		}
 
 		const uint ArgsOffset = ShadingBin * 4u;
@@ -662,10 +673,8 @@ void ShadingBinValidateCS(uint ShadingBin : SV_DispatchThreadID)
 	if (ShadingBin >= ShadingBinCount)
 		return;
 
-	const FNaniteShadingBinMeta ShadingBinMeta = OutShadingBinMeta[ShadingBin];
-	
-	const uint NumElements = ShadingBinMeta.ElementCount;
-	if (NumElements != ShadingBinMeta.NumWrittenElements)
+	const FNaniteShadingBinMeta ShadingBinMeta = GetShadingBinMeta(ShadingBin);
+	if (ShadingBinMeta.ElementCount != ShadingBinMeta.WrittenCount)
 	{
 		PLATFORM_BREAK();
 	}

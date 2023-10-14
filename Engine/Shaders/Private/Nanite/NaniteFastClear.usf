@@ -16,7 +16,7 @@ uint4 ViewRect;
 uint ValidWriteMask;
 
 Texture2D<uint> ShadingMask;
-StructuredBuffer<FNaniteShadingBinMeta> ShadingBinMeta;
+ByteAddressBuffer ShadingBinData;
 
 #ifndef NUM_EXPORTS
 #define NUM_EXPORTS 1
@@ -99,7 +99,7 @@ void ClearTiles(uint2 GroupId : SV_GroupID, uint ThreadIndex : SV_GroupIndex)
 
 	if (WaveActiveAllTrue(bIsNanitePixel))
 	{
-		const uint PackedFlags = ShadingBinMeta[UnpackedMask.ShadingBin].MaterialFlags;
+		const uint PackedFlags = ShadingBinData.Load<FNaniteShadingBinMeta>(UnpackedMask.ShadingBin * NANITE_SHADING_BIN_META_BYTES).MaterialFlags;
 		uint WriteMask = BitFieldExtractU32(PackedFlags, 8u, 24u);
 
 		// Remove mask bits if they are not valid writes (i.e. no cmask for that export)

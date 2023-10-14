@@ -135,16 +135,18 @@ void ProcessPixel(uint ShadingBin, const uint2 PixelPos, const float2 SVPosition
 void Main(uint ThreadIndex : SV_GroupIndex, uint GroupID : SV_GroupID)
 {
 #if PLATFORM_SUPPORTS_SHADER_ROOT_CONSTANTS
-	const uint ShadingBin   = UERootConstants.RecordIndex;
-	const bool bQuadBinning = UERootConstants.PassData.x != 0u;
+	const uint ShadingBin		= UERootConstants.RecordIndex;
+	const bool bQuadBinning		= UERootConstants.PassData.x != 0u;
+	const uint DataByteOffset	= UERootConstants.PassData.y;
 #else
-	const uint ShadingBin   = PassData.x;
-	const bool bQuadBinning = PassData.y != 0u;
+	const uint ShadingBin		= PassData.x;
+	const bool bQuadBinning		= PassData.y != 0u;
+	const uint DataByteOffset	= PassData.z;
 #endif
 
 	const uint PixelIndex = (GroupID * 64u) + ThreadIndex;
 
-	const uint3 ShadingBinMeta = Nanite.ShadingBinMeta[ShadingBin].xyz;
+	const uint3 ShadingBinMeta = Nanite.ShadingBinData.Load3(ShadingBin * NANITE_SHADING_BIN_META_BYTES);
 	const uint ElementCount = ShadingBinMeta.x;
 	const uint ElementIndex = bQuadBinning ? (PixelIndex >> 2) : PixelIndex;
 
@@ -162,7 +164,7 @@ void Main(uint ThreadIndex : SV_GroupIndex, uint GroupID : SV_GroupID)
 	BRANCH
 	if (bQuadBinning)
 	{
-		const uint2 PackedElement = Nanite.ShadingBinData.Load2(ShadingBinMeta.z * 4 + ElementIndex * 8);
+		const uint2 PackedElement = Nanite.ShadingBinData.Load2(DataByteOffset + (ShadingBinMeta.z * 4 + ElementIndex * 8));
 
 		const uint CornerIndex = (ThreadIndex & 3u);
 
@@ -176,7 +178,7 @@ void Main(uint ThreadIndex : SV_GroupIndex, uint GroupID : SV_GroupID)
 	}
 	else
 	{
-		const uint PackedElement= Nanite.ShadingBinData.Load(ShadingBinMeta.z * 4 + ElementIndex * 4);
+		const uint PackedElement= Nanite.ShadingBinData.Load(DataByteOffset + (ShadingBinMeta.z * 4 + ElementIndex * 4));
 		PixelPos				= uint2(BitFieldExtractU32(PackedElement, 13, 0), BitFieldExtractU32(PackedElement, 13, 13));
 		VRSShift				= uint2(BitFieldExtractU32(PackedElement, 1, 26), BitFieldExtractU32(PackedElement, 1, 27));
 		PixelWriteMask			= PackedElement >> 28;

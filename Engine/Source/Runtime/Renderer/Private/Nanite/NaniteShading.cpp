@@ -182,7 +182,7 @@ public:
 		SHADER_PARAMETER(uint32, ValidWriteMask)
 		SHADER_PARAMETER_RDG_TEXTURE_UAV_ARRAY(RWTextureMetadata, OutCMaskBuffer, [MaxSimultaneousRenderTargets])
 		SHADER_PARAMETER_RDG_TEXTURE_SRV(Texture2D<uint>, ShadingMask)
-		SHADER_PARAMETER_RDG_BUFFER_SRV(StructuredBuffer<FNaniteShadingBinMeta>, ShadingBinMeta)
+		SHADER_PARAMETER_RDG_BUFFER_SRV(ByteAddressBuffer, ShadingBinData)
 	END_SHADER_PARAMETER_STRUCT()
 
 	FClearTilesCS() = default;
@@ -274,6 +274,7 @@ class FShadingBinBuildCS : public FNaniteGlobalShader
 		SHADER_PARAMETER(uint32, ValidWriteMask)
 		SHADER_PARAMETER(FUint32Vector2, DispatchOffsetTL)
 		SHADER_PARAMETER(uint32, ShadingBinCount)
+		SHADER_PARAMETER(uint32, ShadingBinDataByteOffset)
 		SHADER_PARAMETER(uint32, ShadingRateTileSizeBits)
 		SHADER_PARAMETER(uint32, DummyZero)
 		SHADER_PARAMETER_RDG_TEXTURE(Texture2D<uint>, ShadingRateImage)
@@ -281,7 +282,6 @@ class FShadingBinBuildCS : public FNaniteGlobalShader
 		SHADER_PARAMETER_SAMPLER(SamplerState, ShadingMaskSampler)
 		SHADER_PARAMETER_RDG_TEXTURE_UAV_ARRAY(RWTextureMetadata, OutCMaskBuffer, [MaxSimultaneousRenderTargets])
 		SHADER_PARAMETER_RDG_BUFFER_UAV(RWStructuredBuffer<FNaniteShadingBinStats>, OutShadingBinStats)
-		SHADER_PARAMETER_RDG_BUFFER_UAV(RWStructuredBuffer<FNaniteShadingBinMeta>, OutShadingBinMeta)
 		SHADER_PARAMETER_RDG_BUFFER_UAV(RWByteAddressBuffer, OutShadingBinData)
 		SHADER_PARAMETER_RDG_BUFFER_UAV(RWByteAddressBuffer, OutShadingBinArgs)
 	END_SHADER_PARAMETER_STRUCT()
@@ -312,8 +312,9 @@ class FShadingBinReserveCS : public FNaniteGlobalShader
 
 	BEGIN_SHADER_PARAMETER_STRUCT(FParameters, )
 		SHADER_PARAMETER(uint32, ShadingBinCount)
+		SHADER_PARAMETER(uint32, ShadingBinDataByteOffset)
 		SHADER_PARAMETER_RDG_BUFFER_UAV(RWStructuredBuffer<FNaniteShadingBinStats>, OutShadingBinStats)
-		SHADER_PARAMETER_RDG_BUFFER_UAV(RWStructuredBuffer<FNaniteShadingBinMeta>, OutShadingBinMeta)
+		SHADER_PARAMETER_RDG_BUFFER_UAV(RWByteAddressBuffer, OutShadingBinData)
 		SHADER_PARAMETER_RDG_BUFFER_UAV(RWStructuredBuffer<uint>, OutShadingBinAllocator)
 		SHADER_PARAMETER_RDG_BUFFER_UAV(RWByteAddressBuffer, OutShadingBinArgs)
 	END_SHADER_PARAMETER_STRUCT()
@@ -338,7 +339,7 @@ class FShadingBinValidateCS : public FNaniteGlobalShader
 
 	BEGIN_SHADER_PARAMETER_STRUCT(FParameters, )
 		SHADER_PARAMETER(uint32, ShadingBinCount)
-		SHADER_PARAMETER_RDG_BUFFER_UAV(RWStructuredBuffer<FNaniteShadingBinMeta>, OutShadingBinMeta)	
+		SHADER_PARAMETER_RDG_BUFFER_UAV(RWByteAddressBuffer, OutShadingBinData)
 	END_SHADER_PARAMETER_STRUCT()
 };
 IMPLEMENT_GLOBAL_SHADER(FShadingBinValidateCS, "/Engine/Private/Nanite/NaniteShadeBinning.usf", "ShadingBinValidateCS", SF_Compute);
@@ -625,6 +626,7 @@ bool LoadShadingPipeline(
 void RecordShadingParameters(
 	FRHIBatchedShaderParameters& BatchedParameters,
 	FNaniteShadingCommand& ShadingCommand,
+	const uint32 DataByteOffset,
 	const FUint32Vector4& ViewRect,
 	const TArray<FRHIUnorderedAccessView*, TInlineAllocator<8>>& OutputTargets,
 	FRHIUnorderedAccessView* OutputTargetsArray
@@ -635,7 +637,7 @@ void RecordShadingParameters(
 
 	ShadingCommand.PassData.X = ShadingCommand.ShadingBin; // Active Shading Bin
 	ShadingCommand.PassData.Y = bNoDerivativeOps ? 0 /* Pixel Binning */ : 1 /* Quad Binning */;
-	ShadingCommand.PassData.Z = 0; // Unused
+	ShadingCommand.PassData.Z = DataByteOffset;
 	ShadingCommand.PassData.W = 0; // Unused
 
 	ShadingCommand.Pipeline->ShaderBindings->SetParameters(BatchedParameters, ComputeShaderRHI);
@@ -694,6 +696,7 @@ class FRecordShadingCommandsAnyThreadTask : public FRenderTask
 	FUint32Vector4 ViewRect;
 	FRHIBuffer* IndirectArgs = nullptr;
 	uint32 IndirectArgsStride;
+	uint32 DataByteOffset;
 	int32 TaskIndex;
 	int32 TaskNum;
 
@@ -702,6 +705,7 @@ public:
 		FRHICommandList& InRHICmdList,
 		FRHIBuffer* InIndirectArgs,
 		uint32 InIndirectArgsStride,
+		uint32 InDataByteOffset,
 		TSharedPtr<TBitArray<SceneRenderingBitArrayAllocator>> InVisibilityData,
 		FNaniteShadingCommands& InShadingCommands,
 		const TConstArrayView<FRHIUnorderedAccessView*> InOutputTargets,
@@ -718,6 +722,7 @@ public:
 		, ViewRect(InViewRect)
 		, IndirectArgs(InIndirectArgs)
 		, IndirectArgsStride(InIndirectArgsStride)
+		, DataByteOffset(InDataByteOffset)
 		, TaskIndex(InTaskIndex)
 		, TaskNum(InTaskNum)
 	{}
@@ -749,6 +754,7 @@ public:
 				RecordShadingParameters(
 					ShadingCommand.BatchedParameters,
 					ShadingCommand,
+					DataByteOffset,
 					ViewRect,
 					OutputTargets,
 					OutputTargetsArray
@@ -832,7 +838,6 @@ FNaniteShadingPassParameters CreateNaniteShadingPassParams(
 		UniformParameters->InViews = GraphBuilder.CreateSRV(ViewsBuffer);
 
 		UniformParameters->ShadingBinData = GraphBuilder.CreateSRV(ShadeBinning.ShadingBinData);
-		UniformParameters->ShadingBinMeta = GraphBuilder.CreateSRV(ShadeBinning.ShadingBinMeta);
 
 		Result.Nanite = GraphBuilder.CreateUniformBuffer(UniformParameters);
 	}
@@ -1027,6 +1032,7 @@ void DispatchBasePass(
 		FNaniteShadingPassParameters* ShadingPassParameters,
 		FRHIComputeCommandList& RHICmdList,
 		const uint32 IndirectArgStride,
+		const uint32 DataByteOffset,
 		bool bSkipBarriers,
 		bool bBundleShading,
 		bool bBundleEmulation
@@ -1092,6 +1098,7 @@ void DispatchBasePass(
 						*CmdList,
 						IndirectArgsBuffer,
 						IndirectArgStride,
+						DataByteOffset,
 						VisibilityData,
 						ShadingCommands,
 						OutputTargets,
@@ -1140,7 +1147,7 @@ void DispatchBasePass(
 								FRHIShaderBundleDispatch& Dispatch = Command.Dispatches[ShadingCommand.ShadingBin];
 
 								Dispatch.RecordIndex = ShadingCommand.ShadingBin;
-								RecordShadingParameters(Dispatch.Parameters, ShadingCommand, ViewRect, OutputTargets, OutputTargetsArray);
+								RecordShadingParameters(Dispatch.Parameters, ShadingCommand, DataByteOffset, ViewRect, OutputTargets, OutputTargetsArray);
 								Dispatch.Shader = ShadingCommand.Pipeline->ComputeShader;
 								Dispatch.Constants = ShadingCommand.PassData;
 								Dispatch.PipelineState = FindComputePipelineState(Dispatch.Shader);
@@ -1194,7 +1201,7 @@ void DispatchBasePass(
 								FRHIShaderBundleDispatch& Dispatch = Command.Dispatches[ShadingCommand.ShadingBin];
 
 								Dispatch.RecordIndex = ShadingCommand.ShadingBin;
-								RecordShadingParameters(Dispatch.Parameters, ShadingCommand, ViewRect, OutputTargets, OutputTargetsArray);
+								RecordShadingParameters(Dispatch.Parameters, ShadingCommand, DataByteOffset, ViewRect, OutputTargets, OutputTargetsArray);
 
 								Dispatch.Shader = ShadingCommand.Pipeline->ComputeShader;
 								check(Dispatch.Shader);
@@ -1236,7 +1243,7 @@ void DispatchBasePass(
 					ShadingCommand.bVisible = !VisibilityData.IsValid() || VisibilityData->AccessCorrespondingBit(FRelativeBitReference(ShadingCommand.ShadingBin));
 					if (ShadingCommand.bVisible)
 					{
-						RecordShadingParameters(ShadingCommand.BatchedParameters, ShadingCommand, ViewRect, OutputTargets, OutputTargetsArray);
+						RecordShadingParameters(ShadingCommand.BatchedParameters, ShadingCommand, DataByteOffset, ViewRect, OutputTargets, OutputTargetsArray);
 						RecordShadingCommand(RHICmdList, IndirectArgsBuffer, IndirectArgStride, ShadingCommand);
 					}
 				}
@@ -1258,7 +1265,7 @@ void DispatchBasePass(
 			RDG_EVENT_NAME("ShadeGBufferCS"),
 			ShadingPassParameters,
 			ERDGPassFlags::Compute,
-			[&ShadePassWork, ShadingPassParameters, &ShadingCommands, IndirectArgStride, VisibilityData, &View, ViewRect, bSkipBarriers]
+			[&ShadePassWork, ShadingPassParameters, &ShadingCommands, IndirectArgStride, DataByteOffset = Binning.DataByteOffset, VisibilityData, &View, ViewRect, bSkipBarriers]
 			(const FRDGPass* RDGPass, FRHICommandListImmediate& RHICmdList)
 			{
 				FParallelCommandListBindings CmdListBindings(ShadingPassParameters);
@@ -1279,6 +1286,7 @@ void DispatchBasePass(
 					ShadingPassParameters,
 					RHICmdList,
 					IndirectArgStride,
+					DataByteOffset,
 					bSkipBarriers,
 					false /* bBundleShading   */,
 					false /* bBundleEmulation */
@@ -1308,7 +1316,7 @@ void DispatchBasePass(
 			RDG_EVENT_NAME("ShadeGBufferCS"),
 			ShadingPassParameters,
 			ERDGPassFlags::Compute,
-			[&ShadePassWork, ShadingPassParameters, &ShadingCommands, ShaderBundle, IndirectArgStride, VisibilityData, &View, ViewRect, bSkipBarriers, bBundleShading, bBundleEmulation]
+			[&ShadePassWork, ShadingPassParameters, &ShadingCommands, ShaderBundle, IndirectArgStride, DataByteOffset = Binning.DataByteOffset, VisibilityData, &View, ViewRect, bSkipBarriers, bBundleShading, bBundleEmulation]
 			(const FRDGPass* RDGPass, FRHIComputeCommandList& RHICmdList)
 			{
 				if (bBundleShading)
@@ -1332,6 +1340,7 @@ void DispatchBasePass(
 					ShadingPassParameters,
 					RHICmdList,
 					IndirectArgStride,
+					DataByteOffset,
 					bSkipBarriers,
 					bBundleShading,
 					bBundleEmulation
@@ -1404,7 +1413,10 @@ FShadeBinning ShadeBinning(
 
 	const FUint32Vector2 DispatchOffsetTL = FUint32Vector2(InViewRect.Min.X, InViewRect.Min.Y);
 
-	Binning.ShadingBinMeta = CreateStructuredBuffer(
+	const uint32 NumBytes_Meta = sizeof(FNaniteShadingBinMeta) * ShadingBinCountPow2;
+	const uint32 NumBytes_Data = PixelCount * 8;
+
+	FRDGBufferRef ShadingBinMeta = CreateStructuredBuffer(
 		GraphBuilder,
 		TEXT("Nanite.ShadingBinMeta"),
 		sizeof(FNaniteShadingBinMeta),
@@ -1413,11 +1425,14 @@ FShadeBinning ShadeBinning(
 		sizeof(FNaniteShadingBinMeta) * MetaBufferData.Num()
 	);
 
+	Binning.DataByteOffset = NumBytes_Meta;
+	Binning.ShadingBinData	= GraphBuilder.CreateBuffer(FRDGBufferDesc::CreateByteAddressDesc(NumBytes_Meta + NumBytes_Data), TEXT("Nanite.ShadingBinData"));
+
+	AddCopyBufferPass(GraphBuilder, Binning.ShadingBinData, 0, ShadingBinMeta, 0, NumBytes_Meta);
+
 	Binning.ShadingBinArgs   = GraphBuilder.CreateBuffer(FRDGBufferDesc::CreateRawIndirectDesc(sizeof(FUint32Vector4) * ShadingBinCountPow2), TEXT("Nanite.ShadingBinArgs"));
-	Binning.ShadingBinData	= GraphBuilder.CreateBuffer(FRDGBufferDesc::CreateByteAddressDesc(PixelCount * 8), TEXT("Nanite.ShadingBinData"));
 	Binning.ShadingBinStats  = bGatherStats ? GraphBuilder.CreateBuffer(FRDGBufferDesc::CreateStructuredDesc(sizeof(FNaniteShadingBinStats), 1u), TEXT("Nanite.ShadingBinStats")) : nullptr;
 
-	FRDGBufferUAVRef ShadingBinMetaUAV  = GraphBuilder.CreateUAV(Binning.ShadingBinMeta);
 	FRDGBufferUAVRef ShadingBinArgsUAV  = GraphBuilder.CreateUAV(FRDGBufferUAVDesc(Binning.ShadingBinArgs, PF_R32_UINT));
 	FRDGBufferUAVRef ShadingBinDataUAV  = GraphBuilder.CreateUAV(Binning.ShadingBinData);
 	FRDGBufferUAVRef ShadingBinStatsUAV = bGatherStats ? GraphBuilder.CreateUAV(Binning.ShadingBinStats) : nullptr;
@@ -1450,13 +1465,13 @@ FShadeBinning ShadeBinning(
 		PassParameters->ValidWriteMask = ValidWriteMask;
 		PassParameters->DispatchOffsetTL = bOptimizeWriteMask ? AlignedDispatchOffsetTL : DispatchOffsetTL;
 		PassParameters->ShadingBinCount = ShadingBinCount;
+		PassParameters->ShadingBinDataByteOffset = Binning.DataByteOffset;
 		PassParameters->ShadingRateTileSizeBits = GetShadingRateTileSizeBits();
 		PassParameters->DummyZero = 0;
 		PassParameters->ShadingRateImage = GetShadingRateImage(GraphBuilder, View);
 		PassParameters->ShadingMaskSampler = TStaticSamplerState<SF_Point>::GetRHI();
 		PassParameters->ShadingMask = RasterResults.ShadingMask;
-		PassParameters->OutShadingBinMeta = ShadingBinMetaUAV;
-		PassParameters->OutShadingBinData = nullptr;
+		PassParameters->OutShadingBinData = ShadingBinDataUAV;
 		PassParameters->OutShadingBinArgs = ShadingBinArgsUAV;
 
 		FShadingBinBuildCS::FPermutationDomain PermutationVector;
@@ -1522,8 +1537,9 @@ FShadeBinning ShadeBinning(
 
 		FShadingBinReserveCS::FParameters* PassParameters = GraphBuilder.AllocParameters<FShadingBinReserveCS::FParameters>();
 		PassParameters->ShadingBinCount = ShadingBinCount;
+		PassParameters->ShadingBinDataByteOffset = Binning.DataByteOffset;
 		PassParameters->OutShadingBinStats = ShadingBinStatsUAV;
-		PassParameters->OutShadingBinMeta = ShadingBinMetaUAV;
+		PassParameters->OutShadingBinData = ShadingBinDataUAV;
 		PassParameters->OutShadingBinAllocator = ShadingBinAllocatorUAV;
 		PassParameters->OutShadingBinArgs = ShadingBinArgsUAV;
 		PassParameters->OutShadingBinStats = ShadingBinStatsUAV;
@@ -1541,13 +1557,13 @@ FShadeBinning ShadeBinning(
 		PassParameters->ViewRect = ViewRect;
 		PassParameters->DispatchOffsetTL = AlignedDispatchOffsetTL;
 		PassParameters->ShadingBinCount = ShadingBinCount;
+		PassParameters->ShadingBinDataByteOffset = Binning.DataByteOffset;
 		PassParameters->ShadingRateTileSizeBits = GetShadingRateTileSizeBits();
 		PassParameters->DummyZero = 0;
 		PassParameters->ShadingRateImage = GetShadingRateImage(GraphBuilder, View);
 		PassParameters->ShadingMaskSampler = TStaticSamplerState<SF_Point>::GetRHI();
 		PassParameters->ShadingMask = RasterResults.ShadingMask;
 		PassParameters->OutShadingBinStats = ShadingBinStatsUAV;
-		PassParameters->OutShadingBinMeta = ShadingBinMetaUAV;
 		PassParameters->OutShadingBinData = ShadingBinDataUAV;
 		PassParameters->OutShadingBinArgs = nullptr;
 
@@ -1568,7 +1584,7 @@ FShadeBinning ShadeBinning(
 	{
 		FShadingBinValidateCS::FParameters* PassParameters = GraphBuilder.AllocParameters<FShadingBinValidateCS::FParameters>();
 		PassParameters->ShadingBinCount = ShadingBinCount;
-		PassParameters->OutShadingBinMeta = ShadingBinMetaUAV;
+		PassParameters->OutShadingBinData = ShadingBinDataUAV;
 
 		auto ComputeShader = View.ShaderMap->GetShader<FShadingBinValidateCS>();
 		FComputeShaderUtils::AddPass(GraphBuilder, RDG_EVENT_NAME("ShadingValidate"), ERDGPassFlags::Compute | ERDGPassFlags::NeverCull, ComputeShader, PassParameters, BinDispatchDim);

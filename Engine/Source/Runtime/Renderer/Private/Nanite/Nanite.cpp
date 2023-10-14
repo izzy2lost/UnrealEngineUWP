@@ -219,7 +219,7 @@ class FCalculateShadingStatsCS : public FNaniteGlobalShader
 		SHADER_PARAMETER(uint32, RenderFlags)
 		SHADER_PARAMETER(uint32, NumShadingBins)
 		SHADER_PARAMETER_RDG_BUFFER_UAV(RWStructuredBuffer<FNaniteStats>, OutStatsBuffer)
-		SHADER_PARAMETER_RDG_BUFFER_SRV(StructuredBuffer<FNaniteShadingBinMeta>, ShadingBinMeta)
+		SHADER_PARAMETER_RDG_BUFFER_SRV(ByteAddressBuffer, ShadingBinData)
 		SHADER_PARAMETER_RDG_BUFFER_SRV(StructuredBuffer<FNaniteShadingBinStats>, ShadingBinStats)
 		SHADER_PARAMETER_RDG_BUFFER_SRV(Buffer<uint>, MaterialIndirectArgs)
 		SHADER_PARAMETER_RDG_BUFFER_SRV(ByteAddressBuffer, ShadingBinArgs)
@@ -381,17 +381,17 @@ void ExtractShadingDebug(
 	const FNaniteVisualizationData& VisualizationData = GetNaniteVisualizationData();
 	if (VisualizationData.IsActive())
 	{
-		FRDGBufferRef ShadingBinMeta = nullptr;
-		if (ShadeBinning.ShadingBinMeta)
+		FRDGBufferRef ShadingBinData = nullptr;
+		if (ShadeBinning.ShadingBinData)
 		{
-			ShadingBinMeta = ShadeBinning.ShadingBinMeta;
+			ShadingBinData = ShadeBinning.ShadingBinData;
 		}
 		else
 		{
-			ShadingBinMeta = GSystemTextures.GetDefaultStructuredBuffer<FNaniteShadingBinMeta>(GraphBuilder);
+			ShadingBinData = GSystemTextures.GetDefaultByteAddressBuffer(GraphBuilder, 4u);
 		}
 
-		Nanite::GGlobalResources.GetShadingBinMetaBufferRef() = GraphBuilder.ConvertToExternalBuffer(ShadingBinMeta);
+		Nanite::GGlobalResources.GetShadingBinDataBufferRef() = GraphBuilder.ConvertToExternalBuffer(ShadingBinData);
 	}
 
 	if (GNaniteShowStats != 0 && Nanite::GGlobalResources.GetStatsBufferRef())
@@ -407,13 +407,13 @@ void ExtractShadingDebug(
 
 		if (bShadeBinning)
 		{
-			PassParameters->ShadingBinMeta  = GraphBuilder.CreateSRV(ShadeBinning.ShadingBinMeta);
+			PassParameters->ShadingBinData  = GraphBuilder.CreateSRV(ShadeBinning.ShadingBinData);
 			PassParameters->ShadingBinStats = GraphBuilder.CreateSRV(ShadeBinning.ShadingBinStats);
 			PassParameters->ShadingBinArgs = GraphBuilder.CreateSRV(ShadeBinning.ShadingBinArgs);
 		}
 		else
 		{
-			PassParameters->ShadingBinMeta = GraphBuilder.CreateSRV(GSystemTextures.GetDefaultStructuredBuffer<FNaniteShadingBinMeta>(GraphBuilder));
+			PassParameters->ShadingBinData = GraphBuilder.CreateSRV(GSystemTextures.GetDefaultByteAddressBuffer(GraphBuilder, 4u));
 			PassParameters->ShadingBinStats = GraphBuilder.CreateSRV(GSystemTextures.GetDefaultStructuredBuffer<FNaniteShadingBinStats>(GraphBuilder));
 			PassParameters->MaterialIndirectArgs = GraphBuilder.CreateSRV(MaterialIndirectArgs);
 		}

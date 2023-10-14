@@ -419,7 +419,7 @@ struct FNaniteShadingBinMeta
 	UINT_TYPE ElementCount;
 
 	// Number of quads/pixels written to the shading bin
-	UINT_TYPE NumWrittenElements;
+	UINT_TYPE WrittenCount;
 
 	// Quad/pixel coord range start
 	UINT_TYPE RangeStart;
@@ -427,6 +427,14 @@ struct FNaniteShadingBinMeta
 	// 0:23 Material bit flags, 24:31 Bound Target Mask
 	UINT_TYPE MaterialFlags;
 };
+
+#define NANITE_SHADING_BIN_META_BYTES sizeof(FNaniteShadingBinMeta)
+
+// https://github.com/microsoft/DirectXShaderCompiler/issues/2181
+#define NANITE_SHADING_BIN_META_ELEMENT_COUNT_OFFSET	0u
+#define NANITE_SHADING_BIN_META_WRITTEN_COUNT_OFFSET	4u
+#define NANITE_SHADING_BIN_META_RANGE_START_OFFSET		8u
+#define NANITE_SHADING_BIN_META_MATERIAL_FLAGS_OFFSET	12u
 
 struct FNaniteShadingBinStats
 {

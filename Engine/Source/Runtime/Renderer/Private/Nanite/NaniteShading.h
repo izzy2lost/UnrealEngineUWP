@@ -19,10 +19,11 @@ struct FRasterResults;
 
 struct FShadeBinning
 {
-	FRDGBufferRef ShadingBinMeta  = nullptr;
+	FRDGBufferRef ShadingBinData  = nullptr;
 	FRDGBufferRef ShadingBinArgs  = nullptr;
-	FRDGBufferRef ShadingBinData = nullptr;
 	FRDGBufferRef ShadingBinStats = nullptr;
+
+	uint32 DataByteOffset = 0u;
 };
 
 FShadeBinning ShadeBinning(

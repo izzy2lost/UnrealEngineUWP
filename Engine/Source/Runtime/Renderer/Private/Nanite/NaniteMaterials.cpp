@@ -171,7 +171,6 @@ TRDGUniformBufferRef<FNaniteUniformParameters> CreateDebugNaniteUniformBuffer(FR
 	UniformParameters->RayTracingDataBuffer		= GraphBuilder.CreateSRV(GSystemTextures.GetDefaultStructuredBuffer<uint32>(GraphBuilder));
 #endif
 
-	UniformParameters->ShadingBinMeta			= GraphBuilder.CreateSRV(GSystemTextures.GetDefaultStructuredBuffer<FNaniteShadingBinMeta>(GraphBuilder));
 	UniformParameters->ShadingBinData			= GraphBuilder.CreateSRV(GSystemTextures.GetDefaultStructuredBuffer<uint32>(GraphBuilder), PF_R32_UINT);
 
 	const FRDGSystemTextures& SystemTextures		= FRDGSystemTextures::Get(GraphBuilder);
@@ -270,7 +269,6 @@ FNaniteMaterialPassParameters CreateNaniteMaterialPassParams(
 		UniformParameters->InViews = GraphBuilder.CreateSRV(ViewsBuffer);
 
 		UniformParameters->ShadingBinData = GraphBuilder.CreateSRV(GSystemTextures.GetDefaultStructuredBuffer<uint32>(GraphBuilder), PF_R32_UINT);
-		UniformParameters->ShadingBinMeta = GraphBuilder.CreateSRV(GSystemTextures.GetDefaultStructuredBuffer<FNaniteShadingBinMeta>(GraphBuilder), PF_R32G32B32A32_UINT);
 	
 		Result.Nanite = GraphBuilder.CreateUniformBuffer(UniformParameters);
 	}
@@ -822,8 +820,7 @@ void DrawLumenMeshCapturePass(
 			UniformParameters->ShadingMask					= SystemTextures.Black;
 			UniformParameters->MaterialDepthTable			= GraphBuilder.GetPooledBuffer(GSystemTextures.GetDefaultBuffer(GraphBuilder, 4, 0u))->GetSRV(GraphBuilder.RHICmdList, FRHIBufferSRVCreateInfo(PF_R32_UINT));
 
-			UniformParameters->ShadingBinMeta				= GraphBuilder.CreateSRV(GSystemTextures.GetDefaultStructuredBuffer<FUint32Vector4>(GraphBuilder), PF_R32G32B32A32_UINT);
-			UniformParameters->ShadingBinData				= GraphBuilder.CreateSRV(GSystemTextures.GetDefaultByteAddressBuffer(GraphBuilder, 8));
+			UniformParameters->ShadingBinData				= GraphBuilder.CreateSRV(GSystemTextures.GetDefaultByteAddressBuffer(GraphBuilder, 4u));
 
 			UniformParameters->MaterialDepthTable			= GraphBuilder.GetPooledBuffer(GSystemTextures.GetDefaultStructuredBuffer<uint32>(GraphBuilder))->GetSRV(GraphBuilder.RHICmdList, FRHIBufferSRVCreateInfo(PF_R32_UINT));
 

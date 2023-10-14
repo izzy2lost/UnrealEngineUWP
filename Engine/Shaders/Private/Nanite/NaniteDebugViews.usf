@@ -16,7 +16,7 @@ ByteAddressBuffer MaterialDepthTable;
 ByteAddressBuffer MaterialEditorTable;
 ByteAddressBuffer MaterialHitProxyTable;
 
-StructuredBuffer<FNaniteShadingBinMeta> ShadingBinMeta;
+ByteAddressBuffer ShadingBinData;
 
 #if USE_EDITOR_SHADERS
 Buffer<uint> EditorSelectedHitProxyIds;
@@ -208,7 +208,7 @@ void ExportDebugViewPS(
 					float3 PointLocal2 = DecodePosition(TriIndices.z, Cluster);
 
 					// We can handle spline mesh deformation here because its deformation is fixed function
-					const uint PackedFlags = ShadingBinMeta[UnpackedMask.ShadingBin].MaterialFlags;
+					const uint PackedFlags = ShadingBinData.Load<FNaniteShadingBinMeta>(UnpackedMask.ShadingBin * NANITE_SHADING_BIN_META_BYTES).MaterialFlags;
 					const FNaniteMaterialFlags MaterialFlags = UnpackNaniteMaterialFlags(PackedFlags);
 
 					BRANCH

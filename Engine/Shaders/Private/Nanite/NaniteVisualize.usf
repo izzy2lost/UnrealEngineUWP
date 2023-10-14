@@ -26,7 +26,7 @@ Texture2D<uint4>		MaterialZLayout;
 Texture2D<uint>			ShadingMask;
 
 StructuredBuffer<FNaniteRasterBinMeta> RasterBinMeta;
-StructuredBuffer<FNaniteShadingBinMeta> ShadingBinMeta;
+ByteAddressBuffer		ShadingBinData;
 
 ByteAddressBuffer		MaterialSlotTable;
 ByteAddressBuffer		MaterialDepthTable;
@@ -289,7 +289,7 @@ void VisualizeCS(uint3 DTID : SV_DispatchThreadID, uint3 GID : SV_GroupID)
 
 		#if 0
 			// For testing
-			const uint PackedFlags = ShadingBinMeta[UnpackedMask.ShadingBin].w;
+			const uint PackedFlags = ShadingBinData.Load<FNaniteShadingBinMeta>(UnpackedMask.ShadingBin * NANITE_SHADING_BIN_META_BYTES).MaterialFlags;
 			FNaniteMaterialFlags MaterialFlags = UnpackNaniteMaterialFlags(PackedFlags);
 			if (MaterialFlags.bPixelDiscard)
 			{
@@ -303,7 +303,7 @@ void VisualizeCS(uint3 DTID : SV_DispatchThreadID, uint3 GID : SV_GroupID)
 		}
 		else if (VisualizeMode == NANITE_VISUALIZE_SHADING_WRITE_MASK)
 		{
-			const uint PackedFlags = ShadingBinMeta[UnpackedMask.ShadingBin].MaterialFlags;
+			const uint PackedFlags = ShadingBinData.Load<FNaniteShadingBinMeta>(UnpackedMask.ShadingBin * NANITE_SHADING_BIN_META_BYTES).MaterialFlags;
 			const uint WriteMask = BitFieldExtractU32(PackedFlags, 8u, 24u);
 			Result = IntToColor(WriteMask);
 		}
@@ -382,7 +382,7 @@ void VisualizeCS(uint3 DTID : SV_DispatchThreadID, uint3 GID : SV_GroupID)
 	#endif
 		else if (VisualizeMode == NANITE_VISUALIZE_NO_DERIVATIVE_OPS)
 		{
-			const uint PackedFlags = ShadingBinMeta[UnpackedMask.ShadingBin].MaterialFlags;
+			const uint PackedFlags = ShadingBinData.Load<FNaniteShadingBinMeta>(UnpackedMask.ShadingBin * NANITE_SHADING_BIN_META_BYTES).MaterialFlags;
 			FNaniteMaterialFlags MaterialFlags = UnpackNaniteMaterialFlags(PackedFlags);
 
 			const uint ModeValue = select(MaterialFlags.bNoDerivativeOps, 2, 1);

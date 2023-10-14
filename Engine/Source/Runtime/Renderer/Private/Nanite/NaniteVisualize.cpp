@@ -167,7 +167,7 @@ class FNaniteVisualizeCS : public FNaniteGlobalShader
 		SHADER_PARAMETER_RDG_UNIFORM_BUFFER(FSceneUniformParameters, Scene)
 		SHADER_PARAMETER_RDG_BUFFER_SRV(ByteAddressBuffer, ClusterPageData)
 		SHADER_PARAMETER_RDG_BUFFER_SRV(ByteAddressBuffer, VisibleClustersSWHW)
-		SHADER_PARAMETER_RDG_BUFFER_SRV(StructuredBuffer<FNaniteShadingBinMeta>, ShadingBinMeta)
+		SHADER_PARAMETER_RDG_BUFFER_SRV(ByteAddressBuffer, ShadingBinData)
 		SHADER_PARAMETER_RDG_TEXTURE(Texture2D<UlongType>, VisBuffer64)
 		SHADER_PARAMETER_RDG_TEXTURE(Texture2D<UlongType>, DbgBuffer64)
 		SHADER_PARAMETER_RDG_TEXTURE(Texture2D<uint>, DbgBuffer32)
@@ -282,7 +282,7 @@ public:
 		SHADER_PARAMETER_SRV(ByteAddressBuffer, MaterialEditorTable)
 		SHADER_PARAMETER_SRV(ByteAddressBuffer, MaterialHitProxyTable)
 		SHADER_PARAMETER_RDG_BUFFER_SRV(Buffer<uint>, EditorSelectedHitProxyIds)
-		SHADER_PARAMETER_RDG_BUFFER_SRV(StructuredBuffer<FNaniteShadingBinMeta>, ShadingBinMeta)
+		SHADER_PARAMETER_RDG_BUFFER_SRV(ByteAddressBuffer, ShadingBinData)
 		RENDER_TARGET_BINDING_SLOTS()
 	END_SHADER_PARAMETER_STRUCT()
 
@@ -311,18 +311,18 @@ IMPLEMENT_GLOBAL_SHADER(FExportDebugViewPS, "/Engine/Private/Nanite/NaniteDebugV
 namespace Nanite
 {
 
-static FRDGBufferSRVRef GetShadingBinMetaSRV(FRDGBuilder& GraphBuilder)
+static FRDGBufferSRVRef GetShadingBinDataSRV(FRDGBuilder& GraphBuilder)
 {
-	FRDGBufferRef ShadingBinMeta = nullptr;
-	if (Nanite::GGlobalResources.GetShadingBinMetaBufferRef().IsValid())
+	FRDGBufferRef ShadingBinData = nullptr;
+	if (Nanite::GGlobalResources.GetShadingBinDataBufferRef().IsValid())
 	{
-		ShadingBinMeta = GraphBuilder.RegisterExternalBuffer(Nanite::GGlobalResources.GetShadingBinMetaBufferRef());
+		ShadingBinData = GraphBuilder.RegisterExternalBuffer(Nanite::GGlobalResources.GetShadingBinDataBufferRef());
 	}
 	else
 	{
-		ShadingBinMeta = GSystemTextures.GetDefaultStructuredBuffer<FNaniteShadingBinMeta>(GraphBuilder);
+		ShadingBinData = GSystemTextures.GetDefaultByteAddressBuffer(GraphBuilder, 4u);
 	}
-	return GraphBuilder.CreateSRV(ShadingBinMeta);
+	return GraphBuilder.CreateSRV(ShadingBinData);
 }
 
 static FRDGBufferRef PerformPicking(
@@ -736,14 +736,14 @@ void AddVisualizationPasses(
 
 						Visualization.ModeOutput = GraphBuilder.CreateTexture(VisualizationOutputDesc, TEXT("Nanite.Visualization"));
 
-						FRDGBufferRef ShadingBinMeta = nullptr;
-						if (Nanite::GGlobalResources.GetShadingBinMetaBufferRef().IsValid())
+						FRDGBufferRef ShadingBinData = nullptr;
+						if (Nanite::GGlobalResources.GetShadingBinDataBufferRef().IsValid())
 						{
-							ShadingBinMeta = GraphBuilder.RegisterExternalBuffer(Nanite::GGlobalResources.GetShadingBinMetaBufferRef());
+							ShadingBinData = GraphBuilder.RegisterExternalBuffer(Nanite::GGlobalResources.GetShadingBinDataBufferRef());
 						}
 						else
 						{
-							ShadingBinMeta = GSystemTextures.GetDefaultStructuredBuffer<FUint32Vector4>(GraphBuilder);
+							ShadingBinData = GSystemTextures.GetDefaultByteAddressBuffer(GraphBuilder, 4u);
 						}
 
 						FNaniteVisualizeCS::FParameters* PassParameters = GraphBuilder.AllocParameters<FNaniteVisualizeCS::FParameters>();
@@ -778,7 +778,7 @@ void AddVisualizationPasses(
 						// For now, bind a valid SRV
 						PassParameters->MaterialHitProxyTable = MaterialCommands.GetMaterialSlotSRV();
 					#endif
-						PassParameters->ShadingBinMeta = GetShadingBinMetaSRV(GraphBuilder);
+						PassParameters->ShadingBinData = GetShadingBinDataSRV(GraphBuilder);
 						PassParameters->DebugOutput = GraphBuilder.CreateUAV(Visualization.ModeOutput);
 
 						auto ComputeShader = View.ShaderMap->GetShader<FNaniteVisualizeCS>();
@@ -907,7 +907,7 @@ void RenderDebugViewMode(
 	PassParameters->MaterialDepthTable = MaterialCommands.GetMaterialDepthSRV();
 	PassParameters->MaterialEditorTable = MaterialCommands.GetMaterialEditorSRV();
 	PassParameters->EditorSelectedHitProxyIds = GetEditorSelectedHitProxyIdsSRV(GraphBuilder, View);
-	PassParameters->ShadingBinMeta = GetShadingBinMetaSRV(GraphBuilder);
+	PassParameters->ShadingBinData = GetShadingBinDataSRV(GraphBuilder);
 
 #if WITH_EDITOR
 	PassParameters->MaterialHitProxyTable = MaterialCommands.GetHitProxyTableSRV();

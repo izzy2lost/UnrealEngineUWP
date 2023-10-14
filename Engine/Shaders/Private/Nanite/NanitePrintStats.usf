@@ -31,7 +31,7 @@ Buffer<uint>								MaterialIndirectArgs;
 ByteAddressBuffer							ShadingBinArgs;
 #endif
 
-StructuredBuffer<FNaniteShadingBinMeta>		ShadingBinMeta;
+ByteAddressBuffer							ShadingBinData;
 StructuredBuffer<FNaniteShadingBinStats>	ShadingBinStats;
 
 StructuredBuffer<FNaniteStats>				InStatsBuffer;

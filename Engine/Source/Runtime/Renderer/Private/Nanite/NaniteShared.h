@@ -258,7 +258,7 @@ public:
 	inline PassBuffers& GetPostPassBuffers() { return PostPassBuffers; }
 
 	TRefCountPtr<FRDGPooledBuffer>& GetStatsBufferRef() { return StatsBuffer; }
-	TRefCountPtr<FRDGPooledBuffer>& GetShadingBinMetaBufferRef() { return ShadingBinMetaBuffer; }
+	TRefCountPtr<FRDGPooledBuffer>& GetShadingBinDataBufferRef() { return ShadingBinDataBuffer; }
 
 #if !UE_BUILD_SHIPPING
 	FFeedbackManager* GetFeedbackManager() { return FeedbackManager; }
@@ -271,7 +271,7 @@ private:
 	TRefCountPtr<FRDGPooledBuffer> StatsBuffer;
 
 	// Used for visualizations
-	TRefCountPtr<FRDGPooledBuffer> ShadingBinMetaBuffer;
+	TRefCountPtr<FRDGPooledBuffer> ShadingBinDataBuffer;
 
 #if !UE_BUILD_SHIPPING
 	FFeedbackManager* FeedbackManager = nullptr;
@@ -302,9 +302,6 @@ BEGIN_GLOBAL_SHADER_PARAMETER_STRUCT(FNaniteUniformParameters, )
 	SHADER_PARAMETER_RDG_TEXTURE(Texture2D<uint>,			DbgBuffer32)
 
 	SHADER_PARAMETER_RDG_BUFFER_SRV(StructuredBuffer<uint>, RayTracingDataBuffer)
-
-	// TODO: Use FNaniteShadingBinMeta but need to cleanly expose the type to the generated UB header somehow
-	SHADER_PARAMETER_RDG_BUFFER_SRV(StructuredBuffer<uint4>, ShadingBinMeta)
 	SHADER_PARAMETER_RDG_BUFFER_SRV(ByteAddressBuffer,  ShadingBinData)
 
 	// Multi view
