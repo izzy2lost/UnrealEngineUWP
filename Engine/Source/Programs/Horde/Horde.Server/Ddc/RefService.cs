@@ -13,13 +13,13 @@ namespace Horde.Server.Ddc
 {
 	class RefService : IRefService
 	{
-		readonly StorageService _storageService;
+		readonly IStorageClientFactory _storageClientFactory;
 		readonly IReferenceResolver _referenceResolver;
 		readonly IBlobService _blobService;
 
-		public RefService(StorageService storageService, IReferenceResolver referenceResolver, IBlobService blobService)
+		public RefService(IStorageClientFactory storageService, IReferenceResolver referenceResolver, IBlobService blobService)
 		{
-			_storageService = storageService;
+			_storageClientFactory = storageService;
 			_referenceResolver = referenceResolver;
 			_blobService = blobService;
 		}
@@ -28,20 +28,20 @@ namespace Horde.Server.Ddc
 
 		public async Task<bool> DeleteAsync(NamespaceId ns, BucketId bucket, RefId key, CancellationToken cancellationToken)
 		{
-			using IStorageClient storageClient = _storageService.CreateClient(ns);
+			using IStorageClient storageClient = _storageClientFactory.CreateClient(ns);
 			return await storageClient.DeleteRefAsync(GetRefName(bucket, key), cancellationToken);
 		}
 
 		public async Task<bool> ExistsAsync(NamespaceId ns, BucketId bucket, RefId key, CancellationToken cancellationToken)
 		{
-			using IStorageClient storageClient = _storageService.CreateClient(ns);
+			using IStorageClient storageClient = _storageClientFactory.CreateClient(ns);
 			BlobHandle? handle = await storageClient.TryReadRefTargetAsync(GetRefName(bucket, key), cancellationToken: cancellationToken);
 			return handle != null;
 		}
 
 		public async Task<(ContentId[], BlobId[])> FinalizeAsync(NamespaceId ns, BucketId bucket, RefId key, BlobId blobHash, CancellationToken cancellationToken)
 		{
-			using IStorageClient storageClient = _storageService.CreateClient(ns);
+			using IStorageClient storageClient = _storageClientFactory.CreateClient(ns);
 
 			BlobAlias? blobAlias = await storageClient.FindAliasAsync(BlobService.GetAlias(blobHash), cancellationToken);
 			if (blobAlias == null)
@@ -124,7 +124,7 @@ namespace Horde.Server.Ddc
 
 		public async Task<(RefRecord, BlobContents?)> GetAsync(NamespaceId ns, BucketId bucket, RefId key, string[] fields, bool doLastAccessTracking, CancellationToken cancellationToken)
 		{
-			using IStorageClient storageClient = _storageService.CreateClient(ns);
+			using IStorageClient storageClient = _storageClientFactory.CreateClient(ns);
 
 			DdcRefNode? node = await storageClient.TryReadRefAsync<DdcRefNode>(GetRefName(bucket, key), cancellationToken: cancellationToken);
 			if (node == null)
@@ -141,7 +141,7 @@ namespace Horde.Server.Ddc
 
 		public async Task<List<BlobId>> GetReferencedBlobsAsync(NamespaceId ns, BucketId bucket, RefId key, CancellationToken cancellationToken)
 		{
-			using IStorageClient storageClient = _storageService.CreateClient(ns);
+			using IStorageClient storageClient = _storageClientFactory.CreateClient(ns);
 
 			DdcRefNode? node = await storageClient.TryReadRefAsync<DdcRefNode>(GetRefName(bucket, key), cancellationToken: cancellationToken);
 			if (node == null)

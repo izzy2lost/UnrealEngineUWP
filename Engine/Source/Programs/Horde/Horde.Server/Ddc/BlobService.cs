@@ -16,12 +16,12 @@ namespace Horde.Server.Ddc
 	{
 		static BlobType s_rawBlobType = new BlobType(new Guid("{03E6C37B-33C1-491F-8541-D3C401B8B8EF}"), 1);
 
-		readonly StorageService _storageService;
+		readonly IStorageClientFactory _storageClientFactory;
 		readonly Tracer _tracer;
 
-		public BlobService(StorageService storageService, Tracer tracer)
+		public BlobService(IStorageClientFactory storageClientFactory, Tracer tracer)
 		{
-			_storageService = storageService;
+			_storageClientFactory = storageClientFactory;
 			_tracer = tracer;
 		}
 
@@ -62,13 +62,13 @@ namespace Horde.Server.Ddc
 
 		public async Task<bool> ExistsAsync(NamespaceId ns, BlobId blob, List<string>? storageLayers, CancellationToken cancellationToken)
 		{
-			using IStorageClient storageClient = _storageService.CreateClient(ns);
+			using IStorageClient storageClient = _storageClientFactory.CreateClient(ns);
 			return await storageClient.FindAliasAsync(GetAlias(blob), cancellationToken) != null;
 		}
 
 		public async Task DeleteObjectAsync(NamespaceId ns, BlobId blob, CancellationToken cancellationToken)
 		{
-			using IStorageClient storageClient = _storageService.CreateClient(ns);
+			using IStorageClient storageClient = _storageClientFactory.CreateClient(ns);
 			string aliasName = GetAlias(blob);
 
 			BlobAlias[] aliases = await storageClient.FindAliasesAsync(aliasName, cancellationToken: cancellationToken);
@@ -80,7 +80,7 @@ namespace Horde.Server.Ddc
 
 		public async Task<BlobId[]> FilterOutKnownBlobsAsync(NamespaceId ns, IEnumerable<BlobId> blobIds, CancellationToken cancellationToken)
 		{
-			using IStorageClient storageClient = _storageService.CreateClient(ns);
+			using IStorageClient storageClient = _storageClientFactory.CreateClient(ns);
 
 			List<BlobId> unknownBlobIds = new List<BlobId>();
 			foreach (BlobId blobId in blobIds)
@@ -96,7 +96,7 @@ namespace Horde.Server.Ddc
 
 		public async Task<BlobContents> GetObjectAsync(NamespaceId ns, BlobId blob, List<string>? storageLayers, bool supportsRedirectUri, CancellationToken cancellationToken)
 		{
-			using IStorageClient storageClient = _storageService.CreateClient(ns);
+			using IStorageClient storageClient = _storageClientFactory.CreateClient(ns);
 
 			BlobAlias? alias = await storageClient.FindAliasAsync(GetAlias(blob), cancellationToken);
 			if (alias == null)
@@ -142,7 +142,7 @@ namespace Horde.Server.Ddc
 
 		public async Task<BlobId> PutObjectKnownHashAsync(NamespaceId ns, BufferedPayload content, BlobId identifier, CancellationToken cancellationToken)
 		{
-			using IStorageClient storageClient = _storageService.CreateClient(ns);
+			using IStorageClient storageClient = _storageClientFactory.CreateClient(ns);
 
 			BlobHandle blobHandle;
 			await using (IStorageWriter writer = storageClient.CreateWriter())

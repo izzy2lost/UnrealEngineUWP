@@ -57,9 +57,10 @@ namespace Horde.Server.Tests.Ddc.FunctionalTests.References
     {
 		//		private static TestServer? _server;
 		private readonly HttpClient? _httpClient;
+		private readonly AsyncServiceScope _serviceScope;
 
-		protected IBlobService BlobService => ServiceProvider.GetRequiredService<IBlobService>();
-		protected IRefService RefService => ServiceProvider.GetRequiredService<IRefService>();
+		protected IBlobService BlobService => _serviceScope.ServiceProvider.GetRequiredService<IBlobService>();
+		protected IRefService RefService => _serviceScope.ServiceProvider.GetRequiredService<IRefService>();
 
 		protected IReferencesStore ReferencesStore { get; set; } = null!;
 		protected NamespaceId TestNamespace { get; } = new NamespaceId("test-namespace");
@@ -78,6 +79,16 @@ namespace Horde.Server.Tests.Ddc.FunctionalTests.References
 
 			ConfigService configService = ServiceProvider.GetRequiredService<ConfigService>();
 			configService.OverrideConfig(globalConfig);
+
+			_serviceScope = ServiceProvider.CreateAsyncScope();
+		}
+
+		public override async ValueTask DisposeAsync()
+		{
+			await _serviceScope.DisposeAsync();
+			await base.DisposeAsync();
+
+			GC.SuppressFinalize(this);
 		}
 
 		[TestMethod]
@@ -225,7 +236,7 @@ namespace Horde.Server.Tests.Ddc.FunctionalTests.References
             {
                 BucketId bucket = new BucketId("bucket");
 
-				IRefService refService = ServiceProvider.GetRequiredService<IRefService>();
+				IRefService refService = _serviceScope.ServiceProvider.GetRequiredService<IRefService>();
 				(RefRecord objectRecord, BlobContents? contents) = await refService.GetAsync(TestNamespace, bucket, key, Array.Empty<string>());
 
                 Assert.IsTrue(objectRecord.IsFinalized);
@@ -313,7 +324,7 @@ namespace Horde.Server.Tests.Ddc.FunctionalTests.References
             {
                 BucketId bucket = new BucketId("bucket");
 
-				IRefService refService = ServiceProvider.GetRequiredService<IRefService>();
+				IRefService refService = _serviceScope.ServiceProvider.GetRequiredService<IRefService>();
 				(RefRecord objectRecord, _) = await refService.GetAsync(TestNamespace, bucket, key, Array.Empty<string>());
 
                 Assert.IsTrue(objectRecord.IsFinalized);
@@ -443,7 +454,7 @@ namespace Horde.Server.Tests.Ddc.FunctionalTests.References
             {
                 BucketId bucket = new BucketId("bucket");
 
-				IRefService refService = ServiceProvider.GetRequiredService<IRefService>();
+				IRefService refService = _serviceScope.ServiceProvider.GetRequiredService<IRefService>();
 				(RefRecord objectRecord, _) = await refService.GetAsync(TestNamespace, bucket, key, Array.Empty<string>());
 
                 Assert.IsTrue(objectRecord.IsFinalized);

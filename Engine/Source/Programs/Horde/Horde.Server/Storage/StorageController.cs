@@ -34,15 +34,15 @@ namespace Horde.Server.Storage
 	[Route("[controller]")]
 	public class StorageController : HordeControllerBase
 	{
-		readonly IStorageClientFactory _storageService;
+		readonly IStorageClientFactory _storageClientFactory;
 		readonly IOptionsSnapshot<GlobalConfig> _globalConfig;
 
 		/// <summary>
 		/// Constructor
 		/// </summary>
-		public StorageController(IStorageClientFactory storageService, IOptionsSnapshot<GlobalConfig> globalConfig)
+		public StorageController(IStorageClientFactory storageClientFactory, IOptionsSnapshot<GlobalConfig> globalConfig)
 		{
-			_storageService = storageService;
+			_storageClientFactory = storageClientFactory;
 			_globalConfig = globalConfig;
 		}
 
@@ -63,7 +63,7 @@ namespace Horde.Server.Storage
 		[Route("/api/v1/storage/{namespaceId}/bundles")]
 		public async Task<ActionResult<WriteBlobResponse>> WriteBlobAsync(NamespaceId namespaceId, IFormFile? file, [FromForm] string? prefix = default, CancellationToken cancellationToken = default)
 		{
-			using IStorageClient? storageClient = _storageService.TryCreateClient(namespaceId);
+			using IStorageClient? storageClient = _storageClientFactory.TryCreateClient(namespaceId);
 			if (storageClient == null)
 			{
 				return NotFound(namespaceId);
@@ -115,7 +115,7 @@ namespace Horde.Server.Storage
 		[Route("/api/v1/storage/{namespaceId}/bundles/{*locator}")]
 		public async Task<ActionResult> ReadBlobAsync(NamespaceId namespaceId, BlobLocator locator, CancellationToken cancellationToken = default)
 		{
-			using IStorageClient? client = _storageService.TryCreateClient(namespaceId);
+			using IStorageClient? client = _storageClientFactory.TryCreateClient(namespaceId);
 			if (client == null)
 			{
 				return NotFound(namespaceId);
@@ -194,7 +194,7 @@ namespace Horde.Server.Storage
 		[Route("/api/v1/storage/{namespaceId}/nodes")]
 		public async Task<ActionResult<FindNodesResponse>> FindNodesAsync(NamespaceId namespaceId, [FromQuery] string alias, [FromQuery] int? maxResults = null, CancellationToken cancellationToken = default)
 		{
-			using IStorageClient? client = _storageService.TryCreateClient(namespaceId);
+			using IStorageClient? client = _storageClientFactory.TryCreateClient(namespaceId);
 			if (client == null)
 			{
 				return NotFound(namespaceId);
@@ -228,7 +228,7 @@ namespace Horde.Server.Storage
 		[Route("/api/v1/storage/{namespaceId}/refs/{*refName}")]
 		public async Task<ActionResult> WriteRefAsync(NamespaceId namespaceId, RefName refName, [FromBody] WriteRefRequest request, CancellationToken cancellationToken)
 		{
-			using IStorageClient? client = _storageService.TryCreateClient(namespaceId);
+			using IStorageClient? client = _storageClientFactory.TryCreateClient(namespaceId);
 			if (client == null)
 			{
 				return NotFound(namespaceId);
@@ -271,7 +271,7 @@ namespace Horde.Server.Storage
 				return Forbid(StorageAclAction.ReadRefs, namespaceId);
 			}
 
-			return await ReadRefInternalAsync(_storageService, namespaceId, refName, Request.Headers, cancellationToken);
+			return await ReadRefInternalAsync(_storageClientFactory, namespaceId, refName, Request.Headers, cancellationToken);
 		}
 
 		/// <summary>
@@ -377,7 +377,7 @@ namespace Horde.Server.Storage
 				return Forbid(StorageAclAction.ReadBlobs, namespaceId);
 			}
 
-			using IStorageClient storageClient = _storageService.CreateClient(namespaceId);
+			using IStorageClient storageClient = _storageClientFactory.CreateClient(namespaceId);
 
 			string linkBase = $"/api/v1/storage/{namespaceId}";
 

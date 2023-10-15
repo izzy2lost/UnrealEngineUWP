@@ -543,10 +543,10 @@ namespace Horde.Server
 
 			// DDC
 			services.AddScoped<IRequestHelper, RequestHelper>();
-			services.AddSingleton<IBlobService, BlobService>();
-			services.AddSingleton<IRefService, RefService>();
-			services.AddSingleton<IReferenceResolver, ReferenceResolver>();
-			services.AddSingleton<IContentIdService, ContentIdService>();
+			services.AddScoped<IBlobService, BlobService>();
+			services.AddScoped<IRefService, RefService>();
+			services.AddScoped<IReferenceResolver, ReferenceResolver>();
+			services.AddScoped<IContentIdService, ContentIdService>();
 			services.AddSingleton<BufferedPayloadFactory>();
 			services.AddSingleton<NginxRedirectHelper>();
 			services.AddSingleton<FormatResolver>();

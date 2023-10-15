@@ -10,11 +10,11 @@ namespace Horde.Server.Ddc
 {
 	class ContentIdService : IContentIdService
 	{
-		readonly StorageService _storageService;
+		readonly IStorageClientFactory _storageClientFactory;
 
-		public ContentIdService(StorageService storageService)
+		public ContentIdService(IStorageClientFactory storageService)
 		{
-			_storageService = storageService;
+			_storageClientFactory = storageService;
 		}
 
 		static string GetAlias(BlobId blobId) => BlobService.GetAlias(blobId);
@@ -24,7 +24,7 @@ namespace Horde.Server.Ddc
 		{
 			CancellationToken cancellationToken = CancellationToken.None;
 
-			using IStorageClient storageClient = _storageService.CreateClient(ns);
+			using IStorageClient storageClient = _storageClientFactory.CreateClient(ns);
 
 			BlobAlias? blobAlias = await storageClient.FindAliasAsync(GetAlias(contentId), cancellationToken);
 			if (blobAlias == null && !mustBeContentId)
@@ -44,7 +44,7 @@ namespace Horde.Server.Ddc
 		{
 			CancellationToken cancellationToken = CancellationToken.None;
 
-			using IStorageClient storageClient = _storageService.CreateClient(ns);
+			using IStorageClient storageClient = _storageClientFactory.CreateClient(ns);
 
 			BlobAlias? blobAlias = await storageClient.FindAliasAsync(GetAlias(blobId), cancellationToken);
 			if (blobAlias == null)
