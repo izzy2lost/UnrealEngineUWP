@@ -134,13 +134,26 @@ ETransactionFilterResult ApplyCustomFilter(const TMap<FName, FTransactionFilterD
 
 ETransactionFilterResult ApplyTransactionFilters(const TMap<FName, FTransactionFilterDelegate>& CustomFilters, UObject* InObject, UPackage* InChangedPackage)
 {
+	// An object is persistent if neither it nor any of its outers are transient
+	auto IsObjectPersistent = [](const UObject* Obj)
+	{
+		for (; Obj; Obj = Obj->GetOuter())
+		{
+			if (Obj->HasAnyFlags(RF_Transient))
+			{
+				return false;
+			}
+		}
+		return true;
+	};
+
 	ETransactionFilterResult FilterResult = ConcertClientTransactionBridgeUtil::ApplyCustomFilter(CustomFilters, InObject, InChangedPackage);
 	if (FilterResult != ETransactionFilterResult::UseDefault)
 	{
 		return FilterResult;
 	}
 	// Ignore transient packages and objects, compiled in package are not considered Multi-user content.
-	if (!InChangedPackage || InChangedPackage == GetTransientPackage() || InChangedPackage->HasAnyFlags(RF_Transient) || InChangedPackage->HasAnyPackageFlags(PKG_CompiledIn) || InObject->HasAnyFlags(RF_Transient))
+	if (!InChangedPackage || InChangedPackage == GetTransientPackage() || InChangedPackage->HasAnyPackageFlags(PKG_CompiledIn) || !IsObjectPersistent(InObject))
 	{
 		return ETransactionFilterResult::ExcludeObject;
 	}
