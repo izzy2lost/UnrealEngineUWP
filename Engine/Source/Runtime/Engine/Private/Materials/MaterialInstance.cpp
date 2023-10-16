@@ -1721,6 +1721,11 @@ float UMaterialInstanceDynamic::GetMaxWorldPositionOffsetDisplacement() const
 	return Parent ? Parent->GetMaxWorldPositionOffsetDisplacement() : 0.0f;
 }
 
+bool UMaterialInstanceDynamic::HasPixelAnimation() const
+{
+	return Parent ? Parent->HasPixelAnimation() : false;
+}
+
 FMaterialShadingModelField UMaterialInstanceDynamic::GetShadingModels() const
 {
 	return Parent ? Parent->GetShadingModels() : MSM_DefaultLit;

@@ -198,6 +198,7 @@ class UMaterialInstanceDynamic : public UMaterialInstance
 	ENGINE_API virtual bool IsMasked() const override;
 	ENGINE_API virtual FDisplacementScaling GetDisplacementScaling() const override;
 	ENGINE_API virtual float GetMaxWorldPositionOffsetDisplacement() const override;
+	ENGINE_API virtual bool HasPixelAnimation() const override;
 
 	/**
 	 * In order to remap to the correct texture streaming data, we must keep track of each texture renamed.
