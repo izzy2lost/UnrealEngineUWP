@@ -1029,7 +1029,7 @@ void FLevelEditorModule::BindGlobalLevelEditorCommands()
 	ActionList.MapAction(
 		Commands.RegroupActors,
 		FExecuteAction::CreateStatic( &FLevelEditorActionCallbacks::RegroupActor_Clicked ),
-		FCanExecuteAction::CreateStatic( &FLevelEditorActionCallbacks::ActorSelected_CanExecute )
+		FCanExecuteAction::CreateStatic( &FLevelEditorActionCallbacks::GroupActors_CanExecute )
 		);
 
 	ActionList.MapAction(
@@ -1049,7 +1049,8 @@ void FLevelEditorModule::BindGlobalLevelEditorCommands()
 
 	ActionList.MapAction(
 		Commands.AddActorsToGroup,
-		FExecuteAction::CreateStatic( &FLevelEditorActionCallbacks::AddActorsToGroup_Clicked )
+		FExecuteAction::CreateStatic( &FLevelEditorActionCallbacks::AddActorsToGroup_Clicked ),
+		FCanExecuteAction::CreateStatic( &FLevelEditorActionCallbacks::GroupActors_CanExecute )
 		);
 
 	ActionList.MapAction(

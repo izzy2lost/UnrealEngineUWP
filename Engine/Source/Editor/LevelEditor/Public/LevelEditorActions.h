@@ -1060,6 +1060,12 @@ public:
 	 * Called to apply a material to selected surfaces
 	 */
 	static void OnApplyMaterialToSurface();
+
+	/**
+	 * Checks to see if the selected actors can be grouped
+	 *	@return true if it can execute.
+	 */
+	static bool GroupActors_CanExecute();
 	
 	/**
 	 * Called when the RegroupActor command is executed

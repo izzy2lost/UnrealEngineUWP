@@ -2153,6 +2153,11 @@ void FLevelEditorActionCallbacks::OnSurfaceAlignment( ETexAlign AlignmentMode )
 	GTexAlignTools.GetAligner( AlignmentMode )->Align( GetWorld(), AlignmentMode );
 }
 
+bool FLevelEditorActionCallbacks::GroupActors_CanExecute()
+{
+	return UActorGroupingUtils::Get()->CanGroupSelectedActors();
+}
+
 void FLevelEditorActionCallbacks::RegroupActor_Clicked()
 {
 	UActorGroupingUtils::Get()->GroupSelected();
