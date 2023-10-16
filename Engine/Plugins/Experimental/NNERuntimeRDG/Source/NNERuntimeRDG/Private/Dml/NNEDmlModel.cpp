@@ -487,6 +487,7 @@ public:
 			DmlExecFlags = DML_EXECUTION_FLAG_DISABLE_META_COMMANDS;
 		}
 
+#if defined(PLATFORM_WINDOWS) && !defined(PLATFORM_NNE_MICROSOFT)
 		TComPtr<ID3D12InfoQueue>	InfoQueue;
 		bool						bIsDebugFilterApplied = false;
 
@@ -517,6 +518,7 @@ public:
 				}
 			}
 		}
+#endif
 
 		Res = Device1->CompileGraph(&Graph, DmlExecFlags, DML_PPV_ARGS(&Op));
 		if (FAILED(Res))
@@ -525,11 +527,13 @@ public:
 			Op = nullptr;
 		};
 
+#if defined(PLATFORM_WINDOWS) && !defined(PLATFORM_NNE_MICROSOFT)
 		if (bIsDebugFilterApplied)
 		{
 			check(InfoQueue.IsValid());
 			InfoQueue->PopStorageFilter();
 		}
+#endif
 
 		return Op;
 	}
