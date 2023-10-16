@@ -139,6 +139,7 @@ private:
 	void OnActorMoved(AActor* InActor);
 	void OnActorMoved_Internal(AActor* InActor, int32 LevelInstanceDepth);
 	void OnLandscapeChanged(ALandscapeProxy* InLandscape, const FLandscapeProxyComponentDataChangedParams& InChangeParams);
+	void ApplyLandscapeChanges(ALandscapeProxy* InLandscape);
 	void OnPreObjectPropertyChanged(UObject* InObject, const FEditPropertyChain& InEditPropertyChain);
 	void OnObjectPropertyChanged(UObject* InObject, FPropertyChangedEvent& InEvent);
 	void OnPCGGraphGeneratedOrCleaned(UPCGComponent* InComponent);
@@ -221,4 +222,10 @@ private:
 
 	/** Transient list of tags, kept when there is a tag change on a tracked Actor. */
 	TSet<FName> TempTrackedActorTags;
+
+#if WITH_EDITOR
+	// Part for the delayed landscape change update
+	double LastLandscapeDirtyTime = -1.0;
+	TArray<TObjectKey<ALandscapeProxy>> DelayedModifiedLandscapes;
+#endif // WITH_EDITOR
 };

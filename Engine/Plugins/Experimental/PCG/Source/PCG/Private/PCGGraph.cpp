@@ -931,11 +931,13 @@ void UPCGGraph::GetTrackedActorKeysToSettings(FPCGActorSelectionKeyToSettingsMap
 
 	OutVisitedGraphs.Emplace(this);
 
-	for (UPCGNode* Node : Nodes)
+	for (const UPCGNode* Node : Nodes)
 	{
-		if (Node && Node->GetSettings())
+		const UPCGSettings* Settings = Node ? Node->GetSettings() : nullptr;
+		// Don't track for disabled nodes.
+		if (Settings && Settings->bEnabled)
 		{
-			Node->GetSettings()->GetTrackedActorKeys(OutTagsToSettings, OutVisitedGraphs);
+			Settings->GetTrackedActorKeys(OutTagsToSettings, OutVisitedGraphs);
 		}
 	}
 
