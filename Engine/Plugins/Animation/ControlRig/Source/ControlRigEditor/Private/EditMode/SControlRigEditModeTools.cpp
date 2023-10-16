@@ -179,6 +179,7 @@ void SControlRigEditModeTools::Construct(const FArguments& InArgs, TSharedPtr<FC
 	DisplaySettings.bShowControls = true;
 	DisplaySettings.bShowNulls = false;
 	DisplaySettings.bShowReferences = false;
+	DisplaySettings.bShowSockets = false;
 	DisplaySettings.bShowRigidBodies = false;
 	DisplaySettings.bHideParentsOnFilter = true;
 	DisplaySettings.bFlattenHierarchyOnFilter = true;

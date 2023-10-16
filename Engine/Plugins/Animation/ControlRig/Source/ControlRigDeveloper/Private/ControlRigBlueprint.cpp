@@ -455,6 +455,7 @@ TArray<URigVMNode*> UControlRigBlueprint::ConvertHierarchyElementsToSpawnerNodes
 
 			URigVMNode* AddNullNode = GraphController->AddUnitNode(FRigUnit_HierarchyAddNull::StaticStruct(), FRigUnit::GetMethodName(), NodePosition);
 			NodePosition += NodePositionIncrement;
+			AddParentItemLink(Key, AddNullNode);
 			SpawnerNodes.Add(AddNullNode);
 
 			if(LastPin)
@@ -583,6 +584,30 @@ TArray<URigVMNode*> UControlRigBlueprint::ConvertHierarchyElementsToSpawnerNodes
 					GraphController->SetPinDefaultValue(AddControlNode->FindPin(SettingsProperty->GetName())->GetPinPath(), SettingsDefault, true, true);
 				}
 			}
+		}
+		else if(Key.Type == ERigElementType::Socket)
+		{
+			FString ParentDefault, TransformDefault;
+			GetParentAndTransformDefaults(Key, ParentDefault, TransformDefault);
+
+			URigVMNode* AddSocketNode = GraphController->AddUnitNode(FRigUnit_HierarchyAddSocket::StaticStruct(), FRigUnit::GetMethodName(), NodePosition);
+			NodePosition += NodePositionIncrement;
+			AddParentItemLink(Key, AddSocketNode);
+			SpawnerNodes.Add(AddSocketNode);
+
+			if(LastPin)
+			{
+				if(const URigVMPin* NextPin = AddSocketNode->FindPin(GET_MEMBER_NAME_STRING_CHECKED(FRigUnit_HierarchyAddBone, ExecuteContext)))
+				{
+					GraphController->AddLink(LastPin->GetPinPath(), NextPin->GetPinPath(), true);
+					LastPin = NextPin;
+				}
+			}
+
+			GraphController->SetPinDefaultValue(AddSocketNode->FindPin(GET_MEMBER_NAME_STRING_CHECKED(FRigUnit_HierarchyAddElement, Name))->GetPinPath(), Key.Name.ToString(), true, true);
+			GraphController->SetPinDefaultValue(AddSocketNode->FindPin(GET_MEMBER_NAME_STRING_CHECKED(FRigUnit_HierarchyAddElement, Parent))->GetPinPath(), ParentDefault, true, true);
+			GraphController->SetPinDefaultValue(AddSocketNode->FindPin(GET_MEMBER_NAME_STRING_CHECKED(FRigUnit_HierarchyAddNull, Space))->GetPinPath(), TEXT("LocalSpace"), true, true);
+			GraphController->SetPinDefaultValue(AddSocketNode->FindPin(GET_MEMBER_NAME_STRING_CHECKED(FRigUnit_HierarchyAddNull, Transform))->GetPinPath(), TransformDefault, true, true);
 		}
 	}
 

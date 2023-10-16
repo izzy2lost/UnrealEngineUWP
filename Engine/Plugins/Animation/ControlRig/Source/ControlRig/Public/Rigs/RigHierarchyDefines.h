@@ -18,9 +18,9 @@ class URigHierarchy;
  * This can be used as a mask so supported as a bitfield
  */
 UENUM(BlueprintType)
-enum class ERigElementType : uint8
+enum class ERigElementType
 {
-	None,
+	None = 0,
 	Bone = 0x001,
 	Null = 0x002,
 	Space = Null UMETA(Hidden),
@@ -29,9 +29,10 @@ enum class ERigElementType : uint8
 	RigidBody = 0x010 UMETA(Hidden), 
 	Reference = 0x020,
 	Connector = 0x040,
-	Last = 0x080 UMETA(Hidden),
-	All = Bone | Null | Control | Curve | RigidBody | Reference | Connector,
-	ToResetAfterConstructionEvent = Bone | Control | Curve UMETA(Hidden),
+	Socket = 0x080,
+	Last = 0x160 UMETA(Hidden),
+	All = Bone | Null | Control | Curve | RigidBody | Reference | Connector | Socket,
+	ToResetAfterConstructionEvent = Bone | Control | Curve | Socket UMETA(Hidden),
 };
 
 UENUM(BlueprintType)
@@ -1571,6 +1572,10 @@ public:
 			case ERigElementType::Connector:
 			{
 				return FString::Printf(TEXT("Connector(%s)"), *Name.ToString());
+			}
+			case ERigElementType::Socket:
+			{
+				return FString::Printf(TEXT("Socket(%s)"), *Name.ToString());
 			}
 		}
 		

@@ -632,6 +632,67 @@ FRigElementKey URigHierarchyController::AddConnector(FName InName, FTransform In
 	return NewElement->Key;
 }
 
+FRigElementKey URigHierarchyController::AddSocket(FName InName, FRigElementKey InParent, FTransform InTransform,
+	bool bTransformInGlobal, bool bSetupUndo, bool bPrintPythonCommand)
+{
+	if(!IsValid())
+	{
+		return FRigElementKey();
+	}
+
+#if WITH_EDITOR
+	TSharedPtr<FScopedTransaction> TransactionPtr;
+	if(bSetupUndo)
+	{
+		TransactionPtr = MakeShared<FScopedTransaction>(NSLOCTEXT("RigHierarchyController", "Add Socket", "Add Socket"));
+		Hierarchy->Modify();
+	}
+#endif
+
+	FRigSocketElement* NewElement = MakeElement<FRigSocketElement>();
+	{
+		TGuardValue<bool> DisableCacheValidityChecks(Hierarchy->bEnableCacheValidityCheck, false);
+		NewElement->Key.Type = ERigElementType::Socket;
+		NewElement->Key.Name = GetSafeNewName(InName, NewElement->Key.Type);
+		AddElement(NewElement, Hierarchy->Get(Hierarchy->GetIndex(InParent)), true, InName);
+
+		if(bTransformInGlobal)
+		{
+			Hierarchy->SetTransform(NewElement, InTransform, ERigTransformType::InitialGlobal, true, false);
+			Hierarchy->SetTransform(NewElement, InTransform, ERigTransformType::CurrentGlobal, true, false);
+		}
+		else
+		{
+			Hierarchy->SetTransform(NewElement, InTransform, ERigTransformType::InitialLocal, true, false);
+			Hierarchy->SetTransform(NewElement, InTransform, ERigTransformType::CurrentLocal, true, false);
+		}
+
+		NewElement->Pose.Current = NewElement->Pose.Initial;
+	}
+
+#if WITH_EDITOR
+	TransactionPtr.Reset();
+
+	if (bPrintPythonCommand && !bSuspendPythonPrinting)
+	{
+		UBlueprint* Blueprint = GetTypedOuter<UBlueprint>();
+		if (Blueprint)
+		{
+			TArray<FString> Commands = GetAddSocketPythonCommands(NewElement);
+			for (const FString& Command : Commands)
+			{			
+				RigVMPythonUtils::Print(Blueprint->GetFName().ToString(),
+					FString::Printf(TEXT("%s"), *Command));
+			}
+		}
+	}
+#endif
+
+	Hierarchy->EnsureCacheValidity();
+		
+	return NewElement->Key;
+}
+
 FRigControlSettings URigHierarchyController::GetControlSettings(FRigElementKey InKey) const
 {
 	if(!IsValid())
@@ -1104,6 +1165,12 @@ FString URigHierarchyController::ExportToText(TArray<FRigElementKey> InKeys) con
 				FRigConnectorElement::StaticStruct()->ExportText(PerElementData.Content, Element, &DefaultElement, nullptr, PPF_None, nullptr);
 				break;
 			}
+			case ERigElementType::Socket:
+			{
+				FRigSocketElement DefaultElement;
+				FRigSocketElement::StaticStruct()->ExportText(PerElementData.Content, Element, &DefaultElement, nullptr, PPF_None, nullptr);
+				break;
+			}
 			default:
 			{
 				ensure(false);
@@ -1233,9 +1300,15 @@ TArray<FRigElementKey> URigHierarchyController::ImportFromText(FString InContent
 				break;
 			}
 			case ERigElementType::Connector:
-					{
+			{
 				NewElement = MakeElement<FRigConnectorElement>();
 				FRigConnectorElement::StaticStruct()->ImportText(*PerElementData.Content, NewElement, nullptr, EPropertyPortFlags::PPF_None, &ErrorPipe, FRigConnectorElement::StaticStruct()->GetName(), true);
+				break;
+			}
+			case ERigElementType::Socket:
+			{
+				NewElement = MakeElement<FRigSocketElement>();
+				FRigSocketElement::StaticStruct()->ImportText(*PerElementData.Content, NewElement, nullptr, EPropertyPortFlags::PPF_None, &ErrorPipe, FRigSocketElement::StaticStruct()->GetName(), true);
 				break;
 			}
 			default:
@@ -1550,6 +1623,10 @@ TArray<FString> URigHierarchyController::GetAddElementPythonCommands(FRigBaseEle
 	{
 		return GetAddConnectorPythonCommands(ConnectorElement);
 	}
+	else if(FRigSocketElement* SocketElement = Cast<FRigSocketElement>(Element))
+	{
+		return GetAddSocketPythonCommands(SocketElement);
+	}
 	return TArray<FString>();
 }
 
@@ -1706,6 +1783,27 @@ TArray<FString> URigHierarchyController::GetAddConnectorPythonCommands(FRigConne
 		*Connector->GetName(),
 		*TransformStr,
 		*SettingsStr
+	));
+
+	return Commands;
+}
+
+TArray<FString> URigHierarchyController::GetAddSocketPythonCommands(FRigSocketElement* Socket) const
+{
+	TArray<FString> Commands;
+	FString TransformStr = RigVMPythonUtils::TransformToPythonString(Socket->Pose.Initial.Local.Transform);
+
+	FString ParentKeyStr = "''";
+	if (Socket->ParentElement)
+	{
+		ParentKeyStr = Socket->ParentElement->GetKey().ToPythonString();
+	}
+
+	// AddSocket(FName InName, FRigElementKey InParent, FTransform InTransform, bool bTransformInGlobal = true, bool bSetupUndo = false);
+	Commands.Add(FString::Printf(TEXT("hierarchy_controller.add_socket('%s', %s, %s, False)"),
+		*Socket->GetName(),
+		*ParentKeyStr,
+		*TransformStr
 	));
 
 	return Commands;
@@ -2382,6 +2480,12 @@ bool URigHierarchyController::AddParent(FRigElementKey InChild, FRigElementKey I
 		return false;
 	}
 
+	if(InParent.Type == ERigElementType::Socket)
+	{
+		ReportWarningf(TEXT("Cannot parent Child '%s' under a Socket parent."), *InChild.ToString());
+		return false;
+	}
+
 	FRigBaseElement* Child = Hierarchy->Find(InChild);
 	if(Child == nullptr)
 	{
@@ -2421,6 +2525,11 @@ bool URigHierarchyController::AddParent(FRigElementKey InChild, FRigElementKey I
 bool URigHierarchyController::AddParent(FRigBaseElement* InChild, FRigBaseElement* InParent, float InWeight, bool bMaintainGlobalTransform, bool bRemoveAllParents)
 {
 	if(InChild == nullptr || InParent == nullptr)
+	{
+		return false;
+	}
+
+	if(InParent->GetType() == ERigElementType::Socket)
 	{
 		return false;
 	}
@@ -2859,6 +2968,12 @@ bool URigHierarchyController::SetParent(FRigElementKey InChild, FRigElementKey I
 {
 	if(!IsValid())
 	{
+		return false;
+	}
+
+	if(InParent.Type == ERigElementType::Socket)
+	{
+		ReportWarningf(TEXT("Cannot parent Child '%s' under a Socket parent."), *InChild.ToString());
 		return false;
 	}
 

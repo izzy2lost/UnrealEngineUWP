@@ -531,6 +531,14 @@ bool SMultiRigHierarchyTreeView::AddElement(UBaseControlRig* InControlRig, const
 				}
 				break;
 			}
+			case ERigElementType::Socket:
+			{
+				if (!Settings.bShowSockets)
+				{
+					return false;
+				}
+				break;
+			}
 			case ERigElementType::Curve:
 			{
 				return false;
@@ -953,6 +961,7 @@ void SControlRigOutliner::Construct(const FArguments& InArgs, FControlRigEditMod
 	DisplaySettings.bShowControls = true;
 	DisplaySettings.bShowNulls = false;
 	DisplaySettings.bShowReferences = false;
+	DisplaySettings.bShowSockets = false;
 	DisplaySettings.bShowRigidBodies = false;
 	DisplaySettings.bHideParentsOnFilter = true;
 	DisplaySettings.bFlattenHierarchyOnFilter = true;

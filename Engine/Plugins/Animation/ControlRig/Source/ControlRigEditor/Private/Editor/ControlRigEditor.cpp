@@ -2437,6 +2437,7 @@ void FControlRigEditor::SetRigElementTransform(const FRigElementKey& InElement, 
 	{
 		case ERigElementType::Bone:
 		case ERigElementType::Connector:
+		case ERigElementType::Socket:
 		{
 			FTransform Transform = InTransform;
 			if (bLocal)

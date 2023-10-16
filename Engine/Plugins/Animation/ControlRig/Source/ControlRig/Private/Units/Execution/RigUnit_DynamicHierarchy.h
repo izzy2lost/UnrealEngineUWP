@@ -1438,3 +1438,37 @@ struct CONTROLRIG_API FRigUnit_HierarchySetShapeSettings : public FRigUnit_Dynam
 	RIGVM_METHOD()
 	virtual void Execute() override;
 };
+
+/**
+ * Adds a new socket to the hierarchy
+ * Note: This node only runs as part of the construction event.
+ */
+USTRUCT(meta=(DisplayName="Spawn Socket", Keywords="Construction,Create,New,Locator,Group", Varying))
+struct CONTROLRIG_API FRigUnit_HierarchyAddSocket : public FRigUnit_HierarchyAddElement
+{
+	GENERATED_BODY()
+
+	FRigUnit_HierarchyAddSocket()
+	{
+		Name = TEXT("NewSocket");
+		Transform = FTransform::Identity;
+		Space = ERigVMTransformSpace::LocalSpace;
+	}
+
+	virtual ERigElementType GetElementTypeToSpawn() const override { return ERigElementType::Socket; }
+
+	/*
+	 * The initial transform of the new element
+	 */
+	UPROPERTY(meta = (Input))
+	FTransform Transform;
+
+	/**
+	 * Defines if the transform should be interpreted in local or global space
+	 */ 
+	UPROPERTY(meta = (Input))
+	ERigVMTransformSpace Space;
+
+	RIGVM_METHOD()
+	virtual void Execute() override;
+};

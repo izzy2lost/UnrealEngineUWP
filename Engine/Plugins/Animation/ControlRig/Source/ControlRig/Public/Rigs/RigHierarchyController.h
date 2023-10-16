@@ -251,6 +251,19 @@ public:
 	FRigElementKey AddConnector(FName InName, FTransform InTransform, bool bTransformInGlobal = true, FRigConnectorSettings InSettings = FRigConnectorSettings(), bool bSetupUndo = false, bool bPrintPythonCommand = false);
 
 	/**
+	 * Adds a socket to the hierarchy
+	 * @param InName The suggested name of the new socket - will eventually be corrected by the namespace
+	 * @param InParent The (optional) parent of the new null. If you don't need a parent, pass FRigElementKey()
+	 * @param InTransform The transform for the new socket - either in local or global space, based on bTransformInGlobal
+	 * @param bTransformInGlobal Set this to true if the Transform passed is expressed in global space, false for local space.
+	 * @param bSetupUndo If set to true the stack will record the change for undo / redo
+	 * @param bPrintPythonCommand If set to true a python command equivalent to this call will be printed out
+	 * @return The key for the newly created bone.
+	 */
+	UFUNCTION(BlueprintCallable, Category = URigHierarchyController)
+	FRigElementKey AddSocket(FName InName, FRigElementKey InParent, FTransform InTransform, bool bTransformInGlobal = true, bool bSetupUndo = false, bool bPrintPythonCommand = false);
+
+	/**
 	 * Returns the control settings of a given control
 	 * @param InKey The key of the control to receive the settings for
 	 * @return The settings of the given control
@@ -591,7 +604,9 @@ public:
 
 	TArray<FString> GetAddRigidBodyPythonCommands(FRigRigidBodyElement* RigidBody) const;
 
-	TArray<FString> GetAddConnectorPythonCommands(FRigConnectorElement* Control) const;
+	TArray<FString> GetAddConnectorPythonCommands(FRigConnectorElement* Connector) const;
+
+	TArray<FString> GetAddSocketPythonCommands(FRigSocketElement* Socket) const;
 
 	TArray<FString> GetSetControlValuePythonCommands(const FRigControlElement* Control, const FRigControlValue& Value, const ERigControlValueType& Type) const;
 	

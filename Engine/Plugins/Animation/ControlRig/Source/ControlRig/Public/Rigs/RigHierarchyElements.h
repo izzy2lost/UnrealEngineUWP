@@ -569,6 +569,7 @@ public:
 		RigidBodyElement,
 		ReferenceElement,
 		ConnectorElement,
+		SocketElement,
 
 		Max
 	};
@@ -831,7 +832,8 @@ protected:
 			InElement->GetType() == ERigElementType::Control ||
 			InElement->GetType() == ERigElementType::RigidBody ||
 			InElement->GetType() == ERigElementType::Reference ||
-			InElement->GetType() == ERigElementType::Connector;
+			InElement->GetType() == ERigElementType::Connector ||
+			InElement->GetType() == ERigElementType::Socket;
 	}
 
 public:
@@ -880,7 +882,8 @@ protected:
 		return InElement->GetType() == ERigElementType::Bone ||
 			InElement->GetType() == ERigElementType::RigidBody ||
 			InElement->GetType() == ERigElementType::Reference ||
-			InElement->GetType() == ERigElementType::Connector;
+			InElement->GetType() == ERigElementType::Connector ||
+			InElement->GetType() == ERigElementType::Socket;
 	}
 
 	friend struct FRigBaseElement;
@@ -1745,6 +1748,45 @@ protected:
 	static bool IsClassOf(const FRigBaseElement* InElement)
 	{
 		return InElement->GetType() == ERigElementType::Connector;
+	}
+
+protected:
+
+	friend struct FRigBaseElement;
+	friend class URigHierarchy;
+	friend class URigHierarchyController;
+};
+
+USTRUCT(BlueprintType)
+struct CONTROLRIG_API FRigSocketElement : public FRigSingleParentElement
+{
+public:
+	
+	GENERATED_BODY()
+	DECLARE_RIG_ELEMENT_METHODS(FRigSocketElement)
+
+	static const EElementIndex ElementTypeIndex;
+
+	FRigSocketElement()
+		: FRigSingleParentElement()
+	{
+		Key.Type = ERigElementType::Socket; 
+	}
+
+	virtual ~FRigSocketElement(){}
+	
+	virtual void Save(FArchive& A, URigHierarchy* Hierarchy, ESerializationPhase SerializationPhase) override;
+	virtual void Load(FArchive& Ar, URigHierarchy* Hierarchy, ESerializationPhase SerializationPhase) override;
+
+private:
+
+	virtual void CopyFrom(URigHierarchy* InHierarchy, FRigBaseElement* InOther, URigHierarchy* InOtherHierarchy) override;
+
+protected:
+
+	static bool IsClassOf(const FRigBaseElement* InElement)
+	{
+		return InElement->GetType() == ERigElementType::Socket;
 	}
 
 protected:

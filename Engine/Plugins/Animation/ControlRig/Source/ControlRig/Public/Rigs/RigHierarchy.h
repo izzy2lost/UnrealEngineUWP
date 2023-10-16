@@ -986,7 +986,26 @@ public:
 	 */
 	UFUNCTION(BlueprintCallable, Category = URigHierarchy)
 	TArray<FRigElementKey> RestoreConnectorsFromInfos(TArray<FRigConnectorInfo> InInfos, bool bSetupUndoRedo = false);
-	
+
+	/**
+	 * Returns all Socket elements
+	 * @param bTraverse Returns the elements in order of a depth first traversal
+	 */
+	TArray<FRigSocketElement*> GetSockets(bool bTraverse = false) const
+	{
+		return GetElementsOfType<FRigSocketElement>(bTraverse);
+	}
+
+	/**
+	 * Returns all Socket elements
+	 * @param bTraverse Returns the elements in order of a depth first traversal
+	 */
+	UFUNCTION(BlueprintCallable, Category = URigHierarchy, meta = (DisplayName = "Get Sockets", ScriptName = "GetSockets"))
+	TArray<FRigElementKey> GetSocketKeys(bool bTraverse = true) const
+	{
+		return GetKeysOfType<FRigSocketElement>(bTraverse);
+	}
+
 	/**
 	 * Returns all root elements
 	 */
@@ -4314,9 +4333,13 @@ protected:
 			{
 				return 6;
 			}
-			case ERigElementType::Last:
+			case ERigElementType::Socket:
 			{
 				return 7;
+			}
+			case ERigElementType::Last:
+			{
+				return 8;
 			}
 			case ERigElementType::All:
 			default:
@@ -4362,6 +4385,10 @@ protected:
 				return ERigElementType::Connector;
 			}
 			case 7:
+			{
+				return ERigElementType::Socket;
+			}
+			case 8:
 			{
 				return ERigElementType::Last;
 			}

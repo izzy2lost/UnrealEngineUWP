@@ -80,6 +80,10 @@ UScriptStruct* FRigBaseElement::GetElementStruct() const
 		{
 			return FRigConnectorElement::StaticStruct();
 		}
+		case ERigElementType::Socket:
+		{
+			return FRigSocketElement::StaticStruct();
+		}
 		default:
 		{
 			break;
@@ -1704,4 +1708,25 @@ void FRigConnectorElement::CopyFrom(URigHierarchy* InHierarchy, FRigBaseElement*
 	
 	const FRigConnectorElement* Source = CastChecked<FRigConnectorElement>(InOther);
 	Settings = Source->Settings;
+}
+
+////////////////////////////////////////////////////////////////////////////////
+// FRigSocketElement
+////////////////////////////////////////////////////////////////////////////////
+
+const FRigBaseElement::EElementIndex FRigSocketElement::ElementTypeIndex = SocketElement;
+
+void FRigSocketElement::Save(FArchive& Ar, URigHierarchy* Hierarchy, ESerializationPhase SerializationPhase)
+{
+	Super::Save(Ar, Hierarchy, SerializationPhase);
+}
+
+void FRigSocketElement::Load(FArchive& Ar, URigHierarchy* Hierarchy, ESerializationPhase SerializationPhase)
+{
+	Super::Load(Ar, Hierarchy, SerializationPhase);
+}
+
+void FRigSocketElement::CopyFrom(URigHierarchy* InHierarchy, FRigBaseElement* InOther, URigHierarchy* InOtherHierarchy)
+{
+	Super::CopyFrom(InHierarchy, InOther, InOtherHierarchy);
 }

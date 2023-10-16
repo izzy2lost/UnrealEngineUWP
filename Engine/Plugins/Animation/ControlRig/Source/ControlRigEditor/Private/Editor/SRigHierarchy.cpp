@@ -332,6 +332,10 @@ void SRigHierarchy::BindCommands()
 		FExecuteAction::CreateSP(this, &SRigHierarchy::HandleNewItem, ERigElementType::Connector, false),
 		FCanExecuteAction::CreateSP(this, &SRigHierarchy::IsNonProceduralElementSelected));
 
+	CommandList->MapAction(Commands.AddSocketItem,
+		FExecuteAction::CreateSP(this, &SRigHierarchy::HandleNewItem, ERigElementType::Socket, false),
+		FCanExecuteAction::CreateSP(this, &SRigHierarchy::IsNonProceduralElementSelected));
+
 	CommandList->MapAction(Commands.DuplicateItem,
 		FExecuteAction::CreateSP(this, &SRigHierarchy::HandleDuplicateItem),
 		FCanExecuteAction::CreateSP(this, &SRigHierarchy::CanDuplicateItem));
@@ -455,6 +459,12 @@ void SRigHierarchy::BindCommands()
 		FIsActionChecked::CreateLambda([this]() { return DisplaySettings.bShowReferences; }));
 
 	CommandList->MapAction(
+		Commands.ShowSockets,
+		FExecuteAction::CreateLambda([this]() { DisplaySettings.bShowSockets = !DisplaySettings.bShowSockets; RefreshTreeView(); }),
+		FCanExecuteAction(),
+		FIsActionChecked::CreateLambda([this]() { return DisplaySettings.bShowSockets; }));
+
+	CommandList->MapAction(
 		Commands.ToggleControlShapeTransformEdit,
 		FExecuteAction::CreateLambda([this]()
 		{
@@ -501,7 +511,8 @@ EVisibility SRigHierarchy::IsSearchbarVisible() const
 		if ((Hierarchy->Num(ERigElementType::Bone) +
 			Hierarchy->Num(ERigElementType::Null) +
 			Hierarchy->Num(ERigElementType::Control) +
-			Hierarchy->Num(ERigElementType::Connector)) > 0)
+			Hierarchy->Num(ERigElementType::Connector) +
+			Hierarchy->Num(ERigElementType::Socket)) > 0)
 		{
 			return EVisibility::Visible;
 		}
@@ -1243,6 +1254,7 @@ void SRigHierarchy::CreateContextMenu()
 							if(CVarControlRigHierarchyEnableModules.GetValueOnAnyThread())
 							{
 								DefaultSection.AddMenuEntry(Commands.AddConnectorItem);
+								DefaultSection.AddMenuEntry(Commands.AddSocketItem);
 							}
 						})
 					);
@@ -1998,6 +2010,11 @@ void SRigHierarchy::HandleNewItem(ERigElementType InElementType, bool bIsAnimati
 					(void)ResolveConnector(NewItemKey, ParentKey);
 					break;
 				}
+				case ERigElementType::Socket:
+				{
+					NewItemKey = Controller->AddSocket(NewElementName, ParentKey, ParentTransform, true, true, true);
+					break;
+				}
 				default:
 				{
 					return;
@@ -2480,6 +2497,7 @@ TOptional<EItemDropZone> SRigHierarchy::OnCanAcceptDrop(const FDragDropEvent& Dr
 						case ERigElementType::RigidBody:
 						case ERigElementType::Reference:
 						case ERigElementType::Connector:
+						case ERigElementType::Socket:
 						{
 							break;
 						}
@@ -2497,6 +2515,11 @@ TOptional<EItemDropZone> SRigHierarchy::OnCanAcceptDrop(const FDragDropEvent& Dr
 				// anything can be parented under a connector
 				ReturnDropZone = DropZone;
 				break;
+			}
+			case ERigElementType::Socket:
+			{
+				// You cannot parent anything under a socket
+				return InvalidDropZone;
 			}
 			default:
 			{

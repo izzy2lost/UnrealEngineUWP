@@ -458,6 +458,7 @@ void URigHierarchy::CopyHierarchy(URigHierarchy* InHierarchy)
 		sizeof(FRigRigidBodyElement),
 		sizeof(FRigReferenceElement),
 		sizeof(FRigConnectorElement),
+		sizeof(FRigSocketElement),
 	}; 
 
 	if(bReallocateElements)
@@ -4777,6 +4778,15 @@ FRigBaseElement* URigHierarchy::MakeElement(ERigElementType InElementType, int32
 			Element = NewElement<FRigConnectorElement>(InCount);
 			break;
 		}
+		case ERigElementType::Socket:
+		{
+			if(OutStructureSize)
+			{
+				*OutStructureSize = sizeof(FRigSocketElement);
+			}
+			Element = NewElement<FRigSocketElement>(InCount);
+			break;
+		}
 		default:
 		{
 			ensure(false);
@@ -4862,6 +4872,15 @@ void URigHierarchy::DestroyElement(FRigBaseElement*& InElement)
 			for(int32 Index=0;Index<Count;Index++)
 			{
 				ExistingElements[Index].~FRigConnectorElement(); 
+			}
+			break;
+		}
+		case ERigElementType::Socket:
+		{
+			FRigSocketElement* ExistingElements = Cast<FRigSocketElement>(InElement);
+			for(int32 Index=0;Index<Count;Index++)
+			{
+				ExistingElements[Index].~FRigSocketElement(); 
 			}
 			break;
 		}

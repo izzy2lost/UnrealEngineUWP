@@ -538,6 +538,14 @@ bool SRigHierarchyTreeView::AddElement(const FRigBaseElement* InElement)
 			}
 			break;
 		}
+		case ERigElementType::Socket:
+		{
+			if(!Settings.bShowSockets)
+			{
+				return false;
+			}
+			break;
+		}
 		default:
 		{
 			break;
@@ -1036,6 +1044,7 @@ TPair<const FSlateBrush*, FSlateColor> SRigHierarchyItem::GetBrushForElementType
 			break;
 		}
 		case ERigElementType::Reference:
+		case ERigElementType::Socket:
 		{
 			Brush = FControlRigEditorStyle::Get().GetBrush("ControlRig.Tree.Socket");
 			break;

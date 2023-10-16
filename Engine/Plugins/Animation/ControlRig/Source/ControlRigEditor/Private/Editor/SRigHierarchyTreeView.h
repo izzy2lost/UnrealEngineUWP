@@ -26,6 +26,7 @@ struct CONTROLRIGEDITOR_API FRigTreeDisplaySettings
 		bShowNulls = true;
 		bShowRigidBodies = true;
 		bShowReferences = true;
+		bShowSockets = true;
 		bShowIconColors = true;
 	}
 	
@@ -54,6 +55,9 @@ struct CONTROLRIGEDITOR_API FRigTreeDisplaySettings
 
 	/** Whether or not to show references in the hierarchy */
 	bool bShowReferences;
+
+	/** Whether or not to show sockets in the hierarchy */
+	bool bShowSockets;
 
 	/** Whether to tint the icons with the element color */
 	bool bShowIconColors;
