@@ -1373,6 +1373,17 @@ public:
 	/** Update OldBaseLocation and OldBaseQuat if there is a valid movement base, and store the relative location/rotation if necessary. Ignores bDeferUpdateBasedMovement and forces the update. */
 	ENGINE_API virtual void SaveBaseLocation();
 
+	/** Apply inherited velocity when leaving base, for example from jumping off it */
+	ENGINE_API virtual void ApplyImpartedMovementBaseVelocity();
+	
+	/** Property used to set if characters should stay based on objects while jumping */
+	UPROPERTY(Category = "Character Movement: Jumping / Falling", EditAnywhere, BlueprintReadWrite)
+	bool bStayBasedInAir = false;
+	
+	/** Property used to set how high above base characters should stay based on objects while jumping if bStayBasedInAir is set */
+	UPROPERTY(Category = "Character Movement: Jumping / Falling", EditAnywhere, BlueprintReadWrite, meta = (editcondition = "bStayBasedInAir"))
+	float StayBasedInAirHeight = 1000.0f;
+
 	/** changes physics based on MovementMode */
 	ENGINE_API virtual void StartNewPhysics(float deltaTime, int32 Iterations);
 	

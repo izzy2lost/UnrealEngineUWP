@@ -1288,21 +1288,17 @@ void UCharacterMovementComponent::OnMovementModeChanged(EMovementMode PreviousMo
 
 		if (MovementMode == MOVE_Falling)
 		{
-			DecayingFormerBaseVelocity = GetImpartedMovementBaseVelocity();
-			Velocity += DecayingFormerBaseVelocity;
-			if (bMovementInProgress && CurrentRootMotion.HasAdditiveVelocity())
+			if (bStayBasedInAir == false)
 			{
-				// If we leave a base during movement and we have additive root motion, we need to add the imparted velocity so that it retains it next tick
-				CurrentRootMotion.LastPreAdditiveVelocity += DecayingFormerBaseVelocity;
-			}
-			if (!CharacterMovementCVars::bAddFormerBaseVelocityToRootMotionOverrideWhenFalling || FormerBaseVelocityDecayHalfLife == 0.f)
-			{
-				DecayingFormerBaseVelocity = FVector::ZeroVector;
+				ApplyImpartedMovementBaseVelocity();
 			}
 			CharacterOwner->Falling();
 		}
 
-		SetBase(NULL);
+		if (!IsFalling() || bStayBasedInAir == false)
+		{
+			SetBase(NULL);
+		}
 
 		if (MovementMode == MOVE_None)
 		{
@@ -2305,6 +2301,23 @@ void UCharacterMovementComponent::UpdateBasedMovement(float DeltaSeconds)
 		return;
 	}
 
+	// Check if falling above current base
+	if (IsFalling() && bStayBasedInAir)
+	{
+		const FVector PawnLocation = UpdatedComponent->GetComponentLocation();
+		FFindFloorResult OutFloorResult;
+		ComputeFloorDist(PawnLocation, StayBasedInAirHeight, StayBasedInAirHeight, OutFloorResult, CharacterOwner->GetCapsuleComponent()->GetScaledCapsuleRadius(), NULL);
+
+		UPrimitiveComponent* HitComponent = OutFloorResult.HitResult.Component.Get();
+		if (HitComponent && HitComponent->GetAttachmentRoot() != MovementBase->GetAttachmentRoot())
+		{
+			// New or no base under the character
+			ApplyImpartedMovementBaseVelocity();
+			SetBase(NULL);
+			return;
+		}
+	}
+
 	// Ignore collision with bases during these movements.
 	TGuardValue<EMoveComponentFlags> ScopedFlagRestore(MoveComponentFlags, MoveComponentFlags | MOVECOMP_IgnoreBases);
 
@@ -2435,6 +2448,21 @@ void UCharacterMovementComponent::UpdateBasedRotation(FRotator& FinalRotation, c
 		FRotator NewRotation = Controller->GetControlRotation();
 		NewRotation.Roll = ControllerRoll;
 		Controller->SetControlRotation(NewRotation);
+	}
+}
+
+void UCharacterMovementComponent::ApplyImpartedMovementBaseVelocity()
+{
+	DecayingFormerBaseVelocity = GetImpartedMovementBaseVelocity();
+	Velocity += DecayingFormerBaseVelocity;
+	if (bMovementInProgress && CurrentRootMotion.HasAdditiveVelocity())
+	{
+		// If we leave a base during movement and we have additive root motion, we need to add the imparted velocity so that it retains it next tick
+		CurrentRootMotion.LastPreAdditiveVelocity += DecayingFormerBaseVelocity;
+	}
+	if (!CharacterMovementCVars::bAddFormerBaseVelocityToRootMotionOverrideWhenFalling || FormerBaseVelocityDecayHalfLife == 0.f)
+	{
+		DecayingFormerBaseVelocity = FVector::ZeroVector;
 	}
 }
 
