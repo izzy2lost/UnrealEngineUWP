@@ -181,7 +181,12 @@ namespace Horde.Server.Tests
 			GC.SuppressFinalize(this);
 			_mongoDbInstance?.Dispose();
 			_mongoService?.Dispose();
-			_redisService?.Dispose();
+
+			if (_redisService != null)
+			{
+				await _redisService.DisposeAsync();
+			}
+
 			_loggerFactory.Dispose();
 		}
 
