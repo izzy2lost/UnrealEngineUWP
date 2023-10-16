@@ -270,7 +270,11 @@ namespace mu
         //! The parameter lists are sorted.
 		TArray<TArray<uint16>> m_parameterLists;
 
-
+#if WITH_EDITOR
+		//! State of the program. True unless the streamed resources were destroyed,
+		//! which could happen in the editor after recompiling the CO.
+		bool bIsValid = true;
+#endif
         //!
         void Serialise( OutputArchive& arch ) const
         {

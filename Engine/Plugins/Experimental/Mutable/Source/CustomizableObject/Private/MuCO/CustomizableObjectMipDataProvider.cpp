@@ -124,102 +124,108 @@ namespace impl
 			mu::SystemPtr System = OperationData->UpdateContext->GetSystem();
 			const TSharedPtr<mu::Model, ESPMode::ThreadSafe> Model = OperationData->UpdateContext->GetModel();
 
-			// For now, we are forcing the recreation of mutable-side instances with every update.
-			mu::Instance::ID InstanceID = System->NewInstance(Model);
-			UE_LOG(LogMutable, Verbose, TEXT("Creating Mutable instance with id [%d] for a single UpdateImage"), InstanceID)
-
-				const mu::Instance* Instance = nullptr;
-
-			// Main instance generation step
+#if WITH_EDITOR
+			// Recompiling a CO in the editor will invalidate the previously generated Model. Check that it is valid before accessing the streamed data.
+			if (Model && Model->IsValid())
+#endif
 			{
-				// LOD mask, set to all ones to build all LODs
-				uint32 LODMask = 0xFFFFFFFF;
 
-				Instance = System->BeginUpdate(InstanceID, OperationData->UpdateContext->GetParameters(), OperationData->UpdateContext->GetState(), LODMask);
-				check(Instance);
-			}
+				// For now, we are forcing the recreation of mutable-side instances with every update.
+				mu::Instance::ID InstanceID = System->NewInstance(Model);
+				UE_LOG(LogMutable, Verbose, TEXT("Creating Mutable instance with id [%d] for a single UpdateImage"), InstanceID)
 
+					const mu::Instance* Instance = nullptr;
 
-			// Generate the required image
-			{
-				MUTABLE_CPUPROFILER_SCOPE(RequestedImage);
-
-				const FMutableImageReference& ImageRef = OperationData->RequestedImage;
-
-				int32 SurfaceIndex = Instance->FindSurfaceById(ImageRef.LOD, ImageRef.Component, ImageRef.SurfaceId);
-				check(SurfaceIndex >= 0);
-
-				// This ID may be different than the ID obtained the first time the image was generated, because the mutable
-				// runtime cannot remember all the resources it has built, and only remembers a fixed amount.
-				mu::FResourceID MipImageID = Instance->GetImageId(ImageRef.LOD, ImageRef.Component, SurfaceIndex, ImageRef.Image);
-
-
-				mu::ImagePtrConst Image;
+				// Main instance generation step
 				{
-					MUTABLE_CPUPROFILER_SCOPE(GetImage);
+					// LOD mask, set to all ones to build all LODs
+					uint32 LODMask = 0xFFFFFFFF;
 
-					Image = System->GetImage(InstanceID, MipImageID, ImageRef.BaseMip + OperationData->MipsToSkip, ImageRef.LOD);
+					Instance = System->BeginUpdate(InstanceID, OperationData->UpdateContext->GetParameters(), OperationData->UpdateContext->GetState(), LODMask);
+					check(Instance);
 				}
 
-				check(Image);
 
-				int32 FullMipCount = Image->GetMipmapCount(Image->GetSizeX(), Image->GetSizeY());
-				int32 RealMipCount = Image->GetLODCount();
-
-				bool bForceMipchain =
-					// Did we fail to generate the entire mipchain (if we have mips at all)?
-					(RealMipCount != 1) && (RealMipCount != FullMipCount);
-
-				if (bForceMipchain)
+				// Generate the required image
 				{
-					MUTABLE_CPUPROFILER_SCOPE(GetImage_MipFix);
+					MUTABLE_CPUPROFILER_SCOPE(RequestedImage);
 
-					UE_LOG(LogMutable, Warning, TEXT("Mutable generated an incomplete mip chain for image."));
+					const FMutableImageReference& ImageRef = OperationData->RequestedImage;
 
-					// Force the right number of mips. The missing data will be black.
-					mu::Ptr<mu::Image> NewImage = new mu::Image(Image->GetSizeX(), Image->GetSizeY(), FullMipCount, Image->GetFormat(), mu::EInitializationType::Black);
-					check(NewImage);
-					if (NewImage->GetDataSize() >= Image->GetDataSize())
+					int32 SurfaceIndex = Instance->FindSurfaceById(ImageRef.LOD, ImageRef.Component, ImageRef.SurfaceId);
+					check(SurfaceIndex >= 0);
+
+					// This ID may be different than the ID obtained the first time the image was generated, because the mutable
+					// runtime cannot remember all the resources it has built, and only remembers a fixed amount.
+					mu::FResourceID MipImageID = Instance->GetImageId(ImageRef.LOD, ImageRef.Component, SurfaceIndex, ImageRef.Image);
+
+
+					mu::ImagePtrConst Image;
 					{
-						FMemory::Memcpy(NewImage->GetData(), Image->GetData(), Image->GetDataSize());
+						MUTABLE_CPUPROFILER_SCOPE(GetImage);
+
+						Image = System->GetImage(InstanceID, MipImageID, ImageRef.BaseMip + OperationData->MipsToSkip, ImageRef.LOD);
 					}
-					Image = NewImage;
-				}
 
-				OperationData->Result = Image;
-			}
+					check(Image);
 
-			// End update
-			{
-				MUTABLE_CPUPROFILER_SCOPE(EndUpdate);
-				System->EndUpdate(InstanceID);
-				System->ReleaseInstance(InstanceID);
+					int32 FullMipCount = Image->GetMipmapCount(Image->GetSizeX(), Image->GetSizeY());
+					int32 RealMipCount = Image->GetLODCount();
 
-				if (CVarClearWorkingMemoryOnUpdateEnd.GetValueOnAnyThread())
-				{
-					System->ClearWorkingMemory();
-				}
-			}
+					bool bForceMipchain =
+						// Did we fail to generate the entire mipchain (if we have mips at all)?
+						(RealMipCount != 1) && (RealMipCount != FullMipCount);
 
-			{
-				// The request could be cancelled in parallel from CancelCounterSafely and its value be changed
-				// between reading it and actually running Decrement() and RescheduleCallback(), so lock
-				FScopeLock Lock(&OperationData->CounterTaskLock);
-
-				if (OperationData->Counter) // If the request has been cancelled the counter will be null
-				{
-					// Make the FMutableTextureMipDataProvider continue
-					OperationData->Counter->Decrement();
-
-					if (OperationData->Counter->GetValue() == 0)
+					if (bForceMipchain)
 					{
-						OperationData->RescheduleCallback();
+						MUTABLE_CPUPROFILER_SCOPE(GetImage_MipFix);
+
+						UE_LOG(LogMutable, Warning, TEXT("Mutable generated an incomplete mip chain for image."));
+
+						// Force the right number of mips. The missing data will be black.
+						mu::Ptr<mu::Image> NewImage = new mu::Image(Image->GetSizeX(), Image->GetSizeY(), FullMipCount, Image->GetFormat(), mu::EInitializationType::Black);
+						check(NewImage);
+						if (NewImage->GetDataSize() >= Image->GetDataSize())
+						{
+							FMemory::Memcpy(NewImage->GetData(), Image->GetData(), Image->GetDataSize());
+						}
+						Image = NewImage;
+					}
+
+					OperationData->Result = Image;
+				}
+
+				// End update
+				{
+					MUTABLE_CPUPROFILER_SCOPE(EndUpdate);
+					System->EndUpdate(InstanceID);
+					System->ReleaseInstance(InstanceID);
+
+					if (CVarClearWorkingMemoryOnUpdateEnd.GetValueOnAnyThread())
+					{
+						System->ClearWorkingMemory();
 					}
 				}
 			}
 		}
-	}
 
+		{
+			// The request could be cancelled in parallel from CancelCounterSafely and its value be changed
+			// between reading it and actually running Decrement() and RescheduleCallback(), so lock
+			FScopeLock Lock(&OperationData->CounterTaskLock);
+
+			if (OperationData->Counter) // If the request has been cancelled the counter will be null
+			{
+				// Make the FMutableTextureMipDataProvider continue
+				OperationData->Counter->Decrement();
+
+				if (OperationData->Counter->GetValue() == 0)
+				{
+					OperationData->RescheduleCallback();
+				}
+			}
+		}
+	}
 } // namespace
 
 
@@ -343,33 +349,40 @@ bool FMutableTextureMipDataProvider::PollMips(const FTextureUpdateSyncOptions& S
 		return false;
 	}
 	
-	if (OperationData && OperationData->Result && OperationData->Levels.Num())
+	if (OperationData && OperationData->Levels.Num())
 	{
 		// The counter must be zero meaning the Mutable image operation has finished
 		check(SyncOptions.Counter->GetValue() == 0);
 
-		mu::Ptr<const mu::Image> Mip = OperationData->Result;
-		int32 MipIndex = 0;
-		check(Mip->GetSizeX() == OperationData->Levels[0].SizeX);
-		check(Mip->GetSizeY() == OperationData->Levels[0].SizeY);
+		mu::Ptr<const mu::Image> Image = OperationData->Result;
+		
+		int32 ImageLODCount = 0;
+		if (Image)
+		{
+			ImageLODCount = Image->GetLODCount();
+			// check(Image->GetLODCount() == OperationData->Levels.Num()); TODO PRP
+			check(Image->GetSizeX() == OperationData->Levels[0].SizeX);
+			check(Image->GetSizeY() == OperationData->Levels[0].SizeY);
+		}
 
+		int32 MipIndex = 0;
 		for (FMutableMipUpdateLevel& Level : OperationData->Levels)
 		{
 			void* Dest = Level.Dest;
 
-			if (MipIndex >= Mip->GetLODCount())
+			if (MipIndex < ImageLODCount)
+			{
+				int32 MipDataSize = Image->GetLODDataSize(MipIndex);
+
+				// Check Mip DataSize for consistency, but skip if 0 because it's optional and might be zero in cooked mips
+				check(Level.DataSize == 0 || MipDataSize == Level.DataSize);
+				FMemory::Memcpy(Dest, Image->GetMipData(MipIndex), MipDataSize);
+			}
+			else
 			{
 				// Mutable didn't generate all the expected mips
 				UE_LOG(LogMutable, Warning, TEXT("Mutable image is missing mips."));
 				FMemory::Memzero(Dest, Level.DataSize);
-			}
-			else
-			{
-				int32 MipDataSize = Mip->GetLODDataSize(MipIndex);
-
-				// Check Mip DataSize for consistency, but skip if 0 because it's optional and might be zero in cooked mips
-				check(Level.DataSize == 0 || MipDataSize == Level.DataSize);
-				FMemory::Memcpy(Dest, Mip->GetMipData(MipIndex), MipDataSize);
 			}
 			++MipIndex;
 		}

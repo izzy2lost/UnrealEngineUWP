@@ -1858,6 +1858,13 @@ FGuid UCustomizableObject::GetCompilationGuid() const
 
 void FCustomizableObjectPrivateData::SetModel(const TSharedPtr<mu::Model, ESPMode::ThreadSafe>& Model, const FGuid Id)
 {
+#if WITH_EDITOR
+	if (MutableModel)
+	{
+		MutableModel->Invalidate();
+	}
+#endif
+	
 	MutableModel = Model;
 
 #if WITH_EDITOR

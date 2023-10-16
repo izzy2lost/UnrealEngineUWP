@@ -221,6 +221,20 @@ namespace mu
 		return m_pD->m_program.m_roms.Num() > 0;
     }
 
+#if WITH_EDITOR
+	//---------------------------------------------------------------------------------------------
+	bool Model::IsValid() const
+	{
+		return m_pD->m_program.bIsValid;
+	}
+
+
+	//---------------------------------------------------------------------------------------------
+	void Model::Invalidate()
+    {
+		m_pD->m_program.bIsValid = false;
+    }
+#endif
 
     //---------------------------------------------------------------------------------------------
     void Model::UnloadExternalData()

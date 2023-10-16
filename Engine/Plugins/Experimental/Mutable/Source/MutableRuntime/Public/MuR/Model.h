@@ -66,6 +66,16 @@ namespace mu
 		//! require data streaming when used.
 		bool HasExternalData() const;
 
+#if WITH_EDITOR
+		//! Return true unless the streamed resources were destroyed, which could happen in the
+		//! editor after recompiling the CO.
+		bool IsValid() const;
+
+		//! Invalidate the Model. Compiling a compiled CO will invalidate the model kept by previously
+		//! generated resources, like streamed textures.
+		void Invalidate();
+#endif
+
 		//-----------------------------------------------------------------------------------------
 		// Own interface
 		//-----------------------------------------------------------------------------------------
