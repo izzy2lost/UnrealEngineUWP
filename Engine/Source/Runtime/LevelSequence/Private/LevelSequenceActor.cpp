@@ -81,6 +81,7 @@ ALevelSequenceActor::ALevelSequenceActor(const FObjectInitializer& Init)
 
 	bReplicates = true;
 	bReplicatePlayback = false;
+	bReplicateUsingRegisteredSubObjectList = true;
 }
 
 void ALevelSequenceActor::PostInitProperties()
