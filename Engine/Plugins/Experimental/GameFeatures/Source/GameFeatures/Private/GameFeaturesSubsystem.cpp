@@ -2205,50 +2205,6 @@ bool UGameFeaturesSubsystem::FindPluginDependencyStateMachinesToActivate(const F
 	return false;
 }
 
-bool UGameFeaturesSubsystem::FindPluginDependencyStateMachinesToDeactivate(const FString& PluginURL, const FString& PluginFilename, TArray<UGameFeaturePluginStateMachine*>& OutDependencyMachines) const
-{
-	FGameFeaturePluginDetails Details;
-	if (GetGameFeaturePluginDetails(PluginFilename, Details))
-	{
-		for (const FGameFeaturePluginReferenceDetails& PluginDependency : Details.PluginDependencies)
-		{
-			if (PluginDependency.bShouldActivate)
-			{
-				const FString& DependencyName = PluginDependency.PluginName;
-				TValueOrError<FString, FString> DependencyURLInfo = GameSpecificPolicies->ResolvePluginDependency(PluginURL, DependencyName);
-				if (DependencyURLInfo.HasError())
-				{
-					UE_LOG(LogGameFeatures, Error, TEXT("Failure to resolve dependency %s [%s] for parent plugin url: %s"), *DependencyName, *DependencyURLInfo.GetError(), *PluginURL);
-					return false;
-				}
-
-				const FString& DependencyURL = DependencyURLInfo.GetValue();
-
-				// Dependency may not be a GFP and so will have an empty URL but not have an error
-				if (DependencyURL.IsEmpty())
-				{
-					continue;
-				}
-
-				UGameFeaturePluginStateMachine* Dependency = FindGameFeaturePluginStateMachine(DependencyURL);
-				if (Dependency)
-				{
-					OutDependencyMachines.Add(Dependency);
-				}
-				else
-				{
-					// Depenedency may have been fully terminated which is considered deactivated already.
-					UE_LOG(LogGameFeatures, Log, TEXT("FindPluginDependencyStateMachinesToDeactivate unable to find plugin state machine for %s using URL %s"), *DependencyName, *DependencyURL);
-				}
-			}
-		}
-
-		return true;
-	}
-
-	return false;
-}
-
 void UGameFeaturesSubsystem::ListGameFeaturePlugins(const TArray<FString>& Args, UWorld* InWorld, FOutputDevice& Ar)
 {
 	const bool bAlphaSort = Args.ContainsByPredicate([](const FString& Arg) { return Arg.Compare(TEXT("-ALPHASORT"), ESearchCase::IgnoreCase) == 0; });
