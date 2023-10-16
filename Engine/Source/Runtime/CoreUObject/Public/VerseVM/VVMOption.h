@@ -19,6 +19,7 @@ struct VOption : VHeapValue
 {
 	COREUOBJECT_API static VCppClassInfo StaticCppClassInfo;
 	COREUOBJECT_API static TGlobalTrivialEmergentTypePtr<&StaticCppClassInfo> GlobalTrivialEmergentType;
+	DECLARE_VISIT_REFERENCES(COREUOBJECT_API);
 
 	static VOption& New(FAllocationContext Context, VValue InValue)
 	{
@@ -39,8 +40,6 @@ struct VOption : VHeapValue
 	{
 		return GetValue();
 	}
-
-	COREUOBJECT_API static void MarkReferencedCellsImpl(VCell* This, FMarkStack&);
 
 	COREUOBJECT_API static uint32 GetTypeHashImpl(VCell* ThisCell);
 

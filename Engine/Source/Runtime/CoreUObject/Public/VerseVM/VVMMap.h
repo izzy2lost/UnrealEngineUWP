@@ -73,6 +73,7 @@ struct VMap : VHeapValue
 {
 	COREUOBJECT_API static VCppClassInfo StaticCppClassInfo;
 	COREUOBJECT_API static TGlobalTrivialEmergentTypePtr<&StaticCppClassInfo> GlobalTrivialEmergentType;
+	DECLARE_VISIT_REFERENCES(COREUOBJECT_API);
 
 	VMapInternal InternalMap;
 
@@ -121,8 +122,6 @@ struct VMap : VHeapValue
 	{
 		return InternalMap.GetAllocatedSize();
 	}
-
-	COREUOBJECT_API static void MarkReferencedCellsImpl(VCell* This, FMarkStack&);
 
 	COREUOBJECT_API static bool EqualImpl(FRunningContext Context, VCell* This, VCell* Other, TFunction<void(VValue, VValue)> HandlePlaceholder);
 

@@ -86,6 +86,7 @@ struct VFields : VCell
 
 	COREUOBJECT_API static VCppClassInfo StaticCppClassInfo;
 	COREUOBJECT_API static TGlobalTrivialEmergentTypePtr<&StaticCppClassInfo> GlobalTrivialEmergentType;
+	DECLARE_VISIT_REFERENCES(COREUOBJECT_API);
 
 	static VFields& New(FAllocationContext Context, FieldsMap&& InFields);
 
@@ -95,14 +96,12 @@ private:
 	VFields(FAllocationContext Context, FieldsMap&& InFields);
 	~VFields() = default;
 
-	/// Overridden to allow for marking the weak references to the strings in the field name mapping.
-	static void MarkReferencedCellsImpl(VCell* This, FMarkStack& MarkStack);
-
 	/// Overridden because we want to ensure that the `TMap` of offsets above gets de-allocated
 	/// once the shape object lifetime ends. Otherwise it would not get its destructor called.
 	static void RunDestructorImpl(VCell* This);
 
-	static void MarkFields(FieldsMap& Fields, FMarkStack& MarkStack);
+	template <typename TVisitor>
+	static void VisitFields(FieldsMap&, TVisitor&);
 
 	FieldsMap Fields;
 
@@ -114,9 +113,7 @@ struct VShape : VCell
 {
 	COREUOBJECT_API static VCppClassInfo StaticCppClassInfo;
 	COREUOBJECT_API static TGlobalTrivialEmergentTypePtr<&StaticCppClassInfo> GlobalTrivialEmergentType;
-
-	/// Overridden to allow for marking the weak references to the strings in the field name mapping.
-	COREUOBJECT_API static void MarkReferencedCellsImpl(VCell* This, FMarkStack& MarkStack);
+	DECLARE_VISIT_REFERENCES(COREUOBJECT_API);
 
 	/// Creates a new shape. Note that indices for offset-based fields will be discarded and the fields given re-ordered
 	/// indices as part of the new shape created.

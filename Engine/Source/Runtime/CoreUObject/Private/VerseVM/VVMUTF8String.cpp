@@ -3,9 +3,12 @@
 #if WITH_VERSE_VM
 #include "Async/UniqueLock.h"
 #include "Containers/StringView.h"
+#include "VerseVM/Inline/VVMAbstractVisitorInline.h"
 #include "VerseVM/Inline/VVMCellInline.h"
 #include "VerseVM/Inline/VVMUTF8StringInline.h"
 #include "VerseVM/VVMCppClassInfo.h"
+#include "VerseVM/VVMMarkStackVisitor.h"
+#include "VerseVM/VVMVisitorWrapper.h"
 
 namespace Verse
 {
@@ -107,10 +110,25 @@ void VUniqueStringSetInternPool::ConductCensus()
 
 UE::FMutex VUniqueStringSetInternPool::Mutex;
 
+DEFINE_VISIT_REFERENCES(VUniqueStringSet)
 DEFINE_VCPPCLASSINFO(VUniqueStringSet, VCell, TEXT("UniqueStringSet"));
 TGlobalTrivialEmergentTypePtr<&VUniqueStringSet::StaticCppClassInfo> VUniqueStringSet::GlobalTrivialEmergentType;
 
 TLazyInitialized<VUniqueStringSetInternPool> VUniqueStringSet::Pool;
+
+void VUniqueStringSet::RunDestructorImpl(VCell* This)
+{
+	VUniqueStringSet& ThisSet = This->StaticCast<VUniqueStringSet>();
+	ThisSet.~VUniqueStringSet();
+}
+
+template <typename TVisitor>
+void VUniqueStringSet::VisitReferencesImpl(TVisitor& Visitor)
+{
+	// We still have to mark each of the strings in the set as being used.
+	VCell::VisitReferences(this, Visitor);
+	Visitor.Visit(Strings.begin(), Strings.end());
+}
 
 } // namespace Verse
 #endif // WITH_VERSE_VM

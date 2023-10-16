@@ -18,11 +18,40 @@ struct VCell;
 struct FRunningContext;
 struct VValue;
 
+struct FAbstractVisitorDispatch;
+struct FMarkStackVisitorDispatch;
+template <typename TVisitor>
+struct TVisitorWrapper;
+using FAbstractVisitor = TVisitorWrapper<FAbstractVisitorDispatch>;
+using FMarkStackVisitor = TVisitorWrapper<FMarkStackVisitorDispatch>;
+
+#define DECLARE_VISIT_REFERENCES(Api)                                             \
+private:                                                                          \
+	template <typename TVisitor>                                                  \
+	FORCEINLINE void VisitReferencesImpl(TVisitor&);                              \
+                                                                                  \
+public:                                                                           \
+	Api static void VisitReferences(::Verse::VCell*, ::Verse::FAbstractVisitor&); \
+	Api static void VisitReferences(::Verse::VCell*, ::Verse::FMarkStackVisitor&);
+
+// VVMAbstractVisitorInline.h and VVMMarkStackVisitor.h need to be included in a source to use DEFINE_VISIT_REFERENCES
+#define DEFINE_VISIT_REFERENCES(ClassName)                                                     \
+	void ClassName::VisitReferences(::Verse::VCell* This, ::Verse::FAbstractVisitor& Visitor)  \
+	{                                                                                          \
+		::Verse::FAbstractVisitorDispatch::FReferrerContext Context(Visitor, This);            \
+		static_cast<ClassName*>(This)->VisitReferencesImpl(Visitor);                           \
+	}                                                                                          \
+	void ClassName::VisitReferences(::Verse::VCell* This, ::Verse::FMarkStackVisitor& Visitor) \
+	{                                                                                          \
+		static_cast<ClassName*>(This)->VisitReferencesImpl(Visitor);                           \
+	}
+
 #define DEFINE_VCPPCLASSINFO_IMPL(CellType, SuperClassInfoPtr, Name) \
 	::Verse::VCppClassInfo CellType::StaticCppClassInfo = {          \
 		(Name),                                                      \
 		(SuperClassInfoPtr),                                         \
-		CellType::MarkReferencedCellsImpl,                           \
+		CellType::VisitReferences,                                   \
+		CellType::VisitReferences,                                   \
 		CellType::ConductCensusImpl,                                 \
 		CellType::RunDestructorImpl,                                 \
 		CellType::EqualImpl,                                         \
@@ -36,7 +65,8 @@ struct VCppClassInfo
 {
 	const TCHAR* Name;
 	VCppClassInfo* SuperClass;
-	void (*MarkReferencedCells)(VCell* This, FMarkStack&);
+	void (*MarkReferencesImpl)(VCell* This, FMarkStackVisitor&);
+	void (*VisitReferencesImpl)(VCell* This, FAbstractVisitor&);
 	void (*ConductCensus)(VCell* This);
 	void (*RunDestructor)(VCell* This);
 	bool (*Equal)(FRunningContext Context, VCell* This, VCell* Other, TFunction<void(VValue, VValue)> HandlePlaceholder);
@@ -52,6 +82,16 @@ struct VCppClassInfo
 			}
 		}
 		return false;
+	}
+
+	FORCEINLINE void VisitReferences(VCell* This, FMarkStackVisitor& Visitor)
+	{
+		MarkReferencesImpl(This, Visitor);
+	}
+
+	FORCEINLINE void VisitReferences(VCell* This, FAbstractVisitor& Visitor)
+	{
+		VisitReferencesImpl(This, Visitor);
 	}
 
 	COREUOBJECT_API FString DebugName() const;

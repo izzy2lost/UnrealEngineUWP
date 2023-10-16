@@ -2,21 +2,25 @@
 
 #if WITH_VERSE_VM
 #include "VerseVM/VVMOption.h"
+#include "VerseVM/Inline/VVMAbstractVisitorInline.h"
 #include "VerseVM/Inline/VVMValueInline.h"
 #include "VerseVM/VVMCppClassInfo.h"
+#include "VerseVM/VVMMarkStackVisitor.h"
 #include "VerseVM/VVMValue.h"
+#include "VerseVM/VVMVisitorWrapper.h"
 
 namespace Verse
 {
 
+DEFINE_VISIT_REFERENCES(VOption);
 DEFINE_VCPPCLASSINFO(VOption, VHeapValue, TEXT("Optional"));
 TGlobalTrivialEmergentTypePtr<&VOption::StaticCppClassInfo> VOption::GlobalTrivialEmergentType;
 
-void VOption::MarkReferencedCellsImpl(VCell* ThisCell, FMarkStack& MarkStack)
+template <typename TVisitor>
+void VOption::VisitReferencesImpl(TVisitor& Visitor)
 {
-	VOption& This = ThisCell->StaticCast<VOption>();
-	VHeapValue::MarkReferencedCellsImpl(&This, MarkStack);
-	This.Value.Mark(MarkStack);
+	VHeapValue::VisitReferences(this, Visitor);
+	Visitor.Visit(Value);
 }
 
 uint32 VOption::GetTypeHashImpl(VCell* ThisCell)

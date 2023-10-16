@@ -16,6 +16,7 @@ struct VFrame : VCell
 {
 	COREUOBJECT_API static VCppClassInfo StaticCppClassInfo;
 	COREUOBJECT_API static TGlobalTrivialEmergentTypePtr<&StaticCppClassInfo> GlobalTrivialEmergentType;
+	DECLARE_VISIT_REFERENCES(COREUOBJECT_API);
 
 	const uint32 NumRegisters;
 	TWriteBarrier<VFrame> CallerFrame;
@@ -29,8 +30,6 @@ struct VFrame : VCell
 	{
 		return *new (Context.AllocateFastCell(offsetof(VFrame, Registers) + sizeof(VRestValue) * NumRegisters)) VFrame(Context, NumRegisters, CallerFrame, CallerPC, Procedure, ReturnSlot);
 	}
-
-	COREUOBJECT_API static void MarkReferencedCellsImpl(VCell* This, FMarkStack&);
 
 	VFrame& CloneWithoutCallerInfo(FAllocationContext Context)
 	{

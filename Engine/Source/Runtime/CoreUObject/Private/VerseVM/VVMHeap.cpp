@@ -7,6 +7,8 @@
 #include "HAL/PlatformTime.h"
 #include "HAL/Thread.h"
 #include "Misc/Fork.h"
+#include "VerseVM/Inline/VVMCellInline.h"
+#include "VerseVM/VVMAbstractVisitor.h"
 #include "VerseVM/VVMCell.h"
 #include "VerseVM/VVMCollectionCycleRequest.h"
 #include "VerseVM/VVMContext.h"
@@ -14,8 +16,10 @@
 #include "VerseVM/VVMGlobalHeapRoot.h"
 #include "VerseVM/VVMHeapIterationSet.h"
 #include "VerseVM/VVMLog.h"
+#include "VerseVM/VVMMarkStackVisitor.h"
 #include "VerseVM/VVMNeverDestroyed.h"
 #include "VerseVM/VVMSubspace.h"
+#include "VerseVM/VVMVisitorWrapper.h"
 #include "pas_scavenger_ue.h"
 #include "verse_heap_mark_bits_page_commit_controller_ue.h"
 #include "verse_heap_ue.h"
@@ -290,10 +294,11 @@ void FHeap::MarkRoots(FIOContext Context)
 	V_DIE_IF(bIsTerminated);
 	FMarkStack MyMarkStack;
 	{
+		FMarkStackVisitor Visitor(MyMarkStack);
 		TUniqueLock Lock(GlobalRootMutex);
 		for (FGlobalHeapRoot* Root : *GlobalRoots)
 		{
-			Root->MarkReferencedCells(MyMarkStack);
+			Root->Visit(Visitor);
 		}
 	}
 	{
@@ -321,9 +326,10 @@ void FHeap::Mark(FIOContext Context)
 		{
 			break;
 		}
+		FMarkStackVisitor Visitor(MyMarkStack);
 		while (VCell* Cell = MyMarkStack.Pop())
 		{
-			Cell->MarkReferencedCells(MyMarkStack);
+			Cell->VisitReferences(Visitor);
 		}
 	}
 }

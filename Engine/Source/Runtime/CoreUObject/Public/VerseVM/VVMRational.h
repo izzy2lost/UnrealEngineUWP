@@ -21,6 +21,7 @@ struct VRational : VHeapValue
 {
 	COREUOBJECT_API static VCppClassInfo StaticCppClassInfo;
 	COREUOBJECT_API static TGlobalTrivialEmergentTypePtr<&StaticCppClassInfo> GlobalTrivialEmergentType;
+	DECLARE_VISIT_REFERENCES(COREUOBJECT_API);
 
 	TWriteBarrier<VValue> Numerator;
 	TWriteBarrier<VValue> Denominator;
@@ -53,8 +54,6 @@ struct VRational : VHeapValue
 	{
 		return *new (Context.AllocateFastCell(sizeof(VRational))) VRational(Context, InNumerator, InDenominator);
 	}
-
-	COREUOBJECT_API static void MarkReferencedCellsImpl(VCell* This, FMarkStack&);
 
 	COREUOBJECT_API static bool EqualImpl(FRunningContext Context, VCell* This, VCell* Other, TFunction<void(VValue, VValue)> HandlePlaceholder);
 

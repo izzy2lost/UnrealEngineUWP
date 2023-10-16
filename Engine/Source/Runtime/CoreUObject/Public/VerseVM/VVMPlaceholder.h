@@ -14,6 +14,7 @@ struct VPlaceholder : public VCell
 {
 	COREUOBJECT_API static VCppClassInfo StaticCppClassInfo;
 	COREUOBJECT_API static TGlobalTrivialEmergentTypePtr<&StaticCppClassInfo> GlobalTrivialEmergentType;
+	DECLARE_VISIT_REFERENCES(COREUOBJECT_API);
 
 	TWriteBarrier<VValue> Value;
 
@@ -108,8 +109,6 @@ struct VPlaceholder : public VCell
 		}
 		Root.Value.Set(Context, Suspension);
 	}
-
-	COREUOBJECT_API static void MarkReferencedCellsImpl(VCell* This, FMarkStack&);
 
 private:
 	void SetParent(FAccessContext Context, VPlaceholder& Other)

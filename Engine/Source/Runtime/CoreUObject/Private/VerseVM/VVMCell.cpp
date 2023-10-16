@@ -2,14 +2,17 @@
 
 #if WITH_VERSE_VM
 #include "VerseVM/VVMCell.h"
+#include "VerseVM/Inline/VVMAbstractVisitorInline.h"
 #include "VerseVM/Inline/VVMCellInline.h"
 #include "VerseVM/VVMCppClassInfo.h"
 #include "VerseVM/VVMEmergentType.h"
 #include "VerseVM/VVMHeap.h"
+#include "VerseVM/VVMMarkStackVisitor.h"
+#include "VerseVM/VVMVisitorWrapper.h"
 
 namespace Verse
 {
-
+DEFINE_VISIT_REFERENCES(VCell);
 DEFINE_VCPPCLASSINFO_IMPL(VCell, nullptr, TEXT("Cell"));
 DEFINE_VCPPCLASSINFO(VHeapValue, VCell, TEXT("HeapValue"));
 
@@ -31,11 +34,6 @@ FString VCell::DebugName() const
 	return GetEmergentType()->CppClassInfo->DebugName();
 }
 
-void VCell::MarkReferencedCells(FMarkStack& MarkStack)
-{
-	GetEmergentType()->CppClassInfo->MarkReferencedCells(this, MarkStack);
-}
-
 void VCell::ConductCensus()
 {
 	GetEmergentType()->CppClassInfo->ConductCensus(this);
@@ -51,9 +49,10 @@ bool VCell::Equal(FRunningContext Context, VCell* Other, TFunction<void(VValue, 
 	return GetEmergentType()->CppClassInfo->Equal(Context, this, Other, HandlePlaceholder);
 }
 
-void VCell::MarkReferencedCellsImpl(VCell* This, FMarkStack& MarkStack)
+template <typename TVisitor>
+void VCell::VisitReferencesImpl(TVisitor& Visitor)
 {
-	MarkStack.MarkNonNull(This->GetEmergentType());
+	Visitor.VisitNonNull(GetEmergentType());
 }
 
 void VCell::ConductCensusImpl(VCell* This)

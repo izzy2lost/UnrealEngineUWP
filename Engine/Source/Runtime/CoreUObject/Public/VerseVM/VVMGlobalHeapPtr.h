@@ -6,9 +6,12 @@
 #error In order to use VerseVM, WITH_VERSE_VM must be set
 #endif
 
+#include "Inline/VVMAbstractVisitorInline.h"
 #include "VVMGlobalHeapRoot.h"
 #include "VVMLazyInitialized.h"
 #include "VVMMarkStack.h"
+#include "VVMMarkStackVisitor.h"
+#include "VVMVisitorWrapper.h"
 #include "VVMWriteBarrier.h"
 
 namespace Verse
@@ -26,9 +29,20 @@ struct TGlobalHeapPtrImpl : FGlobalHeapRoot
 	{
 	}
 
-	void MarkReferencedCells(FMarkStack& MarkStack) override
+	void Visit(FAbstractVisitor& Visitor) override
 	{
-		TWriteBarrier<T>::Mark(MarkStack);
+		VisitImpl(Visitor);
+	}
+
+	void Visit(FMarkStackVisitor& Visitor) override
+	{
+		VisitImpl(Visitor);
+	}
+
+	template <typename TVisitor>
+	void VisitImpl(TVisitor& Visitor)
+	{
+		Visitor.Visit(*this);
 	}
 };
 

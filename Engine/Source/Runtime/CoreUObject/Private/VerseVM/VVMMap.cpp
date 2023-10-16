@@ -4,8 +4,11 @@
 #include "VerseVM/VVMMap.h"
 #include "Async/UniqueLock.h"
 #include "Templates/TypeHash.h"
+#include "VerseVM/Inline/VVMAbstractVisitorInline.h"
 #include "VerseVM/Inline/VVMEqualInline.h"
 #include "VerseVM/Inline/VVMValueInline.h"
+#include "VerseVM/VVMMarkStackVisitor.h"
+#include "VerseVM/VVMVisitorWrapper.h"
 #include "VerseVM/VVMWriteBarrier.h"
 
 namespace Verse
@@ -21,6 +24,7 @@ uint32 VMapInternalKeyFuncs::GetKeyHash(VValue Key)
 	return GetTypeHash(Key);
 }
 
+DEFINE_VISIT_REFERENCES(VMap);
 DEFINE_VCPPCLASSINFO(VMap, VHeapValue, TEXT("Map"));
 TGlobalTrivialEmergentTypePtr<&VMap::StaticCppClassInfo> VMap::GlobalTrivialEmergentType;
 
@@ -58,17 +62,17 @@ VValue VMap::GetValue(const int32 Index)
 	return Result.Follow();
 }
 
-void VMap::MarkReferencedCellsImpl(VCell* ThisCell, FMarkStack& MarkStack)
+template <typename TVisitor>
+void VMap::VisitReferencesImpl(TVisitor& Visitor)
 {
-	VMap& This = ThisCell->StaticCast<VMap>();
-	VHeapValue::MarkReferencedCellsImpl(&This, MarkStack);
+	VHeapValue::VisitReferences(this, Visitor);
 
-	UE::TUniqueLock Lock(This.MapMutex);
+	UE::TUniqueLock Lock(MapMutex);
 
-	for (VMapInternal::TIterator MapIt = This.InternalMap.CreateIterator(); MapIt; ++MapIt)
+	for (VMapInternal::TIterator MapIt = InternalMap.CreateIterator(); MapIt; ++MapIt)
 	{
-		MapIt.Key().Mark(MarkStack);
-		MapIt.Value().Mark(MarkStack);
+		Visitor.Visit(MapIt.Key());
+		Visitor.Visit(MapIt.Value());
 	}
 }
 

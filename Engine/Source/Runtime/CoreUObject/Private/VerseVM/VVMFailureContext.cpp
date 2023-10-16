@@ -2,28 +2,32 @@
 
 #if WITH_VERSE_VM
 #include "VerseVM/VVMFailureContext.h"
+#include "VVMFrame.h"
+#include "VerseVM/Inline/VVMAbstractVisitorInline.h"
 #include "VerseVM/Inline/VVMCellInline.h"
 #include "VerseVM/VVMCppClassInfo.h"
+#include "VerseVM/VVMMarkStackVisitor.h"
+#include "VerseVM/VVMVisitorWrapper.h"
 
 namespace Verse
 {
 
+DEFINE_VISIT_REFERENCES(VFailureContext)
 DEFINE_VCPPCLASSINFO(VFailureContext, VCell, TEXT("FailureContext"));
 TGlobalTrivialEmergentTypePtr<&VFailureContext::StaticCppClassInfo> VFailureContext::GlobalTrivialEmergentType;
 
-void VFailureContext::MarkReferencedCellsImpl(VCell* ThisCell, FMarkStack& MarkStack)
+template <typename TVisitor>
+void VFailureContext::VisitReferencesImpl(TVisitor& Visitor)
 {
-	VFailureContext& This = ThisCell->StaticCast<VFailureContext>();
-	VCell::MarkReferencedCellsImpl(&This, MarkStack);
-
-	This.FirstChild.Mark(MarkStack);
-	This.Next.Mark(MarkStack);
-	This.Prev.Mark(MarkStack);
-	This.Parent.Mark(MarkStack);
-	This.Frame.Mark(MarkStack);
-	This.IncomingEffectToken.Mark(MarkStack);
-	This.BeforeThenEffectToken.MarkReferencedCell(MarkStack);
-	This.DoneEffectToken.MarkReferencedCell(MarkStack);
+	VCell::VisitReferences(this, Visitor);
+	Visitor.Visit(FirstChild);
+	Visitor.Visit(Next);
+	Visitor.Visit(Prev);
+	Visitor.Visit(Parent);
+	Visitor.Visit(Frame);
+	Visitor.Visit(IncomingEffectToken);
+	Visitor.Visit(BeforeThenEffectToken);
+	Visitor.Visit(DoneEffectToken);
 }
 
 } // namespace Verse

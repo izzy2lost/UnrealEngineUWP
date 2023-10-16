@@ -52,6 +52,7 @@ private:
 struct VTuple : VHeapValue
 {
 	COREUOBJECT_API static VCppClassInfo StaticCppClassInfo;
+	DECLARE_VISIT_REFERENCES(COREUOBJECT_API);
 
 	const uint32 NumValues;
 	TWriteBarrier<VValue> Values[];
@@ -85,8 +86,6 @@ struct VTuple : VHeapValue
 		}
 		return Result;
 	}
-
-	COREUOBJECT_API static void MarkReferencedCellsImpl(VCell* This, FMarkStack&);
 
 	COREUOBJECT_API static bool EqualImpl(FRunningContext Context, VCell* This, VCell* Other, TFunction<void(VValue, VValue)> HandlePlaceholder);
 

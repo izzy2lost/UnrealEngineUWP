@@ -2,48 +2,53 @@
 
 #if WITH_VERSE_VM
 #include "VerseVM/VVMSuspension.h"
+#include "VerseVM/Inline/VVMAbstractVisitorInline.h"
 #include "VerseVM/Inline/VVMCellInline.h"
 #include "VerseVM/VVMBytecodesAndCaptures.h"
 #include "VerseVM/VVMCaptureSwitch.h"
 #include "VerseVM/VVMCppClassInfo.h"
+#include "VerseVM/VVMFailureContext.h"
+#include "VerseVM/VVMMarkStackVisitor.h"
+#include "VerseVM/VVMProcedure.h"
+#include "VerseVM/VVMVisitorWrapper.h"
 
 namespace Verse
 {
 
+DEFINE_VISIT_REFERENCES(VSuspension);
+DEFINE_VISIT_REFERENCES(VBytecodeSuspension);
+DEFINE_VISIT_REFERENCES(VLambdaSuspension);
 DEFINE_VCPPCLASSINFO(VSuspension, VCell, TEXT("Suspension"));
 DEFINE_VCPPCLASSINFO(VBytecodeSuspension, VSuspension, TEXT("BytecodeSuspension"));
 DEFINE_VCPPCLASSINFO(VLambdaSuspension, VSuspension, TEXT("LambdaSuspension"));
 TGlobalTrivialEmergentTypePtr<&VBytecodeSuspension::StaticCppClassInfo> VBytecodeSuspension::GlobalTrivialEmergentType;
 TGlobalTrivialEmergentTypePtr<&VLambdaSuspension::StaticCppClassInfo> VLambdaSuspension::GlobalTrivialEmergentType;
 
-void VSuspension::MarkReferencedCellsImpl(VCell* ThisCell, FMarkStack& MarkStack)
+template <typename TVisitor>
+void VSuspension::VisitReferencesImpl(TVisitor& Visitor)
 {
-	VSuspension& This = ThisCell->StaticCast<VSuspension>();
-	VCell::MarkReferencedCellsImpl(&This, MarkStack);
-	This.FailureContext.Mark(MarkStack);
-	This.Next.Mark(MarkStack);
+	VCell::VisitReferences(this, Visitor);
+	Visitor.Visit(FailureContext);
+	Visitor.Visit(Next);
 }
 
-void VBytecodeSuspension::MarkReferencedCellsImpl(VCell* ThisCell, FMarkStack& MarkStack)
+template <typename TVisitor>
+void VBytecodeSuspension::VisitReferencesImpl(TVisitor& Visitor)
 {
-	VBytecodeSuspension& This = ThisCell->StaticCast<VBytecodeSuspension>();
-	VSuspension::MarkReferencedCellsImpl(&This, MarkStack);
-	This.Procedure.Mark(MarkStack);
-	This.CaptureSwitch([&MarkStack](auto& Captures) {
-		Captures.ForEachOperand([&MarkStack](EOperandRole, auto Value) {
-			Value.Mark(MarkStack); // Whether or not this is a `VValue` or `TWriteBarrier<T>`, just mark it.
+	VSuspension::VisitReferences(this, Visitor);
+	Visitor.Visit(Procedure);
+	CaptureSwitch([&Visitor](auto& Captures) {
+		Captures.ForEachOperand([&Visitor](EOperandRole, auto Value) {
+			Visitor.Visit(Value); // Whether or not this is a `VValue` or `TWriteBarrier<T>`, just mark it.
 		});
 	});
 }
 
-void VLambdaSuspension::MarkReferencedCellsImpl(VCell* ThisCell, FMarkStack& MarkStack)
+template <typename TVisitor>
+void VLambdaSuspension::VisitReferencesImpl(TVisitor& Visitor)
 {
-	VLambdaSuspension& This = ThisCell->StaticCast<VLambdaSuspension>();
-	VSuspension::MarkReferencedCellsImpl(&This, MarkStack);
-	for (size_t I = 0; I < This.NumValues; ++I)
-	{
-		This.Args()[I].Mark(MarkStack);
-	}
+	VSuspension::VisitReferences(this, Visitor);
+	Visitor.Visit(Args(), NumValues);
 }
 
 } // namespace Verse

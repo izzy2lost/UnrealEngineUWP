@@ -17,6 +17,7 @@ struct VVar : VCell
 {
 	COREUOBJECT_API static VCppClassInfo StaticCppClassInfo;
 	COREUOBJECT_API static TGlobalTrivialEmergentTypePtr<&StaticCppClassInfo> GlobalTrivialEmergentType;
+	DECLARE_VISIT_REFERENCES(COREUOBJECT_API);
 
 	static VVar& New(FAllocationContext Context)
 	{
@@ -34,8 +35,6 @@ struct VVar : VCell
 	{
 		return Value.Set(Context, NewValue);
 	}
-
-	COREUOBJECT_API static void MarkReferencedCellsImpl(VCell* This, FMarkStack&);
 
 private:
 	VRestValue Value;

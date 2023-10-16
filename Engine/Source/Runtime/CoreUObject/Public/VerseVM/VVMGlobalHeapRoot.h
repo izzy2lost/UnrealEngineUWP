@@ -10,7 +10,12 @@
 
 namespace Verse
 {
-struct FMarkStack;
+struct FAbstractVisitorDispatch;
+struct FMarkStackVisitorDispatch;
+template <typename TVisitor>
+struct TVisitorWrapper;
+using FAbstractVisitor = TVisitorWrapper<FAbstractVisitorDispatch>;
+using FMarkStackVisitor = TVisitorWrapper<FMarkStackVisitorDispatch>;
 
 // If you have a class that is meant to be used exclusively for global variables (like TUniqueConstructor), then
 // subclass this to give that class the ability to mark its referenced cells.
@@ -20,7 +25,9 @@ struct FGlobalHeapRoot
 {
 	COREUOBJECT_API FGlobalHeapRoot();
 
-	virtual void MarkReferencedCells(FMarkStack&) = 0;
+	// Implement these visit any strong references in the root
+	virtual void Visit(FMarkStackVisitor& Visitor) = 0;
+	virtual void Visit(FAbstractVisitor& Visitor) = 0;
 };
 
 } // namespace Verse

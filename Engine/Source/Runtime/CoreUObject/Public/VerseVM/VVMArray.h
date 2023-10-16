@@ -23,6 +23,7 @@ struct VArray : VHeapValue
 {
 	COREUOBJECT_API static VCppClassInfo StaticCppClassInfo;
 	COREUOBJECT_API static TGlobalTrivialEmergentTypePtr<&StaticCppClassInfo> GlobalTrivialEmergentType;
+	DECLARE_VISIT_REFERENCES(COREUOBJECT_API);
 
 private:
 	uint32 NumValues;
@@ -71,8 +72,6 @@ public:
 	}
 
 	static VArray& Concat(FAllocationContext Context, VArray& Lhs, VArray& Rhs);
-
-	COREUOBJECT_API static void MarkReferencedCellsImpl(VCell* This, FMarkStack&);
 
 	COREUOBJECT_API static bool EqualImpl(FRunningContext Context, VCell* This, VCell* Other, TFunction<void(VValue, VValue)> HandlePlaceholder);
 

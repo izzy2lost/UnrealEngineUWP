@@ -135,18 +135,6 @@ struct TWriteBarrier
 
 	explicit operator bool() const { return !!Value; }
 
-	void Mark(FMarkStack& MarkStack)
-	{
-		if constexpr (bIsVValue)
-		{
-			Value.Mark(MarkStack);
-		}
-		else
-		{
-			MarkStack.Mark(reinterpret_cast<VCell*>(Value));
-		}
-	}
-
 	friend uint32 GetTypeHash(const TWriteBarrier<T>& WriteBarrier)
 	{
 		if constexpr (bIsVValue)

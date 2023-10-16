@@ -20,6 +20,7 @@ struct VProcedure;
 struct VSuspension : VCell
 {
 	COREUOBJECT_API static VCppClassInfo StaticCppClassInfo;
+	DECLARE_VISIT_REFERENCES(COREUOBJECT_API);
 
 	TWriteBarrier<VFailureContext> FailureContext;
 	TWriteBarrier<VSuspension> Next;
@@ -35,8 +36,6 @@ struct VSuspension : VCell
 	}
 
 protected:
-	COREUOBJECT_API static void MarkReferencedCellsImpl(VCell* This, FMarkStack&);
-
 	VSuspension(FAllocationContext Context, VEmergentType* EmergentType, VFailureContext& FailureContext)
 		: VCell(Context, EmergentType)
 		, FailureContext(Context, FailureContext)
@@ -48,6 +47,7 @@ struct VBytecodeSuspension : public VSuspension
 {
 	COREUOBJECT_API static VCppClassInfo StaticCppClassInfo;
 	COREUOBJECT_API static TGlobalTrivialEmergentTypePtr<&StaticCppClassInfo> GlobalTrivialEmergentType;
+	DECLARE_VISIT_REFERENCES(COREUOBJECT_API);
 
 	template <typename Captures>
 	static VBytecodeSuspension& New(FAllocationContext Context, VFailureContext& FailureContext, VProcedure& Procedure, FOp* PC, const Captures& TheCaptures)
@@ -68,8 +68,6 @@ struct VBytecodeSuspension : public VSuspension
 
 	template <typename TFunc>
 	void CaptureSwitch(const TFunc& Func);
-
-	COREUOBJECT_API static void MarkReferencedCellsImpl(VCell* This, FMarkStack&);
 
 private:
 	template <typename Captures>
@@ -96,6 +94,7 @@ struct VLambdaSuspension : public VSuspension
 {
 	COREUOBJECT_API static VCppClassInfo StaticCppClassInfo;
 	COREUOBJECT_API static TGlobalTrivialEmergentTypePtr<&StaticCppClassInfo> GlobalTrivialEmergentType;
+	DECLARE_VISIT_REFERENCES(COREUOBJECT_API);
 
 	typedef void (*CallbackType)(FRunningContext, VLambdaSuspension& This, VSuspension*& ToFire);
 
@@ -114,8 +113,6 @@ struct VLambdaSuspension : public VSuspension
 	}
 
 private:
-	COREUOBJECT_API static void MarkReferencedCellsImpl(VCell* This, FMarkStack&);
-
 	static size_t ArgsOffset()
 	{
 		return Align(sizeof(VLambdaSuspension), alignof(TWriteBarrier<VValue>));

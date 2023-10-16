@@ -18,6 +18,7 @@ struct VPackage : VHeapValue
 {
 	COREUOBJECT_API static VCppClassInfo StaticCppClassInfo;
 	COREUOBJECT_API static TGlobalTrivialEmergentTypePtr<&StaticCppClassInfo> GlobalTrivialEmergentType;
+	DECLARE_VISIT_REFERENCES(COREUOBJECT_API);
 
 	// We keep names at 2*Index and definitions at 2*Index+1
 	TWriteBarrier<VArray> NameAndDefinitions;
@@ -85,8 +86,6 @@ struct VPackage : VHeapValue
 	{
 		return *new (Context.AllocateFastCell(sizeof(VPackage))) VPackage(Context, Capacity);
 	}
-
-	COREUOBJECT_API static void MarkReferencedCellsImpl(VCell* This, FMarkStack&);
 
 private:
 	VPackage(FAllocationContext Context, uint32 Capacity)

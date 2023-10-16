@@ -2,15 +2,19 @@
 
 #if WITH_VERSE_VM
 #include "VerseVM/VVMProcedure.h"
+#include "VerseVM/Inline/VVMAbstractVisitorInline.h"
 #include "VerseVM/Inline/VVMCellInline.h"
 #include "VerseVM/VVMBytecodeOps.h"
 #include "VerseVM/VVMBytecodesAndCaptures.h"
 #include "VerseVM/VVMCppClassInfo.h"
 #include "VerseVM/VVMLog.h"
+#include "VerseVM/VVMMarkStackVisitor.h"
+#include "VerseVM/VVMVisitorWrapper.h"
 
 namespace Verse
 {
 
+DEFINE_VISIT_REFERENCES(VProcedure);
 DEFINE_VCPPCLASSINFO(VProcedure, VHeapValue, TEXT("Procedure"));
 TGlobalTrivialEmergentTypePtr<&VProcedure::StaticCppClassInfo> VProcedure::GlobalTrivialEmergentType;
 
@@ -47,17 +51,14 @@ void VProcedure::RunDestructorImpl(VCell* This)
 	ThisProcedure.~VProcedure();
 }
 
-void VProcedure::MarkReferencedCellsImpl(VCell* ThisCell, FMarkStack& MarkStack)
+template <typename TVisitor>
+void VProcedure::VisitReferencesImpl(TVisitor& Visitor)
 {
-	VProcedure& This = ThisCell->StaticCast<VProcedure>();
-	VHeapValue::MarkReferencedCellsImpl(&This, MarkStack);
-	for (uint32 Index = This.NumConstants; Index--;)
-	{
-		This.Constants[Index].Mark(MarkStack);
-	}
+	VHeapValue::VisitReferences(this, Visitor);
+	Visitor.Visit(Constants, NumConstants);
 
 	// We also need to mark the immediate operands for each opcode to make sure that the GC doesn't sweep them.
-	for (FOp* CurrentOp = This.GetOpsBegin(); CurrentOp != This.GetOpsEnd();)
+	for (FOp* CurrentOp = GetOpsBegin(); CurrentOp != GetOpsEnd();)
 	{
 		checkf(CurrentOp != nullptr, TEXT("The current opcode was invalid!"));
 		switch (CurrentOp->Opcode)
@@ -66,7 +67,7 @@ void VProcedure::MarkReferencedCellsImpl(VCell* ThisCell, FMarkStack& MarkStack)
 	case EOpcode::Name:                                                                                              \
 	{                                                                                                                \
 		FOp##Name* CurrentDerivedOp = static_cast<FOp##Name*>(CurrentOp);                                            \
-		CurrentDerivedOp->ForEachOperand([&MarkStack](EOperandRole Role, auto& Operand) {                            \
+		CurrentDerivedOp->ForEachOperand([&Visitor](EOperandRole Role, auto& Operand) {                              \
 			using DecayedType = std::decay_t<decltype(Operand)>;                                                     \
 			if constexpr (std::is_same_v<DecayedType, FValueOperand> || std::is_same_v<DecayedType, FRegisterIndex>) \
 			{                                                                                                        \
@@ -74,7 +75,7 @@ void VProcedure::MarkReferencedCellsImpl(VCell* ThisCell, FMarkStack& MarkStack)
 			}                                                                                                        \
 			else if (Role == EOperandRole::Immediate)                                                                \
 			{                                                                                                        \
-				Operand.Mark(MarkStack);                                                                             \
+				Visitor.Visit(Operand);                                                                              \
 			}                                                                                                        \
 		});                                                                                                          \
 		CurrentOp = BitCast<FOp*>(CurrentDerivedOp + 1);                                                             \

@@ -51,7 +51,11 @@ struct VRestValue
 
 	FString ToString(FAllocationContext, const FCellFormatter& Formatter) const;
 
-	void MarkReferencedCell(FMarkStack&);
+	template <typename TVisitor>
+	FORCEINLINE void Visit(TVisitor& Visitor) const
+	{
+		Visitor.Visit(Value);
+	}
 
 	friend uint32 GetTypeHash(VRestValue RestValue);
 

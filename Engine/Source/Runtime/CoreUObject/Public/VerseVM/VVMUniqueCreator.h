@@ -8,9 +8,12 @@
 
 #include "Async/Mutex.h"
 #include "Async/UniqueLock.h"
+#include "Inline/VVMAbstractVisitorInline.h"
 #include "VVMContext.h"
 #include "VVMGlobalHeapRoot.h"
 #include "VVMLog.h"
+#include "VVMMarkStackVisitor.h"
+#include "VVMVisitorWrapper.h"
 #include "VVMWriteBarrier.h"
 
 namespace Verse
@@ -74,16 +77,24 @@ public:
 		return AddLocked(Context, Item);
 	}
 
-	void MarkReferencedCells(FMarkStack& MarkStack) override
+	void Visit(FAbstractVisitor& Visitor) override
 	{
-		UE::TUniqueLock Lock(Mutex);
-		for (uint32 Index = ItemsEnd; Index--;)
-		{
-			Items[Index].Mark(MarkStack);
-		}
+		VisitImpl(Visitor);
+	}
+
+	void Visit(FMarkStackVisitor& Visitor) override
+	{
+		VisitImpl(Visitor);
 	}
 
 private:
+	template <typename TVisitor>
+	void VisitImpl(TVisitor& Visitor)
+	{
+		UE::TUniqueLock Lock(Mutex);
+		Visitor.Visit(Items, ItemsEnd);
+	}
+
 	UE::FMutex Mutex;
 };
 }; // namespace Verse

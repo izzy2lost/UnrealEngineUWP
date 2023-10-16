@@ -3,14 +3,18 @@
 #if WITH_VERSE_VM
 #include "VerseVM/VVMRational.h"
 #include "Templates/TypeHash.h"
+#include "VerseVM/Inline/VVMAbstractVisitorInline.h"
 #include "VerseVM/Inline/VVMCellInline.h"
 #include "VerseVM/Inline/VVMIntInline.h"
 #include "VerseVM/Inline/VVMValueInline.h"
 #include "VerseVM/VVMCppClassInfo.h"
+#include "VerseVM/VVMMarkStackVisitor.h"
+#include "VerseVM/VVMVisitorWrapper.h"
 
 namespace Verse
 {
 
+DEFINE_VISIT_REFERENCES(VRational);
 DEFINE_VCPPCLASSINFO(VRational, VHeapValue, TEXT("Rational"));
 TGlobalTrivialEmergentTypePtr<&VRational::StaticCppClassInfo> VRational::GlobalTrivialEmergentType;
 
@@ -184,12 +188,12 @@ void VRational::NormalizeSigns(FRunningContext Context)
 	}
 }
 
-void VRational::MarkReferencedCellsImpl(VCell* ThisCell, FMarkStack& MarkStack)
+template <typename TVisitor>
+void VRational::VisitReferencesImpl(TVisitor& Visitor)
 {
-	VRational& This = ThisCell->StaticCast<VRational>();
-	VHeapValue::MarkReferencedCellsImpl(&This, MarkStack);
-	This.Numerator.Mark(MarkStack);
-	This.Denominator.Mark(MarkStack);
+	VHeapValue::VisitReferences(this, Visitor);
+	Visitor.Visit(Numerator);
+	Visitor.Visit(Denominator);
 }
 
 bool VRational::EqualImpl(FRunningContext Context, VCell* ThisCell, VCell* Other, TFunction<void(VValue, VValue)> HandlePlaceholder)

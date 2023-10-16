@@ -18,6 +18,7 @@ struct VShape;
 struct VEmergentType final : VCell
 {
 	COREUOBJECT_API static VCppClassInfo StaticCppClassInfo;
+	DECLARE_VISIT_REFERENCES(COREUOBJECT_API);
 
 	TWriteBarrier<VShape> Shape; // This is immutable. If you need to change an object's shape, transition to a new emergent type that points to your new shape instead.
 	TWriteBarrier<VType> Type;
@@ -42,8 +43,6 @@ struct VEmergentType final : VCell
 	{
 		return EmergentType.Shape.Get() == InShape && EmergentType.Type.Get() == Type && EmergentType.CppClassInfo == CppClassInfo;
 	}
-
-	COREUOBJECT_API static void MarkReferencedCellsImpl(VCell* This, FMarkStack&);
 
 	friend uint32 GetTypeHash(const VEmergentType& EmergentType)
 	{

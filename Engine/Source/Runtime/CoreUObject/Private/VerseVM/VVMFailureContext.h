@@ -18,6 +18,7 @@ struct VFailureContext : VCell
 {
 	COREUOBJECT_API static VCppClassInfo StaticCppClassInfo;
 	COREUOBJECT_API static TGlobalTrivialEmergentTypePtr<&StaticCppClassInfo> GlobalTrivialEmergentType;
+	DECLARE_VISIT_REFERENCES(COREUOBJECT_API);
 
 	// TODO: We could organize this class to point to a "Rare Data" cell
 	// that has fields that are populated just when leniency is encountered.
@@ -54,8 +55,6 @@ struct VFailureContext : VCell
 	{
 		return *new (Context.AllocateFastCell(sizeof(VFailureContext))) VFailureContext(Context, Parent, Frame, IncomingEffectToken, FailurePC);
 	}
-
-	COREUOBJECT_API static void MarkReferencedCellsImpl(VCell*, FMarkStack&);
 
 	void FinishedExecuting(FRunningContext Context)
 	{

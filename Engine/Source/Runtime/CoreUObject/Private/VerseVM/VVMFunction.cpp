@@ -2,23 +2,26 @@
 
 #if WITH_VERSE_VM
 #include "VerseVM/VVMFunction.h"
+#include "VerseVM/Inline/VVMAbstractVisitorInline.h"
+#include "VerseVM/Inline/VVMCellInline.h"
 #include "VerseVM/VVMCppClassInfo.h"
+#include "VerseVM/VVMMarkStackVisitor.h"
+#include "VerseVM/VVMProcedure.h"
+#include "VerseVM/VVMVisitorWrapper.h"
 
 namespace Verse
 {
 
+DEFINE_VISIT_REFERENCES(VFunction);
 DEFINE_VCPPCLASSINFO(VFunction, VCell, TEXT("Function"));
 TGlobalTrivialEmergentTypePtr<&VFunction::StaticCppClassInfo> VFunction::GlobalTrivialEmergentType;
 
-void VFunction::MarkReferencedCellsImpl(VCell* ThisCell, FMarkStack& MarkStack)
+template <typename TVisitor>
+void VFunction::VisitReferencesImpl(TVisitor& Visitor)
 {
-	VFunction& This = ThisCell->StaticCast<VFunction>();
-	VCell::MarkReferencedCellsImpl(&This, MarkStack);
-	This.Procedure.Mark(MarkStack);
-	for (uint32 Index = This.NumCaptures; Index--;)
-	{
-		This.Captures[Index].Mark(MarkStack);
-	}
+	VCell::VisitReferences(this, Visitor);
+	Visitor.Visit(Procedure);
+	Visitor.Visit(Captures, NumCaptures);
 }
 
 } // namespace Verse

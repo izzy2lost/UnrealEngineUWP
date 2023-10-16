@@ -233,6 +233,7 @@ struct VUniqueStringSet : VCell
 	using SetType = TSet<TWriteBarrier<VUniqueString>, FUniqueStringSetKeyFuncs<TWriteBarrier<VUniqueString>>>;
 	COREUOBJECT_API static VCppClassInfo StaticCppClassInfo;
 	COREUOBJECT_API static TGlobalTrivialEmergentTypePtr<&StaticCppClassInfo> GlobalTrivialEmergentType;
+	DECLARE_VISIT_REFERENCES(COREUOBJECT_API);
 
 	// This allows for this type to be used in range-based loops.
 	class FConstIterator
@@ -272,7 +273,6 @@ private:
 
 	static VUniqueStringSet& Make(FAllocationContext Context, const TSet<VUniqueString*>& InSet);
 	static void RunDestructorImpl(VCell* This);
-	static void MarkReferencedCellsImpl(VCell* This, FMarkStack& MarkStack);
 	static bool Equals(const TSet<VUniqueString*>& A, const TSet<VUniqueString*>& B);
 
 	/// Global unique string set pool. This has to be wrapped in a `TLazyInitialized` so that the Verse heap is first

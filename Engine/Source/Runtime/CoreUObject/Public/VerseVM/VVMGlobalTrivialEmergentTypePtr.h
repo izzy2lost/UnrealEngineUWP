@@ -22,9 +22,14 @@ struct FGlobalTrivialEmergentTypePtrRoot : FGlobalHeapRoot
 	{
 	}
 
-	COREUOBJECT_API void MarkReferencedCells(FMarkStack& MarkStack) override;
+	void Visit(FAbstractVisitor& Visitor) override;
+	void Visit(FMarkStackVisitor& Visitor) override;
 
 	TWriteBarrier<VEmergentType> EmergentType;
+
+private:
+	template <typename TVisitor>
+	FORCEINLINE void VisitImpl(TVisitor&);
 };
 
 template <VCppClassInfo* ClassInfo>

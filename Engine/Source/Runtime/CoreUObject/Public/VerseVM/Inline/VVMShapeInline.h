@@ -85,32 +85,6 @@ inline VFields::VFields(FAllocationContext Context, VFields::FieldsMap&& InField
 {
 }
 
-inline void VFields::MarkFields(VFields::FieldsMap& Fields, FMarkStack& MarkStack)
-{
-	for (auto It = Fields.CreateIterator(); It; ++It)
-	{
-		switch (It->Value.Type)
-		{
-			case EFieldType::Constant:
-				It->Value.Constant.Mark(MarkStack);
-				break;
-			case EFieldType::Offset:
-			case EFieldType::Mutable:
-				break;
-			default:
-				VERSE_UNREACHABLE();
-		}
-		It->Key.Mark(MarkStack);
-	}
-}
-
-inline void VFields::MarkReferencedCellsImpl(VCell* ThisCell, FMarkStack& MarkStack)
-{
-	VHeapValue::MarkReferencedCellsImpl(ThisCell, MarkStack);
-	VFields* This = static_cast<VFields*>(ThisCell);
-	VFields::MarkFields(This->Fields, MarkStack);
-}
-
 inline VFields& VFields::VFields::New(FAllocationContext Context, VFields::FieldsMap&& InFields)
 {
 	// We allocate in the destructor space here since we're making `VFields` destructible so that it can
@@ -135,19 +109,6 @@ inline const VFields::VEntry* VShape::GetField(FAllocationContext Context, const
 	{
 		return nullptr;
 	}
-}
-
-inline void VFields::RunDestructorImpl(VCell* This)
-{
-	VFields& ThisFields = *static_cast<VFields*>(This);
-	ThisFields.~VFields();
-}
-
-inline void VShape::MarkReferencedCellsImpl(VCell* ThisCell, FMarkStack& MarkStack)
-{
-	VHeapValue::MarkReferencedCellsImpl(ThisCell, MarkStack);
-	VShape& This = ThisCell->StaticCast<VShape>();
-	VFields::MarkFields(This.Fields, MarkStack);
 }
 
 inline uint64 VShape::GetNumFields() const

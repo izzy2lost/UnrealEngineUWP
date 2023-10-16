@@ -3,24 +3,25 @@
 #if WITH_VERSE_VM
 #include "VerseVM/VVMTuple.h"
 #include "Templates/TypeHash.h"
+#include "VerseVM/Inline/VVMAbstractVisitorInline.h"
 #include "VerseVM/Inline/VVMEqualInline.h"
 #include "VerseVM/Inline/VVMTupleInline.h"
 #include "VerseVM/VVMCppClassInfo.h"
+#include "VerseVM/VVMMarkStackVisitor.h"
 #include "VerseVM/VVMValue.h"
+#include "VerseVM/VVMVisitorWrapper.h"
 #include "VerseVM/VVMWriteBarrier.h"
 
 namespace Verse
 {
+DEFINE_VISIT_REFERENCES(VTuple)
 DEFINE_VCPPCLASSINFO(VTuple, VHeapValue, TEXT("Tuple"));
 
-void VTuple::MarkReferencedCellsImpl(VCell* ThisCell, FMarkStack& MarkStack)
+template <typename TVisitor>
+void VTuple::VisitReferencesImpl(TVisitor& Visitor)
 {
-	VTuple& This = ThisCell->StaticCast<VTuple>();
-	VHeapValue::MarkReferencedCellsImpl(&This, MarkStack);
-	for (uint32 Index = This.NumValues; Index--;)
-	{
-		This.Values[Index].Mark(MarkStack);
-	}
+	VHeapValue::VisitReferences(this, Visitor);
+	Visitor.Visit(Values, NumValues);
 }
 
 bool VTuple::EqualImpl(FRunningContext Context, VCell* ThisCell, VCell* Other, TFunction<void(VValue, VValue)> HandlePlaceholder)

@@ -17,6 +17,7 @@ struct VProcedure : VHeapValue
 {
 	COREUOBJECT_API static VCppClassInfo StaticCppClassInfo;
 	COREUOBJECT_API static TGlobalTrivialEmergentTypePtr<&StaticCppClassInfo> GlobalTrivialEmergentType;
+	DECLARE_VISIT_REFERENCES(COREUOBJECT_API);
 
 	const uint32 NumParameters;
 	const uint32 NumRegisters;
@@ -63,8 +64,6 @@ struct VProcedure : VHeapValue
 							  + NumOpBytes;
 		return *new (Context.Allocate(Verse::FHeap::DestructorSpace, NumBytes)) VProcedure(Context, NumParameters, NumRegisters, NumConstants, NumOpBytes);
 	}
-
-	COREUOBJECT_API static void MarkReferencedCellsImpl(VCell* This, FMarkStack&);
 
 private:
 	VProcedure(FAllocationContext Context, uint32 InNumArguments, uint32 InNumRegisters, uint32 InNumConstants, uint32 InNumOpBytes)

@@ -185,23 +185,6 @@ struct VValue
 
 	FString ToString(FAllocationContext, const FCellFormatter& Formatter) const;
 
-	void Mark(FMarkStack& MarkStack)
-	{
-		VValue ValueCopy = *this; // Protect ourselves against TOCTOU races in case `this` is in the heap.
-		if (ValueCopy.IsCell())
-		{
-			MarkStack.MarkNonNull(&ValueCopy.AsCell());
-		}
-		else if (ValueCopy.IsPlaceholder())
-		{
-			MarkStack.MarkNonNull(reinterpret_cast<VCell*>(&ValueCopy.AsPlaceholder()));
-		}
-		else if (ValueCopy.IsUObject())
-		{
-			MarkStack.MarkNonNull(ValueCopy.AsUObject());
-		}
-	}
-
 private:
 	friend struct VRestValue;
 

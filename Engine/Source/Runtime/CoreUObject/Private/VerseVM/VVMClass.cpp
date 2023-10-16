@@ -1,16 +1,20 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 
 #if WITH_VERSE_VM
+#include "VerseVM/Inline/VVMAbstractVisitorInline.h"
 #include "VerseVM/Inline/VVMClassInline.h"
 #include "VerseVM/Inline/VVMObjectInline.h"
 #include "VerseVM/Inline/VVMShapeInline.h"
 #include "VerseVM/Inline/VVMUTF8StringInline.h"
+#include "VerseVM/VVMMarkStackVisitor.h"
 #include "VerseVM/VVMTypeCreator.h"
+#include "VerseVM/VVMVisitorWrapper.h"
 
 namespace Verse
 {
 UE::FMutex VClass::Mutex;
 
+DEFINE_VISIT_REFERENCES(VClass)
 DEFINE_VCPPCLASSINFO(VClass, VHeapValue, TEXT("Class"));
 
 VFields::FieldsMap VClass::GetCombinedFields(FAllocationContext Context, const VUniqueStringSet& InFieldNames) const
@@ -31,7 +35,7 @@ VFields::FieldsMap VClass::GetCombinedFields(FAllocationContext Context, const V
 		// in order to support extension data members in the future.
 		if (!Entry)
 		{
-			AllFields.Add({Context, VUniqueString::New(Context, FieldName.Get()->AsStringView())}, {Context, {}, EFieldType::Offset});
+			Entry = &AllFields.Add({Context, VUniqueString::New(Context, FieldName.Get()->AsStringView())}, {Context, {}, EFieldType::Offset});
 		}
 		Entry->Type = EFieldType::Offset; // Offset here, because just the field names alone won't tell us if a value is being provided.
 		Entry->Index = 0;                 // Just zero out the entry first; the re-ordering of indices comes later.
@@ -67,24 +71,21 @@ VEmergentType& VClass::GetOrCreateEmergentTypeForArchetype(FAllocationContext Co
 	return *NewEmergentType;
 }
 
-void VClass::MarkReferencedCellsImpl(VCell* ThisCell, FMarkStack& MarkStack)
+template <typename TVisitor>
+void VClass::VisitReferencesImpl(TVisitor& Visitor)
 {
-	VHeapValue::MarkReferencedCellsImpl(ThisCell, MarkStack);
-	VClass* This = static_cast<VClass*>(ThisCell);
+	VHeapValue::VisitReferences(this, Visitor);
 
 	// Mark the inherited classes to ensure that they don't get swept during GC since we want to keep their information
 	// around when anything needs to query the class inheritance hierarchy.
-	for (uint32 Index = 0; Index < This->NumInherited(); ++Index)
-	{
-		This->Inherited()[Index].Mark(MarkStack);
-	}
+	Visitor.Visit(Inherited(), NumInherited());
 
 	// We need both the unique string sets and emergent types that are being cached for fast lookup of emergent types to remain allocated.
 	UE::TUniqueLock Lock(Mutex);
-	for (auto& Pair : This->EmergentTypesCache)
+	for (auto& Pair : EmergentTypesCache)
 	{
-		Pair.Key.Mark(MarkStack);
-		Pair.Value.Mark(MarkStack);
+		Visitor.Visit(Pair.Key);
+		Visitor.Visit(Pair.Value);
 	}
 }
 

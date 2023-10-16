@@ -2,27 +2,29 @@
 
 #if WITH_VERSE_VM
 #include "VerseVM/VVMFrame.h"
+#include "VerseVM/Inline/VVMAbstractVisitorInline.h"
 #include "VerseVM/Inline/VVMCellInline.h"
 #include "VerseVM/VVMCppClassInfo.h"
+#include "VerseVM/VVMMarkStackVisitor.h"
+#include "VerseVM/VVMProcedure.h"
+#include "VerseVM/VVMVisitorWrapper.h"
 
 namespace Verse
 {
 
+DEFINE_VISIT_REFERENCES(VFrame);
 DEFINE_VCPPCLASSINFO(VFrame, VCell, TEXT("Frame"));
 TGlobalTrivialEmergentTypePtr<&VFrame::StaticCppClassInfo> VFrame::GlobalTrivialEmergentType;
 
-void VFrame::MarkReferencedCellsImpl(VCell* ThisCell, FMarkStack& MarkStack)
+template <typename TVisitor>
+void VFrame::VisitReferencesImpl(TVisitor& Visitor)
 {
-	VFrame& This = ThisCell->StaticCast<VFrame>();
-	VCell::MarkReferencedCellsImpl(&This, MarkStack);
-	This.ReturnEffectToken.MarkReferencedCell(MarkStack);
-	This.Procedure.Mark(MarkStack);
-	This.ReturnSlot.Mark(MarkStack);
-	This.CallerFrame.Mark(MarkStack);
-	for (uint32 Index = This.NumRegisters; Index--;)
-	{
-		This.Registers[Index].MarkReferencedCell(MarkStack);
-	}
+	VCell::VisitReferences(this, Visitor);
+	Visitor.Visit(ReturnEffectToken);
+	Visitor.Visit(Procedure);
+	Visitor.Visit(ReturnSlot);
+	Visitor.Visit(CallerFrame);
+	Visitor.Visit(Registers, NumRegisters);
 }
 
 } // namespace Verse

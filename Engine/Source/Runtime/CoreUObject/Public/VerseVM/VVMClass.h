@@ -51,6 +51,7 @@ public:
 struct VClass : VHeapValue
 {
 	COREUOBJECT_API static VCppClassInfo StaticCppClassInfo;
+	DECLARE_VISIT_REFERENCES(COREUOBJECT_API);
 
 	/**
 	 * Creates a new class.
@@ -73,8 +74,6 @@ private:
 	/// to override existing fields with; the result will have re-ordered indices for offset-based fields.
 	VFields::FieldsMap GetCombinedFields(FAllocationContext Context, const VUniqueStringSet& InFieldNames) const;
 
-	/// We need to mark the (if any) inherited classes.
-	static void MarkReferencedCellsImpl(VCell* This, FMarkStack& MarkStack);
 	static void RunDestructorImpl(VCell* This);
 
 	static size_t DataOffset();

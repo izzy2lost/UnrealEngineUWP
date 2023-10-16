@@ -3,23 +3,27 @@
 #if WITH_VERSE_VM
 #include "VerseVM/VVMArray.h"
 #include "Templates/TypeHash.h"
+#include "VerseVM/Inline/VVMAbstractVisitorInline.h"
 #include "VerseVM/Inline/VVMCellInline.h"
 #include "VerseVM/Inline/VVMValueInline.h"
 #include "VerseVM/VVMCppClassInfo.h"
+#include "VerseVM/VVMMarkStackVisitor.h"
 #include "VerseVM/VVMTuple.h"
 #include "VerseVM/VVMValue.h"
+#include "VerseVM/VVMVisitorWrapper.h"
 #include "VerseVM/VVMWriteBarrier.h"
 
 namespace Verse
 {
+DEFINE_VISIT_REFERENCES(VArray);
 DEFINE_VCPPCLASSINFO(VArray, VHeapValue, TEXT("Array"));
 TGlobalTrivialEmergentTypePtr<&VArray::StaticCppClassInfo> VArray::GlobalTrivialEmergentType;
 
-void VArray::MarkReferencedCellsImpl(VCell* ThisCell, FMarkStack& MarkStack)
+template <typename TVisitor>
+void VArray::VisitReferencesImpl(TVisitor& Visitor)
 {
-	VArray& This = ThisCell->StaticCast<VArray>();
-	VHeapValue::MarkReferencedCellsImpl(&This, MarkStack);
-	This.Tuple.Mark(MarkStack);
+	VHeapValue::VisitReferences(this, Visitor);
+	Visitor.Visit(Tuple);
 }
 
 bool VArray::EqualImpl(FRunningContext Context, VCell* ThisCell, VCell* Other, TFunction<void(VValue, VValue)> HandlePlaceholder)

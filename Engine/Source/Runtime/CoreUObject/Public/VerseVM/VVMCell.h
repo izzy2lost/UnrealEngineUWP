@@ -9,6 +9,7 @@
 #include "CoreTypes.h"
 #include "Misc/AssertionMacros.h"
 #include "VVMContext.h"
+#include "VVMCppClassInfo.h"
 #include "VVMHeap.h"
 
 #include <type_traits>
@@ -53,19 +54,24 @@ struct VCell
 	//    concurrent by design. Like, maybe we'll want GC-time hash-consing.
 	// 2) In a parallel GC, we'll probably want to just reuse the fact that each context has a
 	//    MarkStack.
-	COREUOBJECT_API void MarkReferencedCells(FMarkStack&);
+	template <typename TVisitor>
+	void VisitReferences(TVisitor& Visitor);
 	COREUOBJECT_API void ConductCensus();
 	COREUOBJECT_API void RunDestructor();
 	COREUOBJECT_API bool Equal(FRunningContext Context, VCell* Other, TFunction<void(VValue, VValue)> HandlePlaceholder);
 
-	// Override this if your cell subtype has any outgoing strong references.
+	// Use this if your cell subtype has any outgoing strong references.  It is used by both the
+	// GC system and the abstract visitor to collect strong references.
 	//
 	// Note that this function will run concurrently to the mutator (this function is being called in
 	// some collector thread while the VM's other threads are calling other methods on your object)
 	// and in parallel (the collector will run multiple threads calling this function). However,
 	// you're guaranteed that this function will only be called once per object per collection cycle;
 	// i.e. the GC will never call this function simultaneously for the same object.
-	COREUOBJECT_API static void MarkReferencedCellsImpl(VCell* This, FMarkStack&);
+	//
+	// Use DEFINE_VISIT_REFERENCES in your implementation file and implement the template function
+	// defined in DECLARE_VISIT_REFERENCES
+	DECLARE_VISIT_REFERENCES(COREUOBJECT_API)
 
 	// Override this if your cell subtype has any outgoing weak references. Call ClearWeakDuringCensus
 	// on those pointers in this function.

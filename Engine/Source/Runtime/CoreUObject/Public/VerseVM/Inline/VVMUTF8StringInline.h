@@ -2,11 +2,11 @@
 
 #pragma once
 
-#include "Misc/AssertionMacros.h"
 #if !WITH_VERSE_VM
 #error In order to use VerseVM, WITH_VERSE_VM must be set
 #endif
 
+#include "Misc/AssertionMacros.h"
 #include "Templates/TypeHash.h"
 #include "VerseVM/VVMUTF8String.h"
 
@@ -141,23 +141,6 @@ inline VUniqueStringSet::VUniqueStringSet(FAllocationContext Context, const TSet
 	: VCell(Context, &GlobalTrivialEmergentType.Get(Context))
 	, Strings(FormSet(Context, InSet))
 {
-}
-
-inline void VUniqueStringSet::RunDestructorImpl(VCell* This)
-{
-	VUniqueStringSet& ThisSet = This->StaticCast<VUniqueStringSet>();
-	ThisSet.~VUniqueStringSet();
-}
-
-inline void VUniqueStringSet::MarkReferencedCellsImpl(VCell* ThisCell, FMarkStack& MarkStack)
-{
-	// We still have to mark each of the strings in the set as being used.
-	VCell::MarkReferencedCellsImpl(ThisCell, MarkStack);
-	VUniqueStringSet& This = ThisCell->StaticCast<VUniqueStringSet>();
-	for (TWriteBarrier<VUniqueString>& UniqueString : This.Strings)
-	{
-		UniqueString.Mark(MarkStack);
-	}
 }
 
 inline bool VUniqueStringSet::Equals(const TSet<VUniqueString*>& A, const TSet<VUniqueString*>& B)

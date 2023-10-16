@@ -17,6 +17,7 @@ struct VFunction : VCell
 {
 	COREUOBJECT_API static VCppClassInfo StaticCppClassInfo;
 	COREUOBJECT_API static TGlobalTrivialEmergentTypePtr<&StaticCppClassInfo> GlobalTrivialEmergentType;
+	DECLARE_VISIT_REFERENCES(COREUOBJECT_API);
 
 	using Args = TArray<VValue, TInlineAllocator<8>>;
 
@@ -33,7 +34,6 @@ struct VFunction : VCell
 		return *new (Context.AllocateFastCell(offsetof(VFunction, Captures) + sizeof(Captures[0]) * NumCaptures)) VFunction(Context, Procedure, NumCaptures);
 	}
 
-	COREUOBJECT_API static void MarkReferencedCellsImpl(VCell* This, FMarkStack&);
 	VProcedure& GetProcedure() { return *Procedure.Get(); }
 
 private:
