@@ -14,6 +14,7 @@
 	"CanContainContent": false,
 	"IsBetaVersion": false,
 	"Installed": false,
+	"SupportedPrograms": [ "LiveLinkHub" ],
 	"Plugins": [
 		{
 			"Name": "Takes",
@@ -23,13 +24,28 @@
 			"Name": "ConcertSyncClient",
 			"Enabled": true,
 			"Optional": true
+		},
+		{
+			"Name": "StructUtils",
+			"Enabled": true
+		},
+		{
+			"Name": "ContentBrowserAssetDataSource",
+			"Enabled":  true
 		}
 	],
 	"Modules": [
 		{
 			"Name": "LiveLink",
 			"Type": "Runtime",
+			"ProgramAllowList": [ "LiveLinkHub" ],
 			"LoadingPhase": "Default"
+		},
+		{
+			"Name": "LiveLinkHub",
+			"Type": "Runtime",
+			"ProgramAllowList": [ "LiveLinkHub" ],
+			"LoadingPhase": "PreDefault"
 		},
 		{
 			"Name": "LiveLinkComponents",
@@ -39,7 +55,8 @@
 		{
 			"Name": "LiveLinkEditor",
 			"Type": "Editor",
-			"LoadingPhase": "Default"
+			"LoadingPhase": "Default",
+			"ProgramAllowList": [ "LiveLinkHub" ]
 		},
 		{
 			"Name": "LiveLinkGraphNode",
@@ -54,7 +71,8 @@
 		{
 			"Name": "LiveLinkSequencer",
 			"Type": "UncookedOnly",
-			"LoadingPhase": "Default"
+			"LoadingPhase": "Default",
+			"ProgramDenyList": [ "LiveLinkHub" ]
 		},
 		{
 			"Name": "LiveLinkMultiUser",
