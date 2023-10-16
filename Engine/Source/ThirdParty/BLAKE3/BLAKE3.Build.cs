@@ -18,7 +18,7 @@ public class BLAKE3 : ModuleRules
 
 		if (Target.IsInPlatformGroup(UnrealPlatformGroup.Windows))
 		{
-			PublicAdditionalLibraries.Add(Path.Combine(LibraryPath, "Win64", "Release", "BLAKE3.lib"));
+			PublicAdditionalLibraries.Add(Path.Combine(LibraryPath, "Win64", Target.Architecture.bIsX64 ? string.Empty : "arm64", "Release", "BLAKE3.lib"));
 		}
 		else if (Target.Platform == UnrealTargetPlatform.Mac)
 		{
