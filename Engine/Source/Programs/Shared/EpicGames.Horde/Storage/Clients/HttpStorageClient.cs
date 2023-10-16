@@ -113,7 +113,7 @@ namespace EpicGames.Horde.Storage.Clients
 		}
 
 		/// <inheritdoc/>
-		public override async Task<RefValue?> TryReadRefAsync(RefName name, RefCacheTime cacheTime = default, CancellationToken cancellationToken = default)
+		public override async Task<BlobHandle?> TryReadRefAsync(RefName name, RefCacheTime cacheTime = default, CancellationToken cancellationToken = default)
 		{
 			using (HttpClient httpClient = _createClient())
 			{
@@ -142,8 +142,7 @@ namespace EpicGames.Horde.Storage.Clients
 							ReadRefResponse? data = await response.Content.ReadFromJsonAsync<ReadRefResponse>(cancellationToken: cancellationToken);
 							_logger.LogDebug("Read ref {RefName} -> {Blob}", name, data!.Target);
 
-							BlobHandle handle = CreateBlobHandle(data.Target);
-							return new RefValue(handle, data.Data);
+							return CreateBlobHandle(data.Target);
 						}
 					}
 				}
@@ -151,7 +150,7 @@ namespace EpicGames.Horde.Storage.Clients
 		}
 
 		/// <inheritdoc/>
-		public override async Task WriteRefAsync(RefName name, BlobHandle target, ReadOnlyMemory<byte> data, RefOptions? options = null, CancellationToken cancellationToken = default)
+		public override async Task WriteRefAsync(RefName name, BlobHandle target, RefOptions? options = null, CancellationToken cancellationToken = default)
 		{
 			await target.FlushAsync(cancellationToken);
 			BlobLocator locator = target.GetLocator();
@@ -161,7 +160,6 @@ namespace EpicGames.Horde.Storage.Clients
 			{
 				WriteRefRequest request = new WriteRefRequest();
 				request.Target = locator;
-				request.Data = data.ToArray();
 				request.Options = options;
 
 				using (HttpResponseMessage response = await httpClient.PutAsync($"{_basePath}/refs/{name}", request, cancellationToken))

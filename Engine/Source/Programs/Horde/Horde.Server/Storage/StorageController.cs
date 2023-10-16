@@ -246,7 +246,7 @@ namespace Horde.Server.Storage
 #pragma warning restore CS0618 // Type or member is obsolete
 
 			BlobHandle target = client.CreateBlobHandle(request.Target);
-			await client.WriteRefAsync(refName, target, request.Data, request.Options, cancellationToken);
+			await client.WriteRefAsync(refName, target, request.Options, cancellationToken);
 
 			return Ok();
 		}
@@ -290,19 +290,19 @@ namespace Horde.Server.Storage
 				}
 			}
 
-			RefValue? target = await client.TryReadRefAsync(refName, cacheTime, cancellationToken: cancellationToken);
+			BlobHandle? target = await client.TryReadRefAsync(refName, cacheTime, cancellationToken: cancellationToken);
 			if (target == null)
 			{
 				return new NotFoundResult();
 			}
 
-			string link = $"/api/v1/storage/{namespaceId}/nodes/{target.Target.GetLocator()}";
-			ReadRefResponse response = new ReadRefResponse { Target = target.Target.GetLocator(), Data = target.Data.ToArray(), Link = link };
+			string link = $"/api/v1/storage/{namespaceId}/nodes/{target.GetLocator()}";
+			ReadRefResponse response = new ReadRefResponse { Target = target.GetLocator(), Link = link };
 
 #pragma warning disable CS0618 // Type or member is obsolete
 			try
 			{
-				string locator = target.Target.ToString();
+				string locator = target.ToString();
 				int hashIdx = locator.LastIndexOf('#');
 
 				if (hashIdx != -1)

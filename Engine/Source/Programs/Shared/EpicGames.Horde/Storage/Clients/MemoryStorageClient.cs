@@ -11,11 +11,6 @@ using EpicGames.Horde.Storage.Backends;
 namespace EpicGames.Horde.Storage.Clients
 {
 	/// <summary>
-	/// Stores a RefValue in the <see cref="MemoryStorageClient"/>
-	/// </summary>
-	public record class RefData(BlobLocator Locator, ReadOnlyMemory<byte> Data);
-
-	/// <summary>
 	/// Implementation of <see cref="IStorageClient"/> which stores data in memory. Not intended for production use.
 	/// </summary>
 	public class MemoryStorageClient : BundleStorageClient
@@ -30,7 +25,7 @@ namespace EpicGames.Horde.Storage.Clients
 		/// <summary>
 		/// Map of ref name to ref data
 		/// </summary>
-		readonly ConcurrentDictionary<RefName, RefData> _refs = new ConcurrentDictionary<RefName, RefData>();
+		readonly ConcurrentDictionary<RefName, BlobLocator> _refs = new ConcurrentDictionary<RefName, BlobLocator>();
 
 		/// <summary>
 		/// Content addressed data lookup
@@ -45,7 +40,7 @@ namespace EpicGames.Horde.Storage.Clients
 		/// <summary>
 		/// All refs stored by the client
 		/// </summary>
-		public IReadOnlyDictionary<RefName, RefData> Refs => _refs;
+		public IReadOnlyDictionary<RefName, BlobLocator> Refs => _refs;
 
 		/// <summary>
 		/// Constructor
@@ -103,26 +98,25 @@ namespace EpicGames.Horde.Storage.Clients
 		public override Task<bool> DeleteRefAsync(RefName name, CancellationToken cancellationToken) => Task.FromResult(_refs.TryRemove(name, out _));
 
 		/// <inheritdoc/>
-		public override Task<RefValue?> TryReadRefAsync(RefName name, RefCacheTime cacheTime = default, CancellationToken cancellationToken = default)
+		public override Task<BlobHandle?> TryReadRefAsync(RefName name, RefCacheTime cacheTime = default, CancellationToken cancellationToken = default)
 		{
-			RefData? refData;
+			BlobLocator refData;
 			if (_refs.TryGetValue(name, out refData))
 			{
-				return Task.FromResult<RefValue?>(new RefValue(CreateBlobHandle(refData.Locator), refData.Data)); 
+				return Task.FromResult<BlobHandle?>(CreateBlobHandle(refData)); 
 			}
 			else
 			{
-				return Task.FromResult<RefValue?>(null);
+				return Task.FromResult<BlobHandle?>(null);
 			}
 		}
 
 		/// <inheritdoc/>
-		public override async Task WriteRefAsync(RefName name, BlobHandle target, ReadOnlyMemory<byte> data = default, RefOptions? options = null, CancellationToken cancellationToken = default)
+		public override async Task WriteRefAsync(RefName name, BlobHandle target, RefOptions? options = null, CancellationToken cancellationToken = default)
 		{
 			await target.FlushAsync(cancellationToken);
 
-			BlobLocator locator = target.GetLocator();
-			_refs[name] = new RefData(locator, data);
+			_refs[name] = target.GetLocator();
 		}
 
 		#endregion

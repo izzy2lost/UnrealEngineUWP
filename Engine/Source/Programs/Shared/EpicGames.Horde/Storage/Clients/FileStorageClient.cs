@@ -81,7 +81,7 @@ namespace EpicGames.Horde.Storage.Clients
 		}
 
 		/// <inheritdoc/>
-		public override async Task<RefValue?> TryReadRefAsync(RefName name, RefCacheTime cacheTime = default, CancellationToken cancellationToken = default)
+		public override async Task<BlobHandle?> TryReadRefAsync(RefName name, RefCacheTime cacheTime = default, CancellationToken cancellationToken = default)
 		{
 			FileReference file = GetRefFile(name);
 			if (!FileReference.Exists(file))
@@ -93,17 +93,11 @@ namespace EpicGames.Horde.Storage.Clients
 			string[] lines = await FileReference.ReadAllLinesAsync(file, cancellationToken);
 
 			BlobHandle handle = CreateBlobHandle(new BlobLocator(lines[0].Trim()));
-			ReadOnlyMemory<byte> data = ReadOnlyMemory<byte>.Empty;
-			if (lines.Length >= 2)
-			{
-				data = Convert.FromBase64String(lines[1].Trim());
-			}
-
-			return new RefValue(handle, data);
+			return handle;
 		}
 
 		/// <inheritdoc/>
-		public override async Task WriteRefAsync(RefName name, BlobHandle target, ReadOnlyMemory<byte> data, RefOptions? options = null, CancellationToken cancellationToken = default)
+		public override async Task WriteRefAsync(RefName name, BlobHandle target, RefOptions? options = null, CancellationToken cancellationToken = default)
 		{
 			await target.FlushAsync(cancellationToken);
 			BlobLocator locator = target.GetLocator();

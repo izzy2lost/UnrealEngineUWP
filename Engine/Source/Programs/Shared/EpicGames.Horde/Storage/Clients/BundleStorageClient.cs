@@ -215,10 +215,10 @@ namespace EpicGames.Horde.Storage.Clients
 		public abstract Task<bool> DeleteRefAsync(RefName name, CancellationToken cancellationToken = default);
 
 		/// <inheritdoc/>
-		public abstract Task<RefValue?> TryReadRefAsync(RefName name, RefCacheTime cacheTime = default, CancellationToken cancellationToken = default);
+		public abstract Task<BlobHandle?> TryReadRefAsync(RefName name, RefCacheTime cacheTime = default, CancellationToken cancellationToken = default);
 
 		/// <inheritdoc/>
-		public abstract Task WriteRefAsync(RefName name, BlobHandle target, ReadOnlyMemory<byte> data, RefOptions? options, CancellationToken cancellationToken);
+		public abstract Task WriteRefAsync(RefName name, BlobHandle target, RefOptions? options, CancellationToken cancellationToken);
 
 		#endregion
 
@@ -355,20 +355,19 @@ namespace EpicGames.Horde.Storage.Clients
 			=> _inner.DeleteRefAsync(name, cancellationToken);
 
 		/// <inheritdoc/>
-		public override async Task<RefValue?> TryReadRefAsync(RefName name, RefCacheTime cacheTime = default, CancellationToken cancellationToken = default)
+		public override async Task<BlobHandle?> TryReadRefAsync(RefName name, RefCacheTime cacheTime = default, CancellationToken cancellationToken = default)
 		{
-			RefValue? refValue = await _inner.TryReadRefAsync(name, cacheTime, cancellationToken);
-			if (refValue != null)
+			BlobHandle? target = await _inner.TryReadRefAsync(name, cacheTime, cancellationToken);
+			if (target != null)
 			{
-				BlobHandle target = CreateBlobHandle(refValue.Target.GetLocator());
-				refValue = new RefValue(target, refValue.Data);
+				target = CreateBlobHandle(target.GetLocator());
 			}
-			return refValue;
+			return target;
 		}
 
 		/// <inheritdoc/>
-		public override Task WriteRefAsync(RefName name, BlobHandle target, ReadOnlyMemory<byte> data, RefOptions? options, CancellationToken cancellationToken)
-			=> _inner.WriteRefAsync(name, target, data, options, cancellationToken);
+		public override Task WriteRefAsync(RefName name, BlobHandle target, RefOptions? options, CancellationToken cancellationToken)
+			=> _inner.WriteRefAsync(name, target, options, cancellationToken);
 
 		#endregion
 	}

@@ -248,7 +248,7 @@ namespace Horde.Server.Storage
 			#region Refs
 
 			/// <inheritdoc/>
-			public async Task<RefValue?> TryReadRefAsync(RefName name, RefCacheTime cacheTime = default, CancellationToken cancellationToken = default)
+			public async Task<BlobHandle?> TryReadRefAsync(RefName name, RefCacheTime cacheTime = default, CancellationToken cancellationToken = default)
 			{
 				RefInfo? result = await _outer.TryReadRefAsync(NamespaceId, name, cacheTime, cancellationToken);
 				if (result == null)
@@ -263,11 +263,11 @@ namespace Horde.Server.Storage
 				}
 
 				BlobLocator locator = packet.Refs[0];
-				return new RefValue(CreateBlobHandle(locator), ReadOnlyMemory<byte>.Empty);
+				return CreateBlobHandle(locator);
 			}
 
 			/// <inheritdoc/>
-			public async Task WriteRefAsync(RefName name, BlobHandle target, ReadOnlyMemory<byte> data = default, RefOptions? options = null, CancellationToken cancellationToken = default)
+			public async Task WriteRefAsync(RefName name, BlobHandle target, RefOptions? options = null, CancellationToken cancellationToken = default)
 			{
 				BlobType blobType = Node.GetNodeType<RedirectNode>();
 				using BlobData blobData = new BlobData(blobType, ReadOnlyMemory<byte>.Empty, new List<BlobHandle> { target });
