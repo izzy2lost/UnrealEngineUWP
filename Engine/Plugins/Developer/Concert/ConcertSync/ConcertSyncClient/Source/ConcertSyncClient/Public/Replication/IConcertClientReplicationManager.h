@@ -60,8 +60,6 @@ public:
 	/**
 	 * Joins a replication session.
 	 * Subsequent calls to JoinReplicationSession will fail until either the resulting TFuture returns or LeaveReplicationSession is called.
-	 *
-	 * @note The future may execute on any thread. Take care to synchronize correctly with the game thread if needed.
 	 */
 	virtual TFuture<UE::ConcertSyncClient::Replication::FJoinReplicatedSessionResult> JoinReplicationSession(UE::ConcertSyncClient::Replication::FJoinReplicatedSessionArgs Args) = 0;
 	/** Leaves the current replication session. */
@@ -82,14 +80,13 @@ public:
 	 * @return Whether this manager is connected to a session (Iterated) or not (NoRegisteredStreams).
 	 */
 	virtual EStreamEnumerationResult ForEachRegisteredStream(TFunctionRef<EBreakBehavior(const FReplicationStreamDescription& Stream)> Callback) const = 0;
-	/** @return Whether this manager is currently in a replication session (basically whether ForEachRegisteredStream returns EStreamEnumerationResult::Iterated). */
+	/** @return Whether this manager is has any registered streams (basically whether ForEachRegisteredStream returns EStreamEnumerationResult::Iterated). */
 	bool HasRegisteredStreams() const;
 	/** @return The streams registered with the server. */
 	TArray<FReplicationStreamDescription> GetRegisteredStreams() const;
 	
 	/**
 	 * Requests from the server to change the authority over some objects.
-	 * @note The future may execute on any thread. Take care of synchronize correctly with the game thread if needed.
 	 */
 	virtual TFuture<UE::ConcertSyncClient::Replication::FAuthorityChangeResponse> RequestAuthorityChange(UE::ConcertSyncClient::Replication::FAuthorityChangeRequest Args) = 0;
 	/** Util function that will request authority for all streams for the given objects. */
@@ -97,17 +94,44 @@ public:
 	/** Util function that will let go over all authority of the given objects. */
 	TFuture<UE::ConcertSyncClient::Replication::FAuthorityChangeResponse> ReleaseAuthorityOf(TArrayView<const FSoftObjectPath> Objects);
 
+	enum class EAuthorityEnumerationResult { NoAuthorityAvailable, Iterated };
 	/**
-	 * Requests replication info about other clients, including the streams registered and which objects they have authority over (i.e. are sending).
-	 * @note The future may execute on any thread. Take care to synchronize correctly with the game thread if needed.
+	 * Iterates through all objects that this client has authority over.
+	 * @return Whether this manager is connected to a session (Iterated) or not (NoAuthorityAvailable)
 	 */
+	virtual EAuthorityEnumerationResult ForEachClientOwnedObject(TFunctionRef<EBreakBehavior(const FSoftObjectPath& Object, TSet<FGuid>&& OwningStreams)> Callback) const = 0;
+	/** @return All the streams this client has registered that have authority for the given ObjectPath. */
+	virtual TSet<FGuid> GetClientOwnedStreamsForObject(const FSoftObjectPath& ObjectPath) const = 0;
+	/** @return All owned objects and associated owning streams. */
+	TMap<FSoftObjectPath, TSet<FGuid>> GetClientOwnedObjects() const;
+
+	/** Requests replication info about other clients, including the streams registered and which objects they have authority over (i.e. are sending). */
 	virtual TFuture<UE::ConcertSyncClient::Replication::FClientQueryResponse> QueryClientInfo(UE::ConcertSyncClient::Replication::FClientQueryRequest Args) = 0;
 
-	/**
-	 * Requests to change the client's registered streams
-	 * @note The future may execute on any thread. Take care to synchronize correctly with the game thread if needed.
-	 */
+	/** Requests to change the client's registered streams */
 	virtual TFuture<UE::ConcertSyncClient::Replication::FChangeStreamResponse> ChangeStream(UE::ConcertSyncClient::Replication::FChangeStreamRequest Args) = 0;
+
+	DECLARE_MULTICAST_DELEGATE_TwoParams(FOnPreStreamsChanged,
+		const UE::ConcertSyncClient::Replication::FChangeStreamRequest&,
+		const UE::ConcertSyncClient::Replication::FChangeStreamResponse&
+		);
+	/** Called right before the result of GetRegisteredStreams changes. */
+	virtual FOnPreStreamsChanged& OnPreStreamsChanged() = 0;
+	
+	DECLARE_MULTICAST_DELEGATE(FOnPostStreamsChanged);
+	/** Called right after the result of GetRegisteredStreams has changed. */
+	virtual FOnPostStreamsChanged& OnPostStreamsChanged() = 0;
+
+	DECLARE_MULTICAST_DELEGATE_TwoParams(FOnPreAuthorityChanged,
+		const UE::ConcertSyncClient::Replication::FAuthorityChangeRequest&,
+		const UE::ConcertSyncClient::Replication::FAuthorityChangeResponse&
+		);
+	/** Called right before GetClientOwnedObjects changes. */
+	virtual FOnPreAuthorityChanged& OnPreAuthorityChanged() = 0;
+	
+	DECLARE_MULTICAST_DELEGATE(FOnPostAuthorityChanged);
+	/** Called right after GetClientOwnedObjects has changed. */
+	virtual FOnPostAuthorityChanged& OnPostAuthorityChanged() = 0;
 	
 	virtual ~IConcertClientReplicationManager() = default;
 };

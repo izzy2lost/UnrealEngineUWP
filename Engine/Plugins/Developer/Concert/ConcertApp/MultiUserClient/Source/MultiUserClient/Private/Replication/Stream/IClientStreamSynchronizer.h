@@ -75,7 +75,7 @@ namespace UE::MultiUserClient
 		virtual FOnChangesAccepted& OnChangesAccepted() = 0;
 		DECLARE_MULTICAST_DELEGATE(FOnServerStateChanged);
 		/** @return Event executed when the result of GetServerState has been synched. Called after OnChangesAccepted_AnyThread. */
-		virtual FOnServerStateChanged& OnServerStateSynched() = 0;
+		virtual FOnServerStateChanged& OnServerStateChanged() = 0;
 		
 		virtual ~IClientStreamSynchronizer() = default;
 	};

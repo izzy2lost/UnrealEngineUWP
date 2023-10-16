@@ -37,6 +37,16 @@ struct FConcertReplication_ChangeStream_PutObject
 	UPROPERTY()
 	FSoftClassPath ClassPath;
 
+	friend bool operator==(const FConcertReplication_ChangeStream_PutObject& Left, const FConcertReplication_ChangeStream_PutObject& Right)
+	{
+		return Left.Properties == Right.Properties && Left.ClassPath == Right.ClassPath;
+	}
+
+	friend bool operator!=(const FConcertReplication_ChangeStream_PutObject& Left, const FConcertReplication_ChangeStream_PutObject& Right)
+	{
+		return !(Left == Right);
+	}
+
 	// Intention: Ideally code dealing with PutObject requests uses these constructors / factory functions.
 	// If a property is added to FReplicatedObjectInfo, only the below code needs to be updated.
 
@@ -106,6 +116,19 @@ struct FConcertReplication_ChangeStream_Request
 	 */
 	UPROPERTY()
 	TSet<FGuid> StreamsToRemove;
+
+	friend bool operator==(const FConcertReplication_ChangeStream_Request& Left, const FConcertReplication_ChangeStream_Request& Right)
+	{
+		const auto OrderIndependentEquals = [](const auto& Left, const auto& Right){ return Left.Num() == Right.Num() && Left.Includes(Right); };
+		return OrderIndependentEquals(Left.ObjectsToRemove, Right.ObjectsToRemove)
+			&& OrderIndependentEquals(Left.StreamsToRemove, Right.StreamsToRemove)
+			&& Left.ObjectsToPut.OrderIndependentCompareEqual(Right.ObjectsToPut)
+			&& Left.StreamsToAdd == Right.StreamsToAdd;
+	}
+	friend bool operator!=(const FConcertReplication_ChangeStream_Request& Lhs, const FConcertReplication_ChangeStream_Request& RHS)
+	{
+		return !(Lhs == RHS);
+	}
 };
 
 UENUM()

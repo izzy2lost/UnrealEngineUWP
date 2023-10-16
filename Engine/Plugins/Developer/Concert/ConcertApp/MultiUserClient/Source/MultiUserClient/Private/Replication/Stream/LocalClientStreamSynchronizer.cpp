@@ -3,10 +3,8 @@
 #include "LocalClientStreamSynchronizer.h"
 
 #include "IConcertSyncClient.h"
-#include "Replication/ChangeStreamSharedUtils.h"
 #include "Replication/IConcertClientReplicationManager.h"
-
-#include "ScopedTransaction.h"
+#include "Replication/Messages/ChangeStream.h"
 
 #define LOCTEXT_NAMESPACE "FLocalClientStreamDiffer"
 
@@ -18,7 +16,24 @@ namespace UE::MultiUserClient
 		)
 		: LocalClient(MoveTemp(InLocalClient))
 		, LocalClientStreamId(InLocalClientStreamId)
-	{}
+	{
+		IConcertClientReplicationManager* ReplicationManager = LocalClient->GetReplicationManager();
+		if (ensure(ReplicationManager))
+		{
+			ReplicationManager->OnPreStreamsChanged().AddRaw(this, &FLocalClientStreamSynchronizer::OnPreStreamsChanged);
+			ReplicationManager->OnPostStreamsChanged().AddRaw(this, &FLocalClientStreamSynchronizer::OnPostStreamsChanged);
+		}
+	}
+
+	FLocalClientStreamSynchronizer::~FLocalClientStreamSynchronizer()
+	{
+		IConcertClientReplicationManager* ReplicationManager = LocalClient->GetReplicationManager();
+		if (ReplicationManager)
+		{
+			ReplicationManager->OnPreStreamsChanged().RemoveAll(this);
+			ReplicationManager->OnPostStreamsChanged().RemoveAll(this);
+		}
+	}
 
 	TFuture<FSubmitChangesResult> FLocalClientStreamSynchronizer::SubmitChanges(const FStreamChangelist& Changelist)
 	{
@@ -30,8 +45,8 @@ namespace UE::MultiUserClient
 			return MakeFulfilledPromise<FSubmitChangesResult>(FSubmitChangesResult{ ESubmitChangesErrorCode::CannotSendRequest }).GetFuture();
 		}
 		
-		ChangeInTransit = Changelist;
 		FChangeStreamRequest Request = BuildChangeRequest(Changelist);
+		ChangeInTransit = Request;
 		
 		return ReplicationManager->ChangeStream(Request)
 			.Next([this, DestructionDetection = LifetimeToken->AsWeak(), Request](FChangeStreamResponse&& Response)
@@ -39,23 +54,37 @@ namespace UE::MultiUserClient
 				const FSubmitChangesResult SubmissionResult { ESubmitChangesErrorCode::Success, { FCompletedChangeSubmission{Request, Response } } };
 				// The request might execute after we're destroyed, e.g. by leaving session while request is on the way.
 				// In that case, the Concert session triggers the OnSessionConnectionChanged which destroys us. Only after that, all the requests are timed out.
-				if (!DestructionDetection.IsValid())
+				if (DestructionDetection.IsValid())
 				{
-					return SubmissionResult;
+					// Already called by OnPreStreamsChanged but needed here, too, in case request fails.
+					ChangeInTransit.Reset();
 				}
 
-				const FStreamChangelist ChangeThatWasInTransit = MoveTemp(ChangeInTransit.GetValue());
-				ChangeInTransit.Reset();
-				
-				if (Response.IsSuccess())
-				{
-					// Tell everybody who cares old and new implicit state. They can e.g. decide to request authority for the new objects.
-					OnChangesAcceptedDelegate.Broadcast(ConfirmedServerState, Request);
-					UpdateConfirmedServerState(Request, ChangeThatWasInTransit);
-				}
-				
 				return SubmissionResult;
 			});
+	}
+
+	const FObjectReplicationMap& FLocalClientStreamSynchronizer::GetServerState() const
+	{
+		IConcertClientReplicationManager* ReplicationManager = LocalClient->GetReplicationManager();
+		if (!ensure(ReplicationManager))
+		{
+			return EmptyState;
+		}
+		
+		const FObjectReplicationMap* Result = nullptr;
+		ReplicationManager->ForEachRegisteredStream([this, &Result](const FReplicationStreamDescription& Stream)
+		{
+			if (Stream.BaseDescription.Identifier == LocalClientStreamId)
+			{
+				Result = &Stream.BaseDescription.ReplicationMap;
+				return EBreakBehavior::Break;
+			}
+			return EBreakBehavior::Continue;
+		});
+		return Result
+			? *Result
+			: EmptyState;
 	}
 
 	ConcertSyncClient::Replication::FChangeStreamRequest FLocalClientStreamSynchronizer::BuildChangeRequest(const FStreamChangelist& Changelist) const
@@ -103,45 +132,30 @@ namespace UE::MultiUserClient
 	
 	FLocalClientStreamSynchronizer::EChangeRequestType FLocalClientStreamSynchronizer::ComputeNextRequestType() const
 	{
-		return ConfirmedServerState.ReplicatedObjects.IsEmpty()
+		return GetServerState().ReplicatedObjects.IsEmpty()
 			? EChangeRequestType::CreateNewStream
 			: EChangeRequestType::UpdateExistingStream;
 	}
 
-	void FLocalClientStreamSynchronizer::UpdateConfirmedServerState(
-		const ConcertSyncClient::Replication::FChangeStreamRequest& Request,
-		const FStreamChangelist& ChangeThatWasInTransit
+	void FLocalClientStreamSynchronizer::OnPreStreamsChanged(
+		const ConcertSyncClient::Replication::FChangeStreamRequest& ChangeStreamRequest,
+		const ConcertSyncClient::Replication::FChangeStreamResponse& ChangeStreamResponse
 		)
 	{
-		const bool bCreatedNewStream = !Request.StreamsToAdd.IsEmpty(); 
-		if (bCreatedNewStream)
+		// Was the change made by us? External code can also call ChangeStream.
+		const bool bRequestEqualToInTransit =  ChangeInTransit.IsSet() && *ChangeInTransit == ChangeStreamRequest;
+		if (bRequestEqualToInTransit)
 		{
-			ConfirmedServerState = Request.StreamsToAdd[0].BaseDescription.ReplicationMap;
+			// Allows making another change in response to Broadcast
+			ChangeInTransit.Reset();
+			OnChangesAcceptedDelegate.Broadcast(GetServerState(), ChangeStreamRequest);
 		}
-		else
-		{
-			// The goal here is to leverage ApplyValidatedRequest for updating ConfirmedServerState.
-			TArray<FReplicationStreamDescription> FakeDescriptions;
-			FakeDescriptions.Emplace();
-			FReplicationStreamDescription& FakeStreamDescription = FakeDescriptions[0];
-			FakeStreamDescription.BaseDescription.Identifier = LocalClientStreamId;
-			// Cheaply move ConfirmedServerState into the FReplicationStreamDescription so it satisfies the ApplyValidatedRequest API...
-			FakeStreamDescription.BaseDescription.ReplicationMap = MoveTemp(ConfirmedServerState);
-			ConcertSyncCore::Replication::ChangeStreamUtils::ApplyValidatedRequest(
-				BuildChangeRequest_UpdateExistingStream(ChangeThatWasInTransit),
-				FakeDescriptions
-				);
-						
-			// Careful: ApplyValidatedRequest may have emptied the array!
-			FObjectReplicationMap NewServerState = FakeDescriptions.IsEmpty()
-				? FObjectReplicationMap{}
-			: FakeStreamDescription.BaseDescription.ReplicationMap;
-						
-			// ... and cheaply move the updated map back into our ConfirmedServerState
-			ConfirmedServerState = MoveTemp(NewServerState);
-		}
-					
-		OnServerStateSynchedDelegate.Broadcast();
+	}
+
+	void FLocalClientStreamSynchronizer::OnPostStreamsChanged()
+	{
+		// Note that this fires even for non MU-related changes, e.g. due to some other system's Concert replication API usage.
+		OnServerStateChangedDelegate.Broadcast();
 	}
 }
 

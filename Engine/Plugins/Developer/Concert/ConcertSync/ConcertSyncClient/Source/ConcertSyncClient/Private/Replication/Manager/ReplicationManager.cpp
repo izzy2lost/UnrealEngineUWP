@@ -84,6 +84,49 @@ namespace UE::ConcertSyncClient::Replication
 			: MakeFulfilledPromise<FChangeStreamResponse>().GetFuture(); 
 	}
 
+	IConcertClientReplicationManager::EAuthorityEnumerationResult FReplicationManager::ForEachClientOwnedObject(
+		TFunctionRef<EBreakBehavior(const FSoftObjectPath& Object, TSet<FGuid>&& OwningStreams)> Callback) const
+	{
+		return ensureMsgf(CurrentState, TEXT("StartAcceptingJoinRequests should have been called at this point."))
+			? CurrentState->ForEachClientOwnedObject(Callback)
+			: EAuthorityEnumerationResult::NoAuthorityAvailable;
+	}
+
+	TSet<FGuid> FReplicationManager::GetClientOwnedStreamsForObject(const FSoftObjectPath& ObjectPath) const
+	{
+		return ensureMsgf(CurrentState, TEXT("StartAcceptingJoinRequests should have been called at this point."))
+			? CurrentState->GetClientOwnedStreamsForObject(ObjectPath)
+			: TSet<FGuid>{}; 
+	}
+
+	IConcertClientReplicationManager::FOnPreStreamsChanged& FReplicationManager::OnPreStreamsChanged()
+	{
+		// Check() to avoid returning some dummy static variable
+		checkf(CurrentState, TEXT("StartAcceptingJoinRequests should have been called at this point."));
+		return CurrentState->OnPreStreamsChanged();
+	}
+
+	IConcertClientReplicationManager::FOnPostStreamsChanged& FReplicationManager::OnPostStreamsChanged()
+	{
+		// Check() to avoid returning some dummy static variable
+		checkf(CurrentState, TEXT("StartAcceptingJoinRequests should have been called at this point."));
+		return CurrentState->OnPostStreamsChanged();
+	}
+
+	IConcertClientReplicationManager::FOnPreAuthorityChanged& FReplicationManager::OnPreAuthorityChanged()
+	{
+		// Check() to avoid returning some dummy static variable
+		checkf(CurrentState, TEXT("StartAcceptingJoinRequests should have been called at this point."));
+		return CurrentState->OnPreAuthorityChanged();
+	}
+
+	IConcertClientReplicationManager::FOnPostAuthorityChanged& FReplicationManager::OnPostAuthorityChanged()
+	{
+		// Check() to avoid returning some dummy static variable
+		checkf(CurrentState, TEXT("StartAcceptingJoinRequests should have been called at this point."));
+		return CurrentState->OnPostAuthorityChanged();
+	}
+
 	void FReplicationManager::OnChangeState(TSharedRef<FReplicationManagerState> NewState)
 	{
 		CurrentState = MoveTemp(NewState);

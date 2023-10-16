@@ -21,12 +21,12 @@ namespace UE::MultiUserClient
 		, OnModifyReplicationMapDelegate(MoveTemp(InOnModifyReplicationMapDelegate))
 	{
 		check(InStreamWithInProgressChangesAttribute.IsBound() || InStreamWithInProgressChangesAttribute.IsSet());
-		StreamSynchronizer.OnServerStateSynched().AddRaw(this, &FLocalStreamChangeTracker::RefreshChangesCache);
+		StreamSynchronizer.OnServerStateChanged().AddRaw(this, &FLocalStreamChangeTracker::RefreshChangesCache);
 	}
 
 	FLocalStreamChangeTracker::~FLocalStreamChangeTracker()
 	{
-		StreamSynchronizer.OnServerStateSynched().RemoveAll(this);
+		StreamSynchronizer.OnServerStateChanged().RemoveAll(this);
 	}
 
 	void FLocalStreamChangeTracker::RefreshChangesCache()

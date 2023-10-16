@@ -15,6 +15,7 @@
 #include "Replication/Processing/ObjectReplicationSender.h"
 
 #include "Algo/RemoveIf.h"
+#include "Misc/ScopeExit.h"
 #include "UObject/Package.h"
 #include "UObject/UObjectGlobals.h"
 
@@ -124,11 +125,38 @@ namespace UE::ConcertSyncClient::Replication
 				const TSharedPtr<FReplicationManagerState_Connected> ThisPin = WeakThis.Pin();
 				if (ThisPin && Response.IsSuccess())
 				{
-					ThisPin->UpdateReplicatedObjectsAfterStreamChange(Args);
+					ThisPin->UpdateReplicatedObjectsAfterStreamChange(Args, Response);
 				}
 				
 				return FChangeStreamResponse { MoveTemp(Response) };
 			});
+	}
+
+	IConcertClientReplicationManager::EAuthorityEnumerationResult FReplicationManagerState_Connected::ForEachClientOwnedObject(
+		TFunctionRef<EBreakBehavior(const FSoftObjectPath& Object, TSet<FGuid>&& OwningStreams)> Callback
+		) const
+	{
+		TSet<FGuid> Result;
+		int32 ExpectedNumStreams = 0;
+		ReplicationDataSource->ForEachOwnedObject([this, &Callback, &Result, &ExpectedNumStreams](const FSoftObjectPath& ObjectPath)
+		{
+			// Reuse TSet (if possible) for a slightly better memory footprint
+			ExpectedNumStreams = FMath::Max(ExpectedNumStreams, Result.Num());
+			Result.Empty(Result.Num());
+			
+			ReplicationDataSource->AppendOwningStreamsForObject(ObjectPath, Result);
+			return Callback(ObjectPath, MoveTemp(Result));
+		});
+		return EAuthorityEnumerationResult::Iterated;
+	}
+
+	TSet<FGuid> FReplicationManagerState_Connected::GetClientOwnedStreamsForObject(
+		const FSoftObjectPath& ObjectPath
+		) const
+	{
+		TSet<FGuid> Result;
+		ReplicationDataSource->AppendOwningStreamsForObject(ObjectPath, Result);
+		return Result;
 	}
 
 	void FReplicationManagerState_Connected::OnEnterState()
@@ -168,8 +196,11 @@ namespace UE::ConcertSyncClient::Replication
 		ReplicationApplier->ProcessObjects(TimeBudget);
 	}
 
-	void FReplicationManagerState_Connected::UpdateReplicatedObjectsAfterStreamChange(const FChangeStreamRequest& Request)
+	void FReplicationManagerState_Connected::UpdateReplicatedObjectsAfterStreamChange(const FChangeStreamRequest& Request, const FConcertReplication_ChangeStream_Response& Response)
 	{
+		OnPreStreamsChangedDelegate.Broadcast(Request, { Response });
+		ON_SCOPE_EXIT{ OnPostStreamsChangedDelegate.Broadcast(); };
+		
 		// Build RegisteredStreams while RegisteredStreams has the old, unupdated state
 		TMap<FSoftObjectPath, TArray<FGuid>> BundledModifiedObjects;
 		for (const TPair<FObjectInStreamID, FConcertReplication_ChangeStream_PutObject>& PutObject : Request.ObjectsToPut)
@@ -216,6 +247,9 @@ namespace UE::ConcertSyncClient::Replication
 
 	void FReplicationManagerState_Connected::UpdateReplicatedObjectsAfterAuthorityChange(FAuthorityChangeRequest&& Request, const FConcertReplication_ChangeAuthority_Response& Response) const
 	{
+		OnPreAuthorityChangedDelegate.Broadcast(Request, { Response });
+		ON_SCOPE_EXIT{ OnPostAuthorityChangedDelegate.Broadcast(); };
+		
 		for (TPair<FSoftObjectPath, FConcertStreamArray>& TakeAuthority : Request.TakeAuthority)
 		{
 			const FSoftObjectPath& ReplicatedObject = TakeAuthority.Key;

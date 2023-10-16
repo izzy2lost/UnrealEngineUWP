@@ -31,10 +31,6 @@ namespace UE::ConcertSyncClient::Replication
 		virtual void LeaveReplicationSession() override;
 		virtual bool CanJoin() override { return false; }
 		virtual bool IsConnectedToReplicationSession() override { return false; }
-		virtual EStreamEnumerationResult ForEachRegisteredStream(TFunctionRef<EBreakBehavior(const FReplicationStreamDescription& Stream)> Callback) const override { return EStreamEnumerationResult::NoRegisteredStreams; }
-		virtual TFuture<FAuthorityChangeResponse> RequestAuthorityChange(FAuthorityChangeRequest Args) override { return RejectAll(MoveTemp(Args)); }
-		virtual TFuture<FClientQueryResponse> QueryClientInfo(FClientQueryRequest Args) override { return MakeFulfilledPromise<FClientQueryResponse>().GetFuture(); }
-		virtual TFuture<FChangeStreamResponse> ChangeStream(FChangeStreamRequest Args) override { return MakeFulfilledPromise<FChangeStreamResponse>().GetFuture(); }
 		//~ End IConcertClientReplicationManager Interface
 
 	private:

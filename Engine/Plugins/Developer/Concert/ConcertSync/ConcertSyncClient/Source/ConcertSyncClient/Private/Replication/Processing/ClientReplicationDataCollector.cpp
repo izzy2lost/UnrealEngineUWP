@@ -2,12 +2,14 @@
 
 #include "ClientReplicationDataCollector.h"
 
-#include "Algo/RemoveIf.h"
 #include "Replication/Data/ReplicationStreamDescription.h"
 #include "Replication/Formats/IObjectReplicationFormat.h"
 #include "Replication/IConcertClientReplicationBridge.h"
 #include "Replication/ReplicationPropertyFilter.h"
 #include "Replication/Data/ObjectIds.h"
+
+#include "Algo/RemoveIf.h"
+#include "Misc/EBreakBehavior.h"
 
 namespace UE::ConcertSyncClient::Replication
 {
@@ -121,6 +123,33 @@ namespace UE::ConcertSyncClient::Replication
 				// PutObject added object to stream
 				ReplicatedObjectInfo->Add({ StreamId, ObjectInfo->PropertySelection });
 			}
+		}
+	}
+
+	void FClientReplicationDataCollector::ForEachOwnedObject(
+		TFunctionRef<EBreakBehavior(const FSoftObjectPath&)> Callback
+		) const
+	{
+		for (const TPair<FSoftObjectPath, TArray<FObjectInfo>>& Pair : ObjectsToReplicate)
+		{
+			if (Callback(Pair.Key) == EBreakBehavior::Break)
+			{
+				break;
+			}
+		}
+	}
+
+	void FClientReplicationDataCollector::AppendOwningStreamsForObject(
+		const FSoftObjectPath& ObjectPath,
+		TSet<FGuid>& Paths
+		) const
+	{
+		if (const TArray<FObjectInfo>* ObjectInfo = ObjectsToReplicate.Find(ObjectPath))
+		{
+			Algo::Transform(*ObjectInfo, Paths, [](const FObjectInfo& ObjectInfo)
+			{
+				return ObjectInfo.StreamId;
+			});
 		}
 	}
 

@@ -21,8 +21,6 @@ struct FSharedReplicationStreamDescription
 	/** Identifies the data that this stream will send. */
 	UPROPERTY()
 	FObjectReplicationMap ReplicationMap;
-
-	// TODO: Add override settings to objects, such as override update frequency etc. Do it via TMap<FSoftObjectPath, FObjectReplicationSettings>.
 	
 	friend bool operator==(const FSharedReplicationStreamDescription& Left, const FSharedReplicationStreamDescription& Right)
 	{
@@ -46,7 +44,14 @@ struct FReplicationStreamDescription
 	UPROPERTY()
 	FSharedReplicationStreamDescription BaseDescription;
 
-	// TODO: Add TArray<TObjectPtr<UReplicationStreamAttribute>> property
+	friend bool operator==(const FReplicationStreamDescription& Left, const FReplicationStreamDescription& Right)
+	{
+		return Left.BaseDescription == Right.BaseDescription;
+	}
+	friend bool operator!=(const FReplicationStreamDescription& Left, const FReplicationStreamDescription& Right)
+	{
+		return !(Left == Right);
+	}
 
 	/** Packs the UObjects in this description (Concert does not allow sending UObjects directly) */
 	CONCERTSYNCCORE_API struct FReplicationStreamDescription_NetPacked Pack() const;
@@ -60,12 +65,18 @@ USTRUCT()
 struct FReplicationStreamDescription_NetPacked
 {
 	GENERATED_BODY()
-
 	
 	UPROPERTY()
 	FSharedReplicationStreamDescription BaseDescription;
 
-	// TODO: Add TArray<FConcertSessionSerializedPayload> where each corresponds to a UReplicationStreamAttribute; those will be used by receive rules to decide whether a client can receive certain data.
+	friend bool operator==(const FReplicationStreamDescription_NetPacked& Left, const FReplicationStreamDescription_NetPacked& Right)
+	{
+		return Left.BaseDescription == Right.BaseDescription;
+	}
+	friend bool operator!=(const FReplicationStreamDescription_NetPacked& Left, const FReplicationStreamDescription_NetPacked& Right)
+	{
+		return !(Left == Right);
+	}
 
 	/** Unpacks this data. This function can fail, e.g if the UObject class does not exist locally. */
 	CONCERTSYNCCORE_API TOptional<FReplicationStreamDescription> Unpack(FString* OutErrorMessage = nullptr) const;

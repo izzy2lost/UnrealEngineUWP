@@ -2,6 +2,7 @@
 
 #pragma once
 
+#include "ReplicationManagerUtils.h"
 #include "Replication/IConcertClientReplicationManager.h"
 
 namespace UE::ConcertSyncClient::Replication
@@ -18,7 +19,27 @@ namespace UE::ConcertSyncClient::Replication
 
 		FReplicationManagerState(FReplicationManager& Owner);
 
+		// Default implementations for subclasses in which the operation is not valid
+		
+		//~ Begin IConcertClientReplicationManager Interface
+		virtual EStreamEnumerationResult ForEachRegisteredStream(TFunctionRef<EBreakBehavior(const FReplicationStreamDescription& Stream)> Callback) const override { return EStreamEnumerationResult::NoRegisteredStreams; }
+		virtual TFuture<FAuthorityChangeResponse> RequestAuthorityChange(FAuthorityChangeRequest Args) override { return RejectAll(MoveTemp(Args)); }
+		virtual TFuture<FClientQueryResponse> QueryClientInfo(FClientQueryRequest Args) override { return MakeFulfilledPromise<FClientQueryResponse>().GetFuture(); }
+		virtual TFuture<FChangeStreamResponse> ChangeStream(FChangeStreamRequest Args) override { return MakeFulfilledPromise<FChangeStreamResponse>().GetFuture(); }
+		virtual EAuthorityEnumerationResult ForEachClientOwnedObject(TFunctionRef<EBreakBehavior(const FSoftObjectPath& Object, TSet<FGuid>&& OwningStreams)> Callback) const override { return EAuthorityEnumerationResult::NoAuthorityAvailable; }
+		virtual TSet<FGuid> GetClientOwnedStreamsForObject(const FSoftObjectPath& ObjectPath) const override { return {}; }
+		virtual FOnPreStreamsChanged& OnPreStreamsChanged() override { return OnPreStreamsChangedDelegate; } 
+		virtual FOnPostStreamsChanged& OnPostStreamsChanged() override { return OnPostStreamsChangedDelegate; }
+		virtual FOnPreAuthorityChanged& OnPreAuthorityChanged() override { return OnPreAuthorityChangedDelegate; }
+		virtual FOnPostAuthorityChanged& OnPostAuthorityChanged() override { return OnPostAuthorityChangedDelegate; }
+		//~ End IConcertClientReplicationManager Interface
+
 	protected:
+		
+		FOnPreStreamsChanged OnPreStreamsChangedDelegate;
+		FOnPostStreamsChanged OnPostStreamsChangedDelegate;
+		FOnPreAuthorityChanged OnPreAuthorityChangedDelegate;
+		FOnPostAuthorityChanged OnPostAuthorityChangedDelegate;
 
 		/**
 		 * Subclasses can change the state with this function.

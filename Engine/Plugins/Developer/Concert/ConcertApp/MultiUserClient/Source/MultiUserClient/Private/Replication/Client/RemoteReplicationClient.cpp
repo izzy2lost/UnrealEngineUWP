@@ -16,7 +16,7 @@ namespace UE::MultiUserClient
 		, RemoteEndpointId(InConcertClientId)
 	{
 		// When the remote client's state has changed, refresh the UI.
-		GetStreamSynchronizer().OnServerStateSynched().AddLambda([this]()
+		GetStreamSynchronizer().OnServerStateChanged().AddLambda([this]()
 		{
 			GetClientContent()->Stream->ReplicationMap = GetStreamSynchronizer().GetServerState();
 			OnModelExternallyChanged().Broadcast();

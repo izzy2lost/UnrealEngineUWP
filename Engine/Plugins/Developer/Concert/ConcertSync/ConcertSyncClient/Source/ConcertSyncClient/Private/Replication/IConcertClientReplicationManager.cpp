@@ -103,3 +103,14 @@ TFuture<UE::ConcertSyncClient::Replication::FAuthorityChangeResponse> IConcertCl
 	
 	return RequestAuthorityChange(MoveTemp(Request));
 }
+
+TMap<FSoftObjectPath, TSet<FGuid>> IConcertClientReplicationManager::GetClientOwnedObjects() const
+{
+	TMap<FSoftObjectPath, TSet<FGuid>> Result;
+	ForEachClientOwnedObject([&Result](const FSoftObjectPath& Object, TSet<FGuid>&& OwningStreams)
+	{
+		Result.Emplace(Object, MoveTemp(OwningStreams));
+		return EBreakBehavior::Continue;
+	});
+	return Result;
+}

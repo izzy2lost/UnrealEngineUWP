@@ -14,6 +14,7 @@
 class FConcertSyncClientLiveSession;
 class IConcertClientReplicationBridge;
 class UObject;
+enum class EBreakBehavior : uint8;
 struct FConcertPropertySelection;
 struct FReplicationStreamDescription;
 
@@ -59,6 +60,11 @@ namespace UE::ConcertSyncClient::Replication
 		 * @param PutStreams The streams determine which properties are to be replicated
 		 */
 		void OnObjectStreamModified(const FSoftObjectPath& Object, TArrayView<const FGuid> PutStreams);
+
+		/** Iterates every object for which there is at least one owning stream. */
+		void ForEachOwnedObject(TFunctionRef<EBreakBehavior(const FSoftObjectPath&)> Callback) const;
+		/** Writes all owning streams for ObjectPath into Paths. */
+		void AppendOwningStreamsForObject(const FSoftObjectPath& ObjectPath, TSet<FGuid>& Paths) const;
 
 		//~ Begin IReplicationDataSource Interface
 		virtual void ForEachPendingObject(TFunctionRef<void(const FObjectInStreamID&)> ProcessItemFunc) const override;

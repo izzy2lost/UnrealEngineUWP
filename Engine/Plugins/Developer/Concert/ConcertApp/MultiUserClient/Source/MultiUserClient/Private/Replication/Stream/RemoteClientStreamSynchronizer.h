@@ -32,7 +32,7 @@ namespace UE::MultiUserClient
 		virtual FGuid GetStreamId() const override;
 		virtual const FObjectReplicationMap& GetServerState() const override { return LastKnownServerState; }
 		virtual FOnChangesAccepted& OnChangesAccepted() override { return OnChangesAcceptedDelegate; }
-		virtual FOnServerStateChanged& OnServerStateSynched() override { return OnServerStateSynchedDelegate; }
+		virtual FOnServerStateChanged& OnServerStateChanged() override { return OnServerStateChangedDelegate; }
 		//~ End IClientStreamSynchronizer Interface
 
 	private:
@@ -48,7 +48,7 @@ namespace UE::MultiUserClient
 		/** Called when a change request that was in transit was accepted by the server. */
 		FOnChangesAccepted OnChangesAcceptedDelegate;
 		/** Event executed when the result of GetServerState has been synched. */
-		FOnServerStateChanged OnServerStateSynchedDelegate;
+		FOnServerStateChanged OnServerStateChangedDelegate;
 
 		/** Called in regular intervals with the contents of the remote client. */
 		void HandleStreamQuery(const TArray<FSharedReplicationStreamDescription>& Streams);

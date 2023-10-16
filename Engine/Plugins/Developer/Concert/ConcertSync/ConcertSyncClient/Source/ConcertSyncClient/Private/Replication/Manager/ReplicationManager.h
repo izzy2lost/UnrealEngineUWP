@@ -33,6 +33,12 @@ namespace UE::ConcertSyncClient::Replication
 		virtual TFuture<FAuthorityChangeResponse> RequestAuthorityChange(FAuthorityChangeRequest Args) override;
 		virtual TFuture<FClientQueryResponse> QueryClientInfo(FClientQueryRequest Args) override;
 		virtual TFuture<FChangeStreamResponse> ChangeStream(FChangeStreamRequest Args) override;
+		virtual EAuthorityEnumerationResult ForEachClientOwnedObject(TFunctionRef<EBreakBehavior(const FSoftObjectPath& Object, TSet<FGuid>&& OwningStreams)>) const override;
+		virtual TSet<FGuid> GetClientOwnedStreamsForObject(const FSoftObjectPath& ObjectPath) const override;
+		virtual FOnPreStreamsChanged& OnPreStreamsChanged() override;
+		virtual FOnPostStreamsChanged& OnPostStreamsChanged() override;
+		virtual FOnPreAuthorityChanged& OnPreAuthorityChanged() override;
+		virtual FOnPostAuthorityChanged& OnPostAuthorityChanged() override;
 		//~ End IConcertClientReplicationManager Interface
 
 	private:

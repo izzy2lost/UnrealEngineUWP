@@ -23,43 +23,40 @@ namespace UE::MultiUserClient
 	public:
 
 		FLocalClientStreamSynchronizer(TSharedRef<IConcertSyncClient> InLocalClient, const FGuid& InLocalClientStreamId);
+		virtual ~FLocalClientStreamSynchronizer() override;
 
 		//~ Begin IClientStreamSynchronizer Interface
 		virtual TFuture<FSubmitChangesResult> SubmitChanges(const FStreamChangelist& Changelist) override;
 		virtual bool CanMakeSubmitRequest() const override { return !ChangeInTransit.IsSet(); }
 		virtual FGuid GetStreamId() const override { return LocalClientStreamId; }
-		virtual const FObjectReplicationMap& GetServerState() const override { return ConfirmedServerState; }
+		virtual const FObjectReplicationMap& GetServerState() const override;
 		virtual FOnChangesAccepted& OnChangesAccepted() override { return OnChangesAcceptedDelegate; }
-		virtual FOnServerStateChanged& OnServerStateSynched() override { return OnServerStateSynchedDelegate; }
+		virtual FOnServerStateChanged& OnServerStateChanged() override { return OnServerStateChangedDelegate; }
 		//~ End IClientStreamSynchronizer Interface
 
 	private:
 		
 		/** Referenced by the change requests to detect destruction of FLocalClientStreamSynchronizer */
 		const TSharedRef<FToken> LifetimeToken = FToken::Make();
+		/** Returned by GetServerState when there is no registered stream. */
+		const FObjectReplicationMap EmptyState;
 		
 		/** Owning client. Used to send change requests to the server. */
 		const TSharedRef<IConcertSyncClient> LocalClient;
 		/** The ID of the local client's stream this FLocalClientStreamDiffer is managing. */
 		const FGuid LocalClientStreamId;
-
-		/**
-		 * Represents what the local client thinks the replication map on the server currently looks like.
-		 * This is updated every time the server confirms a change.
-		 */
-		FObjectReplicationMap ConfirmedServerState;
 		
 		/**
 		 * Represents a change to ConfirmedServerState that is currently in transit to the server.
 		 * When a change is submitted to the server, ChangeInTransit becomes the difference between ConfirmedServerState and StreamWithInProgressChangesAttribute.
 		 * When the server confirms these changes, they are applied to ConfirmedServerState.
 		 */
-		TOptional<FStreamChangelist> ChangeInTransit;
+		TOptional<ConcertSyncClient::Replication::FChangeStreamRequest> ChangeInTransit;
 		
 		/** Called when a change request that was in transit was accepted by the server. */
 		FOnChangesAccepted OnChangesAcceptedDelegate;
 		/** Event executed when the result of GetServerState has been synched. */
-		FOnServerStateChanged OnServerStateSynchedDelegate;
+		FOnServerStateChanged OnServerStateChangedDelegate;
 		
 		/** Builds a change request based on what's registered on the server. */
 		ConcertSyncClient::Replication::FChangeStreamRequest BuildChangeRequest(const FStreamChangelist& Changelist) const;
@@ -79,11 +76,11 @@ namespace UE::MultiUserClient
 		 */
 		EChangeRequestType ComputeNextRequestType() const;
 
-		/** Updates the server state after the server has answered a request. */
-		void UpdateConfirmedServerState(
-			const ConcertSyncClient::Replication::FChangeStreamRequest& Request,
-			const FStreamChangelist& ChangeThatWasInTransit
+		void OnPreStreamsChanged(
+			const ConcertSyncClient::Replication::FChangeStreamRequest& ChangeStreamRequest,
+			const ConcertSyncClient::Replication::FChangeStreamResponse& ChangeStreamResponse
 			);
+		void OnPostStreamsChanged();
 	};
 }
 

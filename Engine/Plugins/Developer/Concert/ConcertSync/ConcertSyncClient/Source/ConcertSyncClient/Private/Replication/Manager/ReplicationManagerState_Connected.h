@@ -51,6 +51,8 @@ namespace UE::ConcertSyncClient::Replication
 		virtual TFuture<FAuthorityChangeResponse> RequestAuthorityChange(FAuthorityChangeRequest Args) override;
 		virtual TFuture<FClientQueryResponse> QueryClientInfo(FClientQueryRequest Args) override;
 		virtual TFuture<FChangeStreamResponse> ChangeStream(FChangeStreamRequest Args) override;
+		virtual EAuthorityEnumerationResult ForEachClientOwnedObject(TFunctionRef<EBreakBehavior(const FSoftObjectPath& Object, TSet<FGuid>&& OwningStreams)> Callback) const override;
+		virtual TSet<FGuid> GetClientOwnedStreamsForObject(const FSoftObjectPath& ObjectPath) const override;
 		//~ End IConcertClientReplicationManager Interface
 
 	private:
@@ -117,7 +119,7 @@ namespace UE::ConcertSyncClient::Replication
 		void TickReceiver(float TimeBudget);
 		
 		/** Updates replicated objects affected by the change request. */
-		void UpdateReplicatedObjectsAfterStreamChange(const FChangeStreamRequest& Request);
+		void UpdateReplicatedObjectsAfterStreamChange(const FChangeStreamRequest& Request, const FConcertReplication_ChangeStream_Response& Response);
 		void HandleRemovingReplicatedObjects(const FChangeStreamRequest& Request) const;
 
 		/**
