@@ -19,7 +19,7 @@
 #include "ObjectEditorUtils.h"
 #include "PropertyCustomizationHelpers.h"
 #include "Modules/ModuleManager.h"
-
+#include "MuCOE/CustomizableObjectEditorLogger.h"
 
 class SGraphNode;
 class SWidget;
@@ -144,19 +144,17 @@ int32 UCustomizableObjectNodeMaterial::GetExpressionTextureCoordinate(UMaterial*
 {
 	if (const UMaterialExpressionTextureSample* TextureSample = Material->FindExpressionByGUID<UMaterialExpressionTextureSample>(ImageId))
 	{
-		if (const UMaterialExpressionTextureCoordinate* TextureCoords = Cast<UMaterialExpressionTextureCoordinate>(TextureSample->Coordinates.Expression))
+		if (!TextureSample->Coordinates.Expression)
+		{
+			return TextureSample->ConstCoordinate;
+		}
+		else if (const UMaterialExpressionTextureCoordinate* TextureCoords = Cast<UMaterialExpressionTextureCoordinate>(TextureSample->Coordinates.Expression))
 		{
 			return TextureCoords->CoordinateIndex;
 		}
-		else
-		{
-			return 0;
-		}
 	}
-	else
-	{
-		return -1;
-	}
+
+	return -1;
 }
 
 
@@ -201,6 +199,39 @@ EPinMode UCustomizableObjectNodeMaterial::GetImagePinMode(const UEdGraphPin& Pin
 		check(false); // Missing case.
 		return EPinMode::Mutable;
 	}
+}
+
+
+int32 UCustomizableObjectNodeMaterial::GetImageUVLayoutFromMaterial(const int32 ImageIndex) const
+{
+	const FGuid ImageId = GetParameterId(EMaterialParameterType::Texture, ImageIndex);
+
+	if (const int32 TextureCoordinate = GetExpressionTextureCoordinate(Material->GetMaterial(), ImageId);
+		TextureCoordinate >= 0)
+	{
+		return TextureCoordinate;
+	}
+
+	FMaterialLayersFunctions Layers;
+	Material->GetMaterialLayers(Layers);
+
+	TArray<TArray<TObjectPtr<UMaterialFunctionInterface>>*> MaterialFunctionInterfaces;
+	MaterialFunctionInterfaces.SetNumUninitialized(2);
+	MaterialFunctionInterfaces[0] = &Layers.Layers;
+	MaterialFunctionInterfaces[1] = &Layers.Blends;
+
+	for (const TArray<TObjectPtr<UMaterialFunctionInterface>>* MaterialFunctionInterface : MaterialFunctionInterfaces)
+	{
+		for (const TObjectPtr<UMaterialFunctionInterface>& Layer : *MaterialFunctionInterface)
+		{
+			if (const int32 TextureCoordinate = GetExpressionTextureCoordinate(Layer->GetPreviewMaterial()->GetMaterial(), ImageId); TextureCoordinate >= 0)
+			{
+				return TextureCoordinate;
+			}	
+		}
+	}
+
+	return -1;
 }
 
 
@@ -258,10 +289,14 @@ void UCustomizableObjectNodeMaterialPinDataImage::PostLoad()
 			UVLayoutMode = EUVLayoutMode::Ignore;
 			UVLayout = 0;
 		}
-		else if (UVLayout == -2) // UV_LAYOUT_DEFAULT
+		else if (UVLayout == UV_LAYOUT_DEFAULT)
 		{
 			UVLayoutMode = EUVLayoutMode::FromMaterial;
 			UVLayout = 0;
+		}
+		else
+		{
+			UVLayoutMode = EUVLayoutMode::Index;
 		}
 	}
 }
@@ -345,10 +380,27 @@ void UCustomizableObjectNodeMaterial::BackwardsCompatibleFixup()
 				{
 					PinData->ParameterId = GetParameterId(EMaterialParameterType::Texture, ParameterIndex);
 
-					if (const int32 UVLayout = GetImageUVLayout(ParameterIndex); Image.UVLayout != UVLayout)
+					if (Image.UVLayout == -1)
 					{
-						PinData->UVLayout = UVLayout;
+						PinData->UVLayout = Image.UVLayout;
 					}
+					else
+					{
+						const int32 UVLayout = GetImageUVLayoutFromMaterial(ParameterIndex);
+						if (UVLayout < 0) // Could not be deduced from the Material
+						{
+							PinData->UVLayout = Image.UVLayout;						
+						}
+						else if (UVLayout == Image.UVLayout)
+						{
+							PinData->UVLayout = UV_LAYOUT_DEFAULT;							
+						}
+						else
+						{
+							PinData->UVLayout = UVLayout;
+						}					
+					}
+					
 					break;
 				}
 			}
@@ -815,37 +867,18 @@ int32 UCustomizableObjectNodeMaterial::GetImageUVLayout(const int32 ImageIndex) 
 		}
 	}
 
-	// Else
-	const FGuid ImageId = GetParameterId(EMaterialParameterType::Texture, ImageIndex);
-	
-	if (int32 TextureCoordinate = GetExpressionTextureCoordinate(Material->GetMaterial(), ImageId); TextureCoordinate >= 0)
+	const int32 UVIndex = GetImageUVLayoutFromMaterial(ImageIndex);
+	if (UVIndex == -1)
 	{
-		return TextureCoordinate;
+		FCustomizableObjectEditorLogger::CreateLog(LOCTEXT("UVLayoutMaterialError", "Could not deduce the UV Layout Index from the UMaterial. Nodes connected to the Texture Sample UVs pin are supported."))
+			.Severity(EMessageSeverity::Warning)
+			.Context(*this)
+			.Log();
+		
+		return 0;
 	}
-	else
-	{
-		FMaterialLayersFunctions Layers;
-		Material->GetMaterialLayers(Layers);
 
-		TArray<TArray<TObjectPtr<UMaterialFunctionInterface>>*> MaterialFunctionInterfaces;
-		MaterialFunctionInterfaces.SetNumUninitialized(2);
-		MaterialFunctionInterfaces[0] = &Layers.Layers;
-		MaterialFunctionInterfaces[1] = &Layers.Blends;
-
-		for (const TArray<TObjectPtr<UMaterialFunctionInterface>>* MaterialFunctionInterface : MaterialFunctionInterfaces)
-		{
-			for (const TObjectPtr<UMaterialFunctionInterface>& Layer : *MaterialFunctionInterface)
-			{
-				if (TextureCoordinate = GetExpressionTextureCoordinate(Layer->GetPreviewMaterial()->GetMaterial(), ImageId); TextureCoordinate >= 0)
-				{
-					return TextureCoordinate;
-				}	
-			}
-		}
-	}
-	
-	check(false); // Texture Parameter not found.
-	return 0;
+	return UVIndex;
 }
 
 
