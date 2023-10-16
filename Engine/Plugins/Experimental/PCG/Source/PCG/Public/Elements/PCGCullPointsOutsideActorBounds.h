@@ -28,6 +28,10 @@ protected:
 	virtual TArray<FPCGPinProperties> OutputPinProperties() const override;
 	virtual FPCGElementPtr CreateElement() const override;
 	//~End UPCGSettings interface
+
+public:
+	UPROPERTY(BlueprintReadWrite, EditAnywhere, Category = Settings, meta = (PCG_Overridable))
+	float BoundsExpansion = 0.0;
 };
 
 class FPCGCullPointsOutsideActorBoundsElement : public IPCGElement

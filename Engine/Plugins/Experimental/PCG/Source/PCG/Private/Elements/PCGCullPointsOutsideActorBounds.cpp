@@ -48,8 +48,11 @@ bool FPCGCullPointsOutsideActorBoundsElement::ExecuteInternal(FPCGContext* Conte
 	UPCGVolumeData* VolumeData = NewObject<UPCGVolumeData>();
 	check(VolumeData);
 
+	const UPCGCullPointsOutsideActorBoundsSettings* Settings = Context->GetInputSettings<UPCGCullPointsOutsideActorBoundsSettings>();
+	check(Settings);
+
 	// Initialize directly. Could also have gone through PCGComponent::CreateActorPCGDataCollection.
-	VolumeData->Initialize(Context->SourceComponent->GetGridBounds());
+	VolumeData->Initialize(Context->SourceComponent->GetGridBounds().ExpandBy(Settings->BoundsExpansion));
 
 	const TArray<FPCGTaggedData>& Inputs = Context->InputData.TaggedData;
 	for (const FPCGTaggedData& Input : Inputs)
