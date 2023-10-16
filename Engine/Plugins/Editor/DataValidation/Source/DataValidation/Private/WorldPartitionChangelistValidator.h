@@ -16,16 +16,16 @@ class DATAVALIDATION_API UWorldPartitionChangelistValidator : public UEditorVali
 	GENERATED_BODY()
 
 protected:	
-	TArray<FText>* Errors = nullptr;
 	FTopLevelAssetPath RelevantMap;
 	TSet<FGuid> RelevantActorGuids;
 	TSet<FString> RelevantDataLayerAssets;
+	UObject* CurrentAsset = nullptr;
 	bool SubmittingWorldDataLayers = false;
 
-	virtual bool CanValidateAsset_Implementation(UObject* InAsset) const override;
-	virtual EDataValidationResult ValidateLoadedAsset_Implementation(UObject* InAsset, TArray<FText>& ValidationErrors) override;
+	virtual bool CanValidateAsset_Implementation(const FAssetData& InAssetData, UObject* InAsset, FDataValidationContext& InContext) const override;
+	virtual EDataValidationResult ValidateLoadedAsset_Implementation(const FAssetData& InAssetData, UObject* InAsset, FDataValidationContext& InContext) override;
 
-	EDataValidationResult ValidateActorsAndDataLayersFromChangeList(UDataValidationChangelist* Changelist);
+	void ValidateActorsAndDataLayersFromChangeList(UDataValidationChangelist* Changelist);
 
 	// Return true if this ActorDescView is pertinent to the current ChangeList
 	bool Filter(const FWorldPartitionActorDescView& ActorDescView);

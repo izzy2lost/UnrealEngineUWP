@@ -2226,76 +2226,7 @@ static bool GetChangelistValidationResult(FSourceControlChangelistPtr InChangeli
 
 	bool bValidationResult = true;
 
-	if (ValidationDelegate.ExecuteIfBound(InChangelist, ValidationResult, ValidationErrors, ValidationWarnings))
-	{
-		EMessageSeverity::Type MessageSeverity = EMessageSeverity::Info;
-
-		if (ValidationResult == EDataValidationResult::Invalid || ValidationErrors.Num() > 0)
-		{
-			OutValidationTitleText = LOCTEXT("SourceControl.Submit.ChangelistValidationError", "Changelist validation failed!").ToString();
-			bValidationResult = false;
-			MessageSeverity = EMessageSeverity::Error;
-		}
-		else if (ValidationResult == EDataValidationResult::NotValidated || ValidationWarnings.Num() > 0)
-		{
-			OutValidationTitleText = LOCTEXT("SourceControl.Submit.ChangelistValidationWarning", "Changelist validation has warnings!").ToString();
-			MessageSeverity = EMessageSeverity::Warning;
-		}
-		else
-		{
-			OutValidationTitleText = LOCTEXT("SourceControl.Submit.ChangelistValidationSuccess", "Changelist validation successful!").ToString();
-		}
-
-		FMessageLog SourceControlLog("SourceControl");
-		
-		SourceControlLog.Message(MessageSeverity, FText::FromString(*OutValidationTitleText));
-
-		auto AppendInfo = [](const TArray<FText>& Info, const FString& InfoType, FString& OutText)
-		{
-			const int32 MaxNumLinesDisplayed = 5;
-			int32 NumLinesDisplayed = 0;
-
-			if (Info.Num() > 0)
-			{
-				OutText += LINE_TERMINATOR;
-				OutText += FString::Printf(TEXT("Encountered %d %s:"), Info.Num(), *InfoType);
-
-				for (const FText& Line : Info)
-				{
-					if (NumLinesDisplayed >= MaxNumLinesDisplayed)
-					{
-						OutText += LINE_TERMINATOR;
-						OutText += FString::Printf(TEXT("See log for complete list of %s"), *InfoType);
-						break;
-					}
-
-					OutText += LINE_TERMINATOR;
-					OutText += Line.ToString();
-
-					++NumLinesDisplayed;
-				}
-			}
-		};
-
-		auto LogInfo = [&SourceControlLog](const TArray<FText>& Info, const FString& InfoType, const EMessageSeverity::Type LogVerbosity)
-		{
-			if (Info.Num() > 0)
-			{
-				SourceControlLog.Message(LogVerbosity, FText::Format(LOCTEXT("SourceControl.Validation.ErrorEncountered", "Encountered {0} {1}:"), FText::AsNumber(Info.Num()), FText::FromString(*InfoType)));
-
-				for (const FText& Line : Info)
-				{
-					SourceControlLog.Message(LogVerbosity, Line);
-				}
-			}
-		};
-
-		AppendInfo(ValidationErrors, TEXT("errors"), OutValidationErrorsText);
-		AppendInfo(ValidationWarnings, TEXT("warnings"), OutValidationWarningsText);
-
-		LogInfo(ValidationErrors, TEXT("errors"), EMessageSeverity::Error);
-		LogInfo(ValidationWarnings, TEXT("warnings"), EMessageSeverity::Warning);
-	}
+	ValidationDelegate.ExecuteIfBound(InChangelist, ValidationResult, ValidationErrors, ValidationWarnings);
 
 	return bValidationResult;
 }

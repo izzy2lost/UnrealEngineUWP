@@ -2,10 +2,15 @@
 
 #include "EditorValidatorSubsystem.h"
 
+#include "Algo/AnyOf.h"
+#include "Algo/RemoveIf.h"
+#include "AssetCompilingManager.h"
 #include "AssetRegistry/ARFilter.h"
+#include "AssetRegistry/AssetDataToken.h"
 #include "AssetRegistry/AssetRegistryModule.h"
 #include "Blueprint/BlueprintSupport.h"
 #include "DataValidationChangelist.h"
+#include "EditorValidatorHelpers.h"
 #include "DirectoryWatcherModule.h"
 #include "Editor.h"
 #include "EditorUtilityBlueprint.h"
@@ -17,8 +22,10 @@
 #include "Logging/MessageLog.h"
 #include "Misc/App.h"
 #include "Misc/DataValidation.h"
+#include "Misc/MessageDialog.h"
 #include "Misc/PackageName.h"
 #include "Misc/ScopedSlowTask.h"
+#include "Misc/ScopeExit.h"
 #include "UObject/TopLevelAssetPath.h"
 
 #include UE_INLINE_GENERATED_CPP_BY_NAME(EditorValidatorSubsystem)
@@ -27,9 +34,17 @@
 
 DEFINE_LOG_CATEGORY(LogContentValidation);
 
+FValidateAssetsSettings::FValidateAssetsSettings()
+	: ShowMessageLogSeverity(EMessageSeverity::Warning)
+	, MessageLogPageTitle(LOCTEXT("DataValidation.MessagePageTitle", "Data Validation"))
+{
+}
+
+FValidateAssetsSettings::~FValidateAssetsSettings()
+{
+}
 
 UDataValidationSettings::UDataValidationSettings()
-	: bValidateOnSave(true)
 {
 
 }
@@ -38,6 +53,24 @@ UEditorValidatorSubsystem::UEditorValidatorSubsystem()
 	: UEditorSubsystem()
 {
 	bAllowBlueprintValidators = true;
+}
+
+bool UEditorValidatorSubsystem::ShouldCreateSubsystem(UObject* Outer) const
+{
+	if (GetClass() == UEditorValidatorSubsystem::StaticClass())
+	{
+		TArray<UClass*> ChildClasses;
+		GetDerivedClasses(UEditorValidatorSubsystem::StaticClass(), ChildClasses, true);
+		for (UClass* Child : ChildClasses)
+		{
+			if (Child->GetDefaultObject<UEditorSubsystem>()->ShouldCreateSubsystem(Outer))
+			{
+				// Do not create this class because one of our child classes wants to be created
+				return false;
+			}
+		}
+	}
+	return true;
 }
 
 void UEditorValidatorSubsystem::Initialize(FSubsystemCollectionBase& Collection)
@@ -78,6 +111,19 @@ void UEditorValidatorSubsystem::Initialize(FSubsystemCollectionBase& Collection)
 
 	// Register to SCC pre-submit callback
 	ISourceControlModule::Get().RegisterPreSubmitDataValidation(FSourceControlPreSubmitDataValidationDelegate::CreateUObject(this, &UEditorValidatorSubsystem::ValidateChangelistPreSubmit));
+}
+
+bool UEditorValidatorSubsystem::ShouldValidateAsset(
+	const FAssetData& 				Asset,
+	const FValidateAssetsSettings& 	Settings,
+	FDataValidationContext& 		InContext) const
+{
+	if (IsPathExcludedFromValidation(WriteToString<FName::StringBufferSize>(Asset.PackageName).ToView()))
+	{
+		return false;
+	}
+
+	return true;
 }
 
 // Rename to BP validators
@@ -158,55 +204,33 @@ void UEditorValidatorSubsystem::CleanupValidators()
 	Validators.Empty();
 }
 
-EDataValidationResult UEditorValidatorSubsystem::IsObjectValid(UObject* InObject, TArray<FText>& ValidationErrors, TArray<FText>& ValidationWarnings, const EDataValidationUsecase InValidationUsecase) const
+EDataValidationResult UEditorValidatorSubsystem::IsObjectValid(
+	UObject* InObject,
+	TArray<FText>& ValidationErrors,
+	TArray<FText>& ValidationWarnings,
+	const EDataValidationUsecase InValidationUsecase) const
 {
-	EDataValidationResult Result = EDataValidationResult::NotValidated;
-	
-	if (ensure(InObject))
-	{
-		// First check the class level validation
-		FDataValidationContext Context;
-		Result = const_cast<const UObject*>(InObject)->IsDataValid(Context);
-		Context.SplitIssues(ValidationWarnings, ValidationErrors);
-
-		// If the asset is still valid or there wasn't a class-level validation, keep validating with custom validators
-		if (Result != EDataValidationResult::Invalid)
-		{
-			// This doesn't change the logical view of the subsystem
-			const_cast<UEditorValidatorSubsystem&>(*this).LoadValidators();
-
-			for (const TPair<FTopLevelAssetPath, TObjectPtr<UEditorValidatorBase>>& ValidatorPair : Validators)
-			{
-				if (ValidatorPair.Value && ValidatorPair.Value->IsEnabled() && ValidatorPair.Value->CanValidate(InValidationUsecase) && ValidatorPair.Value->CanValidateAsset(InObject))
-				{
-					ValidatorPair.Value->ResetValidationState();
-					EDataValidationResult NewResult = ValidatorPair.Value->ValidateLoadedAsset(InObject, ValidationErrors);
-
-					// Don't accidentally overwrite an invalid result with a valid or not-validated one
-					if(Result != EDataValidationResult::Invalid)
-					{
-						Result = NewResult;
-					}
-
-					ValidationWarnings.Append(ValidatorPair.Value->GetAllWarnings());
-
-					ensureMsgf(ValidatorPair.Value->IsValidationStateSet(), TEXT("Validator %s did not include a pass or fail state."), *ValidatorPair.Value->GetClass()->GetName());
-				}
-			}
-		}
-	}
-
+	FDataValidationContext Context(false, InValidationUsecase, {}); // No associated objects in this context
+	EDataValidationResult Result = IsObjectValidWithContext(InObject, Context);
+	Context.SplitIssues(ValidationErrors, ValidationWarnings);
 	return Result;
 }
 
-EDataValidationResult UEditorValidatorSubsystem::IsAssetValid(const FAssetData& AssetData, TArray<FText>& ValidationErrors, TArray<FText>& ValidationWarnings, const EDataValidationUsecase InValidationUsecase) const
+EDataValidationResult UEditorValidatorSubsystem::IsAssetValid(
+	const FAssetData& AssetData,
+	TArray<FText>& ValidationErrors,
+	TArray<FText>& ValidationWarnings,
+	const EDataValidationUsecase InValidationUsecase) const
 {
 	if (AssetData.IsValid())
 	{
 		UObject* Obj = AssetData.GetAsset({ ULevel::LoadAllExternalObjectsTag });
 		if (Obj)
 		{
-			return IsObjectValid(Obj, ValidationErrors, ValidationWarnings, InValidationUsecase);
+			FDataValidationContext Context(false, InValidationUsecase, {}); // No associated objects in this context
+			EDataValidationResult Result = ValidateObjectInternal(AssetData, Obj, Context);
+			Context.SplitIssues(ValidationErrors, ValidationWarnings);
+			return Result;
 		}
 		return EDataValidationResult::NotValidated;
 	}
@@ -214,139 +238,322 @@ EDataValidationResult UEditorValidatorSubsystem::IsAssetValid(const FAssetData& 
 	return EDataValidationResult::Invalid;
 }
 
-int32 UEditorValidatorSubsystem::ValidateAssets(TArray<FAssetData> AssetDataList, bool bSkipExcludedDirectories, bool bShowIfNoFailures) const
+EDataValidationResult UEditorValidatorSubsystem::IsObjectValidWithContext(
+	UObject* InObject,
+	FDataValidationContext& InContext) const
 {
-	FValidateAssetsSettings Settings;
-	FValidateAssetsResults Results;
-
-	Settings.bSkipExcludedDirectories = bSkipExcludedDirectories;
-	Settings.bShowIfNoFailures = bShowIfNoFailures;
+	EDataValidationResult Result = EDataValidationResult::NotValidated;
 	
-	return ValidateAssetsWithSettings(AssetDataList, Settings, Results);
+	if (ensure(InObject))
+	{
+		FAssetRegistryModule& AssetRegistryModule = FModuleManager::LoadModuleChecked<FAssetRegistryModule>("AssetRegistry");
+		IAssetRegistry& AssetRegistry = AssetRegistryModule.Get();
+
+		FAssetData AssetData = AssetRegistry.GetAssetByObjectPath(FSoftObjectPath(InObject), true);
+		if (!AssetData.IsValid())
+		{
+			// Construct dynamically with potentially fewer tags 
+			AssetData = FAssetData(InObject);
+		}
+		
+		return ValidateObjectInternal(AssetData, InObject, InContext);
+	}
+
+	return Result;
 }
 
-int32 UEditorValidatorSubsystem::ValidateAssetsWithSettings(const TArray<FAssetData>& AssetDataList, const FValidateAssetsSettings& InSettings, FValidateAssetsResults& OutResults) const
+EDataValidationResult UEditorValidatorSubsystem::IsAssetValidWithContext(
+	const FAssetData& AssetData,
+	FDataValidationContext& InContext) const
 {
-	FScopedSlowTask SlowTask(1.0f, LOCTEXT("ValidatingDataTask", "Validating Data..."));
-	SlowTask.Visibility = ESlowTaskVisibility::ForceVisible;
-	SlowTask.MakeDialogDelayed(.1f);
+	if (AssetData.IsValid())
+	{
+		UObject* Obj = AssetData.GetAsset({ ULevel::LoadAllExternalObjectsTag });
+		if (Obj)
+		{
+			return ValidateObjectInternal(AssetData, Obj, InContext);
+		}
+		return EDataValidationResult::NotValidated;
+	}
 
+	return EDataValidationResult::Invalid;
+}
+
+EDataValidationResult UEditorValidatorSubsystem::ValidateObjectInternal(
+	const FAssetData& InAssetData,
+	UObject* InObject,
+	FDataValidationContext& InContext) const
+{
+	EDataValidationResult Result = EDataValidationResult::NotValidated;
+	
+	if (ensure(InObject) && ensure(InAssetData.IsValid()))
+	{
+		// First check the class level validation
+		Result = const_cast<const UObject*>(InObject)->IsDataValid(InContext);
+
+		// If the asset is still valid or there wasn't a class-level validation, keep validating with custom validators
+		if (Result == EDataValidationResult::Invalid)
+		{
+			return Result;
+		}
+			
+		// This doesn't change the logical view of the subsystem
+		const_cast<UEditorValidatorSubsystem&>(*this).LoadValidators();
+
+		for (const TPair<FTopLevelAssetPath, TObjectPtr<UEditorValidatorBase>>& ValidatorPair : Validators)
+		{
+			UEditorValidatorBase* Validator = ValidatorPair.Value;
+			if (Validator && Validator->IsEnabled())
+			{
+				EDataValidationResult NewResult = Validator->ValidateLoadedAsset(InAssetData, InObject, InContext);
+				Result = CombineDataValidationResults(Result, NewResult);
+			}
+		}
+	}
+
+	return Result;
+}
+
+int32 UEditorValidatorSubsystem::ValidateAssetsWithSettings(
+	const TArray<FAssetData>& AssetDataList,
+	FValidateAssetsSettings& InSettings,
+	FValidateAssetsResults& OutResults) const
+{
+	FMessageLog DataValidationLog(UE::DataValidation::MessageLogName);
+	ValidateAssetsInternal(DataValidationLog, TSet<FAssetData>{AssetDataList}, InSettings, OutResults);
+	
+	if (EMessageSeverity::Type* Severity = InSettings.ShowMessageLogSeverity.GetPtrOrNull())
+	{
+		DataValidationLog.Open(*Severity, false);
+	}
+
+	return OutResults.NumWarnings + OutResults.NumInvalid;
+}
+
+void UEditorValidatorSubsystem::ValidateAssetsInternal(
+	FMessageLog& 					DataValidationLog,
+	TSet<FAssetData>				AssetDataList,
+	const FValidateAssetsSettings& 	InSettings,
+	FValidateAssetsResults& 		OutResults) const
+{
+	FAssetRegistryModule& AssetRegistryModule = FModuleManager::LoadModuleChecked<FAssetRegistryModule>("AssetRegistry");
+	IAssetRegistry& AssetRegistry = AssetRegistryModule.Get();
+
+	FScopedSlowTask SlowTask(AssetDataList.Num(), LOCTEXT("DataValidation.ValidateAssetsTask", "Validating Assets"));
+	SlowTask.MakeDialog();
+	
 	// Broadcast the Editor event before we start validating. This lets other systems (such as Sequencer) restore the state
 	// of the level to what is actually saved on disk before performing validation.
 	if (FEditorDelegates::OnPreAssetValidation.IsBound())
 	{
 		FEditorDelegates::OnPreAssetValidation.Broadcast();
 	}
-
-	FMessageLog DataValidationLog("AssetCheck");
-
-	int32 NumAdded = 0;
-
-	int32 NumFilesChecked = 0;
-	int32 NumValidFiles = 0;
-	int32 NumInvalidFiles = 0;
-	int32 NumFilesSkipped = 0;
-	int32 NumFilesUnableToValidate = 0;
-	int32 NumFilesWithWarnings = 0;
-
-	int32 NumFilesToValidate = AssetDataList.Num();
-
-	auto AddAssetLogTokens = [&DataValidationLog](EMessageSeverity::Type Severity, const TArray<FText>& TextMessages, FName PackageName)
+	
+	// Filter external objects out from the asset data list to be validated indirectly via their outers 
+	TMap<FAssetData, TArray<FAssetData>> AssetsToExternalObjects;
+	for (auto It = AssetDataList.CreateIterator(); It; ++It)
 	{
-		const FString PackageNameString = PackageName.ToString();
-		for (const FText& Msg : TextMessages)
+		if (!It->GetOptionalOuterPathName().IsNone())
 		{
-			const FString AssetLogString = FAssetMsg::GetAssetLogString(*PackageNameString, Msg.ToString());
-			FString BeforeAsset;
-			FString AfterAsset;
-			TSharedRef<FTokenizedMessage> TokenizedMessage = DataValidationLog.Message(Severity);
-			if (AssetLogString.Split(PackageNameString, &BeforeAsset, &AfterAsset))
+			FSoftObjectPath Path = It->ToSoftObjectPath();
+			FAssetData OuterAsset = AssetRegistry.GetAssetByObjectPath(Path.GetWithoutSubPath(), true);
+			AssetsToExternalObjects.FindOrAdd(OuterAsset).Add(*It);
+			It.RemoveCurrent();
+		}
+	}
+	
+	// Add any packages which contain those external objects to be validated
+	{
+		FDataValidationContext ValidationContext(false, InSettings.ValidationUsecase, {});
+		for (const TPair<FAssetData, TArray<FAssetData>>& Pair : AssetsToExternalObjects)
+		{
+			if (ShouldValidateAsset(Pair.Key, InSettings, ValidationContext))
 			{
-				if (!BeforeAsset.IsEmpty())
-				{
-					TokenizedMessage->AddToken(FTextToken::Create(FText::FromString(BeforeAsset)));
-				}
-				TokenizedMessage->AddToken(FAssetNameToken::Create(PackageNameString));
-				if (!AfterAsset.IsEmpty())
-				{
-					TokenizedMessage->AddToken(FTextToken::Create(FText::FromString(AfterAsset)));
-				}
-			}
-			else
-			{
-				TokenizedMessage->AddToken(FTextToken::Create(FText::FromString(AssetLogString)));
+				AssetDataList.Add(Pair.Key);
 			}
 		}
-	};
+		UE::DataValidation::AddAssetValidationMessages(DataValidationLog, ValidationContext);
+		DataValidationLog.Flush();
+	}
+
+	// Dont let other async compilation warnings be attributed incorrectly to the package that is loading.
+	if (FAssetCompilingManager::Get().GetNumRemainingAssets())
+	{
+		FScopedSlowTask CompileAssetsSlowTask(0.f, LOCTEXT("DataValidation.CompilingAssetsBeforeCheckingContentTask", "Finishing asset compilations before checking content..."));
+		CompileAssetsSlowTask.MakeDialog();
+		FAssetCompilingManager::Get().FinishAllCompilation();
+	}
+
+	OutResults.NumRequested = AssetDataList.Num();
 
 	// Now add to map or update as needed
 	for (const FAssetData& Data : AssetDataList)
 	{
-		FText ValidatingMessage = FText::Format(LOCTEXT("ValidatingFilename", "Validating {0}"), FText::FromString(Data.GetFullName()));
-		SlowTask.EnterProgressFrame(1.0f / NumFilesToValidate, ValidatingMessage);
+		ensure(Data.IsValid());
+
+		SlowTask.EnterProgressFrame(1.0f, FText::Format(LOCTEXT("DataValidation.ValidatingFilename", "Validating {0}"), FText::FromString(Data.GetFullName())));
+		
+		if (OutResults.NumChecked >= InSettings.MaxAssetsToValidate)
+		{
+			OutResults.bAssetLimitReached = true;
+			DataValidationLog.Info(FText::Format(LOCTEXT("DataValidation.MaxAssetCountReached", "MaxAssetsToValidate count {0} reached."), InSettings.MaxAssetsToValidate));
+			break;
+		}
 
 		if (Data.HasAnyPackageFlags(PKG_Cooked))
 		{
-			++NumFilesSkipped;
+			++OutResults.NumSkipped;
 			continue;
 		}
 
 		// Check exclusion path
 		if (InSettings.bSkipExcludedDirectories && IsPathExcludedFromValidation(Data.PackageName.ToString()))
 		{
-			++NumFilesSkipped;
+			++OutResults.NumSkipped;
 			continue;
 		}
 
 		const bool bLoadAsset = false;
 		if (!InSettings.bLoadAssetsForValidation && !Data.FastGetAsset(bLoadAsset))
 		{
-			++NumFilesSkipped;
+			++OutResults.NumSkipped;
 			continue;
 		}
+		
+		DataValidationLog.Info()
+			->AddToken(FAssetDataToken::Create(Data))
+			->AddToken(FTextToken::Create(LOCTEXT("Data.ValidatingAsset", "Validating asset")));
+		UE_LOG(LogContentValidation, Log, TEXT("Validating asset %s"), *Data.ToSoftObjectPath().ToString());
+		
+		UObject* LoadedAsset = Data.FastGetAsset(false);
+		const bool bAlreadyLoaded = LoadedAsset != nullptr;
 
-		UE_LOG(LogContentValidation, Display, TEXT("%s"), *ValidatingMessage.ToString());
-
-		TArray<FText> ValidationErrors;
-		TArray<FText> ValidationWarnings;
-		EDataValidationResult Result = IsAssetValid(Data, ValidationErrors, ValidationWarnings, InSettings.ValidationUsecase);
-		++NumFilesChecked;
-
-		AddAssetLogTokens(EMessageSeverity::Error, ValidationErrors, Data.PackageName);
-
-		if (ValidationWarnings.Num() > 0)
+		FDataValidationContext ValidationContext(bAlreadyLoaded, InSettings.ValidationUsecase, AssetsToExternalObjects.FindRef(Data));
+		EDataValidationResult Result = EDataValidationResult::NotValidated;
+		if (!LoadedAsset)
 		{
-			++NumFilesWithWarnings;
-
-			AddAssetLogTokens(EMessageSeverity::Warning, ValidationWarnings, Data.PackageName);
+			UE_LOG(LogContentValidation, Log, TEXT("Loading asset %s for validation"), *Data.ToSoftObjectPath().ToString());
+			UE::DataValidation::FScopedLogMessageGatherer LogGatherer(InSettings.bCaptureAssetLoadLogs);
+			LoadedAsset = Data.GetAsset(); // Do not load external objects, validators should load external objects that they want via GetAssociatedExternalObjects in the validation context 
+			
+			if (FAssetCompilingManager::Get().GetNumRemainingAssets())
+			{
+				FScopedSlowTask CompileAssetsSlowTask(0.f, LOCTEXT("DataValidation.CompilingAssetsBeforeCheckingContentTask", "Finishing asset compilations before checking content..."));
+				CompileAssetsSlowTask.MakeDialog();
+				FAssetCompilingManager::Get().FinishAllCompilation();
+			}
+			
+			// Associate any load errors with this asset in the message log
+			TArray<FString> Warnings;
+			TArray<FString> Errors;
+			LogGatherer.Stop(Warnings, Errors);
+			if (Warnings.Num())
+			{
+				TStringBuilder<2048> Buffer;
+				Buffer.Join(Warnings, LINE_TERMINATOR);
+				ValidationContext.AddMessage(EMessageSeverity::Warning)
+					->AddToken(FAssetDataToken::Create(Data))
+					->AddText(LOCTEXT("DataValidation.LoadWarnings", "Warnings loading asset {0}"), FText::FromStringView(Buffer.ToView()));
+			}
+			if(Errors.Num())
+			{
+				TStringBuilder<2048> Buffer;
+				Buffer.Join(Errors, LINE_TERMINATOR);
+				ValidationContext.AddMessage(EMessageSeverity::Error)
+					->AddToken(FAssetDataToken::Create(Data))
+					->AddText(LOCTEXT("DataValidation.LoadErrors", "Errors loading asset {0}"), FText::FromStringView(Buffer.ToView()));
+				Result = EDataValidationResult::Invalid;
+			}
 		}
 
-		if (Result == EDataValidationResult::Valid)
+		if (LoadedAsset)
 		{
-			if (ValidationWarnings.Num() > 0)
+			UE::DataValidation::FScopedLogMessageGatherer LogGatherer(InSettings.bCaptureLogsDuringValidation);
+			Result = IsObjectValidWithContext(LoadedAsset, ValidationContext);
+			
+			// Associate any UE_LOG errors with this asset in the message log
+			TArray<FString> Warnings;
+			TArray<FString> Errors;
+			LogGatherer.Stop(Warnings, Errors);
+			if (Warnings.Num())
 			{
-				DataValidationLog.Info()->AddToken(FAssetNameToken::Create(Data.PackageName.ToString()))
-					->AddToken(FTextToken::Create(LOCTEXT("ContainsWarningsResult", "contains valid data, but has warnings.")));
+				TStringBuilder<2048> Buffer;
+				Buffer.Join(Warnings, LINE_TERMINATOR);
+				ValidationContext.AddMessage(EMessageSeverity::Error)
+					->AddToken(FAssetDataToken::Create(Data))
+					->AddText(LOCTEXT("DataValidation.DuringValidationWarnings", "Warnings logged while validating asset {0}"), FText::FromStringView(Buffer.ToView()));
+				Result = EDataValidationResult::Invalid;
 			}
-			++NumValidFiles;
+			if(Errors.Num())
+			{
+				TStringBuilder<2048> Buffer;
+				Buffer.Join(Errors, LINE_TERMINATOR);
+				ValidationContext.AddMessage(EMessageSeverity::Error)
+					->AddToken(FAssetDataToken::Create(Data))
+					->AddText(LOCTEXT("DataValidation.DuringValidationErrors", "Errors logged while validating asset {0}"), FText::FromStringView(Buffer.ToView()));
+				Result = EDataValidationResult::Invalid;
+			}
 		}
-		else
+		else if (InSettings.bLoadAssetsForValidation)
 		{
-			if (Result == EDataValidationResult::Invalid)
+			ValidationContext.AddMessage(EMessageSeverity::Error)
+				->AddToken(FAssetDataToken::Create(Data))
+				->AddToken(FTextToken::Create(LOCTEXT("DataValidation.LoadFailed", "Failed to load object")));
+			Result = EDataValidationResult::Invalid;
+		}
+		else 
+		{
+			ValidationContext.AddMessage(EMessageSeverity::Error)
+				->AddToken(FAssetDataToken::Create(Data))
+				->AddToken(FTextToken::Create(LOCTEXT("DataValidation.CannotValidateNotLoaded", "Cannot validate unloaded asset")));
+			Result = EDataValidationResult::Invalid;
+		}
+
+		++OutResults.NumChecked;
+		
+		// Don't add more messages to ValidationContext after this point because we will no longer add them to the message log 
+		UE::DataValidation::AddAssetValidationMessages(Data, DataValidationLog, ValidationContext);
+
+		bool bAnyWarnings = Algo::AnyOf(ValidationContext.GetIssues(), [](const FDataValidationContext::FIssue& Issue){ return Issue.Severity == EMessageSeverity::Warning; });
+		if (bAnyWarnings)
+		{
+			++OutResults.NumWarnings;
+		}
+
+		if (InSettings.bShowIfNoFailures)
+		{
+			switch (Result)
 			{
-				DataValidationLog.Info()->AddToken(FAssetNameToken::Create(Data.PackageName.ToString()))
-					->AddToken(FTextToken::Create(LOCTEXT("InvalidDataResult", "contains invalid data.")));
-				++NumInvalidFiles;
+				case EDataValidationResult::Valid:
+					if (bAnyWarnings)
+					{
+						DataValidationLog.Info()->AddToken(FAssetDataToken::Create(Data))
+							->AddToken(FTextToken::Create(LOCTEXT("DataValidation.ContainsWarningsResult", "contains valid data, but has warnings.")));
+					}
+					else 
+					{
+						DataValidationLog.Info()->AddToken(FAssetDataToken::Create(Data))
+							->AddToken(FTextToken::Create(LOCTEXT("DataValidation.ContainsWarningsResult", "contains valid data.")));
+					}
+					break;
+				case EDataValidationResult::NotValidated:
+					DataValidationLog.Info()->AddToken(FAssetDataToken::Create(Data))
+						->AddToken(FTextToken::Create(LOCTEXT("DataValidation.NotValidatedDataResult", "has no data validation.")));
+					break;
 			}
-			else if (Result == EDataValidationResult::NotValidated)
-			{
-				if (InSettings.bShowIfNoFailures)
-				{
-					DataValidationLog.Info()->AddToken(FAssetNameToken::Create(Data.PackageName.ToString()))
-						->AddToken(FTextToken::Create(LOCTEXT("NotValidatedDataResult", "has no data validation.")));
-				}
-				++NumFilesUnableToValidate;
-			}
+		}	
+
+		switch (Result)
+		{
+			case EDataValidationResult::Valid:
+				++OutResults.NumValid;
+				break;
+			case EDataValidationResult::Invalid:
+				++OutResults.NumInvalid;
+				break;
+			case EDataValidationResult::NotValidated:
+				++OutResults.NumUnableToValidate;
+				break;
 		}
 
 		if (InSettings.bCollectPerAssetDetails)
@@ -355,35 +562,10 @@ int32 UEditorValidatorSubsystem::ValidateAssetsWithSettings(const TArray<FAssetD
 			Details.PackageName = Data.PackageName;
 			Details.AssetName = Data.AssetName;
 			Details.Result = Result;
-			Details.ValidationErrors = MoveTemp(ValidationErrors);
-			Details.ValidationWarnings = MoveTemp(ValidationWarnings);
+			ValidationContext.SplitIssues(Details.ValidationErrors, Details.ValidationWarnings);
 		}
-	}
-
-	const bool bFailed = (NumInvalidFiles > 0);
-	const bool bAtLeastOneWarning = (NumFilesWithWarnings > 0);
-
-	OutResults.NumChecked = NumFilesChecked;
-	OutResults.NumValid = NumValidFiles;
-	OutResults.NumInvalid = NumInvalidFiles;
-	OutResults.NumSkipped = NumFilesSkipped;
-	OutResults.NumWarnings = NumFilesWithWarnings;
-	OutResults.NumUnableToValidate = NumFilesUnableToValidate;
-
-	if (bFailed || bAtLeastOneWarning || InSettings.bShowIfNoFailures)
-	{
-		FFormatNamedArguments Arguments;
-		Arguments.Add(TEXT("Result"), bFailed ? LOCTEXT("Failed", "FAILED") : LOCTEXT("Succeeded", "SUCCEEDED"));
-		Arguments.Add(TEXT("NumChecked"), NumFilesChecked);
-		Arguments.Add(TEXT("NumValid"), NumValidFiles);
-		Arguments.Add(TEXT("NumInvalid"), NumInvalidFiles);
-		Arguments.Add(TEXT("NumSkipped"), NumFilesSkipped);
-		Arguments.Add(TEXT("NumUnableToValidate"), NumFilesUnableToValidate);
-
-		DataValidationLog.Info()->AddToken(FTextToken::Create(FText::Format(LOCTEXT("SuccessOrFailure", "Data validation {Result}."), Arguments)));
-		DataValidationLog.Info()->AddToken(FTextToken::Create(FText::Format(LOCTEXT("ResultsSummary", "Files Checked: {NumChecked}, Passed: {NumValid}, Failed: {NumInvalid}, Skipped: {NumSkipped}, Unable to validate: {NumUnableToValidate}"), Arguments)));
-
-		DataValidationLog.Open(EMessageSeverity::Info, true);
+		
+		DataValidationLog.Flush();
 	}
 
 	// Broadcast now that we're complete so other systems can go back to their previous state.
@@ -391,13 +573,28 @@ int32 UEditorValidatorSubsystem::ValidateAssetsWithSettings(const TArray<FAssetD
 	{
 		FEditorDelegates::OnPostAssetValidation.Broadcast();
 	}
-
-	return NumInvalidFiles + NumFilesWithWarnings;
 }
 
-void UEditorValidatorSubsystem::ValidateOnSave(TArray<FAssetData> AssetDataList) const
+void UEditorValidatorSubsystem::LogAssetValidationSummary(FMessageLog& DataValidationLog, const FValidateAssetsSettings& InSettings, const FValidateAssetsResults& Results) const
 {
-	ValidateOnSave(AssetDataList, false /* bProceduralSave */);
+	const bool bFailed = (Results.NumInvalid > 0);
+	const bool bAtLeastOneWarning = (Results.NumWarnings > 0);
+
+	if (bFailed || bAtLeastOneWarning || InSettings.bShowIfNoFailures)
+	{
+		FFormatNamedArguments Arguments;
+		Arguments.Add(TEXT("Result"), bFailed ? LOCTEXT("Failed", "FAILED") : LOCTEXT("Succeeded", "SUCCEEDED"));
+		Arguments.Add(TEXT("NumChecked"), Results.NumChecked);
+		Arguments.Add(TEXT("NumValid"), Results.NumValid);
+		Arguments.Add(TEXT("NumInvalid"), Results.NumInvalid);
+		Arguments.Add(TEXT("NumSkipped"), Results.NumSkipped);
+		Arguments.Add(TEXT("NumUnableToValidate"), Results.NumUnableToValidate);
+
+		DataValidationLog.Info()->AddToken(FTextToken::Create(FText::Format(LOCTEXT("DataValidation.SuccessOrFailure", "Data validation {Result}."), Arguments)));
+		DataValidationLog.Info()->AddToken(FTextToken::Create(FText::Format(LOCTEXT("DataValidation.ResultsSummary", "Files Checked: {NumChecked}, Passed: {NumValid}, Failed: {NumInvalid}, Skipped: {NumSkipped}, Unable to validate: {NumUnableToValidate}"), Arguments)));
+
+		DataValidationLog.Open(EMessageSeverity::Info, true);
+	}
 }
 
 void UEditorValidatorSubsystem::ValidateOnSave(TArray<FAssetData> AssetDataList, bool bProceduralSave) const
@@ -412,18 +609,26 @@ void UEditorValidatorSubsystem::ValidateOnSave(TArray<FAssetData> AssetDataList,
 	{
 		return;
 	}
+	
+	FValidateAssetsSettings Settings;
+	{
+		FDataValidationContext Context {false, EDataValidationUsecase::Save, {}};
+		AssetDataList.SetNum(Algo::RemoveIf(AssetDataList, [this, &Settings, &Context](const FAssetData& Asset) { 
+			return !ShouldValidateAsset(Asset, Settings, Context); 
+		}));
+	}
 
-	FMessageLog DataValidationLog("AssetCheck");
+	FMessageLog DataValidationLog(UE::DataValidation::MessageLogName);
 	FText SavedAsset = AssetDataList.Num() == 1 ? FText::FromName(AssetDataList[0].AssetName) : LOCTEXT("MultipleErrors", "multiple assets");
 	DataValidationLog.NewPage(FText::Format(LOCTEXT("DataValidationLogPage", "Asset Save: {0}"), SavedAsset));
 
-	FValidateAssetsSettings Settings;
 	FValidateAssetsResults Results;
 
 	Settings.bSkipExcludedDirectories = true;
 	Settings.bShowIfNoFailures = false;
 	Settings.ValidationUsecase = EDataValidationUsecase::Save;
 	Settings.bLoadAssetsForValidation = false;
+	Settings.MessageLogPageTitle = LOCTEXT("DataValidation.ValidateOnSaveMessageLogPage", "Validate Saved Assets");
 
 	if (ValidateAssetsWithSettings(AssetDataList, Settings, Results) > 0)
 	{
@@ -431,11 +636,6 @@ void UEditorValidatorSubsystem::ValidateOnSave(TArray<FAssetData> AssetDataList,
 			LOCTEXT("ValidationFailureNotification", "Validation failed when saving {0}, check Data Validation log"), SavedAsset);
 		DataValidationLog.Notify(ErrorMessageNotification, EMessageSeverity::Warning, /*bForce=*/ true);
 	}
-}
-
-void UEditorValidatorSubsystem::ValidateSavedPackage(FName PackageName)
-{
-	ValidateSavedPackage(PackageName, false /* bProceduralSave */);
 }
 
 void UEditorValidatorSubsystem::ValidateSavedPackage(FName PackageName, bool bProceduralSave)
@@ -460,7 +660,7 @@ void UEditorValidatorSubsystem::ValidateSavedPackage(FName PackageName, bool bPr
 	SavedPackagesToValidate.AddUnique(PackageName);
 }
 
-bool UEditorValidatorSubsystem::IsPathExcludedFromValidation(const FString& Path) const
+bool UEditorValidatorSubsystem::IsPathExcludedFromValidation(FStringView Path) const
 {
 	for (const FDirectoryPath& ExcludedPath : ExcludedDirectories)
 	{
@@ -502,23 +702,183 @@ void UEditorValidatorSubsystem::ValidateAllSavedPackages()
 	SavedPackagesToValidate.Empty();
 }
 
-void UEditorValidatorSubsystem::ValidateChangelistPreSubmit(FSourceControlChangelistPtr InChangelist, EDataValidationResult& OutResult, TArray<FText>& OutValidationErrors, TArray<FText>& OutValidationWarnings) const
+void UEditorValidatorSubsystem::ValidateChangelistPreSubmit(
+	FSourceControlChangelistPtr InChangelist,
+	EDataValidationResult& 		OutResult,
+	TArray<FText>& 				OutValidationErrors,
+	TArray<FText>& 				OutValidationWarnings) const
 {
-	FScopedSlowTask SlowTask(1.0f, LOCTEXT("ValidatingChangelistTask", "Validating changelist..."));
-	SlowTask.Visibility = ESlowTaskVisibility::Invisible;
-	SlowTask.MakeDialogDelayed(.1f);
-
-	check(InChangelist);
+	check(InChangelist.IsValid());
 
 	// Create temporary changelist object to do most of the heavy lifting
 	UDataValidationChangelist* Changelist = NewObject<UDataValidationChangelist>();
 	Changelist->Initialize(InChangelist);
-	Changelist->AddToRoot();
 
-	SlowTask.EnterProgressFrame(1.0f, LOCTEXT("ValidatingChangelist", "Validating changelist to submit"));
-	OutResult = IsObjectValid(Changelist, OutValidationErrors, OutValidationWarnings, EDataValidationUsecase::PreSubmit);
+	FValidateAssetsSettings Settings;
+	Settings.ValidationUsecase = EDataValidationUsecase::PreSubmit;
+	Settings.bLoadAssetsForValidation = GetDefault<UDataValidationSettings>()->bLoadAssetsWhenValidatingChangelists;
+	Settings.MessageLogPageTitle = FText::Format(LOCTEXT("DataValidation.ValidateChangelistMessageLogPage", "Validate Changelist {0}"), FText::FromString(InChangelist->GetIdentifier()));
+	FValidateAssetsResults Results;
+	OutResult = ValidateChangelist(Changelist, Settings, Results);
+	
+	if (const FValidateAssetsDetails* Details = Results.AssetsDetails.Find(Changelist->GetPathName()))
+	{
+		OutValidationWarnings = Details->ValidationWarnings;
+		OutValidationErrors = Details->ValidationErrors;
+		
+		for (const TSharedRef<FTokenizedMessage>& Message : Details->ValidationMessages)
+		{
+			switch (Message->GetSeverity())
+			{
+				case EMessageSeverity::Error:
+					OutValidationErrors.Add(Message->ToText());
+					break;
+				case EMessageSeverity::Warning:
+				case EMessageSeverity::PerformanceWarning:
+					OutValidationWarnings.Add(Message->ToText());
+					break;
+			}
+		}
+	}
+}
 
-	Changelist->RemoveFromRoot();
+EDataValidationResult UEditorValidatorSubsystem::ValidateChangelist(
+	UDataValidationChangelist* InChangelist,
+	const FValidateAssetsSettings& InSettings,
+	FValidateAssetsResults& OutResults) const
+{
+	return ValidateChangelistsInternal(MakeArrayView(&InChangelist, 1), InSettings, OutResults);	
+}
+
+EDataValidationResult UEditorValidatorSubsystem::ValidateChangelists(
+	const TArray<UDataValidationChangelist*> InChangelists,
+	const FValidateAssetsSettings& InSettings,
+	FValidateAssetsResults& OutResults) const
+{
+	return ValidateChangelistsInternal(MakeArrayView(InChangelists), InSettings, OutResults);	
+}
+
+EDataValidationResult UEditorValidatorSubsystem::ValidateChangelistsInternal(
+	TConstArrayView<UDataValidationChangelist*>	Changelists,
+	const FValidateAssetsSettings& 				Settings,
+	FValidateAssetsResults& 					OutResults) const
+{
+	FScopedSlowTask SlowTask(Changelists.Num(), LOCTEXT("DataValidation.ValidatingChangelistTask", "Validating Changelists"));
+	SlowTask.Visibility = ESlowTaskVisibility::Invisible;
+	SlowTask.MakeDialog();
+
+	FAssetRegistryModule& AssetRegistryModule = FModuleManager::LoadModuleChecked<FAssetRegistryModule>("AssetRegistry");
+	IAssetRegistry& AssetRegistry = AssetRegistryModule.Get();
+
+	if (AssetRegistry.IsLoadingAssets())
+	{
+		FMessageDialog::Open(EAppMsgType::Ok, LOCTEXT("DataValidation.UnableToValidate_PendingAssetRegistry", "Unable to validate changelist while asset registry scan is in progress. Wait until asset discovery is complete."));
+		return EDataValidationResult::NotValidated;
+	}
+
+	// Choose a specific message log page for this output, flushing in case other recursive calls also write to this log 
+	{	
+		FMessageLog DataValidationLog(UE::DataValidation::MessageLogName);
+		DataValidationLog.SetCurrentPage(Settings.MessageLogPageTitle);
+	}
+
+	FMessageLog DataValidationLog(UE::DataValidation::MessageLogName);
+
+	for (UDataValidationChangelist* CL : Changelists)
+	{
+		CL->AddToRoot();
+	}
+	
+	ON_SCOPE_EXIT {
+		for (UDataValidationChangelist* CL : Changelists)
+		{
+			CL->RemoveFromRoot();		
+		}
+	};
+
+	EDataValidationResult Result = EDataValidationResult::NotValidated;
+	for (UDataValidationChangelist* Changelist : Changelists)
+	{
+		FText ValidationMessage = FText::Format(LOCTEXT("DataValidation.ValidatingChangelistMessage", "Validating changelist {0}"), Changelist->Description);
+		DataValidationLog.Info(ValidationMessage);
+		SlowTask.EnterProgressFrame(1.0f, ValidationMessage);
+
+		FValidateAssetsDetails& Details = OutResults.AssetsDetails.FindOrAdd(Changelist->GetPathName());
+		{
+			FDataValidationContext ValidationContext(false, Settings.ValidationUsecase, {}); // No associated objects for changelist
+			Details.Result = IsObjectValidWithContext(Changelist, ValidationContext);
+			UE::DataValidation::AddAssetValidationMessages(DataValidationLog, ValidationContext);
+		}
+		Result = CombineDataValidationResults(Result, Details.Result);
+		DataValidationLog.Flush();
+	}
+
+	TSet<FAssetData> AssetsToValidate;	
+	for (UDataValidationChangelist* Changelist : Changelists)
+	{
+		FDataValidationContext ValidationContext(false, Settings.ValidationUsecase, {}); // No associated objects for changelist
+		GatherAssetsToValidateFromChangelist(Changelist, Settings, AssetsToValidate, ValidationContext);
+		UE::DataValidation::AddAssetValidationMessages(DataValidationLog, ValidationContext);
+		DataValidationLog.Flush();
+	}
+
+	// Filter out assets that we don't want to validate
+	{
+		FDataValidationContext ValidationContext(false, Settings.ValidationUsecase, {}); 
+		for (auto It = AssetsToValidate.CreateIterator(); It; ++It)
+		{
+			if (!ShouldValidateAsset(*It, Settings, ValidationContext))
+			{
+				UE_LOG(LogContentValidation, Log, TEXT("Excluding asset %s from validation"), *It->GetSoftObjectPath().ToString());
+				It.RemoveCurrent();
+			}
+		}
+		UE::DataValidation::AddAssetValidationMessages(DataValidationLog, ValidationContext);
+		DataValidationLog.Flush();
+	}
+
+	// Validate assets from all changelists
+	ValidateAssetsInternal(DataValidationLog, MoveTemp(AssetsToValidate), Settings, OutResults);
+	LogAssetValidationSummary(DataValidationLog, Settings, OutResults);
+
+	return Result;
+}
+
+void UEditorValidatorSubsystem::GatherAssetsToValidateFromChangelist(
+	UDataValidationChangelist* 		InChangelist,
+	const FValidateAssetsSettings& 	Settings,
+	TSet<FAssetData>& 				OutAssets,
+	FDataValidationContext& 		InContext) const
+{
+	FAssetRegistryModule& AssetRegistryModule = FModuleManager::LoadModuleChecked<FAssetRegistryModule>("AssetRegistry");
+	IAssetRegistry& AssetRegistry = AssetRegistryModule.Get();
+
+	for (const FName& PackageName : InChangelist->ModifiedPackageNames)
+	{
+		TArray<FAssetData> NewAssets;
+		AssetRegistry.GetAssetsByPackageName(PackageName, NewAssets, true);	
+		OutAssets.Append(NewAssets);
+	}
+	
+	if (Settings.bValidateReferencersOfDeletedAssets)
+	{
+		TSet<FAssetData> AdditionalAssetsToValidate;
+		for (FName DeletedPackageName : InChangelist->DeletedPackageNames)
+		{
+			InContext.AddMessage(EMessageSeverity::Info, 
+				FText::Format(LOCTEXT("DataValidation.AddDeletedPackageReferencers", "Adding referencers of deleted package {0} to be validated"), FText::FromName(DeletedPackageName)));
+
+			TArray<FName> PackageReferencers;
+			AssetRegistry.GetReferencers(DeletedPackageName, PackageReferencers, UE::AssetRegistry::EDependencyCategory::Package);
+			for (const FName& Referencer : PackageReferencers)
+			{
+				UE_LOG(LogContentValidation, Log, TEXT("Adding %s to to validated as it is a referencer of deleted asset %s"), *Referencer.ToString(), *DeletedPackageName.ToString());
+				TArray<FAssetData> NewAssets;
+				AssetRegistry.GetAssetsByPackageName(Referencer, NewAssets, true);
+				OutAssets.Append(NewAssets);
+			}
+		}
+	}
 }
 
 void UEditorValidatorSubsystem::LoadValidators()

@@ -2,7 +2,10 @@
 
 #include "EditorValidatorBase.h"
 
+#include "AssetRegistry/AssetData.h"
+#include "AssetRegistry/AssetDataToken.h"
 #include "EditorValidatorSubsystem.h"
+#include "Misc/DataValidation.h"
 #include "Trace/Trace.inl"
 
 #include UE_INLINE_GENERATED_CPP_BY_NAME(EditorValidatorBase)
@@ -15,22 +18,76 @@ UEditorValidatorBase::UEditorValidatorBase()
 	bIsEnabled = true;
 }
 
-bool UEditorValidatorBase::CanValidate_Implementation(const EDataValidationUsecase InUsecase) const
+EDataValidationResult UEditorValidatorBase::ValidateLoadedAsset(const FAssetData& AssetData, UObject* Asset, FDataValidationContext& Context)
 {
-	return true;
+	EDataValidationResult Result = EDataValidationResult::NotValidated;
+	
+	ResetValidationState();
+	
+	TGuardValue<UObject*> ObjectGuard(CurrentObjectBeingValidated, Asset);
+	TGuardValue<const FAssetData*> AssetGuard(CurrentAssetBeingValidated, &AssetData);
+
+	if (K2_CanValidate(Context.GetValidationUsecase()))
+	{
+		EDataValidationResult K2Result = K2_ValidateLoadedAsset(Asset);
+		K2Result = CombineDataValidationResults(GetValidationResult(), K2Result);
+		ensureMsgf(K2Result != EDataValidationResult::NotValidated, TEXT("Validator %s did not return a validation result from BP validation path for asset %s"), *GetClass()->GetPathName(), *Asset->GetPathName());
+	}
+	
+PRAGMA_DISABLE_DEPRECATION_WARNINGS
+	if (CanValidate_Implementation(Context.GetValidationUsecase()) && CanValidateAsset_Implementation(Asset))
+	{
+		ensureMsgf(false, TEXT("Validator %s running deprecated validation path. This validator should implement ValidateLoadedAsset_Implementation(UObject*, FDataValidationContext&) instead"),
+			*GetClass()->GetPathName());
+		
+		EDataValidationResult NewResult = ValidateLoadedAsset_Implementation(Asset, AllErrors);
+		NewResult = CombineDataValidationResults(GetValidationResult(), NewResult);
+		ensureMsgf(NewResult != EDataValidationResult::NotValidated, TEXT("Validator %s did not return a validation result from legacy validation path for asset %s"), *GetClass()->GetPathName(), *Asset->GetPathName());
+
+		Result = CombineDataValidationResults(Result, NewResult);
+	}
+PRAGMA_ENABLE_DEPRECATION_WARNINGS
+	
+	if (CanValidateAsset_Implementation(AssetData, Asset, Context))
+	{
+		EDataValidationResult NewResult = ValidateLoadedAsset_Implementation(AssetData, Asset, Context);
+
+		NewResult = CombineDataValidationResults(GetValidationResult(), NewResult);
+		ensureMsgf(NewResult != EDataValidationResult::NotValidated, TEXT("Validator %s did not return a validation result from native validation path for asset %s"), *GetClass()->GetPathName(), *Asset->GetPathName());
+
+		Result = CombineDataValidationResults(Result, NewResult);
+	}
+	
+	Result = CombineDataValidationResults(Result, ExtractValidationState(Context)); // Extract messages and validation state from members (primarily for use by BP interface functions)
+
+	return Result;
 }
 
-bool UEditorValidatorBase::CanValidateAsset_Implementation(UObject* InAsset) const
+bool UEditorValidatorBase::K2_CanValidate_Implementation(const EDataValidationUsecase InUsecase) const
 {
 	return false;
 }
 
-EDataValidationResult UEditorValidatorBase::ValidateLoadedAsset_Implementation(UObject* InAsset, TArray<FText>& ValidationErrors)
+bool UEditorValidatorBase::K2_CanValidateAsset_Implementation(UObject* InAsset) const
+{
+	return false;
+}
+
+EDataValidationResult UEditorValidatorBase::K2_ValidateLoadedAsset_Implementation(UObject* InAsset)
 {
 	return EDataValidationResult::NotValidated;
 }
 
-void UEditorValidatorBase::AssetFails(UObject* InAsset, const FText& InMessage, TArray<FText>& ValidationErrors)
+void UEditorValidatorBase::AssetFails(UObject* InAsset, const FText& InMessage, TArray<FText>& InOutErrors)
+{
+	AssetFails(InAsset, InMessage);
+	if (&InOutErrors != &AllErrors)
+	{
+		InOutErrors.Add(InMessage);
+	}
+}
+
+void UEditorValidatorBase::AssetFails(UObject* InAsset, const FText& InMessage)
 {
 	FFormatNamedArguments Arguments;
 	Arguments.Add(TEXT("CustomMessage"), InMessage);
@@ -44,7 +101,7 @@ void UEditorValidatorBase::AssetFails(UObject* InAsset, const FText& InMessage, 
 
 	}
 
-	ValidationErrors.Add(FailureMessage);
+	AllErrors.Add(FailureMessage);
 	ValidationResult = EDataValidationResult::Invalid;
 }
 
@@ -72,7 +129,6 @@ void UEditorValidatorBase::LogElapsedTime(FFormatNamedArguments &Arguments)
 
 void UEditorValidatorBase::AssetPasses(UObject* InAsset)
 {
-
 	if (LogContentValidation.GetVerbosity() >= ELogVerbosity::Verbose)
 	{
 		FFormatNamedArguments Arguments;
@@ -80,19 +136,68 @@ void UEditorValidatorBase::AssetPasses(UObject* InAsset)
 		{
 			Arguments.Add(TEXT("AssetName"), FText::FromName(InAsset->GetFName()));
 		}
-		Arguments.Add(TEXT("ValidatorName"), FText::FromString(GetClass()->GetName()));
+		Arguments.Add(TEXT("ValidatorName"), FText::FromString(GetClass()->GetPathName()));
 
 		LogElapsedTime(Arguments);
 	}
 
+	ensureMsgf(ValidationResult != EDataValidationResult::Invalid, TEXT("%s: AssetPasses called after errors were reported"), *GetClass()->GetPathName());
 	ValidationResult = EDataValidationResult::Valid;
+}
+
+TSharedRef<FTokenizedMessage> UEditorValidatorBase::AssetMessage(const FAssetData& InAssetData, EMessageSeverity::Type InSeverity, const FText& InText)
+{
+	if (InSeverity == EMessageSeverity::Error)
+	{
+		ValidationResult = EDataValidationResult::Invalid;
+	}
+	TSharedRef<FTokenizedMessage> Message = FTokenizedMessage::Create(InSeverity);
+	if (InAssetData.IsValid())
+	{
+		Message->AddToken(FAssetDataToken::Create(InAssetData));		
+	}
+	if (!InText.IsEmpty())
+	{
+		Message->AddText(InText);
+	}
+	AllMessages.Add(Message);
+	return Message; 
+}
+
+TSharedRef<FTokenizedMessage> UEditorValidatorBase::AssetMessage(EMessageSeverity::Type InSeverity, const FText& InText)
+{
+	return AssetMessage(FAssetData{}, InSeverity, InText);
+}
+
+void UEditorValidatorBase::AddLegacyValidationErrors(TArray<FText> InErrors)
+{
+	AllErrors.Append(MoveTemp(InErrors));
 }
 
 void UEditorValidatorBase::ResetValidationState()
 {
 	ValidationResult = EDataValidationResult::NotValidated;
 	ValidationTime = FDateTime::Now();
+	AllMessages.Empty();
 	AllWarnings.Empty();
+	AllErrors.Empty();
+}
+
+EDataValidationResult UEditorValidatorBase::ExtractValidationState(FDataValidationContext& InOutContext) const
+{
+	for (const FText& Warning : AllWarnings)
+	{
+		InOutContext.AddWarning(Warning);	
+	}
+	for (const FText& Error : AllErrors)
+	{
+		InOutContext.AddError(Error);	
+	}
+	for (const TSharedRef<FTokenizedMessage>& Message : AllMessages)
+	{
+		InOutContext.AddMessage(Message);	
+	}
+	return ValidationResult;
 }
 
 const TArray<FText>& UEditorValidatorBase::GetAllWarnings() const

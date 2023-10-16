@@ -76,27 +76,15 @@ FString UDataValidationChangelist::GetPrettyPackageName(const FName& InPackageNa
 EDataValidationResult UDataValidationChangelist::IsDataValid(FDataValidationContext& Context) const
 {
 	ISourceControlProvider& SourceControlProvider = ISourceControlModule::Get().GetProvider();
-	
-	FSourceControlChangelistStatePtr ChangelistState = SourceControlProvider.GetState(Changelist->AsShared(), EStateCacheUsage::Use);
 
 	// Gather dependencies of every file in the changelist
 	TArray<FName> FilesInChangelist;
 	TSet<FName> ExternalDependenciesSet;
 	
-	for (const FSourceControlStateRef& File : ChangelistState->GetFilesStates())
+	for (FName PackageName : ModifiedPackageNames)
 	{
-		// We shouldn't consider dependencies of deleted files
-		if (File->IsDeleted())
-		{
-			continue;
-		}
-
-		FString PackageName;
-		if (FPackageName::TryConvertFilenameToLongPackageName(File->GetFilename(), PackageName))
-		{
-			FilesInChangelist.Add(*PackageName);
-			GatherDependencies(*PackageName, ExternalDependenciesSet);
-		}
+		FilesInChangelist.Add(PackageName);
+		GatherDependencies(PackageName, ExternalDependenciesSet);
 	}
 
 	// For every dependency in the external dependencies that is not in the changelist
@@ -190,7 +178,58 @@ EDataValidationResult UDataValidationChangelist::IsDataValid(FDataValidationCont
 
 void UDataValidationChangelist::Initialize(FSourceControlChangelistPtr InChangelist)
 {
-	Changelist = InChangelist;
+	TRACE_CPUPROFILER_EVENT_SCOPE_STR("UDataValidationChangelist::Initialize");
+	if (InChangelist.IsValid())
+	{
+		ISourceControlProvider& Provider = ISourceControlModule::Get().GetProvider();
+		FSourceControlChangelistStatePtr ChangelistStatePtr = Provider.GetState(InChangelist.ToSharedRef(), EStateCacheUsage::Use);
+		if (ChangelistStatePtr.IsValid())
+		{
+			Initialize(ChangelistStatePtr.ToSharedRef());
+		}
+	}
+}
+
+void UDataValidationChangelist::Initialize(FSourceControlChangelistStateRef InChangelist)
+{
+	Changelist = InChangelist->GetChangelist();	
+	Description = InChangelist->GetDescriptionText();
+	Initialize(InChangelist->GetFilesStates());
+}
+
+void UDataValidationChangelist::Initialize(TConstArrayView<FSourceControlStateRef> FileStates)
+{
+	for (const FSourceControlStateRef& FileState : FileStates)
+	{
+		FString Filename = FileState->GetFilename();	
+		if (FPackageName::IsPackageFilename(Filename))
+		{
+			FString PackageName;
+			FString FailureReason;
+			if (FPackageName::TryConvertFilenameToLongPackageName(Filename, PackageName, &FailureReason))
+			{
+				if (FileState->IsDeleted())
+				{
+					DeletedPackageNames.Add(FName(PackageName));
+				}
+				else
+				{
+					ModifiedPackageNames.Add(FName(PackageName));
+				}
+			}
+			continue;
+		}
+		
+		// If it wasn't an asset file or we failed to find the relevant package name 
+		if (FileState->IsDeleted())
+		{
+			DeletedFiles.Add(MoveTemp(Filename));
+		}
+		else 
+		{
+			ModifiedFiles.Add(MoveTemp(Filename));
+		}
+	}
 }
 
 #undef LOCTEXT_NAMESPACE

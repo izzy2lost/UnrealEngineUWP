@@ -303,6 +303,7 @@ void FDataValidationModule::ValidateAssets(const TArray<FAssetData>& SelectedAss
 		Settings.bSkipExcludedDirectories = false;
 		Settings.bShowIfNoFailures = true;
 		Settings.ValidationUsecase = InValidationUsecase;
+		Settings.MessageLogPageTitle = LOCTEXT("ValidateSelectedAssets", "Validate Selected Assets");
 
 		EditorValidationSubsystem->ValidateAssetsWithSettings(bValidateDependencies ? DependentAssets.Array() : SelectedAssets, Settings, Results);
 	}
