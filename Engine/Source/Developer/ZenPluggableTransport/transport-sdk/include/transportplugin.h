@@ -4,8 +4,16 @@
 
 #include <stdint.h>
 
-// Important note: this header is meant to compile standalone
-// and should therefore not depend on anything from the Zen codebase
+// This header is meant to compile standalone and should therefore NOT depend
+// on anything from the Zen tree
+
+//////////////////////////////////////////////////////////////////////////
+//
+// IMPORTANT: Any development or changes to this header should be made
+// in the Zen repository http://github.com/epicgames/zen even if you
+// may find the header in the UE tree
+//
+//////////////////////////////////////////////////////////////////////////
 
 namespace zen {
 
@@ -69,10 +77,11 @@ public:
 class TransportPlugin
 {
 public:
-	virtual uint32_t AddRef() const								  = 0;
-	virtual uint32_t Release() const							  = 0;
-	virtual void	 Initialize(TransportServer* ServerInterface) = 0;
-	virtual void	 Shutdown()									  = 0;
+	virtual uint32_t AddRef() const											   = 0;
+	virtual uint32_t Release() const										   = 0;
+	virtual void	 Configure(const char* OptionTag, const char* OptionValue) = 0;
+	virtual void	 Initialize(TransportServer* ServerInterface)			   = 0;
+	virtual void	 Shutdown()												   = 0;
 
 	/** Check whether this transport is usable.
 	 */
