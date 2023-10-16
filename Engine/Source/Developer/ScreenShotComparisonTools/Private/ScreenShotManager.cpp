@@ -806,3 +806,5 @@ void FScreenShotManager::BuildFallbackPlatformsListFromConfig()
 		}
 	}
 }
+
+#undef LOCTEXT_NAMESPACE
