@@ -224,9 +224,9 @@ public:
 					{
 						if (const FDatabasePreviewActor* FoundPreviewActor = ViewModel->GetPreviewActors().FindByPredicate(
 							[ColumnName](const FDatabasePreviewActor& PreviewActor)
-							{ return *PreviewActor.Actor->GetName() == ColumnName; }))
+							{ return *PreviewActor.GetActor()->GetName() == ColumnName; }))
 						{
-							const int32 PoseIdx = FoundPreviewActor->CurrentPoseIndex;
+							const int32 PoseIdx = FoundPreviewActor->GetCurrentPoseIndex();
 							const TArray<float> PoseValues = PoseSearchDatabase->GetSearchIndex().GetPoseValuesSafe(PoseIdx);
 
 							const int32 DataOffset = ChannelItem->GetDataOffset();
@@ -357,12 +357,8 @@ void SDatabaseDataDetails::Reconstruct(int32 MaxPreviewActors)
 	for (int32 PreviewActorIdx = 0; PreviewActorIdx < PreviewActorNum; ++PreviewActorIdx)
 	{
 		const FDatabasePreviewActor& PreviewActor = PreviewActors[PreviewActorIdx];
-		if (PreviewActor.IsValid() && PreviewActor.Sampler.IsInitialized())
-		{
-			HeaderRow->AddColumn(
-				SHeaderRow::Column(*PreviewActor.Actor->GetName())
-				.DefaultLabel(FText::FromString(PreviewActor.Sampler.GetAsset()->GetName())));
-		}
+		HeaderRow->AddColumn(SHeaderRow::Column(*PreviewActor.GetActor()->GetName())
+			.DefaultLabel(FText::FromString(PreviewActor.GetSampler().GetAsset()->GetName())));
 	}
 
 	ChannelItemsTreeView = SNew(SChannelItemsTreeView)

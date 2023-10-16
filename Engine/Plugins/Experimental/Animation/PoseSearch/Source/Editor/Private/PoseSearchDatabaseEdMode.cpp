@@ -46,15 +46,15 @@ namespace UE::PoseSearch
 
 	void FDatabaseEdMode::Render(const FSceneView* View, FViewport* Viewport, FPrimitiveDrawInterface* PDI)
 	{
-		if (ViewModel->IsShowBones())
+		if (ViewModel->IsShowBonesChecked())
 		{
 			const UPersonaOptions* PersonaOptions = GetDefault<UPersonaOptions>();
 
 			TArray<FTransform> WorldTransforms;
 			TArray<FLinearColor> BoneColors;
-			for (FDatabasePreviewActor& PreviewActor : ViewModel->GetPreviewActors())
+			for (const FDatabasePreviewActor& PreviewActor : ViewModel->GetPreviewActors())
 			{
-				UDebugSkelMeshComponent* MeshComponent = PreviewActor.GetDebugSkelMeshComponent();
+				const UDebugSkelMeshComponent* MeshComponent = PreviewActor.GetDebugSkelMeshComponent();
 				if (MeshComponent && MeshComponent->GetSkeletalMeshAsset() && MeshComponent->GetNumDrawTransform() > 0 && MeshComponent->SkeletonDrawMode != ESkeletonDrawMode::Hidden)
 				{
 					WorldTransforms.SetNumUninitialized(MeshComponent->GetNumDrawTransform());

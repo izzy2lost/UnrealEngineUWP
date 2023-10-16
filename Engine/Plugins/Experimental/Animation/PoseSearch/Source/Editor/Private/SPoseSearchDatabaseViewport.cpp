@@ -28,32 +28,62 @@ namespace UE::PoseSearch
 		);
 	}
 
+	void SDatabaseViewport::OnToggleDisplayRootMotionSpeed()
+	{
+		AssetEditorPtr.Pin()->GetViewModelSharedPtr().ToSharedRef()->ToggleDisplayRootMotionSpeed();
+		Invalidate();
+	}
+
+	bool SDatabaseViewport::IsDisplayRootMotionSpeedChecked() const
+	{
+		return AssetEditorPtr.Pin()->GetViewModelSharedPtr().ToSharedRef()->IsDisplayRootMotionSpeedChecked();
+	}
+
+	void SDatabaseViewport::OnToggleQuantizeAnimationToPoseData()
+	{
+		AssetEditorPtr.Pin()->GetViewModelSharedPtr().ToSharedRef()->ToggleQuantizeAnimationToPoseData();
+		Invalidate();
+	}
+
+	bool SDatabaseViewport::IsQuantizeAnimationToPoseDataChecked() const
+	{
+		return AssetEditorPtr.Pin()->GetViewModelSharedPtr().ToSharedRef()->IsQuantizeAnimationToPoseDataChecked();
+	}
+
+	void SDatabaseViewport::OnToggleShowBones()
+	{
+		AssetEditorPtr.Pin()->GetViewModelSharedPtr().ToSharedRef()->ToggleShowBones();
+		Invalidate();
+	}
+
+	bool SDatabaseViewport::IsShowBonesChecked() const
+	{
+		return AssetEditorPtr.Pin()->GetViewModelSharedPtr().ToSharedRef()->IsShowBonesChecked();
+	}
+
 	void SDatabaseViewport::BindCommands()
 	{
 		SEditorViewport::BindCommands();
 
 		const FDatabaseEditorCommands& Commands = FDatabaseEditorCommands::Get();
 
-		TSharedRef<FDatabaseViewModel> ViewModelRef =
-			AssetEditorPtr.Pin()->GetViewModelSharedPtr().ToSharedRef();
-
 		CommandList->MapAction(
 			Commands.ShowDisplayRootMotionSpeed,
-			FExecuteAction::CreateSP(ViewModelRef, &FDatabaseViewModel::OnToggleDisplayRootMotionSpeed),
+			FExecuteAction::CreateSP(this, &SDatabaseViewport::OnToggleDisplayRootMotionSpeed),
 			FCanExecuteAction(),
-			FIsActionChecked::CreateSP(ViewModelRef, &FDatabaseViewModel::IsDisplayRootMotionSpeedChecked));
+			FIsActionChecked::CreateSP(this, &SDatabaseViewport::IsDisplayRootMotionSpeedChecked));
 
 		CommandList->MapAction(
 			Commands.ShowQuantizeAnimationToPoseData,
-			FExecuteAction::CreateSP(ViewModelRef, &FDatabaseViewModel::OnToggleQuantizeAnimationToPoseData),
+			FExecuteAction::CreateSP(this, &SDatabaseViewport::OnToggleQuantizeAnimationToPoseData),
 			FCanExecuteAction(),
-			FIsActionChecked::CreateSP(ViewModelRef, &FDatabaseViewModel::IsQuantizeAnimationToPoseDataChecked));
+			FIsActionChecked::CreateSP(this, &SDatabaseViewport::IsQuantizeAnimationToPoseDataChecked));
 
 		CommandList->MapAction(
 			Commands.ShowBones,
-			FExecuteAction::CreateSP(ViewModelRef, &FDatabaseViewModel::OnToggleShowBones),
+			FExecuteAction::CreateSP(this, &SDatabaseViewport::OnToggleShowBones),
 			FCanExecuteAction(),
-			FIsActionChecked::CreateSP(ViewModelRef, &FDatabaseViewModel::IsShowBones));
+			FIsActionChecked::CreateSP(this, &SDatabaseViewport::IsShowBonesChecked));
 		
 	}
 

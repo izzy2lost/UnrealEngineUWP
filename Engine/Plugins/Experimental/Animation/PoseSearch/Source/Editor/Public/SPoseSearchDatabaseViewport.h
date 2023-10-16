@@ -52,6 +52,13 @@ namespace UE::PoseSearch
 		virtual TSharedPtr<SWidget> MakeViewportToolbar() override;
 		// ~End of SEditorViewport interface
 
+		void OnToggleDisplayRootMotionSpeed();
+		bool IsDisplayRootMotionSpeedChecked() const;
+		void OnToggleQuantizeAnimationToPoseData();
+		bool IsQuantizeAnimationToPoseDataChecked() const;
+		void OnToggleShowBones();
+		bool IsShowBonesChecked() const;
+
 		/** The viewport toolbar */
 		TSharedPtr<SPoseSearchDatabaseViewportToolBar> ViewportToolbar;
 

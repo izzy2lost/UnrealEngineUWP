@@ -337,6 +337,4 @@ private:
 #endif // UE_POSE_SEARCH_TRACE_ENABLED
 };
 
-POSESEARCH_API FTransform MirrorTransform(const FTransform& InTransform, EAxis::Type MirrorAxis, const FQuat& ReferenceRotation);
-
 } // namespace UE::PoseSearch

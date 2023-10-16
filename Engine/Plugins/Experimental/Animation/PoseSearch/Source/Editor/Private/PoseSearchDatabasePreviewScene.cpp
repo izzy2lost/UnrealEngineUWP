@@ -9,12 +9,9 @@
 #include "PoseSearch/PoseSearchContext.h"
 #include "PoseSearch/PoseSearchDatabase.h"
 #include "PoseSearch/PoseSearchDerivedData.h"
+#include "PoseSearch/PoseSearchSchema.h"
 #include "PoseSearchDatabaseEditor.h"
 #include "PoseSearchDatabaseViewModel.h"
-
-#if ENABLE_ANIM_DEBUG
-static TAutoConsoleVariable<float> CVarDatabasePreviewDebugDrawSamplerSize(TEXT("a.DatabasePreview.DebugDrawSamplerSize"), 0.f, TEXT("Debug Draw Sampler Positions Size"));
-#endif
 
 namespace UE::PoseSearch
 {
@@ -65,46 +62,12 @@ namespace UE::PoseSearch
 
 		if (!ViewModel->GetPreviewActors().IsEmpty() && FAsyncPoseSearchDatabasesManagement::RequestAsyncBuildIndex(Database, ERequestAsyncBuildFlag::ContinueRequest))
 		{
+			const bool bDisplayRootMotionSpeed = ViewModel->IsDisplayRootMotionSpeedChecked();
 			bool bDrawQueryVector = ViewModel->ShouldDrawQueryVector();
+
 			for (FDatabasePreviewActor& PreviewActor : ViewModel->GetPreviewActors())
 			{
-				if (Database->GetSearchIndex().IsValidPoseIndex(PreviewActor.CurrentPoseIndex))
-				{
-					if (UDebugSkelMeshComponent* Mesh = PreviewActor.GetDebugSkelMeshComponent())
-					{
-						UE::PoseSearch::FDebugDrawParams DrawParams(GetWorld(), Mesh, PreviewActor.QuantizedTimeRootTransform, Database);
-						DrawParams.DrawFeatureVector(PreviewActor.CurrentPoseIndex);
-
-						if (bDrawQueryVector)
-						{
-							DrawParams.DrawFeatureVector(ViewModel->GetQueryVector());
-							bDrawQueryVector = false;
-						}
-
-#if ENABLE_ANIM_DEBUG
-						const float DebugDrawSamplerSize = CVarDatabasePreviewDebugDrawSamplerSize.GetValueOnAnyThread();
-						if (DebugDrawSamplerSize > UE_KINDA_SMALL_NUMBER)
-						{
-							// drawing the pose extracted from the Sampler to visually compare with the pose features and the mesh drawing
-							FMemMark Mark(FMemStack::Get());
-							FCompactPose Pose;
-							Pose.SetBoneContainer(&PreviewActor.GetAnimPreviewInstance()->GetRequiredBonesOnAnyThread());
-							PreviewActor.Sampler.ExtractPose(PreviewActor.CurrentTime, Pose);
-
-							const FTransform RootTransform = PreviewActor.Sampler.ExtractRootTransform(PreviewActor.CurrentTime);
-
-							FCSPose<FCompactPose> ComponentSpacePose;
-							ComponentSpacePose.InitPose(MoveTemp(Pose));
-
-							for (int32 BoneIndex = 0; BoneIndex < ComponentSpacePose.GetPose().GetNumBones(); ++BoneIndex)
-							{
-								const FTransform BoneWorldTransforms = ComponentSpacePose.GetComponentSpaceTransform(FCompactPoseBoneIndex(BoneIndex)) * RootTransform;
-								DrawParams.DrawPoint(BoneWorldTransforms.GetTranslation(), FColor::Red, DebugDrawSamplerSize);
-							}
-						}
-#endif // ENABLE_ANIM_DEBUG
-					}
-				}
+				bDrawQueryVector &= !PreviewActor.DrawPreviewActor(Database, bDisplayRootMotionSpeed, bDrawQueryVector ? ViewModel->GetQueryVector() : TConstArrayView<float>());
 			}
 		}
 	}

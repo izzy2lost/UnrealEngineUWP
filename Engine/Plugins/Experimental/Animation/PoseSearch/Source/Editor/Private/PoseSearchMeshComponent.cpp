@@ -7,7 +7,7 @@
 #include "Animation/BlendSpace.h"
 #include "Animation/MirrorDataTable.h"
 #include "Engine/SkinnedAsset.h"
-#include "PoseSearch/PoseSearchContext.h"
+#include "PoseSearch/PoseSearchMirrorDataCache.h"
 
 void UPoseSearchMeshComponent::Initialize(const FTransform& InComponentToWorld)
 {
@@ -51,6 +51,7 @@ void UPoseSearchMeshComponent::ResetToStart()
 
 void UPoseSearchMeshComponent::UpdatePose(const FUpdateContext& UpdateContext)
 {
+	// @todo: reuse asset sampler here if needed at all
 	using namespace UE::PoseSearch;
 
 	FMemMark Mark(FMemStack::Get());
@@ -126,13 +127,9 @@ void UPoseSearchMeshComponent::UpdatePose(const FUpdateContext& UpdateContext)
 		}
 	}
 
-	if (UpdateContext.bMirrored)
+	if (UpdateContext.MirrorDataCache)
 	{
-		FAnimationRuntime::MirrorPose(
-			CompactPose, 
-			UpdateContext.MirrorDataTable->MirrorAxis, 
-			*UpdateContext.CompactPoseMirrorBones, 
-			*UpdateContext.ComponentSpaceRefRotations);
+		UpdateContext.MirrorDataCache->MirrorPose(CompactPose);
 	}
 
 	FCSPose<FCompactPose> ComponentSpacePose;
@@ -146,9 +143,9 @@ void UPoseSearchMeshComponent::UpdatePose(const FUpdateContext& UpdateContext)
 		SetBoneTransformByName(BoneName, BoneTransform, EBoneSpaces::ComponentSpace);
 	}
 
-	if (UpdateContext.bMirrored)
+	if (UpdateContext.MirrorDataCache)
 	{
-		LastRootMotionDelta = UE::PoseSearch::MirrorTransform(LastRootMotionDelta, UpdateContext.MirrorDataTable->MirrorAxis, (*UpdateContext.ComponentSpaceRefRotations)[FCompactPoseBoneIndex(RootBoneIndexType)]);
+		LastRootMotionDelta = UpdateContext.MirrorDataCache->MirrorTransform(LastRootMotionDelta);
 	}
 
 	const FTransform ComponentTransform = LastRootMotionDelta * StartingTransform;

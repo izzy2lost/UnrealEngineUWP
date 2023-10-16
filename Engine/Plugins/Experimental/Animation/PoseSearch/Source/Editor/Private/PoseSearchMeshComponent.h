@@ -9,6 +9,11 @@
 
 class UBlendSpace;
 
+namespace UE::PoseSearch
+{
+	struct FMirrorDataCache;
+};
+
 UCLASS()
 class UPoseSearchMeshComponent : public UPoseableMeshComponent
 {
@@ -22,11 +27,8 @@ public:
 		float StartTime = 0.0f;
 		float Time = 0.0f;
 		bool bLoop = false;
-		bool bMirrored = false;
 		FVector BlendParameters = FVector::Zero();
-		const UMirrorDataTable* MirrorDataTable = nullptr;
-		TCustomBoneIndexArray<FCompactPoseBoneIndex, FCompactPoseBoneIndex>* CompactPoseMirrorBones = nullptr;
-		TCustomBoneIndexArray<FQuat, FCompactPoseBoneIndex>* ComponentSpaceRefRotations = nullptr;
+		const UE::PoseSearch::FMirrorDataCache* MirrorDataCache = nullptr;
 	};
 
 	void Refresh();

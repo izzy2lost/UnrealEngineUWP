@@ -5,6 +5,7 @@
 #include "CoreMinimal.h"
 #include "Misc/Attribute.h"
 #include "PoseSearchMeshComponent.h"
+#include "PoseSearch/PoseSearchMirrorDataCache.h"
 #include "Templates/SharedPointer.h"
 #include "UObject/WeakObjectPtrTemplates.h"
 
@@ -114,12 +115,7 @@ private:
 	/** Anim Instance associated with this debugger instance */
 	uint64 AnimInstanceId = 0;
 
-	/** Compact pose format of Mirror Bone Map */
-	TCustomBoneIndexArray<FCompactPoseBoneIndex, FCompactPoseBoneIndex> CompactPoseMirrorBones;
-
-	/** Pre-calculated component space rotations of reference pose */
-	TCustomBoneIndexArray<FQuat, FCompactPoseBoneIndex> ComponentSpaceRefRotations;
-
+	FMirrorDataCache MirrorDataCache;
 
 	/** Index for each type of skeleton we store for debug visualization */
 	enum ESkeletonIndex

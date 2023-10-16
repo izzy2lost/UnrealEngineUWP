@@ -82,26 +82,11 @@ static FSamplingParam WrapOrClampSamplingParam(bool bCanWrap, float SamplingPara
 //////////////////////////////////////////////////////////////////////////
 // FAssetSamplingContext
 FAssetSamplingContext::FAssetSamplingContext(const UPoseSearchDatabase& Database, const FBoneContainer& BoneContainer)
+: FMirrorDataCache(Database.Schema ? Database.Schema->MirrorDataTable : nullptr, BoneContainer)
 {
 	check(Database.Schema);
-	MirrorDataTable = Database.Schema->MirrorDataTable;
 	BaseCostBias = Database.BaseCostBias;
 	LoopingCostBias = Database.LoopingCostBias;
-
-	if (MirrorDataTable)
-	{
-		MirrorDataTable->FillCompactPoseAndComponentRefRotations(BoneContainer, CompactPoseMirrorBones, ComponentSpaceRefRotations);
-	}
-	else
-	{
-		CompactPoseMirrorBones.Reset();
-		ComponentSpaceRefRotations.Reset();
-	}
-}
-
-FTransform FAssetSamplingContext::MirrorTransform(const FTransform& InTransform) const
-{
-	return UE::PoseSearch::MirrorTransform(InTransform, MirrorDataTable->MirrorAxis, ComponentSpaceRefRotations[FCompactPoseBoneIndex(RootBoneIndexType)]);
 }
 
 //////////////////////////////////////////////////////////////////////////
@@ -364,15 +349,9 @@ FAssetIndexer::CachedEntry& FAssetIndexer::GetEntry(float SampleTime)
 
 		Pose[FCompactPoseBoneIndex(RootBoneIndexType)].SetIdentity();
 
-		if (SearchIndexAsset.IsMirrored() && Schema.MirrorDataTable)
+		if (SearchIndexAsset.IsMirrored())
 		{
-			FAnimationRuntime::MirrorPose(
-				Pose,
-				Schema.MirrorDataTable->MirrorAxis,
-				SamplingContext.CompactPoseMirrorBones,
-				SamplingContext.ComponentSpaceRefRotations
-			);
-			// Note curves and attributes are not used during the indexing process and therefore don't need to be mirrored
+			SamplingContext.MirrorPose(Pose);
 		}
 
 		FCSPose<FCompactPose> StackComponentSpacePose;
@@ -427,8 +406,7 @@ FTransform FAssetIndexer::GetTransform(float SampleTime, bool& bClamped, const F
 	CachedEntry& Entry = GetEntry(SampleTime);
 	bClamped = Entry.bClamped;
 
-	const FTransform MirroredRootTransform = MirrorTransform(Entry.RootTransform);
-	return CalculateComponentSpaceTransform(Entry, BoneReference) * MirroredRootTransform;
+	return CalculateComponentSpaceTransform(Entry, BoneReference) * MirrorTransform(Entry.RootTransform);
 }
 
 FTransform FAssetIndexer::CalculateComponentSpaceTransform(FAssetIndexer::CachedEntry& Entry, int8 SchemaBoneIdx)

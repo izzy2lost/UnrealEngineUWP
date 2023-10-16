@@ -5,7 +5,7 @@
 #if WITH_EDITOR
 
 #include "BonePose.h"
-#include "CoreMinimal.h"
+#include "PoseSearch/PoseSearchMirrorDataCache.h"
 #include "PoseSearch/PoseSearchDefines.h"
 #include "PoseSearch/PoseSearchFeatureChannel.h"
 #include "PoseSearch/PoseSearchSchema.h"
@@ -19,23 +19,12 @@ struct FAnimationAssetSampler;
 struct FSearchIndexAsset;
 struct FPoseMetadata;
 
-struct FAssetSamplingContext
+struct FAssetSamplingContext : public FMirrorDataCache
 {
 	float BaseCostBias = 0.f;
 	float LoopingCostBias = 0.f;
 
-	// Mirror data table pointer copied from Schema for convenience
-	TObjectPtr<const UMirrorDataTable> MirrorDataTable;
-
-	// Compact pose format of Mirror Bone Map
-	TCustomBoneIndexArray<FCompactPoseBoneIndex, FCompactPoseBoneIndex> CompactPoseMirrorBones;
-
-	// Pre-calculated component space rotations of reference pose, which allows mirror to work with any joint orientation
-	// Only initialized and used when a mirroring table is specified
-	TCustomBoneIndexArray<FQuat, FCompactPoseBoneIndex> ComponentSpaceRefRotations;
-
 	FAssetSamplingContext(const UPoseSearchDatabase& Database, const FBoneContainer& BoneContainer);
-	FTransform MirrorTransform(const FTransform& Transform) const;
 };
 
 class FAssetIndexer

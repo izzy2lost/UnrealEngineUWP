@@ -6,7 +6,7 @@
 #include "InstancedStruct.h"
 #include "MovieSceneFwd.h"
 #include "PoseSearch/PoseSearchAssetSampler.h"
-#include "PoseSearch/PoseSearchIndex.h"
+#include "PoseSearch/PoseSearchMirrorDataCache.h"
 #include "PoseSearchDatabasePreviewScene.h"
 #include "UObject/GCObject.h"
 
@@ -28,18 +28,40 @@ namespace UE::PoseSearch
 	struct FDatabasePreviewActor
 	{
 	public:
+		bool SpawnPreviewActor(UWorld* World, const UPoseSearchDatabase* PoseSearchDatabase, int32 IndexAssetIdx, int32 PoseIdxForTimeOffset = INDEX_NONE);
+		void UpdatePreviewActor(const UPoseSearchDatabase* PoseSearchDatabase, float PlayTime, bool bQuantizeAnimationToPoseData);
+		bool DrawPreviewActor(const UPoseSearchDatabase* PoseSearchDatabase, bool bDisplayRootMotionSpeed, TConstArrayView<float> QueryVector);
+		void Destroy();
+
+		const UDebugSkelMeshComponent* GetDebugSkelMeshComponent() const;
+		const UAnimPreviewInstance* GetAnimPreviewInstance() const;
+		const FAnimationAssetSampler& GetSampler() const { return Sampler; }
+		FTransform ExtractRootTransform(float Time) const;
+		void ExtractPose(float Time, FCompactPose& OutPose) const;
+
+		const AActor* GetActor() const { return Actor.Get(); }
+		int32 GetIndexAssetIndex() const { return IndexAssetIndex; }
+		int32 GetCurrentPoseIndex() const { return CurrentPoseIndex; }
+		float GetPlayTimeOffset() const { return PlayTimeOffset; }
+		
+	private:
+		UAnimPreviewInstance* GetAnimPreviewInstanceInternal();
+
 		TObjectPtr<AActor> Actor;
 		int32 IndexAssetIndex = INDEX_NONE;
 		int32 CurrentPoseIndex = INDEX_NONE;
 		float PlayTimeOffset = 0.f;
 		float CurrentTime = 0.f;
-		FAnimationAssetSampler Sampler;
-		FTransform QuantizedTimeRootTransform = FTransform::Identity;
 
-		bool IsValid() const;
-		void Process(const FBoneContainer& BoneContainer);
-		UDebugSkelMeshComponent* GetDebugSkelMeshComponent();
-		UAnimPreviewInstance* GetAnimPreviewInstance();
+		FTransform RootTransformCurrentQuantizedTime = FTransform::Identity;
+		FTransform RootTransformCurrent = FTransform::Identity;
+		FTransform RootTransformOrigin = FTransform::Identity;
+
+		FAnimationAssetSampler Sampler;
+		FMirrorDataCache MirrorDataCache;
+
+		TArray<FVector> SampledRootMotion;
+		TArray<float> SampledRootMotionSpeed;
 	};
 
 	class FDatabaseViewModel : public TSharedFromThis<FDatabaseViewModel>, public FGCObject
@@ -72,14 +94,14 @@ namespace UE::PoseSearch
 		TArray<FDatabasePreviewActor>& GetPreviewActors() { return PreviewActors; }
 		const TArray<FDatabasePreviewActor>& GetPreviewActors() const { return PreviewActors; }
 
-		void OnToggleDisplayRootMotionSpeed() { bDisplayRootMotionSpeed = !bDisplayRootMotionSpeed; }
-		bool IsDisplayRootMotionSpeedChecked() const { return bDisplayRootMotionSpeed; };
+		void ToggleDisplayRootMotionSpeed() { bDisplayRootMotionSpeed = !bDisplayRootMotionSpeed;	}
+		bool IsDisplayRootMotionSpeedChecked() const { return bDisplayRootMotionSpeed; }
 
-		void OnToggleQuantizeAnimationToPoseData() { bQuantizeAnimationToPoseData = !bQuantizeAnimationToPoseData; }
-		bool IsQuantizeAnimationToPoseDataChecked() const { return bQuantizeAnimationToPoseData; };
+		void ToggleQuantizeAnimationToPoseData() { bQuantizeAnimationToPoseData = !bQuantizeAnimationToPoseData; }
+		bool IsQuantizeAnimationToPoseDataChecked() const { return bQuantizeAnimationToPoseData; }
 
-		void OnToggleShowBones() { bShowBones = !bShowBones; }
-		bool IsShowBones() const { return bShowBones; };
+		void ToggleShowBones() { bShowBones = !bShowBones; }
+		bool IsShowBonesChecked() const { return bShowBones; }
 
 		void AddSequenceToDatabase(UAnimSequence* AnimSequence);
 		void AddBlendSpaceToDatabase(UBlendSpace* BlendSpace);
@@ -110,8 +132,9 @@ namespace UE::PoseSearch
 		bool IsEditorSelection() const { return bIsEditorSelection; }
 		bool GetAnimationTime(int32 SourceAssetIdx, float& CurrentPlayTime, FVector& BlendParameters) const;
 
-
 	private:
+		UWorld* GetWorld();
+
 		float PlayTime = 0.f;
 		float DeltaTimeMultiplier = 1.f;
 
@@ -137,19 +160,9 @@ namespace UE::PoseSearch
 
 		/** Is animation debug draw enabled */
 		bool bDisplayRootMotionSpeed = false;
-
 		bool bQuantizeAnimationToPoseData = false;
-
 		bool bShowBones = false;
 
 		int32 SelectedActorIndexAssetIndex = INDEX_NONE;
-
-		UWorld* GetWorld();
-
-		FDatabasePreviewActor SpawnPreviewActor(int32 IndexAssetIndex, int32 PoseIdxForTimeOffset = INDEX_NONE);
-
-		void UpdatePreviewActors(bool bInTickPlayTime = false);
-
-		FTransform MirrorRootTransform(const FTransform& RootTransform);
 	};
 }

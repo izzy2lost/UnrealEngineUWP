@@ -164,7 +164,7 @@ void FDebuggerViewModel::UpdatePoseSearchContext(UPoseSearchMeshComponent::FUpda
 		{
 			InOutContext.StartTime = Skeletons[SelectedPose].Time;
 			InOutContext.Time = Skeletons[SelectedPose].Time;
-			InOutContext.bMirrored = Skeletons[SelectedPose].bMirrored;
+			InOutContext.MirrorDataCache = Skeletons[SelectedPose].bMirrored ? &MirrorDataCache : nullptr;
 			InOutContext.bLoop = DatabaseAsset->IsLooping();
 		}
 
@@ -289,29 +289,25 @@ const USkinnedMeshComponent* FDebuggerViewModel::GetMeshComponent() const
 
 void FDebuggerViewModel::FillCompactPoseAndComponentRefRotations()
 {
-	bool bResetMirrorBonesAndRotations = true;
+	bool bResetMirrorDataCache = true;
 	if (const UPoseSearchDatabase* Database = GetCurrentDatabase())
 	{
-		if (UMirrorDataTable* MirrorDataTable = Database->Schema->MirrorDataTable)
+		if (MirrorDataCache.GetMirrorDataTable() != Database->Schema->MirrorDataTable)
 		{
 			if (UPoseSearchMeshComponent* MeshComponent = Skeletons[ActivePose].Component.Get())
 			{
 				if (MeshComponent->RequiredBones.IsValid())
 				{
-					if (CompactPoseMirrorBones.Num() == 0 || ComponentSpaceRefRotations.Num() == 0)
-					{
-						MirrorDataTable->FillCompactPoseAndComponentRefRotations(MeshComponent->RequiredBones, CompactPoseMirrorBones, ComponentSpaceRefRotations);
-					}
-					bResetMirrorBonesAndRotations = false;
+					MirrorDataCache.Init(Database->Schema->MirrorDataTable, MeshComponent->RequiredBones);
+					bResetMirrorDataCache = false;
 				}
 			}
 		}
 	}
 
-	if (bResetMirrorBonesAndRotations)
+	if (bResetMirrorDataCache)
 	{
-		CompactPoseMirrorBones.Reset();
-		ComponentSpaceRefRotations.Reset();
+		MirrorDataCache.Reset();
 	}
 }
 

@@ -620,13 +620,4 @@ bool FSearchContext::IsCurrentResultFromDatabase(const UPoseSearchDatabase* Data
 	return CurrentResult.IsValid() && CurrentResult.Database == Database;
 }
 
-FTransform MirrorTransform(const FTransform& InTransform, EAxis::Type MirrorAxis, const FQuat& ReferenceRotation)
-{
-	const FVector T = FAnimationRuntime::MirrorVector(InTransform.GetTranslation(), MirrorAxis);
-	const FQuat Q = FAnimationRuntime::MirrorQuat(InTransform.GetRotation(), MirrorAxis);
-	const FQuat QR = Q * FAnimationRuntime::MirrorQuat(ReferenceRotation, MirrorAxis).Inverse() * ReferenceRotation;
-	const FTransform Result = FTransform(QR, T, InTransform.GetScale3D());
-	return Result;
-}
-
 } // namespace UE::PoseSearch
