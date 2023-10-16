@@ -122,7 +122,7 @@ namespace EpicGames.Horde.Storage
 		/// <summary>
 		/// Flush the referenced not to underlying storage
 		/// </summary>
-		public virtual ValueTask FlushAsync(CancellationToken cancellationToken) => new ValueTask();
+		public virtual ValueTask FlushAsync(CancellationToken cancellationToken = default) => new ValueTask();
 
 		/// <inheritdoc/>
 		public override string ToString()

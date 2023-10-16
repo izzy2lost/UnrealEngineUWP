@@ -15,7 +15,14 @@ namespace EpicGames.Horde.Storage
 	/// <param name="Name">Name of the alias</param>
 	/// <param name="Rank">Rank of the alias</param>
 	/// <param name="Data">Inline data to be stored for the alias</param>
-	public record class AliasInfo(string Name, int Rank, ReadOnlyMemory<byte> Data);
+	public record class AliasInfo(string Name, int Rank, ReadOnlyMemory<byte> Data)
+	{
+		/// <summary>
+		/// Constructor
+		/// </summary>
+		public AliasInfo(string name, int rank = 0) : this(name, rank, ReadOnlyMemory<byte>.Empty)
+		{ }
+	}
 
 	/// <summary>
 	/// Interface for writing new nodes to the store

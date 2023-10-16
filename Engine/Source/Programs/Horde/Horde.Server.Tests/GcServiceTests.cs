@@ -6,12 +6,11 @@ using System.Linq;
 using System.Threading.Tasks;
 using Microsoft.VisualStudio.TestTools.UnitTesting;
 using EpicGames.Horde.Storage;
-using EpicGames.Horde.Storage.Bundles;
-using EpicGames.Horde.Storage.Clients;
 using Horde.Server.Storage;
 using System.Threading;
 using Horde.Server.Server;
 using Microsoft.Extensions.DependencyInjection;
+using EpicGames.Core;
 
 namespace Horde.Server.Tests
 {
@@ -39,8 +38,7 @@ namespace Horde.Server.Tests
 				int blobIdx = (int)(random.NextDouble() * blobs.Length);
 				if (roots.Add(blobs[blobIdx]))
 				{
-					BundleNodeLocator locator = new BundleNodeLocator(blobs[blobIdx], 0);
-					BlobHandle handle = store.CreateBlobHandle(locator.ToBlobLocator());
+					BlobHandle handle = store.CreateBlobHandle(blobs[blobIdx]);
 					await store.WriteRefTargetAsync(new RefName($"ref-{idx}"), handle);
 				}
 			}
@@ -51,7 +49,7 @@ namespace Horde.Server.Tests
 
 			IStorageBackend backend = ServiceProvider.GetRequiredService<IStorageBackendProvider>().CreateBackend(globalConfig.Storage.Backends[0]);
 
-			string[] remaining = await backend.EnumerateAsync().ToArrayAsync();
+			string[] remaining = await backend.EnumerateAsync().Select(x => $"{x}#0").ToArrayAsync();
 			Assert.AreEqual(nodes.Count, remaining.Length);
 			Assert.IsTrue(remaining.All(x => nodes.Contains(new BlobLocator(x))));
 		}
@@ -69,8 +67,9 @@ namespace Horde.Server.Tests
 			{
 				if (nodes.Add(root))
 				{
-					Bundle bundle = await store.ReadBundleAsync(root);
-					await FindNodesAsync(store, bundle.Header.Imports, nodes);
+					BlobHandle handle = store.CreateBlobHandle(root);
+					IReadOnlyList<BlobHandle> refs = await handle.GetRefsAsync();
+					await FindNodesAsync(store, refs.ConvertAll(x => x.GetLocator()), nodes);
 				}
 			}
 		}
@@ -99,14 +98,17 @@ namespace Horde.Server.Tests
 				}
 			}
 
+			BlobType blobType = new BlobType(Guid.Parse("{AFDF76A7-5333-4DEE-B837-B5F5CA511245}"), 0);
+
 			BlobLocator[] locators = new BlobLocator[children.Length];
 			for (int idx = numNodes - 1; idx >= 0; idx--)
 			{
-				List<BlobType> types = new List<BlobType> { new BlobType(Guid.Parse("{AFDF76A7-5333-4DEE-B837-B5F5CA511245}"), 0) };
-				List<BlobLocator> imports = children[idx].ConvertAll(x => locators[x]);
-				BundleHeader header = new BundleHeader(types.ToArray(), imports.ToArray(), Array.Empty<BundleExport>(), Array.Empty<BundlePacket>());
-				Bundle bundle = new Bundle(header, Array.Empty<ReadOnlyMemory<byte>>());
-				BlobHandle handle = await store.WriteBundleAsync(bundle, basePath: "gctest");
+				BlobHandle handle;
+				await using (IStorageWriter writer = store.CreateWriter("gctest"))
+				{
+					List<BlobHandle> imports = children[idx].ConvertAll(x => store.CreateBlobHandle(locators[x]));
+					handle = await writer.WriteBlobAsync(blobType, 0, imports);
+				}
 				locators[idx] = handle.GetLocator();
 			}
 
