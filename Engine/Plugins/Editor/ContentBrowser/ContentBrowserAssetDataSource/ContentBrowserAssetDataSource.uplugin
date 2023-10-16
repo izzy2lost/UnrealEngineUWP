@@ -14,14 +14,14 @@
 	"CanContainContent" : false,
 	"IsBetaVersion" : false,
 	"Installed": false,
-	"SupportedPrograms":  ["LiveLinkHubLauncher"],
+	"SupportedPrograms":  ["LiveLinkHub"],
 	"Modules" :
 	[
 		{
 			"Name": "ContentBrowserAssetDataSource",
 			"Type": "Editor",
 			"LoadingPhase": "Default",
-			"ProgramAllowlist": [ "LiveLinkHubLauncher" ]
+			"ProgramAllowlist": [ "LiveLinkHub" ]
 		}
 	]
 }

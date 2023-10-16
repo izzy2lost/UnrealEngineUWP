@@ -21,7 +21,7 @@
 		"UnrealRecoverySvc",
 		"UnrealLightmass",
 		"CrashReportClientEditor",
-		"LiveLinkHubLauncher",
+		"LiveLinkHub",
 		"TimeSynchronizationWriter"
 	],
 	"Modules" :
@@ -40,7 +40,7 @@
 				"UnrealRecoverySvc",
 				"UnrealLightmass",
 				"CrashReportClientEditor",
-				"LiveLinkHubLauncher",
+				"LiveLinkHub",
 				"TimeSynchronizationWriter"
 			]
 		}
