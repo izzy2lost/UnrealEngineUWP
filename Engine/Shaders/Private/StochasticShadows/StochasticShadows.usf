@@ -139,7 +139,7 @@ void CompositeShadowMaskTracesCS(
 			int2 ScreenCoord00 = ShadowMaskHistoryScreenCoord00[ShadowMaskScreenCoord];
 			float4 Weights = ShadowMaskHistoryWeights[ShadowMaskScreenCoord];
 
-			if (all(ScreenCoord00 > 0))
+			if (any(Weights > 0.0f))
 			{
 				FShadowMaskAccumulator Accumulator = InitShadowMaskAccumulator();
 
