@@ -729,6 +729,9 @@ public:
 	/** Get Active FAnimMontageInstance for given Montage asset. Will return NULL if Montage is not currently Active. */
 	ENGINE_API FAnimMontageInstance* GetActiveInstanceForMontage(const UAnimMontage* Montage) const;
 
+	/** Get FAnimMontageInstance for given Montage asset (even when blending out). Will return NULL if Montage is not currently playing. */
+	ENGINE_API FAnimMontageInstance* GetInstanceForMontage(const UAnimMontage* Montage) const;
+
 	/** Get the FAnimMontageInstance currently running that matches this ID.  Will return NULL if no instance is found. */
 	ENGINE_API FAnimMontageInstance* GetMontageInstanceForID(int32 MontageInstanceID);
 
