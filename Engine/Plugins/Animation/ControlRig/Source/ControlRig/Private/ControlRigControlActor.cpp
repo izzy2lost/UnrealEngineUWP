@@ -156,7 +156,7 @@ void AControlRigControlActor::Refresh()
 
 	if (ControlRig == nullptr)
 	{
-		TArray<UBaseControlRig*> Rigs = UBaseControlRig::FindControlRigs(ActorToTrack, ControlRigClass);
+		TArray<UBaseControlRig*> Rigs = UBaseControlRig::FindBaseControlRigs(ActorToTrack, ControlRigClass);
 		if(Rigs.Num() > 0)
 		{
 			ControlRig = Rigs[0];

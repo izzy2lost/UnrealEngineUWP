@@ -8,12 +8,66 @@
 #include "ControlRigObjectBinding.h"
 #include "Rigs/RigHierarchyController.h"
 #include "ControlRigComponent.h"
+#include "UObject/UObjectIterator.h"
 
 #define LOCTEXT_NAMESPACE "ControlRig"
 
 UControlRig::UControlRig(const FObjectInitializer& ObjectInitializer)
 	: Super(ObjectInitializer)
 {
+}
+
+TArray<UControlRig*> UControlRig::FindControlRigs(UObject* Outer, TSubclassOf<UControlRig> OptionalClass)
+{
+	TArray<UControlRig*> Result;
+	
+	if(Outer == nullptr)
+	{
+		return Result; 
+	}
+	
+	AActor* OuterActor = Cast<AActor>(Outer);
+	if(OuterActor == nullptr)
+	{
+		OuterActor = Outer->GetTypedOuter<AActor>();
+	}
+	
+	for (TObjectIterator<UControlRig> Itr; Itr; ++Itr)
+	{
+		UControlRig* RigInstance = *Itr;
+		const UClass* RigInstanceClass = RigInstance ? RigInstance->GetClass() : nullptr;
+		if (OptionalClass == nullptr || (RigInstanceClass && RigInstanceClass->IsChildOf(OptionalClass)))
+		{
+			if(RigInstance->IsInOuter(Outer))
+			{
+				Result.Add(RigInstance);
+				continue;
+			}
+
+			if(OuterActor)
+			{
+				if(RigInstance->IsInOuter(OuterActor))
+				{
+					Result.Add(RigInstance);
+					continue;
+				}
+
+				if (TSharedPtr<IControlRigObjectBinding> Binding = RigInstance->GetObjectBinding())
+				{
+					if (AActor* Actor = Binding->GetHostingActor())
+					{
+						if (Actor == OuterActor)
+						{
+							Result.Add(RigInstance);
+							continue;
+						}
+					}
+				}
+			}
+		}
+	}
+
+	return Result;
 }
 
 bool UControlRig::Execute_Internal(const FName& InEventName)

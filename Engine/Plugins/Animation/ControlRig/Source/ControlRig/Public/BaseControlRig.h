@@ -77,7 +77,7 @@ public:
 	static const FName OwnerComponent;
 
 	UFUNCTION(BlueprintCallable, Category = ControlRig)
-	static TArray<UBaseControlRig*> FindControlRigs(UObject* Outer, TSubclassOf<UBaseControlRig> OptionalClass);
+	static TArray<UBaseControlRig*> FindBaseControlRigs(UObject* Outer, TSubclassOf<UBaseControlRig> OptionalClass);
 
 public:
 	virtual UWorld* GetWorld() const override;

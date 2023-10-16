@@ -34,6 +34,9 @@ public:
 		return nullptr;
 	}
 
+	UFUNCTION(BlueprintCallable, Category = ControlRig)
+	static TArray<UControlRig*> FindControlRigs(UObject* Outer, TSubclassOf<UControlRig> OptionalClass);
+
 	UE_DEPRECATED(5.4, "InteractionRig is no longer used")
 	UFUNCTION(BlueprintSetter, meta = (DeprecatedFunction, DeprecationMessage = "InteractionRig is no longer used"))
 	void SetInteractionRig(UControlRig* InInteractionRig) {}

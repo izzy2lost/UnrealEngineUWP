@@ -1425,7 +1425,7 @@ void UBaseControlRig::PostReinstanceCallback(const UBaseControlRig* Old)
 
 #endif // WITH_EDITORONLY_DATA
 
-TArray<UBaseControlRig*> UBaseControlRig::FindControlRigs(UObject* Outer, TSubclassOf<UBaseControlRig> OptionalClass)
+TArray<UBaseControlRig*> UBaseControlRig::FindBaseControlRigs(UObject* Outer, TSubclassOf<UBaseControlRig> OptionalClass)
 {
 	TArray<UBaseControlRig*> Result;
 	
