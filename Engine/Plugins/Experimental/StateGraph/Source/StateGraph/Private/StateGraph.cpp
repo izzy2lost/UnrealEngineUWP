@@ -180,7 +180,7 @@ void FStateGraphNodeFunction::Start()
 		}
 		else
 		{
-			UE_LOG_STATEGRAPH(Warning, TEXT("[%s.%s] Function node completed after node was destroyed"), *StateGraphName.ToString(), *NodeName.ToString());
+			UE_LOG_STATEGRAPH(Log, TEXT("[%s.%s] Function node completed after node was destroyed"), *StateGraphName.ToString(), *NodeName.ToString());
 		}
 	});
 }
