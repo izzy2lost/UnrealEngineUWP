@@ -329,6 +329,11 @@ const FNamePermissionList& FPropertyPermissionList::GetCachedPermissionListForSt
 	return PermissionListEntry->PermissionList;
 }
 
+bool FPropertyPermissionList::HasSpecificList(const UStruct* ObjectStruct) const
+{
+	return RawPropertyPermissionList.Find(ObjectStruct) != nullptr;
+}
+
 bool FPropertyPermissionList::IsSpecificPropertyAllowListed(const UStruct* ObjectStruct, FName PropertyName) const
 {
 	const FPropertyPermissionListEntry* Entry = RawPropertyPermissionList.Find(ObjectStruct);

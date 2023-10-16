@@ -92,6 +92,9 @@ public:
 	 */
 	bool DoesPropertyPassFilter(const UStruct* ObjectStruct, FName PropertyName) const;
 
+	/** */
+	bool HasSpecificList(const UStruct* ObjectStruct) const;
+
 	/** Check whether a property exists on the PermissionList for a specific Struct - this will return false if the property is AllowListed on a parent Struct */
 	bool IsSpecificPropertyAllowListed(const UStruct* ObjectStruct, FName PropertyName) const;
 	/** Check whether a property exists on the DenyList for a specific Struct - this will return false if the property is DenyListed on a parent Struct */
