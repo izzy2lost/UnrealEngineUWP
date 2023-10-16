@@ -4,7 +4,6 @@ using AutomationTool;
 using EpicGames.Core;
 using System;
 using System.Collections.Generic;
-using System.Configuration;
 using System.IO;
 using System.Linq;
 using System.Text.RegularExpressions;
@@ -691,28 +690,6 @@ namespace Gauntlet
 			}
 		}
 
-		public bool TryConfigureDevice(ITargetDevice Device, string ProjectName, string ProfileName)
-		{
-			IConfigurableDevice ConfigurableDevice = Device as IConfigurableDevice;
-			if (ConfigurableDevice == null)
-			{
-				Log.Info("Trying to set a config profile on a device that isn't configurable: {0}", Device.Platform);
-				return false;
-			}
-
-			var Configuration = DeviceConfigurationCache.Instance.GetConfiguration(Device.Platform, ProjectName, ProfileName);
-			if (Configuration == null)
-			{
-				Log.Info("Device profile {0}.{1} for {2} doesn't exist", ProjectName, ProfileName, Device.Platform);
-				return false;
-			}
-
-			var ConfigSnapshot = ConfigurableDevice.GetCurrentConfigurationSnapshot();
-			DeviceConfigurationCache.Instance.CacheConfigurationSnapshot(ConfigSnapshot);
-			
-			return ConfigurableDevice.ApplyConfiguration(Configuration);
-		}
-
 		/// <summary>
 		/// Check that all the current roles can be performed by our build source
 		/// </summary>
@@ -814,26 +791,8 @@ namespace Gauntlet
 					// create a config from the build source (this also applies the role options)
 					UnrealAppConfig AppConfig = BuildSource.CreateConfiguration(Role, OtherRoles);
 
-					// device profile comes in the format <namespace>.<profilename>. If no namespace is given, assume Engine
-					string ProfileName = Globals.Params.ParseValue("deviceprofile", "");
-					string Namespace = "Engine";
-					int DotIndex = ProfileName.IndexOf('.');
-					if (DotIndex != -1)
-					{
-						Namespace = ProfileName.Substring(0, DotIndex);
-						ProfileName = ProfileName.Substring(DotIndex + 1);
-					}
-					
-					if (!string.IsNullOrWhiteSpace(ProfileName))
-					{
-						if (!TryConfigureDevice(Device, Namespace, ProfileName))
-						{
-							Log.Info("Failed to apply {0} configuration profile to device {1}", ProfileName, Device.Name);
-						}
-					}
-
 					//Verify the device's OS version, and update if necessary
-					if (Globals.Params.ParseParam("TryFirmwareUpdate") && AppConfig.Platform != null)
+					if(Globals.Params.ParseParam("TryFirmwareUpdate") && AppConfig.Platform != null)
 					{
 						List<IPlatformFirmwareHandler> PlatformFirmwareHandlers = Gauntlet.Utils.InterfaceHelpers.FindImplementations<IPlatformFirmwareHandler>(true).ToList();
 

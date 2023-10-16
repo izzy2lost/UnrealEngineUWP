@@ -564,38 +564,6 @@ namespace Gauntlet
 			}
 		}
 
-		void RevertDeviceConfiguration(ITargetDevice Device)
-		{
-			IConfigurableDevice ConfigurableDevice = Device as IConfigurableDevice;
-			if (ConfigurableDevice != null)
-			{
-				var Snapshot = DeviceConfigurationCache.Instance.GetConfigurationSnapshot(Device.Platform, Device.Name);
-				if (Snapshot == null)
-				{
-					return;
-				}
-
-				// Connect temporarily to be able to revert the device's configuration
-				// if the device was disconnected entering here disconnect it after this is over
-				bool bNeedsDisconnect = false;
-				if (!Device.IsConnected)
-				{
-					Device.Connect();
-					bNeedsDisconnect = true;
-				}
-				
-				if (ConfigurableDevice.ApplyConfiguration(Snapshot))
-				{
-					DeviceConfigurationCache.Instance.ClearSnapshot(Snapshot);
-				}
-
-				if (bNeedsDisconnect)
-				{
-					Device.Disconnect();
-				}
-			}
-		}
-
 		/// <summary>
 		/// Explicitly release all device reservations
 		/// </summary>
@@ -635,8 +603,6 @@ namespace Gauntlet
 				List<ITargetDevice> KeepList = new List<ITargetDevice>();
 				foreach (ITargetDevice Device in DeviceList)
 				{
-					RevertDeviceConfiguration(Device);
-
 					if (Device.IsConnected && InitialConnectState[Device] == false)
 					{
 						Device.Disconnect();
