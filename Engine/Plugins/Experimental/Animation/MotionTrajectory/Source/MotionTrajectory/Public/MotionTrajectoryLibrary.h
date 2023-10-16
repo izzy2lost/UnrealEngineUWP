@@ -85,6 +85,7 @@ public:
 	TObjectPtr<const UCharacterMovementComponent> CharacterMovementComponent = nullptr;
 
 	FRotator ControllerRotationRate = FRotator::ZeroRotator;
+	FRotator ControllerRotationRateClamped = FRotator::ZeroRotator;
 
 private:
 	void UpdateControllerRotationRate(float DeltaSeconds);
