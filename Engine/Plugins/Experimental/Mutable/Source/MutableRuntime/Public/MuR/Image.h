@@ -583,7 +583,7 @@ namespace mu
 		MUTABLERUNTIME_API Ptr<Image> ExtractMip(const Image* From, int32 Mip);
 
 		/** Bilinear filter image resize. */
-		void ImageResizeLinear(Image* Dest, int32 ImageCompressionQuality, const Image* Base);
+		MUTABLERUNTIME_API void ImageResizeLinear(Image* Dest, int32 ImageCompressionQuality, const Image* Base);
 
 		/** Fill the image with a plain colour. */
 		void FillColor(Image* Image, FVector4f Color);

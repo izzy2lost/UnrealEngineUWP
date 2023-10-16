@@ -50,6 +50,9 @@ class UAnimInstance;
 DECLARE_CYCLE_STAT(TEXT("MutablePendingRelease Time"), STAT_MutablePendingRelease, STATGROUP_Game);
 DECLARE_CYCLE_STAT(TEXT("MutableTask"), STAT_MutableTask, STATGROUP_Game);
 
+#define UE_MUTABLE_UPDATE_REGION		TEXT("Mutable Update")
+
+
 UCustomizableObjectSystem* FCustomizableObjectSystemPrivate::SSystem = nullptr;
 
 static TAutoConsoleVariable<int32> CVarWorkingMemory(
@@ -2207,11 +2210,18 @@ namespace impl
 			CustomizableObjectInstancePrivateData->TexturesToRelease.Empty();
 		}
 
+		{
+			double delta = FPlatformTime::Seconds() - CustomizableObjectSystemPrivateData->CurrentMutableOperation->StartUpdateTime;
+			UE_LOG(LogMutable, Log, TEXT("Finished update in %.3f ms."), delta*1000.0);
+		}
+
 		LogBenchmarkUtil::UpdateBuildTimeStats(CustomizableObjectSystemPrivateData->MutableStats, 
 												CustomizableObjectSystemPrivateData->CurrentMutableOperation->StartUpdateTime);
 
 		// End Update
 		System->ClearCurrentMutableOperation();
+
+		TRACE_END_REGION(UE_MUTABLE_UPDATE_REGION);
 	}
 
 
@@ -2985,7 +2995,8 @@ bool UCustomizableObjectSystem::Tick(float DeltaTime)
 
 				const TSharedPtr<FMutableOperation> Operation = MakeShared<FMutableOperation>(FMutableOperation::CreateInstanceUpdate(*PendingInstance, PendingInstanceUpdateFound->Callback));
 				Private->StartUpdateSkeletalMesh(Operation);
-				
+				TRACE_BEGIN_REGION(UE_MUTABLE_UPDATE_REGION);
+
 				Private->MutablePendingInstanceWork.RemoveUpdate(PendingInstanceUpdateFound->CustomizableObjectInstance);
 			}
 			else if (LODUpdateCandidateFound)
@@ -2995,6 +3006,7 @@ bool UCustomizableObjectSystem::Tick(float DeltaTime)
 
 				const TSharedRef<FMutableOperation> Operation = MakeShared<FMutableOperation>(FMutableOperation::CreateInstanceUpdate(*LODUpdateCandidateFound->CustomizableObjectInstance, nullptr));
 				Private->StartUpdateSkeletalMesh(Operation);
+				TRACE_BEGIN_REGION(UE_MUTABLE_UPDATE_REGION);
 			}
 		}
 

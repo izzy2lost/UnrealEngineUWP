@@ -193,7 +193,7 @@ namespace mu
             m_pErrorLog->GetPrivate()->Add( "Constant image not set.", ELMT_WARNING, node.m_errorContext );
         }
 
-		if (Options.ImageLayoutStrategy!= CompilerOptions::TextureLayoutStrategy::None && Options.LayoutToApply)
+		if (Options.ImageLayoutStrategy!=CompilerOptions::TextureLayoutStrategy::None && Options.LayoutToApply)
 		{
 			// We want to generate only a block from the image.
 
@@ -216,42 +216,38 @@ namespace mu
 			grid[1] = FMath::Max(1, grid[1]);
 
 			// Transform to pixels
-			box< UE::Math::TIntVector2<int32> > rect;
-			rect.min[0]  = (RectInCells.min[0]  * SourceImageSize[0]) / grid[0];
-			rect.min[1]  = (RectInCells.min[1]  * SourceImageSize[1]) / grid[1];
-			rect.size[0] = (RectInCells.size[0] * SourceImageSize[0]) / grid[0];
-			rect.size[1] = (RectInCells.size[1] * SourceImageSize[1]) / grid[1];
+			box< UE::Math::TIntVector2<int32> > SourceRectPixels;
+			SourceRectPixels.min[0]  = (RectInCells.min[0]  * SourceImageSize[0]) / grid[0];
+			SourceRectPixels.min[1]  = (RectInCells.min[1]  * SourceImageSize[1]) / grid[1];
+			SourceRectPixels.size[0] = (RectInCells.size[0] * SourceImageSize[0]) / grid[0];
+			SourceRectPixels.size[1] = (RectInCells.size[1] * SourceImageSize[1]) / grid[1];
+
+			FImageOperator ImOp = FImageOperator::GetDefault(m_compilerOptions->ImageFormatFunc);
 
 			// Do we need to crop?
-			if (rect.min[0]!=0 || rect.min[1]!=0 || pImage->GetSizeX() != rect.size[0] || pImage->GetSizeY() != rect.size[1])
+			if (SourceRectPixels.min[0]!=0 || SourceRectPixels.min[1]!=0 || pImage->GetSizeX() != SourceRectPixels.size[0] || pImage->GetSizeY() != SourceRectPixels.size[1])
 			{
 				// Crop now
-				FImageOperator ImOp = FImageOperator::GetDefault(m_compilerOptions->ImageFormatFunc);
-
-				Ptr<Image> pCropped = new Image(rect.size[0], rect.size[1], 1, pImage->GetFormat(), EInitializationType::NotInitialized);
-				ImOp.ImageCrop(pCropped.get(), m_compilerOptions->ImageCompressionQuality, pImage.get(), rect);
-
-				Ptr<ASTOpConstantResource> op = new ASTOpConstantResource();
-				op->type = OP_TYPE::IM_CONSTANT;
-				op->SetValue(pCropped, m_compilerOptions->OptimisationOptions.bUseDiskCache);
-				Result.op = op;
+				Ptr<Image> pCropped = new Image(SourceRectPixels.size[0], SourceRectPixels.size[1], 1, pImage->GetFormat(), EInitializationType::NotInitialized);
+				ImOp.ImageCrop(pCropped.get(), m_compilerOptions->ImageCompressionQuality, pImage.get(), SourceRectPixels);
+				pImage = pCropped;
 			}
-			else
+
+			// If actual size we need this image in is going to be smaller, resize now too
+			bool bBothAxisEqualOrSmaller = (Options.RectSize[0] < SourceRectPixels.size[0]) && (Options.RectSize[1] < SourceRectPixels.size[1]);
+			bool bBothAxisEqual = (Options.RectSize[0] == SourceRectPixels.size[0]) && (Options.RectSize[1] == SourceRectPixels.size[1]);
+			if (bBothAxisEqualOrSmaller && !bBothAxisEqual)
 			{
-				// No need to crop.
-				Ptr<ASTOpConstantResource> op = new ASTOpConstantResource();
-				op->type = OP_TYPE::IM_CONSTANT;
-				op->SetValue(pImage, m_compilerOptions->OptimisationOptions.bUseDiskCache);
-				Result.op = op;
+				Ptr<Image> ResizedImage = new Image(Options.RectSize[0], Options.RectSize[1],1,pImage->GetFormat(),EInitializationType::NotInitialized);
+				ImOp.ImageResizeLinear(ResizedImage.get(), m_compilerOptions->ImageCompressionQuality, pImage.get() );
+				pImage = ResizedImage;
 			}
 		}
-        else
-        {
-			Ptr<ASTOpConstantResource> op = new ASTOpConstantResource();
-			op->type = OP_TYPE::IM_CONSTANT;
-			op->SetValue( pImage, m_compilerOptions->OptimisationOptions.bUseDiskCache );
-			Result.op = op;
-		}
+ 
+		Ptr<ASTOpConstantResource> op = new ASTOpConstantResource();
+		op->type = OP_TYPE::IM_CONSTANT;
+		op->SetValue( pImage, m_compilerOptions->OptimisationOptions.bUseDiskCache );
+		Result.op = op;
     }
 
 

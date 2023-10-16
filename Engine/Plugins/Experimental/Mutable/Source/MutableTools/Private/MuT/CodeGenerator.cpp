@@ -1338,7 +1338,6 @@ namespace mu
 							// Image
 							//-------------------------------------
 
-							// Size of a layout block in pixels
 							FIntPoint grid = pLayout->GetGridSize();
 
 							check(desc.m_format != EImageFormat::IF_NONE);
@@ -1402,18 +1401,18 @@ namespace mu
 								);
 
 								// Transform to pixels
-								box< UE::Math::TIntVector2<uint16> > rect = rectInCells;
-								rect.min[0] *= blockSizeX;
-								rect.min[1] *= blockSizeY;
-								rect.size[0] *= blockSizeX;
-								rect.size[1] *= blockSizeY;
+								box< UE::Math::TIntVector2<uint16> > BlockRectPixels = rectInCells;
+								BlockRectPixels.min[0] *= blockSizeX;
+								BlockRectPixels.min[1] *= blockSizeY;
+								BlockRectPixels.size[0] *= blockSizeX;
+								BlockRectPixels.size[1] *= blockSizeY;
 
 								// Generate the image
 								FImageGenerationOptions ImageOptions;
 								ImageOptions.CurrentStateIndex = m_currentStateIndex;
 								ImageOptions.ImageLayoutStrategy = ImageLayoutStrategy;
 								ImageOptions.ActiveTags = node.m_tags;
-								ImageOptions.RectSize = UE::Math::TIntVector2<int32>(rect.size);
+								ImageOptions.RectSize = UE::Math::TIntVector2<int32>(BlockRectPixels.size);
 								ImageOptions.LayoutToApply = pLayout;
 								ImageOptions.LayoutBlockId = pLayout->m_blocks[b].m_id;
 								FImageGenerationResult Result;
@@ -1508,12 +1507,16 @@ namespace mu
 												rect.size[0] = (blockRect.size[0] * extendDesc.m_size[0]) / extlayout[0];
 												rect.size[1] = (blockRect.size[1] * extendDesc.m_size[1]) / extlayout[1];
 
+												UE::Math::TIntVector2<int32> ExpectedBlockPixels;
+												ExpectedBlockPixels[0] = blockSizeX * blockRect.size[0];
+												ExpectedBlockPixels[1] = blockSizeY * blockRect.size[1];
+
 												// Generate the image block
 												FImageGenerationOptions ImageOptions;
 												ImageOptions.CurrentStateIndex = m_currentStateIndex;
 												ImageOptions.ImageLayoutStrategy = ImageLayoutStrategy;
 												ImageOptions.ActiveTags = node.m_tags;
-												ImageOptions.RectSize = UE::Math::TIntVector2<int32>(extendDesc.m_size);
+												ImageOptions.RectSize = ExpectedBlockPixels;
 												ImageOptions.LayoutToApply = pExtendLayout;
 												ImageOptions.LayoutBlockId = pExtendLayout->m_blocks[b].m_id;
 												FImageGenerationResult ExtendResult;
@@ -1521,15 +1524,13 @@ namespace mu
 												Ptr<ASTOp> fragmentAd = ExtendResult.op;
 
 												// Adjust the format and size of the block to be added
-												Ptr<ASTOp> formatted = GenerateImageFormat(fragmentAd, GetUncompressedFormat(desc.m_format));
-												UE::Math::TIntVector2<int32> expectedSize;
-												expectedSize[0] = blockSizeX * blockRect.size[0];
-												expectedSize[1] = blockSizeY * blockRect.size[1];
-												formatted = GenerateImageSize(formatted, expectedSize);
+												// \TODO: review if this is still needed considering a higher format op, and the RectSize in the ImageOptions
+												Ptr<ASTOp> formatted = GenerateImageFormat(fragmentAd, desc.m_format);
+												formatted = GenerateImageSize(formatted, ExpectedBlockPixels);
 												fragmentAd = formatted;
 
 												// Apply tiling to avoid generating chunks of image that are too big.
-												fragmentAd = ApplyTiling(fragmentAd, expectedSize, desc.m_format);
+												fragmentAd = ApplyTiling(fragmentAd, ExpectedBlockPixels, desc.m_format);
 
 												// Compose operation
 												Ptr<ASTOpImageCompose> composeOp = new ASTOpImageCompose();

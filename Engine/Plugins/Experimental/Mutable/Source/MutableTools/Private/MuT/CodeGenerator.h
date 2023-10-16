@@ -47,7 +47,6 @@
 namespace mu
 {
 	class ASTOpParameter;
-	class ASTOpConstantResource;
 	class Layout;
 	class NodeColourArithmeticOperation;
 	class NodeColourConstant;
@@ -289,9 +288,6 @@ namespace mu
 		};
 
 		TArray<FConditionalExtensionDataOp> m_conditionalExtensionDataOps;
-
-		/** This is used to cache the constant image op generation. */
-		//TMap<Ptr<const Image>,Ptr<ASTOpConstantResource>> ImageConstantOpPerImage;
 
 		//-----------------------------------------------------------------------------------------
 
