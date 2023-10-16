@@ -42,6 +42,7 @@ public:
 	virtual void ShutdownModule();
 
 	static OUTPUTLOG_API FOutputLogModule& Get();
+	static OUTPUTLOG_API FOutputLogModule* TryGet();
 
 	/** Returns whether debug console widgets should be hidden */
 	virtual bool ShouldHideConsole() const;
@@ -89,6 +90,8 @@ public:
 	/** Returns the value of bCycleToOutputLogDrawer from the module OutputLogSettings. This function helps StatusBar to access properties in OutputLogSetting 
 	through OutputLogModule to avoid dependencies. */
 	virtual bool ShouldCycleToOutputLogDrawer() const;
+
+	TMulticastDelegate<void()> OnOutputLogDrawerCleared;
 
 private:
 	TSharedRef<SDockTab> SpawnOutputLogTab(const FSpawnTabArgs& Args);

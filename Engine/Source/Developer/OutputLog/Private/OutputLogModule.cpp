@@ -188,11 +188,16 @@ void FOutputLogModule::ShutdownModule()
 	OutputLogHistory.Reset();
 }
 
+static const FName ModuleName = UE_MODULE_NAME;
+
 FOutputLogModule& FOutputLogModule::Get()
 {
-	static const FName OutputLog("OutputLog");
+	return FModuleManager::Get().LoadModuleChecked<FOutputLogModule>(ModuleName);
+}
 
-	return FModuleManager::Get().LoadModuleChecked<FOutputLogModule>(OutputLog);
+FOutputLogModule* FOutputLogModule::TryGet()
+{
+	return FModuleManager::Get().GetModulePtr<FOutputLogModule>(ModuleName);
 }
 
 bool FOutputLogModule::ShouldHideConsole() const
@@ -221,6 +226,13 @@ TSharedRef<SWidget> FOutputLogModule::MakeOutputLogDrawerWidget(const FSimpleDel
 		OutputLogDrawerPinned = 
 			SNew(SOutputLog, true)
 			.OnCloseConsole(OnCloseConsole)
+			.OnClearLog_Lambda([]
+			{
+				if (FOutputLogModule* OutputLogModule = FOutputLogModule::TryGet())
+				{
+					OutputLogModule->OnOutputLogDrawerCleared.Broadcast();
+				}
+			})
 			.Messages(OutputLogHistory->GetMessages());
 
 		OutputLogDrawerPinned->UpdateOutputLogFilter(*OutputLogFilterCache);
