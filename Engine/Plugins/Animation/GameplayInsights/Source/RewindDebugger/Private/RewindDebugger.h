@@ -33,6 +33,7 @@ public:
 
 	// IRewindDebugger interface
 	virtual double CurrentTraceTime() const override { return TraceTime.Get(); }
+	virtual double GetScrubTime() const override { return CurrentScrubTime; }
 	virtual const TRange<double>& GetCurrentTraceRange() const override { return CurrentTraceRange; }
 	virtual const TRange<double>& GetCurrentViewRange() const override { return CurrentViewRange; }
 	virtual const TraceServices::IAnalysisSession* GetAnalysisSession() const override;
@@ -93,7 +94,6 @@ public:
 
 	bool CanScrub() const;
 	void ScrubToTime(double ScrubTime, bool bIsScrubbing);
-	double GetScrubTime() { return CurrentScrubTime; }
 
 	// Tick function: While recording, update recording duration.  While paused, and we have recorded data, update skinned mesh poses for the current frame, and handle playback.
 	void Tick(float DeltaTime);

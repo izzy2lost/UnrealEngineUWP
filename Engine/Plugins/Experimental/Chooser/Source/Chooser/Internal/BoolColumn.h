@@ -6,6 +6,7 @@
 #include "IChooserParameterBool.h"
 #include "ChooserPropertyAccess.h"
 #include "InstancedStruct.h"
+#include "Serialization/MemoryReader.h"
 #include "BoolColumn.generated.h"
 
 UENUM()
@@ -84,10 +85,16 @@ struct CHOOSER_API FBoolColumn : public FChooserColumnBase
 	virtual void Filter(FChooserEvaluationContext& Context, const TArray<uint32>& IndexListIn, TArray<uint32>& IndexListOut) const override;
 
 #if WITH_EDITOR
-	mutable bool TestValue;
+	mutable bool TestValue = false;
 	virtual bool EditorTestFilter(int32 RowIndex) const override
 	{
 		return RowValuesWithAny.IsValidIndex(RowIndex) && (RowValuesWithAny[RowIndex] == EBoolColumnCellValue::MatchAny || TestValue == static_cast<bool>(RowValuesWithAny[RowIndex]));
+	}
+	
+	virtual void SetTestValue(TArrayView<const uint8> Value) override
+	{
+		FMemoryReaderView Reader(Value);
+		Reader << TestValue;
 	}
 #endif
 

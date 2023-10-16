@@ -23,7 +23,8 @@ namespace UnrealBuildTool.Rules
 					"GameplayTags",
 					"AnimationCore",
 					"AnimGraphRuntime",
-					"BlendStack"
+					"BlendStack",
+					"TraceLog"
 					// ... add private dependencies that you statically link with here ...
 				}
 			);

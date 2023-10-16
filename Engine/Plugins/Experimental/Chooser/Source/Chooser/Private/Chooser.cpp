@@ -2,6 +2,8 @@
 #include "Chooser.h"
 #include "ChooserFunctionLibrary.h"
 #include "ChooserPropertyAccess.h"
+#include "ChooserTrace.h"
+#include "ObjectTrace.h"
 #include "Engine/UserDefinedStruct.h"
 #include "Engine/Blueprint.h"
 
@@ -181,17 +183,30 @@ void UChooserTable::IterateRecentContextObjects(TFunction<void(const UObject*)> 
 void UChooserTable::UpdateDebugging(FChooserEvaluationContext& Context) const
 {
 	FScopeLock Lock(&DebugLock);
+	
 	for (const FInstancedStruct& Param : Context.Params)
 	{
 		if (const FChooserEvaluationInputObject* ObjectParam = Param.GetPtr<FChooserEvaluationInputObject>())
 		{
-			UObject* ContextObject = ObjectParam->Object;
-			RecentContextObjects.Add(MakeWeakObjectPtr(ContextObject));
-			if (ContextObject == DebugTarget)
+			if (UObject* ContextObject = ObjectParam->Object)
 			{
-				bDebugTestValuesValid = true;
-				Context.DebuggingInfo.bCurrentDebugTarget = true;
-				return;
+				RecentContextObjects.Add(MakeWeakObjectPtr(ContextObject));
+				
+				if (DebugTarget == nullptr && !DebugTargetName.IsEmpty())
+				{
+					// if the DebugTargetName is set, but not the DebugTarget, it means that PIE has been restarted, so try matching by name
+					if (ContextObject->GetName() == DebugTargetName)
+					{
+						DebugTarget = ContextObject;
+					}
+				}
+				
+				if (ContextObject == DebugTarget)
+				{
+					bDebugTestValuesValid = true;
+					Context.DebuggingInfo.bCurrentDebugTarget = true;
+					return;
+				}
 			}
 		}
 	}
@@ -217,6 +232,11 @@ FObjectChooserBase::EIteratorStatus UChooserTable::EvaluateChooser(FChooserEvalu
 		Chooser->UpdateDebugging(Context);
 	}
 #endif
+	
+#if CHOOSER_DEBUGGING_ENABLED
+	Context.DebuggingInfo.CurrentChooser = Chooser;
+#endif
+	
 
 	TArray<uint32> Indices1;
 	TArray<uint32> Indices2;
@@ -252,7 +272,8 @@ FObjectChooserBase::EIteratorStatus UChooserTable::EvaluateChooser(FChooserEvalu
 			Chooser->SetDebugSelectedRow(-1);
 		}
 		#endif
-		
+		TRACE_CHOOSER_EVALUATION(Chooser, Context, -1);
+	
 		if (Chooser->FallbackResult.IsValid())
 		{
 			const FObjectChooserBase& SelectedResult = Chooser->FallbackResult.Get<FObjectChooserBase>();
@@ -291,12 +312,13 @@ FObjectChooserBase::EIteratorStatus UChooserTable::EvaluateChooser(FChooserEvalu
 						const FChooserColumnBase& Column = ColumnData.Get<FChooserColumnBase>();
 						Column.SetOutputs(Context, SelectedIndex);
 					}
-	#if WITH_EDITOR
+					#if WITH_EDITOR
 					if (Context.DebuggingInfo.bCurrentDebugTarget)
 					{
 						Chooser->SetDebugSelectedRow(SelectedIndex);
 					}
-	#endif
+					#endif
+					TRACE_CHOOSER_EVALUATION(Chooser, Context, SelectedIndex);
 				}
 				if (Status == FObjectChooserBase::EIteratorStatus::Stop)
 				{

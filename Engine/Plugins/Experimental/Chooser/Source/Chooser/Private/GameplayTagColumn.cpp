@@ -1,6 +1,7 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 #include "GameplayTagColumn.h"
 #include "ChooserPropertyAccess.h"
+#include "ChooserTrace.h"
 
 bool FGameplayTagContextProperty::GetValue(FChooserEvaluationContext& Context, const FGameplayTagContainer*& OutResult) const
 {
@@ -17,6 +18,8 @@ void FGameplayTagColumn::Filter(FChooserEvaluationContext& Context, const TArray
 	const FGameplayTagContainer* Result = nullptr;
 	if (InputValue.IsValid() && InputValue.Get<FChooserParameterGameplayTagBase>().GetValue(Context,Result))
 	{
+		TRACE_CHOOSER_VALUE(Context, ToCStr(InputValue.Get<FChooserParameterBase>().GetDebugName()), Result->ToString());
+
 #if WITH_EDITOR
 		if (Context.DebuggingInfo.bCurrentDebugTarget)
 		{

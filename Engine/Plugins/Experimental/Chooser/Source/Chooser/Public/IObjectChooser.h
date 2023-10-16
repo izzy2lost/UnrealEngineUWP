@@ -8,6 +8,14 @@
 #include "InstancedStruct.h"
 #include "IObjectChooser.generated.h"
 
+#if UE_TRACE_ENABLED && !IS_PROGRAM && !UE_BUILD_SHIPPING && !UE_BUILD_TEST
+#define CHOOSER_TRACE_ENABLED 1
+#else
+#define CHOOSER_TRACE_ENABLED 0
+#endif
+
+#define CHOOSER_DEBUGGING_ENABLED ((CHOOSER_TRACE_ENABLED) || (WITH_EDITOR))
+
 UINTERFACE(NotBlueprintType, meta = (CannotImplementInterfaceInBlueprint))
 class CHOOSER_API UObjectChooser : public UInterface
 {
@@ -21,9 +29,10 @@ public:
 	virtual void ConvertToInstancedStruct(FInstancedStruct& OutInstancedStruct) const { }
 };
 
-#if WITH_EDITOR
+#if CHOOSER_DEBUGGING_ENABLED
 struct CHOOSER_API FChooserDebuggingInfo
 {
+	const UObject* CurrentChooser = nullptr;
 	bool bCurrentDebugTarget = false;
 };
 #endif
@@ -51,7 +60,7 @@ struct CHOOSER_API FChooserEvaluationContext
 		Params.Last().GetMutable<FChooserEvaluationInputObject>().Object = ContextObject;
 	}
 
-	#if WITH_EDITOR
+	#if CHOOSER_DEBUGGING_ENABLED
     	FChooserDebuggingInfo DebuggingInfo;
     #endif
 	

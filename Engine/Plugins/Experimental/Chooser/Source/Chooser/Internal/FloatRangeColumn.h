@@ -8,6 +8,7 @@
 #include "IChooserParameterFloat.h"
 #include "ChooserPropertyAccess.h"
 #include "InstancedStruct.h"
+#include "Serialization/MemoryReader.h"
 #include "FloatRangeColumn.generated.h"
 
 USTRUCT(DisplayName = "Float Property Binding")
@@ -89,10 +90,16 @@ struct CHOOSER_API FFloatRangeColumn : public FChooserColumnBase
 	virtual void Filter(FChooserEvaluationContext& Context, const TArray<uint32>& IndexListIn, TArray<uint32>& IndexListOut) const override;
 
 #if WITH_EDITOR
-	mutable float TestValue;
+	mutable double TestValue = 0.0;
 	virtual bool EditorTestFilter(int32 RowIndex) const override
 	{
 		return RowValues.IsValidIndex(RowIndex) && TestValue >= RowValues[RowIndex].Min && TestValue <= RowValues[RowIndex].Max;
+	}
+	
+	virtual void SetTestValue(TArrayView<const uint8> Value) override
+	{
+		FMemoryReaderView Reader(Value);
+		Reader << TestValue;
 	}
 #endif
 	

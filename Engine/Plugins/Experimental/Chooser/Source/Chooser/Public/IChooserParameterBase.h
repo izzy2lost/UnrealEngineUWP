@@ -12,6 +12,13 @@ struct FChooserParameterBase
 {
 	GENERATED_BODY()
 
+	virtual FString GetDebugName() const
+	{
+		FText Name;
+		GetDisplayName(Name);
+		return Name.ToString();
+	}
+	
 	virtual void GetDisplayName(FText& OutName) const { }
 
 	virtual void PostLoad() {};
