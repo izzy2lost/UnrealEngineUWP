@@ -1919,6 +1919,11 @@ bool FPrimitiveSceneInfo::RequestUniformBufferUpdate()
 
 const FInstanceSceneDataBuffers *FPrimitiveSceneInfo::GetInstanceSceneDataBuffers() const
 { 
+	if (!HasInstanceDataBuffers())
+	{
+		return nullptr;
+	}
+
 	if (InstanceDataUpdateTaskInfo)
 	{
 		InstanceDataUpdateTaskInfo->WaitForUpdateCompletion();
