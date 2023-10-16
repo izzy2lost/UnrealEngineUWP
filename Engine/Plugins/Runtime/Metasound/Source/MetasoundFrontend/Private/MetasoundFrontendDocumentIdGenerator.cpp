@@ -6,6 +6,11 @@ namespace Metasound
 {
 	namespace Frontend
 	{
+		namespace
+		{
+			std::atomic<uint64> GlobalAtomicMetasoundIdCounter = 1; // First ID will be 1. This is because we will make this into an FGuid which cannot be zero.
+		}
+
 		int32 MetaSoundEnableCookDeterministicIDGeneration = 1;
 		FAutoConsoleVariableRef CVarMetaSoundEnableCookDeterministicIDGeneration(
 			TEXT("au.MetaSound.EnableCookDeterministicIDGeneration"),
@@ -123,6 +128,12 @@ namespace Metasound
 			const uint32* HashUint32 = reinterpret_cast<const uint32*>(HashValue.Hash);
 
 			return FGuid(HashUint32[0], HashUint32[1], HashUint32[2], HashUint32[3]);
+		}
+
+		FGuid CreateLocallyUniqueId()
+		{
+			uint64 NextId = GlobalAtomicMetasoundIdCounter.fetch_add(1, std::memory_order_relaxed);
+			return FGuid(0, 0, NextId >> 32, NextId & 0xFFFFFFFF);
 		}
 	}
 }

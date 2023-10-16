@@ -88,5 +88,7 @@ namespace Metasound
 
 			FGuid CreateNamespacedIDFromString(const FGuid NamespaceGuid, const FString& StringToHash) const;
 		};
+
+		METASOUNDFRONTEND_API FGuid CreateLocallyUniqueId();
 	}
 }

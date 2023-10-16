@@ -9,6 +9,7 @@
 #include "CoreMinimal.h"
 #include "MetasoundFrontend.h"
 #include "MetasoundFrontendDataTypeRegistry.h"
+#include "MetasoundFrontendDocumentIdGenerator.h"
 #include "MetasoundFrontendNodeTemplateRegistry.h"
 #include "MetasoundFrontendProxyDataCache.h"
 #include "MetasoundFrontendRegistries.h"
@@ -552,7 +553,7 @@ namespace Metasound
 		for (FDefaultInputByIDMap::ElementType& Pair : InGraphContext.DefaultInputs)
 		{
 			FDefaultLiteralData& LiteralData = Pair.Value;
-			const FGuid LiteralNodeID = FGuid::NewGuid();
+			const FGuid LiteralNodeID = Frontend::CreateLocallyUniqueId();
 
 			// 1. Construct and add the default variable to the graph
 			{
@@ -613,7 +614,7 @@ namespace Metasound
 					if (bRequiresDefault)
 					{
 						InitParams.Literal = Literal.Value.ToLiteral(Vertex.TypeName, &InContext.DataTypeRegistry, &InContext.ProxyDataCache);
-						InitParams.InstanceID = FGuid::NewGuid();
+						InitParams.InstanceID = Frontend::CreateLocallyUniqueId();
 						InitParams.NodeName = "Literal";
 						TypeName = Vertex.TypeName;
 
@@ -743,7 +744,7 @@ namespace Metasound
 
 		FBuildGraphContext BuildGraphContext
 		{
-			MakeUnique<FFrontendGraph>(GraphName, FGuid::NewGuid()),
+			MakeUnique<FFrontendGraph>(GraphName, Frontend::CreateLocallyUniqueId()),
 			InGraphClass,
 			InContext
 		};
