@@ -317,13 +317,21 @@ public:
 	//Will return false if fails or is canceled
 	virtual bool LoadAnimSequenceIntoThisSection(UAnimSequence* Sequence, UMovieScene* MovieScene, UObject* BoundObject, bool bKeyReduce, float Tolerance, FFrameNumber InStartFrame = 0, EMovieSceneKeyInterpolation InInterolation = EMovieSceneKeyInterpolation::SmartAuto);
 #endif
-	const TArray<bool>& GetControlsMask() const
+	const TArray<bool>& GetControlsMask() 
 	{
+		if (ChannelProxy.IsValid() == false)
+		{
+			CacheChannelProxy();
+		}
 		return ControlsMask;
 	}
 
-	bool GetControlsMask(int32 Index) const
+	bool GetControlsMask(int32 Index)  
 	{
+		if (ChannelProxy.IsValid() == false)
+		{
+			CacheChannelProxy();
+		}
 		if (Index >= 0 && Index < ControlsMask.Num())
 		{
 			return ControlsMask[Index];
