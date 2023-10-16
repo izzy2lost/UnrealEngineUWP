@@ -20,7 +20,7 @@
 #include "ContentBrowserDelegates.h"
 #include "EditMode/SControlRigControlViews.h"
 
-class UControlRig;
+class UBaseControlRig;
 class FControlRigEditMode;
 class UControlRigPoseAsset;
 class FControlRigEditModeToolkit;

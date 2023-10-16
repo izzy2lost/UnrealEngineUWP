@@ -248,7 +248,7 @@ TSharedPtr<SGraphPin> FControlRigGraphPanelPinFactory::CreatePin_Internal(UEdGra
 								}
 
 								const URigHierarchy* Hierarchy = Blueprint->Hierarchy;
-								if (UControlRig* ControlRig = Cast<UControlRig>(Blueprint->GetObjectBeingDebugged()))
+								if (UBaseControlRig* ControlRig = Cast<UBaseControlRig>(Blueprint->GetObjectBeingDebugged()))
 								{
 									Hierarchy = ControlRig->GetHierarchy();
 								}
@@ -331,7 +331,7 @@ TSharedPtr<SGraphPin> FControlRigGraphPanelPinFactory::CreatePin_Internal(UEdGra
 						{
 							if (const UControlRigBlueprint* Blueprint = RigGraph->GetTypedOuter<UControlRigBlueprint>())
 							{
-								if(UControlRig* ControlRig = Cast<UControlRig>(Blueprint->GetObjectBeingDebugged()))
+								if(UBaseControlRig* ControlRig = Cast<UBaseControlRig>(Blueprint->GetObjectBeingDebugged()))
 								{
 									const FString MapHash = Blueprint->GetPathName();
 									const int32 MetadataVersion = ControlRig->GetHierarchy()->GetMetadataVersion();
@@ -419,7 +419,7 @@ TSharedPtr<SGraphPin> FControlRigGraphPanelPinFactory::CreatePin_Internal(UEdGra
 						{
 							if (const UControlRigBlueprint* Blueprint = RigGraph->GetTypedOuter<UControlRigBlueprint>())
 							{
-								if(UControlRig* ControlRig = Cast<UControlRig>(Blueprint->GetObjectBeingDebugged()))
+								if(UBaseControlRig* ControlRig = Cast<UBaseControlRig>(Blueprint->GetObjectBeingDebugged()))
 								{
 									const FString MapHash = Blueprint->GetPathName();
 									const int32 MetadataTagVersion = ControlRig->GetHierarchy()->GetMetadataTagVersion(); 

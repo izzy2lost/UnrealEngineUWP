@@ -100,16 +100,16 @@ void UControlRigThumbnailRenderer::AddAdditionalPreviewSceneContent(UObject* Obj
 			return;
 		}
 
-		UControlRig* ControlRig = nullptr;
+		UBaseControlRig* ControlRig = nullptr;
 
 		// reuse the current control rig if possible
-		UControlRig* CDO = Cast<UControlRig>(RigBlueprint->GeneratedClass->GetDefaultObject(true /* create if needed */));
+		UBaseControlRig* CDO = Cast<UBaseControlRig>(RigBlueprint->GeneratedClass->GetDefaultObject(true /* create if needed */));
 
 		TArray<UObject*> ArchetypeInstances;
 		CDO->GetArchetypeInstances(ArchetypeInstances);
 		for (UObject* ArchetypeInstance : ArchetypeInstances)
 		{
-			ControlRig = Cast<UControlRig>(ArchetypeInstance);
+			ControlRig = Cast<UBaseControlRig>(ArchetypeInstance);
 			break;
 		}
 

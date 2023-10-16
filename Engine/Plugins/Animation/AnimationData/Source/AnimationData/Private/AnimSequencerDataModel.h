@@ -9,7 +9,7 @@
 
 #include "AnimSequencerDataModel.generated.h"
 
-class UControlRig;
+class UBaseControlRig;
 class UMovieSceneControlRigParameterTrack;
 class UMovieSceneControlRigParameterSection;
 class UFKControlRig;
@@ -146,14 +146,14 @@ protected:
 	void ValidateControlRigData() const;
 	void ValidateLegacyAgainstControlRigData() const;
 	
-	void GeneratePoseData(UControlRig* ControlRig, FAnimationPoseData& InOutPoseData, const UE::Anim::DataModel::FEvaluationContext& EvaluationContext) const;
+	void GeneratePoseData(UBaseControlRig* ControlRig, FAnimationPoseData& InOutPoseData, const UE::Anim::DataModel::FEvaluationContext& EvaluationContext) const;
 	void EvaluateTrack(UMovieSceneControlRigParameterTrack* CR_Track, const UE::Anim::DataModel::FEvaluationContext& EvaluationContext) const;
 
 	UMovieSceneControlRigParameterTrack* GetControlRigTrack() const;
 	UMovieSceneControlRigParameterSection* GetFKControlRigSection() const;
 	USkeleton* GetSkeleton() const;
 	void InitializeFKControlRig(UFKControlRig* FKControlRig, USkeleton* Skeleton) const;
-	UControlRig* GetControlRig() const;
+	UBaseControlRig* GetControlRig() const;
 	
 	void IterateTransformControlCurve(const FName& BoneName, TFunction<void(const FTransform&, const FFrameNumber&)> IterationFunction, const TArray<FFrameNumber>* InFrameNumbers = nullptr) const;
 	void GenerateTransformKeysForControl(const FName& BoneName, TArray<FTransform>& InOutTransforms, TArray<FFrameNumber>& InOutFrameNumbers) const;

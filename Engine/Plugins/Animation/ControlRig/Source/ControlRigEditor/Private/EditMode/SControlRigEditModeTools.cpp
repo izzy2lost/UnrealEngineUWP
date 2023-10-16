@@ -46,9 +46,9 @@
 //statics to reuse in the UI
 FRigSpacePickerBakeSettings SControlRigEditModeTools::BakeSpaceSettings;
 
-void SControlRigEditModeTools::SetControlRigs(const TArrayView<TWeakObjectPtr<UControlRig>>& InControlRigs)
+void SControlRigEditModeTools::SetControlRigs(const TArrayView<TWeakObjectPtr<UBaseControlRig>>& InControlRigs)
 {
-	for (TWeakObjectPtr<UControlRig>& ControlRig : ControlRigs)
+	for (TWeakObjectPtr<UBaseControlRig>& ControlRig : ControlRigs)
 	{
 		if (ControlRig.IsValid())
 		{
@@ -56,7 +56,7 @@ void SControlRigEditModeTools::SetControlRigs(const TArrayView<TWeakObjectPtr<UC
 		}
 	}
 	ControlRigs = InControlRigs;
-	for (TWeakObjectPtr<UControlRig>& InControlRig : InControlRigs)
+	for (TWeakObjectPtr<UBaseControlRig>& InControlRig : InControlRigs)
 	{
 		if (InControlRig.IsValid())
 		{
@@ -65,7 +65,7 @@ void SControlRigEditModeTools::SetControlRigs(const TArrayView<TWeakObjectPtr<UC
 	}
 
 	//mz todo handle multiple rigs
-	UControlRig* Rig = ControlRigs.Num() > 0 ? ControlRigs[0].Get() : nullptr;
+	UBaseControlRig* Rig = ControlRigs.Num() > 0 ? ControlRigs[0].Get() : nullptr;
 	TArray<TWeakObjectPtr<>> Objects;
 	Objects.Add(Rig);
 	RigOptionsDetailsView->SetObjects(Objects);
@@ -79,7 +79,7 @@ void SControlRigEditModeTools::SetControlRigs(const TArrayView<TWeakObjectPtr<UC
 const URigHierarchy* SControlRigEditModeTools::GetHierarchy() const
 {
 	//mz todo handle multiple rigs
-	UControlRig* Rig = ControlRigs.Num() > 0 ? ControlRigs[0].Get() : nullptr;
+	UBaseControlRig* Rig = ControlRigs.Num() > 0 ? ControlRigs[0].Get() : nullptr;
 	if (Rig)
 	{
 		Rig->GetHierarchy();
@@ -809,7 +809,7 @@ void SControlRigEditModeTools::HandleSelectionChanged(TSharedPtr<FRigTreeElement
 }
 #endif
 
-void SControlRigEditModeTools::OnRigElementSelected(UControlRig* Subject, FRigControlElement* ControlElement, bool bSelected)
+void SControlRigEditModeTools::OnRigElementSelected(UBaseControlRig* Subject, FRigControlElement* ControlElement, bool bSelected)
 {
 #if USE_LOCAL_DETAILS
 	const FRigElementKey Key = ControlElement->GetKey();
@@ -849,8 +849,8 @@ void SControlRigEditModeTools::OnRigElementSelected(UControlRig* Subject, FRigCo
 
 const FRigControlElementCustomization* SControlRigEditModeTools::HandleGetControlElementCustomization(URigHierarchy* InHierarchy, const FRigElementKey& InControlKey)
 {
-	UControlRig* Rig = ControlRigs.Num() > 0 ? ControlRigs[0].Get() : nullptr;
-	for (TWeakObjectPtr<UControlRig>& ControlRig : ControlRigs)
+	UBaseControlRig* Rig = ControlRigs.Num() > 0 ? ControlRigs[0].Get() : nullptr;
+	for (TWeakObjectPtr<UBaseControlRig>& ControlRig : ControlRigs)
 	{
 		if (ControlRig.IsValid() && ControlRig->GetHierarchy() == InHierarchy)
 		{
@@ -866,7 +866,7 @@ void SControlRigEditModeTools::HandleActiveSpaceChanged(URigHierarchy* InHierarc
 
 	if (WeakSequencer.IsValid())
 	{
-		for (TWeakObjectPtr<UControlRig>& ControlRig : ControlRigs)
+		for (TWeakObjectPtr<UBaseControlRig>& ControlRig : ControlRigs)
 		{
 			if (ControlRig.IsValid() && ControlRig->GetHierarchy() == InHierarchy)
 			{
@@ -913,7 +913,7 @@ void SControlRigEditModeTools::HandleSpaceListChanged(URigHierarchy* InHierarchy
 {
 	FScopedTransaction Transaction(LOCTEXT("ChangeControlRigSpace", "Change Control Rig Space"));
 
-	for (TWeakObjectPtr<UControlRig>& ControlRig : ControlRigs)
+	for (TWeakObjectPtr<UBaseControlRig>& ControlRig : ControlRigs)
 	{
 		if (ControlRig.IsValid() && ControlRig->GetHierarchy() == InHierarchy)
 		{
@@ -979,7 +979,7 @@ FReply SControlRigEditModeTools::OnBakeControlsToNewSpaceButtonClicked()
 	}
 
 	bool bNoValidControlRig = true;
-	for (TWeakObjectPtr<UControlRig>& ControlRig : ControlRigs)
+	for (TWeakObjectPtr<UBaseControlRig>& ControlRig : ControlRigs)
 	{
 		if (ControlRig.IsValid() && SpacePickerWidget->GetHierarchy() == ControlRig->GetHierarchy())
 		{
@@ -997,7 +997,7 @@ FReply SControlRigEditModeTools::OnBakeControlsToNewSpaceButtonClicked()
 	{
 		return FReply::Unhandled();
 	}
-	for (TWeakObjectPtr<UControlRig>& ControlRig : ControlRigs)
+	for (TWeakObjectPtr<UBaseControlRig>& ControlRig : ControlRigs)
 	{
 		if (ControlRig.IsValid() && SpacePickerWidget->GetHierarchy() == ControlRig->GetHierarchy())
 		{
@@ -1098,7 +1098,7 @@ FReply SControlRigEditModeTools::HandleAddConstraintClicked()
 
 EVisibility SControlRigEditModeTools::GetRigOptionExpanderVisibility() const
 {
-	for (const TWeakObjectPtr<UControlRig>& ControlRig : ControlRigs)
+	for (const TWeakObjectPtr<UBaseControlRig>& ControlRig : ControlRigs)
 	{
 		if (ControlRig.IsValid())
 		{
@@ -1113,7 +1113,7 @@ EVisibility SControlRigEditModeTools::GetRigOptionExpanderVisibility() const
 
 void SControlRigEditModeTools::OnRigOptionFinishedChange(const FPropertyChangedEvent& PropertyChangedEvent)
 {
-	TArray<TWeakObjectPtr<UControlRig>> ControlRigsCopy = ControlRigs;
+	TArray<TWeakObjectPtr<UBaseControlRig>> ControlRigsCopy = ControlRigs;
 	SetControlRigs(ControlRigsCopy);
 
 	if (FControlRigEditMode* EditMode = static_cast<FControlRigEditMode*>(ModeTools->GetActiveMode(FControlRigEditMode::ModeName)))

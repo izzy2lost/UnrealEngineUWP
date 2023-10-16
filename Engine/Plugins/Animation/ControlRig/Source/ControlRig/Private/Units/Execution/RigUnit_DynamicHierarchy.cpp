@@ -289,7 +289,7 @@ FRigUnit_HierarchyImportFromSkeleton_Execute()
 	{
 		FRigHierarchyControllerInstructionBracket InstructionBracket(Controller, ExecuteContext.GetInstructionIndex());
 		
-		if(const USkeletalMeshComponent* SkelMeshComponent = ExecuteContext.UnitContext.DataSourceRegistry->RequestSource<USkeletalMeshComponent>(UControlRig::OwnerComponent))
+		if(const USkeletalMeshComponent* SkelMeshComponent = ExecuteContext.UnitContext.DataSourceRegistry->RequestSource<USkeletalMeshComponent>(UBaseControlRig::OwnerComponent))
 		{
 			if(SkelMeshComponent->GetSkeletalMeshAsset())
 			{

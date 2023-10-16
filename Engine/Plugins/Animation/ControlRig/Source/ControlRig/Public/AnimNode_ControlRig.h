@@ -21,8 +21,8 @@ struct CONTROLRIG_API FAnimNode_ControlRig : public FAnimNode_ControlRigBase
 	FAnimNode_ControlRig();
 	~FAnimNode_ControlRig();
 
-	virtual UControlRig* GetControlRig() const override { return ControlRig; }
-	virtual TSubclassOf<UControlRig> GetControlRigClass() const override { return ControlRigClass; }
+	virtual UBaseControlRig* GetControlRig() const override { return ControlRig; }
+	virtual TSubclassOf<UBaseControlRig> GetControlRigClass() const override { return ControlRigClass; }
 
 	// FAnimNode_Base interface
 	virtual void OnInitializeAnimInstance(const FAnimInstanceProxy* InProxy, const UAnimInstance* InAnimInstance) override;
@@ -47,10 +47,10 @@ private:
 
 	/** Cached ControlRig */
 	UPROPERTY(EditAnywhere, Category = ControlRig)
-	TSubclassOf<UControlRig> ControlRigClass;
+	TSubclassOf<UBaseControlRig> ControlRigClass;
 
 	UPROPERTY(transient)
-	TObjectPtr<UControlRig> ControlRig;
+	TObjectPtr<UBaseControlRig> ControlRig;
 
 	// alpha value handler
 	UPROPERTY(EditAnywhere, Category = Settings, meta = (PinShownByDefault))
@@ -122,8 +122,8 @@ private:
 
 protected:
 	virtual UClass* GetTargetClass() const override { return *ControlRigClass; }
-	virtual void UpdateInput(UControlRig* InControlRig, const FPoseContext& InOutput) override;
-	virtual void UpdateOutput(UControlRig* InControlRig, FPoseContext& InOutput) override;
+	virtual void UpdateInput(UBaseControlRig* InControlRig, const FPoseContext& InOutput) override;
+	virtual void UpdateOutput(UBaseControlRig* InControlRig, FPoseContext& InOutput) override;
 
 	// Helper function to update the initial ref pose within the Control Rig if needed
 	void UpdateControlRigRefPoseIfNeeded(const FAnimInstanceProxy* InProxy, bool bIncludePoseInHash = false);

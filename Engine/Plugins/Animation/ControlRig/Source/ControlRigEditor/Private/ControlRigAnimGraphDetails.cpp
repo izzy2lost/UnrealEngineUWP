@@ -132,7 +132,7 @@ void FControlRigAnimNodeEventNameDetails::UpdateEntryNameList()
 	{
 		if(const UClass* Class = AnimNodeBeingCustomized->GetControlRigClass())
 		{
-			if(const UControlRig* CDO = Cast<UControlRig>(Class->GetDefaultObject(true)))
+			if(const UBaseControlRig* CDO = Cast<UBaseControlRig>(Class->GetDefaultObject(true)))
 			{
 				Algo::Transform(CDO->GetSupportedEvents(), EntryNameList,[](const FName& InEntryName)
 				{

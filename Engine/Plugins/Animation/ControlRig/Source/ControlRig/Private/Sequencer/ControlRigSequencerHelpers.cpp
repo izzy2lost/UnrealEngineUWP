@@ -6,7 +6,7 @@
 #include "Sequencer/MovieSceneControlRigParameterSection.h"
 
 TPair<const FChannelMapInfo*, int32> FControlRigSequencerHelpers::GetInfoAndNumFloatChannels(
-	const UControlRig* InControlRig,
+	const UBaseControlRig* InControlRig,
 	const FName& InControlName,
 	const UMovieSceneControlRigParameterSection* InSection)
 {
@@ -37,7 +37,7 @@ TPair<const FChannelMapInfo*, int32> FControlRigSequencerHelpers::GetInfoAndNumF
 }
 
 
-TArrayView<FMovieSceneFloatChannel*>  FControlRigSequencerHelpers::GetFloatChannels(const UControlRig* InControlRig,
+TArrayView<FMovieSceneFloatChannel*>  FControlRigSequencerHelpers::GetFloatChannels(const UBaseControlRig* InControlRig,
 	const FName& InControlName, const UMovieSceneSection* InSection)
 {
 	// no floats for transform sections

@@ -49,7 +49,7 @@ void FAnimNode_ControlRig::OnInitializeAnimInstance(const FAnimInstanceProxy* In
 
 	if (ControlRigClass)
 	{
-		ControlRig = NewObject<UControlRig>(InAnimInstance->GetOwningComponent(), ControlRigClass);
+		ControlRig = NewObject<UBaseControlRig>(InAnimInstance->GetOwningComponent(), ControlRigClass);
 		ControlRig->Initialize(true);
 		ControlRig->RequestInit();
 		RefPoseSetterHash.Reset();
@@ -183,7 +183,7 @@ void FAnimNode_ControlRig::CacheBones_AnyThread(const FAnimationCacheBonesContex
 		};
 
 		URigHierarchy* Hierarchy = nullptr;
-		if(UControlRig* CurrentControlRig = GetControlRig())
+		if(UBaseControlRig* CurrentControlRig = GetControlRig())
 		{
 			Hierarchy = CurrentControlRig->GetHierarchy();
 		}
@@ -207,7 +207,7 @@ void FAnimNode_ControlRig::PostSerialize(const FArchive& Ar)
 	DECLARE_SCOPE_HIERARCHICAL_COUNTER_FUNC()
 }
 
-void FAnimNode_ControlRig::UpdateInput(UControlRig* InControlRig, const FPoseContext& InOutput)
+void FAnimNode_ControlRig::UpdateInput(UBaseControlRig* InControlRig, const FPoseContext& InOutput)
 {
 	DECLARE_SCOPE_HIERARCHICAL_COUNTER_FUNC()
 
@@ -232,7 +232,7 @@ void FAnimNode_ControlRig::UpdateInput(UControlRig* InControlRig, const FPoseCon
 	}
 }
 
-void FAnimNode_ControlRig::UpdateOutput(UControlRig* InControlRig, FPoseContext& InOutput)
+void FAnimNode_ControlRig::UpdateOutput(UBaseControlRig* InControlRig, FPoseContext& InOutput)
 {
 	DECLARE_SCOPE_HIERARCHICAL_COUNTER_FUNC()
 
@@ -317,7 +317,7 @@ void FAnimNode_ControlRig::SetIOMapping(bool bInput, const FName& SourceProperty
 	UClass* TargetClass = GetTargetClass();
 	if (TargetClass)
 	{
-		UControlRig* CDO = TargetClass->GetDefaultObject<UControlRig>();
+		UBaseControlRig* CDO = TargetClass->GetDefaultObject<UBaseControlRig>();
 		if (CDO)
 		{
 			TMap<FName, FName>& MappingData = (bInput) ? InputMapping : OutputMapping;
@@ -375,7 +375,7 @@ void FAnimNode_ControlRig::PropagateInputProperties(const UObject* InSourceInsta
 {
 	if (TargetInstance)
 	{
-		UControlRig* TargetControlRig = Cast<UControlRig>((UObject*)TargetInstance);
+		UBaseControlRig* TargetControlRig = Cast<UBaseControlRig>((UObject*)TargetInstance);
 		if(TargetControlRig == nullptr)
 		{
 			return;

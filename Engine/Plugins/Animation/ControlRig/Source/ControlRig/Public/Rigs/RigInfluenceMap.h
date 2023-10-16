@@ -168,7 +168,7 @@ protected:
 	TMap<FRigElementKey, int32> KeyToIndex;
 
 	friend struct FRigInfluenceMapPerEvent;
-	friend class UControlRig;
+	friend class UBaseControlRig;
 };
 
 USTRUCT(BlueprintType)

@@ -180,7 +180,7 @@ public:
 
 	/** The class of control rig to instantiate */
 	UPROPERTY(BlueprintReadWrite, EditAnywhere, Category = ControlRig, meta = (DisallowCreateNew), BlueprintSetter = SetControlRigClass)
-	TSubclassOf<UControlRig> ControlRigClass;
+	TSubclassOf<UBaseControlRig> ControlRigClass;
 
 	/** Event fired just before this component's ControlRig is initialized */
 	UPROPERTY(BlueprintAssignable, Category = "ControlRig", meta = (DisplayName = "On Pre Initialize"))
@@ -230,7 +230,7 @@ public:
 
 	/** Get the ControlRig hosted by this component */
 	UFUNCTION(BlueprintPure, Category = "ControlRig")
-	UControlRig* GetControlRig();
+	UBaseControlRig* GetControlRig();
 
 	/** Returns true if the Component can execute its Control Rig */
 	UFUNCTION(BlueprintPure, Category = "ControlRig")
@@ -595,10 +595,10 @@ public:
 	FControlRigComponentEvent& OnControlRigCreated() { return ControlRigCreatedEvent; }
 	public:
 		
-	void SetControlRig(UControlRig* ControlRig);
+	void SetControlRig(UBaseControlRig* ControlRig);
 
 	UFUNCTION(BlueprintCallable, Category = "ControlRig")
-	void SetControlRigClass(TSubclassOf<UControlRig> InControlRigClass);
+	void SetControlRigClass(TSubclassOf<UBaseControlRig> InControlRigClass);
 
 	UFUNCTION(BlueprintCallable, Category = "ControlRig")
 	void SetObjectBinding(UObject* InObjectToBind);
@@ -636,17 +636,17 @@ private:
 			}
 	};
 
-	UControlRig* SetupControlRigIfRequired();
+	UBaseControlRig* SetupControlRigIfRequired();
 	void ValidateMappingData();
 	void TransferInputs();
 	void TransferOutputs();
 	static FName GetComponentNameWithinActor(UActorComponent* InComponent);
 
 	void HandleControlRigInitializedEvent(URigVMHost* InControlRig, const FName& InEventName);
-	void HandleControlRigPreConstructionEvent(UControlRig* InControlRig, const FName& InEventName);
-	void HandleControlRigPostConstructionEvent(UControlRig* InControlRig, const FName& InEventName);
-	void HandleControlRigPreForwardsSolveEvent(UControlRig* InControlRig, const FName& InEventName);
-	void HandleControlRigPostForwardsSolveEvent(UControlRig* InControlRig, const FName& InEventName);
+	void HandleControlRigPreConstructionEvent(UBaseControlRig* InControlRig, const FName& InEventName);
+	void HandleControlRigPostConstructionEvent(UBaseControlRig* InControlRig, const FName& InEventName);
+	void HandleControlRigPreForwardsSolveEvent(UBaseControlRig* InControlRig, const FName& InEventName);
+	void HandleControlRigPostForwardsSolveEvent(UBaseControlRig* InControlRig, const FName& InEventName);
 	void HandleControlRigExecutedEvent(URigVMHost* InControlRig, const FName& InEventName);
 
 	void ConvertTransformToRigSpace(FTransform& InOutTransform, EControlRigComponentSpace FromSpace);
@@ -660,7 +660,7 @@ private:
 #endif
 
 	UPROPERTY(transient)
-	TObjectPtr<UControlRig> ControlRig;
+	TObjectPtr<UBaseControlRig> ControlRig;
 
 	TMap<USkeletalMeshComponent*, FCachedSkeletalMeshComponentSettings> CachedSkeletalMeshComponentSettings;
 

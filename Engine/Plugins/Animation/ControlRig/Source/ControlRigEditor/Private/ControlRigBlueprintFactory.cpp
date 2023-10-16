@@ -42,7 +42,7 @@ public:
 	void Construct( const FArguments& InArgs )
 	{
 		bOkClicked = false;
-		ParentClass = UControlRig::StaticClass();
+		ParentClass = UBaseControlRig::StaticClass();
 
 		ChildSlot
 		[
@@ -134,6 +134,11 @@ private:
 			// If it appears on the allowed child-of classes list (or there is nothing on that list)
 			if (InClass)
 			{
+				if (InClass == UBaseControlRig::StaticClass())
+				{
+					return false;
+				}
+				
 				if (InFilterFuncs->IfInChildOfClassesSet(AllowedChildrenOfClasses, InClass) == EFilterReturn::Failed)
 				{
 					return false;
@@ -181,8 +186,8 @@ private:
 		TSharedPtr<FControlRigBlueprintParentFilter> Filter = MakeShareable(new FControlRigBlueprintParentFilter());
 		Options.ClassFilters.Add(Filter.ToSharedRef());
 
-		// All child child classes of UControlRig are valid.
-		Filter->AllowedChildrenOfClasses.Add(UControlRig::StaticClass());
+		// All child child classes of UBaseControlRig are valid.
+		Filter->AllowedChildrenOfClasses.Add(UBaseControlRig::StaticClass());
 
 		ParentClassContainer->ClearChildren();
 		ParentClassContainer->AddSlot()
@@ -266,14 +271,13 @@ UControlRigBlueprintFactory::UControlRigBlueprintFactory()
 	bCreateNew = true;
 	bEditAfterNew = true;
 	SupportedClass = UControlRigBlueprint::StaticClass();
-	ParentClass = UControlRig::StaticClass();
+	ParentClass = UBaseControlRig::StaticClass();
 }
 
 bool UControlRigBlueprintFactory::ConfigureProperties()
 {
-	// we don't need to do anything,
-	// let's return true to indicate that all properties have been configured to produce a control rig
-	return true;
+	TSharedRef<SControlRigBlueprintCreateDialog> Dialog = SNew(SControlRigBlueprintCreateDialog);
+	return Dialog->ConfigureProperties(this);
 };
 
 UObject* UControlRigBlueprintFactory::FactoryCreateNew(UClass* Class, UObject* InParent, FName Name, EObjectFlags Flags, UObject* Context, FFeedbackContext* Warn, FName CallingContext)
@@ -281,7 +285,7 @@ UObject* UControlRigBlueprintFactory::FactoryCreateNew(UClass* Class, UObject* I
 	// Make sure we are trying to factory a Control Rig Blueprint, then create and init one
 	check(Class->IsChildOf(UControlRigBlueprint::StaticClass()));
 
-	if ((ParentClass == nullptr) || !FKismetEditorUtilities::CanCreateBlueprintOfClass(ParentClass) || !ParentClass->IsChildOf(UControlRig::StaticClass()))
+	if ((ParentClass == nullptr) || !FKismetEditorUtilities::CanCreateBlueprintOfClass(ParentClass) || !ParentClass->IsChildOf(UBaseControlRig::StaticClass()))
 	{
 		FFormatNamedArguments Args;
 		Args.Add( TEXT("ClassName"), (ParentClass != nullptr) ? FText::FromString( ParentClass->GetName() ) : LOCTEXT("Null", "(null)") );

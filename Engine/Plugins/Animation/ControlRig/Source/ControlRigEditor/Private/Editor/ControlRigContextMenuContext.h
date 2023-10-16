@@ -8,7 +8,7 @@
 
 #include "ControlRigContextMenuContext.generated.h"
 
-class UControlRig;
+class UBaseControlRig;
 class UControlRigBlueprint;
 class FControlRigEditor;
 class URigVMGraph;
@@ -121,7 +121,7 @@ public:
 	
 	/** Get the active control rig instance in the viewport */
 	UFUNCTION(BlueprintCallable, Category = ControlRigEditorExtensions)
-    UControlRig* GetControlRig() const;
+    UBaseControlRig* GetControlRig() const;
 
 	/** Returns true if either alt key is down */
 	UFUNCTION(BlueprintCallable, Category = ControlRigEditorExtensions)

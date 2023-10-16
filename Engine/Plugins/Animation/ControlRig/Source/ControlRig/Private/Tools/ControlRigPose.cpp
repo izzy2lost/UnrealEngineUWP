@@ -12,7 +12,7 @@
 
 #define LOCTEXT_NAMESPACE "ControlRigPose"
 
-void FControlRigControlPose::SavePose(UControlRig* ControlRig, bool bUseAll)
+void FControlRigControlPose::SavePose(UBaseControlRig* ControlRig, bool bUseAll)
 {
 	TArray<FRigControlElement*> CurrentControls;
 	ControlRig->GetControlsInOrder(CurrentControls);
@@ -50,7 +50,7 @@ void FControlRigControlPose::SavePose(UControlRig* ControlRig, bool bUseAll)
 	SetUpControlMap();
 }
 
-void FControlRigControlPose::PastePose(UControlRig* ControlRig, bool bDoKey, bool bDoMirror)
+void FControlRigControlPose::PastePose(UBaseControlRig* ControlRig, bool bDoKey, bool bDoMirror)
 {
 	PastePoseInternal(ControlRig, bDoKey, bDoMirror, CopyOfControls);
 	ControlRig->Evaluate_AnyThread();
@@ -58,7 +58,7 @@ void FControlRigControlPose::PastePose(UControlRig* ControlRig, bool bDoKey, boo
 
 }
 
-void FControlRigControlPose::SetControlMirrorTransform(bool bDoLocal, UControlRig* ControlRig, const FName& Name, bool bIsMatched, 
+void FControlRigControlPose::SetControlMirrorTransform(bool bDoLocal, UBaseControlRig* ControlRig, const FName& Name, bool bIsMatched, 
 	const FTransform& GlobalTransform, const FTransform& LocalTransform, bool bNotify, const  FRigControlModifiedContext&Context,bool bSetupUndo)
 {
 	if (bDoLocal || bIsMatched)
@@ -72,7 +72,7 @@ void FControlRigControlPose::SetControlMirrorTransform(bool bDoLocal, UControlRi
 	}	
 }
 
-void FControlRigControlPose::PastePoseInternal(UControlRig* ControlRig, bool bDoKey, bool bDoMirror, const TArray<FRigControlCopy>& ControlsToPaste)
+void FControlRigControlPose::PastePoseInternal(UBaseControlRig* ControlRig, bool bDoKey, bool bDoMirror, const TArray<FRigControlCopy>& ControlsToPaste)
 {
 	FRigControlModifiedContext Context;
 	Context.SetKey = bDoKey ? EControlRigSetKey::Always : EControlRigSetKey::DoNotCare;
@@ -178,7 +178,7 @@ void FControlRigControlPose::PastePoseInternal(UControlRig* ControlRig, bool bDo
 	}
 }
 
-void FControlRigControlPose::BlendWithInitialPoses(FControlRigControlPose& InitialPose, UControlRig* ControlRig, bool bDoKey, bool bDoMirror, float BlendValue)
+void FControlRigControlPose::BlendWithInitialPoses(FControlRigControlPose& InitialPose, UBaseControlRig* ControlRig, bool bDoKey, bool bDoMirror, float BlendValue)
 {
 	if (InitialPose.CopyOfControls.Num() == 0)
 	{
@@ -345,12 +345,12 @@ void UControlRigPoseAsset::PostLoad()
 	Pose.SetUpControlMap();
 }
 
-void UControlRigPoseAsset::SavePose(UControlRig* InControlRig, bool bUseAll)
+void UControlRigPoseAsset::SavePose(UBaseControlRig* InControlRig, bool bUseAll)
 {
 	Pose.SavePose(InControlRig,bUseAll);
 }
 
-void UControlRigPoseAsset::PastePose(UControlRig* InControlRig, bool bDoKey, bool bDoMirror)
+void UControlRigPoseAsset::PastePose(UBaseControlRig* InControlRig, bool bDoKey, bool bDoMirror)
 {
 #if WITH_EDITOR
 	FScopedTransaction ScopedTransaction(LOCTEXT("PastePoseTransaction", "Paste Pose"));
@@ -359,7 +359,7 @@ void UControlRigPoseAsset::PastePose(UControlRig* InControlRig, bool bDoKey, boo
 	Pose.PastePose(InControlRig,bDoKey, bDoMirror);
 }
 
-void UControlRigPoseAsset::SelectControls(UControlRig* InControlRig, bool bDoMirror)
+void UControlRigPoseAsset::SelectControls(UBaseControlRig* InControlRig, bool bDoMirror)
 {
 #if WITH_EDITOR
 	FScopedTransaction ScopedTransaction(LOCTEXT("SelectControlTransaction", "Select Control"));
@@ -395,20 +395,20 @@ void UControlRigPoseAsset::SelectControls(UControlRig* InControlRig, bool bDoMir
 	}
 }
 
-void UControlRigPoseAsset::GetCurrentPose(UControlRig* InControlRig, FControlRigControlPose& OutPose)
+void UControlRigPoseAsset::GetCurrentPose(UBaseControlRig* InControlRig, FControlRigControlPose& OutPose)
 {
 	OutPose.SavePose(InControlRig, true);
 }
 
 
-TArray<FRigControlCopy> UControlRigPoseAsset::GetCurrentPose(UControlRig* InControlRig) 
+TArray<FRigControlCopy> UControlRigPoseAsset::GetCurrentPose(UBaseControlRig* InControlRig) 
 {
 	FControlRigControlPose TempPose;
 	TempPose.SavePose(InControlRig,true);
 	return TempPose.GetPoses();
 }
 
-void UControlRigPoseAsset::BlendWithInitialPoses(FControlRigControlPose& InitialPose, UControlRig* InControlRig, bool bDoKey, bool bDoMirror, float BlendValue)
+void UControlRigPoseAsset::BlendWithInitialPoses(FControlRigControlPose& InitialPose, UBaseControlRig* InControlRig, bool bDoKey, bool bDoMirror, float BlendValue)
 {
 	if (BlendValue > 0.0f)
 	{
@@ -426,7 +426,7 @@ void UControlRigPoseAsset::ReplaceControlName(const FName& CurrentName, const FN
 	Pose.ReplaceControlName(CurrentName, NewName);
 }
 
-bool UControlRigPoseAsset::DoesMirrorMatch(UControlRig* ControlRig, const FName& ControlName) const
+bool UControlRigPoseAsset::DoesMirrorMatch(UBaseControlRig* ControlRig, const FName& ControlName) const
 {
 	FControlRigPoseMirrorTable MirrorTable;
 	MirrorTable.SetUpMirrorTable(ControlRig);

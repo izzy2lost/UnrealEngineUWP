@@ -13,7 +13,7 @@
 
 class FControlRigInteractionScope;
 class SWidget;
-class UControlRig;
+class UBaseControlRig;
 class UInteractiveGizmoManager;
 class UTransformProxy;
 enum class EToolShutdownType : uint8;
@@ -56,7 +56,7 @@ struct FSelectionDuringDrag
 };
 struct FControlRigSelectionDuringDrag : public FSelectionDuringDrag
 {
-	UControlRig* ControlRig;
+	UBaseControlRig* ControlRig;
 	FName ControlName;
 };
 
@@ -67,7 +67,7 @@ struct FActorSelectonDuringDrag : public FSelectionDuringDrag
 
 struct FControlRigMappings
 {
-	TWeakObjectPtr<UControlRig> ControlRig;
+	TWeakObjectPtr<UBaseControlRig> ControlRig;
 
 	FTransform GetParentTransform() const;
 	TOptional<FTransform> GetWorldTransform(const FName& Name) const;
@@ -92,7 +92,7 @@ private:
 
 struct FSavedMappings
 {
-	TMap<TWeakObjectPtr<UControlRig>, FControlRigMappings> ControlRigMappings;
+	TMap<TWeakObjectPtr<UBaseControlRig>, FControlRigMappings> ControlRigMappings;
 	TMap<TWeakObjectPtr<AActor>, FActorMappings> ActorMappings;
 };
 
@@ -195,7 +195,7 @@ protected:
 
 	//since we are selection based we can cache this
 	ULevelSequence* LevelSequence;
-	TArray<TWeakObjectPtr<UControlRig>> ControlRigs;
+	TArray<TWeakObjectPtr<UBaseControlRig>> ControlRigs;
 	TWeakPtr<ISequencer> SequencerPtr;
 	TArray<TWeakObjectPtr<AActor>> Actors;
 
@@ -220,7 +220,7 @@ protected:
 	// selection delegates
 	void DeactivateMe();
 	void RemoveDelegates();
-	void HandleControlSelected(UControlRig* Subject, FRigControlElement* InControl, bool bSelected);
+	void HandleControlSelected(UBaseControlRig* Subject, FRigControlElement* InControl, bool bSelected);
 	void OnEditorSelectionChanged(UObject* NewSelection);
 	FDelegateHandle OnEditorSelectionChangedHandle;
 

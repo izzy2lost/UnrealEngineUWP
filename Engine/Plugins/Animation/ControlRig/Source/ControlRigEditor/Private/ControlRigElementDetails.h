@@ -196,7 +196,7 @@ public:
 
 		UControlRigBlueprint* GetBlueprint() const
 		{
-			if(const UControlRig* ControlRig = GetHierarchy()->GetTypedOuter<UControlRig>())
+			if(const UBaseControlRig* ControlRig = GetHierarchy()->GetTypedOuter<UBaseControlRig>())
 			{
 				return Cast<UControlRigBlueprint>(ControlRig->GetClass()->ClassGeneratedBy);
 			}

@@ -390,7 +390,7 @@ FRigUnit_RigLogic_Execute()
 			//const double startTime = FPlatformTime::Seconds();
 			if (!Data.SkelMeshComponent.IsValid())
 			{
-				Data.SkelMeshComponent = ExecuteContext.UnitContext.DataSourceRegistry->RequestSource<USkeletalMeshComponent>(UControlRig::OwnerComponent);
+				Data.SkelMeshComponent = ExecuteContext.UnitContext.DataSourceRegistry->RequestSource<USkeletalMeshComponent>(UBaseControlRig::OwnerComponent);
 				// In normal execution, Data.SkelMeshComponent will be nullptr at the beginning
 				// however, during unit testing we cannot fetch it from DataSourceRegistry 
 				// in that case, a mock version will be inserted into Data by unit test beforehand

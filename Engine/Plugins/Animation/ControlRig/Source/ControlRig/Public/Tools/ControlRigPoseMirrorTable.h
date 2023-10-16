@@ -10,7 +10,7 @@
 #include "UObject/ObjectMacros.h"
 #include "UObject/Object.h"
 
-class UControlRig;
+class UBaseControlRig;
 struct FRigControl;
 struct FRigControlCopy;
 struct FControlRigControlPose;
@@ -22,7 +22,7 @@ public:
 	~FControlRigPoseMirrorTable() {};
 
 	/*Set up the Mirror Table*/
-	void SetUpMirrorTable(const UControlRig* ControlRig);
+	void SetUpMirrorTable(const UBaseControlRig* ControlRig);
 
 	/*Get the matched control with the given name*/
 	FRigControlCopy* GetControl(FControlRigControlPose& Pose, FName ControlrigName);

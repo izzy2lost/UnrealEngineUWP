@@ -51,7 +51,7 @@ FRigTreeDisplaySettings FMultiRigTreeDelegates::DefaultDisplaySettings;
 
 uint32 GetTypeHash(const FMultiRigData& Data)
 {
-	return GetTypeHash(TTuple<const UControlRig*, FRigElementKey>(Data.ControlRig.Get(), (Data.Key.IsSet() ? Data.Key.GetValue() : FRigElementKey())));
+	return GetTypeHash(TTuple<const UBaseControlRig*, FRigElementKey>(Data.ControlRig.Get(), (Data.Key.IsSet() ? Data.Key.GetValue() : FRigElementKey())));
 }
 
 FText FMultiRigData::GetName() const
@@ -233,7 +233,7 @@ void SMultiRigHierarchyItem::Construct(const FArguments& InArgs, const TSharedRe
 						//if no key is set then it's the control rig so we get that based upon it's state
 						if (WeakRigTreeElement.Pin()->Data.Key.IsSet() == false)
 						{
-							if (UControlRig* ControlRig = WeakRigTreeElement.Pin()->Data.ControlRig.Get())
+							if (UBaseControlRig* ControlRig = WeakRigTreeElement.Pin()->Data.ControlRig.Get())
 							{
 								if (ControlRig->GetControlsVisible())
 								{
@@ -280,7 +280,7 @@ FReply SMultiRigHierarchyItem::OnGetSelectedClicked()
 	{
 		if (Element->Data.Key.IsSet() == false)
 		{
-			if (UControlRig* ControlRig = Element->Data.ControlRig.Get())
+			if (UBaseControlRig* ControlRig = Element->Data.ControlRig.Get())
 			{
 				FScopedTransaction ScopedTransaction(LOCTEXT("ToggleControlsVisibility", "Toggle Controls Visibility"), !GIsTransacting);
 				ControlRig->Modify();
@@ -313,7 +313,7 @@ TPair<const FSlateBrush*, FSlateColor> SMultiRigHierarchyItem::GetBrushForElemen
 	}
 	else
 	{
-		if (UControlRig* ControlRig = InData.ControlRig.Get())
+		if (UBaseControlRig* ControlRig = InData.ControlRig.Get())
 		{
 			if (ControlRig->GetControlsVisible())
 			{
@@ -466,7 +466,7 @@ bool SMultiRigHierarchyTreeView::AddElement(const FMultiRigData& InData, const F
 	return true;
 }
 
-bool SMultiRigHierarchyTreeView::AddElement(UControlRig* InControlRig, const FRigBaseElement* InElement)
+bool SMultiRigHierarchyTreeView::AddElement(UBaseControlRig* InControlRig, const FRigBaseElement* InElement)
 {
 	check(InControlRig);
 	check(InElement);
@@ -717,9 +717,9 @@ void SMultiRigHierarchyTreeView::RefreshTreeView(bool bRebuildContent)
 
 	if (bRebuildContent)
 	{
-		for (const TWeakObjectPtr<UControlRig>& ControlRigPtr : ControlRigs)
+		for (const TWeakObjectPtr<UBaseControlRig>& ControlRigPtr : ControlRigs)
 		{
-			if (UControlRig* ControlRig  = ControlRigPtr.Get())
+			if (UBaseControlRig* ControlRig  = ControlRigPtr.Get())
 			{
 				FMultiRigData Empty(nullptr, FRigElementKey());
 				FMultiRigData CRData;
@@ -779,9 +779,9 @@ void SMultiRigHierarchyTreeView::RefreshTreeView(bool bRebuildContent)
 	{
 		ClearSelection();
 
-		for (const TWeakObjectPtr<UControlRig>& ControlRigPtr : ControlRigs)
+		for (const TWeakObjectPtr<UBaseControlRig>& ControlRigPtr : ControlRigs)
 		{
-			if (UControlRig* ControlRig = ControlRigPtr.Get())
+			if (UBaseControlRig* ControlRig = ControlRigPtr.Get())
 			{
 				if (const URigHierarchy* Hierarchy = ControlRig->GetHierarchy())
 				{
@@ -856,7 +856,7 @@ TArray<FMultiRigData> SMultiRigHierarchyTreeView::GetSelectedData() const
 TArray<URigHierarchy*> SMultiRigHierarchyTreeView::GetHierarchy() const
 {
 	TArray<URigHierarchy*> RigHierarchy;
-	for (const TWeakObjectPtr<UControlRig>& ControlRig : ControlRigs)
+	for (const TWeakObjectPtr<UBaseControlRig>& ControlRig : ControlRigs)
 	{
 		if (ControlRig.IsValid())
 		{
@@ -866,10 +866,10 @@ TArray<URigHierarchy*> SMultiRigHierarchyTreeView::GetHierarchy() const
 	return RigHierarchy;
 }
 
-void SMultiRigHierarchyTreeView::SetControlRigs(TArrayView < TWeakObjectPtr<UControlRig>>& InControlRigs)
+void SMultiRigHierarchyTreeView::SetControlRigs(TArrayView < TWeakObjectPtr<UBaseControlRig>>& InControlRigs)
 {
 	ControlRigs.SetNum(0);
-	for (TWeakObjectPtr<UControlRig>& ControlRig : InControlRigs)
+	for (TWeakObjectPtr<UBaseControlRig>& ControlRig : InControlRigs)
 	{
 		if (ControlRig.IsValid())
 		{
@@ -997,7 +997,7 @@ void SControlRigOutliner::OnObjectsReplaced(const TMap<UObject*, UObject*>& OldT
 	{
 		if(Pair.Key && Pair.Value)
 		{
-			if (Pair.Key->IsA<UControlRig>() && Pair.Value->IsA<UControlRig>())
+			if (Pair.Key->IsA<UBaseControlRig>() && Pair.Value->IsA<UBaseControlRig>())
 			{
 				bNewControlRig = false;
 				break;
@@ -1020,7 +1020,7 @@ SControlRigOutliner::~SControlRigOutliner()
 	FCoreUObjectDelegates::OnObjectsReplaced.RemoveAll(this);
 }
 
-void SControlRigOutliner::HandleControlSelected(UControlRig* Subject, FRigControlElement* ControlElement, bool bSelected)
+void SControlRigOutliner::HandleControlSelected(UBaseControlRig* Subject, FRigControlElement* ControlElement, bool bSelected)
 {
 	FControlRigBaseDockableView::HandleControlSelected(Subject, ControlElement, bSelected);
 	const FRigElementKey Key = ControlElement->GetKey();
@@ -1056,7 +1056,7 @@ void SControlRigOutliner::HandleSelectionChanged(TSharedPtr<FMultiRigTreeElement
 		return;
 	}
 	const TArray<FMultiRigData> NewSelection = HierarchyTreeView->GetTreeView()->GetSelectedData();
-	TMap<UControlRig*, TArray<FRigElementKey>> SelectedRigAndKeys;
+	TMap<UBaseControlRig*, TArray<FRigElementKey>> SelectedRigAndKeys;
 	for (const FMultiRigData& Data : NewSelection)
 	{
 		if (Data.ControlRig.IsValid() && (Data.Key.IsSet() && Data.Key.GetValue() != FRigElementKey()))
@@ -1081,9 +1081,9 @@ void SControlRigOutliner::HandleSelectionChanged(TSharedPtr<FMultiRigTreeElement
 	{
 		if (EditMode)
 		{		
-			TMap<UControlRig*, TArray<FRigElementKey>> SelectedControls;
+			TMap<UBaseControlRig*, TArray<FRigElementKey>> SelectedControls;
 			EditMode->GetAllSelectedControls(SelectedControls);
-			for (TPair<UControlRig*, TArray<FRigElementKey>>& CurrentSelection : SelectedControls)
+			for (TPair<UBaseControlRig*, TArray<FRigElementKey>>& CurrentSelection : SelectedControls)
 			{
 				if (CurrentSelection.Key)
 				{
@@ -1093,7 +1093,7 @@ void SControlRigOutliner::HandleSelectionChanged(TSharedPtr<FMultiRigTreeElement
 		}
 	}
 
-	for(TPair<UControlRig*, TArray<FRigElementKey>>& RigAndKeys: SelectedRigAndKeys)
+	for(TPair<UBaseControlRig*, TArray<FRigElementKey>>& RigAndKeys: SelectedRigAndKeys)
 	{ 
 		const URigHierarchy* Hierarchy = RigAndKeys.Key->GetHierarchy();
 		if (Hierarchy)
@@ -1122,17 +1122,17 @@ void SControlRigOutliner::SetEditMode(FControlRigEditMode& InEditMode)
 	ModeTools = InEditMode.GetModeManager();
 	if (FControlRigEditMode* EditMode = static_cast<FControlRigEditMode*>(ModeTools->GetActiveMode(FControlRigEditMode::ModeName)))
 	{
-		TArrayView<TWeakObjectPtr<UControlRig>> ControlRigs = EditMode->GetControlRigs();
+		TArrayView<TWeakObjectPtr<UBaseControlRig>> ControlRigs = EditMode->GetControlRigs();
 		HierarchyTreeView->GetTreeView()->SetControlRigs(ControlRigs); //will refresh tree
 	}
 }
 
-void SControlRigOutliner::HandleControlAdded(UControlRig* ControlRig, bool bIsAdded)
+void SControlRigOutliner::HandleControlAdded(UBaseControlRig* ControlRig, bool bIsAdded)
 {
 	FControlRigBaseDockableView::HandleControlAdded(ControlRig, bIsAdded);
 	if (FControlRigEditMode* EditMode = static_cast<FControlRigEditMode*>(ModeTools->GetActiveMode(FControlRigEditMode::ModeName)))
 	{
-		TArrayView<TWeakObjectPtr<UControlRig>> ControlRigs = EditMode->GetControlRigs();
+		TArrayView<TWeakObjectPtr<UBaseControlRig>> ControlRigs = EditMode->GetControlRigs();
 		HierarchyTreeView->GetTreeView()->SetControlRigs(ControlRigs); //will refresh tree
 	}
 }

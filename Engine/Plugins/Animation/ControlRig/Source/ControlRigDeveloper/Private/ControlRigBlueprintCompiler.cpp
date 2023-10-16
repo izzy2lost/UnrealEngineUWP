@@ -9,7 +9,7 @@ bool FControlRigBlueprintCompiler::CanCompile(const UBlueprint* Blueprint)
 {
 	DECLARE_SCOPE_HIERARCHICAL_COUNTER_FUNC()
 
-	if (Blueprint && Blueprint->ParentClass && Blueprint->ParentClass->IsChildOf(UControlRig::StaticClass()))
+	if (Blueprint && Blueprint->ParentClass && Blueprint->ParentClass->IsChildOf(UBaseControlRig::StaticClass()))
 	{
 		return true;
 	}
@@ -53,9 +53,9 @@ void FControlRigBlueprintCompilerContext::CopyTermDefaultsToDefaultObject(UObjec
 	if (ControlRigBlueprint)
 	{
 		// here, CDO is initialized from BP,
-		// and in UControlRig::InitializeFromCDO,
+		// and in UBaseControlRig::InitializeFromCDO,
 		// other Control Rig Instances are then initialized From the CDO 
-		UControlRig* ControlRig = CastChecked<UControlRig>(DefaultObject);
+		UBaseControlRig* ControlRig = CastChecked<UBaseControlRig>(DefaultObject);
 		
 		// copy hierarchy
 		{

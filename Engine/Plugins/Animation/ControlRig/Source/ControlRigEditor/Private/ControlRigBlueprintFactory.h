@@ -8,9 +8,8 @@
 #include "Engine/Blueprint.h"
 #include "Factories/Factory.h"
 #include "ControlRigBlueprint.h"
+#include "ControlRig.h"
 #include "ControlRigBlueprintFactory.generated.h"
-
-class UControlRig;
 
 UCLASS(HideCategories=Object)
 class CONTROLRIGEDITOR_API UControlRigBlueprintFactory : public UFactory

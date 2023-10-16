@@ -113,7 +113,7 @@ void AControlRigShapeActor::SetShapeColor(const FLinearColor& InColor)
 
 bool AControlRigShapeActor::UpdateControlSettings(
 	ERigHierarchyNotification InNotif,
-	UControlRig* InControlRig,
+	UBaseControlRig* InControlRig,
 	const FRigControlElement* InControlElement,
 	bool bHideManipulators,
 	bool bIsInLevelEditor)

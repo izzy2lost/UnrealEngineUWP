@@ -29,7 +29,7 @@ class SControlRigSpacePicker : public SCompoundWidget, public FControlRigBaseDoc
 	void Construct(const FArguments& InArgs, FControlRigEditMode& InEditMode);
 
 private:
-	virtual void HandleControlSelected(UControlRig* Subject, FRigControlElement* InControl, bool bSelected) override;
+	virtual void HandleControlSelected(UBaseControlRig* Subject, FRigControlElement* InControl, bool bSelected) override;
 
 	/** Space picker widget*/
 	TSharedPtr<SRigSpacePickerWidget> SpacePickerWidget;
@@ -43,7 +43,7 @@ private:
 	EVisibility GetAddSpaceButtonVisibility() const;
 
 	//for now picker works off of one ControlRig, this function gets the first control rig with a selection
-	UControlRig* GetControlRig();
+	UBaseControlRig* GetControlRig();
 
 };
 

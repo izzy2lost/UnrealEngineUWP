@@ -20,7 +20,7 @@ UControlRigNumericalValidationPass::UControlRigNumericalValidationPass(const FOb
 {
 }
 
-void UControlRigNumericalValidationPass::OnSubjectChanged(UControlRig* InControlRig, FControlRigValidationContext* InContext)
+void UControlRigNumericalValidationPass::OnSubjectChanged(UBaseControlRig* InControlRig, FControlRigValidationContext* InContext)
 {
 	Pose.Reset();
 
@@ -36,12 +36,12 @@ void UControlRigNumericalValidationPass::OnSubjectChanged(UControlRig* InControl
 	}
 }
 
-void UControlRigNumericalValidationPass::OnInitialize(UControlRig* InControlRig, FControlRigValidationContext* InContext)
+void UControlRigNumericalValidationPass::OnInitialize(UBaseControlRig* InControlRig, FControlRigValidationContext* InContext)
 {
 	OnSubjectChanged(InControlRig, InContext);
 }
 
-void UControlRigNumericalValidationPass::OnEvent(UControlRig* InControlRig, const FName& InEventName, FControlRigValidationContext* InContext)
+void UControlRigNumericalValidationPass::OnEvent(UBaseControlRig* InControlRig, const FName& InEventName, FControlRigValidationContext* InContext)
 {
 	if (InEventName == EventNameA)
 	{

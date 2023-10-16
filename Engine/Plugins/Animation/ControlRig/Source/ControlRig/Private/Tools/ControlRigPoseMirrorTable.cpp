@@ -6,7 +6,7 @@
 #include "Tools/ControlRigPose.h"
 #include "RigVMFunctions/Math/RigVMMathLibrary.h"
 
-void FControlRigPoseMirrorTable::SetUpMirrorTable(const UControlRig* ControlRig)
+void FControlRigPoseMirrorTable::SetUpMirrorTable(const UBaseControlRig* ControlRig)
 {
 	const UControlRigPoseMirrorSettings* Settings = GetDefault<UControlRigPoseMirrorSettings>();
 	MatchedControls.Reset();

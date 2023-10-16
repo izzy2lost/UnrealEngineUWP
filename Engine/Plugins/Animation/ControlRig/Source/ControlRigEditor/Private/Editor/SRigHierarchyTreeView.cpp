@@ -502,7 +502,7 @@ bool SRigHierarchyTreeView::AddElement(const FRigBaseElement* InElement)
 			if(Hierarchy)
 			{
 				// add the connector as a tag rather than its own element in the tree
-				if(UControlRig* ControlRig = Hierarchy->GetTypedOuter<UControlRig>())
+				if(UBaseControlRig* ControlRig = Hierarchy->GetTypedOuter<UBaseControlRig>())
 				{
 					FRigElementKeyRedirector& Redirector = ControlRig->GetElementKeyRedirector();
 					if(const FCachedRigElement* Cache = Redirector.Find(InElement->GetKey()))
@@ -888,9 +888,9 @@ void SRigHierarchyTreeView::AddConnectorResolveWarningTag(TSharedPtr<FRigTreeEle
 	check(InRigElement);
 	check(InRigElement->GetType() == ERigElementType::Connector);
 
-	if(UControlRig* ControlRig = InHierarchy->GetTypedOuter<UControlRig>())
+	if(UBaseControlRig* ControlRig = InHierarchy->GetTypedOuter<UBaseControlRig>())
 	{
-		TWeakObjectPtr<UControlRig> ControlRigPtr(ControlRig);
+		TWeakObjectPtr<UBaseControlRig> ControlRigPtr(ControlRig);
 		const FRigElementKey ConnectorKey = InRigElement->GetKey();
 		
 		TAttribute<FText> GetTooltipText = TAttribute<FText>::CreateSP(this,
@@ -911,9 +911,9 @@ void SRigHierarchyTreeView::AddConnectorResolveWarningTag(TSharedPtr<FRigTreeEle
 }
 
 FText SRigHierarchyTreeView::GetConnectorWarningMessage(TSharedPtr<FRigTreeElement> InTreeElement,
-	TWeakObjectPtr<UControlRig> InControlRigPtr, const FRigElementKey InConnectorKey) const
+	TWeakObjectPtr<UBaseControlRig> InControlRigPtr, const FRigElementKey InConnectorKey) const
 {
-	if(UControlRig* ControlRig = InControlRigPtr.Get())
+	if(UBaseControlRig* ControlRig = InControlRigPtr.Get())
 	{
 		URigHierarchy* Hierarchy = ControlRig->GetHierarchy();
 				

@@ -15,13 +15,13 @@ struct CONTROLRIG_API FAnimNode_ControlRig_ExternalSource : public FAnimNode_Con
 
 	FAnimNode_ControlRig_ExternalSource();
 
-	void SetControlRig(UControlRig* InControlRig);
-	virtual UControlRig* GetControlRig() const override;
-	virtual TSubclassOf<UControlRig> GetControlRigClass() const override;
+	void SetControlRig(UBaseControlRig* InControlRig);
+	virtual UBaseControlRig* GetControlRig() const override;
+	virtual TSubclassOf<UBaseControlRig> GetControlRigClass() const override;
 	virtual void Initialize_AnyThread(const FAnimationInitializeContext& Context) override;
 
 private:
 	UPROPERTY(transient)
-	TWeakObjectPtr<UControlRig> ControlRig;
+	TWeakObjectPtr<UBaseControlRig> ControlRig;
 };
 

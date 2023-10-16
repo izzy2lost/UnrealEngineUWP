@@ -206,7 +206,7 @@ FText UMovieSceneControlRigParameterTrack::GetDefaultDisplayName() const
 #endif
 
 
-UMovieSceneSection* UMovieSceneControlRigParameterTrack::CreateControlRigSection(FFrameNumber StartTime, UControlRig* InControlRig, bool bInOwnsControlRig)
+UMovieSceneSection* UMovieSceneControlRigParameterTrack::CreateControlRigSection(FFrameNumber StartTime, UBaseControlRig* InControlRig, bool bInOwnsControlRig)
 {
 	if (InControlRig == nullptr)
 	{
@@ -558,7 +558,7 @@ void UMovieSceneControlRigParameterTrack::HandleOnPostConstructed_GameThread()
 	}
 }
 
-void UMovieSceneControlRigParameterTrack::HandleOnPostConstructed(UControlRig* Subject, const FName& InEventName)
+void UMovieSceneControlRigParameterTrack::HandleOnPostConstructed(UBaseControlRig* Subject, const FName& InEventName)
 {
 	MovieSceneControlRigTrack::AsyncHelpers::ExecuteOnGameThread<void>([this]()
 	{
@@ -648,7 +648,7 @@ void UMovieSceneControlRigParameterTrack::RenameParameterName(const FName& OldPa
 	}
 }
 
-void UMovieSceneControlRigParameterTrack::ReplaceControlRig(UControlRig* NewControlRig, bool RecreateChannels)
+void UMovieSceneControlRigParameterTrack::ReplaceControlRig(UBaseControlRig* NewControlRig, bool RecreateChannels)
 {
 	if (IsValid(ControlRig))
 	{

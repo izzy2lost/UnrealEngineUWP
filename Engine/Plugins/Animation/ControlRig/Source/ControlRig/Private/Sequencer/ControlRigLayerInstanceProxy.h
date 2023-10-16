@@ -6,7 +6,7 @@
 #include "AnimNode_ControlRig_ExternalSource.h"
 #include "ControlRigLayerInstanceProxy.generated.h"
 
-class UControlRig;
+class UBaseControlRig;
 class UAnimSequencerInstance;
 
 /** Custom internal Input Pose node that handles any AnimInstance */
@@ -79,7 +79,7 @@ public:
 	UAnimInstance* GetSourceAnimInstance() const { return CurrentSourceAnimInstance; }
 
 	/** ControlRig related support */
-	void AddControlRigTrack(int32 ControlRigID, UControlRig* InControlRig);
+	void AddControlRigTrack(int32 ControlRigID, UBaseControlRig* InControlRig);
 	void UpdateControlRigTrack(int32 ControlRigID, float Weight, const FControlRigIOSettings& InputSettings, bool bExecute);
 	void RemoveControlRigTrack(int32 ControlRigID);
 	bool HasControlRigTrack(int32 ControlRigID);
@@ -99,7 +99,7 @@ public:
 	virtual void ConstructNodes();
 
 	/** return first available control rig from the node it has */
-	UControlRig* GetFirstAvailableControlRig() const;
+	UBaseControlRig* GetFirstAvailableControlRig() const;
 
 	virtual void AddReferencedObjects(UAnimInstance* InAnimInstance, FReferenceCollector& Collector) override;
 

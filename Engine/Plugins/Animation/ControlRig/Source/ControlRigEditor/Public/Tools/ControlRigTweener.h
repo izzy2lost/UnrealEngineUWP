@@ -10,7 +10,7 @@
 
 struct FMovieSceneFloatChannel;
 struct FMovieSceneDoubleChannel;
-class UControlRig;
+class UBaseControlRig;
 class ISequencer;
 struct FRigControl;
 class UMovieSceneSection;
@@ -85,7 +85,7 @@ struct FAnimSliderObjectSelection
 	};
 
 	bool Setup(TWeakPtr<ISequencer>& InSequencer, TWeakPtr<class FControlRigEditMode>& InEditMode);
-	bool Setup(const TArray<UControlRig*>& SelectedControlRigs, TWeakPtr<ISequencer>& InSequencer);
+	bool Setup(const TArray<UBaseControlRig*>& SelectedControlRigs, TWeakPtr<ISequencer>& InSequencer);
 
 	TArray<FObjectChannels>  ChannelsArray;
 
@@ -95,7 +95,7 @@ private:
 	void SetupChannel(FFrameNumber CurrentFrame, TArray<FFrameNumber>& KeyTimes, TArray<FKeyHandle>& Handles, FMovieSceneFloatChannel* FloatChannel,
 		FMovieSceneDoubleChannel* DoubleChannel, FChannelKeyBounds& KeyBounds);
 
-	TArray<UControlRig*> GetControlRigs(TWeakPtr<class FControlRigEditMode>& InEditMode);
+	TArray<UBaseControlRig*> GetControlRigs(TWeakPtr<class FControlRigEditMode>& InEditMode);
 };
 
 /*
@@ -230,7 +230,7 @@ struct FControlsToTween :public FBasicBlendSlider
 	//BasicBlendSlider overrides
 	virtual double DoBlend(const FBlendStruct& BlendStruct) override;
 
-	bool Setup(const TArray<UControlRig*>& SelectedControlRigs, TWeakPtr<ISequencer>& InSequencer);
+	bool Setup(const TArray<UBaseControlRig*>& SelectedControlRigs, TWeakPtr<ISequencer>& InSequencer);
 
 };
 

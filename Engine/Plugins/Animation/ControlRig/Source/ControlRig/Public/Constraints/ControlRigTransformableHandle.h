@@ -10,7 +10,7 @@
 struct FRigBaseElement;
 struct FRigControlElement;
 
-class UControlRig;
+class UBaseControlRig;
 class USkeletalMeshComponent;
 class UControlRigComponent;
 class URigHierarchy;
@@ -48,7 +48,7 @@ public:
 	virtual FTickFunction* GetTickFunction() const override;
 
 	/** Generates a hash value based on ControlRig and ControlName. */
-	static uint32 ComputeHash(const UControlRig* InControlRig, const FName& InControlName);
+	static uint32 ComputeHash(const UBaseControlRig* InControlRig, const FName& InControlName);
 	virtual uint32 GetHash() const override;
 	
 	/** Returns the underlying targeted object. */
@@ -92,7 +92,7 @@ public:
 
 	/** The ControlRig that this handle is pointing at. */
 	UPROPERTY(BlueprintReadOnly, Category = "Object")
-	TSoftObjectPtr<UControlRig> ControlRig;
+	TSoftObjectPtr<UBaseControlRig> ControlRig;
 
 	/** The ControlName of the control that this handle is pointing at. */
 	UPROPERTY(BlueprintReadOnly, Category = "Object")
@@ -100,7 +100,7 @@ public:
 
 	/** @todo document */
 	void OnControlModified(
-		UControlRig* InControlRig,
+		UBaseControlRig* InControlRig,
 		FRigControlElement* InControl,
 		const FRigControlModifiedContext& InContext);
 	
@@ -117,7 +117,7 @@ private:
 		URigHierarchy* InHierarchy,
 		const FRigBaseElement* InElement);
 
-	void OnControlRigBound(UControlRig* InControlRig);
+	void OnControlRigBound(UBaseControlRig* InControlRig);
 	void OnObjectBoundToControlRig(UObject* InObject);
 
 #if WITH_EDITOR

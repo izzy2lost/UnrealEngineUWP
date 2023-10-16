@@ -683,13 +683,13 @@ FReply SRigSpacePickerWidget::HandleAddElementClicked()
 						URigHierarchy::TElementDependencyMap DependencyMap;
 						FString FailureReason;
 
-						if(UControlRig* ControlRig = StrongHierarchy->GetTypedOuter<UControlRig>())
+						if(UBaseControlRig* ControlRig = StrongHierarchy->GetTypedOuter<UBaseControlRig>())
 						{
 							DependencyMap = StrongHierarchy->GetDependenciesForVM(ControlRig->GetVM()); 
 						}
 						else if(UControlRigBlueprint* RigBlueprint = StrongHierarchy->GetTypedOuter<UControlRigBlueprint>())
 						{
-							if(UControlRig* CDO = Cast<UControlRig>(RigBlueprint->GetRigVMBlueprintGeneratedClass()->GetDefaultObject()))
+							if(UBaseControlRig* CDO = Cast<UBaseControlRig>(RigBlueprint->GetRigVMBlueprintGeneratedClass()->GetDefaultObject()))
 							{
 								DependencyMap = StrongHierarchy->GetDependenciesForVM(CDO->GetVM()); 
 							}

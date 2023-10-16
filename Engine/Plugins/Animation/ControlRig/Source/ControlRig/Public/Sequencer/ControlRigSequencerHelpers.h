@@ -5,7 +5,7 @@
 #include "CoreMinimal.h"
 
 struct FChannelMapInfo;
-class UControlRig;
+class UBaseControlRig;
 class UMovieSceneControlRigParameterSection;
 struct FMovieSceneFloatChannel;
 class UMovieSceneSection;
@@ -14,14 +14,14 @@ class ISequencer;
 struct CONTROLRIG_API FControlRigSequencerHelpers
 {
 	static TPair<const FChannelMapInfo*, int32> GetInfoAndNumFloatChannels(
-		const UControlRig* InControlRig,
+		const UBaseControlRig* InControlRig,
 		const FName& InControlName,
 		const UMovieSceneControlRigParameterSection* InSection);
 
-	static TArrayView<FMovieSceneFloatChannel*> GetFloatChannels(const UControlRig* InControlRig,
+	static TArrayView<FMovieSceneFloatChannel*> GetFloatChannels(const UBaseControlRig* InControlRig,
 		const FName& InControlName, const UMovieSceneSection* InSection);
 
-	static UMovieSceneControlRigParameterSection* GetControlRigSection(ISequencer* InSequencer, const UControlRig* InControlRig);
+	static UMovieSceneControlRigParameterSection* GetControlRigSection(ISequencer* InSequencer, const UBaseControlRig* InControlRig);
 
 };
 

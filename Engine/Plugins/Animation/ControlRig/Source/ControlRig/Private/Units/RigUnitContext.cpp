@@ -72,7 +72,7 @@ FName FControlRigExecuteContext::AdaptMetadataName(bool bUseNameSpace, const FNa
 	return InMetadataName;
 }
 
-FControlRigExecuteContextRigModuleGuard::FControlRigExecuteContextRigModuleGuard(FControlRigExecuteContext& InContext, const UControlRig* InControlRig)
+FControlRigExecuteContextRigModuleGuard::FControlRigExecuteContextRigModuleGuard(FControlRigExecuteContext& InContext, const UBaseControlRig* InControlRig)
 	: Context(InContext)
 	, PreviousRigModuleNameSpace(InContext.RigModuleNameSpace)
 	, PreviousRigModuleNameSpaceHash(InContext.RigModuleNameSpaceHash)

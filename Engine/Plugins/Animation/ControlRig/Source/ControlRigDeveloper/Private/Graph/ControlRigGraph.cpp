@@ -27,7 +27,7 @@ void UControlRigGraph::InitializeFromBlueprint(URigVMBlueprint* InBlueprint)
 	const UControlRigBlueprint* ControlRigBlueprint = CastChecked<UControlRigBlueprint>(InBlueprint);
 	URigHierarchy* Hierarchy = ControlRigBlueprint->Hierarchy;
 
-	if(UControlRig* ControlRig = Cast<UControlRig>(ControlRigBlueprint->GetObjectBeingDebugged()))
+	if(UBaseControlRig* ControlRig = Cast<UBaseControlRig>(ControlRigBlueprint->GetObjectBeingDebugged()))
 	{
 		Hierarchy = ControlRig->GetHierarchy();
 	}
@@ -73,7 +73,7 @@ void UControlRigGraph::CacheNameLists(URigHierarchy* InHierarchy, const FRigVMDr
 	check(InHierarchy);
 	check(DrawContainer);
 
-	UControlRig* ControlRig = InHierarchy->GetTypedOuter<UControlRig>();
+	UBaseControlRig* ControlRig = InHierarchy->GetTypedOuter<UBaseControlRig>();
 
 	if(LastHierarchyTopologyVersion != InHierarchy->GetTopologyVersion())
 	{
@@ -170,7 +170,7 @@ const TArray<TSharedPtr<FRigVMStringWithTag>>* UControlRigGraph::GetElementNameL
 
 		UControlRigGraph* MutableThis = (UControlRigGraph*)this;
 		URigHierarchy* Hierarchy = Blueprint->Hierarchy;
-		if(UControlRig* ControlRig = Cast<UControlRig>(Blueprint->GetObjectBeingDebugged()))
+		if(UBaseControlRig* ControlRig = Cast<UBaseControlRig>(Blueprint->GetObjectBeingDebugged()))
 		{
 			Hierarchy = ControlRig->GetHierarchy();
 		}	

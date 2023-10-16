@@ -750,6 +750,7 @@ private:
 		return Element;
 	}
 	
+	friend class UBaseControlRig;
 	friend class UControlRig;
 	friend class URigHierarchy;
 	friend class FRigHierarchyControllerInstructionBracket;

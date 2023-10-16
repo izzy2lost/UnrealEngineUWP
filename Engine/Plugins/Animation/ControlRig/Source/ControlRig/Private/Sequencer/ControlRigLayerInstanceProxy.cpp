@@ -173,7 +173,7 @@ void FControlRigLayerInstanceProxy::SetSourceAnimInstance(UAnimInstance* SourceA
 }
 
 /** ControlRig related support */
-void FControlRigLayerInstanceProxy::AddControlRigTrack(int32 ControlRigID, UControlRig* InControlRig)
+void FControlRigLayerInstanceProxy::AddControlRigTrack(int32 ControlRigID, UBaseControlRig* InControlRig)
 {
 	FAnimNode_ControlRig_ExternalSource* Node = FindControlRigNode(ControlRigID);
 
@@ -407,11 +407,11 @@ UAnimSequencerInstance* FControlRigLayerInstanceProxy::GetSequencerAnimInstance(
 	return Cast<UAnimSequencerInstance>(CurrentSourceAnimInstance);
 }
 
-UControlRig* FControlRigLayerInstanceProxy::GetFirstAvailableControlRig() const
+UBaseControlRig* FControlRigLayerInstanceProxy::GetFirstAvailableControlRig() const
 {
 	for (const TSharedPtr<FAnimNode_ControlRig_ExternalSource>& ControlRigNode : ControlRigNodes)
 	{
-		if (UControlRig* Rig = ControlRigNode->GetControlRig())
+		if (UBaseControlRig* Rig = ControlRigNode->GetControlRig())
 		{
 			return Rig;
 		}

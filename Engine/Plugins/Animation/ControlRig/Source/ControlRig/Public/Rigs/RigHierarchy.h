@@ -18,7 +18,7 @@
 #include "Containers/Queue.h"
 #include "RigHierarchy.generated.h"
 
-class UControlRig;
+class UBaseControlRig;
 class URigHierarchy;
 class URigHierarchyController;
 
@@ -4639,6 +4639,7 @@ private:
 	void Reset_Impl(bool bResetElements);
 	
 	friend class URigHierarchyController;
+	friend class UBaseControlRig;
 	friend class UControlRig;
 	friend class FControlRigEditor;
 	friend struct FRigHierarchyValidityBracket;
@@ -4679,6 +4680,7 @@ private:
 	}
 
 	friend class URigHierarchy;
+	friend class UBaseControlRig;
 	friend class UControlRig;
 
 	// certain units are allowed to use this
@@ -4711,6 +4713,7 @@ private:
 	URigHierarchy* Hierarchy;
 	const FRigVMExtendedExecuteContext* PreviousContext;
 
+	friend class UBaseControlRig;
 	friend class UControlRig;
 };
 
@@ -4772,7 +4775,7 @@ public:
 	{
 	}
 
-	FRigHierarchyRedirectorGuard(UControlRig* InControlRig);
+	FRigHierarchyRedirectorGuard(UBaseControlRig* InControlRig);
 
 private:
 	TGuardValue<FRigElementKeyRedirector*> Guard;

@@ -44,7 +44,7 @@ public:
 	/*
 	 * React to a control rig being debugged
 	 */
-	void SetControlRigBeingDebugged(UControlRig* InControlRig);
+	void SetControlRigBeingDebugged(UBaseControlRig* InControlRig);
 	
 	/*
 	 *	Rebuild debug draw skeleton 
@@ -54,14 +54,14 @@ public:
 	void OnHierarchyModified(ERigHierarchyNotification InNotif, URigHierarchy* InHierarchy, const FRigBaseElement* InElement);
 	void OnHierarchyModified_AnyThread(ERigHierarchyNotification InNotif, URigHierarchy* InHierarchy, const FRigBaseElement* InElement);
 
-	void OnPreConstruction_AnyThread(UControlRig* InControlRig, const FName& InEventName);
-	void OnPostConstruction_AnyThread(UControlRig* InControlRig, const FName& InEventName);
+	void OnPreConstruction_AnyThread(UBaseControlRig* InControlRig, const FName& InEventName);
+	void OnPostConstruction_AnyThread(UBaseControlRig* InControlRig, const FName& InEventName);
 
 private:
 	FReferenceSkeleton DebugDrawSkeleton;
 	TArray<FBoneIndexType> DebugDrawBones;
 	TArray<int32> DebugDrawBoneIndexInHierarchy;
-	TWeakObjectPtr<UControlRig> ControlRigBeingDebuggedPtr;
+	TWeakObjectPtr<UBaseControlRig> ControlRigBeingDebuggedPtr;
 	int32 HierarchyInteractionBracket;
 	bool bRebuildDebugDrawSkeletonRequired;
 	bool bIsConstructionEventRunning;

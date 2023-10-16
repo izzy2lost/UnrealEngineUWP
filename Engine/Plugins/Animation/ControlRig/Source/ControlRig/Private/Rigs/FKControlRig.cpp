@@ -260,8 +260,15 @@ bool UFKControlRig::Execute_Internal(const FName& InEventName)
 	return true;
 }
 
+#if WITH_EDITOR
+void UFKControlRig::SetFirstEntryEventInEventQueue(FRigVMExtendedExecuteContext& Context, const FName& InFirstEventName)
+{
+	VM->SetFirstEntryEventInEventQueue(Context, NAME_None);
+}
+#endif
+
 void UFKControlRig::SetBoneInitialTransformsFromSkeletalMeshComponent(USkeletalMeshComponent* InSkelMeshComp,
-	bool bUseAnimInstance)
+                                                                      bool bUseAnimInstance)
 {
 	Super::SetBoneInitialTransformsFromSkeletalMeshComponent(InSkelMeshComp, bUseAnimInstance);
 

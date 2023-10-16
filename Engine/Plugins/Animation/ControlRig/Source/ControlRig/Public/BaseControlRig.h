@@ -47,7 +47,7 @@ CONTROLRIG_API DECLARE_LOG_CATEGORY_EXTERN(LogControlRig, Log, All);
 
 /** Runs logic for mapping input data to transforms (the "Rig") */
 UCLASS(Blueprintable, Abstract, editinlinenew)
-class CONTROLRIG_API UControlRig : public URigVMHost, public INodeMappingProviderInterface
+class CONTROLRIG_API UBaseControlRig : public URigVMHost, public INodeMappingProviderInterface
 {
 	GENERATED_UCLASS_BODY()
 
@@ -57,27 +57,27 @@ class CONTROLRIG_API UControlRig : public URigVMHost, public INodeMappingProvide
 public:
 
 	/** Bindable event for external objects to contribute to / filter a control value */
-	DECLARE_EVENT_ThreeParams(UControlRig, FFilterControlEvent, UControlRig*, FRigControlElement*, FRigControlValue&);
+	DECLARE_EVENT_ThreeParams(UBaseControlRig, FFilterControlEvent, UBaseControlRig*, FRigControlElement*, FRigControlValue&);
 
 	/** Bindable event for external objects to be notified of Control changes */
-	DECLARE_EVENT_ThreeParams(UControlRig, FControlModifiedEvent, UControlRig*, FRigControlElement*, const FRigControlModifiedContext&);
+	DECLARE_EVENT_ThreeParams(UBaseControlRig, FControlModifiedEvent, UBaseControlRig*, FRigControlElement*, const FRigControlModifiedContext&);
 
 	/** Bindable event for external objects to be notified that a Control is Selected */
-	DECLARE_EVENT_ThreeParams(UControlRig, FControlSelectedEvent, UControlRig*, FRigControlElement*, bool);
+	DECLARE_EVENT_ThreeParams(UBaseControlRig, FControlSelectedEvent, UBaseControlRig*, FRigControlElement*, bool);
 
 	/** Bindable event to manage undo / redo brackets in the client */
-	DECLARE_EVENT_TwoParams(UControlRig, FControlUndoBracketEvent, UControlRig*, bool /* bOpen */);
-	
+	DECLARE_EVENT_TwoParams(UBaseControlRig, FControlUndoBracketEvent, UBaseControlRig*, bool /* bOpen */);
+
 	// To support Blueprints/scripting, we need a different delegate type (a 'Dynamic' delegate) which supports looser style UFunction binding (using names).
-	DECLARE_DYNAMIC_MULTICAST_SPARSE_DELEGATE_ThreeParams(FOnControlSelectedBP, UControlRig, OnControlSelected_BP, UControlRig*, Rig, const FRigControlElement&, Control, bool, bSelected);
+	DECLARE_DYNAMIC_MULTICAST_SPARSE_DELEGATE_ThreeParams(FOnControlSelectedBP, UBaseControlRig, OnControlSelected_BP, UBaseControlRig*, Rig, const FRigControlElement&, Control, bool, bSelected);
 
 	/** Bindable event to notify object binding change. */
-	DECLARE_EVENT_OneParam(UControlRig, FControlRigBoundEvent, UControlRig*);
+	DECLARE_EVENT_OneParam(UBaseControlRig, FControlRigBoundEvent, UBaseControlRig*);
 
 	static const FName OwnerComponent;
 
 	UFUNCTION(BlueprintCallable, Category = ControlRig)
-	static TArray<UControlRig*> FindControlRigs(UObject* Outer, TSubclassOf<UControlRig> OptionalClass);
+	static TArray<UBaseControlRig*> FindControlRigs(UObject* Outer, TSubclassOf<UBaseControlRig> OptionalClass);
 
 public:
 	virtual UWorld* GetWorld() const override;
@@ -96,7 +96,7 @@ public:
 	bool IsRigModuleInstance() const;
 
 	// Returns the parent rig hosting this module instance
-	UControlRig* GetParentRig() const;
+	UBaseControlRig* GetParentRig() const;
 
 	// Returns the namespace of this module (for example ArmModule::)
 	const FString& GetRigModuleNameSpace() const;
@@ -124,8 +124,14 @@ public:
 	/** Initialize the VM */
 	virtual bool InitializeVM(const FName& InEventName) override;
 
+	virtual void InitializeVMs(bool bInitRigUnits = true) PURE_VIRTUAL(UBaseControlRig::InitializeVMs, return Super::Initialize(bInitRigUnits); );
+	virtual bool InitializeVMs(const FName& InEventName) PURE_VIRTUAL(UBaseControlRig::InitializeVMs, return Super::InitializeVM(InEventName); );
+
 	/** Evaluates the ControlRig */
 	virtual void Evaluate_AnyThread() override;
+
+	/** Calls Evaluate_AnyThread on all VMs in this Rig */
+	virtual void EvaluateVMs_AnyThread() PURE_VIRTUAL(UBaseControlRig::EvaluateVMs_AnyThread, return Super::Evaluate_AnyThread(); );
 
 	/** Ticks animation of the skeletal mesh component bound to this control rig */
 	bool EvaluateSkeletalMeshComponent(double InDeltaTime);
@@ -171,7 +177,7 @@ public:
 #if WITH_EDITOR
 
 	// called after post reinstance when compilng blueprint by Sequencer
-	void PostReinstanceCallback(const UControlRig* Old);
+	void PostReinstanceCallback(const UBaseControlRig* Old);
 
 #endif // WITH_EDITOR
 	
@@ -186,8 +192,9 @@ public:
 	FRigHierarchySettings HierarchySettings;
 
 	virtual bool Execute(const FName& InEventName) override;
-	virtual bool Execute_Internal(const FName& InEventName) override;
+	virtual bool Execute_Internal(const FName& InEventName) override PURE_VIRTUAL(UBaseControlRig::Execute_Internal, return Super::Execute_Internal(InEventName); );
 	virtual void RequestInit() override;
+	virtual void RequestInitVMs() PURE_VIRTUAL(UBaseControlRig::RequestInitVMs, return; );
 
 	bool AllConnectorsAreResolved(FString* OutFailureReason = nullptr, FRigElementKey* OutConnector = nullptr) const;
 
@@ -312,7 +319,7 @@ public:
 
 	bool IsCurveControl(const FRigControlElement* InControlElement) const;
 
-	DECLARE_EVENT_TwoParams(UControlRig, FControlRigExecuteEvent, class UControlRig*, const FName&);
+	DECLARE_EVENT_TwoParams(UBaseControlRig, FControlRigExecuteEvent, class UBaseControlRig*, const FName&);
 #if WITH_EDITOR
 	FControlRigExecuteEvent& OnPreConstructionForUI_AnyThread() { return PreConstructionForUIEvent; }
 #endif
@@ -394,17 +401,17 @@ protected:
 
 private:
 	
-	void HandleOnControlModified(UControlRig* Subject, FRigControlElement* Control, const FRigControlModifiedContext& Context);
+	void HandleOnControlModified(UBaseControlRig* Subject, FRigControlElement* Control, const FRigControlModifiedContext& Context);
 
 public:
 	
 	class CONTROLRIG_API FAnimAttributeContainerPtrScope
 	{
 	public:
-		FAnimAttributeContainerPtrScope(UControlRig* InControlRig, UE::Anim::FStackAttributeContainer& InExternalContainer);
+		FAnimAttributeContainerPtrScope(UBaseControlRig* InControlRig, UE::Anim::FStackAttributeContainer& InExternalContainer);
 		~FAnimAttributeContainerPtrScope();
 
-		UControlRig* ControlRig;
+		UBaseControlRig* ControlRig;
 	};
 	
 private:
@@ -450,6 +457,7 @@ private:
 	/** Handle changes within the hierarchy */
 	void HandleHierarchyModified(ERigHierarchyNotification InNotification, URigHierarchy* InHierarchy, const FRigBaseElement* InElement);
 
+private:
 #if WITH_EDITOR
 	/** Add a transient / temporary control used to interact with a node */
 	FName AddTransientControl(const URigVMUnitNode* InNode, const FRigDirectManipulationTarget& InTarget);
@@ -492,13 +500,14 @@ public:
 	
 #endif
 
-private: 
+protected:
 
 	void HandleHierarchyEvent(URigHierarchy* InHierarchy, const FRigEventContext& InEvent);
 	FRigEventDelegate RigEventDelegate;
 
 	void OnAddShapeLibrary(const FControlRigExecuteContext* InContext, const FString& InLibraryName, UControlRigShapeLibrary* InShapeLibrary, bool bReplaceExisting, bool bLogResults);
 	bool OnShapeExists(const FName& InShapeName) const;
+	virtual void InitializeVMsFromCDO() PURE_VIRTUAL(UBaseControlRig::InitializeVMsFromCDO, return; );
 	virtual void InitializeFromCDO() override;
 
 
@@ -507,45 +516,10 @@ private:
 
 	const FRigInfluenceMap* FindInfluenceMap(const FName& InEventName);
 
-#if WITH_EDITORONLY_DATA
-	UPROPERTY()
-	TObjectPtr<UControlRig> InteractionRig_DEPRECATED;
-
-	UPROPERTY()
-	TSubclassOf<UControlRig> InteractionRigClass_DEPRECATED;
-#endif
 
 	FRigElementKeyRedirector ElementKeyRedirector;
 
 public:
-
-	UE_DEPRECATED(5.4, "InteractionRig is no longer used")
-	UFUNCTION(BlueprintGetter, meta = (DeprecatedFunction, DeprecationMessage = "InteractionRig is no longer used"))
-	UControlRig* GetInteractionRig() const 
-	{
-#if WITH_EDITORONLY_DATA
-		return InteractionRig_DEPRECATED;
-#endif
-		return nullptr;
-	}
-
-	UE_DEPRECATED(5.4, "InteractionRig is no longer used")
-	UFUNCTION(BlueprintSetter, meta = (DeprecatedFunction, DeprecationMessage = "InteractionRig is no longer used"))
-	void SetInteractionRig(UControlRig* InInteractionRig) {}
-
-	UE_DEPRECATED(5.4, "InteractionRig is no longer used")
-	UFUNCTION(BlueprintGetter, meta = (DeprecatedFunction, DeprecationMessage = "InteractionRig is no longer used"))
-	TSubclassOf<UControlRig> GetInteractionRigClass() const 
-	{ 
-#if WITH_EDITORONLY_DATA
-		return InteractionRigClass_DEPRECATED;
-#endif
-		return nullptr;
-	}
-
-	UE_DEPRECATED(5.4, "InteractionRig is no longer used")
-	UFUNCTION(BlueprintSetter, meta = (DeprecatedFunction, DeprecationMessage = "InteractionRig is no longer used"))
-	void SetInteractionRigClass(TSubclassOf<UControlRig> InInteractionRigClass) {}
 
 	// UObject interface
 #if WITH_EDITOR
@@ -571,7 +545,7 @@ protected:
 
 private:
 
-	void CopyPoseFromOtherRig(UControlRig* Subject);
+	void CopyPoseFromOtherRig(UBaseControlRig* Subject);
 
 protected:
 	bool bCopyHierarchyBeforeConstruction;
@@ -620,8 +594,11 @@ protected:
 		return InterRigSyncBracket > 0;
 	}
 
+
 #if WITH_EDITOR
-	static void OnHierarchyTransformUndoRedoWeak(URigHierarchy* InHierarchy, const FRigElementKey& InKey, ERigTransformType::Type InTransformType, const FTransform& InTransform, bool bIsUndo, TWeakObjectPtr<UControlRig> WeakThis)
+	virtual void SetFirstEntryEventInEventQueue(FRigVMExtendedExecuteContext& Context, const FName& InFirstEventName) PURE_VIRTUAL(UBaseControlRig::SetFirstEntryEventInEventQueue, return; );
+
+	static void OnHierarchyTransformUndoRedoWeak(URigHierarchy* InHierarchy, const FRigElementKey& InKey, ERigTransformType::Type InTransformType, const FTransform& InTransform, bool bIsUndo, TWeakObjectPtr<UBaseControlRig> WeakThis)
 	{
 		if(WeakThis.IsValid() && InHierarchy != nullptr)
 		{
@@ -653,6 +630,8 @@ private:
 
 #endif
 
+
+protected:
 	/** An additive control rig runs a backwards solve before applying additive control values
 	 * and running the forward solve
 	 */
@@ -672,6 +651,8 @@ private:
 	FRigPose ControlsAfterBackwardsSolve;
 	TMap<FRigElementKey, FRigSetControlValueInfo> ControlValues; // Additive values in local space (to add after backwards solve)
 
+
+private:
 	float DebugBoneRadiusMultiplier;
 	
 public:
@@ -697,13 +678,13 @@ private:
 	class FPoseScope
 	{
 	public:
-		FPoseScope(UControlRig* InControlRig, ERigElementType InFilter = ERigElementType::All,
+		FPoseScope(UBaseControlRig* InControlRig, ERigElementType InFilter = ERigElementType::All,
 			const TArray<FRigElementKey>& InElements = TArray<FRigElementKey>(), const ERigTransformType::Type InTransformType = ERigTransformType::CurrentLocal);
 		~FPoseScope();
 
 	private:
 
-		UControlRig* ControlRig;
+		UBaseControlRig* ControlRig;
 		ERigElementType Filter;
 		FRigPose CachedPose;
 		ERigTransformType::Type TransformType;
@@ -714,6 +695,9 @@ private:
 
 	UPROPERTY(transient)
 	mutable FString RigModuleNameSpace;
+
+
+public:
 
 #if WITH_EDITOR
 
@@ -742,14 +726,13 @@ private:
 		TObjectPtr<URigHierarchy> Hierarchy;
 	};
 
-public:
 	// Class used to temporarily cache current pose of transient controls
 	// restore them after a ResetPoseToInitial call,
 	// which allows user to move bones in construction mode
 	class FTransientControlPoseScope
 	{
 	public:
-		FTransientControlPoseScope(TObjectPtr<UControlRig> InControlRig)
+		FTransientControlPoseScope(TObjectPtr<UBaseControlRig> InControlRig)
 		{
 			ControlRig = InControlRig;
 
@@ -777,7 +760,7 @@ public:
 	
 	private:
 		
-		UControlRig* ControlRig;
+		UBaseControlRig* ControlRig;
 		FRigPose CachedPose;	
 	};	
 
@@ -839,7 +822,7 @@ class CONTROLRIG_API FControlRigInteractionScope
 {
 public:
 
-	FControlRigInteractionScope(UControlRig* InControlRig)
+	FControlRigInteractionScope(UBaseControlRig* InControlRig)
 		: ControlRig(InControlRig)
 		, InteractionBracketScope(InControlRig->InteractionBracket)
 		, SyncBracketScope(InControlRig->InterRigSyncBracket)
@@ -848,7 +831,7 @@ public:
 	}
 
 	FControlRigInteractionScope(
-		UControlRig* InControlRig,
+		UBaseControlRig* InControlRig,
 		const FRigElementKey& InKey,
 		EControlRigInteractionType InInteractionType = EControlRigInteractionType::All
 	)
@@ -863,7 +846,7 @@ public:
 	}
 
 	FControlRigInteractionScope(
-		UControlRig* InControlRig,
+		UBaseControlRig* InControlRig,
 		const TArray<FRigElementKey>& InKeys,
 		EControlRigInteractionType InInteractionType = EControlRigInteractionType::All
 	)
@@ -890,7 +873,7 @@ public:
 
 private:
 
-	TWeakObjectPtr<UControlRig> ControlRig;
+	TWeakObjectPtr<UBaseControlRig> ControlRig;
 	FControlRigBracketScope InteractionBracketScope;
 	FControlRigBracketScope SyncBracketScope;
 };

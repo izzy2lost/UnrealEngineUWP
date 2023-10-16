@@ -37,7 +37,7 @@
 
 struct FParameterFloatChannelEditorData
 {
-	FParameterFloatChannelEditorData(UControlRig *InControlRig, const FName& InName, bool bEnabledOverride, const FText& GroupName, int SortStartIndex)
+	FParameterFloatChannelEditorData(UBaseControlRig *InControlRig, const FName& InName, bool bEnabledOverride, const FText& GroupName, int SortStartIndex)
 	{
 		ControlRig = InControlRig;
 		ParameterName = InName;
@@ -56,7 +56,7 @@ struct FParameterFloatChannelEditorData
 		
 	}
 
-	static TOptional<float> GetValue(UControlRig* ControlRig, FName ParameterName, UObject& InObject, FTrackInstancePropertyBindings* Bindings)
+	static TOptional<float> GetValue(UBaseControlRig* ControlRig, FName ParameterName, UObject& InObject, FTrackInstancePropertyBindings* Bindings)
 	{
 		if (ControlRig)
 		{
@@ -104,13 +104,13 @@ struct FParameterFloatChannelEditorData
 	FMovieSceneChannelMetaData      MetaData;
 	TMovieSceneExternalValue<float> ExternalValues;
 	FName ParameterName;
-	UControlRig *ControlRig;
+	UBaseControlRig *ControlRig;
 };
 
 //Set up with all 4 Channels so it can be used by all vector types.
 struct FParameterVectorChannelEditorData
 {
-	FParameterVectorChannelEditorData(UControlRig *InControlRig, const FName& InName, bool bEnabledOverride, const FText& GroupName, int SortStartIndex, int32 NumChannels)
+	FParameterVectorChannelEditorData(UBaseControlRig *InControlRig, const FName& InName, bool bEnabledOverride, const FText& GroupName, int SortStartIndex, int32 NumChannels)
 	{
 		ControlRig = InControlRig;
 		ParameterName = InName;
@@ -174,7 +174,7 @@ struct FParameterVectorChannelEditorData
 
 	}
 
-	static FVector4 GetPropertyValue(UControlRig* ControlRig, FName ParameterName, UObject& InObject,int32 NumChannels)
+	static FVector4 GetPropertyValue(UBaseControlRig* ControlRig, FName ParameterName, UObject& InObject,int32 NumChannels)
 	{
 		if (ControlRig)
 		{
@@ -206,19 +206,19 @@ struct FParameterVectorChannelEditorData
 		return FVector4();
 	}
 
-	static TOptional<float> ExtractChannelX(UObject& InObject, UControlRig* ControlRig, FName ParameterName, int32 NumChannels)
+	static TOptional<float> ExtractChannelX(UObject& InObject, UBaseControlRig* ControlRig, FName ParameterName, int32 NumChannels)
 	{
 		return GetPropertyValue(ControlRig, ParameterName, InObject, NumChannels).X;
 	}
-	static TOptional<float> ExtractChannelY(UObject& InObject, UControlRig* ControlRig, FName ParameterName, int32 NumChannels)
+	static TOptional<float> ExtractChannelY(UObject& InObject, UBaseControlRig* ControlRig, FName ParameterName, int32 NumChannels)
 	{
 		return GetPropertyValue(ControlRig, ParameterName, InObject, NumChannels).Y;
 	}
-	static TOptional<float> ExtractChannelZ(UObject& InObject, UControlRig* ControlRig, FName ParameterName, int32 NumChannels)
+	static TOptional<float> ExtractChannelZ(UObject& InObject, UBaseControlRig* ControlRig, FName ParameterName, int32 NumChannels)
 	{
 		return GetPropertyValue(ControlRig, ParameterName, InObject, NumChannels).Z;
 	}
-	static TOptional<float> ExtractChannelW(UObject& InObject, UControlRig* ControlRig, FName ParameterName, int32 NumChannels)
+	static TOptional<float> ExtractChannelW(UObject& InObject, UBaseControlRig* ControlRig, FName ParameterName, int32 NumChannels)
 	{
 		return GetPropertyValue(ControlRig, ParameterName, InObject, NumChannels).W;
 	}
@@ -332,12 +332,12 @@ struct FParameterVectorChannelEditorData
 	FMovieSceneChannelMetaData      MetaData[4];
 	TMovieSceneExternalValue<float> ExternalValues[4];
 	FName ParameterName;
-	UControlRig *ControlRig;
+	UBaseControlRig *ControlRig;
 };
 
 struct FParameterTransformChannelEditorData
 {
-	FParameterTransformChannelEditorData(UControlRig *InControlRig, const FName& InName, bool bEnabledOverride, EMovieSceneTransformChannel Mask, 
+	FParameterTransformChannelEditorData(UBaseControlRig *InControlRig, const FName& InName, bool bEnabledOverride, EMovieSceneTransformChannel Mask, 
 		const FText& GroupName, int SortStartIndex)
 	{
 		ControlRig = InControlRig;
@@ -563,7 +563,7 @@ struct FParameterTransformChannelEditorData
 
 	}
 
-	static TOptional<FVector> GetTranslation(UControlRig* ControlRig, FName ParameterName, UObject& InObject, FTrackInstancePropertyBindings* Bindings)
+	static TOptional<FVector> GetTranslation(UBaseControlRig* ControlRig, FName ParameterName, UObject& InObject, FTrackInstancePropertyBindings* Bindings)
 	{
 		if (ControlRig)
 		{
@@ -616,7 +616,7 @@ struct FParameterTransformChannelEditorData
 		return TOptional<FVector>();
 	}
 
-	static TOptional<FRotator> GetRotator(UControlRig* ControlRig, FName ParameterName, UObject& InObject, FTrackInstancePropertyBindings* Bindings)
+	static TOptional<FRotator> GetRotator(UBaseControlRig* ControlRig, FName ParameterName, UObject& InObject, FTrackInstancePropertyBindings* Bindings)
 	{
 		if (ControlRig)
 
@@ -643,7 +643,7 @@ struct FParameterTransformChannelEditorData
 		return TOptional<FRotator>();
 	}
 
-	static TOptional<FVector> GetScale(UControlRig* ControlRig, FName ParameterName, UObject& InObject, FTrackInstancePropertyBindings* Bindings)
+	static TOptional<FVector> GetScale(UBaseControlRig* ControlRig, FName ParameterName, UObject& InObject, FTrackInstancePropertyBindings* Bindings)
 	{
 		if (ControlRig)
 		{
@@ -753,7 +753,7 @@ public:
 	FMovieSceneChannelMetaData      MetaData[9];
 	TMovieSceneExternalValue<float> ExternalValues[9];
 	FName ParameterName;
-	UControlRig *ControlRig;
+	UBaseControlRig *ControlRig;
 };
 
 #endif // WITH_EDITOR
@@ -2407,7 +2407,7 @@ void UMovieSceneControlRigParameterSection::KeyWeightValue(FFrameNumber InFrame,
 	Weight.AutoSetTangents();
 }
 
-void UMovieSceneControlRigParameterSection::RecreateWithThisControlRig(UControlRig* InControlRig, bool bSetDefault)
+void UMovieSceneControlRigParameterSection::RecreateWithThisControlRig(UBaseControlRig* InControlRig, bool bSetDefault)
 {
 	bool bSameControlRig = (ControlRig == InControlRig);
 	SetControlRig(InControlRig);
@@ -2591,7 +2591,7 @@ void UMovieSceneControlRigParameterSection::RecreateWithThisControlRig(UControlR
 	ReconstructChannelProxy();
 }
 
-void UMovieSceneControlRigParameterSection::SetControlRig(UControlRig* InControlRig)
+void UMovieSceneControlRigParameterSection::SetControlRig(UBaseControlRig* InControlRig)
 {
 	ControlRig = InControlRig;
 	ControlRigClass = ControlRig ? ControlRig->GetClass() : nullptr;
@@ -3184,7 +3184,7 @@ bool UMovieSceneControlRigParameterSection::LoadAnimSequenceIntoThisSection(UAni
 	// this ensures that the topology version matches in case of a dynamic hierarchy
 	if(!ControlRig->GetClass()->IsNative())
 	{
-		if (UControlRig* CDO = Cast<UControlRig>(ControlRig->GetClass()->GetDefaultObject()))
+		if (UBaseControlRig* CDO = Cast<UBaseControlRig>(ControlRig->GetClass()->GetDefaultObject()))
 		{
 			ControlRig->GetHierarchy()->CopyHierarchy(CDO->GetHierarchy());
 		}

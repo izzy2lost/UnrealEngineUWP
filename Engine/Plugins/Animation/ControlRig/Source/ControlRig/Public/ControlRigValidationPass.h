@@ -53,8 +53,8 @@ class CONTROLRIG_API UControlRigValidator : public UObject
 	UControlRigValidationPass* AddPass(UClass* InClass);
 	void RemovePass(UClass* InClass);
 
-	UControlRig* GetControlRig() const { return WeakControlRig.Get(); }
-	void SetControlRig(UControlRig* InControlRig);
+	UBaseControlRig* GetControlRig() const { return WeakControlRig.Get(); }
+	void SetControlRig(UBaseControlRig* InControlRig);
 
 	FControlRigValidationClearDelegate& OnClear() { return ValidationContext.OnClear(); }
 	FControlRigValidationReportDelegate& OnReport() { return ValidationContext.OnReport(); }
@@ -69,7 +69,7 @@ private:
 	void OnControlRigExecuted(URigVMHost* Subject, const FName& EventName);
 
 	FControlRigValidationContext ValidationContext;
-	TWeakObjectPtr<UControlRig> WeakControlRig;
+	TWeakObjectPtr<UBaseControlRig> WeakControlRig;
 	// todo FControlRigValidationControlRigChangedDelegate ControlRigChangedDelegate;
 };
 
@@ -83,11 +83,11 @@ class CONTROLRIG_API UControlRigValidationPass : public UObject
 public:
 
 	// Called whenever the rig being validated question is changed
-	virtual void OnSubjectChanged(UControlRig* InControlRig, FControlRigValidationContext* InContext) {}
+	virtual void OnSubjectChanged(UBaseControlRig* InControlRig, FControlRigValidationContext* InContext) {}
 
 	// Called whenever the rig in question is initialized
-	virtual void OnInitialize(UControlRig* InControlRig, FControlRigValidationContext* InContext) {}
+	virtual void OnInitialize(UBaseControlRig* InControlRig, FControlRigValidationContext* InContext) {}
 
 	// Called whenever the rig is running an event
-	virtual void OnEvent(UControlRig* InControlRig, const FName& InEventName, FControlRigValidationContext* InContext) {}
+	virtual void OnEvent(UBaseControlRig* InControlRig, const FName& InEventName, FControlRigValidationContext* InContext) {}
 };

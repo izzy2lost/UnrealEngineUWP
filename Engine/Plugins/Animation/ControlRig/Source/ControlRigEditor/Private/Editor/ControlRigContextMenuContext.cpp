@@ -39,11 +39,11 @@ UControlRigBlueprint* UControlRigContextMenuContext::GetControlRigBlueprint() co
 	return nullptr;
 }
 
-UControlRig* UControlRigContextMenuContext::GetControlRig() const
+UBaseControlRig* UControlRigContextMenuContext::GetControlRig() const
 {
 	if (UControlRigBlueprint* RigBlueprint = GetControlRigBlueprint())
 	{
-		if (UControlRig* ControlRig = Cast<UControlRig>(RigBlueprint->GetObjectBeingDebugged()))
+		if (UBaseControlRig* ControlRig = Cast<UBaseControlRig>(RigBlueprint->GetObjectBeingDebugged()))
 		{
 			return ControlRig;
 		}

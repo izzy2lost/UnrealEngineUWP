@@ -11,15 +11,23 @@ struct FSmartNameMapping;
 
 /** Rig that allows additive layer editing per joint */
 UCLASS(NotBlueprintable)
-class CONTROLRIG_API UAdditiveControlRig : public UControlRig
+class CONTROLRIG_API UAdditiveControlRig : public UBaseControlRig
 {
 	GENERATED_UCLASS_BODY()
 
 public: 
-	// BEGIN ControlRig
+	// BEGIN BaseControlRig
 	virtual void Initialize(bool bInitRigUnits = true) override;
+	virtual void InitializeVMs(bool bRequestInit = true) override { URigVMHost::Initialize(bRequestInit); }
+	virtual bool InitializeVMs(const FName& InEventName) override { return URigVMHost::InitializeVM(InEventName); }
+	virtual void InitializeVMsFromCDO() override { URigVMHost::InitializeFromCDO(); }
+	virtual void RequestInitVMs() override { URigVMHost::RequestInit(); }
 	virtual bool Execute_Internal(const FName& InEventName) override;
-	// END ControlRig
+	virtual void EvaluateVMs_AnyThread() override { URigVMHost::Evaluate_AnyThread(); }
+#if WITH_EDITOR
+	virtual void SetFirstEntryEventInEventQueue(FRigVMExtendedExecuteContext& Context, const FName& InFirstEventName) override;
+#endif
+	// END BaseControlRig
 
 	// utility function to 
 	static FName GetControlName(const FName& InBoneName);

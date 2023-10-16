@@ -206,7 +206,7 @@ void UControlRigComponent::TickComponent(float DeltaTime, enum ELevelTick TickTy
 		return;
 	}
 
-	if (UControlRig* CR = SetupControlRigIfRequired())
+	if (UBaseControlRig* CR = SetupControlRigIfRequired())
 	{
 		FScopeLock Lock(&gPendingSkeletalMeshesLock);
 		TArray<FSkeletalMeshToMap>* PendingSkeletalMeshes = gPendingSkeletalMeshes.Find(this);
@@ -283,7 +283,7 @@ FBoxSphereBounds UControlRigComponent::CalcBounds(const FTransform& LocalToWorld
 }
 
 
-UControlRig* UControlRigComponent::GetControlRig()
+UBaseControlRig* UControlRigComponent::GetControlRig()
 {
 	return SetupControlRigIfRequired();
 }
@@ -295,7 +295,7 @@ bool UControlRigComponent::CanExecute()
 		return false;
 	}
 	
-	if(UControlRig* CR = GetControlRig())
+	if(UBaseControlRig* CR = GetControlRig())
 	{
 		return CR->CanExecute();
 	}
@@ -370,7 +370,7 @@ void UControlRigComponent::Initialize()
 		OnPreInitialize(this);
 	}
 	
-	if(UControlRig* CR = SetupControlRigIfRequired())
+	if(UBaseControlRig* CR = SetupControlRigIfRequired())
 	{
 		if (CR->IsInitializing())
 		{
@@ -438,7 +438,7 @@ void UControlRigComponent::Initialize()
 
 void UControlRigComponent::Update(float DeltaTime)
 {
-	if(UControlRig* CR = SetupControlRigIfRequired())
+	if(UBaseControlRig* CR = SetupControlRigIfRequired())
 	{
 		if(!CanExecute())
 		{
@@ -531,7 +531,7 @@ TArray<FName> UControlRigComponent::GetElementNames(ERigElementType ElementType)
 {
 	TArray<FName> Names;
 
-	if (UControlRig* CR = SetupControlRigIfRequired())
+	if (UBaseControlRig* CR = SetupControlRigIfRequired())
 	{
 		for (FRigBaseElement* Element : *CR->GetHierarchy())
 		{
@@ -547,7 +547,7 @@ TArray<FName> UControlRigComponent::GetElementNames(ERigElementType ElementType)
 
 bool UControlRigComponent::DoesElementExist(FName Name, ERigElementType ElementType)
 {
-	if (UControlRig* CR = SetupControlRigIfRequired())
+	if (UBaseControlRig* CR = SetupControlRigIfRequired())
 	{
 		return CR->GetHierarchy()->GetIndex(FRigElementKey(Name, ElementType)) != INDEX_NONE;
 	}
@@ -637,7 +637,7 @@ void UControlRigComponent::AddMappedSkeletalMesh(USkeletalMeshComponent* Skeleta
 		return;
 	}
 
-	UControlRig* CR = SetupControlRigIfRequired();
+	UBaseControlRig* CR = SetupControlRigIfRequired();
 	if (CR == nullptr)
 	{
 		// if we don't have a valid rig yet - delay it until tick component
@@ -753,7 +753,7 @@ void UControlRigComponent::SetBoneInitialTransformsFromSkeletalMesh(USkeletalMes
 {
 	if (InSkeletalMesh)
 	{
-		if (UControlRig* CR = SetupControlRigIfRequired())
+		if (UBaseControlRig* CR = SetupControlRigIfRequired())
 		{
 			CR->SetBoneInitialTransformsFromSkeletalMesh(InSkeletalMesh);
 			bResetInitialsBeforeConstruction = false;
@@ -763,7 +763,7 @@ void UControlRigComponent::SetBoneInitialTransformsFromSkeletalMesh(USkeletalMes
 
 FTransform UControlRigComponent::GetBoneTransform(FName BoneName, EControlRigComponentSpace Space)
 {
-	if (UControlRig* CR = SetupControlRigIfRequired())
+	if (UBaseControlRig* CR = SetupControlRigIfRequired())
 	{
 		const int32 BoneIndex = CR->GetHierarchy()->GetIndex(FRigElementKey(BoneName, ERigElementType::Bone));
 		if (BoneIndex != INDEX_NONE)
@@ -786,7 +786,7 @@ FTransform UControlRigComponent::GetBoneTransform(FName BoneName, EControlRigCom
 
 FTransform UControlRigComponent::GetInitialBoneTransform(FName BoneName, EControlRigComponentSpace Space)
 {
-	if (UControlRig* CR = SetupControlRigIfRequired())
+	if (UBaseControlRig* CR = SetupControlRigIfRequired())
 	{
 		const int32 BoneIndex = CR->GetHierarchy()->GetIndex(FRigElementKey(BoneName, ERigElementType::Bone));
 		if (BoneIndex != INDEX_NONE)
@@ -814,7 +814,7 @@ void UControlRigComponent::SetBoneTransform(FName BoneName, FTransform Transform
 		return;
 	}
 
-	if (UControlRig* CR = SetupControlRigIfRequired())
+	if (UBaseControlRig* CR = SetupControlRigIfRequired())
 	{
 		int32 BoneIndex = CR->GetHierarchy()->GetIndex(FRigElementKey(BoneName, ERigElementType::Bone));
 		if (BoneIndex != INDEX_NONE)
@@ -853,7 +853,7 @@ void UControlRigComponent::SetBoneTransform(FName BoneName, FTransform Transform
 
 void UControlRigComponent::SetInitialBoneTransform(FName BoneName, FTransform InitialTransform, EControlRigComponentSpace Space, bool bPropagateToChildren)
 {
-	if (UControlRig* CR = SetupControlRigIfRequired())
+	if (UBaseControlRig* CR = SetupControlRigIfRequired())
 	{
 		const int32 BoneIndex = CR->GetHierarchy()->GetIndex(FRigElementKey(BoneName, ERigElementType::Bone));
 		if (BoneIndex != INDEX_NONE)
@@ -882,7 +882,7 @@ void UControlRigComponent::SetInitialBoneTransform(FName BoneName, FTransform In
 
 bool UControlRigComponent::GetControlBool(FName ControlName)
 {
-	if (UControlRig* CR = SetupControlRigIfRequired())
+	if (UBaseControlRig* CR = SetupControlRigIfRequired())
 	{
 		if(FRigControlElement* ControlElement = CR->GetHierarchy()->Find<FRigControlElement>(FRigElementKey(ControlName, ERigElementType::Control)))
 		{
@@ -898,7 +898,7 @@ bool UControlRigComponent::GetControlBool(FName ControlName)
 
 float UControlRigComponent::GetControlFloat(FName ControlName)
 {
-	if (UControlRig* CR = SetupControlRigIfRequired())
+	if (UBaseControlRig* CR = SetupControlRigIfRequired())
 	{
 		if(FRigControlElement* ControlElement = CR->GetHierarchy()->Find<FRigControlElement>(FRigElementKey(ControlName, ERigElementType::Control)))
 		{
@@ -914,7 +914,7 @@ float UControlRigComponent::GetControlFloat(FName ControlName)
 
 int32 UControlRigComponent::GetControlInt(FName ControlName)
 {
-	if (UControlRig* CR = SetupControlRigIfRequired())
+	if (UBaseControlRig* CR = SetupControlRigIfRequired())
 	{
 		if(FRigControlElement* ControlElement = CR->GetHierarchy()->Find<FRigControlElement>(FRigElementKey(ControlName, ERigElementType::Control)))
 		{
@@ -930,7 +930,7 @@ int32 UControlRigComponent::GetControlInt(FName ControlName)
 
 FVector2D UControlRigComponent::GetControlVector2D(FName ControlName)
 {
-	if (UControlRig* CR = SetupControlRigIfRequired())
+	if (UBaseControlRig* CR = SetupControlRigIfRequired())
 	{
 		if(FRigControlElement* ControlElement = CR->GetHierarchy()->Find<FRigControlElement>(FRigElementKey(ControlName, ERigElementType::Control)))
 		{
@@ -962,7 +962,7 @@ FVector UControlRigComponent::GetControlScale(FName ControlName, EControlRigComp
 
 FTransform UControlRigComponent::GetControlTransform(FName ControlName, EControlRigComponentSpace Space)
 {
-	if (UControlRig* CR = SetupControlRigIfRequired())
+	if (UBaseControlRig* CR = SetupControlRigIfRequired())
 	{
 		if(FRigControlElement* ControlElement = CR->GetHierarchy()->Find<FRigControlElement>(FRigElementKey(ControlName, ERigElementType::Control)))
 		{
@@ -985,7 +985,7 @@ FTransform UControlRigComponent::GetControlTransform(FName ControlName, EControl
 
 void UControlRigComponent::SetControlBool(FName ControlName, bool Value)
 {
-	if (UControlRig* CR = SetupControlRigIfRequired())
+	if (UBaseControlRig* CR = SetupControlRigIfRequired())
 	{
 		CR->SetControlValue<bool>(ControlName, Value);
 	}
@@ -993,7 +993,7 @@ void UControlRigComponent::SetControlBool(FName ControlName, bool Value)
 
 void UControlRigComponent::SetControlFloat(FName ControlName, float Value)
 {
-	if (UControlRig* CR = SetupControlRigIfRequired())
+	if (UBaseControlRig* CR = SetupControlRigIfRequired())
 	{
 		CR->SetControlValue<float>(ControlName, Value);
 	}
@@ -1001,7 +1001,7 @@ void UControlRigComponent::SetControlFloat(FName ControlName, float Value)
 
 void UControlRigComponent::SetControlInt(FName ControlName, int32 Value)
 {
-	if (UControlRig* CR = SetupControlRigIfRequired())
+	if (UBaseControlRig* CR = SetupControlRigIfRequired())
 	{
 		CR->SetControlValue<int32>(ControlName, Value);
 	}
@@ -1009,7 +1009,7 @@ void UControlRigComponent::SetControlInt(FName ControlName, int32 Value)
 
 void UControlRigComponent::SetControlVector2D(FName ControlName, FVector2D Value)
 {
-	if (UControlRig* CR = SetupControlRigIfRequired())
+	if (UBaseControlRig* CR = SetupControlRigIfRequired())
 	{
 		CR->SetControlValue<FVector2D>(ControlName, Value);
 	}
@@ -1017,7 +1017,7 @@ void UControlRigComponent::SetControlVector2D(FName ControlName, FVector2D Value
 
 void UControlRigComponent::SetControlPosition(FName ControlName, FVector Value, EControlRigComponentSpace Space)
 {
-	if (UControlRig* CR = SetupControlRigIfRequired())
+	if (UBaseControlRig* CR = SetupControlRigIfRequired())
 	{
 		if(FRigControlElement* ControlElement = CR->GetHierarchy()->Find<FRigControlElement>(FRigElementKey(ControlName, ERigElementType::Control)))
 		{
@@ -1044,7 +1044,7 @@ void UControlRigComponent::SetControlPosition(FName ControlName, FVector Value, 
 
 void UControlRigComponent::SetControlRotator(FName ControlName, FRotator Value, EControlRigComponentSpace Space)
 {
-	if (UControlRig* CR = SetupControlRigIfRequired())
+	if (UBaseControlRig* CR = SetupControlRigIfRequired())
 	{
 		if(FRigControlElement* ControlElement = CR->GetHierarchy()->Find<FRigControlElement>(FRigElementKey(ControlName, ERigElementType::Control)))
 		{
@@ -1071,7 +1071,7 @@ void UControlRigComponent::SetControlRotator(FName ControlName, FRotator Value, 
 
 void UControlRigComponent::SetControlScale(FName ControlName, FVector Value, EControlRigComponentSpace Space)
 {
-	if (UControlRig* CR = SetupControlRigIfRequired())
+	if (UBaseControlRig* CR = SetupControlRigIfRequired())
 	{
 		if(FRigControlElement* ControlElement = CR->GetHierarchy()->Find<FRigControlElement>(FRigElementKey(ControlName, ERigElementType::Control)))
 		{
@@ -1098,7 +1098,7 @@ void UControlRigComponent::SetControlScale(FName ControlName, FVector Value, ECo
 
 void UControlRigComponent::SetControlTransform(FName ControlName, FTransform Value, EControlRigComponentSpace Space)
 {
-	if (UControlRig* CR = SetupControlRigIfRequired())
+	if (UBaseControlRig* CR = SetupControlRigIfRequired())
 	{
 		if(FRigControlElement* ControlElement = CR->GetHierarchy()->Find<FRigControlElement>(FRigElementKey(ControlName, ERigElementType::Control)))
 		{
@@ -1117,7 +1117,7 @@ void UControlRigComponent::SetControlTransform(FName ControlName, FTransform Val
 
 FTransform UControlRigComponent::GetControlOffset(FName ControlName, EControlRigComponentSpace Space)
 {
-	if (UControlRig* CR = SetupControlRigIfRequired())
+	if (UBaseControlRig* CR = SetupControlRigIfRequired())
 	{
 		if(FRigControlElement* ControlElement = CR->GetHierarchy()->Find<FRigControlElement>(FRigElementKey(ControlName, ERigElementType::Control)))
 		{
@@ -1139,7 +1139,7 @@ FTransform UControlRigComponent::GetControlOffset(FName ControlName, EControlRig
 
 void UControlRigComponent::SetControlOffset(FName ControlName, FTransform OffsetTransform, EControlRigComponentSpace Space)
 {
-	if (UControlRig* CR = SetupControlRigIfRequired())
+	if (UBaseControlRig* CR = SetupControlRigIfRequired())
 	{
 		if(FRigControlElement* ControlElement = CR->GetHierarchy()->Find<FRigControlElement>(FRigElementKey(ControlName, ERigElementType::Control)))
 		{
@@ -1156,7 +1156,7 @@ void UControlRigComponent::SetControlOffset(FName ControlName, FTransform Offset
 
 FTransform UControlRigComponent::GetSpaceTransform(FName SpaceName, EControlRigComponentSpace Space)
 {
-	if (UControlRig* CR = SetupControlRigIfRequired())
+	if (UBaseControlRig* CR = SetupControlRigIfRequired())
 	{
 		if(FRigNullElement* NullElement = CR->GetHierarchy()->Find<FRigNullElement>(FRigElementKey(SpaceName, ERigElementType::Control)))
 		{
@@ -1178,7 +1178,7 @@ FTransform UControlRigComponent::GetSpaceTransform(FName SpaceName, EControlRigC
 
 FTransform UControlRigComponent::GetInitialSpaceTransform(FName SpaceName, EControlRigComponentSpace Space)
 {
-	if (UControlRig* CR = SetupControlRigIfRequired())
+	if (UBaseControlRig* CR = SetupControlRigIfRequired())
 	{
 		if(FRigNullElement* NullElement = CR->GetHierarchy()->Find<FRigNullElement>(FRigElementKey(SpaceName, ERigElementType::Control)))
 		{
@@ -1200,7 +1200,7 @@ FTransform UControlRigComponent::GetInitialSpaceTransform(FName SpaceName, ECont
 
 void UControlRigComponent::SetInitialSpaceTransform(FName SpaceName, FTransform InitialTransform, EControlRigComponentSpace Space)
 {
-	if (UControlRig* CR = SetupControlRigIfRequired())
+	if (UBaseControlRig* CR = SetupControlRigIfRequired())
 	{
 		if(FRigNullElement* NullElement = CR->GetHierarchy()->Find<FRigNullElement>(FRigElementKey(SpaceName, ERigElementType::Control)))
 		{
@@ -1217,7 +1217,7 @@ void UControlRigComponent::SetInitialSpaceTransform(FName SpaceName, FTransform 
 	}
 }
 
-UControlRig* UControlRigComponent::SetupControlRigIfRequired()
+UBaseControlRig* UControlRigComponent::SetupControlRigIfRequired()
 {
 	if(ControlRig != nullptr)
 	{
@@ -1239,7 +1239,7 @@ UControlRig* UControlRigComponent::SetupControlRigIfRequired()
 
 	if(ControlRigClass)
 	{
-		ControlRig = NewObject<UControlRig>(this, ControlRigClass);
+		ControlRig = NewObject<UBaseControlRig>(this, ControlRigClass);
 
 		SetControlRig(ControlRig);
 
@@ -1253,7 +1253,7 @@ UControlRig* UControlRigComponent::SetupControlRigIfRequired()
 
 	return ControlRig;
 }
-void UControlRigComponent::SetControlRig(UControlRig* InControlRig)
+void UControlRigComponent::SetControlRig(UBaseControlRig* InControlRig)
 {
 	if (ControlRig)
 	{
@@ -1272,7 +1272,7 @@ void UControlRigComponent::SetControlRig(UControlRig* InControlRig)
 	ControlRig->OnPostForwardsSolve_AnyThread().AddUObject(this, &UControlRigComponent::HandleControlRigPostForwardsSolveEvent);
 	ControlRig->OnExecuted_AnyThread().AddUObject(this, &UControlRigComponent::HandleControlRigExecutedEvent);
 
-	ControlRig->GetDataSourceRegistry()->RegisterDataSource(UControlRig::OwnerComponent, this);
+	ControlRig->GetDataSourceRegistry()->RegisterDataSource(UBaseControlRig::OwnerComponent, this);
 	if(ObjectBinding.IsValid())
 	{
 		ControlRig->SetObjectBinding(ObjectBinding);
@@ -1281,7 +1281,7 @@ void UControlRigComponent::SetControlRig(UControlRig* InControlRig)
 	ControlRig->Initialize();
 }
 
-void UControlRigComponent::SetControlRigClass(TSubclassOf<UControlRig> InControlRigClass)
+void UControlRigComponent::SetControlRigClass(TSubclassOf<UBaseControlRig> InControlRigClass)
 {
 	ControlRig = nullptr;
 	ControlRigClass = InControlRigClass;
@@ -1296,7 +1296,7 @@ void UControlRigComponent::SetObjectBinding(UObject* InObjectToBind)
 	}
 	ObjectBinding->BindToObject(InObjectToBind);
 
-	if(UControlRig* CR = SetupControlRigIfRequired())
+	if(UBaseControlRig* CR = SetupControlRigIfRequired())
 	{
 		CR->SetObjectBinding(ObjectBinding);
 	}
@@ -1727,7 +1727,7 @@ void UControlRigComponent::HandleControlRigInitializedEvent(URigVMHost* InContro
 	}
 }
 
-void UControlRigComponent::HandleControlRigPreConstructionEvent(UControlRig* InControlRig, const FName& InEventName)
+void UControlRigComponent::HandleControlRigPreConstructionEvent(UBaseControlRig* InControlRig, const FName& InEventName)
 {
 	TArray<USkeletalMeshComponent*> ComponentsToTick;
 
@@ -1777,7 +1777,7 @@ void UControlRigComponent::HandleControlRigPreConstructionEvent(UControlRig* InC
 	}
 }
 
-void UControlRigComponent::HandleControlRigPostConstructionEvent(UControlRig* InControlRig, const FName& InEventName)
+void UControlRigComponent::HandleControlRigPostConstructionEvent(UBaseControlRig* InControlRig, const FName& InEventName)
 {
 #if WITH_EDITOR
 	if (bUpdateInEditor)
@@ -1792,7 +1792,7 @@ void UControlRigComponent::HandleControlRigPostConstructionEvent(UControlRig* In
 	}
 }
 
-void UControlRigComponent::HandleControlRigPreForwardsSolveEvent(UControlRig* InControlRig, const FName& InEventName)
+void UControlRigComponent::HandleControlRigPreForwardsSolveEvent(UBaseControlRig* InControlRig, const FName& InEventName)
 {
 #if WITH_EDITOR
 	if (bUpdateInEditor)
@@ -1807,7 +1807,7 @@ void UControlRigComponent::HandleControlRigPreForwardsSolveEvent(UControlRig* In
 	}
 }
 
-void UControlRigComponent::HandleControlRigPostForwardsSolveEvent(UControlRig* InControlRig, const FName& InEventName)
+void UControlRigComponent::HandleControlRigPostForwardsSolveEvent(UBaseControlRig* InControlRig, const FName& InEventName)
 {
 #if WITH_EDITOR
 	if (bUpdateInEditor)
@@ -1879,7 +1879,7 @@ void UControlRigComponent::ConvertTransformFromRigSpace(FTransform& InOutTransfo
 
 bool UControlRigComponent::EnsureCalledOutsideOfBracket(const TCHAR* InCallingFunctionName)
 {
-	if (UControlRig* CR = SetupControlRigIfRequired())
+	if (UBaseControlRig* CR = SetupControlRigIfRequired())
 	{
 		if (CR->IsRunningPreConstruction())
 		{

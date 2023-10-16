@@ -19,7 +19,7 @@ Create One of the Control Rig Assets, Currently Only support Pose Assets but may
 class FControlRigToolAsset
 {
 public:
-	template< typename Type> static  UObject* SaveAsset(UControlRig* InControlRig, const FString& CurrentPath, const FString& InString, bool bUseAllControls)
+	template< typename Type> static  UObject* SaveAsset(UBaseControlRig* InControlRig, const FString& CurrentPath, const FString& InString, bool bUseAllControls)
 	{
 		if (InControlRig)
 		{

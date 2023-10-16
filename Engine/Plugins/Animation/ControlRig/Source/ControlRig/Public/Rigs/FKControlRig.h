@@ -36,17 +36,25 @@ enum class EControlRigFKRigExecuteMode: uint8
 
 /** Rig that allows override editing per joint */
 UCLASS(NotBlueprintable, Meta = (DisplayName = "FK Control Rig"))
-class CONTROLRIG_API UFKControlRig : public UControlRig
+class CONTROLRIG_API UFKControlRig : public UBaseControlRig
 {
 	GENERATED_UCLASS_BODY()
 
 public: 
 
-	// BEGIN ControlRig
+	// BEGIN BaseControlRig
 	virtual void Initialize(bool bInitRigUnits = true) override;
+	virtual void InitializeVMs(bool bRequestInit = true) override { URigVMHost::Initialize(bRequestInit); }
+	virtual bool InitializeVMs(const FName& InEventName) override { return URigVMHost::InitializeVM(InEventName); }
+	virtual void InitializeVMsFromCDO() override { URigVMHost::InitializeFromCDO(); }
+	virtual void RequestInitVMs() override { URigVMHost::RequestInit(); }
 	virtual bool Execute_Internal(const FName& InEventName) override;
+	virtual void EvaluateVMs_AnyThread() override { URigVMHost::Evaluate_AnyThread(); }
+#if WITH_EDITOR
+	virtual void SetFirstEntryEventInEventQueue(FRigVMExtendedExecuteContext& Context, const FName& InFirstEventName) override;
+#endif
 	virtual void SetBoneInitialTransformsFromSkeletalMeshComponent(USkeletalMeshComponent* InSkelMeshComp, bool bUseAnimInstance = false) override;
-	// END ControlRig
+	// END BaseControlRig
 
 	// utility function to generate a valid control element name
 	static FName GetControlName(const FName& InName, const ERigElementType& InType);

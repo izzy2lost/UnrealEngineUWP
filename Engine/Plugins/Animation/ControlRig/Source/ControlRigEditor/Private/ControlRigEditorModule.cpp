@@ -121,7 +121,7 @@ void FControlRigEditorModule::StartupModule()
 	ClassesToUnregisterOnShutdown.Add(UControlRigBlueprint::StaticClass()->GetFName());
 	PropertyEditorModule.RegisterCustomClassLayout(ClassesToUnregisterOnShutdown.Last(), FOnGetDetailCustomizationInstance::CreateStatic(&FControlRigBlueprintDetails::MakeInstance));
 
-	ClassesToUnregisterOnShutdown.Add(UControlRig::StaticClass()->GetFName());
+	ClassesToUnregisterOnShutdown.Add(UBaseControlRig::StaticClass()->GetFName());
 
 	// same as ClassesToUnregisterOnShutdown but for properties, there is none right now
 	PropertiesToUnregisterOnShutdown.Reset();
@@ -632,7 +632,7 @@ void FControlRigEditorModule::GetDirectManipulationMenuActions(IRigVMClientHost*
     // Add direct manipulation context menu entries
 	if(UControlRigBlueprint* ControlRigBlueprint = Cast<UControlRigBlueprint>(RigVMClientHost))
 	{
-		UControlRig* DebuggedRig = Cast<UControlRig>(ControlRigBlueprint->GetObjectBeingDebugged());
+		UBaseControlRig* DebuggedRig = Cast<UBaseControlRig>(ControlRigBlueprint->GetObjectBeingDebugged());
 		if(DebuggedRig == nullptr)
 		{
 			return;
@@ -657,7 +657,7 @@ void FControlRigEditorModule::GetDirectManipulationMenuActions(IRigVMClientHost*
 				return;
 			}
 
-			const FRigUnit* UnitInstance = UControlRig::GetRigUnitInstanceFromScope(NodeInstance);
+			const FRigUnit* UnitInstance = UBaseControlRig::GetRigUnitInstanceFromScope(NodeInstance);
 			TArray<FRigDirectManipulationTarget> Targets;
 			if(UnitInstance->GetDirectManipulationTargets(UnitNode, NodeInstance, DebuggedRig->GetHierarchy(), Targets, nullptr))
 			{
@@ -687,7 +687,7 @@ void FControlRigEditorModule::GetDirectManipulationMenuActions(IRigVMClientHost*
 						
 						auto HasNoUnconstrainedAffectedPin = [NodeInstance, UnitNode, Target]() -> bool
 						{
-							const FRigUnit* UnitInstance = UControlRig::GetRigUnitInstanceFromScope(NodeInstance);
+							const FRigUnit* UnitInstance = UBaseControlRig::GetRigUnitInstanceFromScope(NodeInstance);
 							const TArray<const URigVMPin*> AffectedPins = UnitInstance->GetPinsForDirectManipulation(UnitNode, Target);
 
 							int32 NumAffectedPinsWithRootLinks = 0;
@@ -1056,10 +1056,10 @@ void FControlRigEditorModule::BakeToControlRig(UClass* ControlRigClass, UAnimSeq
 				FString ObjectName = (ControlRigClass->GetName());
 				ObjectName.RemoveFromEnd(TEXT("_C"));
 
-				UControlRig* ControlRig = NewObject<UControlRig>(Track, ControlRigClass, FName(*ObjectName), RF_Transactional);
+				UBaseControlRig* ControlRig = NewObject<UBaseControlRig>(Track, ControlRigClass, FName(*ObjectName), RF_Transactional);
 				ControlRig->SetObjectBinding(MakeShared<FControlRigObjectBinding>());
 				ControlRig->GetObjectBinding()->BindToObject(MeshActor);
-				ControlRig->GetDataSourceRegistry()->RegisterDataSource(UControlRig::OwnerComponent, ControlRig->GetObjectBinding()->GetBoundObject());
+				ControlRig->GetDataSourceRegistry()->RegisterDataSource(UBaseControlRig::OwnerComponent, ControlRig->GetObjectBinding()->GetBoundObject());
 				ControlRig->Initialize();
 				ControlRig->Evaluate_AnyThread();
 
@@ -1421,7 +1421,7 @@ bool FControlRigClassFilter::IsClassAllowed(const FClassViewerInitializationOpti
 {
 	if(InClass)
 	{
-		const bool bChildOfObjectClass = InClass->IsChildOf(UControlRig::StaticClass());
+		const bool bChildOfObjectClass = InClass->IsChildOf(UBaseControlRig::StaticClass());
 		const bool bMatchesFlags = !InClass->HasAnyClassFlags(CLASS_Hidden | CLASS_HideDropDown | CLASS_Deprecated | CLASS_Abstract);
 		const bool bNotNative = !InClass->IsNative();
 
@@ -1442,7 +1442,7 @@ bool FControlRigClassFilter::IsClassAllowed(const FClassViewerInitializationOpti
 
 bool FControlRigClassFilter::IsUnloadedClassAllowed(const FClassViewerInitializationOptions& InInitOptions, const TSharedRef< const IUnloadedBlueprintData > InUnloadedClassData, TSharedRef< FClassViewerFilterFuncs > InFilterFuncs)
 {
-	const bool bChildOfObjectClass = InUnloadedClassData->IsChildOf(UControlRig::StaticClass());
+	const bool bChildOfObjectClass = InUnloadedClassData->IsChildOf(UBaseControlRig::StaticClass());
 	const bool bMatchesFlags = !InUnloadedClassData->HasAnyClassFlags(CLASS_Hidden | CLASS_HideDropDown | CLASS_Deprecated | CLASS_Abstract);
 	if (bChildOfObjectClass && bMatchesFlags)
 	{

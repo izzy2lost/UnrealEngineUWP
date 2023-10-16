@@ -3,6 +3,7 @@
 #include "ControlRigBlueprintActions.h"
 #include "ControlRigBlueprintFactory.h"
 #include "ControlRigBlueprint.h"
+#include "ControlRig.h"
 #include "Editor/RigVMEditorStyle.h"
 #include "IControlRigEditorModule.h"
 
@@ -392,7 +393,7 @@ void FControlRigBlueprintActions::OnSpawnedSkeletalMeshActorChanged(UObject* InO
 					Track = MovieScene->AddTrack<UMovieSceneControlRigParameterTrack>(ActorTrackGuid);
 				}
 
-				UControlRig* ControlRig = Track->GetControlRig();
+				UBaseControlRig* ControlRig = Track->GetControlRig();
 
 				FString ObjectName = (ControlRigClass->GetName());
 
@@ -403,10 +404,11 @@ void FControlRigBlueprintActions::OnSpawnedSkeletalMeshActorChanged(UObject* InO
 
 					ObjectName.RemoveFromEnd(TEXT("_C"));
 
-					ControlRig = NewObject<UControlRig>(Track, ControlRigClass, FName(*ObjectName), RF_Transactional);
+					// This is either a UControlRig or a UModularControlRig
+					ControlRig = NewObject<UBaseControlRig>(Track, ControlRigClass, FName(*ObjectName), RF_Transactional);
 					ControlRig->SetObjectBinding(MakeShared<FControlRigObjectBinding>());
 					ControlRig->GetObjectBinding()->BindToObject(MeshActor->GetSkeletalMeshComponent());
-					ControlRig->GetDataSourceRegistry()->RegisterDataSource(UControlRig::OwnerComponent, ControlRig->GetObjectBinding()->GetBoundObject());
+					ControlRig->GetDataSourceRegistry()->RegisterDataSource(UBaseControlRig::OwnerComponent, ControlRig->GetObjectBinding()->GetBoundObject());
 					ControlRig->Initialize();
 					ControlRig->Evaluate_AnyThread();
 					ControlRig->CreateRigControlsForCurveContainer();

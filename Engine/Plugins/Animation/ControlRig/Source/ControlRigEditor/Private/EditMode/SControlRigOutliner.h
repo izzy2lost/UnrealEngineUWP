@@ -77,14 +77,14 @@ class FMultiRigData
 
 public:
 	FMultiRigData() {};
-	FMultiRigData(UControlRig* InControlRig, FRigElementKey InKey) : ControlRig(InControlRig), Key(InKey) {};
+	FMultiRigData(UBaseControlRig* InControlRig, FRigElementKey InKey) : ControlRig(InControlRig), Key(InKey) {};
 	FText GetName() const;
 	FText GetDisplayName() const;
 	bool operator == (const FMultiRigData & Other) const;
 	bool IsValid() const;
 	URigHierarchy* GetHierarchy() const;
 public:
-	TWeakObjectPtr<UControlRig> ControlRig;
+	TWeakObjectPtr<UBaseControlRig> ControlRig;
 	TOptional<FRigElementKey> Key;
 };
 
@@ -177,7 +177,7 @@ public:
 	static TSharedPtr<FMultiRigTreeElement> FindElement(const FMultiRigData& InData, TSharedPtr<FMultiRigTreeElement> CurrentItem);
 
 	bool AddElement(const FMultiRigData& InData, const FMultiRigData& InParentData);
-	bool AddElement(UControlRig* InControlRig, const FRigBaseElement* InElement);
+	bool AddElement(UBaseControlRig* InControlRig, const FRigBaseElement* InElement);
 	bool ReparentElement(const FMultiRigData& InData, const FMultiRigData& InParentData);
 	bool RemoveElement(const FMultiRigData& InData);
 	void RefreshTreeView(bool bRebuildContent = true);
@@ -190,7 +190,7 @@ public:
 	FMultiRigTreeDelegates& GetTreeDelegates() { return Delegates; }
 
 	TArray<URigHierarchy*> GetHierarchy() const;
-	void SetControlRigs(TArrayView < TWeakObjectPtr<UControlRig>>& InControlRigs);
+	void SetControlRigs(TArrayView < TWeakObjectPtr<UBaseControlRig>>& InControlRigs);
 
 private:
 
@@ -210,7 +210,7 @@ private:
 
 	friend class SRigHierarchy;
 
-	TArray <TWeakObjectPtr<UControlRig>> ControlRigs;
+	TArray <TWeakObjectPtr<UBaseControlRig>> ControlRigs;
 };
 
 class SSearchableMultiRigHierarchyTreeView : public SCompoundWidget
@@ -249,8 +249,8 @@ class SControlRigOutliner : public FControlRigBaseDockableView, public SCompound
 	//FControlRigBaseDockableView overrides
 	virtual void SetEditMode(FControlRigEditMode& InEditMode) override;
 private:
-	virtual void HandleControlAdded(UControlRig* ControlRig, bool bIsAdded) override;
-	virtual void HandleControlSelected(UControlRig* Subject, FRigControlElement* InControl, bool bSelected) override;
+	virtual void HandleControlAdded(UBaseControlRig* ControlRig, bool bIsAdded) override;
+	virtual void HandleControlSelected(UBaseControlRig* Subject, FRigControlElement* InControl, bool bSelected) override;
 
 	void OnObjectsReplaced(const TMap<UObject*, UObject*>& OldToNewInstanceMap);
 

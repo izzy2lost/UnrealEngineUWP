@@ -11,7 +11,7 @@
 #include "RigVMCore/RigVMExecuteContext.h"
 #include "RigUnitContext.generated.h"
 
-class UControlRig;
+class UBaseControlRig;
 class UControlRigShapeLibrary;
 
 /**
@@ -196,7 +196,7 @@ private:
 class CONTROLRIG_API FControlRigExecuteContextRigModuleGuard
 {
 public:
-	FControlRigExecuteContextRigModuleGuard(FControlRigExecuteContext& InContext, const UControlRig* InControlRig);
+	FControlRigExecuteContextRigModuleGuard(FControlRigExecuteContext& InContext, const UBaseControlRig* InControlRig);
 	~FControlRigExecuteContextRigModuleGuard();
 
 private:

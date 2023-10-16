@@ -17,7 +17,7 @@ class ISequencer;
 class SControlPicker;
 class SExpandableArea;
 class SRigHierarchyTreeView;
-class UControlRig;
+class UBaseControlRig;
 class URigHierarchy;
 class FToolBarBuilder;
 class FEditorModeTools;
@@ -50,7 +50,7 @@ public:
 	void SetSequencer(TWeakPtr<ISequencer> InSequencer);
 
 	/** Set The Control Rig we are using*/
-	void SetControlRigs(const TArrayView<TWeakObjectPtr<UControlRig>>& InControlRigs);
+	void SetControlRigs(const TArrayView<TWeakObjectPtr<UBaseControlRig>>& InControlRigs);
 
 	/** Returns the hierarchy currently being used */
 	const URigHierarchy* GetHierarchy() const;
@@ -95,7 +95,7 @@ private:
 	TSharedPtr<SRigSpacePickerWidget> SpacePickerWidget;
 
 	/** Storage for control rigs */
-	TArray<TWeakObjectPtr<UControlRig>> ControlRigs;
+	TArray<TWeakObjectPtr<UBaseControlRig>> ControlRigs;
 
 	/** Constraint edition widget. */
 	TSharedPtr<SExpandableArea> ConstraintPickerExpander = nullptr;
@@ -110,7 +110,7 @@ private:
 
 	void HandleModifiedEvent(ERigVMGraphNotifType InNotifType, URigVMGraph* InGraph, UObject* InSubject);
 	void HandleSelectionChanged(TSharedPtr<FRigTreeElement> Selection, ESelectInfo::Type SelectInfo);
-	void OnRigElementSelected(UControlRig* Subject, FRigControlElement* ControlElement, bool bSelected);
+	void OnRigElementSelected(UBaseControlRig* Subject, FRigControlElement* ControlElement, bool bSelected);
 
 	const FRigControlElementCustomization* HandleGetControlElementCustomization(URigHierarchy* InHierarchy, const FRigElementKey& InControlKey);
 	void HandleActiveSpaceChanged(URigHierarchy* InHierarchy, const FRigElementKey& InControlKey, const FRigElementKey& InSpaceKey);

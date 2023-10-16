@@ -187,16 +187,16 @@ UControlRigBlueprint* FControlRigEditor::GetControlRigBlueprint() const
 	return Cast<UControlRigBlueprint>(GetRigVMBlueprint());
 }
 
-UControlRig* FControlRigEditor::GetControlRig() const
+UBaseControlRig* FControlRigEditor::GetControlRig() const
 {
-	return Cast<UControlRig>(GetRigVMHost());
+	return Cast<UBaseControlRig>(GetRigVMHost());
 }
 
 URigHierarchy* FControlRigEditor::GetHierarchyBeingDebugged() const
 {
 	if(UControlRigBlueprint* RigBlueprint = GetControlRigBlueprint())
 	{
-		if(UControlRig* RigBeingDebugged = Cast<UControlRig>(RigBlueprint->GetObjectBeingDebugged()))
+		if(UBaseControlRig* RigBeingDebugged = Cast<UBaseControlRig>(RigBlueprint->GetObjectBeingDebugged()))
 		{
 			return RigBeingDebugged->GetHierarchy();
 		}
@@ -771,7 +771,7 @@ void FControlRigEditor::SetEventQueue(TArray<FName> InEventQueue, bool bCompile)
 
 	FRigVMEditor::SetEventQueue(InEventQueue, bCompile);
 
-	if (UControlRig* ControlRig = GetControlRig())
+	if (UBaseControlRig* ControlRig = GetControlRig())
 	{
 		if (InEventQueue.Num() > 0)
 		{
@@ -894,8 +894,8 @@ void FControlRigEditor::HandleSetObjectBeingDebugged(UObject* InObject)
 {
 	FRigVMEditor::HandleSetObjectBeingDebugged(InObject);
 	
-	UControlRig* DebuggedControlRig = Cast<UControlRig>(InObject);
-	if(UControlRig* PreviouslyDebuggedControlRig = Cast<UControlRig>(GetBlueprintObj()->GetObjectBeingDebugged()))
+	UBaseControlRig* DebuggedControlRig = Cast<UBaseControlRig>(InObject);
+	if(UBaseControlRig* PreviouslyDebuggedControlRig = Cast<UBaseControlRig>(GetBlueprintObj()->GetObjectBeingDebugged()))
 	{
 		if(!PreviouslyDebuggedControlRig->HasAnyFlags(RF_BeginDestroyed))
 		{
@@ -1125,7 +1125,7 @@ void FControlRigEditor::Compile()
 				const FTransform Transform = ControlRigBlueprint->Hierarchy->GetInitialLocalTransform(ControlElement->GetIndex());
 
 				/*/
-				if (UControlRig* ControlRig = GetControlRig())
+				if (UBaseControlRig* ControlRig = GetControlRig())
 				{
 					ControlRig->Modify();
 					ControlRig->GetControlHierarchy().SetLocalTransform(Control.Index, Transform);
@@ -1227,7 +1227,7 @@ void FControlRigEditor::HandleVMCompiledEvent(UObject* InCompiledObject, URigVM*
 
 	if(UControlRigBlueprint* ControlRigBlueprint = GetControlRigBlueprint())
 	{
-		if(UControlRig* ControlRig = InVM->GetTypedOuter<UControlRig>())
+		if(UBaseControlRig* ControlRig = InVM->GetTypedOuter<UBaseControlRig>())
 		{
 			ControlRigBlueprint->UpdateElementKeyRedirector(ControlRig);
 		}
@@ -1240,9 +1240,9 @@ void FControlRigEditor::SaveAsset_Execute()
 
 	// Save the new state of the hierarchy in the default object, so that it has the correct values on load
 	UControlRigBlueprint* RigBlueprint = Cast<UControlRigBlueprint>(GetBlueprintObj());
-	if(const UControlRig* ControlRig = GetControlRig())
+	if(const UBaseControlRig* ControlRig = GetControlRig())
 	{
-		UControlRig* CDO = ControlRig->GetClass()->GetDefaultObject<UControlRig>();
+		UBaseControlRig* CDO = ControlRig->GetClass()->GetDefaultObject<UBaseControlRig>();
 		CDO->DynamicHierarchy->CopyHierarchy(RigBlueprint->Hierarchy);
 		RigBlueprint->UpdateElementKeyRedirector(CDO);
 	}
@@ -1258,9 +1258,9 @@ void FControlRigEditor::SaveAssetAs_Execute()
 
 	// Save the new state of the hierarchy in the default object, so that it has the correct values on load
 	UControlRigBlueprint* RigBlueprint = Cast<UControlRigBlueprint>(GetBlueprintObj());
-	if(const UControlRig* ControlRig = GetControlRig())
+	if(const UBaseControlRig* ControlRig = GetControlRig())
 	{
-		UControlRig* CDO = ControlRig->GetClass()->GetDefaultObject<UControlRig>();
+		UBaseControlRig* CDO = ControlRig->GetClass()->GetDefaultObject<UBaseControlRig>();
 		CDO->DynamicHierarchy->CopyHierarchy(RigBlueprint->Hierarchy);
 		RigBlueprint->UpdateElementKeyRedirector(CDO);
 	}
@@ -1347,7 +1347,7 @@ void FControlRigEditor::PostTransaction(bool bSuccess, const FTransaction* Trans
 			GetPersonaToolkit()->SetPreviewMesh(PreviewMesh, true);
 		}
 
-		if (UControlRig* DebuggedControlRig = Cast<UControlRig>(RigBlueprint->GetObjectBeingDebugged()))
+		if (UBaseControlRig* DebuggedControlRig = Cast<UBaseControlRig>(RigBlueprint->GetObjectBeingDebugged()))
 		{
 			if(URigHierarchy* Hierarchy = DebuggedControlRig->GetHierarchy())
 			{
@@ -1479,7 +1479,7 @@ void FControlRigEditor::HandleVMExecutedEvent(URigVMHost* InHost, const FName& I
 		}
 
 		// update transient controls on nodes / pins
-		if(UControlRig* DebuggedControlRig = Cast<UControlRig>(ControlRigBP->GetObjectBeingDebugged()))
+		if(UBaseControlRig* DebuggedControlRig = Cast<UBaseControlRig>(ControlRigBP->GetObjectBeingDebugged()))
 		{
 			if(!DebuggedControlRig->RigUnitManipulationInfos.IsEmpty())
 			{
@@ -1511,7 +1511,7 @@ void FControlRigEditor::HandleVMExecutedEvent(URigVMHost* InHost, const FName& I
 							}
 						}
 				
-						FRigUnit* UnitInstance = UControlRig::GetRigUnitInstanceFromScope(NodeInstance);
+						FRigUnit* UnitInstance = UBaseControlRig::GetRigUnitInstanceFromScope(NodeInstance);
 						UnitInstance->UpdateHierarchyForDirectManipulation(Node, NodeInstance, ExecuteContext, ManipulationInfo);
 						ManipulationInfo->bInitialized = true;
 						UnitInstance->PerformDebugDrawingForDirectManipulation(Node, NodeInstance, ExecuteContext, ManipulationInfo);
@@ -1536,14 +1536,14 @@ void FControlRigEditor::Tick(float DeltaTime)
 	// tick the control rig in case we don't have skeletal mesh
 	if (UControlRigBlueprint* Blueprint = GetControlRigBlueprint())
 	{
-		UControlRig* ControlRig = GetControlRig();
+		UBaseControlRig* ControlRig = GetControlRig();
 		if (Blueprint->GetPreviewMesh() == nullptr && 
 			ControlRig != nullptr && 
 			bExecutionControlRig)
 		{
 			{
 				// prevent transient controls from getting reset
-				UControlRig::FTransientControlPoseScope	PoseScope(ControlRig);
+				UBaseControlRig::FTransientControlPoseScope	PoseScope(ControlRig);
 				// reset transforms here to prevent additive transforms from accumulating to INF
 				ControlRig->GetHierarchy()->ResetPoseToInitial(ERigElementType::Bone);
 			}
@@ -2075,7 +2075,7 @@ void FControlRigEditor::OnToolbarDrawAxesOnSelectionChanged(ECheckBoxState InNew
 
 bool FControlRigEditor::IsToolbarDrawNullsEnabled() const
 {
-	if (const UControlRig* ControlRig = GetControlRig())
+	if (const UBaseControlRig* ControlRig = GetControlRig())
 	{
 		if (!ControlRig->IsConstructionModeEnabled())
 		{
@@ -2184,14 +2184,14 @@ void FControlRigEditor::UpdateRigVMHost()
 	{
 		UControlRigSkeletalMeshComponent* EditorSkelComp = Cast<UControlRigSkeletalMeshComponent>(GetPersonaToolkit()->GetPreviewScene()->GetPreviewMeshComponent());
 		UControlRigLayerInstance* AnimInstance = Cast<UControlRigLayerInstance>(EditorSkelComp->GetAnimInstance());
-		UControlRig* ControlRig = GetControlRig();
+		UBaseControlRig* ControlRig = GetControlRig();
 
 		if (AnimInstance && ControlRig)
 		{
  			PreviewInstance = Cast<UAnimPreviewInstance>(AnimInstance->GetSourceAnimInstance());
 			ControlRig->PreviewInstance = PreviewInstance;
 
-			if (UControlRig* CDO = Cast<UControlRig>(Class->GetDefaultObject()))
+			if (UBaseControlRig* CDO = Cast<UBaseControlRig>(Class->GetDefaultObject()))
 			{
 				CDO->ShapeLibraries = GetControlRigBlueprint()->ShapeLibraries;
 			}
@@ -2255,7 +2255,7 @@ void FControlRigEditor::CacheNameLists()
 			}
 
 			const TArray<TSoftObjectPtr<UControlRigShapeLibrary>>* ShapeLibraries = &ControlRigBP->ShapeLibraries;
-			if(const UControlRig* DebuggedControlRig = Hierarchy->GetTypedOuter<UControlRig>())
+			if(const UBaseControlRig* DebuggedControlRig = Hierarchy->GetTypedOuter<UBaseControlRig>())
 			{
 				ShapeLibraries = &DebuggedControlRig->GetShapeLibraries();
 			}
@@ -2275,7 +2275,7 @@ void FControlRigEditor::HandlePreviewMeshChanged(USkeletalMesh* InOldSkeletalMes
 			ControlRigBP->SetPreviewMesh(InNewSkeletalMesh);
 			UpdateRigVMHost();
 			
-			if(UControlRig* DebuggedControlRig = Cast<UControlRig>(GetBlueprintObj()->GetObjectBeingDebugged()))
+			if(UBaseControlRig* DebuggedControlRig = Cast<UBaseControlRig>(GetBlueprintObj()->GetObjectBeingDebugged()))
 			{
 				DebuggedControlRig->GetHierarchy()->Notify(ERigHierarchyNotification::HierarchyReset, nullptr);
 				DebuggedControlRig->Initialize(true);
@@ -2377,7 +2377,7 @@ void FControlRigEditor::FilterDraggedKeys(TArray<FRigElementKey>& Keys, bool bRe
 			}
 			else
 			{
-				if(const UControlRig* DebuggedControlRig = Cast<UControlRig>(ControlRigBlueprint->GetObjectBeingDebugged()))
+				if(const UBaseControlRig* DebuggedControlRig = Cast<UBaseControlRig>(ControlRigBlueprint->GetObjectBeingDebugged()))
 				{
 					if(!DebuggedControlRig->GetHierarchy()->Contains(Key))
 					{
@@ -2402,7 +2402,7 @@ FTransform FControlRigEditor::GetRigElementTransform(const FRigElementKey& InEle
 
 	if(bOnDebugInstance)
 	{
-		UControlRig* DebuggedControlRig = Cast<UControlRig>(GetBlueprintObj()->GetObjectBeingDebugged());
+		UBaseControlRig* DebuggedControlRig = Cast<UBaseControlRig>(GetBlueprintObj()->GetObjectBeingDebugged());
 		if (DebuggedControlRig == nullptr)
 		{
 			DebuggedControlRig = GetControlRig();
@@ -2781,12 +2781,12 @@ EVisibility FControlRigEditor::GetDirectManipulationVisibility() const
 
 FText FControlRigEditor::GetDirectionManipulationText() const
 {
-	if (UControlRig* DebuggedControlRig = Cast<UControlRig>(GetBlueprintObj()->GetObjectBeingDebugged()))
+	if (UBaseControlRig* DebuggedControlRig = Cast<UBaseControlRig>(GetBlueprintObj()->GetObjectBeingDebugged()))
 	{
 		TArray<FRigControlElement*> TransientControls = DebuggedControlRig->GetHierarchy()->GetTransientControls();
 		for(const FRigControlElement* TransientControl : TransientControls)
 		{
-			const FString Target = UControlRig::GetTargetFromTransientControl(TransientControl->GetKey());
+			const FString Target = UBaseControlRig::GetTargetFromTransientControl(TransientControl->GetKey());
 			if(!Target.IsEmpty())
 			{
 				return FText::FromString(Target);
@@ -2843,7 +2843,7 @@ const TArray<FRigDirectManipulationTarget> FControlRigEditor::GetDirectManipulat
 {
 	if(DirectManipulationSubject.IsValid())
 	{
-		if (UControlRig* DebuggedControlRig = Cast<UControlRig>(GetBlueprintObj()->GetObjectBeingDebugged()))
+		if (UBaseControlRig* DebuggedControlRig = Cast<UBaseControlRig>(GetBlueprintObj()->GetObjectBeingDebugged()))
 		{
 			if(const URigVMUnitNode* Node = DirectManipulationSubject.Get())
 			{
@@ -2852,7 +2852,7 @@ const TArray<FRigDirectManipulationTarget> FControlRigEditor::GetDirectManipulat
 					const TSharedPtr<FStructOnScope> NodeInstance = Node->ConstructLiveStructInstance(DebuggedControlRig);
 					if(NodeInstance.IsValid() && NodeInstance->IsValid())
 					{
-						if(const FRigUnit* UnitInstance = UControlRig::GetRigUnitInstanceFromScope(NodeInstance))
+						if(const FRigUnit* UnitInstance = UBaseControlRig::GetRigUnitInstanceFromScope(NodeInstance))
 						{
 							TArray<FRigDirectManipulationTarget> Targets;
 							if(UnitInstance->GetDirectManipulationTargets(Node, NodeInstance, DebuggedControlRig->GetHierarchy(), Targets, nullptr))
@@ -2908,7 +2908,7 @@ FText FControlRigEditor::GetConnectorWarningText() const
 	{
 		if(Blueprint->IsControlRigModule())
 		{
-			if(UControlRig* ControlRig = GetControlRig())
+			if(UBaseControlRig* ControlRig = GetControlRig())
 			{
 				FString FailureReason;
 				if(!ControlRig->AllConnectorsAreResolved(&FailureReason))
@@ -3269,7 +3269,7 @@ void FControlRigEditor::OnHierarchyModified_AnyThread(ERigHierarchyNotification 
 						else
 						{
 							// only clear the details if we are not looking at a transient control
-							if (UControlRig* DebuggedControlRig = Cast<UControlRig>(GetBlueprintObj()->GetObjectBeingDebugged()))
+							if (UBaseControlRig* DebuggedControlRig = Cast<UBaseControlRig>(GetBlueprintObj()->GetObjectBeingDebugged()))
 							{
 								if(DebuggedControlRig->RigUnitManipulationInfos.IsEmpty())
 								{
@@ -3387,7 +3387,7 @@ void FControlRigEditor::SynchronizeViewportBoneSelection()
 
 void FControlRigEditor::UpdateBoneModification(FName BoneName, const FTransform& LocalTransform)
 {
-	if (UControlRig* ControlRig = GetControlRig())
+	if (UBaseControlRig* ControlRig = GetControlRig())
 	{ 
 		if (PreviewInstance)
 		{ 
@@ -3401,7 +3401,7 @@ void FControlRigEditor::UpdateBoneModification(FName BoneName, const FTransform&
 		}
 		
 		TMap<FName, FTransform>* TransformOverrideMap = &ControlRig->TransformOverrideForUserCreatedBones;
-		if (UControlRig* DebuggedControlRig = Cast<UControlRig>(GetBlueprintObj()->GetObjectBeingDebugged()))
+		if (UBaseControlRig* DebuggedControlRig = Cast<UBaseControlRig>(GetBlueprintObj()->GetObjectBeingDebugged()))
 		{
 			TransformOverrideMap = &DebuggedControlRig->TransformOverrideForUserCreatedBones;
 		}
@@ -3415,7 +3415,7 @@ void FControlRigEditor::UpdateBoneModification(FName BoneName, const FTransform&
 
 void FControlRigEditor::RemoveBoneModification(FName BoneName)
 {
-	if (UControlRig* ControlRig = GetControlRig())
+	if (UBaseControlRig* ControlRig = GetControlRig())
 	{
 		if (PreviewInstance)
 		{
@@ -3423,7 +3423,7 @@ void FControlRigEditor::RemoveBoneModification(FName BoneName)
 		}
 
 		TMap<FName, FTransform>* TransformOverrideMap = &ControlRig->TransformOverrideForUserCreatedBones;
-		if (UControlRig* DebuggedControlRig = Cast<UControlRig>(GetBlueprintObj()->GetObjectBeingDebugged()))
+		if (UBaseControlRig* DebuggedControlRig = Cast<UBaseControlRig>(GetBlueprintObj()->GetObjectBeingDebugged()))
 		{
 			TransformOverrideMap = &DebuggedControlRig->TransformOverrideForUserCreatedBones;
 		}
@@ -3434,7 +3434,7 @@ void FControlRigEditor::RemoveBoneModification(FName BoneName)
 
 void FControlRigEditor::ResetAllBoneModification()
 {
-	if (UControlRig* ControlRig = GetControlRig())
+	if (UBaseControlRig* ControlRig = GetControlRig())
 	{
 		if (IsValid(PreviewInstance))
 		{
@@ -3442,7 +3442,7 @@ void FControlRigEditor::ResetAllBoneModification()
 		}
 
 		TMap<FName, FTransform>* TransformOverrideMap = &ControlRig->TransformOverrideForUserCreatedBones;
-		if (UControlRig* DebuggedControlRig = Cast<UControlRig>(GetBlueprintObj()->GetObjectBeingDebugged()))
+		if (UBaseControlRig* DebuggedControlRig = Cast<UBaseControlRig>(GetBlueprintObj()->GetObjectBeingDebugged()))
 		{
 			TransformOverrideMap = &DebuggedControlRig->TransformOverrideForUserCreatedBones;
 		}
@@ -4337,9 +4337,9 @@ void FControlRigEditor::HandleMakeElementGetterSetter(ERigElementGetterSetterTyp
 	}
 }
 
-void FControlRigEditor::HandleOnControlModified(UControlRig* Subject, FRigControlElement* ControlElement, const FRigControlModifiedContext& Context)
+void FControlRigEditor::HandleOnControlModified(UBaseControlRig* Subject, FRigControlElement* ControlElement, const FRigControlModifiedContext& Context)
 {
-	UControlRig* DebuggedControlRig = Cast<UControlRig>(GetBlueprintObj()->GetObjectBeingDebugged());
+	UBaseControlRig* DebuggedControlRig = Cast<UBaseControlRig>(GetBlueprintObj()->GetObjectBeingDebugged());
 	if (Subject != DebuggedControlRig)
 	{
 		return;
@@ -4356,8 +4356,8 @@ void FControlRigEditor::HandleOnControlModified(UControlRig* Subject, FRigContro
 	if (ControlElement->Settings.bIsTransientControl && !GIsTransacting)
 	{
 		const URigVMUnitNode* UnitNode = nullptr;
-		const FString NodeName = UControlRig::GetNodeNameFromTransientControl(ControlElement->GetKey());
-		const FString PoseTarget = UControlRig::GetTargetFromTransientControl(ControlElement->GetKey());
+		const FString NodeName = UBaseControlRig::GetNodeNameFromTransientControl(ControlElement->GetKey());
+		const FString PoseTarget = UBaseControlRig::GetTargetFromTransientControl(ControlElement->GetKey());
 		TSharedPtr<FStructOnScope> NodeInstance;
 		TSharedPtr<FRigDirectManipulationInfo> ManipulationInfo;
 
@@ -4440,7 +4440,7 @@ void FControlRigEditor::HandleOnControlModified(UControlRig* Subject, FRigContro
 		else
 		{
 			FRigControlValue ControlValue = Hierarchy->GetControlValue(ControlElement, ERigControlValueType::Current);
-			const FRigElementKey ElementKey = UControlRig::GetElementKeyFromTransientControl(ControlElement->GetKey());
+			const FRigElementKey ElementKey = UBaseControlRig::GetElementKeyFromTransientControl(ControlElement->GetKey());
 
 			if (ElementKey.Type == ERigElementType::Bone)
 			{
@@ -4517,7 +4517,7 @@ TSharedPtr<FUICommandList> FControlRigEditor::HandleOnViewportContextMenuCommand
 	return TSharedPtr<FUICommandList>();
 }
 
-void FControlRigEditor::OnPreForwardsSolve_AnyThread(UControlRig* InRig, const FName& InEventName)
+void FControlRigEditor::OnPreForwardsSolve_AnyThread(UBaseControlRig* InRig, const FName& InEventName)
 {
 	// if we are debugging a PIE instance, we need to remember the input pose on the
 	// rig so we can perform multiple evaluations. this is to avoid double transforms / double forward solve results.
@@ -4537,7 +4537,7 @@ void FControlRigEditor::OnPreForwardsSolve_AnyThread(UControlRig* InRig, const F
 	}
 }
 
-void FControlRigEditor::OnPreConstructionForUI_AnyThread(UControlRig* InRig, const FName& InEventName)
+void FControlRigEditor::OnPreConstructionForUI_AnyThread(UBaseControlRig* InRig, const FName& InEventName)
 {
 	bIsConstructionEventRunning = true;
 	const TArrayView<const FRigElementKey> Elements;
@@ -4552,7 +4552,7 @@ void FControlRigEditor::OnPreConstructionForUI_AnyThread(UControlRig* InRig, con
 	}
 }
 
-void FControlRigEditor::OnPreConstruction_AnyThread(UControlRig* InRig, const FName& InEventName)
+void FControlRigEditor::OnPreConstruction_AnyThread(UBaseControlRig* InRig, const FName& InEventName)
 {
 	if(UControlRigBlueprint* RigBlueprint = GetControlRigBlueprint())
 	{
@@ -4602,7 +4602,7 @@ void FControlRigEditor::OnPreConstruction_AnyThread(UControlRig* InRig, const FN
 	}
 }
 
-void FControlRigEditor::OnPostConstruction_AnyThread(UControlRig* InRig, const FName& InEventName)
+void FControlRigEditor::OnPostConstruction_AnyThread(UBaseControlRig* InRig, const FName& InEventName)
 {
 	bIsConstructionEventRunning = false;
 

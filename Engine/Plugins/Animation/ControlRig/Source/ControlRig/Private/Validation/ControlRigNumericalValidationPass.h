@@ -15,9 +15,9 @@ class CONTROLRIG_API UControlRigNumericalValidationPass : public UControlRigVali
 public:
 
 	// UControlRigValidationPass interface
-	virtual void OnSubjectChanged(UControlRig* InControlRig, FControlRigValidationContext* InContext) override;
-	virtual void OnInitialize(UControlRig* InControlRig, FControlRigValidationContext* InContext) override;
-	virtual void OnEvent(UControlRig* InControlRig, const FName& InEventName, FControlRigValidationContext* InContext) override;
+	virtual void OnSubjectChanged(UBaseControlRig* InControlRig, FControlRigValidationContext* InContext) override;
+	virtual void OnInitialize(UBaseControlRig* InControlRig, FControlRigValidationContext* InContext) override;
+	virtual void OnEvent(UBaseControlRig* InControlRig, const FName& InEventName, FControlRigValidationContext* InContext) override;
 
 	// If set to true the pass will validate the poses of all bones
 	UPROPERTY(EditAnywhere, Category = "Settings")

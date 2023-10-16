@@ -200,7 +200,7 @@ void UAnimGraphNode_ControlRig::CreateCustomPins(TArray<UEdGraphPin*>* OldPins)
 
 	if(const UClass* ControlRigClass = GetTargetClass())
 	{
-		if(UControlRig* CDO = ControlRigClass->GetDefaultObject<UControlRig>())
+		if(UBaseControlRig* CDO = ControlRigClass->GetDefaultObject<UBaseControlRig>())
 		{
 			if(const URigHierarchy* Hierarchy = CDO->GetHierarchy())
 			{
@@ -370,7 +370,7 @@ void UAnimGraphNode_ControlRig::RebuildExposedProperties()
 	// also add all of the controls
 	if(const UClass* TargetClass = GetTargetClass())
 	{
-		if(UControlRig* CDO = TargetClass->GetDefaultObject<UControlRig>())
+		if(UBaseControlRig* CDO = TargetClass->GetDefaultObject<UBaseControlRig>())
 		{
 			if(const URigHierarchy* Hierarchy = CDO->GetHierarchy())
 			{
@@ -400,7 +400,7 @@ FRigControlElement* UAnimGraphNode_ControlRig::FindControlElement(const FName& I
 {
 	if(const UClass* ControlRigClass = GetTargetClass())
 	{
-		if(UControlRig* CDO = ControlRigClass->GetDefaultObject<UControlRig>())
+		if(UBaseControlRig* CDO = ControlRigClass->GetDefaultObject<UBaseControlRig>())
 		{
 			if(const URigHierarchy* Hierarchy = CDO->GetHierarchy())
 			{
@@ -583,7 +583,7 @@ void UAnimGraphNode_ControlRig::GetVariables(bool bInput, TMap<FName, FRigVMExte
 		if (UControlRigBlueprint* RigBlueprint = Cast<UControlRigBlueprint>(TargetClass->ClassGeneratedBy))
 		{
 			//RigBlueprint->CleanupVariables();
-			UControlRig* ControlRig = TargetClass->GetDefaultObject<UControlRig>();
+			UBaseControlRig* ControlRig = TargetClass->GetDefaultObject<UBaseControlRig>();
 			if (ControlRig)
 			{
 				const TArray<FRigVMExternalVariable>& PublicVariables = ControlRig->GetPublicVariables();
@@ -636,7 +636,7 @@ void UAnimGraphNode_ControlRig::GetAvailableMapping(const FName& PathName, TArra
 		// also add all controls
 		if(const UClass* ControlRigClass = GetTargetClass())
 		{
-			if(UControlRig* CDO = ControlRigClass->GetDefaultObject<UControlRig>())
+			if(UBaseControlRig* CDO = ControlRigClass->GetDefaultObject<UBaseControlRig>())
 			{
 				if(const URigHierarchy* Hierarchy = CDO->GetHierarchy())
 				{
@@ -710,7 +710,7 @@ void UAnimGraphNode_ControlRig::CreateVariableMapping(const FString& FilteredTex
 		// add all controls
 		if(const UClass* ControlRigClass = GetTargetClass())
 		{
-			if(UControlRig* CDO = ControlRigClass->GetDefaultObject<UControlRig>())
+			if(UBaseControlRig* CDO = ControlRigClass->GetDefaultObject<UBaseControlRig>())
 			{
 				if(const URigHierarchy* Hierarchy = CDO->GetHierarchy())
 				{

@@ -157,7 +157,7 @@ void FControlRigEditModeGenericDetails::CustomizeDetails(class IDetailLayoutBuil
 				{
 					if (FControlRigEditMode* EditMode = static_cast<FControlRigEditMode*>(ModeTools->GetActiveMode(FControlRigEditMode::ModeName)))
 					{
-						UControlRig* ControlRig = Proxy->ControlRig.Get();
+						UBaseControlRig* ControlRig = Proxy->ControlRig.Get();
 						if (UObject* NestedProxy = EditMode->ControlProxy->FindProxy(ControlRig,ControlElement->GetFName()))
 						{
 							FName PropertyName(NAME_None);
@@ -379,7 +379,7 @@ SControlRigDetails::~SControlRigDetails()
 	//base class handles control rig related cleanup
 }
 
-void SControlRigDetails::HandleControlSelected(UControlRig* Subject, FRigControlElement* InControl, bool bSelected)
+void SControlRigDetails::HandleControlSelected(UBaseControlRig* Subject, FRigControlElement* InControl, bool bSelected)
 {
 	FControlRigBaseDockableView::HandleControlSelected(Subject, InControl, bSelected);
 	UpdateProxies();
@@ -420,7 +420,7 @@ void SControlRigDetails::UpdateProxies()
 		TArray<TWeakObjectPtr<>> IndividualBools;
 		TArray<TWeakObjectPtr<>> IndividualIntegers;
 		TArray<TWeakObjectPtr<>> IndividualEnums;
-		TArray<UControlRig*> ControlRigs = StrongThis->GetControlRigs();
+		TArray<UBaseControlRig*> ControlRigs = StrongThis->GetControlRigs();
 	
 		if (FControlRigEditMode* EditMode = static_cast<FControlRigEditMode*>(StrongThis->ModeTools->GetActiveMode(FControlRigEditMode::ModeName)))
 		{
@@ -662,7 +662,7 @@ bool SControlRigDetails::IsPropertyKeyable(const UClass* InObjectClass, const IP
 	{
 		if (UControlRigControlsProxy* Proxy = Cast< UControlRigControlsProxy>(OuterObjects[0]))
 		{
-			if(UControlRig* ControlRig = Proxy->ControlRig.Get())
+			if(UBaseControlRig* ControlRig = Proxy->ControlRig.Get())
 			{
 				const FRigElementKey Key = FRigElementKey(Proxy->ControlName, ERigElementType::Control);
 				if(const FRigControlElement* ControlElement = ControlRig->GetHierarchy()->Find<FRigControlElement>(Key))
