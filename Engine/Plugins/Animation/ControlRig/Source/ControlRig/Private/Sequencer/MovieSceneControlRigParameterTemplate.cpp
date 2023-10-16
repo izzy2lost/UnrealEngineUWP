@@ -692,7 +692,7 @@ void FControlRigBindingHelper::UnBindFromSequencerInstance(UBaseControlRig* Cont
 
 struct FControlRigSkeletalMeshComponentBindingTokenProducer : IMovieScenePreAnimatedTokenProducer
 {
-	FControlRigSkeletalMeshComponentBindingTokenProducer(FMovieSceneSequenceIDRef InSequenceID, UControlRig* InControlRig)
+	FControlRigSkeletalMeshComponentBindingTokenProducer(FMovieSceneSequenceIDRef InSequenceID, UBaseControlRig* InControlRig)
 		: SequenceID(InSequenceID), ControlRigUniqueID(InControlRig->GetUniqueID())
 	{}
 
