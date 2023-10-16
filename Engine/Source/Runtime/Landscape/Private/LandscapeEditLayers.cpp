@@ -185,7 +185,7 @@ TAutoConsoleVariable<int32> CVarLandscapeRemoveEmptyPaintLayersOnEdit(
 
 void OnLandscapeEditLayersLocalMergeChanged(IConsoleVariable* CVar)
 {
-	for (TObjectIterator<UWorld> It; It; ++It)
+	for (TObjectIterator<UWorld> It(/*AdditionalExclusionFlags = */RF_ClassDefaultObject, /*bIncludeDerivedClasses = */true, /*InInternalExclusionFlags = */EInternalObjectFlags::Garbage); It; ++It)
 	{
 		UWorld* CurrentWorld = *It;
 		if (!CurrentWorld->IsGameWorld())
@@ -240,7 +240,7 @@ private:
 	void ClearDirty()
 	{
 		bool bCleared = false;
-		for (TObjectIterator<UWorld> It; It; ++It)
+		for (TObjectIterator<UWorld> It(/*AdditionalExclusionFlags = */RF_ClassDefaultObject, /*bIncludeDerivedClasses = */true, /*InInternalExclusionFlags = */EInternalObjectFlags::Garbage); It; ++It)
 		{
 			UWorld* CurrentWorld = *It;
 			if (!CurrentWorld->IsGameWorld())
@@ -3575,7 +3575,7 @@ void ALandscape::InvalidateRVTForTextures(const TSet<UTexture2D*>& InTextures)
 		if (!PrimitiveComponentsToInvalidate.IsEmpty())
 		{
 			// Now invalidate the RVT regions that correspond to these components :
-			for (TObjectIterator<URuntimeVirtualTextureComponent> It; It; ++It)
+			for (TObjectIterator<URuntimeVirtualTextureComponent> It(/*AdditionalExclusionFlags = */RF_ClassDefaultObject, /*bIncludeDerivedClasses = */true, /*InInternalExclusionFlags = */EInternalObjectFlags::Garbage); It; ++It)
 			{
 				for (UPrimitiveComponent* PrimitiveComponent : PrimitiveComponentsToInvalidate)
 				{

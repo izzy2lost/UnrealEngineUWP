@@ -135,7 +135,7 @@ static void PrintNumLandscapeShadows()
 {
 	int32 NumComponents = 0;
 	int32 NumShadowCasters = 0;
-	for (TObjectIterator<ULandscapeComponent> It; It; ++It)
+	for (TObjectIterator<ULandscapeComponent> It(/*AdditionalExclusionFlags = */RF_ClassDefaultObject, /*bIncludeDerivedClasses = */true, /*InInternalExclusionFlags = */EInternalObjectFlags::Garbage); It; ++It)
 	{
 		ULandscapeComponent* LC = *It;
 		NumComponents++;

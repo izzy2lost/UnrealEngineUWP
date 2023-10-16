@@ -91,7 +91,7 @@ struct FLandscapeFixSplines
 	{
 		bool bFixed = false;
 
-		for (TObjectIterator<UWorld> It; It; ++It)
+		for (TObjectIterator<UWorld> It(/*AdditionalExclusionFlags = */RF_ClassDefaultObject, /*bIncludeDerivedClasses = */true, /*InInternalExclusionFlags = */EInternalObjectFlags::Garbage); It; ++It)
 		{
 			UWorld* CurrentWorld = *It;
 			if (!CurrentWorld->IsGameWorld())
