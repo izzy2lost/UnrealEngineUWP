@@ -15,6 +15,7 @@
 #include "DerivedDataCache.h"
 #include "DerivedDataCacheKey.h"
 #include "DerivedDataRequestOwner.h"
+#include "HAL/IConsoleManager.h"
 #include "Memory/CompositeBuffer.h"
 #endif // WITH_EDITOR
 
@@ -174,6 +175,24 @@ namespace UE::NNE
 	{
 		return MemoryAlignment;
 	}
+
+#if WITH_EDITOR
+	namespace ConsoleVariables
+	{
+		static TAutoConsoleVariable<bool> CVarNNEEditorUseDDC(
+			TEXT("nne.Editor.UseDDC"),
+			true,
+			TEXT("Indicates whether NNE wether NNE should use the DDC cache to speed up SharedModelData creation in the editor, see also nne.Editor.UseDDCForCooking."),
+			ECVF_Default);
+
+		static TAutoConsoleVariable<bool> CVarNNEEditorUseDDCForCooking(
+			TEXT("nne.Editor.UseDDCForCooking"),
+			false,
+			TEXT("Indicates whether NNE wether NNE should use the DDC cache to speed up SharedModelData creation while cooking, if nne.Editor.UseDDC is false cooking won't use the DDC even if nne.Editor.UseDDCForCooking is true."),
+			ECVF_Default);
+	} // ConsoleVariables
+#endif //WITH_EDITOR
+
 } // UE::NNE
 
 void UNNEModelData::GetAssetRegistryTags(TArray<FAssetRegistryTag>& OutTags) const
@@ -221,29 +240,44 @@ void UNNEModelData::Serialize(FArchive& Ar)
 
 				for (const FString& RuntimeName : CookRuntimeNames)
 				{
-					TSharedPtr<UE::NNE::FSharedModelData> CreatedData = UE::NNE::ModelData::CreateModelData(RuntimeName, FileType, FileData, FileId, Ar.GetArchiveState().CookingTarget());
-					if (CreatedData.IsValid() && CreatedData->GetView().Num() > 0)
-					{
-						ModelData.Add(RuntimeName, CreatedData);
+					TSharedPtr<UE::NNE::FSharedModelData> SharedModelData;
 #if WITH_EDITOR
-						TWeakInterfacePtr<INNERuntime> NNERuntime = UE::NNE::GetRuntime<INNERuntime>(RuntimeName);
-						if (NNERuntime.IsValid())
+					TWeakInterfacePtr<INNERuntime> NNERuntime = UE::NNE::GetRuntime<INNERuntime>(RuntimeName);
+					FString ModelDataIdentifier;
+					if (NNERuntime.IsValid())
+					{
+						ModelDataIdentifier = NNERuntime->GetModelDataIdentifier(FileType, FileData, FileId, Ar.GetArchiveState().CookingTarget());
+						if (ModelDataIdentifier.Len() > 0)
 						{
-							FString ModelDataIdentifier = NNERuntime->GetModelDataIdentifier(FileType, FileData, FileId, Ar.GetArchiveState().CookingTarget());
-							if (ModelDataIdentifier.Len() > 0)
+							if (UE::NNE::ConsoleVariables::CVarNNEEditorUseDDC.GetValueOnGameThread() &&
+								UE::NNE::ConsoleVariables::CVarNNEEditorUseDDCForCooking.GetValueOnGameThread())
 							{
-								UE::NNE::ModelData::PutIntoDDC(FileId, RuntimeName, ModelDataIdentifier, CreatedData);
-							}
-							else
-							{
-								UE_LOG(LogNNE, Warning, TEXT("UNNEModelData: Runtime '%s' returned an empty string as a ModelDataIdentifier while cooking. GetModelDataIdentifier should always return a valid identifier."), *RuntimeName);
+								SharedModelData = UE::NNE::ModelData::GetFromDDC(FileId, RuntimeName, ModelDataIdentifier);
 							}
 						}
 						else
 						{
-							UE_LOG(LogNNE, Warning, TEXT("UNNEModelData: Runtime '%s' is among the cooked runtimes but instance is invalid."), *RuntimeName);
+							UE_LOG(LogNNE, Warning, TEXT("UNNEModelData: Runtime '%s' returned an empty string as a ModelDataIdentifier while cooking. GetModelDataIdentifier should always return a valid identifier."), *RuntimeName);
+						}
+					}
+					else
+					{
+						UE_LOG(LogNNE, Warning, TEXT("UNNEModelData: Runtime '%s' is among the cooked runtimes but instance is invalid."), *RuntimeName);
+					}
+#endif //WITH_EDITOR
+					if (!SharedModelData.IsValid() || SharedModelData->GetView().Num() == 0)
+					{
+						SharedModelData = UE::NNE::ModelData::CreateModelData(RuntimeName, FileType, FileData, FileId, Ar.GetArchiveState().CookingTarget());
+#if WITH_EDITOR
+						if (SharedModelData.IsValid() && (SharedModelData->GetView().Num() > 0) && NNERuntime.IsValid() && (ModelDataIdentifier.Len() > 0))
+						{
+							UE::NNE::ModelData::PutIntoDDC(FileId, RuntimeName, ModelDataIdentifier, SharedModelData);
 						}
 #endif //WITH_EDITOR
+					}
+					if (SharedModelData.IsValid() && SharedModelData->GetView().Num() > 0)
+					{
+						ModelData.Add(RuntimeName, SharedModelData);
 					}
 				}
 			}
@@ -457,12 +491,15 @@ TSharedPtr<UE::NNE::FSharedModelData> UNNEModelData::GetModelData(const FString&
 		return TSharedPtr<UE::NNE::FSharedModelData>();
 	}
 
-	// Check if we have a DDC cache hit
-	TSharedPtr<UE::NNE::FSharedModelData> RemoteData = UE::NNE::ModelData::GetFromDDC(FileId, RuntimeName, ModelDataIdentifier);
-	if (RemoteData.IsValid() && RemoteData->GetView().Num() > 0)
+	if (UE::NNE::ConsoleVariables::CVarNNEEditorUseDDC.GetValueOnGameThread())
 	{
-		ModelData.Add(RuntimeName, RemoteData);
-		return RemoteData;
+		// Check if we have a DDC cache hit
+		TSharedPtr<UE::NNE::FSharedModelData> RemoteData = UE::NNE::ModelData::GetFromDDC(FileId, RuntimeName, ModelDataIdentifier);
+		if (RemoteData.IsValid() && RemoteData->GetView().Num() > 0)
+		{
+			ModelData.Add(RuntimeName, RemoteData);
+			return RemoteData;
+		}
 	}
 #endif //WITH_EDITOR
 

@@ -18,6 +18,7 @@ public class NNEEditor : ModuleRules
 		PrivateDependencyModuleNames.AddRange(
 			new string[]
 			{
+				"DeveloperSettings",
 				"Slate",
 				"SlateCore",
 				"UnrealEd",
