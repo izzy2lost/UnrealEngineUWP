@@ -65,7 +65,10 @@ namespace EpicGames.Horde.Tests
 			TextNode node = new TextNode("Hello world");
 			BundleNodeHandle handle = await writer.FlushAsync(node, CancellationToken.None);
 
-			return await store.ReadBundleAsync(handle.GetLocator().Blob);
+			BlobHandle bundleHandle = store.CreateBlobHandle(handle.GetLocator().Blob);
+			using BlobData blobData = await bundleHandle.ReadAsync();
+
+			return Bundle.FromMemory(blobData.Data.ToArray());
 		}
 
 		static Bundle CreateBundleManually()

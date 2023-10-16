@@ -14,58 +14,6 @@ using Microsoft.Extensions.Logging;
 namespace EpicGames.Horde.Storage.Clients
 {
 	/// <summary>
-	/// Extension methods for reading bundles
-	/// </summary>
-	public static class BundleStorageClientExtensions
-	{
-		/// <summary>
-		/// Reads an entire bundle into memory
-		/// </summary>
-		/// <param name="handle">Handle to read from</param>
-		/// <param name="cancellationToken">Cancellation token for the operation</param>
-		/// <returns>Bundle that was read</returns>
-		public static async Task<Bundle> ReadBundleAsync(this BlobHandle handle, CancellationToken cancellationToken = default)
-		{
-			using Stream stream = await handle.OpenAsync(cancellationToken: cancellationToken);
-			return await Bundle.FromStreamAsync(stream, cancellationToken);
-		}
-
-		/// <summary>
-		/// Reads an entire bundle into memory
-		/// </summary>
-		/// <param name="storageClient">Storage client</param>
-		/// <param name="locator">Locator for the bundle</param>
-		/// <param name="cancellationToken">Cancellation token for the operation</param>
-		/// <returns>Bundle that was read</returns>
-		public static async Task<Bundle> ReadBundleAsync(this IStorageClient storageClient, BlobLocator locator, CancellationToken cancellationToken = default)
-		{
-			BlobHandle handle = storageClient.CreateBlobHandle(locator);
-			using Stream stream = await handle.OpenAsync(cancellationToken: cancellationToken);
-			return await Bundle.FromStreamAsync(stream, cancellationToken);
-		}
-
-		/// <summary>
-		/// Writes an entire bundle to a storage client
-		/// </summary>
-		/// <param name="storageClient">Storage client</param>
-		/// <param name="bundle">Bundle to write</param>
-		/// <param name="basePath">Prefix for the uploaded data</param>
-		/// <param name="cancellationToken">Cancellation token for the operation</param>
-		/// <returns>Locator for reading the bundle back in</returns>
-		public static async Task<BlobHandle> WriteBundleAsync(this IStorageClient storageClient, Bundle bundle, string? basePath = null, CancellationToken cancellationToken = default)
-		{
-			BlobHandle[] imports = new BlobHandle[bundle.Header.Imports.Count];
-			for (int idx = 0; idx < bundle.Header.Imports.Count; idx++)
-			{
-				imports[idx] = storageClient.CreateBlobHandle(new BlobLocator(bundle.Header.Imports[idx].Path));
-			}
-
-			using ReadOnlySequenceStream stream = new ReadOnlySequenceStream(bundle.AsSequence());
-			return await storageClient.WriteBlobAsync(BundleStorageClient.BundleBlobType, stream, imports, basePath, cancellationToken);
-		}
-	}
-
-	/// <summary>
 	/// Base class for an implementation of <see cref="IStorageClient"/>, providing implementations for some common functionality using bundles.
 	/// </summary>
 	public abstract class BundleStorageClient : IStorageClient

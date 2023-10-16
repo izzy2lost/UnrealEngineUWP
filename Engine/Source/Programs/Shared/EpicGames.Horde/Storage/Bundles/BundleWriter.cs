@@ -474,7 +474,21 @@ namespace EpicGames.Horde.Storage.Bundles
 				try
 				{
 					Bundle bundle = CreateBundle();
-					BlobLocator locator = await store.WriteBundleAsync(bundle, basePath).GetLocatorAsync();
+
+					// Write the bundle to storage
+					BlobHandle[] imports = new BlobHandle[bundle.Header.Imports.Count];
+					for (int idx = 0; idx < bundle.Header.Imports.Count; idx++)
+					{
+						imports[idx] = store.CreateBlobHandle(new BlobLocator(bundle.Header.Imports[idx].Path));
+					}
+
+					BlobHandle handle;
+					using (ReadOnlySequenceStream stream = new ReadOnlySequenceStream(bundle.AsSequence()))
+					{
+						handle = await store.WriteBlobAsync(BundleStorageClient.BundleBlobType, stream, imports, basePath);
+					}
+
+					BlobLocator locator = handle.GetLocator();
 					traceLogger?.LogInformation("Written bundle {BundleId} as {Locator}", BundleId, locator);
 
 					for (int idx = 0; idx < _queue.Count; idx++)

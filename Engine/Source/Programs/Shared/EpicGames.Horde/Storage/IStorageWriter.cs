@@ -50,7 +50,7 @@ namespace EpicGames.Horde.Storage
 		Memory<byte> GetOutputBuffer(int usedSize, int desiredSize);
 
 		/// <summary>
-		/// Finish writing a node.
+		/// Finish writing a blob that has been written into the output buffer.
 		/// </summary>
 		/// <param name="type">Type of the node that was written</param>
 		/// <param name="size">Used size of the buffer</param>
