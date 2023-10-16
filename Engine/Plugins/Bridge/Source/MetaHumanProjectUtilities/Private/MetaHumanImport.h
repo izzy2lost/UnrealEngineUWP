@@ -10,7 +10,7 @@ struct FMetaHumanAssetImportDescription;
 /**
  * 
  */
-class MEGASCANSPLUGIN_API FMetaHumanImport
+class METAHUMANPROJECTUTILITIES_API FMetaHumanImport
 {
 public:
 	void ImportAsset(const FMetaHumanAssetImportDescription& AssetImportDescription);

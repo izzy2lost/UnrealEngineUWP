@@ -8,7 +8,7 @@
  *
  */
 UCLASS(Config = Bridge)
-class MEGASCANSPLUGIN_API UMetaHumanProjectUtilitiesSettings : public UObject
+class METAHUMANPROJECTUTILITIES_API UMetaHumanProjectUtilitiesSettings : public UObject
 {
 	GENERATED_BODY()
 
