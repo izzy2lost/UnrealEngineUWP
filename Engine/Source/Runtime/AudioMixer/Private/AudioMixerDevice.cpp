@@ -99,7 +99,7 @@ FAutoConsoleVariableRef CVarDebugGeneratorFreq(
 	TEXT("0: Not Disabled, 1: SinTone, 2: WhiteNoise"),
 	ECVF_Default);
 
-static int32 AudioMixerPatchBufferBlocks = 2;
+static int32 AudioMixerPatchBufferBlocks = 3;
 FAutoConsoleVariableRef CVarAudioMixerPatchBufferBlocks(
 	TEXT("au.PatchBufferBlocks"),
 	AudioMixerPatchBufferBlocks,

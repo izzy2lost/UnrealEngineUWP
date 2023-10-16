@@ -278,8 +278,9 @@ namespace Metasound
 				Buffer->Zero();
 			}
 			
-			const int32 BlockSizeFrames = InParams.OperatorSettings.GetNumFramesPerBlock();
-			CreatePatchOutput(BlockSizeFrames);
+			// Wait until Execute to connect the AudioBusPatchOutput.
+			// Otherwise the mixer will start filling the patch before the MetaSound starts.
+			AudioBusPatchOutput.Reset();
 		}
 
 	private:

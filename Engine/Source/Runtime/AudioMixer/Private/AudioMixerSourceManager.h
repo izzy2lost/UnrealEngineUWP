@@ -310,6 +310,16 @@ namespace Audio
 		// Pushes a TFUnction command into an MPSC queue from an arbitrary thread to the audio render thread
 		void AudioMixerThreadMPSCCommand(TFunction<void()>&& InCommand, const char* InDebugString=nullptr);
 		
+		void AddPendingAudioBusConnection(FAudioBusKey AudioBusKey, int32 NumChannels, bool bIsAutomatic, FPatchInput PatchInput)
+		{
+			PendingAudioBusConnections.Enqueue(FPendingAudioBusConnection{ FPendingAudioBusConnection::FPatchVariant(TInPlaceType<FPatchInput>(), MoveTemp(PatchInput)), MoveTemp(AudioBusKey), NumChannels, bIsAutomatic });
+		}
+
+		void AddPendingAudioBusConnection(FAudioBusKey AudioBusKey, int32 NumChannels, bool bIsAutomatic, FPatchOutputStrongPtr PatchOutputStrongPtr)
+		{
+			PendingAudioBusConnections.Enqueue(FPendingAudioBusConnection{ FPendingAudioBusConnection::FPatchVariant(TInPlaceType<FPatchOutputStrongPtr>(), MoveTemp(PatchOutputStrongPtr)), MoveTemp(AudioBusKey), NumChannels, bIsAutomatic });
+		}
+
 	private:
 #define INVALID_AUDIO_RENDER_THREAD_ID static_cast<uint32>(-1)
 		uint32 AudioRenderThreadId = INVALID_AUDIO_RENDER_THREAD_ID;
@@ -325,6 +335,7 @@ namespace Audio
 		void ComputePostSourceEffectBufferForIdRange(const bool bGenerateBuses, const int32 SourceIdStart, const int32 SourceIdEnd);
 		void ComputeOutputBuffersForIdRange(const bool bGenerateBuses, const int32 SourceIdStart, const int32 SourceIdEnd);
 
+		void ConnectBusPatches();
 		void ComputeBuses();
 		void UpdateBuses();
 
@@ -644,6 +655,17 @@ namespace Audio
 		std::atomic<ESourceManagerRenderThreadPhase> RenderThreadPhase=ESourceManagerRenderThreadPhase::Begin;
 		FRWLock CurrentlyExecutingCmdLock;						// R/W slim lock for the currently executing cmd, so we can safely query it.
 		FAudioMixerThreadCommand CurrentlyExecuteingCmd;		// Keep this as a member so we can't always peek the executing cmd.
+
+		struct FPendingAudioBusConnection
+		{
+			using FPatchVariant = TVariant<FPatchInput, FPatchOutputStrongPtr>;
+			FPatchVariant PatchVariant;
+			FAudioBusKey AudioBusKey;
+			int32 NumChannels = 0;
+			bool bIsAutomatic = false;
+		};
+
+		TMpscQueue<FPendingAudioBusConnection> PendingAudioBusConnections;
 
 		friend class FMixerSourceVoice;
 	};

@@ -2317,10 +2317,47 @@ namespace Audio
 		}
 	}
 
+	void FMixerSourceManager::ConnectBusPatches()
+	{
+		while (TOptional<FPendingAudioBusConnection> PendingAudioBusConnection = PendingAudioBusConnections.Dequeue())
+		{
+			FAudioBusKey& AudioBusKey = PendingAudioBusConnection->AudioBusKey;
+			int32 NumChannels = PendingAudioBusConnection->NumChannels;
+			bool bIsAutomatic = PendingAudioBusConnection->bIsAutomatic;
+
+			// If this audio bus id already exists, set it to not be automatic and return it
+			TSharedPtr<FMixerAudioBus> AudioBusPtr = AudioBuses.FindRef(AudioBusKey);
+			if (AudioBusPtr.IsValid())
+			{
+				// If this audio bus already existed, make sure the num channels lines up
+				ensure(AudioBusPtr->GetNumChannels() == NumChannels);
+				AudioBusPtr->SetAutomatic(bIsAutomatic);
+			}
+			else
+			{
+				// If the bus is not registered, make a new entry.
+				AudioBusPtr = TSharedPtr<FMixerAudioBus>(new FMixerAudioBus(this, bIsAutomatic, NumChannels));
+				AudioBuses.Add(AudioBusKey, AudioBusPtr);
+			}
+
+			switch (PendingAudioBusConnection->PatchVariant.GetIndex())
+			{
+			case FPendingAudioBusConnection::FPatchVariant::IndexOfType<FPatchInput>():
+				AudioBusPtr->AddNewPatchInput(PendingAudioBusConnection->PatchVariant.Get<FPatchInput>());
+				break;
+			case FPendingAudioBusConnection::FPatchVariant::IndexOfType<FPatchOutputStrongPtr>():
+				AudioBusPtr->AddNewPatchOutput(PendingAudioBusConnection->PatchVariant.Get<FPatchOutputStrongPtr>());
+				break;
+			}
+		}
+	}
+
 	void FMixerSourceManager::ComputeBuses()
 	{
 		RenderThreadPhase = ESourceManagerRenderThreadPhase::ComputeBusses;
-		
+
+		ConnectBusPatches();
+
 		// Loop through the bus registry and mix source audio
 		for (auto& Entry : AudioBuses)
 		{
