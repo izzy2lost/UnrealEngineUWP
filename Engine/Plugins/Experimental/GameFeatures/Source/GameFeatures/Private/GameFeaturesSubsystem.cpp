@@ -2162,6 +2162,42 @@ bool UGameFeaturesSubsystem::FindOrCreatePluginDependencyStateMachines(const FSt
 
 bool UGameFeaturesSubsystem::FindPluginDependencyStateMachinesToActivate(const FString& PluginURL, const FString& PluginFilename, TArray<UGameFeaturePluginStateMachine*>& OutDependencyMachines) const
 {
+	return EnumeratePluginDependenciesWithShouldActivate(PluginURL, PluginFilename, [this, &OutDependencyMachines](const FString& DependencyName, const FString& DependencyURL) {
+		UGameFeaturePluginStateMachine* Dependency = FindGameFeaturePluginStateMachine(DependencyURL);
+		if (Dependency)
+		{
+			OutDependencyMachines.Add(Dependency);
+			return true;
+		}
+		//Expect to find all valid dependencies and activate them, so error if not found
+		else
+		{
+			UE_LOG(LogGameFeatures, Error, TEXT("FindPluginDependencyStateMachinesToActivate failed to find plugin state machine for %s using URL %s"), *DependencyName, *DependencyURL);
+			return false;
+		}
+	});
+}
+
+bool UGameFeaturesSubsystem::FindPluginDependencyStateMachinesToDeactivate(const FString& PluginURL, const FString& PluginFilename, TArray<UGameFeaturePluginStateMachine*>& OutDependencyMachines) const
+{
+	return EnumeratePluginDependenciesWithShouldActivate(PluginURL, PluginFilename, [this, &OutDependencyMachines](const FString& DependencyName, const FString& DependencyURL) {
+		UGameFeaturePluginStateMachine* Dependency = FindGameFeaturePluginStateMachine(DependencyURL);
+		if (Dependency)
+		{
+			OutDependencyMachines.Add(Dependency);
+		}
+		else
+		{
+			// Depenedency may have been fully terminated which is considered deactivated already.
+			UE_LOG(LogGameFeatures, Log, TEXT("FindPluginDependencyStateMachinesToDeactivate unable to find plugin state machine for %s using URL %s"), *DependencyName, *DependencyURL);
+		}
+		return true;
+	});
+}
+
+template <typename CallableT>
+bool UGameFeaturesSubsystem::EnumeratePluginDependenciesWithShouldActivate(const FString& PluginURL, const FString& PluginFilename, CallableT Callable) const
+{
 	FGameFeaturePluginDetails Details;
 	if (GetGameFeaturePluginDetailsInternal(PluginFilename, Details))
 	{
@@ -2178,31 +2214,25 @@ bool UGameFeaturesSubsystem::FindPluginDependencyStateMachinesToActivate(const F
 				}
 
 				const FString& DependencyURL = DependencyURLInfo.GetValue();
-				
+
 				// Dependency may not be a GFP and so will have an empty URL but not have an error
 				if (DependencyURL.IsEmpty())
 				{
 					continue;
 				}
 
-				UGameFeaturePluginStateMachine* Dependency = FindGameFeaturePluginStateMachine(DependencyURL);
-				if (Dependency)
+				if (!Callable(DependencyName, DependencyURL))
 				{
-					OutDependencyMachines.Add(Dependency);
-				}
-				//Expect to find all valid dependencies and activate them, so error if not found
-				else
-				{
-					UE_LOG(LogGameFeatures, Error, TEXT("FindPluginDependencyStateMachinesToActivate failed to find plugin state machine for %s using URL %s"), *DependencyName, *DependencyURL);
 					return false;
 				}
 			}
 		}
-
 		return true;
 	}
-
-	return false;
+	else
+	{
+		return false;
+	}
 }
 
 void UGameFeaturesSubsystem::ListGameFeaturePlugins(const TArray<FString>& Args, UWorld* InWorld, FOutputDevice& Ar)

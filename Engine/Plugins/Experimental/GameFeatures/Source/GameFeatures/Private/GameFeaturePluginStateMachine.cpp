@@ -2794,6 +2794,57 @@ struct FGameFeaturePluginState_Loaded : public FDestinationGameFeaturePluginStat
 	}
 };
 
+struct FGameFeaturePluginState_ErrorDeactivatingDependencies : public FErrorGameFeaturePluginState
+{
+	FGameFeaturePluginState_ErrorDeactivatingDependencies(FGameFeaturePluginStateMachineProperties& InStateProperties) : FErrorGameFeaturePluginState(InStateProperties) {}
+
+	virtual void UpdateState(FGameFeaturePluginStateStatus& StateStatus) override
+	{
+		if (StateProperties.Destination < EGameFeaturePluginState::ErrorDeactivatingDependencies)
+		{
+			StateStatus.SetTransition(EGameFeaturePluginState::DeactivatingDependencies);
+		}
+		else if (StateProperties.Destination > EGameFeaturePluginState::ErrorDeactivatingDependencies)
+		{
+			StateStatus.SetTransition(EGameFeaturePluginState::DeactivatingDependencies);
+		}
+	}
+};
+
+struct FDeactivatingDependenciesTransitionPolicy
+{
+	static bool GetPluginDependencyStateMachines(const FGameFeaturePluginStateMachineProperties& InStateProperties, TArray<UGameFeaturePluginStateMachine*>& OutDependencyMachines)
+	{
+		UGameFeaturesSubsystem& GameFeaturesSubsystem = UGameFeaturesSubsystem::Get();
+
+		return GameFeaturesSubsystem.FindPluginDependencyStateMachinesToDeactivate(
+			*InStateProperties.PluginIdentifier.GetFullPluginURL(), InStateProperties.PluginInstalledFilename, OutDependencyMachines);
+	}
+
+	static FGameFeaturePluginStateRange GetDependencyStateRange()
+	{
+		return FGameFeaturePluginStateRange(EGameFeaturePluginState::Terminal, EGameFeaturePluginState::Loaded);
+	}
+
+	static EGameFeaturePluginState GetTransitionState()
+	{
+		return EGameFeaturePluginState::Deactivating;
+	}
+
+	static EGameFeaturePluginState GetErrorState()
+	{
+		return EGameFeaturePluginState::ErrorDeactivatingDependencies;
+	}
+};
+
+struct FGameFeaturePluginState_DeactivatingDependencies : public FTransitionDependenciesGameFeaturePluginState<FDeactivatingDependenciesTransitionPolicy>
+{
+	FGameFeaturePluginState_DeactivatingDependencies(FGameFeaturePluginStateMachineProperties& InStateProperties)
+		: FTransitionDependenciesGameFeaturePluginState(InStateProperties)
+	{
+	}
+};
+
 struct FGameFeaturePluginState_Deactivating : public FGameFeaturePluginState
 {
 	FGameFeaturePluginState_Deactivating(FGameFeaturePluginStateMachineProperties& InStateProperties) : FGameFeaturePluginState(InStateProperties) {}
@@ -2978,7 +3029,7 @@ struct FGameFeaturePluginState_Active : public FDestinationGameFeaturePluginStat
 	{
 		if (StateProperties.Destination < EGameFeaturePluginState::Active)
 		{
-			StateStatus.SetTransition(EGameFeaturePluginState::Deactivating);
+			StateStatus.SetTransition(EGameFeaturePluginState::DeactivatingDependencies);
 		}
 	}
 };
