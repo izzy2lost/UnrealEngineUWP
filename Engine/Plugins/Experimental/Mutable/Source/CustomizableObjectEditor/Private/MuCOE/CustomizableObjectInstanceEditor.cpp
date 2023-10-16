@@ -718,6 +718,8 @@ void FCustomizableObjectInstanceEditor::OnInstancePropertySelectionChanged(FProp
 
 void FCustomizableObjectInstanceEditor::OnUpdatePreviewInstance()
 {
+	check(CustomizableObjectInstance)
+
 	Viewport->GetViewportClient()->Invalidate();
 
 	UpdatePreviewVisibility();
@@ -740,11 +742,9 @@ void FCustomizableObjectInstanceEditor::OnUpdatePreviewInstance()
 		Viewport->SetPreviewComponents(ObjectPtrDecay(PreviewSkeletalMeshComponents));
 	}
 
-	if (!CustomizableObjectInstance)
-	{
-		return;
-	}
-	
+	// Sets which UV material to draw
+	Viewport->SetDrawDefaultUVMaterial(false);
+
 	if (TextureAnalyzer.IsValid())
 	{
 		TextureAnalyzer.Get()->RefreshTextureAnalyzerTable(CustomizableObjectInstance);

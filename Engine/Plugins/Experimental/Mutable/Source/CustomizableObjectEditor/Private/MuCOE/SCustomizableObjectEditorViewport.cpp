@@ -545,6 +545,7 @@ void SCustomizableObjectEditorViewportTabBody::SetDrawDefaultUVMaterial(bool bIs
 			}
 		}
 
+		// If the CO is recompiled or couldn't find the last used materia, draw the first material
 		if (bIsCompilation || !bMaterialFound)
 		{
 			LevelViewportClient->SetDrawUVOverlayMaterial(*(ArrayUVMaterialOptionString[0]), "0");
@@ -558,9 +559,30 @@ void SCustomizableObjectEditorViewportTabBody::SetDrawDefaultUVMaterial(bool bIs
 
 	GenerateUVChannelOptions();
 
-	if (!ArrayUVChannelOptionString.IsEmpty() && (bIsCompilation || !bMaterialFound))
+	if (!ArrayUVChannelOptionString.IsEmpty())
 	{
-		SelectedUVChannel = ArrayUVChannelOptionString[0];
+		bool bUVChannelFound = false;
+
+		if (!bIsCompilation && SelectedUVChannel.IsValid())
+		{
+			// We check if the selected Material still exists after the update
+			FString UVChannel = *SelectedUVChannel;
+
+			for (int32 MaterialIndex = 0; MaterialIndex < ArrayUVChannelOptionString.Num(); ++MaterialIndex)
+			{
+				if (UVChannel == *ArrayUVChannelOptionString[MaterialIndex])
+				{
+					bUVChannelFound = true;
+					break;
+				}
+			}
+		}
+
+		// If the CO is recompiled or couldn't find the last used materia, draw the UV channel 0
+		if (bIsCompilation || !bMaterialFound || !bUVChannelFound)
+		{
+			SelectedUVChannel = ArrayUVChannelOptionString[0];
+		}
 	}
 	else
 	{
