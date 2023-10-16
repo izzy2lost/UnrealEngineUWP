@@ -4128,8 +4128,30 @@ FConfigFile* FConfigCacheIni::FindOrLoadPlatformConfig(FConfigFile& LocalFile, c
 	FConfigFile* File = FindPlatformConfig(IniName, Platform);
 	if (File == nullptr)
 	{
-		FConfigContext Context = FConfigContext::ReadIntoLocalFile(LocalFile, Platform);
-		Context.Load(IniName);
+#if ALLOW_OTHER_PLATFORM_CONFIG
+		// Check if this ini file corresponds to a plugin
+		FConfigPluginDirs* PluginDirs = nullptr;
+		{
+			FScopeLock Lock(&FConfigContext::ConfigToPluginDirsLock);
+			TUniquePtr<FConfigPluginDirs>* PluginDirsPtr = FConfigContext::ConfigToPluginDirs.Find(IniName);
+			if (PluginDirsPtr != nullptr)
+			{
+				// we never remove the item so the raw pointer will not become invalid
+				PluginDirs = PluginDirsPtr->Get();
+			}
+		}
+		if (PluginDirs != nullptr)
+		{
+			// If so, read using the plugin hierarchy
+			FConfigContext Context = FConfigContext::ReadIntoPluginFile(LocalFile, *PluginDirs->PluginPath, PluginDirs->PluginExtensionBaseDirs, Platform);
+			Context.Load(IniName);
+		}
+		else
+#endif
+		{
+			FConfigContext Context = FConfigContext::ReadIntoLocalFile(LocalFile, Platform);
+			Context.Load(IniName);
+		}
 		File = &LocalFile;
 	}
 

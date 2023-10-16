@@ -487,15 +487,17 @@ const TArray<const FDataDrivenPlatformInfo*>& FDataDrivenPlatformInfoRegistry::G
 	return PlatformType == EPlatformInfoType::AllPlatformInfos ? AllSortedPlatformInfos : SortedPlatformInfos;
 }
 
-
-const TArray<FString>& FDataDrivenPlatformInfoRegistry::GetValidPlatformDirectoryNames()
+const TArray<FString>& FDataDrivenPlatformInfoRegistry::GetPlatformDirectoryNames(bool bCheckValid)
 {
-	static bool bHasSearchedForPlatforms = false;
-	static TArray<FString> ValidPlatformDirectories;
+	static bool bHasSearchedForPlatforms[2] = { false, false };
+	static TArray<FString> PlatformDirectories[2];
 
-	if (bHasSearchedForPlatforms == false)
+	// Which PlatformDirectories cache to use
+	int32 CacheIndex = bCheckValid ? 1 : 0;
+
+	if (bHasSearchedForPlatforms[CacheIndex] == false)
 	{
-		bHasSearchedForPlatforms = true;
+		bHasSearchedForPlatforms[CacheIndex] = true;
 
 		// look for possible platforms
 		const TMap<FName, FDataDrivenPlatformInfo>& Infos = GetAllPlatformInfos();
@@ -503,26 +505,25 @@ const TArray<FString>& FDataDrivenPlatformInfoRegistry::GetValidPlatformDirector
 		{
 #if DDPI_HAS_EXTENDED_PLATFORMINFO_DATA
 			// if the editor hasn't compiled in support for the platform, it's not "valid"
-			if (!HasCompiledSupportForPlatform(Pair.Key, EPlatformNameType::Ini))
+			if (bCheckValid && !HasCompiledSupportForPlatform(Pair.Key, EPlatformNameType::Ini))
 			{
 				continue;
 			}
 #endif
 
 			// add ourself as valid
-			ValidPlatformDirectories.AddUnique(Pair.Key.ToString());
+			PlatformDirectories[CacheIndex].AddUnique(Pair.Key.ToString());
 
 			// now add additional directories
 			for (FString& AdditionalDir : Pair.Value.AdditionalRestrictedFolders)
 			{
-				ValidPlatformDirectories.AddUnique(AdditionalDir);
+				PlatformDirectories[CacheIndex].AddUnique(AdditionalDir);
 			}
 		}
 	}
 
-	return ValidPlatformDirectories;
+	return PlatformDirectories[CacheIndex];
 }
-
 
 const FDataDrivenPlatformInfo& FDataDrivenPlatformInfoRegistry::GetPlatformInfo(FName PlatformName)
 {

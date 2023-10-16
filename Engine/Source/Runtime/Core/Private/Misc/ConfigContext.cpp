@@ -23,6 +23,10 @@ namespace
 	const TCHAR* SaveAllSectionsKey = TEXT("bCanSaveAllSections");
 }
 
+#if ALLOW_OTHER_PLATFORM_CONFIG
+TMap<FString, TUniquePtr<FConfigPluginDirs>> FConfigContext::ConfigToPluginDirs;
+FCriticalSection FConfigContext::ConfigToPluginDirsLock;
+#endif
 
 FConfigContext::FConfigContext(FConfigCacheIni* InConfigSystem, bool InIsHierarchicalConfig, const FString& InPlatform, FConfigFile* DestConfigFile)
 	: ConfigSystem(InConfigSystem)
@@ -177,7 +181,18 @@ bool FConfigContext::Load(const TCHAR* InBaseIniName, FString& OutFinalFilename)
 	}
 
 	// now load if we need (PrepareForLoad may find an existing file and just use it)
-	return bPerformLoad ? PerformLoad() : true;
+	bool bSuccess = bPerformLoad ? PerformLoad() : true;
+
+#if ALLOW_OTHER_PLATFORM_CONFIG
+	if (bSuccess && bIsForPlugin && Platform == FPlatformProperties::IniPlatformName())
+	{
+		// We have successfuly loaded a plugin ini file for the main platform. Cache the plugin info in case we want to load this ForPlatform.	
+		FScopeLock Lock(&FConfigContext::ConfigToPluginDirsLock);
+		FConfigContext::ConfigToPluginDirs.Add(InBaseIniName, TUniquePtr<FConfigPluginDirs>(new FConfigPluginDirs(PluginRootDir, ChildPluginBaseDirs)));
+	}
+#endif
+
+	return bSuccess;
 }
 
 bool FConfigContext::Load(const TCHAR* InBaseIniName)

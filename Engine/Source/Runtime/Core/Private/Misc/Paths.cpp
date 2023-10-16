@@ -357,31 +357,31 @@ static void AddIfDirectoryExists(TArray<FString>& ExtensionDirs, FString&& Dir)
 	}
 }
 
-static void GetExtensionDirsInternal(TArray<FString>& ExtensionDirs, const FString& BaseDir, const FString& SubDir)
+static void GetExtensionDirsInternal(TArray<FString>& ExtensionDirs, const FString& BaseDir, const FString& SubDir, bool bCheckValid)
 {
 	AddIfDirectoryExists(ExtensionDirs, FPaths::Combine(BaseDir, SubDir));
 
 	FString PlatformExtensionBaseDir = FPaths::Combine(BaseDir, TEXT("Platforms"));
-	for (const FString& PlatformName : FDataDrivenPlatformInfoRegistry::GetValidPlatformDirectoryNames())
+	for (const FString& PlatformName : FDataDrivenPlatformInfoRegistry::GetPlatformDirectoryNames(bCheckValid))
 	{
 		AddIfDirectoryExists(ExtensionDirs, FPaths::Combine(PlatformExtensionBaseDir, PlatformName, SubDir));
 	}
 
 	FString RestrictedBaseDir = FPaths::Combine(BaseDir, TEXT("Restricted"));
-	IFileManager::Get().IterateDirectory(*RestrictedBaseDir, [&ExtensionDirs, SubDir](const TCHAR* FilenameOrDirectory, bool bIsDirectory)  -> bool
+	IFileManager::Get().IterateDirectory(*RestrictedBaseDir, [&ExtensionDirs, SubDir, bCheckValid](const TCHAR* FilenameOrDirectory, bool bIsDirectory)  -> bool
 	{
 		if (bIsDirectory)
 		{
-			GetExtensionDirsInternal(ExtensionDirs, FilenameOrDirectory, SubDir);
+			GetExtensionDirsInternal(ExtensionDirs, FilenameOrDirectory, SubDir, bCheckValid);
 		}
 		return true;
 	});
 }
 
-TArray<FString> FPaths::GetExtensionDirs(const FString& BaseDir, const FString& SubDir)
+TArray<FString> FPaths::GetExtensionDirs(const FString& BaseDir, const FString& SubDir, bool bCheckValid)
 {
 	TArray<FString> ExtensionDirs;
-	GetExtensionDirsInternal(ExtensionDirs, BaseDir, SubDir);
+	GetExtensionDirsInternal(ExtensionDirs, BaseDir, SubDir, bCheckValid);
 	return ExtensionDirs;
 }
 

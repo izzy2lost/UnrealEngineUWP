@@ -21,7 +21,21 @@
 #endif
 
 
+#if ALLOW_OTHER_PLATFORM_CONFIG
 
+// Struct to hold the plugin base directory and any child plugin base directories, used for the ConfigToPluginDirs map.
+struct CORE_API FConfigPluginDirs
+{
+	FString PluginPath;
+	TArray<FString> PluginExtensionBaseDirs;
+
+	FConfigPluginDirs(const FString& InPluginPath, const TArray<FString>& InPluginExtensionBaseDirs)
+	:	PluginPath(InPluginPath)
+	,	PluginExtensionBaseDirs(InPluginExtensionBaseDirs)
+	{}
+};
+
+#endif
 
 class FConfigCacheIni;
 class FConfigFile;
@@ -92,9 +106,9 @@ public:
 	/**
 	 * Create a context to read a plugin's ini file named for the plugin. This is not used for inserting, say, Engine.ini into GConfig
 	 */
-	static FConfigContext ReadIntoPluginFile(FConfigFile& DestConfigFile, const FString& PluginRootDir, const TArray<FString>& ChildPluginsBaseDirs)
+	static FConfigContext ReadIntoPluginFile(FConfigFile& DestConfigFile, const FString& PluginRootDir, const TArray<FString>& ChildPluginsBaseDirs, const FString& Platform = FString())
 	{
-		FConfigContext Context(nullptr, true, FString(), &DestConfigFile);
+		FConfigContext Context(nullptr, true, Platform, &DestConfigFile);
 		Context.bIsForPlugin = true;
 		Context.PluginRootDir = PluginRootDir;
 		Context.ChildPluginBaseDirs = ChildPluginsBaseDirs;
@@ -190,6 +204,13 @@ public:
 
 	// if this is non-null, it contains a set of pre-scanned ini files to use to find files, instead of looking on disk
 	const TSet<FString>* IniCacheSet = nullptr;
+
+#if ALLOW_OTHER_PLATFORM_CONFIG
+	// Map of Plugin config file name to plugin and child directories, for filled in by FPluginManager.ConfigureEnabledPlugins
+	// Used creating a ForPlatform FConfigContext for the Plugin ini.
+	static TMap<FString, TUniquePtr<FConfigPluginDirs>> ConfigToPluginDirs;
+	static FCriticalSection ConfigToPluginDirsLock;
+#endif
 
 protected:
 

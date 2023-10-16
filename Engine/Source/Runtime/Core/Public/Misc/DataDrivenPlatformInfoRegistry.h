@@ -271,10 +271,18 @@ struct FDataDrivenPlatformInfoRegistry
 	static CORE_API const TMap<FName, FDataDrivenPlatformInfo>& GetAllPlatformInfos();
 
 	/**
+	 * Gets a set of platform names based on GetAllPlatformInfos, their AdditionalRestrictedFolders
+	 * This is not necessarily the same as IniParents, although there is overlap - IniParents come from chaining DDPIs, so those will be in GetAllPlatformInfos already to be checked 
+	 *
+	 * @param bCheckValid	If true, the result is filtered based on what editor has support compiled for
+	 */
+	static CORE_API const TArray<FString>& GetPlatformDirectoryNames(bool bCheckValid);
+
+	/**
 	 * Gets a set of platform names based on GetAllPlatformInfos, their AdditionalRestrictedFolders, and possibly filtered based on what editor has support compiled for
 	 * This is not necessarily the same as IniParents, although there is overlap - IniParents come from chaining DDPIs, so those will be in GetAllPlatformInfos already to be checked 
 	 */
-	static CORE_API const TArray<FString>& GetValidPlatformDirectoryNames();
+	static CORE_API const TArray<FString>& GetValidPlatformDirectoryNames() { return GetPlatformDirectoryNames(true); }
 
 	/**
 	 * Get the data driven platform info for a given platform. If the platform doesn't have any on disk,
