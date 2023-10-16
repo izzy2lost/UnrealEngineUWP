@@ -172,7 +172,8 @@ public class Engine : ModuleRules
 			"UEOgg",
 			"Vorbis",
 			"VorbisFile",
-			"libOpus"
+			"libOpus",
+			"OodleWAV"
 			);
 
 		DynamicallyLoadedModuleNames.Add("EyeTracker");

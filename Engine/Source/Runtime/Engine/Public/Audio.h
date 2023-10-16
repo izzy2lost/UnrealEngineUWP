@@ -889,6 +889,7 @@ public:
 	static constexpr uint16 WAVE_INFO_FORMAT_ADPCM = 0x0002;
 	static constexpr uint16 WAVE_INFO_FORMAT_IEEE_FLOAT = 0x0003;
 	static constexpr uint16 WAVE_INFO_FORMAT_DVI_ADPCM = 0x0011;
+	static constexpr uint16 WAVE_INFO_FORMAT_OODLE_WAVE = 0xFFFF;
 
 	// Pointers to variables in the in-memory WAVE file.
 	const uint32* pSamplesPerSec;
@@ -896,7 +897,7 @@ public:
 	const uint16* pBlockAlign;
 	const uint16* pBitsPerSample;
 	const uint16* pChannels;
-	const uint16* pFormatTag;
+	uint16* pFormatTag;
 
 	const uint32* pWaveDataSize;
 	const uint32* pMasterSize;

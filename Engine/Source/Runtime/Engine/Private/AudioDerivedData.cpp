@@ -1607,7 +1607,7 @@ struct FAudioCookInputs
 	// copy-on-write mechanism that doesn't require us to make
 	// a copy in memory to get immutability.
 	FCriticalSection& BulkDataCriticalSection;
-	UE::Serialization::FEditorBulkData& BulkData;
+	USoundWave::FEditorAudioBulkData& BulkData;
 #endif
 
 	FAudioCookInputs(USoundWave* InSoundWave, FName InBaseFormat, FName InHashFormat, const FPlatformAudioCookOverrides* InCookOverrides, const ITargetPlatform* InTargetPlatform)

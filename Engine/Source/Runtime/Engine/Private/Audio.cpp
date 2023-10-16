@@ -1918,7 +1918,8 @@ bool FWaveModInfo::IsFormatSupported() const
 	return (*pFormatTag == WAVE_INFO_FORMAT_PCM
 		|| *pFormatTag == WAVE_INFO_FORMAT_ADPCM
 		|| *pFormatTag == WAVE_INFO_FORMAT_DVI_ADPCM
-		|| *pFormatTag == WAVE_INFO_FORMAT_IEEE_FLOAT);
+		|| *pFormatTag == WAVE_INFO_FORMAT_IEEE_FLOAT
+		|| *pFormatTag == WAVE_INFO_FORMAT_OODLE_WAVE);
 }
 
 bool FWaveModInfo::IsFormatUncompressed() const

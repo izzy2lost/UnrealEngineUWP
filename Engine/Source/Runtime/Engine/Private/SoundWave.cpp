@@ -18,6 +18,7 @@
 #include "Interfaces/ITargetPlatform.h"
 #include "Interfaces/ITargetPlatformManagerModule.h"
 #include "Misc/App.h"
+#include "Misc/ConfigCacheIni.h"
 #include "SubtitleManager.h"
 #include "DerivedDataCacheInterface.h"
 #include "EditorFramework/AssetImportData.h"
@@ -32,6 +33,9 @@
 #include "Templates/UnrealTemplate.h"
 #include "UObject/ObjectSaveContext.h"
 #include "ISoundWaveCloudStreaming.h"
+#if WITH_EDITORONLY_DATA
+#include "oowav.h"
+#endif
 
 static int32 SoundWaveDefaultLoadingBehaviorCVar = static_cast<int32>(ESoundWaveLoadingBehavior::LoadOnDemand);
 FAutoConsoleVariableRef CVarSoundWaveDefaultLoadingBehavior(
@@ -4728,4 +4732,80 @@ bool USoundWave::HasError() const
 	check(SoundWaveDataPtr);
 	return SoundWaveDataPtr->HasError();
 }
+
+#if WITH_EDITORONLY_DATA
+TFuture<FSharedBuffer> USoundWave::FEditorAudioBulkData::GetPayload() const
+{
+	TFuture<FSharedBuffer> BufferFuture = RawData.GetPayload();
+	const uint8* Data = (const uint8*) BufferFuture.Get().GetData(); // Will block.
+	uint64 DataSize = BufferFuture.Get().GetSize();
+	FSharedBuffer Buffer = FSharedBuffer::Clone(Data, DataSize);
+	Data = (const uint8*) Buffer.GetData();
+	DataSize = Buffer.GetSize();
+	FWaveModInfo WaveInfo;
+	if (!WaveInfo.ReadWaveInfo(Data, DataSize, 0)) 
+	{
+		UE_LOG(LogAudio, Warning, TEXT("Failed to read wave data."));
+	}
+	if (*WaveInfo.pFormatTag == FWaveModInfo::WAVE_INFO_FORMAT_OODLE_WAVE)
+	{
+		// Convert OodleWave data back to a WAV file
+		*WaveInfo.pFormatTag = FWaveModInfo::WAVE_INFO_FORMAT_PCM;
+		int16* samples = (int16*)WaveInfo.SampleDataStart;
+		int64 num_samples = WaveInfo.GetNumSamples();
+		int64 num_channels = *WaveInfo.pChannels;
+		TArray<int16> scratch_buffer;
+		scratch_buffer.AddUninitialized(num_samples);
+		oowav_decode16(samples, scratch_buffer.GetData(), num_samples, num_channels);
+	}
+	TPromise<FSharedBuffer> promise;
+	promise.EmplaceValue(Buffer);
+	return promise.GetFuture();
+}
+
+void USoundWave::FEditorAudioBulkData::UpdatePayload(FSharedBuffer InPayload, UObject* Owner)
+{
+	const uint8* Data = (const uint8*) InPayload.GetData(); // Will block.
+	uint64 DataSize = InPayload.GetSize();
+	FSharedBuffer Buffer = FSharedBuffer::Clone(Data, DataSize);
+	Data = (const uint8*) Buffer.GetData();
+	DataSize = Buffer.GetSize();
+	FWaveModInfo WaveInfo;
+	if (!WaveInfo.ReadWaveInfo(Data, DataSize, 0)) 
+	{
+		UE_LOG(LogAudio, Warning, TEXT("Failed to read wave data."));
+	}
+	if (*WaveInfo.pFormatTag == FWaveModInfo::WAVE_INFO_FORMAT_PCM)
+	{
+		bool bEnableOodleWAV = false;
+		GConfig->GetBool(TEXT("AudioImporter"), TEXT("EnableOodleWAV"), bEnableOodleWAV, GEditorIni);
+		if (bEnableOodleWAV)
+		{
+			int16* samples = (int16*)WaveInfo.SampleDataStart;
+			int64 num_samples = WaveInfo.GetNumSamples();
+			int64 num_channels = *WaveInfo.pChannels;
+			TArray<int16> scratch_buffer;
+			scratch_buffer.AddUninitialized(num_samples);
+			oowav_encode16(samples, scratch_buffer.GetData(), num_samples, num_channels);
+			*WaveInfo.pFormatTag = FWaveModInfo::WAVE_INFO_FORMAT_OODLE_WAVE;
+		}
+	}
+	RawData.UpdatePayload(Buffer, Owner);
+}
+
+bool USoundWave::FEditorAudioBulkData::HasPayloadData() const
+{
+	return RawData.HasPayloadData();
+}
+
+void USoundWave::FEditorAudioBulkData::Serialize(FArchive& Ar, UObject* Owner, bool bAllowRegister)
+{
+	RawData.Serialize(Ar, Owner, bAllowRegister);
+}
+
+void USoundWave::FEditorAudioBulkData::CreateFromBulkData(FBulkData& InBulkData, const FGuid& InGuid, UObject* Owner)
+{
+	RawData.CreateFromBulkData(InBulkData, InGuid, Owner);
+}
+#endif
 

@@ -879,7 +879,136 @@ public:
 
 #if WITH_EDITORONLY_DATA
 	/** Uncompressed wav data 16 bit in mono or stereo - stereo not allowed for multichannel data */
-	UE::Serialization::FEditorBulkData RawData;
+	struct FEditorAudioBulkData
+	{
+		UE::Serialization::FEditorBulkData RawData;
+
+		ENGINE_API void CreateFromBulkData(FBulkData& InBulkData, const FGuid& InGuid, UObject* Owner);
+		ENGINE_API void Serialize(FArchive& Ar, UObject* Owner, bool bAllowRegister=true);
+		ENGINE_API TFuture<FSharedBuffer> GetPayload() const;
+		ENGINE_API bool HasPayloadData() const;
+		ENGINE_API void UpdatePayload(FSharedBuffer InPayload, UObject* Owner = nullptr);
+
+		//
+		// Deprecated unused API forwarding for potential backwards compatability issues.
+		//
+
+		UE_DEPRECATED(5.4, "CreateLegacyUniqueIdentifier is provided just for API backwards compatibility.")
+		void CreateLegacyUniqueIdentifier(UObject* Owner)
+		{
+			RawData.CreateLegacyUniqueIdentifier(Owner);
+		}
+		UE_DEPRECATED(5.4, "Reset is provided just for API backwards compatibility.")
+		void Reset() 
+		{ 
+			RawData.Reset(); 
+		}
+		UE_DEPRECATED(5.4, "UnloadData is provided just for API backwards compatibility.")
+		void UnloadData()
+		{
+			RawData.UnloadData();
+		}
+		UE_DEPRECATED(5.4, "DetachFromDisk is provided just for API backwards compatibility.")
+		void DetachFromDisk(FArchive* Ar, bool bEnsurePayloadIsLoaded)
+		{
+			RawData.DetachFromDisk(Ar, bEnsurePayloadIsLoaded);
+		}
+		UE_DEPRECATED(5.4, "GetIdentifier is provided just for API backwards compatibility.")
+		FGuid GetIdentifier() const
+		{
+			return RawData.GetIdentifier();
+		}
+		UE_DEPRECATED(5.4, "GetPayloadId is provided just for API backwards compatibility.")
+		const FIoHash& GetPayloadId() const
+		{
+			return RawData.GetPayloadId();
+		}
+		UE_DEPRECATED(5.4, "GetPayloadSize is provided just for API backwards compatibility.")
+		int64 GetPayloadSize() const
+		{
+			return RawData.GetPayloadSize();
+		}
+		UE_DEPRECATED(5.4, "DoesPayloadNeedLoading is provided just for API backwards compatibility.")
+		bool DoesPayloadNeedLoading() const
+		{
+			return RawData.DoesPayloadNeedLoading();
+		}
+		UE_DEPRECATED(5.4, "GetCompressedPayload is provided just for API backwards compatibility.")
+		TFuture<FCompressedBuffer> GetCompressedPayload() const
+		{
+			return RawData.GetCompressedPayload();
+		}
+		UE_DEPRECATED(5.4, "UpdatePayload is provided just for API backwards compatibility.")
+		void UpdatePayload(FCompressedBuffer InPayload, UObject* Owner = nullptr)
+		{
+			RawData.UpdatePayload(InPayload, Owner);
+		}
+		UE_DEPRECATED(5.4, "UpdatePayload is provided just for API backwards compatibility.")
+		void UpdatePayload(UE::Serialization::FEditorBulkData::FSharedBufferWithID InPayload, UObject* Owner = nullptr)
+		{
+			RawData.UpdatePayload(MoveTemp(InPayload), Owner);
+		}
+		UE_DEPRECATED(5.4, "SetCompressionOptions is provided just for API backwards compatibility.")
+		void SetCompressionOptions(UE::Serialization::ECompressionOptions Option)
+		{
+			RawData.SetCompressionOptions(Option);
+		}
+		UE_DEPRECATED(5.4, "SetCompressionOptions is provided just for API backwards compatibility.")
+		void SetCompressionOptions(ECompressedBufferCompressor Compressor, ECompressedBufferCompressionLevel CompressionLevel)
+		{
+			RawData.SetCompressionOptions(Compressor, CompressionLevel);
+		}
+		UE_DEPRECATED(5.4, "GetBulkDataVersions is provided just for API backwards compatibility.")
+		void GetBulkDataVersions(FArchive& InlineArchive, FPackageFileVersion& OutUEVersion, int32& OutLicenseeUEVersion, FCustomVersionContainer& OutCustomVersions) const
+		{
+			RawData.GetBulkDataVersions(InlineArchive, OutUEVersion, OutLicenseeUEVersion, OutCustomVersions);
+		}
+		UE_DEPRECATED(5.4, "TearOff is provided just for API backwards compatibility.")
+		void TearOff()
+		{
+			RawData.TearOff();
+		}
+		UE_DEPRECATED(5.4, "CopyTornOff is provided just for API backwards compatibility.")
+		UE::Serialization::FEditorBulkData CopyTornOff() const
+		{
+			return RawData.CopyTornOff();
+		}
+		UE_DEPRECATED(5.4, "SerializeForRegistry is provided just for API backwards compatibility.")
+		void SerializeForRegistry(FArchive& Ar)
+		{
+			RawData.SerializeForRegistry(Ar);
+		}
+		UE_DEPRECATED(5.4, "CanSaveForRegistry is provided just for API backwards compatibility.")
+		bool CanSaveForRegistry() const
+		{
+			return RawData.CanSaveForRegistry();
+		}
+		UE_DEPRECATED(5.4, "HasPlaceholderPayloadId is provided just for API backwards compatibility.")
+		bool HasPlaceholderPayloadId() const
+		{
+			return RawData.HasPlaceholderPayloadId();
+		}
+		UE_DEPRECATED(5.4, "IsMemoryOnlyPayload is provided just for API backwards compatibility.")
+		bool IsMemoryOnlyPayload() const
+		{
+			return RawData.IsMemoryOnlyPayload();
+		}
+		UE_DEPRECATED(5.4, "UpdatePayloadId is provided just for API backwards compatibility.")
+		void UpdatePayloadId()
+		{
+			return RawData.UpdatePayloadId();
+		}
+		UE_DEPRECATED(5.4, "LocationMatches is provided just for API backwards compatibility.")
+		bool LocationMatches(const UE::Serialization::FEditorBulkData& Other) const
+		{
+			return RawData.LocationMatches(Other);
+		}
+		UE_DEPRECATED(5.4, "UpdateRegistrationOwner is provided just for API backwards compatibility.")
+		void UpdateRegistrationOwner(UObject* Owner)
+		{
+			RawData.UpdateRegistrationOwner(Owner);
+		}
+	} RawData;
 
 	/** Waveform edits to be applied to this SoundWave on cook (editing transformations will trigger a cook) */
 	UPROPERTY(EditAnywhere, Instanced, Category = "Waveform Processing")
