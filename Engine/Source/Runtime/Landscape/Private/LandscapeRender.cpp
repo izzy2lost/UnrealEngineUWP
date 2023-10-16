@@ -209,6 +209,29 @@ static FAutoConsoleVariableRef CVarLandscapeRayTracingGeometryFractionalLODUpdat
 
 #endif
 
+
+// ----------------------------------------------------------------------------------
+
+namespace UE::Landscape
+{
+bool NeedsFixedGridVertexFactory(EShaderPlatform InShaderPlatform)
+{
+	bool bNeedsFixedGridVertexFactory = false;
+	// We need the fixed grid vertex factory for virtual texturing : 
+	bNeedsFixedGridVertexFactory |= UseVirtualTexturing(InShaderPlatform);
+
+	// We need the fixed grid vertex factory for rendering Landscape into Lumen Surface Cache: 
+	bNeedsFixedGridVertexFactory |= DoesPlatformSupportLumenGI(InShaderPlatform);
+
+	// We need the fixed grid vertex factory for rendering the water info texture : 
+	// This cvar is defined in the water plugin and searching for it should return nullptr if the plugin is not loaded
+	const bool bWaterPluginLoaded = IConsoleManager::Get().FindConsoleVariable(TEXT("r.Water.WaterInfo.RenderMethod")) != nullptr;
+	bNeedsFixedGridVertexFactory |= bWaterPluginLoaded;
+
+	return bNeedsFixedGridVertexFactory;
+}
+} // namespace UE::Landscape
+
 //
 // FLandscapeDebugOptions
 //
@@ -1434,14 +1457,10 @@ void FLandscapeComponentSceneProxy::CreateRenderThreadResources(FRHICommandListB
 			SharedBuffers->VertexFactory = LandscapeXYOffsetVertexFactory;
 		}
 
-		// We need the fixed grid vertex factory for virtual texturing, grass and for rendering the water info texture and for rendering Landscape into Lumen Surface Cache: 
-		bool bNeedsFixedGridVertexFactory = UseVirtualTexturing(GetScene().GetShaderPlatform()) || DoesPlatformSupportLumenGI(GMaxRHIShaderPlatform);
-
-		// This cvar is defined in the water plugin and searching for it should return nullptr if the plugin is not loaded
-		const bool bWaterPluginLoaded = IConsoleManager::Get().FindConsoleVariable(TEXT("r.Water.WaterInfo.RenderMethod")) != nullptr;
-		bNeedsFixedGridVertexFactory |= bWaterPluginLoaded;
+		bool bNeedsFixedGridVertexFactory = NeedsFixedGridVertexFactory(GetScene().GetShaderPlatform());
 
 #if WITH_EDITOR
+		// We also need the fixed vertex factor for grass/physical materials : 
 		bNeedsFixedGridVertexFactory |= (SharedBuffers->GrassIndexBuffer != nullptr);
 #endif // WITH_EDITOR
 
@@ -3643,8 +3662,9 @@ public:
 				const bool bIsGrassShaderType = Algo::Find(GetGrassShaderTypes(), ShaderType->GetFName()) != nullptr;
 				const bool bIsGPULightmassShaderType = Algo::Find(GetGPULightmassShaderTypes(), ShaderType->GetFName()) != nullptr;
 				const bool bIsRuntimeVirtualTextureShaderType = Algo::Find(GetRuntimeVirtualTextureShaderTypes(), ShaderType->GetFName()) != nullptr;
+				const bool bIsLumen = Algo::Find(GetLumenCardShaderTypes(), ShaderType->GetFName()) != nullptr;
 
-				const bool bIsShaderTypeUsingFixedGrid = bIsGrassShaderType || bIsRuntimeVirtualTextureShaderType || bIsGPULightmassShaderType;
+				const bool bIsShaderTypeUsingFixedGrid = bIsGrassShaderType || bIsRuntimeVirtualTextureShaderType || bIsGPULightmassShaderType || bIsLumen;
 				
 				static const FName RayTracingDynamicGeometryConverterCS = FName(TEXT("FRayTracingDynamicGeometryConverterCS"));
 				const bool bIsRayTracingShaderType = ShaderType->GetFName() == RayTracingDynamicGeometryConverterCS;
@@ -3843,6 +3863,8 @@ public:
 			FName(TEXT("FTrivialMaterialCHS")),
 #endif // RHI_RAYTRACING
 
+			// No Lumen on thumbnails
+			FName(TEXT("FLumenCardCS")),
 			FName(TEXT("FLumenCardVS")),
 			FName(TEXT("FLumenCardPS<true>")),
 			FName(TEXT("FLumenCardPS<false>")),
@@ -3894,6 +3916,18 @@ public:
 		};
 		return ShaderTypes;
 	}
+
+	static const TArray<FName>& GetLumenCardShaderTypes()
+	{
+		static const TArray<FName> ShaderTypes =
+		{
+			FName(TEXT("FLumenCardVS")),
+			// We only need bMultiViewCapture == false as landscape components are non-Nanite :
+			FName(TEXT("FLumenCardPS<false>")),
+		};
+		return ShaderTypes;
+	}
+
 };
 
 FMaterialResource* ULandscapeMaterialInstanceConstant::AllocatePermutationResource()

@@ -1064,6 +1064,8 @@ void ULandscapeComponent::UpdatedSharedPropertiesFromActor()
 
 void ULandscapeComponent::PostLoad()
 {
+	using namespace UE::Landscape;
+
 	Super::PostLoad();
 
 	if (IsComponentPSOPrecachingEnabled())
@@ -1086,16 +1088,10 @@ void ULandscapeComponent::PostLoad()
 		}
 
 		// we need the fixed grid vertex factory for both virtual texturing and grass
-		bool bNeedsFixedGridVertexFactory = UseVirtualTexturing(GMaxRHIShaderPlatform);
-		// This cvar is defined in the water plugin and searching for it should return nullptr if the plugin is not loaded
-		const bool bWaterPluginLoaded = IConsoleManager::Get().FindConsoleVariable(TEXT("r.Water.WaterInfo.RenderMethod")) != nullptr;
-		bNeedsFixedGridVertexFactory |= bWaterPluginLoaded;
-		if (bNeedsFixedGridVertexFactory)
+		if (NeedsFixedGridVertexFactory(GMaxRHIShaderPlatform))
 		{
 			VertexFactoryDataList.Add(FPSOPrecacheVertexFactoryData(&FLandscapeFixedGridVertexFactory::StaticType));
 		}
-
-		using namespace UE::Landscape;
 		
 		if (Culling::UseCulling(GMaxRHIShaderPlatform))
 		{

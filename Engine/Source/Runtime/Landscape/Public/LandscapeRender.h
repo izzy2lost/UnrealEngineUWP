@@ -39,6 +39,7 @@ LandscapeRender.h: New terrain rendering
 
 class FLandscapeComponentSceneProxy;
 enum class ERuntimeVirtualTextureMaterialType : uint8;
+enum EShaderPlatform : uint16;
 
 #if RHI_RAYTRACING
 struct FLandscapeRayTracingImpl;
@@ -93,6 +94,10 @@ LANDSCAPE_API extern TObjectPtr<UMaterialInterface> GLandscapeLayerUsageMaterial
 LANDSCAPE_API extern TObjectPtr<UMaterialInterface> GLandscapeDirtyMaterial;
 #endif
 
+namespace UE::Landscape
+{
+bool NeedsFixedGridVertexFactory(EShaderPlatform InShaderPlatform);
+} // namespace UE::Landscape
 
 /** The uniform shader parameters for a landscape draw call. */
 BEGIN_GLOBAL_SHADER_PARAMETER_STRUCT(FLandscapeUniformShaderParameters, LANDSCAPE_API)
