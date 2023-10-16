@@ -7,7 +7,6 @@ using System.Threading;
 using System.Threading.Tasks;
 using EpicGames.Core;
 using EpicGames.Horde.Storage;
-using Horde.Server.Storage;
 using OpenTelemetry.Trace;
 
 namespace Horde.Server.Ddc
