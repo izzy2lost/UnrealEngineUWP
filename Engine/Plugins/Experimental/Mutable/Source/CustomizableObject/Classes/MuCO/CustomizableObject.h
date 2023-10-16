@@ -224,6 +224,9 @@ struct FCompilationOptions
 	// Used to reduce the number of notifications when compiling objects
 	bool bSilentCompilation = true;
 
+	// Used to reduce texture size on higher mesh LODs. Only active if LOD strategy is set to Automatic LODs from Mesh
+	bool bUseLODAsBias = true;
+
 	/** Force a very big number on the mips to skip during compilation. Useful to debug special cooks of the data. */
 	bool bForceLargeLODBias = false;
 	int32 DebugBias = 0;

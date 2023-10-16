@@ -619,7 +619,7 @@ mu::NodeImagePtr GenerateMutableSourceImage(const UEdGraphPin* Pin, FMutableGrap
 		{
 			GenerationContext.AddParticipatingObject(*TypedNodeProject->ReferenceTexture);
 
-			int32 LODBias = ComputeLODBias(GenerationContext, TypedNodeProject->ReferenceTexture, TypedNodeProject->ReferenceTexture->MaxTextureSize, nullptr, INDEX_NONE, false);
+			int32 LODBias = ComputeLODBias(GenerationContext, TypedNodeProject->ReferenceTexture, TypedNodeProject->ReferenceTexture->MaxTextureSize, nullptr, INDEX_NONE);
 
 			if (TextureSize.X > 0 && TextureSize.Y > 0)
 			{
@@ -856,7 +856,7 @@ mu::NodeImagePtr GenerateMutableSourceImage(const UEdGraphPin* Pin, FMutableGrap
 			
 			const int32 LODBias = ComputeLODBias(
 				GenerationContext, TypedNodeTransform->ReferenceTexture, TypedNodeTransform->ReferenceTexture->MaxTextureSize, 
-				nullptr, INDEX_NONE, false);
+				nullptr, INDEX_NONE);
 
 			if (TextureSize.X > 0 && TextureSize.Y > 0)
 			{

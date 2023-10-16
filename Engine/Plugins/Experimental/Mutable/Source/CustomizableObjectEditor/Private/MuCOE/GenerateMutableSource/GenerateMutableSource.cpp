@@ -1461,7 +1461,7 @@ void PopulateReferenceSkeletalMeshesData(FMutableGraphGenerationContext& Generat
 
 
 int32 ComputeLODBias(const FMutableGraphGenerationContext& GenerationContext, const UTexture2D* ReferenceTexture, int32 MaxTextureSize,
-	const UCustomizableObjectNodeMaterial* MaterialNode, const int32 ImageIndex, bool bUseLODAsBias)
+	const UCustomizableObjectNodeMaterial* MaterialNode, const int32 ImageIndex)
 {
 	constexpr int32 MaxAllowedLODBias = 6;
 
@@ -1484,12 +1484,12 @@ int32 ComputeLODBias(const FMutableGraphGenerationContext& GenerationContext, co
 	}
 
 	// Increment the LOD bias per each LOD if we are using automatic LODs
-	if (GenerationContext.CurrentLOD > 0
-		&&
-		GenerationContext.CurrentAutoLODStrategy == ECustomizableObjectAutomaticLODStrategy::AutomaticFromMesh)
+	if (GenerationContext.CurrentLOD > 0 &&
+		GenerationContext.CurrentAutoLODStrategy == ECustomizableObjectAutomaticLODStrategy::AutomaticFromMesh &&
+		GenerationContext.Options.bUseLODAsBias)
 	{
 		// Only if the texture actually uses a layout. Otherwise it could be a special texture we shouldn't scale.
-		if ((MaterialNode && MaterialNode->GetImageUVLayout(ImageIndex) >= 0) || bUseLODAsBias)
+		if (MaterialNode && MaterialNode->GetImageUVLayout(ImageIndex) >= 0)
 		{
 			// \todo: make it an object property to be tweaked
 			int MipsToSkipPerLOD = 1;

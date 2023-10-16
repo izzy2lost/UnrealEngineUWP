@@ -552,7 +552,7 @@ mu::NodeSurfacePtr GenerateMutableSourceSurface(const UEdGraphPin * Pin, FMutabl
 						SurfaceData.ImageProperties = Props;
 
 						// Calculate the LODBias for this texture
-						int32 LODBias = ComputeLODBias(GenerationContext, ReferenceTexture, Props.MaxTextureSize, TypedNodeMat, ImageIndex);
+						int32 LODBias = ComputeLODBias(GenerationContext, ReferenceTexture, ReferenceTexture ? ReferenceTexture->MaxTextureSize : 0, TypedNodeMat, ImageIndex);
 
 						GenerationContext.CurrentTextureLODBias = LODBias;
 
