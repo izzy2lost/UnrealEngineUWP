@@ -244,18 +244,25 @@ int32 FWebRTCSoundGenerator::OnGenerateAudio(float* OutAudio, int32 NumSamples)
 		return NumSamples;
 	}
 
+	int32 NumSamplesToCopy = NumSamples;
+
 	// Critical section
 	{
 		FScopeLock Lock(&CriticalSection);
 
-		int32 NumSamplesToCopy = FGenericPlatformMath::Min(NumSamples, Buffer.Num());
+		NumSamplesToCopy = FGenericPlatformMath::Min(NumSamples, Buffer.Num());
 
 		// Copy from local buffer into OutAudio if we have enough samples
 		Audio::ArrayPcm16ToFloat(MakeArrayView(Buffer.GetData(), NumSamplesToCopy), MakeArrayView(OutAudio, NumSamplesToCopy));
 
 		// Remove front NumSamples from the local buffer
 		Buffer.RemoveAt(0, NumSamplesToCopy, false);
-
-		return NumSamplesToCopy;
 	}
+
+	if (NumSamplesToCopy < NumSamples)
+	{
+		FMemory::Memzero(&OutAudio[NumSamplesToCopy], (NumSamples - NumSamplesToCopy) * sizeof(float));
+	}
+
+	return NumSamplesToCopy;
 }
