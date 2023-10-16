@@ -119,8 +119,11 @@ private:
 	/** Sets the block priority from the input text. */
 	void OnSetBlockPriority(int32 InValue);
 
-	/** Sets the block reduction symmetry method. */
+	/** Sets the block reduction symmetry option. */
 	void OnSetBlockReductionSymmetry(bool bInValue);
+
+	/** Sets the block reduction ReduceByTwo option. */
+	void OnSetBlockReductionByTwo(bool bInValue);
 
 	/** Called when the packing strategy has changed. */
 	void OnLayoutPackingStrategyChanged(TSharedPtr<FString> NewSelection, ESelectInfo::Type SelectInfo);

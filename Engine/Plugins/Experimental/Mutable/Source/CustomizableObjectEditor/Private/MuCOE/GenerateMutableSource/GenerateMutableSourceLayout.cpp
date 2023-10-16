@@ -81,7 +81,7 @@ mu::NodeLayoutPtr GenerateMutableSourceLayout(const UEdGraphPin * Pin, FMutableG
 					TypedNodeBlocks->Layout->Blocks[BlockIndex].Max.X - TypedNodeBlocks->Layout->Blocks[BlockIndex].Min.X,
 					TypedNodeBlocks->Layout->Blocks[BlockIndex].Max.Y - TypedNodeBlocks->Layout->Blocks[BlockIndex].Min.Y);
 
-				LayoutNode->SetBlockOptions(BlockIndex, TypedNodeBlocks->Layout->Blocks[BlockIndex].Priority, TypedNodeBlocks->Layout->Blocks[BlockIndex].bUseSymmetry);
+				LayoutNode->SetBlockOptions(BlockIndex, TypedNodeBlocks->Layout->Blocks[BlockIndex].Priority, TypedNodeBlocks->Layout->Blocks[BlockIndex].bReduceBothAxes, TypedNodeBlocks->Layout->Blocks[BlockIndex].bReduceByTwo);
 			}
 		}
 		else
@@ -90,7 +90,7 @@ mu::NodeLayoutPtr GenerateMutableSourceLayout(const UEdGraphPin * Pin, FMutableG
 			GenerationContext.Compiler->CompilerLog(FText::FromString(msg), Node, EMessageSeverity::Warning);
 
 			LayoutNode->SetBlock(0, 0, 0, TypedNodeBlocks->Layout->GetGridSize().X, TypedNodeBlocks->Layout->GetGridSize().Y);
-			LayoutNode->SetBlockOptions(0, 0, false);
+			LayoutNode->SetBlockOptions(0, 0, false, false);
 		}
 	}
 	

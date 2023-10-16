@@ -183,9 +183,9 @@ namespace mu
 
 
 	//---------------------------------------------------------------------------------------------
-	void NodeLayoutBlocks::SetBlockOptions(int index, int priority, bool bUseSymmetry)
+	void NodeLayoutBlocks::SetBlockOptions(int index, int priority, bool bReduceBothAxes, bool bReduceByTwo)
 	{
-		m_pD->m_pLayout->SetBlockOptions(index, priority, bUseSymmetry);
+		m_pD->m_pLayout->SetBlockOptions(index, priority, bReduceBothAxes, bReduceByTwo);
 	}
 
 

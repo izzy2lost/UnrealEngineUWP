@@ -19,12 +19,7 @@ UCustomizableObjectLayout::UCustomizableObjectLayout()
 	GridSize = FIntPoint(4, 4);
 	MaxGridSize = FIntPoint(4, 4);
 
-	FCustomizableObjectLayoutBlock Block;
-	Block.Min = FIntPoint(0, 0);
-	Block.Max = FIntPoint(4, 4);
-	Block.Id = FGuid::NewGuid();
-	Block.Priority = 0;
-	Block.bUseSymmetry = false;
+	FCustomizableObjectLayoutBlock Block(FIntPoint(0, 0), FIntPoint(4, 4));
 	Blocks.Add(Block);
 
 	PackingStrategy = ECustomizableObjectTextureLayoutPackingStrategy::Resizable;
@@ -119,12 +114,7 @@ void UCustomizableObjectLayout::GenerateBlocksFromUVs()
 		
 				Layout->GetLayout()->GetBlock(i, &minX, &minY, &sizeX, &sizeY);
 		
-				FCustomizableObjectLayoutBlock block;
-				block.Min = FIntPoint(minX, minY);
-				block.Max = FIntPoint(minX + sizeX, minY + sizeY);
-				block.Id = FGuid::NewGuid();
-				block.Priority = 0;
-				block.bUseSymmetry = false;
+				FCustomizableObjectLayoutBlock block(FIntPoint(minX, minY), FIntPoint(minX + sizeX, minY + sizeY));
 				Blocks.Add(block);
 			}
 		

@@ -2792,7 +2792,7 @@ mu::NodeLayoutBlocksPtr CreateDefaultLayout()
 	LayoutNode->SetBlockReductionMethod(mu::EReductionMethod::HALVE_REDUCTION);
 	LayoutNode->SetBlockCount(1);
 	LayoutNode->SetBlock(0, 0, 0, GridSize, GridSize);
-	LayoutNode->SetBlockOptions(0, 0, false);
+	LayoutNode->SetBlockOptions(0, 0, false, false);
 
 	return LayoutNode;
 }
@@ -3741,7 +3741,7 @@ mu::NodeMeshPtr GenerateMutableSourceMesh(const UEdGraphPin* Pin,
 											Layouts[i]->Blocks[BlockIndex].Max.X - Layouts[i]->Blocks[BlockIndex].Min.X,
 											Layouts[i]->Blocks[BlockIndex].Max.Y - Layouts[i]->Blocks[BlockIndex].Min.Y);
 
-										LayoutNode->SetBlockOptions(BlockIndex, Layouts[i]->Blocks[BlockIndex].Priority, Layouts[i]->Blocks[BlockIndex].bUseSymmetry);
+										LayoutNode->SetBlockOptions(BlockIndex, Layouts[i]->Blocks[BlockIndex].Priority, Layouts[i]->Blocks[BlockIndex].bReduceBothAxes, Layouts[i]->Blocks[BlockIndex].bReduceByTwo);
 									}
 								}
 								else
@@ -3750,7 +3750,7 @@ mu::NodeMeshPtr GenerateMutableSourceMesh(const UEdGraphPin* Pin,
 									GenerationContext.Compiler->CompilerLog(FText::FromString(msg), Node, EMessageSeverity::Warning);
 
 									LayoutNode->SetBlock(0, 0, 0, Layouts[i]->GetGridSize().X, Layouts[i]->GetGridSize().Y);
-									LayoutNode->SetBlockOptions(0, 0, false);
+									LayoutNode->SetBlockOptions(0, 0, false, false);
 								}
 
 								MeshTableNode->SetLayout(i, LayoutNode);

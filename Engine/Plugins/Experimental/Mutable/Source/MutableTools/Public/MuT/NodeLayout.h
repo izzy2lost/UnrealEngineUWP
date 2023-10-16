@@ -140,7 +140,7 @@ namespace mu
         void SetBlock( int index, int minx, int miny, int sizex, int sizey );
 
 		//! Set reduction block options like priority or if the block has to be reduced symmetrically.
-		void SetBlockOptions(int index, int priority, bool bUseSymmetry);
+		void SetBlockOptions(int index, int priority, bool bReduceBothAxes, bool bReduceByTwo);
 
 		//! Set the texture layout packing strategy 
 		void SetLayoutPackingStrategy(EPackStrategy strategy);

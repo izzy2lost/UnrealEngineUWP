@@ -5720,7 +5720,8 @@ namespace mu
 					scratch.positions.SetNum(BlockCount);
 					scratch.priorities.SetNum(BlockCount);
 					scratch.reductions.SetNum(BlockCount);
-					scratch.useSymmetry.SetNum(BlockCount);
+					scratch.ReduceBothAxes.SetNum(BlockCount);
+					scratch.ReduceByTwo.SetNum(BlockCount);
 
 					LayoutPack3(pResult.get(), Source.get(), &scratch);
 				}

@@ -121,6 +121,7 @@ void SCustomizableObjectNodeLayoutBlocksEditor::SetCurrentLayout(UCustomizableOb
 			.OnAddBlockAt(this, &SCustomizableObjectNodeLayoutBlocksEditor::OnAddBlockAt)
 			.OnSetBlockPriority(this, &SCustomizableObjectNodeLayoutBlocksEditor::OnSetBlockPriority)
 			.OnSetReduceBlockSymmetrically(this, &SCustomizableObjectNodeLayoutBlocksEditor::OnSetBlockReductionSymmetry)
+			.OnSetReduceBlockByTwo(this, &SCustomizableObjectNodeLayoutBlocksEditor::OnSetBlockReductionByTwo)
 		]
 	];	
 }
@@ -412,11 +413,6 @@ void SCustomizableObjectNodeLayoutBlocksEditor::OnAddBlock()
 	if (CurrentLayout)
 	{
 		FCustomizableObjectLayoutBlock block;
-		block.Min = FIntPoint( 0, 0 );
-		block.Max = FIntPoint(1, 1);
-		block.Id = FGuid::NewGuid();
-		block.Priority = 0;
-		block.bUseSymmetry = false;
 		CurrentLayout->Blocks.Add( block );
 		CurrentLayout->MarkPackageDirty();
 
@@ -432,13 +428,7 @@ void SCustomizableObjectNodeLayoutBlocksEditor::OnAddBlockAt(const FIntPoint Min
 {
 	if (CurrentLayout)
 	{
-		FCustomizableObjectLayoutBlock block;
-		block.Min = Min;
-		block.Max = Max;
-		block.Id = FGuid::NewGuid();
-		block.Priority = 0;
-		block.bUseSymmetry = false;
-
+		FCustomizableObjectLayoutBlock block(Min,Max);
 		CurrentLayout->Blocks.Add(block);
 		CurrentLayout->MarkPackageDirty();
 	}
@@ -546,7 +536,28 @@ void SCustomizableObjectNodeLayoutBlocksEditor::OnSetBlockReductionSymmetry(bool
 			{
 				if (SelectedBlocks.Contains(CurrentLayout->Blocks[i].Id))
 				{
-					CurrentLayout->Blocks[i].bUseSymmetry = bInValue;
+					CurrentLayout->Blocks[i].bReduceBothAxes = bInValue;
+					CurrentLayout->MarkPackageDirty();
+				}
+			}
+		}
+	}
+}
+
+
+void SCustomizableObjectNodeLayoutBlocksEditor::OnSetBlockReductionByTwo(bool bInValue)
+{
+	if (CurrentLayout)
+	{
+		if (LayoutGridWidget.IsValid())
+		{
+			TArray<FGuid> SelectedBlocks = LayoutGridWidget->GetSelectedBlocks();
+
+			for (int i = 0; i < CurrentLayout->Blocks.Num(); ++i)
+			{
+				if (SelectedBlocks.Contains(CurrentLayout->Blocks[i].Id))
+				{
+					CurrentLayout->Blocks[i].bReduceByTwo = bInValue;
 					CurrentLayout->MarkPackageDirty();
 				}
 			}

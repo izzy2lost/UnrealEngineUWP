@@ -140,18 +140,20 @@ namespace mu
 			index = -1;
 		}
 
-		LAY_BLOCK( int32 i, UE::Math::TIntVector2<uint16> s, int32 p=0, bool sym = false )
+		LAY_BLOCK( int32 i, UE::Math::TIntVector2<uint16> s, int32 p=0, bool bInReduceBothAxes = false, bool bInReduceByTwo = false )
 		{
 			index = i;
 			size = s;
 			priority = p;
-			useSymmetry = sym;
+			bReduceBothAxes = bInReduceBothAxes;
+			bReduceByTwo = bInReduceByTwo;
 		}
 
 		int32 index;
 		UE::Math::TIntVector2<uint16> size = UE::Math::TIntVector2<uint16>(0,0);
 		int32 priority;
-		bool useSymmetry;
+		bool bReduceBothAxes;
+		bool bReduceByTwo;
 	};
 
     inline bool CompareBlocks( const LAY_BLOCK& a, const LAY_BLOCK& b )
@@ -188,6 +190,7 @@ namespace mu
 	{
 		if (a.priority == b.priority)
 		{
+			// TODO(Max): Check if this comparison modifies the block order while reducing them.
 			return CompareBlocks(a, b);
 		}
 
@@ -205,7 +208,8 @@ namespace mu
 		TArray< vec2<int> > positions;
 		TArray< int > priorities;
 		TArray< vec2<int> > reductions;
-		TArray< int > useSymmetry;
+		TArray< int > ReduceBothAxes;
+		TArray< int > ReduceByTwo;
     };
 
 
@@ -358,14 +362,16 @@ namespace mu
     // }
 
 
-	inline void ReductionOperation(uint16& BlockSize, EReductionMethod ReductionMethod)
+	inline void ReductionOperation(uint16& BlockSize, EReductionMethod ReductionMethod, int32 bReduceByTwo)
 	{
 		if (ReductionMethod == EReductionMethod::UNITARY_REDUCTION)
 		{
-			BlockSize -= 1;
+			int32 Reduction = (bReduceByTwo && BlockSize > 2) ? 2 : 1;
+			BlockSize -= Reduction;
 			return;
 		}
 		
+		// Reduce size by half
 		BlockSize /= 2;
 	}
 
@@ -380,15 +386,15 @@ namespace mu
 
 		if (scratch->sorted[r_it].size[0] != 1 || scratch->sorted[r_it].size[1] != 1)
 		{
-			if (scratch->sorted[r_it].useSymmetry)
+			if (scratch->sorted[r_it].bReduceBothAxes)
 			{
 				// We reduce both sides of the block at the same time
 				for (int32 Index = 0; Index <= 1; ++Index)
 				{
 					if (scratch->sorted[r_it].size[Index] > 1)
 					{
-						ReductionOperation(scratch->sorted[r_it].size[Index], ReductionMethod);
-						ReductionOperation(scratch->blocks[scratch->sorted[r_it].index][Index], ReductionMethod);
+						ReductionOperation(scratch->sorted[r_it].size[Index], ReductionMethod, scratch->sorted[r_it].bReduceByTwo);
+						ReductionOperation(scratch->blocks[scratch->sorted[r_it].index][Index], ReductionMethod, scratch->sorted[r_it].bReduceByTwo );
 
 						pass = true;
 					}
@@ -400,8 +406,8 @@ namespace mu
 				{
 					if (scratch->sorted[r_it].size[1] > 1)
 					{
-						ReductionOperation(scratch->sorted[r_it].size[1], ReductionMethod);
-						ReductionOperation(scratch->blocks[scratch->sorted[r_it].index][1], ReductionMethod);
+						ReductionOperation(scratch->sorted[r_it].size[1], ReductionMethod, scratch->sorted[r_it].bReduceByTwo);
+						ReductionOperation(scratch->blocks[scratch->sorted[r_it].index][1], ReductionMethod, scratch->sorted[r_it].bReduceByTwo);
 						pass = true;
 					}
 
@@ -411,8 +417,8 @@ namespace mu
 				{
 					if (scratch->sorted[r_it].size[0] > 1)
 					{
-						ReductionOperation(scratch->sorted[r_it].size[0], ReductionMethod);
-						ReductionOperation(scratch->blocks[scratch->sorted[r_it].index][0], ReductionMethod);
+						ReductionOperation(scratch->sorted[r_it].size[0], ReductionMethod, scratch->sorted[r_it].bReduceByTwo);
+						ReductionOperation(scratch->blocks[scratch->sorted[r_it].index][0], ReductionMethod, scratch->sorted[r_it].bReduceByTwo);
 						pass = true;
 					}
 
@@ -431,8 +437,8 @@ namespace mu
 
 					if (scratch->sorted[r_it].size[Index] > 1)
 					{
-						ReductionOperation(scratch->sorted[r_it].size[Index], ReductionMethod);
-						ReductionOperation(scratch->blocks[scratch->sorted[r_it].index][Index], ReductionMethod);
+						ReductionOperation(scratch->sorted[r_it].size[Index], ReductionMethod, scratch->sorted[r_it].bReduceByTwo);
+						ReductionOperation(scratch->blocks[scratch->sorted[r_it].index][Index], ReductionMethod, scratch->sorted[r_it].bReduceByTwo);
 						pass = true;
 					}
 
@@ -649,18 +655,22 @@ namespace mu
 
 		bool usePriority = false;
 
+		EPackStrategy LayoutStrategy = pSourceLayout->GetLayoutPackingStrategy();
+		EReductionMethod ReductionMethod = pSourceLayout->GetBlockReductionMethod();
+
         // Look for the maximum block sizes on the layout and the total area
 		uint16 maxX = 0;
 		uint16 maxY = 0;
         int area = 0;
+
         for ( int index=0; index<blockCount; ++index )
         {
             box< UE::Math::TIntVector2<uint16> > b;
             pSourceLayout->GetBlock( index, &b.min[0], &b.min[1], &b.size[0], &b.size[1] );
 
 			int p;
-			bool Symmetry;
-			pSourceLayout->GetBlockOptions(index, &p, &Symmetry);
+			bool bReduceBothAxes, bReduceByTwo;
+			pSourceLayout->GetBlockOptions(index, p, bReduceBothAxes, bReduceByTwo);
 
 			vec2<int> reductions;
 			reductions[0] = 0;
@@ -679,13 +689,14 @@ namespace mu
             scratch->blocks[index] = b.size;
 			scratch->priorities[index] = p;
 			scratch->reductions[index] = reductions;
-			scratch->useSymmetry[index] = (int)Symmetry;
+			scratch->ReduceBothAxes[index] = (int)bReduceBothAxes;
+			scratch->ReduceByTwo[index] = (int)bReduceByTwo;
         }
 
 
         // Grow until the area is big enough to fit all blocks. We always grow X first, because
         // in case we cannot pack everything, we will grow Y with the current horizon algorithm.
-		if (pSourceLayout->GetLayoutPackingStrategy() == EPackStrategy::RESIZABLE_LAYOUT)
+		if (LayoutStrategy == EPackStrategy::RESIZABLE_LAYOUT)
 		{
 			maxX = FGenericPlatformMath::RoundUpToPowerOfTwo(maxX);
 			maxY = FGenericPlatformMath::RoundUpToPowerOfTwo(maxY);
@@ -727,7 +738,7 @@ namespace mu
 				}
 			}
 
-			//The highest block is bigger than the layout max size
+			// Reducing blocks that do not fit in the layout grid
 			while (maxX > layoutSizeX)
 			{
 				area = 0;
@@ -736,16 +747,27 @@ namespace mu
 				{
 					if (scratch->blocks[index][0] == maxX)
 					{
-						scratch->blocks[index][0] /= 2;
+						ReductionOperation(scratch->blocks[index][0], ReductionMethod, scratch->ReduceByTwo[index]);
 						scratch->reductions[index][0]++;
+
+						if (scratch->ReduceBothAxes[index] == 1)
+						{
+							ReductionOperation(scratch->blocks[index][1], ReductionMethod, scratch->ReduceByTwo[index]);
+							scratch->reductions[index][1]++;
+						}
 					}
 				}
-				maxX = 0;
+
+				maxX = maxY = 0;
 				
 				//recalculating area and maximum block sizes
 				for (int index = 0; index < blockCount; ++index)
 				{
 					maxX = FMath::Max(maxX, scratch->blocks[index][0]);
+
+					// maxY could have been modified if a block had symmetry enabled in the previous reduction
+					maxY = FMath::Max(maxY, scratch->blocks[index][1]);
+
 					area += scratch->blocks[index][0] * scratch->blocks[index][1];
 				}
 			}
@@ -758,16 +780,27 @@ namespace mu
 				{
 					if (scratch->blocks[index][1] == maxY)
 					{
-						scratch->blocks[index][1] /= 2;
+						ReductionOperation(scratch->blocks[index][1], ReductionMethod, scratch->ReduceByTwo[index]);
 						scratch->reductions[index][1]++;
+
+						if (scratch->ReduceBothAxes[index] == 1)
+						{
+							ReductionOperation(scratch->blocks[index][0], ReductionMethod, scratch->ReduceByTwo[index]);
+							scratch->reductions[index][0]++;
+						}
 					}
 				}
-				maxY = 0;
+
+				maxX = maxY = 0;
 
 				//recalculating area and maximum block sizes
 				for (int index = 0; index < blockCount; ++index)
 				{
 					maxY = FMath::Max(maxY, scratch->blocks[index][1]);
+
+					// maxX could have been modified if a block had symmetry enabled in the previous reduction
+					maxX = FMath::Max(maxX, scratch->blocks[index][0]);
+
 					area += scratch->blocks[index][0] * scratch->blocks[index][1];
 				}
 			}
@@ -794,28 +827,29 @@ namespace mu
 		// This is used to iterate through blocks.
 		int32 BlockIterator = 0;
 
-        // Sort by height, area
+		// Making a copy of the blocks array to sort them
         check( (int)scratch->sorted.Num()==blockCount );
         for ( int index=0; index<blockCount; ++index )
         {
-            scratch->sorted[index] = LAY_BLOCK( index, scratch->blocks[index], scratch->priorities[index], (bool)scratch->useSymmetry[index]);
+            scratch->sorted[index] = LAY_BLOCK( index, scratch->blocks[index], scratch->priorities[index], (bool)scratch->ReduceBothAxes[index], (bool)scratch->ReduceByTwo[index]);
         }
 
-		scratch->sorted.Sort( CompareBlocks);
-		
-		if(pSourceLayout->GetLayoutPackingStrategy() == EPackStrategy::FIXED_LAYOUT)
+		// Sort blocks by height, area
+		scratch->sorted.Sort(CompareBlocks);
+
+		if(LayoutStrategy == EPackStrategy::FIXED_LAYOUT)
 		{
-			if (usePriority)	//Sort by priority
+			if (usePriority)
 			{
+				//Sort blocks by priority
 				scratch->sorted.Sort(CompareBlocksPriority);
 			}
 
 			// Shrink blocks in case we do not have enough space to pack everything
 			while (maxX*maxY < area)
 			{
-				ReduceBlock(blockCount, area, BlockIterator, scratch, pSourceLayout->GetBlockReductionMethod());
+				ReduceBlock(blockCount, area, BlockIterator, scratch, ReductionMethod);
 			}
-			
 		}
 
 		bool fits = false;
@@ -829,9 +863,9 @@ namespace mu
 			}
 
 			// Try to pack everything
-			fits = SetPositions(bestY, layoutSizeY, &maxX, &maxY, scratch, pSourceLayout->GetLayoutPackingStrategy());
+			fits = SetPositions(bestY, layoutSizeY, &maxX, &maxY, scratch, LayoutStrategy);
 
-			if (!fits && pSourceLayout->GetLayoutPackingStrategy() == EPackStrategy::FIXED_LAYOUT)
+			if (!fits && LayoutStrategy == EPackStrategy::FIXED_LAYOUT)
 			{
 				// Sort by priority before shrink
 				if (usePriority)
@@ -839,15 +873,15 @@ namespace mu
 					scratch->sorted.Sort(CompareBlocksPriority);
 				}
 
-				ReduceBlock(blockCount, area, BlockIterator, scratch, pSourceLayout->GetBlockReductionMethod());
+				ReduceBlock(blockCount, area, BlockIterator, scratch, ReductionMethod);
 			}
 		}
 
         // Set data in the result
         pResult->SetGridSize( maxX, maxY );
         pResult->SetMaxGridSize(layoutSizeX, layoutSizeY);
-		pResult->SetLayoutPackingStrategy(pSourceLayout->GetLayoutPackingStrategy());
-		pResult->SetBlockReductionMethod(pSourceLayout->GetBlockReductionMethod());
+		pResult->SetLayoutPackingStrategy(LayoutStrategy);
+		pResult->SetBlockReductionMethod(ReductionMethod);
 
         for ( int index=0; index<blockCount; ++index )
         {
@@ -858,7 +892,7 @@ namespace mu
                     scratch->blocks[index][0], scratch->blocks[index][1]
                 );
 
-			pResult->SetBlockOptions(index, scratch->priorities[index], (bool)scratch->useSymmetry[index]);
+			pResult->SetBlockOptions(index, scratch->priorities[index], (bool)scratch->ReduceBothAxes[index], (bool)scratch->ReduceByTwo[index]);
         }
     }
 }
