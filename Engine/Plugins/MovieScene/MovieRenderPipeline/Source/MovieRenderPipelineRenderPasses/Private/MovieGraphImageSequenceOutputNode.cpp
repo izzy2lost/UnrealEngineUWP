@@ -241,9 +241,9 @@ void UMovieGraphImageSequenceOutputNode::OnReceiveImageDataImpl(UMovieGraphPipel
 		TileImageTask->PixelData = RenderData.Value->CopyImageData();
 
 #if WITH_EDITOR
-		if (OutputSettingNode->OCIOConfiguration.bIsEnabled)
+		if (OCIOConfiguration.bIsEnabled)
 		{
-			FPixelPreProcessor OCIOPixelPreProcessor = UE::MovieGraph::Private::CreateOpenColorIOPixelPreProcessor(OutputSettingNode->OCIOConfiguration.ColorConfiguration);
+			FPixelPreProcessor OCIOPixelPreProcessor = UE::MovieGraph::Private::CreateOpenColorIOPixelPreProcessor(OCIOConfiguration.ColorConfiguration);
 			if (OCIOPixelPreProcessor)
 			{
 				TileImageTask->PixelPreProcessors.Emplace(MoveTemp(OCIOPixelPreProcessor));

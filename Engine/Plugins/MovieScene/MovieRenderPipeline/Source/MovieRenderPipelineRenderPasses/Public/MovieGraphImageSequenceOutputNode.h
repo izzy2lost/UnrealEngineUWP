@@ -6,6 +6,7 @@
 
 #include "IImageWrapper.h"
 #include "MoviePipelineEXROutput.h"
+#include "OpenColorIOColorSpace.h"
 #include "Styling/AppStyle.h"
 #include "Async/Future.h"
 
@@ -31,6 +32,21 @@ public:
 	virtual void OnAllFramesSubmittedImpl() override;
 	virtual bool IsFinishedWritingToDiskImpl() const override;
 	// ~UMovieGraphFileOutputNode Interface
+
+#if WITH_EDITORONLY_DATA
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = Overrides, meta = (InlineEditConditionToggle))
+	uint8 bOverride_OCIOConfiguration : 1;
+
+	/**
+	* OCIO configuration/transform settings.
+	*
+	* Note: There are differences from the previous implementation in MRQ given that we are now doing CPU-side processing.
+	* 1) This feature only works in editor-mode, since the OpenColorIO library is currently unavailable in game builds.
+	* 2) Users are now responsible for setting the renderer output space to Final Color (HDR) in Linear Working Color Space (SCS_FinalColorHDR).
+	*/
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Color", DisplayName="OpenColorIO Configuration", meta = (EditCondition = "bOverride_OCIOConfiguration"))
+	FOpenColorIODisplayConfiguration OCIOConfiguration;
+#endif
 
 protected:
 	/** The output format (as known used by the ImageWriteQueue) to output into. */

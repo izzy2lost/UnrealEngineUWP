@@ -3,7 +3,6 @@
 #pragma once
 #include "Graph/MovieGraphNode.h"
 #include "Misc/FrameRate.h"
-#include "OpenColorIOColorSpace.h"
 #include "MovieGraphOutputSettingNode.generated.h"
 
 
@@ -55,11 +54,6 @@ public:
 
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = Overrides, meta = (InlineEditConditionToggle))
 	uint8 bOverride_VersionNumber : 1;
-
-#if WITH_EDITORONLY_DATA
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = Overrides, meta = (InlineEditConditionToggle))
-	uint8 bOverride_OCIOConfiguration : 1;
-#endif
 
 	/** What directory should all of our output files be relative to. */
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "File Output", meta=(EditCondition="bOverride_OutputDirectory"))
@@ -116,16 +110,4 @@ public:
 	/** The value to use for the version token if versions are not automatically incremented (Auto Version is off). */
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Versioning", meta = (EditCondition = "bOverride_VersionNumber", UIMin = 1, UIMax = 50, ClampMin = 1))
 	int32 VersionNumber;
-
-#if WITH_EDITORONLY_DATA
-	/**
-	* OCIO configuration/transform settings.
-	* 
-	* Note: There are differences from the previous implementation in MRQ given that we are now doing CPU-side processing.
-	* 1) This feature only works in editor-mode, since the OpenColorIO library is currently unavailable in game builds.
-	* 2) Users are now responsible for setting the renderer output space to Final Color (HDR) in Linear Working Color Space (SCS_FinalColorHDR).
-	*/
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "File Output", meta = (EditCondition = "bOverride_OCIOConfiguration"))
-	FOpenColorIODisplayConfiguration OCIOConfiguration;
-#endif
 };
