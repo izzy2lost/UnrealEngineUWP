@@ -118,6 +118,7 @@ private:
 	uint32								DescCount;
 	uint32								DescSize;
 
+	FGPUFenceRHIRef						DispatchFence;
 	FBufferRHIRef						PersistBuff;
 	FBufferRHIRef						TempBuff;
 	uint64								MemSizeWeights;
