@@ -613,7 +613,7 @@ public:
 	
 	//~ Begin USceneComponent Interface.
 	GEOMETRYCOLLECTIONENGINE_API virtual FBoxSphereBounds CalcBounds(const FTransform& LocalToWorld) const override;
-	virtual FBoxSphereBounds CalcLocalBounds() const { return LocalBounds; }
+	virtual FBoxSphereBounds CalcLocalBounds() const { return ComponentSpaceBounds; }
 
 	GEOMETRYCOLLECTIONENGINE_API virtual bool HasAnySockets() const override;
 	GEOMETRYCOLLECTIONENGINE_API virtual bool DoesSocketExist(FName InSocketName) const override;
@@ -666,7 +666,7 @@ public:
 	* Get local bounds of the geometry collection
 	*/
 	UFUNCTION(BlueprintCallable, Category = "ChaosPhysics")
-	FBox GetLocalBounds() const { return LocalBounds; }
+	FBox GetLocalBounds() const { return ComponentSpaceBounds.GetBox(); }
 
 	/**
 	 * Apply an external strain to specific piece of the geometry collection
@@ -1420,9 +1420,10 @@ protected:
 	GEOMETRYCOLLECTIONENGINE_API void DispatchFieldCommand(const FFieldSystemCommand& InCommand);
 
 	GEOMETRYCOLLECTIONENGINE_API Chaos::FPhysicsSolver* GetSolver(const UGeometryCollectionComponent& GeometryCollectionComponent);
-	GEOMETRYCOLLECTIONENGINE_API void CalculateLocalBounds();
-	//GEOMETRYCOLLECTIONENGINE_API void CalculateGlobalMatrices();
-	
+
+	UE_DEPRECATED(5.4, "CalculateLocalBounds is now Deprecated as it does not need to be called anymore, see ComponentSpaceBounds which replace LocalBounds")
+	GEOMETRYCOLLECTIONENGINE_API void CalculateLocalBounds() {};
+
 	UE_DEPRECATED(5.3, "Use ComputeBoundsFromComponentSpaceTransforms instead")
 	GEOMETRYCOLLECTIONENGINE_API FBox ComputeBoundsFromGlobalMatrices(const FMatrix& LocalToWorldWithScale, const TArray<FMatrix>& GlobalMatricesArray) const;
 
@@ -1620,8 +1621,13 @@ private:
 
 	FComponentSpaceTransforms ComponentSpaceTransforms;
 
-	FBox LocalBounds;
+	/** bounds for unbroken state bounds in root space */
+	mutable FBox RootSpaceBounds;
 
+	/** 
+	* Bounds in component space 
+	* if unbroken this will use computed from RootSpaceBounds
+	*/
 	mutable FBoxSphereBounds ComponentSpaceBounds;
 
 	float CurrentCacheTime;

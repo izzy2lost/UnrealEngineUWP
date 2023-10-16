@@ -4013,6 +4013,8 @@ bool FGeometryCollectionPhysicsProxy::PullFromPhysicsState(const Chaos::FDirtyGe
 
 		// if physics world transform was dirtied this frame we need to force an update to make sure transforms of 
 		// broken sleeping particles on kinemically driven GCs remained updated and the object feel grounded to the world
+
+		GameThreadCollection.MakeClean();
 		if (bIsCollectionDirty || bIsPhysicsThreadWorldTransformDirty)
 		{
 			GameThreadCollection.MakeDirty();

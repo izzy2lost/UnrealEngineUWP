@@ -107,9 +107,6 @@ static bool bChaos_BoxCalcBounds_ISPC_Enabled = CHAOS_BOX_CALC_BOUNDS_ISPC_ENABL
 static FAutoConsoleVariableRef CVarChaosBoxCalcBoundsISPCEnabled(TEXT("p.Chaos.BoxCalcBounds.ISPC"), bChaos_BoxCalcBounds_ISPC_Enabled, TEXT("Whether to use ISPC optimizations in calculating box bounds in geometry collections"));
 #endif
 
-bool bChaos_GC_CacheComponentSpaceBounds = true;
-FAutoConsoleVariableRef CVarChaosGCCacheComponentSpaceBounds(TEXT("p.Chaos.GC.CacheComponentSpaceBounds"), bChaos_GC_CacheComponentSpaceBounds, TEXT("Cache component space bounds for performance"));
-
 bool bChaos_GC_UseCustomRenderer = true;
 FAutoConsoleVariableRef CVarChaosGCUseCustomRenderer(TEXT("p.Chaos.GC.UseCustomRenderer"), bChaos_GC_UseCustomRenderer, TEXT("When enabled, use a custom renderer if specified"));
 
@@ -890,10 +887,33 @@ FBox UGeometryCollectionComponent::ComputeBounds(const FTransform& LocalToWorldW
 	FBox BoundingBox(ForceInit);
 	if (RestCollection)
 	{
-		const TArray<FTransform3f>& CompSpaceTransforms = ComponentSpaceTransforms.RequestAllTransforms();
-		if (CompSpaceTransforms.Num() > 0)
+		if (IsRootBroken())
 		{
-			BoundingBox = ComputeBoundsFromComponentSpaceTransforms(LocalToWorldWithScale, CompSpaceTransforms);
+			// root is broken we need to go through all the leafs and compute bounds from them 
+			const TArray<FTransform3f>& CompSpaceTransforms = ComponentSpaceTransforms.RequestAllTransforms();
+			if (CompSpaceTransforms.Num() > 0)
+			{
+				BoundingBox = ComputeBoundsFromComponentSpaceTransforms(LocalToWorldWithScale, CompSpaceTransforms);
+			}
+		}
+		else
+		{
+			// fast path where we use the root space bounds top avoid paying the high cost of recomputing everything from scratch
+			if (!RootSpaceBounds.IsValid)
+			{
+				const TArray<FTransform3f>& CompSpaceTransforms = ComponentSpaceTransforms.RequestAllTransforms();
+				if (CompSpaceTransforms.Num() > 0)
+				{
+					const FTransform InverseRootTransform(ComponentSpaceTransforms.RequestRootTransform().Inverse());
+					RootSpaceBounds = ComputeBoundsFromComponentSpaceTransforms(InverseRootTransform, CompSpaceTransforms);
+				}
+			}
+
+			if (RootSpaceBounds.IsValid)
+			{
+				const FTransform RootToWorld = (FTransform(ComponentSpaceTransforms.RequestRootTransform()) * LocalToWorldWithScale);
+				BoundingBox = RootSpaceBounds.TransformBy(RootToWorld);
+			}
 		}
 	}
 	return BoundingBox;
@@ -903,27 +923,21 @@ FBoxSphereBounds UGeometryCollectionComponent::CalcBounds(const FTransform& Loca
 {	
 	SCOPE_CYCLE_COUNTER(STAT_GCCUpdateBounds);
 
-	if (bChaos_GC_CacheComponentSpaceBounds)
-	{
-		bool NeedBoundsUpdate = false;
-		NeedBoundsUpdate |= (ComponentSpaceBounds.GetSphere().W < 1e-5);
-		NeedBoundsUpdate |= CachePlayback;
-//		NeedBoundsUpdate |= (PhysicsProxy == nullptr);
-		NeedBoundsUpdate |= (DynamicCollection && DynamicCollection->IsDirty());
-		
-		if (NeedBoundsUpdate)
-		{
-			ComponentSpaceBounds = ComputeBounds(FTransform::Identity);
-		}
-		else
-		{
-			NeedBoundsUpdate = false;
-		}
+	bool NeedBoundsUpdate = false;
+	NeedBoundsUpdate |= (ComponentSpaceBounds.GetSphere().W < 1e-5);
+	NeedBoundsUpdate |= CachePlayback;
+	NeedBoundsUpdate |= (DynamicCollection && DynamicCollection->IsDirty());
 
-		return ComponentSpaceBounds.TransformBy(LocalToWorldIn);
+	if (NeedBoundsUpdate)
+	{
+		ComponentSpaceBounds = ComputeBounds(FTransform::Identity);
+	}
+	else
+	{
+		NeedBoundsUpdate = false;
 	}
 
-	return FBoxSphereBounds(ComputeBounds(LocalToWorldIn));
+	return ComponentSpaceBounds.TransformBy(LocalToWorldIn);
 }
 
 int32 UGeometryCollectionComponent::GetNumElements(FName Group) const
@@ -1004,7 +1018,6 @@ void UGeometryCollectionComponent::SetDensityFromPhysicsMaterial(bool bInDensity
 void UGeometryCollectionComponent::UpdateCachedBounds()
 {
 	ComponentSpaceBounds = ComputeBounds(FTransform::Identity);
-	CalculateLocalBounds();
 	UpdateBounds();
 }
 
@@ -1679,6 +1692,7 @@ void UGeometryCollectionComponent::RestTransformsChanged()
 		// only need to mark it dirty and let whoever needs it to compute it on demand
 		ComponentSpaceTransforms.MarkDirty();
 	}
+	RootSpaceBounds.Init();
 
 	RefreshEmbeddedGeometry();
 	RefreshCustomRenderer();
@@ -3592,6 +3606,7 @@ void UGeometryCollectionComponent::ResetDynamicCollection()
 
 	ComponentSpaceTransforms.Reset(NumRestCollectionTransforms, GetRootIndex());
 
+	RootSpaceBounds.Init();
 	UpdateCachedBounds();
 }
 
@@ -4402,12 +4417,6 @@ void UGeometryCollectionComponent::SendRenderDynamicData_Concurrent()
 				);
 			}
 		}		
-	}
-
-	// mark collection clean now that we have rendered
-	if (DynamicCollection)
-	{
-		DynamicCollection->MakeClean();
 	}
 }
 
@@ -5409,12 +5418,6 @@ AChaosSolverActor* UGeometryCollectionComponent::GetPhysicsSolverActor() const
 	}
 
 	return nullptr;
-}
-
-void UGeometryCollectionComponent::CalculateLocalBounds()
-{
-	LocalBounds.Init();
-	LocalBounds = ComputeBounds(FTransform::Identity);
 }
 
 #define GEOMETRY_COLLECTION_CHECK_FOR_NANS_IN_TRANSFORMS 0
