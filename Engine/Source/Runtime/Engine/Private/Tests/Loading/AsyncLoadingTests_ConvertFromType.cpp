@@ -29,7 +29,7 @@ public:
 /**
  * This test validates ConvertFromType thread-safety.
  */
-IMPLEMENT_SIMPLE_AUTOMATION_TEST(FConvertFromType_SoftToHard, TEXT("System.Engine.Loading.ConvertFromType_SoftToHard"), EAutomationTestFlags::ApplicationContextMask | EAutomationTestFlags::EngineFilter)
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FConvertFromType_SoftToHard, TEXT("System.Engine.Loading.ConvertFromType_SoftToHard"), EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
 bool FConvertFromType_SoftToHard::RunTest(const FString& Parameters)
 {
 	// Just make sure the async loading queue is empty before beginning.
@@ -115,6 +115,10 @@ bool FConvertFromType_SoftToHard::RunTest(const FString& Parameters)
 		check(FindObject<UAsyncLoadingTests_ConvertFromType_V2>(nullptr, ObjectPath2) != nullptr);
 		check(FindObject<UPackage>(nullptr, PackagePath2) != nullptr);
 
+		// Remove RF_Standalone from top level object.
+		FindObject<UAsyncLoadingTests_ConvertFromType_V2>(nullptr, ObjectPath1)->ClearFlags(RF_Standalone);
+		FindObject<UAsyncLoadingTests_ConvertFromType_V2>(nullptr, ObjectPath2)->ClearFlags(RF_Standalone);
+
 		FindObject<UPackage>(nullptr, PackagePath1)->GetMetaData()->ClearFlags(RF_Standalone);
 		FindObject<UPackage>(nullptr, PackagePath2)->GetMetaData()->ClearFlags(RF_Standalone);
 
@@ -129,5 +133,4 @@ bool FConvertFromType_SoftToHard::RunTest(const FString& Parameters)
 	return true;
 }
 
-#undef TEST_NAME_ROOT
 #endif // WITH_DEV_AUTOMATION_TESTS
