@@ -37,8 +37,8 @@ export type TestDetails = {
     DeviceInstance: string;
     Errors: number;
     Warnings: number;
-    Entries: TestEntry[];
-    Artifacts: TestEntryArtifact[];
+    Entries?: TestEntry[];
+    Artifacts?: TestEntryArtifact[];
 }
 
 export type TestResult = {

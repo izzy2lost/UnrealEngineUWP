@@ -448,8 +448,8 @@ const TestResultPane: React.FC<{ test: TestResult, selected: boolean }> = (props
                   </Stack>
                   <Text onClick={(ev) => { copyToClipboard(test.FullTestPath); }} styles={{ root: { fontWeight: 'bold', paddingLeft: 4, paddingRight: 4 } }} className={styles.itemHover}>To Clipboard</Text>
                </Stack>
-               {testDetails.Entries.filter(isEntryNeedDisplay).map((value, index) => <EntryPane key={index} entry={value} testArtifacts={testDetails.Artifacts} />)}
-               {testDetails.Entries.length === 0 && <Text styles={{ root: { padding: 8, fontWeight: 'bold' } }}>No event for this test.</Text>}
+               {!!testDetails.Entries && testDetails.Entries.filter(isEntryNeedDisplay).map((value, index) => <EntryPane key={index} entry={value} testArtifacts={testDetails.Artifacts ?? []} />)}
+               {(!testDetails.Entries || testDetails.Entries.length === 0) && <Text styles={{ root: { padding: 8, fontWeight: 'bold' } }}>No event for this test.</Text>}
             </div>
          }
       </Stack>
