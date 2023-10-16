@@ -29,6 +29,12 @@
 #define DOWNSAMPLE_FACTOR 2
 #define SHADOW_MASK_DOWNSAMPLE_FACTOR 2
 
+#ifndef NUM_SAMPLES_PER_PIXEL
+	#define NUM_SAMPLES_PER_PIXEL 4
+	#define NUM_SAMPLES_PER_PIXEL_Y 2
+	#define NUM_SAMPLES_PER_PIXEL_X 2
+#endif
+
 float3 GetTranslatedWorldPositionFromScreenUV(float2 ScreenUV, float SceneDepth)
 {
 	float2 ScreenPosition = (ScreenUV - View.ScreenPositionScaleBias.wz) / View.ScreenPositionScaleBias.xy;
