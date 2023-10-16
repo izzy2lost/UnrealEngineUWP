@@ -284,7 +284,7 @@ FVirtualShadowMapSampleResult TraceDirectional(
 			FSMRTResult SMRTResult = SMRTRayCast(RayState, SamplesPerRay, Noise);
 
 			// Debug output (DCE'd if not used)
-			Result.ClipmapIndexOrMipLevel = RayState.SampledClipmapId - VirtualShadowMapId;
+			Result.ClipmapOrMipLevel = GetVirtualShadowMapProjectionData(RayState.SampledClipmapId).ClipmapLevel;
 			Result.VirtualTexelAddress = RayState.VirtualTexelAddress;
 			Result.PhysicalTexelAddress =  RayState.PhysicalTexelAddress;
 			//Result.GeneralDebug = GreenToRedTurbo((RayState.SampledClipmapId - RayState.ClipmapId) / 2.0f);

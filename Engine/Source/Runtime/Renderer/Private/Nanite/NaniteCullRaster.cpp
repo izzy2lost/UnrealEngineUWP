@@ -267,6 +267,12 @@ static TAutoConsoleVariable<float> CVarNaniteShadowTimeBudgetMs(
 	TEXT("Frame's time budget for Nanite shadow raster in milliseconds."),
 	ECVF_RenderThreadSafe | ECVF_Default);
 
+static TAutoConsoleVariable<float> CVarNaniteOccludedInstancesBufferSizeMultiplier(
+	TEXT("r.Nanite.OccludedInstancesBufferSizeMultiplier"),
+	1.0f,
+	TEXT("DEBUG"),
+	ECVF_RenderThreadSafe | ECVF_Default);
+
 static DynamicRenderScaling::FHeuristicSettings GetDynamicNaniteScalingPrimarySettings()
 {
 	const float PixelsPerEdgeScalingPercentage = FMath::Clamp(CVarNanitePrimaryPixelsPerEdgeScalingPercentage.GetValueOnAnyThread(), 1.0f, 100.0f);
@@ -2266,7 +2272,9 @@ FRenderer::FRenderer(
 	}
 
 	// TODO: Might this not break if the view has overridden the InstanceSceneData?
-	const uint32 NumSceneInstancesPo2 = FMath::RoundUpToPowerOfTwo(FMath::Max(1024u * 128u, Scene.GPUScene.GetInstanceIdUpperBoundGPU()));
+	const uint32 NumSceneInstancesPo2 = 
+		uint32(CVarNaniteOccludedInstancesBufferSizeMultiplier.GetValueOnRenderThread() *
+			   FMath::RoundUpToPowerOfTwo(FMath::Max(1024u * 128u, Scene.GPUScene.GetInstanceIdUpperBoundGPU())));
 	
 	PageConstants.X					= Scene.GPUScene.InstanceSceneDataSOAStride;
 	PageConstants.Y					= Nanite::GStreamingManager.GetMaxStreamingPages();

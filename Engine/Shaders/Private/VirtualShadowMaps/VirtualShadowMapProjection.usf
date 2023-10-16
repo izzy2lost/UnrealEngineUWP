@@ -479,12 +479,12 @@ void OutputVisualize(
 		}
 		else if ( VisualizeModeId == VIRTUAL_SHADOW_MAP_VISUALIZE_CLIPMAP_OR_MIP )
 		{
-			float3 Color = IntToColor( Result.ClipmapIndexOrMipLevel );
+			float3 Color = IntToColor( Result.ClipmapOrMipLevel );
 			Output = 0.8f*Color + 0.2f*Result.ShadowFactor.xxx;
 		}
 		else if ( VisualizeModeId == VIRTUAL_SHADOW_MAP_VISUALIZE_VIRTUAL_PAGE && bValidPageAddress )
 		{
-			float3 MipColor = IntToColor( Result.ClipmapIndexOrMipLevel );
+			float3 MipColor = IntToColor( Result.ClipmapOrMipLevel );
 			Output = 0.4f*vPageColor + 0.4f*MipColor + 0.2f*Result.ShadowFactor.xxx;
 		}		
 		else if ( VisualizeModeId == VIRTUAL_SHADOW_MAP_VISUALIZE_SMRT_RAY_COUNT )

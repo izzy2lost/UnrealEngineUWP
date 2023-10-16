@@ -490,7 +490,7 @@ FVirtualShadowMapSampleResult TraceLocalLight(
 			}
 			
 			// Debug output (DCE'd if not used)
-			Result.ClipmapIndexOrMipLevel = RayState.MipLevel;
+			Result.ClipmapOrMipLevel = RayState.MipLevel;
 			Result.VirtualTexelAddress = RayState.VirtualTexelAddress;
 			Result.PhysicalTexelAddress = RayState.PhysicalTexelAddress;
 

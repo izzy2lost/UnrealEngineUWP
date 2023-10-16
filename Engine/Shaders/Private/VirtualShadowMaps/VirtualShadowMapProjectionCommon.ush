@@ -311,7 +311,7 @@ struct FVirtualShadowMapSampleResult
 	float OccluderDistance;
 
 	// Debug data; do not reference in non-debug permutations or performance may be affected!
-	uint ClipmapIndexOrMipLevel;
+	int ClipmapOrMipLevel;		// Absolute clipmap level or mip level
 	uint RayCount;
 	uint2 VirtualTexelAddress;
 	uint2 PhysicalTexelAddress;
@@ -325,7 +325,7 @@ FVirtualShadowMapSampleResult InitVirtualShadowMapSampleResult()
 	Result.bValid = false;
 	Result.ShadowFactor = 1.0f;
 	Result.OccluderDistance = -1.0f;
-	Result.ClipmapIndexOrMipLevel = 0;
+	Result.ClipmapOrMipLevel = 0;
 	Result.VirtualTexelAddress = uint2(0xFFFFFFFF, 0xFFFFFFFF);
 	Result.PhysicalTexelAddress = uint2(0xFFFFFFFF, 0xFFFFFFFF);
 	Result.RayCount = 0;
@@ -383,7 +383,7 @@ FVirtualShadowMapSampleResult SampleVirtualShadowMapDirectional(
 			Result.bValid = true;
 			Result.ShadowFactor = 1.0f;
 			Result.OccluderDistance = -1.0f;
-			Result.ClipmapIndexOrMipLevel = ClipmapIndex;
+			Result.ClipmapOrMipLevel = GetVirtualShadowMapProjectionData(SmSample.VirtualShadowMapId).ClipmapLevel;
 			Result.VirtualTexelAddress = SmSample.VirtualTexelAddress;
 			Result.PhysicalTexelAddress = SmSample.PhysicalTexelAddress;
 			Result.RayCount = 1;
@@ -450,7 +450,7 @@ FVirtualShadowMapSampleResult SampleVirtualShadowMapLocal(
 		Result.bValid = true;
 		Result.ShadowFactor = 1.0f;
 		Result.OccluderDistance = -1.0f;
-		Result.ClipmapIndexOrMipLevel = SmSample.MipLevel;
+		Result.ClipmapOrMipLevel = int(SmSample.MipLevel);
 		Result.VirtualTexelAddress = SmSample.VirtualTexelAddress;
 		Result.PhysicalTexelAddress = SmSample.PhysicalTexelAddress;
 		Result.RayCount = 1;

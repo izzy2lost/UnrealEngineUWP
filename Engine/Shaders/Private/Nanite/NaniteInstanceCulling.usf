@@ -406,7 +406,11 @@ void InstanceCull(
 				const bool bMaterialInvalidates = ShouldMaterialInvalidateShadowCache(PrimitiveData, bEnableWPO);
 				bAnyMaterialInvalidates |= bMaterialInvalidates;
 				const bool bHasMoved = DynamicData.bHasMoved || bMaterialInvalidates;
-				Cull.PageFlagMask = GetPageFlagMaskForRendering(InstanceData, NaniteView, bHasMoved);
+				const bool bShouldCacheAsStatic = ShouldCacheInstanceAsStatic(InstanceData, Cull.bIsViewUncached);
+
+				float PixelEstRadius = CalcClipSpaceRadiusEstimate(Cull.bIsOrtho, InstanceData, DynamicData.LocalToTranslatedWorld, NaniteView.ViewToClip) * float(VSM_VIRTUAL_MAX_RESOLUTION_XY);				
+				Cull.PageFlagMask = GetPageFlagMaskForRendering(bShouldCacheAsStatic, bHasMoved)
+					| GetDetailGeometryFlagMaskForCulling(bShouldCacheAsStatic, true, PixelEstRadius);
 #endif
 				Cull.FrustumHZB( false );
 			}
