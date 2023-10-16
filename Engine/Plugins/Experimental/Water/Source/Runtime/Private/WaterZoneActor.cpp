@@ -501,7 +501,7 @@ bool AWaterZone::UpdateWaterInfoTexture()
 		const FBox WaterZoneBounds = GetZoneBounds();
 		for (ALandscapeProxy* LandscapeProxy : TActorRange<ALandscapeProxy>(World))
 		{
-			const FBox LandscapeBox = LandscapeProxy->GetComponentsBoundingBox();
+			const FBox LandscapeBox = LandscapeProxy->GetComponentsBoundingBox(/*bIncludeNonColliding = */ true);
 			// Only consider landscapes which this zone intersects with in XY and if the landscape volume is not zero sized
 			if (WaterZoneBounds.IntersectXY(LandscapeBox) && LandscapeBox.GetVolume() > 0.0)
 			{
