@@ -360,7 +360,7 @@ EPCGChangeType UPCGEditorGraphNodeBase::UpdateErrorsAndWarnings()
 	return ChangeType;
 }
 
-EPCGChangeType UPCGEditorGraphNodeBase::UpdateGridSizeVisualization(UPCGComponent* InComponentBeingDebugged)
+EPCGChangeType UPCGEditorGraphNodeBase::UpdateGridSizeVisualization(UPCGComponent* InComponentBeingDebugged, const FPCGStack& InStackBeingInspected)
 {
 	const UPCGGraph* Graph = PCGNode ? PCGNode->GetGraph() : nullptr;
 	if (!Graph)
@@ -372,7 +372,10 @@ EPCGChangeType UPCGEditorGraphNodeBase::UpdateGridSizeVisualization(UPCGComponen
 
 	const bool HiGenEnabled = Graph->IsHierarchicalGenerationEnabled();
 	const uint32 InspectingGridSize = InComponentBeingDebugged ? InComponentBeingDebugged->GetGenerationGridSize() : PCGHiGenGrid::UninitializedGridSize();
-	if (!HiGenEnabled || (InspectingGridSize == PCGHiGenGrid::UninitializedGridSize()))
+
+	// Disable grid size visualization if higen is disabled, or if we're not inspecting a specific grid, or if we're
+	// inspecting a subgraph since subgraphs execute at the invoked grid level.
+	if (!HiGenEnabled || (InspectingGridSize == PCGHiGenGrid::UninitializedGridSize()) || !InStackBeingInspected.IsTopLevelGraph())
 	{
 		if (IsDisplayAsDisabledForced())
 		{

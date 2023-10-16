@@ -249,7 +249,7 @@ void FPCGEditor::SetComponentAndStackBeingInspected(UPCGComponent* InPCGComponen
 			{
 				// Update now that component has changed. Will fire OnNodeChanged if necessary.
 				EPCGChangeType ChangeType = PCGNode->UpdateErrorsAndWarnings();
-				ChangeType |= PCGNode->UpdateGridSizeVisualization(InPCGComponent);
+				ChangeType |= PCGNode->UpdateGridSizeVisualization(InPCGComponent, InPCGStack);
 
 				if (ChangeType != EPCGChangeType::None)
 				{
@@ -2270,7 +2270,7 @@ void FPCGEditor::OnGraphGridSizesChanged(UPCGGraphInterface* InGraph)
 	check(PCGEditorGraph);
 	if (UPCGComponent* PCGComponent = GetPCGComponentBeingInspected())
 	{
-		PCGEditorGraph->UpdateGridSizeVisualization(PCGComponent);
+		PCGEditorGraph->UpdateGridSizeVisualization(PCGComponent, GetStackBeingInspected());
 	}
 }
 

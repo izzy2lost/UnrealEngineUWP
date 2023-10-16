@@ -64,6 +64,12 @@ public:
 	/** Construct a string version of this stack. Postfixed by optional node/pin if provided. */
 	bool CreateStackFramePath(FString& OutString, const UPCGNode* InNode = nullptr, const UPCGPin* InPin = nullptr) const;
 
+	/** Returns how many graphs the stack contains (top level graph stacks will return 1). */
+	uint32 GetNumGraphLevels() const;
+
+	/** Returns true if this stack in the top level graph, rather than in a subgraph. */
+	bool IsTopLevelGraph() const { return GetNumGraphLevels() == 1; }
+
 	const TArray<FPCGStackFrame>& GetStackFrames() const { return StackFrames; }
 	TArray<FPCGStackFrame>& GetStackFramesMutable() { return StackFrames; }
 

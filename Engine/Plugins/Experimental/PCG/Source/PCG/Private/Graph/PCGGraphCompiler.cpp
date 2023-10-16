@@ -425,28 +425,54 @@ EPCGHiGenGrid FPCGGraphCompiler::CalculateGridRecursive(
 		return InOutTaskGenerationGrid[InTaskId];
 	}
 
-	// Default for outside any grid size range.
-	EPCGHiGenGrid Grid = GenerationDefaultGrid;
+	const FPCGStack* Stack = InStackContext.GetStack(InCompiledTasks[InTaskId].StackIndex);
+	check(Stack);
+	const bool bTopLevelGraph = InCompiledTasks[InTaskId].ParentId == InvalidPCGTaskId;
 
 	const UPCGNode* Node = InCompiledTasks[InTaskId].Node;
 	const UPCGSettings* Settings = Node ? Node->GetSettings() : nullptr;
-	const UPCGHiGenGridSizeSettings* Gate = Cast<UPCGHiGenGridSizeSettings>(Settings);
-	if (Gate && Gate->bEnabled)
+	const UPCGHiGenGridSizeSettings* GridSizeSettings = Cast<UPCGHiGenGridSizeSettings>(Settings);
+
+	EPCGHiGenGrid Grid = EPCGHiGenGrid::Uninitialized;
+
+	// Grid Size nodes in the top graph set the execution grid level.
+	if (GridSizeSettings && GridSizeSettings->bEnabled && bTopLevelGraph)
 	{
-		Grid = Gate->GetGrid();
+		Grid = GridSizeSettings->GetGrid();
 	}
 	else
 	{
-		// Grid of this task is minimum of all input grids. We can link in data from a larger grid, but not from a finer grid (this goes against hierarchy).
-		for (FPCGGraphTaskInput InputTask : InCompiledTasks[InTaskId].Inputs)
+		if (InCompiledTasks[InTaskId].Inputs.IsEmpty())
 		{
-			const EPCGHiGenGrid InputGrid = CalculateGridRecursive(InputTask.TaskId, GenerationDefaultGrid, InStackContext, InCompiledTasks, InOutTaskGenerationGrid);
-			if (PCGHiGenGrid::IsValidGrid(InputGrid))
+			if (bTopLevelGraph)
 			{
-				Grid = FMath::Min(InputGrid, Grid);
+				// Tasks with no inputs in top graph get prescribed the default generation grid.
+				Grid = GenerationDefaultGrid;
+			}
+			else
+			{
+				// Tasks with no inputs in a subgraph should execute on the same grid as the subgraph node task.
+				check(InCompiledTasks[InTaskId].ParentId != InvalidPCGTaskId);
+				Grid = CalculateGridRecursive(InCompiledTasks[InTaskId].ParentId, GenerationDefaultGrid, InStackContext, InCompiledTasks, InOutTaskGenerationGrid);
+			}
+		}
+		else
+		{
+			// This task has inputs. Grid of this task is minimum of all input grids. We can link in data from a larger grid, but
+			// not from a finer grid (this goes against hierarchy).
+			Grid = EPCGHiGenGrid::Unbounded;
+			for (FPCGGraphTaskInput InputTask : InCompiledTasks[InTaskId].Inputs)
+			{
+				const EPCGHiGenGrid InputGrid = CalculateGridRecursive(InputTask.TaskId, GenerationDefaultGrid, InStackContext, InCompiledTasks, InOutTaskGenerationGrid);
+				if (PCGHiGenGrid::IsValidGrid(InputGrid))
+				{
+					Grid = FMath::Min(InputGrid, Grid);
+				}
 			}
 		}
 	}
+
+	ensure(Grid != EPCGHiGenGrid::Uninitialized);
 
 	InOutTaskGenerationGrid[InTaskId] = Grid;
 

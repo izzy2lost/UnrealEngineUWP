@@ -96,6 +96,17 @@ bool FPCGStack::CreateStackFramePath(FString& OutString, const UPCGNode* InNode,
 	return true;
 }
 
+uint32 FPCGStack::GetNumGraphLevels() const
+{
+	uint32 GraphCount = 0;
+	for (const FPCGStackFrame& Frame : StackFrames)
+	{
+		GraphCount += Frame.Object->IsA<UPCGGraph>() ? 1 : 0;
+	}
+
+	return GraphCount;
+}
+
 bool FPCGStack::operator==(const FPCGStack& Other) const
 {
 	// Stacks are the same if all stack frames are the same

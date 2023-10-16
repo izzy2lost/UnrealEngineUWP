@@ -9,6 +9,7 @@
 
 enum class EPCGChangeType : uint8;
 
+struct FPCGStack;
 class UPCGComponent;
 class UPCGNode;
 class UPCGPin;
@@ -64,7 +65,7 @@ public:
 	EPCGChangeType UpdateErrorsAndWarnings();
 
 	/** If the currently inspected grid size is smaller than the grid size of this node, display transparent. */
-	EPCGChangeType UpdateGridSizeVisualization(class UPCGComponent* InComponentBeingDebugged);
+	EPCGChangeType UpdateGridSizeVisualization(class UPCGComponent* InComponentBeingDebugged, const FPCGStack& InStackBeingInspected);
 
 	/** Puts node title on node body, reducing overall node size */
 	bool ShouldDrawCompact() const;
