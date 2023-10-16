@@ -86,6 +86,7 @@ public:
 	CORE_API virtual bool IsNameRegistered(const TCHAR* Name) const override;	
 	CORE_API virtual void RegisterThreadPropagation(uint32 ThreadId, IConsoleThreadPropagation* InCallback) override;
 	CORE_API virtual void UnregisterConsoleObject( IConsoleObject* Object, bool bKeepState) override;
+	CORE_API virtual void UnsetAllConsoleVariablesWithTag(FName Tag) override;
 
 private: // ----------------------------------------------------
 

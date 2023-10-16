@@ -142,27 +142,51 @@ enum EConsoleVariableFlags
 	ECVF_SetByProjectSetting =		0x03000000,
 	// Used by the [ConsoleVariables] section of Engine.ini as well as FSystemSettings
 	ECVF_SetBySystemSettingsIni =	0x04000000,
+	// Dyanmically loaded/unloaded plugins, used with the History concept to restore cvars on plugin unload. THIS IS AN ARRAY TYPE meaning multiple vales with this SetBy are stored in the history.
+	ECVF_SetByPluginLowPriority =	0x05000000,
 	// Per device settings using the DeviceProfiles.ini hierarchy (e.g. specific iOS device, higher priority than per project to do device specific settings)
-	ECVF_SetByDeviceProfile =		0x05000000,
+	ECVF_SetByDeviceProfile =		0x06000000,
+	// Dyanmically loaded/unloaded plugins, used with the History concept to restore cvars on plugin unload. THIS IS AN ARRAY TYPE meaning multiple vales with this SetBy are stored in the history.
+	ECVF_SetByPluginHighPriority =	0x07000000,
 	// User settable game overrides, used for GameUserSettings fields that need to override device specific settings
-	ECVF_SetByGameOverride =		0x06000000,
+	ECVF_SetByGameOverride =		0x08000000,
 	// Set by local consolevariables.ini, mostly used for testing multiple projects
-	ECVF_SetByConsoleVariablesIni = 0x07000000,
-	// Set by hotfix
-	ECVF_SetByHotfix =				0x08000000,
+	ECVF_SetByConsoleVariablesIni = 0x09000000,
+	// Set by hotfix. THIS IS AN ARRAY TYPE meaning multiple vales with this SetBy are stored in the history
+	ECVF_SetByHotfix =				0x0A000000,
 	// Used by some command line parameters, others use the Console priority instead
-	ECVF_SetByCommandline =			0x09000000,
-	// Used for high priority temporary debugging or operation modes 
-	ECVF_SetByCode =				0x0A000000,
+	ECVF_SetByCommandline =			0x0B000000,
+	// Used for high priority temporary debugging or operation modes
+	ECVF_SetByCode =				0x0C000000,
 	// Highest priority used via editor UI or or game/editor interactive console
-	ECVF_SetByConsole =				0x0B000000,
+	ECVF_SetByConsole =				0x0D000000,
 
 
 	// ------------------------------------------------
 };
 
+
+#define ENUMERATE_SET_BY(op) \
+	op(Constructor) \
+	op(Scalability) \
+	op(GameSetting) \
+	op(ProjectSetting) \
+	op(SystemSettingsIni) \
+	op(PluginLowPriority) \
+	op(DeviceProfile) \
+	op(PluginHighPriority) \
+	op(ConsoleVariablesIni) \
+	op(Hotfix) \
+	op(Commandline) \
+	op(Code) \
+	op(Console)
+
+
 /** Returns human readable ECVF_SetByMask bits of the console variable flags. */
 extern CORE_API const TCHAR* GetConsoleVariableSetByName(EConsoleVariableFlags ConsoleVariableFlags);
+
+/** Inverse of GetConsoleVariableSetByName() */
+extern CORE_API EConsoleVariableFlags GetConsoleVariableSetByValue(const TCHAR* SetByName);
 
 
 class IConsoleVariable;
@@ -447,8 +471,17 @@ public:
 	/**
 	 * Set the internal value from the specified string. 
 	 * @param SetBy anything in ECVF_LastSetMask e.g. ECVF_SetByScalability
+	 * @param Tag optional Tag to set with the value - only useful when UE_ALLOW_CVAR_HISTORY is set, and when setting in an ARRAY type SetBy
 	 **/
-	virtual void Set(const TCHAR* InValue, EConsoleVariableFlags SetBy = ECVF_SetByCode) = 0;
+	virtual void Set(const TCHAR* InValue, EConsoleVariableFlags SetBy = ECVF_SetByCode, FName Tag = NAME_None) = 0;
+
+	/**
+	 * Unsets the value at a certain SetBy priority (this is only useful when UE_ALLOW_CVAR_HISTORY is set). The value of the CVar
+	 * will be recalculated based on remaining History levels
+	 * @param SetBy anything in ECVF_LastSetMask e.g. ECVF_SetByScalability
+	 * @param Tag tag used to remove a setting from an ARRAY type SetBy
+	 **/
+	virtual void Unset(EConsoleVariableFlags SetBy, FName Tag = NAME_None) = 0;
 
 	/**
 	 * Get the internal value as a bool, works on bools, ints and floats.
@@ -528,46 +561,46 @@ public:
 	// convenience methods
 
 	/** Set the internal value from the specified bool. */
-	void Set(bool InValue, EConsoleVariableFlags SetBy = ECVF_SetByCode)
+	void Set(bool InValue, EConsoleVariableFlags SetBy = ECVF_SetByCode, FName Tag=NAME_None)
 	{
 		// NOTE: Bool needs to use 1 and 0 here rather than true/false, as this may be a int32 or something
 		// and eventually this code calls, TTypeFromString<T>::FromString which won't handle the true/false,
 		// but 1 and 0 will work for whatever.
 		// inefficient but no common code path
-		Set(InValue ? TEXT("1") : TEXT("0"), SetBy);
+		Set(InValue ? TEXT("1") : TEXT("0"), SetBy, Tag);
 	}
 	/** Set the internal value from the specified int. */
-	void Set(int32 InValue, EConsoleVariableFlags SetBy = ECVF_SetByCode)
+	void Set(int32 InValue, EConsoleVariableFlags SetBy = ECVF_SetByCode, FName Tag=NAME_None)
 	{
 		// inefficient but no common code path
-		Set(*FString::Printf(TEXT("%d"), InValue), SetBy);
+		Set(*FString::Printf(TEXT("%d"), InValue), SetBy, Tag);
 	}
 	/** Set the internal value from the specified float. */
-	void Set(float InValue, EConsoleVariableFlags SetBy = ECVF_SetByCode)
+	void Set(float InValue, EConsoleVariableFlags SetBy = ECVF_SetByCode, FName Tag=NAME_None)
 	{
 		// inefficient but no common code path
-		Set(*FString::Printf(TEXT("%g"), InValue), SetBy);
+		Set(*FString::Printf(TEXT("%g"), InValue), SetBy, Tag);
 	}
 
-	void SetWithCurrentPriority(bool InValue)
+	void SetWithCurrentPriority(bool InValue, FName Tag=NAME_None)
 	{
 		EConsoleVariableFlags CurFlags = (EConsoleVariableFlags)(GetFlags() & ECVF_SetByMask);
-		Set(InValue, CurFlags);
+		Set(InValue, CurFlags, Tag);
 	}
-	void SetWithCurrentPriority(int32 InValue)
+	void SetWithCurrentPriority(int32 InValue, FName Tag=NAME_None)
 	{
 		EConsoleVariableFlags CurFlags = (EConsoleVariableFlags)(GetFlags() & ECVF_SetByMask);
-		Set(InValue, CurFlags);
+		Set(InValue, CurFlags, Tag);
 	}
-	void SetWithCurrentPriority(float InValue)
+	void SetWithCurrentPriority(float InValue, FName Tag=NAME_None)
 	{
 		EConsoleVariableFlags CurFlags = (EConsoleVariableFlags)(GetFlags() & ECVF_SetByMask);
-		Set(InValue, CurFlags);
+		Set(InValue, CurFlags, Tag);
 	}
-	void SetWithCurrentPriority(const TCHAR* InValue)
+	void SetWithCurrentPriority(const TCHAR* InValue, FName Tag=NAME_None)
 	{
 		EConsoleVariableFlags CurFlags = (EConsoleVariableFlags)(GetFlags() & ECVF_SetByMask);
-		Set(InValue, CurFlags);
+		Set(InValue, CurFlags, Tag);
 	}
 
 
@@ -1047,6 +1080,12 @@ struct IConsoleManager
 	static CORE_API bool VisitPlatformCVarsForEmulation(FName PlatformName, const FString& DeviceProfileName, TFunctionRef<void(const FString& CVarName, const FString& CVarValue, EConsoleVariableFlags SetBy)> Visit);
 #endif
 
+	/**
+	  * When a plugin is unmounted, it needs to unset cvars that it had set when it was mounted. This will unset and fixup all
+	  * variables with the given Tag
+	 */
+	virtual void UnsetAllConsoleVariablesWithTag(FName Tag) = 0;
+	
 	virtual FConsoleVariableMulticastDelegate& OnCVarUnregistered() = 0;
 
 protected:
