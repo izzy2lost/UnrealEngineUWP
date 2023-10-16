@@ -342,6 +342,8 @@ namespace EpicGames.UHT.Parsers
 							break;
 					}
 
+					topScope.TokenReader.OptionalAttributes(false);
+
 					if (topScope.TokenReader.TryOptional("static"))
 					{
 						function.FunctionFlags |= EFunctionFlags.Static;
