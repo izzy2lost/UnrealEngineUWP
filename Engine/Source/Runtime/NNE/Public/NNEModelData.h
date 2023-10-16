@@ -91,7 +91,8 @@ public:
 	void Init(const FString& Type, TConstArrayView<uint8> Buffer);
 
 	/**
-	 * Get the target runtimes this model data will be cooked for. An empty list means all runtimes.
+	 * In editor: Get the target runtimes this model data will be cooked for. An empty list means all runtimes.
+	 * In standalone: An empty list.
 	 *
 	 * @return The target runtimes names.
 	 */
@@ -107,7 +108,8 @@ public:
 	/**
 	 * Get the type of data inside FileData.
 	 *
-	 * The FileType identifies the type of data inside FileData and typically is the extension of the file used to create the asset.
+	 * In editor: The FileType identifies the type of data inside FileData and typically is the extension of the file used to create the asset.
+	 * In standalone: An empty string.
 	 *
 	 * @return The FileType.
 	 */
@@ -116,7 +118,8 @@ public:
 	/**
 	 * Get read only access to FileData.
 	 *
-	 * The FileData contains the binary data of the file which has been used to create the asset.
+	 * In editor: The FileData contains the binary data of the file which has been used to create the asset.
+	 * In standalone: An empty array.
 	 *
 	 * @return The FileData.
 	 */
