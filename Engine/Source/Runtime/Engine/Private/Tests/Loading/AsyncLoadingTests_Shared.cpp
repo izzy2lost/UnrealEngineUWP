@@ -3,6 +3,7 @@
 #include "AsyncLoadingTests_Shared.h"
 #include "Misc/AutomationTest.h"
 #include "Misc/PackageName.h"
+#include "UObject/MetaData.h"
 #include "UObject/SavePackage.h"
 
 UAsyncLoadingTests_Shared::FOnPostLoadDelegate UAsyncLoadingTests_Shared::OnPostLoad;
