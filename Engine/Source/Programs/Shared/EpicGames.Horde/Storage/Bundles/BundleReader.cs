@@ -444,7 +444,7 @@ namespace EpicGames.Horde.Storage.Bundles
 			int prefetchSize = _cache != null ? DefaultFetchSize : DefaultUncachedFetchSize;
 			for (; ; )
 			{
-				await using (Stream stream = await _store.OpenAsync(bundle.Locator, 0, prefetchSize, cancellationToken))
+				await using (Stream stream = await _store.OpenBlobAsync(bundle.Locator, 0, prefetchSize, cancellationToken))
 				{
 					// Read the header data
 					byte[] prelude = new byte[BundleHeader.PreludeLength];
@@ -499,7 +499,7 @@ namespace EpicGames.Horde.Storage.Bundles
 			Interlocked.Increment(ref _numPacketReads);
 			Interlocked.Add(ref _numBytesRead, maxOffset - minOffset);
 
-			await using (Stream stream = await _store.OpenAsync(bundleInfo.Locator, bundleInfo.HeaderLength + minOffset, maxOffset - minOffset, cancellationToken))
+			await using (Stream stream = await _store.OpenBlobAsync(bundleInfo.Locator, bundleInfo.HeaderLength + minOffset, maxOffset - minOffset, cancellationToken))
 			{
 				// Copy all the packets that have been read into separate buffers, so we can cache them indidually.
 				for (int packetIdx = minPacketIdx; packetIdx <= maxPacketIdx; packetIdx++)
