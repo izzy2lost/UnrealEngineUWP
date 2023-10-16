@@ -115,10 +115,10 @@ namespace Metasound
 			}
 		}
 
-		TAudioBusWriterOperator(const FBuildOperatorParams& InParams, FAudioBusAssetReadRef InAudioBusAsset, TArray<FAudioBufferReadRef> InAudioInputs, FString InGraphName)
-			: AudioBusAsset(MoveTemp(InAudioBusAsset))
-			, AudioInputs(MoveTemp(InAudioInputs))
-			, GraphName(MoveTemp(InGraphName))
+		TAudioBusWriterOperator(const FCreateOperatorParams& InParams, FAudioBusAssetReadRef InAudioBusAsset, TArray<FAudioBufferReadRef> InAudioInputs, FString InGraphName) :
+			AudioBusAsset(MoveTemp(InAudioBusAsset)),
+			AudioInputs(MoveTemp(InAudioInputs)),
+			GraphName(MoveTemp(InGraphName))
 		{
 			Reset(InParams);
 		}
