@@ -465,7 +465,7 @@ namespace EpicGames.Horde.Storage.Bundles
 			}
 
 			// Mark the bundle as complete
-			public async Task WriteAsync(BundleStorageClient store, string? basePath, ILogger? traceLogger)
+			public async Task WriteAsync(IStorageClient store, string? basePath, ILogger? traceLogger)
 			{
 				traceLogger?.LogInformation("Marking bundle {BundleId} as complete ({NumNodes} nodes); adding to write queue.", BundleId, _queue.Count);
 
@@ -614,7 +614,7 @@ namespace EpicGames.Horde.Storage.Bundles
 		class WriteQueue
 		{
 			long _memoryFootprint;
-			readonly BundleStorageClient _store;
+			readonly IStorageClient _store;
 			readonly string? _basePath;
 			readonly long _maxMemoryFootprint;
 			readonly ILogger? _traceLogger;
@@ -622,7 +622,7 @@ namespace EpicGames.Horde.Storage.Bundles
 			int _refCount;
 			readonly List<Task> _writeTasks = new List<Task>();
 
-			public WriteQueue(BundleStorageClient store, string? basePath, long maxMemoryFootprint, ILogger? traceLogger)
+			public WriteQueue(IStorageClient store, string? basePath, long maxMemoryFootprint, ILogger? traceLogger)
 			{
 				_store = store;
 				_basePath = basePath;
@@ -697,7 +697,7 @@ namespace EpicGames.Horde.Storage.Bundles
 
 		static readonly BundleOptions s_defaultOptions = new BundleOptions();
 
-		readonly BundleStorageClient _store;
+		readonly IStorageClient _store;
 		readonly BundleReader _reader;
 		readonly BundleOptions _options;
 		readonly string? _basePath;
@@ -718,7 +718,7 @@ namespace EpicGames.Horde.Storage.Bundles
 		/// <param name="basePath">Base path for new nodes</param>
 		/// <param name="options">Options for the writer</param>
 		/// <param name="traceLogger">Optional logger for trace information</param>
-		public BundleWriter(BundleStorageClient store, BundleReader reader, string? basePath, BundleOptions? options = null, ILogger? traceLogger = null)
+		public BundleWriter(IStorageClient store, BundleReader reader, string? basePath, BundleOptions? options = null, ILogger? traceLogger = null)
 			: this(store, reader, basePath, options, null, traceLogger)
 		{
 		}
@@ -736,7 +736,7 @@ namespace EpicGames.Horde.Storage.Bundles
 		/// <summary>
 		/// Internal constructor
 		/// </summary>
-		private BundleWriter(BundleStorageClient store, BundleReader reader, string? basePath, BundleOptions? options, WriteQueue? writeQueue, ILogger? traceLogger = null)
+		private BundleWriter(IStorageClient store, BundleReader reader, string? basePath, BundleOptions? options, WriteQueue? writeQueue, ILogger? traceLogger = null)
 		{
 			_store = store;
 			_reader = reader;

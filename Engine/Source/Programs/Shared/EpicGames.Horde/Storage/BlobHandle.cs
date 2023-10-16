@@ -137,6 +137,53 @@ namespace EpicGames.Horde.Storage
 	}
 
 	/// <summary>
+	/// Instance of <see cref="BlobHandle"/> which wraps an inner handle and a fragment
+	/// </summary>
+	public class BlobFragmentHandle : BlobHandle
+	{
+		/// <summary>
+		/// Handle to the inner blob
+		/// </summary>
+		public BlobHandle Inner { get; }
+
+		/// <summary>
+		/// The fragment portion of the handle
+		/// </summary>
+		public Utf8String Fragment { get; }
+
+		/// <summary>
+		/// Constructor
+		/// </summary>
+		public BlobFragmentHandle(BlobHandle inner, Utf8String fragment)
+		{
+			Inner = inner;
+			Fragment = fragment;
+		}
+
+		/// <inheritdoc/>
+		public override bool TryGetLocator([NotNullWhen(true)] out BlobLocator locator)
+		{
+			BlobLocator innerLocator;
+			if (Inner.TryGetLocator(out innerLocator))
+			{
+				locator = new BlobLocator(innerLocator, Fragment.Span);
+				return true;
+			}
+			else
+			{
+				locator = default;
+				return false;
+			}
+		}
+
+		/// <inheritdoc/>
+		public override ValueTask<BlobData> ReadAsync(CancellationToken cancellationToken = default)
+		{
+			throw new NotSupportedException("Blob fragment handles cannot be read directly, and should be deconstructed into more specific types.");
+		}
+	}
+
+	/// <summary>
 	/// Extension methods for blob handles
 	/// </summary>
 	public static class BlobHandleExtensions

@@ -6,7 +6,6 @@ using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
 using EpicGames.Core;
-using EpicGames.Horde.Storage.Clients;
 using Microsoft.Extensions.Logging;
 using Microsoft.CodeAnalysis;
 using System.Diagnostics;
@@ -127,7 +126,7 @@ namespace EpicGames.Horde.Storage.Bundles
 		// When reader is uncached, use a smaller default fetch size
 		const int DefaultUncachedFetchSize = 1 * 1024 * 1024;
 
-		readonly BundleStorageClient _store;
+		readonly IStorageClient _store;
 		readonly BundleReaderCache _cache;
 		readonly ILogger _logger;
 
@@ -151,7 +150,7 @@ namespace EpicGames.Horde.Storage.Bundles
 		/// <param name="store"></param>
 		/// <param name="cache">Cache for data</param>
 		/// <param name="logger">Logger for output</param>
-		public BundleReader(BundleStorageClient store, BundleReaderCache cache, ILogger logger)
+		public BundleReader(IStorageClient store, BundleReaderCache cache, ILogger logger)
 		{
 			_store = store;
 			_cache = cache;
@@ -444,7 +443,8 @@ namespace EpicGames.Horde.Storage.Bundles
 			int prefetchSize = _cache != null ? DefaultFetchSize : DefaultUncachedFetchSize;
 			for (; ; )
 			{
-				await using (Stream stream = await _store.OpenBlobAsync(bundle.Locator, 0, prefetchSize, cancellationToken))
+				BlobHandle handle = _store.CreateBlobHandle(bundle.Locator);
+				await using (Stream stream = await handle.OpenAsync(0, prefetchSize, cancellationToken))
 				{
 					// Read the header data
 					byte[] prelude = new byte[BundleHeader.PreludeLength];
@@ -499,7 +499,8 @@ namespace EpicGames.Horde.Storage.Bundles
 			Interlocked.Increment(ref _numPacketReads);
 			Interlocked.Add(ref _numBytesRead, maxOffset - minOffset);
 
-			await using (Stream stream = await _store.OpenBlobAsync(bundleInfo.Locator, bundleInfo.HeaderLength + minOffset, maxOffset - minOffset, cancellationToken))
+			BlobHandle handle = _store.CreateBlobHandle(bundleInfo.Locator);
+			await using (Stream stream = await handle.OpenAsync(bundleInfo.HeaderLength + minOffset, maxOffset - minOffset, cancellationToken))
 			{
 				// Copy all the packets that have been read into separate buffers, so we can cache them indidually.
 				for (int packetIdx = minPacketIdx; packetIdx <= maxPacketIdx; packetIdx++)

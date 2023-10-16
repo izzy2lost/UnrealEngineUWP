@@ -8,6 +8,7 @@ using System.Threading;
 using System.Threading.Tasks;
 using EpicGames.Core;
 using EpicGames.Horde.Storage.Bundles;
+using Microsoft.CodeAnalysis;
 using Microsoft.Extensions.Logging;
 
 namespace EpicGames.Horde.Storage.Clients
@@ -15,34 +16,42 @@ namespace EpicGames.Horde.Storage.Clients
 	/// <summary>
 	/// Base class for an implementation of <see cref="IStorageClient"/>, providing implementations for some common functionality using bundles.
 	/// </summary>
-	public abstract class BundleStorageClient : IStorageClient
+	public abstract class BundleStorageClientBase : IStorageClient
 	{
 		/// <summary>
 		/// Blob type for bundles
 		/// </summary>
 		public static BlobType BundleBlobType { get; } = new BlobType(Guid.Parse("{7C5BA294-2D21-4F92-85BE-852F48CC4C1E}"), 1);
 
-		class BundleHandle : BlobHandle
+		/// <summary>
+		/// Handle to a bundle object
+		/// </summary>
+		protected class BundleHandle : BlobHandle
 		{
-			readonly BundleStorageClient _storageClient;
-			readonly string _path;
+			readonly BundleStorageClientBase _storageClient;
+			readonly BlobLocator _locator;
 			List<BlobHandle>? _refs;
 
-			public BundleHandle(BundleStorageClient storageClient, string path)
+			/// <summary>
+			/// Constructor
+			/// </summary>
+			public BundleHandle(BundleStorageClientBase storageClient, BlobLocator locator)
 			{
 				_storageClient = storageClient;
-				_path = path;
+				_locator = locator;
 			}
 
+			/// <inheritdoc/>
 			public override ValueTask<BlobType> GetTypeAsync(CancellationToken cancellationToken = default) => new ValueTask<BlobType>(BundleBlobType);
 
+			/// <inheritdoc/>
 			public override async ValueTask<IReadOnlyList<BlobHandle>> GetRefsAsync(CancellationToken cancellationToken = default)
 			{
 				if (_refs == null)
 				{
 					List<BlobHandle> refs = new List<BlobHandle>();
 
-					BundleHeader header = await _storageClient.ReadHeaderAsync(new BlobLocator(_path), cancellationToken);
+					BundleHeader header = await _storageClient.ReadHeaderAsync(_locator, cancellationToken);
 					foreach (BlobLocator import in header.Imports)
 					{
 						refs.Add(_storageClient.CreateBlobHandle(new BlobLocator(import.Path)));
@@ -53,34 +62,31 @@ namespace EpicGames.Horde.Storage.Clients
 				return _refs;
 			}
 
+			/// <inheritdoc/>
 			public override Task<Stream> OpenAsync(int offset = 0, int? length = null, CancellationToken cancellationToken = default)
 			{
-				return _storageClient.OpenBlobAsync(new BlobLocator(_path), offset, length, cancellationToken);
+				return _storageClient.OpenBlobAsync(_locator, offset, length, cancellationToken);
 			}
 
+			/// <inheritdoc/>
 			public override async ValueTask<BlobData> ReadAsync(CancellationToken cancellationToken = default)
 			{
-				using (Stream stream = await _storageClient.OpenBlobAsync(new BlobLocator(_path), 0, cancellationToken: cancellationToken))
+				using (Stream stream = await _storageClient.OpenBlobAsync(_locator, 0, cancellationToken: cancellationToken))
 				{
 					byte[] data = await stream.ReadAllBytesAsync(cancellationToken);
 					return new BlobData(BundleBlobType, data, await GetRefsAsync(cancellationToken));
 				}
 			}
 
+			/// <inheritdoc/>
 			public override bool TryGetLocator([NotNullWhen(true)] out BlobLocator locator)
 			{
-				locator = new BlobLocator(_path);
+				locator = _locator;
 				return true;
 			}
 		}
 
-		readonly IStorageBackend _backend;
 		readonly BundleReader _bundleReader;
-
-		/// <summary>
-		/// Backend for this client
-		/// </summary>
-		public IStorageBackend Backend => _backend;
 
 		/// <inheritdoc/>
 		public virtual bool SupportsRedirects { get; } = false;
@@ -88,9 +94,8 @@ namespace EpicGames.Horde.Storage.Clients
 		/// <summary>
 		/// Constructor
 		/// </summary>
-		protected BundleStorageClient(IStorageBackend backend, BundleReaderCache cache, ILogger logger)
+		protected BundleStorageClientBase(BundleReaderCache cache, ILogger logger)
 		{
-			_backend = backend;
 			_bundleReader = new BundleReader(this, cache, logger);
 		}
 
@@ -107,22 +112,20 @@ namespace EpicGames.Horde.Storage.Clients
 		/// <param name="disposing"></param>
 		protected virtual void Dispose(bool disposing)
 		{
-			_backend.Dispose();
 		}
 
 		#region Blobs
 
 		/// <inheritdoc/>
 		public async Task<Stream> OpenBlobAsync(BlobLocator locator, int offset = 0, int? length = null, CancellationToken cancellationToken = default) 
-			=> await _backend.OpenAsync(locator.Path.ToString(), offset, length, cancellationToken);
+			=> await OpenBundleAsync(locator, offset, length, cancellationToken);
 
 		/// <inheritdoc/>
 		public async ValueTask<BlobHandle> WriteBlobAsync(BlobType type, Stream stream, IReadOnlyList<BlobHandle> references, string? basePath = null, CancellationToken cancellationToken = default)
 		{
 			if (type == BundleBlobType)
 			{
-				string path = await _backend.WriteAsync(stream, basePath, cancellationToken);
-				return new BundleHandle(this, path);
+				return await WriteBundleAsync(stream, references, basePath, cancellationToken);
 			}
 			else
 			{
@@ -153,6 +156,16 @@ namespace EpicGames.Horde.Storage.Clients
 
 		#region Bundles
 
+		/// <summary>
+		/// Read a bundle from the underlying storage
+		/// </summary>
+		protected abstract Task<Stream> OpenBundleAsync(BlobLocator locator, int offset = 0, int? length = null, CancellationToken cancellationToken = default);
+
+		/// <summary>
+		/// Write a bundle to the underlying storage
+		/// </summary>
+		protected abstract ValueTask<BlobHandle> WriteBundleAsync(Stream stream, IReadOnlyList<BlobHandle> references, string? basePath = null, CancellationToken cancellationToken = default);
+
 		/// <inheritdoc/>
 		public Task<BundleHeader> ReadHeaderAsync(BlobLocator locator, CancellationToken cancellationToken) => _bundleReader.ReadHeaderAsync(locator, cancellationToken);
 
@@ -172,7 +185,7 @@ namespace EpicGames.Horde.Storage.Clients
 			}
 			else
 			{
-				return new BundleHandle(this, locator.Path.ToString());
+				return new BundleHandle(this, locator);
 			}
 		}
 
@@ -211,10 +224,152 @@ namespace EpicGames.Horde.Storage.Clients
 		#endregion
 
 		/// <inheritdoc/>
-		public void GetStats(StorageStats stats)
+		public virtual void GetStats(StorageStats stats) => _bundleReader.GetStats(stats);
+	}
+
+	/// <summary>
+	/// Base class for an implementation of <see cref="IStorageClient"/>, providing implementations for some common functionality using bundles.
+	/// </summary>
+	public abstract class BundleStorageClient : BundleStorageClientBase
+	{
+		readonly IStorageBackend _backend;
+
+		/// <summary>
+		/// Backend for this client
+		/// </summary>
+		public IStorageBackend Backend => _backend;
+
+		/// <summary>
+		/// Constructor
+		/// </summary>
+		protected BundleStorageClient(IStorageBackend backend, BundleReaderCache cache, ILogger logger)
+			: base(cache, logger)
+		{
+			_backend = backend;
+		}
+
+		/// <summary>
+		/// Overridable dispose method
+		/// </summary>
+		/// <param name="disposing"></param>
+		protected override void Dispose(bool disposing)
+		{
+			if (disposing)
+			{
+				_backend.Dispose();
+			}
+
+			base.Dispose(disposing);
+		}
+
+		/// <inheritdoc/>
+		protected override async Task<Stream> OpenBundleAsync(BlobLocator locator, int offset, int? length, CancellationToken cancellationToken)
+			=> await _backend.OpenAsync(locator.ToString(), offset, length, cancellationToken);
+
+		/// <inheritdoc/>
+		protected override async ValueTask<BlobHandle> WriteBundleAsync(Stream stream, IReadOnlyList<BlobHandle> references, string? basePath = null, CancellationToken cancellationToken = default)
+		{
+			string path = await _backend.WriteAsync(stream, basePath, cancellationToken);
+			return new BundleHandle(this, new BlobLocator(path));
+		}
+
+		/// <inheritdoc/>
+		public override void GetStats(StorageStats stats)
 		{
 			_backend.GetStats(stats);
-			_bundleReader.GetStats(stats);
+			base.GetStats(stats);
 		}
+	}
+
+	/// <summary>
+	/// Wraps an underlying storage client with functionality that packs nodes into bundles.
+	/// </summary>
+	public sealed class BundleStorageClientWrapper : BundleStorageClientBase
+	{
+		readonly IStorageClient _inner;
+
+		/// <summary>
+		/// Constructor
+		/// </summary>
+		public BundleStorageClientWrapper(IStorageClient inner, BundleReaderCache cache, ILogger logger)
+			: base(cache, logger)
+		{
+			_inner = inner;
+		}
+
+		/// <summary>
+		/// Overridable dispose method
+		/// </summary>
+		/// <param name="disposing"></param>
+		protected override void Dispose(bool disposing)
+		{
+			if (disposing)
+			{
+				_inner.Dispose();
+			}
+
+			base.Dispose(disposing);
+		}
+
+		/// <inheritdoc/>
+		protected override async Task<Stream> OpenBundleAsync(BlobLocator locator, int offset, int? length, CancellationToken cancellationToken)
+			=> await _inner.CreateBlobHandle(locator).OpenAsync(offset, length, cancellationToken);
+
+		/// <inheritdoc/>
+		protected override ValueTask<BlobHandle> WriteBundleAsync(Stream stream, IReadOnlyList<BlobHandle> references, string? basePath = null, CancellationToken cancellationToken = default)
+			=> _inner.WriteBlobAsync(BundleBlobType, stream, references, basePath, cancellationToken);
+
+		/// <inheritdoc/>
+		public override void GetStats(StorageStats stats)
+		{
+			_inner.GetStats(stats);
+			base.GetStats(stats);
+		}
+
+		#region Aliases
+
+		/// <inheritdoc/>
+		public override Task AddAliasAsync(string name, BlobHandle handle, int rank, ReadOnlyMemory<byte> data, CancellationToken cancellationToken)
+			=> _inner.AddAliasAsync(name, handle, rank, data, cancellationToken);
+
+		/// <inheritdoc/>
+		public override Task RemoveAliasAsync(string name, BlobHandle handle, CancellationToken cancellationToken)
+			=> _inner.RemoveAliasAsync(name, handle, cancellationToken);
+
+		/// <inheritdoc/>
+		public override async Task<BlobAlias[]> FindAliasesAsync(string name, int? maxLength = null, CancellationToken cancellationToken = default)
+		{
+			BlobAlias[] aliases = await _inner.FindAliasesAsync(name, maxLength, cancellationToken);
+			for (int idx = 0; idx < aliases.Length; idx++)
+			{
+				BlobAlias alias = aliases[idx];
+				aliases[idx] = new BlobAlias(CreateBlobHandle(alias.Target.GetLocator()), alias.Rank, alias.Data);
+			}
+			return aliases;
+		}
+
+		#endregion
+		#region Refs
+
+		/// <inheritdoc/>
+		public override Task<bool> DeleteRefAsync(RefName name, CancellationToken cancellationToken = default)
+			=> _inner.DeleteRefAsync(name, cancellationToken);
+
+		/// <inheritdoc/>
+		public override async Task<RefValue?> TryReadRefAsync(RefName name, RefCacheTime cacheTime = default, CancellationToken cancellationToken = default)
+		{
+			RefValue? refValue = await _inner.TryReadRefAsync(name, cacheTime, cancellationToken);
+			if (refValue != null)
+			{
+				refValue = new RefValue(CreateBlobHandle(refValue.Target.GetLocator()), refValue.Data);
+			}
+			return refValue;
+		}
+
+		/// <inheritdoc/>
+		public override Task WriteRefAsync(RefName name, BlobHandle target, ReadOnlyMemory<byte> data, RefOptions? options, CancellationToken cancellationToken)
+			=> _inner.WriteRefAsync(name, target, data, options, cancellationToken);
+
+		#endregion
 	}
 }
