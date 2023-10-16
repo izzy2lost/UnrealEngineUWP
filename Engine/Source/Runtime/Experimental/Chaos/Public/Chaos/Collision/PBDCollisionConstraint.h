@@ -460,8 +460,8 @@ namespace Chaos
 		// NOTE: This is initially set based on whether are allowing incremental manifolds
 		bool GetUseIncrementalCollisionDetection() const { return !Flags.bUseManifold || Flags.bUseIncrementalManifold; }
 
-		// Does this contact support the initial overlap depenetration. If not, bodies are depenetrated in one frame as opposed to at a fixed speed
-		bool GetInitialOverlapDepentrationEnabled() const { return Flags.bOverlapDepenetrationEnabled; }
+		// Initial overlap depenetration velocity from the maximum of the two bodies
+		FRealSingle GetInitialOverlapDepentrationVelocity() const { return InitialOverlapDepenetrationVelocity; }
 
 		/**
 		* Reset the material properties to those from the shape materials. Called each frame to reset contact modifications to the material.
@@ -889,7 +889,6 @@ namespace Chaos
 				uint16 bModifierApplied : 1;			// Was a constraint modifier applied this tick
 				uint16 bMaterialSet : 1;				// Has the material been set (or does it need to be reset)
 				uint16 bInitialContact : 1;				// Is this contact considered an initial contact
-				uint16 bOverlapDepenetrationEnabled : 1;// Does this contact support the initial overlap depenetration system
 				uint16 bIsOneWayInteraction : 1;		// Does one of the bodies have the one-way interaction bit set?
 			};
 			uint16 Bits;
@@ -958,6 +957,9 @@ namespace Chaos
 		// We don't want the new point to cause a pop but also don't want all new contacts to be initial overlaps
 		// when we were already separated at some point in the past.
 		FRealSingle MinInitialPhi;
+
+		// If we have initial overlap, the depenetration speed
+		FRealSingle InitialOverlapDepenetrationVelocity;
 
 		// Value in range [0,1] used to interpolate P between [X,P] that we will rollback to when solving at time of impact.
 		FRealSingle CCDTimeOfImpact;

@@ -667,13 +667,20 @@ void FChaosEngineInterface::SetMaxLinearVelocity_AssumesLocked(const FPhysicsAct
 
 float FChaosEngineInterface::GetMaxDepenetrationVelocity_AssumesLocked(const FPhysicsActorHandle& InActorReference)
 {
-	CHAOS_ENSURE(false);
-	return FLT_MAX;
+	if (ensure(FChaosEngineInterface::IsValid(InActorReference)))
+	{
+		return FMath::Sqrt(InActorReference->GetGameThreadAPI().GetInitialOverlapDepenetrationVelocity());
+	}
+
+	return 0;
 }
 
 void FChaosEngineInterface::SetMaxDepenetrationVelocity_AssumesLocked(const FPhysicsActorHandle& InActorReference,float InMaxDepenetrationVelocity)
 {
-	CHAOS_ENSURE(false);
+	if (ensure(FChaosEngineInterface::IsValid(InActorReference)))
+	{
+		InActorReference->GetGameThreadAPI().SetInitialOverlapDepenetrationVelocity(InMaxDepenetrationVelocity);
+	}
 }
 
 FVector FChaosEngineInterface::GetWorldVelocityAtPoint_AssumesLocked(const FPhysicsActorHandle& InActorReference,const FVector& InPoint)
@@ -1191,16 +1198,6 @@ bool FChaosEngineInterface::IsInertiaConditioningEnabled_AssumesLocked(const FPh
 void FChaosEngineInterface::SetInertiaConditioningEnabled_AssumesLocked(const FPhysicsActorHandle& InActorReference, bool bEnabled)
 {
 	InActorReference->GetGameThreadAPI().SetInertiaConditioningEnabled(bEnabled);
-}
-
-bool FChaosEngineInterface::IsInitialOverlapDepenetrationEnabled_AssumesLocked(const FPhysicsActorHandle& InActorReference)
-{
-	return InActorReference->GetGameThreadAPI().InitialOverlapDepenetrationEnabled();
-}
-
-void FChaosEngineInterface::SetInitialOverlapDepenetrationEnabled_AssumesLocked(const FPhysicsActorHandle& InActorReference, bool bEnabled)
-{
-	InActorReference->GetGameThreadAPI().SetInitialOverlapDepenetrationEnabled(bEnabled);
 }
 
 void FChaosEngineInterface::SetIsSimulationShape(const FPhysicsShapeHandle& InShape,bool bIsSimShape)

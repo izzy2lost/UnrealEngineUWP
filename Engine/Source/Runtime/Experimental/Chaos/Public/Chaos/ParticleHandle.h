@@ -104,6 +104,7 @@ void PBDRigidParticleDefaultConstruct(FConcrete& Concrete, const FPBDRigidPartic
 	Concrete.SetAngularImpulseVelocity(TVector<T, d>(0));
 	Concrete.SetMaxLinearSpeedSq(TNumericLimits<T>::Max());
 	Concrete.SetMaxAngularSpeedSq(TNumericLimits<T>::Max());
+	Concrete.SetInitialOverlapDepenetrationVelocity(-1.0f);
 	Concrete.SetM(1);
 	Concrete.SetInvM(1);
 	Concrete.SetCenterOfMass(TVector<T,d>(0));
@@ -113,7 +114,6 @@ void PBDRigidParticleDefaultConstruct(FConcrete& Concrete, const FPBDRigidPartic
 	Concrete.SetLinearEtherDrag(0.f);
 	Concrete.SetAngularEtherDrag(0.f);
 	Concrete.SetGravityEnabled(Params.bGravityEnabled);
-	Concrete.SetInitialOverlapDepenetrationEnabled(true);
 	Concrete.SetCCDEnabled(Params.bCCDEnabled);
 	Concrete.SetDisabled(Params.bDisabled);
 	Concrete.SetSleepType(ESleepType::MaterialSleep);
@@ -1164,6 +1164,9 @@ public:
 	T& MaxAngularSpeedSq() { return PBDRigidParticles->MaxAngularSpeedSq(ParticleIdx); }
 	void SetMaxAngularSpeedSq(const T& InMaxAngularSpeed) { PBDRigidParticles->MaxAngularSpeedSq(ParticleIdx) = InMaxAngularSpeed; }
 
+	FRealSingle InitialOverlapDepenetrationVelocity() const { return PBDRigidParticles->InitialOverlapDepenetrationVelocity(ParticleIdx); }
+	void SetInitialOverlapDepenetrationVelocity(FRealSingle InVel) { PBDRigidParticles->InitialOverlapDepenetrationVelocity(ParticleIdx) = InVel; }
+
 	EObjectStateType ObjectState() const { return PBDRigidParticles->ObjectState(ParticleIdx); }
 	EObjectStateType PreObjectState() const { return PBDRigidParticles->PreObjectState(ParticleIdx); }
 
@@ -1229,16 +1232,6 @@ public:
 	inline void SetCCDEnabled(bool bEnabled)
 	{
 		PBDRigidParticles->ControlFlags(ParticleIdx).SetCCDEnabled(bEnabled);
-	}
-
-	bool InitialOverlapDepenetrationEnabled() const 
-	{ 
-		return ControlFlags().GetInitialOverlapDepenetrationEnabled();
-	}
-
-	void SetInitialOverlapDepenetrationEnabled(const bool bEnabled)
-	{ 
-		PBDRigidParticles->ControlFlags(ParticleIdx).SetInitialOverlapDepenetrationEnabled(bEnabled);
 	}
 
 	inline bool OneWayInteraction() const
@@ -2270,13 +2263,13 @@ public:
 		return FReal(0);
 	}
 
-	bool InitialOverlapDepentrationEnabled() const
+	FRealSingle InitialOverlapDepenetrationVelocity() const
 	{
 		if (auto RigidHandle = MHandle->CastToRigidParticle())
 		{
-			return RigidHandle->InitialOverlapDepenetrationEnabled();
+			return RigidHandle->InitialOverlapDepenetrationVelocity();
 		}
-		return true;
+		return 0;
 	}
 
 	bool OneWayInteraction() const
@@ -3143,12 +3136,6 @@ public:
 		MMiscData.Modify(true, MDirtyFlags, Proxy, [bUpdateKinematicFromSimulation](auto& Data) { Data.SetUpdateKinematicFromSimulation(bUpdateKinematicFromSimulation); });
 	}
 
-	bool InitialOverlapDepenetrationEnabled() const { return MMiscData.Read().InitialOverlapDepenetrationEnabled(); }
-	void SetInitialOverlapDepenetrationEnabled(const bool bInEnabled)
-	{
-		MMiscData.Modify(true, MDirtyFlags, Proxy, [bInEnabled](auto& Data) { Data.SetInitialOverlapDepenetrationEnabled(bInEnabled); });
-	}
-
 	bool OneWayInteraction() const { return MMiscData.Read().OneWayInteraction(); }
 	void SetOneWayInteraction(const bool bInEnabled)
 	{
@@ -3330,6 +3317,13 @@ public:
 	void SetMaxAngularSpeedSq(const T& InAngularSpeed)
 	{
 		MMiscData.Modify(true,MDirtyFlags,Proxy,[&InAngularSpeed](auto& Data){ Data.SetMaxAngularSpeedSq(InAngularSpeed);});
+	}
+
+	FRealSingle InitialOverlapDepenetrationVelocity() const { return MMiscData.Read().InitialOverlapDepenetrationVelocity(); }
+	void SetInitialOverlapDepenetrationVelocity(FRealSingle InVel)
+	{
+		MMiscData.Modify(true, MDirtyFlags, Proxy, [InVel](auto& Data) { Data.SetInitialOverlapDepenetrationVelocity(InVel); });
+		
 	}
 
 	int32 Island() const { return MIsland; }

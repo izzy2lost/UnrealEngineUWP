@@ -403,7 +403,7 @@ public:
 
 protected:
 
-	/** [PhysX Only] Whether this body instance has its own custom MaxDepenetrationVelocity*/
+	/** Whether this body instance has its own custom MaxDepenetrationVelocity*/
 	UPROPERTY(EditAnywhere, Category = Physics, meta=(InlineEditConditionToggle))
 	uint8 bOverrideMaxDepenetrationVelocity : 1;
 
@@ -439,15 +439,6 @@ protected:
 	 */
 	UPROPERTY(EditAnywhere, AdvancedDisplay, BlueprintReadWrite, Category = Physics)
 	uint8 bInertiaConditioning : 1;
-
-	/**
-	 * @brief Enable the initial-overlap de-penetration mechanism
-	 * 
-	 * When enabled, initial overlaps are de-penetrated at a speed that is limited by the physics project configuration.
-	 * If disabled, initial overlaps are not tracked and bodies will attempt to de-penetrate in one tick which can lead to large separating velocities.
-	 */
-	UPROPERTY(EditAnywhere, AdvancedDisplay, BlueprintReadWrite, Category = Physics)
-	uint8 bInitialOverlapDepenetration : 1;
 
 
 public:
@@ -485,7 +476,12 @@ private:
 	struct FCollisionResponse CollisionResponses;
 
 protected:
-	/** [PhysX Only] The maximum velocity used to depenetrate this object*/
+	/** 
+	 * The maximum velocity used to depenetrate this object from others when spawned with initial overlaps or teleports (does not affect overlaps as a result of normal movement).
+	 * A value of zero will allow objects that are spawned overlapping to go to sleep as they are rather than pop out of each other.
+	 * A negative value is equivalent to bOverrideMaxDepenetrationVelocity = false, meaning use the project setting.
+	 * When set, this overrides the CollisionInitialOverlapDepenetrationVelocity project setting (and not the MaxDepenetrationVelocity solver setting that will be deprecated)
+	*/
 	UPROPERTY(EditAnywhere, AdvancedDisplay, BlueprintReadOnly, Category = Physics, meta = (editcondition = "bOverrideMaxDepenetrationVelocity", ClampMin = "0.0", UIMin = "0.0"))
 	float MaxDepenetrationVelocity;
 
@@ -821,12 +817,6 @@ public:
 	/** If set to true, this body will treat bodies that do not have the flag set as having infinite mass */
 	ENGINE_API void SetOneWayInteraction(bool InOneWayInteraction = true);
 
-	/** Is the controlled inital-overlap depenetration system enabled for this body */
-	ENGINE_API bool IsInitialOverlapDepenetrationEnabled() const;
-
-	/** Enable/disable the controlled inital-overlap depenetration system for this body */
-	ENGINE_API void SetInitialOverlapDepenetrationEnabled(bool bInEnabled);
-
 	/** Add a torque to this body */
 	ENGINE_API void AddTorqueInRadians(const FVector& Torque, bool bAllowSubstepping = true, bool bAccelChange = false, const FAsyncPhysicsTimestamp TimeStamp = FAsyncPhysicsTimestamp(), APlayerController* PlayerController = nullptr);
 	/** Clear accumulated torques on this body */
@@ -856,8 +846,25 @@ public:
 	/** Get the maximum angular velocity of this body */
 	ENGINE_API float GetMaxAngularVelocityInRadians() const;
 
-	/** Set the maximum depenetration velocity the physics simulation will introduce */
+	/** Are we overriding the MaxDepenetrationVelocity. See SetMaxDepenetrationVelocity */
+	ENGINE_API bool GetOverrideMaxDepenetrationVelocity() const { return bOverrideMaxDepenetrationVelocity; }
+
+	/** Enable/Disable override of MaxDepenetrationVelocity */
+	ENGINE_API void SetOverrideMaxDepenetrationVelocity(bool bInEnabled);
+
+	/**
+	 * Set the maximum velocity used to depenetrate this object from others when spawned with initial overlaps or teleports (does not affect overlaps as a result of normal movement).
+	 * A value of zero will allow objects that are spawned overlapping to go to sleep as they are rather than pop out of each other.
+	 * Note: implicitly calls SetOverrideMaxDepenetrationVelocity(true)
+	 * Note: MaxDepenetration overrides the CollisionInitialOverlapDepenetrationVelocity project setting (and not the MaxDepenetrationVelocity solver setting that will be deprecated)
+	*/
 	ENGINE_API void SetMaxDepenetrationVelocity(float MaxVelocity);
+
+private:
+	// Send the MaxDepenetrationVelocity setting to the solver
+	ENGINE_API void UpdateMaxDepenetrationVelocity();
+
+public:
 	/** Set whether we should get a notification about physics collisions */
 	ENGINE_API void SetInstanceNotifyRBCollision(bool bNewNotifyCollision);
 	/** Enables/disables whether this body is affected by gravity. */

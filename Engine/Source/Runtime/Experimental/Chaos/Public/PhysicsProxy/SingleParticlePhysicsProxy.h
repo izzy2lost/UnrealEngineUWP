@@ -458,30 +458,6 @@ public:
 		});
 	}
 
-	bool InitialOverlapDepenetrationEnabled() const
-	{
-		return Read([](auto* Particle)
-			{
-				if (auto Rigid = Particle->CastToRigidParticle())
-				{
-					return Rigid->InitialOverlapDepenetrationEnabled();
-				}
-
-				return true;
-			});
-	}
-
-	void SetInitialOverlapDepenetrationEnabled(const bool bEnabled)
-	{
-		Write([bEnabled](auto* Particle)
-			{
-				if (auto Rigid = Particle->CastToRigidParticle())
-				{
-					return Rigid->SetInitialOverlapDepenetrationEnabled(bEnabled);
-				}
-			});
-	}
-
 	bool InertiaConditioningEnabled() const
 	{
 		return Read([](auto* Particle)
@@ -1298,6 +1274,26 @@ public:
 		}
 
 		return TNumericLimits<FReal>::Max();
+	}
+
+	FRealSingle GetInitialOverlapDepenetrationVelocity()
+	{
+		VerifyContext();
+		if (const TPBDRigidParticle<FReal, 3>*Rigid = GetParticle_LowLevel()->CastToRigidParticle())
+		{
+			return Rigid->InitialOverlapDepenetrationVelocity();
+		}
+
+		return 0;
+	}
+
+	void SetInitialOverlapDepenetrationVelocity(FRealSingle InNewSpeed)
+	{
+		VerifyContext();
+		if (TPBDRigidParticle<FReal, 3>*Rigid = GetParticle_LowLevel()->CastToRigidParticle())
+		{
+			Rigid->SetInitialOverlapDepenetrationVelocity(InNewSpeed);
+		}
 	}
 
 	void SetDisabled(bool bDisable)

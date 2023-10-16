@@ -236,10 +236,13 @@ namespace Chaos
 		const FConstraintSolverBody& Body0 = Solver.SolverBody0();
 		const FConstraintSolverBody& Body1 = Solver.SolverBody1();
 
-		// Negative DepenetrationVelocity means depenetrate immediately
-		const bool bEnableDepenetrationVelocity = CVars::bChaos_Collision_EnableInitialDepenetration && Constraint->GetInitialOverlapDepentrationEnabled();
-		const FSolverReal MaxDepenetrationVelocity = bEnableDepenetrationVelocity ? SolverSettings.DepenetrationVelocity : FSolverReal(-1);
+		// MaxDepenetrationVelocity controls the rate at which initial-overlaps are resolved
+		// If the constraint has a non-negative MaxDepenetrationVelocity we use it, otherwise use the solver setting.
+		// If resultant MaxDepenetrationVelocity is negative, it means depenetrate immediately
+		const FSolverReal MaxDepenetrationVelocity = (Constraint->GetInitialOverlapDepentrationVelocity() >= 0) ? Constraint->GetInitialOverlapDepentrationVelocity() : SolverSettings.DepenetrationVelocity;
 
+		// The maximum correction we can apply in one frame
+		// @todo(chaos): consider removing this functionality?
 		const FSolverReal MaxPushOut = (SolverSettings.MaxPushOutVelocity > 0) ? (FSolverReal(SolverSettings.MaxPushOutVelocity) * Dt) : FSolverReal(0);
 
 		// Only calculate state for newly added contacts. Normally this is all of them, but maybe not if incremental collision is used by RBAN.

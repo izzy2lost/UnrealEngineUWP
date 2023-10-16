@@ -336,7 +336,6 @@ FBodyInstance::FBodyInstance()
 	, bInterpolateWhenSubStepping(true)
 	, bPendingCollisionProfileSetup(false)
 	, bInertiaConditioning(true)
-	, bInitialOverlapDepenetration(true)
 	, Scale3D(1.0f)
 	, CollisionProfileName(UCollisionProfile::CustomCollisionProfileName)
 	, PositionSolverIterationCount(8)
@@ -1211,7 +1210,6 @@ void FInitBodiesHelperBase::CreateActor_AssumesLocked(FBodyInstance* Instance, c
 		FPhysicsInterface::SetMaxLinearVelocity_AssumesLocked(Instance->ActorHandle, TNumericLimits<float>::Max());
 		FPhysicsInterface::SetSmoothEdgeCollisionsEnabled_AssumesLocked(Instance->ActorHandle, Instance->bSmoothEdgeCollisions);
 		FPhysicsInterface::SetInertiaConditioningEnabled_AssumesLocked(Instance->ActorHandle, Instance->bInertiaConditioning);
-		FPhysicsInterface::SetInitialOverlapDepenetrationEnabled_AssumesLocked(Instance->ActorHandle, Instance->bInitialOverlapDepenetration);
 
 		// Set sleep event notification
 		FPhysicsInterface::SetSendsSleepNotifies_AssumesLocked(Instance->ActorHandle, Instance->bGenerateWakeEvents);
@@ -3280,16 +3278,33 @@ void FBodyInstance::SetMaxAngularVelocityInRadians(float NewMaxAngVel, bool bAdd
 	}
 }
 
-void FBodyInstance::SetMaxDepenetrationVelocity(float MaxVelocity)
+void FBodyInstance::SetOverrideMaxDepenetrationVelocity(bool bInEnabled)
 {
-	MaxDepenetrationVelocity = MaxVelocity;
+	bOverrideMaxDepenetrationVelocity = bInEnabled;
 
-	FPhysicsCommand::ExecuteWrite(ActorHandle, [&](const FPhysicsActorHandle& Actor)
-	{
-		FPhysicsInterface::SetMaxDepenetrationVelocity_AssumesLocked(Actor, MaxDepenetrationVelocity);
-	});
+	UpdateMaxDepenetrationVelocity();
 }
 
+void FBodyInstance::SetMaxDepenetrationVelocity(float MaxVelocity)
+{
+	bOverrideMaxDepenetrationVelocity = true;
+	MaxDepenetrationVelocity = MaxVelocity;
+
+	UpdateMaxDepenetrationVelocity();
+}
+
+void FBodyInstance::UpdateMaxDepenetrationVelocity()
+{
+	// Negative values mean do not use max depenetration velocity (equivalent to large number)
+	const float UsedMaxDepenetrationVelocity = (bOverrideMaxDepenetrationVelocity) ? MaxDepenetrationVelocity : -1.0f;
+
+	// NOTE: FBodyInstance::MaxDepentrationVelocity now means initial depenetration velocity, 
+	// and not the general solver depentration velocity limit (which will probably be removed)
+	FPhysicsCommand::ExecuteWrite(ActorHandle, [this, UsedMaxDepenetrationVelocity](const FPhysicsActorHandle& Actor)
+	{
+		FPhysicsInterface::SetMaxDepenetrationVelocity_AssumesLocked(Actor, UsedMaxDepenetrationVelocity);
+	});
+}
 
 void FBodyInstance::AddCustomPhysics(FCalculateCustomPhysics& CalculateCustomPhysics)
 {
@@ -3381,27 +3396,6 @@ void FBodyInstance::SetOneWayInteraction(bool InOneWayInteraction /*= true*/)
 				FPhysicsInterface::SetOneWayInteraction_AssumesLocked(Actor, InOneWayInteraction);
 			}
 		});
-}
-
-bool FBodyInstance::IsInitialOverlapDepenetrationEnabled() const
-{
-	return bInitialOverlapDepenetration;
-}
-
-void FBodyInstance::SetInitialOverlapDepenetrationEnabled(bool bInEnabled)
-{
-	if (bInEnabled != bInitialOverlapDepenetration)
-	{
-		bInitialOverlapDepenetration = bInEnabled;
-
-		FPhysicsCommand::ExecuteWrite(ActorHandle, [bInEnabled](const FPhysicsActorHandle& Actor)
-			{
-				if (FChaosEngineInterface::IsValid(Actor))
-				{
-					Actor->GetGameThreadAPI().SetInitialOverlapDepenetrationEnabled(bInEnabled);
-				}
-			});
-	}
 }
 
 void FBodyInstance::AddTorqueInRadians(const FVector& Torque, bool bAllowSubstepping, bool bAccelChange, const FAsyncPhysicsTimestamp TimeStamp, APlayerController* PlayerController)
@@ -4097,7 +4091,7 @@ void FBodyInstance::InitDynamicProperties_AssumesLocked()
 			UpdateMassProperties();
 			UpdateDampingProperties();
 			SetMaxAngularVelocityInRadians(GetMaxAngularVelocityInRadians(), false, false);
-			SetMaxDepenetrationVelocity(bOverrideMaxDepenetrationVelocity ? MaxDepenetrationVelocity : UPhysicsSettings::Get()->MaxDepenetrationVelocity);
+			UpdateMaxDepenetrationVelocity();
 		}
 		else
 		{

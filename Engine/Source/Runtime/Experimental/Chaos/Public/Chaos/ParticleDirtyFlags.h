@@ -380,6 +380,13 @@ public:
 			Ar << MMaxAngularSpeedSq;
 		}
 
+		// @todo(chaos): add this
+		//Ar << MInitialOverlapDepenetrationVelocity
+		if (Ar.IsLoading())
+		{
+			MInitialOverlapDepenetrationVelocity = 0;
+		}
+
 		if (bAddControlFlags)
 		{
 			Ar << MControlFlags;
@@ -393,6 +400,7 @@ public:
 		SetAngularEtherDrag(Other.AngularEtherDrag());
 		SetMaxLinearSpeedSq(Other.MaxLinearSpeedSq());
 		SetMaxAngularSpeedSq(Other.MaxAngularSpeedSq());
+		SetInitialOverlapDepenetrationVelocity(Other.InitialOverlapDepenetrationVelocity());
 		SetObjectState(Other.ObjectState());
 		SetCollisionGroup(Other.CollisionGroup());
 		SetSleepType(Other.SleepType());
@@ -409,6 +417,7 @@ public:
 			&& AngularEtherDrag() == Other.AngularEtherDrag()
 			&& MaxLinearSpeedSq() == Other.MaxLinearSpeedSq()
 			&& MaxAngularSpeedSq() == Other.MaxAngularSpeedSq()
+			&& InitialOverlapDepenetrationVelocity() == Other.InitialOverlapDepenetrationVelocity()
 			&& CollisionGroup() == Other.CollisionGroup()
 			&& SleepType() == Other.SleepType()
 			&& CollisionConstraintFlags() == Other.CollisionConstraintFlags()
@@ -432,6 +441,9 @@ public:
 
 	FReal MaxAngularSpeedSq() const { return MMaxAngularSpeedSq; }
 	void SetMaxAngularSpeedSq(FReal InMaxAngularSpeed) { MMaxAngularSpeedSq = InMaxAngularSpeed; }
+
+	FRealSingle InitialOverlapDepenetrationVelocity() const { return MInitialOverlapDepenetrationVelocity; }
+	void SetInitialOverlapDepenetrationVelocity(FRealSingle InVel) { MInitialOverlapDepenetrationVelocity = InVel; }
 
 	EObjectStateType ObjectState() const { return MObjectState; }
 	void SetObjectState(EObjectStateType InState){ MObjectState = InState; }
@@ -458,9 +470,6 @@ public:
 	void SetCollisionConstraintFlags(uint32 InCollisionConstraintFlag) { MCollisionConstraintFlag = InCollisionConstraintFlag; }
 	void AddCollisionConstraintFlag(const ECollisionConstraintFlags Flag) { MCollisionConstraintFlag |= uint32(Flag); }
 	void RemoveCollisionConstraintFlag(const ECollisionConstraintFlags Flag) { MCollisionConstraintFlag &= ~uint32(Flag); }
-	
-	bool InitialOverlapDepenetrationEnabled() const { return MControlFlags.GetInitialOverlapDepenetrationEnabled(); }
-	void SetInitialOverlapDepenetrationEnabled(const bool bEnabled) { MControlFlags.SetInitialOverlapDepenetrationEnabled(bEnabled); }
 
 	bool OneWayInteraction() const { return MControlFlags.GetOneWayInteractionEnabled(); }
 	void SetOneWayInteraction(bool bInOneWayInteraction) { MControlFlags.SetOneWayInteractionEnabled(bInOneWayInteraction); }
@@ -479,6 +488,7 @@ private:
 	FReal MAngularEtherDrag;
 	FReal MMaxLinearSpeedSq;
 	FReal MMaxAngularSpeedSq;
+	FRealSingle MInitialOverlapDepenetrationVelocity = 0;
 	int32 MCollisionGroup;
 
 	EObjectStateType MObjectState;

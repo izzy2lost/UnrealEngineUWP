@@ -11,7 +11,6 @@ bool FChaosVDFRigidParticleControlFlags::Serialize(FArchive& Ar)
 	Ar << bGravityEnabled;
 	Ar << bCCDEnabled;
 	Ar << bOneWayInteractionEnabled;
-	Ar << bEnableInitialOverlapDepenetration;
 	Ar << bInertiaConditioningEnabled;
 	Ar << GravityGroupIndex;
 
@@ -65,6 +64,7 @@ bool FChaosVDParticleDynamicMisc::Serialize(FArchive& Ar)
 	Ar << MAngularEtherDrag;
 	Ar << MMaxLinearSpeedSq;
 	Ar << MMaxAngularSpeedSq;
+	Ar << MInitialOverlapDepenetrationVelocity;
 	Ar << MCollisionGroup;
 	Ar << MObjectState;
 	Ar << MSleepType;

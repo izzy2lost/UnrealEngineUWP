@@ -47,10 +47,6 @@ namespace Chaos
 		bool GetOneWayInteractionEnabled() const { return Flags.bOneWayInteractionEnabled; }
 		FRigidParticleControlFlags& SetOneWayInteractionEnabled(const bool bEnabled) { Flags.bOneWayInteractionEnabled = bEnabled; return *this; }
 
-		// If enabled initial overlaps will be depenetrated at a rate that depends on physics settings
-		bool GetInitialOverlapDepenetrationEnabled() const { return Flags.bEnableInitialOverlapDepenetration; }
-		FRigidParticleControlFlags& SetInitialOverlapDepenetrationEnabled(const bool bEnabled) { Flags.bEnableInitialOverlapDepenetration = bEnabled; return *this; }
-
 		// If enabled, inertia may be increased to improve stability
 		bool GetInertiaConditioningEnabled() const { return Flags.bInertiaConditioningEnabled; }
 		FRigidParticleControlFlags& SetInertiaConditioningEnabled(const bool bEnabled) { Flags.bInertiaConditioningEnabled = bEnabled; return *this; }

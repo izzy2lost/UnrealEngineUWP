@@ -216,6 +216,7 @@ namespace Chaos
 		, SavedManifoldPoints()
 		, ManifoldPoints()
 		, MinInitialPhi(0)
+		, InitialOverlapDepenetrationVelocity(0)
 		, CCDTimeOfImpact(0)
 		, SolverBodies{ nullptr, nullptr }
 		, CCDEnablePenetration(0)
@@ -255,6 +256,7 @@ namespace Chaos
 		, SavedManifoldPoints()
 		, ManifoldPoints()
 		, MinInitialPhi(0)
+		, InitialOverlapDepenetrationVelocity(0)
 		, CCDTimeOfImpact(0)
 		, SolverBodies{ nullptr, nullptr }
 		, CCDEnablePenetration(0)
@@ -323,8 +325,12 @@ namespace Chaos
 		Flags.bUseManifold = bInUseManifold;
 		Flags.bUseIncrementalManifold = false;
 
-		// Should we use the initial overlap depenetration mechanism
-		Flags.bOverlapDepenetrationEnabled = FConstGenericParticleHandle(GetParticle0())->InitialOverlapDepentrationEnabled() && FConstGenericParticleHandle(GetParticle1())->InitialOverlapDepentrationEnabled();
+		// The initial overlap depenetration velocity is that max of the two body settings. A negative value means use the system default.
+		// If either body has a zero of positive value, it will be used instead of the system setting. If both have a value, the max will be used.
+		// If both bodies have negative values, the solver settings will be used (search for GetInitialOverlapDepentrationVelocity to see where)
+		const FRealSingle InitialOverlapDepenetrationVelocity0 = FConstGenericParticleHandle(GetParticle0())->InitialOverlapDepenetrationVelocity();
+		const FRealSingle InitialOverlapDepenetrationVelocity1 = FConstGenericParticleHandle(GetParticle1())->InitialOverlapDepenetrationVelocity();
+		InitialOverlapDepenetrationVelocity = FMath::Max(InitialOverlapDepenetrationVelocity0, InitialOverlapDepenetrationVelocity1);
 
 		// Is this a one-way interaction?
 		const bool bDynamic0 = FConstGenericParticleHandle(GetParticle0())->IsDynamic();

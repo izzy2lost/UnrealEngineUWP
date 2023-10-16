@@ -728,6 +728,11 @@ inline FString ToStringHelper(const FReal Val)
 	return FString::Printf(TEXT("%f"), Val);
 }
 
+inline FString ToStringHelper(const FRealSingle Val)
+{
+	return FString::Printf(TEXT("%f"), Val);
+}
+
 inline FString ToStringHelper(const EObjectStateType Val)
 {
 	return FString::Printf(TEXT("%d"), Val);
@@ -978,6 +983,7 @@ public:
 	REWIND_PARTICLE_RIGID_PROPERTY(DynamicsMisc, AngularEtherDrag)
 	REWIND_PARTICLE_RIGID_PROPERTY(DynamicsMisc, MaxLinearSpeedSq)
 	REWIND_PARTICLE_RIGID_PROPERTY(DynamicsMisc, MaxAngularSpeedSq)
+	REWIND_PARTICLE_RIGID_PROPERTY(DynamicsMisc, InitialOverlapDepenetrationVelocity)
 	REWIND_PARTICLE_RIGID_PROPERTY(DynamicsMisc, ObjectState)
 	REWIND_PARTICLE_RIGID_PROPERTY(DynamicsMisc, CollisionGroup)
 	REWIND_PARTICLE_RIGID_PROPERTY(DynamicsMisc, ControlFlags)
@@ -1040,6 +1046,8 @@ public:
 			REWIND_PARTICLE_TO_STR(AngularEtherDrag)
 			REWIND_PARTICLE_TO_STR(MaxLinearSpeedSq)
 			REWIND_PARTICLE_TO_STR(MaxAngularSpeedSq)
+			REWIND_PARTICLE_TO_STR(InitialOverlapDepenetrationVelocity)
+
 			REWIND_PARTICLE_TO_STR(ObjectState)
 			REWIND_PARTICLE_TO_STR(CollisionGroup)
 			REWIND_PARTICLE_TO_STR(ControlFlags)

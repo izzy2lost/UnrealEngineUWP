@@ -63,7 +63,6 @@ struct FChaosVDFRigidParticleControlFlags : public FChaosVDParticleDataBase
 		: bGravityEnabled(false),
 		  bCCDEnabled(false),
 		  bOneWayInteractionEnabled(false),
-		  bEnableInitialOverlapDepenetration(false),
 		  bInertiaConditioningEnabled(false), 
 		  GravityGroupIndex(0)
 	{
@@ -77,7 +76,6 @@ struct FChaosVDFRigidParticleControlFlags : public FChaosVDParticleDataBase
 		bGravityEnabled = Other.GetGravityEnabled();
 		bCCDEnabled = Other.GetCCDEnabled();
 		bOneWayInteractionEnabled = Other.GetOneWayInteractionEnabled();
-		bEnableInitialOverlapDepenetration = Other.GetInitialOverlapDepenetrationEnabled();
 		bInertiaConditioningEnabled = Other.GetInertiaConditioningEnabled();
 		GravityGroupIndex = Other.GetGravityGroupIndex();
 
@@ -90,8 +88,6 @@ struct FChaosVDFRigidParticleControlFlags : public FChaosVDParticleDataBase
 	bool bCCDEnabled;
 	UPROPERTY(EditAnywhere, Category= "Particle Control Flags")
 	bool bOneWayInteractionEnabled;
-	UPROPERTY(EditAnywhere, Category = "Particle Control Flags")
-	bool bEnableInitialOverlapDepenetration;
 	UPROPERTY(EditAnywhere, Category = "Particle Control Flags")
 	bool bInertiaConditioningEnabled;
 	UPROPERTY(EditAnywhere, Category= "Particle Control Flags")
@@ -325,7 +321,7 @@ struct FChaosVDParticleDynamicMisc : public FChaosVDParticleDataBase
 {
 	GENERATED_BODY()
 
-	FChaosVDParticleDynamicMisc(): MAngularEtherDrag(0), MMaxLinearSpeedSq(0), MMaxAngularSpeedSq(0),
+	FChaosVDParticleDynamicMisc(): MAngularEtherDrag(0), MMaxLinearSpeedSq(0), MMaxAngularSpeedSq(0), MInitialOverlapDepenetrationVelocity(0),
 	                               MCollisionGroup(0), MObjectState(), MSleepType(), bDisabled(false)
 	{
 	}
@@ -339,6 +335,7 @@ struct FChaosVDParticleDynamicMisc : public FChaosVDParticleDataBase
 		MAngularEtherDrag = Other.AngularEtherDrag();
 		MMaxLinearSpeedSq = Other.MaxLinearSpeedSq();
 		MMaxAngularSpeedSq = Other.MaxAngularSpeedSq();
+		MInitialOverlapDepenetrationVelocity = Other.InitialOverlapDepenetrationVelocity();
 		MObjectState = static_cast<EChaosVDObjectStateType>(Other.ObjectState());
 		MCollisionGroup = Other.CollisionGroup();
 		MSleepType =  static_cast<EChaosVDSleepType>(Other.SleepType());
@@ -359,6 +356,9 @@ struct FChaosVDParticleDynamicMisc : public FChaosVDParticleDataBase
 	
 	UPROPERTY(EditAnywhere, Category= "Particle Dynamic Misc")
 	double MMaxAngularSpeedSq;
+
+	UPROPERTY(EditAnywhere, Category = "Particle Dynamic Misc")
+	float MInitialOverlapDepenetrationVelocity;
 
 	UPROPERTY(EditAnywhere, Category= "Particle Dynamic Misc")
 	int32 MCollisionGroup;
