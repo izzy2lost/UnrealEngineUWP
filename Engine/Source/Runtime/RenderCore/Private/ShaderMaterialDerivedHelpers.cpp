@@ -124,6 +124,10 @@ FShaderMaterialDerivedDefines RENDERCORE_API CalculateDerivedMaterialParameters(
 			{
 				Dst.PIXELSHADEROUTPUT_MRT0 = 1;
 			}
+			else if (Mat.OUT_DISPLACEMENT)
+			{
+				Dst.PIXELSHADEROUTPUT_MRT0 = 1;
+			}
 		}
 	}
 	else if (Mat.IS_DECAL)

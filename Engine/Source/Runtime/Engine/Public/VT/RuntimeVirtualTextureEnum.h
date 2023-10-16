@@ -20,6 +20,7 @@ enum class ERuntimeVirtualTextureAttributeType : uint8
 	Specular,
 	Mask,
 	WorldHeight,
+	Displacement,
 
 	Count
 };
@@ -41,6 +42,7 @@ enum class ERuntimeVirtualTextureMaterialType : uint8
 	BaseColor_Normal_Specular_YCoCg UMETA(DisplayName = "YCoCg Base Color, Normal, Roughness, Specular", ToolTip = "Base Color is stored in YCoCg space. This requires more memory but may provide better quality."),
 	BaseColor_Normal_Specular_Mask_YCoCg UMETA(DisplayName = "YCoCg Base Color, Normal, Roughness, Specular, Mask", ToolTip="Base Color is stored in YCoCg space. This requires more memory but may provide better quality."),
 	WorldHeight UMETA(DisplayName = "World Height"),
+	Displacement UMETA(DisplayName = "Displacement"),
 	Count UMETA(Hidden),
 };
 

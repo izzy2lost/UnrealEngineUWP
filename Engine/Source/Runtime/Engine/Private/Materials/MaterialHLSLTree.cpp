@@ -2047,6 +2047,15 @@ bool FExpressionVirtualTextureUnpack::PrepareValue(FEmitContext& Context, FEmitS
 		}
 		return OutResult.SetType(Context, RequestedType, EExpressionEvaluation::Shader, Shader::EValueType::Float1);
 	}
+	else if (UnpackType == EVirtualTextureUnpackType::DisplacementR16)
+	{
+		const FPreparedType& Sample0Type = Context.PrepareExpression(SampleLayer0Expression, Scope, Shader::EValueType::Float4);
+		if (Sample0Type.IsVoid())
+		{
+			return false;
+		}
+		return OutResult.SetType(Context, RequestedType, EExpressionEvaluation::Shader, Shader::EValueType::Float1);
+	}
 	else if (UnpackType == EVirtualTextureUnpackType::NormalBGR565)
 	{
 		const FPreparedType& SampleType = Context.PrepareExpression(SampleLayer1Expression, Scope, Shader::EValueType::Float4);
@@ -2103,6 +2112,11 @@ void FExpressionVirtualTextureUnpack::EmitValueShader(FEmitContext& Context, FEm
 		FEmitShaderExpression* EmitSampleLayer0 = SampleLayer0Expression->GetValueShader(Context, Scope, Shader::EValueType::Float4);
 		FEmitShaderExpression* EmitHeightScaleBias = WorldHeightUnpackUniformExpression->GetValueShader(Context, Scope, Shader::EValueType::Float2);
 		OutResult.Code = Context.EmitExpression(Scope, Shader::EValueType::Float1, TEXT("VirtualTextureUnpackHeight(%, %)"), EmitSampleLayer0, EmitHeightScaleBias);
+	}
+	else if (UnpackType == EVirtualTextureUnpackType::DisplacementR16)
+	{
+		FEmitShaderExpression* EmitSampleLayer0 = SampleLayer0Expression->GetValueShader(Context, Scope, Shader::EValueType::Float4);
+		OutResult.Code = Context.EmitExpression(Scope, Shader::EValueType::Float1, TEXT("%.r"), EmitSampleLayer0);
 	}
 	else if (UnpackType == EVirtualTextureUnpackType::NormalBGR565)
 	{

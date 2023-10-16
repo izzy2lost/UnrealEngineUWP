@@ -97,6 +97,7 @@ void FPixelShaderInOut_MainPS(
 	FLWCScalar WorldHeight = GetVirtualTextureOutput4_LWC(MaterialParameters);
 	float Opacity = GetVirtualTextureOutput5(MaterialParameters);
 	float Mask = GetVirtualTextureOutput6(MaterialParameters);
+	float Displacement = GetVirtualTextureOutput7(MaterialParameters);
 #else
 	// Output is from standard material output attribute node
 	half3 BaseColor = GetMaterialBaseColor(PixelMaterialInputs);
@@ -106,6 +107,7 @@ void FPixelShaderInOut_MainPS(
 	FLWCScalar WorldHeight = LWCGetZ(MaterialParameters.AbsoluteWorldPosition);
 	float Opacity = GetMaterialOpacity(PixelMaterialInputs);
 	float Mask = 0.f;
+	float Displacement = 0.f;
 #endif
 
 	// Apply debug shading
@@ -127,6 +129,8 @@ void FPixelShaderInOut_MainPS(
 #elif defined(OUT_WORLDHEIGHT)
 	float PackedHeight = PackWorldHeight(WorldHeight, ResolvedView.RuntimeVirtualTexturePackHeight);
 	Out.MRT[0] = float4(PackedHeight, 0, 0, 1);
+#elif defined(OUT_DISPLACEMENT)
+	Out.MRT[0] = float4(Displacement, 0, 0, 1);
 #endif
 }
 
@@ -139,6 +143,8 @@ void FPixelShaderInOut_MainPS(
 //#define PIXELSHADEROUTPUT_MRT1 1
 //#define PIXELSHADEROUTPUT_MRT2 1
 //#elif defined(OUT_WORLDHEIGHT)
+//#define PIXELSHADEROUTPUT_MRT0 1
+//#elif defined(OUT_DISPLACEMENT)
 //#define PIXELSHADEROUTPUT_MRT0 1
 //#endif
 

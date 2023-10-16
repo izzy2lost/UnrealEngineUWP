@@ -346,6 +346,7 @@ namespace RuntimeVirtualTexture
 			return GetBlendStateImpl(OutputAttributeMask);
 		}
 	};
+
 	/** Specialization for ERuntimeVirtualTextureMaterialType::WorldHeight */
 	class FMaterialPolicy_WorldHeight
 	{
@@ -353,6 +354,22 @@ namespace RuntimeVirtualTexture
 		static void ModifyCompilationEnvironment(FShaderCompilerEnvironment& OutEnvironment)
 		{
 			OutEnvironment.SetDefine(TEXT("OUT_WORLDHEIGHT"), 1);
+			OutEnvironment.SetRenderTargetOutputFormat(0, PF_R32_FLOAT);
+		}
+
+		static FRHIBlendState* GetBlendState(uint8 OutputAttributeMask)
+		{
+			return TStaticBlendState< CW_RED, BO_Max, BF_One, BF_One, BO_Add, BF_One, BF_One >::GetRHI();
+		}
+	};
+
+	/** Specialization for ERuntimeVirtualTextureMaterialType::Displacement */
+	class FMaterialPolicy_Displacement
+	{
+	public:
+		static void ModifyCompilationEnvironment(FShaderCompilerEnvironment& OutEnvironment)
+		{
+			OutEnvironment.SetDefine(TEXT("OUT_DISPLACEMENT"), 1);
 			OutEnvironment.SetRenderTargetOutputFormat(0, PF_R32_FLOAT);
 		}
 
@@ -416,6 +433,7 @@ namespace RuntimeVirtualTexture
 	IMPLEMENT_VIRTUALTEXTURE_SHADER_TYPE(FMaterialPolicy_BaseColor, BaseColor);
 	IMPLEMENT_VIRTUALTEXTURE_SHADER_TYPE(FMaterialPolicy_BaseColorNormalSpecular, BaseColorNormalSpecular);
 	IMPLEMENT_VIRTUALTEXTURE_SHADER_TYPE(FMaterialPolicy_WorldHeight, WorldHeight);
+	IMPLEMENT_VIRTUALTEXTURE_SHADER_TYPE(FMaterialPolicy_Displacement, Displacement);
 	IMPLEMENT_VIRTUALTEXTURE_SHADER_TYPE(FMaterialPolicy_BaseColorNormalRoughness, BaseColorNormalRoughness);
 
 	/** Structure to localize the setup of our render graph based on the virtual texture setup. */
@@ -451,6 +469,7 @@ namespace RuntimeVirtualTexture
 				AddRenderTargetInfo(PF_B8G8R8A8, RTCreateFlags, RenderTargetsInfo);
 				break;
 			case ERuntimeVirtualTextureMaterialType::WorldHeight:
+			case ERuntimeVirtualTextureMaterialType::Displacement:
 				AddRenderTargetInfo(PF_G16, RTCreateFlags, RenderTargetsInfo);
 				break;
 			}
@@ -680,6 +699,30 @@ namespace RuntimeVirtualTexture
 					OutputAlias0 = CopyTexture0 = GraphBuilder.CreateTexture(FRDGTextureDesc::Create2D(Desc.TextureSize, PF_B8G8R8A8, FClearValueBinding::Black, RTCreateFlags), TEXT("CopyTexture0"));
 				}
 				break;
+			case ERuntimeVirtualTextureMaterialType::Displacement:
+				if (bRenderPass)
+				{
+					OutputAlias0 = RenderTexture0 = GraphBuilder.CreateTexture(FRDGTextureDesc::Create2D(Desc.TextureSize, PF_G16, FClearValueBinding::Black, RTCreateFlags), TEXT("RenderTexture0"));
+				}
+				if (bCompressPass)
+				{
+					if (bDirectAliasing)
+					{
+						CompressTexture0 = GraphBuilder.RegisterExternalTexture(Desc.OutputTargets[0], ERDGTextureFlags::None);
+						CompressTextureUAV0_64bit = GraphBuilder.CreateUAV(FRDGTextureUAVDesc(CompressTexture0, 0, Compressed64BitFormat));
+						OutputAlias0 = nullptr;
+					}
+					else
+					{
+						OutputAlias0 = CompressTexture0 = GraphBuilder.CreateTexture(FRDGTextureDesc::Create2D(Desc.TextureSize / 4, Compressed64BitFormat, FClearValueBinding::None, TexCreate_UAV), TEXT("CompressTexture0"));
+						CompressTextureUAV0_64bit = GraphBuilder.CreateUAV(FRDGTextureUAVDesc(CompressTexture0));
+					}
+				}
+				if (bCopyThumbnailPass)
+				{
+					OutputAlias0 = CopyTexture0 = GraphBuilder.CreateTexture(FRDGTextureDesc::Create2D(Desc.TextureSize, PF_B8G8R8A8, FClearValueBinding::Black, RTCreateFlags), TEXT("CopyTexture0"));
+				}
+				break;
 			}
 		}
 
@@ -741,18 +784,16 @@ namespace RuntimeVirtualTexture
 				{
 				case ERuntimeVirtualTextureMaterialType::BaseColor:
 					return Process<FMaterialPolicy_BaseColor>(MeshBatch, BatchElementMask, StaticMeshId, OutputAttributeMask, PrimitiveSceneProxy, *MaterialRenderProxy, *Material);
-					break;
 				case ERuntimeVirtualTextureMaterialType::BaseColor_Normal_Roughness:
 					return Process<FMaterialPolicy_BaseColorNormalRoughness>(MeshBatch, BatchElementMask, StaticMeshId, OutputAttributeMask, PrimitiveSceneProxy, *MaterialRenderProxy, *Material);
-					break;
 				case ERuntimeVirtualTextureMaterialType::BaseColor_Normal_Specular:
 				case ERuntimeVirtualTextureMaterialType::BaseColor_Normal_Specular_YCoCg:
 				case ERuntimeVirtualTextureMaterialType::BaseColor_Normal_Specular_Mask_YCoCg:
 					return Process<FMaterialPolicy_BaseColorNormalSpecular>(MeshBatch, BatchElementMask, StaticMeshId, OutputAttributeMask, PrimitiveSceneProxy, *MaterialRenderProxy, *Material);
-					break;
 				case ERuntimeVirtualTextureMaterialType::WorldHeight:
 					return Process<FMaterialPolicy_WorldHeight>(MeshBatch, BatchElementMask, StaticMeshId, OutputAttributeMask, PrimitiveSceneProxy, *MaterialRenderProxy, *Material);
-					break;
+				case ERuntimeVirtualTextureMaterialType::Displacement:
+					return Process<FMaterialPolicy_Displacement>(MeshBatch, BatchElementMask, StaticMeshId, OutputAttributeMask, PrimitiveSceneProxy, *MaterialRenderProxy, *Material);
 				default:
 					break;
 				}
@@ -911,6 +952,7 @@ namespace RuntimeVirtualTexture
 				CollectPSOInitializers<FMaterialPolicy_BaseColorNormalRoughness>(VertexFactoryData, Material, MeshFillMode, MeshCullMode, OutputAttributeMask, ERuntimeVirtualTextureMaterialType::BaseColor_Normal_Roughness, PSOInitializers);
 				CollectPSOInitializers<FMaterialPolicy_BaseColorNormalSpecular>(VertexFactoryData, Material, MeshFillMode, MeshCullMode, OutputAttributeMask, ERuntimeVirtualTextureMaterialType::BaseColor_Normal_Specular, PSOInitializers);
 				CollectPSOInitializers<FMaterialPolicy_WorldHeight>(VertexFactoryData, Material, MeshFillMode, MeshCullMode, OutputAttributeMask, ERuntimeVirtualTextureMaterialType::WorldHeight, PSOInitializers);
+				CollectPSOInitializers<FMaterialPolicy_Displacement>(VertexFactoryData, Material, MeshFillMode, MeshCullMode, OutputAttributeMask, ERuntimeVirtualTextureMaterialType::Displacement, PSOInitializers);
 			}
 		}
 
@@ -1101,6 +1143,7 @@ namespace RuntimeVirtualTexture
 	IMPLEMENT_SHADER_TYPE(template<>, FShader_VirtualTextureCompress_CS< ERuntimeVirtualTextureMaterialType::BaseColor_Normal_Roughness >, TEXT("/Engine/Private/VirtualTextureCompress.usf"), TEXT("CompressBaseColorNormalRoughnessCS"), SF_Compute);
 	IMPLEMENT_SHADER_TYPE(template<>, FShader_VirtualTextureCompress_CS< ERuntimeVirtualTextureMaterialType::BaseColor_Normal_Specular_YCoCg >, TEXT("/Engine/Private/VirtualTextureCompress.usf"), TEXT("CompressBaseColorNormalSpecularYCoCgCS"), SF_Compute);
 	IMPLEMENT_SHADER_TYPE(template<>, FShader_VirtualTextureCompress_CS< ERuntimeVirtualTextureMaterialType::BaseColor_Normal_Specular_Mask_YCoCg >, TEXT("/Engine/Private/VirtualTextureCompress.usf"), TEXT("CompressBaseColorNormalSpecularMaskYCoCgCS"), SF_Compute);
+	IMPLEMENT_SHADER_TYPE(template<>, FShader_VirtualTextureCompress_CS< ERuntimeVirtualTextureMaterialType::Displacement >, TEXT("/Engine/Private/VirtualTextureCompress.usf"), TEXT("CompressDisplacementCS"), SF_Compute);
 
 
 	/** Add the BC compression pass to the graph. */
@@ -1138,6 +1181,8 @@ namespace RuntimeVirtualTexture
 			break;
 		case ERuntimeVirtualTextureMaterialType::BaseColor_Normal_Specular_Mask_YCoCg:
 			AddCompressPass<ERuntimeVirtualTextureMaterialType::BaseColor_Normal_Specular_Mask_YCoCg>(GraphBuilder, FeatureLevel, Parameters, GroupCount);
+		case ERuntimeVirtualTextureMaterialType::Displacement:
+			AddCompressPass<ERuntimeVirtualTextureMaterialType::Displacement>(GraphBuilder, FeatureLevel, Parameters, GroupCount);
 			break;
 		}
 	}
@@ -1267,6 +1312,7 @@ namespace RuntimeVirtualTexture
 			AddCopyPass<ERuntimeVirtualTextureMaterialType::BaseColor>(GraphBuilder, FeatureLevel, Parameters, TextureSize);
 			break;
 		case ERuntimeVirtualTextureMaterialType::WorldHeight:
+		case ERuntimeVirtualTextureMaterialType::Displacement:
 			AddCopyPass<ERuntimeVirtualTextureMaterialType::WorldHeight>(GraphBuilder, FeatureLevel, Parameters, TextureSize);
 			break;
 		}

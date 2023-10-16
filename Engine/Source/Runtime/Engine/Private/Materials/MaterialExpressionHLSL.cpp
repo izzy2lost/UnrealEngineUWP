@@ -1662,6 +1662,7 @@ bool UMaterialExpressionRuntimeVirtualTextureSample::GenerateHLSLExpression(FMat
 	bool bIsNormalValid = false;
 	bool bIsWorldHeightValid = false;
 	bool bIsMaskValid = false;
+	bool bIsDisplacementValid = false;
 
 	switch (MaterialType)
 	{
@@ -1671,6 +1672,7 @@ bool UMaterialExpressionRuntimeVirtualTextureSample::GenerateHLSLExpression(FMat
 	case ERuntimeVirtualTextureMaterialType::BaseColor_Normal_Specular_YCoCg: bIsRoughnessValid = bIsBaseColorValid = bIsNormalValid = bIsSpecularValid = true; break;
 	case ERuntimeVirtualTextureMaterialType::BaseColor_Normal_Specular_Mask_YCoCg: bIsRoughnessValid = bIsBaseColorValid = bIsNormalValid = bIsSpecularValid = bIsMaskValid = true; break;
 	case ERuntimeVirtualTextureMaterialType::WorldHeight: bIsWorldHeightValid = true; break;
+	case ERuntimeVirtualTextureMaterialType::Displacement: bIsDisplacementValid = true; break;
 	}
 
 	switch (OutputIndex)
@@ -1761,6 +1763,17 @@ bool UMaterialExpressionRuntimeVirtualTextureSample::GenerateHLSLExpression(FMat
 		else
 		{
 			OutExpression = Generator.GetTree().NewConstant(1.f);
+			return true;
+		}
+		break;
+	case 6:
+		if (bIsVirtualTextureValid && bIsDisplacementValid)
+		{
+			UnpackType = EVirtualTextureUnpackType::DisplacementR16;
+		}
+		else
+		{
+			OutExpression = Generator.GetTree().NewConstant(0.f);
 			return true;
 		}
 		break;

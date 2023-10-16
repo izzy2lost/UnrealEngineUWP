@@ -345,7 +345,9 @@ bool URuntimeVirtualTextureComponent::CanEditChange(const FProperty* InProperty)
 	}
 	else if (InProperty->GetFName() == TEXT("bBuildDebugStreamingMips"))
 	{
-		bCanEdit = GetVirtualTexture() != nullptr && GetVirtualTexture()->GetMaterialType() != ERuntimeVirtualTextureMaterialType::WorldHeight;
+		bCanEdit = GetVirtualTexture() != nullptr && 
+			GetVirtualTexture()->GetMaterialType() != ERuntimeVirtualTextureMaterialType::WorldHeight && 
+			GetVirtualTexture()->GetMaterialType() != ERuntimeVirtualTextureMaterialType::Displacement;
 	}
 	return bCanEdit;
 }

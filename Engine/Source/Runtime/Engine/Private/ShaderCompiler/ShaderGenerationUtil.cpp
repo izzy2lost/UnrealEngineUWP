@@ -205,6 +205,7 @@ void ApplyFetchEnvironmentInternal(FShaderMaterialPropertyDefines& SrcDefines, c
 	FETCH_COMPILE_BOOL(OUT_BASECOLOR_NORMAL_ROUGHNESS);
 	FETCH_COMPILE_BOOL(OUT_BASECOLOR_NORMAL_SPECULAR);
 	FETCH_COMPILE_BOOL(OUT_WORLDHEIGHT);
+	FETCH_COMPILE_BOOL(OUT_DISPLACEMENT);
 
 	FETCH_COMPILE_BOOL(IS_VIRTUAL_TEXTURE_MATERIAL);
 	FETCH_COMPILE_BOOL(IS_DECAL);
@@ -1961,6 +1962,10 @@ void FShaderCompileUtilities::ApplyDerivedDefines(FShaderCompilerEnvironment& Ou
 			bTargetUsage[2] = 1;
 		}
 		else if (MaterialDefines.OUT_WORLDHEIGHT)
+		{
+			bTargetUsage[0] = 1;
+		}
+		else if (MaterialDefines.OUT_DISPLACEMENT)
 		{
 			bTargetUsage[0] = 1;
 		}

@@ -355,6 +355,7 @@ int32 URuntimeVirtualTexture::GetLayerCount(ERuntimeVirtualTextureMaterialType I
 	{
 	case ERuntimeVirtualTextureMaterialType::BaseColor:
 	case ERuntimeVirtualTextureMaterialType::WorldHeight:
+	case ERuntimeVirtualTextureMaterialType::Displacement:
 		return 1;
 	case ERuntimeVirtualTextureMaterialType::BaseColor_Normal_Specular:
 	case ERuntimeVirtualTextureMaterialType::BaseColor_Normal_Roughness:
@@ -392,6 +393,9 @@ static EPixelFormat PlatformCompressedRVTFormat(EPixelFormat Format)
 		case PF_DXT5:
 			Format = PF_ETC2_RGBA;
 			break;
+		case PF_BC4:
+			Format = PF_ETC2_R11_EAC;
+			break;
 		case PF_BC5:
 			Format = PF_ETC2_RG11_EAC;
 			break;
@@ -427,6 +431,8 @@ EPixelFormat URuntimeVirtualTexture::GetLayerFormat(int32 LayerIndex) const
 			return bCompressTextures ? PlatformCompressedRVTFormat(PF_DXT5) : PF_B8G8R8A8;
 		case ERuntimeVirtualTextureMaterialType::WorldHeight:
 			return PF_G16;
+		case ERuntimeVirtualTextureMaterialType::Displacement:
+			return bCompressTextures ? PlatformCompressedRVTFormat(PF_BC4) : PF_G16;
 		default:
 			break;
 		}
@@ -475,6 +481,7 @@ bool URuntimeVirtualTexture::IsLayerSRGB(int32 LayerIndex) const
 	case ERuntimeVirtualTextureMaterialType::BaseColor_Normal_Specular_YCoCg:
 	case ERuntimeVirtualTextureMaterialType::BaseColor_Normal_Specular_Mask_YCoCg:
 	case ERuntimeVirtualTextureMaterialType::WorldHeight:
+	case ERuntimeVirtualTextureMaterialType::Displacement:
 	case ERuntimeVirtualTextureMaterialType::BaseColor_Normal_Roughness:
 		return false;
 	default:

@@ -41,6 +41,10 @@ class UMaterialExpressionRuntimeVirtualTextureOutput : public UMaterialExpressio
 	UPROPERTY()
 	FExpressionInput Mask;
 
+	/** Input for World Height to output to virtual texture. */
+	UPROPERTY()
+	FExpressionInput Displacement;
+
 public:
 #if WITH_EDITOR
 	//~ Begin UMaterialExpression Interface
