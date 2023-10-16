@@ -65,7 +65,7 @@ FText SGameFeatureStateWidget::GetDisplayNameOfState(EGameFeaturePluginState Sta
 
 FText SGameFeatureStateWidget::GetTooltipOfState(EGameFeaturePluginState State)
 {
-	static_assert((int32)EGameFeaturePluginState::MAX == 32, "");
+	static_assert((int32)EGameFeaturePluginState::MAX == 34, "");
 
 	switch (State)
 	{
@@ -127,6 +127,10 @@ FText SGameFeatureStateWidget::GetTooltipOfState(EGameFeaturePluginState State)
 		return LOCTEXT("StateTooltip_ErrorActivateDependencies", "Error state for Loaded -> Active and Active -> Loaded transitions.");
 	case EGameFeaturePluginState::ActivatingDependencies:
 		return LOCTEXT("StateTooltip_ActivateDependencies", "Transition state Loaded -> Active. In the process of selectively activating dependencies.");
+	case EGameFeaturePluginState::ErrorDeactivatingDependencies:
+		return LOCTEXT("StateTooltip_ErrorDeactivatingDependencies", "Error state for Active -> Loaded transition.");
+	case EGameFeaturePluginState::DeactivatingDependencies:
+		return LOCTEXT("StateTooltip_DeactivateDependencies", "Transition state Active -> Loaded. In the process of selectively deactivating dependencies.");
 	case EGameFeaturePluginState::Deactivating:
 		return LOCTEXT("StateTooltip_Deactivating", "Transition state Active -> Loaded. Currently unregistering with game systems.");
 	case EGameFeaturePluginState::Activating:
