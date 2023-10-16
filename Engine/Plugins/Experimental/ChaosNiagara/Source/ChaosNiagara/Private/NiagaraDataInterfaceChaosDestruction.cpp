@@ -2052,7 +2052,7 @@ void UNiagaraDataInterfaceChaosDestruction::HandleTrailingEvents(const Chaos::FT
 						}
 					}
 
-					const TArray<FTransform>& ComponentSpaceTransforms = GeometryCollectionComponent->GetComponentSpaceTransforms();
+					const TArray<FTransform3f>& ComponentSpaceTransforms = GeometryCollectionComponent->GetComponentSpaceTransforms3f();
 					const FTransform ActorTransform = GeometryCollectionComponent->GetComponentToWorld();
 
 					const FGeometryDynamicCollection* DynamicCollection = GeometryCollectionComponent->GetDynamicCollection();
@@ -2085,7 +2085,7 @@ void UNiagaraDataInterfaceChaosDestruction::HandleTrailingEvents(const Chaos::FT
 									{
 										Chaos::FTrailingDataExt TrailingData;
 
-										const FTransform CurrTransform = CollectionMassToLocal[Idx] * ComponentSpaceTransforms[Idx] * ActorTransform;
+										const FTransform CurrTransform = CollectionMassToLocal[Idx] * FTransform(ComponentSpaceTransforms[Idx]) * ActorTransform;
 										TrailingData.Location = CurrTransform.GetTranslation();
 
 										TrailingData.Velocity = (*LinearVelocity)[Idx];

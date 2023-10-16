@@ -69,6 +69,15 @@ inline void CopyTransformsWithConversionWhenNeeded(TArray<FMatrix44f>& DstTransf
 	}
 }
 
+inline void CopyTransformsWithConversionWhenNeeded(TArray<FMatrix44f>& DstTransforms, const TArray<FTransform3f>& SrcTransforms)
+{
+	DstTransforms.SetNumUninitialized(SrcTransforms.Num());
+	for (int TransformIndex = 0; TransformIndex < SrcTransforms.Num(); ++TransformIndex)
+	{
+		DstTransforms[TransformIndex] = SrcTransforms[TransformIndex].ToMatrixWithScale();
+	}
+}
+
 /** Mutable rendering data */
 struct FGeometryCollectionDynamicData
 {
@@ -104,6 +113,11 @@ struct FGeometryCollectionDynamicData
 		CopyTransformsWithConversionWhenNeeded(Transforms, InTransforms);
 	}
 
+	void SetTransforms(const TArray<FTransform3f>& InTransforms)
+	{
+		CopyTransformsWithConversionWhenNeeded(Transforms, InTransforms);
+	}
+
 	UE_DEPRECATED(5.3, "Use FTransform version of SetPrevTransforms instead")
 	void SetPrevTransforms(const TArray<FMatrix>& InTransforms)
 	{
@@ -114,6 +128,11 @@ struct FGeometryCollectionDynamicData
 	void SetPrevTransforms(const TArray<FTransform>& InTransforms)
 	{
 		// use for LWC as FMatrix and FMatrix44f are different when LWC is on 
+		CopyTransformsWithConversionWhenNeeded(PrevTransforms, InTransforms);
+	}
+
+	void SetPrevTransforms(const TArray<FTransform3f>& InTransforms)
+	{
 		CopyTransformsWithConversionWhenNeeded(PrevTransforms, InTransforms);
 	}
 

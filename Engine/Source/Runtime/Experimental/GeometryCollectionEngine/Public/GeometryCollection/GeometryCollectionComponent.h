@@ -1270,7 +1270,10 @@ public:
 	UE_DEPRECATED(5.3, "Use GetComponentSpaceTransforms instead")
 	TArray<FMatrix> GetGlobalMatrices() { return ComputeGlobalMatricesFromComponentSpaceTransforms(); }
 
-	GEOMETRYCOLLECTIONENGINE_API const TArray<FTransform>& GetComponentSpaceTransforms();
+	UE_DEPRECATED(5.4, "Use GetComponentSpaceTransforms3f instead")
+	GEOMETRYCOLLECTIONENGINE_API TArray<FTransform> GetComponentSpaceTransforms();
+
+	GEOMETRYCOLLECTIONENGINE_API const TArray<FTransform3f>& GetComponentSpaceTransforms3f();
 
 	GEOMETRYCOLLECTIONENGINE_API const FGeometryDynamicCollection* GetDynamicCollection() const;
 	GEOMETRYCOLLECTIONENGINE_API FGeometryDynamicCollection* GetDynamicCollection();  // TEMP HACK?
@@ -1424,6 +1427,7 @@ protected:
 	GEOMETRYCOLLECTIONENGINE_API FBox ComputeBoundsFromGlobalMatrices(const FMatrix& LocalToWorldWithScale, const TArray<FMatrix>& GlobalMatricesArray) const;
 
 	GEOMETRYCOLLECTIONENGINE_API FBox ComputeBoundsFromComponentSpaceTransforms(const FTransform& LocalToWorldWithScale, const TArray<FTransform>& ComponentSpaceTransformsArray) const;
+	FBox ComputeBoundsFromComponentSpaceTransforms(const FTransform& LocalToWorldWithScale, const TArray<FTransform3f>& ComponentSpaceTransformsArray) const;
 
 	UE_DEPRECATED(5.3, "Use FTransform version of ComputeBounds instead")
 	GEOMETRYCOLLECTIONENGINE_API FBox ComputeBounds(const FMatrix& LocalToWorldWithScale) const;
@@ -1545,8 +1549,8 @@ private:
 
 	// return the most actual transforms
 	// this can be the rest collection ones, the overridden RestTransforms or the dynamic collection ones
-	FTransform GetCurrentTransform(int32 Index) const;
-	void ComputeCurrentGlobalsMatrices(TArray<FTransform>& OutTransforms) const;
+	FTransform3f GetCurrentTransform(int32 Index) const;
+	void ComputeCurrentGlobalsMatrices(TArray<FTransform3f>& OutTransforms) const;
 
 	bool bRenderStateDirty;
 	bool bEnableBoneSelection;
@@ -1601,16 +1605,16 @@ private:
 
 		// request all transform to be update
 		// this will trigger an update if it is still marked dirty
-		const TArray<FTransform>& RequestAllTransforms() const;
+		const TArray<FTransform3f>& RequestAllTransforms() const;
 
 		// request the root transform, this may compute it if it is still marked dirty
-		const FTransform& RequestRootTransform() const;
+		const FTransform3f& RequestRootTransform() const;
 
 	private:
 		int32 RootIndex;
 		mutable uint8 bIsRootDirty : 1;
 		mutable uint8 bIsDirty : 1;
-		mutable TArray<FTransform> Transforms;
+		mutable TArray<FTransform3f> Transforms;
 		const UGeometryCollectionComponent* Component;
 	};
 

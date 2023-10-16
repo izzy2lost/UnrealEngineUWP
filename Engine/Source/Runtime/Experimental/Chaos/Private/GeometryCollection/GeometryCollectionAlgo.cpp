@@ -348,7 +348,8 @@ namespace GeometryCollectionAlgo
 		return true;
 	}
 
-	void GlobalMatricesHelper(const int32 Index, const FGeometryDynamicCollection& DynamicCollection, TArray<bool>& IsTransformComputed, const TManagedArray<FTransform>* UniformScale, TArray<FTransform>& OutGlobalTransforms)
+	template<typename TransformType>
+	void GlobalMatricesHelper(const int32 Index, const FGeometryDynamicCollection& DynamicCollection, TArray<bool>& IsTransformComputed, const TManagedArray<FTransform>* UniformScale, TArray<TransformType>& OutGlobalTransforms)
 	{
 		if (IsTransformComputed[Index])
 		{
@@ -365,7 +366,7 @@ namespace GeometryCollectionAlgo
 		{
 			const int32 ProcessIndex = ToProcess.Pop(false);
 			const int32 ParentIndex = DynamicCollection.GetParent(ProcessIndex);
-			FTransform Result = FTransform(DynamicCollection.GetTransform(ProcessIndex));
+			TransformType Result = TransformType(DynamicCollection.GetTransform(ProcessIndex));
 			if (ParentIndex != FGeometryCollection::Invalid)
 			{
 				Result *= OutGlobalTransforms[ParentIndex];
@@ -373,7 +374,7 @@ namespace GeometryCollectionAlgo
 
 			if (UniformScale)
 			{
-				OutGlobalTransforms[ProcessIndex] = (*UniformScale)[ProcessIndex] * Result;
+				OutGlobalTransforms[ProcessIndex] = TransformType((*UniformScale)[ProcessIndex]) * Result;
 			}
 			else
 			{
@@ -403,15 +404,15 @@ namespace GeometryCollectionAlgo
 		{
 			const int32 ProcessIndex = ToProcess.Pop(false);
 			const int32 ParentIndex = Parents[ProcessIndex];
-			FTransform Result = FTransform(Transform[ProcessIndex]);
+			TransformTypeOut Result = TransformTypeOut(Transform[ProcessIndex]);
 			if (ParentIndex != FGeometryCollection::Invalid)
 			{
-				Result *= FTransform(OutGlobalTransforms[ParentIndex]);
+				Result *= OutGlobalTransforms[ParentIndex];
 			}
 
 			if (UniformScale)
 			{
-				OutGlobalTransforms[ProcessIndex] = TransformTypeOut((*UniformScale)[ProcessIndex] * Result);
+				OutGlobalTransforms[ProcessIndex] = TransformTypeOut((*UniformScale)[ProcessIndex]) * Result;
 			}
 			else
 			{
@@ -674,6 +675,21 @@ namespace GeometryCollectionAlgo
 				GlobalMatricesHelper(BoneIdx, DynamicCollection, IsTransformComputed, nullptr, OutGlobalTransforms);
 			}
 		}
+
+		void GlobalMatrices(const FGeometryDynamicCollection& DynamicCollection, TArray<FTransform3f>& OutGlobalTransforms)
+		{
+			int32 NumTransforms = DynamicCollection.GetNumTransforms();
+
+			TArray<bool> IsTransformComputed;
+			IsTransformComputed.AddDefaulted(NumTransforms);
+
+			OutGlobalTransforms.SetNumUninitialized(NumTransforms, false);
+
+			for (int BoneIdx = 0; BoneIdx < NumTransforms; ++BoneIdx)
+			{
+				GlobalMatricesHelper(BoneIdx, DynamicCollection, IsTransformComputed, nullptr, OutGlobalTransforms);
+			}
+		}
 	}
 
 	template<typename MatrixType, typename TransformType>
@@ -699,6 +715,8 @@ namespace GeometryCollectionAlgo
 	template void CHAOS_API GlobalMatrices<FMatrix, FTransform>(const TManagedArray<FTransform>&, const TManagedArray<int32>&, TArray<FMatrix>&);
 	template void CHAOS_API GlobalMatrices<FTransform, FTransform3f>(const TManagedArray<FTransform3f>&, const TManagedArray<int32>&, TArray<FTransform>&);
 	template void CHAOS_API GlobalMatrices<FMatrix, FTransform3f>(const TManagedArray<FTransform3f>&, const TManagedArray<int32>&, TArray<FMatrix>&);
+	template void CHAOS_API GlobalMatrices<FTransform3f, FTransform3f>(const TManagedArray<FTransform3f>&, const TManagedArray<int32>&, TArray<FTransform3f>&);
+	template void CHAOS_API GlobalMatrices<FTransform3f, FTransform>(const TManagedArray<FTransform>&, const TManagedArray<int32>&, TArray<FTransform3f>&);
 
 
 	void FloodForOverlappedPairs(int Level, int32 BoneIndex, TMap<int32, int32> &BoneToGroup, const TManagedArray<int32>& Levels, const TMap<int32, FBox>& BoundingBoxes, TSet<TTuple<int32, int32>>& OutOverlappedPairs)

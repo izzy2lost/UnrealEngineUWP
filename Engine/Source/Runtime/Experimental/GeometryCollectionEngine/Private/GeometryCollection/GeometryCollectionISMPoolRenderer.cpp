@@ -65,7 +65,7 @@ void UGeometryCollectionISMPoolRenderer::UpdateRootTransform(UGeometryCollection
 	UpdateMergedMeshTransforms(InRootTransform * ComponentTransform);
 }
 
-void UGeometryCollectionISMPoolRenderer::UpdateTransforms(UGeometryCollection const& InGeometryCollection, TArrayView<const FTransform> InTransforms)
+void UGeometryCollectionISMPoolRenderer::UpdateTransforms(UGeometryCollection const& InGeometryCollection, TArrayView<const FTransform3f> InTransforms)
 {
 	UpdateInstanceTransforms(InGeometryCollection, ComponentTransform, InTransforms);
 }
@@ -178,7 +178,7 @@ void UGeometryCollectionISMPoolRenderer::UpdateMergedMeshTransforms(FTransform c
 	}
 }
 
-void UGeometryCollectionISMPoolRenderer::UpdateInstanceTransforms(UGeometryCollection const& InGeometryCollection, FTransform const& InBaseTransform, TArrayView<const FTransform> InTransforms)
+void UGeometryCollectionISMPoolRenderer::UpdateInstanceTransforms(UGeometryCollection const& InGeometryCollection, FTransform const& InBaseTransform, TArrayView<const FTransform3f> InTransforms)
 {
 	if (InstancesGroup.GroupIndex == INDEX_NONE)
 	{
@@ -209,7 +209,7 @@ void UGeometryCollectionISMPoolRenderer::UpdateInstanceTransforms(UGeometryColle
 			const int32 AutoInstanceMeshIndex = InstancedMeshFacade.GetIndex(TransformIndex);
 			if (AutoInstanceMeshIndex == MeshIndex && Children[TransformIndex].Num() == 0)
 			{
-				InstanceTransforms.Add(InTransforms[TransformIndex] * InBaseTransform);
+				InstanceTransforms.Add(FTransform(InTransforms[TransformIndex]) * InBaseTransform);
 			}
 		}
 		
