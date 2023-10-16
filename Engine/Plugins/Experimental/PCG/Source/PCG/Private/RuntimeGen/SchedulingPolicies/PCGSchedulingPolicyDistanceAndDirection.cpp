@@ -55,3 +55,28 @@ double UPCGSchedulingPolicyDistanceAndDirection::CalculatePriority(const IPCGGen
 
 	return Priority;
 }
+
+bool UPCGSchedulingPolicyDistanceAndDirection::IsEquivalent(const UPCGSchedulingPolicyBase* OtherSchedulingPolicy) const
+{
+	if (!OtherSchedulingPolicy)
+	{
+		return false;
+	}
+
+	if (this == OtherSchedulingPolicy)
+	{
+		return true;
+	}
+
+	if (const UPCGSchedulingPolicyDistanceAndDirection* Other = Cast<UPCGSchedulingPolicyDistanceAndDirection>(OtherSchedulingPolicy))
+	{
+		return bUseDistance == Other->bUseDistance
+			&& DistanceWeight == Other->DistanceWeight
+			&& bUseDirection == Other->bUseDirection
+			&& DirectionWeight == Other->DirectionWeight;
+	}
+	else
+	{
+		return false;
+	}
+}

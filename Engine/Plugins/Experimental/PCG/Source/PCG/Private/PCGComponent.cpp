@@ -224,17 +224,14 @@ void UPCGComponent::SetPropertiesFromOriginal(const UPCGComponent* Original)
 
 #if WITH_EDITOR
 	const bool bHasDirtyInput = InputType != NewInputType;
-	const bool bIsDirty = bHasDirtyInput || bGraphInstanceIsDifferent;
+	bool bIsDirty = bHasDirtyInput || bGraphInstanceIsDifferent;
 #endif // WITH_EDITOR
 
 	InputType = NewInputType;
 	Seed = Original->Seed;
 	GenerationTrigger = Original->GenerationTrigger;
-
 	bOverrideGenerationRadii = Original->bOverrideGenerationRadii;
 	GenerationRadii = Original->GenerationRadii;
-	SchedulingPolicyClass = Original->SchedulingPolicyClass;
-	SchedulingPolicy = Original->SchedulingPolicy;
 
 	UPCGGraph* OriginalGraph = Original->GraphInstance ? Original->GraphInstance->GetGraph() : nullptr;
 	if (OriginalGraph != GraphInstance->GetGraph())
@@ -245,6 +242,21 @@ void UPCGComponent::SetPropertiesFromOriginal(const UPCGComponent* Original)
 	if (bGraphInstanceIsDifferent && OriginalGraph)
 	{
 		GraphInstance->CopyParameterOverrides(Original->GraphInstance);
+	}
+
+	if (!SchedulingPolicy || SchedulingPolicyClass != Original->SchedulingPolicyClass)
+	{
+		SchedulingPolicyClass = Original->SchedulingPolicyClass;
+		RefreshSchedulingPolicy();
+	}
+
+	if (SchedulingPolicy && ensure(Original->SchedulingPolicy) && !SchedulingPolicy->IsEquivalent(Original->SchedulingPolicy))
+	{
+		UEngine::CopyPropertiesForUnrelatedObjects(Original->SchedulingPolicy, SchedulingPolicy);
+
+#if WITH_EDITOR
+		bIsDirty = true;
+#endif
 	}
 
 #if WITH_EDITOR

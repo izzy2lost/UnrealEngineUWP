@@ -20,7 +20,11 @@ class PCG_API UPCGSchedulingPolicyDistanceAndDirection : public UPCGSchedulingPo
 	GENERATED_BODY()
 
 public:
+	/** Calculate the runtime scheduling priority with respect to a Generation Source. Should return a value in the range [0, 1], where higher values will be scheduled sooner. */
 	virtual double CalculatePriority(const IPCGGenSourceBase* InGenSource, const FBox& GenerationBounds, bool bUse2DGrid) const override;
+
+	/** A SchedulingPolicy is equivalent to another SchedulingPolicy if they are the same (same ptr), or if they have the same type and parameter values. */
+	virtual bool IsEquivalent(const UPCGSchedulingPolicyBase* OtherSchedulingPolicy) const;
 
 public:
 	/** Toggle whether or not distance is used to calculate the scheduling priority. */
