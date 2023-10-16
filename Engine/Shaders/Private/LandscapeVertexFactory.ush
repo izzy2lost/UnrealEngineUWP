@@ -83,47 +83,36 @@ float2 GetLodBias(uint ComponentIndex)
 #endif
 }
 
-/** 
- * Get current Lods for neighbour section instances. 
- *       -Y
- *    - - 0 - -
- *    |       |
- * -X 1   P   2 +X
- *    |       |
- *    - - 3 - -
- *       +Y
- */
-float4 GetNeighborSectionLod(uint ComponentIndex)
+
+float GetNeighborSectionLodFromOffset(int2 NeighborOffset, float CenterLOD)
 {
 #if FIXED_GRID
 	// Fixed grid has fixed Lod
-	return LandscapeFixedGrid.LodValues.xxxx;
-#else
-	int2 NeighborOffset[4];
-    NeighborOffset[0] = int2(0, -1);
-    NeighborOffset[1] = int2(-1, 0);
-    NeighborOffset[2] = int2(1, 0);
-    NeighborOffset[3] = int2(0, 1);
-	float NeighborLod[4];
-	UNROLL
-	for (int i = 0; i < 4; i++)
-	{
-		int2 NeighborPos = NeighborOffset[i] + int2(LandscapeParameters.ComponentBaseX, LandscapeParameters.ComponentBaseY);
-		NeighborPos = max(LandscapeContinuousLODParameters.Min                                                     , NeighborPos);
-		NeighborPos = min(LandscapeContinuousLODParameters.Min + LandscapeContinuousLODParameters.Size - int2(1, 1), NeighborPos);
+	return LandscapeFixedGrid.LodValues.x;
+#else // !FIXED_GRID
+	// Calculate neighbor position, and clamp to valid range
+	int2 NeighborPos = NeighborOffset + int2(LandscapeParameters.ComponentBaseX, LandscapeParameters.ComponentBaseY);
+	NeighborPos = max(LandscapeContinuousLODParameters.Min                                                     , NeighborPos);
+	NeighborPos = min(LandscapeContinuousLODParameters.Min + LandscapeContinuousLODParameters.Size - int2(1, 1), NeighborPos);
 
-		uint NeighborComponentIndex = (NeighborPos.y - LandscapeContinuousLODParameters.Min.y) * LandscapeContinuousLODParameters.Size.x + (NeighborPos.x - LandscapeContinuousLODParameters.Min.x);
-		float SectionLOD = GetViewLODData(NeighborComponentIndex);
+	// lookup neighbor LOD
+	uint NeighborComponentIndex = (NeighborPos.y - LandscapeContinuousLODParameters.Min.y) * LandscapeContinuousLODParameters.Size.x + (NeighborPos.x - LandscapeContinuousLODParameters.Min.x);
+	float NeighborLOD = GetViewLODData(NeighborComponentIndex);
 
-		NeighborLod[i] = max(SectionLOD, GetSectionLod(ComponentIndex));
-		NeighborLod[i] = NeighborLod[i] + View.FarShadowStaticMeshLODBias;
-		NeighborLod[i] = min(NeighborLod[i], LandscapeParameters.LastLOD);
-	}
-	return float4(NeighborLod[0], NeighborLod[1], NeighborLod[2], NeighborLod[3]);
-#endif
+	// the Edge LOD is the max of Our LOD and the Neighbor LOD (both sides will agree on EdgeLOD this way)
+	float EdgeLOD = max(CenterLOD, NeighborLOD);
+
+	// apply override and shadow bias
+	EdgeLOD = EdgeLOD + View.FarShadowStaticMeshLODBias;
+
+	// clamp to last lod
+	EdgeLOD = min(EdgeLOD, LandscapeParameters.LastLOD);
+
+	return EdgeLOD;
+#endif // !FIXED_GRID
 }
 
-/** Calculate fractional render LOD for a subsection. */
+/** Calculate fractional render LOD for a vertex within a subsection. */
 float CalcLOD(uint ComponentIndex, float2 xyLocalToSubsection, float2 Subsection)
 {
 #if FIXED_GRID
@@ -131,20 +120,25 @@ float CalcLOD(uint ComponentIndex, float2 xyLocalToSubsection, float2 Subsection
 	return LandscapeFixedGrid.LodValues.x;
 #else
 	float2 xy = (xyLocalToSubsection + Subsection) / LandscapeParameters.NumSubsections;
-	// LOD value based on Barycentric coordinate
-	float4 L0 = float4(xy.y, xy.x, (1 - xy.x), (1 - xy.y)) * 2;
+	
+	// calculate blend value (normalized distance from section border: 1 at the border, 0 at the center)
+	float2 Delta = xy * 2 - 1;
+	float2 AbsDelta = abs(Delta);
+	float LB = max(AbsDelta.x, AbsDelta.y);
 
-	float4 LODCalculated4 = L0 * GetSectionLod(ComponentIndex) + (float4(1, 1, 1, 1) - L0) * GetNeighborSectionLod(ComponentIndex);
+	// shift the blend towards 0 to reduce the lod blend range
+	float k = LandscapeParameters.InvLODBlendRange;
+	LB = saturate(1 - (1-LB) * k);
 
-	// Find which quadrant of the subsection we're in - top, left, right or bottom.
-	// 0 --------- 1 X  1 ----- 2  1          1 
-	//   | \ 0 / |        \   /    | \      / | 
-	//   | 1 + 2 |          0      |  0    0  |      0       
-	//   | / 3 \ |                 | /      \ |    /   \     
-	// 2 --------- 3               2          2  1 ----- 2   
-	float LODCalculated = ((xy.x + xy.y) > 1) ?
-		(xy.x < xy.y ? LODCalculated4.w : LODCalculated4.z) :
-		(xy.x < xy.y ? LODCalculated4.y : LODCalculated4.x);
+	// determine which neighbor is closest
+	int2 NeighborOffset = (AbsDelta.x > AbsDelta.y) ? int2(sign(Delta.x), 0) : int2(0, sign(Delta.y));
+
+	// calculate lod for this section, and the closest neighbor
+	float CenterLod = GetSectionLod(ComponentIndex);
+	float NeighborLod = GetNeighborSectionLodFromOffset(NeighborOffset, CenterLod);
+
+	// blend from center lod to the neighbor lod, based on distance from the border
+	float LODCalculated = (1-LB) * CenterLod + LB * NeighborLod;
 
 	return LODCalculated;
 #endif

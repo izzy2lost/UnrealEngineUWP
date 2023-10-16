@@ -99,6 +99,17 @@ FAutoConsoleVariableRef CVarLandscapeLODDistributionOverride(
 	FConsoleVariableDelegate::CreateStatic(&OnLODDistributionScaleChanged),
 	ECVF_Cheat
 );
+
+float GLandscapeLODBlendRangeOverride = -1.f;
+FAutoConsoleVariableRef CVarLandscapeLODBlendRangeOverride(
+	TEXT("r.Landscape.Override.LODBlendRange"),
+	GLandscapeLODBlendRangeOverride,
+	TEXT("When > 0, force the LODBlendRange property on all landscapes"),
+	FConsoleVariableDelegate::CreateStatic(&OnLODDistributionScaleChanged),
+	ECVF_Cheat
+);
+#else
+constexpr float GLandscapeLODBlendRangeOverride = -1.f;
 #endif // !UE_BUILD_SHIPPING
 
 float GLandscapeLOD0DistributionScale = 1.f;
@@ -1112,6 +1123,7 @@ FLandscapeComponentSceneProxy::FLandscapeComponentSceneProxy(ULandscapeComponent
 	, LastLOD(MaxLOD)
 	, ComponentMaxExtend(0.0f)
 	, ComponentSquaredScreenSizeToUseSubSections(FMath::Square(InComponent->GetLandscapeProxy()->ComponentScreenSizeToUseSubSections))
+	, InvLODBlendRange(1.0f / FMath::Max(0.01f, GLandscapeLODBlendRangeOverride > 0.0f ? GLandscapeLODBlendRangeOverride : InComponent->GetLandscapeProxy()->LODBlendRange))
 	, NumSubsections(InComponent->NumSubsections)
 	, SubsectionSizeQuads(InComponent->SubsectionSizeQuads)
 	, SubsectionSizeVerts(InComponent->SubsectionSizeQuads + 1)
@@ -2014,6 +2026,7 @@ void FLandscapeComponentSceneProxy::OnTransformChanged(FRHICommandListBase& RHIC
 	LandscapeParams.HeightmapUVScaleBias = HeightmapScaleBias;
 	LandscapeParams.WeightmapUVScaleBias = WeightmapScaleBias;
 	LandscapeParams.LocalToWorldNoScaling = FMatrix44f(LocalToWorldNoScaling);			// LWC_TODO: Precision loss
+	LandscapeParams.InvLODBlendRange = InvLODBlendRange;
 
 	LandscapeParams.LandscapeLightmapScaleBias = FVector4f(
 		LightmapScaleX,

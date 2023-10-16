@@ -107,6 +107,7 @@ BEGIN_GLOBAL_SHADER_PARAMETER_STRUCT(FLandscapeUniformShaderParameters, LANDSCAP
 	SHADER_PARAMETER(int32, NumSubsections)
 	SHADER_PARAMETER(int32, LastLOD)
 	SHADER_PARAMETER(uint32, VirtualTexturePerPixelHeight)
+	SHADER_PARAMETER(float, InvLODBlendRange)
 	SHADER_PARAMETER(FVector4f, HeightmapTextureSize)
 	SHADER_PARAMETER(FVector4f, HeightmapUVScaleBias)
     SHADER_PARAMETER(FVector4f, WeightmapUVScaleBias)
@@ -744,6 +745,7 @@ protected:
 	int32						LastVirtualTextureLOD;
 	float						ComponentMaxExtend; 		// The max extend value in any axis
 	float						ComponentSquaredScreenSizeToUseSubSections; // Size at which we start to draw in sub lod if LOD are different per sub section
+	float						InvLODBlendRange;			// 1.0 / LODBlendRange;
 
 	FLandscapeRenderSystem::LODSettingsComponent LODSettings;
 

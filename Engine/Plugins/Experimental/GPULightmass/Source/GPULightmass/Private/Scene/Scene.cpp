@@ -1246,6 +1246,7 @@ void FScene::AddGeometryInstanceFromComponent(ULandscapeComponent* InComponent)
 	Initializer.HeightmapScaleBias         = (FVector4f)InComponent->HeightmapScaleBias;
 	Initializer.WeightmapScaleBias         = (FVector4f)InComponent->WeightmapScaleBias;
 	Initializer.WeightmapSubsectionOffset  = InComponent->WeightmapSubsectionOffset;
+	Initializer.InvLODBlendRange           = 1.0f / FMath::Max(InComponent->GetLandscapeProxy()->LODBlendRange, 0.01f);
 
 	TArray<int32> RelevantPointLightsToAddOnRenderThread = AddAllPossiblyRelevantLightsToGeometry(LightScene.PointLights, Instance);
 	TArray<int32> RelevantSpotLightsToAddOnRenderThread = AddAllPossiblyRelevantLightsToGeometry(LightScene.SpotLights, Instance);
@@ -1325,6 +1326,7 @@ void FScene::AddGeometryInstanceFromComponent(ULandscapeComponent* InComponent)
 			LandscapeParams.HeightmapUVScaleBias = Initializer.HeightmapScaleBias;
 			LandscapeParams.WeightmapUVScaleBias = Initializer.WeightmapScaleBias;
 			LandscapeParams.LocalToWorldNoScaling = FMatrix44f(InstanceRenderState.LocalToWorldNoScaling);				// LWC_TODO: Precision loss
+			LandscapeParams.InvLODBlendRange = Initializer.InvLODBlendRange;
 
 			LandscapeParams.LandscapeLightmapScaleBias = FVector4f(
 				LightmapScaleX,
