@@ -499,6 +499,8 @@ void UNiagaraComponentPool::ReclaimWorldParticleSystem(UNiagaraComponent* Compon
 	}
 	else
 	{
+		// We've stopped pooling while some effects were in flight so ensure they're destroyed now.
+		Component->PoolingMethod = ENCPoolMethod::None;
 		Component->DestroyComponent();
 	}
 }
