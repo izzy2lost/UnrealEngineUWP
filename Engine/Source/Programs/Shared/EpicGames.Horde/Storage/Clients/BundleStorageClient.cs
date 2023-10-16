@@ -8,7 +8,6 @@ using System.Threading;
 using System.Threading.Tasks;
 using EpicGames.Core;
 using EpicGames.Horde.Storage.Bundles;
-using Microsoft.CodeAnalysis;
 using Microsoft.Extensions.Logging;
 
 namespace EpicGames.Horde.Storage.Clients
@@ -361,7 +360,8 @@ namespace EpicGames.Horde.Storage.Clients
 			RefValue? refValue = await _inner.TryReadRefAsync(name, cacheTime, cancellationToken);
 			if (refValue != null)
 			{
-				refValue = new RefValue(CreateBlobHandle(refValue.Target.GetLocator()), refValue.Data);
+				BlobHandle target = CreateBlobHandle(refValue.Target.GetLocator());
+				refValue = new RefValue(target, refValue.Data);
 			}
 			return refValue;
 		}
