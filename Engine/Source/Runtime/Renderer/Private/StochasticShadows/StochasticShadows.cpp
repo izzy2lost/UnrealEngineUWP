@@ -274,9 +274,10 @@ BEGIN_SHADER_PARAMETER_STRUCT(FStochasticShadowsParameters, )
 	SHADER_PARAMETER(uint32, StochasticShadowsStateFrameIndex)
 	SHADER_PARAMETER(uint32, MaxShadowMaskTiles)
 	SHADER_PARAMETER(uint32, MaxShadingTiles)
+	SHADER_PARAMETER(uint32, MaxShadingTilesPerGridCell)
 	SHADER_PARAMETER(uint32, ShadowMaskHashTableIndexWrapMask)
 	SHADER_PARAMETER(FIntPoint, ShadowMaskPageTablePerLightSize)
-	SHADER_PARAMETER(FIntPoint, ShadingTileGridStride)
+	SHADER_PARAMETER(FIntPoint, ShadingTileGridSize)
 	SHADER_PARAMETER(FVector2f, DownsampledBufferInvSize)
 	SHADER_PARAMETER(float, MinLightSampleWeight)
 	SHADER_PARAMETER(int32, DebugMode)
@@ -1011,10 +1012,10 @@ void FDeferredShadingSceneRenderer::RenderStochasticShadows(FRDGBuilder& GraphBu
 		StochasticShadowsParameters.DownsampledSceneDepth = DownsampledSceneDepth;
 		StochasticShadowsParameters.MaxShadowMaskTiles = MaxShadowMaskTiles;
 		StochasticShadowsParameters.MaxShadingTiles = (ShadingTileAtlasSize.X * ShadingTileAtlasSize.Y) / (StochasticShadows::ShadowMaskTileSize * StochasticShadows::ShadowMaskTileSize);
+		StochasticShadowsParameters.MaxShadingTilesPerGridCell = StochasticShadows::MaxShadingTilesPerGridCell;
+		StochasticShadowsParameters.ShadingTileGridSize = ShadingTileGridSize;
 		StochasticShadowsParameters.ShadowMaskHashTableIndexWrapMask = ShadowMaskHashTableSize - 1;
 		StochasticShadowsParameters.ShadowMaskPageTablePerLightSize = ShadowMaskPageTablePerLightSize;
-		StochasticShadowsParameters.ShadingTileGridStride.X = StochasticShadows::MaxShadingTilesPerGridCell;
-		StochasticShadowsParameters.ShadingTileGridStride.Y = ShadingTileGridSize.X * StochasticShadows::MaxShadingTilesPerGridCell;
 		StochasticShadowsParameters.DownsampledBufferInvSize = FVector2f(1.0f) / DownsampledBufferSize;
 		StochasticShadowsParameters.MinLightSampleWeight = CVarStochasticShadowsMinSampleWeight.GetValueOnRenderThread();
 		StochasticShadowsParameters.DebugMode = CVarStochasticShadowsDebug.GetValueOnRenderThread();

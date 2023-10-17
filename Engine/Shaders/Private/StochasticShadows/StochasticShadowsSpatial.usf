@@ -252,17 +252,22 @@ void ShadowMaskSpatialPassCS(
 		{	
 			const uint2 ShadingTileCoord = (BaseShadowMaskScreenCoord * SHADOW_MASK_DOWNSAMPLE_FACTOR) / SHADOW_MASK_TILE_SIZE + ShadingTileOffset;
 
-			uint ShadingTileIndex = 0;
-			InterlockedAdd(RWShadingTileAllocator[0], 1u, ShadingTileIndex);
-
-			if (ShadingTileIndex < MaxShadingTiles)
+			if (all(ShadingTileCoord < ShadingTileGridSize))
 			{
-				uint NumShadingTilesInCell = 0;
-				InterlockedAdd(RWShadingTileGridAllocator[ShadingTileCoord], 1u, NumShadingTilesInCell); // #sdl_todo: handle cell overflow
+				uint ShadingTileIndex = 0;
+				InterlockedAdd(RWShadingTileAllocator[0], 1u, ShadingTileIndex);
 
-				RWShadingTileGrid[GetShadingTileGridOffset(ShadingTileCoord, NumShadingTilesInCell)] = PackShadingTile(LightSceneId, ShadingTileIndex);
+				if (ShadingTileIndex < MaxShadingTiles)
+				{
+					uint ShadingTileIndexInCell = 0;
+					InterlockedAdd(RWShadingTileGridAllocator[ShadingTileCoord], 1u, ShadingTileIndexInCell);
 
-				SharedShadingTileIndex[ShadingTileOffset.x][ShadingTileOffset.y] = ShadingTileIndex;
+					if (ShadingTileIndexInCell < MaxShadingTilesPerGridCell)
+					{
+						RWShadingTileGrid[GetShadingTileGridOffset(ShadingTileCoord, ShadingTileIndexInCell)] = PackShadingTile(LightSceneId, ShadingTileIndex);
+						SharedShadingTileIndex[ShadingTileOffset.x][ShadingTileOffset.y] = ShadingTileIndex;
+					}
+				}
 			}
 		}
 	}

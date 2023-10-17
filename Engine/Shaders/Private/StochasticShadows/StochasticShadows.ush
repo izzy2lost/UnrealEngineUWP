@@ -368,9 +368,10 @@ FShadingTile UnpackShadingTile(uint PackedShadingTile)
 	return ShadingTile;
 }
 
-uint2 ShadingTileGridStride;
+uint2 ShadingTileGridSize;
+uint MaxShadingTilesPerGridCell;
 
 uint GetShadingTileGridOffset(uint2 ShadingTileCoord, uint IndexInCell)
 {
-	return ShadingTileCoord.x * ShadingTileGridStride.x + ShadingTileCoord.y * ShadingTileGridStride.y + IndexInCell;
+	return (ShadingTileCoord.x + ShadingTileCoord.y * ShadingTileGridSize.x) * MaxShadingTilesPerGridCell + IndexInCell;
 }
