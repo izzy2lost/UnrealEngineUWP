@@ -357,6 +357,7 @@ void FIKRigEditorController::HandleIKRigNeedsInitialized(UIKRigDefinition* Modif
 	{
 		PreviewScene->SetPreviewMeshComponent(SkelMeshComponent);
 		PreviewScene->SetPreviewMesh(NewMesh);
+		AssetController->ResetGoalTransforms();
 	}
 
 	// re-initializes the anim instances running in the viewport
