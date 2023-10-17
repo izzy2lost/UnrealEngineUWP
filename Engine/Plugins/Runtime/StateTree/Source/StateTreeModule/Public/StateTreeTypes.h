@@ -41,6 +41,9 @@ enum class EStateTreeTransitionType : uint8
 	/** Transition to the next sibling state. */
 	NextState,
 
+	/** Transition to the next selectable sibling state */
+	NextSelectableState,
+
 	NotSet UE_DEPRECATED(5.0, "Use None instead."),
 };
 
@@ -262,6 +265,16 @@ protected:
 	uint16 RandomVariance = 0;
 };
 
+/** Fallback behavior indicating what to do after failing to select a state */
+UENUM()
+enum class EStateTreeSelectionFallback : uint8
+{
+	/** No fallback */
+	None,
+
+	/** Find next selectable sibling, if any, and select it */
+	NextSelectableSibling,
+};
 
 /**
  *  Runtime representation of a StateTree transition.
@@ -305,6 +318,10 @@ struct STATETREEMODULE_API FCompactStateTransition
 	/* Priority of the transition. */
 	UPROPERTY()
 	EStateTreeTransitionPriority Priority = EStateTreeTransitionPriority::Normal;
+
+	/** Fallback of the transition if it fails to select the target state */
+	UPROPERTY()
+	EStateTreeSelectionFallback Fallback = EStateTreeSelectionFallback::None;
 
 	/** Number of conditions to test. */
 	UPROPERTY()

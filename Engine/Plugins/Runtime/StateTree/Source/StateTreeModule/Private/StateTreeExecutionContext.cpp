@@ -1587,7 +1587,7 @@ FString FStateTreeExecutionContext::DebugGetEventsAsString() const
 	return Result;
 }
 
-bool FStateTreeExecutionContext::RequestTransition(const FStateTreeStateHandle NextState, const EStateTreeTransitionPriority Priority)
+bool FStateTreeExecutionContext::RequestTransition(const FStateTreeStateHandle NextState, const EStateTreeTransitionPriority Priority, const EStateTreeSelectionFallback Fallback)
 {
 	// Skip lower priority transitions.
 	if (NextTransition.Priority >= Priority)
@@ -1614,7 +1614,7 @@ bool FStateTreeExecutionContext::RequestTransition(const FStateTreeStateHandle N
 
 	FStateTreeActiveStates NewActiveState;
 	FStateTreeActiveStates VisitedStates;
-	if (SelectState(NextState, NewActiveState, VisitedStates))
+	if (SelectState(NextState, NewActiveState, VisitedStates, Fallback))
 	{
 		SetupNextTransition(NextState, Priority);
 		NextTransition.NextActiveStates = NewActiveState;
@@ -1806,7 +1806,7 @@ bool FStateTreeExecutionContext::TriggerTransitions()
 							});
 
 						// Trigger Delayed Transition when the delay has passed.
-						if (RequestTransition(Transition.State, Transition.Priority))
+						if (RequestTransition(Transition.State, Transition.Priority, Transition.Fallback))
 						{
 							NextTransitionSource = FStateTreeTransitionSource(FStateTreeIndex16(TransitionIndex), Transition.State, Transition.Priority);
 						}
@@ -1856,7 +1856,7 @@ bool FStateTreeExecutionContext::TriggerTransitions()
 						}
 					}
 
-					if (RequestTransition(Transition.State, Transition.Priority))
+					if (RequestTransition(Transition.State, Transition.Priority, Transition.Fallback))
 					{
 						NextTransitionSource = FStateTreeTransitionSource(FStateTreeIndex16(TransitionIndex), Transition.State, Transition.Priority);
 					}
@@ -1937,7 +1937,7 @@ bool FStateTreeExecutionContext::TriggerTransitions()
 					{
 						// No delay allowed on completion conditions.
 						// No priority on completion transitions, use the priority to signal that state is selected.
-						if (RequestTransition(Transition.State, EStateTreeTransitionPriority::Normal))
+						if (RequestTransition(Transition.State, EStateTreeTransitionPriority::Normal, Transition.Fallback))
 						{
 							NextTransitionSource = FStateTreeTransitionSource(FStateTreeIndex16(TransitionIndex), Transition.State, Transition.Priority);
 							break;
@@ -2045,7 +2045,7 @@ FStateTreeStateHandle FStateTreeExecutionContext::GetParentLinkedStateHandle(con
 	return FStateTreeStateHandle();
 }
 
-bool FStateTreeExecutionContext::SelectState(const FStateTreeStateHandle NextState, FStateTreeActiveStates& OutNewActiveState, FStateTreeActiveStates& VisitedStates)
+bool FStateTreeExecutionContext::SelectState(const FStateTreeStateHandle NextState, FStateTreeActiveStates& OutNewActiveState, FStateTreeActiveStates& VisitedStates, const EStateTreeSelectionFallback Fallback)
 {
 	const FStateTreeExecutionState& Exec = GetExecState();
 
@@ -2100,8 +2100,35 @@ bool FStateTreeExecutionContext::SelectState(const FStateTreeStateHandle NextSta
 			__FUNCTION__, *GetSafeStateName(NextState), *GetStateStatusString(Exec), *GetNameSafe(&Owner), *GetFullNameSafe(&StateTree));
 		return false;
 	}
-	
-	return SelectStateInternal(NextState, OutNewActiveState, VisitedStates);
+
+	if (SelectStateInternal(NextState, OutNewActiveState, VisitedStates))
+	{
+		return true;
+	}
+
+	// Failed to Select Next State, handle fallback here
+	// Return true on the first next sibling that gets selected successfully
+	if (Fallback == EStateTreeSelectionFallback::NextSelectableSibling && NumInBetweenStates >= 2)
+	{
+		// InBetweenStates is in reversed order (i.e. from leaf to root)
+		FStateTreeStateHandle Parent = InBetweenStates[1];
+		if (Parent.IsValid())
+		{
+			const FCompactStateTreeState& ParentState = StateTree.States[Parent.Index];
+
+			uint16 ChildState = StateTree.States[NextState.Index].GetNextSibling();
+			for (; ChildState < ParentState.ChildrenEnd; ChildState = StateTree.States[ChildState].GetNextSibling())
+			{
+				FStateTreeStateHandle ChildStateHandle = FStateTreeStateHandle(ChildState);
+				if (SelectStateInternal(ChildStateHandle, OutNewActiveState, VisitedStates))
+				{
+					return true;
+				}
+			}
+		}
+	}
+
+	return false;
 }
 
 bool FStateTreeExecutionContext::SelectStateInternal(const FStateTreeStateHandle NextState, FStateTreeActiveStates& OutNewActiveState, FStateTreeActiveStates& VisitedStates)
@@ -2226,7 +2253,7 @@ bool FStateTreeExecutionContext::SelectStateInternal(const FStateTreeStateHandle
 					// Using SelectState() instead of SelectStateInternal to treat the transitions the same way as regular transitions,
 					// e.g. it may jump to a completely different branch.
 					FStateTreeActiveStates NewActiveState;
-					if (SelectState(Transition.State, NewActiveState, VisitedStates))
+					if (SelectState(Transition.State, NewActiveState, VisitedStates, Transition.Fallback))
 					{
 						// Selection succeeded
 						OutNewActiveState = NewActiveState;

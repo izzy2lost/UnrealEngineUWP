@@ -949,6 +949,9 @@ FText SStateTreeViewRow::GetLinkDescription(const FStateTreeStateLink& Link)
 	case EStateTreeTransitionType::NextState:
 		return LOCTEXT("TransitionNextStateStyled", "[Next]");
 		break;
+	case EStateTreeTransitionType::NextSelectableState:
+		return LOCTEXT("TransitionNextSelectableStateStyled", "[Next Selectable]");
+		break;
 	case EStateTreeTransitionType::GotoState:
 		return FText::FromName(Link.Name);
 		break;
@@ -1091,6 +1094,7 @@ FText SStateTreeViewRow::GetTransitionsIcon(const UStateTreeState& State, const 
 				IconType |= IconRightArrow;
 				break;
 			case EStateTreeTransitionType::NextState:
+			case EStateTreeTransitionType::NextSelectableState:
 				IconType |= IconDownArrow;
 				break;
 			case EStateTreeTransitionType::GotoState:

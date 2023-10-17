@@ -221,6 +221,9 @@ FText FStateTreeTransitionDetails::GetDescription() const
 		case EStateTreeTransitionType::NextState:
 			TargetText = LOCTEXT("TransitionNextState", "Next State");
 			break;
+		case EStateTreeTransitionType::NextSelectableState:
+			TargetText = LOCTEXT("TransitionNextSelectableState", "Next Selectable State");
+			break;
 		case EStateTreeTransitionType::GotoState:
 			{
 				TargetText = FText::Format(LOCTEXT("TransitionGotoState", "Go to State {0}"), FText::FromName(State->Name));

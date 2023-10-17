@@ -338,7 +338,7 @@ protected:
 	/**
 	 * Requests transition to a specified state with specified priority.
 	 */
-	bool RequestTransition(const FStateTreeStateHandle NextState, const EStateTreeTransitionPriority Priority);
+	bool RequestTransition(const FStateTreeStateHandle NextState, const EStateTreeTransitionPriority Priority, const EStateTreeSelectionFallback Fallback = EStateTreeSelectionFallback::None);
 
 	/**
 	 * Sets up NextTransition based on the provided parameters and the current execution status. 
@@ -370,9 +370,10 @@ protected:
 	 * @param NextState The state which we try to select next.
 	 * @param OutNewActiveStates Active states that got selected.
 	 * @param VisitedStates States visited so far during selection (used for detecting selection loops)
+	 * @param Fallback selection behavior to execute if it fails to select the desired state
 	 * @return True if succeeded to select new active states.
 	 */
-	bool SelectState(const FStateTreeStateHandle NextState, FStateTreeActiveStates& OutNewActiveStates, FStateTreeActiveStates& VisitedStates);
+	bool SelectState(const FStateTreeStateHandle NextState, FStateTreeActiveStates& OutNewActiveStates, FStateTreeActiveStates& VisitedStates, const EStateTreeSelectionFallback Fallback = EStateTreeSelectionFallback::None);
 
 	/**
 	 * Used internally to do the recursive part of the SelectState().

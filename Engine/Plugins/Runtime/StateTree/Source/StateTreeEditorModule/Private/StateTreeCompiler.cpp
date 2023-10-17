@@ -857,7 +857,12 @@ bool FStateTreeCompiler::CreateStateTransitions()
 			CompactTransition.Priority = Transition.Priority;
 			CompactTransition.EventTag = Transition.EventTag;
 			CompactTransition.bTransitionEnabled = Transition.bTransitionEnabled;
-			
+
+			if (Transition.State.LinkType == EStateTreeTransitionType::NextSelectableState)
+			{
+				CompactTransition.Fallback = EStateTreeSelectionFallback::NextSelectableSibling;
+			}
+
 			if (Transition.bDelayTransition)
 			{
 				CompactTransition.Delay.Set(Transition.DelayDuration, Transition.DelayRandomVariance);
@@ -965,7 +970,7 @@ bool FStateTreeCompiler::ResolveTransitionState(const UStateTreeState* SourceSta
 			return false;
 		}
 	}
-	else if (Link.LinkType == EStateTreeTransitionType::NextState)
+	else if (Link.LinkType == EStateTreeTransitionType::NextState || Link.LinkType == EStateTreeTransitionType::NextSelectableState)
 	{
 		// Find next state.
 		const UStateTreeState* NextState = SourceState ? SourceState->GetNextSelectableSiblingState() : nullptr;
