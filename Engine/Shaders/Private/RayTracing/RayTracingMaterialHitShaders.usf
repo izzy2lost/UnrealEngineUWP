@@ -508,10 +508,17 @@ RAY_TRACING_ENTRY_CLOSEST_HIT(MaterialCHS,
 
 	if (PackedPayload.IsMinimalPayloadMode())
 	{
-		// Minimal payload mode only fills FMinimalPayload::HitT, skipping actual material evaluation.
-		// This mode is used when tracing shadow rays against masked geometry.
-		// Dynamic branch is used to avoid compiling an extra shader permutation.
-		return;
+#if MATERIALBLENDING_TRANSLUCENT
+		//For shadow ray that does not ignore translucent materials, the material will be evaluated
+		// even with minimal payload mode to query the opacity for translucent shadow.
+		if (PackedPayload.IsIgnoreTranslucentMaterials() || !PackedPayload.IsShadowRay())
+#endif
+		{
+			// Minimal payload mode only fills FMinimalPayload::HitT, skipping actual material evaluation.
+			// This mode is used when tracing shadow rays against masked geometry.
+			// Dynamic branch is used to avoid compiling an extra shader permutation.
+			return;
+		}
 	}
 
 	CurrentPayloadInputFlags = PackedPayload.GetFlags();

@@ -109,6 +109,26 @@ static TAutoConsoleVariable<int32> CVarRayTracingShadowsAcceptFirstHit(
 	ECVF_RenderThreadSafe
 );
 
+static TAutoConsoleVariable<int32> CVarRayTracingShadowsTranslucency(
+	TEXT("r.RayTracing.Shadows.Translucency"),
+	0,
+	TEXT("0: Translucent material will not cast shadow (by default).")
+	TEXT("1: Translucent material cast approximate translucent shadows based on opacity (Very expensive)."),
+	ECVF_RenderThreadSafe
+);
+static TAutoConsoleVariable<int32> CVarRayTracingShadowsMaxTranslucencyHitCount(
+	TEXT("r.RayTracing.Shadows.MaxTranslucencyHitCount"),
+	-1,
+	TEXT("-1: Evaluate all intersections (default).")
+	TEXT(" 0: Disable translucent shadow testing.")
+	TEXT(">0: Limit the number of intersections."),
+	ECVF_RenderThreadSafe
+);
+
+int32 GetRayTracingShadowsMaxTranslucencyHitCount()
+{
+	return CVarRayTracingShadowsMaxTranslucencyHitCount.GetValueOnRenderThread();
+}
 
 bool EnableRayTracingShadowTwoSidedGeometry()
 {
@@ -189,6 +209,8 @@ class FOcclusionRGS : public FGlobalShader
 		SHADER_PARAMETER(uint32, RejectionSamplingTrials)
 		SHADER_PARAMETER(uint32, bAcceptFirstHit)
 		SHADER_PARAMETER(uint32, bTwoSidedGeometry)
+		SHADER_PARAMETER(uint32, TranslucentShadow)
+		SHADER_PARAMETER(uint32, MaxTranslucencyHitCount)
 
 		SHADER_PARAMETER_STRUCT(FLightShaderParameters, Light)
 		SHADER_PARAMETER_STRUCT_INCLUDE(FSceneTextureParameters, SceneTextures)
@@ -395,6 +417,8 @@ void FDeferredShadingSceneRenderer::RenderRayTracingShadows(
 		CommonPassParameters->AvoidSelfIntersectionTraceDistance = GRayTracingShadowsAvoidSelfIntersectionTraceDistance;
 		CommonPassParameters->bAcceptFirstHit = CVarRayTracingShadowsAcceptFirstHit.GetValueOnRenderThread();
 		CommonPassParameters->bTwoSidedGeometry = EnableRayTracingShadowTwoSidedGeometry() ? 1 : 0;
+		CommonPassParameters->TranslucentShadow = CVarRayTracingShadowsTranslucency.GetValueOnRenderThread();
+		CommonPassParameters->MaxTranslucencyHitCount = GetRayTracingShadowsMaxTranslucencyHitCount();
 		CommonPassParameters->TLAS = View.GetRayTracingSceneLayerViewChecked(ERayTracingSceneLayer::Base);
 		CommonPassParameters->ViewUniformBuffer = View.ViewUniformBuffer;
 		CommonPassParameters->SceneTextures = SceneTextures;

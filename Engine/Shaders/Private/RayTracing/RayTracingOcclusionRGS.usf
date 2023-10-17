@@ -52,6 +52,8 @@ uint TransmissionMeanFreePathType;
 uint RejectionSamplingTrials;
 uint bAcceptFirstHit;
 uint bTwoSidedGeometry;
+uint TranslucentShadow;
+uint MaxTranslucencyHitCount;
 
 #define TransmissionSampling_ConstantTrackingInfiniteDomain 0
 #define TransmissionSampling_ConstantTrackingFiniteDomain 1
@@ -465,6 +467,7 @@ FOcclusionResult ComputeOcclusion(
 		uint RayFlagsForOpaque = bAcceptFirstHit != 0 ? RAY_FLAG_ACCEPT_FIRST_HIT_AND_END_SEARCH : 0;
 
 		FMinimalPayload MinimalPayload;
+		const bool NeedToTraceTranslucentShadow = TranslucentShadow == 1 && MaxTranslucencyHitCount != 0;
 
 #if AVOID_SELF_INTERSECTION_TRACE
 		{
@@ -557,9 +560,69 @@ FOcclusionResult ComputeOcclusion(
 		}
 		else
 		{
-			Out.ClosestRayDistance = (Out.ClosestRayDistance == DENOISER_INVALID_HIT_DISTANCE) ? DENOISER_MISS_HIT_DISTANCE : Out.ClosestRayDistance;
-			Out.TransmissionDistance += 1.0;
-			Out.Visibility += 1.0;
+
+#if !COMPUTESHADER // Ignore translucent shadow path when using inline ray tracing
+
+			bool bHasClosestEffectiveTranslucentHit = false;
+
+			if (NeedToTraceTranslucentShadow)
+			{
+				// When there is no intersection, test for translucent material hit if translucent shadow
+				// is supported. If there is a hit, record the accumulated opacity.
+				FTranslucentMinimalPayload TranslucentMinimalPayload = (FTranslucentMinimalPayload)0;
+				float Visibility = 1.0f;
+				float HitT = 0;
+				int TranslucentRayTriangleHitCount = 0;
+				FRayDesc TranslucentRay = Ray;
+				
+				while (MaxTranslucencyHitCount != 0 &&
+					TranslucentRay.TMin < TranslucentRay.TMax &&
+					TranslucentRayTriangleHitCount != MaxTranslucencyHitCount &&
+					Visibility > 0.0f)
+				{
+					TranslucentMinimalPayload = TraceTranslucentVisibilityRay(
+						TLAS,
+						RayFlags, // Accept first hit will cause artifact.
+						RaytracingMask,
+						TranslucentRay);
+
+					if (!TranslucentMinimalPayload.IsHit())
+					{
+						break;
+					}
+
+					TranslucentRay.TMin = asfloat(asuint(TranslucentMinimalPayload.HitT) + 1);
+					TranslucentRayTriangleHitCount++;
+
+					// Record first hit with opacity > 0
+					if (!bHasClosestEffectiveTranslucentHit && 
+						TranslucentMinimalPayload.Opacity > 0)
+					{
+						HitT = TranslucentMinimalPayload.HitT;
+						bHasClosestEffectiveTranslucentHit = true;
+					}
+
+					Visibility *= 1 - TranslucentMinimalPayload.Opacity;
+				}
+
+				if (bHasClosestEffectiveTranslucentHit)
+				{
+					Out.ClosestRayDistance =
+						(Out.ClosestRayDistance == DENOISER_INVALID_HIT_DISTANCE) ||
+						(HitT < Out.ClosestRayDistance) ? HitT : Out.ClosestRayDistance;
+					Out.SumRayDistance += HitT;
+					Out.HitCount += 1.0f;
+					Out.Visibility += Visibility;
+				}
+			}
+			
+			if (!bHasClosestEffectiveTranslucentHit)
+#endif
+			{
+				Out.ClosestRayDistance = (Out.ClosestRayDistance == DENOISER_INVALID_HIT_DISTANCE) ? DENOISER_MISS_HIT_DISTANCE : Out.ClosestRayDistance;
+				Out.TransmissionDistance += 1.0;
+				Out.Visibility += 1.0;
+			}
 		}
 	}
 #if !ENABLE_MULTIPLE_SAMPLES_PER_PIXEL

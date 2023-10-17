@@ -601,6 +601,8 @@ struct FPackedMaterialClosestHitPayload : FMinimalPayload
 	void SetIgnoreTranslucentMaterials()	{ Flags |= RAY_TRACING_PAYLOAD_INPUT_FLAG_IGNORE_TRANSLUCENT; }
 	bool IsIgnoreTranslucentMaterials()		{ return (Flags & RAY_TRACING_PAYLOAD_INPUT_FLAG_IGNORE_TRANSLUCENT) != 0; }
 
+	bool IsShadowRay()						{ return (Flags & RAY_TRACING_PAYLOAD_INPUT_FLAG_SHADOW_RAY) != 0; }
+
 	FRayCone GetRayCone()					{ return UnpackRayCone(PackedRayCone); }
 	void SetRayCone(FRayCone NewRayCone)	{ PackedRayCone = PackRayCone(NewRayCone); }
 
@@ -772,6 +774,8 @@ struct FPackedMaterialClosestHitPayload : FMinimalPayload
 	void SetIgnoreTranslucentMaterials() { IorAndShadingModelIDAndBlendingModeAndFlagsAndPrimitiveLightingChannelMask |= RAY_TRACING_PAYLOAD_INPUT_FLAG_IGNORE_TRANSLUCENT << 23; }
 	bool IsIgnoreTranslucentMaterials() { return ((IorAndShadingModelIDAndBlendingModeAndFlagsAndPrimitiveLightingChannelMask >> 23) & RAY_TRACING_PAYLOAD_INPUT_FLAG_IGNORE_TRANSLUCENT) != 0; }
 
+	bool IsShadowRay() { return ((IorAndShadingModelIDAndBlendingModeAndFlagsAndPrimitiveLightingChannelMask >> 23) & RAY_TRACING_PAYLOAD_INPUT_FLAG_SHADOW_RAY) != 0; }
+
 	FRayCone GetRayCone() { return UnpackRayCone(PackedRayCone); }
 	void SetRayCone(FRayCone NewRayCone) { PackedRayCone = PackRayCone(NewRayCone); }
 
@@ -853,6 +857,7 @@ struct FPackedMaterialClosestHitPayload : FMinimalPayload
 	}
 
 	float GetOpacity()       { return f16tof32(BaseColorAndOpacity[1] >> 16); }
+	void SetOpacity(float Opacity) { BaseColorAndOpacity[1] = f32tof16(Opacity) << 16 | (BaseColorAndOpacity[1] & 0xFF); }
 	float GetMetallic()      { return float(MetallicAndSpecularAndRoughness & 0xFF) / 255.0f; }
 	float GetSpecular()      { return float((MetallicAndSpecularAndRoughness >> 8) & 0xFF) / 255.0f; }
 	float GetRoughness()     { return f16tof32(MetallicAndSpecularAndRoughness >> 16); }
@@ -1094,6 +1099,9 @@ FMinimalPayload TraceVisibilityRay(
 	
 	PackedPayload.SetFlags(RAY_TRACING_PAYLOAD_INPUT_FLAG_SHADOW_RAY);
 
+	//Have shadow ray behaves the same to Lumen, not tracing translucent materials.
+	PackedPayload.SetIgnoreTranslucentMaterials();
+
 	TraceVisibilityRayPacked(PackedPayload, TLAS, RayFlags, InstanceInclusionMask, Ray);
 
 	// Unpack the payload
@@ -1109,6 +1117,65 @@ FMinimalPayload TraceVisibilityRay(
 }
 
 #if !COMPUTESHADER
+
+///////////////////////////////////////////////////////////////////////////////////////////////////
+// Tracing translucent visibility ray functions
+
+struct FTranslucentMinimalPayload : FMinimalPayload
+{
+	float Opacity; // The opacity for the translucent material.
+};
+
+void TraceTranslucentVisibilityRayPacked(
+	inout FPackedMaterialClosestHitPayload PackedPayload,
+	in RaytracingAccelerationStructure TLAS,
+	in uint RayFlags,
+	in uint InstanceInclusionMask,
+	in FRayDesc Ray)
+{
+	const uint RayContributionToHitGroupIndex = RAY_TRACING_SHADER_SLOT_SHADOW;
+	const uint MultiplierForGeometryContributionToShaderIndex = RAY_TRACING_NUM_SHADER_SLOTS;
+	const uint MissShaderIndex = 0;
+
+	// By enabling minimal payload mode all other payload information is ignored, meaning these functions need no payload inputs
+	PackedPayload.SetMinimalPayloadMode();
+	PackedPayload.HitT = 0;
+
+	// @todo: add mask to select translucent shadow only.
+	RayFlags |= RAY_TRACING_MASK_TRANSLUCENT;
+
+	// Trace the ray
+	TraceRay(
+		TLAS,
+		RayFlags,
+		InstanceInclusionMask,
+		RayContributionToHitGroupIndex,
+		MultiplierForGeometryContributionToShaderIndex,
+		MissShaderIndex,
+		Ray.GetNativeDesc(),
+		PackedPayload);
+}
+
+FTranslucentMinimalPayload TraceTranslucentVisibilityRay(
+	in RaytracingAccelerationStructure TLAS,
+	in uint RayFlags,
+	in uint InstanceInclusionMask,
+	in FRayDesc Ray)
+{
+	FPackedMaterialClosestHitPayload PackedPayload = (FPackedMaterialClosestHitPayload)0;
+
+	PackedPayload.SetFlags(RAY_TRACING_PAYLOAD_INPUT_FLAG_SHADOW_RAY);
+
+	TraceTranslucentVisibilityRayPacked(PackedPayload, TLAS, RayFlags, InstanceInclusionMask, Ray);
+
+	// Unpack the payload
+	FTranslucentMinimalPayload MinimalPayload = (FTranslucentMinimalPayload)0;
+
+	MinimalPayload.HitT = PackedPayload.HitT;
+	MinimalPayload.Opacity = PackedPayload.GetOpacity();
+
+	return MinimalPayload;
+}
 
 void TraceMaterialRayPacked(
 	inout FPackedMaterialClosestHitPayload Payload,
