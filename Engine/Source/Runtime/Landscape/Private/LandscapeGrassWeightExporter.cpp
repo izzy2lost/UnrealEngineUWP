@@ -12,12 +12,17 @@
 #include "MeshPassProcessor.inl"
 #include "SimpleMeshDrawCommandPass.h"
 #include "TextureResource.h"
-
-class FLandscapeGrassWeightVS;
-class FLandscapeGrassWeightPS;
-class FLandscapeGrassWeightShaderElementData;
+#include "RenderCaptureInterface.h"
 
 #if WITH_EDITOR
+class FLandscapeGrassWeightVS;
+class FLandscapeGrassWeightPS;
+
+int32 RenderCaptureNextGrassmapDraws = 0;
+static FAutoConsoleVariableRef CVarRenderCaptureNextGrassmapDraws(
+	TEXT("landscape.RenderCaptureNextGrassmapDraws"),
+	RenderCaptureNextGrassmapDraws,
+	TEXT("Trigger render captures during the next N grassmap draw calls."));
 
 BEGIN_SHADER_PARAMETER_STRUCT(FLandscapeGrassPassParameters, )
 	SHADER_PARAMETER_STRUCT_REF(FViewUniformShaderParameters, View)
@@ -25,6 +30,13 @@ BEGIN_SHADER_PARAMETER_STRUCT(FLandscapeGrassPassParameters, )
 	SHADER_PARAMETER_STRUCT_INCLUDE(FInstanceCullingDrawParams, InstanceCullingDrawParams)
 	RENDER_TARGET_BINDING_SLOTS()
 	END_SHADER_PARAMETER_STRUCT()
+
+class FLandscapeGrassWeightShaderElementData : public FMeshMaterialShaderElementData
+{
+public:
+	int32 OutputPass;
+	FVector2f RenderOffset;
+};
 
 class FLandscapeGrassWeightMeshProcessor : public FMeshPassProcessor
 {
@@ -242,12 +254,17 @@ void FLandscapeGrassWeightExporter_RenderThread::RenderLandscapeComponentToTextu
 			}
 		});
 
+	if (bUseAsyncReadback)
+	{
+		AsyncReadback.StartReadback_RenderThread(GraphBuilder, OutputTexture);
+	}
+
 	GraphBuilder.Execute();
 }
 
 
-FLandscapeGrassWeightExporter::FLandscapeGrassWeightExporter(ALandscapeProxy* InLandscapeProxy, TArrayView<ULandscapeComponent* const> InLandscapeComponents, bool bInNeedsGrassmap, bool bInNeedsHeightmap, const TArray<int32>& InHeightMips)
-	: FLandscapeGrassWeightExporter_RenderThread(InHeightMips)
+FLandscapeGrassWeightExporter::FLandscapeGrassWeightExporter(ALandscapeProxy* InLandscapeProxy, TArrayView<ULandscapeComponent* const> InLandscapeComponents, bool bInNeedsGrassmap, bool bInNeedsHeightmap, const TArray<int32>& InHeightMips, bool bInUseAsyncReadback)
+	: FLandscapeGrassWeightExporter_RenderThread(InHeightMips, bInUseAsyncReadback)
 	, LandscapeProxy(InLandscapeProxy)
 	, ComponentSizeVerts(InLandscapeProxy->ComponentSizeQuads + 1)
 	, SubsectionSizeQuads(InLandscapeProxy->SubsectionSizeQuads)
@@ -318,6 +335,9 @@ FLandscapeGrassWeightExporter::FLandscapeGrassWeightExporter(ALandscapeProxy* In
 
 	UE::RenderCommandPipe::FSyncScope SyncScope;
 
+	RenderCaptureInterface::FScopedCapture RenderCapture((RenderCaptureNextGrassmapDraws != 0), TEXT("LandscapeGrassmapCapture"));
+	RenderCaptureNextGrassmapDraws = FMath::Max(0, RenderCaptureNextGrassmapDraws - 1);
+
 	// render
 	FLandscapeGrassWeightExporter_RenderThread* Exporter = this;
 	ENQUEUE_RENDER_COMMAND(FDrawSceneCommand)(
@@ -330,15 +350,26 @@ FLandscapeGrassWeightExporter::FLandscapeGrassWeightExporter(ALandscapeProxy* In
 
 TMap<ULandscapeComponent*, TUniquePtr<FLandscapeComponentGrassData>, TInlineSetAllocator<1>> FLandscapeGrassWeightExporter::FetchResults()
 {
-	TArray<FColor> Samples;
-	Samples.SetNumUninitialized(TargetSize.X * TargetSize.Y);
-
-	// Copy the contents of the remote texture to system memory
-	FReadSurfaceDataFlags ReadSurfaceDataFlags;
-	ReadSurfaceDataFlags.SetLinearToGamma(false);
-	RenderTargetResource->ReadPixels(Samples, ReadSurfaceDataFlags, FIntRect(0, 0, TargetSize.X, TargetSize.Y));
-
 	TMap<ULandscapeComponent*, TUniquePtr<FLandscapeComponentGrassData>, TInlineSetAllocator<1>> Results;
+	TArray<FColor> Samples;
+
+	if (bUseAsyncReadback)
+	{
+		FIntPoint Size;
+		Samples = AsyncReadback.TakeResults(&Size);
+		check(Size == TargetSize);
+	}
+	else
+	{
+		Samples.SetNumUninitialized(TargetSize.X * TargetSize.Y);
+
+		// Copy the contents of the remote texture to system memory (SamplesDataBuffer)
+		// This is a synchronous operation that may stall the cpu, waiting for the GPU data to be generated and copied
+		FReadSurfaceDataFlags ReadSurfaceDataFlags;
+		ReadSurfaceDataFlags.SetLinearToGamma(false);
+		RenderTargetResource->ReadPixels(Samples, ReadSurfaceDataFlags, FIntRect(0, 0, TargetSize.X, TargetSize.Y));
+	}
+
 	Results.Reserve(ComponentInfos.Num());
 
 	// Local data will be moved in contiguous array at the end of export (to minimize slack waste)
@@ -348,7 +379,6 @@ TMap<ULandscapeComponent*, TUniquePtr<FLandscapeComponentGrassData>, TInlineSetA
 	for (auto& ComponentInfo : ComponentInfos)
 	{
 		ULandscapeComponent* Component = ComponentInfo.Component;
-		ALandscapeProxy* Proxy = Component->GetLandscapeProxy();
 
 		TUniquePtr<FLandscapeComponentGrassData> NewGrassData = MakeUnique<FLandscapeComponentGrassData>(Component);
 
@@ -360,7 +390,9 @@ TMap<ULandscapeComponent*, TUniquePtr<FLandscapeComponentGrassData>, TInlineSetA
 		{
 			HeightData.Empty(0);
 		}
+#if WITH_EDITORONLY_DATA
 		NewGrassData->HeightMipData.Empty(HeightMips.Num());
+#endif // WITH_EDITORONLY_DATA
 
 		WeightData.Empty();
 		TArray<TArray<uint8>*> GrassWeightArrays;
@@ -391,6 +423,19 @@ TMap<ULandscapeComponent*, TUniquePtr<FLandscapeComponentGrassData>, TInlineSetA
 		}
 #endif
 
+		// FColor memory layout matches our BGRA GPU layout only on little endian CPUs!
+		#if PLATFORM_LITTLE_ENDIAN
+			#define BGRA_AS_FCOLOR_BLUE B
+			#define BGRA_AS_FCOLOR_GREEN G
+			#define BGRA_AS_FCOLOR_RED R
+			#define BGRA_AS_FCOLOR_ALPHA A
+		#else
+			#define BGRA_AS_FCOLOR_BLUE A
+			#define BGRA_AS_FCOLOR_GREEN R
+			#define BGRA_AS_FCOLOR_RED G
+			#define BGRA_AS_FCOLOR_ALPHA B
+		#endif // PLATFORM_LITTLE_ENDIAN
+
 		for (int32 PassIdx = 0; PassIdx < ComponentInfo.NumPasses; PassIdx++)
 		{
 			FColor* SampleData = &Samples[ComponentInfo.PixelOffsetX + PassIdx * ComponentSizeVerts];
@@ -403,14 +448,14 @@ TMap<ULandscapeComponent*, TUniquePtr<FLandscapeComponentGrassData>, TInlineSetA
 						for (int32 x = 0; x < ComponentSizeVerts; x++)
 						{
 							FColor& Sample = SampleData[x + y * TargetSize.X];
-							uint16 Height = (((uint16)Sample.R) << 8) + (uint16)(Sample.G);
+							uint16 Height = (((uint16)Sample.BGRA_AS_FCOLOR_RED) << 8) + (uint16)(Sample.BGRA_AS_FCOLOR_GREEN);
 							HeightData.Add(Height);
 							if (ComponentInfo.RequestedGrassTypes.Num() > 0)
 							{
-								GrassWeightArrays[0]->Add(Sample.B);
+								GrassWeightArrays[0]->Add(Sample.BGRA_AS_FCOLOR_BLUE);
 								if (ComponentInfo.RequestedGrassTypes.Num() > 1)
 								{
-									GrassWeightArrays[1]->Add(Sample.A);
+									GrassWeightArrays[1]->Add(Sample.BGRA_AS_FCOLOR_ALPHA);
 								}
 							}
 						}
@@ -425,16 +470,16 @@ TMap<ULandscapeComponent*, TUniquePtr<FLandscapeComponentGrassData>, TInlineSetA
 							FColor& Sample = SampleData[x + y * TargetSize.X];
 
 							int32 TypeIdx = PassIdx * 4 - 2;
-							GrassWeightArrays[TypeIdx++]->Add(Sample.R);
+							GrassWeightArrays[TypeIdx++]->Add(Sample.BGRA_AS_FCOLOR_RED);
 							if (TypeIdx < ComponentInfo.RequestedGrassTypes.Num())
 							{
-								GrassWeightArrays[TypeIdx++]->Add(Sample.G);
+								GrassWeightArrays[TypeIdx++]->Add(Sample.BGRA_AS_FCOLOR_GREEN);
 								if (TypeIdx < ComponentInfo.RequestedGrassTypes.Num())
 								{
-									GrassWeightArrays[TypeIdx++]->Add(Sample.B);
+									GrassWeightArrays[TypeIdx++]->Add(Sample.BGRA_AS_FCOLOR_BLUE);
 									if (TypeIdx < ComponentInfo.RequestedGrassTypes.Num())
 									{
-										GrassWeightArrays[TypeIdx++]->Add(Sample.A);
+										GrassWeightArrays[TypeIdx++]->Add(Sample.BGRA_AS_FCOLOR_ALPHA);
 									}
 								}
 							}
@@ -444,6 +489,7 @@ TMap<ULandscapeComponent*, TUniquePtr<FLandscapeComponentGrassData>, TInlineSetA
 			}
 			else // PassIdx >= FirstHeightMipsPassIndex
 			{
+#if WITH_EDITORONLY_DATA
 				const int32 Mip = HeightMips[PassIdx - ComponentInfo.FirstHeightMipsPassIndex];
 				int32 MipSizeVerts = NumSubsections * (SubsectionSizeQuads >> Mip);
 				TArray<uint16>& MipHeightData = NewGrassData->HeightMipData.Add(Mip);
@@ -452,12 +498,18 @@ TMap<ULandscapeComponent*, TUniquePtr<FLandscapeComponentGrassData>, TInlineSetA
 					for (int32 x = 0; x < MipSizeVerts; x++)
 					{
 						FColor& Sample = SampleData[x + y * TargetSize.X];
-						uint16 Height = (((uint16)Sample.R) << 8) + (uint16)(Sample.G);
+						uint16 Height = (((uint16)Sample.BGRA_AS_FCOLOR_RED) << 8) + (uint16)(Sample.BGRA_AS_FCOLOR_GREEN);
 						MipHeightData.Add(Height);
 					}
 				}
+#endif // WITH_EDITORONLY_DATA
 			}
 		}
+
+		#undef BGRA_AS_FCOLOR_BLUE
+		#undef BGRA_AS_FCOLOR_GREEN
+		#undef BGRA_AS_FCOLOR_RED
+		#undef BGRA_AS_FCOLOR_ALPHA
 
 		// remove null grass type if we had one (can occur if the node has null entries)
 		WeightData.Remove(nullptr);
@@ -490,13 +542,18 @@ void FLandscapeGrassWeightExporter::ApplyResults()
 
 		// Assign the new data (thread-safe)
 		Component->GrassData = MakeShareable(ComponentGrassData);
-		Component->GrassData->bIsDirty = true;
 
+#if WITH_EDITORONLY_DATA
+		Component->GrassData->bIsDirty = true;
+#endif // WITH_EDITORONLY_DATA
+
+#if WITH_EDITOR
 		if (Proxy->bBakeMaterialPositionOffsetIntoCollision)
 		{
 			Component->DestroyCollisionData();
 			Component->UpdateCollisionData();
 		}
+#endif // WITH_EDITOR
 	}
 }
 
