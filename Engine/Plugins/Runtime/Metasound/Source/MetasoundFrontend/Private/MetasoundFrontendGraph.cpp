@@ -26,7 +26,7 @@ namespace Metasound
 		{
 			FNodeInitData InitData;
 
-			InitData.InstanceName = *FString::Format(TEXT("{0}_{1}"), { *InNode.Name.ToString(), *InNode.GetID().ToString() });
+			InitData.InstanceName = InNode.Name;
 			InitData.InstanceID = InNode.GetID();
 
 			return InitData;
