@@ -1653,7 +1653,7 @@ static const char* scan_to_directive(const char* p, int* p_line_number)
 	__m128i k_directive_needle_negated = _mm_setr_epi8(
 		0    + 1, '\"' - 1,		// null         to double quote
 		'#'  + 1, '\'' - 1,		// hash         to single quote
-		'\'' + 1, 255,			// single quote to rest of characters
+		'\'' + 1, (char)255,	// single quote to rest of characters -- cast to char to avoid compiler sign warning, but intrinsic uses UBYTE, so code is correct
 		0,0,0,0,0,0,0,0,0,0);
 
 	__m128i k_newlines = _mm_set1_epi8('\n');
@@ -1692,7 +1692,7 @@ static const char* scan_to_directive(const char* p, int* p_line_number)
 					*p_line_number = line_number;
 					return p;
 				}
-				else if (pp_char_class[*leading_whitespace_scan] != PP_CHAR_CLASS_whitespace)
+				else if (pp_char_class[(uint8)*leading_whitespace_scan] != PP_CHAR_CLASS_whitespace)
 				{
 					// Not a leading hash!  Continue parsing
 					p++;
@@ -4915,7 +4915,8 @@ static void init_directive(char* s, int hash)
 		exit(1);
 	}
 
-	strcpy_s(directive_hash[hash].name, sizeof(directive_hash[hash].name), s);
+	// name member is sized to fit the largest directive (7 characters plus null) -- use strncpy to avoid warnings
+	strncpy(directive_hash[hash].name, s, sizeof(directive_hash[hash].name));
 	directive_hash[hash].name_len = strlen(s);
 }
 

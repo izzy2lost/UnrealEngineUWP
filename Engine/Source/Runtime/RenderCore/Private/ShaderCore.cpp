@@ -2030,7 +2030,9 @@ void ShaderConvertAndStripComments(const FString& ShaderSource, TArray<ANSICHAR>
 		{
 			if (Current[1] == '/')
 			{
+#if PLATFORM_ALWAYS_HAS_SSE4_2
 				SingleLineCommentParse:
+#endif
 				while (!IsEndOfLine(*Current) && Current < End)
 				{
 					++Current;
@@ -2041,7 +2043,9 @@ void ShaderConvertAndStripComments(const FString& ShaderSource, TArray<ANSICHAR>
 				Current += 2;
 				while (Current < End)
 				{
+#if PLATFORM_ALWAYS_HAS_SSE4_2
 					MultiLineCommentParse:
+#endif
 					if (Current[0] == '*' && Current[1] == '/')
 					{
 						Current += 2;
