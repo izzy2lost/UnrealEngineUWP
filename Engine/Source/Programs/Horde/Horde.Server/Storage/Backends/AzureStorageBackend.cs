@@ -33,7 +33,6 @@ namespace Horde.Server.Storage.Backends
 		}
 	}
 
-
 	/// <summary>
 	/// Options for Azure
 	/// </summary>
