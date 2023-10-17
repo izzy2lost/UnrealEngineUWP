@@ -109,8 +109,10 @@ void FGeometryCollectionISM::InitISM(const FGeometryCollectionStaticMeshInstance
 	{
 		ISMComponent->SetRelativeTransform(FTransform(FQuat::Identity, MeshInstance.Desc.Position, Scale));
 	}
-
-	ISMComponent->SetCachedMaxDrawDistance(MeshInstance.Desc.EndCullDistance);
+	if ((MeshInstance.Desc.Flags & FISMComponentDescription::DistanceCullPrimitive) != 0)
+	{
+		ISMComponent->SetCachedMaxDrawDistance(MeshInstance.Desc.EndCullDistance);
+	}
 	ISMComponent->SetCullDistances(MeshInstance.Desc.StartCullDistance, MeshInstance.Desc.EndCullDistance);
 	ISMComponent->SetCastShadow((MeshInstance.Desc.Flags & FISMComponentDescription::AffectShadow) != 0);
 	ISMComponent->bAffectDynamicIndirectLighting = (MeshInstance.Desc.Flags & FISMComponentDescription::AffectDynamicIndirectLighting) != 0;
