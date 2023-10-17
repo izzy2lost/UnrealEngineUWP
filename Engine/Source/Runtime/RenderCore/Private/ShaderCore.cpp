@@ -1841,16 +1841,174 @@ void ShaderConvertAndStripComments(const FString& ShaderSource, TArray<ANSICHAR>
 	// STB preprocessor does not strip comments, so we do so here before returning the loaded source
 	// Doing so is barely more costly than the memcopy we require anyways so has negligible overhead.
 	// Reserve worst case (i.e. assuming there are no comments at all) to avoid reallocation
-	int32 BufferSize = ShaderSource.Len() + 1; // +1 to append null terminator
+	int32 BufferSize = ShaderSource.Len() + 16;		// need extra for null terminator plus padding for SSE read operations at the end of the buffer
 	OutStripped.SetNumUninitialized(BufferSize);
 
 	ANSICHAR* CurrentOut = OutStripped.GetData();
 
-	const TCHAR* const End = ShaderSource.GetCharArray().GetData() + ShaderSource.Len();
+	const TCHAR* const Start = ShaderSource.GetCharArray().GetData();
+	const TCHAR* const End = Start + ShaderSource.Len();
 
 	// We rely on null termination to avoid the need to check Current < End in some cases
 	check(*End == TEXT('\0'));
-	for (const TCHAR* Current = ShaderSource.GetCharArray().GetData(); Current < End;)
+
+	const TCHAR* Current = Start;
+
+#if PLATFORM_ALWAYS_HAS_SSE4_2
+	__m128i CharCR = _mm_set1_epi8('\r');			// Carriage return
+	__m128i CharLF = _mm_set1_epi8('\n');			// Line feed (newline)
+	__m128i CharSlash = _mm_set1_epi8('/');
+	__m128i CharStar = _mm_set1_epi8('*');
+
+	// We process 15 characters at a time, so we can find comment starts (needs access to pairs of characters)
+	const TCHAR* EndSse = End - 16;
+	for (; Current < EndSse; )
+	{
+		__m128i First8 = _mm_loadu_epi16(Current);
+		__m128i Second8 = _mm_loadu_epi16(Current + 8);
+		__m128i CurrentWord = _mm_packus_epi16(First8, Second8);
+
+		int32 CRMask = _mm_movemask_epi8(_mm_cmpeq_epi8(CurrentWord, CharCR));
+		int32 SlashMask = _mm_movemask_epi8(_mm_cmpeq_epi8(CurrentWord, CharSlash));
+		int32 StarMask = _mm_movemask_epi8(_mm_cmpeq_epi8(CurrentWord, CharStar));
+
+		// If we encounter a carriage return, fall back to slower single character path that handles CR/LF combos
+		if (CRMask)
+		{
+			// Go back one character if first character in current word is CR, and previous character was LF, so
+			// the single character parser can treat it as a newline pair.
+			if ((CRMask & 1) && (Current > Start) && *(Current - 1) == '\n')
+			{
+				Current--;
+				CurrentOut--;
+			}
+			break;
+		}
+
+		// Echo the current word
+		_mm_storeu_epi8(CurrentOut, CurrentWord);
+
+		// Check if there is a comment start, meaning a slash followed by slash or star, which we can detect by shifting right
+		// a mask containing both slash and star, and seeing if that overlaps with a slash.
+		int32 CommentStartMask = SlashMask & ((SlashMask | StarMask) >> 1);
+		if (!CommentStartMask)
+		{
+			// If no potential comment start, advance 15 characters and parse again
+			CurrentOut += 15;
+			Current += 15;
+			continue;
+		}
+
+		// Advance input to contents of comment, output to end of non-comment characters
+		int32 CommentOffset = _tzcnt_u32(CommentStartMask);
+		Current += CommentOffset + 2;
+		CurrentOut += CommentOffset;
+
+		if (*(Current - 1) == '/')
+		{
+			// Single line comment, advance to newline
+			bool bFoundNewline = false;
+
+			for (; Current < EndSse;)
+			{
+				First8 = _mm_loadu_epi16(Current);
+				Second8 = _mm_loadu_epi16(Current + 8);
+				CurrentWord = _mm_packus_epi16(First8, Second8);
+
+				CRMask = _mm_movemask_epi8(_mm_cmpeq_epi8(CurrentWord, CharCR));
+				int32 LFMask = _mm_movemask_epi8(_mm_cmpeq_epi8(CurrentWord, CharLF));
+				int32 EitherMask = CRMask | LFMask;
+				if (EitherMask)
+				{
+					int32 NewlineOffset = _tzcnt_u32(EitherMask);
+					Current += NewlineOffset;
+					bFoundNewline = true;
+					break;
+				}
+				else
+				{
+					Current += 16;
+				}
+			}
+
+			if (!bFoundNewline)
+			{
+				// Ran out of input buffer we can safely scan with SSE -- resume comment parsing in single character parser.
+				goto SingleLineCommentParse;
+			}
+			if (CRMask)
+			{
+				// Hit a CR.  Stop and fall back to single character parser.  Note that we don't need to worry about rewinding for
+				// a newline pair here, because we stop on either that's encountered first, so we haven't emitted a newline yet.
+				break;
+			}
+		}
+		else
+		{
+			// Multi line comment, skip to end of comment, writing newlines
+			bool bFoundEnd = false;
+
+			for (; Current < EndSse;)
+			{
+				First8 = _mm_loadu_epi16(Current);
+				Second8 = _mm_loadu_epi16(Current + 8);
+				CurrentWord = _mm_packus_epi16(First8, Second8);
+
+				// Fall back to single character parsing if we hit a CR
+				CRMask = _mm_movemask_epi8(_mm_cmpeq_epi8(CurrentWord, CharCR));
+				if (CRMask)
+				{
+					// Go back one character if this is the first CR, and previous character was LF
+					if ((CRMask & 1) && (Current > Start) && *(Current - 1) == '\n')
+					{
+						Current--;
+						CurrentOut--;
+					}
+					goto MultiLineCommentParse;
+				}
+
+				StarMask = _mm_movemask_epi8(_mm_cmpeq_epi8(CurrentWord, CharStar));
+				SlashMask = _mm_movemask_epi8(_mm_cmpeq_epi8(CurrentWord, CharSlash));
+				int32 LFMask = _mm_movemask_epi8(_mm_cmpeq_epi8(CurrentWord, CharLF));
+
+				int32 CommentEndMask = StarMask & (SlashMask >> 1);
+				if (CommentEndMask)
+				{
+					// Process any newlines before the comment end
+					int32 CommentEndOffset = _tzcnt_u32(CommentEndMask);
+					LFMask &= (0xffff >> (16 - CommentEndOffset));
+					if (LFMask)
+					{
+						_mm_storeu_epi8(CurrentOut, CharLF);
+						CurrentOut += _mm_popcnt_u32(LFMask);
+					}
+					Current += CommentEndOffset + 2;
+					bFoundEnd = true;
+					break;
+				}
+				else
+				{
+					// No comment end -- process any newlines in the first 15 characters and continue
+					LFMask &= 0x7fff;
+					if (LFMask)
+					{
+						_mm_storeu_epi8(CurrentOut, CharLF);
+						CurrentOut += _mm_popcnt_u32(LFMask);
+					}
+					Current += 15;
+				}
+			}
+
+			if (!bFoundEnd)
+			{
+				// Ran out of input buffer we can safely scan with SSE -- resume comment parsing in single character parser.
+				goto MultiLineCommentParse;
+			}
+		}
+	}
+#endif	// PLATFORM_ALWAYS_HAS_SSE4_2
+
+	for (; Current < End;)
 	{
 		// sanity check that we're not overrunning the buffer
 		check(CurrentOut < (OutStripped.GetData() + BufferSize));
@@ -1872,6 +2030,7 @@ void ShaderConvertAndStripComments(const FString& ShaderSource, TArray<ANSICHAR>
 		{
 			if (Current[1] == '/')
 			{
+				SingleLineCommentParse:
 				while (!IsEndOfLine(*Current) && Current < End)
 				{
 					++Current;
@@ -1882,6 +2041,7 @@ void ShaderConvertAndStripComments(const FString& ShaderSource, TArray<ANSICHAR>
 				Current += 2;
 				while (Current < End)
 				{
+					MultiLineCommentParse:
 					if (Current[0] == '*' && Current[1] == '/')
 					{
 						Current += 2;
@@ -1908,7 +2068,7 @@ void ShaderConvertAndStripComments(const FString& ShaderSource, TArray<ANSICHAR>
 	check(CurrentOut < (OutStripped.GetData() + BufferSize));
 	*CurrentOut++ = 0;
 
-	// Set correct length after stripping but don't bother shrinking/reallocating, minor memory overhead to save time
+	// Set correct length after stripping but don't bother shrinking/reallocating -- shrinking would remove SSE padding we require
 	OutStripped.SetNum(CurrentOut - OutStripped.GetData(), /* bAllowShrinking */false);
 }
 

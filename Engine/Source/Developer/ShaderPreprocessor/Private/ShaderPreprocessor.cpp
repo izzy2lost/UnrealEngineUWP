@@ -103,6 +103,7 @@ struct FStbLoadedInclude
 {
 	const ANSICHAR* Data = nullptr;				// Points to SharedData, LocalData, or data from FShaderCompilerEnvironment
 	size_t DataLength = 0;
+	size_t DataCapacity = 0;
 	FShaderSharedAnsiStringPtr SharedData;
 	TArray<ANSICHAR> LocalData;
 };
@@ -139,6 +140,7 @@ static const ANSICHAR* StbLoadFile(const ANSICHAR* Filename, void* RawContext, s
 
 			ContentsCached->Data = ContentsCached->LocalData.GetData();
 			ContentsCached->DataLength = ContentsCached->LocalData.Num();
+			ContentsCached->DataCapacity = ContentsCached->LocalData.Max();
 		}
 		else
 		{
@@ -148,6 +150,7 @@ static const ANSICHAR* StbLoadFile(const ANSICHAR* Filename, void* RawContext, s
 			{
 				ContentsCached->Data = InMemorySourceAnsi->Get()->GetData();
 				ContentsCached->DataLength = InMemorySourceAnsi->Get()->Num();
+				ContentsCached->DataCapacity = InMemorySourceAnsi->Get()->Max();
 			}
 			else
 			{
@@ -156,8 +159,14 @@ static const ANSICHAR* StbLoadFile(const ANSICHAR* Filename, void* RawContext, s
 
 				ContentsCached->Data = ContentsCached->SharedData->GetData();
 				ContentsCached->DataLength = ContentsCached->SharedData->Num();
+				ContentsCached->DataCapacity = ContentsCached->SharedData->Max();
 			}
 		}
+
+		// Need 15 characters beyond null terminator, so an unaligned SSE read at the null terminator can safely read 15 extra unused characters
+		// without going out of memory bounds.  ShaderConvertAndStripComments ensures this padding.  We could optionally allocate (or reallocate)
+		// a local copy as a fallback to handle this case without asserting, but it would be a silent performance degradation.
+		checkf(ContentsCached->DataCapacity >= ContentsCached->DataLength + 15, TEXT("Shader preprocessor ANSI files must include 15 bytes of capacity padding past null terminator"));
 	}
 	check(ContentsCached);
 	*OutLength = ContentsCached->DataLength;

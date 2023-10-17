@@ -392,6 +392,7 @@ CREDITS
 #define arraddnptr stbds_arraddnptr
 #define arraddnindex stbds_arraddnindex
 #define arrsetlen stbds_arrsetlen
+#define arrsetlennocap stbds_arrsetlennocap
 #define arrinitlen stbds_arrinitlen
 #define arrlast stbds_arrlast
 #define arrins stbds_arrins
@@ -400,6 +401,7 @@ CREDITS
 #define arrdeln stbds_arrdeln
 #define arrdelswap stbds_arrdelswap
 #define arrcap stbds_arrcap
+#define arrcapnonull stbds_arrcapnonull
 #define arrsetcap stbds_arrsetcap
 
 #define hmput stbds_hmput
@@ -558,8 +560,10 @@ extern "C"
 
 #define stbds_arrsetcap(a, n) ((!(a) || (n) > stbds_header(a)->capacity) ? (stbds_arrgrow(a, 0, n), 0) : 0)
 #define stbds_arrsetlen(a, n) ((stbds_arrcap(a) < (size_t)(n) ? stbds_arrsetcap((a), (size_t)(n)), 0 : 0), (a) ? stbds_header(a)->length = (size_t)(n) : 0)
+#define stbds_arrsetlennocap(a, n) (stbds_header(a)->length = n)
 #define stbds_arrinitlen(a, n) ((stbds_arrsetcap((a), (size_t)(n)), stbds_header(a)->length = (size_t)(n)))
 #define stbds_arrcap(a) ((a) ? stbds_header(a)->capacity : 0)
+#define stbds_arrcapnonull(a) (stbds_header(a)->capacity)
 #define stbds_arrlen(a) ((a) ? (ptrdiff_t)stbds_header(a)->length : 0)
 #define stbds_arrlennonull(a) ((ptrdiff_t)stbds_header(a)->length)
 #define stbds_arrlenu(a) ((a) ? stbds_header(a)->length : 0)
