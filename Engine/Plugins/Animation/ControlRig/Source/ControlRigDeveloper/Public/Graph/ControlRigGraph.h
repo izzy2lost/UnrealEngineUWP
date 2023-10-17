@@ -57,6 +57,10 @@ public:
 	{
 		return GetElementNameList(ERigElementType::Connector);
 	}
+	const TArray<TSharedPtr<FRigVMStringWithTag>>* GetSocketNameList(URigVMPin* InPin = nullptr) const
+	{
+		return GetElementNameList(ERigElementType::Socket);
+	}
 
 	virtual const TArray<TSharedPtr<FRigVMStringWithTag>>* GetNameListForWidget(const FString& InWidgetName) const override;
 
