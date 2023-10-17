@@ -106,7 +106,7 @@ protected:
 		bool bRequiresBuild = false;
 
 	public:
-		void CreateFromCPUData(FRHICommandList& RHICmdList, FRayTracingGeometryInitializer Initializer, TResourceArray<uint8>& OfflineData);
+		void CreateFromCPUData(FRHICommandList& RHICmdList, FRayTracingGeometry& RayTracingGeometry);
 
 		void SafeRelease();
 

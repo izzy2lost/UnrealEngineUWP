@@ -23,6 +23,13 @@ FRayTracingGeometry::~FRayTracingGeometry() = default;
 
 void FRayTracingGeometry::InitRHIForStreaming(FRHIRayTracingGeometry* IntermediateGeometry, FRHIResourceUpdateBatcher& Batcher)
 {
+	ensureMsgf(RayTracingGeometryRHI || !IsRayTracingEnabled(),
+		TEXT("RayTracingGeometryRHI should be valid when ray tracing is enabled.\n")
+		TEXT("This check failing points to a race condition between FRayTracingGeometryManager::Tick(...) and FStaticMeshStreamIn processing.\n")
+	);
+
+	Initializer.Type = ERayTracingGeometryInitializerType::Rendering;
+
 	EnumAddFlags(GeometryState, EGeometryStateFlags::StreamedIn);
 
 	if (RayTracingGeometryRHI && IntermediateGeometry)
@@ -30,16 +37,20 @@ void FRayTracingGeometry::InitRHIForStreaming(FRHIRayTracingGeometry* Intermedia
 		Batcher.QueueUpdateRequest(RayTracingGeometryRHI, IntermediateGeometry);
 		EnumAddFlags(GeometryState, EGeometryStateFlags::Valid);
 	}
+	else
+	{
+		check(GetRayTracingMode() == ERayTracingMode::Dynamic);
+	}
 }
 
 void FRayTracingGeometry::ReleaseRHIForStreaming(FRHIResourceUpdateBatcher& Batcher)
 {
 	RemoveBuildRequest();
 
-	Initializer = {};
-
 	EnumRemoveFlags(GeometryState, EGeometryStateFlags::StreamedIn);
 	EnumRemoveFlags(GeometryState, EGeometryStateFlags::Valid);
+
+	Initializer.Type = ERayTracingGeometryInitializerType::StreamingDestination;
 
 	if (RayTracingGeometryRHI)
 	{
