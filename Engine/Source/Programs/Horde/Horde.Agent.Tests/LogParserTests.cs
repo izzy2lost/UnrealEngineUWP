@@ -639,6 +639,18 @@ namespace Horde.Agent.Tests
 		}
 
 		[TestMethod]
+		public void SystemicErrorMatcher2()
+		{
+			string[] lines =
+			{
+				@"LogDerivedDataCache: Warning: //amznfsxahfo0vod.epicgames.net/share/DDC: Loading //amznfsxahfo0vod.epicgames.net/share/DDC/Buckets/Test/d2/31/fca1bb2ff10d802e76beb932c2d43a2d539e.udd from 'CacheRecord' is very slow (0.00 MiB/s); consider disabling this cache store."
+			};
+
+			List<LogEvent> logEvents = Parse(lines);
+			CheckEventGroup(logEvents, 0, 1, LogLevel.Information, KnownLogEvents.Systemic_SlowDDC);
+		}
+
+		[TestMethod]
 		public void LogChannelMatcher()
 		{
 			string[] lines =
