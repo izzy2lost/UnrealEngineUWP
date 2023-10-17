@@ -112,10 +112,7 @@ FHairGroupInstance::~FHairGroupInstance()
 			InternalResourceRelease(Strands.RenRaytracingResource);
 		}
 #endif
-
-#if WITH_EDITOR
 		Strands.DebugCurveAttributeBuffer.Release();
-#endif
 
 		InternalResourceRelease(Strands.VertexFactory);
 	}
@@ -739,7 +736,7 @@ public:
 					check(HairGroupInstances[GroupIt]->GetRefCount() > 0);
 
 					FMaterialRenderProxy* Debug_MaterialProxy = nullptr;
-					const EGroomViewMode ViewMode = AllowDebugViewmodes() ? GetGroomViewMode(*View) : EGroomViewMode::None;
+					const EGroomViewMode ViewMode = GetGroomViewMode(*View);
 					bool bNeedDebugMaterial = false;
 					switch(ViewMode)
 					{
