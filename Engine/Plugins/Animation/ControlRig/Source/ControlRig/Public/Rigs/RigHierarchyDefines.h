@@ -18,7 +18,7 @@ class URigHierarchy;
  * This can be used as a mask so supported as a bitfield
  */
 UENUM(BlueprintType)
-enum class ERigElementType
+enum class ERigElementType : uint8
 {
 	None = 0,
 	Bone = 0x001,
@@ -30,7 +30,6 @@ enum class ERigElementType
 	Reference = 0x020,
 	Connector = 0x040,
 	Socket = 0x080,
-	Last = 0x160 UMETA(Hidden),
 	All = Bone | Null | Control | Curve | RigidBody | Reference | Connector | Socket,
 	ToResetAfterConstructionEvent = Bone | Control | Curve | Socket UMETA(Hidden),
 };

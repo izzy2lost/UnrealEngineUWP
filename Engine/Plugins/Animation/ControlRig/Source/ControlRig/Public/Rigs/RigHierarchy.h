@@ -4337,14 +4337,9 @@ protected:
 			{
 				return 7;
 			}
-			case ERigElementType::Last:
-			{
-				return 8;
-			}
 			case ERigElementType::All:
 			default:
 			{
-				checkNoEntry();
 				break;
 			}
 		}
@@ -4388,13 +4383,8 @@ protected:
 			{
 				return ERigElementType::Socket;
 			}
-			case 8:
-			{
-				return ERigElementType::Last;
-			}
 			default:
 			{
-				checkNoEntry();
 				break;
 			}
 		}

@@ -361,8 +361,13 @@ void URigHierarchy::Reset_Impl(bool bResetElements)
 		}
 		Elements.Reset();
 		ElementsPerType.Reset();
-		for(int32 TypeIndex=0;TypeIndex<RigElementTypeToFlatIndex(ERigElementType::Last);TypeIndex++)
+		const UEnum* ElementTypeEnum = StaticEnum<ERigElementType>();
+		for(int32 TypeIndex=0; ;TypeIndex++)
 		{
+			if ((ERigElementType)ElementTypeEnum->GetValueByIndex(TypeIndex) == ERigElementType::All)
+			{
+				break;
+			}
 			ElementsPerType.Add(TArray<FRigBaseElement*>());
 		}
 		IndexLookup.Reset();
@@ -422,8 +427,13 @@ void URigHierarchy::CopyHierarchy(URigHierarchy* InHierarchy)
 	bReallocateElements = Elements.Num() < InHierarchy->Elements.Num();
 	if(!bReallocateElements)
 	{
-		for(int32 ElementTypeIndex = 0; ElementTypeIndex < RigElementTypeToFlatIndex(ERigElementType::Last); ElementTypeIndex++)
+		const UEnum* ElementTypeEnum = StaticEnum<ERigElementType>();
+		for(int32 ElementTypeIndex = 0; ; ElementTypeIndex++)
 		{
+			if ((ERigElementType)ElementTypeEnum->GetValueByIndex(ElementTypeIndex) == ERigElementType::All)
+			{
+				break;
+			}
 			check(ElementsPerType.IsValidIndex(ElementTypeIndex));
 			check(InHierarchy->ElementsPerType.IsValidIndex(ElementTypeIndex));
 			if(ElementsPerType[ElementTypeIndex].Num() < InHierarchy->ElementsPerType[ElementTypeIndex].Num())
@@ -524,8 +534,13 @@ void URigHierarchy::CopyHierarchy(URigHierarchy* InHierarchy)
 
 		// shrink the containers accordingly
 		Elements.SetNum(InHierarchy->Elements.Num());
-		for(int32 ElementTypeIndex = 0; ElementTypeIndex < RigElementTypeToFlatIndex(ERigElementType::Last); ElementTypeIndex++)
+		const UEnum* ElementTypeEnum = StaticEnum<ERigElementType>();
+		for(int32 ElementTypeIndex = 0; ; ElementTypeIndex++)
 		{
+			if ((ERigElementType)ElementTypeEnum->GetValueByIndex(ElementTypeIndex) == ERigElementType::All)
+			{
+				break;
+			}
 			ElementsPerType[ElementTypeIndex].SetNum(InHierarchy->ElementsPerType[ElementTypeIndex].Num());
 		}
 

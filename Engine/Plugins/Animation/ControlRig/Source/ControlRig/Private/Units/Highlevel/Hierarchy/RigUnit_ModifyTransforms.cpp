@@ -207,8 +207,13 @@ int32 FRigUnit_ModifyTransforms::GetIndexFromTarget(const FString& InTarget) con
 		static TArray<FString> DisplayNames;
 		if(DisplayNames.IsEmpty())
 		{
-			for(int64 Index = 0; Index < (int64)ERigElementType::Last; Index++)
+			const UEnum* ElementTypeEnum = StaticEnum<ERigElementType>();
+			for(int64 Index = 0; ; Index++)
 			{
+				if ((ERigElementType)ElementTypeEnum->GetValueByIndex(Index) == ERigElementType::All)
+				{
+					break;
+				}
 				DisplayNames.Add(TypeEnum->GetDisplayNameTextByValue(Index).ToString());
 			}
 		}
