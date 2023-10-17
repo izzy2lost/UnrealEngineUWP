@@ -94,8 +94,8 @@ FSubstrateDeferredLighting SubstrateDeferredLighting(
 		const float3 CommonMultiplier = LightData.Color * LightMask * LuminanceWeight(BSDFContext, BSDF);
 
 		FLightAccumulator Out = (FLightAccumulator)0;
-		LightAccumulator_AddSplit(Out, DiffuseLuminance, SpecularLuminance, DiffuseLuminance, CommonMultiplier, BSDFEvaluate.bSubsurface);
-		AccumulateSubstrateDeferredLighting(SubstrateLighting, Out, BSDFEvaluate.bSubsurface, BSDF_GETISTOPLAYER(BSDF));
+		LightAccumulator_AddSplit(Out, DiffuseLuminance, SpecularLuminance, DiffuseLuminance, CommonMultiplier, BSDFEvaluate.bPostProcessSubsurface);
+		AccumulateSubstrateDeferredLighting(SubstrateLighting, Out, BSDFEvaluate.bPostProcessSubsurface, BSDF_GETISTOPLAYER(BSDF));
 	}
 
 	return SubstrateLighting;

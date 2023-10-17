@@ -299,11 +299,11 @@ FSubstrateDeferredLighting SubstrateIndirectLighting(
 		#endif 
 
 		// SSS Checkerboard
-		OutBSDF.Specular *= GetSSSCheckerboadSpecularScale(PixelPos, SubstrateEnvLight.bSubsurface);
+		OutBSDF.Specular *= GetSSSCheckerboadSpecularScale(PixelPos, SubstrateEnvLight.bPostProcessSubsurface);
 
 		FLightAccumulator Accumulator = (FLightAccumulator)0;
-		LightAccumulator_AddSplit(Accumulator, OutBSDF.Diffuse, OutBSDF.Specular, OutBSDF.Diffuse, 1.f /*CommonMultiplier*/, SubstrateEnvLight.bSubsurface);
-		AccumulateSubstrateDeferredLighting(Out, Accumulator, SubstrateEnvLight.bSubsurface, BSDF_GETISTOPLAYER(BSDF));
+		LightAccumulator_AddSplit(Accumulator, OutBSDF.Diffuse, OutBSDF.Specular, OutBSDF.Diffuse, 1.f /*CommonMultiplier*/, SubstrateEnvLight.bPostProcessSubsurface);
+		AccumulateSubstrateDeferredLighting(Out, Accumulator, SubstrateEnvLight.bPostProcessSubsurface, BSDF_GETISTOPLAYER(BSDF));
 	}
 
 	return Out;
@@ -475,8 +475,8 @@ void MainPS(
 					OutAddColor = IndirectLighting_Substrate.SceneColor;
 				#if SUBSTRATE_OPAQUE_ROUGH_REFRACTION_ENABLED
 					const uint2 OutCoord = PixelPos;
-					OutOpaqueRoughRefractionSceneColor[OutCoord] = IndirectLighting_Substrate.OpaqueRoughRefractionSceneColor;
-					OutSubSurfaceSceneColor[OutCoord] = IndirectLighting_Substrate.SubSurfaceSceneColor;
+					OutOpaqueRoughRefractionSceneColor[OutCoord] += IndirectLighting_Substrate.OpaqueRoughRefractionSceneColor;
+					OutSubSurfaceSceneColor[OutCoord] += IndirectLighting_Substrate.SubSurfaceSceneColor;
 				#endif
 				}
 			}

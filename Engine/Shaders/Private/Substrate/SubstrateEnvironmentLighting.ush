@@ -106,8 +106,8 @@ FSubstrateDeferredLighting SubstrateEnvironmentLighting(
 		// SUBSTRATE_TODO ReflectionEnvironment(...) for static reflection volumes.
 
 		FLightAccumulator Out = (FLightAccumulator)0;
-		LightAccumulator_AddSplit(Out, DiffuseLighting, SpecularLighting, DiffuseLighting, View.PreExposure, SubstrateEnvLight.bSubsurface);
-		AccumulateSubstrateDeferredLighting(SubstrateLighting, Out, SubstrateEnvLight.bSubsurface, BSDF_GETISTOPLAYER(BSDF));
+		LightAccumulator_AddSplit(Out, DiffuseLighting, SpecularLighting, DiffuseLighting, View.PreExposure, SubstrateEnvLight.bPostProcessSubsurface);
+		AccumulateSubstrateDeferredLighting(SubstrateLighting, Out, SubstrateEnvLight.bPostProcessSubsurface, BSDF_GETISTOPLAYER(BSDF));
 	}
 
 	SSRReductionFactor = saturate(SSRReductionFactor);
