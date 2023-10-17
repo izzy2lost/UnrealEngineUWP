@@ -48,6 +48,11 @@ namespace Horde.Server.Agents
 		public bool? RequestShutdown { get; set; }
 
 		/// <summary>
+		/// Request the machine be restarted without waiting for leases to complete
+		/// </summary>
+		public bool? RequestForceRestart { get; set; }
+
+		/// <summary>
 		/// Pools for this agent
 		/// </summary>
 		public List<string>? Pools { get; set; }

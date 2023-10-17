@@ -11,6 +11,7 @@ using Horde.Server.Utilities;
 using HordeCommon;
 using HordeCommon.Rpc.Tasks;
 using EpicGames.Horde.Agents.Leases;
+using System.Linq;
 
 namespace Horde.Server.Tasks
 {
@@ -31,13 +32,16 @@ namespace Horde.Server.Tasks
 
 		public override async Task<Task<AgentLease?>> AssignLeaseAsync(IAgent agent, CancellationToken cancellationToken)
 		{
-			if (!agent.RequestRestart)
+			if (!agent.RequestForceRestart)
 			{
-				return Skip(cancellationToken);
-			}
-			if (agent.Leases.Count > 0)
-			{
-				return await DrainAsync(cancellationToken);
+				if (!agent.RequestRestart)
+				{
+					return Skip(cancellationToken);
+				}
+				if (agent.Leases.Count > 0)
+				{
+					return await DrainAsync(cancellationToken);
+				}
 			}
 
 			LeaseId leaseId = new LeaseId(BinaryIdUtils.CreateNew());

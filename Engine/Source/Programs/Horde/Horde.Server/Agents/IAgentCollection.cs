@@ -104,11 +104,12 @@ namespace Horde.Server.Agents
 		/// <param name="requestFullConform">Whether to request a full conform job be run</param>
 		/// <param name="requestRestart">Whether to request the machine be restarted</param>
 		/// <param name="requestShutdown">Whether to request the machine be shut down</param>
+		/// <param name="requestForceRestart">Request an immediate restart without waiting for leases to complete</param>
 		/// <param name="shutdownReason">The reason for shutting down agent, ex. Autoscaler/Manual/Unexpected</param>
 		/// <param name="pools">List of pools for the agent</param>
 		/// <param name="comment">New comment</param>
 		/// <returns>New agent state if update was successful</returns>
-		Task<IAgent?> TryUpdateSettingsAsync(IAgent agent, bool? enabled = null, bool? requestConform = null, bool? requestFullConform = null, bool? requestRestart = null, bool? requestShutdown = null, string? shutdownReason = null, List<PoolId>? pools = null, string? comment = null);
+		Task<IAgent?> TryUpdateSettingsAsync(IAgent agent, bool? enabled = null, bool? requestConform = null, bool? requestFullConform = null, bool? requestRestart = null, bool? requestShutdown = null, bool? requestForceRestart = null, string? shutdownReason = null, List<PoolId>? pools = null, string? comment = null);
 
 		/// <summary>
 		/// Update the current workspaces for an agent.

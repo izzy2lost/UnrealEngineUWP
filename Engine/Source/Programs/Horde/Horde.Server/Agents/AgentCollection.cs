@@ -104,6 +104,9 @@ namespace Horde.Server.Agents
 			[BsonIgnoreIfDefault, BsonDefaultValue(false)]
 			public bool RequestShutdown { get; set; }
 
+			[BsonIgnoreIfDefault, BsonDefaultValue(false)]
+			public bool RequestForceRestart { get; set; }
+
 			[BsonIgnoreIfNull]
 			public string? LastShutdownReason { get; set; }
 
@@ -293,7 +296,7 @@ namespace Horde.Server.Agents
 		}
 
 		/// <inheritdoc/>
-		public async Task<IAgent?> TryUpdateSettingsAsync(IAgent agentInterface, bool? enabled = null, bool? requestConform = null, bool? requestFullConform = null, bool? requestRestart = null, bool? requestShutdown = null, string? shutdownReason = null, List<PoolId>? pools = null, string? comment = null)
+		public async Task<IAgent?> TryUpdateSettingsAsync(IAgent agentInterface, bool? enabled = null, bool? requestConform = null, bool? requestFullConform = null, bool? requestRestart = null, bool? requestShutdown = null, bool? requestForceRestart = null, string? shutdownReason = null, List<PoolId>? pools = null, string? comment = null)
 		{
 			AgentDocument agent = (AgentDocument)agentInterface;
 
@@ -341,6 +344,17 @@ namespace Horde.Server.Agents
 					updates.Add(updateBuilder.Unset(x => x.RequestShutdown));
 				}
 			}
+			if (requestForceRestart != null)
+			{
+				if (requestForceRestart.Value)
+				{
+					updates.Add(updateBuilder.Set(x => x.RequestForceRestart, true));
+				}
+				else
+				{
+					updates.Add(updateBuilder.Unset(x => x.RequestForceRestart));
+				}
+			}
 
 			if (shutdownReason != null)
 			{
@@ -356,7 +370,7 @@ namespace Horde.Server.Agents
 			IAgent? newAgent = await TryUpdateAsync(agent, updateBuilder.Combine(updates));
 			if (newAgent != null)
 			{
-				if (newAgent.RequestRestart != agent.RequestRestart || newAgent.RequestConform != agent.RequestConform || newAgent.RequestShutdown != agent.RequestShutdown)
+				if (newAgent.RequestRestart != agent.RequestRestart || newAgent.RequestConform != agent.RequestConform || newAgent.RequestShutdown != agent.RequestShutdown || newAgent.RequestForceRestart != agent.RequestForceRestart)
 				{
 					await PublishUpdateEventAsync(agent.Id);
 				}
@@ -500,6 +514,7 @@ namespace Horde.Server.Agents
 			updates.Add(updateBuilder.Set(x => x.Version, version));
 			updates.Add(updateBuilder.Unset(x => x.RequestRestart));
 			updates.Add(updateBuilder.Unset(x => x.RequestShutdown));
+			updates.Add(updateBuilder.Unset(x => x.RequestForceRestart));
 			updates.Add(updateBuilder.Set(x => x.LastShutdownReason, "Unexpected"));
 
 			if (String.Equals(version, agent.LastUpgradeVersion, StringComparison.Ordinal))

@@ -557,6 +557,11 @@ namespace Horde.Server.Agents
 		public bool RequestShutdown { get; }
 
 		/// <summary>
+		/// Whether a forced machine restart is requested
+		/// </summary>
+		public bool RequestForceRestart { get; }
+
+		/// <summary>
 		/// The reason for the last agent shutdown
 		/// </summary>
 		public string? LastShutdownReason { get; }
