@@ -1723,15 +1723,16 @@ int32 FConvexDecomposition3::MergeBest(int32 InTargetNumParts, double MaxErrorTo
 	};
 
 	int32 MustMergeCount = 0;
+	bool bHaveCompactMustMergeParts = false;
 	if (MinThicknessTolerance > 0)
 	{
 		for (int32 PartIdx = 0; PartIdx < Decomposition.Num(); PartIdx++)
 		{
 			FConvexPart& Part = Decomposition[PartIdx];
-			// The 'must merge' logic is not designed to handle pre-compacted hull inputs
+			// Note if our thin parts are already compact, so we can skip processing that requires the underlying geometry
 			if (Part.IsCompact())
 			{
-				continue;
+				bHaveCompactMustMergeParts = true;
 			}
 			Part.bMustMerge = IsPartBelowSizeTolerance(Part);
 			MustMergeCount += Part.bMustMerge;
@@ -1740,7 +1741,7 @@ int32 FConvexDecomposition3::MergeBest(int32 InTargetNumParts, double MaxErrorTo
 	// TODO: if MustMergeCount is >= NumParts-1, we could shortcut the process and just return a single convex hull
 
 	// Try to further-split long/wide thin parts -- parts that are not thin in all directions, e.g. parts with max bounding box extent wider than MinThicknessTolerance
-	if (MustMergeCount > 0)
+	if (MustMergeCount > 0 && !bHaveCompactMustMergeParts)
 	{
 		TArray<int32> PartsToConsider;
 		for (int32 OrigPartIdx = 0, OrigNumDecomposition = Decomposition.Num(); OrigPartIdx < OrigNumDecomposition; OrigPartIdx++)

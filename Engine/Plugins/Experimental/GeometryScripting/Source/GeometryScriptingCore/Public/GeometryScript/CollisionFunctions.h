@@ -181,6 +181,13 @@ public:
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = Options, meta = (UIMin = "0", UIMax = "100.", Units = cm))
 	double ErrorTolerance = 0.0;
 
+	/**
+	 * Always attempt to merge parts thicker than this, ignoring ErrorTolerance and MaxShapeCount.
+	 * Note: Negative space, if set, will still prevent merges.
+	 */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = Options, meta = (UIMin = "0", UIMax = "100.", Units = cm))
+	double MinThicknessTolerance = 0.0;
+
 	// Negative space that must be preserved during merging
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = NegativeSpace)
 	FGeometryScriptSphereCovering PrecomputedNegativeSpace;
