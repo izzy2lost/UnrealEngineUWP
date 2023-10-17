@@ -1113,6 +1113,7 @@ mu::NodeImagePtr GenerateMutableSourceImage(const UEdGraphPin* Pin, FMutableGrap
 							ImageTableNode->SetTable(Table);
 							ImageTableNode->SetColumn(StringCast<ANSICHAR>(*ColumnName).Get());
 							ImageTableNode->SetParameterName(StringCast<ANSICHAR>(*TypedNodeTable->ParameterName).Get());
+							ImageTableNode->SetMaxTextureSize(MaxTextureSize);
 
 							GenerationContext.AddParameterNameUnique(Node, TypedNodeTable->ParameterName);
 						}

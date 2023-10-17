@@ -1790,6 +1790,16 @@ namespace mu
 					}
 					else
 					{
+						if (node.MaxTextureSize > 0 && (node.MaxTextureSize < pImage->GetSizeX() || node.MaxTextureSize < pImage->GetSizeY()))
+						{
+							float Factor = FMath::Min(node.MaxTextureSize / (float)(pImage->GetSizeX()), node.MaxTextureSize / (float)(pImage->GetSizeY()));
+
+							FImageOperator ImOp = FImageOperator::GetDefault(m_compilerOptions->ImageFormatFunc);
+							Ptr<Image> ResizedImage = new Image(pImage->GetSizeX() * Factor, pImage->GetSizeY() * Factor, pImage->GetLODCount(), pImage->GetFormat(), EInitializationType::NotInitialized);
+							ImOp.ImageResizeLinear(ResizedImage.get(), m_compilerOptions->ImageCompressionQuality, pImage.get());
+							pImage = ResizedImage;
+						}
+
 						NodeImageConstantPtr ImageConst = new NodeImageConstant();
 						ImageConst->SetValue(pImage);
 

@@ -84,6 +84,19 @@ namespace mu
 	}
 
 
+	//---------------------------------------------------------------------------------------------
+	void NodeImageTable::SetMaxTextureSize(uint16 MaxTextureSize)
+	{
+		m_pD->MaxTextureSize = MaxTextureSize;
+	}
+
+
+	//---------------------------------------------------------------------------------------------
+	uint16 NodeImageTable::GetMaxTextureSize()
+	{
+		return m_pD->MaxTextureSize;
+	}
+
 }
 
 

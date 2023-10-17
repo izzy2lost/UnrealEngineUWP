@@ -68,6 +68,10 @@ namespace mu
 		//!
 		void SetColumn( const FString& strName );
 
+		//!
+		void SetMaxTextureSize(uint16 Size);
+		uint16 GetMaxTextureSize();
+
 		//-----------------------------------------------------------------------------------------
 		// Interface pattern
 		//-----------------------------------------------------------------------------------------

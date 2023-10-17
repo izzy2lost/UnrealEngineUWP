@@ -25,16 +25,18 @@ namespace mu
 		FString m_parameterName;
 		TablePtr m_pTable;
 		FString m_columnName;
+		uint16 MaxTextureSize = 0;
 
 		//!
 		void Serialise( OutputArchive& arch ) const
 		{
-            uint32_t ver = 2;
+            uint32_t ver = 3;
 			arch << ver;
 
 			arch << m_parameterName;
 			arch << m_pTable;
 			arch << m_columnName;
+			arch << MaxTextureSize;
 		}
 
 		//!
@@ -42,7 +44,7 @@ namespace mu
 		{
             uint32_t ver;
 			arch >> ver;
-			check(ver>=1 && ver<= 2);
+			check(ver>=1 && ver<= 3);
 
 			if (ver == 1)
 			{
@@ -67,8 +69,12 @@ namespace mu
 			{
 				arch >> m_columnName;
 			}
-		}
 
+			if (ver >= 3)
+			{
+				arch >> MaxTextureSize;
+			}
+		}
 	};
 
 }
