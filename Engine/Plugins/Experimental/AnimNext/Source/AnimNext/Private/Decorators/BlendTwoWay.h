@@ -5,6 +5,7 @@
 #include "CoreMinimal.h"
 
 #include "DecoratorBase/Decorator.h"
+#include "DecoratorInterfaces/IContinuousBlend.h"
 #include "DecoratorInterfaces/IEvaluate.h"
 #include "DecoratorInterfaces/IHierarchy.h"
 #include "DecoratorInterfaces/IUpdate.h"
@@ -43,7 +44,7 @@ namespace UE::AnimNext
 	 * 
 	 * A decorator that can blend two inputs.
 	 */
-	struct FBlendTwoWayDecorator : FBaseDecorator, IEvaluate, IUpdate, IHierarchy
+	struct FBlendTwoWayDecorator : FBaseDecorator, IEvaluate, IUpdate, IHierarchy, IContinuousBlend
 	{
 		DECLARE_ANIM_DECORATOR(FBlendTwoWayDecorator, 0x96a81d1e, FBaseDecorator)
 
@@ -62,6 +63,10 @@ namespace UE::AnimNext
 		virtual void PreUpdate(FExecutionContext& Context, const TDecoratorBinding<IUpdate>& Binding) const override;
 
 		// IHierarchy impl
+		virtual uint32 GetNumChildren(FExecutionContext& Context, const TDecoratorBinding<IHierarchy>& Binding) const override;
 		virtual void GetChildren(FExecutionContext& Context, const TDecoratorBinding<IHierarchy>& Binding, FChildrenArray& Children) const override;
+
+		// IContinuousBlend impl
+		virtual float GetBlendWeight(FExecutionContext& Context, const TDecoratorBinding<IContinuousBlend>& Binding, int32 ChildIndex) const override;
 	};
 }

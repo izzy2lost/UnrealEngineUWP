@@ -2,6 +2,7 @@
 
 #include "Decorators/BlendTwoWay.h"
 
+#include "Animation/AnimTypes.h"
 #include "DecoratorBase/ExecutionContext.h"
 #include "EvaluationVM/Tasks/BlendKeyframes.h"
 
@@ -10,9 +11,10 @@ namespace UE::AnimNext
 	AUTO_REGISTER_ANIM_DECORATOR(FBlendTwoWayDecorator)
 
 	DEFINE_ANIM_DECORATOR_BEGIN(FBlendTwoWayDecorator)
+		DEFINE_ANIM_DECORATOR_IMPLEMENTS_INTERFACE(IContinuousBlend)
 		DEFINE_ANIM_DECORATOR_IMPLEMENTS_INTERFACE(IEvaluate)
-		DEFINE_ANIM_DECORATOR_IMPLEMENTS_INTERFACE(IUpdate)
 		DEFINE_ANIM_DECORATOR_IMPLEMENTS_INTERFACE(IHierarchy)
+		DEFINE_ANIM_DECORATOR_IMPLEMENTS_INTERFACE(IUpdate)
 	DEFINE_ANIM_DECORATOR_END(FBlendTwoWayDecorator)
 
 	void FBlendTwoWayDecorator::PostEvaluate(FExecutionContext& Context, const TDecoratorBinding<IEvaluate>& Binding) const
@@ -22,9 +24,11 @@ namespace UE::AnimNext
 		if (InstanceData->ChildA.IsValid() && InstanceData->ChildB.IsValid())
 		{
 			// We have two children, interpolate them
-			const FSharedData* SharedData = Binding.GetSharedData<FSharedData>();
 
-			const float BlendWeight = SharedData->GetBlendWeight(Context, Binding);
+			TDecoratorBinding<IContinuousBlend> ContinuousBlendDecorator;
+			Context.GetInterface(Binding, ContinuousBlendDecorator);
+
+			const float BlendWeight = ContinuousBlendDecorator.GetBlendWeight(Context, 1);
 
 			FEvaluateTraversalContext& TraversalContext = Context.GetTraversalContext<FEvaluateTraversalContext>();
 			TraversalContext.AppendTask(FAnimNextBlendTwoKeyframesTask::Make(BlendWeight));
@@ -40,8 +44,11 @@ namespace UE::AnimNext
 		const FSharedData* SharedData = Binding.GetSharedData<FSharedData>();
 		FInstanceData* InstanceData = Binding.GetInstanceData<FInstanceData>();
 
-		const float BlendWeight = SharedData->GetBlendWeight(Context, Binding);
-		if (BlendWeight < 1.0f)
+		TDecoratorBinding<IContinuousBlend> ContinuousBlendDecorator;
+		Context.GetInterface(Binding, ContinuousBlendDecorator);
+
+		const float BlendWeight = ContinuousBlendDecorator.GetBlendWeight(Context, 1);
+		if (!FAnimWeight::IsFullWeight(BlendWeight))
 		{
 			if (!InstanceData->ChildA.IsValid())
 			{
@@ -49,14 +56,14 @@ namespace UE::AnimNext
 				InstanceData->ChildA = Context.AllocateNodeInstance(Binding, SharedData->ChildA);
 			}
 
-			if (BlendWeight == 0.0f)
+			if (!FAnimWeight::IsRelevant(BlendWeight))
 			{
 				// We no longer need this child, release it
 				InstanceData->ChildB.Reset();
 			}
 		}
 
-		if (BlendWeight > 0.0f)
+		if (FAnimWeight::IsRelevant(BlendWeight))
 		{
 			if (!InstanceData->ChildB.IsValid())
 			{
@@ -64,7 +71,7 @@ namespace UE::AnimNext
 				InstanceData->ChildB = Context.AllocateNodeInstance(Binding, SharedData->ChildB);
 			}
 
-			if (BlendWeight == 1.0f)
+			if (FAnimWeight::IsFullWeight(BlendWeight))
 			{
 				// We no longer need this child, release it
 				InstanceData->ChildA.Reset();
@@ -72,12 +79,38 @@ namespace UE::AnimNext
 		}
 	}
 
+	uint32 FBlendTwoWayDecorator::GetNumChildren(FExecutionContext& Context, const TDecoratorBinding<IHierarchy>& Binding) const
+	{
+		return 2;
+	}
+
 	void FBlendTwoWayDecorator::GetChildren(FExecutionContext& Context, const TDecoratorBinding<IHierarchy>& Binding, FChildrenArray& Children) const
 	{
 		const FInstanceData* InstanceData = Binding.GetInstanceData<FInstanceData>();
 
-		// Add the two child handles, even if they are empty
+		// Add the two children, even if the handles are empty
 		Children.Add(InstanceData->ChildA);
 		Children.Add(InstanceData->ChildB);
+	}
+
+	float FBlendTwoWayDecorator::GetBlendWeight(FExecutionContext& Context, const TDecoratorBinding<IContinuousBlend>& Binding, int32 ChildIndex) const
+	{
+		const FSharedData* SharedData = Binding.GetSharedData<FSharedData>();
+
+		const float BlendWeight = SharedData->GetBlendWeight(Context, Binding);
+
+		if (ChildIndex == 0)
+		{
+			return 1.0f - BlendWeight;
+		}
+		else if (ChildIndex == 1)
+		{
+			return BlendWeight;
+		}
+		else
+		{
+			// Invalid child index
+			return -1.0f;
+		}
 	}
 }

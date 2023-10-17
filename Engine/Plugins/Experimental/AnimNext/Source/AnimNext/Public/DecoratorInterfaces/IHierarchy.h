@@ -19,8 +19,13 @@ namespace UE::AnimNext
 	{
 		DECLARE_ANIM_DECORATOR_INTERFACE(IHierarchy, 0x846d8a37)
 
+		// Returns the number of children
+		// Includes inactive children
+		virtual uint32 GetNumChildren(FExecutionContext& Context, const TDecoratorBinding<IHierarchy>& Binding) const;
+
 		// Appends weak handles to any children we wish to traverse.
 		// Decorators are responsible for allocating and releasing child instance data.
+		// Empty handles and duplicates can be appended.
 		virtual void GetChildren(FExecutionContext& Context, const TDecoratorBinding<IHierarchy>& Binding, FChildrenArray& Children) const;
 	};
 
@@ -30,6 +35,12 @@ namespace UE::AnimNext
 	template<>
 	struct TDecoratorBinding<IHierarchy> : FDecoratorBinding
 	{
+		// @see IHierarchy::GetNumChildren
+		uint32 GetNumChildren(FExecutionContext& Context) const
+		{
+			return GetInterface()->GetNumChildren(Context, *this);
+		}
+
 		// @see IHierarchy::GetChildren
 		void GetChildren(FExecutionContext& Context, FChildrenArray& Children) const
 		{

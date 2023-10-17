@@ -2,6 +2,8 @@
 
 #include "CoreMinimal.h"
 #include "AnimNextConfig.h"
+#include "Animation/BlendProfile.h"
+#include "Curves/CurveFloat.h"
 #include "Modules/ModuleInterface.h"
 #include "Modules/ModuleManager.h"
 #include "Misc/CoreDelegates.h"
@@ -30,7 +32,9 @@ public:
 		static TPair<UClass*, FRigVMRegistry::ERegisterObjectOperation> const AllowedObjectTypes[] =
 		{
 			{ UAnimSequence::StaticClass(), FRigVMRegistry::ERegisterObjectOperation::Class },
-			{ UScriptStruct::StaticClass(), FRigVMRegistry::ERegisterObjectOperation::Class }
+			{ UScriptStruct::StaticClass(), FRigVMRegistry::ERegisterObjectOperation::Class },
+			{ UBlendProfile::StaticClass(), FRigVMRegistry::ERegisterObjectOperation::Class },
+			{ UCurveFloat::StaticClass(), FRigVMRegistry::ERegisterObjectOperation::Class },
 		};
 
 		FRigVMRegistry::Get().RegisterObjectTypes(AllowedObjectTypes);

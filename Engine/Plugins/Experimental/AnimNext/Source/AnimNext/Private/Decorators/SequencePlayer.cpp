@@ -53,7 +53,7 @@ namespace UE::AnimNext
 
 		if (SharedData->AnimSequence != nullptr)
 		{
-			FUpdateTraversalContext& TraversalContext = Context.GetTraversalContext<FUpdateTraversalContext>();
+			const FUpdateTraversalContext& TraversalContext = Context.GetTraversalContext<FUpdateTraversalContext>();
 
 			TDecoratorBinding<ITimeline> TimelineDecorator;
 			Context.GetInterface(Binding, TimelineDecorator);

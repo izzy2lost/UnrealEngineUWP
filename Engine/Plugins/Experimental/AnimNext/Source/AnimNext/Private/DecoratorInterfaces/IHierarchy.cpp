@@ -6,6 +6,17 @@
 
 namespace UE::AnimNext
 {
+	uint32 IHierarchy::GetNumChildren(FExecutionContext& Context, const TDecoratorBinding<IHierarchy>& Binding) const
+	{
+		TDecoratorBinding<IHierarchy> SuperBinding;
+		if (Context.GetInterfaceSuper(Binding, SuperBinding))
+		{
+			return SuperBinding.GetNumChildren(Context);
+		}
+
+		return 0;
+	}
+
 	void IHierarchy::GetChildren(FExecutionContext& Context, const TDecoratorBinding<IHierarchy>& Binding, FChildrenArray& Children) const
 	{
 		TDecoratorBinding<IHierarchy> SuperBinding;
