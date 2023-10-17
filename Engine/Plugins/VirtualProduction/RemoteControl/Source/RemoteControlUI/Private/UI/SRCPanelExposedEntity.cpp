@@ -501,13 +501,6 @@ TSharedRef<SWidget> SRCPanelExposedEntity::CreateEntityWidget(TSharedPtr<SWidget
 		.Padding(0.0f)
 		.BorderImage(this, &SRCPanelExposedEntity::GetBorderImage);
 	
-	Args.DragHandle = SNew(SBox)
-		.Visibility(this, &SRCPanelExposedEntity::GetVisibilityAccordingToLiveMode, EVisibility::Collapsed)
-		[
-			SNew(SRCPanelDragHandle<FExposedEntityDragDrop>, GetRCId())
-			.Widget(Widget)
-		];
-
 	Args.PropertyIdWidget = SNew(SBox)
 		[
 			SNew(SEditableTextBox)
@@ -590,7 +583,7 @@ TSharedRef<SWidget> SRCPanelExposedEntity::CreateEntityWidget(TSharedPtr<SWidget
 
 	Args.ResetButton = ResetWidget;
 
-	Widget->SetContent(MakeDragAndDropWidget(Args));
+	Widget->SetContent(MakeNodeWidget(Args));
 	return Widget;
 }
 

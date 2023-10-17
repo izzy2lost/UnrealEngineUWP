@@ -207,7 +207,10 @@ struct REMOTECONTROL_API FRemoteControlPresetLayout
 
 	/** Get or create the default group. */
 	FRemoteControlPresetGroup& GetDefaultGroup();
-
+	/** Return the DefaultGroupOrder */
+	TArray<FGuid>& GetDefaultGroupOrder() { return DefaultGroupOrder; }
+	/** Set the All group order */
+	void SetDefaultGroupOrder(const TArray<FGuid>& InNewDefaultGroupOrder) { DefaultGroupOrder = InNewDefaultGroupOrder; }
 	/** Returns true when the given group id is a default one. */
 	bool IsDefaultGroup(FGuid GroupId) const;
 	
@@ -257,6 +260,9 @@ struct REMOTECONTROL_API FRemoteControlPresetLayout
 
 	/** Swap fields across groups or in the same one. */
 	void SwapFields(const FFieldSwapArgs& FieldSwapArgs);
+
+	/** Swap fields across groups or in the same one for the default group. */
+	void SwapFieldsDefaultGroup(const FFieldSwapArgs& FieldSwapArgs, const FGuid InFieldRealGroup, TArray<FGuid> InEntities);
 
 	/** Delete a group from the layout. */
 	void DeleteGroup(FGuid GroupId);
@@ -313,6 +319,10 @@ struct REMOTECONTROL_API FRemoteControlPresetLayout
 private:
 	/** Create a group by providing a name and ID. */
 	FRemoteControlPresetGroup& CreateGroupInternal(FName GroupName, FGuid GroupId);
+
+	/** Keep the ALL group order since its not saved in the normal workflow */
+	UPROPERTY()
+	TArray<FGuid> DefaultGroupOrder;
 
 	/** The list of groups under this layout. */
 	UPROPERTY()

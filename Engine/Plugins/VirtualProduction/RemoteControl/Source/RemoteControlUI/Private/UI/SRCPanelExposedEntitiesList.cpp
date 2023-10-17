@@ -69,10 +69,10 @@ public:
 		SLATE_STYLE_ARGUMENT(FTableRowStyle, Style)
 
 		// Low level DragAndDrop
+		SLATE_EVENT(FOnAcceptDrop, OnAcceptDrop)
 		SLATE_EVENT(FOnDragDetected, OnDragDetected)
 		SLATE_EVENT(FOnTableRowDragEnter, OnDragEnter)
 		SLATE_EVENT(FOnTableRowDragLeave, OnDragLeave)
-		SLATE_EVENT(FOnTableRowDrop, OnDrop)
 
 	SLATE_END_ARGS()
 
@@ -83,10 +83,15 @@ public:
 
 		FSuperRowType::FArguments SuperArgs = FSuperRowType::FArguments();
 
+		SuperArgs.OnCanAcceptDrop_Lambda([this] (const FDragDropEvent& InDragDropEvent, EItemDropZone InDropZone, TSharedPtr<SRCPanelTreeNode> Node)
+		{
+			return InDropZone;
+		});
+
+		SuperArgs.OnAcceptDrop(InArgs._OnAcceptDrop);
 		SuperArgs.OnDragDetected(InArgs._OnDragDetected);
 		SuperArgs.OnDragEnter(InArgs._OnDragEnter);
 		SuperArgs.OnDragLeave(InArgs._OnDragLeave);
-		SuperArgs.OnDrop(InArgs._OnDrop);
 
 		SuperArgs.ExpanderStyleSet(&FCoreStyle::Get());
 		SuperArgs.Padding(InArgs._Padding);
@@ -274,13 +279,6 @@ void SRCPanelExposedEntitiesList::Construct(const FArguments& InArgs, URemoteCon
 			.Style(&RCPanelStyle->HeaderRowStyle)
 			.CanSelectGeneratedColumn(true) //To show/hide columns
 			.HiddenColumnsList(HiddenColumns) // List of columns to hide by default. User can un-hide via context menu list
-
-			+ SRCHeaderRow::Column(RemoteControlPresetColumns::DragDropHandle)
-			.DefaultLabel(LOCTEXT("RCPresetDragDropHandleColumnHeader", ""))
-			.FixedWidth(25.f)
-			.HeaderContentPadding(RCPanelStyle->HeaderRowPadding)
-			.ShouldGenerateWidget(true)
-			.ShouldGenerateSubMenuEntry(false)
 
 			+ SRCHeaderRow::Column(RemoteControlPresetColumns::PropertyIdentifier)
 			.DefaultLabel(LOCTEXT("RCPresetPropertyIdColumnHeader", "Property ID"))
@@ -737,6 +735,7 @@ void SRCPanelExposedEntitiesList::GenerateListWidgets()
 {
 	TRACE_CPUPROFILER_EVENT_SCOPE(SRCPanelExposedEntitiesList::GenerateListWidgets);
 
+	TArray<FGuid> OrderMap = Preset->Layout.GetDefaultGroupOrder();
 	FieldWidgetMap.Reset();
 
 	for (TWeakPtr<FRemoteControlEntity> WeakEntity : Preset->GetExposedEntities())
@@ -752,6 +751,25 @@ void SRCPanelExposedEntitiesList::GenerateListWidgets()
 
 			FieldWidgetMap.Add(Entity->GetId(), FRemoteControlUIModule::Get().GenerateEntityWidget(Args));
 		}
+	}
+
+	// We order the ALL group here otherwise the order would be the same order of the ExposedEntities
+	if (OrderMap.Num() && FieldEntities.Num())
+	{
+		FieldWidgetMap.KeySort(
+			[&OrderMap]
+			(const FGuid& A, const FGuid& B)
+			{
+				if (!OrderMap.Contains(A))
+				{
+					return false;
+				}
+				if (!OrderMap.Contains(B))
+				{
+					return true;
+				}
+				return OrderMap.IndexOfByKey(A) < OrderMap.IndexOfByKey(B);
+			});
 	}
 }
 
@@ -813,16 +831,16 @@ TSharedRef<ITableRow> SRCPanelExposedEntitiesList::OnGenerateRow(TSharedPtr<SRCP
 {
 	const TSharedRef<SWidget> NodeWidget = Node->AsShared();
 	
-	auto OnDropLambda = [this, Node]
-	(const FDragDropEvent& Event)
+	auto OnAcceptDropLambda = [this]
+	(const FDragDropEvent& InDragDropEvent, EItemDropZone InDropZone, const TSharedPtr<SRCPanelTreeNode>& InNode)
 	{
-		if (const TSharedPtr<FExposedEntityDragDrop> DragDropOp = Event.GetOperationAs<FExposedEntityDragDrop>())
+		if (const TSharedPtr<FExposedEntityDragDrop> DragDropOp = InDragDropEvent.GetOperationAs<FExposedEntityDragDrop>())
 		{
-			if (const TSharedPtr<SRCPanelGroup> Group = FindGroupById(GetGroupId(Node->GetRCId())))
+			if (const TSharedPtr<SRCPanelGroup> Group = FindGroupById(GetGroupId(InNode->GetRCId())))
 			{
 				if (DragDropOp->IsOfType<FExposedEntityDragDrop>())
 				{
-					return OnDropOnGroup(DragDropOp, Node, Group);
+					return OnDropOnGroup(DragDropOp, InNode, Group);
 				}
 				else if (DragDropOp->IsOfType<FFieldGroupDragDropOp>())
 				{
@@ -848,9 +866,19 @@ TSharedRef<ITableRow> SRCPanelExposedEntitiesList::OnGenerateRow(TSharedPtr<SRCP
 		constexpr float LeftPadding = 3.f;
 		const FMargin Margin = Node->GetRCType() == SRCPanelTreeNode::FieldChild ? FMargin(LeftPadding + 10.f, 1.f, 1.f, 1.f) : FMargin(LeftPadding, 1.f, 1.f, 1.f);
 		return SNew(SEntityRow, OwnerTable)
+			.OnDragDetected_Lambda([this, Node] (const FGeometry&, const FPointerEvent&)
+			{
+				if (Node && Node->GetRCType() == SRCPanelTreeNode::Field)
+				{
+					const TSharedRef<FExposedEntityDragDrop> DragDropOp = MakeShared<FExposedEntityDragDrop>(Node->GetDragAndDropWidget(), Node->GetRCId());
+					DragDropOp->Construct();
+					return FReply::Handled().BeginDragDrop(DragDropOp);
+				}
+				return FReply::Unhandled();
+			})
 			.OnDragEnter_Lambda([Node](const FDragDropEvent& Event) { if (Node && Node->GetRCType() == SRCPanelTreeNode::Field) StaticCastSharedPtr<SRCPanelExposedField>(Node)->SetIsHovered(true); })
 			.OnDragLeave_Lambda([Node](const FDragDropEvent& Event) { if (Node && Node->GetRCType() == SRCPanelTreeNode::Field) StaticCastSharedPtr<SRCPanelExposedField>(Node)->SetIsHovered(false); })
-			.OnDrop_Lambda(OnDropLambda)
+			.OnAcceptDrop_Lambda(OnAcceptDropLambda)
 			.Padding(Margin)
 			.Style(&RCPanelStyle->TableRowStyle)
 			.ActiveProtocol_Lambda([this]() { return ActiveProtocol; })
@@ -981,14 +1009,35 @@ FReply SRCPanelExposedEntitiesList::OnDropOnGroup(const TSharedPtr<FDragDropOper
 
 	if (DragDropOperation->IsOfType<FExposedEntityDragDrop>())
 	{
-		if (Preset->Layout.IsDefaultGroup(DragTargetGroup->GetRCId()))
-		{
-			// We do not add fields to the default group.
-			return FReply::Unhandled();
-		}
-
 		if (TSharedPtr<FExposedEntityDragDrop> DragDropOp = StaticCastSharedPtr<FExposedEntityDragDrop>(DragDropOperation))
 		{
+			if (Preset->Layout.IsDefaultGroup(GetSelectedGroup()->GetRCId()))
+			{
+				FRemoteControlPresetLayout::FFieldSwapArgs Args;
+				Args.OriginGroupId = GetSelectedGroup()->GetRCId();
+				Args.TargetGroupId = DragTargetGroup->GetRCId();
+				Args.DraggedFieldId = DragDropOp->GetId();
+
+				if (TargetEntity)
+				{
+					Args.TargetFieldId = TargetEntity->GetRCId();
+				}
+
+				FScopedTransaction Transaction(LOCTEXT("MoveFieldDefaultGroup", "Move exposed field"));
+				Preset->Modify();
+				TArray<FGuid> OrderEntities;
+
+				for (const TSharedPtr<SRCPanelTreeNode>& Entity : FieldEntities)
+				{
+					OrderEntities.Add(Entity->GetRCId());
+				}
+
+				Preset->Layout.SwapFieldsDefaultGroup(Args, GetGroupId(DragDropOp->GetId()), OrderEntities);
+				constexpr bool bForceMouseClick = true;
+				SetSelection(FindGroupById(Args.OriginGroupId), bForceMouseClick);
+				return FReply::Handled();
+			}
+
 			FGuid DragOriginGroupId = GetGroupId(DragDropOp->GetId());
 			if (!DragOriginGroupId.IsValid())
 			{
@@ -1017,7 +1066,7 @@ FReply SRCPanelExposedEntitiesList::OnDropOnGroup(const TSharedPtr<FDragDropOper
 			Preset->Modify();
 			Preset->Layout.SwapFields(Args);
 			constexpr bool bForceMouseClick = true;
-			SetSelection(FindGroupById(Args.TargetGroupId), bForceMouseClick);
+			SetSelection(FindGroupById(Args.OriginGroupId), bForceMouseClick);
 			return FReply::Handled();
 		}
 	}
@@ -1371,12 +1420,28 @@ void SRCPanelExposedEntitiesList::OnFieldOrderChanged(const FGuid& GroupId, cons
 
 		if (*Group)
 		{
-			(*Group)->GetNodes().Sort(
-			[&OrderMap]
-			(const TSharedPtr<SRCPanelTreeNode>& A, const TSharedPtr<SRCPanelTreeNode>& B)
-				{
-					return OrderMap.FindChecked(A->GetRCId()) < OrderMap.FindChecked(B->GetRCId());
-				});
+			if (Preset && Preset->Layout.IsDefaultGroup((*Group)->GetRCId()))
+			{
+				FieldWidgetMap.ValueSort(
+				[&OrderMap]
+					(const TSharedPtr<SRCPanelTreeNode>& A, const TSharedPtr<SRCPanelTreeNode>& B)
+					{
+						return OrderMap.FindChecked(A->GetRCId()) < OrderMap.FindChecked(B->GetRCId());
+					});
+				TArray<FGuid> OrderedGuid;
+				FieldWidgetMap.GenerateKeyArray(OrderedGuid);
+				// We save the ALL group order here because it is not saved in the normal workflow
+				Preset->Layout.SetDefaultGroupOrder(OrderedGuid);
+			}
+			else
+			{
+				(*Group)->GetNodes().Sort(
+				[&OrderMap]
+				(const TSharedPtr<SRCPanelTreeNode>& A, const TSharedPtr<SRCPanelTreeNode>& B)
+					{
+						return OrderMap.FindChecked(A->GetRCId()) < OrderMap.FindChecked(B->GetRCId());
+					});
+			}
 		}
 	}
 
@@ -1554,11 +1619,7 @@ SHeaderRow::FColumn::FArguments SRCPanelExposedEntitiesList::CreateColumn(const 
 
 int32 SRCPanelExposedEntitiesList::GetColumnIndex(const FName& ForColumn) const
 {
-	if (ForColumn == RemoteControlPresetColumns::PropertyIdentifier)
-	{
-		return GetColumnIndex_Internal(ForColumn, RemoteControlPresetColumns::DragDropHandle, ERCColumn::ERC_After);
-	}
-	else if (ForColumn == RemoteControlPresetColumns::Mask)
+	if (ForColumn == RemoteControlPresetColumns::Mask)
 	{
 		return GetColumnIndex_Internal(ForColumn, RemoteControlPresetColumns::Description, ERCColumn::ERC_After);
 	}

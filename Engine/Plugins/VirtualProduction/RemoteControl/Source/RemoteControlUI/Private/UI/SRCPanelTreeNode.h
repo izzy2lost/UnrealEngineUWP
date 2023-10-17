@@ -17,7 +17,6 @@ struct SRCPanelExposedMaterial;
 
 namespace RemoteControlPresetColumns
 {
-	static FName DragDropHandle = TEXT("DragDropHandle");
 	static FName PropertyIdentifier = TEXT("PropertyID");
 	static FName OwnerName = TEXT("OwnerName");
 	static FName SubobjectPath = TEXT("Subobject Path");
@@ -84,11 +83,12 @@ struct SRCPanelTreeNode : public SCompoundWidget, public IHasProtocolExtensibili
 	virtual void SetHighlightText(const FText& InHightlightText = FText::GetEmpty()) {};
 	/** Retrieves the referenced widget corresponding to the given column name. */
 	virtual TSharedRef<SWidget> GetWidget(const FName ForColumnName, const FName InActiveProtocol);
+	/** Retrieves the DragAndDropWidget if possible otherwise returns a NullWidget */
+	TSharedRef<SWidget> GetDragAndDropWidget();
 
 protected:
 	struct FMakeNodeWidgetArgs
 	{
-		TSharedPtr<SWidget> DragHandle;
 		TSharedPtr<SWidget> PropertyIdWidget;
 		TSharedPtr<SWidget> OwnerNameWidget;
 		TSharedPtr<SWidget> SubObjectPathWidget;
@@ -101,8 +101,6 @@ protected:
 	TSharedRef<SWidget> MakeSplitRow(TSharedRef<SWidget> LeftColumn, TSharedRef<SWidget> RightColumn);
 	/** Create a widget that represents a node in the panel tree hierarchy. */
 	TSharedRef<SWidget> MakeNodeWidget(const FMakeNodeWidgetArgs& Args);
-	/** Create a widget that represents a node for the drag and drop. */
-	TSharedRef<SWidget> MakeDragAndDropWidget(const FMakeNodeWidgetArgs& Args);
 	/** Creates cached copies of underlying widgets. */
 	void MakeNodeWidgets(const FMakeNodeWidgetArgs& Args);
 
@@ -125,9 +123,6 @@ protected:
 	FRCColumnSizeData ColumnSizeData;
 
 private:
-
-	/** Cached widget of drag handle. */
-	TSharedPtr<SWidget> DragHandleWidget;
 
 	/** Cached widget of PropertyId identifier. */
 	TSharedPtr<SWidget> PropertyIdWidget;
