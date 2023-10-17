@@ -395,13 +395,18 @@ bool FChaosClothAssetEditorToolkit::OnRequestClose(EAssetEditorCloseReason InClo
 		return true;
 	}
 
+	return FAssetEditorToolkit::OnRequestClose(InCloseReason);
+}
+
+void FChaosClothAssetEditorToolkit::OnClose()
+{
 	// Give any active modes a chance to shutdown while the toolkit host is still alive
 	// This is super important to do, otherwise currently opened tabs won't be marked as "closed".
 	// This results in tabs not being properly recycled upon reopening the editor and tab
 	// duplication for each opening event.
 	GetEditorModeManager().ActivateDefaultMode();
 
-	return FAssetEditorToolkit::OnRequestClose(InCloseReason);
+	FBaseCharacterFXEditorToolkit::OnClose();
 }
 
 void FChaosClothAssetEditorToolkit::PostInitAssetEditor()
@@ -645,6 +650,8 @@ void FChaosClothAssetEditorToolkit::UnregisterTabSpawners(const TSharedRef<FTabM
 	InTabManager->UnregisterTabSpawner(ClothPreviewTabID);
 	InTabManager->UnregisterTabSpawner(ViewportTabID);
 	InTabManager->UnregisterTabSpawner(DetailsTabID);
+	InTabManager->UnregisterTabSpawner(OutlinerTabID);
+	InTabManager->UnregisterTabSpawner(PreviewSceneDetailsTabID);
 	InTabManager->UnregisterTabSpawner(GraphCanvasTabId);
 	InTabManager->UnregisterTabSpawner(NodeDetailsTabId);
 }
