@@ -149,6 +149,12 @@ public:
 	 */
 	AUDIOCODECENGINE_API int32 PopAudio(Audio::FAlignedFloatBuffer& OutBuffer);
 
+	/** Returns TRUE if the reader can produce audio (eg. has a valid decoder, it can still decode, etc.)
+	 *
+	 * @return true on success, false on failure.
+	 */
+	AUDIOCODECENGINE_API bool CanProduceMoreAudio() const;
+
 private:
 
 	enum EDecodeResult
