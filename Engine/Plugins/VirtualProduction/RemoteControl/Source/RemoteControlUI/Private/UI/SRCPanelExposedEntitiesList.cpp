@@ -285,7 +285,7 @@ void SRCPanelExposedEntitiesList::Construct(const FArguments& InArgs, URemoteCon
 			+ SRCHeaderRow::Column(RemoteControlPresetColumns::PropertyIdentifier)
 			.DefaultLabel(LOCTEXT("RCPresetPropertyIdColumnHeader", "Property ID"))
 			.HAlignHeader(HAlign_Center)
-			.FillWidth(0.1f)
+			.FillWidth(0.15f)
 			.HeaderContentPadding(RCPanelStyle->HeaderRowPadding)
 
 			+ SRCHeaderRow::Column(RemoteControlPresetColumns::OwnerName)
@@ -303,13 +303,13 @@ void SRCPanelExposedEntitiesList::Construct(const FArguments& InArgs, URemoteCon
 			+ SRCHeaderRow::Column(RemoteControlPresetColumns::Description)
 			.DefaultLabel(LOCTEXT("RCPresetDescColumnHeader", "Description"))
 			.HAlignHeader(HAlign_Center)
-			.FillWidth(0.35f)
+			.FillWidth(0.25f)
 			.HeaderContentPadding(RCPanelStyle->HeaderRowPadding)
 
 			+ SRCHeaderRow::Column(RemoteControlPresetColumns::Value)
 			.DefaultLabel(LOCTEXT("RCPresetValueColumnHeader", "Value"))
 			.HAlignHeader(HAlign_Center)
-			.FillWidth(0.4f)
+			.FillWidth(0.35f)
 			.HeaderContentPadding(RCPanelStyle->HeaderRowPadding)
 
 			+ SRCHeaderRow::Column(RemoteControlPresetColumns::Reset)
