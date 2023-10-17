@@ -19,23 +19,14 @@
 #include "Framework/Application/SlateApplication.h"
 #include "Framework/Notifications/NotificationManager.h"
 #include "Widgets/Notifications/SNotificationList.h"
-#include "Widgets/Input/SButton.h"
-#include "Engine/LevelStreaming.h"
 #include "Editor/EditorEngine.h"
-#include "UnrealEdGlobals.h"
 #include "Editor/UnrealEdEngine.h"
-#include "Widgets/Docking/SDockTab.h"
-#include "Widgets/Layout/SWidgetSwitcher.h"
-#include "Styling/AppStyle.h"
 #include "Framework/Commands/UICommandList.h"
-#include "Framework/MultiBox/MultiBoxBuilder.h"
 #include "Toolkits/BaseToolkit.h"
 #include "Subsystems/AssetEditorSubsystem.h"
 #include "Subsystems/BrushEditingSubsystem.h"
 #include "Tools/UEdMode.h"
-#include "Widgets/Images/SImage.h"
 #include "InputRouter.h"
-#include "InteractiveGizmoManager.h"
 #include "EdModeInteractiveToolsContext.h"
 #include "Tools/LegacyEdModeInterfaces.h"
 #include "CanvasTypes.h"
@@ -134,10 +125,22 @@ void FEditorModeTools::LoadConfig(void)
 	GConfig->GetBool(TEXT("FEditorModeTools"),TEXT("ShowWidget"),bShowWidget,
 		GEditorPerProjectIni);
 
-	const bool bGetRawValue = true;
+	static constexpr bool bGetRawValue = true;
 	int32 CoordSystemAsInt = (int32)GetCoordSystem(bGetRawValue);
 	GConfig->GetInt(TEXT("FEditorModeTools"),TEXT("CoordSystem"), CoordSystemAsInt,
 		GEditorPerProjectIni);
+
+	if (static_cast<ECoordSystem>(CoordSystemAsInt) == COORD_Parent)
+	{
+		// parent mode is only supported with new trs gizmos for now
+		static IConsoleVariable* UseLegacyWidgetCVar = IConsoleManager::Get().FindConsoleVariable(TEXT("Gizmos.UseLegacyWidget"));
+		const bool bUseNewGizmo = UseLegacyWidgetCVar ? UseLegacyWidgetCVar->GetInt() < 1 : false;
+		if (!bUseNewGizmo)
+		{
+			CoordSystemAsInt = static_cast<int32>(COORD_Local);
+		}
+	}
+	
 	SetCoordSystem((ECoordSystem)CoordSystemAsInt);
 
 	LoadWidgetSettings();
@@ -147,7 +150,7 @@ void FEditorModeTools::SaveConfig(void)
 {
 	GConfig->SetBool(TEXT("FEditorModeTools"), TEXT("ShowWidget"), bShowWidget, GEditorPerProjectIni);
 
-	const bool bGetRawValue = true;
+	static constexpr bool bGetRawValue = true;
 	GConfig->SetInt(TEXT("FEditorModeTools"), TEXT("CoordSystem"), (int32)GetCoordSystem(bGetRawValue), GEditorPerProjectIni);
 
 	SaveWidgetSettings();
@@ -671,16 +674,14 @@ void FEditorModeTools::SetPivotLocation( const FVector& Location, const bool bIn
 	}
 }
 
-ECoordSystem FEditorModeTools::GetCoordSystem(bool bGetRawValue)
+ECoordSystem FEditorModeTools::GetCoordSystem(bool bGetRawValue) const
 {
 	if (!bGetRawValue && (GetWidgetMode() == UE::Widget::WM_Scale))
 	{
 		return COORD_Local;
 	}
-	else
-	{
-		return CoordSystem;
-	}
+	
+	return CoordSystem;
 }
 
 void FEditorModeTools::SetCoordSystem(ECoordSystem NewCoordSystem)
@@ -977,16 +978,18 @@ UTexture2D* FEditorModeTools::GetVertexTexture() const
 	return GEngine->DefaultBSPVertexTexture;
 }
 
-FMatrix FEditorModeTools::GetCustomDrawingCoordinateSystem()
+FMatrix FEditorModeTools::GetCustomDrawingCoordinateSystem() const
 {
 	FMatrix Matrix = FMatrix::Identity;
 
 	switch (GetCoordSystem())
 	{
 		case COORD_Local:
-		{
 			Matrix = GetLocalCoordinateSystem();
-		}
+		break;
+		
+		case COORD_Parent:
+			Matrix = GetParentSpaceCoordinateSystem();
 		break;
 
 		case COORD_World:
@@ -999,12 +1002,38 @@ FMatrix FEditorModeTools::GetCustomDrawingCoordinateSystem()
 	return Matrix;
 }
 
-FMatrix FEditorModeTools::GetCustomInputCoordinateSystem()
+FMatrix FEditorModeTools::GetCustomInputCoordinateSystem() const
 {
 	return GetCustomDrawingCoordinateSystem();
 }
 
-FMatrix FEditorModeTools::GetLocalCoordinateSystem()
+FMatrix FEditorModeTools::GetLocalCoordinateSystem() const
+{
+	return GetCustomCoordinateSystem([](const TTypedElement<ITypedElementWorldInterface>& InElement, FTransform& OutTransform)
+	{
+		InElement.GetWorldTransform(OutTransform);
+	});
+}
+
+FMatrix FEditorModeTools::GetParentSpaceCoordinateSystem() const
+{
+	return GetCustomCoordinateSystem([](const TTypedElement<ITypedElementWorldInterface>& InElement, FTransform& OutTransform)
+	{
+		if (InElement.GetWorldTransform(OutTransform))
+		{
+			FTransform RelativeTransform;
+			if (InElement.GetRelativeTransform(RelativeTransform))
+			{
+				const FTransform ParentWorld = RelativeTransform.Inverse() * OutTransform;
+				OutTransform.SetRotation(ParentWorld.GetRotation());
+			}
+			return true;
+		}
+		return false;
+	});
+}
+
+FMatrix FEditorModeTools::GetCustomCoordinateSystem(TUniqueFunction<void(const TTypedElement<ITypedElementWorldInterface>&, FTransform&)>&& InGetTransformFunc) const
 {
 	FMatrix Matrix = FMatrix::Identity;
 	// Let the current mode have a shot at setting the local coordinate system.
@@ -1033,9 +1062,9 @@ FMatrix FEditorModeTools::GetLocalCoordinateSystem()
 		
 		if (LastSelected)
 		{
-			FTransform LocalToWorldTransform;
-			LastSelected.GetWorldTransform(LocalToWorldTransform);
-			Matrix = FQuatRotationMatrix(LocalToWorldTransform.GetRotation());
+			FTransform CustomToWorldTransform;
+			InGetTransformFunc(LastSelected, CustomToWorldTransform);
+			Matrix = FQuatRotationMatrix(CustomToWorldTransform.GetRotation());
 		}
 	}
 

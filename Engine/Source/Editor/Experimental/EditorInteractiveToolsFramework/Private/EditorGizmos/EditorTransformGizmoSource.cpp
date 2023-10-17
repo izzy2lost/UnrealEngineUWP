@@ -57,12 +57,8 @@ EAxisList::Type UEditorTransformGizmoSource::GetGizmoAxisToDraw(EGizmoTransformM
 EToolContextCoordinateSystem UEditorTransformGizmoSource::GetGizmoCoordSystemSpace() const
 {
 	const FEditorViewportClient* ViewportClient = GetViewportClient();
-	if (ViewportClient && ViewportClient->GetWidgetCoordSystemSpace() == ECoordSystem::COORD_Local)
-	{
-		return EToolContextCoordinateSystem::Local;
-	}
-	
-	return EToolContextCoordinateSystem::World;
+	const ECoordSystem Space = ViewportClient ? ViewportClient->GetWidgetCoordSystemSpace() : COORD_World;
+	return Space == COORD_World ? EToolContextCoordinateSystem::World : EToolContextCoordinateSystem::Local;
 }
 
 float UEditorTransformGizmoSource::GetGizmoScale() const

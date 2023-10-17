@@ -13,6 +13,7 @@
 
 #include "Elements/Framework/TypedElementSelectionSet.h"
 
+class ITypedElementWorldInterface;
 class FCanvas;
 class FEditorViewportClient;
 class FEdMode;
@@ -131,9 +132,10 @@ public:
 	 */
 	UNREALED_API bool EnsureNotInMode(FEditorModeID ModeID, const FText& ErrorMsg = FText::GetEmpty(), bool bNotifyUser = false) const;
 
-	UNREALED_API FMatrix GetCustomDrawingCoordinateSystem();
-	UNREALED_API FMatrix GetCustomInputCoordinateSystem();
-	UNREALED_API FMatrix GetLocalCoordinateSystem();
+	UNREALED_API FMatrix GetCustomDrawingCoordinateSystem() const;
+	UNREALED_API FMatrix GetCustomInputCoordinateSystem() const;
+	UNREALED_API FMatrix GetLocalCoordinateSystem() const;
+	UNREALED_API FMatrix GetParentSpaceCoordinateSystem() const;
 	
 	/** 
 	 * Returns true if the passed in editor mode is active 
@@ -395,7 +397,7 @@ public:
 	 * 
 	 * @param bGetRawValue true when you want the actual value of CoordSystem, not the value modified by the state.
 	 */
-	UNREALED_API ECoordSystem GetCoordSystem(bool bGetRawValue = false);
+	UNREALED_API ECoordSystem GetCoordSystem(bool bGetRawValue = false) const;
 
 	/** Sets the current CoordSystem */
 	UNREALED_API void SetCoordSystem(ECoordSystem NewCoordSystem);
@@ -560,6 +562,9 @@ protected:
 			return true;
 		});
 	}
+
+	/** Returns the custom coordinate matrix using a callback-type request. */
+	FMatrix GetCustomCoordinateSystem(TUniqueFunction<void(const TTypedElement<ITypedElementWorldInterface>&, FTransform&)>&& InGetTransformFunc) const;
 
 	UNREALED_API void ExitAllModesPendingDeactivate();
 

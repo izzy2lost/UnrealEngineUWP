@@ -65,9 +65,7 @@
 #include "Constraints/MovieSceneConstraintChannelHelper.h"
 #include "Editor/EditorPerProjectUserSettings.h"
 #include "TransformConstraint.h"
-#include "PersonaModule.h"
 #include "Animation/DebugSkelMeshComponent.h"
-#include "AnimationEditorPreviewActor.h"
 
 #include UE_INLINE_GENERATED_CPP_BY_NAME(ControlRigEditMode)
 
@@ -526,11 +524,16 @@ void FControlRigEditMode::Tick(FEditorViewportClient* ViewportClient, float Delt
 		HandleSelectionChanged();
 		bSelectionChanged = false;
 	}
+	else
+	{
+		// HandleSelectionChanged() will already update the pivots 
+		UpdatePivotTransforms();
+	}
+	
 	if (!AreEditingControlRigDirectly() == false)
 	{
 		ViewportClient->Invalidate();
 	}
-	RecalcPivotTransform();
 
 	// check if the settings for xray rendering are different for any of the control shape actors
 	const UControlRigEditModeSettings* Settings = GetDefault<UControlRigEditModeSettings>();
@@ -1955,7 +1958,7 @@ bool FControlRigEditMode::InputDelta(FEditorViewportClient* InViewportClient, FV
 		}
 	}
 
-	RecalcPivotTransform();
+	UpdatePivotTransforms();
 
 	if (bManipulatorMadeChange)
 	{
@@ -2168,119 +2171,186 @@ bool FControlRigEditMode::CanRemoveFromPreviewScene(const USceneComponent* InCom
 	return true;
 }
 
-void FControlRigEditMode::RecalcPivotTransform()
+ECoordSystem FControlRigEditMode::GetCoordSystemSpace() const
 {
+	const UControlRigEditModeSettings* Settings = GetDefault<UControlRigEditModeSettings>();
+	if (Settings && Settings->bCoordSystemPerWidgetMode)
+	{
+		const int32 WidgetMode = static_cast<int32>(GetModeManager()->GetWidgetMode());
+		if (CoordSystemPerWidgetMode.IsValidIndex(WidgetMode))
+		{
+			return CoordSystemPerWidgetMode[WidgetMode];
+		}
+	}
+
+	return GetModeManager()->GetCoordSystem();	
+}
+
+void FControlRigEditMode::UpdatePivotFromEditedShape(UBaseControlRig* InControlRig)
+{
+	const URigHierarchy* Hierarchy = InControlRig ? InControlRig->GetHierarchy() : nullptr;
+	if (!Hierarchy)
+	{
+		return;
+	}
+
+	if (!ensure(bIsChangingControlShapeTransform))
+	{
+		return;
+	}
+	
+	FTransform PivotTransform = FTransform::Identity;
+	
+	if (auto* ShapeActors = ControlRigShapeActors.Find(InControlRig))
+	{
+		// we just want to change the shape transform of one single control.
+		const int32 Index = ShapeActors->IndexOfByPredicate([](const TObjectPtr<AControlRigShapeActor>& ShapeActor)
+		{
+			return IsValid(ShapeActor) && ShapeActor->IsSelected();
+		});
+
+		if (Index != INDEX_NONE)
+		{
+			if (FRigControlElement* ControlElement = InControlRig->FindControl((*ShapeActors)[Index]->ControlName))
+			{
+				PivotTransform = Hierarchy->GetControlShapeTransform(ControlElement, ERigTransformType::CurrentGlobal);
+			}				
+		}
+	}
+	
+	PivotTransforms.Add(InControlRig, MoveTemp(PivotTransform));
+}
+
+void FControlRigEditMode::UpdatePivotFromShapeActors(UBaseControlRig* InControlRig, const bool bEachLocalSpace, const bool bIsParentSpace)
+{
+	if (!ensure(!bIsChangingControlShapeTransform))
+	{
+		return;
+	}
+	
+	const URigHierarchy* Hierarchy = InControlRig ? InControlRig->GetHierarchy() : nullptr;
+	if (!Hierarchy)
+	{
+		return;
+	}
+	const FTransform ComponentTransform = GetHostingSceneComponentTransform(InControlRig);
+
+	FTransform LastTransform = FTransform::Identity, PivotTransform = FTransform::Identity;
+
+	if (const auto* ShapeActors = ControlRigShapeActors.Find(InControlRig))
+	{
+		// if in local just use the first selected actor transform
+		// otherwise, compute the average location as pivot location
+		
+		int32 NumSelectedControls = 0;
+		FVector PivotLocation = FVector::ZeroVector;
+		for (const TObjectPtr<AControlRigShapeActor>& ShapeActor : *ShapeActors)
+		{
+			if (IsValid(ShapeActor) && ShapeActor->IsSelected())
+			{
+				const FRigElementKey ControlKey = ShapeActor->GetElementKey();
+				bool bGetParentTransform = bIsParentSpace && Hierarchy->GetNumberOfParents(ControlKey);
+	
+				const FTransform ShapeTransform = ShapeActor->GetActorTransform().GetRelativeTransform(ComponentTransform);
+				LastTransform = bGetParentTransform ? Hierarchy->GetParentTransform(ControlKey) : ShapeTransform;
+				PivotLocation += ShapeTransform.GetLocation();
+				
+				++NumSelectedControls;
+				if (!bEachLocalSpace)
+				{
+					break;
+				}
+			}
+		}
+
+		if (NumSelectedControls > 1)
+		{
+			PivotLocation /= static_cast<double>(NumSelectedControls);
+		}
+		PivotTransform.SetLocation(PivotLocation);
+	}
+
+	// Use the last transform's rotation as pivot rotation
+	const FTransform WorldTransform = LastTransform * ComponentTransform;
+	PivotTransform.SetRotation(WorldTransform.GetRotation());
+	
+	PivotTransforms.Add(InControlRig, MoveTemp(PivotTransform));
+}
+
+void FControlRigEditMode::UpdatePivotFromElements(UBaseControlRig* InControlRig)
+{
+	if (!ensure(!bIsChangingControlShapeTransform))
+	{
+		return;
+	}
+	
+	const URigHierarchy* Hierarchy = InControlRig ? InControlRig->GetHierarchy() : nullptr;
+	if (!Hierarchy)
+	{
+		return;
+	}
+	
+	const FTransform ComponentTransform = GetHostingSceneComponentTransform(InControlRig);
+	
+	int32 NumSelection = 0;
+	FTransform LastTransform = FTransform::Identity, PivotTransform = FTransform::Identity;
+	FVector PivotLocation = FVector::ZeroVector;
+	const TArray<FRigElementKey> SelectedRigElements = GetSelectedRigElements(InControlRig);
+	
+	for (int32 Index = 0; Index < SelectedRigElements.Num(); ++Index)
+	{
+		if (SelectedRigElements[Index].Type == ERigElementType::Control)
+		{
+			LastTransform = OnGetRigElementTransformDelegate.Execute(SelectedRigElements[Index], false, true);
+			PivotLocation += LastTransform.GetLocation();
+			++NumSelection;
+		}
+	}
+
+	if (NumSelection == 1)
+	{
+		// A single control just uses its own transform
+		const FTransform WorldTransform = LastTransform * ComponentTransform;
+		PivotTransform.SetRotation(WorldTransform.GetRotation());
+	}
+	else if (NumSelection > 1)
+	{
+		PivotLocation /= static_cast<double>(NumSelection);
+		PivotTransform.SetRotation(ComponentTransform.GetRotation());
+	}
+		
+	PivotTransform.SetLocation(PivotLocation);
+	PivotTransforms.Add(InControlRig, MoveTemp(PivotTransform));
+}
+
+void FControlRigEditMode::UpdatePivotTransforms()
+{
+	const UControlRigEditModeSettings* Settings = GetDefault<UControlRigEditModeSettings>();
+	const bool bEachLocalSpace = Settings && Settings->bLocalTransformsInEachLocalSpace;
+	const bool bIsParentSpace = GetCoordSystemSpace() == COORD_Parent;
+
 	PivotTransforms.Reset();
-	for (TWeakObjectPtr<UBaseControlRig>& RuntimeRigPtr : RuntimeControlRigs)
+
+	for (const TWeakObjectPtr<UBaseControlRig>& RuntimeRigPtr : RuntimeControlRigs)
 	{
 		if (UBaseControlRig* ControlRig = RuntimeRigPtr.Get())
 		{
-			FTransform PivotTransform = FTransform::Identity;
-			// Use average location as pivot location
-			FVector PivotLocation = FVector::ZeroVector;
-
-			TArray<FRigElementKey> SelectedRigElements = GetSelectedRigElements(ControlRig);
-			if (AreRigElementsSelected(ValidControlTypeMask(),ControlRig))
+			if (AreRigElementsSelected(ValidControlTypeMask(), ControlRig))
 			{
-				FTransform LastTransform = FTransform::Identity;
-
-				// recalc coord system too
-				FTransform ComponentTransform = GetHostingSceneComponentTransform(ControlRig);
-
-
-				int32 NumSelectedControls = 0;
-				for (int32 Index = 0; Index < SelectedRigElements.Num(); ++Index)
-				{
-					if (SelectedRigElements[Index].Type == ERigElementType::Control)
-					{
-						// todo?
-					}
-				}
-
 				if (bIsChangingControlShapeTransform)
 				{
-					if (auto* ShapeActors = ControlRigShapeActors.Find(ControlRig))
-					{
-						for (const AControlRigShapeActor* ShapeActor : *ShapeActors)
-						{
-							if (ShapeActor->IsSelected())
-							{
-								if (FRigControlElement* ControlElement = ControlRig->GetHierarchy()->Find<FRigControlElement>(FRigElementKey(ShapeActor->ControlName, ERigElementType::Control)))
-								{
-									PivotTransform = ControlRig->GetHierarchy()->GetControlShapeTransform(ControlElement, ERigTransformType::CurrentGlobal);
-								}
-
-								// break here since we don't want to change the shape transform of multiple controls.
-								break;
-							}
-						}
-					}
+					UpdatePivotFromEditedShape(ControlRig);
 				}
 				else
 				{
-					const UControlRigEditModeSettings* Settings = GetDefault<UControlRigEditModeSettings>();
-
-					if (auto* ShapeActors = ControlRigShapeActors.Find(ControlRig))
-					{
-						for (const AControlRigShapeActor* ShapeActor : *ShapeActors)
-						{
-							if (ShapeActor->IsSelected())
-							{
-								LastTransform = ShapeActor->GetActorTransform().GetRelativeTransform(ComponentTransform);
-								PivotLocation += LastTransform.GetLocation();
-								++NumSelectedControls;
-								if (Settings && Settings->bLocalTransformsInEachLocalSpace) //if in local just use first actors transform
-								{
-									break;
-								}
-
-							}
-						}
-					}
-
-					PivotLocation /= (float)FMath::Max(1, NumSelectedControls);
-					PivotTransform.SetLocation(PivotLocation);
-
-					// just use last rotation
-					FTransform WorldTransform = LastTransform * ComponentTransform;
-					PivotTransform.SetRotation(WorldTransform.GetRotation());
+					UpdatePivotFromShapeActors(ControlRig, bEachLocalSpace, bIsParentSpace);			
 				}
-				PivotTransforms.Add(ControlRig, PivotTransform);
 			}
 			else if (AreRigElementSelectedAndMovable(ControlRig))
 			{
-				// recalc coord system too
-				FTransform ComponentTransform = GetHostingSceneComponentTransform(ControlRig);
-
-				// Use average location as pivot location
-				PivotLocation = FVector::ZeroVector;
-				int32 NumSelection = 0;
-				FTransform LastTransform = FTransform::Identity;
-				for (int32 Index = 0; Index < SelectedRigElements.Num(); ++Index)
-				{
-					if (SelectedRigElements[Index].Type == ERigElementType::Control)
-					{
-						LastTransform = OnGetRigElementTransformDelegate.Execute(SelectedRigElements[Index], false, true);
-						PivotLocation += LastTransform.GetLocation();
-						++NumSelection;
-					}
-				}
-
-				PivotLocation /= (float)FMath::Max(1, NumSelection);
-				PivotTransform.SetLocation(PivotLocation);
-
-				if (NumSelection == 1)
-				{
-					// A single Bone just uses its own transform
-					FTransform WorldTransform = LastTransform * ComponentTransform;
-					PivotTransform.SetRotation(WorldTransform.GetRotation());
-				}
-				else if (NumSelection > 1)
-				{
-					// If we have more than one Bone selected, use the coordinate space of the component
-					PivotTransform.SetRotation(ComponentTransform.GetRotation());
-				}
-				PivotTransforms.Add(ControlRig, PivotTransform);
+				// do we even get in here ?!
+				// we will enter the if first as AreRigElementsSelected will return true before AreRigElementSelectedAndMovable does...
+				UpdatePivotFromElements(ControlRig);
 			}
 		}
 	}
@@ -2343,9 +2413,9 @@ bool FControlRigEditMode::HasPivotTransformsChanged() const
 
 void FControlRigEditMode::HandleSelectionChanged()
 {
-	for (auto& ShapeActors : ControlRigShapeActors)
+	for (const auto& ShapeActors : ControlRigShapeActors)
 	{
-		for (AControlRigShapeActor* ShapeActor : ShapeActors.Value)
+		for (const TObjectPtr<AControlRigShapeActor>& ShapeActor : ShapeActors.Value)
 		{
 			TInlineComponentArray<UPrimitiveComponent*> PrimitiveComponents;
 			ShapeActor->GetComponents(PrimitiveComponents, true);
@@ -2366,7 +2436,8 @@ void FControlRigEditMode::HandleSelectionChanged()
 	}
 
 	// update the pivot transform of our selected objects (they could be animating)
-	RecalcPivotTransform();
+	UpdatePivotTransforms();
+	
 	//need to force the redraw also
 	if (!AreEditingControlRigDirectly())
 	{
@@ -3319,7 +3390,7 @@ void FControlRigEditMode::PostUndo()
 		{
 			//due to tick ordering need to manually make sure we get everything done in correct order.
 			PostPoseUpdate();
-			RecalcPivotTransform();
+			UpdatePivotTransforms();
 			GEditor->RedrawLevelEditingViewports(true);
 		});
 	}

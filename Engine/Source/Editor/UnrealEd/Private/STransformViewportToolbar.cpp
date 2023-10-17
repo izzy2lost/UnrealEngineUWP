@@ -32,8 +32,6 @@
 #include "LevelEditorActions.h"
 #include "Styling/ToolBarStyle.h"
 #include "SEditorViewportToolBarMenu.h"
-#include "SEditorViewportToolBarButton.h"
-#include "Widgets/Layout/SSpacer.h"
 
 #define LOCTEXT_NAMESPACE "TransformToolBar"
 
@@ -211,10 +209,22 @@ TSharedRef< SWidget > STransformViewportToolBar::MakeTransformToolBar( const TSh
 
 		ToolbarBuilder.SetIsFocusable( true );
 
+		TAttribute<FText> CoordSystemToolTip = TAttribute<FText>::CreateLambda([]
+		{
+			static IConsoleVariable* UseLegacyWidgetCVar = IConsoleManager::Get().FindConsoleVariable(TEXT("Gizmos.UseLegacyWidget"));
+			const bool bUseNewGizmo = UseLegacyWidgetCVar ? UseLegacyWidgetCVar->GetInt() < 1 : false;
+			if (bUseNewGizmo)
+			{
+				return LOCTEXT(	"CycleTransformGizmoCoordSystemWithParent_ToolTip",
+								"Cycles the transform gizmo coordinate systems between world, local and parent space");
+			}
+			return FEditorViewportCommands::Get().CycleTransformGizmoCoordSystem->GetDescription();
+		});
+		
 		ToolbarBuilder.AddToolBarButton( FEditorViewportCommands::Get().CycleTransformGizmoCoordSystem,
 			NAME_None,
 			TAttribute<FText>(),
-			TAttribute<FText>(),
+			CoordSystemToolTip,
 			TAttribute<FSlateIcon>(this, &STransformViewportToolBar::GetLocalToWorldIcon),
 			FName(TEXT("CycleTransformGizmoCoordSystem")),
 
@@ -545,6 +555,12 @@ FSlateIcon STransformViewportToolBar::GetLocalToWorldIcon() const
 		return FSlateIcon(FAppStyle::GetAppStyleSetName(), WorldIcon);
 	}
 
+	if( Viewport.IsValid() && Viewport.Pin()->IsCoordSystemActive(COORD_Parent) )
+	{
+		static const FName ParentIcon("Icons.ConstraintManager.ParentHierarchy");
+		return FSlateIcon(FAppStyle::GetAppStyleSetName(), ParentIcon);
+	}
+	
 	static FName LocalIcon("Icons.Transform");
 	return FSlateIcon(FAppStyle::GetAppStyleSetName(), LocalIcon);
 }

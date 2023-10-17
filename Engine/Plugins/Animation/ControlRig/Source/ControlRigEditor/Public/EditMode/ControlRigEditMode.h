@@ -198,9 +198,15 @@ protected:
 	/** Set up Details Panel based upon Selected Objects*/
 	void SetUpDetailPanel();
 
-	/** Updates cached pivot transform */
-	void RecalcPivotTransform();
-
+	/** Updates cached pivot transforms */
+	void UpdatePivotTransforms();
+	void UpdatePivotFromEditedShape(UBaseControlRig* InControlRig);
+	void UpdatePivotFromShapeActors(UBaseControlRig* InControlRig, const bool bEachLocalSpace, const bool bIsParentSpace);
+	void UpdatePivotFromElements(UBaseControlRig* InControlRig);
+	
+	/** Get the current coordinate system space */
+	ECoordSystem GetCoordSystemSpace() const;
+	
 	/** Helper function for box/frustum intersection */
 	bool IntersectSelect(bool InSelect, const TFunctionRef<bool(const AControlRigShapeActor*, const FTransform&)>& Intersects);
 

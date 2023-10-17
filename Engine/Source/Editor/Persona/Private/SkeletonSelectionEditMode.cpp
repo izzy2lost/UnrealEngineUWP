@@ -531,27 +531,50 @@ FTransform FSkeletonSelectionEditMode::GetSocketTransform(const USkeletalMeshSoc
 
 bool FSkeletonSelectionEditMode::GetCustomDrawingCoordinateSystem(FMatrix& InMatrix, void* InData)
 {
+	const bool bIsParentMode = Owner ? Owner->GetCoordSystem() == COORD_Parent : false;
+	
 	const UDebugSkelMeshComponent* PreviewMeshComponent = GetAnimPreviewScene().GetPreviewMeshComponent();
 	if(PreviewMeshComponent)
 	{
 		// Retrieve reference skeleton from either current USkeletalMesh, or USkeleton if no mesh is set
 		const FReferenceSkeleton& ReferenceSkeleton = GetReferenceSkeletonForComponent(PreviewMeshComponent);
 		
-		const int32 BoneIndex = GetAnimPreviewScene().GetSelectedBoneIndex();
+		int32 BoneIndex = GetAnimPreviewScene().GetSelectedBoneIndex();
 		if (BoneIndex != INDEX_NONE && ReferenceSkeleton.IsValidIndex(BoneIndex))
 		{
+			if (bIsParentMode)
+			{
+				const int32 ParentIndex = ReferenceSkeleton.GetParentIndex(BoneIndex);
+				if (ParentIndex != INDEX_NONE)
+				{
+					BoneIndex = ParentIndex;
+				}
+			}
 			const FTransform BoneMatrix = GetBoneTransform(BoneIndex);
 			InMatrix = BoneMatrix.ToMatrixNoScale().RemoveTranslation();
 			return true;
 		}
-		else if (GetAnimPreviewScene().GetSelectedSocket().IsValid())
+		
+		if (GetAnimPreviewScene().GetSelectedSocket().IsValid())
 		{
 			const USkeletalMeshSocket* Socket = GetAnimPreviewScene().GetSelectedSocket().Socket;
+			if (bIsParentMode)
+			{
+				const int32 SocketBoneIndex = PreviewMeshComponent->GetBoneIndex(Socket->BoneName);
+				if (SocketBoneIndex != INDEX_NONE && ReferenceSkeleton.IsValidIndex(SocketBoneIndex))
+				{
+					const FTransform SocketBoneMatrix = GetBoneTransform(SocketBoneIndex);
+					InMatrix = SocketBoneMatrix.ToMatrixNoScale().RemoveTranslation();
+					return true;
+				}
+			}
+			
 			const FTransform SocketMatrix = GetSocketTransform(Socket);
 			InMatrix = SocketMatrix.ToMatrixNoScale().RemoveTranslation();
 			return true;
 		}
-		else if (const AActor* SelectedActor = GetAnimPreviewScene().GetSelectedActor())
+		
+		if (const AActor* SelectedActor = GetAnimPreviewScene().GetSelectedActor())
 		{
 			InMatrix = SelectedActor->GetTransform().ToMatrixNoScale().RemoveTranslation();
 			return true;

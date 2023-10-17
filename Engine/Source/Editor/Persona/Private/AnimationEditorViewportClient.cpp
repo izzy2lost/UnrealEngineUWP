@@ -1341,9 +1341,9 @@ FVector FAnimationViewportClient::GetWidgetLocation() const
 
 FMatrix FAnimationViewportClient::GetWidgetCoordSystem() const
 {
-	const bool bIsLocal = GetWidgetCoordSystemSpace() == COORD_Local;
-
-	if( bIsLocal )
+	const ECoordSystem Space = GetWidgetCoordSystemSpace();
+	const bool bIsLocalOrParent = Space == COORD_Local || Space == COORD_Parent;
+	if( bIsLocalOrParent )
 	{
 		return ModeTools->GetCustomInputCoordinateSystem();
 	}

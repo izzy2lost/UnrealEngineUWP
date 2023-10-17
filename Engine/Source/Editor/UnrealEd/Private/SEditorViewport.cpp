@@ -764,9 +764,14 @@ void SEditorViewport::OnCycleCoordinateSystem()
 	int32 CoordSystemAsInt = Client->GetWidgetCoordSystemSpace();
 
 	++CoordSystemAsInt;
-	if( CoordSystemAsInt == COORD_Max )
+
+	static IConsoleVariable* UseLegacyWidgetCVar = IConsoleManager::Get().FindConsoleVariable(TEXT("Gizmos.UseLegacyWidget"));
+	const bool bUseNewGizmos = UseLegacyWidgetCVar ? UseLegacyWidgetCVar->GetInt() < 1 : false;
+	// parent mode is only supported with new trs gizmos for now
+	const int CoordMax = bUseNewGizmos ? COORD_Max : COORD_Parent;
+	if( CoordSystemAsInt >= CoordMax )
 	{
-		CoordSystemAsInt -= COORD_Max;
+		CoordSystemAsInt = COORD_World;
 	}
 
 	Client->SetWidgetCoordSystemSpace( (ECoordSystem)CoordSystemAsInt );
