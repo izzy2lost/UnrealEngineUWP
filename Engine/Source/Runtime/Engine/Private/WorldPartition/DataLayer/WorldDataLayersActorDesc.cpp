@@ -280,6 +280,9 @@ const TArray<FDataLayerInstanceDesc>& FWorldDataLayersActorDesc::GetExternalPack
 			Filter.PackagePaths.Add(*ExternalObjectsPath);
 			TArray<FAssetData> Assets;
 			AssetRegistry.GetAssets(Filter, Assets);
+			// Sort the list as the order affects the cooking which needs to be deterministic.
+			// @todo_ow: Remove this once UE-198035 is fixed.
+			Assets.Sort();
 
 			for (const FAssetData& Asset : Assets)
 			{

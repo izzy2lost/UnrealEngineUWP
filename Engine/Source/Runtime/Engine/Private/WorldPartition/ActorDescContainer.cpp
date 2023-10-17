@@ -59,6 +59,9 @@ void UActorDescContainer::Initialize(const FInitializeParams& InitParams)
 
 		TRACE_CPUPROFILER_EVENT_SCOPE(GetAssets);
 		AssetRegistry.GetAssets(Filter, Assets);
+		// Sort the list as the order affects the cooking which needs to be deterministic.
+		// @todo_ow: Remove this once UE-198035 is fixed.
+		Assets.Sort();
 	}
 
 	FWorldPartitionClassDescRegistry& ClassDescRegistry = FWorldPartitionClassDescRegistry::Get();
