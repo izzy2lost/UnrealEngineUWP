@@ -360,10 +360,10 @@ void UsdUtils::SetUsdStageMetersPerUnit( const pxr::UsdStageRefPtr& Stage, float
 	pxr::UsdGeomSetStageMetersPerUnit( Stage, MetersPerUnit );
 }
 
-int32 UsdUtils::GetUsdStageNumFrames( const pxr::UsdStageRefPtr& Stage )
+int32 UsdUtils::GetUsdStageNumFrames(const pxr::UsdStageRefPtr& Stage)
 {
 	// USD time code range is inclusive on both ends
-	return FMath::Abs( FMath::CeilToInt32( Stage->GetEndTimeCode() ) - FMath::FloorToInt32( Stage->GetStartTimeCode() ) + 1 );
+	return Stage ? FMath::Abs(FMath::CeilToInt32(Stage->GetEndTimeCode()) - FMath::FloorToInt32(Stage->GetStartTimeCode()) + 1) : 0;
 }
 
 bool UsdUtils::HasCompositionArcs( const pxr::UsdPrim& Prim )

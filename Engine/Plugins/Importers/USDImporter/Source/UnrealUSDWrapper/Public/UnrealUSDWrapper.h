@@ -124,7 +124,7 @@ enum class EUsdInterpolationType : uint8
 };
 
 UENUM()
-enum class EUsdRootMotionHandling
+enum class EUsdRootMotionHandling : uint8
 {
 	// Use for the root bone just its regular joint animation as described on the SkelAnimation prim.
 	NoAdditionalRootMotion,

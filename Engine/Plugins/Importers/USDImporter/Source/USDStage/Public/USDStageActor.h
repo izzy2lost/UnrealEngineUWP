@@ -28,6 +28,14 @@ namespace UE
 	class FUsdPrim;
 }
 
+UENUM()
+enum class EUsdStageState : uint8
+{
+	Closed,
+	Opened,
+	OpenedAndLoaded
+};
+
 UCLASS( MinimalAPI, config = USDImporter )
 class AUsdStageActor : public AActor
 {
@@ -36,6 +44,12 @@ class AUsdStageActor : public AActor
 public:
 	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "USD", meta = (RelativeToGameDir))
 	FFilePath RootLayer;
+
+	/**
+	 * What to do with the USD Stage pointed to by RootLayer, if any
+	 */
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "USD", config)
+	EUsdStageState StageState;
 
 	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "USD")
 	TObjectPtr<UUsdAssetCache2> UsdAssetCache;
@@ -91,7 +105,7 @@ public:
 
 	// Describes what to add to the root bone animation within generated AnimSequences, if anything
 	UPROPERTY( EditAnywhere, BlueprintReadOnly, Category = "USD", config )
-	EUsdRootMotionHandling RootMotionHandling = EUsdRootMotionHandling::NoAdditionalRootMotion;
+	EUsdRootMotionHandling RootMotionHandling;
 
 	/**
 	 * Subdivision level to use for all subdivision meshes on the opened stage. 0 means "don't subdivide".
@@ -123,6 +137,9 @@ public:
 public:
 	UFUNCTION(BlueprintCallable, Category = "USD", meta = (CallInEditor = "true"))
 	USDSTAGE_API void SetRootLayer(const FString& RootFilePath );
+
+	UFUNCTION(BlueprintCallable, Category = "USD", meta = (CallInEditor = "true"))
+	USDSTAGE_API void SetStageState(EUsdStageState NewStageState);
 
 	UFUNCTION(BlueprintCallable, Category = "USD", meta = (CallInEditor = "true"))
 	USDSTAGE_API void SetAssetCache(UUsdAssetCache2* NewCache);
@@ -215,9 +232,12 @@ public:
 	USDSTAGE_API FString GetIsolatedRootLayer() const;
 
 public:
-	// Loads the stage with RootLayer if its not loaded already, and returns the either the isolated stage (if any) or
-	// the base stage
+	UE_DEPRECATED(5.4, "This function has been renamed into 'GetOrOpenUsdStage', which better describes what it does")
 	USDSTAGE_API UE::FUsdStage& GetOrLoadUsdStage();
+
+	// Opens the stage with RootLayer if its not loaded already, and returns the either the isolated stage (if any) or
+	// the base stage
+	USDSTAGE_API UE::FUsdStage& GetOrOpenUsdStage();
 
 	// Returns either the isolated stage (if any) or the base stage
 	USDSTAGE_API const UE::FUsdStage& GetUsdStage() const;
@@ -296,9 +316,9 @@ protected:
 	void UpdatePrim(const UE::FSdfPath& UsdPrimPath, bool bResync, FUsdSchemaTranslationContext& TranslationContext);
 
 	void OpenUsdStage();
-	void CloseUsdStage();
+	void CloseUsdStage(bool bUnloadIfNeeded = true);
 
-	void LoadUsdStage();
+	void LoadUsdStage(bool bOpenIfNeeded = true);
 	void UnloadUsdStage();
 
 	void SetupAssetCacheIfNeeded();

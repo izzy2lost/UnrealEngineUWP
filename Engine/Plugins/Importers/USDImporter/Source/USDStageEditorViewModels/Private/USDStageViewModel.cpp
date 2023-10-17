@@ -109,7 +109,7 @@ void FUsdStageViewModel::ReloadStage()
 	}
 
 #if USE_USD_SDK
-	UE::FUsdStage Stage = UsdStageActor->GetOrLoadUsdStage();
+	UE::FUsdStage Stage = UsdStageActor->GetOrOpenUsdStage();
 	pxr::UsdStageRefPtr UsdStage = pxr::UsdStageRefPtr( Stage );
 
 	// Can't reload from disk something that doesn't exist on disk yet
@@ -183,7 +183,7 @@ void FUsdStageViewModel::ResetStage()
 		return;
 	}
 
-	UE::FUsdStage Stage = UsdStageActor->GetOrLoadUsdStage();
+	UE::FUsdStage Stage = UsdStageActor->GetOrOpenUsdStage();
 	pxr::UsdStageRefPtr UsdStage = pxr::UsdStageRefPtr( Stage );
 
 	if ( UsdStage )
@@ -212,7 +212,7 @@ void FUsdStageViewModel::SaveStage()
 #if USE_USD_SDK
 	if ( UsdStageActor.IsValid() )
 	{
-		if ( UE::FUsdStage UsdStage = UsdStageActor->GetOrLoadUsdStage() )
+		if ( UE::FUsdStage UsdStage = UsdStageActor->GetOrOpenUsdStage() )
 		{
 			FScopedUsdAllocs UsdAllocs;
 
@@ -248,7 +248,7 @@ void FUsdStageViewModel::SaveStageAs( const TCHAR* FilePath )
 	AUsdStageActor* StageActorPtr = UsdStageActor.Get();
 	if ( StageActorPtr )
 	{
-		if ( UE::FUsdStage UsdStage = UsdStageActor->GetOrLoadUsdStage() )
+		if ( UE::FUsdStage UsdStage = UsdStageActor->GetOrOpenUsdStage() )
 		{
 			UsdUtils::StartMonitoringErrors();
 
@@ -297,7 +297,7 @@ void FUsdStageViewModel::ImportStage( const TCHAR* TargetContentFolder, UUsdStag
 		return;
 	}
 
-	const UE::FUsdStage UsdStage = StageActor->GetOrLoadUsdStage();
+	const UE::FUsdStage UsdStage = StageActor->GetOrOpenUsdStage();
 	if ( !UsdStage )
 	{
 		return;

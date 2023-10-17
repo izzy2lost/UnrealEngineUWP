@@ -843,7 +843,7 @@ void SUsdStage::FillFileMenu( FMenuBuilder& MenuBuilder )
 
 		MenuBuilder.AddMenuEntry(
 			LOCTEXT("Open", "Open..."),
-			LOCTEXT("Open_ToolTip", "Opens a USD file"),
+			LOCTEXT("Open_ToolTip", "Pick an existing USD file"),
 			FSlateIcon(),
 			FUIAction(
 				FExecuteAction::CreateLambda([this]()
@@ -947,22 +947,24 @@ void SUsdStage::FillFileMenu( FMenuBuilder& MenuBuilder )
 	{
 		MenuBuilder.AddMenuEntry(
 			LOCTEXT("Close", "Close"),
-			LOCTEXT("Close_ToolTip", "Closes the opened stage"),
+			LOCTEXT("Close_ToolTip", "Clears the stage actor's root layer, unloading and closing the stage"),
 			FSlateIcon(),
 			FUIAction(
-				FExecuteAction::CreateSP( this, &SUsdStage::FileClose ),
-				FCanExecuteAction::CreateLambda( [this]()
-				{
-					if ( const AUsdStageActor* StageActor = ViewModel.UsdStageActor.Get() )
+				FExecuteAction::CreateSP(this, &SUsdStage::FileClose),
+				FCanExecuteAction::CreateLambda(
+					[this]()
 					{
-						if ( UE::FUsdStage Stage = StageActor->GetUsdStage() )
+						if (const AUsdStageActor* StageActor = ViewModel.UsdStageActor.Get())
 						{
-							return true;
+							if (!StageActor->RootLayer.FilePath.IsEmpty())
+							{
+								return true;
+							}
 						}
-					}
 
-					return false;
-				})
+						return false;
+					}
+				)
 			),
 			NAME_None,
 			EUserInterfaceActionType::Button
@@ -1005,6 +1007,11 @@ void SUsdStage::FillOptionsMenu(FMenuBuilder& MenuBuilder)
 {
 	MenuBuilder.BeginSection( TEXT( "StageOptions" ), LOCTEXT( "StageOptions", "Stage options" ) );
 	{
+		MenuBuilder.AddSubMenu(
+			LOCTEXT("State", "Stage state"),
+			LOCTEXT("State_ToolTip", "Whether we should open the USD Stage or spawn assets, actors and components"),
+			FNewMenuDelegate::CreateSP(this, &SUsdStage::FillStageStateSubMenu));
+
 		MenuBuilder.AddSubMenu(
 			LOCTEXT("Payloads", "Payloads"),
 			LOCTEXT("Payloads_ToolTip", "What to do with payloads when initially opening the stage"),
@@ -1122,6 +1129,72 @@ void SUsdStage::FillExportSubMenu( FMenuBuilder& MenuBuilder )
 	);
 }
 
+void SUsdStage::FillStageStateSubMenu(FMenuBuilder& MenuBuilder)
+{
+	TFunction<void(EUsdStageState, const FText&, const FText&)> AddStageStateEntry =
+		[this, &MenuBuilder](EUsdStageState NewState, const FText& EntryText, const FText& EntryToolTipText)
+	{
+		MenuBuilder.AddMenuEntry(
+			EntryText,
+			EntryToolTipText,
+			FSlateIcon(),
+			FUIAction(
+				FExecuteAction::CreateLambda(
+					[this, NewState, EntryText]()
+					{
+						if (AUsdStageActor* StageActor = GetStageActorOrCDO())
+						{
+							FScopedTransaction Transaction(FText::Format(
+								LOCTEXT("ChangedStageStateTransaction", "Set USD stage actor '{0}' actor to stage state '{1}'"),
+								FText::FromString(StageActor->GetActorLabel()),
+								EntryText
+							));
+
+							// c.f. comment in SUsdStage::FillCollapsingSubMenu
+							TGuardValue<bool> MaintainSelectionGuard(bUpdatingViewportSelection, true);
+
+							StageActor->SetStageState(NewState);
+							if (StageActor->IsTemplate())
+							{
+								StageActor->SaveConfig();
+							}
+						}
+					}
+				),
+				FCanExecuteAction{},
+				FIsActionChecked::CreateLambda(
+					[this, NewState]()
+					{
+						if (AUsdStageActor* StageActor = GetStageActorOrCDO())
+						{
+							return StageActor->StageState == NewState;
+						}
+						return false;
+					}
+				)
+			),
+			NAME_None,
+			EUserInterfaceActionType::RadioButton
+		);
+	};
+
+	AddStageStateEntry(
+		EUsdStageState::Closed,
+		LOCTEXT("Closed", "Closed"),
+		LOCTEXT("Closed_ToolTip", "Don't open or load the USD Stage pointed to by RootLayer")
+	);
+	AddStageStateEntry(
+		EUsdStageState::Opened,
+		LOCTEXT("Opened", "Opened"),
+		LOCTEXT("Opened_ToolTip", "Open the USD Stage pointed to by RootLayer, but don't spawn assets, actors or components")
+	);
+	AddStageStateEntry(
+		EUsdStageState::OpenedAndLoaded,
+		LOCTEXT("OpenedAndLoaded", "Opened and loaded"),
+		LOCTEXT("OpenedAndLoaded_ToolTip", "Open the USD Stage pointed to by RootLayer and spawn assets, actors or components")
+	);
+}
+
 void SUsdStage::FillPayloadsSubMenu(FMenuBuilder& MenuBuilder)
 {
 	MenuBuilder.AddMenuEntry(
@@ -1138,9 +1211,11 @@ void SUsdStage::FillPayloadsSubMenu(FMenuBuilder& MenuBuilder)
 						FText::FromString(StageActor->GetActorLabel())
 					));
 
-					StageActor->Modify();
-					StageActor->InitialLoadSet = EUsdInitialLoadSet::LoadAll;
-					if ( StageActor->IsTemplate() )
+					// c.f. comment in SUsdStage::FillCollapsingSubMenu
+					TGuardValue<bool> MaintainSelectionGuard(bUpdatingViewportSelection, true);
+
+					StageActor->SetInitialLoadSet(EUsdInitialLoadSet::LoadAll);
+					if (StageActor->IsTemplate())
 					{
 						StageActor->SaveConfig();
 					}
@@ -1174,9 +1249,11 @@ void SUsdStage::FillPayloadsSubMenu(FMenuBuilder& MenuBuilder)
 						FText::FromString(StageActor->GetActorLabel())
 					));
 
-					StageActor->Modify();
-					StageActor->InitialLoadSet = EUsdInitialLoadSet::LoadNone;
-					if ( StageActor->IsTemplate() )
+					// c.f. comment in SUsdStage::FillCollapsingSubMenu
+					TGuardValue<bool> MaintainSelectionGuard(bUpdatingViewportSelection, true);
+
+					StageActor->SetInitialLoadSet(EUsdInitialLoadSet::LoadNone);
+					if (StageActor->IsTemplate())
 					{
 						StageActor->SaveConfig();
 					}
@@ -1216,17 +1293,10 @@ void SUsdStage::FillPurposesToLoadSubMenu(FMenuBuilder& MenuBuilder)
 						));
 
 						// c.f. comment in SUsdStage::FillCollapsingSubMenu
-						TGuardValue<bool> MaintainSelectionGuard( bUpdatingViewportSelection, true );
+						TGuardValue<bool> MaintainSelectionGuard(bUpdatingViewportSelection, true);
 
-						StageActor->Modify();
-						StageActor->PurposesToLoad = (int32)((EUsdPurpose)StageActor->PurposesToLoad ^ Purpose);
-
-						FPropertyChangedEvent PropertyChangedEvent(
-							FindFieldChecked< FProperty >( StageActor->GetClass(), GET_MEMBER_NAME_CHECKED( AUsdStageActor, PurposesToLoad ) )
-						);
-						StageActor->PostEditChangeProperty(PropertyChangedEvent);
-
-						if ( StageActor->IsTemplate() )
+						StageActor->SetPurposesToLoad((int32)((EUsdPurpose)StageActor->PurposesToLoad ^ Purpose));
+						if (StageActor->IsTemplate())
 						{
 							StageActor->SaveConfig();
 						}
@@ -1277,17 +1347,10 @@ void SUsdStage::FillRenderContextSubMenu( FMenuBuilder& MenuBuilder )
 						));
 
 						// c.f. comment in SUsdStage::FillCollapsingSubMenu
-						TGuardValue<bool> MaintainSelectionGuard( bUpdatingViewportSelection, true );
+						TGuardValue<bool> MaintainSelectionGuard(bUpdatingViewportSelection, true);
 
-						StageActor->Modify();
-						StageActor->RenderContext = RenderContext;
-
-						FPropertyChangedEvent PropertyChangedEvent(
-							FindFieldChecked< FProperty >( StageActor->GetClass(), GET_MEMBER_NAME_CHECKED( AUsdStageActor, RenderContext ) )
-						);
-						StageActor->PostEditChangeProperty(PropertyChangedEvent);
-
-						if ( StageActor->IsTemplate() )
+						StageActor->SetRenderContext(RenderContext);
+						if (StageActor->IsTemplate())
 						{
 							StageActor->SaveConfig();
 						}
@@ -1383,8 +1446,11 @@ void SUsdStage::FillMaterialPurposeSubMenu( FMenuBuilder& MenuBuilder )
 						FText::FromString(ChosenOption.IsValid() ? *ChosenOption : TEXT(""))
 					));
 
-					StageActor->SetMaterialPurpose( **ChosenOption );
-					if ( StageActor->IsTemplate() )
+					// c.f. comment in SUsdStage::FillCollapsingSubMenu
+					TGuardValue<bool> MaintainSelectionGuard(bUpdatingViewportSelection, true);
+
+					StageActor->SetMaterialPurpose(**ChosenOption);
+					if (StageActor->IsTemplate())
 					{
 						StageActor->SaveConfig();
 					}
@@ -1443,8 +1509,8 @@ void SUsdStage::FillMaterialPurposeSubMenu( FMenuBuilder& MenuBuilder )
 						NewText
 					));
 
-					StageActor->SetMaterialPurpose( NewPurpose );
-					if ( StageActor->IsTemplate() )
+					StageActor->SetMaterialPurpose(NewPurpose);
+					if (StageActor->IsTemplate())
 					{
 						StageActor->SaveConfig();
 					}
@@ -1479,11 +1545,10 @@ void SUsdStage::FillRootMotionSubMenu( FMenuBuilder& MenuBuilder )
 						));
 
 						// c.f. comment in SUsdStage::FillCollapsingSubMenu
-						TGuardValue<bool> MaintainSelectionGuard( bUpdatingViewportSelection, true );
+						TGuardValue<bool> MaintainSelectionGuard(bUpdatingViewportSelection, true);
 
-						StageActor->Modify();
-						StageActor->SetRootMotionHandling( HandlingStrategy );
-						if ( StageActor->IsTemplate() )
+						StageActor->SetRootMotionHandling(HandlingStrategy);
+						if (StageActor->IsTemplate())
 						{
 							StageActor->SaveConfig();
 						}
@@ -1551,9 +1616,11 @@ void SUsdStage::FillCollapsingSubMenu( FMenuBuilder& MenuBuilder )
 						FText::FromString( StageActor->GetActorLabel() )
 					) );
 
-					TGuardValue<bool> MaintainSelectionGuard( bUpdatingViewportSelection, true );
-					StageActor->SetMergeIdenticalMaterialSlots( !StageActor->bMergeIdenticalMaterialSlots );
-					if ( StageActor->IsTemplate() )
+					// c.f. comment within AddKindToCollapseEntry just below
+					TGuardValue<bool> MaintainSelectionGuard(bUpdatingViewportSelection, true);
+
+					StageActor->SetMergeIdenticalMaterialSlots(!StageActor->bMergeIdenticalMaterialSlots);
+					if (StageActor->IsTemplate())
 					{
 						StageActor->SaveConfig();
 					}
@@ -1596,11 +1663,10 @@ void SUsdStage::FillCollapsingSubMenu( FMenuBuilder& MenuBuilder )
 						// Not only is this "selection spam" is very visible on the USD Stage Editor, if our originally selected component
 						// was just collapsed away, we'd end up updating our prim selection to point to the parent prim instead
 						// (the collapsing root), which is not ideal.
-						TGuardValue<bool> MaintainSelectionGuard( bUpdatingViewportSelection, true );
+						TGuardValue<bool> MaintainSelectionGuard(bUpdatingViewportSelection, true);
 
-						int32 NewKindsToCollapse = ( int32 ) ( ( EUsdDefaultKind ) StageActor->KindsToCollapse ^ Kind );
-						StageActor->SetKindsToCollapse( NewKindsToCollapse );
-						if ( StageActor->IsTemplate() )
+						StageActor->SetKindsToCollapse((int32)((EUsdDefaultKind)StageActor->KindsToCollapse ^ Kind));
+						if (StageActor->IsTemplate())
 						{
 							StageActor->SaveConfig();
 						}
@@ -1707,11 +1773,10 @@ void SUsdStage::FillInterpolationTypeSubMenu(FMenuBuilder& MenuBuilder)
 					));
 
 					// c.f. comment in SUsdStage::FillCollapsingSubMenu
-					TGuardValue<bool> MaintainSelectionGuard( bUpdatingViewportSelection, true );
+					TGuardValue<bool> MaintainSelectionGuard(bUpdatingViewportSelection, true);
 
-					StageActor->SetInterpolationType( EUsdInterpolationType::Linear );
-
-					if ( StageActor->IsTemplate() )
+					StageActor->SetInterpolationType(EUsdInterpolationType::Linear);
+					if (StageActor->IsTemplate())
 					{
 						StageActor->SaveConfig();
 					}
@@ -1746,11 +1811,10 @@ void SUsdStage::FillInterpolationTypeSubMenu(FMenuBuilder& MenuBuilder)
 					));
 
 					// c.f. comment in SUsdStage::FillCollapsingSubMenu
-					TGuardValue<bool> MaintainSelectionGuard( bUpdatingViewportSelection, true );
+					TGuardValue<bool> MaintainSelectionGuard(bUpdatingViewportSelection, true);
 
-					StageActor->SetInterpolationType( EUsdInterpolationType::Held );
-
-					if ( StageActor->IsTemplate() )
+					StageActor->SetInterpolationType(EUsdInterpolationType::Held);
+					if (StageActor->IsTemplate())
 					{
 						StageActor->SaveConfig();
 					}
@@ -2578,12 +2642,10 @@ void SUsdStage::OnNaniteTriangleThresholdValueCommitted( int32 InValue, ETextCom
 	) );
 
 	// c.f. comment in SUsdStage::FillCollapsingSubMenu
-	TGuardValue<bool> MaintainSelectionGuard( bUpdatingViewportSelection, true );
+	TGuardValue<bool> MaintainSelectionGuard(bUpdatingViewportSelection, true);
 
-	StageActor->SetNaniteTriangleThreshold( InValue );
+	StageActor->SetNaniteTriangleThreshold(InValue);
 	CurrentNaniteThreshold = InValue;
-
-	if ( StageActor->IsTemplate() )
 	{
 		StageActor->SaveConfig();
 	}

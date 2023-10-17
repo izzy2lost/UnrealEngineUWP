@@ -83,6 +83,7 @@ protected:
 	void FillActionsMenu( FMenuBuilder& MenuBuilder );
 	void FillOptionsMenu( FMenuBuilder& MenuBuilder );
 	void FillExportSubMenu( FMenuBuilder& MenuBuilder );
+	void FillStageStateSubMenu(FMenuBuilder& MenuBuilder);
 	void FillPayloadsSubMenu( FMenuBuilder& MenuBuilder );
 	void FillPurposesToLoadSubMenu( FMenuBuilder& MenuBuilder );
 	void FillRenderContextSubMenu( FMenuBuilder& MenuBuilder );
