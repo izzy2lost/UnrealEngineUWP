@@ -416,8 +416,8 @@ namespace EpicGames.Horde
 			}
 
 			IHttpClientBuilder builder = services.AddHttpClient<HordeHttpClient>(HordeHttpClient.HttpClientName, ConfigureClientFromEnvironment)
-				.AddPolicyHandler((serviceProvider, request) => CreateDefaultTimeoutRetryPolicy(serviceProvider.GetRequiredService<ILogger<HttpStorageClient>>()))
-				.AddPolicyHandler((serviceProvider, request) => CreateDefaultTransientErrorPolicy(serviceProvider.GetRequiredService<ILogger<HttpStorageClient>>()));
+				.AddPolicyHandler((serviceProvider, request) => CreateDefaultTimeoutRetryPolicy(request, serviceProvider.GetRequiredService<ILogger<HttpStorageClient>>()))
+				.AddPolicyHandler((serviceProvider, request) => CreateDefaultTransientErrorPolicy(request, serviceProvider.GetRequiredService<ILogger<HttpStorageClient>>()));
 
 			if (useAuthChallenge)
 			{
@@ -434,12 +434,12 @@ namespace EpicGames.Horde
 		/// <summary>
 		/// Create a default timeout retry policy
 		/// </summary>
-		public static IAsyncPolicy<HttpResponseMessage> CreateDefaultTimeoutRetryPolicy(ILogger logger)
+		public static IAsyncPolicy<HttpResponseMessage> CreateDefaultTimeoutRetryPolicy(HttpRequestMessage request, ILogger logger)
 		{
 			// Wait 30 seconds for operations to timeout
 			Task OnTimeoutAsync(Context context, TimeSpan timespan, Task timeoutTask)
 			{
-				logger.LogWarning("Http request timed out after {Time}s.", (int)timespan.TotalSeconds);
+				logger.LogWarning(KnownLogEvents.Systemic_Horde_Http, "{Method} {Url} timed out after {Time}s.", request.Method, request.RequestUri, (int)timespan.TotalSeconds);
 				return Task.CompletedTask;
 			}
 
@@ -448,7 +448,7 @@ namespace EpicGames.Horde
 			// Retry twice after a timeout
 			void OnRetry(Exception ex, TimeSpan timespan)
 			{
-				logger.LogWarning("Retrying http call after {Time}s.", timespan.TotalSeconds);
+				logger.LogWarning(KnownLogEvents.Systemic_Horde_Http, ex, "{Method} {Url} retrying after {Time}s.", request.Method, request.RequestUri, timespan.TotalSeconds);
 			}
 
 			TimeSpan[] retryTimes = new[] { TimeSpan.FromSeconds(5.0), TimeSpan.FromSeconds(10.0) };
@@ -459,11 +459,11 @@ namespace EpicGames.Horde
 		/// <summary>
 		/// Create a default timeout retry policy
 		/// </summary>
-		public static IAsyncPolicy<HttpResponseMessage> CreateDefaultTransientErrorPolicy(ILogger logger)
+		public static IAsyncPolicy<HttpResponseMessage> CreateDefaultTransientErrorPolicy(HttpRequestMessage request, ILogger logger)
 		{
 			Task OnTimeoutAsync(DelegateResult<HttpResponseMessage> outcome, TimeSpan timespan, int retryAttempt, Context context)
 			{
-				logger.LogWarning("Http request failed. Delaying for {DelayMs}ms (attempt #{RetryNum}).", timespan.TotalMilliseconds, retryAttempt);
+				logger.LogWarning(KnownLogEvents.Systemic_Horde_Http, "{Method} {Url} failed ({Result}). Delaying for {DelayMs}ms (attempt #{RetryNum}).", request.Method, request.RequestUri, outcome.Result?.StatusCode, timespan.TotalMilliseconds, retryAttempt);
 				return Task.CompletedTask;
 			}
 

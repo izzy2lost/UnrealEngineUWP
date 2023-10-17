@@ -848,10 +848,20 @@ namespace Horde.Agent.Execution
 				using IStorageClient storage = StorageFactory.CreateClient(new NamespaceId(artifact.NamespaceId), artifact.Token);
 				await using IStorageWriter writer = storage.CreateWriter(new RefName(artifact.RefName));
 
-				DirectoryNode dir = new DirectoryNode();
-				await dir.AddFilesAsync(baseDir, files, new ChunkingOptions(), writer, new CopyStatsLogger(logger), cancellationToken);
+				try
+				{
+					DirectoryNode dir = new DirectoryNode();
+					await dir.AddFilesAsync(baseDir, files, new ChunkingOptions(), writer, new CopyStatsLogger(logger), cancellationToken);
 
-				await storage.WriteRefAsync(new RefName(artifact.RefName), dir, cancellationToken: cancellationToken);
+					await storage.WriteRefAsync(new RefName(artifact.RefName), dir, cancellationToken: cancellationToken);
+				}
+				catch (Exception ex)
+				{
+					Logger.LogInformation(ex, "Error uploading files for artifact {ArtifactId}", artifact.Id);
+					throw;
+				}
+
+				Logger.LogInformation("Uploaded artifact {ArtifactId}", artifact.Id);
 			}
 			catch (Exception ex)
 			{

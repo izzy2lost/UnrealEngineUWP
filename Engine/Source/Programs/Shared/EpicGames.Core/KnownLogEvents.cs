@@ -251,6 +251,11 @@ namespace EpicGames.Core
 		public static EventId Systemic_Horde_Compute { get; } = new EventId(732);
 
 		/// <summary>
+		/// HTTP error
+		/// </summary>
+		public static EventId Systemic_Horde_Http { get; } = new EventId(733);
+
+		/// <summary>
 		/// Harmless pdbutil error
 		/// </summary>
 		public static EventId Systemic_PdbUtil { get; } = new EventId(740);
