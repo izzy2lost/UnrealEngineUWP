@@ -28,6 +28,7 @@ class USkeletalMesh;
 class UMaterialInterface;
 class UTexture2D;
 class FCustomizableObjectSystemPrivate; // This is used to hide Mutable SDK members in the public headers.
+class FUpdateContextPrivate;
 struct FFrame;
 struct FGuid;
 
@@ -170,9 +171,8 @@ public:
 };
 
 
-// Before the Mutable Queue rework this made sense, but this is no longer the case. Remove this when doing MTBL-1409.
 /** End a Customizable Object Instance Update. All code paths of an update have to end here. */
-void FinishUpdateGlobal(UCustomizableObjectInstance* Instance, EUpdateResult UpdateResult, const FInstanceUpdateDelegate* UpdateCallback, const FDescriptorRuntimeHash InUpdatedHash = FDescriptorRuntimeHash());
+void FinishUpdateGlobal(const TSharedRef<FUpdateContextPrivate>& Context);
 
 
 UCLASS(Blueprintable, BlueprintType)

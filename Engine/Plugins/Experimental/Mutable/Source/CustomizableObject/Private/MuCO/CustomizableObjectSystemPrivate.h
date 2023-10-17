@@ -32,136 +32,31 @@ class UCustomizableObjectSystem;
 namespace LowLevelTasks { enum class ETaskPriority : int8; }
 struct FTexturePlatformData;
 
-//! An operation to be performed by Mutable. This could be creating or updating an instance, releasing resources, changing an LOD, etc.
-//! Operations may be done in several tasks in several thread or across frames.
-class FMutableOperation 
-{
-	/** Instance parameters at the time of the operation request. */
-	mu::ParametersPtr Parameters; 
-	
-	TArray<FName> TextureParameters;
-
-	bool bBuildParameterRelevancy = false;
-
-	/** Instance optimization state. */
-	int32 State = 0;
-	
-	FMutableOperation() = default;
-	
-public:
-	FMutableOperation(const FMutableOperation&);
-	FMutableOperation(FMutableOperation&&) = default;
-	FMutableOperation& operator=(const FMutableOperation&);
-	FMutableOperation& operator=(FMutableOperation&&) = default;
-
-	~FMutableOperation();
-
-	static FMutableOperation CreateInstanceUpdate(UCustomizableObjectInstance& COInstance, const FInstanceUpdateDelegate* UpdateCallback);
-
-	// Weak reference to the instance we are operating on.
-	// It is weak because we don't want to lock it in case it becomes irrelevant in the game while operations are pending and it needs to be destroyed.
-	TWeakObjectPtr<UCustomizableObjectInstance> CustomizableObjectInstance;
-
-	/** Hash of the UCustomizableObjectInstance::Descriptor at the time of the update request. */
-	FDescriptorRuntimeHash InstanceDescriptorRuntimeHash;
-
-	//! This is used to calculate stats.
-	double StartUpdateTime = 0.0;
-
-	FInstanceUpdateDelegate UpdateCallback;
-	
-	bool IsBuildParameterRelevancy() const
-	{
-		return bBuildParameterRelevancy;
-	}
-
-	/** Read-only access to the mutable instance parameters for this operation. */
-	mu::ParametersPtrConst GetParameters() const
-	{
-		return Parameters;
-	}
-
-	int32 GetState() const
-	{
-		return State;
-	}
-};
-
 
 struct FMutablePendingInstanceUpdate
 {
-	EQueuePriorityType PriorityType = EQueuePriorityType::Low;
-
-	TWeakObjectPtr<UCustomizableObjectInstance> CustomizableObjectInstance;
-	FCustomizableObjectInstanceDescriptor InstanceDescriptor;
+	TSharedRef<FUpdateContextPrivate> Context;
 
 	double SecondsAtUpdate = 0;
-	FInstanceUpdateDelegate* Callback = nullptr;
 
-	FMutablePendingInstanceUpdate(UCustomizableObjectInstance* InCustomizableObjectInstance)
-	{
-		check(InCustomizableObjectInstance);
-		CustomizableObjectInstance = InCustomizableObjectInstance;
-	}
+	FMutablePendingInstanceUpdate(const TSharedRef<FUpdateContextPrivate>& InContext);
 
-	FMutablePendingInstanceUpdate(UCustomizableObjectInstance* InCustomizableObjectInstance, EQueuePriorityType NewPriorityType, 
-		                          FInstanceUpdateDelegate* InCallback)
-	{
-		PriorityType = NewPriorityType;
+	bool operator==(const FMutablePendingInstanceUpdate& Other) const;
 
-		check(InCustomizableObjectInstance);
-		CustomizableObjectInstance = InCustomizableObjectInstance;
-		InstanceDescriptor = CustomizableObjectInstance->GetDescriptor();
-
-		SecondsAtUpdate = FPlatformTime::Seconds();
-		Callback = InCallback;
-	}
-
-	friend bool operator ==(const FMutablePendingInstanceUpdate& A, const FMutablePendingInstanceUpdate& B)
-	{
-		return A.CustomizableObjectInstance.HasSameIndexAndSerialNumber(B.CustomizableObjectInstance);
-	}
-
-	friend bool operator <(const FMutablePendingInstanceUpdate& A, const FMutablePendingInstanceUpdate& B)
-	{
-		if (A.PriorityType < B.PriorityType)
-		{
-			return true;
-		}
-		else if (A.PriorityType > B.PriorityType)
-		{
-			return false;
-		}
-		else
-		{
-			return A.SecondsAtUpdate < B.SecondsAtUpdate;
-		}
-	}
+	bool operator<(const FMutablePendingInstanceUpdate& Other) const;
 };
 
 
-inline uint32 GetTypeHash(const FMutablePendingInstanceUpdate& Update)
-{
-	return GetTypeHash(Update.CustomizableObjectInstance.GetWeakPtrTypeHash());
-}
+inline uint32 GetTypeHash(const FMutablePendingInstanceUpdate& Update);
 
 
 struct FPendingInstanceUpdateKeyFuncs : BaseKeyFuncs<FMutablePendingInstanceUpdate, TWeakObjectPtr<const UCustomizableObjectInstance>>
 {
-	FORCEINLINE static TWeakObjectPtr<const UCustomizableObjectInstance> GetSetKey(const FMutablePendingInstanceUpdate& PendingUpdate)
-	{
-		return PendingUpdate.CustomizableObjectInstance;
-	}
+	FORCEINLINE static TWeakObjectPtr<const UCustomizableObjectInstance> GetSetKey(const FMutablePendingInstanceUpdate& PendingUpdate);
 
-	FORCEINLINE static bool Matches(const TWeakObjectPtr<const UCustomizableObjectInstance>& A, const TWeakObjectPtr<const UCustomizableObjectInstance>& B)
-	{
-		return A.HasSameIndexAndSerialNumber(B);
-	}
+	FORCEINLINE static bool Matches(const TWeakObjectPtr<const UCustomizableObjectInstance>& A, const TWeakObjectPtr<const UCustomizableObjectInstance>& B);
 
-	FORCEINLINE static uint32 GetKeyHash(const TWeakObjectPtr<const UCustomizableObjectInstance>& Identifier)
-	{
-		return GetTypeHash(Identifier.GetWeakPtrTypeHash());
-	}
+	FORCEINLINE static uint32 GetKeyHash(const TWeakObjectPtr<const UCustomizableObjectInstance>& Identifier);
 };
 
 
@@ -501,21 +396,52 @@ struct FPendingTextureCoverageQuery
 };
 
 
-/** Runtime data used during a mutable instance update */
-struct FMutableOperationData
+/** Update Context.
+ *
+ * Alive from the start to the end of the update (both API and LOD update). */
+class FUpdateContextPrivate
 {
+public:
+	FUpdateContextPrivate(UCustomizableObjectInstance& InInstance);
+	~FUpdateContextPrivate();
+
+	EQueuePriorityType PriorityType = EQueuePriorityType::Low;
+	
+	FInstanceUpdateDelegate UpdateCallback;
+
+	/** Weak reference to the instance we are operating on.
+	 *It is weak because we don't want to lock it in case it becomes irrelevant in the game while operations are pending and it needs to be destroyed. */
 	TWeakObjectPtr<UCustomizableObjectInstance> Instance;
 
+	/** Hash of the UCustomizableObjectInstance::Descriptor at the time of the update request. */
+	FDescriptorRuntimeHash InstanceDescriptorRuntimeHash;
+			
+	/** Instance parameters at the time of the operation request. */
+	mu::ParametersPtr Parameters; 
+	
+	TArray<FName> TextureParameters;
+
+	bool bBuildParameterRelevancy = false;
+
+	/** Instance state. */
+	int32 State = 0;
+
+	bool bOnlyUpdateIfNotGenerated = false;
+	bool bIgnoreCloseDist = false;
+	bool bForceHighPriority = false;
+	
 	FInstanceUpdateData InstanceUpdateData;
-	TArray<int> RelevantParametersInProgress;
+	TArray<int32> RelevantParametersInProgress;
 
 	TArray<FString> LowPriorityTextures;
 
 	/** This option comes from the operation request */
 	bool bNeverStream = false;
+	
 	/** When this option is enabled it will reuse the Mutable core instance and its temp data between updates.  */
 	bool bLiveUpdateMode = false;
 	bool bReuseInstanceTextures = false;
+	
 	/** This option comes from the operation request. It is used to reduce the number of mipmaps that mutable must generate for images.  */
 	int32 MipsToSkip = 0;
 
@@ -534,17 +460,13 @@ struct FMutableOperationData
 	/** This list of queries is generated in the update mutable task, and consumed later in the game thread. */
 	TArray<FPendingTextureCoverageQuery> PendingTextureCoverageQueries;
 
-	mu::Ptr<const mu::Parameters> MutableParameters;
-
-	int32 State = 0;
-
-	bool bBuildParameterRelevancy = false;
-
-	EUpdateResult UpdateResult;
-	FInstanceUpdateDelegate UpdateCallback;
+	EUpdateResult UpdateResult = EUpdateResult::Success;
 
 	mu::FImageOperator::FImagePixelFormatFunc PixelFormatOverride;
 
+	// Update stats
+	double StartUpdateTime = 0.0;
+	
 #if WITH_EDITOR
 	/** Used for profiling in the editor. */
 	uint32 MutableRuntimeCycles = 0;
@@ -664,7 +586,7 @@ public:
 
 	EQueuePriorityType GetUpdatePriority(const UCustomizableObjectInstance& Instance, bool bForceHighPriority) const;
 
-	void EnqueueUpdateSkeletalMesh(UCustomizableObjectInstance& Instance, bool bOnlyUpdateIfNotGenerated, bool bIgnoreCloseDist, bool bForceHighPriority, const EUpdateRequired* OptionalUpdateRequired, FInstanceUpdateDelegate* UpdateCallback);
+	void EnqueueUpdateSkeletalMesh(const TSharedRef<FUpdateContextPrivate>& Context);
 		
 	// Init an async and safe release of the UE and Mutable resources used by the instance without actually destroying the instance, for example if it's very far away
 	void InitDiscardResourcesSkeletalMesh(UCustomizableObjectInstance* InCustomizableObjectInstance);
@@ -695,7 +617,7 @@ public:
 	// This is protected from GC by AddReferencedObjects
 	TObjectPtr<UCustomizableObjectInstance> CurrentInstanceBeingUpdated = nullptr;
 
-	TSharedPtr<FMutableOperation> CurrentMutableOperation = nullptr;
+	TSharedPtr<FUpdateContextPrivate> CurrentMutableOperation = nullptr;
 
 	// Handle to the registered TickDelegate.
 	FTSTicker::FDelegateHandle TickDelegateHandle;
@@ -709,7 +631,7 @@ public:
 	FUnrealMutableImageProvider* GetImageProviderChecked() const;
 
 	/** Start the actual work of Update Skeletal Mesh process (Update Skeletal Mesh without the queue). */
-	void StartUpdateSkeletalMesh(const TSharedPtr<FMutableOperation>& Operation);
+	void StartUpdateSkeletalMesh(const TSharedRef<FUpdateContextPrivate>& Context);
 
 	/** See UCustomizableObjectInstance::IsUpdating. */
 	bool IsUpdating(const UCustomizableObjectInstance& Instance) const;

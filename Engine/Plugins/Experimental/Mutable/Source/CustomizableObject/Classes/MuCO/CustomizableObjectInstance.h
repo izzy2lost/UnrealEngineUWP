@@ -17,6 +17,7 @@ class UCustomizableInstancePrivateData; // This is used to hide Mutable SDK memb
 class UCustomizableObject;
 class UCustomizableSkeletalComponent;
 class UTexture2D;
+class FUpdateContextPrivate;
 struct FFrame;
 struct FGameplayTagContainer;
 struct FPropertyChangedEvent;
@@ -698,7 +699,7 @@ private:
 	UPROPERTY()
 	TArray<FCustomizableObjectFloatParameterValue> FloatParameters_DEPRECATED;
 
-	UPROPERTY()
+	UPROPERTY()																																						
 	TArray<FCustomizableObjectTextureParameterValue> TextureParameters_DEPRECATED;
 
 	UPROPERTY()
@@ -740,7 +741,7 @@ public:
 
 	void Issue();
 
-	void ApplyLODUpdateParamsToInstance();
+	void ApplyLODUpdateParamsToInstance(FUpdateContextPrivate* Context = nullptr);
 
 private:
 	/** If true it means that EnqueueUpdateSkeletalMesh has decided this update should be performed, if false it should be ignored. Just used for consistency checks */
