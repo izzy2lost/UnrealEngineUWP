@@ -53,6 +53,7 @@ public:
 	{
 		Initial, // In the initial state, there is no proxy and therefore changes do not need to be tracked, e.g., during initial setup of an ISM component.
 		Tracked,
+		Disabled,
 	};
 
 	enum class EMode
