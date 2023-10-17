@@ -2064,11 +2064,14 @@ void ShaderConvertAndStripComments(const FString& ShaderSource, TArray<ANSICHAR>
 			}
 		}
 	}
-	// Null terminate after comment-stripped copy
-	check(CurrentOut < (OutStripped.GetData() + BufferSize));
-	*CurrentOut++ = 0;
+	// Null terminate after comment-stripped copy, plus 15 zero padding characters for SSE safe reads
+	check(CurrentOut + 16 <= (OutStripped.GetData() + BufferSize));
+	for (int32 TerminateAndPadIndex = 0; TerminateAndPadIndex < 16; TerminateAndPadIndex++)
+	{
+		*CurrentOut++ = 0;
+	}
 
-	// Set correct length after stripping but don't bother shrinking/reallocating -- shrinking would remove SSE padding we require
+	// Set correct length after stripping but don't bother shrinking/reallocating, minor memory overhead to save time
 	OutStripped.SetNum(CurrentOut - OutStripped.GetData(), /* bAllowShrinking */false);
 }
 
