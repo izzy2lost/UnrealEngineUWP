@@ -243,7 +243,7 @@ private:
 		AcceptFailedPayloads
 	};
 
-	ErrorHandlingResult OnPayloadPullError(FStringView BackendErrors);
+	ErrorHandlingResult OnPayloadPullError(const FPullRequestCollection& Requests, FStringView BackendErrors) const;
 	
 	bool ShouldVirtualizeAsset(const UObject* Owner) const;
 

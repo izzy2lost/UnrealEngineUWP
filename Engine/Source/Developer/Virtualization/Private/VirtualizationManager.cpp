@@ -197,6 +197,21 @@ public:
 		return CurrentRequests;
 	}
 
+	TArray<FIoHash> GetFailedPayloads() const
+	{
+		TArray<FIoHash> FailedPayloads;
+
+		for (const FPullRequest& Request : CurrentRequests)
+		{
+			if (!Request.IsSuccess())
+			{
+				FailedPayloads.Add(Request.GetIdentifier());
+			}
+		}
+
+		return FailedPayloads;
+	}
+
 	/** Returns if there are still requests that need servicing or not */
 	bool IsWorkComplete() const
 	{
@@ -1941,7 +1956,7 @@ void FVirtualizationManager::PullDataFromAllBackends(TArrayView<FPullRequest> Re
 		{
 			return; // All payloads pulled
 		}
-		else if (OnPayloadPullError(BackendErrors) != ErrorHandlingResult::Retry)
+		else if (OnPayloadPullError(RequestsCollection, BackendErrors) != ErrorHandlingResult::Retry)
 		{
 			return; // Some payloads failed to pull
 		}
@@ -1972,11 +1987,16 @@ void FVirtualizationManager::PullDataFromBackend(IVirtualizationBackend& Backend
 #endif //ENABLE_COOK_STATS
 }
 
-FVirtualizationManager::ErrorHandlingResult FVirtualizationManager::OnPayloadPullError(FStringView BackendErrors)
+FVirtualizationManager::ErrorHandlingResult FVirtualizationManager::OnPayloadPullError(const FPullRequestCollection& Requests, FStringView BackendErrors) const
 {
 	if (bUseLegacyErrorHandling)
 	{
 		return ErrorHandlingResult::AcceptFailedPayloads;
+	}
+
+	for (const FIoHash& FailedPayload : Requests.GetFailedPayloads())
+	{
+		UE_LOG(LogVirtualization, Error, TEXT("Payload '%s' failed to be pulled from any backend'"), *LexToString(FailedPayload));
 	}
 
 	static FCriticalSection CriticalSection;
