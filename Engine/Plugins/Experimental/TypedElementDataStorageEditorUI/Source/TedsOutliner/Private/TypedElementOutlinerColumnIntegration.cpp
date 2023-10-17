@@ -128,7 +128,7 @@ public:
 		, Storage(InStorage)
 		, StorageUi(InStorageUi)
 		, StorageCompatibility(InStorageCompatibility)
-		, QueryDescription(Storage.GetQueryDescription(InQuery))
+		, QueryHandle(InQuery)
 		, NameId(InNameId)
 		, OwningOutliner(InOwningOutliner)
 	{
@@ -166,7 +166,7 @@ public:
 		{
 			TypedElementRowHandle UiRowHandle = Storage.AddRow(Storage.FindTable(FName(TEXT("Editor_WidgetTable"))));
 			Widget = StorageUi.ConstructWidget(UiRowHandle, *HeaderWidgetConstructor, 
-				FComboMetaDataView(FGenericMetaDataView(MetaData)).Next(FQueryMetaDataView(QueryDescription)));
+				FComboMetaDataView(FGenericMetaDataView(MetaData)).Next(FQueryMetaDataView(Storage.GetQueryDescription(QueryHandle))));
 		}
 		if (!Widget.IsValid())
 		{
@@ -247,7 +247,7 @@ public:
 			}
 
 			if (TSharedPtr<SWidget> Widget = StorageUi.ConstructWidget(UiRowHandle, *CellWidgetConstructor, 
-				FComboMetaDataView(FGenericMetaDataView(MetaData)).Next(FQueryMetaDataView(QueryDescription))))
+				FComboMetaDataView(FGenericMetaDataView(MetaData)).Next(FQueryMetaDataView(Storage.GetQueryDescription(QueryHandle)))))
 			{
 				RowWidget =  Widget;
 			}
@@ -282,7 +282,7 @@ public:
 	ITypedElementDataStorageInterface& Storage;
 	ITypedElementDataStorageUiInterface& StorageUi;
 	ITypedElementDataStorageCompatibilityInterface& StorageCompatibility;
-	const ITypedElementDataStorageInterface::FQueryDescription& QueryDescription;
+	TypedElementDataStorage::QueryHandle QueryHandle;
 	TypedElementDataStorage::FMetaData MetaData;
 	FName NameId;
 	TSharedPtr<ISceneOutlinerColumn> FallbackColumn;
