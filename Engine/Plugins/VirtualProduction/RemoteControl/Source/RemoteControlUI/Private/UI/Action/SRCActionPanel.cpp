@@ -321,15 +321,18 @@ URCAction* SRCActionPanel::AddAction(const TSharedRef<const FRemoteControlField>
 
 			URCAction* NewAction = BehaviourItem->AddAction(InRemoteControlField);
 
-			AddNewActionToList(NewAction);
-
-			// Broadcast new Action to other panels
-			if (const TSharedPtr<SRemoteControlPanel> RemoteControlPanel = GetRemoteControlPanel())
+			if (NewAction)
 			{
-				RemoteControlPanel->OnActionAdded.Broadcast(NewAction);
-			}
+				AddNewActionToList(NewAction);
 
-			return NewAction;
+				// Broadcast new Action to other panels
+				if (const TSharedPtr<SRemoteControlPanel> RemoteControlPanel = GetRemoteControlPanel())
+				{
+					RemoteControlPanel->OnActionAdded.Broadcast(NewAction);
+				}
+
+				return NewAction;
+			}
 		}
 	}
 
