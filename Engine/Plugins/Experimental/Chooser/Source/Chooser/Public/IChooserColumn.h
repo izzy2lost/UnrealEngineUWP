@@ -24,7 +24,6 @@ public:
 };
 
 class UChooserTable;
-class FVariant;
 
 USTRUCT()
 struct CHOOSER_API FChooserColumnBase
@@ -49,7 +48,6 @@ public:
 		}
 	};
 
-	virtual void SetTestValue(TArrayView<const uint8> Value) { }
 	virtual FChooserParameterBase* GetInputValue() { return nullptr; };
 #if WITH_EDITOR
 	virtual FName RowValuesPropertyName() { return FName(); }

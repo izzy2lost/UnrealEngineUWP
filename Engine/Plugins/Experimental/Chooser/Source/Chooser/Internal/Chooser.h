@@ -34,22 +34,10 @@ public:
 	
 	void SetDebugSelectedRow(int32 Index) const { DebugSelectedRow = Index; }
 	int32 GetDebugSelectedRow() const { return DebugSelectedRow; }
-	bool HasDebugTarget() const { return !DebugTargetName.IsEmpty(); }
+	bool HasDebugTarget() const { return DebugTarget != nullptr; }
 	const UObject* GetDebugTarget() const { return DebugTarget.Get(); }
-	const FString& GetDebugTargetName() const { return DebugTargetName; }
-	void SetDebugTarget(TWeakObjectPtr<const UObject> Target)
-	{
-		DebugTarget = Target;
-		if (const UObject* DebugObject = DebugTarget.Get())
-		{
-			DebugTargetName = DebugObject->GetName();
-		}
-	}
-	void ResetDebugTarget()
-	{
-		DebugTarget.Reset();
-		DebugTargetName = "";
-	}
+	void SetDebugTarget(TWeakObjectPtr<const UObject> Target) { DebugTarget = Target; }
+	void ResetDebugTarget() { DebugTarget.Reset(); }
 	void IterateRecentContextObjects(TFunction<void(const UObject*)> Callback) const;
 	void UpdateDebugging(FChooserEvaluationContext& Context) const;
 	
@@ -66,9 +54,7 @@ private:
 	mutable TSet<TWeakObjectPtr<const UObject>> RecentContextObjects;
 	mutable FCriticalSection DebugLock;
 	// reference to the UObject in PIE  which we want to get debug info for
-	mutable TWeakObjectPtr<const UObject> DebugTarget;
-	FString DebugTargetName;
-	
+	TWeakObjectPtr<const UObject> DebugTarget;
 	// Row which was selected last time this chooser was evaluated on DebugTarget
 	mutable int32 DebugSelectedRow = -1;
 

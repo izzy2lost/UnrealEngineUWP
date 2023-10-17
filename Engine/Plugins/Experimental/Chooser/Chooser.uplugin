@@ -27,10 +27,6 @@
 		{
 			"Name": "BlendStack",
 			"Enabled": true
-		},
-		{
-			"Name": "GameplayInsights",
-			"Enabled": true
 		}
 	],
 	"Modules" :

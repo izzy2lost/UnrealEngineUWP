@@ -1,7 +1,6 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 #include "FloatRangeColumn.h"
 #include "ChooserPropertyAccess.h"
-#include "ChooserTrace.h"
 
 
 
@@ -26,8 +25,6 @@ void FFloatRangeColumn::Filter(FChooserEvaluationContext& Context, const TArray<
 	{
 		double Result = 0.0f;
 		InputValue.Get<FChooserParameterFloatBase>().GetValue(Context, Result);
-		
-		TRACE_CHOOSER_VALUE(Context, ToCStr(InputValue.Get<FChooserParameterBase>().GetDebugName()), Result);
 
 #if WITH_EDITOR
 		if (Context.DebuggingInfo.bCurrentDebugTarget)

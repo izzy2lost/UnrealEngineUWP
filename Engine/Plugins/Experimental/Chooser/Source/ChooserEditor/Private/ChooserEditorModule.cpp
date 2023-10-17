@@ -3,31 +3,28 @@
 #include "ChooserEditorModule.h"
 
 #include "AnimNode_ChooserPlayer.h"
-#include "BoolColumnEditor.h"
-#include "ChooserPropertyAccess.h"
-#include "ChooserTableEditor.h"
-#include "ChooserTableEditorCommands.h"
-#include "CurveOverrideCustomization.h"
-#include "EnumColumnEditor.h"
-#include "Features/IModularFeatures.h"
-#include "FloatRangeColumnEditor.h"
-#include "FrameTimeCustomization.h"
-#include "GameplayTagColumnEditor.h"
 #include "IAssetTools.h"
-#include "ObjectColumnEditor.h"
+#include "ChooserTableEditor.h"
+#include "BoolColumnEditor.h"
+#include "EnumColumnEditor.h"
+#include "FloatRangeColumnEditor.h"
 #include "OutputFloatColumnEditor.h"
-#include "OutputStructColumnEditor.h"
-#include "PropertyAccessChainCustomization.h"
+#include "GameplayTagColumnEditor.h"
+#include "ObjectColumnEditor.h"
+#include "ChooserTableEditorCommands.h"
+#include "ChooserPropertyAccess.h"
 #include "PropertyEditorModule.h"
 #include "RandomizeColumnEditor.h"
-#include "ChooserTrack.h"
+#include "OutputStructColumnEditor.h"
+#include "CurveOverrideCustomization.h"
+#include "FrameTimeCustomization.h"
 
 #define LOCTEXT_NAMESPACE "ChooserEditorModule"
 
 namespace UE::ChooserEditor
 {
 	
-FChoosersTrackCreator GChoosersTrackCreator;
+
 
 void FModule::StartupModule()
 {
@@ -54,16 +51,10 @@ void FModule::StartupModule()
 	PropertyModule.RegisterCustomPropertyTypeLayout(FChooserObjectPropertyBinding::StaticStruct()->GetFName(), FOnGetPropertyTypeCustomizationInstance::CreateLambda([] { return MakeShared<FPropertyAccessChainCustomization>(); }));
 	PropertyModule.RegisterCustomPropertyTypeLayout(FChooserStructPropertyBinding::StaticStruct()->GetFName(), FOnGetPropertyTypeCustomizationInstance::CreateLambda([] { return MakeShared<FPropertyAccessChainCustomization>(); }));
 
-	IModularFeatures::Get().RegisterModularFeature( IRewindDebuggerExtension::ModularFeatureName, &RewindDebuggerChooser);
-	IModularFeatures::Get().RegisterModularFeature(RewindDebugger::IRewindDebuggerTrackCreator::ModularFeatureName, &GChoosersTrackCreator);
-	IModularFeatures::Get().RegisterModularFeature(TraceServices::ModuleFeatureName, &ChooserTraceModule);
 }
 
 void FModule::ShutdownModule()
 {
-	IModularFeatures::Get().UnregisterModularFeature( IRewindDebuggerExtension::ModularFeatureName, &RewindDebuggerChooser);
-	IModularFeatures::Get().UnregisterModularFeature(RewindDebugger::IRewindDebuggerTrackCreator::ModularFeatureName, &GChoosersTrackCreator);
-	IModularFeatures::Get().UnregisterModularFeature(TraceServices::ModuleFeatureName, &ChooserTraceModule);
 	FChooserTableEditorCommands::Unregister();
 }
 

@@ -1,7 +1,6 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 #include "ObjectColumn.h"
 #include "ChooserPropertyAccess.h"
-#include "ChooserTrace.h"
 
 #if WITH_EDITOR
 	#include "IPropertyAccessEditor.h"
@@ -63,8 +62,7 @@ void FObjectColumn::Filter(FChooserEvaluationContext& Context, const TArray<uint
 	if (InputValue.IsValid() &&
 		InputValue.Get<FChooserParameterObjectBase>().GetValue(Context, Result))
 	{
-		TRACE_CHOOSER_VALUE(Context, ToCStr(InputValue.Get<FChooserParameterBase>().GetDebugName()), Result.ToString());
-	
+		
 #if WITH_EDITOR
 		if (Context.DebuggingInfo.bCurrentDebugTarget)
 		{

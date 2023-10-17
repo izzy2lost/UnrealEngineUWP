@@ -6,7 +6,6 @@
 #include "IChooserColumn.h"
 #include "IChooserParameterObject.h"
 #include "InstancedStruct.h"
-#include "Serialization/MemoryReader.h"
 #include "ObjectColumn.generated.h"
 
 struct FBindingChainElement;
@@ -90,13 +89,6 @@ struct CHOOSER_API FObjectColumn : public FChooserColumnBase
 	virtual bool EditorTestFilter(int32 RowIndex) const override
 	{
 		return RowValues.IsValidIndex(RowIndex) && RowValues[RowIndex].Evaluate(TestValue);
-	}
-	virtual void SetTestValue(TArrayView<const uint8> Value) override
-	{
-		FMemoryReaderView Reader(Value);
-		FString Path;
-		Reader << Path;
-		TestValue.SetPath(Path);
 	}
 #endif
 

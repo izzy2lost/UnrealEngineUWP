@@ -2,7 +2,6 @@
 #include "BoolColumn.h"
 #include "ChooserPropertyAccess.h"
 #include "Chooser.h"
-#include "ChooserTrace.h"
 
 bool FBoolContextProperty::GetValue(FChooserEvaluationContext& Context, bool& OutResult) const
 {
@@ -25,8 +24,6 @@ void FBoolColumn::Filter(FChooserEvaluationContext& Context, const TArray<uint32
 	{
 		bool Result = false;
 		InputValue.Get<FChooserParameterBoolBase>().GetValue(Context,Result);
-
-		TRACE_CHOOSER_VALUE(Context, ToCStr(InputValue.Get<FChooserParameterBase>().GetDebugName()), Result);
 
 	#if WITH_EDITOR
 		if (Context.DebuggingInfo.bCurrentDebugTarget)

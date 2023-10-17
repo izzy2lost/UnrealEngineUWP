@@ -32,12 +32,6 @@ namespace UnrealBuildTool.Rules
 					"StructUtils",
 					"KismetCompiler",
 					"BlendStack",
-					"TraceAnalysis",
-					"TraceLog",
-					"TraceServices",
-					"TraceInsights",
-					"RewindDebuggerInterface",
-					"GameplayInsights",
 					// ... add private dependencies that you statically link with here ...
 				}
 			);

@@ -7,7 +7,6 @@
 #include "ChooserPropertyAccess.h"
 #include "GameplayTagContainer.h"
 #include "InstancedStruct.h"
-#include "Serialization/MemoryReader.h"
 #include "GameplayTagColumn.generated.h"
 
 struct FBindingChainElement;
@@ -98,14 +97,6 @@ struct CHOOSER_API FGameplayTagColumn : public FChooserColumnBase
 		}
 		return false;
 	}
-
-	virtual void SetTestValue(TArrayView<const uint8> Value) override
-    {
-    	FMemoryReaderView Reader(Value);
-		FString Tags;
-    	Reader << Tags;
-		TestValue.FromExportString(Tags);
-    }
 #endif
 
 	virtual void PostLoad() override
