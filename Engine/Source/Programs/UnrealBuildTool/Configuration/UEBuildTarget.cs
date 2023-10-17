@@ -2746,7 +2746,8 @@ namespace UnrealBuildTool
 					}
 					else if (ExecutableExt.Equals(Ext, StringComparison.OrdinalIgnoreCase))
 					{
-						ProductType = BuildProductType.Executable;
+						// Should not be marked as Executable as that enum value is used for the primary target
+						ProductType = BuildProductType.RequiredResource;
 					}
 					else if (DebugInfoExtensions.Contains(Ext, StringComparer.OrdinalIgnoreCase))
 					{
