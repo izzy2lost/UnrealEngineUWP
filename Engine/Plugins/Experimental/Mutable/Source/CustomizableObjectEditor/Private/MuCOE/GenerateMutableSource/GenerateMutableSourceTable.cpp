@@ -274,8 +274,6 @@ bool FillTableColumn(const UCustomizableObjectNodeTable* TableNode,	mu::TablePtr
 					{
 						for (const UAssetUserData* AssetUserData : *AssetUserDataArray)
 						{
-							GenerationContext.AddParticipatingObject(*AssetUserData);
-
 							FString AuxString = AssetUserData->GetPathName();
 							GenerationContext.AssetUserDataAssetsMap.Add(AuxString, TSoftObjectPtr<UAssetUserData>(AssetUserData));
 

@@ -2888,8 +2888,6 @@ mu::NodeMeshPtr GenerateMutableSourceMesh(const UEdGraphPin* Pin,
 				{
 					for (const UAssetUserData* AssetUserData : *AssetUserDataArray)
 					{
-						GenerationContext.AddParticipatingObject(*AssetUserData);
-
 						FString AuxString = AssetUserData->GetPathName();
 						GenerationContext.AssetUserDataAssetsMap.Add(AuxString, TSoftObjectPtr<UAssetUserData>(AssetUserData));
 
