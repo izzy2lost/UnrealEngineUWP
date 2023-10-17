@@ -2256,7 +2256,7 @@ void FControlRigEditMode::UpdatePivotFromShapeActors(UBaseControlRig* InControlR
 				PivotLocation += ShapeTransform.GetLocation();
 				
 				++NumSelectedControls;
-				if (!bEachLocalSpace)
+				if (bEachLocalSpace)
 				{
 					break;
 				}
