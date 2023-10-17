@@ -163,6 +163,9 @@ void FNavigationOctree::AddNode(UObject* ElementOb, INavRelevantInterface* NavEl
 #if WITH_EDITOR
 			const IInterface_AsyncCompilation* AsyncCompiledObject = Cast<IInterface_AsyncCompilation>(ElementOb);
 			bIsCompiling = AsyncCompiledObject && AsyncCompiledObject->IsCompiling();
+
+			UE_CLOG(bIsCompiling, LogNavigation, Warning, TEXT("%hs: Objects %s should not be considered relevant to navigation until associated asset compilation is completed."),
+				__FUNCTION__, *GetFullNameSafe(ElementOb));
 #endif
 
 			// Skip custom navigation export during async compilation, the node will be invalidated once
