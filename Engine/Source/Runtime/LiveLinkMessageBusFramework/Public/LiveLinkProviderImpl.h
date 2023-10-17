@@ -29,7 +29,7 @@ struct FTrackedSubject
 };
 PRAGMA_ENABLE_DEPRECATION_WARNINGS
 
-struct FLiveLinkProvider : public ILiveLinkProvider
+struct LIVELINKMESSAGEBUSFRAMEWORK_API FLiveLinkProvider : public ILiveLinkProvider
 {
 private:
 	const FString ProviderName;
@@ -61,9 +61,6 @@ private:
 	void HandleHeartbeat(const FLiveLinkHeartbeatMessage& Message,
 						 const TSharedRef<class IMessageContext, ESPMode::ThreadSafe>& Context);
 	// End message bus message handlers
-
-	// Validate our current connections
-	void ValidateConnections();
 	
 	FTrackedSubject& GetTrackedSubject(const FName& SubjectName);
 
@@ -85,9 +82,13 @@ private:
 
 	void SendClearSubjectToConnections(FName SubjectName);
 
+protected:
+	// Get the addresses of all connected instances.
 	void GetConnectedAddresses(TArray<FMessageAddress>& Addresses);
 
-protected:
+	// Validate our current connections, removing those that have timed out.
+	void ValidateConnections();
+
 	template<typename MessageType>
 	void SendMessage(MessageType* Message)
 	{

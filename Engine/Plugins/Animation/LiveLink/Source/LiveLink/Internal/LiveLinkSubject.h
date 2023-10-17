@@ -41,7 +41,7 @@ struct FLiveLinkTimeSynchronizationData
 /**
  * Manages subject manipulation either to add or get frame data for specific roles
  */
-class FLiveLinkSubject : public ILiveLinkSubject, public ITimedDataInputChannel
+class LIVELINK_API FLiveLinkSubject : public ILiveLinkSubject, public ITimedDataInputChannel
 {
 private:
 	using Super = ILiveLinkSubject;

@@ -19,11 +19,13 @@ class ULiveLinkSourceSettings;
 class ULiveLinkSubjectSettings;
 class ULiveLinkVirtualSubject;
 
-struct FLiveLinkCollectionSourceItem
+struct LIVELINK_API FLiveLinkCollectionSourceItem
 {
 	FLiveLinkCollectionSourceItem() = default;
-	FLiveLinkCollectionSourceItem(const FLiveLinkCollectionSourceItem&) = delete;
 	FLiveLinkCollectionSourceItem(FLiveLinkCollectionSourceItem&&) = default;
+	FLiveLinkCollectionSourceItem& operator=(FLiveLinkCollectionSourceItem&&) = default;
+
+	FLiveLinkCollectionSourceItem(const FLiveLinkCollectionSourceItem&) = delete;
 	FLiveLinkCollectionSourceItem& operator=(const FLiveLinkCollectionSourceItem&) = delete;
 
 	FGuid Guid;
@@ -38,7 +40,7 @@ public:
 };
 
 
-struct FLiveLinkCollectionSubjectItem
+struct LIVELINK_API FLiveLinkCollectionSubjectItem
 {
 	FLiveLinkCollectionSubjectItem(FLiveLinkSubjectKey InKey, TUniquePtr<FLiveLinkSubject> InLiveSubject, ULiveLinkSubjectSettings* InSettings, bool bInEnabled);
 	FLiveLinkCollectionSubjectItem(FLiveLinkSubjectKey InKey, ULiveLinkVirtualSubject* InVirtualSubject, bool bInEnabled);
@@ -72,12 +74,14 @@ public:
 };
 
 
-class FLiveLinkSourceCollection : public FGCObject
+class LIVELINK_API FLiveLinkSourceCollection : public FGCObject
 {
 public:
 	// "source guid" for virtual subjects
 	static const FGuid DefaultVirtualSubjectGuid;
 	FLiveLinkSourceCollection();
+
+	UE_NONCOPYABLE(FLiveLinkSourceCollection)
 
 public:
 	//~ Begin FGCObject implementation

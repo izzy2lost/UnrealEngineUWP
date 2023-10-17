@@ -43,7 +43,7 @@
 		},
 		{
 			"Name": "LiveLinkHub",
-			"Type": "Runtime",
+			"Type": "EditorAndProgram",
 			"ProgramAllowList": [ "LiveLinkHub" ],
 			"LoadingPhase": "PreDefault"
 		},

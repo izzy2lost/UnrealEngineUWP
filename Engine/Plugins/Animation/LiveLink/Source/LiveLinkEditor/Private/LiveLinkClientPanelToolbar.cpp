@@ -408,6 +408,8 @@ void SLiveLinkClientPanelToolbar::Construct(const FArguments& Args, FLiveLinkCli
 {
 	Client = InClient;
 
+	ParentWindowOverride = Args._ParentWindow;
+
 	TArray<UClass*> Results;
 	GetDerivedClasses(ULiveLinkSourceFactory::StaticClass(), Results, true);
 	for (UClass* SourceFactory : Results)
@@ -765,7 +767,7 @@ TSharedRef<SWidget> SLiveLinkClientPanelToolbar::OnPresetGeneratePresetsMenu()
 	return MenuBuilder.MakeWidget();
 }
 
-static bool OpenSaveDialog(const FString& InDefaultPath, const FString& InNewNameSuggestion, FString& OutPackageName)
+static bool OpenSaveDialog(const FString& InDefaultPath, const FString& InNewNameSuggestion, TSharedPtr<SWindow> InParentWindowOverride, FString& OutPackageName)
 {
 	FSaveAssetDialogConfig SaveAssetDialogConfig;
 	{
@@ -774,6 +776,7 @@ static bool OpenSaveDialog(const FString& InDefaultPath, const FString& InNewNam
 		SaveAssetDialogConfig.AssetClassNames.Add(ULiveLinkPreset::StaticClass()->GetClassPathName());
 		SaveAssetDialogConfig.ExistingAssetPolicy = ESaveAssetDialogExistingAssetPolicy::AllowButWarn;
 		SaveAssetDialogConfig.DialogTitleOverride = LOCTEXT("SaveLiveLinkPresetDialogTitle", "Save LiveLink Preset");
+		SaveAssetDialogConfig.WindowOverride = InParentWindowOverride;
 	}
 
 	FContentBrowserModule& ContentBrowserModule = FModuleManager::LoadModuleChecked<FContentBrowserModule>("ContentBrowser");
@@ -788,7 +791,7 @@ static bool OpenSaveDialog(const FString& InDefaultPath, const FString& InNewNam
 	return false;
 }
 
-bool GetSavePresetPackageName(FString& OutName)
+bool GetSavePresetPackageName(TSharedPtr<SWindow> InParentWindowOverride, FString& OutName)
 {
 	ULiveLinkUserSettings* ConfigSettings = GetMutableDefault<ULiveLinkUserSettings>();
 
@@ -825,7 +828,7 @@ bool GetSavePresetPackageName(FString& OutName)
 	bool bFilenameValid = false;
 	while (!bFilenameValid)
 	{
-		if (!OpenSaveDialog(DialogStartPath, DialogStartName, UserPackageName))
+		if (!OpenSaveDialog(DialogStartPath, DialogStartName, InParentWindowOverride, UserPackageName))
 		{
 			return false;
 		}
@@ -845,7 +848,7 @@ bool GetSavePresetPackageName(FString& OutName)
 void SLiveLinkClientPanelToolbar::OnSaveAsPreset()
 {
 	FString PackageName;
-	if (!GetSavePresetPackageName(PackageName))
+	if (!GetSavePresetPackageName(ParentWindowOverride, PackageName))
 	{
 		return;
 	}

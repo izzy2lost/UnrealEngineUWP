@@ -19,9 +19,10 @@ class STextEntryPopup;
 class ULiveLinkSourceFactory;
 struct FAssetData;
 
-class SLiveLinkClientPanelToolbar : public SCompoundWidget, public FGCObject
+class LIVELINKEDITOR_API SLiveLinkClientPanelToolbar : public SCompoundWidget, public FGCObject
 {
 	SLATE_BEGIN_ARGS(SLiveLinkClientPanelToolbar){}
+	SLATE_ARGUMENT(TSharedPtr<SWindow>, ParentWindow)
 	SLATE_END_ARGS()
 
 
@@ -64,4 +65,7 @@ private:
 
 	TWeakObjectPtr<ULiveLinkPreset> LiveLinkPreset;
 	TArray<TObjectPtr<ULiveLinkSourceFactory>> Factories;
+
+	/** Parent window override used for creating asset dialogs when running in LiveLinkHub. */
+	TSharedPtr<SWindow> ParentWindowOverride;
 };

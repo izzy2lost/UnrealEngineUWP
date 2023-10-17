@@ -158,6 +158,9 @@ public:
 
 	/** Get the type of a source */
 	virtual FText GetSourceType(FGuid SourceGuid) const = 0;
+	
+	/** Get the status of a source */
+	virtual FText GetSourceStatus(FGuid EntryGuid) const = 0;
 
 	/** Push static data for a specific subject for a certain role. This will clear all buffered frames */
 	virtual void PushSubjectStaticData_AnyThread(const FLiveLinkSubjectKey& SubjectKey, TSubclassOf<ULiveLinkRole> Role, FLiveLinkStaticDataStruct&& StaticData) = 0;
