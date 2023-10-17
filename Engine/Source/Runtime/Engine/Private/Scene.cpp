@@ -572,9 +572,6 @@ FPostProcessSettings::FPostProcessSettings()
 	LumenFullSkylightLeakingDistance = 1000.0f;
 
 	ColorGradingIntensity = 1.0f;
-	RayTracingGIType = ERayTracingGlobalIlluminationType::Disabled;
-	RayTracingGIMaxBounces = 1;
-	RayTracingGISamplesPerPixel = 4;
 
 	DepthOfFieldFocalDistance = 0; // Intentionally invalid to disable DOF by default.
 	DepthOfFieldFstop = 4.0f; 
@@ -903,12 +900,6 @@ void FPostProcessSettings::PostSerialize(const FArchive& Ar)
 
 		if (Ar.CustomVer(FUE5ReleaseStreamObjectVersion::GUID) < FUE5ReleaseStreamObjectVersion::ReflectionMethodEnum)
 		{
-			if (bOverride_RayTracingGI && RayTracingGIType != ERayTracingGlobalIlluminationType::Disabled)
-			{
-				bOverride_DynamicGlobalIlluminationMethod = true;
-				DynamicGlobalIlluminationMethod = EDynamicGlobalIlluminationMethod::RayTraced;
-			}
-
 			if (bOverride_ReflectionsType_DEPRECATED)
 			{
 				bOverride_ReflectionMethod = true;

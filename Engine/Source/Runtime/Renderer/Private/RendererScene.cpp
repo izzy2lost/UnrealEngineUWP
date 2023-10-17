@@ -393,11 +393,6 @@ FSceneViewState::FSceneViewState(ERHIFeatureLevel::Type FeatureLevel, FSceneView
 	PreExposure = 1.f;
 	bUpdateLastExposure = false;
 
-#if RHI_RAYTRACING
-	GatherPointsBuffer = nullptr;
-	GatherPointsResolution = FIntVector(0, 0, 0);
-#endif
-
 	bLumenSceneDataAdded = false;
 	LumenSurfaceCacheResolution = 1.0f;
 
@@ -1115,7 +1110,6 @@ uint64 FSceneViewState::GetGPUSizeBytes(bool bLogSizes) const
 	TotalSize += GetRenderTargetGPUSizeBytes(ImaginaryReflectionDepthZ, bLogSizes);
 	TotalSize += GetRenderTargetGPUSizeBytes(ImaginaryReflectionVelocity, bLogSizes);
 	TotalSize += GetBufferGPUSizeBytes(SkyLightVisibilityRaysBuffer, bLogSizes);
-	TotalSize += GetBufferGPUSizeBytes(GatherPointsBuffer, bLogSizes);
 #endif
 	TotalSize += GetRenderTargetGPUSizeBytes(LightScatteringHistory, bLogSizes);
 	TotalSize += GetRenderTargetGPUSizeBytes(PrevLightScatteringConservativeDepthTexture, bLogSizes);

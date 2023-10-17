@@ -102,14 +102,6 @@ enum class ETranslucencyType : uint8
 
 
 UENUM()
-enum class ERayTracingGlobalIlluminationType : uint8
-{
-	Disabled    UMETA(DisplayName = "Disabled"),
-	BruteForce  UMETA(DisplayName = "Brute Force"),
-	FinalGather UMETA(DisplayName = "Final Gather")
-};
-
-UENUM()
 enum class EReflectedAndRefractedRayTracedShadows : uint8
 {
 	Disabled		UMETA(DisplayName = "Disabled"),
@@ -1584,11 +1576,6 @@ struct FPostProcessSettings
 	UPROPERTY(interp, BlueprintReadWrite, AdvancedDisplay, Category="Global Illumination", meta=(ClampMin = "0", UIMax = "4.0", editcondition = "bOverride_IndirectLightingIntensity", DisplayName = "Indirect Lighting Intensity"))
 	float IndirectLightingIntensity;
 
-#if WITH_EDITORONLY_DATA
-	UPROPERTY()
-	uint32 RayTracingGI_DEPRECATED : 1;
-#endif
-
 	/** Scales Lumen Scene's quality.  Larger scales cause Lumen Scene to be calculated with a higher fidelity, which can be visible in reflections, but increase GPU cost. */
 	UPROPERTY(interp, EditAnywhere, BlueprintReadWrite, Category = "Global Illumination|Lumen Global Illumination", meta = (ClampMin = ".25", UIMax = "2", editcondition = "bOverride_LumenSceneLightingQuality", DisplayName = "Lumen Scene Lighting Quality"))
 	float LumenSceneLightingQuality;
@@ -1633,18 +1620,6 @@ struct FPostProcessSettings
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Global Illumination|Lumen Global Illumination", meta = (ClampMin = ".5", ClampMax = "1", editcondition = "bOverride_LumenSurfaceCacheResolution", DisplayName = "Scene Capture Cache Resolution Scale"))
 	float LumenSurfaceCacheResolution;
 
-	/** Sets the ray tracing global illumination type. */
-	UPROPERTY(interp, EditAnywhere, BlueprintReadWrite, Category = "Global Illumination|Ray Tracing Global Illumination", meta = (editcondition = "bOverride_RayTracingGI", DisplayName = "Type"))
-	ERayTracingGlobalIlluminationType RayTracingGIType;
-
-	/** Sets the ray tracing global illumination maximum bounces. */
-	UPROPERTY(interp, EditAnywhere, BlueprintReadWrite, Category = "Global Illumination|Ray Tracing Global Illumination", meta = (ClampMin = "0", ClampMax = "50", editcondition = "bOverride_RayTracingGIMaxBounces", DisplayName = "Max. Bounces"))
-	int32 RayTracingGIMaxBounces;
-
-	/** Sets the samples per pixel for ray tracing global illumination. */
-	UPROPERTY(interp, EditAnywhere, BlueprintReadWrite, Category = "Global Illumination|Ray Tracing Global Illumination", meta = (ClampMin = "1", ClampMax = "65536", editcondition = "bOverride_RayTracingGISamplesPerPixel", DisplayName = "Samples Per Pixel"))
-	int32 RayTracingGISamplesPerPixel;
-	
 	/** Chooses the Reflection method. Not compatible with Forward Shading. */
 	UPROPERTY(interp, EditAnywhere, BlueprintReadWrite, Category = "Reflections", meta = (editcondition = "bOverride_ReflectionMethod", DisplayName = "Method"))
 	TEnumAsByte<EReflectionMethod::Type> ReflectionMethod;
@@ -2310,10 +2285,6 @@ struct FPostProcessSettings
 			BloomConvolutionPreFilterMin = BloomConvolutionPreFilter_DEPRECATED.X;
 			BloomConvolutionPreFilterMax = BloomConvolutionPreFilter_DEPRECATED.Y;
 			BloomConvolutionPreFilterMult = BloomConvolutionPreFilter_DEPRECATED.Z;
-		}
-		if (RayTracingGI_DEPRECATED)
-		{
-			RayTracingGIType = (ERayTracingGlobalIlluminationType)(RayTracingGI_DEPRECATED == 1);
 		}
 
 		if (bOverride_LocalExposureContrastScale_DEPRECATED)

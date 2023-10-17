@@ -1628,11 +1628,6 @@ void FSceneView::OverridePostProcessSettings(const FPostProcessSettings& Src, fl
 		SET_PP(RayTracingTranslucencyShadows);
 		SET_PP(RayTracingTranslucencyRefraction);
 
-		if (Src.bOverride_RayTracingGI)
-		{
-			Dest.RayTracingGIType = Src.RayTracingGIType;
-		}
-
 		SET_PP(DynamicGlobalIlluminationMethod);
 		SET_PP(LumenSurfaceCacheResolution);
 		SET_PP(LumenSceneLightingQuality);
@@ -1653,8 +1648,6 @@ void FSceneView::OverridePostProcessSettings(const FPostProcessSettings& Src, fl
 		SET_PP(LumenMaxReflectionBounces);
 		SET_PP(ReflectionMethod);
 		SET_PP(LumenReflectionQuality);
-		SET_PP(RayTracingGIMaxBounces);
-		SET_PP(RayTracingGISamplesPerPixel);
 		SET_PP(RayTracingAO);
 		SET_PP(RayTracingAOSamplesPerPixel);
 		SET_PP(RayTracingAOIntensity);

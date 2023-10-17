@@ -435,9 +435,6 @@ namespace EDynamicGlobalIlluminationMethod
 		/** Standalone Screen Space Global Illumination.  Low cost, but limited by screen space information. */
 		ScreenSpace UMETA(DisplayName="Screen Space (Beta)"),
 
-		/** Standalone Ray Traced Global Illumination technique.  Deprecated, use Lumen Global Illumination instead. */
-		RayTraced UMETA(DisplayName="Standalone Ray Traced (Deprecated)"),
-
 		/** Use a plugin for Global Illumination */
 		Plugin UMETA(DisplayName="Plugin"),
 	};

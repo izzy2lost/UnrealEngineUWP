@@ -83,7 +83,6 @@ extern bool ShouldRenderRayTracingSkyLight(const FSkyLightSceneProxy* SkyLightSc
 extern bool ShouldRenderRayTracingAmbientOcclusion(const FViewInfo& View);
 extern bool ShouldRenderRayTracingReflections(const FViewInfo& View);
 extern bool ShouldRenderRayTracingReflectionsWater(const FViewInfo& View);
-extern bool ShouldRenderRayTracingGlobalIllumination(const FViewInfo& View);
 extern bool ShouldRenderRayTracingTranslucency(const FViewInfo& View);
 extern bool ShouldRenderRayTracingShadows();
 extern bool ShouldRenderRayTracingShadowsForLight(const FLightSceneProxy& LightProxy);
@@ -132,11 +131,6 @@ FORCEINLINE bool ShouldRenderRayTracingReflections(const FViewInfo& View)
 }
 
 FORCEINLINE bool ShouldRenderRayTracingReflectionsWater(const FViewInfo& View)
-{
-	return false;
-}
-
-FORCEINLINE bool ShouldRenderRayTracingGlobalIllumination(const FViewInfo& View)
 {
 	return false;
 }

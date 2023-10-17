@@ -280,7 +280,6 @@ enum class EDiffuseIndirectMethod
 {
 	Disabled,
 	SSGI,
-	RTGI,
 	Lumen,
 	Plugin,
 };
@@ -1036,38 +1035,6 @@ private:
 		FRDGTextureRef SkyLightRT,
 		FRDGTextureRef HitDistanceRT);
 	
-	bool RenderRayTracingGlobalIllumination(
-		FRDGBuilder& GraphBuilder, 
-		FSceneTextureParameters& SceneTextures,
-		FViewInfo& View,
-		IScreenSpaceDenoiser::FAmbientOcclusionRayTracingConfig* RayTracingConfig,
-		IScreenSpaceDenoiser::FDiffuseIndirectInputs* OutDenoiserInputs);
-	
-	void RenderRayTracingGlobalIlluminationBruteForce(
-		FRDGBuilder& GraphBuilder,
-		FSceneTextureParameters& SceneTextures,
-		FViewInfo& View,
-		const IScreenSpaceDenoiser::FAmbientOcclusionRayTracingConfig& RayTracingConfig,
-		int32 UpscaleFactor,
-		IScreenSpaceDenoiser::FDiffuseIndirectInputs* OutDenoiserInputs);
-
-	void RayTracingGlobalIlluminationCreateGatherPoints(
-		FRDGBuilder& GraphBuilder,
-		FSceneTextureParameters& SceneTextures,
-		FViewInfo& View,
-		int32 UpscaleFactor,
-		int32 SampleIndex,
-		FRDGBufferRef& GatherPointsBuffer,
-		FIntVector& GatherPointsResolution);
-
-	void RenderRayTracingGlobalIlluminationFinalGather(
-		FRDGBuilder& GraphBuilder,
-		FSceneTextureParameters& SceneTextures,
-		FViewInfo& View,
-		const IScreenSpaceDenoiser::FAmbientOcclusionRayTracingConfig& RayTracingConfig,
-		int32 UpscaleFactor,
-		IScreenSpaceDenoiser::FDiffuseIndirectInputs* OutDenoiserInputs);
-	
 	void RenderRayTracingAmbientOcclusion(
 		FRDGBuilder& GraphBuilder,
 		FViewInfo& View,
@@ -1169,7 +1136,6 @@ private:
 	static void PrepareRayTracingShadows(const FViewInfo& View, const FScene& Scene, TArray<FRHIRayTracingShader*>& OutRayGenShaders);
 	static void PrepareRayTracingAmbientOcclusion(const FViewInfo& View, TArray<FRHIRayTracingShader*>& OutRayGenShaders);
 	static void PrepareRayTracingSkyLight(const FViewInfo& View, const FScene& Scene, TArray<FRHIRayTracingShader*>& OutRayGenShaders);
-	static void PrepareRayTracingGlobalIllumination(const FViewInfo& View, TArray<FRHIRayTracingShader*>& OutRayGenShaders);
 	static void PrepareRayTracingGlobalIlluminationPlugin(const FViewInfo& View, TArray<FRHIRayTracingShader*>& OutRayGenShaders);
 	static void PrepareRayTracingTranslucency(const FViewInfo& View, TArray<FRHIRayTracingShader*>& OutRayGenShaders);
 	static void PrepareRayTracingVolumetricFogShadows(const FViewInfo& View, const FScene& Scene, TArray<FRHIRayTracingShader*>& OutRayGenShaders);
@@ -1190,8 +1156,7 @@ private:
 	// Versions for setting up the deferred material pipeline
 	static void PrepareRayTracingReflectionsDeferredMaterial(const FViewInfo& View, const FScene& Scene, TArray<FRHIRayTracingShader*>& OutRayGenShaders);
 	static void PrepareRayTracingDeferredReflectionsDeferredMaterial(const FViewInfo& View, const FScene& Scene, TArray<FRHIRayTracingShader*>& OutRayGenShaders);
-	static void PrepareRayTracingGlobalIlluminationDeferredMaterial(const FViewInfo& View, TArray<FRHIRayTracingShader*>& OutRayGenShaders);
-
+	
 	// Versions for setting up the lumen material pipeline
 	static void PrepareLumenHardwareRayTracingTranslucencyVolumeLumenMaterial(const FViewInfo& View, TArray<FRHIRayTracingShader*>& OutRayGenShaders);
 	void PrepareLumenHardwareRayTracingVisualizeLumenMaterial(const FViewInfo& View, TArray<FRHIRayTracingShader*>& OutRayGenShaders);

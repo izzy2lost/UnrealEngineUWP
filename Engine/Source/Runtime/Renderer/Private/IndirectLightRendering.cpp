@@ -39,8 +39,7 @@ static TAutoConsoleVariable<int32> CVarDynamicGlobalIlluminationMethod(
 	TEXT("0 - None.  Global Illumination can be baked into Lightmaps but no technique will be used for Dynamic Global Illumination.\n")
 	TEXT("1 - Lumen.  Use Lumen Global Illumination for all lights, emissive materials casting light and SkyLight Occlusion.  Requires 'Generate Mesh Distance Fields' enabled for Software Ray Tracing and 'Support Hardware Ray Tracing' enabled for Hardware Ray Tracing.\n")
 	TEXT("2 - SSGI.  Standalone Screen Space Global Illumination.  Low cost, but limited by screen space information.\n")
-	TEXT("3 - RTGI.  Ray Traced Global Illumination technique.  Deprecated, use Lumen Global Illumination instead.\n")
-	TEXT("4 - Plugin.  Use a plugin for Global Illumination."),
+	TEXT("3 - Plugin.  Use a plugin for Global Illumination."),
 	ECVF_RenderThreadSafe);
 
 // This is the project default reflection method, NOT the scalability setting (see r.Lumen.Reflections.Allow for scalability)
@@ -120,7 +119,7 @@ class FDiffuseIndirectCompositePS : public FGlobalShader
 	DECLARE_GLOBAL_SHADER(FDiffuseIndirectCompositePS)
 	SHADER_USE_PARAMETER_STRUCT(FDiffuseIndirectCompositePS, FGlobalShader)
 
-	class FApplyDiffuseIndirectDim : SHADER_PERMUTATION_INT("DIM_APPLY_DIFFUSE_INDIRECT", 4);
+	class FApplyDiffuseIndirectDim : SHADER_PERMUTATION_INT("DIM_APPLY_DIFFUSE_INDIRECT", 3);
 	class FUpscaleDiffuseIndirectDim : SHADER_PERMUTATION_BOOL("DIM_UPSCALE_DIFFUSE_INDIRECT");
 	class FScreenBentNormal : SHADER_PERMUTATION_BOOL("DIM_SCREEN_BENT_NORMAL");
 	class FSubstrateTileType : SHADER_PERMUTATION_INT("SUBSTRATE_TILETYPE", 4);
@@ -144,7 +143,7 @@ class FDiffuseIndirectCompositePS : public FGlobalShader
 		}
 
 		// Only support Bent Normal for ScreenProbeGather
-		if (PermutationVector.Get<FApplyDiffuseIndirectDim>() != 3 && PermutationVector.Get<FScreenBentNormal>())
+		if (PermutationVector.Get<FApplyDiffuseIndirectDim>() != 2 && PermutationVector.Get<FScreenBentNormal>())
 		{
 			return false;
 		}
@@ -152,7 +151,7 @@ class FDiffuseIndirectCompositePS : public FGlobalShader
 		// Build Substrate tile permutation only for Lumen
 		if (PermutationVector.Get<FSubstrateTileType>() != ESubstrateTileType::EComplex)
 		{
-			return Substrate::IsSubstrateEnabled() && PermutationVector.Get<FApplyDiffuseIndirectDim>() == 3;
+			return Substrate::IsSubstrateEnabled() && PermutationVector.Get<FApplyDiffuseIndirectDim>() == 2;
 		}
 
 		return IsFeatureLevelSupported(Parameters.Platform, ERHIFeatureLevel::SM5);
@@ -454,11 +453,6 @@ void FDeferredShadingSceneRenderer::CommitIndirectLightingState()
 		else if (ScreenSpaceRayTracing::IsScreenSpaceDiffuseIndirectSupported(View))
 		{
 			DiffuseIndirectMethod = EDiffuseIndirectMethod::SSGI;
-			DiffuseIndirectDenoiser = IScreenSpaceDenoiser::GetDenoiserMode(CVarDiffuseIndirectDenoiser);
-		}
-		else if (ShouldRenderRayTracingGlobalIllumination(View))
-		{
-			DiffuseIndirectMethod = EDiffuseIndirectMethod::RTGI;
 			DiffuseIndirectDenoiser = IScreenSpaceDenoiser::GetDenoiserMode(CVarDiffuseIndirectDenoiser);
 		}
 		else if (ShouldRenderPluginGlobalIllumination(View))
@@ -1005,12 +999,6 @@ void FDeferredShadingSceneRenderer::RenderDiffuseIndirectAndAmbientOcclusion(
 			DenoiserInputs = ScreenSpaceRayTracing::CastStandaloneDiffuseIndirectRays(
 				GraphBuilder, CommonDiffuseParameters, PrevSceneColorMip, View);
 		}
-		else if (ViewPipelineState.DiffuseIndirectMethod == EDiffuseIndirectMethod::RTGI)
-		{
-			// TODO: Refactor under the HybridIndirectLighting standard API.
-			// TODO: hybrid SSGI / RTGI
-			RenderRayTracingGlobalIllumination(GraphBuilder, SceneTextureParameters, View, /* out */ &RayTracingConfig, /* out */ &DenoiserInputs);
-		}
 		else if (ViewPipelineState.DiffuseIndirectMethod == EDiffuseIndirectMethod::Lumen)
 		{
 			check(ViewPipelineState.DiffuseIndirectDenoiser == IScreenSpaceDenoiser::EMode::Disabled);
@@ -1142,19 +1130,7 @@ void FDeferredShadingSceneRenderer::RenderDiffuseIndirectAndAmbientOcclusion(
 				DenoiserToUse->GetDebugName(),
 				View.ViewRect.Width(), View.ViewRect.Height());
 
-			if (ViewPipelineState.DiffuseIndirectMethod == EDiffuseIndirectMethod::RTGI)
-			{
-				DenoiserOutputs = DenoiserToUse->DenoiseDiffuseIndirect(
-					GraphBuilder,
-					View,
-					&View.PrevViewInfo,
-					SceneTextureParameters,
-					DenoiserInputs,
-					RayTracingConfig);
-
-				AmbientOcclusionMask = DenoiserOutputs.Textures[1];
-			}
-			else if (ViewPipelineState.DiffuseIndirectMethod == EDiffuseIndirectMethod::SSGI)
+			if (ViewPipelineState.DiffuseIndirectMethod == EDiffuseIndirectMethod::SSGI)
 			{
 				DenoiserOutputs = DenoiserToUse->DenoiseScreenSpaceDiffuseIndirect(
 					GraphBuilder,
@@ -1349,14 +1325,9 @@ void FDeferredShadingSceneRenderer::RenderDiffuseIndirectAndAmbientOcclusion(
 
 			if (DenoiserOutputs.Textures[0])
 			{
-				if (ViewPipelineState.DiffuseIndirectMethod == EDiffuseIndirectMethod::RTGI)
+				if (ViewPipelineState.DiffuseIndirectMethod == EDiffuseIndirectMethod::Lumen)
 				{
 					PermutationVector.Set<FDiffuseIndirectCompositePS::FApplyDiffuseIndirectDim>(2);
-					DiffuseIndirectSampling = TEXT("RTGI");
-				}
-				else if (ViewPipelineState.DiffuseIndirectMethod == EDiffuseIndirectMethod::Lumen)
-				{
-					PermutationVector.Set<FDiffuseIndirectCompositePS::FApplyDiffuseIndirectDim>(3);
 					PermutationVector.Set<FDiffuseIndirectCompositePS::FScreenBentNormal>(ScreenBentNormalParameters.UseShortRangeAO != 0);
 					if (Substrate::IsSubstrateEnabled() && TileType != ESubstrateTileType::ECount)
 					{

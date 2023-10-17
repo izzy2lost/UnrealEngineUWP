@@ -504,7 +504,7 @@ void FDeferredShadingSceneRenderer::RenderRayTracingSkyLight(
 		if (GRayTracingSkyLightDenoiser != 0)
 		{
 			const IScreenSpaceDenoiser* DefaultDenoiser = IScreenSpaceDenoiser::GetDefaultDenoiser();
-			const IScreenSpaceDenoiser* DenoiserToUse = DefaultDenoiser;// GRayTracingGlobalIlluminationDenoiser == 1 ? DefaultDenoiser : GScreenSpaceDenoiser;
+			const IScreenSpaceDenoiser* DenoiserToUse = DefaultDenoiser;
 
 			IScreenSpaceDenoiser::FDiffuseIndirectInputs DenoiserInputs;
 			DenoiserInputs.Color = OutSkyLightTexture;
