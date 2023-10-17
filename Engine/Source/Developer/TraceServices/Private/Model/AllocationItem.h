@@ -32,7 +32,8 @@ struct FAllocationItem
 	uint32 EndEventIndex;
 	double StartTime;
 	double EndTime;
-	uint32 ThreadId;
+	uint16 ThreadId;
+	uint16 FreeThreadId;
 	uint32 CallstackId;
 	uint32 FreeCallstackId;
 	uint32 MetadataId;
