@@ -342,6 +342,7 @@ FNiagaraSystemCompilationTask::FNiagaraSystemCompilationTask(FNiagaraCompilation
 void FNiagaraSystemCompilationTask::Abort()
 {
 	bAborting = true;
+	CompileCompletionEvent.Trigger();
 }
 
 
