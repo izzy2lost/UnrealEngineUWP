@@ -3,10 +3,6 @@
 #include "PixelStreamingPeerComponent.h"
 #include "PixelStreamingPlayerPrivate.h"
 #include "PixelStreamingPeerConnection.h"
-#include "FrameBufferRHI.h"
-#include "FrameBufferI420.h"
-#include "ITextureMediaPlayer.h"
-#include "ITextureMediaPlayerModule.h"
 #include "RTCStatsCollector.h"
 #include "Async/Async.h"
 
@@ -26,23 +22,7 @@ void UPixelStreamingPeerComponent::SetConfig(const FPixelStreamingRTCConfigWrapp
 
 	if (PeerConnection)
 	{
-		if (VideoSinkPlayer != nullptr)
-		{
-			ITextureMediaPlayerModule* TextureModule = FModuleManager::LoadModulePtr<ITextureMediaPlayerModule>("TextureMediaPlayer");
-			if (TextureModule != nullptr)
-			{
-				TextureMediaPlayer = TextureModule->OpenPlayer(VideoSinkPlayer);
-				if (TextureMediaPlayer != nullptr)
-				{
-					PeerConnection->SetVideoSink(this);
-				}
-			}
-		}
-		else
-		{
-			UE_LOG(LogPixelStreamingPlayer, Error, TEXT("MediaPlayer not found."));
-		}
-
+		PeerConnection->SetVideoSink(VideoSink);
 		PeerConnection->OnEmitIceCandidate.AddLambda([this](const webrtc::IceCandidateInterface* Candidate) {
 			FPixelStreamingIceCandidateWrapper CandidateWrapper(*Candidate);
 			AsyncTask(ENamedThreads::GameThread, [this, CandidateWrapper]() {
@@ -141,7 +121,7 @@ FPixelStreamingSessionDescriptionWrapper UPixelStreamingPeerComponent::CreateAns
 	}
 }
 
-void UPixelStreamingPeerComponent::ReceiveAnswer(const FString& Offer)
+void UPixelStreamingPeerComponent::ReceiveAnswer(const FString& Answer)
 {
 	if (PeerConnection)
 	{
@@ -150,9 +130,9 @@ void UPixelStreamingPeerComponent::ReceiveAnswer(const FString& Offer)
 			UE_LOG(LogPixelStreamingPlayer, Error, TEXT("ReceiveAnswer Failed: %s"), *ErrorMsg);
 			TaskEvent->Trigger();
 		};
-		AsyncTask(ENamedThreads::AnyNormalThreadNormalTask, [this, &TaskEvent, &Offer, &OnGeneralFailure]() {
+		AsyncTask(ENamedThreads::AnyNormalThreadNormalTask, [this, &TaskEvent, &Answer, &OnGeneralFailure]() {
 			PeerConnection->ReceiveAnswer(
-				Offer,
+				Answer,
 				[this, &TaskEvent, &OnGeneralFailure]() {
 					// success
 					TaskEvent->Trigger();
@@ -185,46 +165,5 @@ void UPixelStreamingPeerComponent::OnIceConnectionChange(webrtc::PeerConnectionI
 	else if (NewState == webrtc::PeerConnectionInterface::IceConnectionState::kIceConnectionDisconnected)
 	{
 		OnIceDisconnection.Broadcast();
-	}
-}
-
-void UPixelStreamingPeerComponent::OnFrame(const webrtc::VideoFrame& frame)
-{
-	if (frame.video_frame_buffer()->type() == webrtc::VideoFrameBuffer::Type::kNative)
-	{
-		UE::PixelStreaming::FFrameBufferRHI* const FrameBuffer = static_cast<UE::PixelStreaming::FFrameBufferRHI*>(frame.video_frame_buffer().get());
-
-		if (FrameBuffer != nullptr)
-		{
-			TSharedPtr<FVideoResourceRHI, ESPMode::ThreadSafe> VideoResource = static_cast<UE::PixelStreaming::FFrameBufferRHI*>(frame.video_frame_buffer().get())->GetVideoResource();
-
-			if (TextureMediaPlayer.IsValid() && VideoResource.IsValid())
-			{
-				ResourceQueue.Enqueue(VideoResource);
-
-				// Get off WebRTC thread ASAP
-				AsyncTask(ENamedThreads::AnyHiPriThreadHiPriTask, [this, TMPWeak = TextureMediaPlayer.ToWeakPtr()]() {
-					auto PinnedTextureMediaPlayer = TMPWeak.Pin();
-
-					if (PinnedTextureMediaPlayer.IsValid() && !ResourceQueue.IsEmpty())
-					{
-						TSharedPtr<FVideoResource, ESPMode::ThreadSafe> VideoResource;
-
-						while (!ResourceQueue.IsEmpty())
-						{
-							ResourceQueue.Dequeue(VideoResource);
-						}
-
-						auto& Raw = StaticCastSharedPtr<FVideoResourceRHI>(VideoResource)->GetRaw();
-						PinnedTextureMediaPlayer->OnFrame(Raw.Texture, Raw.Fence, Raw.FenceValue);
-					}
-				});
-			}
-		}
-	}
-	if (frame.video_frame_buffer()->type() == webrtc::VideoFrameBuffer::Type::kI420)
-	{
-		// TODO (aidan.possemiers)
-		unimplemented();
 	}
 }

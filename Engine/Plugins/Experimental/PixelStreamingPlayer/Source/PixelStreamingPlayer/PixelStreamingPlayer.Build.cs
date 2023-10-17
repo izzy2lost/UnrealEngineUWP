@@ -34,13 +34,9 @@ namespace UnrealBuildTool.Rules
 					"Engine",
 					"MediaAssets",
 					"PixelStreaming",
-					"Renderer",
 					"RenderCore",
 					"RHI",
-					"TextureMediaPlayer",
 					"WebSockets",
-					"AVCodecsCore",
-					"AVCodecsCoreRHI"
 				});
 		}
 	}
