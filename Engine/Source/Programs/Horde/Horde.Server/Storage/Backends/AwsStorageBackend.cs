@@ -100,7 +100,7 @@ namespace Horde.Server.Storage.Backends
 	}
 
 	/// <summary>
-	/// FileStorage implementation using an s3 bucket
+	/// Storage backend using AWS S3
 	/// </summary>
 	public sealed class AwsStorageBackend : IStorageBackend, IDisposable
 	{

@@ -179,6 +179,12 @@ namespace Horde.Server.Storage
 		public string? AwsRegion { get; set; }
 
 		/// <inheritdoc/>
+		public string? AzureConnectionString { get; set; }
+
+		/// <inheritdoc/>
+		public string? AzureContainerName { get; set; }
+
+		/// <inheritdoc/>
 		public string? RelayServer { get; set; }
 
 		/// <inheritdoc/>

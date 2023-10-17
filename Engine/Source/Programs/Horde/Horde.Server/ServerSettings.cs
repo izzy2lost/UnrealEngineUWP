@@ -47,6 +47,11 @@ namespace Horde.Server
 		Aws,
 
 		/// <summary>
+		/// Azure blob store
+		/// </summary>
+		Azure,
+
+		/// <summary>
 		/// In-memory only (for testing)
 		/// </summary>
 		Memory,
@@ -55,7 +60,7 @@ namespace Horde.Server
 	/// <summary>
 	/// Common settings for different storage backends
 	/// </summary>
-	public interface IStorageBackendOptions : IAwsStorageOptions
+	public interface IStorageBackendOptions : IAwsStorageOptions, IAzureStorageOptions
 	{
 		/// <summary>
 		/// Base directory for filesystem storage
@@ -96,6 +101,12 @@ namespace Horde.Server
 
 		/// <inheritdoc/>
 		public string? AwsRegion { get; set; }
+
+		/// <inheritdoc/>
+		public string? AzureConnectionString { get; set; }
+
+		/// <inheritdoc/>
+		public string? AzureContainerName { get; set; }
 	}
 
 	/// <summary>
