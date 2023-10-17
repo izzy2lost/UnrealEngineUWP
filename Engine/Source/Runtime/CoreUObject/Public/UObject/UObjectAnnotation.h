@@ -827,20 +827,27 @@ public:
 	FORCEINLINE TAnnotation GetAnnotation(int32 Index)
 	{
 		check(Index >= 0);
-		FRWScopeLock AnnotationArrayLock(AnnotationArrayCritical, SLT_ReadOnly);
 
-		const int32 ChunkIndex = Index / NumAnnotationsPerChunk;
-		if (ChunkIndex < Chunks.Num())
+		TAnnotation Result = TAnnotation();
+
+		UE_AUTORTFM_OPEN(
 		{
-			const int32 WithinChunkIndex = Index % NumAnnotationsPerChunk;
+			FRWScopeLock AnnotationArrayLock(AnnotationArrayCritical, SLT_ReadOnly);
 
-			TAnnotationChunk& Chunk = Chunks[ChunkIndex];
-			if (Chunk.Items != nullptr)
+			const int32 ChunkIndex = Index / NumAnnotationsPerChunk;
+			if (ChunkIndex < Chunks.Num())
 			{
-				return Chunk.Items[WithinChunkIndex];
+				const int32 WithinChunkIndex = Index % NumAnnotationsPerChunk;
+
+				TAnnotationChunk& Chunk = Chunks[ChunkIndex];
+				if (Chunk.Items != nullptr)
+				{
+					Result = Chunk.Items[WithinChunkIndex];
+				}
 			}
-		}
-		return TAnnotation();
+		});
+
+		return Result;
 	}
 
 	/**

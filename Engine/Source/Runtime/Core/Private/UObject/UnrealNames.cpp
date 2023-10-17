@@ -1691,27 +1691,36 @@ FNameEntryId FNamePool::Store(FNameStringView Name)
 #if UE_FNAME_OUTLINE_NUMBER
 FNameEntryId FNamePool::StoreWithNumber(FNameEntryIds StringParts, int32 NumberPart)
 {
-#if WITH_CASE_PRESERVING_NAME
-	// Look for an exact match with the right casing first
-	FNumberedNameDisplayValue DisplayValue(StringParts.DisplayId, NumberPart);
-	if (FNameEntryId Existing = DisplayShards[DisplayValue.Hash.ShardIndex].FindWithNumber(DisplayValue))
+	FNameEntryId Result;
+
+	AutoRTFM::Open([&]
 	{
-		return Existing;
-	}
-#endif
-
-	bool bAdded = false;
-
-	// Insert comparison name first since display value must contain comparison name
-	FNumberedNameComparisonValue ComparisonValue(StringParts.ComparisonId, NumberPart);
-	FNameEntryId ComparisonId = ComparisonShards[ComparisonValue.Hash.ShardIndex].InsertWithNumber(ComparisonValue, bAdded);
-	
 #if WITH_CASE_PRESERVING_NAME
-	DisplayValue.ComparisonId = ComparisonId;
-	return StoreValueWithNumber(DisplayValue, bAdded);
-#else
-	return ComparisonId;
+		// Look for an exact match with the right casing first
+		FNumberedNameDisplayValue DisplayValue(StringParts.DisplayId, NumberPart);
+		if (FNameEntryId Existing = DisplayShards[DisplayValue.Hash.ShardIndex].FindWithNumber(DisplayValue))
+		{
+			Result = Existing;
+		}
+		else
+		{
 #endif
+			bool bAdded = false;
+
+			// Insert comparison name first since display value must contain comparison name
+			FNumberedNameComparisonValue ComparisonValue(StringParts.ComparisonId, NumberPart);
+			FNameEntryId ComparisonId = ComparisonShards[ComparisonValue.Hash.ShardIndex].InsertWithNumber(ComparisonValue, bAdded);
+
+#if WITH_CASE_PRESERVING_NAME
+			DisplayValue.ComparisonId = ComparisonId;
+			Result = StoreValueWithNumber(DisplayValue, bAdded);
+		}
+#else
+		Result = ComparisonId;
+#endif
+	});
+
+	return Result;
 }
 
 FNameEntryId FNamePool::FindWithNumber(FNameEntryId StringPart, int32 NumberPart) const
@@ -3020,34 +3029,45 @@ private:
 	// If not found, returns NAME_None for both indices.
 	static FNameEntryIds FindOrStoreString(FNameStringView View, EFindName FindType)
 	{
-		if (View.Len >= NAME_SIZE)
+		FNameEntryIds Result{};
+
+		UE_AUTORTFM_OPEN(
 		{
-			// If we're doing a find, and the string is too long, then clearly we didn't find it
-			if (FindType == FNAME_Find)
+			if (View.Len >= NAME_SIZE)
 			{
-				return {};
+				// If we're doing a find, and the string is too long, then clearly we didn't find it
+				if (FindType == FNAME_Find)
+				{
+					Result = FNameEntryIds{};
+				}
+				else
+				{
+					checkf(false, TEXT("FName's %d max length exceeded. Got %d characters excluding null-terminator:\n%.*s"), 
+						NAME_SIZE - 1, View.Len, NAME_SIZE, View.IsAnsi() ? ANSI_TO_TCHAR(View.Ansi) : View.Wide)
+
+					const ANSICHAR* ErrorString = "ERROR_NAME_SIZE_EXCEEDED";
+					Result = FindOrStoreString(FNameStringView(ErrorString, FCStringAnsi::Strlen(ErrorString), false), FNAME_Add);
+				}
 			}
+			else
+			{
+				FNamePool& Pool = GetNamePool();
 
-			checkf(false, TEXT("FName's %d max length exceeded. Got %d characters excluding null-terminator:\n%.*s"), 
-				NAME_SIZE - 1, View.Len, NAME_SIZE, View.IsAnsi() ? ANSI_TO_TCHAR(View.Ansi) : View.Wide)
+				if (FindType == FNAME_Add)
+				{
+					FNameEntryId DisplayId = Pool.Store(View);
+					Result = FNameEntryIds{ ResolveComparisonId(DisplayId), DisplayId };
+				}
+				else
+				{
+					check(FindType == FNAME_Find);
+					FNameEntryId DisplayId = Pool.Find(View);
+					Result = FNameEntryIds{ ResolveComparisonId(DisplayId), DisplayId };
+				}
+			}
+		});
 
-			const ANSICHAR* ErrorString = "ERROR_NAME_SIZE_EXCEEDED";
-			return FindOrStoreString(FNameStringView(ErrorString, FCStringAnsi::Strlen(ErrorString), false), FNAME_Add);
-		}
-		
-		FNamePool& Pool = GetNamePool();
-
-		if (FindType == FNAME_Add)
-		{
-			FNameEntryId DisplayId = Pool.Store(View);
-			return FNameEntryIds{ ResolveComparisonId(DisplayId), DisplayId };
-		}
-		else
-		{
-			check(FindType == FNAME_Find);
-			FNameEntryId DisplayId = Pool.Find(View);
-			return FNameEntryIds{ ResolveComparisonId(DisplayId), DisplayId };
-		}
+		return Result;
 	}
 
 #if UE_FNAME_OUTLINE_NUMBER

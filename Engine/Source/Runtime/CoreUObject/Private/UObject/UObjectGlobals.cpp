@@ -2662,36 +2662,47 @@ namespace NameReuse
 
 		FName Find(UObject* Parent, FNameEntryId BaseId, FName BaseName)
 		{
-			Lock.ReadLock();
-			FNameRangeEntry* Entry = Find(BaseId);
+			FName Result;
 
-			if (Entry)
+			UE_AUTORTFM_OPEN(
 			{
-				// already allocated name, we can release the shared lock and work on this object directly
-				Lock.ReadUnlock();
-			}
-			else
-			{
-				Lock.ReadUnlock();
+				Lock.ReadLock();
+				FNameRangeEntry* Entry = Find(BaseId);
 
-				// The first time we request a name if we've never created one, don't bother adding to the cache just yet.
-				FName TestName = FName::FindNumberedName(BaseId, FNameRangeEntry::FirstNewNumber + 1);
-				if (TestName.IsNone())
+				if (Entry)
 				{
-					return FName(BaseId, BaseId, FNameRangeEntry::FirstNewNumber + 1);
-				}
+					// already allocated name, we can release the shared lock and work on this object directly
+					Lock.ReadUnlock();
 
-				FWriteScopeLock _(Lock);
-				// We didn't have a name but we may have been preempted as we acquired the write lock
-				Entry = Find(BaseId);
-				if (!Entry)
+					Result = Entry->AllocateName(Parent, BaseId, BaseName);
+				}
+				else
 				{
-					// we were not pre-empted, add a new entry for this name 
-					Entry = Add(BaseId);
-				}
-			}
+					Lock.ReadUnlock();
 
-			return Entry->AllocateName(Parent, BaseId, BaseName);
+					// The first time we request a name if we've never created one, don't bother adding to the cache just yet.
+					FName TestName = FName::FindNumberedName(BaseId, FNameRangeEntry::FirstNewNumber + 1);
+					if (TestName.IsNone())
+					{
+						Result = FName(BaseId, BaseId, FNameRangeEntry::FirstNewNumber + 1);
+					}
+					else
+					{
+						FWriteScopeLock _(Lock);
+						// We didn't have a name but we may have been preempted as we acquired the write lock
+						Entry = Find(BaseId);
+						if (!Entry)
+						{
+							// we were not pre-empted, add a new entry for this name 
+							Entry = Add(BaseId);
+						}
+
+						Result = Entry->AllocateName(Parent, BaseId, BaseName);
+					}
+				}
+			});
+
+			return Result;
 		}
 	private:
 		FRWLock Lock;
