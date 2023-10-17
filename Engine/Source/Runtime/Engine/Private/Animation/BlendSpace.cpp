@@ -835,6 +835,55 @@ int32 UBlendSpace::GetPerBoneInterpolationIndex(
 	return INDEX_NONE;
 }
 
+namespace UE::Anim::Private
+{
+	static FBoneContainer DummyContainer;
+}
+
+int32 UBlendSpace::GetPerBoneInterpolationIndex(const FSkeletonPoseBoneIndex InSkeletonBoneIndex, const USkeleton* TargetSkeleton, const IInterpolationIndexProvider::FPerBoneInterpolationData* Data) const
+{
+	if (!ensure(Data) || !InSkeletonBoneIndex.IsValid())
+	{
+		return INDEX_NONE;
+	}
+
+	const TArray<FSortedPerBoneInterpolation>& SortedData = static_cast<const FSortedPerBoneInterpolationData*>(Data)->Data;
+
+	const USkeleton* SourceSkeleton = GetSkeleton();
+	const FReferenceSkeleton& TargetReferenceSkeleton = TargetSkeleton->GetReferenceSkeleton();
+	const FSkeletonRemapping& SkeletonRemapping = UE::Anim::FSkeletonRemappingRegistry().Get().GetRemapping(SourceSkeleton, TargetSkeleton);
+
+	for (const FSortedPerBoneInterpolation& SortedBoneData : SortedData)
+	{
+		const FPerBoneInterpolation& PerBoneInterpolation = SortedBoneData.PerBoneBlend;
+		const FBoneReference& SmoothedBone = PerBoneInterpolation.BoneReference;
+
+		// Bone references are stored as skeleton bones, we can use a dummy bone container as it isn't required
+		FSkeletonPoseBoneIndex SmoothedSkelBoneIndex = SmoothedBone.GetSkeletonPoseIndex(UE::Anim::Private::DummyContainer);
+
+		// Remap to the target skeleton, using skeleton remapping, as we might be applying this blend space onto another skeleton than the asset was created for.
+		if (SkeletonRemapping.IsValid())
+		{
+			const int32 RemappedSkelBoneIndex = SkeletonRemapping.GetTargetSkeletonBoneIndex(SmoothedSkelBoneIndex.GetInt());
+			SmoothedSkelBoneIndex = FSkeletonPoseBoneIndex(RemappedSkelBoneIndex);
+		}
+
+		if (SmoothedSkelBoneIndex == InSkeletonBoneIndex)
+		{
+			return SortedBoneData.OriginalIndex;
+		}
+
+		// BoneIsChildOf returns true if InSkeletonBoneIndex is a child of SmoothedSkelBoneIndex
+		if (SmoothedSkelBoneIndex.IsValid() &&
+			TargetReferenceSkeleton.BoneIsChildOf(InSkeletonBoneIndex.GetInt(), SmoothedSkelBoneIndex.GetInt()))
+		{
+			return SortedBoneData.OriginalIndex;
+		}
+	}
+
+	return INDEX_NONE;
+}
+
 bool UBlendSpace::IsValidAdditiveType(EAdditiveAnimationType AdditiveType) const
 {
 	return (AdditiveType == AAT_LocalSpaceBase || AdditiveType == AAT_RotationOffsetMeshSpace || AdditiveType == AAT_None);

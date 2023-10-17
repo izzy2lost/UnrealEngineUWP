@@ -79,4 +79,38 @@ namespace UE::AnimNext
 			Dest[TransformIndex].AccumulateWithShortestRotation(Source[TransformIndex], VScaleWeight);
 		}
 	}
+
+	void BlendOverwritePerBoneWithScale(
+		const FTransformArrayAoSView& Dest, const FTransformArrayAoSConstView& Source,
+		const TArrayView<const int32>& LODBoneIndexToWeightIndexMap, const TArrayView<const float>& BoneWeights, const float DefaultScaleWeight)
+	{
+		const ScalarRegister VDefaultScaleWeight(DefaultScaleWeight);
+		const int32 NumTransforms = Source.Num();
+
+		check(Dest.Num() >= NumTransforms);
+
+		for (int32 LODBoneIndex = 0; LODBoneIndex < NumTransforms; ++LODBoneIndex)
+		{
+			const int32 PerBoneIndex = LODBoneIndexToWeightIndexMap[LODBoneIndex];
+			const ScalarRegister VScaleWeight = BoneWeights.IsValidIndex(PerBoneIndex) ? ScalarRegister(BoneWeights[PerBoneIndex]) : VDefaultScaleWeight;
+			Dest[LODBoneIndex] = Source[LODBoneIndex] * VScaleWeight;
+		}
+	}
+
+	void BlendAddPerBoneWithScale(
+		const FTransformArrayAoSView& Dest, const FTransformArrayAoSConstView& Source,
+		const TArrayView<const int32>& LODBoneIndexToWeightIndexMap, const TArrayView<const float>& BoneWeights, const float DefaultScaleWeight)
+	{
+		const ScalarRegister VDefaultScaleWeight(DefaultScaleWeight);
+		const int32 NumTransforms = Source.Num();
+
+		check(Dest.Num() >= NumTransforms);
+
+		for (int32 LODBoneIndex = 0; LODBoneIndex < NumTransforms; ++LODBoneIndex)
+		{
+			const int32 PerBoneIndex = LODBoneIndexToWeightIndexMap[LODBoneIndex];
+			const ScalarRegister VScaleWeight = BoneWeights.IsValidIndex(PerBoneIndex) ? ScalarRegister(BoneWeights[PerBoneIndex]) : VDefaultScaleWeight;
+			Dest[LODBoneIndex].AccumulateWithShortestRotation(Source[LODBoneIndex], VScaleWeight);
+		}
+	}
 }

@@ -177,4 +177,62 @@ namespace UE::AnimNext
 			Dest.Scales3D[TransformIndex] += Source.Scales3D[TransformIndex] * ScaleWeight;
 		}
 	}
+
+	void BlendOverwritePerBoneWithScale(
+		const FTransformArraySoAView& Dest, const FTransformArraySoAConstView& Source,
+		const TArrayView<const int32>& LODBoneIndexToWeightIndexMap, const TArrayView<const float>& BoneWeights, const float DefaultScaleWeight)
+	{
+		const int32 NumTransforms = Source.Num();
+
+		check(Dest.Num() >= NumTransforms);
+
+		for (int32 LODBoneIndex = 0; LODBoneIndex < NumTransforms; ++LODBoneIndex)
+		{
+			const int32 PerBoneIndex = LODBoneIndexToWeightIndexMap[LODBoneIndex];
+			const float ScaleWeight = BoneWeights.IsValidIndex(PerBoneIndex) ? BoneWeights[PerBoneIndex] : DefaultScaleWeight;
+
+			Dest.Translations[LODBoneIndex] = Source.Translations[LODBoneIndex] * ScaleWeight;
+			Dest.Rotations[LODBoneIndex] = Source.Rotations[LODBoneIndex] * ScaleWeight;
+			Dest.Scales3D[LODBoneIndex] = Source.Scales3D[LODBoneIndex] * ScaleWeight;
+		}
+	}
+
+	void BlendAddPerBoneWithScale(
+		const FTransformArraySoAView& Dest, const FTransformArraySoAConstView& Source,
+		const TArrayView<const int32>& LODBoneIndexToWeightIndexMap, const TArrayView<const float>& BoneWeights, const float DefaultScaleWeight)
+	{
+		const int32 NumTransforms = Source.Num();
+
+		check(Dest.Num() >= NumTransforms);
+
+		using QuatVectorRegister = FQuat::QuatVectorRegister;
+		const QuatVectorRegister Zero = VectorZero();
+
+		for (int32 LODBoneIndex = 0; LODBoneIndex < NumTransforms; ++LODBoneIndex)
+		{
+			const int32 PerBoneIndex = LODBoneIndexToWeightIndexMap[LODBoneIndex];
+			const float ScaleWeight = BoneWeights.IsValidIndex(PerBoneIndex) ? BoneWeights[PerBoneIndex] : DefaultScaleWeight;
+			const ScalarRegister VScaleWeight(ScaleWeight);
+
+			const QuatVectorRegister SourceRotation = VectorLoadAligned(&Source.Rotations[LODBoneIndex]);
+			const QuatVectorRegister DestRotation = VectorLoadAligned(&Dest.Rotations[LODBoneIndex]);
+
+			const QuatVectorRegister BlendedRotation = VectorMultiply(SourceRotation, VScaleWeight);
+
+			// Blend rotation
+			//     To ensure the 'shortest route', we make sure the dot product between the both rotations is positive.
+			//     const float Bias = (|A.B| >= 0 ? 1 : -1)
+			//     return A + B * Bias;
+
+			const QuatVectorRegister RotationDot = VectorDot4(DestRotation, BlendedRotation);
+			const QuatVectorRegister QuatRotationDirMask = VectorCompareGE(RotationDot, Zero);
+			const QuatVectorRegister NegativeB = VectorSubtract(Zero, BlendedRotation);
+			const QuatVectorRegister BiasTimesB = VectorSelect(QuatRotationDirMask, BlendedRotation, NegativeB);
+
+			Dest.Rotations[LODBoneIndex] = FQuat::MakeFromVectorRegister(VectorAdd(DestRotation, BiasTimesB));
+
+			Dest.Translations[LODBoneIndex] += Source.Translations[LODBoneIndex] * ScaleWeight;
+			Dest.Scales3D[LODBoneIndex] += Source.Scales3D[LODBoneIndex] * ScaleWeight;
+		}
+	}
 }

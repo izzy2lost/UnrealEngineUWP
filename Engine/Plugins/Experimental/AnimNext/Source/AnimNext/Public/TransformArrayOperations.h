@@ -36,4 +36,22 @@ namespace UE::AnimNext
 	// Dest = Dest + (Source * ScaleWeight)
 	ANIMNEXT_API void BlendAddWithScale(const FTransformArrayAoSView& Dest, const FTransformArrayAoSConstView& Source, const float ScaleWeight);
 	ANIMNEXT_API void BlendAddWithScale(const FTransformArraySoAView& Dest, const FTransformArraySoAConstView& Source, const float ScaleWeight);
+
+	// The source transforms are scaled by the provided per bone weight and the result is written in the destination
+	// Dest = Source * (WeightIndex != INDEX_NONE ? Weights[WeightIndex] : DefaultScaleWeight)
+	ANIMNEXT_API void BlendOverwritePerBoneWithScale(
+		const FTransformArrayAoSView& Dest, const FTransformArrayAoSConstView& Source,
+		const TArrayView<const int32>& LODBoneIndexToWeightIndexMap, const TArrayView<const float>& BoneWeights, const float DefaultScaleWeight);
+	ANIMNEXT_API void BlendOverwritePerBoneWithScale(
+		const FTransformArraySoAView& Dest, const FTransformArraySoAConstView& Source,
+		const TArrayView<const int32>& LODBoneIndexToWeightIndexMap, const TArrayView<const float>& BoneWeights, const float DefaultScaleWeight);
+
+	// The source transforms are scaled by the provided per bone weight and the result is added to the destination
+	// Dest = Dest + (Source * (WeightIndex != INDEX_NONE ? Weights[WeightIndex] : DefaultScaleWeight))
+	ANIMNEXT_API void BlendAddPerBoneWithScale(
+		const FTransformArrayAoSView& Dest, const FTransformArrayAoSConstView& Source,
+		const TArrayView<const int32>& LODBoneIndexToWeightIndexMap, const TArrayView<const float>& BoneWeights, const float DefaultScaleWeight);
+	ANIMNEXT_API void BlendAddPerBoneWithScale(
+		const FTransformArraySoAView& Dest, const FTransformArraySoAConstView& Source,
+		const TArrayView<const int32>& LODBoneIndexToWeightIndexMap, const TArrayView<const float>& BoneWeights, const float DefaultScaleWeight);
 }

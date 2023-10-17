@@ -91,6 +91,11 @@ public:
 	// up/blending BoneIndex. This call will be passed the results of GetPerBoneInterpolationData, so the two functions
 	// should be matched.
 	virtual int32 GetPerBoneInterpolationIndex(const FCompactPoseBoneIndex& InCompactPoseBoneIndex, const FBoneContainer& RequiredBones, const FPerBoneInterpolationData* Data) const = 0;
+
+	// Implementation should return the index into the PerBoneBlendData array that would be required when looking
+	// up/blending BoneIndex. This call will be passed the results of GetPerBoneInterpolationData, so the two functions
+	// should be matched.
+	virtual int32 GetPerBoneInterpolationIndex(const FSkeletonPoseBoneIndex InSkeletonBoneIndex, const USkeleton* TargetSkeleton, const IInterpolationIndexProvider::FPerBoneInterpolationData* Data) const = 0;
 };
 
 /** In AnimationRunTime Library, we extract animation data based on Skeleton hierarchy, not ref pose hierarchy. 
