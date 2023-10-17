@@ -211,6 +211,7 @@ FFontColor GetDefaultFontColor()							{ FFontColor Out; Out.Color = float3(1,1,
 #define ColorDarkRed	float4(0.50f, 0.25f, 0.25f, 1.0f)
 #define ColorDarkGreen	float4(0.25f, 0.50f, 0.25f, 1.0f)
 #define ColorDarkBlue	float4(0.25f, 0.25f, 0.50f, 1.0f)
+#define ColorDarkOrange	float4(ColorOrange.xyz * 0.5f,1.0f)
 
 ///////////////////////////////////////////////////////////////////////////////////////////////////
 // Util pack/unpack functions

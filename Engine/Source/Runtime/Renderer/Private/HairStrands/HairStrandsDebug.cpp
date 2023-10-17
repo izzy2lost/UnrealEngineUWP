@@ -685,6 +685,8 @@ public:
 	static void ModifyCompilationEnvironment(const FGlobalShaderPermutationParameters& Parameters, FShaderCompilerEnvironment& OutEnvironment)
 	{
 		FGlobalShader::ModifyCompilationEnvironment(Parameters, OutEnvironment);
+		OutEnvironment.CompilerFlags.Add(CFLAG_Debug);
+		OutEnvironment.CompilerFlags.Add(CFLAG_ForceDXC);
 		OutEnvironment.SetDefine(TEXT("SHADER_DOMINFO"), 1);
 	}
 };
