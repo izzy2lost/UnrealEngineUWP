@@ -485,7 +485,174 @@ TArray<URigVMNode*> UControlRigBlueprint::ConvertHierarchyElementsToSpawnerNodes
 			
 			if(ControlElement->Settings.AnimationType == ERigControlAnimationType::AnimationChannel)
 			{
-				// todo
+				UScriptStruct* UnitNodeStruct = nullptr;
+				TRigVMTypeIndex TypeIndex = INDEX_NONE;
+				FString InitialValue, MinimumValue, MaximumValue, SettingsValue;
+				switch(ControlElement->Settings.ControlType)
+				{
+					case ERigControlType::Bool:
+					{
+						UnitNodeStruct = FRigUnit_HierarchyAddAnimationChannelBool::StaticStruct();
+						TypeIndex = RigVMTypeUtils::TypeIndex::Bool;
+						InitialValue = InHierarchy->GetControlValue(Key, ERigControlValueType::Initial).ToString<float>();
+						MinimumValue = InHierarchy->GetControlValue(Key, ERigControlValueType::Minimum).ToString<float>();
+						MaximumValue = InHierarchy->GetControlValue(Key, ERigControlValueType::Maximum).ToString<float>();
+						break;
+					}
+					case ERigControlType::Float:
+					{
+						UnitNodeStruct = FRigUnit_HierarchyAddAnimationChannelFloat::StaticStruct();
+						TypeIndex = RigVMTypeUtils::TypeIndex::Float;
+						InitialValue = InHierarchy->GetControlValue(Key, ERigControlValueType::Initial).ToString<float>();
+						MinimumValue = InHierarchy->GetControlValue(Key, ERigControlValueType::Minimum).ToString<float>();
+						MaximumValue = InHierarchy->GetControlValue(Key, ERigControlValueType::Maximum).ToString<float>();
+
+						if(ControlElement->Settings.LimitEnabled.Num() == 1)
+						{
+							FRigUnit_HierarchyAddAnimationChannelSingleLimitSettings Settings;
+							Settings.Enabled = ControlElement->Settings.LimitEnabled[0];
+							FRigUnit_HierarchyAddAnimationChannelSingleLimitSettings::StaticStruct()->ExportText(SettingsValue, &Settings, &Settings, nullptr, PPF_None, nullptr);
+						}
+						break;
+					}
+					case ERigControlType::ScaleFloat:
+					{
+						UnitNodeStruct = FRigUnit_HierarchyAddAnimationChannelScaleFloat::StaticStruct();
+						TypeIndex = RigVMTypeUtils::TypeIndex::Float;
+						InitialValue = InHierarchy->GetControlValue(Key, ERigControlValueType::Initial).ToString<float>();
+						MinimumValue = InHierarchy->GetControlValue(Key, ERigControlValueType::Minimum).ToString<float>();
+						MaximumValue = InHierarchy->GetControlValue(Key, ERigControlValueType::Maximum).ToString<float>();
+
+						if(ControlElement->Settings.LimitEnabled.Num() == 1)
+						{
+							FRigUnit_HierarchyAddAnimationChannelSingleLimitSettings Settings;
+							Settings.Enabled = ControlElement->Settings.LimitEnabled[0];
+							FRigUnit_HierarchyAddAnimationChannelSingleLimitSettings::StaticStruct()->ExportText(SettingsValue, &Settings, &Settings, nullptr, PPF_None, nullptr);
+						}
+						break;
+					}
+					case ERigControlType::Integer:
+					{
+						UnitNodeStruct = FRigUnit_HierarchyAddAnimationChannelInteger::StaticStruct();
+						TypeIndex = RigVMTypeUtils::TypeIndex::Int32; 
+						InitialValue = InHierarchy->GetControlValue(Key, ERigControlValueType::Initial).ToString<int32>();
+						MinimumValue = InHierarchy->GetControlValue(Key, ERigControlValueType::Minimum).ToString<int32>();
+						MaximumValue = InHierarchy->GetControlValue(Key, ERigControlValueType::Maximum).ToString<int32>();
+
+						if(ControlElement->Settings.LimitEnabled.Num() == 1)
+						{
+							FRigUnit_HierarchyAddAnimationChannelSingleLimitSettings Settings;
+							Settings.Enabled = ControlElement->Settings.LimitEnabled[0];
+							FRigUnit_HierarchyAddAnimationChannelSingleLimitSettings::StaticStruct()->ExportText(SettingsValue, &Settings, &Settings, nullptr, PPF_None, nullptr);
+						}
+						break;
+					}
+					case ERigControlType::Vector2D:
+					{
+						UnitNodeStruct = FRigUnit_HierarchyAddAnimationChannelVector2D::StaticStruct();
+						TypeIndex = FRigVMRegistry::Get().GetTypeIndex<FVector2D>(); 
+						InitialValue = InHierarchy->GetControlValue(Key, ERigControlValueType::Initial).ToString<FVector2D>();
+						MinimumValue = InHierarchy->GetControlValue(Key, ERigControlValueType::Minimum).ToString<FVector2D>();
+						MaximumValue = InHierarchy->GetControlValue(Key, ERigControlValueType::Maximum).ToString<FVector2D>();
+
+						if(ControlElement->Settings.LimitEnabled.Num() == 2)
+						{
+							FRigUnit_HierarchyAddAnimationChannel2DLimitSettings Settings;
+							Settings.X = ControlElement->Settings.LimitEnabled[0];
+							Settings.Y = ControlElement->Settings.LimitEnabled[1];
+							FRigUnit_HierarchyAddAnimationChannel2DLimitSettings::StaticStruct()->ExportText(SettingsValue, &Settings, &Settings, nullptr, PPF_None, nullptr);
+						}
+						break;
+					}
+					case ERigControlType::Position:
+					{
+						UnitNodeStruct = FRigUnit_HierarchyAddAnimationChannelVector::StaticStruct();
+						TypeIndex = FRigVMRegistry::Get().GetTypeIndex<FVector>(); 
+						InitialValue = InHierarchy->GetControlValue(Key, ERigControlValueType::Initial).ToString<FVector>();
+						MinimumValue = InHierarchy->GetControlValue(Key, ERigControlValueType::Minimum).ToString<FVector>();
+						MaximumValue = InHierarchy->GetControlValue(Key, ERigControlValueType::Maximum).ToString<FVector>();
+
+						if(ControlElement->Settings.LimitEnabled.Num() == 3)
+						{
+							FRigUnit_HierarchyAddAnimationChannelVectorLimitSettings Settings;
+							Settings.X = ControlElement->Settings.LimitEnabled[0];
+							Settings.Y = ControlElement->Settings.LimitEnabled[1];
+							Settings.Z = ControlElement->Settings.LimitEnabled[2];
+							FRigUnit_HierarchyAddAnimationChannelVectorLimitSettings::StaticStruct()->ExportText(SettingsValue, &Settings, &Settings, nullptr, PPF_None, nullptr);
+						}
+						break;
+					}
+					case ERigControlType::Scale:
+					{
+						UnitNodeStruct = FRigUnit_HierarchyAddAnimationChannelScaleVector::StaticStruct();
+						TypeIndex = FRigVMRegistry::Get().GetTypeIndex<FVector>(); 
+						InitialValue = InHierarchy->GetControlValue(Key, ERigControlValueType::Initial).ToString<FVector>();
+						MinimumValue = InHierarchy->GetControlValue(Key, ERigControlValueType::Minimum).ToString<FVector>();
+						MaximumValue = InHierarchy->GetControlValue(Key, ERigControlValueType::Maximum).ToString<FVector>();
+
+						if(ControlElement->Settings.LimitEnabled.Num() == 3)
+						{
+							FRigUnit_HierarchyAddAnimationChannelVectorLimitSettings Settings;
+							Settings.X = ControlElement->Settings.LimitEnabled[0];
+							Settings.Y = ControlElement->Settings.LimitEnabled[1];
+							Settings.Z = ControlElement->Settings.LimitEnabled[2];
+							FRigUnit_HierarchyAddAnimationChannelVectorLimitSettings::StaticStruct()->ExportText(SettingsValue, &Settings, &Settings, nullptr, PPF_None, nullptr);
+						}
+						break;
+					}
+					case ERigControlType::Rotator:
+					{
+						UnitNodeStruct = FRigUnit_HierarchyAddAnimationChannelRotator::StaticStruct();
+						TypeIndex = FRigVMRegistry::Get().GetTypeIndex<FRotator>(); 
+						InitialValue = InHierarchy->GetControlValue(Key, ERigControlValueType::Initial).ToString<FRotator>();
+						MinimumValue = InHierarchy->GetControlValue(Key, ERigControlValueType::Minimum).ToString<FRotator>();
+						MaximumValue = InHierarchy->GetControlValue(Key, ERigControlValueType::Maximum).ToString<FRotator>();
+
+						if(ControlElement->Settings.LimitEnabled.Num() == 3)
+						{
+							FRigUnit_HierarchyAddAnimationChannelRotatorLimitSettings Settings;
+							Settings.Pitch = ControlElement->Settings.LimitEnabled[0];
+							Settings.Yaw = ControlElement->Settings.LimitEnabled[1];
+							Settings.Roll = ControlElement->Settings.LimitEnabled[2];
+							FRigUnit_HierarchyAddAnimationChannelRotatorLimitSettings::StaticStruct()->ExportText(SettingsValue, &Settings, &Settings, nullptr, PPF_None, nullptr);
+						}
+						break;
+					}
+					default:
+					{
+						break;
+					}
+				}
+
+				if(UnitNodeStruct == nullptr)
+				{
+					continue;
+				}
+
+				URigVMNode* AddControlNode = GraphController->AddUnitNode(UnitNodeStruct, FRigUnit::GetMethodName(), NodePosition);
+				NodePosition += NodePositionIncrement;
+				AddParentItemLink(Key, AddControlNode);
+
+				if(LastPin)
+				{
+					if(const URigVMPin* NextPin = AddControlNode->FindPin(GET_MEMBER_NAME_STRING_CHECKED(FRigUnit_HierarchyAddBone, ExecuteContext)))
+					{
+						GraphController->AddLink(LastPin->GetPinPath(), NextPin->GetPinPath(), true);
+						LastPin = NextPin;
+					}
+				}
+
+				GraphController->ResolveWildCardPin(AddControlNode->FindPin(GET_MEMBER_NAME_STRING_CHECKED(FRigUnit_HierarchyAddAnimationChannelFloat, InitialValue))->GetPinPath(), TypeIndex, true);
+				GraphController->SetPinDefaultValue(AddControlNode->FindPin(GET_MEMBER_NAME_STRING_CHECKED(FRigUnit_HierarchyAddAnimationChannelFloat, Name))->GetPinPath(), Key.Name.ToString(), true, true);
+				GraphController->SetPinDefaultValue(AddControlNode->FindPin(GET_MEMBER_NAME_STRING_CHECKED(FRigUnit_HierarchyAddAnimationChannelFloat, Parent))->GetPinPath(), ParentDefault, true, true);
+				GraphController->SetPinDefaultValue(AddControlNode->FindPin(GET_MEMBER_NAME_STRING_CHECKED(FRigUnit_HierarchyAddAnimationChannelFloat, InitialValue))->GetPinPath(), InitialValue, true, true);
+				GraphController->SetPinDefaultValue(AddControlNode->FindPin(GET_MEMBER_NAME_STRING_CHECKED(FRigUnit_HierarchyAddAnimationChannelFloat, MinimumValue))->GetPinPath(), MinimumValue, true, true);
+				GraphController->SetPinDefaultValue(AddControlNode->FindPin(GET_MEMBER_NAME_STRING_CHECKED(FRigUnit_HierarchyAddAnimationChannelFloat, MaximumValue))->GetPinPath(), MaximumValue, true, true);
+
+				if(!SettingsValue.IsEmpty())
+				{
+					GraphController->SetPinDefaultValue(AddControlNode->FindPin(GET_MEMBER_NAME_STRING_CHECKED(FRigUnit_HierarchyAddAnimationChannelFloat, LimitsEnabled))->GetPinPath(), SettingsValue, true, true);
+				}
 			}
 			else
 			{

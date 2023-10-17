@@ -1068,6 +1068,15 @@ struct CONTROLRIG_API FRigUnit_HierarchyAddControlTransform : public FRigUnit_Hi
 	virtual void Execute() override;
 };
 
+USTRUCT(BlueprintType)
+struct CONTROLRIG_API FRigUnit_HierarchyAddAnimationChannelEmptyLimitSettings
+{
+	GENERATED_BODY();
+	
+	FRigUnit_HierarchyAddAnimationChannelEmptyLimitSettings()
+	{}
+};
+
 /**
  * Adds a new animation channel to the hierarchy
  * Note: This node only runs as part of the construction event.
@@ -1103,8 +1112,27 @@ struct CONTROLRIG_API FRigUnit_HierarchyAddAnimationChannelBool : public FRigUni
 	UPROPERTY(meta = (Input))
 	bool MaximumValue;
 
+	/*
+	 * The enable settings for the limits
+	 */
+	UPROPERTY(meta = (Input))
+	FRigUnit_HierarchyAddAnimationChannelEmptyLimitSettings LimitsEnabled;
+
 	RIGVM_METHOD()
 	virtual void Execute() override;
+};
+
+USTRUCT(BlueprintType)
+struct CONTROLRIG_API FRigUnit_HierarchyAddAnimationChannelSingleLimitSettings : public FRigUnit_HierarchyAddAnimationChannelEmptyLimitSettings
+{
+	GENERATED_BODY();
+	
+	FRigUnit_HierarchyAddAnimationChannelSingleLimitSettings()
+		: Enabled(true)
+	{}
+
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Settings")
+	FRigControlLimitEnabled Enabled;
 };
 
 /**
@@ -1141,6 +1169,12 @@ struct CONTROLRIG_API FRigUnit_HierarchyAddAnimationChannelFloat : public FRigUn
 	 */
 	UPROPERTY(meta = (Input))
 	float MaximumValue;
+
+	/*
+	 * The enable settings for the limits
+	 */
+	UPROPERTY(meta = (Input))
+	FRigUnit_HierarchyAddAnimationChannelSingleLimitSettings LimitsEnabled;
 
 	RIGVM_METHOD()
 	virtual void Execute() override;
@@ -1181,6 +1215,12 @@ struct CONTROLRIG_API FRigUnit_HierarchyAddAnimationChannelScaleFloat : public F
 	UPROPERTY(meta = (Input))
 	float MaximumValue;
 
+	/*
+	 * The enable settings for the limits
+	 */
+	UPROPERTY(meta = (Input))
+	FRigUnit_HierarchyAddAnimationChannelSingleLimitSettings LimitsEnabled;
+
 	RIGVM_METHOD()
 	virtual void Execute() override;
 };
@@ -1220,8 +1260,31 @@ struct CONTROLRIG_API FRigUnit_HierarchyAddAnimationChannelInteger : public FRig
 	UPROPERTY(meta = (Input))
 	int32 MaximumValue;
 
+	/*
+	 * The enable settings for the limits
+	 */
+	UPROPERTY(meta = (Input))
+	FRigUnit_HierarchyAddAnimationChannelSingleLimitSettings LimitsEnabled;
+
 	RIGVM_METHOD()
 	virtual void Execute() override;
+};
+
+USTRUCT(BlueprintType)
+struct CONTROLRIG_API FRigUnit_HierarchyAddAnimationChannel2DLimitSettings : public FRigUnit_HierarchyAddAnimationChannelEmptyLimitSettings
+{
+	GENERATED_BODY();
+	
+	FRigUnit_HierarchyAddAnimationChannel2DLimitSettings()
+		: X(true)
+		, Y(true)
+	{}
+
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Settings")
+	FRigControlLimitEnabled X;
+
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Settings")
+	FRigControlLimitEnabled Y;
 };
 
 /**
@@ -1259,8 +1322,35 @@ struct CONTROLRIG_API FRigUnit_HierarchyAddAnimationChannelVector2D : public FRi
 	UPROPERTY(meta = (Input))
 	FVector2D MaximumValue;
 
+	/*
+	 * The enable settings for the limits
+	 */
+	UPROPERTY(meta = (Input))
+	FRigUnit_HierarchyAddAnimationChannel2DLimitSettings LimitsEnabled;
+
 	RIGVM_METHOD()
 	virtual void Execute() override;
+};
+
+USTRUCT(BlueprintType)
+struct CONTROLRIG_API FRigUnit_HierarchyAddAnimationChannelVectorLimitSettings : public FRigUnit_HierarchyAddAnimationChannelEmptyLimitSettings
+{
+	GENERATED_BODY();
+	
+	FRigUnit_HierarchyAddAnimationChannelVectorLimitSettings()
+		: X(true)
+		, Y(true)
+		, Z(true)
+	{}
+
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Settings")
+	FRigControlLimitEnabled X;
+
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Settings")
+	FRigControlLimitEnabled Y;
+
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Settings")
+	FRigControlLimitEnabled Z;
 };
 
 /**
@@ -1297,6 +1387,12 @@ struct CONTROLRIG_API FRigUnit_HierarchyAddAnimationChannelVector : public FRigU
 	 */
 	UPROPERTY(meta = (Input))
 	FVector MaximumValue;
+
+	/*
+	 * The enable settings for the limits
+	 */
+	UPROPERTY(meta = (Input))
+	FRigUnit_HierarchyAddAnimationChannelVectorLimitSettings LimitsEnabled;
 
 	RIGVM_METHOD()
 	virtual void Execute() override;
@@ -1337,8 +1433,36 @@ struct CONTROLRIG_API FRigUnit_HierarchyAddAnimationChannelScaleVector : public 
 	UPROPERTY(meta = (Input))
 	FVector MaximumValue;
 
+	/*
+	 * The enable settings for the limits
+	 */
+	UPROPERTY(meta = (Input))
+	FRigUnit_HierarchyAddAnimationChannelVectorLimitSettings LimitsEnabled;
+
 	RIGVM_METHOD()
 	virtual void Execute() override;
+};
+
+
+USTRUCT(BlueprintType)
+struct CONTROLRIG_API FRigUnit_HierarchyAddAnimationChannelRotatorLimitSettings : public FRigUnit_HierarchyAddAnimationChannelEmptyLimitSettings
+{
+	GENERATED_BODY();
+	
+	FRigUnit_HierarchyAddAnimationChannelRotatorLimitSettings()
+		: Pitch(true)
+		, Yaw(true)
+		, Roll(true)
+	{}
+
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Settings")
+	FRigControlLimitEnabled Pitch;
+
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Settings")
+	FRigControlLimitEnabled Yaw;
+
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Settings")
+	FRigControlLimitEnabled Roll;
 };
 
 /**
@@ -1375,6 +1499,12 @@ struct CONTROLRIG_API FRigUnit_HierarchyAddAnimationChannelRotator : public FRig
 	 */
 	UPROPERTY(meta = (Input))
 	FRotator MaximumValue;
+
+	/*
+	 * The enable settings for the limits
+	 */
+	UPROPERTY(meta = (Input))
+	FRigUnit_HierarchyAddAnimationChannelRotatorLimitSettings LimitsEnabled;
 
 	RIGVM_METHOD()
 	virtual void Execute() override;

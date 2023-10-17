@@ -929,6 +929,7 @@ FRigUnit_HierarchyAddAnimationChannelFloat_Execute()
 		FRigControlSettings ControlSettings;
 		ControlSettings.ControlType = ERigControlType::Float;
 		ControlSettings.SetupLimitArrayForType(true, true, true);
+		ControlSettings.LimitEnabled[0] = LimitsEnabled.Enabled;
 		ControlSettings.MinimumValue = FRigControlValue::Make<float>(MinimumValue);
 		ControlSettings.MaximumValue = FRigControlValue::Make<float>(MaximumValue);
 		ControlSettings.DisplayName = Controller->GetHierarchy()->GetSafeNewDisplayName(Parent, Name);
@@ -968,6 +969,7 @@ FRigUnit_HierarchyAddAnimationChannelScaleFloat_Execute()
 		FRigControlSettings ControlSettings;
 		ControlSettings.ControlType = ERigControlType::ScaleFloat;
 		ControlSettings.SetupLimitArrayForType(true, true, true);
+		ControlSettings.LimitEnabled[0] = LimitsEnabled.Enabled;
 		ControlSettings.MinimumValue = FRigControlValue::Make<float>(MinimumValue);
 		ControlSettings.MaximumValue = FRigControlValue::Make<float>(MaximumValue);
 		ControlSettings.DisplayName = Controller->GetHierarchy()->GetSafeNewDisplayName(Parent, Name);
@@ -1007,6 +1009,7 @@ FRigUnit_HierarchyAddAnimationChannelInteger_Execute()
 		FRigControlSettings ControlSettings;
 		ControlSettings.ControlType = ERigControlType::Integer;
 		ControlSettings.SetupLimitArrayForType(true, true, true);
+		ControlSettings.LimitEnabled[0] = LimitsEnabled.Enabled;
 		ControlSettings.MinimumValue = FRigControlValue::Make<int32>(MinimumValue);
 		ControlSettings.MaximumValue = FRigControlValue::Make<int32>(MaximumValue);
 		ControlSettings.DisplayName = Controller->GetHierarchy()->GetSafeNewDisplayName(Parent, Name);
@@ -1046,6 +1049,8 @@ FRigUnit_HierarchyAddAnimationChannelVector2D_Execute()
 		FRigControlSettings ControlSettings;
 		ControlSettings.ControlType = ERigControlType::Vector2D;
 		ControlSettings.SetupLimitArrayForType(true, true, true);
+		ControlSettings.LimitEnabled[0] = LimitsEnabled.X;
+		ControlSettings.LimitEnabled[1] = LimitsEnabled.Y;
 		ControlSettings.MinimumValue = FRigControlValue::Make<FVector3f>(FVector3f(MinimumValue.X, MinimumValue.Y, 0.f));
 		ControlSettings.MaximumValue = FRigControlValue::Make<FVector3f>(FVector3f(MaximumValue.X, MaximumValue.Y, 0.f));
 		ControlSettings.DisplayName = Controller->GetHierarchy()->GetSafeNewDisplayName(Parent, Name);
@@ -1085,6 +1090,9 @@ FRigUnit_HierarchyAddAnimationChannelVector_Execute()
 		FRigControlSettings ControlSettings;
 		ControlSettings.ControlType = ERigControlType::Position;
 		ControlSettings.SetupLimitArrayForType(true, true, true);
+		ControlSettings.LimitEnabled[0] = LimitsEnabled.X;
+		ControlSettings.LimitEnabled[1] = LimitsEnabled.Y;
+		ControlSettings.LimitEnabled[2] = LimitsEnabled.Z;
 		ControlSettings.MinimumValue = FRigControlValue::Make<FVector3f>(FVector3f(MinimumValue));
 		ControlSettings.MaximumValue = FRigControlValue::Make<FVector3f>(FVector3f(MaximumValue));
 		ControlSettings.DisplayName = Controller->GetHierarchy()->GetSafeNewDisplayName(Parent, Name);
@@ -1124,6 +1132,9 @@ FRigUnit_HierarchyAddAnimationChannelScaleVector_Execute()
 		FRigControlSettings ControlSettings;
 		ControlSettings.ControlType = ERigControlType::Scale;
 		ControlSettings.SetupLimitArrayForType(true, true, true);
+		ControlSettings.LimitEnabled[0] = LimitsEnabled.X;
+		ControlSettings.LimitEnabled[1] = LimitsEnabled.Y;
+		ControlSettings.LimitEnabled[2] = LimitsEnabled.Z;
 		ControlSettings.MinimumValue = FRigControlValue::Make<FVector3f>(FVector3f(MinimumValue));
 		ControlSettings.MaximumValue = FRigControlValue::Make<FVector3f>(FVector3f(MaximumValue));
 		ControlSettings.DisplayName = Controller->GetHierarchy()->GetSafeNewDisplayName(Parent, Name);
@@ -1163,6 +1174,9 @@ FRigUnit_HierarchyAddAnimationChannelRotator_Execute()
 		FRigControlSettings ControlSettings;
 		ControlSettings.ControlType = ERigControlType::Rotator;
 		ControlSettings.SetupLimitArrayForType(true, true, true);
+		ControlSettings.LimitEnabled[0] = LimitsEnabled.Pitch;
+		ControlSettings.LimitEnabled[1] = LimitsEnabled.Yaw;
+		ControlSettings.LimitEnabled[2] = LimitsEnabled.Roll;
 		ControlSettings.MinimumValue = FRigControlValue::Make<FVector3f>(FVector3f(MinimumValue.Euler()));
 		ControlSettings.MaximumValue = FRigControlValue::Make<FVector3f>(FVector3f(MaximumValue.Euler()));
 		ControlSettings.DisplayName = Controller->GetHierarchy()->GetSafeNewDisplayName(Parent, Name);
