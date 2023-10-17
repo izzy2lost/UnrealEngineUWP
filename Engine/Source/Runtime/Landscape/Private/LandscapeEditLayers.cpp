@@ -180,7 +180,9 @@ TAutoConsoleVariable<int32> CVarLandscapeValidateProxyWeightmapUsages(
 
 TAutoConsoleVariable<int32> CVarLandscapeRemoveEmptyPaintLayersOnEdit(
 	TEXT("landscape.RemoveEmptyPaintLayersOnEdit"),
-	1,
+	// TODO [jonathan.bard] : this has been disabled for now, since it can lead to a permanent dirty-on-load state for landscape, where the edit layers will do a new weightmap allocation for the missing layer
+	//  (e.g. if a BP brush writes to it), only to remove it after readback, which will lead to the actor to be marked dirty. We need to separate the final from the source weightmap data to avoid this issue : 
+	0, 
 	TEXT("This will analyze weightmaps on readback and remove unneeded allocations (for unpainted layers)."));
 
 void OnLandscapeEditLayersLocalMergeChanged(IConsoleVariable* CVar)

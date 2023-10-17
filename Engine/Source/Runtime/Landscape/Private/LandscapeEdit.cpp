@@ -6764,7 +6764,7 @@ void ALandscape::PostEditChangeProperty(FPropertyChangedEvent& PropertyChangedEv
 		bMarkAllLandscapeRenderStateDirty = true;
 	}
 	
-	// If the property that has changed is overridable or inherited, synchronize the change on all landcape proxies :
+	// If the property that has changed is overridable or inherited, synchronize the change on all landscape proxies :
 	if (GIsEditor && IsSharedProperty(PropertyName))
 	{
 		bPropagateToProxies = true;
