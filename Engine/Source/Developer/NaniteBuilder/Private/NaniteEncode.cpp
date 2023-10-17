@@ -1039,7 +1039,7 @@ static uint32 EncodeUVFloat(float Value, uint32 NumMantissaBits)
 		// Note: Mantissa can overflow into first non-denormal value (1.0f),
 		// but that is desirable to get correct round-to-nearest behavior.
 		const float AbsFloat = (float&)AbsFloatUInt;
-		Result = uint32(double(AbsFloat * (1u << NumMantissaBits)) + 0.5);	// Cast to double to make sure +0.5 is lossless
+		Result = uint32(double(AbsFloat * float(1u << NumMantissaBits)) + 0.5);	// Cast to double to make sure +0.5 is lossless
 	}
 	else
 	{
