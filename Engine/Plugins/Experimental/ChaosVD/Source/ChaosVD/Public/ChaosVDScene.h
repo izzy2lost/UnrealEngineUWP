@@ -98,6 +98,9 @@ public:
 	const FChaosVDSolverInfoByIDMap& GetSolverInfoActorsMap() { return SolverDataContainerBySolverID; }
 	AChaosVDSolverInfoActor* GetSolverInfoActor(int32 SolverID);
 
+	/** Is the specified solver from a Server or a Client? (note: currently inferred from the solver name) */
+	bool IsSolverForServer(int32 Solver) const;
+
 	AActor* GetSkySphereActor() const { return SkySphere; }
 
 	FChaosVDActorActiveStateUpdateDelegate& OnActorActiveStateChanged() { return ParticleActorUpdateDelegate; }

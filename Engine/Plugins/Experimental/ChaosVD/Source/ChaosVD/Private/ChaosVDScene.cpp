@@ -242,8 +242,12 @@ void FChaosVDScene::HandleEnterNewGameFrame(int32 FrameNumber, const TArray<int3
 		{
 			AChaosVDSolverInfoActor* CollisionDataContainer = PhysicsVDWorld->SpawnActor<AChaosVDSolverInfoActor>();
 			check(CollisionDataContainer);
+
+			const bool bIsServer = LoadedRecording->GetSolverName_AssumedLocked(SolverID).Contains(TEXT("Server"));
+
 			CollisionDataContainer->SetSolverID(SolverID);
 			CollisionDataContainer->SetScene(AsWeak());
+			CollisionDataContainer->SetIsServer(bIsServer);
 			SolverDataContainerBySolverID.Add(SolverID, CollisionDataContainer);
 		}
 	}
@@ -318,6 +322,17 @@ AChaosVDSolverInfoActor* FChaosVDScene::GetSolverInfoActor(int32 SolverID)
 	}
 
 	return nullptr;
+}
+
+bool FChaosVDScene::IsSolverForServer(int32 SolverID) const
+{
+	if (const AChaosVDSolverInfoActor* const * PSolverDataInfo = SolverDataContainerBySolverID.Find(SolverID))
+	{
+		const AChaosVDSolverInfoActor* SolverDataInfo = *PSolverDataInfo;
+		return SolverDataInfo->GetIsServer();
+	}
+
+	return false;
 }
 
 AChaosVDParticleActor* FChaosVDScene::SpawnParticleFromRecordedData(const FChaosVDParticleDataWrapper& InParticleData, const FChaosVDSolverFrameData& InFrameData)

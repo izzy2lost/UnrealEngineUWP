@@ -22,6 +22,9 @@ public:
 	void SetSolverID(int32 InSolverID) { SolverID = InSolverID; }
 	int32 GetSolverID() const { return SolverID; }
 
+	void SetIsServer(bool bInIsServer) { bIsServer = bInIsServer; }
+	bool GetIsServer() const { return bIsServer; }
+
 	virtual void SetScene(TWeakPtr<FChaosVDScene> InScene) override;
 
 	void SetSimulationTransform(const FTransform& InSimulationTransform) { SimulationTransform = InSimulationTransform; }
@@ -58,4 +61,6 @@ protected:
 	TMap<int32, AChaosVDParticleActor*> SolverParticlesByID;
 
 	TArray<int32> SelectedParticlesID;
+
+	bool bIsServer;
 };

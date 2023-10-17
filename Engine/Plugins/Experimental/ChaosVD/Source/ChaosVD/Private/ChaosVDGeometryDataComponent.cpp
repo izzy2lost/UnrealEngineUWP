@@ -6,6 +6,7 @@
 #include "ChaosVDGeometryBuilder.h"
 #include "ChaosVDModule.h"
 #include "ChaosVDParticleActor.h"
+#include "ChaosVDScene.h"
 #include "Components/MeshComponent.h"
 #include "MaterialDomain.h"
 #include "Materials/Material.h"
@@ -147,6 +148,20 @@ void FChaosVDGeometryDataComponentBase::UpdateColors_Internal(UMeshComponent* Me
 				else
 				{
 					ColorToApply = EditorSettings->ColorsByParticleState.GetColorFromState(ParticleData->ParticleDynamicsMisc.MObjectState);
+				}
+				break;
+			}
+		case EChaosVDParticleDebugColorMode::ClientServer:
+			{
+				const TSharedPtr<FChaosVDScene> Scene = ParticleActor->GetScene().Pin();
+				const bool bIsServer = (Scene.IsValid()) ? Scene->IsSolverForServer(ParticleData->SolverID) : false;
+				if (ParticleData->Type == EChaosVDParticleType::Static)
+				{
+					ColorToApply = EditorSettings->ColorsByClientServer.GetColorFromState(bIsServer, EChaosVDObjectStateType::Static);
+				}
+				else
+				{
+					ColorToApply = EditorSettings->ColorsByClientServer.GetColorFromState(bIsServer, ParticleData->ParticleDynamicsMisc.MObjectState);
 				}
 				break;
 			}

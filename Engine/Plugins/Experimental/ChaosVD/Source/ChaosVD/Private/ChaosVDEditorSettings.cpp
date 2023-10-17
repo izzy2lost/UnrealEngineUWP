@@ -50,6 +50,23 @@ FColor FChaosDebugDrawColorsByShapeType::GetColorFromShapeType(Chaos::EImplicitO
 	}
 }
 
+FColor FChaosDebugDrawColorsByClientServer::GetColorFromState(bool bIsServer, EChaosVDObjectStateType State) const
+{
+	switch (State)
+	{
+	case EChaosVDObjectStateType::Sleeping:
+		return bIsServer ? ServerSleepingColor : ClientSleepingColor;
+	case EChaosVDObjectStateType::Kinematic:
+		return bIsServer ? ServerColor : ClientColor;
+	case EChaosVDObjectStateType::Static:
+		return bIsServer ? ServerColor : ClientColor;
+	case EChaosVDObjectStateType::Dynamic:
+		return bIsServer ? ServerDynamicColor : ClientDynamicColor;
+	default:
+		return FColor::Purple;
+	}
+}
+
 void UChaosVDEditorSettings::PostEditChangeProperty(FPropertyChangedEvent& PropertyChangedEvent)
 {
 	Super::PostEditChangeProperty(PropertyChangedEvent);

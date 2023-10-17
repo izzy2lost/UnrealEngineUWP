@@ -122,6 +122,12 @@ struct CHAOSVDDATA_API FChaosVDRecording
 	FString GetSolverName(int32 SolverID);
 
 	/**
+	 * Returns the name of the specified solver id. Must be called from within a ReadLock
+	 * @param SolverID ID of the solver
+	 */
+	FString GetSolverName_AssumedLocked(int32 SolverID);
+
+	/**
 	 * Return a ptr to the existing solver frame data from the specified ID and Frame number
 	 * @param SolverID ID of the solver
 	 * @param FrameNumber Frame number

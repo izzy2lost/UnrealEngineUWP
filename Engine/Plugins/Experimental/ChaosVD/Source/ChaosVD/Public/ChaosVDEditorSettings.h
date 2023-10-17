@@ -122,12 +122,46 @@ struct FChaosDebugDrawColorsByShapeType
 	FColor GetColorFromShapeType(Chaos::EImplicitObjectType ShapeType) const;
 };
 
+/** Structure holding the settings using to debug draw Particles shape based on whether they are client or server objects (in PIE) Chaos Visual Debugger */
+USTRUCT()
+struct FChaosDebugDrawColorsByClientServer
+{
+	GENERATED_BODY()
+
+	/** Color used for server shapes that are not awake or sleeping dynamic */
+	UPROPERTY(EditAnywhere, Category=DebugDraw)
+	FColor ServerColor = FColor(50, 0, 0); 
+
+	/** Color used for server shapes that are awake dynamic */
+	UPROPERTY(EditAnywhere, Category = DebugDraw)
+	FColor ServerDynamicColor = FColor(150, 0, 0);
+
+	/** Color used for server shapes that are sleeping dynamics */
+	UPROPERTY(EditAnywhere, Category = DebugDraw)
+	FColor ServerSleepingColor = FColor(10, 0, 0);
+
+	/** Color used for client shapes that are not awake or sleeping dynamic */
+	UPROPERTY(EditAnywhere, Category = DebugDraw)
+	FColor ClientColor = FColor(0, 0, 50);
+
+	/** Color used for server shapes that are awake dynamic */
+	UPROPERTY(EditAnywhere, Category = DebugDraw)
+	FColor ClientDynamicColor = FColor(0, 0, 150);
+
+	/** Color used for client shapes that are sleeping dynamics */
+	UPROPERTY(EditAnywhere, Category = DebugDraw)
+	FColor ClientSleepingColor = FColor(0, 0, 100);
+
+	FColor GetColorFromState(bool bIsServer, EChaosVDObjectStateType State) const;
+};
+
 UENUM()
 enum class EChaosVDParticleDebugColorMode
 {
 	None,
 	State,
-	ShapeType
+	ShapeType,
+	ClientServer,
 };
 
 UCLASS(config = Engine)
@@ -156,6 +190,9 @@ public:
 	
 	UPROPERTY(EditAnywhere, Category = "Viewport Visualization", meta=(EditCondition = "ParticleColorMode == EChaosVDParticleDebugColorMode::State", EditConditionHides))
 	FChaosDebugDrawColorsByState ColorsByParticleState;
+
+	UPROPERTY(EditAnywhere, Category = "Viewport Visualization", meta = (EditCondition = "ParticleColorMode == EChaosVDParticleDebugColorMode::ClientServer", EditConditionHides))
+	FChaosDebugDrawColorsByClientServer ColorsByClientServer;
 
 	UPROPERTY(EditAnywhere, Category = "Viewport Tracking")
 	EChaosVDActorTrackingTarget TrackingTarget;

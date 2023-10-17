@@ -34,9 +34,14 @@ int32 FChaosVDRecording::GetAvailableSolverFramesNumber_AssumesLocked(int32 Solv
 
 FString FChaosVDRecording::GetSolverName(int32 SolverID)
 {
-	static FString DefaultName(TEXT("Invalid"));
-
 	FReadScopeLock ReadLock(RecordingDataLock);
+
+	return GetSolverName_AssumedLocked(SolverID);
+}
+
+FString FChaosVDRecording::GetSolverName_AssumedLocked(int32 SolverID)
+{
+	static FString DefaultName(TEXT("Invalid"));
 
 	// Currently we don't create an entry per solver, so we need to get the name from the frame data
 	// TODO: Record Solver specific data per instance and not per frame
