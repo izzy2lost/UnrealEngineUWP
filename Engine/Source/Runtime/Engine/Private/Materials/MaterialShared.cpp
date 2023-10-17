@@ -3598,21 +3598,18 @@ bool FMaterial::TryGetShaders(const FMaterialShaderTypes& InTypes, const FVertex
 			{
 				bMissingShader = true;
 
-#if WITH_EDITOR || WITH_ODSC
-				for (const FShaderType* ShaderType : InTypes.PipelineType->GetStages())
-				{
-					if (!ShouldCacheShaderType(ShaderType, InVertexFactoryType))
-					{
-						return false;
-					}
-				}
-#endif // WITH_EDITOR || WITH_ODSC
-
 #if WITH_ODSC
 				if (FPlatformProperties::RequiresCookedData())
 				{
 					if (GODSCManager->IsHandlingRequests())
 					{
+				        for (const FShaderType* ShaderType : InTypes.PipelineType->GetStages())
+				        {
+					        if (!ShouldCacheShaderType(ShaderType, InVertexFactoryType))
+					        {
+						        return false;
+					        }
+				        }
 						const FString MaterialName = GetFullPath();
 						const FString VFTypeName(InVertexFactoryType ? InVertexFactoryType->GetName() : TEXT(""));
 						const FString PipelineName(InTypes.PipelineType->GetName());
@@ -3693,18 +3690,15 @@ bool FMaterial::TryGetShaders(const FMaterialShaderTypes& InTypes, const FVertex
 				{
 					bMissingShader = true;
 
-#if WITH_EDITOR || WITH_ODSC
-					if (!ShouldCacheShaderType(ShaderType, InVertexFactoryType))
-					{
-						return false;
-					}
-#endif // WITH_EDITOR || WITH_ODSC
-
 #if WITH_ODSC
 					if (FPlatformProperties::RequiresCookedData())
 					{
 						if (GODSCManager->IsHandlingRequests())
 						{
+					        if (!ShouldCacheShaderType(ShaderType, InVertexFactoryType))
+					        {
+						        return false;
+					        }
 							const FString MaterialName = GetFullPath();
 							const FString VFTypeName(InVertexFactoryType ? InVertexFactoryType->GetName() : TEXT(""));
 							const FString PipelineName;
