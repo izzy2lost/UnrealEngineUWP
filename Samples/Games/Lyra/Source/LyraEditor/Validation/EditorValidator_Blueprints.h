@@ -18,6 +18,6 @@ public:
 	UEditorValidator_Blueprints();
 
 protected:
-	virtual bool CanValidateAsset_Implementation(UObject* InAsset) const override;
-	virtual EDataValidationResult ValidateLoadedAsset_Implementation(UObject* InAsset, TArray<FText>& ValidationErrors) override;
+	virtual bool CanValidateAsset_Implementation(const FAssetData& InAssetData, UObject* InObject, FDataValidationContext& InContext) const;
+	virtual EDataValidationResult ValidateLoadedAsset_Implementation(const FAssetData& InAssetData, UObject* InAsset, FDataValidationContext& Context);
 };
