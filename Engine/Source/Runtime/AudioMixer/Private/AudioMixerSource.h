@@ -129,6 +129,8 @@ namespace Audio
 		TSharedPtr<FMixerSourceBuffer, ESPMode::ThreadSafe> MixerSourceBuffer;
 		FMixerSourceVoice* MixerSourceVoice;
 		IAudioLinkFactory::FAudioLinkSourcePushedSharedPtr AudioLink;
+		FMixerSubmixWeakPtr PreviousSubmixResolved;
+		TObjectKey<USoundSubmixBase> PrevousSubmix;
 
 		// These modulators are obtained from the submix and used only on binaural assets
 		bool bBypassingSubmixModulation;

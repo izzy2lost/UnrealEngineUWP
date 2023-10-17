@@ -182,8 +182,17 @@ namespace Audio
 		}
 	}
 
+	TSet<FSubmixMap::FObjectId> FSubmixMap::GetKeys() const
+	{
+		FScopeLock ScopeLock(&MutationLock);
+		TArray<FObjectId> Keys;
+		SubmixMap.GenerateKeyArray(Keys);
+		return TSet<FObjectId>(Keys);
+	}
+
+
 	static FAutoConsoleCommand DumpSubmixCmd(
-		TEXT("au.dumpsubmixes"),
+		TEXT("au.submix.drawgraph"),
 		TEXT("Draws the submix heirarchy for this world to the debug output"),
 		FConsoleCommandWithWorldArgsAndOutputDeviceDelegate::CreateLambda([](const TArray<FString>& InArgs, UWorld* InWorld, FOutputDevice& OutLog)
 		{
@@ -191,7 +200,7 @@ namespace Audio
 			{
 				if (const FMixerDevice* MixerDevice = static_cast<FMixerDevice*>(InWorld->GetAudioDeviceRaw()))
 				{
-					MixerDevice->DrawSubmixes(OutLog);
+					MixerDevice->DrawSubmixes(OutLog, InArgs);
 				}
 			}
 		})
@@ -228,14 +237,65 @@ namespace Audio
 		}
 	}
 
-	void FMixerDevice::DrawSubmixes(FOutputDevice& Output) const
+	static void DrawSubmixInstances(const FMixerSubmix* InRoot, const int32 InIdent, FOutputDevice& InOutput)
 	{
-		Output.Logf(TEXT("AudioDevice=%d, Device Instance=0x%p"), DeviceID, this);		
+		if (!InRoot)
+		{
+			return;
+		}
 
+		const FString Indent = FCString::Spc(InIdent*3);
+		InOutput.Logf(TEXT("%sName=%s,Instance=0x%p,Id=%u"),
+			*Indent, *InRoot->GetName(), InRoot, InRoot->GetId());
+
+		// Go downwards.
+		const TMap<uint32, FChildSubmixInfo>& Children = InRoot->GetChildren();
+		for (const auto& i : Children)
+		{
+			if (FMixerSubmixPtr Child =  i.Value.SubmixPtr.Pin())
+			{
+				DrawSubmixInstances(Child.Get(), InIdent+1, InOutput);
+			}
+		}
+	}
+	
+	void FMixerDevice::DrawSubmixes(FOutputDevice& InOutput, const TArray<FString>& InArgs) const
+	{
+		InOutput.Logf(TEXT("AudioDevice=%d, Device Instance=0x%p"), DeviceID, this);
+
+		// Params.
+		if (Algo::FindByPredicate(InArgs, [](const FString& InStr){ return FParse::Param(*InStr, TEXT("Instances")); }) != nullptr)
+		{
+			InOutput.Logf(TEXT("[Instance Hierarchy]"));
+			for (int32 i = 0; i < RequiredSubmixes.Num(); i++)
+			{
+				InOutput.Logf(TEXT("SlotName=[%s]"), ToCStr(LexToString(static_cast<ERequiredSubmixes>(i))));
+				DrawSubmixInstances(RequiredSubmixInstances[i].Get(), 1, InOutput);
+			}
+		}
+		if (Algo::FindByPredicate(InArgs, [](const FString& InStr){ return FParse::Param(*InStr, TEXT("Map")); }) != nullptr)
+		{
+			InOutput.Logf(TEXT("[Map of UObject -> SubmixPtrs]"));
+
+			// Map loop of unique ids from UObjects.
+			TMap<uint32, USoundSubmixBase*> AllSubmixes;
+			for (TObjectIterator<USoundSubmixBase> It; It; ++It)
+			{
+				AllSubmixes.Add(It->GetUniqueID(),*It);
+			}
+			for (const auto i : Submixes.GetKeys())
+			{
+				const auto pFound = AllSubmixes.Find(i);
+				InOutput.Logf(TEXT("%u -> %s"), i, pFound ? *GetNameSafe(*pFound) : TEXT("Not found"));
+			}
+		}
+
+		// USubmixMap hierarchy from slots downwards.
+		InOutput.Logf(TEXT("[Map of UObject Hierarchy]"));
 		for (int32 i = 0; i < RequiredSubmixes.Num(); i++)
 		{
-			Output.Logf(TEXT("SlotName=[%s]"), ToCStr(LexToString((ERequiredSubmixes)i)));
-			DrawSubmixHeirarchy(RequiredSubmixes[i], RequiredSubmixInstances[i], this, 1, Output, TEXT("In Slot"));
+			InOutput.Logf(TEXT("SlotName=[%s]"), ToCStr(LexToString(static_cast<ERequiredSubmixes>(i))));
+			DrawSubmixHeirarchy(RequiredSubmixes[i], RequiredSubmixInstances[i], this, 1, InOutput, TEXT("In Slot"));
 		}
 	}
 
@@ -607,7 +667,7 @@ namespace Audio
 		{
 			for (TObjectIterator<USoundSubmix> It; It; ++It)
 			{
-				UnregisterSoundSubmix(*It);
+				UnregisterSoundSubmix(*It, true);
 			}
 			
 			// Destroy the synchronized Audio Task Queue for this device
@@ -1139,7 +1199,7 @@ namespace Audio
 				USoundSubmixBase* SubmixToLoad = *It;
 				check(SubmixToLoad);
 
-				if (!IsRequiredSubmixType(SubmixToLoad))
+				if (!IsRequiredSubmixType(SubmixToLoad) && SubmixToLoad->bAutoRegister )
 				{
 					LoadSoundSubmix(*SubmixToLoad);
 					InitSoundfieldAndEndpointDataForSubmix(*SubmixToLoad, GetSubmixInstance(SubmixToLoad).Pin(), false);
@@ -1863,7 +1923,7 @@ namespace Audio
 		}
 	}
 
-	void FMixerDevice::UnregisterSoundSubmix(const USoundSubmixBase* InSoundSubmix)
+	void FMixerDevice::UnregisterSoundSubmix(const USoundSubmixBase* InSoundSubmix, const bool bReparentChildren)
 	{
 		if (!InSoundSubmix || bSubmixRegistrationDisabled || IsRequiredSubmixType(InSoundSubmix))
 		{
@@ -1875,21 +1935,21 @@ namespace Audio
 			DECLARE_CYCLE_STAT(TEXT("FAudioThreadTask.UnregisterSoundSubmix"), STAT_AudioUnregisterSoundSubmix, STATGROUP_AudioThreadCommands);
 
 			const TWeakObjectPtr<const USoundSubmixBase> SubmixToUnload = InSoundSubmix;
-			FAudioThread::RunCommandOnAudioThread([this, SubmixToUnload]()
+			FAudioThread::RunCommandOnAudioThread([this, SubmixToUnload, bReparentChildren]()
 			{
 				CSV_SCOPED_TIMING_STAT(Audio, UnregisterSubmix);
 				if (SubmixToUnload.IsValid())
 				{
-					UnloadSoundSubmix(*SubmixToUnload.Get());
+					UnloadSoundSubmix(*SubmixToUnload.Get(), bReparentChildren);
 				}
 			}, GET_STATID(STAT_AudioUnregisterSoundSubmix));
 			return;
 		}
 
-		UnloadSoundSubmix(*InSoundSubmix);
+		UnloadSoundSubmix(*InSoundSubmix, bReparentChildren);
 	}
 
-	void FMixerDevice::UnloadSoundSubmix(const USoundSubmixBase& InSoundSubmix)
+	void FMixerDevice::UnloadSoundSubmix(const USoundSubmixBase& InSoundSubmix, const bool bReparentChildren)
 	{
 		check(IsInAudioThread());
 
@@ -1909,14 +1969,17 @@ namespace Audio
 			ParentSubmixInstance->RemoveChildSubmix(GetSubmixInstance(&InSoundSubmix));
 		}
 
-		for (USoundSubmixBase* ChildSubmix : InSoundSubmix.ChildSubmixes)
+		if (bReparentChildren)
 		{
-			FMixerSubmixPtr ChildSubmixPtr = GetSubmixInstance(ChildSubmix).Pin();
-			if (ChildSubmixPtr.IsValid())
+			for (USoundSubmixBase* ChildSubmix : InSoundSubmix.ChildSubmixes)
 			{
-				ChildSubmixPtr->SetParentSubmix(ParentSubmixInstance.IsValid()
-					? ParentSubmixInstance
-					: MainSubmix);
+				FMixerSubmixPtr ChildSubmixPtr = GetSubmixInstance(ChildSubmix).Pin();
+				if (ChildSubmixPtr.IsValid())
+				{
+					ChildSubmixPtr->SetParentSubmix(ParentSubmixInstance.IsValid()
+						? ParentSubmixInstance
+						: MainSubmix);
+				}
 			}
 		}
 

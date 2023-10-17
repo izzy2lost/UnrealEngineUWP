@@ -102,7 +102,7 @@ namespace Audio
 		FMixerSubmixPtr FindRef(FObjectId InObjectId) const;
 		int32 Remove(const FObjectId InObjectId);
 		void Reset();
-
+		TSet<FSubmixMap::FObjectId> GetKeys() const;
 	private:
 		TMap<FObjectId, FMixerSubmixPtr> SubmixMap;
 
@@ -149,7 +149,7 @@ namespace Audio
 		AUDIOMIXER_API virtual void EnableDebugAudioOutput() override;
 		AUDIOMIXER_API virtual FAudioPlatformSettings GetPlatformSettings() const override;
 		AUDIOMIXER_API virtual void RegisterSoundSubmix(USoundSubmixBase* SoundSubmix, bool bInit = true) override;
-		AUDIOMIXER_API virtual void UnregisterSoundSubmix(const USoundSubmixBase* SoundSubmix) override;
+		AUDIOMIXER_API virtual void UnregisterSoundSubmix(const USoundSubmixBase* SoundSubmix, const bool bReparentChildren) override;
 
 		AUDIOMIXER_API virtual void InitSoundEffectPresets() override;
 		UE_DEPRECATED(5.2, "The functionality for this has been moved to UAudioBusSubsystem::InitDefaultAudioBuses, which is now automatically called on subsystem creation.")
@@ -379,7 +379,9 @@ namespace Audio
 		// Pushes the command to a MPSC queue to be executed on the game thread
 		AUDIOMIXER_API void GameThreadMPSCCommand(TFunction<void()> InCommand);
 
-		AUDIOMIXER_API void DrawSubmixes(FOutputDevice& Output) const;
+		// Debug Commands
+		AUDIOMIXER_API void DrawSubmixes(FOutputDevice& InOutput, const TArray<FString>& InArgs) const;
+
 	protected:
 		AUDIOMIXER_API virtual void InitSoundSubmixes() override;
 
@@ -409,7 +411,7 @@ namespace Audio
 
 		void InitSoundfieldAndEndpointDataForSubmix(const USoundSubmixBase& InSoundSubmix, FMixerSubmixPtr MixerSubmix, bool bAllowReInit);
 
-		void UnloadSoundSubmix(const USoundSubmixBase& SoundSubmix);
+		void UnloadSoundSubmix(const USoundSubmixBase& SoundSubmix, const bool bReparentChildren);
 
 		ICompressedAudioInfo* CreateAudioInfo(FName InFormat) const;
 

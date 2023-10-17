@@ -181,18 +181,26 @@ public:
 #endif
 
 	// Auto-manage enabling and disabling the submix as a CPU optimization. It will be disabled if the submix and all child submixes are silent. It will re-enable if a sound is sent to the submix or a child submix is audible.
-	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = AutoDisablement)
+	UPROPERTY(config, EditAnywhere, BlueprintReadOnly, Category = AutoDisablement)
 	bool bAutoDisable = true;
 
 	// The minimum amount of time to wait before automatically disabling a submix if it is silent. Will immediately re-enable if source audio is sent to it. 
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = AutoDisablement, meta = (EditCondition = "bAutoDisable"))
+	UPROPERTY(config, EditAnywhere, BlueprintReadWrite, Category = AutoDisablement, meta = (EditCondition = "bAutoDisable"))
 	float AutoDisableTime = 0.01f;
+
+	// Whether to automatically register this Submix with an AudioDevice. 
+	UPROPERTY(config, EditAnywhere, BlueprintReadOnly, Category = Automatic)
+	bool bAutoRegister = true;
+
+	// Whether to automatically route to the 'MasterSubmix' aka 'MainSubmix' when the parent is null
+	UPROPERTY(config, EditAnywhere, BlueprintReadOnly, Category = Automatic)
+	bool bAutoRouteToMasterSubmixWhenOrphaned = true;
 
 	// Child submixes to this sound mix
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = SoundSubmix)
 	TArray<TObjectPtr<USoundSubmixBase>> ChildSubmixes;
 
-	// Dynamic Child submixes
+	// Dynamic Child submixes (Map of AudioDevice -> [Submix] )
 	UPROPERTY(Transient)
 	TMap<uint32, FDynamicChildSubmix> DynamicChildSubmixes;
 		

@@ -83,7 +83,7 @@ namespace Audio
 
 	class FMixerSubmix;
 
-	struct FChildSubmixInfo
+	struct FChildSubmixInfo : FNoncopyable
 	{
 		TWeakPtr<FMixerSubmix, ESPMode::ThreadSafe> SubmixPtr;
 
@@ -98,13 +98,6 @@ namespace Audio
 
 		FChildSubmixInfo()
 		{}
-
-		// TMap doesn't compile using non-copyable types as value types, though you can build and use a TMap without using the copy constructor.
-		FChildSubmixInfo(const FChildSubmixInfo& InInfo)
-			: FChildSubmixInfo()
-		{
-			checkf(false, TEXT("FChildSubmixInfo is not copyable. If you are using FChildSubmixInfo, consider using Emplace or Add(FChildSubmixInfo&&)."));
-		}
 
 		FChildSubmixInfo(TWeakPtr<FMixerSubmix, ESPMode::ThreadSafe> SubmixWeakPtr)
 			: SubmixPtr(SubmixWeakPtr)
@@ -123,6 +116,9 @@ namespace Audio
 
 		// Returns the mixer submix Id
 		uint32 GetId() const { return Id; }
+
+		// Return the owners name 
+		AUDIOMIXER_API const FString& GetName() const { return SubmixName; }
 
 		// Sets the parent submix to the given submix
 		AUDIOMIXER_API void SetParentSubmix(TWeakPtr<FMixerSubmix, ESPMode::ThreadSafe> Submix);
@@ -386,6 +382,9 @@ namespace Audio
 		// Generates audio from the given effect chain into the given buffer
 		AUDIOMIXER_API bool GenerateEffectChainAudio(FSoundEffectSubmixInputData& InputData, const FAlignedFloatBuffer& InAudioBuffer, TArray<FSoundEffectSubmixPtr>& InEffectChain, FAlignedFloatBuffer& OutBuffer);
 
+		// The name of this submix (the owning USoundSubmix) (at top so we can see in debugger it's name)
+		FString SubmixName;
+		
 		// This mixer submix's Id
 		uint32 Id;
 
@@ -618,9 +617,6 @@ namespace Audio
 
 		// The time that the first full silent buffer was detected in the submix. Submix will auto-disable if the timeout is reached and the submix has bAutoDisable set to true.
 		double SilenceTimeStartSeconds;
-
-		// The name of this submix (the owning USoundSubmix)
-		FString SubmixName;
 
 		// Bool set to true when envelope following is enabled
 		FThreadSafeBool bIsEnvelopeFollowing;

@@ -825,7 +825,7 @@ void FAudioDeviceManager::UnregisterSoundSubmix(const USoundSubmixBase* SoundSub
 	IterateOverAllDevices(
 		[&SoundSubmix](Audio::FDeviceId, FAudioDevice* InDevice)
 		{
-			InDevice->UnregisterSoundSubmix(SoundSubmix);
+			InDevice->UnregisterSoundSubmix(SoundSubmix, true);
 		}
 	);
 }

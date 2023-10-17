@@ -956,7 +956,7 @@ public:
 	virtual void RegisterSoundSubmix(USoundSubmixBase* SoundSubmix, bool bInit) {}
 
 	/** Unregisters the sound submix */
-	virtual void UnregisterSoundSubmix(const USoundSubmixBase* SoundSubmix) {}
+	virtual void UnregisterSoundSubmix(const USoundSubmixBase* SoundSubmix, const bool bReparentChildren) {}
 
 	ENGINE_API virtual USoundSubmix& GetMainSubmixObject() const;
 

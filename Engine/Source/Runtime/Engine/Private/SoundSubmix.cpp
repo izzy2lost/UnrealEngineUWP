@@ -677,6 +677,7 @@ bool USoundSubmixWithParentBase::DynamicConnect(FAudioDeviceHandle Handle, USoun
 
 	if (CurrentParent != InParent)
 	{
+
 		if (CurrentParent)
 		{
 			CurrentParent->DynamicChildSubmixes.FindOrAdd(Id).ChildSubmixes.Remove(this);
@@ -684,7 +685,6 @@ bool USoundSubmixWithParentBase::DynamicConnect(FAudioDeviceHandle Handle, USoun
 		}
 
 		CurrentParent = InParent;
-
 		if (CurrentParent)
 		{
 			CurrentParent->DynamicChildSubmixes.FindOrAdd(Id).ChildSubmixes.AddUnique(this);
@@ -694,8 +694,9 @@ bool USoundSubmixWithParentBase::DynamicConnect(FAudioDeviceHandle Handle, USoun
 			Handle->SetSubmixAutoDisable(Cast<USoundSubmix>(CurrentParent.Get()), false);
 		}
 
-		Handle->RegisterSoundSubmix(this, false);
-		Handle->SetSubmixAutoDisable(Cast<USoundSubmix>(this), CurrentParent != nullptr);
+		// Register us, and disable parents auto disable feature.
+		Handle->RegisterSoundSubmix(this, /*bInit*/ true);
+		Handle->SetSubmixAutoDisable(Cast<USoundSubmix>(this), CurrentParent == nullptr);
 
 		UE_LOG(LogAudio, Verbose, TEXT("Submix (DynamicConnect): Registering [%s] with AudioDevice [%u]"), *GetName(), Id);
 
@@ -745,7 +746,7 @@ bool USoundSubmixWithParentBase::DynamicDisconnect(FAudioDeviceHandle Handle)
 		CurrentParent->DynamicChildSubmixes.FindOrAdd(Id).ChildSubmixes.Remove(this);
 		CurrentParent = nullptr;
 
-		Handle->UnregisterSoundSubmix(this);
+		Handle->UnregisterSoundSubmix(this, false);
 				
 		// If we still have a valid parent static submix? Make sure that's still live and registered.
 		if (ParentSubmix)
@@ -813,6 +814,11 @@ void USoundSubmixBase::PostEditChangeProperty(FPropertyChangedEvent& PropertyCha
 						// Update parentage
 						SubmixWithParent->SetParentSubmix(this);
 					}
+					
+					// Make the children follow our auto register setting.
+					ChildSubmixes[ChildIndex]->bAutoRegister = bAutoRegister;
+					ChildSubmixes[ChildIndex]->PostEditChangeProperty(PropertyChangedEvent);
+
 					break;
 				}
 			}
@@ -833,7 +839,25 @@ void USoundSubmixBase::PostEditChangeProperty(FPropertyChangedEvent& PropertyCha
 			// Force the properties to be initialized for this SoundSubmix on all active audio devices
 			if (FAudioDeviceManager* AudioDeviceManager = GEngine->GetAudioDeviceManager())
 			{
-				AudioDeviceManager->RegisterSoundSubmix(this);
+				if (bAutoRegister)
+				{
+					AudioDeviceManager->RegisterSoundSubmix(this);
+				}
+			}
+		}
+
+		// Propagate auto register to children of this submix. 
+		// We don't want them to auto register 
+		if (PropertyChangedEvent.Property->GetFName() == GET_MEMBER_NAME_CHECKED(USoundSubmixBase, bAutoRegister))
+		{
+			// All children so should follow the 
+			for (int32 ChildIndex = 0; ChildIndex < ChildSubmixes.Num(); ChildIndex++)
+			{
+				if (USoundSubmixBase* Child = ChildSubmixes[ChildIndex] )
+				{
+					Child->bAutoRegister = bAutoRegister;
+					Child->PostEditChangeProperty(PropertyChangedEvent);
+				}
 			}
 		}
 	}

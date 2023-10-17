@@ -1724,8 +1724,24 @@ namespace Audio
 			MixerSourceVoice->SetSubmixSendInfo(MixerDevice->GetMasterReverbSubmix(), WaveInstance->ReverbSendLevel);
 		}
 
+		// Safely track if the submix has changed between updates.
+		bool bSubmixHasChanged = false;
+		TObjectKey<USoundSubmixBase> SubmixKey(WaveInstance->SoundSubmix);
+		if (SubmixKey != PrevousSubmix )
+		{
+			bSubmixHasChanged = true;
+		}
+
+		// This will reattempt to resolve a submix each update if there's a valid input
+		if ((!WaveInstance->SoundSubmix && PreviousSubmixResolved.IsValid()) || 
+		     (WaveInstance->SoundSubmix && !PreviousSubmixResolved.IsValid()) )
+		{
+			bSubmixHasChanged = true;
+		}
+
 		//Check whether the base submix send has been enabled or disabled since the last update
-		if (WaveInstance->bEnableBaseSubmix != bPreviousBaseSubmixEnablement)
+		//Or if the submix has now been registered with the world.
+		if (WaveInstance->bEnableBaseSubmix != bPreviousBaseSubmixEnablement || bSubmixHasChanged)
 		{
 			// set the level for this send
 			FMixerSubmixWeakPtr SubmixPtr;
@@ -1733,13 +1749,16 @@ namespace Audio
 			{
 				SubmixPtr = MixerDevice->GetSubmixInstance(WaveInstance->SoundSubmix);
 			}
-			else
+			else if(WaveInstance->SoundSubmix && WaveInstance->SoundSubmix->bAutoRouteToMasterSubmixWhenOrphaned)
 			{
 				SubmixPtr = MixerDevice->GetMasterSubmix();
 			}
 
+
 			MixerSourceVoice->SetSubmixSendInfo(SubmixPtr, WaveInstance->bEnableBaseSubmix);
 			bPreviousBaseSubmixEnablement = WaveInstance->bEnableBaseSubmix;
+			PreviousSubmixResolved = SubmixPtr;
+			PrevousSubmix = SubmixKey;
 		}
 
 		if (WaveInstance->SubmixSendSettings.Num() > 0)
