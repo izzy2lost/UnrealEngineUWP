@@ -37,6 +37,8 @@
 #include "Iris/Serialization/InternalNetSerializationContext.h"
 #include "Iris/Serialization/NetBitStreamUtil.h"
 
+DEFINE_LOG_CATEGORY(LogIrisFilterConfig)
+
 #define UE_LOG_OBJECTREPLICATIONBRIDGE(Category, Format, ...)  UE_LOG(LogIrisBridge, Category, TEXT("ObjectReplicationBridge(%u)::") Format, GetReplicationSystem()->GetId(), ##__VA_ARGS__)
 
 static bool bUseFrequencyBasedPolling = true;
@@ -76,12 +78,12 @@ static FAutoConsoleVariableRef CVarEnableForceNetUpdate(
 
 UObjectReplicationBridge::FCreateNetRefHandleParams UObjectReplicationBridge::DefaultCreateNetRefHandleParams =
 {
-	false, // bCanReceive
-	false, // bNeedsPreUpdate
-	false, // bNeedsWorldLocationUpdate
-	true, // bAllowDynamicFilter
-	0.0f, // StaticPriority
-	0U, // PollFramePeriod
+	.bCanReceive=false, 
+	.bNeedsPreUpdate=false,
+	.bNeedsWorldLocationUpdate=false, 
+	.bUseClassConfigDynamicFilter=true,
+	.StaticPriority=0.0f, 
+	.PollFrequency=0.0f,
 };
 
 namespace UE::Net::Private
@@ -357,15 +359,7 @@ UE::Net::FNetRefHandle UObjectReplicationBridge::BeginReplication(UObject* Insta
 				}
 			}
 
-			if (bEnableFilterMappings && Params.bAllowDynamicFilter)
-			{
-				const FNetObjectFilterHandle FilterHandle = GetDynamicFilter(Instance->GetClass());
-				if (FilterHandle != InvalidNetObjectFilterHandle)
-				{
-					UE_LOG_OBJECTREPLICATIONBRIDGE(Verbose, TEXT("BeginReplication Filter: %s will be used for Object: %s "), *(ReplicationSystem->GetFilterName(FilterHandle).ToString()), *Instance->GetName());
-					ReplicationSystem->SetFilter(RefHandle, FilterHandle);
-				}
-			}
+			AssignDynamicFilter(Instance, Params, RefHandle);
 
 			if (ShouldClassBeDeltaCompressed(Instance->GetClass()))
 			{
@@ -384,6 +378,40 @@ UE::Net::FNetRefHandle UObjectReplicationBridge::BeginReplication(UObject* Insta
 	UE_LOG(LogIris, Error, TEXT("UObjectReplicationBridge::BeginReplication - Failed to create NetRefHandle for object %s"), ToCStr(Instance->GetPathName()));
 
 	return FNetRefHandle();
+}
+
+void UObjectReplicationBridge::AssignDynamicFilter(UObject* Instance, const FCreateNetRefHandleParams& Params, FNetRefHandle RefHandle)
+{
+	using namespace UE::Net;
+
+	if (!bEnableFilterMappings)
+	{
+		return;
+	}
+
+	FNetObjectFilterHandle FilterHandle = InvalidNetObjectFilterHandle;
+
+	if (Params.bUseExplicitDynamicFilter)
+	{
+		if (Params.ExplicitDynamicFilterName != NAME_None)
+		{
+			FilterHandle = ReplicationSystem->GetFilterHandle(Params.ExplicitDynamicFilterName);
+			
+			UE_CLOG(FilterHandle == InvalidNetObjectFilterHandle, LogIrisBridge, Error, TEXT("Could not assign explicit dynamic filter to %s. No filters named %s exist"), *GetPathNameSafe(Instance), *Params.ExplicitDynamicFilterName.ToString() );
+			ensure(FilterHandle != InvalidNetObjectFilterHandle);
+		}
+	}
+	else if (Params.bUseClassConfigDynamicFilter)
+	{
+		FilterHandle = GetDynamicFilter(Instance->GetClass());
+	}
+
+	if (FilterHandle != InvalidNetObjectFilterHandle)
+	{
+		UE_LOG_OBJECTREPLICATIONBRIDGE(Verbose, TEXT("BeginReplication Filter: %s will be used for Object: %s "), *(ReplicationSystem->GetFilterName(FilterHandle).ToString()), *Instance->GetName());
+		ReplicationSystem->SetFilter(RefHandle, FilterHandle);
+	}
+	
 }
 
 UE::Net::FNetRefHandle UObjectReplicationBridge::BeginReplication(FNetRefHandle OwnerRefHandle, UObject* Instance, FNetRefHandle InsertRelativeToSubObjectRefHandle, ESubObjectInsertionOrder InsertionOrder, const FCreateNetRefHandleParams& Params)
@@ -416,7 +444,7 @@ UE::Net::FNetRefHandle UObjectReplicationBridge::BeginReplication(FNetRefHandle 
 
 		FCreateNetRefHandleParams SubObjectCreateParams = Params;
 		// The filtering system ignores subobjects so let's not waste cycles figuring out which filter to use.
-		SubObjectCreateParams.bAllowDynamicFilter = 0U;
+		SubObjectCreateParams.bUseClassConfigDynamicFilter = false;
 		SubObjectRefHandle = BeginReplication(Instance, SubObjectCreateParams);
 	}
 
@@ -1323,6 +1351,61 @@ bool UObjectReplicationBridge::ShouldClassBeDeltaCompressed(const UClass* Class)
 	}
 
 	return false;
+}
+
+void UObjectReplicationBridge::SetClassDynamicFilterConfig(FName ClassPathName, const UE::Net::FNetObjectFilterHandle FilterHandle)
+{
+	if (ClassPathName.IsNone())
+	{
+		return;
+	}
+
+	if (UE_LOG_ACTIVE(LogIrisFilterConfig, Log))
+	{
+		if (const UE::Net::FNetObjectFilterHandle* OldFilter = ClassesWithDynamicFilter.Find(ClassPathName))
+		{
+			if (*OldFilter != FilterHandle)
+			{
+				UE_LOG(LogIrisFilterConfig, Log, TEXT("SetClassDynamicFilterConfig assigned %s to use filter %s. Previously using filter %s."),
+					*ClassPathName.ToString(), *(ReplicationSystem->GetFilterName(FilterHandle).ToString()), *(ReplicationSystem->GetFilterName(*OldFilter).ToString()));
+			}
+			else
+			{
+				UE_LOG(LogIrisFilterConfig, Log, TEXT("SetClassDynamicFilterConfig assigned %s to use filter %s but the class was already assigned to this filter."), *ClassPathName.ToString(), *(ReplicationSystem->GetFilterName(FilterHandle).ToString()));
+			}
+		}
+		else
+		{
+			UE_LOG(LogIrisFilterConfig, Log, TEXT("SetClassDynamicFilterConfig assigned %s to use filter %s."), *ClassPathName.ToString(), *(ReplicationSystem->GetFilterName(FilterHandle).ToString()));
+		}
+	}
+
+	ClassesWithDynamicFilter.Add(ClassPathName, FilterHandle);
+}
+
+void UObjectReplicationBridge::SetClassDynamicFilterConfig(FName ClassPathName, FName FilterName)
+{
+	using namespace UE::Net;
+
+	if (ClassPathName.IsNone())
+	{
+		return;
+	}
+
+	if (FilterName != NAME_None)
+	{
+		FNetObjectFilterHandle FilterHandle = GetReplicationSystem()->GetFilterHandle(FilterName);;
+
+		if (ensureMsgf(FilterHandle != InvalidNetObjectFilterHandle, TEXT("SetClassDynamicFilterConfig for %s received invalid filter named %s"), *ClassPathName.ToString(), *FilterName.ToString()))
+		{
+			SetClassDynamicFilterConfig(ClassPathName, FilterHandle);
+		}
+	}
+	else
+	{
+		// Reset the filter so the class does not get assigned a dynamic filter anymore.
+		SetClassDynamicFilterConfig(ClassPathName, InvalidNetObjectFilterHandle);
+	}
 }
 
 UE::Net::FNetObjectFilterHandle UObjectReplicationBridge::GetDynamicFilter(const UClass* Class)

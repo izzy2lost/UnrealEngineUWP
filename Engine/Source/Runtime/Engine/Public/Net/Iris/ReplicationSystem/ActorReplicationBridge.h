@@ -32,9 +32,14 @@ ENGINE_API bool ShouldUseIrisReplication(const UObject* Actor);
 /** Parameters passed to UActorReplicationBridge::BeginReplication. */
 struct FActorBeginReplicationParams
 {
-	FActorBeginReplicationParams() : bIncludeInLevelGroupFilter(1U) {}
+	/** Will the actor be part to the level visibility filters. This makes it that only clients who loaded the dynamic level of the actor can have the actor replicated to them.*/
+	bool bIncludeInLevelGroupFilter = true;
 
-	uint32 bIncludeInLevelGroupFilter : 1U;
+	/** When true we ignore the configured dynamic filter for this actor type and use the explicit filter instead */
+	bool bOverrideDynamicFilterConfig = false;
+
+	/** Only used when bOverrideDynamicFilterConfig is true. The name of the dynamic filter to assign to this actor. Can be NAME_None if no filters should be set. */
+	FName ExplicitDynamicFilterName;
 };
 
 #endif // UE_WITH_IRIS

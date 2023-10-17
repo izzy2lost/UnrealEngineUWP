@@ -26,7 +26,7 @@ UE_NET_TEST_FIXTURE(FReplicationSystemServerClientTestFixture, CreateObjectsInsi
 	const float PollFrequency = Server->ConvertPollPeriodIntoFrequency(PollPeriod);
 	Params.PollFrequency = PollFrequency;
 	Params.bCanReceive = true;
-	Params.bAllowDynamicFilter = true;
+	Params.bUseClassConfigDynamicFilter = true;
 	Params.bNeedsPreUpdate = true;
 	UTestReplicatedIrisObject* ServerObject = Server->CreateObject(Params);
 	UTestReplicatedIrisObject* ServerSubObject(nullptr);

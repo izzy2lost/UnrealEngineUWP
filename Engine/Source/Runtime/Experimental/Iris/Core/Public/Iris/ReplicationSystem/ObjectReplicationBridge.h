@@ -11,6 +11,8 @@
 
 #include "ObjectReplicationBridge.generated.h"
 
+DECLARE_LOG_CATEGORY_EXTERN(LogIrisFilterConfig, Log, All);
+
 namespace UE::Net
 {
 	struct FNetObjectResolveContext;
@@ -49,7 +51,19 @@ public:
 		bool bCanReceive = false;
 		bool bNeedsPreUpdate = false;
 		bool bNeedsWorldLocationUpdate = false;
-		bool bAllowDynamicFilter = false;
+
+		/** When true we ask the class config if a dynamic filter was assigned to this class or one of it's parent inherited class. */
+		bool bUseClassConfigDynamicFilter = false;
+
+		/** When enabled we ignore the class config for this object and instead use the one specified in ExplicitDynamicFilter */
+		bool bUseExplicitDynamicFilter = false;
+
+		/** 
+		 * The name of the dynamic filter to use for this object (instead of asking the class config). 
+		 * Can be none so that no dynamic filter is assigned to the object.
+		 * Only used when bUseExplicitDynamicFilter is true.
+		 */
+		FName ExplicitDynamicFilterName;
 
 		/**
 		 * If StaticPriority is > 0 the ReplicationSystem will use that as priority when scheduling objects. 
@@ -153,6 +167,15 @@ public:
 
 	/** Set poll frequency on root object and its subobjects. They will be polled on the same frame. */
 	IRISCORE_API void SetPollFrequency(FNetRefHandle RootHandle, float PollFrequency);
+
+	/** Set the object filter to use for objects of this class and any derived classes without an explicit config. */
+	IRISCORE_API void SetClassDynamicFilterConfig(FName ClassPathName, const UE::Net::FNetObjectFilterHandle FilterHandle);
+	IRISCORE_API void SetClassDynamicFilterConfig(FName ClassPathName, FName FilterName);
+
+public:
+
+	// Debug functions exposed via console commands
+	void PrintDynamicFilterClassConfig() const;
 
 protected:
 	IRISCORE_API virtual ~UObjectReplicationBridge();
@@ -303,6 +326,9 @@ private:
 	/** Retrieves the prioritizer to set for the given class. If bRequireForceEnabled the config needs to have bForceEnableOnAllInstances set in order for this method to return the configured prioritizer. Returns an invalid handle if no prioritizer should be set. */
 	UE::Net::FNetObjectPrioritizerHandle GetPrioritizer(const UClass* Class, bool bRequireForceEnabled);
 
+	/** Assign the proper dynamic filter to a new object */
+	void AssignDynamicFilter(UObject* Instance, const FCreateNetRefHandleParams& Params, FNetRefHandle RefHandle);
+
 	/** Returns true if instances of this class should be delta compressed */
 	bool ShouldClassBeDeltaCompressed(const UClass* Class);
 
@@ -348,6 +374,8 @@ private:
 	TSet<FName> ClassesWithoutPollPeriodOverride;
 
 	// Filter mapping
+	//$IRIS TODO: Look into improving this class map by balancing runtime speed (implicit addition of new classes) with runtime modifications of base classes.
+    //		      Right-now any changes to say APawn's filter will not be read if a APlayerPawn entry was created based on the APawn entry.
 	TMap<FName, UE::Net::FNetObjectFilterHandle> ClassesWithDynamicFilter;
 	TFunction<bool(const UClass*)> ShouldUseDefaultSpatialFilterFunction;
 	TFunction<bool(const UClass*,const UClass*)> ShouldSubclassUseSameFilterFunction;

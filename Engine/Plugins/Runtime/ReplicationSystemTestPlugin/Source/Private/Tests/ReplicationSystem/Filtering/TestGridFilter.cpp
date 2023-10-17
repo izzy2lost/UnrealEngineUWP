@@ -104,7 +104,7 @@ UE_NET_TEST_FIXTURE(FTestGridFilterFixture, TestWorldLocGridFilter)
 	UObjectReplicationBridge::FCreateNetRefHandleParams Params;
 	Params.bCanReceive = true;
 	Params.bNeedsWorldLocationUpdate = true;
-	Params.bAllowDynamicFilter = true;
+	Params.bUseClassConfigDynamicFilter = true;
 
 	UReplicatedTestObject* ServerObjectZero = Server->CreateObject(Params);
 	UReplicatedTestObject* ServerObjectLimit = Server->CreateObject(Params);
