@@ -12,9 +12,11 @@
 #include "ISequencerTrackEditor.h"
 #include "MovieSceneTrackEditor.h"
 #include "IContentBrowserSingleton.h"
+#include "Containers/Map.h"
 
 struct FAssetData;
 class FAudioThumbnail;
+class FDelegateHandle;
 class FMenuBuilder;
 class FSequencerSectionPainter;
 class USoundWave;
@@ -93,6 +95,22 @@ private:
 
 	/** Attached audio asset enter pressed */
 	void OnAttachedAudioEnterPressed(const TArray<FAssetData>& AssetData, TArray<FGuid> ObjectBindings);
+
+	/** Registers a delegate with the given sequencer for monitoring edits */
+	void RegisterMovieSceneChangedDelegate(TSharedRef<ISequencer> InSequencer);
+
+	/** Will return true if a sequence contains an audio track and the user was notified about the potential clock source issue */
+	bool CheckSequenceClockSource();
+
+	/** Prompts user and potentially modifies settings pref USequencerSettings::bAutoSelectAudioClockSource */
+	void PromptUserForClockSource();
+
+	/** Sets the clock source for the given sequence to use the audio clock */
+	void SetClockSoureToAudioClock();
+
+private:
+
+	FDelegateHandle MovieSceneChangedDelegate;
 };
 
 

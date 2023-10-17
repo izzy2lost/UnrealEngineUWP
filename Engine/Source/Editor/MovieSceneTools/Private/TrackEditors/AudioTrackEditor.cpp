@@ -35,6 +35,7 @@
 #include "AssetRegistry/AssetRegistryModule.h"
 #include "ISectionLayoutBuilder.h"
 #include "MovieSceneToolHelpers.h"
+#include "Dialogs/Dialogs.h"
 
 #include "DragAndDrop/AssetDragDropOp.h"
 #include "Misc/QualifiedFrameTime.h"
@@ -932,6 +933,7 @@ void FAudioSection::RegenerateWaveforms(TRange<float> DrawRange, int32 XOffset, 
 FAudioTrackEditor::FAudioTrackEditor( TSharedRef<ISequencer> InSequencer )
 	: FMovieSceneTrackEditor( InSequencer ) 
 {
+	RegisterMovieSceneChangedDelegate(InSequencer);
 }
 
 FAudioTrackEditor::~FAudioTrackEditor()
@@ -1406,7 +1408,112 @@ void FAudioTrackEditor::OnAttachedAudioEnterPressed(const TArray<FAssetData>& As
 	}
 }
 
+void FAudioTrackEditor::RegisterMovieSceneChangedDelegate(TSharedRef<ISequencer> InSequencer)
+{
+	// Check the sequence prior to installing the delegate
+	if (CheckSequenceClockSource())
+	{
+		// If we are here then either the clock source for this sequence is already set to audio clock or
+		// there is an audio track and the user has been notified. Either way, no need to install the delegate. 
+		return;
+	}
+	
+	// Add delegate for scene data change events
+	MovieSceneChangedDelegate = InSequencer->OnMovieSceneDataChanged().AddLambda([this](EMovieSceneDataChangeType InChangeType)
+	{
+		if (InChangeType == EMovieSceneDataChangeType::MovieSceneStructureItemAdded)
+		{
+			if (CheckSequenceClockSource())
+			{
+				// The user has been notified, remove the delegate
+				TSharedPtr<ISequencer> SequencerPtr = GetSequencer();
+				if (SequencerPtr.IsValid() && MovieSceneChangedDelegate.IsValid())
+				{
+					SequencerPtr->OnMovieSceneDataChanged().Remove(MovieSceneChangedDelegate);
+					MovieSceneChangedDelegate.Reset();
+				}
+			}
+		}
+	});
+}
 
+bool FAudioTrackEditor::CheckSequenceClockSource()
+{
+	TSharedPtr<ISequencer> SequencerPtr = GetSequencer();
+	UMovieSceneSequence* RootSequence = SequencerPtr.IsValid() ? SequencerPtr->GetRootMovieSceneSequence() : nullptr;
 
+	if (RootSequence)
+	{
+		if (UMovieScene* MovieScene = RootSequence->GetMovieScene())
+		{
+			const bool bHasAudioTrack = (MovieScene->FindTrack(UMovieSceneAudioTrack::StaticClass()) != nullptr);
+			const bool bIsUsingAudioClock = (MovieScene->GetClockSource() == EUpdateClockSource::Audio);
+
+			if (bIsUsingAudioClock)
+			{
+				// If sequence is already using audio clock, we're done
+				return true;
+			} 
+			else if (bHasAudioTrack && !MovieScene->IsReadOnly())
+			{
+				PromptUserForClockSource();
+
+				// Only prompt once per sequencer instance to avoid dialog thrashing
+				return true;
+			}
+		}
+	}
+
+	return false;
+}
+
+void FAudioTrackEditor::PromptUserForClockSource()
+{
+	FSuppressableWarningDialog::FSetupInfo SetupInfo(
+		LOCTEXT("AutoSelectAudioClockSource_Message", "It is recommended to use the audio clock as the clock source when working with audio tracks in sequencer for improved synchronization between animation and audio. Would you like to switch the clock source now?"),
+		LOCTEXT("AutoSelectAudioClockSource_Title", "Use Audio Clock Source?"),
+		TEXT("AutoSelectAudioClockSource_Dialog"));
+
+	SetupInfo.ConfirmText = LOCTEXT("AutoSelectAudioClockSource_ConfirmText", "Yes");
+	SetupInfo.CancelText = LOCTEXT("AutoSelectAudioClockSource_CancelText", "No");
+	SetupInfo.CheckBoxText = LOCTEXT("AutoSelectAudioClockSource_CheckBoxText", "Don't show this again");
+	SetupInfo.bDefaultToSuppressInTheFuture = false;
+
+	FSuppressableWarningDialog SwitchToAudioClockSourceDialog(SetupInfo);
+	FSuppressableWarningDialog::EResult Result = SwitchToAudioClockSourceDialog.ShowModal();
+
+	if (Result == FSuppressableWarningDialog::Confirm)
+	{
+		// Configure this sequence's clock source to use the audio clock
+		SetClockSoureToAudioClock();
+	}
+	else if (Result == FSuppressableWarningDialog::Suppressed)
+	{
+		UE_LOG(LogMovieScene, Display, TEXT("It is recommended to use the audio clock as the clock source when working with audio tracks in sequencer for improved synchronization between animation and audio. Consider switching to the audio clock source."));
+	}
+}
+
+void FAudioTrackEditor::SetClockSoureToAudioClock()
+{
+	TSharedPtr<ISequencer> SequencerPtr = GetSequencer();
+	if (SequencerPtr.IsValid())
+	{
+		UMovieSceneSequence* RootSequence = SequencerPtr->GetRootMovieSceneSequence();
+		UMovieScene* MovieScene = RootSequence ? RootSequence->GetMovieScene() : nullptr;
+
+		if (MovieScene)
+		{
+			if (MovieScene->GetClockSource() != EUpdateClockSource::Audio && !MovieScene->IsReadOnly())
+			{
+				FScopedTransaction ScopedTransaction(LOCTEXT("SetClockSoureToAudioClock", "Set Clock Source"));
+
+				MovieScene->Modify();
+				MovieScene->SetClockSource(EUpdateClockSource::Audio);
+
+				SequencerPtr->ResetTimeController();
+			}
+		}
+	}
+}
 
 #undef LOCTEXT_NAMESPACE
