@@ -254,6 +254,7 @@ bool FAnimationAnimNextRuntimeTest_IHierarchy::RunTest(const FString& InParamete
 
 	// Write our graph
 	TArray<uint8> GraphSharedDataArchiveBuffer;
+	TArray<TObjectPtr<UObject>> GraphReferencedObjects;
 	{
 		FDecoratorWriter DecoratorWriter;
 
@@ -321,16 +322,16 @@ bool FAnimationAnimNextRuntimeTest_IHierarchy::RunTest(const FString& InParamete
 
 		AddErrorIfFalse(DecoratorWriter.GetErrorState() == FDecoratorWriter::EErrorState::None, "FAnimationAnimNextRuntimeTest_IHierarchy -> Failed to write decorators");
 		GraphSharedDataArchiveBuffer = DecoratorWriter.GetGraphSharedData();
+		GraphReferencedObjects = DecoratorWriter.GetGraphReferencedObjects();
 	}
 
 	// Read our graph
 	TArray<uint8> GraphSharedDataBuffer;
-	TArray<TObjectPtr<UObject>> TrackedObjectsForGC;
 	{
 		FMemoryReader GraphSharedDataArchive(GraphSharedDataArchiveBuffer);
-		FDecoratorReader DecoratorReader(GraphSharedDataArchive);
+		FDecoratorReader DecoratorReader(GraphReferencedObjects, GraphSharedDataArchive);
 
-		FDecoratorReader::EErrorState ErrorState = DecoratorReader.ReadGraph(GraphSharedDataBuffer, TrackedObjectsForGC);
+		FDecoratorReader::EErrorState ErrorState = DecoratorReader.ReadGraph(GraphSharedDataBuffer);
 		AddErrorIfFalse(ErrorState == FDecoratorReader::EErrorState::None, "FAnimationAnimNextRuntimeTest_IHierarchy -> Failed to read graph shared data");
 
 		NodeA = DecoratorReader.ResolveNodeHandle(NodeA);
@@ -456,6 +457,7 @@ bool FAnimationAnimNextRuntimeTest_IUpdate::RunTest(const FString& InParameters)
 
 	// Write our graph
 	TArray<uint8> GraphSharedDataArchiveBuffer;
+	TArray<TObjectPtr<UObject>> GraphReferencedObjects;
 	{
 		FDecoratorWriter DecoratorWriter;
 
@@ -508,16 +510,16 @@ bool FAnimationAnimNextRuntimeTest_IUpdate::RunTest(const FString& InParameters)
 
 		AddErrorIfFalse(DecoratorWriter.GetErrorState() == FDecoratorWriter::EErrorState::None, "FAnimationAnimNextRuntimeTest_IUpdate -> Failed to write decorators");
 		GraphSharedDataArchiveBuffer = DecoratorWriter.GetGraphSharedData();
+		GraphReferencedObjects = DecoratorWriter.GetGraphReferencedObjects();
 	}
 
 	// Read our graph
 	TArray<uint8> GraphSharedDataBuffer;
-	TArray<TObjectPtr<UObject>> TrackedObjectsForGC;
 	{
 		FMemoryReader GraphSharedDataArchive(GraphSharedDataArchiveBuffer);
-		FDecoratorReader DecoratorReader(GraphSharedDataArchive);
+		FDecoratorReader DecoratorReader(GraphReferencedObjects, GraphSharedDataArchive);
 
-		FDecoratorReader::EErrorState ErrorState = DecoratorReader.ReadGraph(GraphSharedDataBuffer, TrackedObjectsForGC);
+		FDecoratorReader::EErrorState ErrorState = DecoratorReader.ReadGraph(GraphSharedDataBuffer);
 		AddErrorIfFalse(ErrorState == FDecoratorReader::EErrorState::None, "FAnimationAnimNextRuntimeTest_IUpdate -> Failed to read graph shared data");
 
 		NodeA = DecoratorReader.ResolveNodeHandle(NodeA);
@@ -605,6 +607,7 @@ bool FAnimationAnimNextRuntimeTest_IEvaluate::RunTest(const FString& InParameter
 
 	// Write our graph
 	TArray<uint8> GraphSharedDataArchiveBuffer;
+	TArray<TObjectPtr<UObject>> GraphReferencedObjects;
 	{
 		FDecoratorWriter DecoratorWriter;
 
@@ -658,16 +661,16 @@ bool FAnimationAnimNextRuntimeTest_IEvaluate::RunTest(const FString& InParameter
 
 		AddErrorIfFalse(DecoratorWriter.GetErrorState() == FDecoratorWriter::EErrorState::None, "FAnimationAnimNextRuntimeTest_IEvaluate -> Failed to write decorators");
 		GraphSharedDataArchiveBuffer = DecoratorWriter.GetGraphSharedData();
+		GraphReferencedObjects = DecoratorWriter.GetGraphReferencedObjects();
 	}
 
 	// Read our graph
 	TArray<uint8> GraphSharedDataBuffer;
-	TArray<TObjectPtr<UObject>> TrackedObjectsForGC;
 	{
 		FMemoryReader GraphSharedDataArchive(GraphSharedDataArchiveBuffer);
-		FDecoratorReader DecoratorReader(GraphSharedDataArchive);
+		FDecoratorReader DecoratorReader(GraphReferencedObjects, GraphSharedDataArchive);
 
-		FDecoratorReader::EErrorState ErrorState = DecoratorReader.ReadGraph(GraphSharedDataBuffer, TrackedObjectsForGC);
+		FDecoratorReader::EErrorState ErrorState = DecoratorReader.ReadGraph(GraphSharedDataBuffer);
 		AddErrorIfFalse(ErrorState == FDecoratorReader::EErrorState::None, "FAnimationAnimNextRuntimeTest_IEvaluate -> Failed to read graph shared data");
 
 		NodeA = DecoratorReader.ResolveNodeHandle(NodeA);

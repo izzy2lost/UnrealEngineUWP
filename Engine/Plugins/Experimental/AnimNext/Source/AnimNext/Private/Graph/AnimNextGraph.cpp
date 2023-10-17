@@ -106,6 +106,13 @@ void UAnimNextGraph::PostLoad()
 	Super::PostLoad();
 
 	ExtendedExecuteContext.InvalidateCachedMemory();
+
+	// In packaged builds, initialize the VM
+	// In editor, the VM will be recompiled and initialized at RecompileVM
+#if !WITH_EDITOR
+	RigVM->ClearExternalVariables(ExtendedExecuteContext);
+	RigVM->Initialize(ExtendedExecuteContext);
+#endif
 }
 
 void UAnimNextGraph::PostRename(UObject* OldOuter, const FName OldName)
@@ -162,7 +169,12 @@ void UAnimNextGraph::Serialize(FArchive& Ar)
 		SharedDataArchiveBuffer.SetNumUninitialized(SharedDataArchiveBufferSize);
 		Ar.Serialize(SharedDataArchiveBuffer.GetData(), SharedDataArchiveBufferSize);
 
-		LoadFromArchiveBuffer(SharedDataArchiveBuffer);
+		if (Ar.IsLoadingFromCookedPackage())
+		{
+			// If we are cooked, we populate our graph shared data otherwise in the editor we'll compile on load
+			// and re-populate everything then to account for changes in code/content
+			LoadFromArchiveBuffer(SharedDataArchiveBuffer);
+		}
 	}
 	else if (Ar.IsSaving())
 	{
@@ -179,20 +191,11 @@ void UAnimNextGraph::Serialize(FArchive& Ar)
 	{
 		// Counting, etc
 		Ar << SharedDataBuffer;
-		Ar << TrackedObjectsForGC;
 
 #if WITH_EDITORONLY_DATA
 		Ar << SharedDataArchiveBuffer;
 #endif
 	}
-}
-
-void UAnimNextGraph::AddReferencedObjects(UObject* InThis, FReferenceCollector& Collector)
-{
-	UAnimNextGraph* This = CastChecked<UAnimNextGraph>(InThis);
-	Collector.AddStableReferenceArray(&This->TrackedObjectsForGC);
-
-	Super::AddReferencedObjects(InThis, Collector);
 }
 
 bool UAnimNextGraph::LoadFromArchiveBuffer(const TArray<uint8>& InSharedDataArchiveBuffer)
@@ -201,18 +204,20 @@ bool UAnimNextGraph::LoadFromArchiveBuffer(const TArray<uint8>& InSharedDataArch
 
 	// Reconstruct our graph shared data
 	FMemoryReader GraphSharedDataArchive(InSharedDataArchiveBuffer);
-	FDecoratorReader DecoratorReader(GraphSharedDataArchive);
+	FDecoratorReader DecoratorReader(GraphReferencedObjects, GraphSharedDataArchive);
 
-	const FDecoratorReader::EErrorState ErrorState = DecoratorReader.ReadGraph(SharedDataBuffer, TrackedObjectsForGC);
+	const FDecoratorReader::EErrorState ErrorState = DecoratorReader.ReadGraph(SharedDataBuffer);
 	if (ErrorState == FDecoratorReader::EErrorState::None)
 	{
 		ResolvedRootDecoratorHandle = DecoratorReader.ResolveEntryPointHandle(RootDecoratorHandle);
+
+		// Make sure our execute method is registered
+		FRigUnit_AnimNextGraphEvaluator::RegisterExecuteMethod(ExecuteDefinition);
 		return true;
 	}
 	else
 	{
 		SharedDataBuffer.Empty(0);
-		TrackedObjectsForGC.Empty(0);
 		ResolvedRootDecoratorHandle = FAnimNextDecoratorHandle();
 		return false;
 	}

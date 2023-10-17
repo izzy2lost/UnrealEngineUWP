@@ -324,27 +324,36 @@ namespace Private
 		return Arguments;
 	}
 
-	FString GetGraphEvaluatorMethodName(const FRigVMPinInfoArray& LatentPins)
+	FAnimNextGraphEvaluatorExecuteDefinition GetGraphEvaluatorExecuteMethod(const FRigVMPinInfoArray& LatentPins)
 	{
-		static TMap<uint32, FString> GraphEvaluatorMethodNameCache;
-
 		const uint32 LatentPinListHash = GetTypeHash(LatentPins);
-		if (const FString* MethodName = GraphEvaluatorMethodNameCache.Find(LatentPinListHash))
+		if (const FAnimNextGraphEvaluatorExecuteDefinition* ExecuteDefinition = FRigUnit_AnimNextGraphEvaluator::FindExecuteMethod(LatentPinListHash))
 		{
-			return *MethodName;
+			return *ExecuteDefinition;
 		}
 
+		const FRigVMRegistry& Registry = FRigVMRegistry::Get();
+
 		// Generate a new method for this argument list
-		const FString MethodName = FString::Printf(TEXT("Execute_%X"), LatentPinListHash);
-		const FString FullExecuteMethodName = FString::Printf(TEXT("FRigUnit_AnimNextGraphEvaluator::%s"), *MethodName);
+		FAnimNextGraphEvaluatorExecuteDefinition ExecuteDefinition;
+		ExecuteDefinition.Hash = LatentPinListHash;
+		ExecuteDefinition.MethodName = FString::Printf(TEXT("Execute_%X"), LatentPinListHash);
+		ExecuteDefinition.Arguments.Reserve(LatentPins.Num());
 
-		const TArray<FRigVMFunctionArgument> GraphEvaluatorArguments = GetGraphEvaluatorFunctionArguments(LatentPins);
-		FRigVMRegistry::Get().Register(*FullExecuteMethodName, &FRigUnit_AnimNextGraphEvaluator::StaticExecute, FRigUnit_AnimNextGraphEvaluator::StaticStruct(), GraphEvaluatorArguments);
+		for (const FRigVMPinInfo& Pin : LatentPins)
+		{
+			const FRigVMTemplateArgumentType& TypeArg = Registry.GetType(Pin.TypeIndex);
 
-		// Cache our result
-		GraphEvaluatorMethodNameCache.Add(LatentPinListHash, MethodName);
+			FAnimNextGraphEvaluatorExecuteArgument Argument;
+			Argument.Name = Pin.Name.ToString();
+			Argument.CPPType = TypeArg.CPPType.ToString();
 
-		return MethodName;
+			ExecuteDefinition.Arguments.Add(Argument);
+		}
+
+		FRigUnit_AnimNextGraphEvaluator::RegisterExecuteMethod(ExecuteDefinition);
+
+		return ExecuteDefinition;
 	}
 }
 
@@ -394,9 +403,9 @@ void FUtils::Compile(UAnimNextGraph* InGraph)
 	const FRigVMPinInfoArray LatentPins = Private::CollectLatentPins(DecoratorStackNodes, LatentPinMapping);
 
 	// We need a unique method name to match our unique argument list
-	const FString ExecuteMethodName = Private::GetGraphEvaluatorMethodName(LatentPins);
+	const FAnimNextGraphEvaluatorExecuteDefinition ExecuteDefinition = Private::GetGraphEvaluatorExecuteMethod(LatentPins);
 
-	URigVMUnitNode* GraphEvaluatorNode = TempController->AddUnitNodeWithPins(FRigUnit_AnimNextGraphEvaluator::StaticStruct(), LatentPins, *ExecuteMethodName, FVector2D::ZeroVector, FString(), false);
+	URigVMUnitNode* GraphEvaluatorNode = TempController->AddUnitNodeWithPins(FRigUnit_AnimNextGraphEvaluator::StaticStruct(), LatentPins, *ExecuteDefinition.MethodName, FVector2D::ZeroVector, FString(), false);
 
 	// Link our shim and evaluator nodes together using the execution context
 	TempController->AddLink(
@@ -437,7 +446,9 @@ void FUtils::Compile(UAnimNextGraph* InGraph)
 	}
 
 	// Cache our compiled metadata
+	InGraph->ExecuteDefinition = ExecuteDefinition;
 	InGraph->SharedDataArchiveBuffer = DecoratorWriter.GetGraphSharedData();
+	InGraph->GraphReferencedObjects = DecoratorWriter.GetGraphReferencedObjects();
 	InGraph->RootDecoratorHandle = RootDecoratorHandle;
 
 	// Populate our runtime metadata

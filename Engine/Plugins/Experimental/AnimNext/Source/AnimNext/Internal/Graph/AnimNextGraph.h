@@ -7,6 +7,8 @@
 #include "DecoratorBase/DecoratorPtr.h"
 #include "DecoratorBase/DecoratorHandle.h"
 #include "DecoratorBase/EntryPointHandle.h"
+#include "Graph/RigUnit_AnimNextGraphEvaluator.h"
+
 #include "AnimNextGraph.generated.h"
 
 class UEdGraph;
@@ -84,7 +86,6 @@ public:
 	virtual void PostRename(UObject* OldOuter, const FName OldName) override;
 	virtual void GetPreloadDependencies(TArray<UObject*>& OutDeps) override;
 	virtual void Serialize(FArchive& Ar) override;
-	static void AddReferencedObjects(UObject* InThis, FReferenceCollector& Collector);
 
 	// Allocates an instance of the graph, retain the handle and use it with the Run() function to evaluate it
 	void AllocateInstance(FAnimNextGraphInstance& Instance) const;
@@ -106,6 +107,10 @@ protected:
 	friend struct FAnimNextGraphInstance;
 	friend class UAnimGraphNode_AnimNextGraph;
 
+	// This is the execute method definition used by this graph
+	UPROPERTY()
+	FAnimNextGraphEvaluatorExecuteDefinition ExecuteDefinition;
+
 	// This is a handle to the root decorator in our graph
 	UPROPERTY()
 	FAnimNextEntryPointHandle RootDecoratorHandle;
@@ -117,10 +122,12 @@ protected:
 	// We de-serialize manually into this buffer from the archive buffer, this is never saved on disk
 	TArray<uint8> SharedDataBuffer;
 
-	// This is the list of all referenced UObjects in the graph shared data
+	// This is a list of all referenced UObjects in the graph shared data
 	// We collect all the references here to make it quick and easy for the GC to query them
 	// It means that object references in the graph shared data are not visited at runtime by the GC (they are immutable)
-	TArray<TObjectPtr<UObject>> TrackedObjectsForGC;
+	// The shared data serialization archive stores indices to these to perform UObject serialization
+	UPROPERTY()
+	TArray<TObjectPtr<UObject>> GraphReferencedObjects;
 
 	// The RigVM object holds the bytecode, literals, etc used by the RigVM internals, there is a single instance along with the UAnimNextGraph (1:1 mapping)
 	UPROPERTY()

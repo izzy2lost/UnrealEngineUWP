@@ -74,7 +74,7 @@ namespace UE::AnimNext
 		}
 
 		bIsNodeWriting = true;
-		TrackedObjectsForGC.Reset();
+		GraphReferencedObjects.Reset();
 		CurrentLatentPropertyHandle = FLatentPropertyHandle::GetFirstHandle();
 
 		// Serialize the node templates
@@ -120,17 +120,6 @@ namespace UE::AnimNext
 		}
 
 		ensure(NumNodesWritten == NodeMappings.Num());
-
-		// Now write all the object reference we found, we'll use them for the GC callbacks at runtime to avoid travering the graph for the references
-		int32 NumTrackedObjectsForGC = TrackedObjectsForGC.Num();
-		*this << NumTrackedObjectsForGC;
-
-		for (UObject* Obj : TrackedObjectsForGC)
-		{
-			// Save out the fully qualified object name
-			FString SavedString(Obj->GetPathName());
-			*this << SavedString;
-		}
 	}
 
 	void FDecoratorWriter::WriteNode(
@@ -226,19 +215,18 @@ namespace UE::AnimNext
 		return GraphSharedDataArchiveBuffer;
 	}
 
+	const TArray<UObject*>& FDecoratorWriter::GetGraphReferencedObjects() const
+	{
+		return GraphReferencedObjects;
+	}
+
 	FArchive& FDecoratorWriter::operator<<(UObject*& Obj)
 	{
-		// Add our object for GC tracking
-		TrackedObjectsForGC.AddUnique(Obj);
+		// Add our object for tracking
+		int32 ObjectIndex = GraphReferencedObjects.AddUnique(Obj);
 
-		// TODO: Instead of saving our object path, we could save the object index
-		//       Indices can be re-used if an object is referenced more than once (is it common?)
-		//       Allows all objects to be batch found/loaded before nodes are de-serialized
-		//       Requires seeking to read the objects first or an intermediary archive to write objects first
-
-		// Save out the fully qualified object name
-		FString SavedString(Obj->GetPathName());
-		*this << SavedString;
+		// Save our index, we'll use it to resolve the object on load
+		*this << ObjectIndex;
 
 		return *this;
 	}

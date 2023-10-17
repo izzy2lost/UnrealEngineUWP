@@ -11,23 +11,21 @@
 
 namespace UE::AnimNext
 {
-	FDecoratorReader::FDecoratorReader(FArchive& Ar)
+	FDecoratorReader::FDecoratorReader(const TArray<TObjectPtr<UObject>>& InGraphReferencedObjects, FArchive& Ar)
 		: FArchiveProxy(Ar)
+		, GraphReferencedObjects(InGraphReferencedObjects)
 	{
 	}
 
-	FDecoratorReader::EErrorState FDecoratorReader::ReadGraph(TArray<uint8>& GraphSharedData, TArray<TObjectPtr<UObject>>& TrackedObjectsForGC)
+	FDecoratorReader::EErrorState FDecoratorReader::ReadGraph(TArray<uint8>& GraphSharedData)
 	{
 		GraphSharedData.Empty(0);
-		TrackedObjectsForGC.Empty(0);
 
 		EErrorState ErrorState = ReadGraphSharedData(GraphSharedData);
 		if (ErrorState != EErrorState::None)
 		{
 			return ErrorState;
 		}
-
-		ErrorState = ReadTrackedObjectsForGC(TrackedObjectsForGC);
 
 		return ErrorState;
 	}
@@ -140,40 +138,20 @@ namespace UE::AnimNext
 		return EErrorState::None;
 	}
 
-	FDecoratorReader::EErrorState FDecoratorReader::ReadTrackedObjectsForGC(TArray<TObjectPtr<UObject>>& TrackedObjectsForGC)
-	{
-		int32 NumTrackedObjectsForGC = 0;
-		*this << NumTrackedObjectsForGC;
-
-		TrackedObjectsForGC.SetNumZeroed(NumTrackedObjectsForGC);
-
-		for (int32 TrackedIndex = 0; TrackedIndex < NumTrackedObjectsForGC; ++TrackedIndex)
-		{
-			// Load the path name to the object
-			FString LoadedString;
-			*this << LoadedString;
-
-			// Look up the object by fully qualified pathname
-			UObject* Obj = FindObject<UObject>(nullptr, *LoadedString, false);
-			TrackedObjectsForGC[TrackedIndex] = Obj;
-		}
-
-		return EErrorState::None;
-	}
-
 	FArchive& FDecoratorReader::operator<<(UObject*& Obj)
 	{
-		// Load the path name to the object
-		FString LoadedString;
-		*this << LoadedString;
+		// Load the object index
+		int32 ObjectIndex = INDEX_NONE;
+		*this << ObjectIndex;
 
-		// Look up the object by fully qualified pathname
-		Obj = FindObject<UObject>(nullptr, *LoadedString, false);
-
-		// If we couldn't find it, load it
-		if (Obj == nullptr)
+		if (ensure(GraphReferencedObjects.IsValidIndex(ObjectIndex)))
 		{
-			Obj = LoadObject<UObject>(nullptr, *LoadedString);
+			Obj = GraphReferencedObjects[ObjectIndex];
+		}
+		else
+		{
+			// Something went wrong, the reference list must have gotten out of sync which shouldn't happen
+			Obj = nullptr;
 		}
 
 		return *this;

@@ -60,6 +60,9 @@ namespace UE::AnimNext
 		// Returns the populated raw graph shared data buffer
 		[[nodiscard]] const TArray<uint8>& GetGraphSharedData() const;
 
+		// Returns the list of referenced UObjects in this graph
+		[[nodiscard]] const TArray<UObject*>& GetGraphReferencedObjects() const;
+
 		// FArchive implementation
 		virtual FArchive& operator<<(UObject*& Obj) override;
 		virtual FArchive& operator<<(FObjectPtr& Obj) override;
@@ -84,7 +87,7 @@ namespace UE::AnimNext
 		FNodeID NextNodeID;
 
 		// To track node writing
-		TArray<UObject*> TrackedObjectsForGC;
+		TArray<UObject*> GraphReferencedObjects;
 		uint32 NumNodesWritten;
 		FLatentPropertyHandle CurrentLatentPropertyHandle;
 		bool bIsNodeWriting;

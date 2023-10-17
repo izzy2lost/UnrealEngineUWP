@@ -35,9 +35,9 @@ namespace UE::AnimNext
 			NodeInstanceDataTooLarge,	// Exceeded the maximum node instance data size, @see FNodeInstance::MAXIMUM_NODE_INSTANCE_DATA_SIZE
 		};
 
-		explicit FDecoratorReader(FArchive& Ar);
+		explicit FDecoratorReader(const TArray<TObjectPtr<UObject>>& InGraphReferencedObjects, FArchive& Ar);
 
-		[[nodiscard]] EErrorState ReadGraph(TArray<uint8>& GraphSharedData, TArray<TObjectPtr<UObject>>& TrackedObjectsForGC);
+		[[nodiscard]] EErrorState ReadGraph(TArray<uint8>& GraphSharedData);
 
 		// Takes a node handle representing a node index and resolves it into a node handle representing a shared data offset
 		// Must be called after ReadGraphSharedData as it populates the necessary data
@@ -59,8 +59,8 @@ namespace UE::AnimNext
 		// Call first to read the graph shared data
 		[[nodiscard]] EErrorState ReadGraphSharedData(TArray<uint8>& GraphSharedData);
 
-		// Call second to read the tracked UObjects for GC
-		[[nodiscard]] EErrorState ReadTrackedObjectsForGC(TArray<TObjectPtr<UObject>>& TrackedObjectsForGC);
+		// A list of UObject references within the graph
+		const TArray<TObjectPtr<UObject>>& GraphReferencedObjects;
 
 		// A list of node handles for each node within the archive
 		TArray<FNodeHandle> NodeHandles;
