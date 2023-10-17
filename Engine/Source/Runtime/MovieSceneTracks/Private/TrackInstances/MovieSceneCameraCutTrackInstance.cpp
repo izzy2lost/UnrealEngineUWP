@@ -228,6 +228,11 @@ public:
 		const FMovieSceneContext& Context = SequenceInstance.GetContext();
 
 		UObject* CameraActor = FindBoundObject(Params.CameraBindingID, Params.OperandSequenceID, Player);
+		if (Params.CameraBindingID.IsValid() && CameraActor == nullptr)
+		{
+			// We have an unresolved or incorrect binding.
+			return false;
+		}
 
 		FMovieSceneCameraCutParams CameraCutParams;
 		CameraCutParams.bJumpCut = Context.HasJumped();
