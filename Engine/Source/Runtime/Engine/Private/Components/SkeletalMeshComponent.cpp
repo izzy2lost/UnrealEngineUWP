@@ -393,12 +393,12 @@ void USkeletalMeshComponent::PostLoad()
 		bOverrideMinLod = true;
 	}
 
-//#if WITH_EDITORONLY_DATA  // TODO: Re-add these guards once the MovieScene getters/setters are working, so that we can get rid of this redundant pointer in all cooked builds
+#if WITH_EDITORONLY_DATA
 	// Update property alias
 	PRAGMA_DISABLE_DEPRECATION_WARNINGS
 	SkeletalMeshAsset = GetSkeletalMeshAsset();
 	PRAGMA_ENABLE_DEPRECATION_WARNINGS
-//#endif
+#endif
 }
 
 void USkeletalMeshComponent::PostInitProperties()
@@ -2894,11 +2894,11 @@ void USkeletalMeshComponent::SetSkeletalMesh(USkeletalMesh* InSkelMesh, bool bRe
 	RemoveAllClothingActors();
 
 	// Update property alias
-//#if WITH_EDITORONLY_DATA  // TODO: Re-add these guards once the MovieScene getters/setters are working, so that we can get rid of this redundant pointer in all cooked builds
+#if WITH_EDITORONLY_DATA
 	PRAGMA_DISABLE_DEPRECATION_WARNINGS
 	SkeletalMeshAsset = InSkelMesh;
 	PRAGMA_ENABLE_DEPRECATION_WARNINGS
-//#endif
+#endif
 
 	// We may be doing parallel evaluation on the current anim instance
 	// Calling this here with true will block this init till that thread completes

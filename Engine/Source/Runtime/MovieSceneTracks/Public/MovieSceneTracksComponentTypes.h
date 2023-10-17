@@ -570,6 +570,80 @@ struct FBoolPropertyTraits
 	}
 };
 
+struct FObjectPropertyTraits
+{
+	static constexpr bool bIsComposite = false;
+
+	struct FObjectMetadata
+	{
+		TObjectPtr<UClass> ObjectClass = UObject::StaticClass();
+		bool bAllowsClear = true;
+	};
+
+	using StorageType = FObjectComponent;
+	//using CustomAccessorStorageType = float;
+	using MetaDataType = TPropertyMetaData<FObjectMetadata>;
+	using TraitsType = FObjectPropertyTraits;
+	using ParamType = UObject*;
+
+	using ObjectTraitsImpl = TIndirectPropertyTraits<UObject*, FObjectComponent>;
+
+	static void GetObjectPropertyValue(const UObject* InObject, FObjectMetadata ObjectMetadata, const FCustomPropertyAccessor& BaseCustomAccessor, FObjectComponent& OutValue)
+	{
+		const TCustomPropertyAccessor<FObjectPropertyTraits>& CustomAccessor = static_cast<const TCustomPropertyAccessor<FObjectPropertyTraits>&>(BaseCustomAccessor);
+		OutValue = (*CustomAccessor.Functions.Getter)(InObject, ObjectMetadata);
+	}
+	static void GetObjectPropertyValue(const UObject* InObject, FObjectMetadata ObjectMetadata, uint16 PropertyOffset, FObjectComponent& OutValue)
+	{
+		ObjectTraitsImpl::GetObjectPropertyValue(InObject, PropertyOffset, OutValue);
+	}
+	static void GetObjectPropertyValue(const UObject* InObject, FObjectMetadata ObjectMetadata, FTrackInstancePropertyBindings* PropertyBindings, FObjectComponent& OutValue)
+	{
+		ObjectTraitsImpl::GetObjectPropertyValue(InObject, PropertyBindings, OutValue);
+	}
+	static void GetObjectPropertyValue(const UObject* InObject, FObjectMetadata ObjectMetadata, const FName& PropertyPath, StorageType& OutValue)
+	{
+		ObjectTraitsImpl::GetObjectPropertyValue(InObject, PropertyPath, OutValue);
+	}
+
+	static bool CanAssignValue(const FObjectMetadata& ObjectMetadata, UObject* DesiredValue)
+	{
+		if (!ObjectMetadata.ObjectClass)
+		{
+			return false;
+		}
+		else if (!DesiredValue)
+		{
+			return ObjectMetadata.bAllowsClear;
+		}
+		else if (DesiredValue->GetClass() != nullptr)
+		{
+			return DesiredValue->GetClass()->IsChildOf(ObjectMetadata.ObjectClass);
+		}
+		return false;
+	}
+
+	static void SetObjectPropertyValue(UObject* InObject, FObjectMetadata ObjectMetadata, const FCustomPropertyAccessor& BaseCustomAccessor, const FObjectComponent& InValue)
+	{
+		const TCustomPropertyAccessor<FObjectPropertyTraits>& CustomAccessor = static_cast<const TCustomPropertyAccessor<FObjectPropertyTraits>&>(BaseCustomAccessor);
+		(*CustomAccessor.Functions.Setter)(InObject, ObjectMetadata, InValue);
+	}
+	static void SetObjectPropertyValue(UObject* InObject, FObjectMetadata ObjectMetadata, uint16 PropertyOffset, const FObjectComponent& InValue)
+	{
+		if (CanAssignValue(ObjectMetadata, InValue.GetObject()))
+		{
+			ObjectTraitsImpl::SetObjectPropertyValue(InObject, PropertyOffset, InValue);
+		}
+	}
+	static void SetObjectPropertyValue(UObject* InObject, FObjectMetadata ObjectMetadata, FTrackInstancePropertyBindings* PropertyBindings, const FObjectComponent& InValue)
+	{
+		if (CanAssignValue(ObjectMetadata, InValue.GetObject()))
+		{
+			ObjectTraitsImpl::SetObjectPropertyValue(InObject, PropertyBindings, InValue);
+		}
+	}
+};
+
 using FBytePropertyTraits               = TDirectPropertyTraits<uint8, false>;
 using FEnumPropertyTraits               = TDirectPropertyTraits<uint8, false>;
 using FIntPropertyTraits                = TDirectPropertyTraits<int32, false>;
@@ -599,6 +673,7 @@ struct FMovieSceneTracksComponentTypes
 	TPropertyComponents<FEulerTransformPropertyTraits> EulerTransform;
 	TPropertyComponents<FComponentTransformPropertyTraits> ComponentTransform;
 	TPropertyComponents<FStringPropertyTraits> String;
+	TPropertyComponents<FObjectPropertyTraits> Object;
 
 	TPropertyComponents<FFloatParameterTraits> FloatParameter;
 	TPropertyComponents<FColorParameterTraits> ColorParameter;
@@ -652,6 +727,7 @@ struct FMovieSceneTracksComponentTypes
 		TCustomPropertyRegistration<FFloatVectorPropertyTraits> FloatVector;
 		TCustomPropertyRegistration<FDoubleVectorPropertyTraits> DoubleVector;
 		TCustomPropertyRegistration<FComponentTransformPropertyTraits, 1> ComponentTransform;
+		TCustomPropertyRegistration<FObjectPropertyTraits> Object;
 	} Accessors;
 
 	struct

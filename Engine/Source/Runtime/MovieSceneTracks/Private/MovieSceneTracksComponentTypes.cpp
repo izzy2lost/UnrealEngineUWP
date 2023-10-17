@@ -169,6 +169,16 @@ void ConvertOperationalProperty(double In, float& Out)
 	Out = static_cast<float>(In);
 }
 
+void ConvertOperationalProperty(const FObjectComponent& In, UObject*& Out)
+{
+	Out = In.GetObject();
+}
+
+void ConvertOperationalProperty(UObject* In, FObjectComponent& Out)
+{
+	Out = FObjectComponent::Strong(In);
+}
+
 uint8 GetSkeletalMeshAnimationMode(const UObject* Object)
 {
 	const USkeletalMeshComponent* SkeletalMeshComponent = CastChecked<const USkeletalMeshComponent>(Object);
@@ -498,6 +508,30 @@ struct FComponentTransformHandler : TPropertyComponentHandler<FComponentTransfor
 	}
 };
 
+struct FObjectHandler : TPropertyComponentHandler<FObjectPropertyTraits, FObjectComponent>
+{
+	virtual void DispatchInitializePropertyMetaDataTasks(const FPropertyDefinition& Definition, FSystemTaskPrerequisites& InPrerequisites, FSystemSubsequentTasks& Subsequents, UMovieSceneEntitySystemLinker* Linker) override
+	{
+		FBuiltInComponentTypes* BuiltInComponents = FBuiltInComponentTypes::Get();
+		FMovieSceneTracksComponentTypes* TrackComponents = FMovieSceneTracksComponentTypes::Get();
+
+		FEntityTaskBuilder()
+			.Read(BuiltInComponents->BoundObject)
+			.Read(BuiltInComponents->PropertyBinding)
+			.Write(TrackComponents->Object.MetaDataComponents.GetType<0>())
+			.FilterAll({ BuiltInComponents->Tags.NeedsLink })
+			.Iterate_PerEntity(&Linker->EntityManager, [](UObject* Object, const FMovieScenePropertyBinding& Binding, FObjectPropertyTraits::FObjectMetadata& OutMetaData)
+				{
+					FObjectPropertyBase* BoundProperty = CastField<FObjectPropertyBase>(FTrackInstancePropertyBindings::FindProperty(Object, Binding.PropertyPath.ToString()));
+					if (ensure(BoundProperty))
+					{
+						OutMetaData.ObjectClass = BoundProperty->PropertyClass;
+						OutMetaData.bAllowsClear = !BoundProperty->HasAnyPropertyFlags(CPF_NoClear);
+					}
+				});
+	}
+};
+
 FMovieSceneTracksComponentTypes::FMovieSceneTracksComponentTypes()
 {
 	FComponentRegistry* ComponentRegistry = UMovieSceneEntitySystemLinker::GetComponents();
@@ -512,6 +546,7 @@ FMovieSceneTracksComponentTypes::FMovieSceneTracksComponentTypes()
 	ComponentRegistry->NewPropertyType(FloatVector, TEXT("float vector"));
 	ComponentRegistry->NewPropertyType(DoubleVector, TEXT("double vector"));
 	ComponentRegistry->NewPropertyType(String, TEXT("FString"));
+	ComponentRegistry->NewPropertyType(Object, TEXT("Object"));
 
 	ComponentRegistry->NewPropertyType(Transform, TEXT("FTransform"));
 	ComponentRegistry->NewPropertyType(EulerTransform, TEXT("FEulerTransform"));
@@ -524,6 +559,7 @@ FMovieSceneTracksComponentTypes::FMovieSceneTracksComponentTypes()
 	Color.MetaDataComponents.Initialize(ComponentRegistry, TEXT("Color Type"));
 	FloatVector.MetaDataComponents.Initialize(ComponentRegistry, TEXT("Num Float Vector Channels"));
 	DoubleVector.MetaDataComponents.Initialize(ComponentRegistry, TEXT("Num Double Vector Channels"));
+	Object.MetaDataComponents.Initialize(ComponentRegistry, TEXT("Object Class"));
 
 	ComponentRegistry->NewComponentType(&QuaternionRotationChannel[0], TEXT("Quaternion Rotation Channel 0"));
 	ComponentRegistry->NewComponentType(&QuaternionRotationChannel[1], TEXT("Quaternion Rotation Channel 1"));
@@ -659,6 +695,13 @@ FMovieSceneTracksComponentTypes::FMovieSceneTracksComponentTypes()
 	BuiltInComponents->PropertyRegistry.DefineProperty(String, TEXT("Apply String Properties"))
 	.AddSoleChannel(BuiltInComponents->StringResult)
 	.Commit();
+
+	// --------------------------------------------------------------------------------------------
+	// Set up Object properties
+	BuiltInComponents->PropertyRegistry.DefineProperty(Object, TEXT("Apply Object Properties"))
+	.AddSoleChannel(BuiltInComponents->ObjectResult)
+	.SetCustomAccessors(&Accessors.Object)
+	.Commit(FObjectHandler());
 
 	// --------------------------------------------------------------------------------------------
 	// Set up float parameters

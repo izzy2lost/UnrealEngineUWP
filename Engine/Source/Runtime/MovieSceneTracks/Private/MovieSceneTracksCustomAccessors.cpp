@@ -7,6 +7,8 @@
 #include "Components/PrimitiveComponent.h"
 #include "Components/SkyAtmosphereComponent.h"
 #include "Components/SkyLightComponent.h"
+#include "Components/SkeletalMeshComponent.h"
+#include "Engine/SkeletalMesh.h"
 
 namespace UE::MovieScene
 {
@@ -402,6 +404,34 @@ void SetSecondFogDataFogHeightOffset(UObject* Object, float InFogHeightOffset)
 	ExponentialHeightFogComponent->SetSecondFogHeightOffset(InFogHeightOffset);
 }
 
+FObjectComponent GetSkeletalMeshAsset(const UObject* Object, FObjectPropertyTraits::FObjectMetadata ObjectMetadata)
+{
+	const USkeletalMeshComponent* SkeletalMeshComponent = CastChecked<const USkeletalMeshComponent>(Object);
+	return FObjectComponent::Strong(SkeletalMeshComponent->GetSkeletalMeshAsset());
+}
+
+void SetSkeletalMeshAsset(UObject* Object, FObjectPropertyTraits::FObjectMetadata ObjectMetadata, const FObjectComponent& InSkeletalMeshAsset)
+{
+	USkeletalMeshComponent* SkeletalMeshComponent = CastChecked<USkeletalMeshComponent>(Object);
+	SkeletalMeshComponent->SetSkeletalMeshAsset(Cast<USkeletalMesh>(InSkeletalMeshAsset.GetObject()));
+}
+
+FObjectComponent GetSkeletalMesh_DEPRECATED(const UObject* Object, FObjectPropertyTraits::FObjectMetadata ObjectMetadata)
+{
+	const USkinnedMeshComponent* SkinnedMeshComponent = CastChecked<const USkinnedMeshComponent>(Object);
+	PRAGMA_DISABLE_DEPRECATION_WARNINGS
+	return FObjectComponent::Strong(SkinnedMeshComponent->GetSkeletalMesh_DEPRECATED());
+	PRAGMA_ENABLE_DEPRECATION_WARNINGS
+}
+
+void SetSkeletalMesh_DEPRECATED(UObject* Object, FObjectPropertyTraits::FObjectMetadata ObjectMetadata, const FObjectComponent& InSkeletalMeshAsset)
+{
+	USkinnedMeshComponent* SkinnedMeshComponent = CastChecked<USkinnedMeshComponent>(Object);
+	PRAGMA_DISABLE_DEPRECATION_WARNINGS
+	SkinnedMeshComponent->SetSkeletalMesh_DEPRECATED(Cast<USkeletalMesh>(InSkeletalMeshAsset.GetObject()));
+	PRAGMA_ENABLE_DEPRECATION_WARNINGS
+}
+
 void InitializeMovieSceneTracksAccessors(FMovieSceneTracksComponentTypes* TracksComponents)
 {
 	// We have some custom accessors for well-known types.
@@ -492,6 +522,14 @@ void InitializeMovieSceneTracksAccessors(FMovieSceneTracksComponentTypes* Tracks
 			GetSecondFogDataFogHeightOffset, SetSecondFogDataFogHeightOffset);
 
 	TracksComponents->Accessors.ComponentTransform.Add(USceneComponent::StaticClass(), "Transform", &GetComponentTransform, &SetComponentTransformAndVelocity);
+
+	// SkeletalMeshComponent
+	TracksComponents->Accessors.Object.Add(USkeletalMeshComponent::StaticClass(), "SkeletalMeshAsset", &GetSkeletalMeshAsset, &SetSkeletalMeshAsset);
+
+	//SkinnedMeshComponent
+	TracksComponents->Accessors.Object.Add(USkinnedMeshComponent::StaticClass(), "SkeletalMesh", &GetSkeletalMesh_DEPRECATED, &SetSkeletalMesh_DEPRECATED);
+
+	
 }
 
 } // namespace UE::MovieScene
