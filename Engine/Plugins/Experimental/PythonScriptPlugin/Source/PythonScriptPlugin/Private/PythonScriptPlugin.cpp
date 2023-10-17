@@ -56,6 +56,7 @@
 #include "ContentBrowserFileDataSource.h"
 #include "Toolkits/GlobalEditorCommonCommands.h"
 #include "Misc/FeedbackContext.h"
+#include "PipInstall.h"
 #endif	// WITH_EDITOR
 
 #if PLATFORM_WINDOWS
@@ -1126,6 +1127,8 @@ void FPythonScriptPlugin::ShutdownPython()
 
 void FPythonScriptPlugin::RunPipInstaller()
 {
+	TRACE_CPUPROFILER_EVENT_SCOPE(FPythonScriptPlugin::RunPipInstaller)
+
 	// Run UBT Pip installer for python dependencies (if any)
 	FFeedbackContext* Context = GWarn;
 	FScopedSlowTask PipInstallTask(0, LOCTEXT("PipInstall.RunTasks", "Running Pip Install Tasks..."), true, *Context);
@@ -1133,10 +1136,13 @@ void FPythonScriptPlugin::RunPipInstaller()
 	const FString PipSitePackagePath = FPaths::ConvertRelativePathToFull(GetPipSitePackagesPath());
 
 	// Generate the input listing files of plugins with python dependencies and the listing of all requirements (installed or not)
-	RunUBTPipAction("GenRequirements", LOCTEXT("PipInstall.CheckingDependencies", "Checking Python Dependencies..."), Context);
-	const FString InReqsFile = FPaths::ConvertRelativePathToFull(FPaths::ProjectIntermediateDir() / TEXT("PipInstall") / TEXT("merged_requirements.in"));
+	TArray<TSharedRef<IPlugin>> PythonPlugins;
+	FPipInstall::WritePluginsListing(PythonPlugins);
+
 	TArray<FString> InReqLines;
-	if (!FPaths::FileExists(InReqsFile) || !FFileHelper::LoadFileToStringArray(InReqLines, *InReqsFile) || InReqLines.IsEmpty() )
+	TArray<FString> ExtraUrls;
+	const FString InReqsFile = FPipInstall::WritePluginDependencies(PythonPlugins, InReqLines, ExtraUrls);
+	if (!FPaths::FileExists(InReqsFile) || InReqLines.IsEmpty())
 	{
 		UE_LOG(LogPython, Display, TEXT("No enabled plugins with python dependencies found, skipping"));
 		return;
@@ -1168,6 +1174,8 @@ void FPythonScriptPlugin::RunPipInstaller()
 
 bool FPythonScriptPlugin::RunUBTPipAction(const FString& Action, const FText& Description, FFeedbackContext* Context)
 {
+	TRACE_CPUPROFILER_EVENT_SCOPE(FPythonScriptPlugin::RunUBTPipAction)
+
 	int32 ExitCode;
 	const FString ProjectFileName = IFileManager::Get().ConvertToAbsolutePathForExternalAppForWrite(*FPaths::GetProjectFilePath());
 	const FString Args = FString::Printf(TEXT("%s %s %s -Project=\"%s\" -Mode=PipInstall -PythonInterpreter=\"%s\" -PipAction=%s -Progress")
