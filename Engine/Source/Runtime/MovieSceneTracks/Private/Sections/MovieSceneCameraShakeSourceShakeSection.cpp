@@ -19,7 +19,7 @@ void UMovieSceneCameraShakeSourceShakeSection::ImportEntityImpl(UMovieSceneEntit
 	const FMovieSceneTracksComponentTypes* TrackComponents = FMovieSceneTracksComponentTypes::Get();
 
 	const FGuid ObjectBindingID = Params.GetObjectBindingID();
-	FMovieSceneCameraShakeComponentData ComponentData(ShakeData, GetRange());
+	FMovieSceneCameraShakeComponentData ComponentData(ShakeData, *this);
 
 	OutImportedEntity->AddBuilder(
 		FEntityBuilder()

@@ -27,6 +27,8 @@ class UMovieSceneAudioSection;
 class UMovieSceneDataLayerSection;
 class UMovieSceneLevelVisibilitySection;
 class UMovieSceneSkeletalAnimationSection;
+struct FCameraShakeBaseStartParams;
+struct FCameraShakeSourceComponentStartParams;
 struct FMovieSceneObjectBindingID;
 
 
@@ -119,24 +121,43 @@ struct FMovieSceneCameraShakeComponentData
 	/** The range of the section that created this component */
 	UPROPERTY()
 	FFrameNumber SectionStartTime;
-
 	UPROPERTY()
 	FFrameNumber SectionEndTime;
 
-	// ~~ Internal data for the camera shake systems ~~
-
-	// Shake instance created by the shake evaluation system.
+	/** The signature of the source section at the time the shake instance was created */
 	UPROPERTY()
-	TObjectPtr<UCameraShakeBase> ShakeInstance;
+	FGuid SectionSignature;
 
 	FMovieSceneCameraShakeComponentData()
 	{}
-	FMovieSceneCameraShakeComponentData(const FMovieSceneCameraShakeSectionData& InSectionData, TRange<FFrameNumber> InSectionRange)
+	FMovieSceneCameraShakeComponentData(const FMovieSceneCameraShakeSectionData& InSectionData, const UMovieSceneSection& InSection)
 		: SectionData(InSectionData)
+		, SectionSignature(InSection.GetSignature())
 	{
-		SectionStartTime = InSectionRange.HasLowerBound() ? InSectionRange.GetLowerBoundValue() : 0;
-		SectionEndTime = InSectionRange.HasUpperBound() ? InSectionRange.GetUpperBoundValue() : FFrameNumber(TNumericLimits<int32>::Max());
+		const TRange<FFrameNumber> SectionRange = InSection.GetRange();
+		SectionStartTime = SectionRange.HasLowerBound() ? SectionRange.GetLowerBoundValue() : 0;
+		SectionEndTime = SectionRange.HasUpperBound() ? SectionRange.GetUpperBoundValue() : FFrameNumber(TNumericLimits<int32>::Max());
 	}
+};
+
+/**
+ * Component data for camera shakes created by the shake system
+ * This is separate from FMovieSceneCameraShakeComponentData because that
+ * one it imported from source shake sections, and our component data here
+ * will be preserved on reimported entities.
+ */
+USTRUCT()
+struct FMovieSceneCameraShakeInstanceData
+{
+	GENERATED_BODY()
+
+	/** Shake instance created by the shake evaluation system */
+	UPROPERTY()
+	TObjectPtr<UCameraShakeBase> ShakeInstance;
+
+	/** The signature of the source section at the time the shake instance was created */
+	UPROPERTY()
+	FGuid SectionSignature;
 };
 
 /**
@@ -617,6 +638,7 @@ struct FMovieSceneTracksComponentTypes
 	TComponentTypeID<FName> AudioTriggerName;
 
 	TComponentTypeID<FMovieSceneCameraShakeComponentData> CameraShake;
+	TComponentTypeID<FMovieSceneCameraShakeInstanceData> CameraShakeInstance;
 
 	struct
 	{

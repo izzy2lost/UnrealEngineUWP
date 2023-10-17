@@ -1,6 +1,8 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 
 #include "MovieSceneTracksComponentTypes.h"
+#include "Camera/CameraShakeBase.h"
+#include "Camera/CameraShakeSourceComponent.h"
 #include "Components/SkeletalMeshComponent.h"
 #include "MovieSceneTracksCustomAccessors.h"
 #include "EntitySystem/BuiltInComponentTypes.h"
@@ -562,6 +564,7 @@ FMovieSceneTracksComponentTypes::FMovieSceneTracksComponentTypes()
 	ComponentRegistry->NewComponentType(&AudioTriggerName,       TEXT("Audio Trigger Name"), EComponentTypeFlags::CopyToChildren);
 
 	ComponentRegistry->NewComponentType(&CameraShake,            TEXT("Camera Shake"), EComponentTypeFlags::CopyToChildren);
+	ComponentRegistry->NewComponentType(&CameraShakeInstance,    TEXT("Camera Shake Instance"), EComponentTypeFlags::Preserved);
 
 	Tags.BoundMaterialChanged = ComponentRegistry->NewTag(TEXT("Bound Material Changed"));
 	FBuiltInComponentTypes::Get()->RequiresInstantiationMask.Set(Tags.BoundMaterialChanged);
@@ -770,6 +773,10 @@ FMovieSceneTracksComponentTypes::FMovieSceneTracksComponentTypes()
 	// --------------------------------------------------------------------------------------------
 	// Set up custom primitive data components
 	ComponentRegistry->Factories.DefineChildComponent(Tags.CustomPrimitiveData, Tags.CustomPrimitiveData);
+
+	// --------------------------------------------------------------------------------------------
+	// Set up camera shake components
+	ComponentRegistry->Factories.DefineMutuallyInclusiveComponent(CameraShake, CameraShakeInstance);
 
 	InitializeMovieSceneTracksAccessors(this);
 }

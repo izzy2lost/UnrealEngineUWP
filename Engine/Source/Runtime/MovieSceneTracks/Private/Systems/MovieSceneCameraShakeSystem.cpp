@@ -328,7 +328,8 @@ void UMovieSceneCameraShakeInstantiatorSystem::OnRun(FSystemTaskPrerequisites& I
 		FMovieSceneEntityID EntityID,
 		FInstanceHandle InstanceHandle,
 		UObject* BoundObject,
-		FMovieSceneCameraShakeComponentData& ShakeData)
+		const FMovieSceneCameraShakeComponentData& ShakeData,
+		FMovieSceneCameraShakeInstanceData& ShakeInstanceData)
 	{
 		const FSequenceInstance& Instance = InstanceRegistry->GetInstance(InstanceHandle);
 		const FMovieSceneContext& Context = Instance.GetContext();
@@ -350,7 +351,8 @@ void UMovieSceneCameraShakeInstantiatorSystem::OnRun(FSystemTaskPrerequisites& I
 		}
 
 		// Get the duration of the shake and compare it to the duration of the section, to know
-		// if we need to override it.
+		// if we need to override it. We only override duration if the section is shorter than
+		// the shake's natural duration... i.e, we only make shakes shorter, not longer.
 		const FFrameRate& FrameRate = Context.GetFrameRate();
 		TOptional<float> DurationOverride;
 
@@ -377,24 +379,40 @@ void UMovieSceneCameraShakeInstantiatorSystem::OnRun(FSystemTaskPrerequisites& I
 		// Start playing the shake.
 		if (ShakeSourceComponent)
 		{
+			bool bStartShake = true;
+			if (ShakeInstanceData.SectionSignature == ShakeData.SectionSignature)
+			{
+				// Don't re-create and restart the shake if it was already running with the same
+				// parameters and this instantiation phase is just re-importing other stuff.
+				bStartShake = false;
+			}
+
 			PreAnimatedCameraSourceShakeStorage->BeginTrackingEntity(EntityID, bWantsRestoreState, RootInstanceHandle, ShakeSourceComponent);
 			PreAnimatedCameraSourceShakeStorage->CachePreAnimatedValue(CacheParams, ShakeSourceComponent);
 
-			FCameraShakeSourceComponentStartParams ComponentParams;
-			ComponentParams.ShakeClass = ShakeClass;
-			ComponentParams.Scale = ShakeData.SectionData.PlayScale;
-			ComponentParams.PlaySpace = ShakeData.SectionData.PlaySpace;
-			ComponentParams.UserPlaySpaceRot = ShakeData.SectionData.UserDefinedPlaySpace;
-			ComponentParams.DurationOverride = DurationOverride;
-			ShakeSourceComponent->StartCameraShake(ComponentParams);
+			if (bStartShake)
+			{
+				FCameraShakeSourceComponentStartParams ComponentParams;
+				ComponentParams.ShakeClass = ShakeClass;
+				ComponentParams.Scale = ShakeData.SectionData.PlayScale;
+				ComponentParams.PlaySpace = ShakeData.SectionData.PlaySpace;
+				ComponentParams.UserPlaySpaceRot = ShakeData.SectionData.UserDefinedPlaySpace;
+				ComponentParams.DurationOverride = DurationOverride;
+
+				ShakeSourceComponent->StartCameraShake(ComponentParams);
+			}
+
+			ShakeInstanceData.SectionSignature = ShakeData.SectionSignature;
 
 #if WITH_EDITOR
-			if (PreviewerExtension)
+			if (PreviewerExtension && bStartShake)
 			{
 				// Shake source components start shakes in the world, unlike the other shakes
 				// (in the `else` clause) who directly affect the bound camera. This means that
 				// the shake we have just started won't affect the Sequencer preview unless we
 				// add some shaking ourselves. Let's do that here.
+				// In fact, in the editor, the above StartCameraShake call generally does nothing
+				// since there is no player controller.
 				FCameraShakePreviewer& Previewer = PreviewerExtension->GetPreviewer(InstanceHandle);
 
 				FCameraShakePreviewerAddParams PreviewParams;
@@ -405,14 +423,34 @@ void UMovieSceneCameraShakeInstantiatorSystem::OnRun(FSystemTaskPrerequisites& I
 				PreviewParams.PlaySpace = ShakeData.SectionData.PlaySpace;
 				PreviewParams.UserPlaySpaceRot = ShakeData.SectionData.UserDefinedPlaySpace;
 				PreviewParams.DurationOverride = DurationOverride;
-				Previewer.AddCameraShake(PreviewParams);
+
+				// Stop any previous version of this shake.
+				UCameraShakeBase* OldShakeInstance = ShakeInstanceData.ShakeInstance;
+				if (OldShakeInstance)
+				{
+					Previewer.RemoveCameraShake(OldShakeInstance);
+				}
+
+				ShakeInstanceData.ShakeInstance = Previewer.AddCameraShake(PreviewParams);
 			}
 #endif  // WITH_EDITOR
 		}
 		else if (UCameraComponent* CameraComponent = MovieSceneHelpers::CameraComponentFromRuntimeObject(BoundObject))
 		{
-			UObject* OuterObject = Player->GetPlaybackContext() ? Player->GetPlaybackContext() : GetTransientPackage();
-			UCameraShakeBase* ShakeInstance = NewObject<UCameraShakeBase>(OuterObject, ShakeClass);
+			bool bStartInstance = true;
+			UCameraShakeBase* ShakeInstance = nullptr;
+			if (ShakeInstanceData.SectionSignature == ShakeData.SectionSignature)
+			{
+				// Don't re-create and restart the shake if it was already running with the same
+				// parameters and this instantiation phase is just re-importing other stuff.
+				bStartInstance = false;
+				ShakeInstance = ShakeInstanceData.ShakeInstance;
+			}
+			else
+			{
+				UObject* OuterObject = Player->GetPlaybackContext() ? Player->GetPlaybackContext() : GetTransientPackage();
+				ShakeInstance = NewObject<UCameraShakeBase>(OuterObject, ShakeClass);
+			}
 
 			PreAnimatedCameraShakeStorage->BeginTrackingEntity(EntityID, bWantsRestoreState, RootInstanceHandle, ShakeInstance);
 			PreAnimatedCameraShakeStorage->CachePreAnimatedValue(CacheParams, ShakeInstance);
@@ -420,14 +458,19 @@ void UMovieSceneCameraShakeInstantiatorSystem::OnRun(FSystemTaskPrerequisites& I
 			PreAnimatedCameraComponentShakeStorage->BeginTrackingEntity(EntityID, bWantsRestoreState, RootInstanceHandle, CameraComponent);
 			PreAnimatedCameraComponentShakeStorage->CachePreAnimatedValue(CacheParams, CameraComponent);
 
-			FCameraShakeBaseStartParams ShakeParams;
-			ShakeParams.Scale = ShakeData.SectionData.PlayScale;
-			ShakeParams.PlaySpace = ShakeData.SectionData.PlaySpace;
-			ShakeParams.UserPlaySpaceRot = ShakeData.SectionData.UserDefinedPlaySpace;
-			ShakeParams.DurationOverride = DurationOverride;
-			ShakeInstance->StartShake(ShakeParams);
+			ShakeInstanceData.ShakeInstance = ShakeInstance;
+			ShakeInstanceData.SectionSignature = ShakeData.SectionSignature;
 
-			ShakeData.ShakeInstance = ShakeInstance;
+			if (bStartInstance)
+			{
+				FCameraShakeBaseStartParams ShakeParams;
+				ShakeParams.Scale = ShakeData.SectionData.PlayScale;
+				ShakeParams.PlaySpace = ShakeData.SectionData.PlaySpace;
+				ShakeParams.UserPlaySpaceRot = ShakeData.SectionData.UserDefinedPlaySpace;
+				ShakeParams.DurationOverride = DurationOverride;
+
+				ShakeInstance->StartShake(ShakeParams);
+			}
 		}
 	};
 
@@ -435,7 +478,8 @@ void UMovieSceneCameraShakeInstantiatorSystem::OnRun(FSystemTaskPrerequisites& I
 		.ReadEntityIDs()
 		.Read(BuiltInComponents->InstanceHandle)
 		.Read(BuiltInComponents->BoundObject)
-		.Write(TrackComponents->CameraShake)
+		.Read(TrackComponents->CameraShake)
+		.Write(TrackComponents->CameraShakeInstance)
 		.FilterAll({ BuiltInComponents->Tags.NeedsLink })
 		.Iterate_PerEntity(&Linker->EntityManager, VisitNewShakes);
 
@@ -600,12 +644,17 @@ struct FEvaluateCameraShake
 	{
 	}
 
-	void ForEachAllocation(const FEntityAllocation* Allocation, TRead<FMovieSceneEntityID> EntityIDs, TRead<FRootInstanceHandle> RootInstanceHandles, TRead<FInstanceHandle> InstanceHandles, TRead<UObject*> BoundObjects, TWrite<FMovieSceneCameraShakeComponentData> ShakeComponents)
+	void ForEachAllocation(
+			const FEntityAllocation* Allocation,
+			TRead<FInstanceHandle> InstanceHandles,
+			TRead<UObject*> BoundObjects,
+			TRead<FMovieSceneCameraShakeComponentData> ShakeComponents,
+			TRead<FMovieSceneCameraShakeInstanceData> ShakeInstances)
 	{
 		const int32 Num = Allocation->Num();
 		for (int32 Index = 0; Index < Num; ++Index)
 		{
-			FRootInstanceHandle InstanceHandle = RootInstanceHandles[Index];
+			FInstanceHandle InstanceHandle = InstanceHandles[Index];
 			const FSequenceInstance& Instance = InstanceRegistry->GetInstance(InstanceHandle);
 
 			// Shakes should have been started by the instantiator system.
@@ -614,17 +663,19 @@ struct FEvaluateCameraShake
 			// along by themselves in both the player camera manager (in the game) and the camera shake
 			// previewer (in the editor). We do however need to tick the camera shakes running directly
 			// onto camera component bindings.
-			FMovieSceneCameraShakeComponentData& ShakeData = ShakeComponents[Index];
+			const FMovieSceneCameraShakeComponentData& ShakeData = ShakeComponents[Index];
+			const FMovieSceneCameraShakeInstanceData& ShakeInstance = ShakeInstances[Index];
 			if (UCameraComponent* CameraComponent = MovieSceneHelpers::CameraComponentFromRuntimeObject(BoundObjects[Index]))
 			{
-				EvaluateCameraComponentShake(CameraComponent, ShakeData, Instance);
+				EvaluateCameraComponentShake(CameraComponent, ShakeData, ShakeInstance, Instance);
 			}
 		}
 	}
 
 	void EvaluateCameraComponentShake(
 			UCameraComponent* CameraComponent,
-			FMovieSceneCameraShakeComponentData& ShakeData,
+			const FMovieSceneCameraShakeComponentData& ShakeData,
+			const FMovieSceneCameraShakeInstanceData& ShakeInstance,
 			const FSequenceInstance& Instance)
 	{
 		FMinimalViewInfo POV;
@@ -635,7 +686,7 @@ struct FEvaluateCameraShake
 		// Update shake to the new time.
 		const FMovieSceneContext& Context = Instance.GetContext();
 		const FFrameTime NewShakeTime = Context.GetTime() - ShakeData.SectionStartTime;
-		ShakeData.ShakeInstance->ScrubAndApplyCameraShake(NewShakeTime / Context.GetFrameRate(), 1.f, POV);
+		ShakeInstance.ShakeInstance->ScrubAndApplyCameraShake(NewShakeTime / Context.GetFrameRate(), 1.f, POV);
 
 		// Grab transform and FOV changes.
 		FTransform WorldToBaseCamera = CameraComponent->GetComponentToWorld().Inverse();
@@ -726,11 +777,10 @@ void UMovieSceneCameraShakeEvaluatorSystem::OnRun(FSystemTaskPrerequisites& InPr
 	const FMovieSceneTracksComponentTypes* TrackComponents = FMovieSceneTracksComponentTypes::Get();
 
 	FEntityTaskBuilder()
-		.ReadEntityIDs()
-		.Read(BuiltInComponents->RootInstanceHandle)
 		.Read(BuiltInComponents->InstanceHandle)
 		.Read(BuiltInComponents->BoundObject)
-		.Write(TrackComponents->CameraShake)
+		.Read(TrackComponents->CameraShake)
+		.Read(TrackComponents->CameraShakeInstance)
 		.SetDesiredThread(Linker->EntityManager.GetGatherThread())
 		.Dispatch_PerAllocation<FEvaluateCameraShake>(
 			&Linker->EntityManager, InPrerequisites, &Subsequents, Linker);
