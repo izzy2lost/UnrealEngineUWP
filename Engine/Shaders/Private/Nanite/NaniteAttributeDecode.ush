@@ -39,50 +39,60 @@ FNaniteRawAttributeData WaveReadLaneAt(FNaniteRawAttributeData In, uint SrcIndex
 	return Out;
 }
 
-#define SIZEOF_UV_RANGE	32
+#define SIZEOF_PACKED_UV_RANGE	8
 struct FUVRange
 {
-	int2	Min;
-	uint2	GapStart;
-	uint2	GapLength;
-	int		Precision;
+	uint2	Min;
+	uint2	NumBits;
+	uint	NumMantissaBits;
 };
 
 
-FUVRange UnpackUVRange(uint4 Data[2])
+FUVRange UnpackUVRange(uint2 Data)
 {
 	FUVRange Range;
-	Range.Min = (int2)Data[0].xy;
-	Range.GapStart = Data[0].zw;
-	Range.GapLength = Data[1].xy;
-	Range.Precision = Data[1].z;
+
+	Range.NumBits.x			= BitFieldExtractU32(Data.x, 5, 0);
+	Range.Min.x				= Data.x >> 5;
+	
+	Range.NumBits.y			= BitFieldExtractU32(Data.y, 5, 0);
+	Range.Min.y				= Data.y >> 5;
+	
+	Range.NumMantissaBits	= NANITE_UV_FLOAT_NUM_MANTISSA_BITS;	// Hardcode for now, but eventually make this a mesh setting.
+
 	return Range;
 }
 
 FUVRange GetUVRange(ByteAddressBuffer InputBuffer, uint StartOffset, uint Index)
 {
-	uint Offset = StartOffset + Index * SIZEOF_UV_RANGE;
-	uint4 Data[2];
-	Data[0] = InputBuffer.Load4(Offset);
-	Data[1] = InputBuffer.Load4(Offset + 16);
+	uint2 Data = InputBuffer.Load2(StartOffset + Index * SIZEOF_PACKED_UV_RANGE);
 	return UnpackUVRange(Data);
 }
 
 FUVRange GetUVRange(RWByteAddressBuffer InputBuffer, uint StartOffset, uint Index)
 {
-	uint Offset = StartOffset + Index * SIZEOF_UV_RANGE;
-	uint4 Data[2];
-	Data[0] = InputBuffer.Load4(Offset);
-	Data[1] = InputBuffer.Load4(Offset + 16);
+	uint2 Data = InputBuffer.Load2(StartOffset + Index * SIZEOF_PACKED_UV_RANGE);
 	return UnpackUVRange(Data);
+}
+
+float DecodeUVFloat(uint EncodedValue, uint NumMantissaBits)
+{
+	const uint ExponentAndMantissaMask	= BitFieldMaskU32(NANITE_UV_FLOAT_NUM_EXPONENT_BITS + NumMantissaBits, 0);
+	const bool bNeg						= (EncodedValue <= ExponentAndMantissaMask);
+	const uint ExponentAndMantissa		= (bNeg ? ~EncodedValue : EncodedValue) & ExponentAndMantissaMask;
+
+	float Result	= asfloat(0x3F000000u + (ExponentAndMantissa << (23 - NumMantissaBits)));
+	Result			= min(Result * 2.0f - 1.0f, Result);		// Stretch denormals from [0.5,1.0] to [0.0,1.0]
+
+	return bNeg ? -Result : Result;
 }
 
 float2 UnpackTexCoord(uint2 Packed, FUVRange UVRange)
 {
-	uint2 T = Packed + select(Packed > UVRange.GapStart, UVRange.GapLength, 0u);
+	const uint2 GlobalUV = UVRange.Min + Packed;
 
-	const float Scale = asfloat(asint(1.0f) - (UVRange.Precision << 23));
-	return float2((int2)T + UVRange.Min) * Scale;
+	return float2(	DecodeUVFloat(GlobalUV.x, UVRange.NumMantissaBits),
+					DecodeUVFloat(GlobalUV.y, UVRange.NumMantissaBits));
 }
 
 float3 UnpackNormal(uint Packed, uint Bits)
@@ -101,7 +111,7 @@ uint CalculateMaxAttributeBits(uint NumTexCoordInterpolators)
 	Size += 2u * NANITE_MAX_NORMAL_QUANTIZATION_BITS;
 	Size += 1u + NANITE_MAX_TANGENT_QUANTIZATION_BITS;
 	Size += 4u * NANITE_MAX_COLOR_QUANTIZATION_BITS;
-	Size += NumTexCoordInterpolators * (2u * NANITE_MAX_TEXCOORD_QUANTIZATION_BITS);
+	Size += NumTexCoordInterpolators * (2u * NANITE_MAX_TEXCOORD_COMPONENT_BITS);
 	return Size;
 }
 
@@ -466,19 +476,24 @@ void GetRawAttributeDataN(inout FNaniteRawAttributeData RawAttributeData[3],
 	UNROLL
 	for (uint TexCoordIndex = 0; TexCoordIndex < CompileTimeMaxTexCoords; ++TexCoordIndex)
 	{
-		const uint2 UVPrec = uint2(BitFieldExtractU32(Cluster.UV_Prec, 4, TexCoordIndex * 8), BitFieldExtractU32(Cluster.UV_Prec, 4, TexCoordIndex * 8 + 4));
+		uint2 UVRangeData = 0u;
+		if (TexCoordIndex < Cluster.NumUVs)
+		{
+			UVRangeData = ClusterPageData.Load2(DecodeInfoOffset + TexCoordIndex * SIZEOF_PACKED_UV_RANGE);
+		}
+
+		const FUVRange UVRange = UnpackUVRange(UVRangeData);
 		
 		uint2 UVBits[3];
 		UNROLL
 		for (uint i = 0; i < CompileTimeN; i++)
 		{
-			UVBits[i] = BitStreamReader_Read2_RO(ClusterPageData, AttributeStream[i], UVPrec, NANITE_MAX_TEXCOORD_QUANTIZATION_BITS);
+			UVBits[i] = BitStreamReader_Read2_RO(ClusterPageData, AttributeStream[i], UVRange.NumBits, NANITE_MAX_TEXCOORD_COMPONENT_BITS);
 		}
 
 		BRANCH
 		if (TexCoordIndex < Cluster.NumUVs)
 		{
-			FUVRange UVRange = GetUVRange(ClusterPageData, DecodeInfoOffset, TexCoordIndex);
 			UNROLL
 			for (uint i = 0; i < CompileTimeN; i++)
 			{
@@ -706,16 +721,12 @@ TDual< float2 > GetTexCoord(
 #else
 	const uint4 NumColorComponentBits = UnpackToUint4(Cluster.ColorBits, 4);
 	
-	// Sum U and V bit costs to combined UV bit costs in 8:8:8:8.
-	const uint NumUVBits_8888 = (Cluster.UV_Prec & 0x0F0F0F0Fu) + ((Cluster.UV_Prec >> 4) & 0x0F0F0F0Fu);	// 8:8:8:8 (U0+V0, U1+V1, U2+V2, U3+V3)
-	const uint UVBitsOffset_8888 = NumUVBits_8888 * 0x01010100u;											// 8:8:8:8 (0, UV0, UV0+UV1, UV0+UV1+UV2)
-	const uint TexCoord_OffsetBits = (UVBitsOffset_8888 >> (8 * TexCoordIndex)) & 0xFFu;
+	const uint UVBitOffset = ((Cluster.UVBitOffsets >> (TexCoordIndex * 8u)) & 0xFFu);
+	const uint BitOffset = 2 * Cluster.NormalPrecision + dot(NumColorComponentBits, 1u) + UVBitOffset;
 
-	const uint BitOffset = 2 * Cluster.NormalPrecision + dot(NumColorComponentBits, 1u) + TexCoord_OffsetBits;
-
-	FBitStreamReaderState AttributeStream0 = BitStreamReader_Create_Aligned(AttributeDataOffset, BitOffset + TriIndices.x * Cluster.BitsPerAttribute, 2 * NANITE_MAX_TEXCOORD_QUANTIZATION_BITS);
-	FBitStreamReaderState AttributeStream1 = BitStreamReader_Create_Aligned(AttributeDataOffset, BitOffset + TriIndices.y * Cluster.BitsPerAttribute, 2 * NANITE_MAX_TEXCOORD_QUANTIZATION_BITS);
-	FBitStreamReaderState AttributeStream2 = BitStreamReader_Create_Aligned(AttributeDataOffset, BitOffset + TriIndices.z * Cluster.BitsPerAttribute, 2 * NANITE_MAX_TEXCOORD_QUANTIZATION_BITS);
+	FBitStreamReaderState AttributeStream0 = BitStreamReader_Create_Aligned(AttributeDataOffset, BitOffset + TriIndices.x * Cluster.BitsPerAttribute, 2 * NANITE_MAX_TEXCOORD_COMPONENT_BITS);
+	FBitStreamReaderState AttributeStream1 = BitStreamReader_Create_Aligned(AttributeDataOffset, BitOffset + TriIndices.y * Cluster.BitsPerAttribute, 2 * NANITE_MAX_TEXCOORD_COMPONENT_BITS);
+	FBitStreamReaderState AttributeStream2 = BitStreamReader_Create_Aligned(AttributeDataOffset, BitOffset + TriIndices.z * Cluster.BitsPerAttribute, 2 * NANITE_MAX_TEXCOORD_COMPONENT_BITS);
 #endif
 
 #if NANITE_USE_UNCOMPRESSED_VERTEX_DATA
@@ -723,15 +734,14 @@ TDual< float2 > GetTexCoord(
 	float2 TexCoord1 = asfloat(ClusterPageData.Load2(ReadOffset.y));
 	float2 TexCoord2 = asfloat(ClusterPageData.Load2(ReadOffset.z));
 #else
-	uint2 UVPrec = uint2(BitFieldExtractU32(Cluster.UV_Prec, 4, TexCoordIndex * 8), BitFieldExtractU32(Cluster.UV_Prec, 4, TexCoordIndex * 8 + 4));
-	uint2 Bits0_UV = BitStreamReader_Read2_RO(ClusterPageData, AttributeStream0, UVPrec, NANITE_MAX_TEXCOORD_QUANTIZATION_BITS);
-	uint2 Bits1_UV = BitStreamReader_Read2_RO(ClusterPageData, AttributeStream1, UVPrec, NANITE_MAX_TEXCOORD_QUANTIZATION_BITS);
-	uint2 Bits2_UV = BitStreamReader_Read2_RO(ClusterPageData, AttributeStream2, UVPrec, NANITE_MAX_TEXCOORD_QUANTIZATION_BITS);
+	const FUVRange UVRange = GetUVRange(ClusterPageData, DecodeInfoOffset, TexCoordIndex);
+	uint2 UVBits0 = BitStreamReader_Read2_RO(ClusterPageData, AttributeStream0, UVRange.NumBits, NANITE_MAX_TEXCOORD_COMPONENT_BITS);
+	uint2 UVBits1 = BitStreamReader_Read2_RO(ClusterPageData, AttributeStream1, UVRange.NumBits, NANITE_MAX_TEXCOORD_COMPONENT_BITS);
+	uint2 UVBits2 = BitStreamReader_Read2_RO(ClusterPageData, AttributeStream2, UVRange.NumBits, NANITE_MAX_TEXCOORD_COMPONENT_BITS);
 
-	FUVRange UVRange = GetUVRange(ClusterPageData, DecodeInfoOffset, TexCoordIndex);
-	float2 TexCoord0 = UnpackTexCoord(Bits0_UV, UVRange);
-	float2 TexCoord1 = UnpackTexCoord(Bits1_UV, UVRange);
-	float2 TexCoord2 = UnpackTexCoord(Bits2_UV, UVRange);
+	float2 TexCoord0 = UnpackTexCoord(UVBits0, UVRange);
+	float2 TexCoord1 = UnpackTexCoord(UVBits1, UVRange);
+	float2 TexCoord2 = UnpackTexCoord(UVBits2, UVRange);
 #endif
 
 	return Lerp( TexCoord0, TexCoord1, TexCoord2, Barycentrics );	

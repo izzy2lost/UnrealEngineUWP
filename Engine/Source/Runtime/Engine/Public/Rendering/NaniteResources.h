@@ -107,7 +107,8 @@ struct FPackedCluster
 	// Members needed by materials
 	uint32		AttributeOffset_BitsPerAttribute;				// AttributeOffset: 22, BitsPerAttribute: 10
 	uint32		DecodeInfoOffset_HasTangents_NumUVs_ColorMode;	// DecodeInfoOffset: 22, bHasTangents: 1, NumUVs: 3, ColorMode: 2
-	uint32		UV_Prec;										// U0:4, V0:4, U1:4, V1:4, U2:4, V2:4, U3:4, V3:4
+	uint32		UVBitOffsets;									// Bit offsets of UV sets relative to beginning of UV data.
+																// UV0 Offset: 8, UV1 Offset: 8, UV2 Offset: 8, UV3 Offset: 8
 	uint32		PackedMaterialInfo;
 
 	uint32		VertReuseBatchInfo[4];

@@ -740,7 +740,8 @@ bool FBuilderModule::Build(
 
 	uint32 EncodeTime0 = FPlatformTime::Cycles();
 
-	Encode( Resources, Settings, Clusters, Groups, MeshBounds, Resources.NumInputMeshes, InputMeshData.NumTexCoords, Settings.bExplicitTangents, bHasVertexColor );
+	uint32 TotalGPUSize;
+	Encode(Resources, Settings, Clusters, Groups, MeshBounds, Resources.NumInputMeshes, InputMeshData.NumTexCoords, Settings.bExplicitTangents, bHasVertexColor, &TotalGPUSize);
 
 	uint32 EncodeTime1 = FPlatformTime::Cycles();
 	UE_LOG( LogStaticMesh, Log, TEXT("Encode [%.2fs]"), FPlatformTime::ToMilliseconds( EncodeTime1 - EncodeTime0 ) / 1000.0f );
@@ -785,11 +786,13 @@ bool FBuilderModule::Build(
 		static uint32 TotalMeshes = 0;
 		static uint64 TotalMeshUncompressedSize = 0;
 		static uint64 TotalMeshCompressedSize = 0;
+		static uint64 TotalMeshGPUSize = 0;
 
 		TotalMeshes++;
 		TotalMeshUncompressedSize += UncompressedSize;
 		TotalMeshCompressedSize += CompressedSize;
-		UE_LOG(LogStaticMesh, Log, TEXT("Total: %d Meshes, Uncompressed: %.2fMB, Compressed: %.2fMB"), TotalMeshes, TotalMeshUncompressedSize / 1048576.0f, TotalMeshCompressedSize / 1048576.0f);
+		TotalMeshGPUSize += TotalGPUSize;
+		UE_LOG(LogStaticMesh, Log, TEXT("Total: %d Meshes, GPU: %.2fMB, Uncompressed: %.2fMB, Compressed: %.2fMB"), TotalMeshes, TotalMeshGPUSize / 1048576.0f, TotalMeshUncompressedSize / 1048576.0f, TotalMeshCompressedSize / 1048576.0f);
 	}
 #endif
 

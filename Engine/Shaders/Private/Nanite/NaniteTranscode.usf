@@ -342,32 +342,14 @@ void TranscodeVertexAttributes(FPageDiskHeader PageDiskHeader, FCluster Cluster,
 	UNROLL_N(NANITE_MAX_UVS)
 	for (uint TexCoordIndex = 0; TexCoordIndex <  NumTexCoords ; TexCoordIndex++)
 	{
-		const uint SrcU_NumBits		= BitFieldExtractU32(RefCluster.UV_Prec, 4, TexCoordIndex * 8 + 0);
-		const uint SrcV_NumBits		= BitFieldExtractU32(RefCluster.UV_Prec, 4, TexCoordIndex * 8 + 4);
-
-		const uint DstU_NumBits		= BitFieldExtractU32(Cluster.UV_Prec, 4, TexCoordIndex * 8 + 0);
-		const uint DstV_NumBits		= BitFieldExtractU32(Cluster.UV_Prec, 4, TexCoordIndex * 8 + 4);
-
-		const int2 SrcPackedUV		= BitStreamReader_Read2_RW(DstPageBuffer, InputStream, int2(SrcU_NumBits, SrcV_NumBits), NANITE_MAX_TEXCOORD_QUANTIZATION_BITS);
-        
 		const FUVRange SrcUVRange	= GetUVRange(DstPageBuffer, RefPageBaseOffset + RefCluster.DecodeInfoOffset, TexCoordIndex);
+		const FUVRange DstUVRange	= GetUVRange(SrcPageBuffer, SrcPageBaseOffset + PageDiskHeader.DecodeInfoOffset + LocalClusterIndex * NumTexCoords * SIZEOF_PACKED_UV_RANGE, TexCoordIndex);
 
-		const FUVRange UVRange		= GetUVRange(SrcPageBuffer, SrcPageBaseOffset + PageDiskHeader.DecodeInfoOffset + LocalClusterIndex * NumTexCoords *  32, TexCoordIndex);
-        
-		const float Scale			= asfloat(asint(1.0f) + ((UVRange.Precision - SrcUVRange.Precision) << 23));
-		const int2 SrcUV			= SrcPackedUV + select((uint2)SrcPackedUV > SrcUVRange.GapStart, SrcUVRange.GapLength, 0u) + SrcUVRange.Min;
-		int2 DstUV					= int2(round(SrcUV*Scale));
-		uint2 DstPackedUV			= (uint2)max(DstUV - UVRange.Min, 0);
+		const uint2 SrcLocalUV		= BitStreamReader_Read2_RW(DstPageBuffer, InputStream, SrcUVRange.NumBits, NANITE_MAX_TEXCOORD_COMPONENT_BITS);
+		const uint2 DstLocalUV		= SrcLocalUV + SrcUVRange.Min - DstUVRange.Min;
 
-		const uint2 GapMid			= UVRange.GapStart + (UVRange.GapLength >> 1);
-		const bool2 bOverMid		= DstPackedUV > GapMid;
-		
-		const uint2 RangeMin		= select(bOverMid, UVRange.GapStart + 1u, 0u);
-		const uint2 RangeMax		= select(bOverMid, uint2(BitFieldMaskU32(DstU_NumBits, 0), BitFieldMaskU32(DstV_NumBits, 0)), UVRange.GapStart);
-		DstPackedUV					= select(bOverMid, DstPackedUV - UVRange.GapLength, DstPackedUV);
-		DstPackedUV					= fastClamp(DstPackedUV, RangeMin, RangeMax);
-		
-		BitStreamWriter_Writer(DstPageBuffer, OutputStream, (DstPackedUV.y << DstU_NumBits) | DstPackedUV.x, DstU_NumBits + DstV_NumBits, 2 * NANITE_MAX_TEXCOORD_QUANTIZATION_BITS);
+		BitStreamWriter_Writer(DstPageBuffer, OutputStream, DstLocalUV.x, DstUVRange.NumBits.x, NANITE_MAX_TEXCOORD_COMPONENT_BITS);
+		BitStreamWriter_Writer(DstPageBuffer, OutputStream, DstLocalUV.y, DstUVRange.NumBits.y, NANITE_MAX_TEXCOORD_COMPONENT_BITS);
 	}
 
     BitStreamWriter_Flush(DstPageBuffer, OutputStream);
@@ -555,14 +537,13 @@ void TranscodePageIndependent(uint ClusterInstallIndex, uint WaveNumActiveLanes,
 		UNROLL_N(NANITE_MAX_UVS)
 		for (uint TexCoordIndex = 0; TexCoordIndex < Cluster.NumUVs; TexCoordIndex++)
 		{
-			const uint DstU_NumBits = BitFieldExtractU32(Cluster.UV_Prec, 4, TexCoordIndex * 8 + 0);
-			const uint DstV_NumBits = BitFieldExtractU32(Cluster.UV_Prec, 4, TexCoordIndex * 8 + 4);
+			const FUVRange UVRange = GetUVRange(SrcPageBuffer, SrcPageBaseOffset + PageDiskHeader.DecodeInfoOffset + LocalClusterIndex * Cluster.NumUVs * SIZEOF_PACKED_UV_RANGE, TexCoordIndex);
 
-			const uint TexCoordBytesPerValue = (max(DstU_NumBits, DstV_NumBits) + 7) / 8;
-			const int2 UV = UnpackZigZagDeltas<2, NANITE_MAX_TEXCOORD_QUANTIZATION_BYTES>(SrcPageBuffer, TexCoordLowMidHighOffsets, TexCoordBytesPerValue, NonRefVertexIndex, PrevPassUVs[TexCoordIndex]).xy & ((int(1) << int2(DstU_NumBits, DstV_NumBits)) - 1);
+			const uint TexCoordBytesPerValue = (max(UVRange.NumBits.x, UVRange.NumBits.y) + 7) / 8;
+			const int2 UV = UnpackZigZagDeltas<2, NANITE_MAX_TEXCOORD_COMPONENT_BYTES>(SrcPageBuffer, TexCoordLowMidHighOffsets, TexCoordBytesPerValue, NonRefVertexIndex, PrevPassUVs[TexCoordIndex]).xy & ((int(1) << int2(UVRange.NumBits)) - 1);
 			
-			const uint PackedUV = (UV.y << DstU_NumBits) | UV.x;
-			BitStreamWriter_Writer(DstPageBuffer, AttribStream, PackedUV, DstU_NumBits + DstV_NumBits, 2 * NANITE_MAX_TEXCOORD_QUANTIZATION_BITS);
+			BitStreamWriter_Writer(DstPageBuffer, AttribStream, UV.x, UVRange.NumBits.x, NANITE_MAX_TEXCOORD_COMPONENT_BITS);
+			BitStreamWriter_Writer(DstPageBuffer, AttribStream, UV.y, UVRange.NumBits.y, NANITE_MAX_TEXCOORD_COMPONENT_BITS);
 
 			TexCoordLowMidHighOffsets += LowMidHighIncrement(TexCoordBytesPerValue, 2 * NumNonRefVertices);
 		}

@@ -45,12 +45,13 @@ struct FPageSections
 
 	uint32 GetMaterialTableSize() const			{ return Align(MaterialTable, 16); }
 	uint32 GetVertReuseBatchInfoSize() const	{ return Align(VertReuseBatchInfo, 16); }
+	uint32 GetDecodeInfoSize() const			{ return Align(DecodeInfo, 16); }
 
 	uint32 GetClusterOffset() const				{ return NANITE_GPU_PAGE_HEADER_SIZE; }
 	uint32 GetMaterialTableOffset() const		{ return GetClusterOffset() + Cluster; }
 	uint32 GetVertReuseBatchInfoOffset() const	{ return GetMaterialTableOffset() + GetMaterialTableSize(); }
 	uint32 GetDecodeInfoOffset() const			{ return GetVertReuseBatchInfoOffset() + GetVertReuseBatchInfoSize(); }
-	uint32 GetIndexOffset() const				{ return GetDecodeInfoOffset() + DecodeInfo; }
+	uint32 GetIndexOffset() const				{ return GetDecodeInfoOffset() + GetDecodeInfoSize(); }
 	uint32 GetPositionOffset() const			{ return GetIndexOffset() + Index; }
 	uint32 GetAttributeOffset() const			{ return GetPositionOffset() + Position; }
 	uint32 GetTotal() const						{ return GetAttributeOffset() + Attribute; }
@@ -112,15 +113,25 @@ struct FPage
 	FPageSections	GpuSizes;
 };
 
-// TODO: optimize me
 struct FUVRange
 {
-	FIntPoint	Min = FIntPoint::ZeroValue;
-	FIntPoint	GapStart = FIntPoint::ZeroValue;
-	FIntPoint	GapLength = FIntPoint::ZeroValue;
-	int32		Precision = 0;
-	int32		Pad = 0;
+	FUintVector2 Min				= FUintVector2::ZeroValue;
+	FUintVector2 NumBits			= FUintVector2::ZeroValue;
 };
+
+struct FPackedUVRange
+{
+	FUintVector2 Data;
+};
+
+static void PackUVRange(FPackedUVRange& PackedUVRange, const FUVRange& UVRange)
+{
+	check(UVRange.NumBits.X <= NANITE_UV_FLOAT_MAX_BITS			&& UVRange.NumBits.Y <= NANITE_UV_FLOAT_MAX_BITS);
+	check(UVRange.Min.X     <  (1u << NANITE_UV_FLOAT_MAX_BITS) && UVRange.Min.Y     <  (1u << NANITE_UV_FLOAT_MAX_BITS));
+	
+	PackedUVRange.Data.X = (UVRange.Min.X << 5) | UVRange.NumBits.X;
+	PackedUVRange.Data.Y = (UVRange.Min.Y << 5) | UVRange.NumBits.Y;
+}
 
 struct FEncodingInfo
 {
@@ -129,7 +140,6 @@ struct FEncodingInfo
 
 	uint32		NormalPrecision = 0;
 	uint32		TangentPrecision = 0;
-	uint32		UVPrec = 0;
 	
 	uint32		ColorMode = 0;
 	FIntVector4 ColorMin = FIntVector4(0, 0, 0, 0);
@@ -750,14 +760,24 @@ static void PackCluster(Nanite::FPackedCluster& OutCluster, const Nanite::FClust
 	check(NumTexCoords <= NANITE_MAX_UVS);
 	static_assert(NANITE_MAX_UVS <= 4, "UV_Prev encoding only supports up to 4 channels");
 
+	uint32 UVBitOffsets = 0;
+	uint32 BitOffset = 0;
+	for (uint32 i = 0; i < NumTexCoords; i++)
+	{
+		check(BitOffset < 256);
+		UVBitOffsets |= BitOffset << (i * 8);
+		const FUVRange& UVRange = EncodingInfo.UVRanges[i];
+		BitOffset += UVRange.NumBits.X + UVRange.NumBits.Y;
+	}
+
 	OutCluster.SetBitsPerAttribute(EncodingInfo.BitsPerAttribute);
 	OutCluster.SetNormalPrecision(EncodingInfo.NormalPrecision);
 	OutCluster.SetTangentPrecision(EncodingInfo.TangentPrecision);
 	OutCluster.SetHasTangents(bHasTangents);
 	OutCluster.SetNumUVs(NumTexCoords);
 	OutCluster.SetColorMode(EncodingInfo.ColorMode);
-	OutCluster.UV_Prec									= EncodingInfo.UVPrec;
-	OutCluster.PackedMaterialInfo						= 0;	// Filled out by WritePages
+	OutCluster.UVBitOffsets			= UVBitOffsets;
+	OutCluster.PackedMaterialInfo	= 0;	// Filled out by WritePages
 }
 
 struct FHierarchyNode
@@ -960,6 +980,86 @@ static int32 CalculateQuantizedPositionsUniformGrid(TArray< FCluster >& Clusters
 	return PositionPrecision;
 }
 
+static float DecodeUVFloat(uint32 EncodedValue, uint32 NumMantissaBits)
+{
+	const uint32 ExponentAndMantissaMask	= (1u << (NANITE_UV_FLOAT_NUM_EXPONENT_BITS + NumMantissaBits)) - 1u;
+	const bool bNeg							= (EncodedValue <= ExponentAndMantissaMask);
+	const uint32 ExponentAndMantissa		= (bNeg ? ~EncodedValue : EncodedValue) & ExponentAndMantissaMask;
+
+	const uint32 FloatBits	= 0x3F000000u + (ExponentAndMantissa << (23 - NumMantissaBits));
+	float Result			= (float&)FloatBits;
+	Result					= FMath::Min(Result * 2.0f - 1.0f, Result);		// Stretch denormals from [0.5,1.0] to [0.0,1.0]
+
+	return bNeg ? -Result : Result;
+}
+
+static void VerifyUVFloatEncoding(float Value, uint32 EncodedValue, uint32 NumMantissaBits)
+{
+	check(FMath::IsFinite(Value));	// NaN and Inf should have been handled already
+
+	const uint32 NumValues = 1u << (1 + NumMantissaBits + NANITE_UV_FLOAT_NUM_EXPONENT_BITS);
+	
+	const float DecodedValue = DecodeUVFloat(EncodedValue, NumMantissaBits);
+	const float Error = FMath::Abs(DecodedValue - Value);
+
+	// Verify that none of the neighbor code points are closer to the original float value.
+	if (EncodedValue > 0u)
+	{
+		const float PrevValue = DecodeUVFloat(EncodedValue - 1u, NumMantissaBits);
+		check(FMath::Abs(PrevValue - Value) >= Error);
+	}
+
+	if (EncodedValue + 1u < NumValues)
+	{
+		const float NextValue = DecodeUVFloat(EncodedValue + 1u, NumMantissaBits);
+		check(FMath::Abs(NextValue - Value) >= Error);
+	}
+}
+
+static uint32 EncodeUVFloat(float Value, uint32 NumMantissaBits)
+{
+	// Encode UV floats as a custom float type where [0,1] is denormal, so it gets uniform precision.
+	// As UVs are encoded in clusters as ranges of encoded values, a few modifications to the usual
+	// float encoding are made to preserve the original float order when the encoded values are interpreted as uints:
+	// 1. Positive values use 1 as sign bit.
+	// 2. Negative values use 0 as sign bit and have their exponent and mantissa bits inverted.
+
+	checkSlow(FMath::IsFinite(Value));
+
+	const uint32 SignBitPosition = NANITE_UV_FLOAT_NUM_EXPONENT_BITS + NumMantissaBits;
+	const uint32 FloatUInt = (uint32&)Value;
+	const uint32 Exponent = (FloatUInt >> 23) & 0xFFu;
+	const uint32 Mantissa = FloatUInt & 0x7FFFFFu;
+	const uint32 AbsFloatUInt = FloatUInt & 0x7FFFFFFFu;
+
+	uint32 Result;
+	if (AbsFloatUInt < 0x3F800000u)
+	{
+		// Denormal encoding
+		// Note: Mantissa can overflow into first non-denormal value (1.0f),
+		// but that is desirable to get correct round-to-nearest behavior.
+		const float AbsFloat = (float&)AbsFloatUInt;
+		Result = uint32(double(AbsFloat * (1u << NumMantissaBits)) + 0.5);	// Cast to double to make sure +0.5 is lossless
+	}
+	else
+	{
+		// Normal encoding
+		// Extract exponent and mantissa bits from 32-bit float-
+		const uint32 Shift = (23 - NumMantissaBits);
+		const uint32 Tmp = (AbsFloatUInt - 0x3F000000u) + (1u << (Shift - 1));	// Bias to round to nearest
+		Result = FMath::Min(Tmp >> Shift, (1u << SignBitPosition) - 1u);		// Clamp to largest UV float value
+	}
+
+	// Produce a mask that for positive values only flips the sign bit
+	// and for negative values only flips the exponent and mantissa bits.
+	const uint32 SignMask = (1u << SignBitPosition) - (FloatUInt >> 31u);
+	Result ^= SignMask;
+
+#if DO_GUARD_SLOW
+	VerifyUVFloatEncoding(Value, Result, NumMantissaBits);
+#endif
+	return Result;
+}
 
 static void CalculateEncodingInfo(FEncodingInfo& Info, const Nanite::FCluster& Cluster, int32 NormalPrecision, int32 TangentPrecision, bool bHasTangents, bool bHasColors, uint32 NumTexCoords)
 {
@@ -977,7 +1077,7 @@ static void CalculateEncodingInfo(FEncodingInfo& Info, const Nanite::FCluster& C
 	GpuSizes.Cluster = sizeof(FPackedCluster);
 	GpuSizes.MaterialTable = CalcMaterialTableSize(Cluster) * sizeof(uint32);
 	GpuSizes.VertReuseBatchInfo = Cluster.MaterialRanges.Num() > 3 ? CalcVertReuseBatchInfoSize(Cluster.MaterialRanges) * sizeof(uint32) : 0;
-	GpuSizes.DecodeInfo = NumTexCoords * sizeof(FUVRange);
+	GpuSizes.DecodeInfo = NumTexCoords * sizeof(FPackedUVRange);
 	GpuSizes.Index = (NumClusterTris * BitsPerTriangle + 31) / 32 * 4;
 
 #if NANITE_USE_UNCOMPRESSED_VERTEX_DATA
@@ -1044,107 +1144,34 @@ static void CalculateEncodingInfo(FEncodingInfo& Info, const Nanite::FCluster& C
 		}
 	}
 
+	const int NumMantissaBits = NANITE_UV_FLOAT_NUM_MANTISSA_BITS;	//TODO: make this a build setting
 	for( uint32 UVIndex = 0; UVIndex < NumTexCoords; UVIndex++ )
 	{
 		FUVRange& UVRange = Info.UVRanges[UVIndex];
-		// Block compress texture coordinates
-		// Texture coordinates are stored relative to the clusters min/max UV coordinates.
-		// UV seams result in very large sparse bounding rectangles. To mitigate this the largest gap in U and V of the bounding rectangle are excluded from the coding space.
-		// Decoding this is very simple: UV += (UV >= GapStart) ? GapRange : 0;
 
-		// Generate sorted U and V arrays.
-		TArray<float> UValues;
-		TArray<float> VValues;
-		UValues.AddUninitialized(NumClusterVerts);
-		VValues.AddUninitialized(NumClusterVerts);
+		FUintVector2 UVMin = FUintVector2(0xFFFFFFFFu, 0xFFFFFFFFu);
+		FUintVector2 UVMax = FUintVector2(0u, 0u);
+		
 		for (uint32 i = 0; i < NumClusterVerts; i++)
 		{
-			const FVector2f& UV = Cluster.GetUVs(i)[ UVIndex ];
-			UValues[i] = UV.X;
-			VValues[i] = UV.Y;
+			const FVector2f& UV = Cluster.GetUVs(i)[UVIndex];
+
+			const uint32 EncodedU = EncodeUVFloat(UV.X, NumMantissaBits);
+			const uint32 EncodedV = EncodeUVFloat(UV.Y, NumMantissaBits);
+
+			UVMin.X = FMath::Min(UVMin.X, EncodedU);
+			UVMin.Y = FMath::Min(UVMin.Y, EncodedV);
+			UVMax.X = FMath::Max(UVMax.X, EncodedU);
+			UVMax.Y = FMath::Max(UVMax.Y, EncodedV);
 		}
 
-		UValues.Sort();
-		VValues.Sort();
+		const FUintVector2 UVDelta = UVMax - UVMin;
 
-		// Find largest gap between sorted UVs
-		FVector2f LargestGapStart = FVector2f(UValues[0], VValues[0]);
-		FVector2f LargestGapEnd = FVector2f(UValues[0], VValues[0]);
-		for (uint32 i = 0; i < NumClusterVerts - 1; i++)
-		{
-			if (UValues[i + 1] - UValues[i] > LargestGapEnd.X - LargestGapStart.X)
-			{
-				LargestGapStart.X = UValues[i];
-				LargestGapEnd.X = UValues[i + 1];
-			}
-			if (VValues[i + 1] - VValues[i] > LargestGapEnd.Y - LargestGapStart.Y)
-			{
-				LargestGapStart.Y = VValues[i];
-				LargestGapEnd.Y = VValues[i + 1];
-			}
-		}
+		UVRange.Min				= UVMin;
+		UVRange.NumBits.X		= FMath::CeilLogTwo(UVDelta.X + 1u);
+		UVRange.NumBits.Y		= FMath::CeilLogTwo(UVDelta.Y + 1u);
 
-		const FVector2f UVMin = FVector2f(UValues[0], VValues[0]);
-		const FVector2f UVMax = FVector2f(UValues[NumClusterVerts - 1], VValues[NumClusterVerts - 1]);
-		const int32 MaxTexCoordQuantizedValue = (1 << NANITE_MAX_TEXCOORD_QUANTIZATION_BITS) - 1;
-
-		int TexCoordPrecision = 14;
-		
-		{
-			float QuantizationScale = FMath::Exp2((float)TexCoordPrecision);
-
-			int32 Iterations = 0;
-			while (true)
-			{
-				float MinU = FMath::RoundToFloat(UVMin.X * QuantizationScale);
-				float MinV = FMath::RoundToFloat(UVMin.Y * QuantizationScale);
-
-				float MaxU = FMath::RoundToFloat(UVMax.X * QuantizationScale);
-				float MaxV = FMath::RoundToFloat(UVMax.Y * QuantizationScale);
-
-				if (MinU >= FLT_INT_MIN && MinV >= FLT_INT_MIN &&
-					MaxU <= FLT_INT_MAX && MaxV <= FLT_INT_MAX)
-				{
-					float GapStartU = FMath::RoundToFloat(LargestGapStart.X * QuantizationScale);
-					float GapStartV = FMath::RoundToFloat(LargestGapStart.Y * QuantizationScale);
-
-					float GapEndU = FMath::RoundToFloat(LargestGapEnd.X * QuantizationScale);
-					float GapEndV = FMath::RoundToFloat(LargestGapEnd.Y * QuantizationScale);
-
-					// GapStartU
-					const int64 IMinU = (int64)MinU;
-					const int64 IMinV = (int64)MinV;
-					const int64 IMaxU = (int64)MaxU;
-					const int64 IMaxV = (int64)MaxV;
-					const int64 IGapStartU = (int64)GapStartU;
-					const int64 IGapStartV = (int64)GapStartV;
-					const int64 IGapEndU = (int64)GapEndU;
-					const int64 IGapEndV = (int64)GapEndV;
-
-					int64 MaxDeltaU = IMaxU - IMinU - (IMaxU > IGapStartU ? (IGapEndU - IGapStartU - 1) : 0);
-					int64 MaxDeltaV = IMaxV - IMinV - (IMaxV > IGapStartV ? (IGapEndV - IGapStartV - 1) : 0);
-					if (MaxDeltaU <= MaxTexCoordQuantizedValue && MaxDeltaV <= MaxTexCoordQuantizedValue)
-					{
-						uint32 TexCoordBitsU = FMath::CeilLogTwo((int32)MaxDeltaU + 1);
-						uint32 TexCoordBitsV = FMath::CeilLogTwo((int32)MaxDeltaV + 1);
-						check(TexCoordBitsU <= NANITE_MAX_TEXCOORD_QUANTIZATION_BITS);
-						check(TexCoordBitsV <= NANITE_MAX_TEXCOORD_QUANTIZATION_BITS);
-						Info.UVPrec |= ((TexCoordBitsV << 4) | TexCoordBitsU) << (UVIndex * 8);
-						Info.BitsPerAttribute += TexCoordBitsU + TexCoordBitsV;
-
-						UVRange.Min = FIntPoint(int32(IMinU), int32(IMinV));
-						UVRange.GapStart = FIntPoint(int32(IGapStartU - IMinU), int32(IGapStartV - IMinV));
-						UVRange.GapLength = FIntPoint(int32(IGapEndU - IGapStartU - 1), int32(IGapEndV - IGapStartV - 1));
-						UVRange.Precision = TexCoordPrecision;
-						UVRange.Pad = 0;
-						break;
-					}
-				}
-				QuantizationScale *= 0.5f;
-				TexCoordPrecision--;
-				check(++Iterations < 256);	// Endless loop?
-			}
-		}
+		Info.BitsPerAttribute	+= UVRange.NumBits.X + UVRange.NumBits.Y;
 	}
 
 	const uint32 PositionBitsPerVertex = Cluster.QuantizedPosBits.X + Cluster.QuantizedPosBits.Y + Cluster.QuantizedPosBits.Z;
@@ -1362,42 +1389,33 @@ static void EncodeGeometryData(	const uint32 LocalClusterIndex, const FCluster& 
 #else
 
 	// Generate quantized texture coordinates
-	TArray<uint32> PackedUVs;
-	PackedUVs.SetNumUninitialized( NumClusterVerts * NumTexCoords );
-	
-	uint32 TexCoordBits[NANITE_MAX_UVS] = {};
+	TArray<FIntVector2, TFixedAllocator<NANITE_MAX_CLUSTER_VERTICES*NANITE_MAX_UVS>> PackedUVs;
+	PackedUVs.AddUninitialized( NumClusterVerts * NumTexCoords );
+
+	const uint32 NumMantissaBits = NANITE_UV_FLOAT_NUM_MANTISSA_BITS;
 	for( uint32 UVIndex = 0; UVIndex < NumTexCoords; UVIndex++ )
 	{
-		const int32 TexCoordBitsU = (EncodingInfo.UVPrec >> (UVIndex * 8 + 0)) & 15;
-		const int32 TexCoordBitsV = (EncodingInfo.UVPrec >> (UVIndex * 8 + 4)) & 15;
-		const int32 TexCoordMaxValueU = (1 << TexCoordBitsU) - 1;
-		const int32 TexCoordMaxValueV = (1 << TexCoordBitsV) - 1;
-
 		const FUVRange& UVRange = EncodingInfo.UVRanges[UVIndex];
-		const float QuantizationScale = FMath::Exp2((float)UVRange.Precision);
+		const uint32 NumTexCoordValuesU = 1u << UVRange.NumBits.X;
+		const uint32 NumTexCoordValuesV = 1u << UVRange.NumBits.Y;
 
-		for(uint32 i : UniqueToVertexIndex)
+		for(uint32 Index : UniqueToVertexIndex)
 		{
-			const FVector2f& UV = Cluster.GetUVs(i)[ UVIndex ];
+			const FVector2f& UV = Cluster.GetUVs(Index)[UVIndex];
 
-			int32 U = (int32)FMath::RoundToFloat(UV.X * QuantizationScale) - UVRange.Min.X;
-			int32 V = (int32)FMath::RoundToFloat(UV.Y * QuantizationScale) - UVRange.Min.Y;
-			if (U > UVRange.GapStart.X)
-			{
-				check(U >= UVRange.GapStart.X + UVRange.GapLength.X);
-				U -= UVRange.GapLength.X;
-			}
-			if (V > UVRange.GapStart.Y)
-			{
-				check(V >= UVRange.GapStart.Y + UVRange.GapLength.Y);
-				V -= UVRange.GapLength.Y;
-			}
+			uint32 EncodedU = EncodeUVFloat(UV.X, NumMantissaBits);
+			uint32 EncodedV = EncodeUVFloat(UV.Y, NumMantissaBits);
 
-			check(U >= 0 && U <= TexCoordMaxValueU);
-			check(V >= 0 && V <= TexCoordMaxValueV);
-			PackedUVs[ NumClusterVerts * UVIndex + i ] = (uint32(V) << TexCoordBitsU) | uint32(U);
+			check(EncodedU >= UVRange.Min.X);
+			check(EncodedV >= UVRange.Min.Y);
+			EncodedU -= UVRange.Min.X;
+			EncodedV -= UVRange.Min.Y;
+			
+			check(EncodedU >= 0 && EncodedU < NumTexCoordValuesU);
+			check(EncodedV >= 0 && EncodedV < NumTexCoordValuesV);
+			PackedUVs[NumClusterVerts * UVIndex + Index].X = (int32)EncodedU;
+			PackedUVs[NumClusterVerts * UVIndex + Index].Y = (int32)EncodedV;
 		}
-		TexCoordBits[UVIndex] = TexCoordBitsU + TexCoordBitsV;
 	}
 
 	auto WriteZigZagDelta = [&LowByteStream, &MidByteStream, &HighByteStream](const int32 Delta, const uint32 NumBytes) {
@@ -1533,21 +1551,19 @@ static void EncodeGeometryData(	const uint32 LocalClusterIndex, const FCluster& 
 	// UV
 	for (uint32 TexCoordIndex = 0; TexCoordIndex < NumTexCoords; TexCoordIndex++)
 	{
-		const int32 TexCoordBitsU = (EncodingInfo.UVPrec >> (TexCoordIndex * 8 + 0)) & 15;
-		const int32 TexCoordBitsV = (EncodingInfo.UVPrec >> (TexCoordIndex * 8 + 4)) & 15;
-		const uint32 BytesPerTexCoordComponent = (FMath::Max(TexCoordBitsU, TexCoordBitsV) + 7) / 8;
+		const int32 NumTexCoordBitsU = EncodingInfo.UVRanges[TexCoordIndex].NumBits.X;
+		const int32 NumTexCoordBitsV = EncodingInfo.UVRanges[TexCoordIndex].NumBits.Y;
+		const uint32 BytesPerTexCoordComponent = (FMath::Max(NumTexCoordBitsU, NumTexCoordBitsV) + 7) / 8;
 			
-		FIntPoint PrevUV = FIntPoint::ZeroValue;
+		FIntVector2 PrevUV = FIntVector2::ZeroValue;
 		for (uint32 LocalVertexIndex = 0; LocalVertexIndex < NumUniqueToVertices; LocalVertexIndex++)
 		{
 			const uint32 VertexIndex = UniqueToVertexIndex[LocalVertexIndex];
+			const FIntVector2 UV = PackedUVs[NumClusterVerts * TexCoordIndex + VertexIndex];
 
-			const uint32 PackedUV = PackedUVs[NumClusterVerts * TexCoordIndex + VertexIndex];
-			const FIntPoint UV = FIntPoint(PackedUV & ((1u << TexCoordBitsU) - 1), PackedUV >> TexCoordBitsU);
-
-			FIntPoint UVDelta = UV - PrevUV;
-			UVDelta.X = ShortestWrap(UVDelta.X, TexCoordBitsU);
-			UVDelta.Y = ShortestWrap(UVDelta.Y, TexCoordBitsV);
+			FIntVector2 UVDelta = UV - PrevUV;
+			UVDelta.X = ShortestWrap(UVDelta.X, NumTexCoordBitsU);
+			UVDelta.Y = ShortestWrap(UVDelta.Y, NumTexCoordBitsV);
 			WriteZigZagDelta(UVDelta.X, BytesPerTexCoordComponent);
 			WriteZigZagDelta(UVDelta.Y, BytesPerTexCoordComponent);
 			PrevUV = UV;
@@ -1771,13 +1787,19 @@ public:
 		return (uint32)Bytes.Num();
 	}
 
-	void Align(uint32 Alignment)
+	void AlignRelativeToOffset(uint32 StartOffset, uint32 Alignment)
 	{
-		const uint32 Remainder = Offset() % Alignment;
+		check(Offset() >= StartOffset);
+		const uint32 Remainder = (Offset() - StartOffset) % Alignment;
 		if (Remainder != 0)
 		{
 			Bytes.AddZeroed(Alignment - Remainder);
 		}
+	}
+
+	void Align(uint32 Alignment)
+	{
+		AlignRelativeToOffset(0u, Alignment);	
 	}
 };
 
@@ -1914,7 +1936,8 @@ static void WritePages(	FResources& Resources,
 						TArray<FCluster>& Clusters,
 						const TArray<FEncodingInfo>& EncodingInfos,
 						const bool bHasTangents,
-						const uint32 NumTexCoords)
+						const uint32 NumTexCoords,
+						uint32* OutTotalGPUSize)
 {
 	check(Resources.PageStreamingStates.Num() == 0);
 
@@ -2161,7 +2184,7 @@ static void WritePages(	FResources& Resources,
 		check(GpuSectionOffsets.Cluster							== Page.GpuSizes.GetMaterialTableOffset());
 		check(Align(GpuSectionOffsets.MaterialTable, 16)		== Page.GpuSizes.GetVertReuseBatchInfoOffset());
 		check(Align(GpuSectionOffsets.VertReuseBatchInfo, 16)	== Page.GpuSizes.GetDecodeInfoOffset());
-		check(GpuSectionOffsets.DecodeInfo						== Page.GpuSizes.GetIndexOffset());
+		check(Align(GpuSectionOffsets.DecodeInfo, 16)			== Page.GpuSizes.GetIndexOffset());
 		check(GpuSectionOffsets.Index							== Page.GpuSizes.GetPositionOffset());
 		check(GpuSectionOffsets.Position						== Page.GpuSizes.GetAttributeOffset());
 		check(GpuSectionOffsets.Attribute						== Page.GpuSizes.GetTotal());
@@ -2234,7 +2257,6 @@ static void WritePages(	FResources& Resources,
 		VertReuseBatchInfo.SetNum(Align(VertReuseBatchInfo.Num(), 4));
 
 		static_assert(sizeof(FPageGPUHeader) % 16 == 0, "sizeof(FGPUPageHeader) must be a multiple of 16");
-		static_assert(sizeof(FUVRange) % 16 == 0, "sizeof(FUVRange) must be a multiple of 16");
 		static_assert(sizeof(FPackedCluster) % 16 == 0, "sizeof(FPackedCluster) must be a multiple of 16");
 		
 		// Cluster headers
@@ -2242,6 +2264,7 @@ static void WritePages(	FResources& Resources,
 		TArray<FClusterDiskHeader> ClusterDiskHeaders;
 		ClusterDiskHeaders.SetNum(Page.NumClusters);
 
+		const uint32 RawFloat4StartOffset = PageWriter.Offset();
 		{
 			// GPU page header
 			FPageGPUHeader& GPUPageHeader = *PageWriter.Append_Ptr<FPageGPUHeader>(1);
@@ -2284,17 +2307,20 @@ static void WritePages(	FResources& Resources,
 		for (uint32 i = 0; i < Page.PartsNum; i++)
 		{
 			const FClusterGroupPart& Part = Parts[Page.PartsStartIndex + i];
-			FUVRange* DecodeInfo = PageWriter.Append_Ptr<FUVRange>(Part.Clusters.Num() * NumTexCoords);
+			FPackedUVRange* DecodeInfo = PageWriter.Append_Ptr<FPackedUVRange>(Part.Clusters.Num() * NumTexCoords);
 			for (uint32 j = 0; j < (uint32)Part.Clusters.Num(); j++)
 			{
 				const uint32 ClusterIndex = Part.Clusters[j];
 				for (uint32 k = 0; k < NumTexCoords; k++)
 				{
-					DecodeInfo[k] = EncodingInfos[ClusterIndex].UVRanges[k];
+					PackUVRange(DecodeInfo[k], EncodingInfos[ClusterIndex].UVRanges[k]);
 				}
 				DecodeInfo += NumTexCoords;
 			}
 		}
+		PageWriter.AlignRelativeToOffset(DecodeInfoOffset, 16u);
+
+		const uint32 RawFloat4EndOffset = PageWriter.Offset();
 		
 		uint32 StripBitmaskOffset = 0u;
 		// Index data
@@ -2423,11 +2449,14 @@ static void WritePages(	FResources& Resources,
 			FMemory::Memcpy(Ptr, HighByteStream.GetData(), HighByteStream.Num());
 		}
 
+		const uint32 NumRawFloat4Bytes = RawFloat4EndOffset - RawFloat4StartOffset;
+		check((NumRawFloat4Bytes & 15u) == 0u);
+
 		// Write page header
 		{
 			FPageDiskHeader PageDiskHeader;
 			PageDiskHeader.NumClusters = Page.NumClusters;
-			PageDiskHeader.NumRawFloat4s = sizeof(FPageGPUHeader) / 16 + Page.NumClusters * (sizeof(FPackedCluster) + NumTexCoords * sizeof(FUVRange)) / 16 + MaterialRangeData.Num() / 4 + VertReuseBatchInfo.Num() / 4;
+			PageDiskHeader.NumRawFloat4s = NumRawFloat4Bytes / 16u;
 			PageDiskHeader.NumVertexRefs = CombinedVertexRefData.Num();
 			PageDiskHeader.DecodeInfoOffset = DecodeInfoOffset;
 			PageDiskHeader.StripBitmaskOffset = StripBitmaskOffset;
@@ -2517,6 +2546,11 @@ static void WritePages(	FResources& Resources,
 	FMemory::Memcpy(Ptr, StreamableBulkData.GetData(), StreamableBulkData.Num());
 	Resources.StreamablePages.Unlock();
 	Resources.StreamablePages.SetBulkDataFlags(BULKDATA_Force_NOT_InlinePayload);
+
+	if(OutTotalGPUSize)
+	{
+		*OutTotalGPUSize = TotalRootGPUSize + TotalStreamingGPUSize;
+	}
 }
 
 struct FIntermediateNode
@@ -4375,7 +4409,8 @@ void Encode(
 	uint32 NumMeshes,
 	uint32 NumTexCoords,
 	bool bHasTangents,
-	bool bHasColors)
+	bool bHasColors,
+	uint32* OutTotalGPUSize)
 {
 	const uint32 MaxRootPages = CalculateMaxRootPages(Settings.TargetMinimumResidencyInKB);
 
@@ -4463,9 +4498,8 @@ void Encode(
 
 	{
 		TRACE_CPUPROFILER_EVENT_SCOPE(Nanite::Build::WritePages);
-		WritePages(Resources, Pages, Groups, GroupParts, Clusters, EncodingInfos, bHasTangents, NumTexCoords);
+		WritePages(Resources, Pages, Groups, GroupParts, Clusters, EncodingInfos, bHasTangents, NumTexCoords, OutTotalGPUSize);
 	}
 }
 
 } // namespace Nanite
-
