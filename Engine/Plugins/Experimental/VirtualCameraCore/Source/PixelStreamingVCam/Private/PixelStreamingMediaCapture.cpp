@@ -71,7 +71,7 @@ void UPixelStreamingMediaCapture::ConfigureThreadCaptureMode(bool bForceRenderTh
 	IConsoleVariable* CVarExperimentalScheduling = IConsoleManager::Get().FindConsoleVariable(TEXT("MediaIO.EnableExperimentalScheduling"));
 	if (CVarExperimentalScheduling)
 	{
-		CVarExperimentalScheduling->Set(ForceRenderThreadBit, EConsoleVariableFlags::ECVF_SetByCode);
+		CVarExperimentalScheduling->Set(true, EConsoleVariableFlags::ECVF_SetByCode);
 	}
 }
 
