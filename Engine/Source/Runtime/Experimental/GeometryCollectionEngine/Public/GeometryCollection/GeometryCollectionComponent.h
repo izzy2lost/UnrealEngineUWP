@@ -666,7 +666,7 @@ public:
 	* Get local bounds of the geometry collection
 	*/
 	UFUNCTION(BlueprintCallable, Category = "ChaosPhysics")
-	FBox GetLocalBounds() const { return ComponentSpaceBounds.GetBox(); }
+	FBox GetLocalBounds() const { return ComponentSpaceBounds; }
 
 	/**
 	 * Apply an external strain to specific piece of the geometry collection
@@ -789,7 +789,7 @@ public:
 
 	/** return true if the root cluster is not longer active at runtime */
 	UFUNCTION(BlueprintCallable, Category = "ChaosPhysics")
-	GEOMETRYCOLLECTIONENGINE_API bool IsRootBroken() const;
+	GEOMETRYCOLLECTIONENGINE_API bool IsRootBroken() const { return bIsRootBroken; }
 
 	/** 
 	* Get the initial rest transforms in component (local) space  space, 
@@ -1628,7 +1628,7 @@ private:
 	* Bounds in component space 
 	* if unbroken this will use computed from RootSpaceBounds
 	*/
-	mutable FBoxSphereBounds ComponentSpaceBounds;
+	mutable FBox ComponentSpaceBounds;
 
 	float CurrentCacheTime;
 	TArray<bool> EventsPlayed;
@@ -1706,6 +1706,9 @@ private:
 
 	void MoveComponentToRootTransform();
 
+	/** called when the dynamic collection is found to be dirty */
+	void OnTransformsDirty();
+
 	/** The clusters we need to replicate */
 	TUniquePtr<TSet<Chaos::FPBDRigidClusteredParticleHandle*>> ClustersToRep;
 
@@ -1715,6 +1718,14 @@ private:
 
 	/** True if GeometryCollection transforms have changed from previous tick. */
 	bool bIsMoving;
+
+	/** 
+	* root bone broken state 
+	* this is updated post physics sync and use as is for quick lookup 
+	*/
+	bool bIsRootBroken;
+
+	void UpdateIsRootBroken();
 
 	bool bUpdateCustomRenderer;
 
