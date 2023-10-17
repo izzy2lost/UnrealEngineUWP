@@ -47,6 +47,7 @@ PXR_NAMESPACE_CLOSE_SCOPE
 class USceneComponent;
 class UAssetImportData;
 class UUsdAssetImportData;
+enum class EUsdDrawMode : int32;
 enum class EUsdDuplicateType : uint8;
 enum class EUsdUpAxis : uint8;
 struct FUsdUnrealAssetInfo;
@@ -239,6 +240,32 @@ namespace UsdUtils
 	USDUTILITIES_API bool IsAnimated( const pxr::UsdPrim& Prim );
 	USDUTILITIES_API bool HasAnimatedVisibility( const pxr::UsdPrim& Prim );
 
+	/**
+	 * Returns true if Prim should have animated bounds (either from having authored animated `extent` or `extentsHint`
+	 * attributes, or potentially from having computed bounds and child prims that should make those computed bounds animated,
+	 * like having animated child Xforms)
+	 */
+	USDUTILITIES_API bool HasAnimatedBounds(
+		const pxr::UsdPrim& Prim,
+		EUsdPurpose IncludedPurposes = EUsdPurpose::Proxy | EUsdPurpose::Render,
+		bool bUseExtentsHint = true,
+		bool bIgnoreVisibility = false
+	);
+
+	/**
+	 * Similar to HasAnimatedBounds, except that this will also collect all the timeSamples that are relevant for sampling
+	 * animated bounds. For example this could just be the timeSamples for an authored `extentsHint` or `extent` animation, but
+	 * this could instead be the timeSamples of child Xforms transform animations instead.
+	 * Note that OutTimeSamples may end up with duplicate timeSamples, but those will always be at least sorted.
+	 */
+	USDUTILITIES_API bool GetAnimatedBoundsTimeSamples(
+		const pxr::UsdPrim& InPrim,
+		TArray<double>& OutTimeSamples,
+		EUsdPurpose InIncludedPurposes = EUsdPurpose::Proxy | EUsdPurpose::Render,
+		bool bInUseExtentsHint = true,
+		bool bInIgnoreVisibility = false
+	);
+
 	/** Returns whether Prim belongs to any of the default kinds, or a kind derived from them. The result can be a union of different kinds. */
 	USDUTILITIES_API EUsdDefaultKind GetDefaultKind( const pxr::UsdPrim& Prim );
 
@@ -250,6 +277,12 @@ namespace UsdUtils
 	 * @return Whether we managed to set the kind or not.
 	 */
 	USDUTILITIES_API bool SetDefaultKind( pxr::UsdPrim& Prim, EUsdDefaultKind NewKind );
+
+	/**
+	 * Returns whether the prim has the UsdGeomModelAPI schema and should be drawn with one of the alternative draw modes, such as cards or bounds.
+	 * Will return EUsdDrawMode::Default in case the prim should be drawn as usual instead, or in case of error.
+	 */
+	USDUTILITIES_API EUsdDrawMode GetAppliedDrawMode(const pxr::UsdPrim& Prim);
 
 	/**
 	 * Returns all prims of type SchemaType (or a descendant type) in the subtree of prims rooted at StartPrim.

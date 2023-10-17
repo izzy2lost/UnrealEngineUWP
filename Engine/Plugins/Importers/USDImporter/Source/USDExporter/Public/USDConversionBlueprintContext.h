@@ -26,6 +26,7 @@ class URectLightComponent;
 class USceneComponent;
 class USkyLightComponent;
 class USpotLightComponent;
+class UUsdDrawModeComponent;
 
 /**
  * Wraps the UnrealToUsd component conversion functions from the USDUtilities module so that they can be used by
@@ -114,6 +115,9 @@ public:
 
 	UFUNCTION( BlueprintCallable, Category = "Component conversion" )
 	bool ConvertSpotLightComponent( const USpotLightComponent* Component, const FString& PrimPath, float TimeCode = 3.402823466e+38F );
+
+	UFUNCTION(BlueprintCallable, Category = "Component conversion")
+	bool ConvertBoundsComponent(const UUsdDrawModeComponent* Component, const FString& PrimPath, float TimeCode = 3.402823466e+38F);
 
 	UFUNCTION( BlueprintCallable, Category = "Component conversion" )
 	bool ConvertSceneComponent( const USceneComponent* Component, const FString& PrimPath );

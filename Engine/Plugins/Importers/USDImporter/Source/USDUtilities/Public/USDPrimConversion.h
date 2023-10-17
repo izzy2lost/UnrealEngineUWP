@@ -14,6 +14,7 @@
 
 PXR_NAMESPACE_OPEN_SCOPE
 	class UsdAttribute;
+	class UsdGeomBBoxCache;
 	class UsdGeomCamera;
 	class UsdGeomXformable;
 	class UsdPrim;
@@ -35,6 +36,7 @@ class UMovieScene;
 class UMovieScene3DTransformTrack;
 class UMovieSceneBoolTrack;
 class UMovieSceneColorTrack;
+class UMovieSceneDoubleVectorTrack;
 class UMovieSceneFloatTrack;
 class UMovieScenePropertyTrack;
 class UMovieSceneSkeletalAnimationTrack;
@@ -42,12 +44,15 @@ class UMovieSceneTrack;
 class UMovieSceneVisibilityTrack;
 class USceneComponent;
 class USkeletalMeshComponent;
+class UUsdAssetCache2;
+class UUsdDrawModeComponent;
 struct FFrameRate;
 struct FMovieSceneSequenceTransform;
 struct FUsdStageInfo;
 namespace UE
 {
 	class FUsdAttribute;
+	class FUsdGeomBBoxCache;
 }
 
 namespace UsdToUnreal
@@ -89,12 +94,21 @@ namespace UsdToUnreal
 	/**
 	 * Calls the ReaderFunc on each time sample of UsdTimeSamples in order to bake values into MovieSceneTrack.
 	 * This is mostly used when reading attributes from USD into tracks for the automatically generated ULevelSequence provided with AUsdStageActors.
+	 * The bounds version must use a BBoxCache: If one is not provided it will be created on-demand for this call alone.
 	 */
 	USDUTILITIES_API bool ConvertBoolTimeSamples( const UE::FUsdStage& UsdStage, const TArray<double>& UsdTimeSamples, const TFunction<bool( double )>& ReaderFunc, UMovieSceneBoolTrack& MovieSceneTrack, const FMovieSceneSequenceTransform& SequenceTransform );
 	USDUTILITIES_API bool ConvertBoolTimeSamples( const UE::FUsdStage& UsdStage, const TArray<double>& UsdTimeSamples, const TFunction<bool(double)>& ReaderFunc, UMovieSceneVisibilityTrack& MovieSceneTrack, const FMovieSceneSequenceTransform& SequenceTransform );
 	USDUTILITIES_API bool ConvertFloatTimeSamples( const UE::FUsdStage& UsdStage, const TArray<double>& UsdTimeSamples, const TFunction<float( double )>& ReaderFunc, UMovieSceneFloatTrack& MovieSceneTrack, const FMovieSceneSequenceTransform& SequenceTransform );
 	USDUTILITIES_API bool ConvertColorTimeSamples( const UE::FUsdStage& UsdStage, const TArray<double>& UsdTimeSamples, const TFunction<FLinearColor( double )>& ReaderFunc, UMovieSceneColorTrack& MovieSceneTrack, const FMovieSceneSequenceTransform& SequenceTransform );
 	USDUTILITIES_API bool ConvertTransformTimeSamples( const UE::FUsdStage& UsdStage, const TArray<double>& UsdTimeSamples, const TFunction<FTransform( double )>& ReaderFunc, UMovieScene3DTransformTrack& MovieSceneTrack, const FMovieSceneSequenceTransform& SequenceTransform );
+	USDUTILITIES_API bool ConvertBoundsTimeSamples(
+		const UE::FUsdPrim& InPrim,
+		const TArray<double>& InUsdTimeSamples,
+		const FMovieSceneSequenceTransform& InSequenceTransform,
+		UMovieSceneDoubleVectorTrack& InOutMinTrack,
+		UMovieSceneDoubleVectorTrack& InOutMaxTrack,
+		UE::FUsdGeomBBoxCache* InOutBBoxCache = nullptr
+	);
 
 	/**
 	 * Struct with lambda functions that can be used to sample an FUsdPrim's attributes at a provided UsdTimeCode and return a converted result.
@@ -117,6 +131,18 @@ namespace UsdToUnreal
 	 * When we generate a TransformReader, if bIgnorePrimLocalTransform is true it will cause it to ignore that prim's local transform for the reader.
 	 */
 	USDUTILITIES_API FPropertyTrackReader CreatePropertyTrackReader( const UE::FUsdPrim& Prim, const FName& PropertyPath, bool bIgnorePrimLocalTransform = false );
+
+	/**
+	 * Convert a prim with UsdGeomModelAPI and an alternative drawMode (bounds, cards or origin) into property values of an
+	 * UUsdDrawModeComponent at EvalTime.
+	 * Must use a BBoxCache: If one is not provided it will be created on-demand for this call alone.
+	 */
+	USDUTILITIES_API bool ConvertBounds(
+		const pxr::UsdPrim& Prim,
+		UUsdDrawModeComponent* BoundsComponent,
+		double EvalTime = UsdUtils::GetDefaultTimeCode(),
+		pxr::UsdGeomBBoxCache* BBoxCache = nullptr
+	);
 }
 
 namespace UnrealToUsd
@@ -130,6 +156,13 @@ namespace UnrealToUsd
 	USDUTILITIES_API bool ConvertFloatTrack( const UMovieSceneFloatTrack& MovieSceneTrack, const FMovieSceneSequenceTransform& SequenceTransform, const TFunction<void( float, double )>& WriterFunc, UE::FUsdPrim& Prim );
 	USDUTILITIES_API bool ConvertBoolTrack( const UMovieSceneBoolTrack& MovieSceneTrack, const FMovieSceneSequenceTransform& SequenceTransform, const TFunction<void( bool, double )>& WriterFunc, UE::FUsdPrim& Prim );
 	USDUTILITIES_API bool ConvertColorTrack( const UMovieSceneColorTrack& MovieSceneTrack, const FMovieSceneSequenceTransform& SequenceTransform, const TFunction<void( const FLinearColor&, double )>& WriterFunc, UE::FUsdPrim& Prim );
+	USDUTILITIES_API bool ConvertBoundsVectorTracks(
+		const UMovieSceneDoubleVectorTrack* MinTrack,
+		const UMovieSceneDoubleVectorTrack* MaxTrack,
+		const FMovieSceneSequenceTransform& SequenceTransform,
+		const TFunction<void(const FVector&, const FVector&, double)>& WriterFunc,
+		UE::FUsdPrim& Prim
+	);
 	USDUTILITIES_API bool Convert3DTransformTrack( const UMovieScene3DTransformTrack& MovieSceneTrack, const FMovieSceneSequenceTransform& SequenceTransform, const TFunction<void( const FTransform&, double )>& WriterFunc, UE::FUsdPrim& Prim );
 
 	USDUTILITIES_API bool ConvertSceneComponent( const pxr::UsdStageRefPtr& Stage, const USceneComponent* SceneComponent, pxr::UsdPrim& UsdPrim );
@@ -193,6 +226,7 @@ namespace UnrealToUsd
 		Camera = 4,
 		Light = 8,
 		Skeletal = 16,
+		Bounds = 32,
 	};
 	ENUM_CLASS_FLAGS( EBakingType );
 
@@ -232,6 +266,7 @@ namespace UnrealToUsd
 		TFunction<void( float, double )> FloatWriter;
 		TFunction<void( bool, double )> BoolWriter;
 		TFunction<void( const FLinearColor&, double )> ColorWriter;
+		TFunction<void( const FVector&, const FVector&, double )> TwoVectorWriter;  // Just used for the bounds tracks, where we use a vector for min and another for max
 		TFunction<void( const FTransform&, double )> TransformWriter;
 	};
 
@@ -249,6 +284,18 @@ namespace UnrealToUsd
 	 * we'll receive intensity, exposure, width and height, in that order.
 	 */
 	USDUTILITIES_API TArray<UE::FUsdAttribute> GetAttributesForProperty( const UE::FUsdPrim& Prim, const FName& PropertyPath );
+
+	/**
+	 * Converts the properties values from UUsdDrawModeComponent into attribute values of a prim with UsdGeomModelAPI.
+	 * Note that this will even apply the schema itself to UsdPrim if it doesn't already have it, and potentially author
+	 * the 'kind' metadata on it and all of its ancestors (as UsdGeomModelAPI requires the prim to be a "model" to have function)
+	 */
+	USDUTILITIES_API bool ConvertBoundsComponent(
+		const UUsdDrawModeComponent& BoundsComponent,
+		pxr::UsdPrim& UsdPrim,
+		bool bWriteExtents = false,
+		double UsdTimeCode = UsdUtils::GetDefaultTimeCode()
+	);
 }
 
 #endif // #if USE_USD_SDK

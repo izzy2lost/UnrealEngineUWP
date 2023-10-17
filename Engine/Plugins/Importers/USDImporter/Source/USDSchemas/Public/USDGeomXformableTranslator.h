@@ -13,6 +13,7 @@
 #include "USDIncludesEnd.h"
 
 class USceneComponent;
+enum class EUsdDrawMode : int32;
 
 PXR_NAMESPACE_OPEN_SCOPE
 	class UsdGeomXformable;
@@ -36,6 +37,15 @@ public:
 
 	// If the optional parameters are not set, we'll figure them out automatically.
 	USceneComponent* CreateComponentsEx( TOptional< TSubclassOf< USceneComponent > > ComponentType, TOptional< bool > bNeedsActor );
+
+protected:
+	// Creates actors, components and assets in case we have an alt draw mode like bounds or cards.
+	// In theory *any* prim can have these, but we're placing these on FUsdGeomXformableTranslator as we're assuming only Xformables
+	// (something drawable in the first place) can realistically use an alternative draw mode (i.e. we're not going to do much
+	// placing these on a Material prim, that can't even have an Xform)
+	USceneComponent* CreateAlternativeDrawModeComponents(EUsdDrawMode DrawMode);
+	void UpdateAlternativeDrawModeComponents(USceneComponent* SceneComponent, EUsdDrawMode DrawMode);
+	void CreateAlternativeDrawModeAssets(EUsdDrawMode DrawMode);
 
 private:
 	TOptional< TSubclassOf< USceneComponent > > ComponentTypeOverride;

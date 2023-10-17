@@ -5,6 +5,8 @@
 #include "CoreMinimal.h"
 #include "Modules/ModuleInterface.h"
 
+class UMaterialInstanceConstant;
+class UMaterialInstanceDynamic;
 struct FAnalyticsEventAttribute;
 
 class IUsdClassesModule : public IModuleInterface
@@ -53,4 +55,17 @@ public:
 
 	// Adapted from ObjectTools as it is within an Editor-only module
 	USDCLASSES_API static FString SanitizeObjectName(const FString& InObjectName);
+
+	/** Describes the type of vertex color/DisplayColor material that we would need in order to render a prim's displayColor data as intended */
+	struct USDCLASSES_API FDisplayColorMaterial
+	{
+		bool bHasOpacity = false;
+		bool bIsDoubleSided = false;
+
+		FString ToString();
+		static TOptional<FDisplayColorMaterial> FromString(const FString& DisplayColorString);
+	};
+
+	USDCLASSES_API static UMaterialInstanceDynamic* CreateDisplayColorMaterialInstanceDynamic(const FDisplayColorMaterial& DisplayColorDescription);
+	USDCLASSES_API static UMaterialInstanceConstant* CreateDisplayColorMaterialInstanceConstant(const FDisplayColorMaterial& DisplayColorDescription);
 };

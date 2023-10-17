@@ -19,6 +19,7 @@
 
 #include "UnrealUSDWrapper.h"
 #include "USDAssetUserData.h"
+#include "USDDrawModeComponent.h"
 #include "USDClassesModule.h"
 #include "USDGroomConversion.h"
 #include "USDGroomTranslatorUtils.h"
@@ -365,6 +366,14 @@ void FUsdGroomTranslator::CreateAssets()
 		return Super::CreateAssets();
 	}
 
+	// Don't bother generating assets if we're going to just draw some bounds for this prim instead
+	EUsdDrawMode DrawMode = UsdUtils::GetAppliedDrawMode(GetPrim());
+	if (DrawMode != EUsdDrawMode::Default)
+	{
+		CreateAlternativeDrawModeAssets(DrawMode);
+		return;
+	}
+
 	Context->TranslatorTasks.Add(MakeShared<FUsdGroomCreateAssetsTaskChain>(Context, PrimPath));
 }
 
@@ -382,8 +391,19 @@ USceneComponent* FUsdGroomTranslator::CreateComponents()
 		return nullptr;
 	}
 
-	bool bNeedsActor = true;
-	USceneComponent* Component = CreateComponentsEx(TSubclassOf<USceneComponent>(UGroomComponent::StaticClass()), bNeedsActor);
+	USceneComponent* Component = nullptr;
+
+	EUsdDrawMode DrawMode = UsdUtils::GetAppliedDrawMode(GetPrim());
+	if (DrawMode == EUsdDrawMode::Default)
+	{
+		const bool bNeedsActor = true;
+		Component = CreateComponentsEx({UGroomComponent::StaticClass()}, bNeedsActor);
+	}
+	else
+	{
+		Component = CreateAlternativeDrawModeComponents(DrawMode);
+	}
+
 	UpdateComponents(Component);
 
 	return Component;
@@ -391,55 +411,57 @@ USceneComponent* FUsdGroomTranslator::CreateComponents()
 
 void FUsdGroomTranslator::UpdateComponents(USceneComponent* SceneComponent)
 {
-	if (!Context->bAllowParsingGroomAssets || !IsGroomPrim())
+	if (Context->bAllowParsingGroomAssets && IsGroomPrim())
 	{
-		Super::UpdateComponents(SceneComponent);
-	}
-
-	if (UGroomComponent* GroomComponent = Cast<UGroomComponent>(SceneComponent))
-	{
-		GroomComponent->Modify();
-
-		UGroomAsset* Groom = nullptr;
-		if(Context->InfoCache)
+		if (UGroomComponent* GroomComponent = Cast<UGroomComponent>(SceneComponent))
 		{
-			Groom = Context->InfoCache->GetSingleAssetForPrim<UGroomAsset>(
-				PrimPath
-			);
-		}
+			GroomComponent->Modify();
 
-		bool bShouldRegister = false;
-		if (Groom != GroomComponent->GroomAsset.Get())
-		{
-			bShouldRegister = true;
-
-			if (GroomComponent->IsRegistered())
+			UGroomAsset* Groom = nullptr;
+			if(Context->InfoCache)
 			{
-				GroomComponent->UnregisterComponent();
+				Groom = Context->InfoCache->GetSingleAssetForPrim<UGroomAsset>(
+					PrimPath
+				);
 			}
 
-			GroomComponent->SetGroomAsset(Groom);
-
-			if (Groom)
+			bool bShouldRegister = false;
+			if (Groom != GroomComponent->GroomAsset.Get())
 			{
-				UGroomCache* GroomCache = Context->InfoCache->GetSingleAssetForPrim<UGroomCache>(PrimPath);
-				if (GroomCache != GroomComponent->GroomCache.Get())
+				bShouldRegister = true;
+
+				if (GroomComponent->IsRegistered())
 				{
-					GroomComponent->SetGroomCache(GroomCache);
+					GroomComponent->UnregisterComponent();
+				}
+
+				GroomComponent->SetGroomAsset(Groom);
+
+				if (Groom)
+				{
+					UGroomCache* GroomCache = Context->InfoCache->GetSingleAssetForPrim<UGroomCache>(PrimPath);
+					if (GroomCache != GroomComponent->GroomCache.Get())
+					{
+						GroomComponent->SetGroomCache(GroomCache);
+					}
 				}
 			}
-		}
 
-		// Use the prim purpose in conjunction with the prim's computed visibility to toggle the visibility of the groom component
-		// since the component itself cannot be removed if the groom shouldn't be displayed
-		const bool bShouldRender = UsdUtils::IsVisible(GetPrim()) && EnumHasAllFlags(Context->PurposesToLoad, IUsdPrim::GetPurpose(GetPrim()));
-		GroomComponent->SetVisibility(bShouldRender);
+			// Use the prim purpose in conjunction with the prim's computed visibility to toggle the visibility of the groom component
+			// since the component itself cannot be removed if the groom shouldn't be displayed
+			const bool bShouldRender = UsdUtils::IsVisible(GetPrim()) && EnumHasAllFlags(Context->PurposesToLoad, IUsdPrim::GetPurpose(GetPrim()));
+			GroomComponent->SetVisibility(bShouldRender);
 
-		if (bShouldRegister && !GroomComponent->IsRegistered())
-		{
-			GroomComponent->RegisterComponent();
+			if (bShouldRegister && !GroomComponent->IsRegistered())
+			{
+				GroomComponent->RegisterComponent();
+			}
+
+			return;
 		}
 	}
+
+	Super::UpdateComponents(SceneComponent);
 }
 
 bool FUsdGroomTranslator::CollapsesChildren(ECollapsingType CollapsingType) const

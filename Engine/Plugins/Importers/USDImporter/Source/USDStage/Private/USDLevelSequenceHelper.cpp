@@ -2,9 +2,9 @@
 
 #include "USDLevelSequenceHelper.h"
 
-#include "GeometryCache.h"
 #include "USDAssetUserData.h"
 #include "USDAttributeUtils.h"
+#include "USDDrawModeComponent.h"
 #include "USDClassesModule.h"
 #include "USDConversionUtils.h"
 #include "USDInfoCache.h"
@@ -19,10 +19,12 @@
 #include "USDStageActor.h"
 #include "USDTypesConversion.h"
 #include "USDValueConversion.h"
+
 #include "UsdWrappers/SdfChangeBlock.h"
 #include "UsdWrappers/SdfLayer.h"
 #include "UsdWrappers/UsdAttribute.h"
 #include "UsdWrappers/UsdEditContext.h"
+#include "UsdWrappers/UsdGeomBBoxCache.h"
 #include "UsdWrappers/UsdGeomXformable.h"
 #include "UsdWrappers/UsdPrim.h"
 #include "UsdWrappers/UsdStage.h"
@@ -44,6 +46,7 @@
 #include "ControlRigObjectBinding.h"
 #include "CoreMinimal.h"
 #include "Framework/Notifications/NotificationManager.h"
+#include "GeometryCache.h"
 #include "GeometryCacheComponent.h"
 #include "GeometryCacheTrackUSD.h"
 #include "GroomCache.h"
@@ -62,6 +65,7 @@
 #include "MovieSceneTimeHelpers.h"
 #include "MovieSceneTrack.h"
 #include "Rigs/FKControlRig.h"
+#include "RigVMBlueprintGeneratedClass.h"
 #include "Sections/MovieSceneFloatSection.h"
 #include "Sections/MovieSceneSubSection.h"
 #include "Sequencer/MovieSceneControlRigParameterSection.h"
@@ -74,11 +78,11 @@
 #include "Tracks/MovieScenePropertyTrack.h"
 #include "Tracks/MovieSceneSkeletalAnimationTrack.h"
 #include "Tracks/MovieSceneSubTrack.h"
+#include "Tracks/MovieSceneVectorTrack.h"
 #include "Tracks/MovieSceneVisibilityTrack.h"
 #include "UObject/Package.h"
 #include "UObject/UObjectGlobals.h"
 #include "Widgets/Notifications/SNotificationList.h"
-#include "RigVMBlueprintGeneratedClass.h"
 
 #if WITH_EDITOR
 #include "ControlRigBlueprint.h"
@@ -495,6 +499,7 @@ public:
 
 	ULevelSequence* Init(const UE::FUsdStage& InUsdStage);
 	void SetInfoCache(TSharedPtr<FUsdInfoCache> InfoCache);
+	void SetBBoxCache(TSharedPtr<UE::FUsdGeomBBoxCache> InBBoxCache);
 	bool HasData() const;
 	void Clear();
 
@@ -590,6 +595,7 @@ private:
 	void RemoveTimeTrack(const FUsdLevelSequenceHelperImpl::FLayerTimeInfo* Info);
 
 	void AddCommonTracks(const UUsdPrimTwin& PrimTwin, const UE::FUsdPrim& Prim, bool bForceVisibilityTracks = false);
+	void AddBoundsTracks(const UUsdPrimTwin& PrimTwin, const UE::FUsdPrim& Prim, TOptional<bool> HasAnimatedBounds = {});
 	void AddCameraTracks(const UUsdPrimTwin& PrimTwin, const UE::FUsdPrim& Prim);
 	void AddLightTracks(const UUsdPrimTwin& PrimTwin, const UE::FUsdPrim& Prim, const TSet<FName>& PropertyPathsToRead = {});
 	void AddSkeletalTracks(const UUsdPrimTwin& PrimTwin, const UE::FUsdPrim& Prim);
@@ -606,7 +612,7 @@ public:
 	// If bForceVisibilityTracks is true, we'll add and bake the visibility tracks for this prim even if the
 	// prim itself doesn't have animated visibility (so that we can handle its visibility in case one of its
 	// parents does have visibility animations)
-	void AddPrim(UUsdPrimTwin& PrimTwin, bool bForceVisibilityTracks = false);
+	void AddPrim(UUsdPrimTwin& PrimTwin, bool bForceVisibilityTracks = false, TOptional<bool> HasAnimatedBounds = {});
 	void RemovePrim(const UUsdPrimTwin& PrimTwin);
 
 	// These functions assume the skeletal animation tracks (if any) were already added to the level sequence
@@ -687,6 +693,7 @@ private:
 
 	TWeakObjectPtr<AUsdStageActor> StageActor = nullptr;
 	TSharedPtr<FUsdInfoCache> InfoCache = nullptr;  // We keep a pointer to this directly because we may be called via the USDStageImporter directly, when we don't have an available actor
+	TSharedPtr<UE::FUsdGeomBBoxCache> BBoxCache = nullptr; // Same as for the info cache
 	FGuid StageActorBinding;
 
 	// Only when this is zero we write LevelSequence object (tracks, moviescene, sections, etc.) transactions back to the USD stage
@@ -754,6 +761,11 @@ ULevelSequence* FUsdLevelSequenceHelperImpl::Init(const UE::FUsdStage& InUsdStag
 void FUsdLevelSequenceHelperImpl::SetInfoCache(TSharedPtr<FUsdInfoCache> InInfoCache)
 {
 	InfoCache = InInfoCache;
+}
+
+void FUsdLevelSequenceHelperImpl::SetBBoxCache(TSharedPtr<UE::FUsdGeomBBoxCache> InBBoxCache)
+{
+	BBoxCache = InBBoxCache;
 }
 
 bool FUsdLevelSequenceHelperImpl::HasData() const
@@ -886,6 +898,7 @@ void FUsdLevelSequenceHelperImpl::BindToUsdStageActor(AUsdStageActor* InStageAct
 
 	StageActor = InStageActor;
 	SetInfoCache(InStageActor ? InStageActor->GetInfoCache() : nullptr);
+	SetBBoxCache(InStageActor ? InStageActor->GetBBoxCache() : nullptr);
 
 	if (!StageActor.IsValid() || !MainLevelSequence || !MainLevelSequence->GetMovieScene())
 	{
@@ -1663,6 +1676,138 @@ void FUsdLevelSequenceHelperImpl::AddCommonTracks(const UUsdPrimTwin& PrimTwin, 
 	}
 }
 
+void FUsdLevelSequenceHelperImpl::AddBoundsTracks(const UUsdPrimTwin& PrimTwin, const UE::FUsdPrim& Prim, TOptional<bool> HasAnimatedBounds)
+{
+	if (HasAnimatedBounds.IsSet())
+	{
+		if (!HasAnimatedBounds.GetValue())
+		{
+			return;
+		}
+	}
+
+	USceneComponent* ComponentToBind = PrimTwin.GetSceneComponent();
+	if (!ComponentToBind || !Prim)
+	{
+		return;
+	}
+
+	if (!ensure(BBoxCache))
+	{
+		return;
+	}
+
+	// We only actually use bounds when drawing alternative draw modes
+	EUsdDrawMode DrawMode = UsdUtils::GetAppliedDrawMode(Prim);
+	if (DrawMode == EUsdDrawMode::Default)
+	{
+		return;
+	}
+
+	// We need to manually check if the prim has animated bounds now.
+	// We tried earlying out due to other reasons first as this can be expensive
+	if (!HasAnimatedBounds.IsSet())
+	{
+		if (!UsdUtils::HasAnimatedBounds(Prim, BBoxCache->GetIncludedPurposes(), BBoxCache->GetUseExtentsHint(), BBoxCache->GetIgnoreVisibility()))
+		{
+			return;
+		}
+	}
+
+	// Find the Sequence where we'll author the tracks
+	ULevelSequence* TargetSequence = nullptr;
+	bool bIsMuted = false;
+	if (Prim.IsA(TEXT("Boundable")))
+	{
+		UE::FUsdAttribute ExtentAttr = Prim.GetAttribute(TEXT("extent"));
+		if (ExtentAttr && ExtentAttr.HasAuthoredValue())
+		{
+			bIsMuted = UsdUtils::IsAttributeMuted(ExtentAttr, Prim.GetStage());
+			TargetSequence = FindOrAddSequenceForAttribute(ExtentAttr);
+		}
+	}
+	if (!TargetSequence)
+	{
+		if (Prim.HasAPI(TEXT("GeomModelAPI")))
+		{
+			UE::FUsdAttribute ExtentsHintAttr = Prim.GetAttribute(TEXT("extentsHint"));
+			if (ExtentsHintAttr && ExtentsHintAttr.HasAuthoredValue())
+			{
+				bIsMuted = UsdUtils::IsAttributeMuted(ExtentsHintAttr, Prim.GetStage());
+				TargetSequence = FindOrAddSequenceForAttribute(ExtentsHintAttr);
+			}
+		}
+	}
+	if (!TargetSequence)
+	{
+		// For the other track types we mostly look for a correspondence between one or more USD attributes and UE properties.
+		// For these tracks however we may not have any authored `extent` or `extentsHint` yet (and would only author them on-demand), so
+		// we may need to create tracks that correspond purely to computed, non-authored values in USD.
+		// If the user manually modifies these, we'll author these as `extent` or `extentsHint` depending on the prim, but only on-demand.
+		UE::FSdfLayer PrimLayer = UsdUtils::FindLayerForPrim(Prim);
+		TargetSequence = FindSequenceForIdentifier(PrimLayer.GetIdentifier());
+	}
+	if (!TargetSequence)
+	{
+		return;
+	}
+
+	FMovieSceneSequenceTransform SequenceTransform;
+	FMovieSceneSequenceID SequenceID = SequencesID.FindRef(TargetSequence);
+	if (FMovieSceneSubSequenceData* SubSequenceData = SequenceHierarchyCache.FindSubData(SequenceID))
+	{
+		SequenceTransform = SubSequenceData->RootToSequenceTransform;
+	}
+
+	UMovieScene* MovieScene = TargetSequence->GetMovieScene();
+	if (!MovieScene)
+	{
+		return;
+	}
+
+	UMovieSceneDoubleVectorTrack* MinTrack = AddTrack<UMovieSceneDoubleVectorTrack>(
+		GET_MEMBER_NAME_CHECKED(UUsdDrawModeComponent, BoundsMin),
+		PrimTwin,
+		*ComponentToBind,
+		*TargetSequence,
+		bIsMuted
+	);
+	if (!ensure(MinTrack))
+	{
+		return;
+	}
+	MinTrack->SetNumChannelsUsed(3);
+
+	UMovieSceneDoubleVectorTrack* MaxTrack = AddTrack<UMovieSceneDoubleVectorTrack>(
+		GET_MEMBER_NAME_CHECKED(UUsdDrawModeComponent, BoundsMax),
+		PrimTwin,
+		*ComponentToBind,
+		*TargetSequence,
+		bIsMuted
+	);
+	if (!ensure(MaxTrack))
+	{
+		return;
+	}
+	MaxTrack->SetNumChannelsUsed(3);
+
+	TArray<double> BoundsTimeSamples;
+	const bool bHasAnimatedBounds = UsdUtils::GetAnimatedBoundsTimeSamples(
+		Prim,
+		BoundsTimeSamples,
+		BBoxCache->GetIncludedPurposes(),
+		BBoxCache->GetUseExtentsHint(),
+		BBoxCache->GetIgnoreVisibility()
+	);
+	// GetAnimatedBoundsTimeSamples uses the same underlying code to check if a prim has animated bounds or not,
+	// so if we're this deep in creating bounds tracks it better agree that the bounds are animated
+	ensure(bHasAnimatedBounds);
+
+	UsdToUnreal::ConvertBoundsTimeSamples(Prim, BoundsTimeSamples, SequenceTransform, *MinTrack, *MaxTrack, BBoxCache.Get());
+
+	PrimPathByLevelSequenceName.AddUnique(TargetSequence->GetFName(), Prim.GetPrimPath().GetString());
+}
+
 void FUsdLevelSequenceHelperImpl::AddCameraTracks(const UUsdPrimTwin& PrimTwin, const UE::FUsdPrim& Prim)
 {
 	TArray<FName> TrackedProperties = {
@@ -2099,7 +2244,7 @@ void FUsdLevelSequenceHelperImpl::AddGroomTracks(const UUsdPrimTwin& PrimTwin, c
 	PrimPathByLevelSequenceName.AddUnique(GroomAnimationSequence->GetFName(), PrimPath);
 }
 
-void FUsdLevelSequenceHelperImpl::AddPrim(UUsdPrimTwin& PrimTwin, bool bForceVisibilityTracks)
+void FUsdLevelSequenceHelperImpl::AddPrim(UUsdPrimTwin& PrimTwin, bool bForceVisibilityTracks, TOptional<bool> HasAnimatedBounds)
 {
 	if (!UsdStage)
 	{
@@ -2165,6 +2310,8 @@ void FUsdLevelSequenceHelperImpl::AddPrim(UUsdPrimTwin& PrimTwin, bool bForceVis
 	}
 
 	AddCommonTracks(PrimTwin, UsdPrim, bForceVisibilityTracks);
+
+	AddBoundsTracks(PrimTwin, UsdPrim, HasAnimatedBounds);
 
 	RefreshSequencer();
 }
@@ -3537,6 +3684,39 @@ void FUsdLevelSequenceHelperImpl::HandleTrackChange(const UMovieSceneTrack& Trac
 					UsdUtils::AuthorIdentityTransformGprimAttributes(UsdPrim, bDefaultValues, bTimeSampleValues);
 				}
 
+				// For the bounds tracks alone we have two separate tracks we must read from at once, and write to a single
+				// USD attribute. We'll have one of those already (the Track itself), but we need to find the other, if any.
+				// This could be somewhat cleaned up if we had FBox tracks in the Sequencer, but it should work just fine for now
+				else if (Writer.TwoVectorWriter)
+				{
+					const UMovieSceneDoubleVectorTrack* MinTrack = nullptr;
+					const UMovieSceneDoubleVectorTrack* MaxTrack = nullptr;
+					if (Track.GetTrackName() == GET_MEMBER_NAME_CHECKED(UUsdDrawModeComponent, BoundsMin))
+					{
+						MinTrack = Cast<UMovieSceneDoubleVectorTrack>(&Track);
+						MaxTrack = Cast<UMovieSceneDoubleVectorTrack>(MovieScene->FindTrack(
+							UMovieSceneDoubleVectorTrack::StaticClass(),
+							PossessableGuid,
+							GET_MEMBER_NAME_CHECKED(UUsdDrawModeComponent, BoundsMax)
+						));
+					}
+					else
+					{
+						MaxTrack = Cast<UMovieSceneDoubleVectorTrack>(&Track);
+						MinTrack = Cast<UMovieSceneDoubleVectorTrack>(MovieScene->FindTrack(
+							UMovieSceneDoubleVectorTrack::StaticClass(),
+							PossessableGuid,
+							GET_MEMBER_NAME_CHECKED(UUsdDrawModeComponent, BoundsMin)
+						));
+					}
+
+					// Realistically we'll have both of them, but we *need* at least one
+					if (ensure(MinTrack || MaxTrack))
+					{
+						UnrealToUsd::ConvertBoundsVectorTracks(MinTrack, MaxTrack, SequenceTransform, Writer.TwoVectorWriter, UsdPrim);
+					}
+				}
+
 				// Refresh tracks that needed to be updated in USD (e.g. we wrote out a new keyframe to a RectLight's width -> that
 				// should become a new keyframe on our intensity track, because we use the RectLight's width for calculating intensity in UE).
 				if (PropertyPathsToRefresh.Num() > 0)
@@ -3641,6 +3821,7 @@ public:
 
 	ULevelSequence* Init(const UE::FUsdStage& InUsdStage) { return nullptr; }
 	void SetInfoCache(TSharedPtr<FUsdInfoCache> InfoCache) {};
+	void SetBBoxCache(TSharedPtr<UE::FUsdGeomBBoxCache> InBBoxCache) {};
 	bool HasData() const { return false; };
 	void Clear() {};
 
@@ -3650,7 +3831,7 @@ public:
 	void UnbindFromUsdStageActor() {}
 	void OnStageActorRenamed() {};
 
-	void AddPrim(UUsdPrimTwin& PrimTwin, bool bForceVisibilityTracks) {}
+	void AddPrim(UUsdPrimTwin& PrimTwin, bool bForceVisibilityTracks, TOptional<bool> HasAnimatedBounds) {}
 	void RemovePrim(const UUsdPrimTwin& PrimTwin) {}
 
 	void UpdateControlRigTracks(UUsdPrimTwin& PrimTwin) {}
@@ -3714,6 +3895,14 @@ void FUsdLevelSequenceHelper::SetInfoCache(TSharedPtr<FUsdInfoCache> InInfoCache
 	}
 }
 
+void FUsdLevelSequenceHelper::SetBBoxCache(TSharedPtr<UE::FUsdGeomBBoxCache> InBBoxCache)
+{
+	if (UsdSequencerImpl.IsValid())
+	{
+		UsdSequencerImpl->SetBBoxCache(InBBoxCache);
+	}
+}
+
 bool FUsdLevelSequenceHelper::HasData() const
 {
 	if (UsdSequencerImpl.IsValid())
@@ -3748,11 +3937,11 @@ void FUsdLevelSequenceHelper::UnbindFromUsdStageActor()
 	}
 }
 
-void FUsdLevelSequenceHelper::AddPrim(UUsdPrimTwin & PrimTwin, bool bForceVisibilityTracks)
+void FUsdLevelSequenceHelper::AddPrim(UUsdPrimTwin & PrimTwin, bool bForceVisibilityTracks, TOptional<bool> HasAnimatedBounds)
 {
 	if (UsdSequencerImpl.IsValid())
 	{
-		UsdSequencerImpl->AddPrim(PrimTwin, bForceVisibilityTracks);
+		UsdSequencerImpl->AddPrim(PrimTwin, bForceVisibilityTracks, HasAnimatedBounds);
 	}
 }
 

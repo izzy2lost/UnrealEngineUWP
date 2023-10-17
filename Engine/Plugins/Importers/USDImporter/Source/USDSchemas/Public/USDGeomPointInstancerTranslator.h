@@ -41,7 +41,7 @@ public:
 	// below it, so returning true to "CanBeCollapsed" in that case won't really help anything.
 	// We only return true from CanBeCollapsed if e.g. a generic Xform prim should be able to collapse us too (like when we're
 	// collapsing even simple, not-nested point instancers).
-	virtual bool CollapsesChildren( ECollapsingType CollapsingType ) const override { return true; }
+	virtual bool CollapsesChildren( ECollapsingType CollapsingType ) const override;
 	virtual bool CanBeCollapsed( ECollapsingType CollapsingType ) const override;
 
 	virtual TSet<UE::FSdfPath> CollectAuxiliaryPrims() const override;

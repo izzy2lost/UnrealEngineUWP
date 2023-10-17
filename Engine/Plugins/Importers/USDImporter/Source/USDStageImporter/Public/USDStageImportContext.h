@@ -64,6 +64,9 @@ struct USDSTAGEIMPORTER_API FUsdStageImportContext
 	UE_DEPRECATED(5.3, "The import process now always builds its own InfoCache, so this member is no longer used")
 	TSharedPtr<FUsdInfoCache> InfoCache;
 
+	/** Bounding box cache used for the USD stage in case we have to spawn bounds components */
+	TSharedPtr<UE::FUsdGeomBBoxCache> BBoxCache;
+
 	/**
 	 * When parsing materials, we keep track of which primvar we mapped to which UV channel.
 	 * When parsing meshes later, we use this data to place the correct primvar values in each UV channel.

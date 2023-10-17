@@ -256,6 +256,15 @@ namespace UE
 #endif // #if USE_USD_SDK
 	}
 
+	bool FUsdAttribute::HasAuthoredValue() const
+	{
+#if USE_USD_SDK
+		return Impl->PxrUsdAttribute.Get().HasAuthoredValue();
+#else
+		return false;
+#endif // #if USE_USD_SDK
+	}
+
 	bool FUsdAttribute::HasFallbackValue() const
 	{
 #if USE_USD_SDK

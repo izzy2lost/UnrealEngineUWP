@@ -228,6 +228,22 @@ bool UUsdConversionBlueprintContext::ConvertSpotLightComponent( const USpotLight
 #endif // USE_USD_SDK
 }
 
+bool UUsdConversionBlueprintContext::ConvertBoundsComponent(const UUsdDrawModeComponent* Component, const FString& PrimPath, float TimeCode)
+{
+#if USE_USD_SDK
+	UE::FUsdPrim Prim = UnrealToUsdImpl::GetPrim(Stage, PrimPath);
+	if (!Prim || !Component)
+	{
+		return false;
+	}
+
+	const bool bWriteExtents = true;
+	return UnrealToUsd::ConvertBoundsComponent(*Component, Prim, bWriteExtents, TimeCode == FLT_MAX ? UsdUtils::GetDefaultTimeCode() : TimeCode);
+#else
+	return false;
+#endif	  // USE_USD_SDK
+}
+
 bool UUsdConversionBlueprintContext::ConvertSceneComponent( const USceneComponent* Component, const FString& PrimPath )
 {
 #if USE_USD_SDK

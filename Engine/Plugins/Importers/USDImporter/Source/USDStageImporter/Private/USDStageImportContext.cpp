@@ -89,6 +89,7 @@ void FUsdStageImportContext::Reset()
 	ImportedAsset = nullptr;
 	LevelSequenceHelper.Clear();
 	AssetCache = nullptr;
+	BBoxCache = nullptr;
 	MaterialToPrimvarToUVIndex.Empty();
 	Stage = UE::FUsdStage{};
 	ImportObjectFlags = EObjectFlags::RF_NoFlags;

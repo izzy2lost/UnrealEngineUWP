@@ -6,7 +6,9 @@
 
 #include "UnrealUSDWrapper.h"
 #include "USDAttributeUtils.h"
+#include "USDClassesModule.h"
 #include "USDConversionUtils.h"
+#include "USDDrawModeComponent.h"
 #include "USDLog.h"
 #include "USDMemory.h"
 #include "USDPrimConversion.h"
@@ -2822,7 +2824,7 @@ bool UsdToUnreal::ConvertGeomPrimitiveTransform(
 {
 	TRACE_CPUPROFILER_EVENT_SCOPE(UsdToUnreal::ConvertGeomPrimitive);
 
-	if (!InPrim || !InPrim.IsA<pxr::UsdGeomGprim>())
+	if (!InPrim || !InPrim.IsA<pxr::UsdGeomGprim>() || UsdUtils::GetAppliedDrawMode(InPrim) != EUsdDrawMode::Default)
 	{
 		return false;
 	}
@@ -3012,6 +3014,7 @@ bool UsdToUnreal::ConvertGeomPrimitiveTransform(
 	return false;
 }
 
+PRAGMA_DISABLE_DEPRECATION_WARNINGS
 UMaterialInstanceDynamic* UsdUtils::CreateDisplayColorMaterialInstanceDynamic( const UsdUtils::FDisplayColorMaterial& DisplayColorDescription )
 {
 	const UUsdProjectSettings* Settings = GetDefault<UUsdProjectSettings>();
@@ -3068,7 +3071,7 @@ UMaterialInstanceDynamic* UsdUtils::CreateDisplayColorMaterialInstanceDynamic( c
 	return nullptr;
 }
 
-UMaterialInstanceConstant* UsdUtils::CreateDisplayColorMaterialInstanceConstant( const FDisplayColorMaterial& DisplayColorDescription )
+UMaterialInstanceConstant* UsdUtils::CreateDisplayColorMaterialInstanceConstant( const UsdUtils::FDisplayColorMaterial& DisplayColorDescription )
 {
 #if WITH_EDITOR
 	const UUsdProjectSettings* Settings = GetDefault<UUsdProjectSettings>();
@@ -3121,6 +3124,7 @@ UMaterialInstanceConstant* UsdUtils::CreateDisplayColorMaterialInstanceConstant(
 #endif // WITH_EDITOR
 	return nullptr;
 }
+PRAGMA_ENABLE_DEPRECATION_WARNINGS
 
 UsdUtils::FUsdPrimMaterialAssignmentInfo UsdUtils::GetPrimMaterialAssignments(
 	const pxr::UsdPrim& UsdPrim,
@@ -3350,7 +3354,7 @@ UsdUtils::FUsdPrimMaterialAssignmentInfo UsdUtils::GetPrimMaterialAssignments(
 		}
 	}
 
-	TOptional<FDisplayColorMaterial> DisplayColor;
+	TOptional<UsdUtils::FDisplayColorMaterial> DisplayColor;
 
 	bool bHasMainAssignment = false;
 	if (bNeedsMainAssignment)
@@ -3785,27 +3789,6 @@ bool UnrealToUsd::ConvertMeshDescriptions( const TArray<FMeshDescription>& LODIn
 	}
 
 	return true;
-}
-
-FString UsdUtils::FDisplayColorMaterial::ToString()
-{
-	return FString::Printf( TEXT("%s_%d_%d"), *UsdGeomMeshImpl::DisplayColorID, bHasOpacity, bIsDoubleSided );
-}
-
-TOptional<UsdUtils::FDisplayColorMaterial> UsdUtils::FDisplayColorMaterial::FromString( const FString& DisplayColorString )
-{
-	TArray<FString> Tokens;
-	DisplayColorString.ParseIntoArray( Tokens, TEXT( "_" ) );
-
-	if ( Tokens.Num() != 3 || Tokens[ 0 ] != UsdGeomMeshImpl::DisplayColorID )
-	{
-		return {};
-	}
-
-	UsdUtils::FDisplayColorMaterial Result;
-	Result.bHasOpacity = static_cast< bool >( FCString::Atoi( *Tokens[ 1 ] ) );
-	Result.bIsDoubleSided = static_cast< bool >( FCString::Atoi( *Tokens[ 2 ] ) );
-	return Result;
 }
 
 TOptional<UsdUtils::FDisplayColorMaterial> UsdUtils::ExtractDisplayColorMaterial(const pxr::UsdGeomGprim& Gprim, const pxr::UsdTimeCode TimeCode)

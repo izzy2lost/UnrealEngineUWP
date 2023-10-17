@@ -7,6 +7,7 @@
 #include "MeshTranslationImpl.h"
 #include "UnrealUSDWrapper.h"
 #include "USDAssetUserData.h"
+#include "USDDrawModeComponent.h"
 #include "USDClassesModule.h"
 #include "USDConversionUtils.h"
 #include "USDGeomMeshConversion.h"
@@ -1000,6 +1001,14 @@ void FUsdGeomMeshTranslator::CreateAssets()
 		return Super::CreateAssets();
 	}
 
+	// Don't bother generating assets if we're going to just draw some bounds for this prim instead
+	EUsdDrawMode DrawMode = UsdUtils::GetAppliedDrawMode(GetPrim());
+	if (DrawMode != EUsdDrawMode::Default)
+	{
+		CreateAlternativeDrawModeAssets(DrawMode);
+		return;
+	}
+
 	TSharedRef< FGeomMeshCreateAssetsTaskChain > AssetsTaskChain = MakeShared< FGeomMeshCreateAssetsTaskChain >(Context, PrimPath);
 
 	Context->TranslatorTasks.Add(MoveTemp(AssetsTaskChain));
@@ -1007,70 +1016,26 @@ void FUsdGeomMeshTranslator::CreateAssets()
 
 USceneComponent* FUsdGeomMeshTranslator::CreateComponents()
 {
-	if (!IsMeshPrim())
-	{
-		return Super::CreateComponents();
-	}
-
-	TOptional< TSubclassOf< USceneComponent > > ComponentType;
-
-	USceneComponent* SceneComponent = CreateComponentsEx(ComponentType, {});
-	UpdateComponents(SceneComponent);
-
-	// Handle material overrides
-	// Note: This can be here and not in USDGeomXformableTranslator because there is no way that a collapsed mesh prim could end up with a material override
-	if (UStaticMeshComponent* StaticMeshComponent = Cast<UStaticMeshComponent>(SceneComponent))
-	{
-		if (Context->InfoCache)
-		{
-			if (UStaticMesh* StaticMesh = Context->InfoCache->GetSingleAssetForPrim<UStaticMesh>(
-				PrimPath
-			))
-			{
-				TArray<UMaterialInterface*> ExistingAssignments;
-				for (FStaticMaterial& StaticMaterial : StaticMesh->GetStaticMaterials())
-				{
-					ExistingAssignments.Add(StaticMaterial.MaterialInterface);
-				}
-
-				MeshTranslationImpl::SetMaterialOverrides(
-					GetPrim(),
-					ExistingAssignments,
-					*StaticMeshComponent,
-					*Context->AssetCache.Get(),
-					*Context->InfoCache.Get(),
-					Context->Time,
-					Context->ObjectFlags,
-					Context->bAllowInterpretingLODs,
-					Context->RenderContext,
-					Context->MaterialPurpose
-				);
-			}
-		}
-	}
-
-	return SceneComponent;
+	return Super::CreateComponents();
 }
 
 void FUsdGeomMeshTranslator::UpdateComponents(USceneComponent* SceneComponent)
 {
-	if (!IsMeshPrim())
+	if (IsMeshPrim())
 	{
-		return Super::UpdateComponents(SceneComponent);
-	}
+		if (SceneComponent)
+		{
+			SceneComponent->Modify();
+		}
 
-	if (SceneComponent)
-	{
-		SceneComponent->Modify();
-	}
-
-	if (UsdUtils::IsAnimatedMesh(GetPrim()))
-	{
-		// The assets might have changed since our attributes are animated
-		// Note that we must wait for these to complete as they make take a while and we want to
-		// reassign our new static meshes when we get to FUsdGeomXformableTranslator::UpdateComponents
-		CreateAssets();
-		Context->CompleteTasks();
+		if (UsdUtils::IsAnimatedMesh(GetPrim()))
+		{
+			// The assets might have changed since our attributes are animated
+			// Note that we must wait for these to complete as they make take a while and we want to
+			// reassign our new static meshes when we get to FUsdGeomXformableTranslator::UpdateComponents
+			CreateAssets();
+			Context->CompleteTasks();
+		}
 	}
 
 	Super::UpdateComponents(SceneComponent);
@@ -1081,6 +1046,14 @@ bool FUsdGeomMeshTranslator::CollapsesChildren(ECollapsingType CollapsingType) c
 	if (!IsMeshPrim())
 	{
 		return Super::CollapsesChildren(CollapsingType);
+	}
+
+	// If we have a custom draw mode, it means we should draw bounds/cards/etc. instead
+	// of our entire subtree, which is basically the same thing as collapsing
+	EUsdDrawMode DrawMode = UsdUtils::GetAppliedDrawMode(GetPrim());
+	if (DrawMode != EUsdDrawMode::Default)
+	{
+		return true;
 	}
 
 	// We can't claim we collapse anything here since we'll just parse the mesh for this prim and that's it,

@@ -6,6 +6,7 @@
 #include "USDAssetCache2.h"
 #include "USDAssetImportData.h"
 #include "USDAssetUserData.h"
+#include "USDDrawModeComponent.h"
 #include "USDClassesModule.h"
 #include "USDConversionUtils.h"
 #include "USDErrorUtils.h"
@@ -17,7 +18,9 @@
 #include "USDStageImportContext.h"
 #include "USDStageImportOptions.h"
 #include "USDTypesConversion.h"
+
 #include "UsdWrappers/SdfLayer.h"
+#include "UsdWrappers/UsdGeomBBoxCache.h"
 #include "UsdWrappers/UsdStage.h"
 #include "UsdWrappers/UsdTyped.h"
 
@@ -328,20 +331,27 @@ namespace UsdStageImporterImpl
 #endif // #if USE_USD_SDK
 	}
 
-	void ImportAnimation(FUsdStageImportContext& ImportContext, UE::FUsdPrim& Prim, bool bAnimatedVisibility, USceneComponent* SceneComponent)
+	void ImportAnimation(
+		FUsdStageImportContext& ImportContext,
+		UE::FUsdPrim& Prim,
+		bool bAnimatedVisibility,
+		TOptional<bool> bHasAnimatedBounds,
+		USceneComponent* SceneComponent
+	)
 	{
-		TRACE_CPUPROFILER_EVENT_SCOPE( ImportAnimation );
+		TRACE_CPUPROFILER_EVENT_SCOPE(ImportAnimation);
 
-		if ( !ImportContext.ImportOptions->bImportLevelSequences )
+		if (!ImportContext.ImportOptions->bImportLevelSequences)
 		{
 			return;
 		}
 
-		UUsdPrimTwin* UsdPrimTwin = NewObject< UUsdPrimTwin >();
+		UUsdPrimTwin* UsdPrimTwin = NewObject<UUsdPrimTwin>();
 		UsdPrimTwin->PrimPath = Prim.GetPrimPath().GetString();
 		UsdPrimTwin->SceneComponent = SceneComponent;
+		UsdPrimTwin->SceneComponent->SetMobility(EComponentMobility::Movable);
 
-		ImportContext.LevelSequenceHelper.AddPrim( *UsdPrimTwin, bAnimatedVisibility );
+		ImportContext.LevelSequenceHelper.AddPrim(*UsdPrimTwin, bAnimatedVisibility, bHasAnimatedBounds);
 	}
 
 	void ImportActor(FUsdStageImportContext& ImportContext, UE::FUsdPrim& Prim, bool bForceVisibilityAnimationTracks, FUsdSchemaTranslationContext& TranslationContext)
@@ -398,9 +408,23 @@ namespace UsdStageImporterImpl
 			}
 
 #if USE_USD_SDK
-			if ( bAnimatedVisibility || UsdUtils::IsAnimated( Prim ) )
+			if (bAnimatedVisibility || UsdUtils::IsAnimated(Prim))
 			{
-				ImportAnimation(ImportContext, Prim, bAnimatedVisibility, Component);
+				const TOptional<bool> HasAnimatedBounds = {};
+				ImportAnimation(ImportContext, Prim, bAnimatedVisibility, HasAnimatedBounds, Component);
+			}
+			else if (EUsdDrawMode DrawMode = UsdUtils::GetAppliedDrawMode(Prim); DrawMode != EUsdDrawMode::Default)
+			{
+				if (UsdUtils::HasAnimatedBounds(
+						Prim,
+						ImportContext.BBoxCache->GetIncludedPurposes(),
+						ImportContext.BBoxCache->GetUseExtentsHint(),
+						ImportContext.BBoxCache->GetIgnoreVisibility()
+					))
+				{
+					const TOptional<bool> HasAnimatedBounds = true;
+					ImportAnimation(ImportContext, Prim, bAnimatedVisibility, HasAnimatedBounds, Component);
+				}
 			}
 #endif // USE_USD_SDK
 		}
@@ -1833,6 +1857,33 @@ void UUsdStageImporter::ImportFromFile(FUsdStageImportContext& ImportContext)
 	ImportContext.LevelSequenceHelper.SetInfoCache(InfoCache);
 	ImportContext.LevelSequenceHelper.Init( ImportContext.Stage );  // Must happen after the context gets an InfoCache!
 
+	EUsdPurpose PurposesToImport = static_cast<EUsdPurpose>(ImportContext.ImportOptions->PurposesToImport);
+
+	float ImportTime = ImportContext.ImportOptions->bImportAtSpecificTimeCode
+						   ? ImportContext.ImportOptions->ImportTimeCode
+						   : static_cast<float>(UsdUtils::GetDefaultTimeCode());
+
+	if (!ImportContext.BBoxCache)
+	{
+		const bool bUseExtentsHint = true;
+		const bool bIgnoreVisibility = false;
+		ImportContext.BBoxCache = MakeShared<UE::FUsdGeomBBoxCache>(ImportTime, PurposesToImport, bUseExtentsHint, bIgnoreVisibility);
+	}
+
+	TOptional<EUsdPurpose> IncludedPurposesToRevertBBoxCacheTo;
+	if (ImportContext.BBoxCache->GetIncludedPurposes() != PurposesToImport)
+	{
+		IncludedPurposesToRevertBBoxCacheTo = ImportContext.BBoxCache->GetIncludedPurposes();
+		ImportContext.BBoxCache->SetIncludedPurposes(PurposesToImport);
+	}
+	TOptional<float> TimeToRevertBBoxCacheTo;
+	if (ImportContext.BBoxCache->GetTime() != ImportTime)
+	{
+		TimeToRevertBBoxCacheTo = ImportContext.BBoxCache->GetTime();
+		ImportContext.BBoxCache->SetTime(ImportTime);
+	}
+	ImportContext.LevelSequenceHelper.SetBBoxCache(ImportContext.BBoxCache);
+
 	// Shotgun approach to recreate all render states because we may want to reimport/delete/reassign a material/static/skeletalmesh while it is currently being drawn
 	FGlobalComponentRecreateRenderStateContext RecreateRenderStateContext;
 
@@ -1840,10 +1891,8 @@ void UUsdStageImporter::ImportFromFile(FUsdStageImportContext& ImportContext)
 	TranslationContext->bIsImporting = true;
 	TranslationContext->Level = ImportContext.World->GetCurrentLevel();
 	TranslationContext->ObjectFlags = ImportContext.ImportObjectFlags;
-	TranslationContext->Time = ImportContext.ImportOptions->bImportAtSpecificTimeCode
-		? ImportContext.ImportOptions->ImportTimeCode
-		: static_cast< float >( UsdUtils::GetDefaultTimeCode() );
-	TranslationContext->PurposesToLoad = ( EUsdPurpose ) ImportContext.ImportOptions->PurposesToImport;
+	TranslationContext->Time = ImportTime;
+	TranslationContext->PurposesToLoad = PurposesToImport;
 	TranslationContext->NaniteTriangleThreshold = ImportContext.ImportOptions->NaniteTriangleThreshold;
 	TranslationContext->RenderContext = ImportContext.ImportOptions->RenderContextToImport;
 	TranslationContext->MaterialPurpose = ImportContext.ImportOptions->MaterialPurpose;
@@ -1857,6 +1906,7 @@ void UUsdStageImporter::ImportFromFile(FUsdStageImportContext& ImportContext)
 	TranslationContext->bAllowParsingGroomAssets = ImportContext.ImportOptions->bImportGroomAssets;
 	TranslationContext->bTranslateOnlyUsedMaterials = ImportContext.ImportOptions->bImportOnlyUsedMaterials;
 	TranslationContext->InfoCache = InfoCache;
+	TranslationContext->BBoxCache = ImportContext.BBoxCache;
 	TranslationContext->BlendShapesByPath = &BlendShapesByPath;
 	TranslationContext->GroomInterpolationSettings = ImportContext.ImportOptions->GroomInterpolationSettings;
 	{
@@ -1879,6 +1929,15 @@ void UUsdStageImporter::ImportFromFile(FUsdStageImportContext& ImportContext)
 	UsdStageImporterImpl::CallAssetsPostEditChange(PublishedAssetsAndDependencies);
 	UsdStageImporterImpl::NotifyAssetRegistry(PublishedAssetsAndDependencies);
 	UsdStageImporterImpl::RefreshComponents( ImportContext.SceneActor, ImportContext.ImportOptions->bImportAtSpecificTimeCode );
+
+	if (IncludedPurposesToRevertBBoxCacheTo.IsSet())
+	{
+		ImportContext.BBoxCache->SetIncludedPurposes(IncludedPurposesToRevertBBoxCacheTo.GetValue());
+	}
+	if (TimeToRevertBBoxCacheTo.IsSet())
+	{
+		ImportContext.BBoxCache->SetTime(TimeToRevertBBoxCacheTo.GetValue());
+	}
 
 	FUsdDelegates::OnPostUsdImport.Broadcast( ImportContext.FilePath );
 
@@ -1954,6 +2013,32 @@ bool UUsdStageImporter::ReimportSingleAsset(
 	ImportContext.LevelSequenceHelper.SetInfoCache(InfoCache);
 	ImportContext.LevelSequenceHelper.Init(ImportContext.Stage);  // Must happen after the context gets an InfoCache!
 
+	EUsdPurpose PurposesToImport = static_cast<EUsdPurpose>(ImportContext.ImportOptions->PurposesToImport);
+
+	float ImportTime = ImportContext.ImportOptions->bImportAtSpecificTimeCode
+						   ? ImportContext.ImportOptions->ImportTimeCode
+						   : static_cast<float>(UsdUtils::GetDefaultTimeCode());
+
+	if (!ImportContext.BBoxCache)
+	{
+		const bool bUseExtentsHint = true;
+		const bool bIgnoreVisibility = false;
+		ImportContext.BBoxCache = MakeShared<UE::FUsdGeomBBoxCache>(ImportTime, PurposesToImport, bUseExtentsHint, bIgnoreVisibility);
+	}
+	TOptional<EUsdPurpose> IncludedPurposesToRevertTo;
+	if (ImportContext.BBoxCache->GetIncludedPurposes() != PurposesToImport)
+	{
+		IncludedPurposesToRevertTo = ImportContext.BBoxCache->GetIncludedPurposes();
+		ImportContext.BBoxCache->SetIncludedPurposes(PurposesToImport);
+	}
+	TOptional<float> TimeToRevertBBoxCacheTo;
+	if (ImportContext.BBoxCache->GetTime() != ImportTime)
+	{
+		TimeToRevertBBoxCacheTo = ImportContext.BBoxCache->GetTime();
+		ImportContext.BBoxCache->SetTime(ImportTime);
+	}
+	ImportContext.LevelSequenceHelper.SetBBoxCache(ImportContext.BBoxCache);
+
 	// Shotgun approach to recreate all render states because we may want to reimport/delete/reassign a material/static/skeletalmesh while it is currently being drawn
 	FGlobalComponentRecreateRenderStateContext RecreateRenderStateContext;
 
@@ -1961,10 +2046,8 @@ bool UUsdStageImporter::ReimportSingleAsset(
 	TranslationContext->bIsImporting = true;
 	TranslationContext->Level = ImportContext.World->GetCurrentLevel();
 	TranslationContext->ObjectFlags = ImportContext.ImportObjectFlags;
-	TranslationContext->Time = ImportContext.ImportOptions->bImportAtSpecificTimeCode
-		? ImportContext.ImportOptions->ImportTimeCode
-		: static_cast< float >( UsdUtils::GetDefaultTimeCode() );
-	TranslationContext->PurposesToLoad = ( EUsdPurpose ) ImportContext.ImportOptions->PurposesToImport;
+	TranslationContext->Time = ImportTime;
+	TranslationContext->PurposesToLoad = PurposesToImport;
 	TranslationContext->NaniteTriangleThreshold = ImportContext.ImportOptions->NaniteTriangleThreshold;
 	TranslationContext->RenderContext = ImportContext.ImportOptions->RenderContextToImport;
 	TranslationContext->MaterialPurpose = ImportContext.ImportOptions->MaterialPurpose;
@@ -1977,6 +2060,7 @@ bool UUsdStageImporter::ReimportSingleAsset(
 	TranslationContext->bAllowParsingGroomAssets = ImportContext.ImportOptions->bImportGroomAssets;
 	TranslationContext->bTranslateOnlyUsedMaterials = ImportContext.ImportOptions->bImportOnlyUsedMaterials;
 	TranslationContext->InfoCache = InfoCache;
+	TranslationContext->BBoxCache = ImportContext.BBoxCache;
 	TranslationContext->BlendShapesByPath = &BlendShapesByPath;
 	TranslationContext->GroomInterpolationSettings = ImportContext.ImportOptions->GroomInterpolationSettings;
 	{
@@ -2046,6 +2130,15 @@ bool UUsdStageImporter::ReimportSingleAsset(
 	);
 	UsdStageImporterImpl::NotifyAssetRegistry( { ReimportedObject } );
 	UsdStageImporterImpl::RefreshComponents( ImportContext.SceneActor, ImportContext.ImportOptions->bImportAtSpecificTimeCode );
+
+	if (IncludedPurposesToRevertTo.IsSet())
+	{
+		ImportContext.BBoxCache->SetIncludedPurposes(IncludedPurposesToRevertTo.GetValue());
+	}
+	if (TimeToRevertBBoxCacheTo.IsSet())
+	{
+		ImportContext.BBoxCache->SetTime(TimeToRevertBBoxCacheTo.GetValue());
+	}
 
 	FUsdDelegates::OnPostUsdImport.Broadcast(ImportContext.FilePath);
 

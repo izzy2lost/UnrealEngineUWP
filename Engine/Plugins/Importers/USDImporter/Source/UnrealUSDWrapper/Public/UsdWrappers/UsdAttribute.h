@@ -84,6 +84,7 @@ namespace UE
 		size_t GetNumTimeSamples() const;
 
 		bool HasValue() const;
+		bool HasAuthoredValue() const;
 		bool HasFallbackValue() const;
 
 		bool ValueMightBeTimeVarying() const;

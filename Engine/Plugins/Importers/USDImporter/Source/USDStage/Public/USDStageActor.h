@@ -24,6 +24,7 @@ enum class EMovieSceneDataChangeType;
 struct FUsdSchemaTranslationContext;
 namespace UE
 {
+	class FUsdGeomBBoxCache;
 	class FUsdPrim;
 }
 
@@ -236,6 +237,7 @@ public:
 	USDSTAGE_API void ReloadAnimations();
 
 	USDSTAGE_API TSharedPtr<FUsdInfoCache> GetInfoCache();
+	USDSTAGE_API TSharedPtr<UE::FUsdGeomBBoxCache> GetBBoxCache();
 	USDSTAGE_API TMap< FString, TMap< FString, int32 > > GetMaterialToPrimvarToUVIndex();
 	USDSTAGE_API const UsdUtils::FBlendShapeMap& GetBlendShapeMap();
 	USDSTAGE_API FUsdListener& GetUsdListener();
@@ -357,6 +359,9 @@ protected:
 
 	/** Caches various information about prims that are expensive to query */
 	TSharedPtr<FUsdInfoCache> InfoCache;
+
+	/** USD bounding box cache for the stage. Constructed on-demand */
+	TSharedPtr<UE::FUsdGeomBBoxCache> BBoxCache;
 
 	FUsdListener UsdListener;
 

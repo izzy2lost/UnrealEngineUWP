@@ -26,6 +26,7 @@ namespace UnrealBuildTool.Rules
 					"Core",
 					"CoreUObject",
 					"UnrealUSDWrapper",
+					"USDClasses", // So that consumers can also include IUsdClassesModule for the new definition of FDisplayColorMaterial
 				}
 			);
 
@@ -50,7 +51,6 @@ namespace UnrealBuildTool.Rules
 					"Slate",
 					"SlateCore",
 					"StaticMeshDescription",
-					"USDClasses",
 				}
 			);
 

@@ -7,6 +7,7 @@
 #include "UnrealUSDWrapper.h"
 #include "USDAssetImportData.h"
 #include "USDConversionUtils.h"
+#include "USDDrawModeComponent.h"
 #include "USDGeomMeshConversion.h"
 #include "USDGeomMeshTranslator.h"
 #include "USDInfoCache.h"
@@ -123,6 +124,14 @@ void FUsdGeomPrimitiveTranslator::CreateAssets()
 {
 	TRACE_CPUPROFILER_EVENT_SCOPE(FUsdGeomPrimitiveTranslator::CreateAssets);
 
+	// Don't bother generating assets if we're going to just draw some bounds for this prim instead
+	EUsdDrawMode DrawMode = UsdUtils::GetAppliedDrawMode(GetPrim());
+	if (DrawMode != EUsdDrawMode::Default)
+	{
+		CreateAlternativeDrawModeAssets(DrawMode);
+		return;
+	}
+
 	using namespace UsdGeomPrimitiveTranslatorImpl;
 	TSharedRef<FGeomPrimitiveCreateAssetsTaskChain> AssetsTaskChain = MakeShared<FGeomPrimitiveCreateAssetsTaskChain>(Context, PrimPath);
 
@@ -131,7 +140,18 @@ void FUsdGeomPrimitiveTranslator::CreateAssets()
 
 USceneComponent* FUsdGeomPrimitiveTranslator::CreateComponents()
 {
-	USceneComponent* SceneComponent = CreateComponentsEx({}, {});
+	USceneComponent* SceneComponent = nullptr;
+
+	EUsdDrawMode DrawMode = UsdUtils::GetAppliedDrawMode(GetPrim());
+	if (DrawMode == EUsdDrawMode::Default)
+	{
+		SceneComponent = CreateComponentsEx({}, {});
+	}
+	else
+	{
+		SceneComponent = CreateAlternativeDrawModeComponents(DrawMode);
+	}
+
 	UpdateComponents(SceneComponent);
 
 	// Handle material overrides
@@ -184,6 +204,14 @@ void FUsdGeomPrimitiveTranslator::UpdateComponents(USceneComponent* SceneCompone
 
 bool FUsdGeomPrimitiveTranslator::CollapsesChildren(ECollapsingType CollapsingType) const
 {
+	// If we have a custom draw mode, it means we should draw bounds/cards/etc. instead
+	// of our entire subtree, which is basically the same thing as collapsing
+	EUsdDrawMode DrawMode = UsdUtils::GetAppliedDrawMode(GetPrim());
+	if (DrawMode != EUsdDrawMode::Default)
+	{
+		return true;
+	}
+
 	// Gprims shouldn't really have any children so this is not very well defined.
 	// We're going with 'false' here to match FUsdGeomMeshTranslator::CollapsesChildren
 	return false;

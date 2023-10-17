@@ -2,6 +2,7 @@
 
 #include "USDGeomCameraTranslator.h"
 
+#include "USDDrawModeComponent.h"
 #include "USDMemory.h"
 #include "USDPrimConversion.h"
 #include "USDTypesConversion.h"
@@ -22,10 +23,17 @@ USceneComponent* FUsdGeomCameraTranslator::CreateComponents()
 {
 	USceneComponent* Component = nullptr;
 
+	EUsdDrawMode DrawMode = UsdUtils::GetAppliedDrawMode(GetPrim());
+	if (DrawMode != EUsdDrawMode::Default)
+	{
+		Component = CreateAlternativeDrawModeComponents(DrawMode);
+	}
+
 	// Check if this prim actually originated from a CineCameraComponent that was the main camera component
 	// of an ACineCameraActor. If so, then the USDGeomXformableTranslator that ran on our parent prim
 	// likely already created an ACineCameraActor for us, and we can just take its already created
 	// main camera component instead
+	if (!Component)
 	{
 		FScopedUsdAllocs UsdAllocs;
 
@@ -61,13 +69,16 @@ USceneComponent* FUsdGeomCameraTranslator::CreateComponents()
 		}
 	}
 
-	if ( !Component )
+	if (!Component)
 	{
-		bool bNeedsActor = true;
-		Component = CreateComponentsEx( TSubclassOf< USceneComponent >( UCineCameraComponent::StaticClass() ), bNeedsActor );
+		const bool bNeedsActor = true;
+		Component = CreateComponentsEx({UCineCameraComponent::StaticClass()}, bNeedsActor);
 	}
 
-	UpdateComponents( Component );
+	// We pulled UpdateComponents outside CreateComponentsEx as in some cases we don't want to do it
+	// right away (like on FUsdGeomPointInstancerTranslator::CreateComponents)
+	UpdateComponents(Component);
+
 	return Component;
 }
 
@@ -107,6 +118,14 @@ void FUsdGeomCameraTranslator::UpdateComponents( USceneComponent* SceneComponent
 
 bool FUsdGeomCameraTranslator::CollapsesChildren( ECollapsingType CollapsingType ) const
 {
+	// If we have a custom draw mode, it means we should draw bounds/cards/etc. instead
+	// of our entire subtree, which is basically the same thing as collapsing
+	EUsdDrawMode DrawMode = UsdUtils::GetAppliedDrawMode(GetPrim());
+	if (DrawMode != EUsdDrawMode::Default)
+	{
+		return true;
+	}
+
 	return false;
 }
 

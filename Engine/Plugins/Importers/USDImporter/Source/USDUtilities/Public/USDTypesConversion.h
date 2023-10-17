@@ -19,6 +19,7 @@ PXR_NAMESPACE_OPEN_SCOPE
 	class GfVec2f;
 	class GfVec3f;
 	class GfVec4f;
+	class GfVec3d;
 	class SdfPath;
 	class TfToken;
 
@@ -56,7 +57,9 @@ namespace UsdToUnreal
 
 	USDUTILITIES_API FVector2D ConvertVector( const pxr::GfVec2f& InValue );
 	USDUTILITIES_API FVector ConvertVector( const pxr::GfVec3f& InValue );
+	USDUTILITIES_API FVector ConvertVector(const pxr::GfVec3d& InValue);
 	USDUTILITIES_API FVector ConvertVector( const FUsdStageInfo& StageInfo, const pxr::GfVec3f& InValue );
+	USDUTILITIES_API FVector ConvertVector(const FUsdStageInfo& StageInfo, const pxr::GfVec3d& InValue);
 
 	USDUTILITIES_API FMatrix ConvertMatrix( const pxr::GfMatrix4d& Matrix );
 	USDUTILITIES_API FTransform ConvertMatrix( const FUsdStageInfo& StageInfo, const pxr::GfMatrix4d& InMatrix );

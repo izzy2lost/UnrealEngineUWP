@@ -3,8 +3,10 @@
 #include "USDPrimConversion.h"
 
 #include "UnrealUSDWrapper.h"
+#include "USDAssetCache2.h"
 #include "USDAssetUserData.h"
 #include "USDAttributeUtils.h"
+#include "USDDrawModeComponent.h"
 #include "USDConversionUtils.h"
 #include "USDLayerUtils.h"
 #include "USDLightConversion.h"
@@ -14,6 +16,7 @@
 #include "USDTypesConversion.h"
 
 #include "UsdWrappers/UsdAttribute.h"
+#include "UsdWrappers/UsdGeomBBoxCache.h"
 #include "UsdWrappers/UsdGeomXformable.h"
 #include "UsdWrappers/UsdPrim.h"
 #include "UsdWrappers/UsdStage.h"
@@ -35,9 +38,11 @@
 #include "Components/SkeletalMeshComponent.h"
 #include "Components/SkinnedMeshComponent.h"
 #include "Components/SpotLightComponent.h"
+#include "EditorFramework/AssetImportData.h"
 #include "Engine/SkeletalMesh.h"
 #include "Engine/SkinnedAssetCommon.h"
 #include "Engine/StaticMesh.h"
+#include "Engine/Texture2D.h"
 #include "GeometryCache.h"
 #include "GeometryCacheComponent.h"
 #include "InstancedFoliageActor.h"
@@ -49,16 +54,19 @@
 #include "Sections/MovieSceneColorSection.h"
 #include "Sections/MovieSceneFloatSection.h"
 #include "Sections/MovieSceneVisibilitySection.h"
+#include "Sections/MovieSceneVectorSection.h"
 #include "Tracks/MovieScene3DTransformTrack.h"
 #include "Tracks/MovieSceneBoolTrack.h"
 #include "Tracks/MovieSceneColorTrack.h"
 #include "Tracks/MovieSceneFloatTrack.h"
 #include "Tracks/MovieScenePropertyTrack.h"
 #include "Tracks/MovieSceneVisibilityTrack.h"
+#include "Tracks/MovieSceneVectorTrack.h"
 
 #if USE_USD_SDK
 
 #include "USDIncludesStart.h"
+	#include "pxr/usd/kind/registry.h"
 	#include "pxr/usd/sdf/changeBlock.h"
 	#include "pxr/usd/usd/attribute.h"
 	#include "pxr/usd/usd/prim.h"
@@ -71,6 +79,7 @@
 	#include "pxr/usd/usdGeom/cylinder.h"
 	#include "pxr/usd/usdGeom/imageable.h"
 	#include "pxr/usd/usdGeom/mesh.h"
+	#include "pxr/usd/usdGeom/modelAPI.h"
 	#include "pxr/usd/usdGeom/plane.h"
 	#include "pxr/usd/usdGeom/pointInstancer.h"
 	#include "pxr/usd/usdGeom/scope.h"
@@ -94,6 +103,13 @@
 	#include "pxr/usd/usdSkel/animation.h"
 	#include "pxr/usd/usdSkel/root.h"
 #include "USDIncludesEnd.h"
+
+static bool GConsiderAllPrimsHaveAnimatedBounds = false;
+static FAutoConsoleVariableRef CVarConsiderAllPrimsHaveAnimatedBounds(
+	TEXT("USD.Bounds.ConsiderAllPrimsHaveAnimatedBounds"),
+	GConsiderAllPrimsHaveAnimatedBounds,
+	TEXT("When active prevents USD from caching computed bounds between timeSamples for any prim, which allows us to force it to recompute accurate bounds for cases it does not naturally consider animated (e.g. for animated Mesh points, skeletal animation, etc.). Warning: This can be extremely expensive!")
+);
 
 namespace UE
 {
@@ -920,6 +936,151 @@ bool UsdToUnreal::ConvertTransformTimeSamples( const UE::FUsdStage& Stage, const
 	return true;
 }
 
+bool UsdToUnreal::ConvertBoundsTimeSamples(
+	const UE::FUsdPrim& InPrim,
+	const TArray<double>& InUsdTimeSamples,
+	const FMovieSceneSequenceTransform& InSequenceTransform,
+	UMovieSceneDoubleVectorTrack& InOutMinTrack,
+	UMovieSceneDoubleVectorTrack& InOutMaxTrack,
+	UE::FUsdGeomBBoxCache* InOutBBoxCache
+)
+{
+	if (!InPrim)
+	{
+		return false;
+	}
+
+	TOptional<FWriteScopeLock> BBoxLock;
+	pxr::UsdGeomBBoxCache* BBoxCache = nullptr;
+	if (InOutBBoxCache)
+	{
+		BBoxLock.Emplace(InOutBBoxCache->Lock);
+		BBoxCache = &static_cast<pxr::UsdGeomBBoxCache&>(*InOutBBoxCache);
+	}
+
+	// Create an BBoxCache on-demand (don't need to lock this one as it's purely ours)
+	TOptional<pxr::UsdGeomBBoxCache> TempBBoxCacheStorage;
+	if (BBoxCache == nullptr)
+	{
+		const bool bUseExtentsHint = true;
+		const bool bIgnoreVisibility = false;
+		static std::vector<pxr::TfToken> DefaultTokenVector{pxr::UsdGeomTokens->proxy, pxr::UsdGeomTokens->render};
+		TempBBoxCacheStorage.Emplace(pxr::UsdTimeCode::EarliestTime(), DefaultTokenVector, bUseExtentsHint, bIgnoreVisibility);
+		BBoxCache = &TempBBoxCacheStorage.GetValue();
+	}
+
+	const UMovieScene* MovieScene = InOutMinTrack.GetTypedOuter<UMovieScene>();
+	if (!MovieScene)
+	{
+		return false;
+	}
+
+	const FFrameRate Resolution = MovieScene->GetTickResolution();
+
+	FScopedUsdAllocs Allocs;
+
+	pxr::UsdStageRefPtr UsdStage = InPrim.GetStage();
+	FUsdStageInfo StageInfo{UsdStage};
+
+	TArray<FFrameNumber> FrameNumbers;
+	FrameNumbers.Reserve(InUsdTimeSamples.Num());
+
+	TArray<FMovieSceneDoubleValue> MinXValues;
+	TArray<FMovieSceneDoubleValue> MinYValues;
+	TArray<FMovieSceneDoubleValue> MinZValues;
+	TArray<FMovieSceneDoubleValue> MaxXValues;
+	TArray<FMovieSceneDoubleValue> MaxYValues;
+	TArray<FMovieSceneDoubleValue> MaxZValues;
+	MinXValues.Reserve(InUsdTimeSamples.Num());
+	MinYValues.Reserve(InUsdTimeSamples.Num());
+	MinZValues.Reserve(InUsdTimeSamples.Num());
+	MaxXValues.Reserve(InUsdTimeSamples.Num());
+	MaxYValues.Reserve(InUsdTimeSamples.Num());
+	MaxZValues.Reserve(InUsdTimeSamples.Num());
+
+	const double StageTimeCodesPerSecond = UsdStage->GetTimeCodesPerSecond();
+	const FFrameRate StageFrameRate(StageTimeCodesPerSecond, 1);
+
+	const ERichCurveInterpMode InterpMode = (UsdStage->GetInterpolationType() == pxr::UsdInterpolationTypeLinear)
+												? ERichCurveInterpMode::RCIM_Linear
+												: ERichCurveInterpMode::RCIM_Constant;
+
+	double LastTimeSample = TNumericLimits<double>::Lowest();
+	for (const double UsdTimeSample : InUsdTimeSamples)
+	{
+		// We never want to evaluate the same time twice
+		if (FMath::IsNearlyEqual(UsdTimeSample, LastTimeSample))
+		{
+			continue;
+		}
+		LastTimeSample = UsdTimeSample;
+
+		int32 FrameNumber = FMath::FloorToInt(UsdTimeSample);
+		float SubFrameNumber = UsdTimeSample - FrameNumber;
+
+		FFrameTime FrameTime(FrameNumber, SubFrameNumber);
+
+		FFrameTime KeyFrameTime = FFrameRate::TransformTime(FrameTime, StageFrameRate, Resolution);
+		KeyFrameTime *= InSequenceTransform;
+		FrameNumbers.Add(KeyFrameTime.GetFrame());
+
+		if (GConsiderAllPrimsHaveAnimatedBounds)
+		{
+			BBoxCache->Clear();
+		}
+
+		// It may seem like we're repeatedly invalidating the BBoxCache by doing this but actually it should retain some stuff,
+		// like bounds from non-animated prims
+		BBoxCache->SetTime(UsdTimeSample);
+
+		// Note: This can be extremely expensive, as it may fallback to computing new bounds, traversing points and everything for the entire subtree
+		pxr::GfBBox3d BoxAndMatrix = BBoxCache->ComputeUntransformedBound(InPrim);
+		pxr::GfRange3d Box = BoxAndMatrix.ComputeAlignedRange();
+
+		FBox UEBox;
+		if (!Box.IsEmpty())
+		{
+			FVector UESpaceUSDMin = UsdToUnreal::ConvertVector(StageInfo, Box.GetMin());
+			FVector UESpaceUSDMax = UsdToUnreal::ConvertVector(StageInfo, Box.GetMax());
+			UEBox = FBox{TArray<FVector>{UESpaceUSDMin, UESpaceUSDMax}};
+		}
+
+		MinXValues.Emplace_GetRef(UEBox.Min.X).InterpMode = InterpMode;
+		MinYValues.Emplace_GetRef(UEBox.Min.Y).InterpMode = InterpMode;
+		MinZValues.Emplace_GetRef(UEBox.Min.Z).InterpMode = InterpMode;
+
+		MaxXValues.Emplace_GetRef(UEBox.Max.X).InterpMode = InterpMode;
+		MaxYValues.Emplace_GetRef(UEBox.Max.Y).InterpMode = InterpMode;
+		MaxZValues.Emplace_GetRef(UEBox.Max.Z).InterpMode = InterpMode;
+	}
+
+	bool bSectionAdded = false;
+	UMovieSceneDoubleVectorSection* MinSection = Cast<UMovieSceneDoubleVectorSection>(InOutMinTrack.FindOrAddSection(0, bSectionAdded));
+	UMovieSceneDoubleVectorSection* MaxSection = Cast<UMovieSceneDoubleVectorSection>(InOutMaxTrack.FindOrAddSection(0, bSectionAdded));
+	MinSection->EvalOptions.CompletionMode = EMovieSceneCompletionMode::KeepState;
+	MaxSection->EvalOptions.CompletionMode = EMovieSceneCompletionMode::KeepState;
+
+	TArrayView<FMovieSceneDoubleChannel*> MinChannels = MinSection->GetChannelProxy().GetChannels<FMovieSceneDoubleChannel>();
+	TArrayView<FMovieSceneDoubleChannel*> MaxChannels = MaxSection->GetChannelProxy().GetChannels<FMovieSceneDoubleChannel>();
+	if (!ensure(MinChannels.Num() == 3 && MaxChannels.Num() == 3))
+	{
+		return false;
+	}
+
+	MinChannels[0]->Set(FrameNumbers, MinXValues);
+	MinChannels[1]->Set(FrameNumbers, MinYValues);
+	MinChannels[2]->Set(FrameNumbers, MinZValues);
+
+	MaxChannels[0]->Set(FrameNumbers, MaxXValues);
+	MaxChannels[1]->Set(FrameNumbers, MaxYValues);
+	MaxChannels[2]->Set(FrameNumbers, MaxZValues);
+
+	MinSection->SetRange(MinSection->GetAutoSizeRange().Get(TRange<FFrameNumber>::Empty()));
+	MaxSection->SetRange(MaxSection->GetAutoSizeRange().Get(TRange<FFrameNumber>::Empty()));
+
+	return true;
+}
+
 UsdToUnreal::FPropertyTrackReader UsdToUnreal::CreatePropertyTrackReader( const UE::FUsdPrim& Prim, const FName& PropertyPath, bool bIgnorePrimLocalTransform )
 {
 	UsdToUnreal::FPropertyTrackReader Reader;
@@ -1511,6 +1672,110 @@ UsdToUnreal::FPropertyTrackReader UsdToUnreal::CreatePropertyTrackReader( const 
 	return Reader;
 }
 
+bool UsdToUnreal::ConvertBounds(
+	const pxr::UsdPrim& Prim,
+	UUsdDrawModeComponent* BoundsComponent,
+	double EvalTime,
+	pxr::UsdGeomBBoxCache* BBoxCache
+)
+{
+	// We're not going to check if Prim actually has the "bounds" draw mode or if it has "applyDrawMode" set
+	// to true, as that can be expensive and this can get called from UpdateComponents, which can get called
+	// every frame of Time animation. If we have a UUsdDrawModeComponent at all we'll assume we're OK here
+	if (!BoundsComponent)
+	{
+		return false;
+	}
+
+	FScopedUsdAllocs UsdAllocs;
+
+	TOptional<pxr::UsdGeomBBoxCache> TempBBoxCacheStorage;
+	if (BBoxCache == nullptr)
+	{
+		const bool bUseExtentsHint = true;
+		const bool bIgnoreVisibility = false;
+		static std::vector<pxr::TfToken> DefaultTokenVector{pxr::UsdGeomTokens->proxy, pxr::UsdGeomTokens->render};
+		TempBBoxCacheStorage.Emplace(EvalTime, DefaultTokenVector, bUseExtentsHint, bIgnoreVisibility);
+		BBoxCache = &TempBBoxCacheStorage.GetValue();
+	}
+
+	// BBoxCache only considers prims with animated transforms or visibility as needing animated computed bounds.
+	// This doesn't include e.g. animated points, meaning it would try reusing animated mesh bounds across frames for those animations,
+	// which can be very incorrect depending on the animation.
+	// With this very expensive trick we can flush the entire BBoxCache and compute new bounds every time, for each particular
+	// timeSample, which can get us accurate bounds for every frame. Obviously disabled by default, but could be useful if all you want
+	// is to import once, or something like this.
+	if (GConsiderAllPrimsHaveAnimatedBounds)
+	{
+		BBoxCache->Clear();
+	}
+
+	// We should do this here or else the BBoxCache may be set to a different time and we'd be reading wrong bounds
+	// (This can happening when opening stages as we may switch the BBoxCache time around when setting up the Sequencer tracks).
+	// Note that this does nothing in case BBoxCache is already at this time
+	BBoxCache->SetTime(EvalTime);
+
+	// Note: This can be extremely expensive, as it may fallback to computing new bounds, traversing points and everything for the entire subtree.
+	// We don't have a choice if we want decent bounds though, and in practice the user's assets will have (or can be set with) authored bounds,
+	// that should make this pretty fast
+	pxr::GfBBox3d BoxAndMatrix = BBoxCache->ComputeUntransformedBound(Prim);
+	pxr::GfRange3d Box = BoxAndMatrix.ComputeAlignedRange();
+
+	// USD will return a FLT_MAX box in case the prim doesn't contain anything, so we need to check for that as putting FLT_MAX directly
+	// on the component bounds is bad news
+	if (!Box.IsEmpty())
+	{
+		// Note that after we convert the USD min/max to UE coordinate space, due to stage up axis the points may flip sign
+		// (e.g. the USD max ends up at UE's negative Y axis), so we need to compute min/max in UE space again
+		FUsdStageInfo StageInfo{Prim.GetStage()};
+		FVector UESpaceUSDMin = UsdToUnreal::ConvertVector(StageInfo, Box.GetMin());
+		FVector UESpaceUSDMax = UsdToUnreal::ConvertVector(StageInfo, Box.GetMax());
+		FBox UEBox{
+			TArray<FVector>{UESpaceUSDMin, UESpaceUSDMax}
+		 };
+
+		BoundsComponent->SetBoundsMin(UEBox.Min);
+		BoundsComponent->SetBoundsMax(UEBox.Max);
+	}
+
+	if (pxr::UsdGeomModelAPI GeomModelAPI{Prim})
+	{
+		pxr::GfVec3f Color;
+		pxr::UsdAttribute ColorAttr = GeomModelAPI.GetModelDrawModeColorAttr();
+		if (ColorAttr && ColorAttr.Get(&Color))
+		{
+			BoundsComponent->SetBoundsColor(UsdToUnreal::ConvertColor(Color));
+		}
+
+		// It's not super efficient to call this whole function every time but not only this lets us
+		// resolve inherited values for the draw mode, but also lets us have our logic in one place.
+		// That is useful because GetAppliedDrawMode is used to decide which component to spawn, and
+		// it will return Default even when we have a particular draw mode specified (in case e.g.
+		// the prim is not a model, or doesn't have applyDrawMode enabled, etc.) so we can't just check
+		// the drawMode attribute directly here
+		EUsdDrawMode DrawMode = UsdUtils::GetAppliedDrawMode(Prim);
+		BoundsComponent->SetDrawMode(DrawMode);
+
+		pxr::TfToken CardGeometryToken;
+		pxr::UsdAttribute GeometryAttr = GeomModelAPI.GetModelCardGeometryAttr();
+		if (GeometryAttr && GeometryAttr.Get(&CardGeometryToken))
+		{
+			EUsdModelCardGeometry CardGeometry = EUsdModelCardGeometry::Cross;
+			if (CardGeometryToken == pxr::UsdGeomTokens->box)
+			{
+				CardGeometry = EUsdModelCardGeometry::Box;
+			}
+			else if (CardGeometryToken == pxr::UsdGeomTokens->fromTexture)
+			{
+				CardGeometry = EUsdModelCardGeometry::FromTexture;
+			}
+			BoundsComponent->SetCardGeometry(CardGeometry);
+		}
+	}
+
+	return true;
+}
+
 bool UnrealToUsd::ConvertCameraComponent( const UCineCameraComponent& CameraComponent, pxr::UsdPrim& Prim, double UsdTimeCode )
 {
 	FScopedUsdAllocs UsdAllocs;
@@ -1832,6 +2097,166 @@ bool UnrealToUsd::ConvertColorTrack( const UMovieSceneColorTrack& MovieSceneTrac
 				WriterFunc( Color, UsdFrameTime.AsDecimal() );
 			}
 		}
+	}
+
+	return true;
+}
+
+bool UnrealToUsd::ConvertBoundsVectorTracks(
+	const UMovieSceneDoubleVectorTrack* MinTrack,
+	const UMovieSceneDoubleVectorTrack* MaxTrack,
+	const FMovieSceneSequenceTransform& SequenceTransform,
+	const TFunction<void(const FVector&, const FVector&, double)>& WriterFunc,
+	UE::FUsdPrim& Prim
+)
+{
+	if (!WriterFunc || !Prim)
+	{
+		return false;
+	}
+
+	if (!MinTrack && !MaxTrack)
+	{
+		return false;
+	}
+
+	const UMovieSceneDoubleVectorTrack* MainTrack = MinTrack ? MinTrack : MaxTrack;
+
+	UMovieScene* MovieScene = MainTrack->GetTypedOuter<UMovieScene>();
+	if (!MovieScene)
+	{
+		return false;
+	}
+
+	UE::FUsdStage Stage = Prim.GetStage();
+
+	ERichCurveInterpMode StageInterpMode;
+	{
+		FScopedUsdAllocs Allocs;
+		pxr::UsdStageRefPtr UsdStage{Stage};
+		StageInterpMode = (UsdStage->GetInterpolationType() == pxr::UsdInterpolationTypeLinear)
+							  ? ERichCurveInterpMode::RCIM_Linear
+							  : ERichCurveInterpMode::RCIM_Constant;
+	}
+
+	const FFrameRate Resolution = MovieScene->GetTickResolution();
+	const FFrameRate DisplayRate = MovieScene->GetDisplayRate();
+
+	const double StageTimeCodesPerSecond = Stage.GetTimeCodesPerSecond();
+	const FFrameRate StageFrameRate(StageTimeCodesPerSecond, 1);
+
+	TFunction<void(const FMovieSceneDoubleChannel&, TSet<FFrameNumber>&)> AppendChannelBakeTimes =
+		[&Resolution, &DisplayRate, StageInterpMode](const FMovieSceneDoubleChannel& Channel, TSet<FFrameNumber>& OutBakeTimes)
+	{
+		const FFrameTime BakeInterval = FFrameRate::TransformTime(1, DisplayRate, Resolution);
+
+		TMovieSceneChannelData<const FMovieSceneDoubleValue> ChannelData = Channel.GetData();
+		TArrayView<const FFrameNumber> KeyTimes = ChannelData.GetTimes();
+		TArrayView<const FMovieSceneDoubleValue> KeyValues = ChannelData.GetValues();
+
+		for (int32 KeyIndex = 0; KeyIndex < KeyTimes.Num(); ++KeyIndex)
+		{
+			const FFrameNumber KeyTime = KeyTimes[KeyIndex];
+			const FMovieSceneDoubleValue& KeyValue = KeyValues[KeyIndex];
+
+			// If the channel has the same interpolation type as the stage (or we're the last key),
+			// we don't need to bake anything: Just write out the keyframe as is
+			if (KeyValue.InterpMode == StageInterpMode || KeyIndex == (KeyTimes.Num() - 1))
+			{
+				FFrameNumber SnappedKeyTime = FFrameRate::Snap(KeyTime, Resolution, DisplayRate).FloorToFrame();
+				OutBakeTimes.Emplace(SnappedKeyTime);
+			}
+			// We need to bake: Start from this key up until the next key (non-inclusive). We always want to put a keyframe at
+			// KeyTime, but then snap the other ones to the stage framerate
+			else
+			{
+				// Don't use the snapped key time for the end of the bake range, because if the snapping moves it
+				// later we may end up stepping back again when it's time to bake from that key onwards
+				const FFrameNumber NextKey = KeyTimes[KeyIndex + 1];
+				const FFrameTime NextKeyTime{NextKey};
+
+				for (FFrameTime EvalTime = KeyTime; EvalTime < NextKeyTime; EvalTime += BakeInterval)
+				{
+					FFrameNumber BakedKeyTime = FFrameRate::Snap(EvalTime, Resolution, DisplayRate).FloorToFrame();
+					OutBakeTimes.Emplace(BakedKeyTime);
+				}
+			}
+		}
+	};
+
+	TArray<UMovieSceneSection*> MinSections = MinTrack ? MinTrack->GetAllSections() : TArray<UMovieSceneSection*>{};
+	TArray<UMovieSceneSection*> MaxSections = MaxTrack ? MaxTrack->GetAllSections() : TArray<UMovieSceneSection*>{};
+
+	// Collect all time samples to bake with
+	TSet<FFrameNumber> AllBakeTimes;
+	for (UMovieSceneSection* Section : MinSections)
+	{
+		if (UMovieSceneDoubleVectorSection* VectorSection = Cast<UMovieSceneDoubleVectorSection>(Section))
+		{
+			for (int32 ChannelIndex = 0; ChannelIndex < VectorSection->GetChannelsUsed(); ++ChannelIndex)
+			{
+				const FMovieSceneDoubleChannel& Channel = VectorSection->GetChannel(ChannelIndex);
+				AppendChannelBakeTimes(Channel, AllBakeTimes);
+			}
+		}
+	}
+	for (UMovieSceneSection* Section : MaxSections)
+	{
+		if (UMovieSceneDoubleVectorSection* VectorSection = Cast<UMovieSceneDoubleVectorSection>(Section))
+		{
+			for (int32 ChannelIndex = 0; ChannelIndex < VectorSection->GetChannelsUsed(); ++ChannelIndex)
+			{
+				const FMovieSceneDoubleChannel& Channel = VectorSection->GetChannel(ChannelIndex);
+				AppendChannelBakeTimes(Channel, AllBakeTimes);
+			}
+		}
+	}
+
+	TArray<FFrameNumber> BakeTimeUnion = AllBakeTimes.Array();
+	BakeTimeUnion.Sort();
+
+	// Sample all channels at the union of bake times, construct the value and write it out
+	// This could be done more efficently, but in the general case we're only going to have one
+	// section per track anyway so it shouldn't matter much
+	for (const FFrameNumber UntransformedBakeTime : BakeTimeUnion)
+	{
+		FVector MinValue{0};
+		for (const UMovieSceneSection* Section : MinSections)
+		{
+			const UMovieSceneDoubleVectorSection* VectorSection = Cast<UMovieSceneDoubleVectorSection>(Section);
+			if (!VectorSection->IsTimeWithinSection(UntransformedBakeTime))
+			{
+				continue;
+			}
+
+			for (int32 ChannelIndex = 0; ChannelIndex < VectorSection->GetChannelsUsed(); ++ChannelIndex)
+			{
+				const FMovieSceneDoubleChannel& Channel = VectorSection->GetChannel(ChannelIndex);
+				Channel.Evaluate(UntransformedBakeTime, MinValue[ChannelIndex]);
+			}
+		}
+
+		FVector MaxValue{0};
+		for (const UMovieSceneSection* Section : MaxSections)
+		{
+			const UMovieSceneDoubleVectorSection* VectorSection = Cast<UMovieSceneDoubleVectorSection>(Section);
+			if (!VectorSection->IsTimeWithinSection(UntransformedBakeTime))
+			{
+				continue;
+			}
+
+			for (int32 ChannelIndex = 0; ChannelIndex < VectorSection->GetChannelsUsed(); ++ChannelIndex)
+			{
+				const FMovieSceneDoubleChannel& Channel = VectorSection->GetChannel(ChannelIndex);
+				Channel.Evaluate(UntransformedBakeTime, MaxValue[ChannelIndex]);
+			}
+		}
+
+		FFrameTime TransformedBakedKeyTime{UntransformedBakeTime};
+		TransformedBakedKeyTime *= SequenceTransform.InverseNoLooping();
+		FFrameTime UsdFrameTime = FFrameRate::TransformTime(TransformedBakedKeyTime, Resolution, StageFrameRate);
+
+		WriterFunc(MinValue, MaxValue, UsdFrameTime.AsDecimal());
 	}
 
 	return true;
@@ -3021,6 +3446,23 @@ bool UnrealToUsd::CreateComponentPropertyBaker( UE::FUsdPrim& Prim, const UScene
 			}
 		}
 	}
+	else if (const UUsdDrawModeComponent* BoundsComponent = Cast<UUsdDrawModeComponent>(&Component))
+	{
+		static TSet<FString> RelevantProperties = {
+			GET_MEMBER_NAME_CHECKED(UUsdDrawModeComponent, BoundsMin).ToString(),
+			GET_MEMBER_NAME_CHECKED(UUsdDrawModeComponent, BoundsMax).ToString()
+		};
+
+		if (RelevantProperties.Contains(PropertyPath))
+		{
+			BakerType = EBakingType::Bounds;
+			BakerFunction = [UsdStage, BoundsComponent, UsdPrim](double UsdTimeCode) mutable
+			{
+				const bool bWriteExtents = true;
+				UnrealToUsd::ConvertBoundsComponent(*BoundsComponent, UsdPrim, bWriteExtents, UsdTimeCode);
+			};
+		}
+	}
 
 	if ( BakerType != EBakingType::None && BakerFunction)
 	{
@@ -3642,6 +4084,53 @@ UnrealToUsd::FPropertyTrackWriter UnrealToUsd::CreatePropertyTrackWriter( const 
 				}
 			}
 		}
+		// Bounds component properties
+		else
+		{
+			Attr = {};
+			if (pxr::UsdGeomModelAPI GeomModelAPI{UsdPrim})
+			{
+				// For whatever reason there is no CreateExtentsHintAttr, so here we copy how the
+				// attr is created from within SetExtentsHint
+				Attr = UsdPrim.CreateAttribute(pxr::UsdGeomTokens->extentsHint, pxr::SdfValueTypeNames->Float3Array, /* custom = */ false);
+			}
+			else if (pxr::UsdGeomBoundable Boundable{UsdPrim})
+			{
+				Attr = Boundable.GetExtentAttr();
+			}
+
+			// If we still don't have an attr try applying the schema.
+			// Not entirely sure how this can possibly happen at this point, but this is more for "parity" with ConvertBoundsComponent
+			if (!Attr)
+			{
+				if (pxr::UsdGeomModelAPI GeomModelAPI = pxr::UsdGeomModelAPI::Apply(UsdPrim))
+				{
+					Attr = UsdPrim.CreateAttribute(pxr::UsdGeomTokens->extentsHint, pxr::SdfValueTypeNames->Float3Array, /* custom = */ false);
+				}
+			}
+
+			if (Attr)
+			{
+				Result.TwoVectorWriter = [Attr, StageInfo](const FVector& UEMinValue, const FVector& UEMaxValue, double UsdTimeCode)
+				{
+					FScopedUsdAllocs Allocs;
+
+					pxr::GfVec3f UEBoundsMinUsdSpace = UnrealToUsd::ConvertVector(StageInfo, UEMinValue);
+					pxr::GfVec3f UEBoundsMaxUsdSpace = UnrealToUsd::ConvertVector(StageInfo, UEMaxValue);
+					pxr::GfVec3f UsdMin{
+						FMath::Min(UEBoundsMinUsdSpace[0], UEBoundsMaxUsdSpace[0]),
+						FMath::Min(UEBoundsMinUsdSpace[1], UEBoundsMaxUsdSpace[1]),
+						FMath::Min(UEBoundsMinUsdSpace[2], UEBoundsMaxUsdSpace[2])};
+					pxr::GfVec3f UsdMax{
+						FMath::Max(UEBoundsMinUsdSpace[0], UEBoundsMaxUsdSpace[0]),
+						FMath::Max(UEBoundsMinUsdSpace[1], UEBoundsMaxUsdSpace[1]),
+						FMath::Max(UEBoundsMinUsdSpace[2], UEBoundsMaxUsdSpace[2])};
+					pxr::VtArray<pxr::GfVec3f> Extents{UsdMin, UsdMax};
+
+					Attr.Set(Extents, UsdTimeCode);
+				};
+			}
+		}
 	}
 
 	if ( Attr )
@@ -4045,7 +4534,210 @@ TArray<UE::FUsdAttribute> UnrealToUsd::GetAttributesForProperty( const UE::FUsdP
 		return { UE::FUsdAttribute{ UsdPrim.GetAttribute( pxr::UsdLuxTokens->inputsAngle ) } };
 	}
 
+	// Bounds component properties
+	// For now we only support bounds animations, but there's nothing preventing us from supporting color/texture/draw mode animations here,
+	// especially since our component works with a "dynamic mesh" approach that already rebuilds its proxy on-demand anyway
+	else if (
+		PropertyPath == GET_MEMBER_NAME_CHECKED(UUsdDrawModeComponent, BoundsMin) ||
+		PropertyPath == GET_MEMBER_NAME_CHECKED(UUsdDrawModeComponent, BoundsMax)
+	)
+	{
+		// If we have a model API, let's direct the caller to `extentsHint` instead, as that has priority over
+		// `extent` in case the model API is applied to a boundable and both are authored
+		if (pxr::UsdGeomModelAPI GeomModelAPI{UsdPrim})
+		{
+			return {UE::FUsdAttribute{GeomModelAPI.GetExtentsHintAttr()}};
+		}
+		else if (pxr::UsdGeomBoundable Boundable{UsdPrim})
+		{
+			return {UE::FUsdAttribute(Boundable.GetExtentAttr())};
+		}
+	}
+
 	return {};
+}
+
+bool UnrealToUsd::ConvertBoundsComponent(const UUsdDrawModeComponent& BoundsComponent, pxr::UsdPrim& UsdPrim, bool bWriteExtents, double UsdTimeCode)
+{
+	if(!UsdPrim)
+	{
+		return false;
+	}
+
+	FScopedUsdAllocs Allocs;
+
+	// If we have a bounds component on an opened stage then we know our prim must satisfy the requirements
+	// to have an alternate draw mode (being a "model", having the API schema, etc.).
+	// However, this function may be used to export imported components onto newly defined prims on a new stage though
+	// (e.g. during level export) so let's enforce those requirements anyway
+	pxr::UsdGeomModelAPI GeomModelAPI = pxr::UsdGeomModelAPI::Apply(UsdPrim);
+
+	// To have bounds, the prim must be a "model". To be a model the prim must have a model kind (i.e. basically any of the
+	// standard "kind"s set) and all of its ancestors up to the pseudoroot must have some "group" kind (like "assembly")
+	if (!UsdPrim.IsModel())
+	{
+		pxr::TfToken Kind = IUsdPrim::GetKind(UsdPrim);
+		if (Kind.IsEmpty())
+		{
+			IUsdPrim::SetKind(UsdPrim, pxr::KindTokens->component);
+		}
+
+		pxr::UsdPrim Parent = UsdPrim.GetParent();
+		while (Parent && !Parent.IsPseudoRoot() && !Parent.IsGroup())
+		{
+			pxr::TfToken ParentKind = IUsdPrim::GetKind(Parent);
+			if (ParentKind.IsEmpty())
+			{
+				IUsdPrim::SetKind(Parent, pxr::KindTokens->group);
+			}
+
+			Parent = Parent.GetParent();
+		}
+	}
+
+	// Author the actual extents.
+	// If we're a boundable, we can just author this as an `extent` opinion, but otherwise we'll need to author
+	// an `extentsHint` via the pxr::UsdGeomModelAPI. However, if a prim has *both* `extentsHint` and `extent`, USD
+	// will favor `extentsHint`, so in order to "affect the stage" we should author to `extentsHint` in that case
+	if (bWriteExtents)
+	{
+		FUsdStageInfo StageInfo{UsdPrim.GetStage()};
+
+		const FVector& UEBoundsMin = BoundsComponent.BoundsMin;
+		const FVector& UEBoundsMax = BoundsComponent.BoundsMax;
+		pxr::GfVec3f UEBoundsMinUsdSpace = UnrealToUsd::ConvertVector(StageInfo, UEBoundsMin);
+		pxr::GfVec3f UEBoundsMaxUsdSpace = UnrealToUsd::ConvertVector(StageInfo, UEBoundsMax);
+		pxr::GfVec3f UsdMin{
+			FMath::Min(UEBoundsMinUsdSpace[0], UEBoundsMaxUsdSpace[0]),
+			FMath::Min(UEBoundsMinUsdSpace[1], UEBoundsMaxUsdSpace[1]),
+			FMath::Min(UEBoundsMinUsdSpace[2], UEBoundsMaxUsdSpace[2])};
+		pxr::GfVec3f UsdMax{
+			FMath::Max(UEBoundsMinUsdSpace[0], UEBoundsMaxUsdSpace[0]),
+			FMath::Max(UEBoundsMinUsdSpace[1], UEBoundsMaxUsdSpace[1]),
+			FMath::Max(UEBoundsMinUsdSpace[2], UEBoundsMaxUsdSpace[2])};
+
+		pxr::VtArray<pxr::GfVec3f> Extents{UsdMin, UsdMax};
+
+		pxr::UsdAttribute ExtentsHintAttr = GeomModelAPI.GetExtentsHintAttr();
+		if (ExtentsHintAttr && ExtentsHintAttr.HasAuthoredValue())
+		{
+			ensure(GeomModelAPI.SetExtentsHint(Extents, UsdTimeCode));
+		}
+		else if (pxr::UsdGeomBoundable Boundable{UsdPrim})
+		{
+			if (pxr::UsdAttribute ExtentAttr = Boundable.CreateExtentAttr())
+			{
+				ExtentAttr.Set(Extents, UsdTimeCode);
+			}
+		}
+		else
+		{
+			ensure(GeomModelAPI.SetExtentsHint(Extents, UsdTimeCode));
+		}
+	}
+
+	if (pxr::UsdAttribute Attr = GeomModelAPI.CreateModelDrawModeAttr())
+	{
+		Attr.Set(
+			BoundsComponent.DrawMode == EUsdDrawMode::Origin	   ? pxr::UsdGeomTokens->origin
+			: BoundsComponent.DrawMode == EUsdDrawMode::Bounds	   ? pxr::UsdGeomTokens->bounds
+			: BoundsComponent.DrawMode == EUsdDrawMode::Cards	   ? pxr::UsdGeomTokens->cards
+			: BoundsComponent.DrawMode == EUsdDrawMode::Inherited  ? pxr::UsdGeomTokens->inherited
+																   : pxr::UsdGeomTokens->default_,
+			UsdTimeCode
+		);
+	}
+
+	if (pxr::UsdAttribute Attr = GeomModelAPI.CreateModelCardGeometryAttr())
+	{
+		Attr.Set(
+			BoundsComponent.CardGeometry == EUsdModelCardGeometry::Cross ? pxr::UsdGeomTokens->cross
+			: BoundsComponent.CardGeometry == EUsdModelCardGeometry::Box ? pxr::UsdGeomTokens->box
+																		 : pxr::UsdGeomTokens->fromTexture,
+			UsdTimeCode
+		);
+	}
+
+	// Technically we don't need this when we're making the prim into a component, but it's probably best to do it anyway
+	// for consistency, and it may be weird for the user if they happen to tweak the prim kind after this and have the bounds disappear
+	if (pxr::UsdAttribute Attr = GeomModelAPI.CreateModelApplyDrawModeAttr())
+	{
+		Attr.Set(true, UsdTimeCode);
+	}
+
+	if (pxr::UsdAttribute Attr = GeomModelAPI.CreateModelDrawModeColorAttr())
+	{
+		// This color is just a vec3f and our color is already linear anyway, so just convert it directly instead of going through
+		// UnrealToUsd::ConvertColor
+		pxr::GfVec3f UsdColor{BoundsComponent.BoundsColor.R, BoundsComponent.BoundsColor.G, BoundsComponent.BoundsColor.B};
+		Attr.Set(UsdColor, UsdTimeCode);
+	}
+
+	// Author the actual card face texture references.
+	// The logic surrounding when a texture is "authored" is complex (see https://openusd.org/release/api/class_usd_geom_model_a_p_i.html#details),
+	// and when reading we must differentiate between not having a texture because something wasn't authored, and not having a texture because
+	// something was authored but we failed to find it. This "AuthoredFaces" member is not exposed to blueprint/details panel though, and in general
+	// when setting/clearing textures via blueprint/details panels we will also tweak AuthoredFaces. The combined effect is that when a user sets a
+	// new texture in a property we will assume that means it became "authored", and when they clear a texture property we will assume that ceases to
+	// be "authored"
+	EUsdModelCardFace AuthoredFaces = BoundsComponent.GetAuthoredFaces();
+
+	using CreateAttrFuncType = decltype(&pxr::UsdGeomModelAPI::CreateModelCardTextureXPosAttr);
+	using GetAttrFuncType = decltype(&pxr::UsdGeomModelAPI::GetModelCardTextureXPosAttr);
+
+	TFunction<void(EUsdModelCardFace, GetAttrFuncType, CreateAttrFuncType)> ExportCardFace =
+		[&BoundsComponent, AuthoredFaces, UsdTimeCode, &GeomModelAPI](EUsdModelCardFace Face, GetAttrFuncType GetAttr, CreateAttrFuncType CreateAttr)
+	{
+		UTexture2D* FaceTexture = BoundsComponent.GetTextureForFace(Face);
+
+		if (EnumHasAllFlags(AuthoredFaces, Face))
+		{
+			const pxr::VtValue DefaultValue;
+			const bool bWriteSparsely = false;
+			if (pxr::UsdAttribute Attr = (GeomModelAPI.*CreateAttr)(DefaultValue, bWriteSparsely))
+			{
+				// We have an existing texture and it's marked as "authored". Try exporting a path to it
+				if (FaceTexture)
+				{
+#if WITH_EDITOR
+					if (FaceTexture->AssetImportData)
+					{
+						// If this texture doesn't have an asset import data, or the filename stored there is not valid then this reference
+						// won't resolve when it read it back from USD...
+						// TOD: Should we export the texture now? To where?
+						FString TextureSourcePath = FaceTexture->AssetImportData->GetFirstFilename();
+						pxr::SdfAssetPath AssetPath = pxr::SdfAssetPath{UnrealToUsd::ConvertString(*TextureSourcePath).Get()};
+						Attr.Set(AssetPath, UsdTimeCode);
+					}
+#endif	  // WITH_EDITOR
+				}
+				else
+				{
+					// This face is marked as "authored" and yet we have no texture for it. The only reason it could end up this way is if the source
+					// prim for this component originally had an authored texture there that didn't resolve when we parsed it, so let's just leave it
+					// alone so that it can still do that if we reload
+				}
+			}
+		}
+		// Face is not marked as authored, let's actively clear our opinion for this attribute on the current edit target and time code
+		else
+		{
+			pxr::UsdAttribute Attr = (GeomModelAPI.*GetAttr)();
+			if (Attr && Attr.HasAuthoredValue())
+			{
+				// This is capable of clearing the default opinion too
+				Attr.ClearAtTime(UsdTimeCode);
+			}
+		}
+	};
+	ExportCardFace(EUsdModelCardFace::XPos, &pxr::UsdGeomModelAPI::GetModelCardTextureXPosAttr, &pxr::UsdGeomModelAPI::CreateModelCardTextureXPosAttr);
+	ExportCardFace(EUsdModelCardFace::YPos, &pxr::UsdGeomModelAPI::GetModelCardTextureYPosAttr, &pxr::UsdGeomModelAPI::CreateModelCardTextureYPosAttr);
+	ExportCardFace(EUsdModelCardFace::ZPos, &pxr::UsdGeomModelAPI::GetModelCardTextureZPosAttr, &pxr::UsdGeomModelAPI::CreateModelCardTextureZPosAttr);
+	ExportCardFace(EUsdModelCardFace::XNeg, &pxr::UsdGeomModelAPI::GetModelCardTextureXNegAttr, &pxr::UsdGeomModelAPI::CreateModelCardTextureXNegAttr);
+	ExportCardFace(EUsdModelCardFace::YNeg, &pxr::UsdGeomModelAPI::GetModelCardTextureYNegAttr, &pxr::UsdGeomModelAPI::CreateModelCardTextureYNegAttr);
+	ExportCardFace(EUsdModelCardFace::ZNeg, &pxr::UsdGeomModelAPI::GetModelCardTextureZNegAttr, &pxr::UsdGeomModelAPI::CreateModelCardTextureZNegAttr);
+
+	return true;
 }
 
 #endif // #if USE_USD_SDK

@@ -142,6 +142,11 @@ namespace UsdToUnreal
 		return FVector( InValue[0], InValue[1], InValue[2] );
 	}
 
+	FVector ConvertVector(const pxr::GfVec3d& InValue)
+	{
+		return FVector(InValue[0], InValue[1], InValue[2]);
+	}
+
 	FVector ConvertVector( const FUsdStageInfo& StageInfo, const pxr::GfVec3f& InValue )
 	{
 		FVector Value = ConvertVector( InValue );
@@ -161,6 +166,30 @@ namespace UsdToUnreal
 		else
 		{
 			Swap( Value.Y, Value.Z );
+		}
+
+		return Value;
+	}
+
+	FVector ConvertVector(const FUsdStageInfo& StageInfo, const pxr::GfVec3d& InValue)
+	{
+		FVector Value = ConvertVector(InValue);
+
+		const float UEMetersPerUnit = 0.01f;
+		if (!FMath::IsNearlyEqual(StageInfo.MetersPerUnit, UEMetersPerUnit))
+		{
+			Value *= StageInfo.MetersPerUnit / UEMetersPerUnit;
+		}
+
+		const bool bIsZUp = (StageInfo.UpAxis == EUsdUpAxis::ZAxis);
+
+		if (bIsZUp)
+		{
+			Value.Y = -Value.Y;
+		}
+		else
+		{
+			Swap(Value.Y, Value.Z);
 		}
 
 		return Value;

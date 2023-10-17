@@ -7,6 +7,7 @@
 #include "MeshTranslationImpl.h"
 #include "USDAssetCache.h"
 #include "USDAssetUserData.h"
+#include "USDDrawModeComponent.h"
 #include "USDClassesModule.h"
 #include "USDConversionUtils.h"
 #include "USDErrorUtils.h"
@@ -1668,6 +1669,14 @@ void FUsdSkelRootTranslator::CreateAssets()
 {
 	TRACE_CPUPROFILER_EVENT_SCOPE(FUsdSkelRootTranslator::CreateAssets);
 
+	// Don't bother generating assets if we're going to just draw some bounds for this prim instead
+	EUsdDrawMode DrawMode = UsdUtils::GetAppliedDrawMode(GetPrim());
+	if (DrawMode != EUsdDrawMode::Default)
+	{
+		CreateAlternativeDrawModeAssets(DrawMode);
+		return;
+	}
+
 #if WITH_EDITOR
 	// Importing skeletal meshes actually works in Standalone mode, but we intentionally block it here
 	// to not confuse users as to why it doesn't work at runtime
@@ -1686,7 +1695,13 @@ USceneComponent* FUsdSkelRootTranslator::CreateComponents()
 
 #if WITH_EDITOR
 	// Check if the prim has the GroomBinding schema and setup the component and assets necessary to bind the groom to the SkeletalMesh
-	if (UsdUtils::PrimHasSchema(GetPrim(), UnrealIdentifiers::GroomBindingAPI) && Context->AssetCache && Context->InfoCache && Context->bAllowParsingGroomAssets)
+	if (SceneComponent &&
+		SceneComponent->IsA<USkeletalMeshComponent>() &&
+		UsdUtils::PrimHasSchema(GetPrim(), UnrealIdentifiers::GroomBindingAPI) &&
+		Context->AssetCache &&
+		Context->InfoCache &&
+		Context->bAllowParsingGroomAssets
+	)
 	{
 		UsdGroomTranslatorUtils::CreateGroomBindingAsset(
 			GetPrim(),
@@ -1699,7 +1714,7 @@ USceneComponent* FUsdSkelRootTranslator::CreateComponents()
 		// so the Context ParentComponent is set to the SceneComponent temporarily
 		TGuardValue< USceneComponent* > ParentComponentGuard{ Context->ParentComponent, SceneComponent };
 		const bool bNeedsActor = false;
-		UGroomComponent* GroomComponent = Cast< UGroomComponent >( CreateComponentsEx( TSubclassOf< USceneComponent >( UGroomComponent::StaticClass() ), bNeedsActor ) );
+		UGroomComponent* GroomComponent = Cast<UGroomComponent>(CreateComponentsEx({UGroomComponent::StaticClass()}, bNeedsActor));
 		if ( GroomComponent )
 		{
 			UpdateComponents( SceneComponent );
@@ -1712,9 +1727,11 @@ USceneComponent* FUsdSkelRootTranslator::CreateComponents()
 
 void FUsdSkelRootTranslator::UpdateComponents( USceneComponent* SceneComponent )
 {
-	USkeletalMeshComponent* SkeletalMeshComponent = Cast< USkeletalMeshComponent >( SceneComponent );
-	if (!SkeletalMeshComponent || !Context->InfoCache)
+	USkeletalMeshComponent* SkeletalMeshComponent = Cast<USkeletalMeshComponent>(SceneComponent);
+	if (!SkeletalMeshComponent)
 	{
+		// In case we have an alternate draw mode
+		Super::UpdateComponents(SceneComponent);
 		return;
 	}
 

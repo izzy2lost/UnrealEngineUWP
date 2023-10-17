@@ -5,6 +5,7 @@
 #include "MeshTranslationImpl.h"
 #include "USDAssetCache.h"
 #include "USDAssetUserData.h"
+#include "USDDrawModeComponent.h"
 #include "USDConversionUtils.h"
 #include "USDGeomMeshConversion.h"
 #include "USDGeomMeshTranslator.h"
@@ -153,6 +154,14 @@ void FUsdGeomPointInstancerTranslator::CreateAssets()
 {
 	TRACE_CPUPROFILER_EVENT_SCOPE( FUsdGeomPointInstancerTranslator::CreateAssets );
 
+	// Don't bother generating assets if we're going to just draw some bounds for this prim instead
+	EUsdDrawMode DrawMode = UsdUtils::GetAppliedDrawMode(GetPrim());
+	if (DrawMode != EUsdDrawMode::Default)
+	{
+		CreateAlternativeDrawModeAssets(DrawMode);
+		return;
+	}
+
 	FScopedUsdAllocs Allocs;
 
 	pxr::UsdPrim Prim = GetPrim();
@@ -272,13 +281,21 @@ USceneComponent* FUsdGeomPointInstancerTranslator::CreateComponents()
 	// HISM component for each prototype.
 	// We always request a scene component here explicitly or else we'll be upgraded to a static mesh component by the mechanism that
 	// handles collapsed meshes/static mesh components for the GeomXFormable translator.
-	USceneComponent* MainSceneComponent = CreateComponentsEx( { USceneComponent::StaticClass() }, {} );
-	if ( !MainSceneComponent )
+	bool bCreateChildHISMs = false;
+	USceneComponent* MainSceneComponent = nullptr;
+	EUsdDrawMode DrawMode = UsdUtils::GetAppliedDrawMode(GetPrim());
+	if (DrawMode == EUsdDrawMode::Default)
 	{
-		return MainSceneComponent;
+		bCreateChildHISMs = true;
+		MainSceneComponent = CreateComponentsEx({USceneComponent::StaticClass()}, {});
+	}
+	else
+	{
+		MainSceneComponent = CreateAlternativeDrawModeComponents(DrawMode);
 	}
 
 	// Actually create the child HISM components for each point instancer prototype
+	if (bCreateChildHISMs)
 	{
 		FScopedUsdAllocs UsdAllocs;
 
@@ -360,173 +377,189 @@ USceneComponent* FUsdGeomPointInstancerTranslator::CreateComponents()
 
 void FUsdGeomPointInstancerTranslator::UpdateComponents(USceneComponent* PointInstancerRootComponent)
 {
-	FScopedUsdAllocs UsdAllocs;
-
-	pxr::UsdPrim Prim = GetPrim();
-	pxr::UsdGeomPointInstancer PointInstancer( Prim );
-	if ( !PointInstancer )
+	if (!PointInstancerRootComponent)
 	{
 		return;
 	}
 
-	pxr::SdfPathVector PrototypePaths;
-	if ( !PointInstancer.GetPrototypesRel().GetTargets( &PrototypePaths ) )
+	// We always spawn exactly an USceneComponent for the "parent" component of the point instancer, so early out if
+	// we dont' have one. This can happen now if we have an alternative draw mode for this point instancer, at which
+	// point this could be an UUsdDrawModeComponent
+	if (PointInstancerRootComponent->GetClass() == USceneComponent::StaticClass())
 	{
-		return;
-	}
+		FScopedUsdAllocs UsdAllocs;
 
-	if (!Context->AssetCache.IsValid() || !Context->InfoCache.IsValid())
-	{
-		return;
-	}
-	UUsdAssetCache2& AssetCache = *Context->AssetCache.Get();
-	FUsdInfoCache& InfoCache = *Context->InfoCache.Get();
-
-	// Lets pretend ParentComponent is pointing to the parent USceneComponent while we create the child HISMs, so they get
-	// automatically attached to it as children
-	TGuardValue< USceneComponent* > ParentComponentGuard{Context->ParentComponent, PointInstancerRootComponent};
-
-	const TArray<TObjectPtr<USceneComponent>>& AttachedChildren = PointInstancerRootComponent->GetAttachChildren();
-	TArray<UHierarchicalInstancedStaticMeshComponent*> AttachedHISMs;
-	AttachedHISMs.Reserve(AttachedChildren.Num());
-	for (const TObjectPtr<USceneComponent>& AttachedChild : AttachedChildren)
-	{
-		if (UHierarchicalInstancedStaticMeshComponent* HISM = Cast<UHierarchicalInstancedStaticMeshComponent>(AttachedChild))
+		pxr::UsdPrim Prim = GetPrim();
+		pxr::UsdGeomPointInstancer PointInstancer( Prim );
+		if ( !PointInstancer )
 		{
-			AttachedHISMs.Add(HISM);
+			return;
 		}
-	}
 
-	// We "link" the prototype meshes to the point instancer, but we don't know which mesh corresponds to each
-	// prototype, as we translate these with task pools and some of those prototypes may have generated nullptr.
-	// We always put the prototype path on the asset import data though, so here we use that to figure out where
-	// each mesh should go
-	TArray<UStaticMesh*> PrototypeMeshArr = InfoCache.GetAssetsForPrim<UStaticMesh>(PrimPath);
-	std::unordered_map<pxr::SdfPath, UStaticMesh*, pxr::SdfPath::Hash> PrototypeMeshes;
-	PrototypeMeshes.reserve(PrototypeMeshArr.Num());
-	for (UStaticMesh* PrototypeMesh : PrototypeMeshArr)
-	{
-		if (UUsdAssetUserData* UserData = PrototypeMesh->GetAssetUserData<UUsdAssetUserData>())
+		pxr::SdfPathVector PrototypePaths;
+		if ( !PointInstancer.GetPrototypesRel().GetTargets( &PrototypePaths ) )
 		{
-			for (const FString& SourcePrimPath : UserData->PrimPaths)
+			return;
+		}
+
+		if (!Context->AssetCache.IsValid() || !Context->InfoCache.IsValid())
+		{
+			return;
+		}
+		UUsdAssetCache2& AssetCache = *Context->AssetCache.Get();
+		FUsdInfoCache& InfoCache = *Context->InfoCache.Get();
+
+		// Lets pretend ParentComponent is pointing to the parent USceneComponent while we create the child HISMs, so they get
+		// automatically attached to it as children
+		TGuardValue< USceneComponent* > ParentComponentGuard{Context->ParentComponent, PointInstancerRootComponent};
+
+		const TArray<TObjectPtr<USceneComponent>>& AttachedChildren = PointInstancerRootComponent->GetAttachChildren();
+		TArray<UHierarchicalInstancedStaticMeshComponent*> AttachedHISMs;
+		AttachedHISMs.Reserve(AttachedChildren.Num());
+		for (const TObjectPtr<USceneComponent>& AttachedChild : AttachedChildren)
+		{
+			if (UHierarchicalInstancedStaticMeshComponent* HISM = Cast<UHierarchicalInstancedStaticMeshComponent>(AttachedChild))
 			{
-				pxr::SdfPath PrototypePath = UnrealToUsd::ConvertPath(*SourcePrimPath).Get();
-				PrototypeMeshes[PrototypePath] = PrototypeMesh;
+				AttachedHISMs.Add(HISM);
 			}
 		}
-	}
 
-	TArray<TFuture<TTuple<UHierarchicalInstancedStaticMeshComponent*, TArray<FTransform>>>> Tasks;
-	FScopedSlowTask PrototypePathsSlowTask( ( float ) PrototypePaths.size(), LOCTEXT( "GeomPointUpdateComponents", "Updating HierarchicalInstancedStaticMeshComponents for point instancers" ) );
-	for ( int32 PrototypeIndex = 0; PrototypeIndex < PrototypePaths.size(); ++PrototypeIndex )
-	{
-		PrototypePathsSlowTask.EnterProgressFrame();
-
-		pxr::SdfPath PrototypePath = PrototypePaths[PrototypeIndex];
-
-		pxr::UsdPrim PrototypeUsdPrim = Prim.GetStage()->GetPrimAtPath( PrototypePath );
-		if ( !PrototypeUsdPrim )
+		// We "link" the prototype meshes to the point instancer, but we don't know which mesh corresponds to each
+		// prototype, as we translate these with task pools and some of those prototypes may have generated nullptr.
+		// We always put the prototype path on the asset import data though, so here we use that to figure out where
+		// each mesh should go
+		TArray<UStaticMesh*> PrototypeMeshArr = InfoCache.GetAssetsForPrim<UStaticMesh>(PrimPath);
+		std::unordered_map<pxr::SdfPath, UStaticMesh*, pxr::SdfPath::Hash> PrototypeMeshes;
+		PrototypeMeshes.reserve(PrototypeMeshArr.Num());
+		for (UStaticMesh* PrototypeMesh : PrototypeMeshArr)
 		{
-			UE_LOG(
-				LogUsd,
-				Warning,
-				TEXT("Failed to find prototype '%s' for PointInstancer '%s' when updating components"),
-				*UsdToUnreal::ConvertPath(PrototypePath),
-				*PrimPath.GetString()
-			);
-			continue;
-		}
-
-		UHierarchicalInstancedStaticMeshComponent* HISMComponent = nullptr;
-
-		// The user could have just manually deleted the component, so we must check
-		if (!AttachedHISMs.IsValidIndex(PrototypeIndex))
-		{
-			UE_LOG(
-				LogUsd,
-				Warning,
-				TEXT("Failed to find corresponding HISM component for prototype '%s' of PointInstancer '%s'. Cancelling component update"),
-				*UsdToUnreal::ConvertPath(PrototypePath),
-				*PrimPath.GetString()
-			);
-			break;
-		}
-		HISMComponent = AttachedHISMs[PrototypeIndex];
-
-		// If our prototype was a LOD mesh we will have used the path of one of the actual LOD meshes to start the FGeomMeshCreateAssetsTaskChain,
-		// so we have to look for our resulting mesh with the same path
-		if ( Context->bAllowInterpretingLODs && UsdUtils::DoesPrimContainMeshLODs( PrototypeUsdPrim ) )
-		{
-			pxr::UsdPrimSiblingRange PrimRange = PrototypeUsdPrim.GetChildren();
-			for ( pxr::UsdPrimSiblingRange::iterator PrimRangeIt = PrimRange.begin(); PrimRangeIt != PrimRange.end(); ++PrimRangeIt )
+			if (UUsdAssetUserData* UserData = PrototypeMesh->GetAssetUserData<UUsdAssetUserData>())
 			{
-				const pxr::UsdPrim& Child = *PrimRangeIt;
-				if ( pxr::UsdGeomMesh ChildMesh{ Child } )
+				for (const FString& SourcePrimPath : UserData->PrimPaths)
 				{
-					PrototypeUsdPrim = Child;
-					PrototypePath = Child.GetPrimPath();
-					break;
+					pxr::SdfPath PrototypePath = UnrealToUsd::ConvertPath(*SourcePrimPath).Get();
+					PrototypeMeshes[PrototypePath] = PrototypeMesh;
 				}
 			}
 		}
 
-		// This mesh could be nullptr, but that's OK
-		UStaticMesh* StaticMesh = nullptr;
-		std::unordered_map<pxr::SdfPath, UStaticMesh*, pxr::SdfPath::Hash>::iterator Iter = PrototypeMeshes.find(PrototypePath);
-		if (Iter != PrototypeMeshes.end())
+		TArray<TFuture<TTuple<UHierarchicalInstancedStaticMeshComponent*, TArray<FTransform>>>> Tasks;
+		FScopedSlowTask PrototypePathsSlowTask( ( float ) PrototypePaths.size(), LOCTEXT( "GeomPointUpdateComponents", "Updating HierarchicalInstancedStaticMeshComponents for point instancers" ) );
+		for ( int32 PrototypeIndex = 0; PrototypeIndex < PrototypePaths.size(); ++PrototypeIndex )
 		{
-			StaticMesh = Iter->second;
-		}
-		UsdGeomPointInstancerTranslatorImpl::SetStaticMesh( StaticMesh, *HISMComponent );
+			PrototypePathsSlowTask.EnterProgressFrame();
 
-		// Evaluating point instancer can take a long time and is thread-safe. Move to async task while we work on something else.
-		pxr::UsdTimeCode TimeCode{ Context->Time };
-		FUsdStageInfo StageInfo{ Prim.GetStage() };
-		Tasks.Emplace(
-			Async(
-				EAsyncExecution::ThreadPool,
-				[ TimeCode, StageInfo, PointInstancer, PrototypeIndex, HISMComponent ]()
-				{
-					TArray<FTransform> InstanceTransforms;
-					UsdUtils::GetPointInstancerTransforms( StageInfo, PointInstancer, PrototypeIndex, TimeCode, InstanceTransforms );
+			pxr::SdfPath PrototypePath = PrototypePaths[PrototypeIndex];
 
-					return MakeTuple( HISMComponent, MoveTemp( InstanceTransforms ) );
-				}
-			)
-		);
-
-		// Handle material overrides
-		if ( StaticMesh )
-		{
-			TArray<UMaterialInterface*> ExistingAssignments;
-			for ( FStaticMaterial& StaticMaterial : StaticMesh->GetStaticMaterials() )
+			pxr::UsdPrim PrototypeUsdPrim = Prim.GetStage()->GetPrimAtPath( PrototypePath );
+			if ( !PrototypeUsdPrim )
 			{
-				ExistingAssignments.Add( StaticMaterial.MaterialInterface );
+				UE_LOG(
+					LogUsd,
+					Warning,
+					TEXT("Failed to find prototype '%s' for PointInstancer '%s' when updating components"),
+					*UsdToUnreal::ConvertPath(PrototypePath),
+					*PrimPath.GetString()
+				);
+				continue;
 			}
 
-			MeshTranslationImpl::SetMaterialOverrides(
-				PrototypeUsdPrim,
-				ExistingAssignments,
-				*HISMComponent,
-				AssetCache,
-				InfoCache,
-				Context->Time,
-				Context->ObjectFlags,
-				Context->bAllowInterpretingLODs,
-				Context->RenderContext,
-				Context->MaterialPurpose
-			);
-		}
-	}
+			UHierarchicalInstancedStaticMeshComponent* HISMComponent = nullptr;
 
-	// Wait on and assign results of the point instancer.
-	for ( auto& Future : Tasks )
-	{
-		TTuple<UHierarchicalInstancedStaticMeshComponent*, TArray<FTransform>> Result{ Future.Get() };
-		UsdGeomPointInstancerTranslatorImpl::ApplyPointInstanceTransforms( Result.Key, Result.Value );
+			// The user could have just manually deleted the component, so we must check
+			if (!AttachedHISMs.IsValidIndex(PrototypeIndex))
+			{
+				UE_LOG(
+					LogUsd,
+					Warning,
+					TEXT("Failed to find corresponding HISM component for prototype '%s' of PointInstancer '%s'. Cancelling component update"),
+					*UsdToUnreal::ConvertPath(PrototypePath),
+					*PrimPath.GetString()
+				);
+				break;
+			}
+			HISMComponent = AttachedHISMs[PrototypeIndex];
+
+			// If our prototype was a LOD mesh we will have used the path of one of the actual LOD meshes to start the FGeomMeshCreateAssetsTaskChain,
+			// so we have to look for our resulting mesh with the same path
+			if ( Context->bAllowInterpretingLODs && UsdUtils::DoesPrimContainMeshLODs( PrototypeUsdPrim ) )
+			{
+				pxr::UsdPrimSiblingRange PrimRange = PrototypeUsdPrim.GetChildren();
+				for ( pxr::UsdPrimSiblingRange::iterator PrimRangeIt = PrimRange.begin(); PrimRangeIt != PrimRange.end(); ++PrimRangeIt )
+				{
+					const pxr::UsdPrim& Child = *PrimRangeIt;
+					if ( pxr::UsdGeomMesh ChildMesh{ Child } )
+					{
+						PrototypeUsdPrim = Child;
+						PrototypePath = Child.GetPrimPath();
+						break;
+					}
+				}
+			}
+
+			// This mesh could be nullptr, but that's OK
+			UStaticMesh* StaticMesh = nullptr;
+			std::unordered_map<pxr::SdfPath, UStaticMesh*, pxr::SdfPath::Hash>::iterator Iter = PrototypeMeshes.find(PrototypePath);
+			if (Iter != PrototypeMeshes.end())
+			{
+				StaticMesh = Iter->second;
+			}
+			UsdGeomPointInstancerTranslatorImpl::SetStaticMesh( StaticMesh, *HISMComponent );
+
+			// Evaluating point instancer can take a long time and is thread-safe. Move to async task while we work on something else.
+			pxr::UsdTimeCode TimeCode{ Context->Time };
+			FUsdStageInfo StageInfo{ Prim.GetStage() };
+			Tasks.Emplace(
+				Async(
+					EAsyncExecution::ThreadPool,
+					[ TimeCode, StageInfo, PointInstancer, PrototypeIndex, HISMComponent ]()
+					{
+						TArray<FTransform> InstanceTransforms;
+						UsdUtils::GetPointInstancerTransforms( StageInfo, PointInstancer, PrototypeIndex, TimeCode, InstanceTransforms );
+
+						return MakeTuple( HISMComponent, MoveTemp( InstanceTransforms ) );
+					}
+				)
+			);
+
+			// Handle material overrides
+			if ( StaticMesh )
+			{
+				TArray<UMaterialInterface*> ExistingAssignments;
+				for ( FStaticMaterial& StaticMaterial : StaticMesh->GetStaticMaterials() )
+				{
+					ExistingAssignments.Add( StaticMaterial.MaterialInterface );
+				}
+
+				MeshTranslationImpl::SetMaterialOverrides(
+					PrototypeUsdPrim,
+					ExistingAssignments,
+					*HISMComponent,
+					AssetCache,
+					InfoCache,
+					Context->Time,
+					Context->ObjectFlags,
+					Context->bAllowInterpretingLODs,
+					Context->RenderContext,
+					Context->MaterialPurpose
+				);
+			}
+		}
+
+		// Wait on and assign results of the point instancer.
+		for ( auto& Future : Tasks )
+		{
+			TTuple<UHierarchicalInstancedStaticMeshComponent*, TArray<FTransform>> Result{ Future.Get() };
+			UsdGeomPointInstancerTranslatorImpl::ApplyPointInstanceTransforms( Result.Key, Result.Value );
+		}
 	}
 
 	Super::UpdateComponents(PointInstancerRootComponent);
+}
+
+bool FUsdGeomPointInstancerTranslator::CollapsesChildren(ECollapsingType CollapsingType) const
+{
+	return true;
 }
 
 bool FUsdGeomPointInstancerTranslator::CanBeCollapsed( ECollapsingType CollapsingType ) const

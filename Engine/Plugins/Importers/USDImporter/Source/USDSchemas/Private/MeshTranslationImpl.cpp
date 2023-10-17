@@ -3,8 +3,9 @@
 #include "MeshTranslationImpl.h"
 
 #include "USDAssetCache2.h"
-#include "USDConversionUtils.h"
 #include "USDAssetUserData.h"
+#include "USDClassesModule.h"
+#include "USDConversionUtils.h"
 #include "USDGeomMeshConversion.h"
 #include "USDInfoCache.h"
 #include "USDLog.h"
@@ -458,17 +459,19 @@ TMap<const UsdUtils::FUsdPrimMaterialSlot*, UMaterialInterface*> MeshTranslation
 				// Need to create a new DisplayColor material
 				if (Material == nullptr)
 				{
-					if (TOptional< UsdUtils::FDisplayColorMaterial > DisplayColorDesc = UsdUtils::FDisplayColorMaterial::FromString(Slot.MaterialSource))
+					if (TOptional<IUsdClassesModule::FDisplayColorMaterial> DisplayColorDesc = IUsdClassesModule::FDisplayColorMaterial::FromString(
+							Slot.MaterialSource
+						))
 					{
 						UMaterialInstance* MaterialInstance = nullptr;
 
 						if (GIsEditor)  // Editor, PIE => true; Standlone, packaged => false
 						{
-							MaterialInstance = UsdUtils::CreateDisplayColorMaterialInstanceConstant(DisplayColorDesc.GetValue());
+							MaterialInstance = IUsdClassesModule::CreateDisplayColorMaterialInstanceConstant(DisplayColorDesc.GetValue());
 						}
 						else
 						{
-							MaterialInstance = UsdUtils::CreateDisplayColorMaterialInstanceDynamic(DisplayColorDesc.GetValue());
+							MaterialInstance = IUsdClassesModule::CreateDisplayColorMaterialInstanceDynamic(DisplayColorDesc.GetValue());
 						}
 
 						if(MaterialInstance)

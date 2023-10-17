@@ -2,9 +2,11 @@
 
 #include "USDLuxLightTranslator.h"
 
+#include "USDDrawModeComponent.h"
 #include "USDConversionUtils.h"
 #include "USDLightConversion.h"
 #include "USDTypesConversion.h"
+
 #include "UsdWrappers/UsdPrim.h"
 #include "UsdWrappers/UsdStage.h"
 
@@ -30,10 +32,21 @@
 
 USceneComponent* FUsdLuxLightTranslator::CreateComponents()
 {
-	const bool bNeedsActor = true;
-	USceneComponent* LightComponent = CreateComponentsEx( {}, bNeedsActor );
-	UpdateComponents( LightComponent );
-	return LightComponent;
+	USceneComponent* SceneComponent = nullptr;
+
+	EUsdDrawMode DrawMode = UsdUtils::GetAppliedDrawMode(GetPrim());
+	if (DrawMode == EUsdDrawMode::Default)
+	{
+		const bool bNeedsActor = true;
+		SceneComponent = CreateComponentsEx({}, bNeedsActor);
+	}
+	else
+	{
+		SceneComponent = CreateAlternativeDrawModeComponents(DrawMode);
+	}
+
+	UpdateComponents(SceneComponent);
+	return SceneComponent;
 }
 
 void FUsdLuxLightTranslator::UpdateComponents( USceneComponent* SceneComponent )
@@ -100,6 +113,14 @@ void FUsdLuxLightTranslator::UpdateComponents( USceneComponent* SceneComponent )
 
 bool FUsdLuxLightTranslator::CollapsesChildren( ECollapsingType CollapsingType ) const
 {
+	// If we have a custom draw mode, it means we should draw bounds/cards/etc. instead
+	// of our entire subtree, which is basically the same thing as collapsing
+	EUsdDrawMode DrawMode = UsdUtils::GetAppliedDrawMode(GetPrim());
+	if (DrawMode != EUsdDrawMode::Default)
+	{
+		return true;
+	}
+
 	return false;
 }
 

@@ -453,6 +453,10 @@ namespace UnrealIdentifiers
 	extern UNREALUSDWRAPPER_API FString PrimvarsDisplayColor;
 	extern UNREALUSDWRAPPER_API FString PrimvarsDisplayOpacity;
 	extern UNREALUSDWRAPPER_API FString DoubleSided;
+
+	// Tokens from UsdGeomModelAPI that we need to reference from the UsdStageActor
+	extern UNREALUSDWRAPPER_API FString ModelDrawMode;
+	extern UNREALUSDWRAPPER_API FString ModelApplyDrawMode;
 }
 
 struct UNREALUSDWRAPPER_API FUsdDelegates

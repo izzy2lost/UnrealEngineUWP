@@ -33,6 +33,10 @@ class UStaticMesh;
 class UTexture;
 struct FUsdBlendShape;
 struct FUsdSchemaTranslationContext;
+namespace UE
+{
+	class FUsdGeomBBoxCache;
+}
 
 class USDSCHEMAS_API FRegisteredSchemaTranslatorHandle
 {
@@ -184,6 +188,9 @@ struct USDSCHEMAS_API FUsdSchemaTranslationContext : public TSharedFromThis< FUs
 
 	/** Caches various information about prims that are expensive to query */
 	TSharedPtr<FUsdInfoCache> InfoCache;
+
+	/** Bounding box cache used for the USD stage in case we have to spawn bounds components */
+	TSharedPtr<UE::FUsdGeomBBoxCache> BBoxCache;
 
 	/** Where we place imported blend shapes, if available */
 	UsdUtils::FBlendShapeMap* BlendShapesByPath = nullptr;

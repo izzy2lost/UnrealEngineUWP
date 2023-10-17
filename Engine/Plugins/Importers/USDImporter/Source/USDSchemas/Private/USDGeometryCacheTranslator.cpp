@@ -7,6 +7,7 @@
 
 #include "MeshTranslationImpl.h"
 #include "USDAssetUserData.h"
+#include "USDDrawModeComponent.h"
 #include "USDClassesModule.h"
 #include "USDConversionUtils.h"
 #include "USDGroomTranslatorUtils.h"
@@ -841,6 +842,14 @@ void FUsdGeometryCacheTranslator::CreateAssets()
 		return;
 	}
 
+	// Don't bother generating assets if we're going to just draw some bounds for this prim instead
+	EUsdDrawMode DrawMode = UsdUtils::GetAppliedDrawMode(GetPrim());
+	if (DrawMode != EUsdDrawMode::Default)
+	{
+		CreateAlternativeDrawModeAssets(DrawMode);
+		return;
+	}
+
 	// Create the GeometryCache TaskChain
 	TSharedRef<FGeometryCacheCreateAssetsTaskChain> AssetsTaskChain = MakeShared<FGeometryCacheCreateAssetsTaskChain>(Context, PrimPath);
 
@@ -849,23 +858,26 @@ void FUsdGeometryCacheTranslator::CreateAssets()
 
 USceneComponent* FUsdGeometryCacheTranslator::CreateComponents()
 {
-	TOptional<TSubclassOf<USceneComponent>> ComponentType;
-
 	if (!IsPotentialGeometryCacheRoot())
 	{
 		return Super::CreateComponents();
 	}
 
-	if (!Context->bIsImporting)
+	USceneComponent* SceneComponent = nullptr;
+
+	EUsdDrawMode DrawMode = UsdUtils::GetAppliedDrawMode(GetPrim());
+	if (DrawMode == EUsdDrawMode::Default)
 	{
-		ComponentType = UGeometryCacheUsdComponent::StaticClass();
+		SceneComponent = CreateComponentsEx(
+			{Context->bIsImporting ? UGeometryCacheComponent::StaticClass() : UGeometryCacheUsdComponent::StaticClass()},
+			{}
+		);
 	}
 	else
 	{
-		ComponentType = UGeometryCacheComponent::StaticClass();
+		SceneComponent = CreateAlternativeDrawModeComponents(DrawMode);
 	}
 
-	USceneComponent* SceneComponent = CreateComponentsEx(ComponentType, {});
 	UpdateComponents(SceneComponent);
 
 	if (UGeometryCacheComponent* Component = Cast<UGeometryCacheComponent>(SceneComponent))
@@ -919,7 +931,9 @@ USceneComponent* FUsdGeometryCacheTranslator::CreateComponents()
 
 void FUsdGeometryCacheTranslator::UpdateComponents(USceneComponent* SceneComponent)
 {
-	if (!IsPotentialGeometryCacheRoot())
+	UGeometryCacheComponent* GeometryCacheComponent = Cast<UGeometryCacheComponent>(SceneComponent);
+
+	if (!IsPotentialGeometryCacheRoot() || !GeometryCacheComponent)
 	{
 		Super::UpdateComponents(SceneComponent);
 		return;
@@ -931,7 +945,7 @@ void FUsdGeometryCacheTranslator::UpdateComponents(USceneComponent* SceneCompone
 	}
 
 	// Set the initial GeometryCache on the GeometryCacheComponent
-	if (UGeometryCacheComponent* GeometryCacheComponent = Cast<UGeometryCacheComponent>(SceneComponent))
+	if (GeometryCacheComponent)
 	{
 		UGeometryCache* GeometryCache = nullptr;
 		if (Context->InfoCache)
@@ -1029,6 +1043,14 @@ void FUsdGeometryCacheTranslator::UpdateComponents(USceneComponent* SceneCompone
 
 bool FUsdGeometryCacheTranslator::CollapsesChildren(ECollapsingType CollapsingType) const
 {
+	// If we have a custom draw mode, it means we should draw bounds/cards/etc. instead
+	// of our entire subtree, which is basically the same thing as collapsing
+	EUsdDrawMode DrawMode = UsdUtils::GetAppliedDrawMode(GetPrim());
+	if (DrawMode != EUsdDrawMode::Default)
+	{
+		return true;
+	}
+
 	return IsPotentialGeometryCacheRoot() ? true : Super::CollapsesChildren(CollapsingType);
 }
 

@@ -111,6 +111,16 @@ public:
 	// Note that the below properties being FSoftObjectPath ensure that these materials are cooked into packaged games
 
 	/**
+	 * What material to use for UUsdDrawModeComponents with "Cards" draw mode and provided textures (corresponding to
+	 * UsdGeomModelAPI with the "cards" drawMode).
+	 * Each face of the card geometry will use a separate texture material instance, and the UTexture2D will be set
+	 * as a material parameter named "Texture".
+	 * You can swap this with your own material, but make sure the replacement material has a "Texture" parameter
+	 */
+	UPROPERTY( config, EditAnywhere, Category = "USD|Reference Materials", meta = ( AllowedClasses = "/Script/Engine.MaterialInterface" ) )
+	FSoftObjectPath ReferenceModelCardTextureMaterial = FSoftObjectPath{ TEXT( "/USDImporter/Materials/CardTextureMaterial.CardTextureMaterial" ) };
+
+	/**
 	 * What material to use as reference material when creating material instances from USD materials.
 	 * You can swap these with your own materials, but make sure that the replacement materials have parameters with
 	 * the same names and types as the ones provided by the default material, otherwise the instances will not have

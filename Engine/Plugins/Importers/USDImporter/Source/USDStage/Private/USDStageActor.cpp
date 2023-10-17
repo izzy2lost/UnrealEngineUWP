@@ -7,6 +7,7 @@
 #include "USDAssetCache.h"
 #include "USDAssetImportData.h"
 #include "USDAssetUserData.h"
+#include "USDDrawModeComponent.h"
 #include "USDClassesModule.h"
 #include "USDConversionUtils.h"
 #include "USDDynamicBindingResolverLibrary.h"
@@ -33,6 +34,7 @@
 #include "UsdWrappers/SdfChangeBlock.h"
 #include "UsdWrappers/SdfLayer.h"
 #include "UsdWrappers/UsdAttribute.h"
+#include "UsdWrappers/UsdGeomBBoxCache.h"
 #include "UsdWrappers/UsdGeomXformable.h"
 #include "UsdWrappers/UsdStage.h"
 
@@ -143,6 +145,7 @@ struct FUsdStageActorImpl
 		TranslationContext->SubdivisionLevel = StageActor->SubdivisionLevel;
 		TranslationContext->BlendShapesByPath = &StageActor->BlendShapesByPath;
 		TranslationContext->InfoCache = StageActor->InfoCache;
+		TranslationContext->BBoxCache = StageActor->BBoxCache;
 		TranslationContext->bTranslateOnlyUsedMaterials = GTranslateOnlyUsedMaterialsWhenOpeningStage;
 
 		// Its more convenient to toggle between variants using the USDStage window, as opposed to parsing LODs
@@ -1392,7 +1395,11 @@ void AUsdStageActor::OnUsdObjectsChanged(const UsdUtils::FObjectChangesByPath& I
 					// TODO: More nuanced info cache updates
 					UnrealIdentifiers::PrimvarsDisplayColor,
 					UnrealIdentifiers::PrimvarsDisplayOpacity,
-					UnrealIdentifiers::DoubleSided
+					UnrealIdentifiers::DoubleSided,
+					// When we change these UsdGeomModelAPI attributes we may need to create a new component type
+					// for the prim (as it may now need/stop needing an alternate draw mode component)
+					UnrealIdentifiers::ModelDrawMode,
+					UnrealIdentifiers::ModelApplyDrawMode
 				};
 
 				// Some stage info should trigger some resyncs because they should trigger reparsing of geometry
@@ -1459,6 +1466,11 @@ void AUsdStageActor::OnUsdObjectsChanged(const UsdUtils::FObjectChangesByPath& I
 		// to update certain info cache maps: For example whenever we delete a prim we need to make sure it's removed from MaterialUsers, etc.
 		TSharedRef<FUsdSchemaTranslationContext> TranslationContext = FUsdStageActorImpl::CreateUsdSchemaTranslationContext(this, TEXT("/"));
 		InfoCache->RebuildCacheForSubtree(Stage.GetPseudoRoot(), TranslationContext.Get());
+	}
+
+	if (BBoxCache.IsValid() && bHasResync)
+	{
+		BBoxCache->Clear();
 	}
 
 	TFunction<void(TMap<UE::FSdfPath, bool>&)> SortAndCleanPrimsToUpdate = [](TMap<UE::FSdfPath, bool>& InOutMap)
@@ -1986,7 +1998,8 @@ UUsdPrimTwin* AUsdStageActor::ExpandPrim(const UE::FUsdPrim& Prim, bool bResync,
 	}
 
 	// Update the prim animated status
-	const bool bIsAnimated = UsdUtils::IsAnimated(Prim);
+	bool bHasAnimatedBounds = false;
+	bool bIsAnimated = UsdUtils::IsAnimated(Prim);
 	if (bIsAnimated)
 	{
 		if (!PrimsToAnimate.Contains(UsdPrimTwin->PrimPath))
@@ -2014,23 +2027,38 @@ UUsdPrimTwin* AUsdStageActor::ExpandPrim(const UE::FUsdPrim& Prim, bool bResync,
 						}
 					},
 					bRecursive
-					);
+				);
 			}
-
-			UE::FSdfPath PrimPath(*UsdPrimTwin->PrimPath);
-			UE::FUsdPrim UsdPrim(UsdStage.GetPrimAtPath(PrimPath));
 
 			PrimsToAnimate.Add(UsdPrimTwin->PrimPath);
 			LevelSequenceHelper.AddPrim(*UsdPrimTwin);
 		}
 	}
-	else
+	else if (EUsdDrawMode DrawMode = UsdUtils::GetAppliedDrawMode(Prim); DrawMode != EUsdDrawMode::Default)
 	{
-		if (PrimsToAnimate.Contains(UsdPrimTwin->PrimPath))
+		bHasAnimatedBounds = UsdUtils::HasAnimatedBounds(
+			Prim,
+			BBoxCache->GetIncludedPurposes(),
+			BBoxCache->GetUseExtentsHint(),
+			BBoxCache->GetIgnoreVisibility()
+		);
+
+		if (bHasAnimatedBounds)
 		{
-			PrimsToAnimate.Remove(UsdPrimTwin->PrimPath);
-			LevelSequenceHelper.RemovePrim(*UsdPrimTwin);
+			const bool bForceVisibilityTrack = false;
+			LevelSequenceHelper.AddPrim(*UsdPrimTwin, bForceVisibilityTrack, bHasAnimatedBounds);
+			PrimsToAnimate.Add(UsdPrimTwin->PrimPath);
+
+			// Mark the component as animated right away because HasAnimatedBounds is expensive to call and
+			// we don't want to have to re-do it when creating the component
+			UsdPrimTwin->SceneComponent->SetMobility(EComponentMobility::Movable);
 		}
+	}
+
+	if (!bIsAnimated && !bHasAnimatedBounds && PrimsToAnimate.Contains(UsdPrimTwin->PrimPath))
+	{
+		PrimsToAnimate.Remove(UsdPrimTwin->PrimPath);
+		LevelSequenceHelper.RemovePrim(*UsdPrimTwin);
 	}
 
 	// Setup Control Rig tracks if we need to. This must be done after adding regular skeletal animation tracks
@@ -2284,6 +2312,10 @@ void AUsdStageActor::SetPurposesToLoad(int32 NewPurposesToLoad)
 	Modify(bMarkDirty);
 
 	PurposesToLoad = NewPurposesToLoad;
+	if (BBoxCache.IsValid())
+	{
+		BBoxCache->SetIncludedPurposes(static_cast<EUsdPurpose>(PurposesToLoad));
+	}
 	LoadUsdStage();
 }
 
@@ -2343,6 +2375,11 @@ void AUsdStageActor::SetTime(float InTime)
 	Modify(bMarkDirty);
 
 	Time = InTime;
+	if (BBoxCache.IsValid())
+	{
+		BBoxCache->SetTime(Time);
+	}
+
 	Refresh();
 }
 
@@ -2619,6 +2656,9 @@ void AUsdStageActor::OnObjectsReplaced(const TMap<UObject*, UObject*>& ObjectRep
 			NewActor->InfoCache = InfoCache;
 			InfoCache = nullptr;
 
+			NewActor->BBoxCache = BBoxCache;
+			BBoxCache = nullptr;
+
 			// It could be that we're automatically recompiling when going into PIE because our blueprint was dirty.
 			// In that case we also need bIsTransitioningIntoPIE to be true to prevent us from calling LoadUsdStage from PostRegisterAllComponents
 			NewActor->bIsTransitioningIntoPIE = bIsTransitioningIntoPIE;
@@ -2724,6 +2764,19 @@ void AUsdStageActor::LoadUsdStage()
 
 	StageToLoad.SetInterpolationType(InterpolationType);
 
+	// Create Info and BBoxCache before calling ReloadAnimations as that is when the LevelSequenceHelper will also take
+	// a reference to them
+	if (!InfoCache.IsValid())
+	{
+		InfoCache = MakeShared<FUsdInfoCache>();
+	}
+	if (!BBoxCache.IsValid())
+	{
+		const bool bUseExtentsHint = true;
+		const bool bIgnoreVisibility = false;
+		BBoxCache = MakeShared<UE::FUsdGeomBBoxCache>(Time, static_cast<EUsdPurpose>(PurposesToLoad), bUseExtentsHint, bIgnoreVisibility);
+	}
+
 	ReloadAnimations();
 
 	// Make sure our PrimsToAnimate and the LevelSequenceHelper are kept in sync, because we'll use PrimsToAnimate to
@@ -2731,11 +2784,6 @@ void AUsdStageActor::LoadUsdStage()
 	// our prims would already be in here by the time we're checking if we need to add tracks or not, and we wouldn't re-add
 	// the tracks
 	PrimsToAnimate.Reset();
-
-	if (!InfoCache.IsValid())
-	{
-		InfoCache = MakeShared<FUsdInfoCache>();
-	}
 
 	TSharedRef< FUsdSchemaTranslationContext > TranslationContext = FUsdStageActorImpl::CreateUsdSchemaTranslationContext(this, RootTwin->PrimPath);
 
@@ -2866,6 +2914,11 @@ void AUsdStageActor::UnloadUsdStage()
 	if (InfoCache)
 	{
 		InfoCache->Clear();
+	}
+
+	if (BBoxCache)
+	{
+		BBoxCache->Clear();
 	}
 
 	OnStageUnloaded.Broadcast();
@@ -3020,6 +3073,11 @@ void AUsdStageActor::ReloadAnimations()
 TSharedPtr<FUsdInfoCache> AUsdStageActor::GetInfoCache()
 {
 	return InfoCache;
+}
+
+TSharedPtr<UE::FUsdGeomBBoxCache> AUsdStageActor::GetBBoxCache()
+{
+	return BBoxCache;
 }
 
 TMap<FString, TMap<FString, int32>> AUsdStageActor::GetMaterialToPrimvarToUVIndex()
@@ -4020,6 +4078,18 @@ void AUsdStageActor::OnObjectPropertyChanged(UObject* ObjectBeingModified, FProp
 				if (UMeshComponent* MeshComponent = Cast< UMeshComponent >(PrimSceneComponent))
 				{
 					UnrealToUsd::ConvertMeshComponent(CurrentStage, MeshComponent, UsdPrim);
+				}
+				else if (UUsdDrawModeComponent* BoundsComponent = Cast<UUsdDrawModeComponent>(PrimSceneComponent))
+				{
+					const static TSet<FName> BoundsProperties = {
+						GET_MEMBER_NAME_CHECKED(UUsdDrawModeComponent, BoundsMin),
+						GET_MEMBER_NAME_CHECKED(UUsdDrawModeComponent, BoundsMax),
+					};
+
+					// If we just manually tweaked the extents, also author those back out to USD as extents opinions
+					const bool bWriteExtents = BoundsProperties.Contains(PropertyChangedEvent.GetMemberPropertyName());
+					const double UsdTimeCode = UsdUtils::GetDefaultTimeCode();
+					UnrealToUsd::ConvertBoundsComponent(*BoundsComponent, UsdPrim, bWriteExtents, UsdTimeCode);
 				}
 				else if (UsdPrim && UsdPrim.IsA(TEXT("Camera")))
 				{

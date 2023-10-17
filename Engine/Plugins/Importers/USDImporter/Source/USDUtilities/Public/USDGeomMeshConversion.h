@@ -4,10 +4,11 @@
 
 #include "CoreMinimal.h"
 
-#if USE_USD_SDK
-
 #include "UnrealUSDWrapper.h"
+#include "USDClassesModule.h"  // Include this for now so that we can redirect FDisplayColorMaterial to the USDClasses definition
 #include "UsdWrappers/ForwardDeclarations.h"
+
+#if USE_USD_SDK
 
 #include "USDIncludesStart.h"
 	#include "pxr/usd/usd/timeCode.h"
@@ -33,7 +34,6 @@ struct FUsdCollapsingCache;
 struct FUsdStageInfo;
 namespace UsdUtils
 {
-	struct FDisplayColorMaterial;
 	struct FUsdPrimMaterialAssignmentInfo;
 }
 namespace UE
@@ -221,15 +221,7 @@ namespace UnrealToUsd
 
 namespace UsdUtils
 {
-	/** Describes the type of vertex color/DisplayColor material that we would need in order to render a prim's displayColor data as intended */
-	struct USDUTILITIES_API FDisplayColorMaterial
-	{
-		bool bHasOpacity = false;
-		bool bIsDoubleSided = false;
-
-		FString ToString();
-		static TOptional<FDisplayColorMaterial> FromString(const FString& DisplayColorString);
-	};
+	using FDisplayColorMaterial = IUsdClassesModule::FDisplayColorMaterial;
 
 	/** Describes what type of material assignment a FUsdPrimMaterialSlot represents */
 	enum class EPrimAssignmentType : uint8
@@ -306,8 +298,12 @@ namespace UsdUtils
 	);
 
 	/** Creates a dynamic material instance using the right reference material depending on the given description */
+	PRAGMA_DISABLE_DEPRECATION_WARNINGS
+	UE_DEPRECATED(5.3, "This has moved to the IUsdClassesModule namespace, from USDClassesModule.h")
 	USDUTILITIES_API UMaterialInstanceDynamic* CreateDisplayColorMaterialInstanceDynamic( const UsdUtils::FDisplayColorMaterial& DisplayColorDescription );
+	UE_DEPRECATED(5.3, "This has moved to the IUsdClassesModule namespace, from USDClassesModule.h")
 	USDUTILITIES_API UMaterialInstanceConstant* CreateDisplayColorMaterialInstanceConstant( const UsdUtils::FDisplayColorMaterial& DisplayColorDescription );
+	PRAGMA_ENABLE_DEPRECATION_WARNINGS
 
 	/**
 	 * Extracts all material assignment data from UsdPrim, including material binding, multiple assignment with GeomSubsets, and the unrealMaterial custom USD attribute.

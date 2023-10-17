@@ -3,6 +3,7 @@
 #include "USDConversionUtils.h"
 
 #include "USDAssetImportData.h"
+#include "USDDrawModeComponent.h"
 #include "USDClassesModule.h"
 #include "USDDuplicateType.h"
 #include "USDErrorUtils.h"
@@ -10,6 +11,7 @@
 #include "USDLayerUtils.h"
 #include "USDLog.h"
 #include "USDProjectSettings.h"
+#include "USDSkeletalDataConversion.h"
 #include "USDTypesConversion.h"
 #include "USDUnrealAssetInfo.h"
 
@@ -68,6 +70,7 @@
 	#include "pxr/usd/usdGeom/imageable.h"
 	#include "pxr/usd/usdGeom/mesh.h"
 	#include "pxr/usd/usdGeom/metrics.h"
+	#include "pxr/usd/usdGeom/modelAPI.h"
 	#include "pxr/usd/usdGeom/primvar.h"
 	#include "pxr/usd/usdGeom/primvarsAPI.h"
 	#include "pxr/usd/usdLux/diskLight.h"
@@ -76,6 +79,7 @@
 	#include "pxr/usd/usdLux/rectLight.h"
 	#include "pxr/usd/usdLux/shapingAPI.h"
 	#include "pxr/usd/usdLux/sphereLight.h"
+	#include "pxr/usd/usdSkel/animation.h"
 	#include "pxr/usd/usdSkel/binding.h"
 	#include "pxr/usd/usdSkel/cache.h"
 	#include "pxr/usd/usdSkel/root.h"
@@ -977,6 +981,259 @@ bool UsdUtils::HasAnimatedVisibility( const pxr::UsdPrim& Prim )
 	return false;
 }
 
+namespace UE::ConversionUtilsImpl::Private
+{
+	// Convenience function so we don't have to spell this out every time
+	inline void CollectTimeSamplesIfNeeded(bool bCollectTimeSamples, const pxr::UsdAttribute& Attr, TArray<double>* OutTimeSamples)
+	{
+		std::vector<double> TempTimeSamples;
+		if (bCollectTimeSamples && Attr.GetTimeSamples(&TempTimeSamples))
+		{
+			OutTimeSamples->Append(TempTimeSamples.data(), TempTimeSamples.size());
+		}
+	}
+
+	bool GetOrCollectAnimatedBounds(
+		const pxr::UsdPrim& Prim,
+		TArray<double>* OutTimeSamples,
+		bool bCollectTimeSamples,
+		bool bIsParentPrim,
+		EUsdPurpose IncludedPurposes,
+		bool bUseExtentsHint,
+		bool bIgnoreVisibility
+	)
+	{
+		if (!Prim)
+		{
+			return false;
+		}
+
+		// If we want to collect timeSamples we must have some place to put them in
+		if (!ensure(!bCollectTimeSamples || OutTimeSamples))
+		{
+			return false;
+		}
+
+		FScopedUsdAllocs UsdAllocs;
+
+		// If the prim is fully invisible due to visibility or purpose then we shouldn't even check it
+		bool bHasAnimatedVisibility = false;
+		if (pxr::UsdGeomImageable Imageable{Prim}; !bIgnoreVisibility && Imageable)
+		{
+			if (pxr::UsdAttribute Visibility = Imageable.GetVisibilityAttr())
+			{
+				// Keep track of this for later
+				bHasAnimatedVisibility = Visibility.ValueMightBeTimeVarying();
+
+				if (bHasAnimatedVisibility)
+				{
+					CollectTimeSamplesIfNeeded(bCollectTimeSamples, Visibility, OutTimeSamples);
+				}
+				else
+				{
+					pxr::TfToken VisibilityToken;
+					if (!bIsParentPrim && Visibility.Get(&VisibilityToken) && VisibilityToken == pxr::UsdGeomTokens->invisible)
+					{
+						// We don't "propagate the (in)visibility token", we just flat out stop recursing and abandon the subtree
+						return false;
+					}
+				}
+			}
+		}
+		if (!bIsParentPrim && !EnumHasAllFlags(IncludedPurposes, IUsdPrim::GetPurpose(Prim)))
+		{
+			return false;
+		}
+
+		// If the prim has authored animated extents we know we're fully done, because our computed bounds
+		// will also need to be animated and will read *exclusively* from these anyway.
+		// We don't even need to collect any further timeSamples from child prims after this, as we will be ignoring individual
+		// animations on random prims in the subtree and instead just using the authored extent animation.
+		// Also, extentsHint is preferred over extent, so check for that first.
+		if (pxr::UsdGeomModelAPI GeomModelAPI{Prim}; bUseExtentsHint && GeomModelAPI)
+		{
+			if (pxr::UsdAttribute ExtentsHint = GeomModelAPI.GetExtentsHintAttr())
+			{
+				if (ExtentsHint.HasAuthoredValue())
+				{
+					CollectTimeSamplesIfNeeded(bCollectTimeSamples, ExtentsHint, OutTimeSamples);
+					return ExtentsHint.ValueMightBeTimeVarying();
+				}
+			}
+		}
+		if (pxr::UsdGeomBoundable Boundable{Prim})
+		{
+			if (pxr::UsdAttribute Extent = Boundable.GetExtentAttr())
+			{
+				// If we have authored extent or extentsHint (even if not animated, i.e. just default opinions), the
+				// BBoxCache will refuse to compute bounds at any timeCode and just fallback to using the authored stuff
+				if (Extent.HasAuthoredValue())
+				{
+					CollectTimeSamplesIfNeeded(bCollectTimeSamples, Extent, OutTimeSamples);
+					return Extent.ValueMightBeTimeVarying();
+				}
+			}
+		}
+
+		// It's visible at the default timeCode, but has animated visibility. This means
+		// it could affect the bounds as it becomes visible or invisible, so just return now.
+		if (!bCollectTimeSamples && bHasAnimatedVisibility)
+		{
+			return true;
+		}
+
+		bool bHasAnimatedBounds = bHasAnimatedVisibility;
+
+		// Otherwise the prim may have some animated attributes that would make our parent extents animated.
+		// For this function we mostly care about whether the *bounds themselves* are animated.
+		// The parent prim having animated transform means we'll just put this transform on the component itself,
+		// but the bounds could remain un-animated
+		if (pxr::UsdGeomXformable Xformable{Prim}; !bIsParentPrim && Xformable)
+		{
+			if (Xformable.TransformMightBeTimeVarying())
+			{
+				bHasAnimatedBounds = true;
+
+				std::vector<double> TempTimeSamples;
+				if (bCollectTimeSamples && Xformable.GetTimeSamples(&TempTimeSamples))
+				{
+					OutTimeSamples->Append(TempTimeSamples.data(), TempTimeSamples.size());
+				}
+			}
+		}
+		else if (pxr::UsdGeomPointBased PointBased{Prim})
+		{
+			if (pxr::UsdAttribute Points = PointBased.GetPointsAttr())
+			{
+				if (Points.ValueMightBeTimeVarying())
+				{
+					CollectTimeSamplesIfNeeded(bCollectTimeSamples, Points, OutTimeSamples);
+					bHasAnimatedBounds = true;
+				}
+			}
+		}
+		else if (pxr::UsdGeomPointInstancer PointInstancer{Prim})
+		{
+			if (pxr::UsdAttribute Positions = PointInstancer.GetPositionsAttr())
+			{
+				if (Positions.ValueMightBeTimeVarying())
+				{
+					CollectTimeSamplesIfNeeded(bCollectTimeSamples, Positions, OutTimeSamples);
+					bHasAnimatedBounds = true;
+				}
+			}
+		}
+		// Check for a SkelRoot with SkelAnimation
+		else if (UE::FUsdPrim SkelAnimationPrim = UsdUtils::FindFirstAnimationSource(UE::FUsdPrim{Prim}))
+		{
+			pxr::UsdSkelAnimation SkelAnim{SkelAnimationPrim};
+			if (ensure(SkelAnim))
+			{
+				const bool bIncludeInherited = false;
+				for (const pxr::TfToken& SkelAnimAttrName : SkelAnim.GetSchemaAttributeNames(bIncludeInherited))
+				{
+					if (pxr::UsdAttribute Attr = SkelAnim.GetPrim().GetAttribute(SkelAnimAttrName))
+					{
+						if (Attr.ValueMightBeTimeVarying())
+						{
+							bHasAnimatedBounds = true;
+
+							if (!bCollectTimeSamples)
+							{
+								break;
+							}
+							CollectTimeSamplesIfNeeded(bCollectTimeSamples, Attr, OutTimeSamples);
+						}
+					}
+				}
+			}
+		}
+
+		// If we're not collecting timeSamples and we run into a prim with animated bounds then we know that
+		// we're done, and can return then. If we're collecting timeSamples however then we want instead to remember
+		// that we found those animated bounds, but still try to step into children in case they also had animated
+		// bounds and additional timeSamples
+		if (!bCollectTimeSamples && bHasAnimatedBounds)
+		{
+			return true;
+		}
+
+		for (pxr::UsdPrim Child : Prim.GetFilteredChildren(pxr::UsdTraverseInstanceProxies(pxr::UsdPrimAllPrimsPredicate)))
+		{
+			const bool bChildIsParentPrim = false;
+			bHasAnimatedBounds |= GetOrCollectAnimatedBounds(
+				Child,
+				OutTimeSamples,
+				bCollectTimeSamples,
+				bChildIsParentPrim,
+				IncludedPurposes,
+				bUseExtentsHint,
+				bIgnoreVisibility
+			);
+
+			// Don't need to visit any other children, we're done here
+			if (!bCollectTimeSamples && bHasAnimatedBounds)
+			{
+				return true;
+			}
+		}
+
+		return bHasAnimatedBounds;
+	}
+}
+
+bool UsdUtils::HasAnimatedBounds(
+	const pxr::UsdPrim& Prim,
+	EUsdPurpose IncludedPurposes,
+	bool bUseExtentsHint,
+	bool bIgnoreVisibility
+)
+{
+	// "ParentPrim" here because there are slight differences in behavior between handling the actual provided
+	// prim and another random prim in its subtree (for which bIsParentPrim will be 'false')
+	const bool bIsParentPrim = true;
+	const bool bCollectTimeSamples = false;
+	TArray<double>* OutTimeSamples = nullptr;
+	return UE::ConversionUtilsImpl::Private::GetOrCollectAnimatedBounds(
+		Prim,
+		OutTimeSamples,
+		bCollectTimeSamples,
+		bIsParentPrim,
+		IncludedPurposes,
+		bUseExtentsHint,
+		bIgnoreVisibility
+	);
+}
+
+bool UsdUtils::GetAnimatedBoundsTimeSamples(
+	const pxr::UsdPrim& InPrim,
+	TArray<double>& OutTimeSamples,
+	EUsdPurpose InIncludedPurposes,
+	bool bInUseExtentsHint,
+	bool bInIgnoreVisibility
+)
+{
+	OutTimeSamples.Reset();
+
+	// "ParentPrim" here because there are slight differences in behavior between handling the actual provided
+	// prim and another random prim in its subtree (for which bIsParentPrim will be 'false')
+	const bool bIsParentPrim = true;
+	const bool bCollectTimeSamples = true;
+	const bool bHasAnimatedBounds = UE::ConversionUtilsImpl::Private::GetOrCollectAnimatedBounds(
+		InPrim,
+		&OutTimeSamples,
+		bCollectTimeSamples,
+		bIsParentPrim,
+		InIncludedPurposes,
+		bInUseExtentsHint,
+		bInIgnoreVisibility
+	);
+
+	OutTimeSamples.Sort();
+
+	return bHasAnimatedBounds;
+}
+
 EUsdDefaultKind UsdUtils::GetDefaultKind( const pxr::UsdPrim& Prim )
 {
 	FScopedUsdAllocs Allocs;
@@ -1073,6 +1330,83 @@ bool UsdUtils::SetDefaultKind( pxr::UsdPrim& Prim, EUsdDefaultKind NewKind )
 	}
 
 	return IUsdPrim::SetKind( Prim, NewKindToken );
+}
+
+EUsdDrawMode UsdUtils::GetAppliedDrawMode(const pxr::UsdPrim& Prim)
+{
+	// Reference: https://openusd.org/release/api/class_usd_geom_model_a_p_i.html#UsdGeomModelAPI_drawMode
+
+	if (!Prim)
+	{
+		return EUsdDrawMode::Default;
+	}
+
+	FScopedUsdAllocs Allocs;
+
+	// Only "models" should have these (i.e. uninterrupted chain of authored "kind"s back to the root prim)
+	if (!Prim.IsModel())
+	{
+		return EUsdDrawMode::Default;
+	}
+
+	pxr::UsdGeomModelAPI GeomModelAPI{Prim};
+	if (!GeomModelAPI)
+	{
+		return EUsdDrawMode::Default;
+	}
+
+	bool bHasAuthoredApply = false;
+	bool bShouldApplyFromAttr = false;
+	pxr::UsdAttribute Attr = GeomModelAPI.GetModelApplyDrawModeAttr();
+	if (Attr && Attr.HasAuthoredValue() && Attr.Get(&bShouldApplyFromAttr))
+	{
+		if (!bShouldApplyFromAttr)
+		{
+			return EUsdDrawMode::Default;
+		}
+
+		bHasAuthoredApply = true;
+	}
+
+	// "Models of kind component are treated as if model:applyDrawMode were true"
+	// According to UsdImagingDelegate::_IsDrawModeApplied this only works as a "fallback" though:
+	// if the prim has authored whether to apply or not we always use that directly
+	pxr::UsdModelAPI Model{Prim};
+	const bool bIsComponentKind = Model && Model.IsKind(pxr::KindTokens->component, pxr::UsdModelAPI::KindValidationNone);
+	if (!bHasAuthoredApply && !bIsComponentKind)
+	{
+		return EUsdDrawMode::Default;
+	}
+
+	// Note: We can provide the parent draw mode to optimize the ComputeModelDrawMode call if it becomes an issue
+	pxr::TfToken DesiredDrawMode = GeomModelAPI.ComputeModelDrawMode();
+	if (DesiredDrawMode == pxr::UsdGeomTokens->default_)
+	{
+		return EUsdDrawMode::Default;
+	}
+	else if (DesiredDrawMode == pxr::UsdGeomTokens->origin)
+	{
+		return EUsdDrawMode::Origin;
+	}
+	else if (DesiredDrawMode == pxr::UsdGeomTokens->bounds)
+	{
+		return EUsdDrawMode::Bounds;
+	}
+	else if (DesiredDrawMode == pxr::UsdGeomTokens->cards)
+	{
+		return EUsdDrawMode::Cards;
+	}
+	else if (DesiredDrawMode == pxr::UsdGeomTokens->inherited)
+	{
+		// If we're using ComputeModelDrawMode we shouldn't get inherited or anything else here
+		ensure(false);
+		return EUsdDrawMode::Inherited;
+	}
+	else
+	{
+		ensure(false);
+		return EUsdDrawMode::Default;
+	}
 }
 
 TArray< TUsdStore< pxr::UsdPrim > > UsdUtils::GetAllPrimsOfType( const pxr::UsdPrim& StartPrim, const pxr::TfType& SchemaType, const TArray< TUsdStore< pxr::TfType > >& ExcludeSchemaTypes )
