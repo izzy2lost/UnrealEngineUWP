@@ -3071,7 +3071,7 @@ namespace Horde.Server.Notifications.Sinks
 						options.Add(new SlackOption($"Current owner ({user.Name})", owner.Id.ToString()));
 
 						RadioButtonGroupElement ownership = new RadioButtonGroupElement("fixed_by_action", options);
-						ownership.InitialOptions.Add(options[0]);
+						ownership.InitialOption = options[0];
 						view.AddInput("Fixed By:", ownership).BlockId = "fixed_by";
 					}
 				}

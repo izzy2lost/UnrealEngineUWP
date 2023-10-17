@@ -26,8 +26,8 @@ namespace EpicGames.Slack.Elements
 		/// <summary>
 		/// An array of option objects that exactly matches one or more of the options within options. These options will be selected when the checkbox group initially loads.
 		/// </summary>
-		[JsonPropertyName("initial_options")]
-		public List<SlackOption> InitialOptions { get; } = new List<SlackOption>();
+		[JsonPropertyName("initial_option")]
+		public SlackOption? InitialOption { get; set; }
 
 		/// <summary>
 		/// A confirm object that defines an optional confirmation dialog that appears after clicking one of the checkboxes in this element.
@@ -39,7 +39,7 @@ namespace EpicGames.Slack.Elements
 		/// Indicates whether the element will be set to auto focus within the view object. Only one element can be set to true. Defaults to false.
 		/// </summary>
 		[JsonPropertyName("focus_on_load")]
-		public bool FocusOnLoad { get; set; }
+		public bool? FocusOnLoad { get; set; }
 
 		/// <summary>
 		/// Construct a new Button action element.
