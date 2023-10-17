@@ -32,7 +32,7 @@ struct FCameraShakePatternStartParams
 	bool bOverrideDuration = false;
 
 	/** An optional override for the camera shake's duration */
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category=CameraShake)
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category=CameraShake, meta=(EditCondition="bOverrideDuration"))
 	float DurationOverride = 0.f;
 };
 
