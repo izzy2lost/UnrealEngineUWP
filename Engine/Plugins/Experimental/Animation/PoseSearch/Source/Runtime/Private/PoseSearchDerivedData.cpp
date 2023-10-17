@@ -304,7 +304,7 @@ static void FindValidSequenceIntervals(const UAnimSequenceBase* SequenceBase, FF
 		{
 			if (const UAnimNotifyState_PoseSearchExcludeFromDatabase* ExclusionNotifyState = Cast<const UAnimNotifyState_PoseSearchExcludeFromDatabase>(NotifyEvent->NotifyStateClass))
 			{
-				FFloatRange ExclusionRange = FFloatRange::Inclusive(NotifyEvent->GetTriggerTime(), NotifyEvent->GetEndTriggerTime());
+				FFloatRange ExclusionRange = FFloatRange::Inclusive(NotifyEvent->GetTime(), NotifyEvent->GetTime() + NotifyEvent->GetDuration());
 
 				// Split every valid range based on the exclusion range just found. Because this might increase the 
 				// number of ranges in ValidRanges, the algorithm iterates from end to start.

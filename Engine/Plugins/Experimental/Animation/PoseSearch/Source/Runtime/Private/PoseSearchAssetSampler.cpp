@@ -641,7 +641,7 @@ void FAnimationAssetSampler::ExtractPoseSearchNotifyStates(float Time, TFunction
 		}
 
 		// @todo: is this condition necessary? can we just rely on the ExtractionInterval?
-		if (NotifyEvent->GetTriggerTime() > SampleTime || NotifyEvent->GetEndTriggerTime() < SampleTime)
+		if (NotifyEvent->GetTime() > SampleTime || (NotifyEvent->GetTime() + NotifyEvent->GetDuration()) < SampleTime)
 		{
 			continue;
 		}

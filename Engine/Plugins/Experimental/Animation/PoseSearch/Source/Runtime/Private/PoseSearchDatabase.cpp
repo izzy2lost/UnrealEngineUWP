@@ -718,7 +718,7 @@ void UPoseSearchDatabase::SynchronizeWithExternalDependencies(TConstArrayView<UA
 						{
 							FPoseSearchDatabaseSequence DatabaseSequence;
 							DatabaseSequence.Sequence = Sequence;
-							DatabaseSequence.SamplingRange = FFloatInterval(NotifyEvent.GetTriggerTime(), NotifyEvent.GetEndTriggerTime());
+							DatabaseSequence.SamplingRange = FFloatInterval(NotifyEvent.GetTime(), NotifyEvent.GetTime() + NotifyEvent.GetDuration());
 							DatabaseSequence.bSynchronizeWithExternalDependency = true;
 							AnimationAssets.Add(FInstancedStruct::Make(DatabaseSequence));
 							bModified = true;
@@ -727,7 +727,7 @@ void UPoseSearchDatabase::SynchronizeWithExternalDependencies(TConstArrayView<UA
 						{
 							FPoseSearchDatabaseAnimComposite DatabaseAnimComposite;
 							DatabaseAnimComposite.AnimComposite = AnimComposite;
-							DatabaseAnimComposite.SamplingRange = FFloatInterval(NotifyEvent.GetTriggerTime(), NotifyEvent.GetEndTriggerTime());
+							DatabaseAnimComposite.SamplingRange = FFloatInterval(NotifyEvent.GetTime(), NotifyEvent.GetTime() + NotifyEvent.GetDuration());
 							DatabaseAnimComposite.bSynchronizeWithExternalDependency = true;
 							AnimationAssets.Add(FInstancedStruct::Make(DatabaseAnimComposite));
 							bModified = true;
@@ -736,7 +736,7 @@ void UPoseSearchDatabase::SynchronizeWithExternalDependencies(TConstArrayView<UA
 						{
 							FPoseSearchDatabaseAnimMontage DatabaseAnimMontage;
 							DatabaseAnimMontage.AnimMontage = AnimMontage;
-							DatabaseAnimMontage.SamplingRange = FFloatInterval(NotifyEvent.GetTriggerTime(), NotifyEvent.GetEndTriggerTime());
+							DatabaseAnimMontage.SamplingRange = FFloatInterval(NotifyEvent.GetTime(), NotifyEvent.GetTime() + NotifyEvent.GetDuration());
 							DatabaseAnimMontage.bSynchronizeWithExternalDependency = true;
 							AnimationAssets.Add(FInstancedStruct::Make(DatabaseAnimMontage));
 							bModified = true;

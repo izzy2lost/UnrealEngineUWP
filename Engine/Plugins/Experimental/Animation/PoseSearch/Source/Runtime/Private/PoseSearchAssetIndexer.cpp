@@ -466,7 +466,7 @@ bool FAssetIndexer::GetSampleRotation(FQuat& OutSampleRotation, float SampleTime
 							TempBoneReference.Initialize(BoneContainer.GetSkeletonAsset());
 							if (TempBoneReference.HasValidSetup())
 							{
-								const float SamplingAttributeTime = AnimNotifyEvent.GetTriggerTime();
+								const float SamplingAttributeTime = AnimNotifyEvent.GetTime();
 								const FTransform RootBoneTransform = GetTransform(OriginTime, bUnused, RootSchemaBoneIdx);
 								const FTransform SamplingAttributeBoneTransform = GetTransform(SamplingAttributeTime, bUnused, TempBoneReference);
 								OutSampleRotation = RootBoneTransform.InverseTransformRotation(SamplingAttributeBoneTransform.GetRotation());
@@ -540,7 +540,7 @@ bool FAssetIndexer::GetSamplePositionInternal(FVector& OutSamplePosition, float 
 							TempBoneReference.Initialize(BoneContainer.GetSkeletonAsset());
 							if (TempBoneReference.HasValidSetup())
 							{
-								const float SamplingAttributeTime = AnimNotifyEvent.GetTriggerTime();
+								const float SamplingAttributeTime = AnimNotifyEvent.GetTime();
 								const FTransform RootBoneTransform = GetTransform(OriginTime, bUnused, RootSchemaBoneIdx);
 								const FTransform SamplingAttributeBoneTransform = GetTransform(SamplingAttributeTime, bClamped, TempBoneReference);
 								if (SchemaOriginBoneIdx == RootSchemaBoneIdx)
@@ -638,7 +638,7 @@ bool FAssetIndexer::GetSampleVelocity(FVector& OutSampleVelocity, float SampleTi
 							TempBoneReference.Initialize(BoneContainer.GetSkeletonAsset());
 							if (TempBoneReference.HasValidSetup())
 							{
-								const float SamplingAttributeTime = AnimNotifyEvent.GetTriggerTime();
+								const float SamplingAttributeTime = AnimNotifyEvent.GetTime();
 
 								if (GetSamplePositionInternal(BonePositionPast, SamplingAttributeTime - FiniteDelta, bUseCharacterSpaceVelocities ? OriginTime - FiniteDelta : OriginTime, bClampedPast, SchemaSampleBoneIdx, SchemaOriginBoneIdx, SamplingAttributeId) &&
 									GetSamplePositionInternal(BonePositionPresent, SamplingAttributeTime, OriginTime, bUnused, SchemaSampleBoneIdx, SchemaOriginBoneIdx, SamplingAttributeId))
