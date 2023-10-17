@@ -460,7 +460,7 @@ void UWorldPartitionRuntimeHashSet::PostEditChangeChainProperty(FPropertyChanged
 
 	static FName NAME_RuntimePartitions(TEXT("RuntimePartitions"));
 	static FName NAME_HLODSetups(TEXT("HLODSetups"));
-	static FName NAME_HLODLayer(TEXT("HLODLayer"));
+	static FName NAME_HLODLayers(TEXT("HLODLayers"));
 
 	FName PropertyName = PropertyChangedEvent.Property ? PropertyChangedEvent.Property->GetFName() : NAME_None;
 
@@ -475,9 +475,10 @@ void UWorldPartitionRuntimeHashSet::PostEditChangeChainProperty(FPropertyChanged
 
 		if (RuntimePartitionDesc.Class)
 		{
-			RuntimePartitionDesc.Name = RuntimePartitionDesc.Class->GetFName();
+			RuntimePartitionDesc.Name = *FString::Printf(TEXT("%s_%d"), *RuntimePartitionDesc.Class->GetName(), RuntimePartitionIndex);
 			RuntimePartitionDesc.MainLayer = NewObject<URuntimePartition>(this, RuntimePartitionDesc.Class, NAME_None);
 			RuntimePartitionDesc.MainLayer->SetDefaultValues();
+			RuntimePartitionDesc.MainLayer->Name = RuntimePartitionDesc.Name;
 		}
 	}
 	else if (PropertyName == GET_MEMBER_NAME_CHECKED(FRuntimePartitionDesc, Name))
@@ -487,26 +488,55 @@ void UWorldPartitionRuntimeHashSet::PostEditChangeChainProperty(FPropertyChanged
 
 		FRuntimePartitionDesc& RuntimePartitionDesc = RuntimePartitions[RuntimePartitionIndex];
 
-		if (RuntimePartitionDesc.Name == NAME_PersistentLevel)
+		int32 HLODSetupsIndex = PropertyChangedEvent.GetArrayIndex(NAME_HLODSetups.ToString());
+		if (RuntimePartitionDesc.HLODSetups.IsValidIndex(HLODSetupsIndex))
 		{
-			RuntimePartitionDesc.Name = RuntimePartitionDesc.Class->GetFName();
-		}
-		else
-		{
-			for (int32 CurRuntimePartitionIndex = 0; CurRuntimePartitionIndex < RuntimePartitions.Num(); CurRuntimePartitionIndex++)
+			FRuntimePartitionHLODSetup& RuntimePartitionHLODSetup = RuntimePartitionDesc.HLODSetups[HLODSetupsIndex];
+
+			if (RuntimePartitionDesc.Name == NAME_PersistentLevel)
 			{
-				if (CurRuntimePartitionIndex != RuntimePartitionIndex)
+				RuntimePartitionHLODSetup.Name = *FString::Printf(TEXT("HLOD_%d"), RuntimePartitionHLODSetup.PartitionLayer->HLODIndex);
+			}
+			else
+			{
+				for (int32 CurHLODSetupsIndex = 0; CurHLODSetupsIndex < RuntimePartitionDesc.HLODSetups.Num(); CurHLODSetupsIndex++)
 				{
-					if (RuntimePartitionDesc.Name == RuntimePartitions[CurRuntimePartitionIndex].Name)
+					if (CurHLODSetupsIndex != HLODSetupsIndex)
 					{
-						RuntimePartitionDesc.Name = RuntimePartitionDesc.Class->GetFName();
-						break;
+						if (RuntimePartitionHLODSetup.Name == RuntimePartitionDesc.HLODSetups[CurHLODSetupsIndex].Name)
+						{
+							RuntimePartitionHLODSetup.Name = *FString::Printf(TEXT("HLOD_%d"), RuntimePartitionHLODSetup.PartitionLayer->HLODIndex);
+							break;
+						}
 					}
 				}
 			}
-		}
 
-		RuntimePartitionDesc.MainLayer->Name = RuntimePartitionDesc.Name;
+			RuntimePartitionHLODSetup.PartitionLayer->Name = RuntimePartitionHLODSetup.Name;
+		}
+		else
+		{
+			if (RuntimePartitionDesc.Name == NAME_PersistentLevel)
+			{
+				RuntimePartitionDesc.Name = RuntimePartitionDesc.Class->GetFName();
+			}
+			else
+			{
+				for (int32 CurRuntimePartitionIndex = 0; CurRuntimePartitionIndex < RuntimePartitions.Num(); CurRuntimePartitionIndex++)
+				{
+					if (CurRuntimePartitionIndex != RuntimePartitionIndex)
+					{
+						if (RuntimePartitionDesc.Name == RuntimePartitions[CurRuntimePartitionIndex].Name)
+						{
+							RuntimePartitionDesc.Name = RuntimePartitionDesc.Class->GetFName();
+							break;
+						}
+					}
+				}
+			}
+
+			RuntimePartitionDesc.MainLayer->Name = RuntimePartitionDesc.Name;
+		}
 	}
 	else if (PropertyName == NAME_HLODSetups)
 	{
@@ -520,7 +550,44 @@ void UWorldPartitionRuntimeHashSet::PostEditChangeChainProperty(FPropertyChanged
 			{
 				FRuntimePartitionHLODSetup& RuntimePartitionHLODSetup = RuntimePartitionDesc.HLODSetups[HLODSetupsIndex];
 				URuntimePartition* ParentRuntimePartition = HLODSetupsIndex ? RuntimePartitionDesc.HLODSetups[HLODSetupsIndex - 1].PartitionLayer : RuntimePartitionDesc.MainLayer;
+				RuntimePartitionHLODSetup.Name = *FString::Printf(TEXT("HLOD_%d"), HLODSetupsIndex);
 				RuntimePartitionHLODSetup.PartitionLayer = ParentRuntimePartition->CreateHLODRuntimePartition(HLODSetupsIndex);
+				RuntimePartitionHLODSetup.PartitionLayer->Name = RuntimePartitionHLODSetup.Name;
+			}
+		}
+	}
+	else if (PropertyName == NAME_HLODLayers)
+	{
+		int32 RuntimePartitionIndex = PropertyChangedEvent.GetArrayIndex(NAME_RuntimePartitions.ToString());
+		if (RuntimePartitions.IsValidIndex(RuntimePartitionIndex))
+		{
+			FRuntimePartitionDesc& RuntimePartitionDesc = RuntimePartitions[RuntimePartitionIndex];
+
+			int32 HLODSetupsIndex = PropertyChangedEvent.GetArrayIndex(NAME_HLODSetups.ToString());
+			if (RuntimePartitionDesc.HLODSetups.IsValidIndex(HLODSetupsIndex))
+			{
+				FRuntimePartitionHLODSetup& RuntimePartitionHLODSetup = RuntimePartitionDesc.HLODSetups[HLODSetupsIndex];
+
+				int32 HLODLayersIndex = PropertyChangedEvent.GetArrayIndex(NAME_HLODLayers.ToString());
+				if (RuntimePartitionHLODSetup.HLODLayers.IsValidIndex(HLODLayersIndex))
+				{
+					const UHLODLayer* HLODLayer = RuntimePartitionHLODSetup.HLODLayers[HLODLayersIndex];
+
+					// Remove duplicated entries
+					for (int32 CurrentHLODSetupsIndex = 0; CurrentHLODSetupsIndex < RuntimePartitionDesc.HLODSetups.Num(); CurrentHLODSetupsIndex++)
+					{
+						FRuntimePartitionHLODSetup& CurrentRuntimePartitionHLODSetup = RuntimePartitionDesc.HLODSetups[CurrentHLODSetupsIndex];
+						for (int32 CurrentHLODLayerIndex = 0; CurrentHLODLayerIndex < CurrentRuntimePartitionHLODSetup.HLODLayers.Num(); CurrentHLODLayerIndex++)
+						{
+							const UHLODLayer* CurrentHLODLayer = CurrentRuntimePartitionHLODSetup.HLODLayers[CurrentHLODLayerIndex];
+							if (((CurrentHLODSetupsIndex != HLODSetupsIndex) || (CurrentHLODLayerIndex != HLODLayersIndex)) && (CurrentHLODLayer == HLODLayer))
+							{
+								CurrentRuntimePartitionHLODSetup.HLODLayers.RemoveAt(CurrentHLODLayerIndex--);
+								break;
+							}
+						}
+					}
+				}
 			}
 		}
 	}

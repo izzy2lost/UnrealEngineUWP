@@ -18,7 +18,7 @@ public:
 
 	//~ Begin URuntimePartition interface
 	virtual bool SupportsHLODs() const override { return true; }
-	virtual void InitHLODRuntimePartitionFrom(const URuntimePartition* RuntimePartition, int32 HLODIndex);
+	virtual void InitHLODRuntimePartitionFrom(const URuntimePartition* InRuntimePartition, int32 InHLODIndex);
 	virtual void SetDefaultValues() override;
 	virtual bool IsValidPartitionTokens(const TArray<FName>& InPartitionTokens) const override;
 	virtual bool GenerateStreaming(const FGenerateStreamingParams& InParams, FGenerateStreamingResult& OutResult) override;

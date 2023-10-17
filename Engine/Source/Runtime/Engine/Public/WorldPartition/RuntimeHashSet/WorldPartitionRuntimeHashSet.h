@@ -19,11 +19,15 @@ struct FRuntimePartitionHLODSetup
 {
 	GENERATED_USTRUCT_BODY()
 
+	/** Name for this HLOD layer setup */
+	UPROPERTY(EditAnywhere, Category = RuntimeSettings)
+	FName Name;
+
 	/** Associated HLOD Layer objects */
 	UPROPERTY(EditAnywhere, Category = RuntimeSettings)
 	TArray<TObjectPtr<const UHLODLayer>> HLODLayers;
 
-	UPROPERTY(VisibleAnywhere, Category = RuntimeSettings, Instanced)
+	UPROPERTY(VisibleAnywhere, Category = RuntimeSettings, Instanced, Meta = (NoResetToDefault, TitleProperty = "Name"))
 	TObjectPtr<URuntimePartition> PartitionLayer;
 };
 

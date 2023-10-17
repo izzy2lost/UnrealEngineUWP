@@ -68,10 +68,10 @@ void URuntimePartitionLHGrid::PostEditChangeProperty(FPropertyChangedEvent& Prop
 	Super::PostEditChangeProperty(PropertyChangedEvent);
 }
 
-void URuntimePartitionLHGrid::InitHLODRuntimePartitionFrom(const URuntimePartition* RuntimePartition, int32 HLODIndex)
+void URuntimePartitionLHGrid::InitHLODRuntimePartitionFrom(const URuntimePartition* InRuntimePartition, int32 InHLODIndex)
 {
-	Super::InitHLODRuntimePartitionFrom(RuntimePartition, HLODIndex);
-	const URuntimePartitionLHGrid* RuntimePartitionLHGrid = CastChecked<const URuntimePartitionLHGrid>(RuntimePartition);
+	Super::InitHLODRuntimePartitionFrom(InRuntimePartition, InHLODIndex);
+	const URuntimePartitionLHGrid* RuntimePartitionLHGrid = CastChecked<const URuntimePartitionLHGrid>(InRuntimePartition);
 	CellSize = RuntimePartitionLHGrid->CellSize * 2;
 }
 

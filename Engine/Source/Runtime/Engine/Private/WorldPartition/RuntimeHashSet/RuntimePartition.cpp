@@ -3,22 +3,28 @@
 #include "WorldPartition/RuntimeHashSet/RuntimePartition.h"
 #include "WorldPartition/RuntimeHashSet/WorldPartitionRuntimeHashSet.h"
 
+URuntimePartition::URuntimePartition(const FObjectInitializer& ObjectInitializer)
+	: Super(ObjectInitializer)
+{
+#if WITH_EDITOR
+	SetDefaultValues();
+#endif
+}
+
 #if WITH_EDITOR
 void URuntimePartition::SetDefaultValues()
 {
-	Name = GetClass()->GetFName();
 	bBlockOnSlowStreaming = false;
 	bClientOnlyVisible = false;
 	Priority = 0;
 	LoadingRange = 25600;
-	bIsHLODSetup = false;
+	HLODIndex = INDEX_NONE;
 }
 
-void URuntimePartition::InitHLODRuntimePartitionFrom(const URuntimePartition* RuntimePartition, int32 HLODIndex)
+void URuntimePartition::InitHLODRuntimePartitionFrom(const URuntimePartition* InRuntimePartition, int32 InHLODIndex)
 {
-	Name = *FString::Printf(TEXT("%s_HLOD%d"), *RuntimePartition->Name.ToString(), HLODIndex);
-	LoadingRange = RuntimePartition->LoadingRange * 2;
-	bIsHLODSetup = true;
+	LoadingRange = InRuntimePartition->LoadingRange * 2;
+	HLODIndex = InHLODIndex;
 }
 
 void URuntimePartition::PostEditChangeProperty(FPropertyChangedEvent& InPropertyChangedEvent)
@@ -33,10 +39,10 @@ void URuntimePartition::PostEditChangeProperty(FPropertyChangedEvent& InProperty
 	Super::PostEditChangeProperty(InPropertyChangedEvent);
 }
 
-URuntimePartition* URuntimePartition::CreateHLODRuntimePartition(int32 HLODIndex) const
+URuntimePartition* URuntimePartition::CreateHLODRuntimePartition(int32 InHLODIndex) const
 {
 	URuntimePartition* HLODRuntimePartition = DuplicateObject<URuntimePartition>(this, GetOuter());
-	HLODRuntimePartition->InitHLODRuntimePartitionFrom(this, HLODIndex);
+	HLODRuntimePartition->InitHLODRuntimePartitionFrom(this, InHLODIndex);
 	return HLODRuntimePartition;
 }
 
