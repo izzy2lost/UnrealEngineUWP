@@ -223,6 +223,32 @@ void FMotionTrajectoryLibrary::UpdatePrediction_SimulateCharacterMovement(FPoseS
 		CharacterTrajectoryData.bUseSpeedRemappingCurve, CharacterTrajectoryData.SpeedRemappingCurve);
 	FVector CurrentAccelerationWS = FMotionTrajectoryLibrary::RemapVectorMagnitudeWithCurve(CharacterTrajectoryData.CharacterMovementComponent->GetCurrentAcceleration(),
 		CharacterTrajectoryData.bUseAccelerationRemappingCurve, CharacterTrajectoryData.AccelerationRemappingCurve);
+
+	// bending CurrentVelocityWS towards CurrentAccelerationWS
+	if (CharacterTrajectoryData.BendVelocityTowardsAcceleration > UE_KINDA_SMALL_NUMBER && !CurrentAccelerationWS.IsNearlyZero())
+	{
+		const float CurrentSpeed = CurrentVelocityWS.Length();
+		const FVector VelocityWSAlongAcceleration = CurrentAccelerationWS.GetUnsafeNormal()* CurrentSpeed;
+		if (CharacterTrajectoryData.BendVelocityTowardsAcceleration < 1.f - UE_KINDA_SMALL_NUMBER)
+		{
+			CurrentVelocityWS = FMath::Lerp(CurrentVelocityWS, VelocityWSAlongAcceleration, CharacterTrajectoryData.BendVelocityTowardsAcceleration);
+			
+			const float NewLength = CurrentVelocityWS.Length();
+			if (NewLength > UE_KINDA_SMALL_NUMBER)
+			{
+				CurrentVelocityWS *= CurrentSpeed / NewLength;
+			}
+			else
+			{
+				// @todo: consider setting the CurrentVelocityWS = VelocityWSAlongAcceleration if vel and acc are in opposite directions
+			}
+		}
+		else
+		{
+			CurrentVelocityWS = VelocityWSAlongAcceleration;
+		}
+	}
+
 	FQuat CurrentFacingWS = CharacterTrajectoryData.SkelMeshComponent->GetComponentRotation().Quaternion();
 	FQuat SkelMeshCompRelativeRotation = CharacterTrajectoryData.SkelMeshComponent->GetRelativeRotation().Quaternion();
 

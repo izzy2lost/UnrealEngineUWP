@@ -63,6 +63,11 @@ public:
 	UPROPERTY(EditDefaultsOnly, Category = "Trajectory Settings")
 	float MaxControllerRotationRate = -1.f;
 
+	// artificially bend character velocity towards acceleration direction to compute trajectory prediction, to get sharper turns
+	// 0: character velocity is used with no alteration, 1: the acceleration direction is used as velocity direction
+	UPROPERTY(EditDefaultsOnly, Category = "Trajectory Settings", meta = (ClampMin = "0", ClampMax = "1"))
+	float BendVelocityTowardsAcceleration = 0.f;
+
 	UPROPERTY(EditDefaultsOnly, Category = "Trajectory Settings", meta = (InlineEditConditionToggle))
 	bool bUseSpeedRemappingCurve = false;
 
