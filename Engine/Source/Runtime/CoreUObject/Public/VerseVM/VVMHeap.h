@@ -353,7 +353,7 @@ private:
 	static bool bIsExternallyControlled;
 	static bool bIsGCReadyForExternalMarking;
 	static bool bIsGCMarkingExternallySignaled;
-	static bool bIsGCTerminationExternallyBlocked;
+	static bool bIsGCTerminationWaitingForExternalSignal;
 	static bool bIsGCTerminatingExternally;
 
 	static bool bIsTerminated;

@@ -58,7 +58,7 @@ unsigned FHeap::NumThreadsToScanStackManually;
 bool FHeap::bIsExternallyControlled;
 bool FHeap::bIsGCReadyForExternalMarking;
 bool FHeap::bIsGCMarkingExternallySignaled;
-bool FHeap::bIsGCTerminationExternallyBlocked;
+bool FHeap::bIsGCTerminationWaitingForExternalSignal;
 bool FHeap::bIsGCTerminatingExternally;
 bool FHeap::bIsTerminated;
 bool FHeap::bIsInitialized;
@@ -185,7 +185,7 @@ void FHeap::WaitForTrigger(FIOContext Context)
 	V_DIE_IF(bIsMarking);
 	V_DIE_IF(bIsCollecting);
 	V_DIE_IF(bIsGCReadyForExternalMarking);
-	V_DIE_IF(bIsGCTerminationExternallyBlocked);
+	V_DIE_IF(bIsGCTerminationWaitingForExternalSignal);
 	while (RequestedCycleVersion == CompletedCycleVersion)
 	{
 		ConditionVariable.Wait(Mutex);
@@ -238,7 +238,7 @@ void FHeap::BeginCollection(FIOContext Context)
 	V_DIE_IF(bIsMarking);
 	V_DIE_IF(bIsCollecting);
 	V_DIE_IF(bIsGCReadyForExternalMarking);
-	V_DIE_IF(bIsGCTerminationExternallyBlocked);
+	V_DIE_IF(bIsGCTerminationWaitingForExternalSignal);
 	V_DIE_UNLESS(WeakBarrierState == EWeakBarrierState::Inactive);
 
 	if (bIsExternallyControlled && !IsWithoutThreadingDuringCollection())
@@ -314,7 +314,7 @@ void FHeap::Mark(FIOContext Context)
 	V_DIE_UNLESS(bIsCollecting);
 	V_DIE_UNLESS(WeakBarrierState == EWeakBarrierState::Inactive);
 	V_DIE_IF(bIsTerminated);
-	V_DIE_IF(bIsGCTerminationExternallyBlocked);
+	V_DIE_IF(bIsGCTerminationWaitingForExternalSignal);
 	for (;;)
 	{
 		FMarkStack MyMarkStack;
@@ -342,7 +342,7 @@ void FHeap::Terminate()
 
 	// There's no way for more threads to decide to block termination, since that's only something we could have initiated.
 	V_DIE_IF(NumThreadsToScanStackManually);
-	V_DIE_IF(bIsGCTerminationExternallyBlocked);
+	V_DIE_IF(bIsGCTerminationWaitingForExternalSignal);
 	V_DIE_IF(bIsGCReadyForExternalMarking);
 	V_DIE_UNLESS(WeakBarrierState == EWeakBarrierState::AttemptingToTerminate);
 	// NOTE: It's possible that bIsGCMarkingExternallySignalled is already set.
@@ -363,7 +363,7 @@ void FHeap::Terminate()
 
 void FHeap::CancelTermination()
 {
-	bIsGCTerminationExternallyBlocked = false;
+	bIsGCTerminationWaitingForExternalSignal = false;
 	WeakBarrierState = EWeakBarrierState::Inactive;
 }
 
@@ -373,7 +373,7 @@ bool FHeap::AttemptToTerminate(FIOContext Context)
 	V_DIE_IF(bIsTerminated);
 	V_DIE_UNLESS(bIsMarking);
 	V_DIE_UNLESS(bIsCollecting);
-	V_DIE_IF(bIsGCTerminationExternallyBlocked);
+	V_DIE_IF(bIsGCTerminationWaitingForExternalSignal);
 
 	{
 		TUniqueLock Lock(Mutex);
@@ -448,7 +448,7 @@ bool FHeap::AttemptToTerminate(FIOContext Context)
 
 			if (bIsExternallyControlled)
 			{
-				bIsGCTerminationExternallyBlocked = true;
+				bIsGCTerminationWaitingForExternalSignal = true;
 				return false;
 			}
 		}
@@ -456,7 +456,7 @@ bool FHeap::AttemptToTerminate(FIOContext Context)
 		{
 			if (bIsExternallyControlled)
 			{
-				bIsGCTerminationExternallyBlocked = true;
+				bIsGCTerminationWaitingForExternalSignal = true;
 				V_DIE_IF(bIsGCTerminatingExternally);
 			}
 
@@ -468,16 +468,16 @@ bool FHeap::AttemptToTerminate(FIOContext Context)
 			// second manual stack scan if that bit is already set. Also, NumThreadsToScanStackManually will stay nonzero, so
 			// AttemptToTerminate will know that it cannot really terminate even if the mark stack ever becomes empty.
 			//
-			// This is OK in the case that bIsGCTerminationExternallyBlocked is true. This is subtle. The external GC controller will only
+			// This is OK in the case that bIsGCTerminationWaitingForExternalSignal is true. This is subtle. The external GC controller will only
 			// be led to believe that the Verse GC is ready to terminate if IsGCTerminationPendingExternalSignal() returns true. But that will
-			// return false if the MarkStack is not empty, even if bIsGCTerminationExternallyBlocked is true. So,
-			// bIsGCTerminationExternallyBlocked being true just means that it's *possible* for IsGCTerminationPendingExternalSignal() to return
+			// return false if the MarkStack is not empty, even if bIsGCTerminationWaitingForExternalSignal is true. So,
+			// bIsGCTerminationWaitingForExternalSignal being true just means that it's *possible* for IsGCTerminationPendingExternalSignal() to return
 			// true if it *also* sees an empty MarkStack. So, the moment that the mark stack becomes nonempty, the external controller will
 			// know that we're not terminating. Also, if we fall out of this loop because of a nonempty MarkStack, we will clear
-			// bIsGCTerminationExternallyBlocked. That ensures that if the mark stack becomes nonempty, and we return from AttemptToTerminate,
+			// bIsGCTerminationWaitingForExternalSignal. That ensures that if the mark stack becomes nonempty, and we return from AttemptToTerminate,
 			// then even if the MarkStack becomes empty again as part of normal GC workflow, then the external GC controller will not think
-			// that we are terminating (since bIsGCTerminationExternallyBlocked will be false).
-			while (!bIsTerminated && MarkStack->IsEmpty() && (NumThreadsToScanStackManually || bIsGCTerminationExternallyBlocked) && WeakBarrierState == EWeakBarrierState::AttemptingToTerminate)
+			// that we are terminating (since bIsGCTerminationWaitingForExternalSignal will be false).
+			while (!bIsTerminated && MarkStack->IsEmpty() && (NumThreadsToScanStackManually || bIsGCTerminationWaitingForExternalSignal) && WeakBarrierState == EWeakBarrierState::AttemptingToTerminate)
 			{
 				ConditionVariable.Wait(Mutex);
 			}
@@ -701,7 +701,7 @@ void FHeap::EnableExternalControl(FIOContext Context)
 	bIsExternallyControlled = true;
 	V_DIE_IF(bIsGCReadyForExternalMarking);
 	V_DIE_IF(bIsGCMarkingExternallySignaled);
-	V_DIE_IF(bIsGCTerminationExternallyBlocked);
+	V_DIE_IF(bIsGCTerminationWaitingForExternalSignal);
 	V_DIE_IF(bIsMarking);
 }
 
@@ -714,7 +714,7 @@ void FHeap::DisableExternalControl()
 	bIsExternallyControlled = false;
 	bIsGCReadyForExternalMarking = false;
 	bIsGCMarkingExternallySignaled = false;
-	bIsGCTerminationExternallyBlocked = false;
+	bIsGCTerminationWaitingForExternalSignal = false;
 	bIsGCTerminatingExternally = false;
 	ConditionVariable.NotifyAll();
 }
@@ -730,17 +730,17 @@ void FHeap::MarkForExternalControlWithoutThreading(FIOContext Context)
 	{
 		Mark(Context);
 
-		// This cannot terminate if we're under external control. But it might fail to terminate for one of two reasons:
+		// This cannot terminate if we're under external control. It will fail to terminate for one of two reasons:
 		//
 		// - It marked more stuff.
-		// - It didn't mark anything and realized that GC termination is externally blocked.
+		// - It didn't mark anything and realized that GC termination is now waiting for an external signal until it can terminate.
 		//
 		// We want to reloop if it marked more stuff.
 		bool bDidTerminate = AttemptToTerminate(Context);
 		V_DIE_IF(bDidTerminate);
-		V_DIE_UNLESS(MarkStack->IsEmpty() == bIsGCTerminationExternallyBlocked);
+		V_DIE_UNLESS(MarkStack->IsEmpty() == bIsGCTerminationWaitingForExternalSignal);
 	}
-	while (!bIsGCTerminationExternallyBlocked);
+	while (!bIsGCTerminationWaitingForExternalSignal);
 
 	V_DIE_UNLESS(bIsExternallyControlled);
 	V_DIE_UNLESS(IsWithoutThreadingDuringCollection());
@@ -764,7 +764,7 @@ void FHeap::ExternallySynchronouslyStartGC(FIOContext Context)
 		TUniqueLock Lock(Mutex);
 		V_DIE_UNLESS(bIsExternallyControlled);
 		V_DIE_IF(bIsGCMarkingExternallySignaled);
-		V_DIE_IF(bIsGCTerminationExternallyBlocked);
+		V_DIE_IF(bIsGCTerminationWaitingForExternalSignal);
 
 		if (IsWithoutThreadingDuringCollection())
 		{
@@ -817,7 +817,7 @@ bool FHeap::IsGCTerminationPendingExternalSignalImpl()
 {
 	V_DIE_UNLESS(Mutex.IsLocked());
 	V_DIE_UNLESS(bIsExternallyControlled);
-	return bIsGCTerminationExternallyBlocked && MarkStack->IsEmpty() && !NumThreadsToScanStackManually && WeakBarrierState == EWeakBarrierState::AttemptingToTerminate;
+	return bIsGCTerminationWaitingForExternalSignal && MarkStack->IsEmpty() && !NumThreadsToScanStackManually && WeakBarrierState == EWeakBarrierState::AttemptingToTerminate;
 }
 
 bool FHeap::IsGCTerminationPendingExternalSignal(FIOContext Context)
@@ -853,11 +853,11 @@ bool FHeap::TryToExternallySynchronouslyTerminateGC(FIOContext Context)
 		}
 		V_DIE_UNLESS(bIsExternallyControlled);
 		V_DIE_UNLESS(bIsGCReadyForExternalMarking);
-		V_DIE_UNLESS(bIsGCTerminationExternallyBlocked);
+		V_DIE_UNLESS(bIsGCTerminationWaitingForExternalSignal);
 		V_DIE_UNLESS(bIsGCMarkingExternallySignaled);
 		V_DIE_UNLESS(MarkStack->IsEmpty());
 		V_DIE_IF(NumThreadsToScanStackManually);
-		bIsGCTerminationExternallyBlocked = false;
+		bIsGCTerminationWaitingForExternalSignal = false;
 		bIsGCReadyForExternalMarking = false;
 		bIsGCMarkingExternallySignaled = false;
 		bIsGCTerminatingExternally = true;
