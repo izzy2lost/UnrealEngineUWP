@@ -51,11 +51,6 @@ public:
 	FComponentTransformDetails( const TArray< TWeakObjectPtr<UObject> >& InSelectedObjects, const FSelectedActorInfo& InSelectedActorInfo, IDetailLayoutBuilder& DetailBuilder );
 	~FComponentTransformDetails();
 
-	/**
-	 * Caches the representation of the actor transform for the user input boxes                   
-	 */
-	void CacheTransform();
-
 	virtual void GenerateHeaderRowContent( FDetailWidgetRow& NodeRow ) override {}
 	virtual void GenerateChildContent( IDetailChildrenBuilder& ChildrenBuilder ) override;
 	virtual bool RequiresTick() const override { return true; }
@@ -70,6 +65,9 @@ public:
 	}
 
 private:
+	/** Caches some information of the actor (transform, locked location) for the user input boxes */
+	void CacheDetails();
+
 	/** @return Whether the transform details panel should be enabled (editable) or not (read-only / greyed out) */
 	bool GetIsEnabled() const;
 
@@ -332,4 +330,6 @@ private:
 	TArray< TSharedPtr< IPropertyHandle> > PropertyHandles;
 	/** Holds the property handles' outer objects. Used to update the handles' objects when the actor construction script runs. */
 	TArray< TWeakObjectPtr<UObject> > CachedHandlesObjects;
+	/** Cached enabled value of the selected set */
+	bool bIsEnabledCache;
 };
