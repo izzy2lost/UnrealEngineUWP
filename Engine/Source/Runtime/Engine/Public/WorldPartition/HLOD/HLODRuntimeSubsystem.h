@@ -100,9 +100,9 @@ private:
 
 	struct FWorldPartitionHLODWarmupState
 	{
-		uint32 WarmupStartFrame = INDEX_NONE;
-		uint32 WarmupEndFrame = INDEX_NONE;
-		FVector Location;
+		uint32 WarmupLastRequestedFrame = INDEX_NONE;
+		uint32 WarmupCallsUntilReady = INDEX_NONE;
+		FBox WarmupBounds;
 	};
 
 	typedef TMap<FObjectKey, FWorldPartitionHLODWarmupState> FHLODWarmupStateMap;
