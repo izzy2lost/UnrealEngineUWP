@@ -59,10 +59,7 @@ struct SActorTreeLabel : FSceneOutlinerCommonLabelData, public SCompoundWidget
 				.OnEnterEditingMode(this, &SActorTreeLabel::OnEnterEditingMode)
 				.OnExitEditingMode(this, &SActorTreeLabel::OnExitEditingMode)
 				.IsSelected(FIsSelected::CreateSP(&InRow, &STableRow<FSceneOutlinerTreeItemPtr>::IsSelectedExclusively))
-				.IsReadOnly_Lambda([Item = ActorItem.AsShared(), this]()
-				{
-					return !CanExecuteRenameRequest(Item.Get());
-				})
+				.IsReadOnly(this, &SActorTreeLabel::IsReadOnly)
 			];
 
 		if (WeakSceneOutliner.Pin()->GetMode()->IsInteractive())
@@ -294,6 +291,12 @@ private:
 	void OnExitEditingMode()
 	{
 		bInEditingMode = false;
+	}
+
+	bool IsReadOnly() const
+	{
+		AActor* Actor = ActorPtr.Get();
+		return !(Actor && Actor->IsActorLabelEditable() && CanExecuteRenameRequest(*TreeItemPtr.Pin()));
 	}
 
 	bool bInEditingMode = false;

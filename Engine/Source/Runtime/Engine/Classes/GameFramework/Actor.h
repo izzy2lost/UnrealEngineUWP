@@ -2507,7 +2507,7 @@ public:
 	 * Returns if this actor's current label is editable.  Actor labels are only available in development builds.
 	 * @return	The editable status of the actor's label
 	 */
-	ENGINE_API bool IsActorLabelEditable() const;
+	ENGINE_API virtual bool IsActorLabelEditable() const;
 
 	/** Returns this actor's folder path. Actor folder paths are only available in development builds. */
 	UFUNCTION(BlueprintCallable, Category = "Editor Scripting | Actor Editing")
