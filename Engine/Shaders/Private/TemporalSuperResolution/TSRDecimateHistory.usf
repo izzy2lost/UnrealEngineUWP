@@ -312,14 +312,14 @@ void ProcessPrevAtomicTexturesSamples(
 		{
 			const float PixelDepthError = 3.0;
 			const float RadiusToDiameter = 2.0;
-			float WorldDepthEpsilon = GetDepthPixelRadiusForProjectionType(HistoryClosestDeviceZ) * PixelDepthError * RadiusToDiameter;
+			float WorldDepthEpsilon = GetDepthPixelRadiusForProjectionType(HistoryClosestWorldDepth) * PixelDepthError * RadiusToDiameter;
 			float DeltaDepth = abs(HistoryClosestWorldDepth - WorldDepth);
 
 			DepthRejection = saturate(tsr_half(2.0) - tsr_half(DeltaDepth / WorldDepthEpsilon));
 		}
 
 		tsr_half HistoryGhostingRejection = saturate(tsr_half(1.0) - tsr_half(3.0) * abs(tsr_half(HistoryUseCount) * rcp(tsr_half(PREV_USE_COUNT_QUANTIZATION)) - tsr_half(1.0)));
-			
+		
 		bIsValidHoleFillingPixelVelocity = bIsValidHoleFillingPixelVelocity || bValidPixelPos;
 
 		EncodedHoleFillingVelocity = select(bValidPixelPos, max(EncodedHoleFillingVelocity, SampleHistoryClosestDeviceZ), EncodedHoleFillingVelocity);
