@@ -150,8 +150,6 @@ UPersonaOptions::UPersonaOptions(const FObjectInitializer& ObjectInitializer)
 
 	NumFolderFiltersInAssetBrowser = 2;
 
-	bUseAudioAttenuation = true;
-
 	CurveEditorSnapInterval = 0.01f;
 
 	// Default to millisecond resolution
@@ -203,12 +201,6 @@ void UPersonaOptions::SetAutoAlignFloorToMesh(bool bInAutoAlignFloorToMesh)
 void UPersonaOptions::SetMuteAudio( bool bInMuteAudio )
 {
 	bMuteAudio = bInMuteAudio;
-	SaveConfig();
-}
-
-void UPersonaOptions::SetUseAudioAttenuation( bool bInUseAudioAttenuation )
-{
-	bUseAudioAttenuation = bInUseAudioAttenuation;
 	SaveConfig();
 }
 

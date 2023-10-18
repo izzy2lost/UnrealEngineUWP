@@ -46,6 +46,7 @@
 #include "Engine/PoseWatchRenderData.h"
 #include "UObject/UE5MainStreamObjectVersion.h"
 #include "Animation/AnimCompositeBase.h"
+#include "AudioEditorSettings.h"
 
 namespace {
 	static const float AnimationEditorViewport_RotateSpeed = 0.02f;
@@ -142,10 +143,9 @@ FAnimationViewportClient::FAnimationViewportClient(const TSharedRef<IPersonaPrev
 	{
 		World->bAllowAudioPlayback = !ConfigOption->bMuteAudio;
 
-		if(FAudioDevice* AudioDevice = World->GetAudioDeviceRaw())
-		{
-			AudioDevice->SetUseAttenuationForNonGameWorlds(ConfigOption->bUseAudioAttenuation);
-		}
+		UAudioEditorSettings* AudioConfigOption = GetMutableDefault<UAudioEditorSettings>();
+		check(AudioConfigOption);
+		AudioConfigOption->SetUseAudioAttenuation(true);
 	}
 }
 
@@ -242,21 +242,16 @@ bool FAnimationViewportClient::IsAudioMuted() const
 
 void FAnimationViewportClient::OnToggleUseAudioAttenuation()
 {
-	ConfigOption->SetUseAudioAttenuation(!ConfigOption->bUseAudioAttenuation);
-
-	UWorld* World = PreviewScene->GetWorld();
-	if(World)
-	{
-		if(FAudioDevice* AudioDevice = GetWorld()->GetAudioDeviceRaw())
-		{
-			AudioDevice->SetUseAttenuationForNonGameWorlds(ConfigOption->bUseAudioAttenuation);
-		}
-	}
+	UAudioEditorSettings* AudioConfigOption = GetMutableDefault<UAudioEditorSettings>();
+	check(AudioConfigOption);
+	AudioConfigOption->SetUseAudioAttenuation(!AudioConfigOption->IsUsingAudioAttenuation());
 }
 
 bool FAnimationViewportClient::IsUsingAudioAttenuation() const
 {
-	return ConfigOption->bUseAudioAttenuation;
+	const UAudioEditorSettings* AudioConfigOption = GetDefault<UAudioEditorSettings>();
+	check(AudioConfigOption);
+	return AudioConfigOption->IsUsingAudioAttenuation();
 }
 
 void FAnimationViewportClient::ToggleRotateCameraToFollowBone()
