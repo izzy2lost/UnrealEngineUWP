@@ -260,7 +260,7 @@ private:
 DECLARE_DYNAMIC_MULTICAST_DELEGATE(FFunctionalTestEventSignature);
 DECLARE_DELEGATE_OneParam(FFunctionalTestDoneSignature, class AFunctionalTest*);
 
-UCLASS(hidecategories=( Actor, Input, Rendering ), Blueprintable)
+UCLASS(hidecategories=( Actor, Input, Rendering, HLOD ), Blueprintable)
 class FUNCTIONALTESTING_API AFunctionalTest : public AActor
 {
 	GENERATED_BODY()
