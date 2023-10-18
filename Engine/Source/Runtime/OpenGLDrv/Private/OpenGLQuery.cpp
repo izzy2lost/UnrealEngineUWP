@@ -1229,12 +1229,23 @@ bool FOpenGLGPUFence::Poll() const
 		return true;
 	}
 
-	RunOnGLRenderContextThread([Proxy = Proxy]()
+	if (!(IsInRenderingThread() || IsInRHIThread()))
 	{
-		VERIFY_GL_SCOPE();
-		check(Proxy != nullptr);
-		Proxy->Poll();
-	});
+		ENQUEUE_RENDER_COMMAND(FOpenGLGPUFence_Poll)(
+		[this](FRHICommandListImmediate& RHICmdList)
+		{
+			Poll();
+		});
+	}
+	else
+	{
+		RunOnGLRenderContextThread([Proxy = Proxy]()
+		{
+			VERIFY_GL_SCOPE();
+			check(Proxy != nullptr);
+			Proxy->Poll();
+		});
+	}
 
 	return Proxy->bIsSignaled;
 }
