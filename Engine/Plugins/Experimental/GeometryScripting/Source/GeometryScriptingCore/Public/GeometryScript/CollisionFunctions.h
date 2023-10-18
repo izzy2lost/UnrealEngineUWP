@@ -144,6 +144,10 @@ public:
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = NegativeSpace, meta = (EditCondition = "SampleMethod == EGeometryScriptNegativeSpaceSampleMethod::VoxelSearch", EditConditionHides))
 	bool bOnlyConnectedToHull = false;
 
+	/** When performing Voxel Search, maximum number of voxels to use along each dimension */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = NegativeSpace, meta = (ClampMin = 4, ClampMax = 4096))
+	int32 MaxVoxelsPerDim = 128;
+
 	/** Approximate number of spheres to consider when covering negative space */
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = NegativeSpace, meta = (ClampMin = 1))
 	int32 TargetNumSamples = 50;

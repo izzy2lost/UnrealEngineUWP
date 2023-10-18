@@ -73,6 +73,8 @@ struct FNegativeSpaceSampleSettings
 	bool bRequireSearchSampleCoverage = false;
 	// Whether to only consider negative space that is connected to the bounding convex hull, i.e., to ignore hollow inner pockets of negative space that cannot be reached from the outside via a larger-than-ReduceRadiusMargin-wide path
 	bool bOnlyConnectedToHull = false;
+	// Maximum number of voxels to use per dimension, when performing VoxelSearch
+	int32 MaxVoxelsPerDim = 128;
 
 	// Make sure the settings values are in valid ranges
 	void Sanitize()
@@ -81,6 +83,7 @@ struct FNegativeSpaceSampleSettings
 		MinSpacing = FMath::Max(0.0, MinSpacing);
 		ReduceRadiusMargin = FMath::Max(0.0, ReduceRadiusMargin);
 		MinRadius = FMath::Max(0.0, MinRadius);
+		MaxVoxelsPerDim = FMath::Clamp(MaxVoxelsPerDim, 4, 4096);
 	}
 };
 

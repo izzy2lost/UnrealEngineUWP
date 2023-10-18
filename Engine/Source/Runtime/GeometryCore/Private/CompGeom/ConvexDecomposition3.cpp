@@ -145,7 +145,7 @@ bool FSphereCovering::AddNegativeSpace(const TFastWindingTree<FDynamicMesh3>& Sp
 		FAxisAlignedBox3d HullBox = HullAABB.GetBoundingBox();
 		HullBox.Expand(1);
 		FMarchingCubes MarchingCubes;
-		MarchingCubes.CubeSize = FMath::Clamp(SampleSettings.ReduceRadiusMargin * .5, HullBox.MaxDim() / 128.0, HullBox.MinDim() * .5);
+		MarchingCubes.CubeSize = FMath::Clamp(SampleSettings.ReduceRadiusMargin * .5, HullBox.MaxDim() / (double)SampleSettings.MaxVoxelsPerDim, HullBox.MinDim() * .5);
 		MarchingCubes.Bounds = HullBox;
 		MarchingCubes.RootMode = ERootfindingModes::Bisection;
 		MarchingCubes.RootModeSteps = 3;
