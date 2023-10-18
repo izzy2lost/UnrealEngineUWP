@@ -178,7 +178,14 @@ void UOpenColorIOConfiguration::ReloadExistingColorspaces(bool bForce)
 
 	if (Config && Config->IsValid())
 	{
-		FString LoadedConfigHash = Config->GetCacheID() + FString(OpenColorIOWrapper::GetVersion());
+		FString LoadedConfigHash = Config->GetCacheID();
+		if (LoadedConfigHash.IsEmpty())
+		{
+			UE_LOG(LogOpenColorIO, Warning, TEXT("Failed to get cache ID: forcing constant transform recreation. Please fix invalid config."));
+			bForce = true;
+		}
+
+		LoadedConfigHash += FString(OpenColorIOWrapper::GetVersion());
 		
 		const UOpenColorIOSettings* Settings = GetDefault<UOpenColorIOSettings>();
 		if (Settings->bSupportInverseViewTransforms)
