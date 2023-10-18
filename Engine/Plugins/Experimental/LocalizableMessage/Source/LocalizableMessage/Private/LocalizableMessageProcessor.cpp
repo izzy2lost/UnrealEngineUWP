@@ -65,7 +65,8 @@ FText FLocalizableMessageProcessor::Localize(const FLocalizableMessage& Message,
 	});
 	if (FormatArguments.Num() > 0)
 	{
-		FTextFormat LocalizedTextFormat(LocalizedText, LocalizableMessageProcessor::GetTextFormatFlags());
+		const bool bIsLocalized = !LocalizedText.ToString().Equals(Message.DefaultText);
+		FTextFormat LocalizedTextFormat(LocalizedText, LocalizableMessageProcessor::GetTextFormatFlags() | (bIsLocalized ? ETextFormatFlags::EvaluateArgumentModifiers : ETextFormatFlags::None));
 		LocalizedText = FText::Format(LocalizedTextFormat, FormatArguments);
 	}
 
