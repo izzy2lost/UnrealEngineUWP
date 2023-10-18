@@ -3507,7 +3507,7 @@ void STableTreeView::ContextMenu_CopyColumnToClipboard_Execute()
 		const TSharedPtr<FTableColumn> HoveredColumnPtr = Table->FindColumn(HoveredColumnId);
 		if (HoveredColumnPtr.IsValid())
 		{
-			FString Text = HoveredColumnPtr->GetValueAsText(*SelectedNode).ToString();
+			FString Text = HoveredColumnPtr->CopyValue(*SelectedNode).ToString();
 			FPlatformApplicationMisc::ClipboardCopy(*Text);
 		}
 	}
@@ -3537,7 +3537,7 @@ void STableTreeView::ContextMenu_CopyColumnTooltipToClipboard_Execute()
 		const TSharedPtr<FTableColumn> HoveredColumnPtr = Table->FindColumn(HoveredColumnId);
 		if (HoveredColumnPtr.IsValid())
 		{
-			FString Text = HoveredColumnPtr->GetValueAsTooltipText(*SelectedNode).ToString();
+			FString Text = HoveredColumnPtr->CopyTooltip(*SelectedNode).ToString();
 			FPlatformApplicationMisc::ClipboardCopy(*Text);
 		}
 	}

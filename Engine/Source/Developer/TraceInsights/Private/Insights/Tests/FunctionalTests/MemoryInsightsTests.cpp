@@ -215,9 +215,13 @@ bool FVerifyHierarchyCallStackCommand::Update()
 		{
 			const Insights::FMemAllocNode& MemAllocNode = static_cast<const Insights::FMemAllocNode&>(*Node);
 			const Insights::FMemoryAlloc Alloc = MemAllocNode.GetMemAllocChecked();
-			if (!(!Alloc.GetCallstack() || Alloc.GetCallstack()->Num() == 0 || (Alloc.GetCallstack()->Num() != 0 && Alloc.GetCallstack()->Num() <= 256)))
+			if (!(!Alloc.GetAllocCallstack() || Alloc.GetAllocCallstack()->Num() == 0 || (Alloc.GetAllocCallstack()->Num() != 0 && Alloc.GetAllocCallstack()->Num() < 256)))
 			{
-				Test->AddError(TEXT("Resolved callstack should be valid"));
+				Test->AddError(TEXT("Resolved alloc callstack should be valid"));
+			}
+			if (!(!Alloc.GetFreeCallstack() || Alloc.GetFreeCallstack()->Num() == 0 || (Alloc.GetFreeCallstack()->Num() != 0 && Alloc.GetFreeCallstack()->Num() < 256)))
+			{
+				Test->AddError(TEXT("Resolved free callstack should be valid"));
 			}
 		}
 		return true;

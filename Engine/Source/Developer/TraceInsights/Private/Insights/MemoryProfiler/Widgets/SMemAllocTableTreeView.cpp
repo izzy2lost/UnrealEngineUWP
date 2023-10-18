@@ -413,7 +413,7 @@ void SMemAllocTableTreeView::UpdateQuery(TraceServices::IAllocationsProvider::EQ
 					if (MetadataId != TraceServices::IMetadataProvider::InvalidMetadataId && MetadataProvider && DefinitionProvider)
 					{
 						TraceServices::FProviderReadScopeLock MetadataProviderReadLock(*MetadataProvider);
-						MetadataProvider->EnumerateMetadata(Allocation->GetThreadId(), MetadataId,
+						MetadataProvider->EnumerateMetadata(Allocation->GetAllocThreadId(), MetadataId,
 							[AssetMetadataType, Schema, &Alloc, DefinitionProvider](uint32 StackDepth, uint16 Type, const void* Data, uint32 Size) -> bool
 							{
 								if (Type == AssetMetadataType)
@@ -444,20 +444,23 @@ void SMemAllocTableTreeView::UpdateQuery(TraceServices::IAllocationsProvider::EQ
 							});
 					}
 
-					Alloc.CallstackId = Allocation->GetCallstackId();
+					Alloc.AllocThreadId = uint16(Allocation->GetAllocThreadId());
+					Alloc.FreeThreadId = uint16(Allocation->GetFreeThreadId());
+
+					Alloc.AllocCallstackId = Allocation->GetAllocCallstackId();
 					Alloc.FreeCallstackId = Allocation->GetFreeCallstackId();
 
 					if (CallstacksProvider)
 					{
-						Alloc.Callstack = CallstacksProvider->GetCallstack(Allocation->GetCallstackId());
-						check(Alloc.Callstack != nullptr);
+						Alloc.AllocCallstack = CallstacksProvider->GetCallstack(Allocation->GetAllocCallstackId());
+						check(Alloc.AllocCallstack != nullptr);
 
 						Alloc.FreeCallstack = CallstacksProvider->GetCallstack(Allocation->GetFreeCallstackId());
 						check(Alloc.FreeCallstack != nullptr);
 					}
 					else
 					{
-						Alloc.Callstack = nullptr;
+						Alloc.AllocCallstack = nullptr;
 						Alloc.FreeCallstack = nullptr;
 					}
 
@@ -1678,17 +1681,17 @@ uint32 SMemAllocTableTreeView::CountSourceFiles(FMemAllocNode& MemAllocNode)
 	}
 
 	const FMemoryAlloc* Alloc = MemAllocNode.GetMemAlloc();
-	if (!Alloc || !Alloc->Callstack)
+	if (!Alloc || !Alloc->AllocCallstack)
 	{
 		return 0;
 	}
 
 	uint32 NumSourceFiles = 0;
-	const uint32 NumCallstackFrames = Alloc->Callstack->Num();
+	const uint32 NumCallstackFrames = Alloc->AllocCallstack->Num();
 	check(NumCallstackFrames <= 256); // see Callstack->Frame(uint8)
 	for (uint32 FrameIndex = 0; FrameIndex < NumCallstackFrames; ++FrameIndex)
 	{
-		const TraceServices::FStackFrame* Frame = Alloc->Callstack->Frame(static_cast<uint8>(FrameIndex));
+		const TraceServices::FStackFrame* Frame = Alloc->AllocCallstack->Frame(static_cast<uint8>(FrameIndex));
 		if (Frame && Frame->Symbol && Frame->Symbol->File)
 		{
 			++NumSourceFiles;
@@ -1801,7 +1804,7 @@ void SMemAllocTableTreeView::BuildOpenSourceSubMenu(FMenuBuilder& MenuBuilder, b
 			const FMemoryAlloc* Alloc = MemAllocNode->GetMemAlloc();
 			if (Alloc)
 			{
-				const TraceServices::FCallstack* Callstack = bIsAllocCallstack ? Alloc->Callstack : Alloc->FreeCallstack;
+				const TraceServices::FCallstack* Callstack = bIsAllocCallstack ? Alloc->AllocCallstack : Alloc->FreeCallstack;
 				if (Callstack)
 				{
 					bHasAnySourceFilesToOpen = BuildOpenSourceSubMenuItems(MenuBuilder, *Callstack);
@@ -1946,7 +1949,7 @@ void SMemAllocTableTreeView::ExportMemorySnapshot() const
 			const FMemoryAlloc* Alloc = MemAllocNode.GetMemAlloc();
 			if (Alloc)
 			{
-				const TraceServices::FCallstack* Callstack = bIsAllocCallstack ? Alloc->Callstack : Alloc->FreeCallstack;
+				const TraceServices::FCallstack* Callstack = bIsAllocCallstack ? Alloc->AllocCallstack : Alloc->FreeCallstack;
 				if (!Callstack)
 				{
 					OutData << QuotationMarkBegin;

@@ -14,9 +14,9 @@ INSIGHTS_IMPLEMENT_RTTI(FMemAllocNode)
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////
 
-uint32 FMemAllocNode::GetCallstackId() const
+uint32 FMemAllocNode::GetAllocCallstackId() const
 {
-	return IsValidMemAlloc() ? GetMemAllocChecked().GetCallstackId() : 0u;
+	return IsValidMemAlloc() ? GetMemAllocChecked().GetAllocCallstackId() : 0u;
 }
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////
@@ -80,7 +80,7 @@ FText FMemAllocNode::GetFullCallstackOrSourceFiles(ECallstackType InCallstackTyp
 	const Insights::FMemoryAlloc& Alloc = GetMemAllocChecked();
 	const TraceServices::FCallstack* Callstack = 
 		InCallstackType == ECallstackType::AllocCallstack
-			? Alloc.GetCallstack() 
+			? Alloc.GetAllocCallstack() 
 			: Alloc.GetFreeCallstack();
 
 	if (!Callstack)
@@ -121,7 +121,7 @@ FText FMemAllocNode::GetTopFunctionOrSourceFile(ECallstackType InCallstackType, 
 	const Insights::FMemoryAlloc& Alloc = GetMemAllocChecked();
 	const TraceServices::FCallstack* Callstack = 
 		InCallstackType == ECallstackType::AllocCallstack
-			? Alloc.GetCallstack() 
+			? Alloc.GetAllocCallstack() 
 			: Alloc.GetFreeCallstack();
 
 	if (!Callstack)

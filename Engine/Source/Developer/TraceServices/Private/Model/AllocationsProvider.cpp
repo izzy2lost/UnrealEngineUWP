@@ -466,18 +466,26 @@ uint32 IAllocationsProvider::FAllocation::GetAlignment() const
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////
 
-uint32 IAllocationsProvider::FAllocation::GetThreadId() const
+uint32 IAllocationsProvider::FAllocation::GetAllocThreadId() const
 {
 	const auto* Inner = (const FAllocationItem*)this;
-	return Inner->ThreadId;
+	return Inner->AllocThreadId;
 }
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////
 
-uint32 IAllocationsProvider::FAllocation::GetCallstackId() const
+uint32 IAllocationsProvider::FAllocation::GetFreeThreadId() const
 {
 	const auto* Inner = (const FAllocationItem*)this;
-	return Inner->CallstackId;
+	return Inner->FreeThreadId;
+}
+
+////////////////////////////////////////////////////////////////////////////////////////////////////
+
+uint32 IAllocationsProvider::FAllocation::GetAllocCallstackId() const
+{
+	const auto* Inner = (const FAllocationItem*)this;
+	return Inner->AllocCallstackId;
 }
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////
@@ -1450,10 +1458,10 @@ void FAllocationsProvider::EditAlloc(uint32 ThreadId, double Time, uint32 Callst
 		Allocation.EndEventIndex = (uint32)-1;
 		Allocation.StartTime = Time;
 		Allocation.EndTime = std::numeric_limits<double>::infinity();
-		Allocation.ThreadId = static_cast<uint16>(ThreadId);
-		check(uint32(Allocation.ThreadId) == ThreadId);
+		Allocation.AllocThreadId = static_cast<uint16>(ThreadId);
+		check(uint32(Allocation.AllocThreadId) == ThreadId);
 		Allocation.FreeThreadId = 0;
-		Allocation.CallstackId = CallstackId;
+		Allocation.AllocCallstackId = CallstackId;
 		Allocation.FreeCallstackId = 0; // no callstack yet
 		Allocation.MetadataId = MetadataId;
 		Allocation.Tag = Tag;
@@ -1851,7 +1859,7 @@ void FAllocationsProvider::EditMarkAllocationAsHeap(uint32 ThreadId, double Time
 		Alloc->RootHeap = static_cast<uint8>(Heap);
 		if (CallstackId != 0)
 		{
-			Alloc->CallstackId = CallstackId;
+			Alloc->AllocCallstackId = CallstackId;
 		}
 
 		// Re-add it to the Live allocs as a heap allocation.
@@ -1954,7 +1962,7 @@ void FAllocationsProvider::EditUnmarkAllocationAsHeap(uint32 ThreadId, double Ti
 		// Mark allocation as a "heap" allocation.
 		Alloc->Flags = Alloc->Flags | EMemoryTraceHeapAllocationFlags::Heap;
 		Alloc->RootHeap = static_cast<uint8>(Heap);
-		Alloc->CallstackId = CallstackId;
+		Alloc->AllocCallstackId = CallstackId;
 	}
 #endif // INSIGHTS_VALIDATE_HEAP_UNMARK_ALLOC_EVENTS
 
@@ -2036,7 +2044,7 @@ void FAllocationsProvider::EditUnmarkAllocationAsHeap(uint32 ThreadId, double Ti
 
 		const uint64 Size = Alloc->GetSize();
 		const uint32 Alignment = Alloc->GetAlignment();
-		const uint32 AllocCallstackId = Alloc->CallstackId;
+		const uint32 AllocCallstackId = Alloc->AllocCallstackId;
 
 		// Re-add this allocation to the Live allocs.
 		RootHeap.LiveAllocs->Add(Alloc); // the Live allocs takes ownership of Alloc

@@ -24,6 +24,8 @@ struct FMemAllocTableColumns
 	static const FName StartTimeColumnId;
 	static const FName EndTimeColumnId;
 	static const FName DurationColumnId;
+	static const FName AllocThreadColumnId;
+	static const FName FreeThreadColumnId;
 	static const FName AddressColumnId;
 	static const FName MemoryPageColumnId;
 	static const FName CountColumnId;
@@ -34,9 +36,11 @@ struct FMemAllocTableColumns
 	static const FName ClassNameColumnId;
 	static const FName AllocFunctionColumnId;
 	static const FName AllocSourceFileColumnId;
+	static const FName AllocCallstackIdColumnId;
 	static const FName AllocCallstackSizeColumnId;
 	static const FName FreeFunctionColumnId;
 	static const FName FreeSourceFileColumnId;
+	static const FName FreeCallstackIdColumnId;
 	static const FName FreeCallstackSizeColumnId;
 };
 

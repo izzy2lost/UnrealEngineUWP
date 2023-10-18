@@ -41,6 +41,20 @@ FText FTableCellValueFormatter::FormatValueForGrouping(const FTableColumn& Colum
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////
 
+FText FTableCellValueFormatter::CopyValue(const FTableColumn& Column, const FBaseTreeNode& Node) const
+{
+	return FormatValue(Column, Node);
+}
+
+////////////////////////////////////////////////////////////////////////////////////////////////////
+
+FText FTableCellValueFormatter::CopyTooltip(const FTableColumn& Column, const FBaseTreeNode& Node) const
+{
+	return FormatValueForTooltip(Column, Node);
+}
+
+////////////////////////////////////////////////////////////////////////////////////////////////////
+
 TSharedPtr<IToolTip> FTableCellValueFormatter::GetCustomTooltip(const FTableColumn& Column, const FBaseTreeNode& Node) const
 {
 	return SNew(SToolTip)
