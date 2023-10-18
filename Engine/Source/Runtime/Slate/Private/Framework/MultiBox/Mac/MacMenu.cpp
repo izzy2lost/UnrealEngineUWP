@@ -280,7 +280,19 @@ namespace MacMenuHelper
 	
 	NSString* ComputeAppName()
 	{
-		return GIsEditor ? NSLOCTEXT("UnrealEditor", "ApplicationTitle", "Unreal Editor").ToString().GetNSString() : FString(FApp::GetProjectName()).GetNSString();
+        if (GIsEditor)
+        {
+            return NSLOCTEXT("UnrealEditor", "ApplicationTitle", "Unreal Editor").ToString().GetNSString();
+        }
+        
+        FText ProjectTitle;
+        GConfig->GetText(TEXT("/Script/EngineSettings.GeneralProjectSettings"), TEXT("ProjectDisplayedTitle"), ProjectTitle, GGameIni);
+        if (!ProjectTitle.IsEmpty())
+        {
+            return ProjectTitle.ToString().GetNSString();
+        }
+        
+        return FString(FApp::GetProjectName()).GetNSString();
 	}
 	
 	bool GMacPostInitStartupRequested = false;
