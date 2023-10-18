@@ -974,6 +974,23 @@ void ComputeBodyInsertionOrder(TArray<FBoneIndexType>& InsertionOrder, const USk
 	}
 }
 
+UPhysicsAsset* FAnimNode_RigidBody::GetPhysicsAssetToBeUsed(const UAnimInstance* InAnimInstance) const
+{
+	if (OverridePhysicsAsset)
+	{
+		return ToRawPtr(OverridePhysicsAsset);
+	}
+
+	ensure(InAnimInstance);
+	const USkeletalMeshComponent* SkeletalMeshComp = InAnimInstance->GetSkelMeshComponent();
+	if (bDefaultToSkeletalMeshPhysicsAsset && SkeletalMeshComp)
+	{
+		return SkeletalMeshComp->GetPhysicsAsset();
+	}
+
+	return nullptr;
+}
+
 void FAnimNode_RigidBody::InitPhysics(const UAnimInstance* InAnimInstance)
 {
 	LLM_SCOPE_BYNAME(TEXT("Animation/RigidBody")); 
@@ -994,7 +1011,7 @@ void FAnimNode_RigidBody::InitPhysics(const UAnimInstance* InAnimInstance)
 	}
 
 	const FReferenceSkeleton& SkelMeshRefSkel = SkeletalMeshAsset->GetRefSkeleton();
-	UsePhysicsAsset = OverridePhysicsAsset ? ToRawPtr(OverridePhysicsAsset) : InAnimInstance->GetSkelMeshComponent()->GetPhysicsAsset();
+	UsePhysicsAsset = GetPhysicsAssetToBeUsed(InAnimInstance);
 
 	ensure(SkeletonAsset == SkeletalMeshAsset->GetSkeleton());
 
@@ -1431,6 +1448,16 @@ DECLARE_CYCLE_STAT(TEXT("RigidBody_PreUpdate"), STAT_RigidBody_PreUpdate, STATGR
 
 void FAnimNode_RigidBody::PreUpdate(const UAnimInstance* InAnimInstance)
 {
+	// Detect changes in the physics asset to be used. This can happen when using the override physics asset as a pin on the anim graph node.
+	UPhysicsAsset* PhysicsAssetToBeUsed = GetPhysicsAssetToBeUsed(InAnimInstance);
+	if (UsePhysicsAsset != PhysicsAssetToBeUsed)
+	{
+		InitPhysics(InAnimInstance);
+
+		// Update the bone references after a change in the physics asset. This needs to happen after initializing physics as the Bodies set up in InitPhysics() need to be up to date.
+		InitializeBoneReferences(InAnimInstance->GetRequiredBones());
+	}
+
 	// Don't update geometry if RBN is disabled
 	if(!bEnabled)
 	{

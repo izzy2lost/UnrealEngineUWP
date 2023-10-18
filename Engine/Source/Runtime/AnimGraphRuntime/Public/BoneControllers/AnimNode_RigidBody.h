@@ -181,11 +181,18 @@ struct FAnimNode_RigidBody : public FAnimNode_SkeletalControlBase
 	UPhysicsAsset* GetPhysicsAsset() const { return UsePhysicsAsset; }
 
 public:
-	/** Physics asset to use. If empty use the skeletal mesh's default physics asset */
-	UPROPERTY(EditAnywhere, Category = Settings)
+	/** Physics asset to use. If empty use the skeletal mesh's default physics asset in case Default To Skeletal Mesh Physics Asset is set to True. */
+	UPROPERTY(EditAnywhere, Category = Settings, meta = (PinHiddenByDefault))
 	TObjectPtr<UPhysicsAsset> OverridePhysicsAsset;
 
+	/** Use the skeletal mesh physics asset as default in case set to True. The Override Physics Asset will always have priority over this. */
+	UPROPERTY(EditAnywhere, Category = Settings)
+	bool bDefaultToSkeletalMeshPhysicsAsset = true;
+
 private:
+	/** Get the physics asset candidate to be used while respecting the bDefaultToSkeletalMeshPhysicsAsset and the priority to the override physics asset. */
+	UPhysicsAsset* GetPhysicsAssetToBeUsed(const UAnimInstance* InAnimInstance) const;
+
 	FTransform PreviousCompWorldSpaceTM;
 	FTransform CurrentTransform;
 	FTransform PreviousTransform;
