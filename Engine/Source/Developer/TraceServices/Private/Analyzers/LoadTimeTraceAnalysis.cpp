@@ -245,7 +245,8 @@ bool FAsyncLoadingTraceAnalyzer::OnEvent(uint16 RouteId, EStyle Style, const FOn
 				Summary.TotalHeaderSize = EventData.GetValue<uint32>("TotalHeaderSize");
 				Summary.ImportCount = EventData.GetValue<uint32>("ImportCount");
 				Summary.ExportCount = EventData.GetValue<uint32>("ExportCount");
-				UE_LOAD_TIME_TRACE_ANALYSIS_LOG1(TEXT("TotalHeaderSize=%u ImportCount=%u ExportCount=%u"), Summary.TotalHeaderSize, Summary.ImportCount, Summary.ExportCount);
+				Summary.Priority = EventData.GetValue<int32>("Priority", 0);  // added in UE 5.4
+				UE_LOAD_TIME_TRACE_ANALYSIS_LOG1(TEXT("TotalHeaderSize=%u ImportCount=%u ExportCount=%u Priority=%d"), Summary.TotalHeaderSize, Summary.ImportCount, Summary.ExportCount, Summary.Priority);
 			}
 			else
 			{
