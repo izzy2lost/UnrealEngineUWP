@@ -138,18 +138,18 @@ void FMassEntityQuery::CacheArchetypes(const FMassEntityManager& InEntityManager
 	}
 }
 
-void FMassEntityQuery::ForEachEntityChunkInCollections(TConstArrayView<FMassArchetypeEntityCollection> Collections, FMassEntityManager& EntityManager, FMassExecutionContext& ExecutionContext, const FMassExecuteFunction& ExecuteFunction)
+void FMassEntityQuery::ForEachEntityChunkInCollections(TConstArrayView<FMassArchetypeEntityCollection> EntityCollections, FMassEntityManager& EntityManager, FMassExecutionContext& ExecutionContext, const FMassExecuteFunction& ExecuteFunction)
 {
-	for (const FMassArchetypeEntityCollection& Collection : Collections)
+	for (const FMassArchetypeEntityCollection& EntityCollection : EntityCollections)
 	{
-		ForEachEntityChunk(Collection, EntityManager, ExecutionContext, ExecuteFunction);
+		ForEachEntityChunk(EntityCollection, EntityManager, ExecutionContext, ExecuteFunction);
 	}
 }
 
-void FMassEntityQuery::ForEachEntityChunk(const FMassArchetypeEntityCollection& Collection, FMassEntityManager& EntityManager, FMassExecutionContext& ExecutionContext, const FMassExecuteFunction& ExecuteFunction)
+void FMassEntityQuery::ForEachEntityChunk(const FMassArchetypeEntityCollection& EntityCollection, FMassEntityManager& EntityManager, FMassExecutionContext& ExecutionContext, const FMassExecuteFunction& ExecuteFunction)
 {
 	// mz@todo I don't like that we're copying data here.
-	ExecutionContext.SetEntityCollection(Collection);
+	ExecutionContext.SetEntityCollection(EntityCollection);
 	ForEachEntityChunk(EntityManager, ExecutionContext, ExecuteFunction);
 	ExecutionContext.ClearEntityCollection();
 }
@@ -261,6 +261,22 @@ int32 FMassEntityQuery::GetNumMatchingEntities(FMassEntityManager& InEntityManag
 		if (const FMassArchetypeData* Archetype = FMassArchetypeHelper::ArchetypeDataFromHandle(ArchetypeHandle))
 		{
 			TotalEntities += Archetype->GetNumEntities();
+		}
+	}
+	return TotalEntities;
+}
+
+int32 FMassEntityQuery::GetNumMatchingEntities(TConstArrayView<FMassArchetypeEntityCollection> EntityCollections)
+{
+	int32 TotalEntities = 0;
+	for (const FMassArchetypeEntityCollection& EntityCollection : EntityCollections)
+	{
+		if (DoesArchetypeMatchRequirements(EntityCollection.GetArchetype()))
+		{
+			for (const FMassArchetypeEntityCollection::FArchetypeEntityRange& EntityRange : EntityCollection.GetRanges())
+			{
+				TotalEntities += EntityRange.Length;
+			}
 		}
 	}
 	return TotalEntities;
