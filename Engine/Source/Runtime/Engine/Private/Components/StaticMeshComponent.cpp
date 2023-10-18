@@ -45,6 +45,7 @@
 #include "Engine/StaticMesh.h"
 #include "MaterialDomain.h"
 #include "Rendering/NaniteResources.h"
+#include "NaniteVertexFactory.h"
 #include "StaticMeshSceneProxyDesc.h"
 
 #include UE_INLINE_GENERATED_CPP_BY_NAME(StaticMeshComponent)
@@ -1644,7 +1645,6 @@ void UStaticMeshComponent::CollectPSOPrecacheData(const FPSOPrecacheParams& Base
 		return;
 	}
 
-	const FVertexFactoryType* VFType = ShouldCreateNaniteProxy() ? &Nanite::FVertexFactory::StaticType : &FLocalVertexFactory::StaticType;
 	int32 LightMapCoordinateIndex = StaticMesh->GetLightMapCoordinateIndex();
 	// FIXME: Need a precise per-LOD test
 	bool bOverrideColorVertexBuffer = LODData.Num() != 0 && LODData[0].OverrideVertexColors != nullptr;
@@ -1658,7 +1658,22 @@ void UStaticMeshComponent::CollectPSOPrecacheData(const FPSOPrecacheParams& Base
 		FLocalVertexFactory::GetVertexElements(GMaxRHIFeatureLevel, EVertexInputStreamType::Default, bSupportsManualVertexFetch, Data, Elements);
 	};
 	
-	CollectPSOPrecacheDataImpl(VFType, BasePrecachePSOParams, SMC_GetElements, OutParams);
+	if (ShouldCreateNaniteProxy())
+	{
+		if (NaniteLegacyMaterialsSupported())
+		{
+			CollectPSOPrecacheDataImpl(&Nanite::FVertexFactory::StaticType, BasePrecachePSOParams, SMC_GetElements, OutParams);
+		}
+
+		if (NaniteComputeMaterialsSupported())
+		{
+			CollectPSOPrecacheDataImpl(&FNaniteVertexFactory::StaticType, BasePrecachePSOParams, SMC_GetElements, OutParams);
+		}
+	}
+	else
+	{
+		CollectPSOPrecacheDataImpl(&FLocalVertexFactory::StaticType, BasePrecachePSOParams, SMC_GetElements, OutParams);
+	}
 }
 
 #if WITH_EDITOR

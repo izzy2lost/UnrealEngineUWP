@@ -41,7 +41,14 @@ void BuildShadingCommands(
 	ENaniteMeshPass::Type MeshPass
 );
 
-bool LoadShadingPipeline(
+bool LoadBasePassPipeline(
+	const FScene& Scene,
+	FSceneProxyBase* SceneProxy,
+	FSceneProxyBase::FMaterialSection& Section,
+	FNaniteShadingPipeline& ShadingPipeline
+);
+
+bool LoadLumenCardPipeline(
 	const FScene& Scene,
 	FSceneProxyBase* SceneProxy,
 	FSceneProxyBase::FMaterialSection& Section,
@@ -69,5 +76,8 @@ void CollectShadingPSOInitializers(
 	EShaderPlatform ShaderPlatform,
 	TArray<FPSOPrecacheData>& PSOInitializers
 );
+
+extern bool HasNoDerivativeOps(FRHIComputeShader* ComputeShaderRHI);
+extern uint32 PackMaterialBitFlags(const FMaterial& Material, uint32 BoundTargetMask, bool bNoDerivativeOps);
 
 } // Nanite

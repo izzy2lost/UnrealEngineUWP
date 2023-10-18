@@ -68,6 +68,7 @@ static FAutoConsoleVariableRef CVarNaniteBundleEmulation(
 	ECVF_RenderThreadSafe
 );
 
+// TODO: Heavily work in progress / experimental - do not use!
 static int32 GNaniteBundleShading = 0;
 static FAutoConsoleVariableRef CVarNaniteBundleShading(
 	TEXT("r.Nanite.Bundle.Shading"),
@@ -373,7 +374,7 @@ END_SHADER_PARAMETER_STRUCT()
 namespace Nanite
 {
 
-inline bool HasNoDerivativeOps(FRHIComputeShader* ComputeShaderRHI)
+bool HasNoDerivativeOps(FRHIComputeShader* ComputeShaderRHI)
 {
 	if (GNaniteShadeBinningMode == 1)
 	{
@@ -469,7 +470,7 @@ static bool TessellationEnabled()
 	return bTessellation != 0 && NaniteTessellationSupported();
 }
 
-inline uint32 PackMaterialBitFlags(const FMaterial& Material, uint32 BoundTargetMask, bool bNoDerivativeOps)
+uint32 PackMaterialBitFlags(const FMaterial& Material, uint32 BoundTargetMask, bool bNoDerivativeOps)
 {
 	FNaniteMaterialFlags Flags = { 0 };
 	Flags.bPixelDiscard = Material.IsMasked();
@@ -481,7 +482,7 @@ inline uint32 PackMaterialBitFlags(const FMaterial& Material, uint32 BoundTarget
 	return ((BoundTargetMask & 0xFFu) << 24u) | (PackedFlags & 0x00FFFFFFu);
 }
 
-bool LoadShadingPipeline(
+bool LoadBasePassPipeline(
 	const FScene& Scene,
 	FSceneProxyBase* SceneProxy,
 	FSceneProxyBase::FMaterialSection& Section,
@@ -1945,3 +1946,34 @@ void FNaniteShadingPipelines::Unregister(const FNaniteShadingBin& InShadingBin)
 		PipelineMap.RemoveByElementId(ShadingBinId);
 	}
 }
+
+#if 0
+void DispatchLumenMeshCapturePass(
+	FRDGBuilder& GraphBuilder,
+	FScene& Scene,
+	FViewInfo* SharedView,
+	TArrayView<const FCardPageRenderData> CardPagesToRender,
+	const FRasterResults& RasterResults,
+	const FRasterContext& RasterContext,
+	FLumenCardPassUniformParameters* PassUniformParameters,
+	FRDGBufferSRVRef RectMinMaxBufferSRV,
+	uint32 NumRects,
+	FIntPoint ViewportSize,
+	FRDGTextureRef AlbedoAtlasTexture,
+	FRDGTextureRef NormalAtlasTexture,
+	FRDGTextureRef EmissiveAtlasTexture,
+	FRDGTextureRef DepthAtlasTexture
+)
+{
+	checkSlow(DoesPlatformSupportNanite(GMaxRHIShaderPlatform));
+	checkSlow(DoesPlatformSupportLumenGI(GMaxRHIShaderPlatform));
+
+	LLM_SCOPE_BYTAG(Nanite);
+	RDG_EVENT_SCOPE(GraphBuilder, "Nanite::LumenMeshCapturePass");
+	TRACE_CPUPROFILER_EVENT_SCOPE(Nanite_LumenMeshCapturePass);
+
+	const FRDGSystemTextures& SystemTextures = FRDGSystemTextures::Get(GraphBuilder);
+
+
+}
+#endif

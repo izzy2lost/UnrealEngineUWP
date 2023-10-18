@@ -1314,6 +1314,13 @@ bool NaniteComputeMaterialsSupported()
 	return bAllowComputeMaterials;
 }
 
+bool NaniteLegacyMaterialsSupported()
+{
+	static const auto AllowLegacyMaterials = IConsoleManager::Get().FindTConsoleVariableDataInt(TEXT("r.Nanite.AllowLegacyMaterials"));
+	static const bool bAllowLegacyMaterials = (AllowLegacyMaterials && AllowLegacyMaterials->GetValueOnAnyThread() != 0);
+	return bAllowLegacyMaterials;
+}
+
 bool UseNaniteComputeMaterials()
 {
 	static const auto UseComputeMaterials = IConsoleManager::Get().FindTConsoleVariableDataInt(TEXT("r.Nanite.ComputeMaterials"));

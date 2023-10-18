@@ -385,8 +385,8 @@ public:
 
 private:
 	// TODO: Work in progress / experimental (having two factories is temporary).
-	// VertexFactory is the currently used one for VS/PS material shading in Nanite.
-	// VertexFactory2 is the WIP compute shader path.
+	// VertexFactory is the legacy VS/PS shading path.
+	// VertexFactory2 is the new compute shader path.
 	class FVertexFactory* VertexFactory = nullptr;
 	class FNaniteVertexFactory* VertexFactory2 = nullptr;
 };

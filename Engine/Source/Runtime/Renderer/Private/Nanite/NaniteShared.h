@@ -769,11 +769,13 @@ struct FNaniteShadingBin
 };
 
 struct FNaniteBasePassData;
+struct FNaniteLumenCardData;
 class FMeshDrawShaderBindings;
 
 struct FNaniteShadingPipeline
 {
 	TPimplPtr<FNaniteBasePassData, EPimplPtrMode::DeepCopy> BasePassData;
+	TPimplPtr<FNaniteLumenCardData, EPimplPtrMode::DeepCopy> LumenCardData;
 	TPimplPtr<FMeshDrawShaderBindings, EPimplPtrMode::DeepCopy> ShaderBindings;
 
 	const FMaterialRenderProxy* MaterialProxy = nullptr;

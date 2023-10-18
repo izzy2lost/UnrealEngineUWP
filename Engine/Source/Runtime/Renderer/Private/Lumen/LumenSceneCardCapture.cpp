@@ -6,9 +6,12 @@
 #include "SceneUtils.h"
 #include "NaniteSceneProxy.h"
 #include "NaniteVertexFactory.h"
+#include "../Nanite/NaniteShading.h"
 #include "StaticMeshBatch.h"
 #include "MeshPassProcessor.inl"
 #include "MeshCardRepresentation.h"
+#include "Materials/Material.h"
+#include "Materials/MaterialRenderProxy.h"
 
 static TAutoConsoleVariable<float> GLumenSceneSurfaceCacheMeshTargetScreenSize(
 	TEXT("r.LumenScene.SurfaceCache.MeshTargetScreenSize"),
@@ -178,6 +181,141 @@ private:
 };
 
 IMPLEMENT_MATERIAL_SHADER_TYPE(, FLumenCardCS, TEXT("/Engine/Private/Lumen/LumenCardComputeShader.usf"), TEXT("Main"), SF_Compute);
+
+struct FNaniteLumenCardData
+{
+	TShaderRef<FLumenCardCS> TypedShader;
+};
+
+namespace Nanite
+{
+
+bool LoadLumenCardPipeline(
+	const FScene& Scene,
+	FSceneProxyBase* SceneProxy,
+	FSceneProxyBase::FMaterialSection& Section,
+	FNaniteShadingPipeline& ShadingPipeline
+)
+{
+	// TODO: WIP
+#if 1
+	return true;
+#else
+	const ERHIFeatureLevel::Type FeatureLevel = Scene.GetFeatureLevel();
+
+	FNaniteVertexFactory* NaniteVertexFactory = Nanite::GVertexFactoryResource.GetVertexFactory2();
+	FVertexFactoryType* NaniteVertexFactoryType = NaniteVertexFactory->GetType();
+
+	const FMaterialRenderProxy* MaterialProxy = Section.ShadingMaterialProxy;
+	while (MaterialProxy)
+	{
+		const FMaterial* Material = MaterialProxy->GetMaterialNoFallback(FeatureLevel);
+		if (Material)
+		{
+			break;
+		}
+		MaterialProxy = MaterialProxy->GetFallback(FeatureLevel);
+	}
+
+	check(MaterialProxy);
+
+	TShaderRef<FLumenCardCS> LumenCardComputeShader;
+
+	auto LoadShadingMaterial = [&](const FMaterialRenderProxy* MaterialProxyPtr)
+	{
+		const FMaterial& ShadingMaterial = MaterialProxy->GetIncompleteMaterialWithFallback(FeatureLevel);
+		check(Nanite::IsSupportedMaterialDomain(ShadingMaterial.GetMaterialDomain()));
+		check(Nanite::IsSupportedBlendMode(ShadingMaterial));
+
+		const FMaterialShadingModelField ShadingModels = ShadingMaterial.GetShadingModels();
+
+		FMaterialShaderTypes ShaderTypes;
+		ShaderTypes.AddShaderType<FLumenCardCS>();
+
+		FMaterialShaders Shaders;
+		if (!ShadingMaterial.TryGetShaders(ShaderTypes, NaniteVertexFactoryType, Shaders))
+		{
+			return false;
+		}
+
+		return Shaders.TryGetComputeShader(LumenCardComputeShader);
+	};
+
+	bool bLoaded = LoadShadingMaterial(MaterialProxy);
+	if (!bLoaded)
+	{
+		MaterialProxy = UMaterial::GetDefaultMaterial(MD_Surface)->GetRenderProxy();
+		bLoaded = LoadShadingMaterial(MaterialProxy);
+	}
+
+	if (bLoaded)
+	{
+		ShadingPipeline.MaterialProxy		= MaterialProxy;
+		ShadingPipeline.Material			= MaterialProxy->GetMaterialNoFallback(FeatureLevel);
+		ShadingPipeline.BoundTargetMask		= 0x0u; //LumenCardComputeShader->GetBoundTargetMask();
+		ShadingPipeline.ComputeShader		= LumenCardComputeShader.GetComputeShader();
+		ShadingPipeline.bIsTwoSided			= !!Section.MaterialRelevance.bTwoSided; // TODO: Force off?
+		ShadingPipeline.bIsMasked			= !!Section.MaterialRelevance.bMasked; // TODO: Force off?
+		ShadingPipeline.bNoDerivativeOps	= HasNoDerivativeOps(ShadingPipeline.ComputeShader);
+		ShadingPipeline.MaterialBitFlags	= PackMaterialBitFlags(*ShadingPipeline.Material, ShadingPipeline.BoundTargetMask, ShadingPipeline.bNoDerivativeOps);
+
+		ShadingPipeline.LumenCardData = MakePimpl<FNaniteLumenCardData, EPimplPtrMode::DeepCopy>();
+		ShadingPipeline.LumenCardData->TypedShader = LumenCardComputeShader;
+
+		check(ShadingPipeline.ComputeShader);
+
+		TMeshProcessorShaders
+		<
+			FMeshMaterialShader, // Vertex
+			FMeshMaterialShader, // Pixel
+			FMeshMaterialShader, // Geometry
+			FMeshMaterialShader, // RayTracing
+			FLumenCardCS
+		>
+		PassShaders;
+		PassShaders.ComputeShader = LumenCardComputeShader;
+
+		FMeshMaterialShaderElementData ShaderElementData;
+		ShaderElementData.InitializeMeshMaterialData(
+			/* SceneView = */ nullptr,
+			/* PrimitiveSceneProxy = */ nullptr,
+			/* StaticMeshId = */ INDEX_NONE,
+			/* bDitheredLODTransition = */ false,
+			/* bAllowStencilDither = */ false
+		);
+
+		ShadingPipeline.ShaderBindings = MakePimpl<FMeshDrawShaderBindings, EPimplPtrMode::DeepCopy>();
+		ShadingPipeline.ShaderBindings->Initialize(PassShaders.GetUntypedShaders());
+
+		{
+			int32 DataOffset = 0;
+			if (PassShaders.ComputeShader.IsValid())
+			{
+				// Dummy render state to satisfy GetShaderBindings
+				FMeshPassProcessorRenderState DrawRenderState;
+				{
+					DrawRenderState.SetBlendState(TStaticBlendStateWriteMask<CW_RGBA, CW_RGBA, CW_RGBA, CW_RGBA>::GetRHI());
+					DrawRenderState.SetDepthStencilState(TStaticDepthStencilState<false, CF_Equal>::GetRHI());
+					DrawRenderState.SetDepthStencilAccess(FExclusiveDepthStencil::DepthWrite_StencilNop);
+					check(DrawRenderState.GetDepthStencilState());
+					check(DrawRenderState.GetBlendState());
+				}
+
+				FMeshDrawSingleShaderBindings ShaderBindings = ShadingPipeline.ShaderBindings->GetSingleShaderBindings(SF_Compute, DataOffset);
+				PassShaders.ComputeShader->GetShaderBindings(&Scene, FeatureLevel, SceneProxy, *MaterialProxy, *ShadingPipeline.Material, DrawRenderState, ShaderElementData, ShaderBindings);
+			}
+		}
+
+		FMeshProcessorShaders ShadersForDebugging = PassShaders.GetUntypedShaders();
+		ShadingPipeline.ShaderBindings->Finalize(&ShadersForDebugging);
+		ShadingPipeline.ShaderBindingsHash = ShadingPipeline.ShaderBindings->GetDynamicInstancingHash();
+	}
+
+	return bLoaded;
+#endif // TODO
+}
+
+} // Nanite
 
 class FLumenCardMeshProcessor : public FSceneRenderingAllocatorObject<FLumenCardMeshProcessor>, public FMeshPassProcessor
 {

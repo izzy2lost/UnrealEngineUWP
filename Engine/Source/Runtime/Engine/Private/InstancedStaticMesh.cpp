@@ -44,7 +44,7 @@
 #include "UObject/UObjectIterator.h"
 #include "GenericPlatform/ICursor.h"
 #include "Rendering/RenderCommandPipes.h"
-
+#include "NaniteVertexFactory.h"
 #include "InstancedStaticMeshSceneProxyDesc.h"
 
 #if RHI_RAYTRACING
@@ -4615,7 +4615,6 @@ void UInstancedStaticMeshComponent::CollectPSOPrecacheData(const FPSOPrecachePar
 
 	const bool bCanUseGPUScene = UseGPUScene(GMaxRHIShaderPlatform, GMaxRHIFeatureLevel);
 	FStaticMeshInstanceBuffer* InstanceBuffer = bCanUseGPUScene ? nullptr : &GDummyStaticMeshInstanceBuffer;
-	const FVertexFactoryType* VFType = ShouldCreateNaniteProxy() ? &Nanite::FVertexFactory::StaticType : &FInstancedStaticMeshVertexFactory::StaticType;
 	int32 LightMapCoordinateIndex = GetStaticMesh()->GetLightMapCoordinateIndex();
 	
 	auto ISMC_GetElements = [LightMapCoordinateIndex, InstanceBuffer, this](const FStaticMeshLODResources& LODRenderData, int32 LODIndex, bool bSupportsManualVertexFetch, FVertexDeclarationElementList& Elements)
@@ -4631,7 +4630,22 @@ void UInstancedStaticMeshComponent::CollectPSOPrecacheData(const FPSOPrecachePar
 		FInstancedStaticMeshVertexFactory::GetVertexElements(GMaxRHIFeatureLevel, EVertexInputStreamType::Default, bSupportsManualVertexFetch, Data, InstanceData, Elements);
 	};
 
-	CollectPSOPrecacheDataImpl(VFType, BasePrecachePSOParams, ISMC_GetElements, OutParams);
+	if (ShouldCreateNaniteProxy())
+	{
+		if (NaniteLegacyMaterialsSupported())
+		{
+			CollectPSOPrecacheDataImpl(&Nanite::FVertexFactory::StaticType, BasePrecachePSOParams, ISMC_GetElements, OutParams);
+		}
+
+		if (NaniteComputeMaterialsSupported())
+		{
+			CollectPSOPrecacheDataImpl(&FNaniteVertexFactory::StaticType, BasePrecachePSOParams, ISMC_GetElements, OutParams);
+		}
+	}
+	else
+	{
+		CollectPSOPrecacheDataImpl(&FInstancedStaticMeshVertexFactory::StaticType, BasePrecachePSOParams, ISMC_GetElements, OutParams);
+	}
 }
 
 void UInstancedStaticMeshComponent::OnPostLoadPerInstanceData()

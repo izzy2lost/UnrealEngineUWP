@@ -776,12 +776,19 @@ void BuildNaniteMaterialBins(FScene* Scene, FPrimitiveSceneInfo* PrimitiveSceneI
 						if (bUseComputeMaterials)
 						{
 							FNaniteShadingPipeline& ShadingPipeline = PipelinesCommand.ShadingPipelines.Emplace_GetRef();
-							if (!LoadShadingPipeline(*Scene, NaniteProxy, MaterialSection, ShadingPipeline))
+
+							// TODO: Refactor this out
+							bool bLoaded = false;
+							if (MeshPass == ENaniteMeshPass::BasePass)
 							{
-								// Should be very rare that a load fails, so we put the erase cost here instead of using
-								// a temp and moving it into the pipelines array on success.
-								PipelinesCommand.ShadingPipelines.RemoveAt(PipelinesCommand.ShadingPipelines.Num() - 1);
+								bLoaded = LoadBasePassPipeline(*Scene, NaniteProxy, MaterialSection, ShadingPipeline);
 							}
+							else if (MeshPass == ENaniteMeshPass::LumenCardCapture)
+							{
+								bLoaded = LoadLumenCardPipeline(*Scene, NaniteProxy, MaterialSection, ShadingPipeline);
+							}
+
+							check(bLoaded);
 						}
 					}
 				}

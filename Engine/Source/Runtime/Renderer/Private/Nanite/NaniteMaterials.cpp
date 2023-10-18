@@ -615,6 +615,30 @@ void DrawLumenMeshCapturePass(
 	FRDGTextureRef DepthAtlasTexture
 )
 {
+// TODO: WIP
+#if 0
+	if (UseNaniteComputeMaterials())
+	{
+		DispatchLumenMeshCapturePass(
+			FRDGBuilder & GraphBuilder,
+			FScene & Scene,
+			FViewInfo * SharedView,
+			TArrayView<const FCardPageRenderData> CardPagesToRender,
+			const FRasterResults & RasterResults,
+			const FRasterContext & RasterContext,
+			FLumenCardPassUniformParameters * PassUniformParameters,
+			FRDGBufferSRVRef RectMinMaxBufferSRV,
+			uint32 NumRects,
+			FIntPoint ViewportSize,
+			FRDGTextureRef AlbedoAtlasTexture,
+			FRDGTextureRef NormalAtlasTexture,
+			FRDGTextureRef EmissiveAtlasTexture,
+			FRDGTextureRef DepthAtlasTexture
+		);
+		return;
+	}
+#endif
+
 	checkSlow(DoesPlatformSupportNanite(GMaxRHIShaderPlatform));
 	checkSlow(DoesPlatformSupportLumenGI(GMaxRHIShaderPlatform));
 

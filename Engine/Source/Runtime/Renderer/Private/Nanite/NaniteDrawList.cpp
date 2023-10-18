@@ -384,6 +384,11 @@ void FNaniteMeshProcessor::AddMeshBatch(
 	checkf(MeshBatch.bUseForMaterial, TEXT("Logic in BuildNaniteMaterialBins() should not have allowed a mesh batch without bUseForMaterial to be added"));
 
 	const FMaterialRenderProxy* FallbackMaterialRenderProxyPtr = MeshBatch.MaterialRenderProxy;
+	if (!NaniteLegacyMaterialsSupported())
+	{
+		FallbackMaterialRenderProxyPtr = UMaterial::GetDefaultMaterial(MD_Surface)->GetRenderProxy();
+	}
+
 	while (FallbackMaterialRenderProxyPtr)
 	{
 		const FMaterial* Material = FallbackMaterialRenderProxyPtr->GetMaterialNoFallback(FeatureLevel);

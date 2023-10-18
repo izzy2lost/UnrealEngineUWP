@@ -1377,6 +1377,7 @@ void FDeferredShadingSceneRenderer::RenderBasePassInternal(
 			}
 			else
 			{
+				checkf(NaniteLegacyMaterialsSupported(), TEXT("Must have either compute or legacy materials enabled in Nanite!"));
 				Nanite::DrawBasePass(
 					GraphBuilder,
 					View.NaniteMaterialPassCommands,

@@ -29,6 +29,7 @@
 #include "StaticMeshOperations.h"
 #include "Rendering/NaniteResources.h"
 #include "Rendering/NaniteCoarseMeshStreamingManager.h"
+#include "NaniteVertexFactory.h"
 #include "SpeedTreeWind.h"
 #include "DistanceFieldAtlas.h"
 #include "MeshCardBuild.h"
@@ -5993,13 +5994,33 @@ void UStaticMesh::PostLoad()
 		PrecachePSOParams.bCastShadow = bAnySectionCastsShadows;
 		PrecachePSOParams.SetMobility(EComponentMobility::Movable);
 
-		const FVertexFactoryType* VFType = bUseNanite ? &Nanite::FVertexFactory::StaticType : &FLocalVertexFactory::StaticType;
+		TArray<const FVertexFactoryType*, TInlineAllocator<2>> CachingFactories;
+		if (bUseNanite)
+		{
+			if (NaniteLegacyMaterialsSupported())
+			{
+				CachingFactories.Add(&Nanite::FVertexFactory::StaticType);
+			}
+
+			if (NaniteComputeMaterialsSupported())
+			{
+				CachingFactories.Add(&FNaniteVertexFactory::StaticType);
+			}
+		}
+		else
+		{
+			CachingFactories.Add(&FLocalVertexFactory::StaticType);
+		}
+
 		for (uint16 MaterialIndex : UsedMaterialIndices)
 		{
 			UMaterialInterface* MaterialInterface = GetMaterial(MaterialIndex);
 			if (MaterialInterface)
 			{
-				MaterialInterface->PrecachePSOs(VFType, PrecachePSOParams);
+				for (const FVertexFactoryType* VFType : CachingFactories)
+				{
+					MaterialInterface->PrecachePSOs(VFType, PrecachePSOParams);
+				}
 			}
 		}
 	}

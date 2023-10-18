@@ -61,6 +61,12 @@ static TAutoConsoleVariable<int32> CVarNaniteAllowComputeMaterials(
 	TEXT("Whether to enable support for Nanite compute materials"),
 	ECVF_RenderThreadSafe | ECVF_ReadOnly);
 
+static TAutoConsoleVariable<int32> CVarNaniteAllowLegacyMaterials(
+	TEXT("r.Nanite.AllowLegacyMaterials"),
+	1,
+	TEXT("Whether to enable support for Nanite legacy materials"),
+	ECVF_RenderThreadSafe | ECVF_ReadOnly);
+
 static TAutoConsoleVariable<int32> CVarNaniteUseComputeMaterials(
 	TEXT("r.Nanite.ComputeMaterials"),
 	1,
@@ -437,6 +443,7 @@ void FVertexFactory::InitRHI(FRHICommandListBase& RHICmdList)
 bool FVertexFactory::ShouldCompilePermutation(const FVertexFactoryShaderPermutationParameters& Parameters)
 {
 	bool bShouldCompile =
+		NaniteLegacyMaterialsSupported() &&
 		(Parameters.MaterialParameters.bIsUsedWithNanite || Parameters.MaterialParameters.bIsSpecialEngineMaterial) &&
 		IsSupportedMaterialDomain(Parameters.MaterialParameters.MaterialDomain) &&
 		IsSupportedBlendMode(Parameters.MaterialParameters) &&
@@ -549,7 +556,17 @@ void FSceneProxyBase::DrawStaticElementsInternal(FStaticPrimitiveDrawInterface* 
 	LLM_SCOPE_BYTAG(Nanite);
 
 	FMeshBatch MeshBatch;
-	MeshBatch.VertexFactory = GVertexFactoryResource.GetVertexFactory();
+	if (NaniteLegacyMaterialsSupported())
+	{
+		MeshBatch.VertexFactory = GVertexFactoryResource.GetVertexFactory();
+	}
+	else
+	{
+		// TODO: Remove
+		// Dummy factory that will be ignored later on
+		MeshBatch.VertexFactory = GVertexFactoryResource.GetVertexFactory2();
+	}
+
 	MeshBatch.Type = GRHISupportsRectTopology ? PT_RectList : PT_TriangleList;
 	MeshBatch.ReverseCulling = false;
 	MeshBatch.bDisableBackfaceCulling = true;
@@ -2198,8 +2215,12 @@ void FVertexFactoryResource::InitRHI(FRHICommandListBase& RHICmdList)
 	if (DoesPlatformSupportNanite(GMaxRHIShaderPlatform))
 	{
 		LLM_SCOPE_BYTAG(Nanite);
-		VertexFactory = new FVertexFactory(ERHIFeatureLevel::SM5);
-		VertexFactory->InitResource(RHICmdList);
+
+		if (NaniteLegacyMaterialsSupported())
+		{
+			VertexFactory = new FVertexFactory(ERHIFeatureLevel::SM5);
+			VertexFactory->InitResource(RHICmdList);
+		}
 
 		if (NaniteComputeMaterialsSupported())
 		{
@@ -2215,8 +2236,11 @@ void FVertexFactoryResource::ReleaseRHI()
 	{
 		LLM_SCOPE_BYTAG(Nanite);
 
-		delete VertexFactory;
-		VertexFactory = nullptr;
+		if (NaniteLegacyMaterialsSupported())
+		{
+			delete VertexFactory;
+			VertexFactory = nullptr;
+		}
 
 		if (NaniteComputeMaterialsSupported())
 		{
