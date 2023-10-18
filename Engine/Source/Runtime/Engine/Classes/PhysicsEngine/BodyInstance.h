@@ -440,6 +440,22 @@ protected:
 	UPROPERTY(EditAnywhere, AdvancedDisplay, BlueprintReadWrite, Category = Physics)
 	uint8 bInertiaConditioning : 1;
 
+public:
+	/** Set the desired delta time for the body. **/
+	UPROPERTY(EditAnywhere, AdvancedDisplay, BlueprintReadOnly, Category = Physics)
+	uint8 bOverrideSolverAsyncDeltaTime : 1;
+
+	/** Override value for physics solver async delta time.  With multiple actors specifying this, the solver will use the smallest delta time **/
+	UPROPERTY(EditAnywhere, AdvancedDisplay, BlueprintReadOnly, Category = Physics, meta = (editcondition = "bOverrideSolverAsyncDeltaTime"))
+	float SolverAsyncDeltaTime;
+
+	float GetSolverAsyncDeltaTime() const { return SolverAsyncDeltaTime; }
+	bool IsSolverAsyncDeltaTimeSet() const { return bOverrideSolverAsyncDeltaTime && SolverAsyncDeltaTime > 0.0; }
+
+	void SetSolverAsyncDeltaTime(const float NewSolverAsyncDeltaTime);
+
+private:
+	void UpdateSolverAsyncDeltaTime();
 
 public:
 	/** Current scale of physics - used to know when and how physics must be rescaled to match current transform of OwnerComponent. */

@@ -84,6 +84,11 @@ FAutoConsoleVariableRef CVarbPreventInvalidBodyInstanceTransforms(
 	bPreventInvalidBodyInstanceTransforms, 
 	TEXT("If true, an attempt to create a BodyInstance with an invalid transform will fail with a warning"));
 
+bool bEnableOverrideSolverDeltaTime = true;
+FAutoConsoleVariableRef CVarbEnableOverrideSolverDeltaTime(
+	TEXT("p.EnableOverrideSolverDeltaTime"),
+	bEnableOverrideSolverDeltaTime,
+	TEXT("If true, setting for override solver delta time can be used.  False will disable this feature."));
 
 using namespace PhysicsInterfaceTypes;
 
@@ -335,7 +340,9 @@ FBodyInstance::FBodyInstance()
 	, bOverrideWalkableSlopeOnInstance(false)
 	, bInterpolateWhenSubStepping(true)
 	, bPendingCollisionProfileSetup(false)
-	, bInertiaConditioning(true)
+	, bInertiaConditioning(true)	
+	, bOverrideSolverAsyncDeltaTime(false)
+	, SolverAsyncDeltaTime(1.f / 60)
 	, Scale3D(1.0f)
 	, CollisionProfileName(UCollisionProfile::CustomCollisionProfileName)
 	, PositionSolverIterationCount(8)
@@ -1504,6 +1511,12 @@ void FInitBodiesHelperBase::InitBodies()
 						}
 					}
 				}
+			}
+
+			// set solver async delta time if any bodies are overriding the sim delta time
+			for (FBodyInstance* BI : Bodies)
+			{				
+				BI->UpdateSolverAsyncDeltaTime();			
 			}
 
 			// Set up dynamic instance data
@@ -4329,6 +4342,46 @@ void FBodyInstance::BuildBodyCollisionFlags(FBodyCollisionFlags& OutFlags, EColl
 			{
 				OutFlags.bEnableSimCollisionComplex = true;
 			}
+		}
+	}
+}
+
+inline void FBodyInstance::SetSolverAsyncDeltaTime(const float NewSolverAsyncDeltaTime)
+{
+	bOverrideSolverAsyncDeltaTime = true;
+	SolverAsyncDeltaTime = NewSolverAsyncDeltaTime;
+	UpdateSolverAsyncDeltaTime();
+}
+
+void FBodyInstance::UpdateSolverAsyncDeltaTime()
+{
+	if (bOverrideSolverAsyncDeltaTime && !bEnableOverrideSolverDeltaTime)
+	{
+		UE_LOG(LogPhysics, Warning, TEXT("FBodyInstance::SolverAsyncDeltaTime : Ignoring parameter because overriden by p.EnableOverrideSolverDeltaTime"));
+		return;
+	}
+
+	if (bOverrideSolverAsyncDeltaTime)
+	{
+		if (SolverAsyncDeltaTime < 0.f)
+		{
+			UE_LOG(LogPhysics, Error, TEXT("FBodyInstance::SolverAsyncDeltaTime : Value must be greater than 0"));			
+			return;
+		}
+
+		Chaos::FPhysicsSolverBase* Solver = ActorHandle->GetSolverBase();
+
+		if (!Solver->IsUsingAsyncResults())
+		{
+			UE_LOG(LogPhysics, Warning, TEXT("FBodyInstance::SolverAsyncDeltaTime : Ignoring parameter because solver is not setup to use async results"));
+			return;
+		}
+		else
+		{
+			float OldAsyncDeltaTime = Solver->GetAsyncDeltaTime();
+
+			// set async delta time to minimum of delta time and what this body wants
+			Solver->EnableAsyncMode(FMath::Min<float>(Solver->GetAsyncDeltaTime(), SolverAsyncDeltaTime));
 		}
 	}
 }
