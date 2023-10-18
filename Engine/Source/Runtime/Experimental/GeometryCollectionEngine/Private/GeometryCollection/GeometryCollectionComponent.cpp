@@ -598,6 +598,7 @@ UGeometryCollectionComponent::UGeometryCollectionComponent(const FObjectInitiali
 	, bIsMoving(false)
 	, bIsRootBroken(false)
 	, bUpdateCustomRenderer(true)
+	, bUpdateCustomRendererOnPostPhysicsSync(true)
 {
 	// by default tick is registered but disabled, we only need it when we need to update the removal timers
 	// tick will be then enabled only when the root is broken from OnPostPhysicsSync callback
@@ -4028,7 +4029,10 @@ void UGeometryCollectionComponent::UpdateRenderSystemsIfNeeded(bool bDynamicColl
 		// #todo review: When we've made changes to ISMC, we need to move this function call to SetRenderDynamicData_Concurrent
 		RefreshEmbeddedGeometry();
 
-		RefreshCustomRenderer();
+		if (bUpdateCustomRendererOnPostPhysicsSync)
+		{
+			RefreshCustomRenderer();
+		}
 
 		if (SceneProxy && SceneProxy->IsNaniteMesh())
 		{

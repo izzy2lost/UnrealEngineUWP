@@ -1290,8 +1290,11 @@ public:
 	/** Force all GC components to reregister their custom renderer objects. */
 	static GEOMETRYCOLLECTIONENGINE_API void ReregisterAllCustomRenderers();
 
-	/** allow update of the custom renderer if enabled */
+	/** allow update of the custom renderer ( valid if custom redner is being used ) - true by default */
 	GEOMETRYCOLLECTIONENGINE_API void SetUpdateCustomRenderer(bool bValue) { bUpdateCustomRenderer = bValue; }
+
+	/** update of the custom renderer when post physics sync callback is executing ( valid if custom redner is being used ) - true by default */
+	GEOMETRYCOLLECTIONENGINE_API void SetUpdateCustomRendererOnPostPhysicsSync(bool bValue) { bUpdateCustomRendererOnPostPhysicsSync = bValue; }
 
 	GEOMETRYCOLLECTIONENGINE_API bool ShouldUpdateComponentTransformToRootBone() const { return bUpdateComponentTransformToRootBone; }
 
@@ -1728,6 +1731,8 @@ private:
 	void UpdateIsRootBroken();
 
 	bool bUpdateCustomRenderer;
+
+	bool bUpdateCustomRendererOnPostPhysicsSync;
 
 private:
 
