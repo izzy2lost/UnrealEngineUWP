@@ -33,7 +33,7 @@ namespace UE::Anim
 
 		void AddAnimSequences(TArrayView<UAnimSequence* const> InAnimSequences);
 		void FinishCompilation(TArrayView<UAnimSequence* const> InAnimSequences);
-		void FinishCompilation(TArrayView<USkeleton* const> InSkeletons);
+		void FinishCompilation(TArrayView<const USkeleton* const> InSkeletons);
 
 	protected:
 		virtual void ProcessAsyncTasks(bool bLimitExecutionTime = false) override;

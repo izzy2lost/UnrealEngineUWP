@@ -4,6 +4,7 @@
 #include "Animation/Skeleton.h"
 #include "EngineLogs.h"
 #include "Engine/SkeletalMesh.h"
+#include "AnimationSequenceCompiler.h"
 
 FReferenceSkeletonModifier::FReferenceSkeletonModifier(USkeleton* InSkeleton)
 	: RefSkeleton(InSkeleton->ReferenceSkeleton),
@@ -454,6 +455,10 @@ int32 FReferenceSkeleton::GetRawSourceBoneIndex(const USkeleton* Skeleton, const
 
 void FReferenceSkeleton::RebuildRefSkeleton(const USkeleton* Skeleton, bool bRebuildNameMap)
 {
+#if WITH_EDITOR
+	UE::Anim::FAnimSequenceCompilingManager::Get().FinishCompilation({Skeleton});
+#endif // WITH_EDITOR
+	
 	if (bRebuildNameMap)
 	{
 		//On loading FinalRefBone data wont exist but NameToIndexMap will and will be valid

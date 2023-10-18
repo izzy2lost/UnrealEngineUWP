@@ -199,7 +199,7 @@ namespace UE::Anim
 		
 	}
 
-	void FAnimSequenceCompilingManager::FinishCompilation(TArrayView<USkeleton* const> InSkeletons)
+	void FAnimSequenceCompilingManager::FinishCompilation(TArrayView<const USkeleton* const> InSkeletons)
 	{
 		TArray<UAnimSequence*> PendingAnimationSequences;	
 		for (const TWeakObjectPtr<UAnimSequence>& WeakAnimSequence : RegisteredAnimSequences)
