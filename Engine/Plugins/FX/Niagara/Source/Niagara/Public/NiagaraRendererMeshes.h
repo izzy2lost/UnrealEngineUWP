@@ -49,6 +49,7 @@ protected:
 
 		bool 							bUseGPUScene = false;
 		bool							bHasTranslucentMaterials = false;
+		bool							bAllTranslucentMaterials = false;
 		bool							bSortCullOnGpu = false;
 		bool							bNeedsSort = false;
 		bool							bNeedsCull = false;

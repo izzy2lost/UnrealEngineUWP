@@ -584,9 +584,23 @@ void FNiagaraRenderer::ProcessMaterialParameterBindings(const FNiagaraRendererMa
 	}
 }
 
-bool FNiagaraRenderer::IsViewRenderingOpaqueOnly(const FSceneView* View)
+bool FNiagaraRenderer::IsViewRenderingOpaqueOnly(const FSceneView* View, bool bCastsVolumetricTranslucentShadow)
 {
-	return View->bIsSceneCapture && View->SceneCaptureRenderTarget;
+	const bool bOpaqueSceneCapture = View->bIsSceneCapture && View->SceneCaptureRenderTarget;
+	const bool bShadowView = View->GetDynamicMeshElementsShadowCullFrustum() != nullptr;
+	return bOpaqueSceneCapture || (bShadowView && !bCastsVolumetricTranslucentShadow);
+}
+
+bool FNiagaraRenderer::AreViewsRenderingOpaqueOnly(const TArray<const FSceneView*>& Views, int32 ViewVisibilityMask, bool bCastsVolumetricTranslucentShadow)
+{
+	for ( int32 i=0; i < Views.Num(); ++i )
+	{
+		if (((ViewVisibilityMask & (1 << i)) != 0) && !IsViewRenderingOpaqueOnly(Views[i], bCastsVolumetricTranslucentShadow))
+		{
+			return false;
+		}
+	}
+	return true;
 }
 
 void FNiagaraRenderer::SortIndices(const FNiagaraGPUSortInfo& SortInfo, const FNiagaraRendererVariableInfo& SortVariable, const FNiagaraDataBuffer& Buffer, FGlobalDynamicReadBuffer::FAllocation& OutIndices)

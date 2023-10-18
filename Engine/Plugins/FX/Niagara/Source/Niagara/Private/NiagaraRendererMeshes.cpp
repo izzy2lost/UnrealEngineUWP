@@ -353,6 +353,7 @@ void FNiagaraRendererMeshes::PrepareParticleMeshRenderData(FParticleMeshRenderDa
 		ViewFamilySupportLowLatencyTranslucency(ViewFamily);
 
 	ParticleMeshRenderData.bHasTranslucentMaterials = false;
+	ParticleMeshRenderData.bAllTranslucentMaterials = ParticleMeshRenderData.DynamicDataMesh->Materials.Num() > 0;
 	for (FMaterialRenderProxy* MaterialProxy : ParticleMeshRenderData.DynamicDataMesh->Materials)
 	{
 		check(MaterialProxy);
@@ -360,6 +361,7 @@ void FNiagaraRendererMeshes::PrepareParticleMeshRenderData(FParticleMeshRenderDa
 		const bool bTranslucent = IsTranslucentBlendMode(Material);
 
 		ParticleMeshRenderData.bHasTranslucentMaterials |= bTranslucent;
+		ParticleMeshRenderData.bAllTranslucentMaterials &= bTranslucent;
 
 		// If even one material can cause the mesh to render before FFXSystemInterface::PostRenderOpaque, we cannot use low latency data
 		ParticleMeshRenderData.bIsGpuLowLatencyTranslucency =
@@ -1369,6 +1371,11 @@ void FNiagaraRendererMeshes::GetDynamicMeshElements(const TArray<const FSceneVie
 		return;
 	}
 
+	if (ParticleMeshRenderData.bAllTranslucentMaterials && AreViewsRenderingOpaqueOnly(Views, VisibilityMap, SceneProxy->CastsVolumetricTranslucentShadow()))
+	{
+		return;
+	}
+
 #if STATS
 	FScopeCycleCounter EmitterStatsCounter(EmitterStatID);
 #endif
@@ -1516,16 +1523,9 @@ void FNiagaraRendererMeshes::GetDynamicMeshElements(const TArray<const FSceneVie
 						const bool bNeedsPrevTransform = !bTranslucent || Material.IsTranslucencyWritingVelocity();
 						if (bTranslucent)
 						{
-							if (bIsShadowView && !SceneProxy->CastsVolumetricTranslucentShadow())
-							{
-								// Don't add translucent mesh batches for shadows
-								// TODO: Need a way to know if it's a volumetric translucent shadow view to make this logic better
-								continue;
-							}
-
 							// If we are rendering opaque only we can skip this batch
 							//-OPT: If we only have opaque materials we can skip earlier however due to RemappedMaterialIndex potentially being invalid this is tricky
-							if (IsViewRenderingOpaqueOnly(View))
+							if (IsViewRenderingOpaqueOnly(View, SceneProxy->CastsVolumetricTranslucentShadow()))
 							{
 								continue;
 							}

@@ -821,6 +821,12 @@ void FNiagaraRendererRibbons::GetDynamicMeshElements(const TArray<const FSceneVi
 		}
 	}
 
+	const bool bTranslucentMaterial = DynamicData->Material && IsTranslucentBlendMode(DynamicData->Material->GetIncompleteMaterialWithFallback(FeatureLevel));
+	if (bTranslucentMaterial && AreViewsRenderingOpaqueOnly(Views, VisibilityMap, SceneProxy->CastsVolumetricTranslucentShadow()))
+	{
+		return;
+	}
+
 	FRHICommandListBase& RHICmdList = Collector.GetRHICommandList();
 
 #if STATS
@@ -850,7 +856,7 @@ void FNiagaraRendererRibbons::GetDynamicMeshElements(const TArray<const FSceneVi
 
 			// If we are rendering opaque only we can skip this batch
 			//-OPT: If we only have opaque materials we can skip earlier however due to RemappedMaterialIndex potentially being invalid this is tricky
-			if (IsViewRenderingOpaqueOnly(View) && DynamicData->Material && IsTranslucentBlendMode(DynamicData->Material->GetIncompleteMaterialWithFallback(FeatureLevel)))
+			if (bTranslucentMaterial && IsViewRenderingOpaqueOnly(View, SceneProxy->CastsVolumetricTranslucentShadow()))
 			{
 				continue;
 			}
