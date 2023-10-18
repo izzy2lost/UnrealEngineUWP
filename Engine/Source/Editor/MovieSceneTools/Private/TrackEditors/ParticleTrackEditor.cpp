@@ -14,10 +14,9 @@
 #include "Tracks/MovieSceneParticleTrack.h"
 #include "ISectionLayoutBuilder.h"
 #include "Sections/MovieSceneParticleSection.h"
-#include "CommonMovieSceneTools.h"
 #include "Particles/ParticleLODLevel.h"
 #include "Particles/ParticleModuleRequired.h"
-
+#include "TimeToPixel.h"
 
 namespace AnimatableParticleEditorConstants
 {

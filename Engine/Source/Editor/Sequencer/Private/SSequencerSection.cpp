@@ -24,13 +24,14 @@
 #include "Sequencer.h"
 #include "SequencerSectionPainter.h"
 #include "MovieSceneSequence.h"
-#include "CommonMovieSceneTools.h"
 #include "ISequencerEditTool.h"
 #include "ISequencerSection.h"
 #include "SequencerHotspots.h"
 #include "Widgets/SOverlay.h"
 #include "MovieScene.h"
 #include "Fonts/FontCache.h"
+#include "Fonts/FontMeasure.h"
+#include "FrameNumberNumericInterface.h"
 #include "Framework/Application/SlateApplication.h"
 #include "MovieSceneTimeHelpers.h"
 #include "Tracks/MovieScenePropertyTrack.h"
@@ -1312,6 +1313,58 @@ TSharedPtr<FTrackAreaViewModel> SSequencerSection::GetTrackAreaViewModel() const
 	return nullptr;
 }
 
+void DrawFrameTimeHint(FSequencerSectionPainter& InPainter, const FFrameTime& CurrentTime, const FFrameTime& FrameTime, const FFrameNumberInterface* FrameNumberInterface, int32 LayerId)
+{
+	FString FrameTimeString;
+	if (FrameNumberInterface)
+	{
+		FrameTimeString = FrameNumberInterface->ToString(FrameTime.AsDecimal());
+	}
+	else
+	{
+		FrameTimeString = FString::FromInt(FrameTime.GetFrame().Value);
+	}
+
+	const FSlateFontInfo SmallLayoutFont = FCoreStyle::GetDefaultFontStyle("Bold", 10);
+	const TSharedRef< FSlateFontMeasure > FontMeasureService = FSlateApplication::Get().GetRenderer()->GetFontMeasureService();
+	FVector2D TextSize = FontMeasureService->Measure(FrameTimeString, SmallLayoutFont);
+
+	const float PixelX = InPainter.GetTimeConverter().FrameToPixel(CurrentTime);
+
+	// Flip the text position if getting near the end of the view range
+	static const float TextOffsetPx = 10.f;
+	bool  bDrawLeft = (InPainter.SectionGeometry.Size.X - PixelX) < (TextSize.X + 22.f) - TextOffsetPx;
+	float TextPosition = bDrawLeft ? PixelX - TextSize.X - TextOffsetPx : PixelX + TextOffsetPx;
+	//handle mirrored labels
+	const float MajorTickHeight = 9.0f;
+	FVector2D TextOffset(TextPosition, InPainter.SectionGeometry.Size.Y - (MajorTickHeight + TextSize.Y));
+
+	const FLinearColor DrawColor = FAppStyle::GetSlateColor("SelectionColor").GetColor(FWidgetStyle()).CopyWithNewOpacity(InPainter.GhostAlpha);
+	const FVector2D BoxPadding = FVector2D(4.0f, 2.0f);
+	// draw time string
+
+	FSlateDrawElement::MakeBox(
+		InPainter.DrawElements,
+		LayerId,
+		InPainter.SectionGeometry.ToPaintGeometry(TextSize + 2.0f * BoxPadding, FSlateLayoutTransform(TextOffset - BoxPadding)),
+		FAppStyle::GetBrush("WhiteBrush"),
+		ESlateDrawEffect::None,
+		FLinearColor::Black.CopyWithNewOpacity(0.5f * InPainter.GhostAlpha)
+	);
+
+	ESlateDrawEffect DrawEffects = InPainter.bParentEnabled ? ESlateDrawEffect::None : ESlateDrawEffect::DisabledEffect;
+
+	FSlateDrawElement::MakeText(
+		InPainter.DrawElements,
+		LayerId,
+		InPainter.SectionGeometry.ToPaintGeometry(TextSize, FSlateLayoutTransform(TextOffset)),
+		FrameTimeString,
+		SmallLayoutFont,
+		DrawEffects,
+		DrawColor
+	);
+}
+
 int32 SSequencerSection::OnPaint( const FPaintArgs& Args, const FGeometry& AllottedGeometry, const FSlateRect& MyCullingRect, FSlateWindowElementList& OutDrawElements, int32 LayerId, const FWidgetStyle& InWidgetStyle, bool bParentEnabled ) const
 {
 	TSharedPtr<FSectionModel> SectionModel = WeakSectionModel.Pin();
@@ -1443,6 +1496,32 @@ int32 SSequencerSection::OnPaint( const FPaintArgs& Args, const FGeometry& Allot
 		);
 
 		OutDrawElements.PopClip();
+	}
+
+	++LayerId;
+
+	TOptional<FFrameTime> SectionTime = SectionInterface->GetSectionTime(Painter);
+	if (SectionTime.IsSet())
+	{
+		const FFrameRate DisplayRate = GetSequencer().GetFocusedDisplayRate();
+		const FFrameRate TickResolution = GetSequencer().GetFocusedTickResolution();
+
+		// Get the desired frame display format and zero padding from
+		// the sequencer settings, if possible.
+		TAttribute<EFrameNumberDisplayFormats> DisplayFormatAttr(EFrameNumberDisplayFormats::Frames);
+		TAttribute<uint8> ZeroPadFrameNumbersAttr(0u);
+		if (const USequencerSettings* SequencerSettings = GetSequencer().GetSequencerSettings())
+		{
+			DisplayFormatAttr.Set(SequencerSettings->GetTimeDisplayFormat());
+			ZeroPadFrameNumbersAttr.Set(SequencerSettings->GetZeroPadFrames());
+		}
+
+		const TAttribute<FFrameRate> TickResolutionAttr(TickResolution);
+		const TAttribute<FFrameRate> DisplayRateAttr(DisplayRate);
+
+		const FFrameNumberInterface FrameNumberInterface(DisplayFormatAttr, ZeroPadFrameNumbersAttr, TickResolutionAttr, DisplayRateAttr);
+
+		DrawFrameTimeHint(Painter, GetSequencer().GetLocalTime().Time, SectionTime.GetValue(), &FrameNumberInterface, LayerId);
 	}
 
 	++LayerId;

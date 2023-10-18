@@ -54,7 +54,6 @@
 #include "ScopedTransaction.h"
 #include "IControlRigEditorModule.h"
 #include "TimerManager.h"
-#include "CommonMovieSceneTools.h"
 #include "SequencerSectionPainter.h"
 #include "Rendering/DrawElements.h"
 #include "Fonts/FontMeasure.h"

@@ -18,7 +18,6 @@
 #include "Tracks/MovieSceneCameraCutTrack.h"
 #include "Sections/MovieSceneCameraCutSection.h"
 #include "Evaluation/MovieSceneEvaluationTemplateInstance.h"
-#include "CommonMovieSceneTools.h"
 #include "Subsystems/AssetEditorSubsystem.h"
 #include "Editor.h"
 

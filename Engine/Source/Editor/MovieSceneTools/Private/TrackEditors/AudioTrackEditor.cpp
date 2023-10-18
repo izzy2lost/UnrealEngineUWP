@@ -23,7 +23,6 @@
 #include "UnrealEdGlobals.h"
 #include "Tracks/MovieSceneAudioTrack.h"
 #include "Sections/MovieSceneAudioSection.h"
-#include "CommonMovieSceneTools.h"
 #include "AudioDevice.h"
 #include "Sound/SoundNodeWavePlayer.h"
 #include "Sound/SoundNodeDialoguePlayer.h"
@@ -39,7 +38,7 @@
 
 #include "DragAndDrop/AssetDragDropOp.h"
 #include "Misc/QualifiedFrameTime.h"
-
+#include "TimeToPixel.h"
 
 #define LOCTEXT_NAMESPACE "FAudioTrackEditor"
 

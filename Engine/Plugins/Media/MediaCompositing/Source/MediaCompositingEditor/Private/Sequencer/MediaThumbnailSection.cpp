@@ -23,7 +23,6 @@
 #include "SequencerSectionPainter.h"
 #include "TrackEditorThumbnail/TrackEditorThumbnailPool.h"
 #include "Compilation/MovieSceneCompiledDataManager.h"
-#include "CommonMovieSceneTools.h"
 #include "Widgets/Layout/SBox.h"
 #include "Widgets/Text/STextBlock.h"
 #include "TimeToPixel.h"

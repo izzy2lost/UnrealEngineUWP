@@ -25,7 +25,6 @@
 #include "UnrealEdGlobals.h"
 #include "ClassViewerModule.h"
 #include "ClassViewerFilter.h"
-#include "CommonMovieSceneTools.h"
 #include "AssetRegistry/AssetRegistryModule.h"
 #include "IContentBrowserSingleton.h"
 #include "ContentBrowserModule.h"

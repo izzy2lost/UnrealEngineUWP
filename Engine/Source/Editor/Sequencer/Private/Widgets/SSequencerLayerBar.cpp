@@ -16,7 +16,6 @@
 #include "MVVM/ViewModels/ViewModel.h"
 #include "MVVM/Views/STrackAreaView.h"
 
-#include "CommonMovieSceneTools.h"
 #include "SequencerCommonHelpers.h"
 #include "MovieSceneTimeHelpers.h"
 #include "Sequencer.h"

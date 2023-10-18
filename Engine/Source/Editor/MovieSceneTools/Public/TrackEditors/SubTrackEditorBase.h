@@ -6,7 +6,6 @@
 #include "Editor.h"
 #include "ISequencerSection.h"
 #include "Sections/MovieSceneSubSection.h"
-#include "CommonMovieSceneTools.h"
 #include "Styling/AppStyle.h"
 #include "Framework/Application/SlateApplication.h"
 #include "ISequencer.h"
@@ -27,15 +26,14 @@ class ISequencer;
  */
 struct FSubSectionPainterParams
 {
-    FSubSectionPainterParams() : bShowTrackNum(true), bDrawFrameNumberHintWhenSelected(true)
+    FSubSectionPainterParams() : bShowTrackNum(true)
     {}
     FSubSectionPainterParams(FMargin InContentPadding)
-	: ContentPadding(InContentPadding), bShowTrackNum(true), bDrawFrameNumberHintWhenSelected(true)
+	: ContentPadding(InContentPadding), bShowTrackNum(true)
     {}
 
     FMargin ContentPadding;
     bool bShowTrackNum;
-    bool bDrawFrameNumberHintWhenSelected;
 };
 
 /**
@@ -137,6 +135,7 @@ public:
     virtual UMovieSceneSection* GetSectionObject() override;
     virtual FText GetSectionTitle() const override;
 	virtual FText GetSectionToolTip() const override;
+	virtual TOptional<FFrameTime> GetSectionTime(FSequencerSectionPainter& InPainter) const override;
 	virtual float GetSectionHeight() const override;
     virtual bool IsReadOnly() const override;
     virtual int32 OnPaintSection( FSequencerSectionPainter& InPainter ) const override;
@@ -253,6 +252,33 @@ FText TSubSectionMixin<ParentSectionClass>::GetSectionToolTip() const
 		);
 	}
 }
+
+template<typename ParentSectionClass>
+TOptional<FFrameTime> TSubSectionMixin<ParentSectionClass>::GetSectionTime(FSequencerSectionPainter& InPainter) const
+{
+	if (!InPainter.bIsSelected)
+	{
+		return TOptional<FFrameTime>();
+	}
+
+	TSharedPtr<ISequencer> Sequencer = GetSequencer();
+	if (!Sequencer)
+	{
+		return TOptional<FFrameTime>();
+	}
+
+	FFrameTime CurrentTime = Sequencer->GetLocalTime().Time;
+	if (!SubSectionObject.GetRange().Contains(CurrentTime.FrameNumber))
+	{
+		return TOptional<FFrameTime>();
+	}
+
+	const UMovieScene* SubSequenceMovieScene = SubSectionObject.GetSequence()->GetMovieScene();
+	const FFrameTime HintFrameTime = CurrentTime * SubSectionObject.OuterToInnerTransform();
+
+	return HintFrameTime;
+}
+
 #undef LOCTEXT_NAMESPACE
 
 template<typename ParentSectionClass>

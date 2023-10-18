@@ -19,7 +19,6 @@
 #include "UnrealEdGlobals.h"
 #include "Tracks/MovieSceneSkeletalAnimationTrack.h"
 #include "Sections/MovieSceneSkeletalAnimationSection.h"
-#include "CommonMovieSceneTools.h"
 #include "AssetRegistry/AssetRegistryModule.h"
 #include "IContentBrowserSingleton.h"
 #include "ContentBrowserModule.h"
@@ -47,7 +46,6 @@
 #include "Engine/SimpleConstructionScript.h"
 #include "Engine/Blueprint.h"
 
-#include "CommonMovieSceneTools.h"
 #include "Subsystems/AssetEditorSubsystem.h"
 #include "Editor.h"
 
@@ -81,6 +79,7 @@
 #include "AnimSequenceLevelSequenceLink.h"
 #include "UObject/SavePackage.h"
 #include "AnimSequencerInstanceProxy.h"
+#include "TimeToPixel.h"
 
 int32 FSkeletalAnimationTrackEditor::NumberActive = 0;
 
@@ -579,6 +578,67 @@ FText FSkeletalAnimationSection::GetSectionToolTip() const
 	return FText::GetEmpty();
 }
 
+TOptional<FFrameTime> FSkeletalAnimationSection::GetSectionTime(FSequencerSectionPainter& InPainter) const
+{
+	if (!InPainter.bIsSelected || !Sequencer.Pin() || Section.Params.Animation == nullptr)
+	{
+		return TOptional<FFrameTime>();
+	}
+
+	FFrameTime CurrentTime = Sequencer.Pin()->GetLocalTime().Time;
+	if (!Section.GetRange().Contains(CurrentTime.FrameNumber))
+	{
+		return TOptional<FFrameTime>();
+	}
+
+	const FTimeToPixel& TimeToPixelConverter = InPainter.GetTimeConverter();
+	FFrameRate TickResolution = TimeToPixelConverter.GetTickResolution();
+
+	// Draw the current time next to the scrub handle
+	const double AnimTime = Section.MapTimeToAnimation(CurrentTime, TickResolution);
+	const FFrameRate SamplingFrameRate = Section.Params.Animation->GetSamplingFrameRate();
+
+	FQualifiedFrameTime HintFrameTime;
+	if (!UAnimationBlueprintLibrary::EvaluateRootBoneTimecodeAttributesAtTime(Section.Params.Animation, static_cast<float>(AnimTime), HintFrameTime))
+	{
+		const FFrameTime FrameTime = SamplingFrameRate.AsFrameTime(AnimTime);
+		HintFrameTime = FQualifiedFrameTime(FrameTime, SamplingFrameRate);
+	}
+
+	// Get the desired frame display format and zero padding from
+	// the sequencer settings, if possible.
+	TAttribute<EFrameNumberDisplayFormats> DisplayFormatAttr(EFrameNumberDisplayFormats::Frames);
+	TAttribute<uint8> ZeroPadFrameNumbersAttr(0u);
+	if (const USequencerSettings* SequencerSettings = Sequencer.Pin()->GetSequencerSettings())
+	{
+		DisplayFormatAttr.Set(SequencerSettings->GetTimeDisplayFormat());
+		ZeroPadFrameNumbersAttr.Set(SequencerSettings->GetZeroPadFrames());
+	}
+
+	// No frame rate conversion necessary since we're displaying
+	// the source frame time/rate.
+	const TAttribute<FFrameRate> TickResolutionAttr(HintFrameTime.Rate);
+	const TAttribute<FFrameRate> DisplayRateAttr(HintFrameTime.Rate);
+
+	FFrameNumberInterface FrameNumberInterface(DisplayFormatAttr, ZeroPadFrameNumbersAttr, TickResolutionAttr, DisplayRateAttr);
+
+	float Subframe = 0.0f;
+	if (UAnimationBlueprintLibrary::EvaluateRootBoneTimecodeSubframeAttributeAtTime(Section.Params.Animation, static_cast<float>(AnimTime), Subframe))
+	{
+		if (FMath::IsNearlyEqual(Subframe, FMath::RoundToFloat(Subframe)))
+		{
+			FrameNumberInterface.SetSubframeIndicator(FString::Printf(TEXT(" (%d)"), FMath::RoundToInt(Subframe)));
+		}
+		else
+		{
+			FrameNumberInterface.SetSubframeIndicator(FString::Printf(TEXT(" (%s)"), *LexToSanitizedString(Subframe)));
+		}
+	}
+
+	return HintFrameTime.Time;
+}
+
+
 float FSkeletalAnimationSection::GetSectionHeight() const
 {
 	return (float)SkeletalAnimationEditorConstants::AnimationTrackHeight;
@@ -638,57 +698,6 @@ int32 FSkeletalAnimationSection::OnPaintSection( FSequencerSectionPainter& Paint
 		}
 	}
 
-	TSharedPtr<ISequencer> SequencerPtr = Sequencer.Pin();
-	if (Painter.bIsSelected && SequencerPtr.IsValid())
-	{
-		FFrameTime CurrentTime = SequencerPtr->GetLocalTime().Time;
-		if (Section.GetRange().Contains(CurrentTime.FrameNumber) && Section.Params.Animation != nullptr)
-		{
-			// Draw the current time next to the scrub handle
-			const double AnimTime = Section.MapTimeToAnimation(CurrentTime, TickResolution);
-			const FFrameRate SamplingFrameRate = Section.Params.Animation->GetSamplingFrameRate();
-
-			FQualifiedFrameTime HintFrameTime;
-			if (!UAnimationBlueprintLibrary::EvaluateRootBoneTimecodeAttributesAtTime(Section.Params.Animation, static_cast<float>(AnimTime), HintFrameTime))
-			{
-				const FFrameTime FrameTime = SamplingFrameRate.AsFrameTime(AnimTime);
-				HintFrameTime = FQualifiedFrameTime(FrameTime, SamplingFrameRate);
-			}
-
-			// Get the desired frame display format and zero padding from
-			// the sequencer settings, if possible.
-			TAttribute<EFrameNumberDisplayFormats> DisplayFormatAttr(EFrameNumberDisplayFormats::Frames);
-			TAttribute<uint8> ZeroPadFrameNumbersAttr(0u);
-			if (const USequencerSettings* SequencerSettings = SequencerPtr->GetSequencerSettings())
-			{
-				DisplayFormatAttr.Set(SequencerSettings->GetTimeDisplayFormat());
-				ZeroPadFrameNumbersAttr.Set(SequencerSettings->GetZeroPadFrames());
-			}
-
-			// No frame rate conversion necessary since we're displaying
-			// the source frame time/rate.
-			const TAttribute<FFrameRate> TickResolutionAttr(HintFrameTime.Rate);
-			const TAttribute<FFrameRate> DisplayRateAttr(HintFrameTime.Rate);
-
-			FFrameNumberInterface FrameNumberInterface(DisplayFormatAttr, ZeroPadFrameNumbersAttr, TickResolutionAttr, DisplayRateAttr);
-
-			float Subframe = 0.0f;
-			if (UAnimationBlueprintLibrary::EvaluateRootBoneTimecodeSubframeAttributeAtTime(Section.Params.Animation, static_cast<float>(AnimTime), Subframe))
-			{
-				if (FMath::IsNearlyEqual(Subframe, FMath::RoundToFloat(Subframe)))
-				{
-					FrameNumberInterface.SetSubframeIndicator(FString::Printf(TEXT(" (%d)"), FMath::RoundToInt(Subframe)));
-				}
-				else
-				{
-					FrameNumberInterface.SetSubframeIndicator(FString::Printf(TEXT(" (%s)"), *LexToSanitizedString(Subframe)));
-				}
-			}
-
-			DrawFrameTimeHint(Painter, CurrentTime, HintFrameTime.Time, &FrameNumberInterface);
-		}
-	}
-	
 	return LayerId;
 }
 

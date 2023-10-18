@@ -111,35 +111,6 @@ FSubSectionPainterResult FSubSectionPainterUtil::PaintSection(TSharedPtr<const I
         );
     }
 
-    if (Params.bDrawFrameNumberHintWhenSelected && InPainter.bIsSelected && Sequencer.IsValid())
-    {
-        FFrameTime CurrentTime = Sequencer->GetLocalTime().Time;
-        if (SectionRange.Contains(CurrentTime.FrameNumber))
-        {
-            const UMovieScene* SubSequenceMovieScene = SectionObject.GetSequence()->GetMovieScene();
-            const FFrameRate DisplayRate = SubSequenceMovieScene->GetDisplayRate();
-            const FFrameRate TickResolution = SubSequenceMovieScene->GetTickResolution();
-			const FFrameTime HintFrameTime = CurrentTime * SectionObject.OuterToInnerTransform();
-
-			// Get the desired frame display format and zero padding from
-			// the sequencer settings, if possible.
-			TAttribute<EFrameNumberDisplayFormats> DisplayFormatAttr(EFrameNumberDisplayFormats::Frames);
-			TAttribute<uint8> ZeroPadFrameNumbersAttr(0u);
-			if (const USequencerSettings* SequencerSettings = Sequencer->GetSequencerSettings())
-			{
-				DisplayFormatAttr.Set(SequencerSettings->GetTimeDisplayFormat());
-				ZeroPadFrameNumbersAttr.Set(SequencerSettings->GetZeroPadFrames());
-			}
-
-			const TAttribute<FFrameRate> TickResolutionAttr(TickResolution);
-			const TAttribute<FFrameRate> DisplayRateAttr(DisplayRate);
-
-			const FFrameNumberInterface FrameNumberInterface(DisplayFormatAttr, ZeroPadFrameNumbersAttr, TickResolutionAttr, DisplayRateAttr);
-
-			DrawFrameTimeHint(InPainter, CurrentTime, HintFrameTime, &FrameNumberInterface);
-        }
-    }
-
     InPainter.LayerId = LayerId;
 
     return FSSPR_Success;

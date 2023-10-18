@@ -162,6 +162,11 @@ public:
 	virtual FText GetSectionToolTip() const { return GetSectionTitle(); }
 
 	/**
+	 * @return The local section time
+	 */
+	virtual TOptional<FFrameTime> GetSectionTime(FSequencerSectionPainter& InPainter) const { return TOptional<FFrameTime>(); }
+
+	/**
 	 * @return The amount of padding to apply to non-interactive portions of the section interface (such as section text)
 	 */
 	virtual FMargin GetContentPadding() const { return FMargin(11.f, 6.f); }

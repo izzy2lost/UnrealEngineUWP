@@ -15,7 +15,6 @@
 #include "UnrealEdGlobals.h"
 #include "MovieSceneGeometryCollectionTrack.h"
 #include "MovieSceneGeometryCollectionSection.h"
-#include "CommonMovieSceneTools.h"
 #include "ContentBrowserModule.h"
 #include "SequencerUtilities.h"
 #include "ISectionLayoutBuilder.h"

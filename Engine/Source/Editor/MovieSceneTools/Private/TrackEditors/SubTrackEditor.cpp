@@ -37,8 +37,6 @@
 #include "IStructureDetailsView.h"
 #include "PropertyEditorModule.h"
 
-#include "CommonMovieSceneTools.h"
-
 namespace SubTrackEditorConstants
 {
 	const float TrackHeight = 50.0f;
