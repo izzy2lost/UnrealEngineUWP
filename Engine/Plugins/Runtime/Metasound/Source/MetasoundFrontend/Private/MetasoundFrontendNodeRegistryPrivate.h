@@ -108,6 +108,7 @@ namespace Metasound
 
 			virtual bool UnregisterNode(const FNodeRegistryKey& InKey) override;
 			virtual bool IsNodeRegistered(const FNodeRegistryKey& InKey) const override;
+			virtual bool IsGraphRegistered(const FNodeRegistryKey& InKey, const FSoftObjectPath& InAssetPath) const override;
 			virtual bool IsNodeNative(const FNodeRegistryKey& InKey) const override;
 
 			virtual bool RegisterConversionNode(const FConverterNodeRegistryKey& InNodeKey, const FConverterNodeInfo& InNodeInfo) override;

@@ -320,6 +320,9 @@ public:
 	/** Returns true if the provided registry key corresponds to a valid registered node. */
 	virtual bool IsNodeRegistered(const FNodeRegistryKey& InKey) const = 0;
 
+	/** Returns true if the provided registry key and asset path corresponds to a valid registered graph. */
+	virtual bool IsGraphRegistered(const FNodeRegistryKey& InKey, const FSoftObjectPath& InAssetPath) const = 0;
+
 	/** Returns true if the provided registry key corresponds to a valid registered node that is natively defined. */
 	virtual bool IsNodeNative(const FNodeRegistryKey& InKey) const = 0;
 
