@@ -259,6 +259,7 @@ namespace FNiagaraResolveDIHelpers
 					BoundDataInterface = VariableReadMap.Find(*BoundVariable);
 				}
 
+				/*
 				if (BoundDataInterface == nullptr)
 				{
 					OutErrorMessages.Add(FText::Format(
@@ -266,6 +267,7 @@ namespace FNiagaraResolveDIHelpers
 						FText::FromName(ReadVariable.GetName()),
 						FText::FromName(BoundVariable->GetName())));
 				}
+				*/
 
 				if (BoundDataInterface != nullptr && ParameterStoreVariables.Contains(ReadVariable) == false)
 				{
