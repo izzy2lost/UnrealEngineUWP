@@ -31,6 +31,19 @@ bool MobileLocalLightsBufferPostprocessEnabled(const FStaticShaderPlatform Platf
 	return MobileLocalLightsBufferEnabled(Platform) && !MobileUsesFullDepthPrepass(Platform);
 }
 
+int32 GMobileForwardLocalLightsSinglePermutation = 0;
+FAutoConsoleVariableRef CVarMobileForwardLocalLightsSinglePermutation(
+	TEXT("r.Mobile.Forward.LocalLightsSinglePermutation"),
+	GMobileForwardLocalLightsSinglePermutation,
+	TEXT("Whether to use the same permutation regardless of local lights state. This may improve RT time at expense of some GPU time"),
+	ECVF_Scalability | ECVF_RenderThreadSafe
+);
+
+bool MobileLocalLightsUseSinglePermutation()
+{ 
+	return GMobileForwardLocalLightsSinglePermutation != 0;
+}
+
 EMobileLocalLightSetting GetMobileForwardLocalLightSetting(EShaderPlatform ShaderPlatform, bool bIsTranslucent)
 {
 	static FShaderPlatformCachedIniValue<int32> MobileForwardLocalLightsIniValueCvar(TEXT("r.Mobile.Forward.EnableLocalLights"));
@@ -879,7 +892,11 @@ bool FMobileBasePassMeshProcessor::Process(
 	EMobileLocalLightSetting LocalLightSetting = EMobileLocalLightSetting::LOCAL_LIGHTS_DISABLED;
 	if (Scene && PrimitiveSceneProxy && ShadingModels.IsLit())
 	{
-		if (!bPassUsesDeferredShading && (PrimitiveSceneProxy->GetPrimitiveSceneInfo()->NumMobileDynamicLocalLights > 0))
+		if (!bPassUsesDeferredShading && 
+			// we can choose to use a single permutation for opaque meshes regarless of local light state
+			// this is to avoid re-caching MDC on light state changes
+			// Translucency always use un-cached MDC so this option does not apply to it
+			((MobileLocalLightsUseSinglePermutation() && !bIsTranslucent) || PrimitiveSceneProxy->GetPrimitiveSceneInfo()->NumMobileDynamicLocalLights > 0))
 		{
 			LocalLightSetting = GetMobileForwardLocalLightSetting(Scene->GetShaderPlatform(), bIsTranslucent);
 		}
