@@ -142,6 +142,8 @@ FSceneCapturePhotoSet::FStatus FSceneCapturePhotoSet::GetSceneCaptureStatus() co
 
 void FSceneCapturePhotoSet::Compute()
 {
+	TRACE_CPUPROFILER_EVENT_SCOPE(SceneCapturePhotoSet::Compute);
+
 	bWasCancelled = false;
 
 	int NumPending = 0;
@@ -155,7 +157,6 @@ void FSceneCapturePhotoSet::Compute()
 		return;
 	}
 
-	TRACE_CPUPROFILER_EVENT_SCOPE(SceneCapturePhotoSet::Compute);
 	FScopedSlowTask Progress(static_cast<float>(NumPending), LOCTEXT("CapturingScene", "Capturing Scene..."));
 	Progress.MakeDialog(bAllowCancel);
 
@@ -189,10 +190,7 @@ void FSceneCapturePhotoSet::Compute()
 	FWorldRenderCapture RenderCapture;
 	RenderCapture.SetWorld(TargetWorld);
 	RenderCapture.SetVisibleActorsAndComponents(VisibleActors, VisibleComponents);
-	if (bWriteDebugImages)
-	{
-		RenderCapture.SetEnableWriteDebugImage(true, 0, DebugImagesFolderName);
-	}
+	RenderCapture.SetEnableWriteDebugImage(bWriteDebugImages, 0, DebugImagesFolderName);
 
 	auto CapturePhoto3f = [this, &RenderCapture](ERenderCaptureType CaptureType, const FSpatialPhotoParams& Params)
 	{
@@ -262,16 +260,55 @@ void FSceneCapturePhotoSet::Compute()
 		}
 	};
 
-	CapturePhotoSet(CapturePhoto1f, ERenderCaptureType::DeviceDepth, LOCTEXT("CapturingScene_DeviceDepth", "Capturing Device Depth"));
-	CapturePhotoSet(CapturePhoto3f, ERenderCaptureType::BaseColor, LOCTEXT("CapturingScene_BaseColor", "Capturing Base Color"));
-	CapturePhotoSet(CapturePhoto3f, ERenderCaptureType::WorldNormal, LOCTEXT("CapturingScene_WorldNormal", "Capturing World Normal"));
-	CapturePhotoSet(CapturePhoto3f, ERenderCaptureType::CombinedMRS, LOCTEXT("CapturingScene_CombinedMRS", "Capturing Packed MRS"));
-	CapturePhotoSet(CapturePhoto1f, ERenderCaptureType::Metallic, LOCTEXT("CapturingScene_Metallic", "Capturing Metallic"));
-	CapturePhotoSet(CapturePhoto1f, ERenderCaptureType::Roughness, LOCTEXT("CapturingScene_Roughness", "Capturing Roughness"));
-	CapturePhotoSet(CapturePhoto1f, ERenderCaptureType::Specular, LOCTEXT("CapturingScene_Specular", "Capturing Specular"));
-	CapturePhotoSet(CapturePhoto3f, ERenderCaptureType::Emissive, LOCTEXT("CapturingScene_Emissive", "Capturing Emissive"));
-	CapturePhotoSet(CapturePhoto1f, ERenderCaptureType::Opacity, LOCTEXT("CapturingScene_Opacity", "Capturing Opacity"));
-	CapturePhotoSet(CapturePhoto3f, ERenderCaptureType::SubsurfaceColor, LOCTEXT("CapturingScene_SubsurfaceColor", "Capturing Subsurface Color"));
+	{
+		TRACE_CPUPROFILER_EVENT_SCOPE(FSceneCapturePhotoSet::Compute_DeviceDepth);
+		CapturePhotoSet(CapturePhoto1f, ERenderCaptureType::DeviceDepth, LOCTEXT("CapturingScene_DeviceDepth", "Capturing Device Depth"));
+	}
+
+	{
+		TRACE_CPUPROFILER_EVENT_SCOPE(FSceneCapturePhotoSet::Compute_BaseColor);
+		CapturePhotoSet(CapturePhoto3f, ERenderCaptureType::BaseColor, LOCTEXT("CapturingScene_BaseColor", "Capturing Base Color"));
+	}
+
+	{
+		TRACE_CPUPROFILER_EVENT_SCOPE(FSceneCapturePhotoSet::Compute_WorldNormal);
+		CapturePhotoSet(CapturePhoto3f, ERenderCaptureType::WorldNormal, LOCTEXT("CapturingScene_WorldNormal", "Capturing World Normal"));
+	}
+	
+	{
+		TRACE_CPUPROFILER_EVENT_SCOPE(FSceneCapturePhotoSet::Compute_CombinedMRS);
+		CapturePhotoSet(CapturePhoto3f, ERenderCaptureType::CombinedMRS, LOCTEXT("CapturingScene_CombinedMRS", "Capturing Packed MRS"));
+	}
+	
+	{
+		TRACE_CPUPROFILER_EVENT_SCOPE(FSceneCapturePhotoSet::Compute_Metallic);
+		CapturePhotoSet(CapturePhoto1f, ERenderCaptureType::Metallic, LOCTEXT("CapturingScene_Metallic", "Capturing Metallic"));
+	}
+
+	{
+		TRACE_CPUPROFILER_EVENT_SCOPE(FSceneCapturePhotoSet::Compute_Roughness);
+		CapturePhotoSet(CapturePhoto1f, ERenderCaptureType::Roughness, LOCTEXT("CapturingScene_Roughness", "Capturing Roughness"));
+	}
+
+	{
+		TRACE_CPUPROFILER_EVENT_SCOPE(FSceneCapturePhotoSet::Compute_Specular);
+		CapturePhotoSet(CapturePhoto1f, ERenderCaptureType::Specular, LOCTEXT("CapturingScene_Specular", "Capturing Specular"));
+	}
+
+	{
+		TRACE_CPUPROFILER_EVENT_SCOPE(FSceneCapturePhotoSet::Compute_Emissive);
+		CapturePhotoSet(CapturePhoto3f, ERenderCaptureType::Emissive, LOCTEXT("CapturingScene_Emissive", "Capturing Emissive"));
+	}
+
+	{
+		TRACE_CPUPROFILER_EVENT_SCOPE(FSceneCapturePhotoSet::Compute_Opacity);
+		CapturePhotoSet(CapturePhoto1f, ERenderCaptureType::Opacity, LOCTEXT("CapturingScene_Opacity", "Capturing Opacity"));
+	}
+
+	{
+		TRACE_CPUPROFILER_EVENT_SCOPE(FSceneCapturePhotoSet::Compute_SubsurfaceColor);
+		CapturePhotoSet(CapturePhoto3f, ERenderCaptureType::SubsurfaceColor, LOCTEXT("CapturingScene_SubsurfaceColor", "Capturing Subsurface Color"));
+	}
 }
 
 

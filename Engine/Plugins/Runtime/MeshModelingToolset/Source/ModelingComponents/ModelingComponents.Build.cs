@@ -35,6 +35,7 @@ public class ModelingComponents : ModuleRules
 				"ImageWriteQueue",
 				"SkeletalMeshDescription", // FSkeletalMeshAttributes::DefaultSkinWeightProfileName
 				"SlateCore",
+				"ImageCore",
 				// ... add private dependencies that you statically link with here ...
 			}
 		);

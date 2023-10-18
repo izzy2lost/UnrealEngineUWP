@@ -317,6 +317,21 @@ protected:
 		FImageAdapter& ResultImageOut,
 		const FRenderCaptureConfig& Config = {});
 
+	/**
+	 * The following values for VisualizationMode are supported:
+	 *   BaseColor, Metallic, Roughness, Specular, WorldNormal, Opacity, SubsurfaceColor
+	 * 
+	 * Its not clear where the valid VisualizationMode FNames are defined, it may be in the [Engine.BufferVisualizationMaterials] section of
+	 * Config/BaseEngine.ini, which is read by FBufferVisualizationData::Initialize() and called when the engine initializes in UEngine::Init()
+	 */
+	bool CaptureBufferVisualizationFromPosition(
+		const FName& VisualizationMode,
+		const FFrame3d& Frame,
+		double HorzFOVDegrees,
+		double NearPlaneDist,
+		FImageAdapter& ResultImageOut,
+		const FRenderCaptureConfig& Config = {});
+
 	bool bWriteDebugImage = false;
 	int32 DebugImageCounter = -1;
 	FString DebugImageFolderName = TEXT("WorldRenderCapture");
