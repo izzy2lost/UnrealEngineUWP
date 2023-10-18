@@ -466,23 +466,52 @@ void UInterchangeGenericLevelPipeline::ExecuteSceneNodePreImport(const FTransfor
 	}
 
 	//TODO move this code to the factory, a stack over pipeline can change the global offset transform which will affect this value.
-	FTransform GlobalTransform;
-	if (SceneNode->GetCustomGlobalTransform(BaseNodeContainer, GlobalOffsetTransform, GlobalTransform))
+	//We prioritize Local (Relative) Transforms due to issues introduced by 0 scales with Global Transforms.
+	//In case the LocalTransform is not available we fallback onto GlobalTransforms
+	FTransform LocalTransform;
+	if (SceneNode->GetCustomLocalTransform(LocalTransform))
 	{
 		if (bRootJointNode)
 		{
-			GlobalTransform = FTransform::Identity;
+			LocalTransform = FTransform::Identity;
 			//LocalTransform of RootjointNode is already baked into the Skeletal and animation.
 			//due to that we acquire the Parent SceneNode and get its GlobalTransform:
 			if (!SceneNode->GetParentUid().IsEmpty())
 			{
 				if (const UInterchangeSceneNode* ParentSceneNode = Cast<UInterchangeSceneNode>(BaseNodeContainer->GetNode(SceneNode->GetParentUid())))
 				{
-					ParentSceneNode->GetCustomGlobalTransform(BaseNodeContainer, GlobalOffsetTransform, GlobalTransform);
+					ParentSceneNode->GetCustomLocalTransform(LocalTransform);
 				}
 			}
 		}
-		ActorFactoryNode->SetCustomGlobalTransform(GlobalTransform);
+
+		if (SceneNode->GetParentUid().IsEmpty())
+		{
+			LocalTransform = LocalTransform * GlobalOffsetTransform;
+		}
+
+		ActorFactoryNode->SetCustomLocalTransform(LocalTransform);
+	}
+	else
+	{
+		FTransform GlobalTransform;
+		if (SceneNode->GetCustomGlobalTransform(BaseNodeContainer, GlobalOffsetTransform, GlobalTransform))
+		{
+			if (bRootJointNode)
+			{
+				GlobalTransform = FTransform::Identity;
+				//LocalTransform of RootjointNode is already baked into the Skeletal and animation.
+				//due to that we acquire the Parent SceneNode and get its GlobalTransform:
+				if (!SceneNode->GetParentUid().IsEmpty())
+				{
+					if (const UInterchangeSceneNode* ParentSceneNode = Cast<UInterchangeSceneNode>(BaseNodeContainer->GetNode(SceneNode->GetParentUid())))
+					{
+						ParentSceneNode->GetCustomGlobalTransform(BaseNodeContainer, GlobalOffsetTransform, GlobalTransform);
+					}
+				}
+			}
+			ActorFactoryNode->SetCustomGlobalTransform(GlobalTransform);
+		}
 	}
 
 	ActorFactoryNode->SetCustomMobility(EComponentMobility::Static);
