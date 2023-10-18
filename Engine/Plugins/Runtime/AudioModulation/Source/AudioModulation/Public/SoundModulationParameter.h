@@ -218,7 +218,7 @@ public:
 	static Audio::FModulationParameter CreateDefaultParameter();
 };
 
-// Modulation Parameter that scales normalized, unitless value to bipolar range. Mixes multiplicatively.
+// Modulation Parameter that scales normalized, unitless value to bipolar range. Mixes additively.
 UCLASS(BlueprintType, MinimalAPI)
 class USoundModulationParameterBipolar : public USoundModulationParameter
 {
@@ -254,6 +254,30 @@ public:
 	virtual float GetUnitMin() const override;
 	virtual float GetUnitMax() const override;
 	static Audio::FModulationParameter CreateDefaultParameter(float MinUnitVolume = -100.0f);
+};
+
+// Modulation Parameter whose values are mixed via addition.
+UCLASS(BlueprintType, MinimalAPI)
+class USoundModulationParameterAdditive : public USoundModulationParameter
+{
+	GENERATED_UCLASS_BODY()
+
+public:
+
+	/** Unit minimum of modulator. Minimum is only enforced at modulation destination. */
+	UPROPERTY(EditAnywhere, Category = General, BlueprintReadOnly)
+	float UnitMin = 0.0f;
+
+	/** Unit maximum of modulator. Maximum is only enforced at modulation destination. */
+	UPROPERTY(EditAnywhere, Category = General, BlueprintReadOnly)
+	float UnitMax = 1.0f;
+
+	virtual bool RequiresUnitConversion() const override;
+	virtual Audio::FModulationMixFunction GetMixFunction() const override;
+	virtual Audio::FModulationUnitConversionFunction GetUnitConversionFunction() const override;
+	virtual Audio::FModulationNormalizedConversionFunction GetNormalizedConversionFunction() const override;
+	virtual float GetUnitMax() const override;
+	virtual float GetUnitMin() const override;
 };
 
 namespace AudioModulation

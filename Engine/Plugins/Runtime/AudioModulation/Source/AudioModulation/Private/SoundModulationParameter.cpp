@@ -295,6 +295,52 @@ Audio::FModulationParameter USoundModulationParameterVolume::CreateDefaultParame
 	return NewParam;
 }
 
+USoundModulationParameterAdditive::USoundModulationParameterAdditive(const FObjectInitializer& ObjectInitializer)
+	: Super(ObjectInitializer)
+{
+	Settings.ValueNormalized = 0.0f;
+}
+
+bool USoundModulationParameterAdditive::RequiresUnitConversion() const
+{
+	return true;
+}
+
+Audio::FModulationMixFunction USoundModulationParameterAdditive::GetMixFunction() const
+{
+	return [](float& InOutValueA, float InValueB)
+	{
+		InOutValueA += InValueB;
+	};
+}
+
+Audio::FModulationUnitConversionFunction USoundModulationParameterAdditive::GetUnitConversionFunction() const
+{
+	return [InUnitMin = UnitMin, InUnitMax = UnitMax](float& InOutValue)
+	{
+		InOutValue = FMath::Lerp(InUnitMin, InUnitMax, InOutValue);
+	};
+}
+
+Audio::FModulationNormalizedConversionFunction USoundModulationParameterAdditive::GetNormalizedConversionFunction() const
+{
+	return [InUnitMin = UnitMin, InUnitMax = UnitMax](float& InOutValue)
+	{
+		const float Denom = FMath::Max(SMALL_NUMBER, InUnitMax - InUnitMin);
+		InOutValue = (InOutValue - InUnitMin) / Denom;
+	};
+}
+
+float USoundModulationParameterAdditive::GetUnitMax() const
+{
+	return UnitMax;
+}
+
+float USoundModulationParameterAdditive::GetUnitMin() const
+{
+	return UnitMin;
+}
+
 namespace AudioModulation
 {
 	const Audio::FModulationParameter& GetOrRegisterParameter(const USoundModulationParameter* InParameter, const FString& InBreadcrumb)
