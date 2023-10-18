@@ -990,6 +990,15 @@ void FPCGSpawnActorElement::SpawnActors(FPCGSubgraphContext* Context, AActor* Ta
 
 		for (UPCGComponent* PCGComponent : PCGComponents)
 		{
+#if WITH_EDITOR
+			// For both pre-existing and new actors, we need to make sure we're inline with loading/generation as needed
+			if (PCGComponent->GetEditingMode() != Context->SourceComponent->GetEditingMode())
+			{
+				PCGComponent->SetEditingMode(/*CurrentEditingMode=*/Context->SourceComponent->GetEditingMode(), /*SerializedEditingMode=*/Context->SourceComponent->GetEditingMode());
+				PCGComponent->ChangeTransientState(Context->SourceComponent->GetEditingMode());
+			}
+#endif // WITH_EDITOR
+
 			if (Settings->Option == EPCGSpawnActorOption::NoMerging)
 			{
 				if (bForceDisableActorParsing)

@@ -220,6 +220,11 @@ void UPCGComponent::SetPropertiesFromOriginal(const UPCGComponent* Original)
 		}
 	}
 
+	if (!ensure(GraphInstance))
+	{
+		return;
+	}
+
 	const bool bGraphInstanceIsDifferent = !GraphInstance->IsEquivalent(Original->GraphInstance);
 
 #if WITH_EDITOR
@@ -1492,6 +1497,8 @@ void UPCGComponent::PostEditChangeProperty(FPropertyChangedEvent& PropertyChange
 
 	const FName PropName = PropertyChangedEvent.Property->GetFName();
 
+	bool bTransientPropertyChangedThatDoesNotRequireARefresh = false;
+
 	// Implementation note:
 	// Since the current editing mode is a transient variable, if we do not do this transition here before going in the Super call,
 	//  we can end up in a situation where BP actors are reconstructed (... this component included ...) which makes this fall into the !IsValid case just after
@@ -1500,6 +1507,7 @@ void UPCGComponent::PostEditChangeProperty(FPropertyChangedEvent& PropertyChange
 		// When affecting the editing mode from the user's point of view, we need to change both the current & serialized values
 		SetEditingMode(CurrentEditingMode, CurrentEditingMode);
 		ChangeTransientState(CurrentEditingMode);
+		bTransientPropertyChangedThatDoesNotRequireARefresh = true;
 	}
 
 	Super::PostEditChangeProperty(PropertyChangedEvent);
@@ -1590,7 +1598,7 @@ void UPCGComponent::PostEditChangeProperty(FPropertyChangedEvent& PropertyChange
 		}
 	}
 	// General properties that don't affect behavior
-	else
+	else if(!bTransientPropertyChangedThatDoesNotRequireARefresh)
 	{
 		Refresh();
 	}
@@ -2674,7 +2682,7 @@ bool UPCGComponent::DeletePreviewResources()
 	for (TObjectPtr<UPCGManagedResource> ResourceToRelease : LoadedPreviewResources)
 	{
 		// Changing the transient state will clear the "marked transient on load" flag
-		ResourceToRelease->ChangeTransientState(/*bNowTransient=*/false);
+		ResourceToRelease->ChangeTransientState(EPCGEditorDirtyMode::Normal);
 		ResourceToRelease->Release(/*bHardRelease=*/true, ActorsToDelete);
 		bResourceWasReleased = true;
 	}
@@ -2713,7 +2721,7 @@ void UPCGComponent::ChangeTransientState(EPCGEditorDirtyMode NewEditingMode)
 		{
 			if (GeneratedResource)
 			{
-				GeneratedResource->ChangeTransientState(NewEditingMode == EPCGEditorDirtyMode::Preview);
+				GeneratedResource->ChangeTransientState(NewEditingMode);
 				bShouldMarkDirty = true;
 			}
 		}
@@ -2728,7 +2736,10 @@ void UPCGComponent::ChangeTransientState(EPCGEditorDirtyMode NewEditingMode)
 
 	if (IsLocalComponent())
 	{
-		bShouldMarkDirty = true;
+		if (NewEditingMode == EPCGEditorDirtyMode::Preview)
+		{
+			MarkPackageDirty();
+		}
 
 		if (NewEditingMode == EPCGEditorDirtyMode::Preview)
 		{
@@ -2750,9 +2761,13 @@ void UPCGComponent::ChangeTransientState(EPCGEditorDirtyMode NewEditingMode)
 				Object->ClearFlags(RF_Transient);
 			}
 		});
-	}
 
-	if (bShouldMarkDirty)
+		if (NewEditingMode != EPCGEditorDirtyMode::Preview)
+		{
+			MarkPackageDirty();
+		}
+	}
+	else if (bShouldMarkDirty)
 	{
 		MarkPackageDirty();
 	}

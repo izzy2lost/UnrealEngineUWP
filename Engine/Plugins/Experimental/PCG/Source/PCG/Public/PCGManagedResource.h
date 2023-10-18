@@ -52,7 +52,7 @@ public:
 	void SetCrc(const FPCGCrc& InCrc) { Crc = InCrc; }
 
 #if WITH_EDITOR
-	virtual void ChangeTransientState(bool bNowTransient);
+	virtual void ChangeTransientState(EPCGEditorDirtyMode NewEditingMode);
 	virtual void MarkTransientOnLoad() { bMarkedTransientOnLoad = true; }
 
 	bool IsMarkedTransientOnLoad() const { return bMarkedTransientOnLoad; }
@@ -94,7 +94,7 @@ public:
 	virtual void MarkAsReused() override;
 
 #if WITH_EDITOR
-	virtual void ChangeTransientState(bool bNowTransient) override;
+	virtual void ChangeTransientState(EPCGEditorDirtyMode NewEditingMode) override;
 #endif
 	//~End UPCGManagedResource interface
 
@@ -118,7 +118,7 @@ public:
 	virtual bool MoveResourceToNewActor(AActor* NewActor, const AActor* ExpectedPreviousOwner) override;
 
 #if WITH_EDITOR
-	virtual void ChangeTransientState(bool bNowTransient) override;
+	virtual void ChangeTransientState(EPCGEditorDirtyMode NewEditingMode) override;
 	/** Hides the content of the component in a transient way (such as unregistering) */
 	virtual void HideComponent();
 #endif

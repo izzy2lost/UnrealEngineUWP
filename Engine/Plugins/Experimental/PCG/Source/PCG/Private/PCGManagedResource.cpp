@@ -8,11 +8,8 @@
 
 #include "Components/InstancedStaticMeshComponent.h"
 #include "Engine/Level.h"
+#include "UObject/Package.h"
 #include "Utils/PCGGeneratedResourcesLogging.h"
-
-#if WITH_EDITOR
-#include "ObjectTools.h"
-#endif
 
 #include UE_INLINE_GENERATED_CPP_BY_NAME(PCGManagedResource)
 
@@ -65,7 +62,7 @@ bool UPCGManagedResource::DebugForcePurgeAllResourcesOnGenerate()
 }
 
 #if WITH_EDITOR
-void UPCGManagedResource::ChangeTransientState(bool /*bNowTransient*/)
+void UPCGManagedResource::ChangeTransientState(EPCGEditorDirtyMode /*NewEditingMode*/)
 {
 	// Any change in the transient state resets the transient state that was set on load, regardless of the bNowTransient flag
 	bMarkedTransientOnLoad = false;
@@ -210,62 +207,79 @@ void UPCGManagedActors::MarkAsReused()
 }
 
 #if WITH_EDITOR
-void UPCGManagedActors::ChangeTransientState(bool bNowTransient)
+void UPCGManagedActors::ChangeTransientState(EPCGEditorDirtyMode NewEditingMode)
 {
-	TSet<UPackage*> PackagesToCleanup;
+	const bool bNowTransient = (NewEditingMode == EPCGEditorDirtyMode::Preview);
 
 	for (TSoftObjectPtr<AActor> GeneratedActor : GeneratedActors)
 	{
 		// Make sure to load if needed because we need to affect the actors regardless of the current WP state
 		if (GeneratedActor.LoadSynchronous() != nullptr)
 		{
-			// If this is changed during loading, we shouldn't set the actor to be transient if we're using external packages,
-			// otherwise the package will get deleted spuriously.
-			if (bNowTransient)
-			{
-				if (!GeneratedActor->IsPackageExternal())
-				{
-					GeneratedActor->SetFlags(RF_Transient);
-				}
-			}
-			else
-			{
-				GeneratedActor->ClearFlags(RF_Transient);
-			}
+			const bool bWasTransient = GeneratedActor->HasAnyFlags(RF_Transient);
 
-			if (GeneratedActor->GetLevel() && GeneratedActor->GetLevel()->IsUsingExternalActors())
+			if (bNowTransient != bWasTransient)
 			{
 				if (bNowTransient)
 				{
-					PackagesToCleanup.Add(GeneratedActor->GetExternalPackage());
+					GeneratedActor->SetFlags(RF_Transient);
 				}
-
-				GeneratedActor->SetPackageExternal(/*bExternal=*/!bNowTransient, /*bShouldDirty=*/false);
+				else
+				{
+					GeneratedActor->ClearFlags(RF_Transient);
+				}
 			}
 
-			if (!bNowTransient || GeneratedActor->IsPackageExternal())
+			// If the actor had PCG components, propagate this downward
 			{
-				ForEachObjectWithOuter(GeneratedActor.Get(), [bNowTransient](UObject* Object)
+				TInlineComponentArray<UPCGComponent*, 4> PCGComponents;
+				GeneratedActor->GetComponents(PCGComponents);
+
+				for (UPCGComponent* PCGComponent : PCGComponents)
 				{
-					if (bNowTransient)
+					PCGComponent->SetEditingMode(/*CurrentEditingMode=*/NewEditingMode, /*SerializedEditingMode=*/NewEditingMode);
+					PCGComponent->ChangeTransientState(NewEditingMode);
+				}
+			}
+
+			if (bNowTransient != bWasTransient)
+			{
+				if (GeneratedActor->GetLevel() && GeneratedActor->GetLevel()->IsUsingExternalActors())
+				{
+					UPackage* PreviousExternalPackage = bNowTransient ? GeneratedActor->GetExternalPackage() : nullptr;
+
+					GeneratedActor->SetPackageExternal(/*bExternal=*/!bNowTransient, /*bShouldDirty=*/false);
+
+					if (PreviousExternalPackage)
 					{
-						Object->SetFlags(RF_Transient);
+						PreviousExternalPackage->MarkPackageDirty();
 					}
-					else
+				
+					if (!bNowTransient && GeneratedActor->GetExternalPackage())
 					{
-						Object->ClearFlags(RF_Transient);
+						MarkPackageDirty();
 					}
-				});
+				}
+
+				if (!bNowTransient || GeneratedActor->IsPackageExternal())
+				{
+					ForEachObjectWithOuter(GeneratedActor.Get(), [bNowTransient](UObject* Object)
+					{
+						if (bNowTransient)
+						{
+							Object->SetFlags(RF_Transient);
+						}
+						else
+						{
+							Object->ClearFlags(RF_Transient);
+						}
+					});
+				}
 			}
 		}
 	}
 
-	if (!PackagesToCleanup.IsEmpty())
-	{
-		ObjectTools::CleanupAfterSuccessfulDelete(PackagesToCleanup.Array(), /*bPerformanceReferenceCheck=*/true);
-	}
-
-	Super::ChangeTransientState(bNowTransient);
+	Super::ChangeTransientState(NewEditingMode);
 }
 #endif // WITH_EDITOR
 
@@ -446,8 +460,9 @@ void UPCGManagedComponent::MarkAsReused()
 }
 
 #if WITH_EDITOR
-void UPCGManagedComponent::ChangeTransientState(bool bNowTransient)
+void UPCGManagedComponent::ChangeTransientState(EPCGEditorDirtyMode NewEditingMode)
 {
+	const bool bNowTransient = (NewEditingMode == EPCGEditorDirtyMode::Preview);
 	if (GeneratedComponent.Get())
 	{
 		const bool bWasTransient = GeneratedComponent->HasAnyFlags(RF_Transient);
@@ -479,7 +494,7 @@ void UPCGManagedComponent::ChangeTransientState(bool bNowTransient)
 		}
 	}
 
-	Super::ChangeTransientState(bNowTransient);
+	Super::ChangeTransientState(NewEditingMode);
 }
 #endif // WITH_EDITOR
 
