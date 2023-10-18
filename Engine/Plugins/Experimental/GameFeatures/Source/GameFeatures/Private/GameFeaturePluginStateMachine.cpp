@@ -2135,24 +2135,38 @@ struct FGameFeaturePluginState_Mounting : public FGameFeaturePluginState
 			return;
 		}
 
-		if (StateProperties.GetPluginProtocol() != EGameFeaturePluginProtocol::InstallBundle)
+		TRACE_CPUPROFILER_EVENT_SCOPE(GFP_Mounting_AR);
+
+		// After the new plugin is mounted add the asset registry for that plugin.
+		TSharedPtr<IPlugin> NewlyMountedPlugin = IPluginManager::Get().FindPlugin(StateProperties.PluginName);
+		if (!NewlyMountedPlugin || !NewlyMountedPlugin->CanContainContent())
 		{
 			CompletedSubStates |= ESubState::LoadAssetRegistry;
 			return;
 		}
 
-		TRACE_CPUPROFILER_EVENT_SCOPE(GFP_Mounting_AR);
-
-		// After the new plugin is mounted add the asset registry for that plugin.
-
-		const FString PluginFolder = FPaths::GetPath(StateProperties.PluginInstalledFilename);
-		FString PluginAssetRegistry = PluginFolder / TEXT("AssetRegistry.bin");
-
-		TSharedPtr<IPlugin> NewlyMountedPlugin = IPluginManager::Get().FindPlugin(StateProperties.PluginName);
-		if (!NewlyMountedPlugin || !NewlyMountedPlugin->CanContainContent() || !IFileManager::Get().FileExists(*PluginAssetRegistry))
+		FString PluginAssetRegistry;
 		{
-			CompletedSubStates |= ESubState::LoadAssetRegistry;
-			return;
+			const FString PluginFolder = FPaths::GetPath(StateProperties.PluginInstalledFilename);
+			TArray<FString> PluginAssetRegistrySearchPaths;
+			// For GFPs cooked as DLC
+			PluginAssetRegistrySearchPaths.Add(PluginFolder / TEXT("AssetRegistry.bin"));
+			// For GFPs with a unique chunk
+			PluginAssetRegistrySearchPaths.Add(FPaths::ProjectDir() / FString::Printf(TEXT("AssetRegistry_GFP_%s.bin"), *StateProperties.PluginName));
+			for (FString& Path : PluginAssetRegistrySearchPaths)
+			{
+				if (IFileManager::Get().FileExists(*Path))
+				{
+					PluginAssetRegistry = MoveTemp(Path);
+					break;
+				}
+			}
+
+			if (PluginAssetRegistry.IsEmpty())
+			{
+				CompletedSubStates |= ESubState::LoadAssetRegistry;
+				return;
+			}
 		}
 
 		if (!UseAsyncLoading())

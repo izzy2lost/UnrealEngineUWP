@@ -103,6 +103,11 @@ void UGameFeatureAction_AddChunkOverride::GetChunkForPackage(const FString& Pack
 	}
 }
 
+FString UGameFeatureAction_AddChunkOverride::GetPluginNameFromChunkID(int32 ChunkID)
+{
+	return GameFeatureAction_AddChunkOverride::ChunkIdToPluginMap.FindRef(ChunkID);
+}
+
 void UGameFeatureAction_AddChunkOverride::PostRename(UObject* OldOuter, const FName OldName)
 {
 	Super::PostRename(OldOuter, OldName);

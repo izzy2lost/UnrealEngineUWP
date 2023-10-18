@@ -37,6 +37,8 @@ public:
 	 */
 	GAMEFEATURES_API static void GetChunkForPackage(const FString& PackageName, const int32 DefaultGameChunk, TArray<int32>& OutChunkList);
 
+	GAMEFEATURES_API static FString GetPluginNameFromChunkID(int32 ChunkID);
+
 	/** UObject overrides */
 	virtual void PostRename(UObject* OldOuter, const FName OldName) override;
 	virtual void PostEditChangeProperty(FPropertyChangedEvent& PropertyChangedEvent) override;

@@ -637,19 +637,19 @@ bool FAssetRegistryGenerator::GenerateStreamingInstallManifest(int64 InOverrideC
 			if (Guid.IsValid())
 			{
 				PakChunkOptions += TEXT(" encryptionkeyguid=") + Guid.ToString();
+			}
 
-				// If this chunk has a seperate unique asset registry, add it to first subchunk's manifest here
-				if (SubChunkIndex == 0)
+			// If this chunk has a seperate unique asset registry, add it to first subchunk's manifest here
+			if (SubChunkIndex == 0)
+			{
+				// For chunks with unique asset registry name, pakchunkIndex should equal chunkid
+				FName RegistryName = UAssetManager::Get().GetUniqueAssetRegistryName(PakchunkIndex);
+				if (RegistryName != NAME_None)
 				{
-					// For chunks with unique asset registry name, pakchunkIndex should equal chunkid
-					FName RegistryName = UAssetManager::Get().GetUniqueAssetRegistryName(PakchunkIndex);
-					if (RegistryName != NAME_None)
-					{
-						FString AssetRegistryFilename = FString::Printf(TEXT("%s%sAssetRegistry%s.bin"),
-							*InSandboxFile.GetSandboxDirectory(), *InSandboxFile.GetGameSandboxDirectoryName(),
-							*RegistryName.ToString());
-						ChunkFilenames.Add(AssetRegistryFilename);
-					}
+					FString AssetRegistryFilename = FString::Printf(TEXT("%s%sAssetRegistry%s.bin"),
+						*InSandboxFile.GetSandboxDirectory(), *InSandboxFile.GetGameSandboxDirectoryName(),
+						*RegistryName.ToString());
+					ChunkFilenames.Add(AssetRegistryFilename);
 				}
 			}
 
