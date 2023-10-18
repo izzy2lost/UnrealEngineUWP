@@ -110,26 +110,81 @@ private:
 	TArray<TUniquePtr<FScopedSlowTask>> ExtendedTaskLife;
 };
 
-void SetReflectEditorLevelVisibilityWithGame(bool bInValue, bool bReset = false)
+namespace UE::ConcertWorkspace::Private
 {
+	template <size_t N>
+	struct CVarString
+	{
+		TCHAR Storage[N+1]{};
+		constexpr CVarString(TCHAR const* InStr)
+		{
+			for (size_t Index = 0; Index != N; Index++)
+			{
+				Storage[Index] = InStr[Index];
+			}
+		}
+		constexpr operator TCHAR const*() const {return Storage;}
+	};
+	template<size_t N> CVarString(TCHAR const (&)[N]) -> CVarString<N - 1>;
+
+	template<CVarString T, bool bEditorOnly>
+	struct FCVarBool
+	{
+		static constexpr TCHAR const* CvarName = T;
+		void SetValueOnce(bool bInValue, bool bForce = false)
+		{
 #if WITH_EDITOR
-	static bool bHasBeenSet = false;
-
-	if (bReset)
-	{
-		bHasBeenSet = false;
-	}
-
-	// Detail mode was modified, so store in the CVar
-	static IConsoleVariable* CVar = IConsoleManager::Get().FindConsoleVariable(TEXT("Editor.ReflectEditorLevelVisibilityWithGame"));
-	int32 ValAsInt = !!bInValue;
-	bool bCanSet = !bHasBeenSet && CVar->GetInt() != ValAsInt;
-	if (GEditor && bCanSet)
-	{
-		CVar->Set(ValAsInt);
-		bHasBeenSet = bReset ? false : true;
-	}
+			const bool bShouldSetValue = bEditorOnly ? GEditor != nullptr : true;
+			if (bShouldSetValue && (!bHasBeenSet || bForce))
+			{
+				int32 ValueAsInt = !!bInValue;
+				SetValue(ValueAsInt);
+			}
 #endif
+		}
+
+		void Reset()
+		{
+#if WITH_EDITOR
+			if (bHasBeenSet)
+			{
+				SetValue(bOriginalValue);
+				bHasBeenSet = false;
+			}
+#endif
+		}
+
+		bool IsEnabled() const
+		{
+#if WITH_EDITOR
+			static IConsoleVariable* CVar = IConsoleManager::Get().FindConsoleVariable(CvarName);
+			if (CVar)
+			{
+				return !!CVar->GetInt();
+			}
+#endif
+			return false;
+		}
+
+	private:
+		void SetValue(int32 InValue)
+		{
+			static IConsoleVariable* CVar = IConsoleManager::Get().FindConsoleVariable(CvarName);
+			if (CVar)
+			{
+				bOriginalValue = CVar->GetInt();
+				CVar->Set(InValue);
+				bHasBeenSet = true;
+			}
+		}
+
+		int32 bOriginalValue = false;
+		bool bHasBeenSet = false;
+	};
+
+	static FCVarBool<TEXT("Editor.ReflectEditorLevelVisibilityWithGame"), true /*Editor Only*/> ReflectVisInGame;
+	static FCVarBool<TEXT("LevelInstance.ForceEditorWorldMode"), false /*Editor Only*/> LevelInstanceForceEditorWorldMode;
+	static FCVarBool<TEXT("EditorPaths.Enabled"), false /*Editor Only*/> EditorPaths;
 }
 
 struct FConcertWorkspaceConsoleCommands
@@ -640,6 +695,14 @@ void FConcertClientWorkspace::HandleConnectionChanged(IConcertClientSession& InS
 				}
 			}
 		}
+		if (GEditor == nullptr)
+		{
+			const bool bLevelInstanceEditorWorldMode = UE::ConcertWorkspace::Private::LevelInstanceForceEditorWorldMode.IsEnabled();
+			UE_CLOG( !bLevelInstanceEditorWorldMode, LogConcert, Warning, TEXT("Level Instance Editor World Mode is off. Ensure LevelInstance.ForceEditorWorldMode=1 on startup. Non-editor world mode in -game may cause issues with transaction playback on Level Instance Actors. Forcing this mode to be ON.") );
+		}
+
+		UE::ConcertWorkspace::Private::LevelInstanceForceEditorWorldMode.SetValueOnce(true);
+		UE::ConcertWorkspace::Private::EditorPaths.SetValueOnce(true);
 #endif
 	}
 	else if (Status == EConcertConnectionStatus::Disconnected)
@@ -647,7 +710,9 @@ void FConcertClientWorkspace::HandleConnectionChanged(IConcertClientSession& InS
 		bHasSyncedWorkspace = false;
 		bFinalizeWorkspaceSyncRequested = false;
 		FConcertSlowTaskStackWorkaround::Get().PopTask(MoveTemp(InitialSyncSlowTask));
-		SetReflectEditorLevelVisibilityWithGame(false, true);
+		UE::ConcertWorkspace::Private::ReflectVisInGame.Reset();
+		UE::ConcertWorkspace::Private::LevelInstanceForceEditorWorldMode.Reset();
+		UE::ConcertWorkspace::Private::EditorPaths.Reset();
 	}
 }
 
@@ -870,7 +935,7 @@ void FConcertClientWorkspace::OnEndFrame()
 	}
 	LiveSession->GetSessionDatabase().UpdateAsynchronousTasks();
 	IConcertClientRef ConcertClient = OwnerSyncClient->GetConcertClient();
-	SetReflectEditorLevelVisibilityWithGame(ConcertClient->GetConfiguration()->ClientSettings.bReflectLevelEditorInGame);
+	UE::ConcertWorkspace::Private::ReflectVisInGame.SetValueOnce(ConcertClient->GetConfiguration()->ClientSettings.bReflectLevelEditorInGame);
 }
 
 void FConcertClientWorkspace::HandleWorkspaceSyncEndpointEvent(const FConcertSessionContext& Context, const FConcertWorkspaceSyncEndpointEvent& Event)

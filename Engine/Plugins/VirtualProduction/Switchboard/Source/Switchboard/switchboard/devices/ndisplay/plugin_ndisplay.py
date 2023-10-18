@@ -1038,6 +1038,8 @@ class DevicenDisplay(DeviceUnreal):
 
         # Always tell Chaos to be deterministic
         dp_cvars.append('p.Chaos.Solver.Deterministic=1')
+        # Always enable LevelInstance World Editor Mode.
+        dp_cvars.append('LevelInstance.ForceEditorWorldMode=1')
 
         # mediaprofile
         mediaprofile_gamepath = DevicenDisplay.csettings["mediaprofile"].get_value(self.name)
