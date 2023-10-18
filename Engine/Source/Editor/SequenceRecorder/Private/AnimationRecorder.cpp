@@ -169,7 +169,7 @@ bool FAnimationRecorder::TriggerRecordAnimation(USkeletalMeshComponent* Componen
 
 		SetSampleRateAndLength(SampleRate, MaximumLength);
 		
-		Parent = CreatePackage( *ValidatedAssetPath);
+		Parent = CreatePackage( *ValidatedAssetPath);	
 	}
 
 	UObject* const Object = LoadObject<UObject>(Parent, *ValidatedAssetName, nullptr, LOAD_Quiet, nullptr);
@@ -180,7 +180,10 @@ bool FAnimationRecorder::TriggerRecordAnimation(USkeletalMeshComponent* Componen
 		return false;		// failed
 	}
 
-	// If not, create new one now.
+	// If not, create new one now. (also means we should not transact the recording)
+	const bool bExistingAnimSequence = FindObject<UAnimSequence>(Parent, *ValidatedAssetName) != nullptr;
+	bTransactRecording &= bExistingAnimSequence;
+
 	UAnimSequence* const NewSeq = NewObject<UAnimSequence>(Parent, *ValidatedAssetName, RF_Public | RF_Standalone);
 	if (NewSeq)
 	{

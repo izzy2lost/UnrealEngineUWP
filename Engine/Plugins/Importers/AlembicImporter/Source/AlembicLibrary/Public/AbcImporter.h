@@ -168,7 +168,7 @@ private:
 	* @param ObjectName - Name to be used for the created object
 	* @param Flags - Object creation flags
 	*/
-	template<typename T> T* CreateObjectInstance(UObject*& InParent, const FString& ObjectName, const EObjectFlags Flags);
+	template<typename T> T* CreateObjectInstance(UObject*& InParent, const FString& ObjectName, const EObjectFlags Flags, bool& bObjectAlreadyExists);
 	
 	/**
 	* Creates a Static mesh from the given mesh description
@@ -205,7 +205,7 @@ private:
 	void GenerateMorphTargetVertices(FAbcMeshSample* BaseSample, TArray<FMorphTargetDelta> &MorphDeltas, FAbcMeshSample* AverageSample, uint32 WedgeOffset, const TArray<int32>& RemapIndices, const TArray<int32>& UsedVertexIndicesForMorphs, const uint32 VertexOffset, const uint32 IndexOffset);
 	
 	/** Set up correct morph target weights from the PCA compressed data */
-	void SetupMorphTargetCurves(USkeleton* Skeleton, FName ConstCurveName, UAnimSequence* Sequence, const TArray<float> &CurveValues, const TArray<float>& TimeValues, IAnimationDataController& Controller);
+	void SetupMorphTargetCurves(USkeleton* Skeleton, FName ConstCurveName, UAnimSequence* Sequence, const TArray<float> &CurveValues, const TArray<float>& TimeValues, IAnimationDataController& Controller, bool bShouldTransact);
 	
 	/** Set the Alembic archive metadata on the given objects */
 	void SetMetaData(const TArray<UObject*>& Objects);
