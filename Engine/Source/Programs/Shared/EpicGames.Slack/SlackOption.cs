@@ -40,6 +40,14 @@ namespace EpicGames.Slack
 		/// <summary>
 		/// Constructor
 		/// </summary>
+		public SlackOption()
+			: this("", "")
+		{
+		}
+
+		/// <summary>
+		/// Constructor
+		/// </summary>
 		public SlackOption(TextObject text, string value)
 		{
 			Text = text;
