@@ -1675,6 +1675,8 @@ void FReplicationReader::ProcessHugeObjectAttachment(FNetSerializationContext& C
 		return;
 	}
 
+	IRIS_PROFILER_SCOPE(FReplicationReader_ProcessHugeObjectAttachment)
+
 	FNetTraceCollector* HugeObjectTraceCollector = nullptr;
 #if UE_NET_TRACE_ENABLED
 	FNetTraceCollector HugeObjectTraceCollectorOnStack;

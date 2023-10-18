@@ -3622,7 +3622,8 @@ void FReplicationWriter::FHugeObjectSendQueue::AckObjects(TFunctionRef<void (con
 
 		if (!bObjectIsAcked)
 		{
-			continue;
+			// As clients deliver hugeobjects parts in order we cannot ack later objects until previous ones have been fully acked.
+			break;
 		}
 
 		AckHugeObject(Context);
