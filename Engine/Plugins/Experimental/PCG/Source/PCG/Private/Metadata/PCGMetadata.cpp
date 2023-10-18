@@ -807,29 +807,29 @@ void UPCGMetadata::AddDelayedEntries(const TArray<TTuple<int64, int64>>& AllEntr
 	DelayedEntriesIndex.Exchange(0);
 }
 
-bool UPCGMetadata::InitializeOnSet(PCGMetadataEntryKey& InKey, PCGMetadataEntryKey InParentKeyA, const UPCGMetadata* InParentMetadataA, PCGMetadataEntryKey InParentKeyB, const UPCGMetadata* InParentMetadataB)
+bool UPCGMetadata::InitializeOnSet(PCGMetadataEntryKey& InOutKey, PCGMetadataEntryKey InParentKeyA, const UPCGMetadata* InParentMetadataA, PCGMetadataEntryKey InParentKeyB, const UPCGMetadata* InParentMetadataB)
 {
-	if (InKey == PCGInvalidEntryKey)
+	if (InOutKey == PCGInvalidEntryKey)
 	{
 		if (InParentKeyA != PCGInvalidEntryKey && Parent == InParentMetadataA)
 		{
-			InKey = AddEntry(InParentKeyA);
+			InOutKey = AddEntry(InParentKeyA);
 			return true;
 		}
 		else if (InParentKeyB != PCGInvalidEntryKey && Parent == InParentMetadataB)
 		{
-			InKey = AddEntry(InParentKeyB);
+			InOutKey = AddEntry(InParentKeyB);
 			return true;
 		}
 		else
 		{
-			InKey = AddEntry();
+			InOutKey = AddEntry();
 			return false;
 		}
 	}
-	else if(InKey < ItemKeyOffset)
+	else if(InOutKey < ItemKeyOffset)
 	{
-		InKey = AddEntry(InKey);
+		InOutKey = AddEntry(InOutKey);
 		return false;
 	}
 	else
