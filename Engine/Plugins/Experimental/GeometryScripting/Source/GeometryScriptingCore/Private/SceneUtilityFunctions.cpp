@@ -21,7 +21,10 @@
 #include "ConversionUtils/VolumeToDynamicMesh.h"
 #include "ConversionUtils/SkinnedMeshToDynamicMesh.h"
 #include "ConversionUtils/SplineComponentDeformDynamicMesh.h"
+#include "GeometryCollection/GeometryCollectionComponent.h"
+#include "GeometryCollection/GeometryCollectionObject.h"
 #include "Physics/ComponentCollisionUtil.h"
+#include "PlanarCut.h"
 
 #include UE_INLINE_GENERATED_CPP_BY_NAME(SceneUtilityFunctions)
 
@@ -192,6 +195,40 @@ UDynamicMesh* UGeometryScriptLibrary_SceneUtilityFunctions::CopyMeshFromComponen
 		else
 		{
 			UE::Geometry::AppendError(Debug, EGeometryScriptErrorType::InvalidInputs, LOCTEXT("CopyMeshFromComponent_InvalidBrushConversion", "CopyMeshFromComponent: BrushComponent conversion produced 0 triangles"));
+		}
+	}
+	else if (UGeometryCollectionComponent* GeometryCollectionComponent = Cast<UGeometryCollectionComponent>(Component))
+	{
+		LocalToWorld = GeometryCollectionComponent->GetComponentTransform();
+
+		if (const UGeometryCollection* RestCollection = GeometryCollectionComponent->GetRestCollection())
+		{
+			if (const FGeometryCollection* Collection = RestCollection->GetGeometryCollection().Get())
+			{
+				ToDynamicMesh->EditMesh([&](FDynamicMesh3& EditMesh)
+				{
+					FTransform UnusedTransform;
+					const TArray<FTransform3f>& DynamicTransforms = GeometryCollectionComponent->GetComponentSpaceTransforms3f();
+					if (!DynamicTransforms.IsEmpty())
+					{
+						ConvertGeometryCollectionToDynamicMesh(EditMesh, UnusedTransform, false, *Collection, true, DynamicTransforms, false, Collection->TransformIndex.GetConstArray());
+					}
+					else
+					{
+						ConvertGeometryCollectionToDynamicMesh(EditMesh, UnusedTransform, false, *Collection, true, TArrayView<const FTransform3f>(Collection->Transform.GetConstArray()), true, Collection->TransformIndex.GetConstArray());
+					}
+				},
+				EDynamicMeshChangeType::GeneralEdit, EDynamicMeshAttributeChangeFlags::Unknown, true);
+				Outcome = EGeometryScriptOutcomePins::Success;
+			}
+			else
+			{
+				UE::Geometry::AppendError(Debug, EGeometryScriptErrorType::InvalidInputs, LOCTEXT("CopyMeshFromComponent_MissingCollectionData", "CopyMeshFromComponent: GeometryCollectionComponent has null Geometry Collection data"));
+			}
+		}
+		else
+		{
+			UE::Geometry::AppendError(Debug, EGeometryScriptErrorType::InvalidInputs, LOCTEXT("CopyMeshFromComponent_MissingRestCollection", "CopyMeshFromComponent: GeometryCollectionComponent has null Rest Collection object"));
 		}
 	}
 

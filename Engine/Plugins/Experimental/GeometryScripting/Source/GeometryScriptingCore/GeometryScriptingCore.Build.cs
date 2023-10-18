@@ -47,7 +47,10 @@ public class GeometryScriptingCore : ModuleRules
 				"MeshConversionEngineTypes",
 				"GeometryAlgorithms",
 				"ModelingOperators",
-				"ModelingComponents"
+				"ModelingComponents",
+				"PlanarCut",
+				"Chaos",
+				"GeometryCollectionEngine"
 			}
 			);
 

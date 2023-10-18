@@ -1579,6 +1579,19 @@ void SetGeometryCollectionAttributes(FDynamicMesh3& Mesh, int32 NumUVLayers)
 	AugmentedDynamicMesh::Augment(Mesh, NumUVLayers);
 }
 
+void ClearCustomGeometryCollectionAttributes(UE::Geometry::FDynamicMesh3& Mesh)
+{
+	Mesh.DiscardVertexNormals();
+	
+	Mesh.Attributes()->RemoveAttribute(AugmentedDynamicMesh::ColorAttribName);
+	Mesh.Attributes()->RemoveAttribute(AugmentedDynamicMesh::TangentUAttribName);
+	Mesh.Attributes()->RemoveAttribute(AugmentedDynamicMesh::TangentVAttribName);
+	Mesh.Attributes()->RemoveAttribute(AugmentedDynamicMesh::VisibleAttribName);
+	Mesh.Attributes()->RemoveAttribute(AugmentedDynamicMesh::InternalAttribName);
+
+	AugmentedDynamicMesh::EnableUVChannels(Mesh, 0, false, true); // set 0 UV channels to remove UV attributes
+}
+
 
 FCellMeshes::FCellMeshes(int32 NumUVLayersIn, FRandomStream& RandomStream, const FPlanarCells& Cells, FAxisAlignedBox3d DomainBounds, double Grout, double ExtendDomain, bool bIncludeOutsideCell)
 {
@@ -2529,7 +2542,7 @@ void FCellMeshes::CreateMeshesForSinglePlane(const FPlanarCells& Cells, const FA
 }
 
 template<typename TransformType>
-void FDynamicMeshCollection::InitTemplate(const FGeometryCollection* Collection, const TManagedArray<TransformType>& Transforms, const TArrayView<const int32>& TransformIndices, FTransform TransformCollection, bool bSaveIsolatedVertices)
+void FDynamicMeshCollection::InitTemplate(const FGeometryCollection* Collection, TArrayView<const TransformType> Transforms, const TArrayView<const int32>& TransformIndices, FTransform TransformCollection, bool bSaveIsolatedVertices)
 {
 	GeometryCollection::UV::FConstUVLayers UVLayers = GeometryCollection::UV::FindActiveUVLayers(*Collection);
 	int32 NumUVLayers = UVLayers.Num();
@@ -2545,7 +2558,15 @@ void FDynamicMeshCollection::InitTemplate(const FGeometryCollection* Collection,
 			continue;
 		}
 
-		FTransformSRT3d CollectionToLocal = FTransformSRT3d(GeometryCollectionAlgo::GlobalMatrix(Transforms, Collection->Parent, TransformIdx) * TransformCollection);
+		FTransformSRT3d CollectionToLocal;
+		if (bComponentSpaceTransforms)
+		{
+			CollectionToLocal = FTransformSRT3d(FTransform(Transforms[TransformIdx]) * TransformCollection);
+		}
+		else
+		{
+			CollectionToLocal = FTransformSRT3d(GeometryCollectionAlgo::GlobalMatrix(Transforms, TArrayView<const int32>(Collection->Parent.GetConstArray()), TransformIdx) * TransformCollection);
+		}
 
 		int32 AddedMeshIdx = Meshes.Add(new FMeshData(NumUVLayers));
 		FMeshData& MeshData = Meshes[AddedMeshIdx];
@@ -2583,6 +2604,10 @@ void FDynamicMeshCollection::InitTemplate(const FGeometryCollection* Collection,
 		FIntVector VertexOffset(VertexStart, VertexStart, VertexStart);
 		for (int32 Idx = Collection->FaceStart[GeometryIdx], N = Collection->FaceStart[GeometryIdx] + FaceCount; Idx < N; Idx++)
 		{
+			if (bSkipInvisible && !Collection->Visible[Idx])
+			{
+				continue;
+			}
 			FIndex3i AddTri = FIndex3i(Collection->Indices[Idx] - VertexOffset);
 			int TID = Mesh.AppendTriangle(AddTri, 0);
 			if (TID == FDynamicMesh3::NonManifoldID)
@@ -2631,12 +2656,12 @@ void FDynamicMeshCollection::InitTemplate(const FGeometryCollection* Collection,
 }
 
 
-void FDynamicMeshCollection::Init(const FGeometryCollection* Collection, const TManagedArray<FTransform>& Transforms, const TArrayView<const int32>& TransformIndices, FTransform TransformCollection, bool bSaveIsolatedVertices)
+void FDynamicMeshCollection::Init(const FGeometryCollection* Collection, TArrayView<const FTransform> Transforms, const TArrayView<const int32>& TransformIndices, FTransform TransformCollection, bool bSaveIsolatedVertices)
 {
 	InitTemplate(Collection, Transforms, TransformIndices, TransformCollection, bSaveIsolatedVertices);
 }
 
-void FDynamicMeshCollection::Init(const FGeometryCollection* Collection, const TManagedArray<FTransform3f>& Transforms, const TArrayView<const int32>& TransformIndices, FTransform TransformCollection, bool bSaveIsolatedVertices)
+void FDynamicMeshCollection::Init(const FGeometryCollection* Collection, TArrayView<const FTransform3f> Transforms, const TArrayView<const int32>& TransformIndices, FTransform TransformCollection, bool bSaveIsolatedVertices)
 {
 	InitTemplate(Collection, Transforms, TransformIndices, TransformCollection, bSaveIsolatedVertices);
 }

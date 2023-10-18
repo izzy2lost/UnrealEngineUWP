@@ -560,11 +560,27 @@ namespace GeometryCollectionAlgo
 
 		if (RelativeTransforms.IsValidIndex(Index))
 		{
-			while (Index != FGeometryCollection::Invalid)
+			do
 			{
 				Transform = Transform * RelativeTransforms[Index];
 				Index = Parents[Index];
-			}
+			} while (Index != FGeometryCollection::Invalid);
+		}
+		return Transform;
+	}
+
+	template<typename TransformType>
+	TransformType GlobalMatrixTemplate(TArrayView<const TransformType> RelativeTransforms, TArrayView<const int32> Parents, int32 Index)
+	{
+		TransformType Transform = TransformType::Identity;
+
+		if (RelativeTransforms.IsValidIndex(Index))
+		{
+			do
+			{
+				Transform = Transform * RelativeTransforms[Index];
+				Index = Parents[Index];
+			} while (Index != FGeometryCollection::Invalid);
 		}
 		return Transform;
 	}
@@ -581,6 +597,15 @@ namespace GeometryCollectionAlgo
 	}
 
 	FTransform GlobalMatrix(const TManagedArray<FTransform3f>& RelativeTransforms, const TManagedArray<int32>& Parents, int32 Index)
+	{
+		return FTransform(GlobalMatrixTemplate<FTransform3f>(RelativeTransforms, Parents, Index));
+	}
+
+	FTransform GlobalMatrix(TArrayView<const FTransform> RelativeTransforms, TArrayView<const int32> Parents, int32 Index)
+	{
+		return GlobalMatrixTemplate<FTransform>(RelativeTransforms, Parents, Index);
+	}
+	FTransform GlobalMatrix(TArrayView<const FTransform3f> RelativeTransforms, TArrayView<const int32> Parents, int32 Index)
 	{
 		return FTransform(GlobalMatrixTemplate<FTransform3f>(RelativeTransforms, Parents, Index));
 	}

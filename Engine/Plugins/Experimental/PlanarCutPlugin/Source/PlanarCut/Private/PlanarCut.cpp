@@ -2086,20 +2086,27 @@ int32 AddCollisionSampleVertices(double CollisionSampleSpacing, FGeometryCollect
 }
 
 template <typename TransformType>
-void ConvertToMeshDescriptionTemplate(
-	FMeshDescription& MeshOut,
+void ConvertToDynamicMeshTemplate(
+	FDynamicMesh3& CombinedMesh,
 	FTransform& TransformOut,
 	bool bCenterPivot,
-	FGeometryCollection& Collection,
-	const TManagedArray<TransformType>& BoneTransforms,
-	const TArrayView<const int32>& TransformIndices,
-	TFunction<int32(int32, bool)> RemapMaterialIDs
+	const FGeometryCollection& Collection,
+	TArrayView<const TransformType> BoneTransforms,
+	TArrayView<const int32> TransformIndices,
+	TFunction<int32(int32, bool)> RemapMaterialIDs,
+	bool bClearCustomAttributes = true,
+	bool bWeldEdges = true,
+	bool bComponentSpaceTransforms = false,
+	bool bAllowInvisible = true,
+	bool bSetPolygroupPerBone = false
 )
 {
 	FTransform CellsToWorld = FTransform::Identity;
 	TransformOut = FTransform::Identity;
 
 	FDynamicMeshCollection MeshCollection;
+	MeshCollection.bSkipInvisible = !bAllowInvisible;
+	MeshCollection.bComponentSpaceTransforms = bComponentSpaceTransforms && !BoneTransforms.IsEmpty();
 	if (BoneTransforms.Num())
 	{
 		MeshCollection.Init(&Collection, BoneTransforms, TransformIndices, CellsToWorld);
@@ -2108,15 +2115,22 @@ void ConvertToMeshDescriptionTemplate(
 	{
 		MeshCollection.Init(&Collection, Collection.Transform, TransformIndices, CellsToWorld);
 	}
-	
-	FDynamicMesh3 CombinedMesh;
+
 	SetGeometryCollectionAttributes(CombinedMesh, Collection.NumUVLayers());
 	CombinedMesh.Attributes()->EnableTangents();
+	if (bSetPolygroupPerBone)
+	{
+		CombinedMesh.EnableTriangleGroups();
+	}
 
 	int32 NumMeshes = MeshCollection.Meshes.Num();
 	for (int32 MeshIdx = 0; MeshIdx < NumMeshes; MeshIdx++)
 	{
 		FDynamicMesh3& Mesh = MeshCollection.Meshes[MeshIdx].AugMesh;
+		if (bSetPolygroupPerBone)
+		{
+			Mesh.EnableTriangleGroups();
+		}
 		const FTransform& FromCollection = MeshCollection.Meshes[MeshIdx].FromCollection;
 
 		FMeshNormals::InitializeOverlayToPerVertexNormals(Mesh.Attributes()->PrimaryNormals(), true);
@@ -2135,9 +2149,12 @@ void ConvertToMeshDescriptionTemplate(
 			}
 		}
 
-		FMergeCoincidentMeshEdges EdgeMerge(&Mesh);
-		EdgeMerge.Apply();
-		
+		if (bWeldEdges && Mesh.TriangleCount() > 0)
+		{
+			FMergeCoincidentMeshEdges EdgeMerge(&Mesh);
+			EdgeMerge.Apply();
+		}
+
 		if (MeshIdx > 0)
 		{
 			FDynamicMeshEditor MeshAppender(&CombinedMesh);
@@ -2157,6 +2174,26 @@ void ConvertToMeshDescriptionTemplate(
 		MeshTransforms::Translate(CombinedMesh, Translate);
 		TransformOut = FTransform((FVector)-Translate);
 	}
+
+	if (bClearCustomAttributes)
+	{
+		ClearCustomGeometryCollectionAttributes(CombinedMesh);
+	}
+}
+
+template <typename TransformType>
+void ConvertToMeshDescriptionTemplate(
+	FMeshDescription& MeshOut,
+	FTransform& TransformOut,
+	bool bCenterPivot,
+	FGeometryCollection& Collection,
+	const TManagedArray<TransformType>& BoneTransforms,
+	const TArrayView<const int32>& TransformIndices,
+	TFunction<int32(int32, bool)> RemapMaterialIDs
+)
+{	
+	FDynamicMesh3 CombinedMesh;
+	ConvertToDynamicMeshTemplate<TransformType>(CombinedMesh, TransformOut, bCenterPivot, Collection, BoneTransforms.GetConstArray(), TransformIndices, RemapMaterialIDs, false);
 
 	FDynamicMeshToMeshDescription Converter;
 	Converter.Convert(&CombinedMesh, MeshOut, true);
@@ -2188,5 +2225,20 @@ void ConvertToMeshDescription(
 	ConvertToMeshDescriptionTemplate(MeshOut, TransformOut, bCenterPivot, Collection, BoneTransforms, TransformIndices, RemapMaterialIDs);
 }
 
+void ConvertGeometryCollectionToDynamicMesh(
+	FDynamicMesh3& OutputMesh,
+	FTransform& TransformOut,
+	bool bCenterPivot,
+	const FGeometryCollection& Collection,
+	bool bWeldEdges,
+	TArrayView<const FTransform3f> BoneTransforms,
+	bool bUseRelativeTransforms,
+	TArrayView<const int32> TransformIndices,
+	TFunction<int32(int32, bool)> RemapMaterialIDs,
+	bool bAllowInvisible, bool bSetPolygroupPerBone
+)
+{
+	ConvertToDynamicMeshTemplate<FTransform3f>(OutputMesh, TransformOut, bCenterPivot, Collection, BoneTransforms, TransformIndices, RemapMaterialIDs, true, bWeldEdges, !bUseRelativeTransforms, bAllowInvisible, bSetPolygroupPerBone);
+}
 
 #undef LOCTEXT_NAMESPACE
