@@ -85,6 +85,9 @@ public:
 		TSharedPtr<FTrackingSpace> TrackingSpace;
 		float WorldToMetersScale = 100.0f;
 		float PixelDensity = 1.0f;
+		int WaitCount = 0;
+		int BeginCount = 0;
+		int EndCount = 0;
 		bool bXrFrameStateUpdated = false;
 	};
 
@@ -444,6 +447,7 @@ private:
 	bool					bIsStandaloneStereoOnlyDevice;
 	bool					bIsTrackingOnlySession;
 	bool					bIsAcquireOnAnyThreadSupported;
+	bool					bUseWaitCountToAvoidExtraXrBeginFrameCalls;
 	float					WorldToMetersScale = 100.0f;
 	float					RuntimePixelDensityMax = FHeadMountedDisplayBase::PixelDensityMax;
 	EShaderPlatform			ConfiguredShaderPlatform = EShaderPlatform::SP_NumPlatforms;
