@@ -322,7 +322,7 @@ const JobList: React.FC<{ tab: string; filter: JobFilterSimple, controller: Call
          props.selectionMode = SelectionMode.none;
          props.collapseAllVisibility = CollapseAllVisibility.hidden;
          return <Sticky stickyClassName={classNames.sticky} stickyPosition={StickyPositionType.Header} isScrollSynced={true}>
-            <DetailsHeader className={detailClasses.detailsHeader}  {...props} styles={{ root: { paddingLeft: 12 } }} />
+            <DetailsHeader className={detailClasses.detailsHeader}  {...props} styles={{ root: { paddingLeft: 12, backgroundColor: dashboard.darktheme ? `${modeColors.content} !important` : undefined } }} />
          </Sticky>
 
       }

@@ -1330,8 +1330,7 @@ let _errorStyles: any;
 
 const getErrorStyles = () => {
 
-   const theme = getHordeTheme();   
-   const { modeColors } = getHordeStyling();
+   const theme = getHordeTheme();      
 
    const errorStyles = _errorStyles ?? mergeStyleSets({
       gutter: [
@@ -1461,7 +1460,7 @@ const StepPanel: React.FC<{ streamId: string, hstep: GetIssueStepResponse }> = o
       const warning = hstep.severity === IssueSeverity.Warning;
       const success = hstep.severity === IssueSeverity.Unspecified;
 
-      let backgroundColor = theme.horde.breadCrumbsBackground;
+      let backgroundColor = theme.horde.dividerColor;
 
       let color = RED;
 
@@ -1470,7 +1469,7 @@ const StepPanel: React.FC<{ streamId: string, hstep: GetIssueStepResponse }> = o
       }
 
       if (success) {
-         backgroundColor = theme.horde.breadCrumbsBackground;
+         backgroundColor = theme.horde.dividerColor;
          color = backgroundColor;
       }
 
@@ -1606,7 +1605,7 @@ const IssueCommandBar: React.FC = () => {
    const [forceCloseShown, setForceCloseShown] = useState(false);
    const [testFixShown, setTestFixShown] = useState(false);
 
-   const { hordeClasses, modeColors } = getHordeStyling();
+   const { modeColors } = getHordeStyling();
 
    const issue = details.issue!;
 
@@ -1932,7 +1931,7 @@ export const IssueModalV2: React.FC<{ popHistoryOnClose: boolean, issueId?: stri
       </Modal>
    }
 
-   return <Modal isOpen={true} isBlocking={true} topOffsetFixed={true} styles={{ main: { padding: 8, width: 1420, backgroundColor: modeColors.background, hasBeenOpened: false, top: "24px", position: "absolute", height: "95vh" } }} className={hordeClasses.modal} onDismiss={() => { if (onCloseExternal) { onCloseExternal() } else { onClose() } }}>
+   return <Modal isOpen={true} isBlocking={true} topOffsetFixed={true} styles={{ main: { padding: 8, width: 1420, backgroundColor: dashboard.darktheme ? `${modeColors.background} !important` : modeColors.background, hasBeenOpened: false, top: "24px", position: "absolute", height: "95vh" } }} className={hordeClasses.modal} onDismiss={() => { if (onCloseExternal) { onCloseExternal() } else { onClose() } }}>
       {editShown && <EditIssueModal onClose={() => { setEditShown(false) }} />}
       <Stack style={{ height: "93vh" }}>
          <Stack style={{ height: "100%" }}>

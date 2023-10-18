@@ -47,7 +47,7 @@ const getStyling = () => {
       ],
       gutterError: [
          {
-            background: dashboard.darktheme ? "#1E1616" : "#FEF6F6",
+            background: dashboard.darktheme ? "#330606" : "#FEF6F6",
             borderLeftStyle: 'solid',
             borderLeftColor: "#EC4C47"
          }, gutterClass
@@ -72,7 +72,7 @@ const getStyling = () => {
       ],
       itemError: [
          {
-            background: dashboard.darktheme ? "#1E1616" : "#FEF6F6",
+            background: dashboard.darktheme ? "#330606" : "#FEF6F6",
          }
       ],
       itemHover: {
@@ -115,12 +115,12 @@ const getStyling = () => {
    ]);
 
    const stateStyles = _stateStyles ?? new Map<string, string>([
-      [TestState.Success, mergeStyles({ color: theme.palette.green, userSelect: "none" }, iconClass)],
+      [TestState.Success, mergeStyles({ color: "#9BF95C", userSelect: "none" }, iconClass)],
       [TestState.InProcess, mergeStyles({ color: "#01BCF2", userSelect: "none" }, iconClass)],
       [TestState.NotRun, mergeStyles({ color: "#A19F9D", userSelect: "none" }, iconClass)],
       [TestState.SuccessWithWarnings, mergeStyles({ color: "#F7D154", userSelect: "none" }, iconClass)],
       [TestState.Failed, mergeStyles({ color: "#EC4C47", userSelect: "none" }, iconClass)],
-      [TestState.Unknown, mergeStyles({ color: "#000000", userSelect: "none" }, iconClass)],
+      [TestState.Unknown, mergeStyles({ color: dashboard.darktheme ? "#666666" : "#000000", userSelect: "none" }, iconClass)],
    ]);
 
    _styles = styles;
@@ -558,7 +558,7 @@ export const TestPassSummaryView: React.FC<{ data: TestPassSummary, query: URLSe
                      <Text variant="mediumPlus" styles={{ root: { fontFamily: "Horde Open Sans SemiBold" } }}>Summary</Text>
                   </Stack>
                   <Stack styles={{ root: { paddingLeft: 8 } }}>
-                     <Text>This test pass run on <span style={{ fontWeight: 'bold' }}>{data.ReportCreatedOn}</span> for a duration of <span style={{ fontWeight: 'bold' }}>{msecToElapsed(data.TotalDurationSeconds * 1000)}</span> on <span style={{ fontWeight: 'bold' }}>{getMetadata(data.Metadata, 'Platform') ?? "Unknown"}</span></Text>
+                     <Text>This test pass ran on <span style={{ fontWeight: 'bold' }}>{data.ReportCreatedOn}</span> for a duration of <span style={{ fontWeight: 'bold' }}>{msecToElapsed(data.TotalDurationSeconds * 1000)}</span> on <span style={{ fontWeight: 'bold' }}>{getMetadata(data.Metadata, 'Platform') ?? "Unknown"}</span></Text>
                      <Text>
                         {data.FailedCount > 0 && <span><span style={{ fontWeight: 'bold' }}>{data.FailedCount}</span> tests <span style={{ fontWeight: 'bold' }} className={stateStyles.get('Fail')}>{stateLabels.get('Fail')?.toLowerCase()}</span>. </span>}
                         {data.InProcessCount > 0 && <span><span style={{ fontWeight: 'bold' }}>{data.InProcessCount}</span> tests <span style={{ fontWeight: 'bold' }} className={stateStyles.get('InProcess')}>{stateLabels.get('InProcess')?.toLowerCase()}</span>. </span>}

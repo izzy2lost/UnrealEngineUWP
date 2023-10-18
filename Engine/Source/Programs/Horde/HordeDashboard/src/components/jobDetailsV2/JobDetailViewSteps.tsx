@@ -168,7 +168,7 @@ export const StepsPanelInner: React.FC<{ jobDetails: JobDetailsV2, depStepId?: s
 
    dataView.subscribe();
 
-   const hordeTheme = getHordeTheme();
+   const hordeTheme = getHordeTheme();   
 
    const jobFilter = jobDetails.filter;
 

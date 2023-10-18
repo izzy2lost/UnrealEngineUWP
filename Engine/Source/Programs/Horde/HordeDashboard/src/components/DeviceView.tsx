@@ -25,14 +25,6 @@ type DeviceItem = {
 let groups: IGroup[] = [];
 
 
-export const StatusColors = new Map<DeviceStatus, string>([
-   [DeviceStatus.Available, "#52C705"],
-   [DeviceStatus.Problem, "#DE4522"],
-   [DeviceStatus.Reserved, "00BCF2"],
-   [DeviceStatus.Disabled, "#F3F2F1"],
-   [DeviceStatus.Maintenance, "#0078D4"]
-]);
-
 export const StatusNames = new Map<DeviceStatus, string>([
    [DeviceStatus.Available, "Available"],
    [DeviceStatus.Problem, "Problem"],
@@ -108,6 +100,15 @@ const DevicePanel: React.FC = observer(() => {
 
    if (handler.updated) { }
 
+   const StatusColors = new Map<DeviceStatus, string>([
+      [DeviceStatus.Available, "#52C705"],
+      [DeviceStatus.Problem, "#DE4522"],
+      [DeviceStatus.Reserved, "#00BCF2"],
+      [DeviceStatus.Disabled, dashboard.darktheme ? "#D3D2D1" : "#F3F2F1"],
+      [DeviceStatus.Maintenance, "#0078D4"]
+   ]);
+   
+
    const InfoModal: React.FC = () => {
 
       const checkout = !!checkoutState.checkoutId;
@@ -168,7 +169,7 @@ const DevicePanel: React.FC = observer(() => {
       const device = item.device;
       const status = handler.getDeviceStatus(device);
 
-      let color = status === DeviceStatus.Disabled ? "#999999" : "#ffffff";
+      let color = status === DeviceStatus.Disabled ? "#777777 !important" : "#ffffff";
       let backgroundColor = StatusColors.get(status)!
       let text = StatusNames.get(status)!;
 
@@ -182,7 +183,7 @@ const DevicePanel: React.FC = observer(() => {
 
       // @todo: support deleting reservations
       return <Stack verticalFill={true} verticalAlign="center">
-         <PrimaryButton styles={{ root: { border: "0px", width: 84, height: 24, fontSize: 12, fontFamily: "Horde Open Sans SemiBold !important", color: color, backgroundColor: backgroundColor } }} text={text}
+         <PrimaryButton styles={{ root: { border: "0px", width: 84, height: 24, fontSize: 12, fontFamily: "Horde Open Sans SemiBold !important", selectors: {".ms-Button-label" : {color: color}}, backgroundColor: backgroundColor } }} text={text}
             onClick={(ev) => {
                ev.stopPropagation(); ev.preventDefault();
                setEditState({ shown: true, device: item })

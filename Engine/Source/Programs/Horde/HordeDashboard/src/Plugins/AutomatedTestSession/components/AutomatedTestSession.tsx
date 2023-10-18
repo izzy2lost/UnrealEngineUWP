@@ -60,7 +60,7 @@ const getStyling = () => {
       ],
       gutterError: [
          {
-            background: dashboard.darktheme ? "#1E1616" : "#FEF6F6",
+            background: dashboard.darktheme ? "#330606" : "#FEF6F6",
             borderLeftStyle: 'solid',
             borderLeftColor: colors.get(StatusColor.Failure)!
          }, gutterClass
@@ -85,7 +85,7 @@ const getStyling = () => {
       ],
       eventError: [
          {
-            background: dashboard.darktheme ? "#1E1616" : "#FEF6F6",
+            background: dashboard.darktheme ? "#330606" : "#FEF6F6",
          }
       ],
       itemHover: {
@@ -1280,7 +1280,7 @@ const TestCollection: React.FC<{ collection: TestSessionCollection, onLoadMore?:
    return <Stack className={styles.container} styles={{ root: { paddingTop: 8 } }} grow>
       {!!data &&
          <Stack styles={{ root: { paddingTop: 4, paddingLeft: 20, paddingBottom: 8, paddingRight: 8 } }}>
-            <Text>This test pass run on <span style={{ fontWeight: 'bold' }}>{data.TestSessionInfo.DateTime}</span> for a duration of <span style={{ fontWeight: 'bold' }}>{msecToElapsed(data.TestSessionInfo.TimeElapseSec * 1000)}</span> for <span style={{ fontWeight: 'bold' }}>{data.MetaHandler?.map((key, value) => <span key={key}>{value} </span>)}</span></Text>
+            <Text>This test pass ran on <span style={{ fontWeight: 'bold' }}>{data.TestSessionInfo.DateTime}</span> for a duration of <span style={{ fontWeight: 'bold' }}>{msecToElapsed(data.TestSessionInfo.TimeElapseSec * 1000)}</span> for <span style={{ fontWeight: 'bold' }}>{data.MetaHandler?.map((key, value) => <span key={key}>{value} </span>)}</span></Text>
          </Stack>
       }
 

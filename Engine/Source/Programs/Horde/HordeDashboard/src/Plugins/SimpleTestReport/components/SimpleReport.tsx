@@ -47,7 +47,7 @@ const getStyling = () => {
       ],
       gutterError: [
          {
-            background: dashboard.darktheme ? "#1E1616" : "#FEF6F6",
+            background: dashboard.darktheme ? "#330606" : "#FEF6F6",
             borderLeftStyle: 'solid',
             borderLeftColor: "#EC4C47",
             borderLeftWidth: 6,
@@ -99,7 +99,7 @@ const getStyling = () => {
       ],
       itemError: [
          {
-            background: dashboard.darktheme ? "#1E1616" :"#FEF6F6"
+            background: dashboard.darktheme ? "#330606" :"#FEF6F6"
          }
       ],
       itemHover: {

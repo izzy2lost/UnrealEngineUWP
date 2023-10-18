@@ -1,6 +1,6 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 
-import { CollapseAllVisibility, DefaultButton, DetailsHeader, DetailsList, DetailsListLayoutMode, DetailsRow, FocusZone, FocusZoneDirection, FontIcon, IColumn, IDetailsListProps, mergeStyleSets, ScrollablePane, ScrollbarVisibility, SelectionMode, Spinner, SpinnerSize, Stack, Text } from "@fluentui/react";
+import { DefaultButton, DetailsList, DetailsListLayoutMode, DetailsRow, FocusZone, FocusZoneDirection, FontIcon, IColumn, IDetailsListProps, mergeStyleSets, ScrollablePane, ScrollbarVisibility, SelectionMode, Spinner, SpinnerSize, Stack, Text } from "@fluentui/react";
 import { observer } from "mobx-react-lite";
 import moment from "moment-timezone";
 import React, { useEffect } from "react";
@@ -12,11 +12,11 @@ import { JobHandler } from "../backend/JobHandler";
 import { filterJob, JobFilterSimple } from "../base/utilities/filter";
 import { displayTimeZone } from '../base/utilities/timeUtils';
 import { getJobStateColor, getLabelColor } from "../styles/colors";
+import { getHordeStyling } from "../styles/Styles";
 import { ChangeButton } from "./ChangeButton";
 import { jobFilter, JobFilterBar } from "./JobFilterBar";
 import { JobOperationsContextMenu } from "./JobOperationsContextMenu";
 import { StepStatusIcon } from "./StatusIcon";
-import { getHordeStyling } from "../styles/Styles";
 
 
 type JobItem = {
@@ -369,17 +369,6 @@ const JobViewAllInner: React.FC<{ filter: JobFilterSimple }> = observer(({ filte
         return null;
     };
 
-    // main header
-    const onRenderDetailsHeader: IDetailsListProps['onRenderDetailsHeader'] = (props) => {
-        if (props) {
-            props.selectionMode = SelectionMode.none;
-            props.collapseAllVisibility = CollapseAllVisibility.hidden;
-            return <DetailsHeader className={detailClasses.detailsHeader}  {...props} styles={{ root: {} }} />
-
-        }
-        return null;
-    };
-
     const JobLabel: React.FC<{ item: JobItem; label: LabelData }> = ({ item, label }) => {
 
         const aggregates = item.job.graphRef?.labels;
@@ -536,15 +525,13 @@ const JobViewAllInner: React.FC<{ filter: JobFilterSimple }> = observer(({ filte
                                 <Stack>
                                     <DetailsList
                                         styles={{ root: { paddingLeft: 8, paddingRight: 8 } }}
-                                        compact={true}
-                                        isHeaderVisible={false}
+                                        compact={true}                                        
                                         indentWidth={0}
                                         items={jobItems}
                                         columns={columns}
                                         setKey="set"
                                         selectionMode={SelectionMode.none}
-                                        layoutMode={DetailsListLayoutMode.fixedColumns}
-                                        onRenderDetailsHeader={onRenderDetailsHeader}
+                                        layoutMode={DetailsListLayoutMode.fixedColumns}                                        
                                         onRenderItemColumn={renderItem}
                                         onRenderRow={renderRow}
                                         onShouldVirtualize={() => true}
