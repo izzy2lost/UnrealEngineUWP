@@ -22,9 +22,9 @@ struct FMeshDrawCommandStatsBudget
 	/** The category primitive budget. This is the maximum triangles expected, post-culling, summed across all passes. */
 	UPROPERTY(config, EditAnywhere, Category = Engine)
 	int32 PrimitiveBudget = 0;
-	/** If true, exports the category's stats to the CSVProfiler. */
+	/** The collection which contains this budget. */
 	UPROPERTY(config, EditAnywhere, Category = Engine)
-	bool bExportToCsv = false;
+	int32 Collection = 0;
 };
 
 /** User settings used by the MeshDrawCommandStats system. */
@@ -40,4 +40,7 @@ public:
 	/** The total primitive budget. This is the maximimum triangles expected, post-culling, summed across all passes. */
 	UPROPERTY(config, EditAnywhere, Category = Engine)
 	int32 TotalPrimitiveBudget = 0;
+	/** Which collection to export to CSV */
+	UPROPERTY(config, EditAnywhere, Category = Engine)
+	int32 CollectionForCsvProfiler = 1;
 };
