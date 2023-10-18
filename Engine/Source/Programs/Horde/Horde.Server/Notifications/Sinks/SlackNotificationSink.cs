@@ -1169,16 +1169,22 @@ namespace Horde.Server.Notifications.Sinks
 
 							string suspectMessage = $"Possibly {StringUtils.FormatList(suspectList, "or")}.";
 
-							if(_settings.P4SwarmUrl != null && span.LastSuccess != null)
+							Uri? swarmLink = GetSwarmLinkForSpan(span);
+							if (swarmLink != null)
 							{
-								Uri link = new Uri(_settings.P4SwarmUrl, $"files/{span.StreamName.TrimStart('/')}?range=@{span.LastSuccess.Change + 1},@{span.FirstFailure.Change}#commits");
-								suspectMessage += $" (<{link}|View changes>)";
+								suspectMessage += $" (<{swarmLink}|View changes>)";
 							}
 
 							await _slackClient.PostMessageToThreadAsync(threadId, suspectMessage);
 						}
 						else
 						{
+							Uri? swarmLink = GetSwarmLinkForSpan(span);
+							if (swarmLink != null)
+							{
+								await _slackClient.PostMessageToThreadAsync(threadId, $"<{swarmLink}|View changes in Swarm>");
+							}
+
 							notifyTriageAlias = true;
 						}
 					}
@@ -1329,6 +1335,18 @@ namespace Horde.Server.Notifications.Sinks
 				string extIssueEventId = $"issue_{issue.Id}_ext_{issue.ExternalIssueKey}";
 				string extIssueMessage = $"Linked to issue {FormatExternalIssue(issue.ExternalIssueKey)}";
 				await PostSingleMessageToThreadAsync(triageChannel, extIssueEventId, threadId, extIssueMessage);
+			}
+		}
+
+		Uri? GetSwarmLinkForSpan(IIssueSpan span)
+		{
+			if (_settings.P4SwarmUrl == null || span.LastSuccess == null)
+			{
+				return null;
+			}
+			else
+			{
+				return new Uri(_settings.P4SwarmUrl, $"files/{span.StreamName.TrimStart('/')}?range=@{span.LastSuccess.Change + 1},@{span.FirstFailure.Change}#commits");
 			}
 		}
 
