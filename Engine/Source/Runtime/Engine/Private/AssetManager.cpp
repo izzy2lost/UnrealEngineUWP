@@ -131,10 +131,13 @@ struct FPrimaryAssetTypeData
 	void ShrinkAssets();
 
 	/** In the editor, paths that we need to scan once asset registry is done loading */
-	TArray<FString> DeferredAssetScanPaths;
+	TSet<FString> DeferredAssetScanPaths;
+
+	/** List of paths that were explicitly requested by other systems and not loaded from the default config */
+	TSet<FString> AdditionalAssetScanPaths;
 
 	/** Expanded list of asset scan paths and package names, will not include virtual paths */
-	TArray<FString> RealAssetScanPaths;
+	TSet<FString> RealAssetScanPaths;
 
 	FPrimaryAssetTypeData() {}
 	~FPrimaryAssetTypeData();
@@ -928,7 +931,7 @@ int32 UAssetManager::ScanPathsForPrimaryAssets(FPrimaryAssetType PrimaryAssetTyp
 	// Add path info
 	for (const FString& Path : Paths)
 	{
-		TypeData.Info.AssetScanPaths.AddUnique(Path);
+		InternalAddAssetScanPath(TypeData, Path);
 	}
 
 #if WITH_EDITOR
@@ -939,7 +942,7 @@ int32 UAssetManager::ScanPathsForPrimaryAssets(FPrimaryAssetType PrimaryAssetTyp
 		// Keep track of the paths we asked for so once assets are discovered we will refresh the list
 		for (const FString& Path : Paths)
 		{
-			TypeData.DeferredAssetScanPaths.AddUnique(Path);
+			TypeData.DeferredAssetScanPaths.Add(Path);
 		}
 
 		// Since we are still asynchronously discovering assets, we'll wait until that is done before populating with primary assets
@@ -958,7 +961,7 @@ int32 UAssetManager::ScanPathsForPrimaryAssets(FPrimaryAssetType PrimaryAssetTyp
 	SearchRules.bSkipVirtualPathExpansion = true;
 	for (const FString& Path : SearchRules.AssetScanPaths)
 	{
-		TypeData.RealAssetScanPaths.AddUnique(Path);
+		TypeData.RealAssetScanPaths.Add(Path);
 	}
 
 	TArray<FAssetData> AssetDataList;
@@ -1060,6 +1063,7 @@ void UAssetManager::RemoveScanPathsForPrimaryAssets(FPrimaryAssetType PrimaryAss
 		}
 
 		TypeData.DeferredAssetScanPaths.Remove(Path);
+		TypeData.AdditionalAssetScanPaths.Remove(Path);
 	}
 
 	// Expand paths so we can record them for later
@@ -1067,6 +1071,16 @@ void UAssetManager::RemoveScanPathsForPrimaryAssets(FPrimaryAssetType PrimaryAss
 	for (const FString& Path : RemovedPaths)
 	{
 		TypeData.RealAssetScanPaths.Remove(Path);
+	}
+}
+
+void UAssetManager::InternalAddAssetScanPath(FPrimaryAssetTypeData& TypeData, const FString& AssetScanPath)
+{
+	TypeData.Info.AssetScanPaths.AddUnique(AssetScanPath);
+
+	if (!IsScanningFromInitialConfig())
+	{
+		TypeData.AdditionalAssetScanPaths.Add(AssetScanPath);
 	}
 }
 
@@ -1118,16 +1132,20 @@ bool UAssetManager::RegisterSpecificPrimaryAsset(const FPrimaryAssetId& PrimaryA
 		return false;
 	}
 
-	const TSharedRef<FPrimaryAssetTypeData>* FoundType = AssetTypeMap.Find(PrimaryAssetId.PrimaryAssetType);
+	TSharedRef<FPrimaryAssetTypeData>* FoundType = AssetTypeMap.Find(PrimaryAssetId.PrimaryAssetType);
 	if (!FoundType)
 	{
 		return false;
 	}
 
+	FPrimaryAssetTypeData& TypeData = FoundType->Get();
 	if (!TryUpdateCachedAssetData(PrimaryAssetId, NewAssetData, false))
 	{
 		return false;
 	}
+
+	// Add to the list of scan paths so this will be found on refresh
+	InternalAddAssetScanPath(TypeData, NewAssetData.GetSoftObjectPath().ToString());
 
 	OnObjectReferenceListInvalidated();
 
@@ -3305,6 +3323,7 @@ void UAssetManager::ScanPrimaryAssetTypesFromConfig()
 	const UAssetManagerSettings& Settings = GetSettings();
 
 	PushBulkScanning();
+	TGuardValue<bool> ScopeGuard(bScanningFromInitialConfig, true);
 
 	double LastPumpTime = FPlatformTime::Seconds();
 	for (FPrimaryAssetTypeInfo TypeInfo : Settings.PrimaryAssetTypesToScan)
@@ -3661,6 +3680,11 @@ bool UAssetManager::IsPathExcludedFromScan(const FString& Path) const
 	return false;
 }
 
+bool UAssetManager::IsScanningFromInitialConfig() const
+{
+	return bScanningFromInitialConfig;
+}
+
 bool UAssetManager::GetContentRootPathFromPackageName(const FString& PackageName, FString& OutContentRootPath)
 {
 	if (PackageName.StartsWith(TEXT("/"), ESearchCase::CaseSensitive))
@@ -3734,6 +3758,7 @@ void UAssetManager::RefreshPrimaryAssetDirectory(bool bForceRefresh)
 	if (bForceRefresh || !bIsPrimaryAssetDirectoryCurrent)
 	{
 		PushBulkScanning();
+		TGuardValue<bool> ScopeGuard(bScanningFromInitialConfig, true);
 
 		for (TPair<FName, TSharedRef<FPrimaryAssetTypeData>>& TypePair : AssetTypeMap)
 		{
@@ -3855,6 +3880,7 @@ EAssetSetManagerResult::Type UAssetManager::ShouldSetManager(const FAssetIdentif
 void UAssetManager::OnAssetRegistryFilesLoaded()
 {
 	PushBulkScanning();
+	TGuardValue<bool> ScopeGuard(bScanningFromInitialConfig, true);
 
 	for (TPair<FName, TSharedRef<FPrimaryAssetTypeData>>& TypePair : AssetTypeMap)
 	{
@@ -3863,7 +3889,7 @@ void UAssetManager::OnAssetRegistryFilesLoaded()
 		if (TypeData.DeferredAssetScanPaths.Num())
 		{
 			// File scan finished, now scan for assets. Maps are sorted so this will be in the order of original scan requests
-			ScanPathsForPrimaryAssets(TypePair.Key, TypeData.DeferredAssetScanPaths, TypeData.Info.AssetBaseClassLoaded, TypeData.Info.bHasBlueprintClasses, TypeData.Info.bIsEditorOnly, false);
+			ScanPathsForPrimaryAssets(TypePair.Key, TypeData.DeferredAssetScanPaths.Array(), TypeData.Info.AssetBaseClassLoaded, TypeData.Info.bHasBlueprintClasses, TypeData.Info.bIsEditorOnly, false);
 
 			TypeData.DeferredAssetScanPaths.Empty();
 		}
@@ -4641,12 +4667,17 @@ void UAssetManager::ReinitializeFromConfig()
 	// We specifically do not reset AssetRuleOverrides as those can be set by something other than inis
 	for (TPair<FName, TSharedRef<FPrimaryAssetTypeData>>& Pair : AssetTypeMap)
 	{
-		Pair.Value->ResetAssets(AssetPathMap);
+		if (!Pair.Value->Info.bIsDynamicAsset)
+		{
+			Pair.Value->ResetAssets(AssetPathMap);
+		}
 	}
 	check(AssetPathMap.IsEmpty()); // Should have been emptied by the ResetAssets calls
 	ManagementParentMap.Reset();
 	CachedAssetBundles.Reset();
 	AlreadyScannedDirectories.Reset();
+
+	TMap<FName, TSharedRef<FPrimaryAssetTypeData>> OldAssetTypeMap = MoveTemp(AssetTypeMap);
 	AssetTypeMap.Reset();
 
 	// This code is editor only, so reinitialize globals
@@ -4666,6 +4697,23 @@ void UAssetManager::ReinitializeFromConfig()
 
 	LoadRedirectorMaps();
 	ScanPrimaryAssetTypesFromConfig();
+
+	// Go through old list and restore data that was added after the initial config load
+	for (TPair<FName, TSharedRef<FPrimaryAssetTypeData>>& TypePair : OldAssetTypeMap)
+	{
+		FPrimaryAssetTypeData& TypeData = TypePair.Value.Get();
+
+		if (TypeData.Info.bIsDynamicAsset)
+		{
+			// Restore dynamic assets as they were before
+			AssetTypeMap.Add(TypePair.Key, TypePair.Value);
+		}
+		else if (TypeData.AdditionalAssetScanPaths.Num())
+		{
+			// Rescan any paths added after initial scan
+			ScanPathsForPrimaryAssets(TypePair.Key, TypeData.AdditionalAssetScanPaths.Array(), TypeData.Info.AssetBaseClassLoaded, TypeData.Info.bHasBlueprintClasses, TypeData.Info.bIsEditorOnly, false);
+		}
+	}
 }
 
 void UAssetManager::OnInMemoryAssetCreated(UObject *Object)

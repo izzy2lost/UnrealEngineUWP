@@ -687,6 +687,9 @@ protected:
 	/** Returns true if path should be excluded from primary asset scans, called from ShouldIncludeInAssetSearch and in the editor */
 	ENGINE_API virtual bool IsPathExcludedFromScan(const FString& Path) const;
 
+	/** Returns true if we're in the middle of handling the initial config, false if this is being called from something else like a plugin */
+	ENGINE_API bool IsScanningFromInitialConfig() const;
+
 	/** Filter function that is called from SearchAssetRegistryPaths, returns true if asset data should be included in search results */
 	ENGINE_API virtual bool ShouldIncludeInAssetSearch(const FAssetData& AssetData, const FAssetManagerSearchRules& SearchRules) const;
 
@@ -868,6 +871,11 @@ protected:
 private:
 	/** Provide proper reentrancy for AssetRegistry temporary caching */
 	bool bOldTemporaryCachingMode = false;
+
+	/** True if we're doing an initial scan, private because this may be replaced by a different data structure */
+	bool bScanningFromInitialConfig = false;
+
+	void InternalAddAssetScanPath(FPrimaryAssetTypeData& TypeData, const FString& AssetScanPath);
 
 #if WITH_EDITOR
 	/** Recursive handler for InitializeAssetBundlesFromMetadata */

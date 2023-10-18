@@ -341,16 +341,11 @@ class FGameFeaturesEditorModule : public FDefaultModuleImpl
 		// Add the rule to project settings
 		if (bSuccess)
 		{
-			FDirectoryPath DummyPath;
-			DummyPath.Path = TEXT("/Game/Unused");
-
 			FPrimaryAssetTypeInfo NewTypeInfo(
 				UGameFeatureData::StaticClass()->GetFName(),
 				UGameFeatureData::StaticClass(),
 				false,
-				false,
-				{ DummyPath },
-				{});
+				false);
 			NewTypeInfo.Rules.CookRule = EPrimaryAssetCookRule::AlwaysCook;
 
 			Settings->Modify(true);

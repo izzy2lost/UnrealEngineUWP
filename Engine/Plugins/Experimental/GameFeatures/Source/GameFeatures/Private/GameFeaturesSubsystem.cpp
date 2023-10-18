@@ -539,8 +539,7 @@ void UGameFeaturesSubsystem::AddGameFeatureToAssetManager(const UGameFeatureData
 
 	for (FPrimaryAssetTypeInfo TypeInfo : GameFeatureToAdd->GetPrimaryAssetTypesToScan())
 	{
-		// @TODO: we shouldn't be accessing private data here. Need a better way to do this
-		for (FDirectoryPath& Path : TypeInfo.Directories)
+		for (FDirectoryPath& Path : TypeInfo.GetDirectories())
 		{
 			// Convert plugin-relative paths to full package paths
 			FixPluginPackagePath(Path.Path, PluginRootPath, false);
@@ -590,7 +589,7 @@ void UGameFeaturesSubsystem::RemoveGameFeatureFromAssetManager(const UGameFeatur
 			continue;
 		}
 
-		for (FDirectoryPath& Path : TypeInfo.Directories)
+		for (FDirectoryPath& Path : TypeInfo.GetDirectories())
 		{
 			FixPluginPackagePath(Path.Path, PluginRootPath, false);
 		}
