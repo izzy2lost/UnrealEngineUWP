@@ -1085,11 +1085,6 @@ public:
 	TPimplPtr<FPathTracingState> PathTracingState;
 	uint32 PathTracingInvalidationCounter = 0;
 
-	// Ray Traced Reflection Imaginary GBuffer Data containing a pseudo-geometric representation of the reflected surface(s)
-	TRefCountPtr<IPooledRenderTarget> ImaginaryReflectionGBufferA;
-	TRefCountPtr<IPooledRenderTarget> ImaginaryReflectionDepthZ;
-	TRefCountPtr<IPooledRenderTarget> ImaginaryReflectionVelocity;
-
 	// Ray Traced Sky Light Sample Direction Data
 	TRefCountPtr<FRDGPooledBuffer> SkyLightVisibilityRaysBuffer;
 	FIntVector SkyLightVisibilityRaysDimensions;

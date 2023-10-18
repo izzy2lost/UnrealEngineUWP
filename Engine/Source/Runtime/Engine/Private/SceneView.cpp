@@ -1616,11 +1616,6 @@ void FSceneView::OverridePostProcessSettings(const FPostProcessSettings& Src, fl
 		LERP_PP(ScreenSpaceReflectionIntensity);
 		LERP_PP(ScreenSpaceReflectionMaxRoughness);
 
-		SET_PP(RayTracingReflectionsMaxRoughness);
-		SET_PP(RayTracingReflectionsMaxBounces);
-		SET_PP(RayTracingReflectionsSamplesPerPixel);
-		SET_PP(RayTracingReflectionsShadows);
-		SET_PP(RayTracingReflectionsTranslucency);
 		SET_PP(TranslucencyType);
 		SET_PP(RayTracingTranslucencyMaxRoughness);
 		SET_PP(RayTracingTranslucencyRefractionRays);

@@ -81,8 +81,6 @@ extern FRayTracingPrimaryRaysOptions GetRayTracingTranslucencyOptions(const FVie
 
 extern bool ShouldRenderRayTracingSkyLight(const FSkyLightSceneProxy* SkyLightSceneProxy);
 extern bool ShouldRenderRayTracingAmbientOcclusion(const FViewInfo& View);
-extern bool ShouldRenderRayTracingReflections(const FViewInfo& View);
-extern bool ShouldRenderRayTracingReflectionsWater(const FViewInfo& View);
 extern bool ShouldRenderRayTracingTranslucency(const FViewInfo& View);
 extern bool ShouldRenderRayTracingShadows();
 extern bool ShouldRenderRayTracingShadowsForLight(const FLightSceneProxy& LightProxy);
@@ -121,16 +119,6 @@ FORCEINLINE bool ShouldRenderRayTracingSkyLight(const FSkyLightSceneProxy* SkyLi
 }
 
 FORCEINLINE bool ShouldRenderRayTracingAmbientOcclusion(const FViewInfo& View)
-{
-	return false;
-}
-
-FORCEINLINE bool ShouldRenderRayTracingReflections(const FViewInfo& View)
-{
-	return false;
-}
-
-FORCEINLINE bool ShouldRenderRayTracingReflectionsWater(const FViewInfo& View)
 {
 	return false;
 }

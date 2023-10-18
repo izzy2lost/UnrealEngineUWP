@@ -143,14 +143,8 @@ float3 ReflectionEnvironment(FGBufferData GBuffer, float AmbientOcclusion, float
 
 	Color = CompositeReflections(ReflectionInput, BufferUV, GBuffer.Roughness, ShadingModelID);
 
-#if RAY_TRACED_REFLECTIONS
-	float4 SavedColor = Color;	// When a clear coat material is encountered, we save the reflection buffer color for it to not be affected by operations.
-#endif
 	if(GBuffer.ShadingModelID == SHADINGMODELID_CLEAR_COAT )
 	{
-#if RAY_TRACED_REFLECTIONS
-		Color = float4(0, 0, 0, 1); // Clear coat reflection is expected to be computed on a black background
-#endif
 		const float ClearCoat = GBuffer.CustomData.x;
 		Color = lerp( Color, float4(0,0,0,1), ClearCoat );
 
@@ -223,19 +217,14 @@ float3 ReflectionEnvironment(FGBufferData GBuffer, float AmbientOcclusion, float
 		Color.rgb *= LayerAttenuation;
 		Color.a = F;
 		
-#if !RAY_TRACED_REFLECTIONS	
 		Color.rgb += ReflectionInput.rgb * F;
 		Color.a *= 1 - ReflectionInput.a;
-#endif
 			
 		Color.a *= SpecularOcclusion;
 
 		float3 TopLayerR = 2 * dot( V, N ) * N - V;
 		Color.rgb += View.PreExposure * GatherRadiance(Color.a, TranslatedWorldPosition, TopLayerR, ClearCoatRoughness, BentNormal, IndirectIrradiance, GBuffer.ShadingModelID, NumCulledReflectionCaptures, DataStartIndex);
 
-	#if RAY_TRACED_REFLECTIONS
-		Color.rgb = SavedColor.rgb +  Color.rgb * SavedColor.a; // Compose default clear coat reflection over regular refelction (using Premultiplied alpha where SaveColor.a=transmittance)
-	#endif
 	}
 	else
 	{

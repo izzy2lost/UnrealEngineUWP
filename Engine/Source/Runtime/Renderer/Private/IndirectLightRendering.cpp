@@ -18,7 +18,6 @@
 #include "PostProcess/PostProcessing.h" // for FPostProcessVS
 #include "RendererModule.h" 
 #include "RayTracing/RaytracingOptions.h"
-#include "RayTracing/RayTracingReflections.h"
 #include "DistanceFieldAmbientOcclusion.h"
 #include "VolumetricCloudRendering.h"
 #include "Lumen/LumenSceneData.h"
@@ -49,8 +48,7 @@ static TAutoConsoleVariable<int32> CVarReflectionMethod(
 	TEXT("r.ReflectionMethod"), 2,
 	TEXT("0 - None.  Reflections can come from placed Reflection Captures, Planar Reflections and Skylight but no global reflection method will be used.\n")
 	TEXT("1 - Lumen.  Use Lumen Reflections, which supports Screen / Software / Hardware Ray Tracing together and integrates with Lumen Global Illumination for rough reflections and Global Illumination seen in reflections.\n")
-	TEXT("2 - SSR.  Standalone Screen Space Reflections.  Low cost, but limited by screen space information.\n")
-	TEXT("3 - RT Reflections.  Ray Traced Reflections technique.  Deprecated, use Lumen Reflections instead."),
+	TEXT("2 - SSR.  Standalone Screen Space Reflections.  Low cost, but limited by screen space information.\n"),
 	ECVF_RenderThreadSafe);
 
 static TAutoConsoleVariable<int32> CVarDiffuseIndirectHalfRes(
@@ -289,7 +287,6 @@ class FReflectionEnvironmentSkyLightingPS : public FGlobalShader
 	class FSkyLight : SHADER_PERMUTATION_BOOL("ENABLE_SKY_LIGHT");
 	class FDynamicSkyLight : SHADER_PERMUTATION_BOOL("ENABLE_DYNAMIC_SKY_LIGHT");
 	class FSkyShadowing : SHADER_PERMUTATION_BOOL("APPLY_SKY_SHADOWING");
-	class FRayTracedReflections : SHADER_PERMUTATION_BOOL("RAY_TRACED_REFLECTIONS");
 	class FLumenStandaloneReflections : SHADER_PERMUTATION_BOOL("LUMEN_STANDALONE_REFLECTIONS");
 	class FSubstrateTileType : SHADER_PERMUTATION_INT("SUBSTRATE_TILETYPE", 4);
 
@@ -300,7 +297,6 @@ class FReflectionEnvironmentSkyLightingPS : public FGlobalShader
 		FSkyLight,
 		FDynamicSkyLight,
 		FSkyShadowing,
-		FRayTracedReflections,
 		FLumenStandaloneReflections,
 		FSubstrateTileType>;
 
@@ -323,20 +319,10 @@ class FReflectionEnvironmentSkyLightingPS : public FGlobalShader
 			PermutationVector.Set<FSubstrateTileType>(0);
 		}
 
-		if (PermutationVector.Get<FLumenStandaloneReflections>())
-		{
-			PermutationVector.Set<FRayTracedReflections>(false);
-		}
-
-		if (PermutationVector.Get<FRayTracedReflections>())
-		{
-			PermutationVector.Set<FLumenStandaloneReflections>(false);
-		}
-
 		return PermutationVector;
 	}
 
-	static FPermutationDomain BuildPermutationVector(const FViewInfo& View, bool bBoxCapturesOnly, bool bSphereCapturesOnly, bool bSupportDFAOIndirectOcclusion, bool bEnableSkyLight, bool bEnableDynamicSkyLight, bool bApplySkyShadowing, bool bRayTracedReflections, bool bLumenStandaloneReflections, ESubstrateTileType TileType)
+	static FPermutationDomain BuildPermutationVector(const FViewInfo& View, bool bBoxCapturesOnly, bool bSphereCapturesOnly, bool bSupportDFAOIndirectOcclusion, bool bEnableSkyLight, bool bEnableDynamicSkyLight, bool bApplySkyShadowing, bool bLumenStandaloneReflections, ESubstrateTileType TileType)
 	{
 		FPermutationDomain PermutationVector;
 
@@ -346,7 +332,6 @@ class FReflectionEnvironmentSkyLightingPS : public FGlobalShader
 		PermutationVector.Set<FSkyLight>(bEnableSkyLight);
 		PermutationVector.Set<FDynamicSkyLight>(bEnableDynamicSkyLight);
 		PermutationVector.Set<FSkyShadowing>(bApplySkyShadowing);
-		PermutationVector.Set<FRayTracedReflections>(bRayTracedReflections);
 		PermutationVector.Set<FLumenStandaloneReflections>(bLumenStandaloneReflections);
 		PermutationVector.Set<FSubstrateTileType>(0);
 		if (Substrate::IsSubstrateEnabled())
@@ -490,10 +475,6 @@ void FDeferredShadingSceneRenderer::CommitIndirectLightingState()
 		{
 			ReflectionsMethod = EReflectionsMethod::Lumen;
 		}
-		else if (ShouldRenderRayTracingReflections(View))
-		{
-			ReflectionsMethod = EReflectionsMethod::RTR;
-		}
 		else if (ScreenSpaceRayTracing::ShouldRenderScreenSpaceReflections(View))
 		{
 			ReflectionsMethod = EReflectionsMethod::SSR;
@@ -502,10 +483,6 @@ void FDeferredShadingSceneRenderer::CommitIndirectLightingState()
 		if (ShouldRenderLumenReflectionsWater(View))
 		{
 			ReflectionsMethodWater = EReflectionsMethod::Lumen;
-		}
-		else if (ShouldRenderRayTracingReflectionsWater(View))
-		{
-			ReflectionsMethodWater = EReflectionsMethod::RTR;
 		}
 		else if (ScreenSpaceRayTracing::ShouldRenderScreenSpaceReflectionsWater(View))
 		{
@@ -518,8 +495,7 @@ void FDeferredShadingSceneRenderer::CommitIndirectLightingState()
 		ViewPipelineState.Set(&FPerViewPipelineState::ReflectionsMethod, ReflectionsMethod);
 		ViewPipelineState.Set(&FPerViewPipelineState::ReflectionsMethodWater, ReflectionsMethodWater);
 
-		ViewPipelineState.Set(&FPerViewPipelineState::bComposePlanarReflections,
-			ReflectionsMethod != EReflectionsMethod::RTR && HasDeferredPlanarReflections(View));
+		ViewPipelineState.Set(&FPerViewPipelineState::bComposePlanarReflections, HasDeferredPlanarReflections(View));
 	}
 }
 
@@ -1646,7 +1622,6 @@ static void AddSkyReflectionPass(
 	const FSceneTextures& SceneTextures,
 	FRDGTextureRef DynamicBentNormalAOTexture,
 	FRDGTextureRef ReflectionsColor,
-	const FRayTracingReflectionOptions& RayTracingReflectionOptions,
 	FSceneTextureParameters& SceneTextureParameters,
 	bool bSkyLight, 
 	bool bDynamicSkyLight, 
@@ -1741,15 +1716,9 @@ static void AddSkyReflectionPass(
 	// Bind hair data
 	const bool bCheckerboardSubsurfaceRendering = IsSubsurfaceCheckerboardFormat(SceneColorTexture.Target->Desc.Format);
 
-	// ScreenSpace and SortedDeferred ray traced reflections use the same reflection environment shader,
-	// but main RT reflection shader requires a custom path as it evaluates the clear coat BRDF differently.
-	const bool bRequiresSpecializedReflectionEnvironmentShader = RayTracingReflectionOptions.bEnabled
-		&& RayTracingReflectionOptions.Algorithm != FRayTracingReflectionOptions::EAlgorithm::SortedDeferred;
-
 	auto PermutationVector = FReflectionEnvironmentSkyLightingPS::BuildPermutationVector(
 		View, bHasBoxCaptures, bHasSphereCaptures, DynamicBentNormalAO != 0.0f,
 		bSkyLight, bDynamicSkyLight, bApplySkyShadowing,
-		bRequiresSpecializedReflectionEnvironmentShader,
 		bLumenStandaloneReflections,
 		SubstrateTileMaterialType);
 
@@ -1905,31 +1874,6 @@ void FDeferredShadingSceneRenderer::RenderDeferredReflectionsAndSkyLighting(
 	FSceneTextureParameters SceneTextureParameters = GetSceneTextureParameters(GraphBuilder, SceneTextures);
 	const auto& SceneColorTexture = SceneTextures.Color;
 
-	IScreenSpaceDenoiser::FReflectionsInputs DenoiserInputs;
-	IScreenSpaceDenoiser::FReflectionsRayTracingConfig RayTracingConfig;
-
-	extern float GetRayTracingReflectionScreenPercentage();
-	RayTracingConfig.ResolutionFraction = GetRayTracingReflectionScreenPercentage();
-	int32 UpscaleFactor = int32(1.0f / RayTracingConfig.ResolutionFraction);
-
-	{
-		FRDGTextureDesc Desc = FRDGTextureDesc::Create2D(
-			SceneTextureParameters.SceneDepthTexture->Desc.Extent / UpscaleFactor,
-			PF_FloatRGBA,
-			FClearValueBinding::None,
-			TexCreate_ShaderResource | TexCreate_RenderTargetable | TexCreate_UAV);
-
-		DenoiserInputs.Color = GraphBuilder.CreateTexture(Desc, TEXT("RayTracingReflections"));
-
-		Desc.Format = PF_R16F;
-		DenoiserInputs.RayHitDistance = GraphBuilder.CreateTexture(Desc, TEXT("RayTracingReflectionsHitDistance"));
-		DenoiserInputs.RayImaginaryDepth = GraphBuilder.CreateTexture(Desc, TEXT("RayTracingReflectionsImaginaryDepth"));
-	}
-
-	FRDGTextureUAV* ReflectionColorOutputUAV = GraphBuilder.CreateUAV(FRDGTextureUAVDesc(DenoiserInputs.Color));
-	FRDGTextureUAV* RayHitDistanceOutputUAV = GraphBuilder.CreateUAV(FRDGTextureUAVDesc(DenoiserInputs.RayHitDistance));
-	FRDGTextureUAV* RayImaginaryDepthOutputUAV = GraphBuilder.CreateUAV(FRDGTextureUAVDesc(DenoiserInputs.RayImaginaryDepth));
-
 	uint32 ViewIndex = 0;
 	for (FViewInfo& View : Views)
 	{
@@ -1938,10 +1882,8 @@ void FDeferredShadingSceneRenderer::RenderDeferredReflectionsAndSkyLighting(
 		const uint32 CurrentViewIndex = ViewIndex++;
 		const FPerViewPipelineState& ViewPipelineState = GetViewPipelineState(View);
 
-		const FRayTracingReflectionOptions RayTracingReflectionOptions = GetRayTracingReflectionOptions(View, *Scene);
-
-		const bool bScreenSpaceReflections = !RayTracingReflectionOptions.bEnabled && ViewPipelineState.ReflectionsMethod == EReflectionsMethod::SSR;
-		const bool bComposePlanarReflections = !RayTracingReflectionOptions.bEnabled && HasDeferredPlanarReflections(View);
+		const bool bScreenSpaceReflections = ViewPipelineState.ReflectionsMethod == EReflectionsMethod::SSR;
+		const bool bComposePlanarReflections = HasDeferredPlanarReflections(View);
 
 		FRDGTextureRef ReflectionsColor = nullptr;
 		if ((ViewPipelineState.ReflectionsMethod == EReflectionsMethod::Lumen && ViewPipelineState.DiffuseIndirectMethod == EDiffuseIndirectMethod::Lumen)
@@ -1971,42 +1913,17 @@ void FDeferredShadingSceneRenderer::RenderDeferredReflectionsAndSkyLighting(
 			// Lumen needs its own depth history because things like Translucency velocities write to depth
 			StoreLumenDepthHistory(GraphBuilder, SceneTextures, View);
 		}
-		else if (RayTracingReflectionOptions.bEnabled || bScreenSpaceReflections)
+		else if (ViewPipelineState.ReflectionsMethod == EReflectionsMethod::SSR)
 		{
 			int32 DenoiserMode = GetReflectionsDenoiserMode();
 
-			bool bDenoise = false;
-			bool bTemporalFilter = false;
-
 			// Traces the reflections, either using screen space reflection, or ray tracing.
-			//IScreenSpaceDenoiser::FReflectionsInputs DenoiserInputs;
+			IScreenSpaceDenoiser::FReflectionsInputs DenoiserInputs;
 			IScreenSpaceDenoiser::FReflectionsRayTracingConfig DenoiserConfig;
-			if (RayTracingReflectionOptions.bEnabled)
+			bool bDenoise = DenoiserMode != 0 && CVarDenoiseSSR.GetValueOnRenderThread();
+			bool bTemporalFilter = !bDenoise && View.ViewState && ScreenSpaceRayTracing::IsSSRTemporalPassRequired(View);
+
 			{
-				RDG_EVENT_SCOPE(GraphBuilder, "RayTracingReflections %d", CurrentViewIndex);
-				RDG_GPU_STAT_SCOPE(GraphBuilder, RayTracingReflections);
-
-				bDenoise = DenoiserMode != 0;
-
-				DenoiserConfig.ResolutionFraction = RayTracingReflectionOptions.ResolutionFraction;
-				DenoiserConfig.RayCountPerPixel = RayTracingReflectionOptions.SamplesPerPixel;
-
-				check(RayTracingReflectionOptions.bReflectOnlyWater == false);
-
-				RenderRayTracingReflections(
-					GraphBuilder,
-					SceneTextures,
-					View,
-					DenoiserMode,
-					RayTracingReflectionOptions,
-					&DenoiserInputs);
-			}
-			else if (
-				ViewPipelineState.ReflectionsMethod == EReflectionsMethod::SSR)
-			{
-				bDenoise = DenoiserMode != 0 && CVarDenoiseSSR.GetValueOnRenderThread();
-				bTemporalFilter = !bDenoise && View.ViewState && ScreenSpaceRayTracing::IsSSRTemporalPassRequired(View);
-
 				ESSRQuality SSRQuality;
 				ScreenSpaceRayTracing::GetSSRQualityForView(View, &SSRQuality, &DenoiserConfig);
 
@@ -2015,11 +1932,6 @@ void FDeferredShadingSceneRenderer::RenderDeferredReflectionsAndSkyLighting(
 				ScreenSpaceRayTracing::RenderScreenSpaceReflections(
 					GraphBuilder, SceneTextureParameters, SceneColorTexture.Resolve, View, SSRQuality, bDenoise, &DenoiserInputs);
 			}
-			else
-			{
-				check(0);
-			}
-
 			if (bDenoise)
 			{
 				const IScreenSpaceDenoiser* DefaultDenoiser = IScreenSpaceDenoiser::GetDefaultDenoiser();
@@ -2064,22 +1976,12 @@ void FDeferredShadingSceneRenderer::RenderDeferredReflectionsAndSkyLighting(
 			}
 			else
 			{
-				if (RayTracingReflectionOptions.bEnabled && DenoiserInputs.RayHitDistance)
-				{
-					// The performance of ray tracing does not allow to run without a denoiser in real time.
-					// Multiple rays per pixel is unsupported by the denoiser that will most likely more bound by to
-					// many rays than exporting the hit distance buffer. Therefore no permutation of the ray generation
-					// shader has been judged required to be supported.
-					GraphBuilder.RemoveUnusedTextureWarning(DenoiserInputs.RayHitDistance);
-				}
-
 				ReflectionsColor = DenoiserInputs.Color;
 			}
 		} // if (RayTracingReflectionOptions.bEnabled || bScreenSpaceReflections)
 
 		if (ViewPipelineState.bComposePlanarReflections)
 		{
-			check(!RayTracingReflectionOptions.bEnabled);
 			RenderDeferredPlanarReflections(GraphBuilder, SceneTextureParameters, View, /* inout */ ReflectionsColor);
 		}
 
@@ -2101,7 +2003,6 @@ void FDeferredShadingSceneRenderer::RenderDeferredReflectionsAndSkyLighting(
 					SceneTextures,
 					DynamicBentNormalAOTexture,
 					ReflectionsColor,
-					RayTracingReflectionOptions,
 					SceneTextureParameters,
 					bSkyLight,
 					bDynamicSkyLight,
@@ -2116,7 +2017,6 @@ void FDeferredShadingSceneRenderer::RenderDeferredReflectionsAndSkyLighting(
 					SceneTextures,
 					DynamicBentNormalAOTexture,
 					ReflectionsColor,
-					RayTracingReflectionOptions,
 					SceneTextureParameters,
 					bSkyLight,
 					bDynamicSkyLight,
@@ -2131,7 +2031,6 @@ void FDeferredShadingSceneRenderer::RenderDeferredReflectionsAndSkyLighting(
 					SceneTextures,
 					DynamicBentNormalAOTexture,
 					ReflectionsColor,
-					RayTracingReflectionOptions,
 					SceneTextureParameters,
 					bSkyLight,
 					bDynamicSkyLight,
@@ -2146,7 +2045,6 @@ void FDeferredShadingSceneRenderer::RenderDeferredReflectionsAndSkyLighting(
 					SceneTextures,
 					DynamicBentNormalAOTexture,
 					ReflectionsColor,
-					RayTracingReflectionOptions,
 					SceneTextureParameters,
 					bSkyLight,
 					bDynamicSkyLight,
@@ -2164,7 +2062,6 @@ void FDeferredShadingSceneRenderer::RenderDeferredReflectionsAndSkyLighting(
 					SceneTextures,
 					DynamicBentNormalAOTexture,
 					ReflectionsColor,
-					RayTracingReflectionOptions,
 					SceneTextureParameters,
 					bSkyLight,
 					bDynamicSkyLight,

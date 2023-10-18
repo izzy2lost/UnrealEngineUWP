@@ -619,11 +619,6 @@ FPostProcessSettings::FPostProcessSettings()
 	ScreenSpaceReflectionIntensity = 100.0f;
 	ScreenSpaceReflectionQuality = 50.0f;
 	ScreenSpaceReflectionMaxRoughness = 0.6f;
-	RayTracingReflectionsMaxRoughness = 0.6f;
-	RayTracingReflectionsMaxBounces = 1;
-	RayTracingReflectionsSamplesPerPixel = 1;
-	RayTracingReflectionsShadows = EReflectedAndRefractedRayTracedShadows::Hard_shadows;
-	RayTracingReflectionsTranslucency = 0;
 
 	TranslucencyType = ETranslucencyType::Raster;
 	RayTracingTranslucencyMaxRoughness = 0.6f;
@@ -907,10 +902,6 @@ void FPostProcessSettings::PostSerialize(const FArchive& Ar)
 				if (ReflectionsType_DEPRECATED == EReflectionsType::ScreenSpace)
 				{
 					ReflectionMethod = EReflectionMethod::ScreenSpace;
-				}
-				else if (ReflectionsType_DEPRECATED == EReflectionsType::RayTracing)
-				{
-					ReflectionMethod = EReflectionMethod::RayTraced;
 				}
 			}
 		}

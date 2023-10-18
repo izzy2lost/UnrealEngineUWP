@@ -1258,25 +1258,6 @@ void SetupSceneViewInfoPooledRenderTargets(
 	OutViewInfoPooledRenderTargets->NextCompressedDepthViewNormal = &PrevFrameViewInfo.CompressedDepthViewNormal;
 }
 
-void SetupImaginaryReflectionViewInfoPooledRenderTargets(
-	const FViewInfo& View,
-	FViewInfoPooledRenderTargets* OutViewInfoPooledRenderTargets)
-{
-	auto&& PrevViewInfo = View.PrevViewInfo;
-	auto&& PrevFrameViewInfo = View.ViewState->PrevFrameViewInfo;
-
-	OutViewInfoPooledRenderTargets->PrevDepthBuffer = PrevViewInfo.ImaginaryReflectionDepthBuffer;
-	OutViewInfoPooledRenderTargets->PrevGBufferA = PrevViewInfo.ImaginaryReflectionGBufferA;
-	OutViewInfoPooledRenderTargets->PrevGBufferB = nullptr; // GBufferB not used
-	OutViewInfoPooledRenderTargets->PrevCompressedDepthViewNormal = PrevViewInfo.ImaginaryReflectionCompressedDepthViewNormal;
-
-	OutViewInfoPooledRenderTargets->NextDepthBuffer = &PrevFrameViewInfo.ImaginaryReflectionDepthBuffer;
-	OutViewInfoPooledRenderTargets->NextGBufferA = &PrevFrameViewInfo.ImaginaryReflectionGBufferA;
-	OutViewInfoPooledRenderTargets->NextGBufferB = nullptr; // GBufferB not used
-	OutViewInfoPooledRenderTargets->NextCompressedDepthViewNormal = &PrevFrameViewInfo.ImaginaryReflectionCompressedDepthViewNormal;
-}
-
-
 void Denoiser::SetupCommonShaderParameters(
 	const FViewInfo& View,
 	const FSceneTextureParameters& SceneTextures,
@@ -2787,53 +2768,7 @@ public:
 		GlobalIlluminationOutputs.Color = SignalOutput.Textures[0];
 		return GlobalIlluminationOutputs;
 	}
-
-	FDiffuseIndirectOutputs DenoiseReflectedSkyLight(
-		FRDGBuilder& GraphBuilder,
-		const FViewInfo& View,
-		FPreviousViewInfo* PreviousViewInfos,
-		const FSceneTextureParameters& SceneTextures,
-		const FDiffuseIndirectInputs& Inputs,
-		const FAmbientOcclusionRayTracingConfig Config) const override
-	{
-		RDG_GPU_STAT_SCOPE(GraphBuilder, DiffuseIndirectDenoiser);
-
-		FViewInfoPooledRenderTargets ViewInfoPooledRenderTargets;
-		SetupImaginaryReflectionViewInfoPooledRenderTargets(View, &ViewInfoPooledRenderTargets);
-
-		FSSDSignalTextures InputSignal;
-		InputSignal.Textures[0] = Inputs.Color;
-		InputSignal.Textures[1] = Inputs.RayHitDistance;
-
-		FSSDConstantPixelDensitySettings Settings;
-		Settings.FullResViewport = View.ViewRect;
-		Settings.SignalProcessing = ESignalProcessing::DiffuseAndAmbientOcclusion;
-		Settings.InputResolutionFraction = Config.ResolutionFraction;
-		Settings.ReconstructionSamples = FMath::Clamp(CVarGIReconstructionSampleCount.GetValueOnRenderThread(), 1, kStackowiakMaxSampleCountPerSet);
-		Settings.PreConvolutionCount = CVarGIPreConvolutionCount.GetValueOnRenderThread();
-		Settings.bUseTemporalAccumulation = CVarGITemporalAccumulation.GetValueOnRenderThread() != 0;
-		Settings.HistoryConvolutionSampleCount = CVarGIHistoryConvolutionSampleCount.GetValueOnRenderThread();
-		Settings.HistoryConvolutionKernelSpreadFactor = CVarGIHistoryConvolutionKernelSpreadFactor.GetValueOnRenderThread();
-		Settings.MaxInputSPP = Config.RayCountPerPixel;
-
-		TStaticArray<FScreenSpaceDenoiserHistory*, IScreenSpaceDenoiser::kMaxBatchSize> PrevHistories;
-		TStaticArray<FScreenSpaceDenoiserHistory*, IScreenSpaceDenoiser::kMaxBatchSize> NewHistories;
-		PrevHistories[0] = &PreviousViewInfos->ReflectedSkyLightHistory;
-		NewHistories[0] = View.ViewState ? &View.ViewState->PrevFrameViewInfo.ReflectedSkyLightHistory : nullptr;
-
-		FSSDSignalTextures SignalOutput;
-		DenoiseSignalAtConstantPixelDensity(
-			GraphBuilder, View, SceneTextures, ViewInfoPooledRenderTargets,
-			InputSignal, Settings,
-			PrevHistories,
-			NewHistories,
-			&SignalOutput);
-
-		FDiffuseIndirectOutputs GlobalIlluminationOutputs;
-		GlobalIlluminationOutputs.Color = SignalOutput.Textures[0];
-		return GlobalIlluminationOutputs;
-	}
-
+	
 	FSSDSignalTextures DenoiseDiffuseIndirectHarmonic(
 		FRDGBuilder& GraphBuilder,
 		const FViewInfo& View,

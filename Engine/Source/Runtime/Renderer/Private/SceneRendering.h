@@ -1053,8 +1053,6 @@ struct FPreviousViewInfo
 	TRefCountPtr<IPooledRenderTarget> GBufferA;
 	TRefCountPtr<IPooledRenderTarget> GBufferB;
 	TRefCountPtr<IPooledRenderTarget> GBufferC;
-	TRefCountPtr<IPooledRenderTarget> ImaginaryReflectionDepthBuffer;
-	TRefCountPtr<IPooledRenderTarget> ImaginaryReflectionGBufferA;
 
 	TRefCountPtr<IPooledRenderTarget> HZB;
 	TRefCountPtr<IPooledRenderTarget> NaniteHZB;
@@ -1067,7 +1065,6 @@ struct FPreviousViewInfo
 	// Compressed scene textures for bandwidth efficient bilateral kernel rejection.
 	// DeviceZ as float16, and normal in view space.
 	TRefCountPtr<IPooledRenderTarget> CompressedDepthViewNormal;
-	TRefCountPtr<IPooledRenderTarget> ImaginaryReflectionCompressedDepthViewNormal;
 
 	// 16bit compressed depth buffer with opaque only.
 	TRefCountPtr<IPooledRenderTarget> CompressedOpaqueDepth;

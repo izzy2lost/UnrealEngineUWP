@@ -454,9 +454,6 @@ namespace EReflectionMethod
 
 		/** Standalone Screen Space Reflections.  Low cost, but limited by screen space information. */
 		ScreenSpace UMETA(DisplayName="Screen Space"),
-
-		/** Standalone Ray Traced Reflections technique.  Deprecated, use Lumen Reflections instead. */
-		RayTraced UMETA(DisplayName="Standalone Ray Traced (Deprecated)"),
 	};
 }
 

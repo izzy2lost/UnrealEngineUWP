@@ -1897,8 +1897,6 @@ bool FDeferredShadingSceneRenderer::SetupRayTracingPipelineStates(FRDGBuilder& G
 			{
 				for (const FViewInfo& View : Views)
 				{
-					PrepareRayTracingReflections(View, *Scene, RayGenShaders);
-					PrepareSingleLayerWaterRayTracingReflections(View, *Scene, RayGenShaders);
 					PrepareRayTracingShadows(View, *Scene, RayGenShaders);
 					PrepareRayTracingAmbientOcclusion(View, RayGenShaders);
 					PrepareRayTracingSkyLight(View, *Scene, RayGenShaders);
@@ -1935,8 +1933,6 @@ bool FDeferredShadingSceneRenderer::SetupRayTracingPipelineStates(FRDGBuilder& G
 		{
 			for (const FViewInfo& View : Views)
 			{
-				PrepareRayTracingReflectionsDeferredMaterial(View, *Scene, DeferredMaterialRayGenShaders);
-				PrepareRayTracingDeferredReflectionsDeferredMaterial(View, *Scene, DeferredMaterialRayGenShaders);
 				if (DoesPlatformSupportLumenGI(ShaderPlatform))
 				{
 					PrepareLumenHardwareRayTracingReflectionsDeferredMaterial(View, DeferredMaterialRayGenShaders);
@@ -4624,7 +4620,6 @@ bool AnyRayTracingPassEnabled(const FScene* Scene, const FViewInfo& View)
 	}
 
 	return ShouldRenderRayTracingAmbientOcclusion(View)
-		|| ShouldRenderRayTracingReflections(View)
 		|| ShouldRenderRayTracingTranslucency(View)
 		|| ShouldRenderRayTracingSkyLight(Scene->SkyLight)
 		|| ShouldRenderRayTracingShadows()
@@ -4632,7 +4627,6 @@ bool AnyRayTracingPassEnabled(const FScene* Scene, const FViewInfo& View)
 		|| ShouldRenderPluginRayTracingGlobalIllumination(View)
         || Lumen::AnyLumenHardwareRayTracingPassEnabled(Scene, View)
 		|| StochasticShadows::UseHardwareRayTracing()
-		|| ShouldRenderRayTracingReflectionsWater(View)
 		|| HasRayTracedOverlay(*View.Family);
 }
 

@@ -845,12 +845,9 @@ uint64 FPreviousViewInfo::GetGPUSizeBytes(bool bLogSizes) const
 		GetRenderTargetGPUSizeBytes(GBufferA, bLogSizes) +
 		GetRenderTargetGPUSizeBytes(GBufferB, bLogSizes) +
 		GetRenderTargetGPUSizeBytes(GBufferC, bLogSizes) +
-		GetRenderTargetGPUSizeBytes(ImaginaryReflectionDepthBuffer, bLogSizes) +
-		GetRenderTargetGPUSizeBytes(ImaginaryReflectionGBufferA, bLogSizes) +
 		GetRenderTargetGPUSizeBytes(HZB, bLogSizes) +
 		GetRenderTargetGPUSizeBytes(NaniteHZB, bLogSizes) +
 		GetRenderTargetGPUSizeBytes(CompressedDepthViewNormal, bLogSizes) +
-		GetRenderTargetGPUSizeBytes(ImaginaryReflectionCompressedDepthViewNormal, bLogSizes) +
 		GetRenderTargetGPUSizeBytes(CompressedOpaqueDepth, bLogSizes) +
 		GetRenderTargetGPUSizeBytes(CompressedOpaqueShadingModel, bLogSizes) +
 		GetRenderTargetGPUSizeBytes(ScreenSpaceRayTracingInput, bLogSizes) +
@@ -1106,9 +1103,6 @@ uint64 FSceneViewState::GetGPUSizeBytes(bool bLogSizes) const
 	TotalSize += GetBufferGPUSizeBytes(BloomFFTKernel.ConstantsBuffer, bLogSizes);
 	TotalSize += GetBufferGPUSizeBytes(FilmGrainCache.ConstantsBuffer, bLogSizes);
 #if RHI_RAYTRACING
-	TotalSize += GetRenderTargetGPUSizeBytes(ImaginaryReflectionGBufferA, bLogSizes);
-	TotalSize += GetRenderTargetGPUSizeBytes(ImaginaryReflectionDepthZ, bLogSizes);
-	TotalSize += GetRenderTargetGPUSizeBytes(ImaginaryReflectionVelocity, bLogSizes);
 	TotalSize += GetBufferGPUSizeBytes(SkyLightVisibilityRaysBuffer, bLogSizes);
 #endif
 	TotalSize += GetRenderTargetGPUSizeBytes(LightScatteringHistory, bLogSizes);
