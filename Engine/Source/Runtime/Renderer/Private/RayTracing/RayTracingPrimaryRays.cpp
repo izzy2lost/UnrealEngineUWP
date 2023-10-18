@@ -160,7 +160,7 @@ void FDeferredShadingSceneRenderer::RenderRayTracingPrimaryRaysView(
 
 	PassParameters->SceneTextures = SceneTextureParameters;
 
-	PassParameters->SceneColorTexture = SceneTextures.Color.Resolve;
+	PassParameters->SceneColorTexture = GetIfProduced(SceneTextures.Color.Resolve, FRDGSystemTextures::Get(GraphBuilder).Black);
 
 	PassParameters->ReflectionStruct = CreateReflectionUniformBuffer(GraphBuilder, View);
 	PassParameters->FogUniformParameters = CreateFogUniformBuffer(GraphBuilder, View);
