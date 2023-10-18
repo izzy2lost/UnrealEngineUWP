@@ -3583,10 +3583,8 @@ void UGeometryCollectionComponent::ResetDynamicCollection()
 
 		if (bStoreVelocities || bNotifyTrailing)
 		{
-			DynamicCollection->AddAttribute<FVector3f>("LinearVelocity", FTransformCollection::TransformGroup);
-			DynamicCollection->AddAttribute<FVector3f>("AngularVelocity", FTransformCollection::TransformGroup);
+			DynamicCollection->AddVelocitiesAttributes();
 		}
-		DynamicCollection->AddAttribute<uint8>("InternalClusterParentTypeArray", FTransformCollection::TransformGroup);
 
 		DynamicCollection->MakeDirty();
 		MarkRenderStateDirty();
