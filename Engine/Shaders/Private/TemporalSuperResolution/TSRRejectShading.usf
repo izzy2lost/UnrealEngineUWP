@@ -33,17 +33,25 @@
 
 //------------------------------------------------------- DERIVED
 	
-#if DIM_WAVE_SIZE == 64 || DIM_WAVE_SIZE == 32
+#if DIM_WAVE_SIZE == 64 || DIM_WAVE_SIZE == 32 || DIM_WAVE_SIZE == 16
 	/** Layouts wave in row major 32x32 tile so an entire row of pixels fits within a single wave, and waveops horizontally, but LDS vertically.
 	 * Each lane worth of a 1x4 of data per lane to minimise to trade VGPR pressure for both number of wave ops and LDS.
 	 */
 	#define GROUP_TILE_SIZE 32
 
-	#define LANE_STRIDE_X 1
-	#if CONFIG_COMPILE_FP16
-		#define LANE_STRIDE_Y 4
+	#if DIM_WAVE_SIZE == 16
+		// We need a LANE_STRIDE_X of at least 2 to have the entire row of pixels fits within a single wave.
+		#define LANE_STRIDE_X 2
+
+		// Only process 2 pixels per lane to reduce register pressure on Intel Arc Alchemist GPUs
+		#define LANE_STRIDE_Y 1
 	#else
-		#define LANE_STRIDE_Y 2
+		#define LANE_STRIDE_X 1
+		#if CONFIG_COMPILE_FP16
+			#define LANE_STRIDE_Y 4
+		#else
+			#define LANE_STRIDE_Y 2
+		#endif
 	#endif
 
 	#define WAVE_COUNT_X 1
