@@ -894,7 +894,7 @@ EPartyReservationResult::Type APartyBeaconHost::UpdatePartyReservation(const FPa
 				}
 				// check to see if we have space to add new reservations for the new players 
 				// Not using IsBeaconFull as we may not be adding a new player in the situation where a party player who has a reservation joins the game in which case NewPlayers.Num == 0
-				if ((State->GetRemainingReservations() - NewPlayers.Num()) >= 0)
+				if (State->DoesModifiedReservationFit(ExistingReservation, NewPlayers))
 				{
 					// Validate that adding the new party members to this reservation entry still fits within the team size
 					if (!ShouldRespectCompetitiveIntegrity() || (NewPlayers.Num() - NumPlayersWithExistingReservation) <= NumAvailableSlotsOnTeam)

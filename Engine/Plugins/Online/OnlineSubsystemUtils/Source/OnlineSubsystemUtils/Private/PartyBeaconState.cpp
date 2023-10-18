@@ -641,6 +641,11 @@ bool UPartyBeaconState::DoesReservationFit(const FPartyReservation& ReservationR
 	return bPartySizeOk && bRoomForReservation;
 }
 
+bool UPartyBeaconState::DoesModifiedReservationFit(const FPartyReservation& ExistingReservation, const TArray<FPlayerReservation>& NewPlayers) const
+{
+	return GetRemainingReservations() - NewPlayers.Num() >= 0;
+}
+
 bool UPartyBeaconState::AddReservation(const FPartyReservation& ReservationRequest)
 {
 	if (UE_LOG_ACTIVE(LogPartyBeacon, Verbose))
