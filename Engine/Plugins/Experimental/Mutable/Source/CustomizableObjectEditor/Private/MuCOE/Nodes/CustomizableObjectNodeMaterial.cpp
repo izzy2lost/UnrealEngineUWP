@@ -122,6 +122,7 @@ void UCustomizableObjectNodeMaterialPinDataImage::Copy(const UCustomizableObject
 	if (const UCustomizableObjectNodeMaterialPinDataImage* PinDataOldPin = Cast<UCustomizableObjectNodeMaterialPinDataImage>(&Other))
 	{
 		PinMode = PinDataOldPin->PinMode;
+		UVLayoutMode = PinDataOldPin->UVLayoutMode;
 		UVLayout = PinDataOldPin->UVLayout;
 		ReferenceTexture = PinDataOldPin->ReferenceTexture;
 

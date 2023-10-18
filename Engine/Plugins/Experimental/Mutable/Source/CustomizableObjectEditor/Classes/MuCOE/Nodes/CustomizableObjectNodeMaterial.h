@@ -348,8 +348,8 @@ public:
 	EUVLayoutMode UVLayoutMode = EUVLayoutMode::FromMaterial;
 	
 	/** Index of the UV channel that will be used with this image.It is necessary to apply the proper layout transformations to it. */
-	UPROPERTY(EditAnywhere, Category = NoCategory, meta = (ClampMin = 0, EditCondition = "UVLayoutMode == EUVLayoutMode::Index", EditConditionHides))
-	int32 UVLayout = 0;
+	UPROPERTY(EditAnywhere, Category = NoCategory, meta = (EditCondition = "UVLayoutMode == EUVLayoutMode::Index", EditConditionHides))
+	int32 UVLayout = -2;
 
 	/** Reference Texture used to decide the texture properties of the mutable-generated textures
 	* connected to this material. If null, it will try to be guessed at compile time from
