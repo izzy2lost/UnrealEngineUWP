@@ -812,3 +812,8 @@ IOnlineTournamentPtr FOnlineSubsystemImpl::GetTournamentInterface() const
 {
 	return nullptr;
 }
+
+IOnlineContentAgeRestrictionPtr FOnlineSubsystemImpl::GetOnlineContentAgeRestrictionInterface() const
+{
+	return nullptr;
+}
