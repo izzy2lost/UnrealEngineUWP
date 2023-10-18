@@ -277,15 +277,13 @@ void DeferredLightPixelMain(
 
 		if (LightMask > 0)
 		{
-			FShadowTerms ShadowTerms = { SubstrateGetAO(SubstratePixelHeader), 1.0, 1.0, InitHairTransmittanceData() };
-			float4 LightAttenuation = GetLightAttenuationFromShadow(InputParams, SceneDepth, DerivedParams.TranslatedWorldPosition);
-
-			float Dither = InterleavedGradientNoise(InputParams.PixelPos, View.StateFrameIndexMod8);
-			const uint FakeShadingModelID = 0;
-			const float FakeContactShadowOpacity = 1.0f;
-			float4 PrecomputedShadowFactors = SubstrateReadPrecomputedShadowFactors(SubstratePixelHeader, PixelPos, SceneTexturesStruct.GBufferETexture);
-			GetShadowTerms(SceneDepth, PrecomputedShadowFactors, FakeShadingModelID, FakeContactShadowOpacity,
-				LightData, DerivedParams.TranslatedWorldPosition, L, LightAttenuation, Dither, ShadowTerms);
+			FSubstrateShadowTermInputParameters SubstrateShadowTermInputParameters	= GetInitialisedSubstrateShadowTermInputParameters();
+			SubstrateShadowTermInputParameters.bEvaluateShadowTerm					= true;
+			SubstrateShadowTermInputParameters.SceneDepth							= SceneDepth;
+			SubstrateShadowTermInputParameters.PrecomputedShadowFactors				= SubstrateReadPrecomputedShadowFactors(SubstratePixelHeader, PixelPos, SceneTexturesStruct.GBufferETexture);
+			SubstrateShadowTermInputParameters.TranslatedWorldPosition				= DerivedParams.TranslatedWorldPosition;
+			SubstrateShadowTermInputParameters.LightAttenuation						= GetLightAttenuationFromShadow(InputParams, SceneDepth, DerivedParams.TranslatedWorldPosition);
+			SubstrateShadowTermInputParameters.Dither								= InterleavedGradientNoise(InputParams.PixelPos, View.StateFrameIndexMod8);
 
 			FSubstrateDeferredLighting SubstrateLighting = SubstrateDeferredLighting(
 				LightData,
@@ -293,7 +291,7 @@ void DeferredLightPixelMain(
 				L,
 				ToLight,
 				LightMask,
-				ShadowTerms,
+				SubstrateShadowTermInputParameters,
 				Substrate.MaterialTextureArray,
 				SubstrateAddressing,
 				SubstratePixelHeader);

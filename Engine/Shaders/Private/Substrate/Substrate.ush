@@ -3253,10 +3253,16 @@ float SubstrateGetLegacyShadingModels(in FSubstrateBSDF BSDF)
 	{
 		// Base on features, we can only partially recovers the original shading models. Shading models like foliage, eye, clear coat are impossible/harder to infer.
 		if (BSDF_GETSSSTYPE(BSDF) == SSS_TYPE_DIFFUSION_PROFILE){ return SHADINGMODELID_SUBSURFACE_PROFILE; }
-		else if (BSDF_GETSSSTYPE(BSDF) != SSS_TYPE_INVALID)		{ return SHADINGMODELID_SUBSURFACE; }
+		else if (BSDF_GETSSSTYPE(BSDF) == SSS_TYPE_WRAP)		
+		{ 
+			if (BSDF_GETISTHIN(BSDF))
+			{
+				return SHADINGMODELID_TWOSIDED_FOLIAGE;
+			}
+			return SHADINGMODELID_SUBSURFACE; 
+		}
 		else if (BSDF_GETHASFUZZ(BSDF))							{ return SHADINGMODELID_CLOTH; }
-		else if (BSDF_GETHASFUZZ(BSDF))							{ return SHADINGMODELID_TWOSIDED_FOLIAGE; }
-		else													{ return SHADINGMODELID_DEFAULT_LIT; }
+		else													{ return SHADINGMODELID_DEFAULT_LIT; } // Also include SSS_TYPE_DIFFUSION and SSS_TYPE_SIMPLE_VOLUME
 	}
 	case SUBSTRATE_BSDF_TYPE_HAIR: 								{ return SHADINGMODELID_HAIR; }
 	case SUBSTRATE_BSDF_TYPE_EYE: 									{ return SHADINGMODELID_EYE; }

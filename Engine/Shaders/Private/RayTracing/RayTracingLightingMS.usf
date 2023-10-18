@@ -89,13 +89,14 @@ RAY_TRACING_ENTRY_MISS(RayTracingLightingMS, FPackedMaterialClosestHitPayload, P
 	{
 		FSubstrateAddressing SubstrateAddressing = GetSubstratePixelDataByteOffset(0,0,0);
 		FSubstratePixelHeader SubstratePixelHeader = UnpackSubstrateHeaderIn(PackedPayload.SubstrateData, SubstrateAddressing, PackedPayload.SubstrateData);
-		FShadowTerms ShadowTerms = { SubstrateGetAO(SubstratePixelHeader), 1.0, 1.0, InitHairTransmittanceData() };
 
-		const float FakeSceneDepth = 1.f; // Do not use depth
-		const uint FakeShadingModelID = 0;
-		const float FakeContactShadowOpacity = 1.0f;
-		float4 FakePrecomputedShadowFactors = 1.f;
-		GetShadowTerms(FakeSceneDepth, FakePrecomputedShadowFactors, FakeShadingModelID, FakeContactShadowOpacity, LightData, WorldPosition, L, LightAttenuation, Dither, ShadowTerms);
+		FSubstrateShadowTermInputParameters SubstrateShadowTermInputParameters	= GetInitialisedSubstrateShadowTermInputParameters();
+		SubstrateShadowTermInputParameters.bEvaluateShadowTerm					= true;
+		SubstrateShadowTermInputParameters.SceneDepth							= 1.0f; // Do not use depth
+		SubstrateShadowTermInputParameters.PrecomputedShadowFactors				= 1.0f; // Do not use precomputed factors
+		SubstrateShadowTermInputParameters.TranslatedWorldPosition				= WorldPosition;
+		SubstrateShadowTermInputParameters.LightAttenuation						= LightAttenuation;
+		SubstrateShadowTermInputParameters.Dither								= Dither;
 
 		// RayTracing + Lighting + Substrate is too expenssive (as in uses too many registers) to be supported on some platofrms
 		FSubstrateDeferredLighting Lighting = SubstrateDeferredLighting(
@@ -104,7 +105,7 @@ RAY_TRACING_ENTRY_MISS(RayTracingLightingMS, FPackedMaterialClosestHitPayload, P
 			L,
 			ToLight,
 			LightMask,
-			ShadowTerms,
+			SubstrateShadowTermInputParameters,
 			PackedPayload.SubstrateData,
 			SubstrateAddressing,
 			SubstratePixelHeader);

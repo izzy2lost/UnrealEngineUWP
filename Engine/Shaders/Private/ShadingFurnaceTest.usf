@@ -228,14 +228,17 @@ void MainPS(
 					BRANCH
 					if (SubstratePixelHeader.BSDFCount > 0)
 					{
-						FShadowTerms ShadowTerms = { 1.0, 1.0, 1.0, InitHairTransmittanceData() };
+						HEADER_SETIRRADIANCE_AO(SubstratePixelHeader.State, SubstratePackIrradianceAndOcclusion(1.0, 1.0));
+
+						FSubstrateShadowTermInputParameters SubstrateShadowTermInputParameters	= GetInitialisedSubstrateShadowTermInputParameters();
+						SubstrateShadowTermInputParameters.bEvaluateShadowTerm					= false;
 						SampleRadiance = SubstrateDeferredLighting(
 							LightData,
 							V,
 							L,
 							L,
 							LightMask,
-							ShadowTerms,
+							SubstrateShadowTermInputParameters,
 							RectTexture,
 							Substrate.MaterialTextureArray,
 							SubstrateAddressing,

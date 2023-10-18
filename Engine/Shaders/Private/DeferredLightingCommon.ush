@@ -75,11 +75,13 @@ float ShadowRayCast(
 #error "Must set SUPPORT_CONTACT_SHADOWS"
 #endif
 
-void GetShadowTerms(float SceneDepth, half4 PrecomputedShadowFactors, uint ShadingModelID, float ContactShadowOpacity, FDeferredLightData LightData, float3 TranslatedWorldPosition, half3 L, half4 LightAttenuation, float Dither, inout FShadowTerms Shadow)
+void GetShadowTermsBase(
+	float SceneDepth, 
+	half4 PrecomputedShadowFactors, 
+	FDeferredLightData LightData, 
+	half4 LightAttenuation, 
+	inout FShadowTerms OutShadow)
 {
-	float ContactShadowLength = 0.0f;
-	const float ContactShadowLengthScreenScale = GetTanHalfFieldOfView().y * SceneDepth;
-
 	BRANCH
 	if (LightData.ShadowedBits)
 	{
@@ -99,12 +101,12 @@ void GetShadowTerms(float SceneDepth, half4 PrecomputedShadowFactors, uint Shadi
 		{
 			// Remapping the light attenuation buffer (see ShadowRendering.cpp)
 
-			Shadow.SurfaceShadow = LightAttenuation.z * StaticShadowing;
+			OutShadow.SurfaceShadow = LightAttenuation.z * StaticShadowing;
 			// SSS uses a separate shadowing term that allows light to penetrate the surface
 			//@todo - how to do static shadowing of SSS correctly?
-			Shadow.TransmissionShadow = LightAttenuation.w * StaticShadowing;
+			OutShadow.TransmissionShadow = LightAttenuation.w * StaticShadowing;
 
-			Shadow.TransmissionThickness = LightAttenuation.w;
+			OutShadow.TransmissionThickness = LightAttenuation.w;
 		}
 		else
 		{
@@ -114,27 +116,43 @@ void GetShadowTerms(float SceneDepth, half4 PrecomputedShadowFactors, uint Shadi
 
 			float DynamicShadowFraction = DistanceFromCameraFade(SceneDepth, LightData);
 			// For a directional light, fade between static shadowing and the whole scene dynamic shadowing based on distance + per object shadows
-			Shadow.SurfaceShadow = lerp(LightAttenuation.x, StaticShadowing, DynamicShadowFraction);
+			OutShadow.SurfaceShadow = lerp(LightAttenuation.x, StaticShadowing, DynamicShadowFraction);
 			// Fade between SSS dynamic shadowing and static shadowing based on distance
-			Shadow.TransmissionShadow = min(lerp(LightAttenuation.y, StaticShadowing, DynamicShadowFraction), LightAttenuation.w);
+			OutShadow.TransmissionShadow = min(lerp(LightAttenuation.y, StaticShadowing, DynamicShadowFraction), LightAttenuation.w);
 
-			Shadow.SurfaceShadow *= LightAttenuation.z;
-			Shadow.TransmissionShadow *= LightAttenuation.z;
+			OutShadow.SurfaceShadow *= LightAttenuation.z;
+			OutShadow.TransmissionShadow *= LightAttenuation.z;
 
 			// Need this min or backscattering will leak when in shadow which cast by non perobject shadow(Only for directional light)
-			Shadow.TransmissionThickness = min(LightAttenuation.y, LightAttenuation.w);
-		}
-
-		FLATTEN
-		if (LightData.ShadowedBits > 1 && LightData.ContactShadowLength > 0)
-		{
-			ContactShadowLength = LightData.ContactShadowLength * (LightData.ContactShadowLengthInWS ? 1.0f : ContactShadowLengthScreenScale);
+			OutShadow.TransmissionThickness = min(LightAttenuation.y, LightAttenuation.w);
 		}
 	}
 
+	OutShadow.HairTransmittance = LightData.HairTransmittance;
+	OutShadow.HairTransmittance.OpaqueVisibility = OutShadow.SurfaceShadow;
+}
+
+void ApplyContactShadowWithShadowTerms(
+	float SceneDepth, 
+	uint ShadingModelID, 
+	float ContactShadowOpacity, 
+	FDeferredLightData LightData, 
+	float3 TranslatedWorldPosition, 
+	half3 L, 
+	float Dither, 
+	inout FShadowTerms OutShadow)
+{
 #if SUPPORT_CONTACT_SHADOWS
 
-#if SUBSTRATE_ENABLED == 0
+	float ContactShadowLength = 0.0f;
+	const float ContactShadowLengthScreenScale = GetTanHalfFieldOfView().y * SceneDepth;
+
+	FLATTEN
+	if (LightData.ShadowedBits > 1 && LightData.ContactShadowLength > 0)
+	{
+		ContactShadowLength = LightData.ContactShadowLength * (LightData.ContactShadowLengthInWS ? 1.0f : ContactShadowLengthScreenScale);
+	}
+
 	if (LightData.ShadowedBits < 2 && (ShadingModelID == SHADINGMODELID_HAIR))
 	{
 		ContactShadowLength = 0.2 * ContactShadowLengthScreenScale;
@@ -145,11 +163,10 @@ void GetShadowTerms(float SceneDepth, half4 PrecomputedShadowFactors, uint Shadi
 		ContactShadowLength = 0.5;
 		
 	}
-#endif
 
-	#if MATERIAL_CONTACT_SHADOWS
-		ContactShadowLength = 0.2 * ContactShadowLengthScreenScale;
-	#endif
+#if MATERIAL_CONTACT_SHADOWS
+	ContactShadowLength = 0.2 * ContactShadowLengthScreenScale;
+#endif
 
 	BRANCH
 	if (ContactShadowLength > 0.0)
@@ -162,7 +179,6 @@ void GetShadowTerms(float SceneDepth, half4 PrecomputedShadowFactors, uint Shadi
 		{
 			float ContactShadowOcclusion = bHitCastContactShadow ? LightData.ContactShadowCastingIntensity : LightData.ContactShadowNonCastingIntensity;
 
-#if SUBSTRATE_ENABLED == 0
 			// Exponential attenuation is not applied on hair/eye/SSS-profile here, as the hit distance (shading-point to blocker) is different from the estimated 
 			// thickness (closest-point-from-light to shading-point), and this creates light leaks. Instead we consider first hit as a blocker (old behavior)
 			BRANCH
@@ -178,19 +194,37 @@ void GetShadowTerms(float SceneDepth, half4 PrecomputedShadowFactors, uint Shadi
 				float Density = SubsurfaceDensityFromOpacity(ContactShadowOpacity);
 				ContactShadowOcclusion *= 1.0 - saturate( exp( -Density * HitDistance ) );
 			}
-#endif
 
 			float ContactShadow = 1.0 - ContactShadowOcclusion;
 
-			Shadow.SurfaceShadow *= ContactShadow;
-			Shadow.TransmissionShadow *= ContactShadow;
+			OutShadow.SurfaceShadow *= ContactShadow;
+			OutShadow.TransmissionShadow *= ContactShadow;
 		}
-		
 	}
-#endif
 
-	Shadow.HairTransmittance = LightData.HairTransmittance;
-	Shadow.HairTransmittance.OpaqueVisibility = Shadow.SurfaceShadow;
+	OutShadow.HairTransmittance = LightData.HairTransmittance;
+	OutShadow.HairTransmittance.OpaqueVisibility = OutShadow.SurfaceShadow;
+
+#endif // SUPPORT_CONTACT_SHADOWS
+}
+
+void GetShadowTerms(
+	float SceneDepth,
+	half4 PrecomputedShadowFactors,
+	uint ShadingModelID,
+	float ContactShadowOpacity,
+	FDeferredLightData LightData,
+	float3 TranslatedWorldPosition,
+	half3 L,
+	half4 LightAttenuation,
+	float Dither,
+	inout FShadowTerms OutShadow)
+{
+	// Get the basic shadow terms
+	GetShadowTermsBase(SceneDepth, PrecomputedShadowFactors, LightData, LightAttenuation, OutShadow);
+
+	// Now combined with screens space contact shadow if necessary.
+	ApplyContactShadowWithShadowTerms (SceneDepth, ShadingModelID, ContactShadowOpacity, LightData, TranslatedWorldPosition, L, Dither, OutShadow);
 }
 
 float GetLocalLightAttenuation(
