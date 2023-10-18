@@ -311,7 +311,6 @@ void USetCollisionGeometryTool::Setup()
 	Settings->WatchProperty(Settings->ConvexDecompositionSearchFactor, [this](int32) { InvalidateCompute(); });
 	Settings->WatchProperty(Settings->AddHullsErrorTolerance, [this](int32) { InvalidateCompute(); });
 	Settings->WatchProperty(Settings->MinPartThickness, [this](int32) { InvalidateCompute(); });
-	Settings->WatchProperty(Settings->bSimplifyPolygons, [this](bool) { InvalidateCompute(); });
 	Settings->WatchProperty(Settings->HullTolerance, [this](float) { InvalidateCompute(); });
 	Settings->WatchProperty(Settings->SweepAxis, [this](EProjectedHullAxis) { InvalidateCompute(); });
 	Settings->WatchProperty(Settings->LevelSetResolution, [this](int32) { InvalidateCompute(); });
@@ -416,7 +415,8 @@ TUniquePtr<UE::Geometry::TGenericDataOperator<FPhysicsDataCollection>> USetColli
 	Op->UseShapeGenerator->bDetectBoxes = Settings->bDetectBoxes;
 	Op->UseShapeGenerator->bDetectCapsules = Settings->bDetectCapsules;
 	Op->UseShapeGenerator->MinDimension = Settings->MinThickness;
-	Op->UseShapeGenerator->bSimplifyHulls = Settings->bSimplifyHulls;
+	// SimplifyHulls on the shape generator controls simplification on both swept and convex hull paths, but for Swept Hulls UI we leave simplification always enabled
+	Op->UseShapeGenerator->bSimplifyHulls = Settings->GeometryType == ECollisionGeometryType::SweptHulls || Settings->bSimplifyHulls;
 	Op->UseShapeGenerator->HullTargetFaceCount = Settings->HullTargetFaceCount;
 	Op->UseShapeGenerator->ConvexDecompositionMaxPieces = Settings->MaxHullsPerMesh;
 	Op->UseShapeGenerator->ConvexDecompositionSearchFactor = Settings->ConvexDecompositionSearchFactor;
