@@ -107,13 +107,14 @@ struct FISMComponentDescription
 		ReverseCulling = 1 << 3,
 		StaticMobility = 1 << 4,
 		WorldPositionOffsetWritesVelocity = 1 << 5,
-		AffectShadow = 1 << 6,
-		AffectDistanceFieldLighting = 1 << 7,
-		AffectDynamicIndirectLighting = 1 << 8,
-		DistanceCullPrimitive = 1 << 9,
+		EvaluateWorldPositionOffset = 1 << 6,
+		AffectShadow = 1 << 7,
+		AffectDistanceFieldLighting = 1 << 8,
+		AffectDynamicIndirectLighting = 1 << 9,
+		DistanceCullPrimitive = 1 << 10,
 	};
 
-	uint32 Flags = WorldPositionOffsetWritesVelocity|AffectShadow;
+	uint32 Flags = WorldPositionOffsetWritesVelocity|EvaluateWorldPositionOffset|AffectShadow;
 	int32 NumCustomDataFloats = 0;
 	FVector Position = FVector::ZeroVector;
 	int32 StartCullDistance = 0;
