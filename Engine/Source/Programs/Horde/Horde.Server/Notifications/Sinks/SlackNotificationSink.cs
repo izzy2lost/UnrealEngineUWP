@@ -3075,7 +3075,6 @@ namespace Horde.Server.Notifications.Sinks
 			{
 				SlackView view = new SlackView($"Issue {issueId}");
 				view.CallbackId = $"issue_{issueId}_markfixed_{user.Id}";
-				view.AddInput("Fix Changelist:", new PlainTextInputElement("fix_cl_action", placeholder: "Number")).BlockId = "fix_cl";
 
 				IIssue? issue = await _issueService.Collection.GetIssueAsync(issueId);
 				if (issue != null && issue.OwnerId != null && issue.OwnerId != user.Id)
@@ -3092,6 +3091,8 @@ namespace Horde.Server.Notifications.Sinks
 						view.AddInput("Fixed By:", ownership).BlockId = "fixed_by";
 					}
 				}
+
+				view.AddInput("Fix Changelist:", new PlainTextInputElement("fix_cl_action", placeholder: "Number")).BlockId = "fix_cl";
 
 				view.Close = "Cancel";
 				view.Submit = "Mark Fixed";
