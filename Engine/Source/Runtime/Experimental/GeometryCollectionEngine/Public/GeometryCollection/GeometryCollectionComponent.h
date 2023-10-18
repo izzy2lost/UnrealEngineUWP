@@ -1546,6 +1546,7 @@ private:
 	void ProcessRepDataOnPT();
 	void ProcessRepStateDataOnPT();
 	void ProcessRepDynamicDataOnPT();
+	void InitializeRemovalDynamicAttributesIfNeeded();
 
 	// called when the rest transform are updated from SetRestState / ResetRestTransforms
 	// this updates only the renderer, the dynamic collection should be initialized when calling this function
@@ -1556,6 +1557,7 @@ private:
 	FTransform3f GetCurrentTransform(int32 Index) const;
 	void ComputeCurrentGlobalsMatrices(TArray<FTransform3f>& OutTransforms) const;
 
+	bool bInitializedRemovalDynamicAttribute;
 	bool bRenderStateDirty;
 	bool bEnableBoneSelection;
 	int ViewLevel;
