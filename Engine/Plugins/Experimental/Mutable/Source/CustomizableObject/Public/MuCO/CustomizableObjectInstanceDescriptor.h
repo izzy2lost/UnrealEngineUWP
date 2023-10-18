@@ -347,6 +347,8 @@ struct CUSTOMIZABLEOBJECT_API FCustomizableObjectInstanceDescriptor
 	/** Return a Mutable Core object containing all parameters. */
 	mu::Ptr<mu::Parameters> GetParameters() const;
 
+	FString ToString() const;
+	
 private:
 
 	UPROPERTY()
@@ -416,9 +418,7 @@ public:
 
 	bool operator<(const FDescriptorHash& Other) const;
 
-	FString ToString() const;
-	
-private:
+protected:
 	uint32 Hash = 0;
 };
 
@@ -443,6 +443,8 @@ public:
 	void UpdateRequestedLODs(const TArray<uint16>& InRequestedLODs);
 
 	const TArray<uint16>& GetRequestedLODs() const;
+
+	FString ToString() const;
 
 private:
 	int32 MinLOD = 0;

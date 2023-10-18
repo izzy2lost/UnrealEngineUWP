@@ -762,6 +762,13 @@ static FAutoConsoleVariableRef CVarApplyFixPrepareSkeletons(
 	TEXT("If true, Fix missing SkeletonsData when FirstLODToGenerate is greater than 0. If false, There may be a crash when generating meshes on platform that skip LODs."),
 	ECVF_Default);
 
+static FAutoConsoleVariable CVarDescriptorDebugPrint(
+	TEXT("mutable.DescriptorDebugPrint"),
+	false,
+	TEXT("If true, each time an update is enqueued, print its captured parameters."),
+	ECVF_Default);
+
+
 void FinishUpdateGlobal(const TSharedRef<FUpdateContextPrivate>& Context)
 {
 	check(IsInGameThread())
@@ -1183,6 +1190,17 @@ void FCustomizableObjectSystemPrivate::EnqueueUpdateSkeletalMesh(const TSharedRe
 				{
 					InstancePrivate->UpdateTextureParameters.Add(TextureParameter);
 				}
+			}
+
+			if (CVarDescriptorDebugPrint->GetBool())
+			{
+				FString String = TEXT("DESCRIPTOR DEBUG PRINT\n");
+				String += "================================\n";				
+				String += FString::Printf(TEXT("=== DESCRIPTOR HASH ===\n%s\n"), *InstancePrivate->UpdateDescriptorRuntimeHash.ToString());
+				String += FString::Printf(TEXT("=== DESCRIPTOR ===\n%s"), *Instance->GetDescriptor().ToString());
+				String += "================================";
+				
+				UE_LOG(LogMutable, Log, TEXT("%s"), *String);
 			}
 
 			const FMutablePendingInstanceUpdate InstanceUpdate(Context);

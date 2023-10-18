@@ -651,6 +651,89 @@ mu::ParametersPtr FCustomizableObjectInstanceDescriptor::GetParameters() const
 }
 
 
+FString FCustomizableObjectInstanceDescriptor::ToString() const
+{
+	TStringBuilder<3000> Builder;
+	
+	Builder.Appendf(TEXT("CustomizableObject=%s\n"), *CustomizableObject.GetFullName());
+	Builder.Appendf(TEXT("State=%i\n"), State);
+	Builder.Appendf(TEXT("BuildParameterRelevancy=%i\n"), bBuildParameterRelevancy);
+	Builder.Appendf(TEXT("MinLOD=%i\n"), MinLOD);
+	Builder.Appendf(TEXT("MaxLOD=%i\n"), MaxLOD);
+
+	for (int32 Index = 0; Index < RequestedLODLevels.Num(); ++Index)
+	{
+		Builder.Appendf(TEXT("RequestredLODLevels [%i]=%i\n"), Index, RequestedLODLevels[Index]);
+	}
+
+	Builder.Appendf(TEXT("BOOL PARAMETERS:\n"));
+	for (const FCustomizableObjectBoolParameterValue& Parameter : BoolParameters)
+	{
+		Builder.Appendf(TEXT("%s=%i\n"), *Parameter.ParameterName, Parameter.ParameterValue);
+	}
+
+	Builder.Appendf(TEXT("INT PARAMETERS:\n"));
+	for (const FCustomizableObjectIntParameterValue& Parameter : IntParameters)
+	{
+		Builder.Appendf(TEXT("%s=\"%s\"\n"), *Parameter.ParameterName, *Parameter.ParameterValueName);
+
+		for (int32 Index = 0; Index < Parameter.ParameterRangeValueNames.Num(); ++Index)
+		{
+			Builder.Appendf(TEXT("%s [%i]=\"%s\"\n"), *Parameter.ParameterName, Index, *Parameter.ParameterRangeValueNames[Index]);			
+		}
+	}
+
+	Builder.Appendf(TEXT("FLOAT PARAMETETS:\n"));
+	for (const FCustomizableObjectFloatParameterValue& Parameter : FloatParameters)
+	{
+		Builder.Appendf(TEXT("%s=%f\n"), *Parameter.ParameterName, Parameter.ParameterValue);
+
+		for (int32 Index = 0; Index < Parameter.ParameterRangeValues.Num(); ++Index)
+		{
+			Builder.Appendf(TEXT("%s [%i]=%f\n"), *Parameter.ParameterName, Index, Parameter.ParameterRangeValues[Index]);			
+		}
+	}
+
+	Builder.Appendf(TEXT("TEXTURE PARAMETERS:\n"));
+	for (const FCustomizableObjectTextureParameterValue& Parameter : TextureParameters)
+	{
+		Builder.Appendf(TEXT("%s=%s\n"), *Parameter.ParameterName, *Parameter.ParameterValue.ToString());
+
+		for (int32 Index = 0; Index < Parameter.ParameterRangeValues.Num(); ++Index)
+		{
+			Builder.Appendf(TEXT("%s [%i]=%s\n"), *Parameter.ParameterName, Index, *Parameter.ParameterRangeValues[Index].ToString());			
+		}
+	}
+
+	Builder.Appendf(TEXT("VECTOR PARAMETERS:\n"));
+	for (const FCustomizableObjectVectorParameterValue& Parameter : VectorParameters)
+	{
+		Builder.Appendf(TEXT("%s=%s\n"), *Parameter.ParameterName, *Parameter.ParameterValue.ToString());			
+	}
+
+	Builder.Appendf(TEXT("PROJECTOR PARAMETERS:\n"));
+	for (const FCustomizableObjectProjectorParameterValue& Parameter : ProjectorParameters)
+	{
+		auto StructToString = [](const UScriptStruct& ScriptStruct, const void* Data) {
+			FString String;
+			ScriptStruct.ExportText(String, &Data, &Data, nullptr, PPF_ExternalEditor | PPF_IncludeTransient, nullptr);
+			return String;
+		};
+
+		Builder.Appendf(TEXT("%s=%s\n"), *Parameter.ParameterName, *StructToString(*Parameter.Value.StaticStruct(), &Parameter.Value));
+
+		for (int32 Index = 0; Index < Parameter.RangeValues.Num(); ++Index)
+		{
+			const FCustomizableObjectProjector& RangeValue = Parameter.RangeValues[Index];
+			
+			Builder.Appendf(TEXT("%s [%i]=%s\n"), *Parameter.ParameterName, Index, *StructToString(*RangeValue.StaticStruct(), &RangeValue));			
+		}
+	}
+
+	return Builder.ToString();
+}
+
+
 void FCustomizableObjectInstanceDescriptor::ReloadParameters()
 {
 	if (!CustomizableObject)
@@ -2420,12 +2503,6 @@ bool FDescriptorHash::operator<(const FDescriptorHash& Other) const
 }
 
 
-FString FDescriptorHash::ToString() const
-{
-	return FString::Printf(TEXT("%u"), Hash);
-}
-
-
 FDescriptorRuntimeHash::FDescriptorRuntimeHash(const FCustomizableObjectInstanceDescriptor& Descriptor) :
 	FDescriptorHash(Descriptor)
 {
@@ -2495,5 +2572,26 @@ const TArray<uint16>& FDescriptorRuntimeHash::GetRequestedLODs() const
 {
 	return RequestedLODsPerComponent;
 }
+
+
+FString FDescriptorRuntimeHash::ToString() const
+{
+	TStringBuilder<150> Builder;
+
+	Builder.Appendf(TEXT("(Hash=%u,"), Hash);
+	Builder.Appendf(TEXT("MinLOD=%i,"), MinLOD);
+	Builder.Appendf(TEXT("MaxLOD=%i,"), MaxLOD);
+	Builder.Appendf(TEXT("RequestredLODLevels=["));
+
+	for (const uint16 RequestedLODs : RequestedLODsPerComponent)
+	{
+		Builder.Appendf(TEXT("%i,"), RequestedLODs);
+	}
+	
+	Builder.Appendf(TEXT("])"));
+
+	return Builder.ToString();
+}
+
 
 #undef RETURN_ON_CO_UNCOMPILED
