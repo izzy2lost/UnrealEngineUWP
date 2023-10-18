@@ -319,10 +319,10 @@ static void TrimSortedIndexBuffers(TArray<FSortedIndexBuffer*>& FreeBuffers, TQu
 	}
 }
 
-FSortedTriangleData FOITSceneData::Allocate(FRHICommandListBase& RHICmdList, const FIndexBuffer* InSource, EPrimitiveType PrimitiveType, uint32 InFirstIndex, uint32 InNumPrimitives)
+FSortedTriangleData FOITSceneData::Allocate(FRHICommandListBase& RHICmdList, EPrimitiveType InPrimitiveType, const FMeshBatchElement& InMeshElement)
 {
-	check(InSource && InSource->IndexBufferRHI);
-	check(PrimitiveType == PT_TriangleList || PrimitiveType == PT_TriangleStrip);
+	check(InMeshElement.IndexBuffer && InMeshElement.IndexBuffer->IndexBufferRHI);
+	check(InPrimitiveType == PT_TriangleList || InPrimitiveType == PT_TriangleStrip);
 
 	// Find a free slot, or create a new one
 	FSortedTriangleData* Out = nullptr;
@@ -339,7 +339,7 @@ FSortedTriangleData FOITSceneData::Allocate(FRHICommandListBase& RHICmdList, con
 	}
 
 	// Linear scan if there are some free resource which are large enough
-	const uint32 NumIndices = InNumPrimitives * 3; // Sorted index always has triangle list topology
+	const uint32 NumIndices = InMeshElement.NumPrimitives * 3; // Sorted index always has triangle list topology
 	FSortedIndexBuffer* OITIndexBuffer = nullptr;
 	if (CVarOIT_SortedTriangles_Pool.GetValueOnRenderThread() > 0)
 	{
@@ -360,16 +360,19 @@ FSortedTriangleData FOITSceneData::Allocate(FRHICommandListBase& RHICmdList, con
 	// Otherwise create a new one
 	if (OITIndexBuffer == nullptr)
 	{
-		OITIndexBuffer = new FSortedIndexBuffer(FreeSlot, InSource->IndexBufferRHI, NumIndices, TEXT("OIT::SortedIndexBuffer"));
+		OITIndexBuffer = new FSortedIndexBuffer(FreeSlot, InMeshElement.IndexBuffer->IndexBufferRHI, NumIndices, TEXT("OIT::SortedIndexBuffer"));
 		OITIndexBuffer->InitResource(RHICmdList);	
 	}
-	Out->NumPrimitives = InNumPrimitives;
+	Out->NumPrimitives = InMeshElement.NumPrimitives;
 	Out->NumIndices = NumIndices;
-	Out->SourceFirstIndex = InFirstIndex;
+	Out->SourceFirstIndex = InMeshElement.FirstIndex;
+	Out->SourceBaseVertexIndex = InMeshElement.BaseVertexIndex;
+	Out->SourceMinVertexIndex = InMeshElement.MinVertexIndex;
+	Out->SourceMaxVertexIndex = InMeshElement.MaxVertexIndex;
 	Out->SortedFirstIndex = 0u;
-	Out->SourcePrimitiveType = PrimitiveType;
+	Out->SourcePrimitiveType = InPrimitiveType;
 	Out->SortedPrimitiveType = PT_TriangleList;
-	Out->SourceIndexBuffer = InSource;
+	Out->SourceIndexBuffer = InMeshElement.IndexBuffer;
 	Out->SortedIndexBuffer = OITIndexBuffer;
 	Out->SortedIndexUAV = OITIndexBuffer->SortedIndexUAV;
 	Out->SourceIndexSRV = OITIndexBuffer->SourceIndexSRV;
@@ -418,45 +421,53 @@ class FOITSortTriangleIndex_ScanCS : public FGlobalShader
 	class FDebug : SHADER_PERMUTATION_BOOL("PERMUTATION_DEBUG");
 	using FPermutationDomain = TShaderPermutationDomain<FDebug>;
 
-	BEGIN_SHADER_PARAMETER_STRUCT(FParameters, )
+	BEGIN_SHADER_PARAMETER_STRUCT(FParameters,)
 
-		// For Debug
-		SHADER_PARAMETER_STRUCT_INCLUDE(ShaderPrint::FShaderParameters, ShaderPrintParameters)
-		SHADER_PARAMETER(FMatrix44f, ViewToWorld)
-		SHADER_PARAMETER(FVector3f, WorldBound_Min)
-		SHADER_PARAMETER(FVector3f, WorldBound_Max)
-		SHADER_PARAMETER(FVector3f, ViewBound_Min)
-		SHADER_PARAMETER(FVector3f, ViewBound_Max)
+	// For Debug
+	SHADER_PARAMETER_STRUCT_INCLUDE(ShaderPrint::FShaderParameters, ShaderPrintParameters)
+	SHADER_PARAMETER(FMatrix44f, ViewToWorld)
+	SHADER_PARAMETER(FVector3f, WorldBound_Min)
+	SHADER_PARAMETER(FVector3f, WorldBound_Max)
+	SHADER_PARAMETER(FVector3f, ViewBound_Min)
+	SHADER_PARAMETER(FVector3f, ViewBound_Max)
 
-		SHADER_PARAMETER(FMatrix44f, LocalToWorld)
-		SHADER_PARAMETER(FMatrix44f, WorldToView)
-		SHADER_PARAMETER(FMatrix44f, LocalToView)
+	SHADER_PARAMETER(FMatrix44f, LocalToWorld)
+	SHADER_PARAMETER(FMatrix44f, LocalToView)
 
-		SHADER_PARAMETER(uint32, SourcePrimitiveType)
-		SHADER_PARAMETER(uint32, NumPrimitives)
-		SHADER_PARAMETER(uint32, NumIndices)
-		SHADER_PARAMETER(uint32, SourceFirstIndex)
-		SHADER_PARAMETER(uint32, SortType)
-		SHADER_PARAMETER(uint32, SortedIndexBufferSizeInByte)
+	SHADER_PARAMETER(uint32, SourcePrimitiveType)
+	SHADER_PARAMETER(uint32, SourceFirstIndex)
+	SHADER_PARAMETER(uint32, SourceBaseVertexIndex)
+	SHADER_PARAMETER(uint32, SourceMinVertexIndex)
+	SHADER_PARAMETER(uint32, SourceMaxVertexIndex)
+
+	SHADER_PARAMETER(uint32, NumPrimitives)
+	SHADER_PARAMETER(uint32, NumIndices)
+	SHADER_PARAMETER(uint32, SortType)
+	SHADER_PARAMETER(uint32, SortedIndexBufferSizeInByte)
 		
-		SHADER_PARAMETER(float, ViewBoundMinZ)
-		SHADER_PARAMETER(float, ViewBoundMaxZ)
+	SHADER_PARAMETER(float, ViewBoundMinZ)
+	SHADER_PARAMETER(float, ViewBoundMaxZ)
 
-		SHADER_PARAMETER_SRV(Buffer<float>, PositionBuffer)
-		SHADER_PARAMETER_SRV(Buffer<uint>, IndexBuffer)
-		SHADER_PARAMETER_UAV(Buffer<uint>, OutIndexBuffer)
-		SHADER_PARAMETER_RDG_BUFFER_UAV(RWBuffer<uint2>, OutSliceCounterBuffer)
-		SHADER_PARAMETER_RDG_BUFFER_UAV(RWBuffer<uint>, OutPrimitiveSliceBuffer)
-		SHADER_PARAMETER_RDG_BUFFER_UAV(RWBuffer<uint>, OutDebugData)
+	SHADER_PARAMETER_SRV(Buffer < float > , PositionBuffer)
+	SHADER_PARAMETER_SRV(Buffer < uint > , IndexBuffer)
+	SHADER_PARAMETER_UAV(Buffer < uint > , OutIndexBuffer)
+	SHADER_PARAMETER_RDG_BUFFER_UAV(RWBuffer < uint2 > , OutSliceCounterBuffer)
+	SHADER_PARAMETER_RDG_BUFFER_UAV(RWBuffer < uint > , OutPrimitiveSliceBuffer)
+	SHADER_PARAMETER_RDG_BUFFER_UAV(RWBuffer < uint > , OutDebugData)
 
 
 	END_SHADER_PARAMETER_STRUCT()
 public:
 
+	static bool SupportDebugMode(EShaderPlatform InPlatform)
+	{
+		return ShaderPrint::IsSupported(InPlatform) && !IsHlslccShaderPlatform(InPlatform);
+	}
+
 	static bool ShouldCompilePermutation(const FGlobalShaderPermutationParameters& Parameters) 
 	{ 
 		FPermutationDomain PermutationVector(Parameters.PermutationId);
-		if (PermutationVector.Get<FDebug>() == 1 && !ShaderPrint::IsSupported(Parameters.Platform))
+		if (PermutationVector.Get<FDebug>() == 1 && !SupportDebugMode(Parameters.Platform))
 		{
 			return false;
 		}
@@ -468,7 +479,6 @@ public:
 		FGlobalShader::ModifyCompilationEnvironment(Parameters, OutEnvironment);
 		OutEnvironment.SetDefine(TEXT("SHADER_SCAN"), 1);
 		OutEnvironment.SetDefine(TEXT("SORTING_SLICE_COUNT"), FSortedIndexBuffer::SliceCount);
-		OutEnvironment.CompilerFlags.Add(CFLAG_ForceDXC);
 	}
 };
 
@@ -550,7 +560,7 @@ public:
 
 	static bool ShouldCompilePermutation(const FGlobalShaderPermutationParameters& Parameters) 
 	{
-		return ShaderPrint::IsSupported(Parameters.Platform); 
+		return FOITSortTriangleIndex_ScanCS::SupportDebugMode(Parameters.Platform);
 	}
 
 	static void ModifyCompilationEnvironment(const FGlobalShaderPermutationParameters& Parameters, FShaderCompilerEnvironment& OutEnvironment)
@@ -558,7 +568,6 @@ public:
 		FGlobalShader::ModifyCompilationEnvironment(Parameters, OutEnvironment);
 		OutEnvironment.SetDefine(TEXT("SHADER_DEBUG"), 1);
 		OutEnvironment.SetDefine(TEXT("SORTING_SLICE_COUNT"), FSortedIndexBuffer::SliceCount);
-		OutEnvironment.CompilerFlags.Add(CFLAG_ForceDXC);
 	}
 };
 
@@ -632,7 +641,7 @@ static void AddOITSortTriangleIndexPass(
 	AddClearUAVPass(GraphBuilder, SliceCounterUAV, 0u);
 
 	const EShaderPlatform Platform = View.Family->GetShaderPlatform();
-	const bool bDebugEnable = DebugData.IsValid() && ShaderPrint::IsSupported(Platform) && ShaderPrint::IsValid(View.ShaderPrintData);
+	const bool bDebugEnable = DebugData.IsValid() && FOITSortTriangleIndex_ScanCS::SupportDebugMode(Platform) && ShaderPrint::IsValid(View.ShaderPrintData);
 	FRHIBuffer* SortedIndexBufferRHI = Allocation.SortedIndexBuffer->IndexBufferRHI;
 
 	// 1. Scan the primitive and assign each primitive to a slice
@@ -645,6 +654,7 @@ static void AddOITSortTriangleIndexPass(
 
 		FOITSortTriangleIndex_ScanCS::FParameters* Parameters = GraphBuilder.AllocParameters<FOITSortTriangleIndex_ScanCS::FParameters>();
 		Parameters->LocalToView				= FMatrix44f(MeshBatch.Proxy->GetLocalToWorld() * View.ViewMatrices.GetViewMatrix());
+		Parameters->LocalToWorld 			= FMatrix44f(MeshBatch.Proxy->GetLocalToWorld());
 		Parameters->SourcePrimitiveType		= Allocation.SourcePrimitiveType == PT_TriangleStrip ? 1u : 0u;
 		Parameters->NumPrimitives			= Allocation.NumPrimitives;
 		Parameters->NumIndices				= Allocation.NumIndices;
@@ -654,6 +664,9 @@ static void AddOITSortTriangleIndexPass(
 		Parameters->SortedIndexBufferSizeInByte = Allocation.SortedIndexBuffer->IndexBufferRHI->GetSize();
 		Parameters->PositionBuffer			= VertexPosition;
 		Parameters->SourceFirstIndex		= Allocation.SourceFirstIndex;
+		Parameters->SourceBaseVertexIndex	= Allocation.SourceBaseVertexIndex;
+		Parameters->SourceMinVertexIndex	= Allocation.SourceMinVertexIndex;
+		Parameters->SourceMaxVertexIndex	= Allocation.SourceMaxVertexIndex;
 		Parameters->IndexBuffer				= Allocation.SourceIndexSRV;
 		Parameters->OutIndexBuffer			= Allocation.SortedIndexUAV;
 		Parameters->OutSliceCounterBuffer	= SliceCounterUAV;
@@ -662,16 +675,12 @@ static void AddOITSortTriangleIndexPass(
 		// Debug
 		if (bDebugEnable)
 		{
-			ShaderPrint::SetEnabled(true);
-			ShaderPrint::RequestSpaceForCharacters(DebugData.VisibleInstances * 256 + 512);
-			ShaderPrint::RequestSpaceForLines(DebugData.VisiblePrimitives * 8 + DebugData.VisibleInstances * 32);
-
 			Parameters->ViewToWorld		= FMatrix44f(View.ViewMatrices.GetViewMatrix().Inverse());	 // LWC_TODO: Precision loss?
 			Parameters->WorldBound_Min	= (FVector3f)Bounds.GetBox().Min;
 			Parameters->WorldBound_Max	= (FVector3f)Bounds.GetBox().Max;
 			Parameters->ViewBound_Min	= (FVector3f)ViewBounds.GetBox().Min;
 			Parameters->ViewBound_Max	= (FVector3f)ViewBounds.GetBox().Max;
-				ShaderPrint::SetParameters(GraphBuilder, View.ShaderPrintData, Parameters->ShaderPrintParameters);
+			ShaderPrint::SetParameters(GraphBuilder, View.ShaderPrintData, Parameters->ShaderPrintParameters);
 
 			check(DebugData.Buffer);
 
@@ -852,18 +861,24 @@ namespace OIT
 		if (bDebugEnable)
 		{
 			const uint32 ValidAllocationCount = OITSceneData.Allocations.Num();
-			DebugData.Buffer = GraphBuilder.CreateBuffer(FRDGBufferDesc::CreateBufferDesc(4u, ValidAllocationCount + 1), TEXT("OIT.DebugData"));
+			DebugData.Buffer = GraphBuilder.CreateBuffer(FRDGBufferDesc::CreateBufferDesc(4u, 10*ValidAllocationCount + 1), TEXT("OIT.DebugData"));
 			AddClearUAVPass(GraphBuilder, GraphBuilder.CreateUAV(DebugData.Buffer, FOITDebugData::Format), 0u);
 
 			// Allocated/used
+			uint32 AllocatedNumPrimitives = 0;
 			for (const FSortedTriangleData& Allocated : OITSceneData.Allocations)
 			{
 				if (Allocated.IsValid())
 				{
 					++DebugData.AllocatedBuffers;
 					DebugData.AllocatedIndexSizeInBytes += Allocated.SortedIndexBuffer->IndexBufferRHI->GetSize();
+					AllocatedNumPrimitives += Allocated.NumPrimitives;
 				}
 			}
+
+			ShaderPrint::SetEnabled(true);
+			ShaderPrint::RequestSpaceForCharacters(DebugData.AllocatedBuffers * 256 + 512);
+			ShaderPrint::RequestSpaceForLines(AllocatedNumPrimitives * 8 + DebugData.AllocatedBuffers * 32);
 
 			// Unused
 			for (const FSortedIndexBuffer* FreeBuffer : OITSceneData.FreeBuffers)

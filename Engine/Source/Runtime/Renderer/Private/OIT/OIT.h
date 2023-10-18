@@ -42,6 +42,9 @@ struct FSortedTriangleData
 
 	uint32 SortedFirstIndex = 0;
 	uint32 SourceFirstIndex	= 0;
+	uint32 SourceBaseVertexIndex = 0;
+	uint32 SourceMinVertexIndex = 0;
+	uint32 SourceMaxVertexIndex = 0;
 	uint32 NumPrimitives = 0;
 	uint32 NumIndices = 0;
 
@@ -71,7 +74,7 @@ struct FOITData
 struct FOITSceneData
 {
 	/* Allocate sorted-triangle data for a instance */
-	FSortedTriangleData Allocate(FRHICommandListBase& RHICmdList, const FIndexBuffer* InSource, EPrimitiveType PrimitiveType, uint32 InFirstIndex, uint32 InNumPrimitives);
+	FSortedTriangleData Allocate(FRHICommandListBase& RHICmdList, EPrimitiveType PrimitiveType, const FMeshBatchElement& InMeshElement);
 
 	/* Deallocate sorted-triangle data */
 	void Deallocate(FIndexBuffer* IndexBuffer);
