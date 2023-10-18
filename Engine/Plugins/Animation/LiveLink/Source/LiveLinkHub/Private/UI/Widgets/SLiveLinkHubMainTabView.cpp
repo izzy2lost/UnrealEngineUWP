@@ -1,0 +1,232 @@
+// Copyright Epic Games, Inc. All Rights Reserved.
+
+#include "SLiveLinkHubMainTabView.h"
+
+#include "Features/IModularFeatures.h"
+#include "IDetailsView.h"
+#include "ILiveLinkClient.h"
+#include "LiveLinkClientPanelViews.h"
+#include "LiveLinkClientPanelToolbar.h"
+#include "LiveLinkHub.h"
+#include "LiveLinkHubModule.h"
+#include "LiveLinkPanelController.h"
+#include "Modules/ModuleManager.h"
+#include "Recording/LiveLinkHubPlaybackController.h"
+#include "Recording/LiveLinkHubRecordingController.h"
+#include "Recording/LiveLinkHubRecordingListController.h"
+#include "SLiveLinkDataView.h"
+#include "Widgets/Docking/SDockTab.h"
+#include "Widgets/Input/SCheckBox.h"
+#include "Widgets/Text/STextBlock.h"
+
+#define LOCTEXT_NAMESPACE "LiveLinkHub.SLiveLinkHubMainTabView"
+
+const FName SLiveLinkHubMainTabView::StatusBarTabId("StatusBarTabId");
+const FName SLiveLinkHubMainTabView::SourcesTabId("SourcesTabId");
+const FName SLiveLinkHubMainTabView::SourceDetailsTabId("SourceDetailsTabId");
+const FName SLiveLinkHubMainTabView::SubjectsTabId("SubjectsTabId");
+const FName SLiveLinkHubMainTabView::SubjectsDetailsTabId("SubjectsDetailsTabId");
+const FName SLiveLinkHubMainTabView::PlaybackTabId("PlaybackTabId");
+const FName SLiveLinkHubMainTabView::ClientsTabId("ClientsTabId");
+const FName SLiveLinkHubMainTabView::ClientDetailsTabId("ClientDetailsTabId");
+
+const FText SLiveLinkHubMainTabView::SourcesTabName = LOCTEXT("SourcesTabLabel", "Sources");
+const FText SLiveLinkHubMainTabView::SourceDetailsTabName = LOCTEXT("SourceDetailsTabLabel", "Source Details");
+const FText SLiveLinkHubMainTabView::SubjectsTabName = LOCTEXT("SubjectsTabLabel", "Subjects");
+const FText SLiveLinkHubMainTabView::SubjectsDetailsTabName = LOCTEXT("SubjectsDetailsTabLabel", "Subjects Details");
+const FText SLiveLinkHubMainTabView::PlaybackTabName = LOCTEXT("PlaybackTabLabel", "Playback");
+const FText SLiveLinkHubMainTabView::ClientsTabName = LOCTEXT("ClientsTabLabel", "Clients");
+const FText SLiveLinkHubMainTabView::ClientDetailsTabName = LOCTEXT("ClientDetailsTabLabel", "Client Details");
+
+void SLiveLinkHubMainTabView::Construct(const FArguments& InArgs, FName InStatusBarID)
+{	
+	PanelController = MakeShared<FLiveLinkPanelController>();
+
+	SLiveLinkHubTabViewWithManagerBase::Construct(
+		SLiveLinkHubTabViewWithManagerBase::FArguments()
+		.ConstructUnderWindow(InArgs._ConstructUnderWindow)
+		.ConstructUnderMajorTab(InArgs._ConstructUnderMajorTab)
+		.CreateTabs(FCreateTabs::CreateLambda([this, &InArgs](const TSharedRef<FTabManager>& InTabManager, const TSharedRef<FTabManager::FLayout>& InLayout)
+		{
+			CreateTabs(InTabManager, InLayout, InArgs);
+		}))
+		.LayoutName("LiveLinkHubSourcesTabView_v1.0")
+	);
+}
+
+void SLiveLinkHubMainTabView::CreateTabs(const TSharedRef<FTabManager>& InTabManager, const TSharedRef<FTabManager::FLayout>& InLayout, const FArguments& InArgs)
+{
+	InTabManager->RegisterTabSpawner(SourcesTabId, FOnSpawnTab::CreateSP(this, &SLiveLinkHubMainTabView::SpawnSourcesTab))
+		.SetDisplayName(SourcesTabName);
+	InTabManager->RegisterTabSpawner(SourceDetailsTabId, FOnSpawnTab::CreateSP(this, &SLiveLinkHubMainTabView::SpawnSourcesDetailsTab))
+		.SetDisplayName(SourceDetailsTabName);
+	InTabManager->RegisterTabSpawner(SubjectsTabId, FOnSpawnTab::CreateSP(this, &SLiveLinkHubMainTabView::SpawnSubjectsTab))
+		.SetDisplayName(SubjectsTabName);
+	InTabManager->RegisterTabSpawner(SubjectsDetailsTabId, FOnSpawnTab::CreateSP(this, &SLiveLinkHubMainTabView::SpawnSubjectsDetailsTab))
+		.SetDisplayName(SubjectsDetailsTabName);
+	InTabManager->RegisterTabSpawner(PlaybackTabId, FOnSpawnTab::CreateSP(this, &SLiveLinkHubMainTabView::SpawnPlaybackTab))
+		.SetDisplayName(PlaybackTabName);
+	InTabManager->RegisterTabSpawner(ClientsTabId, FOnSpawnTab::CreateSP(this, &SLiveLinkHubMainTabView::SpawnClientsTab))
+		.SetDisplayName(ClientsTabName);
+	InTabManager->RegisterTabSpawner(ClientDetailsTabId, FOnSpawnTab::CreateSP(this, &SLiveLinkHubMainTabView::SpawnClientDetailsTab))
+		.SetDisplayName(ClientDetailsTabName);
+	
+	InLayout->AddArea
+		(
+			FTabManager::NewPrimaryArea()
+				->SetOrientation(Orient_Vertical)
+				->Split
+				(
+					FTabManager::NewSplitter()
+					->SetSizeCoefficient(1.f)
+					->SetOrientation(Orient_Horizontal)
+					->Split
+					(
+						FTabManager::NewSplitter()
+						->SetSizeCoefficient(0.25f)
+						->SetOrientation(Orient_Vertical)
+						->Split
+						(
+							FTabManager::NewStack()
+							->SetSizeCoefficient(0.5f)
+							->AddTab(SourcesTabId, ETabState::OpenedTab)
+						)
+						->Split
+						(
+							FTabManager::NewStack()
+							->SetSizeCoefficient(0.5f)
+							->AddTab(SourceDetailsTabId, ETabState::OpenedTab)
+						)
+					)
+					->Split
+					(
+						FTabManager::NewSplitter()
+						->SetSizeCoefficient(0.25f)
+						->SetOrientation(Orient_Vertical)
+						->Split
+						(
+							FTabManager::NewStack()
+							->SetSizeCoefficient(0.5f)
+							->AddTab(SubjectsTabId, ETabState::OpenedTab)
+							->AddTab(PlaybackTabId, ETabState::OpenedTab)
+							->SetForegroundTab(SubjectsTabId)
+						)
+						->Split
+						(
+							FTabManager::NewStack()
+							->SetSizeCoefficient(0.5f)
+							->AddTab(SubjectsDetailsTabId, ETabState::OpenedTab)
+						)
+					)
+					->Split
+					(
+						FTabManager::NewSplitter()
+						->SetSizeCoefficient(0.25f)
+						->SetOrientation(Orient_Vertical)
+						->Split
+						(
+							FTabManager::NewStack()
+							->SetSizeCoefficient(0.5f)
+							->AddTab(ClientsTabId, ETabState::OpenedTab)
+						)
+						->Split
+						(
+							FTabManager::NewStack()
+							->SetSizeCoefficient(0.5f)
+							->AddTab(ClientDetailsTabId, ETabState::OpenedTab)
+						)
+					)
+				)
+		);
+}
+
+TSharedRef<SDockTab> SLiveLinkHubMainTabView::SpawnSourcesTab(const FSpawnTabArgs& InTabArgs)
+{
+	FLiveLinkClient* Client = (FLiveLinkClient*)&IModularFeatures::Get().GetModularFeature<ILiveLinkClient>(ILiveLinkClient::ModularFeatureName);
+	FLiveLinkHubModule& LiveLinkHubModule = FModuleManager::Get().GetModuleChecked<FLiveLinkHubModule>("LiveLinkHub");
+	
+	return SNew(SDockTab)
+		.TabRole(PanelTab)
+		[
+			SNew(SVerticalBox)
+			+SVerticalBox::Slot()
+			.AutoHeight()
+			[
+				SNew(SLiveLinkClientPanelToolbar, Client)
+				.ParentWindow(LiveLinkHubModule.GetLiveLinkHub()->GetRootWindow())
+			]
+			+SVerticalBox::Slot()
+			.FillHeight(1.f)
+			.Padding(FMargin(0.0f, 4.0f, 0.0f, 0.0f))
+			[
+				PanelController->SourcesView->SourcesListView.ToSharedRef()
+			]
+		];
+}
+
+
+TSharedRef<SDockTab> SLiveLinkHubMainTabView::SpawnSourcesDetailsTab(const FSpawnTabArgs& InTabArgs)
+{
+	return SNew(SDockTab)
+		.Label(SourceDetailsTabName)
+		.TabRole(PanelTab)
+		[
+			PanelController->SourcesDetailsView.ToSharedRef()
+		];
+}
+
+TSharedRef<SDockTab> SLiveLinkHubMainTabView::SpawnSubjectsTab(const FSpawnTabArgs& InTabArgs)
+{
+	return SNew(SDockTab)
+		.Label(SubjectsTabName)
+		.TabRole(PanelTab)
+		[
+			PanelController->SubjectsView->SubjectsTreeView.ToSharedRef()
+		];
+}
+
+TSharedRef<SDockTab> SLiveLinkHubMainTabView::SpawnSubjectsDetailsTab(const FSpawnTabArgs& InTabArgs)
+{
+	return SNew(SDockTab)
+		.Label(SubjectsDetailsTabName)
+		.TabRole(PanelTab)
+		[
+			PanelController->SubjectsDetailsView.ToSharedRef()
+		];
+}
+
+TSharedRef<SDockTab> SLiveLinkHubMainTabView::SpawnPlaybackTab(const FSpawnTabArgs& InTabArgs)
+{
+	FLiveLinkHubModule& LiveLinkHubModule = FModuleManager::Get().GetModuleChecked<FLiveLinkHubModule>("LiveLinkHub");
+
+	return SNew(SDockTab)
+		.Label(PlaybackTabName)
+		.TabRole(PanelTab)
+		[
+			LiveLinkHubModule.GetRecordingListController()->MakeRecordingList()
+		];
+}
+
+TSharedRef<SDockTab> SLiveLinkHubMainTabView::SpawnClientsTab(const FSpawnTabArgs& InTabArgs)
+{
+	return SNew(SDockTab)
+		.Label(ClientsTabName)
+		.TabRole(PanelTab)
+		[
+			SNew(STextBlock)
+			.Text(LOCTEXT("TemporaryText", "Client list here"))
+		];
+}
+
+TSharedRef<SDockTab> SLiveLinkHubMainTabView::SpawnClientDetailsTab(const FSpawnTabArgs& InTabArgs)
+{
+	return SNew(SDockTab)
+		.Label(ClientDetailsTabName)
+		.TabRole(PanelTab)
+		[
+			SNew(STextBlock)
+			.Text(LOCTEXT("TemporaryText", "Client details here"))
+		];
+}
+
+#undef LOCTEXT_NAMESPACE

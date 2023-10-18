@@ -16,6 +16,24 @@ namespace UnrealBuildTool.Rules
 			PrivateDependencyModuleNames.AddRange(
 			new string[]
 			{
+				"ApplicationCore",
+				"AssetTools",
+				"ContentBrowser",
+				"ContentBrowserAssetDataSource",
+				"ContentBrowserData",
+				"Engine",
+				"InputCore",
+				"LiveLink",
+				"LiveLinkEditor",
+				"LiveLinkInterface",
+				"LiveLinkMessageBusFramework",
+				"Slate",
+				"SlateCore",
+				"StandaloneRenderer",
+				"StructUtils",
+				"TimeManagement",
+				"ToolWidgets",
+				"UnrealEd",
 			});
 		}
 	}
