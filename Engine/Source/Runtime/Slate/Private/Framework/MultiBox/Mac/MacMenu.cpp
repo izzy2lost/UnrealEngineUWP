@@ -4,6 +4,7 @@
 #include "Framework/Application/SlateApplication.h"
 #include "Mac/CocoaThread.h"
 #include "Mac/MacApplication.h"
+#include "Misc/ConfigCacheIni.h"
 #include "Misc/ScopeLock.h"
 #include "HAL/PlatformApplicationMisc.h"
 #include "Framework/Commands/Commands.h"
