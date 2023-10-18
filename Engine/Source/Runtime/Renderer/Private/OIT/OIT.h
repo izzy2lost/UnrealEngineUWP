@@ -9,6 +9,7 @@
 
 class FViewInfo;
 class FSortedIndexBuffer;
+struct FMeshBatchElement;
 struct FMeshBatchElementDynamicIndexBuffer;
 class FViewInfo;
 

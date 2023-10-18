@@ -3,6 +3,7 @@
 #include "OIT.h"
 #include "DataDrivenShaderPlatformInfo.h"
 #include "LocalVertexFactory.h"
+#include "MeshBatch.h"
 #include "OITParameters.h"
 #include "Shader.h"
 #include "GlobalShader.h"
