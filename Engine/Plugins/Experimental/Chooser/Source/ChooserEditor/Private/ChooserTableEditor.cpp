@@ -217,7 +217,7 @@ void FChooserTableEditor::RegisterToolbar()
 						{
 							if (Chooser->HasDebugTarget())
 							{
-								return  FText::FromString(Chooser->GetDebugTarget()->GetName());
+								return  FText::FromString(Chooser->GetDebugTargetName());
 							}
 							else
 							{

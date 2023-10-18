@@ -6,6 +6,7 @@
 #include "IChooserParameterEnum.h"
 #include "InstancedStruct.h"
 #include "ChooserPropertyAccess.h"
+#include "Serialization/MemoryReader.h"
 #include "EnumColumn.generated.h"
 
 struct FBindingChainElement;
@@ -119,10 +120,16 @@ public:
 	virtual void Filter(FChooserEvaluationContext& Context, const TArray<uint32>& IndexListIn, TArray<uint32>& IndexListOut) const override;
 	
 #if WITH_EDITOR
-	mutable int32 TestValue;
+	mutable uint8 TestValue = 0;
 	virtual bool EditorTestFilter(int32 RowIndex) const override
 	{
 		return RowValues.IsValidIndex(RowIndex) && RowValues[RowIndex].Evaluate(TestValue);
+	}
+	
+	virtual void SetTestValue(TArrayView<const uint8> Value) override
+	{
+		FMemoryReaderView Reader(Value);
+		Reader << TestValue;
 	}
 #endif
 	

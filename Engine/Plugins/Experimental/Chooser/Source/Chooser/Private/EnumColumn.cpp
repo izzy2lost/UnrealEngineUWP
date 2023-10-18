@@ -1,6 +1,7 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 #include "EnumColumn.h"
 #include "ChooserPropertyAccess.h"
+#include "ChooserTrace.h"
 
 
 bool FEnumContextProperty::GetValue(FChooserEvaluationContext& Context, uint8& OutResult) const
@@ -73,6 +74,8 @@ void FEnumColumn::Filter(FChooserEvaluationContext& Context, const TArray<uint32
 			TestValue = Result;
 		}
 #endif
+
+		TRACE_CHOOSER_VALUE(Context, ToCStr(InputValue.Get<FChooserParameterBase>().GetDebugName()), Result);
 		
 		for (const uint32 Index : IndexListIn)
 		{
