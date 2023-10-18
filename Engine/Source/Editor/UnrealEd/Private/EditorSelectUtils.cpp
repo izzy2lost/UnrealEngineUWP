@@ -571,7 +571,7 @@ bool UUnrealEdEngine::CanSelectActor(AActor* Actor, bool bInSelected, bool bSele
 
 void UUnrealEdEngine::SelectActor(AActor* Actor, bool bInSelected, bool bNotify, bool bSelectEvenIfHidden, bool bForceRefresh)
 {
-	if (!Actor || Actor->GetRootSelectionParent() != nullptr)
+	if (!Actor || (Actor->GetRootSelectionParent() != nullptr && !Actor->SupportsSubRootSelection()))
 	{
 		return;
 	}
@@ -589,7 +589,8 @@ void UUnrealEdEngine::SelectActor(AActor* Actor, bool bInSelected, bool bNotify,
 		const FTypedElementSelectionOptions SelectionOptions = FTypedElementSelectionOptions()
 			.SetAllowHidden(bSelectEvenIfHidden)
 			.SetWarnIfLocked(true)
-			.SetAllowLegacyNotifications(false);
+			.SetAllowLegacyNotifications(false)
+			.SetAllowSubRootSelection(Actor->SupportsSubRootSelection());
 
 		const bool bSelectionChanged = bInSelected
 			? SelectionSet->SelectElement(UEngineElementsLibrary::AcquireEditorActorElementHandle(Actor), SelectionOptions)

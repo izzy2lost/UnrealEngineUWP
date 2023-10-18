@@ -2945,6 +2945,9 @@ public:
 	/** Returns top most selection parent */
 	ENGINE_API virtual AActor* GetRootSelectionParent() const;
 
+	/** Returns true if actor can be selected as a sub selection of its root selection parent */
+	ENGINE_API virtual bool SupportsSubRootSelection() const { return false; }
+
 	/** Returns if actor or selection parent is selected */
 	ENGINE_API bool IsActorOrSelectionParentSelected() const;
 

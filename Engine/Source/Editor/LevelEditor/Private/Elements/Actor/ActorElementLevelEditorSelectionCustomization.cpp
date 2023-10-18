@@ -170,10 +170,13 @@ bool FActorElementLevelEditorSelectionCustomization::SelectActorElement(const TT
 		}
 	}
 
-	// If trying to select an actor, use this actors root selection actor instead (if it has one)
-	if (AActor* RootSelection = Actor->GetRootSelectionParent())
+	// If trying to select an actor, use this actors root selection actor instead (if it has one), unless actor supports being selected with a root and options allow it
+	if (!(InSelectionOptions.AllowSubRootSelection() && Actor->SupportsSubRootSelection()))
 	{
-		Actor = RootSelection;
+		if (AActor* RootSelection = Actor->GetRootSelectionParent())
+		{
+			Actor = RootSelection;
+		}
 	}
 
 	bool bSelectionChanged = false;
@@ -242,10 +245,14 @@ bool FActorElementLevelEditorSelectionCustomization::DeselectActorElement(const 
 
 	bool bSelectionChanged = false;
 
-	// If trying to deselect an actor, use this actors root selection actor instead (if it has one)
-	if (AActor* RootSelection = Actor->GetRootSelectionParent())
+	// If Selection options allows selection of sub root actors and sub actor is selected directly, avoid getting root selection parent
+	if (!(InSelectionOptions.AllowSubRootSelection() && Actor->SupportsSubRootSelection() && InActorSelectionHandle.IsElementSelected(InSelectionSet, FTypedElementIsSelectedOptions().SetAllowIndirect(false))))
 	{
-		Actor = RootSelection;
+		// If trying to deselect an actor, use this actors root selection actor instead (if it has one)
+		if (AActor* RootSelection = Actor->GetRootSelectionParent())
+		{
+			Actor = RootSelection;
+		}
 	}
 
 	if (UActorGroupingUtils::IsGroupingActive() && InSelectionOptions.AllowGroups())

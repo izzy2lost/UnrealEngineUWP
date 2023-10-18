@@ -72,6 +72,9 @@ public:
 	FTypedElementSelectionOptions& SetWarnIfLocked(const bool InWarnIfLocked) { bWarnIfLocked = InWarnIfLocked; return *this; }
 	bool WarnIfLocked() const { return bWarnIfLocked; }
 
+	FTypedElementSelectionOptions& SetAllowSubRootSelection(const bool InAllowSubRootSelectioin) { bAllowSubRootSelection = InAllowSubRootSelectioin; return *this; }
+	bool AllowSubRootSelection() const { return bAllowSubRootSelection; }
+
 	FTypedElementSelectionOptions& SetChildElementInclusionMethod(const ETypedElementChildInclusionMethod InChildElementInclusionMethod) { ChildElementInclusionMethod = InChildElementInclusionMethod; return *this; }
 	ETypedElementChildInclusionMethod GetChildElementInclusionMethod() const { return ChildElementInclusionMethod; }
 
@@ -90,6 +93,9 @@ private:
 
 	UPROPERTY(BlueprintReadWrite, Category="TypedElementInterfaces|Selection|SelectionOptions", meta=(AllowPrivateAccess=true))
 	bool bWarnIfLocked = false;
+
+	UPROPERTY(BlueprintReadWrite, Category = "TypedElementInterfaces|Selection|SelectionOptions", meta = (AllowPrivateAccess = true))
+	bool bAllowSubRootSelection = false;
 
 	UPROPERTY(BlueprintReadWrite, Category="TypedElementInterfaces|Selection|SelectionOptions", meta=(AllowPrivateAccess=true))
 	ETypedElementChildInclusionMethod ChildElementInclusionMethod = ETypedElementChildInclusionMethod::None;

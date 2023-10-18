@@ -330,10 +330,13 @@ bool UTypedElementSelectionSet::ClearSelection(const FTypedElementSelectionOptio
 		// Take a copy of the currently selected elements to avoid mutating the selection set while iterating
 		TArray<FTypedElementHandle, TInlineAllocator<8>> ElementsCopy;
 		ElementList->GetElementHandles(ElementsCopy);
+		FTypedElementSelectionOptions CopySelectionOptions(InSelectionOptions);
 
+		// Always support SubRootSelection when clearing
+		CopySelectionOptions.SetAllowSubRootSelection(true);
 		for (const FTypedElementHandle& ElementHandle : ElementsCopy)
 		{
-			bSelectionChanged |= DeselectElement(ElementHandle, InSelectionOptions);
+			bSelectionChanged |= DeselectElement(ElementHandle, CopySelectionOptions);
 		}
 	}
 
