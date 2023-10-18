@@ -15,9 +15,7 @@ namespace UE::NNERuntimeORT::Private
 {
 	struct FRuntimeConf
 	{
-		uint32 NumberOfThreads = 2;
 		GraphOptimizationLevel OptimizationLevel = GraphOptimizationLevel::ORT_ENABLE_ALL;
-		EThreadPriority ThreadPriority = EThreadPriority::TPri_Normal;
 	};
 
 	template <class ModelInterface, class TensorBinding> class FModelInstanceORTBase : public NNE::Internal::FModelInstanceBase<ModelInterface>

@@ -1,6 +1,8 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 
 #include "NNERuntimeORTModel.h"
+
+#include "HAL/PlatformMisc.h"
 #include "NNERuntimeORT.h"
 #include "NNERuntimeORTUtils.h"
 
@@ -86,7 +88,6 @@ namespace UE::NNERuntimeORT::Private
 		AllocatorInfo = MakeUnique<Ort::MemoryInfo>(Ort::MemoryInfo::CreateCpu(OrtDeviceAllocator, OrtMemTypeCPU));
 		SessionOptions = MakeUnique<Ort::SessionOptions>();
 
-		SessionOptions->SetIntraOpNumThreads(RuntimeConf.NumberOfThreads);
 		SessionOptions->SetGraphOptimizationLevel(RuntimeConf.OptimizationLevel);
 
 		return true;
@@ -179,6 +180,8 @@ namespace UE::NNERuntimeORT::Private
 	int32 FModelInstanceORTBase<ModelInterface, TensorBinding>::RunSync(TConstArrayView<TensorBinding> InInputBindings, TConstArrayView<TensorBinding> InOutputBindings)
 	{
 		checkf(Session.IsValid(), TEXT("FModelInstanceORT::RunSync(): Called without a Session, FModelInstanceORT::Init() should have been called."));
+
+		SCOPED_NAMED_EVENT_TEXT("FModelInstanceORTBase::RunSync", FColor::Magenta);
 
 		// Verify the model inputs were prepared
 		if (NNE::Internal::FModelInstanceBase<ModelInterface>::InputTensorShapes.Num() == 0)
