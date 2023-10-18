@@ -93,9 +93,10 @@ void FRayTracingGeometry::RequestBuildIfNeeded(ERTAccelerationStructureBuildPrio
 	RequestBuildIfNeeded(FRHICommandListImmediate::Get(), InBuildPriority);
 }
 
-void FRayTracingGeometry::InitRHIForDynamicRayTracing(FRHICommandList& RHICmdList)
+void FRayTracingGeometry::MakeResident(FRHICommandList& RHICmdList)
 {
-	check(GetRayTracingMode() == ERayTracingMode::Dynamic);
+	check(EnumHasAllFlags(GeometryState, EGeometryStateFlags::Evicted) && RayTracingGeometryRHI == nullptr);
+	EnumRemoveFlags(GeometryState, EGeometryStateFlags::Evicted);
 
 	// Streaming BLAS needs special handling to not get their "streaming" type wiped out as it will cause issues down the line.	
 	// We only have to do this if the geometry was marked to be streamed in.
@@ -136,13 +137,17 @@ void FRayTracingGeometry::InitRHIForDynamicRayTracing(FRHICommandList& RHICmdLis
 
 void FRayTracingGeometry::InitRHIForDynamicRayTracing()
 {
-	InitRHIForDynamicRayTracing(FRHICommandListImmediate::Get());
+	check(GetRayTracingMode() == ERayTracingMode::Dynamic);
+
+	MakeResident(FRHICommandListImmediate::Get());
 }
 
 void FRayTracingGeometry::Evict()
 {
+	check(!EnumHasAllFlags(GeometryState, EGeometryStateFlags::Evicted) && RayTracingGeometryRHI != nullptr);
 	RemoveBuildRequest();
 	RayTracingGeometryRHI.SafeRelease();
+	EnumAddFlags(GeometryState, EGeometryStateFlags::Evicted);
 }
 
 void FRayTracingGeometry::CreateRayTracingGeometry(FRHICommandList& RHICmdList, ERTAccelerationStructureBuildPriority InBuildPriority)
@@ -185,13 +190,17 @@ void FRayTracingGeometry::CreateRayTracingGeometry(FRHICommandList& RHICmdList, 
 		{
 			RayTracingGeometryRHI = RHICmdList.CreateRayTracingGeometry(Initializer);
 		}
+		else
+		{
+			EnumAddFlags(GeometryState, EGeometryStateFlags::Evicted);
+		}
 
 		if (Initializer.OfflineData == nullptr)
 		{
 			// Request build if not skip
 			if (InBuildPriority != ERTAccelerationStructureBuildPriority::Skip)
 			{
-				if (IsRayTracingEnabled())
+				if (RayTracingGeometryRHI)
 				{
 					RayTracingBuildRequestIndex = GRayTracingGeometryManager.RequestBuildAccelerationStructure(RHICmdList, this, InBuildPriority);
 				}
@@ -225,7 +234,32 @@ void FRayTracingGeometry::CreateRayTracingGeometry(ERTAccelerationStructureBuild
 
 bool FRayTracingGeometry::IsValid() const
 {
-	return RayTracingGeometryRHI != nullptr && Initializer.TotalPrimitiveCount > 0 && EnumHasAnyFlags(GeometryState, EGeometryStateFlags::Valid);
+	// can't check IsInitialized() because current implementation of hair ray tracing support doesn't initialize resource
+	//check(IsInitialized());
+
+	const bool bIsValidAndNotEvicted = EnumHasAllFlags(GeometryState, EGeometryStateFlags::Valid) && !EnumHasAllFlags(GeometryState, EGeometryStateFlags::Evicted);
+
+	if (bIsValidAndNotEvicted)
+	{
+		check(RayTracingGeometryRHI != nullptr && Initializer.TotalPrimitiveCount > 0);
+	}
+
+	return bIsValidAndNotEvicted;
+}
+
+bool FRayTracingGeometry::IsEvicted() const
+{
+	// can't check IsInitialized() because current implementation of hair ray tracing support doesn't initialize resource
+	//check(IsInitialized());
+
+	const bool bIsEvicted = EnumHasAllFlags(GeometryState, EGeometryStateFlags::Evicted);
+
+	if (bIsEvicted)
+	{
+		check(RayTracingGeometryRHI == nullptr);
+	}
+
+	return bIsEvicted;
 }
 
 void FRayTracingGeometry::InitRHI(FRHICommandListBase& RHICmdList)

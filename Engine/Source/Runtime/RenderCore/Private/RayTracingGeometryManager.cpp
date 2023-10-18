@@ -128,8 +128,7 @@ void FRayTracingGeometryManager::Tick(FRHICommandList& RHICmdList, bool bHasRayT
 			FScopeLock ScopeLock(&RequestCS);
 			for (FRayTracingGeometry* Geometry : RegisteredGeometries)
 			{
-				checkf(!EnumHasAllFlags(Geometry->GetGeometryState(), FRayTracingGeometry::EGeometryStateFlags::Valid) || Geometry->RayTracingGeometryRHI != nullptr, 
-					TEXT("Ray tracing geometry should have a valid RHI resource when ray tracing is enabled."));
+				checkf(!Geometry->IsEvicted(), TEXT("Ray tracing geometry should not be evicted when ray tracing is enabled."));
 			}
 		}
 		else
@@ -137,7 +136,7 @@ void FRayTracingGeometryManager::Tick(FRHICommandList& RHICmdList, bool bHasRayT
 			FScopeLock ScopeLock(&RequestCS);
 			for (FRayTracingGeometry* Geometry : RegisteredGeometries)
 			{
-				checkf(Geometry->RayTracingGeometryRHI == nullptr, TEXT("Ray tracing geometry should not have a RHI resource when ray tracing is disabled."));
+				checkf(Geometry->IsEvicted() || Geometry->RayTracingGeometryRHI == nullptr, TEXT("Ray tracing geometry should be evicted when ray tracing is disabled."));
 			}
 		}
 #endif
@@ -149,9 +148,9 @@ void FRayTracingGeometryManager::Tick(FRHICommandList& RHICmdList, bool bHasRayT
 		FScopeLock ScopeLock(&RequestCS);
 		for (FRayTracingGeometry* Geometry : RegisteredGeometries)
 		{
-			if (Geometry->RayTracingGeometryRHI == nullptr)
+			if (Geometry->IsEvicted())
 			{
-				Geometry->InitRHIForDynamicRayTracing(RHICmdList);
+				Geometry->MakeResident(RHICmdList);
 			}
 		}
 	}
@@ -160,7 +159,10 @@ void FRayTracingGeometryManager::Tick(FRHICommandList& RHICmdList, bool bHasRayT
 		FScopeLock ScopeLock(&RequestCS);
 		for (FRayTracingGeometry* Geometry : RegisteredGeometries)
 		{
-			Geometry->Evict();			
+			if (Geometry->RayTracingGeometryRHI != nullptr)
+			{
+				Geometry->Evict();
+			}
 		}
 	}
 }

@@ -58,7 +58,10 @@ public:
 
 		// Special flag that is used when ray tracing is dynamic to mark the streamed geometry to be recreated when ray tracing is switched on.
 		// Only set when mesh streaming is used.
-		StreamedIn = 1 << 2
+		StreamedIn = 1 << 2,
+
+		// If the geometry is initialized but was evicted
+		Evicted = 1 << 3
 	};
 	FRIEND_ENUM_CLASS_FLAGS(EGeometryStateFlags);
 
@@ -71,6 +74,7 @@ public:
 	}
 
 	RENDERCORE_API bool IsValid() const;
+	RENDERCORE_API bool IsEvicted() const;
 
 	void SetAsStreamedIn()
 	{
@@ -109,11 +113,8 @@ public:
 
 	UE_DEPRECATED(5.4, "RequestBuildIfNeeded now requires a command list.")
 	RENDERCORE_API void RequestBuildIfNeeded(ERTAccelerationStructureBuildPriority InBuildPriority);
-	
-	// That function is only supposed to be used when dynamic ray tracing is enabled
-	RENDERCORE_API void InitRHIForDynamicRayTracing(FRHICommandList& RHICmdList);
 
-	UE_DEPRECATED(5.4, "InitRHIForDynamicRayTracing now requires a command list.")
+	UE_DEPRECATED(5.4, "InitRHIForDynamicRayTracing now requires a command list and was renamed to MakeResident().")
 	RENDERCORE_API void InitRHIForDynamicRayTracing();
 
 	RENDERCORE_API void CreateRayTracingGeometry(FRHICommandList& RHICmdList, ERTAccelerationStructureBuildPriority InBuildPriority);
@@ -121,6 +122,7 @@ public:
 	UE_DEPRECATED(5.4, "CreateRayTracingGeometry now requires a command list.")
 	RENDERCORE_API void CreateRayTracingGeometry(ERTAccelerationStructureBuildPriority InBuildPriority);
 
+	RENDERCORE_API void MakeResident(FRHICommandList& RHICmdList);
 	RENDERCORE_API void Evict();
 	
 	bool HasPendingBuildRequest() const
