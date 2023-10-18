@@ -533,7 +533,7 @@ void UEditorValidatorSubsystem::ValidateAssetsInternal(
 					else 
 					{
 						DataValidationLog.Info()->AddToken(FAssetDataToken::Create(Data))
-							->AddToken(FTextToken::Create(LOCTEXT("DataValidation.ContainsWarningsResult", "contains valid data.")));
+							->AddToken(FTextToken::Create(LOCTEXT("DataValidation.ValidResult", "contains valid data.")));
 					}
 					break;
 				case EDataValidationResult::NotValidated:
