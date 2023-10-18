@@ -17,11 +17,6 @@ namespace UnrealBuildTool.Rules
 				new string[] {
 				});
 
-			PrivateIncludePaths.AddRange(
-				new string[] {
-					Path.Combine(EngineDir, "Plugins/Media/PixelStreaming/Source/PixelStreaming/Private")
-				});
-
 			PublicDependencyModuleNames.AddRange(
 				new string[] {
 					"WebRTC",

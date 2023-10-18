@@ -3,7 +3,7 @@
 #include "PixelStreamingPeerComponent.h"
 #include "PixelStreamingPlayerPrivate.h"
 #include "PixelStreamingPeerConnection.h"
-#include "RTCStatsCollector.h"
+// #include "RTCStatsCollector.h"
 #include "Async/Async.h"
 
 UPixelStreamingPeerComponent::UPixelStreamingPeerComponent(const FObjectInitializer& ObjectInitializer)
@@ -14,11 +14,12 @@ UPixelStreamingPeerComponent::UPixelStreamingPeerComponent(const FObjectInitiali
 void UPixelStreamingPeerComponent::SetConfig(const FPixelStreamingRTCConfigWrapper& Config)
 {
 	PeerConnection = FPixelStreamingPeerConnection::Create(Config.Config);
-#if WEBRTC_5414
-	PeerConnection->SetWebRTCStatsCallback(rtc::scoped_refptr<UE::PixelStreaming::FRTCStatsCollector>(new UE::PixelStreaming::FRTCStatsCollector(TEXT("Streamer"))));
-#else
-	PeerConnection->SetWebRTCStatsCallback(new rtc::RefCountedObject<UE::PixelStreaming::FRTCStatsCollector>(TEXT("Streamer")));
-#endif
+	// TODO (william.belcher): Move the RTCStatsCollector from PixelStreaming to an Internal folder so it can be accessed across modules.
+	// #if WEBRTC_5414
+	// 	PeerConnection->SetWebRTCStatsCallback(rtc::scoped_refptr<UE::PixelStreaming::FRTCStatsCollector>(new UE::PixelStreaming::FRTCStatsCollector(TEXT("Streamer"))));
+	// #else
+	// 	PeerConnection->SetWebRTCStatsCallback(new rtc::RefCountedObject<UE::PixelStreaming::FRTCStatsCollector>(TEXT("Streamer")));
+	// #endif
 
 	if (PeerConnection)
 	{
@@ -46,10 +47,10 @@ FPixelStreamingSessionDescriptionWrapper UPixelStreamingPeerComponent::CreateOff
 	if (PeerConnection)
 	{
 		FPixelStreamingSessionDescriptionWrapper Wrapper;
-		FEvent* TaskEvent = FPlatformProcess::GetSynchEventFromPool();
-		const auto OnGeneralFailure = [&TaskEvent](const FString& ErrorMsg) {
-			UE_LOG(LogPixelStreamingPlayer, Error, TEXT("CreateOffer Failed: %s"), *ErrorMsg);
-			TaskEvent->Trigger();
+		FEvent*									 TaskEvent = FPlatformProcess::GetSynchEventFromPool();
+		const auto								 OnGeneralFailure = [&TaskEvent](const FString& ErrorMsg) {
+			  UE_LOG(LogPixelStreamingPlayer, Error, TEXT("CreateOffer Failed: %s"), *ErrorMsg);
+			  TaskEvent->Trigger();
 		};
 		AsyncTask(ENamedThreads::AnyNormalThreadNormalTask, [this, &TaskEvent, &Wrapper, &OnGeneralFailure]() {
 			PeerConnection->CreateOffer(
@@ -83,10 +84,10 @@ FPixelStreamingSessionDescriptionWrapper UPixelStreamingPeerComponent::CreateAns
 	if (PeerConnection)
 	{
 		FPixelStreamingSessionDescriptionWrapper Wrapper;
-		FEvent* TaskEvent = FPlatformProcess::GetSynchEventFromPool();
-		const auto OnGeneralFailure = [&TaskEvent](const FString& ErrorMsg) {
-			UE_LOG(LogPixelStreamingPlayer, Error, TEXT("CreateAnswer Failed: %s"), *ErrorMsg);
-			TaskEvent->Trigger();
+		FEvent*									 TaskEvent = FPlatformProcess::GetSynchEventFromPool();
+		const auto								 OnGeneralFailure = [&TaskEvent](const FString& ErrorMsg) {
+			  UE_LOG(LogPixelStreamingPlayer, Error, TEXT("CreateAnswer Failed: %s"), *ErrorMsg);
+			  TaskEvent->Trigger();
 		};
 		AsyncTask(ENamedThreads::AnyNormalThreadNormalTask, [this, &TaskEvent, &Sdp, &Wrapper, &OnGeneralFailure]() {
 			PeerConnection->ReceiveOffer(
@@ -125,7 +126,7 @@ void UPixelStreamingPeerComponent::ReceiveAnswer(const FString& Answer)
 {
 	if (PeerConnection)
 	{
-		FEvent* TaskEvent = FPlatformProcess::GetSynchEventFromPool();
+		FEvent*	   TaskEvent = FPlatformProcess::GetSynchEventFromPool();
 		const auto OnGeneralFailure = [&TaskEvent](const FString& ErrorMsg) {
 			UE_LOG(LogPixelStreamingPlayer, Error, TEXT("ReceiveAnswer Failed: %s"), *ErrorMsg);
 			TaskEvent->Trigger();
