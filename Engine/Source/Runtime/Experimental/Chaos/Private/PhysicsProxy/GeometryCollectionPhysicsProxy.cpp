@@ -60,10 +60,6 @@
 
 namespace
 {
-	const FName LinearVelocityAttributeName = "LinearVelocity";
-	const FName AngularVelocitiesAttributeName = "AngularVelocity";
-	const FName InternalClusterParentTypeArrayAttributeName = "InternalClusterParentTypeArray";
-	const FName AnimateTransformAttributeName = "AnimateTransformAttribute";
 	const FName MassToLocalAttributeName = "MassToLocal";
 	const FName MassAttributeName = "Mass";
 	const FName InertiaTensorAttributeName = "InertiaTensor";
@@ -3737,10 +3733,10 @@ bool FGeometryCollectionPhysicsProxy::PullNonInterpolatableDataFromSinglePhysics
 
 	bool bIsCollectionDirty = false;
 
-	TManagedArray<FVector3f>* LinearVelocities = GameThreadCollection.FindAttributeTyped<FVector3f>(LinearVelocityAttributeName, FTransformCollection::TransformGroup);
-	TManagedArray<FVector3f>* AngularVelocities = GameThreadCollection.FindAttributeTyped<FVector3f>(AngularVelocitiesAttributeName, FTransformCollection::TransformGroup);
-	TManagedArray<uint8>* InternalClusterParentTypeArray = GameThreadCollection.FindAttributeTyped<uint8>(InternalClusterParentTypeArrayAttributeName, FTransformCollection::TransformGroup);
-	const TManagedArray<bool>* AnimationsActive = GameThreadCollection.FindAttribute<bool>(AnimateTransformAttributeName, FGeometryCollection::TransformGroup);
+	TManagedArray<FVector3f>* LinearVelocities = GameThreadCollection.GetLinearVelocitiesAttribute();
+	TManagedArray<FVector3f>* AngularVelocities = GameThreadCollection.GetAngularVelocitiesAttribute();
+	TManagedArray<uint8>& InternalClusterParentTypeArray = GameThreadCollection.GetInternalClusterParentTypeAttribute();
+	const TManagedArray<bool>* AnimationsActive = GameThreadCollection.GetAnimateTransformAttribute();
 
 	// first step : process the non values that do not need to be interpolated 
 	for (int32 EntryIndex = 0; EntryIndex < CurrentResults.GetNumEntries(); EntryIndex++)
@@ -3779,25 +3775,22 @@ bool FGeometryCollectionPhysicsProxy::PullNonInterpolatableDataFromSinglePhysics
 			bIsCollectionDirty = true;
 		}
 
-		if (InternalClusterParentTypeArray)
+		Chaos::EInternalClusterType ParentType = Chaos::EInternalClusterType::None;
+		if (StateData.State.HasInternalClusterParent != 0)
 		{
-			Chaos::EInternalClusterType ParentType = Chaos::EInternalClusterType::None;
-			if (StateData.State.HasInternalClusterParent != 0)
+			if (StateData.State.HasClusterUnionParent)
 			{
-				if (StateData.State.HasClusterUnionParent)
-				{
-					ParentType = Chaos::EInternalClusterType::ClusterUnion;
-				}
-				else
-				{
-					ParentType = (StateData.State.DynamicInternalClusterParent != 0) ? Chaos::EInternalClusterType::Dynamic : Chaos::EInternalClusterType::KinematicOrStatic;
-				}
+				ParentType = Chaos::EInternalClusterType::ClusterUnion;
 			}
-			const uint8 ParentTypeUInt8 = static_cast<uint8>(ParentType);
-			if (UpdateValue((*InternalClusterParentTypeArray)[TransformGroupIndex], ParentTypeUInt8))
+			else
 			{
-				bIsCollectionDirty = true;
+				ParentType = (StateData.State.DynamicInternalClusterParent != 0) ? Chaos::EInternalClusterType::Dynamic : Chaos::EInternalClusterType::KinematicOrStatic;
 			}
+		}
+		const uint8 ParentTypeUInt8 = static_cast<uint8>(ParentType);
+		if (UpdateValue(InternalClusterParentTypeArray[TransformGroupIndex], ParentTypeUInt8))
+		{
+			bIsCollectionDirty = true;
 		}
 
 		// if interpolation is off , we need to apply XR, VW and transforms
@@ -3879,7 +3872,7 @@ bool FGeometryCollectionPhysicsProxy::PullFromPhysicsState(const Chaos::FDirtyGe
 		}
 		bIsCollectionDirty |= PullNonInterpolatableDataFromSinglePhysicsState(PullData, !bNeedInterpolation, NextPullData ? &NextPullData->Results().GetModifiedTransformIndices() : nullptr);
 
-		const TManagedArray<bool>* AnimationsActive = GameThreadCollection.FindAttribute<bool>(AnimateTransformAttributeName, FGeometryCollection::TransformGroup);
+		const TManagedArray<bool>* AnimationsActive = GameThreadCollection.GetAnimateTransformAttribute();
 		const TManagedArray<FTransform>& MassToLocal = Parameters.RestCollection->GetAttribute<FTransform>(MassToLocalAttributeName, FTransformCollection::TransformGroup);
 
 		// second : interpolate-able ones
@@ -3890,8 +3883,8 @@ bool FGeometryCollectionPhysicsProxy::PullFromPhysicsState(const Chaos::FDirtyGe
 			const FGeometryCollectionResults& PrevResults = PullData.Results();
 			const FGeometryCollectionResults& NextResults = NextPullData->Results();
 
-			TManagedArray<FVector3f>* LinearVelocities = GameThreadCollection.FindAttributeTyped<FVector3f>(LinearVelocityAttributeName, FTransformCollection::TransformGroup);
-			TManagedArray<FVector3f>* AngularVelocities = GameThreadCollection.FindAttributeTyped<FVector3f>(AngularVelocitiesAttributeName, FTransformCollection::TransformGroup);
+			TManagedArray<FVector3f>* LinearVelocities = GameThreadCollection.GetLinearVelocitiesAttribute();
+			TManagedArray<FVector3f>* AngularVelocities = GameThreadCollection.GetAngularVelocitiesAttribute();
 
 			// for that case we cannot just go through the list of entries since Results and NextResults may have different number of entries that don't always match
 			// so we need to go through the transform indices and find the matching entries on both side 

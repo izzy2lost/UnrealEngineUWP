@@ -118,6 +118,7 @@ const FName FGeometryDynamicCollection::ShapesSimDataAttribute("ShapesSimData");
 const FName FGeometryDynamicCollection::SimplicialsAttribute("CollisionParticles");
 const FName FGeometryDynamicCollection::SimulatableParticlesAttribute("SimulatableParticlesAttribute");
 const FName FGeometryDynamicCollection::SharedImplicitsAttribute("SharedImplicits");
+const FName FGeometryDynamicCollection::InternalClusterParentTypeAttribute("InternalClusterParentTypeArray");
 
 // Deprecated
 const FName FGeometryDynamicCollection::CollisionMaskAttribute("CollisionMask");
@@ -125,19 +126,48 @@ const FName FGeometryDynamicCollection::CollisionGroupAttribute("CollisionGroup"
 
 FGeometryDynamicCollection::FGeometryDynamicCollection(const FGeometryCollection* InRestCollection)
 	: FTransformDynamicCollection(InRestCollection)
+	, OptionalLinearVelocityAttribute(nullptr)
+	, OptionalAngularVelocityAttribute(nullptr)
+	, OptionalAnimateTransformAttribute(nullptr)
 {
 	// Transform Group
 	AddExternalAttribute<bool>(FGeometryDynamicCollection::ActiveAttribute, FTransformCollection::TransformGroup, Active);
 	AddExternalAttribute<uint8>(FGeometryDynamicCollection::DynamicStateAttribute, FTransformCollection::TransformGroup, DynamicState);
 	AddExternalAttribute(SimplicialsAttribute, FTransformCollection::TransformGroup, Simplicials);
 	AddExternalAttribute(SimulatableParticlesAttribute, FGeometryCollection::TransformGroup, SimulatableParticles);
-
+	AddExternalAttribute(InternalClusterParentTypeAttribute, FGeometryCollection::TransformGroup, InternalClusterParentType);
 }
 
 const TManagedArrayAccessor<int32> FGeometryDynamicCollection::GetInitialLevels() const
 {
 	static const FName LevelAttributeName = "Level";
 	return TManagedArrayAccessor<int32>(*RestCollection, LevelAttributeName, FGeometryCollection::TransformGroup);
+}
+
+void FGeometryDynamicCollection::AddVelocitiesAttributes()
+{
+	if (OptionalLinearVelocityAttribute == nullptr && OptionalAngularVelocityAttribute == nullptr)
+	{
+		static const FName LinearVelocityAttributeName = "LinearVelocity";
+		static const FName AngularVelocityAttributeName = "AngularVelocity";
+
+		OptionalLinearVelocityAttribute = &AddAttribute<FVector3f>(LinearVelocityAttributeName, FTransformCollection::TransformGroup);
+		OptionalAngularVelocityAttribute = &AddAttribute<FVector3f>(AngularVelocityAttributeName, FTransformCollection::TransformGroup);
+	}
+}
+
+void FGeometryDynamicCollection::AddAnimateTransformAttribute()
+{
+	if (OptionalAnimateTransformAttribute == nullptr)
+	{
+		static const FName AnimateTransformAttributeName = "AnimateTransformAttribute";
+
+		OptionalAnimateTransformAttribute = &AddAttribute<bool>("AnimateTransformAttribute", FGeometryCollection::TransformGroup);
+		if (OptionalAnimateTransformAttribute)
+		{
+			OptionalAnimateTransformAttribute->Fill(false);
+		}
+	}
 }
 
 void FGeometryDynamicCollection::CopyInitialVelocityAttributesFrom(const FGeometryDynamicCollection& SourceCollection)

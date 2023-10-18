@@ -96,6 +96,7 @@ public:
 	static CHAOS_API const FName SharedImplicitsAttribute;
 	static CHAOS_API const FName SimplicialsAttribute;
 	static CHAOS_API const FName SimulatableParticlesAttribute;
+	static CHAOS_API const FName InternalClusterParentTypeAttribute;
 
 	UE_DEPRECATED(5.4, "CollisionMaskAttribute is no longer supported")
 	static CHAOS_API const FName CollisionMaskAttribute;
@@ -125,6 +126,19 @@ public:
 
 	CHAOS_API const TManagedArrayAccessor<int32> GetInitialLevels() const;
 
+	CHAOS_API const TManagedArray<uint8>& GetInternalClusterParentTypeAttribute() const { return InternalClusterParentType; }
+	CHAOS_API TManagedArray<uint8>& GetInternalClusterParentTypeAttribute() { return InternalClusterParentType; }
+
+	CHAOS_API void AddVelocitiesAttributes();
+	CHAOS_API const TManagedArray<FVector3f>* GetLinearVelocitiesAttribute() const { return OptionalLinearVelocityAttribute; }
+	CHAOS_API const TManagedArray<FVector3f>* GetAngularVelocitiesAttribute() const { return OptionalAngularVelocityAttribute; };
+	CHAOS_API TManagedArray<FVector3f>* GetLinearVelocitiesAttribute() { return OptionalLinearVelocityAttribute; }
+	CHAOS_API TManagedArray<FVector3f>* GetAngularVelocitiesAttribute() { return OptionalAngularVelocityAttribute; };
+
+	CHAOS_API void AddAnimateTransformAttribute();
+	CHAOS_API const TManagedArray<bool>* GetAnimateTransformAttribute() const { return OptionalAnimateTransformAttribute; }
+	CHAOS_API TManagedArray<bool>* GetAnimateTransformAttribute() { return OptionalAnimateTransformAttribute; }
+
 	struct FInitialVelocityFacade
 	{
 		FInitialVelocityFacade(FGeometryDynamicCollection& DynamicCollection);
@@ -143,6 +157,13 @@ public:
 	FInitialVelocityFacade GetInitialVelocityFacade() const { return FInitialVelocityFacade(*this); }
 
 	CHAOS_API void CopyInitialVelocityAttributesFrom(const FGeometryDynamicCollection& SourceCollection);
+
+private:
+	TManagedArray<uint8>	  InternalClusterParentType;
+
+	TManagedArray<FVector3f>* OptionalLinearVelocityAttribute;
+	TManagedArray<FVector3f>* OptionalAngularVelocityAttribute;
+	TManagedArray<bool>*	  OptionalAnimateTransformAttribute;
 };
 
 /**
