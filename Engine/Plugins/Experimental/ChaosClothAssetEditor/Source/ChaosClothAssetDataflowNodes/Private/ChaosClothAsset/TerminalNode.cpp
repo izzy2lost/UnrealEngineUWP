@@ -127,7 +127,15 @@ void FChaosClothAssetTerminalNode::SetAssetValue(TObjectPtr<UObject> Asset, Data
 			ClothFacade.DefineSchema();
 
 			const FCollectionClothConstFacade InClothFacade(InClothCollections[LodIndex]);
-			check(InClothFacade.HasValidData());
+			if (!InClothFacade.HasValidData())
+			{
+				FClothDataflowTools::LogAndToastWarning(*this, LOCTEXT("InvalidLODHeadline", "Invalid LOD."),
+					FText::Format(
+						LOCTEXT("InvalidLODDetails", "LOD {0} has no valid data."),
+						LodIndex));
+
+				continue;
+			}
 
 			// Copy input LOD to current output LOD
 			ClothFacade.Initialize(InClothFacade);
