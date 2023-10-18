@@ -86,7 +86,7 @@ FWorldPartitionActorDescView* FActorDescViewMap::Emplace(const FWorldPartitionAc
 
 UWorldPartition::FCheckForErrorsParams::FCheckForErrorsParams()
 	: ErrorHandler(nullptr)
-	, ActorDescContainer(nullptr)
+	, ActorDescContainerCollection(nullptr)
 	, bEnableStreaming(false)
 {}
 
@@ -1497,39 +1497,14 @@ void UWorldPartition::SetupHLODActors(const FSetupHLODActorsParams& Params)
 	});	
 }
 
-void UWorldPartition::CheckForErrors(IStreamingGenerationErrorHandler* ErrorHandler) const
-{
-	FActorDescList ModifiedActorDescList;
-
-	FWorldPartitionStreamingGenerator::FWorldPartitionStreamingGeneratorParams StreamingGeneratorParams = FWorldPartitionStreamingGenerator::FWorldPartitionStreamingGeneratorParams()
-		.SetWorldPartitionContext(this)
-		.SetModifiedActorsDescList(&ModifiedActorDescList)
-		.SetErrorHandler(StreamingGenerationErrorHandlerOverride ? (*StreamingGenerationErrorHandlerOverride)(ErrorHandler) : ErrorHandler)
-		.SetIsValidGrid([this](FName GridName) { return RuntimeHash->IsValidGrid(GridName); })
-		.SetIsValidHLODLayer([this](FName GridName, const FSoftObjectPath& HLODLayerPath) { return RuntimeHash->IsValidHLODLayer(GridName, HLODLayerPath); })
-		.SetEnableStreaming(IsStreamingEnabled());
-
-	ForEachActorDescContainer([&StreamingGeneratorParams](const UActorDescContainer* InActorDescContainer)
-	{
-		for (FActorDescList::TConstIterator<> ActorDescIt(InActorDescContainer); ActorDescIt; ++ActorDescIt)
-		{
-			check(!StreamingGeneratorParams.ActorGuidsToContainerMap.Contains(ActorDescIt->GetGuid()));
-			StreamingGeneratorParams.ActorGuidsToContainerMap.Add(ActorDescIt->GetGuid(), InActorDescContainer);
-		}
-	});
-
-	ForEachActorDescContainer([this, &StreamingGeneratorParams](const UActorDescContainer* InActorDescContainer)
-	{
-		check(StreamingGeneratorParams.WorldPartitionContext == InActorDescContainer->GetWorldPartition());
-		FWorldPartitionStreamingGenerator StreamingGenerator(StreamingGeneratorParams);
-		FStreamingGenerationActorDescCollection Collection{InActorDescContainer};
-		StreamingGenerator.PreparationPhase(Collection);
-	});
-	
-}
-
 FStreamingGenerationActorDescCollection::FStreamingGenerationActorDescCollection(std::initializer_list<TObjectPtr<const UActorDescContainer>> ActorDescContainerArray)
 	: TActorDescContainerCollection<TObjectPtr<const UActorDescContainer>>(ActorDescContainerArray)
+{
+	SortCollection();
+}
+
+FStreamingGenerationActorDescCollection::FStreamingGenerationActorDescCollection(const TArray<const UActorDescContainer*>& ActorDescContainers)
+	: TActorDescContainerCollection<TObjectPtr<const UActorDescContainer>>(ActorDescContainers)
 {
 	SortCollection();
 }
@@ -1628,24 +1603,67 @@ void FStreamingGenerationActorDescCollection::SortCollection()
 #endif
 }
 
-/* Deprecated */
-void UWorldPartition::CheckForErrors(IStreamingGenerationErrorHandler* ErrorHandler, const UActorDescContainer* ActorDescContainer, bool bEnableStreaming, bool)
-{
-	FCheckForErrorsParams Params;
-	Params.ErrorHandler = ErrorHandler;
-	Params.ActorDescContainer = ActorDescContainer;
-	Params.bEnableStreaming = bEnableStreaming;
-
-	CheckForErrors(Params);
-}
-
-void UWorldPartition::CheckForErrors(const FCheckForErrorsParams& Params)
+void UWorldPartition::CheckForErrors(IStreamingGenerationErrorHandler* ErrorHandler) const
 {
 	FActorDescList ModifiedActorDescList;
 
 	FWorldPartitionStreamingGenerator::FWorldPartitionStreamingGeneratorParams StreamingGeneratorParams = FWorldPartitionStreamingGenerator::FWorldPartitionStreamingGeneratorParams()
-		.SetWorldPartitionContext(Params.ActorDescContainer->GetWorldPartition())
-		.SetModifiedActorsDescList(!Params.ActorDescContainer->IsTemplateContainer() ? &ModifiedActorDescList : nullptr)
+		.SetWorldPartitionContext(this)
+		.SetModifiedActorsDescList(&ModifiedActorDescList)
+		.SetErrorHandler(StreamingGenerationErrorHandlerOverride ? (*StreamingGenerationErrorHandlerOverride)(ErrorHandler) : ErrorHandler)
+		.SetIsValidGrid([this](FName GridName) { return RuntimeHash->IsValidGrid(GridName); })
+		.SetIsValidHLODLayer([this](FName GridName, const FSoftObjectPath& HLODLayerPath) { return RuntimeHash->IsValidHLODLayer(GridName, HLODLayerPath); })
+		.SetEnableStreaming(IsStreamingEnabled());
+
+	ForEachActorDescContainer([&StreamingGeneratorParams](const UActorDescContainer* InActorDescContainer)
+	{
+		for (FActorDescList::TConstIterator<> ActorDescIt(InActorDescContainer); ActorDescIt; ++ActorDescIt)
+		{
+			check(!StreamingGeneratorParams.ActorGuidsToContainerMap.Contains(ActorDescIt->GetGuid()));
+			StreamingGeneratorParams.ActorGuidsToContainerMap.Add(ActorDescIt->GetGuid(), InActorDescContainer);
+		}
+	});
+
+	ForEachActorDescContainer([this, &StreamingGeneratorParams](const UActorDescContainer* InActorDescContainer)
+	{
+		check(StreamingGeneratorParams.WorldPartitionContext == InActorDescContainer->GetWorldPartition());
+		FWorldPartitionStreamingGenerator StreamingGenerator(StreamingGeneratorParams);
+		FStreamingGenerationActorDescCollection Collection{InActorDescContainer};
+		StreamingGenerator.PreparationPhase(Collection);
+	});	
+}
+
+/* Deprecated */
+void UWorldPartition::CheckForErrors(IStreamingGenerationErrorHandler* ErrorHandler, const UActorDescContainer* ActorDescContainer, bool bEnableStreaming, bool)
+{
+	FActorDescContainerCollection ActorDescContainerCollection;
+	ActorDescContainerCollection.AddContainer(const_cast<UActorDescContainer*>(ActorDescContainer));
+
+	FCheckForErrorsParams Params = FCheckForErrorsParams()
+		.SetErrorHandler(ErrorHandler)
+		.SetActorDescContainerCollection(&ActorDescContainerCollection)
+		.SetEnableStreaming(bEnableStreaming);
+
+	CheckForErrors(Params);
+}
+
+/* Static version, mainly used by changelist validation */
+void UWorldPartition::CheckForErrors(const FCheckForErrorsParams& Params)
+{
+	check(Params.ErrorHandler);
+	check(Params.ActorDescContainerCollection);
+
+	FActorDescList ModifiedActorDescList;
+
+	TArray<const UActorDescContainer*> Containers;
+	Params.ActorDescContainerCollection->ForEachActorDescContainer([&Containers](UActorDescContainer* InActorDescContainer) { Containers.Add(InActorDescContainer); });
+
+	FStreamingGenerationActorDescCollection Collection { Containers };
+	const UActorDescContainer* MainActorDescContainer = Collection.GetMainActorDescContainer();
+
+	FWorldPartitionStreamingGenerator::FWorldPartitionStreamingGeneratorParams StreamingGeneratorParams = FWorldPartitionStreamingGenerator::FWorldPartitionStreamingGeneratorParams()
+		.SetWorldPartitionContext(MainActorDescContainer->GetWorldPartition())
+		.SetModifiedActorsDescList(!MainActorDescContainer->IsTemplateContainer() ? &ModifiedActorDescList : nullptr)
 		.SetErrorHandler(StreamingGenerationErrorHandlerOverride ? (*StreamingGenerationErrorHandlerOverride)(Params.ErrorHandler) : Params.ErrorHandler)
 		.SetIsValidGrid([](FName) { return true; })
 		.SetIsValidHLODLayer([](FName, const FSoftObjectPath&) { return true; })
@@ -1653,11 +1671,8 @@ void UWorldPartition::CheckForErrors(const FCheckForErrorsParams& Params)
 		.SetActorGuidsToContainerMap(Params.ActorGuidsToContainerMap);
 
 	FWorldPartitionStreamingGenerator StreamingGenerator(StreamingGeneratorParams);
-
-	FStreamingGenerationActorDescCollection Collection{Params.ActorDescContainer};
 	StreamingGenerator.PreparationPhase(Collection);
 }
-
 #endif // WITH_EDITOR
 
 #undef LOCTEXT_NAMESPACE

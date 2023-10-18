@@ -84,12 +84,6 @@ bool FDataLayerUtils::ResolveRuntimeDataLayerInstanceNames(const UDataLayerManag
 {
 	const TArray<FName>& ActorDescViewDataLayerInstanceNames = InActorDescView.GetDataLayerInstanceNames();
 
-	// @todo_ow : temp fix
-	if (!ActorDescViewDataLayerInstanceNames.Num())
-	{
-		return true;
-	}
-	
 	if (InDataLayerManager && InDataLayerManager->CanResolveDataLayers())
 	{
 		for (FName DataLayerInstanceName : ActorDescViewDataLayerInstanceNames)

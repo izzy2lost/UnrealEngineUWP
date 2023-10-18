@@ -20,6 +20,9 @@ public:
 	template<class U>
 	TActorDescContainerCollection(std::initializer_list<U> ActorDescContainerArray);
 
+	template<class U>
+	TActorDescContainerCollection(const TArray<U>& ActorDescContainers);
+
 	virtual ~TActorDescContainerCollection();
 
 	void AddContainer(ActorDescContPtrType Container);
@@ -201,7 +204,18 @@ public:
 template<class ActorDescContPtrType>
 template<class U>
 TActorDescContainerCollection<ActorDescContPtrType>::TActorDescContainerCollection(std::initializer_list<U> ActorDescContainerArray)
-	:ActorDescContainerCollection(ActorDescContainerArray)
+	: ActorDescContainerCollection(ActorDescContainerArray)
+{
+	ForEachActorDescContainer([this](ActorDescContPtrType ActorDescContainer)
+	{
+		RegisterDelegates(ActorDescContainer);
+	});
+}
+
+template<class ActorDescContPtrType>
+template<class U>
+TActorDescContainerCollection<ActorDescContPtrType>::TActorDescContainerCollection(const TArray<U>& ActorDescContainers)
+	: ActorDescContainerCollection(ActorDescContainers)
 {
 	ForEachActorDescContainer([this](ActorDescContPtrType ActorDescContainer)
 	{

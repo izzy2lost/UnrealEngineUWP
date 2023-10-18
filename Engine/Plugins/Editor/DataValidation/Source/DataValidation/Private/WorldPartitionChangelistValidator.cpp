@@ -136,7 +136,7 @@ void UWorldPartitionChangelistValidator::ValidateActorsAndDataLayersFromChangeLi
 		}
 	}
 
-	auto RegisterContainerToValidate = [](UWorld* InWorld, FName InContainerPackageName, FActorDescContainerCollection& OutRegisteredContainers)
+	auto RegisterContainerToValidate = [](UWorld* InWorld, FName InContainerPackageName, FActorDescContainerCollection& OutRegisteredContainers, const FGuid& InContentBundleGuid)
 	{
 		if (OutRegisteredContainers.Contains(InContainerPackageName))
 		{
@@ -156,6 +156,11 @@ void UWorldPartitionChangelistValidator::ValidateActorsAndDataLayersFromChangeLi
 			// Find in memory failed, load the ActorDescContainer
 			ActorDescContainer = NewObject<UActorDescContainer>();
 			ActorDescContainer->Initialize({ nullptr, InContainerPackageName });
+			ActorDescContainer->SetContentBundleGuid(InContentBundleGuid);
+		}
+		else
+		{
+			check(ActorDescContainer->GetContentBundleGuid() == InContentBundleGuid);
 		}
 
 		OutRegisteredContainers.AddContainer(ActorDescContainer);
@@ -173,6 +178,10 @@ void UWorldPartitionChangelistValidator::ValidateActorsAndDataLayersFromChangeLi
 		TGuardValue<UObject*> GuardCurrentAsset(CurrentAsset, World);
 		
 		FActorDescContainerCollection ContainersToValidate;
+
+		// Always register the main world container because content bundle containers can't be validated separately
+		RegisterContainerToValidate(World, MapPath.GetPackageName(), ContainersToValidate, FGuid());
+
 		for (const FAssetData& ActorData : ActorsData)
 		{
 			FString ActorPackagePath = ActorData.PackagePath.ToString();
@@ -184,11 +193,7 @@ void UWorldPartitionChangelistValidator::ValidateActorsAndDataLayersFromChangeLi
 				FString ContentBundleContainerPackagePath;
 				verify(ContentBundlePaths::BuildActorDescContainerPackagePath(FString(ContentBundleMountPoint), ContentBundleGuid, MapPath.GetPackageName().ToString(), ContentBundleContainerPackagePath));
 
-				RegisterContainerToValidate(World, FName(*ContentBundleContainerPackagePath), ContainersToValidate);
-			}
-			else
-			{
-				RegisterContainerToValidate(World, MapPath.GetPackageName(), ContainersToValidate);
+				RegisterContainerToValidate(World, FName(*ContentBundleContainerPackagePath), ContainersToValidate, ContentBundleGuid);
 			}
 		}
 
@@ -206,9 +211,9 @@ void UWorldPartitionChangelistValidator::ValidateActorsAndDataLayersFromChangeLi
 		}
 
 		// Invoke static WorldPartition Validation from the ActorDescContainer
-		UWorldPartition::FCheckForErrorsParams Params;
-		Params.ErrorHandler = this;
-		Params.bEnableStreaming = !ULevel::GetIsStreamingDisabledFromPackage(MapPath.GetPackageName());
+		UWorldPartition::FCheckForErrorsParams Params = UWorldPartition::FCheckForErrorsParams()
+			.SetErrorHandler(this)
+			.SetEnableStreaming(!ULevel::GetIsStreamingDisabledFromPackage(MapPath.GetPackageName()));
 
 		ContainersToValidate.ForEachActorDescContainer([&Params](const UActorDescContainer* ActorDescContainer)
 		{
@@ -219,11 +224,8 @@ void UWorldPartitionChangelistValidator::ValidateActorsAndDataLayersFromChangeLi
 			}
 		});
 
-		ContainersToValidate.ForEachActorDescContainer([&Params](const UActorDescContainer* ActorDescContainer)
-		{
-			Params.ActorDescContainer = ActorDescContainer;
-			UWorldPartition::CheckForErrors(Params);
-		});
+		Params.ActorDescContainerCollection = &ContainersToValidate;
+		UWorldPartition::CheckForErrors(Params);
 	}
 }
 

@@ -107,6 +107,7 @@ class FStreamingGenerationActorDescCollection : public TActorDescContainerCollec
 public:
 	FStreamingGenerationActorDescCollection() = default;
 	ENGINE_API FStreamingGenerationActorDescCollection(std::initializer_list<TObjectPtr<const UActorDescContainer>> ActorDescContainerArray);
+	ENGINE_API FStreamingGenerationActorDescCollection(const TArray<const UActorDescContainer*>& ActorDescContainers);
 
 	ENGINE_API UWorld* GetWorld() const;
 
