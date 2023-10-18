@@ -143,9 +143,13 @@ const getStyles = () => {
          }
       ],
       itemCell: [
-         getFocusStyle(theme, { inset: -1 })
-      ],
-
+         getFocusStyle(theme, { inset: -1 }),
+         {
+            selectors: {
+               '&:hover': { background: theme.palette.neutralLight }
+            }
+         }
+      ]
    });
 
    _styles = styles;
