@@ -861,7 +861,7 @@ FServiceSettings::ReadFromURL(FStringView InstanceURL)
 	else
 	{
 		ConnectExistingSettings.HostName = InstanceURL;
-		ConnectExistingSettings.Port = 1337;
+		ConnectExistingSettings.Port = 8558;
 	}
 }
 
@@ -902,7 +902,7 @@ FServiceSettings::TryApplyAutoLaunchOverride()
 		SettingsVariant.Emplace<FServiceConnectSettings>();
 		FServiceConnectSettings& ConnectExistingSettings = SettingsVariant.Get<FServiceConnectSettings>();
 		ConnectExistingSettings.HostName = TEXT("[::1]");
-		ConnectExistingSettings.Port = 1337;
+		ConnectExistingSettings.Port = 8558;
 		return true;
 	}
 
@@ -921,7 +921,7 @@ FServiceSettings::TryApplyAutoLaunchOverride()
 		else
 		{
 			ConnectExistingSettings.HostName = Host;
-			ConnectExistingSettings.Port = 1337;
+			ConnectExistingSettings.Port = 8558;
 		}
 
 		return true;

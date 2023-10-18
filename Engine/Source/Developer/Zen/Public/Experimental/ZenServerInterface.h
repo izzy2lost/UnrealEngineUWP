@@ -32,7 +32,7 @@ namespace UE::Zen
 struct FServiceConnectSettings
 {
 	FString HostName;
-	uint16 Port = 1337;
+	uint16 Port = 8558;
 };
 
 struct FServiceAutoLaunchSettings
