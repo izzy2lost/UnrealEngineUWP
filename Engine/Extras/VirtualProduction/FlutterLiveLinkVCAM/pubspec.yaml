@@ -15,7 +15,8 @@ dependencies:
   epic_common:
     path: ../../FlutterCommon
 
-  logging: 1.2.0
+  logging: ^1.2.0
+  package_info_plus: ^4.1.0
   web_socket_channel: ^2.1.0
 
 dev_dependencies:
