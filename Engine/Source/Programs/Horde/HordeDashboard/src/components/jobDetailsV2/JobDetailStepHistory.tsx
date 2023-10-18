@@ -10,10 +10,11 @@ import { GetJobStepRefResponse } from "../../backend/Api";
 import dashboard from "../../backend/Dashboard";
 import { ISideRailLink } from "../../base/components/SideRail";
 import { displayTimeZone, getElapsedString } from "../../base/utilities/timeUtils";
-import { hordeClasses } from "../../styles/Styles";
 import { ChangeButton } from "../ChangeButton";
 import { StepRefStatusIcon } from "../StatusIcon";
 import { JobDataView, JobDetailsV2 } from "./JobDetailsViewCommon";
+import { getHordeTheme } from "../../styles/theme";
+import { getHordeStyling } from "../../styles/Styles";
 
 const sideRail: ISideRailLink = { text: "History", url: "rail_step_history" };
 
@@ -40,7 +41,7 @@ class StepHistoryDataView extends JobDataView {
       if (!this.stepId) {
          return;
       }
-      
+
       const stepName = details.getStepName(this.stepId, false);
 
       if (stepName) {
@@ -59,7 +60,7 @@ class StepHistoryDataView extends JobDataView {
          this.updateReady();
       }).finally(() => {
          this.initialize(this.history?.length ? [sideRail] : undefined);
-      })   
+      })
    }
 
    clear() {
@@ -74,7 +75,7 @@ class StepHistoryDataView extends JobDataView {
          if (stepName) {
             this.loadHistory(stepName);
          }
-      }       
+      }
    }
 
    history: GetJobStepRefResponse[] = [];
@@ -103,10 +104,14 @@ export const StepHistoryPanel: React.FC<{ jobDetails: JobDetailsV2; stepId: stri
 
    dataView.subscribe();
 
+   const { hordeClasses } = getHordeStyling();
+
    if (!jobDetails.jobData) {
       return null;
    }
-   
+
+   const theme = getHordeTheme();
+
    dataView.set(stepId);
 
    type HistoryItem = {
@@ -144,8 +149,8 @@ export const StepHistoryPanel: React.FC<{ jobDetails: JobDetailsV2; stepId: stri
 
       if (column.name === "Change") {
 
-         const sindex = dataView.history.indexOf(ref); 
-         return <ChangeButton job={jobDetails.jobData!} stepRef={ref} hideAborted={true} rangeCL={ sindex < (dataView.history.length - 1) ? (dataView.history[sindex + 1].change + 1) : undefined}/>;
+         const sindex = dataView.history.indexOf(ref);
+         return <ChangeButton job={jobDetails.jobData!} stepRef={ref} hideAborted={true} rangeCL={sindex < (dataView.history.length - 1) ? (dataView.history[sindex + 1].change + 1) : undefined} />;
 
       }
 
@@ -159,7 +164,7 @@ export const StepHistoryPanel: React.FC<{ jobDetails: JobDetailsV2; stepId: stri
 
          const url = `${location.pathname}${location.search}&agentId=${agentId}`;
 
-         return <a href={url} onClick={(ev) => { ev.preventDefault(); ev.stopPropagation(); navigate(url, { replace: true } ); }}><Stack horizontal horizontalAlign={"end"} verticalFill={true} tokens={{ childrenGap: 0, padding: 0 }}><Text>{agentId}</Text></Stack></a>;
+         return <a href={url} onClick={(ev) => { ev.preventDefault(); ev.stopPropagation(); navigate(url, { replace: true }); }}><Stack horizontal horizontalAlign={"end"} verticalFill={true} tokens={{ childrenGap: 0, padding: 0 }}><Text>{agentId}</Text></Stack></a>;
       }
 
       if (column.name === "Started") {
@@ -210,7 +215,7 @@ export const StepHistoryPanel: React.FC<{ jobDetails: JobDetailsV2; stepId: stri
          const commonSelectors = { ".ms-DetailsRow-cell": { "overflow": "visible" } };
 
          if (ref.stepId === stepId && ref.jobId === jobDetails.jobId) {
-            props.styles = { ...props.styles, root: { background: 'rgb(233, 232, 231)', selectors: { ...commonSelectors as any, "a, a:hover, a:visited": { color: "#FFFFFF" }, ":hover": { background: 'rgb(223, 222, 221)' } } } };
+            props.styles = { ...props.styles, root: { background: theme.horde.neutralBackground, selectors: { ...commonSelectors as any } } };
          } else {
             props.styles = { ...props.styles, root: { selectors: { ...commonSelectors as any } } };
          }

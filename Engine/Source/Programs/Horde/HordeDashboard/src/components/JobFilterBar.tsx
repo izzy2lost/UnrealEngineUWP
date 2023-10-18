@@ -7,7 +7,7 @@ import { useBackend } from "../backend";
 import { GetJobsTabResponse, TabType, GetTemplateRefResponse, StreamData } from "../backend/Api";
 import { FilterStatus } from "../backend/JobHandler";
 import templateCache from '../backend/TemplateCache';
-import { hordeClasses, modeColors } from "../styles/Styles";
+import { getHordeStyling } from "../styles/Styles";
 
 // todo, store filter for streamId so same when return
 // todo, put on a timeout so can capture a number of changes before update
@@ -24,7 +24,7 @@ const dropDownStyle: any = () => {
             }
          }
       },
-      dropdownItemHeader: { fontSize: 12, color: modeColors.text },
+      dropdownItemHeader: { fontSize: 12 },
       dropdownOptionText: { fontSize: 12 },
       dropdownItem: {
          minHeight: 28, lineHeight: 28
@@ -174,6 +174,7 @@ export const JobFilterBar: React.FC<{ streamId: string }> = ({ streamId }) => {
 
    }, []);
 
+   const { hordeClasses } = getHordeStyling();
 
    if (!stream) {
       console.error("unable to get stream");

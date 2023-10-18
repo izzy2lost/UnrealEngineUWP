@@ -1,12 +1,14 @@
 import { Modal, Stack, Text, IconButton, TextField, PrimaryButton, DefaultButton, MessageBar, MessageBarType } from "@fluentui/react";
-import { hordeClasses } from "../../styles/Styles";
 import { useState } from "react";
 import backend from "../../backend";
 import { CommitTag, CreateBisectTaskResponse } from "../../backend/Api";
+import { getHordeStyling } from "../../styles/Styles";
 
 export const BisectionCreateModal: React.FC<{ jobId: string, nodeName: string, onClose: (response?: CreateBisectTaskResponse) => void }> = ({ jobId, nodeName, onClose }) => {
 
    const [state, setState] = useState<{ submitting?: boolean, errorMsg?: string, commitTags?: string, ignoreChanges?: string, ignoreJobs?: string }>({});
+
+   const { hordeClasses } = getHordeStyling();
 
    const onBisect = async () => {
 

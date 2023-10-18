@@ -10,8 +10,9 @@ import { agentStore } from "../backend/AgentStore";
 import { AgentData, GetAgentLeaseResponse, GetAgentSessionResponse, JobStepBatchError, LeaseData, SessionData, UpdateAgentRequest } from "../backend/Api";
 import dashboard from "../backend/Dashboard";
 import { getShortNiceTime } from "../base/utilities/timeUtils";
-import { hordeClasses, modeColors } from "../styles/Styles";
 import { BatchStatusIcon, LeaseStatusIcon } from "./StatusIcon";
+import { getHordeTheme } from "../styles/theme";
+import { getHordeStyling } from "../styles/Styles";
 
 
 type InfoPanelItem = {
@@ -281,6 +282,9 @@ export const HistoryModal: React.FC<{ agentId: string | undefined, onDismiss: (.
    const [selectedAgent, setSelectedAgent] = useState<string | undefined>(undefined);
    const [actionState, setActionState] = useState<{ action?: string, confirmed?: boolean, comment?: string }>({});
    const actionTextInputRef = React.useRef<ITextField>(null);
+
+   const { hordeClasses, modeColors } = getHordeStyling();
+   const theme = getHordeTheme();
 
    //  subscribe to updates
    if (state.selectedAgent) { }
@@ -673,24 +677,27 @@ export const HistoryModal: React.FC<{ agentId: string | undefined, onDismiss: (.
       return null;
    };
 
+   const c1 = theme.horde.darkTheme ? theme.horde.neutralBackground : "#f3f2f1";
+   const c2 = theme.horde.darkTheme ? theme.horde.contentBackground : "#ffffff";
+
    function onRenderBuilderInfoCell(nestingDepth?: number | undefined, item?: any, index?: number | undefined) {
       return (
          <Stack horizontal onClick={(ev) => { state.setInfoItemSelected(item); ev.preventDefault(); }} styles={{
             root: {
-               background: item!.selected ? "#f3f2f1" : "#ffffff",
+               background: item!.selected ? c1 : c2,
                paddingLeft: 48 + (10 * nestingDepth!),
                paddingTop: 8,
                paddingBottom: 8,
                selectors: {
                   ":hover": {
-                     background: "#f3f2f1",
+                     background: c1,
                      cursor: 'pointer'
                   }
                }
             }
          }}>
             <Stack>
-               <Link to="" onClick={(ev) => { state.setInfoItemSelected(item); ev.preventDefault(); }}><Text styles={{ root: { color: "#323130" } }}>{item!.name}</Text></Link>
+               <Link to="" onClick={(ev) => { state.setInfoItemSelected(item); ev.preventDefault(); }}><Text>{item!.name}</Text></Link>
             </Stack>
          </Stack>
       );

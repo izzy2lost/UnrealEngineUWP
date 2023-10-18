@@ -16,14 +16,7 @@ const classes = mergeStyleSets({
             overflow: "hidden",
             whiteSpace: "nowrap",
             padding: 8
-         },
-         '.ms-List-cell:nth-child(odd)': {
-            background: "rgb(240, 239, 239)",
-         },
-         '.ms-List-cell:nth-child(even)': {
-            background: "#FFFFFF",
          }
-
       }
    }
 });

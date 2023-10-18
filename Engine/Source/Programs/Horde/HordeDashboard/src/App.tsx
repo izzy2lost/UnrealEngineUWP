@@ -1,12 +1,10 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 
-import { Image, Spinner, SpinnerSize, Stack, Text } from '@fluentui/react';
+import { Image, Spinner, SpinnerSize, Stack, Text, ThemeProvider } from '@fluentui/react';
 import React, { useState } from 'react';
-import { useDarkreader } from 'react-darkreader';
 import { Navigate, Outlet, RouteObject, RouterProvider, createBrowserRouter } from 'react-router-dom';
 import hordePlugins from './Plugins';
 import backend from './backend';
-import { DashboardPreference } from './backend/Api';
 import { getSiteConfig } from './backend/Config';
 import dashboard from './backend/Dashboard';
 import { AdminToken } from './components/AdminToken';
@@ -33,8 +31,9 @@ import { DocView } from './components/docs/DocView';
 import { JobDetailViewV2 } from './components/jobDetailsV2/JobDetailViewV2';
 import { PreflightConfigRedirector } from './components/preflights/PreflightConfigCheckRedirector';
 import { StepIssueReportTest } from './components/test/IssueStepReport';
-import { modeColors, preloadFonts } from './styles/Styles';
-
+import { preloadFonts } from './styles/Styles';
+import { darkTheme } from './styles/darkTheme';
+import { lightTheme } from './styles/lightTheme';
 
 let router: any;
 
@@ -55,40 +54,9 @@ const Main: React.FC = () => {
 
          backend.getCurrentUser().then(user => {
 
-            let darktheme = user.dashboardSettings?.preferences?.get(DashboardPreference.Darktheme);
+            setInit(true);
+            return null;
 
-            // We need to initialize default theme
-            if (darktheme !== "true" && darktheme !== "false") {
-               console.error("Invalid dark theme setting ", darktheme);
-               darktheme = "true";
-            }
-
-            let local = localStorage.getItem("horde_darktheme");
-
-            if (!local) {
-
-               console.log("Setting local theme to ", darktheme);
-
-               localStorage.setItem("horde_darktheme", darktheme);
-
-               if (darktheme === "false") {
-                  // need to reload for light mode as dark is default
-                  window.location.reload();
-               } else {
-                  setInit(true);
-                  return null;
-               }
-
-            } else if (local !== darktheme) {
-
-               console.log(`Setting local theme to ${darktheme} and reloading for change`);
-               localStorage.setItem("horde_darktheme", darktheme);
-               window.location.reload();
-
-            } else {
-               setInit(true);
-               return null;
-            }
          }).catch(reason => {
             ErrorHandler.set({ title: "Error initializing site, unable to get user", reason: reason }, true);
          })
@@ -98,32 +66,34 @@ const Main: React.FC = () => {
          ErrorHandler.set({ title: "Error initializing site", reason: reason }, true);
       });
 
-      return (<div style={{ position: 'absolute', left: '50%', top: '50%', transform: 'translate(-50%, -50%)' }}>
-         <Stack horizontalAlign="center" styles={{ root: { padding: 20, minWidth: 200, minHeight: 100 } }}>
-            <Stack horizontal>
-               <Stack styles={{ root: { paddingTop: 2, paddingRight: 6 } }}>
-                  <Image shouldFadeIn={false} shouldStartVisible={true} width={48} src="/images/horde.svg" />
+      return (<ThemeProvider applyTo='body' theme={dashboard.darktheme ? darkTheme : lightTheme}>
+         <div style={{ position: 'absolute', left: '50%', top: '50%', transform: 'translate(-50%, -50%)' }}>
+            <Stack horizontalAlign="center" styles={{ root: { padding: 20, minWidth: 200, minHeight: 100 } }}>
+               <Stack horizontal>
+                  <Stack styles={{ root: { paddingTop: 2, paddingRight: 6 } }}>
+                     <Image shouldFadeIn={false} shouldStartVisible={true} width={48} src="/images/horde.svg" />
+                  </Stack>
+                  <Stack styles={{ root: { paddingTop: 12 } }}>
+                     <Text styles={{ root: { fontFamily: "Horde Raleway Bold", fontSize: 24 } }}>HORDE</Text>
+                  </Stack>
                </Stack>
-               <Stack styles={{ root: { paddingTop: 12 } }}>
-                  <Text styles={{ root: { fontFamily: "Horde Raleway Bold", fontSize: 24 } }}>HORDE</Text>
+               <Stack>
+                  {preloadFonts.map(font => {
+                     // preload fonts to avoid FOUT
+                     return <Text key={`font_preload_${font}`} styles={{ root: { fontFamily: font, fontSize: 10 } }} />
+                  })}
                </Stack>
+               <Spinner styles={{ root: { paddingTop: 8, paddingLeft: 4 } }} size={SpinnerSize.large} />
             </Stack>
-            <Stack>
-               {preloadFonts.map(font => {
-                  // preload fonts to avoid FOUT
-                  return <Text key={`font_preload_${font}`} styles={{ root: { fontFamily: font, fontSize: 10 } }} />
-               })}
-            </Stack>
-            <Spinner styles={{ root: { paddingTop: 8, paddingLeft: 4 } }} size={SpinnerSize.large} />
-         </Stack>
-      </div>);
+         </div>
+      </ThemeProvider>);
    }
 
    if (!pluginsLoaded) {
       hordePlugins.loadPlugins(config.plugins).finally(() => {
          setPluginsLoaded(true);
       })
-      return null;
+      return <ThemeProvider applyTo='body' theme={dashboard.darktheme ? darkTheme : lightTheme} />;
    }
 
    if (!router) {
@@ -171,29 +141,16 @@ const Main: React.FC = () => {
    }
 
    return (
-      <RouterProvider router={router} />
+      <ThemeProvider applyTo='body' theme={dashboard.darktheme ? darkTheme : lightTheme}>
+         <RouterProvider router={router} />
+      </ThemeProvider>
    );
-};
-
-const Darkmode: React.FC = () => {
-
-   const additionalCSS = `
-      .ms-Toggle-thumb {background-color: ${modeColors.text};}}
-      .ms-Toggle-thumb:hover {background-color: ${modeColors.text};}}
-      .ms-Toggle-thumb:hover {background-color: ${modeColors.text};}}
-   `;
-
-   // NOTE: if an Stack child isn't respecting className="horde-no-darktheme", check that you are using style: {} instead of styles:{root:{}}!
-   /*const [isDark, { toggle }] = */useDarkreader(dashboard.darktheme, { brightness: 100, contrast: 100, sepia: 0, grayscale: 0, darkSchemeTextColor: "#FFFFFFFF" }, { disableStyleSheetsProxy: false, invert: [], ignoreInlineStyle: ['.horde-no-darktheme *'], css: additionalCSS, ignoreImageAnalysis: [] });
-
-   return null;
 };
 
 const App: React.FC = () => {
 
    return (
       <React.Fragment>
-         <Darkmode />
          <ErrorDialog />
          <Main />
       </React.Fragment>
@@ -210,9 +167,9 @@ const HomeRedirect: React.FC = () => {
 }
 
 const Root: React.FC = () => {
-   return <div>
+   return <Stack>
       <Outlet />
       <HomeRedirect />
-   </div>
+   </Stack>
 }
 

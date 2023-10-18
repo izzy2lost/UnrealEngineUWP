@@ -3,12 +3,12 @@
 import { Stack, Text, IColumn, mergeStyleSets, Icon, DetailsList, Selection, SelectionMode, DetailsListLayoutMode, ScrollablePane, ScrollbarVisibility, StickyPositionType, IDetailsListProps, IDetailsHeaderStyles, Sticky, DetailsHeader, PrimaryButton, SpinnerSize, Spinner, Link, TextField, FontIcon } from '@fluentui/react';
 import React, { useEffect, useState } from 'react';
 import { ArtifactData, GetArtifactResponse, GetArtifactZipRequest } from '../../backend/Api';
-import { hordeClasses } from '../../styles/Styles';
 import { observer } from 'mobx-react-lite';
 import { observable, action, makeObservable } from 'mobx';
 import backend from '../../backend';
 import { JobDataView, JobDetailsV2 } from './JobDetailsViewCommon';
 import { ISideRailLink } from '../../base/components/SideRail';
+import { getHordeStyling } from '../../styles/Styles';
 import dashboard from '../../backend/Dashboard';
 
 const sideRail: ISideRailLink = { text: "Artifacts", url: "rail_artifacts" };
@@ -216,6 +216,7 @@ export const JobDetailArtifactsV2: React.FC<{ jobDetails: JobDetailsV2; stepId: 
    const dataView = jobDetails.getDataView<ArtifactsDataView>("ArtifactsDataView");
 
    const [state, setState] = useState<{ filter?: string }>({});
+   const { hordeClasses } = getHordeStyling();
 
    useEffect(() => {
       return () => {
@@ -242,11 +243,9 @@ export const JobDetailArtifactsV2: React.FC<{ jobDetails: JobDetailsV2; stepId: 
                            <Text variant='medium'>This job uses the new Horde artifact storage backend.  These artifacts are now accessible in the upper right, underneath the breadcrumb area.</Text>
                         </Stack>
                      </Stack>
-
                      <Stack style={{paddingLeft: 38}}>
                         <img style={{width: "fit-content"}} src={imgSrc} alt="" />
                      </Stack>
-
                   </Stack>
                </Stack>
             </Stack>

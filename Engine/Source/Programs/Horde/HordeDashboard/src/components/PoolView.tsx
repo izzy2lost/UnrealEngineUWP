@@ -12,7 +12,7 @@ import { PollBase } from "../backend/PollBase";
 import { projectStore } from "../backend/ProjectStore";
 import { useWindowSize } from "../base/utilities/hooks";
 import { getElapsedString, getShortNiceTime, getStepElapsed, getStepStartTime } from "../base/utilities/timeUtils";
-import { hordeClasses, linearInterpolate, modeColors } from "../styles/Styles";
+import { getHordeStyling, linearInterpolate } from "../styles/Styles";
 import { AgentPanel } from "./AgentView";
 import { Breadcrumbs } from "./Breadcrumbs";
 import { HistoryModal } from "./HistoryModal";
@@ -326,6 +326,8 @@ const StepPanel: React.FC<{ stepState: StepState }> = ({ stepState }) => {
 
    const [lastSelectedAgent, setLastSelectedAgent] = useState<string | undefined>(undefined);
 
+   const { modeColors } = getHordeStyling();
+
    const pool = handler.pool;
    if (!pool || !handler.agents || !handler.agents.length) {
       return null;
@@ -523,6 +525,8 @@ const StepPanel: React.FC<{ stepState: StepState }> = ({ stepState }) => {
 
 const BatchPanel: React.FC = () => {
 
+   const { modeColors } = getHordeStyling();
+
    const pool = handler.pool;
    if (!pool || !handler.agents || !handler.agents.length) {
       return null;
@@ -661,6 +665,7 @@ const BatchPanel: React.FC = () => {
 const ConformPanel: React.FC = () => {
 
    const [lastSelectedAgent, setLastSelectedAgent] = useState<string | undefined>(undefined);
+   const {modeColors } = getHordeStyling();
 
    const pool = handler.pool;
    if (!pool) {
@@ -787,6 +792,7 @@ const ConformPanel: React.FC = () => {
 const AutoScalerPanel: React.FC = () => {
 
    const [state, setState] = useState<{ error?: string, submitting?: boolean, confirmed?: boolean, modified?: boolean, name?: string, color?: string, autoscale?: boolean, minAgents?: number, reserveAgents?: number, strategy?: PoolSizeStrategy, conformInterval?: number }>({});
+   const { hordeClasses } = getHordeStyling();
 
    const pool = handler.pool;
    if (!pool) {
@@ -962,6 +968,8 @@ const AutoScalerPanel: React.FC = () => {
 }
 
 const SettingsModal: React.FC<{ onClose: () => void }> = observer(({ onClose }) => {
+
+   const { hordeClasses, modeColors } = getHordeStyling();
 
    return <Modal isOpen={true} isBlocking={true} topOffsetFixed={true} styles={{ main: { padding: 8, width: 800, backgroundColor: modeColors.background, hasBeenOpened: false, top: "24px", position: "absolute", height: "320px" } }} className={hordeClasses.modal} onDismiss={() => onClose()}>
       <Stack style={{ height: "93vh" }}>
@@ -1306,6 +1314,8 @@ export const PoolView: React.FC = observer(() => {
       };
 
    }, []);
+
+   const { hordeClasses, modeColors } = getHordeStyling();
 
    // subscribe
    if (handler.updated) { };

@@ -8,15 +8,15 @@ import { GetDeviceResponse, GetDeviceUtilizationResponse, JobData, JobQuery } fr
 import dashboard from "../backend/Dashboard";
 import { projectStore } from "../backend/ProjectStore";
 import { displayTimeZone } from "../base/utilities/timeUtils";
-import { hordeClasses } from "../styles/Styles";
 import { ChangeButton } from "./ChangeButton";
 import { DeviceHandler } from "./DeviceEditor";
 import { StepStatusIcon } from "./StatusIcon";
+import { getHordeStyling } from "../styles/Styles";
 
 const streamIdToFullname = new Map<string, string>();;
 
 export const DeviceInfoModal: React.FC<{ handler: DeviceHandler, deviceIn?: GetDeviceResponse | undefined, onEdit: (device: GetDeviceResponse) => void, onClose: () => void }> = observer(({ handler, deviceIn, onEdit, onClose }) => {
-
+   
     type JobItem = {
         job: JobData,
         utilization: GetDeviceUtilizationResponse
@@ -28,6 +28,7 @@ export const DeviceInfoModal: React.FC<{ handler: DeviceHandler, deviceIn?: GetD
         return null;
     }
 
+    const { hordeClasses } = getHordeStyling();
 
     // get unique ids
     let jobIds = deviceIn.utilization?.map(u => u.jobId).filter(jobId => !!jobId) as string[];

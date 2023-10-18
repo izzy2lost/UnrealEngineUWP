@@ -1,7 +1,7 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 
 import { Stack, Text } from '@fluentui/react';
-import { getTheme, mergeStyleSets } from '@fluentui/react/lib/Styling';
+import { mergeStyleSets } from '@fluentui/react/lib/Styling';
 import { observer } from 'mobx-react-lite';
 import React, { useEffect } from 'react';
 import { Link } from 'react-router-dom';
@@ -9,9 +9,10 @@ import backend from '../../backend';
 import { TestData } from '../../backend/Api';
 import { ISideRailLink } from '../../base/components/SideRail';
 import hordePlugins, { PluginMount } from '../../Plugins';
-import { hordeClasses } from '../../styles/Styles';
 import { ComponentMount } from '../TestReportView';
 import { JobDataView, JobDetailsV2 } from './JobDetailsViewCommon';
+import { getHordeStyling } from '../../styles/Styles';
+import { getHordeTheme } from '../../styles/theme';
 
 
 const sideRail: ISideRailLink = { text: "Test Reports", url: "rail_step_tests" };
@@ -76,17 +77,27 @@ class StepTestDataView extends JobDataView {
 JobDetailsV2.registerDataView("StepTestDataView", (details: JobDetailsV2) => new StepTestDataView(details));
 
 
-const theme = getTheme();
+let _styles: any;
+const getStyles = () => {
 
-const styles = mergeStyleSets({
-   item: {
-      padding: 8,
-      borderBottom: '1px solid ' + theme.palette.neutralLighter,
-      selectors: {
-         ':hover': { background: theme.palette.neutralLight }
+   const theme = getHordeTheme();
+
+   const styles = _styles ?? mergeStyleSets({
+      item: {
+         padding: 8,
+         borderBottom: '1px solid ' + theme.palette.neutralLighter,
+         selectors: {
+            ':hover': { background: theme.palette.neutralLight }
+         }
       }
-   }
-});
+   });
+
+   _styles = styles;
+
+   return styles;
+   
+}
+
 
 type ComponentItem = {
    hasComponent: boolean;
@@ -109,6 +120,9 @@ export const StepTestReportPanel: React.FC<{ jobDetails: JobDetailsV2, stepId?: 
          dataView?.clear();
       };
    }, [dataView]);
+
+   const { hordeClasses } = getHordeStyling();
+   const styles = getStyles();
 
    dataView.subscribe();
 

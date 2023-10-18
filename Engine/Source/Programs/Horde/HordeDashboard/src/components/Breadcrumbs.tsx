@@ -6,36 +6,51 @@ import React, { useState } from 'react';
 import { Link } from 'react-router-dom';
 import dashboard from '../backend/Dashboard';
 import notices from '../backend/Notices';
-import { modeColors } from '../styles/Styles';
+import { getHordeTheme } from '../styles/theme';
+import { getHordeStyling } from '../styles/Styles';
 
 export type BreadcrumbItem = {
    text: string;
    link?: string;
 }
 
-export const classes = mergeStyleSets({
-   crumb: {
-      marginLeft: '0px !important',
-      marginRight: '0px !important',
-      fontFamily: "Horde Open Sans Light",
-      color: modeColors.text,
-      flexShrink: 1,
-      selectors: {
-         ':active': {
-            textDecoration: 'none'
-         },
-         ':hover': {
-            textDecoration: 'none'
+let _classes: any;
+
+const getStyles = () => {
+
+   const { modeColors } = getHordeStyling();
+
+   const classes = _classes ?? mergeStyleSets({
+      crumb: {
+         marginLeft: '0px !important',
+         marginRight: '0px !important',
+         fontFamily: "Horde Open Sans Light",
+         flexShrink: 1,
+         color: modeColors.text,
+         selectors: {
+            ':active': {
+               textDecoration: 'none'
+            },
+            ':hover': {
+               textDecoration: 'none'
+            }
          }
       }
-   }
-});
+   });
 
+   _classes = classes;
+
+   return classes;
+   
+}
 
 
 export const Breadcrumbs: React.FC<{ items: BreadcrumbItem[], title?: string, suppressHome?: boolean, spinner?: boolean }> = observer((({ items: itemsIn, title, suppressHome, spinner }) => {
 
    const [, setHideAlert] = useState(false);
+
+   const hordeTheme = getHordeTheme();
+   const classes = getStyles();
 
    if (notices.updated) { }
 
@@ -79,7 +94,7 @@ export const Breadcrumbs: React.FC<{ items: BreadcrumbItem[], title?: string, su
       bottomFontSize = 24;
    }
 
-   const bottomElement = <Text className={classes.crumb} styles={{ root: { color: modeColors.text, fontSize: bottomFontSize } }}>{last.text}</Text>;
+   const bottomElement = <Text className={classes.crumb} styles={{ root: { fontSize: bottomFontSize } }}>{last.text}</Text>;
 
    const alert = notices.alertText;
 
@@ -87,7 +102,7 @@ export const Breadcrumbs: React.FC<{ items: BreadcrumbItem[], title?: string, su
       <Separator styles={{ root: { fontSize: 0, padding: 0 } }} />
       <Stack>
          <Stack styles={{ root: { userInput: 'all' } }}>
-            <Stack tokens={{ childrenGap: 4 }} styles={{ root: { height: 88, padding: 0, paddingLeft: 24, paddingBottom: 8, paddingTop: 8, backgroundColor: modeColors.crumbs, userSelect: 'text' } }}>
+            <Stack tokens={{ childrenGap: 4 }} styles={{ root: { height: 88, padding: 0, paddingLeft: 24, paddingBottom: 8, paddingTop: 8, backgroundColor: hordeTheme.horde.breadCrumbsBackground, userSelect: 'text' } }}>
                <Stack tokens={{ childrenGap: 0 }} disableShrink={true} styles={{ root: { margin: "auto", width: "100%", maxWidth: 1464 } }}>
                   <Stack horizontal tokens={{ childrenGap: 8, padding: 0 }}>{topElements}</Stack>
                   {

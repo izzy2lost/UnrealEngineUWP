@@ -4,10 +4,10 @@ import { Stack, Text, IColumn, mergeStyleSets, Icon, DetailsList, Selection, Sel
 import React, { useState } from 'react';
 import { ArtifactData, GetArtifactZipRequest } from '../backend/Api';
 import { JobDetails } from '../backend/JobDetails';
-import { hordeClasses } from '../styles/Styles';
 import { observer } from 'mobx-react-lite';
 import { observable, action, makeObservable } from 'mobx';
 import backend from '../backend';
+import { getHordeStyling } from '../styles/Styles';
 
 const classNames = mergeStyleSets({
    fileIconHeaderIcon: {
@@ -150,6 +150,7 @@ class ArtifactState {
 const artifactState = new ArtifactState();
 export const JobDetailArtifacts: React.FC<{ jobDetails: JobDetails; stepId?: string, topPadding?: number }> = observer(({ jobDetails, stepId, topPadding }) => {
 
+   const { hordeClasses } = getHordeStyling();
    const [state, setState] = useState<{ filter?: string }>({});
 
    artifactState.setDetails(jobDetails, stepId);

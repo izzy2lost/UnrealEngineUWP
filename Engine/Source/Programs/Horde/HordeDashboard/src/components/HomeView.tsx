@@ -4,13 +4,16 @@ import { observer } from 'mobx-react-lite';
 import { Link } from 'react-router-dom';
 import { Stack, Separator } from '@fluentui/react';
 import React from 'react';
-import { hordeClasses } from '../styles/Styles';
 import { TopNav } from './TopNav';
 import { projectStore } from '../backend/ProjectStore';
 import { ProjectData } from '../backend/Api';
 import { Breadcrumbs } from './Breadcrumbs';
+import { getHordeStyling } from '../styles/Styles';
 
 export const HomeView: React.FC = observer(() => {
+
+   const { hordeClasses } = getHordeStyling();
+
 	document.title = "Horde";
 	return (
 		<Stack className={hordeClasses.horde}>

@@ -6,9 +6,9 @@ import dashboard from "../../backend/Dashboard";
 import { Markdown } from "../../base/components/Markdown";
 import { ISideRailLink, SideRail } from "../../base/components/SideRail";
 import { useWindowSize } from "../../base/utilities/hooks";
-import { hordeClasses, modeColors } from "../../styles/Styles";
 import { BreadcrumbItem, Breadcrumbs } from "../Breadcrumbs";
 import { TopNav } from "../TopNav";
+import { getHordeStyling } from "../../styles/Styles";
 
 type Anchor = {
    text: string;
@@ -23,7 +23,6 @@ type State = {
 
 export const docClasses = mergeStyleSets({
    raised: {
-      backgroundColor: "#ffffff",
       boxShadow: "0 1.6px 3.6px 0 rgba(0,0,0,0.132), 0 0.3px 0.9px 0 rgba(0,0,0,0.108)",
       padding: "32px 40px"
    }
@@ -226,6 +225,8 @@ const DocCrumbs = observer(() => {
 export const DocView = () => {
 
    const location = useLocation();
+
+   const { hordeClasses, modeColors } = getHordeStyling();
 
    // fixme
    let docName = location.pathname.replace("/docs/", "").replace("/docs", "").trim();

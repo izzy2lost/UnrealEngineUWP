@@ -11,8 +11,8 @@ import { IMarkdownProps, IMarkdownSubComponentStyles, IMarkdownStyleProps, IMark
 import { MarkdownLink } from './MarkdownLink';
 import { MarkdownPre } from './MarkdownPre';
 import { PropsWithChildren } from 'react';
-import { modeColors } from '../../../styles/Styles';
 import dashboard from '../../../backend/Dashboard';
+import { getHordeStyling } from '../../../styles/Styles';
 
 // This is to work around inconsistency between the way markdown-to-jsx declares its types
 // (as having a default export) and the way it actually builds its files (for its cjs `main` file,
@@ -22,6 +22,9 @@ const MarkdownComponent: typeof MarkdownComponentType =
    (MarkdownModule as any).default || (MarkdownModule as any);
 
 const getStyles: IStyleFunction<IMarkdownStyleProps, IMarkdownStyles> = () => {
+
+   const { modeColors } = getHordeStyling();
+
    const imageStyles: Partial<IImageStyles> = {
       root: {
          maxWidth: '100%',

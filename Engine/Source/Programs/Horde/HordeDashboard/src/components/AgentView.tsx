@@ -1,5 +1,5 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
-import { Checkbox, CommandButton, ConstrainMode, ContextualMenu, DefaultButton, DetailsHeader, DetailsList, DetailsListLayoutMode, Dialog, DialogType, DirectionalHint, Dropdown, FontSizes, FontWeights, IBasePickerProps, IColumn, IContextualMenuItem, IContextualMenuProps, IDetailsHeaderProps, IDetailsHeaderStyles, IDetailsListProps, ITag, ITagItemStyles, ITooltipHostStyles, Icon, IconButton, PrimaryButton, ProgressIndicator, Link as ReactLink, ScrollablePane, ScrollbarVisibility, SearchBox, Selection, SelectionMode, Slider, Spinner, SpinnerSize, Stack, Sticky, StickyPositionType, TagItem, TagPicker, Text, TextField, getTheme, mergeStyleSets } from '@fluentui/react';
+import { Checkbox, CommandButton, ConstrainMode, ContextualMenu, DefaultButton, DetailsHeader, DetailsList, DetailsListLayoutMode, Dialog, DialogType, DirectionalHint, Dropdown, FontSizes, FontWeights, IBasePickerProps, IColumn, IContextualMenuItem, IContextualMenuProps, IDetailsHeaderProps, IDetailsHeaderStyles, IDetailsListProps, ITag, ITagItemStyles, ITooltipHostStyles, Icon, IconButton, PrimaryButton, ProgressIndicator, Link as ReactLink, ScrollablePane, ScrollbarVisibility, SearchBox, Selection, SelectionMode, Slider, Spinner, SpinnerSize, Stack, Sticky, StickyPositionType, TagItem, TagPicker, Text, TextField, mergeStyleSets } from '@fluentui/react';
 import { action, makeObservable, observable } from 'mobx';
 import { observer } from 'mobx-react-lite';
 import moment from 'moment-timezone';
@@ -13,107 +13,116 @@ import dashboard, { StatusColor } from '../backend/Dashboard';
 import { copyToClipboard } from '../base/utilities/clipboard';
 import { useWindowSize } from '../base/utilities/hooks';
 import { getShortNiceTime } from '../base/utilities/timeUtils';
-import { hexToRGB, hordeClasses, linearInterpolate } from '../styles/Styles';
+import { getHordeStyling, hexToRGB, linearInterpolate } from '../styles/Styles';
+import { getHordeTheme } from '../styles/theme';
 import { Breadcrumbs } from './Breadcrumbs';
 import { ConfirmationDialog } from './ConfirmationDialog';
 import { HistoryModal } from './HistoryModal';
 import { TopNav } from './TopNav';
 
+let _agentStyles: any;
+const getAgentStyles = () => {
+   const theme = getHordeTheme();
 
-const theme = getTheme();
+   const agentStyles = _agentStyles ?? mergeStyleSets({
 
-const agentStyles = mergeStyleSets({
+      ticker: {
+         width: '100%'
+      },
+      checkboxCell: {
+         selectors: {
+            '> div': {
+               height: '100%'
+            }
+         }
+      },
+      dialog: {
+         selectors: {
+            ".ms-Label,.ms-Button-label": {
+               fontWeight: "unset",
+               fontFamily: "Horde Open Sans SemiBold"
+            }
+         }
+      },
+      detailsList: {
+         selectors: {
+            ".ms-DetailsHeader-cellName": {
+               fontWeight: "unset",
+               fontFamily: "Horde Open Sans SemiBold"
+            }
+         }
+      },
+      descFont: {
+         font: '8pt Horde Open Sans SemiBold !important',
+         marginLeft: 12,
+         marginRight: 12,
+         marginBottom: 4
+      },
+      buttonFont: {
+         height: '26px',
+         font: '7pt Horde Open Sans SemiBold !important',
+         flexShrink: '0 !important',
+         paddingLeft: 6,
+         paddingRight: 6,
+         selectors: {
+            '.ms-Icon': {
+               width: 0,
+               margin: 0
+            },
+            ':active': {
+               textDecoration: 'none'
+            },
+            ':hover': {
+               textDecoration: 'none'
+            },
+            ':visited': {
+               textDecoration: 'none',
+               color: "#FFFFFF"
+            }
 
-   ticker: {
-      width: '100%'
-   },
-   checkboxCell: {
-      selectors: {
-         '> div': {
-            height: '100%'
          }
+      },
+      modalHeader: [
+         {
+            font: '24px Horde Open Sans Light',
+            flex: '1 1 auto',
+            color: theme.palette.neutralPrimary,
+            display: 'flex',
+            fontSize: FontSizes.xLarge,
+            alignItems: 'center',
+            fontWeight: FontWeights.semibold,
+            padding: '12px 12px 14px 24px'
+         }
+      ],
+      modalBody: {
+         flex: '4 4 auto',
+         padding: '0 24px 24px 24px',
+         overflowY: 'hidden',
+         selectors: {
+            p: {
+               margin: '14px 0'
+            },
+            'p:first-child': {
+               marginTop: 0
+            },
+            'p:last-child': {
+               marginBottom: 0
+            }
+         }
+      },
+      ellipsesStackItem: {
+         whiteSpace: 'nowrap',
+         overflow: 'hidden',
+         textOverflow: 'ellipsis'
       }
-   },
-   dialog: {
-      selectors: {
-         ".ms-Label,.ms-Button-label": {
-            fontWeight: "unset",
-            fontFamily: "Horde Open Sans SemiBold"
-         }
-      }
-   },
-   detailsList: {
-      selectors: {
-         ".ms-DetailsHeader-cellName": {
-            fontWeight: "unset",
-            fontFamily: "Horde Open Sans SemiBold"
-         }
-      }
-   },
-   descFont: {
-      font: '8pt Horde Open Sans SemiBold !important',
-      marginLeft: 12,
-      marginRight: 12,
-      marginBottom: 4
-   },
-   buttonFont: {
-      height: '26px',
-      font: '7pt Horde Open Sans SemiBold !important',
-      flexShrink: '0 !important',
-      paddingLeft: 6,
-      paddingRight: 6,
-      selectors: {
-         '.ms-Icon': {
-            width: 0,
-            margin: 0
-         },
-         ':active': {
-            textDecoration: 'none'
-         },
-         ':hover': {
-            textDecoration: 'none'
-         },
-         ':visited': {
-            textDecoration: 'none',
-            color: "#FFFFFF"
-         }
+   });
 
-      }
-   },
-   modalHeader: [
-      {
-         font: '24px Horde Open Sans Light',
-         flex: '1 1 auto',
-         color: theme.palette.neutralPrimary,
-         display: 'flex',
-         fontSize: FontSizes.xLarge,
-         alignItems: 'center',
-         fontWeight: FontWeights.semibold,
-         padding: '12px 12px 14px 24px'
-      }
-   ],
-   modalBody: {
-      flex: '4 4 auto',
-      padding: '0 24px 24px 24px',
-      overflowY: 'hidden',
-      selectors: {
-         p: {
-            margin: '14px 0'
-         },
-         'p:first-child': {
-            marginTop: 0
-         },
-         'p:last-child': {
-            marginBottom: 0
-         }
-      }
-   },
-   ellipsesStackItem: {
-      whiteSpace: 'nowrap',
-      overflow: 'hidden',
-      textOverflow: 'ellipsis'
-   }
-});
+   _agentStyles = agentStyles;
+
+   return agentStyles;
+}
+
+
 
 // column in the main table
 type ColumnItem = {
@@ -1452,6 +1461,8 @@ const PoolEditorConfirmation: React.FC = observer(() => {
 export const PoolEditorModal: React.FC = observer(() => {
 
    const [state, setState] = useState<{ sortBy: "Agents" | "Name" }>({ sortBy: "Name" });
+   const { hordeClasses } = getHordeStyling();
+   const agentStyles = getAgentStyles();
 
    let selectedColor = "#ffffff";
    let selectedColorValue = "0";
@@ -1692,6 +1703,9 @@ export const PoolEditorModal: React.FC = observer(() => {
 });
 
 export const PoolSelectionModal: React.FC = observer(() => {
+
+   const agentStyles = getAgentStyles();
+
    function onResolveSuggestions(filter: string, selectedItems?: ITag[] | undefined) {
       return selectPoolsModalState.availablePools.filter(item => item.name.toLowerCase().indexOf(filter.toLowerCase()) !== -1);
    }
@@ -1818,7 +1832,7 @@ export const SearchUpdate: React.FC = observer(() => {
 export const AgentViewInner: React.FC<{ agentId?: string, poolId?: string, searchParams?: URLSearchParams, agentView?: boolean }> = observer(({ agentId, poolId, searchParams, agentView }) => {
 
    poolId = poolId?.toLowerCase();
-   
+
    const [initAgentUpdater, setInitAgentUpdater] = useState(false);
 
    useEffect(() => {
@@ -1827,6 +1841,8 @@ export const AgentViewInner: React.FC<{ agentId?: string, poolId?: string, searc
       }, 5000);
       return () => clearInterval(interval);
    }, []);
+
+   const agentStyles = getAgentStyles();
 
    if (!initAgentUpdater) {
       agentStore.update().then(() => {
@@ -2139,7 +2155,7 @@ export const AgentViewInner: React.FC<{ agentId?: string, poolId?: string, searc
       if (filter.has("Ephemeral")) {
          if (item.ephemeral) {
             filtered = false;
-         } 
+         }
       }
 
       if (filter.has("Offline")) {
@@ -2242,7 +2258,7 @@ export const AgentViewInner: React.FC<{ agentId?: string, poolId?: string, searc
                directionalHintFixed={true}
             />
          </ScrollablePane>
-         <Stack grow styles={{ root: { backgroundColor: 'rgb(250, 249, 249)' } }} />
+         <Stack grow />
       </Stack>
       <ConfirmationDialog
          title={`Delete Agent${localState.selection.getSelectedCount() > 1 ? "s" : ""}`}
@@ -2314,12 +2330,12 @@ export const AgentViewInner: React.FC<{ agentId?: string, poolId?: string, searc
 
       let color = statusColors.get(StatusColor.Success);
       if (agent.enabled === false) {
-         color = statusColors.get(StatusColor.Failure);         
+         color = statusColors.get(StatusColor.Failure);
       }
       if (!agent.online) {
-         color = statusColors.get(StatusColor.Skipped);         
+         color = statusColors.get(StatusColor.Skipped);
       }
-      return <Icon iconName="FullCircle" style={{color: color, fontSize:16, marginRight: "13px", paddingTop:"2px"}} />;
+      return <Icon iconName="FullCircle" style={{ color: color, fontSize: 16, marginRight: "13px", paddingTop: "2px" }} />;
    }
 
    function getPropFromDevice(agent: AgentData, propKey: string, propValue: string | null = null) {
@@ -2641,6 +2657,8 @@ export const AgentPanel: React.FC<{ agentId?: string, poolId?: string, agentView
 export const AgentView: React.FC = () => {
 
    const [searchParams] = useSearchParams();
+   const hordeTheme = getHordeTheme();
+   const { hordeClasses } = getHordeStyling();
 
    const agentId = searchParams.get("agentId") ? searchParams.get("agentId") : undefined;
 
@@ -2651,13 +2669,13 @@ export const AgentView: React.FC = () => {
       <TopNav />
       <Breadcrumbs items={[{ text: 'Admin' }, { text: 'Agents' }]} />
       <Stack horizontal>
-         <Stack grow styles={{ root: { backgroundColor: 'rgb(250, 249, 249)' } }} />
-         <Stack tokens={{ maxWidth: 1440, childrenGap: 4 }} styles={{ root: { width: 1440, height: '100vh', backgroundColor: 'rgb(250, 249, 249)', paddingTop: 18, paddingLeft: 12 } }}>
+         <Stack grow styles={{ root: { backgroundColor: hordeTheme.horde.neutralBackground } }} />
+         <Stack tokens={{ maxWidth: 1440, childrenGap: 4 }} styles={{ root: { width: 1440, height: '100vh', backgroundColor: hordeTheme.horde.neutralBackground, paddingTop: 18, paddingLeft: 12 } }}>
             <Stack className={hordeClasses.raised} styles={{ root: { paddingRight: '40px' } }}>
                <AgentViewInner agentView={true} agentId={agentId ? agentId : undefined} searchParams={searchParams} />
             </Stack>
          </Stack>
-         <Stack grow styles={{ root: { backgroundColor: 'rgb(250, 249, 249)' } }} />
+         <Stack grow styles={{ root: { backgroundColor: hordeTheme.horde.neutralBackground } }} />
       </Stack>
    </Stack>
 

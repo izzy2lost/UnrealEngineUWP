@@ -6,13 +6,12 @@ import moment from 'moment';
 import React, { useState } from 'react';
 import backend, { useBackend } from '../backend';
 import { BoolParameterData, CreateJobRequest, GetJobsTabResponse, GroupParameterData, JobsTabData, ListParameterData, ListParameterItemData, ListParameterStyle, ParameterData, ParameterType, Priority, TabType, GetTemplateRefResponse, TextParameterData, ChangeQueryConfig } from '../backend/Api';
-
 import templateCache from '../backend/TemplateCache';
 import { ErrorHandler } from "../components/ErrorHandler";
-import { hordeClasses, modeColors } from '../styles/Styles';
 import { useQuery } from './JobDetailCommon';
 import { JobDetailsV2 } from './jobDetailsV2/JobDetailsViewCommon';
 import dashboard from '../backend/Dashboard';
+import { getHordeStyling } from '../styles/Styles';
 import { Markdown } from '../base/components/Markdown';
 
 let toolTipId = 0;
@@ -622,6 +621,7 @@ export const NewBuild: React.FC<{ streamId: string; show: boolean; onClose: (new
    const [validationErrors, setValidationErrors] = useState<ValidationError[]>([]);
 
    const targetPicker = React.useRef(null)
+   const { hordeClasses, modeColors } = getHordeStyling();
 
    const stream = projectStore.streamById(streamId);
 
@@ -1656,7 +1656,7 @@ export const NewBuild: React.FC<{ streamId: string; show: boolean; onClose: (new
                   {!!template?.description && <Stack>
                      <Label style={{ padding: 0, paddingBottom: 4 }}>{`Description`}</Label>
                      <Stack style={{ border: "1px solid #605e5c", width: 767 }}>
-                        <Stack style={{padding: "8px 12px"}}>
+                        <Stack style={{ padding: "8px 12px" }}>
                            <Markdown styles={{ root: { maxHeight: 240, overflow: "auto", th: { fontSize: 12 } } }}>{template.description}</Markdown>
                         </Stack>
                      </Stack>
@@ -1816,6 +1816,8 @@ export const NewBuild: React.FC<{ streamId: string; show: boolean; onClose: (new
 
 
 export const ValidationErrorModal: React.FC<{ errors: ValidationError[], show: boolean; onClose: () => void }> = ({ errors, show, onClose }) => {
+
+   const { hordeClasses } = getHordeStyling();
 
    const close = () => {
       onClose();

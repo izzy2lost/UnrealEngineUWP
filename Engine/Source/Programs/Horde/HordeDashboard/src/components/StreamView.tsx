@@ -9,7 +9,8 @@ import { JobsTabData } from '../backend/Api';
 import dashboard from '../backend/Dashboard';
 import { JobFilterSimple } from '../base/utilities/filter';
 import { useWindowSize } from '../base/utilities/hooks';
-import { hordeClasses, modeColors } from '../styles/Styles';
+import { getHordeStyling } from '../styles/Styles';
+import { getHordeTheme } from '../styles/theme';
 import { BreadcrumbItem, Breadcrumbs } from './Breadcrumbs';
 import { useQuery } from './JobDetailCommon';
 import { JobSearchSimpleModal } from './JobSearchSimple';
@@ -69,6 +70,10 @@ const StreamViewInner: React.FC = observer(() => {
    const [findJobsShown, setFindJobsShown] = useState(false);
 
    const { projectStore } = useBackend();
+
+   const { hordeClasses, modeColors } = getHordeStyling();
+
+   const hordeTheme = getHordeTheme();
 
    const stream = projectStore.streamById(streamId);
    const project = stream?.project;
@@ -228,9 +233,9 @@ const StreamViewInner: React.FC = observer(() => {
             }
          }} />
          {findJobsShown && <JobSearchSimpleModal onClose={() => { setFindJobsShown(false) }} streamId={stream.id} />}
-         <Stack horizontal>
+         <Stack horizontal style={{backgroundColor: hordeTheme.horde.neutralBackground}}>
             <div key={`windowsize_streamview_${windowSize.width}_${windowSize.height}`} style={{ width: (vw / 2 - (1440 / 2)) - 12, flexShrink: 0, backgroundColor: modeColors.background }} />
-            <Stack tokens={{ childrenGap: 0 }} styles={{ root: { backgroundColor: modeColors.background, width: "100%" } }}>
+            <Stack tokens={{ childrenGap: 0 }} styles={{ root: { width: "100%" } }}>
                <Stack style={{ width: 1440, paddingTop: 12, marginLeft: 4 }}>
                   <Stack style={{ maxWidth: windowWidth - 12 }} horizontal verticalAlign='center' verticalFill={true}>
                      <Stack style={{ paddingLeft: 4, paddingTop: 2, width: 1180 }}>
@@ -252,7 +257,7 @@ const StreamViewInner: React.FC = observer(() => {
                      <Stack horizontal verticalAlign="center" horizontalAlign={"end"} tokens={{ childrenGap: 8 }}>
                         <Stack horizontal tokens={{ childrenGap: 18 }}>
                            {!isSwarmTab && <DefaultButton
-                              styles={{ root: { fontFamily: "Horde Open Sans SemiBold !important", backgroundColor: modeColors.background } }}
+                              styles={{ root: { fontFamily: "Horde Open Sans SemiBold !important", backgroundColor: "transparent" } }}
                               text="Search"
                               split={!isSummary}
                               menuProps={!isSummary ? findJobsItems : undefined}

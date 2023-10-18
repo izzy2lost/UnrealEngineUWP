@@ -7,8 +7,8 @@ import { JobState, ReportPlacement } from '../../backend/Api';
 import { Markdown } from '../../base/components/Markdown';
 import { ISideRailLink } from '../../base/components/SideRail';
 import { getNiceTime } from '../../base/utilities/timeUtils';
-import { hordeClasses } from '../../styles/Styles';
 import { JobDataView, JobDetailsV2 } from "./JobDetailsViewCommon";
+import { getHordeStyling } from '../../styles/Styles';
 
 const sideRail: ISideRailLink = { text: "Summary", url: "rail_summary" };
 
@@ -51,6 +51,8 @@ class SummaryDataView extends JobDataView {
 JobDetailsV2.registerDataView("SummaryDataView", (details: JobDetailsV2) => new SummaryDataView(details));
 
 export const SummaryPanel: React.FC<{ jobDetails: JobDetailsV2 }> = observer(({ jobDetails }) => {
+
+   const { hordeClasses } = getHordeStyling();
 
    if (jobDetails.updated) { }
 

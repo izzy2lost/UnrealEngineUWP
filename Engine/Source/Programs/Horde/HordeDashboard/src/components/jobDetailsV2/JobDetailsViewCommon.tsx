@@ -11,9 +11,9 @@ import { PollBase } from "../../backend/PollBase";
 import { projectStore } from "../../backend/ProjectStore";
 import TemplateCache from "../../backend/TemplateCache";
 import { ISideRailLink } from "../../base/components/SideRail";
-import { modeColors } from "../../styles/Styles";
 import { useQuery } from "../JobDetailCommon";
 import { LabelStatusIcon, StepStatusIcon } from "../StatusIcon";
+import { getHordeStyling } from "../../styles/Styles";
 
 export abstract class JobDataView {
 
@@ -1091,6 +1091,7 @@ export const JobFilterBar: React.FC<{ jobDetails: JobDetailsV2 }> = observer(({ 
    const filterPicker = React.useRef(null);
    const navigate = useNavigate();
    const [state, setState] = useState<{}>({});
+   const { modeColors } = getHordeStyling();
 
    const jobFilter = jobDetails.filter;
    const stateFilter = jobFilter.filterStates;

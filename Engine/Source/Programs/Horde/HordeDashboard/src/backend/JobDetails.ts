@@ -1,6 +1,6 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 
-import { getTheme, mergeStyleSets, mergeStyles } from '@fluentui/react/lib/Styling';
+import { mergeStyleSets, mergeStyles } from '@fluentui/react/lib/Styling';
 import { action, makeObservable, observable } from 'mobx';
 import moment from 'moment';
 import backend from '.';
@@ -9,7 +9,6 @@ import { getBatchText } from '../components/JobDetailCommon';
 import { AgentData, ArtifactData, BatchData, EventData, GetGroupResponse, GetJobTimingResponse, GetLabelResponse, GetLabelStateResponse, GetLabelTimingInfoResponse, GroupData, IssueData, JobData, JobState, JobStepBatchState, JobStepError, JobStepOutcome, JobStepState, LabelState, NodeData, ReportPlacement, StepData, StreamData, TestData } from './Api';
 import { projectStore } from './ProjectStore';
 
-const theme = getTheme();
 
 export type JobLabel = GetLabelResponse & {
     stateResponse: GetLabelStateResponse;
@@ -1034,14 +1033,14 @@ const iconClass = mergeStyles({
 
 
 export const detailClassNames = mergeStyleSets({
-    success: [{ color: theme.palette.green, userSelect: "none" }, iconClass],
+    success: [{ color: "#52C705", userSelect: "none" }, iconClass],
     warnings: [{ color: "#F7D154", userSelect: "none" }, iconClass],
     failure: [{ color: "#EC4C47", userSelect: "none" }, iconClass],
     waiting: [{ color: "#A19F9D", userSelect: "none" }, iconClass],
     ready: [{ color: "#A19F9D", userSelect: "none" }, iconClass],
     skipped: [{ color: "#F3F2F1", userSelect: "none" }, iconClass],
     aborted: [{ color: "#F3F2F1", userSelect: "none" }, iconClass],
-    running: [{ color: theme.palette.blueLight, userSelect: "none" }, iconClass]
+    running: [{ color: "#00BCF2", userSelect: "none" }, iconClass]
 });
 
 export const getDetailStyle = (state: JobStepState, outcome: JobStepOutcome): DetailStyle => {

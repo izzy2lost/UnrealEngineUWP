@@ -7,9 +7,9 @@ import backend from '../../backend';
 import { GetBisectTaskResponse } from '../../backend/Api';
 import { PollBase } from '../../backend/PollBase';
 import { ISideRailLink } from '../../base/components/SideRail';
-import { hordeClasses } from '../../styles/Styles';
 import { BisectionList } from '../bisection/BisectionList';
 import { JobDataView, JobDetailsV2 } from './JobDetailsViewCommon';
+import { getHordeStyling } from '../../styles/Styles';
 
 const sideRail: ISideRailLink = { text: "Bisection", url: "rail_detail_bisection" };
 
@@ -177,6 +177,8 @@ JobDetailsV2.registerDataView("StepBisectionView", (details: JobDetailsV2) => ne
 export const BisectionPanel: React.FC<{ jobDetails: JobDetailsV2, stepId?: string }> = observer(({ jobDetails, stepId }) => {
 
    const dataView = jobDetails.getDataView<StepBisectionView>("StepBisectionView");
+
+   const { hordeClasses } = getHordeStyling();
 
    useEffect(() => {
       return () => {

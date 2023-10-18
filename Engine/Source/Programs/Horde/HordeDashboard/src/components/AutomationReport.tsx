@@ -1,4 +1,4 @@
-import { IconButton, Label, List, Modal, ScrollablePane, ScrollbarVisibility, Spinner, SpinnerSize, Stack, Text, getFocusStyle, getTheme, mergeStyleSets } from "@fluentui/react";
+import { IconButton, Label, List, Modal, ScrollablePane, ScrollbarVisibility, Spinner, SpinnerSize, Stack, Text, getFocusStyle, mergeStyleSets } from "@fluentui/react";
 import { action, makeObservable, observable } from "mobx";
 import { observer } from "mobx-react-lite";
 import moment from "moment";
@@ -10,51 +10,60 @@ import { TestDataHandler } from "../backend/AutomationTestData";
 import dashboard from "../backend/Dashboard";
 import { projectStore } from "../backend/ProjectStore";
 import { getNiceTime, msecToElapsed } from "../base/utilities/timeUtils";
-import { hordeClasses, modeColors } from "../styles/Styles";
+import { getHordeStyling } from "../styles/Styles";
+import { getHordeTheme } from "../styles/theme";
 import { renderLine } from "./LogRender";
 
 
-const theme = getTheme();
+let _styles: any;
+const getStyles = () => {
+   const theme = getHordeTheme();
 
-const styles = mergeStyleSets({
-   gutter: [
-      {
-         borderLeftStyle: 'solid',
-         borderLeftColor: "#EC4C47",
-         borderLeftWidth: 6,
-         padding: 0,
-         margin: 0,
-         paddingTop: 8,
-         paddingBottom: 8,
-         paddingRight: 8,
-         marginTop: 0,
-         marginBottom: 0
-      }
-   ],
-   gutterWarning: [
-      {
-         borderLeftStyle: 'solid',
-         borderLeftColor: "rgb(247, 209, 84)",
-         borderLeftWidth: 6,
-         padding: 0,
-         margin: 0,
-         paddingTop: 8,
-         paddingBottom: 8,
-         paddingRight: 8,
-         marginTop: 0,
-         marginBottom: 0
-      }
-   ],
-   itemCell: [
-      getFocusStyle(theme, { inset: -1 }),
-      {
-         selectors: {
-            '&:hover': { background: "rgb(243, 242, 241)" }
+   const styles = _styles ?? mergeStyleSets({
+      gutter: [
+         {
+            borderLeftStyle: 'solid',
+            borderLeftColor: "#EC4C47",
+            borderLeftWidth: 6,
+            padding: 0,
+            margin: 0,
+            paddingTop: 8,
+            paddingBottom: 8,
+            paddingRight: 8,
+            marginTop: 0,
+            marginBottom: 0
          }
-      }
-   ],
+      ],
+      gutterWarning: [
+         {
+            borderLeftStyle: 'solid',
+            borderLeftColor: "rgb(247, 209, 84)",
+            borderLeftWidth: 6,
+            padding: 0,
+            margin: 0,
+            paddingTop: 8,
+            paddingBottom: 8,
+            paddingRight: 8,
+            marginTop: 0,
+            marginBottom: 0
+         }
+      ],
+      itemCell: [
+         getFocusStyle(theme, { inset: -1 }),
+         {
+            selectors: {
+               '&:hover': { background: theme.palette.neutralLight }
+            }
+         }
+      ],
+   
+   });
 
-});
+   _styles = styles;
+   return styles;
+}
+
+
 
 type TestFailureEvent = {
    // last failure ref id
@@ -303,7 +312,9 @@ class TestReportGenerator {
 
 const ErrorPane: React.FC<{ failure: TestFailureEvent }> = ({ failure }) => {
 
+   const { modeColors } = getHordeStyling();
    const navigate = useNavigate();
+   const styles = getStyles();
 
    const events = failure.events;
    if (!events) {
@@ -350,6 +361,8 @@ const ErrorPane: React.FC<{ failure: TestFailureEvent }> = ({ failure }) => {
 let idCounter = 0;
 
 const AutomationFailureInner: React.FC<{ generator: TestReportGenerator, test: GetTestResponse, }> = ({ generator, test }) => {
+
+   const { hordeClasses, modeColors } = getHordeStyling();
 
    const failure = generator.failures.get(test.id);
    if (!failure?.streams.size) {
@@ -448,6 +461,8 @@ export const AutomationFailureModal: React.FC<{ handler: TestDataHandler, test: 
          generator?.clear();
       };
    }, [generator]);
+
+   const { hordeClasses } = getHordeStyling();
 
    // subscribe
    if (generator.updated) { }

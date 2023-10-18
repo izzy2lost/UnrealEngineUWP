@@ -11,9 +11,9 @@ import { GetBatchResponse, GetStepResponse, JobStepBatchState, JobStepOutcome, S
 import dashboard, { StatusColor } from "../../backend/Dashboard";
 import { ISideRailLink } from "../../base/components/SideRail";
 import { getShortNiceTime, msecToElapsed } from "../../base/utilities/timeUtils";
-import { hordeClasses, modeColors } from "../../styles/Styles";
 import { HistoryModal } from "../HistoryModal";
 import { JobDataView, JobDetailsV2 } from "./JobDetailsViewCommon";
+import { getHordeStyling } from "../../styles/Styles";
 
 type SelectionType = d3.Selection<SVGGElement, unknown, null, undefined>;
 
@@ -730,6 +730,7 @@ class TimelineRenderer {
 const GraphTooltip: React.FC<{ dataView: TimelineDataView }> = observer(({ dataView }) => {
 
    const [viewAgent, setViewAgent] = useState("");
+   const { modeColors } = getHordeStyling();
 
    // subscribe
    if (dataView.tooltip.updated) { }
@@ -890,6 +891,8 @@ const TimelineGraph: React.FC<{ dataView: TimelineDataView, filterTime: number, 
    const [state, setState] = useState<{ graph?: TimelineRenderer }>({});
    const navigate = useNavigate();
 
+   const { hordeClasses } = getHordeStyling();
+
    // todo: we can probably cache
    dataView.filterTime = filterTime;
    dataView.filterCost = filterCost;
@@ -932,6 +935,7 @@ JobDetailsV2.registerDataView("TimelineDataView", (details: JobDetailsV2) => new
 export const TimelinePanel: React.FC<{ jobDetails: JobDetailsV2, stepId?: string }> = observer(({ jobDetails, stepId }) => {
 
    const [state, setState] = useState({ time: 0, cost: 0 });
+   const { hordeClasses } = getHordeStyling();
 
    if (jobDetails.updated) { }
 

@@ -8,36 +8,45 @@ import backend, { useBackend } from '../backend';
 import { ProjectData } from "../backend/Api";
 import dashboard from '../backend/Dashboard';
 import { ProjectStore } from '../backend/ProjectStore';
-import { modeColors } from '../styles/Styles';
 import { PreviewChangesModal } from './PreviewChanges';
 import { VersionModal } from './VersionModal';
+import { getHordeTheme } from '../styles/theme';
+import { getHordeStyling } from '../styles/Styles';
 
 const logoutURL = "/account";
 
-// Styles for both command bar and overflow/menu items
-const itemStyles: Partial<IContextualMenuItemStyles> = {
-   label: { fontSize: 12 },
-   root: {
-      paddingLeft: 6,
-      selectors: {
-         'a:link,a:visited': {
-            color: modeColors.text
+const getStyles = () => {
+
+   const theme = getHordeTheme();
+
+   // Styles for both command bar and overflow/menu items
+   const itemStyles: Partial<IContextualMenuItemStyles> = {
+      label: { fontSize: 12 },
+      root: {
+         paddingLeft: 6,
+         selectors: {
+            'a:link,a:visited': {
+               color: theme.semanticColors.bodyText
+            }
          }
       }
-   }
-};
-// For passing the styles through to the context menus
-const menuStyles: Partial<IContextualMenuStyles> = {
-   root: {
-      fontSize: 12, selectors: {
-         'a:link,a:visited': {
-            color: modeColors.text
+   };
+   // For passing the styles through to the context menus
+   const menuStyles: Partial<IContextualMenuStyles> = {
+      root: {
+         fontSize: 12, selectors: {
+            'a:link,a:visited': {
+               color: theme.semanticColors.bodyText
+            }
          }
-      }
-   },
-   header: { fontFamily: "Horde Open Sans Bold" },
-   subComponentStyles: { menuItem: itemStyles, callout: {} }
-};
+      },
+      header: { fontFamily: "Horde Open Sans Bold" },
+      subComponentStyles: { menuItem: itemStyles, callout: {} }
+   };
+
+   return [itemStyles, menuStyles];
+}
+
 
 type ButtonData = {
    project: ProjectData;
@@ -45,6 +54,9 @@ type ButtonData = {
 
 // Top level project button component
 const ProjectButton: React.FunctionComponent<IButtonProps> = (props) => {
+
+   const hordeTheme = getHordeTheme();
+   const [itemStyles] = getStyles();
 
    const navigate = useNavigate();
    const { project } = props.data as ButtonData;
@@ -77,13 +89,16 @@ const ProjectButton: React.FunctionComponent<IButtonProps> = (props) => {
                ...props.styles,
                ...itemStyles,
                root: {
-                  backgroundColor: modeColors.header,
-                  color: modeColors.text,
+                  backgroundColor: hordeTheme.horde.topNavBackground,
                   height: 30,
                   paddingLeft: 12,
                   paddingRight: 12,
                   margin: 0,
-                  fontFamily: "Horde Raleway Regular"
+                  fontFamily: "Horde Raleway Regular",
+                  fontSize: 12
+               },
+               label: {
+                  color: hordeTheme.semanticColors.bodyText
                },
                menuIcon: {
                   display: "none"
@@ -101,6 +116,8 @@ type IProjectContextualMenuItem = IContextualMenuItem & {
 // individual menu items
 const ProjectMenuItem: React.FunctionComponent<IContextualMenuItemProps> = props => {
 
+   const { modeColors } = getHordeStyling();
+
    const item = props.item as IProjectContextualMenuItem;
 
    if (!item.link) {
@@ -113,11 +130,15 @@ const ProjectMenuItem: React.FunctionComponent<IContextualMenuItemProps> = props
 
 const generateProjectMenu = (store: ProjectStore) => {
 
+   const { modeColors } = getHordeStyling();
+
    const projects = store.projects;
 
    if (!projects || !projects.length) {
       return [];
    }
+
+   const [, menuStyles] = getStyles();
 
    const cbProps: ICommandBarItemProps[] = [];
 
@@ -207,7 +228,6 @@ const generateProjectMenu = (store: ProjectStore) => {
          if (subItems.length) {
             subItems.push(
                {
-                  style: { color: modeColors.text },
                   key: `show_all_${p.id}`, text: "Show All", data: { project: p, stream: undefined }, link: `/project/${p.id}`
                }
             );
@@ -219,7 +239,6 @@ const generateProjectMenu = (store: ProjectStore) => {
          p.streams?.forEach(stream => {
             subItems.push(
                {
-                  style: { color: modeColors.text },
                   key: stream.id, text: stream.name, data: { project: p, stream: stream }, link: `/stream/${stream.id}`
                }
             );
@@ -264,6 +283,11 @@ const AdminButton: React.FunctionComponent<IButtonProps> = (props) => {
    const navigate = useNavigate();
 
    const buttonRef = React.createRef<IButton>();
+
+   const hordeTheme = getHordeTheme();
+
+   const [itemStyles] = getStyles();
+
    return (
       <Stack disableShrink={true}
          onMouseEnter={() => {
@@ -295,12 +319,14 @@ const AdminButton: React.FunctionComponent<IButtonProps> = (props) => {
                ...props.styles,
                ...itemStyles,
                root: {
-                  backgroundColor: modeColors.header,
+                  backgroundColor: hordeTheme.horde.topNavBackground,
+                  color: hordeTheme.semanticColors.bodyText,
                   height: 30,
                   paddingLeft: 12,
                   paddingRight: 12,
                   margin: 0,
-                  fontFamily: "Horde Raleway Regular"
+                  fontFamily: "Horde Raleway Regular",
+                  fontSize: 12
                },
                menuIcon: {
                   display: "none"
@@ -377,8 +403,11 @@ export const TopNav: React.FC<{ suppressServer?: boolean }> = observer(({ suppre
    // subscribe
    if (dashboard.updated) { }
 
+   const hordeTheme = getHordeTheme();
+
    const generateAdminMenu = () => {
 
+      const [, menuStyles] = getStyles();
 
       const cbProps: ICommandBarItemProps[] = [];
 
@@ -632,10 +661,10 @@ export const TopNav: React.FC<{ suppressServer?: boolean }> = observer(({ suppre
    }
 
    return (
-      <div style={{ backgroundColor: modeColors.header }}>
+      <div style={{ backgroundColor: hordeTheme.horde.topNavBackground }}>
          {showVersion && <VersionModal show={true} onClose={() => { setShowVersion(false) }} />}
          {showPreviewChanges && <PreviewChangesModal onClose={() => { setShowPreviewChanges(false) }} />}
-         <Stack tokens={{ maxWidth: 1464, childrenGap: 0 }} disableShrink={true} styles={{ root: { backgroundColor: modeColors.header, margin: "auto", width: "100%" } }}>
+         <Stack tokens={{ maxWidth: 1464, childrenGap: 0 }} disableShrink={true} styles={{ root: { backgroundColor: hordeTheme.horde.topNavBackground, margin: "auto", width: "100%" } }}>
             <Stack horizontal verticalAlign='center' styles={{ root: { height: "60px" } }} >
 
                <Link to="/index"><Stack horizontal styles={{ root: { paddingLeft: 8, cursor: 'pointer' } }}>
@@ -643,7 +672,7 @@ export const TopNav: React.FC<{ suppressServer?: boolean }> = observer(({ suppre
                      <img style={{ width: 32 }} src={logoSrc} alt="" />
                   </Stack>
                   <Stack styles={{ root: { paddingTop: 11 } }}>
-                     <Text styles={{ root: { fontFamily: "Horde Raleway Bold", color: dashboard.darktheme ? "#FFFFFFFF" : modeColors.text } }}>HORDE{dashboard.preview ? " PREVIEW" : ""}</Text>
+                     <Text styles={{ root: { fontFamily: "Horde Raleway Bold" } }}>HORDE{dashboard.preview ? " PREVIEW" : ""}</Text>
                   </Stack>
                </Stack>
                </Link>
@@ -651,7 +680,7 @@ export const TopNav: React.FC<{ suppressServer?: boolean }> = observer(({ suppre
                <RequestLogout />
 
                <Stack grow>
-                  <CommandBar styles={{ root: { paddingTop: 17, backgroundColor: modeColors.header } }}
+                  <CommandBar styles={{ root: { paddingTop: 17, backgroundColor: hordeTheme.horde.topNavBackground } }}
                      buttonAs={ProjectButton}
                      onReduceData={() => undefined}
                      items={generateProjectMenu(projectStore)}
@@ -661,7 +690,7 @@ export const TopNav: React.FC<{ suppressServer?: boolean }> = observer(({ suppre
                <Stack grow />
                <Stack horizontal verticalAlign="center" tokens={{ childrenGap: 0 }}>
                   <Stack>
-                     {showServer && <CommandBar styles={{ root: { paddingTop: 17, paddingLeft: 0, paddingRight: 32, backgroundColor: modeColors.header } }}
+                     {showServer && <CommandBar styles={{ root: { paddingTop: 17, paddingLeft: 0, paddingRight: 32, backgroundColor: hordeTheme.horde.topNavBackground } }}
                         buttonAs={AdminButton}
                         onReduceData={() => undefined}
                         items={generateAdminMenu()}

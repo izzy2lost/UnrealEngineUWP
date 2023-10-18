@@ -10,9 +10,9 @@ import dashboard from "../backend/Dashboard";
 import notices from "../backend/Notices";
 import { useWindowSize } from "../base/utilities/hooks";
 import { displayTimeZone } from "../base/utilities/timeUtils";
-import { hordeClasses, modeColors } from "../styles/Styles";
 import { Breadcrumbs } from "./Breadcrumbs";
 import { TopNav } from "./TopNav";
+import { getHordeStyling } from "../styles/Styles";
 
 
 const NoticePanel: React.FC = observer(() => {
@@ -113,6 +113,7 @@ export const NoticeView: React.FC = () => {
 
    const windowSize = useWindowSize();
    const vw = Math.max(document.documentElement.clientWidth, window.innerWidth || 0);
+   const { hordeClasses, modeColors } = getHordeStyling();
 
    return <Stack className={hordeClasses.horde}>
       <TopNav />
@@ -136,6 +137,7 @@ const NoticeEditor: React.FC<{ noticeIn?: GetNoticeResponse, onClose: () => void
 
    const [submitting, setSubmitting] = useState(false);
    const [confirmDelete, setConfirmDelete] = useState(false);
+   const { hordeClasses } = getHordeStyling();
 
    let notice = noticeIn ? { ...noticeIn } : { id: undefined, message: undefined };
 

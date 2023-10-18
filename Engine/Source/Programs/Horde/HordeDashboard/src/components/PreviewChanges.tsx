@@ -1,6 +1,7 @@
 import { DetailsList, DetailsListLayoutMode, IColumn, IconButton, Modal, PrimaryButton, SelectionMode, Stack, Text } from "@fluentui/react";
 import { Link as ReactRouterLink } from 'react-router-dom';
-import { hordeClasses } from "../styles/Styles";
+import { getHordeStyling } from "../styles/Styles";
+
 
 type ChangeItem = {
    //
@@ -50,6 +51,9 @@ const onRenderItemColumn = (item: ChangeItem, index?: number, columnIn?: IColumn
 
 
 export const PreviewChangesModal: React.FC<{ onClose: () => void }> = ({ onClose }) => {
+
+   const { hordeClasses } = getHordeStyling();
+
    return <Modal isOpen={true} isBlocking={true} topOffsetFixed={true} styles={{ main: { padding: 8, width: 1000, hasBeenOpened: false, top: "80px", position: "absolute" } }} className={hordeClasses.modal} onDismiss={() => { onClose() }}>
       <Stack style={{ paddingRight: 18 }}>
          <Stack style={{ paddingLeft: 18, paddingTop: 8 }}>

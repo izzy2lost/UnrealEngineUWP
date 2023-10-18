@@ -3,10 +3,10 @@ import { useState } from "react";
 import { useNavigate } from "react-router-dom";
 import backend from "../../backend";
 import dashboard, { StatusColor } from "../../backend/Dashboard";
-import { hordeClasses } from "../../styles/Styles";
+import { getHordeStyling } from "../../styles/Styles";
 
 const PreflightConfigPanel: React.FC = () => {
-
+   
    const search = new URL(window.location.toString()).searchParams;
    const shelvedChange = search.get("preflightconfig") ? search.get("preflightconfig")! : undefined;
 
@@ -100,6 +100,8 @@ const PreflightConfigPanel: React.FC = () => {
 
 
 export const PreflightConfigModal: React.FC<{ onClose: () => void }> = ({ onClose }) => {
+
+   const { hordeClasses } = getHordeStyling();
 
    return <Stack>
       <Modal isOpen={true} isBlocking={true} topOffsetFixed={true} styles={{ main: { padding: 8, width: 880, height: 720, hasBeenOpened: false, top: "80px", position: "absolute" } }} onDismiss={() => onClose()} className={hordeClasses.modal}>

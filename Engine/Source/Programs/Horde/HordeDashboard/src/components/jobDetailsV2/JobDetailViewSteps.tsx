@@ -6,12 +6,13 @@ import { BatchData, GetBatchResponse, JobStepBatchError, JobStepBatchState, JobS
 import dashboard, { StatusColor } from "../../backend/Dashboard";
 import { ISideRailLink } from "../../base/components/SideRail";
 import { getBatchInitElapsed, getNiceTime, getStepElapsed, getStepETA, getStepFinishTime, getStepPercent, getStepStartTime, getStepTimingDelta } from "../../base/utilities/timeUtils";
-import { hordeClasses } from "../../styles/Styles";
 import { HistoryModal } from "../HistoryModal";
 import { getBatchText, getStepStatusMessage } from "../JobDetailCommon";
 import { StepStatusIcon } from "../StatusIcon";
 import { LabelsPanelV2 } from "./JobDetailLabels";
 import { JobDataView, JobDetailsV2, JobFilterBar, StateFilter } from "./JobDetailsViewCommon";
+import { getHordeTheme } from "../../styles/theme";
+import { getHordeStyling } from "../../styles/Styles";
 
 const stepsSideRail: ISideRailLink = { text: "Steps", url: "rail_steps" };
 const depSideRail: ISideRailLink = { text: "Dependencies", url: "rail_dependencies" };
@@ -166,6 +167,8 @@ export const StepsPanelInner: React.FC<{ jobDetails: JobDetailsV2, depStepId?: s
    }, [dataView]);
 
    dataView.subscribe();
+
+   const hordeTheme = getHordeTheme();
 
    const jobFilter = jobDetails.filter;
 
@@ -335,7 +338,7 @@ export const StepsPanelInner: React.FC<{ jobDetails: JobDetailsV2, depStepId?: s
       if (props) {
          const item = props.item as StepItem;
          if (item.agentRow) {
-            props.styles = { ...props.styles, root: { background: 'rgb(233, 232, 231)', selectors: { "a, a:hover, a:visited": { color: "#FFFFFF" }, ":hover": { background: 'rgb(223, 222, 221)' }, ".ms-DetailsRow-cell": { "overflow": "visible" } } } };
+            props.styles = { ...props.styles, root: { background: hordeTheme.horde.dividerColor, selectors: { ".ms-DetailsRow-cell": { "overflow": "visible" } } } };
          } else {
             props.styles = { ...props.styles, root: { selectors: { ".ms-DetailsRow-cell": { "overflow": "visible" }, "div[data-automation-key=\"Name\"],div[data-automation-key=\"ViewLogColumn\"]": { padding: 0 } } } };
          }
@@ -652,6 +655,8 @@ export const StepsPanelInner: React.FC<{ jobDetails: JobDetailsV2, depStepId?: s
 });
 
 export const StepsPanelV2: React.FC<{ jobDetails: JobDetailsV2, depStepId?: string }> = observer(({ jobDetails, depStepId }) => {
+
+   const { hordeClasses } = getHordeStyling();
 
    jobDetails.subscribe();
 

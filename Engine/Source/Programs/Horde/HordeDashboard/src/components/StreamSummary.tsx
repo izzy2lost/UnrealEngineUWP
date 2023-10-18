@@ -11,12 +11,12 @@ import { FindIssueResponse, GetExternalIssueResponse, JobsTabData, TabType } fro
 import dashboard from '../backend/Dashboard';
 import { ProjectStore } from '../backend/ProjectStore';
 import { getElapsedString, getShortNiceTime } from '../base/utilities/timeUtils';
-import { detailClasses, hordeClasses } from '../styles/Styles';
 import { IssueModalV2 } from './IssueViewV2';
 import { useQuery } from './JobDetailCommon';
 import { SchedulePane } from './SchedulePane';
 import { IssueStatusIconV2 } from './StatusIcon';
 import { BuildHealthTestReportPanel } from './TestReportPanel';
+import { getHordeStyling } from '../styles/Styles';
 
 
 class SummaryHandler {
@@ -413,6 +413,7 @@ const HealthPanelIssues: React.FC<{ desktopAlerts?: boolean }> = observer(({ des
    const { projectStore } = useBackend();
    const [issueHistory, setIssueHistory] = useState(false);
    const [currentPivot, setCurrentPivot] = useState("$promoted");
+   const { hordeClasses, detailClasses } = getHordeStyling();
 
    // subscribe
    if (handler.update) { }
@@ -625,7 +626,6 @@ const HealthPanelIssues: React.FC<{ desktopAlerts?: boolean }> = observer(({ des
                      fontSize: "13px",
                      padding: '4px 8px',
                      userSelect: 'none',
-                     color: "#404040",
                      fontFamily: "Horde Open Sans SemiBold"
                   }}>{`${group.headerText}`}</div>
                </div>
@@ -720,6 +720,8 @@ const HealthPanelIssues: React.FC<{ desktopAlerts?: boolean }> = observer(({ des
 
 const HealthPanel: React.FC<{ desktopAlerts?: boolean }> = observer(({ desktopAlerts }) => {
 
+   const { hordeClasses } = getHordeStyling();
+
    if (handler.update) { }
 
    return <Stack style={{ width: 1384, marginLeft: 4 }}>
@@ -740,6 +742,7 @@ const HealthPanel: React.FC<{ desktopAlerts?: boolean }> = observer(({ desktopAl
 const SchedulePanel: React.FC = observer(() => {
 
    const { projectStore } = useBackend();
+   const { hordeClasses } = getHordeStyling();
 
    // subscribe
    if (handler.update) { }

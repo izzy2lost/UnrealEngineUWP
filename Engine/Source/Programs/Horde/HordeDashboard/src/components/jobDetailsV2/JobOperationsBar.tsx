@@ -6,7 +6,6 @@ import React, { useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { ArtifactContextType, JobState, JobStepOutcome, JobStepState, StepData } from '../../backend/Api';
 import dashboard from '../../backend/Dashboard';
-import { hordeClasses } from '../../styles/Styles';
 import { EditJobModal } from '../EditJobModal';
 import { useQuery } from '../JobDetailCommon';
 import { NewBuild } from '../NewBuild';
@@ -18,6 +17,7 @@ import { AbortJobModal } from './AbortJobModal';
 import { JobDetailsV2 } from './JobDetailsViewCommon';
 import { RetryStepsModal, StepRetryModal, StepRetryType } from './StepRetryModal';
 import { getSiteConfig } from '../../backend/Config';
+import { getHordeStyling } from '../../styles/Styles';
 
 enum ParameterState {
    Hidden,
@@ -34,6 +34,8 @@ export const JobOperations: React.FC<{ jobDetails: JobDetailsV2 }> = observer(({
    const [retryStepsShown, setRetryStepsShown] = useState(false);
 
    const [parametersState, setParametersState] = useState(query.get("newbuild") ? ParameterState.Clone : ParameterState.Hidden);
+
+   const { hordeClasses } = getHordeStyling();
 
    const stepId = query.get("step") ? query.get("step")! : undefined;
    const batchFilter = query.get("batch");
@@ -207,7 +209,8 @@ export const JobOperations: React.FC<{ jobDetails: JobDetailsV2 }> = observer(({
 });
 
 const StepArtifactsOperations: React.FC<{ jobDetails: JobDetailsV2, stepId: string }> = observer(({ jobDetails, stepId }) => {
-
+   
+   const { hordeClasses } = getHordeStyling();
 
    const navigate = useNavigate();
 
@@ -301,6 +304,8 @@ const StepOperations: React.FC<{ jobDetails: JobDetailsV2, stepId: string }> = o
 
    const [shown, setShown] = useState<{ abortShown?: boolean, retryShown?: boolean, pauseShown?: boolean, bisectShown?: boolean }>({});
    const [runType, setRunType] = useState(StepRetryType.RunAgain);
+
+   const { hordeClasses } = getHordeStyling();
 
    // subscribe
    if (dashboard.updated) { }

@@ -7,9 +7,9 @@ import backend from "../backend";
 import { GetPerforceServerStatusResponse } from "../backend/Api";
 import { PollBase } from "../backend/PollBase";
 import { useWindowSize } from "../base/utilities/hooks";
-import { hordeClasses, modeColors } from "../styles/Styles";
 import { Breadcrumbs } from "./Breadcrumbs";
 import { TopNav } from "./TopNav";
+import { getHordeStyling } from "../styles/Styles";
 
 class PerforceServerHandler extends PollBase {
 
@@ -53,6 +53,8 @@ const ServerPanel: React.FC = observer(() => {
       };
 
    }, []);
+
+   const { hordeClasses, modeColors } = getHordeStyling();
 
    // subscribe
    if (handler.updated) { };
@@ -114,6 +116,8 @@ export const PerforceServerView: React.FC = () => {
 
    const windowSize = useWindowSize();
    const vw = Math.max(document.documentElement.clientWidth, window.innerWidth || 0);
+
+   const { hordeClasses, modeColors } = getHordeStyling();
 
    return <Stack className={hordeClasses.horde}>
       <TopNav />

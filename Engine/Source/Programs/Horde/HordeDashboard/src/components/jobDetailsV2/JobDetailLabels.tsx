@@ -4,9 +4,9 @@ import { useNavigate, useLocation } from "react-router-dom";
 import { LabelOutcome, LabelState } from "../../backend/Api";
 import { JobLabel } from "../../backend/JobDetails";
 import { getLabelColor } from "../../styles/colors";
-import { hordeClasses } from "../../styles/Styles";
 import { useQuery } from "../JobDetailCommon";
 import { JobDataView, JobDetailsV2 } from "./JobDetailsViewCommon";
+import { getHordeStyling } from "../../styles/Styles";
 
 
 export const LabelsPanelV2: React.FC<{ jobDetails: JobDetailsV2, dataView: JobDataView }> = observer(({ jobDetails, dataView }) => {
@@ -14,6 +14,8 @@ export const LabelsPanelV2: React.FC<{ jobDetails: JobDetailsV2, dataView: JobDa
    const query = useQuery();
    const navigate = useNavigate();
    const location = useLocation();
+
+   const { hordeClasses } = getHordeStyling();
 
    dataView.subscribe();
 

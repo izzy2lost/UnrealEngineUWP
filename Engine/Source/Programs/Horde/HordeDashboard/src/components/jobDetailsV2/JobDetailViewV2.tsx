@@ -4,19 +4,19 @@ import { useEffect, useRef, useState } from "react";
 import { useLocation, useNavigate, useParams } from "react-router-dom";
 import { GetJobsTabResponse } from "../../backend/Api";
 import { useWindowSize } from "../../base/utilities/hooks";
-import { hordeClasses, modeColors } from "../../styles/Styles";
+import { getHordeStyling } from "../../styles/Styles";
 import { BreadcrumbItem, Breadcrumbs } from "../Breadcrumbs";
 import { useQuery } from "../JobDetailCommon";
 import { TopNav } from "../TopNav";
+import { BisectionPanel } from "./JobDetailBisection";
 import { HealthPanel } from "./JobDetailHealthV2";
+import { PreflightPanel } from "./JobDetailPreflight";
 import { JobDataView, JobDetailsV2 } from "./JobDetailsViewCommon";
 import { TimelinePanel } from "./JobDetailTimeline";
 import { StepsPanelV2 } from "./JobDetailViewSteps";
 import { SummaryPanel } from "./JobDetailViewSummary";
 import { JobOperations } from "./JobOperationsBar";
 import { StepDetailView } from "./StepDetailView";
-import { BisectionPanel } from "./JobDetailBisection";
-import { PreflightPanel } from "./JobDetailPreflight";
 
 class BreadcrumbDataView extends JobDataView {
 
@@ -335,7 +335,8 @@ const ScrollRestore: React.FC<{ jobDetails: JobDetailsV2, scrollRef: React.RefOb
 const DetailsView: React.FC<{ jobDetails: JobDetailsV2 }> = ({ jobDetails }) => {
 
    const windowSize = useWindowSize();
-   const scrollRef = useRef<HTMLDivElement>(null);
+   const scrollRef = useRef<HTMLDivElement>(null);   
+   const { modeColors } = getHordeStyling();
 
    const vw = Math.max(document.documentElement.clientWidth, window.innerWidth || 0);
 
@@ -393,6 +394,8 @@ export const JobDetailViewV2: React.FC = () => {
          state.jobDetails = undefined;
       };
    }, [state]);
+
+   const { hordeClasses } = getHordeStyling();
 
    if (!jobId) {
       return null;

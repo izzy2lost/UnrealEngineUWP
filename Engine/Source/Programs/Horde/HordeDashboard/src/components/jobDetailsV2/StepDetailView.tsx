@@ -4,24 +4,23 @@ import { Stack } from "@fluentui/react";
 import { observer } from "mobx-react-lite";
 import { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
-import { hordeClasses } from "../../styles/Styles";
+import backend from "../../backend";
+import { GetArtifactResponseV2 } from "../../backend/Api";
+import { getHordeStyling } from "../../styles/Styles";
 import { HistoryModal } from "../HistoryModal";
 import { useQuery } from "../JobDetailCommon";
 import { JobDetailArtifactsV2 } from "./JobDetailArtifactsV2";
+import { BisectionPanel } from "./JobDetailBisection";
 import { HealthPanel } from "./JobDetailHealthV2";
+import { PreflightPanel } from "./JobDetailPreflight";
 import { StepHistoryPanel } from "./JobDetailStepHistory";
-import { JobDataView, JobDetailsV2 } from "./JobDetailsViewCommon";
+import { StepTrendsPanelV2 } from "./JobDetailStepTrendsV2";
 import { TimelinePanel } from "./JobDetailTimeline";
 import { StepsPanelV2 } from "./JobDetailViewSteps";
+import { JobDataView, JobDetailsV2 } from "./JobDetailsViewCommon";
 import { StepSummaryPanel } from "./StepDetailSummary";
 import { StepTestReportPanel } from "./StepDetailTestPanel";
 import { StepErrorPanel } from "./StepErrorPanel";
-import backend from "../../backend";
-import { GetArtifactResponseV2 } from "../../backend/Api";
-import { StepTrendsPanelV2 } from "./JobDetailStepTrendsV2";
-import { BisectionPanel } from "./JobDetailBisection";
-import { PreflightPanel } from "./JobDetailPreflight";
-
 
 class StepDetailDataView extends JobDataView {
 
@@ -184,6 +183,7 @@ const StepDetailViewInner: React.FC<{ jobDetails: JobDetailsV2, stepId: string }
 
 
 export const StepDetailView: React.FC<{ jobDetails: JobDetailsV2, stepId: string }> = ({ jobDetails, stepId }) => {
+   const { hordeClasses } = getHordeStyling();
    return (
       <Stack className={hordeClasses.horde}>
          <StepDetailViewInner jobDetails={jobDetails} stepId={stepId} />

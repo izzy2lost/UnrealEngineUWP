@@ -12,11 +12,11 @@ import { JobHandler } from '../backend/JobHandler';
 import { filterJob, JobFilterSimple } from '../base/utilities/filter';
 import { displayTimeZone } from '../base/utilities/timeUtils';
 import { getJobStateColor, getLabelColor } from '../styles/colors';
-import { detailClasses, hordeClasses } from '../styles/Styles';
 import { ChangeButton } from './ChangeButton';
 import { useQuery } from './JobDetailCommon';
 import { CalloutController, JobLabelCallout } from './JobLabelCallout';
 import { JobOperationsContextMenu } from './JobOperationsContextMenu';
+import { getHordeStyling } from '../styles/Styles';
 
 
 type JobItem = {
@@ -192,6 +192,8 @@ const JobList: React.FC<{ tab: string; filter: JobFilterSimple, controller: Call
       };
 
    }, []);
+
+   const { hordeClasses, detailClasses, modeColors } = getHordeStyling();
 
    const filterTemplate = query.get("template") ?? undefined;
 
@@ -590,9 +592,9 @@ const JobList: React.FC<{ tab: string; filter: JobFilterSimple, controller: Call
          <div className={detailClasses.container} style={{ width: "100%", height: 'calc(100vh - 240px)', position: 'relative', marginTop: 0 }}>
             {<ScrollablePane scrollbarVisibility={ScrollbarVisibility.always} onScroll={() => { controller.setState(undefined, true) }} style={{ overflow: "visible" }}>
                {renderItems.length > 0 &&
-                  <Stack style={{ width: width, marginLeft: 4, boxShadow: "0 1.6px 3.6px 0 rgba(0,0,0,0.132), 0 0.3px 0.9px 0 rgba(0,0,0,0.108)", backgroundColor: "#FFFFFF" }}>
+                  <Stack style={{ width: width, marginLeft: 4, background: modeColors.content, boxShadow: "0 1.6px 3.6px 0 rgba(0,0,0,0.132), 0 0.3px 0.9px 0 rgba(0,0,0,0.108)" }}>
                      <DetailsList
-                        styles={{ root: {paddingBottom: 32}, headerWrapper: { overflow: "hidden" } }}
+                        styles={{ root: { paddingBottom: 32 }, headerWrapper: { overflow: "hidden" } }}
                         indentWidth={0}
                         compact={false}
                         selectionMode={SelectionMode.none}

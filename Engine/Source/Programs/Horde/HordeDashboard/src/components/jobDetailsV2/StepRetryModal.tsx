@@ -4,8 +4,8 @@ import React, { useState } from 'react';
 import backend from '../../backend';
 import { CreateJobRequest } from '../../backend/Api';
 import { Link, useNavigate } from 'react-router-dom';
-import { hordeClasses } from '../../styles/Styles';
 import { JobDetailsV2 } from './JobDetailsViewCommon';
+import { getHordeStyling } from '../../styles/Styles';
 
 export enum StepRetryType {
    RunAgain,
@@ -23,6 +23,8 @@ export const RetryStepsModal: React.FC<{ stepIds: string[]; jobDetails: JobDetai
    const [submitting, setSubmitting] = useState(false);
    const [submitResults, setSubmitResults] = useState<RunAgainResult[] | undefined>(undefined);
    const [retrySteps, setRetrySteps] = useState(new Set(stepIds));
+
+   const { hordeClasses } = getHordeStyling();
 
    if (submitting && !submitResults) {
       return <Modal className={hordeClasses.modal} isOpen={true} styles={{ main: { padding: 8, width: 800 } }} onDismiss={() => { onClose() }}>
@@ -180,6 +182,7 @@ export const RetryStepsModal: React.FC<{ stepIds: string[]; jobDetails: JobDetai
 export const StepRetryModal: React.FC<{ stepId: string; jobDetails: JobDetailsV2; show: boolean; type: StepRetryType; onClose: () => void }> = ({ stepId, jobDetails, show, type, onClose }) => {
 
    const navigate = useNavigate();
+   const { hordeClasses } = getHordeStyling();
 
    const jobData = jobDetails.jobData;
    if (!jobData) {

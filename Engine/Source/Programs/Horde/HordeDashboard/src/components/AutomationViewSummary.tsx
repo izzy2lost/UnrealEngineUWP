@@ -7,26 +7,15 @@ import { TestDataHandler } from "../backend/AutomationTestData";
 import dashboard, { StatusColor } from "../backend/Dashboard";
 import { projectStore } from "../backend/ProjectStore";
 import { getShortNiceTime } from "../base/utilities/timeUtils";
-import { hordeClasses, modeColors } from "../styles/Styles";
+import { getHordeStyling } from "../styles/Styles";
 import { StatusBar, StatusBarStack } from "./AutomationCommon";
 import { AutomationFailureModal } from "./AutomationReport";
 import { AutomationSuiteView, AutomationTestView } from "./AutomationView";
 
-const styles = mergeStyleSets({
-   metaitem: {
-      selectors: {
-         ':hover': {
-            filter: dashboard.darktheme ? "brightness(120%)" : "brightness(90%)"
-         }
-      }
-   }
-});
-
-const colorA = dashboard.darktheme ? "#181A1B" : "#e8e8e8";
-const colorB = dashboard.darktheme ? "#242729" : "#f8f8f8";
-
 
 const TestSummaryModal: React.FC<{ test: GetTestResponse, handler: TestDataHandler, onDismiss: () => void }> = ({ test, handler, onDismiss }) => {
+
+   const { hordeClasses } = getHordeStyling();
 
    return <Modal className={hordeClasses.modal} isOpen={true} isBlocking={true} topOffsetFixed={true} styles={{ scrollableContent: { overflow: "auto", height: "calc(100vh - 180px)" }, main: { padding: 12, width: 1120, hasBeenOpened: false, top: "80px", position: "absolute" } }} onDismiss={() => onDismiss()} >
       <Stack>
@@ -62,7 +51,22 @@ const TestSummaryButton: React.FC<{ test: GetTestResponse, handler: TestDataHand
    const [streamExpanded, setStreamExpanded] = useState<Map<string, boolean>>(new Map());
    const [historyShow, setHistoryShown] = useState(false);
 
+   const { hordeClasses, modeColors } = getHordeStyling();
    const statusColors = dashboard.getStatusColors();
+
+   const styles = mergeStyleSets({
+      metaitem: {
+         selectors: {
+            ':hover': {
+               filter: dashboard.darktheme ? "brightness(120%)" : "brightness(90%)"
+            }
+         }
+      }
+   });
+   
+   const colorA = dashboard.darktheme ? "#181A1B" : "#e8e8e8";
+   const colorB = dashboard.darktheme ? "#242729" : "#f8f8f8";
+   
 
    const status = handler.getStatus(test.id);
 
@@ -318,6 +322,8 @@ const TestSummaryButton: React.FC<{ test: GetTestResponse, handler: TestDataHand
 
 const TestSummary: React.FC<{ handler: TestDataHandler }> = ({ handler }) => {
 
+   const { hordeClasses } = getHordeStyling();
+
    let ctests = handler.getStatusTests();
 
    if (!ctests.length) {
@@ -415,6 +421,21 @@ const SuiteSummaryButton: React.FC<{ suite: GetTestSuiteResponse, handler: TestD
    const [streamExpanded, setStreamExpanded] = useState<Map<string, boolean>>(new Map());
    const [historyShow, setHistoryShown] = useState(false);
    const statusColors = dashboard.getStatusColors();
+   const { hordeClasses, modeColors } = getHordeStyling();
+
+   const styles = mergeStyleSets({
+      metaitem: {
+         selectors: {
+            ':hover': {
+               filter: dashboard.darktheme ? "brightness(120%)" : "brightness(90%)"
+            }
+         }
+      }
+   });
+   
+   const colorA = dashboard.darktheme ? "#181A1B" : "#e8e8e8";
+   const colorB = dashboard.darktheme ? "#242729" : "#f8f8f8";
+   
 
    const status = handler.getStatus(suite.id);
 
@@ -793,6 +814,8 @@ const SuiteSummaryButton: React.FC<{ suite: GetTestSuiteResponse, handler: TestD
 }
 
 export const SuiteSummary: React.FC<{ handler: TestDataHandler }> = ({ handler }) => {
+
+   const { hordeClasses } = getHordeStyling();
 
    let csuites = handler.getStatusSuites();
 

@@ -9,10 +9,10 @@ import { useNavigate } from 'react-router-dom';
 import backend from '../backend';
 import { GetUtilizationTelemetryResponse } from '../backend/Api';
 import { useWindowSize } from '../base/utilities/hooks';
-import { hordeClasses, modeColors } from '../styles/Styles';
 import { Breadcrumbs } from './Breadcrumbs';
 import { useQuery } from './JobDetailCommon';
 import { TopNav } from './TopNav';
+import { getHordeStyling } from '../styles/Styles';
 
 // state object for the report
 type ChartOptionsState = {
@@ -268,7 +268,9 @@ export const UtilizationReportView: React.FC = observer(() => {
 		}
 		// complaining about beginUpdateState dependency
 		// eslint-disable-next-line       
-	}, []);
+   }, []);
+   
+   const { hordeClasses, modeColors } = getHordeStyling();
 
 	// hacky observer to mutate the svg's text on the x axis
 	const addCustomText = function (mutationsList: any, observer: any) {

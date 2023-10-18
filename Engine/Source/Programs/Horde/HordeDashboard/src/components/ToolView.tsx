@@ -7,9 +7,9 @@ import backend from "../backend";
 import { GetToolSummaryResponse } from "../backend/Api";
 import { PollBase } from "../backend/PollBase";
 import { useWindowSize } from "../base/utilities/hooks";
-import { detailClasses, hordeClasses, modeColors } from "../styles/Styles";
 import { Breadcrumbs } from "./Breadcrumbs";
 import { TopNav } from "./TopNav";
+import { getHordeStyling } from "../styles/Styles";
 
 class ToolHandler extends PollBase {
 
@@ -52,6 +52,8 @@ const ToolPanel: React.FC = observer(() => {
       };
 
    }, []);
+
+   const { detailClasses, modeColors } = getHordeStyling();
 
    // subscribe
    if (handler.updated) { };
@@ -129,6 +131,8 @@ export const ToolView: React.FC = () => {
 
    const windowSize = useWindowSize();
    const vw = Math.max(document.documentElement.clientWidth, window.innerWidth || 0);
+
+   const { hordeClasses, modeColors } = getHordeStyling();
 
    return <Stack className={hordeClasses.horde}>
       <TopNav />

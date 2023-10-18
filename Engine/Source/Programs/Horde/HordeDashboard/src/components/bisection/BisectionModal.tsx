@@ -1,9 +1,11 @@
 import { IconButton, Modal, Stack, Text } from "@fluentui/react";
 import { observer } from "mobx-react-lite";
 import React from "react";
-import { hordeClasses, modeColors } from "../../styles/Styles";
+import { getHordeStyling } from "../../styles/Styles";
 
 export const BisectionModal: React.FC<{ taskId: string, onCloseExternal?: () => void }> = observer(({ onCloseExternal }) => {
+
+   const { hordeClasses, modeColors } = getHordeStyling();
 
    return <Modal isOpen={true} isBlocking={true} topOffsetFixed={true} styles={{ main: { padding: 8, width: 1420, backgroundColor: modeColors.background, hasBeenOpened: false, top: "24px", position: "absolute", height: "95vh" } }} className={hordeClasses.modal} onDismiss={() => { if (onCloseExternal) { onCloseExternal() } else { /*onClose()*/ } }}>
       <Stack style={{ height: "93vh" }}>

@@ -8,9 +8,9 @@ import { GetSuiteTestDataResponse, GetTestDataDetailsResponse, GetTestDataRefRes
 import dashboard, { StatusColor } from "../backend/Dashboard";
 import { projectStore } from "../backend/ProjectStore";
 import { getHumanTime, getShortNiceTime } from "../base/utilities/timeUtils";
-import { hordeClasses, modeColors } from "../styles/Styles";
 import { StatusBar, StatusBarStack } from "./AutomationCommon";
 import { AutomationSuiteTest } from "./AutomationSuiteTest";
+import { getHordeStyling } from "../styles/Styles";
 
 type TestId = string;
 type SelectionType = d3.Selection<SVGGElement, unknown, null, undefined>;
@@ -655,7 +655,7 @@ class SuiteGraphRenderer {
          .append("div")
          .attr("id", "tooltip")
          .style("display", "none")
-         .style("background-color", modeColors.background)
+         //.style("background-color", modeColors.background)
          .style("border", "solid")
          .style("border-width", "1px")
          .style("border-radius", "3px")
@@ -797,6 +797,8 @@ class SuiteGraphRenderer {
 
 const SuiteGraph: React.FC<{ handler: SuiteHandler, streamId?: string, testId?: string }> = observer(({ handler, streamId, testId }) => {
 
+   const { hordeClasses } = getHordeStyling();
+
    const graph_container_id = `automation_suite_graph_container_${id_counter++}`;
 
    const [container, setContainer] = useState<HTMLDivElement | null>(null);
@@ -828,6 +830,8 @@ const SuiteGraph: React.FC<{ handler: SuiteHandler, streamId?: string, testId?: 
 })
 
 const SuiteOperationsBar: React.FC<{ handler: SuiteHandler }> = observer(({ handler }) => {
+
+   const { hordeClasses } = getHordeStyling();
 
    if (handler.updated) { }
 
@@ -882,6 +886,8 @@ let id_counter = 0;
 
 const SuiteTestViewModal: React.FC<{ handler: SuiteHandler }> = observer(({ handler }) => {
 
+   const { modeColors } = getHordeStyling();
+
    if (handler.selectionUpdated) { }
 
    const selection = handler.selection;
@@ -929,6 +935,8 @@ type TestItem = {
 }
 
 const SuiteTestList: React.FC<{ handler: SuiteHandler, suite: GetTestSuiteResponse }> = observer(({ handler, suite }) => {
+
+   const { hordeClasses, modeColors } = getHordeStyling();
 
    if (handler.updated) { }
 
@@ -1332,6 +1340,7 @@ const SuiteTestList: React.FC<{ handler: SuiteHandler, suite: GetTestSuiteRespon
 export const AutomationSuiteDetails: React.FC<{ suite: GetTestSuiteResponse, suiteRefs: GetTestDataRefResponse[], metaData: GetTestMetaResponse, onClose: () => void }> = observer(({ suite, suiteRefs, metaData, onClose }) => {
 
    const [state, setState] = useState<{ handler?: SuiteHandler }>({});
+   const { hordeClasses, modeColors } = getHordeStyling();
 
    let handler = state.handler;
 

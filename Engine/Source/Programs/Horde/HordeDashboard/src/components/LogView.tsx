@@ -14,7 +14,6 @@ import { JobDetails } from '../backend/JobDetails';
 import { Markdown } from '../base/components/Markdown';
 import { useWindowSize } from '../base/utilities/hooks';
 import { displayTimeZone, getElapsedString } from '../base/utilities/timeUtils';
-import { hordeClasses, modeColors } from '../styles/Styles';
 import { Breadcrumbs } from './Breadcrumbs';
 import { ChangeContextMenu, ChangeContextMenuTarget } from './ChangeButton';
 import { HistoryModal } from './HistoryModal';
@@ -23,11 +22,13 @@ import { JobDetailArtifacts } from './JobDetailArtifacts';
 import { useQuery } from './JobDetailCommon';
 import { LogItem, renderLine } from './LogRender';
 import { JobLogSource, LogSource } from './LogSource';
-import { lineRenderStyleNormal, lineRenderStyleSmall, logMetricNormal, logMetricSmall, logStyleNormal, logStyleSmall } from "./LogStyle";
+import { getLogStyles, logMetricNormal, logMetricSmall } from "./LogStyle";
 import { PrintException } from './PrintException';
 import { StepRefStatusIcon } from './StatusIcon';
 import { TopNav } from './TopNav';
 import { JobArtifactsModal } from './artifacts/ArtifactsModal';
+import { getHordeTheme } from '../styles/theme';
+import { getHordeStyling } from '../styles/Styles';
 
 class LogHandler {
 
@@ -78,6 +79,8 @@ class LogHandler {
 
    get style(): any {
 
+      const { logStyleNormal, logStyleSmall } = getLogStyles();
+
       if (!this.logSource?.logItems) {
          return logStyleNormal;
       }
@@ -87,6 +90,8 @@ class LogHandler {
    }
 
    get lineRenderStyle(): any {
+
+      const { lineRenderStyleNormal, lineRenderStyleSmall } = getLogStyles();
 
       if (!this.logSource?.logItems) {
          return lineRenderStyleNormal;
@@ -194,6 +199,9 @@ const StepHistoryModal: React.FC<{ jobDetails: JobDetails, stepId: string | unde
    const [commitState, setCommitState] = useState<{ target?: ChangeContextMenuTarget, commit?: GetChangeSummaryResponse, rangeCL?: number }>({});
    const [stepHistory, setStepHistory] = useState<GetJobStepRefResponse[] | undefined>(undefined);
 
+   const { hordeClasses } = getHordeStyling();
+   const hordeTheme = getHordeTheme();
+
    const jobData = jobDetails.jobdata;
 
    if (!jobData || !jobData.streamId || !jobData.templateId) {
@@ -205,7 +213,7 @@ const StepHistoryModal: React.FC<{ jobDetails: JobDetails, stepId: string | unde
          setStepHistory(r);
       })
 
-      return <Modal isOpen={true} styles={{ main: { padding: 8, width: 1084, height: '624px', backgroundColor: '#FFFFFF' } }} className={hordeClasses.modal} onDismiss={() => { onClose() }}>
+      return <Modal isOpen={true} styles={{ main: { padding: 8, width: 1084, height: '624px', backgroundColor: hordeTheme.horde.contentBackground } }} className={hordeClasses.modal} onDismiss={() => { onClose() }}>
          <Stack style={{ paddingTop: 24 }} horizontalAlign='center' tokens={{ childrenGap: 18 }}>
             <Stack>
                <Text variant='mediumPlus'>Loading Step History</Text>
@@ -351,7 +359,7 @@ const StepHistoryModal: React.FC<{ jobDetails: JobDetails, stepId: string | unde
          const commonSelectors = { ".ms-DetailsRow-cell": { "overflow": "visible", padding: 0 } };
 
          if (ref.stepId === stepId && ref.jobId === jobDetails.id) {
-            props.styles = { ...props.styles, root: { background: 'rgb(233, 232, 231)', selectors: { ...commonSelectors as any, "a, a:hover, a:visited": { color: "#FFFFFF" }, ":hover": { background: 'rgb(223, 222, 221)' } } } };
+            props.styles = { ...props.styles, root: { background: hordeTheme.horde.neutralBackground, selectors: { ...commonSelectors as any } } };
          } else {
             props.styles = { ...props.styles, root: { selectors: { ...commonSelectors as any } } };
          }
@@ -362,7 +370,7 @@ const StepHistoryModal: React.FC<{ jobDetails: JobDetails, stepId: string | unde
       return null;
    };
 
-   return (<Modal isOpen={true} styles={{ main: { padding: 8, width: 1084, height: '624px', backgroundColor: '#FFFFFF' } }} className={hordeClasses.modal} onDismiss={() => { onClose() }}>
+   return (<Modal isOpen={true} styles={{ main: { padding: 8, width: 1084, height: '624px', backgroundColor: hordeTheme.horde.contentBackground } }} className={hordeClasses.modal} onDismiss={() => { onClose() }}>
       {commitState.target && <ChangeContextMenu target={commitState.target} job={jobDetails.jobdata} commit={commitState.commit} rangeCL={commitState.rangeCL} onDismiss={() => setCommitState({})} />}
       <Stack styles={{ root: { paddingTop: 8, paddingLeft: 24, paddingRight: 12, paddingBottom: 8 } }}>
          <Stack tokens={{ childrenGap: 12 }}>
@@ -401,6 +409,8 @@ const StepHistoryModal: React.FC<{ jobDetails: JobDetails, stepId: string | unde
 
 const StepArtifactsModal: React.FC<{ jobDetails: JobDetails, stepId: string | undefined, onClose: () => void }> = observer(({ jobDetails, stepId, onClose }) => {
 
+   const { hordeClasses } = getHordeStyling();
+
    let artifacts: ArtifactData[] = jobDetails.artifacts;
    if (stepId) {
       artifacts = artifacts.filter(artifact => artifact.stepId === stepId);
@@ -408,7 +418,9 @@ const StepArtifactsModal: React.FC<{ jobDetails: JobDetails, stepId: string | un
 
    let height = Math.min(36 * artifacts.length + 60, 500) + 200;
 
-   return (<Modal isOpen={true} styles={{ main: { padding: 8, width: 1084, height: height, backgroundColor: '#FFFFFF' } }} className={hordeClasses.modal} onDismiss={() => { onClose() }}>
+   const hordeTheme = getHordeTheme();
+
+   return (<Modal isOpen={true} styles={{ main: { padding: 8, width: 1084, height: height, backgroundColor: hordeTheme.horde.contentBackground } }} className={hordeClasses.modal} onDismiss={() => { onClose() }}>
 
       <Stack styles={{ root: { paddingTop: 8, paddingLeft: 24, paddingRight: 12, paddingBottom: 16 } }}>
          <Stack tokens={{ childrenGap: 12 }}>
@@ -511,6 +523,9 @@ export const LogList: React.FC<{ logId: string }> = observer(({ logId }) => {
       setHandler(undefined);
    }
 
+   const hordeTheme = getHordeTheme();
+   const { hordeClasses, modeColors } = getHordeStyling();
+
    if (!logId) {
       console.error("Bad log id settings up LogList");
       return <div>Error</div>;
@@ -520,7 +535,7 @@ export const LogList: React.FC<{ logId: string }> = observer(({ logId }) => {
 
       const error = `Error getting job data, please check that you are logged in and that the link is valid.\n\n${handler.logSource.fatalError}`;
       return <Stack horizontal style={{ paddingTop: 48 }}>
-         <div key={`windowsize_logview1_${windowSize.width}_${windowSize.height}`} style={{ width: vw / 2 - 720, flexShrink: 0, backgroundColor: '#FFFFFF' }} />
+         <div key={`windowsize_logview1_${windowSize.width}_${windowSize.height}`} style={{ width: vw / 2 - 720, flexShrink: 0, backgroundColor: hordeTheme.horde.contentBackground }} />
          <Stack horizontalAlign="center" style={{ width: 1440 }}><PrintException message={error} /></Stack>
       </Stack>
    }
@@ -1055,10 +1070,10 @@ export const LogList: React.FC<{ logId: string }> = observer(({ logId }) => {
       {!!fixme && !!artifactContext && logArtifacts !== "legacy" && <JobArtifactsModal jobId={fixme!.jobdata!.id} stepId={fixme!.stepByLogId(logId)?.id!} artifacts={(logSource as JobLogSource).artifactsV2} contextType={artifactContext} artifactPath={artifactPath} onClose={() => { navigate(window.location.pathname, { replace: true }) }} />}
       {!!historyAgentId && <HistoryModal agentId={historyAgentId} onDismiss={() => { navigate(baseUrl, { replace: true }); setHistoryAgentId(undefined) }} />}
       <Breadcrumbs items={logSource?.crumbs ?? []} title={logSource?.crumbTitle} />
-      <Stack tokens={{ childrenGap: 0 }} style={{ backgroundColor: "#FFFFFF", paddingTop: 12 }}>
+      <Stack tokens={{ childrenGap: 0 }} style={{ backgroundColor: hordeTheme.horde.contentBackground, paddingTop: 12 }}>
          <Stack horizontal >
             <div key={`windowsize_logview1_${windowSize.width}_${windowSize.height}`} style={{ width: vw / 2 - (1440 / 2), flexShrink: 0 }} />
-            <Stack tokens={{ childrenGap: 0, maxWidth: 1440 }} disableShrink={true} styles={{ root: { width: "100%", backgroundColor: "#FFFFFF", paddingLeft: 4, paddingRight: 24, paddingTop: 12 } }}>
+            <Stack tokens={{ childrenGap: 0, maxWidth: 1440 }} disableShrink={true} styles={{ root: { width: "100%", backgroundColor: hordeTheme.horde.contentBackground, paddingLeft: 4, paddingRight: 24, paddingTop: 12 } }}>
                <Stack horizontal style={{ paddingBottom: 4 }}>
                   <Stack className={hordeClasses.button} horizontal horizontalAlign={"start"} verticalAlign="center" tokens={{ childrenGap: 8 }}>
                      <Stack horizontal tokens={{ childrenGap: 2 }}>
@@ -1208,7 +1223,7 @@ export const LogList: React.FC<{ logId: string }> = observer(({ logId }) => {
             </Stack>
          </Stack>
 
-         <Stack style={{ backgroundColor: "#FFFFFF", paddingLeft: "24px", paddingRight: "24px" }}>
+         <Stack style={{ backgroundColor: hordeTheme.horde.contentBackground, paddingLeft: "24px", paddingRight: "24px" }}>
             <Stack tokens={{ childrenGap: 0 }}>
                <FocusZone direction={FocusZoneDirection.vertical} isInnerZoneKeystroke={() => { return true; }} defaultActiveElement="#LogList" style={{ padding: 0, margin: 0 }} >
                   <div className={handler.style.container} data-is-scrollable={true}
@@ -1234,7 +1249,7 @@ export const LogList: React.FC<{ logId: string }> = observer(({ logId }) => {
                      }}>
                      <Stack horizontal>
                         {!dashboard.leftAlignLog && <div key={`windowsize_logview2_${windowSize.width}_${windowSize.height}`} style={{ width: vw / 2 - (1440 / 2) - 48, flexShrink: 0 }} />}
-                        <Stack styles={{ root: { backgroundColor: "#FFFFFF", paddingLeft: "0px", paddingRight: "0px" } }}>
+                        <Stack styles={{ root: { "backgroundColor": hordeTheme.horde.contentBackground, paddingLeft: "0px", paddingRight: "0px" } }}>
                            <SelectionZone selection={selection} selectionMode={SelectionMode.multiple}>
                               <List key={`log_list_key_${logListKey}`} id="LogList" ref={(list: List) => { listRef = list; }}
                                  items={logSource.logItems}
@@ -1277,6 +1292,8 @@ export const LogView: React.FC = () => {
          LogHandler.clear();
       };
    }, []);
+
+   const { hordeClasses } = getHordeStyling();
 
 
    if (!logId) {

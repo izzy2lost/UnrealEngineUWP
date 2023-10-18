@@ -8,8 +8,7 @@ import { NavigateFunction, useNavigate } from "react-router-dom";
 import backend from "../../backend";
 import { ArtifactContextType, GetArtifactDirectoryEntryResponse, GetArtifactDirectoryResponse, GetArtifactFileEntryResponse, GetArtifactResponseV2 } from "../../backend/Api";
 import dashboard, { StatusColor } from "../../backend/Dashboard";
-import { hordeClasses } from "../../styles/Styles";
-
+import { getHordeStyling } from "../../styles/Styles";
 
 enum BrowserType {
    Directory,
@@ -290,30 +289,42 @@ class ArtifactsHandler {
    static current?: ArtifactsHandler;
 }
 
-const styles = mergeStyleSets({
-   list: {
-      selectors: {
-         'a': {
-            height: "unset !important",
-         },
-         '.ms-List-cell': {
+let _styles: any;
 
-            borderTop: "1px solid #EDEBE9",
-            borderRight: "1px solid #EDEBE9",
-            borderLeft: "1px solid #EDEBE9"
-         },
-         '.ms-List-cell:nth-last-child(-n + 1)': {
-            borderBottom: "1px solid #EDEBE9"
-         },
-         ".ms-DetailsRow #artifactview": {
-            opacity: 0
-         },
-         ".ms-DetailsRow:hover #artifactview": {
-            opacity: 1
-         },
+const getStyles = () => {
+
+   const border = `1px solid ${dashboard.darktheme ? "#2D2B29" : "#EDEBE9"}`
+
+   const styles = _styles ?? mergeStyleSets({
+      list: {
+         selectors: {
+            'a': {
+               height: "unset !important",
+            },
+            '.ms-List-cell': {
+   
+               borderTop: border,
+               borderRight: border,
+               borderLeft: border
+            },
+            '.ms-List-cell:nth-last-child(-n + 1)': {
+               borderBottom: border
+            },
+            ".ms-DetailsRow #artifactview": {
+               opacity: 0
+            },
+            ".ms-DetailsRow:hover #artifactview": {
+               opacity: 1
+            },
+         }
       }
-   }
-});
+   });
+
+   _styles = styles;
+
+   return styles;
+   
+}
 
 const BrowseHistory: React.FC<{ handler: ArtifactsHandler }> = observer(({ handler }) => {
 
@@ -523,6 +534,8 @@ const JobDetailArtifactsInner: React.FC<{ jobId: string; stepId: string, artifac
 
    const navigate = useNavigate();
 
+   const styles = getStyles();
+
    // subscribe
    if (handler.updated) { }
 
@@ -722,6 +735,8 @@ const JobDetailArtifactsInner: React.FC<{ jobId: string; stepId: string, artifac
 
 
 export const JobArtifactsModal: React.FC<{ jobId: string; stepId: string, artifacts?: GetArtifactResponseV2[], contextType: ArtifactContextType, artifactPath?: string, onClose: () => void }> = ({ jobId, stepId, artifacts, contextType, artifactPath, onClose }) => {
+
+   const { hordeClasses } = getHordeStyling();
 
    return <Stack>
       <Modal isOpen={true} isBlocking={true} topOffsetFixed={true} styles={{ main: { padding: 8, width: 1180, height: 820, hasBeenOpened: false, top: "80px", position: "absolute" } }} onDismiss={() => onClose()} className={hordeClasses.modal}>

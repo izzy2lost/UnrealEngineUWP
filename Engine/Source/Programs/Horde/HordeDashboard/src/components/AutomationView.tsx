@@ -13,12 +13,12 @@ import dashboard, { StatusColor } from '../backend/Dashboard';
 import { projectStore } from '../backend/ProjectStore';
 import { useWindowSize } from '../base/utilities/hooks';
 import { getHumanTime, getShortNiceTime, msecToElapsed } from '../base/utilities/timeUtils';
-import { hordeClasses, modeColors } from '../styles/Styles';
 import { AutomationSuiteDetails } from './AutomationSuiteDetails';
 import { AutomationViewSummary } from './AutomationViewSummary';
 import { Breadcrumbs } from './Breadcrumbs';
 import ErrorBoundary from './ErrorBoundary';
 import { TopNav } from './TopNav';
+import { getHordeStyling } from '../styles/Styles';
 
 
 type SelectionType = d3.Selection<SVGGElement, unknown, null, undefined>;
@@ -376,6 +376,8 @@ const VariationChooser: React.FC<{ handler: TestDataHandler }> = observer(({ han
 
 const AutomationSidebarLeft: React.FC<{ handler: TestDataHandler }> = ({ handler }) => {
 
+   const { hordeClasses } = getHordeStyling();
+
    return <Stack style={{ width: 300, paddingRight: 18 }}>
       <Stack className={hordeClasses.modal}>
          <Stack>
@@ -415,6 +417,8 @@ const AutomationSidebarLeft: React.FC<{ handler: TestDataHandler }> = ({ handler
 }
 
 const AutomationOperationsBar: React.FC<{ handler: TestDataHandler }> = observer(({ handler }) => {
+
+   const { hordeClasses } = getHordeStyling();
 
    if (handler.updated) { }
    if (handler.queryLoading) { }
@@ -489,6 +493,8 @@ const AutomationOperationsBar: React.FC<{ handler: TestDataHandler }> = observer
 })
 
 export const AutomationView: React.FC = observer(() => {
+
+   const { hordeClasses, modeColors } = getHordeStyling();
 
    const windowSize = useWindowSize();
    const [state, setState] = useState<{ handler?: TestDataHandler, search?: string }>({});
@@ -871,7 +877,7 @@ class AutomationGraph {
          .append("div")
          .attr("id", "tooltip")
          .style("display", "none")
-         .style("background-color", modeColors.background)
+         // .style("background-color", modeColors.background)
          .style("border", "solid")
          .style("border-width", "1px")
          .style("border-radius", "3px")
@@ -1085,6 +1091,8 @@ class TestGraphRenderer extends AutomationGraph {
 
 const TestGraph: React.FC<{ testId: string, streamId: string, handler: TestDataHandler }> = ({ testId, streamId, handler }) => {
 
+   const { hordeClasses } = getHordeStyling();
+
    const graph_container_id = `${testId}_${streamId}_automation_graph_container`;
 
    const [container, setContainer] = useState<HTMLDivElement | null>(null);
@@ -1113,7 +1121,9 @@ const TestGraph: React.FC<{ testId: string, streamId: string, handler: TestDataH
 }
 
 export const AutomationTestView: React.FC<{ test: GetTestResponse, handler: TestDataHandler }> = observer(({ test, handler }) => {
-
+   
+   const { hordeClasses } = getHordeStyling();
+   
    const refs = handler.getFilteredRefs(undefined, test.id);
    const streamSet = new Set<string>();
 
@@ -1222,6 +1232,8 @@ class SuiteGraphRenderer extends AutomationGraph {
 
 const SuiteGraph: React.FC<{ suiteId: string, streamId: string, handler: TestDataHandler }> = observer(({ suiteId, streamId, handler }) => {
 
+   const { hordeClasses} = getHordeStyling();
+
    const graph_container_id = `${suiteId}_${streamId}_automation_suite_graph_container`;
 
    const [container, setContainer] = useState<HTMLDivElement | null>(null);
@@ -1251,6 +1263,7 @@ const SuiteGraph: React.FC<{ suiteId: string, streamId: string, handler: TestDat
 
 export const AutomationSuiteView: React.FC<{ suite: GetTestSuiteResponse, handler: TestDataHandler }> = observer(({ suite, handler }) => {
 
+   const { hordeClasses } = getHordeStyling();
    const refs = handler.getFilteredRefs(undefined, suite.id);
    const streamSet = new Set<string>();
 

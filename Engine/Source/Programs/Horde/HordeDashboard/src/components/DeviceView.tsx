@@ -1,4 +1,4 @@
-import { DefaultButton, DetailsList, DetailsListLayoutMode, Dropdown, FocusZone, FocusZoneDirection, getTheme, IColumn, Icon, IconButton, IGroup, Label, Link as FluentLink, mergeStyleSets, Modal, Pivot, PivotItem, PrimaryButton, ScrollablePane, ScrollbarVisibility, SelectionMode, Spinner, SpinnerSize, Stack, Text } from "@fluentui/react";
+import { DefaultButton, DetailsList, DetailsListLayoutMode, Dropdown, FocusZone, FocusZoneDirection, IColumn, Icon, IconButton, IGroup, Label, Link as FluentLink, mergeStyleSets, Modal, Pivot, PivotItem, PrimaryButton, ScrollablePane, ScrollbarVisibility, SelectionMode, Spinner, SpinnerSize, Stack, Text } from "@fluentui/react";
 import { observer } from "mobx-react-lite";
 import moment from "moment";
 import React, { useEffect, useState } from "react";
@@ -8,12 +8,13 @@ import { DevicePoolType, GetDeviceResponse } from "../backend/Api";
 import dashboard from "../backend/Dashboard";
 import { useWindowSize } from "../base/utilities/hooks";
 import { getNiceTime } from "../base/utilities/timeUtils";
-import { hordeClasses, modeColors } from "../styles/Styles";
 import { Breadcrumbs } from "./Breadcrumbs";
 import { DeviceEditor, DeviceHandler, DeviceStatus } from "./DeviceEditor";
 import { DeviceInfoModal } from "./DeviceInfoView";
 import { DevicePoolTelemetryModal } from "./DevicePoolTelemetry";
 import { TopNav } from "./TopNav";
+import { getHordeStyling } from "../styles/Styles";
+import { getHordeTheme } from "../styles/theme";
 
 const handler = new DeviceHandler();
 
@@ -23,14 +24,13 @@ type DeviceItem = {
 
 let groups: IGroup[] = [];
 
-const theme = getTheme();
 
 export const StatusColors = new Map<DeviceStatus, string>([
    [DeviceStatus.Available, "#52C705"],
    [DeviceStatus.Problem, "#DE4522"],
-   [DeviceStatus.Reserved, theme.palette.blueLight],
+   [DeviceStatus.Reserved, "00BCF2"],
    [DeviceStatus.Disabled, "#F3F2F1"],
-   [DeviceStatus.Maintenance, theme.palette.blue]
+   [DeviceStatus.Maintenance, "#0078D4"]
 ]);
 
 export const StatusNames = new Map<DeviceStatus, string>([
@@ -53,7 +53,7 @@ const dropDownStyle: any = () => {
             }
          }
       },
-      dropdownItemHeader: { fontSize: 12, color: modeColors.text },
+      dropdownItemHeader: { fontSize: 12 },
       dropdownOptionText: { fontSize: 12 },
       dropdownItem: {
          minHeight: 28, lineHeight: 28
@@ -72,25 +72,15 @@ const customStyles = mergeStyleSets({
    },
    details: {
       selectors: {
-         '.ms-GroupHeader,.ms-GroupHeader:hover': {
-            background: "#DFDEDD",
-         },
          '.ms-GroupHeader-title': {
             cursor: "default"
-         },
-         '.ms-GroupHeader-expand,.ms-GroupHeader-expand:hover': {
-            background: "#DFDEDD"
          },
          '.ms-DetailsRow': {
             animation: "none",
             background: "unset"
-         },
-         '.ms-DetailsRow:hover': {
-            background: "#F3F2F1"
          }
       },
    }
-
 });
 
 const pivotKeyAutomation = "pivot-key-automation";
@@ -112,6 +102,9 @@ const DevicePanel: React.FC = observer(() => {
       };
 
    }, []);
+
+   const { hordeClasses } = getHordeStyling();
+   const hordeTheme = getHordeTheme();
 
    if (handler.updated) { }
 
@@ -302,7 +295,7 @@ const DevicePanel: React.FC = observer(() => {
       // Automation Kit
 
       const r = handler.getReservation(device);
-      
+
       let url = "";
 
       if (r?.jobId) {
@@ -312,7 +305,7 @@ const DevicePanel: React.FC = observer(() => {
          }
       }
       return <Stack verticalFill={true} verticalAlign="center">
-         <Stack horizontal tokens={{childrenGap: 12}}>
+         <Stack horizontal tokens={{ childrenGap: 12 }}>
             {automationTab && <Stack verticalFill={true} verticalAlign="center">
                <div style={{ cursor: "pointer" }} onClick={(ev) => {
                   ev.stopPropagation(); ev.preventDefault();
@@ -544,7 +537,18 @@ const DevicePanel: React.FC = observer(() => {
                <div className={customStyles.details} style={{ height: "calc(100vh - 280px)", position: 'relative' }} data-is-scrollable>
                   <ScrollablePane scrollbarVisibility={ScrollbarVisibility.always} onScroll={() => { }}>
                      <DetailsList
-                        styles={{ root: { overflowX: "hidden", width: 1312 } }}
+                        styles={{
+                           root: {
+                              overflowX: "hidden", width: 1312, selectors: {
+                                 '.ms-GroupHeader,.ms-GroupHeader:hover': {
+                                    background: dashboard.darktheme ? hordeTheme.horde.dividerColor : "#DFDEDD",
+                                 },
+                                 '.ms-GroupHeader-expand,.ms-GroupHeader-expand:hover': {
+                                    background: dashboard.darktheme ? hordeTheme.horde.dividerColor : "#DFDEDD",
+                                 }
+                              }
+                           }
+                        }}
                         items={devices}
                         groups={groups}
                         columns={columns}
@@ -564,6 +568,8 @@ const DevicePanel: React.FC = observer(() => {
 });
 
 export const CheckoutConfirmModal: React.FC<{ check: "in" | "out" | "error", devices: GetDeviceResponse[], onClose: () => void }> = ({ check, devices, onClose }) => {
+
+   const { hordeClasses } = getHordeStyling();
 
    type CheckoutItem = {
       device: GetDeviceResponse;
@@ -662,11 +668,13 @@ export const DeviceView: React.FC = () => {
    const windowSize = useWindowSize();
    const vw = Math.max(document.documentElement.clientWidth, window.innerWidth || 0);
 
+   const { hordeClasses, modeColors } = getHordeStyling();
+
    return <Stack className={hordeClasses.horde}>
       <TopNav />
       <Breadcrumbs items={[{ text: 'Devices' }]} />
       <Stack horizontal>
-         <div key={`windowsize_streamview_${windowSize.width}_${windowSize.height}`} style={{ width: vw / 2 - (1440/2), flexShrink: 0, backgroundColor: modeColors.background }} />
+         <div key={`windowsize_streamview_${windowSize.width}_${windowSize.height}`} style={{ width: vw / 2 - (1440 / 2), flexShrink: 0, backgroundColor: modeColors.background }} />
          <Stack tokens={{ childrenGap: 0 }} styles={{ root: { backgroundColor: modeColors.background, width: "100%" } }}>
             <Stack style={{ maxWidth: 1440, paddingTop: 6, marginLeft: 4, height: 'calc(100vh - 8px)' }}>
                <Stack horizontal className={hordeClasses.raised}>

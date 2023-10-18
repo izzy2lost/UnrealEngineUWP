@@ -5,7 +5,7 @@ import backend from "../backend";
 import { GetDevicePlatformResponse, GetDevicePoolResponse, GetDeviceReservationResponse, GetDeviceResponse, GetUserResponse } from "../backend/Api";
 import dashboard from "../backend/Dashboard";
 import { PollBase } from "../backend/PollBase";
-import { hordeClasses } from "../styles/Styles";
+import { getHordeStyling } from "../styles/Styles";
 
 type DeviceEditData = {
    // if defined, existing device
@@ -164,6 +164,8 @@ export const DeviceEditor: React.FC<{ handler: DeviceHandler, deviceIn?: GetDevi
    const [error, setError] = useState<string | undefined>();
    const [submitting, setSubmitting] = useState(false);
    const [confirmDelete, setConfirmDelete] = useState(false);
+   
+   const { hordeClasses } = getHordeStyling();
 
    if (submitting) {
 

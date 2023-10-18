@@ -1,11 +1,8 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 
-import { getTheme } from "@fluentui/react";
 import { action, makeObservable, observable } from 'mobx';
 import backend from '.';
 import { DashboardPreference, GetDashboardConfigResponse, GetJobTemplateSettingsResponse, GetUserResponse, UserClaim } from './Api';
-
-const theme = getTheme();
 
 export enum StatusColor {
     Success,
@@ -291,19 +288,45 @@ export class Dashboard {
         return this.preferences.get(DashboardPreference.DisplayUTC) === 'true';
 
     }
+    
+    static get userPrefersDarkTheme(): boolean {
+        
+        try {
+            if (window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches) {
+                return true;
+            }    
+        } catch (reason) {
+            if (!Dashboard.hasLoggedDarkThemePref) {
+                Dashboard.hasLoggedDarkThemePref = true;
+                console.error(reason);
+            }            
+        }
+
+        return false;
+    }
+
+    private static hasLoggedDarkThemePref = false;
 
     get darktheme(): boolean {
 
-        if (!this.available) {
-            // avoid intial flash when loading into site before backend is initialized
-            return localStorage?.getItem("horde_darktheme") !== "false";
+        if (!this.available) {            
+
+            let local = localStorage.getItem("horde_darktheme");
+            if (local === "true") {
+                return true;
+            } 
+            if (local === "false") {
+                return false;
+            } 
+    
+            return Dashboard.userPrefersDarkTheme;
         }
 
         const pref = this.preferences.get(DashboardPreference.Darktheme);
 
         if (pref !== "true" && pref !== "false") {
             console.error("No theme preference set, should be defaulted in getCurrentUser");
-            return localStorage?.getItem("horde_darktheme") !== "false";
+            return Dashboard.userPrefersDarkTheme;;
         }
 
         return this.preferences.get(DashboardPreference.Darktheme) !== 'false';
@@ -311,14 +334,7 @@ export class Dashboard {
     }
 
     setDarkTheme(value: boolean | undefined) {
-
         this.setPreference(DashboardPreference.Darktheme, value ? "true" : "false");
-
-        if (value) {
-            localStorage?.setItem("horde_darktheme", "true");
-        } else {
-            localStorage?.setItem("horde_darktheme", "false");
-        }
     }
 
     setDisplayUTC(value: boolean | undefined) {
@@ -432,7 +448,7 @@ export class Dashboard {
             [StatusColor.Success, dark ? "#3b7b0a" : "#52C705"],
             [StatusColor.Warnings, dark ? "#9a7b18" : "#EDC74A"],
             [StatusColor.Failure, dark ? "#882f19" : "#DE4522"],
-            [StatusColor.Running, dark ? "#146579" : theme.palette.blueLight],
+            [StatusColor.Running, dark ? "#146579" : "#00BCF2"],
             [StatusColor.Waiting, dark ? "#474542" : "#A19F9D"],
             [StatusColor.Ready, dark ? "#474542" : "#A19F9D"],
             [StatusColor.Skipped, dark ? "#63625c" : "#C3C2C1"],
@@ -580,6 +596,14 @@ export class Dashboard {
             this.preferences.delete(pref);
         } else {
             this.preferences.set(pref, value);
+        }
+
+        if (pref === DashboardPreference.Darktheme) {
+            if (value === "true") {
+                localStorage.setItem("horde_darktheme", "true");
+            } else if (value === "true") {
+                localStorage.setItem("horde_darktheme", "false");
+            }
         }
 
         this.postPreferences(pref === DashboardPreference.Darktheme);

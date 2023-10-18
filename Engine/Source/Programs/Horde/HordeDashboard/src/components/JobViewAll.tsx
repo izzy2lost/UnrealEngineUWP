@@ -12,11 +12,11 @@ import { JobHandler } from "../backend/JobHandler";
 import { filterJob, JobFilterSimple } from "../base/utilities/filter";
 import { displayTimeZone } from '../base/utilities/timeUtils';
 import { getJobStateColor, getLabelColor } from "../styles/colors";
-import { detailClasses, hordeClasses } from "../styles/Styles";
 import { ChangeButton } from "./ChangeButton";
 import { jobFilter, JobFilterBar } from "./JobFilterBar";
 import { JobOperationsContextMenu } from "./JobOperationsContextMenu";
 import { StepStatusIcon } from "./StatusIcon";
+import { getHordeStyling } from "../styles/Styles";
 
 
 type JobItem = {
@@ -30,8 +30,7 @@ const customStyles = mergeStyleSets({
     detailsRow: {
         selectors: {
             '.ms-DetailsRow': {
-                borderBottom: '0px',
-                backgroundColor: "unset",
+                borderBottom: '0px',                
                 width: "100%"
             },
             '.ms-DetailsRow-cell': {
@@ -40,12 +39,6 @@ const customStyles = mergeStyleSets({
                 padding: 0,
                 overflow: "visible",
                 whiteSpace: "nowrap"
-            },
-            '.ms-List-cell:nth-child(odd)': {
-                background: "rgb(250, 249, 249)",
-            },
-            '.ms-List-cell:nth-child(even)': {
-                background: "#FFFFFF",
             }
 
         }
@@ -85,6 +78,8 @@ const JobViewAllInner: React.FC<{ filter: JobFilterSimple }> = observer(({ filte
         };
 
     }, []);
+   
+    const { hordeClasses, detailClasses, modeColors } = getHordeStyling();
 
 
     // subscribe
@@ -178,7 +173,7 @@ const JobViewAllInner: React.FC<{ filter: JobFilterSimple }> = observer(({ filte
                     <Link to={stepUrl} onClick={(ev) => { ev.stopPropagation(); }}><div style={{ cursor: "pointer" }}>
                         <Stack horizontal>
                             <StepStatusIcon step={step} style={{ fontSize: 10 }} />
-                            <Text styles={{ root: { fontSize: 10, color: "#000000", paddingRight: 4, userSelect: "none" } }}>{`${stepItem.name}`}</Text>
+                            <Text styles={{ root: { fontSize: 10, paddingRight: 4, userSelect: "none" } }}>{`${stepItem.name}`}</Text>
                         </Stack>
                     </div></Link>
                 </Stack>
@@ -191,7 +186,7 @@ const JobViewAllInner: React.FC<{ filter: JobFilterSimple }> = observer(({ filte
                 <Stack horizontal>
                     <Stack horizontal>
                         <Link to={`/job/${jobId}`} onClick={(ev) => { ev.stopPropagation(); }}><div style={{ cursor: "pointer" }}>
-                            <Text styles={{ root: { fontSize: 10, color: "#000000", paddingRight: 4, paddingLeft: 19, userSelect: "none" } }}>{`( +${errors + warnings} more )`}</Text>
+                            <Text styles={{ root: { fontSize: 10, paddingRight: 4, paddingLeft: 19, userSelect: "none" } }}>{`( +${errors + warnings} more )`}</Text>
                         </div></Link>
                     </Stack>
                 </Stack>
@@ -368,7 +363,7 @@ const JobViewAllInner: React.FC<{ filter: JobFilterSimple }> = observer(({ filte
             const item = jobItems[props.itemIndex];
 
             return <JobOperationsContextMenu job={item.job}>
-                <DetailsRow styles={{ root: { paddingTop: 8, paddingBottom: 8, backgroundColor: "FF0000" }, cell: { selectors: { "a, a:visited, a:activem, a:hover": { color: "rgb(96, 94, 92)" } } } }} {...props} />
+                <DetailsRow styles={{ root: { paddingTop: 8, paddingBottom: 8 } }} {...props} />
             </JobOperationsContextMenu>
         }
         return null;
@@ -527,7 +522,7 @@ const JobViewAllInner: React.FC<{ filter: JobFilterSimple }> = observer(({ filte
     return (
         <Stack>
             <Stack tokens={{ childrenGap: 0 }} style={{}}>
-                <Stack horizontalAlign="center" style={{ backgroundColor: "#FFFFFF", width: 1440, marginLeft: 4, boxShadow: "0 3px 3.6px 0 rgba(0,0,0,0.132), 0 0.3px 0.9px 0 rgba(0,0,0,0.108)" }}>
+                <Stack horizontalAlign="center" style={{ width: 1440, marginLeft: 4, boxShadow: "0 3px 3.6px 0 rgba(0,0,0,0.132), 0 0.3px 0.9px 0 rgba(0,0,0,0.108)" }}>
                     <Stack style={{ paddingTop: 18, paddingBottom: 24 }}>
                         <JobFilterPanel />
                     </Stack>
@@ -537,7 +532,7 @@ const JobViewAllInner: React.FC<{ filter: JobFilterSimple }> = observer(({ filte
                 <FocusZone direction={FocusZoneDirection.vertical}>
                     <div className={detailClasses.container} style={{ height: 'calc(100vh - 352px)', position: 'relative', marginTop: 0 }} data-is-scrollable={true}>
                         {<ScrollablePane scrollbarVisibility={ScrollbarVisibility.always} style={{ overflow: "visible" }}>
-                            <Stack style={{ width: 1440, marginLeft: 4, boxShadow: "0 1.6px 3.6px 0 rgba(0,0,0,0.132), 0 0.3px 0.9px 0 rgba(0,0,0,0.108)", backgroundColor: "#FFFFFF" }}>
+                            <Stack style={{ width: 1440, marginLeft: 4, background: modeColors.content, boxShadow: "0 1.6px 3.6px 0 rgba(0,0,0,0.132), 0 0.3px 0.9px 0 rgba(0,0,0,0.108)"}}>
                                 <Stack>
                                     <DetailsList
                                         styles={{ root: { paddingLeft: 8, paddingRight: 8 } }}

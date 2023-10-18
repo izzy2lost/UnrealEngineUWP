@@ -7,9 +7,9 @@ import backend from '../../backend';
 import { JobState } from '../../backend/Api';
 import dashboard from '../../backend/Dashboard';
 import { ISideRailLink } from '../../base/components/SideRail';
-import { hordeClasses } from '../../styles/Styles';
 import { ErrorHandler } from '../ErrorHandler';
 import { JobDataView, JobDetailsV2 } from "./JobDetailsViewCommon";
+import { getHordeStyling } from '../../styles/Styles';
 
 const sideRail: ISideRailLink = { text: "Preflight", url: "rail_preflight" };
 
@@ -127,6 +127,8 @@ const AutosubmitInfo: React.FC<{ jobDetails: JobDetailsV2 }> = observer(({ jobDe
 });
 
 export const PreflightPanel: React.FC<{ jobDetails: JobDetailsV2 }> = observer(({ jobDetails }) => {
+
+   const { hordeClasses } = getHordeStyling();
 
    if (jobDetails.updated) { }
 

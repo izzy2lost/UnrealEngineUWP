@@ -5,8 +5,8 @@ import React, { useEffect } from 'react';
 import { JobStepError, JobStepOutcome, JobStepState, ReportPlacement } from '../../backend/Api';
 import { Markdown } from '../../base/components/Markdown';
 import { ISideRailLink } from '../../base/components/SideRail';
-import { getNiceTime, getStepETA, getStepElapsed, getStepFinishTime, getStepTimingDelta } from '../../base/utilities/timeUtils';
-import { hordeClasses, modeColors } from '../../styles/Styles';
+import { getNiceTime, getStepElapsed, getStepETA, getStepFinishTime, getStepTimingDelta } from '../../base/utilities/timeUtils';
+import { getHordeStyling } from '../../styles/Styles';
 import { getBatchText } from '../JobDetailCommon';
 import { JobDataView, JobDetailsV2 } from './JobDetailsViewCommon';
 
@@ -27,7 +27,7 @@ class StepSummaryView extends JobDataView {
    }
 
    detailsUpdated() {
-      
+
       if (!this.details?.jobData) {
          return;
       }
@@ -83,12 +83,12 @@ const getStepSummaryMarkdown = (jobDetails: JobDetailsV2, stepId: string): strin
    const idx = retries.findIndex(s => s.id === step.id);
    if (idx > 0) {
 
-      const pstep = retries[idx - 1];      
+      const pstep = retries[idx - 1];
 
       let msg = `This is a retry of a [previous step](/job/${jobDetails.jobId!}?step=${pstep.id})`;
       if (pstep.retriedByUserInfo) {
          msg += ` started by ${pstep.retriedByUserInfo?.name}`;
-      } 
+      }
 
       text.push(msg);
 
@@ -200,16 +200,18 @@ export const StepSummaryPanel: React.FC<{ jobDetails: JobDetailsV2; stepId: stri
       };
    }, [dataView]);
 
-   dataView.subscribe();   
+   const { hordeClasses, modeColors } = getHordeStyling();
+
+   dataView.subscribe();
 
    dataView.initialize([sideRail]);
 
-   const jobData = jobDetails.jobData;   
+   const jobData = jobDetails.jobData;
 
    if (!jobData) {
       return null;
    }
-   
+
    const jobPrice = jobDetails.jobPrice();
    const stepPrice = jobDetails.stepPrice(stepId);
 

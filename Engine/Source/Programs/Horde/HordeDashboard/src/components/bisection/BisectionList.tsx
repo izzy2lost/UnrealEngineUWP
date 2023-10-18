@@ -12,8 +12,8 @@ import { BisectTaskState, GetBisectTaskResponse, JobStepOutcome } from "../../ba
 import dashboard, { StatusColor } from "../../backend/Dashboard";
 import { projectStore } from '../../backend/ProjectStore';
 import { getMongoIdDate, getShortNiceTime } from '../../base/utilities/timeUtils';
-import { hordeClasses, modeColors } from '../../styles/Styles';
 import { ChangeButton, JobParameters } from '../ChangeButton';
+import { getHordeStyling } from '../../styles/Styles';
 
 type SelectionType = d3.Selection<SVGGElement, unknown, null, undefined>;
 
@@ -56,6 +56,8 @@ class Tooltip {
 
 
 const GraphTooltip: React.FC<{ renderer: BisectionRenderer }> = observer(({ renderer }) => {
+
+   const { modeColors } = getHordeStyling();
 
    const tooltip = renderer.tooltip;
    tooltip.subscribe();
@@ -398,6 +400,8 @@ class BisectionRenderer {
 
 const BisectionGraph: React.FC<{ bisection: GetBisectTaskResponse }> = ({ bisection }) => {
 
+   const { hordeClasses } = getHordeStyling();
+
    const graph_container_id = `timeline_graph_container`;
 
    const [container, setContainer] = useState<HTMLDivElement | null>(null);
@@ -601,6 +605,8 @@ const customStyles = mergeStyleSets({
 export const CancelBisectionModal: React.FC<{ bisectTaskId: string, onClose: (canceled: boolean) => void }> = ({ bisectTaskId, onClose }) => {
 
    const [state, setState] = useState<{ submitting?: boolean, error?: string }>({});
+
+   const { hordeClasses } = getHordeStyling();
 
    const onCancelTask = async () => {
 

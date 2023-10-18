@@ -6,9 +6,9 @@ import React, { useState } from 'react';
 import { DashboardPreference } from '../backend/Api';
 import dashboard, { StatusColor, WebBrowser } from '../backend/Dashboard';
 import { useWindowSize } from '../base/utilities/hooks';
-import { hordeClasses, modeColors } from '../styles/Styles';
 import { Breadcrumbs } from './Breadcrumbs';
 import { TopNav } from './TopNav';
+import { getHordeStyling } from '../styles/Styles';
 
 const colorBlind1 = new Map<StatusColor, string>([
    [StatusColor.Success, "#37A862"],
@@ -55,6 +55,8 @@ const statusPrefs = new Map<StatusColor, DashboardPreference>([
 const ColorPreferenceDialog: React.FC<{ shown: boolean, statusIn: StatusColor, onClose: () => void }> = ({ shown, statusIn, onClose }) => {
 
    let [state, setState] = useState<{ status: StatusColor, colors: Map<StatusColor, string> }>({ status: statusIn, colors: new Map<StatusColor, string>() });
+
+   const { hordeClasses } = getHordeStyling();
 
    if (!shown) {
       return null;
@@ -232,6 +234,8 @@ const ColorPreferenceDialog: React.FC<{ shown: boolean, statusIn: StatusColor, o
 const GeneralPanel: React.FC = observer(() => {
 
    let [colorState, setColorState] = useState<{ status?: StatusColor }>({});
+   const { hordeClasses, modeColors } = getHordeStyling();
+   
    const defaultStatusColors = dashboard.getDefaultStatusColors();
 
    type GeneralItem = {
@@ -405,6 +409,8 @@ export const DashboardView: React.FC = () => {
 
    const windowSize = useWindowSize();
    const vw = Math.max(document.documentElement.clientWidth, window.innerWidth || 0);
+
+   const { hordeClasses, modeColors } = getHordeStyling();
 
    return <Stack className={hordeClasses.horde}>
       <TopNav />

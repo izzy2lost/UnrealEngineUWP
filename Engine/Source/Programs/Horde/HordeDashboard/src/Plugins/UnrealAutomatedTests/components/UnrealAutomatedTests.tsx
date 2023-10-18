@@ -1,7 +1,7 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 
 import { Checkbox, Icon, Image, Spinner, SpinnerSize, Stack, Text } from '@fluentui/react';
-import { getTheme, mergeStyleSets, mergeStyles } from '@fluentui/react/lib/Styling';
+import { mergeStyleSets, mergeStyles } from '@fluentui/react/lib/Styling';
 import React, { useEffect, useRef, useState } from 'react';
 import { useNavigate } from 'react-router';
 import { Link } from 'react-router-dom';
@@ -10,10 +10,131 @@ import { projectStore } from "../../../backend/ProjectStore";
 import { TestDataWrapper } from '../../../backend/TestDataHandler';
 import { msecToElapsed } from '../../../base/utilities/timeUtils';
 import { testDataHandler } from '../../../components/TestReportView';
-import { hordeClasses } from '../../../styles/Styles';
+import { getHordeStyling } from '../../../styles/Styles';
+import { getHordeTheme } from '../../../styles/theme';
 import { EventType, Metadata, TestDetails, TestEntry, TestEntryArtifact, TestPassSummary, TestResult, TestState, TestStateHistoryItem } from '../models/UnrealAutomatedTests';
 
-const theme = getTheme();
+let _styles: any;
+let _gutterHystoryStyles: any;
+let _stateStyles: any;
+
+const getStyling = () => {
+   const theme = getHordeTheme();
+
+   const styles = _styles ?? mergeStyleSets({
+      container: {
+         overflow: 'auto',
+         height: 'calc(100vh - 165px)',
+         marginTop: 8
+      },
+      item: [
+         {
+            fontSize: "11px",
+            fontFamily: "Horde Cousine Regular"
+         }
+      ],
+      gutter: [
+         {
+            padding: 0,
+            margin: 0,
+            paddingTop: 0,
+            paddingBottom: 0,
+            paddingRight: 14,
+            marginTop: 0,
+            marginBottom: 0,
+            height: 20
+         }
+      ],
+      gutterError: [
+         {
+            background: dashboard.darktheme ? "#1E1616" : "#FEF6F6",
+            borderLeftStyle: 'solid',
+            borderLeftColor: "#EC4C47"
+         }, gutterClass
+      ],
+      gutterWarning: [
+         {
+            background: dashboard.darktheme ? "#1E1817" : "#FEF8E7",
+            borderLeftStyle: 'solid',
+            borderLeftColor: "#F7D154"
+         }, gutterClass
+      ],
+      gutterSuccess: [
+         {
+            borderLeftStyle: 'solid',
+            borderLeftColor: theme.palette.green
+         }, gutterClass
+      ],
+      itemWarning: [
+         {
+            background: dashboard.darktheme ? "#1E1817" : "#FEF8E7",
+         }
+      ],
+      itemError: [
+         {
+            background: dashboard.darktheme ? "#1E1616" : "#FEF6F6",
+         }
+      ],
+      itemHover: {
+         cursor: "pointer",
+         selectors: {
+            ':hover': {
+               background: theme.palette.neutralLight
+            }
+         }
+      },
+      itemHighlighted: {
+         borderWidth: "1px",
+         borderColor: "#888",
+         borderStyle: "solid"
+      },
+      historyList: {
+         zIndex: 1,
+         borderWidth: "1px",
+         borderColor: "#888",
+         borderStyle: "solid",
+         backgroundColor: theme.palette.white,
+         padding: "3px",
+         overflow: "auto"
+      }
+   });
+
+   const gutterHystoryStyles = _gutterHystoryStyles ?? new Map<string, string>([
+      [TestState.Success, styles.gutterSuccess],
+      [TestState.InProcess, mergeStyles({
+         background: dashboard.darktheme ? "#141115" : "#E4F1F5",
+         borderLeftStyle: 'solid',
+         borderLeftColor: "#01BCF2"
+      }, gutterClass)],
+      [TestState.NotRun, mergeStyles({
+         borderLeftStyle: 'solid',
+         borderLeftColor: "#A19F9D"
+      }, gutterClass)],
+      [TestState.SuccessWithWarnings, styles.gutterWarning],
+      [TestState.Failed, styles.gutterError],
+   ]);
+
+   const stateStyles = _stateStyles ?? new Map<string, string>([
+      [TestState.Success, mergeStyles({ color: theme.palette.green, userSelect: "none" }, iconClass)],
+      [TestState.InProcess, mergeStyles({ color: "#01BCF2", userSelect: "none" }, iconClass)],
+      [TestState.NotRun, mergeStyles({ color: "#A19F9D", userSelect: "none" }, iconClass)],
+      [TestState.SuccessWithWarnings, mergeStyles({ color: "#F7D154", userSelect: "none" }, iconClass)],
+      [TestState.Failed, mergeStyles({ color: "#EC4C47", userSelect: "none" }, iconClass)],
+      [TestState.Unknown, mergeStyles({ color: "#000000", userSelect: "none" }, iconClass)],
+   ]);
+
+   _styles = styles;
+   _gutterHystoryStyles = gutterHystoryStyles;
+   _stateStyles = stateStyles;
+
+   return {
+      theme: theme,
+      styles: styles,
+      stateStyles: stateStyles,
+      gutterHystoryStyles: gutterHystoryStyles
+   }
+}
+
 const gutterClass = mergeStyles({
    borderLeftWidth: 6,
    padding: 0,
@@ -25,112 +146,13 @@ const gutterClass = mergeStyles({
    marginBottom: 0,
    height: 20
 });
-const styles = mergeStyleSets({
-   container: {
-      overflow: 'auto',
-      height: 'calc(100vh - 165px)',
-      marginTop: 8
-   },
-   item: [
-      {
-         fontSize: "11px",
-         fontFamily: "Horde Cousine Regular"
-      }
-   ],
-   gutter: [
-      {
-         padding: 0,
-         margin: 0,
-         paddingTop: 0,
-         paddingBottom: 0,
-         paddingRight: 14,
-         marginTop: 0,
-         marginBottom: 0,
-         height: 20
-      }
-   ],
-   gutterError: [
-      {
-         background: "#FEF6F6",
-         borderLeftStyle: 'solid',
-         borderLeftColor: "#EC4C47"
-      }, gutterClass
-   ],
-   gutterWarning: [
-      {
-         background: "#FEF8E7",
-         borderLeftStyle: 'solid',
-         borderLeftColor: "#F7D154"
-      }, gutterClass
-   ],
-   gutterSuccess: [
-      {
-         borderLeftStyle: 'solid',
-         borderLeftColor: theme.palette.green
-      }, gutterClass
-   ],
-   itemWarning: [
-      {
-         background: "#FEF8E7"
-      }
-   ],
-   itemError: [
-      {
-         background: "#FEF6F6"
-      }
-   ],
-   itemHover: {
-      cursor: "pointer",
-      selectors: {
-         ':hover': {
-            background: theme.palette.neutralLight
-         }
-      }
-   },
-   itemHighlighted: {
-      borderWidth: "1px",
-      borderColor: "#888",
-      borderStyle: "solid"
-   },
-   historyList: {
-      zIndex: 1,
-      borderWidth: "1px",
-      borderColor: "#888",
-      borderStyle: "solid",
-      backgroundColor: "#FFF",
-      padding: "3px",
-      overflow: "auto"
-   }
-});
-
-const gutterHystoryStyles = new Map<string, string>([
-   [TestState.Success, styles.gutterSuccess],
-   [TestState.InProcess, mergeStyles({
-      background: "#E4F1F5",
-      borderLeftStyle: 'solid',
-      borderLeftColor: "#01BCF2"
-   }, gutterClass)],
-   [TestState.NotRun, mergeStyles({
-      borderLeftStyle: 'solid',
-      borderLeftColor: "#A19F9D"
-   }, gutterClass)],
-   [TestState.SuccessWithWarnings, styles.gutterWarning],
-   [TestState.Failed, styles.gutterError],
-]);
 
 const iconClass = mergeStyles({
    fontSize: 12
 });
 
-const stateStyles = new Map<string, string>([
-   [TestState.Success, mergeStyles({ color: theme.palette.green, userSelect: "none" }, iconClass)],
-   [TestState.InProcess, mergeStyles({ color: "#01BCF2", userSelect: "none" }, iconClass)],
-   [TestState.NotRun, mergeStyles({ color: "#A19F9D", userSelect: "none" }, iconClass)],
-   [TestState.SuccessWithWarnings, mergeStyles({ color: "#F7D154", userSelect: "none" }, iconClass)],
-   [TestState.Failed, mergeStyles({ color: "#EC4C47", userSelect: "none" }, iconClass)],
-   [TestState.Unknown, mergeStyles({ color: "#000000", userSelect: "none" }, iconClass)],
-]);
 const getTestStateStyles = (test: TestResult): string | undefined => {
+   const { stateStyles } = getStyling();
    if (!stateStyles.has(test.State)) {
       return stateStyles.get(TestState.Unknown);
    }
@@ -184,6 +206,10 @@ type ImageLinks = { approved?: string, unapproved?: string, difference?: string 
 const EntryPane: React.FC<{ entry: TestEntry, testArtifacts: TestEntryArtifact[] }> = (props) => {
    const { entry, testArtifacts } = props;
    const [imageLinks, setImageLinks] = useState<ImageLinks>({});
+
+
+   const { styles } = getStyling();
+
    const eventType = entry.Event.Type;
    const is_error = eventType === EventType.Error;
    const is_warning = eventType === EventType.Warning;
@@ -204,7 +230,7 @@ const EntryPane: React.FC<{ entry: TestEntry, testArtifacts: TestEntryArtifact[]
             // Unapproved            
             imageLinks.unapproved = await testDataHandler.cursor?.getArtifactImageLink(artifact.Files.Unapproved);
             // Difference
-            imageLinks.difference = await testDataHandler.cursor?.getArtifactImageLink(artifact.Files.Difference);            
+            imageLinks.difference = await testDataHandler.cursor?.getArtifactImageLink(artifact.Files.Difference);
 
             setImageLinks(imageLinks);
          }
@@ -222,18 +248,18 @@ const EntryPane: React.FC<{ entry: TestEntry, testArtifacts: TestEntryArtifact[]
             <Stack styles={{ root: { paddingLeft: 16 } }}>
                <Stack><Text variant="medium" styles={{ root: { fontWeight: "bold" } }}>Image comparison: {artifact?.Name}</Text></Stack>
                <Stack horizontal>
-               {(is_error || is_warning) &&
-                  <Stack styles={{ root: { padding: 5 } }}>
-                     <a href={imageLinks.approved}><Image width={400} src={imageLinks.approved || missingImage} alt={artifact?.Files.Approved} /></a>
-                     <Stack.Item align="center">Approved{!imageLinks.approved && MissingImageLabel()}</Stack.Item>
-                  </Stack>
-               }
-               {(is_error || is_warning) &&
-                  <Stack styles={{ root: { padding: 5 } }}>
-                     <a href={imageLinks.difference}><Image width={400} src={imageLinks.difference || missingImage} alt={artifact?.Files.Difference} /></a>
-                     <Stack.Item align="center">Difference{!imageLinks.difference && MissingImageLabel()}</Stack.Item>
-                  </Stack>
-               }
+                  {(is_error || is_warning) &&
+                     <Stack styles={{ root: { padding: 5 } }}>
+                        <a href={imageLinks.approved}><Image width={400} src={imageLinks.approved || missingImage} alt={artifact?.Files.Approved} /></a>
+                        <Stack.Item align="center">Approved{!imageLinks.approved && MissingImageLabel()}</Stack.Item>
+                     </Stack>
+                  }
+                  {(is_error || is_warning) &&
+                     <Stack styles={{ root: { padding: 5 } }}>
+                        <a href={imageLinks.difference}><Image width={400} src={imageLinks.difference || missingImage} alt={artifact?.Files.Difference} /></a>
+                        <Stack.Item align="center">Difference{!imageLinks.difference && MissingImageLabel()}</Stack.Item>
+                     </Stack>
+                  }
                   <Stack styles={{ root: { padding: 5 } }}>
                      <a href={imageLinks.unapproved}><Image width={400} src={imageLinks.unapproved || missingImage} alt={artifact?.Files.Unapproved} /></a>
                      <Stack.Item align="center">Unapproved{!imageLinks.unapproved && MissingImageLabel()}</Stack.Item>
@@ -247,6 +273,9 @@ const EntryPane: React.FC<{ entry: TestEntry, testArtifacts: TestEntryArtifact[]
 
 const HistoryItem: React.FC<{ item: TestStateHistoryItem, testName: string, selected: boolean }> = (props) => {
    const { item, testName, selected } = props;
+
+   const {theme, gutterHystoryStyles, styles} = getStyling();
+
    const gutterStyle = gutterHystoryStyles.get(item.State);
 
    return (
@@ -258,7 +287,7 @@ const HistoryItem: React.FC<{ item: TestStateHistoryItem, testName: string, sele
             </Link>
             {item.RangeUrl &&
                <a href={item.RangeUrl} target="blank" className={`${styles.itemHover}`}>
-                  <Text variant="smallPlus" styles={{ root: {color: theme.palette.neutralDark,  paddingLeft: 4, paddingRight: 4 } }}>[ Swarm Range ]</Text>
+                  <Text variant="smallPlus" styles={{ root: { color: theme.palette.neutralDark, paddingLeft: 4, paddingRight: 4 } }}>[ Swarm Range ]</Text>
                </a>}
          </Stack.Item>
       </Stack>
@@ -291,16 +320,18 @@ const TestResultPane: React.FC<{ test: TestResult, selected: boolean }> = (props
 
    const navigate = useNavigate();
 
+   const { styles } = getStyling();
+
    function onClickTest() {
       if (selected) {
          if (visible) {
             // remove test name selection
-            navigate(window.location.pathname, {replace: true});
+            navigate(window.location.pathname, { replace: true });
             return;
          }
       }
       // add test name selection
-      navigate(`${window.location.pathname}?test=${test.FullTestPath}`, {replace: true});
+      navigate(`${window.location.pathname}?test=${test.FullTestPath}`, { replace: true });
    }
 
    function onClickTestName() {
@@ -457,6 +488,10 @@ const TestResultPane: React.FC<{ test: TestResult, selected: boolean }> = (props
 }
 
 const TestResultPanel: React.FC<{ tests: TestResult[], title?: string, selected?: string }> = (props) => {
+
+   const { hordeClasses } = getHordeStyling();
+   const { theme } = getStyling();
+
    const { tests, title, selected } = props;
 
    const suites = new Map<string, TestResult[]>();
@@ -492,6 +527,10 @@ const TestResultPanel: React.FC<{ tests: TestResult[], title?: string, selected?
 }
 
 export const TestPassSummaryView: React.FC<{ data: TestPassSummary, query: URLSearchParams }> = (props) => {
+
+   const { hordeClasses, modeColors } = getHordeStyling();   
+   const { stateStyles, styles } = getStyling();
+
    const { data, query } = props;
    const failedTests: TestResult[] = [];
    const notrunTests: TestResult[] = [];
@@ -510,7 +549,7 @@ export const TestPassSummaryView: React.FC<{ data: TestPassSummary, query: URLSe
    const selectedTest = query.get('test') ? query.get('test')! : undefined;
 
    return (
-      <Stack className={styles.container} styles={{ root: { backgroundColor: "#faf9f9", paddingLeft: 24, paddingTop: 12, paddingRight: 12 } }}>
+      <Stack className={styles.container} styles={{ root: { backgroundColor: modeColors.background, paddingLeft: 24, paddingTop: 12, paddingRight: 12 } }}>
 
          <Stack styles={{ root: { paddingTop: 18, paddingRight: 0 } }}>
             <Stack className={hordeClasses.raised}>
