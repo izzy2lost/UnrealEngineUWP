@@ -2409,9 +2409,9 @@ static uint32 GGrassExclusionChangeTag = 1;
 static uint32 GFrameNumberLastStaleCheck = 0;
 static TMap<FWeakObjectPtr, FBox, FDefaultSetAllocator, TWeakObjectPtrMapKeyFuncs<FWeakObjectPtr, FBox>> GGrassExclusionBoxes;
 
-void ALandscapeProxy::AddExclusionBox(FWeakObjectPtr Owner, const FBox& BoxToRemove)
+void ALandscapeProxy::AddExclusionBox(FWeakObjectPtr Owner, const FBox& Box)
 {
-	GGrassExclusionBoxes.Add(Owner, BoxToRemove);
+	GGrassExclusionBoxes.Add(Owner, Box);
 	GGrassExclusionChangeTag++;
 }
 void ALandscapeProxy::RemoveExclusionBox(FWeakObjectPtr Owner)
@@ -2820,9 +2820,16 @@ void ALandscapeProxy::UpdateGrass(const TArray<FVector>& Cameras, int32& InOutNu
 						{
 							if (Pair.Value.Intersect(WorldBox))
 							{
-								Component->ActiveExcludedBoxes.AddUnique(Pair.Value);
+								// this will also filter out boxes that are completely inside of the other boxes
+								Component->ActiveExcludedBoxes.AddUnique(ULandscapeComponent::FExcludeBox(Pair.Value));
 							}
 						}
+
+						//Sort exclude boxes by their volume size, as the biggest boxes are more likely to exclude points and early out when building grass
+						Component->ActiveExcludedBoxes.Sort([](const ULandscapeComponent::FExcludeBox& A, const ULandscapeComponent::FExcludeBox& B) {
+								return A.Box.GetVolume() > B.Box.GetVolume();
+							}
+						);
 					}
 					Component->ChangeTag = GGrassExclusionChangeTag;
 				}
@@ -2933,11 +2940,11 @@ void ALandscapeProxy::UpdateGrass(const TArray<FVector>& Cameras, int32& InOutNu
 											FCachedLandscapeFoliage::FGrassComp* Existing = FoliageCache.CachedGrassComps.Find(NewComp.Key);
 											if (Existing && !Existing->PreviousFoliage.IsValid() && Existing->ExclusionChangeTag != GGrassExclusionChangeTag && !Existing->PendingRemovalRebuild && !Existing->Pending)
 											{
-												for (const FBox& Box : Component->ActiveExcludedBoxes)
+												for (const ULandscapeComponent::FExcludeBox& BoxWrapper : Component->ActiveExcludedBoxes)
 												{
-													if (Box.Intersect(WorldSubBox))
+													if (BoxWrapper.Box.Intersect(WorldSubBox))
 													{
-														NewComp.ExcludedBoxes.Add(Box);
+														NewComp.ExcludedBoxes.Add(BoxWrapper.Box);
 													}
 												}
 												if (NewComp.ExcludedBoxes != Existing->ExcludedBoxes)
@@ -2971,11 +2978,11 @@ void ALandscapeProxy::UpdateGrass(const TArray<FVector>& Cameras, int32& InOutNu
 										}
 										if (!bRebuildForBoxes)
 										{
-											for (const FBox& Box : Component->ActiveExcludedBoxes)
+											for (const ULandscapeComponent::FExcludeBox& BoxWrapper : Component->ActiveExcludedBoxes)
 											{
-												if (Box.Intersect(WorldSubBox))
+												if (BoxWrapper.Box.Intersect(WorldSubBox))
 												{
-													NewComp.ExcludedBoxes.Add(Box);
+													NewComp.ExcludedBoxes.Add(BoxWrapper.Box);
 												}
 											}
 										}

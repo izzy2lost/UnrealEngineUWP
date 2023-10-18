@@ -494,6 +494,21 @@ public:
 	}
 
 	/** 
+	 * Checks whether a given box is fully encapsulated by this box.
+	 * 
+	 * @param Other The box to test for encapsulation within the bounding volume.
+	 * @return true if box is inside this volume.
+	 * @see IsInsideXY
+	 *
+	 * @note  This function assumes boxes have closed bounds, i.e. boxes with
+	 *        coincident borders on any edge are encapsulated.
+	 */
+	FORCEINLINE bool IsInsideOrOn( const TBox<T>& Other ) const
+	{
+		return (IsInsideOrOn(Other.Min) && IsInsideOrOn(Other.Max));
+	}
+
+	/** 
 	 * Checks whether the given location is inside this box in the XY plane.
 	 * 
 	 * @param In The location to test for inside the bounding box.

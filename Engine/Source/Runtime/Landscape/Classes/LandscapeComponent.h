@@ -643,7 +643,21 @@ public:
 public:
 	/** Grass data for generation **/
 	TSharedRef<FLandscapeComponentGrassData, ESPMode::ThreadSafe> GrassData;
-	TArray<FBox> ActiveExcludedBoxes;
+	
+	// This wrapper is needed to filter out exclude boxes that are completely inside of another exclude box
+	struct FExcludeBox
+	{
+		FBox Box;
+
+		FExcludeBox() = default;
+		FExcludeBox(const FBox& InBox) : Box(InBox) {}
+
+		bool operator==(const FExcludeBox& Other) const
+		{
+			return Box.IsInsideOrOn(Other.Box);
+		}
+	};
+	TArray<FExcludeBox> ActiveExcludedBoxes;
 	uint32 ChangeTag;
 
 #if WITH_EDITOR
