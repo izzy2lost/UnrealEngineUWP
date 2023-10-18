@@ -24,18 +24,6 @@
 // - To add engine support for a complex extension, but require some kind of external activation (eg plugin) you can use its EExtensionActivation state (see header definition).
 // - If an extension is supported on multiple platforms, it may be cleaner to include it here and simply disable its VULKAN_SUPPORTS_* value in the Vulkan platform header where it's not supported.
 
-
-
-enum class EVulkanVariableRateShadingPreference : uint8
-{
-	PreferFSR = 0, // This can be used to prefer FSR over FDM when both are available.
-	UseFSROnlyIfAvailable, // This will only print a message if FSR is not available.
-	RequireFSR, // This will print an error if FSR is not available.
-	PreferFDM, // This can be used to prefer FDM over FSR when both are available.
-	UseFDMOnlyIfAvailable, // This will only print a message if FDM is not available.
-	RequireFDM, // This will print an error if FDM is not available.
-};
-
 TAutoConsoleVariable<int32> GRHIAllow64bitShaderAtomicsCvar(
 	TEXT("r.Vulkan.Allow64bitShaderAtomics"),
 	1,
@@ -608,12 +596,14 @@ public:
 
 	virtual void PostPhysicalDeviceFeatures(FOptionalVulkanDeviceExtensions& ExtensionFlags) override final
 	{
+		VkPhysicalDeviceFragmentDensityMapFeaturesEXT& FragmentDensityMapFeatures = GetDeviceExtensionProperties().FragmentDensityMapFeatures;
 		bRequirementsPassed = (FragmentDensityMapFeatures.fragmentDensityMap == VK_TRUE);
 		ExtensionFlags.HasEXTFragmentDensityMap = bRequirementsPassed;
 	}
 
 	virtual void PrePhysicalDeviceFeatures(VkPhysicalDeviceFeatures2KHR& PhysicalDeviceFeatures2) override final
 	{
+		VkPhysicalDeviceFragmentDensityMapFeaturesEXT& FragmentDensityMapFeatures = GetDeviceExtensionProperties().FragmentDensityMapFeatures;
 		ZeroVulkanStruct(FragmentDensityMapFeatures, VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_FRAGMENT_DENSITY_MAP_FEATURES_EXT);
 		AddToPNext(PhysicalDeviceFeatures2, FragmentDensityMapFeatures);
 	}
@@ -647,13 +637,13 @@ public:
 	{
 		if (bRequirementsPassed)
 		{
+			VkPhysicalDeviceFragmentDensityMapFeaturesEXT& FragmentDensityMapFeatures = GetDeviceExtensionProperties().FragmentDensityMapFeatures;
 			AddToPNext(DeviceCreateInfo, FragmentDensityMapFeatures);
 		}
 	}
 
 private:
 	VkPhysicalDeviceFragmentDensityMapPropertiesEXT FragmentDensityMapProperties;
-	VkPhysicalDeviceFragmentDensityMapFeaturesEXT FragmentDensityMapFeatures;
 };
 
 
@@ -671,12 +661,14 @@ public:
 
 	virtual void PrePhysicalDeviceFeatures(VkPhysicalDeviceFeatures2KHR& PhysicalDeviceFeatures2) override final
 	{
+		VkPhysicalDeviceFragmentDensityMap2FeaturesEXT& FragmentDensityMap2Features = GetDeviceExtensionProperties().FragmentDensityMap2Features;
 		ZeroVulkanStruct(FragmentDensityMap2Features, VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_FRAGMENT_DENSITY_MAP_2_FEATURES_EXT);
 		AddToPNext(PhysicalDeviceFeatures2, FragmentDensityMap2Features);
 	}
 
 	virtual void PostPhysicalDeviceFeatures(FOptionalVulkanDeviceExtensions& ExtensionFlags) override final
 	{
+		VkPhysicalDeviceFragmentDensityMap2FeaturesEXT& FragmentDensityMap2Features = GetDeviceExtensionProperties().FragmentDensityMap2Features;
 		bRequirementsPassed = (FragmentDensityMap2Features.fragmentDensityMapDeferred == VK_TRUE);
 		ExtensionFlags.HasEXTFragmentDensityMap2 = bRequirementsPassed;
 
@@ -687,12 +679,10 @@ public:
 	{
 		if (bRequirementsPassed)
 		{
+			VkPhysicalDeviceFragmentDensityMap2FeaturesEXT& FragmentDensityMap2Features = GetDeviceExtensionProperties().FragmentDensityMap2Features;
 			AddToPNext(DeviceCreateInfo, FragmentDensityMap2Features);
 		}
 	}
-
-private:
-	VkPhysicalDeviceFragmentDensityMap2FeaturesEXT FragmentDensityMap2Features;
 };
 
 
@@ -1612,41 +1602,5 @@ FVulkanInstanceExtensionArray FVulkanInstanceExtension::GetUESupportedInstanceEx
 	FlagExtensionSupport(GetDriverSupportedInstanceExtensions(), OutUEInstanceExtensions, ApiVersion, TEXT("instance"));
 
 	return OutUEInstanceExtensions;
-}
-
-void ChooseVariableRateShadingMethod(FOptionalVulkanDeviceExtensions& ExtensionFlags, const VkPhysicalDeviceFragmentShadingRateFeaturesKHR& FragmentShadingRateFeatures)
-{
-	int32 VRSFormatPreference = GVulkanVariableRateShadingFormatCVar->GetInt();
-
-	if (VRSFormatPreference == (uint8)EVulkanVariableRateShadingPreference::PreferFSR && (FragmentShadingRateFeatures.attachmentFragmentShadingRate == VK_TRUE))
-	{
-		ExtensionFlags.HasEXTFragmentDensityMap = 0;
-		return;
-	}
-	if (VRSFormatPreference == (uint8)EVulkanVariableRateShadingPreference::PreferFDM && ExtensionFlags.HasEXTFragmentDensityMap)
-	{
-		ExtensionFlags.HasKHRFragmentShadingRate = 0;
-		return;
-	}
-	if (VRSFormatPreference == (uint8)EVulkanVariableRateShadingPreference::UseFSROnlyIfAvailable && !(FragmentShadingRateFeatures.attachmentFragmentShadingRate == VK_TRUE))
-	{
-		UE_LOG(LogVulkanRHI, Display, TEXT("Fragment Shading Rate was requested but is not available."));
-		return;
-	}
-	if (VRSFormatPreference == (uint8)EVulkanVariableRateShadingPreference::UseFDMOnlyIfAvailable && !ExtensionFlags.HasEXTFragmentDensityMap)
-	{
-		UE_LOG(LogVulkanRHI, Display, TEXT("Fragment Density Map was requested but is not available."));
-		return;
-	}
-	if (VRSFormatPreference == (uint8)EVulkanVariableRateShadingPreference::RequireFSR && !(FragmentShadingRateFeatures.attachmentFragmentShadingRate == VK_TRUE))
-	{
-		UE_LOG(LogVulkanRHI, Error, TEXT("Fragment Shading Rate was required but is not available."));
-		return;
-	}
-	if (VRSFormatPreference == (uint8)EVulkanVariableRateShadingPreference::RequireFDM && !ExtensionFlags.HasEXTFragmentDensityMap)
-	{
-		UE_LOG(LogVulkanRHI, Error, TEXT("Fragment Density Map was required but is not available."));
-		return;
-	}
 }
 

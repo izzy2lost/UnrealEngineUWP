@@ -131,6 +131,8 @@ struct FOptionalVulkanDeviceExtensionProperties
 #endif // VULKAN_RHI_RAYTRACING
 
 	VkPhysicalDeviceFragmentShadingRateFeaturesKHR FragmentShadingRateFeatures;
+	VkPhysicalDeviceFragmentDensityMapFeaturesEXT FragmentDensityMapFeatures;
+	VkPhysicalDeviceFragmentDensityMap2FeaturesEXT FragmentDensityMap2Features;
 };
 
 class FVulkanPhysicalDeviceFeatures
@@ -244,6 +246,7 @@ public:
 	void InitGPU();
 
 	void CreateDevice(TArray<const ANSICHAR*>& DeviceLayers, FVulkanDeviceExtensionArray& UEExtensions);
+	void ChooseVariableRateShadingMethod();
 
 	void PrepareForDestroy();
 	void Destroy();

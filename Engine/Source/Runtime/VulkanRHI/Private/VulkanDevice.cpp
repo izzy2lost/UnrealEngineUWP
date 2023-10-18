@@ -1091,6 +1091,81 @@ bool FVulkanDevice::SupportsBindless() const
 	return BindlessDescriptorManager->IsSupported();
 }
 
+void FVulkanDevice::ChooseVariableRateShadingMethod()
+{
+	auto IsFragmentShadingRateAvailable = [](VkPhysicalDeviceFragmentShadingRateFeaturesKHR& FragmentShadingRateFeatures)
+	{
+		return FragmentShadingRateFeatures.attachmentFragmentShadingRate == VK_TRUE;
+	};
+
+	auto IsFragmentDensityMapAvailable = [](FOptionalVulkanDeviceExtensions& ExtensionFlags)
+	{
+		return ExtensionFlags.HasEXTFragmentDensityMap;
+	};
+
+	auto TurnOffFragmentShadingRate = [](VkPhysicalDeviceFragmentShadingRateFeaturesKHR& FragmentShadingRateFeatures)
+	{
+		FragmentShadingRateFeatures.primitiveFragmentShadingRate = VK_FALSE;
+		FragmentShadingRateFeatures.attachmentFragmentShadingRate = VK_FALSE;
+		FragmentShadingRateFeatures.pipelineFragmentShadingRate = VK_FALSE;
+		GRHISupportsPipelineVariableRateShading = false;
+		GRHISupportsLargerVariableRateShadingSizes = false;
+	};
+
+	auto TurnOffFragmentDensityMap = [](FOptionalVulkanDeviceExtensions& ExtensionFlags, VkPhysicalDeviceFragmentDensityMapFeaturesEXT& FragmentDensityMapFeatures, VkPhysicalDeviceFragmentDensityMap2FeaturesEXT& FragmentDensityMap2Features)
+	{
+		ExtensionFlags.HasEXTFragmentDensityMap = 0;
+		FragmentDensityMapFeatures.fragmentDensityMap = VK_FALSE;
+		FragmentDensityMapFeatures.fragmentDensityMapDynamic = VK_FALSE;
+		FragmentDensityMapFeatures.fragmentDensityMapNonSubsampledImages = VK_FALSE;
+		ExtensionFlags.HasEXTFragmentDensityMap2 = 0;
+		FragmentDensityMap2Features.fragmentDensityMapDeferred = VK_FALSE;
+	};
+
+	int32 VRSFormatPreference = IConsoleManager::Get().FindTConsoleVariableDataInt(TEXT("r.Vulkan.VRSFormat"))->GetValueOnAnyThread();
+	UE_LOG(LogVulkanRHI, Display, TEXT("Vulkan Variable Rate Shading choice: %d."), VRSFormatPreference);
+
+	// If both FSR and FDM are available we turn off the one that we're not using to prevent Vulkan validation layers warnings.
+	if (IsFragmentDensityMapAvailable(OptionalDeviceExtensions) && IsFragmentShadingRateAvailable(OptionalDeviceExtensionProperties.FragmentShadingRateFeatures))
+	{
+		if (VRSFormatPreference <= (uint8)EVulkanVariableRateShadingPreference::RequireFSR)
+		{
+			TurnOffFragmentDensityMap(OptionalDeviceExtensions, OptionalDeviceExtensionProperties.FragmentDensityMapFeatures, OptionalDeviceExtensionProperties.FragmentDensityMap2Features);
+		}
+		else
+		{
+			TurnOffFragmentShadingRate(OptionalDeviceExtensionProperties.FragmentShadingRateFeatures);
+		}
+		return;
+	}
+	// When only FSR is available.
+	if (IsFragmentShadingRateAvailable(OptionalDeviceExtensionProperties.FragmentShadingRateFeatures))
+	{
+		if (VRSFormatPreference == (uint8)EVulkanVariableRateShadingPreference::UseFDMOnlyIfAvailable)
+		{
+			UE_LOG(LogVulkanRHI, Display, TEXT("Fragment Density Map was requested but is not available."));
+		}
+		else if (VRSFormatPreference == (uint8)EVulkanVariableRateShadingPreference::RequireFDM)
+		{
+			UE_LOG(LogVulkanRHI, Error, TEXT("Fragment Density Map was required but is not available."));
+		}
+		TurnOffFragmentDensityMap(OptionalDeviceExtensions, OptionalDeviceExtensionProperties.FragmentDensityMapFeatures, OptionalDeviceExtensionProperties.FragmentDensityMap2Features);
+	}
+	// When only FDM is available.
+	if (IsFragmentDensityMapAvailable(OptionalDeviceExtensions))
+	{
+		if (VRSFormatPreference == (uint8)EVulkanVariableRateShadingPreference::UseFSROnlyIfAvailable)
+		{
+			UE_LOG(LogVulkanRHI, Display, TEXT("Fragment Shading Rate was requested but is not available."));
+		}
+		else if (VRSFormatPreference == (uint8)EVulkanVariableRateShadingPreference::RequireFSR)
+		{
+			UE_LOG(LogVulkanRHI, Error, TEXT("Fragment Shading Rate was required but is not available."));
+		}
+		TurnOffFragmentShadingRate(OptionalDeviceExtensionProperties.FragmentShadingRateFeatures);
+	}
+}
+
 void FVulkanDevice::InitGPU()
 {
 	LLM_SCOPE_VULKAN(ELLMTagVulkan::VulkanMisc);
@@ -1159,7 +1234,7 @@ void FVulkanDevice::InitGPU()
 		}
 	}
 
-	ChooseVariableRateShadingMethod(OptionalDeviceExtensions, GetOptionalExtensionProperties().FragmentShadingRateFeatures);
+	ChooseVariableRateShadingMethod();
 
 	UE_LOG(LogVulkanRHI, Display, TEXT("Device properties: Geometry %d BufferAtomic64 %d ImageAtomic64 %d"), 
 		PhysicalDeviceFeatures.Core_1_0.geometryShader, OptionalDeviceExtensions.HasKHRShaderAtomicInt64, OptionalDeviceExtensions.HasImageAtomicInt64);
