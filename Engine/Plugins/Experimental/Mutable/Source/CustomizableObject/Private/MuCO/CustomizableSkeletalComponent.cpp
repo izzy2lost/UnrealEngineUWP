@@ -15,7 +15,6 @@
 #include "Rendering/SkeletalMeshRenderData.h"
 #include "UObject/ObjectSaveContext.h"
 #include "MuCO/UnrealPortabilityHelpers.h"
-#include "MuCO/CustomizableObject.h"
 
 #include UE_INLINE_GENERATED_CPP_BY_NAME(CustomizableSkeletalComponent)
 
