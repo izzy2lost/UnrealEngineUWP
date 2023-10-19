@@ -57,10 +57,9 @@ public:
 
 		this->ChildSlot
 			[
-				SNew(SVerticalBox)
-				+ SVerticalBox::Slot()
-				.AutoHeight()
-				.Padding(0)
+				SNew(SBox)
+				.MinDesiredWidth(275)
+				.MaxDesiredWidth(400)
 				[
 					SNew(SHorizontalBox)
 					+ SHorizontalBox::Slot()
@@ -69,6 +68,8 @@ public:
 						// Create Text box 0 
 						SNew(SNumericEntryBox<NumericType>)
 						.LabelVAlign(VAlign_Center)
+						.MaxFractionalDigits(3)
+						.MinDesiredValueWidth(45.0f)
 						.Label()
 						[
 							SNew(STextBlock)
@@ -104,6 +105,8 @@ public:
 						// Create Text box 1
 						SNew(SNumericEntryBox<NumericType>)
 						.LabelVAlign(VAlign_Center)
+						.MaxFractionalDigits(3)
+						.MinDesiredValueWidth(45.0f)
 						.Label()
 						[
 							SNew(STextBlock)
@@ -139,6 +142,8 @@ public:
 						// Create Text box 2
 						SNew(SNumericEntryBox<NumericType>)
 						.LabelVAlign(VAlign_Center)
+						.MaxFractionalDigits(3)
+						.MinDesiredValueWidth(45.0f)
 						.Label()
 						[
 							SNew(STextBlock)
@@ -174,6 +179,8 @@ public:
 						// Create Text box 3
 						SNew(SNumericEntryBox<NumericType>)
 						.LabelVAlign(VAlign_Center)
+						.MaxFractionalDigits(3)
+						.MinDesiredValueWidth(45.0f)
 						.Label()
 						[
 							SNew(STextBlock)

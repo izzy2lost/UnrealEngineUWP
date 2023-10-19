@@ -46,6 +46,7 @@ protected:
 			.MaxDesiredWidth(400)
 			[
 				SNew(SNumericEntryBox<NumericType>)
+				.MinDesiredValueWidth(100.0f)
 				.EditableTextBoxStyle(FAppStyle::Get(), "Graph.EditableTextBox")
 				.BorderForegroundColor(FSlateColor::UseForeground())
 				.Visibility(this, &SGraphPinNumSlider::GetDefaultValueVisibility)
@@ -84,7 +85,7 @@ protected:
 		{
 			const FScopedTransaction Transaction(NSLOCTEXT("GraphEditor", "ChangeNumberPinValue", "Change Number Pin Value"));
 			GraphPinObj->Modify();
-			GraphPinObj->GetSchema()->TrySetDefaultValue(*GraphPinObj, *LexToString(NewValue));
+			GraphPinObj->GetSchema()->TrySetDefaultValue(*GraphPinObj, *LexToSanitizedString(NewValue));
 			LastSliderCommittedValue = NewValue;
 		}
 	}
@@ -112,20 +113,6 @@ protected:
 		LexFromString(Num, *GraphPinObj->GetDefaultAsString());
 		return bIsUsingSlider ? SliderValue : Num;
 	}
-
-public:
-	// virtual EVisibility GetDefaultValueVisibility() const override
-	// {
-	// 	UEdGraphPin* GraphPin = GetPinObj();
-	// 	if (GraphPin->Direction == EGPD_Output)
-	// 	{
-	// 		return EVisibility::Collapsed;
-	// 	}
-	// 	else
-	// 	{
-	// 		return EVisibility::Visible;
-	// 	}
-	// }
 
 private:
 	FProperty* PinProperty;

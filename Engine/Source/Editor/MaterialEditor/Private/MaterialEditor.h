@@ -809,13 +809,19 @@ private:
 
 	/** Will promote selected pin to a parameter of the pin type */
 	void OnPromoteToParameter(const FToolMenuContext& InMenuContext) const;
-
+	
 	/** Used to know if we can promote selected pin to a parameter of the pin type */
 	bool OnCanPromoteToParameter(const FToolMenuContext& InMenuContext) const;
 
 	/** Will  return the UClass to create from the Pin Type */
 	UClass* GetOnPromoteToParameterClass(const UEdGraphPin* TargetPin) const;
 
+	/** Used to know if we can reset the selected pin to it's default value */
+	bool OnCanResetToDefault(const FToolMenuContext& InMenuContext) const;
+
+	/** Will reset selected pin to it's default value */
+	void OnResetToDefault(const FToolMenuContext& InMenuContext) const;
+	
 	enum class ESubstrateNodeForPin : uint8
 	{
 		Slab,

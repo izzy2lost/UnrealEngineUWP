@@ -2130,6 +2130,22 @@ void FMaterialEditor::AddGraphEditorPinActionsToContextMenu(FToolMenuSection& In
 		);
 	}
 
+	// Reset to Default Value
+	{
+		FToolUIAction ResetToDefaultAction;
+		ResetToDefaultAction.ExecuteAction = FToolMenuExecuteAction::CreateSP(this, &FMaterialEditor::OnResetToDefault);
+		ResetToDefaultAction.IsActionVisibleDelegate = FToolMenuIsActionButtonVisible::CreateSP(this, &FMaterialEditor::OnCanResetToDefault);
+
+		TSharedPtr<FUICommandInfo> ResetToDefaultCommand = FMaterialEditorCommands::Get().ResetToDefault;
+		InSection.AddMenuEntry(
+			ResetToDefaultCommand->GetCommandName(),
+			ResetToDefaultCommand->GetLabel(),
+			ResetToDefaultCommand->GetDescription(),
+			ResetToDefaultCommand->GetIcon(),
+			ResetToDefaultAction
+		);
+	}
+
 	{
 		auto AddSubstrateContextualMenu = [&](TSharedPtr<FUICommandInfo> CreateNodeCommand, ESubstrateNodeForPin SubstrateNodeForPin)
 		{
@@ -4900,6 +4916,165 @@ void FMaterialEditor::OnPromoteToParameter(const FToolMenuContext& InMenuContext
 	{
 		MaterialCustomPrimitiveDataWidget->UpdateEditorInstance(MaterialEditorInstance);
 	}
+}
+
+void FMaterialEditor::OnResetToDefault(const FToolMenuContext& InMenuContext) const
+{
+	UGraphNodeContextMenuContext* NodeContext = InMenuContext.FindContext<UGraphNodeContextMenuContext>();
+	const int32 PinIndex = NodeContext->Pin->SourceIndex;
+	const UMaterialGraphNode_Root* RootPinNode = Cast<UMaterialGraphNode_Root>(NodeContext->Pin->GetOwningNode());
+	UEdGraphPin* TargetPin = RootPinNode->GetPinAt(PinIndex);
+
+	if (RootPinNode != nullptr)
+	{
+		const FScopedTransaction Transaction( NSLOCTEXT("GraphEditor", "ResetPinToDefault", "Reset Pin Value to its default" ) );
+		TargetPin->Modify();
+		
+		const UMaterialGraph* MaterialGraph = CastChecked<UMaterialGraph>(RootPinNode->GetGraph());
+		const FMaterialInputInfo& MaterialInput = MaterialGraph->MaterialInputs[TargetPin->SourceIndex];
+		const EMaterialProperty PropertyId = MaterialInput.GetProperty();
+		UMaterialEditorOnlyData* EditorOnlyData = Material->GetEditorOnlyData();
+		switch (PropertyId)
+		{
+			case MP_BaseColor:
+				EditorOnlyData->BaseColor.Constant = FColor(128, 128, 128);
+				TargetPin->GetSchema()->TrySetDefaultValue(*TargetPin, EditorOnlyData->BaseColor.GetDefaultValue());
+				break;
+
+			case MP_Opacity:
+				EditorOnlyData->Opacity.Constant = FMaterialAttributeDefinitionMap::GetDefaultValue(MP_Opacity).X;
+				TargetPin->GetSchema()->TrySetDefaultValue(*TargetPin, EditorOnlyData->Opacity.GetDefaultValue());
+				break;
+			
+			case MP_Metallic:
+				EditorOnlyData->Metallic.Constant = FMaterialAttributeDefinitionMap::GetDefaultValue(MP_Metallic).X;
+				TargetPin->GetSchema()->TrySetDefaultValue(*TargetPin, EditorOnlyData->Metallic.GetDefaultValue());
+				break;
+			
+			case MP_Specular:
+				EditorOnlyData->Specular.Constant = FMaterialAttributeDefinitionMap::GetDefaultValue(MP_Specular).X;
+				TargetPin->GetSchema()->TrySetDefaultValue(*TargetPin, EditorOnlyData->Specular.GetDefaultValue());
+				break;
+			
+			case MP_Roughness:
+				EditorOnlyData->Roughness.Constant = FMaterialAttributeDefinitionMap::GetDefaultValue(MP_Roughness).X;
+				TargetPin->GetSchema()->TrySetDefaultValue(*TargetPin, EditorOnlyData->Roughness.GetDefaultValue());
+				break;
+			
+			case MP_Anisotropy:
+				EditorOnlyData->Anisotropy.Constant = FMaterialAttributeDefinitionMap::GetDefaultValue(MP_Anisotropy).X;
+				TargetPin->GetSchema()->TrySetDefaultValue(*TargetPin, EditorOnlyData->Anisotropy.GetDefaultValue());
+				break;
+			
+			case MP_CustomData0:
+				EditorOnlyData->ClearCoat.Constant = FMaterialAttributeDefinitionMap::GetDefaultValue(MP_CustomData0).X;
+				TargetPin->GetSchema()->TrySetDefaultValue(*TargetPin, EditorOnlyData->ClearCoat.GetDefaultValue());
+				break;
+			
+			case MP_CustomData1:
+				EditorOnlyData->ClearCoatRoughness.Constant = FMaterialAttributeDefinitionMap::GetDefaultValue(MP_CustomData1).X;
+				TargetPin->GetSchema()->TrySetDefaultValue(*TargetPin, EditorOnlyData->ClearCoatRoughness.GetDefaultValue());
+				break;
+			
+			case MP_AmbientOcclusion:
+				EditorOnlyData->AmbientOcclusion.Constant = FMaterialAttributeDefinitionMap::GetDefaultValue(MP_AmbientOcclusion).X;
+				TargetPin->GetSchema()->TrySetDefaultValue(*TargetPin, EditorOnlyData->AmbientOcclusion.GetDefaultValue());
+				break;
+			
+			case MP_Refraction:
+				EditorOnlyData->Refraction.Constant = FMaterialAttributeDefinitionMap::GetDefaultValue(MP_Refraction).X;
+				TargetPin->GetSchema()->TrySetDefaultValue(*TargetPin, EditorOnlyData->Refraction.GetDefaultValue());
+				break;
+			
+			case MP_OpacityMask:
+				EditorOnlyData->OpacityMask.Constant = FMaterialAttributeDefinitionMap::GetDefaultValue(MP_OpacityMask).X;
+				TargetPin->GetSchema()->TrySetDefaultValue(*TargetPin, EditorOnlyData->OpacityMask.GetDefaultValue());
+				break;
+			
+			case MP_SurfaceThickness:
+				EditorOnlyData->SurfaceThickness.Constant = FMaterialAttributeDefinitionMap::GetDefaultValue(MP_SurfaceThickness).X;
+				TargetPin->GetSchema()->TrySetDefaultValue(*TargetPin, EditorOnlyData->SurfaceThickness.GetDefaultValue());
+				break;
+			
+			case MP_Displacement:
+				EditorOnlyData->Displacement.Constant = FMaterialAttributeDefinitionMap::GetDefaultValue(MP_Displacement).X;
+				TargetPin->GetSchema()->TrySetDefaultValue(*TargetPin, EditorOnlyData->Displacement.GetDefaultValue());
+				break;
+			
+			case MP_WorldPositionOffset:
+				EditorOnlyData->WorldPositionOffset.Constant = FMaterialAttributeDefinitionMap::GetDefaultValue(MP_WorldPositionOffset);
+				TargetPin->GetSchema()->TrySetDefaultValue(*TargetPin, EditorOnlyData->WorldPositionOffset.GetDefaultValue());
+				break;
+			
+			case MP_EmissiveColor:
+				EditorOnlyData->EmissiveColor.Constant = FLinearColor(FMaterialAttributeDefinitionMap::GetDefaultValue(MP_EmissiveColor)).ToFColorSRGB();
+				TargetPin->GetSchema()->TrySetDefaultValue(*TargetPin, EditorOnlyData->EmissiveColor.GetDefaultValue());
+				break;
+			
+			case MP_SubsurfaceColor:
+				EditorOnlyData->SubsurfaceColor.Constant = FLinearColor(FMaterialAttributeDefinitionMap::GetDefaultValue(MP_SubsurfaceColor)).ToFColorSRGB(); 
+				TargetPin->GetSchema()->TrySetDefaultValue(*TargetPin, EditorOnlyData->SubsurfaceColor.GetDefaultValue());
+				break;
+			
+			case MP_Normal:
+				EditorOnlyData->Normal.Constant = FMaterialAttributeDefinitionMap::GetDefaultValue(MP_Normal); 
+				TargetPin->GetSchema()->TrySetDefaultValue(*TargetPin, EditorOnlyData->Normal.GetDefaultValue());
+				break;
+			
+			case MP_Tangent:
+				EditorOnlyData->Tangent.Constant = FMaterialAttributeDefinitionMap::GetDefaultValue(MP_Tangent);
+				TargetPin->GetSchema()->TrySetDefaultValue(*TargetPin, EditorOnlyData->Tangent.GetDefaultValue());
+				break;
+			
+			default:
+				break;
+		}
+		FMaterialEditorUtilities::UpdateMaterialAfterGraphChange(MaterialGraph);
+	}
+}
+
+bool FMaterialEditor::OnCanResetToDefault(const FToolMenuContext& InMenuContext) const
+{
+	UGraphNodeContextMenuContext* NodeContext = InMenuContext.FindContext<UGraphNodeContextMenuContext>();
+	if (!NodeContext)
+	{
+		return false;
+	}
+	const UEdGraphPin* TargetPin = NodeContext->Pin;
+	const UMaterialGraphNode_Root* RootPinNode = Cast<UMaterialGraphNode_Root>(TargetPin->GetOwningNode());
+	if (RootPinNode != nullptr)
+	{
+		const UMaterialGraph* MaterialGraph = CastChecked<UMaterialGraph>(RootPinNode->GetGraph());
+		const FMaterialInputInfo& MaterialInput = MaterialGraph->MaterialInputs[TargetPin->SourceIndex];
+		const EMaterialProperty PropertyId = MaterialInput.GetProperty();
+		UMaterialEditorOnlyData* EditorOnlyData = Material->GetEditorOnlyData();
+		switch (PropertyId)
+		{
+			case MP_BaseColor:				
+			case MP_Opacity:				
+			case MP_Metallic:				
+			case MP_Specular:				
+			case MP_Roughness:				
+			case MP_Anisotropy:				
+			case MP_CustomData0:			
+			case MP_CustomData1:			
+			case MP_AmbientOcclusion:		
+			case MP_Refraction:				
+			case MP_OpacityMask:			
+			case MP_SurfaceThickness:		
+			case MP_Displacement:			
+			case MP_WorldPositionOffset:	
+			case MP_EmissiveColor:			
+			case MP_SubsurfaceColor:		
+			case MP_Normal:					
+			case MP_Tangent:				
+				return true;
+				
+			default:
+				return false;
+		}
+	}
+	return false;
 }
 
 bool FMaterialEditor::OnCanPromoteToParameter(const FToolMenuContext& InMenuContext) const

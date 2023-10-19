@@ -61,6 +61,8 @@ public:
 					// Create Text box 0 
 					SNew( SNumericEntryBox<NumericType> )
 					.LabelVAlign(VAlign_Center)
+					.MaxFractionalDigits(3)
+					.MinDesiredValueWidth(45.0f)
 					.Label()
 					[
 						SNew( STextBlock )
@@ -96,6 +98,8 @@ public:
 					// Create Text box 1
 					SNew( SNumericEntryBox<NumericType> )
 					.LabelVAlign(VAlign_Center)
+					.MaxFractionalDigits(3)
+					.MinDesiredValueWidth(45.0f)
 					.Label()
 					[
 						SNew( STextBlock )

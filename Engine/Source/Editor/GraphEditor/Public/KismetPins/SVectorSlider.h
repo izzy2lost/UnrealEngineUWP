@@ -68,6 +68,8 @@ public:
 					// Create Text box 0 
 					SNew( SNumericEntryBox<NumericType> )
 					.LabelVAlign(VAlign_Center)
+					.MaxFractionalDigits(3)
+					.MinDesiredValueWidth(45.0f)
 					.Label()
 					[
 						SNew( STextBlock )
@@ -103,6 +105,8 @@ public:
 					// Create Text box 1
 					SNew( SNumericEntryBox<NumericType> )
 					.LabelVAlign(VAlign_Center)
+					.MaxFractionalDigits(3)
+					.MinDesiredValueWidth(45.0f)
 					.Label()
 					[
 						SNew( STextBlock )
@@ -134,11 +138,13 @@ public:
 					.BorderBackgroundColor( FLinearColor::White )
 				]
 				+ SHorizontalBox::Slot()
-					.AutoWidth().Padding(2).HAlign(HAlign_Fill)
-					[
-						// Create Text box 1
-						SNew(SNumericEntryBox<NumericType>)
-						.LabelVAlign(VAlign_Center)
+				.AutoWidth().Padding(2).HAlign(HAlign_Fill)
+				[
+					// Create Text box 2
+					SNew(SNumericEntryBox<NumericType>)
+					.MaxFractionalDigits(3)
+					.MinDesiredValueWidth(45.0f)
+					.LabelVAlign(VAlign_Center)
 					.Label()
 					[
 						SNew(STextBlock)
@@ -168,7 +174,7 @@ public:
 					.EditableTextBoxStyle(&FAppStyle::GetWidgetStyle<FEditableTextBoxStyle>("Graph.VectorEditableTextBox"))
 					.BorderForegroundColor(FLinearColor::White)
 					.BorderBackgroundColor(FLinearColor::White)
-					]
+				]
 			]
 		];
 	}
