@@ -269,9 +269,6 @@ namespace UnrealBuildTool
 			Arguments.Add("/P"); // Preprocess
 			Arguments.Add("/C"); // Preserve comments when preprocessing
 			Arguments.Add($"/Fi\"{PreprocessedFileString}\""); // Preprocess to a file
-
-			// this is parsed by external tools wishing to open this file directly.
-			Logger.LogInformation("PreProcessPath: {Path}", PreprocessedFile);
 		}
 
 		public static void AddObjectFile(List<string> Arguments, FileItem ObjectFile)
