@@ -18,6 +18,9 @@
 #include "Templates/SharedPointer.h"
 #include "UObject/NameTypes.h"
 #include "SGraphSubstrateMaterial.h"
+#include "Widgets/SToolTip.h"
+#include "Widgets/SBoxPanel.h"
+#include "Widgets/Text/STextBlock.h"
 
 class FSlateRect;
 
@@ -36,8 +39,6 @@ FMaterialGraphConnectionDrawingPolicy::FMaterialGraphConnectionDrawingPolicy(int
 	// Still need to be able to perceive the graph while dragging connectors, esp over comment boxes
 	HoverDeemphasisDarkFraction = 0.4f;
 }
-
-
 
 bool FMaterialGraphConnectionDrawingPolicy::FindPinCenter(UEdGraphPin* Pin, FVector2D& OutCenter) const
 {
@@ -229,4 +230,57 @@ void FMaterialGraphConnectionDrawingPolicy::DetermineWiringStyle(UEdGraphPin* Ou
 	{
 		ApplyHoverDeemphasis(OutputPin, InputPin, /*inout*/ Params.WireThickness, /*inout*/ Params.WireColor);
 	}
+}
+
+TSharedPtr<IToolTip> FMaterialGraphConnectionDrawingPolicy::GetConnectionToolTip(const SGraphPanel& GraphPanel,	const FGraphSplineOverlapResult& OverlapData) const
+{
+	TSharedPtr<SGraphPin> Pin1Widget;
+	TSharedPtr<SGraphPin> Pin2Widget;
+	OverlapData.GetPinWidgets(GraphPanel, Pin1Widget, Pin2Widget);
+
+	const FText LeftText = FText::Format(NSLOCTEXT("Unreal", "PinConnectionTooltipLeft", "<< {0}"), GetNodePinInfo(Pin1Widget));
+	const FText RightText = FText::Format(NSLOCTEXT("Unreal", "PinConnectionTooltipRight", "{0} >>"), GetNodePinInfo(Pin2Widget));
+
+	return SNew(SToolTip)
+		[
+			SNew(SVerticalBox)
+			+ SVerticalBox::Slot()
+			.HAlign(HAlign_Left)
+			.AutoHeight()
+			.Padding(0.0f, 0.0f, 0.0f, 5.0f)
+			[
+				SNew(STextBlock)
+					.Margin(FMargin(0.0f, 0.0f, 4.0f, 0.0f))
+					.Justification(ETextJustify::Left)
+					.Text(LeftText)
+			]
+			+ SVerticalBox::Slot()
+			.HAlign(HAlign_Right)
+			.AutoHeight()
+			.Padding(0.0f, 5.0f, 0.0f, 0.0f)
+			[
+				SNew(STextBlock)
+					.Margin(FMargin(4.0f, 0.0f, 0.0f, 0.0f))
+					.Justification(ETextJustify::Right)
+					.Text(RightText)
+			]
+		];
+}
+
+FText FMaterialGraphConnectionDrawingPolicy::GetNodePinInfo(const TSharedPtr<SGraphPin>& PinWidget) const
+{
+	const UEdGraphPin* PinObj = PinWidget->GetPinObj();
+	const UEdGraphNode* EdNode = PinObj->GetOwningNode();
+	 
+	FString NodeTitle = EdNode->GetNodeTitle(ENodeTitleType::ListView).ToString();
+	NodeTitle.RemoveFromStart(TEXT("Material Expression "));
+	
+	if (EdNode->GetCanRenameNode())
+	{
+		FText NodeEditableName = EdNode->GetNodeTitle(ENodeTitleType::EditableTitle);
+		NodeTitle = NodeTitle + TEXT(" (") + NodeEditableName.ToString() + TEXT(")");
+	}
+	const FText PinName = PinObj->GetDisplayName().IsEmptyOrWhitespace() ? FText::FromName(PinObj->PinName) : PinObj->GetDisplayName();
+	
+	return FText::Format(NSLOCTEXT("Unreal", "PinConnectionTooltipPartial", "{0}\r\n{1}"), FText::FromString(NodeTitle), /*NodeType,*/ PinName);
 }

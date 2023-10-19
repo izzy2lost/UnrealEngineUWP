@@ -138,7 +138,6 @@ public:
 	virtual FReply OnKeyDown( const FGeometry& MyGeometry, const FKeyEvent& InKeyEvent ) override;
 	virtual bool SupportsKeyboardFocus() const override;
 	virtual void OnArrangeChildren( const FGeometry& AllottedGeometry, FArrangedChildren& ArrangedChildren ) const override;
-	virtual TSharedPtr<IToolTip> GetToolTip() override;
 	// End of SWidget interface
 
 	// SNodePanel interface
@@ -369,7 +368,7 @@ private:
 	void UpdateSelectedNodesPositions(FVector2D PositionIncrement);
 
 	/** Handle updating the spline hover state */
-	void OnSplineHoverStateChanged(const FGraphSplineOverlapResult& NewSplineHoverState);
+	bool OnSplineHoverStateChanged(const FGraphSplineOverlapResult& NewSplineHoverState);
 
 	/** Returns the pin that we're considering as hovered if we are hovering over a spline; may be null */
 	class SGraphPin* GetBestPinFromHoveredSpline() const;

@@ -620,7 +620,12 @@ int32 SGraphPanel::OnPaint( const FPaintArgs& Args, const FGeometry& AllottedGeo
 			}
 
 			// Update the spline hover state
-			const_cast<SGraphPanel*>(this)->OnSplineHoverStateChanged(OverlapData);
+			if (const_cast<SGraphPanel*>(this)->OnSplineHoverStateChanged(OverlapData))
+			{
+				
+				// if hover state changed, we update the tooltip text based on the connection drawing policy
+				const_cast<SGraphPanel*>(this)->SetToolTip(ConnectionDrawingPolicy->GetConnectionToolTip(*this, OverlapData));
+			}
 		}
 
 		delete ConnectionDrawingPolicy;
@@ -666,7 +671,7 @@ int32 SGraphPanel::OnPaint( const FPaintArgs& Args, const FGeometry& AllottedGeo
 	return MaxLayerId;
 }
 
-void SGraphPanel::OnSplineHoverStateChanged(const FGraphSplineOverlapResult& NewSplineHoverState)
+bool SGraphPanel::OnSplineHoverStateChanged(const FGraphSplineOverlapResult& NewSplineHoverState)
 {
 	TSharedPtr<SGraphPin> OldPin1Widget;
 	TSharedPtr<SGraphPin> OldPin2Widget;
@@ -684,11 +689,15 @@ void SGraphPanel::OnSplineHoverStateChanged(const FGraphSplineOverlapResult& New
 	if (OldPin1Widget.IsValid() && OldPin1Widget != NewPin1Widget && OldPin1Widget != NewPin2Widget)
 	{
 		OldPin1Widget->OnMouseLeave(LastPointerEvent);
+		// reset connection tooltip if hover outside spline
+		SetToolTipText(FText());
 	}
 
 	if (OldPin2Widget.IsValid() && OldPin2Widget != NewPin1Widget && OldPin2Widget != NewPin2Widget)
 	{
 		OldPin2Widget->OnMouseLeave(LastPointerEvent);
+		// reset connection tooltip if hover outside spline
+		SetToolTipText(FText());
 	}
 
 	// Handle enter hovering on the pins
@@ -711,6 +720,7 @@ void SGraphPanel::OnSplineHoverStateChanged(const FGraphSplineOverlapResult& New
 		//@TODO: Source this parameter from the graph rendering settings once it is there (see code in ApplyHoverDeemphasis)
 		TimeWhenMouseEnteredPin -= 0.75f;
 	}
+	return bChangedHover;
 }
 
 bool SGraphPanel::SupportsKeyboardFocus() const
@@ -739,16 +749,6 @@ void SGraphPanel::OnArrangeChildren( const FGeometry& AllottedGeometry, FArrange
 	}
 
 	ArrangedChildren.Append(MyArrangedChildren);
-}
-
-TSharedPtr<IToolTip> SGraphPanel::GetToolTip()
-{
-	if (SGraphPin* BestPinFromHoveredSpline = GetBestPinFromHoveredSpline())
-	{
-		return BestPinFromHoveredSpline->GetToolTip();
-	}
-
-	return SNodePanel::GetToolTip();
 }
 
 void SGraphPanel::UpdateSelectedNodesPositions(FVector2D PositionIncrement)

@@ -2,6 +2,7 @@
 
 #include "ConnectionDrawingPolicy.h"
 #include "Rendering/DrawElements.h"
+#include "Widgets/SToolTip.h"
 #include "Framework/Application/SlateApplication.h"
 
 DEFINE_LOG_CATEGORY(LogConnectionDrawingPolicy);
@@ -624,4 +625,10 @@ void FGraphSplineOverlapResult::GetPinWidgets(const class SGraphPanel& InGraphPa
 		OutPin1 = Pin1Handle.FindInGraphPanel(InGraphPanel);
 		OutPin2 = Pin2Handle.FindInGraphPanel(InGraphPanel);
 	}
+}
+
+TSharedPtr<IToolTip> FConnectionDrawingPolicy::GetConnectionToolTip(const SGraphPanel& GraphPanel, const FGraphSplineOverlapResult& OverlapData) const
+{
+	TSharedPtr<SGraphPin> BestPinWidget = OverlapData.GetBestPinWidget(GraphPanel);
+	return BestPinWidget->GetToolTip();
 }
