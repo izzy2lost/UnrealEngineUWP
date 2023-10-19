@@ -11,16 +11,28 @@
 #define IDPROXY_ENABLE_ASYNC_TASK 1
 
 #if 0
-#define LOG_INST_DATA(_Format_, ...) UE_LOG(LogInstanceProxy, Log, _Format_, ##__VA_ARGS__)
+
+#define LOG_INST_DATA(_Format_, ...) \
+{ \
+	FString Tmp = FString::Printf(_Format_, ##__VA_ARGS__);\
+	UE_LOG(LogInstanceProxy, Log, TEXT("%p, %s"), PrimitiveComponent.IsValid() ? PrimitiveComponent.Get() : nullptr, *Tmp);\
+}
+
 #else
 	#define LOG_INST_DATA(_Format_, ...) 
 #endif
 
-TAutoConsoleVariable<float> CVarInstanceUpdateTaskDebugDelay(
+static TAutoConsoleVariable<float> CVarInstanceUpdateTaskDebugDelay(
 	TEXT("r.InstanceUpdateTaskDebugDelay"),
 	0.0f,
 	TEXT("Instance update debug delay in seconds."),
 	ECVF_RenderThreadSafe);
+
+static TAutoConsoleVariable<int32> CVarInstanceDataResetTrackingOnRegister(
+	TEXT("r.InstanceData.ResetTrackingOnRegister"),
+	1,
+	TEXT("Chicken switch to disable the new code to reset tracking & instance count during OnRegister, if this causes problems.\nTODO: Remove."));
+
 
 FPrimitiveInstanceDataManager::FPrimitiveInstanceDataManager(UPrimitiveComponent* InPrimitiveComponent) 
 	: PrimitiveComponent(InPrimitiveComponent) 
@@ -30,6 +42,7 @@ FPrimitiveInstanceDataManager::FPrimitiveInstanceDataManager(UPrimitiveComponent
 	{
 		TrackingState = ETrackingState::Disabled;
 	}
+	LOG_INST_DATA(TEXT("FPrimitiveInstanceDataManager %s, TrackingState=%s"), *PrimitiveComponent->GetFullName(), TrackingState == ETrackingState::Disabled ? TEXT("Disabled") : TEXT("Initial"));
 }
 
 void FPrimitiveInstanceDataManager::SetMode(EMode InMode)
@@ -1093,6 +1106,7 @@ void FPrimitiveInstanceDataManager::MarkIndexChanged(FPrimitiveInstanceId Instan
 
 TSharedPtr<FISMCInstanceDataSceneProxy, ESPMode::ThreadSafe> FPrimitiveInstanceDataManager::GetOrCreateProxy(FStaticShaderPlatform InShaderPlatform, ERHIFeatureLevel::Type InFeatureLevel)
 {
+	LOG_INST_DATA(TEXT("GetOrCreateProxy"));
 	if (Proxy && !Proxy->CheckPlatformFeatureLevel(InShaderPlatform, InFeatureLevel))
 	{
 		// TODO: May need to add some attachment counter checks here?
@@ -1122,6 +1136,7 @@ TSharedPtr<FISMCInstanceDataSceneProxy, ESPMode::ThreadSafe> FPrimitiveInstanceD
 
 void FPrimitiveInstanceDataManager::Invalidate(int32 InNumInstances)
 {
+	LOG_INST_DATA(TEXT("Invalidate"));
 	Proxy.Reset();
 	ClearIdTracking(InNumInstances);
 	// When the proxy is being replaced, we want to invalidate the owning proxy thing as the continuity is lost.
@@ -1208,4 +1223,21 @@ SIZE_T FPrimitiveInstanceDataManager::GetAllocatedSize() const
 		CustomDataChangedInstances.GetAllocatedSize() +
 		BakedLightingDataChangedInstances.GetAllocatedSize() +
 		IndexChangeInstances.GetAllocatedSize();
+}
+
+void FPrimitiveInstanceDataManager::OnRegister(int32 InNumInstances)
+{
+	LOG_INST_DATA(TEXT("OnRegister(InNumInstances : %d) NumInstances: %d"), InNumInstances, NumInstances);
+
+	if (CVarInstanceDataResetTrackingOnRegister.GetValueOnGameThread())
+	{
+		if (InNumInstances != NumInstances)
+		{
+			ClearIdTracking(InNumInstances);
+		}
+		else
+		{
+			ClearChangeTracking();
+		}
+	}
 }

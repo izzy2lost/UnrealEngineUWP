@@ -2957,8 +2957,8 @@ FPrimitiveSceneProxy* UHierarchicalInstancedStaticMeshComponent::CreateSceneProx
 
 	// Verify that the mesh is valid & that we have instances before creating a proxy.
 	const bool bAreMeshAndInstancesValid =
-		// Make sure we have instances, or an update with instances on the way (for the external data (landscape grass) mode).
-		(GetNumInstances() > 0 ||  PrimitiveInstanceDataManager.GetMaxInstanceIndex() > 0) &&
+		// Make sure we have instances, or an update with instances on the way, or already built instances (for the external data (landscape grass) mode).
+		(GetNumInstances() > 0 ||  PrimitiveInstanceDataManager.GetMaxInstanceIndex() > 0 || NumBuiltRenderInstances > 0) &&
 		// Make sure we have an actual static mesh.
 		GetStaticMesh() &&
 		!GetStaticMesh()->IsCompiling() &&

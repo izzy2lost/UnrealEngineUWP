@@ -149,6 +149,13 @@ public:
 
 	inline void ResetComponentDirtyTracking() { bComponentMarkedDirty = false; }
 
+	/**
+	 * Called by the corresponding function in the owner UPrimitiveComponent
+	 * Because of the multifarious ways the engine shoves data into the properties it is possible for the count to get out of sync. Also at this point we may assume that we have no idea of the state of individual members.
+	 * Thus, this function will reset tracking state to force a full update as well as, conditionally - if the counts are mismatched - reset the ID mapping.
+	 */
+	void OnRegister(int32 InNumInstances);
+
 private:
 	template <typename TaskLambdaType>
 	static void BeginUpdateTask(FInstanceDataUpdateTaskInfo &InstanceDataUpdateTaskInfo, TaskLambdaType &&TaskLambda, const FInstanceDataBufferHeader &InInstanceDataBufferHeader);

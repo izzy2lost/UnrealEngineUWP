@@ -4328,6 +4328,10 @@ void UInstancedStaticMeshComponent::OnRegister()
 		{
 			InstancingRandomSeed = FMath::Rand();
 		}
+
+		// Propagate the current number of instances to the manager, because of the multifarious ways the engine shoves data into the properties it is possible for the count to get out of sync.
+		// At this point we need to let the manager reset if needed, also at this point we may assume that we have no idea of the state of individual members.
+		PrimitiveInstanceDataManager.OnRegister(PerInstanceSMData.Num());
 	}
 }
 		
