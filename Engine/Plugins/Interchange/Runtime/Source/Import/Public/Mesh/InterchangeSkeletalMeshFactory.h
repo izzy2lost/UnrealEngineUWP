@@ -25,14 +25,19 @@ public:
 		TArray<FName> ExistingOriginalPerSectionMaterialImportName;
 #if WITH_EDITOR
 		TArray<SkeletalMeshImportData::FMaterial> ImportedMaterials;
+		TArray<SkeletalMeshImportData::FBone> RefBonesBinary;
 #endif
+		bool bUseTimeZeroAsBindPose = false;
+		bool bDiffPose = false;
 	};
+
 	struct FImportAssetObjectData
 	{
 		bool bIsReImport = false;
 		USkeleton* SkeletonReference = nullptr;
 		bool bApplyGeometryOnly = false;
 		TArray<FImportAssetObjectLODData> LodDatas;
+
 		bool IsValid() const;
 	};
 	//////////////////////////////////////////////////////////////////////////
