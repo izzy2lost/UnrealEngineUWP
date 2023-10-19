@@ -273,12 +273,15 @@ private:
 	uint8 bForceNetAddressable:1;
 
 #if WITH_EDITORONLY_DATA
-	/**
-	 * Whether this actor belongs to a level instance which is currently being edited.
-	 */
+	/** Whether this actor belongs to a level instance which is currently being edited. */
 	UPROPERTY(Transient)
-	uint8 bIsInEditingLevelInstance:1;
+	uint8 bIsInEditLevelInstance:1;
 
+	/** Whether this actor belongs to a level instance in a level instance hierarchy currently being edited. Itself or its parent level instances. */
+	UPROPERTY(Transient)
+	uint8 bIsInEditLevelInstanceHierarchy:1;
+
+	/** Whether this actor belongs to a level instance  */
 	UPROPERTY(Transient)
 	uint8 bIsInLevelInstance:1;
 
@@ -310,16 +313,29 @@ public:
 	}
 
 #if WITH_EDITOR
-	/** If true, the actor belongs to a level instance which is currently being edited. */
+	/** Deprecated for a non virtual version. */
+	UE_DEPRECATED(5.4, "Call IsInEditLevelInstanceHierarchy/IsInEditLevelInstance instead.")
 	virtual bool IsInEditingLevelInstance() const
 	{
-		return bIsInEditingLevelInstance;
+		return bIsInEditLevelInstance;
+	}
+
+	/** If true, the actor belongs to a level instance which is currently being edited */
+	bool IsInEditLevelInstance() const
+	{
+		return bIsInEditLevelInstance;
+	}
+
+	/** If true, the actor belongs to a level instance which is currently being edited or a parent level instance being edited. */
+	bool IsInEditLevelInstanceHierarchy() const
+	{
+		return bIsInEditLevelInstanceHierarchy;
 	}
 
 	/** If true, the actor belongs to a level instance. */
-	virtual bool IsInLevelInstance() const
+	bool IsInLevelInstance() const
 	{
-		return bIsInEditingLevelInstance || bIsInLevelInstance;
+		return bIsInLevelInstance;
 	}
 #endif
 
@@ -4468,12 +4484,14 @@ private:
 struct FSetActorIsInLevelInstance
 {
 private:
-	FSetActorIsInLevelInstance(AActor* InActor)
+	FSetActorIsInLevelInstance(AActor* InActor, bool bIsEditing = false)
 	{
 		InActor->bIsInLevelInstance = true;
+		InActor->bIsInEditLevelInstance = bIsEditing;
 	}
 
 	friend class ULevelStreamingLevelInstance;
+	friend class ULevelStreamingLevelInstanceEditor;
 };
 #endif
 

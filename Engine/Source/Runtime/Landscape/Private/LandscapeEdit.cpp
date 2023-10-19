@@ -2569,7 +2569,7 @@ bool ULandscapeInfo::SupportsLandscapeEditing() const
 {
 	// Don't let landscapes from level instances be edited : they can only be edited in their source level (note that technically, the IsEditing test is not necessary as they cannot be edited 
 	//  in level instance mode, since it's mutually exclusive with landscape mode, but let's keep it for describing the intention here) :
-	if (LandscapeActor.IsValid() && LandscapeActor->IsInLevelInstance() && !LandscapeActor->IsInEditingLevelInstance())
+	if (LandscapeActor.IsValid() && LandscapeActor->IsInLevelInstance() && !LandscapeActor->IsInEditLevelInstance())
 	{
 		return false;
 	}

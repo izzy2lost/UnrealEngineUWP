@@ -189,7 +189,8 @@ void AActor::InitializeDefaults()
 	bHasRegisteredAllComponents = false;
 
 #if WITH_EDITORONLY_DATA
-	bIsInEditingLevelInstance = false;
+	bIsInEditLevelInstanceHierarchy = false;
+	bIsInEditLevelInstance = false;
 	bIsInLevelInstance = false;
 	PivotOffset = FVector::ZeroVector;
 #endif
@@ -5228,17 +5229,13 @@ void AActor::PushLevelInstanceEditingStateToProxies(bool bInEditingState)
 	TInlineComponentArray<UPrimitiveComponent*> PrimComponents;
 	GetComponents(PrimComponents);
 
-
-	bIsInEditingLevelInstance = bInEditingState;
-
-	// We call the virtual method here to allow subclasses to extend the logic for determining level instance state.
-	const bool bPushEditingLevelInstanceState = IsInEditingLevelInstance();
+	bIsInEditLevelInstanceHierarchy = bInEditingState;
 
 	for (const auto& PrimComponent : PrimComponents)
 	{
 		if (PrimComponent->IsRegistered())
 		{
-			PrimComponent->PushLevelInstanceEditingStateToProxy(bPushEditingLevelInstanceState);
+			PrimComponent->PushLevelInstanceEditingStateToProxy(bIsInEditLevelInstanceHierarchy);
 		}
 	}
 

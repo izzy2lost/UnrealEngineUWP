@@ -112,8 +112,6 @@ ULevelStreamingLevelInstanceEditor* ULevelStreamingLevelInstanceEditor::Load(ILe
 
 		if (ULevel* LoadedLevel = LevelStreaming->GetLoadedLevel())
 		{
-			LoadedLevel->OnLoadedActorAddedToLevelEvent.AddUObject(LevelStreaming, &ULevelStreamingLevelInstanceEditor::OnLoadedActorAddedToLevel);
-		
 			// Create special actor that will handle changing the pivot of this level
 			FLevelInstanceEditorPivotHelper::Create(LevelInstance, LevelStreaming);
 		}
@@ -130,22 +128,27 @@ void ULevelStreamingLevelInstanceEditor::Unload(ULevelStreamingLevelInstanceEdit
 	{
 		if (ULevel* LoadedLevel = LevelStreaming->GetLoadedLevel())
 		{
-			LoadedLevel->OnLoadedActorAddedToLevelEvent.RemoveAll(LevelStreaming);
+			LoadedLevel->OnLoadedActorAddedToLevelPreEvent.RemoveAll(LevelStreaming);
 			LevelInstanceSubsystem->RemoveLevelsFromWorld({ LoadedLevel });
 		}
 	}
 }
 
-void ULevelStreamingLevelInstanceEditor::OnLoadedActorAddedToLevel(AActor& InActor)
+void ULevelStreamingLevelInstanceEditor::OnLoadedActorsAddedToLevelPreEvent(const TArray<AActor*>& InActors)
 {
-	OnLevelActorAdded(&InActor);
+	for (AActor* Actor : InActors)
+	{
+		OnLevelActorAdded(Actor);
+	}
 }
 
 void ULevelStreamingLevelInstanceEditor::OnLevelActorAdded(AActor* InActor)
 {
 	if (InActor && InActor->GetLevel() == LoadedLevel)
 	{
-		InActor->PushLevelInstanceEditingStateToProxies(true);
+		const bool bIsEditing = true;
+		FSetActorIsInLevelInstance SetIsInLevelInstance(InActor, bIsEditing);
+		InActor->PushLevelInstanceEditingStateToProxies(bIsEditing);
 	}
 }
 
@@ -156,6 +159,9 @@ void ULevelStreamingLevelInstanceEditor::OnLevelLoadedChanged(ULevel* InLevel)
 	if (ULevel* NewLoadedLevel = GetLoadedLevel())
 	{
 		check(InLevel == NewLoadedLevel);
+
+		OnLoadedActorsAddedToLevelPreEvent(NewLoadedLevel->Actors);
+		NewLoadedLevel->OnLoadedActorAddedToLevelPreEvent.AddUObject(this, &ULevelStreamingLevelInstanceEditor::OnLoadedActorsAddedToLevelPreEvent);
 
 		// Avoid prompts for Level Instance editing
 		NewLoadedLevel->bPromptWhenAddingToLevelBeforeCheckout = false;

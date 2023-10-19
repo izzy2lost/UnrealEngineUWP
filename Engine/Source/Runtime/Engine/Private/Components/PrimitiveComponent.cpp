@@ -1694,7 +1694,7 @@ bool UPrimitiveComponent::GetLevelInstanceEditingState() const
 #if WITH_EDITOR
 	if (const AActor* Owner = GetOwner())
 	{
-		return Owner->IsInEditingLevelInstance();
+		return Owner->IsInEditLevelInstanceHierarchy();
 	}
 #endif
 
