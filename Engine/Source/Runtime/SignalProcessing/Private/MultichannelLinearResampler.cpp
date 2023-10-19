@@ -10,6 +10,9 @@
 
 namespace Audio
 {
+	const float FMultichannelLinearResampler::MaxFrameRatio = 100.f;
+	const float FMultichannelLinearResampler::MinFrameRatio = 0.001f;
+
 	FMultichannelLinearResampler::FMultichannelLinearResampler(int32 InNumChannels)
 		: NumChannels(InNumChannels)
 	{
@@ -17,7 +20,7 @@ namespace Audio
 
 	void FMultichannelLinearResampler::SetFrameRatio(float InRatio, int32 InDesiredNumFramesToInterpolate)
 	{
-		if (ensureMsgf(InRatio > 0.f, TEXT("The frame ratio must be greater than zero.")))
+		if (ensureMsgf((InRatio >= MinFrameRatio) && (InRatio <= MaxFrameRatio), TEXT("The frame ratio (%f) must be between %f and %f."), InRatio, MinFrameRatio, MaxFrameRatio))
 		{
 			if ((InDesiredNumFramesToInterpolate <= 1) || FMath::IsNearlyEqual(InRatio, CurrentFrameRatio))
 			{
@@ -199,7 +202,9 @@ namespace Audio
 			
 			const int32 NumBufferFrames = GetNumBufferFramesToProduceOutputFrames(NumOutputFrames);
 			NumOutputFrames = FMath::FloorToInt((NumAvailableInputFrames - NumBufferFrames) / FMath::Max(CurrentFrameRatio, TargetFrameRatio)) - 1;
+			NumOutputFrames = FMath::Max(NumOutputFrames, 0);
 			NumInputFramesRequired = NumAvailableInputFrames;
+			checkf(NumInputFramesRequired >= FMath::CeilToInt(MapOutputFrameToInputFrame(NumOutputFrames)), TEXT("Invalid calculation. Required input frames (%d) does not satisfy need for input frames (%f)"), InAudio.Num(), MapOutputFrameToInputFrame(NumOutputFrames));
 		}
 
 		if (NumOutputFrames > 0)
@@ -264,7 +269,7 @@ namespace Audio
 		{
 			return 0.f;
 		}
-		checkf(InAudio.Num() >= GetNumInputFramesNeededToProduceOutputFrames(NumOutputFrames), TEXT("Not enough input frames available to produce output frames"));
+		checkf(InAudio.Num() >= FMath::CeilToInt(MapOutputFrameToInputFrame(NumOutputFrames)), TEXT("Not enough input frames (%d) available to meet required input frames (%f)"), InAudio.Num(), MapOutputFrameToInputFrame(NumOutputFrames));
 
 		float* OutAudioData = OutAudio.GetData();
 		const float* InAudioData = InAudio.GetData();

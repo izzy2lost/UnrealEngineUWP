@@ -60,6 +60,8 @@ namespace Metasound
 
 	namespace WavePlayerNodePrivate
 	{
+		constexpr int32 MaxNumFramesToInterpolateFrameRatio = 128;
+
 		int32 GetCuePointFrame(const FSoundWaveCuePoint& InPoint)
 		{
 			return InPoint.FramePosition;
@@ -412,6 +414,8 @@ namespace Metasound
 
 		void Execute()
 		{
+			using namespace WavePlayerNodePrivate;
+
 			METASOUND_TRACE_CPUPROFILER_EVENT_SCOPE(Metasound::FWavePlayerOperator::Execute);
 
 			// Advance all triggers owned by this operator. 
@@ -432,7 +436,7 @@ namespace Metasound
 			// Update resampler with new frame ratio. 
 			if (Resampler.IsValid())
 			{
-				Resampler->SetFrameRatio(GetFrameRatio(), OperatorSettings.GetNumFramesPerBlock());
+				Resampler->SetFrameRatio(GetFrameRatio(), FMath::Min(OperatorSettings.GetNumFramesPerBlock(), MaxNumFramesToInterpolateFrameRatio));
 			}
 
 			// zero output buffers
@@ -648,7 +652,8 @@ namespace Metasound
 
 		float GetFrameRatio() const
 		{
-			return GetSampleRateFrameRatio() * GetPitchShiftFrameRatio();
+			using namespace Audio;
+			return FMath::Clamp(GetSampleRateFrameRatio() * GetPitchShiftFrameRatio(), FMultichannelLinearResampler::MinFrameRatio, FMultichannelLinearResampler::MaxFrameRatio);
 		}
 
 		float GetMaxPitchShiftFrameRatio() const
