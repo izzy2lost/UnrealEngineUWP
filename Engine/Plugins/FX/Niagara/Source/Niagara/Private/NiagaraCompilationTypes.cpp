@@ -8,18 +8,12 @@
 #include "NiagaraAsyncCompile.h"
 #include "NiagaraModule.h"
 #include "NiagaraScriptSourceBase.h"
+#include "NiagaraSettings.h"
 #include "NiagaraSystem.h"
 
 #define LOCTEXT_NAMESPACE "NiagaraSystem"
 
 #if WITH_EDITORONLY_DATA
-
-enum class ENiagaraCompilationMode : int32
-{
-	Original,
-	AsyncTasks,
-	Verify
-};
 
 enum class ENiagaraCompilationValidateMode : int32
 {
@@ -28,14 +22,6 @@ enum class ENiagaraCompilationValidateMode : int32
 	Ensure,
 	Assert
 };
-
-static int32 GNiagaraSystemCompileMode = (int32) ENiagaraCompilationMode::Original;
-static FAutoConsoleVariableRef CVarNiagaraSystemCompileMode(
-	TEXT("fx.Niagara.SystemCompileMode"),
-	GNiagaraSystemCompileMode,
-	TEXT("Defines how NiagaraSystem will be compiled"),
-	ECVF_Default
-);
 
 static bool GNiagaraCompileDumpTimings = false;
 static FAutoConsoleVariableRef CVarNiagaraCompileDumpTimings(
@@ -771,11 +757,13 @@ private:
 TUniquePtr<FNiagaraActiveCompilation> FNiagaraActiveCompilation::CreateCompilation()
 {
 #if WITH_EDITORONLY_DATA
-	if (GNiagaraSystemCompileMode == (int32)ENiagaraCompilationMode::AsyncTasks)
+	const ENiagaraCompilationMode Compilationmode = GetDefault<UNiagaraSettings>()->CompilationMode;
+
+	if (Compilationmode == ENiagaraCompilationMode::AsyncTasks)
 	{
 		return MakeUnique<FNiagaraActiveCompilationAsyncTask>();
 	}
-	else if (GNiagaraSystemCompileMode == (int32)ENiagaraCompilationMode::Verify)
+	else if (Compilationmode == ENiagaraCompilationMode::Verify)
 	{
 		return MakeUnique<FNiagaraActiveCompilationVerify>();
 	}

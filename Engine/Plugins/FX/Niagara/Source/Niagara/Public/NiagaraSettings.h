@@ -101,6 +101,16 @@ enum class ENiagaraStripScriptByteCodeOption : uint8
 	Strip_Experimental = 2 UMETA(DisplayName = "Strip Experimental ByteCode"),
 };
 
+#if WITH_EDITORONLY_DATA
+UENUM()
+enum class ENiagaraCompilationMode : int32
+{
+	Original = 0	UMETA(DisplayName = "Standard Compilation"),
+	AsyncTasks = 1	UMETA(DisplayName = "Experimental - Async Compilation"),
+	Verify = 2		UMETA(DisplayName = "Experimental - Validate Async")
+};
+#endif
+
 UCLASS(config = Niagara, defaultconfig, meta=(DisplayName="Niagara"), MinimalAPI)
 class UNiagaraSettings : public UDeveloperSettings
 {
@@ -148,12 +158,6 @@ class UNiagaraSettings : public UDeveloperSettings
 	UPROPERTY(config, EditAnywhere, Category = Niagara, meta = (DisplayName = "Enable building data for Experimental VM"))
 	bool bExperimentalVMEnabled = false;
 
-	/**
-	 Controls how byte code will be stripped when loading assets that have multiple sets of bytecode (i.e. experimental).
-	 */
-	UPROPERTY(config, EditAnywhere, Category = Niagara, meta = (DisplayName = "Option for how to strip bytecode"))
-	ENiagaraStripScriptByteCodeOption ByteCodeStripOption = ENiagaraStripScriptByteCodeOption::Default;
-
 	/** Whether to limit the max tick delta time or not. */
 	UPROPERTY(config, EditAnywhere, BlueprintReadWrite, AdvancedDisplay, Category = "Niagara", meta = (InlineEditConditionToggle))
 	bool bLimitDeltaTime = true;
@@ -173,6 +177,17 @@ class UNiagaraSettings : public UDeveloperSettings
 	/** Position pin type color. The other pin colors are defined in the general editor settings. */
 	UPROPERTY(config, EditAnywhere, Category=Niagara)
 	FLinearColor PositionPinTypeColor;
+
+	/**
+	 Controls how byte code will be stripped when loading assets that have multiple sets of bytecode (i.e. experimental).
+	 */
+	UPROPERTY(config, EditAnywhere, Category = Niagara, meta = (DisplayName = "Option for how to strip bytecode"))
+	ENiagaraStripScriptByteCodeOption ByteCodeStripOption = ENiagaraStripScriptByteCodeOption::Default;
+
+#if WITH_EDITORONLY_DATA
+	UPROPERTY(config, EditAnywhere, Category = Niagara, meta = (DisplayName = "Option for how to compile Niagara scripts"))
+	ENiagaraCompilationMode CompilationMode = ENiagaraCompilationMode::Original;
+#endif
 
 	/** The quality levels Niagara uses. */
 	UPROPERTY(config, EditAnywhere, Category = Scalability)
