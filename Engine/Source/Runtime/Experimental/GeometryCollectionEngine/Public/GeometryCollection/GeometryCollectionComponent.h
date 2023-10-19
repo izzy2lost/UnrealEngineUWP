@@ -789,7 +789,7 @@ public:
 
 	/** return true if the root cluster is not longer active at runtime */
 	UFUNCTION(BlueprintCallable, Category = "ChaosPhysics")
-	GEOMETRYCOLLECTIONENGINE_API bool IsRootBroken() const { return bIsRootBroken; }
+	GEOMETRYCOLLECTIONENGINE_API bool IsRootBroken() const { return BrokenAndDecayedStates.GetIsRootBroken(); }
 
 	/** 
 	* Get the initial rest transforms in component (local) space  space, 
@@ -1724,17 +1724,41 @@ private:
 	/** True if GeometryCollection transforms have changed from previous tick. */
 	bool bIsMoving;
 
-	/** 
-	* root bone broken state 
-	* this is updated post physics sync and use as is for quick lookup 
-	*/
-	bool bIsRootBroken;
-
-	void UpdateIsRootBroken();
-
 	bool bUpdateCustomRenderer;
 
 	bool bUpdateCustomRendererOnPostPhysicsSync;
+
+private:
+	struct FBrokenAndDecayedStates
+	{
+	public:
+		void Reset(int32 NumTransforms);
+
+		bool GetIsRootBroken() const { return bIsRootBroken; }
+		bool GetIsBroken(int32 TransformIndex) const;
+		bool GetHasDecayed(int32 TransformIndex) const;
+
+		void SetRootIsBroken(bool bIsBroken);
+		void SetIsBroken(int32 TransformIndex);
+		void SetHasDecayed(int32 TransformIndex);
+		void SetHasDecayedRecursive(int32 TransformIndex, const TArray<TSet<int32>>& Children);
+
+		// return true if any broken piece is not yet decayed 
+		bool HasAnyDecaying() const;
+
+		bool HasFullyDecayed() const;
+
+	private:
+		int32 NumTransforms = 0;
+		bool bIsRootBroken = false;
+		TBitArray<> IsBroken;
+		TBitArray<> HasDecayed;
+		int32 NumDecaying = 0;
+	};
+
+	FBrokenAndDecayedStates BrokenAndDecayedStates;
+
+	void UpdateBrokenAndDecayedStates();
 
 private:
 
