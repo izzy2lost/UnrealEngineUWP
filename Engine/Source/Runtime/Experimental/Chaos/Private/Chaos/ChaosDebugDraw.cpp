@@ -398,7 +398,7 @@ namespace Chaos
 		//
 		//
 		//
-		void DrawShapesImpl(const FGeometryParticleHandle* Particle, const FRigidTransform3& ShapeTransform, const FImplicitObject* Implicit, const FPerShapeData* Shape, const FReal Margin, const FColor& Color, const FRealSingle Duration, const FChaosDebugDrawSettings& Settings, const bool bHasConvexOptimizer = false);
+		void DrawShapesImpl(const FGeometryParticleHandle* Particle, const FRigidTransform3& ShapeTransform, const FImplicitObject* Implicit, const FPerShapeData* Shape, const FReal Margin, const FColor& Color, const FRealSingle Duration, const FChaosDebugDrawSettings& Settings);
 
 
 		void DrawShape(const FRigidTransform3& ShapeTransform, const FImplicitObject* Implicit, const FPerShapeData* Shape, const FColor& Color, const float Duration, const FChaosDebugDrawSettings* Settings)
@@ -626,7 +626,7 @@ namespace Chaos
 			}
 		}
 
-		void DrawShapesImpl(const FGeometryParticleHandle* Particle, const FRigidTransform3& ShapeTransform, const FImplicitObject* Implicit, const FPerShapeData* Shape, const FReal Margin, const FColor& Color, const FRealSingle Duration, const FChaosDebugDrawSettings& Settings, const bool bHasConvexOptimizer)
+		void DrawShapesImpl(const FGeometryParticleHandle* Particle, const FRigidTransform3& ShapeTransform, const FImplicitObject* Implicit, const FPerShapeData* Shape, const FReal Margin, const FColor& Color, const FRealSingle Duration, const FChaosDebugDrawSettings& Settings)
 		{
 			if (Implicit == nullptr)
 			{
@@ -750,31 +750,23 @@ namespace Chaos
 						}
 					}
 				}
-			}
-			if (bChaosDebugDebugDrawColorShapesByConvexType)
-			{
-				if(InnerType == ImplicitObjectType::Convex)
+				if (bChaosDebugDebugDrawColorShapesByConvexType)
 				{
-					ShapeColor = bHasConvexOptimizer ? FColor::Green : FColor::Orange;
-				}
-				else
-				{
-					ShapeColor = FColor::Yellow;
-				}
-			}
-			if (Shape && bChaosDebugDebugDrawColorShapesBySimQueryType)
-			{
-				if (Shape->GetSimEnabled())
-				{
-					ShapeColor = FColor::Green;
-				}
-				else if (Shape->GetQueryEnabled())
-				{
-					ShapeColor = FColor::Red;
-				}
-				else if (Shape->GetIsProbe())
-				{
-					ShapeColor = FColor::Orange;
+					if(InnerType == ImplicitObjectType::Convex)
+					{
+						ShapeColor = FColor::Orange;
+						if (const FPBDRigidClusteredParticleHandle* ClusteredParticle = Particle->CastToClustered())
+						{
+							if(ClusteredParticle->ConvexOptimizer() && ClusteredParticle->ConvexOptimizer()->IsValid())
+							{
+								ShapeColor = FColor::Green;
+							}
+						}
+					}
+					else
+					{
+						ShapeColor = FColor::Yellow;
+					}
 				}
 			}
 			if (Shape && !bChaosDebugDebugDrawShowQueryOnlyShapes)
@@ -915,11 +907,11 @@ namespace Chaos
 					{
 						if(RootObjectIndex == INDEX_NONE && !ConvexOptimizer->GetShapeInstances().IsEmpty())
 						{
-							DrawShapesImpl(Particle, RelativeTransform * FRigidTransform3(P, Q), ImplicitObject, ConvexOptimizer->GetShapeInstances()[0].Get(), 0.0f, InColor, 0.0f, Settings, true);
+							DrawShapesImpl(Particle, RelativeTransform * FRigidTransform3(P, Q), ImplicitObject, ConvexOptimizer->GetShapeInstances()[0].Get(), 0.0f, InColor, 0.0f, Settings);
 						}
 						else if(Particle->ShapeInstances().IsValidIndex(RootObjectIndex))
 						{
-							DrawShapesImpl(Particle, RelativeTransform * FRigidTransform3(P, Q), ImplicitObject, Particle->ShapeInstances()[RootObjectIndex].Get(), 0.0f, InColor, 0.0f, Settings, false);
+							DrawShapesImpl(Particle, RelativeTransform * FRigidTransform3(P, Q), ImplicitObject, Particle->ShapeInstances()[RootObjectIndex].Get(), 0.0f, InColor, 0.0f, Settings);
 						}
 					});
 					return true;

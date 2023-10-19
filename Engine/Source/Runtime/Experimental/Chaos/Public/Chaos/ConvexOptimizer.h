@@ -25,16 +25,30 @@ namespace Private
 	{
 		public :
 		
-		struct FCachedTribox
+		struct FTriboxNode
 		{
+			using FValidEdges = TMap<FImplicitObject*, bool>;
+			
 			// Cached tribox
-			Private::FTribox Tribox;
+			Private::FTribox NodeTribox;
 
 			// Cached convex
-			FImplicitObjectPtr Convex;
+			FImplicitObjectPtr TriboxConvex = nullptr;
+
+			// Shape Index
+			int32 ShapeIndex = INDEX_NONE;
+			
+			// Node volume
+			FTribox::FRealType NodeVolume = 0.0f;
+
+			// Valid flag to check if the node has already been processed during merging
+			bool bValidNode = true;
+
+			// Valid flag to check if the edge has already been processed during merging
+			FValidEdges bValidEdges = {};
 		};
 
-		using FCachedTriboxes = TMap<FImplicitObject*,FCachedTribox>;
+		using FTriboxNodes = TMap<FImplicitObject*, FTriboxNode>;
 		
 		CHAOS_API FConvexOptimizer();
 
@@ -42,7 +56,8 @@ namespace Private
 		CHAOS_API ~FConvexOptimizer();
 
 		// Simplify all the convexes in the hierarchy 
-		CHAOS_API void SimplifyRootConvexes(const Chaos::FImplicitObjectUnionPtr& UnionGeometry, const FShapesArray& UnionShapes, const EObjectStateType ObjectState);
+		CHAOS_API void SimplifyRootConvexes(const Chaos::FImplicitObjectUnionPtr& UnionGeometry, const FShapesArray& UnionShapes,
+			const EObjectStateType ObjectState);
 
 		// Check if the manager is valid or not
 		CHAOS_API bool IsValid() const {return !SimplifiedConvexes.IsEmpty();}
@@ -61,11 +76,17 @@ namespace Private
 
 	private:
 
+		// Build union connectivity for merging
+		void BuildUnionConnectivity(const Chaos::FImplicitObjectUnionPtr& UnionGeometry);
+
+		// Merge the connected shapes
+		void MergeConnectedShapes(const Chaos::FImplicitObjectUnionPtr& UnionGeometry, TArray<FTriboxNode>& MergedNodes);
+
 		// Build a single convex
 		void BuildSingleConvex(const Chaos::FImplicitObjectUnionPtr& UnionGeometry, const FShapesArray& UnionShapes);
 
 		// Build several convexes 
-		void BuildMultipleConvex(const Chaos::FImplicitObjectUnionPtr& UnionGeometry, const FShapesArray& UnionShapes, const int32 MaxLODs);
+		void BuildMultipleConvex(const Chaos::FImplicitObjectUnionPtr& UnionGeometry, const FShapesArray& UnionShapes, const bool bEnableMerging);
 
 		// Build the simplified shapes
 		void BuildConvexShapes(const FShapesArray& UnionShapes);
@@ -80,7 +101,7 @@ namespace Private
 		FShapeInstanceArray ShapesArray;
 
 		// Intermediate root triboxes to reuse the intermediate computation
-		FCachedTriboxes RootTriboxes;
+		FTriboxNodes RootTriboxes;
 
 		// BVH used to accelerate the collisions queries
 		TUniquePtr<Private::FImplicitBVH> BVH;

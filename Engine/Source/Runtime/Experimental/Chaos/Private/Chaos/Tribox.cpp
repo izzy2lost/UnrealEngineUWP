@@ -398,66 +398,16 @@ FORCEINLINE void CompressFaces(TArray<TArray<int32>>& FaceIndices)
 FImplicitObjectPtr FTribox::CreateConvexFromTopology(
 	TArray<FConvex::FPlaneType>&& ConvexPlanes, TArray<TArray<int32>>&& FaceIndices, TArray<FConvex::FVec3Type>&& ConvexVertices) const
 {
-	FRotation3 RotationMatrix = FRotation3::Identity;
-	FVec3Type InertiaTensor(1.0f, 1.0f, 1.0f);
-	FRealType MinVolume = FLT_MAX;
-	{
-		const FRealType HX = (MaxDists[0]+MaxDists[1]);
-		const FRealType PX = (MaxDists[6]+MaxDists[7]);
-		const FRealType MX = (MaxDists[8]+MaxDists[9]);
-
-		const FRealType HY = (MaxDists[2]+MaxDists[3]);
-		const FRealType PY = (MaxDists[10]+MaxDists[11]);
-		const FRealType MY = (MaxDists[12]+MaxDists[13]);
-
-		const FRealType HZ = (MaxDists[4]+MaxDists[5]);
-		const FRealType PZ = (MaxDists[14]+MaxDists[15]);
-		const FRealType MZ = (MaxDists[16]+MaxDists[17]);
-		
-		FRealType Volumes[4];
-		Volumes[0] = HX * HY * HZ;
-		Volumes[1] = HX * PX * MX;
-		Volumes[2] = HY * PY * MY;
-		Volumes[3] = HZ * PZ * MZ;
-		
-		int8 MinIndex = INDEX_NONE;
-		for(int8 VolumeIndex = 0; VolumeIndex < 4; ++VolumeIndex)
-		{
-			if(Volumes[VolumeIndex] < MinVolume)
-			{
-				MinVolume = Volumes[VolumeIndex];
-				MinIndex = VolumeIndex;
-			}
-		}
-		
-		if(MinIndex == 0)
-		{
-			static const FRotation3 ConstRotationMatrix = FRotation3::Identity;
-			RotationMatrix = ConstRotationMatrix;
-			InertiaTensor = FVec3Type(HY * HY + HZ * HZ, HX * HX + HZ * HZ, HY * HY + HX * HX) / (12.0f * Volumes[0]);
-		}
-		else if(MinIndex == 1)
-		{
-			static const FRotation3 ConstRotationMatrix = FRotation3::FromAxisAngle(FVec3(1.0f, 0.0f, 0.0f), PI / 4.0f);
-			RotationMatrix = ConstRotationMatrix;
-			InertiaTensor = FVec3Type(PX * PX + MX * MX, HX * HX + MX * MX, PX * PX + HX * HX) / (12.0f * Volumes[1]);
-		}
-		else if(MinIndex == 2)
-		{
-			static const FRotation3 ConstRotationMatrix = FRotation3::FromAxisAngle(FVec3(0.0f, 1.0f, 0.0f), PI / 4.0f);
-			RotationMatrix = ConstRotationMatrix;
-			InertiaTensor = FVec3Type(MY * MY + HY * HY, MY * MY + PY * PY, HY * HY + PY * PY) / (12.0f * Volumes[2]);
-		}
-		else if(MinIndex == 3)
-		{
-			static const FRotation3 ConstRotationMatrix = FRotation3::FromAxisAngle(FVec3(0.0f, 0.0f, 1.0f), PI / 4.0f);
-			RotationMatrix = ConstRotationMatrix;
-			InertiaTensor = FVec3Type(MZ * MZ + HZ * HZ, PZ * PZ + HZ * HZ, PZ * PZ + MZ * MZ) / (12.0f * Volumes[3]);
-		}
-	}
+	const FRealType HX = (MaxDists[0]+MaxDists[1]);
+	const FRealType HY = (MaxDists[2]+MaxDists[3]);
+	const FRealType HZ = (MaxDists[4]+MaxDists[5]);
+	
+	const FVec3Type InertiaTensor = FVec3Type(HY * HY + HZ * HZ, HX * HX + HZ * HZ, HY * HY + HX * HX) / (12.0f);
+	const FRealType Volume = HX * HY * HZ;
+	
 	return MakeImplicitObjectPtr<Chaos::FConvex>(MoveTemp(ConvexPlanes), MoveTemp(FaceIndices), MoveTemp(ConvexVertices), 
 		FConvex::FVec3Type(-MaxDists[1], -MaxDists[3], -MaxDists[5]), FConvex::FVec3Type(MaxDists[0], MaxDists[2], MaxDists[4]), 
-		MinVolume, InertiaTensor, RotationMatrix, true);
+		Volume, InertiaTensor, FRotation3::Identity, true);
 }
 
 DECLARE_CYCLE_STAT(TEXT("Collisions::MakeConvex"), STAT_MakeTriboxConvex, STATGROUP_ChaosCollision);
@@ -531,6 +481,11 @@ bool FTribox::IsTriboxOverlapping(const FTribox& OtherTribox) const
 		}
 	}
 	return true;
+}
+
+FAABB3 FTribox::GetBounds() const
+{
+	return FAABB3( FVector(-MaxDists[1], -MaxDists[3], -MaxDists[5]), FVector(MaxDists[0], MaxDists[2], MaxDists[4]));
 }
 	
 bool FTribox::OverlapTribox(const FTribox& OtherTribox, FTribox& OverlapTribox) const
@@ -661,28 +616,6 @@ FTribox::FRealType FTribox::ComputeVolume() const
 	const FVec3Type BoxSize(MaxDists[0]+MaxDists[1], MaxDists[2]+MaxDists[3], MaxDists[4]+MaxDists[5]);
 	FRealType Volume = BoxSize[0] * BoxSize[1] * BoxSize[2];
 
-	auto RemovePrism = [&Volume, &BoxSize, this](const int32 AxisX, const int32 AxisY, const int32 AxisZ,
-		const int32 ChamferA, const int32 ChamferB, const int32 ChamferC, const int32 ChamferD)
-	{
-		FRealType CornerDistance = (MaxDists[AxisX] + MaxDists[AxisY]) * InvSqrt2 - MaxDists[ChamferA];
-		Volume -= CornerDistance * CornerDistance * BoxSize[AxisZ];
-		CornerDistance = (MaxDists[AxisX] + MaxDists[AxisY+1]) * InvSqrt2 - MaxDists[ChamferB];
-		Volume -= CornerDistance * CornerDistance * BoxSize[AxisZ];
-		CornerDistance = (MaxDists[AxisX+1] + MaxDists[AxisY]) * InvSqrt2 - MaxDists[ChamferC];
-		Volume -= CornerDistance * CornerDistance * BoxSize[AxisZ];
-		CornerDistance = (MaxDists[AxisX+1] + MaxDists[AxisY+1]) * InvSqrt2 - MaxDists[ChamferD];
-		Volume -= CornerDistance * CornerDistance * BoxSize[AxisZ];
-	};
-
-	// Remove all th prisms along the z directions
-	RemovePrism(0,2,2,14,16,17,15);
-	
-	// Remove all th prisms along the y directions
-	RemovePrism(0,4,1,10,12,13,11);
-	
-	// Remove all th prisms along the x directions
-	RemovePrism(2,4,0,6,8,9,7);
-	
 	return Volume;
 }
 	

@@ -896,9 +896,6 @@ namespace Chaos
 		{
 			FlushIncrementalGeometryOperations(ClusterUnion);
 		}
-
-		// Build the convex optimizer if required
-		FRigidClustering::BuildConvexOptimizer(ClusterUnion.InternalCluster);
 		
 		if (ClusterUnion.bGenerateConnectivityEdges)
 		{
@@ -919,7 +916,9 @@ namespace Chaos
 				MClustering.HandleConnectivityOnReleaseClusterParticle(ClusterUnion.InternalCluster, false);
 			}
 		}
-
+		// Build the convex optimizer if required
+		MClustering.BuildConvexOptimizer(ClusterUnion.InternalCluster);
+		
 		for (FPBDRigidClusteredParticleHandle* ChildParticle : PendingParticlesToUndoChildToParentLock)
 		{
 			if (ChildParticle)

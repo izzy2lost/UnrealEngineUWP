@@ -70,6 +70,11 @@ namespace Chaos
 	int32 ClusteringParticleReleaseThrottlingMaxCount = INDEX_NONE;
 	FAutoConsoleVariableRef CVarClusteringParticleReleaseThrottlingMaxCount(TEXT("p.Clustering.ParticleReleaseThrottlingMaxCount"), ClusteringParticleReleaseThrottlingMaxCount, TEXT("Maximum number of active geometry collection to reach before all released clustering disable all released particle instantly"));
 
+	namespace CVars
+	{
+		extern bool bChaosConvexSimplifyUnion;
+	}
+
 	template <typename TProxy=FGeometryCollectionPhysicsProxy>
 	TProxy* GetConcreteProxy(FPBDRigidClusteredParticleHandle* ClusteredParticle)
 	{
@@ -290,10 +295,10 @@ namespace Chaos
 		UpdateKinematicProperties(NewParticle, MChildren, MEvolution);
 		UpdateGeometry(NewParticle, ChildrenSet, MChildren, ProxyGeometry, Parameters);
 
-		// Build the convex optimizer if required
-		FRigidClustering::BuildConvexOptimizer(NewParticle);
-		
 		GenerateConnectionGraph(NewParticle, Parameters);
+
+		// Build the convex optimizer if required
+		//FRigidClustering::BuildConvexOptimizer(NewParticle);
 
 		NewParticle->SetSleeping(bClusterIsAsleep);
 
@@ -378,14 +383,26 @@ namespace Chaos
 
 	void FRigidClustering::BuildConvexOptimizer(FPBDRigidClusteredParticleHandle* Particle)
 	{
-		if(Particle && Particle->GetGeometry())
+		bool bHasOptimizer = false;
+		if(Particle && Particle->GetGeometry() && CVars::bChaosConvexSimplifyUnion)
 		{ 
-			if (!Particle->ConvexOptimizer())
+			if(FImplicitObjectUnion* Union = Particle->GetGeometry()->template AsA<FImplicitObjectUnion>())
 			{
-				Particle->ConvexOptimizer() = MakePimpl<Private::FConvexOptimizer>();
+				if(Union->GetNumLeafObjects() > 1)
+				{ 
+					if (!Particle->ConvexOptimizer())
+					{
+						Particle->ConvexOptimizer() = MakePimpl<Private::FConvexOptimizer>();
+					}
+					Particle->ConvexOptimizer()->SimplifyRootConvexes(Union,
+						Particle->ShapesArray(), Particle->ObjectState());
+					bHasOptimizer = Particle->ConvexOptimizer()->IsValid();
+				}
 			}
-			Particle->ConvexOptimizer()->SimplifyRootConvexes(Particle->GetGeometry()->template AsA<FImplicitObjectUnion>(),
-				Particle->ShapesArray(), Particle->ObjectState());
+		}
+		if(Particle && !bHasOptimizer)
+		{	
+			Particle->ConvexOptimizer().Reset();
 		}
 	}
 

@@ -402,7 +402,7 @@ public:
 	*    all the convexes within the hierarchy
 	*    @param Particle particle on which the geometry will be simplified   
 	*/
-	static CHAOS_API void BuildConvexOptimizer(FPBDRigidClusteredParticleHandle* Particle);
+	CHAOS_API void BuildConvexOptimizer(FPBDRigidClusteredParticleHandle* Particle);
 	
 	static CHAOS_API bool ShouldUnionsHaveCollisionParticles();
 

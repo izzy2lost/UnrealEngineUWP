@@ -62,6 +62,9 @@ public :
 	
 	// Get the tribox center
 	FVec3Type GetCenter() const;
+
+	// Get the bounding box
+	FAABB3 GetBounds() const;
 	
 	// Get the closest plane along the +X,-X,+Y,-Y,+Z,-Z directions
 	FRealType GetClosestPlane(const FVec3Type& PointPosition, int32& PlaneAxis, FRealType& PlaneProjection) const;

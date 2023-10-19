@@ -16,20 +16,24 @@ namespace CVars
 	FAutoConsoleVariableRef CVarChaosSimplifyUnion(TEXT("p.Chaos.Convex.SimplifyUnion"), bChaosConvexSimplifyUnion, TEXT("If true replace all the convexes within an implcit hierarchy with a simplified one (kdop18 tribox for now) for collision"));
 
 	// Max number of convex LODs used during simplification  for dynamic particles
-	int32 ChaosConvexMaxDynamicLODs = 0;
-	FAutoConsoleVariableRef CVarChaosConvexMaxDynamicLODs(TEXT("p.Chaos.Convex.MaxDynamicLODs"), ChaosConvexMaxDynamicLODs, TEXT("Max number of convex LODs used during simplication for dynamic particles"));
+	int32 ChaosConvexKinematicMode = 2;
+	FAutoConsoleVariableRef CVarChaosConvexKinematicMode(TEXT("p.Chaos.Convex.KinematicMode"), ChaosConvexKinematicMode, TEXT("Simplification mode for the kinematic shapes (0: Single Convex, 1: One convex per children, 2: Merge connected children using the splitting threshold"));
 
 	// Max number of convex LODs used during simplification  for kinematic particles
-	int32 ChaosConvexMaxKinematicLODs = -1;
-	FAutoConsoleVariableRef CVarChaosConvexMaxKinematicLODs(TEXT("p.Chaos.Convex.MaxKinematicLODs"), ChaosConvexMaxKinematicLODs, TEXT("Max number of convex LODs used during simplication for kinematic particles"));
+	int32 ChaosConvexDynamicMode = 2;
+	FAutoConsoleVariableRef CVarChaosConvexDynamicMode(TEXT("p.Chaos.Convex.DynamicMode"), ChaosConvexDynamicMode, TEXT("Simplification mode for the dynamic shapes (0: Single Convex, 1: One convex per children, 2: Merge connected children using the splitting threshold)"));
 	
 	// Tribox volume / convex hull threshold to trigger a volume splitting during tree construction
-	float ChaosConvexSplittingThreshold = 1.2f;
+	float ChaosConvexSplittingThreshold = 1.0f;
 	FAutoConsoleVariableRef CVarChaosConvexSplittingThreshold(TEXT("p.Chaos.Convex.SplittingThreshold"), ChaosConvexSplittingThreshold, TEXT("Tribox volume / convex hull threshold to trigger a volume splitting during tree construction"));
 
 	// Min volume of the simplified convexes
-	float ChaosConvexMinVolume = 0.2f;
+	float ChaosConvexMinVolume = 10000.0f;
 	FAutoConsoleVariableRef CVarChaosConvexMinVolume(TEXT("p.Chaos.Convex.MinVolume"), ChaosConvexMinVolume, TEXT("Min volume of the simplified convexes"));
+
+	// Boolean to check if we are merging (bottom-up) or splitting (top-bottom) the convexes 
+	bool ChaosConvexEnableMerging = true;
+	FAutoConsoleVariableRef CVarChaosConvexEnableMerging(TEXT("p.Chaos.Convex.EnableMerging"), ChaosConvexEnableMerging, TEXT("Boolean to check if we are merging (bottom-up) or splitting (top-bottom) the convexes"));
 	
 	extern int32 ChaosUnionBVHMaxDepth;
 	extern int32 ChaosUnionBVHMinShapes;
@@ -37,196 +41,6 @@ namespace CVars
 
 namespace Private
 {
-/**
- * @brief Simple tribox node to store tribox hierarchy information
- */
-struct FTriboxNode
-{
-	// Constructor with a given node tribox and the underling objects range 
-	FTriboxNode(const FTribox& NodeBounds, const TArray<FTribox>& NodeObjects) : BoundsTribox(NodeBounds), ObjectTriboxes(NodeObjects)
-	{}
-
-	// Base constructor
-	FTriboxNode() : BoundsTribox(), ObjectTriboxes()
-	{}
-
-	// Get the closest plane to the node center 
-	void FindClosestPlane(int32& PlaneAxis, FTribox::FRealType& PlaneProjection) const;
-
-	// Split the object triboxes into a left and a right tribox
-	void SplitTriboxNode(const int32& PlaneAxis, const FTribox::FRealType& PlaneProjection,
-							FTriboxNode& LeftTribox, FTribox::FRealType& LeftVolume,
-							FTriboxNode& RightTribox, FTribox::FRealType& RightVolume) const;
-	
-	// Enclosing node tribox 
-	FTribox BoundsTribox;
-
-	// List of objects that are part of that node
-	TArray<FTribox> ObjectTriboxes;
-};
-
-FORCEINLINE void FTriboxNode::FindClosestPlane(int32& PlaneAxis, FTribox::FRealType& PlaneProjection) const
-{
-	const FTribox::FVec3Type PointPosition = BoundsTribox.GetCenter();
-	
-	int32 LocalAxis = INDEX_NONE;
-	FTribox::FRealType LocalProjection = 0.0;
-	FTribox::FRealType MinDistance = FLT_MAX;
-			
-	for(const FTribox& ObjectTribox : ObjectTriboxes)
-	{
-		const FTribox::FRealType ClosestDistance = ObjectTribox.GetClosestPlane(PointPosition, LocalAxis, LocalProjection);
-		if(ClosestDistance < MinDistance)
-		{
-			MinDistance = ClosestDistance;
-			PlaneAxis = LocalAxis;
-			PlaneProjection = LocalProjection;
-		}
-	}
-}
-	
-FORCEINLINE void FTriboxNode::SplitTriboxNode(const int32& PlaneAxis, const FTribox::FRealType& PlaneProjection,
-	FTriboxNode& LeftTribox, FTribox::FRealType& LeftVolume, FTriboxNode& RightTribox,  FTribox::FRealType& RightVolume) const
-{
-	for(const FTribox& ObjectTribox : ObjectTriboxes)
-	{
-		FTribox LocalLeftTribox, LocalRightTribox;
-		ObjectTribox.SplitTriboxSlab(PlaneAxis, PlaneProjection, LocalLeftTribox, LocalRightTribox);
-				
-		if(LocalLeftTribox.HasDatas())
-		{
-			LeftTribox.BoundsTribox += LocalLeftTribox;
-			LeftTribox.ObjectTriboxes.Add(LocalLeftTribox);
-			LeftVolume += LocalLeftTribox.ComputeVolume();
-		}
-		if(LocalRightTribox.HasDatas())
-		{
-			RightTribox.BoundsTribox += LocalRightTribox;
-			RightTribox.ObjectTriboxes.Add(LocalRightTribox);
-			RightVolume += LocalRightTribox.ComputeVolume();
-		}
-	}
-}
-
-/**
- * @brief Simple tribox binary tree to store tribox hierarchy
- */
-struct FTriboxTree
-{
-	// Constructor given a LOD and a number of objects
-	FTriboxTree(const int32 NumLODs, const FConvexOptimizer::FCachedTriboxes& RootTriboxes);
-	
-	// Build all the tree LODs
-	void BuildTreeLODs(TArray<FImplicitObjectPtr>& SimplifiedConvexes, const TUniquePtr<Private::FCollisionObjects>& CollisionObjects);
-
-	// Add a node to the tree nodes
-	void AddTreeNode(const int32 LODIndex, const FTriboxNode& TriboxNode, const FTribox::FRealType& ObjectsVolume,
-		TArray<FImplicitObjectPtr>& SimplifiedConvexes, const TUniquePtr<Private::FCollisionObjects>& CollisionObjects);
-	
-	// Swap the 2 buffers
-	void SwapNodeBuffers()
-	{
-		BufferIndex = 1 - BufferIndex;
-		TreeNodes[BufferIndex].Reset();
-	}
-
-	// Current buffer used to build tthe tree
-	int32 CurrentBuffer() const {return BufferIndex;}
-
-	// Previous buffer used to build the tree
-	int32 PreviousBuffer() const {return 1-BufferIndex;}
-	
-	// List of tree nodes 
-	TArray<FTriboxNode> TreeNodes[2];
-
-	// Tree buffer index 
-	int32 BufferIndex = 0;
-	
-	// Tree max LODs
-	int32 MaxLODs = 0;
-};
-	
-FORCEINLINE FTriboxTree::FTriboxTree(const int32 NumLODs, const FConvexOptimizer::FCachedTriboxes& RootTriboxes) : TreeNodes(), BufferIndex(0)
-{
-	const int32 NumNodes = 1 << NumLODs;
-	
-	TreeNodes[0].Reserve(NumNodes);
-	TreeNodes[1].Reserve(NumNodes);
-	
-	FTriboxNode TriboxNode;
-	for(auto& RootTribox : RootTriboxes)
-	{
-		if(RootTribox.Value.Tribox.HasDatas())
-		{
-			TriboxNode.BoundsTribox += RootTribox.Value.Tribox;
-			TriboxNode.ObjectTriboxes.Add(RootTribox.Value.Tribox);
-		}
-	}
-	TreeNodes[CurrentBuffer()].Emplace(TriboxNode);
-	MaxLODs = NumLODs;
-}
-
-FORCEINLINE void FTriboxTree::BuildTreeLODs(TArray<FImplicitObjectPtr>& SimplifiedConvexes, const TUniquePtr<Private::FCollisionObjects>& CollisionObjects)
-{
-	//UE_LOG(LogTemp, Log, TEXT("	Building tribox binary tree"))
-	for(int32 LODIndex = 1; LODIndex < MaxLODs; ++LODIndex)
-	{
-		// Swap the node buffers (working/result)
-		SwapNodeBuffers();
-
-		//int32 NodeIndex = 0;
-		for(FTriboxNode& TriboxNode : TreeNodes[PreviousBuffer()])
-		{
-			//UE_LOG(LogTemp, Log, TEXT("			Iterating over node %d with num objects = %d"), NodeIndex++, TriboxNode.ObjectTriboxes.Num())
-
-			int32 PlaneAxis = INDEX_NONE;
-			FTribox::FRealType PlaneProjection = 0.0;
-
-			// Find the closest plane to the node center
-			TriboxNode.FindClosestPlane(PlaneAxis, PlaneProjection);
-					
-			FTriboxNode LeftTribox, RightTribox;
-			FTribox::FRealType LeftVolume = 0.0, RightVolume = 0.0;
-
-			// Split the node along the cutting plane
-			TriboxNode.SplitTriboxNode(PlaneAxis, PlaneProjection, LeftTribox, LeftVolume, RightTribox, RightVolume);
-
-			// Add left node to the tree
-			AddTreeNode(LODIndex, LeftTribox, LeftVolume, SimplifiedConvexes, CollisionObjects);
-
-			// Add right node to the tree
-			AddTreeNode(LODIndex, RightTribox, RightVolume, SimplifiedConvexes, CollisionObjects);
-		}
-	}
-}
-
-FORCEINLINE void FTriboxTree::AddTreeNode(const int32 LODIndex, const FTriboxNode& TriboxNode, const FTribox::FRealType& ObjectsVolume,
-	TArray<FImplicitObjectPtr>& SimplifiedConvexes, const TUniquePtr<Private::FCollisionObjects>& CollisionObjects)
-{
-	if(TriboxNode.BoundsTribox.HasDatas())
-	{
-		// Disgard all the objects with small volumes
-		if(ObjectsVolume > CVars::ChaosConvexMinVolume)
-		{
-			const FTribox::FRealType NodeVolume = TriboxNode.BoundsTribox.ComputeVolume();
-			//UE_LOG(LogTemp, Log, TEXT("				Node volume = [%f %f] -> %f"), NodeVolume, ObjectsVolume, NodeVolume/ObjectsVolume)
-			
-			if((NodeVolume/ObjectsVolume > CVars::ChaosConvexSplittingThreshold) &&
-				(LODIndex < (MaxLODs-1)))
-			{
-				// If volume ratio (concavity) is big enough add this node to the current list to be processed by the next LOD
-				TreeNodes[CurrentBuffer()].Add(TriboxNode);
-			}
-			else
-			{
-				// Otherwise add the node to the final convexes list
-				SimplifiedConvexes.Add(TriboxNode.BoundsTribox.MakeConvex());
-				Private::FImplicitBVH::CollectLeafObject(SimplifiedConvexes.Last(),
-						FRigidTransform3::Identity, INDEX_NONE, CollisionObjects->ImplicitObjects);
-			}
-		}
-	}
-}
 
 FConvexOptimizer::FConvexOptimizer() :
 	SimplifiedConvexes(), CollisionObjects(MakeUnique<Private::FCollisionObjects>()), ShapesArray()
@@ -240,10 +54,10 @@ void FConvexOptimizer::VisitCollisionObjects(const FImplicitHierarchyVisitor& Vi
 	{
 		const TArray<Private::FImplicitBVHObject>& ImplicitObjects = BVH.IsValid() ? BVH->GetObjects() : CollisionObjects->ImplicitObjects;
 		
-		int32 ObjectIndex = 0;
+		int32 ObjectIndex = 1;
+		int32 LeafObjectIndex = 0;
 		for(const Private::FImplicitBVHObject& CollisionObject : ImplicitObjects)
 		{
-			int32 LeafObjectIndex = CollisionObject.GetObjectIndex();
 			CollisionObject.GetGeometry()->VisitLeafObjectsImpl(CollisionObject.GetTransform(),
 				CollisionObject.GetRootObjectIndex(), ObjectIndex, LeafObjectIndex, VisitorFunc);
 		}
@@ -254,21 +68,22 @@ void FConvexOptimizer::VisitOverlappingObjects(const FAABB3& LocalBounds, const 
 {
 	if(CVars::bChaosConvexSimplifyUnion)
 	{
-		int32 ObjectIndex = 0;
+		int32 ObjectIndex = 1;
+		int32 LeafObjectIndex = 0;
 		if(BVH.IsValid())
 		{
 			BVH->VisitAllIntersections(LocalBounds,
-			[this, &ObjectIndex, &VisitorFunc](const FImplicitObject* Implicit, const FRigidTransform3f& RelativeTransformf,
-				const FAABB3f& RelativeBoundsf, const int32 RootObjectIndex, const int32 LeafObjectIndex)
+			[this, &ObjectIndex, &VisitorFunc, &LocalBounds, &LeafObjectIndex](const FImplicitObject* Implicit, const FRigidTransform3f& RelativeTransformf,
+				const FAABB3f& RelativeBoundsf, const int32 RootObjectIndex, const int32)
 			{
-				VisitorFunc(Implicit, FRigidTransform3(RelativeTransformf), RootObjectIndex, ObjectIndex++, LeafObjectIndex);
+				Implicit->VisitOverlappingLeafObjectsImpl(LocalBounds, FRigidTransform3(RelativeTransformf),
+					RootObjectIndex, ObjectIndex, LeafObjectIndex, VisitorFunc);
 			});
 		}
 		else
 		{
 			for(const Private::FImplicitBVHObject& CollisionObject : CollisionObjects->ImplicitObjects)
 			{
-				int32 LeafObjectIndex = CollisionObject.GetObjectIndex();
 				CollisionObject.GetGeometry()->VisitOverlappingLeafObjectsImpl(LocalBounds, CollisionObject.GetTransform(),
 					CollisionObject.GetRootObjectIndex(), ObjectIndex, LeafObjectIndex, VisitorFunc);
 			}
@@ -293,36 +108,35 @@ void FConvexOptimizer::BuildConvexShapes(const FShapesArray& UnionShapes)
 	ShapeData->SetSimData(TemplateData->GetSimData());
 	ShapeData->SetCollisionTraceType(TemplateData->GetCollisionTraceType());
 
-	// Only sim enabled if all the underlying shapes could be used for physics
+	// Only simulation enabled if all the underlying shapes could be used for physics
 	ShapeData->SetSimEnabled(true);
 
 	// Disable simple shapes for query 
 	ShapeData->SetQueryEnabled(false);
 }
 
-void FConvexOptimizer::SimplifyRootConvexes(const Chaos::FImplicitObjectUnionPtr& UnionGeometry, const FShapesArray& UnionShapes, const EObjectStateType ObjectState)
+void FConvexOptimizer::SimplifyRootConvexes(const Chaos::FImplicitObjectUnionPtr& UnionGeometry, const FShapesArray& UnionShapes,
+		const EObjectStateType ObjectState)
 {
 	SCOPE_CYCLE_COUNTER(STAT_Collisions_SimplifyConvexes);
+
 	if(CVars::bChaosConvexSimplifyUnion && UnionGeometry && (UnionShapes.Num() > 0) &&
 		(UnionShapes.Num() <= UnionGeometry->GetObjects().Num()))
 	{
 		SimplifiedConvexes.Reset();
 		CollisionObjects->ImplicitObjects.Reset();
 		ShapesArray.Reset();
-		const int32 MaxLODs = (ObjectState == EObjectStateType::Dynamic) ? CVars::ChaosConvexMaxDynamicLODs : CVars::ChaosConvexMaxKinematicLODs;
 
-		if(MaxLODs == 0)
+		if((UnionShapes.Num() == 1) || ((ObjectState == EObjectStateType::Dynamic) && (CVars::ChaosConvexDynamicMode == 0)) 
+				|| ((ObjectState != EObjectStateType::Dynamic) && (CVars::ChaosConvexKinematicMode == 0)))
 		{
 			BuildSingleConvex(UnionGeometry, UnionShapes);
 		}
 		else
 		{
-			BuildMultipleConvex(UnionGeometry, UnionShapes, MaxLODs);
-		}
-		if(!SimplifiedConvexes.IsEmpty())
-		{
-			// Build the simplified shapes
-			BuildConvexShapes(UnionShapes);
+			const bool bEnableMerging = ((ObjectState == EObjectStateType::Dynamic) && (CVars::ChaosConvexDynamicMode == 2))
+				|| ((ObjectState != EObjectStateType::Dynamic) && (CVars::ChaosConvexKinematicMode == 2));
+			BuildMultipleConvex(UnionGeometry, UnionShapes, bEnableMerging);
 		}
 	}
 
@@ -336,25 +150,47 @@ void FConvexOptimizer::SimplifyRootConvexes(const Chaos::FImplicitObjectUnionPtr
 	}
 }
 
-FORCEINLINE void InvalidateCachedTriboxes(FConvexOptimizer::FCachedTriboxes& RootTriboxes)
+FORCEINLINE void InvalidateCachedTriboxes(FConvexOptimizer::FTriboxNodes& RootTriboxes)
 {
 	for(auto& RootTribox : RootTriboxes)
 	{
-		RootTribox.Value.Tribox.SetValid(false);
+		RootTribox.Value.NodeTribox.SetValid(false);
 	}
 }
 
-FORCEINLINE void ResizeCachedTriboxes(FConvexOptimizer::FCachedTriboxes& RootTriboxes)
+DECLARE_CYCLE_STAT(TEXT("Collisions::ResizeCachedTriboxes"), STAT_ResizeCachedTriboxes, STATGROUP_ChaosCollision);
+FORCEINLINE void ResizeCachedTriboxes(FConvexOptimizer::FTriboxNodes& RootTriboxes)
 {
-	TArray<FImplicitObject*> KeysToRemove;
+	SCOPE_CYCLE_COUNTER(STAT_ResizeCachedTriboxes);
+
+	TArray<FImplicitObject*> NodesToRemove;
+	TArray<FImplicitObject*> EdgesToRemove;
 	for(auto& RootTribox : RootTriboxes)
 	{
-		if(!RootTribox.Value.Tribox.IsValid())
+		if(!RootTribox.Value.NodeTribox.IsValid())
 		{
-			KeysToRemove.Add(RootTribox.Key);
+			NodesToRemove.Add(RootTribox.Key);
+		}
+		else
+		{
+			EdgesToRemove.Reset();
+			for(auto& NodeEdge : RootTribox.Value.bValidEdges)
+			{
+				if(auto* EdgeNode = RootTriboxes.Find(NodeEdge.Key))
+				{
+					if(!EdgeNode->NodeTribox.IsValid())
+					{
+						EdgesToRemove.Add(NodeEdge.Key);
+					}
+				}
+			}
+			for(auto& KeyToRemove : EdgesToRemove)
+			{
+				RootTribox.Value.bValidEdges.Remove(KeyToRemove);
+			}
 		}
 	}
-	for(auto& KeyToRemove : KeysToRemove)
+	for(auto& KeyToRemove : NodesToRemove)
 	{
 		RootTriboxes.Remove(KeyToRemove);
 	}
@@ -362,7 +198,7 @@ FORCEINLINE void ResizeCachedTriboxes(FConvexOptimizer::FCachedTriboxes& RootTri
 
 DECLARE_CYCLE_STAT(TEXT("Collisions::BuildConvexTriboxes"), STAT_BuildConvexTriboxes, STATGROUP_ChaosCollision);
 FORCEINLINE void BuildConvexTriboxes(const Chaos::FImplicitObjectUnionPtr& UnionGeometry, const FShapesArray& UnionShapes,
-	TUniquePtr<Private::FCollisionObjects>& CollisionObjects, FConvexOptimizer::FCachedTriboxes& RootTriboxes)
+	TUniquePtr<Private::FCollisionObjects>& CollisionObjects, FConvexOptimizer::FTriboxNodes& RootTriboxes)
 {
 	SCOPE_CYCLE_COUNTER(STAT_BuildConvexTriboxes);
 
@@ -376,16 +212,16 @@ FORCEINLINE void BuildConvexTriboxes(const Chaos::FImplicitObjectUnionPtr& Union
 		{
 			if(FImplicitObject* RootObject = UnionGeometry->GetObjects()[RootObjectIndex].GetReference())
 			{
-				FConvexOptimizer::FCachedTribox* RootTribox = RootTriboxes.Find(RootObject);
+				FConvexOptimizer::FTriboxNode* RootTribox = RootTriboxes.Find(RootObject);
 				const bool bHasRootTribox = (RootTribox != nullptr);
+				if(bHasRootTribox) RootTribox->bValidNode = false;
 				
 				FTribox LocalTribox;
 				int32 LeafObjectIndex = 0, ObjectIndex = 0;
-				
 				RootObject->VisitLeafObjectsImpl(FRigidTransform3::Identity,RootObjectIndex, ObjectIndex, LeafObjectIndex,
-					[&CollisionObjects, &LocalTribox, &bHasRootTribox](
+					[&CollisionObjects, &LocalTribox, &bHasRootTribox, &ShapeIndex](
 					const FImplicitObject* ImplicitObject, const FRigidTransform3& RelativeTransform,
-					const int32 RootObjectIndex, const int32, const int32)
+					const int32 RootIndex, const int32, const int32)
 				{
 					if(const FConvex* Convex = ImplicitObject->AsA<FConvex>())
 					{
@@ -394,7 +230,6 @@ FORCEINLINE void BuildConvexTriboxes(const Chaos::FImplicitObjectUnionPtr& Union
 							const FTribox::FRigidTransform3Type ConvexTransform(RelativeTransform);
 							// Disable collision for all the convexes that are going to be used to build the tribox
 							// For now only used for debug draw
-							const_cast<FImplicitObject*>(ImplicitObject)->SetDoCollide(false);
 							LocalTribox.AddConvex(Convex, ConvexTransform);
 						}
 					}
@@ -406,7 +241,6 @@ FORCEINLINE void BuildConvexTriboxes(const Chaos::FImplicitObjectUnionPtr& Union
 								RelativeTransform.GetRotation(), RelativeTransform.GetScale3D() * ScaledObject->GetScale());
 							// Disable collision for all the convexes that are going to be used to build the tribox
 							// For now only used for debug draw
-							const_cast<FImplicitObject*>(ImplicitObject)->SetDoCollide(false);
 							LocalTribox.AddConvex(ScaledObject->GetUnscaledObject(), ConvexTransform);
 						}
 					}
@@ -417,7 +251,6 @@ FORCEINLINE void BuildConvexTriboxes(const Chaos::FImplicitObjectUnionPtr& Union
 							const FTribox::FRigidTransform3Type ConvexTransform(RelativeTransform);
 							// Disable collision for all the convexes that are going to be used to build the tribox
 							// For now only used for debug draw
-							const_cast<FImplicitObject*>(ImplicitObject)->SetDoCollide(false);
 							LocalTribox.AddConvex(InstancedObject->Object(), ConvexTransform);
 						}
 					}
@@ -425,17 +258,18 @@ FORCEINLINE void BuildConvexTriboxes(const Chaos::FImplicitObjectUnionPtr& Union
 					{
 						// Add non convex implicits to the list of collision objects
 						Private::FImplicitBVH::CollectLeafObject(ImplicitObject,
-							RelativeTransform, RootObjectIndex, CollisionObjects->ImplicitObjects);	  
+							RelativeTransform, ShapeIndex, CollisionObjects->ImplicitObjects);	  
 					}
 				});
 				if(!bHasRootTribox && LocalTribox.HasDatas())
 				{
 					LocalTribox.BuildTribox();
-					RootTribox = &(RootTriboxes.Add(RootObject, {LocalTribox,nullptr}));
+					RootTribox = &(RootTriboxes.Add(RootObject, {LocalTribox, nullptr, ShapeIndex, LocalTribox.ComputeVolume(),true}));
 				}
 				if(RootTribox)
 				{
-					RootTribox->Tribox.SetValid(true);
+					RootTribox->NodeTribox.SetValid(true);
+					RootTribox->ShapeIndex = ShapeIndex;
 				}
 			}
 		}
@@ -450,9 +284,9 @@ void FConvexOptimizer::BuildSingleConvex(const Chaos::FImplicitObjectUnionPtr& U
 	FTribox MainTribox;
 	for(auto& RootTribox : RootTriboxes)
 	{
-		if(RootTribox.Value.Tribox.HasDatas())
+		if(RootTribox.Value.NodeTribox.HasDatas())
 		{
-			MainTribox += RootTribox.Value.Tribox;
+			MainTribox += RootTribox.Value.NodeTribox;
 		}
 	}
 
@@ -460,54 +294,192 @@ void FConvexOptimizer::BuildSingleConvex(const Chaos::FImplicitObjectUnionPtr& U
 	{
 		// Build the tribox and add it to the list of optimized convexes
 		SimplifiedConvexes.Add(MainTribox.MakeConvex());
-		Private::FImplicitBVH::CollectLeafObject(SimplifiedConvexes.Last(), FRigidTransform3::Identity, INDEX_NONE, CollisionObjects->ImplicitObjects);	
+		Private::FImplicitBVH::CollectLeafObject(SimplifiedConvexes.Last(), FRigidTransform3::Identity, 0, CollisionObjects->ImplicitObjects);	
 	}
 }
 
-FORCEINLINE void FindClosestPlane(const FTribox::FVec3Type& PointPosition, const TArray<FTribox>& Triboxes,
-						int32& PlaneAxis, FTribox::FRealType& PlaneProjection)
+DECLARE_CYCLE_STAT(TEXT("Collisions::BuildUnionConnectivity"), STAT_BuildUnionConnectivity, STATGROUP_ChaosCollision);
+void FConvexOptimizer::BuildUnionConnectivity(const Chaos::FImplicitObjectUnionPtr& UnionGeometry)
 {
-	int32 LocalAxis = INDEX_NONE;
-	FTribox::FRealType LocalProjection = 0.0;
-	FTribox::FRealType MinDistance = FLT_MAX;
-				
-	for(auto& Tribox : Triboxes)
+	SCOPE_CYCLE_COUNTER(STAT_BuildUnionConnectivity);
+	
+	const int32 NumTriboxes = UnionGeometry->GetObjects().Num();
+	TUniquePtr<Private::FImplicitBVH> LocalBVH = nullptr;
+
+	if(NumTriboxes > CVars::ChaosUnionBVHMinShapes)
 	{
-		const FTribox::FRealType ClosestDistance = Tribox.GetClosestPlane(PointPosition, LocalAxis, LocalProjection);
-		if(ClosestDistance < MinDistance)
+		TArray<Private::FImplicitBVHObject> ImplicitObjects;
+		ImplicitObjects.Reserve(NumTriboxes);
+
+		for (int32 RootIndex = 0; RootIndex < NumTriboxes; ++RootIndex)
 		{
-			MinDistance = ClosestDistance;
-			PlaneAxis = LocalAxis;
-			PlaneProjection = LocalProjection;
+			if (auto* RootTribox = RootTriboxes.Find(UnionGeometry->GetObjects()[RootIndex]))
+			{
+				Private::FImplicitBVH::CollectLeafObject(UnionGeometry->GetObjects()[RootIndex], FRigidTransform3::Identity, RootIndex, ImplicitObjects);
+			}
+		}
+		LocalBVH = FImplicitBVH::TryMakeFromLeaves(MoveTemp(ImplicitObjects), CVars::ChaosUnionBVHMinShapes, CVars::ChaosUnionBVHMaxDepth);
+	}
+
+	auto AddUnionEdges = [this, &UnionGeometry](const int32 RootIndexA, const int32 RootIndexB, const FAABB3& LocalBoundsA, FTriboxNode* RootTriboxA)
+	{
+		if (auto* RootTriboxB = RootTriboxes.Find(UnionGeometry->GetObjects()[RootIndexB]))
+		{
+			if(!RootTriboxB->bValidNode || (RootTriboxB->bValidNode && RootIndexA < RootIndexB))
+			{ 
+				if (LocalBoundsA.Intersects(RootTriboxB->NodeTribox.GetBounds()))
+				{
+					RootTriboxA->bValidEdges.Add(UnionGeometry->GetObjects()[RootIndexB], true);
+					RootTriboxB->bValidEdges.Add(UnionGeometry->GetObjects()[RootIndexA], true);
+				}
+			}
+		}
+	};
+	for (int32 RootIndexA = 0; RootIndexA < NumTriboxes; ++RootIndexA)
+	{
+		if (auto* RootTriboxA = RootTriboxes.Find(UnionGeometry->GetObjects()[RootIndexA]))
+		{
+			if (RootTriboxA->bValidNode)
+			{
+				const FAABB3 LocalBoundsA = RootTriboxA->NodeTribox.GetBounds();
+				if (LocalBVH.IsValid())
+				{
+					LocalBVH->VisitAllIntersections(LocalBoundsA,
+					[this, &RootIndexA, &LocalBoundsA, &UnionGeometry, &RootTriboxA, &AddUnionEdges](const FImplicitObject* ImplicitObjectB, const FRigidTransform3f& RelativeTransformB,
+						const FAABB3f& RelativeBoundsB, const int32 RootIndexB, const int32 LeafObjectIndexB)
+					{
+						AddUnionEdges(RootIndexA, RootIndexB, LocalBoundsA, RootTriboxA);
+					});
+				}
+				else
+				{
+					for (int32 RootIndexB = 0; RootIndexB < NumTriboxes; ++RootIndexB)
+					{
+						AddUnionEdges(RootIndexA, RootIndexB, LocalBoundsA, RootTriboxA);
+					}
+				}
+			}
+		}
+	}
+	for (auto& RootTribox : RootTriboxes)
+	{
+		RootTribox.Value.bValidNode = true;
+
+		// TODO :  keep it for now since we must make it faster
+		//RootTribox.Value.bValidEdges.KeySort([this, &UnionGeometry](const FImplicitObject& ImplicitObjectA, 
+		//const FImplicitObject& ImplicitObjectB) -> bool{ return RootTriboxes.Find(&ImplicitObjectA)->ShapeIndex < RootTriboxes.Find(&ImplicitObjectB)->ShapeIndex;});
+		for (auto& ValidEdge : RootTribox.Value.bValidEdges)
+		{
+			ValidEdge.Value = true;
 		}
 	}
 }
 	
-void FConvexOptimizer::BuildMultipleConvex(const Chaos::FImplicitObjectUnionPtr& UnionGeometry, const FShapesArray& UnionShapes, const int32 MaxLODs)
+DECLARE_CYCLE_STAT(TEXT("Collisions::MergeConnectedShapes"), STAT_MergeConnectedShapes, STATGROUP_ChaosCollision);
+void FConvexOptimizer::MergeConnectedShapes(const Chaos::FImplicitObjectUnionPtr& UnionGeometry, TArray<FTriboxNode>& MergedNodes)
+{
+	SCOPE_CYCLE_COUNTER(STAT_MergeConnectedShapes);
+	const int32 NumTriboxes = RootTriboxes.Num();
+		
+	MergedNodes.Reserve(RootTriboxes.Num());
+	FTriboxNode* CurrentNode = nullptr;
+
+	TArray<const FImplicitObject*> NodeQueue;
+	NodeQueue.Reserve(NumTriboxes);
+
+	for (int32 RootIndex = 0; RootIndex < NumTriboxes; ++RootIndex)
+	{
+		if (auto* RootTribox = RootTriboxes.Find(UnionGeometry->GetObjects()[RootIndex]))
+		{
+			if (RootTribox->bValidNode)
+			{
+				RootTribox->bValidNode = false;
+				NodeQueue.Add(UnionGeometry->GetObjects()[RootIndex]);
+
+				MergedNodes.Add({RootTribox->NodeTribox, nullptr, RootTribox->ShapeIndex, RootTribox->NodeVolume});
+				CurrentNode = &MergedNodes.Last();
+
+				while (!NodeQueue.IsEmpty())
+				{
+					const FImplicitObject* NextNode = NodeQueue.Pop(false);
+
+					for (auto& ValidEdge : RootTriboxes.Find(NextNode)->bValidEdges)
+					{
+						if (ValidEdge.Value)
+						{
+							ValidEdge.Value = false;
+							const FImplicitObject* EdgeOtherNode = ValidEdge.Key;
+							auto* OtherNode = RootTriboxes.Find(EdgeOtherNode);
+
+							if (OtherNode->bValidNode)
+							{
+								FTribox LocalTribox = CurrentNode->NodeTribox;
+								LocalTribox += OtherNode->NodeTribox;
+
+								const FTribox::FRealType VolumeRatio = LocalTribox.ComputeVolume() / (CurrentNode->NodeVolume + OtherNode->NodeVolume);
+								if (VolumeRatio < CVars::ChaosConvexSplittingThreshold)
+								{
+									CurrentNode->NodeTribox += OtherNode->NodeTribox;
+									CurrentNode->NodeVolume += OtherNode->NodeVolume;
+
+									NodeQueue.Add(EdgeOtherNode);
+									OtherNode->bValidNode = false;
+								}
+							}
+						}
+					}
+				}
+			}
+		}
+	}
+}
+
+	
+void FConvexOptimizer::BuildMultipleConvex(const Chaos::FImplicitObjectUnionPtr& UnionGeometry, const FShapesArray& UnionShapes, const bool bEnableMerging)
 {
 	BuildConvexTriboxes(UnionGeometry, UnionShapes, CollisionObjects, RootTriboxes);
 
-	if(MaxLODs < 0)
+	if(!bEnableMerging)
 	{
 		for(auto& RootTribox : RootTriboxes)
-        {
-			if(RootTribox.Value.Tribox.HasDatas() && (RootTribox.Value.Tribox.ComputeVolume() > CVars::ChaosConvexMinVolume))
+		{
+			if(RootTribox.Value.NodeTribox.HasDatas())
 			{
-				// Build the tribox and add it to the list of optimized convexes
-				if(!RootTribox.Value.Convex)
+				// Build the Tribox and add it to the list of optimized convexes
+				if(!RootTribox.Value.TriboxConvex)
 				{
-					RootTribox.Value.Convex = RootTribox.Value.Tribox.MakeConvex();
+					RootTribox.Value.TriboxConvex = RootTribox.Value.NodeTribox.MakeConvex();
 				}
-				SimplifiedConvexes.Add(RootTribox.Value.Convex);
-				Private::FImplicitBVH::CollectLeafObject(SimplifiedConvexes.Last(), FRigidTransform3::Identity, INDEX_NONE, CollisionObjects->ImplicitObjects);
+				SimplifiedConvexes.Add(RootTribox.Value.TriboxConvex);
+				Private::FImplicitBVH::CollectLeafObject(SimplifiedConvexes.Last(), FRigidTransform3::Identity, RootTribox.Value.ShapeIndex, CollisionObjects->ImplicitObjects);
 			}
-        }
+		}
 	}
 	else
 	{
-		// Build the binary tree and add the leaves to the simplified convexes
-		FTriboxTree TriboxTree(MaxLODs, RootTriboxes);
-		TriboxTree.BuildTreeLODs(SimplifiedConvexes, CollisionObjects);
+		// Bottom-up merging to build the simplified convexes
+		TArray<FConvexOptimizer::FTriboxNode> MergedNodes;
+
+		// Create the connectivity graph
+		BuildUnionConnectivity(UnionGeometry);
+
+		// Merge the shapes
+        MergeConnectedShapes(UnionGeometry, MergedNodes);
+
+		// Add to the simplified convexes
+        for(int32 NodeIndex = 0, NumMerged = MergedNodes.Num(); NodeIndex < NumMerged; ++NodeIndex)
+        {
+            if(MergedNodes[NodeIndex].NodeTribox.HasDatas() && (MergedNodes[NodeIndex].NodeVolume > CVars::ChaosConvexMinVolume))
+            {
+            	auto* RootTribox = RootTriboxes.Find(UnionGeometry->GetObjects()[MergedNodes[NodeIndex].ShapeIndex]);
+            	if(!RootTribox->TriboxConvex || (RootTribox->TriboxConvex && (RootTribox->TriboxConvex->AsA<FConvex>()->GetVolume() != MergedNodes[NodeIndex].NodeTribox.ComputeVolume())))
+            	{
+            		RootTribox->TriboxConvex = MergedNodes[NodeIndex].NodeTribox.MakeConvex();
+				}
+            	SimplifiedConvexes.Add(RootTribox->TriboxConvex);
+            	Private::FImplicitBVH::CollectLeafObject(SimplifiedConvexes.Last(), FRigidTransform3::Identity, MergedNodes[NodeIndex].ShapeIndex, CollisionObjects->ImplicitObjects);
+            }
+        }
 	}
 }
 
