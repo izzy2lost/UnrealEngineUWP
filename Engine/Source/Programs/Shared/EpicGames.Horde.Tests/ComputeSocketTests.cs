@@ -140,7 +140,8 @@ namespace EpicGames.Horde.Tests
 						await channel2.CloseAsync();
 					}
 
-					using MemoryStorageClient storage = new MemoryStorageClient();
+					using MemoryStorageClient memoryStorage = new MemoryStorageClient();
+					using BundleStorageClientWrapper storage = new BundleStorageClientWrapper(memoryStorage, BundleReaderCache.None, NullLogger.Instance);
 					await using (BundleWriter treeWriter = storage.CreateWriter())
 					{
 						FileReference file = FileReference.Combine(tempDir, "subdir/hello.txt");
@@ -190,8 +191,7 @@ namespace EpicGames.Horde.Tests
 
 		static async Task RunAgentAsync(ComputeSocket socket, DirectoryReference tempDir, CancellationToken cancellationToken)
 		{
-			using BundleReaderCache bundleReaderCache = new BundleReaderCache();
-			AgentMessageHandler handler = new AgentMessageHandler(tempDir, bundleReaderCache, null, true, null, NullLogger.Instance);
+			AgentMessageHandler handler = new AgentMessageHandler(tempDir, null, true, null, NullLogger.Instance);
 			await handler.RunAsync(socket, cancellationToken);
 		}
 	}
