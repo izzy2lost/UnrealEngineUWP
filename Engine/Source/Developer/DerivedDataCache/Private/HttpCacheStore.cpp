@@ -606,7 +606,8 @@ private:
 			return false;
 		}
 
-		if (LocalResponse.GetErrorCode() == EHttpErrorCode::TimedOut)
+		EHttpErrorCode ErrorCode = LocalResponse.GetErrorCode();
+		if ((ErrorCode == EHttpErrorCode::TimedOut) || (ErrorCode == EHttpErrorCode::Unknown))
 		{
 			return true;
 		}
