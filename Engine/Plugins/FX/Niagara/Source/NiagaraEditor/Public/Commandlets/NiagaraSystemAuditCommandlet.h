@@ -55,6 +55,9 @@ class UNiagaraSystemAuditCommandlet : public UCommandlet
 	/** Package paths to include */
 	TArray<FName> PackagePaths;
 
+	/** List of assets to only include (i.e. process only these) */
+	TSet<FName> IncludeOnlyPackages;
+
 	/** Systems using specific data interfaces to find */
 	TSet<UClass*> DataInterfacesToFind;
 
