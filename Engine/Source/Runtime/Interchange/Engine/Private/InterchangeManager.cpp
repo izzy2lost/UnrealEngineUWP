@@ -548,6 +548,15 @@ void UE::Interchange::FImportAsyncHelper::InitCancel()
 void UE::Interchange::FImportAsyncHelper::CleanUp()
 {
 	//Release the graph
+	for (TStrongObjectPtr<UInterchangeBaseNodeContainer>& Container : BaseNodeContainers)
+	{
+		Container->IterateNodes([](const FString&, UInterchangeBaseNode* Node)
+			{
+				Node->ClearInternalFlags(EInternalObjectFlags::Async);
+			}
+		);
+		Container->ClearInternalFlags(EInternalObjectFlags::Async);
+	}
 	BaseNodeContainers.Empty();
 
 	for (UInterchangeSourceData* SourceData : SourceDatas)

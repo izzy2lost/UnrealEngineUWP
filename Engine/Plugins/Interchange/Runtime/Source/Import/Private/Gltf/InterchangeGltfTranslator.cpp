@@ -785,6 +785,7 @@ TOptional< UE::Interchange::FImportImage > UInterchangeGLTFTranslator::GetTextur
 		UInterchangeImageWrapperTranslator* ImageWrapperTranslator = NewObject<UInterchangeImageWrapperTranslator>(GetTransientPackage(), NAME_None);
 		ImageWrapperTranslator->SetResultsContainer(Results);
 		TexturePayloadData = ImageWrapperTranslator->GetTexturePayloadDataFromBuffer(ImageData);
+		ImageWrapperTranslator->ClearInternalFlags(EInternalObjectFlags::Async);
 	}
 	else
 	{
