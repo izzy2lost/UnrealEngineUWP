@@ -86,8 +86,9 @@ namespace PCGActorAndComponentMapping
 		}
 	}
 
-	bool ShouldDiscardLandscapeRefresh(const ALandscapeProxy* InLandscape)
+	bool ShouldDiscardLandscapeRefresh(const ALandscapeProxy* InLandscape, bool& bIsInEditingMode, bool bIsExitingEditingMode)
 	{
+		bIsInEditingMode = false;
 		// If it is not a landscape, we should refresh.
 		if (!InLandscape)
 		{
@@ -108,7 +109,8 @@ namespace PCGActorAndComponentMapping
 
 		// Refresh only if we are not editing.
 		const ALandscape* Landscape = InLandscape->GetLandscapeActor();
-		return Landscape && Landscape->HasLandscapeEdMode();
+		bIsInEditingMode = Landscape && Landscape->HasLandscapeEdMode() && !bIsExitingEditingMode;
+		return bIsInEditingMode;
 	}
 #endif
 }
@@ -1746,8 +1748,16 @@ void FPCGActorAndComponentMapping::OnActorChanged(AActor* InActor, bool bInHasMo
 	}
 
 	// If it is a landscape and we should discard the refresh, early out.
-	if (PCGActorAndComponentMapping::ShouldDiscardLandscapeRefresh(Cast<ALandscapeProxy>(InActor)))
+	bool bIsInEditingMode = false;
+	ALandscapeProxy* Landscape = Cast<ALandscapeProxy>(InActor);
+	if (PCGActorAndComponentMapping::ShouldDiscardLandscapeRefresh(Landscape, bIsInEditingMode, bIsCurrentlyExitingLandscapeEditMode))
 	{
+		// If we are in editing, keep track of all the dirtied landscape to refresh them when we exit.
+		if (bIsInEditingMode)
+		{
+			DirtiedLandscapes.AddUnique(Landscape);
+		}
+
 		return;
 	}
 
@@ -1884,4 +1894,24 @@ bool FPCGActorAndComponentMapping::ClearCacheForActor(const AActor* InActor, con
 	return bShouldDirty;
 }
 
+void FPCGActorAndComponentMapping::NotifyLandscapeEditModeExited()
+{
+	bIsCurrentlyExitingLandscapeEditMode = true;
+	// When the landscape edit mode is exited, force the refresh on all modified/dirtied landscapes.
+	for (TObjectKey<ALandscapeProxy> Landscape : DelayedModifiedLandscapes)
+	{
+		DirtiedLandscapes.AddUnique(Landscape);
+	}
+
+	DelayedModifiedLandscapes.Empty();
+
+	for (TObjectKey<ALandscapeProxy> Landscape : DirtiedLandscapes)
+	{
+		ApplyLandscapeChanges(Landscape.ResolveObjectPtr());
+	}
+
+	DirtiedLandscapes.Empty();
+
+	bIsCurrentlyExitingLandscapeEditMode = false;
+}
 #endif // WITH_EDITOR

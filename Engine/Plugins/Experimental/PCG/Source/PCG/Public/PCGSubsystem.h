@@ -85,7 +85,7 @@ public:
 	void UnregisterPCGWorldActor(APCGWorldActor* InActor);
 
 	void OnOriginalComponentUnregistered(UPCGComponent* InComponent);
-	
+
 	UPCGLandscapeCache* GetLandscapeCache();
 
 	// Schedule graph (owner -> graph)
@@ -102,14 +102,14 @@ public:
 
 	/** General job scheduling
 	*  @param InOperation:       Callback that returns true if the task is done, false otherwise.
-	*  @param InSourceComponent: PCG component associated with this task. Can be null.
+	*  @param SourceComponent: PCG component associated with this task. Can be null.
 	*  @param TaskDependencies:  List of all the dependencies for this task.
 	*/
 	FPCGTaskId ScheduleGeneric(TFunction<bool()> InOperation, UPCGComponent* SourceComponent, const TArray<FPCGTaskId>& TaskDependencies);
-	
+
 	/** General job scheduling with context
 	*  @param InOperation:       Callback that takes a Context as argument and returns true if the task is done, false otherwise.
-	*  @param InSourceComponent: PCG component associated with this task. Can be null.
+	*  @param SourceComponent: PCG component associated with this task. Can be null.
 	*  @param TaskDependencies:  List of all the dependencies for this task.
 	*  @param bConsumeInputData: If your task need a context, but don't need the input data, set this flag to false. Default is true.
 	*/
@@ -215,6 +215,9 @@ public:
 	/** Get graph warnings and errors for all nodes. */
 	const FPCGNodeVisualLogs& GetNodeVisualLogs() const { return NodeVisualLogs; }
 	FPCGNodeVisualLogs& GetNodeVisualLogsMutable() { return NodeVisualLogs; }
+
+	/** Notify that we exited the Landscape edit mode. */
+	void NotifyLandscapeEditModeExited() { ActorAndComponentMapping.NotifyLandscapeEditModeExited(); }
 
 private:
 	enum class EOperation : uint32

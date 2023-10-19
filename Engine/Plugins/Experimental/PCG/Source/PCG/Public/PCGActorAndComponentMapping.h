@@ -55,6 +55,9 @@ public:
 
 	void RegisterTracking(UPCGComponent* InComponent);
 	void UpdateTracking(UPCGComponent* InComponent, bool bInShouldDirtyActors, const TArray<FPCGActorSelectionKey>* OptionalChangedKeys = nullptr);
+
+	/** Notify that we exited the Landscape edit mode. */
+	PCG_API void NotifyLandscapeEditModeExited();
 #endif // WITH_EDITOR
 
 	/** Register a new PCG Component or update it. Returns true if it was added/updated. Thread safe */
@@ -227,5 +230,11 @@ private:
 	// Part for the delayed landscape change update
 	double LastLandscapeDirtyTime = -1.0;
 	TArray<TObjectKey<ALandscapeProxy>> DelayedModifiedLandscapes;
+
+	// Keep track of all dirtied landscapes and force a refresh on them when exiting edit mode.
+	TArray<TObjectKey<ALandscapeProxy>> DirtiedLandscapes;
+
+	// Temp boolean to indicate we are currently exiting the landscape edit mode
+	bool bIsCurrentlyExitingLandscapeEditMode = false;
 #endif // WITH_EDITOR
 };

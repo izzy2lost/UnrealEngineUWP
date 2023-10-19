@@ -13,6 +13,7 @@ namespace UnrealBuildTool.Rules
 					"Chaos",
 					"Core",
 					"CoreUObject",
+					"DeveloperSettings",
 					"Engine",
 					"Landscape",
 					"Foliage",

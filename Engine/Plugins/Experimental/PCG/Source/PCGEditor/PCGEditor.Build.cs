@@ -46,6 +46,7 @@ namespace UnrealBuildTool.Rules
 					"ContentBrowser",
 					"DesktopWidgets",
 					"DetailCustomizations",
+					"EditorFramework",
 					"EditorScriptingUtilities",
 					"EditorStyle",
 					"EditorSubsystem",

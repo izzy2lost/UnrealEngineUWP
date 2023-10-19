@@ -23,7 +23,7 @@
 		{
 			"Name": "PCGEditor",
 			"Type": "Editor",
-			"LoadingPhase": "Default"
+			"LoadingPhase": "PostEngineInit"
 		},
 		{
 			"Name": "PCGCompute",

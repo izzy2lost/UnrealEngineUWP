@@ -10,6 +10,9 @@
 #include "PCGSubsystem.h"
 #include "PCGVolumeFactory.h"
 
+#include "Editor.h"
+#include "EditorModeManager.h"
+#include "EditorModes.h"
 #include "ISettingsModule.h"
 #include "PropertyEditorModule.h"
 #include "ToolMenus.h"
@@ -39,6 +42,12 @@ void FPCGEditorModule::StartupModule()
 	{
 		GEditor->ActorFactories.Add(NewObject<UPCGVolumeFactory>());
 	}
+
+	// Have a callback that catches changes in the Editor modes, to catch when we exit the landscape edit mode.
+	if (!IsRunningCommandlet() && GLevelEditorModeToolsIsValid())
+	{
+		GLevelEditorModeTools().OnEditorModeIDChanged().AddRaw(this, &FPCGEditorModule::OnEditorModeIDChanged);
+	}
 }
 
 void FPCGEditorModule::ShutdownModule()
@@ -55,6 +64,22 @@ void FPCGEditorModule::ShutdownModule()
 	if (GEditor)
 	{
 		GEditor->ActorFactories.RemoveAll([](const UActorFactory* ActorFactory) { return ActorFactory->IsA<UPCGVolumeFactory>(); });
+	}
+
+	if (!IsRunningCommandlet() && GLevelEditorModeToolsIsValid())
+	{
+		GLevelEditorModeTools().OnEditorModeIDChanged().RemoveAll(this);
+	}
+}
+
+void FPCGEditorModule::OnEditorModeIDChanged(const FEditorModeID& EditorModeID, bool bIsEntering)
+{
+	if (EditorModeID == FBuiltinEditorModes::EM_Landscape && !bIsEntering)
+	{
+		if (UPCGSubsystem* PCGSubsystem = UPCGSubsystem::GetSubsystemForCurrentWorld())
+		{
+			PCGSubsystem->NotifyLandscapeEditModeExited();
+		}
 	}
 }
 

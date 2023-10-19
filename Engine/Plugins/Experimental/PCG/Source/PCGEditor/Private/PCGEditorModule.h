@@ -32,6 +32,8 @@ protected:
 	void RegisterSettings();
 	void UnregisterSettings();
 
+	void OnEditorModeIDChanged(const FEditorModeID& EditorModeID, bool bIsEntering);
+
 	TArray<TSharedRef<IAssetTypeActions>> RegisteredAssetTypeActions;
 	static EAssetTypeCategories::Type PCGAssetCategory;
 

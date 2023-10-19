@@ -2,7 +2,8 @@
 
 #include "PCGModule.h"
 
-#include "PCGEngineSettings.h"
+#include "PCGContext.h"
+#include "PCGElement.h"
 
 #include "Modules/ModuleManager.h"
 
@@ -34,9 +35,6 @@ public:
 
 private:
 #if WITH_EDITOR
-	void RegisterSettings();
-	void UnregisterSettings();
-
 	void RegisterNativeElementDeterminismTests();
 	void DeregisterNativeElementDeterminismTests();
 #endif
@@ -45,8 +43,6 @@ private:
 #if WITH_EDITOR
 void FPCGModule::StartupModule()
 {
-	RegisterSettings();
-
 	PCGDeterminismTests::FNativeTestRegistry::Create();
 
 	RegisterNativeElementDeterminismTests();
@@ -54,30 +50,9 @@ void FPCGModule::StartupModule()
 
 void FPCGModule::ShutdownModule()
 {
-	UnregisterSettings();
-
 	DeregisterNativeElementDeterminismTests();
 
 	PCGDeterminismTests::FNativeTestRegistry::Destroy();
-}
-
-void FPCGModule::RegisterSettings()
-{
-	if (ISettingsModule* SettingsModule = FModuleManager::GetModulePtr<ISettingsModule>("Settings"))
-	{
-		SettingsModule->RegisterSettings("Project", "Plugins", "PCG",
-			LOCTEXT("PCGEngineSettingsName", "PCG"),
-			LOCTEXT("PCGEngineSettingsDescription", "Configure PCG."),
-			GetMutableDefault<UPCGEngineSettings>());
-	}
-}
-
-void FPCGModule::UnregisterSettings()
-{
-	if (ISettingsModule* SettingsModule = FModuleManager::GetModulePtr<ISettingsModule>("Settings"))
-	{
-		SettingsModule->UnregisterSettings("Project", "Plugins", "PCG");
-	}
 }
 
 void FPCGModule::RegisterNativeElementDeterminismTests()
@@ -96,5 +71,29 @@ void FPCGModule::DeregisterNativeElementDeterminismTests()
 IMPLEMENT_MODULE(FPCGModule, PCG);
 
 PCG_API DEFINE_LOG_CATEGORY(LogPCG);
+
+void PCGLog::LogErrorOnGraph(const FText& InMsg, const FPCGContext* InContext)
+{
+	if (InContext)
+	{
+		PCGE_LOG_C(Error, GraphAndLog, InContext, InMsg);
+	}
+	else
+	{
+		UE_LOG(LogPCG, Error, TEXT("%s"), *InMsg.ToString());
+	}
+}
+
+void PCGLog::LogWarningOnGraph(const FText& InMsg, const FPCGContext* InContext)
+{
+	if (InContext)
+	{
+		PCGE_LOG_C(Warning, GraphAndLog, InContext, InMsg);
+	}
+	else
+	{
+		UE_LOG(LogPCG, Warning, TEXT("%s"), *InMsg.ToString());
+	}
+}
 
 #undef LOCTEXT_NAMESPACE

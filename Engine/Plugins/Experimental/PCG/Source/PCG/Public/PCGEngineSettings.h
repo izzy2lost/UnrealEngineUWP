@@ -2,12 +2,12 @@
 
 #pragma once
 
-#include "UObject/Object.h"
+#include "Engine/DeveloperSettings.h"
 
 #include "PCGEngineSettings.generated.h"
 
-UCLASS(config = EditorPerProjectUserSettings)
-class PCG_API UPCGEngineSettings : public UObject
+UCLASS(config = Plugins, defaultconfig)
+class PCG_API UPCGEngineSettings : public UDeveloperSettings
 {
 	GENERATED_BODY()
 
@@ -19,4 +19,36 @@ public:
 	/** Whether we want to generate PCG graph/BP with PCG after drag/drop or not */
 	UPROPERTY(EditAnywhere, Config, Category = Workflow)
 	bool bGenerateOnDrop = true;
+
+#if WITH_EDITORONLY_DATA
+	// Console variables defined in PCGActorAndComponentMapping.cpp
+	// Use the variables to get the values, not GetDefault<UPCGEngineSettings>
+
+	/** Completely disable landscape refresh when it changes. */
+	UPROPERTY(EditAnywhere, Config, Category = LandscapeTracking, meta = (ConsoleVariable = "pcg.LandscapeDisableRefreshTracking"))
+	bool bLandscapeDisableRefreshTracking = false;
+
+	/** Completely disable landscape refresh when it changes in edit mode. Will force a refresh when landscape edit mode is exited. */
+	UPROPERTY(EditAnywhere, Config, Category = LandscapeTracking, meta = (ConsoleVariable = "pcg.LandscapeDisableRefreshTrackingInLandscapeEditingMode"))
+	bool bLandscapeDisableRefreshTrackingInLandscapeEditingMode = false;
+
+	/** Time in MS between a landscape change and PCG refresh. Set it to 0 or negative value to disable the delay. */
+	UPROPERTY(EditAnywhere, Config, Category = "LandscapeTracking|Advanced", meta = (ConsoleVariable = "pcg.LandscapeRefreshTimeDelayMS"))
+	int32 LandscapeRefreshTimeDelayMS = 1000;
+#endif // WITH_EDITORONLY_DATA
+
+
+	// Begin UDeveloperSettings Interface
+	virtual FName GetCategoryName() const override;
+#if WITH_EDITOR
+	virtual FText GetSectionText() const override;
+#endif // WITH_EDITOR
+	// End UDeveloperSettings Interface
+
+	//~ Begin UObject Interface
+	virtual void PostInitProperties() override;
+#if WITH_EDITOR
+	virtual void PostEditChangeProperty(FPropertyChangedEvent& PropertyChangedEvent) override;
+#endif
+	//~ End UObject Interface
 };
