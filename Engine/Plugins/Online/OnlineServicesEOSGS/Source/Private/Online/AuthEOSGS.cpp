@@ -1433,7 +1433,7 @@ void FAuthEOSGS::RegisterHandlers()
 		// Register for EAS connection status updates.
 		const int ApiVersion = 1;
 		UE_EOS_CHECK_API_MISMATCH(EOS_AUTH_ADDNOTIFYLOGINSTATUSCHANGED_API_LATEST, ApiVersion);
-		OnConnectAuthNotifyExpirationEOSEventRegistration = EOS_RegisterComponentEventHandler(
+		OnAuthLoginStatusChangedEOSEventRegistration = EOS_RegisterComponentEventHandler(
 			this,
 			AuthHandle,
 			ApiVersion,
@@ -1447,7 +1447,7 @@ void FAuthEOSGS::UnregisterHandlers()
 {
 	OnConnectLoginStatusChangedEOSEventRegistration = nullptr;
 	OnConnectAuthNotifyExpirationEOSEventRegistration = nullptr;
-	OnConnectAuthNotifyExpirationEOSEventRegistration = nullptr;
+	OnAuthLoginStatusChangedEOSEventRegistration = nullptr;
 }
 
 void FAuthEOSGS::OnConnectLoginStatusChanged(const EOS_Connect_LoginStatusChangedCallbackInfo* Data)
