@@ -574,6 +574,8 @@ public:
 
 	static EGameFeaturePluginState ConvertInitialFeatureStateToTargetState(EBuiltInAutoState InitialState);
 
+	/** Used during a DLC cook to determine which plugins should be cooked */
+	static void GetPluginsToCook(TSet<FString>& OutPlugins);
 private:
 	TSet<FString> GetActivePluginNames() const;
 

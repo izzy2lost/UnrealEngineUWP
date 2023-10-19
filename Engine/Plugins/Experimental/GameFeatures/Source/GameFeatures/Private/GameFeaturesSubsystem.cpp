@@ -2559,3 +2559,21 @@ EGameFeaturePluginState UGameFeaturesSubsystem::ConvertInitialFeatureStateToTarg
 	}
 	return InitialState;
 }
+
+void UGameFeaturesSubsystem::GetPluginsToCook(TSet<FString>& OutPlugins)
+{
+	// Command line parameter -CookPlugins.
+	static TArray<FString> PluginsList = []()
+	{
+		TArray<FString> ReturnList;
+		FString CookPluginsStr;
+		if (FParse::Value(FCommandLine::Get(), TEXT("CookPlugins="), CookPluginsStr, false))
+		{
+			CookPluginsStr.ParseIntoArray(ReturnList, TEXT(","));
+		}
+
+		return ReturnList;
+	}();
+	
+	OutPlugins.Append(PluginsList);
+}
