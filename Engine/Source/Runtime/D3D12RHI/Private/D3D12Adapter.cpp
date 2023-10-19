@@ -827,6 +827,13 @@ void FD3D12Adapter::CreateRootDevice(bool bWithDebug)
 				// TODO: Remove this when the debug layers work for executions which are guarded by a fence
 				D3D12_MESSAGE_ID_INVALID_USE_OF_NON_RESIDENT_RESOURCE,
 #endif
+
+				// When optimizing the graph DirectML tries various configurations to check if meta command can be used.
+				// If a particular configuration is not supported the debug log message will be displayed.
+				// For large DirectML graphs there can be dozens of messages like this.
+				// This is safe to ignore
+				D3D12_MESSAGE_ID_META_COMMAND_UNSUPPORTED_PARAMS,
+
 			};
 
 #if PLATFORM_DESKTOP

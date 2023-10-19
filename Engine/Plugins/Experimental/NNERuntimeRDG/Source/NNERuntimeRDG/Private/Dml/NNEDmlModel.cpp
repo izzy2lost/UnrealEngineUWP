@@ -487,53 +487,12 @@ public:
 			DmlExecFlags = DML_EXECUTION_FLAG_DISABLE_META_COMMANDS;
 		}
 
-#if defined(PLATFORM_WINDOWS) && !defined(PLATFORM_NNE_MICROSOFT)
-		TComPtr<ID3D12InfoQueue>	InfoQueue;
-		bool						bIsDebugFilterApplied = false;
-
-		if (GRHIGlobals.IsDebugLayerEnabled)
-		{
-			Res = InModel->DevCtx->D3D12Device->QueryInterface(DML_PPV_ARGS(&InfoQueue));
-			if (SUCCEEDED(Res))
-			{
-				Res = InfoQueue->PushCopyOfStorageFilter();
-
-				if (SUCCEEDED(Res))
-				{
-					// Ignore the specified message ID. This may fail if the ID was introduced later and
-					// isn't recognized by the D3D runtime (e.g. running on an older build of Windows).
-					// Failure here is OK because it just means there's nothing to suppress.
-					D3D12_MESSAGE_ID IgnoredIds[] = { D3D12_MESSAGE_ID_META_COMMAND_UNSUPPORTED_PARAMS };
-
-					D3D12_INFO_QUEUE_FILTER Filter = {};
-
-					Filter.DenyList.NumIDs = UE_ARRAY_COUNT(IgnoredIds);
-					Filter.DenyList.pIDList = IgnoredIds;
-
-					Res = InfoQueue->AddStorageFilterEntries(&Filter);
-					if (SUCCEEDED(Res))
-					{
-						bIsDebugFilterApplied = true;
-					}
-				}
-			}
-		}
-#endif
-
 		Res = Device1->CompileGraph(&Graph, DmlExecFlags, DML_PPV_ARGS(&Op));
 		if (FAILED(Res))
 		{
 			UE_LOG(LogNNE, Error, TEXT("Failed to compile DML graph"));
 			Op = nullptr;
 		};
-
-#if defined(PLATFORM_WINDOWS) && !defined(PLATFORM_NNE_MICROSOFT)
-		if (bIsDebugFilterApplied)
-		{
-			check(InfoQueue.IsValid());
-			InfoQueue->PopStorageFilter();
-		}
-#endif
 
 		return Op;
 	}
