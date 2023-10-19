@@ -4000,7 +4000,8 @@ public: \
 	if (!TestNotNull(What, Pointer))\
 	{\
 		return false;\
-	}
+	}\
+	CA_ASSUME(Pointer)
 
 #define UTEST_NOT_NULL_EXPR(Pointer)\
 	if (!TestNotNull(TEXT(#Pointer), Pointer))\
