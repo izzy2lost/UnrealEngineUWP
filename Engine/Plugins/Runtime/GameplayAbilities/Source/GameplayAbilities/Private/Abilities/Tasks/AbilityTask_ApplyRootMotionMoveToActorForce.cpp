@@ -49,6 +49,10 @@ void UAbilityTask_ApplyRootMotionMoveToActorForce::OnTargetActorSwapped(class AA
 	if (OriginalTarget && OriginalTarget == TargetActor)
 	{
 		TargetActor = NewTarget;
+
+		//This is called from ApplyRootMotionMoveToTargetDataActorForce, which doesn't use TargetComponent for now, so just clearing it out for consistency
+		TargetComponent = nullptr;
+		TargetComponentRelativeLocation = FVector::ZeroVector;
 	}
 }
 
@@ -60,6 +64,8 @@ UAbilityTask_ApplyRootMotionMoveToActorForce* UAbilityTask_ApplyRootMotionMoveTo
 
 	MyTask->ForceName = TaskInstanceName;
 	MyTask->TargetActor = TargetActor;
+	MyTask->TargetComponent = nullptr;
+	MyTask->TargetComponentRelativeLocation = FVector::ZeroVector;
 	MyTask->TargetLocationOffset = TargetLocationOffset;
 	MyTask->OffsetAlignment = OffsetAlignment;
 	MyTask->Duration = FMath::Max(Duration, KINDA_SMALL_NUMBER); // Avoid negative or divide-by-zero cases
@@ -83,6 +89,45 @@ UAbilityTask_ApplyRootMotionMoveToActorForce* UAbilityTask_ApplyRootMotionMoveTo
 	{
 		checkf(false, TEXT("UAbilityTask_ApplyRootMotionMoveToActorForce called without valid avatar actor to get start location from."));
 		MyTask->StartLocation = TargetActor ? TargetActor->GetActorLocation() : FVector(0.f);
+	}
+	MyTask->SharedInitAndApply();
+
+	return MyTask;
+}
+
+UAbilityTask_ApplyRootMotionMoveToActorForce* UAbilityTask_ApplyRootMotionMoveToActorForce::ApplyRootMotionMoveToComponentForce(UGameplayAbility* OwningAbility, FName TaskInstanceName, USceneComponent* TargetComponent, FVector TargetComponentRelativeLocation, FVector TargetLocationOffset, ERootMotionMoveToActorTargetOffsetType OffsetAlignment, float Duration, UCurveFloat* TargetLerpSpeedHorizontal, UCurveFloat* TargetLerpSpeedVertical, bool bSetNewMovementMode, EMovementMode MovementMode, bool bRestrictSpeedToExpected, UCurveVector* PathOffsetCurve, UCurveFloat* TimeMappingCurve, ERootMotionFinishVelocityMode VelocityOnFinishMode, FVector SetVelocityOnFinish, float ClampVelocityOnFinish, bool bDisableDestinationReachedInterrupt, float ReachedDestinationDistance)
+{
+	UAbilityTask_ApplyRootMotionMoveToActorForce* MyTask = NewAbilityTask<UAbilityTask_ApplyRootMotionMoveToActorForce>(OwningAbility, TaskInstanceName);
+
+	UAbilitySystemGlobals::NonShipping_ApplyGlobalAbilityScaler_Duration(Duration);
+
+	MyTask->ForceName = TaskInstanceName;
+	MyTask->TargetComponent = TargetComponent;
+	MyTask->TargetActor = TargetComponent ? TargetComponent->GetOwner() : nullptr;
+	MyTask->TargetComponentRelativeLocation = TargetComponentRelativeLocation;
+	MyTask->TargetLocationOffset = TargetLocationOffset;
+	MyTask->OffsetAlignment = OffsetAlignment;
+	MyTask->Duration = FMath::Max(Duration, KINDA_SMALL_NUMBER); // Avoid negative or divide-by-zero cases
+	MyTask->bDisableDestinationReachedInterrupt = bDisableDestinationReachedInterrupt;
+	MyTask->ReachedDestinationDistance = ReachedDestinationDistance;
+	MyTask->TargetLerpSpeedHorizontalCurve = TargetLerpSpeedHorizontal;
+	MyTask->TargetLerpSpeedVerticalCurve = TargetLerpSpeedVertical;
+	MyTask->bSetNewMovementMode = bSetNewMovementMode;
+	MyTask->NewMovementMode = MovementMode;
+	MyTask->bRestrictSpeedToExpected = bRestrictSpeedToExpected;
+	MyTask->PathOffsetCurve = PathOffsetCurve;
+	MyTask->TimeMappingCurve = TimeMappingCurve;
+	MyTask->FinishVelocityMode = VelocityOnFinishMode;
+	MyTask->FinishSetVelocity = SetVelocityOnFinish;
+	MyTask->FinishClampVelocity = ClampVelocityOnFinish;
+	if (MyTask->GetAvatarActor() != nullptr)
+	{
+		MyTask->StartLocation = MyTask->GetAvatarActor()->GetActorLocation();
+	}
+	else
+	{
+		checkf(false, TEXT("UAbilityTask_ApplyRootMotionMoveToActorForce called without valid avatar actor to get start location from."));
+		MyTask->StartLocation = TargetComponent ? TargetComponent->GetComponentTransform().TransformPosition(TargetComponentRelativeLocation) : FVector(0.f);
 	}
 	MyTask->SharedInitAndApply();
 
@@ -160,7 +205,9 @@ FVector UAbilityTask_ApplyRootMotionMoveToActorForce::CalculateTargetOffset() co
 {
 	check(TargetActor != nullptr);
 
-	const FVector TargetActorLocation = TargetActor->GetActorLocation();
+	const FVector TargetActorLocation = TargetComponent ?
+											TargetComponent->GetComponentTransform().TransformPosition(TargetComponentRelativeLocation) :
+											TargetActor->GetActorLocation();
 	FVector CalculatedTargetLocation = TargetActorLocation;
 	
 	if (OffsetAlignment == ERootMotionMoveToActorTargetOffsetType::AlignFromTargetToSource)
