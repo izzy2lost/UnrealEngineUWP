@@ -32,7 +32,7 @@ FText UAnimGraphNode_TwoWayBlend::GetTooltipText() const
 
 FText UAnimGraphNode_TwoWayBlend::GetNodeTitle(ENodeTitleType::Type TitleType) const
 {
-	return LOCTEXT("Blend", "Blend");
+	return LOCTEXT("TwoWayBlend", "Two Way Blend");
 }
 
 void UAnimGraphNode_TwoWayBlend::CustomizePinData(UEdGraphPin* Pin, FName SourcePropertyName, int32 ArrayIndex) const
