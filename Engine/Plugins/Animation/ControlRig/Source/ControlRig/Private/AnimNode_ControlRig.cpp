@@ -142,6 +142,9 @@ void FAnimNode_ControlRig::CacheBones_AnyThread(const FAnimationCacheBonesContex
 {
 	DECLARE_SCOPE_HIERARCHICAL_COUNTER_FUNC()
 
+	// make sure the inputs on the node are evaluated before propagating the inputs
+	GetEvaluateGraphExposedInputs().Execute(Context);
+
 	// we also need access to the properties when running construction event
 	PropagateInputProperties(Context.AnimInstanceProxy->GetAnimInstanceObject());
 
