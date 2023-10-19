@@ -16,6 +16,78 @@ using System.Threading.Tasks;
 namespace EpicGames.Horde.Compute.Clients
 {
 	/// <summary>
+	/// Handshake request message for tunneling server
+	/// </summary>
+	/// <param name="Host">Target host to relay traffic to/from</param>
+	/// <param name="Port">Target port</param>
+	public record TunnelHandshakeRequest(string Host, int Port)
+	{
+		const int Version = 1;
+		const string Name = "HANDSHAKE-REQ";
+		
+		/// <summary>
+		/// Serialize the message
+		/// </summary>
+		/// <returns>A string based representation</returns>
+		public string Serialize()
+		{
+			return $"{Name}\t{Version}\t{Host}\t{Port}";
+		}
+	
+		/// <summary>
+		/// Deserialize the message
+		/// </summary>
+		/// <param name="text">A raw string to deserialize</param>
+		/// <returns>A request message</returns>
+		/// <exception cref="Exception"></exception>
+		public static TunnelHandshakeRequest Deserialize(string? text)
+		{
+			string[] parts = (text ?? "").Split('\t');
+			if (parts.Length != 4 || parts[0] != Name || !Int32.TryParse(parts[1], out int _) || !Int32.TryParse(parts[3], out int port))
+			{
+				throw new Exception("Failed deserializing handshake request. Content: " + text);
+			}
+			return new TunnelHandshakeRequest(parts[2], port);
+		}
+	}
+	
+	/// <summary>
+	/// Handshake response message for tunneling server
+	/// </summary>
+	/// <param name="IsSuccess">Whether successful or not</param>
+	/// <param name="Message">Message with additional information describing the outcome</param>
+	public record TunnelHandshakeResponse(bool IsSuccess, string Message)
+	{
+		const int Version = 1;
+		const string Name = "HANDSHAKE-RES";
+		
+		/// <summary>
+		/// Serialize the message
+		/// </summary>
+		/// <returns>A string based representation</returns>
+		public string Serialize()
+		{
+			return $"{Name}\t{Version}\t{IsSuccess}\t{Message}";
+		}
+	
+		/// <summary>
+		/// Deserialize the message
+		/// </summary>
+		/// <param name="text">A raw string to deserialize</param>
+		/// <returns>A request message</returns>
+		/// <exception cref="Exception"></exception>
+		public static TunnelHandshakeResponse Deserialize(string? text)
+		{
+			string[] parts = (text ?? "").Split('\t');
+			if (parts.Length != 4 || !Int32.TryParse(parts[1], out int _) || !Boolean.TryParse(parts[2], out bool isSuccess))
+			{
+				throw new Exception("Failed deserializing handshake response. Content: " + text);
+			}
+			return new TunnelHandshakeResponse(isSuccess, parts[3]);
+		}
+	}
+	
+	/// <summary>
 	/// Helper class to enlist remote resources to perform compute-intensive tasks.
 	/// </summary>
 	public sealed class ServerComputeClient : IComputeClient
@@ -190,6 +262,8 @@ namespace EpicGames.Horde.Compute.Clients
 			await using RemoteComputeSocket computeSocket = new RemoteComputeSocket(new TcpTransport(socket), workerLogger);
 			yield return new LeaseInfo(responseMessage.Properties, responseMessage.AssignedResources, computeSocket);
 		}
+		
+		//private 
 	}
 
 	/// <summary>

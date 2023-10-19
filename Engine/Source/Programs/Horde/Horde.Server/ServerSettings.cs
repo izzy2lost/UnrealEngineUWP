@@ -415,14 +415,9 @@ namespace Horde.Server
 		public int Http2Port { get; set; }
 
 		/// <summary>
-		/// Port for listening to compute tunnel initiator requests
+		/// Port for tunneling compute sockets to agents
 		/// </summary>
-		public int ComputeInitiatorPort { get; set; }
-
-		/// <summary>
-		/// Port for compute remotes to connect to
-		/// </summary>
-		public int ComputeRemotePort { get; set; }
+		public int ComputeTunnelPort { get; set; }
 
 		/// <summary>
 		/// MongoDB connection string

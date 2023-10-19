@@ -3,6 +3,8 @@
 using System;
 using System.Collections.Generic;
 using System.Diagnostics.Metrics;
+using System.Net;
+using System.Net.Sockets;
 using System.Reflection;
 using System.Security.Claims;
 using System.Threading.Tasks;
@@ -451,6 +453,35 @@ namespace Horde.Server.Tests
 			}
 			
 			processExitInstance.TrySetResult(true);
+		}
+		
+		/// <summary>
+		/// Find an available TCP/IP port
+		/// </summary>
+		/// <returns>Port number available</returns>
+		public static int GetAvailablePort()
+		{
+			TcpListener listener = new(IPAddress.Loopback, 0);
+			listener.Start();
+			int port = ((IPEndPoint)listener.LocalEndpoint).Port;
+			listener.Stop();
+			return port;
+		}
+
+		/// <summary>
+		/// Create a console logger for tests
+		/// </summary>
+		/// <typeparam name="T">Type to instantiate</typeparam>
+		/// <returns>A logger</returns>
+		public static ILogger<T> CreateConsoleLogger<T>()
+		{
+			using ILoggerFactory loggerFactory = LoggerFactory.Create(builder =>
+			{
+				builder.SetMinimumLevel(LogLevel.Debug);
+				builder.AddSimpleConsole(options => { options.SingleLine = true; });
+			});
+			
+			return loggerFactory.CreateLogger<T>();
 		}
 	}
 	
