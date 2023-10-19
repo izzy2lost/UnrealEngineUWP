@@ -83,14 +83,27 @@ export const darkTheme = createTheme({
             styles: {
                 root: {
                     selectors: {
-                        '.ms-Checkbox-checkmark': { 
+                        '.ms-Checkbox-checkmark': {
                             color: "#FFFFFF"
                         }
                     }
                 }
             }
         },
-
+        "DatePicker": {
+            styles: {
+                callout: {
+                    selectors: {
+                        'button': {
+                            color: "#FFFFFF !important",
+                        },
+                        'button:disabled': {
+                            color: `#5F5F5F !important`,
+                        },
+                    }
+                }
+            }
+        }
     },
     palette: {
         themePrimary: '#0078d4',
