@@ -207,6 +207,9 @@ struct RIGVM_API FRigVMRuntimeSettings
 	// Keep in mind when looking at nodes in a function the duration
 	// represents the accumulated duration of all invocations
 	// of the function currently running.
+	// 
+	// Note: This can only be used when in Debug Mode. Click the "Release" button
+	// in the top toolbar to switch to Debug mode.
 	UPROPERTY(EditAnywhere, Category = "VM")
 	bool bEnableProfiling = false;
 #endif

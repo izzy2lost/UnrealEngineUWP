@@ -1603,6 +1603,15 @@ TArray<IRigVMGraphFunctionHost*> URigVMBlueprint::GetReferencedFunctionHosts(boo
 
 #if WITH_EDITOR
 
+void URigVMBlueprint::SetDebugMode(const bool bValue)
+{
+	bCompileInDebugMode = bValue;
+	if(!bCompileInDebugMode)
+	{
+		VMRuntimeSettings.bEnableProfiling = false;
+	}
+}
+
 void URigVMBlueprint::ClearBreakpoints()
 {
 	for(URigVMNode* Node : RigVMBreakpointNodes)

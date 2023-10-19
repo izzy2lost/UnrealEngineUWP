@@ -1947,6 +1947,11 @@ void FRigVMEditor::OnFinishedChangingProperties(const FPropertyChangedEvent& Pro
 		{
 			RigVMBlueprint->VMRuntimeSettings.Validate();
 			RigVMBlueprint->PropagateRuntimeSettingsFromBPToInstances();
+
+			if(RigVMBlueprint->VMRuntimeSettings.bEnableProfiling && !RigVMBlueprint->IsInDebugMode())
+			{
+				SetExecutionMode(ERigVMEditorExecutionModeType_Debug);
+			}
 		}
 	}
 }
