@@ -288,14 +288,17 @@ TArray<IAssetEditorInstance*> UAssetEditorSubsystem::FindEditorsForAssetAndSubOb
 {
 	TArray<IAssetEditorInstance*> EditorInstances;
 
-	for (const TPair<FAssetEntry, IAssetEditorInstance*>& Pair : OpenedAssets)
+	if (Asset)
 	{
-		if (Pair.Key.RawPtr == Asset || (Pair.Key.ObjectPtr.IsValid() && Pair.Key.ObjectPtr.Get()->IsIn(Asset)))
-		{		
-			EditorInstances.Add(Pair.Value);
+		for (const TPair<FAssetEntry, IAssetEditorInstance*>& Pair : OpenedAssets)
+		{
+			if (Pair.Key.RawPtr == Asset || (Pair.Key.ObjectPtr.IsValid() && Pair.Key.ObjectPtr.Get()->IsIn(Asset)))
+			{		
+				EditorInstances.Add(Pair.Value);
+			}
 		}
 	}
-
+	
 	return EditorInstances;
 }
 
