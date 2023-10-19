@@ -23,6 +23,105 @@ constexpr uint32 COOK_METADATA_HEADER_MAGIC = 'UCMT';
 
 DEFINE_LOG_CATEGORY_STATIC(LogCookedMetadata, Log, All)
 
+
+// For backwards compatibility - remove this after 5.4 is released.
+
+/** The name and dependency information for a plugin that was enabled during cooking. */
+struct COOKMETADATA_API FCookMetadataPluginEntry_ActualAddShaderPseudoHierarchy
+{
+	FString Name;
+	ECookMetadataPluginType Type = ECookMetadataPluginType::Unassigned;
+	TMap<uint8, bool> CustomBoolFields;
+	TMap<uint8, FString> CustomStringFields;
+	uint32 DependencyIndexStart = 0;
+	uint32 DependencyIndexEnd = 0;
+	FPluginSizeInfo InclusiveSizes;
+	FPluginSizeInfo ExclusiveSizes;
+
+	friend FArchive& operator<<(FArchive& Ar, FCookMetadataPluginEntry_ActualAddShaderPseudoHierarchy& Entry)
+	{
+		Ar << Entry.Name << Entry.DependencyIndexStart << Entry.DependencyIndexEnd;
+		Ar << Entry.InclusiveSizes << Entry.ExclusiveSizes;
+		Ar << Entry.CustomBoolFields << Entry.CustomStringFields << Entry.Type;
+		return Ar;
+	}
+};
+
+struct FCookMetadataPluginHierarchy_ActualAddShaderPseudoHierarchy
+{
+	TArray<FCookMetadataPluginEntry_ActualAddShaderPseudoHierarchy> PluginsEnabledAtCook;
+	TArray<uint16> PluginDependencies;
+	TArray<uint16> RootPlugins;
+	TArray<FString> CustomFieldNames;
+
+	friend FArchive& operator<<(FArchive& Ar, FCookMetadataPluginHierarchy_ActualAddShaderPseudoHierarchy& Hierarchy)
+	{
+		Ar << Hierarchy.PluginsEnabledAtCook << Hierarchy.PluginDependencies;
+		Ar << Hierarchy.RootPlugins << Hierarchy.CustomFieldNames;
+		return Ar;
+	}
+};
+
+static void FCookMetadataPluginHierarchy_ActualAddShaderPseudoHierarchy_To_AdjustCustomFieldLayout(
+	FCookMetadataPluginHierarchy_ActualAddShaderPseudoHierarchy& From,
+	FCookMetadataPluginHierarchy& To)
+{
+	To.PluginDependencies = MoveTemp(From.PluginDependencies);
+	To.RootPlugins = MoveTemp(From.RootPlugins);
+	
+	// Now bring over the plugins themselves.
+	TMap<uint8, bool> TypeIsBool;
+	for (FCookMetadataPluginEntry_ActualAddShaderPseudoHierarchy& OldEntry : From.PluginsEnabledAtCook)
+	{
+		FCookMetadataPluginEntry& NewEntry = To.PluginsEnabledAtCook.AddDefaulted_GetRef();
+		NewEntry.Name = MoveTemp(OldEntry.Name);
+		NewEntry.Type = OldEntry.Type;
+
+		for (TPair<uint8, bool>& Bools : OldEntry.CustomBoolFields)
+		{
+			FCookMetadataPluginEntry::CustomFieldVariantType V;
+			V.Set<bool>(Bools.Value);
+			NewEntry.CustomFields.Add(Bools.Key, MoveTemp(V));
+			TypeIsBool.Add(Bools.Key, true);
+		}
+		for (TPair<uint8, FString>& Strings : OldEntry.CustomStringFields)
+		{
+			FCookMetadataPluginEntry::CustomFieldVariantType V;
+			V.Emplace<FString>(MoveTemp(Strings.Value));
+			NewEntry.CustomFields.Add(Strings.Key, MoveTemp(V));
+			TypeIsBool.Add(Strings.Key, false);
+		}
+
+		NewEntry.DependencyIndexStart = OldEntry.DependencyIndexStart;
+		NewEntry.DependencyIndexEnd = OldEntry.DependencyIndexEnd;
+		NewEntry.InclusiveSizes = OldEntry.InclusiveSizes;
+		NewEntry.ExclusiveSizes = OldEntry.ExclusiveSizes;
+	}
+
+	uint8 EntryIndex = 0;
+	for (FString& FieldName : From.CustomFieldNames)
+	{
+		FCookMetadataPluginHierarchy::FCustomFieldEntry Field = To.CustomFieldEntries.AddDefaulted_GetRef();
+		Field.Name = MoveTemp(FieldName);
+		Field.Type = ECookMetadataCustomFieldType::Unknown;
+
+		const bool* bIsBool = TypeIsBool.Find(EntryIndex);
+		if (bIsBool)
+		{
+			if (*bIsBool)
+			{
+				Field.Type = ECookMetadataCustomFieldType::Bool;
+			}
+			else
+			{
+				Field.Type = ECookMetadataCustomFieldType::String;
+			}
+		}
+
+		EntryIndex++;
+	}
+}
+
 bool FCookMetadataState::Serialize(FArchive& Ar)
 {
 	uint32 MagicHeader = 0;
@@ -60,7 +159,22 @@ bool FCookMetadataState::Serialize(FArchive& Ar)
 		bSerializeShaderHierarchy = Version >= ECookMetadataStateVersion::ActualAddShaderPseudoHierarchy;
 
 	}
-	Ar << PluginHierarchy;
+
+	if (Ar.IsLoading() && Version <= ECookMetadataStateVersion::ActualAddShaderPseudoHierarchy)
+	{
+		// Serialize the old hierarchy and convert to the new layout.
+		FCookMetadataPluginHierarchy_ActualAddShaderPseudoHierarchy OldHierarchy;
+		Ar << OldHierarchy;
+
+		FCookMetadataPluginHierarchy_ActualAddShaderPseudoHierarchy_To_AdjustCustomFieldLayout(
+			OldHierarchy, PluginHierarchy);
+	}
+	else
+	{
+		// saving, or on a version with the new setup.
+		Ar << PluginHierarchy;
+	}
+
 	Ar << AssociatedDevelopmentAssetRegistryHash;
 	Ar << AssociatedDevelopmentAssetRegistryHashPostWriteback;
 	Ar << Platform;

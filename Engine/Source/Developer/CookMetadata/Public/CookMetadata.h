@@ -7,6 +7,7 @@
 #include "Containers/UnrealString.h"
 #include "CoreTypes.h"
 #include "Memory/MemoryFwd.h"
+#include "Misc/TVariant.h"
 #include "UObject/NameTypes.h"
 
 
@@ -25,6 +26,7 @@ enum class ECookMetadataStateVersion : uint8
 	AddedShaderPseudoHierarchy = 5,
 	AddedPluginEntryType = 6,
 	ActualAddShaderPseudoHierarchy = 7,
+	AdjustCustomFieldLayout = 8,
 
 	// Add new versions above this.
 	VersionCount,
@@ -145,6 +147,15 @@ enum class ECookMetadataPluginType
 
 };
 
+enum class ECookMetadataCustomFieldType : uint8
+{
+	Unknown,	// This only happens in the upgrade from an older cook metadata
+				// when there's nowhere to get the information from. This also means
+				// that there are no plugins that use this field so you can safely ignore it.
+	Bool,
+	String
+};
+
 /** The name and dependency information for a plugin that was enabled during cooking. */
 struct COOKMETADATA_API FCookMetadataPluginEntry
 {
@@ -154,9 +165,10 @@ struct COOKMETADATA_API FCookMetadataPluginEntry
 
 	// These contain values pulled from the uplugin json file and hold fields that are not
 	// part of the engine FPluginDescriptor. They are for per-project values. The keys for the maps
-	// are indices in to FCookMetadataPluginHierarchy::CustomFieldNames. See the comment for CustomFieldNames.
-	TMap<uint8, bool> CustomBoolFields;
-	TMap<uint8, FString> CustomStringFields;
+	// are indices in to FCookMetadataPluginHierarchy::CustomFieldEntries, where you'll also find what the type
+	// is. See the comment for CustomFieldEntries.
+	typedef TVariant<bool, FString> CustomFieldVariantType;
+	TMap<uint8, CustomFieldVariantType> CustomFields;
 
 	// The dependencies are stored in the FCookMetadataPluginHierarchy::PluginDependencies array,
 	// and this is an index into it. From there you can get a further index into PluginsEnabledAtCook
@@ -180,11 +192,12 @@ struct COOKMETADATA_API FCookMetadataPluginEntry
 
 	uint32 DependencyCount() const { return DependencyIndexEnd - DependencyIndexStart; }
 
+	// !!! If you edit this, be sure to update the upgrade paths in CookMetadata.cpp
 	friend FArchive& operator<<(FArchive& Ar, FCookMetadataPluginEntry& Entry)
 	{
 		Ar << Entry.Name << Entry.DependencyIndexStart << Entry.DependencyIndexEnd;
 		Ar << Entry.InclusiveSizes << Entry.ExclusiveSizes;
-		Ar << Entry.CustomBoolFields << Entry.CustomStringFields << Entry.Type;
+		Ar << Entry.CustomFields << Entry.Type;
 		return Ar;
 	}
 };
@@ -232,12 +245,22 @@ struct COOKMETADATA_API FCookMetadataPluginHierarchy
 	// Note that in the per platform case, the base value is not required (i.e. ExampleProjectBool above), however it
 	// provides a default value for unlisted platforms. If it does not exist, false is used for bool fields, and an empty string
 	// for string fields.
-	TArray<FString> CustomFieldNames;
+	struct FCustomFieldEntry
+	{
+		FString Name;
+		ECookMetadataCustomFieldType Type;
+		friend FArchive& operator<<(FArchive& Ar, FCustomFieldEntry& Entry)
+		{
+			return Ar << Entry.Name << Entry.Type;
+		}
+	};
+	TArray<FCustomFieldEntry> CustomFieldEntries;
 
+	// !!! If you edit this, be sure to update the upgrade paths in CookMetadata.cpp
 	friend FArchive& operator<<(FArchive& Ar, FCookMetadataPluginHierarchy& Hierarchy)
 	{
 		Ar << Hierarchy.PluginsEnabledAtCook << Hierarchy.PluginDependencies;
-		Ar << Hierarchy.RootPlugins << Hierarchy.CustomFieldNames;
+		Ar << Hierarchy.RootPlugins << Hierarchy.CustomFieldEntries;
 		return Ar;
 	}
 };

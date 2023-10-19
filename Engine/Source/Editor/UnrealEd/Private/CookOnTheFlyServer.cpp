@@ -9616,9 +9616,10 @@ void UCookOnTheFlyServer::WriteCookMetadata(const ITargetPlatform* InTargetPlatf
 
 		// Get the names as a unique list for indexing the names for serialization
 		TArray<FString> CustomFieldNames;
+		TArray<UE::Cook::ECookMetadataCustomFieldType> CustomFieldTypes;
 		TMap<FString, uint8> CustomFieldNameIndex;
 		{
-			auto GetNames = [&CustomFieldNameIndex, &CustomFieldNames](const TArray<FString>& FieldList)
+			auto GetNames = [&CustomFieldNameIndex, &CustomFieldNames, &CustomFieldTypes](const TArray<FString>& FieldList, UE::Cook::ECookMetadataCustomFieldType FieldType)
 			{
 				for (const FString& FieldName : FieldList)
 				{
@@ -9626,15 +9627,16 @@ void UCookOnTheFlyServer::WriteCookMetadata(const ITargetPlatform* InTargetPlatf
 					if (FoundAtIndex == MAX_uint8)
 					{
 						CustomFieldNames.Add(FieldName);
+						CustomFieldTypes.Add(FieldType);
 						FoundAtIndex = (uint8)(CustomFieldNames.Num() - 1);
 					}
 				}
 			};
 
-			GetNames(BoolCustomFieldsList);
-			GetNames(StringCustomFieldsList);
-			GetNames(PerPlatformBoolCustomFieldsList);
-			GetNames(PerPlatformStringCustomFieldsList);
+			GetNames(BoolCustomFieldsList, UE::Cook::ECookMetadataCustomFieldType::Bool);
+			GetNames(StringCustomFieldsList, UE::Cook::ECookMetadataCustomFieldType::String);
+			GetNames(PerPlatformBoolCustomFieldsList, UE::Cook::ECookMetadataCustomFieldType::Bool);
+			GetNames(PerPlatformStringCustomFieldsList, UE::Cook::ECookMetadataCustomFieldType::String);
 		}
 
 		if (CustomFieldNames.Num() > 255)
@@ -9683,7 +9685,7 @@ void UCookOnTheFlyServer::WriteCookMetadata(const ITargetPlatform* InTargetPlatf
 			{
 				for (const FString& FieldName : FieldNames)
 				{
-					TVariant<bool, FString> FieldValue;
+					UE::Cook::FCookMetadataPluginEntry::CustomFieldVariantType FieldValue;
 			
 					bool bHasField = false;
 
@@ -9771,14 +9773,7 @@ void UCookOnTheFlyServer::WriteCookMetadata(const ITargetPlatform* InTargetPlatf
 
 					if (bHasField)
 					{
-						if (bIsBool)
-						{
-							Entry.CustomBoolFields.Add(CustomFieldNameIndex[FieldName], FieldValue.Get<bool>());
-						}
-						else
-						{
-							Entry.CustomStringFields.Add(CustomFieldNameIndex[FieldName], MoveTemp(FieldValue.Get<FString>()));
-						}
+						Entry.CustomFields.Add(CustomFieldNameIndex[FieldName], FieldValue);
 					}
 				} // end each field name
 
@@ -9826,8 +9821,13 @@ void UCookOnTheFlyServer::WriteCookMetadata(const ITargetPlatform* InTargetPlatf
 		PluginHierarchy.PluginsEnabledAtCook = MoveTemp(PluginsToAdd);
 		PluginHierarchy.PluginDependencies = MoveTemp(PluginChildArray);
 		PluginHierarchy.RootPlugins = MoveTemp(RootPlugins);
-		PluginHierarchy.CustomFieldNames = MoveTemp(CustomFieldNames);
 
+		for (int32 FieldIndex = 0; FieldIndex < CustomFieldNames.Num(); FieldIndex++)
+		{
+			UE::Cook::FCookMetadataPluginHierarchy::FCustomFieldEntry& NewEntry = PluginHierarchy.CustomFieldEntries.AddDefaulted_GetRef();
+			NewEntry.Name = MoveTemp(CustomFieldNames[FieldIndex]);
+			NewEntry.Type = CustomFieldTypes[FieldIndex];
+		}
 
 		// Sanity check we assigned plugin types
 		for (UE::Cook::FCookMetadataPluginEntry& Entry : PluginHierarchy.PluginsEnabledAtCook)

@@ -4099,15 +4099,24 @@ static void UpdatePluginMetadataAndWriteJsons(
 		if (InGraphEntry.IndexInEnabledPlugins != TNumericLimits<uint16>::Max())
 		{
 			const UE::Cook::FCookMetadataPluginEntry& CookMetadataEntry = MutablePluginHierarchy.PluginsEnabledAtCook[InGraphEntry.IndexInEnabledPlugins];
-			for (const TPair<uint8, bool>& BoolValue : CookMetadataEntry.CustomBoolFields)
+			for (const TPair<uint8, UE::Cook::FCookMetadataPluginEntry::CustomFieldVariantType>& CustomValue : CookMetadataEntry.CustomFields)
 			{
-				const FString& FieldName = MutablePluginHierarchy.CustomFieldNames[BoolValue.Key];
-				OutPluginMetadataJson << "\t\"" << FieldName << (BoolValue.Value ? "\":true,\n" : "\":false,\n");
-			}
-			for (const TPair<uint8, FString>& StringValue : CookMetadataEntry.CustomStringFields)
-			{
-				const FString& FieldName = MutablePluginHierarchy.CustomFieldNames[StringValue.Key];
-				OutPluginMetadataJson << "\t\"" << FieldName << "\":\"" << StringValue.Value << "\",\n";
+				const FString& FieldName = MutablePluginHierarchy.CustomFieldEntries[CustomValue.Key].Name;
+				UE::Cook::ECookMetadataCustomFieldType FieldType = MutablePluginHierarchy.CustomFieldEntries[CustomValue.Key].Type;
+
+				OutPluginMetadataJson << "\t\"" << FieldName;
+				
+				if (CustomValue.Value.IsType<bool>())
+				{
+					check(FieldType == UE::Cook::ECookMetadataCustomFieldType::Bool);
+					OutPluginMetadataJson << (CustomValue.Value.Get<bool>() ? "\":true,\n" : "\":false,\n");
+				}
+				else
+				{
+					check(FieldType == UE::Cook::ECookMetadataCustomFieldType::String);
+					OutPluginMetadataJson << "\":\"" << CustomValue.Value.Get<FString>() << "\",\n";
+				}
+
 			}
 		}
 
