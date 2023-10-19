@@ -1141,25 +1141,24 @@ void FLevelEditorContextMenuImpl::FillActorLevelMenu(UToolMenu* Menu)
 
 void FLevelEditorContextMenuImpl::FillTransformMenu(UToolMenu* Menu)
 {
-	if ( FLevelEditorActionCallbacks::ElementSelected_CanExecute() )
+	if (ULevelEditorContextMenuContext* LevelEditorContext = Menu->FindContext<ULevelEditorContextMenuContext>())
 	{
-		FToolMenuSection& Section = Menu->AddSection("DeltaTransformToActors");
-		Section.AddMenuEntry(FLevelEditorCommands::Get().DeltaTransformToActors);
-	}
-
-	{
-		FToolMenuSection& Section = Menu->AddSection("MirrorLock");
-
-		// TODO: Need an element API to allow the mirror actions
-		if ( FLevelEditorActionCallbacks::ActorSelected_CanExecute() )
+		if (LevelEditorContext->CurrentSelection->GetNumSelectedElements() == 0)
 		{
+			return;
+		}
+
+		{
+			FToolMenuSection& Section = Menu->AddSection("DeltaTransformToActors");
+			Section.AddMenuEntry(FLevelEditorCommands::Get().DeltaTransformToActors);
+		}
+
+		if (LevelEditorContext->CurrentSelection->HasSelectedObjects<AActor>())
+		{
+			FToolMenuSection& Section = Menu->AddSection("MirrorLock");
 			Section.AddMenuEntry(FLevelEditorCommands::Get().MirrorActorX);
 			Section.AddMenuEntry(FLevelEditorCommands::Get().MirrorActorY);
 			Section.AddMenuEntry(FLevelEditorCommands::Get().MirrorActorZ);
-		}
-
-		if ( FLevelEditorActionCallbacks::ActorSelected_CanExecute() )
-		{
 			Section.AddMenuEntry(FLevelEditorCommands::Get().LockActorMovement);
 		}
 	}

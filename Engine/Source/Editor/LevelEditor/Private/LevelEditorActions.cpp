@@ -3333,8 +3333,13 @@ void FLevelEditorActionCallbacks::SnapTo2DLayer_Clicked()
 
 bool FLevelEditorActionCallbacks::CanSnapTo2DLayer()
 {
+	if (!ElementSelected_CanExecuteMove())
+	{
+		return false;
+	}
+
 	const ULevelEditor2DSettings* Settings = GetDefault<ULevelEditor2DSettings>();
-	return Settings->SnapLayers.IsValidIndex(GetDefault<ULevelEditorViewportSettings>()->ActiveSnapLayerIndex) && (GEditor->GetSelectedActorCount() > 0);
+	return Settings->SnapLayers.IsValidIndex(GetDefault<ULevelEditorViewportSettings>()->ActiveSnapLayerIndex);
 }
 
 void FLevelEditorActionCallbacks::MoveSelectionToDifferent2DLayer_Clicked(bool bGoingUp, bool bForceToTopOrBottom)
@@ -3541,6 +3546,28 @@ bool FLevelEditorActionCallbacks::ElementsSelected_CanExecute()
 	// TODO: Ideally this would come from some level editor context
 	const UTypedElementSelectionSet* SelectionSet = GEditor->GetSelectedActors()->GetElementSelectionSet();
 	return SelectionSet && SelectionSet->GetNumSelectedElements() > 1;
+}
+
+bool FLevelEditorActionCallbacks::ElementSelected_CanExecuteMove()
+{
+	// TODO: Ideally this would come from some level editor context
+	if (GCurrentLevelEditingViewportClient)
+	{
+		return GCurrentLevelEditingViewportClient->GetElementsToManipulate(false)->Num() > 0;
+	}
+
+	return false;
+}
+
+bool FLevelEditorActionCallbacks::ElementsSelected_CanExecuteMove()
+{
+	// TODO: Ideally this would come from some level editor context
+	if (GCurrentLevelEditingViewportClient)
+	{
+		return GCurrentLevelEditingViewportClient->GetElementsToManipulate(false)->Num() > 1;
+	}
+
+	return false;
 }
 
 void FLevelEditorActionCallbacks::GeometryCollection_SelectAllGeometry()

@@ -3280,6 +3280,14 @@ void UEditorEngine::ToggleSelectedActorMovementLock()
 		LevelDirtyCallback.Request();
 	}
 
+	// Update the editability status in the active viewport, which will update the gizmos
+	if (GCurrentLevelEditingViewportClient)
+	{
+		constexpr bool bForceCachedElementRefresh = true;
+		GCurrentLevelEditingViewportClient->GetElementsToManipulate(bForceCachedElementRefresh);
+	}
+	RedrawLevelEditingViewports(false);
+
 	bCheckForLockActors = true;
 }
 
