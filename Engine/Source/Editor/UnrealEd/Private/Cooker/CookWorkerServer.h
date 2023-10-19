@@ -99,6 +99,9 @@ public:
 	/** Set the LastReceivedHeartbeatNumber. Assumes lock is already entered; can only be called from with a HandleReceivedMessages callback */
 	void SetLastReceivedHeartbeatNumberInLock(int32 InHeartbeatNumber);
 
+	int32 GetPackagesAssignedFenceMarker() const;
+	int32 GetPackagesRetiredFenceMarker() const;
+
 private:
 	enum class EConnectStatus
 	{
@@ -189,6 +192,8 @@ private:
 	uint32 CookWorkerProcessId = 0;
 	int32 ProfileId = 0;
 	int32 LastReceivedHeartbeatNumber = 0;
+	int32 PackagesAssignedFenceMarker = 0;
+	int32 PackagesRetiredFenceMarker = 0;
 	double ConnectStartTimeSeconds = 0.;
 	double ConnectTestStartTimeSeconds = 0.;
 	FWorkerId WorkerId = FWorkerId::Invalid();

@@ -226,6 +226,7 @@ void FCookWorkerServer::ShutdownRemoteProcess()
 void FCookWorkerServer::AppendAssignments(TArrayView<FPackageData*> Assignments, ECookDirectorThread TickThread)
 {
 	FCommunicationScopeLock ScopeLock(this, TickThread, ETickAction::Queue);
+	++PackagesAssignedFenceMarker;
 	PackagesToAssign.Append(Assignments);
 }
 
@@ -254,6 +255,7 @@ void FCookWorkerServer::AbortAllAssignmentsInLock(TSet<FPackageData*>& OutPendin
 	}
 	OutPendingPackages.Append(PackagesToAssign);
 	PackagesToAssign.Empty();
+	++PackagesRetiredFenceMarker;
 }
 
 void FCookWorkerServer::AbortAssignment(FPackageData& PackageData, ECookDirectorThread TickThread,
@@ -282,6 +284,7 @@ void FCookWorkerServer::AbortAssignments(TConstArrayView<FPackageData*> PackageD
 
 		PackagesToAssign.Remove(PackageData);
 	}
+	++PackagesRetiredFenceMarker;
 	if (!PackageNamesToMessage.IsEmpty())
 	{
 		SendMessageInLock(FAbortPackagesMessage(MoveTemp(PackageNamesToMessage)));
@@ -383,6 +386,17 @@ void FCookWorkerServer::SetLastReceivedHeartbeatNumberInLock(int32 InHeartbeatNu
 	LastReceivedHeartbeatNumber = InHeartbeatNumber;
 }
 
+int32 FCookWorkerServer::GetPackagesAssignedFenceMarker() const
+{
+	FScopeLock CommunicationScopeLock(&CommunicationLock);
+	return PackagesAssignedFenceMarker;
+}
+
+int32 FCookWorkerServer::GetPackagesRetiredFenceMarker() const
+{
+	FScopeLock CommunicationScopeLock(&CommunicationLock);
+	return PackagesRetiredFenceMarker;
+}
 
 bool FCookWorkerServer::TryHandleConnectMessage(FWorkerConnectMessage& Message, FSocket* InSocket, TArray<UE::CompactBinaryTCP::FMarshalledMessage>&& OtherPacketMessages, ECookDirectorThread TickThread)
 {
@@ -801,6 +815,7 @@ void FCookWorkerServer::RecordResults(FPackageResultsMessage& Message)
 {
 	check(TickState.TickThread == ECookDirectorThread::SchedulerThread);
 
+	bool bRetiredAnyPackages = false;
 	for (FPackageRemoteResult& Result : Message.Results)
 	{
 		FPackageData* PackageData = COTFS.PackageDatas->FindPackageDataByPackageName(Result.GetPackageName());
@@ -816,6 +831,7 @@ void FCookWorkerServer::RecordResults(FPackageResultsMessage& Message)
 				ProfileId, *Result.GetPackageName().ToString());
 			continue;
 		}
+		bRetiredAnyPackages = true;
 		PackageData->SetWorkerAssignment(FWorkerId::Invalid(), ESendFlags::QueueNone);
 
 		// MPCOOKTODO: Refactor FSaveCookedPackageContext::FinishPlatform and ::FinishPackage so we can call them from here
@@ -869,6 +885,10 @@ void FCookWorkerServer::RecordResults(FPackageResultsMessage& Message)
 		}
 	}
 	Director.ResetFinalIdleHeartbeatFence();
+	if (bRetiredAnyPackages)
+	{
+		++PackagesRetiredFenceMarker;
+	}
 }
 
 void FCookWorkerServer::LogInvalidMessage(const TCHAR* MessageTypeName)

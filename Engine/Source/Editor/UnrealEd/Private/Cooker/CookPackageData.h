@@ -1115,6 +1115,9 @@ public:
 	/** Callback called from FPackageData when it has changed its state. */
 	void OnStateChanged(FPackageData& PackageData, EPackageState OldState);
 
+	int32 GetMPCookAssignedFenceMarker() const;
+	int32 GetMPCookRetiredFenceMarker() const;
+
 private:
 	/** Increment or decrement the NumUrgent counter for the given state. */
 	void TrackUrgentRequests(EPackageState State, int32 Delta);
@@ -1123,6 +1126,8 @@ private:
 	int32 NumCooked[(uint8)ECookResult::Count]{};
 	int32 NumPreloadAllocated = 0;
 	int32 NumUrgentInState[static_cast<uint32>(EPackageState::Count)];
+	int32 MPCookAssignedFenceMarker = 0;
+	int32 MPCookRetiredFenceMarker = 0;
 };
 
 struct FDiscoveryQueueElement

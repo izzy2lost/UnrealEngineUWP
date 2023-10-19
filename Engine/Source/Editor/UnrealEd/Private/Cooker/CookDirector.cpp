@@ -80,7 +80,11 @@ private:
 		WantToRetract,
 		WaitingForResponse,
 	};
-
+	enum class ERetractionResult : uint8
+	{
+		NoneAvailable,
+		Retracted
+	};
 private:
 	/** Try to select a worker for retraction */
 	ERetractionState TickWantToRetract();
@@ -91,15 +95,19 @@ private:
 	 * Pick workers to give the retracted packages to, and assign those packages to the worker
 	 * in the local and remote state.
 	 */
-	void ReassignPackages(const FWorkerId& WorkerId, TConstArrayView<FPackageData*> Packages);
+	ERetractionResult ReassignPackages(const FWorkerId& WorkerId, TConstArrayView<FPackageData*> Packages);
 	/** Pick workers to give the retracted packages to. */
 	TArray<FWorkerId> CalculateWorkersToSplitOver(int32 NumPackages, const FWorkerId& FromWorker,
 		TConstArrayView<TRefCountPtr<FCookWorkerServer>> LocalRemoteWorkers);
+
+	void SetRetractionState(ERetractionState NewState);
+	bool IsAvailableForRetraction(const FWorkerId& WorkerId);
 
 private:
 	FCookDirector& Director;
 	FWorkerId ExpectedWorker;
 	TMap<FWorkerId, TArray<FName>> PackagesToRetract;
+	TMap<FWorkerId, int32> WorkersUnavailableForRetract;
 	FWorkerId WorkerWithResults;
 	double MessageSentTimeSeconds = 0.;
 	double LastWarnTimeSeconds = 0.;
@@ -475,7 +483,7 @@ void FCookDirector::RemoveFromWorker(FPackageData& PackageData)
 	TRefCountPtr<FCookWorkerServer> OwningWorker;
 	{
 		FScopeLock CommunicationScopeLock(&CommunicationLock);
-		TRefCountPtr<FCookWorkerServer>* RemoteWorkerPtr = RemoteWorkers.Find(WorkerId.GetRemoteIndex());
+		const TRefCountPtr<FCookWorkerServer>* RemoteWorkerPtr = FindRemoteWorkerInLock(WorkerId);
 		if (!RemoteWorkerPtr)
 		{
 			return;
@@ -589,7 +597,7 @@ FString FCookDirector::GetDisplayName(const FWorkerId& WorkerId, int32 Preferred
 		const TRefCountPtr<FCookWorkerServer>* RemoteWorker = nullptr;
 		{
 			FScopeLock CommunicationScopeLock(&CommunicationLock);
-			RemoteWorker = RemoteWorkers.Find(WorkerId.GetRemoteIndex());
+			RemoteWorker = FindRemoteWorkerInLock(WorkerId);
 			if (!RemoteWorker)
 			{
 				for (const TPair<FCookWorkerServer*, TRefCountPtr<FCookWorkerServer>>& Pair : ShuttingDownWorkers)
@@ -622,6 +630,15 @@ FString FCookDirector::GetDisplayName(const FCookWorkerServer& RemoteWorker, int
 	constexpr FStringView Prefix(TEXTVIEW("CookWorker "));
 	Result = FString(Prefix) + Result.LeftPad(PreferredWidth - Prefix.Len());
 	return Result;
+}
+
+const TRefCountPtr<FCookWorkerServer>* FCookDirector::FindRemoteWorkerInLock(const FWorkerId& WorkerId) const
+{
+	if (!WorkerId.IsRemote())
+	{
+		return nullptr;
+	}
+	return RemoteWorkers.Find(WorkerId.GetRemoteIndex());
 }
 
 void FCookDirector::TickCommunication(ECookDirectorThread TickThread)
@@ -1491,8 +1508,14 @@ FCookDirector::FRetractionHandler::ERetractionState FCookDirector::FRetractionHa
 	if (Director.bAllowLocalCooks)
 	{
 		int32 NumAssignments = Director.COTFS.NumMultiprocessLocalWorkerAssignments();
-		BusiestWorker = FWorkerId::Local();
-		BusiestNumAssignments = NumAssignments;
+		if (NumAssignments > BusiestNumAssignments)
+		{
+			if (IsAvailableForRetraction(FWorkerId::Local()))
+			{
+				BusiestWorker = FWorkerId::Local();
+				BusiestNumAssignments = NumAssignments;
+			}
+		}
 		if (NumAssignments == 0)
 		{
 			IdleWorkers.Add(FWorkerId::Local());
@@ -1503,10 +1526,13 @@ FCookDirector::FRetractionHandler::ERetractionState FCookDirector::FRetractionHa
 	for (const TRefCountPtr<FCookWorkerServer>& RemoteWorker : LocalRemoteWorkers)
 	{
 		int32 NumAssignments = RemoteWorker->NumAssignments();
-		if (BusiestWorker.IsInvalid() || NumAssignments > BusiestNumAssignments)
+		if (NumAssignments > BusiestNumAssignments)
 		{
-			BusiestWorker = RemoteWorker->GetWorkerId();
-			BusiestNumAssignments = NumAssignments;
+			if (IsAvailableForRetraction(RemoteWorker->GetWorkerId()))
+			{
+				BusiestWorker = RemoteWorker->GetWorkerId();
+				BusiestNumAssignments = NumAssignments;
+			}
 		}
 		if (NumAssignments == 0)
 		{
@@ -1516,9 +1542,11 @@ FCookDirector::FRetractionHandler::ERetractionState FCookDirector::FRetractionHa
 	if (IdleWorkers.IsEmpty() || BusiestNumAssignments < RetractionMinimumNumAssignments)
 	{
 		// Worker loads changed after the point where we decided to initialize the RetractionHandler,
-		// and retraction is no longer needed.
-		return ERetractionState::Idle;
+		// or all workers with packages assigned are unavailable for retraction, so retraction is not
+		// currently possible. Try again later.
+		return ERetractionState::WantToRetract;
 	}
+	check(!BusiestWorker.IsInvalid());
 
 	// Plan to divide the assignments evenly between all idle workers and the one busiest worker. This means
 	// retracting all but 1/(N+1) packages from the busiest worker.
@@ -1567,28 +1595,87 @@ void FCookDirector::FRetractionHandler::TickFromSchedulerThread(bool bAllWorkers
 	switch (RetractionState)
 	{
 	case ERetractionState::Idle:
+	{
 		if (!bAnyIdle || !bAllWorkersConnected || BusiestNumAssignments <= RetractionMinimumNumAssignments)
 		{
 			break;
 		}
-		RetractionState = ERetractionState::WantToRetract;
-		RetractionState = TickWantToRetract();
+		SetRetractionState(ERetractionState::WantToRetract);
+		ERetractionState NewState = TickWantToRetract();
+		SetRetractionState(NewState);
 		break;
+	}
 	case ERetractionState::WantToRetract:
+	{
 		if (!bAnyIdle || !bAllWorkersConnected || BusiestNumAssignments <= RetractionMinimumNumAssignments)
 		{
-			RetractionState = ERetractionState::Idle;
+			SetRetractionState(ERetractionState::Idle);
 			break;
 		}
-		RetractionState = TickWantToRetract();
+		ERetractionState NewState = TickWantToRetract();
+		SetRetractionState(NewState);
 		break;
+	}
 	case ERetractionState::WaitingForResponse:
-		RetractionState = TickWaitingForResponse();
+	{
+		ERetractionState NewState = TickWaitingForResponse();
+		SetRetractionState(NewState);
 		break;
+	}
 	default:
 		checkNoEntry();
 		break;
 	}
+}
+
+void FCookDirector::FRetractionHandler::SetRetractionState(ERetractionState NewState)
+{
+	if (RetractionState == NewState)
+	{
+		return;
+	}
+
+	RetractionState = NewState;
+	if (NewState == ERetractionState::Idle)
+	{
+		WorkersUnavailableForRetract.Empty();
+	}
+}
+
+bool FCookDirector::FRetractionHandler::IsAvailableForRetraction(const FWorkerId& WorkerId)
+{
+	// Called from inside CommunicationLock
+	int32* AssignedPackagesFence = WorkersUnavailableForRetract.Find(WorkerId);
+	if (!AssignedPackagesFence)
+	{
+		return true;
+	}
+
+	int32 CurrentFenceMarker;
+	if (WorkerId.IsLocal())
+	{
+		CurrentFenceMarker = Director.COTFS.PackageDatas->GetMonitor().GetMPCookAssignedFenceMarker();
+	}
+	else
+	{
+		const TRefCountPtr<FCookWorkerServer>* RemoteWorker = Director.FindRemoteWorkerInLock(WorkerId);
+		if (!RemoteWorker)
+		{
+			WorkersUnavailableForRetract.Remove(WorkerId);
+			return true;
+		}
+		CurrentFenceMarker = (*RemoteWorker)->GetPackagesAssignedFenceMarker();
+	}
+
+	if (*AssignedPackagesFence == CurrentFenceMarker)
+	{
+		// FenceMarker has not changed since we recorded the worker as unavailable for retraction at that fence marker
+		// The worker is still unavailable for retraction
+		return false;
+	}
+
+	WorkersUnavailableForRetract.Remove(WorkerId);
+	return true;
 }
 
 FCookDirector::FRetractionHandler::ERetractionState FCookDirector::FRetractionHandler::TickWaitingForResponse()
@@ -1611,7 +1698,7 @@ FCookDirector::FRetractionHandler::ERetractionState FCookDirector::FRetractionHa
 		}
 		check(ExpectedWorker.IsRemote());
 		{
-			TRefCountPtr<FCookWorkerServer>* RemoteWorkerPtr = Director.RemoteWorkers.Find(ExpectedWorker.GetRemoteIndex());
+			const TRefCountPtr<FCookWorkerServer>* RemoteWorkerPtr = Director.FindRemoteWorkerInLock(ExpectedWorker);
 			if (!RemoteWorkerPtr)
 			{
 				// The CookWorker aborted and we already reassigned all of its packages; stop waiting for a retraction message from it.
@@ -1633,7 +1720,7 @@ FCookDirector::FRetractionHandler::ERetractionState FCookDirector::FRetractionHa
 		TRefCountPtr<FCookWorkerServer> RemoteWorker;
 		if (Pair.Key.IsRemote())
 		{
-			TRefCountPtr<FCookWorkerServer>* FoundRemoteWorker = Director.RemoteWorkers.Find(Pair.Key.GetRemoteIndex());
+			const TRefCountPtr<FCookWorkerServer>* FoundRemoteWorker = Director.FindRemoteWorkerInLock(Pair.Key);
 			if (FoundRemoteWorker)
 			{
 				RemoteWorker = *FoundRemoteWorker;
@@ -1659,13 +1746,35 @@ FCookDirector::FRetractionHandler::ERetractionState FCookDirector::FRetractionHa
 	}
 
 	// Reassign the packages
-	ReassignPackages(WorkerWithResults, PackageDatasToReassign);
+	ERetractionResult Result = ReassignPackages(WorkerWithResults, PackageDatasToReassign);
+	if (Result == ERetractionResult::NoneAvailable)
+	{
+		TOptional<int32> AssignedPackagesFence;
+		if (WorkerWithResults.IsLocal())
+		{
+			AssignedPackagesFence.Emplace(Director.COTFS.PackageDatas->GetMonitor().GetMPCookAssignedFenceMarker());
+		}
+		else
+		{
+			const TRefCountPtr<FCookWorkerServer>* RemoteWorker = Director.FindRemoteWorkerInLock(WorkerWithResults);
+			if (RemoteWorker)
+			{
+				AssignedPackagesFence.Emplace((*RemoteWorker)->GetPackagesAssignedFenceMarker());
+			}
+		}
+		if (AssignedPackagesFence.IsSet())
+		{
+			WorkersUnavailableForRetract.Add(WorkerWithResults, *AssignedPackagesFence);
+		}
+	}
 
 	// Mark that we are no longer waiting
 	ExpectedWorker = FWorkerId::Invalid();
 	WorkerWithResults = FWorkerId::Invalid();
 	PackagesToRetract.Empty();
-	return ERetractionState::Idle;
+
+	// Return to WantToRetract state; that state will handle returning to idle if the retraction was sufficient
+	return ERetractionState::WantToRetract;
 }
 
 void FCookDirector::FRetractionHandler::HandleRetractionMessage(FMPCollectorServerMessageContext& Context,
@@ -1685,7 +1794,7 @@ void FCookDirector::FRetractionHandler::HandleRetractionMessage(FMPCollectorServ
 		UE_LOG(LogCook, Warning, TEXT("Retractionmessage received from CookWorker %d when we were not expecting one."),
 			Context.GetProfileId());
 		InitializeForResultsMessage(Context.GetWorkerId());
-		RetractionState = ERetractionState::WaitingForResponse;
+		SetRetractionState(ERetractionState::WaitingForResponse);
 	}
 
 	UE_CLOG(WorkerWithResults.IsValid(), LogCook, Error,
@@ -1694,7 +1803,8 @@ void FCookDirector::FRetractionHandler::HandleRetractionMessage(FMPCollectorServ
 	PackagesToRetract.FindOrAdd(WorkerWithResults).Append(Message.ReturnedPackages);
 }
 
-void FCookDirector::FRetractionHandler::ReassignPackages(const FWorkerId& FromWorker, TConstArrayView<FPackageData*> Packages)
+FCookDirector::FRetractionHandler::ERetractionResult
+FCookDirector::FRetractionHandler::ReassignPackages(const FWorkerId& FromWorker, TConstArrayView<FPackageData*> Packages)
 {
 	TArray<TRefCountPtr<FCookWorkerServer>> LocalRemoteWorkers = Director.CopyRemoteWorkers();
 
@@ -1726,7 +1836,7 @@ void FCookDirector::FRetractionHandler::ReassignPackages(const FWorkerId& FromWo
 		UE_LOG(LogCook, Display, TEXT("Retraction results message received from %s; no packages were available for retraction."),
 			*Director.GetDisplayName(FromWorker));
 		Director.DisplayRemainingPackages();
-		return;
+		return ERetractionResult::NoneAvailable;
 	}
 
 	TArray<FWorkerId> WorkersToSplitOver = CalculateWorkersToSplitOver(AssignmentPackages.Num(), FromWorker, LocalRemoteWorkers);
@@ -1742,7 +1852,7 @@ void FCookDirector::FRetractionHandler::ReassignPackages(const FWorkerId& FromWo
 		UE_LOG(LogCook, Display, TEXT("%d packages retracted from %s. No workers are currently idle so the packages were assigned evenly to all CookWorkers."),
 			AssignmentPackages.Num(), *Director.GetDisplayName(FromWorker));
 		Director.DisplayRemainingPackages();
-		return;
+		return ERetractionResult::Retracted;
 	}
 	for (const FWorkerId& WorkerId : WorkersRequiredByConstraint)
 	{
@@ -1789,6 +1899,8 @@ void FCookDirector::FRetractionHandler::ReassignPackages(const FWorkerId& FromWo
 		// that we didn't consider during SoftGC
 		Director.COTFS.PackageTracker->ClearExpectedNeverLoadPackages();
 	}
+
+	return ERetractionResult::Retracted;
 }
 
 TArray<FWorkerId> FCookDirector::FRetractionHandler::CalculateWorkersToSplitOver(int32 NumPackages, const FWorkerId& FromWorker,

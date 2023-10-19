@@ -210,6 +210,7 @@ private:
 	void DisplayRemainingPackages() const;
 	FString GetDisplayName(const FWorkerId& WorkerId, int32 PreferredWidth = -1) const;
 	FString GetDisplayName(const FCookWorkerServer& RemoteWorker, int32 PreferredWidth=-1) const;
+	const TRefCountPtr<FCookWorkerServer>* FindRemoteWorkerInLock(const FWorkerId& WorkerId) const;
 
 private:
 	// Synchronization primitives that can be used from any thread

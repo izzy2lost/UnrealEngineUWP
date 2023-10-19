@@ -2581,6 +2581,14 @@ void FPackageDataMonitor::OnStateChanged(FPackageData& PackageData, EPackageStat
 
 	TrackUrgentRequests(OldState, -1);
 	TrackUrgentRequests(PackageData.GetState(), 1);
+
+	EPackageState NewState = PackageData.GetState();
+	bool bOldStateAssignedToLocal = OldState != EPackageState::Idle && OldState != EPackageState::AssignedToWorker;
+	bool bNewStateAssignedToLocal = NewState != EPackageState::Idle && NewState != EPackageState::AssignedToWorker;
+	if (bOldStateAssignedToLocal != bNewStateAssignedToLocal)
+	{
+		++(bNewStateAssignedToLocal ? MPCookAssignedFenceMarker : MPCookRetiredFenceMarker);
+	}
 }
 
 void FPackageDataMonitor::TrackUrgentRequests(EPackageState State, int32 Delta)
@@ -2590,6 +2598,15 @@ void FPackageDataMonitor::TrackUrgentRequests(EPackageState State, int32 Delta)
 	check(NumUrgentInState[static_cast<uint32>(State) - static_cast<uint32>(EPackageState::Min)] >= 0);
 }
 
+int32 FPackageDataMonitor::GetMPCookAssignedFenceMarker() const
+{
+	return MPCookAssignedFenceMarker;
+}
+
+int32 FPackageDataMonitor::GetMPCookRetiredFenceMarker() const
+{
+	return MPCookRetiredFenceMarker;
+}
 
 //////////////////////////////////////////////////////////////////////////
 // FPackageDatas
