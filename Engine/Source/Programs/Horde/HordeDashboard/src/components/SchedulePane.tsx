@@ -172,7 +172,12 @@ export const SchedulePane: React.FC<{ templates: GetTemplateRefResponse[] }> = (
 
          const nprops = { ...props, styles: { root: { backgroundColor: "unset", padding: 8 } } };
 
-         return <DetailsRow {...nprops} />
+         let background: string | undefined;
+         if (props.itemIndex % 2 === 0) {
+            background  =  dashboard.darktheme ? "#1D2021" : "#FAF9F9";
+         }
+
+         return <DetailsRow {...nprops} styles={{root: {background: background}}}/>
 
       }
       return null;

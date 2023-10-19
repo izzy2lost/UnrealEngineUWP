@@ -23,13 +23,6 @@ const hordeLightTheme = {
 
 export const lightTheme = createTheme({
     components: {        
-        "PrimaryButton": {
-            styles: {
-                label: {
-                    color: "#FFFFFF"
-                }
-            }
-        },
         "CommandBarButton": {
             styles: {
                 label: {
@@ -80,6 +73,7 @@ export const lightTheme = createTheme({
         bodyBackground: "#FFFFFF",
         bodyText: bodyText,
         buttonText: "#000000",
+        buttonTextDisabled: "#949898",
         actionLink: "#000000",
         actionLinkHovered: "#000000",
         link: linkColor,
@@ -87,7 +81,9 @@ export const lightTheme = createTheme({
         listText: "#000000",
         listBackground: "#FF0000",
         listItemBackgroundHovered: "#f3f2f1",
-        primaryButtonText: "#FFFFFF"
+        primaryButtonText: "#FFFFFF",
+        primaryButtonTextDisabled: "#949898"
+        
 
     },
     defaultFontStyle: {

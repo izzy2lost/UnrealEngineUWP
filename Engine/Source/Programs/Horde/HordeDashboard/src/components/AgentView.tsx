@@ -1690,7 +1690,7 @@ export const PoolEditorModal: React.FC = observer(() => {
                         <DefaultButton href={`/pools?pool=${editPoolsModalState.lastSelectedPool?.pool?.id}`} target="_blank">Details</DefaultButton>
                      </Stack>
                      <Stack grow />
-                     <PrimaryButton disabled={!editPoolsModalState.isPoolValueValid} onClick={() => { editPoolsModalState.isDirectEdit ? editPoolsModalState.saveChanges() : editPoolsModalState.setEditorOpen(false, false); }} styles={{ root: { marginRight: "10px" } }}>
+                     <PrimaryButton disabled={!editPoolsModalState.isPoolValueValid} onClick={() => { editPoolsModalState.isDirectEdit ? editPoolsModalState.saveChanges() : editPoolsModalState.setEditorOpen(false, false); }} styles={{ root: { marginRight: "10px"} }}>
                         {editPoolsModalState.isDirectEdit ? "Update" : "Save"}
                      </PrimaryButton>
                      <DefaultButton onClick={() => { editPoolsModalState.isDirectEdit ? editPoolsModalState.setClose() : editPoolsModalState.setEditorOpen(false, true); }} styles={{ root: { marginRight: "10px" } }}>Cancel</DefaultButton>
@@ -1878,12 +1878,11 @@ export const AgentViewInner: React.FC<{ agentId?: string, poolId?: string, searc
    // }
 
    // main header
-   const onRenderDetailsHeader: IDetailsListProps['onRenderDetailsHeader'] = (props) => {
-      const customStyles: Partial<IDetailsHeaderStyles> = {};
+   const onRenderDetailsHeader: IDetailsListProps['onRenderDetailsHeader'] = (props) => {      
       if (props) {
          return (
             <Sticky stickyPosition={StickyPositionType.Header} isScrollSynced={true}>
-               <DetailsHeader {...props} styles={customStyles} onRenderColumnHeaderTooltip={onRenderColumnHeaderTooltip} />
+               <DetailsHeader {...props} onRenderColumnHeaderTooltip={onRenderColumnHeaderTooltip} />
             </Sticky>
          );
       }
@@ -2612,8 +2611,8 @@ export const AgentViewInner: React.FC<{ agentId?: string, poolId?: string, searc
                   <ProgressIndicator
                      barHeight={15}
                      styles={{
-                        progressBar: { marginLeft: 2, marginTop: 2, height: '42%', backgroundColor: (realPercentage > .85 ? "rgb(218,38,38)" : "rgb(0,120,212)") },
-                        progressTrack: { width: '98%', border: '1px solid rgb(198,198,198) !important', backgroundColor: 'white' },
+                        progressBar: { height: 13, marginLeft: 1, marginTop: 2},
+                        progressTrack: { width: '98%', border: '1px solid !important'},
                         root: { width: 110 }
                      }}
                      percentComplete={nudgedPercentage}

@@ -260,7 +260,7 @@ const TestSummaryButton: React.FC<{ test: GetTestResponse, handler: TestDataHand
             </Stack>
          </Stack>
          {StatusBar(stack, 298, 10, statusColors.get(StatusColor.Success)!, { margin: '3px !important' })}
-         {!!streamExpanded.get(streamId) && <Stack style={{ border: "1px solid #CDCBC9" }}>{metaElements}</Stack>}
+         {!!streamExpanded.get(streamId) && <Stack style={{ border: `1px solid ${dashboard.darktheme ? "#3F4447" : "#CDCBC9"}` }}>{metaElements}</Stack>}
       </Stack>)
    });
 
@@ -280,7 +280,7 @@ const TestSummaryButton: React.FC<{ test: GetTestResponse, handler: TestDataHand
       }
    ]
 
-   return <Stack className={hordeClasses.raised} style={{ cursor: "pointer", height: "fit-content", backgroundColor: dashboard.darktheme ? modeColors.header : modeColors.background, padding: 12, width: 332 }} onClick={() => setExpanded(!expanded)}>
+   return <Stack className={hordeClasses.raised} style={{ cursor: "pointer", height: "fit-content", backgroundColor: dashboard.darktheme ? "#242729" : modeColors.background, padding: 12, width: 332 }} onClick={() => setExpanded(!expanded)}>
       {historyShow && <TestSummaryModal test={test} handler={handler} onDismiss={() => setHistoryShown(false)} />}
       {showReport && <AutomationFailureModal test={test} handler={handler} onDismiss={() => setShowReport(false)} />}
       <Stack horizontal verticalAlign="center" >
@@ -745,7 +745,7 @@ const SuiteSummaryButton: React.FC<{ suite: GetTestSuiteResponse, handler: TestD
             </Stack>
          </Stack>
          {StatusBar(stack, 300, 10, statusColors.get(StatusColor.Success)!, { margin: '3px !important' })}
-         {!!streamExpanded.get(streamId) && <Stack style={{ border: "1px solid #CDCBC9" }}>{metaElements}</Stack>}
+         {!!streamExpanded.get(streamId) && <Stack style={{ border: `1px solid ${dashboard.darktheme ? "#3F4447" : "#CDCBC9"}` }}>{metaElements}</Stack>}
       </Stack>)
    });
 
@@ -786,7 +786,7 @@ const SuiteSummaryButton: React.FC<{ suite: GetTestSuiteResponse, handler: TestD
       }
    ]
 
-   return <Stack className={hordeClasses.raised} style={{ cursor: "pointer", height: "fit-content", backgroundColor: dashboard.darktheme ? modeColors.header : modeColors.background, padding: 12, width: 332 }} onClick={() => setExpanded(!expanded)} >
+   return <Stack className={hordeClasses.raised} style={{ cursor: "pointer", height: "fit-content", backgroundColor: dashboard.darktheme ? "#242729" : modeColors.background, padding: 12, width: 332 }} onClick={() => setExpanded(!expanded)} >
       {historyShow && <SuiteSummaryModal suite={suite} handler={handler} onDismiss={() => setHistoryShown(false)} />}
       <Stack horizontal verticalAlign="center">
          <Stack className="horde-no-darktheme" style={{ paddingTop: 1, paddingRight: 4 }}>

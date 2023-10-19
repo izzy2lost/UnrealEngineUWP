@@ -32,6 +32,7 @@ const getCustomClasses = () => {
    const customClasses = _customClasses ?? mergeStyleSets({
       actionBar: {
          backgroundColor: background,
+         fontSize: "12px !important",
          ':hover': {
             filter: dashboard.darktheme ? undefined : "brightness(95%)",            
          },         
@@ -39,6 +40,9 @@ const getCustomClasses = () => {
             '.ms-Button': {
                minWidth: 64,
                height: 32               
+            },
+            '.ms-Icon': {
+               fontSize: "12px !important"
             },
             '.ms-Button:hover': {
                backgroundColor: dashboard.darktheme ? theme.palette.neutralLight : undefined   
@@ -1609,8 +1613,6 @@ const IssueCommandBar: React.FC = () => {
    const [forceCloseShown, setForceCloseShown] = useState(false);
    const [testFixShown, setTestFixShown] = useState(false);
 
-   const { modeColors } = getHordeStyling();
-
    const issue = details.issue!;
 
    if (!issue) {
@@ -1943,7 +1945,7 @@ export const IssueModalV2: React.FC<{ popHistoryOnClose: boolean, issueId?: stri
                <Stack horizontal styles={{ root: { padding: 8 } }} style={{ padding: 20, paddingBottom: 8 }}>
                   <Stack horizontal style={{ width: 1024 }} tokens={{ childrenGap: 24 }} verticalAlign="center" verticalFill={true}>
                      <Stack >
-                        <Text styles={{ root: { fontWeight: "unset",  maxWidth: 720, wordBreak:"break-word", fontFamily: "Horde Open Sans SemiBold", fontSize: "14px", color: "#087BC4", textDecoration: details.issue?.resolvedAt ? "line-through" : undefined } }}>{title}</Text>
+                        <Text styles={{ root: { fontWeight: "unset",  maxWidth: 720, wordBreak:"break-word", fontFamily: "Horde Open Sans SemiBold", fontSize: "14px", textDecoration: details.issue?.resolvedAt ? "line-through" : undefined } }}>{title}</Text>
                      </Stack>
 
                      <Stack onClick={() => { setEditShown(true) }} style={{ cursor: "pointer" }}>

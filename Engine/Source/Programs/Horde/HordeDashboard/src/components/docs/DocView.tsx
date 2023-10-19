@@ -262,7 +262,7 @@ export const DocView = () => {
             <div style={{ overflowY: 'scroll', overflowX: 'hidden', height: "calc(100vh - 162px)" }} data-is-scrollable={true}>
                <Stack horizontal>
                   <Stack style={{ width: 1240, paddingTop: 6, marginLeft: 4, height: '100%' }}>
-                     <Stack className={docClasses.raised}>
+                     <Stack className={docClasses.raised} styles={{ root: { backgroundColor: modeColors.content } }}>
                         <Stack style={{ width: "100%", height: "max-content" }} tokens={{ childrenGap: 18 }}>
                            <DocPanel docName={docName} />
                         </Stack>

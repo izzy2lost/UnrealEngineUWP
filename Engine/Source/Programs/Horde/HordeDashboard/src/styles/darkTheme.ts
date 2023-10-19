@@ -30,12 +30,25 @@ const hordeDarkTheme: HordeThemeExtensions = {
 export const darkTheme = createTheme({
     isInverted: true,
     components: {
+        "ScrollablePane": {
+            styles: {
+                root: {
+                    selectors: {
+                        '.ms-DetailsHeader': { // this is for stickys
+                            background: hordeDarkTheme.contentBackground,
+                            borderBottomColor: "#363A3C"
+                        }
+                    }
+                }
+            }
+        },
         "DetailsList": {
             styles: {
                 root: {
                     selectors: {
                         '.ms-DetailsHeader': {
-                            background: hordeDarkTheme.contentBackground
+                            background: hordeDarkTheme.contentBackground,
+                            borderBottomColor: "#363A3C"
                         },
                         '.ms-DetailsRow:hover': {
                             backgroundColor: "unset",
@@ -95,6 +108,7 @@ export const darkTheme = createTheme({
         bodyBackground: hordeDarkTheme.neutralBackground,
         bodyText: textColor,
         buttonText: textColor,
+        buttonTextDisabled: "#949898",
         actionLink: textColor,
         link: linkColor,
         linkHovered: linkColorHovered,
@@ -104,7 +118,8 @@ export const darkTheme = createTheme({
         menuItemBackgroundHovered: hilightColor,
         listText: textColor,
         primaryButtonText: textColor,
-        primaryButtonTextHovered: textColor
+        primaryButtonTextHovered: textColor,
+        primaryButtonTextDisabled: "#949898"
 
     },
     defaultFontStyle: {
