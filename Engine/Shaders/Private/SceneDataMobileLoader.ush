@@ -103,6 +103,12 @@ FPrimitiveSceneData LoadPrimitiveDataUBO(uint DrawInstanceId)
 		PrimitiveData.PreSkinnedLocalBoundsMax = PrimitiveData.LocalObjectBoundsMax;
 	}
 
+	// InstanceLocalBounds
+	{
+		PrimitiveData.InstanceLocalBoundsCenter = (PrimitiveData.LocalObjectBoundsMin + PrimitiveData.LocalObjectBoundsMax) * 0.5f;
+		PrimitiveData.InstanceLocalBoundsExtent = PrimitiveData.LocalObjectBoundsMax - PrimitiveData.InstanceLocalBoundsCenter;
+	}
+
 	// WorldToLocal, TODO compute from LocalToWorld?
 	{
 		float4x4 RelativeWorldToLocal = transpose(float4x4(
