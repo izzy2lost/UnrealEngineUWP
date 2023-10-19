@@ -341,6 +341,7 @@ FBodyInstance::FBodyInstance()
 	, bInterpolateWhenSubStepping(true)
 	, bPendingCollisionProfileSetup(false)
 	, bInertiaConditioning(true)	
+	, bOneWayInteraction(false)
 	, bOverrideSolverAsyncDeltaTime(false)
 	, SolverAsyncDeltaTime(1.f / 60)
 	, Scale3D(1.0f)
@@ -3400,15 +3401,27 @@ void FBodyInstance::ClearForces(bool bAllowSubstepping)
 	});
 }
 
-void FBodyInstance::SetOneWayInteraction(bool InOneWayInteraction /*= true*/)
+void FBodyInstance::SetOneWayInteraction(bool bInOneWayInteraction)
 {
-	FPhysicsCommand::ExecuteWrite(ActorHandle, [&](const FPhysicsActorHandle& Actor)
+	if (bOneWayInteraction != bInOneWayInteraction)
+	{
+		bOneWayInteraction = bInOneWayInteraction;
+
+		UpdateOneWayInteraction();
+	}
+}
+
+void FBodyInstance::UpdateOneWayInteraction()
+{
+	const bool bCurrentOneWayInteraction = bOneWayInteraction;
+
+	FPhysicsCommand::ExecuteWrite(ActorHandle, [bCurrentOneWayInteraction](const FPhysicsActorHandle& Actor)
+	{
+		if (FPhysicsInterface::IsRigidBody(Actor) && !IsRigidBodyKinematic_AssumesLocked(Actor))
 		{
-			if (FPhysicsInterface::IsRigidBody(Actor) && !IsRigidBodyKinematic_AssumesLocked(Actor))
-			{
-				FPhysicsInterface::SetOneWayInteraction_AssumesLocked(Actor, InOneWayInteraction);
-			}
-		});
+			FPhysicsInterface::SetOneWayInteraction_AssumesLocked(Actor, bCurrentOneWayInteraction);
+		}
+	});
 }
 
 void FBodyInstance::AddTorqueInRadians(const FVector& Torque, bool bAllowSubstepping, bool bAccelChange, const FAsyncPhysicsTimestamp TimeStamp, APlayerController* PlayerController)
@@ -4105,6 +4118,7 @@ void FBodyInstance::InitDynamicProperties_AssumesLocked()
 			UpdateDampingProperties();
 			SetMaxAngularVelocityInRadians(GetMaxAngularVelocityInRadians(), false, false);
 			UpdateMaxDepenetrationVelocity();
+			UpdateOneWayInteraction();
 		}
 		else
 		{

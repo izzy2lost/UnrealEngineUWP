@@ -123,9 +123,11 @@ namespace Chaos
 		bool bChaosSolverPersistentGraph = true;
 		FAutoConsoleVariableRef CVarChaosSolverPersistentGraph(TEXT("p.Chaos.Solver.PersistentGraph"), bChaosSolverPersistentGraph, TEXT(""));
 
-		// Whether we should ignore collisions between two particles that both have one-way collision enabled
-		bool bChaosIgnoreOneWayPairCollisions = true;
-		FAutoConsoleVariableRef CVarChaosIgnoreOneWayPairCollisions(TEXT("p.Chaos.Solver.IgnoreOneWayPairCollisions"), bChaosIgnoreOneWayPairCollisions, TEXT("Ignore collisions between two one-way-interaction particles"));
+		// Determines what happens when two one-way particles collide
+		// See EOneWayInteractionPairCollisionMode
+		int32 ChaosOneWayInteractionPairCollisionMode = (int32)EOneWayInteractionPairCollisionMode::IgnoreCollision;
+		FAutoConsoleVariableRef CVarChaosIgnoreOneWayPairCollisions(TEXT("p.Chaos.Solver.OneWayPairCollisionMode"), ChaosOneWayInteractionPairCollisionMode, TEXT("How to treat collisions between two one-way interaction particles. See EOneWayInteractionPairCollisionMode (0: Ignore collisions; 1: Collide as normal; 2: Collide as spheres)"));
+
 
 		DECLARE_CYCLE_STAT(TEXT("FPBDRigidsEvolutionGBF::AdvanceOneTimeStep"), STAT_Evolution_AdvanceOneTimeStep, STATGROUP_Chaos);
 		DECLARE_CYCLE_STAT(TEXT("FPBDRigidsEvolutionGBF::UnclusterUnions"), STAT_Evolution_UnclusterUnions, STATGROUP_Chaos);

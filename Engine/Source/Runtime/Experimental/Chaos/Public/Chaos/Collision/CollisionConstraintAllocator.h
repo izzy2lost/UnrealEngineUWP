@@ -678,6 +678,22 @@ namespace Chaos
 			}
 		}
 
+		if (GetMidPhaseType() == EParticlePairMidPhaseType::SphereApproximation)
+		{
+			FSphereApproximationParticlePairMidPhase* This = static_cast<FSphereApproximationParticlePairMidPhase*>(this);
+			FPBDCollisionConstraint* Constraint = This->Constraint.Get();
+			if (Constraint != nullptr)
+			{
+				if (CollisionVisitorShouldVisit(Constraint, VisitFlags))
+				{
+					if (Visitor(*Constraint) == ECollisionVisitorResult::Stop)
+					{
+						return ECollisionVisitorResult::Stop;
+					}
+				}
+			}
+		}
+
 		return ECollisionVisitorResult::Continue;
 	}
 
@@ -708,6 +724,22 @@ namespace Chaos
 				const FPBDCollisionConstraintPtr& Constraint = KVP.Value;
 				
 				if (CollisionVisitorShouldVisit(Constraint.Get(), VisitFlags))
+				{
+					if (Visitor(*Constraint) == ECollisionVisitorResult::Stop)
+					{
+						return ECollisionVisitorResult::Stop;
+					}
+				}
+			}
+		}
+
+		if (GetMidPhaseType() == EParticlePairMidPhaseType::SphereApproximation)
+		{
+			const FSphereApproximationParticlePairMidPhase* This = static_cast<const FSphereApproximationParticlePairMidPhase*>(this);
+			const FPBDCollisionConstraint* Constraint = This->Constraint.Get();
+			if (Constraint != nullptr)
+			{
+				if (CollisionVisitorShouldVisit(Constraint, VisitFlags))
 				{
 					if (Visitor(*Constraint) == ECollisionVisitorResult::Stop)
 					{

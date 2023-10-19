@@ -202,6 +202,7 @@ namespace Chaos
 		friend class FPBDCollisionConstraints;
 		friend class FShapePairParticlePairMidPhase;
 		friend class FSingleShapePairCollisionDetector;
+		friend class FSphereApproximationParticlePairMidPhase;
 
 		friend CHAOS_API bool ContactConstraintSortPredicate(const FPBDCollisionConstraint& L, const FPBDCollisionConstraint& R);
 

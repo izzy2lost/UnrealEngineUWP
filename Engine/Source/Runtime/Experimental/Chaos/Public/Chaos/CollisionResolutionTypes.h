@@ -71,6 +71,19 @@ namespace Chaos
 		NumShapesTypes
 	};
 
+	/** How to treat collisions between two particles that both have OneWayInteraction enabled */
+	enum class EOneWayInteractionPairCollisionMode
+	{
+		// Ignore collisions
+		IgnoreCollision,
+
+		// Collide using particle's regular shapes
+		NormalCollision,
+
+		// Collide as spheres
+		SphereCollision,
+	};
+
 	//
 	//
 	//

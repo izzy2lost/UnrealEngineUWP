@@ -35,6 +35,11 @@
 
 namespace Chaos
 {
+	namespace CVars
+	{
+		extern int32 ChaosOneWayInteractionPairCollisionMode;
+	}
+
 	namespace DebugDraw
 	{
 		bool bChaosDebugDebugDrawShapeBounds = false;
@@ -1331,6 +1336,12 @@ namespace Chaos
 					FDebugDrawQueue::GetInstance().DrawDebugLine(ImpulsePos, ImpulsePos + Settings.DrawScale * Settings.ImpulseScale * SpaceTransform.TransformVectorNoScale(Contact.GetAccumulatedImpulse()), Color, false, Duration, uint8(Settings.DrawPriority), Settings.LineThickness);
 				}
 
+				// Show the sphere approximation if enabled
+				if ((CVars::ChaosOneWayInteractionPairCollisionMode == (int32)EOneWayInteractionPairCollisionMode::SphereCollision) && Particle0->OneWayInteraction() && Particle1->OneWayInteraction())
+				{
+					DrawShape(Contact.GetShapeWorldTransform0(), Contact.GetImplicit0(), nullptr, FColor::Green, 0, &Settings);
+					DrawShape(Contact.GetShapeWorldTransform1(), Contact.GetImplicit1(), nullptr, FColor::Green, 0, &Settings);
+				}
 			}
 			if (Settings.ContactOwnerWidth > 0)
 			{

@@ -23,7 +23,7 @@
 namespace Chaos::CVars
 {
 	extern bool bChaosMidPhaseRedistributionEnabled;
-	extern bool bChaosIgnoreOneWayPairCollisions;
+	extern int32 ChaosOneWayInteractionPairCollisionMode;
 }
 
 namespace Chaos
@@ -680,7 +680,7 @@ namespace Chaos
 
 				if (Overlap.bCollisionsEnabled)
 				{
-					if (CVars::bChaosIgnoreOneWayPairCollisions)
+					if (CVars::ChaosOneWayInteractionPairCollisionMode == (int32)EOneWayInteractionPairCollisionMode::IgnoreCollision)
 					{
 						const bool bIsOneWay0 = FConstGenericParticleHandle(Overlap.Particles[0])->OneWayInteraction();
 						const bool bIsOneWay1 = FConstGenericParticleHandle(Overlap.Particles[1])->OneWayInteraction();

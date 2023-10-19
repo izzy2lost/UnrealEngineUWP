@@ -5,6 +5,7 @@
 #include "Chaos/Collision/CollisionContext.h"
 #include "Chaos/Collision/CollisionFilter.h"
 #include "Chaos/Collision/CollisionUtil.h"
+#include "Chaos/Collision/ContactPointsMiscShapes.h"
 #include "Chaos/Collision/ContactTriangles.h"
 #include "Chaos/Collision/PBDCollisionConstraint.h"
 #include "Chaos/CollisionResolution.h"
@@ -58,6 +59,8 @@ namespace Chaos
 		int32 Chaos_Collision_MidPhase_MaxShapePairs = 100;
 		FAutoConsoleVariableRef CVarChaos_Collision_EnableShapePairs(TEXT("p.Chaos.Collision.EnableShapePairs"), bChaos_Collision_MidPhase_EnableShapePairs, TEXT(""));
 		FAutoConsoleVariableRef CVarChaos_Collision_MaxShapePairs(TEXT("p.Chaos.Collision.MaxShapePairs"), Chaos_Collision_MidPhase_MaxShapePairs, TEXT(""));
+
+		extern int32 ChaosOneWayInteractionPairCollisionMode;
 	}
 
 	using namespace CVars;
@@ -747,21 +750,44 @@ namespace Chaos
 
 		// Is either of the implicits a Union of Unions?
 		const bool bIsTree = bIsTree0 || bIsTree1;
+	
+		const bool bCanPrebuildShapePairs = !bTooManyImplicitPairs && !bIsTree;
 
-		const bool bPrebuildShapePairs = !bTooManyImplicitPairs && !bIsTree;
-		return bPrebuildShapePairs ? EParticlePairMidPhaseType::ShapePair : EParticlePairMidPhaseType::Generic;
+		// If both particles have one-way interaction enabled, we might want to treat them as spheres
+		if (bCanPrebuildShapePairs && (CVars::ChaosOneWayInteractionPairCollisionMode == (int32)EOneWayInteractionPairCollisionMode::SphereCollision))
+		{
+			const bool bIsOneWay0 = FConstGenericParticleHandle(InParticle0)->OneWayInteraction();
+			const bool bIsOneWay1 = FConstGenericParticleHandle(InParticle1)->OneWayInteraction();
+			if (bIsOneWay0 && bIsOneWay1)
+			{
+				return EParticlePairMidPhaseType::SphereApproximation;
+			}
+		}
+
+		// If we have two small flat hierarchies we will expand and prefilter all shape pairs
+		if (bCanPrebuildShapePairs)
+		{
+			return EParticlePairMidPhaseType::ShapePair;
+		}
+
+		// We have at least one complicated geometry hierarchy so use the general purpose midphase
+		return EParticlePairMidPhaseType::Generic;
 	}
 
 	FParticlePairMidPhase* FParticlePairMidPhase::Make(FGeometryParticleHandle* InParticle0, FGeometryParticleHandle* InParticle1)
 	{
 		const EParticlePairMidPhaseType MidPhaseType = CalculateMidPhaseType(InParticle0, InParticle1);
-		if (MidPhaseType == EParticlePairMidPhaseType::ShapePair)
+		switch (MidPhaseType)
 		{
-			return new FShapePairParticlePairMidPhase();
-		}
-		else
-		{
-			return new FGenericParticlePairMidPhase();
+			case EParticlePairMidPhaseType::Generic:
+				return new FGenericParticlePairMidPhase();
+			case EParticlePairMidPhaseType::ShapePair:
+				return new FShapePairParticlePairMidPhase();
+			case EParticlePairMidPhaseType::SphereApproximation:
+				return new FSphereApproximationParticlePairMidPhase();
+			default:
+				check(false);
+				return nullptr;
 		}
 	}
 
@@ -1947,6 +1973,217 @@ namespace Chaos
 #if !UE_BUILD_SHIPPING
 		UE_LOG(LogChaos, Warning, TEXT("Unsupported, handle Rewind/Resim in FGenericParticlePairMidPhase::InjectCollisionImpl"));
 #endif
+	}
+
+
+	////////////////////////////////////////////////////////////////////////////////////////
+	////////////////////////////////////////////////////////////////////////////////////////
+	////////////////////////////////////////////////////////////////////////////////////////
+	////////////////////////////////////////////////////////////////////////////////////////
+
+
+	FSphereApproximationParticlePairMidPhase::FSphereApproximationParticlePairMidPhase()
+		: FParticlePairMidPhase(EParticlePairMidPhaseType::SphereApproximation)
+		, Sphere0(FVec3(0), 0.0)
+		, Sphere1(FVec3(0), 0.0)
+		, SphereShape0(nullptr)
+		, SphereShape1(nullptr)
+		, LastUsedEpoch(INDEX_NONE)
+		, bHasSpheres(false)
+	{
+	}
+
+	void FSphereApproximationParticlePairMidPhase::ResetImpl()
+	{
+		Constraint.Reset();
+	}
+
+	void FSphereApproximationParticlePairMidPhase::BuildDetectorsImpl()
+	{
+		if (!IsValid())
+		{
+			return;
+		}
+
+		if (!GetParticle0()->HasBounds() || !GetParticle1()->HasBounds())
+		{
+			return;
+		}
+
+		const FShapeInstanceArray& Shapes0 = GetParticle0()->ShapeInstances();
+		const FShapeInstanceArray& Shapes1 = GetParticle1()->ShapeInstances();
+		if (Shapes0.IsEmpty() || Shapes1.IsEmpty())
+		{
+			return;
+		}
+
+		// See if we should collide (do any shape pairs collide)
+		bool bDoCollide = false;
+		for (int32 ShapeIndex0 = 0; ShapeIndex0 < Shapes0.Num(); ++ShapeIndex0)
+		{
+			const FShapeInstance* ShapeInstance0 = Shapes0[ShapeIndex0].Get();
+			for (int32 ShapeIndex1 = 0; ShapeIndex1 < Shapes1.Num(); ++ShapeIndex1)
+			{
+				const FShapeInstance* ShapeInstance1 = Shapes1[ShapeIndex1].Get();
+
+				const FImplicitObject* Implicit0 = ShapeInstance0->GetLeafGeometry();
+				const EImplicitObjectType ImplicitType0 = Private::GetImplicitCollisionType(Particle0, Implicit0);
+
+				const FImplicitObject* Implicit1 = ShapeInstance1->GetLeafGeometry();
+				const EImplicitObjectType ImplicitType1 = Private::GetImplicitCollisionType(Particle1, Implicit1);
+
+				// Use materials etc from the first overlapping shape pairs
+				if (SphereShape0 == nullptr)
+				{
+					SphereShape0 = ShapeInstance0;
+					SphereShape1 = ShapeInstance1;
+				}
+
+				const bool bDoPassFilter = ShapePairNarrowPhaseFilter(ImplicitType0, ShapeInstance0, ImplicitType1, ShapeInstance1);
+				if (bDoPassFilter)
+				{
+					bDoCollide = true;
+					break;
+				}
+			}
+		}
+
+		if (!bDoCollide)
+		{
+			return;
+		}
+
+		// Initialize the sphere centers and radii
+		InitSphere(GetParticle0(), Sphere0);
+		InitSphere(GetParticle1(), Sphere1);
+		bHasSpheres = true;
+	}
+
+	void FSphereApproximationParticlePairMidPhase::InitSphere(
+		const FGeometryParticleHandle* InParticle, 
+		FImplicitSphere3& OutSphere)
+	{
+		// @todo(chaos): maybe we should only consider the bounds of the shapes that pass the ShapePairNarrowPhaseFilter?
+		const FVec3 Center = InParticle->LocalBounds().Center();
+		const FVec3 Extents = InParticle->LocalBounds().Extents();
+		const FReal Radius = 0.5 * Extents.GetAbsMax();
+
+		OutSphere = FImplicitSphere3(Center, Radius);
+	}
+
+	int32 FSphereApproximationParticlePairMidPhase::GenerateCollisionsImpl(
+		const FReal CullDistance,
+		const FReal Dt,
+		const FCollisionContext& Context)
+	{
+		if (!bHasSpheres)
+		{
+			return 0;
+		}
+
+		// NOTE: We are still using the bounds generated from the real collision shapes for the cull test
+		const FAABB3& WorldBounds0 = GetParticle0()->WorldSpaceInflatedBounds();
+		const FAABB3& WorldBounds1 = GetParticle1()->WorldSpaceInflatedBounds();
+		if (!WorldBounds0.Intersects(WorldBounds1))
+		{
+			return 0;
+		}
+
+		const int32 CurrentEpoch = Context.GetAllocator()->GetCurrentEpoch();
+		const int32 LastEpoch = CurrentEpoch - 1;
+		const bool bWasUpdatedLastTick = IsUsedSince(LastEpoch);
+
+		const FRigidTransform3 ShapeWorldTransform0 = FConstGenericParticleHandle(GetParticle0())->GetTransformPQ();
+		const FRigidTransform3 ShapeWorldTransform1 = FConstGenericParticleHandle(GetParticle1())->GetTransformPQ();
+
+		// Sphere distance culling
+		const FVec3 SphereWorldPos0 = ShapeWorldTransform0.TransformPositionNoScale(Sphere0.GetCenter());
+		const FVec3 SphereWorldPos1 = ShapeWorldTransform1.TransformPositionNoScale(Sphere1.GetCenter());
+		const FVec3 DR = SphereWorldPos0 - SphereWorldPos1;
+		const FReal DRLenSq = DR.SizeSquared();
+		const FReal CullSeparation = Sphere0.GetRadius() + Sphere1.GetRadius() + CullDistance;
+		if (DRLenSq > FMath::Square(CullSeparation))
+		{
+			return 0;
+		}
+
+		// Create and set up constraint
+		if (!Constraint.IsValid())
+		{
+			Constraint = Context.GetAllocator()->CreateConstraint(
+				GetParticle0(), &Sphere0, SphereShape0, nullptr, FRigidTransform3(), 
+				GetParticle1(), &Sphere1, SphereShape1, nullptr, FRigidTransform3(),
+				CullDistance, true, EContactShapesType::SphereSphere);
+
+			Constraint->GetContainerCookie().MidPhase = this;
+			Constraint->GetContainerCookie().bIsMultiShapePair = false;
+			Constraint->GetContainerCookie().CreationEpoch = CurrentEpoch;
+			Constraint->SetCollisionSortKey(Private::FCollisionSortKey(Particle0, 0, Particle1, 0));
+		}
+
+		Constraint->SetShapeWorldTransforms(ShapeWorldTransform0, ShapeWorldTransform1);
+		Constraint->SetCullDistance(CullDistance);
+
+		if (!bWasUpdatedLastTick || (Constraint->GetManifoldPoints().Num() == 0))
+		{
+			// Clear all manifold data including saved contact data
+			Constraint->ResetManifold();
+		}
+
+		// We are not trying to reuse manifold points, so reset them but leave stored data intact (for friction)
+		Constraint->ResetActiveManifoldContacts();
+
+		// Sphere collision
+		FContactPoint ContactPoint = SphereSphereContactPoint(Sphere0, ShapeWorldTransform0, Sphere1, ShapeWorldTransform1, CullDistance);
+		Constraint->SetOneShotManifoldContacts({ ContactPoint });
+
+		// Activate constraint if we have a contact
+		if (Constraint->GetPhi() <= CullDistance)
+		{
+			Constraint->SetIsInitialContact(!bWasUpdatedLastTick);
+
+			if (Context.GetAllocator()->ActivateConstraint(Constraint.Get()))
+			{
+				LastUsedEpoch = CurrentEpoch;
+				return 1;
+			}
+		}
+
+		return 0;
+	}
+
+	void FSphereApproximationParticlePairMidPhase::WakeCollisionsImpl(
+		const int32 CurrentEpoch)
+	{
+		if (Constraint.IsValid() && (Constraint->GetContainerCookie().LastUsedEpoch >= LastUsedEpoch))
+		{
+			Constraint->GetContainerCookie().LastUsedEpoch = CurrentEpoch;
+			Constraint->GetContainerCookie().ConstraintIndex = INDEX_NONE;
+			Constraint->GetContainerCookie().CCDConstraintIndex = INDEX_NONE;
+		}
+	}
+
+	void FSphereApproximationParticlePairMidPhase::InjectCollisionImpl(
+		const FPBDCollisionConstraint& InConstraint, 
+		const FCollisionContext& Context)
+	{
+		const int32 CurrentEpoch = Context.GetAllocator()->GetCurrentEpoch();
+
+		if (!Constraint.IsValid())
+		{
+			Constraint = Context.GetAllocator()->CreateConstraint();
+			Constraint->GetContainerCookie().MidPhase = this;
+			Constraint->GetContainerCookie().bIsMultiShapePair = false;
+			Constraint->GetContainerCookie().CreationEpoch = CurrentEpoch;
+		}
+
+		// Copy the constraint data over the existing one (ensure we do not replace data required by the graph and the allocator/container)
+		Constraint->RestoreFrom(InConstraint);
+
+		// Add the constraint to the active list
+		// If the constraint already existed and was already active, this will do nothing
+		Context.GetAllocator()->ActivateConstraint(Constraint.Get());
+		LastUsedEpoch = CurrentEpoch;
 	}
 }
 

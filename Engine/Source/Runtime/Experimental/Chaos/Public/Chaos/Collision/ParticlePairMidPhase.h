@@ -36,6 +36,9 @@ namespace Chaos
 		// number of shapes. Pre-expands the set of potentially
 		// colliding shape pairs.
 		ShapePair,
+
+		// A midphase used to collide particles as sphere approximations
+		SphereApproximation,
 	};
 
 	/**
@@ -182,7 +185,7 @@ namespace Chaos
 		}
 
 		/**
-		 * @brief Set up the midphase based on the SHapesArrays of the two particles
+		 * @brief Set up the midphase based on the ShapesArrays of the two particles
 		 * Only intended to be called once right after constructor. We don't do this work in
 		 * the constructor so that we can reduce the time that the lock is held when allocating
 		 * new MidPhases.
@@ -539,5 +542,40 @@ namespace Chaos
 
 		TMap<uint64, FPBDCollisionConstraintPtr> Constraints;
 		TArray<FPBDCollisionConstraint*> NewConstraints;
+	};
+
+	/**
+	* A midphase for a particle pair that replaces both particles with a sphere approximation
+	*/
+	class FSphereApproximationParticlePairMidPhase : public FParticlePairMidPhase
+	{
+	public:
+		friend class FParticlePairMidPhase;
+
+		CHAOS_API FSphereApproximationParticlePairMidPhase();
+
+		CHAOS_API virtual void ResetImpl() override final;
+		CHAOS_API virtual void BuildDetectorsImpl() override final;
+
+	protected:
+		CHAOS_API virtual int32 GenerateCollisionsImpl(
+			const FReal CullDistance,
+			const FReal Dt,
+			const FCollisionContext& Context) override final;
+
+		CHAOS_API virtual void WakeCollisionsImpl(const int32 CurrentEpoch) override final;
+
+		CHAOS_API virtual void InjectCollisionImpl(const FPBDCollisionConstraint& Constraint, const FCollisionContext& Context) override final;
+
+		static void InitSphere(const FGeometryParticleHandle* InParticle, FImplicitSphere3& OutSphere);
+
+	private:
+		FImplicitSphere3 Sphere0;
+		FImplicitSphere3 Sphere1;
+		const FShapeInstance* SphereShape0;
+		const FShapeInstance* SphereShape1;
+		FPBDCollisionConstraintPtr Constraint;
+		int32 LastUsedEpoch;
+		bool bHasSpheres;
 	};
 }

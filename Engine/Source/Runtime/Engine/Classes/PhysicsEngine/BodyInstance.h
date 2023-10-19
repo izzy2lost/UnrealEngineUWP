@@ -440,6 +440,10 @@ protected:
 	UPROPERTY(EditAnywhere, AdvancedDisplay, BlueprintReadWrite, Category = Physics)
 	uint8 bInertiaConditioning : 1;
 
+	/** If set to true, this body will treat bodies that do not have the flag set as having infinite mass */
+	UPROPERTY(EditAnywhere, AdvancedDisplay, BlueprintReadWrite, Category = Physics)
+	uint8 bOneWayInteraction : 1;
+
 public:
 	/** Set the desired delta time for the body. **/
 	UPROPERTY(EditAnywhere, AdvancedDisplay, BlueprintReadOnly, Category = Physics)
@@ -876,11 +880,6 @@ public:
 	*/
 	ENGINE_API void SetMaxDepenetrationVelocity(float MaxVelocity);
 
-private:
-	// Send the MaxDepenetrationVelocity setting to the solver
-	ENGINE_API void UpdateMaxDepenetrationVelocity();
-
-public:
 	/** Set whether we should get a notification about physics collisions */
 	ENGINE_API void SetInstanceNotifyRBCollision(bool bNewNotifyCollision);
 	/** Enables/disables whether this body is affected by gravity. */
@@ -1277,6 +1276,9 @@ public:
 	ENGINE_API const TMap<FPhysicsShapeHandle, FWeldInfo>* GetCurrentWeldInfo() const;
 
 private:
+
+	ENGINE_API void UpdateOneWayInteraction();
+	ENGINE_API void UpdateMaxDepenetrationVelocity();
 
 	/**
 	 * Invalidate Collision Profile Name
