@@ -208,6 +208,8 @@ FNiagaraSceneProxy::FNiagaraSceneProxy(UNiagaraComponent* InComponent)
 #endif
 	}
 
+	// Prevent continuous VSM invalidation from the bounds of the primitive.
+	bHasDeformableMesh = false;
 	// Niagara renderers reference a lot of common contexts that aren't locked (and would otherwise introduce a lot of contention).
 	bSupportsParallelGDME = false;
 }
