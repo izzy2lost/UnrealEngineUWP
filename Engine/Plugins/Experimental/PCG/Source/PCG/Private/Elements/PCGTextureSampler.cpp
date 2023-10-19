@@ -104,41 +104,29 @@ bool FPCGTextureSamplerElement::ExecuteInternal(FPCGContext* InContext) const
 		return true;
 	}
 
-	UTexture2D* Texture2D = Cast<UTexture2D>(Texture);
+	uint32 TextureArrayIndex = 0;
 
-	// If the type is not a UTexture2D, try UTexture2DArray instead
-	if (!Texture2D)
+	if (UTexture2DArray* TextureArray = Cast<UTexture2DArray>(Texture))
 	{
 #if WITH_EDITOR
-		// TODO: support Texture2DArray without editor
-		if (UTexture2DArray* Tex2DArray = Cast<UTexture2DArray>(Texture))
-		{
-			if (Tex2DArray->SourceTextures.IsValidIndex(Settings->TextureArrayIndex))
-			{
-				Texture2D = Tex2DArray->SourceTextures[Settings->TextureArrayIndex];
+		const int32 ArraySize = TextureArray->SourceTextures.Num();
+#else
+		const int32 ArraySize = TextureArray->GetArraySize();
+#endif
 
-				if (!Texture2D)
-				{
-					PCGE_LOG(Error, GraphAndLog, FText::Format(LOCTEXT("CouldNotResolveTextureArray", "Texture index {0} could not be loaded."), Settings->TextureArrayIndex));
-				}
-			}
-			else
-			{
-				PCGE_LOG(Error, GraphAndLog, FText::Format(LOCTEXT("TextureArrayIndexOutOfBounds", "Texture array index {0} was out of bounds. There are only {1} textures in the array."), Settings->TextureArrayIndex, Tex2DArray->SourceTextures.Num()));
-			}
+		if (Settings->TextureArrayIndex >= 0 && Settings->TextureArrayIndex < ArraySize)
+		{
+			TextureArrayIndex = Settings->TextureArrayIndex;
 		}
 		else
 		{
-			PCGE_LOG(Error, GraphAndLog, FText::Format(LOCTEXT("InvalidTextureType", "Texture at path '{0}' was not of valid type. Must be either Texture2D or Texture2DArray."), FText::FromString(Settings->Texture.ToString())));
+			PCGE_LOG(Error, GraphAndLog, FText::Format(LOCTEXT("InvalidTextureIndex", "Array index {0} was out of bounds for TextureArray at path '{1}'."), Settings->TextureArrayIndex, FText::FromString(Settings->Texture.ToString())));
+			return true;
 		}
-#else
-		PCGE_LOG(Error, GraphAndLog, FText::Format(LOCTEXT("InvalidTextureTypeWithoutEditor", "Texture at path '{0}' was not of valid type. Must be a Texture2D when built without editor."), FText::FromString(Settings->Texture.ToString())));
-#endif
 	}
-
-	if (!Texture2D)
+	else if (!Texture->IsA<UTexture2D>())
 	{
-		PCGE_LOG(Error, GraphAndLog, FText::Format(LOCTEXT("InvalidTexture2D", "Texture at path '{0}' could not evaluate to a valid 2D Texture"), FText::FromString(Settings->Texture.ToString())));
+		PCGE_LOG(Error, GraphAndLog, FText::Format(LOCTEXT("InvalidTextureType", "Texture at path '{0}' is not a valid type. Must be UTexture2D or UTexture2DArray."), FText::FromString(Settings->Texture.ToString())));
 		return true;
 	}
 
@@ -186,7 +174,7 @@ bool FPCGTextureSamplerElement::ExecuteInternal(FPCGContext* InContext) const
 		}
 	};
 
-	TextureData->Initialize(Texture2D, FinalTransform, PostInitializeCallback);
+	TextureData->Initialize(Texture, TextureArrayIndex, FinalTransform, PostInitializeCallback);
 
 	TextureData->DensityFunction = DensityFunction;
 	TextureData->ColorChannel = ColorChannel;

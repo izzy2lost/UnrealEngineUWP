@@ -15,6 +15,7 @@ namespace UnrealBuildTool.Rules
 					"Projects",
 					"RHI",
 					"RenderCore",
+					"Renderer",
 				});
 		}
 	}

@@ -7,7 +7,7 @@
 #include "PCGTextureData.generated.h"
 
 class UPCGSpatialData;
-class UTexture2D;
+class UTexture;
 
 UENUM(BlueprintType)
 enum class EPCGTextureColorChannel : uint8
@@ -100,7 +100,7 @@ class PCG_API UPCGTextureData : public UPCGBaseTextureData
 	GENERATED_BODY()
 
 public:
-	void Initialize(UTexture2D* InTexture, const FTransform& InTransform, const TFunction<void()>& PostInitializeCallback);
+	void Initialize(UTexture* InTexture, uint32 InTextureIndex, const FTransform& InTransform, const TFunction<void()>& PostInitializeCallback);
 
 	// ~Begin UPCGData interface
 	virtual EPCGDataType GetDataType() const override { return EPCGDataType::Texture; }
@@ -124,7 +124,10 @@ private:
 
 public:
 	UPROPERTY(BlueprintReadOnly, VisibleAnywhere, Category = Properties)
-	TWeakObjectPtr<UTexture2D> Texture = nullptr;
+	TWeakObjectPtr<UTexture> Texture = nullptr;
+
+	UPROPERTY(BlueprintReadOnly, VisibleAnywhere, Category = Properties)
+	int TextureIndex = 0;
 };
 
 #if UE_ENABLE_INCLUDE_ORDER_DEPRECATED_IN_5_2

@@ -39,7 +39,7 @@ bool FPCGTextureDataOffsetTilingRotation::RunTest(const FString& Parameters)
 
 	bool bTestPassed = true;
 
-	TextureData->Initialize(Texture2D, FTransform(), [this, TextureData, &bTestPassed]() -> void
+	TextureData->Initialize(Texture2D, /*TextureIndex=*/0, FTransform(), [this, TextureData, &bTestPassed]() -> void
 		{
 			FRandomStream RandomStream;
 			FPCGPoint OutPoint;

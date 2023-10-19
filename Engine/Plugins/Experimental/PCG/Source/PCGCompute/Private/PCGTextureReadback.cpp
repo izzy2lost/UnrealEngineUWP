@@ -9,8 +9,7 @@
 #include "Async/Async.h"
 
 #define LOCTEXT_NAMESPACE "PCGCompute"
-
-#define NUM_THREADS_PER_GROUP_DIMENSION 32
+#define PCG_NUM_THREADS_PER_GROUP_DIMENSION 8
 
 class PCGCOMPUTE_API FPCGTextureReadbackCS : public FGlobalShader
 {
@@ -19,9 +18,10 @@ public:
 	SHADER_USE_PARAMETER_STRUCT(FPCGTextureReadbackCS, FGlobalShader);
  
 	BEGIN_SHADER_PARAMETER_STRUCT(FParameters, )
-		SHADER_PARAMETER_TEXTURE(Texture2D<float4>, SourceTexture)
+		SHADER_PARAMETER_TEXTURE(Texture2DArray<float4>, SourceTextureArray)
 		SHADER_PARAMETER_SAMPLER(SamplerState, SourceSampler)
 		SHADER_PARAMETER(FVector2f, SourceDimensions)
+		SHADER_PARAMETER(uint32, SourceTextureIndex)
 		SHADER_PARAMETER_UAV(RWTexture2D<float4>, OutputTexture)
 	END_SHADER_PARAMETER_STRUCT()
  
@@ -30,8 +30,8 @@ public:
 	{
 		FGlobalShader::ModifyCompilationEnvironment(Parameters, OutEnvironment);
 
-		OutEnvironment.SetDefine(TEXT("THREADGROUPSIZE_X"), NUM_THREADS_PER_GROUP_DIMENSION);
-		OutEnvironment.SetDefine(TEXT("THREADGROUPSIZE_Y"), NUM_THREADS_PER_GROUP_DIMENSION);
+		OutEnvironment.SetDefine(TEXT("THREADGROUPSIZE_X"), PCG_NUM_THREADS_PER_GROUP_DIMENSION);
+		OutEnvironment.SetDefine(TEXT("THREADGROUPSIZE_Y"), PCG_NUM_THREADS_PER_GROUP_DIMENSION);
 		OutEnvironment.SetDefine(TEXT("THREADGROUPSIZE_Z"), 1);
 	}
 };
@@ -45,9 +45,10 @@ void FPCGTextureReadbackInterface::Dispatch_RenderThread(FRHICommandListImmediat
 	RenderCaptureInterface::FScopedCapture RenderCapture(true, &RHICmdList, TEXT("PCGTextureDataReadback"));
 
 	FPCGTextureReadbackCS::FParameters PassParameters;
-	PassParameters.SourceTexture = Params.SourceTexture;
+	PassParameters.SourceTextureArray = Params.SourceTexture;
 	PassParameters.SourceSampler = Params.SourceSampler;
 	PassParameters.SourceDimensions = { (float)Params.SourceDimensions.X, (float)Params.SourceDimensions.Y };
+	PassParameters.SourceTextureIndex = Params.SourceTextureIndex;
 
 	FRHITextureCreateDesc TargetTextureDesc =
 		FRHITextureCreateDesc::Create2D(TEXT("PCGTexture Readback Compute Target"), Params.SourceDimensions.X, Params.SourceDimensions.Y, EPixelFormat::PF_B8G8R8A8)
@@ -73,8 +74,8 @@ void FPCGTextureReadbackInterface::Dispatch_RenderThread(FRHICommandListImmediat
 
 	TShaderMapRef<FPCGTextureReadbackCS> ComputeShader(GetGlobalShaderMap(GMaxRHIFeatureLevel));
 	FComputeShaderUtils::Dispatch(RHICmdList, ComputeShader, PassParameters,
-		FIntVector(FMath::DivideAndRoundUp(Params.SourceDimensions.X, NUM_THREADS_PER_GROUP_DIMENSION),
-			FMath::DivideAndRoundUp(Params.SourceDimensions.Y, NUM_THREADS_PER_GROUP_DIMENSION), 1));
+		FIntVector(FMath::DivideAndRoundUp(Params.SourceDimensions.X, PCG_NUM_THREADS_PER_GROUP_DIMENSION),
+			FMath::DivideAndRoundUp(Params.SourceDimensions.Y, PCG_NUM_THREADS_PER_GROUP_DIMENSION), 1));
 
 	// Prepare OutputTexture to be copied
 	RHICmdList.Transition(FRHITransitionInfo(OutputTexture, ERHIAccess::UAVCompute, ERHIAccess::CopySrc));
@@ -131,3 +132,4 @@ void FPCGTextureReadbackInterface::Dispatch(const FPCGTextureReadbackDispatchPar
 }
 
 #undef LOCTEXT_NAMESPACE
+#undef PCG_NUM_THREADS_PER_GROUP_DIMENSION

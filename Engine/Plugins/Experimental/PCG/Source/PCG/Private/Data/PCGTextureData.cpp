@@ -7,8 +7,10 @@
 #include "Helpers/PCGAsync.h"
 #include "Helpers/PCGHelpers.h"
 
+#include "RHIStaticStates.h"
 #include "TextureResource.h"
 #include "Engine/Texture2D.h"
+#include "Engine/Texture2DArray.h"
 
 #include UE_INLINE_GENERATED_CPP_BY_NAME(PCGTextureData)
 
@@ -264,11 +266,12 @@ void UPCGBaseTextureData::CopyBaseTextureData(UPCGBaseTextureData* NewTextureDat
 	NewTextureData->Width = Width;
 }
 
-void UPCGTextureData::Initialize(UTexture2D* InTexture, const FTransform& InTransform, const TFunction<void()>& PostInitializeCallback)
+void UPCGTextureData::Initialize(UTexture* InTexture, uint32 InTextureIndex, const FTransform& InTransform, const TFunction<void()>& PostInitializeCallback)
 {
 	TRACE_CPUPROFILER_EVENT_SCOPE(UPCGTextureData::Initialize);
 
 	Texture = InTexture;
+	TextureIndex = InTextureIndex;
 	Transform = InTransform;
 	Width = 0;
 	Height = 0;
@@ -326,7 +329,14 @@ bool UPCGTextureData::InitializeFromCPUTexture()
 		return false;
 	}
 
-	FSharedImageConstRef CPUTextureRef = Texture->GetCPUCopy();
+	// CPU Textures currently only support UTexture2D.
+	UTexture2D* Texture2D = Cast<UTexture2D>(Texture);
+	if (!Texture2D)
+	{
+		return false;
+	}
+
+	FSharedImageConstRef CPUTextureRef = Texture2D->GetCPUCopy();
 	if (!CPUTextureRef.IsValid())
 	{
 		return false;
@@ -433,7 +443,7 @@ bool UPCGTextureData::InitializeFromCPUTexture()
 	}
 	else
 	{
-		UE_LOG(LogPCG, Error, TEXT("PCGTextureReadback has an invalid format (%d) for CPU texture '%s'."), CPUTextureRef->Format, *Texture->GetFName().ToString());
+		UE_LOG(LogPCG, Error, TEXT("PCGTextureReadback has an invalid format (%d) for CPU texture '%s'."), CPUTextureRef->Format, *Texture2D->GetFName().ToString());
 
 		Width = 0;
 		Height = 0;
@@ -462,15 +472,27 @@ bool UPCGTextureData::InitializeFromGPUTexture(const TFunction<void()>& PostInit
 	Texture->UpdateResource();
 	Texture->WaitForPendingInitOrStreaming();
 
-	FTexturePlatformData* PlatformData = Texture->GetPlatformData();
+	FTexturePlatformData* PlatformData = nullptr;
 	FTextureResource* TextureResource = Texture->GetResource();
+
+	if (UTexture2D* Texture2D = Cast<UTexture2D>(Texture))
+	{
+		PlatformData = Texture2D->GetPlatformData();
+	}
+	else if (UTexture2DArray* Texture2DArray = Cast<UTexture2DArray>(Texture))
+	{
+		PlatformData = Texture2DArray->GetPlatformData();
+	}
 
 	if (PlatformData && TextureResource && TextureResource->TextureRHI)
 	{
 		FPCGTextureReadbackDispatchParams Params;
 		Params.SourceTexture = TextureResource->TextureRHI;
-		Params.SourceSampler = TextureResource->SamplerStateRHI;
+
+		// We should always use a point filter sampler since we are trying to get a 1 to 1 copy of the texture. We will do our own filtering later.
+		Params.SourceSampler = TStaticSamplerState<SF_Point, AM_Clamp, AM_Clamp, AM_Clamp>::GetRHI();
 		Params.SourceDimensions = FIntPoint(PlatformData->SizeX, PlatformData->SizeY);
+		Params.SourceTextureIndex = TextureIndex;
 
 		FPCGTextureReadbackInterface::Dispatch(Params, [this, PlatformData, PostInitializeCallback](void* OutBuffer, int32 ReadbackWidth, int32 ReadbackHeight)
 		{

@@ -53,15 +53,9 @@ public:
 	UPROPERTY(BlueprintReadWrite, EditAnywhere, Category = Settings, meta = (PCG_Overridable))
 	TSoftObjectPtr<UTexture> Texture = nullptr;
 
-#if WITH_EDITORONLY_DATA
-	/** Index of texture array slice. Only used when built with editor and if the type of Texture is Texture2DArray. */
+	/** Index of texture array slice. Only used when built with editor and if the type of Texture is UTexture2DArray. */
 	UPROPERTY(BlueprintReadWrite, EditAnywhere, Category = Settings, meta = (EditCondition = bDisplayTextureArrayIndex, EditConditionHides, HideEditConditionToggle, ClampMin = '0', PCG_Overridable))
 	int TextureArrayIndex = 0;
-
-	// This can be set false by inheriting nodes to hide the 'TextureArrayIndex' property.
-	UPROPERTY(Transient, meta = (EditCondition = false, EditConditionHides))
-	bool bDisplayTextureArrayIndex = false;
-#endif
 
 	// Common members in BaseTextureData
 	UPROPERTY(BlueprintReadWrite, EditAnywhere, Category = SpatialData, meta = (PCG_Overridable))
@@ -96,6 +90,13 @@ public:
 
 	UPROPERTY(BlueprintReadWrite, EditAnywhere, Category = "Settings|Tiling", meta = (EditCondition = "bUseAdvancedTiling && bUseTileBounds", PCG_Overridable))
 	FVector2D TileBoundsMax = FVector2D(0.5, 0.5);
+
+protected:
+#if WITH_EDITORONLY_DATA
+	// Used to hide the 'TextureArrayIndex' property.
+	UPROPERTY(Transient)
+	bool bDisplayTextureArrayIndex = false;
+#endif
 };
 
 struct PCG_API FPCGTextureSamplerContext : public FPCGContext
