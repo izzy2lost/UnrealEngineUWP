@@ -277,6 +277,57 @@ void UNiagaraNodeCustomHlsl::InitAsCustomHlslDynamicInput(const FNiagaraTypeDefi
 	ScriptUsage = ENiagaraScriptUsage::DynamicInput;
 }
 
+bool UNiagaraNodeCustomHlsl::CallsImpureDataInterfaceFunctions() const
+{
+	TArray<FString> ImpureFunctionNames;
+
+	FPinCollectorArray InputPins;
+	GetInputPins(InputPins);
+
+	for (const UEdGraphPin* InputPin : InputPins)
+	{
+		FNiagaraTypeDefinition NiagaraType = UEdGraphSchema_Niagara::PinToTypeDefinition(InputPin, ENiagaraStructConversion::Simulation);
+		if (NiagaraType.IsDataInterface())
+		{
+			if (UNiagaraDataInterface* DataInterfaceClass = CastChecked<UNiagaraDataInterface>(NiagaraType.GetClass()->ClassDefaultObject))
+			{
+				TArray<FNiagaraFunctionSignature> FunctionSignatures;
+				DataInterfaceClass->GetFunctions(FunctionSignatures);
+
+				for (const FNiagaraFunctionSignature& FunctionSignature : FunctionSignatures)
+				{
+					if (FunctionSignature.bRequiresExecPin)
+					{
+						TStringBuilder<256> Builder;
+						InputPin->PinName.AppendString(Builder);
+						Builder.AppendChar(TCHAR('.'));
+						FunctionSignature.Name.AppendString(Builder);
+
+						ImpureFunctionNames.AddUnique(Builder.ToString());
+					}
+				}
+			}
+		}
+	}
+
+	if (!ImpureFunctionNames.IsEmpty())
+	{
+		TArray<FStringView> CustomHlslTokens;
+		GetTokensFromString(CustomHlsl, CustomHlslTokens, false, false);
+
+		for (const FString& ImpureFunctionName : ImpureFunctionNames)
+		{
+			if (CustomHlslTokens.Contains(ImpureFunctionName))
+			{
+				return true;
+			}
+		}
+	}
+
+	return false;
+
+}
+
 bool UNiagaraNodeCustomHlsl::IsPinNameEditableUponCreation(const UEdGraphPin* GraphPinObj) const
 {
 	if (GraphPinObj == PinPendingRename && ScriptUsage != ENiagaraScriptUsage::DynamicInput)

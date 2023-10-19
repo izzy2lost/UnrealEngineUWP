@@ -217,6 +217,8 @@ struct FNiagaraCompilationGraphBridge
 	static bool IsParameterMapPin(const FPin* Pin);
 	static bool GetGraphReferencesStaticVariables(const FGraph* Graph, FNiagaraStaticVariableSearchContext& StaticVariableContext);
 	static const FEmitterNode* GetNodeAsEmitter(const FNode* Node);
+
+	static bool GetCustomNodeUsesImpureFunctions(const FCustomHlslNode* CustomNode);
 };
 
 struct FNiagaraCompilationDigestBridge
@@ -346,4 +348,6 @@ struct FNiagaraCompilationDigestBridge
 	static bool IsParameterMapPin(const FPin* Pin);
 	static bool GetGraphReferencesStaticVariables(const FGraph* Graph, FNiagaraStaticVariableSearchContext& StaticVariableContext);
 	static const FEmitterNode* GetNodeAsEmitter(const FNode* Node);
+
+	static bool GetCustomNodeUsesImpureFunctions(const FCustomHlslNode* CustomNode);
 };

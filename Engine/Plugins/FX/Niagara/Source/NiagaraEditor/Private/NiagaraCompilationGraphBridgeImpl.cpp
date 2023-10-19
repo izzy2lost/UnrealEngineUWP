@@ -551,6 +551,11 @@ const UNiagaraNodeEmitter* FNiagaraCompilationGraphBridge::GetNodeAsEmitter(cons
 	return Cast<const UNiagaraNodeEmitter>(Node);
 }
 
+bool FNiagaraCompilationGraphBridge::GetCustomNodeUsesImpureFunctions(const UNiagaraNodeCustomHlsl* CustomNode)
+{
+	return CustomNode->CallsImpureDataInterfaceFunctions();
+}
+
 UNiagaraParameterCollection* FNiagaraCompilationGraphBridge::FAvailableParameterCollections::FindCollection(const FNiagaraVariable& Variable) const
 {
 	const UEdGraphSchema_Niagara* Schema = GetDefault<UEdGraphSchema_Niagara>();

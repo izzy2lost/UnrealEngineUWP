@@ -2948,8 +2948,9 @@ FNiagaraCompilationNodeCustomHlsl::FNiagaraCompilationNodeCustomHlsl(const UNiag
 		Tokens.Push(FString(View));
 	}
 	InNode->GetIncludeFilePaths(CustomIncludePaths);
-}
 
+	bCallsImpureFunctions = InNode->CallsImpureDataInterfaceFunctions();
+}
 
 FNiagaraCompilationNodeCustomHlsl::FNiagaraCompilationNodeCustomHlsl(const FNiagaraCompilationNodeCustomHlsl& InNode, FNiagaraCompilationGraphDuplicateContext& Context)
 	: FNiagaraCompilationNodeFunctionCall(InNode, Context)
@@ -2958,6 +2959,7 @@ FNiagaraCompilationNodeCustomHlsl::FNiagaraCompilationNodeCustomHlsl(const FNiag
 	, CustomHlsl(InNode.CustomHlsl)
 	, Tokens(InNode.Tokens)
 	, CustomIncludePaths(InNode.CustomIncludePaths)
+	, bCallsImpureFunctions(InNode.bCallsImpureFunctions)
 {
 
 }

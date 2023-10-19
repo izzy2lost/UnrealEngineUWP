@@ -492,6 +492,11 @@ const FNiagaraCompilationNodeEmitter* FNiagaraCompilationDigestBridge::GetNodeAs
 	return Node->AsType<FEmitterNode>();
 }
 
+bool FNiagaraCompilationDigestBridge::GetCustomNodeUsesImpureFunctions(const FNiagaraCompilationNodeCustomHlsl* CustomNode)
+{
+	return CustomNode->bCallsImpureFunctions;
+}
+
 //////////////////////////////////////////////////////////////////////////
 
 

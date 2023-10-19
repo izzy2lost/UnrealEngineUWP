@@ -54,6 +54,8 @@ public:
 
 	void InitAsCustomHlslDynamicInput(const FNiagaraTypeDefinition& OutputType);
 
+	bool CallsImpureDataInterfaceFunctions() const;
+
 protected:
 	virtual bool AllowDynamicPins() const override { return true; }
 	virtual bool GetValidateDataInterfaces() const override { return false; }

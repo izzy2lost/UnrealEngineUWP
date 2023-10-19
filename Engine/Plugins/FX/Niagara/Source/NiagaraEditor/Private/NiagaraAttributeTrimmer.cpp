@@ -93,7 +93,8 @@ template<typename GraphBridge>
 class FNiagaraAttributeTrimmerHelper<GraphBridge>::FImpureFunctionParser
 {
 public:
-	FImpureFunctionParser(const FGraph* Graph, ENiagaraScriptUsage Usage)
+	FImpureFunctionParser(const FGraph* Graph, ENiagaraScriptUsage Usage, FTrimAttributeCache& InCache)
+		: Cache(InCache)
 	{
 		Traverse(TEXT(""), Graph, Usage);
 	}
@@ -125,7 +126,20 @@ private:
 						Traverse(NamespacePrefix + GraphBridge::GetFunctionName(FunctionNode), FunctionGraph, GraphBridge::GetFunctionUsage(FunctionNode));
 					}
 
+					bool bEvaluatePins = false;
 					if (FunctionNode->Signature.bRequiresExecPin)
+					{
+						bEvaluatePins = true;
+					}
+					else if(const FCustomHlslNode* CustomHlslNode = GraphBridge::AsCustomHlslNode(Node))
+					{
+						FCustomHlslNodeInfo NodeInfo;
+						BuildCustomHlslNodeInfo(Cache, CustomHlslNode, NodeInfo);
+
+						bEvaluatePins = NodeInfo.bHasImpureFunctionText;
+					}
+
+					if (bEvaluatePins)
 					{
 						for (const FInputPin* Pin : GraphBridge::GetInputPins(FunctionNode))
 						{
@@ -149,6 +163,7 @@ private:
 		}
 	}
 
+	FTrimAttributeCache& Cache;
 	TArray<FModuleScopedPin> ImpureFunctionInputs;
 };
 
@@ -157,9 +172,10 @@ class FNiagaraAttributeTrimmerHelper<GraphBridge>::FExpressionBuilder
 {
 public:
 
-	FExpressionBuilder(const FParamMapHistory& InParamMap, const FFunctionInputResolver& InInputResolver)
+	FExpressionBuilder(const FParamMapHistory& InParamMap, const FFunctionInputResolver& InInputResolver, FTrimAttributeCache& InCache)
 		: ParamMap(InParamMap)
 		, InputResolver(InInputResolver)
+		, Cache(InCache)
 	{}
 
 	// generates a set of dependencies for a specific pin
@@ -294,7 +310,7 @@ private:
 						if (!Dependencies.CustomNodes.Contains(CustomHlslNode))
 						{
 							FCustomHlslNodeInfo& NodeInfo = Dependencies.CustomNodes.Add(CustomHlslNode);
-							BuildCustomHlslNodeInfo(CustomHlslNode, NodeInfo);
+							BuildCustomHlslNodeInfo(Cache, CustomHlslNode, NodeInfo);
 						}
 					}
 				}
@@ -311,64 +327,31 @@ private:
 		}
 	}
 
-	void BuildCustomHlslNodeInfo(const FCustomHlslNode* CustomNode, FCustomHlslNodeInfo& NodeInfo)
-	{
-		check(CustomNode);
-
-		NodeInfo.bHasDataInterfaceInputs = false;
-		NodeInfo.bHasImpureFunctionText = false;
-
-		TArray<FString> ImpureFunctionNames;
-
-		for (const FInputPin* InputPin : GraphBridge::GetInputPins(CustomNode))
-		{
-			FNiagaraTypeDefinition NiagaraType = GraphBridge::GetPinType(InputPin, ENiagaraStructConversion::Simulation);
-			if (NiagaraType.IsDataInterface())
-			{
-				NodeInfo.bHasDataInterfaceInputs = true;
-
-				if (UNiagaraDataInterface* DataInterfaceClass = CastChecked<UNiagaraDataInterface>(NiagaraType.GetClass()->ClassDefaultObject))
-				{
-					TArray<FNiagaraFunctionSignature> FunctionSignatures;
-					DataInterfaceClass->GetFunctions(FunctionSignatures);
-
-					for (const FNiagaraFunctionSignature& FunctionSignature : FunctionSignatures)
-					{
-						if (FunctionSignature.bRequiresExecPin)
-						{
-							TStringBuilder<256> Builder;
-							InputPin->PinName.AppendString(Builder);
-							Builder.AppendChar(TCHAR('.'));
-							FunctionSignature.Name.AppendString(Builder);
-
-							ImpureFunctionNames.AddUnique(Builder.ToString());
-						}
-					}
-				}
-			}
-		}
-
-		if (!ImpureFunctionNames.IsEmpty())
-		{
-			TArray<FStringView> ImpureFunctionNameViews;
-			ImpureFunctionNameViews.Reserve(ImpureFunctionNames.Num());
-			Algo::Transform(ImpureFunctionNames, ImpureFunctionNameViews, [](const FString& FunctionName) -> FStringView
-				{
-					return FunctionName;
-				});
-
-			if (GraphBridge::CustomHlslReferencesTokens(CustomNode, ImpureFunctionNameViews))
-			{
-				return;
-			}
-		}
-	}
-
 	const FParamMapHistory& ParamMap;
 	const FFunctionInputResolver& InputResolver;
+	FTrimAttributeCache& Cache;
 
 	const bool EvaluateStaticSwitches = false;
 };
+
+template<typename GraphBridge>
+void FNiagaraAttributeTrimmerHelper<GraphBridge>::BuildCustomHlslNodeInfo(FTrimAttributeCache& InCache, const FCustomHlslNode* CustomNode, FCustomHlslNodeInfo& NodeInfo)
+{
+	if (CustomNode == nullptr)
+	{
+		return;
+	}
+
+	if (FCustomHlslNodeInfo* ExistingNodeInfo = InCache.CustomNodeCache.Find(CustomNode))
+	{
+		NodeInfo = *ExistingNodeInfo;
+		return;
+	}
+
+	NodeInfo.bHasImpureFunctionText = GraphBridge::GetCustomNodeUsesImpureFunctions(CustomNode);
+
+	InCache.CustomNodeCache.Add(CustomNode, NodeInfo);
+}
 
 // For a specific read of a variable finds the corresponding PreviousWritePin if one exists (only considers actual writes
 // rather than default pins on a MapGet)
@@ -613,6 +596,8 @@ void FNiagaraAttributeTrimmerHelper<GraphBridge>::TrimAttributes_Safe(TConstArra
 template<typename GraphBridge>
 void FNiagaraAttributeTrimmerHelper<GraphBridge>::TrimAttributes_Aggressive(const FCompilationCopy* CompileDuplicateData, TConstArrayView<const FParamMapHistory*> LocalParamHistories, TSet<FName>& AttributesToPreserve, TArray<FNiagaraVariable>& Attributes)
 {
+	FTrimAttributeCache Cache;
+
 	// variable references hidden in custom hlsl nodes may not be present in a specific stages parameter map
 	// so we consolidate all the variables into one list to use when going through custom hlsl nodes
 	TSet<FNiagaraVariableBase> UnifiedVariables;
@@ -641,7 +626,7 @@ void FNiagaraAttributeTrimmerHelper<GraphBridge>::TrimAttributes_Aggressive(cons
 			{
 				FDependencyChain& Dependencies = PerVariableDependencySets.Add(WritePin);
 
-				FExpressionBuilder Builder(*ParamMap, InputResolver);
+				FExpressionBuilder Builder(*ParamMap, InputResolver, Cache);
 				Builder.FindDependencies(WritePin, Dependencies);
 
 				for (typename FCustomHlslNodeMap::TConstIterator CustomNodeIt = Dependencies.CustomNodes.CreateConstIterator(); CustomNodeIt; ++CustomNodeIt)
@@ -654,12 +639,12 @@ void FNiagaraAttributeTrimmerHelper<GraphBridge>::TrimAttributes_Aggressive(cons
 			}
 		}
 
-		FImpureFunctionParser ImpureFunctionParser(GraphBridge::GetGraph(CompileDuplicateData), ParamMap->OriginatingScriptUsage);
+		FImpureFunctionParser ImpureFunctionParser(GraphBridge::GetGraph(CompileDuplicateData), ParamMap->OriginatingScriptUsage, Cache);
 		for (const FModuleScopedPin& RequiredFunctionInput : ImpureFunctionParser.ReadFunctionInputs())
 		{
 			FDependencyChain Dependencies;
 
-			FExpressionBuilder Builder(*ParamMap, InputResolver);
+			FExpressionBuilder Builder(*ParamMap, InputResolver, Cache);
 			Builder.FindDependencies(RequiredFunctionInput, Dependencies);
 
 			for (const FModuleScopedPin& DependentPin : Dependencies.Pins)

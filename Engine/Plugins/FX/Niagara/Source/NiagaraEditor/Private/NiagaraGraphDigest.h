@@ -460,6 +460,7 @@ public:
 	FString CustomHlsl;
 	TArray<FString> Tokens;
 	TArray<FNiagaraCustomHlslInclude> CustomIncludePaths;
+	bool bCallsImpureFunctions = false;
 };
 
 class FNiagaraCompilationNodeIf : public FNiagaraCompilationNode
