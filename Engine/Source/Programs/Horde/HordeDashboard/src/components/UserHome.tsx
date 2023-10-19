@@ -1,6 +1,6 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 
-import { CollapseAllVisibility, DefaultButton, DetailsHeader, DetailsList, DetailsListLayoutMode, DetailsRow, FocusZone, FocusZoneDirection, FontIcon, IColumn, IconButton, IDetailsListProps, mergeStyleSets, PrimaryButton, ScrollablePane, ScrollbarVisibility, SelectionMode, Spinner, SpinnerSize, Stack, Text } from '@fluentui/react';
+import { CollapseAllVisibility, DefaultButton, DetailsHeader, DetailsList, DetailsListLayoutMode, DetailsRow, FocusZone, FocusZoneDirection, FontIcon, IColumn, IconButton, IDetailsListProps, IDetailsRowStyles, mergeStyleSets, PrimaryButton, ScrollablePane, ScrollbarVisibility, SelectionMode, Spinner, SpinnerSize, Stack, Text } from '@fluentui/react';
 import { action, makeObservable, observable } from 'mobx';
 import { observer } from 'mobx-react-lite';
 import moment from "moment-timezone";
@@ -553,7 +553,7 @@ const JobsPanel: React.FC<{ includeOtherPreflights: boolean }> = observer(({ inc
 
    }, [jobHandler]);
 
-   const { hordeClasses, detailClasses } = getHordeStyling();
+   const { hordeClasses, detailClasses, modeColors } = getHordeStyling();
 
 
    // subscribe
@@ -876,8 +876,15 @@ const JobsPanel: React.FC<{ includeOtherPreflights: boolean }> = observer(({ inc
 
          const item = jobItems[props.itemIndex];
 
+         const customStyles: Partial<IDetailsRowStyles> = {};
+         let background: string | undefined;
+
+         if (props.itemIndex % 2 === 0) {
+            background  =  dashboard.darktheme ? "#1D2021" : "#FAF9F9";
+         }
+
          return <JobOperationsContextMenu job={item.job}>
-            <DetailsRow styles={{ root: { paddingTop: 8, paddingBottom: 8, backgroundColor: "FF0000" }, cell: { selectors: { "a, a:visited, a:activem, a:hover": { color: "rgb(96, 94, 92)" } } } }} {...props} />
+            <DetailsRow styles={{ root: { paddingTop: 8, paddingBottom: 8, backgroundColor: background}, cell: { selectors: { "a, a:visited, a:activem, a:hover": { color: modeColors.text} } } }} {...props} />
          </JobOperationsContextMenu>
       }
       return null;

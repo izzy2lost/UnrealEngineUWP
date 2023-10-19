@@ -909,7 +909,7 @@ export const LogList: React.FC<{ logId: string }> = observer(({ logId }) => {
          const navigateToArtifacts = (context: string) => {
             const search = new URLSearchParams(window.location.search);
             search.set("artifactContext", encodeURIComponent(context));
-            const url = `${window.location.pathname}?` + search.toString();      
+            const url = `${window.location.pathname}?` + search.toString();
             navigate(url, { replace: true })
          }
 
@@ -1063,6 +1063,8 @@ export const LogList: React.FC<{ logId: string }> = observer(({ logId }) => {
       errorText = "No";
    }
 
+   const buttonNoneText = dashboard.darktheme ? "#949898" : "#616e85";
+
    return <Stack>
       {!!fixme && <IssueModalV2 issueId={query.get("issue")} popHistoryOnClose={issueHistory} />}
       {!!fixme && logHistory && <StepHistoryModal jobDetails={fixme!} stepId={fixme!.stepByLogId(logId)?.id} onClose={() => setLogHistory(false)} />}
@@ -1082,7 +1084,7 @@ export const LogList: React.FC<{ logId: string }> = observer(({ logId }) => {
                            onClick={() => {
                               nextError();
                            }}
-                           style={{ color: errors.length ? "#F9F9FB" : "rgb(97, 110, 133)", padding: 15 }} >
+                           style={{ color: errors.length ? "#F9F9FB" : buttonNoneText, padding: 15 }} >
                            {!!errors.length && <Icon style={{ fontSize: 19, paddingLeft: 12 }} iconName='ChevronDown' />}
                         </DefaultButton>
 
@@ -1102,11 +1104,11 @@ export const LogList: React.FC<{ logId: string }> = observer(({ logId }) => {
                               onClick={() => {
                                  nextWarning();
                               }}
-                              style={{ color: (dashboard.darktheme && warnings.length) ? "#F9F9FB" : "rgb(97, 110, 133)", padding: 15 }} >
+                              style={{ color: (dashboard.darktheme && warnings.length) ? "#F9F9FB" : buttonNoneText, padding: 15 }} >
                               {!!warnings.length && <Icon style={{ fontSize: 19, paddingLeft: 12 }} iconName='ChevronDown' />}
                            </DefaultButton>
                            {!!warnings.length && <Stack>
-                              <IconButton className={handler.style.warningButton} style={{ height: 30, fontSize: 19, padding: 8, color: (dashboard.darktheme && warnings.length) ? "#F9F9FB" : "rgb(97, 110, 133)" }} iconProps={{ iconName: 'ChevronUp' }} onClick={(event: any) => {
+                              <IconButton className={handler.style.warningButton} style={{ height: 30, fontSize: 19, padding: 8, color: (dashboard.darktheme && warnings.length) ? "#F9F9FB" : buttonNoneText }} iconProps={{ iconName: 'ChevronUp' }} onClick={(event: any) => {
                                  event?.stopPropagation();
                                  prevWarning();
 
@@ -1169,7 +1171,7 @@ export const LogList: React.FC<{ logId: string }> = observer(({ logId }) => {
                                     }}
 
                                  />
-                                 <Stack horizontal style={{ borderWidth: 1, borderStyle: "solid", borderColor: "rgb(96, 94, 92)", height: 32, borderLeft: 0 }}>
+                                 <Stack horizontal style={{ borderWidth: 1, borderStyle: "solid", borderColor: dashboard.darktheme ?  "#FFFFFF" : "rgb(96, 94, 92)", height: 32, borderLeft: 0 }}>
                                     <IconButton style={{ height: 30 }} iconProps={{ iconName: 'ChevronUp' }} onClick={(event: any) => {
                                        searchUp();
                                     }} />
@@ -1206,7 +1208,7 @@ export const LogList: React.FC<{ logId: string }> = observer(({ logId }) => {
                </Stack>
                <Stack>
                   <Stack style={{ paddingTop: 12 }}>
-                     <Separator styles={{ root: { fontSize: 0, width: "100%", padding: 0, selectors: { '::before': { background: '#D3D2D1' } } } }} />
+                     <Separator styles={{ root: { fontSize: 0, width: "100%", padding: 0, selectors: { '::before': { background: dashboard.darktheme ? '#313638' : '#D3D2D1' } } } }} />
                   </Stack>
 
                   <Stack style={{ paddingBottom: 12, paddingTop: 12, fontSize: 12, fontFamily: "Horde Open Sans Regular" }}>
@@ -1216,7 +1218,7 @@ export const LogList: React.FC<{ logId: string }> = observer(({ logId }) => {
                      </Stack>
                   </Stack>
                   <Stack horizontalAlign="center" style={{ paddingBottom: 12 }}>
-                     <Separator styles={{ root: { fontSize: 0, width: "100%", padding: 0, selectors: { '::before': { background: '#D3D2D1' } } } }} />
+                     <Separator styles={{ root: { fontSize: 0, width: "100%", padding: 0, selectors: { '::before': { background: dashboard.darktheme ? '#313638' : '#D3D2D1' } } } }} />
                   </Stack>
                </Stack>
 

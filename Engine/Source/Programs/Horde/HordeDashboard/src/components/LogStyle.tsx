@@ -84,8 +84,9 @@ export const getLogStyles = () => {
             }
          }
       },
-      errorButtonDisabled: {
-         backgroundColor: "rgb(243, 242, 241)"
+      errorButtonDisabled: {         
+         color: dashboard.darktheme ? "#909398" : undefined,
+         backgroundColor: dashboard.darktheme ? "#1F2223" : "#f3f2f1"
       },
       warningButton: {
          backgroundColor: dashboard.darktheme ? "#9D840E" : "#F7D154",
@@ -97,7 +98,8 @@ export const getLogStyles = () => {
          }
       },
       warningButtonDisabled: {
-         backgroundColor: "rgb(243, 242, 241)"
+         color: dashboard.darktheme ? "#909398" : undefined,
+         backgroundColor: dashboard.darktheme ? "#1F2223" : "#f3f2f1"
       },
       gutter: [
          {

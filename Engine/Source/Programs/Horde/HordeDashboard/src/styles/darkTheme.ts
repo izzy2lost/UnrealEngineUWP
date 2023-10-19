@@ -6,7 +6,7 @@ import { HordeTheme, HordeThemeExtensions } from './themeTypes';
 const textColor = "#FFFFFF";
 const linkColor = "#55B7FF";
 const linkColorHovered = "#AADBFF";
-const hilightColor = "#363636";
+const hilightColor = "#212425";
 
 // Horde specific color extensions
 const hordeDarkTheme: HordeThemeExtensions = {
@@ -20,7 +20,7 @@ const hordeDarkTheme: HordeThemeExtensions = {
     // Neutral background color, used for site margins, and hinting such as in detail list rows
     neutralBackground: "#101010",
     // divides sections
-    dividerColor: "#2A2A2A",
+    dividerColor: "#25282A",
     // Scrollbar theme colors
     scrollbarThumbColor: "#5F5F5F",
     scrollbarTrackColor: "#2F2F2F"
@@ -34,6 +34,9 @@ export const darkTheme = createTheme({
             styles: {
                 root: {
                     selectors: {
+                        '.ms-DetailsHeader': {
+                            background: hordeDarkTheme.contentBackground
+                        },
                         '.ms-DetailsRow:hover': {
                             backgroundColor: "unset",
                             background: hilightColor
@@ -74,12 +77,12 @@ export const darkTheme = createTheme({
         themeDarkAlt: '#106ebe',
         themeDark: '#005a9e',
         themeDarker: '#004578',
-        neutralLighterAlt: '#363636',
-        neutralLighter: '#363636',
-        neutralLight: '#363636',
-        neutralQuaternaryAlt: '#363636',
-        neutralQuaternary: '#363636',
-        neutralTertiaryAlt: '#363636',
+        neutralLighterAlt: '#212425',
+        neutralLighter: '#212425',
+        neutralLight: '#212425',
+        neutralQuaternaryAlt: '#212425',
+        neutralQuaternary: '#212425',
+        neutralTertiaryAlt: '#212425',
         neutralTertiary: '#c8c8c8',
         neutralSecondary: '#d0d0d0',
         neutralPrimaryAlt: '#dadada',
