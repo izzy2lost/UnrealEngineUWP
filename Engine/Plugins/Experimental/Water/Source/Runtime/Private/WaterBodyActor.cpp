@@ -17,6 +17,7 @@
 #include "WaterBodyRiverComponent.h"
 #include "WaterBodyInfoMeshComponent.h"
 #include "WaterBodyStaticMeshComponent.h"
+#include "WaterModule.h"
 #include "WaterVersion.h"
 #include "Algo/RemoveIf.h"
 
@@ -42,6 +43,10 @@ TAutoConsoleVariable<float> CVarWaterSplineResampleMaxDistance(
 
 AWaterBody::AWaterBody(const FObjectInitializer& ObjectInitializer)
 	: Super(ObjectInitializer)
+	, WaterBodyRiverComponentClass(UWaterBodyRiverComponent::StaticClass())
+	, WaterBodyLakeComponentClass(UWaterBodyLakeComponent::StaticClass())
+	, WaterBodyOceanComponentClass(UWaterBodyOceanComponent::StaticClass())
+	, WaterBodyCustomComponentClass(UWaterBodyCustomComponent::StaticClass())
 {
 	SetCanBeDamaged(false);
 	bNetLoadOnClient = true;
@@ -274,16 +279,56 @@ void AWaterBody::InitializeBody()
 		switch (GetWaterBodyType())
 		{
 		case EWaterBodyType::River:
+			PRAGMA_DISABLE_DEPRECATION_WARNINGS
 			WaterBodyComponentClass = WaterSettings->GetWaterBodyRiverComponentClass().Get();
+			PRAGMA_ENABLE_DEPRECATION_WARNINGS
+			if (WaterBodyComponentClass)
+			{
+				UE_LOG(LogWater, Error, TEXT("Found non-null deprecated setting for %s water bodies. Global WaterBodyComponent class overrides are no longer supported. Please create a new WaterBodyActor class within the same plugin as the component class to override the setting."), *UEnum::GetValueAsString(GetWaterBodyType()));
+			}
+			else
+			{
+				WaterBodyComponentClass = WaterBodyRiverComponentClass.Get();
+			}
 			break;
 		case EWaterBodyType::Lake:
+			PRAGMA_DISABLE_DEPRECATION_WARNINGS
 			WaterBodyComponentClass = WaterSettings->GetWaterBodyLakeComponentClass().Get();
+			PRAGMA_ENABLE_DEPRECATION_WARNINGS
+			if (WaterBodyComponentClass)
+			{
+				UE_LOG(LogWater, Error, TEXT("Found non-null deprecated setting for %s water bodies. Global WaterBodyComponent class overrides are no longer supported. Please create a new WaterBodyActor class within the same plugin as the component class to override the setting."), *UEnum::GetValueAsString(GetWaterBodyType()));
+			}
+			else
+			{
+				WaterBodyComponentClass = WaterBodyLakeComponentClass.Get();
+			}
 			break;
 		case EWaterBodyType::Ocean:
+			PRAGMA_DISABLE_DEPRECATION_WARNINGS
 			WaterBodyComponentClass = WaterSettings->GetWaterBodyOceanComponentClass().Get();
+			PRAGMA_ENABLE_DEPRECATION_WARNINGS
+			if (WaterBodyComponentClass)
+			{
+				UE_LOG(LogWater, Error, TEXT("Found non-null deprecated setting for %s water bodies. Global WaterBodyComponent class overrides are no longer supported. Please create a new WaterBodyActor class within the same plugin as the component class to override the setting."), *UEnum::GetValueAsString(GetWaterBodyType()));
+			}
+			else
+			{
+				WaterBodyComponentClass = WaterBodyOceanComponentClass.Get();
+			}
 			break;
 		case EWaterBodyType::Transition:
+			PRAGMA_DISABLE_DEPRECATION_WARNINGS
 			WaterBodyComponentClass = WaterSettings->GetWaterBodyCustomComponentClass().Get();
+			PRAGMA_ENABLE_DEPRECATION_WARNINGS
+			if (WaterBodyComponentClass)
+			{
+				UE_LOG(LogWater, Error, TEXT("Found non-null deprecated setting for %s water bodies. Global WaterBodyComponent class overrides are no longer supported. Please create a new WaterBodyActor class within the same plugin as the component class to override the setting."), *UEnum::GetValueAsString(GetWaterBodyType()));
+			}
+			else
+			{
+				WaterBodyComponentClass = WaterBodyCustomComponentClass.Get();
+			}
 			break;
 		default:
 			checkf(false, TEXT("Invalid Water Body Type"));
