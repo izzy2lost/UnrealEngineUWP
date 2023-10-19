@@ -58,10 +58,10 @@ namespace Horde.Server.Storage
 
 		sealed class LeafBlobData : BlobData
 		{
-			readonly IStorageObject _obj;
+			readonly IReadOnlyMemoryOwner<byte> _obj;
 
-			public LeafBlobData(IStorageObject obj)
-				: base(s_leafBlobType, obj.Data, Array.Empty<BlobHandle>())
+			public LeafBlobData(IReadOnlyMemoryOwner<byte> obj)
+				: base(s_leafBlobType, obj.Memory, Array.Empty<BlobHandle>())
 			{
 				_obj = obj;
 			}
@@ -111,7 +111,7 @@ namespace Horde.Server.Storage
 			/// <inheritdoc/>
 			public override async ValueTask<BlobData> ReadAsync(CancellationToken cancellationToken = default)
 			{
-				IStorageObject obj = await _backend.ReadAsync(_path, cancellationToken);
+				IReadOnlyMemoryOwner<byte> obj = await _backend.ReadAsync(_path, cancellationToken);
 				return new LeafBlobData(obj);
 			}
 

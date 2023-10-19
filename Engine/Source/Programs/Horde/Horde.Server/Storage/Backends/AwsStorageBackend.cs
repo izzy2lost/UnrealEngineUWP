@@ -104,13 +104,6 @@ namespace Horde.Server.Storage.Backends
 	/// </summary>
 	public sealed class AwsStorageBackend : IStorageBackend, IDisposable
 	{
-		class StorageObject : IStorageObject
-		{
-			public ReadOnlyMemory<byte> Data { get; }
-			public StorageObject(ReadOnlyMemory<byte> data) => Data = data;
-			public void Dispose() { }
-		}
-
 		/// <summary>
 		/// S3 Client
 		/// </summary>
@@ -348,10 +341,10 @@ namespace Horde.Server.Storage.Backends
 		}
 
 		/// <inheritdoc/>
-		public async Task<IStorageObject> ReadAsync(string path, int offset, int? length, CancellationToken cancellationToken)
+		public async Task<IReadOnlyMemoryOwner<byte>> ReadAsync(string path, int offset, int? length, CancellationToken cancellationToken)
 		{
 			using Stream stream = await OpenAsync(path, offset, length, cancellationToken);
-			return new StorageObject(await stream.ReadAllBytesAsync(cancellationToken));
+			return ReadOnlyMemoryOwner.Create(await stream.ReadAllBytesAsync(cancellationToken));
 		}
 
 		/// <inheritdoc/>

@@ -73,14 +73,16 @@ namespace EpicGames.Horde.Storage
 
 			public async Task<Stream> OpenAsync(string path, int offset, int? length, CancellationToken cancellationToken = default)
 			{
-				IStorageObject storageObject = await ReadAsync(path, offset, length, cancellationToken);
-				return storageObject.CreateStream();
+				IReadOnlyMemoryOwner<byte> storageObject = await ReadAsync(path, offset, length, cancellationToken);
+				return storageObject.AsStream();
 			}
 
-			public async Task<IStorageObject> ReadAsync(string path, int offset, int? length, CancellationToken cancellationToken = default)
+			public async Task<IReadOnlyMemoryOwner<byte>> ReadAsync(string path, int offset, int? length, CancellationToken cancellationToken = default)
 			{
-				IStorageObject storageObject = await _cacheStorage.ReadAsync($"{_keyPrefix}{path}", ctx => _inner.OpenAsync(path, ctx), cancellationToken);
-				return storageObject.CreateSlice(offset, length);
+#pragma warning disable CA2000 // Dispose objects before losing scope
+				IReadOnlyMemoryOwner<byte> storageObject = await _cacheStorage.ReadAsync($"{_keyPrefix}{path}", ctx => _inner.OpenAsync(path, ctx), cancellationToken);
+#pragma warning restore CA2000 // Dispose objects before losing scope
+				return storageObject.Slice(offset, length);
 			}
 
 			public Task<string> WriteAsync(Stream stream, string? prefix = null, CancellationToken cancellationToken = default) => _inner.WriteAsync(stream, prefix, cancellationToken);
@@ -185,7 +187,7 @@ namespace EpicGames.Horde.Storage
 		}
 
 		/// <inheritdoc/>
-		public async Task<IStorageObject> ReadAsync(string key, Func<CancellationToken, Task<Stream>> createStreamAsync, CancellationToken cancellationToken = default)
+		public async Task<IReadOnlyMemoryOwner<byte>> ReadAsync(string key, Func<CancellationToken, Task<Stream>> createStreamAsync, CancellationToken cancellationToken = default)
 		{
 			for (; ; )
 			{

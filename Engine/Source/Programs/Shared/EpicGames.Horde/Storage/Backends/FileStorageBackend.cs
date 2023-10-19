@@ -122,12 +122,12 @@ namespace EpicGames.Horde.Storage.Backends
 		}
 
 		// Handle to a file in memory
-		class MappedFileHandle : IStorageObject
+		class MappedFileHandle : IReadOnlyMemoryOwner<byte>
 		{
 			MappedFile? _mappedFile;
 			ReadOnlyMemory<byte> _data;
 
-			public ReadOnlyMemory<byte> Data => _data;
+			public ReadOnlyMemory<byte> Memory => _data;
 
 			public MappedFileHandle(MappedFile? mappedFile, ReadOnlyMemory<byte> data)
 			{
@@ -243,8 +243,10 @@ namespace EpicGames.Horde.Storage.Backends
 		/// <inheritdoc/>
 		public Task<Stream> OpenAsync(string path, int offset, int? length, CancellationToken cancellationToken)
 		{
-			IStorageObject storageObject = Read(path, offset, length);
-			return Task.FromResult<Stream>(storageObject.CreateStream());
+#pragma warning disable CA2000 // Dispose objects before losing scope
+			IReadOnlyMemoryOwner<byte> storageObject = Read(path, offset, length);
+#pragma warning restore CA2000 // Dispose objects before losing scope
+			return Task.FromResult<Stream>(storageObject.AsStream());
 		}
 
 		/// <summary>
@@ -254,7 +256,7 @@ namespace EpicGames.Horde.Storage.Backends
 		/// <param name="offset">Offset of the data to retrieve</param>
 		/// <param name="length">Length of the data</param>
 		/// <returns>Handle to the data. Must be disposed by the caller.</returns>
-		public IStorageObject Read(string path, int offset, int? length)
+		public IReadOnlyMemoryOwner<byte> Read(string path, int offset, int? length)
 		{
 			lock (_lockObject)
 			{
@@ -264,7 +266,7 @@ namespace EpicGames.Horde.Storage.Backends
 		}
 
 		/// <inheritdoc/>
-		public Task<IStorageObject> ReadAsync(string path, int offset, int? length, CancellationToken cancellationToken = default)
+		public Task<IReadOnlyMemoryOwner<byte>> ReadAsync(string path, int offset, int? length, CancellationToken cancellationToken = default)
 		{
 			return Task.FromResult(Read(path, offset, length));
 		}

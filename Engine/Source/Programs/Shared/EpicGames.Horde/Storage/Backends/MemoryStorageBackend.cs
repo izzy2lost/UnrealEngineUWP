@@ -16,13 +16,6 @@ namespace EpicGames.Horde.Storage.Backends
 	/// </summary>
 	public sealed class MemoryStorageBackend : IStorageBackend
 	{
-		class StorageObject : IStorageObject
-		{
-			public ReadOnlyMemory<byte> Data { get; }
-			public StorageObject(ReadOnlyMemory<byte> data) => Data = data;
-			public void Dispose() { }
-		}
-
 		/// <summary>
 		/// Data storage
 		/// </summary>
@@ -48,9 +41,9 @@ namespace EpicGames.Horde.Storage.Backends
 		}
 
 		/// <inheritdoc/>
-		public Task<IStorageObject> ReadAsync(string path, int offset, int? length, CancellationToken cancellationToken)
+		public Task<IReadOnlyMemoryOwner<byte>> ReadAsync(string path, int offset, int? length, CancellationToken cancellationToken)
 		{
-			return Task.FromResult<IStorageObject>(new StorageObject(GetData(path, offset, length)));
+			return Task.FromResult(ReadOnlyMemoryOwner.Create(GetData(path, offset, length)));
 		}
 
 		ReadOnlyMemory<byte> GetData(string path, int offset, int? length)

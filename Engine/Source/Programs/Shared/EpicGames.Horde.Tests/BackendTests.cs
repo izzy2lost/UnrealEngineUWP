@@ -61,17 +61,17 @@ namespace EpicGames.Horde.Tests
 				using FileStorageBackend backend = new FileStorageBackend(tempDir.Location);
 				string path = await backend.WriteBytesAsync(Encoding.UTF8.GetBytes("hello world"));
 
-				using (IStorageObject handle = backend.Read(path, 0, null))
+				using (IReadOnlyMemoryOwner<byte> handle = backend.Read(path, 0, null))
 				{
-					Assert.AreEqual("hello world", Encoding.UTF8.GetString(handle.Data.Span));
+					Assert.AreEqual("hello world", Encoding.UTF8.GetString(handle.Memory.Span));
 				}
-				using (IStorageObject handle = backend.Read(path, 0, 5))
+				using (IReadOnlyMemoryOwner<byte> handle = backend.Read(path, 0, 5))
 				{
-					Assert.AreEqual("hello", Encoding.UTF8.GetString(handle.Data.Span));
+					Assert.AreEqual("hello", Encoding.UTF8.GetString(handle.Memory.Span));
 				}
-				using (IStorageObject handle = backend.Read(path, 4, 3))
+				using (IReadOnlyMemoryOwner<byte> handle = backend.Read(path, 4, 3))
 				{
-					Assert.AreEqual("o w", Encoding.UTF8.GetString(handle.Data.Span));
+					Assert.AreEqual("o w", Encoding.UTF8.GetString(handle.Memory.Span));
 				}
 			}
 		}

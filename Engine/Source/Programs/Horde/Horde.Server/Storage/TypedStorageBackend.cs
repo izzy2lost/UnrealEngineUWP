@@ -5,6 +5,7 @@ using System.Collections.Generic;
 using System.IO;
 using System.Threading;
 using System.Threading.Tasks;
+using EpicGames.Core;
 using EpicGames.Horde.Storage;
 
 namespace Horde.Server.Storage
@@ -46,7 +47,7 @@ namespace Horde.Server.Storage
 			public Task<Stream> OpenAsync(string path, int offset, int? length, CancellationToken cancellationToken) => _inner.OpenAsync(path, offset, length, cancellationToken);
 
 			/// <inheritdoc/>
-			public Task<IStorageObject> ReadAsync(string path, int offset, int? length, CancellationToken cancellationToken) => _inner.ReadAsync(path, offset, length, cancellationToken);
+			public Task<IReadOnlyMemoryOwner<byte>> ReadAsync(string path, int offset, int? length, CancellationToken cancellationToken) => _inner.ReadAsync(path, offset, length, cancellationToken);
 
 			/// <inheritdoc/>
 			public Task<string> WriteAsync(Stream stream, string? prefix, CancellationToken cancellationToken) => _inner.WriteAsync(stream, prefix, cancellationToken);

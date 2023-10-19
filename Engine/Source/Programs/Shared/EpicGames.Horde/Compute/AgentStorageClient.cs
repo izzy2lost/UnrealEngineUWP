@@ -55,13 +55,6 @@ namespace EpicGames.Horde.Compute
 
 	class AgentStorageBackend : IStorageBackend
 	{
-		class StorageObject : IStorageObject
-		{
-			public ReadOnlyMemory<byte> Data { get; }
-			public StorageObject(ReadOnlyMemory<byte> data) => Data = data;
-			public void Dispose() { }
-		}
-
 		readonly AgentMessageChannel _channel;
 		readonly SemaphoreSlim _semaphore;
 
@@ -108,12 +101,12 @@ namespace EpicGames.Horde.Compute
 		}
 
 		/// <inheritdoc/>
-		public async Task<IStorageObject> ReadAsync(string path, int offset, int? length, CancellationToken cancellationToken = default)
+		public async Task<IReadOnlyMemoryOwner<byte>> ReadAsync(string path, int offset, int? length, CancellationToken cancellationToken = default)
 		{
 			using (Stream stream = await OpenAsync(path, offset, length, cancellationToken))
 			{
 				byte[] data = await stream.ReadAllBytesAsync(cancellationToken);
-				return new StorageObject(data);
+				return ReadOnlyMemoryOwner.Create(data);
 			}
 		}
 

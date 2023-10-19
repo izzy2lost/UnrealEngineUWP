@@ -15,6 +15,21 @@ namespace EpicGames.Horde.Storage
 	/// </summary>
 	public abstract class BlobHandle
 	{
+		class BlobDataFragment : IReadOnlyMemoryOwner<byte>
+		{
+			readonly BlobData _data;
+
+			public ReadOnlyMemory<byte> Memory { get; }
+
+			public BlobDataFragment(BlobData data, int offset, int length)
+			{
+				_data = data;
+				Memory = data.Data.Slice(offset, length);
+			}
+
+			public void Dispose() => _data.Dispose();
+		}
+
 		class BlobDataStream : ReadOnlyMemoryStream
 		{
 			readonly BlobData _blobData;
@@ -93,6 +108,19 @@ namespace EpicGames.Horde.Storage
 		/// </summary>
 		/// <param name="cancellationToken">Cancellation token for the operation</param>
 		public abstract ValueTask<BlobData> ReadAsync(CancellationToken cancellationToken = default);
+
+		/// <summary>
+		/// Reads part of the blob, and returns a handle that can be used to access the data.
+		/// </summary>
+		/// <param name="offset">Offset of the data within the blob</param>
+		/// <param name="length">Length of the data to read</param>
+		/// <param name="cancellationToken">Cancellation token for the operation</param>
+		/// <returns></returns>
+		public virtual async ValueTask<IReadOnlyMemoryOwner<byte>> ReadPartialAsync(int offset, int length, CancellationToken cancellationToken = default)
+		{
+			BlobData data = await ReadAsync(cancellationToken);
+			return new BlobDataFragment(data, offset, length);
+		}
 
 		/// <summary>
 		/// Creates a reader for this node's data

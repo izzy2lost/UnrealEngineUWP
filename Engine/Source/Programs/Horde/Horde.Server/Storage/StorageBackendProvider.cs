@@ -85,7 +85,7 @@ namespace Horde.Server.Storage
 			}
 
 			/// <inheritdoc/>
-			public Task<IStorageObject> ReadAsync(string path, int offset, int? length, CancellationToken cancellationToken = default)
+			public Task<IReadOnlyMemoryOwner<byte>> ReadAsync(string path, int offset, int? length, CancellationToken cancellationToken = default)
 			{
 				return _backend?.ReadAsync(path, offset, length, cancellationToken) ?? throw new InvalidOperationException("Backend has already been disposed");
 			}

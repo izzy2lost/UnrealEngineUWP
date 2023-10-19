@@ -6,6 +6,7 @@ using System.IO;
 using System.Runtime.CompilerServices;
 using System.Threading;
 using System.Threading.Tasks;
+using EpicGames.Core;
 
 namespace EpicGames.Horde.Storage.Backends
 {
@@ -59,7 +60,7 @@ namespace EpicGames.Horde.Storage.Backends
 		public Task<Stream> OpenAsync(string path, int offset, int? length, CancellationToken cancellationToken = default) => _inner.OpenAsync($"{_prefix}{path}", offset, length, cancellationToken);
 
 		/// <inheritdoc/>
-		public Task<IStorageObject> ReadAsync(string path, int offset, int? length, CancellationToken cancellationToken = default) => _inner.ReadAsync($"{_prefix}{path}", offset, length, cancellationToken);
+		public Task<IReadOnlyMemoryOwner<byte>> ReadAsync(string path, int offset, int? length, CancellationToken cancellationToken = default) => _inner.ReadAsync($"{_prefix}{path}", offset, length, cancellationToken);
 
 		/// <inheritdoc/>
 		public ValueTask<Uri?> TryGetReadRedirectAsync(string path, CancellationToken cancellationToken = default) => _inner.TryGetReadRedirectAsync($"{_prefix}{path}", cancellationToken);

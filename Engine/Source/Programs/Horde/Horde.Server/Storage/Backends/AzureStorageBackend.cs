@@ -54,13 +54,6 @@ namespace Horde.Server.Storage.Backends
 	/// </summary>
 	public sealed class AzureStorageBackend : IStorageBackend
 	{
-		class StorageObject : IStorageObject
-		{
-			public ReadOnlyMemory<byte> Data { get; }
-			public StorageObject(ReadOnlyMemory<byte> data) => Data = data;
-			public void Dispose() { }
-		}
-
 		private readonly ILogger _logger;
 		private readonly Tracer _tracer;
 		private readonly BlobContainerClient _blobContainer;
@@ -113,10 +106,10 @@ namespace Horde.Server.Storage.Backends
 		}
 
 		/// <inheritdoc/>
-		public async Task<IStorageObject> ReadAsync(string path, int offset, int? length, CancellationToken cancellationToken = default)
+		public async Task<IReadOnlyMemoryOwner<byte>> ReadAsync(string path, int offset, int? length, CancellationToken cancellationToken = default)
 		{
 			using Stream stream = await OpenAsync(path, offset, length, cancellationToken);
-			return new StorageObject(await stream.ReadAllBytesAsync(cancellationToken));
+			return ReadOnlyMemoryOwner.Create(await stream.ReadAllBytesAsync(cancellationToken));
 		}
 
 		/// <inheritdoc/>
