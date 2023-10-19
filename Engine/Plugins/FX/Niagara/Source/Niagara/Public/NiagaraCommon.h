@@ -343,6 +343,9 @@ struct FNiagaraScriptDataUsageInfo
 	bool bReadsAttributeData;
 };
 
+// automatically fills in source file and line for a FNiagaraFunctionSignature, so the editor can jump to it on double click
+#define NIAGARA_ADD_FUNCTION_SOURCE_INFO(FunctionSignature) { FunctionSignature.SourceFile = __FILE__; FunctionSignature.SourceLine = __LINE__; }
+
 USTRUCT()
 struct FNiagaraFunctionSignature
 {
@@ -443,6 +446,12 @@ struct FNiagaraFunctionSignature
 
 	UPROPERTY(meta = (SkipForCompileHash = true))
 	TMap<FNiagaraVariableBase, FText> OutputDescriptions;
+
+	UPROPERTY(meta = (SkipForCompileHash = true))
+	FString SourceFile;
+
+	UPROPERTY(meta = (SkipForCompileHash = true))
+	int32 SourceLine = 0;
 #endif
 
 	FNiagaraFunctionSignature() 

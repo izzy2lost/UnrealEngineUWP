@@ -69,6 +69,7 @@ namespace NDIDataChannelReadLocal
 			Sig.Name = TEXT("Num");
 #if WITH_EDITORONLY_DATA
 			Sig.Description = LOCTEXT("NumFunctionDescription", "Returns the current number of DataChannel accessible by this interface.");
+			NIAGARA_ADD_FUNCTION_SOURCE_INFO(Sig)
 #endif
 			Sig.bMemberFunction = true;
 			Sig.bExperimental = true;
@@ -86,6 +87,7 @@ namespace NDIDataChannelReadLocal
 			Sig.Name = TEXT("Read");
 #if WITH_EDITORONLY_DATA
 			Sig.Description = LOCTEXT("ReadFunctionDescription", "Reads DataChannel data at a specific index. Any values we read that are not in the DataChannel data are set to their default values. Returns success if there was a valid DataChannel to read from.");
+			NIAGARA_ADD_FUNCTION_SOURCE_INFO(Sig)
 #endif
 			Sig.bMemberFunction = true;
 			Sig.bExperimental = true;
@@ -105,6 +107,7 @@ namespace NDIDataChannelReadLocal
 			Sig.Name = TEXT("Consume");
 #if WITH_EDITORONLY_DATA
 			Sig.Description = LOCTEXT("ConsumeFunctionDescription", "Consumes an DataChannel from the end of the DataChannel array and reads the specified values. Any values we read that are not in the DataChannel data are set to their default values. Returns success if an DataChannel was available to pop.");
+			NIAGARA_ADD_FUNCTION_SOURCE_INFO(Sig)
 #endif
 			Sig.bMemberFunction = true;
 			Sig.bExperimental = true;
@@ -133,6 +136,7 @@ namespace NDIDataChannelReadLocal
 
 			Sig.Name = TEXT("SpawnConditional");
 #if WITH_EDITORONLY_DATA
+			NIAGARA_ADD_FUNCTION_SOURCE_INFO(Sig)
 			Sig.Description = LOCTEXT("SpawnCustomFunctionDescription", "Will Spawn particles into the bound Emitter between Min and Max counts for every element in the bound Data Channel.\n\
 		Can take optional additional parameters as conditions on spawning that will be compared against the contents of each data channel element.\n\
 		For example you could spawn only for a particular value of an enum.\n\

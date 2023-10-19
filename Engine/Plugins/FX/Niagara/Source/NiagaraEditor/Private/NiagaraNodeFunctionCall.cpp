@@ -29,6 +29,10 @@
 #include "NiagaraNodeStaticSwitch.h"
 #include "NiagaraSettings.h"
 #include "ScopedTransaction.h"
+#include "SourceCodeNavigation.h"
+#include "UnrealEdGlobals.h"
+#include "Editor/UnrealEdEngine.h"
+#include "Preferences/UnrealEdOptions.h"
 #include "Widgets/Input/SComboButton.h"
 
 #include UE_INLINE_GENERATED_CPP_BY_NAME(NiagaraNodeFunctionCall)
@@ -863,6 +867,28 @@ void UNiagaraNodeFunctionCall::OpenReferencedAsset() const
 			GEditor->GetEditorSubsystem<UAssetEditorSubsystem>()->OpenEditorForAsset(FunctionScript);
 		}
 		#endif
+	}
+	else if (GUnrealEd && GUnrealEd->GetUnrealEdOptions()->IsCPPAllowed())
+	{
+		if (!Signature.SourceFile.IsEmpty() && FPaths::FileExists(Signature.SourceFile))
+		{
+			FSourceCodeNavigation::OpenSourceFile(Signature.SourceFile, Signature.SourceLine);
+		}
+		else if (Signature.Inputs.Num() > 0)
+		{
+			// if the signature doesn't have the source info stored we try to find the source file
+			// by looking at the data interface on the input pin as a fallback
+			UClass* Class = Signature.Inputs[0].GetType().GetClass();
+			if (Class && Class->IsChildOf(UNiagaraDataInterface::StaticClass()))
+			{
+				FString ClassSourcePath;
+				if(FSourceCodeNavigation::FindClassSourcePath(Class, ClassSourcePath))
+				{
+					const FString AbsoluteSourcePath = IFileManager::Get().ConvertToAbsolutePathForExternalAppForRead(*ClassSourcePath);
+					FSourceCodeNavigation::OpenSourceFile(AbsoluteSourcePath);
+				}
+			}
+		}
 	}
 }
 
