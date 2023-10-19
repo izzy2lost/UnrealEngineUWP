@@ -195,6 +195,16 @@ struct FRenderCaptureCoordinateConverter2D
 	}
 };
 
+/**
+ * Returns the view matrices corresponding to the given render capture cameara parameters
+ * Useful to get the needed information to unproject the DeviceDepth render capture e.g., using the following
+ *
+ *   FViewMatrices ViewMatrices = GetRenderCaptureViewMatrices(...);
+ *   FVector2d DeviceXY = FRenderCaptureCoordinateConverter2D::PixelToDevice(...);
+ *   FVector4d WorldPoint = ViewMatrices.GetInvViewProjectionMatrix().TransformPosition(FVector3d(DeviceXY, DeviceZ));
+ *   WorldPoint /= WorldPoint.W;
+ */
+FViewMatrices GetRenderCaptureViewMatrices(const FFrame3d& ViewFrame, double HorzFOVDegrees, double NearPlaneDist, FImageDimensions ViewRect);
 
 /**
  * FWorldRenderCapture captures a rendering of a set of Actors in a World from a
@@ -248,7 +258,13 @@ public:
 	 * @return view matrices used in the last call to CaptureFromPosition
 	 * Useful to get the needed information to unproject the DeviceDepth render capture
 	 */
-	const FViewMatrices& GetLastCaptureViewMatrices() const { return LastCaptureViewMatrices; }
+	UE_DEPRECATED(5.4, "Please use GetRenderCaptureViewMatrices instead")
+	const FViewMatrices& GetLastCaptureViewMatrices() const
+	{
+		PRAGMA_DISABLE_DEPRECATION_WARNINGS
+		return LastCaptureViewMatrices;
+		PRAGMA_ENABLE_DEPRECATION_WARNINGS
+	}
 
 	/**
 	 * Capture the desired buffer type CaptureType with the given view/camera parameters. The returned image
@@ -288,6 +304,7 @@ protected:
 	UTextureRenderTarget2D* GetRenderTexture(bool bLinear);
 	UTextureRenderTarget2D* GetDepthRenderTexture();
 
+	UE_DEPRECATED(5.4, "Please use GetRenderCaptureViewMatrices instead")
 	FViewMatrices LastCaptureViewMatrices;
 
 	// temporary buffer used to read from texture

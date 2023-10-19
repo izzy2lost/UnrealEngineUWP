@@ -653,7 +653,9 @@ bool FWorldRenderCapture::CaptureMRSFromPosition(
 	UE::Internal::PerformSceneRender(&Canvas, &ViewFamily);
 
 	// Cache the view/projection matricies we used to render the scene
+	PRAGMA_DISABLE_DEPRECATION_WARNINGS
 	LastCaptureViewMatrices = NewView->ViewMatrices;
+	PRAGMA_ENABLE_DEPRECATION_WARNINGS
 
 	if (ensure(PostProcessPassPixelData.IsValid()) == false)
 	{
@@ -722,7 +724,9 @@ bool FWorldRenderCapture::CaptureEmissiveFromPosition(
 	UE::Internal::PerformSceneRender(&Canvas, &ViewFamily);
 
 	// Cache the view/projection matricies we used to render the scene
+	PRAGMA_DISABLE_DEPRECATION_WARNINGS
 	LastCaptureViewMatrices = NewView->ViewMatrices;
+	PRAGMA_ENABLE_DEPRECATION_WARNINGS
 
 	int32 Width = Dimensions.GetWidth();
 	int32 Height = Dimensions.GetHeight();
@@ -817,7 +821,9 @@ bool FWorldRenderCapture::CaptureDeviceDepthFromPosition(
 	UE::Internal::PerformSceneRender(&Canvas, &ViewFamily);
 
 	// Cache the view/projection matricies we used to render the scene
+	PRAGMA_DISABLE_DEPRECATION_WARNINGS
 	LastCaptureViewMatrices = NewView->ViewMatrices;
+	PRAGMA_ENABLE_DEPRECATION_WARNINGS
 
 	// Copy the contents of the remote texture to system memory
 	ReadImageBuffer.Reset();
@@ -861,7 +867,7 @@ bool FWorldRenderCapture::CaptureDeviceDepthFromPosition(
 					FVector2d DeviceXY = FRenderCaptureCoordinateConverter2D::PixelToDevice(FVector2i(xi, yi), Width, Height);
 
 					// Compute world coordinates from normalized device coordinates
-					FVector4d Point = GetLastCaptureViewMatrices().GetInvViewProjectionMatrix().TransformPosition(FVector3d(DeviceXY, DeviceZ));
+					FVector4d Point = NewView->ViewMatrices.GetInvViewProjectionMatrix().TransformPosition(FVector3d(DeviceXY, DeviceZ));
 					Point /= Point.W;
 
 					// Log the point
@@ -945,7 +951,9 @@ bool FWorldRenderCapture::CaptureBufferVisualizationFromPosition(
 	UE::Internal::PerformSceneRender(&Canvas, &ViewFamily);
 
 	// Cache the view/projection matricies we used to render the scene
+	PRAGMA_DISABLE_DEPRECATION_WARNINGS
 	LastCaptureViewMatrices = NewView->ViewMatrices;
+	PRAGMA_ENABLE_DEPRECATION_WARNINGS
 
 	// Copy the contents of the remote texture to system memory
 	ReadImageBuffer.Reset();
@@ -1029,3 +1037,17 @@ void FWorldRenderCapture::WriteDebugImage(const FImageAdapter& ResultImageOut, c
 	int32 UseCounter = (DebugImageCounter >= 0) ? DebugImageCounter : CaptureIndex++;
 	UE::AssetUtils::SaveDebugImage(ResultImageOut, false, DebugImageFolderName, *ImageTypeName, UseCounter);
 }
+
+
+FViewMatrices UE::Geometry::GetRenderCaptureViewMatrices(const FFrame3d& ViewFrame, double HorzFOVDegrees, double NearPlaneDist, FImageDimensions ViewRect)
+{
+	const FSceneViewInitOptions ViewInitOptions = UE::Internal::MakeSceneViewInitOptions(
+		ViewFrame,
+		ViewRect,
+		HorzFOVDegrees,
+		NearPlaneDist,
+		{});
+
+	return FViewMatrices(ViewInitOptions);
+}
+

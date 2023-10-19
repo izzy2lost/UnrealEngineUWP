@@ -222,11 +222,6 @@ void FSceneCapturePhotoSet::Compute()
 		RenderCapture.SetDimensions(Params.Dimensions);
 		RenderCapture.CaptureFromPosition(CaptureType, NewPhoto.Frame, NewPhoto.HorzFOVDegrees, NewPhoto.NearPlaneDist, Image, Config);
 		GetPhotoSet1f(CaptureType).Add(MoveTemp(NewPhoto));
-
-		if (CaptureType == ERenderCaptureType::DeviceDepth)
-		{
-			PhotoViewMatricies.Add(RenderCapture.GetLastCaptureViewMatrices());
-		}
 	};
 
 	// Iterate by channel computing all the photos rather than by photo/viewpoint computing all the channels.
@@ -486,10 +481,6 @@ void FSceneCapturePhotoSet::AddExteriorCaptures(
 		if (PhotoSetStatus[ERenderCaptureType::DeviceDepth] == ECaptureTypeStatus::Pending)
 		{
 			CaptureImageTypeFunc_1f(ERenderCaptureType::DeviceDepth, DeviceDepthPhotoSet);
-			if (PhotoViewMatricies.Num() < NumDirections)
-			{
-				PhotoViewMatricies.Add(RenderCapture.GetLastCaptureViewMatrices());
-			}
 		}
 		if (PhotoSetStatus[ERenderCaptureType::BaseColor] == ECaptureTypeStatus::Pending)
 		{
@@ -635,7 +626,6 @@ bool FSceneCapturePhotoSet::ComputeSampleLocation(
 	if (ValidSampleDepthThreshold > 0)
 	{
 		check(DeviceDepthPhotoSet.Num() == PhotoSetParams.Num());
-		check(PhotoViewMatricies.Num() == PhotoSetParams.Num());
 	}
 
 	PhotoIndex = IndexConstants::InvalidID;
@@ -648,6 +638,8 @@ bool FSceneCapturePhotoSet::ComputeSampleLocation(
 	{
 		const FSpatialPhotoParams& Params = PhotoSetParams[Index];
 		check(Params.Dimensions.IsSquare());
+
+		const FViewMatrices ViewMatrices = GetRenderCaptureViewMatrices(Params.Frame, Params.HorzFOVDegrees, Params.NearPlaneDist, Params.Dimensions);
 
 		FFrame3d RenderFrame(Params.Frame.Origin, Params.Frame.Y(), Params.Frame.Z(), Params.Frame.X());
 
@@ -694,7 +686,7 @@ bool FSceneCapturePhotoSet::ComputeSampleLocation(
 						{
 							// Compute the pixel position in world space to use it to compute a depth according to the render
 							FVector3d PixelPositionDevice{DeviceXY, DeviceZ};
-							FVector4d PixelPositionWorld = PhotoViewMatricies[Index].GetInvViewProjectionMatrix().TransformPosition(PixelPositionDevice);
+							FVector4d PixelPositionWorld = ViewMatrices.GetInvViewProjectionMatrix().TransformPosition(PixelPositionDevice);
 							PixelPositionWorld /= PixelPositionWorld.W;
 
 							// Compare the depth of the sample with the depth of the pixel and consider the sample invalid
@@ -816,6 +808,8 @@ void FSceneCapturePhotoSet::GetSceneSamples(FSceneSamples& OutSamples)
 	{
 		const FSpatialPhotoParams& Params = GetSpatialPhotoParams()[PhotoIndex];
 
+		const FViewMatrices ViewMatrices = GetRenderCaptureViewMatrices(Params.Frame, Params.HorzFOVDegrees, Params.NearPlaneDist, Params.Dimensions);
+
 		for (int64 PixelLinearIndex = 0; PixelLinearIndex < Params.Dimensions.Num(); ++PixelLinearIndex)
 		{
 			const FSpatialPhoto1f& DeviceDepthPhoto = GetDeviceDepthPhotoSet().Get(PhotoIndex);
@@ -843,8 +837,7 @@ void FSceneCapturePhotoSet::GetSceneSamples(FSceneSamples& OutSamples)
 
 					// Map from normalized device coordinates to world coordinates
 					FVector3d PointDevice(DeviceXY, DeviceZ);
-					const FMatrix& InvViewProjectionMatrix = PhotoViewMatricies[PhotoIndex].GetInvViewProjectionMatrix();
-					const FVector4d PointWorld4 = InvViewProjectionMatrix.TransformPosition(PointDevice);
+					const FVector4d PointWorld4 = ViewMatrices.GetInvViewProjectionMatrix().TransformPosition(PointDevice);
 
 					// Convert from Homogenous to Cartesian coordinates
 					PointWorld.X = static_cast<float>(PointWorld4.X / PointWorld4.W);
@@ -1020,9 +1013,7 @@ void FSceneCapturePhotoSet::EmptyPhotoSet(ERenderCaptureType CaptureType)
 		SubsurfaceColorPhotoSet.Empty();
 		break;
 	case ERenderCaptureType::DeviceDepth:
-		// For the device depth photo set we have two containers to empty
 		DeviceDepthPhotoSet.Empty();
-		PhotoViewMatricies.Empty();
 		break;
 	default:
 		ensure(false);

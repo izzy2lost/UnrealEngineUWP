@@ -303,9 +303,6 @@ protected:
 
 	TArray<FSpatialPhotoParams> PhotoSetParams;
 
-	// This used to unproject the DeviceDepth render capture
-	TArray<FViewMatrices> PhotoViewMatricies;
-
 	bool bWriteDebugImages = false;
 	FString DebugImagesFolderName = TEXT("SceneCapturePhotoSet");
 
