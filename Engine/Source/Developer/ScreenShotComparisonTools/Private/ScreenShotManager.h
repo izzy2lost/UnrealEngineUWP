@@ -32,7 +32,6 @@ public:
 		UseLegacyPaths		= 1 >> 1
 	};
 
-	
 	/**
 	 * Creates and initializes a new instance.
 	 *
@@ -49,7 +48,7 @@ public:
 
 	virtual FScreenshotExportResult ExportScreenshotComparisonResult(FString ScreenshotName, FString ExportPath = TEXT(""), bool bOnlyIncoming = false) override;
 
-	virtual bool OpenComparisonReports(FString ImportPath, TArray<FComparisonReport>& OutReports) override;
+	TFuture<TSharedPtr<TArray<FComparisonReport>>> OpenComparisonReportsAsync(const FString& ImportPath) override;
 	
 	virtual FString GetIdealApprovedFolderForImage(const FAutomationScreenshotMetadata& MetaData) const override;
 
@@ -82,6 +81,7 @@ private:
 
 	FString ScreenshotTempDeltaFolder;
 	FString ScreenshotResultsFolder;
+	TSharedPtr<TArray<FString>> PendingComparisonReportPaths;
 
 	TMap<FString, FString> FallbackPlatforms;
 

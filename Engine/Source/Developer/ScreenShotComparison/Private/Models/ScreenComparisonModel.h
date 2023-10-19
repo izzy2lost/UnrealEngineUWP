@@ -32,6 +32,7 @@ public:
 private:
 
 	bool RemoveExistingApproved();
+	void TryLoadMetadata();
 
 private:
 	bool bComplete;

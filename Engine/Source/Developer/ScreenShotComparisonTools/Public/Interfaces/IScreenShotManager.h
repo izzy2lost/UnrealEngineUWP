@@ -71,10 +71,10 @@ public:
 	virtual FScreenshotExportResult ExportScreenshotComparisonResult(FString ScreenshotName, FString ExportPath = TEXT(""), bool bOnlyIncoming = false) = 0;
 
 	/**
-	 * Imports screenshot comparison data from a given path.
+	 * Imports screenshot comparison data from a given path asynchronously.
 	 */
-	virtual bool OpenComparisonReports(FString ImportPath, TArray<FComparisonReport>& OutReports) = 0;
-	
+	virtual TFuture<TSharedPtr<TArray<FComparisonReport>>> OpenComparisonReportsAsync(const FString& ImportPath) = 0;
+
 	/**
 	* Calculate the ideal path for already already approved (ground truth) images. This handles abstracting away where Ground Truth images should be saved
 	* based on the platform/rhi/etc.

@@ -12,7 +12,6 @@
 #include "Widgets/SScreenComparisonRow.h"
 #include "Widgets/Input/SCheckBox.h"
 #include "Widgets/Input/SSearchBox.h"
-#include "Models/ScreenComparisonModel.h"
 #include "Misc/FeedbackContext.h"
 #include "Styling/AppStyle.h"
 #include "Modules/ModuleManager.h"
@@ -280,6 +279,7 @@ void SScreenShotBrowser::Construct( const FArguments& InArgs,  IScreenShotManage
 			SAssignNew(ComparisonView, SListView< TSharedPtr<FScreenComparisonModel> >)
 			.ListItemsSource(&FilteredComparisonList)
 			.OnGenerateRow(this, &SScreenShotBrowser::OnGenerateWidgetForScreenResults)
+			.Visibility(this, &SScreenShotBrowser::GetReportsVisibility)
 			.SelectionMode(ESelectionMode::None)
 			.HeaderRow
 			(
@@ -322,6 +322,15 @@ void SScreenShotBrowser::Construct( const FArguments& InArgs,  IScreenShotManage
 				.VAlignCell(VAlign_Center)
 			)
 		]
+
+		+ SVerticalBox::Slot()
+		.HAlign(HAlign_Center)
+		.VAlign(VAlign_Center)
+		[
+			SNew(SThrobber)
+			.Visibility(this, &SScreenShotBrowser::GetReportsUpdatingThrobberVisibility)
+		]
+
 	];
 
 	RefreshDirectoryWatcher();
@@ -341,8 +350,11 @@ void SScreenShotBrowser::Tick(const FGeometry& AllottedGeometry, const double In
 {
 	if ( bReportsChanged )
 	{
-		RebuildTree();
+		RequestRebuildTree();
 	}
+
+	ContinueRebuildTreeIfReady();
+	FinishRebuildTreeIfReady();
 }
 
 void SScreenShotBrowser::OnDirectoryChanged(const FString& Directory)
@@ -386,25 +398,25 @@ TSharedRef<ITableRow> SScreenShotBrowser::OnGenerateWidgetForScreenResults(TShar
 void SScreenShotBrowser::DisplaySuccess_OnCheckStateChanged(ECheckBoxState NewRadioState)
 {
 	bDisplayingSuccess = (NewRadioState == ECheckBoxState::Checked);
-	ApplyReportFilterToVWidgets();
+	ApplyReportFilterToWidgets();
 }
 
 void SScreenShotBrowser::DisplayError_OnCheckStateChanged(ECheckBoxState NewRadioState)
 {
 	bDisplayingError = (NewRadioState == ECheckBoxState::Checked);
-	ApplyReportFilterToVWidgets();
+	ApplyReportFilterToWidgets();
 }
 
 void SScreenShotBrowser::DisplayNew_OnCheckStateChanged(ECheckBoxState NewRadioState)
 {
 	bDisplayingNew = (NewRadioState == ECheckBoxState::Checked);
-	ApplyReportFilterToVWidgets();
+	ApplyReportFilterToWidgets();
 }
 
 void SScreenShotBrowser::OnReportFilterTextChanged(const FText& InText)
 {
 	ReportFilterString = InText.ToString();
-	ApplyReportFilterToVWidgets();
+	ApplyReportFilterToWidgets();
 }
 
 bool SScreenShotBrowser::MatchesReportFilterCriteria(const FString& ComparisonName, const FImageComparisonResult& ComparisonResult) const
@@ -434,10 +446,10 @@ bool SScreenShotBrowser::MatchesReportFilterCriteria(const FString& ComparisonNa
 	return true;
 }
 
-void SScreenShotBrowser::ApplyReportFilterToVWidgets()
+void SScreenShotBrowser::ApplyReportFilterToWidgets()
 {
 	FilteredComparisonList.Reset();
-	for (auto Item : ComparisonList)
+	for (auto& Item : ComparisonList)
 	{
 		if(Item.IsValid() && MatchesReportFilterCriteria(Item->GetName(), Item->Report.GetComparisonResult()))
 		{
@@ -447,31 +459,112 @@ void SScreenShotBrowser::ApplyReportFilterToVWidgets()
 	ComparisonView->RequestListRefresh();
 }
 
-void SScreenShotBrowser::RebuildTree()
+void SScreenShotBrowser::RequestRebuildTree()
 {
 	bReportsChanged = false;
-	ComparisonList.Reset();
+
+	PendingOpenComparisonReportsResult.Reset();
+	PendingScreenComparisonModelsLoadResult.Reset();
+	ComparisonList.Empty();
 	FilteredComparisonList.Reset();
+	CurrentReports.Reset();
 
-	if ( ScreenShotManager->OpenComparisonReports(ComparisonRoot, CurrentReports) )
+	PendingOpenComparisonReportsResult = ScreenShotManager->OpenComparisonReportsAsync(ComparisonRoot);
+}
+
+void SScreenShotBrowser::ContinueRebuildTreeIfReady()
+{
+	check(IsInGameThread());
+
+	if (PendingOpenComparisonReportsResult.IsValid()
+		&& PendingOpenComparisonReportsResult.IsReady())
 	{
-		//Sort by what will resolve down to the Screenshots' names
-		CurrentReports.Sort([](const FComparisonReport& LHS, const FComparisonReport& RHS) { return LHS.GetReportPath().Compare(RHS.GetReportPath()) < 0; });
+		CurrentReports = PendingOpenComparisonReportsResult.Get();
+		PendingOpenComparisonReportsResult.Reset();
 
-		for ( const FComparisonReport& Report : CurrentReports )
+		if ((!CurrentReports.IsValid()) || CurrentReports->IsEmpty())
 		{
-			TSharedPtr<FScreenComparisonModel> Model = MakeShared<FScreenComparisonModel>(Report);
-			Model->OnComplete.AddLambda([this, Model] () {
+			return;
+		}
+		//Sort by what will resolve down to the Screenshots' names
+		CurrentReports->Sort([](const FComparisonReport& LHS, const FComparisonReport& RHS) { return LHS.GetReportPath().Compare(RHS.GetReportPath()) < 0; });
+
+		PendingScreenComparisonModelsLoadResult = Async(EAsyncExecution::ThreadPool, [CurrentReportsWPtr = CurrentReports.ToWeakPtr()]() -> TArray<TSharedPtr<FScreenComparisonModel>>
+		{
+			int32 CurrentReportsNum = 0;
+			{
+				TSharedPtr<TArray<FComparisonReport>> CurrentReportsSPtr = CurrentReportsWPtr.Pin();
+				if (CurrentReportsSPtr.IsValid())
+				{
+					CurrentReportsNum = CurrentReportsSPtr->Num();
+				}
+				else
+				{
+					// The current reports list is outdated. Cancel the job.
+					return {};
+				}
+			}
+
+
+			if (CurrentReportsNum <= 0)
+			{
+				return {};
+			}
+
+			TArray<TSharedPtr<FScreenComparisonModel>> Result;
+			Result.Reserve(CurrentReportsNum);
+
+			for (int32 CurrentReportIndex = 0; CurrentReportIndex < CurrentReportsNum; ++CurrentReportIndex)
+			{
+				TSharedPtr<TArray<FComparisonReport>> CurrentReportsSPtr = CurrentReportsWPtr.Pin();
+				if (CurrentReportsSPtr.IsValid())
+				{
+					const FComparisonReport& Report = (*CurrentReportsSPtr)[CurrentReportIndex];
+					Result.Add(MakeShared<FScreenComparisonModel>(Report));
+				}
+				else
+				{
+					// The current reports list is outdated. Cancel the job.
+					return {};
+				}
+			}
+
+			return Result;
+		});
+	}
+}
+
+void SScreenShotBrowser::FinishRebuildTreeIfReady()
+{
+	check(IsInGameThread());
+
+	if (PendingScreenComparisonModelsLoadResult.IsValid()
+		&& PendingScreenComparisonModelsLoadResult.IsReady())
+	{
+		ComparisonList = PendingScreenComparisonModelsLoadResult.Get();
+		PendingScreenComparisonModelsLoadResult.Reset();
+
+		for (auto& Model : ComparisonList)
+		{
+			Model->OnComplete.AddLambda([this, Model]() {
 				ComparisonList.Remove(Model);
 				FilteredComparisonList.Remove(Model);
 				ComparisonView->RequestListRefresh();
 			});
-
-			ComparisonList.Add(Model);
 		}
-	}
 
-	ApplyReportFilterToVWidgets();
+		ApplyReportFilterToWidgets();
+	}
+}
+
+EVisibility SScreenShotBrowser::GetReportsVisibility() const
+{
+	return (PendingOpenComparisonReportsResult.IsValid() || PendingScreenComparisonModelsLoadResult.IsValid() ? EVisibility::Collapsed : EVisibility::Visible);
+}
+
+EVisibility SScreenShotBrowser::GetReportsUpdatingThrobberVisibility() const
+{
+	return (GetReportsVisibility() == EVisibility::Visible ? EVisibility::Collapsed : EVisibility::Visible);
 }
 
 bool SScreenShotBrowser::CanAddNewReportResult(const FImageComparisonResult& Comparison)

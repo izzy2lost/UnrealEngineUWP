@@ -548,48 +548,91 @@ FScreenshotExportResult FScreenShotManager::ExportScreenshotComparisonResult(FSt
 	return Results;
 }
 
-bool FScreenShotManager::OpenComparisonReports(FString ImportPath, TArray<FComparisonReport>& OutReports)
+TFuture<TSharedPtr<TArray<FComparisonReport>>> FScreenShotManager::OpenComparisonReportsAsync(const FString& ImportPath)
 {
-	OutReports.Reset();
-
-	FPaths::NormalizeDirectoryName(ImportPath);
-	ImportPath += TEXT("/");
+	FString PreprocessedImportPath(ImportPath);
+	FPaths::NormalizeDirectoryName(PreprocessedImportPath);
+	PreprocessedImportPath += TEXT("/");
 
 	TArray<FString> ComparisonReportPaths;
-	IFileManager::Get().FindFilesRecursive(ComparisonReportPaths, *ImportPath, TEXT("Report.json"), /*Files=*/true, /*Directories=*/false, /*bClearFileNames=*/ false);
+	IFileManager::Get().FindFilesRecursive(ComparisonReportPaths, *PreprocessedImportPath, TEXT("Report.json"), true, false, false);
+	
+	// Note that if current PendingComparisonReportPaths is valid,
+	// it will be reset in the line below (it will cancel the corresponding loading task)
+	PendingComparisonReportPaths = MakeShared<TArray<FString>>(MoveTemp(ComparisonReportPaths));
 
-	for ( const FString& ReportPath : ComparisonReportPaths )
+	return Async(EAsyncExecution::ThreadPool, [this, ImportPathToUse = MoveTemp(PreprocessedImportPath), ReportPathsWPtr = PendingComparisonReportPaths.ToWeakPtr()]() -> TSharedPtr<TArray<FComparisonReport>>
 	{
-		FString JsonString;
-		if ( FFileHelper::LoadFileToString(JsonString, *ReportPath) )
+		int32 ReportPathsNum = 0;
 		{
-			TSharedRef< TJsonReader<> > JsonReader = TJsonReaderFactory<>::Create(JsonString);
-
-			TSharedPtr<FJsonObject> JsonComparisonReport;
-			if ( !FJsonSerializer::Deserialize(JsonReader, JsonComparisonReport) )
+			TSharedPtr<TArray<FString>> ReportPathsSPtr = ReportPathsWPtr.Pin();
+			if (ReportPathsSPtr.IsValid())
 			{
-				return false;
+				ReportPathsNum = ReportPathsSPtr->Num();
 			}
-
-			FImageComparisonResult ComparisonResult;
-			ComparisonResult.SetInvalid();
-			if ( FJsonObjectConverter::JsonObjectToUStruct(JsonComparisonReport.ToSharedRef(), &ComparisonResult, 0, 0) )
+			else
 			{
-				if (ComparisonResult.IsValid())
+				// The reports paths list is outdated. Cancel the job with default return value.
+				return nullptr;
+			}
+		}
+
+		if (ReportPathsNum <= 0)
+		{
+			return nullptr;
+		}
+
+		TSharedPtr<TArray<FComparisonReport>> ComparisonReports = MakeShared<TArray<FComparisonReport>>();
+		ComparisonReports->Reserve(ReportPathsNum);
+
+		for (int32 ReportPathIndex = 0; ReportPathIndex < ReportPathsNum; ++ReportPathIndex)
+		{
+			FString ReportPath;
+			{
+				TSharedPtr<TArray<FString>> ReportPathsSPtr = ReportPathsWPtr.Pin();
+				if (ReportPathsSPtr.IsValid())
 				{
-					FComparisonReport Report(ImportPath, ReportPath);
-					Report.SetComparisonResult(ComparisonResult);
-					OutReports.Add(Report);
+					ReportPath = (*ReportPathsSPtr)[ReportPathIndex];
+					check(!ReportPath.IsEmpty());
 				}
 				else
 				{
-					UE_LOG(LogScreenShotManager, Error, TEXT("Report %s has invalid version '%d' (Current Version=%d)"), *ReportPath, ComparisonResult.Version, int32(ComparisonResult.CurrentVersion));
+					// The reports paths list is outdated. Cancel the job with default return value.
+					return nullptr;
+				}
+			}
+
+			FString JsonString;
+			if (FFileHelper::LoadFileToString(JsonString, *ReportPath))
+			{
+				TSharedRef<TJsonReader<>> JsonReader = TJsonReaderFactory<>::Create(JsonString);
+
+				TSharedPtr<FJsonObject> JsonComparisonReport;
+				if (!FJsonSerializer::Deserialize(JsonReader, JsonComparisonReport))
+				{
+					return nullptr;
+				}
+
+				FImageComparisonResult ComparisonResult;
+				ComparisonResult.SetInvalid();
+				if (FJsonObjectConverter::JsonObjectToUStruct(JsonComparisonReport.ToSharedRef(), &ComparisonResult, 0, 0))
+				{
+					if (ComparisonResult.IsValid())
+					{
+						FComparisonReport Report = FComparisonReport(ImportPathToUse, ReportPath);
+						Report.SetComparisonResult(ComparisonResult);
+						ComparisonReports->Add(Report);
+					}
+					else
+					{
+						UE_LOG(LogScreenShotManager, Error, TEXT("Report %s has invalid version '%d' (Current Version=%d)"), *ReportPath, ComparisonResult.Version, int32(ComparisonResult.CurrentVersion));
+					}
 				}
 			}
 		}
-	}
 
-	return true;
+		return ComparisonReports;
+	});
 }
 
 TSharedPtr<FImageComparisonResult> FScreenShotManager::CompareImageSequence(const TMap<FString, FString>& Sequence, const FAutomationScreenshotMetadata& Metadata)
