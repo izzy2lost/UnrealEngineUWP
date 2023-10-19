@@ -1064,8 +1064,15 @@ uint64 FRigVMByteCode::AddExecuteOp(uint16 InFunctionIndex, const FRigVMOperandA
 	Op.PredicateCount = PredicateCount;
 	uint64 OpByteIndex = AddOp(Op);
 
-	uint64 OperandsByteIndex = (uint64)ByteCode.AddZeroed(sizeof(FRigVMOperand) * InOperands.Num());
+	const uint64 OperandsByteIndex = (uint64)ByteCode.AddZeroed(sizeof(FRigVMOperand) * InOperands.Num());
 	FMemory::Memcpy(ByteCode.GetData() + OperandsByteIndex, InOperands.GetData(), sizeof(FRigVMOperand) * InOperands.Num());
+
+	for(int32 Index = 0; Index < InOperands.Num(); Index++)
+	{
+		FRigVMOperand* Operand = reinterpret_cast<FRigVMOperand*>(ByteCode.GetData() + OperandsByteIndex + sizeof(FRigVMOperand) * Index);
+		FRigVMOperand::ZeroPaddedMemoryIfNeeded(Operand);
+	}
+	
 	return OpByteIndex;
 }
 

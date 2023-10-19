@@ -1371,7 +1371,7 @@ bool URigVMCompiler::Compile(const FRigVMCompileSettings& InSettings, TArray<URi
 			}
 		}
 
-		OutFunctionCompilationData->Hash = GetTypeHash(OutFunctionCompilationData);
+		OutFunctionCompilationData->Hash = GetTypeHash(*OutFunctionCompilationData);
 		OutFunctionCompilationData->OperandToDebugRegisters = WorkData.VM->OperandToDebugRegisters;
 	}
 

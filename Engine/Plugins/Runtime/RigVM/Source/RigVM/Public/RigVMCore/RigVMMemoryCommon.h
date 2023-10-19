@@ -10,6 +10,7 @@
 #include "Templates/TypeHash.h"
 #include "UObject/ObjectMacros.h"
 #include "Misc/OutputDevice.h"
+#include "GenericPlatform/GenericPlatformMemory.h"
 
 #include "RigVMMemoryCommon.generated.h"
 
@@ -44,6 +45,21 @@ enum class ERigVMMemoryType: uint8
 	Debug = 3, // Owned memory used for debug watches
 	Invalid
 };
+
+namespace RigVM
+{
+	template<typename T = uint8>
+	void ZeroPaddedMemory(void* InFirstMember, const void* InSecondMember)
+	{
+		char* FirstMember = static_cast<char*>(InFirstMember);
+		const char* SecondMember = static_cast<const char*>(InSecondMember);
+		FirstMember += sizeof(T);
+		if(FirstMember < InSecondMember)
+		{
+			FPlatformMemory::Memzero(FirstMember, SecondMember - FirstMember);
+		}
+	}
+}
 
 /**
  * The FRigVMOperand represents an argument used for an operator
@@ -122,12 +138,15 @@ public:
   	}
 	
 	void Serialize(FArchive& Ar);
-	void Save(FArchive& Ar) const;
-	void Load(FArchive& Ar);
 	friend FArchive& operator<<(FArchive& Ar, FRigVMOperand& P)
 	{
 		P.Serialize(Ar);
 		return Ar;
+	}
+
+	static void ZeroPaddedMemoryIfNeeded(FRigVMOperand* InOperand)
+	{
+		RigVM::ZeroPaddedMemory(&InOperand->MemoryType, &InOperand->RegisterIndex);
 	}
 
 private:

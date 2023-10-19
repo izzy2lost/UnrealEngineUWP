@@ -35,9 +35,10 @@ struct FRigVMFunctionCompilationPropertyDescription
 
 	friend uint32 GetTypeHash(const FRigVMFunctionCompilationPropertyDescription& Description) 
 	{
-		uint32 Hash = GetTypeHash(Description.Name);
+		uint32 Hash = GetTypeHash(Description.Name.ToString());
 		Hash = HashCombine(Hash, GetTypeHash(Description.CPPType));
-		Hash = HashCombine(Hash, GetTypeHash(Description.CPPTypeObject));
+		// we can't hash based on the pointer since that's not deterministic across sessions
+		// Hash = HashCombine(Hash, GetTypeHash(Description.CPPTypeObject));
 		Hash = HashCombine(Hash, GetTypeHash(Description.DefaultValue));
 		return Hash;
 	}
@@ -152,7 +153,7 @@ struct RIGVM_API FRigVMFunctionCompilationData
 		uint32 DataHash = Data.ByteCode.GetByteCodeHash();
 		for (const FName& Name : Data.FunctionNames)
 		{
-			DataHash = HashCombine(DataHash, GetTypeHash(Name));
+			DataHash = HashCombine(DataHash, GetTypeHash(Name.ToString()));
 		}
 
 		for (const FRigVMFunctionCompilationPropertyDescription& Description : Data.WorkPropertyDescriptions)
@@ -194,7 +195,7 @@ struct RIGVM_API FRigVMFunctionCompilationData
 		for (const TPair<int32,FName>& Pair : Data.ExternalRegisterIndexToVariable)
 		{
 			DataHash = HashCombine(DataHash, GetTypeHash(Pair.Key));
-			DataHash = HashCombine(DataHash, GetTypeHash(Pair.Value));
+			DataHash = HashCombine(DataHash, GetTypeHash(Pair.Value.ToString()));
 		}
 
 		for (const TPair<FString, FRigVMOperand>& Pair : Data.Operands)
