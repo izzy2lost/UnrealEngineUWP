@@ -4294,6 +4294,30 @@ class UKismetMathLibrary : public UBlueprintFunctionLibrary
     static ENGINE_API bool IsPointInBox_Box(FVector Point, FBox Box);
 
 	/**
+	 * Gets the volume of this box.
+	 *
+	 * @return The box volume.
+	 */
+	UFUNCTION(BlueprintPure, Category = "Math|Geometry", meta=(DisplayName = "Get Volume (Box)"))
+	static ENGINE_API double GetBoxVolume(const FBox& InBox);
+
+	/**
+	 * Gets the size of this box.
+	 *
+	 * @return The box size.
+	 */
+	UFUNCTION(BlueprintPure, Category = "Math|Geometry", meta=(DisplayName = "Get Size (Box)"))
+	static ENGINE_API FVector GetBoxSize(const FBox& InBox);
+
+	/**
+	 * Gets the center point of this box.
+	 *
+	 * @return The center point.
+	 */
+	UFUNCTION(BlueprintPure, Category = "Math|Geometry", meta=(DisplayName = "Get Center (Box)"))
+	static ENGINE_API FVector GetBoxCenter(const FBox& InBox);
+
+	/**
 	* Determines whether a given point is in a box with a given transform. Includes points on the box.
 	*
 	* @param Point				Point to test

@@ -7,6 +7,7 @@
 #include "Blueprint/BlueprintSupport.h"
 #include "Math/ConvexHull2d.h"
 #include "Math/DualQuat.h"
+#include "Math/Box.h"
 
 #include "Math/RandomStream.h"
 #include "Misc/RuntimeErrors.h"
@@ -1369,6 +1370,21 @@ bool UKismetMathLibrary::IsPointInBox(FVector Point, FVector BoxOrigin, FVector 
 bool UKismetMathLibrary::IsPointInBox_Box(FVector Point, FBox Box)
 {
 	return Box.IsInsideOrOn(Point);
+}
+
+double UKismetMathLibrary::GetBoxVolume(const FBox& InBox)
+{
+	return InBox.GetVolume();
+}
+
+FVector UKismetMathLibrary::GetBoxSize(const FBox& InBox)
+{
+	return InBox.GetSize();
+}
+
+FVector UKismetMathLibrary::GetBoxCenter(const FBox& InBox)
+{
+	return InBox.GetCenter();
 }
 
 bool UKismetMathLibrary::IsPointInBoxWithTransform(FVector Point, const FTransform& BoxWorldTransform, FVector BoxExtent)
