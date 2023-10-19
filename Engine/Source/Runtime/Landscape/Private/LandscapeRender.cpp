@@ -54,6 +54,7 @@ LandscapeRender.cpp: New terrain rendering
 #include "Algo/Transform.h"
 #include "LandscapeCulling.h"
 #include "RenderGraphBuilder.h"
+#include "Scalability.h"
 
 using namespace UE::Landscape;
 
@@ -1219,9 +1220,27 @@ FLandscapeComponentSceneProxy::FLandscapeComponentSceneProxy(ULandscapeComponent
 		HeightmapSubsectionOffsetV = ((float)(InComponent->SubsectionSizeQuads + 1) / (float)FMath::Max<int32>(1, HeightmapTexture->GetSizeY()));
 	}
 
-	float LOD0ScreenSize = InComponent->GetLandscapeProxy()->LOD0ScreenSize;
-	float LOD0Distribution = InComponent->GetLandscapeProxy()->LOD0DistributionSetting * GLandscapeLOD0DistributionScale;
-	float LODDistribution = InComponent->GetLandscapeProxy()->LODDistributionSetting * GLandscapeLODDistributionScale;
+
+	const ALandscapeProxy* Proxy = InComponent->GetLandscapeProxy();
+
+	float LOD0ScreenSize;
+	float LOD0Distribution;
+	float LODDistribution;
+	
+	if (Proxy->bUseScalableLODSettings)
+	{
+		const int32 LandscapeQuality = Scalability::GetQualityLevels().LandscapeQuality;
+		
+		LOD0ScreenSize = Proxy->ScalableLOD0ScreenSize.GetValue(LandscapeQuality);
+		LOD0Distribution = Proxy->ScalableLOD0DistributionSetting.GetValue(LandscapeQuality);
+		LODDistribution = Proxy->ScalableLODDistributionSetting.GetValue(LandscapeQuality);		
+	}
+	else
+	{
+		LOD0ScreenSize = Proxy->LOD0ScreenSize;
+		LOD0Distribution = Proxy->LOD0DistributionSetting * GLandscapeLOD0DistributionScale;
+		LODDistribution = Proxy->LODDistributionSetting * GLandscapeLODDistributionScale;
+	}
 
 #if !UE_BUILD_SHIPPING
 	if (GLandscapeLOD0ScreenSizeOverride > 0.0)
@@ -1379,7 +1398,6 @@ FLandscapeComponentSceneProxy::FLandscapeComponentSceneProxy(ULandscapeComponent
 #if !(UE_BUILD_SHIPPING || UE_BUILD_TEST) || (UE_BUILD_SHIPPING && WITH_EDITOR)
 	if (GIsEditor)
 	{
-		ALandscapeProxy* Proxy = InComponent->GetLandscapeProxy();
 		// Try to find a color for level coloration.
 		if (Proxy)
 		{

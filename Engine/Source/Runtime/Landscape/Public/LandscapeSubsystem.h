@@ -149,5 +149,8 @@ private:
 	float NumNaniteMeshUpdatesAvailable = 0.0f;
 
 	std::atomic<int32> NaniteBuildsInFlight;
+
 #endif // WITH_EDITOR
+	
+	FDelegateHandle OnScalabilityChangedHandle;
 };

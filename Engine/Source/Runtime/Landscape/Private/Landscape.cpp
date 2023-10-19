@@ -1454,9 +1454,6 @@ ALandscapeProxy::ALandscapeProxy(const FObjectInitializer& ObjectInitializer)
 	bLockLocation = true;
 #endif // WITH_EDITORONLY_DATA
 	ComponentScreenSizeToUseSubSections = 0.65f;
-	LOD0ScreenSize = 0.5f;
-	LOD0DistributionSetting = 1.25f;
-	LODDistributionSetting = 3.0f;
 	bCastStaticShadow = true;
 	ShadowCacheInvalidationBehavior = EShadowCacheInvalidationBehavior::Auto;
 	bUsedForNavigation = true;
@@ -1642,10 +1639,27 @@ void ALandscapeProxy::UpdateSharedProperties(ULandscapeInfo* InLandscapeInfo)
 
 static TArray<float> GetLODScreenSizeArray(const ALandscapeProxy* InLandscapeProxy, const int32 InNumLODLevels)
 {
+	float LOD0ScreenSize;
+	float LOD0Distribution;
+	if (InLandscapeProxy->bUseScalableLODSettings)
+	{
+		const int32 LandscapeQuality = Scalability::GetQualityLevels().LandscapeQuality;
+		
+		LOD0ScreenSize = InLandscapeProxy->ScalableLOD0ScreenSize.GetValue(LandscapeQuality);
+		LOD0Distribution = InLandscapeProxy->ScalableLOD0DistributionSetting.GetValue(LandscapeQuality);	
+	}
+	else
+	{
+		static IConsoleVariable* CVarLSLOD0DistributionScale = IConsoleManager::Get().FindConsoleVariable(TEXT("r.LandscapeLOD0DistributionScale"));
+		
+		LOD0ScreenSize = InLandscapeProxy->LOD0ScreenSize;
+		LOD0Distribution = InLandscapeProxy->LOD0DistributionSetting * CVarLSLOD0DistributionScale->GetFloat();
+	}
+	
 	static TConsoleVariableData<float>* CVarSMLODDistanceScale = IConsoleManager::Get().FindTConsoleVariableDataFloat(TEXT("r.StaticMeshLODDistanceScale"));
-	static IConsoleVariable* CVarLSLOD0DistributionScale = IConsoleManager::Get().FindConsoleVariable(TEXT("r.LandscapeLOD0DistributionScale"));
-	float CurrentScreenSize = InLandscapeProxy->LOD0ScreenSize / CVarSMLODDistanceScale->GetValueOnGameThread();
-	const float ScreenSizeMult = 1.f / FMath::Max(InLandscapeProxy->LOD0DistributionSetting * CVarLSLOD0DistributionScale->GetFloat(), 1.01f);
+	
+	float CurrentScreenSize = LOD0ScreenSize / CVarSMLODDistanceScale->GetValueOnGameThread();
+	const float ScreenSizeMult = 1.f / FMath::Max(LOD0Distribution , 1.01f);
 
 	TArray<float> Result;
 	Result.Empty(InNumLODLevels);
@@ -3612,6 +3626,7 @@ void ALandscapeProxy::Serialize(FArchive& Ar)
 			}
 		}
 	}
+
 #endif
 }
 
@@ -4005,6 +4020,7 @@ void ALandscapeProxy::PostLoad()
 		}
 		LandscapeMaterialsOverride_DEPRECATED.Reset();
 	}
+	
 	PRAGMA_ENABLE_DEPRECATION_WARNINGS;
 
 	if (GIsEditor)
@@ -4218,6 +4234,9 @@ void ALandscapeProxy::GetSharedProperties(ALandscapeProxy* Landscape)
 		SubsectionSizeQuads = Landscape->SubsectionSizeQuads;
 		MaxLODLevel = Landscape->MaxLODLevel;
 		ComponentScreenSizeToUseSubSections = Landscape->ComponentScreenSizeToUseSubSections;
+		ScalableLODDistributionSetting = Landscape->ScalableLODDistributionSetting;
+		ScalableLOD0DistributionSetting = Landscape->ScalableLOD0DistributionSetting;
+		ScalableLOD0ScreenSize = Landscape->ScalableLOD0ScreenSize;
 		LODDistributionSetting = Landscape->LODDistributionSetting;
 		LOD0DistributionSetting = Landscape->LOD0DistributionSetting;
 		LOD0ScreenSize = Landscape->LOD0ScreenSize;

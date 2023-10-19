@@ -115,7 +115,17 @@ void ULandscapeSubsystem::Initialize(FSubsystemCollectionBase& Collection)
 	{
 		NotificationManager = new FLandscapeNotificationManager();
 	}
+
 #endif
+	
+	OnScalabilityChangedHandle = Scalability::OnScalabilitySettingsChanged.AddLambda([](const Scalability::FQualityLevels& QualityLevels)
+    {
+    	for (auto* LandscapeComponent : TObjectRange<ULandscapeComponent>(RF_ClassDefaultObject | RF_ArchetypeObject, true, EInternalObjectFlags::Garbage))
+    	{
+    		LandscapeComponent->MarkRenderStateDirty();
+    	}
+    });
+    	
 }
 
 void ULandscapeSubsystem::Deinitialize()
@@ -143,9 +153,11 @@ void ULandscapeSubsystem::Deinitialize()
 	{
 		LandscapeNaniteEnabledCVar->OnChangedDelegate().RemoveAll(this);
 	}
-	
+
+	Scalability::OnScalabilitySettingsChanged.Remove(OnScalabilityChangedHandle);
 	
 #if WITH_EDITOR
+	
 	while (NaniteBuildsInFlight != 0)
 	{
 		ENamedThreads::Type CurrentThread = FTaskGraphInterface::Get().GetCurrentThreadIfKnown();
