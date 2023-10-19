@@ -480,6 +480,8 @@ protected:
 	FChaosClothAssetAddWeightMapNode* WeightMapNodeToUpdate = nullptr;
 
 	void UpdateSelectedNode();
+
+	void UpdateVertexColorOverlay(const TSet<int>* TrianglesToUpdate = nullptr);
 };
 
 

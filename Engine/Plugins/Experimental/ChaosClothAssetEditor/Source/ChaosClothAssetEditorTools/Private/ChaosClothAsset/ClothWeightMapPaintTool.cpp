@@ -144,6 +144,8 @@ void UClothEditorWeightMapPaintTool::Setup()
 
 	FDynamicMesh3* Mesh = GetSculptMesh();
 	Mesh->EnableVertexColors(FVector3f::One());
+	Mesh->Attributes()->EnablePrimaryColors();
+	Mesh->Attributes()->PrimaryColors()->CreateFromPredicate([](int ParentVID, int TriIDA, int TriIDB) {return true; }, 0.f);
 	FAxisAlignedBox3d Bounds = Mesh->GetBounds(true);
 
 	TFuture<void> PrecomputeFuture = Async(UE::Chaos::ClothAsset::Private::WeightPaintToolAsyncExecTarget, [&]()
@@ -251,6 +253,7 @@ void UClothEditorWeightMapPaintTool::Setup()
 		EraseBrushOpProperties);
 
 	AddToolPropertySource(UMeshSculptToolBase::ViewProperties);
+	SetToolPropertySourceEnabled(UMeshSculptToolBase::ViewProperties, true);
 
 	AddToolPropertySource(UMeshSculptToolBase::GizmoProperties);
 	SetToolPropertySourceEnabled(UMeshSculptToolBase::GizmoProperties, false);
@@ -282,29 +285,11 @@ void UClothEditorWeightMapPaintTool::Setup()
 		ProcessFunc(*GetSculptMesh());
 	});
 
-	// force colors update... ?
-	DynamicMeshComponent->SetTriangleColorFunction([this](const FDynamicMesh3* Mesh, int TriangleID)
-	{
-		if (ActiveWeightMap)
-		{
-			FIndex3i Vertices = Mesh->GetTriangle(TriangleID);
-			FVector3f WeightPerVertex;
-			ActiveWeightMap->GetValue(Vertices[0], &WeightPerVertex[0]);
-			ActiveWeightMap->GetValue(Vertices[1], &WeightPerVertex[1]);
-			ActiveWeightMap->GetValue(Vertices[2], &WeightPerVertex[2]);
-			return GetColorForWeightValue(WeightPerVertex[0] / 3.0 + WeightPerVertex[1] / 3.0 + WeightPerVertex[2] / 3.0);
-		}
-		else
-		{
-			return LinearColors::Black3b();
-		}
-	});
-
 	// disable view properties
 	SetViewPropertiesEnabled(false);
 	UpdateMaterialMode(EMeshEditingMaterialModes::VertexColor);
 	UpdateWireframeVisibility(false);
-	UpdateFlatShadingSetting(true);
+	UpdateFlatShadingSetting(false);
 
 	// configure panels
 	UpdateSubToolType(FilterProperties->SubToolType);
@@ -391,6 +376,7 @@ void UClothEditorWeightMapPaintTool::Setup()
 
 
 	// update colors
+	UpdateVertexColorOverlay();
 	DynamicMeshComponent->FastNotifyVertexAttributesUpdated(EMeshRenderAttributeFlags::VertexColors);
 	GetToolManager()->PostInvalidation();
 
@@ -565,6 +551,9 @@ void UClothEditorWeightMapPaintTool::OnEndStroke()
 
 	GetActiveBrushOp()->EndStroke(GetSculptMesh(), LastStamp, VertexROI);
 
+	UpdateVertexColorOverlay(&TriangleROI);
+	DynamicMeshComponent->FastNotifyVertexAttributesUpdated(EMeshRenderAttributeFlags::VertexColors);
+
 	// close change record
 	EndChange();
 }
@@ -727,6 +716,15 @@ bool UClothEditorWeightMapPaintTool::ApplyStamp()
 
 	// yuck
 	FMeshVertexWeightMapEditBrushOp* WeightBrushOp = (FMeshVertexWeightMapEditBrushOp*)UseBrushOp.Get();
+
+	if (FilterProperties->SubToolType == EClothEditorWeightMapPaintInteractionType::Brush)
+	{
+		WeightBrushOp->bApplyRadiusLimit = true;
+	}
+	else
+	{ 
+		WeightBrushOp->bApplyRadiusLimit = false;
+	}
 
 	FDynamicMesh3* Mesh = GetSculptMesh();
 	WeightBrushOp->ApplyStampByVertices(Mesh, CurrentStamp, VertexROI, ROIWeightValueBuffer);
@@ -1024,8 +1022,8 @@ void UClothEditorWeightMapPaintTool::ComputeGradient()
 
 	if (bHaveDynamicMeshToWeightConversion)
 	{
-	for (int32 vid : TempROIBuffer)
-	{
+		for (int32 vid : TempROIBuffer)
+		{
 			for (const int32 Idx : WeightToDynamicMesh[DynamicMeshToWeight[vid]])
 			{
 				ActiveWeightEditChangeTracker->SaveVertexOneRingTriangles(Idx, true);
@@ -1036,8 +1034,8 @@ void UClothEditorWeightMapPaintTool::ComputeGradient()
 	{
 		for (int32 vid : TempROIBuffer)
 		{
-		ActiveWeightEditChangeTracker->SaveVertexOneRingTriangles(vid, true);
-	}
+			ActiveWeightEditChangeTracker->SaveVertexOneRingTriangles(vid, true);
+		}
 	}
 
 
@@ -1085,7 +1083,8 @@ void UClothEditorWeightMapPaintTool::ComputeGradient()
 	}
 	}
 
-
+	// update colors
+	UpdateVertexColorOverlay();
 	DynamicMeshComponent->FastNotifyVertexAttributesUpdated(EMeshRenderAttributeFlags::VertexColors);
 	GetToolManager()->PostInvalidation();
 	EndChange();
@@ -1152,18 +1151,19 @@ void UClothEditorWeightMapPaintTool::SetVerticesToWeightMap(const TSet<int32>& V
 	}
 	else
 	{
-	for (int32 vid : TempROIBuffer)
-	{
-		ActiveWeightEditChangeTracker->SaveVertexOneRingTriangles(vid, true);
-	}
-	for (int32 vid : TempROIBuffer)
-	{		
-		ActiveWeightMap->SetValue(vid, &WeightValue);
-	}
+		for (int32 vid : TempROIBuffer)
+		{
+			ActiveWeightEditChangeTracker->SaveVertexOneRingTriangles(vid, true);
+		}
+		for (int32 vid : TempROIBuffer)
+		{		
+			ActiveWeightMap->SetValue(vid, &WeightValue);
+		}
 	}
 
-
-	DynamicMeshComponent->FastNotifyVertexAttributesUpdated(false, true, false);
+	// update colors
+	UpdateVertexColorOverlay();
+	DynamicMeshComponent->FastNotifyVertexAttributesUpdated(EMeshRenderAttributeFlags::VertexColors);
 	GetToolManager()->PostInvalidation();
 	
 
@@ -1510,6 +1510,7 @@ void UClothEditorWeightMapPaintTool::OnTick(float DeltaTime)
 			if (bWeightsModified)
 			{
 				SCOPE_CYCLE_COUNTER(WeightMapPaintTool_Tick_UpdateMeshBlock);
+				UpdateVertexColorOverlay(&TriangleROI);
 				DynamicMeshComponent->FastNotifyTriangleVerticesUpdated(TriangleROI, EMeshRenderAttributeFlags::VertexColors);
 				GetToolManager()->PostInvalidation();
 			}
@@ -1561,8 +1562,8 @@ void UClothEditorWeightMapPaintTool::FloodFillCurrentWeightAction()
 
 	if (bHaveDynamicMeshToWeightConversion)
 	{
-	for (int32 vid : TempROIBuffer)
-	{
+		for (int32 vid : TempROIBuffer)
+		{
 			for (const int32 Idx : WeightToDynamicMesh[DynamicMeshToWeight[vid]])
 			{
 				ActiveWeightEditChangeTracker->SaveVertexOneRingTriangles(Idx, true);
@@ -1574,14 +1575,16 @@ void UClothEditorWeightMapPaintTool::FloodFillCurrentWeightAction()
 	{
 		for (int32 vid : TempROIBuffer)
 		{
-		ActiveWeightEditChangeTracker->SaveVertexOneRingTriangles(vid, true);
-	}
-	for (int32 vid : TempROIBuffer)
-	{
-		ActiveWeightMap->SetValue(vid, &SetWeightValue);
-	}
+			ActiveWeightEditChangeTracker->SaveVertexOneRingTriangles(vid, true);
+		}
+		for (int32 vid : TempROIBuffer)
+		{
+			ActiveWeightMap->SetValue(vid, &SetWeightValue);
+		}
 	}
 
+	// update colors
+	UpdateVertexColorOverlay();
 	DynamicMeshComponent->FastNotifyVertexAttributesUpdated(EMeshRenderAttributeFlags::VertexColors);
 	GetToolManager()->PostInvalidation();
 	EndChange();
@@ -1618,16 +1621,18 @@ void UClothEditorWeightMapPaintTool::ClearAllWeightsAction()
 	}
 	else
 	{
-	for (int32 vid : TempROIBuffer)
-	{
-		ActiveWeightEditChangeTracker->SaveVertexOneRingTriangles(vid, true);
-	}
-	for (int32 vid : TempROIBuffer)
-	{
-		ActiveWeightMap->SetValue(vid, &SetWeightValue);
-	}
+		for (int32 vid : TempROIBuffer)
+		{
+			ActiveWeightEditChangeTracker->SaveVertexOneRingTriangles(vid, true);
+		}
+		for (int32 vid : TempROIBuffer)
+		{
+			ActiveWeightMap->SetValue(vid, &SetWeightValue);
+		}
 	}
 
+	// update colors
+	UpdateVertexColorOverlay();
 	DynamicMeshComponent->FastNotifyVertexAttributesUpdated(EMeshRenderAttributeFlags::VertexColors);
 	GetToolManager()->PostInvalidation();
 	EndChange();
@@ -1930,6 +1935,45 @@ void UClothEditorWeightMapPaintTool::ApplyAction(EClothEditorWeightMapPaintToolA
 }
 
 
+void UClothEditorWeightMapPaintTool::UpdateVertexColorOverlay(const TSet<int>* TrianglesToUpdate)
+{
+	FDynamicMesh3* const Mesh = GetSculptMesh();
+	check(Mesh->HasAttributes());
+	check(Mesh->Attributes()->PrimaryColors());
+	check(ActiveWeightMap);
+
+	FDynamicMeshColorOverlay* const ColorOverlay = Mesh->Attributes()->PrimaryColors();
+
+	auto SetColorsFromWeights = [&](int TriangleID)
+	{
+		const FIndex3i Tri = Mesh->GetTriangle(TriangleID);
+		const FIndex3i ColorElementTri = ColorOverlay->GetTriangle(TriangleID);
+
+		for (int TriVertIndex = 0; TriVertIndex < 3; ++TriVertIndex)
+		{
+			float VertexWeight;
+			ActiveWeightMap->GetValue(Tri[TriVertIndex], &VertexWeight);
+
+			const FVector4f NewColor = FVector4f(VertexWeight, VertexWeight, VertexWeight, 1.0f);
+			ColorOverlay->SetElement(ColorElementTri[TriVertIndex], NewColor);
+		}
+	};
+
+	if (TrianglesToUpdate)
+	{
+		for (const int TriangleID : *TrianglesToUpdate)
+		{
+			SetColorsFromWeights(TriangleID);
+		}
+	}
+	else
+	{
+		for (const int TriangleID : Mesh->TriangleIndicesItr())
+		{
+			SetColorsFromWeights(TriangleID);
+		}
+	}
+}
 
 
 #undef LOCTEXT_NAMESPACE

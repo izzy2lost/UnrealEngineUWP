@@ -29,6 +29,9 @@ public:
 		const TArray<int32>& Vertices,
 		TArray<double>& NewAttributesOut) = 0;
 
+	/** If bApplyRadiusLimit is enabled, only vertices within the stamp radius are considered */
+	bool bApplyRadiusLimit = true;
+
 };
 
 
@@ -42,11 +45,14 @@ class CHAOSCLOTHASSETEDITORTOOLS_API UWeightMapEraseBrushOpProps : public UMeshS
 {
 	GENERATED_BODY()
 public:
+	// TODO: This AttributeValue is not currenly connected to the UI (jira UE-198413)
 	/** Attribute to set as Erased value */
 	UPROPERTY(EditAnywhere, Category = EraseBrush, meta = (DisplayName = "Erase Attribute", UIMin = 0))
 	double AttributeValue = 0;
 
 	virtual double GetAttribute() { return AttributeValue; }
+
+	virtual float GetFalloff() override { return 0.0f; }
 };
 
 
@@ -59,23 +65,8 @@ public:
 		const FDynamicMesh3* Mesh,
 		const FSculptBrushStamp& Stamp,
 		const TArray<int32>& Vertices,
-		TArray<double>& NewAttributesOut) override
-	{
-		const FVector3d& StampPos = Stamp.LocalFrame.Origin;
+		TArray<double>& NewAttributesOut) override;
 
-		UWeightMapEraseBrushOpProps* Props = GetPropertySetAs<UWeightMapEraseBrushOpProps>();
-		double EraseAttribute = (double)Props->GetAttribute();
-
-		// TODO: Add something here to get the old value so we can subtract (clamped) the AttributeValue from it.
-
-		// TODO: Handle the stamp's properties for fall off, etc..
-
-		int32 NumVertices = Vertices.Num();
-		for (int32 k = 0; k < NumVertices; ++k)
-		{
-			NewAttributesOut[k] = 0.0;
-		}
-	}
 };
 
 
@@ -102,6 +93,8 @@ public:
 
 	virtual float GetStrength() override { return Strength; }
 	virtual void SetStrength(float NewStrength) override { Strength = NewStrength;  }
+
+	virtual float GetFalloff() override { return 0.0f; }
 };
 
 
@@ -139,6 +132,7 @@ public:
 	virtual float GetStrength() override { return Strength; }
 	virtual void SetStrength(float NewStrength) override { Strength = NewStrength; }
 
+	virtual float GetFalloff() override { return 0.0f; }
 };
 
 
