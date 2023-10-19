@@ -33,6 +33,14 @@ static FAutoConsoleVariableRef CVarContactShadowsMethod(
 	ECVF_Scalability | ECVF_RenderThreadSafe
 );
 
+static float GBendShadowsOverrideSurfaceThickness = 0.005f;
+static FAutoConsoleVariableRef CVarBendShadowsOverrideSurfaceThickness(
+	TEXT("r.ContactShadows.Bend.OverrideSurfaceThickness"),
+	GBendShadowsOverrideSurfaceThickness,
+	TEXT("How thick the surface represented by a pixel is assumed to be when determining whether a ray intersects it."),
+	ECVF_Scalability | ECVF_RenderThreadSafe
+);
+
 extern void GetLightContactShadowParameters(const FLightSceneProxy* Proxy, float& OutLength, bool& bOutLengthInWS, float& OutCastingIntensity, float& OutNonCastingIntensity);
 
 const int32 GScreenSpaceShadowsTileSizeX = 8;
@@ -99,6 +107,7 @@ class FScreenSpaceShadowsBendCS : public FGlobalShader
 		SHADER_PARAMETER(uint32, bContactShadowLengthInWS)
 		SHADER_PARAMETER(float, ContactShadowCastingIntensity)
 		SHADER_PARAMETER(float, ContactShadowNonCastingIntensity)
+		SHADER_PARAMETER(float, SurfaceThickness)
 		SHADER_PARAMETER(FIntRect, ScissorRectMinAndSize)
 		SHADER_PARAMETER(uint32, DownsampleFactor)
 		SHADER_PARAMETER(FVector2f, InvDepthTextureSize)
@@ -363,6 +372,7 @@ void RenderScreenSpaceShadowsBend(
 			PassParameters->bContactShadowLengthInWS = bContactShadowLengthInWS;
 			PassParameters->ContactShadowCastingIntensity = ContactShadowCastingIntensity;
 			PassParameters->ContactShadowNonCastingIntensity = ContactShadowNonCastingIntensity;
+			PassParameters->SurfaceThickness = GBendShadowsOverrideSurfaceThickness;
 
 			PassParameters->LightCoordinate = FVector4f(DispatchList.LightCoordinate_Shader[0], DispatchList.LightCoordinate_Shader[1], DispatchList.LightCoordinate_Shader[2], DispatchList.LightCoordinate_Shader[3]);
 			PassParameters->WaveOffset = FIntVector(Dispatch.WaveOffset_Shader[0], Dispatch.WaveOffset_Shader[1], 0);
