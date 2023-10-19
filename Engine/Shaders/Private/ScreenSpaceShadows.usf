@@ -35,7 +35,6 @@ DispatchParameters SetupBendDispatchParameters(float NearDepthVal, float FarDept
 	Parameters.InvDepthTextureSize = InvDepthTextureSize;
 
 	Parameters.DepthTexture = DepthTexture;
-	Parameters.OutputTexture = OutputTexture;
 	Parameters.PointBorderSampler = PointBorderSampler;
 
 	return Parameters;
@@ -147,7 +146,11 @@ void ScreenSpaceShadowsBendCS(
 {
 	DispatchParameters Parameters = SetupBendDispatchParameters(NearDepthValue, FarDepthValue);
 
-	WriteScreenSpaceShadow(Parameters, GroupId, GroupThreadId.x);
+	float Result;
+	int2 ResultXY;
+	WriteScreenSpaceShadow(Parameters, GroupId, GroupThreadId.x, Result, ResultXY);
+
+	OutputTexture[ResultXY] = 1 - (1 - Result) * ContactShadowCastingIntensity;
 }
 
 #ifdef UPSAMPLE_PASS
