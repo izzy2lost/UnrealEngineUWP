@@ -317,8 +317,8 @@ public:
 
 	/**
 	 * Insert an FChange into the transaction history in the current Context. 
-	 * This cannot be called between Begin/EndUndoTransaction, the FChange should be 
-	 * automatically inserted into a Transaction.
+	 * It is safe but not necessary to call this between Begin/EndUndoTransaction;
+	 * the FChange will be automatically inserted into a Transaction.
 	 * @param TargetObject The UObject this Change is applied to
 	 * @param Change The Change implementation
 	 * @param Description text description of the transaction that could be shown to user

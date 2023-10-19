@@ -2435,12 +2435,6 @@ void UDynamicMeshSculptTool::BeginChange(bool bIsVertexChange)
 
 void UDynamicMeshSculptTool::EndChange()
 {
-	// End any placeholder transaction so we can emit a real transaction
-	// Note we close the placeholder transaction before emitting the FChange-based one due to the comment on 
-	// ApplyChange in ToolContextInterfaces.h indicating that we should not have an open transaction when we emit a change.
-	// TODO: We could revisit whether that comment is accurate, and if not, could move this Close call to the bottom of this function.
-	// (This does not affect the behavior in practice, since the empty placeholder transaction does not persist.)
-	ClosePlaceholderTransaction();
 	if (ActiveVertexChange != nullptr)
 	{
 		GetToolManager()->EmitObjectChange(DynamicMeshComponent, MoveTemp(ActiveVertexChange->Change), LOCTEXT("MeshSculptChange", "Brush Stroke"));
@@ -2459,6 +2453,8 @@ void UDynamicMeshSculptTool::EndChange()
 		delete ActiveMeshChange;
 		ActiveMeshChange = nullptr;
 	}
+
+	ClosePlaceholderTransaction();
 }
 
 void UDynamicMeshSculptTool::CancelChange()
