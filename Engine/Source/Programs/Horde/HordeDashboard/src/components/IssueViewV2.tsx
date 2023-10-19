@@ -27,7 +27,7 @@ const getCustomClasses = () => {
    const theme = getHordeTheme();
    const { modeColors } = getHordeStyling();
    
-   const background = dashboard.darktheme ? modeColors.background : "#F9F7F7";   
+   const background = dashboard.darktheme ? modeColors.background : "#FAF9F9";   
 
    const customClasses = _customClasses ?? mergeStyleSets({
       actionBar: {

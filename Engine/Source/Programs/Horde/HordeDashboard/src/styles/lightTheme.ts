@@ -14,7 +14,7 @@ const hordeLightTheme = {
     topNavBackground: "#FFFFFF",
     breadCrumbsBackground: "#F3F2F1",
     contentBackground: "#FFFFFF",
-    neutralBackground: "#F9F7F7",
+    neutralBackground: "#FAF9F9",
     scrollbarThumbColor: "#C1C1C1",
     scrollbarTrackColor: "#F1F1F1",
     dividerColor: "#E9E8E7"
