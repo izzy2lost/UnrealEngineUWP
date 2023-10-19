@@ -788,7 +788,7 @@ void EmitMaterialIdRects(
 	);
 
 	FEmitMaterialDepthPS::FPermutationDomain PermutationVectorPS;
-	PermutationVectorPS.Set<FEmitMaterialDepthPS::FLegacyCullingDim>(!UseNaniteComputeMaterials());
+	PermutationVectorPS.Set<FEmitMaterialDepthPS::FLegacyCullingDim>(true /* Always use legacy culling with Lumen - until refactor to CS */);
 	PermutationVectorPS.Set<FEmitMaterialDepthPS::FShadingMaskLoadDim>(false /* not using shading mask */);
 	auto PixelShader = SharedView->ShaderMap->GetShader<FEmitMaterialDepthPS>(PermutationVectorPS);
 
@@ -830,7 +830,7 @@ void EmitMaterialDepthRects(
 	);
 
 	FEmitSceneDepthPS::FPermutationDomain PermutationVectorPS;
-	PermutationVectorPS.Set<FEmitSceneDepthPS::FLegacyCullingDim>(!UseNaniteComputeMaterials());
+	PermutationVectorPS.Set<FEmitSceneDepthPS::FLegacyCullingDim>(true /* Always use legacy culling with Lumen - until refactor to CS */);
 	PermutationVectorPS.Set<FEmitSceneDepthPS::FVelocityExportDim>(false);
 	PermutationVectorPS.Set<FEmitSceneDepthPS::FShadingMaskExportDim>(false);
 	auto PixelShader = SharedView->ShaderMap->GetShader<FEmitSceneDepthPS>(PermutationVectorPS);
