@@ -55,7 +55,7 @@ UCustomizableObject::UCustomizableObject()
 #if WITH_EDITORONLY_DATA
 	const FString CVarName = TEXT("r.SkeletalMesh.MinLodQualityLevel");
 	const FString ScalabilitySectionName = TEXT("ViewDistanceQuality");
-	LODSettings.MinQualityLevelLOD.Init(*CVarName, *ScalabilitySectionName);
+	LODSettings.MinQualityLevelLOD.SetQualityLevelCVarForCooking(*CVarName, *ScalabilitySectionName);
 #endif
 }
 
