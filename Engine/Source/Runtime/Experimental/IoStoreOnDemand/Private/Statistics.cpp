@@ -264,6 +264,7 @@ FCounterAtomicInt		GCacheRejectBytes(TEXT("Ias/CachePutRejectBytes"), TraceCount
 FCounterInt				GHttpGetCount(TEXT("Ias/HttpGetCount"), TraceCounterDisplayHint_None);
 FCounterInt				GHttpErrorCount(TEXT("Ias/HttpErrorCount"), TraceCounterDisplayHint_None);
 FCounterInt				GHttpRetryCount(TEXT("Ias/HttpRetryCount"), TraceCounterDisplayHint_None);
+FCounterInt				GHttpCancelCount(TEXT("Ias/HttpCancelCount"), TraceCounterDisplayHint_None);
 FCounterAtomicInt		GHttpPendingCount(TEXT("Ias/HttpPendingCount"), TraceCounterDisplayHint_None);
 FCounterInt				GHttpInflightCount(TEXT("Ias/HttpInflightCount"), TraceCounterDisplayHint_None);
 FCounterInt				GHttpDownloadedBytes(TEXT("Ias/HttpDownloadedBytes"), TraceCounterDisplayHint_Memory);
@@ -322,6 +323,7 @@ CSV_DEFINE_STAT(Ias, CacheRejectedMB);
 // http stat totals
 CSV_DEFINE_STAT(Ias, HttpGetCount);
 CSV_DEFINE_STAT(Ias, HttpRetryCount);
+CSV_DEFINE_STAT(Ias, HttpCancelCount);
 CSV_DEFINE_STAT(Ias, HttpErrorCount);
 CSV_DEFINE_STAT(Ias, HttpPendingCount);
 CSV_DEFINE_STAT(Ias, HttpDownloadedMB);
@@ -360,6 +362,7 @@ FOnDemandIoBackendStats::FOnDemandIoBackendStats()
 		// http stat totals
 		int32 HGetCount = int32(GHttpGetCount.Get());
 		int32 HRetryCount = int32(GHttpRetryCount.Get());
+		int32 HCancelCount = int32(GHttpCancelCount.Get());
 		int32 HErrorCount = int32(GHttpErrorCount.Get());
 		int32 HPendingCount = int32(GHttpPendingCount.Get());
 		int32 HDownloadedMB = BytesToApproxMB(GHttpDownloadedBytes.Get());
@@ -367,7 +370,7 @@ FOnDemandIoBackendStats::FOnDemandIoBackendStats()
 		int32 HDurationMsAvg = int32(GHttpDurationMsAvg.Get());
 		int32 HDurationMsMax = int32(GHttpDurationMsMax.Get());
 		CSV_CUSTOM_STAT_DEFINED(HttpGetCount, HGetCount, ECsvCustomStatOp::Set);
-		CSV_CUSTOM_STAT_DEFINED(HttpRetryCount, HRetryCount, ECsvCustomStatOp::Set);
+		CSV_CUSTOM_STAT_DEFINED(HttpCancelCount, HCancelCount, ECsvCustomStatOp::Set);
 		CSV_CUSTOM_STAT_DEFINED(HttpErrorCount, HErrorCount, ECsvCustomStatOp::Set);
 		CSV_CUSTOM_STAT_DEFINED(HttpPendingCount, HPendingCount, ECsvCustomStatOp::Set);
 		CSV_CUSTOM_STAT_DEFINED(HttpDownloadedMB, HDownloadedMB, ECsvCustomStatOp::Set);
@@ -382,8 +385,8 @@ FOnDemandIoBackendStats::FOnDemandIoBackendStats()
 			{
 				UE_LOG(LogIas, Log, TEXT("CacheStats: CachedMB=%d, RejectedMB=%d, ReadMB=%d, Get=%d, Error=%d, Put=%d, PutReject=%d, PutExisting=%d"),
 					CCachedMB, CRejectedMB, CReadMB, CGetCount, CErrorCount, CPutCount, CPutRejectCount, CPutExistingCount);
-				UE_LOG(LogIas, Log, TEXT("HttpStats: DownloadedMB=%d, Get=%d, Retry=%d, Error=%d, CurPending=%d, CurDurationMsAvg=%d, CurDurationMsMax=%d"),
-					HDownloadedMB, HGetCount, HRetryCount, HErrorCount, HPendingCount, HDurationMsAvg, HDurationMsMax);
+				UE_LOG(LogIas, Log, TEXT("HttpStats: DownloadedMB=%d, Get=%d, Retry=%d, Cancel=%d, Error=%d, CurPending=%d, CurDurationMsAvg=%d, CurDurationMsMax=%d"),
+					HDownloadedMB, HGetCount, HRetryCount, HCancelCount, HErrorCount, HPendingCount, HDurationMsAvg, HDurationMsMax);
 				LastLogTime = Time;
 			}
 		}
@@ -587,6 +590,13 @@ void FOnDemandIoBackendStats::OnHttpGet(uint64 SizeBytes, uint64 DurationMs)
 	GHttpAvgDuration.Increment(static_cast<double>(DurationMs));
 
 	GHttpDurationBuckets[FindDurationBucket(DurationMs)]++;
+}
+
+void FOnDemandIoBackendStats::OnHttpCancel()
+{
+	GHttpInflightCount.Add(-1);
+	GHttpPendingCount.Add(-1);
+	GHttpCancelCount.Add(1);
 }
 
 void FOnDemandIoBackendStats::OnHttpRetry()

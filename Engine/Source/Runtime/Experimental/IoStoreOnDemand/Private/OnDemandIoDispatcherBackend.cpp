@@ -2240,7 +2240,12 @@ void FOnDemandIoBackend::ProcessHttpRequests(FHttpClient& HttpClient, FBitWindow
 
 				Stats.OnHttpDequeue();
 
-				if (BackendStatus.IsHttpEnabled() == false)
+				if (ChunkRequest->bCancelled)
+				{
+					CompleteRequest(ChunkRequest);
+					Stats.OnHttpCancel();
+				}
+				else if (BackendStatus.IsHttpEnabled() == false)
 				{
 					UE::Tasks::Launch(UE_SOURCE_LOCATION, [this, ChunkRequest]()
 					{
