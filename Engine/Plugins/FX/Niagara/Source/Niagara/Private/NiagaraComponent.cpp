@@ -1294,6 +1294,36 @@ void UNiagaraComponent::ActivateInternal(bool bReset /* = false */, bool bIsScal
 	//Set the component last render time *before* preculling otherwise there are cases where we can pre cull incorrectly.
 	SetLastRenderTime(GetWorld()->GetTimeSeconds());
 
+	// Auto attach if requested
+	const bool bWasAutoAttached = bDidAutoAttach;
+	bDidAutoAttach = false;
+	if (bAutoManageAttachment)
+	{
+		USceneComponent* NewParent = AutoAttachParent.Get();
+		if (NewParent)
+		{
+			const bool bAlreadyAttached = GetAttachParent() && (GetAttachParent() == NewParent) && (GetAttachSocketName() == AutoAttachSocketName) && GetAttachParent()->GetAttachChildren().Contains(this);
+			if (!bAlreadyAttached)
+			{
+				bDidAutoAttach = bWasAutoAttached;
+				CancelAutoAttachment(true);
+				SavedAutoAttachRelativeLocation = GetRelativeLocation();
+				SavedAutoAttachRelativeRotation = GetRelativeRotation();
+				SavedAutoAttachRelativeScale3D = GetRelativeScale3D();
+				//bIsChangingAutoAttachment = true;
+				AttachToComponent(NewParent, FAttachmentTransformRules(AutoAttachLocationRule, AutoAttachRotationRule, AutoAttachScaleRule, bAutoAttachWeldSimulatedBodies), AutoAttachSocketName);
+				//bIsChangingAutoAttachment = false;
+			}
+
+			bDidAutoAttach = true;
+			//bFlagAsJustAttached = true;
+		}
+		else
+		{
+			CancelAutoAttachment(true);
+		}
+	}
+
 	if (ShouldPreCull())
 	{
 		#if WITH_PARTICLE_PERF_CSV_STATS
@@ -1340,36 +1370,6 @@ void UNiagaraComponent::ActivateInternal(bool bReset /* = false */, bool bIsScal
 	{
 		SetActiveFlag(true);
 		OnComponentActivated.Broadcast(this, bReset);
-	}
-	
-	// Auto attach if requested
-	const bool bWasAutoAttached = bDidAutoAttach;
-	bDidAutoAttach = false;
-	if (bAutoManageAttachment)
-	{
-		USceneComponent* NewParent = AutoAttachParent.Get();
-		if (NewParent)
-		{
-			const bool bAlreadyAttached = GetAttachParent() && (GetAttachParent() == NewParent) && (GetAttachSocketName() == AutoAttachSocketName) && GetAttachParent()->GetAttachChildren().Contains(this);
-			if (!bAlreadyAttached)
-			{
-				bDidAutoAttach = bWasAutoAttached;
-				CancelAutoAttachment(true);
-				SavedAutoAttachRelativeLocation = GetRelativeLocation();
-				SavedAutoAttachRelativeRotation = GetRelativeRotation();
-				SavedAutoAttachRelativeScale3D = GetRelativeScale3D();
-				//bIsChangingAutoAttachment = true;
-				AttachToComponent(NewParent, FAttachmentTransformRules(AutoAttachLocationRule, AutoAttachRotationRule, AutoAttachScaleRule, bAutoAttachWeldSimulatedBodies), AutoAttachSocketName);
-				//bIsChangingAutoAttachment = false;
-			}
-
-			bDidAutoAttach = true;
-			//bFlagAsJustAttached = true;
-		}
-		else
-		{
-			CancelAutoAttachment(true);
-		}
 	}
 	
 #if WITH_EDITOR
