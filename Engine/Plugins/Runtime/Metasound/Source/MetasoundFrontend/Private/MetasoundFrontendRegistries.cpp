@@ -289,52 +289,68 @@ namespace Metasound
 
 		TUniquePtr<Metasound::INode> FRegistryContainerImpl::CreateNode(const FNodeRegistryKey& InKey, const Metasound::FNodeInitData& InInitData) const
 		{
-			if (const INodeRegistryEntry* Entry = FindNodeEntry(InKey))
+			TUniquePtr<INode> Node;
+			auto CreateNode = [&Node, &InInitData](const INodeRegistryEntry& Entry) 
+			{ 
+				Node = Entry.CreateNode(InInitData); 
+			};
+
+			if (!AccessNodeEntryThreadSafe(InKey, CreateNode))
 			{
-				return Entry->CreateNode(InInitData);
+				// Creation of external nodes can rely on assets being unavailable due to errors in loading order, asset(s)
+				// missing, etc. 
+				UE_LOG(LogMetaSound, Error, TEXT("Could not find node [RegistryKey:%s]"), *InKey.ToString());
 			}
 
-			// Because creation of external nodes can rely on assets being unavailable due to errors in loading order, asset(s)
-			// missing, etc. only log error and don't throw ensure to avoid blocking start-up if assets are missing. All other
-			// CreateNode calls are natively managed and thus better suited to throw ensures.
-			UE_LOG(LogMetaSound, Error, TEXT("Could not find node [RegistryKey:%s]"), *InKey.ToString());
-			return nullptr;
+			return MoveTemp(Node);
 		}
 
 		TUniquePtr<Metasound::INode> FRegistryContainerImpl::CreateNode(const FNodeRegistryKey& InKey, FDefaultLiteralNodeConstructorParams&& InParams) const
 		{
-			const INodeRegistryEntry* Entry = FindNodeEntry(InKey);
+			TUniquePtr<INode> Node;
+			auto CreateNode = [&Node, &InParams](const INodeRegistryEntry& Entry) 
+			{ 
+				Node = Entry.CreateNode(MoveTemp(InParams)); 
+			};
 
-			if (ensureAlwaysMsgf(nullptr != Entry, TEXT("Could not find node [RegistryKey:%s]"), *InKey.ToString()))
+			if (!AccessNodeEntryThreadSafe(InKey, CreateNode))
 			{
-				return Entry->CreateNode(MoveTemp(InParams));
+				UE_LOG(LogMetaSound, Error, TEXT("Could not find node [RegistryKey:%s]"), *InKey.ToString());
 			}
 
-			return nullptr;
+			return MoveTemp(Node);
 		}
 
 		TUniquePtr<Metasound::INode> FRegistryContainerImpl::CreateNode(const FNodeRegistryKey& InKey, FDefaultNamedVertexNodeConstructorParams&& InParams) const
 		{
-			const INodeRegistryEntry* Entry = FindNodeEntry(InKey);
+			TUniquePtr<INode> Node;
+			auto CreateNode = [&Node, &InParams](const INodeRegistryEntry& Entry) 
+			{ 
+				Node = Entry.CreateNode(MoveTemp(InParams)); 
+			};
 
-			if (ensureAlwaysMsgf(nullptr != Entry, TEXT("Could not find node [RegistryKey:%s]"), *InKey.ToString()))
+			if (!AccessNodeEntryThreadSafe(InKey, CreateNode))
 			{
-				return Entry->CreateNode(MoveTemp(InParams));
+				UE_LOG(LogMetaSound, Error, TEXT("Could not find node [RegistryKey:%s]"), *InKey.ToString());
 			}
 
-			return nullptr;
+			return MoveTemp(Node);
 		}
 
 		TUniquePtr<Metasound::INode> FRegistryContainerImpl::CreateNode(const FNodeRegistryKey& InKey, FDefaultNamedVertexWithLiteralNodeConstructorParams&& InParams) const
 		{
-			const INodeRegistryEntry* Entry = FindNodeEntry(InKey);
+			TUniquePtr<INode> Node;
+			auto CreateNode = [&Node, &InParams](const INodeRegistryEntry& Entry) 
+			{ 
+				Node = Entry.CreateNode(MoveTemp(InParams)); 
+			};
 
-			if (ensureAlwaysMsgf(nullptr != Entry, TEXT("Could not find node [RegistryKey:%s]"), *InKey.ToString()))
+			if (!AccessNodeEntryThreadSafe(InKey, CreateNode))
 			{
-				return Entry->CreateNode(MoveTemp(InParams));
+				UE_LOG(LogMetaSound, Error, TEXT("Could not find node [RegistryKey:%s]"), *InKey.ToString());
 			}
 
-			return nullptr;
+			return MoveTemp(Node);
 		}
 
 		TArray<::Metasound::Frontend::FConverterNodeInfo> FRegistryContainerImpl::GetPossibleConverterNodes(const FName& FromDataType, const FName& ToDataType)
@@ -658,24 +674,33 @@ namespace Metasound
 
 		bool FRegistryContainerImpl::IsNodeNative(const FNodeRegistryKey& InKey) const
 		{
-			if (const INodeRegistryEntry* Entry = FindNodeEntry(InKey))
+			bool bIsNative = false;
+			auto SetIsNative = [&bIsNative](const INodeRegistryEntry& Entry) 
+			{ 
+				bIsNative = Entry.IsNative();
+			};
+
+			if (AccessNodeEntryThreadSafe(InKey, SetIsNative))
 			{
-				return Entry->IsNative();
+				return bIsNative;
 			}
 
 			if (const INodeRegistryTemplateEntry* TemplateEntry = FindNodeTemplateEntry(InKey))
 			{
 				return true;
 			}
-
 			return false;
 		}
 
 		bool FRegistryContainerImpl::FindFrontendClassFromRegistered(const FNodeRegistryKey& InKey, FMetasoundFrontendClass& OutClass)
 		{
-			if (const INodeRegistryEntry* Entry = FindNodeEntry(InKey))
+			auto SetFrontendClass = [&OutClass](const INodeRegistryEntry& Entry)
 			{
-				OutClass = Entry->GetFrontendClass();
+				OutClass = Entry.GetFrontendClass();
+			};
+
+			if (AccessNodeEntryThreadSafe(InKey, SetFrontendClass))
+			{
 				return true;
 			}
 
@@ -690,19 +715,52 @@ namespace Metasound
 
 		const TSet<FMetasoundFrontendVersion>* FRegistryContainerImpl::FindImplementedInterfacesFromRegistered(const Metasound::Frontend::FNodeRegistryKey& InKey) const
 		{
-			if (const INodeRegistryEntry* Entry = FindNodeEntry(InKey))
+			static bool bHasWarningBeenIssued = false;
+			if (!bHasWarningBeenIssued)
 			{
-				return Entry->GetImplementedInterfaces();
+				// This function is known to be thread-unsafe and should not longer be used.
+				// This implementation exists to support deprecated usage. 
+				UE_LOG(LogMetaSound, Warning, TEXT("Accessing non-thread-safe implementation of FindImplementedInterfacesFromRegistered(...) is known to cause crashes. Please update your code to use the non-deprecated version of this function with the same name"));
+				bHasWarningBeenIssued = true;
 			}
 
-			return nullptr;
+			const TSet<FMetasoundFrontendVersion>* Interfaces = nullptr;
+			AccessNodeEntryThreadSafe(InKey, 
+				[&Interfaces](const INodeRegistryEntry& Entry)
+				{
+					Interfaces = Entry.GetImplementedInterfaces();
+				}
+			);
+
+			return Interfaces;
+		}
+
+		bool FRegistryContainerImpl::FindImplementedInterfacesFromRegistered(const Metasound::Frontend::FNodeRegistryKey& InKey, TSet<FMetasoundFrontendVersion>& OutInterfaceVersions) const 
+		{
+			bool bDidCopy = false;
+
+			auto CopyImplementedInterfaces = [&OutInterfaceVersions, &bDidCopy](const INodeRegistryEntry& Entry)
+			{
+				if (const TSet<FMetasoundFrontendVersion>* Interfaces = Entry.GetImplementedInterfaces())
+				{
+					OutInterfaceVersions = *Interfaces;
+					bDidCopy = true;
+				}
+			};
+
+			AccessNodeEntryThreadSafe(InKey, CopyImplementedInterfaces);
+
+			return bDidCopy;
 		}
 
 		bool FRegistryContainerImpl::FindNodeClassInfoFromRegistered(const Metasound::Frontend::FNodeRegistryKey& InKey, FNodeClassInfo& OutInfo)
 		{
-			if (const INodeRegistryEntry* Entry = FindNodeEntry(InKey))
+			auto CopyClassInfo = [&OutInfo](const INodeRegistryEntry& Entry)
 			{
-				OutInfo = Entry->GetClassInfo();
+				OutInfo = Entry.GetClassInfo();
+			};
+			if (AccessNodeEntryThreadSafe(InKey, CopyClassInfo))
+			{
 				return true;
 			}
 
@@ -815,30 +873,28 @@ namespace Metasound
 			}
 		}
 
-		const INodeRegistryEntry* FRegistryContainerImpl::FindNodeEntry(const FNodeRegistryKey& InKey) const
+		bool FRegistryContainerImpl::AccessNodeEntryThreadSafe(const FNodeRegistryKey& InKey, TFunctionRef<void(const INodeRegistryEntry&)> InFunc) const
 		{
-			auto TryFindNodeEntry = [this, &InKey]() -> const INodeRegistryEntry*
+			auto TryAccessNodeEntry = [this, &InKey, &InFunc]() -> bool
 			{
-				// This scope lock protects against race conditions manipulating the `RegisteredNodes` map, but it does not
-				// protect against the individual INodeRegistryEntry from being removed after this function returns. Generally
-				// this is not an issue as the acess to the INodeRegistryEntry pointer happens on the same thread as calls to 
-				// remove node registry entries. 
 				FScopeLock Lock(&RegistryMapsCriticalSection);
 				if (const TSharedRef<INodeRegistryEntry, ESPMode::ThreadSafe>* Entry = RegisteredNodes.Find(InKey))
 				{
-					return &Entry->Get();
+					InFunc(*(*Entry));
+					return true;
 				}
-				return nullptr;
+				return false;
 			};
 
-			if (const INodeRegistryEntry* Entry = TryFindNodeEntry())
+			if (TryAccessNodeEntry())
 			{
-				return Entry;
+				return true;
 			}
 			else
 			{
+				// Wait for any async registration tasks related to the registry key. 
 				WaitForAsyncRegistrationInternal(InKey, nullptr /* InAssetPath */);
-				return TryFindNodeEntry();
+				return TryAccessNodeEntry();
 			}
 		}
 
