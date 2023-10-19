@@ -99,12 +99,20 @@ struct FPerQualityLevelProperty
 	void ConvertQualtiyLevelData(TMap<FName, _ValueType>& PlaformData, TMultiMap<FName, FName>& PerPlatformToQualityLevel, _ValueType Default);
 #endif
 
-	void Init(const TCHAR* InCVarName, const TCHAR* InSection)
+	// Set Cvar to be able to scan ini files at cook-time and only have the supported ranges of quality levels relevant to the platform.
+	// Unsupported quality levels will be stripped.
+	void SetQualityLevelCVarForCooking(const TCHAR* InCVarName, const TCHAR* InSection)
 	{
 #if WITH_EDITOR
 		ScalabilitySection = FString(InSection);
 #endif
 		CVarName = FString(InCVarName);
+	}
+
+	UE_DEPRECATED(5.4, "If no cvar is associated with the property, all quality levels will be keept when cooking. Call SetQualtiyLevelCVarForCooking to strip unsupported quality levels when cooking")
+	void Init(const TCHAR* InCVarName, const TCHAR* InSection)
+	{
+		SetQualityLevelCVarForCooking(InCVarName, InSection);
 	}
 
 	_ValueType GetDefault() const

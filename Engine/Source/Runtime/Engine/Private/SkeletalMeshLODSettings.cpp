@@ -24,7 +24,7 @@ USkeletalMeshLODSettings::USkeletalMeshLODSettings(const FObjectInitializer& Obj
 	// TODO: support saving some but not all optional LODs
 	MaxNumOptionalLODs.Default = 0;
 
-	MinQualityLevelLod.Init(GSkeletalMeshMinLodQualityLevelCVarName, GSkeletalMeshMinLodQualityLevelScalabilitySection);
+	MinQualityLevelLod.SetQualityLevelCVarForCooking(GSkeletalMeshMinLodQualityLevelCVarName, GSkeletalMeshMinLodQualityLevelScalabilitySection);
 }
 
 const FSkeletalMeshLODGroupSettings& USkeletalMeshLODSettings::GetSettingsForLODLevel(const int32 LODIndex) const

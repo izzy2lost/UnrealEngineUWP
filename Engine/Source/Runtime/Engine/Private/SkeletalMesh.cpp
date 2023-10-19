@@ -382,7 +382,7 @@ USkeletalMesh::USkeletalMesh(const FObjectInitializer& ObjectInitializer)
 #endif
 	SetMinLod(FPerPlatformInt(0));
 	SetQualityLevelMinLod(0);
-	MinQualityLevelLOD.Init(GSkeletalMeshMinLodQualityLevelCVarName, GSkeletalMeshMinLodQualityLevelScalabilitySection);
+	MinQualityLevelLOD.SetQualityLevelCVarForCooking(GSkeletalMeshMinLodQualityLevelCVarName, GSkeletalMeshMinLodQualityLevelScalabilitySection);
 	SetDisableBelowMinLodStripping(FPerPlatformBool(false));
 PRAGMA_DISABLE_DEPRECATION_WARNINGS
 	bSupportRayTracing = true;

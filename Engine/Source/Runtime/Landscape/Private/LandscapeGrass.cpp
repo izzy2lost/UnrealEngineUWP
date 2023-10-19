@@ -1290,9 +1290,9 @@ FGrassVariety::FGrassVariety()
 	, InstanceWorldPositionOffsetDisableDistance(0)
 	, ShadowCacheInvalidationBehavior(EShadowCacheInvalidationBehavior::Auto)
 {
-	GrassDensityQuality.Init(GGrassQualityLevelCVarName, GGrassQualityLevelScalabilitySection);
-	StartCullDistanceQuality.Init(GGrassQualityLevelCVarName, GGrassQualityLevelScalabilitySection);
-	EndCullDistanceQuality.Init(GGrassQualityLevelCVarName, GGrassQualityLevelScalabilitySection);
+	GrassDensityQuality.SetQualityLevelCVarForCooking(GGrassQualityLevelCVarName, GGrassQualityLevelScalabilitySection);
+	StartCullDistanceQuality.SetQualityLevelCVarForCooking(GGrassQualityLevelCVarName, GGrassQualityLevelScalabilitySection);
+	EndCullDistanceQuality.SetQualityLevelCVarForCooking(GGrassQualityLevelCVarName, GGrassQualityLevelScalabilitySection);
 }
 
 bool FGrassVariety::IsGrassQualityLevelEnable() const

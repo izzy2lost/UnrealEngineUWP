@@ -3372,7 +3372,7 @@ UStaticMesh::UStaticMesh(const FObjectInitializer& ObjectInitializer)
 	BuildCacheAutomationTestGuid.Invalidate();
 #endif
 	SetQualityLevelMinLOD(0);
-	MinQualityLevelLOD.Init(GMinLodQualityLevelCVarName, GMinLodQualityLevelScalabilitySection);
+	MinQualityLevelLOD.SetQualityLevelCVarForCooking(GMinLodQualityLevelCVarName, GMinLodQualityLevelScalabilitySection);
 }
 
 // We don't care if the default implementation of the destructor is cleaning up 
