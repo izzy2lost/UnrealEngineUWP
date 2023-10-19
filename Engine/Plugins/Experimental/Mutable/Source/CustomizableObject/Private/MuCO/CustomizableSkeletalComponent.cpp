@@ -321,7 +321,7 @@ void UCustomizableSkeletalComponent::TickComponent(float DeltaTime, ELevelTick T
 		USkeletalMesh* SkeletalMesh = CustomizableObjectInstance->GetSkeletalMesh(ComponentIndex);
 
 		// If not generated yet, conditionally set the SkeletalMesh of reference
-		if (!bInstanceGenerated && !bSkipSetReferenceSkeletalMesh && CustomizableObject->bEnableUseRefSkeletalMeshAsPlaceholder)
+		if (!bInstanceGenerated && !bSkipSetReferenceSkeletalMesh)
 		{
 			// Can be nullptr
 			SkeletalMesh = CustomizableObject->GetRefSkeletalMesh(ComponentIndex);
