@@ -76,11 +76,21 @@ struct ANIMATIONWARPINGRUNTIME_API FAnimNode_OrientationWarping : public FAnimNo
 	UPROPERTY(EditAnywhere, Category=Settings, meta=(ClampMin="0.0", EditCondition="RotationInterpSpeed > 0.0f"))
 	float MaxCorrectionRateDegrees = 720.f;
 
+	// Don't compensate our interpolator when the instantaneous root motion delta is higher than this. This is likely a pivot.
+	UPROPERTY(EditAnywhere, Category=Settings, meta=(ClampMin="0.0", EditCondition="RotationInterpSpeed > 0.0f"))
+	float MaxRootMotionDeltaToCompensateDegrees = 45.f;
+
 	// Whether to counter compensate interpolation by the animated root motion angle change over time.
 	// This helps to conserve the motion from our animation.
 	// Disable this if your root motion is expected to be jittery, and you want orientation warping to smooth it out.
 	UPROPERTY(EditAnywhere, Category=Settings, meta=(EditCondition="RotationInterpSpeed > 0.0f"))
 	bool bCounterCompenstateInterpolationByRootMotion = true;
+
+	UPROPERTY(EditAnywhere, Category=Experimental, meta=(EditCondition="Mode == EWarpingEvaluationMode::Graph"))
+	bool bUseManualRootMotionVelocity = false;
+
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category=Experimental, meta=(PinHiddenByDefault, EditCondition="bUseManualRootMotionVelocity && (Mode == EWarpingEvaluationMode::Graph)"))
+	FVector ManualRootMotionVelocity;
 
 #if WITH_EDITORONLY_DATA
 	// Scale all debug drawing visualization by a factor
