@@ -3256,9 +3256,6 @@ void FDeferredShadingSceneRenderer::Render(FRDGBuilder& GraphBuilder)
 	{
 		RDG_RHI_GPU_STAT_SCOPE(GraphBuilder, VisibilityCommands);
 		EndInitViews(GraphBuilder, LumenFrameTemporaries, InstanceCullingManager, ExternalAccessQueue, InitViewTaskDatas);
-
-		SCOPE_CYCLE_COUNTER(STAT_FDeferredShadingSceneRenderer_FGlobalDynamicVertexBuffer_Commit);
-		DynamicReadBufferForInitViews.Commit(GraphBuilder.RHICmdList);
 	}
 
 	// Substrate initialisation is always run even when not enabled.
