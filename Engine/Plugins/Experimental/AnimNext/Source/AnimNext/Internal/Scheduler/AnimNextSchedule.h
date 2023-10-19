@@ -130,10 +130,10 @@ struct FAnimNextScheduleInstruction
 	GENERATED_BODY()
 
 	UPROPERTY()
-	EAnimNextScheduleScheduleOpcode Opcode;
+	EAnimNextScheduleScheduleOpcode Opcode = EAnimNextScheduleScheduleOpcode::None;
 
 	UPROPERTY()
-	int32 Operand;
+	int32 Operand = INDEX_NONE;
 };
 
 UCLASS()

@@ -1,4 +1,4 @@
-﻿// Copyright Epic Games, Inc. All Rights Reserved.
+// Copyright Epic Games, Inc. All Rights Reserved.
 
 #pragma once
 
@@ -52,5 +52,5 @@ struct FAnimNextObjectAdapterConfig
 
 	/** Whether to expose a tick function (e.g. for a component or actor) along with functions and properties */
 	UPROPERTY(EditAnywhere, Config, Category="Adapter")
-	bool bRegisterTickFunction;
+	bool bRegisterTickFunction = false;
 };
