@@ -852,13 +852,35 @@ void UEditorValidatorSubsystem::GatherAssetsToValidateFromChangelist(
 {
 	FAssetRegistryModule& AssetRegistryModule = FModuleManager::LoadModuleChecked<FAssetRegistryModule>("AssetRegistry");
 	IAssetRegistry& AssetRegistry = AssetRegistryModule.Get();
-
+	
+	LoadValidators();
+	
 	for (const FName& PackageName : InChangelist->ModifiedPackageNames)
 	{
 		TArray<FAssetData> NewAssets;
 		AssetRegistry.GetAssetsByPackageName(PackageName, NewAssets, true);	
 		OutAssets.Append(NewAssets);
 	}
+	
+	// Gather assets requested by plugin/project validators 
+	for (const TPair<FTopLevelAssetPath, TObjectPtr<UEditorValidatorBase>>& ValidatorPair : Validators)
+	{
+		UEditorValidatorBase* Validator = ValidatorPair.Value;
+		if (Validator && Validator->IsEnabled())
+		{
+			TArray<FAssetData> NewAssets = Validator->GetAssetsToValidateFromChangelist(InChangelist, InContext);
+			for (const FAssetData& Asset : NewAssets)
+			{
+				// It's not strictly necessary to filter assets here but it makes logging simpler
+				if (ShouldValidateAsset(Asset, Settings, InContext))
+				{
+					UE_LOG(LogContentValidation, Verbose, TEXT("Asset validator %s adding %s to be validated."), *Validator->GetPathName(), *Asset.GetSoftObjectPath().ToString());
+					OutAssets.Add(Asset);
+				}
+			}
+		}
+	}
+
 	
 	if (Settings.bValidateReferencersOfDeletedAssets)
 	{
@@ -881,7 +903,12 @@ void UEditorValidatorSubsystem::GatherAssetsToValidateFromChangelist(
 	}
 }
 
-void UEditorValidatorSubsystem::LoadValidators()
+void UEditorValidatorSubsystem::LoadValidators() const
+{
+	const_cast<UEditorValidatorSubsystem*>(this)->LoadValidators();
+}
+
+void UEditorValidatorSubsystem::LoadValidators() 
 {
 	if (bNeedLoadingOfValidators)
 	{
@@ -912,6 +939,39 @@ void UEditorValidatorSubsystem::LoadValidators()
 
 		bNeedLoadingOfValidators = false;
 	}
+}
+
+TArray<FAssetData> UEditorValidatorSubsystem::GetAssetsResolvingRedirectors(FARFilter& InFilter)
+{
+	FAssetRegistryModule& AssetRegistryModule = FModuleManager::LoadModuleChecked<FAssetRegistryModule>("AssetRegistry");
+	IAssetRegistry& AssetRegistry = AssetRegistryModule.Get();
+
+	TArray<FAssetData> Found;
+	AssetRegistry.GetAssets(InFilter, Found);
+	
+	TArray<FAssetData> Redirectors;	
+	for (int32 i=Found.Num()-1; i >= 0; --i)
+	{
+		if (Found[i].IsRedirector())
+		{
+			Redirectors.Add(Found[i]);
+			Found.RemoveAt(i);
+		}
+	}
+	
+	for (const FAssetData& RedirectorAsset : Redirectors)
+	{
+		FSoftObjectPath Path = AssetRegistry.GetRedirectedObjectPath(RedirectorAsset.GetSoftObjectPath());		
+		if (!Path.IsNull())
+		{
+			FAssetData Destination = AssetRegistry.GetAssetByObjectPath(Path, true);
+			if (Destination.IsValid())
+			{
+				Found.Add(Destination);
+			}
+		}
+	}
+	return Found;
 }
 
 #undef LOCTEXT_NAMESPACE

@@ -11,6 +11,7 @@ namespace EMessageSeverity { enum Type : int; };
 struct FAssetData;
 class FDataValidationContext;
 class FTokenizedMessage;
+class UDataValidationChangelist;
 
 /*
 * The EditorValidatorBase is a class which verifies that an asset meets a specific ruleset.
@@ -46,6 +47,12 @@ public:
 	virtual EDataValidationResult ValidateLoadedAsset_Implementation(const FAssetData& InAssetData, UObject* InAsset, FDataValidationContext& Context)
 	{
 		return EDataValidationResult::NotValidated;
+	}
+	
+	/** Override this to return additional assets that need validation because of other changes in a changelist. e.g. referencers of a specific type may be broken by edits to a dependency. */
+	virtual TArray<FAssetData> GetAssetsToValidateFromChangelist(UDataValidationChangelist* InChangelist, FDataValidationContext& InContext) const
+	{
+		return {};
 	}
 	
 	/** Override this to determine whether or not you can use this validator given this usecase */

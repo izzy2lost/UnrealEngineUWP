@@ -14,6 +14,7 @@ class UEditorValidatorBase;
 class UDataValidationChangelist;
 struct FDirectoryPath;
 class FMessageLog;
+struct FARFilter;
 struct FAssetData;
 class ISourceControlChangelist;
 typedef TSharedPtr<class ISourceControlChangelist, ESPMode::ThreadSafe> FSourceControlChangelistPtr;
@@ -301,6 +302,13 @@ public:
 		const FValidateAssetsSettings& 	Settings,
 		FDataValidationContext& 		InContext) const;
 
+	
+	// Utility functions
+	
+	// Retrieve all assets matching the given filter from the asset registry and then recursively resolve redirectors to produce a single set of assets.
+	TArray<FAssetData> GetAssetsResolvingRedirectors(FARFilter& InFilter);
+
+
 protected:
 	void CleanupValidators();
 
@@ -321,6 +329,7 @@ protected:
 	 */
 	void ValidateChangelistPreSubmit(FSourceControlChangelistPtr Changelist, EDataValidationResult& OutResult, TArray<FText>& ValidationErrors, TArray<FText>& ValidationWarnings) const;
 
+	void LoadValidators() const;
 	void LoadValidators();
 
 	/*
