@@ -113,9 +113,7 @@ namespace EpicGames.Horde.Storage
 			ReadOnlyMemory<byte> data = _data.AsMemory(_offset, size);
 			_offset += size;
 
-			using ReadOnlyMemoryStream stream = new ReadOnlyMemoryStream(data);
-
-			BlobHandle handle = await _outer.WriteBlobAsync(type, stream, references, _basePath, cancellationToken);
+			BlobHandle handle = await _outer.WriteBlobAsync(type, data, references, cancellationToken);
 			foreach (AliasInfo aliasInfo in aliases)
 			{
 				await _outer.AddAliasAsync(aliasInfo.Name, handle, aliasInfo.Rank, aliasInfo.Data, cancellationToken);
