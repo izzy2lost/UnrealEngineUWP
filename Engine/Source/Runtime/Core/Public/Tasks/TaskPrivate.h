@@ -73,6 +73,12 @@ namespace UE::Tasks
 	const TCHAR* ToString(EExtendedTaskPriority ExtendedPriority);
 	bool ToExtendedTaskPriority(const TCHAR* ExtendedPriorityStr, EExtendedTaskPriority& OutExtendedPriority);
 
+	enum class ETaskFlags
+	{
+		None,
+		DoNotRunInsideBusyWait // do not pick this task for busy-waiting
+	};
+
 	namespace Private
 	{
 		CORE_API void TranslatePriority(ENamedThreads::Type ThreadType, ETaskPriority& OutPriority, EExtendedTaskPriority& OutExtendedPriority);
@@ -141,10 +147,15 @@ namespace UE::Tasks
 			{
 			}
 
-			void Init(const TCHAR* InDebugName, ETaskPriority InPriority, EExtendedTaskPriority InExtendedPriority)
+			void Init(const TCHAR* InDebugName, ETaskPriority InPriority, EExtendedTaskPriority InExtendedPriority, ETaskFlags Flags)
 			{
-				// store debug name, priority and an adaptor for task execution in low-level task. The task body can't be stored as this task implementation needs to do some accounting
-				// before the task is executed (e.g. maintainance of TLS "current task")
+				// store debug name, priority and an adaptor for task execution in low-level task. The task body can't be stored as this task
+				// implementation needs to do some accounting before the task is executed (e.g. maintainance of TLS "current task")
+				LowLevelTasks::ETaskFlags LowLevelTaskFlags = LowLevelTasks::ETaskFlags::DefaultFlags;
+				if (Flags == ETaskFlags::DoNotRunInsideBusyWait)
+				{
+					LowLevelTaskFlags &= ~LowLevelTasks::ETaskFlags::AllowBusyWaiting;
+				}
 				LowLevelTask.Init(InDebugName, InPriority,
 					[
 						this,
@@ -155,7 +166,8 @@ namespace UE::Tasks
 					]
 					{
 						TryExecuteTask();
-					}
+					},
+					LowLevelTaskFlags
 				);
 				ExtendedPriority = InExtendedPriority;
 
@@ -631,10 +643,10 @@ namespace UE::Tasks
 		class TTaskWithResult : public FTaskBase
 		{
 		protected:
-			explicit TTaskWithResult(const TCHAR* InDebugName, ETaskPriority InPriority, EExtendedTaskPriority InExtendedPriority, uint32 InitRefCount)
+			explicit TTaskWithResult(const TCHAR* InDebugName, ETaskPriority InPriority, EExtendedTaskPriority InExtendedPriority, uint32 InitRefCount, ETaskFlags Flags)
 				: FTaskBase(InitRefCount)
 			{
-				Init(InDebugName, InPriority, InExtendedPriority);
+				Init(InDebugName, InPriority, InExtendedPriority, Flags);
 			}
 
 			virtual ~TTaskWithResult() override
@@ -670,8 +682,8 @@ namespace UE::Tasks
 			}
 
 		protected:
-			TExecutableTaskBase(const TCHAR* InDebugName, TaskBodyType&& TaskBody, ETaskPriority InPriority, EExtendedTaskPriority InExtendedPriority) 
-				: TTaskWithResult<ResultType>(InDebugName, InPriority, InExtendedPriority, 2)
+			TExecutableTaskBase(const TCHAR* InDebugName, TaskBodyType&& TaskBody, ETaskPriority InPriority, EExtendedTaskPriority InExtendedPriority, ETaskFlags Flags)
+				: TTaskWithResult<ResultType>(InDebugName, InPriority, InExtendedPriority, 2, Flags)
 				// 2 init refs: one for the initial reference (we don't increment it on passing to `TRefCountPtr`), and one for the internal 
 				// reference that keeps the task alive while it's in the system. is released either on task completion or by the scheduler after
 				// trying to execute the task
@@ -699,12 +711,12 @@ namespace UE::Tasks
 			}
 
 		protected:
-			TExecutableTaskBase(const TCHAR* InDebugName, TaskBodyType&& TaskBody, ETaskPriority InPriority, EExtendedTaskPriority InExtendedPriority) :
+			TExecutableTaskBase(const TCHAR* InDebugName, TaskBodyType&& TaskBody, ETaskPriority InPriority, EExtendedTaskPriority InExtendedPriority, ETaskFlags Flags) :
 				FTaskBase(2) // 2 init refs: one for the initial reference (we don't increment it on passing to `TRefCountPtr`), and one for the internal 
 				// reference that keeps the task alive while it's in the system. is released either on task completion or by the scheduler after
 				// trying to execute the task
 			{
-				Init(InDebugName, InPriority, InExtendedPriority);
+				Init(InDebugName, InPriority, InExtendedPriority, Flags);
 				new(&TaskBodyStorage) TaskBodyType(MoveTemp(TaskBody));
 			}
 
@@ -721,15 +733,15 @@ namespace UE::Tasks
 		class TExecutableTask final : public TExecutableTaskBase<TaskBodyType>
 		{
 		public:
-			TExecutableTask(const TCHAR* InDebugName, TaskBodyType&& TaskBody, ETaskPriority InPriority, EExtendedTaskPriority InExtendedPriority)
-				: TExecutableTaskBase<TaskBodyType>(InDebugName, MoveTemp(TaskBody), InPriority, InExtendedPriority)
+			TExecutableTask(const TCHAR* InDebugName, TaskBodyType&& TaskBody, ETaskPriority InPriority, EExtendedTaskPriority InExtendedPriority, ETaskFlags Flags)
+				: TExecutableTaskBase<TaskBodyType>(InDebugName, MoveTemp(TaskBody), InPriority, InExtendedPriority, Flags)
 			{
 			}
 
 			// a helper that deduces the template argument
-			static TExecutableTask* Create(const TCHAR* InDebugName, TaskBodyType&& TaskBody, ETaskPriority InPriority, EExtendedTaskPriority InExtendedPriority)
+			static TExecutableTask* Create(const TCHAR* InDebugName, TaskBodyType&& TaskBody, ETaskPriority InPriority, EExtendedTaskPriority InExtendedPriority, ETaskFlags Flags)
 			{
-				return new TExecutableTask(InDebugName, MoveTemp(TaskBody), InPriority, InExtendedPriority);
+				return new TExecutableTask(InDebugName, MoveTemp(TaskBody), InPriority, InExtendedPriority, Flags);
 			}
 
 			static void* operator new(size_t Size)
@@ -765,7 +777,7 @@ namespace UE::Tasks
 				: FTaskBase(/*InitRefCount=*/ 1) // for the initial reference (we don't increment it on passing to `TRefCountPtr`)
 			{
 				TaskTrace::Created(GetTraceId(), sizeof(*this));
-				Init(InDebugName, ETaskPriority::Normal, EExtendedTaskPriority::TaskEvent);
+				Init(InDebugName, ETaskPriority::Normal, EExtendedTaskPriority::TaskEvent, ETaskFlags::None);
 			}
 
 			virtual void ExecuteTask() override final

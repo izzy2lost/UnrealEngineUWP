@@ -55,7 +55,8 @@ namespace UE::Tasks
 				Init(
 					TEXT("Pipe::WaitUntilEmpty() placeholder"),
 					ETaskPriority::Normal, // doesn't matter
-					EExtendedTaskPriority::TaskEvent // no need for scheduling or execution for this dummy task
+					EExtendedTaskPriority::TaskEvent, // no need for scheduling or execution for this dummy task
+					ETaskFlags::None
 				);
 			}
 

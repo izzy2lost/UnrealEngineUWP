@@ -104,19 +104,21 @@ namespace UE::Tasks
 			// @param DebugName - a unique name for task identification in debugger and profiler, is compiled out in test/shipping builds
 			// @param TaskBody - a functor that will be executed asynchronously
 			// @param Priority - task priority that affects when the task will be executed
+			// @param TaskFlags - task config options
 			// @return a trivially relocatable instance that can be used to wait for task completion or to obtain task execution result
 			template<typename TaskBodyType>
 			void Launch(
 				const TCHAR* DebugName,
 				TaskBodyType&& TaskBody,
 				ETaskPriority Priority = ETaskPriority::Normal,
-				EExtendedTaskPriority ExtendedPriority = EExtendedTaskPriority::None
+				EExtendedTaskPriority ExtendedPriority = EExtendedTaskPriority::None,
+				ETaskFlags Flags = ETaskFlags::DoNotRunInsideBusyWait
 			)
 			{
 				check(!IsValid());
 
 				using FExecutableTask = Private::TExecutableTask<std::decay_t<TaskBodyType>>;
-				FExecutableTask* Task = FExecutableTask::Create(DebugName, Forward<TaskBodyType>(TaskBody), Priority, ExtendedPriority);
+				FExecutableTask* Task = FExecutableTask::Create(DebugName, Forward<TaskBodyType>(TaskBody), Priority, ExtendedPriority, Flags);
 				// this must happen before launching, to support an ability to access the task itself from inside it
 				*Pimpl.GetInitReference() = Task;
 				Task->TryLaunch(sizeof(*Task));
@@ -128,6 +130,7 @@ namespace UE::Tasks
 			// @param Prerequisites - tasks or task events that must be completed before the task being launched can be scheduled, accepts any 
 			// iterable collection (.begin()/.end()), `Tasks::Prerequisites()` helper is recommended to create such collection on the fly
 			// @param Priority - task priority that affects when the task will be executed
+			// @param TaskFlags - task config options
 			// @return a trivially relocatable instance that can be used to wait for task completion or to obtain task execution result
 			template<typename TaskBodyType, typename PrerequisitesCollectionType>
 			void Launch(
@@ -135,13 +138,14 @@ namespace UE::Tasks
 				TaskBodyType&& TaskBody,
 				PrerequisitesCollectionType&& Prerequisites,
 				ETaskPriority Priority = ETaskPriority::Normal,
-				EExtendedTaskPriority ExtendedPriority = EExtendedTaskPriority::None
+				EExtendedTaskPriority ExtendedPriority = EExtendedTaskPriority::None,
+				ETaskFlags Flags = ETaskFlags::DoNotRunInsideBusyWait
 			)
 			{
 				check(!IsValid());
 
 				using FExecutableTask = Private::TExecutableTask<std::decay_t<TaskBodyType>>;
-				FExecutableTask* Task = FExecutableTask::Create(DebugName, Forward<TaskBodyType>(TaskBody), Priority, ExtendedPriority);
+				FExecutableTask* Task = FExecutableTask::Create(DebugName, Forward<TaskBodyType>(TaskBody), Priority, ExtendedPriority, Flags);
 				Task->AddPrerequisites(Forward<PrerequisitesCollectionType>(Prerequisites));
 				// this must happen before launching, to support an ability to access the task itself from inside it
 				*Pimpl.GetInitReference() = Task;
@@ -247,18 +251,20 @@ namespace UE::Tasks
 	// @param DebugName - a unique name for task identification in debugger and profiler, is compiled out in test/shipping builds
 	// @param TaskBody - a functor that will be executed asynchronously
 	// @param Priority - task priority that affects when the task will be executed
+	// @param TaskFlags - task config options
 	// @return a trivially relocatable instance that can be used to wait for task completion or to obtain task execution result
 	template<typename TaskBodyType>
 	TTask<TInvokeResult_T<TaskBodyType>> Launch(
 		const TCHAR* DebugName,
 		TaskBodyType&& TaskBody,
 		ETaskPriority Priority = ETaskPriority::Normal,
-		EExtendedTaskPriority ExtendedPriority = EExtendedTaskPriority::None
+		EExtendedTaskPriority ExtendedPriority = EExtendedTaskPriority::None,
+		ETaskFlags Flags = ETaskFlags::DoNotRunInsideBusyWait
 	)
 	{
 		using FResult = TInvokeResult_T<TaskBodyType>;
 		TTask<FResult> Task;
-		Task.Launch(DebugName, Forward<TaskBodyType>(TaskBody), Priority, ExtendedPriority);
+		Task.Launch(DebugName, Forward<TaskBodyType>(TaskBody), Priority, ExtendedPriority, Flags);
 		return Task;
 	}
 
@@ -268,6 +274,7 @@ namespace UE::Tasks
 	// @param Prerequisites - tasks or task events that must be completed before the task being launched can be scheduled, accepts any 
 	// iterable collection (.begin()/.end()), `Tasks::Prerequisites()` helper is recommended to create such collection on the fly
 	// @param Priority - task priority that affects when the task will be executed
+	// @param TaskFlags - task config options
 	// @return a trivially relocatable instance that can be used to wait for task completion or to obtain task execution result
 	template<typename TaskBodyType, typename PrerequisitesCollectionType>
 	TTask<TInvokeResult_T<TaskBodyType>> Launch(
@@ -275,12 +282,13 @@ namespace UE::Tasks
 		TaskBodyType&& TaskBody,
 		PrerequisitesCollectionType&& Prerequisites,
 		ETaskPriority Priority = ETaskPriority::Normal,
-		EExtendedTaskPriority ExtendedPriority = EExtendedTaskPriority::None
+		EExtendedTaskPriority ExtendedPriority = EExtendedTaskPriority::None,
+		ETaskFlags Flags = ETaskFlags::DoNotRunInsideBusyWait
 	)
 	{
 		using FResult = TInvokeResult_T<TaskBodyType>;
 		TTask<FResult> Task;
-		Task.Launch(DebugName, Forward<TaskBodyType>(TaskBody), Forward<PrerequisitesCollectionType>(Prerequisites), Priority, ExtendedPriority);
+		Task.Launch(DebugName, Forward<TaskBodyType>(TaskBody), Forward<PrerequisitesCollectionType>(Prerequisites), Priority, ExtendedPriority, Flags);
 		return Task;
 	}
 
@@ -332,7 +340,7 @@ namespace UE::Tasks
 		auto WaitingTaskBody = [CompletionEvent] { CompletionEvent->Trigger(); };
 		using FWaitingTask = Private::TExecutableTask<decltype(WaitingTaskBody)>;
 
-		TRefCountPtr<FWaitingTask> WaitingTask{ FWaitingTask::Create(TEXT("Waiting Task"), MoveTemp(WaitingTaskBody), ETaskPriority::Default /* doesn't matter */, EExtendedTaskPriority::Inline), /*bAddRef=*/ false};
+		TRefCountPtr<FWaitingTask> WaitingTask{ FWaitingTask::Create(TEXT("Waiting Task"), MoveTemp(WaitingTaskBody), ETaskPriority::Default /* doesn't matter */, EExtendedTaskPriority::Inline, ETaskFlags::None), /*bAddRef=*/ false};
 		WaitingTask->AddPrerequisites(Tasks);
 
 		if (WaitingTask->TryLaunch(sizeof(WaitingTask)))

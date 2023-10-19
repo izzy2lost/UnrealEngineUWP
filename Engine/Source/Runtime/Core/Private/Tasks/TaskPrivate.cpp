@@ -218,7 +218,7 @@ namespace UE::Tasks
 			auto WaitingTaskBody = [CompletionEvent] { CompletionEvent->Trigger(); };
 			using FWaitingTask = TExecutableTask<decltype(WaitingTaskBody)>;
 
-			TRefCountPtr<FWaitingTask> WaitingTask{ FWaitingTask::Create(TEXT("Waiting Task"), MoveTemp(WaitingTaskBody), ETaskPriority::Default /* doesn't matter*/, EExtendedTaskPriority::Inline), /*bAddRef=*/ false };
+			TRefCountPtr<FWaitingTask> WaitingTask{ FWaitingTask::Create(TEXT("Waiting Task"), MoveTemp(WaitingTaskBody), ETaskPriority::Default /* doesn't matter*/, EExtendedTaskPriority::Inline, ETaskFlags::None), /*bAddRef=*/ false };
 			WaitingTask->AddPrerequisites(*this);
 
 			if (WaitingTask->TryLaunch(sizeof(WaitingTask)))
