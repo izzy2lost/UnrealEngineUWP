@@ -238,7 +238,7 @@ bool FOnlineSubsystemEOS::PlatformCreate()
 	RtcOptions.ApiVersion = 2;
 	UE_EOS_CHECK_API_MISMATCH(EOS_PLATFORM_RTCOPTIONS_API_LATEST, 2);
 	RtcOptions.PlatformSpecificOptions = nullptr;
-	RtcOptions.BackgroundMode = EOS_ERTCBackgroundMode::EOS_RTCBM_LeaveRooms;
+	RtcOptions.BackgroundMode = EOSSettings.RTCBackgroundMode;
 	PlatformOptions.RTCOptions = &RtcOptions;
 #endif
 

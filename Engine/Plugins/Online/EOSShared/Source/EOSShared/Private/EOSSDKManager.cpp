@@ -493,7 +493,8 @@ IEOSPlatformHandlePtr FEOSSDKManager::CreatePlatform(const FString& PlatformConf
 	PlatformRTCOptions.ApiVersion = 2;
 	UE_EOS_CHECK_API_MISMATCH(EOS_PLATFORM_RTCOPTIONS_API_LATEST, 2);
 	PlatformRTCOptions.PlatformSpecificOptions = nullptr;
-	PlatformRTCOptions.BackgroundMode = EOS_ERTCBackgroundMode::EOS_RTCBM_LeaveRooms;
+	PlatformRTCOptions.BackgroundMode = PlatformConfig->RTCBackgroundMode;
+
 	PlatformOptions.RTCOptions = PlatformConfig->bEnableRTC ? &PlatformRTCOptions : nullptr;
 
 	PlatformOptions.IntegratedPlatformOptionsContainerHandle = nullptr;

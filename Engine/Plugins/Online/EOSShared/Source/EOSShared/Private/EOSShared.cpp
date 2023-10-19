@@ -10,7 +10,6 @@
 #include "eos_auth_types.h"
 #include "eos_friends_types.h"
 #include "eos_presence_types.h"
-#include "eos_types.h"
 
 DEFINE_LOG_CATEGORY(LogEOSSDK);
 
@@ -290,4 +289,22 @@ bool LexFromString(EOS_ELoginCredentialType& OutEnum, const TCHAR* InString)
 	return true;
 }
 
+bool LexFromString(EOS_ERTCBackgroundMode& OutEnum, const TCHAR* InString)
+{
+	if (FCString::Stricmp(InString, TEXT("LeaveRooms")) == 0)
+	{
+		OutEnum = EOS_ERTCBackgroundMode::EOS_RTCBM_LeaveRooms;
+	}
+	else if (FCString::Stricmp(InString, TEXT("KeepRoomsAlive")) == 0)
+	{
+		OutEnum = EOS_ERTCBackgroundMode::EOS_RTCBM_KeepRoomsAlive;
+	}
+	else
+	{
+		checkNoEntry();
+		return false;
+	}
+
+	return true;
+}
 #endif // WITH_EOS_SDK

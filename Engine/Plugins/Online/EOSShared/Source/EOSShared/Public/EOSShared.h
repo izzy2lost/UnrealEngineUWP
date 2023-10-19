@@ -38,6 +38,7 @@
 #include "eos_base.h"
 #include "eos_common.h"
 #include "eos_version.h"
+#include "eos_types.h"
 
 #if defined(DISABLE_EOSVOICECHAT_ENGINE)
 #define WITH_EOS_RTC 0
@@ -83,5 +84,6 @@ EOSSHARED_API const TCHAR* LexToString(const EOS_Presence_EStatus PresenceStatus
 EOSSHARED_API bool LexFromString(EOS_EAuthScopeFlags& OutEnum, const FStringView InString);
 EOSSHARED_API bool LexFromString(EOS_EExternalCredentialType& OutEnum, const TCHAR* InString);
 EOSSHARED_API bool LexFromString(EOS_ELoginCredentialType& OutEnum, const TCHAR* InString);
+EOSSHARED_API bool LexFromString(EOS_ERTCBackgroundMode& OutEnum, const TCHAR* InString);
 
 #endif // WITH_EOS_SDK

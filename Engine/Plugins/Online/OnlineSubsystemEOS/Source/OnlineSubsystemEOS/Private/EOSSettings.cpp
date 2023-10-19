@@ -129,6 +129,23 @@ FEOSArtifactSettings ParseArtifactSettingsFromConfigString(const FString& RawLin
 	return Result;
 }
 
+FEOSSettings::FEOSSettings()
+	: RTCBackgroundMode(EOS_ERTCBackgroundMode::EOS_RTCBM_KeepRoomsAlive)
+	, TickBudgetInMilliseconds(0)
+	, TitleStorageReadChunkLength(0)
+	, bEnableOverlay(false)
+	, bEnableSocialOverlay(false)
+	, bEnableEditorOverlay(false)
+	, bUseEAS(false)
+	, bUseEOSConnect(false)
+	, bUseEOSSessions(false)
+	, bMirrorStatsToEOS(false)
+	, bMirrorAchievementsToEOS(false)
+	, bMirrorPresenceToEAS(false)
+{
+
+}
+
 FEOSSettings UEOSSettings::GetSettings()
 {
 	if (UObjectInitialized())
@@ -154,6 +171,13 @@ const FEOSSettings& UEOSSettings::ManualGetSettings()
 
 		GConfig->GetString(INI_SECTION, TEXT("CacheDir"), CachedSettings->CacheDir, GEngineIni);
 		GConfig->GetString(INI_SECTION, TEXT("DefaultArtifactName"), CachedSettings->DefaultArtifactName, GEngineIni);
+		CachedSettings->RTCBackgroundMode = EOS_ERTCBackgroundMode::EOS_RTCBM_KeepRoomsAlive;
+		FString RTCBackgroundModeStr;
+		GConfig->GetString(INI_SECTION, TEXT("RTCBackgroundMode"), RTCBackgroundModeStr, GEngineIni);
+		if (!RTCBackgroundModeStr.IsEmpty())
+		{
+			LexFromString(CachedSettings->RTCBackgroundMode, *RTCBackgroundModeStr);
+		}
 		GConfig->GetInt(INI_SECTION, TEXT("TickBudgetInMilliseconds"), CachedSettings->TickBudgetInMilliseconds, GEngineIni);
 		GConfig->GetInt(INI_SECTION, TEXT("TitleStorageReadChunkLength"), CachedSettings->TitleStorageReadChunkLength, GEngineIni);
 		GConfig->GetBool(INI_SECTION, TEXT("bEnableOverlay"), CachedSettings->bEnableOverlay, GEngineIni);
@@ -179,6 +203,11 @@ FEOSSettings UEOSSettings::ToNative() const
 
 	Native.CacheDir = CacheDir;
 	Native.DefaultArtifactName = DefaultArtifactName;
+	Native.RTCBackgroundMode = EOS_ERTCBackgroundMode::EOS_RTCBM_KeepRoomsAlive;
+	if (!RTCBackgroundMode.IsEmpty())
+	{
+		LexFromString(Native.RTCBackgroundMode, *RTCBackgroundMode);
+	}
 	Native.TickBudgetInMilliseconds = TickBudgetInMilliseconds;
 	Native.TitleStorageReadChunkLength = TitleStorageReadChunkLength;
 	Native.bEnableOverlay = bEnableOverlay;

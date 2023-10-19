@@ -5,6 +5,7 @@
 #include "UObject/ObjectMacros.h"
 #include "Engine/RuntimeOptionsBase.h"
 #include "Engine/DataAsset.h"
+#include "EOSShared.h"
 #include "EOSSettings.generated.h"
 
 /** Native version of the UObject based config data */
@@ -66,8 +67,11 @@ public:
 /** Native version of the UObject based config data */
 struct FEOSSettings
 {
+	FEOSSettings();
+
 	FString CacheDir;
 	FString DefaultArtifactName;
+	EOS_ERTCBackgroundMode RTCBackgroundMode;
 	int32 TickBudgetInMilliseconds;
 	int32 TitleStorageReadChunkLength;
 	bool bEnableOverlay;
@@ -102,6 +106,10 @@ public:
 	/** Used when launched from a store other than EGS or when the specified artifact name was not present */
 	UPROPERTY(Config, EditAnywhere, BlueprintReadOnly, Category="EOS Settings")
 	FString DefaultArtifactName;
+
+	/** The preferred background mode to be used by RTC services */
+	UPROPERTY(Config, EditAnywhere, BlueprintReadOnly, Category="EOS Settings")
+	FString RTCBackgroundMode;
 
 	/** Used to throttle how much time EOS ticking can take */
 	UPROPERTY(Config, EditAnywhere, BlueprintReadOnly, Category="EOS Settings")

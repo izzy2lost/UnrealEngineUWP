@@ -156,7 +156,12 @@ void FEOSVoiceChat::Initialize(const FOnVoiceChatInitializeCompleteDelegate& Ini
 					EOS_Platform_RTCOptions PlatformRTCOptions = {};
 					PlatformRTCOptions.ApiVersion = 2;
 					UE_EOS_CHECK_API_MISMATCH(EOS_PLATFORM_RTCOPTIONS_API_LATEST, 2);
-					PlatformRTCOptions.BackgroundMode = EOS_ERTCBackgroundMode::EOS_RTCBM_LeaveRooms;
+					PlatformRTCOptions.BackgroundMode = EOS_ERTCBackgroundMode::EOS_RTCBM_KeepRoomsAlive;
+					FString RTCBackgroundModeStr;
+					if(GConfig->GetString(TEXT("EOSVoiceChat"), TEXT("RTCBackgroundMode"), RTCBackgroundModeStr, GEngineIni))
+					{
+						LexFromString(PlatformRTCOptions.BackgroundMode, *RTCBackgroundModeStr);					
+					}
 					PlatformOptions.RTCOptions = &PlatformRTCOptions;
 
 					EosPlatformHandle = EOSPlatformCreate(PlatformOptions);

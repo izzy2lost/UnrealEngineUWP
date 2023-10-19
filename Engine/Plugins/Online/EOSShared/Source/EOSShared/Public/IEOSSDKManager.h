@@ -25,6 +25,7 @@ struct FEOSSDKPlatformConfig
 	FString OverrideLocaleCode;
 	FString DeploymentId;
 	FString CacheDirectory;
+	EOS_ERTCBackgroundMode RTCBackgroundMode = EOS_ERTCBackgroundMode::EOS_RTCBM_KeepRoomsAlive;
 	bool bIsServer = false;
 	bool bLoadingInEditor = false;
 	bool bDisableOverlay = false;
