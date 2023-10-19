@@ -6,6 +6,7 @@ using EpicGames.Horde.Storage.Bundles;
 using EpicGames.Horde.Storage.Clients;
 using EpicGames.Horde.Storage.Nodes;
 using Microsoft.Extensions.Caching.Memory;
+using Microsoft.Extensions.Logging.Abstractions;
 using Microsoft.VisualStudio.TestTools.UnitTesting;
 using System;
 using System.Collections.Generic;
@@ -20,17 +21,20 @@ namespace EpicGames.Horde.Tests
 	public sealed class BundleTests : IDisposable
 	{
 		readonly IMemoryCache _cache;
-		readonly MemoryStorageClient _storage;
+		readonly MemoryStorageClient _memoryStore;
+		readonly BundleStorageClientBase _storage;
 
 		public BundleTests()
 		{
 			_cache = new MemoryCache(new MemoryCacheOptions());
-			_storage = new MemoryStorageClient();
+			_memoryStore = new MemoryStorageClient();
+			_storage = new BundleStorageClientWrapper(_memoryStore, BundleReaderCache.None, NullLogger.Instance);
 		}
 
 		public void Dispose()
 		{
 			_storage.Dispose();
+			_memoryStore.Dispose();
 			_cache.Dispose();
 		}
 
@@ -187,7 +191,7 @@ namespace EpicGames.Horde.Tests
 		[TestMethod]
 		public async Task BasicTestDirectoryAsync()
 		{
-			MemoryStorageClient store = _storage;
+			IStorageClient store = _storage;
 
 			HashedNodeRef<DirectoryNode> rootRef;
 			await using (IStorageWriter writer = store.CreateWriter())
@@ -210,8 +214,8 @@ namespace EpicGames.Horde.Tests
 			await store.WriteRefTargetAsync(refName, rootRef);
 
 			// Should be stored inline
-			Assert.AreEqual(1, store.Refs.Count);
-			Assert.AreEqual(1, store.Blobs.Count);
+			Assert.AreEqual(1, _memoryStore.Refs.Count);
+			Assert.AreEqual(1, _memoryStore.Blobs.Count);
 
 			// Check the ref
 			BlobHandle refTarget =  await store.ReadRefTargetAsync(refName);
@@ -242,8 +246,8 @@ namespace EpicGames.Horde.Tests
 		[TestMethod]
 		public async Task DedupTestsAsync()
 		{
-			Assert.AreEqual(0, _storage.Refs.Count);
-			Assert.AreEqual(0, _storage.Blobs.Count);
+			Assert.AreEqual(0, _memoryStore.Refs.Count);
+			Assert.AreEqual(0, _memoryStore.Blobs.Count);
 
 			BundleOptions options = new BundleOptions();
 			options.MaxBlobSize = 1;
@@ -263,8 +267,8 @@ namespace EpicGames.Horde.Tests
 				await _storage.WriteRefTargetAsync(refName, rootRef);
 			}
 
-			Assert.AreEqual(1, _storage.Refs.Count);
-			Assert.AreEqual(2, _storage.Blobs.Count);
+			Assert.AreEqual(1, _memoryStore.Refs.Count);
+			Assert.AreEqual(2, _memoryStore.Blobs.Count);
 		}
 
 		[TestMethod]
@@ -288,8 +292,8 @@ namespace EpicGames.Horde.Tests
 					await _storage.WriteRefTargetAsync(refName, rootRef);
 				}
 
-				Assert.AreEqual(1, _storage.Refs.Count);
-				Assert.AreEqual(5, _storage.Blobs.Count);
+				Assert.AreEqual(1, _memoryStore.Refs.Count);
+				Assert.AreEqual(5, _memoryStore.Blobs.Count);
 			}
 
 			{

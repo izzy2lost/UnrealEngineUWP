@@ -111,7 +111,7 @@ namespace RemoteClient
 
 				// Upload the sandbox to the primary channel.
 				using MemoryStorageClient storage = new MemoryStorageClient();
-				await using (BundleWriter treeWriter = storage.CreateWriter())
+				await using (IStorageWriter treeWriter = storage.CreateWriter())
 				{
 					DirectoryNode sandbox = new DirectoryNode();
 					await sandbox.CopyFromDirectoryAsync(uploadDir.ToDirectoryInfo(), new ChunkingOptions(), treeWriter, null);
