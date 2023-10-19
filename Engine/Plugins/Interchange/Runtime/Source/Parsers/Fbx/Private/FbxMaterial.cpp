@@ -37,6 +37,10 @@ namespace UE
 
 			const UInterchangeTexture2DNode* FFbxMaterial::CreateTexture2DNode(UInterchangeBaseNodeContainer& NodeContainer, const FString& TextureFilePath)
 			{
+				if (TextureFilePath.IsEmpty())
+				{
+					return nullptr;
+				}
 				const FString TextureName = FPaths::GetBaseFilename(TextureFilePath);
 				const FString TextureNodeID = UInterchangeTextureNode::MakeNodeUid(TextureName);
 

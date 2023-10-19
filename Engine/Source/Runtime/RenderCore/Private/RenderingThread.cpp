@@ -1334,11 +1334,6 @@ static void GameThreadWaitForTask(const UE::Tasks::FTask& Task, bool bEmptyGameT
 			NumRecursiveCalls++;
 			if (NumRecursiveCalls > 1)
 			{
-				if(GIsAutomationTesting)
-				{
-					// temp test to log callstacks for this being triggered during automation tests
-					ensureMsgf(false, TEXT("FlushRenderingCommands called recursively! %d calls on the stack."), NumRecursiveCalls);
-				}
 				UE_LOG(LogRendererCore,Warning,TEXT("FlushRenderingCommands called recursively! %d calls on the stack."), NumRecursiveCalls);
 			}
 			if (NumRecursiveCalls > 1 || FTaskGraphInterface::Get().IsThreadProcessingTasks(ENamedThreads::GameThread))

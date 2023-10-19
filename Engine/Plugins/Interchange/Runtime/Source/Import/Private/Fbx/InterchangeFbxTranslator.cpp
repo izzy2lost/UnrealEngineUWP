@@ -189,6 +189,10 @@ void UInterchangeFbxTranslator::ImportFinish()
 
 TOptional<UE::Interchange::FImportImage> UInterchangeFbxTranslator::GetTexturePayloadData(const FString& PayLoadKey, TOptional<FString>& AlternateTexturePath) const
 {
+	if (PayLoadKey.IsEmpty())
+	{
+		return TOptional<UE::Interchange::FImportImage>();
+	}
 	UE::Interchange::Private::FScopedTranslator ScopedTranslator(PayLoadKey, Results);
 	const IInterchangeTexturePayloadInterface* TextureTranslator = ScopedTranslator.GetPayLoadInterface<IInterchangeTexturePayloadInterface>();
 	if (!ensure(TextureTranslator))

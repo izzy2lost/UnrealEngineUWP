@@ -1,16 +1,16 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 
+#include "AssetCompilingManager.h"
 #include "AssetRegistry/ARFilter.h"
+#include "AssetRegistry/AssetRegistryModule.h"
+#include "Editor.h"
+#include "Editor/Transactor.h"
 #include "HAL/FileManager.h"
 #include "Misc/AutomationTest.h"
 #include "InterchangeDispatcher.h"
 #include "InterchangeImportTestData.h"
 #include "InterchangeImportTestPlan.h"
 #include "InterchangeImportTestStepBase.h"
-#include "AssetRegistry/AssetRegistryModule.h"
-#include "Editor.h"
-#include "Editor/Transactor.h"
-
 #include "Modules/ModuleManager.h"
 #include "ObjectTools.h"
 
@@ -326,10 +326,14 @@ bool FInterchangeImportTest::RunTest(const FString& Path)
 			}
 			else
 			{
+
 				ObjectsToDelete.Add(ResultObject);
 			}
 		}
 	}
+
+	//Make sure all compilation is done before deleting some objects
+	FAssetCompilingManager::Get().FinishAllCompilation();
 
 	constexpr bool bShowConfirmation = false;
 	ObjectTools::ForceDeleteObjects(ObjectsToDelete, bShowConfirmation);
