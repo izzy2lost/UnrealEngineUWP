@@ -2183,6 +2183,11 @@ namespace UnrealBuildTool
 					}
 					NMakePath += BuildPlatform.GetBinaryExtension(UEBuildBinaryType.Executable);
 
+					if (TargetRulesObject.OutputFile != null)
+					{
+						NMakePath = FileReference.Combine(RootOutputDirectory, TargetRulesObject.OutputFile);
+					}
+
 					VCProjectFileContent.AppendLine("  <PropertyGroup {0}>", ConditionString);
 
 					if (ProjGenerator != null)
