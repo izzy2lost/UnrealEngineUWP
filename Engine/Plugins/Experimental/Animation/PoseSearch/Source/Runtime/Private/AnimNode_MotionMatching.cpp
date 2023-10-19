@@ -189,6 +189,8 @@ void FAnimNode_MotionMatching::UpdateAssetPlayer(const FAnimationUpdateContext& 
 		#endif // ENABLE_ANIM_DEBUG
 	);
 
+	UE::Anim::FNodeFunctionCaller::CallFunction(GetOnUpdateMotionMatchingStateFunction(), Context, *this);
+
 	// If a new pose is requested, blend into the new asset via BlendStackNode
 	if (MotionMatchingState.bJumpedToPose)
 	{
@@ -214,6 +216,11 @@ void FAnimNode_MotionMatching::UpdateAssetPlayer(const FAnimationUpdateContext& 
 	bForceInterruptNextUpdate = false;
 }
 
+const FAnimNodeFunctionRef& FAnimNode_MotionMatching::GetOnUpdateMotionMatchingStateFunction() const
+{
+	return GET_ANIM_NODE_DATA(FAnimNodeFunctionRef, OnMotionMatchingStateUpdated);
+}
+
 void FAnimNode_MotionMatching::SetDatabaseToSearch(UPoseSearchDatabase* InDatabase, bool bForceInterruptIfNew)
 {
 	if (DatabasesToSearch.Num() == 1 && DatabasesToSearch[0] == InDatabase)
@@ -234,6 +241,11 @@ void FAnimNode_MotionMatching::SetDatabaseToSearch(UPoseSearchDatabase* InDataba
 
 		UE_LOG(LogPoseSearch, Verbose, TEXT("FAnimNode_MotionMatching::SetDatabaseToSearch - Setting to Database(%s), bForceInterruptIfNew(%d)."), *GetNameSafe(InDatabase), bForceInterruptIfNew);
 	}
+}
+
+FVector FAnimNode_MotionMatching::GetEstimatedFutureRootMotionVelocity() const
+{
+	return MotionMatchingState.GetEstimatedFutureRootMotionVelocity();
 }
 
 void FAnimNode_MotionMatching::SetDatabasesToSearch(TConstArrayView<UPoseSearchDatabase*> InDatabases, bool bForceInterruptIfNew)

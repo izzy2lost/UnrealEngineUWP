@@ -80,5 +80,6 @@ public:
 #endif
 
 	float GetEstimatedSpeedRatio(TConstArrayView<float> QueryVector, TConstArrayView<float> PoseVector) const;
+	FVector GetEstimatedFutureRootMotionVelocity(TConstArrayView<float> PoseVector) const;
 };
 

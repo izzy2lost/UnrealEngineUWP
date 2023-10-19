@@ -66,6 +66,21 @@ void FMotionMatchingState::JumpToPose(const FAnimationUpdateContext& Context, co
 	bJumpedToPose = true;
 }
 
+FVector FMotionMatchingState::GetEstimatedFutureRootMotionVelocity() const
+{
+	using namespace UE::PoseSearch;
+	if (CurrentSearchResult.IsValid())
+	{
+		if (const UPoseSearchFeatureChannel_Trajectory* TrajectoryChannel = CurrentSearchResult.Database->Schema->FindFirstChannelOfType<UPoseSearchFeatureChannel_Trajectory>())
+		{
+			TConstArrayView<float> ResultData = CurrentSearchResult.Database->GetSearchIndex().GetPoseValues(CurrentSearchResult.PoseIdx);
+			return TrajectoryChannel->GetEstimatedFutureRootMotionVelocity(ResultData);
+		}
+	}
+
+	return FVector::ZeroVector;
+}
+
 void FMotionMatchingState::UpdateWantedPlayRate(const UE::PoseSearch::FSearchContext& SearchContext, const FFloatInterval& PlayRate, float TrajectorySpeedMultiplier)
 {
 	if (CurrentSearchResult.IsValid())

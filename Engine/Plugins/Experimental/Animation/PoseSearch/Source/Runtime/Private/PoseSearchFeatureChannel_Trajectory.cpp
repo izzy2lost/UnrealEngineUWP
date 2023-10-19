@@ -215,4 +215,38 @@ float UPoseSearchFeatureChannel_Trajectory::GetEstimatedSpeedRatio(TConstArrayVi
 	return 1.f;
 }
 
+FVector UPoseSearchFeatureChannel_Trajectory::GetEstimatedFutureRootMotionVelocity(TConstArrayView<float> PoseVector) const
+{
+	using namespace UE::PoseSearch;
+
+	float LastSampleTimeOffset = 0.0f;
+	int32 LastSampleTimeOffsetIndex = INDEX_NONE;
+	FVector OutRootMotionTranslation = FVector::ZeroVector;
+
+	const int32 NumChannels = GetSubChannels().Num();
+	for (int32 ChannelIdx = 0; ChannelIdx < NumChannels; ++ChannelIdx)
+	{
+		const TObjectPtr<UPoseSearchFeatureChannel>& SubChannelPtr = GetSubChannels()[ChannelIdx];
+		if (const UPoseSearchFeatureChannel_Velocity* Velocity = Cast<UPoseSearchFeatureChannel_Velocity>(SubChannelPtr.Get()))
+		{
+			if (!Velocity->bNormalize && (Velocity->SampleTimeOffset > LastSampleTimeOffset))
+			{
+				LastSampleTimeOffset = Velocity->SampleTimeOffset;
+				LastSampleTimeOffsetIndex = ChannelIdx;
+			}
+		}
+	}
+
+	if (LastSampleTimeOffsetIndex != INDEX_NONE)
+	{
+		const TObjectPtr<UPoseSearchFeatureChannel>& SubChannelPtr = GetSubChannels()[LastSampleTimeOffsetIndex];
+		const UPoseSearchFeatureChannel_Velocity* Velocity = Cast<UPoseSearchFeatureChannel_Velocity>(SubChannelPtr.Get());
+		check(Velocity);
+		OutRootMotionTranslation = FFeatureVectorHelper::DecodeVector(PoseVector, Velocity->GetChannelDataOffset(), Velocity->ComponentStripping);
+	}
+
+	return OutRootMotionTranslation;
+}
+
+
 #undef LOCTEXT_NAMESPACE

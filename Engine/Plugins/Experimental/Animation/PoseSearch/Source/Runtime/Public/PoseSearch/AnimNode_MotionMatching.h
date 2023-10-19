@@ -31,6 +31,10 @@ public:
 
 	const FMotionMatchingState& GetMotionMatchingState() const { return MotionMatchingState; }
 
+	FVector GetEstimatedFutureRootMotionVelocity() const;
+
+	const FAnimNodeFunctionRef& GetOnUpdateMotionMatchingStateFunction() const;
+
 private:
 	// FAnimNode_Base interface
 	// @todo: implement CacheBones_AnyThread to rebind the schema bones
@@ -130,6 +134,10 @@ private:
 	// If true, "Relevant anim" nodes that look for the highest weighted animation in a state will ignore this node
 	UPROPERTY(EditAnywhere, Category = Relevancy, meta = (FoldProperty, PinHiddenByDefault))
 	bool bIgnoreForRelevancyTest = false;
+
+	UPROPERTY(meta=(FoldProperty))
+	FAnimNodeFunctionRef OnMotionMatchingStateUpdated;
+
 #endif // WITH_EDITORONLY_DATA
 
 	friend class UAnimGraphNode_MotionMatching;

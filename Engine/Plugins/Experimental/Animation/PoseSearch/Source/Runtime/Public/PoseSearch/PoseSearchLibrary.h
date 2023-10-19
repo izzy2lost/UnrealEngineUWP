@@ -7,7 +7,6 @@
 #include "Animation/AnimExecutionContext.h"
 #include "Animation/AnimNodeReference.h"
 #include "Kismet/BlueprintFunctionLibrary.h"
-#include "Kismet/BlueprintFunctionLibrary.h"
 #include "PoseSearch/PoseSearchDefines.h"
 #include "PoseSearch/PoseSearchHistory.h"
 #include "PoseSearch/PoseSearchResult.h"
@@ -39,6 +38,8 @@ struct FMotionMatchingState
 	void UpdateWantedPlayRate(const UE::PoseSearch::FSearchContext& SearchContext, const FFloatInterval& PlayRate, float TrajectorySpeedMultiplier);
 
 	void UpdateRootBoneControl(const FAnimationUpdateContext& Context, float YawFromAnimationBlendRate);
+
+	FVector GetEstimatedFutureRootMotionVelocity() const;
 
 	UE::PoseSearch::FSearchResult CurrentSearchResult;
 
