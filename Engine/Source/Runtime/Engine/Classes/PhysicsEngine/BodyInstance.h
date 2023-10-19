@@ -880,6 +880,9 @@ public:
 	*/
 	ENGINE_API void SetMaxDepenetrationVelocity(float MaxVelocity);
 
+	/** The maximum velocity at which initally-overlapping bodies will separate. Does not affect normal contact resolution. */
+	ENGINE_API float GetMaxDepenetrationVelocity() const { return MaxDepenetrationVelocity; }
+
 	/** Set whether we should get a notification about physics collisions */
 	ENGINE_API void SetInstanceNotifyRBCollision(bool bNewNotifyCollision);
 	/** Enables/disables whether this body is affected by gravity. */

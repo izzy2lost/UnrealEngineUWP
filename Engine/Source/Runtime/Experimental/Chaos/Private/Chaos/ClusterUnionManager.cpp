@@ -655,6 +655,8 @@ namespace Chaos
 			{
 				Cluster->InternalCluster->SetGravityGroupIndex(FinalParticlesToAdd[0]->GravityGroupIndex());
 			}
+
+			Cluster->InternalCluster->SetInitialOverlapDepenetrationVelocity(FinalParticlesToAdd[0]->InitialOverlapDepenetrationVelocity());
 		}
 	}
 

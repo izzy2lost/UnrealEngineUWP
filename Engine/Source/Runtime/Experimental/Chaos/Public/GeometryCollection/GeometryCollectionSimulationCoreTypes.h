@@ -216,6 +216,7 @@ struct FSimulationParameters
 		, bIsOneWayInteraction(false)
 		, LinearDamping(0.01f)
 		, AngularDamping(0)
+		, InitialOverlapDepenetrationVelocity(-1.0f)
 		, bUseDamagePropagation(false)
 		, BreakDamagePropagationFactor(1.0f)
 		, ShockDamagePropagationFactor(0.0f)
@@ -276,6 +277,7 @@ struct FSimulationParameters
 		, bIsOneWayInteraction(Other.bIsOneWayInteraction)
 		, LinearDamping(Other.LinearDamping)
 		, AngularDamping(Other.AngularDamping)
+		, InitialOverlapDepenetrationVelocity(Other.InitialOverlapDepenetrationVelocity)
 		, bUseDamagePropagation(Other.bUseDamagePropagation)
 		, BreakDamagePropagationFactor(Other.BreakDamagePropagationFactor)
 		, ShockDamagePropagationFactor(Other.ShockDamagePropagationFactor)
@@ -366,6 +368,7 @@ struct FSimulationParameters
 	bool bIsOneWayInteraction;
 	float LinearDamping;
 	float AngularDamping;
+	float InitialOverlapDepenetrationVelocity;
 
 	bool bUseDamagePropagation;
 	float BreakDamagePropagationFactor;
