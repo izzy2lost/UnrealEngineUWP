@@ -220,8 +220,9 @@ void FCookDirector::ParseConfig(int32 CookProcessCount, bool& bOutValid)
 
 	bAllowLocalCooks = !FParse::Param(CommandLine, TEXT("CookForceRemote"));
 
-	int32 MultiprocessId;
-	if (FParse::Value(CommandLine, TEXT("-MultiprocessId="), MultiprocessId))
+	
+	int32 MultiprocessId = UE::GetMultiprocessId();
+	if (MultiprocessId != 0)
 	{
 		bOutValid = false;
 		UE_LOG(LogCook, Error, TEXT("CookMultiprocess is incompatible with -MultiprocessId on the CookDirector's commandline. The CookDirector needs to be able to specify all MultiprocessIds."));
@@ -1362,8 +1363,8 @@ bool FDirectorConnectionInfo::TryParseCommandLine()
 		UE_LOG(LogCook, Error, TEXT("CookWorker startup failed: no CookDirector specified on commandline."));
 		return false;
 	}
-	uint32 MultiprocessId;
-	if (!FParse::Value(FCommandLine::Get(), TEXT("-MultiprocessId="), MultiprocessId))
+	uint32 MultiprocessId = UE::GetMultiprocessId();
+	if (MultiprocessId == 0 && !FParse::Value(FCommandLine::Get(), TEXT("-MultiprocessId="), MultiprocessId))
 	{
 		UE_LOG(LogCook, Error, TEXT("CookWorker startup failed: no MultiprocessId specified on commandline."));
 		return false;

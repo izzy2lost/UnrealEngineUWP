@@ -3052,8 +3052,7 @@ struct FPreloadSettings
 		bool bNoAssetRegistryCache = FParse::Param(FCommandLine::Get(), TEXT("NoAssetRegistryCache"));
 		bool bNoAssetRegistryCacheRead = FParse::Param(FCommandLine::Get(), TEXT("NoAssetRegistryCacheRead"));
 		bool bNoAssetRegistryCacheWrite = FParse::Param(FCommandLine::Get(), TEXT("NoAssetRegistryCacheWrite"));
-		uint32 MultiprocessId = 0;
-		FParse::Value(FCommandLine::Get(), TEXT("multiprocessid="), MultiprocessId);
+		uint32 MultiprocessId = UE::GetMultiprocessId();
 		bool bMultiprocess = MultiprocessId > 0 || FParse::Param(FCommandLine::Get(), TEXT("multiprocess"));
 		bCacheReadEnabled = !bNoAssetRegistryCache && !bNoAssetRegistryCacheRead;
 		bCacheWriteEnabled = !bNoAssetRegistryCache && !bNoAssetRegistryCacheWrite && !bMultiprocess;

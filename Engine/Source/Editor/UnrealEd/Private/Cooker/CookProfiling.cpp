@@ -998,8 +998,7 @@ void SendLogCookStats(ECookMode::Type CookMode)
 		FString CookStatsFileName;
 		if (FParse::Value(FCommandLine::Get(), TEXT("-CookStatsFile="), CookStatsFileName))
 		{
-			uint32 MultiprocessId = 0;
-			FParse::Value(FCommandLine::Get(), TEXT("-MultiprocessId="), MultiprocessId);
+			uint32 MultiprocessId = UE::GetMultiprocessId();
 			if (MultiprocessId != 0)
 			{
 				// Suppress the file creation on CookWorkers

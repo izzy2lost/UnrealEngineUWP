@@ -2417,7 +2417,15 @@ int32 FEngineLoop::PreInitPreStartupScreen(const TCHAR* CmdLine)
 			}
 		}
 	}
-#endif // UE_EDITOR || WITH_ENGINE
+#endif // UE_EDITOR || WITH_ENGINE || WITH_EDITOR
+#if WITH_EDITOR
+	int32 MultiprocessId;
+	if (FParse::Value(CmdLine, TEXT("-MultiprocessId="), MultiprocessId))
+	{
+		UE::Private::SetMultiprocessId(MultiprocessId);
+	}
+#endif
+
 
 	// In the commandlet case, we have set the Token to something other than the first token from commandline.
 	// In all other cases we should check for the first token being the Project Specifier

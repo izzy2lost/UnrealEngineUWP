@@ -176,6 +176,10 @@ bool GIsRunningUnattendedScript = false;
 #if WITH_EDITOR
 bool					PRIVATE_GIsRunningCookCommandlet	= false;				/** Whether this executable is running the cook commandlet */
 bool					PRIVATE_GIsRunningDLCCookCommandlet = false;				/** Whether this executable is running the cook commandlet on a DLC plugin */
+namespace UE::Private
+{
+int32					GMultiprocessId = 0;
+}
 #endif
 
 #if WITH_ENGINE
@@ -873,4 +877,30 @@ bool IsRunningCookOnTheFly()
 #else
 	return false;
 #endif
+}
+
+namespace UE
+{
+
+int32 GetMultiprocessId()
+{
+#if WITH_EDITOR
+	return UE::Private::GMultiprocessId;
+#else
+	return 0;
+#endif
+}
+
+}
+
+namespace UE::Private
+{
+
+void SetMultiprocessId(int32 MultiprocessId)
+{
+#if WITH_EDITOR
+	UE::Private::GMultiprocessId = MultiprocessId;
+#endif
+}
+
 }

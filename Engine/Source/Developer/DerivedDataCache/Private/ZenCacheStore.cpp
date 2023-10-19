@@ -1654,8 +1654,7 @@ ILegacyCacheStore* CreateZenCacheStore(const TCHAR* NodeName, const TCHAR* Confi
 		AutoLaunchSettings.bLimitProcessLifetime = true;
 
 		// Flush the cache if requested.
-		uint32 MultiprocessId = 0;
-		FParse::Value(FCommandLine::Get(), TEXT("-MultiprocessId="), MultiprocessId);
+		uint32 MultiprocessId = UE::GetMultiprocessId();
 		if (bFlush && (MultiprocessId == 0))
 		{
 			bool bStopped = true;

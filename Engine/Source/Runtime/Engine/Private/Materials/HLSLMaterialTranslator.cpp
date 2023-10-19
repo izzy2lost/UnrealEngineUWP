@@ -99,8 +99,7 @@ struct FCsvLogFile
 	{
 		if (GEnableMaterialTranslationLogFile)
 		{
-			uint32 MultiprocessId = 0;
-			FParse::Value(FCommandLine::Get(), TEXT("-MultiprocessId="), MultiprocessId);
+			uint32 MultiprocessId = UE::GetMultiprocessId();
 			FString FilePath = GShaderCompilingManager->GetAbsoluteShaderDebugInfoDirectory() / FString::Printf(TEXT("MaterialTranslationLog-%d.csv"), MultiprocessId);
 			if (!FFileHelper::SaveStringToFile(LogContent, *FilePath))
 			{

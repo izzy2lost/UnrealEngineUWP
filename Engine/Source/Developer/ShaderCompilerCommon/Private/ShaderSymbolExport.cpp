@@ -90,8 +90,7 @@ void FShaderSymbolExport::Initialize()
 		else
 		{
 			// setup multiproc data in case we need it
-			uint32 MultiprocessId = 0;
-			FParse::Value(FCommandLine::Get(), TEXT("-MultiprocessId="), MultiprocessId);
+			uint32 MultiprocessId = UE::GetMultiprocessId();
 			bMultiprocessOwner = MultiprocessId == 0;
 
 			// Check if the export mode is to an uncompressed archive or loose files.

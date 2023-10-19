@@ -310,6 +310,23 @@ FORCEINLINE bool IsAllowCommandletAudio()
 #endif
 }
 
+namespace UE
+{
+/**
+ * If multiple copies of the process are running and communicating together, the director process has MultiprocessId 0
+ * and the worker processes have MultiprocessId > 0.
+ * When only a single process is running, GetMultiprocessId returns 0.
+ * Based on commandline. Primary example is cookworkers in multiprocess cook.
+ * Systems that need to write a separate file per running process should use this id as part of their file descriptor.
+ */
+CORE_API int32 GetMultiprocessId();
+}
+
+namespace UE::Private
+{
+CORE_API void SetMultiprocessId(int32 MultiprocessId);
+}
+
 class FIsDuplicatingClassForReinstancing
 {
 public:
