@@ -1320,7 +1320,7 @@ const FRigidBodyState* FPhysScene_Chaos::GetStateFromReplicationCache(UPrimitive
 	if (!GetSolver()->GetRewindCallback())
 	{
 		// We only populate replication cache through the RewindCallback
-		ServerFrame = 0;
+		ServerFrame = GetSolver()->GetCurrentFrame();
 		return nullptr;
 	}
 
