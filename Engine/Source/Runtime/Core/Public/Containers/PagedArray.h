@@ -293,6 +293,11 @@ public:
 		return Pages.Num();
 	}
 
+	[[nodiscard]] FORCEINLINE bool IsValidIndex(SizeType Index) const
+	{
+		return Index >= 0 && Index < Count;
+	}
+
 	[[nodiscard]] FORCEINLINE bool IsEmpty() const
 	{
 		return !Count;
