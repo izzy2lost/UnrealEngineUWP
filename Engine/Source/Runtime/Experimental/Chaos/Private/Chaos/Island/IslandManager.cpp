@@ -39,6 +39,7 @@ namespace Chaos::CVars
 	extern int32 ChaosSolverCollisionPositionShockPropagationIterations;
 	extern int32 ChaosSolverCollisionVelocityShockPropagationIterations;
 	extern bool bChaosSolverPersistentGraph;
+	extern FRealSingle SmoothedPositionLerpRate;
 
 	bool bChaosConstraintGraphValidate = (CHAOS_CONSTRAINTGRAPH_CHECK_ENABLED != 0);
 	FAutoConsoleVariableRef CVarChaosConstraintGraphValidate(TEXT("p.Chaos.ConstraintGraph.Validate"), bChaosConstraintGraphValidate, TEXT("Enable per-tick ConstraintGraph validation checks/assertions"));
@@ -186,6 +187,18 @@ namespace Chaos::Private
 		return false;
 	}
 
+	template<typename TRigidParticleHandle>
+	void UpdateParticleSleepMetrics(TRigidParticleHandle& Rigid, FReal Dt)
+	{
+		if (Dt > UE_SMALL_NUMBER)
+		{
+			const FReal SmoothRate = FMath::Clamp(CVars::SmoothedPositionLerpRate, 0.0f, 1.0f);
+			const FVec3 VImp = FVec3::CalculateVelocity(Rigid.X(), Rigid.P(), Dt);
+			const FVec3 WImp = FRotation3::CalculateAngularVelocity(Rigid.R(), Rigid.Q(), Dt);
+			Rigid.SetVSmooth(FMath::Lerp(Rigid.VSmooth(), VImp, SmoothRate));
+			Rigid.SetWSmooth(FMath::Lerp(Rigid.WSmooth(), WImp, SmoothRate));
+		}
+	}
 
 	//////////////////////////////////////////////////////////////////////////////////////////////////
 	//////////////////////////////////////////////////////////////////////////////////////////////////
@@ -820,9 +833,9 @@ namespace Chaos::Private
 		ProcessIslands();
 	}
 
-	void FPBDIslandManager::UpdateSleep()
+	void FPBDIslandManager::UpdateSleep(const FReal Dt)
 	{
-		ProcessSleep();
+		ProcessSleep(FRealSingle(Dt));
 	}
 
 	void FPBDIslandManager::UpdateDisable(TFunctionRef<void(FPBDRigidParticleHandle*)> ParticleDisableFunctor)
@@ -1936,7 +1949,7 @@ namespace Chaos::Private
 		Validate();
 	}
 
-	void FPBDIslandManager::ProcessSleep()
+	void FPBDIslandManager::ProcessSleep(const FRealSingle Dt)
 	{
 		if (!CVars::bChaosSolverSleepEnabled)
 		{
@@ -1944,7 +1957,7 @@ namespace Chaos::Private
 		}
 
 		// Isloated particles are not kept in any island and need to be handled separately.
-		ProcessParticlesSleep();
+		ProcessParticlesSleep(Dt);
 
 		// @todo(chaos): can go wide except for PropagateSleepState
 		for (FPBDIsland* Island : Islands)
@@ -1952,7 +1965,7 @@ namespace Chaos::Private
 			if (!Island->Flags.bIsSleeping && !!Island->Flags.bIsSleepAllowed && !Island->Flags.bIsUsingCache)
 			{
 				// Update the sleep state based on particle movement etc
-				ProcessIslandSleep(Island);
+				ProcessIslandSleep(Island, Dt);
 
 				if (Island->Flags.bIsSleeping)
 				{
@@ -1965,21 +1978,17 @@ namespace Chaos::Private
 		}
 	}
 
-	void FPBDIslandManager::ProcessParticlesSleep()
+	void FPBDIslandManager::ProcessParticlesSleep(const FRealSingle Dt)
 	{
-		// We only need to process particles that have zero gravity because under gravity
-		// the particles will only sleep when held in place by a constraint and that will
-		// be handled in ProcessIslandSleep.
-		// @todo(chaos): keep track of particles with zero gravity? There usually are very few
-		// so it's a shame to have to visit all isolated particles here
+		// Check the sleepiness of particles that are not in any islands.
+		// @todo(chaos): this is very expensive because we have to search for a material in GetParticleSleepThresholds.
+		// We should probably cache a particle's sleep (and disable) thresholds somewhere.
 		TArray<FGeometryParticleHandle*> SleptParticles;
 		TArray<FGeometryParticleHandle*> DisabledParticles;
 		for (FTransientPBDRigidParticleHandle& Rigid : Particles.GetActiveDynamicMovingKinematicParticlesView())
 		{
 			if (Rigid.IsDynamic() && !Rigid.IsInConstraintGraph())
 			{
-				// @todo(chaos): this is very expensive because we have to search for a material
-				// We should probably cache a particle's sleep (and disable) thresholds somewhere.
 				FRealSingle SleepLinearThreshold, SleepAngularThreshold;
 				int32 SleepCounterThreshold;
 				GetParticleSleepThresholds(Rigid.Handle(), PhysicsMaterials, PerParticlePhysicsMaterials, SimMaterials, SleepLinearThreshold, SleepAngularThreshold, SleepCounterThreshold);
@@ -1987,6 +1996,8 @@ namespace Chaos::Private
 				// Check for sleep
 				if ((SleepLinearThreshold > 0) || (SleepAngularThreshold > 0))
 				{
+					UpdateParticleSleepMetrics(Rigid, Dt);
+
 					int32 SleepCounter = 0;
 					if (SleepCounterThreshold < TNumericLimits<int32>::Max())
 					{
@@ -2021,7 +2032,7 @@ namespace Chaos::Private
 		}
 	}
 
-	void FPBDIslandManager::ProcessIslandSleep(FPBDIsland* Island)
+	void FPBDIslandManager::ProcessIslandSleep(FPBDIsland* Island, const FRealSingle Dt)
 	{
 		bool bWithinSleepThreshold = true;
 		int32 SleepCounterThreshold = 0;
@@ -2035,11 +2046,17 @@ namespace Chaos::Private
 			}
 
 			// Check the particle state against the thresholds
-			FConstGenericParticleHandle P = Node->GetParticle();
+			FPBDRigidParticleHandle* Rigid = Node->GetParticle()->CastToRigidParticle();
+			if (Rigid == nullptr)
+			{
+				continue;
+			}
+			
+			UpdateParticleSleepMetrics(*Rigid, Dt);
 
 			// Did we exceed the velocity threshold?
-			if ((P->VSmooth().SizeSquared() > Node->SleepLinearThresholdSq) 
-				|| (P->WSmooth().SizeSquared() > Node->SleepAngularThresholdSq))
+			if ((Rigid->VSmooth().SizeSquared() > Node->SleepLinearThresholdSq)
+				|| (Rigid->WSmooth().SizeSquared() > Node->SleepAngularThresholdSq))
 			{
 				bWithinSleepThreshold = false;
 				break;

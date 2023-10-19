@@ -647,7 +647,7 @@ void FPBDRigidsEvolutionGBF::AdvanceOneTimeStepImpl(const FReal Dt, const FSubSt
 		CSV_SCOPED_TIMING_STAT(PhysicsVerbose, StepSolver_DeactivateSleep);
 
 		// Put any stationary islands to sleep (based on material settings)
-		GetIslandManager().UpdateSleep();
+		GetIslandManager().UpdateSleep(Dt);
 		
 		// Disable stationary particles (based on material settings)
 		GetIslandManager().UpdateDisable([this](FPBDRigidParticleHandle* Rigid) { DisableParticle(Rigid); });
@@ -776,15 +776,6 @@ FPBDRigidsEvolutionGBF::FPBDRigidsEvolutionGBF(
 	{
 		ParticlesInput.ParallelFor([&](auto& Particle, int32 Index)
 		{
-			if (Dt > UE_SMALL_NUMBER)
-			{
-				const FReal SmoothRate = FMath::Clamp(SmoothedPositionLerpRate, 0.0f, 1.0f);
-				const FVec3 VImp = FVec3::CalculateVelocity(Particle.X(), Particle.P(), Dt);
-				const FVec3 WImp = FRotation3::CalculateAngularVelocity(Particle.R(), Particle.Q(), Dt);
-				Particle.VSmooth() = FMath::Lerp(Particle.VSmooth(), VImp, SmoothRate);
-				Particle.WSmooth() = FMath::Lerp(Particle.WSmooth(), WImp, SmoothRate);
-			}
-
 			Particle.X() = Particle.P();
 			Particle.R() = Particle.Q();
 

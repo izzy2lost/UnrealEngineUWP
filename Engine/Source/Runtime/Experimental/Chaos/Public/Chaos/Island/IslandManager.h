@@ -424,7 +424,7 @@ namespace Chaos::Private
 		CHAOS_API void SetAssignLevels(const bool bInAssignLevels);
 		CHAOS_API void UpdateParticles();
 		CHAOS_API void UpdateIslands();
-		CHAOS_API void UpdateSleep();
+		CHAOS_API void UpdateSleep(const FReal Dt = 0);
 		CHAOS_API void UpdateDisable(TFunctionRef<void(FPBDRigidParticleHandle*)> ParticleDisableFunctor);
 		CHAOS_API void EndTick();
 
@@ -531,9 +531,9 @@ namespace Chaos::Private
 		CHAOS_API void SortIslandEdges(FPBDIsland* Island);
 
 		// Sleeping
-		CHAOS_API void ProcessSleep();
-		CHAOS_API void ProcessParticlesSleep();
-		CHAOS_API void ProcessIslandSleep(FPBDIsland* Island);
+		CHAOS_API void ProcessSleep(const FRealSingle Dt);
+		CHAOS_API void ProcessParticlesSleep(const FRealSingle Dt);
+		CHAOS_API void ProcessIslandSleep(FPBDIsland* Island, const FRealSingle Dt);
 		CHAOS_API void PropagateIslandSleep(FPBDIsland* Island);
 
 		// Disabling
