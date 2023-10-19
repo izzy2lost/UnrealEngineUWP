@@ -66,7 +66,7 @@ namespace Private
 		return nullptr;
 	}
 
-	TTuple<UEdGraph*, UK2Node_FunctionEntry*, UK2Node_FunctionResult*> CreateGraph(UBlueprint* Blueprint, FName GraphName, const UFunction* FunctionEntryDefinition, bool bIsEditable, bool bAddToBlueprint)
+	TTuple<UEdGraph*, UK2Node_FunctionEntry*, UK2Node_FunctionResult*> CreateGraph(UBlueprint* Blueprint, FName GraphName, const UFunction* FunctionEntryDefinition, bool bIsConst, bool bIsEditable, bool bAddToBlueprint)
 	{
 		FName UniqueFunctionName = FBlueprintEditorUtils::FindUniqueKismetName(Blueprint, GraphName.ToString());
 		UEdGraph* FunctionGraph = FBlueprintEditorUtils::CreateNewGraph(Blueprint, UniqueFunctionName, UEdGraph::StaticClass(), UEdGraphSchema_K2::StaticClass());
@@ -97,7 +97,14 @@ namespace Private
 		{
 			FunctionEntry->FunctionReference.SetSelfMember(FunctionGraph->GetFName());
 		}
-		FunctionEntry->AddExtraFlags(FUNC_BlueprintCallable | FUNC_BlueprintPure | FUNC_Const | FUNC_Protected | FUNC_Final);
+		if (bIsConst)
+		{
+			FunctionEntry->AddExtraFlags(FUNC_BlueprintCallable | FUNC_BlueprintPure | FUNC_Const | FUNC_Protected | FUNC_Final);
+		}
+		else
+		{
+			FunctionEntry->AddExtraFlags(FUNC_BlueprintCallable | FUNC_Protected | FUNC_Final);
+		}
 		FunctionEntry->bIsEditable = bIsEditable;
 		FunctionEntry->MetaData.Category = FText::FromName(ConversionFunctionCategory.Resolve());
 		FunctionEntry->NodePosX = -500;
@@ -141,7 +148,7 @@ FName CreateWrapperName(const FMVVMBlueprintViewBinding& Binding, bool bSourceTo
 	return FName(StringBuilder.ToString());
 }
 
-TPair<UEdGraph*, UK2Node*> CreateGraph(UBlueprint* Blueprint, FName GraphName, const UFunction* Signature, const UFunction* FunctionToWrap, bool bTransient)
+TPair<UEdGraph*, UK2Node*> CreateGraph(UBlueprint* Blueprint, FName GraphName, const UFunction* Signature, const UFunction* FunctionToWrap, bool bIsConst, bool bTransient)
 {
 	bool bIsEditable = false;
 	bool bAddToBlueprint = !bTransient;
@@ -150,7 +157,7 @@ TPair<UEdGraph*, UK2Node*> CreateGraph(UBlueprint* Blueprint, FName GraphName, c
 	UK2Node_FunctionEntry* FunctionEntry = nullptr;
 	UK2Node_FunctionResult* FunctionResult = nullptr;
 	{
-		TTuple<UEdGraph*, UK2Node_FunctionEntry*, UK2Node_FunctionResult*> NewGraph = Private::CreateGraph(Blueprint, GraphName, Signature, bIsEditable, bAddToBlueprint);
+		TTuple<UEdGraph*, UK2Node_FunctionEntry*, UK2Node_FunctionResult*> NewGraph = Private::CreateGraph(Blueprint, GraphName, Signature, bIsConst, bIsEditable, bAddToBlueprint);
 		FunctionGraph = NewGraph.Get<0>();
 		FunctionEntry = NewGraph.Get<1>();
 		FunctionResult = NewGraph.Get<2>();
@@ -213,7 +220,7 @@ TPair<UEdGraph*, UK2Node*> CreateGraph(UBlueprint* Blueprint, FName GraphName, c
 }
 
 
-TPair<UEdGraph*, UK2Node*> CreateGraph(UBlueprint* Blueprint, FName GraphName, const UFunction* Signature, TSubclassOf<UK2Node> NodeType, bool bTransient, TFunctionRef<void(UK2Node*)> InitNodeCallback)
+TPair<UEdGraph*, UK2Node*> CreateGraph(UBlueprint* Blueprint, FName GraphName, const UFunction* Signature, TSubclassOf<UK2Node> NodeType, bool bIsConst, bool bTransient, TFunctionRef<void(UK2Node*)> InitNodeCallback)
 {
 	bool bIsEditable = false;
 	bool bAddToBlueprint = !bTransient;
@@ -222,7 +229,7 @@ TPair<UEdGraph*, UK2Node*> CreateGraph(UBlueprint* Blueprint, FName GraphName, c
 	UK2Node_FunctionEntry* FunctionEntry = nullptr;
 	UK2Node_FunctionResult* FunctionResult = nullptr;
 	{
-		TTuple<UEdGraph*, UK2Node_FunctionEntry*, UK2Node_FunctionResult*> NewGraph = Private::CreateGraph(Blueprint, GraphName, Signature, bIsEditable, bAddToBlueprint);
+		TTuple<UEdGraph*, UK2Node_FunctionEntry*, UK2Node_FunctionResult*> NewGraph = Private::CreateGraph(Blueprint, GraphName, Signature, bIsConst, bIsEditable, bAddToBlueprint);
 		FunctionGraph = NewGraph.Get<0>();
 		FunctionEntry = NewGraph.Get<1>();
 		FunctionResult = NewGraph.Get<2>();

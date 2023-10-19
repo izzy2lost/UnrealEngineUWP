@@ -215,8 +215,9 @@ UEdGraph* UMVVMBlueprintViewEvent::CreateWrapperGraphInternal()
 UEdGraph* UMVVMBlueprintViewEvent::CreateWrapperGraphInternal(const UFunction* DelegateSignature, const UFunction* Function)
 {
 	UWidgetBlueprint* WidgetBlueprint = GetWidgetBlueprintInternal();
+	bool bIsConst = false;
 	bool bTransient = true;
-	TPair<UEdGraph*, UK2Node*> Result = UE::MVVM::ConversionFunctionHelper::CreateGraph(WidgetBlueprint, GraphName, DelegateSignature, Function, bTransient);
+	TPair<UEdGraph*, UK2Node*> Result = UE::MVVM::ConversionFunctionHelper::CreateGraph(WidgetBlueprint, GraphName, DelegateSignature, Function, bIsConst, bTransient);
 	CachedWrapperGraph = Result.Get<0>();
 	CachedWrapperNode = Result.Get<1>();
 
@@ -244,8 +245,9 @@ UEdGraph* UMVVMBlueprintViewEvent::CreateWrapperGraphInternal(const UFunction* D
 UEdGraph* UMVVMBlueprintViewEvent::CreateWrapperGraphInternal(const UFunction* DelegateSignature, const FProperty* Property)
 {
 	UWidgetBlueprint* WidgetBlueprint = GetWidgetBlueprintInternal();
+	bool bConst = false;
 	bool bTransient = true;
-	TPair<UEdGraph*, UK2Node*> Result = UE::MVVM::ConversionFunctionHelper::CreateGraph(WidgetBlueprint, GraphName, DelegateSignature, UK2Node_VariableSet::StaticClass(), bTransient,
+	TPair<UEdGraph*, UK2Node*> Result = UE::MVVM::ConversionFunctionHelper::CreateGraph(WidgetBlueprint, GraphName, DelegateSignature, UK2Node_VariableSet::StaticClass(), bConst, bTransient,
 		[WidgetBlueprint, Property](UK2Node* NewNode)
 		{
 			UK2Node_VariableSet* VariableNode = CastChecked<UK2Node_VariableSet>(NewNode);
