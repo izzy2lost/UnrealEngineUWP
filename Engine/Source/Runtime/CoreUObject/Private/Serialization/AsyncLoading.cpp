@@ -7062,6 +7062,7 @@ EAsyncPackageState::Type FAsyncPackage::PostLoadDeferredObjects(double InTickSta
 						if (PreLoadObject && PreLoadObject->GetLinker())
 						{
 							PreLoadObject->GetLinker()->Preload(PreLoadObject);
+							PackageObjLoaded.Add(PreLoadObject);
 						}
 					}
 
