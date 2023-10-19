@@ -78,7 +78,19 @@ export const darkTheme = createTheme({
                     }
                 }
             }
-        }
+        },
+        "Checkbox": {
+            styles: {
+                root: {
+                    selectors: {
+                        '.ms-Checkbox-checkmark': { 
+                            color: "#FFFFFF"
+                        }
+                    }
+                }
+            }
+        },
+
     },
     palette: {
         themePrimary: '#0078d4',
