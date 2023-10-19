@@ -17,6 +17,7 @@ class TEDSOUTLINER_API FBaseTEDSOutlinerMode
 {
 public:
 	FBaseTEDSOutlinerMode();
+	virtual ~FBaseTEDSOutlinerMode();
 	TSharedRef<SWidget> CreateLabelWidgetForItem(TypedElementRowHandle InRowHandle);
 
 	ITypedElementDataStorageInterface* GetStorage();
@@ -29,6 +30,6 @@ protected:
 	ITypedElementDataStorageUiInterface* StorageUi{ nullptr };
 	ITypedElementDataStorageCompatibilityInterface* StorageCompatibility{ nullptr };
 
-	TArray<TPair<TypedElementDataStorage::FQueryDescription, TSharedPtr<FTypedElementWidgetConstructor>>> QueryToWidgetConstructorMap;
+	TArray<TPair<TypedElementDataStorage::QueryHandle, TSharedPtr<FTypedElementWidgetConstructor>>> QueryToWidgetConstructorMap;
 	TArray<FName, TFixedAllocator<3>> WidgetPurposes;
 };

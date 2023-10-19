@@ -64,47 +64,66 @@ FBaseTEDSOutlinerMode::FBaseTEDSOutlinerMode()
 
 		return OutWidgetConstructorPtr;
 	};
+	
 
-	TypedElementDataStorage::FQueryDescription TypeColumnQueryDescription = TypedElementDataStorage::FQueryDescription(Select()
-									.ReadOnly<FTypedElementClassTypeInfoColumn>()
-									//.ReadOnly<FPrefabOverrideTag>()
-									.Compile());
+	TypedElementDataStorage::QueryHandle TypeColumnQueryHandle = Storage->RegisterQuery(
+																	Select()
+																		.ReadOnly<FTypedElementClassTypeInfoColumn>()
+																	.Compile()
+																	);
 
-	if(TSharedPtr<FTypedElementWidgetConstructor> TypeColumnWidgetConstructor = CreateWidgetConstructorForQuery(TypeColumnQueryDescription))
+
+	if(TSharedPtr<FTypedElementWidgetConstructor> TypeColumnWidgetConstructor = CreateWidgetConstructorForQuery(Storage->GetQueryDescription(TypeColumnQueryHandle)))
 	{
-		QueryToWidgetConstructorMap.Emplace(TypeColumnQueryDescription, TypeColumnWidgetConstructor);
+		QueryToWidgetConstructorMap.Emplace(TypeColumnQueryHandle, TypeColumnWidgetConstructor);
 	}
 
-	TypedElementDataStorage::FQueryDescription LabelColumnQueryDescription = TypedElementDataStorage::FQueryDescription(Select()
-								.ReadWrite<FTypedElementLabelColumn>()
-								.Compile());
+	TypedElementDataStorage::QueryHandle LabelColumnQueryHandle = Storage->RegisterQuery(
+																	Select()
+																		.ReadWrite<FTypedElementLabelColumn>()
+																	.Compile()
+																	);
 
-	if(TSharedPtr<FTypedElementWidgetConstructor> LabelColumnWidgetConstructor = CreateWidgetConstructorForQuery(LabelColumnQueryDescription))
+	if(TSharedPtr<FTypedElementWidgetConstructor> LabelColumnWidgetConstructor = CreateWidgetConstructorForQuery(Storage->GetQueryDescription(LabelColumnQueryHandle)))
 	{
-		QueryToWidgetConstructorMap.Emplace(LabelColumnQueryDescription, LabelColumnWidgetConstructor);
+		QueryToWidgetConstructorMap.Emplace(LabelColumnQueryHandle, LabelColumnWidgetConstructor);
 	}
 
 }
 
+FBaseTEDSOutlinerMode::~FBaseTEDSOutlinerMode()
+{
+	if(Storage)
+	{
+		for(const TPair<TypedElementDataStorage::QueryHandle, TSharedPtr<FTypedElementWidgetConstructor>>& QueryConstructorPair : QueryToWidgetConstructorMap)
+		{
+			Storage->UnregisterQuery(QueryConstructorPair.Key);
+		}
+
+	}
+}
+
 TSharedRef<SWidget> FBaseTEDSOutlinerMode::CreateLabelWidgetForItem(TypedElementRowHandle InRowHandle)
 {
-	auto CreateWidgetForQuery = [InRowHandle, this](const TPair<TypedElementDataStorage::FQueryDescription, TSharedPtr<FTypedElementWidgetConstructor>>& QueryConstructorPair) -> TSharedPtr<SWidget>
+	auto CreateWidgetForQuery = [InRowHandle, this](const TPair<TypedElementDataStorage::QueryHandle, TSharedPtr<FTypedElementWidgetConstructor>>& QueryConstructorPair) -> TSharedPtr<SWidget>
 	{
+		TypedElementDataStorage::FQueryDescription QueryDescription = Storage->GetQueryDescription(QueryConstructorPair.Key);
+		
 		// Create a generic metadata view for the Type Widget
 		TypedElementDataStorage::FMetaData QueryWideMetaData;
 		QueryWideMetaData.AddImmutableData("TypedElementTypeInfoWidget_bUseIcon", true);
 		TypedElementDataStorage::FGenericMetaDataView GenericMetaDataView(QueryWideMetaData);
 
 		// Create metadata for the query itself
-		TypedElementDataStorage::FQueryMetaDataView QueryMetaDataView(QueryConstructorPair.Key);
+		TypedElementDataStorage::FQueryMetaDataView QueryMetaDataView(QueryDescription);
 
 		// Combine the two metadata
 		TypedElementDataStorage::FComboMetaDataView MetaDataArgs(GenericMetaDataView, QueryMetaDataView);
 
-		TArray<TWeakObjectPtr<const UScriptStruct>> ColumnTypes(QueryConstructorPair.Key.SelectionTypes);
+		TArray<TWeakObjectPtr<const UScriptStruct>> ColumnTypes(QueryDescription.SelectionTypes);
 		TSharedPtr<FTypedElementWidgetConstructor> CellWidgetConstructor = QueryConstructorPair.Value;
 
-		if (InRowHandle != TypedElementInvalidRowHandle && Storage->HasColumns(InRowHandle, QueryConstructorPair.Key.SelectionTypes))
+		if (InRowHandle != TypedElementInvalidRowHandle && Storage->HasColumns(InRowHandle, QueryDescription.SelectionTypes))
 		{
 			TypedElementRowHandle UiRowHandle = Storage->AddRow(Storage->FindTable(FTypedElementSceneOutlinerQueryBinder::CellWidgetTableName));
 			
@@ -136,7 +155,7 @@ TSharedRef<SWidget> FBaseTEDSOutlinerMode::CreateLabelWidgetForItem(TypedElement
 	
 	TSharedRef<SHorizontalBox> CombinedWidget = SNew(SHorizontalBox);
 
-	for(const TPair<TypedElementDataStorage::FQueryDescription, TSharedPtr<FTypedElementWidgetConstructor>>& QueryConstructorPair : QueryToWidgetConstructorMap)
+	for(const TPair<TypedElementDataStorage::QueryHandle, TSharedPtr<FTypedElementWidgetConstructor>>& QueryConstructorPair : QueryToWidgetConstructorMap)
 	{
 		if(TSharedPtr<SWidget> WidgetForQuery = CreateWidgetForQuery(QueryConstructorPair))
 		{
