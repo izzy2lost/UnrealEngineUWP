@@ -42,7 +42,7 @@ public:
 	void Construct( const FArguments& InArgs )
 	{
 		bOkClicked = false;
-		ParentClass = UBaseControlRig::StaticClass();
+		ParentClass = UControlRig::StaticClass(); // default to control rig
 
 		ChildSlot
 		[
@@ -271,7 +271,7 @@ UControlRigBlueprintFactory::UControlRigBlueprintFactory()
 	bCreateNew = true;
 	bEditAfterNew = true;
 	SupportedClass = UControlRigBlueprint::StaticClass();
-	ParentClass = UBaseControlRig::StaticClass();
+	ParentClass = UControlRig::StaticClass(); // default to control rig
 }
 
 bool UControlRigBlueprintFactory::ConfigureProperties()

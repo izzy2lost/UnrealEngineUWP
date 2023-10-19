@@ -21,7 +21,7 @@ public:
 
 	// The parent class of the created blueprint
 	UPROPERTY(EditAnywhere, Category="Control Rig Factory", meta=(AllowAbstract = ""))
-	TSubclassOf<UControlRig> ParentClass;
+	TSubclassOf<UBaseControlRig> ParentClass;
 
 	// UFactory Interface
 	virtual bool ConfigureProperties() override;
