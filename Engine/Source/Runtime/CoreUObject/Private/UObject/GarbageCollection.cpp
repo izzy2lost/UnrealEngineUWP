@@ -49,6 +49,7 @@
 #include "VerseVM/VVMCollectionCycleRequest.h"
 #include "VerseVM/VVMContext.h"
 #include "VerseVM/VVMHeap.h"
+#include "VerseVM/VVMMarkStack.h"
 #include "VerseVM/VVMValue.h"
 #include "VerseVM/VVMWriteBarrier.h"
 #endif
@@ -1037,6 +1038,25 @@ static bool MarkClusterMutableObjectsAsReachable(FUObjectCluster& Cluster, Conta
 	return bAddClusterObjectsToSerialize;
 }
 
+#if WITH_VERSE_VM
+static void MarkClusterMutableCellsAsReachable(FUObjectCluster& Cluster)
+{
+	if (GIsFrankenGCCollecting && Cluster.MutableCells.Num() > 0)
+	{
+		Verse::FMarkStack MarkStack;
+		for (Verse::VCell* Cell : Cluster.MutableCells)
+		{
+			MarkStack.MarkNonNull(Cell);
+		}
+		Verse::FHeap::AddExternalMarkStack(MoveTemp(MarkStack));
+	}
+}
+#else
+FORCEINLINE static void MarkClusterMutableCellsAsReachable(FUObjectCluster& Cluster)
+{
+}
+#endif
+
 /** Marks all clusters referenced by another cluster as reachable */
 template<EGCOptions Options, class ContainerType>
 static FORCENOINLINE void MarkReferencedClustersAsReachable(int32 ClusterIndex, ContainerType& ObjectsToSerialize)
@@ -1084,6 +1104,7 @@ static FORCENOINLINE void MarkReferencedClustersAsReachable(int32 ClusterIndex, 
 	{
 		bAddClusterObjectsToSerialize = true;
 	}
+	MarkClusterMutableCellsAsReachable(Cluster);
 	if (bAddClusterObjectsToSerialize)
 	{
 		// We need to process all cluster objects to handle PendingKill objects we nulled out (-1) from the cluster.

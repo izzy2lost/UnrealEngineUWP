@@ -303,6 +303,39 @@ public:
 			}
 		}
 	}
+
+#if WITH_VERSE_VM
+	/**
+	* Handles VCell reference from the token stream. Performance is critical here so we're FORCEINLINING this function.
+	*
+	* @param Context Context of the reference collection
+	* @param ReferencingObject Object referencing the object to process.
+	* @param Cell Cell being processed
+	* @param MemberId Index to the token stream where the reference was found.
+	* @param Origin Declares if a schema represents a blueprint generated type
+	*/
+	FORCEINLINE void HandleTokenStreamVerseCellReference(FWorkerContext& Context, UObject* ReferencingObject, Verse::VCell* Cell, FMemberId MemberId, EOrigin Origin)
+	{
+		if (Cell)
+		{
+			if (Context.GetReferencingObject() != CurrentObject)
+			{
+				SetCurrentObjectAndCluster(Context.GetReferencingObject());
+			}
+			check(CurrentObject);
+
+			const FUObjectItem* ClusterRootObjectItem = GUObjectArray.ObjectToObjectItem(ClusterRootObject);
+			UE_CLOG(
+				!Cluster->MutableCells.Contains(Cell),
+				LogGarbage, Warning,
+				TEXT("Object %s from source cluster %s (%d) is referencing cell (0x%016llx) which is not part of cluster."),
+				*GetFullNameSafe(ReferencingObject),
+				*ClusterRootObject->GetFullName(),
+				ClusterRootObjectItem->GetClusterIndex(),
+				(int64)(PTRINT)Cell);
+		}
+	}
+#endif
 };
 
 void VerifyClustersAssumptions()
