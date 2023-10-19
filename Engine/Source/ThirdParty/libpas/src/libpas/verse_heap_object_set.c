@@ -67,20 +67,21 @@ void verse_heap_object_set_add_large_entry(verse_heap_object_set* set, verse_hea
     verse_heap_compact_large_entry_ptr_store(set->large_entries + set->num_large_entries++, entry);
 }
 
-void verse_heap_object_set_start_iterate_before_handshake(verse_heap_object_set* set,
-                                                          verse_heap_iterate_filter filter,
-                                                          void (*callback)(void* object, void* arg),
-                                                          void* arg)
+void verse_heap_object_set_start_iterate_before_handshake(verse_heap_object_set* set)
 {
     static const bool verbose = false;
     
     PAS_ASSERT(!verse_heap_current_iteration_state.version);
     PAS_ASSERT(!verse_heap_is_sweeping);
 	PAS_ASSERT(verse_heap_mark_bits_page_commit_controller_is_locked);
+
+	/* Copying the num_large_entries can happen before or after the store fence below; it's totally unrelated to
+	   the setup of the iteration state. We just need to store the num_large_entries sometime before the
+	   handshake. */
+	PAS_ASSERT(verse_heap_num_large_entries_for_iteration == SIZE_MAX);
+	verse_heap_num_large_entries_for_iteration = set->num_large_entries;
+	
     verse_heap_current_iteration_state.set_being_iterated = set;
-    verse_heap_current_iteration_state.filter = filter;
-    verse_heap_current_iteration_state.callback = callback;
-    verse_heap_current_iteration_state.arg = arg;
     pas_store_store_fence();
     verse_heap_current_iteration_state.version = ++verse_heap_latest_version;
 
@@ -115,8 +116,9 @@ void verse_heap_object_set_end_iterate(verse_heap_object_set* set)
     verse_heap_current_iteration_state.version = 0;
     pas_store_store_fence();
     verse_heap_current_iteration_state.set_being_iterated = NULL;
-    verse_heap_current_iteration_state.callback = NULL;
-    verse_heap_current_iteration_state.arg = NULL;
+
+	PAS_ASSERT(verse_heap_num_large_entries_for_iteration <= set->num_large_entries);
+	verse_heap_num_large_entries_for_iteration = SIZE_MAX;
 }
 
 #endif /* PAS_ENABLE_VERSE */

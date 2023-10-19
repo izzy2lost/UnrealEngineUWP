@@ -537,18 +537,15 @@ pas_allocator_index pas_thread_local_cache_allocator_index_for_allocator(pas_thr
     uintptr_t cache_address;
     uintptr_t allocator_address;
     uintptr_t begin_allocators;
-    uintptr_t end_allocators;
     uintptr_t offset;
     uintptr_t index;
+
+	pas_thread_local_cache_assert_owns_allocator(cache, allocator);
 
     cache_address = (uintptr_t)cache;
     allocator_address = (uintptr_t)allocator;
 
     begin_allocators = cache_address + PAS_OFFSETOF(pas_thread_local_cache, local_allocators);
-    end_allocators = begin_allocators + sizeof(uint64_t) * cache->allocator_index_upper_bound;
-
-    PAS_ASSERT(allocator_address >= begin_allocators);
-    PAS_ASSERT(allocator_address < end_allocators);
 
     offset = allocator_address - begin_allocators;
 

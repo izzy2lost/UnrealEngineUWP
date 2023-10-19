@@ -189,11 +189,11 @@ pas_segregated_shared_page_directory* verse_heap_segregated_shared_page_director
 
 void verse_heap_config_activate(void)
 {
-#if PAS_ENABLE_BMALLOC
     /* Make sure that the bmalloc heap config initializes before we do anything else, since that
-       one will want to be designated. */
+       one will want to be designated.
+	
+	   We rely on bmalloc internally in the verse heap implementation, so that's another good reason to do it. */
     pas_heap_config_activate(&bmalloc_heap_config);
-#endif /* PAS_ENABLE_BMALLOC */
 }
 
 pas_fast_megapage_kind verse_heap_config_fast_megapage_kind(uintptr_t begin)

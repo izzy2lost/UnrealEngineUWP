@@ -42,6 +42,7 @@ PAS_API extern uint64_t verse_heap_allocating_black_version;
 PAS_API extern bool verse_heap_is_sweeping;
 
 PAS_API extern verse_heap_iteration_state verse_heap_current_iteration_state;
+PAS_API extern size_t verse_heap_num_large_entries_for_iteration;
 
 PAS_API extern pas_allocator_counts verse_heap_allocator_counts;
 
@@ -120,15 +121,9 @@ static PAS_ALWAYS_INLINE verse_heap_iteration_state verse_heap_get_iteration_sta
     }
     state = &verse_heap_current_iteration_state + pas_depend(version);
     result.version = version;
-    result.filter = state->filter;
     result.set_being_iterated = state->set_being_iterated;
-    result.callback = state->callback;
-    result.arg = state->arg;
     state = &verse_heap_current_iteration_state
-        + pas_depend((uintptr_t)result.set_being_iterated)
-        + pas_depend((uintptr_t)result.filter)
-        + pas_depend((uintptr_t)result.callback)
-        + pas_depend((uintptr_t)result.arg);
+        + pas_depend((uintptr_t)result.set_being_iterated);
 	new_version = state->version;
     if (new_version != version) {
 		/* We only admit two possibilities here:

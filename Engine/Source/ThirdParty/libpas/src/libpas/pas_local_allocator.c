@@ -43,8 +43,6 @@ double pas_local_allocator_refill_efficiency_n = 0.;
 PAS_DEFINE_LOCK(pas_local_allocator_refill_efficiency);
 #endif /* PAS_LOCAL_ALLOCATOR_MEASURE_REFILL_EFFICIENCY */
 
-uint64_t pas_local_allocator_num_verse_iterations;
-
 void pas_local_allocator_construct(pas_local_allocator* allocator,
                                    pas_segregated_size_directory* directory,
                                    pas_local_allocator_location location)

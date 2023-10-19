@@ -38,6 +38,7 @@ pas_simple_large_free_heap verse_heap_page_cache = PAS_SIMPLE_LARGE_FREE_HEAP_IN
 
 uint64_t verse_heap_latest_version = VERSE_HEAP_FIRST_VERSION;
 
+/* This is only used for sweep. */
 verse_heap_page_header verse_heap_large_objects_header = VERSE_HEAP_PAGE_HEADER_INITIALIZER;
 
 uint64_t verse_heap_allocating_black_version = (uint64_t)verse_heap_do_not_allocate_black;
@@ -45,11 +46,10 @@ bool verse_heap_is_sweeping = false;
 
 verse_heap_iteration_state verse_heap_current_iteration_state = {
     .version = 0,
-    .filter = verse_heap_iterate_unmarked,
     .set_being_iterated = NULL,
-    .callback = NULL,
-    .arg = NULL
 };
+
+size_t verse_heap_num_large_entries_for_iteration = SIZE_MAX;
 
 size_t verse_heap_live_bytes = 0;
 size_t verse_heap_swept_bytes = 0;
@@ -271,21 +271,6 @@ static pas_allocation_result try_allocate_large_in_transaction(
     size_t chunked_size;
 
     pas_heap_lock_assert_held();
-
-    if (verse_heap_page_header_could_need_iteration(&verse_heap_large_objects_header)) {
-        verse_heap_iteration_state iteration_state;
-        iteration_state = verse_heap_get_iteration_state();
-        if (verse_heap_page_header_handle_iteration(&verse_heap_large_objects_header, iteration_state.version)) {
-            verse_heap_object_set_iterate_iterate_large_entries_data data;
-            data.filter = iteration_state.filter;
-            data.callback = iteration_state.callback;
-            data.arg = iteration_state.arg;
-            verse_heap_object_set_iterate_large_entries(
-                iteration_state.set_being_iterated,
-                verse_heap_object_set_iterate_iterate_large_entries_callback,
-                &data);
-        }
-    }
 
     /* The segregated path is more forgiving of size/alignment than we are. */
     if (!size)
@@ -835,6 +820,54 @@ static bool sweep_large_filter_and_deallocate_callback(verse_heap_large_entry* e
     return false;
 }
 
+static void filter_large_entries(verse_heap_object_set* set,
+								 bool (*callback)(
+									 verse_heap_large_entry* entry,
+									 void* arg),
+								 void* arg)
+{
+    size_t destination_index;
+    size_t source_index;
+    
+    pas_heap_lock_assert_held();
+
+    for (destination_index = 0, source_index = 0; source_index < set->num_large_entries; source_index++) {
+        verse_heap_large_entry* entry;
+
+        entry = verse_heap_compact_large_entry_ptr_load_non_null(set->large_entries + source_index);
+        
+        if (!callback(entry, arg))
+            continue;
+
+        verse_heap_compact_large_entry_ptr_store(set->large_entries + destination_index, entry);
+        destination_index++;
+    }
+
+    set->num_large_entries = destination_index;
+
+    if (!destination_index) {
+        pas_large_utility_free_heap_deallocate(
+            set->large_entries, set->large_entries_capacity * sizeof(verse_heap_compact_large_entry_ptr));
+        set->large_entries_capacity = 0;
+        set->large_entries = NULL;
+    } else if (destination_index < set->large_entries_capacity / 4) {
+        verse_heap_compact_large_entry_ptr* new_large_entries;
+        size_t new_large_entries_capacity;
+
+        new_large_entries_capacity = destination_index * 2;
+        new_large_entries = (verse_heap_compact_large_entry_ptr*)pas_large_utility_free_heap_allocate(
+            new_large_entries_capacity * sizeof(verse_heap_compact_large_entry_ptr),
+            "verse_heap_object_set/large_entries");
+        memcpy(new_large_entries, set->large_entries, destination_index * sizeof(verse_heap_compact_large_entry_ptr));
+
+        pas_large_utility_free_heap_deallocate(
+            set->large_entries, set->large_entries_capacity * sizeof(verse_heap_compact_large_entry_ptr));
+
+        set->large_entries_capacity = new_large_entries_capacity;
+        set->large_entries = new_large_entries;
+    }
+}
+
 static void sweep_large(sweep_data* data)
 {
     size_t set_index;
@@ -851,10 +884,10 @@ static void sweep_large(sweep_data* data)
         if (set == &verse_heap_all_objects)
             continue;
 
-        verse_heap_object_set_filter_large_entries(set, sweep_large_filter_without_deallocating_callback, NULL);
+        filter_large_entries(set, sweep_large_filter_without_deallocating_callback, NULL);
     }
 
-    verse_heap_object_set_filter_large_entries(
+    filter_large_entries(
         &verse_heap_all_objects, sweep_large_filter_and_deallocate_callback, data);
 }
 

@@ -3,6 +3,7 @@
 #ifndef VERSE_HEAP_OBJECT_SET_INLINES_H
 #define VERSE_HEAP_OBJECT_SET_INLINES_H
 
+#include "bmalloc_heap.h"
 #include "pas_large_utility_free_heap.h"
 #include "pas_segregated_exclusive_view.h"
 #include "pas_segregated_size_directory.h"
@@ -22,21 +23,16 @@ static PAS_ALWAYS_INLINE bool verse_heap_object_set_iterate_large_entries(verse_
                                                                           bool (*callback)(void* object, void* arg),
                                                                           void* arg)
 {
-    static const bool verbose = false;
-    
     size_t index;
 
-    if (verbose) {
-        pas_log("verse_heap_object_set_iterate_large_entries; version = %" PRIu64 "!\n",
-                verse_heap_large_objects_header.version);
-    }
-    
-    pas_heap_lock_assert_held();
+	PAS_ASSERT(verse_heap_num_large_entries_for_iteration <= set->num_large_entries);
 
-    for (index = 0; index < set->num_large_entries; ++index) {
+    for (index = 0; index < verse_heap_num_large_entries_for_iteration; ++index) {
         verse_heap_large_entry* entry;
 
+		pas_heap_lock_lock();
         entry = verse_heap_compact_large_entry_ptr_load_non_null(set->large_entries + index);
+		pas_heap_lock_unlock();
 
         if (!callback((void*)entry->begin, arg))
             return false;
@@ -45,56 +41,8 @@ static PAS_ALWAYS_INLINE bool verse_heap_object_set_iterate_large_entries(verse_
     return true;
 }
 
-static PAS_ALWAYS_INLINE void verse_heap_object_set_filter_large_entries(verse_heap_object_set* set,
-                                                                         bool (*callback)(
-                                                                             verse_heap_large_entry* entry,
-                                                                             void* arg),
-                                                                         void* arg)
-{
-    size_t destination_index;
-    size_t source_index;
-    
-    pas_heap_lock_assert_held();
-
-    for (destination_index = 0, source_index = 0; source_index < set->num_large_entries; source_index++) {
-        verse_heap_large_entry* entry;
-
-        entry = verse_heap_compact_large_entry_ptr_load_non_null(set->large_entries + source_index);
-        
-        if (!callback(entry, arg))
-            continue;
-
-        verse_heap_compact_large_entry_ptr_store(set->large_entries + destination_index, entry);
-        destination_index++;
-    }
-
-    set->num_large_entries = destination_index;
-
-    if (!destination_index) {
-        pas_large_utility_free_heap_deallocate(
-            set->large_entries, set->large_entries_capacity * sizeof(verse_heap_compact_large_entry_ptr));
-        set->large_entries_capacity = 0;
-        set->large_entries = NULL;
-    } else if (destination_index < set->large_entries_capacity / 4) {
-        verse_heap_compact_large_entry_ptr* new_large_entries;
-        size_t new_large_entries_capacity;
-
-        new_large_entries_capacity = destination_index * 2;
-        new_large_entries = (verse_heap_compact_large_entry_ptr*)pas_large_utility_free_heap_allocate(
-            new_large_entries_capacity * sizeof(verse_heap_compact_large_entry_ptr),
-            "verse_heap_object_set/large_entries");
-        memcpy(new_large_entries, set->large_entries, destination_index * sizeof(verse_heap_compact_large_entry_ptr));
-
-        pas_large_utility_free_heap_deallocate(
-            set->large_entries, set->large_entries_capacity * sizeof(verse_heap_compact_large_entry_ptr));
-
-        set->large_entries_capacity = new_large_entries_capacity;
-        set->large_entries = new_large_entries;
-    }
-}
-
 typedef struct {
-    pas_segregated_page* page;
+    unsigned* alloc_bits;
     void* page_boundary;
     unsigned* mark_bits_base;
     verse_heap_iterate_filter filter;
@@ -111,9 +59,9 @@ static PAS_ALWAYS_INLINE unsigned verse_heap_object_set_iterate_segregated_exclu
 
     switch (data->filter) {
     case verse_heap_iterate_unmarked:
-        return data->page->alloc_bits[word_index] & ~data->mark_bits_base[word_index];
+        return data->alloc_bits[word_index] & ~data->mark_bits_base[word_index];
     case verse_heap_iterate_marked:
-        return data->page->alloc_bits[word_index] & data->mark_bits_base[word_index];
+        return data->alloc_bits[word_index] & data->mark_bits_base[word_index];
     }
     PAS_ASSERT(!"Should not be reached");
     return 0;
@@ -142,7 +90,7 @@ static PAS_ALWAYS_INLINE bool verse_heap_object_set_iterate_segregated_exclusive
 static PAS_ALWAYS_INLINE void verse_heap_object_set_iterate_segregated_exclusive_view_impl_small(
     verse_heap_object_set* set,
     pas_segregated_exclusive_view* view,
-    pas_segregated_page* page,
+    unsigned* alloc_bits,
     void* page_boundary,
     verse_heap_iterate_filter filter,
     void (*callback)(void* object, void* arg),
@@ -153,7 +101,7 @@ static PAS_ALWAYS_INLINE void verse_heap_object_set_iterate_segregated_exclusive
     verse_heap_object_set_iterate_segregated_exclusive_view_impl_small_data data;
     bool result;
 
-    data.page = page;
+    data.alloc_bits = alloc_bits;
     data.page_boundary = page_boundary;
     data.mark_bits_base = verse_heap_mark_bits_base_for_boundary(page_boundary);
     data.filter = filter;
@@ -171,34 +119,34 @@ static PAS_ALWAYS_INLINE void verse_heap_object_set_iterate_segregated_exclusive
 }
 
 typedef struct {
-    pas_segregated_page* page;
+    unsigned* alloc_bits;
     void* page_boundary;
     unsigned* mark_bits_base;
     verse_heap_iterate_filter filter;
     void (*callback)(void* object, void* arg);
     void* arg;
     pas_segregated_page_config config;
-} verse_heap_object_set_iterate_segregated_exclusive_view_with_page_data;
+} verse_heap_object_set_iterate_segregated_exclusive_view_with_bits_data;
 
-static PAS_ALWAYS_INLINE unsigned verse_heap_object_set_iterate_segregated_exclusive_view_with_page_bit_source(
+static PAS_ALWAYS_INLINE unsigned verse_heap_object_set_iterate_segregated_exclusive_view_with_bits_bit_source(
     size_t word_index,
     void* arg)
 {
-    verse_heap_object_set_iterate_segregated_exclusive_view_with_page_data* data;
-    data = (verse_heap_object_set_iterate_segregated_exclusive_view_with_page_data*)arg;
+    verse_heap_object_set_iterate_segregated_exclusive_view_with_bits_data* data;
+    data = (verse_heap_object_set_iterate_segregated_exclusive_view_with_bits_data*)arg;
 
-    return data->page->alloc_bits[word_index];
+    return data->alloc_bits[word_index];
 }
 
-static PAS_ALWAYS_INLINE bool verse_heap_object_set_iterate_segregated_exclusive_view_with_page_bit_callback(
+static PAS_ALWAYS_INLINE bool verse_heap_object_set_iterate_segregated_exclusive_view_with_bits_bit_callback(
     pas_found_bit_index index,
     void* arg)
 {
-    verse_heap_object_set_iterate_segregated_exclusive_view_with_page_data* data;
+    verse_heap_object_set_iterate_segregated_exclusive_view_with_bits_data* data;
     uintptr_t offset;
     uintptr_t mark_bit_index;
     
-    data = (verse_heap_object_set_iterate_segregated_exclusive_view_with_page_data*)arg;
+    data = (verse_heap_object_set_iterate_segregated_exclusive_view_with_bits_data*)arg;
 
     PAS_ASSERT(index.did_succeed);
     PAS_ASSERT(data->config.base.min_align_shift >= VERSE_HEAP_MIN_ALIGN_SHIFT);
@@ -222,30 +170,26 @@ static PAS_ALWAYS_INLINE bool verse_heap_object_set_iterate_segregated_exclusive
     return true;
 }
 
-static PAS_ALWAYS_INLINE void verse_heap_object_set_iterate_segregated_exclusive_view_with_page(
+static PAS_ALWAYS_INLINE void verse_heap_object_set_iterate_segregated_exclusive_view_with_bits(
     verse_heap_object_set* set,
     pas_segregated_exclusive_view* view,
-    pas_segregated_page* page,
+	unsigned* alloc_bits,
     void* page_boundary,
     verse_heap_iterate_filter filter,
     void (*callback)(void* object, void* arg),
     void *arg,
     pas_segregated_page_config config)
 {
-    verse_heap_object_set_iterate_segregated_exclusive_view_with_page_data data;
+    verse_heap_object_set_iterate_segregated_exclusive_view_with_bits_data data;
     bool result;
 
-    PAS_TESTING_ASSERT(page->lock_ptr == &view->ownership_lock);
-    if (!page->emptiness.num_non_empty_words_or_live_bytes)
-        return;
-    
     if (config.kind == pas_segregated_page_config_kind_verse_small_segregated) {
         verse_heap_object_set_iterate_segregated_exclusive_view_impl_small(
-            set, view, page, page_boundary, filter, callback, arg);
+            set, view, alloc_bits, page_boundary, filter, callback, arg);
         return;
     }
     
-    data.page = page;
+    data.alloc_bits = alloc_bits;
     data.page_boundary = page_boundary;
     data.mark_bits_base = verse_heap_mark_bits_base_for_boundary(page_boundary);
     data.filter = filter;
@@ -254,10 +198,10 @@ static PAS_ALWAYS_INLINE void verse_heap_object_set_iterate_segregated_exclusive
     data.config = config;
     
     result = pas_bitvector_for_each_set_bit(
-        verse_heap_object_set_iterate_segregated_exclusive_view_with_page_bit_source,
+        verse_heap_object_set_iterate_segregated_exclusive_view_with_bits_bit_source,
         0,
         pas_segregated_page_config_num_alloc_words(config),
-        verse_heap_object_set_iterate_segregated_exclusive_view_with_page_bit_callback,
+        verse_heap_object_set_iterate_segregated_exclusive_view_with_bits_bit_callback,
         &data);
 
     PAS_ASSERT(result);
@@ -272,27 +216,58 @@ static PAS_ALWAYS_INLINE void verse_heap_object_set_iterate_segregated_exclusive
     void *arg,
     pas_segregated_page_config config)
 {
+	unsigned local_alloc_bits[PAS_BITVECTOR_NUM_WORDS(config.num_alloc_bits)];
     pas_segregated_page* page;
-
-    if (!verse_heap_page_header_handle_iteration(
-            verse_heap_page_header_for_boundary(page_boundary, config.variant),
-            verse_heap_current_iteration_state.version))
-        return;
+	bool did_handle_iteration;
+	unsigned* alloc_bits;
+	bool should_free_alloc_bits;
 
     page = verse_heap_segregated_page_for_boundary(page_boundary, config.variant);
 
-    /* If a page is in use for allocation, then it should have iterated itself already. However, we might have
-       already set the is_in_use bit and then released the page lock to commit the page fully. In that case, no
-       allocation has happened in the page yet and the allocator hasn't done the iteration check. The alloc bits
-       still accurately reflect the page's state. So we can safely sneak in and run iteration. */
-    if (PAS_ENABLE_TESTING && page->is_in_use_for_allocation && !page->is_committing_fully) {
-        pas_log("Page unexpectedly in use for allocation (and it's not committing fully); page = %p/%s\n",
-                page, pas_page_kind_get_string(pas_page_base_get_kind(&page->base)));
-        PAS_TESTING_ASSERT(!"Page was unexpectedly in use for allocation");
-    }
+    PAS_TESTING_ASSERT(page->lock_ptr == &view->ownership_lock);
 
-    verse_heap_object_set_iterate_segregated_exclusive_view_with_page(
-        set, view, page, page_boundary, filter, callback, arg, config);
+	did_handle_iteration = verse_heap_page_header_handle_iteration(
+		verse_heap_page_header_for_segregated_page(page), verse_heap_current_iteration_state.version); 
+
+    if (did_handle_iteration) {
+		/* If a page is in use for allocation, then it should have iterated itself already. However, we might have
+		   already set the is_in_use bit and then released the page lock to commit the page fully. In that case, no
+		   allocation has happened in the page yet and the allocator hasn't done the iteration check. The alloc bits
+		   still accurately reflect the page's state. So we can safely sneak in and run iteration. */
+		if (PAS_ENABLE_TESTING
+			&& page->is_in_use_for_allocation
+			&& !page->is_committing_fully
+			&& !verse_heap_page_header_for_segregated_page(page)->is_stashing_alloc_bits) {
+			pas_log("Page unexpectedly in use for allocation (and it's not committing fully or stashing alloc bits); page = %p/%s\n",
+					page, pas_page_kind_get_string(pas_page_base_get_kind(&page->base)));
+			PAS_TESTING_ASSERT(!"Page was unexpectedly in use for allocation");
+		}
+
+		PAS_ASSERT(!verse_heap_page_header_for_segregated_page(page)->stashed_alloc_bits);
+		
+		if (page->emptiness.num_non_empty_words_or_live_bytes) {
+			memcpy(local_alloc_bits, page->alloc_bits, PAS_BITVECTOR_NUM_BYTES(config.num_alloc_bits));
+			
+			alloc_bits = local_alloc_bits;
+		} else
+			alloc_bits = NULL;
+		
+		should_free_alloc_bits = false;
+	} else {
+		alloc_bits = verse_heap_page_header_for_segregated_page(page)->stashed_alloc_bits;
+		verse_heap_page_header_for_segregated_page(page)->stashed_alloc_bits = NULL;
+		should_free_alloc_bits = true;
+	}
+
+	pas_lock_unlock(&view->ownership_lock);
+
+	if (!alloc_bits)
+		return;
+	
+	verse_heap_object_set_iterate_segregated_exclusive_view_with_bits(set, view, alloc_bits, page_boundary, filter, callback, arg, config);
+
+	if (should_free_alloc_bits)
+		bmalloc_deallocate(alloc_bits);
 }
 
 static PAS_ALWAYS_INLINE void verse_heap_object_set_iterate_segregated_exclusive_view(
@@ -304,10 +279,11 @@ static PAS_ALWAYS_INLINE void verse_heap_object_set_iterate_segregated_exclusive
     void *arg)
 {
     switch (pas_compact_segregated_size_directory_ptr_load_non_null(&view->directory)->base.page_config_kind) {
-    case pas_segregated_page_config_kind_verse_small_segregated:
+    case pas_segregated_page_config_kind_verse_small_segregated: {
         verse_heap_object_set_iterate_segregated_exclusive_view_with_config(
             set, view, page_boundary, filter, callback, arg, VERSE_HEAP_CONFIG.small_segregated_config);
         return;
+	}
 
     case pas_segregated_page_config_kind_verse_medium_segregated:
         verse_heap_object_set_iterate_segregated_exclusive_view_with_config(
@@ -355,9 +331,9 @@ static PAS_ALWAYS_INLINE bool verse_heap_object_set_iterate_views_callback(
         
         verse_heap_object_set_iterate_segregated_exclusive_view(
             data->set, view, page_boundary, data->filter, data->callback, data->arg);
-    }
-    
-    pas_lock_unlock(&view->ownership_lock);
+    } else
+		pas_lock_unlock(&view->ownership_lock);
+	
     return true;
 }
 
@@ -403,29 +379,17 @@ static PAS_ALWAYS_INLINE void verse_heap_object_set_iterate_range_inline(
     PAS_ASSERT(!verse_heap_is_sweeping);
     PAS_ASSERT(verse_heap_current_iteration_state.version == verse_heap_latest_version);
     PAS_ASSERT(set == verse_heap_current_iteration_state.set_being_iterated);
-    PAS_ASSERT(filter == verse_heap_current_iteration_state.filter);
 	PAS_ASSERT(verse_heap_mark_bits_page_commit_controller_is_locked);
 
     if (!begin) {
         if (!end)
             return;
-        pas_heap_lock_lock();
-        if (verbose) {
-            pas_log("iteration version = %" PRIu64 ", large header version = %" PRIu64 "\n",
-                    verse_heap_current_iteration_state.version, verse_heap_large_objects_header.version);
-        }
-        if (verse_heap_page_header_handle_iteration(
-                &verse_heap_large_objects_header,
-                verse_heap_current_iteration_state.version)) {
-            verse_heap_object_set_iterate_iterate_large_entries_data data;
-            data.filter = filter;
-            data.callback = callback;
-            data.arg = arg;
-            verse_heap_object_set_iterate_large_entries(
-                set, verse_heap_object_set_iterate_iterate_large_entries_callback, &data);
-        } else if (verbose)
-            pas_log("Skipping large iteration, version already up-to-date.\n");
-        pas_heap_lock_unlock();
+		verse_heap_object_set_iterate_iterate_large_entries_data data;
+		data.filter = filter;
+		data.callback = callback;
+		data.arg = arg;
+		verse_heap_object_set_iterate_large_entries(
+			set, verse_heap_object_set_iterate_iterate_large_entries_callback, &data);
         begin = 1;
     }
 

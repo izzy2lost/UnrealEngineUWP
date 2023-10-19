@@ -16,12 +16,16 @@ typedef struct verse_heap_page_header verse_heap_page_header;
 
 struct PAS_ALIGNED(PAS_PAIR_SIZE) verse_heap_page_header {
     uint64_t version;
+	unsigned* stashed_alloc_bits;
     bool may_have_set_mark_bits_for_dead_objects;
+	bool is_stashing_alloc_bits;
 };
 
 #define VERSE_HEAP_PAGE_HEADER_INITIALIZER ((verse_heap_page_header){ \
         .version = VERSE_HEAP_FIRST_VERSION, \
-        .may_have_set_mark_bits_for_dead_objects = false \
+		.stashed_alloc_bits = NULL, \
+        .may_have_set_mark_bits_for_dead_objects = false, \
+		.is_stashing_alloc_bits = false, \
     })
 
 PAS_API void verse_heap_page_header_construct(verse_heap_page_header* header);

@@ -16,6 +16,7 @@ void verse_heap_page_header_construct(verse_heap_page_header* header)
         pas_log("Allocating verse header %p with latest version %" PRIu64 "\n", header, verse_heap_latest_version);
     header->version = verse_heap_latest_version;
     header->may_have_set_mark_bits_for_dead_objects = false;
+	header->stashed_alloc_bits = NULL;
 }
 
 #endif /* PAS_ENABLE_VERSE */

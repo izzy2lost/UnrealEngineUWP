@@ -57,8 +57,7 @@ void objectCallback(void* object, void* arg)
 void iterateAllObjectsOnOneThread(verse_heap_iterate_filter filter)
 {
     foundObjects.clear();
-    verse_heap_object_set_start_iterate_before_handshake(
-        &verse_heap_all_objects, filter, objectCallback, nullptr);
+    verse_heap_object_set_start_iterate_before_handshake(&verse_heap_all_objects);
     handshakeOnOneThread();
     size_t iterateSize = verse_heap_object_set_start_iterate_after_handshake(&verse_heap_all_objects);
     verse_heap_object_set_iterate_range(
@@ -249,7 +248,7 @@ void testAllocateDuringIteration(verse_heap_black_allocation_mode firstAllocatio
         handshakeOnOneThread();
     }
 
-    verse_heap_object_set_start_iterate_before_handshake(&verse_heap_all_objects, filter, objectCallback, nullptr);
+    verse_heap_object_set_start_iterate_before_handshake(&verse_heap_all_objects);
     handshakeOnOneThread();
     size_t iterateSize = verse_heap_object_set_start_iterate_after_handshake(&verse_heap_all_objects);
 
@@ -260,13 +259,7 @@ void testAllocateDuringIteration(verse_heap_black_allocation_mode firstAllocatio
     CHECK_EQUAL(verse_heap_get_segregated_page(reinterpret_cast<uintptr_t>(ptr1)),
                 verse_heap_get_segregated_page(reinterpret_cast<uintptr_t>(ptr2)));
 
-    if ((firstAllocationMode == verse_heap_allocate_black) == (filter == verse_heap_iterate_marked)) {
-        // We just allocated in the same page as ptr1, so the allocation slow path should have made sure that we
-        // iterate over ptr1 before we totally lost track of what to iterate in this page.
-        CHECK_EQUAL(foundObjects.size(), 1);
-        CHECK(foundObjects.count(ptr1));
-    } else
-        CHECK_EQUAL(foundObjects.size(), 0);
+	CHECK_EQUAL(foundObjects.size(), 0);
 
     verse_heap_object_set_iterate_range(
         &verse_heap_all_objects, 0, iterateSize, filter, objectCallback, nullptr);
@@ -719,8 +712,7 @@ void testWorkflow(const std::vector<Op>& ops)
                     continue;
                 objectsToSeeDuringIteration.insert(pair.second.ptr);
             }
-            verse_heap_object_set_start_iterate_before_handshake(
-                getSet(op.objectSet), op.filter, workflowObjectCallback, nullptr);
+            verse_heap_object_set_start_iterate_before_handshake(getSet(op.objectSet));
             handshakeOnOneThread();
             iterateSize = verse_heap_object_set_start_iterate_after_handshake(getSet(op.objectSet));
             iterateIndex = 0;
@@ -1066,6 +1058,14 @@ PAS_UNUSED void stopAllAllocators()
 void chaosObjectCallback(void* object, void* arg)
 {
     CHECK(!arg);
+
+	// We should never be called with the pas heap_lock held.
+	pas_heap_lock_lock();
+	pas_heap_lock_unlock();
+
+	// It should be possible to allocate and free with bmalloc.
+	bmalloc_deallocate(bmalloc_allocate(100));
+	
     lock_guard<mutex> locker(iterationLock);
     switch (iterateFilter) {
     case verse_heap_iterate_marked:
@@ -1112,8 +1112,7 @@ void chaosIterate(ObjectSet objectSet, verse_heap_iterate_filter filter)
         lock_guard<mutex> locker(iterationLock);
         iterateFilter = filter;
     }
-    verse_heap_object_set_start_iterate_before_handshake(
-        getSet(objectSet), filter, chaosObjectCallback, nullptr);
+    verse_heap_object_set_start_iterate_before_handshake(getSet(objectSet));
     softHandshake(stopAllocators);
     size_t iterateSize = verse_heap_object_set_start_iterate_after_handshake(getSet(objectSet));
     verse_heap_object_set_iterate_range(
@@ -1677,8 +1676,7 @@ void testRepeatedIteration(size_t size, unsigned count, bool refillEachTime)
 
 	uint64_t numIterations = 0;
 	while (!allocatorIsDone) {
-		verse_heap_object_set_start_iterate_before_handshake(
-			&verse_heap_all_objects, verse_heap_iterate_marked, expectedNotToGetCalledObjectCallback, nullptr);
+		verse_heap_object_set_start_iterate_before_handshake(&verse_heap_all_objects);
 		{
 			lock_guard<mutex> guard(handshakeLock);
 			if (node)

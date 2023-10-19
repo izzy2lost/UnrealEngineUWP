@@ -16,8 +16,6 @@ struct pas_local_allocator;
 typedef struct pas_fake_local_allocator pas_fake_local_allocator;
 typedef struct pas_local_allocator pas_local_allocator;
 
-PAS_API extern uint64_t pas_local_allocator_num_verse_iterations;
-
 /* This is only defined so that we can do offsetof on it. The fields must be matched exactly to pas_local_allocator, otherwise a bunch of runtime asserts will fail. */
 struct pas_fake_local_allocator {
     pas_local_allocator_scavenger_data scavenger_data;

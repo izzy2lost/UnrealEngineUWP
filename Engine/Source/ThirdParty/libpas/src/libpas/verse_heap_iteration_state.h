@@ -18,9 +18,6 @@ typedef struct verse_heap_object_set verse_heap_object_set;
 struct verse_heap_iteration_state {
     uint64_t version; /* If this is 0 then we are not iterating. */
     verse_heap_object_set* set_being_iterated;
-    verse_heap_iterate_filter filter;
-    void (*callback)(void* object, void* arg);
-    void* arg;
 };
 
 PAS_END_EXTERN_C;

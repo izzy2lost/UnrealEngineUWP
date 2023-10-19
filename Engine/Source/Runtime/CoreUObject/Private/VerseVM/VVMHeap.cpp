@@ -518,7 +518,7 @@ void FHeap::ConductCensus(FIOContext Context)
 		}
 	}
 
-	CensusIterationSet->StartIterateBeforeHandshake(verse_heap_iterate_marked, CensusCallback, nullptr);
+	CensusIterationSet->StartIterateBeforeHandshake();
 	Context.SoftHandshake([](FHandshakeContext TargetContext) {
 		TargetContext.StopAllocators();
 	});
@@ -537,7 +537,7 @@ void FHeap::RunDestructors(FIOContext Context)
 	V_DIE_UNLESS(bIsCollecting);
 	V_DIE_UNLESS(bIsTerminated);
 	V_DIE_UNLESS(WeakBarrierState == EWeakBarrierState::CheckMarkedOnRead);
-	DestructorIterationSet->StartIterateBeforeHandshake(verse_heap_iterate_unmarked, DestructorCallback, nullptr);
+	DestructorIterationSet->StartIterateBeforeHandshake();
 	Context.SoftHandshake([](FHandshakeContext TargetContext) {
 		TargetContext.StopAllocators();
 	});

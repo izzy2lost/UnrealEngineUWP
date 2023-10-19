@@ -27,6 +27,7 @@
 #ifndef PAS_LOCAL_ALLOCATOR_INLINES_H
 #define PAS_LOCAL_ALLOCATOR_INLINES_H
 
+#include "bmalloc_heap.h"
 #include "pas_allocator_counts.h"
 #include "pas_bitfit_allocator_inlines.h"
 #include "pas_bitfit_directory.h"
@@ -456,7 +457,10 @@ pas_local_allocator_set_up_free_bits(pas_local_allocator* allocator,
 
     if (pas_segregated_page_config_is_verse(page_config)) {
         verse_heap_iteration_state iteration_state;
+		pas_segregated_exclusive_view* exclusive_view;
         PAS_ASSERT(view_kind == pas_segregated_exclusive_view_kind);
+
+		exclusive_view = (pas_segregated_exclusive_view*)view;
 
         if (verbose)
             pas_log("Considering verse iteration.\n");
@@ -476,9 +480,6 @@ pas_local_allocator_set_up_free_bits(pas_local_allocator* allocator,
         if (verbose) {
             pas_log("iteration_state.version = %" PRIu64 "\n", iteration_state.version);
             pas_log("iteration_state.set_being_iterated = %p\n", iteration_state.set_being_iterated);
-            pas_log("iteration_state.filter = %s\n", verse_heap_iterate_filter_get_string(iteration_state.filter));
-            pas_log("iteration_state.callback = %p\n", iteration_state.callback);
-            pas_log("iteration_state.arg = %p\n", iteration_state.arg);
             pas_log("set contains heap = %d\n",
                     verse_heap_object_set_contains_heap(
                         iteration_state.set_being_iterated, directory->heap->runtime_config));
@@ -490,14 +491,59 @@ pas_local_allocator_set_up_free_bits(pas_local_allocator* allocator,
             verse_heap_object_set_contains_heap(
                 iteration_state.set_being_iterated,
                 directory->heap->runtime_config) &&
-            verse_heap_page_header_handle_iteration(
-                verse_heap_page_header_for_boundary((void*)page_boundary, page_config.variant),
-                iteration_state.version)) {
-            pas_local_allocator_num_verse_iterations++;
-            verse_heap_object_set_iterate_segregated_exclusive_view_with_page(
-                iteration_state.set_being_iterated, (pas_segregated_exclusive_view*)view, page,
-                (void*)page_boundary, iteration_state.filter, iteration_state.callback, iteration_state.arg,
-                page_config);
+			verse_heap_page_header_for_segregated_page(page)->version != iteration_state.version) {
+			pas_thread_local_cache* cache;
+			unsigned* alloc_bits_copy;
+
+			cache = pas_thread_local_cache_try_get();
+			
+			PAS_TESTING_ASSERT(cache);
+			pas_thread_local_cache_testing_assert_owns_allocator(cache, allocator);
+			PAS_TESTING_ASSERT(page->lock_ptr == &exclusive_view->ownership_lock);
+			PAS_TESTING_ASSERT(page->is_in_use_for_allocation);
+
+			/* We do something a bit crazy but totally legal: we allocate using bmalloc while in the verse allocator slow path. Even crazier,
+			   we read the alloc_bits without holding the lock.
+			
+			   We need to drop the lock to call into bmalloc, since we hold a page lock and bmalloc may want the heap lock.
+			
+			   We can read the alloc bits without holding the lock because only three things could possibly change them:
+			   - Sweep (clears bits)
+			   - Allocator stop (clears bits)
+			   - Allocation (sets bits)
+			
+			   Sweeping cannot happen because heap state says we're iterating, and we never sweep and iterate at the same time. Allocator stop
+			   cannot happen because this allocator is still in use. Allocation cannot happen because this page is ineligible. */
+
+			verse_heap_page_header_for_segregated_page(page)->is_stashing_alloc_bits = true;
+			
+			pas_lock_unlock(&exclusive_view->ownership_lock);
+			alloc_bits_copy = (unsigned*)bmalloc_allocate(PAS_BITVECTOR_NUM_BYTES(page_config.num_alloc_bits));
+			memcpy(alloc_bits_copy, page->alloc_bits, PAS_BITVECTOR_NUM_BYTES(page_config.num_alloc_bits));
+			pas_lock_lock(&exclusive_view->ownership_lock);
+
+			verse_heap_page_header_for_segregated_page(page)->is_stashing_alloc_bits = false;
+			
+			PAS_TESTING_ASSERT(page->lock_ptr == &exclusive_view->ownership_lock);
+			PAS_TESTING_ASSERT(page->is_in_use_for_allocation);
+			PAS_TESTING_ASSERT(pas_memory_is_equal(alloc_bits_copy, page->alloc_bits, PAS_BITVECTOR_NUM_BYTES(page_config.num_alloc_bits)));
+
+			if (verse_heap_page_header_handle_iteration(
+					verse_heap_page_header_for_segregated_page(page),
+					iteration_state.version)) {
+				PAS_ASSERT(!verse_heap_page_header_for_segregated_page(page)->stashed_alloc_bits);
+				PAS_ASSERT(alloc_bits_copy);
+				verse_heap_page_header_for_segregated_page(page)->stashed_alloc_bits = alloc_bits_copy;
+			} else {
+				pas_lock_unlock(&exclusive_view->ownership_lock);
+				bmalloc_deallocate(alloc_bits_copy);
+				pas_lock_lock(&exclusive_view->ownership_lock);
+				
+				PAS_TESTING_ASSERT(page->lock_ptr == &exclusive_view->ownership_lock);
+				PAS_TESTING_ASSERT(page->is_in_use_for_allocation);
+			}
+
+			pas_thread_local_cache_update_after_possible_realloc(&cache, (void**)&allocator);
         }
     }
     
@@ -625,14 +671,10 @@ pas_local_allocator_prepare_to_allocate(
             uint64_t iteration_version;
             verse_heap_chunk_map_entry* entry_ptr;
 
-            /* If we're iterating, then just make sure that the GC knows that we have done the iteration without
-               doing. Why? Because the page has no live objects. */
-            iteration_version = verse_heap_current_iteration_state.version;
-            if (iteration_version) {
-                verse_heap_page_header_handle_iteration(
-                    verse_heap_page_header_for_boundary((void*)page_boundary, page_config.variant),
-                    iteration_version);
-            }
+			iteration_version = verse_heap_current_iteration_state.version;
+            if (iteration_version)
+				verse_heap_page_header_handle_iteration(verse_heap_page_header_for_segregated_page(page), iteration_version);
+			PAS_ASSERT(!verse_heap_page_header_for_segregated_page(page)->stashed_alloc_bits);
 
             /* The GC needs to know when a page becomes nonempty. So long as a page is empty, we exclude it
                from the chunk map. As soon as we might start to allocate in it, we need to tell the chunk map

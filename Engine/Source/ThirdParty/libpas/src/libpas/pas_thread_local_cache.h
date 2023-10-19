@@ -334,6 +334,44 @@ pas_thread_local_cache_get_local_allocator_if_can_set_cache_for_possibly_uniniti
 PAS_API pas_allocator_index pas_thread_local_cache_allocator_index_for_allocator(pas_thread_local_cache* cache,
                                                                                  void* allocator);
 
+static PAS_ALWAYS_INLINE void pas_thread_local_cache_assert_owns_allocator(pas_thread_local_cache* cache, void* allocator)
+{
+    uintptr_t cache_address;
+	uintptr_t allocator_address;
+    uintptr_t begin_allocators;
+    uintptr_t end_allocators;
+
+    cache_address = (uintptr_t)cache;
+    allocator_address = (uintptr_t)allocator;
+
+    begin_allocators = cache_address + PAS_OFFSETOF(pas_thread_local_cache, local_allocators);
+    end_allocators = begin_allocators + sizeof(uint64_t) * cache->allocator_index_upper_bound;
+
+    PAS_ASSERT(allocator_address >= begin_allocators);
+    PAS_ASSERT(allocator_address < end_allocators);
+}
+
+static PAS_ALWAYS_INLINE void pas_thread_local_cache_testing_assert_owns_allocator(pas_thread_local_cache* cache, void* allocator)
+{
+	if (PAS_ENABLE_TESTING)
+		pas_thread_local_cache_assert_owns_allocator(cache, allocator);
+}
+
+static PAS_ALWAYS_INLINE void pas_thread_local_cache_update_after_possible_realloc(pas_thread_local_cache** cache,
+																				   void** allocator)
+{
+	pas_thread_local_cache* new_cache;
+
+	new_cache = pas_thread_local_cache_try_get();
+	
+	if (PAS_UNLIKELY(new_cache != *cache)) {
+		*allocator = (char*)new_cache + ((char*)*allocator - (char*)*cache);
+		*cache = new_cache;
+	}
+
+	pas_thread_local_cache_testing_assert_owns_allocator(*cache, *allocator);
+}
+
 PAS_API unsigned pas_thread_local_cache_get_num_allocators(pas_thread_local_cache* cache);
 
 PAS_API void pas_thread_local_cache_stop_local_allocators(

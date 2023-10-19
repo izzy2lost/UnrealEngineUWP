@@ -31,15 +31,9 @@ public:
 		verse_heap_add_to_set(reinterpret_cast<pas_heap*>(Subspace), reinterpret_cast<verse_heap_object_set*>(this));
 	}
 
-	// You must make sure that the Arg stays alive until you're done iterating. Perversely, this callback
-	// may be called from allocation slow paths in some cases (it's how libpas resolves a nasty race). This
-	// should be the same callback you pass to IterateRange (though in the future we might relax that).
-	void StartIterateBeforeHandshake(verse_heap_iterate_filter Filter,
-		void (*Callback)(void* Object, void* Arg),
-		void* Arg)
+	void StartIterateBeforeHandshake()
 	{
-		verse_heap_object_set_start_iterate_before_handshake(
-			reinterpret_cast<verse_heap_object_set*>(this), Filter, Callback, Arg);
+		verse_heap_object_set_start_iterate_before_handshake(reinterpret_cast<verse_heap_object_set*>(this));
 	}
 
 	size_t StartIterateAfterHandshake()
