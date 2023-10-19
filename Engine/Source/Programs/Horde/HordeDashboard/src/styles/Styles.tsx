@@ -478,7 +478,7 @@ export const getHordeStyling = () => {
          // Overlay the sizer bars
          position: 'relative',
          overflow: 'hidden',
-         backgroundColor: theme.horde.darkTheme ? undefined : theme.palette.neutralLighter
+         backgroundColor: theme.palette.neutralLighter
       },
       headerTitle: [
          {

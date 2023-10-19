@@ -616,19 +616,17 @@ const HealthPanelIssues: React.FC<{ desktopAlerts?: boolean }> = observer(({ des
          const group = props.group! as IssueGroup;
 
          return (
-            <div className="view-log-link">
-               <div className={detailClasses.headerAndFooter} style={{ marginRight: 8, padding: 2 }} onClick={() => {
+            <div className={detailClasses.headerAndFooter} style={{ marginRight: 8, padding: 2 }} onClick={() => {
 
-                  handler.collapsedIssueGroups.set(group.key, !handler.collapsedIssueGroups.get(group.key));
-                  props.onToggleCollapse!(props.group!);
-               }}>
-                  <div style={{
-                     fontSize: "13px",
-                     padding: '4px 8px',
-                     userSelect: 'none',
-                     fontFamily: "Horde Open Sans SemiBold"
-                  }}>{`${group.headerText}`}</div>
-               </div>
+               handler.collapsedIssueGroups.set(group.key, !handler.collapsedIssueGroups.get(group.key));
+               props.onToggleCollapse!(props.group!);
+            }}>
+               <div style={{
+                  fontSize: "13px",
+                  padding: '4px 8px',
+                  userSelect: 'none',
+                  fontFamily: "Horde Open Sans SemiBold"
+               }}>{`${group.headerText}`}</div>
             </div>
          );
       }
