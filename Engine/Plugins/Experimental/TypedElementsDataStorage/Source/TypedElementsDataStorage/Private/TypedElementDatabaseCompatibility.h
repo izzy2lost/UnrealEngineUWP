@@ -62,34 +62,37 @@ public:
 	TypedElementRowHandle FindRowWithCompatibleObjectExplicit(const void* Object) const override;
 
 private:
+
+	// The below changes expect UTypedElementDatabaseCompatibility to be the object passed in to StoreUndo.
+	// Note that we cannot pass in TargetObject to StoreUndo because doing so seems to stomp regular Modify()
+	// changes for that object.
 	class FRegistrationCommandChange final : public FCommandChange
 	{
 	public:
 		FRegistrationCommandChange(TypedElementDataStorage::TableHandle InTable,
-			UTypedElementDatabaseCompatibility* InCompatibilityLayer);
+			UObject* InTargetObject);
 
 		void Apply(UObject* Object) override;
 		void Revert(UObject* Object) override;
 		FString ToString() const override;
 
 	private:
-		UTypedElementDatabaseCompatibility* CompatibilityLayer{ nullptr };
 		TypedElementDataStorage::TableHandle Table{ TypedElementDataStorage::InvalidTableHandle };
+		TWeakObjectPtr<UObject> TargetObject;
 	};
-
 	class FDeregistrationCommandChange final : public FCommandChange
 	{
 	public:
 		FDeregistrationCommandChange(TypedElementDataStorage::TableHandle InTable,
-			UTypedElementDatabaseCompatibility* InCompatibilityLayer);
+			UObject* InTargetObject);
 
 		void Apply(UObject* Object) override;
 		void Revert(UObject* Object) override;
 		FString ToString() const override;
 
 	private:
-		UTypedElementDatabaseCompatibility* CompatibilityLayer{ nullptr };
 		TypedElementDataStorage::TableHandle Table{ TypedElementDataStorage::InvalidTableHandle };
+		TWeakObjectPtr<UObject> TargetObject;
 	};
 
 	void Prepare();
