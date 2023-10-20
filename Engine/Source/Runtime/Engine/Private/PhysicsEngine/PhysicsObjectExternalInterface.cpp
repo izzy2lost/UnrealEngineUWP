@@ -11,7 +11,7 @@ FLockedReadPhysicsObjectExternalInterface FPhysicsObjectExternalInterface::LockR
 
 FLockedReadPhysicsObjectExternalInterface FPhysicsObjectExternalInterface::LockRead(Chaos::FConstPhysicsObjectHandle InObject)
 {
-	return LockRead(TArray<Chaos::FConstPhysicsObjectHandle>{ InObject });
+	return LockRead(GetScene(InObject));
 }
 
 FLockedReadPhysicsObjectExternalInterface FPhysicsObjectExternalInterface::LockRead(TArrayView<const Chaos::FConstPhysicsObjectHandle> InObjects)

@@ -1189,11 +1189,7 @@ namespace Chaos
 				continue;
 			}
 
-			FPBDRigidsSolver* Solver = nullptr;
-			if (const IPhysicsProxyBase* Proxy = Object->PhysicsProxy())
-			{
-				Solver = Proxy->GetSolver<FPBDRigidsSolver>();
-			}
+			FPBDRigidsSolver* Solver = GetSolver(Object);
 
 			if (!Solver)
 			{
@@ -1210,6 +1206,23 @@ namespace Chaos
 		}
 		return RetSolver;
 	}
+
+	FPBDRigidsSolver* FPhysicsObjectInterface::GetSolver(const FConstPhysicsObjectHandle InObject)
+	{
+		if (!InObject)
+		{
+			return nullptr;
+		}
+
+		FPBDRigidsSolver* Solver = nullptr;
+		if (const IPhysicsProxyBase* Proxy = InObject->PhysicsProxy())
+		{
+			Solver = Proxy->GetSolver<FPBDRigidsSolver>();
+		}
+
+		return Solver;
+	}
+
 
 	IPhysicsProxyBase* FPhysicsObjectInterface::GetProxy(TArrayView<const FConstPhysicsObjectHandle> InObjects)
 	{

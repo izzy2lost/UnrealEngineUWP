@@ -195,6 +195,7 @@ namespace Chaos
 		static CHAOS_API int32 GetId(const FConstPhysicsObjectHandle Object);
 
 		static CHAOS_API FPBDRigidsSolver* GetSolver(TArrayView<const FConstPhysicsObjectHandle> InObjects);
+		static CHAOS_API FPBDRigidsSolver* GetSolver(const FConstPhysicsObjectHandle InObject);
 		static CHAOS_API IPhysicsProxyBase* GetProxy(TArrayView<const FConstPhysicsObjectHandle> InObjects);
 
 	protected:
