@@ -7,7 +7,7 @@
 #include "PCGProjectionParams.generated.h"
 
 UENUM()
-enum class EPCGProjectionColorBlendMode
+enum class EPCGProjectionColorBlendMode : uint8
 {
 	SourceValue,
 	TargetValue,
