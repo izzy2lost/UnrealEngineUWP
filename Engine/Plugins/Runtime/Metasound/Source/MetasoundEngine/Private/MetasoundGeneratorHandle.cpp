@@ -524,6 +524,11 @@ namespace Metasound
 			{
 				PinnedThis->SendParametersToGenerator();
 				PinnedThis->FixUpOutputWatchers();
+
+				if (PinnedThis->OnGeneratorIOUpdated.IsBound())
+				{
+					PinnedThis->OnGeneratorIOUpdated.Execute();
+				}
 			}
 		});
 	}
@@ -701,6 +706,11 @@ bool UMetasoundGeneratorHandle::InitGeneratorHandle(TWeakObjectPtr<UAudioCompone
 	GeneratorHandle->OnGraphUpdated.BindLambda([this]()
 	{
 		OnGeneratorsGraphChanged.Broadcast();
+	});
+
+	GeneratorHandle->OnGeneratorIOUpdated.BindLambda([this]()
+	{
+		OnIOUpdated.Broadcast();
 	});
 
 	return true;

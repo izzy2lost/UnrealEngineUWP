@@ -83,7 +83,12 @@ namespace Metasound
 		 */
 		FOnGeneratorGraphSet OnGraphUpdated;
 	
-		DECLARE_DELEGATE_OneParam(FOnGeneratorVertexInterfaceUpdated, const FVertexInterfaceData&);
+		DECLARE_DELEGATE(FOnGeneratorIOUpdated);
+
+		/**
+		 * Fires on the game thread when the generator's graph inputs or outputs change
+		 */
+		FOnGeneratorIOUpdated OnGeneratorIOUpdated;
 
 		/**
 		 * Update the current parameter state on this handle and enqueue the changes on the generator.
@@ -320,6 +325,9 @@ public:
 	DECLARE_MULTICAST_DELEGATE(FOnSetGraph);
 	FDelegateHandle AddGraphSetCallback(UMetasoundGeneratorHandle::FOnSetGraph::FDelegate&& Delegate);
 	bool RemoveGraphSetCallback(const FDelegateHandle& Handle);
+
+	DECLARE_MULTICAST_DELEGATE(FOnIOUpdated)
+	FOnIOUpdated OnIOUpdated;
 
 	/**
 	 * Watch an output value.
