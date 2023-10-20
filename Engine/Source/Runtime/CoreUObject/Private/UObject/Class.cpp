@@ -1854,18 +1854,35 @@ void UStruct::Serialize(FArchive& Ar)
 		if (Ar.IsLoading())
 		{
 			Ar << ChildArray;
-			if (ChildArray.Num())
+
+			// skip null fields
+			Children = nullptr;
+			if (ChildArray.Num() > 0)
 			{
-				for (int32 Index = 0; Index + 1 < ChildArray.Num(); Index++)
+				UField* CurrentChild = nullptr;
+ 				int32 Index = 0;
+				for (; Index < ChildArray.Num(); ++Index)
 				{
-					ChildArray[Index]->Next = ChildArray[Index + 1];
+					if (ChildArray[Index])
+					{
+						Children = ChildArray[Index];
+						CurrentChild = Children;
+						break;
+					}
 				}
-				Children = ChildArray[0];
-				ChildArray[ChildArray.Num() - 1]->Next = nullptr;
-			}
-			else
-			{
-				Children = nullptr;
+				if (CurrentChild)
+				{
+					for (Index+=1; Index < ChildArray.Num(); ++Index)
+					{
+						if (ChildArray[Index])
+						{
+							CurrentChild->Next = ChildArray[Index];
+							CurrentChild = ChildArray[Index];
+						}
+					}
+
+					CurrentChild->Next = nullptr;
+				}
 			}
 		}
 		else
