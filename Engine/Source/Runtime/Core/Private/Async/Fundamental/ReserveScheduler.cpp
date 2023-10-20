@@ -72,8 +72,10 @@ void FReserveScheduler::StartWorkers(uint32 NumWorkers, FThread::EForkable IsFor
 
 	WorkerPriority = GTaskGraphUseDynamicPrioritization ? LowLevelTasks::FScheduler::Get().GetWorkerPriority() : WorkerPriority;
 
+	const bool bSupportsMultithreading = FPlatformProcess::SupportsMultithreading() || FForkProcessHelper::IsForkedMultithreadInstance();
+
 	uint32 OldActiveWorkers = ActiveWorkers.load(std::memory_order_relaxed);
-	if(OldActiveWorkers == 0 && FPlatformProcess::SupportsMultithreading() && ActiveWorkers.compare_exchange_strong(OldActiveWorkers, NumWorkers, std::memory_order_relaxed))
+	if(OldActiveWorkers == 0 && bSupportsMultithreading && ActiveWorkers.compare_exchange_strong(OldActiveWorkers, NumWorkers, std::memory_order_relaxed))
 	{
 		LLM_SCOPE_BYNAME(TEXT("EngineMisc/WorkerThreads"));
 
