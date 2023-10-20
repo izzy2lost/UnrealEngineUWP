@@ -159,20 +159,20 @@ FLumenMaterialCoord GetLumenMaterialCoord_Reflection(in uint2 SvPosition, FRefle
 
 [numthreads(THREADGROUP_SIZE, THREADGROUP_SIZE, 1)] 
 void ReflectionTileClassificationBuildListsCS(
-	uint2 GroupId : SV_GroupID,
+	uint3 GroupId : SV_GroupID,
 	uint2 GroupThreadId : SV_GroupThreadID)
 {
 	const uint ThreadIndex = GroupThreadId.y * THREADGROUP_SIZE + GroupThreadId.x;
 
 	// When generating downsampled trace tiles we need to downsample ResolveTileUsed to shared memory first
-	// SUBSTRATE_TODO: add support for downsample factor with multi-layer
-#if SUPPORT_DOWNSAMPLE_FACTOR && !SUBSTRATE_ENABLED 
+#if SUPPORT_DOWNSAMPLE_FACTOR
 	SharedTileUsed[ThreadIndex] = 0;
 
 	GroupMemoryBarrierWithGroupSync();
 
-	uint TileUsed = 0;
-	uint2 TileCoordinate = GroupId * THREADGROUP_SIZE + GroupThreadId;
+	uint  TileUsed = 0;
+	uint2 TileCoordinate = GroupId.xy * THREADGROUP_SIZE + GroupThreadId;
+	uint  ClosureIndex = SUBSTRATE_ENABLED ? GroupId.z : 0;
 
 	// Gather whether any of the resolve tiles corresponding to this tracing tile were used
 	for (uint Y = 0; Y < ReflectionDownsampleFactor; Y++)
@@ -183,7 +183,7 @@ void ReflectionTileClassificationBuildListsCS(
 
 			if (all(ResolveTileCoordinate < ResolveTileViewportDimensions))
 			{
-				TileUsed = TileUsed || ResolveTileUsed[uint3(ResolveTileCoordinate, 0/*BSDFIndex*/)]; // SUBSTRATE_TODO for other layers?
+				TileUsed = TileUsed || ResolveTileUsed[uint3(ResolveTileCoordinate, ClosureIndex)];
 			}
 		}
 	}
@@ -217,17 +217,17 @@ void ReflectionTileClassificationBuildListsCS(
 			// ZOrder tiles to maximize screen locality after converting to 1d for compaction
 			// The tile locality ultimately affects trace coherency, since trace compaction pulls from neighboring tiles
 			FReflectionTileData TileData;
-			TileData.Coord     = GroupId * THREADGROUP_SIZE + ThreadOffset;
-			TileData.ClosureIndex = 0;
-			const bool bIsValid = all(TileData.Coord < TileViewportDimensions);
+			TileData.Coord        = GroupId.xy * THREADGROUP_SIZE + ThreadOffset;
+			TileData.ClosureIndex = SUBSTRATE_ENABLED ? GroupId.z : 0;
+			const bool bIsValid   = all(TileData.Coord < TileViewportDimensions);
 			#endif
 
 			if (bIsValid)
 			{
 				bool bTileUsed;
 
-				#if SUPPORT_DOWNSAMPLE_FACTOR && !SUBSTRATE_ENABLED // TODO
-					bTileUsed = SharedTileUsed[ThreadOffset.y * THREADGROUP_SIZE + ThreadOffset.x]; // TODO
+				#if SUPPORT_DOWNSAMPLE_FACTOR
+					bTileUsed = SharedTileUsed[ThreadOffset.y * THREADGROUP_SIZE + ThreadOffset.x];
 				#else
 					const uint3 TileCoordFlatten = uint3(TileData.Coord, TileData.ClosureIndex);
 					bTileUsed = ResolveTileUsed[TileCoordFlatten];
@@ -236,7 +236,7 @@ void ReflectionTileClassificationBuildListsCS(
 				if (bTileUsed)
 				{
 					uint TileOffset = SharedNumTiles;
-					// Note: Must match encoding in WaterTileCatergorisationBuildListsCS TODO!! // TODO SLW?
+					// Note: Must match encoding in WaterTileCatergorisationBuildListsCS
 					SharedTileData[TileOffset] = PackTileData(TileData);
 					SharedNumTiles = TileOffset + 1;
 				}

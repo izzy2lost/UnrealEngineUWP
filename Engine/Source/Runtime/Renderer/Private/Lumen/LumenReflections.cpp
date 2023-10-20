@@ -406,7 +406,6 @@ class FReflectionTileClassificationBuildListsCS : public FGlobalShader
 		SHADER_PARAMETER_STRUCT_INCLUDE(FLumenReflectionTracingParameters, ReflectionTracingParameters)
 		SHADER_PARAMETER(FIntPoint, TileViewportDimensions)
 		SHADER_PARAMETER(FIntPoint, ResolveTileViewportDimensions)
-		SHADER_PARAMETER(uint32, bOverflow)
 		RDG_BUFFER_ACCESS(TileIndirectBuffer, ERHIAccess::IndirectArgs)
 	END_SHADER_PARAMETER_STRUCT()
 
@@ -740,6 +739,7 @@ FLumenReflectionTileParameters ReflectionTileClassification(
 		ReflectionTileClassificationMark(false);
 	}
 
+	// Classification for reflection tiles
 	auto ReflectionTileClassificationBuildLists = [&](bool bOverflow)
 	{
 		FReflectionTileClassificationBuildListsCS::FParameters* PassParameters = GraphBuilder.AllocParameters<FReflectionTileClassificationBuildListsCS::FParameters>();
@@ -751,7 +751,6 @@ FLumenReflectionTileParameters ReflectionTileClassification(
 		PassParameters->TileViewportDimensions = ResolveTileViewportDimensions;
 		PassParameters->ResolveTileViewportDimensions = ResolveTileViewportDimensions;
 		PassParameters->ReflectionTracingParameters = ReflectionTracingParameters;
-		PassParameters->bOverflow = bOverflow ? 1u : 0u;
 
 		FReflectionTileClassificationBuildListsCS::FPermutationDomain PermutationVector;
 		PermutationVector.Set< FReflectionTileClassificationBuildListsCS::FSupportDownsample >(false);
@@ -787,8 +786,8 @@ FLumenReflectionTileParameters ReflectionTileClassification(
 		ReflectionTileClassificationBuildLists(true);
 	}
 
+	// Classification for reflection 'tracing' tiles
 	FRDGBufferRef ReflectionTracingTileData;
-
 	if (ReflectionTracingParameters.ReflectionDownsampleFactor == 1)
 	{
 		ReflectionTracingTileIndirectArgs = ReflectionResolveTileIndirectArgs;
@@ -803,6 +802,7 @@ FLumenReflectionTileParameters ReflectionTileClassification(
 		PassParameters->RWReflectionTileData = GraphBuilder.CreateUAV(ReflectionTracingTileData, PF_R32_UINT);
 		PassParameters->ResolveTileUsed = ResolveTileUsed;
 		PassParameters->View = View.ViewUniformBuffer;
+		PassParameters->Substrate = Substrate::BindSubstrateGlobalUniformParameters(View);
 		PassParameters->TileViewportDimensions = TracingTileViewportDimensions;
 		PassParameters->ResolveTileViewportDimensions = ResolveTileViewportDimensions;
 		PassParameters->ReflectionTracingParameters = ReflectionTracingParameters;
@@ -811,13 +811,17 @@ FLumenReflectionTileParameters ReflectionTileClassification(
 		PermutationVector.Set< FReflectionTileClassificationBuildListsCS::FSupportDownsample >(true);
 		auto ComputeShader = View.ShaderMap->GetShader<FReflectionTileClassificationBuildListsCS>(PermutationVector);
 
+		// When using dowm sampled tracing, dispatch for all layers rather using linear sparse set of tiles (i.e., ClosureTilePerThreadDispatchIndirectBuffer) 
+		// for easing logic within the TileClassificationBuildList shader
+		FIntVector DispatchCount = FComputeShaderUtils::GetGroupCount(TracingTileViewportDimensions, FReflectionTileClassificationBuildListsCS::GetGroupSize());
+		DispatchCount.Z = LayerCount;
 		FComputeShaderUtils::AddPass(
 			GraphBuilder,
 			RDG_EVENT_NAME("TileClassificationBuildTracingLists"),
 			ComputePassFlags,
 			ComputeShader,
 			PassParameters,
-			FComputeShaderUtils::GetGroupCount(TracingTileViewportDimensions, FReflectionTileClassificationBuildListsCS::GetGroupSize()));
+			DispatchCount);
 	}
 
 	ReflectionTileParameters.ResolveIndirectArgs = ReflectionResolveTileIndirectArgs;
@@ -1045,9 +1049,8 @@ FRDGTextureRef FDeferredShadingSceneRenderer::RenderLumenReflections(
 	}
 
 	// Compute effective reflection downsampling factor. 
-	// SUBSTRATE_TODO: add support for downsampling factor with multi-layer. For now force it to 1.
 	const int32 UserDownsampleFactor = View.FinalPostProcessSettings.LumenReflectionQuality <= .25f ? 2 : 1;
-	const float LumenReflectionDownsampleFactor = Substrate::IsSubstrateEnabled() ? 1 : FMath::Clamp(GLumenReflectionDownsampleFactor * UserDownsampleFactor, 1, 4);
+	const float LumenReflectionDownsampleFactor = FMath::Clamp(GLumenReflectionDownsampleFactor * UserDownsampleFactor, 1, 4);
 	ReflectionTracingParameters.ReflectionDownsampleFactor = bDenoise ? LumenReflectionDownsampleFactor : 1;
 	const FIntPoint ViewSize = FIntPoint::DivideAndRoundUp(View.ViewRect.Size(), (int32)ReflectionTracingParameters.ReflectionDownsampleFactor);
 	FIntPoint BufferSize = FIntPoint::DivideAndRoundUp(SceneTextures.Config.Extent, (int32)ReflectionTracingParameters.ReflectionDownsampleFactor);
