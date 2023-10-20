@@ -111,7 +111,8 @@ struct FISMComponentDescription
 		AffectShadow = 1 << 7,
 		AffectDistanceFieldLighting = 1 << 8,
 		AffectDynamicIndirectLighting = 1 << 9,
-		DistanceCullPrimitive = 1 << 10,
+		AffectFarShadow = 1 << 10,
+		DistanceCullPrimitive = 1 << 11,
 	};
 
 	uint32 Flags = WorldPositionOffsetWritesVelocity|EvaluateWorldPositionOffset|AffectShadow;
