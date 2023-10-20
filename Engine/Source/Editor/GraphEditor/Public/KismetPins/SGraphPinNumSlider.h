@@ -41,6 +41,9 @@ protected:
 		
 		const bool bAllowSpin = !(PinProperty && PinProperty->GetBoolMetaData("NoSpinbox"));
 
+		// Save last committed value to compare when value changes
+		LastSliderCommittedValue = GetNumericValue().GetValue();
+		
 		return SNew(SBox)
 			.MinDesiredWidth(18)
 			.MaxDesiredWidth(400)
