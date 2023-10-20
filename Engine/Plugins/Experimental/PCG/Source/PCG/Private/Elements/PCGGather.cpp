@@ -11,7 +11,7 @@ EPCGDataType UPCGGatherSettings::GetCurrentPinTypes(const UPCGPin* InPin) const
 {
 	check(InPin);
 
-	if (InPin->Properties.Label == PCGPinConstants::DefaultDependencyOnlyLabel)
+	if (InPin->Properties.Label == PCGPinConstants::DefaultDependencyOnlyLabel || !InPin->IsOutputPin())
 	{
 		return Super::GetCurrentPinTypes(InPin);
 	}
