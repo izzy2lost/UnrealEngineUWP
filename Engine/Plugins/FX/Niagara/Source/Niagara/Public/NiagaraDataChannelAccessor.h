@@ -170,7 +170,8 @@ struct FNiagaraDataChannelGameDataWriter : public FNiagaraDataChannelGameDataWri
 	/** Write data to a specific variable index. */
 	bool Write(int32 Index, const T& InData)
 	{
-		//static_assert(false, "All implementations must provide a write function");		
+		//static_assert(false, "All implementations must provide a write function");
+		return false;
 	}
 };
 
