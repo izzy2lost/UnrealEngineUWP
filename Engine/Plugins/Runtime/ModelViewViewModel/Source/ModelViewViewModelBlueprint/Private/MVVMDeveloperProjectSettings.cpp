@@ -34,7 +34,7 @@ FName UMVVMDeveloperProjectSettings::GetCategoryName() const
 
 FText UMVVMDeveloperProjectSettings::GetSectionText() const
 {
-	return LOCTEXT("MVVMProjectSettings", "Model View Viewmodel");
+	return LOCTEXT("MVVMProjectSettings", "UMG Model View Viewmodel");
 }
 
 bool UMVVMDeveloperProjectSettings::PropertyHasFiltering(const FProperty* Property) const
