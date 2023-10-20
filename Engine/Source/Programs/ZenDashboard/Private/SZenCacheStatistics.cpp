@@ -174,7 +174,7 @@ TSharedRef<SWidget> SZenCacheStatistics::GetGridPanel()
 	[
 		SNew(STextBlock)
 		.Margin(FMargin(ColumnMargin, RowMargin))
-		.Text_Lambda([bHaveStats, Requests = ZenStats.General.RequestCount]
+		.Text_Lambda([bHaveStats, Requests = ZenStats.Request.Count]
 		{
 			if (bHaveStats)
 			{

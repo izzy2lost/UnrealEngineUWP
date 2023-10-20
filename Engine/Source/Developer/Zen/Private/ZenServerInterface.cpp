@@ -2585,17 +2585,6 @@ FZenServiceInstance::GatherAnalytics(TArray<FAnalyticsEventAttribute>& Attribute
 	}
 
 	{
-		FString AttrName = BaseName + TEXT("Cache_UpstreamHits");
-		Attributes.Emplace(MoveTemp(AttrName), ZenCacheStats.General.UpstreamHits);
-	}
-
-	{
-		FString AttrName = BaseName + TEXT("Cache_UpstreamRatio");
-		Attributes.Emplace(MoveTemp(AttrName), ZenCacheStats.General.UpstreamRatio);
-	}
-
-
-	{
 		FString AttrName = BaseName + TEXT("Cache_Cas_Hits");
 		Attributes.Emplace(MoveTemp(AttrName), ZenCacheStats.General.CidHits);
 	}
@@ -2612,7 +2601,7 @@ FZenServiceInstance::GatherAnalytics(TArray<FAnalyticsEventAttribute>& Attribute
 
 	{
 		FString AttrName = BaseName + TEXT("Cache_Requests");
-		Attributes.Emplace(MoveTemp(AttrName), ZenCacheStats.General.RequestCount);
+		Attributes.Emplace(MoveTemp(AttrName), ZenCacheStats.Request.Count);
 	}
 
 	{

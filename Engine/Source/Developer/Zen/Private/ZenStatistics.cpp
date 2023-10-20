@@ -39,12 +39,9 @@ bool LoadFromCompactBinary(FCbFieldView Field, FZenCacheStats::FGeneralStats& Ou
 	bOk = LoadFromCompactBinary(Field["misses"], OutValue.Misses) & bOk;
 	bOk = LoadFromCompactBinary(Field["writes"], OutValue.Writes) & bOk;
 	bOk = LoadFromCompactBinary(Field["hit_ratio"], OutValue.HitRatio) & bOk;
-	bOk = LoadFromCompactBinary(Field["upstream_hits"], OutValue.UpstreamHits) & bOk;
-	bOk = LoadFromCompactBinary(Field["upstream_ratio"], OutValue.UpstreamRatio) & bOk;
 	bOk = LoadFromCompactBinary(Field["cidhits"], OutValue.CidHits) & bOk;
 	bOk = LoadFromCompactBinary(Field["cidmisses"], OutValue.CidMisses) & bOk;
 	bOk = LoadFromCompactBinary(Field["cidwrites"], OutValue.CidWrites) & bOk;
-	bOk = LoadFromCompactBinary(Field["requestcount"], OutValue.RequestCount) & bOk;
 	bOk = LoadFromCompactBinary(Field["badrequestcount"], OutValue.BadRequestCount) & bOk;
 	return bOk;
 }
@@ -113,8 +110,13 @@ bool LoadFromCompactBinary(FCbFieldView Field, FZenCacheStats& OutValue)
 	bool bOk = Field.IsObject();
 	bOk = LoadFromCompactBinary(Field["cache"], OutValue.General) & bOk;
 	bOk = LoadFromCompactBinary(Field["requests"], OutValue.Request) & bOk;
-	bOk = LoadFromCompactBinary(Field["upstream"], OutValue.Upstream) & bOk;
-	bOk = LoadFromCompactBinary(Field["upstream_gets"], OutValue.UpstreamRequest) & bOk;
+
+	FCbFieldView UpstreamFieldView = Field["upstream"];
+	if (UpstreamFieldView.IsObject())
+	{
+		bOk = LoadFromCompactBinary(UpstreamFieldView, OutValue.Upstream) & bOk;
+		bOk = LoadFromCompactBinary(Field["upstream_gets"], OutValue.UpstreamRequest) & bOk;
+	}
 	bOk = LoadFromCompactBinary(Field["cid"], OutValue.CID) & bOk;
 	return bOk;
 }
