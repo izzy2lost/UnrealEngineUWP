@@ -15,7 +15,7 @@ class FSlateStyleSet;
 /**
  * Interface for messaging modules.
  */
-class ILiveLinkModule
+class LIVELINK_API ILiveLinkModule
 	: public IModuleInterface
 {
 public:

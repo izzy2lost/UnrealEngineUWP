@@ -115,7 +115,9 @@ void FLiveLinkPanelController::OnSubjectSelectionChanged(FLiveLinkSubjectUIEntry
 
 	if (!bDetailViewSet)
 	{
+#if !WITH_LIVELINK_HUB
 		SourcesDetailsView->SetObject(nullptr);
+#endif
 		SubjectsDetailsView->SetSubjectKey(FLiveLinkSubjectKey());
 	}
 

@@ -12,7 +12,7 @@ class IMessageContext;
 class FLiveLinkMessageBusSource;
 
 /** A class to asynchronously discover message bus sources. */
-class FLiveLinkMessageBusDiscoveryManager : FRunnable
+class LIVELINK_API FLiveLinkMessageBusDiscoveryManager : FRunnable
 {
 public:
 	FLiveLinkMessageBusDiscoveryManager();

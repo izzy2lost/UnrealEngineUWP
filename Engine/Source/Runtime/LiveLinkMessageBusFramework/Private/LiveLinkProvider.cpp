@@ -3,6 +3,7 @@
 #include "LiveLinkProvider.h"
 #include "LiveLinkProviderImpl.h"
 
+#include "Algo/RemoveIf.h"
 #include "HAL/PlatformProcess.h"
 #include "IMessageContext.h"
 #include "LiveLinkMessages.h"
@@ -93,10 +94,20 @@ void FLiveLinkProvider::ValidateConnections()
 {
 	FConnectionValidator Validator;
 
-	const int32 RemovedConnections = ConnectedAddresses.RemoveAll([=](const FTrackedAddress& Address) { return !Validator(Address); });
-
-	if (RemovedConnections > 0)
+	TArray<FMessageAddress> RemovedConnections;
+	Algo::RemoveIf(ConnectedAddresses, [this, &Validator, &RemovedConnections](const FTrackedAddress& Address) mutable
 	{
+		if (!Validator(Address))
+	    {
+			RemovedConnections.Add(Address.Address);
+			return true;
+	    }
+		return false;
+	});
+
+	if (RemovedConnections.Num() > 0)
+	{
+		OnConnectionsClosed(RemovedConnections);
 		OnConnectionStatusChanged.Broadcast();
 	}
 }
@@ -117,7 +128,7 @@ void FLiveLinkProvider::SendSubject(FName SubjectName, const FTrackedSubject& Su
 	TArray<FMessageAddress> Addresses;
 	GetConnectedAddresses(Addresses);
 
-	MessageEndpoint->Send(SubjectData, Addresses);
+	MessageEndpoint->Send(SubjectData, FLiveLinkSubjectDataMessage::StaticStruct(), EMessageFlags::None, GetAnnotations(), nullptr, Addresses, FTimespan::Zero(), FDateTime::MaxValue());
 }
 
 // Send frame data for named subject
@@ -133,7 +144,7 @@ void FLiveLinkProvider::SendSubjectFrame(FName SubjectName, const FTrackedSubjec
 	TArray<FMessageAddress> Addresses;
 	GetConnectedAddresses(Addresses);
 
-	MessageEndpoint->Send(SubjectFrame, Addresses);
+	MessageEndpoint->Send(SubjectFrame, FLiveLinkSubjectFrameMessage::StaticStruct(), EMessageFlags::None, GetAnnotations(), nullptr, Addresses, FTimespan::Zero(), FDateTime::MaxValue());
 }
 
 // Get the cached data for the named subject
@@ -195,7 +206,7 @@ void FLiveLinkProvider::SendClearSubjectToConnections(FName SubjectName)
 	TArray<FMessageAddress> MessageAddresses;
 	GetConnectedAddresses(MessageAddresses);
 
-	MessageEndpoint->Send(FMessageEndpoint::MakeMessage<FLiveLinkClearSubject>(SubjectName), EMessageFlags::Reliable, nullptr, MessageAddresses, FTimespan::Zero(), FDateTime::MaxValue());
+	MessageEndpoint->Send(FMessageEndpoint::MakeMessage<FLiveLinkClearSubject>(SubjectName), EMessageFlags::Reliable, GetAnnotations(), nullptr, MessageAddresses, FTimespan::Zero(), FDateTime::MaxValue());
 }
 
 FLiveLinkProvider::FLiveLinkProvider(const FString& InProviderName)
@@ -211,6 +222,17 @@ FLiveLinkProvider::FLiveLinkProvider(const FString& InProviderName, FMessageEndp
 	, MachineName(FPlatformProcess::ComputerName())
 {
 	CreateMessageEndpoint(EndpointBuilder);
+}
+
+FLiveLinkProvider::FLiveLinkProvider(const FString& InProviderName, bool bInCreateEndpoint)
+	: ProviderName(InProviderName)
+	, MachineName(FPlatformProcess::ComputerName())
+{
+	if (bInCreateEndpoint)
+	{
+		FMessageEndpointBuilder EndpointBuilder = FMessageEndpoint::Builder(*InProviderName);
+    	CreateMessageEndpoint(EndpointBuilder);
+	}
 }
 
 FLiveLinkProvider::~FLiveLinkProvider()
@@ -404,7 +426,7 @@ void FLiveLinkProvider::HandlePingMessage(const FLiveLinkPingMessage& Message, c
 		return;
 	}
 
-	MessageEndpoint->Send(FMessageEndpoint::MakeMessage<FLiveLinkPongMessage>(ProviderName, MachineName, Message.PollRequest, LIVELINK_SupportedVersion), Context->GetSender());
+	MessageEndpoint->Send(FMessageEndpoint::MakeMessage<FLiveLinkPongMessage>(ProviderName, MachineName, Message.PollRequest, LIVELINK_SupportedVersion), GetAnnotations(), Context->GetSender());
 }
 
 void FLiveLinkProvider::HandleConnectMessage(const FLiveLinkConnectMessage& Message, const TSharedRef<IMessageContext, ESPMode::ThreadSafe>& Context)
@@ -435,7 +457,7 @@ void FLiveLinkProvider::HandleConnectMessage(const FLiveLinkConnectMessage& Mess
 		TArray<FMessageAddress> MessageAddress;
 		MessageAddress.Add(ConnectionAddress);
 
-		TMap<FName, FString> Annotations;
+		TMap<FName, FString> Annotations = GetAnnotations();
 		Annotations.Add(FLiveLinkMessageAnnotation::SubjectAnnotation, TEXT(""));
 		Annotations.Add(FLiveLinkMessageAnnotation::RoleAnnotation, TEXT(""));
 
@@ -469,7 +491,7 @@ void FLiveLinkProvider::HandleHeartbeat(const FLiveLinkHeartbeatMessage& Message
 		TrackedAddress->LastHeartbeatTime = FPlatformTime::Seconds();
 
 		// Respond so editor gets heartbeat too
-		MessageEndpoint->Send(FMessageEndpoint::MakeMessage<FLiveLinkHeartbeatMessage>(), Context->GetSender());
+		MessageEndpoint->Send(FMessageEndpoint::MakeMessage<FLiveLinkHeartbeatMessage>(), GetAnnotations(), Context->GetSender());
 	}
 }
 

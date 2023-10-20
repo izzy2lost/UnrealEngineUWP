@@ -51,13 +51,10 @@ private:
 	// Delegate to notify interested parties when the client sources have changed
 	FLiveLinkProviderConnectionStatusChanged OnConnectionStatusChanged;
 
-	void CreateMessageEndpoint(struct FMessageEndpointBuilder& EndpointBuilder);
-
+private:
 	//Message bus message handlers
 	void HandlePingMessage(const FLiveLinkPingMessage& Message,
 						   const TSharedRef<class IMessageContext, ESPMode::ThreadSafe>& Context);
-	void HandleConnectMessage(const FLiveLinkConnectMessage& Message,
-							  const TSharedRef<class IMessageContext, ESPMode::ThreadSafe>& Context);
 	void HandleHeartbeat(const FLiveLinkHeartbeatMessage& Message,
 						 const TSharedRef<class IMessageContext, ESPMode::ThreadSafe>& Context);
 	// End message bus message handlers
@@ -83,6 +80,12 @@ private:
 	void SendClearSubjectToConnections(FName SubjectName);
 
 protected:
+	// Update connected addresses and send information to the connected source
+	void HandleConnectMessage(const FLiveLinkConnectMessage& Message, const TSharedRef<class IMessageContext, ESPMode::ThreadSafe>& Context);
+
+	// Create the message bus message endoing responsble for dispatching message bus messages to their respective handlers
+	void CreateMessageEndpoint(struct FMessageEndpointBuilder& EndpointBuilder);
+	
 	// Get the addresses of all connected instances.
 	void GetConnectedAddresses(TArray<FMessageAddress>& Addresses);
 
@@ -134,6 +137,18 @@ protected:
 	{
 		return MachineName;
 	}
+
+	// Called after ValidateConnections removes invalid connections 
+	virtual void OnConnectionsClosed(const TArray<FMessageAddress>& ClosedAddresses) {}
+
+	// Get annotations to include on every message sent by this provider
+	virtual TMap<FName, FString> GetAnnotations() const
+	{
+		return {};
+	}
+
+	// Constructor for derived classes that allows specifying that no endpoint should be created.
+	FLiveLinkProvider(const FString& InProviderName, bool bInCreateEndpoint);
 
 public:
 	FLiveLinkProvider(const FString& InProviderName);
