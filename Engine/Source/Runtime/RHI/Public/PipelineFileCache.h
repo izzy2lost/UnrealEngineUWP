@@ -34,7 +34,6 @@ struct FPipelineFileCacheRasterizerState
 	TEnumAsByte<ERasterizerCullMode> CullMode;
 	ERasterizerDepthClipMode DepthClipMode;
 	bool bAllowMSAA;
-	bool bEnableLineAA;
 	
 	FPipelineFileCacheRasterizerState& operator=(FRasterizerStateInitializerRHI const& Other)
 	{
@@ -44,13 +43,12 @@ struct FPipelineFileCacheRasterizerState
 		CullMode = Other.CullMode;
 		DepthClipMode = Other.DepthClipMode;
 		bAllowMSAA = Other.bAllowMSAA;
-		bEnableLineAA = Other.bEnableLineAA;
 		return *this;
 	}
 	
 	operator FRasterizerStateInitializerRHI() const
 	{
-		FRasterizerStateInitializerRHI Initializer(FillMode, CullMode, DepthBias, SlopeScaleDepthBias, DepthClipMode, bAllowMSAA, bEnableLineAA);
+		FRasterizerStateInitializerRHI Initializer(FillMode, CullMode, DepthBias, SlopeScaleDepthBias, DepthClipMode, bAllowMSAA);
 		return Initializer;
 	}
 	
@@ -62,7 +60,6 @@ struct FPipelineFileCacheRasterizerState
 		Ar << RasterizerStateInitializer.CullMode;
 		Ar << RasterizerStateInitializer.DepthClipMode;
 		Ar << RasterizerStateInitializer.bAllowMSAA;
-		Ar << RasterizerStateInitializer.bEnableLineAA;
 		return Ar;
 	}
 
@@ -73,7 +70,6 @@ struct FPipelineFileCacheRasterizerState
 		KeyHash ^= Key.CullMode;
 		KeyHash ^= Key.DepthClipMode == ERasterizerDepthClipMode::DepthClamp ? 0x951f4c3b : 0; // crc32 "DepthClamp"
 		KeyHash ^= Key.bAllowMSAA ? 0x694ea601 : 0; // crc32 "bAllowMSAA"
-		KeyHash ^= Key.bEnableLineAA ? 0x48271d01 : 0; // crc32 "bEnableLineAA"
 		return KeyHash;
 	}
 	RHI_API FString ToString() const;

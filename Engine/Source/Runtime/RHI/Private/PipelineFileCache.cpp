@@ -80,12 +80,13 @@ enum class EPipelineCacheFileFormatVersions : uint32
 	MoreRenderTargetFlags = 23,
 	FragmentDensityAttachment = 24,
 	AddingDepthClipMode = 25,
+	RemovingLineAA = 26,
 };
 
 const uint64 FPipelineCacheFileFormatMagic = 0x5049504543414348; // PIPECACH
 const uint64 FPipelineCacheTOCFileFormatMagic = 0x544F435354415232; // TOCSTAR2
 const uint64 FPipelineCacheEOFFileFormatMagic = 0x454F462D4D41524B; // EOF-MARK
-const RHI_API uint32 FPipelineCacheFileFormatCurrentVersion = (uint32)EPipelineCacheFileFormatVersions::AddingDepthClipMode;
+const RHI_API uint32 FPipelineCacheFileFormatCurrentVersion = (uint32)EPipelineCacheFileFormatVersions::RemovingLineAA;
 const int32  FPipelineCacheGraphicsDescPartsNum = 66; // parser will expect this number of parts in a description string
 
 /**
@@ -382,26 +383,25 @@ struct FPipelineCacheFileFormatPSOMetaData
 
 FString FPipelineFileCacheRasterizerState::ToString() const
 {
-	return FString::Printf(TEXT("<%f %f %u %u %u %u %u>")
+	return FString::Printf(TEXT("<%f %f %u %u %u %u>")
 		, DepthBias
 		, SlopeScaleDepthBias
 		, uint32(FillMode)
 		, uint32(CullMode)
 		, uint32(DepthClipMode)
 		, uint32(!!bAllowMSAA)
-		, uint32(!!bEnableLineAA)
 	);
 }
 
 void FPipelineFileCacheRasterizerState::FromString(const FStringView& Src)
 {
-	constexpr int32 PartCount = 7;
+	constexpr int32 PartCount = 6;
 
 	TArray<FStringView, TInlineAllocator<PartCount>> Parts;
 	UE::String::ParseTokensMultiple(Src.TrimStartAndEnd(), {TEXT('\r'), TEXT('\n'), TEXT('\t'), TEXT('<'), TEXT('>'), TEXT(' ')},
 		[&Parts](FStringView Part) { if (!Part.IsEmpty()) { Parts.Add(Part); } });
 
-	check(Parts.Num() == PartCount && sizeof(FillMode) == 1 && sizeof(CullMode) == 1 && sizeof(DepthClipMode) == 1 && sizeof(bAllowMSAA) == 1 && sizeof(bEnableLineAA) == 1); //not a very robust parser
+	check(Parts.Num() == PartCount && sizeof(FillMode) == 1 && sizeof(CullMode) == 1 && sizeof(DepthClipMode) == 1 && sizeof(bAllowMSAA) == 1); //not a very robust parser
 	const FStringView* PartIt = Parts.GetData();
 
 	LexFromString(DepthBias, *PartIt++);
@@ -410,7 +410,6 @@ void FPipelineFileCacheRasterizerState::FromString(const FStringView& Src)
 	LexFromString((uint8&)CullMode, *PartIt++);
 	LexFromString((uint8&)DepthClipMode, *PartIt++);
 	LexFromString((uint8&)bAllowMSAA, *PartIt++);
-	LexFromString((uint8&)bEnableLineAA, *PartIt++);
 
 	check(Parts.GetData() + PartCount == PartIt);
 }
@@ -1134,7 +1133,6 @@ bool FPipelineCacheFileFormatPSO::Verify() const
 			KeyHash = FCrc::MemCrc32(&Key.GraphicsDesc.RasterizerState.FillMode, sizeof(Key.GraphicsDesc.RasterizerState.FillMode), KeyHash);
 			KeyHash = FCrc::MemCrc32(&Key.GraphicsDesc.RasterizerState.CullMode, sizeof(Key.GraphicsDesc.RasterizerState.CullMode), KeyHash);
 			KeyHash = FCrc::MemCrc32(&Key.GraphicsDesc.RasterizerState.bAllowMSAA, sizeof(Key.GraphicsDesc.RasterizerState.bAllowMSAA), KeyHash);
-			KeyHash = FCrc::MemCrc32(&Key.GraphicsDesc.RasterizerState.bEnableLineAA, sizeof(Key.GraphicsDesc.RasterizerState.bEnableLineAA), KeyHash);
 				
 			KeyHash = FCrc::MemCrc32(&Key.GraphicsDesc.DepthStencilState.bEnableDepthWrite, sizeof(Key.GraphicsDesc.DepthStencilState.bEnableDepthWrite), KeyHash);
 			KeyHash = FCrc::MemCrc32(&Key.GraphicsDesc.DepthStencilState.DepthTest, sizeof(Key.GraphicsDesc.DepthStencilState.DepthTest), KeyHash);

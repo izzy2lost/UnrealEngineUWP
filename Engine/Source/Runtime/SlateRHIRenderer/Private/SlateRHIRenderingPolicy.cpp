@@ -870,11 +870,11 @@ void FSlateRHIRenderingPolicy::DrawElements(
 
 		if (EnumHasAllFlags(DrawFlags, ESlateBatchDrawFlag::Wireframe))
 		{
-			GraphicsPSOInit.RasterizerState = TStaticRasterizerState<FM_Wireframe, CM_None, false>::GetRHI();
+			GraphicsPSOInit.RasterizerState = TStaticRasterizerState<FM_Wireframe>::GetRHI();
 		}
 		else
 		{
-			GraphicsPSOInit.RasterizerState = TStaticRasterizerState<FM_Solid, CM_None, false>::GetRHI();
+			GraphicsPSOInit.RasterizerState = TStaticRasterizerState<FM_Solid>::GetRHI();
 		}
 
 		if (!RenderBatch.CustomDrawer)
@@ -970,7 +970,7 @@ void FSlateRHIRenderingPolicy::DrawElements(
 
 				if (EnumHasAllFlags(DrawFlags, ESlateBatchDrawFlag::Wireframe) || Params.bWireFrame)
 				{
-					GraphicsPSOInit.RasterizerState = TStaticRasterizerState<FM_Wireframe, CM_None, false>::GetRHI();
+					GraphicsPSOInit.RasterizerState = TStaticRasterizerState<FM_Wireframe>::GetRHI();
 
 					if (Params.bWireFrame)
 					{
@@ -979,7 +979,7 @@ void FSlateRHIRenderingPolicy::DrawElements(
 				}
 				else
 				{
-					GraphicsPSOInit.RasterizerState = TStaticRasterizerState<FM_Solid, CM_None, false>::GetRHI();
+					GraphicsPSOInit.RasterizerState = TStaticRasterizerState<FM_Solid>::GetRHI();
 				}
 
 				GraphicsPSOInit.BoundShaderState.VertexDeclarationRHI = GSlateVertexDeclaration.VertexDeclarationRHI;

@@ -303,18 +303,42 @@ struct FRasterizerStateInitializerRHI
 	float SlopeScaleDepthBias = 0.0f;
 	ERasterizerDepthClipMode DepthClipMode = ERasterizerDepthClipMode::DepthClip;
 	bool bAllowMSAA = false;
+	UE_DEPRECATED(5.4, "bEnableLineAA is unsupported")
 	bool bEnableLineAA = false;
 
+	PRAGMA_DISABLE_DEPRECATION_WARNINGS
 	FRasterizerStateInitializerRHI() = default;
+	FRasterizerStateInitializerRHI(const FRasterizerStateInitializerRHI&) = default;
+	FRasterizerStateInitializerRHI(FRasterizerStateInitializerRHI&&) = default;
+	FRasterizerStateInitializerRHI& operator=(const FRasterizerStateInitializerRHI&) = default;
+	PRAGMA_ENABLE_DEPRECATION_WARNINGS
 
+	FRasterizerStateInitializerRHI(ERasterizerFillMode InFillMode, ERasterizerCullMode InCullMode, bool bInAllowMSAA)
+		: FillMode(InFillMode)
+		, CullMode(InCullMode)
+		, bAllowMSAA(bInAllowMSAA)
+	{
+	}
+
+	FRasterizerStateInitializerRHI(ERasterizerFillMode InFillMode, ERasterizerCullMode InCullMode, float InDepthBias, float InSlopeScaleDepthBias, ERasterizerDepthClipMode InDepthClipMode, bool bInAllowMSAA)
+		: FillMode(InFillMode)
+		, CullMode(InCullMode)
+		, DepthBias(InDepthBias)
+		, SlopeScaleDepthBias(InSlopeScaleDepthBias)
+		, DepthClipMode(InDepthClipMode)
+		, bAllowMSAA(bInAllowMSAA)
+	{
+	}
+
+	UE_DEPRECATED(5.4, "bEnableLineAA is unsupported")
 	FRasterizerStateInitializerRHI(ERasterizerFillMode InFillMode, ERasterizerCullMode InCullMode, bool bInAllowMSAA, bool bInEnableLineAA)
 		: FillMode(InFillMode)
 		, CullMode(InCullMode)
 		, bAllowMSAA(bInAllowMSAA)
-		, bEnableLineAA(bInEnableLineAA)
 	{
 	}
 
+	UE_DEPRECATED(5.4, "bEnableLineAA is unsupported")
 	FRasterizerStateInitializerRHI(ERasterizerFillMode InFillMode, ERasterizerCullMode InCullMode, float InDepthBias, float InSlopeScaleDepthBias, ERasterizerDepthClipMode InDepthClipMode, bool bInAllowMSAA, bool bInEnableLineAA)
 		: FillMode(InFillMode)
 		, CullMode(InCullMode)
@@ -322,11 +346,10 @@ struct FRasterizerStateInitializerRHI
 		, SlopeScaleDepthBias(InSlopeScaleDepthBias)
 		, DepthClipMode(InDepthClipMode)
 		, bAllowMSAA(bInAllowMSAA)
-		, bEnableLineAA(bInEnableLineAA)
 	{
 	}
 
-	friend FArchive& operator<<(FArchive& Ar,FRasterizerStateInitializerRHI& RasterizerStateInitializer)
+	friend FArchive& operator<<(FArchive& Ar, FRasterizerStateInitializerRHI& RasterizerStateInitializer)
 	{
 		Ar << RasterizerStateInitializer.FillMode;
 		Ar << RasterizerStateInitializer.CullMode;
@@ -334,7 +357,6 @@ struct FRasterizerStateInitializerRHI
 		Ar << RasterizerStateInitializer.SlopeScaleDepthBias;
 		Ar << RasterizerStateInitializer.DepthClipMode;
 		Ar << RasterizerStateInitializer.bAllowMSAA;
-		Ar << RasterizerStateInitializer.bEnableLineAA;
 		return Ar;
 	}
 

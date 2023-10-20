@@ -324,7 +324,6 @@ bool FD3D12RasterizerState::GetInitializer(struct FRasterizerStateInitializerRHI
 	check(Desc.DepthBias == FMath::FloorToInt(Init.DepthBias * static_cast<float>(1 << 24)));
 	Init.SlopeScaleDepthBias = Desc.SlopeScaledDepthBias;
 	Init.bAllowMSAA = !!Desc.MultisampleEnable;
-	Init.bEnableLineAA = false;
 	return true;
 }
 

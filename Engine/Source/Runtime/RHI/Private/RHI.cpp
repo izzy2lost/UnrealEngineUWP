@@ -232,7 +232,6 @@ uint32 GetTypeHash(const FRasterizerStateInitializerRHI& Initializer)
 	Hash = HashCombine(Hash, GetTypeHash(Initializer.SlopeScaleDepthBias));
 	Hash = HashCombine(Hash, GetTypeHash(Initializer.DepthClipMode));
 	Hash = HashCombine(Hash, GetTypeHash(Initializer.bAllowMSAA));
-	Hash = HashCombine(Hash, GetTypeHash(Initializer.bEnableLineAA));
 	return Hash;
 }
 	
@@ -244,8 +243,7 @@ bool operator== (const FRasterizerStateInitializerRHI& A, const FRasterizerState
 		A.DepthBias == B.DepthBias && 
 		A.SlopeScaleDepthBias == B.SlopeScaleDepthBias &&
 		A.DepthClipMode == B.DepthClipMode &&
-		A.bAllowMSAA == B.bAllowMSAA && 
-		A.bEnableLineAA == B.bEnableLineAA;
+		A.bAllowMSAA == B.bAllowMSAA;
 	return bSame;
 }
 
