@@ -1879,10 +1879,12 @@ int32 FNiagaraEditorUtilities::GetWeightForItem(const TSharedPtr<FNiagaraMenuAct
 		}
 	}
 
-	// parameter actions get favored
 	if(InCurrentAction->GetParameterVariable().IsSet())
 	{
-		TotalWeight *= 2;
+		if(InCurrentAction->GetParameterVariable().GetValue().IsInNameSpace(FNiagaraConstants::ParameterCollectionNamespaceString))
+		{
+			TotalWeight *= 0.5f;
+		}
 	}
 
 	// suggested actions get favored massively
