@@ -3,7 +3,6 @@
 #include "Framework/MultiBox/MultiBox.h"
 
 #include "SClippingVerticalBox.h"
-#include "HAL/PlatformMisc.h"
 #include "Misc/ConfigCacheIni.h"
 #include "Widgets/SBoxPanel.h"
 #include "Widgets/SOverlay.h"
@@ -449,14 +448,6 @@ TSharedRef< SMultiBoxWidget > FMultiBox::MakeWidget( bool bSearchable, FOnMakeMu
 		// Build up the widget
 		NewMultiBoxWidget->BuildMultiBoxWidget();
 	}
-
-#if PLATFORM_MAC
-	// Hide the main menu on the Mac if we are using the macOS system menu instead.
-	if (Type == EMultiBoxType::MenuBar && !FPlatformMisc::CanShowMenusInWindows())
-	{
-		NewMultiBoxWidget->SetVisibility(EVisibility::Collapsed);
-	}
-#endif
 	
 	return NewMultiBoxWidget;
 }

@@ -3,7 +3,6 @@
 #include "Framework/Docking/SDockingTabStack.h"
 #include "Framework/Commands/UIAction.h"
 #include "Framework/Commands/UICommandList.h"
-#include "HAL/PlatformMisc.h"
 #include "Widgets/Text/STextBlock.h"
 #include "Framework/MultiBox/MultiBoxBuilder.h"
 #include "Layout/WidgetPath.h"
@@ -871,7 +870,7 @@ void SDockingTabStack::ReserveSpaceForWindowChrome(EChromeElement Element, bool 
 		FMargin ControlsPadding;
 		static const FMargin IconPadding = FMargin(0);
 
-		if (FPlatformMisc::CanShowMenusInWindows() && bIncludePaddingForMenuBar)
+		if (bIncludePaddingForMenuBar)
 		{
 			static const float TopPaddingForTrafficLightsAndMenuBar = 30.0f;
 			// Always add padding on top, because on the Mac there is always either a main menu bar or the "traffic light" buttons (close, minimize, and maximize) above controls.
