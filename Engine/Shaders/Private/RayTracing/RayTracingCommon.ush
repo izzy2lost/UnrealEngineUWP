@@ -607,7 +607,7 @@ struct FPackedMaterialClosestHitPayload : FMinimalPayload
 	void SetRayCone(FRayCone NewRayCone)	{ PackedRayCone = PackRayCone(NewRayCone); }
 
 	float GetMipBias()						{ return UnpackR8(Flags>>8u); }
-	void SetMipBias(float NewMipBias)		{ Flags = PackR8(NewMipBias) << 8u; }
+	void SetMipBias(float NewMipBias)		{ Flags = (Flags & 0xFFFF00FFF) | (PackR8(NewMipBias) << 8u); }
 
 	void SetRadiance(in float3 In)			{ Radiance = PackR11G11B10F(In); }
 	float3 GetRadiance()					{ return UnpackR11G11B10F(Radiance); }
@@ -637,9 +637,9 @@ struct FPackedMaterialClosestHitPayload : FMinimalPayload
 	float GetOpacity()						{ return UnpackR8(Flags >> 24u); }
 
 	void SetFlags(uint In)							{ Flags |= ((In & 0xFF)); }
-	void SetBlendingMode(uint In)					{ Flags |= ((In & 0x7)<<16u); }
-	void SetPrimitiveLightingChannelMask(uint In)	{ Flags |= ((In & 0x7)<<19u); }
-	void SetOpacity(float In)						{ Flags |= PackR8(In) << 24u; }
+	void SetBlendingMode(uint In)					{ Flags  = (Flags & 0xFFF8FFFF) | ((In & 0x7)<<16u); }
+	void SetPrimitiveLightingChannelMask(uint In)	{ Flags  = (Flags & 0xFFC7FFFF) | ((In & 0x7)<<19u); }
+	void SetOpacity(float In)						{ Flags  = (Flags & 0x00FFFFFF) | (PackR8(In) << 24u); }
 
 	void SetRayDirection(float3 In)			{ PackedRayCone = SubstratePackNormal(In); }
 	float3 GetRayDirection()				{ return SubstrateUnpackNormal(PackedRayCone); }

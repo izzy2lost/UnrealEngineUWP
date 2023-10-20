@@ -271,7 +271,21 @@ void GetMaterialPayload(
 	// Generate the Substrate material data to write out
 	FSubstrateAddressing SubstrateAddressing = GetSubstratePixelDataByteOffset(0,0,0);
 
-	const float3 CamVector = MaterialParameters.CameraVector;	
+	// Compute TotalCoverage for translucent material
+#if MATERIALBLENDING_ANY_TRANSLUCENT
+	if (SubstratePixelHeader.SubstrateTree.BSDFCount > 0)
+	{
+		float OutTransmittancePreCoverage = 0.f;
+		SubstratePixelHeader.SubstrateUpdateTree(
+			SubstrateData, 
+			MaterialParameters.CameraVector, 
+			Settings, 
+			TotalCoverage, 
+			OutTransmittancePreCoverage);
+	}
+	#endif
+
+	const float3 CamVector = MaterialParameters.CameraVector;
 	Payload.SubstrateData = InitialiseRWSubstrateMaterialContainer();
 	PackSubstrateOut(
 		Payload.SubstrateData,
