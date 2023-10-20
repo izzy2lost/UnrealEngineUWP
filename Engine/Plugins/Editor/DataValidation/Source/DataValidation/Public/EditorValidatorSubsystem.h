@@ -312,6 +312,8 @@ public:
 
 protected:
 	void CleanupValidators();
+	
+	void WaitForAssetCompilationIfNecessary(EDataValidationUsecase InUsecase) const;
 
 	/**
 	 * @return Returns true if the current Path should be skipped for validation. Returns false otherwise.
@@ -341,7 +343,7 @@ protected:
 	/** 
 	 * Validate a set of assets, adding the results to the log/output of a higher level task (e.g. changelist validation).
 	 */
-	void ValidateAssetsInternal(
+	EDataValidationResult ValidateAssetsInternal(
 		FMessageLog& 					DataValidationLog,
 		TSet<FAssetData>				Assets,
 		const FValidateAssetsSettings& 	InSettings,
