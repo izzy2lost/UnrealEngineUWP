@@ -170,11 +170,6 @@ void FlushRHIThreadToUpdateTextureRenderTargetReference()
 
 
 
-FWorldRenderCapture::FWorldRenderCapture()
-{
-	Dimensions = FImageDimensions(128, 128);
-}
-
 FWorldRenderCapture::~FWorldRenderCapture()
 {
 	Shutdown();
