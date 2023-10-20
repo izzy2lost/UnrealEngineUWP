@@ -699,8 +699,6 @@ float NeighborhoodClampExpandWithResolveVariance;
 
 float4 HistoryScreenPositionScaleBias;
 float4 HistoryUVMinMax;
-float4 HistoryEffectiveResolution;
-float4 EffectiveResolution;
 
 Texture2D VelocityTexture;
 SamplerState VelocityTextureSampler;
@@ -875,16 +873,16 @@ struct FSpecularIndirectHistory
 // Fetch the specular indirect history
 // * Returns the filtered specular indirect value (average only valid history sample
 // * Returns the weights of each indirect samples (valid/invalid)
-FSpecularIndirectHistory FetchHistory(FBilinear InBilinearPrimary, uint InBSDFIndex, float4 InWeights = float4(1,1,1,1))
+FSpecularIndirectHistory FetchHistory(FBilinear InBilinear, uint InBSDFIndex, float4 InWeights = float4(1,1,1,1))
 {
 	FSpecularIndirectHistory Out;
-	Out.Weights = GetBilinearCustomWeights(InBilinearPrimary, InWeights);
-	FGatherUV InBilinearExtended = GetGatherUV(InBilinearPrimary, HistoryEffectiveResolution.zw);
+	Out.Weights = GetBilinearCustomWeights(InBilinear, InWeights);
+	FGatherUV InHistoryBilinear = GetGatherUV(InBilinear, View.BufferSizeAndInvSize.zw);
 
-	const float4 HistorySpecularIndirect00 = Texture2DArraySampleLevel(SpecularIndirectHistory, GlobalPointClampedSampler, float3(InBilinearExtended.UV00, InBSDFIndex), 0).xyzw;
-	const float4 HistorySpecularIndirect10 = Texture2DArraySampleLevel(SpecularIndirectHistory, GlobalPointClampedSampler, float3(InBilinearExtended.UV10, InBSDFIndex), 0).xyzw;
-	const float4 HistorySpecularIndirect01 = Texture2DArraySampleLevel(SpecularIndirectHistory, GlobalPointClampedSampler, float3(InBilinearExtended.UV01, InBSDFIndex), 0).xyzw;
-	const float4 HistorySpecularIndirect11 = Texture2DArraySampleLevel(SpecularIndirectHistory, GlobalPointClampedSampler, float3(InBilinearExtended.UV11, InBSDFIndex), 0).xyzw;
+	const float4 HistorySpecularIndirect00 = Texture2DArraySampleLevel(SpecularIndirectHistory, GlobalPointClampedSampler, float3(InHistoryBilinear.UV00, InBSDFIndex), 0).xyzw;
+	const float4 HistorySpecularIndirect10 = Texture2DArraySampleLevel(SpecularIndirectHistory, GlobalPointClampedSampler, float3(InHistoryBilinear.UV10, InBSDFIndex), 0).xyzw;
+	const float4 HistorySpecularIndirect01 = Texture2DArraySampleLevel(SpecularIndirectHistory, GlobalPointClampedSampler, float3(InHistoryBilinear.UV01, InBSDFIndex), 0).xyzw;
+	const float4 HistorySpecularIndirect11 = Texture2DArraySampleLevel(SpecularIndirectHistory, GlobalPointClampedSampler, float3(InHistoryBilinear.UV11, InBSDFIndex), 0).xyzw;
 
 	Out.Weights.x *= HistorySpecularIndirect00.w > 0 ? 1.f : 0.f;
 	Out.Weights.y *= HistorySpecularIndirect10.w > 0 ? 1.f : 0.f;
@@ -898,8 +896,7 @@ FSpecularIndirectHistory FetchHistory(FBilinear InBilinearPrimary, uint InBSDFIn
 struct FHistoryCoord
 {
 	float2    ScreenPosition;		// In normalized screen coord
-	float2    Primary;				// UV coord in primary space
-	float2    Extended;				// UV coord in overflow space
+	float2    UV;					// UV coord
 	FBilinear Bilinear;				// Bilinear weights
 	bool      bHistoryWasOnscreen;	// True, if the history coord is visible on screen
 };
@@ -909,14 +906,13 @@ FHistoryCoord GetHistoryCoord(float2 InHistoryScreenPosition, float2 InHistoryUV
 	FHistoryCoord Out;
 	Out.bHistoryWasOnscreen = true;
 	Out.ScreenPosition 		= InHistoryScreenPosition;
-	Out.Primary 			= Out.ScreenPosition.xy * HistoryScreenPositionScaleBias.xy + HistoryScreenPositionScaleBias.wz;;
+	Out.UV 					= Out.ScreenPosition.xy * HistoryScreenPositionScaleBias.xy + HistoryScreenPositionScaleBias.wz;;
 	if (bClampScreenUV)
 	{
-		Out.bHistoryWasOnscreen = all(Out.Primary < HistoryUVMinMax.zw) && all(Out.Primary > HistoryUVMinMax.xy);
-		Out.Primary 			= clamp(Out.Primary, InHistoryUVMin, InHistoryUVMax);
+		Out.bHistoryWasOnscreen = all(Out.UV < HistoryUVMinMax.zw) && all(Out.UV > HistoryUVMinMax.xy);
+		Out.UV 					= clamp(Out.UV, InHistoryUVMin, InHistoryUVMax);
 	}
-	Out.Bilinear		= GetBilinearFilter(Out.Primary, View.BufferSizeAndInvSize.xy);
-	Out.Extended		= (SUBSTRATE_ENABLED && FRONT_LAYER_TRANSLUCENCY == 0) ? Out.Primary * View.BufferSizeAndInvSize.xy * HistoryEffectiveResolution.zw : Out.Primary;
+	Out.Bilinear = GetBilinearFilter(Out.UV, View.BufferSizeAndInvSize.xy);
 	return Out;
 }
 
@@ -953,8 +949,7 @@ void ReflectionTemporalReprojectionCS(
 	const FHistoryCoord HistoryCoordFromReflectHit = GetHistoryCoord(HistoryScreenPositionFromReflectHit.xy, HistoryUVMinMax.xy, HistoryUVMinMax.zw, false);
 
 	// For depth/num. frame history gather (using GatherRed)
-	const float2 HistoryDepthGatherUV_Primary = (HistoryCoordFromSceneDepth.Bilinear.Origin + 1.0f) * View.BufferSizeAndInvSize.zw;
-	const float2 HistoryGatherUV_Extended = (SUBSTRATE_ENABLED && FRONT_LAYER_TRANSLUCENCY == 0) ? (HistoryCoordFromSceneDepth.Bilinear.Origin + 1.0f) * HistoryEffectiveResolution.zw : HistoryDepthGatherUV_Primary;
+	const float2 HistoryGatherUV = (HistoryCoordFromSceneDepth.Bilinear.Origin + 1.0f) * View.BufferSizeAndInvSize.zw;
 
 	const FLumenMaterialData Material = ReadMaterialData(Coord, MaxRoughnessToTrace);
 	const float Noise = InterleavedGradientNoise(ReflectionScreenCoord.xy, SCREEN_TEMPORAL_INDEX);
@@ -962,7 +957,7 @@ void ReflectionTemporalReprojectionCS(
 	const float PrevSceneDepth = ConvertFromDeviceZ(HistoryScreenPositionFromSceneDepth.z);
 
 #if FRONT_LAYER_TRANSLUCENCY == 0
-	const float4 HistoryDepthDeviceZ = DepthHistory.GatherRed(GlobalPointClampedSampler, HistoryDepthGatherUV_Primary).wzxy;
+	const float4 HistoryDepthDeviceZ = DepthHistory.GatherRed(GlobalPointClampedSampler, HistoryGatherUV).wzxy;
 	const float4 HistorySceneDepth = float4(ConvertFromDeviceZ(HistoryDepthDeviceZ.x), ConvertFromDeviceZ(HistoryDepthDeviceZ.y), ConvertFromDeviceZ(HistoryDepthDeviceZ.z), ConvertFromDeviceZ(HistoryDepthDeviceZ.w));
 #else
 	// DepthHistoryRT is not copied for translucency reflections, so we ignore disoclusion for now.
@@ -995,15 +990,15 @@ void ReflectionTemporalReprojectionCS(
 	FNeighborStatistics Neighborhood = GetNeighborStatistics(Coord.SvPosition, MinScreenCoord, MaxScreenCoord, NewSpecular, Coord.ClosureIndex);
 
 	const float InvalidHistoryErrorThreshold = 1e6;
-	const float ErrorFromReflectHit = IsValidHistoryUV(HistoryCoordFromReflectHit.Primary) ? abs(Luma(HistoryFromReflectHit.SpecularIndirect) - Luma(Neighborhood.Mean)) : InvalidHistoryErrorThreshold;
-	const float ErrorFromSceneDepth = IsValidHistoryUV(HistoryCoordFromSceneDepth.Primary) ? abs(Luma(HistoryFromSceneDepth.SpecularIndirect) - Luma(Neighborhood.Mean)) : InvalidHistoryErrorThreshold;
+	const float ErrorFromReflectHit = IsValidHistoryUV(HistoryCoordFromReflectHit.UV) ? abs(Luma(HistoryFromReflectHit.SpecularIndirect) - Luma(Neighborhood.Mean)) : InvalidHistoryErrorThreshold;
+	const float ErrorFromSceneDepth = IsValidHistoryUV(HistoryCoordFromSceneDepth.UV) ? abs(Luma(HistoryFromSceneDepth.SpecularIndirect) - Luma(Neighborhood.Mean)) : InvalidHistoryErrorThreshold;
 
 	float3 HistorySpecularIndirect = ErrorFromReflectHit < ErrorFromSceneDepth
 		? HistoryFromReflectHit.SpecularIndirect 
 		: HistoryFromSceneDepth.SpecularIndirect;
 
 #if USE_BILATERAL_FILTER
-	float VarianceHistoryWeight = IsValidHistoryUV(HistoryCoordFromReflectHit.Primary) ? .9f : 0;
+	float VarianceHistoryWeight = IsValidHistoryUV(HistoryCoordFromReflectHit.UV) ? .9f : 0;
 	float NewResolveVariance = ResolveVariance[Coord.SvPositionFlatten];
 
 	if (dot(OcclusionWeights, 1.0f) < 1.0f)
@@ -1012,7 +1007,7 @@ void ReflectionTemporalReprojectionCS(
 		NewResolveVariance = DisocclusionVariance;
 	}
 
-	float ResolveVarianceHistoryValue = VarianceHistoryWeight > 0.0f ? Texture2DSampleLevel(ResolveVarianceHistory, GlobalBilinearClampedSampler, HistoryCoordFromReflectHit.Extended, 0).x : 0;
+	float ResolveVarianceHistoryValue = VarianceHistoryWeight > 0.0f ? Texture2DSampleLevel(ResolveVarianceHistory, GlobalBilinearClampedSampler, HistoryCoordFromReflectHit.UV, 0).x : 0;
 	float AccumulatedResolveVariance = max(lerp(NewResolveVariance, ResolveVarianceHistoryValue, VarianceHistoryWeight), 0);
 	RWResolveVariance[Coord.SvPositionFlatten] = AccumulatedResolveVariance;
 	float AccumulatedResolveStdDev = sqrt(AccumulatedResolveVariance);
@@ -1030,7 +1025,7 @@ void ReflectionTemporalReprojectionCS(
 
 	HistorySpecularIndirect = clamp(HistorySpecularIndirect, HistoryClampMin, HistoryClampMax);
 
-	float4 NumFramesAccumulatedNeighborhood = HistoryNumFramesAccumulated.GatherRed(GlobalPointClampedSampler, float3(HistoryGatherUV_Extended, Coord.ClosureIndex)).wzxy * MaxFramesAccumulated;
+	float4 NumFramesAccumulatedNeighborhood = HistoryNumFramesAccumulated.GatherRed(GlobalPointClampedSampler, float3(HistoryGatherUV, Coord.ClosureIndex)).wzxy * MaxFramesAccumulated;
 
 	float MaxFrames = MaxFramesAccumulated;
 

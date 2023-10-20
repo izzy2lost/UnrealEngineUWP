@@ -645,7 +645,6 @@ class FTemporalAccumulationCS : public FGlobalShader
 		SHADER_PARAMETER(FVector4f,HistoryScreenPositionScaleBias)
 		SHADER_PARAMETER(FVector4f,HistoryUVMinMax)
 		SHADER_PARAMETER(FVector4f, EffectiveResolution)
-		SHADER_PARAMETER(FVector4f, HistoryEffectiveResolution)
 		SHADER_PARAMETER(int32, FixedJitterIndex)
 	END_SHADER_PARAMETER_STRUCT()
 
@@ -808,8 +807,6 @@ void DispatchTemporalAccumulation(
 						PassParameters->ResolveVarianceHistory = OldResolveVarianceHistory;
 						PassParameters->DiffuseIndirectDepthHistory = OldDepthHistory;
 						PassParameters->HistoryNumFramesAccumulated = OldHistoryNumFramesAccumulated;
-						PassParameters->EffectiveResolution = FVector4f(EffectiveResolution.X, EffectiveResolution.Y, 1.0f / EffectiveResolution.X, 1.0f / EffectiveResolution.Y);
-						PassParameters->HistoryEffectiveResolution = FVector4f(HistoryEffectiveResolution.X, HistoryEffectiveResolution.Y, 1.0f / HistoryEffectiveResolution.X, 1.0f / HistoryEffectiveResolution.Y);
 
 						PassParameters->HistoryDistanceThreshold = GLumenReSTIRGatherHistoryDistanceThreshold;
 						PassParameters->PrevSceneColorPreExposureCorrection = View.PreExposure / View.PrevViewInfo.SceneColorPreExposure;

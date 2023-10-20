@@ -1130,7 +1130,7 @@ RENDERCORE_API FBufferRHIRef& GetUnitCubeAABBVertexBuffer()
 RENDERCORE_API void QuantizeSceneBufferSize(const FIntPoint& InBufferSize, FIntPoint& OutBufferSize)
 {
 	// Ensure sizes are dividable by SUBSTRATE_TILE_SIZE (==8) 2d tiles to make it more convenient.
-	const uint32 SubstrateDividableBy = 8;
+	const uint32 SubstrateDividableBy = SUBSTRATE_TILE_SIZE;
 	static_assert(SubstrateDividableBy % 8 == 0, "A lot of graphic algorithms where previously assuming DividableBy >= 4");
 
 	// Ensure sizes are dividable by the ideal group size for 2d tiles to make it more convenient.

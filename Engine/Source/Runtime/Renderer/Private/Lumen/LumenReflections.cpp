@@ -537,8 +537,6 @@ class FReflectionTemporalReprojectionCS : public FGlobalShader
 		SHADER_PARAMETER(float,PrevInvPreExposure)
 		SHADER_PARAMETER(float,MaxFramesAccumulated)
 		SHADER_PARAMETER(float, NeighborhoodClampExpandWithResolveVariance)
-		SHADER_PARAMETER(FVector4f, EffectiveResolution)
-		SHADER_PARAMETER(FVector4f, HistoryEffectiveResolution)
 		SHADER_PARAMETER(FVector4f,HistoryScreenPositionScaleBias)
 		SHADER_PARAMETER(FVector4f,HistoryUVMinMax)
 		SHADER_PARAMETER(uint32, bIsSubstrateTileHistoryValid)
@@ -916,10 +914,6 @@ void UpdateHistoryReflections(
 			{
 				PassParameters->FrontLayerTranslucencyGBufferParameters = *FrontLayerReflectionGBuffer;
 			}
-
-			// Effective resolution containing the primary & overflow space (if any)
-			PassParameters->EffectiveResolution = FVector4f(EffectiveResolution.X, EffectiveResolution.Y, 1.f / EffectiveResolution.X, 1.f / EffectiveResolution.Y);
-			PassParameters->HistoryEffectiveResolution = FVector4f(HistoryEffectiveResolution.X, HistoryEffectiveResolution.Y, 1.f / HistoryEffectiveResolution.X, 1.f / HistoryEffectiveResolution.Y);
 
 			// Pull in the max UV to exclude the region which will read outside the viewport due to bilinear filtering
 			const FVector2f InvBufferSize(1.0f / SceneTextures.Config.Extent.X, 1.0f / SceneTextures.Config.Extent.Y);

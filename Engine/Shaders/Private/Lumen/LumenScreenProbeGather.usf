@@ -1586,8 +1586,6 @@ float4 HistoryScreenPositionScaleBias;
 float4 HistoryUVToScreenPositionScaleBias;
 float4 HistoryUVMinMax;
 uint4 HistoryViewportMinMax;
-float4 EffectiveResolution;
-float4 HistoryEffectiveResolution;
 
 float PrevSceneColorPreExposureCorrection;
 float InvFractionOfLightingMovingForFastUpdateMode;
@@ -1754,15 +1752,14 @@ void ScreenProbeTemporalReprojectionCS(
 	const float3 HistoryScreenPosition = GetHistoryScreenPosition(ScreenPosition, ScreenUV, DeviceZ);
 
 
-	float2 HistoryScreenUV_Primary = HistoryScreenPosition.xy * HistoryScreenPositionScaleBias.xy + HistoryScreenPositionScaleBias.wz;
-	const bool bHistoryWasOnscreen = all(HistoryScreenUV_Primary < HistoryUVMinMax.zw) && all(HistoryScreenUV_Primary > HistoryUVMinMax.xy);
+	float2 HistoryScreenUV = HistoryScreenPosition.xy * HistoryScreenPositionScaleBias.xy + HistoryScreenPositionScaleBias.wz;
+	const bool bHistoryWasOnscreen = all(HistoryScreenUV < HistoryUVMinMax.zw) && all(HistoryScreenUV > HistoryUVMinMax.xy);
 	// Avoid reading NaNs outside the valid viewport, just setting the weight to 0 is not enough
-	HistoryScreenUV_Primary = clamp(HistoryScreenUV_Primary, HistoryUVMinMax.xy, HistoryUVMinMax.zw);
+	HistoryScreenUV = clamp(HistoryScreenUV, HistoryUVMinMax.xy, HistoryUVMinMax.zw);
 
-	// * HistoryScreenUV is UV in 'regular'  screen space (dimensions: View.BufferSizeAndInvSize)
-	// * HistoryGatherUV is UV in 'extended' screen space (dimensions: EffectiveResolution)
-	const Bilinear BilinearFilterAtHistoryScreenUV = GetBilinearFilter(HistoryScreenUV_Primary, View.BufferSizeAndInvSize.xy);
-	float2 HistoryGatherUV_Extended = (BilinearFilterAtHistoryScreenUV.Origin + 1.0f) * HistoryEffectiveResolution.zw;
+	const Bilinear BilinearFilterAtHistoryScreenUV = GetBilinearFilter(HistoryScreenUV, View.BufferSizeAndInvSize.xy);
+	float2 HistoryGatherUV = (BilinearFilterAtHistoryScreenUV.Origin + 1.0f) * View.BufferSizeAndInvSize.zw;
+
 
 	// Whether to disocclusion test each of the 4 neighboring texels in the history
 	// This allows for much more reliable history, especially on foliage
@@ -1773,7 +1770,7 @@ void ScreenProbeTemporalReprojectionCS(
 	const float4 HistoryDepthDeviceZ = DiffuseIndirectDepthHistory.GatherRed(GlobalPointClampedSampler, HistoryDepthGatherUV).wzxy;
 	const float4 HistorySceneDepth = float4(ConvertFromDeviceZ(HistoryDepthDeviceZ.x), ConvertFromDeviceZ(HistoryDepthDeviceZ.y), ConvertFromDeviceZ(HistoryDepthDeviceZ.z), ConvertFromDeviceZ(HistoryDepthDeviceZ.w));
 #else
-	const float4 HistorySceneDepth = ConvertFromDeviceZ(Texture2DSampleLevel(DiffuseIndirectDepthHistory, GlobalBilinearClampedSampler, HistoryScreenUV_Primary, 0).x).xxxx;
+	const float4 HistorySceneDepth = ConvertFromDeviceZ(Texture2DSampleLevel(DiffuseIndirectDepthHistory, GlobalBilinearClampedSampler, HistoryScreenUV, 0).x).xxxx;
 #endif
 
 	const FLumenMaterialData Material = ReadMaterialData(Coord, MaxRoughnessToTrace);
@@ -1790,23 +1787,17 @@ void ScreenProbeTemporalReprojectionCS(
 		return;
 	}
 #endif
-	float3 WorldNormal = Material.WorldNormal;
 
 	const float Noise = InterleavedGradientNoise(Coord.SvPosition, View.StateFrameIndexMod8);
 	float DisocclusionDistanceThreshold = HistoryDistanceThreshold * lerp(.5f, 1.5f, Noise);
 	const float PrevSceneDepth = ConvertFromDeviceZ(HistoryScreenPosition.z);
+	FGatherUV HistoryGather  = GetGatherUV(BilinearFilterAtHistoryScreenUV, View.BufferSizeAndInvSize.zw);
 
-	// BilinearFilterAtHistoryScreenUV is UV in 'primary'  screen space (dimensions: View.BufferSizeAndInvSize) 
-	// HistoryGather                  are UV in 'extented' screen space (dimensions: HistoryEffectiveResolution) 
-
-	FGatherUV HistoryGather_Primary  = GetGatherUV(BilinearFilterAtHistoryScreenUV, View.BufferSizeAndInvSize.zw);
-#if !SUBSTRATE_ENABLED
-	FGatherUV HistoryGather_Extended = HistoryGather_Primary;
-#else
-	FGatherUV HistoryGather_Extended = GetGatherUV(BilinearFilterAtHistoryScreenUV, HistoryEffectiveResolution.zw);
-
+#if SUBSTRATE_ENABLED
 	// When Substrate is enabled: use top layer normal instead of the BSDF normal, since it is used for occlusion rejection, and needs to be stable during reprojection.
-	WorldNormal = SubstrateUnpackTopLayerData(Substrate.TopLayerTexture.Load(uint3(Coord.SvPosition, 0))).WorldNormal;
+	const float3 WorldNormal = SubstrateUnpackTopLayerData(Substrate.TopLayerTexture.Load(uint3(Coord.SvPosition, 0))).WorldNormal;
+#else
+	const float3 WorldNormal = Material.WorldNormal;
 #endif
 
 #define PLANE_DISOCCLUSION_WEIGHTS 0
@@ -1853,10 +1844,10 @@ void ScreenProbeTemporalReprojectionCS(
 	const float4 OriginalOcclusionWeights = OcclusionWeights;
 
 #if HISTORY_REJECT_BASED_ON_NORMAL
-	const float3 HistoryNormal00 = GetHistoryNormal(HistoryGather_Primary.UV00);
-	const float3 HistoryNormal10 = GetHistoryNormal(HistoryGather_Primary.UV10);
-	const float3 HistoryNormal01 = GetHistoryNormal(HistoryGather_Primary.UV01);
-	const float3 HistoryNormal11 = GetHistoryNormal(HistoryGather_Primary.UV11);
+	const float3 HistoryNormal00 = GetHistoryNormal(HistoryGather.UV00);
+	const float3 HistoryNormal10 = GetHistoryNormal(HistoryGather.UV10);
+	const float3 HistoryNormal01 = GetHistoryNormal(HistoryGather.UV01);
+	const float3 HistoryNormal11 = GetHistoryNormal(HistoryGather.UV11);
 
 	const float4 HistoryNormalWeights = select(float4(
 		dot(HistoryNormal00, WorldNormal),
@@ -1893,31 +1884,30 @@ void ScreenProbeTemporalReprojectionCS(
 	float3 HistoryDiffuseIndirect;
 	float3 HistoryRoughSpecularIndirect;
 #if ACCURATE_HISTORY_DISOCCLUSION
+	// Diffuse
 	{
-		const float3 HistoryDiffuseIndirect00 = Texture2DArraySampleLevel(DiffuseIndirectHistory, GlobalPointClampedSampler, float3(HistoryGather_Extended.UV00, Coord.ClosureIndex), 0).xyz;
-		const float3 HistoryDiffuseIndirect10 = Texture2DArraySampleLevel(DiffuseIndirectHistory, GlobalPointClampedSampler, float3(HistoryGather_Extended.UV10, Coord.ClosureIndex), 0).xyz;
-		const float3 HistoryDiffuseIndirect01 = Texture2DArraySampleLevel(DiffuseIndirectHistory, GlobalPointClampedSampler, float3(HistoryGather_Extended.UV01, Coord.ClosureIndex), 0).xyz;
-		const float3 HistoryDiffuseIndirect11 = Texture2DArraySampleLevel(DiffuseIndirectHistory, GlobalPointClampedSampler, float3(HistoryGather_Extended.UV11, Coord.ClosureIndex), 0).xyz;
+		const float3 HistoryDiffuseIndirect00 = Texture2DArraySampleLevel(DiffuseIndirectHistory, GlobalPointClampedSampler, float3(HistoryGather.UV00, Coord.ClosureIndex), 0).xyz;
+		const float3 HistoryDiffuseIndirect10 = Texture2DArraySampleLevel(DiffuseIndirectHistory, GlobalPointClampedSampler, float3(HistoryGather.UV10, Coord.ClosureIndex), 0).xyz;
+		const float3 HistoryDiffuseIndirect01 = Texture2DArraySampleLevel(DiffuseIndirectHistory, GlobalPointClampedSampler, float3(HistoryGather.UV01, Coord.ClosureIndex), 0).xyz;
+		const float3 HistoryDiffuseIndirect11 = Texture2DArraySampleLevel(DiffuseIndirectHistory, GlobalPointClampedSampler, float3(HistoryGather.UV11, Coord.ClosureIndex), 0).xyz;
 
 		HistoryDiffuseIndirect = WeightedAverage(HistoryDiffuseIndirect00, HistoryDiffuseIndirect10, HistoryDiffuseIndirect01, HistoryDiffuseIndirect11, FinalWeights) * PrevSceneColorPreExposureCorrection;
 	}
-	
+	// Rough specular
 	{
-		const float3 HistoryRoughSpecularIndirect00 = Texture2DArraySampleLevel(RoughSpecularIndirectHistory, GlobalPointClampedSampler, float3(HistoryGather_Extended.UV00, Coord.ClosureIndex), 0).xyz;
-		const float3 HistoryRoughSpecularIndirect10 = Texture2DArraySampleLevel(RoughSpecularIndirectHistory, GlobalPointClampedSampler, float3(HistoryGather_Extended.UV10, Coord.ClosureIndex), 0).xyz;
-		const float3 HistoryRoughSpecularIndirect01 = Texture2DArraySampleLevel(RoughSpecularIndirectHistory, GlobalPointClampedSampler, float3(HistoryGather_Extended.UV01, Coord.ClosureIndex), 0).xyz;
-		const float3 HistoryRoughSpecularIndirect11 = Texture2DArraySampleLevel(RoughSpecularIndirectHistory, GlobalPointClampedSampler, float3(HistoryGather_Extended.UV11, Coord.ClosureIndex), 0).xyz;
+		const float3 HistoryRoughSpecularIndirect00 = Texture2DArraySampleLevel(RoughSpecularIndirectHistory, GlobalPointClampedSampler, float3(HistoryGather.UV00, Coord.ClosureIndex), 0).xyz;
+		const float3 HistoryRoughSpecularIndirect10 = Texture2DArraySampleLevel(RoughSpecularIndirectHistory, GlobalPointClampedSampler, float3(HistoryGather.UV10, Coord.ClosureIndex), 0).xyz;
+		const float3 HistoryRoughSpecularIndirect01 = Texture2DArraySampleLevel(RoughSpecularIndirectHistory, GlobalPointClampedSampler, float3(HistoryGather.UV01, Coord.ClosureIndex), 0).xyz;
+		const float3 HistoryRoughSpecularIndirect11 = Texture2DArraySampleLevel(RoughSpecularIndirectHistory, GlobalPointClampedSampler, float3(HistoryGather.UV11, Coord.ClosureIndex), 0).xyz;
 
 		HistoryRoughSpecularIndirect = WeightedAverage(HistoryRoughSpecularIndirect00, HistoryRoughSpecularIndirect10, HistoryRoughSpecularIndirect01, HistoryRoughSpecularIndirect11, FinalWeights) * PrevSceneColorPreExposureCorrection;
 	}
 #else
-	// SUBSTRATE_TODO: This path is not active, but if it becomes active, this is incorrect. HistoryScreenUV is in 'primary' space, while the history 
-	// should be fetch from 'extented' space (i.e., something similar to HistoryGatherUV with a 0.5f offset)
-	HistoryDiffuseIndirect = Texture2DArraySampleLevel(DiffuseIndirectHistory, GlobalBilinearClampedSampler, float3(HistoryScreenUV_Primary, Coord.ClosureIndex), 0).xyz * PrevSceneColorPreExposureCorrection;
-	HistoryRoughSpecularIndirect = Texture2DArraySampleLevel(RoughSpecularIndirectHistory, GlobalBilinearClampedSampler, float3(HistoryScreenUV_Primary, Coord.ClosureIndex), 0).xyz * PrevSceneColorPreExposureCorrection;
+	HistoryDiffuseIndirect = Texture2DArraySampleLevel(DiffuseIndirectHistory, GlobalBilinearClampedSampler, float3(HistoryScreenUV, Coord.ClosureIndex), 0).xyz * PrevSceneColorPreExposureCorrection;
+	HistoryRoughSpecularIndirect = Texture2DArraySampleLevel(RoughSpecularIndirectHistory, GlobalBilinearClampedSampler, float3(HistoryScreenUV, Coord.ClosureIndex), 0).xyz * PrevSceneColorPreExposureCorrection;
 #endif
 
-	float4 NumFramesAccumulatedNeighborhood = HistoryNumFramesAccumulated.GatherRed(GlobalPointClampedSampler, float3(HistoryGatherUV_Extended, Coord.ClosureIndex)).wzxy * MaxFramesAccumulated;
+	float4 NumFramesAccumulatedNeighborhood = HistoryNumFramesAccumulated.GatherRed(GlobalPointClampedSampler, float3(HistoryGatherUV, Coord.ClosureIndex)).wzxy * MaxFramesAccumulated;
 	NumFramesAccumulatedNeighborhood = min(NumFramesAccumulatedNeighborhood + 1.0f, MaxFramesAccumulated);
 	const float NumFramesAccumulated = WeightedAverage(NumFramesAccumulatedNeighborhood, FinalWeights);
 
@@ -1926,7 +1916,7 @@ void ScreenProbeTemporalReprojectionCS(
 
 	{
 		RWNewHistoryFastUpdateMode[Coord.SvPositionFlatten] = FastUpdateModeAmount;
-		const float FastUpdateModeHistoryValue = WeightedAverage(FastUpdateModeHistory.GatherRed(GlobalPointClampedSampler, float3(HistoryGatherUV_Extended, Coord.ClosureIndex)).wzxy, FinalWeights);
+		const float FastUpdateModeHistoryValue = WeightedAverage(FastUpdateModeHistory.GatherRed(GlobalPointClampedSampler, float3(HistoryGatherUV, Coord.ClosureIndex)).wzxy, FinalWeights);
 		// Stabilizes the calculated value, and speeds up lighting change propagation around where the moving object was last frame
 		FastUpdateModeAmount = max(FastUpdateModeAmount, FastUpdateModeHistoryValue);
 	}
@@ -1977,16 +1967,14 @@ void ScreenProbeTemporalReprojectionCS(
 	if (Material.bHasBackfaceDiffuse)
 	{
 #if ACCURATE_HISTORY_DISOCCLUSION
-		const float3 HistoryDiffuseIndirect00 = Texture2DArraySampleLevel(BackfaceDiffuseIndirectHistory, GlobalPointClampedSampler, float3(HistoryGather_Extended.UV00, Coord.ClosureIndex), 0).xyz;
-		const float3 HistoryDiffuseIndirect10 = Texture2DArraySampleLevel(BackfaceDiffuseIndirectHistory, GlobalPointClampedSampler, float3(HistoryGather_Extended.UV10, Coord.ClosureIndex), 0).xyz;
-		const float3 HistoryDiffuseIndirect01 = Texture2DArraySampleLevel(BackfaceDiffuseIndirectHistory, GlobalPointClampedSampler, float3(HistoryGather_Extended.UV01, Coord.ClosureIndex), 0).xyz;
-		const float3 HistoryDiffuseIndirect11 = Texture2DArraySampleLevel(BackfaceDiffuseIndirectHistory, GlobalPointClampedSampler, float3(HistoryGather_Extended.UV11, Coord.ClosureIndex), 0).xyz;
+		const float3 HistoryDiffuseIndirect00 = Texture2DArraySampleLevel(BackfaceDiffuseIndirectHistory, GlobalPointClampedSampler, float3(HistoryGather.UV00, Coord.ClosureIndex), 0).xyz;
+		const float3 HistoryDiffuseIndirect10 = Texture2DArraySampleLevel(BackfaceDiffuseIndirectHistory, GlobalPointClampedSampler, float3(HistoryGather.UV10, Coord.ClosureIndex), 0).xyz;
+		const float3 HistoryDiffuseIndirect01 = Texture2DArraySampleLevel(BackfaceDiffuseIndirectHistory, GlobalPointClampedSampler, float3(HistoryGather.UV01, Coord.ClosureIndex), 0).xyz;
+		const float3 HistoryDiffuseIndirect11 = Texture2DArraySampleLevel(BackfaceDiffuseIndirectHistory, GlobalPointClampedSampler, float3(HistoryGather.UV11, Coord.ClosureIndex), 0).xyz;
 
 		const float3 HistoryBackfaceDiffuseIndirect = WeightedAverage(HistoryDiffuseIndirect00, HistoryDiffuseIndirect10, HistoryDiffuseIndirect01, HistoryDiffuseIndirect11, FinalWeights) * PrevSceneColorPreExposureCorrection;
 #else
-		// SUBSTRATE_TODO: This path is not active, but if it becomes active, this is incorrect. HistoryScreenUV is in 'primary' space, while the history 
-		// should be fetch from 'extented' space (i.e., something similar to HistoryGatherUV with a 0.5f offset)
-		const float3 HistoryBackfaceDiffuseIndirect = Texture2DArraySampleLevel(BackfaceDiffuseIndirectHistory, GlobalBilinearClampedSampler, float3(HistoryScreenUV_Primary, Coord.ClosureIndex), 0).xyz * PrevSceneColorPreExposureCorrection;
+		const float3 HistoryBackfaceDiffuseIndirect = Texture2DArraySampleLevel(BackfaceDiffuseIndirectHistory, GlobalBilinearClampedSampler, float3(HistoryScreenUV, Coord.ClosureIndex), 0).xyz * PrevSceneColorPreExposureCorrection;
 #endif
 		const float3 NewBackfaceDiffuseLighting = BackfaceDiffuseIndirect[Coord.SvPositionFlatten].xyz;
 		OutBackfaceDiffuseIndirect = lerp(HistoryBackfaceDiffuseIndirect, NewBackfaceDiffuseLighting, Alpha);

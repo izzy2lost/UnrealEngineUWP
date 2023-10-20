@@ -149,12 +149,11 @@ FIntPoint GetSubstrateTextureResolution(const FViewInfo& View, const FIntPoint& 
 {
 	if (Substrate::IsSubstrateEnabled())
 	{
-		return GetSubstrateTextureTileResolution(View, InResolution) * SUBSTRATE_TILE_SIZE;
+		// Ensure Substrate resolution are round to SUBSTRATE_TILE_SIZE (8) 
+		// This is ensured by QuantizeSceneBufferSize()
+		check((uint32(InResolution.X) & 0x3) == 0 && (uint32(InResolution.Y) & 0x3) == 0);
 	}
-	else
-	{
-		return InResolution;
-	}
+	return InResolution;
 }
 
 bool GetSubstrateUsesComplexSpecialPath(const FViewInfo& View)
