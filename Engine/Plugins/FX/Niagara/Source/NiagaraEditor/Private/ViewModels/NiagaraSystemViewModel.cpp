@@ -1362,6 +1362,10 @@ bool FNiagaraSystemViewModel::RenameParameter(const FNiagaraVariable TargetParam
 			System->HandleVariableRenamed(TargetParameter, FNiagaraVariableBase(TargetParameter.GetType(), NewName), true);
 		}
 
+		// changing a parameter name can result in conflicts between the runtime data and the parameter stores that we've just
+		// changed.  Currently the safest way to deal with that is a recompile of the system
+		CompileSystem(false);
+
 		GetSystemStackViewModel()->RequestRefreshDeferred();
 		return true;
 	}
