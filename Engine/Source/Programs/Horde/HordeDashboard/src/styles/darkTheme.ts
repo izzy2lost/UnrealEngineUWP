@@ -89,7 +89,18 @@ export const darkTheme = createTheme({
                     }
                 }
             }
-        },
+        },    
+        "Toggle": {
+            styles: {
+                root: {
+                    selectors: {
+                        '.ms-Toggle-thumb': {
+                            background: "#FFFFFF !important"
+                        }
+                    }
+                }
+            }
+        },        
         "DatePicker": {
             styles: {
                 callout: {
