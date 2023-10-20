@@ -17,8 +17,17 @@ namespace UE::ConcertClientSharedSlate
 	{
 		PropertiesModel = InPropertiesModel;
 		
-		using namespace ReplicationPropertyColumns;
-		const FReplicationPropertyColumn ReplicatesColumn = ReplicatesColumns(SharedThis(this), InPropertiesModel);
+		using namespace ReplicationColumns;
+		using namespace ReplicationColumns::Property;
+		const FReplicationPropertyColumn ReplicatesColumn = ReplicatesColumns(
+			SharedThis(this),
+			InPropertiesModel,
+			TReplicationColumnDelegates<FReplicatedPropertyData>::FIsEnabled::CreateLambda([IsEnabled = InArgs._IsEditingEnabled](const FReplicatedPropertyData&)
+			{
+				return !IsEnabled.IsBound() || IsEnabled.Get();
+			}),
+			InArgs._EditingDisabledToolTipText
+			);
 		TArray<FReplicationPropertyColumn> PropertyColumns = InArgs._AdditionalPropertyColumns;
 		PropertyColumns.Add(ReplicatesColumn);
 		
@@ -38,6 +47,8 @@ namespace UE::ConcertClientSharedSlate
 				[
 					InArgs._LeftOfPropertySearchBar.Widget
 				]
+				.IsEditingEnabled(InArgs._IsEditingEnabled)
+				.EditingDisabledToolTipText(InArgs._EditingDisabledToolTipText)
 		];
 	}
 
@@ -61,7 +72,7 @@ namespace UE::ConcertClientSharedSlate
 		const FReplicatedPropertyData& Right
 		) const
 	{
-		return ReplicationPropertyColumns::SortBySelectionThenByName_PropertyPredicate(
+		return ReplicationColumns::Property::SortBySelectionThenByName_PropertyPredicate(
 			WrappedEditor->GetObjectsBeingPropertyEdited(),
 			*PropertiesModel,
 			Left,

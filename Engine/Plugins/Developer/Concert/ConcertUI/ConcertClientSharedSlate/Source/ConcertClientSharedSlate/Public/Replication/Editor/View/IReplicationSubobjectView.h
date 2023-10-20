@@ -26,12 +26,12 @@ namespace UE::ConcertClientSharedSlate
 	public:
 
 		/** Sets the root objects for which the subobject list should be shown. */
-		virtual void SetRootObjects(const TArray<FSoftObjectPath>& RootObjects) = 0;
+		virtual void SetTopLevelObjects(const TArray<FSoftObjectPath>& RootObjects) = 0;
 		/** Clears the hierarchy so it displays no subobjects. */
-		void ClearRootObjects() { SetRootObjects({}); }
+		void ClearRootObjects() { SetTopLevelObjects({}); }
 
 		/** Selects the root object in the UI. Executes OnSelectionChanged. */
-		virtual void SelectRootObjects() = 0;
+		virtual void SelectTopLevelObjects() = 0;
 		
 		/**
 		 * Gets the list of selected objects.

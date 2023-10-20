@@ -3,25 +3,31 @@
 #include "ReplicationClient.h"
 
 #include "Assets/MultiUserReplicationClientPreset.h"
-#include "Replication/ReplicationWidgetFactories.h"
 #include "Replication/Editor/Model/IEditableObjectToPropertiesModel.h"
-#include "Replication/Stream/LocalStreamChangeTracker.h"
+#include "Replication/ReplicationWidgetFactories.h"
+#include "Replication/Stream/StreamChangeTracker.h"
 
 namespace UE::MultiUserClient
 {
 	FReplicationClient::FReplicationClient(
 		UMultiUserReplicationClientPreset& InSessionContent,
-		TUniquePtr<IClientStreamSynchronizer> InStreamSynchronizer
+		TUniquePtr<IClientStreamSynchronizer> InStreamSynchronizer,
+		TUniquePtr<IClientAuthoritySynchronizer> InAuthoritySynchronizer,
+		TFunctionRef<TUniquePtr<ISubmissionWorkflow>()> MakeSubmissionWorkflowFunc
 		)
 		: ClientContentStorage(&InSessionContent)
 		, StreamSynchronizer(MoveTemp(InStreamSynchronizer))
+		, AuthoritySynchronizer(MoveTemp(InAuthoritySynchronizer))
 		, LocalClientEditModel(ConcertClientSharedSlate::CreatePropertySelectionModel(*ClientContentStorage->Stream, ClientContentStorage->Stream->MakeReplicationMapGetterAttribute()))
 		, LocalClientStreamDiffer(
 			GetStreamSynchronizer(),
 			ClientContentStorage->Stream->MakeReplicationMapGetterAttribute(),
-			FLocalStreamChangeTracker::FOnModifyReplicationMap::CreateLambda([this](){ ClientContentStorage->Stream->Modify(); })
+			FStreamChangeTracker::FOnModifyReplicationMap::CreateLambda([this](){ ClientContentStorage->Stream->Modify(); })
 			)
+		, LocalAuthorityDiffer(*AuthoritySynchronizer)
 	{
+		SubmissionWorkflow = MakeSubmissionWorkflowFunc();
+		
 		LocalClientEditModel->OnObjectsChanged().AddRaw(this, &FReplicationClient::OnObjectsChanged);
 		LocalClientEditModel->OnPropertiesChanged().AddRaw(this, &FReplicationClient::OnPropertiesChanged);
 		

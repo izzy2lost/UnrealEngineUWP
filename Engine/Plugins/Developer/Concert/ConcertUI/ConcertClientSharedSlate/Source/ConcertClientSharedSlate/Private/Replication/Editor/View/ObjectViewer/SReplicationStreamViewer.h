@@ -46,9 +46,9 @@ namespace UE::ConcertClientSharedSlate
 		SLATE_BEGIN_ARGS(SReplicationStreamViewer)
 		{}
 			/** Additional columns to add to the object view */
-			SLATE_ARGUMENT(TArray<ReplicationObjectColumns::FReplicationObjectColumn>, AdditionalObjectColumns)
+			SLATE_ARGUMENT(TArray<ReplicationColumns::FReplicationTopLevelObjectColumn>, AdditionalObjectColumns)
 			/** Additional columns to add to the property view */
-			SLATE_ARGUMENT(TArray<ReplicationPropertyColumns::FReplicationPropertyColumn>, AdditionalPropertyColumns)
+			SLATE_ARGUMENT(TArray<ReplicationColumns::FReplicationPropertyColumn>, AdditionalPropertyColumns)
 
 			/** Optional. Placed between root object outliner and property editor. */
 			SLATE_ARGUMENT(TSharedPtr<IReplicationSubobjectView>, SubobjectView)
@@ -80,9 +80,6 @@ namespace UE::ConcertClientSharedSlate
 		void RefreshSubobjectData();
 		void RefreshPropertyData();
 
-		const TSet<TSharedPtr<FReplicatedObjectData>>& GetObjectRowData() const { return ObjectRowData; }
-		const TArray<TSharedPtr<FReplicatedPropertyData>>& GetPropertyRowData() const;
-
 		/** @return Gets the root objects selected in the outliner; the subobject view chooses which of these objects (or their subobjects) end up in GetSelectedObjectShowingProperties. */
 		TArray<TSharedPtr<FReplicatedObjectData>> GetSelectedOutlinerObjects() const { return ReplicatedObjects->GetSelectedItems(); }
 		
@@ -102,10 +99,9 @@ namespace UE::ConcertClientSharedSlate
 		/**
 		 * These instances can be subclasses of FReplicatedObjectData, e.g. FReplicatedObjectData_Editor.
 		 * Their type can be overridden by subclasses.
-		 * They only have the FReplicatedObjectData type so they can be passed efficiently to SObjectToPropertyView.
 		 * @see GetObjectData
 		 */
-		TSet<TSharedPtr<FReplicatedObjectData>> ObjectRowData;
+		TArray<TSharedPtr<FReplicatedObjectData>> ObjectRowData;
 		/** The instances of ObjectRowData which do not have any parents. This acts as the item source for the tree view. */
 		TArray<TSharedPtr<FReplicatedObjectData>> RootObjectRowData;
 		/** Inverse map of ObjectRowData using FReplicatedObjectData::GetObjectPath as key. Contains all elements of ObjectRowData. */

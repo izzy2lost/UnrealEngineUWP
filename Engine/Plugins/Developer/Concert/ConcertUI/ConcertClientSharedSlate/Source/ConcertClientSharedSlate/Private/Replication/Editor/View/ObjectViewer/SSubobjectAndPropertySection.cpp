@@ -38,7 +38,7 @@ namespace UE::ConcertClientSharedSlate
 	{
 		if (SubobjectView)
 		{
-			SubobjectView->SelectRootObjects();
+			SubobjectView->SelectTopLevelObjects();
 		}
 	}
 
@@ -52,7 +52,7 @@ namespace UE::ConcertClientSharedSlate
 		const TArray<TSharedPtr<FReplicatedObjectData>> SelectedObjects = GetSelectedRootObjectsDelegate.Execute();
 		TArray<FSoftObjectPath> SelectedObjectPaths;
 		Algo::Transform(SelectedObjects, SelectedObjectPaths, [](const TSharedPtr<FReplicatedObjectData>& Item){ return Item->GetObjectPath(); });
-		SubobjectView->SetRootObjects(SelectedObjectPaths);
+		SubobjectView->SetTopLevelObjects(SelectedObjectPaths);
 	}
 	
 	void SSubobjectAndPropertySection::RefreshPropertyData()
@@ -147,10 +147,10 @@ namespace UE::ConcertClientSharedSlate
 
 	TSharedRef<SWidget> SSubobjectAndPropertySection::CreatePropertiesView(const FArguments& InArgs)
 	{
-		TArray<ReplicationPropertyColumns::FReplicationPropertyColumn> Columns
+		TArray Columns
 		{
-			ReplicationPropertyColumns::LabelColumn(),
-			ReplicationPropertyColumns::TypeColumn()
+			ReplicationColumns::Property::LabelColumn(),
+			ReplicationColumns::Property::TypeColumn()
 		};
 		Columns.Append(InArgs._AdditionalPropertyColumns);
 		
@@ -165,7 +165,7 @@ namespace UE::ConcertClientSharedSlate
 				.RootItemsSource(&RootPropertyRowData)
 				.OnGetChildren(this, &SSubobjectAndPropertySection::GetPropertyRowChildren)
 				.Columns(Columns)
-				.ExpandableColumnLabel(ReplicationPropertyColumns::LabelColumnId)
+				.ExpandableColumnLabel(ReplicationColumns::Property::LabelColumnId)
 				.SelectionMode(ESelectionMode::Multi)
 				.LeftOfSearchBar()
 				[

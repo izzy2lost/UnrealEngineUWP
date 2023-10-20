@@ -89,6 +89,18 @@ namespace UE::ConcertClientSharedSlate
 			}, OptionalParent);
 			return Result;
 		}
+
+		/** Iterates every subobject of Parent. */
+		void ForEachSubobject(const FSoftObjectPath& Parent, TFunctionRef<EBreakBehavior(const FSoftObjectPath& Child)> Callback) const
+		{
+			const FString ParentPathString = Parent.ToString();
+			ForEachReplicatedObject([&Parent, &ParentPathString, &Callback](const FSoftObjectPath& Object)
+			{
+				return Object != Parent && Object.ToString().Contains(ParentPathString)
+					? Callback(Object)
+					: EBreakBehavior::Continue;
+			});
+		}
 		
 		virtual ~IObjectToPropertiesModel() = default;
 	};

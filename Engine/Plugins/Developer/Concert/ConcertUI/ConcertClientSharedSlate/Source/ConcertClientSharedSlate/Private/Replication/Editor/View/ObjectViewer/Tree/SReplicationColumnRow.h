@@ -24,6 +24,7 @@ namespace UE::ConcertClientSharedSlate
 		DECLARE_DELEGATE_RetVal_OneParam(const TColumType*, FGetColumn,
 			const FName& ColumnId
 			);
+		DECLARE_DELEGATE_RetVal_TwoParams(TSharedPtr<SWidget>, FOverrideColumnWidget, const FName& ColumnName, const TListItemType& RowData);
 		
 		SLATE_BEGIN_ARGS(SReplicationColumnRow)
 			: _RowHeight(20.f)
@@ -33,6 +34,12 @@ namespace UE::ConcertClientSharedSlate
 
 			/** Gets columns info about a certain column */
 			SLATE_EVENT(FGetColumn, ColumnGetter)
+
+			/**
+			 * Optional. If the delegate returns non-null, that widget will be used instead of the one the column would generate.
+			 * This is useful, e.g. if you want to generate a separator widget between items.
+			 */
+			SLATE_EVENT(FOverrideColumnWidget, OverrideColumnWidget)
 
 			/** The data to pass to TReplicationColumn::BuildColumnWidget. */
 			SLATE_ARGUMENT(TSharedPtr<TListItemType>, RowData)
@@ -49,6 +56,7 @@ namespace UE::ConcertClientSharedSlate
 			TSharedRef<STableViewBase> InOwner)
 		{
 			ColumnGetterDelegate = InArgs._ColumnGetter;
+			OverrideColumnWidgetDelegate = InArgs._OverrideColumnWidget;
 			HighlightText = InArgs._HighlightText;
 			RowData = InArgs._RowData;
 			ExpandableColumnLabel = InArgs._ExpandableColumnLabel;
@@ -60,6 +68,14 @@ namespace UE::ConcertClientSharedSlate
 		/** Generates the widget representing this row. */
 		virtual TSharedRef<SWidget> GenerateWidgetForColumn(const FName& ColumnName) override
 		{
+			const TSharedPtr<SWidget> ColumnOverride = OverrideColumnWidgetDelegate.IsBound()
+				? OverrideColumnWidgetDelegate.Execute(ColumnName, *RowData.Get())
+				: nullptr;
+			if (ColumnOverride)
+			{
+				return ColumnOverride.ToSharedRef();
+			}
+			
 			const TColumType* Column = ColumnGetterDelegate.Execute(ColumnName); ensure(Column);
 			if (!Column)
 			{
@@ -98,6 +114,7 @@ namespace UE::ConcertClientSharedSlate
 	private:
 		
 		FGetColumn ColumnGetterDelegate;
+		FOverrideColumnWidget OverrideColumnWidgetDelegate;
 		TSharedPtr<FText> HighlightText;
 		TSharedPtr<TListItemType> RowData;
 		FName ExpandableColumnLabel;

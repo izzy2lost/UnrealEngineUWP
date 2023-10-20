@@ -4,9 +4,9 @@
 
 #include "ConcertLogGlobal.h"
 #include "IConcertSyncClient.h"
-#include "SReplicationClientView.h"
 #include "Replication/MultiUserReplicationManager.h"
 #include "SSelectClientViewComboButton.h"
+#include "Widgets/ActiveSession/Replication/Client/Single/SReplicationClientView.h"
 
 #include "Framework/Notifications/NotificationManager.h"
 #include "Replication/Client/RemoteReplicationClient.h"
@@ -36,7 +36,7 @@ namespace UE::MultiUserClient
 			[
 				SNew(SReplicationClientView)
 				.GetReplicationClient_Lambda([this](){ return &ReplicationManager->GetClientManager()->GetLocalClient(); })
-				.AdditionalToolbarWidgets()
+				.ViewSelectionArea()
 				[
 					MakeClientSelectionArea()
 				]
@@ -45,10 +45,6 @@ namespace UE::MultiUserClient
 		
 		RefreshClientViewSwitcher();
 		ReplicationManager->GetClientManager()->OnRemoteClientsChanged().AddSP(this, &SReplicationJoinedView::RefreshClientViewSwitcher);
-		
-		// Show notifications about changing authority
-		ReplicationManager->GetAuthorityPolicy()->OnAuthorityRequestSent_AnyThread().AddSP(this, &SReplicationJoinedView::OnAuthorityRequestSent_AnyThread);
-		ReplicationManager->GetAuthorityPolicy()->OnAuthorityResponseReceived_AnyThread().AddSP(this, &SReplicationJoinedView::OnAuthorityResponseReceived_AnyThread);
 	}
 
 	void SReplicationJoinedView::RefreshClientViewSwitcher()
@@ -121,7 +117,7 @@ namespace UE::MultiUserClient
         				// It is unsafe to simply capture RemoteClient because the containing TArray may reallocate its location
         				return ReplicationManager->GetClientManager()->FindRemoteClient(EndpointId);
         			})
-        			.AdditionalToolbarWidgets()
+        			.ViewSelectionArea()
         			[
         				MakeClientSelectionArea()
         			]
@@ -209,67 +205,6 @@ namespace UE::MultiUserClient
 			}
 		}
 		return {};
-	}
-
-	void SReplicationJoinedView::OnAuthorityRequestSent_AnyThread(
-		const ConcertSyncClient::Replication::FAuthorityChangeRequest& Request
-		)
-	{
-		ExecuteOnGameThread(TEXT("OnAuthorityRequestSent"), [WeakThis = TWeakPtr<SReplicationJoinedView>(SharedThis(this)), Request]()
-		{
-			if (const TSharedPtr<SReplicationJoinedView> ThisPin = WeakThis.Pin())
-			{
-				FNotificationInfo NotificationInfo(LOCTEXT("Authority.InProgress.Text", "Requesting authority."));
-				NotificationInfo.bUseThrobber = true;
-				NotificationInfo.bUseSuccessFailIcons = true;
-				NotificationInfo.bFireAndForget = false;
-				ThisPin->AuthorityChangeNotification = FSlateNotificationManager::Get().AddNotification(NotificationInfo);
-				ThisPin->AuthorityChangeNotification->SetSubText(
-					FText::Format(LOCTEXT("Authority.InProgress.SubTextFmt", "Taking {0}|plural(one=object,other\nReleasing {1}|plural(one=object,other=objects)"),
-						Request.TakeAuthority.Num(),
-						Request.ReleaseAuthority.Num()
-					));
-			}
-		});
-	}
-
-	void SReplicationJoinedView::OnAuthorityResponseReceived_AnyThread(
-		const ConcertSyncClient::Replication::FAuthorityChangeRequest& Request,
-		const ConcertSyncClient::Replication::FAuthorityChangeResponse& Response
-		)
-	{
-		ExecuteOnGameThread(TEXT("OnAuthorityResponseReceived"), [WeakThis = TWeakPtr<SReplicationJoinedView>(SharedThis(this)), Request, Response]()
-		{
-			if (const TSharedPtr<SReplicationJoinedView> ThisPin = WeakThis.Pin()
-				; ThisPin && ensure(ThisPin->AuthorityChangeNotification))
-			{
-				const bool bSuccess = Response.RejectedObjects.IsEmpty();
-				const FText Text = bSuccess
-					? LOCTEXT("Authority.Text.Accepted", "Authority change accepted.")
-					: LOCTEXT("Authority.Text.Rejection", "Authority change had rejections.");
-				const FText SubText = bSuccess
-					? FText::GetEmpty()
-					: FText::Format(LOCTEXT("Authority.SubText.RejectionFmt", "{0} accepted {1} rejected\nSee logs for details."),
-						Request.TakeAuthority.Num() - Response.RejectedObjects.Num(),
-						Response.RejectedObjects.Num()
-						);
-				
-				ThisPin->AuthorityChangeNotification->SetCompletionState(bSuccess ? SNotificationItem::CS_Success : SNotificationItem::CS_Fail);
-				ThisPin->AuthorityChangeNotification->SetText(Text);
-				ThisPin->AuthorityChangeNotification->SetSubText(SubText);
-
-				if (!bSuccess)
-				{
-					const FString Error = FString::JoinBy(Response.RejectedObjects, TEXT("\n"), [](const TPair<FSoftObjectPath, FConcertStreamArray>& Pair)
-					{
-						return Pair.Key.ToString();
-					});
-					UE_LOG(LogConcert, Error, TEXT("Authority change rejected objects:\n%s"), *Error);
-				}
-				
-				ThisPin->AuthorityChangeNotification->ExpireAndFadeout();
-			}
-		});
 	}
 }
 

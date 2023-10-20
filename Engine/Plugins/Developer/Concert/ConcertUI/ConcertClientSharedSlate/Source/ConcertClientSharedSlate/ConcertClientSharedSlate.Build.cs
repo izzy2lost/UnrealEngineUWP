@@ -34,7 +34,6 @@ namespace UnrealBuildTool.Rules
 					"Slate",
 					"SlateCore",
 					"SubobjectDataInterface",
-					"SubobjectEditor",
 					"ToolMenus",
 					"ToolWidgets",
 					"UnrealEd", 

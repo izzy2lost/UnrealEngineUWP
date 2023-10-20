@@ -16,13 +16,22 @@ namespace UE::ConcertClientSharedSlate::DisplayUtils
 	FText GetObjectDisplayText(const FSoftObjectPath& Object)
 	{
 		// Important! The object may not be loaded, yet. This could be if the asset is using a level that was not opened. 
-		UObject* LoadedObject = Object.TryLoad();
-		return LoadedObject
-			? FText::FromString(GetObjectDisplayString(*LoadedObject))
-			: FText::GetEmpty();
+		if (const UObject* LoadedObject = Object.ResolveObject())
+		{
+			return FText::FromString(GetObjectDisplayString(*LoadedObject));
+		}
+
+		// Subpath looks like this PersistentLevel.Actor.Component
+		const FString& Subpath = Object.GetSubPathString();
+		const int32 LastDotIndex = Subpath.Find(TEXT("."), ESearchCase::CaseSensitive, ESearchDir::FromEnd);
+		if (LastDotIndex == INDEX_NONE)
+		{
+			return FText::GetEmpty();
+		}
+		return FText::FromString(Subpath.RightChop(LastDotIndex + 1));
 	}
 
-	FString GetObjectDisplayString(UObject& Object)
+	FString GetObjectDisplayString(const UObject& Object)
 	{
 		if (const AActor* AsActor = Cast<AActor>(&Object))
 		{

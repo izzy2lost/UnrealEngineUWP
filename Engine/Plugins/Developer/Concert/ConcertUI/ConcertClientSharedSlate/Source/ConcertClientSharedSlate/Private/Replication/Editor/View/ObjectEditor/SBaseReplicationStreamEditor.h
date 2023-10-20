@@ -50,9 +50,9 @@ namespace UE::ConcertClientSharedSlate
 		SLATE_BEGIN_ARGS(SBaseReplicationStreamEditor)
 		{}
 			/** Additional columns to add to the object view */
-			SLATE_ARGUMENT(TArray<ReplicationObjectColumns::FReplicationObjectColumn>, AdditionalObjectColumns)
+			SLATE_ARGUMENT(TArray<ReplicationColumns::FReplicationTopLevelObjectColumn>, AdditionalObjectColumns)
 			/** Additional columns to add to the property view */
-			SLATE_ARGUMENT(TArray<ReplicationPropertyColumns::FReplicationPropertyColumn>, AdditionalPropertyColumns)
+			SLATE_ARGUMENT(TArray<ReplicationColumns::FReplicationPropertyColumn>, AdditionalPropertyColumns)
 		
 			/** Optional. Placed between root object outliner and property editor. */
 			SLATE_ARGUMENT(TSharedPtr<IReplicationSubobjectView>, SubobjectView)
@@ -67,6 +67,11 @@ namespace UE::ConcertClientSharedSlate
 			SLATE_NAMED_SLOT(FArguments, LeftOfObjectSearchBar)
 			/** Optional widget to add to the left of the property list search bar. */
 			SLATE_NAMED_SLOT(FArguments, LeftOfPropertySearchBar)
+
+			/** Optional. Determines whether all UI for changing the model should be disabled. */
+			SLATE_ATTRIBUTE(bool, IsEditingEnabled)
+			/** Optional. Whenever IsEditingEnabled returns true, this tooltip is displayed for relevant, disabled UI. */
+			SLATE_ATTRIBUTE(FText, EditingDisabledToolTipText)
 		SLATE_END_ARGS()
 
 		void Construct(const FArguments& InArgs,
@@ -99,8 +104,16 @@ namespace UE::ConcertClientSharedSlate
 		/** For deciding which properties can be added to EditablePropertiesModel. */
 		TSharedPtr<IPropertySelectionSourceModel> PropertySelectionSource;
 
+		/** Optional. Determines whether all UI for changing the model should be disabled. */
+		TAttribute<bool> IsEditingEnabledAttribute;
+		/** Optional. Whenever IsEditingEnabled returns true, this tooltip is displayed for relevant, disabled UI. */
+		TAttribute<FText> EditingDisabledToolTipTextAttribute;
+		
 		/** Generates additional entries */
 		FExtendMenu OnExtendObjectsContextMenuDelegate;
+
+		bool IsEditingDisabled() const;
+		FText GetEditingDisabledText() const;
 		
 		void OnObjectsChanged(TConstArrayView<UObject*> AddedObjects, TConstArrayView<FSoftObjectPath> RemovedObjects, EReplicatedObjectChangeReason ChangeReason);
 		void OnPropertiesChanged();

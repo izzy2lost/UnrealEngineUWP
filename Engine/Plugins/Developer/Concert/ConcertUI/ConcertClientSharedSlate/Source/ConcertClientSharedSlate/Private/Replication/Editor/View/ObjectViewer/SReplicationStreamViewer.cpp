@@ -103,11 +103,6 @@ namespace UE::ConcertClientSharedSlate
 	{
 		SubobjectAndPropertySection->RefreshPropertyData();
 	}
-	
-	const TArray<TSharedPtr<FReplicatedPropertyData>>& SReplicationStreamViewer::GetPropertyRowData() const
-	{
-		return SubobjectAndPropertySection->GetPropertyRowData();
-	}
 
 	TSharedRef<FReplicatedObjectData> SReplicationStreamViewer::AllocateObjectData(FSoftObjectPath ObjectPath)
 	{
@@ -135,11 +130,11 @@ namespace UE::ConcertClientSharedSlate
 
 	TSharedRef<SWidget> SReplicationStreamViewer::CreateActorsSection(const FArguments& InArgs)
 	{
-		TArray<ReplicationObjectColumns::FReplicationObjectColumn> Columns
+		TArray Columns
 		{
-			ReplicationObjectColumns::IconColumn(PropertiesModel.ToSharedRef()),
-			ReplicationObjectColumns::LabelColumn(),
-			ReplicationObjectColumns::TypeColumn(PropertiesModel.ToSharedRef())
+			ReplicationColumns::TopLevel::IconColumn(PropertiesModel.ToSharedRef()),
+			ReplicationColumns::TopLevel::LabelColumn(),
+			ReplicationColumns::TopLevel::TypeColumn(PropertiesModel.ToSharedRef())
 		};
 		Columns.Append(InArgs._AdditionalObjectColumns);
 		
@@ -155,7 +150,7 @@ namespace UE::ConcertClientSharedSlate
 				SubobjectAndPropertySection->SelectRootObjects();
 			})
 			.Columns(Columns)
-			.ExpandableColumnLabel(ReplicationObjectColumns::LabelColumnId)
+			.ExpandableColumnLabel(ReplicationColumns::TopLevel::LabelColumnId)
 			.SelectionMode(ESelectionMode::Multi)
 			.LeftOfSearchBar()
 			[

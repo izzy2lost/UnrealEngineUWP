@@ -2,20 +2,11 @@
 
 #pragma once
 
-#include "ReplicationWidgetDelegates.h"
 #include "Editor/View/PredefinedReplicationColumns.h"
+#include "ReplicationWidgetDelegates.h"
+
 #include "Misc/Attribute.h"
 #include "Templates/SharedPointer.h"
-
-namespace UE::ConcertClientSharedSlate
-{
-	class IObjectToPropertiesModel;
-}
-
-namespace UE::ConcertClientSharedSlate
-{
-	class IReplicationStreamViewer;
-}
 
 class UObject;
 class SWidget;
@@ -25,14 +16,12 @@ struct FObjectReplicationMap;
 
 namespace UE::ConcertClientSharedSlate
 {
-	class IReplicationSubobjectView;
-}
-
-namespace UE::ConcertClientSharedSlate
-{
 	class IEditableObjectToPropertiesModel;
-	class IReplicationStreamEditor;
+	class IObjectToPropertiesModel;
 	class IObjectSelectionSourceModel;
+	class IReplicationStreamEditor;
+	class IReplicationStreamViewer;
+	class IReplicationSubobjectView;
 	class IPropertySelectionSourceModel;
 	
 	/**
@@ -52,8 +41,15 @@ namespace UE::ConcertClientSharedSlate
 		TAttribute<const FConcertReplicationEditorSettings*> OptionalReplicationSettingsAttribute = {}
 		);
 	
+	struct FCreateSubobjectViewParams
+	{
+		/** Additional columns that should be displayed for the subobjects. */
+		TArray<ReplicationColumns::FReplicationSubobjectObjectColumn> AdditionalColumns;
+	};
 	/** Creates a stream editor with a subobject view that looks like the SSubobjectEditor. */
-	CONCERTCLIENTSHAREDSLATE_API TSharedRef<IReplicationSubobjectView> CreateUnrealEditorSubobjectView();
+	CONCERTCLIENTSHAREDSLATE_API TSharedRef<IReplicationSubobjectView> CreateUnrealEditorSubobjectView(
+		FCreateSubobjectViewParams Params
+		);
 
 	/** Params for creating an IReplicationStreamEditor */
 	struct FCreateEditorParams
@@ -89,14 +85,19 @@ namespace UE::ConcertClientSharedSlate
 		FSortPropertyPredicate SortPropertyRowPredicate;
 		
 		/** Additional columns to add to the object view */
-		TArray<ReplicationObjectColumns::FReplicationObjectColumn> AdditionalObjectColumns;
+		TArray<ReplicationColumns::FReplicationTopLevelObjectColumn> AdditionalObjectColumns;
 		/** Additional columns to add to the property view */
-		TArray<ReplicationPropertyColumns::FReplicationPropertyColumn> AdditionalPropertyColumns;
+		TArray<ReplicationColumns::FReplicationPropertyColumn> AdditionalPropertyColumns;
 		
 		/** Optional widget to add to the left of the object list search bar. */
 		TAlwaysValidWidget LeftOfObjectSearchBar;
 		/** Optional widget to add to the left of the property list search bar. */
 		TAlwaysValidWidget LeftOfPropertySearchBar;
+
+		/** Optional. Determines whether all UI for changing the model should be disabled. */
+		TAttribute<bool> IsEditingEnabled;
+		/** Optional. Whenever IsEditingEnabled returns true, this tooltip is displayed for relevant, disabled UI. */
+		TAttribute<FText> EditingDisabledToolTipText;
 	};
 
 	/**

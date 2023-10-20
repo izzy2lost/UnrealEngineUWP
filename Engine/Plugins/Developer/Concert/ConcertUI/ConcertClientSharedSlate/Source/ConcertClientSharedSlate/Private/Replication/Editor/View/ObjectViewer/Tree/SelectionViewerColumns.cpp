@@ -2,11 +2,14 @@
 
 #include "SelectionViewerColumns.h"
 
+#include "ClassIconFinder.h"
 #include "Replication/Editor/Model/DisplayUtils.h"
 #include "Replication/Editor/Model/IEditableObjectToPropertiesModel.h"
 #include "Replication/Editor/Model/ReplicatedPropertyData.h"
 #include "Replication/Editor/Model/ReplicatedObjectData.h"
+#include "Replication/Editor/Model/Subobject/ISubobjectModel.h"
 #include "Replication/Editor/View/ObjectEditor/SBaseReplicationStreamEditor.h"
+#include "Replication/Editor/View/ReplicationColumnsUtils.h"
 #include "Replication/PropertyChainUtils.h"
 
 #include "Internationalization/Internationalization.h"
@@ -19,17 +22,17 @@
 
 #define LOCTEXT_NAMESPACE "ReplicationObjectColumns"
 
-namespace UE::ConcertClientSharedSlate::ReplicationObjectColumns
+namespace UE::ConcertClientSharedSlate::ReplicationColumns::TopLevel
 {
 	const FName IconColumnId = TEXT("IconColumn");
 	const FName LabelColumnId = TEXT("LabelColumn");
 	const FName TypeColumnId = TEXT("TypeColumn");
 
-	FReplicationObjectColumn IconColumn(TSharedRef<IObjectToPropertiesModel> Model, const float ColumnWidth)
+	FReplicationTopLevelObjectColumn IconColumn(TSharedRef<IObjectToPropertiesModel> Model, const float ColumnWidth)
 	{
-		return FReplicationObjectColumn(
-			FReplicationObjectColumn::FArguments()
-				.GenerateWidgetColumn_Lambda([Model](const FReplicationObjectColumn::FBuildArgs& Args)
+		return FReplicationTopLevelObjectColumn(
+			FReplicationTopLevelObjectColumn::FArguments()
+				.GenerateWidgetColumn_Lambda([Model](const FReplicationTopLevelObjectColumn::FBuildArgs& Args)
 				{
 					return SNew(SHorizontalBox)
 						+SHorizontalBox::Slot()
@@ -40,18 +43,18 @@ namespace UE::ConcertClientSharedSlate::ReplicationObjectColumns
 							.Image(DisplayUtils::GetObjectIcon(*Model, Args.RowData.GetObjectPath()).GetOptionalIcon())
 						];
 				})
-				.ColumnSortOrder(static_cast<int32>(EReplicationColumnOrder::Icon)),
+				.ColumnSortOrder(static_cast<int32>(ETopLevelColumnOrder::Icon)),
 			SHeaderRow::Column(IconColumnId)
 				.DefaultLabel(FText::GetEmpty())
 				.FixedWidth(ColumnWidth)
 			);
 	}
 	
-	FReplicationObjectColumn LabelColumn()
+	FReplicationTopLevelObjectColumn LabelColumn()
 	{
-		return FReplicationObjectColumn(
-			FReplicationObjectColumn::FArguments()
-				.GenerateWidgetColumn_Lambda([](const FReplicationObjectColumn::FBuildArgs& Args)
+		return FReplicationTopLevelObjectColumn(
+			FReplicationTopLevelObjectColumn::FArguments()
+				.GenerateWidgetColumn_Lambda([](const FReplicationTopLevelObjectColumn::FBuildArgs& Args)
 				{
 					return SNew(STextBlock)
 						.HighlightText(TAttribute<FText>::CreateLambda([HighlightText = Args.HighlightText](){ return *HighlightText; }))
@@ -61,18 +64,18 @@ namespace UE::ConcertClientSharedSlate::ReplicationObjectColumns
 				{
 					InOutSearchStrings.Add(DisplayUtils::GetObjectDisplayText(ObjectData.GetObjectPath()).ToString());
 				})
-				.ColumnSortOrder(static_cast<int32>(EReplicationColumnOrder::Label)),
+				.ColumnSortOrder(static_cast<int32>(ETopLevelColumnOrder::Label)),
 			SHeaderRow::Column(LabelColumnId)
 				.DefaultLabel(LOCTEXT("LabelColumnLabel", "Label"))
 				.FillWidth(1.f)
 			);
 	}
 	
-	FReplicationObjectColumn TypeColumn(TSharedRef<IObjectToPropertiesModel> Model)
+	FReplicationTopLevelObjectColumn TypeColumn(TSharedRef<IObjectToPropertiesModel> Model)
 	{
-		return FReplicationObjectColumn(
-			FReplicationObjectColumn::FArguments()
-				.GenerateWidgetColumn_Lambda([Model](const FReplicationObjectColumn::FBuildArgs& Args)
+		return FReplicationTopLevelObjectColumn(
+			FReplicationTopLevelObjectColumn::FArguments()
+				.GenerateWidgetColumn_Lambda([Model](const FReplicationTopLevelObjectColumn::FBuildArgs& Args)
 				{
 					return SNew(STextBlock)
 						.HighlightText(TAttribute<FText>::CreateLambda([HighlightText = Args.HighlightText](){ return *HighlightText; }))
@@ -82,7 +85,7 @@ namespace UE::ConcertClientSharedSlate::ReplicationObjectColumns
 				{
 					InOutSearchStrings.Add(DisplayUtils::GetObjectTypeText(Model.Get(), ObjectData.GetObjectPath()).ToString());
 				})
-				.ColumnSortOrder(static_cast<int32>(EReplicationColumnOrder::Type)),
+				.ColumnSortOrder(static_cast<int32>(ETopLevelColumnOrder::Type)),
 			SHeaderRow::Column(TypeColumnId)
 				.DefaultLabel(LOCTEXT("TypeColumnLabel", "Type"))
 				.FillWidth(1.f)
@@ -91,10 +94,62 @@ namespace UE::ConcertClientSharedSlate::ReplicationObjectColumns
 }
 
 #undef LOCTEXT_NAMESPACE
+
+namespace UE::ConcertClientSharedSlate::ReplicationColumns::Subobject
+{
+	const FName DisplayColumnId(TEXT("DisplayColumn"));
+	
+	FReplicationSubobjectObjectColumn DisplayColumn(ISubobjectModel& SubobjectModel)
+	{
+		return FReplicationSubobjectObjectColumn(
+			FReplicationSubobjectObjectColumn::FArguments()
+				.GenerateWidgetColumn_Lambda([&SubobjectModel](const FReplicationSubobjectObjectColumn::FBuildArgs& Args)
+				{
+					const FSoftObjectPath ObjectPath = Args.RowData.GetObjectPath();
+					
+					const FSlateBrush* ComponentIcon = FAppStyle::GetBrush("SCS.NativeComponent");
+					const UObject* Object = ObjectPath.ResolveObject();
+					const AActor* AsActor = Cast<AActor>(Object);
+					ComponentIcon = AsActor ? FClassIconFinder::FindIconForActor(AsActor) : ComponentIcon;
+					ComponentIcon = Object ? FSlateIconFinder::FindIconBrushForClass(Object->GetClass(), TEXT("SCS.Component")) : ComponentIcon;
+					
+					return SNew(SHorizontalBox)
+						+SHorizontalBox::Slot()
+						.AutoWidth()
+						.VAlign(VAlign_Center)
+						[
+							SNew(SImage)
+							.Image(ComponentIcon)
+							.ColorAndOpacity(FSlateColor::UseForeground())
+						]
+
+						+SHorizontalBox::Slot()
+							.AutoWidth()
+							.VAlign(VAlign_Center)
+							.Padding(6.f, 0.f, 0.f, 0.f)
+						[
+							SNew(STextBlock)
+							.HighlightText(TAttribute<FText>::CreateLambda([HighlightText = Args.HighlightText](){ return *HighlightText; }))
+							.Text(SubobjectModel.GetSubobjectDisplayName(ObjectPath))
+						];
+				})
+				.PopulateSearchItems_Lambda([&SubobjectModel](const FReplicatedObjectData& ObjectData, TArray<FString>& InOutSearchStrings)
+				{
+					const FSoftObjectPath ObjectPath = ObjectData.GetObjectPath();
+					InOutSearchStrings.Add(SubobjectModel.GetSubobjectDisplayName(ObjectPath).ToString());
+				})
+				.ColumnSortOrder(static_cast<int32>(ESubobjectColumnOrder::DisplayLabel)),
+			SHeaderRow::Column(DisplayColumnId)
+				.FillWidth(1.f)
+			);
+	}
+}
+
 #define LOCTEXT_NAMESPACE "ReplicationPropertyColumns"
 
-namespace UE::ConcertClientSharedSlate::ReplicationPropertyColumns
+namespace UE::ConcertClientSharedSlate::ReplicationColumns::Property
 {
+	const FName ReplicatesColumnId = TEXT("ReplicatedColumn");
 	const FName LabelColumnId = TEXT("LabelColumn");
 	const FName TypeColumnId = TEXT("TypeColumn");
 	
@@ -207,36 +262,53 @@ namespace UE::ConcertClientSharedSlate::ReplicationPropertyColumns
 			}
 		}
 	}
+
+#define MOVE_CAPTURE(a)
 	
 	FReplicationPropertyColumn ReplicatesColumns(
 		TWeakPtr<IReplicationStreamViewer> Viewer,
 		TWeakPtr<IEditableObjectToPropertiesModel> Model,
+		TReplicationColumnDelegates<FReplicatedPropertyData>::FIsEnabled IsEnabledDelegate,
+		TAttribute<FText> DisabledToolTipText,
 		const float ColumnWidth,
 		const int32 Priority
 		)
 	{
-		return MakePropertyCheckboxColumn(
-			FGetColumnCheckboxState::CreateLambda(
-				[Viewer, Model](const FConcertPropertyChain& Property)
+		using FPropertyColumnDelegates = TReplicationColumnDelegates<FReplicatedPropertyData>;
+		return MakeCheckboxColumn<FReplicatedPropertyData>(
+			ReplicatesColumnId,
+			FPropertyColumnDelegates(
+				FPropertyColumnDelegates::FGetColumnCheckboxState::CreateLambda(
+				[Viewer, Model](const FReplicatedPropertyData& Data)
 				{
 					const TSharedPtr<IReplicationStreamViewer> ViewerPin = Viewer.Pin();
 					const TSharedPtr<IEditableObjectToPropertiesModel> ModelPin = Model.Pin();
-					return ensure(ViewerPin && ModelPin) ? Private::OnGetPropertyCheckboxState(Property, *ViewerPin, *ModelPin) : ECheckBoxState::Undetermined;
+					return ensure(ViewerPin && ModelPin) ? Private::OnGetPropertyCheckboxState(Data.GetProperty(), *ViewerPin, *ModelPin) : ECheckBoxState::Undetermined;
 				}),
-			FOnColumnCheckboxChanged::CreateLambda(
-				[Viewer, Model](bool bIsChecked, const FConcertPropertyChain& Property)
+				FPropertyColumnDelegates::FOnColumnCheckboxChanged::CreateLambda(
+				[Viewer, Model](bool bIsChecked, const FReplicatedPropertyData& Data)
 				{
 					const TSharedPtr<IReplicationStreamViewer> ViewerPin = Viewer.Pin();
 					const TSharedPtr<IEditableObjectToPropertiesModel> ModelPin = Model.Pin();
 					if (ensure(ViewerPin && ModelPin))
 					{
-						Private::OnPropertyCheckboxChanged(bIsChecked, Property, *ViewerPin, *ModelPin);
+						Private::OnPropertyCheckboxChanged(bIsChecked, Data.GetProperty(), *ViewerPin, *ModelPin);
 					}
 				}),
+				FPropertyColumnDelegates::FGetToolTipText::CreateLambda(
+				[IsEnabledDelegate, DisabledToolTipText = MoveTemp(DisabledToolTipText)](const FReplicatedPropertyData& Data)
+				{
+					const bool bIsDisabled = IsEnabledDelegate.IsBound() && !IsEnabledDelegate.Execute(Data);
+					const bool bCanCall = DisabledToolTipText.IsBound() || DisabledToolTipText.IsSet();
+					return bIsDisabled
+						? bCanCall ? DisabledToolTipText.Get() : FText::GetEmpty()
+						: LOCTEXT("Replicates.ToolTip", "Select whether this property should be replicated");
+				}),
+				IsEnabledDelegate
+				),
 			FText::GetEmpty(),
-			LOCTEXT("Replicates.ToolTip", "Select whether this property should be replicated"),
-			ColumnWidth, 
-			Priority
+			Priority,
+			ColumnWidth
 		);
 	}
 

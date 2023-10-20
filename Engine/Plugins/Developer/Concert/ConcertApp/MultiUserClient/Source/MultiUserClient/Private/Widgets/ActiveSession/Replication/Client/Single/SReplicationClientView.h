@@ -23,8 +23,8 @@ namespace UE::MultiUserClient
 		{}
 			/** The client to depict. Should always return true. If the client is destroyed, so should this widget be. */
 			SLATE_ATTRIBUTE(FReplicationClient*, GetReplicationClient)
-			/** Extra widgets to add to the toolbar. */
-			SLATE_NAMED_SLOT(FArguments, AdditionalToolbarWidgets)
+			/** Dedicated space for a widget with which to change the view. */
+			SLATE_NAMED_SLOT(FArguments, ViewSelectionArea)
 		SLATE_END_ARGS()
 
 		void Construct(const FArguments& InArgs);

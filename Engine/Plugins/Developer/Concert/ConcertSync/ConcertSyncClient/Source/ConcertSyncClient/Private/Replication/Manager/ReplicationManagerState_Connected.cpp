@@ -255,7 +255,8 @@ namespace UE::ConcertSyncClient::Replication
 			const FSoftObjectPath& ReplicatedObject = TakeAuthority.Key;
 			// Request will be discarded so ...
 			FConcertStreamArray& ReplicatedStreams = TakeAuthority.Value;
-
+			
+			UE_CLOG(ReplicatedStreams.StreamIds.IsEmpty(), LogConcert, Warning, TEXT("Your FAuthorityChangeRequest::TakeAuthority request contained empty stream ID array for object %s"), *ReplicatedObject.ToString());
 			const FConcertStreamArray* RejectedStreams = Response.RejectedObjects.Find(ReplicatedObject);
 			if (RejectedStreams)
 			{

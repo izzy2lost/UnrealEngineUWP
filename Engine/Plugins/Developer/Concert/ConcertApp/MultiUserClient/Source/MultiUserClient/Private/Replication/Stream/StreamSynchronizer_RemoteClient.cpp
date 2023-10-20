@@ -1,6 +1,6 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 
-#include "RemoteClientStreamSynchronizer.h"
+#include "StreamSynchronizer_RemoteClient.h"
 
 #include "ConcertLogGlobal.h"
 #include "Assets/MultiUserReplicationClientPreset.h"
@@ -10,40 +10,27 @@ namespace UE::MultiUserClient
 {
 	constexpr float QueryTimeInterval = 1.f;
 	
-	FRemoteClientStreamSynchronizer::FRemoteClientStreamSynchronizer(const FGuid& RemoteEndpointId, FRegularQueryService& InQueryService)
+	FStreamSynchronizer_RemoteClient::FStreamSynchronizer_RemoteClient(const FGuid& RemoteEndpointId, FRegularQueryService& InQueryService)
 		: QueryService(InQueryService)
 		, QueryStreamHandle(
 			QueryService.RegisterStreamQuery(
 				RemoteEndpointId,
-				FStreamQueryDelegate::CreateRaw(this, &FRemoteClientStreamSynchronizer::HandleStreamQuery)
+				FStreamQueryDelegate::CreateRaw(this, &FStreamSynchronizer_RemoteClient::HandleStreamQuery)
 				)
 			)
 	{}
 
-	FRemoteClientStreamSynchronizer::~FRemoteClientStreamSynchronizer()
+	FStreamSynchronizer_RemoteClient::~FStreamSynchronizer_RemoteClient()
 	{
 		QueryService.UnregisterStreamQuery(QueryStreamHandle);
 	}
 
-	TFuture<FSubmitChangesResult> FRemoteClientStreamSynchronizer::SubmitChanges(const FStreamChangelist& Changelist)
-	{
-		
-		// UE-180657: Changing remote client's stream is not implemented for now
-		return MakeFulfilledPromise<FSubmitChangesResult>(FSubmitChangesResult{ ESubmitChangesErrorCode::CannotSendRequest }).GetFuture();
-	}
-
-	bool FRemoteClientStreamSynchronizer::CanMakeSubmitRequest() const
-	{
-		// UE-180657: Changing remote client's stream is not implemented for now
-		return false;
-	}
-
-	FGuid FRemoteClientStreamSynchronizer::GetStreamId() const
+	FGuid FStreamSynchronizer_RemoteClient::GetStreamId() const
 	{
 		return UMultiUserReplicationClientPreset::MultiUserStreamID;
 	}
 
-	void FRemoteClientStreamSynchronizer::HandleStreamQuery(const TArray<FSharedReplicationStreamDescription>& Streams)
+	void FStreamSynchronizer_RemoteClient::HandleStreamQuery(const TArray<FSharedReplicationStreamDescription>& Streams)
 	{
 		// MU clients use UMultiUserReplicationClientPreset::MultiUserStreamID for streams.
 		// That handles the (unlikely) case in which some external logic had added streams to the same client which we must differentiate

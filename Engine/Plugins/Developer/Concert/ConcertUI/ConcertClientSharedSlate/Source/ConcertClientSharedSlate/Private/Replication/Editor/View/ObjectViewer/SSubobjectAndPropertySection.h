@@ -32,7 +32,7 @@ namespace UE::ConcertClientSharedSlate
 		SLATE_BEGIN_ARGS(SSubobjectAndPropertySection)
 		{}
 			/** Additional columns to add to the property view */
-			SLATE_ARGUMENT(TArray<ReplicationPropertyColumns::FReplicationPropertyColumn>, AdditionalPropertyColumns)
+			SLATE_ARGUMENT(TArray<ReplicationColumns::FReplicationPropertyColumn>, AdditionalPropertyColumns)
 			/** Optional. Placed between root object outliner and property editor. */
 			SLATE_ARGUMENT(TSharedPtr<IReplicationSubobjectView>, SubobjectView)
 		

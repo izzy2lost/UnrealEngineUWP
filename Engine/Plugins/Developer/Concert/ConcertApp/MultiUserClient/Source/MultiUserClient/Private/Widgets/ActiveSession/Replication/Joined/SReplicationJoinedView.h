@@ -10,19 +10,15 @@ class IConcertSyncClient;
 class SNotificationItem;
 class SWidgetSwitcher;
 
-namespace UE::MultiUserClient
-{
-	class SReplicationClientView;
-}
-
 namespace UE::ConcertClientSharedSlate
 {
-	class IReplicationEditorView;
+	class IReplicationStreamEditor;
 }
 
 namespace UE::MultiUserClient
 {
 	class FMultiUserReplicationManager;
+	class SReplicationClientView;
 
 	/** This widget is displayed by SReplicationRootWidget when the client has joined replication. */
 	class SReplicationJoinedView : public SCompoundWidget
@@ -65,11 +61,5 @@ namespace UE::MultiUserClient
 		/** Creates a combobox with which the content of ClientViewSwitcher can be changed. */
 		TSharedRef<SWidget> MakeClientSelectionComboBox();
 		TOptional<FGuid> GetRemoteClientBySwitcherIndex(int32 WidgetSwitcherIndex) const;
-
-		void OnAuthorityRequestSent_AnyThread(const ConcertSyncClient::Replication::FAuthorityChangeRequest& Request);
-		void OnAuthorityResponseReceived_AnyThread(
-			const ConcertSyncClient::Replication::FAuthorityChangeRequest& Request,
-			const ConcertSyncClient::Replication::FAuthorityChangeResponse& Response
-			);
 	};
 }

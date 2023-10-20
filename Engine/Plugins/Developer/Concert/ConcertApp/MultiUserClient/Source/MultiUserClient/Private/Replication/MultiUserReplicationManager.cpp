@@ -50,13 +50,6 @@ namespace UE::MultiUserClient
 			});
 	}
 
-	FAuthorityPolicy* FMultiUserReplicationManager::GetAuthorityPolicy()
-	{
-		return ConnectedState
-			? &ConnectedState->ClientManager.GetLocalClient().GetAuthorityPolicy()
-			: nullptr;
-	}
-
 	void FMultiUserReplicationManager::OnSessionConnectionChanged(
 		IConcertClientSession& ConcertClientSession,
 		EConcertConnectionStatus ConcertConnectionStatus

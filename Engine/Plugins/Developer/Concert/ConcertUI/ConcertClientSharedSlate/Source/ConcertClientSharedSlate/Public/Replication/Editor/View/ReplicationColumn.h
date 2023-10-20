@@ -38,8 +38,15 @@ namespace UE::ConcertClientSharedSlate
 			SLATE_ARGUMENT(int32, ColumnSortOrder)
 		SLATE_END_ARGS()
 
-		TReplicationColumn(const TReplicationColumn::FArguments& InArgs, const FColumn::FArguments& InColumnArgs)
+		TReplicationColumn(const FArguments& InArgs, const FColumn::FArguments& InColumnArgs)
 			: FColumn(InColumnArgs)
+			, GenerateColumnWidgetCallback(InArgs._GenerateWidgetColumn)
+			, PopulateSearchStringCallback(InArgs._PopulateSearchItems)
+			, ColumnSortOrderValue(InArgs._ColumnSortOrder)
+		{}
+		
+		TReplicationColumn(const FArguments& InArgs, const FColumn& Column)
+			: FColumn(Column)
 			, GenerateColumnWidgetCallback(InArgs._GenerateWidgetColumn)
 			, PopulateSearchStringCallback(InArgs._PopulateSearchItems)
 			, ColumnSortOrderValue(InArgs._ColumnSortOrder)
@@ -61,6 +68,34 @@ namespace UE::ConcertClientSharedSlate
 		}
 		
 		int32 GetColumnSortOrderValue() const { return ColumnSortOrderValue; }
+
+		/**
+		 * Wraps a TReplicationColumn<TListItemType> in a TReplicationColumn<TOtherColumnType> which transforms
+		 * TOtherColumnType to TListItemType.
+		 *
+		 * This is useful e.g. if TOtherColumnType inherits from TListItemType.
+		 * The default TTransformOp argument handles this situation.
+		 */
+		template<typename TOtherColumnType, typename TTransformOp>
+		TReplicationColumn<TOtherColumnType> TransformColumn(TTransformOp TransformOperation = [](const TOtherColumnType& RowData) -> TListItemType { return RowData; }) const
+		{
+			using TReturnColumnType = TReplicationColumn<TOtherColumnType>;
+			FGenerateColumnWidget GenerateWidget = GenerateColumnWidgetCallback;
+			FPopulateSearchString PopulateSearchString = PopulateSearchStringCallback;
+			return TReturnColumnType(
+				typename TReturnColumnType::FArguments()
+					.GenerateWidgetColumn_Lambda([TransformOperation, GenerateWidget](const typename TReturnColumnType::FBuildArgs& BuildArgs)
+					{
+						return GenerateWidget.Execute({ BuildArgs.HighlightText, TransformOperation(BuildArgs.RowData)});
+					})
+					.PopulateSearchItems_Lambda([TransformOperation, PopulateSearchString](const TOtherColumnType& InOtherRowData, TArray<FString>& InOutSearchStrings)
+					{
+						PopulateSearchString.Execute(TransformOperation(InOtherRowData), InOutSearchStrings);
+					})
+					.ColumnSortOrder(ColumnSortOrderValue),
+				*this
+			);
+		}
 		
 	private:
 		

@@ -1,0 +1,44 @@
+// Copyright Epic Games, Inc. All Rights Reserved.
+
+#include "AuthoritySynchronizer_RemoteClient.h"
+
+#include "Replication/Util/RegularQueryService.h"
+
+namespace UE::MultiUserClient
+{
+	FAuthoritySynchronizer_RemoteClient::FAuthoritySynchronizer_RemoteClient(
+		const FGuid& RemoteEndpointId,
+		FRegularQueryService& InQueryService,
+		FDoesObjectHaveProperties InDoesObjectHaveProperties
+		)
+		: FAuthoritySynchronizer_Base(MoveTemp(InDoesObjectHaveProperties))
+		, QueryService(InQueryService)
+		, QueryStreamHandle(
+    		QueryService.RegisterAuthorityQuery(
+    			RemoteEndpointId,
+    			FAuthorityQueryDelegate::CreateRaw(this, &FAuthoritySynchronizer_RemoteClient::HandleAuthorityQuery)
+    			)
+    		)
+	{}
+
+	FAuthoritySynchronizer_RemoteClient::~FAuthoritySynchronizer_RemoteClient()
+	{
+		QueryService.UnregisterAuthorityQuery(QueryStreamHandle);
+	}
+
+	EAuthorityMutability FAuthoritySynchronizer_RemoteClient::GetChangeAuthorityMutability(const FSoftObjectPath& ObjectPath) const
+	{
+		// TODO DP: UE-198088 return whether it is legal to change the authority
+		return EAuthorityMutability::NotSupported;
+	}
+
+	void FAuthoritySynchronizer_RemoteClient::HandleAuthorityQuery(const TArray<FReplicationAuthorityInfo>& PerStreamAuthority)
+	{
+		LastServerState.Empty();
+
+		for (const FReplicationAuthorityInfo& Info : PerStreamAuthority)
+		{
+			LastServerState.Append(Info.AuthoredObjects);
+		}
+	}
+}

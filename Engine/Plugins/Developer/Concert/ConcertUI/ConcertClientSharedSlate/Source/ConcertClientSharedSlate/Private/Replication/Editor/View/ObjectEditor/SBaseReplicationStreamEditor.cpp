@@ -36,6 +36,8 @@ namespace UE::ConcertClientSharedSlate
 		EditablePropertiesModel->OnPropertiesChanged().AddSP(this, &SBaseReplicationStreamEditor::OnPropertiesChanged);
 		PropertiesModelAdapter = MakeShared<FFakeObjectToPropertiesEditorModel>(EditablePropertiesModel.ToSharedRef(), PropertySelectionSource.ToSharedRef());
 
+		IsEditingEnabledAttribute = InArgs._IsEditingEnabled;
+		EditingDisabledToolTipTextAttribute = InArgs._EditingDisabledToolTipText;
 		OnExtendObjectsContextMenuDelegate = InArgs._OnExtendObjectsContextMenu;
 		
 		ChildSlot
@@ -85,6 +87,19 @@ namespace UE::ConcertClientSharedSlate
 		return ReplicationViewer->GetObjectsBeingPropertyEdited();
 	}
 
+	bool SBaseReplicationStreamEditor::IsEditingDisabled() const
+	{
+		return (IsEditingEnabledAttribute.IsBound() || IsEditingEnabledAttribute.IsSet())
+			&& !IsEditingEnabledAttribute.Get();
+	}
+
+	FText SBaseReplicationStreamEditor::GetEditingDisabledText() const
+	{
+		return (EditingDisabledToolTipTextAttribute.IsBound() || EditingDisabledToolTipTextAttribute.IsSet())
+			? EditingDisabledToolTipTextAttribute.Get()
+			: FText::GetEmpty();
+	}
+
 	void SBaseReplicationStreamEditor::OnObjectsChanged(TConstArrayView<UObject*> AddedObjects, TConstArrayView<FSoftObjectPath> RemovedObjects, EReplicatedObjectChangeReason ChangeReason)
 	{
 		ReplicationViewer->RefreshObjectData();
@@ -127,6 +142,11 @@ namespace UE::ConcertClientSharedSlate
 
 	void SBaseReplicationStreamEditor::OnDeleteObjects(const TArray<TSharedPtr<FReplicatedObjectData>>& ObjectsToDelete) const
 	{
+		if (IsEditingDisabled())
+		{
+			return;
+		}
+		
 		TArray<FSoftObjectPath> DeleteObjectPaths;
 		Algo::Transform(ObjectsToDelete, DeleteObjectPaths, [](const TSharedPtr<FReplicatedObjectData>& Data) { return Data->GetObjectPath(); });
 
@@ -156,9 +176,12 @@ namespace UE::ConcertClientSharedSlate
 		AddObjectSourceContextMenuOptions(MenuBuilder);
 		MenuBuilder.AddMenuEntry(
 				LOCTEXT("DeleteItems", "Delete"),
-				FText::GetEmpty(),
+				TAttribute<FText>::CreateLambda([this](){ return GetEditingDisabledText(); }),
 				FSlateIcon(),
-				FUIAction(FExecuteAction::CreateSP(this, &SBaseReplicationStreamEditor::OnDeleteObjects_PassByValue, ReplicationViewer->GetSelectedOutlinerObjects())),
+				FUIAction(
+					FExecuteAction::CreateSP(this, &SBaseReplicationStreamEditor::OnDeleteObjects_PassByValue, ReplicationViewer->GetSelectedOutlinerObjects()),
+					FCanExecuteAction::CreateLambda([this]() { return !IsEditingDisabled(); })
+					),
 				NAME_None,
 				EUserInterfaceActionType::Button
 			);
@@ -207,22 +230,25 @@ namespace UE::ConcertClientSharedSlate
 	ConcertSharedSlate::FSourceModelBuilders<FSelectableObjectInfo>::FItemPickerArgs SBaseReplicationStreamEditor::MakeObjectSourceBuilderArgs() const
 	{
 		using namespace ConcertSharedSlate;
+		using FBuilderDelegates = FSourceModelBuilders<FSelectableObjectInfo>;
 		
 		return FSourceModelBuilders<FSelectableObjectInfo>::FItemPickerArgs
 		{
-			FSourceModelBuilders<FSelectableObjectInfo>::FOnItemsSelected::CreateSP(this, &SBaseReplicationStreamEditor::OnObjectsSelectedForAdding),
-			FSourceModelBuilders<FSelectableObjectInfo>::FGetItemDisplayString::CreateLambda([](const FSelectableObjectInfo& Item)
+			FBuilderDelegates::FOnItemsSelected::CreateSP(this, &SBaseReplicationStreamEditor::OnObjectsSelectedForAdding),
+			FBuilderDelegates::FGetItemDisplayString::CreateLambda([](const FSelectableObjectInfo& Item)
 			{
 				return Item.Object.IsValid() ? DisplayUtils::GetObjectDisplayString(*Item.Object.Get()) : TEXT("");
 			}),
-			FSourceModelBuilders<FSelectableObjectInfo>::FGetItemIcon::CreateLambda([](const FSelectableObjectInfo& Item)
+			FBuilderDelegates::FGetItemIcon::CreateLambda([](const FSelectableObjectInfo& Item)
 			{
 				return Item.Object.IsValid() ? DisplayUtils::GetObjectIcon(*Item.Object.Get()) : FSlateIcon();
 			}),
-			FSourceModelBuilders<FSelectableObjectInfo>::FIsItemSelected::CreateLambda([this](const FSelectableObjectInfo& Item)
+			FBuilderDelegates::FIsItemSelected::CreateLambda([this](const FSelectableObjectInfo& Item)
 			{
 				return EditablePropertiesModel->ContainsObjects({ Item.Object.Get() } );
-			})
+			}),
+			TAttribute<bool>::CreateLambda([this]() { return !IsEditingDisabled(); }),
+			TAttribute<FText>::CreateLambda([this]() { return GetEditingDisabledText(); })
 		}; 
 	}
 }

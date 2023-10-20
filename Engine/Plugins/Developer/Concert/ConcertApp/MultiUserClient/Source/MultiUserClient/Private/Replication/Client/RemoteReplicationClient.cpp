@@ -3,7 +3,9 @@
 #include "RemoteReplicationClient.h"
 
 #include "Assets/MultiUserReplicationClientPreset.h"
-#include "Replication/Stream/RemoteClientStreamSynchronizer.h"
+#include "Replication/Authority/AuthoritySynchronizer_RemoteClient.h"
+#include "Replication/Stream/StreamSynchronizer_RemoteClient.h"
+#include "Replication/Submission/SubmissionWorkflow_RemoteClient.h"
 
 namespace UE::MultiUserClient
 {
@@ -12,7 +14,18 @@ namespace UE::MultiUserClient
 		const FGuid& InConcertClientId,
 		FRegularQueryService& QueryService
 		)
-		: FReplicationClient(InSessionContent, MakeUnique<FRemoteClientStreamSynchronizer>(InConcertClientId, QueryService))
+		: FReplicationClient(
+			InSessionContent,
+			MakeUnique<FStreamSynchronizer_RemoteClient>(InConcertClientId, QueryService),
+			MakeUnique<FAuthoritySynchronizer_RemoteClient>(
+				InConcertClientId,
+				QueryService,
+				FDoesObjectHaveProperties::CreateLambda([this](const FSoftObjectPath& ObjectPath)
+				{
+					return GetStreamDiffer().DoesObjectHavePropertiesAfterSubmit(ObjectPath);
+				})),
+			[]() { return MakeUnique<FSubmissionWorkflow_RemoteClient>(); }
+			)
 		, RemoteEndpointId(InConcertClientId)
 	{
 		// When the remote client's state has changed, refresh the UI.

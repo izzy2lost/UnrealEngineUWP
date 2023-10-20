@@ -26,13 +26,17 @@ namespace UE::ConcertClientSharedSlate
 	{
 	public:
 
+		using TOverrideColumnWidget = typename SReplicationColumnRow<TItemType>::FOverrideColumnWidget;
+
 		DECLARE_DELEGATE_OneParam(FDeleteItems, const TArray<TSharedPtr<TItemType>>& SelectedItems);
 		DECLARE_DELEGATE_TwoParams(FGetItemChildren, TSharedPtr<TItemType> Item, TFunctionRef<void(TSharedPtr<TItemType>)> ProcessChild);
 		DECLARE_DELEGATE(FOnSelectionChanged);
 		DECLARE_DELEGATE_RetVal_OneParam(bool, FCustomFilter, const TSharedPtr<TItemType>& Item);
+		DECLARE_DELEGATE_RetVal_OneParam(bool, FIsSearchableItem, const TSharedPtr<TItemType>& Item);
 
 		SLATE_BEGIN_ARGS(SReplicationTreeView<TItemType>)
-			: _SelectionMode(ESelectionMode::Single)
+			: _HeaderRowVisibility(EVisibility::Visible)
+			, _SelectionMode(ESelectionMode::Single)
 		{}
 			/** The items to display */
 			SLATE_ARGUMENT(TArray<TSharedPtr<TItemType>>*, RootItemsSource)
@@ -51,11 +55,21 @@ namespace UE::ConcertClientSharedSlate
 
 			/** Optional callback to do even more filtering of items. */
 			SLATE_EVENT(FCustomFilter, FilterItem)
+		
+			/**
+			 * Optional. If the delegate returns non-null, that widget will be used instead of the one the column would generate.
+			 * This is useful, e.g. if you want to generate a separator widget between items.
+			 */
+			SLATE_EVENT(TOverrideColumnWidget, OverrideColumnWidget)
+			/** Optional callback for determining whether this item can be searched. */
+			SLATE_EVENT(FIsSearchableItem, IsSearchableItem)
 			
 			/** The columns this list should have */
 			SLATE_ARGUMENT(TArray<TReplicationColumn<TItemType>>, Columns)
 			/** The name of the column that will have the SExpanderArrow for the tree view. */
 			SLATE_ARGUMENT(FName, ExpandableColumnLabel)
+			/** Visibility of the header row */
+			SLATE_ARGUMENT(EVisibility, HeaderRowVisibility)
 		
 			/** How many items are to allowed to be selected */
 			SLATE_ARGUMENT(ESelectionMode::Type, SelectionMode)
@@ -74,6 +88,8 @@ namespace UE::ConcertClientSharedSlate
 			OnGetChildrenDelegate = InArgs._OnGetChildren;
 			OnDeleteItemsDelegate = InArgs._OnDeleteItems;
 			CustomFilterDelegate = InArgs._FilterItem;
+			OverrideColumnWidget = InArgs._OverrideColumnWidget;
+			IsSearchableItemDelegate = InArgs._IsSearchableItem;
 			ExpandableColumnId = InArgs._ExpandableColumnLabel;
 			
 			SearchText = MakeShared<FText>();
@@ -180,6 +196,10 @@ namespace UE::ConcertClientSharedSlate
 		FDeleteItems OnDeleteItemsDelegate;
 		/** Optional delegate for filtering the items even more. */
 		FCustomFilter CustomFilterDelegate;
+		/** Optional delegate for overriding the column widgets. */
+		TOverrideColumnWidget OverrideColumnWidget;
+		/** Optional callback for determining whether this item can be filtered. If false, it will not be shown when searched. */
+		FIsSearchableItem IsSearchableItemDelegate;
 		
 
 		TSharedRef<SWidget> CreateTreeView(const FArguments& InArgs);
@@ -233,7 +253,7 @@ namespace UE::ConcertClientSharedSlate
 		TArray<TReplicationColumn<TItemType>> Columns = InArgs._Columns;
 		Columns.Sort([](const TReplicationColumn<TItemType>& Left, const TReplicationColumn<TItemType>& Right) { return Left.GetColumnSortOrderValue() < Right.GetColumnSortOrderValue(); });
 		
-		HeaderRow = SNew(SHeaderRow);
+		HeaderRow = SNew(SHeaderRow).Visibility(InArgs._HeaderRowVisibility);
 		TSet<FName> DuplicateColumnDetection;
 		for (TReplicationColumn<TItemType>& Column : Columns)
 		{
@@ -268,6 +288,7 @@ namespace UE::ConcertClientSharedSlate
 		return SNew(SReplicationColumnRow<TItemType>, OwnerTable)
 			.HighlightText(SearchText)
 			.ColumnGetter(ColumnGetter)
+			.OverrideColumnWidget(OverrideColumnWidget)
 			.RowData(Item)
 			.ExpandableColumnLabel(ExpandableColumnId);
 	}
@@ -307,6 +328,11 @@ namespace UE::ConcertClientSharedSlate
 	template <typename TItemType>
 	void SReplicationTreeView<TItemType>::PopulateSearchStrings(const TSharedPtr<TItemType>& Item, TArray<FString>& OutSearchStrings)
 	{
+		if (IsSearchableItemDelegate.IsBound() && !IsSearchableItemDelegate.Execute(Item))
+		{
+			return;
+		}
+	
 		for (const SHeaderRow::FColumn& Column : HeaderRow->GetColumns())
 		{
 			const TReplicationColumn<TItemType>& CastColumn = static_cast<const TReplicationColumn<TItemType>&>(Column);

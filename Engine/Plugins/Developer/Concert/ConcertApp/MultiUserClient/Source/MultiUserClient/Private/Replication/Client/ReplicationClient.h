@@ -2,11 +2,14 @@
 
 #pragma once
 
-#include "Replication/Stream/LocalStreamChangeTracker.h"
+#include "Replication/Authority/AuthorityChangeTracker.h"
+#include "Replication/Authority/IClientAuthoritySynchronizer.h"
+#include "Replication/Stream/IClientStreamSynchronizer.h"
+#include "Replication/Stream/StreamChangeTracker.h"
+#include "Replication/Submission/ISubmissionWorkflow.h"
 #include "Templates/SharedPointer.h"
 #include "Templates/UnrealTemplate.h"
 
-class IConcertSyncClient;
 class UMultiUserReplicationClientPreset;
 
 namespace UE::ConcertClientSharedSlate
@@ -17,22 +20,33 @@ namespace UE::ConcertClientSharedSlate
 
 namespace UE::MultiUserClient
 {
+	class ISubmissionWorkflow;
+	
 	/** Holds on to info about a local or remote client. */
 	class FReplicationClient : public FNoncopyable
 	{
 	public:
 
+		DECLARE_DELEGATE_RetVal(TUniquePtr<ISubmissionWorkflow>, FMakeSubmissionWorkflow);
+
 		FReplicationClient(
 			UMultiUserReplicationClientPreset& InSessionContent,
-			TUniquePtr<IClientStreamSynchronizer> InStreamSynchronizer
+			TUniquePtr<IClientStreamSynchronizer> InStreamSynchronizer,
+			TUniquePtr<IClientAuthoritySynchronizer> InAuthoritySynchronizer,
+			TFunctionRef<TUniquePtr<ISubmissionWorkflow>()> MakeSubmissionWorkflowFunc
 			);
 
 		UMultiUserReplicationClientPreset* GetClientContent() const { return ClientContentStorage; }
 		TSharedRef<ConcertClientSharedSlate::IEditableObjectToPropertiesModel> GetClientEditModel() const { return LocalClientEditModel; }
-		IClientStreamSynchronizer& GetStreamSynchronizer() const { return *StreamSynchronizer.Get(); } 
+		IClientStreamSynchronizer& GetStreamSynchronizer() const { return *StreamSynchronizer.Get(); }
+		IClientAuthoritySynchronizer& GetAuthoritySynchronizer() const { return *AuthoritySynchronizer.Get(); }
 		
-		const FLocalStreamChangeTracker& GetDiffer() const { return LocalClientStreamDiffer; }
-		FLocalStreamChangeTracker& GetDiffer() { return LocalClientStreamDiffer; }
+		const FStreamChangeTracker& GetStreamDiffer() const { return LocalClientStreamDiffer; }
+		FStreamChangeTracker& GetStreamDiffer() { return LocalClientStreamDiffer; }
+		const FAuthorityChangeTracker& GetAuthorityDiffer() const { return LocalAuthorityDiffer; }
+		FAuthorityChangeTracker& GetAuthorityDiffer() { return LocalAuthorityDiffer; }
+		const ISubmissionWorkflow& GetSubmissionWorkflow() const { return *SubmissionWorkflow; }
+		ISubmissionWorkflow& GetSubmissionWorkflow() { return *SubmissionWorkflow; }
 
 		/**
 		 * Called when the data underlying the model has changed externally. Since the change was not caused by the model,
@@ -51,8 +65,12 @@ namespace UE::MultiUserClient
 		/** The state of the server is synched up with this object and displayed in the UI. */
 		TObjectPtr<UMultiUserReplicationClientPreset> ClientContentStorage;
 		
-		/** Keeps the client's state on the server in sync. */
+		/** Keeps the client's stream state on the server in sync. */
 		TUniquePtr<IClientStreamSynchronizer> StreamSynchronizer;
+		/** Keeps the client's authority state on the server in sync.*/
+		TUniquePtr<IClientAuthoritySynchronizer> AuthoritySynchronizer;
+		/** Handles the logic of submitting and reverting for this client. */
+		TUniquePtr<ISubmissionWorkflow> SubmissionWorkflow;
 		
 		/**
 		 * Used to detect changes made to the client's config by the local editor.
@@ -64,8 +82,11 @@ namespace UE::MultiUserClient
 		 * @see FMultiUserReplicationManager::OnLeaveSession
 		 */
 		TSharedRef<ConcertClientSharedSlate::IEditableObjectToPropertiesModel> LocalClientEditModel;
+		
 		/** Tracks changes made to server's state of the client's streams and prepares to upload them using StreamSynchronizer. */
-		FLocalStreamChangeTracker LocalClientStreamDiffer;
+		FStreamChangeTracker LocalClientStreamDiffer;
+		/** Tracks changes made to the client's authority state. */
+		FAuthorityChangeTracker LocalAuthorityDiffer;
 
 		/** Called when the data underlying the model has changed (and the UI needs to be refreshed). */
 		FOnModelExternallyChanged OnModelExternallyChangedDelegate;

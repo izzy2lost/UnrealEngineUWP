@@ -44,11 +44,25 @@ namespace UE::ConcertSharedSlate
 			/** Optional. Used primarily to filter out objects that are already selected. */
 			FIsItemSelected IsItemSelected;
 
-			FItemPickerArgs(FOnItemsSelected OnObjectsSelected, FGetItemDisplayString GetItemDisplayString, FGetItemIcon GetItemIcon = {}, FIsItemSelected IsItemSelected = {})
+			/** Optional. Whether the UI is enabled. */
+			TAttribute<bool> IsEnabledAttribute;
+			/** Optional. If IsEnabled returns true, this tooltip is displayed on the relevant UI. */
+			TAttribute<FText> DisabledToolTipAttribute;
+
+			FItemPickerArgs(
+				FOnItemsSelected OnObjectsSelected,
+				FGetItemDisplayString GetItemDisplayString,
+				FGetItemIcon GetItemIcon = {},
+				FIsItemSelected IsItemSelected = {},
+				TAttribute<bool> IsEnabledAttribute = {},
+				TAttribute<FText> DisabledToolTipAttribute = {}
+				)
 				: OnItemsSelected(MoveTemp(OnObjectsSelected))
 				, GetItemDisplayString(MoveTemp(GetItemDisplayString))
 				, GetItemIcon(MoveTemp(GetItemIcon))
 				, IsItemSelected(MoveTemp(IsItemSelected))
+				, IsEnabledAttribute(MoveTemp(IsEnabledAttribute))
+				, DisabledToolTipAttribute(MoveTemp(DisabledToolTipAttribute))
 			{
 				check(this->OnItemsSelected.IsBound() && this->GetItemDisplayString.IsBound());
 			}
@@ -97,8 +111,16 @@ namespace UE::ConcertSharedSlate
 
 		return SNew(SPositiveActionButton)
 			.Text(Category.DisplayInfo.Label)
-			.ToolTipText(Category.DisplayInfo.ToolTip)
+			.ToolTipText_Lambda([ToolTipText = Category.DisplayInfo.ToolTip, DisabledToolTipAttribute = Args.DisabledToolTipAttribute, IsEnabled = Args.IsEnabledAttribute]()
+			{
+				const bool bIsEnabled = !(IsEnabled.IsBound() || IsEnabled.IsSet()) || IsEnabled.Get();
+				const bool bHasDisabledText = DisabledToolTipAttribute.IsBound() || DisabledToolTipAttribute.IsSet();
+				return bIsEnabled
+					? ToolTipText
+					: bHasDisabledText ? DisabledToolTipAttribute.Get() : FText::GetEmpty();
+			})
 			.Icon(Category.DisplayInfo.Icon.IsSet() ? Category.DisplayInfo.Icon.GetOptionalIcon() : FAppStyle::Get().GetBrush("Icons.Plus"))
+			.IsEnabled_Lambda([IsEnabled = Args.IsEnabledAttribute](){ return !(IsEnabled.IsBound() || IsEnabled.IsSet()) || IsEnabled.Get(); })
 			.OnGetMenuContent_Lambda([Options = Category.Options, SubCategories = Category.SubCategories, Args]()
 			{
 				return BuildMenu(Options, SubCategories, Args);
@@ -116,8 +138,16 @@ namespace UE::ConcertSharedSlate
 		case ESourceType::ShowAsList:
 			return SNew(SPositiveActionButton)
 				.Text(DisplayInfo.Label)
-				.ToolTipText(DisplayInfo.ToolTip)
+				.ToolTipText_Lambda([ToolTipText = DisplayInfo.ToolTip, DisabledToolTipAttribute = Args.DisabledToolTipAttribute, IsEnabled = Args.IsEnabledAttribute]()
+				{
+					const bool bIsEnabled = !(IsEnabled.IsBound() || IsEnabled.IsSet()) || IsEnabled.Get();
+					const bool bHasDisabledText = DisabledToolTipAttribute.IsBound() || DisabledToolTipAttribute.IsSet();
+					return bIsEnabled
+						? ToolTipText
+						: bHasDisabledText ? DisabledToolTipAttribute.Get() : FText::GetEmpty();
+				})
 				.Icon(IconBrush)
+				.IsEnabled_Lambda([IsEnabled = Args.IsEnabledAttribute](){ return !(IsEnabled.IsBound() || IsEnabled.IsSet()) || IsEnabled.Get(); })
 				.OnGetMenuContent_Lambda([Source = MoveTemp(Source), Args = MoveTemp(Args)]()
 				{
 					FMenuBuilder MenuBuilder(true, nullptr);
@@ -127,8 +157,16 @@ namespace UE::ConcertSharedSlate
 		case ESourceType::AddOnClick: 
 			return SNew(SPositiveActionButton)
 				.Text(DisplayInfo.Label)
-				.ToolTipText(DisplayInfo.ToolTip)
+				.ToolTipText_Lambda([ToolTipText = DisplayInfo.ToolTip, DisabledToolTipAttribute = Args.DisabledToolTipAttribute, IsEnabled = Args.IsEnabledAttribute]()
+				{
+					const bool bIsEnabled = !(IsEnabled.IsBound() || IsEnabled.IsSet()) || IsEnabled.Get();
+					const bool bHasDisabledText = DisabledToolTipAttribute.IsBound() || DisabledToolTipAttribute.IsSet();
+					return bIsEnabled
+						? ToolTipText
+						: bHasDisabledText ? DisabledToolTipAttribute.Get() : FText::GetEmpty();
+				})
 				.Icon(IconBrush)
+				.IsEnabled_Lambda([IsEnabled = Args.IsEnabledAttribute](){ return !(IsEnabled.IsBound() || IsEnabled.IsSet()) || IsEnabled.Get(); })
 				.OnClicked_Lambda([Source = MoveTemp(Source), AddObjectsDelegate = Args.OnItemsSelected]()
 				{
 					AddObjectsDelegate.Execute(Source->GetSelectableItems());

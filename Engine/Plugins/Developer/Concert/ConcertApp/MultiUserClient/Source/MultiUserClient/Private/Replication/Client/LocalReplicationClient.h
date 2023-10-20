@@ -3,7 +3,6 @@
 #pragma once
 
 #include "ReplicationClient.h"
-#include "Replication/Authority/AuthorityPolicy.h"
 
 namespace UE::MultiUserClient
 {
@@ -17,13 +16,6 @@ namespace UE::MultiUserClient
 			TUniquePtr<IClientStreamSynchronizer> InStreamSynchronizer,
 			TSharedRef<IConcertSyncClient> InClient
 			);
-
-		FAuthorityPolicy& GetAuthorityPolicy() { return AuthorityPolicy; }
-
-	private:
-
-		/** Automatically requests authority for submitted, locally-owned objects. */
-		FAuthorityPolicy AuthorityPolicy;
 	};
 }
 

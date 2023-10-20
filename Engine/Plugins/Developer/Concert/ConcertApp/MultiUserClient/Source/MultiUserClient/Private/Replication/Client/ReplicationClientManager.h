@@ -27,7 +27,7 @@ namespace UE::MultiUserClient
 {
 	class FRemoteReplicationClient;
 	class FReplicationClient;
-	class FLocalStreamChangeTracker;
+	class FStreamChangeTracker;
 
 	/**
 	 * Keeps track of connected clients synchronizing their stream data in a UMultiUserReplicationSessionPreset.

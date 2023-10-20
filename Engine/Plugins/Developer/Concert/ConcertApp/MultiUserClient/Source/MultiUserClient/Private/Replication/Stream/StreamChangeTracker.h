@@ -3,9 +3,13 @@
 #pragma once
 
 #include "IClientStreamSynchronizer.h"
+#include "Replication/Data/ObjectIds.h"
 #include "Replication/Data/ObjectReplicationMap.h"
+#include "Replication/Messages/ChangeStream.h"
 
 #include "Async/Future.h"
+#include "Containers/Set.h"
+#include "Containers/Map.h"
 #include "Misc/Attribute.h"
 #include "Templates/UnrealTemplate.h"
 
@@ -26,21 +30,28 @@ namespace UE::MultiUserClient
 	};
 	ENUM_CLASS_FLAGS(EObjectWarningFlags);
 	
+	/** Describes changes that MU client makes. */
+	struct FStreamChangelist
+	{
+		TSet<FObjectInStreamID> ObjectsToRemove;
+		TMap<FObjectInStreamID, FConcertReplication_ChangeStream_PutObject> ObjectsToPut;
+	};
+	
 	/**
 	 * Knows of the local client's registered replication streams and builds a changelist. The changelist tracks the
 	 * unconfirmed changes to the client's streams and is updates when the server confirms the change.
 	 */
-	class FLocalStreamChangeTracker : public FNoncopyable
+	class FStreamChangeTracker : public FNoncopyable
 	{
 	public:
 
 		DECLARE_DELEGATE(FOnModifyReplicationMap);
-		FLocalStreamChangeTracker(
+		FStreamChangeTracker(
 			IClientStreamSynchronizer& InStreamSynchronizer,
 			TAttribute<FObjectReplicationMap*> InStreamWithInProgressChangesAttribute,
 			FOnModifyReplicationMap InOnModifyReplicationMapDelegate
 			);
-		~FLocalStreamChangeTracker();
+		~FStreamChangeTracker();
 
 		/**
 		 * Clears and rebuilds CachedDeltaChange in response to the underlying StreamWithInProgressChangesAttribute having been changed.
@@ -51,30 +62,16 @@ namespace UE::MultiUserClient
 		 * infrequently e.g. in response to a user pressing a button so we should be fine.
 		 */
 		void RefreshChangesCache();
-
-		/**
-		 * Synchronizes the server with the locally made changes to the client stream.
-		 * @note This future can execute on any thread.
-		 */
-		TFuture<FSubmitChangesResult> SubmitChanges(bool bRefreshChanges = false);
+		const FStreamChangelist& GetCachedDeltaChange() const { return CachedDeltaChange; }
 		
 		/** Reverts the external stream StreamWithInProgressChangesAttribute to be the version registered on the server. */
 		void RevertCachedChanges();
 
 		/** @return Whether there are any changes that that can be submitted to the server (excludes those with warnings). */
-		bool HasSubmittableLocalChanges() const;
-		/** @return Whether there are any changes including those with warnings. */
-		bool HasRevertableLocalChanges() const;
-		
-		/** @return Whether we're currently awaiting a response from the server for updating the stream. */
-		bool CanMakeSubmitNetworkRequest() const;
-		/** @return Whether it is ok to call SubmitChanges. */
-		bool CanSubmitChanges() const { return HasSubmittableLocalChanges() && CanMakeSubmitNetworkRequest(); }
+		bool HasChanges() const;
 
-		/** @return The warnings flags for the given ObjectPath. */
-		EObjectWarningFlags GetObjectWarningFlags(const FSoftObjectPath& ObjectPath);
-		/** @return Whether there are any warnings for any object. */
-		bool HasAnyWarnings() const;
+		/** @return If change are submitted, is ObjectPath in the stream? */
+		bool DoesObjectHavePropertiesAfterSubmit(const FSoftObjectPath& ObjectPath) const;
 
 		enum class EObjectChangeType
 		{
@@ -101,7 +98,7 @@ namespace UE::MultiUserClient
 		
 	private:
 
-		/** Keeps track of the edited stream's server state. Outlives the FLocalStreamChangeTracker instance. */
+		/** Keeps track of the edited stream's server state. Outlives the FStreamChangeTracker instance. */
 		IClientStreamSynchronizer& StreamSynchronizer;
 
 		/**
@@ -115,9 +112,6 @@ namespace UE::MultiUserClient
 		 * This is updated every time the local client makes changes.
 		 */
 		FStreamChangelist CachedDeltaChange;
-
-		/** These objects have warnings that prevent them from being set to the server (missing data, unsupported class, etc.). */
-		TMap<FSoftObjectPath, EObjectWarningFlags> ObjectsWithWarnings;
 		
 		/** Called when StreamWithInProgressChangesAttribute is about to be modified. */
 		FOnModifyReplicationMap OnModifyReplicationMapDelegate;
@@ -131,9 +125,6 @@ namespace UE::MultiUserClient
 		}
 		/** Builds the changelist to get from Base to Changed. */
 		static FStreamChangelist DiffChanges(const FGuid& StreamId, const FObjectReplicationMap& Base, const FObjectReplicationMap& Changed);
-
-		/** Updates ObjectsWithWarnings. */
-		void RefreshWarnings();
 	};
 }
 

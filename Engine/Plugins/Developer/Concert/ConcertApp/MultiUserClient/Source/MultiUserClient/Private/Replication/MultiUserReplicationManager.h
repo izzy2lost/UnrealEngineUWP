@@ -2,11 +2,9 @@
 
 #pragma once
 
-#include "Replication/Authority/AuthorityPolicy.h"
-
-#include "IConcertSession.h"
 #include "Client/ReplicationClientManager.h"
 
+#include "IConcertSession.h"
 #include "Misc/Optional.h"
 #include "Templates/SharedPointer.h"
 #include "Templates/UnrealTemplate.h"
@@ -66,9 +64,6 @@ namespace UE::MultiUserClient
 		/** @note You're not supposed to keep any reference to the ClientManager since it can become invalid depending on connection state. */
 		FReplicationClientManager* GetClientManager() { return ConnectedState ? &ConnectedState->ClientManager : nullptr; }
 		const FReplicationClientManager* GetClientManager() const { return ConnectedState ? &ConnectedState->ClientManager : nullptr; }
-
-		/** @note You're not supposed to keep any reference to AuthorityPolicy since it can become invalid depending on connection state. */
-		FAuthorityPolicy* GetAuthorityPolicy();
 
 		/** Called when the connection to the replication system changes. */
 		DECLARE_MULTICAST_DELEGATE_OneParam(FOnReplicationConnectionStateChanged, EMultiUserReplicationConnectionState /*NewState*/);

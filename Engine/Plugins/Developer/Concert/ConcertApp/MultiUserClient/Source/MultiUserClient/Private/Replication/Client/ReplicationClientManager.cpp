@@ -6,7 +6,7 @@
 #include "LocalReplicationClient.h"
 #include "RemoteReplicationClient.h"
 #include "Assets/MultiUserReplicationSessionPreset.h"
-#include "Replication/Stream/LocalClientStreamSynchronizer.h"
+#include "Replication/Stream/StreamSynchronizer_LocalClient.h"
 
 #include "UObject/Package.h"
 #include "UObject/UObjectGlobals.h"
@@ -23,7 +23,7 @@ namespace UE::MultiUserClient
 		, LocalClient([this, InClient]()
 		{
 			UMultiUserReplicationClientPreset* ClientPreset = SessionContent->AddClient();
-			return FLocalReplicationClient(*ClientPreset, MakeUnique<FLocalClientStreamSynchronizer>(InClient, ClientPreset->Stream->StreamId), InClient);
+			return FLocalReplicationClient(*ClientPreset, MakeUnique<FStreamSynchronizer_LocalClient>(InClient, ClientPreset->Stream->StreamId), InClient);
 		}())
 	{
 		InSession->OnSessionClientChanged().AddRaw(this, &FReplicationClientManager::OnSessionClientChanged);

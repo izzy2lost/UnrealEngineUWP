@@ -4,34 +4,26 @@
 
 #include "IClientStreamSynchronizer.h"
 #include "Replication/Data/ObjectReplicationMap.h"
+#include "Replication/Data/ReplicationStreamDescription.h"
 
-#include "Async/Future.h"
-#include "Misc/Attribute.h"
+#include "Containers/Array.h"
 #include "Templates/UnrealTemplate.h"
-
-class IConcertSyncClient;
 
 namespace UE::MultiUserClient
 {
 	class FRegularQueryService;
 	
-	/**
-	 * Tracks the state of a remote client.
-	 * Queries the client's state in regular intervals.
-	 */
-	class FRemoteClientStreamSynchronizer : public IClientStreamSynchronizer, public FNoncopyable
+	/** Tracks the state of a remote client by querying the client's state in regular intervals. */
+	class FStreamSynchronizer_RemoteClient : public IClientStreamSynchronizer, public FNoncopyable
 	{
 	public:
 		
-		FRemoteClientStreamSynchronizer(const FGuid& RemoteEndpointId, FRegularQueryService& InQueryService);
-		virtual ~FRemoteClientStreamSynchronizer() override;
+		FStreamSynchronizer_RemoteClient(const FGuid& RemoteEndpointId, FRegularQueryService& InQueryService);
+		virtual ~FStreamSynchronizer_RemoteClient() override;
 
 		//~ Begin IClientStreamSynchronizer Interface
-		virtual TFuture<FSubmitChangesResult> SubmitChanges(const FStreamChangelist& Changelist) override;
-		virtual bool CanMakeSubmitRequest() const override;
 		virtual FGuid GetStreamId() const override;
 		virtual const FObjectReplicationMap& GetServerState() const override { return LastKnownServerState; }
-		virtual FOnChangesAccepted& OnChangesAccepted() override { return OnChangesAcceptedDelegate; }
 		virtual FOnServerStateChanged& OnServerStateChanged() override { return OnServerStateChangedDelegate; }
 		//~ End IClientStreamSynchronizer Interface
 
@@ -39,14 +31,12 @@ namespace UE::MultiUserClient
 
 		/** Queries the server in regular intervals. This services outlives our object. */
 		FRegularQueryService& QueryService;
-		/** Used to unregister upon destruction. */
+		/** Used to unregister HandleStreamQuery upon destruction. */
 		const FDelegateHandle QueryStreamHandle; 
 
 		/** Represents what the local client thinks the replication map on the server currently looks like. */
 		FObjectReplicationMap LastKnownServerState;
 		
-		/** Called when a change request that was in transit was accepted by the server. */
-		FOnChangesAccepted OnChangesAcceptedDelegate;
 		/** Event executed when the result of GetServerState has been synched. */
 		FOnServerStateChanged OnServerStateChangedDelegate;
 
