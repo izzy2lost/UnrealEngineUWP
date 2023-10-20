@@ -38,6 +38,8 @@ void UMVVMInstancedViewModelGeneratedClass::Link(FArchive& Ar, bool bRelinkExist
 {
 	Super::Link(Ar, bRelinkExistingProperties);
 
+	OnRepFunctionToLink.RemoveAllSwap([](UFunction* Other){ return Other == nullptr; }, true);
+
 	for (UFunction* OnRep : OnRepFunctionToLink)
 	{
 		NativeFunctionLookupTable.Emplace(OnRep->GetFName(), &UMVVMInstancedViewModelGeneratedClass::K2_CallNativeOnRep);
