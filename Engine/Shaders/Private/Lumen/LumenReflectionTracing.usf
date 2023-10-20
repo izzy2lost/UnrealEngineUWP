@@ -74,15 +74,17 @@ void ReflectionTraceScreenTexturesCS(
 
 			float3 TranslatedRayOrigin = TranslatedWorldPosition;
 
-#if !SUBSTRATE_ENABLED
 			// Bias along the normal to avoid self-intersecting camera facing scene depth texels
 			// HZB traversal uses point filtering, so scene depth texels stick out from the plane they are representing
 			{
 				float2 CornerScreenUV = ScreenUV + .5f * View.BufferSizeAndInvSize.zw;
 				float2 CornerScreenPosition = (CornerScreenUV - View.ScreenPositionScaleBias.wz) / View.ScreenPositionScaleBias.xy;
 				float3 CornerTranslatedWorldPosition = mul(float4(GetScreenPositionForProjectionType(CornerScreenPosition, SceneDepth), SceneDepth, 1), View.ScreenToTranslatedWorld).xyz;
-				float3 WorldNormal = GetGBufferDataFromSceneTextures(ScreenUV).WorldNormal;
-
+			#if SUBSTRATE_ENABLED
+				const float3 WorldNormal = SubstrateUnpackTopLayerData(Substrate.TopLayerTexture.Load(uint3(CornerScreenUV * View.BufferSizeAndInvSize.xy, 0))).WorldNormal;
+			#else
+				const float3 WorldNormal = GetGBufferDataFromSceneTextures(ScreenUV).WorldNormal;
+			#endif
 				// Project texel corner onto normal
 				float NormalBias = abs(dot(CornerTranslatedWorldPosition - TranslatedWorldPosition, WorldNormal)) * 2;
 				TranslatedRayOrigin += NormalBias * WorldNormal;
@@ -95,7 +97,6 @@ void ReflectionTraceScreenTexturesCS(
 					return;
 				}
 			}
-#endif
 
 			bool bHit;
 			bool bUncertain;
