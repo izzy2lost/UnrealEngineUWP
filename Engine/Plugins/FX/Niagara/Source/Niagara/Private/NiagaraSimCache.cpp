@@ -1112,8 +1112,6 @@ bool FNiagaraSimCacheDataBuffers::operator!=(const FNiagaraSimCacheDataBuffers& 
 	return !(*this == Other);
 }
 
-#if WITH_EDITORONLY_DATA
-
 namespace CacheCompare
 {
 	constexpr int32 ErrorStrLen = 8000;
@@ -1338,5 +1336,5 @@ bool UNiagaraSimCache::IsDataEqual(const UNiagaraSimCache& OtherCache, float Err
 	OutDifference = Errors.ToString();
 	return bEqual;
 }
-#endif
+
 
