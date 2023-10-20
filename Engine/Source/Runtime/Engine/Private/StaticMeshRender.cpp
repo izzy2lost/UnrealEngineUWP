@@ -2588,6 +2588,9 @@ namespace Nanite
 
 		return true;
 	}
+	
+	template bool ShouldCreateNaniteProxy(const UStaticMeshComponent& Component, FMaterialAudit* OutNaniteMaterials);
+	template bool ShouldCreateNaniteProxy(const FStaticMeshSceneProxyDesc& Component, FMaterialAudit* OutNaniteMaterials);
 }
 
 bool UStaticMeshComponent::ShouldCreateNaniteProxy(Nanite::FMaterialAudit* OutNaniteMaterials) const
