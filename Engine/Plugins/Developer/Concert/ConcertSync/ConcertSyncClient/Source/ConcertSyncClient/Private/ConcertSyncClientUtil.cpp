@@ -747,6 +747,17 @@ ULevel* GetExternalPersistentWorld()
 #endif
 	return nullptr;
 }
+bool IsWorldPartitionWorld()
+{
+#if WITH_EDITOR
+	UWorld* OwningWorld = GetCurrentWorld();
+	if (OwningWorld)
+	{
+		return OwningWorld->GetWorldPartition() != nullptr;
+	}
+#endif
+	return false;
+}
 
 void FillPackageInfo(UPackage* InPackage, UObject* InAsset, const EConcertPackageUpdateType InPackageUpdateType, FConcertPackageInfo& OutPackageInfo)
 {

@@ -62,7 +62,10 @@ private:
 		FConcertClientLocalTransactionCommonData CommonData;
 		FConcertClientLocalTransactionSnapshotData SnapshotData;
 		FConcertClientLocalTransactionFinalizedData FinalizedData;
-		TMap<FConcertObjectId, FWeakObjectPtr> ObjectPtrs;
+
+		using FTransactedObjectStatePtr = TPimplPtr<ConcertClientTransactionBridgeUtil::FTransactedObjectState>;
+		TMap<FConcertObjectId, FTransactedObjectStatePtr> TransactedStatePtrs;
+
 		bool bIsFinalized = false;
 		bool bHasNotifiedSnapshot = false;
 	};
