@@ -3,6 +3,7 @@
 #include "OnlineSubsystemNull.h"
 
 #include "HAL/RunnableThread.h"
+#include "Misc/Fork.h"
 
 #include "OnlineAchievementsInterfaceNull.h"
 #include "OnlineAsyncTaskManagerNull.h"
