@@ -13,14 +13,15 @@ struct FQuixelAccountMetaHumanEntry
 
 struct FMetaHumanAssetImportDescription
 {
-	inline static const FString DefaultDestination = TEXT("/Game");
+	inline static const FString DefaultDestinationPath = TEXT("/Game");
 
 	FString CharacterPath; // The file path to the source unique assets for this import operation
 	FString CommonPath; // The file path to the source common assets for this import operation
 	FString CharacterName; // The name of the MetaHuman to import (expected to match the final part of CharacterPath)
 	FString QuixelId; // The ID of the character being imported
 	bool bIsBatchImport; // If this is part of a batch import
-	FString DestinationPath = DefaultDestination; // The asset path to install the MetaHuman to in the project
+	FString SourcePath = DefaultDestinationPath; // The asset path that the exporter has written the assets out to
+	FString DestinationPath = DefaultDestinationPath; // The asset path to install the MetaHuman to in the project
 	TArray<FQuixelAccountMetaHumanEntry> AccountMetaHumans; // All the MetaHumans that are included in the user's account. Used to show which MetaHumans can be upgraded
 };
 

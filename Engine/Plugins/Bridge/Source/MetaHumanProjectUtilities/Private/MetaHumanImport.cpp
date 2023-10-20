@@ -369,7 +369,7 @@ void FMetaHumanImport::ImportAsset(const FMetaHumanAssetImportDescription& Impor
 	EnableMissingPlugins();
 
 	FText CharacterCopyMsgDialogMessage = FText::FromString((bIsNewCharacter ? TEXT("Importing : ") : TEXT("Re-Importing : ")) + ImportDescription.CharacterName);
-	const bool bRequiresRedirects = ImportDescription.DestinationPath != FMetaHumanAssetImportDescription::DefaultDestination;
+	const bool bRequiresRedirects = ImportDescription.DestinationPath != ImportDescription.SourcePath;
 	FScopedSlowTask ImportProgress(bRequiresRedirects ? 3.0f : 2.0f, CharacterCopyMsgDialogMessage, true);
 	ImportProgress.MakeDialog();
 
@@ -382,7 +382,7 @@ void FMetaHumanImport::ImportAsset(const FMetaHumanAssetImportDescription& Impor
 			if (FPaths::GetExtension(AssetFilePath) == TEXT("uasset"))
 			{
 				const FString PackageName = AssetFilePath.LeftChop(7); // ".uasset"
-				Redirects.Emplace(ECoreRedirectFlags::Type_Package, FPaths::Combine(FMetaHumanAssetImportDescription::DefaultDestination, PackageName), FPaths::Combine(ImportDescription.DestinationPath, PackageName));
+				Redirects.Emplace(ECoreRedirectFlags::Type_Package, FPaths::Combine(ImportDescription.SourcePath, PackageName), FPaths::Combine(ImportDescription.DestinationPath, PackageName));
 			}
 		}
 		FCoreRedirects::AddRedirectList(Redirects, TEXT("MetaHumanImportTool"));
