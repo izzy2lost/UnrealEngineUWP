@@ -3883,6 +3883,12 @@ bool FControlRigParameterTrackEditor::HandleAssetAdded(UObject* Asset, const FGu
 
 	FString NewName = MovieSceneHelpers::MakeUniqueSpawnableName(MovieScene, FName::NameToDisplayString(SkeletalMesh->GetName(), false));
 	SpawnedSkeletalMeshActor->SetActorLabel(NewName, false);
+	
+	// Save Spawnable state as the default (with new name and skeletal mesh asset)
+	{
+		FMovieSceneSpawnable* Spawnable = MovieScene->FindSpawnable(NewGuid);
+		GetSequencer()->GetSpawnRegister().SaveDefaultSpawnableState(*Spawnable, GetSequencer()->GetFocusedTemplateID(), *GetSequencer());
+	}
 
 	UMovieSceneControlRigParameterTrack* Track = Cast<UMovieSceneControlRigParameterTrack>(MovieScene->FindTrack(UMovieSceneControlRigParameterTrack::StaticClass(), NewGuid, NAME_None));
 	if (Track == nullptr)
