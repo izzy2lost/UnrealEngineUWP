@@ -28,10 +28,10 @@ public:
 	// ~End UPCGData interface
 
 	UFUNCTION(BlueprintCallable, Category = Metadata)
-	const UPCGMetadata* ConstMetadata() const { return Metadata; }
+	virtual const UPCGMetadata* ConstMetadata() const override{ return Metadata; }
 
 	UFUNCTION(BlueprintCallable, Category = Metadata)
-	UPCGMetadata* MutableMetadata() { return Metadata; }
+	virtual UPCGMetadata* MutableMetadata() override { return Metadata; }
 
 	/** Returns the entry for the given name */
 	UFUNCTION(BlueprintCallable, Category = Params)

@@ -54,6 +54,10 @@ public:
 	virtual void PostDuplicate(bool bDuplicateForPIE) override { InitUID(); }
 	// ~End UObject interface
 
+	// Metadata getters, to be implemented if data supports Metadata
+	virtual UPCGMetadata* MutableMetadata() { return nullptr; }
+	virtual const UPCGMetadata* ConstMetadata() const { return nullptr; }
+
 protected:
 	/** Computes Crc for this and any connected data. */
 	virtual FPCGCrc ComputeCrc(bool bFullDataCrc) const;

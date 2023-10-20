@@ -118,10 +118,10 @@ public:
 	virtual UPCGDifferenceData* Subtract(const UPCGSpatialData* InOther) const;
 
 	UFUNCTION(BlueprintCallable, Category = Metadata)
-	const UPCGMetadata* ConstMetadata() const { return Metadata; }
+	virtual const UPCGMetadata* ConstMetadata() const override { return Metadata; }
 
 	UFUNCTION(BlueprintCallable, Category = Metadata)
-	UPCGMetadata* MutableMetadata() { return Metadata; }
+	virtual UPCGMetadata* MutableMetadata() override { return Metadata; }
 
 	UFUNCTION(BlueprintCallable, Category = Metadata, meta=(DeprecatedFunction, DeprecationMessage = "The Create Empty Metadata function is not needed anymore - it can safely be removed"))
 	UPCGMetadata* CreateEmptyMetadata();

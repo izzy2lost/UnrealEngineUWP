@@ -1,19 +1,59 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 
 #include "Elements/Metadata/PCGMetadataPartition.h"
-#include "Data/PCGSpatialData.h"
-#include "Data/PCGPointData.h"
 
-#include "Algo/Find.h"
 #include "PCGContext.h"
+#include "Metadata/PCGMetadataPartitionCommon.h"
 
 #include UE_INLINE_GENERATED_CPP_BY_NAME(PCGMetadataPartition)
 
 #define LOCTEXT_NAMESPACE "PCGMetadataPartitionElement"
 
+EPCGDataType UPCGMetadataPartitionSettings::GetCurrentPinTypes(const UPCGPin* InPin) const
+{
+	check(InPin);
+	if (!InPin->IsOutputPin())
+	{
+		return Super::GetCurrentPinTypes(InPin);
+	}
+
+	// Output pin narrows to union of inputs on first pin
+	const EPCGDataType InputTypeUnion = GetTypeUnionOfIncidentEdges(PCGPinConstants::DefaultInputLabel);
+	return InputTypeUnion != EPCGDataType::None ? InputTypeUnion : EPCGDataType::Any;
+}
+
+TArray<FPCGPinProperties> UPCGMetadataPartitionSettings::InputPinProperties() const
+{
+	TArray<FPCGPinProperties> PinProperties;
+	PinProperties.Emplace(PCGPinConstants::DefaultInputLabel, EPCGDataType::Any);
+
+	return PinProperties;
+}
+
+TArray<FPCGPinProperties> UPCGMetadataPartitionSettings::OutputPinProperties() const
+{
+	TArray<FPCGPinProperties> PinProperties;
+	PinProperties.Emplace(PCGPinConstants::DefaultOutputLabel, EPCGDataType::Any);
+
+	return PinProperties;
+}
+
 FPCGElementPtr UPCGMetadataPartitionSettings::CreateElement() const
 {
 	return MakeShared<FPCGMetadataPartitionElement>();
+}
+
+void UPCGMetadataPartitionSettings::PostLoad()
+{
+	Super::PostLoad();
+
+#if WITH_EDITOR
+	if (PartitionAttribute_DEPRECATED != NAME_None)
+	{
+		PartitionAttributeSource.SetAttributeName(PartitionAttribute_DEPRECATED);
+		PartitionAttribute_DEPRECATED = NAME_None;
+	}
+#endif // WITH_EDITOR
 }
 
 bool FPCGMetadataPartitionElement::ExecuteInternal(FPCGContext* Context) const
@@ -24,116 +64,15 @@ bool FPCGMetadataPartitionElement::ExecuteInternal(FPCGContext* Context) const
 	const UPCGMetadataPartitionSettings* Settings = Context->GetInputSettings<UPCGMetadataPartitionSettings>();
 	check(Settings);
 
-	TArray<FPCGTaggedData> Inputs = Context->InputData.GetInputs();
+	TArray<FPCGTaggedData> Inputs = Context->InputData.GetInputsByPin(PCGPinConstants::DefaultInputLabel);
 	TArray<FPCGTaggedData>& Outputs = Context->OutputData.TaggedData;
-
-	const FName PartitionAttribute = Settings->PartitionAttribute;
 
 	for (const FPCGTaggedData& Input : Inputs)
 	{
-		const UPCGSpatialData* SpatialInput = Cast<const UPCGSpatialData>(Input.Data);
-		check(SpatialInput);
+		const UPCGData* InData = Input.Data;
+		const FPCGAttributePropertyInputSelector PartitionAttributeSelector = Settings->PartitionAttributeSource.CopyAndFixLast(InData);
 
-		if (!SpatialInput->ConstMetadata())
-		{
-			PCGE_LOG(Error, GraphAndLog, LOCTEXT("InputMissingMetadata", "Input does not have metadata"));
-			continue;
-		}
-
-		const FName LocalPartitionAttribute = ((PartitionAttribute != NAME_None) ? PartitionAttribute : SpatialInput->ConstMetadata()->GetLatestAttributeNameOrNone());
-
-		if (!SpatialInput->ConstMetadata()->HasAttribute(LocalPartitionAttribute))
-		{
-			PCGE_LOG(Error, GraphAndLog, FText::Format(LOCTEXT("InputMissingAttribute", "Input does not have the '{0}' attribute"), FText::FromName(LocalPartitionAttribute)));
-			continue;
-		}
-
-		// Currently, we support only to parse points, so we'll do so here
-		const UPCGPointData* InputData = SpatialInput->ToPointData(Context);
-
-		if (!InputData)
-		{
-			PCGE_LOG(Error, GraphAndLog, LOCTEXT("CouldNotObtainPoints", "Unable to get points out of spatial data"));
-			continue;
-		}
-
-		const TArray<FPCGPoint>& SourcePoints = InputData->GetPoints();
-		const UPCGMetadata* SourceMetadata = InputData->ConstMetadata();
-		const FPCGMetadataAttributeBase* AttributeBase = SourceMetadata->GetConstAttribute(LocalPartitionAttribute);
-		check(AttributeBase);
-
-		TMap<PCGMetadataValueKey, UPCGPointData*> ValueToData;
-
-		// Get all value keys (-1 + 0 - N)
-		int64 MetadataValueKeyCount = AttributeBase->GetValueKeyOffsetForChild();
-
-		// For every value key, check if it should be merged with the default value
-		// Keep track of that mapping (should be only one, but that might not be true in uncompressed data)
-		TArray<PCGMetadataValueKey> ValueKeyMapping;
-		ValueKeyMapping.Reserve(MetadataValueKeyCount);
-
-		TArray<PCGMetadataValueKey> UniqueValueKeys;
-
-		const bool bUsesValueKeys = AttributeBase->UsesValueKeys();
-
-		for (PCGMetadataValueKey ValueKey = 0; ValueKey < MetadataValueKeyCount; ++ValueKey)
-		{
-			if (AttributeBase->IsEqualToDefaultValue(ValueKey))
-			{
-				ValueKeyMapping.Add(-1);
-			}
-			else if (!bUsesValueKeys)
-			{
-				PCGMetadataValueKey* MatchingVK = Algo::FindByPredicate(UniqueValueKeys, [ValueKey, AttributeBase](const PCGMetadataValueKey& Key)
-				{
-					return AttributeBase->AreValuesEqual(ValueKey, Key);
-				});
-
-				const PCGMetadataValueKey TentativeKey = MatchingVK ? *MatchingVK : ValueKey;
-
-				if (!MatchingVK)
-				{
-					UniqueValueKeys.Add(TentativeKey);
-				}
-
-				ValueKeyMapping.Add(TentativeKey);
-			}
-			else
-			{
-				ValueKeyMapping.Add(ValueKey);
-			}
-		}
-
-		TArray<UPCGPointData*> PartitionedData;
-		PartitionedData.SetNum(1 + ValueKeyMapping.Num());
-		for (int32 Index = 0; Index < PartitionedData.Num(); ++Index)
-		{
-			PartitionedData[Index] = nullptr;
-		}
-
-		// Loop on points, find matching data pointer, allocate if null, etc.and add point to it
-		for (const FPCGPoint& Point : SourcePoints)
-		{
-			PCGMetadataValueKey ValueKey = AttributeBase->GetValueKey(Point.MetadataEntry);
-			// Remap
-			if (ValueKey != PCGDefaultValueKey)
-			{
-				ValueKey = ValueKeyMapping[ValueKey];
-			}
-
-			const int32 PartitionDataIndex = 1 + ValueKey;
-
-			if (!PartitionedData[PartitionDataIndex])
-			{
-				PartitionedData[PartitionDataIndex] = NewObject<UPCGPointData>();
-				PartitionedData[PartitionDataIndex]->InitializeFromData(InputData);
-			}
-
-			PartitionedData[PartitionDataIndex]->GetMutablePoints().Add(Point);
-		}
-
-		// Finally, push back the partitioned data to the outputs
-		for (UPCGPointData* PartitionData : PartitionedData)
+		for (UPCGData* PartitionData : PCGMetadataPartitionCommon::AttributePartition(InData, PartitionAttributeSelector, Context))
 		{
 			if (PartitionData)
 			{
