@@ -1812,7 +1812,6 @@ FPropertyReplicationStateDescriptorBuilder::Build(const FString& StateName, FRep
 				// Store the default state checksum for later use when verifying protocol
 				Descriptor->DescriptorIdentifier.DefaultStateHash = DefaultStateHash;
 			}
-		
 		}
 
 		return TRefCountPtr<const FReplicationStateDescriptor>(Descriptor);
@@ -2482,7 +2481,7 @@ TRefCountPtr<const FReplicationStateDescriptor> FReplicationStateDescriptorBuild
 	BuildParameters.bIsInitState = false;
 	BuildParameters.bAllMembersAreReplicated = bAllMembersAreReplicated;
 
-	auto Descriptor = Builder.Build(InStruct->GetName(), Parameters.DescriptorRegistry, BuildParameters);
+	TRefCountPtr<const FReplicationStateDescriptor> Descriptor = Builder.Build(InStruct->GetName(), Parameters.DescriptorRegistry, BuildParameters);
 
 	if (Parameters.DescriptorRegistry && Descriptor.IsValid())
 	{
@@ -2582,7 +2581,7 @@ SIZE_T FReplicationStateDescriptorBuilder::CreateDescriptorsForClass(FResult& Cr
 	// Check registry first to see if we already have created descriptors for this class
 	if (Parameters.DescriptorRegistry)
 	{
-		if (auto Result = Parameters.DescriptorRegistry->Find(ObjectClassOrArchetypeUsedAsKey, InObjectClass))
+		if (const FReplicationStateDescriptorRegistry::FDescriptors* Result = Parameters.DescriptorRegistry->Find(ObjectClassOrArchetypeUsedAsKey, InObjectClass))
 		{
 			CreatedDescriptors.Insert(*Result, 0);
 			return CreatedDescriptors.Num();
