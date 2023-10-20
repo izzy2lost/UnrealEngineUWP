@@ -564,6 +564,13 @@ void FAccumulator::OnFirstSaveComplete(FStringView LooseFilePath, int64 InHeader
 	ExportsCallstacks.Reset();
 
 	GenerateDiffMap();
+	if (HasDifferences())
+	{
+		// Make a copy of the LinkerArchive for comparison in case it differs even in the second memory save
+		check(LinkerArchive);
+		FirstSaveLinkerData.Empty(LinkerArchive->TotalSize());
+		FirstSaveLinkerData.Append(LinkerArchive->GetData(), LinkerArchive->TotalSize());
+	}
 
 	LinkerCallstacks.Reset();
 	bFirstSaveComplete = true;
@@ -589,8 +596,30 @@ void FAccumulator::OnSecondSaveComplete(int64 InHeaderSize)
 	if (HeaderSize != InHeaderSize)
 	{
 		MessageCallback(ELogVerbosity::Error, FString::Printf(
-			TEXT("%s: Indeterministic header size. When saving the package twice into memory, first header size %d != second header size %d. Callstacks for indeterminism in the exports will be incorrect."),
+			TEXT("%s: Indeterministic header size. When saving the package twice into memory, first header size %d != second header size %d. Callstacks for indeterminism in the exports will be incorrect.")
+			TEXT("\n\tDumping differences from first and second memory saves."),
 			*this->Filename, HeaderSize, InHeaderSize));
+
+		check(bFirstSaveComplete);
+		check(FirstSaveLinkerData.Num() >= HeaderSize);
+		check(LinkerArchive && LinkerArchive->TotalSize() >= InHeaderSize);
+
+		FPackageData FirstSaveHeader{ FirstSaveLinkerData.GetData(), HeaderSize};
+		FPackageData SecondSaveHeader{ LinkerArchive->GetData(), InHeaderSize };
+		int32 NumHeaderDiffMessages = 0;
+		DumpPackageHeaderDiffs(Globals, FirstSaveHeader, SecondSaveHeader, Filename, MaxDiffsToLog,
+			PackageHeaderFormat,
+			[&NumHeaderDiffMessages, this](ELogVerbosity::Type Verbosity, FStringView Message)
+			{
+				MessageCallback(Verbosity, Message);
+				++NumHeaderDiffMessages;
+			});
+		if (NumHeaderDiffMessages == 0)
+		{
+			MessageCallback(ELogVerbosity::Warning, FString::Printf(
+				TEXT("%s: headers are different, but DumpPackageHeaderDiffs does not yet implement describing the difference."),
+				*Filename));
+		}
 	}
 
 	if (IsWriterUsingPostSaveTransforms())

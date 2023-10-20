@@ -280,6 +280,8 @@ private:
 	ICookedPackageWriter::FPreviousCookedBytesData PreviousPackageData;
 	FDiffArchive* LinkerArchive = nullptr;
 	FDiffArchive* ExportsArchive = nullptr;
+	TArray<uint8> FirstSaveLinkerData;
+	int64 FirstSaveLinkerSize = 0;
 	FAccumulatorGlobals& Globals;
 
 	FDiffMap DiffMap;
@@ -323,10 +325,7 @@ protected:
 };
 
 /**
- * The archive written to when SavePackage is writing the Serialize blobs for exports.
- * When cooking, exports are serialized into a separate archive. We collect the serialization
- * callstack offsets and stack traces are into a separate callstack collection and append it
- * at the proper offset to the overall callstacks for the entire linker archive.
+ * The archive written to by SavePackage, includes the header and exports.
  */
 class FDiffArchiveForLinker : public FDiffArchive
 {
@@ -338,6 +337,12 @@ public:
 	FORCENOINLINE virtual void Serialize(void* InData, int64 Num) override; // FORCENOINLINE so it can be counted during StackTrace
 };
 
+/**
+ * The archive written to when SavePackage is writing the Serialize blobs for exports.
+ * When cooking, exports are serialized into a separate archive. We collect the serialization
+ * callstack offsets and stack traces into a separate callstack collection and append it
+ * at the proper offset to the overall callstacks for the entire linker archive.
+ */
 class FDiffArchiveForExports : public FDiffArchive
 {
 public:
