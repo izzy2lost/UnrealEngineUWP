@@ -146,12 +146,14 @@ void FDistributionEndpoints::IssueEndpointRequests()
 					{
 						if (++ResolveRequest.RetryCount <= MaxAttempts)
 						{
-							Request->OnProcessRequestComplete().Unbind();
-							return IssueEndpointRequests();
+							FDistributionEndpoints* CachedPtr = this;
+							Request->OnProcessRequestComplete().Unbind(); // <- Invalidates the lambdas captures
+
+							return CachedPtr->IssueEndpointRequests();
 						}
 					}
 
-					CompleteEndpointRequest(ResolveRequest, Response);
+					this->CompleteEndpointRequest(ResolveRequest, Response);
 				});
 
 			ResolveRequest.HttpRequest = HttpRequest;
