@@ -27,7 +27,7 @@ FText FEditorSysConfigFeatureLastAccessTime::GetDisplayName() const
 FText FEditorSysConfigFeatureLastAccessTime::GetDisplayDescription() const
 {
 	return NSLOCTEXT("EditorSysConfigAssistant", "LastAccessTimeAssistantDescription",
-		"Last access time tracking is enabled on your system and this can slow down asset registry scans and other operations.  It is recommended that you disable last access time tracking system wide.");
+		"Last access time tracking is enabled on your system and this can slow down asset registry scans and other operations. It is recommended that you disable last access time tracking machine-wide. Previous versions of Windows have had this disabled by default.");
 }
 
 FGuid FEditorSysConfigFeatureLastAccessTime::GetVersion() const

@@ -65,7 +65,10 @@ void SEditorSysConfigAssistant::Construct(const FArguments& InArgs, const TShare
 					.AutoWrapText(true)
 					.Text_Lambda([this]()
 					{
-						return LOCTEXT("IssuesPreamble", "The list below shows system configuration issues that are impacting editor experience.  A button next to each item can be used to fix the configuration issue, or you can press the 'Apply All Changes' button to address all the identified issues.");
+						return LOCTEXT("IssuesPreamble", "The list below shows system configuration issues that are impacting editor experience.\n"
+							"These are machine and operating system issues that exist outside of the editor, and addressing them can have consequences to software outside of the editor."
+							" If you are uncertain about applying the changes or lack permission to make the changes, please discuss with your system administrator."
+							" A button next to each item can be used to fix the configuration issue, or you can press the 'Apply All Changes' button to address all the identified issues.");
 					})
 				]
 
