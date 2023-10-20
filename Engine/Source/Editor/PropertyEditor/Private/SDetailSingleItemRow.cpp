@@ -629,6 +629,25 @@ void SDetailSingleItemRow::Construct( const FArguments& InArgs, FDetailLayoutCus
 				ToolbarBuilder.AddToolBarButton(Extension.UIAction, NAME_None, Extension.Label, Extension.ToolTip, Extension.Icon);
 			}
 
+			FProperty* Property;
+			
+			if (GetPropertyNode().IsValid() &&
+				DetailsView &&
+				DetailsView->GetDisplayManager().IsValid())
+			{
+					
+				Property = GetPropertyNode()->GetProperty();
+				DisplayManager = DetailsView->GetDisplayManager();
+				PropertyUpdatedWidgetBuilder = DisplayManager->GetPropertyUpdatedWidget(
+					FExecuteAction::CreateSP(this, &SDetailSingleItemRow::OnResetToDefaultClicked));
+
+				if (PropertyUpdatedWidgetBuilder.IsValid())
+				{
+					TAttribute<bool> IsHovered = TAttribute<bool>::CreateSP( this, &SDetailSingleItemRow::IsHovered);
+					PropertyUpdatedWidgetBuilder->Bind_IsRowHovered(IsHovered);
+				}
+			}
+
 			Splitter->AddSlot()
 				.Value(ColumnSizeData.GetRightColumnWidth())
 				.OnSlotResized(ColumnSizeData.GetOnRightColumnResized())
@@ -641,6 +660,20 @@ void SDetailSingleItemRow::Construct( const FArguments& InArgs, FDetailLayoutCus
 				.VAlign(VAlign_Center)
 				.Padding(0)
 				[
+					PropertyUpdatedWidgetBuilder.IsValid() ?
+					PropertyUpdatedWidgetBuilder
+						->Bind_IsVisible(
+							TAttribute<EVisibility>::CreateLambda([this, Category, Property ]
+							{
+								const bool bIsResetVisible = IsResetToDefaultVisible();
+								const EVisibility Visibility = bIsResetVisible ? EVisibility::Visible : EVisibility::Collapsed;
+								if (DisplayManager.IsValid() && Category.IsValid() && Property)
+								{
+									DisplayManager->UpdatePropertyForCategory(Category->GetObjectName(), Property, bIsResetVisible);
+								}
+								return Visibility;
+							}))
+						.GenerateWidget().ToSharedRef()  :
 					ToolbarBuilder.MakeWidget()
 				]
 			];

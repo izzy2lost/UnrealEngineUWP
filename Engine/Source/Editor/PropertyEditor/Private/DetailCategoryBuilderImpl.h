@@ -214,6 +214,11 @@ public:
 	virtual FName GetNodeName() const override { return GetCategoryName(); }
 
 	/**
+	 * Returns the name of the object which populates this Category
+	 */
+	FName GetObjectName() const;
+
+	/**
 	 * Gets all generated children with options for ignoring current child visibility or advanced dropdowns
 	 */
 	void GetGeneratedChildren(FDetailNodeList& OutChildren, bool bIgnoreVisibility, bool bIgnoreAdvancedDropdown);

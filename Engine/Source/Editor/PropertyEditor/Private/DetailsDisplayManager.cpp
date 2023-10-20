@@ -73,6 +73,38 @@ FMargin FDetailsDisplayManager::GetTablePadding() const
 	return Style ? Style->GetTablePadding(bIsScrollBarNeeded) : 0;
 }
 
+void FDetailsDisplayManager::UpdatePropertyForCategory(FName InCategoryObjectName, FProperty* Property, bool bAddProperty)
+{
+	TSet<FProperty*> Set;
+	const TSet<FProperty*>* PropertySetPtr =  CategoryNameToUpdatePropertySetMap.Find(InCategoryObjectName);
+
+	if ( PropertySetPtr )
+	{
+		Set = *PropertySetPtr;
+	}
+
+	if ( bAddProperty )
+	{
+		Set.Add(Property );
+	}
+	else
+	{
+		Set.Remove( Property );
+	}
+	
+	CategoryNameToUpdatePropertySetMap.Emplace(InCategoryObjectName, Set);
+}
+
+bool FDetailsDisplayManager::GetCategoryHasAnyUpdatedProperties(FName InCategoryObjectName) const
+{
+	if ( const TSet<FProperty*>* PropertySetPtr =  CategoryNameToUpdatePropertySetMap.Find(InCategoryObjectName) )
+	{
+		TSet<FProperty*> Set = *PropertySetPtr;
+		return Set.Num() > 0;
+	}
+	return false;
+}
+
 bool FDetailsDisplayManager::ShowEmptyCategoryIfRootUObjectHasNoPropertyData(UObject* InNode) const
 {
 	return false;
@@ -116,6 +148,12 @@ bool FDetailsDisplayManager::AddEmptyCategoryToDetailLayoutIfNeeded(TSharedRef<F
 		}
 	}
 	return false;
+}
+
+TSharedPtr<FPropertyUpdatedWidgetBuilder> FDetailsDisplayManager::GetPropertyUpdatedWidget(FResetToDefault ResetToDefault,
+	bool bIsCategoryUpdateWidget)
+{
+	return nullptr;
 }
 
 bool FDetailsDisplayManager::GetIsScrollBarNeeded() const

@@ -1126,6 +1126,11 @@ void FDetailCategoryImpl::GetChildren(FDetailNodeList& OutChildren, const bool& 
 	GetGeneratedChildren(OutChildren, bInIgnoreVisibility, false);
 }
 
+FName FDetailCategoryImpl::GetObjectName() const
+{
+	return ObjectName;
+}
+
 void FDetailCategoryImpl::GetGeneratedChildren(FDetailNodeList& OutChildren, bool bIgnoreVisibility, bool bIgnoreAdvanced)
 {
 	for (TSharedRef<FDetailTreeNode>& Child : SimpleChildNodes)

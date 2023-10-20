@@ -65,6 +65,13 @@ public:
 	static const float ScrollBarPadding;
 
 protected:
+
+	/**
+	 * The FPropertyUpdatedWidgetBuilder which builds a Property Updated widget which can be used in place of the
+	 * reset to default button
+	 */
+	TSharedPtr<FPropertyUpdatedWidgetBuilder> PropertyUpdatedWidgetBuilder;
+	
 	/**
 	 * Called when the user opens the context menu on this row
 	 *

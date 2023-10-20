@@ -3,6 +3,7 @@
 
 #include "DetailsViewStyleKey.h"
 #include "Templates/SharedPointer.h"
+#include "UserInterface/Widgets/PropertyUpdatedWidgetBuilder.h"
 #include "Widgets/SWidget.h"
 
 DECLARE_DELEGATE(FOnDetailsNeedsUpdate)
@@ -16,6 +17,8 @@ class FDetailLayoutBuilderImpl;
 class FDetailsDisplayManager : public TSharedFromThis<FDetailsDisplayManager>
 {
 public:
+	DECLARE_DELEGATE(FResetToDefault);
+	
 	FOnDetailsNeedsUpdate OnDetailsNeedsUpdate;
 
 	PROPERTYEDITOR_API FDetailsDisplayManager();
@@ -104,6 +107,12 @@ public:
 	 */	
 	PROPERTYEDITOR_API virtual bool AddEmptyCategoryToDetailLayoutIfNeeded(TSharedRef<FComplexPropertyNode> Node, TSharedRef<FDetailLayoutBuilderImpl> DetailLayoutBuilder);
 
+	virtual TSharedPtr<FPropertyUpdatedWidgetBuilder> GetPropertyUpdatedWidget(FResetToDefault ResetToDefault, bool bIsCategoryUpdateWidget = false);
+
+	void UpdatePropertyForCategory(FName InCategoryObjectName, FProperty* Property, bool bAddProperty);
+
+	bool GetCategoryHasAnyUpdatedProperties(FName InCategoryObjectName) const;
+
 	/**
 	* Returns true if the specified UObject is a Root Node Object and should show an empty Category stub even if it
 	* has no UProperty Data, else it returns false
@@ -135,5 +144,8 @@ protected:
 	* here means that in this value the work has been done to figure out if the scrollbar should show 
 	 */
 	bool bIsScrollBarNeeded = false;
+
+	/** A map of category object name to a set of properties that has been updated for it */
+	TMap<FName, TSet<FProperty*>> CategoryNameToUpdatePropertySetMap;
 };
 

@@ -101,6 +101,15 @@ void SDetailCategoryTableRow::Construct(const FArguments& InArgs, TSharedRef<FDe
 	}
 
 	OwnerTableViewWeak = InOwnerTableView;
+	PropertyUpdatedWidgetBuilder = DisplayManager->GetPropertyUpdatedWidget(FExecuteAction::CreateLambda( [this]
+		{
+			UE_LOG(LogTemp, Warning, TEXT("DisplayManager->GetPropertyUpdatedWidget reset"));
+		}), true);
+	if (PropertyUpdatedWidgetBuilder.IsValid())
+	{
+		TAttribute<bool> IsHovered = TAttribute<bool>::CreateSP( this, &SDetailCategoryTableRow::IsHovered);
+		PropertyUpdatedWidgetBuilder->Bind_IsRowHovered(IsHovered);
+	}
 	
 	this->ChildSlot
 	[
@@ -137,18 +146,42 @@ void SDetailCategoryTableRow::Construct(const FArguments& InArgs, TSharedRef<FDe
 				return DetailsViewStyle ? DetailsViewStyle->GetCategoryButtonsMargin() : 0;
 			})
 			[
+
+			SNew(SHorizontalBox)
+			+SHorizontalBox::Slot()
+			.HAlign(HAlign_Left)
+			.VAlign(VAlign_Center)
+			.AutoWidth()
+			[
 			DisplayManager.IsValid() ?
-				*FCategoryMenuComboButtonBuilder( DisplayManager.ToSharedRef() )
-					.Set_OnGetContent(FOnGetContent::CreateLambda([this]
-					{
-						const TSharedPtr<SWidget> Menu = DisplayManager->GetCategoryMenu(ObjectName);
-						return Menu.IsValid() ? Menu.ToSharedRef() : SNullWidget::NullWidget;
-					}))
-					.Bind_IsVisible(TAttribute<EVisibility>::CreateLambda([this]
-					{
-						return IsHovered() ? EVisibility::Visible : EVisibility::Collapsed;
-					})) :
-					SNullWidget::NullWidget
+			*FCategoryMenuComboButtonBuilder( DisplayManager.ToSharedRef() )
+				.Set_OnGetContent(FOnGetContent::CreateLambda([this]
+				{
+					const TSharedPtr<SWidget> Menu = DisplayManager->GetCategoryMenu(ObjectName);
+					return Menu.IsValid() ? Menu.ToSharedRef() : SNullWidget::NullWidget;
+				}))
+				.Bind_IsVisible(TAttribute<EVisibility>::CreateLambda([this]
+				{
+					return IsHovered() ? EVisibility::Visible : EVisibility::Collapsed;
+				})) :
+				SNullWidget::NullWidget
+			]
+			+SHorizontalBox::Slot()
+			.HAlign(HAlign_Left)
+			.VAlign(VAlign_Center)
+			.AutoWidth()
+			[
+				PropertyUpdatedWidgetBuilder.IsValid() ?
+						PropertyUpdatedWidgetBuilder->Bind_IsVisible(TAttribute<EVisibility>::CreateLambda([this]
+							{
+								if (!DisplayManager->GetCategoryHasAnyUpdatedProperties(ObjectName))
+								{
+									return EVisibility::Collapsed;
+								}
+								return EVisibility::Visible;
+							})).GenerateWidget().ToSharedRef() :
+							SNullWidget::NullWidget
+			]
 			]
 			] 
 		]
