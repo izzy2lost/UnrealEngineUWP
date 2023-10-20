@@ -318,8 +318,6 @@ void URigHierarchy::Load(FArchive& Ar)
 		PreviousNameMap.Reset();
 		PreviousParentMap.Reset();
 	}
-
-	Notify(ERigHierarchyNotification::HierarchyReset, nullptr);
 }
 
 void URigHierarchy::PostLoad()
@@ -329,6 +327,8 @@ void URigHierarchy::PostLoad()
 	LLM_SCOPE_BYNAME(TEXT("Animation/ControlRig"));
 
 	CleanupInvalidCaches();
+
+	Notify(ERigHierarchyNotification::HierarchyReset, nullptr);
 }
 
 #if WITH_EDITORONLY_DATA
