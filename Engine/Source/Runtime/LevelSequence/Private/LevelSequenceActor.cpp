@@ -68,10 +68,12 @@ ALevelSequenceActor::ALevelSequenceActor(const FObjectInitializer& Init)
 	DefaultInstanceData = Init.CreateDefaultSubobject<UDefaultLevelSequenceInstanceData>(this, "InstanceData");
 
 	// SequencePlayer must be a default sub object for it to be replicated correctly
+PRAGMA_DISABLE_DEPRECATION_WARNINGS // make SequencePlayer protected and remove this for 5.6
 	SequencePlayer = Init.CreateDefaultSubobject<ULevelSequencePlayer>(this, "AnimationPlayer");
-	SequencePlayer->OnPlay.AddDynamic(this, &ALevelSequenceActor::ShowBurnin);
-	SequencePlayer->OnPlayReverse.AddDynamic(this, &ALevelSequenceActor::ShowBurnin);
-	SequencePlayer->OnStop.AddDynamic(this, &ALevelSequenceActor::HideBurnin);
+PRAGMA_ENABLE_DEPRECATION_WARNINGS // SequencePlayer
+	GetSequencePlayer()->OnPlay.AddDynamic(this, &ALevelSequenceActor::ShowBurnin);
+	GetSequencePlayer()->OnPlayReverse.AddDynamic(this, &ALevelSequenceActor::ShowBurnin);
+	GetSequencePlayer()->OnStop.AddDynamic(this, &ALevelSequenceActor::HideBurnin);
 	bOverrideInstanceData = false;
 
 	// The level sequence actor defaults to never ticking by the tick manager because it is ticked separately in LevelTick
@@ -90,15 +92,15 @@ void ALevelSequenceActor::PostInitProperties()
 
 	// Have to initialize this here as any properties set on default subobjects inside the constructor
 	// Get stomped by the CDO's properties when the constructor exits.
-	SequencePlayer->SetPlaybackClient(this);
-	SequencePlayer->SetPlaybackSettings(PlaybackSettings);
+	GetSequencePlayer()->SetPlaybackClient(this);
+	GetSequencePlayer()->SetPlaybackSettings(PlaybackSettings);
 }
 
 void ALevelSequenceActor::RewindForReplay()
 {
-	if (SequencePlayer)
+	if (GetSequencePlayer())
 	{
-		SequencePlayer->RewindForReplay();
+		GetSequencePlayer()->RewindForReplay();
 	}
 }
 
@@ -129,7 +131,9 @@ bool ALevelSequenceActor::GetIsReplicatedPlayback() const
 
 ULevelSequencePlayer* ALevelSequenceActor::GetSequencePlayer() const
 {
-	return SequencePlayer && SequencePlayer->GetSequence() ? SequencePlayer : nullptr;
+PRAGMA_DISABLE_DEPRECATION_WARNINGS // make SequencePlayer protected and remove this for 5.6
+	return SequencePlayer;
+PRAGMA_ENABLE_DEPRECATION_WARNINGS
 }
 
 void ALevelSequenceActor::SetReplicatePlayback(bool bInReplicatePlayback)
@@ -142,7 +146,9 @@ void ALevelSequenceActor::GetLifetimeReplicatedProps(TArray<FLifetimeProperty>& 
 {
 	Super::GetLifetimeReplicatedProps(OutLifetimeProps);
 
+PRAGMA_DISABLE_DEPRECATION_WARNINGS // make SequencePlayer protected and remove this for 5.6
 	DOREPLIFETIME(ALevelSequenceActor, SequencePlayer);
+PRAGMA_ENABLE_DEPRECATION_WARNINGS
 	DOREPLIFETIME(ALevelSequenceActor, LevelSequenceAsset);
 }
 
@@ -157,7 +163,7 @@ void ALevelSequenceActor::PostInitializeComponents()
 	
 	// Initialize this player for tick as soon as possible to ensure that a persistent
 	// reference to the tick manager is maintained
-	SequencePlayer->InitializeForTick(this);
+	GetSequencePlayer()->InitializeForTick(this);
 
 	InitializePlayer();
 }
@@ -166,33 +172,33 @@ void ALevelSequenceActor::BeginPlay()
 {
 	Super::BeginPlay();
 
-	if (SequencePlayer)
+	if (GetSequencePlayer())
 	{
-		AddReplicatedSubObject(SequencePlayer);
+		AddReplicatedSubObject(GetSequencePlayer());
 	}
 
 	if (PlaybackSettings.bAutoPlay)
 	{
-		SequencePlayer->Play();
+		GetSequencePlayer()->Play();
 	}
 }
 
 void ALevelSequenceActor::EndPlay(const EEndPlayReason::Type EndPlayReason)
 {
-	if (SequencePlayer)
+	if (GetSequencePlayer())
 	{
-		RemoveReplicatedSubObject(SequencePlayer);
+		RemoveReplicatedSubObject(GetSequencePlayer());
 
 		// Stop may modify a lot of actor state so it needs to be called
 		// during EndPlay (when Actors + World are still valid) instead
 		// of waiting for the UObject to be destroyed by GC.
-		SequencePlayer->Stop();
+		GetSequencePlayer()->Stop();
 
-		SequencePlayer->OnPlay.RemoveAll(this);
-		SequencePlayer->OnPlayReverse.RemoveAll(this);
-		SequencePlayer->OnStop.RemoveAll(this);
+		GetSequencePlayer()->OnPlay.RemoveAll(this);
+		GetSequencePlayer()->OnPlayReverse.RemoveAll(this);
+		GetSequencePlayer()->OnStop.RemoveAll(this);
 
-		SequencePlayer->TearDown();
+		GetSequencePlayer()->TearDown();
 	}
 
 	Super::EndPlay(EndPlayReason);
@@ -218,7 +224,7 @@ void ALevelSequenceActor::PostLoad()
 	}
 #endif
 
-	SequencePlayer->SetPlaybackSettings(PlaybackSettings);
+	GetSequencePlayer()->SetPlaybackSettings(PlaybackSettings);
 
 #if WITH_EDITORONLY_DATA
 	if (LevelSequence_DEPRECATED.IsValid())
@@ -267,14 +273,14 @@ ULevelSequence* ALevelSequenceActor::GetSequence() const
 
 void ALevelSequenceActor::SetSequence(ULevelSequence* InSequence)
 {
-	if (!SequencePlayer->IsPlaying())
+	if (!GetSequencePlayer()->IsPlaying())
 	{
 		LevelSequenceAsset = InSequence;
 
 		// cbb: should ideally null out the template and player when no sequence is assigned, but that's currently not possible
 		if (InSequence)
 		{
-			SequencePlayer->Initialize(InSequence, GetLevel(), CameraSettings);
+			GetSequencePlayer()->Initialize(InSequence, GetLevel(), CameraSettings);
 		}
 	}
 }
@@ -284,9 +290,9 @@ void ALevelSequenceActor::InitializePlayer()
 	if (LevelSequenceAsset && GetWorld()->IsGameWorld())
 	{
 		// Level sequence is already loaded. Initialize the player if it's not already initialized with this sequence
-		if (LevelSequenceAsset != SequencePlayer->GetSequence() || SequencePlayer->GetEvaluationTemplate().GetRunner() == nullptr)
+		if (LevelSequenceAsset != GetSequencePlayer()->GetSequence() || GetSequencePlayer()->GetEvaluationTemplate().GetRunner() == nullptr)
 		{
-			SequencePlayer->Initialize(LevelSequenceAsset, GetLevel(), CameraSettings);
+			GetSequencePlayer()->Initialize(LevelSequenceAsset, GetLevel(), CameraSettings);
 		}
 	}
 }
@@ -356,10 +362,10 @@ void ALevelSequenceActor::SetBinding(FMovieSceneObjectBindingID Binding, const T
 	else
 	{
 		BindingOverrides->SetBinding(Binding, TArray<UObject*>(Actors), bAllowBindingsFromAsset);
-		if (SequencePlayer)
+		if (GetSequencePlayer())
 		{
-			FMovieSceneSequenceID SequenceID = Binding.ResolveSequenceID(MovieSceneSequenceID::Root, *SequencePlayer);
-			SequencePlayer->State.Invalidate(Binding.GetGuid(), SequenceID);
+			FMovieSceneSequenceID SequenceID = Binding.ResolveSequenceID(MovieSceneSequenceID::Root, *GetSequencePlayer());
+			GetSequencePlayer()->State.Invalidate(Binding.GetGuid(), SequenceID);
 		}
 	}
 }
@@ -394,10 +400,10 @@ void ALevelSequenceActor::AddBinding(FMovieSceneObjectBindingID Binding, AActor*
 	else
 	{
 		BindingOverrides->AddBinding(Binding, Actor, bAllowBindingsFromAsset);
-		if (SequencePlayer)
+		if (GetSequencePlayer())
 		{
-			FMovieSceneSequenceID SequenceID = Binding.ResolveSequenceID(MovieSceneSequenceID::Root, *SequencePlayer);
-			SequencePlayer->State.Invalidate(Binding.GetGuid(), SequenceID);
+			FMovieSceneSequenceID SequenceID = Binding.ResolveSequenceID(MovieSceneSequenceID::Root, *GetSequencePlayer());
+			GetSequencePlayer()->State.Invalidate(Binding.GetGuid(), SequenceID);
 		}
 	}
 }
@@ -432,10 +438,10 @@ void ALevelSequenceActor::RemoveBinding(FMovieSceneObjectBindingID Binding, AAct
 	else
 	{
 		BindingOverrides->RemoveBinding(Binding, Actor);
-		if (SequencePlayer)
+		if (GetSequencePlayer())
 		{
-			FMovieSceneSequenceID SequenceID = Binding.ResolveSequenceID(MovieSceneSequenceID::Root, *SequencePlayer);
-			SequencePlayer->State.Invalidate(Binding.GetGuid(), SequenceID);
+			FMovieSceneSequenceID SequenceID = Binding.ResolveSequenceID(MovieSceneSequenceID::Root, *GetSequencePlayer());
+			GetSequencePlayer()->State.Invalidate(Binding.GetGuid(), SequenceID);
 		}
 	}
 }
@@ -470,10 +476,10 @@ void ALevelSequenceActor::ResetBinding(FMovieSceneObjectBindingID Binding)
 	else
 	{
 		BindingOverrides->ResetBinding(Binding);
-		if (SequencePlayer)
+		if (GetSequencePlayer())
 		{
-			FMovieSceneSequenceID SequenceID = Binding.ResolveSequenceID(MovieSceneSequenceID::Root, *SequencePlayer);
-			SequencePlayer->State.Invalidate(Binding.GetGuid(), SequenceID);
+			FMovieSceneSequenceID SequenceID = Binding.ResolveSequenceID(MovieSceneSequenceID::Root, *GetSequencePlayer());
+			GetSequencePlayer()->State.Invalidate(Binding.GetGuid(), SequenceID);
 		}
 	}
 }
@@ -481,26 +487,26 @@ void ALevelSequenceActor::ResetBinding(FMovieSceneObjectBindingID Binding)
 void ALevelSequenceActor::ResetBindings()
 {
 	BindingOverrides->ResetBindings();
-	if (SequencePlayer)
+	if (GetSequencePlayer())
 	{
-		SequencePlayer->State.ClearObjectCaches(*SequencePlayer);
+		GetSequencePlayer()->State.ClearObjectCaches(*GetSequencePlayer());
 	}
 }
 
 FMovieSceneObjectBindingID ALevelSequenceActor::FindNamedBinding(FName InBindingName) const
 {
-	if (ensureAlways(SequencePlayer))
+	if (ensureAlways(GetSequencePlayer()))
 	{
-		return SequencePlayer->GetSequence()->FindBindingByTag(InBindingName);
+		return GetSequencePlayer()->GetSequence()->FindBindingByTag(InBindingName);
 	}
 	return FMovieSceneObjectBindingID();
 }
 
 const TArray<FMovieSceneObjectBindingID>& ALevelSequenceActor::FindNamedBindings(FName InBindingName) const
 {
-	if (ensureAlways(SequencePlayer))
+	if (ensureAlways(GetSequencePlayer()))
 	{
-		return SequencePlayer->GetSequence()->FindBindingsByTag(InBindingName);
+		return GetSequencePlayer()->GetSequence()->FindBindingsByTag(InBindingName);
 	}
 
 	static TArray<FMovieSceneObjectBindingID> EmptyBindings;
@@ -511,7 +517,7 @@ void ALevelSequenceActor::PostNetReceive()
 {
 	Super::PostNetReceive();
 
-	if (LevelSequenceAsset && SequencePlayer && SequencePlayer->GetSequence() != LevelSequenceAsset)
+	if (LevelSequenceAsset && GetSequencePlayer() && GetSequencePlayer()->GetSequence() != LevelSequenceAsset)
 	{
 		InitializePlayer();
 	}

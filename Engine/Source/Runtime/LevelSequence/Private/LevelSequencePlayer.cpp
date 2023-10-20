@@ -69,7 +69,7 @@ ULevelSequencePlayer* ULevelSequencePlayer::CreateLevelSequencePlayer(UObject* W
 	ALevelSequenceActor* Actor = World->SpawnActor<ALevelSequenceActor>(SpawnParams);
 
 	Actor->PlaybackSettings = Settings;
-	Actor->SequencePlayer->SetPlaybackSettings(Settings);
+	Actor->GetSequencePlayer()->SetPlaybackSettings(Settings);
 
 	Actor->SetSequence(InLevelSequence);
 
@@ -79,7 +79,7 @@ ULevelSequencePlayer* ULevelSequencePlayer::CreateLevelSequencePlayer(UObject* W
 	FTransform DefaultTransform;
 	Actor->FinishSpawning(DefaultTransform);
 
-	return Actor->SequencePlayer;
+	return Actor->GetSequencePlayer();
 }
 
 /* ULevelSequencePlayer implementation
